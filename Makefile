@@ -11,4 +11,4 @@ Lam:	Lam.hs
 	ghc Lam.hs -o Lam
 
 clean:
-	rm -f *.hi *.o eval Lam
+	rm -f *.hi *.o eval Lam *.comb
