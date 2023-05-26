@@ -13,7 +13,7 @@
 
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
-enum node_mark { NOTMARKED, MARKED };
+enum node_mark { NOTMARKED, MARKED, SHARED, PRINTED }; /* SHARED, PRINTED only for printing */
 enum node_tag { FREE, IND, AP, INT, S, K, I, B, C, T, Y, SS, BB, CC, ADD, SUB, MUL, DIV, MOD, SUBR, EQ, NE, LT, LE, GT, GE };
 
 typedef int64_t value_t;
@@ -44,6 +44,7 @@ typedef struct node* NODEPTR;
 #define INDIR(p) FUN(p)
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
+#define LABEL(n) ((int)((n) - cells))
 node *cells;                 /* All cells */
 
 #elif defined(NODE_SPLIT)
@@ -64,6 +65,7 @@ typedef u_int32_t NODEPTR;
 #define INDIR(p) FUN(p)
 #define NODE_SIZE (sizeof(u_int8_t) + 2*sizeof(NODEPTR))
 #define ALLOC_HEAP(n) do { flagsmem = calloc(n, sizeof(u_int8_t)); funs = calloc(n, sizeof(NODEPTR)); args = calloc(n, sizeof(NODEPTR)); } while(0)
+#define LABEL(n) ((int)(n))
 u_int8_t *flagsmem;
 NODEPTR *funs;
 NODEPTR *args;
@@ -233,11 +235,32 @@ gobble(FILE *f, int c)
   }
 }
 
+NODEPTR *shared;
+
+int64_t
+parse_int(FILE *f)
+{
+  int64_t i = 0;
+  int c = getc(f);
+  for(;;) {
+    i = i * 10 + c - '0';
+    c = getc(f);
+    if (c < '0' || c > '9') {
+      ungetc(c, f);
+      break;
+    }
+  }
+  return i;
+}
+
 NODEPTR
 parse(FILE *f)
 {
   NODEPTR r;
+  int l;
+  value_t i;
   int c = getc(f);
+
   if (c < 0) ERR("parse EOF");
   switch (c) {
   case 'S' : return gobble(f, '\'') ? combSS : combS;
@@ -250,21 +273,14 @@ parse(FILE *f)
   case '(' :
     r = alloc_node(AP);
     FUN(r) = parse(f);
-    if (getc(f) != ' ') ERR("parse ' '");
+    if (!gobble(f, ' ')) ERR("parse ' '");
     ARG(r) = parse(f);
-    if (getc(f) != ')') ERR("parse ')'");
+    if (!gobble(f, ')')) ERR("parse ')'");
     return r;
   case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
+    ungetc(c, f);
+    i = parse_int(f);
     r = alloc_node(INT);
-    value_t i = 0;
-    for(;;) {
-      i = i * 10 + c - '0';
-      c = getc(f);
-      if (c < '0' || c > '9') {
-        ungetc(c, f);
-        break;
-      }
-    }
     SETVALUE(r, i);
     return r;
   case '+' : return primADD;
@@ -273,18 +289,49 @@ parse(FILE *f)
   case '/' : return primDIV;
   case '%' : return primMOD;
   case '=' : return primEQ;
-  case '!' : if(gobble(f, '=')) return primEQ; else ERR("parse !");
+  case '!' : if(gobble(f, '=')) return primNE; else ERR("parse !");
   case '<' : return gobble(f, '=') ? primLE : primLT;
   case '>' : return gobble(f, '=') ? primGE : primGT;
+  case '_' :
+    l = (int)parse_int(f);  /* The label */
+    if (shared[l] == NIL) ERR("shared == NIL");
+    return shared[l];
+  case ':' :
+    l = (int)parse_int(f);  /* The label */
+    if (!gobble(f, ' ')) ERR("parse ' '");
+    if (shared[l] != NIL) ERR("shared != NIL");
+    shared[l] = alloc_node(IND); /* Must have a placeholder for cycles */
+    r = parse(f);
+    INDIR(shared[l]) = r;
+    return r;
   default:
     fprintf(stderr, "parse '%c'\n", c);
     ERR("parse default");
   }
 }
 
+NODEPTR
+parse_top(FILE *f)
+{
+  shared = malloc(heap_size * sizeof(NODEPTR));
+  for(int i = 0; i < heap_size; i++)
+    shared[i] = NIL;
+  NODEPTR n = parse(f);
+  free(shared);
+  return n;
+}
+
 void
 print(FILE *f, NODEPTR n)
 {
+  if (MARK(n) == PRINTED) {
+    fprintf(f, "_%d", LABEL(n));
+    return;
+  } else if (MARK(n) == SHARED) {
+    fprintf(f, ":%d ", LABEL(n));
+    MARK(n) = PRINTED;
+  }
+
   switch (TAG(n)) {
   case IND: print(f, INDIR(n)); break;
   case AP:
@@ -322,10 +369,42 @@ print(FILE *f, NODEPTR n)
 }
 
 void
+find_sharing(NODEPTR n)
+{
+  while (TAG(n) == IND)
+    n = INDIR(n);
+  if (TAG(n) == AP) {
+    if (MARK(n) == MARKED) {
+      MARK(n) = SHARED;
+    } else {
+      MARK(n) = MARKED;
+      find_sharing(FUN(n));
+      find_sharing(ARG(n));
+    }
+  }
+}
+
+void
+clear_sharing(NODEPTR n)
+{
+  while (TAG(n) == IND)
+    n = INDIR(n);
+  if (MARK(n) == NOTMARKED)
+    return;
+  if (TAG(n) == AP) {
+    MARK(n) = NOTMARKED;
+    clear_sharing(FUN(n));
+    clear_sharing(ARG(n));
+  }
+}
+
+void
 pp(FILE *f, NODEPTR n)
 {
+  find_sharing(n);
   print(f, n);
   fprintf(f, "\n");
+  clear_sharing(n);
 }
 
 void eval(NODEPTR n);
@@ -534,7 +613,7 @@ main(int argc, char **argv)
   FILE *f = fopen(argv[1], "r");
   if (!f)
     ERR("file not found");
-  NODEPTR n = parse(f);
+  NODEPTR n = parse_top(f);
   fclose(f);
   pp(stdout, n);
   n = evali(n);
