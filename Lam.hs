@@ -113,13 +113,6 @@ improveC (App f a) =
     (App CS (App2 CB e1 e2), e3)        -> improve (App3 CS' e1 e2 e3)
     (App CC (App2 CB e1 e2), e3)        -> improve (App3 CC' e1 e2 e3)
 --    (CK,                     CI)        -> CT
-    (e1,                     e2)        -> App e1 e2
-improveC e = e
-
-improveT :: Exp -> Exp
-improveT (App f a) =
-  case (improve f, improve a) of
-    (CK,                     CI)        -> CT
     -- flip arguments to commutative ops
     (CC,                     Prim "+")  -> Prim "+"
     (CC,                     Prim "*")  -> Prim "*"
@@ -131,6 +124,13 @@ improveT (App f a) =
     (CC,                     Prim ">")  -> Prim "<"
     (CC,                     Prim "<=") -> Prim ">="
     (CC,                     Prim ">=") -> Prim "<="
+    (e1,                     e2)        -> App e1 e2
+improveC e = e
+
+improveT :: Exp -> Exp
+improveT (App f a) =
+  case (improve f, improve a) of
+    (CK,                     CI)        -> CT
     (e1,                     e2)        -> App e1 e2
 improveT e = e
 
