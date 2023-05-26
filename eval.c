@@ -283,43 +283,49 @@ parse(FILE *f)
 }
 
 void
-pretty(NODEPTR n)
+print(FILE *f, NODEPTR n)
 {
   switch (TAG(n)) {
-  case IND: pretty(INDIR(n)); break;
-  case AP: putchar('('); pretty(FUN(n)); putchar(' '); pretty(ARG(n)); putchar(')'); break;
-  case INT: printf("%ld", GETVALUE(n)); break;
-  case S: printf("S"); break;
-  case K: printf("K"); break;
-  case I: printf("I"); break;
-  case C: printf("C"); break;
-  case B: printf("B"); break;
-  case T: printf("T"); break;
-  case Y: printf("Y"); break;
-  case SS: printf("S'"); break;
-  case BB: printf("B'"); break;
-  case CC: printf("C'"); break;
-  case ADD: printf("+"); break;
-  case SUB: printf("-"); break;
-  case MUL: printf("*"); break;
-  case DIV: printf("/"); break;
-  case MOD: printf("%%"); break;
-  case SUBR: printf("-'"); break;
-  case EQ: printf("="); break;
-  case NE: printf("!="); break;
-  case LT: printf("<"); break;
-  case LE: printf("<="); break;
-  case GT: printf(">"); break;
-  case GE: printf(">="); break;
-  default: ERR("pretty tag");
+  case IND: print(f, INDIR(n)); break;
+  case AP:
+    fputc('(', f);
+    print(f, FUN(n));
+    fputc(' ', f);
+    print(f, ARG(n));
+    fputc(')', f);
+    break;
+  case INT: fprintf(f, "%ld", GETVALUE(n)); break;
+  case S: fprintf(f, "S"); break;
+  case K: fprintf(f, "K"); break;
+  case I: fprintf(f, "I"); break;
+  case C: fprintf(f, "C"); break;
+  case B: fprintf(f, "B"); break;
+  case T: fprintf(f, "T"); break;
+  case Y: fprintf(f, "Y"); break;
+  case SS: fprintf(f, "S'"); break;
+  case BB: fprintf(f, "B'"); break;
+  case CC: fprintf(f, "C'"); break;
+  case ADD: fprintf(f, "+"); break;
+  case SUB: fprintf(f, "-"); break;
+  case MUL: fprintf(f, "*"); break;
+  case DIV: fprintf(f, "/"); break;
+  case MOD: fprintf(f, "%%"); break;
+  case SUBR: fprintf(f, "-'"); break;
+  case EQ: fprintf(f, "="); break;
+  case NE: fprintf(f, "!="); break;
+  case LT: fprintf(f, "<"); break;
+  case LE: fprintf(f, "<="); break;
+  case GT: fprintf(f, ">"); break;
+  case GE: fprintf(f, ">="); break;
+  default: ERR("print tag");
   }
 }
 
 void
-pp(NODEPTR n)
+pp(FILE *f, NODEPTR n)
 {
-  pretty(n);
-  printf("\n");
+  print(f, n);
+  fprintf(f, "\n");
 }
 
 void eval(NODEPTR n);
@@ -530,9 +536,9 @@ main(int argc, char **argv)
     ERR("file not found");
   NODEPTR n = parse(f);
   fclose(f);
-  pp(n);
+  pp(stdout, n);
   n = evali(n);
-  pp(n);
+  pp(stdout, n);
   printf("node size=%ld, heap size=%ld\n", NODE_SIZE, heap_size); //exit(0);
   printf("%d reductions, %d GCs\n", num_reductions, num_gc);
   exit(0);
