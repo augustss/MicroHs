@@ -1,45 +1,11 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
-import Data.List
-type Ident = String
-
-main :: IO ()
-main = do
-{-
-  let c1 = compile e1
-      c1' = improve c1
-      r1' = reduce (App c1 (Var "k"))
-      r1'' = reduce (App c1 (Int 5))
-  pp e1
-  pp c1
-  pp c1'
-  pp r1'
-  pp r1''
-  pp $ reduce (App c1' (Int 6))
-  let c2 = compile e2
-      c2' = improve c2
-  pp e2
-  pp c2
-  pp c2'
-  pp $ reduce $ App2 c2 (Int 2) (Int 10)
-  pp $ App2 c2' (Int 2) (Int 10)
-  pp $ reduce $ App2 c2' (Int 2) (Int 10)
-  pp $ reduce $ App2 c2' (Var "x") (Var "y")
-  pp $ improve $ compile e3
-  pp $ improve $ compile $ App (Lam "x" (App2 (Var "x") (Int 10) (Int 2))) (Prim "-")
--}
-  putStrLn $ toStringP $ eNfib `App` 35
+module Exp where
+--import Data.List
+import Parse(Ident)
 
 pp :: Exp -> IO ()
 pp = putStrLn . toString
-
-e1 :: Exp
-e1 = Lam "x" $ App2 (Prim "+") (Var "x") (Var "x")
-e2 :: Exp
-e2 = Lam "x" $ Lam "y" $ App2 (Prim "-") (Var "y") (Var "x")
-e3 :: Exp
-e3 = Lam "x" $ Lam "y" $ Var "y"
-
 
 data Exp
   = Var Ident
@@ -112,6 +78,8 @@ improveC (App f a) =
     (App CS         e1,      App CK e2) -> improve (App2 CC e1 e2)
     (App CS (App2 CB e1 e2), e3)        -> improve (App3 CS' e1 e2 e3)
     (App CC (App2 CB e1 e2), e3)        -> improve (App3 CC' e1 e2 e3)
+    (App CB CC,              App CC CI) -> Comb "P"
+    (App CB (App CB CK),     Comb "P")  -> Comb "O"
 --    (CK,                     CI)        -> CT
     -- flip arguments to commutative ops
     (CC,                     Prim "+")  -> Prim "+"
@@ -171,63 +139,3 @@ binOps = [
     arith f s (Int x) (Int y) = Int (x `f` y)
     arith _ s x y = App2 (Prim s) x y
 --    arith _ x y = error $ "arith: " ++ show (x, y)
-    
-
--------------------
-
-instance Num Exp where
-  x + y = App2 (Prim "+") x y
-  x - y = App2 (Prim "-") x y
-  x * y = App2 (Prim "*") x y
-  fromInteger = Int
-  signum x = iF (x .< 0) (-1) (iF (0 .< x) 1 0)
-  abs x = iF (x .< 0) (-x) x
-
-iF :: Exp -> Exp -> Exp -> Exp
-iF c t e = App2 c e t
-
-(.==), (.<) :: Exp -> Exp -> Exp
-x .== y = App2 (Prim "=") x y
-x .< y = App2 (Prim "<") x y
-
-fix :: Exp -> Exp
-fix e = App CY e
-
-allVars :: Exp -> [Ident]
-allVars (Var x) = [x]
-allVars (App f a) = union (allVars f) (allVars a)
-allVars (Lam x e) = union [x] (allVars e)
-allVars _ = []
-
-class ToLam e where
-  toLam :: e -> Exp
-
-instance ToLam Exp where
-  toLam e = e
-
-instance (ToLam e, a ~ Exp) => ToLam (a -> e) where
-  toLam f =
-    let vs = allVars $ toLam $ f (Int 0)
-        v = head $ (["x","y","z"] ++ ["v" ++ show i | i <- [1..]]) \\ vs
-    in  Lam v $ toLam $ f (Var v)
-
-infixl 9 $$
-($$) :: (ToLam e1, ToLam e2) => e1 -> e2 -> Exp
-e1 $$ e2 = App (toLam e1) (toLam e2)
-
-comp :: (ToLam e) => e -> Exp
-comp = improve . compile . toLam
-
-eFac = fix $ comp $ \ fac n -> iF (n .== 0) 1 (n * fac $$ (n - 1))
-
-yC = comp $ \ f -> (\ x -> f $$ (x $$ x)) $$ (\ x -> f $$ (x $$ x))
-
-eNfib = fix $ comp $ \ nfib n -> iF (n .< 2) 1 (nfib $$ (n-1) + nfib $$ (n-2) + 1)
-
-tst = App CC' CS
-
-eExpt = fix $ comp $ \ expt n x -> iF (n .== 0) 1 (x * expt $$ (n - 1) $$ x)
-
-pair x y f = f $$ x $$ y
-
-cons x y n c = c $$ x $$ y
