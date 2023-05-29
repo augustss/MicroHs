@@ -78,8 +78,10 @@ improveC (App f a) =
     (App CS         e1,      App CK e2) -> improve (App2 CC e1 e2)
     (App CS (App2 CB e1 e2), e3)        -> improve (App3 CS' e1 e2 e3)
     (App CC (App2 CB e1 e2), e3)        -> improve (App3 CC' e1 e2 e3)
-    (App CB CC,              App CC CI) -> Comb "P"
-    (App CB (App CB CK),     Comb "P")  -> Comb "O"
+    -- Pair
+--    (App CB CC,              App CC CI) -> Comb "P"
+    -- Cons
+--    (App CB (App CB CK),     Comb "P")  -> Comb "O"
 --    (CK,                     CI)        -> CT
     -- flip arguments to commutative ops
     (CC,                     Prim "+")  -> Prim "+"
@@ -122,6 +124,8 @@ redOne (App3 CC f g x) = Just $ App (App f x)      g
 redOne (App4 CS' k f g x) = Just $ App2 k (App f x) (App g x)
 redOne (App4 CB' k f g x) = Just $ App2 k      f    (App g x)
 redOne (App4 CC' k f g x) = Just $ App2 k (App f x)      g
+redOne (App3 (Comb "P") x1 x2 f) = Just $ App2 f x1 x2
+redOne (App4 (Comb "O") x1 x2 f1 f2 = Just $ App2 f2 x1 x2
 redOne e@(App2 (Prim p) x y) | Just op <- lookup p binOps,
                                let e' = op p (reduce x) (reduce y),
                                e' /= e = Just e'
