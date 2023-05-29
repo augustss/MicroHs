@@ -4,9 +4,10 @@
 
 /* Node representation:
  * NODE_NAIVE   all fields in a struct, regular pointers
+ * NODE_INDEX   use 32 bit indices instead of pointers
  * NODE_SPLIT   split flags, funs, and args
  */
-#define NODE_NAIVE
+#define NODE_INDEX
 
 #define HEAP_CELLS 100000
 #define STACK_SIZE 10000
@@ -45,6 +46,35 @@ typedef struct node* NODEPTR;
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) ((int)((n) - cells))
+node *cells;                 /* All cells */
+
+#elif defined(NODE_INDEX)
+/* Naive node representation with minimal unions */
+typedef u_int32_t NODEPTR;
+typedef struct node {
+  enum node_mark mark;
+  enum node_tag tag;
+  union {
+    value_t value;
+    struct {
+      NODEPTR fun;
+      NODEPTR arg;
+    } s;
+  } u;
+} node;
+#define NIL (-1)
+#define HEAPREF(i) (i)
+#define MARK(p) cells[p].mark
+#define TAG(p) cells[p].tag
+#define GETVALUE(p) cells[p].u.value
+#define SETVALUE(p,v) cells[p].u.value = v
+#define FUN(p) cells[p].u.s.fun
+#define ARG(p) cells[p].u.s.arg
+#define NEXT(p) FUN(p)
+#define INDIR(p) FUN(p)
+#define NODE_SIZE sizeof(node)
+#define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
+#define LABEL(n) (n)
 node *cells;                 /* All cells */
 
 #elif defined(NODE_SPLIT)
