@@ -159,6 +159,12 @@ pOper = do
   guard $ s `notElem` ["=", "|"]
   pure s
 
+pOpers :: [String] -> P String
+pOpers ops = do
+  op <- pOper
+  guard (op `elem` ops)
+  pure op
+
 pSym :: Char -> P ()
 pSym c = () <$ (skipWhite $ char c)
 
@@ -194,9 +200,47 @@ pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword' "of" *> pBlock pArm)
 pLet :: P Expr
 pLet = ELet <$> (pKeyword' "let" *> pBlock pDef) <*> (pKeyword "in" *> pExpr)
 
+pExprOp :: P Expr
+pExprOp = pA
+  where
+    pA = pRightAssoc (pOpers ["$"]) pB
+    pB = pRightAssoc (pOpers ["||"]) pC
+    pC = pRightAssoc (pOpers ["&&"]) pD
+    pD = pNonAssoc (pOpers ["==", "/=", "<", "<=", ">", ">="]) pE
+    pE = pLeftAssoc (pOpers ["+", "-"]) pF
+    pF = pLeftAssoc (pOpers ["*", "quot", "rem"]) pG
+    pG = pExprApp
+
+appOp :: String -> Expr -> Expr -> Expr
+appOp op e1 e2 = EApp (EApp (EVar op) e1) e2
+
+pRightAssoc :: P String -> P Expr -> P Expr
+pRightAssoc pOp p = do
+  e1 <- p
+  let rest = do
+        op <- pOp
+        e2 <- pRightAssoc pOp p
+        pure $ appOp op e1 e2
+  rest <|< pure e1
+
+pNonAssoc :: P String -> P Expr -> P Expr
+pNonAssoc pOp p = do
+  e1 <- p
+  let rest = do
+        op <- pOp
+        e2 <- p
+        pure $ appOp op e1 e2
+  rest <|< pure e1
+
+pLeftAssoc :: P String -> P Expr -> P Expr
+pLeftAssoc pOp p = do
+  e1 <- p
+  es <- emany ((,) <$> pOp <*> p)
+  pure $ foldl (\ x (op, y) -> appOp op x y) e1 es
+
 pExpr :: P Expr
 pExpr =
-  pExprApp <|> pLam <|> pCase <|> pLet
+  pExprOp <|> pLam <|> pCase <|> pLet
 
 pLCurl :: P ()
 pLCurl = pSym '{' <|< softLC
