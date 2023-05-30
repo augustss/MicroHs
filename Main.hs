@@ -19,6 +19,7 @@ primOps =
   , (">=",    Prim ">=")
   , ("==",    Prim "==")
   , ("/=",    Prim "!=")
+  , (":",     Comb "O")
   ]
 
 main :: IO ()

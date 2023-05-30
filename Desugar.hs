@@ -36,3 +36,5 @@ dsExpr (ELet ds e) =
       e' = dsExpr e
       def (i, d) e = App (Lam i e) d
   in  foldr def e' ds'
+dsExpr (EList es) =
+  foldr (App2 CO) CK $ map dsExpr es

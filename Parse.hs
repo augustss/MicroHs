@@ -19,7 +19,7 @@ type Ident = String
 data Def = Data LHS [Constr] | Fcn LHS Expr | Sign Ident Type
   deriving (Show)
 
-data Expr = EVar Ident | EApp Expr Expr | ELam Ident Expr | EInt Integer | ECase Expr [(LHS, Expr)] | ELet [Def] Expr
+data Expr = EVar Ident | EApp Expr Expr | ELam Ident Expr | EInt Integer | ECase Expr [(LHS, Expr)] | ELet [Def] Expr | EList [Expr]
   deriving (Show)
 
 data Module = Module Ident [Def]
@@ -120,11 +120,14 @@ pKeyword' kw = (skipWhite' $ do
   pure ()
   ) <?> kw
 
-pLIdent :: P String
-pLIdent = skipWhite $ do
+pLIdentA :: P String
+pLIdentA = skipWhite $ do
   s <- (:) <$> (satisfy "lower case" (\ c -> 'a' <= c && c <= 'z')) <*> pIdentRest
   guard $ s `notElem` keywords
   pure s
+
+pLIdent :: P String
+pLIdent = pLIdentA <|> (pSym '(' *> pOper <* pSym ')')
 
 pLIdent_ :: P String
 pLIdent_ = pLIdent <|> skipWhite (string "_")
@@ -192,7 +195,7 @@ pAExpr =
   <|> (EVar <$> pUIdent)
   <|> (EInt <$> pInt)
   <|> (eTuple <$> (pSym '(' *> esepBy pExpr (pSym ',') <* pSym ')'))
-  <|> (EVar <$> (pSym '(' *> pOper <* pSym ')'))
+  <|> (EList <$> (pSym '[' *> esepBy pExpr (pSym ',') <* pSym ']'))
 
 eTuple :: [Expr] -> Expr
 eTuple [] = ELam "_x" (EVar "_x")    -- encoding of ()
@@ -211,10 +214,17 @@ pLam = ELam <$> (pSymbol "\\" *> pLIdent_) <*> (pSymbol "." *> pExpr)
 pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword' "of" *> pBlock pArm)
   where pArm = (,) <$> (pPat <* pSymbol "->") <*> pExpr
-        pPat = pLHS pUIdent <|> (tuple =<< (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
-        tuple [] = pure ("()", [])
-        tuple [_] = fail ","
-        tuple vs = pure (tail (map (const ',') vs), vs)
+
+pPat :: P LHS
+pPat =
+      pLHS pUIdent
+  <|> (tuple =<< (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
+  <|> (("[]", []) <$ (pSym '[' <* pSym ']'))
+  <|> ((\ x y -> (":", [x,y])) <$> (pLIdent_ <* pSym ':') <*> pLIdent_)
+  where
+    tuple [] = pure ("()", [])
+    tuple [_] = fail ","
+    tuple vs = pure (tail (map (const ',') vs), vs)
 
 pLet :: P Expr
 pLet = ELet <$> (pKeyword' "let" *> pBlock pDef) <*> (pKeyword "in" *> pExpr)
