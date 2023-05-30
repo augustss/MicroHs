@@ -4,6 +4,7 @@ module Parse(
   Ident,
   Def(..),
   Expr(..),
+  Pat(..),
   Module(..),
   ) where
 import Control.Monad
@@ -19,7 +20,21 @@ type Ident = String
 data Def = Data LHS [Constr] | Fcn LHS Expr | Sign Ident Type
   deriving (Show)
 
-data Expr = EVar Ident | EApp Expr Expr | ELam Ident Expr | EInt Integer | ECase Expr [(LHS, Expr)] | ELet [Def] Expr | EList [Expr]
+data Expr
+  = EVar Ident
+  | EApp Expr Expr
+  | ELam Ident Expr
+  | EInt Integer
+  | EChar Char
+  | ECase Expr [(Pat, Expr)]
+  | ELet [Def] Expr
+  | ETuple [Expr]
+  | EList [Expr]
+  deriving (Show)
+
+data Pat
+  = PConstr Ident [Ident]
+  | PTuple [Ident]
   deriving (Show)
 
 data Module = Module Ident [Def]
@@ -194,13 +209,8 @@ pAExpr =
       (EVar <$> pLIdent)
   <|> (EVar <$> pUIdent)
   <|> (EInt <$> pInt)
-  <|> (eTuple <$> (pSym '(' *> esepBy pExpr (pSym ',') <* pSym ')'))
+  <|> (ETuple <$> (pSym '(' *> esepBy pExpr (pSym ',') <* pSym ')'))
   <|> (EList <$> (pSym '[' *> esepBy pExpr (pSym ',') <* pSym ']'))
-
-eTuple :: [Expr] -> Expr
-eTuple [] = ELam "_x" (EVar "_x")    -- encoding of ()
-eTuple [e] = e
-eTuple es = ELam "_f" $ foldl EApp (EVar "_f") es
 
 pExprApp :: P Expr
 pExprApp = do
@@ -215,16 +225,12 @@ pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword' "of" *> pBlock pArm)
   where pArm = (,) <$> (pPat <* pSymbol "->") <*> pExpr
 
-pPat :: P LHS
+pPat :: P Pat
 pPat =
-      pLHS pUIdent
-  <|> (tuple =<< (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
-  <|> (("[]", []) <$ (pSym '[' <* pSym ']'))
-  <|> ((\ x y -> (":", [x,y])) <$> (pLIdent_ <* pSym ':') <*> pLIdent_)
-  where
-    tuple [] = pure ("()", [])
-    tuple [_] = fail ","
-    tuple vs = pure (tail (map (const ',') vs), vs)
+      ((uncurry PConstr) <$> pLHS pUIdent)
+  <|> (PTuple <$> (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
+  <|> (PConstr "[]" [] <$ (pSym '[' <* pSym ']'))
+  <|> ((\ x y -> PConstr ":" [x,y]) <$> (pLIdent_ <* pSym ':') <*> pLIdent_)
 
 pLet :: P Expr
 pLet = ELet <$> (pKeyword' "let" *> pBlock pDef) <*> (pKeyword "in" *> pExpr)

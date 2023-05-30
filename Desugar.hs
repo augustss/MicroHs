@@ -29,7 +29,9 @@ dsExpr (EApp f a) = App (dsExpr f) (dsExpr a)
 dsExpr (ELam x e) = Lam x (dsExpr e)
 dsExpr (EInt i) = Int i
 dsExpr (ECase e as) = apps (dsExpr e) (map dsArm as)
-  where dsArm ((_, xs), r) = lams xs $ dsExpr r
+  where dsArm (PConstr _ vs, r) = lams vs $ dsExpr r
+        dsArm (PTuple [_], _) = error "dsExpr: singleton tuple"
+        dsArm (PTuple vs, r) = lams vs $ dsExpr r
 -- For now, just sequential bindings.
 dsExpr (ELet ds e) =
   let ds' = concatMap dsDef ds
@@ -38,3 +40,6 @@ dsExpr (ELet ds e) =
   in  foldr def e' ds'
 dsExpr (EList es) =
   foldr (App2 CO) CK $ map dsExpr es
+dsExpr (ETuple []) = Lam "_x" (Var "_x")    -- encoding of ()
+dsExpr (ETuple [e]) = dsExpr e
+dsExpr (ETuple es) = Lam "_f" $ foldl App (Var "_f") $ map dsExpr es
