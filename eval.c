@@ -15,7 +15,8 @@
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_mark { NOTMARKED, MARKED, SHARED, PRINTED }; /* SHARED, PRINTED only for printing */
-enum node_tag { FREE, IND, AP, INT, S, K, I, B, C, T, Y, SS, BB, CC, ADD, SUB, MUL, DIV, MOD, SUBR, EQ, NE, LT, LE, GT, GE };
+enum node_tag { FREE, IND, AP, INT, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
+                ADD, SUB, MUL, DIV, MOD, SUBR, EQ, NE, LT, LE, GT, GE, ERROR };
 
 typedef int64_t value_t;
 
@@ -160,8 +161,8 @@ new_ap(NODEPTR f, NODEPTR a)
   return n;
 }
 
-NODEPTR combS, combK, combI, combC, combB, combT, combY, combSS, combCC, combBB;
-NODEPTR primADD, primSUB, primMUL, primDIV, primMOD, primSUBR, primEQ, primNE, primLT, primLE, primGT, primGE;
+NODEPTR combS, combK, combI, combC, combB, combT, combY, combSS, combCC, combBB, combP, combO;
+NODEPTR primADD, primSUB, primMUL, primDIV, primMOD, primSUBR, primEQ, primNE, primLT, primLE, primGT, primGE, primERROR;
 
 void
 init_nodes(void)
@@ -173,8 +174,10 @@ init_nodes(void)
 #define COMB(x) TAG(comb##x = HEAPREF(heap_start++)) = x
 #define PRIM(x) TAG(prim##x = HEAPREF(heap_start++)) = x
   COMB(S); COMB(K); COMB(I); COMB(B); COMB(C); COMB(T); COMB(Y); COMB(SS); COMB(CC); COMB(BB);
+  COMB(P); COMB(O);
   PRIM(ADD); PRIM(SUB); PRIM(MUL); PRIM(DIV); PRIM(MOD); PRIM(SUBR);
   PRIM(EQ); PRIM(NE); PRIM(LT); PRIM(LE); PRIM(GT); PRIM(GE);
+  PRIM(ERROR);
 
   /* Set up free list */
   next_free = NIL;
@@ -300,6 +303,8 @@ parse(FILE *f)
   case 'B' : return gobble(f, '\'') ? combBB : combB;
   case 'T' : return combT;
   case 'Y' : return combY;
+  case 'P' : return combP;
+  case 'O' : return combO;
   case '(' :
     r = alloc_node(AP);
     FUN(r) = parse(f);
@@ -318,10 +323,11 @@ parse(FILE *f)
   case '*' : return primMUL;
   case '/' : return primDIV;
   case '%' : return primMOD;
-  case '=' : return primEQ;
+  case '=' : if(gobble(f, '=')) return primEQ; else ERR("parse !");
   case '!' : if(gobble(f, '=')) return primNE; else ERR("parse !");
   case '<' : return gobble(f, '=') ? primLE : primLT;
   case '>' : return gobble(f, '=') ? primGE : primGT;
+  case '?' : return primERROR;
   case '_' :
     l = (int)parse_int(f);  /* The label */
     if (shared[l] == NIL) ERR("shared == NIL");
@@ -379,6 +385,8 @@ print(FILE *f, NODEPTR n)
   case B: fprintf(f, "B"); break;
   case T: fprintf(f, "T"); break;
   case Y: fprintf(f, "Y"); break;
+  case P: fprintf(f, "P"); break;
+  case O: fprintf(f, "O"); break;
   case SS: fprintf(f, "S'"); break;
   case BB: fprintf(f, "B'"); break;
   case CC: fprintf(f, "C'"); break;
@@ -394,6 +402,7 @@ print(FILE *f, NODEPTR n)
   case LE: fprintf(f, "<="); break;
   case GT: fprintf(f, ">"); break;
   case GE: fprintf(f, ">="); break;
+  case ERROR: fprintf(f, "error"); break;
   default: ERR("print tag");
   }
 }
@@ -467,7 +476,7 @@ void
 eval(NODEPTR n)
 {
   int64_t stk = stack_ptr;
-  NODEPTR f, g, x, k;
+  NODEPTR f, g, x, k, y;
   int r;
   
 #define RET do { stack_ptr = stk; return; } while(0)
@@ -587,6 +596,28 @@ eval(NODEPTR n)
       ARG(n) = g;
       GOTO ap;
       break;
+    case P:                     /* P x y f = f x y */
+      CHECK(3);
+      GCCHECK(1);
+      x = ARG(TOP(1));
+      y = ARG(TOP(2));
+      f = ARG(TOP(3));
+      POP(3);
+      n = TOP(0);
+      FUN(n) = new_ap(f, x);
+      ARG(n) = y;
+      GOTO ap;
+    case O:                     /* P x y g f = f x y */
+      CHECK(4);
+      GCCHECK(1);
+      x = ARG(TOP(1));
+      y = ARG(TOP(2));
+      f = ARG(TOP(4));
+      POP(4);
+      n = TOP(0);
+      FUN(n) = new_ap(f, x);
+      ARG(n) = y;
+      GOTO ap;
 #define SETINT(n,r) do { TAG((n)) = INT; SETVALUE((n), (r)); } while(0)
 #define ARITH2(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETINT(n, r); POP(2); } while(0)
     case ADD:
