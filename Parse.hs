@@ -126,6 +126,9 @@ pLIdent = skipWhite $ do
   guard $ s `notElem` keywords
   pure s
 
+pLIdent_ :: P String
+pLIdent_ = pLIdent <|> skipWhite (string "_")
+
 keywords :: [String]
 keywords = ["case", "data", "in", "let", "module", "of", "where"]
 
@@ -169,12 +172,12 @@ pSym :: Char -> P ()
 pSym c = () <$ (skipWhite $ char c)
 
 pLHS :: P Ident -> P LHS
-pLHS pId = (,) <$> pId <*> many pLIdent
+pLHS pId = (,) <$> pId <*> many pLIdent_
 
 pDef :: P Def
 pDef =
       Data <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 ((,) <$> pUIdent <*> many pAType) (pSymbol "|")
-  <|> Fcn  <$> (pLHS pLIdent <* pSymbol "=") <*> pExpr
+  <|> Fcn  <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
   <|> Sign <$> (pLIdent <* pSymbol "::") <*> pType
 
 pAType :: P Type
@@ -188,8 +191,13 @@ pAExpr =
       (EVar <$> pLIdent)
   <|> (EVar <$> pUIdent)
   <|> (EInt <$> pInt)
-  <|> (pSym '(' *> pExpr <* pSym ')')
+  <|> (eTuple <$> (pSym '(' *> esepBy pExpr (pSym ',') <* pSym ')'))
   <|> (EVar <$> (pSym '(' *> pOper <* pSym ')'))
+
+eTuple :: [Expr] -> Expr
+eTuple [] = ELam "_x" (EVar "_x")    -- encoding of ()
+eTuple [e] = e
+eTuple es = ELam "_f" $ foldl EApp (EVar "_f") es
 
 pExprApp :: P Expr
 pExprApp = do
@@ -198,11 +206,15 @@ pExprApp = do
   pure $ foldl EApp f as
 
 pLam :: P Expr
-pLam = ELam <$> (pSymbol "\\" *> pLIdent) <*> (pSymbol "." *> pExpr)
+pLam = ELam <$> (pSymbol "\\" *> pLIdent_) <*> (pSymbol "." *> pExpr)
 
 pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword' "of" *> pBlock pArm)
-  where pArm = (,) <$> (pLHS pUIdent <* pSymbol "->") <*> pExpr
+  where pArm = (,) <$> (pPat <* pSymbol "->") <*> pExpr
+        pPat = pLHS pUIdent <|> (tuple =<< (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
+        tuple [] = pure ("()", [])
+        tuple [_] = fail ","
+        tuple vs = pure (tail (map (const ',') vs), vs)
 
 pLet :: P Expr
 pLet = ELet <$> (pKeyword' "let" *> pBlock pDef) <*> (pKeyword "in" *> pExpr)

@@ -92,6 +92,7 @@ cC :: Exp -> Exp -> Exp
 cC (App2 CB e1 e2) e3          = cC' e1 e2 e3      -- C (B e1 e2) e3  = C' e1 e2 e3
 --cC (Prim op)       e2 | Just op' <- lookup op flipOps = App (Prim op') e2 -- C op e = flip-op e
 cC (Var op)        e2 | Just op' <- lookup op flipOps = App (Var op') e2 -- C op e = flip-op e
+cC (App2 CC CI e1) e2          = App2 CP e1 e2
 cC e1              e2          = App2 CC e1 e2
 
 cB :: Exp -> Exp -> Exp
