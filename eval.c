@@ -335,13 +335,23 @@ parse(FILE *f)
   case '?' : return primERROR;
   case '_' :
     l = (int)parse_int(f);  /* The label */
-    if (shared[l] == NIL) ERR("shared == NIL");
+    if (shared[l] == NIL) {
+      /* Not yet defined, so make it an indirection */
+      shared[l] = alloc_node(IND);
+      INDIR(shared[l]) = NIL;
+    }
     return shared[l];
   case ':' :
     l = (int)parse_int(f);  /* The label */
     if (!gobble(f, ' ')) ERR("parse ' '");
-    if (shared[l] != NIL) ERR("shared != NIL");
-    shared[l] = alloc_node(IND); /* Must have a placeholder for cycles */
+    if (shared[l] == NIL) {
+      /* not referenced yet */
+      shared[l] = alloc_node(IND); /* Must have a placeholder for cycles */
+      INDIR(shared[l]) = NIL;
+    } else {
+      /* Sanity check */
+      if (INDIR(shared[l]) != NIL) ERR("shared != NIL");
+    }
     r = parse(f);
     INDIR(shared[l]) = r;
     return r;

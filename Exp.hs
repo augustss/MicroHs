@@ -29,7 +29,7 @@ pattern App3 x y z w = App (App (App x y) z) w
 pattern App4 :: Exp -> Exp -> Exp -> Exp -> Exp -> Exp
 pattern App4 x y z w v = App (App (App (App x y) z) w) v
 
-pattern CI, CK, CS, CC, CB, CS', CC', CB' :: Exp
+pattern CI, CK, CS, CC, CB, CS', CC', CB', CT, CY, CP, CO :: Exp
 pattern CI = Comb "I"
 pattern CK = Comb "K"
 pattern CS = Comb "S"
@@ -74,10 +74,10 @@ compile (Lam x a) = abstract x a
 compile e = e
 
 abstract :: Ident -> Exp -> Exp
-abstract x e@(Var y) | x == y = CI
+abstract x (Var y) | x == y = CI
 abstract x (App f a) = cS (abstract x f) (abstract x a)
 abstract x (Lam y e) = abstract x $ abstract y e
-abstract x e = cK e
+abstract _ e = cK e
 
 cK :: Exp -> Exp
 --cK CI = CT
@@ -185,12 +185,12 @@ redOne (App4 CS' k f g x) = Just $ App2 k (App f x) (App g x)
 redOne (App4 CB' k f g x) = Just $ App2 k      f    (App g x)
 redOne (App4 CC' k f g x) = Just $ App2 k (App f x)      g
 redOne (App3 (Comb "P") x1 x2 f) = Just $ App2 f x1 x2
-redOne (App4 (Comb "O") x1 x2 f1 f2) = Just $ App2 f2 x1 x2
+redOne (App4 (Comb "O") x1 x2 _f1 f2) = Just $ App2 f2 x1 x2
 redOne e@(App2 (Prim p) x y) | Just op <- lookup p binOps,
                                let e' = op p (reduce x) (reduce y),
                                e' /= e = Just e'
 --redOne (Var i) = error $ "Var " ++ show i
-redOne e = Nothing
+redOne _ = Nothing
 
 binOps :: [(String, String -> Exp -> Exp -> Exp)]
 binOps = [
@@ -200,6 +200,6 @@ binOps = [
   ("div", arith div)
   ]
   where
-    arith f s (Int x) (Int y) = Int (x `f` y)
+    arith f _ (Int x) (Int y) = Int (x `f` y)
     arith _ s x y = App2 (Prim s) x y
 --    arith _ x y = error $ "arith: " ++ show (x, y)

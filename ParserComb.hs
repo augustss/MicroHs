@@ -107,7 +107,7 @@ formatFailed file (LastFail len xs) | len == maxBound = "No failure"
               f (l, c) _    = (l, c+1)
       xs' = nub $ map trim xs
       pr e = "   expeced: " ++ e
-      trim (xx, es) = unwords es -- (last $ init $ "" : "" : es)
+      trim (_xx, es) = unwords es -- (last $ init $ "" : "" : es)
   in  "line " ++ show line ++ ", col " ++ show col ++ ":\n" ++
       "   found: " ++ show (takeWhile (not . isSpace) post) ++ "\n" ++
       unlines (map pr xs')

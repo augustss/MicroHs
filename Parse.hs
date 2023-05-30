@@ -17,7 +17,11 @@ type P a = Prsr [Int] a
 
 type Ident = String
 
-data Def = Data LHS [Constr] | Fcn LHS Expr | Sign Ident Type
+data Def
+  = Data LHS [Constr]
+  | Fcn LHS Expr
+  | Sign Ident Type
+  | Import Ident
   deriving (Show)
 
 data Expr
@@ -64,7 +68,7 @@ pIndent = do
 
 pWhite :: P ()
 pWhite = do
-  xx <- restOfInput
+--  xx <- restOfInput
   msp <- pIndent
 --  traceM $ "pWhite " ++ show (xx, msp)
   case msp of
@@ -149,7 +153,7 @@ pLIdent_ :: P String
 pLIdent_ = pLIdent <|> skipWhite (string "_")
 
 keywords :: [String]
-keywords = ["case", "data", "in", "let", "module", "of", "where"]
+keywords = ["case", "data", "import", "in", "let", "module", "of", "where"]
 
 pUIdent :: P String
 pUIdent = skipWhite $
@@ -160,7 +164,7 @@ pIdentRest = emany $ satisfy "letter, digit" $ \ c ->
   'a' <= c && c <= 'z' ||
   'A' <= c && c <= 'Z' ||
   '0' <= c && c <= '9' ||
-  c == '_' || c == '\''
+  c == '_' || c == '\'' || c == '.'
 
 pInt :: P Integer
 pInt = (read <$> (skipWhite $ esome $ satisfy "digit" (\ c -> '0' <= c && c <= '9'))) <?> "int"
@@ -217,9 +221,10 @@ pLHS pId = (,) <$> pId <*> many pLIdent_
 
 pDef :: P Def
 pDef =
-      Data <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 ((,) <$> pUIdent <*> many pAType) (pSymbol "|")
-  <|> Fcn  <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
-  <|> Sign <$> (pLIdent <* pSymbol "::") <*> pType
+      Data   <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 ((,) <$> pUIdent <*> many pAType) (pSymbol "|")
+  <|> Fcn    <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
+  <|> Sign   <$> (pLIdent <* pSymbol "::") <*> pType
+  <|> Import <$> (pKeyword "import" *> pUIdent)
 
 pAType :: P Type
 pAType = pAExpr

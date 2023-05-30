@@ -1,11 +1,11 @@
-module Desugar(desugar) where
+module Desugar(desugar, LDef) where
 import Parse
 import Exp
 
 type LDef = (Ident, Exp)
 
-desugar :: Module -> [LDef]
-desugar (Module _ ds) = concatMap dsDef ds
+desugar :: Module -> (Ident, [LDef])
+desugar (Module nm ds) = (nm, concatMap dsDef ds)
 
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs
@@ -18,10 +18,11 @@ dsDef (Data _ cs) = zipWith dsConstr [0..] cs
   where
     fs = [f i | (i, _) <- zip [0..] cs]
     dsConstr i (c, ts) = (c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
-      where xs = ["$x" ++ show j | (j, _) <- zip [0..] ts]
-    f i = "$f" ++ show i
+      where xs = ["$x" ++ show (j::Int) | (j, _) <- zip [0..] ts]
+    f i = "$f" ++ show (i::Int)
 dsDef (Fcn (f, xs) e) = [(f, lams xs $ dsExpr e)]
 dsDef (Sign _ _) = []
+dsDef (Import _) = []
 
 dsExpr :: Expr -> Exp
 dsExpr (EVar i) = Var i
@@ -37,7 +38,7 @@ dsExpr (ECase e as) = apps (dsExpr e) (map dsArm as)
 dsExpr (ELet ds e) =
   let ds' = concatMap dsDef ds
       e' = dsExpr e
-      def (i, d) e = App (Lam i e) d
+      def (i, d) a = App (Lam i a) d
   in  foldr def e' ds'
 dsExpr (EList es) =
   foldr (App2 CO) CK $ map dsExpr es
