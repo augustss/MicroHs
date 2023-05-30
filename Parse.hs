@@ -26,6 +26,7 @@ data Expr
   | ELam Ident Expr
   | EInt Integer
   | EChar Char
+  | EStr String
   | ECase Expr [(Pat, Expr)]
   | ELet [Def] Expr
   | ETuple [Expr]
@@ -105,12 +106,12 @@ parseDie p fn file =
 removeComments :: String -> String
 removeComments = unlines . map remCom . lines
   where remCom ('-':'-':_) = ""
-        remCom ('"':cs) = str cs
+        remCom ('"':cs) = '"':str cs
         remCom (c:cs) = c : remCom cs
         remCom "" = ""
-        str ('"':cs) = remCom cs
-        str ('\\':_:cs) = str cs
-        str (_:cs) = str cs
+        str ('"':cs) = '"' : remCom cs
+        str ('\\':c:cs) = '\\':c:str cs
+        str (c:cs) = c:str cs
         str "" = ""
 
 -------
@@ -165,17 +166,26 @@ pInt :: P Integer
 pInt = (read <$> (skipWhite $ esome $ satisfy "digit" (\ c -> '0' <= c && c <= '9'))) <?> "int"
 
 pChar :: P Char
-pChar = pSym '\'' *> pc <* pSym '\''
+pChar = skipWhite (char '\'' *> pc <* char '\'')
   where pc = do
-          c <- satisfy "char" (const True)
-          if c == '\\' then do
-            d <- satisfy "char" (const True)
-            if d == '\n' then
-              pure '\n'
-             else
-              pure d
+          c <- satisfy "char" (/= '\'')
+          if c == '\\' then
+            decodeChar <$> satisfy "char" (const True)
            else
             pure c
+
+pString :: P String
+pString = skipWhite (char '"' *> emany pc <* char '"')
+  where pc = do
+          c <- satisfy "char" (/= '"')
+          if c == '\\' then
+            decodeChar <$> satisfy "char" (const True)
+           else
+            pure c
+
+decodeChar :: Char -> Char
+decodeChar 'n' = '\n'
+decodeChar c = c
 
 pSymbol :: String -> P ()
 pSymbol s = (do
@@ -223,6 +233,7 @@ pAExpr =
   <|> (EVar <$> pUIdent)
   <|> (EInt <$> pInt)
   <|> (EChar <$> pChar)
+  <|> (EStr <$> pString)
   <|> (ETuple <$> (pSym '(' *> esepBy pExpr (pSym ',') <* pSym ')'))
   <|> (EList <$> (pSym '[' *> esepBy pExpr (pSym ',') <* pSym ']'))
 

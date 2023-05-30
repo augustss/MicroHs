@@ -44,3 +44,4 @@ dsExpr (EList es) =
 dsExpr (ETuple []) = Lam "_x" (Var "_x")    -- encoding of ()
 dsExpr (ETuple [e]) = dsExpr e
 dsExpr (ETuple es) = Lam "_f" $ foldl App (Var "_f") $ map dsExpr es
+dsExpr (EStr cs) = dsExpr $ EList $ map EChar cs
