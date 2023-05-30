@@ -132,11 +132,20 @@ pInt :: P Integer
 pInt = (read <$> (skipWhite $ esome $ satisfy "digit" (\ c -> '0' <= c && c <= '9'))) <?> "int"
 
 pSymbol :: String -> P ()
-pSymbol s = (skipWhite $ do
-  s' <- esome $ satisfy "symbol" (`elem` "\\=+-:<>.!#$%^&*|~")
+pSymbol s = (do
+  s' <- pOper'
   guard (s == s')
   pure ()
   ) <?> s
+
+pOper' :: P String
+pOper' = skipWhite $ esome $ satisfy "symbol" (`elem` "\\=+-:<>.!#$%^&*|~")
+
+pOper :: P String
+pOper = do
+  s <- pOper'
+  guard $ s `notElem` ["=", "|"]
+  pure s
 
 pSym :: Char -> P ()
 pSym c = () <$ (skipWhite $ char c)
@@ -155,6 +164,7 @@ pAType = pAExpr
 pAExpr :: P Expr
 pAExpr =
   (EVar <$> pLIdent) <|> (EVar <$> pUIdent) <|> (EInt <$> pInt) <|> (pSym '(' *> pExpr <* pSym ')')
+  <|> (EVar <$> (pSym '(' *> pOper <* pSym ')'))
 
 pExprApp :: P Expr
 pExprApp = do
