@@ -44,6 +44,7 @@ toStringP (Comb x) = x
 toStringP (Int i) = show i
 toStringP (Lam x e) = "(\\" ++ x ++ " " ++ toStringP e ++ ")"
 toStringP (App f a) = "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
+toStringP (Lbl i e) = ":" ++ show i ++ " " ++ toStringP e
 
 toString :: Exp -> String
 toString (Var x) = x
