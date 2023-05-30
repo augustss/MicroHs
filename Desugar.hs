@@ -29,3 +29,9 @@ dsExpr (ELam x e) = Lam x (dsExpr e)
 dsExpr (EInt i) = Int i
 dsExpr (ECase e as) = apps (dsExpr e) (map dsArm as)
   where dsArm ((_, xs), r) = lams xs $ dsExpr r
+-- For now, just sequential bindings.
+dsExpr (ELet ds e) =
+  let ds' = concatMap dsDef ds
+      e' = dsExpr e
+      def (i, d) e = App (Lam i e) d
+  in  foldr def e' ds'

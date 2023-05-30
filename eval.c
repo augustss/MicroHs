@@ -658,6 +658,13 @@ eval(NODEPTR n)
     case GE:
       CMP(>=);
       break;
+    case ERROR:
+      x = ARG(TOP(1));
+      x = evali(x);
+      fprintf(stderr, "error: ");
+      print(stderr, x);
+      fprintf(stderr, "\n");
+      exit(1);
     default:
       fprintf(stderr, "bad tag %d\n", TAG(n));
       ERR("eval tag");

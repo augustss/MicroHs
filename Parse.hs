@@ -19,7 +19,7 @@ type Ident = String
 data Def = Data LHS [Constr] | Fcn LHS Expr
   deriving (Show)
 
-data Expr = EVar Ident | EApp Expr Expr | ELam Ident Expr | EInt Integer | ECase Expr [(LHS, Expr)]
+data Expr = EVar Ident | EApp Expr Expr | ELam Ident Expr | EInt Integer | ECase Expr [(LHS, Expr)] | ELet [Def] Expr
   deriving (Show)
 
 data Module = Module Ident [Def]
@@ -81,10 +81,22 @@ esepBy p sep = esepBy1 p sep <|> pure []
 
 parseDie :: (Show a) => P a -> FilePath -> String -> a
 parseDie p fn file =
-  case runPrsr [] p fn file of
+  case runPrsr [] p fn (removeComments file) of
     Left err -> error err
     Right [(x, _)] -> x
     Right as -> error $ "Ambiguous:\n" ++ unlines (map (show . fst) as)
+
+-- Remove comments first instead of having them in the parser.
+removeComments :: String -> String
+removeComments = unlines . map remCom . lines
+  where remCom ('-':'-':_) = ""
+        remCom ('"':cs) = str cs
+        remCom (c:cs) = c : remCom cs
+        remCom "" = ""
+        str ('"':cs) = remCom cs
+        str ('\\':_:cs) = str cs
+        str (_:cs) = str cs
+        str "" = ""
 
 -------
 
@@ -115,7 +127,7 @@ pLIdent = skipWhite $ do
   pure s
 
 keywords :: [String]
-keywords = ["case", "data", "module", "of", "where"]
+keywords = ["case", "data", "in", "let", "module", "of", "where"]
 
 pUIdent :: P String
 pUIdent = skipWhite $
@@ -179,9 +191,12 @@ pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword' "of" *> pBlock pArm)
   where pArm = (,) <$> (pLHS pUIdent <* pSymbol "->") <*> pExpr
 
+pLet :: P Expr
+pLet = ELet <$> (pKeyword' "let" *> pBlock pDef) <*> (pKeyword "in" *> pExpr)
+
 pExpr :: P Expr
 pExpr =
-  pExprApp <|> pLam <|> pCase
+  pExprApp <|> pLam <|> pCase <|> pLet
 
 pLCurl :: P ()
 pLCurl = pSym '{' <|< softLC
