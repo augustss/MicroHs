@@ -15,7 +15,7 @@
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_mark { NOTMARKED, MARKED, SHARED, PRINTED }; /* SHARED, PRINTED only for printing */
-enum node_tag { FREE, IND, AP, INT, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
+enum node_tag { FREE, IND, AP, INT, CHAR, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
                 ADD, SUB, MUL, DIV, MOD, SUBR, EQ, NE, LT, LE, GT, GE, ERROR };
 
 typedef int64_t value_t;
@@ -318,6 +318,11 @@ parse(FILE *f)
     r = alloc_node(INT);
     SETVALUE(r, i);
     return r;
+  case '\'':
+    r = alloc_node(CHAR);
+    i = getc(f);
+    SETVALUE(r, i);
+    return r;
   case '+' : return primADD;
   case '-' : return gobble(f, '\'') ? primSUBR : primSUB;
   case '*' : return primMUL;
@@ -378,6 +383,7 @@ print(FILE *f, NODEPTR n)
     fputc(')', f);
     break;
   case INT: fprintf(f, "%ld", GETVALUE(n)); break;
+  case CHAR: fprintf(f, "'%c'", (int)GETVALUE(n)); break;
   case S: fprintf(f, "S"); break;
   case K: fprintf(f, "K"); break;
   case I: fprintf(f, "I"); break;
@@ -500,6 +506,8 @@ eval(NODEPTR n)
       PUSH(n);
       break;
     case INT:
+      RET;
+    case CHAR:
       RET;
     case S:
       CHECK(3);

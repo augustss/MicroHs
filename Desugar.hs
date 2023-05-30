@@ -28,6 +28,7 @@ dsExpr (EVar i) = Var i
 dsExpr (EApp f a) = App (dsExpr f) (dsExpr a)
 dsExpr (ELam x e) = Lam x (dsExpr e)
 dsExpr (EInt i) = Int i
+dsExpr (EChar c) = Chr c
 dsExpr (ECase e as) = apps (dsExpr e) (map dsArm as)
   where dsArm (PConstr _ vs, r) = lams vs $ dsExpr r
         dsArm (PTuple [_], _) = error "dsExpr: singleton tuple"

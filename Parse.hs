@@ -156,13 +156,26 @@ pUIdent = skipWhite $
 
 pIdentRest :: P String
 pIdentRest = emany $ satisfy "letter, digit" $ \ c ->
-  'a' <= c && c < 'z' ||
-  'A' <= c && c < 'Z' ||
-  '0' <= c && c < '9' ||
+  'a' <= c && c <= 'z' ||
+  'A' <= c && c <= 'Z' ||
+  '0' <= c && c <= '9' ||
   c == '_' || c == '\''
 
 pInt :: P Integer
 pInt = (read <$> (skipWhite $ esome $ satisfy "digit" (\ c -> '0' <= c && c <= '9'))) <?> "int"
+
+pChar :: P Char
+pChar = pSym '\'' *> pc <* pSym '\''
+  where pc = do
+          c <- satisfy "char" (const True)
+          if c == '\\' then do
+            d <- satisfy "char" (const True)
+            if d == '\n' then
+              pure '\n'
+             else
+              pure d
+           else
+            pure c
 
 pSymbol :: String -> P ()
 pSymbol s = (do
@@ -209,6 +222,7 @@ pAExpr =
       (EVar <$> pLIdent)
   <|> (EVar <$> pUIdent)
   <|> (EInt <$> pInt)
+  <|> (EChar <$> pChar)
   <|> (ETuple <$> (pSym '(' *> esepBy pExpr (pSym ',') <* pSym ')'))
   <|> (EList <$> (pSym '[' *> esepBy pExpr (pSym ',') <* pSym ']'))
 

@@ -14,6 +14,7 @@ data Exp
   | App Exp Exp
   | Lam Ident Exp
   | Int Integer
+  | Chr Char
   | Comb String
   | Prim PrimOp
   | Lbl Int Exp
@@ -47,6 +48,7 @@ toStringP (Var x) = x
 toStringP (Prim x) = x
 toStringP (Comb x) = x
 toStringP (Int i) = show i
+toStringP (Chr c) = ['\'', c]
 toStringP (Lam x e) = "(\\" ++ x ++ " " ++ toStringP e ++ ")"
 toStringP (App f a) = "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
 toStringP (Lbl i e) = ":" ++ show i ++ " " ++ toStringP e
@@ -56,6 +58,7 @@ toString (Var x) = x
 toString (Prim x) = x
 toString (Comb x) = x
 toString (Int i) = show i
+toString (Chr c) = show c
 toString (Lam x e) = "(\\" ++ x ++ ". " ++ toString e ++ ")"
 toString (App f a) = toString f ++ " " ++ par a
   where par e@App{} = "(" ++ toString e ++ ")"
