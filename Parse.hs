@@ -16,7 +16,7 @@ type P a = Prsr [Int] a
 
 type Ident = String
 
-data Def = Data LHS [Constr] | Fcn LHS Expr
+data Def = Data LHS [Constr] | Fcn LHS Expr | Sign Ident Type
   deriving (Show)
 
 data Expr = EVar Ident | EApp Expr Expr | ELam Ident Expr | EInt Integer | ECase Expr [(LHS, Expr)] | ELet [Def] Expr
@@ -156,7 +156,7 @@ pOper' = skipWhite $ esome $ satisfy "symbol" (`elem` "\\=+-:<>.!#$%^&*|~")
 pOper :: P String
 pOper = do
   s <- pOper'
-  guard $ s `notElem` ["=", "|"]
+  guard $ s `notElem` ["=", "|", "::"]
   pure s
 
 pOpers :: [String] -> P String
@@ -174,14 +174,21 @@ pLHS pId = (,) <$> pId <*> many pLIdent
 pDef :: P Def
 pDef =
       Data <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 ((,) <$> pUIdent <*> many pAType) (pSymbol "|")
-  <|> Fcn <$> (pLHS pLIdent <* pSymbol "=") <*> pExpr
+  <|> Fcn  <$> (pLHS pLIdent <* pSymbol "=") <*> pExpr
+  <|> Sign <$> (pLIdent <* pSymbol "::") <*> pType
 
 pAType :: P Type
 pAType = pAExpr
 
+pType :: P Type
+pType = pExpr
+
 pAExpr :: P Expr
 pAExpr =
-  (EVar <$> pLIdent) <|> (EVar <$> pUIdent) <|> (EInt <$> pInt) <|> (pSym '(' *> pExpr <* pSym ')')
+      (EVar <$> pLIdent)
+  <|> (EVar <$> pUIdent)
+  <|> (EInt <$> pInt)
+  <|> (pSym '(' *> pExpr <* pSym ')')
   <|> (EVar <$> (pSym '(' *> pOper <* pSym ')'))
 
 pExprApp :: P Expr
@@ -201,15 +208,19 @@ pLet :: P Expr
 pLet = ELet <$> (pKeyword' "let" *> pBlock pDef) <*> (pKeyword "in" *> pExpr)
 
 pExprOp :: P Expr
-pExprOp = pA
+pExprOp = p0
   where
-    pA = pRightAssoc (pOpers ["$"]) pB
-    pB = pRightAssoc (pOpers ["||"]) pC
-    pC = pRightAssoc (pOpers ["&&"]) pD
-    pD = pNonAssoc (pOpers ["==", "/=", "<", "<=", ">", ">="]) pE
-    pE = pLeftAssoc (pOpers ["+", "-"]) pF
-    pF = pLeftAssoc (pOpers ["*", "quot", "rem"]) pG
-    pG = pExprApp
+    p0 = pRightAssoc (pOpers ["$", "->"]) p1   -- XXX where should -> be?
+    p1 = p2
+    p2 = pRightAssoc (pOpers ["||"]) p3
+    p3 = pRightAssoc (pOpers ["&&"]) p4
+    p4 = pNonAssoc   (pOpers ["==", "/=", "<", "<=", ">", ">="]) p5
+    p5 = pRightAssoc (pOpers [":", "++"]) p6
+    p6 = pLeftAssoc  (pOpers ["+", "-"]) p7
+    p7 = pLeftAssoc  (pOpers ["*", "quot", "rem"]) p8
+    p8 = p9
+    p9 = pRightAssoc (pOpers ["."]) p10
+    p10 = pExprApp
 
 appOp :: String -> Expr -> Expr -> Expr
 appOp op e1 e2 = EApp (EApp (EVar op) e1) e2

@@ -21,6 +21,7 @@ dsDef (Data _ cs) = zipWith dsConstr [0..] cs
       where xs = ["$x" ++ show j | (j, _) <- zip [0..] ts]
     f i = "$f" ++ show i
 dsDef (Fcn (f, xs) e) = [(f, lams xs $ dsExpr e)]
+dsDef (Sign _ _) = []
 
 dsExpr :: Expr -> Exp
 dsExpr (EVar i) = Var i
