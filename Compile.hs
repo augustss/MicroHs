@@ -35,7 +35,9 @@ compileModuleCached nm = do
       liftIO $ putStrLn $ "importing done " ++ show nm
       modify $ \ c -> c { working = tail (working c), cache = M.insert nm cm (cache c) }
       pure cm
-    Just cm -> pure cm
+    Just cm -> do
+      liftIO $ putStrLn $ "importing cached " ++ show nm
+      pure cm
 
 compileModule :: IdentModule -> StateT Cache IO CModule
 compileModule nm = do

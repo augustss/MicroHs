@@ -1,4 +1,5 @@
 module IO where
+import Prelude
 
 (>>=)     = primitive "IO.>>="
 (>>)      = primitive "IO.>>"
@@ -7,3 +8,4 @@ readFile  = primitive "IO.readFile"
 writeFile = primitive "IO.writeFile"
 putChar   = primitive "IO.putChar"
 getChar   = primitive "IO.getChar"
+print     = primitive "IO.print"
