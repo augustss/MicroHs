@@ -75,6 +75,8 @@ primOps =
   , ("==",    Prim "==")
   , ("/=",    Prim "!=")
   , (":",     Comb "O")
+  , ("IO.>>=", Prim "IO.>>=")
+  , ("IO.>>", Prim "IO.>>")
   ]
 
 checkExpr :: SymTable -> Exp -> Exp

@@ -46,3 +46,8 @@ dsExpr (ETuple []) = Lam "_x" (Var "_x")    -- encoding of ()
 dsExpr (ETuple [e]) = dsExpr e
 dsExpr (ETuple es) = Lam "_f" $ foldl App (Var "_f") $ map dsExpr es
 dsExpr (EStr cs) = dsExpr $ EList $ map EChar cs
+dsExpr (EDo _ []) = error "empty do"
+dsExpr (EDo _ [Bind _ _]) = error "do without final expression"
+dsExpr (EDo _ [Then e]) = dsExpr e
+dsExpr (EDo n (Bind i e : ss)) = App2 (Var (n ++ ".>>=")) (dsExpr e) (Lam i $ dsExpr (EDo n ss))
+dsExpr (EDo n (Then   e : ss)) = App2 (Var (n ++ ".>>"))  (dsExpr e)         (dsExpr (EDo n ss))
