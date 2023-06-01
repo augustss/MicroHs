@@ -51,4 +51,5 @@ dsExpr (EDo _ [Bind _ _]) = error "do without final expression"
 dsExpr (EDo _ [Then e]) = dsExpr e
 dsExpr (EDo n (Bind i e : ss)) = App2 (Var (n ++ ".>>=")) (dsExpr e) (Lam i $ dsExpr (EDo n ss))
 dsExpr (EDo n (Then   e : ss)) = App2 (Var (n ++ ".>>"))  (dsExpr e)         (dsExpr (EDo n ss))
+dsExpr (EDo n (Let  i e : ss)) = App  (Lam i $ dsExpr (EDo n ss)) (dsExpr e)
 dsExpr (EPrim s) = Prim s

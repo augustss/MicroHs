@@ -45,8 +45,8 @@ pattern CO = Comb "O"
 
 toStringP :: Exp -> String
 toStringP (Var x) = x
-toStringP (Prim x) = x
-toStringP (Comb x) = x
+toStringP (Prim x) = '$':x
+toStringP (Comb x) = '$':x
 toStringP (Int i) = show i
 toStringP (Chr c) = ['\'', c]
 toStringP (Lam x e) = "(\\" ++ x ++ " " ++ toStringP e ++ ")"
@@ -113,7 +113,7 @@ cC' e1 e2 e3 = App3 CC' e1 e2 e3
 flipOps :: [(PrimOp, PrimOp)]
 flipOps =
   [("Prelude.+",  "+")
-  ,("Prelude.-",  "-'")
+  ,("Prelude.-",  "subtract")
   ,("Prelude.*",  "*")
   ,("Prelude.==", "==")
   ,("Prelude.!=", "!=")

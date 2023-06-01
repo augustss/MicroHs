@@ -7,8 +7,8 @@ eval:	eval.c
 nfib.comb:	Lam
 	./Lam > nfib.comb
 
-Lam:	Lam.hs
-	ghc Lam.hs -o Lam
+Main:	*.hs
+	ghc Main.hs -o Main
 
 clean:
 	rm -f *.hi *.o eval Lam *.comb

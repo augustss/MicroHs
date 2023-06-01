@@ -42,7 +42,7 @@ data Expr
   | EPrim String
   deriving (Show)
 
-data Stmt = Bind Ident Expr | Then Expr
+data Stmt = Bind Ident Expr | Then Expr | Let Ident Expr
   deriving (Show)
 
 data Pat
@@ -234,12 +234,12 @@ pSymbol s = (do
   ) <?> s
 
 pOper' :: P String
-pOper' = skipWhite $ esome $ satisfy "symbol" (`elem` "\\=+-:<>.!#$%^&*/|~?")
+pOper' = skipWhite $ esome $ satisfy "symbol" (`elem` "@\\=+-:<>.!#$%^&*/|~?")
 
 pOper :: P String
 pOper = do
   s <- pOper'
-  guard $ s `notElem` ["=", "|", "::", "<-"]
+  guard $ s `notElem` ["=", "|", "::", "<-", "@"]
   pure s
 
 pOperL :: P String
@@ -308,6 +308,7 @@ pPat =
       ((uncurry PConstr) <$> pLHS pUIdent)
   <|> (PTuple <$> (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
   <|> (PConstr "Nil" [] <$ (pSym '[' <* pSym ']'))   -- Hack for [] = Nil
+  <|> (PConstr "Unit" [] <$ (pSym '(' <* pSym ')'))   -- Hack for () = Unit
   <|> ((\ x s y -> PConstr s [x,y]) <$> pLIdent_ <*> pOperU <*> pLIdent_)
 
 pLet :: P Expr
@@ -364,6 +365,7 @@ pDo = EDo <$> pQualDo <*> pBlock pStmt
 pStmt :: P Stmt
 pStmt =
       (Bind <$> (pLIdent <* pSymbol "<-") <*> pExpr )
+  <|> (Let  <$> (pKeyword "let" *> pLIdent <* pSymbol "=") <*> pExpr)  -- could be better
   <|> (Then <$> pExpr)
 
 pQualDo :: P String

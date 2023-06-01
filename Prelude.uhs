@@ -5,29 +5,30 @@ module Prelude where
 (+)  = primitive "+"
 (-)  = primitive "-"
 (*)  = primitive "*"
-quot = primitive "/"
-rem  = primitive "%"
+quot = primitive "quot"
+rem  = primitive "rem"
 
-subtract = primitive "-'"
+subtract = primitive "subtract"
 negate x = 0 - x
 
 --------------------------------
+
+(==) = primitive "=="
+(/=) = primitive "/="
 
 (<)  = primitive "<"
 (<=) = primitive "<="
 (>)  = primitive ">"
 (>=) = primitive ">="
-(==) = primitive "=="
-(/=) = primitive "!="
 
 --------------------------------
 
---chr  = primitive "chr"
---ord  = primitive "ord"
+chr  = primitive "chr"
+ord  = primitive "ord"
 
 --------------------------------
 
-error = primitive "?"
+error = primitive "error"
 
 -- (":",     Comb "O")
 
@@ -60,6 +61,8 @@ snd :: (a, b) -> b
 snd p =
   case p of
     (_, b) -> b
+
+data Unit = Unit   -- Parser hacks allows () to be used
 
 --------------------------------
 

@@ -7,7 +7,7 @@
  * NODE_INDEX   use 32 bit indices instead of pointers
  * NODE_SPLIT   split flags, funs, and args
  */
-#define NODE_INDEX
+#define NODE_NAIVE
 
 #define HEAP_CELLS 100000
 #define STACK_SIZE 10000
@@ -16,7 +16,9 @@
 
 enum node_mark { NOTMARKED, MARKED, SHARED, PRINTED }; /* SHARED, PRINTED only for printing */
 enum node_tag { FREE, IND, AP, INT, CHAR, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
-                ADD, SUB, MUL, DIV, MOD, SUBR, EQ, NE, LT, LE, GT, GE, ERROR };
+                ADD, SUB, MUL, QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR, CHR, ORD,
+                IO_BIND, IO_THEN, IO_RETURN, IO_READFILE, IO_WRITEFILE, IO_GETCHAR, IO_PUTCHAR, IO_PRINT
+};
 
 typedef int64_t value_t;
 
@@ -161,8 +163,51 @@ new_ap(NODEPTR f, NODEPTR a)
   return n;
 }
 
-NODEPTR combS, combK, combI, combC, combB, combT, combY, combSS, combCC, combBB, combP, combO;
-NODEPTR primADD, primSUB, primMUL, primDIV, primMOD, primSUBR, primEQ, primNE, primLT, primLE, primGT, primGE, primERROR;
+NODEPTR combK, combT, combI, combIO_RETURN;
+
+struct {
+  char *name;
+  enum node_tag tag;
+  NODEPTR node;
+} primops[] = {
+  /* combinators */
+  { "S", S },
+  { "K", K },
+  { "I", I },
+  { "C", C },
+  { "B", B },
+  { "T", T },
+  { "Y", Y },
+  { "S'", SS },
+  { "C'", CC },
+  { "B'", BB },
+  { "P", P },
+  { "O", O },
+  /* primops */
+  { "+", ADD },
+  { "-", SUB },
+  { "*", MUL },
+  { "quot", QUOT },
+  { "rem", REM },
+  { "subtract", SUBR },
+  { "==", EQ },
+  { "/=", NE },
+  { "<", LT },
+  { "<=", LE },
+  { ">", GT },
+  { ">=", GE },
+  { "error", ERROR },
+  { "chr", CHR },
+  { "ord", ORD },
+  { "IO.>>=", IO_BIND },
+  { "IO.>>", IO_THEN },
+  { "IO.return", IO_RETURN },
+  { "IO.readFile", IO_READFILE },
+  { "IO.writeFile", IO_WRITEFILE },
+  { "IO.getChar", IO_GETCHAR },
+  { "IO.putChar", IO_PUTCHAR },
+  { "IO.print", IO_PRINT },
+};
 
 void
 init_nodes(void)
@@ -171,13 +216,15 @@ init_nodes(void)
 
   /* Set up permanent nodes */
   heap_start = 0;
-#define COMB(x) TAG(comb##x = HEAPREF(heap_start++)) = x
-#define PRIM(x) TAG(prim##x = HEAPREF(heap_start++)) = x
-  COMB(S); COMB(K); COMB(I); COMB(B); COMB(C); COMB(T); COMB(Y); COMB(SS); COMB(CC); COMB(BB);
-  COMB(P); COMB(O);
-  PRIM(ADD); PRIM(SUB); PRIM(MUL); PRIM(DIV); PRIM(MOD); PRIM(SUBR);
-  PRIM(EQ); PRIM(NE); PRIM(LT); PRIM(LE); PRIM(GT); PRIM(GE);
-  PRIM(ERROR);
+  for (int j = 0; j < sizeof primops / sizeof primops[0];j++) {
+    primops[j].node = HEAPREF(heap_start++);
+    MARK(primops[j].node) = NOTMARKED;
+    TAG(primops[j].node) = primops[j].tag;
+    if (primops[j].tag == K) combK = primops[j].node;
+    if (primops[j].tag == T) combT = primops[j].node;
+    if (primops[j].tag == I) combI = primops[j].node;
+    if (primops[j].tag == IO_RETURN) combIO_RETURN = primops[j].node;
+  }
 
   /* Set up free list */
   next_free = NIL;
@@ -293,18 +340,10 @@ parse(FILE *f)
   int l;
   value_t i;
   int c = getc(f);
+  char buf[20];                 /* store names of primitives. */
 
   if (c < 0) ERR("parse EOF");
   switch (c) {
-  case 'S' : return gobble(f, '\'') ? combSS : combS;
-  case 'K' : return combK;
-  case 'I' : return combI;
-  case 'C' : return gobble(f, '\'') ? combCC : combC;
-  case 'B' : return gobble(f, '\'') ? combBB : combB;
-  case 'T' : return combT;
-  case 'Y' : return combY;
-  case 'P' : return combP;
-  case 'O' : return combO;
   case '(' :
     r = alloc_node(AP);
     FUN(r) = parse(f);
@@ -323,16 +362,23 @@ parse(FILE *f)
     i = getc(f);
     SETVALUE(r, i);
     return r;
-  case '+' : return primADD;
-  case '-' : return gobble(f, '\'') ? primSUBR : primSUB;
-  case '*' : return primMUL;
-  case '/' : return primDIV;
-  case '%' : return primMOD;
-  case '=' : if(gobble(f, '=')) return primEQ; else ERR("parse !");
-  case '!' : if(gobble(f, '=')) return primNE; else ERR("parse !");
-  case '<' : return gobble(f, '=') ? primLE : primLT;
-  case '>' : return gobble(f, '=') ? primGE : primGT;
-  case '?' : return primERROR;
+  case '$':
+    /* A primitive, keep getting char's until end */
+    for (int j = 0;;) {
+      c = getc(f);
+      if (c == ' ' || c == ')') {
+        ungetc(c, f);
+        buf[j] = 0;
+        break;
+      }
+      buf[j++] = c;
+    }
+    for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
+      if (strcmp(primops[j].name, buf) == 0)
+        return primops[j].node;
+    }
+    fprintf(stderr, "bad primop %s\n", buf);
+    ERR("no primop");
   case '_' :
     l = (int)parse_int(f);  /* The label */
     if (shared[l] == NIL) {
@@ -384,7 +430,7 @@ print(FILE *f, NODEPTR n)
   }
 
   switch (TAG(n)) {
-  case IND: print(f, INDIR(n)); break;
+  case IND: /*putc('*', f);*/ print(f, INDIR(n)); break;
   case AP:
     fputc('(', f);
     print(f, FUN(n));
@@ -395,30 +441,40 @@ print(FILE *f, NODEPTR n)
   case INT: fprintf(f, "%ld", GETVALUE(n)); break;
   case CHAR: fprintf(f, "'%c'", (int)GETVALUE(n)); break;
   case S: fprintf(f, "S"); break;
-  case K: fprintf(f, "K"); break;
-  case I: fprintf(f, "I"); break;
-  case C: fprintf(f, "C"); break;
-  case B: fprintf(f, "B"); break;
-  case T: fprintf(f, "T"); break;
-  case Y: fprintf(f, "Y"); break;
-  case P: fprintf(f, "P"); break;
-  case O: fprintf(f, "O"); break;
-  case SS: fprintf(f, "S'"); break;
-  case BB: fprintf(f, "B'"); break;
-  case CC: fprintf(f, "C'"); break;
-  case ADD: fprintf(f, "+"); break;
-  case SUB: fprintf(f, "-"); break;
-  case MUL: fprintf(f, "*"); break;
-  case DIV: fprintf(f, "/"); break;
-  case MOD: fprintf(f, "%%"); break;
-  case SUBR: fprintf(f, "-'"); break;
-  case EQ: fprintf(f, "="); break;
-  case NE: fprintf(f, "!="); break;
-  case LT: fprintf(f, "<"); break;
-  case LE: fprintf(f, "<="); break;
-  case GT: fprintf(f, ">"); break;
-  case GE: fprintf(f, ">="); break;
-  case ERROR: fprintf(f, "error"); break;
+  case K: fprintf(f, "$K"); break;
+  case I: fprintf(f, "$I"); break;
+  case C: fprintf(f, "$C"); break;
+  case B: fprintf(f, "$B"); break;
+  case T: fprintf(f, "$T"); break;
+  case Y: fprintf(f, "$Y"); break;
+  case P: fprintf(f, "$P"); break;
+  case O: fprintf(f, "$O"); break;
+  case SS: fprintf(f, "$S'"); break;
+  case BB: fprintf(f, "$B'"); break;
+  case CC: fprintf(f, "$C'"); break;
+  case ADD: fprintf(f, "$+"); break;
+  case SUB: fprintf(f, "$-"); break;
+  case MUL: fprintf(f, "$*"); break;
+  case QUOT: fprintf(f, "$quot"); break;
+  case REM: fprintf(f, "$rem"); break;
+  case SUBR: fprintf(f, "$subtract"); break;
+  case EQ: fprintf(f, "$="); break;
+  case NE: fprintf(f, "$/="); break;
+  case LT: fprintf(f, "$<"); break;
+  case LE: fprintf(f, "$<="); break;
+  case GT: fprintf(f, "$>"); break;
+  case GE: fprintf(f, "$>="); break;
+  case ERROR: fprintf(f, "$error"); break;
+  case ORD: fprintf(f, "$ord"); break;
+  case CHR: fprintf(f, "$chr"); break;
+  case IO_BIND: fprintf(f, "$IO.>>="); break;
+  case IO_THEN: fprintf(f, "$IO.>>"); break;
+  case IO_RETURN: fprintf(f, "$IO.return"); break;
+  case IO_READFILE: fprintf(f, "$IO.readFile"); break;
+  case IO_WRITEFILE: fprintf(f, "$IO.writeFile"); break;
+  case IO_GETCHAR: fprintf(f, "$IO.getChar"); break;
+  case IO_PUTCHAR: fprintf(f, "$IO.putChar"); break;
+  case IO_PRINT: fprintf(f, "$IO.print"); break;
   default: ERR("print tag");
   }
 }
@@ -488,12 +544,24 @@ evalint(NODEPTR n)
   return GETVALUE(n);
 }
 
+int
+evalchar(NODEPTR n)
+{
+  n = evali(n);
+  if (TAG(n) != CHAR) {
+    fprintf(stderr, "bad tag %d\n", TAG(n));
+    ERR("evalchar");
+  }
+  return (int)GETVALUE(n);
+}
+
 void
 eval(NODEPTR n)
 {
   int64_t stk = stack_ptr;
   NODEPTR f, g, x, k, y;
-  int r;
+  value_t r;
+  int c;
   
 #define RET do { stack_ptr = stk; return; } while(0)
 #define CHECK(n) do { if (stack_ptr - stk <= (n)) RET; } while(0)
@@ -647,10 +715,10 @@ eval(NODEPTR n)
     case MUL:
       ARITH2(*);
       RET;
-    case DIV:
+    case QUOT:
       ARITH2(/);
       RET;
-    case MOD:
+    case REM:
       ARITH2(%);
       RET;
     case SUBR:
@@ -676,6 +744,21 @@ eval(NODEPTR n)
     case GE:
       CMP(>=);
       break;
+    case ORD:
+      CHECK(1);
+      c = evalchar(ARG(TOP(1)));
+      n = TOP(1);
+      SETINT(n, c);
+      POP(1);
+      RET;
+    case CHR:
+      CHECK(1);
+      r = evalint(ARG(TOP(1)));
+      n = TOP(1);
+      TAG((n)) = CHAR;
+      SETVALUE(n, r);
+      POP(1);
+      RET;
     case ERROR:
       x = ARG(TOP(1));
       x = evali(x);
@@ -683,9 +766,101 @@ eval(NODEPTR n)
       print(stderr, x);
       fprintf(stderr, "\n");
       exit(1);
+    case IO_BIND:
+    case IO_THEN:
+    case IO_RETURN:
+    case IO_READFILE:
+    case IO_WRITEFILE:
+    case IO_GETCHAR:
+    case IO_PUTCHAR:
+    case IO_PRINT:
+      RET;
     default:
       fprintf(stderr, "bad tag %d\n", TAG(n));
       ERR("eval tag");
+    }
+  }
+}
+
+NODEPTR
+evalio(NODEPTR n)
+{
+  int64_t stk = stack_ptr;
+  NODEPTR f, x;
+  int c;
+
+#define CHECKIO(n) do { if (stack_ptr - stk != (n+1)) {ERR("CHECKIO");}; } while(0)
+#define RETIO(n) do { stack_ptr = stk; return (n); } while(0)
+
+ top:
+  n = evali(n);
+  /*
+  pp(stdout, n);
+  printf("%p=", FUN(n));
+  pp(stdout, FUN(n));
+  printf("%p=", FUN(FUN(n)));
+  pp(stdout, FUN(FUN(n)));
+  */
+  PUSH(n);
+  for(;;) {
+    num_reductions++;
+    switch (TAG(n)) {
+    case IND:
+      n = INDIR(n);
+      TOP(0) = n;
+      break;
+    case AP:
+      n = FUN(n);
+      PUSH(n);
+      break;
+
+    case IO_BIND:
+      CHECKIO(2);
+      GCCHECK(1);
+      x = evalio(ARG(TOP(1)));  /* first argument, unwrapped */
+      f = ARG(TOP(2));          /* second argument, the continuation */
+      n = new_ap(f, x);
+      POP(3);
+      goto top;
+    case IO_THEN:
+      CHECKIO(2);
+      (void)evalio(ARG(TOP(1))); /* first argument, unwrapped, ignored */
+      n = ARG(TOP(2));          /* second argument, the continuation */
+      POP(3);
+      goto top;
+    case IO_RETURN:
+      CHECKIO(1);
+      n = ARG(TOP(1));
+      POP(1);
+      RETIO(n);
+    case IO_READFILE:
+      CHECKIO(1);
+      ERR("IO_READFILE");
+    case IO_WRITEFILE:
+      CHECKIO(2);
+      ERR("IO_WRITEFILE");
+    case IO_GETCHAR:
+      CHECKIO(0);
+      GCCHECK(1);
+      c = getc(stdin);
+      n = alloc_node(CHAR);
+      SETVALUE(n, c);
+      RETIO(n);
+    case IO_PUTCHAR:
+      CHECKIO(1);
+      c = evalchar(ARG(TOP(1)));
+      putc(c, stdout);
+      RETIO(combI);
+    case IO_PRINT:
+      CHECKIO(1);
+      //x = evali(ARG(TOP(1)));
+      x = ARG(TOP(1));
+      print(stdout, x);
+      printf("\n");
+      RETIO(combI);
+    default:
+      fprintf(stderr, "bad tag %d\n", TAG(n));
+      ERR("evalio tag");
     }
   }
 }
@@ -701,8 +876,9 @@ main(int argc, char **argv)
     ERR("file not found");
   NODEPTR n = parse_top(f);
   fclose(f);
-  pp(stdout, n);
-  n = evali(n);
+  /*pp(stdout, n);*/
+  n = evalio(n);
+  printf("\nmain returns ");
   pp(stdout, n);
   printf("node size=%ld, heap size=%ld\n", NODE_SIZE, heap_size); //exit(0);
   printf("%d reductions, %d GCs\n", num_reductions, num_gc);
