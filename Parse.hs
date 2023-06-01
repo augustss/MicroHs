@@ -4,14 +4,17 @@ module Parse(
   Ident,
   Def(..),
   Expr(..),
+  Stmt(..),
   Pat(..),
   Module(..),
   ) where
 import Control.Monad
 import Control.Monad.State.Strict
+import Data.List
 import ParserComb
 import Control.Applicative --hiding (many, some)
 --import Debug.Trace
+
 
 type P a = Prsr [Int] a
 
@@ -35,6 +38,10 @@ data Expr
   | ELet [Def] Expr
   | ETuple [Expr]
   | EList [Expr]
+  | EDo Ident [Stmt]
+  deriving (Show)
+
+data Stmt = Bind Ident Expr | Then Expr
   deriving (Show)
 
 data Pat
@@ -120,6 +127,20 @@ removeComments = unlines . map remCom . lines
 
 -------
 
+isLower :: Char -> Bool
+isLower c = 'a' <= c && c <= 'z'
+
+isUpper :: Char -> Bool
+isUpper c = 'A' <= c && c <= 'Z'
+
+isLetter :: Char -> Bool
+isLetter c = isLower c || isUpper c
+
+isDigit :: Char -> Bool
+isDigit c = '0' <= c && c <= '9'
+
+-------
+
 pTop :: P Module
 pTop = skipWhite (pure ()) *> pModule <* eof
 
@@ -128,46 +149,59 @@ pModule = Module <$> (pKeyword "module" *> pUIdent <* pKeyword' "where") <*> pBl
 
 pKeyword :: String -> P ()
 pKeyword kw = (skipWhite $ do
-  s <- pIdentRest
+  s <- pWord
   guard (kw == s)
   pure ()
   ) <?> kw
 
 pKeyword' :: String -> P ()
 pKeyword' kw = (skipWhite' $ do
-  s <- pIdentRest
+  s <- pWord
   guard (kw == s)
   pure ()
   ) <?> kw
 
 pLIdentA :: P String
 pLIdentA = skipWhite $ do
-  s <- (:) <$> (satisfy "lower case" (\ c -> 'a' <= c && c <= 'z')) <*> pIdentRest
-  guard $ s `notElem` keywords
+  s <- pQIdent
+  guard $ isLower $ head s
   pure s
 
 pLIdent :: P String
-pLIdent = pLIdentA <|> (pSym '(' *> pOper <* pSym ')')
+pLIdent = pLIdentA <|> (pSym '(' *> pOperL <* pSym ')')
 
 pLIdent_ :: P String
 pLIdent_ = pLIdent <|> skipWhite (string "_")
 
-keywords :: [String]
-keywords = ["case", "data", "import", "in", "let", "module", "of", "where"]
+pUIdentA :: P String
+pUIdentA = skipWhite $ do
+  s <- pQIdent
+  guard $ isUpper $ head s
+  pure s
 
 pUIdent :: P String
-pUIdent = skipWhite $
-  (:) <$> (satisfy "upper case" (\ c -> 'A' <= c && c <= 'Z')) <*> pIdentRest
+pUIdent = pUIdentA <|> (pSym '(' *> pOperU <* pSym ')')
 
-pIdentRest :: P String
-pIdentRest = emany $ satisfy "letter, digit" $ \ c ->
-  'a' <= c && c <= 'z' ||
-  'A' <= c && c <= 'Z' ||
-  '0' <= c && c <= '9' ||
-  c == '_' || c == '\'' || c == '.'
+keywords :: [String]
+keywords = ["case", "data", "do", "import", "in", "let", "module", "of", "where"]
+
+pWord :: P String
+pWord = (:) <$> satisfy "letter" isLetter <*>
+                (emany $ satisfy "letter, digit" $ \ c ->
+                    isLetter c || isDigit c ||
+                    c == '_' || c == '\'')
+
+pIdent :: P String
+pIdent = do
+  s <- pWord
+  guard (s `notElem` keywords)
+  pure s
+
+pQIdent :: P String
+pQIdent = intercalate "." <$> esepBy1 pIdent (char '.')
 
 pInt :: P Integer
-pInt = (read <$> (skipWhite $ esome $ satisfy "digit" (\ c -> '0' <= c && c <= '9'))) <?> "int"
+pInt = (read <$> (skipWhite $ esome $ satisfy "digit" isDigit)) <?> "int"
 
 pChar :: P Char
 pChar = skipWhite (char '\'' *> pc <* char '\'')
@@ -204,7 +238,19 @@ pOper' = skipWhite $ esome $ satisfy "symbol" (`elem` "\\=+-:<>.!#$%^&*|~")
 pOper :: P String
 pOper = do
   s <- pOper'
-  guard $ s `notElem` ["=", "|", "::"]
+  guard $ s `notElem` ["=", "|", "::", "<-"]
+  pure s
+
+pOperL :: P String
+pOperL = do
+  s <- pOper
+  guard $ head s /= ':'
+  pure s
+
+pOperU :: P String
+pOperU = do
+  s <- pOper
+  guard $ head s == ':'
   pure s
 
 pOpers :: [String] -> P String
@@ -308,8 +354,22 @@ pLeftAssoc pOp p = do
   pure $ foldl (\ x (op, y) -> appOp op x y) e1 es
 
 pExpr :: P Expr
-pExpr =
-  pExprOp <|> pLam <|> pCase <|> pLet
+pExpr = pExprOp <|> pLam <|> pCase <|> pLet <|> pDo
+
+pDo :: P Expr
+pDo = EDo <$> pQualDo <*> pBlock pStmt
+
+pStmt :: P Stmt
+pStmt =
+      (Bind <$> (pLIdent <* pSymbol "<-") <*> pExpr )
+  <|> (Then <$> pExpr)
+
+pQualDo :: P String
+pQualDo = do
+  s <- pUIdent
+  _ <- char '.'
+  pKeyword' "do"
+  pure s
 
 pLCurl :: P ()
 pLCurl = pSym '{' <|< softLC
