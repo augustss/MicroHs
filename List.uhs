@@ -1,13 +1,8 @@
 module List where
+import Prelude
 
 -- By parser some parser hacks we can use [] instead of Nil
 data List a = Nil | (:) a (List a)
-
-map :: (a -> b) -> [a] -> [b]
-map f arg =
-  case arg of
-    [] -> []
-    a : as -> f a : map f as
 
 (++) :: [a] -> [a] -> [a]
 (++) as ys =
@@ -15,17 +10,36 @@ map f arg =
     [] -> ys
     x : xs -> x : xs ++ ys
 
+map :: (a -> b) -> [a] -> [b]
+map f =
+  fix ( \ rec arg ->
+    case arg of
+      [] -> []
+      a : as -> f a : rec as
+    )
+
 filter :: (a -> Bool) -> [a] -> [a]
-filter p arg =
-  case arg of
-    [] -> []
-    x : xs ->
-      case p x of
-        False -> filter p xs
-        True  -> x : filter p xs
+filter p =
+  fix ( \ rec arg ->
+    case arg of
+      [] -> []
+      x : xs ->
+        case p x of
+          False -> rec xs
+          True  -> x : rec xs
+    )
 
 foldr :: (a -> b -> b) -> b -> [a] -> b
-foldr f z arg =
-  case arg of
-    [] -> z
-    x : xs -> f x (foldr f z xs)
+foldr f z =
+  fix ( \ rec arg ->
+    case arg of
+      [] -> z
+      x : xs -> f x (rec xs)
+    )
+
+sum = foldr (+) 0
+product = foldr (*) 1
+and = foldr (&&) True
+or = foldr (||) False
+any p = or . map p
+all p = and . map p

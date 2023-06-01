@@ -27,7 +27,7 @@ dsDef (Import _) = []
 dsExpr :: Expr -> Exp
 dsExpr (EVar i) = Var i
 dsExpr (EApp f a) = App (dsExpr f) (dsExpr a)
-dsExpr (ELam x e) = Lam x (dsExpr e)
+dsExpr (ELam xs e) = foldr Lam (dsExpr e) xs
 dsExpr (EInt i) = Int i
 dsExpr (EChar c) = Chr c
 dsExpr (ECase e as) = apps (dsExpr e) (map dsArm as)

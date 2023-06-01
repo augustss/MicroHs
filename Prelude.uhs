@@ -78,3 +78,4 @@ id x = x
 const :: a -> b -> a
 const x _ = x
 
+fix = primitive "Y"

@@ -419,7 +419,7 @@ parse_top(FILE *f)
 }
 
 void
-print(FILE *f, NODEPTR n)
+printrec(FILE *f, NODEPTR n)
 {
   if (MARK(n) == PRINTED) {
     fprintf(f, "_%d", LABEL(n));
@@ -430,12 +430,12 @@ print(FILE *f, NODEPTR n)
   }
 
   switch (TAG(n)) {
-  case IND: /*putc('*', f);*/ print(f, INDIR(n)); break;
+  case IND: /*putc('*', f);*/ printrec(f, INDIR(n)); break;
   case AP:
     fputc('(', f);
-    print(f, FUN(n));
+    printrec(f, FUN(n));
     fputc(' ', f);
-    print(f, ARG(n));
+    printrec(f, ARG(n));
     fputc(')', f);
     break;
   case INT: fprintf(f, "%ld", GETVALUE(n)); break;
@@ -510,12 +510,18 @@ clear_sharing(NODEPTR n)
 }
 
 void
-pp(FILE *f, NODEPTR n)
+print(FILE *f, NODEPTR n)
 {
   find_sharing(n);
+  printrec(f, n);
+  clear_sharing(n);
+}
+
+void
+pp(FILE *f, NODEPTR n)
+{
   print(f, n);
   fprintf(f, "\n");
-  clear_sharing(n);
 }
 
 void eval(NODEPTR n);
@@ -853,8 +859,8 @@ evalio(NODEPTR n)
       RETIO(combI);
     case IO_PRINT:
       CHECKIO(1);
-      //x = evali(ARG(TOP(1)));
-      x = ARG(TOP(1));
+      x = evali(ARG(TOP(1)));
+      //x = ARG(TOP(1));
       print(stdout, x);
       printf("\n");
       RETIO(combI);

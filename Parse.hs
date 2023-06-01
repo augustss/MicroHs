@@ -30,7 +30,7 @@ data Def
 data Expr
   = EVar Ident
   | EApp Expr Expr
-  | ELam Ident Expr
+  | ELam [Ident] Expr
   | EInt Integer
   | EChar Char
   | EStr String
@@ -297,7 +297,7 @@ pExprApp = do
   pure $ foldl EApp f as
 
 pLam :: P Expr
-pLam = ELam <$> (pSymbol "\\" *> pLIdent_) <*> (pSymbol "." *> pExpr)
+pLam = ELam <$> (pSymbol "\\" *> esome pLIdent_) <*> (pSymbol "->" *> pExpr)
 
 pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword' "of" *> pBlock pArm)
