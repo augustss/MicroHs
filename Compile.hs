@@ -56,28 +56,7 @@ compileModule nm = do
   pure mdl''
 
 checkModule :: SymTable -> CModule -> CModule
-checkModule syms (nm, ds) = (nm, [ (s, checkExpr syms' e) | (s, e) <- ds ])
-  where syms' = foldr (\ (i, e) -> M.insertWith (++) i [e]) syms primOps
-
-primOps :: [(Ident, Exp)]
-primOps =
-  [ ("error", Prim "?")
-  , ("+",     Prim "+")
-  , ("-",     Prim "-")
-  , ("-'",    Prim "-'")
-  , ("*",     Prim "*")
-  , ("quot",  Prim "/")
-  , ("rem",   Prim "%")
-  , ("<",     Prim "<")
-  , ("<=",    Prim "<=")
-  , (">",     Prim ">")
-  , (">=",    Prim ">=")
-  , ("==",    Prim "==")
-  , ("/=",    Prim "!=")
-  , (":",     Comb "O")
-  , ("IO.>>=", Prim "IO.>>=")
-  , ("IO.>>", Prim "IO.>>")
-  ]
+checkModule syms (nm, ds) = (nm, [ (s, checkExpr syms e) | (s, e) <- ds ])
 
 checkExpr :: SymTable -> Exp -> Exp
 checkExpr syms ee =

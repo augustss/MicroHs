@@ -1,0 +1,9 @@
+module IO where
+
+(>>=)     = primitive "IO.>>="
+(>>)      = primitive "IO.>>"
+return    = primitive "IO.return"
+readFile  = primitive "IO.readFile"
+writeFile = primitive "IO.writeFile"
+putChar   = primitive "IO.putChar"
+getChar   = primitive "IO.getChar"

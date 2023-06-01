@@ -39,6 +39,7 @@ data Expr
   | ETuple [Expr]
   | EList [Expr]
   | EDo Ident [Stmt]
+  | EPrim String
   deriving (Show)
 
 data Stmt = Bind Ident Expr | Then Expr
@@ -183,7 +184,7 @@ pUIdent :: P String
 pUIdent = pUIdentA <|> (pSym '(' *> pOperU <* pSym ')')
 
 keywords :: [String]
-keywords = ["case", "data", "do", "import", "in", "let", "module", "of", "where"]
+keywords = ["case", "data", "do", "import", "in", "let", "module", "of", "primitive", "where"]
 
 pWord :: P String
 pWord = (:) <$> satisfy "letter" isLetter <*>
@@ -233,7 +234,7 @@ pSymbol s = (do
   ) <?> s
 
 pOper' :: P String
-pOper' = skipWhite $ esome $ satisfy "symbol" (`elem` "\\=+-:<>.!#$%^&*|~")
+pOper' = skipWhite $ esome $ satisfy "symbol" (`elem` "\\=+-:<>.!#$%^&*/|~?")
 
 pOper :: P String
 pOper = do
@@ -287,6 +288,7 @@ pAExpr =
   <|> (EStr <$> pString)
   <|> (ETuple <$> (pSym '(' *> esepBy pExpr (pSym ',') <* pSym ')'))
   <|> (EList <$> (pSym '[' *> esepBy pExpr (pSym ',') <* pSym ']'))
+  <|> (EPrim <$> (pKeyword "primitive" *> pString))
 
 pExprApp :: P Expr
 pExprApp = do
