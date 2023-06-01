@@ -94,7 +94,7 @@ cS e1 e2                       = App2 CS e1 e2
 cC :: Exp -> Exp -> Exp
 cC (App2 CB e1 e2) e3          = cC' e1 e2 e3      -- C (B e1 e2) e3  = C' e1 e2 e3
 --cC (Prim op)       e2 | Just op' <- lookup op flipOps = App (Prim op') e2 -- C op e = flip-op e
-cC (Var op)       e2 | Just op' <- lookup op flipOps = App (Prim op') e2 -- C op e = flip-op e
+cC (Var op)       e2 | Just op' <- lookup op flipOps = App (Var op') e2 -- C op e = flip-op e
 cC (App2 CC CI e1) e2          = App2 CP e1 e2
 cC e1              e2          = App2 CC e1 e2
 
@@ -112,16 +112,15 @@ cC' e1 e2 e3 = App3 CC' e1 e2 e3
 -- This is a hack, it assumes things about the Prelude
 flipOps :: [(PrimOp, PrimOp)]
 flipOps =
-  [("Prelude.+",  "+")
-  ,("Prelude.-",  "subtract")
-  ,("Prelude.*",  "*")
-  ,("Prelude.==", "==")
-  ,("Prelude.!=", "!=")
-  ,("Prelude./=", "/=")
-  ,("Prelude.<",  ">")
-  ,("Prelude.<=", ">=")
-  ,("Prelude.>",  "<")
-  ,("Prelude.>=", "<=")
+  [("Prelude.+",  "Prelude.+")
+  ,("Prelude.-",  "Prelude.subtract")
+  ,("Prelude.*",  "Prelude.*")
+  ,("Prelude.==", "Prelude.==")
+  ,("Prelude./=", "Prelude./=")
+  ,("Prelude.<",  "Prelude.>")
+  ,("Prelude.<=", "Prelude.>=")
+  ,("Prelude.>",  "Prelude.<")
+  ,("Prelude.>=", "Prelude.<=")
   ]
 
 {-
@@ -184,8 +183,8 @@ redOne (App3 CC f g x) = Just $ App (App f x)      g
 redOne (App4 CS' k f g x) = Just $ App2 k (App f x) (App g x)
 redOne (App4 CB' k f g x) = Just $ App2 k      f    (App g x)
 redOne (App4 CC' k f g x) = Just $ App2 k (App f x)      g
-redOne (App3 (Comb "P") x1 x2 f) = Just $ App2 f x1 x2
-redOne (App4 (Comb "O") x1 x2 _f1 f2) = Just $ App2 f2 x1 x2
+redOne (App3 CP x1 x2 f) = Just $ App2 f x1 x2
+redOne (App4 CO x1 x2 _f1 f2) = Just $ App2 f2 x1 x2
 redOne e@(App2 (Prim p) x y) | Just op <- lookup p binOps,
                                let e' = op p (reduce x) (reduce y),
                                e' /= e = Just e'

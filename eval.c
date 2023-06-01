@@ -788,6 +788,8 @@ eval(NODEPTR n)
   }
 }
 
+/* This is the interpreter for the IO monad operations. */
+/* It takes a monadic expression and returns the unwrapped expression. */
 NODEPTR
 evalio(NODEPTR n)
 {
@@ -800,13 +802,6 @@ evalio(NODEPTR n)
 
  top:
   n = evali(n);
-  /*
-  pp(stdout, n);
-  printf("%p=", FUN(n));
-  pp(stdout, FUN(n));
-  printf("%p=", FUN(FUN(n)));
-  pp(stdout, FUN(FUN(n)));
-  */
   PUSH(n);
   for(;;) {
     num_reductions++;
