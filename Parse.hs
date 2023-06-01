@@ -307,8 +307,8 @@ pPat :: P Pat
 pPat =
       ((uncurry PConstr) <$> pLHS pUIdent)
   <|> (PTuple <$> (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
-  <|> (PConstr "[]" [] <$ (pSym '[' <* pSym ']'))
-  <|> ((\ x y -> PConstr ":" [x,y]) <$> (pLIdent_ <* pSym ':') <*> pLIdent_)
+  <|> (PConstr "Nil" [] <$ (pSym '[' <* pSym ']'))   -- Hack for [] = Nil
+  <|> ((\ x s y -> PConstr s [x,y]) <$> pLIdent_ <*> pOperU <*> pLIdent_)
 
 pLet :: P Expr
 pLet = ELet <$> (pKeyword' "let" *> pBlock pDef) <*> (pKeyword "in" *> pExpr)
@@ -317,7 +317,7 @@ pExprOp :: P Expr
 pExprOp = p0
   where
     p0 = pRightAssoc (pOpers ["$", "->"]) p1   -- XXX where should -> be?
-    p1 = p2
+    p1 = pLeftAssoc  (pOpers [">>=", ">>"]) p2
     p2 = pRightAssoc (pOpers ["||"]) p3
     p3 = pRightAssoc (pOpers ["&&"]) p4
     p4 = pNonAssoc   (pOpers ["==", "/=", "<", "<=", ">", ">="]) p5

@@ -7,4 +7,25 @@ map :: (a -> b) -> [a] -> [b]
 map f arg =
   case arg of
     [] -> []
-    (:) a as -> f a : map f as
+    a : as -> f a : map f as
+
+(++) :: [a] -> [a] -> [a]
+(++) as ys =
+  case as of
+    [] -> ys
+    x : xs -> x : xs ++ ys
+
+filter :: (a -> Bool) -> [a] -> [a]
+filter p arg =
+  case arg of
+    [] -> []
+    x : xs ->
+      case p x of
+        False -> filter p xs
+        True  -> x : filter p xs
+
+foldr :: (a -> b -> b) -> b -> [a] -> b
+foldr f z arg =
+  case arg of
+    [] -> z
+    x : xs -> f x (foldr f z xs)

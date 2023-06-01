@@ -1,24 +1,55 @@
 module Prelude where
 
+--------------------------------
+
 (+)  = primitive "+"
 (-)  = primitive "-"
 (*)  = primitive "*"
 quot = primitive "/"
 rem  = primitive "%"
+
+subtract = primitive "-'"
+negate x = 0 - x
+
+--------------------------------
+
 (<)  = primitive "<"
 (<=) = primitive "<="
 (>)  = primitive ">"
 (>=) = primitive ">="
 (==) = primitive "=="
 (/=) = primitive "!="
+
+--------------------------------
+
 --chr  = primitive "chr"
 --ord  = primitive "ord"
+
+--------------------------------
+
 error = primitive "?"
 
--- ("-'",    Prim "-'")
 -- (":",     Comb "O")
 
+--------------------------------
+
 data Bool = False | True
+
+(||) :: Bool -> Bool -> Bool
+(||) x y =
+  case x of
+    False -> y
+    True  -> True
+
+(&&) :: Bool -> Bool -> Bool
+(&&) x y =
+  case x of
+    False -> False
+    True  -> y
+
+--------------------------------
+
+--data (a,b) = (a,b)  -- all tuples are built in
 
 fst :: (a, b) -> a
 fst p =
@@ -30,6 +61,11 @@ snd p =
   case p of
     (_, b) -> b
 
+--------------------------------
+
+($) :: (a -> b) -> a -> b
+($) f x = f x
+
 (.) :: (b -> c) -> (a -> b) -> (a -> c)
 (.) f g x = f (g x)
 
@@ -38,3 +74,4 @@ id x = x
 
 const :: a -> b -> a
 const x _ = x
+

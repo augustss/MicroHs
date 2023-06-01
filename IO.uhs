@@ -1,5 +1,6 @@
 module IO where
 import Prelude
+import List
 
 (>>=)     = primitive "IO.>>="
 (>>)      = primitive "IO.>>"
@@ -9,3 +10,26 @@ writeFile = primitive "IO.writeFile"
 putChar   = primitive "IO.putChar"
 getChar   = primitive "IO.getChar"
 print     = primitive "IO.print"
+
+mapM :: (a -> IO b) -> [a] -> IO [b]
+mapM f arg =
+  case arg of
+    [] -> return []
+    a : as -> IO.do
+      b <- f a
+      bs <- mapM f as
+      return (b : bs)
+
+mapM_ :: (a -> IO b) -> [a] -> IO ()
+mapM_ f arg =
+  case arg of
+    [] -> return ()
+    a : as -> IO.do
+      f a
+      mapM_ f as
+
+putStr :: String -> IO ()
+putStr = mapM_ putChar
+
+putStrLn :: String -> IO ()
+putStrLn s = putStr s >> putChar '\n'
