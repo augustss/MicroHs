@@ -17,7 +17,8 @@
 enum node_mark { NOTMARKED, MARKED, SHARED, PRINTED }; /* SHARED, PRINTED only for printing */
 enum node_tag { FREE, IND, AP, INT, CHAR, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
                 ADD, SUB, MUL, QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR, CHR, ORD,
-                IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR, IO_PRINT,
+                IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR,
+                IO_SERIALIZE, IO_DESERIALIZE,
                 IO_OPEN, IO_CLOSE,
                 IO_STDIN, IO_STDOUT, IO_STDERR,
 };
@@ -194,7 +195,8 @@ struct {
   { "IO.return", IO_RETURN },
   { "IO.getChar", IO_GETCHAR },
   { "IO.putChar", IO_PUTCHAR },
-  { "IO.print", IO_PRINT },
+  { "IO.serialize", IO_SERIALIZE },
+  { "IO.deserialize", IO_DESERIALIZE },
   { "IO.open", IO_OPEN },
   { "IO.close", IO_CLOSE },
   { "IO.stdin", IO_STDIN },
@@ -281,7 +283,7 @@ scan(void)
   for(int i = heap_start; i < heap_size; i++) {
     NODEPTR n = HEAPREF(i);
     if (MARK(n) == NOTMARKED) {
-      if (TAG(n) == HDL) {
+      if (TAG(n) == HDL && HANDLE(n) != 0) {
         /* A FILE* has become garbage, so close it. */
         fclose(HANDLE(n));
       }
@@ -522,7 +524,8 @@ printrec(FILE *f, NODEPTR n)
   case IO_RETURN: fprintf(f, "$IO.return"); break;
   case IO_GETCHAR: fprintf(f, "$IO.getChar"); break;
   case IO_PUTCHAR: fprintf(f, "$IO.putChar"); break;
-  case IO_PRINT: fprintf(f, "$IO.print"); break;
+  case IO_SERIALIZE: fprintf(f, "$IO.serialize"); break;
+  case IO_DESERIALIZE: fprintf(f, "$IO.deserialize"); break;
   case IO_OPEN: fprintf(f, "$IO.open"); break;
   case IO_CLOSE: fprintf(f, "$IO.close"); break;
   default: ERR("print tag");
@@ -627,6 +630,10 @@ evalhandle(NODEPTR n)
   n = evali(n);
   if (TAG(n) != HDL) {
     fprintf(stderr, "bad tag %d\n", TAG(n));
+    ERR("evalhandle");
+  }
+  if (HANDLE(n) == 0) {
+    fprintf(stderr, "closed file\n");
     ERR("evalhandle");
   }
   return HANDLE(n);
@@ -872,7 +879,8 @@ eval(NODEPTR n)
     case IO_RETURN:
     case IO_GETCHAR:
     case IO_PUTCHAR:
-    case IO_PRINT:
+    case IO_SERIALIZE:
+    case IO_DESERIALIZE:
     case IO_OPEN:
     case IO_CLOSE:
       RET;
@@ -946,7 +954,7 @@ evalio(NODEPTR n)
       c = evalchar(ARG(TOP(2)));
       putc(c, hdl);
       RETIO(combI);
-    case IO_PRINT:
+    case IO_SERIALIZE:
       CHECKIO(2);
       hdl = evalhandle(ARG(TOP(1)));
       x = evali(ARG(TOP(2)));
@@ -954,9 +962,17 @@ evalio(NODEPTR n)
       print(hdl, x);
       fprintf(hdl, "\n");
       RETIO(combI);
+    case IO_DESERIALIZE:
+      CHECKIO(1);
+      hdl = evalhandle(ARG(TOP(1)));
+      gc();                     /* parser runs without GC */
+      n = parse(hdl);
+      RETIO(n);
     case IO_CLOSE:
       CHECKIO(1);
       hdl = evalhandle(ARG(TOP(1)));
+      n = evali(ARG(TOP(1)));
+      HANDLE(n) = 0;
       fclose(hdl);
       RETIO(combI);
     case IO_OPEN:
