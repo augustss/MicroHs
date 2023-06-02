@@ -7,7 +7,7 @@
  * NODE_INDEX   use 32 bit indices instead of pointers
  * NODE_SPLIT   split flags, funs, and args
  */
-#define NODE_NAIVE
+#define NODE_INDEX
 
 #define HEAP_CELLS 100000
 #define STACK_SIZE 10000
@@ -63,6 +63,7 @@ typedef struct node {
   enum node_tag tag;
   union {
     value_t value;
+    FILE *file;
     struct {
       NODEPTR fun;
       NODEPTR arg;
@@ -79,6 +80,7 @@ typedef struct node {
 #define ARG(p) cells[p].u.s.arg
 #define NEXT(p) FUN(p)
 #define INDIR(p) FUN(p)
+#define HANDLE(p) cells[p].u.file
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) (n)
@@ -107,25 +109,6 @@ u_int8_t *flagsmem;
 NODEPTR *funs;
 NODEPTR *args;
 
-#elif defined(NODE_64) && 0
-/* Use bit fiddling for all node fields */
-/* Use LSB GC tag, use next 7 bits for tag, remaining 56 bits
- * contains the value or two 28 bit "pointers".
- */
-typedef struct {
-  long int bits;
-} node;
-typedef unsigned int NODEPTR;
-#define NIL (~0)
-#define HEAPREF(i) (i)
-#define MARK(p)  (heap[p].bits & 1)
-#define TAG(p)   ((heap[p].bits >> 1) & 0x7f)
-#define VALUE(p) (heap[p].bits >> 8)
-#define FUN(p)   ((NODEPTR)((heap[p].bits >> 8) & 0xfffffffffffff))
-#define ARG(p)   ((NODEPTR)((heap[p].bits >> 36) & 0xfffffffffffff))
-#define NEXT(p)  FUN(p)
-#define INDIR(p) FUN(p)
-
 #else
 #error "Pick a node representation"
 #endif
@@ -142,7 +125,7 @@ int64_t stack_ptr = -1;
 
 int64_t heap_size = HEAP_CELLS; /* number of heap cells */
 int64_t heap_start;             /* first location in heap that needs GC */
-NODEPTR next_free;          /* Free list */
+NODEPTR next_free;              /* Free list */
 
 NODEPTR
 alloc_node(enum node_tag t)
@@ -167,8 +150,10 @@ new_ap(NODEPTR f, NODEPTR a)
   return n;
 }
 
-NODEPTR combK, combT, combI, combIO_RETURN;
+/* Needed during reduction */
+NODEPTR combK, combT, combI;
 
+/* One node of each kind for primitives, these are never GCd */
 struct {
   char *name;
   enum node_tag tag;
@@ -233,7 +218,6 @@ init_nodes(void)
     case K: combK = n; break;
     case T: combT = n; break;
     case I: combI = n; break;
-    case IO_RETURN: combIO_RETURN = n; break;
     case IO_STDIN:  TAG(n) = HDL; HANDLE(n) = stdin;  break;
     case IO_STDOUT: TAG(n) = HDL; HANDLE(n) = stdout; break;
     case IO_STDERR: TAG(n) = HDL; HANDLE(n) = stderr; break;
@@ -255,6 +239,7 @@ init_nodes(void)
 
 int num_marked;
 
+/* Mark all used nodes reachable from *np */
 void
 mark(NODEPTR *np)
 {
@@ -277,6 +262,7 @@ mark(NODEPTR *np)
   }
 }
 
+/* Scan for unmarked nodes and put them on the free list. */
 void
 scan(void)
 {
@@ -284,6 +270,10 @@ scan(void)
   for(int i = heap_start; i < heap_size; i++) {
     NODEPTR n = HEAPREF(i);
     if (MARK(n) == NOTMARKED) {
+      if (TAG(n) == HDL) {
+        /* A FILE* has become garbage, so close it. */
+        fclose(HANDLE(n));
+      }
       TAG(n) = FREE;
       NEXT(n) = next_free;
       next_free = n;
@@ -293,6 +283,10 @@ scan(void)
   }
 }
 
+/* Perform a garbage collection:
+   - First mark from all roots; roots are on the stack.
+   - Then scan for unmarked nodes.
+*/
 void
 gc(void)
 {
@@ -307,7 +301,7 @@ gc(void)
   //  fprintf(stderr, "gc done, %d free\n", heap_size - heap_start - num_marked);
 }
 
-/* Check that there are k nodes available */
+/* Check that there are k nodes available, if not then GC. */
 void
 gc_check(int k)
 {
@@ -319,6 +313,7 @@ gc_check(int k)
   gc();
 }
 
+/* If the next input character is c, then consume it, else leave it alone. */
 int
 gobble(FILE *f, int c)
 {
@@ -330,8 +325,6 @@ gobble(FILE *f, int c)
     return 0;
   }
 }
-
-NODEPTR *shared;
 
 int64_t
 parse_int(FILE *f)
@@ -349,18 +342,23 @@ parse_int(FILE *f)
   return i;
 }
 
+/* Table of labelled nodes for sharing during parsing. */
+NODEPTR *shared;
+
 NODEPTR
 parse(FILE *f)
 {
   NODEPTR r;
   int l;
   value_t i;
-  int c = getc(f);
-  char buf[20];                 /* store names of primitives. */
+  int c;
+  char buf[80];                 /* store names of primitives. */
 
+  c = getc(f);
   if (c < 0) ERR("parse EOF");
   switch (c) {
   case '(' :
+    /* application: (f a) */
     r = alloc_node(AP);
     FUN(r) = parse(f);
     if (!gobble(f, ' ')) ERR("parse ' '");
@@ -368,12 +366,14 @@ parse(FILE *f)
     if (!gobble(f, ')')) ERR("parse ')'");
     return r;
   case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
+    /* integer [0-9]+*/
     ungetc(c, f);
     i = parse_int(f);
     r = alloc_node(INT);
     SETVALUE(r, i);
     return r;
   case '\'':
+    /* character: 'c */
     r = alloc_node(CHAR);
     i = getc(f);
     SETVALUE(r, i);
@@ -389,6 +389,7 @@ parse(FILE *f)
       }
       buf[j++] = c;
     }
+    /* Look up the primop and use the preallocated node. */
     for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
       if (strcmp(primops[j].name, buf) == 0)
         return primops[j].node;
@@ -396,6 +397,7 @@ parse(FILE *f)
     fprintf(stderr, "bad primop %s\n", buf);
     ERR("no primop");
   case '_' :
+    /* Reference to a shared value: _label */
     l = (int)parse_int(f);  /* The label */
     if (shared[l] == NIL) {
       /* Not yet defined, so make it an indirection */
@@ -404,11 +406,12 @@ parse(FILE *f)
     }
     return shared[l];
   case ':' :
+    /* Define a shared expression: :label e */
     l = (int)parse_int(f);  /* The label */
     if (!gobble(f, ' ')) ERR("parse ' '");
     if (shared[l] == NIL) {
-      /* not referenced yet */
-      shared[l] = alloc_node(IND); /* Must have a placeholder for cycles */
+      /* not referenced yet, so create a node */
+      shared[l] = alloc_node(IND);
       INDIR(shared[l]) = NIL;
     } else {
       /* Sanity check */
@@ -423,6 +426,7 @@ parse(FILE *f)
   }
 }
 
+/* Parse a file */
 NODEPTR
 parse_top(FILE *f)
 {
@@ -434,13 +438,18 @@ parse_top(FILE *f)
   return n;
 }
 
+/* Recursively print an expression.
+   This assumes that the shared nodes has been marked as such.
+*/
 void
 printrec(FILE *f, NODEPTR n)
 {
   if (MARK(n) == PRINTED) {
+    /* This node has already been printer, so just use a reverence. */
     fprintf(f, "_%d", LABEL(n));
     return;
   } else if (MARK(n) == SHARED) {
+    /* This node is shared, mark it as printed now to avoid loops. */
     fprintf(f, ":%d ", LABEL(n));
     MARK(n) = PRINTED;
   }
@@ -455,7 +464,8 @@ printrec(FILE *f, NODEPTR n)
     fputc(')', f);
     break;
   case INT: fprintf(f, "%ld", GETVALUE(n)); break;
-  case CHAR: fprintf(f, "'%c'", (int)GETVALUE(n)); break;
+  case CHAR: fprintf(f, "'%c", (int)GETVALUE(n)); break;
+  case HDL: ERR("Cannot serialize handles");
   case S: fprintf(f, "S"); break;
   case K: fprintf(f, "$K"); break;
   case I: fprintf(f, "$I"); break;
@@ -491,20 +501,20 @@ printrec(FILE *f, NODEPTR n)
   case IO_PRINT: fprintf(f, "$IO.print"); break;
   case IO_OPEN: fprintf(f, "$IO.open"); break;
   case IO_CLOSE: fprintf(f, "$IO.close"); break;
-  case IO_STDIN: fprintf(f, "$IO.stdin"); break;
-  case IO_STDOUT: fprintf(f, "$IO.stdout"); break;
-  case IO_STDERR: fprintf(f, "$IO.stderr"); break;
   default: ERR("print tag");
   }
 }
 
+/* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
 void
 find_sharing(NODEPTR n)
 {
   while (TAG(n) == IND)
     n = INDIR(n);
   if (TAG(n) == AP) {
-    if (MARK(n) == MARKED) {
+    if (MARK(n) == SHARED) {
+      ;
+    } else if (MARK(n) == MARKED) {
       MARK(n) = SHARED;
     } else {
       MARK(n) = MARKED;
@@ -514,6 +524,7 @@ find_sharing(NODEPTR n)
   }
 }
 
+/* Clear all sharing markers after printing. */
 void
 clear_sharing(NODEPTR n)
 {
@@ -528,6 +539,7 @@ clear_sharing(NODEPTR n)
   }
 }
 
+/* Serialize a graph to file. */
 void
 print(FILE *f, NODEPTR n)
 {
@@ -536,6 +548,7 @@ print(FILE *f, NODEPTR n)
   clear_sharing(n);
 }
 
+/* Show a graph. */
 void
 pp(FILE *f, NODEPTR n)
 {
@@ -545,6 +558,7 @@ pp(FILE *f, NODEPTR n)
 
 void eval(NODEPTR n);
 
+/* Evaluate and skip indirections. */
 NODEPTR
 evali(NODEPTR n)
 {
@@ -558,6 +572,7 @@ evali(NODEPTR n)
   return n;
 }
 
+/* Evaluate to an INT */
 value_t
 evalint(NODEPTR n)
 {
@@ -569,6 +584,7 @@ evalint(NODEPTR n)
   return GETVALUE(n);
 }
 
+/* Evaluate to a CHAR */
 int
 evalchar(NODEPTR n)
 {
@@ -580,6 +596,7 @@ evalchar(NODEPTR n)
   return (int)GETVALUE(n);
 }
 
+/* Evaluate to a HDL */
 FILE *
 evalhandle(NODEPTR n)
 {
@@ -591,6 +608,7 @@ evalhandle(NODEPTR n)
   return HANDLE(n);
 }
 
+/* Evaluate a string, returns a newly allocated buffer. */
 /* XXX this is cheating, should use continuations */
 char *
 evalstring(NODEPTR n)
@@ -604,9 +622,9 @@ evalstring(NODEPTR n)
     if (p >= name + sz)
       ERR("evalstring too long");
     n = evali(n);
-    if (TAG(n) == K)
+    if (TAG(n) == K)            /* Nil */
       break;
-    else if (TAG(n) == AP && TAG(FUN(n)) == AP && TAG(FUN(FUN(n))) == O) {
+    else if (TAG(n) == AP && TAG(FUN(n)) == AP && TAG(FUN(FUN(n))) == O) { /* Cons */
       *p++ = evalchar(ARG(FUN(n)));
       n = ARG(n);
     } else {
@@ -617,6 +635,7 @@ evalstring(NODEPTR n)
   return name;
 }
 
+/* Evaluate a node, returns when the node is in WHNF. */
 void
 eval(NODEPTR n)
 {
@@ -624,8 +643,10 @@ eval(NODEPTR n)
   NODEPTR f, g, x, k, y;
   value_t r;
   int c;
-  
+
+/* Reset stack pointer and return. */
 #define RET do { stack_ptr = stk; return; } while(0)
+/* Check that there are at least n arguments, return if not. */
 #define CHECK(n) do { if (stack_ptr - stk <= (n)) RET; } while(0)
 
 #define SETIND(n, x) do { TAG((n)) = IND; INDIR((n)) = (x); } while(0)
@@ -681,7 +702,6 @@ eval(NODEPTR n)
       n = TOP(0);
       SETIND(n, x);
       GOTO ind;
-      break;
     case T:
       CHECK(2);
       x = ARG(TOP(2));
@@ -689,7 +709,6 @@ eval(NODEPTR n)
       n = TOP(0);
       SETIND(n, x);
       GOTO ind;
-      break;
     case I:
       CHECK(1);
       x = ARG(TOP(1));
@@ -697,7 +716,6 @@ eval(NODEPTR n)
       n = TOP(0);
       SETIND(n, x);
       GOTO ind;
-      break;
     case Y:
       CHECK(1);
       f = ARG(TOP(1));
@@ -706,7 +724,6 @@ eval(NODEPTR n)
       FUN(n) = f;
       ARG(n) = n;
       GOTO ap;
-      break;
     case B:
       CHECK(3);
       GCCHECK(1);
@@ -730,7 +747,6 @@ eval(NODEPTR n)
       FUN(n) = new_ap(f, x);
       ARG(n) = g;
       GOTO ap;
-      break;
     case CC:
       CHECK(4);
       GCCHECK(2);
@@ -743,7 +759,6 @@ eval(NODEPTR n)
       FUN(n) = new_ap(k, new_ap(f, x));
       ARG(n) = g;
       GOTO ap;
-      break;
     case P:                     /* P x y f = f x y */
       CHECK(3);
       GCCHECK(1);
@@ -766,6 +781,7 @@ eval(NODEPTR n)
       FUN(n) = new_ap(f, x);
       ARG(n) = y;
       GOTO ap;
+
 #define SETINT(n,r) do { TAG((n)) = INT; SETVALUE((n), (r)); } while(0)
 #define ARITH2(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETINT(n, r); POP(2); } while(0)
     case ADD:
@@ -787,6 +803,7 @@ eval(NODEPTR n)
       /* - with arguments reversed */
       CHECK(2); r = evalint(ARG(TOP(2))) - evalint(ARG(TOP(1))); n = TOP(2); SETINT(n, r); POP(2);
       RET;
+
 #define CMP(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETIND(n, r ? combT : combK); POP(2); } while(0)
     case EQ:
       CMP(==);
@@ -817,16 +834,14 @@ eval(NODEPTR n)
       CHECK(1);
       r = evalint(ARG(TOP(1)));
       n = TOP(1);
-      TAG((n)) = CHAR;
+      TAG(n) = CHAR;
       SETVALUE(n, r);
       POP(1);
       RET;
     case ERROR:
       x = ARG(TOP(1));
-      x = evali(x);
-      fprintf(stderr, "error: ");
-      print(stderr, x);
-      fprintf(stderr, "\n");
+      char *msg = evalstring(x);
+      fprintf(stderr, "error: %s\n", msg);
       exit(1);
     case IO_BIND:
     case IO_THEN:
@@ -845,7 +860,7 @@ eval(NODEPTR n)
 }
 
 /* This is the interpreter for the IO monad operations. */
-/* It takes a monadic expression and returns the unwrapped expression. */
+/* It takes a monadic expression and returns the unwrapped expression (unevaluated). */
 NODEPTR
 evalio(NODEPTR n)
 {
@@ -855,6 +870,7 @@ evalio(NODEPTR n)
   FILE *hdl;
   char *name;
 
+/* IO operations need all arguments, anything else should not happen. */
 #define CHECKIO(n) do { if (stack_ptr - stk != (n+1)) {ERR("CHECKIO");}; } while(0)
 #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)
 
@@ -935,6 +951,7 @@ evalio(NODEPTR n)
         ERR("IO_OPEN");
       }
       free(name);
+      GCCHECK(1);
       n = alloc_node(HDL);
       HANDLE(n) = hdl;
       RETIO(n);
