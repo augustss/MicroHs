@@ -10,7 +10,6 @@ module ParserComb(
   (<?>), (<|<),
   notFollowedBy, lookAhead,
   inject,
-  restOfInput,
   )where
 import Control.Monad.State.Strict
 import Data.Char(isSpace)
@@ -160,6 +159,3 @@ lookAhead p = P $ \ t ->
 
 inject :: String -> Prsr s ()
 inject s = P $ \ (cs, st) -> Many [((), (s ++ cs, st))] noFail
-
-restOfInput :: Prsr s String
-restOfInput = P $ \ t@(cs, _) -> Many [(cs, t)] noFail
