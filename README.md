@@ -69,3 +69,8 @@ The runtime system is written in C and is in `eval.c`.
 It uses combinators for handling variables, and has some primitive operations
 for integers and for executing IO operations.
 There is a also a simple mark-scan garbage collector.
+
+### Features
+The runtime system can serialize and deserialize any expression
+and keep its graph structure (sharing and cycles).
+The only exception to this is file handles, which cannot be serialized.
