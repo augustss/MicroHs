@@ -21,6 +21,31 @@ It has the following features:
 * type signatures that are ignored.
 * importing of other modules, with neither import nor export lists
 
+## Example
+The file `Example.hs` contains the following:
+```Haskell
+module Example where
+import Prelude
+import List
+import IO
+import String
+
+fac n =
+  case n <= 0 of
+    False -> n * fac(n-1)
+    True  -> 1
+
+main = IO.do
+  let
+    rs = map fac [1,2,3,10]
+  putStrLn "Some factorials"
+  putStrLn $ showList showInt rs
+```
+
+First, make sure the binaries are built.  E.g., by doing `make test`.
+The compile the file by `bin/uhs Example` which produces `out.comb`.
+Run the combinator file by `bin/eval out.comb`.
+
 ## Compiler
 The compiler is written in Haskell (not Micro Haskell yet).
 It takes a name of a module and compiles it to a file called `out.comb`.
