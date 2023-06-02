@@ -15,14 +15,14 @@ data Cache = Cache
   }
   deriving (Show)
 
-compile :: IdentModule -> IO [LDef]
-compile nm = do
-  ch <- execStateT (compileModuleCached nm) Cache{ working = [], cache = M.empty }
+compile :: Bool -> IdentModule -> IO [LDef]
+compile verbose nm = do
+  ch <- execStateT (compileModuleCached verbose nm) Cache{ working = [], cache = M.empty }
   let qual (mn, ds) = [(mn ++ "." ++ i, e) | (i, e) <- ds ]
   pure $ concatMap qual $ M.elems $ cache ch
 
-compileModuleCached :: IdentModule -> StateT Cache IO CModule
-compileModuleCached nm = do
+compileModuleCached :: Bool -> IdentModule -> StateT Cache IO CModule
+compileModuleCached verbose nm = do
   ch <- gets cache
   case M.lookup nm ch of
     Nothing -> do
@@ -30,23 +30,26 @@ compileModuleCached nm = do
       when (nm `elem` ws) $
         error $ "recursive module: " ++ show nm
       modify $ \ c -> c { working = nm : working c }
-      liftIO $ putStrLn $ "importing " ++ show nm
-      cm <- compileModule nm
-      liftIO $ putStrLn $ "importing done " ++ show nm
+      when verbose $
+        liftIO $ putStrLn $ "importing " ++ show nm
+      cm <- compileModule verbose nm
+      when verbose $
+        liftIO $ putStrLn $ "importing done " ++ show nm
       modify $ \ c -> c { working = tail (working c), cache = M.insert nm cm (cache c) }
       pure cm
     Just cm -> do
-      liftIO $ putStrLn $ "importing cached " ++ show nm
+      when verbose $
+        liftIO $ putStrLn $ "importing cached " ++ show nm
       pure cm
 
-compileModule :: IdentModule -> StateT Cache IO CModule
-compileModule nm = do
+compileModule :: Bool -> IdentModule -> StateT Cache IO CModule
+compileModule verbose nm = do
   let fn = nm ++ ".uhs"
   mdl@(Module nm' defs) <- parseDie pTop fn <$> liftIO (readFile fn)
   when (nm /= nm') $
     error $ "module name does not agree with file name: " ++ show nm
   impMdls :: [CModule]
-          <- mapM compileModuleCached [ m | Import m <- defs ]
+          <- mapM (compileModuleCached verbose) [ m | Import m <- defs ]
   let
     mdl' :: CModule
     mdl' = desugar mdl

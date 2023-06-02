@@ -1,3 +1,4 @@
+import Control.Monad
 import Data.Maybe
 import System.Environment(getArgs)
 import Parse
@@ -6,8 +7,12 @@ import Compile
 
 main :: IO ()
 main = do
-  [mn] <- getArgs
-  ds <- compile mn
+  args <- getArgs
+  let verbose = "-v" `elem` args
+      mn = case filter ((/= "-") . take 1) args of
+             [s] -> s
+             _ -> error "Usage: compile [-v] ModuleName"
+  ds <- compile verbose mn
   let ds' = [ (n, compileOpt e) | (n, e) <- ds ]
       defs :: [(Ident, Exp)]
       defs = [ (n, ref i) | ((n, _), i) <- zip ds' [0..] ]
@@ -21,6 +26,7 @@ main = do
       subst e = e
       ref i = Var $ "_" ++ show (i::Int)
 --  mapM_ (\ (i, e) -> putStrLn $  i ++ " = " ++ toString e) ds
-  mapM_ (\ (i, e) -> putStrLn $  i ++ " = " ++ toString e) ds'
-  putStrLn $ toStringP res
+  when verbose $ do
+    mapM_ (\ (i, e) -> putStrLn $  i ++ " = " ++ toString e) ds'
+    putStrLn $ toStringP res
   writeFile "out.comb" $ toStringP res
