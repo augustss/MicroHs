@@ -43,7 +43,7 @@ main = IO.do
 ```
 
 First, make sure the binaries are built.  E.g., by doing `make test`.
-Then compile the file by `bin/uhs Example` which produces `out.comb`.
+Then compile the file by `bin/uhs -ilib Example` which produces `out.comb`.
 Finally, run the combinator file by `bin/eval out.comb`.
 This should produce
 ```
