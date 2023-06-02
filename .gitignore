@@ -3,3 +3,5 @@
 *~
 *.comb
 bin/*
+tests/*.tmp
+tests/*.out

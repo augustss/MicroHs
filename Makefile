@@ -15,4 +15,4 @@ test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
 
 clean:
 	rm -f *.hi *.o eval Main *.comb *.tmp *~
-
+	cd tests; make clean
