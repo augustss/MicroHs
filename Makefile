@@ -1,14 +1,15 @@
-test:	eval nfib.comb
-	./eval nfib.comb
+BIN=bin
+.PHONY: all
 
-eval:	eval.c
-	gcc -Wall -O3 eval.c -o eval
+all:
+	@echo pick a target
 
-nfib.comb:	Lam
-	./Lam > nfib.comb
+$(BIN)/eval:	eval.c
+	gcc -Wall -O3 eval.c -o $(BIN)/eval
 
-Main:	*.hs
-	ghc Main.hs -o Main
+$(BIN)/Main:	*.hs
+	ghc Main.hs -o $(BIN)/Main
 
 clean:
-	rm -f *.hi *.o eval Lam *.comb
+	rm -f *.hi *.o eval Main *.comb *.tmp *~
+
