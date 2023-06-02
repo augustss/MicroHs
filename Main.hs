@@ -11,7 +11,7 @@ main = do
   args <- getArgs
   let mn = case filter ((/= "-") . take 1) args of
              [s] -> s
-             _ -> error "Usage: compile [-v] ModuleName"
+             _ -> error "Usage: uhs [-v] [-iPATH] ModuleName"
       flags = Flags { verbose = "-v" `elem` args,
                       path = "." : catMaybes (map (stripPrefix "-i") args)
                     }

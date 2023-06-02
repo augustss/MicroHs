@@ -1,7 +1,5 @@
 *.hi
 *.o
-Lam
-eval
 *~
 *.comb
-Main
+bin/*
