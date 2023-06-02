@@ -1,9 +1,17 @@
 module Compile where
+import Control.Exception
 import Control.Monad.State.Strict
 import qualified Data.Map as M
+import System.IO
 import Desugar
 import Exp
 import Parse
+
+data Flags = Flags {
+  verbose :: Bool,
+  path :: [FilePath]
+  }
+  deriving (Show)
 
 type IdentModule = Ident
 type CModule = (IdentModule, [LDef])
@@ -15,14 +23,14 @@ data Cache = Cache
   }
   deriving (Show)
 
-compile :: Bool -> IdentModule -> IO [LDef]
-compile verbose nm = do
-  ch <- execStateT (compileModuleCached verbose nm) Cache{ working = [], cache = M.empty }
+compile :: Flags -> IdentModule -> IO [LDef]
+compile flags nm = do
+  ch <- execStateT (compileModuleCached flags nm) Cache{ working = [], cache = M.empty }
   let qual (mn, ds) = [(mn ++ "." ++ i, e) | (i, e) <- ds ]
   pure $ concatMap qual $ M.elems $ cache ch
 
-compileModuleCached :: Bool -> IdentModule -> StateT Cache IO CModule
-compileModuleCached verbose nm = do
+compileModuleCached :: Flags -> IdentModule -> StateT Cache IO CModule
+compileModuleCached flags nm = do
   ch <- gets cache
   case M.lookup nm ch of
     Nothing -> do
@@ -30,26 +38,26 @@ compileModuleCached verbose nm = do
       when (nm `elem` ws) $
         error $ "recursive module: " ++ show nm
       modify $ \ c -> c { working = nm : working c }
-      when verbose $
+      when (verbose flags) $
         liftIO $ putStrLn $ "importing " ++ show nm
-      cm <- compileModule verbose nm
-      when verbose $
+      cm <- compileModule flags nm
+      when (verbose flags) $
         liftIO $ putStrLn $ "importing done " ++ show nm
       modify $ \ c -> c { working = tail (working c), cache = M.insert nm cm (cache c) }
       pure cm
     Just cm -> do
-      when verbose $
+      when (verbose flags) $
         liftIO $ putStrLn $ "importing cached " ++ show nm
       pure cm
 
-compileModule :: Bool -> IdentModule -> StateT Cache IO CModule
-compileModule verbose nm = do
+compileModule :: Flags -> IdentModule -> StateT Cache IO CModule
+compileModule flags nm = do
   let fn = nm ++ ".uhs"
-  mdl@(Module nm' defs) <- parseDie pTop fn <$> liftIO (readFile fn)
+  mdl@(Module nm' defs) <- parseDie pTop fn <$> liftIO (readFilePath (path flags) fn)
   when (nm /= nm') $
     error $ "module name does not agree with file name: " ++ show nm
   impMdls :: [CModule]
-          <- mapM (compileModuleCached verbose) [ m | Import m <- defs ]
+          <- mapM (compileModuleCached flags) [ m | Import m <- defs ]
   let
     mdl' :: CModule
     mdl' = desugar mdl
@@ -75,3 +83,20 @@ checkExpr syms ee =
     Lam i e -> Lam i (checkExpr syms' e) where syms' = M.insertWith (++) i [Var i] syms
     Lbl _ _ -> undefined
     e -> e
+
+------------------
+
+readFilePath :: [FilePath] -> String -> IO String
+readFilePath path name = hGetContents =<< openFilePath path name
+
+tryOpenFile :: FilePath -> IO (Either IOError Handle)
+tryOpenFile path = try $ openFile path ReadMode
+
+openFilePath :: [FilePath] -> String -> IO Handle
+openFilePath [] fileName = error $ "File not found: " ++ show fileName
+openFilePath (dir:dirs) fileName = do
+    let path = dir ++ "/" ++ fileName
+    result <- tryOpenFile path
+    case result of
+        Left _ -> openFilePath dirs fileName -- If opening failed, try the next directory
+        Right handle -> return handle

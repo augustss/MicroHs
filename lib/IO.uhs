@@ -4,16 +4,17 @@ import List
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
 
-(>>=)     = primitive "IO.>>="
-(>>)      = primitive "IO.>>"
-return    = primitive "IO.return"
-hPutChar  = primitive "IO.putChar"
-hGetChar  = primitive "IO.getChar"
-hPrint    = primitive "IO.print"
-hClose    = primitive "IO.close"
-stdin     = primitive "IO.stdin"
-stdout    = primitive "IO.stdout"
-stderr    = primitive "IO.stderr"
+(>>=)        = primitive "IO.>>="
+(>>)         = primitive "IO.>>"
+return       = primitive "IO.return"
+hPutChar     = primitive "IO.putChar"
+hGetChar     = primitive "IO.getChar"
+hSerialize   = primitive "IO.serialize"
+hdeserialize = primitive "IO.deserialize"
+hClose       = primitive "IO.close"
+stdin        = primitive "IO.stdin"
+stdout       = primitive "IO.stdout"
+stderr       = primitive "IO.stderr"
 
 openFile :: FilePath -> IOMode -> IO Handle
 openFile p m =
@@ -32,7 +33,7 @@ getChar :: Char -> IO ()
 getChar = hGetChar stdin
 
 print :: a -> IO ()
-print = hPrint stdout
+print = hSerialize stdout
 
 mapM :: (a -> IO b) -> [a] -> IO [b]
 mapM f =
@@ -89,3 +90,16 @@ hGetContents h = IO.do
   case ord c == negate 1 of
     False -> IO.do { cs <- hGetContents h; return (c:cs) }
     True  -> return ""
+
+writeSerialized :: FilePath -> a -> IO ()
+writeSerialized p s = IO.do
+  h <- openFile p WriteMode
+  hSerialize h s
+  hClose h
+
+readSerialized :: FilePath -> IO a
+readSerialized p = IO.do
+  h <- openFile p ReadMode
+  a <- hdeserialize h
+  hClose h
+  return a
