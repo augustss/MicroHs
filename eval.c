@@ -1006,15 +1006,28 @@ int
 main(int argc, char **argv)
 {
   int verbose = 0;
-  while (argc > 1 && strcmp(argv[1], "-v") == 0) {
+  char *fn = 0;
+  
+  argc--, argv++;
+  while (argc > 0 && argv[0][0] == '-') {
+    if (strcmp(argv[0], "-v") == 0)
+      verbose++;
+    else if (strncmp(argv[0], "-H", 2) == 0)
+      heap_size = atoi(&argv[0][2]);
+    else
+      ERR("Bad flag");
     argc--;
     argv++;
-    verbose++;
   }
-  if (argc != 2)
-    ERR("no file");
+  if (argc == 0)
+    fn = "out.comb";
+  else if (argc == 1)
+    fn = argv[0];
+  else
+    ERR("too many files");
+
   init_nodes();
-  FILE *f = fopen(argv[1], "r");
+  FILE *f = fopen(fn, "r");
   if (!f)
     ERR("file not found");
   NODEPTR n = parse_top(f);
