@@ -73,3 +73,19 @@ writeFile p s = IO.do
   h <- openFile p WriteMode
   hPutStr h s
   hClose h
+
+-- Strict readFile
+readFile :: FilePath -> IO Strict
+readFile p = IO.do
+  h <- openFile p ReadMode
+  cs <- hGetContents h
+  hClose h
+  return cs
+
+-- Strict hGetContents
+hGetContents :: Handle -> IO String
+hGetContents h = IO.do
+  c <- hGetChar h
+  case ord c == negate 1 of
+    False -> IO.do { cs <- hGetContents h; return (c:cs) }
+    True  -> return ""

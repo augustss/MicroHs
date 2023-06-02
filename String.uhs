@@ -8,6 +8,18 @@ showChar c =
     False -> ['\'', c, '\'']
     True  -> "'\\n'"
 
+showString :: String -> String
+showString s =
+  let
+    loop arg =
+      case arg of
+        [] -> "\""
+        c : cs ->
+          case ord c == ord '\n' of
+            False -> c : loop cs
+            True  -> '\\' : 'n' : loop cs
+  in '"' : loop s
+
 -- XXX wrong for minInt
 showInt :: Int -> String
 showInt n =
