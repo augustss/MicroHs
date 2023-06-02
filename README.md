@@ -43,8 +43,13 @@ main = IO.do
 ```
 
 First, make sure the binaries are built.  E.g., by doing `make test`.
-The compile the file by `bin/uhs Example` which produces `out.comb`.
-Run the combinator file by `bin/eval out.comb`.
+Then compile the file by `bin/uhs Example` which produces `out.comb`.
+Finally, run the combinator file by `bin/eval out.comb`.
+This should produce
+```
+Some factorials
+[1,2,6,3628800]
+```
 
 ## Compiler
 The compiler is written in Haskell (not Micro Haskell yet).
