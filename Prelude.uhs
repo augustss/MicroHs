@@ -98,4 +98,7 @@ id x = x
 const :: a -> b -> a
 const x _ = x
 
+flip :: (b -> a -> c) -> a -> b -> c
+flip f a b = f b a
+
 fix = primitive "Y"

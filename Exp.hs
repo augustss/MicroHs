@@ -3,6 +3,7 @@
 module Exp where
 --import Data.List
 import Parse(Ident)
+--import Debug.Trace
 
 pp :: Exp -> IO ()
 pp = putStrLn . toString
@@ -15,7 +16,6 @@ data Exp
   | Lam Ident Exp
   | Int Integer
   | Chr Char
-  | Comb String
   | Prim PrimOp
   | Lbl Int Exp
   deriving (Show, Eq)
@@ -30,23 +30,22 @@ pattern App4 :: Exp -> Exp -> Exp -> Exp -> Exp -> Exp
 pattern App4 x y z w v = App (App (App (App x y) z) w) v
 
 pattern CI, CK, CS, CC, CB, CS', CC', CB', CT, CY, CP, CO :: Exp
-pattern CI = Comb "I"
-pattern CK = Comb "K"
-pattern CS = Comb "S"
-pattern CC = Comb "C"
-pattern CB = Comb "B"
-pattern CS' = Comb "S'"
-pattern CC' = Comb "C'"
-pattern CB' = Comb "B'"
-pattern CT = Comb "T"
-pattern CY = Comb "Y"
-pattern CP = Comb "P"
-pattern CO = Comb "O"
+pattern CI = Prim "I"
+pattern CK = Prim "K"
+pattern CS = Prim "S"
+pattern CC = Prim "C"
+pattern CB = Prim "B"
+pattern CS' = Prim "S'"
+pattern CC' = Prim "C'"
+pattern CB' = Prim "B'"
+pattern CT = Prim "T"
+pattern CY = Prim "Y"
+pattern CP = Prim "P"
+pattern CO = Prim "O"
 
 toStringP :: Exp -> String
 toStringP (Var x) = x
 toStringP (Prim x) = '$':x
-toStringP (Comb x) = '$':x
 toStringP (Int i) = show i
 toStringP (Chr c) = ['\'', c]
 toStringP (Lam x e) = "(\\" ++ x ++ " " ++ toStringP e ++ ")"
@@ -56,7 +55,6 @@ toStringP (Lbl i e) = ":" ++ show i ++ " " ++ toStringP e
 toString :: Exp -> String
 toString (Var x) = x
 toString (Prim x) = x
-toString (Comb x) = x
 toString (Int i) = show i
 toString (Chr c) = show c
 toString (Lam x e) = "(\\" ++ x ++ ". " ++ toString e ++ ")"
@@ -84,6 +82,7 @@ cK :: Exp -> Exp
 cK e  = App CK e
 
 cS :: Exp -> Exp -> Exp
+--cS e1 e2 | trace ("S (" ++ toString e1 ++ ") (" ++ toString e2 ++ ")") False = undefined
 cS (App CK e1)     (App CK e2) = cK (App e1 e2)    -- S (K e1) (K e2) = K (e1 e2)
 cS (App CK e1)     CI          = e1                -- S (K e1) I      = e1
 cS (App CK e1)     e2          = cB e1 e2          -- S (K e1) e2     = B e1 e2
@@ -93,15 +92,16 @@ cS e1 e2                       = App2 CS e1 e2
 
 cC :: Exp -> Exp -> Exp
 cC (App2 CB e1 e2) e3          = cC' e1 e2 e3      -- C (B e1 e2) e3  = C' e1 e2 e3
---cC (Prim op)       e2 | Just op' <- lookup op flipOps = App (Prim op') e2 -- C op e = flip-op e
-cC (Var op)       e2 | Just op' <- lookup op flipOps = App (Var op') e2 -- C op e = flip-op e
+cC (Var op)        e2 | Just op' <- lookup op flipOps = App (Var op') e2 -- C op e = flip-op e
 cC (App2 CC CI e1) e2          = App2 CP e1 e2
 cC e1              e2          = App2 CC e1 e2
 
 cB :: Exp -> Exp -> Exp
-cB CC          (App CC CI) = CP -- Pair
-cB (App CB CK) CP          = CO -- Cons
-cB e1          e2          = App2 CB e1 e2
+cB CC          (App CC CI)    = CP -- Pair
+cB (App CB CK) CP             = CO -- Cons
+cB CY          (App2 CB CK e) = e  -- B Y (B K e) = e
+cB CI          e              = e  -- B I e = e
+cB e1          e2             = App2 CB e1 e2
 
 cS' :: Exp -> Exp -> Exp -> Exp
 cS' e1 e2 e3 = App3 CS' e1 e2 e3
@@ -123,39 +123,6 @@ flipOps =
   ,("Prelude.>=", "Prelude.<=")
   ]
 
-{-
-improve :: Exp -> Exp
-improve = improveT . improveC
-
-improveC :: Exp -> Exp
-improveC (App f a) =
-  case (improveC f, improveC a) of
-    (App CS (App CK e1),     App CK e2) -> improveC (App CK (App e1 e2))
-    (App CS (App CK e1),     CI)        -> e1
-    (App CS (App CK e1),     e2)        -> improveC (App2 CB e1 e2)
-    (App CS         e1,      App CK e2) -> improveC (App2 CC e1 e2)
-    (App CS (App2 CB e1 e2), e3)        -> improveC (App3 CS' e1 e2 e3)
-    (App CC (App2 CB e1 e2), e3)        -> improveC (App3 CC' e1 e2 e3)
-    -- Pair
---    (App CB CC,              App CC CI) -> Comb "P"
-    -- Cons
---    (App CB (App CB CK),     Comb "P")  -> Comb "O"
---    (CK,                     CI)        -> CT
-    -- flip arguments to commutative ops
-    (CC,                     Prim "+")  -> Prim "+"
-    (CC,                     Prim "*")  -> Prim "*"
-    (CC,                     Prim "==") -> Prim "=="
-    (CC,                     Prim "!=") -> Prim "!="
-    -- flip arguments when a flipped version exists
-    (CC,                     Prim "-")  -> Prim "-'"
-    (CC,                     Prim "<")  -> Prim ">"
-    (CC,                     Prim ">")  -> Prim "<"
-    (CC,                     Prim "<=") -> Prim ">="
-    (CC,                     Prim ">=") -> Prim "<="
-    (e1,                     e2)        -> App e1 e2
-improveC e = e
-
--}
 improveT :: Exp -> Exp
 improveT (App f a) =
   case (improveT f, improveT a) of

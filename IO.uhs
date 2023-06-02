@@ -47,13 +47,14 @@ mapM f =
 
 mapM_ :: (a -> IO b) -> [a] -> IO ()
 mapM_ f =
-  fix (\ rec arg ->
-    case arg of
-      [] -> return ()
-      a : as -> IO.do
-        f a
-        rec as
-    )
+  let
+    rec arg =
+      case arg of
+        [] -> return ()
+        a : as -> IO.do
+          f a
+          rec as
+  in rec
 
 putStr :: String -> IO ()
 putStr = hPutStr stdout

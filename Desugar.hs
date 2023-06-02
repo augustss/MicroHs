@@ -38,7 +38,7 @@ dsExpr (ECase e as) = apps (dsExpr e) (map dsArm as)
 dsExpr (ELet ds e) =
   let ds' = concatMap dsDef ds
       e' = dsExpr e
-      def (i, d) a = App (Lam i a) (App (Comb "Y") (Lam i d))
+      def (i, d) a = App (Lam i a) (App (Prim "Y") (Lam i d))
   in  foldr def e' ds'
 dsExpr (EList es) =
   foldr (App2 CO) CK $ map dsExpr es

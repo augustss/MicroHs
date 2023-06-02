@@ -12,30 +12,33 @@ data List a = Nil | (:) a (List a)
 
 map :: (a -> b) -> [a] -> [b]
 map f =
-  fix ( \ rec arg ->
-    case arg of
-      [] -> []
-      a : as -> f a : rec as
-    )
+  let
+    rec arg =
+      case arg of
+        [] -> []
+        a : as -> f a : rec as
+  in rec
 
 filter :: (a -> Bool) -> [a] -> [a]
 filter p =
-  fix ( \ rec arg ->
-    case arg of
-      [] -> []
-      x : xs ->
-        case p x of
-          False -> rec xs
-          True  -> x : rec xs
-    )
+  let
+    rec arg =
+      case arg of
+        [] -> []
+        x : xs ->
+          case p x of
+            False -> rec xs
+            True  -> x : rec xs
+  in rec
 
 foldr :: (a -> b -> b) -> b -> [a] -> b
 foldr f z =
-  fix ( \ rec arg ->
-    case arg of
-      [] -> z
-      x : xs -> f x (rec xs)
-    )
+  let
+    rec arg =
+      case arg of
+        [] -> z
+        x : xs -> f x (rec xs)
+  in rec
 
 sum = foldr (+) 0
 product = foldr (*) 1
