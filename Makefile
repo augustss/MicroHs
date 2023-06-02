@@ -1,5 +1,5 @@
 BIN=bin
-.PHONY: all
+.PHONY: all test
 
 all:
 	@echo pick a target
@@ -9,6 +9,9 @@ $(BIN)/eval:	eval.c
 
 $(BIN)/uhs:	*.hs
 	ghc Main.hs -o $(BIN)/uhs
+
+test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
+	cd tests; make
 
 clean:
 	rm -f *.hi *.o eval Main *.comb *.tmp *~
