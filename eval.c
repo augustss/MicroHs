@@ -990,10 +990,10 @@ int
 main(int argc, char **argv)
 {
   int verbose = 0;
-  if (argc > 1 && strcmp(argv[1], "-v") == 0) {
+  while (argc > 1 && strcmp(argv[1], "-v") == 0) {
     argc--;
     argv++;
-    verbose = 1;
+    verbose++;
   }
   if (argc != 2)
     ERR("no file");
@@ -1005,7 +1005,8 @@ main(int argc, char **argv)
   fclose(f);
   PUSH(n); gc(); n = TOP(0); POP(1);
   int start_size = num_marked;
-  //pp(stdout, n);
+  if (verbose > 1)
+    pp(stdout, n);
   n = evalio(n);
   if (verbose) {
     printf("\nmain returns ");
