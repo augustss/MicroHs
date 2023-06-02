@@ -43,3 +43,21 @@ and = foldr (&&) True
 or = foldr (||) False
 any p = or . map p
 all p = and . map p
+
+take :: Int -> [a] -> [a]
+take n arg =
+  case n <= 0 of
+    False ->
+      case arg of
+        [] -> []
+        x : xs -> x : take (n-1) xs
+    True -> []
+
+drop :: Int -> [a] -> [a]
+drop n arg =
+  case n <= 0 of
+    False ->
+      case arg of
+        [] -> []
+        _ : xs -> drop (n-1) xs
+    True -> arg
