@@ -4,6 +4,12 @@ import Prelude
 -- By parser some parser hacks we can use [] instead of Nil
 data List a = Nil | (:) a (List a)
 
+null :: [a] -> Bool
+null arg =
+  case arg of
+    []    -> True
+    _ : _ -> False
+
 (++) :: [a] -> [a] -> [a]
 (++) as ys =
   case as of
