@@ -1,0 +1,41 @@
+module String where
+import Prelude
+import List
+
+showChar :: Char -> String
+showChar c =
+  case ord c == ord '\n' of
+    False -> ['\'', c, '\'']
+    True  -> "'\\n'"
+
+-- XXX wrong for minInt
+showInt :: Int -> String
+showInt n =
+  case n < 0 of
+    False -> showUnsignedInt n
+    True  -> '-' : showUnsignedInt (negate n)
+
+showUnsignedInt :: Int -> String
+showUnsignedInt n =
+  let
+    c = chr (ord '0' + rem n 10)
+  in  case n < 10 of
+        False -> showUnsignedInt (quot n 10) ++ [c]
+        True  -> [c]
+
+showPair :: (a -> String) -> (b -> String) -> (a, b) -> String
+showPair sa sb ab =
+  case ab of
+    (a, b) -> "(" ++ sa a ++ "," ++ sb b ++ ")"
+
+showList :: (a -> String) -> [a] -> String
+showList sa arg =
+  let
+    showRest as =
+      case as of
+        [] -> "]"
+        x : xs -> "," ++ sa x ++ showRest xs
+  in
+    case arg of
+      [] -> "[]"
+      a : as -> "[" ++ sa a ++ showRest as
