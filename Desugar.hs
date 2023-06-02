@@ -34,11 +34,11 @@ dsExpr (ECase e as) = apps (dsExpr e) (map dsArm as)
   where dsArm (PConstr _ vs, r) = lams vs $ dsExpr r
         dsArm (PTuple [_], _) = error "dsExpr: singleton tuple"
         dsArm (PTuple vs, r) = lams vs $ dsExpr r
--- For now, just sequential bindings.
+-- For now, just sequential bindings; each recursive
 dsExpr (ELet ds e) =
   let ds' = concatMap dsDef ds
       e' = dsExpr e
-      def (i, d) a = App (Lam i a) d
+      def (i, d) a = App (Lam i a) (App (Comb "Y") (Lam i d))
   in  foldr def e' ds'
 dsExpr (EList es) =
   foldr (App2 CO) CK $ map dsExpr es

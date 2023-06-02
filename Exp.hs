@@ -159,8 +159,9 @@ improveC e = e
 improveT :: Exp -> Exp
 improveT (App f a) =
   case (improveT f, improveT a) of
-    (CK,                     CI)        -> CT
-    (e1,                     e2)        -> App e1 e2
+    (CK,                     CI) -> CT
+    (CY,               App CK e) -> e
+    (e1,                     e2) -> App e1 e2
 improveT e = e
 
 reduce :: Exp -> Exp
