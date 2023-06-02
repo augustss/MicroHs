@@ -1,5 +1,5 @@
 BIN=bin
-.PHONY: all test
+.PHONY: all test time example
 
 all:
 	@echo pick a target
@@ -11,7 +11,13 @@ $(BIN)/uhs:	*.hs
 	ghc Main.hs -o $(BIN)/uhs
 
 test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
-	cd tests; make
+	cd tests; make test
+
+time:	$(BIN)/eval $(BIN)/uhs tests/*.hs
+	cd tests; make time
+
+example:	$(BIN)/eval $(BIN)/uhs Example.hs
+	$(BIN)/uhs -ilib Example && $(BIN)/eval
 
 clean:
 	rm -f *.hi *.o eval Main *.comb *.tmp *~

@@ -37,14 +37,15 @@ print = hSerialize stdout
 
 mapM :: (a -> IO b) -> [a] -> IO [b]
 mapM f =
-  fix (\ rec arg ->
-    case arg of
-      [] -> return []
-      a : as -> IO.do
-        b <- f a
-        bs <- rec as
-        return (b : bs)
-    )
+  let
+    rec arg =
+      case arg of
+        [] -> return []
+        a : as -> IO.do
+          b <- f a
+          bs <- rec as
+          return (b : bs)
+  in rec
 
 mapM_ :: (a -> IO b) -> [a] -> IO ()
 mapM_ f =

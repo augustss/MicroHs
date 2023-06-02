@@ -7,7 +7,7 @@
  * NODE_INDEX   use 32 bit indices instead of pointers
  * NODE_SPLIT   split flags, funs, and args
  */
-#define NODE_INDEX
+#define NODE_NAIVE
 
 #define HEAP_CELLS 100000
 #define STACK_SIZE 10000

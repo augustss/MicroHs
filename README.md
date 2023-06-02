@@ -16,6 +16,7 @@ It has the following features:
 * let expressions, no mutual recursion, no pattern matching
 * tuples
 * list syntax
+* arithmetic and comparison operators, but only for `Int`
 * qualified `do` notation, e.g., `IO.do`
 * data type declarations
 * type signatures that are ignored.
@@ -50,6 +51,10 @@ This should produce
 Some factorials
 [1,2,6,3628800]
 ```
+
+## Libraries
+There are a number of libraries that some of the standard Haskell functions.
+But in general, the `Prelude` contains less.
 
 ## Compiler
 The compiler is written in Haskell (not Micro Haskell yet).

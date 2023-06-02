@@ -52,7 +52,7 @@ compileModuleCached flags nm = do
 
 compileModule :: Flags -> IdentModule -> StateT Cache IO CModule
 compileModule flags nm = do
-  let fn = nm ++ ".hs"
+  let fn = map (\ c -> if c == '.' then '/' else c) nm ++ ".hs"
   mdl@(Module nm' defs) <- parseDie pTop fn <$> liftIO (readFilePath (path flags) fn)
   when (nm /= nm') $
     error $ "module name does not agree with file name: " ++ show nm

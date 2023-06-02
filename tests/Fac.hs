@@ -20,4 +20,3 @@ res = (fac 10, nfib 30)
 main = IO.do
   print $ fac 6
   print $ fst res + snd res
-  print $ nfib 35
