@@ -989,6 +989,12 @@ evalio(NODEPTR n)
 int
 main(int argc, char **argv)
 {
+  int verbose = 0;
+  if (argc > 1 && strcmp(argv[1], "-v") == 0) {
+    argc--;
+    argv++;
+    verbose = 1;
+  }
   if (argc != 2)
     ERR("no file");
   init_nodes();
@@ -998,11 +1004,15 @@ main(int argc, char **argv)
   NODEPTR n = parse_top(f);
   fclose(f);
   PUSH(n); gc(); n = TOP(0); POP(1);
+  int start_size = num_marked;
   //pp(stdout, n);
   n = evalio(n);
-  printf("\nmain returns ");
-  pp(stdout, n);
-  printf("node size=%ld, heap size=%ld\n", NODE_SIZE, heap_size);
-  printf("%d reductions, %d GCs, max cells used %d\n", num_reductions, num_gc, max_num_marked);
+  if (verbose) {
+    printf("\nmain returns ");
+    pp(stdout, n);
+    printf("node size=%ld, heap size=%ld\n", NODE_SIZE, heap_size);
+    printf("%d reductions, %d GCs, max cells used %d\n", num_reductions, num_gc, max_num_marked);
+    printf("%d cells at start\n", start_size);
+  }
   exit(0);
 }
