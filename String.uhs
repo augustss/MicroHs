@@ -23,6 +23,17 @@ showUnsignedInt n =
         False -> showUnsignedInt (quot n 10) ++ [c]
         True  -> [c]
 
+showBool :: Bool -> String
+showBool arg =
+  case arg of
+    False -> "False"
+    True  -> "True"
+
+--showUnit :: () -> String
+--showUnit arg =
+--  case arg of
+--    () -> "()"
+
 showPair :: (a -> String) -> (b -> String) -> (a, b) -> String
 showPair sa sb ab =
   case ab of
@@ -39,3 +50,15 @@ showList sa arg =
     case arg of
       [] -> "[]"
       a : as -> "[" ++ sa a ++ showRest as
+
+showMaybe :: (a -> String) -> Maybe a -> String
+showMaybe fa arg =
+  case arg of
+    Nothing -> "Nothing"
+    Just a  -> "(Just " ++ fa a ++ ")"
+
+showEither :: (a -> String) -> (b -> String) -> Either a b -> String
+showEither fa fb arg =
+  case arg of
+    Left  a -> "(Left " ++ fa a ++ ")"
+    Right b -> "(Right " ++ fb b ++ ")"
