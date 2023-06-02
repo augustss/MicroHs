@@ -245,6 +245,7 @@ mark(NODEPTR *np)
 {
   NODEPTR n = *np;
 
+ top:
   if (TAG(n) == IND) {
     /* Skip indirections, and redirect start pointer */
     while (TAG(n) == IND) {
@@ -256,6 +257,16 @@ mark(NODEPTR *np)
     return;
   num_marked++;
   MARK(n) = MARKED;
+#if 1
+  /* This is really only fruitful just after parsing.  It can be removed. */
+  if (TAG(n) == AP && TAG(FUN(n)) == AP && TAG(FUN(FUN(n))) == T) {
+    /* Do the T x y --> y reduction */
+    NODEPTR y = ARG(n);
+    TAG(n) = IND;
+    INDIR(n) = y;
+    goto top;
+  }
+#endif
   if (TAG(n) == AP) {
     mark(&FUN(n));
     mark(&ARG(n));
@@ -283,6 +294,8 @@ scan(void)
   }
 }
 
+int max_num_marked = 0;
+
 /* Perform a garbage collection:
    - First mark from all roots; roots are on the stack.
    - Then scan for unmarked nodes.
@@ -298,6 +311,8 @@ gc(void)
   // fprintf(stderr, "gc scan\n");
   scan();
 
+  if (num_marked > max_num_marked)
+    max_num_marked = num_marked;
   //  fprintf(stderr, "gc done, %d free\n", heap_size - heap_start - num_marked);
 }
 
@@ -465,8 +480,17 @@ printrec(FILE *f, NODEPTR n)
     break;
   case INT: fprintf(f, "%ld", GETVALUE(n)); break;
   case CHAR: fprintf(f, "'%c", (int)GETVALUE(n)); break;
-  case HDL: ERR("Cannot serialize handles");
-  case S: fprintf(f, "S"); break;
+  case HDL:
+    if (HANDLE(n) == stdin)
+      fprintf(f, "$IO.stdin");
+    else if (HANDLE(n) == stdout)
+      fprintf(f, "$IO.stdout");
+    else if (HANDLE(n) == stderr)
+      fprintf(f, "$IO.stderr");
+    else
+      ERR("Cannot serialize handles");
+    break;
+  case S: fprintf(f, "$S"); break;
   case K: fprintf(f, "$K"); break;
   case I: fprintf(f, "$I"); break;
   case C: fprintf(f, "$C"); break;
@@ -973,11 +997,12 @@ main(int argc, char **argv)
     ERR("file not found");
   NODEPTR n = parse_top(f);
   fclose(f);
-  /*pp(stdout, n);*/
+  PUSH(n); gc(); n = TOP(0); POP(1);
+  //pp(stdout, n);
   n = evalio(n);
   printf("\nmain returns ");
   pp(stdout, n);
   printf("node size=%ld, heap size=%ld\n", NODE_SIZE, heap_size);
-  printf("%d reductions, %d GCs\n", num_reductions, num_gc);
+  printf("%d reductions, %d GCs, max cells used %d\n", num_reductions, num_gc, max_num_marked);
   exit(0);
 }
