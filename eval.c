@@ -15,9 +15,11 @@
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_mark { NOTMARKED, MARKED, SHARED, PRINTED }; /* SHARED, PRINTED only for printing */
-enum node_tag { FREE, IND, AP, INT, CHAR, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
+enum node_tag { FREE, IND, AP, INT, CHAR, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
                 ADD, SUB, MUL, QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR, CHR, ORD,
-                IO_BIND, IO_THEN, IO_RETURN, IO_READFILE, IO_WRITEFILE, IO_GETCHAR, IO_PUTCHAR, IO_PRINT
+                IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR, IO_PRINT,
+                IO_OPEN, IO_CLOSE,
+                IO_STDIN, IO_STDOUT, IO_STDERR,
 };
 
 typedef int64_t value_t;
@@ -29,6 +31,7 @@ typedef struct node {
   enum node_tag tag;
   union {
     value_t value;
+    FILE *file;
     struct {
       struct node *fun;
       struct node *arg;
@@ -46,6 +49,7 @@ typedef struct node* NODEPTR;
 #define ARG(p) (p)->u.s.arg
 #define NEXT(p) FUN(p)
 #define INDIR(p) FUN(p)
+#define HANDLE(p) (p)->u.file
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) ((int)((n) - cells))
@@ -199,14 +203,18 @@ struct {
   { "error", ERROR },
   { "chr", CHR },
   { "ord", ORD },
+  /* IO primops */
   { "IO.>>=", IO_BIND },
   { "IO.>>", IO_THEN },
   { "IO.return", IO_RETURN },
-  { "IO.readFile", IO_READFILE },
-  { "IO.writeFile", IO_WRITEFILE },
   { "IO.getChar", IO_GETCHAR },
   { "IO.putChar", IO_PUTCHAR },
   { "IO.print", IO_PRINT },
+  { "IO.open", IO_OPEN },
+  { "IO.close", IO_CLOSE },
+  { "IO.stdin", IO_STDIN },
+  { "IO.stdout", IO_STDOUT },
+  { "IO.stderr", IO_STDERR },
 };
 
 void
@@ -217,13 +225,21 @@ init_nodes(void)
   /* Set up permanent nodes */
   heap_start = 0;
   for (int j = 0; j < sizeof primops / sizeof primops[0];j++) {
-    primops[j].node = HEAPREF(heap_start++);
-    MARK(primops[j].node) = NOTMARKED;
-    TAG(primops[j].node) = primops[j].tag;
-    if (primops[j].tag == K) combK = primops[j].node;
-    if (primops[j].tag == T) combT = primops[j].node;
-    if (primops[j].tag == I) combI = primops[j].node;
-    if (primops[j].tag == IO_RETURN) combIO_RETURN = primops[j].node;
+    NODEPTR n = HEAPREF(heap_start++);
+    primops[j].node = n;
+    MARK(n) = NOTMARKED;
+    TAG(n) = primops[j].tag;
+    switch (primops[j].tag) {
+    case K: combK = n; break;
+    case T: combT = n; break;
+    case I: combI = n; break;
+    case IO_RETURN: combIO_RETURN = n; break;
+    case IO_STDIN:  TAG(n) = HDL; HANDLE(n) = stdin;  break;
+    case IO_STDOUT: TAG(n) = HDL; HANDLE(n) = stdout; break;
+    case IO_STDERR: TAG(n) = HDL; HANDLE(n) = stderr; break;
+    default:
+      break;
+    }
   }
 
   /* Set up free list */
@@ -470,11 +486,14 @@ printrec(FILE *f, NODEPTR n)
   case IO_BIND: fprintf(f, "$IO.>>="); break;
   case IO_THEN: fprintf(f, "$IO.>>"); break;
   case IO_RETURN: fprintf(f, "$IO.return"); break;
-  case IO_READFILE: fprintf(f, "$IO.readFile"); break;
-  case IO_WRITEFILE: fprintf(f, "$IO.writeFile"); break;
   case IO_GETCHAR: fprintf(f, "$IO.getChar"); break;
   case IO_PUTCHAR: fprintf(f, "$IO.putChar"); break;
   case IO_PRINT: fprintf(f, "$IO.print"); break;
+  case IO_OPEN: fprintf(f, "$IO.open"); break;
+  case IO_CLOSE: fprintf(f, "$IO.close"); break;
+  case IO_STDIN: fprintf(f, "$IO.stdin"); break;
+  case IO_STDOUT: fprintf(f, "$IO.stdout"); break;
+  case IO_STDERR: fprintf(f, "$IO.stderr"); break;
   default: ERR("print tag");
   }
 }
@@ -561,6 +580,43 @@ evalchar(NODEPTR n)
   return (int)GETVALUE(n);
 }
 
+FILE *
+evalhandle(NODEPTR n)
+{
+  n = evali(n);
+  if (TAG(n) != HDL) {
+    fprintf(stderr, "bad tag %d\n", TAG(n));
+    ERR("evalhandle");
+  }
+  return HANDLE(n);
+}
+
+/* XXX this is cheating, should use continuations */
+char *
+evalstring(NODEPTR n)
+{
+  size_t sz = 10000;
+  char *p, *name = malloc(sz);
+
+  if (!name)
+    ERR("evalstring malloc");
+  for (p = name;;) {
+    if (p >= name + sz)
+      ERR("evalstring too long");
+    n = evali(n);
+    if (TAG(n) == K)
+      break;
+    else if (TAG(n) == AP && TAG(FUN(n)) == AP && TAG(FUN(FUN(n))) == O) {
+      *p++ = evalchar(ARG(FUN(n)));
+      n = ARG(n);
+    } else {
+      ERR("evalstring not Nil/Cons");
+    }
+  }
+  *p = 0;
+  return name;
+}
+
 void
 eval(NODEPTR n)
 {
@@ -590,8 +646,8 @@ eval(NODEPTR n)
       PUSH(n);
       break;
     case INT:
-      RET;
     case CHAR:
+    case HDL:
       RET;
     case S:
       CHECK(3);
@@ -775,11 +831,11 @@ eval(NODEPTR n)
     case IO_BIND:
     case IO_THEN:
     case IO_RETURN:
-    case IO_READFILE:
-    case IO_WRITEFILE:
     case IO_GETCHAR:
     case IO_PUTCHAR:
     case IO_PRINT:
+    case IO_OPEN:
+    case IO_CLOSE:
       RET;
     default:
       fprintf(stderr, "bad tag %d\n", TAG(n));
@@ -796,9 +852,11 @@ evalio(NODEPTR n)
   int64_t stk = stack_ptr;
   NODEPTR f, x;
   int c;
+  FILE *hdl;
+  char *name;
 
 #define CHECKIO(n) do { if (stack_ptr - stk != (n+1)) {ERR("CHECKIO");}; } while(0)
-#define RETIO(n) do { stack_ptr = stk; return (n); } while(0)
+#define RETIO(p) do { stack_ptr = stk; return (p); } while(0)
 
  top:
   n = evali(n);
@@ -834,31 +892,52 @@ evalio(NODEPTR n)
       n = ARG(TOP(1));
       POP(1);
       RETIO(n);
-    case IO_READFILE:
-      CHECKIO(1);
-      ERR("IO_READFILE");
-    case IO_WRITEFILE:
-      CHECKIO(2);
-      ERR("IO_WRITEFILE");
     case IO_GETCHAR:
-      CHECKIO(0);
+      CHECKIO(1);
+      hdl = evalhandle(ARG(TOP(1)));
       GCCHECK(1);
-      c = getc(stdin);
+      c = getc(hdl);
       n = alloc_node(CHAR);
       SETVALUE(n, c);
       RETIO(n);
     case IO_PUTCHAR:
-      CHECKIO(1);
-      c = evalchar(ARG(TOP(1)));
-      putc(c, stdout);
+      CHECKIO(2);
+      hdl = evalhandle(ARG(TOP(1)));
+      c = evalchar(ARG(TOP(2)));
+      putc(c, hdl);
       RETIO(combI);
     case IO_PRINT:
-      CHECKIO(1);
-      x = evali(ARG(TOP(1)));
+      CHECKIO(2);
+      hdl = evalhandle(ARG(TOP(1)));
+      x = evali(ARG(TOP(2)));
       //x = ARG(TOP(1));
-      print(stdout, x);
-      printf("\n");
+      print(hdl, x);
+      fprintf(hdl, "\n");
       RETIO(combI);
+    case IO_CLOSE:
+      CHECKIO(1);
+      hdl = evalhandle(ARG(TOP(1)));
+      fclose(hdl);
+      RETIO(combI);
+    case IO_OPEN:
+      CHECKIO(2);
+      name = evalstring(ARG(TOP(1)));
+      switch (evalint(ARG(TOP(2)))) {
+      case 0: hdl = fopen(name, "r"); break;
+      case 1: hdl = fopen(name, "w"); break;
+      case 2: hdl = fopen(name, "a"); break;
+      case 3: hdl = fopen(name, "r+"); break;
+      default:
+        ERR("IO_OPEN mode");
+      }
+      if (hdl == 0) {
+        fprintf(stderr, "open %s failed\n", name);
+        ERR("IO_OPEN");
+      }
+      free(name);
+      n = alloc_node(HDL);
+      HANDLE(n) = hdl;
+      RETIO(n);
     default:
       fprintf(stderr, "bad tag %d\n", TAG(n));
       ERR("evalio tag");
@@ -881,7 +960,7 @@ main(int argc, char **argv)
   n = evalio(n);
   printf("\nmain returns ");
   pp(stdout, n);
-  printf("node size=%ld, heap size=%ld\n", NODE_SIZE, heap_size); //exit(0);
+  printf("node size=%ld, heap size=%ld\n", NODE_SIZE, heap_size);
   printf("%d reductions, %d GCs\n", num_reductions, num_gc);
   exit(0);
 }

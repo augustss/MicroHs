@@ -217,6 +217,7 @@ pString :: P String
 pString = skipWhite (char '"' *> emany pc <* char '"')
   where pc = do
           c <- satisfy "char" (/= '"')
+          guard (c /= '\n')
           if c == '\\' then
             decodeChar <$> satisfy "char" (const True)
            else

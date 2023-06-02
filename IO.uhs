@@ -2,34 +2,73 @@ module IO where
 import Prelude
 import List
 
+data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
+
 (>>=)     = primitive "IO.>>="
 (>>)      = primitive "IO.>>"
 return    = primitive "IO.return"
-readFile  = primitive "IO.readFile"
-writeFile = primitive "IO.writeFile"
-putChar   = primitive "IO.putChar"
-getChar   = primitive "IO.getChar"
-print     = primitive "IO.print"
+hPutChar  = primitive "IO.putChar"
+hGetChar  = primitive "IO.getChar"
+hPrint    = primitive "IO.print"
+hClose    = primitive "IO.close"
+stdin     = primitive "IO.stdin"
+stdout    = primitive "IO.stdout"
+stderr    = primitive "IO.stderr"
+
+openFile :: FilePath -> IOMode -> IO Handle
+openFile p m =
+  let
+    n = case m of
+          ReadMode -> 0
+          WriteMode -> 1
+          AppendMode -> 2
+          ReadWriteMode -> 3
+  in  (primitive "IO.open") p n
+
+putChar :: Char -> IO ()
+putChar = hPutChar stdout
+
+getChar :: Char -> IO ()
+getChar = hGetChar stdin
+
+print :: a -> IO ()
+print = hPrint stdout
 
 mapM :: (a -> IO b) -> [a] -> IO [b]
-mapM f arg =
-  case arg of
-    [] -> return []
-    a : as -> IO.do
-      b <- f a
-      bs <- mapM f as
-      return (b : bs)
+mapM f =
+  fix (\ rec arg ->
+    case arg of
+      [] -> return []
+      a : as -> IO.do
+        b <- f a
+        bs <- rec as
+        return (b : bs)
+    )
 
 mapM_ :: (a -> IO b) -> [a] -> IO ()
-mapM_ f arg =
-  case arg of
-    [] -> return ()
-    a : as -> IO.do
-      f a
-      mapM_ f as
+mapM_ f =
+  fix (\ rec arg ->
+    case arg of
+      [] -> return ()
+      a : as -> IO.do
+        f a
+        rec as
+    )
 
 putStr :: String -> IO ()
-putStr = mapM_ putChar
+putStr = hPutStr stdout
+
+hPutStr :: Handle -> String -> IO ()
+hPutStr h = mapM_ (hPutChar h)
 
 putStrLn :: String -> IO ()
-putStrLn s = putStr s >> putChar '\n'
+putStrLn = hPutStrLn stdout
+
+hPutStrLn :: Handle -> String -> IO ()
+hPutStrLn h s = hPutStr h s >> hPutChar h '\n'
+
+writeFile :: FilePath -> String -> IO ()
+writeFile p s = IO.do
+  h <- openFile p WriteMode
+  hPutStr h s
+  hClose h
