@@ -15,17 +15,17 @@ main = IO.do
   p
   p
   print (+)
-  hout <- openFile "test.txt" WriteMode
+  hout <- openFile "test.tmp" WriteMode
   hPutChar hout 'a'
   hPutChar hout 'z'
   hClose hout
-  hin <- openFile "test.txt" ReadMode
+  hin <- openFile "test.tmp" ReadMode
   c1 <- hGetChar hin
   c2 <- hGetChar hin
   putStrLn $ showPair showChar showChar (c1, c2)
-  writeFile "test2.txt" "more\n"
-  s <- readFile "test2.txt"
+  writeFile "test2.tmp" "more\n"
+  s <- readFile "test2.tmp"
   putStrLn (showString s)
-  writeSerialized "f.comb" f
-  g <- readSerialized "f.comb"
+  writeSerialized "f.tmp" f
+  g <- readSerialized "f.tmp"
   putStrLn $ showInt $ g 5
