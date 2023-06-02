@@ -76,9 +76,7 @@ pIndent = do
 
 pWhite :: P ()
 pWhite = do
---  xx <- restOfInput
   msp <- pIndent
---  traceM $ "pWhite " ++ show (xx, msp)
   case msp of
     Nothing -> pure ()
     Just sp -> do
@@ -328,7 +326,7 @@ pExprOp = p0
     p7 = pLeftAssoc  (pOpers ["*", "quot", "rem"]) p8
     p8 = p9
     p9 = pRightAssoc (pOpers ["."]) p10
-    p10 = pExprApp
+    p10 = pExprArg -- pExprApp
 
 appOp :: String -> Expr -> Expr -> Expr
 appOp op e1 e2 = EApp (EApp (EVar op) e1) e2
@@ -357,8 +355,10 @@ pLeftAssoc pOp p = do
   es <- emany ((,) <$> pOp <*> p)
   pure $ foldl (\ x (op, y) -> appOp op x y) e1 es
 
+pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pDo
+
 pExpr :: P Expr
-pExpr = pExprOp <|> pLam <|> pCase <|> pLet <|> pDo
+pExpr = pExprOp --x <|> pLam <|> pCase <|> pLet <|> pDo
 
 pDo :: P Expr
 pDo = EDo <$> pQualDo <*> pBlock pStmt
