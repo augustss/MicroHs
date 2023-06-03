@@ -4,7 +4,10 @@ module Desugar(
   Export,
   TypeDef(..),
   LDef,
+  SymTable,
+  TypeTable,
   ) where
+import qualified Data.Map as M
 import Parse
 import Exp
 
@@ -18,60 +21,101 @@ data TypeDef = TypeDef Ident [(Ident, Int)]   -- constructor name, arity
 
 type LDef = (Ident, Exp)
 
-desugar :: EModule -> Module
-desugar (EModule mn ds) =
-  let ds' = concatMap dsDef ds
-      tds = concatMap dsData ds
-      es = [(i, qual mn i) | (i, _) <- ds']
-  in  Module mn es tds [(qual mn i, e) | (i, e) <- ds']
+type SymTable = M.Map Ident [Exp]
+type TypeTable = M.Map Ident [TypeDef]
 
-dsDef :: EDef -> [LDef]
-dsDef (Data _ cs) = zipWith dsConstr [0..] cs
+desugar :: [Module] -> EModule -> Module
+desugar mdls (EModule mdln ds) =
+  let ds' = concatMap (dsDef allSyms allTypes) ds
+      tyds = concatMap dsData ds
+      es = [(i, qual mdln i) | (i, _) <- ds']
+      mdl = Module mdln es tyds [(qual mdln i, e) | (i, e) <- ds']
+      allSyms :: SymTable
+      allSyms = M.fromListWith (++) $ concatMap syms (mdl : mdls)
+        where syms (Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- [i, qual mn i] ]
+      allTypes :: TypeTable
+      allTypes = M.fromListWith (++) $ concatMap types (mdl : mdls)
+        where types (Module mn _ tds _) = [ (v, [td]) | td@(TypeDef _ cs) <- tds, (c, _) <- cs, v <- [c, qual mn c] ]
+  in  mdl
+
+dsDef :: SymTable -> TypeTable -> EDef -> [LDef]
+dsDef _ _ (Data _ cs) = zipWith dsConstr [0..] cs
   where
     fs = [f i | (i, _) <- zip [0..] cs]
     dsConstr i (c, ts) = (c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
       where xs = ["$x" ++ show (j::Int) | (j, _) <- zip [0..] ts]
     f i = "$f" ++ show (i::Int)
-dsDef (Fcn (f, xs) e) = [(f, lams xs $ dsExpr e)]
-dsDef (Sign _ _) = []
-dsDef (Import _) = []
+dsDef syms tys (Fcn (f, xs) e) = [(f, lams xs $ dsExpr (extSyms syms xs) tys e)]
+dsDef _ _ (Sign _ _) = []
+dsDef _ _ (Import _) = []
 
-dsExpr :: Expr -> Exp
-dsExpr (EVar i) = Var i
-dsExpr (EApp f a) = App (dsExpr f) (dsExpr a)
-dsExpr (ELam xs e) = foldr Lam (dsExpr e) xs
-dsExpr (EInt i) = Int i
-dsExpr (EChar c) = Chr c
-dsExpr (ECase e as) = apps (dsExpr e) (map dsArm as)
-  where dsArm (PConstr _ vs, r) = lams vs $ dsExpr r
+dsExpr :: SymTable -> TypeTable -> Expr -> Exp
+dsExpr syms _ (EVar i) =
+  case M.lookup i syms of
+    Nothing -> error $ "undefined: " ++ show i
+    Just [qi] -> qi
+    Just qis -> error $ "ambiguous: " ++ show i ++ ", " ++ show qis
+dsExpr syms tys (EApp f a) = App (dsExpr syms tys f) (dsExpr syms tys a)
+dsExpr syms tys (ELam xs e) = lams xs (dsExpr (extSyms syms xs) tys e)
+dsExpr _ _ (EInt i) = Int i
+dsExpr _ _ (EChar c) = Chr c
+dsExpr syms tys (ECase e as) = apps (dsExpr syms tys e) (map dsArm as')
+  where dsArm (PConstr _ vs, r) = lams vs $ dsExpr (extSyms syms vs) tys r
         dsArm (PTuple [_], _) = error "dsExpr: singleton tuple"
-        dsArm (PTuple vs, r) = lams vs $ dsExpr r
+        dsArm (PTuple vs, r) = lams vs $ dsExpr (extSyms syms vs) tys r
+        as' = reorderArms tys as
 -- For now, just sequential bindings; each recursive
-dsExpr (ELet ds e) =
-  let ds' = concatMap dsDef ds
-      e' = dsExpr e
-      def (i, d) a = App (Lam i a) (App (Prim "Y") (Lam i d))
+dsExpr syms tys (ELet [] e) = dsExpr syms tys e
+dsExpr syms tys (ELet (d:ds) e) =
+  let ds' = dsDef syms' tys d
+      syms' = extSyms syms (map fst ds')
+      e' = dsExpr syms' tys (ELet ds e)
+      def (i, r) a = App (Lam i a) (App (Prim "Y") (Lam i r))
   in  foldr def e' ds'
-dsExpr (EList es) =
-  foldr (App2 CO) CK $ map dsExpr es
-dsExpr (ETuple []) = Lam "_x" (Var "_x")    -- encoding of ()
-dsExpr (ETuple [e]) = dsExpr e
-dsExpr (ETuple es) = Lam "_f" $ foldl App (Var "_f") $ map dsExpr es
-dsExpr (EStr cs) = dsExpr $ EList $ map EChar cs
-dsExpr (EDo _ []) = error "empty do"
-dsExpr (EDo _ [Bind _ _]) = error "do without final expression"
-dsExpr (EDo _ [Then e]) = dsExpr e
-dsExpr (EDo n (Bind i e : ss)) = App2 (Var (n ++ ".>>=")) (dsExpr e) (Lam i $ dsExpr (EDo n ss))
-dsExpr (EDo n (Then   e : ss)) = App2 (Var (n ++ ".>>"))  (dsExpr e)         (dsExpr (EDo n ss))
-dsExpr (EDo n (Let  i e : ss)) = App  (Lam i $ dsExpr (EDo n ss)) (dsExpr e)
-dsExpr (EPrim s) = Prim s
+dsExpr syms tys (EList es) =
+  foldr (App2 CO) CK $ map (dsExpr syms tys) es
+dsExpr _ _ (ETuple []) = Lam "_x" (Var "_x")    -- encoding of ()
+dsExpr syms tys (ETuple [e]) = dsExpr syms tys e
+dsExpr syms tys (ETuple es) = Lam "_f" $ foldl App (Var "_f") $ map (dsExpr syms tys) es
+dsExpr syms tys (EStr cs) = dsExpr syms tys $ EList $ map EChar cs
+dsExpr _ _ (EDo _ []) = error "empty do"
+dsExpr _ _ (EDo _ [Bind _ _]) = error "do without final expression"
+dsExpr syms tys (EDo _ [Then e]) = dsExpr syms tys e
+dsExpr syms tys (EDo n (Bind i e : ss)) =
+  App2 (Var (qual n ">>=")) (dsExpr syms tys e) (Lam i $ dsExpr (extSyms syms [i]) tys (EDo n ss))
+dsExpr syms tys (EDo n (Then   e : ss)) =
+  App2 (Var (qual n ">>"))  (dsExpr syms tys e)         (dsExpr syms tys (EDo n ss))
+dsExpr syms tys (EDo n (Let  i e : ss)) =
+  App  (Lam i $ dsExpr (extSyms syms [i]) tys (EDo n ss)) (dsExpr syms tys e)
+dsExpr _ _ (EPrim s) = Prim s
+
+reorderArms :: TypeTable -> [(EPat, Expr)] -> [(EPat, Expr)]
+reorderArms _ [] = error "case has no arms"
+reorderArms _ as@[(PTuple _, _)] = as
+reorderArms tys as@((PConstr con _, _) : _) =
+  let arms = [(c, a) | a@(PConstr c _, _) <- as] in
+  if length arms /= length as then error "bad tuple pattern" else
+  case M.lookup con tys of
+    Nothing -> error $ "undefined constructor: " ++ show con
+    Just [TypeDef _ cs] -> map arm cs
+      where arm (c, k) =
+              case lookup c arms of
+                Nothing -> error $ "constructor missing: " ++ show (c, con)
+                Just a@(PConstr _ vs, _) ->
+                  if length vs == k then a else error $ "bad contructor arity: " ++ show a
+                _ -> undefined
+    Just _tds -> error $ "ambiguous constructor: " ++ show con
+reorderArms _ _ = undefined
 
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs
 
 apps :: Exp -> [Exp] -> Exp
-apps f xs = foldl App f xs
+apps f = foldl App f
 
 dsData :: EDef -> [TypeDef]
 dsData (Data (tn, _) cs) = [TypeDef tn [(c, length ts) | (c, ts) <- cs ]]
 dsData _ = []
+
+extSyms :: SymTable -> [Ident] -> SymTable
+extSyms = foldr (\ x -> M.insert x [Var x])

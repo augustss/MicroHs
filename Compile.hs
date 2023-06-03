@@ -4,7 +4,6 @@ import Control.Monad.State.Strict
 import qualified Data.Map as M
 import System.IO
 import Desugar
-import Exp
 import Parse
 
 data Flags = Flags {
@@ -12,8 +11,6 @@ data Flags = Flags {
   path :: [FilePath]
   }
   deriving (Show)
-
-type SymTable = M.Map Ident [Exp]
 
 data Cache = Cache
   { working :: [IdentModule]
@@ -55,31 +52,7 @@ compileModule flags nm = do
   when (nm /= nm') $
     error $ "module name does not agree with file name: " ++ show nm
   impMdls <- mapM (compileModuleCached flags) [ m | Import m <- defs ]
-  let
-    mdl' :: Module
-    mdl' = desugar mdl
-    allSyms :: SymTable
-    allSyms = M.fromListWith (++) $ concatMap syms (mdl' : impMdls)
-    syms (Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- [i, qual mn i] ]
-    mdl'' = checkModule allSyms mdl'
---  liftIO $ print allSyms
-  pure mdl''
-
-checkModule :: SymTable -> Module -> Module
-checkModule syms (Module nm exps tds ds) = Module nm exps tds [ (s, checkExpr syms e) | (s, e) <- ds ]
-
-checkExpr :: SymTable -> Exp -> Exp
-checkExpr syms ee =
-  case ee of
-    Var i ->
-      case M.lookup i syms of
-        Nothing -> error $ "undefined: " ++ show i
-        Just [qi] -> qi
-        Just qis -> error $ "ambiguous: " ++ show i ++ ", " ++ show qis
-    App e1 e2 -> App (checkExpr syms e1) (checkExpr syms e2)
-    Lam i e -> Lam i (checkExpr syms' e) where syms' = M.insertWith (++) i [Var i] syms
-    Lbl _ _ -> undefined
-    e -> e
+  pure $ desugar impMdls mdl
 
 ------------------
 
@@ -96,4 +69,4 @@ openFilePath (dir:dirs) fileName = do
     result <- tryOpenFile path
     case result of
         Left _ -> openFilePath dirs fileName -- If opening failed, try the next directory
-        Right handle -> return handle
+        Right hdl -> return hdl
