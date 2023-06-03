@@ -54,17 +54,18 @@ Some factorials
 ## Libraries
 There are a number of libraries that some of the standard Haskell functions.
 But in general, the `Prelude` contains less.
+The `Prelude` re-exports the following modules.
 
-* Control.Error, `error` function
-* Data.Bool
-* Data.Either
-* Data.Function
-* Data.Int
-* Data.List
-* Data.Maybe
-* Data.Tuple
-* System.IO
-* Text.String, various functions to convert data to strings
+* `Control.Error`, `error` function
+* `Data.Bool`
+* `Data.Either`
+* `Data.Function`
+* `Data.Int`
+* `Data.List`
+* `Data.Maybe`
+* `Data.Tuple`
+* `System.IO`
+* `Text.String`, various functions to convert data to strings
 
 
 ## Compiler
