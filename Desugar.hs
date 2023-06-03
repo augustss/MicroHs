@@ -8,6 +8,7 @@ module Desugar(
   TypeTable,
   ) where
 import qualified Data.Map as M
+import Data.Maybe
 import Parse
 import Exp
 
@@ -24,20 +25,22 @@ type LDef = (Ident, Exp)
 type SymTable = M.Map Ident [Exp]
 type TypeTable = M.Map Ident [TypeDef]
 
-desugar :: [(Bool, Module)] -> EModule -> Module
+desugar :: [(ImportSpec, Module)] -> EModule -> Module
 desugar mdls (EModule mdln ds) =
   let ds' = concatMap (dsDef allSyms allTypes) ds
       tyds = concatMap dsData ds
       es = [(i, qual mdln i) | (i, _) <- ds']
       mdl = Module mdln es tyds [(qual mdln i, e) | (i, e) <- ds']
-      qns False mn i = [i, qual mn i]
-      qns True  mn i = [qual mn i]
+      imdl = (ImportSpec False mdln Nothing, mdl)
+      qns (ImportSpec q _ mas) mn i =
+        let mn' = fromMaybe mn mas
+        in  if q then [qual mn' i] else [i, qual mn' i]
       allSyms :: SymTable
-      allSyms = M.fromListWith (++) $ concatMap syms ((False, mdl) : mdls)
-        where syms (q, Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- qns q mn i ]
+      allSyms = M.fromListWith (++) $ concatMap syms (imdl : mdls)
+        where syms (is, Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- qns is mn i ]
       allTypes :: TypeTable
-      allTypes = M.fromListWith (++) $ concatMap types ((False, mdl) : mdls)
-        where types (q, Module mn _ tds _) = [ (v, [td]) | td@(TypeDef _ cs) <- tds, (c, _) <- cs, v <- qns q mn c ]
+      allTypes = M.fromListWith (++) $ concatMap types (imdl : mdls)
+        where types (is, Module mn _ tds _) = [ (v, [td]) | td@(TypeDef _ cs) <- tds, (c, _) <- cs, v <- qns is mn c ]
   in  mdl
 
 dsDef :: SymTable -> TypeTable -> EDef -> [LDef]

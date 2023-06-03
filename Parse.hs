@@ -5,6 +5,7 @@ module Parse(
   IdentModule,
   qual,
   EDef(..),
+  ImportSpec(..),
   Expr(..),
   EStmt(..),
   EPat(..),
@@ -27,7 +28,10 @@ data EDef
   = Data LHS [Constr]
   | Fcn LHS Expr
   | Sign Ident Type
-  | Import Bool Ident
+  | Import ImportSpec
+  deriving (Show)
+
+data ImportSpec = ImportSpec Bool Ident (Maybe Ident)
   deriving (Show)
 
 data Expr
@@ -93,20 +97,15 @@ pWhite = do
           let
             c = length sp
           if c < i then do
---            traceM ("inject " ++ show ('}':sp))
             inject ('}' : '\n' : sp)
             put is
            else if c > i then
             pure ()
            else do
-            eof <|> do --traceM "inject ;"
-                       inject ";"
+            eof <|> inject ";"
 
 esepBy1 :: Prsr s a -> Prsr s sep -> Prsr s [a]
-esepBy1 p sep = do
-  x <- p
-  xs <- emany (sep *> p)
-  return (x:xs)
+esepBy1 p sep = (:) <$> p <*> emany (sep *> p)
 
 esepBy :: Prsr s a -> Prsr s sep -> Prsr s [a]
 esepBy p sep = esepBy1 p sep <|> pure []
@@ -276,7 +275,10 @@ pDef =
       Data   <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 ((,) <$> pUIdent <*> many pAType) (pSymbol "|")
   <|> Fcn    <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
   <|> Sign   <$> (pLIdent <* pSymbol "::") <*> pType
-  <|>            (pKeyword "import" *> (Import <$> pQua <*> pUIdent))
+  <|> Import <$> (pKeyword "import" *> pImportSpec)
+
+pImportSpec :: P ImportSpec
+pImportSpec = ImportSpec <$> pQua <*> pUIdent <*> optional (pKeyword "as" *> pUIdent)
   where pQua = (True <$ pKeyword "qualified") <|< pure False
 
 pAType :: P Type
@@ -404,12 +406,9 @@ pRCurl = pSym '}' <|> softRC
             put (tail is)
             eof
 
-pSemi :: P ()
-pSemi = pSym ';'
-
 pBlock :: P a -> P [a]
 pBlock p = do
   pLCurl
-  as <- esepBy p pSemi
+  as <- esepBy p (pSym ';')
   pRCurl
   pure as
