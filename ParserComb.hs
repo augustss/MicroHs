@@ -92,13 +92,13 @@ eoptional :: Prsr s a -> Prsr s (Maybe a)
 eoptional p = (Just <$> p) <|< pure Nothing
 
 runPrsr :: (Show a, Show s) => s -> Prsr s a -> FilePath -> String -> Either String [(a, s)]
-runPrsr s (P p) _ f =
+runPrsr s (P p) fn f =
   case p (f, s) of
-    Many [] lf -> Left $ formatFailed f lf
+    Many [] lf -> Left $ formatFailed fn f lf
     Many xs _  -> Right [(a, s') | (a, (_, s')) <- xs ]
 
-formatFailed :: String -> LastFail -> String
-formatFailed file (LastFail len xs) | len == maxBound = "No failure"
+formatFailed :: FilePath -> String -> LastFail -> String
+formatFailed fn file (LastFail len xs) | len == maxBound = "No failure"
                                     | otherwise =
   let (pre, post) = splitAt (length file - len) file
       (line, col) = foldl f (1::Int, 0::Int) pre
@@ -107,7 +107,8 @@ formatFailed file (LastFail len xs) | len == maxBound = "No failure"
       xs' = nub $ map trim xs
       pr e = "   expeced: " ++ e
       trim (_xx, es) = unwords es -- (last $ init $ "" : "" : es)
-  in  "line " ++ show line ++ ", col " ++ show col ++ ":\n" ++
+  in  show fn ++ ": " ++
+      "line " ++ show line ++ ", col " ++ show col ++ ":\n" ++
       "   found: " ++ show (takeWhile (not . isSpace) post) ++ "\n" ++
       unlines (map pr xs')
 
