@@ -7,6 +7,7 @@ module Desugar(
   SymTable,
   TypeTable,
   ) where
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import Parse
@@ -18,7 +19,7 @@ data Module = Module IdentModule [Export] [TypeDef] [LDef]
 type Export = (Ident, Ident)  -- exported name, global name
 
 data TypeDef = TypeDef Ident [(Ident, Int)]   -- constructor name, arity
-  deriving (Show)
+  deriving (Show, Eq)
 
 type LDef = (Ident, Exp)
 
@@ -36,10 +37,10 @@ desugar mdls (EModule mdln ds) =
         let mn' = fromMaybe mn mas
         in  if q then [qual mn' i] else [i, qual mn' i]
       allSyms :: SymTable
-      allSyms = M.fromListWith (++) $ concatMap syms (imdl : mdls)
+      allSyms = M.fromListWith union $ concatMap syms (imdl : mdls)
         where syms (is, Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- qns is mn i ]
       allTypes :: TypeTable
-      allTypes = M.fromListWith (++) $ concatMap types (imdl : mdls)
+      allTypes = M.fromListWith union $ concatMap types (imdl : mdls)
         where types (is, Module mn _ tds _) = [ (v, [td]) | td@(TypeDef _ cs) <- tds, (c, _) <- cs, v <- qns is mn c ]
   in  mdl
 
