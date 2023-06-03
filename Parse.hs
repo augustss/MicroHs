@@ -154,7 +154,7 @@ pTop = skipWhite (pure ()) *> pModule <* eof
 
 pModule :: P EModule
 pModule = EModule <$> (pKeyword "module" *> pUIdent) <*>
-                      (pSym '(' *> many pExportSpec <* pSym ')') <*>
+                      (pSym '(' *> esepBy pExportSpec (pSym ',') <* pSym ')') <*>
                       (pKeyword' "where" *> pBlock pDef)
 
 pExportSpec :: P ExportSpec

@@ -29,9 +29,14 @@ type TypeTable = M.Map Ident [TypeDef]
 desugar :: [(ImportSpec, Module)] -> EModule -> Module
 desugar imdls (EModule mdln especs ds) =
   let ds' = concatMap (dsDef allSyms allTypes) ds
-      tyds = concatMap dsData ds
-      exps = concatMap export especs
-      export (ExpModule m) =
+      tyds = concatMap exportT especs
+      exportT (ExpModule m) =
+        if m == mdln then
+          concatMap dsData ds
+        else
+          [ td | (_, Module mn _ tds _) <- imdls, mn == m, td <- tds ]
+      exps = concatMap exportD especs
+      exportD (ExpModule m) =
         if m == mdln then
           [(i, qual mdln i) | (i, _) <- ds']
         else
