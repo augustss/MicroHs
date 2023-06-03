@@ -1,12 +1,8 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 module Exp where
---import Data.List
 import Parse(Ident)
 --import Debug.Trace
-
-pp :: Exp -> IO ()
-pp = putStrLn . toString
 
 type PrimOp = String
 
@@ -51,17 +47,6 @@ toStringP (Chr c) = ['\'', c]
 toStringP (Lam x e) = "(\\" ++ x ++ " " ++ toStringP e ++ ")"
 toStringP (App f a) = "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
 toStringP (Lbl i e) = ":" ++ show i ++ " " ++ toStringP e
-
-toString :: Exp -> String
-toString (Var x) = x
-toString (Prim x) = x
-toString (Int i) = show i
-toString (Chr c) = show c
-toString (Lam x e) = "(\\" ++ x ++ ". " ++ toString e ++ ")"
-toString (App f a) = toString f ++ " " ++ par a
-  where par e@App{} = "(" ++ toString e ++ ")"
-        par e = toString e
-toString (Lbl i e) = ":" ++ show i ++ " " ++ toString e
 
 compileOpt :: Exp -> Exp
 compileOpt = improveT . compile
@@ -130,43 +115,3 @@ improveT (App f a) =
     (CY,               App CK e) -> e
     (e1,                     e2) -> App e1 e2
 improveT e = e
-
-reduce :: Exp -> Exp
-reduce e =
-  case redOne e of
-    Just e' -> reduce e'
-    Nothing ->
-      case e of
-        App f a | f /= f' -> reduce (App f' a)
-          where f' = reduce f
-        _ -> e
-
-redOne :: Exp -> Maybe Exp
-redOne (App CI x) = Just x
-redOne (App (App CK x) _) = Just x
-redOne (App (App CT _) x) = Just x
-redOne (App3 CS f g x) = Just $ App (App f x) (App g x)
-redOne (App3 CB f g x) = Just $ App      f    (App g x)
-redOne (App3 CC f g x) = Just $ App (App f x)      g
-redOne (App4 CS' k f g x) = Just $ App2 k (App f x) (App g x)
-redOne (App4 CB' k f g x) = Just $ App2 k      f    (App g x)
-redOne (App4 CC' k f g x) = Just $ App2 k (App f x)      g
-redOne (App3 CP x1 x2 f) = Just $ App2 f x1 x2
-redOne (App4 CO x1 x2 _f1 f2) = Just $ App2 f2 x1 x2
-redOne e@(App2 (Prim p) x y) | Just op <- lookup p binOps,
-                               let e' = op p (reduce x) (reduce y),
-                               e' /= e = Just e'
---redOne (Var i) = error $ "Var " ++ show i
-redOne _ = Nothing
-
-binOps :: [(String, String -> Exp -> Exp -> Exp)]
-binOps = [
-  ("+", arith (+)),
-  ("-", arith (-)),
-  ("*", arith (*)),
-  ("div", arith div)
-  ]
-  where
-    arith f _ (Int x) (Int y) = Int (x `f` y)
-    arith _ s x y = App2 (Prim s) x y
---    arith _ x y = error $ "arith: " ++ show (x, y)

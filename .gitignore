@@ -5,3 +5,4 @@
 bin/*
 tests/*.tmp
 tests/*.out
+old/*

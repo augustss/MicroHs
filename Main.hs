@@ -29,8 +29,7 @@ main = do
       subst (App f a) = App (subst f) (subst a)
       subst e = e
       ref i = Var $ "_" ++ show (i::Int)
---  mapM_ (\ (i, e) -> putStrLn $  i ++ " = " ++ toString e) ds
   when (verbose flags) $ do
-    mapM_ (\ (i, e) -> putStrLn $  i ++ " = " ++ toString e) ds'
-    putStrLn $ toStringP res
+    mapM_ (\ (i, e) -> putStrLn $  i ++ " = " ++ toStringP e) ds'
+    --putStrLn $ toStringP res
   writeFile "out.comb" $ toStringP res
