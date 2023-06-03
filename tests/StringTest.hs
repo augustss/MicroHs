@@ -1,10 +1,10 @@
 module StringTest where
 import Prelude
-import System.IO as IO
+import System.IO
 import Data.List
 import String
 
-main = IO.do
+main = do
   putStrLn $ showInt 1234
   putStrLn $ showInt 0
   putStrLn $ showInt (negate 567)

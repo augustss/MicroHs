@@ -41,7 +41,7 @@ mapM f =
     rec arg =
       case arg of
         [] -> return []
-        a : as -> System.IO.do
+        a : as -> do
           b <- f a
           bs <- rec as
           return (b : bs)
@@ -53,7 +53,7 @@ mapM_ f =
     rec arg =
       case arg of
         [] -> return ()
-        a : as -> System.IO.do
+        a : as -> do
           f a
           rec as
   in rec
@@ -71,14 +71,14 @@ hPutStrLn :: Handle -> String -> IO ()
 hPutStrLn h s = hPutStr h s >> hPutChar h '\n'
 
 writeFile :: FilePath -> String -> IO ()
-writeFile p s = System.IO.do
+writeFile p s = do
   h <- openFile p WriteMode
   hPutStr h s
   hClose h
 
 -- Strict readFile
 readFile :: FilePath -> IO Strict
-readFile p = System.IO.do
+readFile p = do
   h <- openFile p ReadMode
   cs <- hGetContents h
   hClose h
@@ -86,20 +86,20 @@ readFile p = System.IO.do
 
 -- Strict hGetContents
 hGetContents :: Handle -> IO String
-hGetContents h = System.IO.do
+hGetContents h = do
   c <- hGetChar h
   case ord c == negate 1 of
-    False -> System.IO.do { cs <- hGetContents h; return (c:cs) }
+    False -> do { cs <- hGetContents h; return (c:cs) }
     True  -> return ""
 
 writeSerialized :: FilePath -> a -> IO ()
-writeSerialized p s = System.IO.do
+writeSerialized p s = do
   h <- openFile p WriteMode
   hSerialize h s
   hClose h
 
 readSerialized :: FilePath -> IO a
-readSerialized p = System.IO.do
+readSerialized p = do
   h <- openFile p ReadMode
   a <- hdeserialize h
   hClose h

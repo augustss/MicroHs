@@ -45,7 +45,7 @@ data Expr
   | ELet [EDef] Expr
   | ETuple [Expr]
   | EList [Expr]
-  | EDo Ident [EStmt]
+  | EDo (Maybe Ident) [EStmt]
   | EPrim String
   deriving (Show)
 
@@ -365,13 +365,13 @@ pLeftAssoc pOp p = do
   pure $ foldl (\ x (op, y) -> appOp op x y) e1 es
 
 pExprArg :: P Expr
-pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pDo
+pExprArg = pExprApp <|> pLam <|> pCase <|> pLet
 
 pExpr :: P Expr
-pExpr = pExprOp
+pExpr = pExprOp <|> pDo
 
 pDo :: P Expr
-pDo = EDo <$> pQualDo <*> pBlock pStmt
+pDo = EDo <$> ((Just <$> pQualDo) <|< (Nothing <$ pKeyword' "do")) <*> pBlock pStmt
 
 pStmt :: P EStmt
 pStmt =

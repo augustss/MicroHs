@@ -1,7 +1,7 @@
 -- Simple test
 module Fac where
 import Prelude
-import System.IO as IO
+import System.IO
 
 fac :: Int -> Int  -- ignored
 fac n =
@@ -17,6 +17,6 @@ nfib n =
 
 res = (fac 10, nfib 30)
 
-main = IO.do
+main = do
   print $ fac 6
   print $ fst res + snd res

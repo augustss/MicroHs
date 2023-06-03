@@ -1,6 +1,6 @@
 module Nfib where
 import Prelude
-import System.IO as IO
+import System.IO
 
 nfib n =
   case n < 2 of

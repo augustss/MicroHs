@@ -1,11 +1,11 @@
 module IOTest where
 import Prelude
-import System.IO as IO
+import System.IO
 import String
 
 f x = x*2+1
 
-main = IO.do
+main = do
   putChar 'a'
   putChar 'b'
   c <- getChar

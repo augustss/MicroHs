@@ -87,13 +87,17 @@ dsExpr syms tys (EStr cs) = dsExpr syms tys $ EList $ map EChar cs
 dsExpr _ _ (EDo _ []) = error "empty do"
 dsExpr _ _ (EDo _ [Bind _ _]) = error "do without final expression"
 dsExpr syms tys (EDo _ [Then e]) = dsExpr syms tys e
-dsExpr syms tys (EDo n (Bind i e : ss)) =
-  dsExpr syms tys $ EApp (EApp (EVar (qual n ">>=")) e) (ELam [i] (EDo n ss))
-dsExpr syms tys (EDo n (Then   e : ss)) =
-  dsExpr syms tys $ EApp (EApp (EVar (qual n ">>")) e) (EDo n ss)
-dsExpr syms tys (EDo n (Let i e : ss)) =
-  dsExpr syms tys $ ELet [Fcn (i, []) e] (EDo n ss)
+dsExpr syms tys (EDo mn (Bind i e : ss)) =
+  dsExpr syms tys $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [i] (EDo mn ss))
+dsExpr syms tys (EDo mn (Then   e : ss)) =
+  dsExpr syms tys $ EApp (EApp (EVar (mqual mn ">>")) e) (EDo mn ss)
+dsExpr syms tys (EDo mn (Let i e : ss)) =
+  dsExpr syms tys $ ELet [Fcn (i, []) e] (EDo mn ss)
 dsExpr _ _ (EPrim s) = Prim s
+
+mqual :: Maybe Ident -> Ident -> Ident
+mqual (Just qi) i = qual qi i
+mqual Nothing   i = i
 
 reorderArms :: TypeTable -> [(EPat, Expr)] -> [(EPat, Expr)]
 reorderArms _ [] = error "case has no arms"

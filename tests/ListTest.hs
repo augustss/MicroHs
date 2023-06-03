@@ -1,9 +1,9 @@
 module ListTest where
 import Prelude
 import Data.List
-import System.IO as IO
+import System.IO
 
-main = IO.do
+main = do
   print (sum [1,2,3])
   print sum
   print (and [True])

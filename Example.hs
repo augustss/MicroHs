@@ -1,7 +1,7 @@
 module Example where
 import Prelude
-import List
-import IO
+import Data.List
+import System.IO
 import String
 
 fac n =
@@ -9,7 +9,7 @@ fac n =
     False -> n * fac(n-1)
     True  -> 1
 
-main = IO.do
+main = do
   let
     rs = map fac [1,2,3,10]
   putStrLn "Some factorials"
