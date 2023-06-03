@@ -22,6 +22,7 @@ It has the following features:
 * type signatures that are ignored
 * importing of other modules, `qualified` and `as` supported, but no import list
 * exporting with mandatory export list, only module exports allowed
+* the `Prelude` has to be imported explicitely
 
 ## Example
 The file `Example.hs` contains the following:
@@ -53,6 +54,18 @@ Some factorials
 ## Libraries
 There are a number of libraries that some of the standard Haskell functions.
 But in general, the `Prelude` contains less.
+
+* Control.Error, `error` function
+* Data.Bool
+* Data.Either
+* Data.Function
+* Data.Int
+* Data.List
+* Data.Maybe
+* Data.Tuple
+* System.IO
+* Text.String, various functions to convert data to strings
+
 
 ## Compiler
 The compiler is written in Haskell (not Micro Haskell yet).
