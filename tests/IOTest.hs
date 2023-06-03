@@ -8,7 +8,7 @@ main = do
   putChar 'b'
   c <- getChar
   putStrLn [c,c,c]
-  let p = putStrLn "hello"
+  let { p = putStrLn "hello" }
   p
   p
   p

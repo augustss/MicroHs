@@ -50,7 +50,7 @@ data Expr
   | EPrim String
   deriving (Show)
 
-data EStmt = Bind Ident Expr | Then Expr | Let Ident Expr
+data EStmt = Bind Ident Expr | Then Expr | Let [EDef]
   deriving (Show)
 
 data EPat
@@ -384,8 +384,8 @@ pDo = EDo <$> ((Just <$> pQualDo) <|< (Nothing <$ pKeyword' "do")) <*> pBlock pS
 
 pStmt :: P EStmt
 pStmt =
-      (Bind <$> (pLIdent <* pSymbol "<-") <*> pExpr )
-  <|> (Let  <$> (pKeyword "let" *> pLIdent <* pSymbol "=") <*> pExpr)  -- could be better
+      (Bind <$> (pLIdent <* pSymbol "<-") <*> pExpr)
+  <|> (Let  <$> (pKeyword' "let" *> pBlock pDef))
   <|> (Then <$> pExpr)
 
 pQualDo :: P String

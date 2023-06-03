@@ -101,8 +101,8 @@ dsExpr syms tys (EDo mn (Bind i e : ss)) =
   dsExpr syms tys $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [i] (EDo mn ss))
 dsExpr syms tys (EDo mn (Then   e : ss)) =
   dsExpr syms tys $ EApp (EApp (EVar (mqual mn ">>")) e) (EDo mn ss)
-dsExpr syms tys (EDo mn (Let i e : ss)) =
-  dsExpr syms tys $ ELet [Fcn (i, []) e] (EDo mn ss)
+dsExpr syms tys (EDo mn (Let ds : ss)) =
+  dsExpr syms tys $ ELet ds (EDo mn ss)
 dsExpr _ _ (EPrim s) = Prim s
 
 mqual :: Maybe Ident -> Ident -> Ident
