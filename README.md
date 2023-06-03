@@ -19,24 +19,22 @@ It has the following features:
 * arithmetic and comparison operators, but only for `Int`
 * qualified `do` notation, e.g., `IO.do`
 * data type declarations
-* type signatures that are ignored.
-* importing of other modules, with neither import nor export lists
+* type signatures that are ignored
+* importing of other modules, `qualified` and `as` supported, but no import list
+* exporting with mandatory export list, only module exports allowed
 
 ## Example
 The file `Example.hs` contains the following:
 ```Haskell
-module Example where
+module Example(module Example) where
 import Prelude
-import List
-import IO
-import String
 
 fac n =
   case n <= 0 of
-    False -> n * fac(n-1)
     True  -> 1
+    False -> n * fac(n-1)
 
-main = IO.do
+main = do
   let
     rs = map fac [1,2,3,10]
   putStrLn "Some factorials"
