@@ -1,7 +1,6 @@
 -- Simple test
 module Fac(module Fac) where
 import Prelude
-import System.IO
 
 fac :: Int -> Int  -- ignored
 fac n =

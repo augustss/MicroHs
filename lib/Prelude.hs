@@ -4,14 +4,19 @@ module Prelude(
   module Data.Either,
   module Data.Function,
   module Data.Int,
+  module Data.List,
   module Data.Maybe,
   module Data.Tuple,
-  module Prelude
+  module System.IO,
+  module Text.String
   ) where
 import Control.Error
 import Data.Bool
 import Data.Either
 import Data.Function
 import Data.Int
+import Data.List
 import Data.Maybe
 import Data.Tuple
+import System.IO
+import Text.String

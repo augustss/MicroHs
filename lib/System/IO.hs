@@ -1,5 +1,6 @@
 module System.IO(module System.IO) where
-import Prelude
+import Data.Bool
+import Data.Int
 import Data.List
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode

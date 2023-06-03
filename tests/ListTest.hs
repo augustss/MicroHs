@@ -1,8 +1,5 @@
 module ListTest(module ListTest) where
 import Prelude
-import Data.List
-import System.IO
-import String
 
 main = do
   putStrLn $ showInt $ sum [1,2,3]

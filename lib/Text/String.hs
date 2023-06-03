@@ -1,6 +1,9 @@
-module String(module String) where
-import Prelude
+module Text.String(module Text.String) where
+import Data.Bool
+import Data.Either
+import Data.Int
 import Data.List
+import Data.Maybe
 
 showChar :: Char -> String
 showChar c =

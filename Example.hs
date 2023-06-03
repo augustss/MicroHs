@@ -1,8 +1,5 @@
 module Example(module Example) where
 import Prelude
-import Data.List
-import System.IO
-import String
 
 fac n =
   case n <= 0 of

@@ -1,8 +1,5 @@
 module StringTest(module StringTest) where
 import Prelude
-import System.IO
-import Data.List
-import String
 
 main = do
   putStrLn $ showInt 1234

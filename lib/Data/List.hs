@@ -1,5 +1,7 @@
 module Data.List(module Data.List) where
-import Prelude
+import Data.Bool
+import Data.Function
+import Data.Int
 
 -- By parser some parser hacks we can use [] instead of Nil
 data List a = Nil | (:) a (List a)
