@@ -1,5 +1,5 @@
 -- Simple test
-module Fac where
+module Fac(module Fac) where
 import Prelude
 import System.IO
 

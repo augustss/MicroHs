@@ -1,4 +1,4 @@
-module StringTest where
+module StringTest(module StringTest) where
 import Prelude
 import System.IO
 import Data.List

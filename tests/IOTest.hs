@@ -1,4 +1,4 @@
-module IOTest where
+module IOTest(module IOTest) where
 import Prelude
 import System.IO
 import String

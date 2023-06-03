@@ -1,4 +1,4 @@
-module Data.List where
+module Data.List(module Data.List) where
 import Prelude
 
 -- By parser some parser hacks we can use [] instead of Nil

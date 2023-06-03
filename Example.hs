@@ -1,4 +1,4 @@
-module Example where
+module Example(module Example) where
 import Prelude
 import Data.List
 import System.IO

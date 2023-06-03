@@ -10,6 +10,7 @@ module Parse(
   EStmt(..),
   EPat(..),
   EModule(..),
+  ExportSpec(..),
   ) where
 import Control.Monad
 import Control.Monad.State.Strict
@@ -57,7 +58,10 @@ data EPat
   | PTuple [Ident]
   deriving (Show)
 
-data EModule = EModule IdentModule [EDef]
+data EModule = EModule IdentModule [ExportSpec] [EDef]
+  deriving (Show)
+
+data ExportSpec = ExpModule IdentModule
   deriving (Show)
 
 type LHS = (Ident, [Ident])
@@ -149,7 +153,12 @@ pTop :: P EModule
 pTop = skipWhite (pure ()) *> pModule <* eof
 
 pModule :: P EModule
-pModule = EModule <$> (pKeyword "module" *> pUIdent <* pKeyword' "where") <*> pBlock pDef
+pModule = EModule <$> (pKeyword "module" *> pUIdent) <*>
+                      (pSym '(' *> many pExportSpec <* pSym ')') <*>
+                      (pKeyword' "where" *> pBlock pDef)
+
+pExportSpec :: P ExportSpec
+pExportSpec = ExpModule <$> (pKeyword "module" *> pUIdent)
 
 pKeyword :: String -> P ()
 pKeyword kw = (skipWhite $ do

@@ -1,4 +1,4 @@
-module String where
+module String(module String) where
 import Prelude
 import Data.List
 
