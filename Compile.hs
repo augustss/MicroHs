@@ -51,8 +51,9 @@ compileModule flags nm = do
   mdl@(EModule nm' defs) <- parseDie pTop fn <$> liftIO (readFilePath (path flags) fn)
   when (nm /= nm') $
     error $ "module name does not agree with file name: " ++ show nm
-  impMdls <- mapM (compileModuleCached flags) [ m | Import m <- defs ]
-  pure $ desugar impMdls mdl
+  let quals = [ q | Import q _ <- defs ]
+  impMdls <- mapM (compileModuleCached flags) [ m | Import _ m <- defs ]
+  pure $ desugar (zip quals impMdls) mdl
 
 ------------------
 

@@ -24,18 +24,20 @@ type LDef = (Ident, Exp)
 type SymTable = M.Map Ident [Exp]
 type TypeTable = M.Map Ident [TypeDef]
 
-desugar :: [Module] -> EModule -> Module
+desugar :: [(Bool, Module)] -> EModule -> Module
 desugar mdls (EModule mdln ds) =
   let ds' = concatMap (dsDef allSyms allTypes) ds
       tyds = concatMap dsData ds
       es = [(i, qual mdln i) | (i, _) <- ds']
       mdl = Module mdln es tyds [(qual mdln i, e) | (i, e) <- ds']
+      qns False mn i = [i, qual mn i]
+      qns True  mn i = [qual mn i]
       allSyms :: SymTable
-      allSyms = M.fromListWith (++) $ concatMap syms (mdl : mdls)
-        where syms (Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- [i, qual mn i] ]
+      allSyms = M.fromListWith (++) $ concatMap syms ((False, mdl) : mdls)
+        where syms (q, Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- qns q mn i ]
       allTypes :: TypeTable
-      allTypes = M.fromListWith (++) $ concatMap types (mdl : mdls)
-        where types (Module mn _ tds _) = [ (v, [td]) | td@(TypeDef _ cs) <- tds, (c, _) <- cs, v <- [c, qual mn c] ]
+      allTypes = M.fromListWith (++) $ concatMap types ((False, mdl) : mdls)
+        where types (q, Module mn _ tds _) = [ (v, [td]) | td@(TypeDef _ cs) <- tds, (c, _) <- cs, v <- qns q mn c ]
   in  mdl
 
 dsDef :: SymTable -> TypeTable -> EDef -> [LDef]
@@ -46,8 +48,8 @@ dsDef _ _ (Data _ cs) = zipWith dsConstr [0..] cs
       where xs = ["$x" ++ show (j::Int) | (j, _) <- zip [0..] ts]
     f i = "$f" ++ show (i::Int)
 dsDef syms tys (Fcn (f, xs) e) = [(f, lams xs $ dsExpr (extSyms syms xs) tys e)]
-dsDef _ _ (Sign _ _) = []
-dsDef _ _ (Import _) = []
+dsDef _ _ Sign{} = []
+dsDef _ _ Import{} = []
 
 dsExpr :: SymTable -> TypeTable -> Expr -> Exp
 dsExpr syms _ (EVar i) =

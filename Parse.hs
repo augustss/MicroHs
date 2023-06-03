@@ -27,7 +27,7 @@ data EDef
   = Data LHS [Constr]
   | Fcn LHS Expr
   | Sign Ident Type
-  | Import Ident
+  | Import Bool Ident
   deriving (Show)
 
 data Expr
@@ -276,7 +276,8 @@ pDef =
       Data   <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 ((,) <$> pUIdent <*> many pAType) (pSymbol "|")
   <|> Fcn    <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
   <|> Sign   <$> (pLIdent <* pSymbol "::") <*> pType
-  <|> Import <$> (pKeyword "import" *> pUIdent)
+  <|>            (pKeyword "import" *> (Import <$> pQua <*> pUIdent))
+  where pQua = (True <$ pKeyword "qualified") <|< pure False
 
 pAType :: P Type
 pAType = pAExpr
