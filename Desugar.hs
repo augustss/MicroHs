@@ -27,20 +27,20 @@ type SymTable = M.Map Ident [Exp]
 type TypeTable = M.Map Ident [TypeDef]
 
 desugar :: [(ImportSpec, Module)] -> EModule -> Module
-desugar mdls (EModule mdln ds) =
+desugar imdls (EModule mdln ds) =
   let ds' = concatMap (dsDef allSyms allTypes) ds
       tyds = concatMap dsData ds
       es = [(i, qual mdln i) | (i, _) <- ds']
       mdl = Module mdln es tyds [(qual mdln i, e) | (i, e) <- ds']
-      imdl = (ImportSpec False mdln Nothing, mdl)
+      mdls = (ImportSpec False mdln Nothing, mdl) : imdls
       qns (ImportSpec q _ mas) mn i =
         let mn' = fromMaybe mn mas
         in  if q then [qual mn' i] else [i, qual mn' i]
       allSyms :: SymTable
-      allSyms = M.fromListWith union $ concatMap syms (imdl : mdls)
+      allSyms = M.fromListWith union $ concatMap syms mdls
         where syms (is, Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- qns is mn i ]
       allTypes :: TypeTable
-      allTypes = M.fromListWith union $ concatMap types (imdl : mdls)
+      allTypes = M.fromListWith union $ concatMap types mdls
         where types (is, Module mn _ tds _) = [ (v, [td]) | td@(TypeDef _ cs) <- tds, (c, _) <- cs, v <- qns is mn c ]
   in  mdl
 
