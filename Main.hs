@@ -1,5 +1,6 @@
 import Control.Monad
 import Data.List
+import qualified Data.Map as M
 import Data.Maybe
 import System.Environment(getArgs)
 import Parse
@@ -17,14 +18,14 @@ main = do
                     }
   ds <- compile flags mn
   let ds' = [ (n, compileOpt e) | (n, e) <- ds ]
-      defs :: [(Ident, Exp)]
-      defs = [ (n, ref i) | ((n, _), i) <- zip ds' [0..] ]
-      find n = fromMaybe (error $ "undefined: " ++ show n) $ lookup n defs
-      emain = find $ mn ++ ".main"
+      defs :: M.Map Ident Exp
+      defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds' [0..] ]
+      findIdent n = fromMaybe (error $ "undefined: " ++ show n) $ M.lookup n defs
+      emain = findIdent $ qual mn "main"
       res = foldr def emain (zip ds' [0..])
       def :: ((Ident, Exp), Int) -> Exp -> Exp
       def ((_, e), i) r = App2 CT (Lbl i (subst e)) r
-      subst (Var n) = find n
+      subst (Var n) = findIdent n
       subst (App f a) = App (subst f) (subst a)
       subst e = e
       ref i = Var $ "_" ++ show (i::Int)
