@@ -2,11 +2,13 @@ module Parse(
   pTop,
   parseDie,
   Ident,
-  Def(..),
+  IdentModule,
+  qual,
+  EDef(..),
   Expr(..),
-  Stmt(..),
-  Pat(..),
-  Module(..),
+  EStmt(..),
+  EPat(..),
+  EModule(..),
   ) where
 import Control.Monad
 import Control.Monad.State.Strict
@@ -19,8 +21,9 @@ import Control.Applicative --hiding (many, some)
 type P a = Prsr [Int] a
 
 type Ident = String
+type IdentModule = Ident
 
-data Def
+data EDef
   = Data LHS [Constr]
   | Fcn LHS Expr
   | Sign Ident Type
@@ -34,28 +37,31 @@ data Expr
   | EInt Integer
   | EChar Char
   | EStr String
-  | ECase Expr [(Pat, Expr)]
-  | ELet [Def] Expr
+  | ECase Expr [(EPat, Expr)]
+  | ELet [EDef] Expr
   | ETuple [Expr]
   | EList [Expr]
-  | EDo Ident [Stmt]
+  | EDo Ident [EStmt]
   | EPrim String
   deriving (Show)
 
-data Stmt = Bind Ident Expr | Then Expr | Let Ident Expr
+data EStmt = Bind Ident Expr | Then Expr | Let Ident Expr
   deriving (Show)
 
-data Pat
+data EPat
   = PConstr Ident [Ident]
   | PTuple [Ident]
   deriving (Show)
 
-data Module = Module Ident [Def]
+data EModule = EModule IdentModule [EDef]
   deriving (Show)
 
 type LHS = (Ident, [Ident])
 type Constr = (Ident, [Type])
 type Type = Expr
+
+qual :: Ident -> Ident -> Ident
+qual qi i = qi ++ "." ++ i
 
 skipWhite :: P a -> P a
 skipWhite p = p <* pWhite
@@ -140,11 +146,11 @@ isDigit c = '0' <= c && c <= '9'
 
 -------
 
-pTop :: P Module
+pTop :: P EModule
 pTop = skipWhite (pure ()) *> pModule <* eof
 
-pModule :: P Module
-pModule = Module <$> (pKeyword "module" *> pUIdent <* pKeyword' "where") <*> pBlock pDef
+pModule :: P EModule
+pModule = EModule <$> (pKeyword "module" *> pUIdent <* pKeyword' "where") <*> pBlock pDef
 
 pKeyword :: String -> P ()
 pKeyword kw = (skipWhite $ do
@@ -265,7 +271,7 @@ pSym c = () <$ (skipWhite $ char c)
 pLHS :: P Ident -> P LHS
 pLHS pId = (,) <$> pId <*> many pLIdent_
 
-pDef :: P Def
+pDef :: P EDef
 pDef =
       Data   <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 ((,) <$> pUIdent <*> many pAType) (pSymbol "|")
   <|> Fcn    <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
@@ -302,7 +308,7 @@ pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword' "of" *> pBlock pArm)
   where pArm = (,) <$> (pPat <* pSymbol "->") <*> pExpr
 
-pPat :: P Pat
+pPat :: P EPat
 pPat =
       ((uncurry PConstr) <$> pLHS pUIdent)
   <|> (PTuple <$> (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
@@ -363,7 +369,7 @@ pExpr = pExprOp --x <|> pLam <|> pCase <|> pLet <|> pDo
 pDo :: P Expr
 pDo = EDo <$> pQualDo <*> pBlock pStmt
 
-pStmt :: P Stmt
+pStmt :: P EStmt
 pStmt =
       (Bind <$> (pLIdent <* pSymbol "<-") <*> pExpr )
   <|> (Let  <$> (pKeyword "let" *> pLIdent <* pSymbol "=") <*> pExpr)  -- could be better

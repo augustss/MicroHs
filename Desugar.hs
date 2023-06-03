@@ -1,19 +1,31 @@
-module Desugar(desugar, LDef) where
+module Desugar(
+  desugar,
+  Module(..),
+  Export,
+  TypeDef(..),
+  LDef,
+  ) where
 import Parse
 import Exp
 
+data Module = Module IdentModule [Export] [TypeDef] [LDef]
+  deriving (Show)
+
+type Export = (Ident, Ident)  -- exported name, global name
+
+data TypeDef = TypeDef Ident [(Ident, Int)]   -- constructor name, arity
+  deriving (Show)
+
 type LDef = (Ident, Exp)
 
-desugar :: Module -> (Ident, [LDef])
-desugar (Module nm ds) = (nm, concatMap dsDef ds)
+desugar :: EModule -> Module
+desugar (EModule mn ds) =
+  let ds' = concatMap dsDef ds
+      tds = concatMap dsData ds
+      es = [(i, qual mn i) | (i, _) <- ds']
+  in  Module mn es tds [(qual mn i, e) | (i, e) <- ds']
 
-lams :: [Ident] -> Exp -> Exp
-lams xs e = foldr Lam e xs
-
-apps :: Exp -> [Exp] -> Exp
-apps f xs = foldl App f xs
-
-dsDef :: Def -> [LDef]
+dsDef :: EDef -> [LDef]
 dsDef (Data _ cs) = zipWith dsConstr [0..] cs
   where
     fs = [f i | (i, _) <- zip [0..] cs]
@@ -53,3 +65,13 @@ dsExpr (EDo n (Bind i e : ss)) = App2 (Var (n ++ ".>>=")) (dsExpr e) (Lam i $ ds
 dsExpr (EDo n (Then   e : ss)) = App2 (Var (n ++ ".>>"))  (dsExpr e)         (dsExpr (EDo n ss))
 dsExpr (EDo n (Let  i e : ss)) = App  (Lam i $ dsExpr (EDo n ss)) (dsExpr e)
 dsExpr (EPrim s) = Prim s
+
+lams :: [Ident] -> Exp -> Exp
+lams xs e = foldr Lam e xs
+
+apps :: Exp -> [Exp] -> Exp
+apps f xs = foldl App f xs
+
+dsData :: EDef -> [TypeDef]
+dsData (Data (tn, _) cs) = [TypeDef tn [(c, length ts) | (c, ts) <- cs ]]
+dsData _ = []

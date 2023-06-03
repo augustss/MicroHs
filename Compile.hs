@@ -13,23 +13,21 @@ data Flags = Flags {
   }
   deriving (Show)
 
-type IdentModule = Ident
-type CModule = (IdentModule, [LDef])
 type SymTable = M.Map Ident [Exp]
 
 data Cache = Cache
   { working :: [IdentModule]
-  , cache   :: M.Map IdentModule CModule
+  , cache   :: M.Map IdentModule Module
   }
   deriving (Show)
 
 compile :: Flags -> IdentModule -> IO [LDef]
 compile flags nm = do
   ch <- execStateT (compileModuleCached flags nm) Cache{ working = [], cache = M.empty }
-  let qual (mn, ds) = [(mn ++ "." ++ i, e) | (i, e) <- ds ]
-  pure $ concatMap qual $ M.elems $ cache ch
+  let defs (Module _ _ _ ds) = ds
+  pure $ concatMap defs $ M.elems $ cache ch
 
-compileModuleCached :: Flags -> IdentModule -> StateT Cache IO CModule
+compileModuleCached :: Flags -> IdentModule -> StateT Cache IO Module
 compileModuleCached flags nm = do
   ch <- gets cache
   case M.lookup nm ch of
@@ -50,26 +48,25 @@ compileModuleCached flags nm = do
         liftIO $ putStrLn $ "importing cached " ++ show nm
       pure cm
 
-compileModule :: Flags -> IdentModule -> StateT Cache IO CModule
+compileModule :: Flags -> IdentModule -> StateT Cache IO Module
 compileModule flags nm = do
   let fn = map (\ c -> if c == '.' then '/' else c) nm ++ ".hs"
-  mdl@(Module nm' defs) <- parseDie pTop fn <$> liftIO (readFilePath (path flags) fn)
+  mdl@(EModule nm' defs) <- parseDie pTop fn <$> liftIO (readFilePath (path flags) fn)
   when (nm /= nm') $
     error $ "module name does not agree with file name: " ++ show nm
-  impMdls :: [CModule]
-          <- mapM (compileModuleCached flags) [ m | Import m <- defs ]
+  impMdls <- mapM (compileModuleCached flags) [ m | Import m <- defs ]
   let
-    mdl' :: CModule
+    mdl' :: Module
     mdl' = desugar mdl
     allSyms :: SymTable
     allSyms = M.fromListWith (++) $ concatMap syms (mdl' : impMdls)
-    syms (mn, ds) = [ (s, [Var qi]) | (i, _) <- ds, let qi = mn ++ "." ++ i, s <- [i, qi] ]
+    syms (Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- [i, qual mn i] ]
     mdl'' = checkModule allSyms mdl'
 --  liftIO $ print allSyms
   pure mdl''
 
-checkModule :: SymTable -> CModule -> CModule
-checkModule syms (nm, ds) = (nm, [ (s, checkExpr syms e) | (s, e) <- ds ])
+checkModule :: SymTable -> Module -> Module
+checkModule syms (Module nm exps tds ds) = Module nm exps tds [ (s, checkExpr syms e) | (s, e) <- ds ]
 
 checkExpr :: SymTable -> Exp -> Exp
 checkExpr syms ee =

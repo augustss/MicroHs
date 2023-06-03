@@ -1,8 +1,7 @@
 BIN=bin
 .PHONY: all test time example
 
-all:
-	@echo pick a target
+all:	$(BIN)/eval $(BIN)/uhs
 
 $(BIN)/eval:	eval.c
 	gcc -Wall -O3 eval.c -o $(BIN)/eval
