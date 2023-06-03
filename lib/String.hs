@@ -1,6 +1,6 @@
 module String where
 import Prelude
-import List
+import Data.List
 
 showChar :: Char -> String
 showChar c =

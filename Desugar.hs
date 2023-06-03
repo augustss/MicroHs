@@ -88,11 +88,11 @@ dsExpr _ _ (EDo _ []) = error "empty do"
 dsExpr _ _ (EDo _ [Bind _ _]) = error "do without final expression"
 dsExpr syms tys (EDo _ [Then e]) = dsExpr syms tys e
 dsExpr syms tys (EDo n (Bind i e : ss)) =
-  App2 (Var (qual n ">>=")) (dsExpr syms tys e) (Lam i $ dsExpr (extSyms syms [i]) tys (EDo n ss))
+  dsExpr syms tys $ EApp (EApp (EVar (qual n ">>=")) e) (ELam [i] (EDo n ss))
 dsExpr syms tys (EDo n (Then   e : ss)) =
-  App2 (Var (qual n ">>"))  (dsExpr syms tys e)         (dsExpr syms tys (EDo n ss))
-dsExpr syms tys (EDo n (Let  i e : ss)) =
-  App  (Lam i $ dsExpr (extSyms syms [i]) tys (EDo n ss)) (dsExpr syms tys e)
+  dsExpr syms tys $ EApp (EApp (EVar (qual n ">>")) e) (EDo n ss)
+dsExpr syms tys (EDo n (Let i e : ss)) =
+  dsExpr syms tys $ ELet [Fcn (i, []) e] (EDo n ss)
 dsExpr _ _ (EPrim s) = Prim s
 
 reorderArms :: TypeTable -> [(EPat, Expr)] -> [(EPat, Expr)]

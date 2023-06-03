@@ -1,7 +1,7 @@
 module StringTest where
 import Prelude
-import IO
-import List
+import System.IO as IO
+import Data.List
 import String
 
 main = IO.do

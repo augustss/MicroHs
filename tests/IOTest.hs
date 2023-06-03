@@ -1,6 +1,6 @@
 module IOTest where
 import Prelude
-import IO
+import System.IO as IO
 import String
 
 f x = x*2+1
