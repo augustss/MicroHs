@@ -104,6 +104,10 @@ dsExpr syms tys (EDo mn (Then   e : ss)) =
 dsExpr syms tys (EDo mn (Let ds : ss)) =
   dsExpr syms tys $ ELet ds (EDo mn ss)
 dsExpr _ _ (EPrim s) = Prim s
+dsExpr syms tys (ESectL e op) =
+  App (dsExpr syms tys (EVar op)) (dsExpr syms tys e)
+dsExpr syms tys (ESectR op e) =
+  App2 CC (dsExpr syms tys (EVar op)) (dsExpr syms tys e)
 
 mqual :: Maybe Ident -> Ident -> Ident
 mqual (Just qi) i = qual qi i
