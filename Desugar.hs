@@ -108,6 +108,8 @@ dsExpr syms tys (ESectL e op) =
   App (dsExpr syms tys (EVar op)) (dsExpr syms tys e)
 dsExpr syms tys (ESectR op e) =
   App2 CC (dsExpr syms tys (EVar op)) (dsExpr syms tys e)
+dsExpr syms tys (EIf e1 e2 e3) =
+  App2 (dsExpr syms tys e1) (dsExpr syms tys e3) (dsExpr syms tys e2)
 
 mqual :: Maybe Ident -> Ident -> Ident
 mqual (Just qi) i = qual qi i
