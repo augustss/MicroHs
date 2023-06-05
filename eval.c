@@ -480,7 +480,7 @@ printrec(FILE *f, NODEPTR n)
     printrec(f, ARG(n));
     fputc(')', f);
     break;
-  case INT: fprintf(f, "%ld", GETVALUE(n)); break;
+  case INT: fprintf(f, "%lld", GETVALUE(n)); break;
   case CHAR: fprintf(f, "'%c", (int)GETVALUE(n)); break;
   case HDL:
     if (HANDLE(n) == stdin)
@@ -1040,7 +1040,7 @@ main(int argc, char **argv)
   if (verbose) {
     printf("\nmain returns ");
     pp(stdout, n);
-    printf("node size=%ld, heap size=%ld\n", NODE_SIZE, heap_size);
+    printf("node size=%ld, heap size=%ld\n", NODE_SIZE, (long)heap_size);
     printf("%d reductions, %d GCs, max cells used %d\n", num_reductions, num_gc, max_num_marked);
     printf("%d cells at start\n", start_size);
   }

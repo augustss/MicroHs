@@ -4,9 +4,11 @@ BIN=bin
 all:	$(BIN)/eval $(BIN)/uhs
 
 $(BIN)/eval:	eval.c
+	@mkdir -p bin
 	gcc -Wall -O3 eval.c -o $(BIN)/eval
 
 $(BIN)/uhs:	*.hs
+	@mkdir -p bin
 	ghc -Wall -O Main.hs -o $(BIN)/uhs
 
 test:	$(BIN)/eval $(BIN)/uhs tests/*.hs

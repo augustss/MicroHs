@@ -8,7 +8,7 @@ import Parse
 
 data Flags = Flags {
   verbose :: Bool,
-  path :: [FilePath]
+  paths :: [FilePath]
   }
   deriving (Show)
 
@@ -48,7 +48,7 @@ compileModuleCached flags nm = do
 compileModule :: Flags -> IdentModule -> StateT Cache IO Module
 compileModule flags nm = do
   let fn = map (\ c -> if c == '.' then '/' else c) nm ++ ".hs"
-  mdl@(EModule nm' _ defs) <- parseDie pTop fn <$> liftIO (readFilePath (path flags) fn)
+  mdl@(EModule nm' _ defs) <- parseDie pTop fn <$> liftIO (readFilePath (paths flags) fn)
   when (nm /= nm') $
     error $ "module name does not agree with file name: " ++ show nm
   let specs = [ s | Import s <- defs ]
