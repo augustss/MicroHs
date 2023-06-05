@@ -3,13 +3,13 @@ BIN=bin
 
 all:	$(BIN)/eval $(BIN)/uhs
 
-$(BIN)/eval:	eval.c
+$(BIN)/eval:	src/runtime/eval.c
 	@mkdir -p bin
-	gcc -Wall -O3 eval.c -o $(BIN)/eval
+	gcc -Wall -O3 src/runtime/eval.c -o $(BIN)/eval
 
-$(BIN)/uhs:	*.hs
+$(BIN)/uhs:	src/*/*.hs
 	@mkdir -p bin
-	ghc -Wall -O Main.hs -o $(BIN)/uhs
+	ghc -Wall -O -isrc src/MicroHs/Main.hs -o $(BIN)/uhs
 
 test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
 	cd tests; make test
@@ -21,5 +21,5 @@ example:	$(BIN)/eval $(BIN)/uhs Example.hs
 	$(BIN)/uhs -ilib Example && $(BIN)/eval
 
 clean:
-	rm -f *.hi *.o eval Main *.comb *.tmp *~
+	rm -f src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/*
 	cd tests; make clean
