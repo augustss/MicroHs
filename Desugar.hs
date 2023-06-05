@@ -110,6 +110,13 @@ dsExpr syms tys (ESectR op e) =
   App2 CC (dsExpr syms tys (EVar op)) (dsExpr syms tys e)
 dsExpr syms tys (EIf e1 e2 e3) =
   App2 (dsExpr syms tys e1) (dsExpr syms tys e3) (dsExpr syms tys e2)
+dsExpr syms tys (ECompr e []) = dsExpr syms tys (EList [e])
+dsExpr syms tys (ECompr e (Bind i b : ss)) =
+  App2 (Var "Data.List.concatMap") (dsExpr syms tys (ELam [i] (ECompr e ss))) (dsExpr syms tys b)
+dsExpr syms tys (ECompr e (Then c : ss)) =
+  dsExpr syms tys (EIf c (ECompr e ss) (EList []))
+dsExpr syms tys (ECompr e (Let d : ss)) =
+  dsExpr syms tys (ELet d (ECompr e ss))
 
 mqual :: Maybe Ident -> Ident -> Ident
 mqual (Just qi) i = qual qi i

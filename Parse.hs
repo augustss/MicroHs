@@ -51,6 +51,7 @@ data Expr
   | ESectL Expr Ident
   | ESectR Ident Expr
   | EIf Expr Expr Expr
+  | ECompr Expr [EStmt]
   deriving (Show)
 
 data EStmt = Bind Ident Expr | Then Expr | Let [EDef]
@@ -312,6 +313,7 @@ pAExpr =
   <|> (EPrim <$> (pKeyword "primitive" *> pString))
   <|> (ESectL <$> (pSym '(' *> pExprArg) <*> (pOper <* pSym ')'))
   <|> (ESectR <$> (pSym '(' *> pOper) <*> (pExprArg <* pSym ')'))
+  <|> (ECompr <$> (pSym '[' *> pExpr <* pSym '|') <*> (esepBy1 pStmt (pSym ',') <* pSym ']'))
 
 pExprApp :: P Expr
 pExprApp = do

@@ -18,6 +18,12 @@ null arg =
     [] -> ys
     x : xs -> x : xs ++ ys
 
+concat :: [[a]] -> [a] -> [a]
+concat = foldr (++) []
+
+concatMap :: (a -> [b]) -> [a] -> [b]
+concatMap f = concat . map f
+
 map :: (a -> b) -> [a] -> [b]
 map f =
   let
