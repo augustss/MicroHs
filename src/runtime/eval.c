@@ -19,7 +19,7 @@ enum node_tag { FREE, IND, AP, INT, CHAR, HDL, S, K, I, B, C, T, Y, SS, BB, CC, 
                 ADD, SUB, MUL, QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR, CHR, ORD,
                 IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR,
                 IO_SERIALIZE, IO_DESERIALIZE,
-                IO_OPEN, IO_CLOSE,
+                IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE,
                 IO_STDIN, IO_STDOUT, IO_STDERR,
 };
 
@@ -199,6 +199,7 @@ struct {
   { "IO.deserialize", IO_DESERIALIZE },
   { "IO.open", IO_OPEN },
   { "IO.close", IO_CLOSE },
+  { "IO.isNullHandle", IO_ISNULLHANDLE },
   { "IO.stdin", IO_STDIN },
   { "IO.stdout", IO_STDOUT },
   { "IO.stderr", IO_STDERR },
@@ -283,7 +284,8 @@ scan(void)
   for(int i = heap_start; i < heap_size; i++) {
     NODEPTR n = HEAPREF(i);
     if (MARK(n) == NOTMARKED) {
-      if (TAG(n) == HDL && HANDLE(n) != 0) {
+      if (TAG(n) == HDL && HANDLE(n) != 0 &&
+	  HANDLE(n) != stdin && HANDLE(n) != stdout && HANDLE(n) != stderr) {
         /* A FILE* has become garbage, so close it. */
         fclose(HANDLE(n));
       }
@@ -462,7 +464,7 @@ void
 printrec(FILE *f, NODEPTR n)
 {
   if (MARK(n) == PRINTED) {
-    /* This node has already been printer, so just use a reverence. */
+    /* This node has already been printer, so just use a reference. */
     fprintf(f, "_%d", LABEL(n));
     return;
   } else if (MARK(n) == SHARED) {
@@ -528,6 +530,7 @@ printrec(FILE *f, NODEPTR n)
   case IO_DESERIALIZE: fprintf(f, "$IO.deserialize"); break;
   case IO_OPEN: fprintf(f, "$IO.open"); break;
   case IO_CLOSE: fprintf(f, "$IO.close"); break;
+  case IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
   default: ERR("print tag");
   }
 }
@@ -625,18 +628,27 @@ evalchar(NODEPTR n)
 
 /* Evaluate to a HDL */
 FILE *
-evalhandle(NODEPTR n)
+evalhandleN(NODEPTR n)
 {
   n = evali(n);
   if (TAG(n) != HDL) {
     fprintf(stderr, "bad tag %d\n", TAG(n));
     ERR("evalhandle");
   }
-  if (HANDLE(n) == 0) {
+  return HANDLE(n);
+}
+
+/* Evaluate to a HDL, and check for closed */
+FILE *
+evalhandle(NODEPTR n)
+{
+  FILE *hdl;
+  hdl = evalhandleN(n);
+  if (hdl == 0) {
     fprintf(stderr, "closed file\n");
     ERR("evalhandle");
   }
-  return HANDLE(n);
+  return hdl;
 }
 
 /* Evaluate a string, returns a newly allocated buffer. */
@@ -674,6 +686,7 @@ eval(NODEPTR n)
   NODEPTR f, g, x, k, y;
   value_t r;
   int c;
+  FILE *hdl;
 
 /* Reset stack pointer and return. */
 #define RET do { stack_ptr = stk; return; } while(0)
@@ -870,10 +883,18 @@ eval(NODEPTR n)
       POP(1);
       RET;
     case ERROR:
+      CHECK(1);
       x = ARG(TOP(1));
       char *msg = evalstring(x);
       fprintf(stderr, "error: %s\n", msg);
       exit(1);
+    case IO_ISNULLHANDLE:
+      CHECK(1);
+      hdl = evalhandleN(ARG(TOP(1)));
+      n = TOP(1);
+      SETIND(n, hdl == 0 ? combT : combK);
+      POP(1);
+      break;
     case IO_BIND:
     case IO_THEN:
     case IO_RETURN:
@@ -986,15 +1007,13 @@ evalio(NODEPTR n)
       default:
         ERR("IO_OPEN mode");
       }
-      if (hdl == 0) {
-        fprintf(stderr, "open %s failed\n", name);
-        ERR("IO_OPEN");
-      }
       free(name);
       GCCHECK(1);
       n = alloc_node(HDL);
       HANDLE(n) = hdl;
-      RETIO(n);
+      stack_ptr = stk;
+      return (n);
+      //RETIO(n);
     default:
       fprintf(stderr, "bad tag %d\n", TAG(n));
       ERR("evalio tag");

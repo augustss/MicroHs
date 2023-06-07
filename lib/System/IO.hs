@@ -1,4 +1,5 @@
 module System.IO(module System.IO) where
+import Control.Error
 import Data.Bool
 import Data.Int
 import Data.List
@@ -9,7 +10,6 @@ data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
 (>>)         = primitive "IO.>>"
 return       = primitive "IO.return"
 hPutChar     = primitive "IO.putChar"
-hGetChar     = primitive "IO.getChar"
 hSerialize   = primitive "IO.serialize"
 hdeserialize = primitive "IO.deserialize"
 hClose       = primitive "IO.close"
@@ -17,15 +17,25 @@ stdin        = primitive "IO.stdin"
 stdout       = primitive "IO.stdout"
 stderr       = primitive "IO.stderr"
 
+hGetChar h = do
+  c <- (primitive "IO.getChar") h
+  case ord c == negate 1 of
+    False -> return c
+    True  -> error "hGetChar: EOF"
+
 openFile :: FilePath -> IOMode -> IO Handle
-openFile p m =
-  let
+openFile p m = do
+  let {
     n = case m of
           ReadMode -> 0
           WriteMode -> 1
           AppendMode -> 2
           ReadWriteMode -> 3
-  in  (primitive "IO.open") p n
+    }
+  hdl <- (primitive "IO.open") p n
+  case (primitive "IO.isNullHandle") hdl of
+    False -> return hdl
+    True  -> error ("openFile: cannot open " ++ p)
 
 putChar :: Char -> IO ()
 putChar = hPutChar stdout
@@ -88,7 +98,7 @@ readFile p = do
 -- Strict hGetContents
 hGetContents :: Handle -> IO String
 hGetContents h = do
-  c <- hGetChar h
+  c <- (primitive "IO.getChar") h
   case ord c == negate 1 of
     False -> do { cs <- hGetContents h; return (c:cs) }
     True  -> return ""
