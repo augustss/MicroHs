@@ -24,5 +24,5 @@ negate x = 0 - x
 --------------------------------
 
 -- Conversion
-chr  = primitive "chr"
-ord  = primitive "ord"
+chr x = x
+ord x = x

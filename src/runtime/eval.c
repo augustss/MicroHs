@@ -15,8 +15,8 @@
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_mark { NOTMARKED, MARKED, SHARED, PRINTED }; /* SHARED, PRINTED only for printing */
-enum node_tag { FREE, IND, AP, INT, CHAR, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
-                ADD, SUB, MUL, QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR, CHR, ORD,
+enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
+                ADD, SUB, MUL, QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR,
                 IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR,
                 IO_SERIALIZE, IO_DESERIALIZE,
                 IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE,
@@ -187,8 +187,6 @@ struct {
   { ">", GT },
   { ">=", GE },
   { "error", ERROR },
-  { "chr", CHR },
-  { "ord", ORD },
   /* IO primops */
   { "IO.>>=", IO_BIND },
   { "IO.>>", IO_THEN },
@@ -391,12 +389,6 @@ parse(FILE *f)
     r = alloc_node(INT);
     SETVALUE(r, i);
     return r;
-  case '\'':
-    /* character: 'c */
-    r = alloc_node(CHAR);
-    i = getc(f);
-    SETVALUE(r, i);
-    return r;
   case '$':
     /* A primitive, keep getting char's until end */
     for (int j = 0;;) {
@@ -483,7 +475,6 @@ printrec(FILE *f, NODEPTR n)
     fputc(')', f);
     break;
   case INT: fprintf(f, "%lld", GETVALUE(n)); break;
-  case CHAR: fprintf(f, "'%c", (int)GETVALUE(n)); break;
   case HDL:
     if (HANDLE(n) == stdin)
       fprintf(f, "$IO.stdin");
@@ -519,8 +510,6 @@ printrec(FILE *f, NODEPTR n)
   case GT: fprintf(f, "$>"); break;
   case GE: fprintf(f, "$>="); break;
   case ERROR: fprintf(f, "$error"); break;
-  case ORD: fprintf(f, "$ord"); break;
-  case CHR: fprintf(f, "$chr"); break;
   case IO_BIND: fprintf(f, "$IO.>>="); break;
   case IO_THEN: fprintf(f, "$IO.>>"); break;
   case IO_RETURN: fprintf(f, "$IO.return"); break;
@@ -614,18 +603,6 @@ evalint(NODEPTR n)
   return GETVALUE(n);
 }
 
-/* Evaluate to a CHAR */
-int
-evalchar(NODEPTR n)
-{
-  n = evali(n);
-  if (TAG(n) != CHAR) {
-    fprintf(stderr, "bad tag %d\n", TAG(n));
-    ERR("evalchar");
-  }
-  return (int)GETVALUE(n);
-}
-
 /* Evaluate to a HDL */
 FILE *
 evalhandleN(NODEPTR n)
@@ -658,6 +635,7 @@ evalstring(NODEPTR n)
 {
   size_t sz = 10000;
   char *p, *name = malloc(sz);
+  value_t c;
 
   if (!name)
     ERR("evalstring malloc");
@@ -668,7 +646,10 @@ evalstring(NODEPTR n)
     if (TAG(n) == K)            /* Nil */
       break;
     else if (TAG(n) == AP && TAG(FUN(n)) == AP && TAG(FUN(FUN(n))) == O) { /* Cons */
-      *p++ = evalchar(ARG(FUN(n)));
+      c = evalint(ARG(FUN(n)));
+      if (c < 0 || c > 127)
+	ERR("invalid char");
+      *p++ = (char)c;
       n = ARG(n);
     } else {
       ERR("evalstring not Nil/Cons");
@@ -685,7 +666,6 @@ eval(NODEPTR n)
   int64_t stk = stack_ptr;
   NODEPTR f, g, x, k, y;
   value_t r;
-  int c;
   FILE *hdl;
 
 /* Reset stack pointer and return. */
@@ -711,7 +691,6 @@ eval(NODEPTR n)
       PUSH(n);
       break;
     case INT:
-    case CHAR:
     case HDL:
       RET;
     case S:
@@ -814,7 +793,7 @@ eval(NODEPTR n)
       FUN(n) = new_ap(f, x);
       ARG(n) = y;
       GOTO ap;
-    case O:                     /* P x y g f = f x y */
+    case O:                     /* O x y g f = f x y */
       CHECK(4);
       GCCHECK(1);
       x = ARG(TOP(1));
@@ -867,21 +846,6 @@ eval(NODEPTR n)
     case GE:
       CMP(>=);
       break;
-    case ORD:
-      CHECK(1);
-      c = evalchar(ARG(TOP(1)));
-      n = TOP(1);
-      SETINT(n, c);
-      POP(1);
-      RET;
-    case CHR:
-      CHECK(1);
-      r = evalint(ARG(TOP(1)));
-      n = TOP(1);
-      TAG(n) = CHAR;
-      SETVALUE(n, r);
-      POP(1);
-      RET;
     case ERROR:
       CHECK(1);
       x = ARG(TOP(1));
@@ -966,13 +930,13 @@ evalio(NODEPTR n)
       hdl = evalhandle(ARG(TOP(1)));
       GCCHECK(1);
       c = getc(hdl);
-      n = alloc_node(CHAR);
+      n = alloc_node(INT);
       SETVALUE(n, c);
       RETIO(n);
     case IO_PUTCHAR:
       CHECKIO(2);
       hdl = evalhandle(ARG(TOP(1)));
-      c = evalchar(ARG(TOP(2)));
+      c = evalint(ARG(TOP(2)));
       putc(c, hdl);
       RETIO(combI);
     case IO_SERIALIZE:
