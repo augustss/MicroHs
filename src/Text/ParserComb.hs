@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module ParserComb(
+module Text.ParserComb(
   get, gets, put, modify,
   Prsr, runPrsr,
   satisfy, char, string, eof,

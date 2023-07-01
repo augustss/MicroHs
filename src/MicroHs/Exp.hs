@@ -1,7 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
-module Exp where
-import Parse(Ident)
+module MicroHs.Exp where
+import MicroHs.Parse(Ident)
 --import Debug.Trace
 
 type PrimOp = String
@@ -10,8 +10,7 @@ data Exp
   = Var Ident
   | App Exp Exp
   | Lam Ident Exp
-  | Int Integer
-  | Chr Char
+  | Int Int
   | Prim PrimOp
   | Lbl Int Exp
   deriving (Show, Eq)
@@ -43,7 +42,6 @@ toStringP :: Exp -> String
 toStringP (Var x) = x
 toStringP (Prim x) = '$':x
 toStringP (Int i) = show i
-toStringP (Chr c) = ['\'', c]
 toStringP (Lam x e) = "(\\" ++ x ++ " " ++ toStringP e ++ ")"
 toStringP (App f a) = "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
 toStringP (Lbl i e) = ":" ++ show i ++ " " ++ toStringP e

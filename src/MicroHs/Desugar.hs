@@ -1,4 +1,4 @@
-module Desugar(
+module MicroHs.Desugar(
   desugar,
   Module(..),
   Export,
@@ -10,8 +10,9 @@ module Desugar(
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
-import Parse
-import Exp
+
+import MicroHs.Parse
+import MicroHs.Exp
 
 data Module = Module IdentModule [Export] [TypeDef] [LDef]
   deriving (Show)
@@ -73,8 +74,8 @@ dsExpr syms _ (EVar i) =
     Just qis -> error $ "ambiguous: " ++ show i ++ ", " ++ show qis
 dsExpr syms tys (EApp f a) = App (dsExpr syms tys f) (dsExpr syms tys a)
 dsExpr syms tys (ELam xs e) = lams xs (dsExpr (extSyms syms xs) tys e)
-dsExpr _ _ (EInt i) = Int i
-dsExpr _ _ (EChar c) = Chr c
+dsExpr _ _ (EInt i) = Int (fromInteger i)
+dsExpr _ _ (EChar c) = Int (fromEnum c)
 dsExpr syms tys (ECase e as) = apps (dsExpr syms tys e) (map dsArm as')
   where dsArm (PConstr _ vs, r) = lams vs $ dsExpr (extSyms syms vs) tys r
         dsArm (PTuple [_], _) = error "dsExpr: singleton tuple"
@@ -108,6 +109,15 @@ dsExpr syms tys (ESectL e op) =
   App (dsExpr syms tys (EVar op)) (dsExpr syms tys e)
 dsExpr syms tys (ESectR op e) =
   App2 CC (dsExpr syms tys (EVar op)) (dsExpr syms tys e)
+dsExpr syms tys (EIf e1 e2 e3) =
+  App2 (dsExpr syms tys e1) (dsExpr syms tys e3) (dsExpr syms tys e2)
+dsExpr syms tys (ECompr e []) = dsExpr syms tys (EList [e])
+dsExpr syms tys (ECompr e (Bind i b : ss)) =
+  App2 (Var "Data.List.concatMap") (dsExpr syms tys (ELam [i] (ECompr e ss))) (dsExpr syms tys b)
+dsExpr syms tys (ECompr e (Then c : ss)) =
+  dsExpr syms tys (EIf c (ECompr e ss) (EList []))
+dsExpr syms tys (ECompr e (Let d : ss)) =
+  dsExpr syms tys (ELet d (ECompr e ss))
 
 mqual :: Maybe Ident -> Ident -> Ident
 mqual (Just qi) i = qual qi i

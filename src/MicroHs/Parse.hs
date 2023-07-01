@@ -1,4 +1,4 @@
-module Parse(
+module MicroHs.Parse(
   pTop,
   parseDie,
   Ident,
@@ -15,7 +15,7 @@ module Parse(
 import Control.Monad
 import Control.Monad.State.Strict
 import Data.List
-import ParserComb
+import Text.ParserComb
 import Control.Applicative --hiding (many, some)
 --import Debug.Trace
 
@@ -50,6 +50,8 @@ data Expr
   | EPrim String
   | ESectL Expr Ident
   | ESectR Ident Expr
+  | EIf Expr Expr Expr
+  | ECompr Expr [EStmt]
   deriving (Show)
 
 data EStmt = Bind Ident Expr | Then Expr | Let [EDef]
@@ -198,7 +200,8 @@ pUIdent :: P String
 pUIdent = pUIdentA <|> (pSym '(' *> pOperU <* pSym ')')
 
 keywords :: [String]
-keywords = ["case", "data", "do", "import", "in", "let", "module", "of", "primitive", "where"]
+keywords = ["case", "data", "do", "else", "if", "import",
+  "in", "let", "module", "of", "primitive", "then", "where"]
 
 pWord :: P String
 pWord = (:) <$> satisfy "letter" isLetter <*>
@@ -310,6 +313,7 @@ pAExpr =
   <|> (EPrim <$> (pKeyword "primitive" *> pString))
   <|> (ESectL <$> (pSym '(' *> pExprArg) <*> (pOper <* pSym ')'))
   <|> (ESectR <$> (pSym '(' *> pOper) <*> (pExprArg <* pSym ')'))
+  <|> (ECompr <$> (pSym '[' *> pExpr <* pSym '|') <*> (esepBy1 pStmt (pSym ',') <* pSym ']'))
 
 pExprApp :: P Expr
 pExprApp = do
@@ -378,13 +382,16 @@ pLeftAssoc pOp p = do
   pure $ foldl (\ x (op, y) -> appOp op x y) e1 es
 
 pExprArg :: P Expr
-pExprArg = pExprApp <|> pLam <|> pCase <|> pLet
+pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pIf
 
 pExpr :: P Expr
 pExpr = pExprOp <|> pDo
 
 pDo :: P Expr
 pDo = EDo <$> ((Just <$> pQualDo) <|< (Nothing <$ pKeyword' "do")) <*> pBlock pStmt
+
+pIf :: P Expr
+pIf = EIf <$> (pKeyword "if" *> pExpr) <*> (pKeyword "then" *> pExpr) <*> (pKeyword "else" *> pExpr)
 
 pStmt :: P EStmt
 pStmt =

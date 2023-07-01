@@ -3,9 +3,9 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import System.Environment(getArgs)
-import Parse
-import Exp hiding (compile)
-import Compile
+import MicroHs.Parse
+import MicroHs.Exp hiding (compile)
+import MicroHs.Compile
 
 main :: IO ()
 main = do
@@ -14,7 +14,7 @@ main = do
              [s] -> s
              _ -> error "Usage: uhs [-v] [-iPATH] ModuleName"
       flags = Flags { verbose = "-v" `elem` args,
-                      path = "." : catMaybes (map (stripPrefix "-i") args)
+                      paths = "." : catMaybes (map (stripPrefix "-i") args)
                     }
   ds <- compile flags mn
   let ds' = [ (n, compileOpt e) | (n, e) <- ds ]

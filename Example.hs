@@ -2,9 +2,10 @@ module Example(module Example) where
 import Prelude
 
 fac n =
-  case n <= 0 of
-    True  -> 1
-    False -> n * fac(n-1)
+  if n <= 0 then
+    1
+  else
+    n * fac(n-1)
 
 main = do
   let
