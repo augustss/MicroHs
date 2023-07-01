@@ -1,7 +1,7 @@
 BIN=bin
 BOOTDIR=ghc-boot
 GHC=ghc -outputdir $(BOOTDIR)
-GHCFLAGS=-i -ighc -ilib -hide-all-packages -XNoImplicitPrelude
+GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude
 GHCC=$(GHC) $(GHCFLAGS)
 .PHONY: all test time example
 
@@ -13,6 +13,9 @@ $(BIN)/eval:	src/runtime/eval.c
 
 $(BIN)/uhs:	src/*/*.hs
 	ghc -outputdir ghc-out -package mtl -isrc -Wall -O src/MicroHs/Main.hs -o $(BIN)/uhs
+
+trtest:	$(BIN)/uhs
+	$(BIN)/uhs -ilib -r -v Main
 
 a.out:
 	rm -rf $(BOOTDIR)
