@@ -6,3 +6,4 @@ bin/*
 tests/*.tmp
 tests/*.out
 old/*
+a.out
