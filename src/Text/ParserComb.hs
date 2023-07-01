@@ -11,6 +11,7 @@ module Text.ParserComb(
   notFollowedBy, lookAhead,
   inject,
   )where
+import Control.Monad
 import Control.Monad.State.Strict
 import Data.Char(isSpace)
 import Data.List

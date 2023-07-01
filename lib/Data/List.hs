@@ -1,10 +1,12 @@
-module Data.List(module Data.List) where
+module Data.List(module Data.List, module Data.List_Type) where
+--import Primitives
 import Data.Bool
 import Data.Function
 import Data.Int
+import Data.List_Type
 
 -- By parser some parser hacks we can use [] instead of Nil
-data List a = Nil | (:) a (List a)
+--data List a = Nil | (:) a (List a)
 
 null :: [a] -> Bool
 null arg =
@@ -18,7 +20,7 @@ null arg =
     [] -> ys
     x : xs -> x : xs ++ ys
 
-concat :: [[a]] -> [a] -> [a]
+concat :: [[a]] -> [a]
 concat = foldr (++) []
 
 concatMap :: (a -> [b]) -> [a] -> [b]

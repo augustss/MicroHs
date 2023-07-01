@@ -1,5 +1,6 @@
 module Text.String(module Text.String) where
 import Data.Bool
+import Data.Char
 import Data.Either
 import Data.Int
 import Data.List

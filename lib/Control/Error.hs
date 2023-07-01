@@ -1,4 +1,4 @@
 module Control.Error(module Control.Error) where
+import Primitives
 
-error = primitive "error"
-
+error = primError

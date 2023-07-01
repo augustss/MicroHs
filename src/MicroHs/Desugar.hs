@@ -62,6 +62,7 @@ dsDef _ _ (Data _ cs) = zipWith dsConstr [0..] cs
     dsConstr i (c, ts) = (c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
       where xs = ["$x" ++ show (j::Int) | (j, _) <- zip [0..] ts]
     f i = "$f" ++ show (i::Int)
+dsDef _ _ Type{} = []
 dsDef syms tys (Fcn (f, xs) e) = [(f, lams xs $ dsExpr (extSyms syms xs) tys e)]
 dsDef _ _ Sign{} = []
 dsDef _ _ Import{} = []

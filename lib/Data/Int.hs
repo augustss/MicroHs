@@ -1,28 +1,31 @@
 module Data.Int(module Data.Int) where
+import Primitives
+
+type Int = Primitives.Int
 
 -- Arithmetic
-(+)  = primitive "+"
-(-)  = primitive "-"
-(*)  = primitive "*"
-quot = primitive "quot"
-rem  = primitive "rem"
+(+)  = primIntAdd
+(-)  = primIntSub
+(*)  = primIntMul
+quot = primIntQuot
+rem  = primIntRem
 
-subtract = primitive "subtract"
+subtract = primIntSubR
 negate x = 0 - x
 
 --------------------------------
 
 -- Comparison
-(==) = primitive "=="
-(/=) = primitive "/="
+(==) = primIntEQ
+(/=) = primIntNE
 
-(<)  = primitive "<"
-(<=) = primitive "<="
-(>)  = primitive ">"
-(>=) = primitive ">="
+(<)  = primIntLT
+(<=) = primIntLE
+(>)  = primIntGT
+(>=) = primIntGE
 
 --------------------------------
 
 -- Conversion
-chr x = x
-ord x = x
+chr = primChr
+ord = primOrd

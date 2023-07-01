@@ -27,6 +27,7 @@ type IdentModule = Ident
 
 data EDef
   = Data LHS [Constr]
+  | Type LHS Type
   | Fcn LHS Expr
   | Sign Ident Type
   | Import ImportSpec
@@ -201,7 +202,7 @@ pUIdent = pUIdentA <|> (pSym '(' *> pOperU <* pSym ')')
 
 keywords :: [String]
 keywords = ["case", "data", "do", "else", "if", "import",
-  "in", "let", "module", "of", "primitive", "then", "where"]
+  "in", "let", "module", "of", "primitive", "then", "type", "where"]
 
 pWord :: P String
 pWord = (:) <$> satisfy "letter" isLetter <*>
@@ -287,6 +288,7 @@ pLHS pId = (,) <$> pId <*> many pLIdent_
 pDef :: P EDef
 pDef =
       Data   <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 ((,) <$> pUIdent <*> many pAType) (pSymbol "|")
+  <|> Type   <$> (pKeyword "type" *> pLHS pUIdent <* pSymbol "=") <*> pType
   <|> Fcn    <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
   <|> Sign   <$> (pLIdent <* pSymbol "::") <*> pType
   <|> Import <$> (pKeyword "import" *> pImportSpec)

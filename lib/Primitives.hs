@@ -22,7 +22,7 @@ primFix    = primitive "Y"
 primChr x = x
 primOrd x = x
 
-data List a = Nil | (:) a (List a)
+--data List a = Nil | (:) a (List a)
 
 primBind          = primitive "IO.>>="
 primThen          = primitive "IO.>>"

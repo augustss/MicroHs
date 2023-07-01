@@ -1,21 +1,32 @@
 module MicroHs.Translate where
 import Data.Char
 import Data.Maybe
+import qualified Data.Map as M
 import GHC.Types
 import Unsafe.Coerce
+import System.IO
+import System.IO.Unsafe
 
+import MicroHs.Desugar(LDef)
+import MicroHs.Parse(Ident)
 import MicroHs.Exp
 
-translate = trans
+translate :: (Ident, [LDef]) -> IO ()
+translate (mainName, ds) =
+  let m :: M.Map Ident Any
+      m = M.fromList [(n, trans look d) | (n, d) <- ds ]
+      look n = fromMaybe (error $ "not found " ++ n) $ M.lookup n m
+  in  unsafeCoerce $ look mainName
 
 --aa :: Any -> (Any -> Any)
 --aa = unsafeCoerce
 
-trans :: Exp -> Any
-trans (App f a) = unsafeCoerce (trans f) (trans a)
-trans (Int i) = unsafeCoerce i
-trans (Prim p) = fromMaybe (error $ "Prim " ++ p) $ lookup p primOps
-trans e = error $ "impossible: " ++ show e
+trans :: (Ident -> Any) -> Exp -> Any
+trans r (Var n) = r n
+trans r (App f a) = unsafeCoerce (trans r f) (trans r a)
+trans _ (Int i) = unsafeCoerce i
+trans _ (Prim p) = fromMaybe (error $ "Prim " ++ p) $ lookup p primOps
+trans _ e = error $ "impossible: " ++ show e
 
 primOps :: [(String, Any)]
 primOps =
@@ -25,7 +36,7 @@ primOps =
   , comb "C" (\ f g x -> f x g)
   , comb "B" (\ f g x -> f (g x))
   , comb "T" (\ _x y -> y)
-  , comb "Y" (let fix f = f (fix f) in fix)
+  , comb "Y" (\ f -> let r = f r in r)
   , comb "P" (\ x y f -> f x y)
   , comb "O" (\ x y _g f -> f x y)
   , comb "S'" (\ k f g x -> k f x (g x))
@@ -49,7 +60,11 @@ primOps =
   , comb "IO.>>=" iobind
   , comb "IO.>>" iothen
   , comb "IO.return" ioret
-  , comb "IO.h
+--  , comb "IO.getChar" getc
+  , comb "IO.putChar" putc
+  , comb "IO.stdin" stdin
+  , comb "IO.stdout" stdout
+  , comb "IO.stderr" stderr
   ]
   where
     comb n f = (n, unsafeCoerce f)
@@ -65,14 +80,15 @@ primOps =
     iothen = (>>)
     ioret :: a -> IO a
     ioret = return
+--    getc h = undefined -- fromEnum <$> hGetChar h  -- XXX
+    putc :: Any -> Any -> Any
+    putc hh cc = unsafeCoerce $ unsafePerformIO $ do
+      let h = unsafeCoerce hh :: Handle; c = unsafeCoerce cc :: Int
+      print (h, c)
+      hPutChar h (toEnum c)
+--    open = undefined
+--    close = undefined
+--    isnull = undefined
 
     err _ = error "ERROR"
 
-{-
-
-  case IO_GETCHAR: fprintf(f, "$IO.getChar"); break;
-  case IO_PUTCHAR: fprintf(f, "$IO.putChar"); break;
-  case IO_OPEN: fprintf(f, "$IO.open"); break;
-  case IO_CLOSE: fprintf(f, "$IO.close"); break;
-  case IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
--}

@@ -1,6 +1,7 @@
 module Prelude(
   module Control.Error,
   module Data.Bool,
+  module Data.Char,
   module Data.Either,
   module Data.Function,
   module Data.Int,
@@ -12,6 +13,7 @@ module Prelude(
   ) where
 import Control.Error
 import Data.Bool
+import Data.Char
 import Data.Either
 import Data.Function
 import Data.Int

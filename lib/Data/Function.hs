@@ -1,4 +1,5 @@
 module Data.Function(module Data.Function) where
+import Primitives
 
 ($) :: (a -> b) -> a -> b
 ($) f x = f x
@@ -15,4 +16,4 @@ const x _ = x
 flip :: (b -> a -> c) -> a -> b -> c
 flip f a b = f b a
 
-fix = primitive "Y"
+fix = primFix
