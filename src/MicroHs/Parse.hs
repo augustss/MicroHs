@@ -128,15 +128,31 @@ parseDie p fn file =
 
 -- Remove comments first instead of having them in the parser.
 removeComments :: String -> String
-removeComments = unlines . map remCom . lines
-  where remCom ('-':'-':_) = ""
+removeComments = remCom
+  where remCom ('-':'-':cs) = skipToNL cs
+        remCom ('{':'-':cs) = skipBlock 1 cs
         remCom ('"':cs) = '"':str cs
+        remCom ('\'':cs) = '\'':chr cs
         remCom (c:cs) = c : remCom cs
         remCom "" = ""
         str ('"':cs) = '"' : remCom cs
         str ('\\':c:cs) = '\\':c:str cs
         str (c:cs) = c:str cs
         str "" = ""
+        chr ('\'':cs) = '\'' : remCom cs
+        chr ('\\':c:cs) = '\\':c:chr cs
+        chr (c:cs) = c:chr cs
+        chr "" = ""
+        skipToNL ('\n':cs) = '\n' : remCom cs
+        skipToNL (_ : cs) = skipToNL cs
+        skipToNL "" = ""
+        skipBlock :: Int -> String -> String
+        skipBlock 0 cs = remCom cs
+        skipBlock n ('{':'-':cs) = skipBlock (n+1) cs
+        skipBlock n ('-':'}':cs) = skipBlock (n-1) cs
+        skipBlock n ('\n':cs) = '\n' : skipBlock n cs
+        skipBlock n (_:cs) = skipBlock n cs
+        skipBlock _ "" = ""
 
 -------
 
