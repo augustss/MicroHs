@@ -1,27 +1,32 @@
 BIN=bin
 BOOTDIR=ghc-boot
-GHC=ghc -outputdir $(BOOTDIR)
+OUTDIR=ghc-out
+GHCB=ghc -outputdir $(BOOTDIR)
 GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude
-GHCC=$(GHC) $(GHCFLAGS)
-.PHONY: all test time example
+GHCC=$(GHCB) $(GHCFLAGS)
+GHC=ghc
+# $(CURDIR) might not be quite right
+GHCE=$(GHC) -F -pgmF $(CURDIR)/convert.sh -outputdir $(OUTDIR)
+GCC=gcc
+.PHONY: all trtest boottest test time example
 
 all:	$(BIN)/eval $(BIN)/uhs
 
 $(BIN)/eval:	src/runtime/eval.c
 	@mkdir -p bin
-	gcc -Wall -O3 src/runtime/eval.c -o $(BIN)/eval
+	$(GCC) -Wall -O3 src/runtime/eval.c -o $(BIN)/eval
 
-$(BIN)/uhs:	src/*/*.hs
-	ghc -outputdir ghc-out -package mtl -isrc -Wall -O src/MicroHs/Main.hs -o $(BIN)/uhs
+$(BIN)/uhs:	src/*/*.hs convert.sh
+	$(GHCE) -package mtl -isrc -Wall -O src/MicroHs/Main.hs -o $(BIN)/uhs
 
 trtest:	$(BIN)/uhs
-	$(BIN)/uhs -ilib -r -v Main
+	$(BIN)/uhs -ilib Main
 
 a.out:
 	rm -rf $(BOOTDIR)
-	$(GHC)  -c ghc/Primitives.hs
-	$(GHC)  -c ghc/Data/Bool_Type.hs
-	$(GHC)  -c ghc/Data/List_Type.hs
+	$(GHCB) -c ghc/Primitives.hs
+	$(GHCB) -c ghc/Data/Bool_Type.hs
+	$(GHCB) -c ghc/Data/List_Type.hs
 	$(GHCC) -c lib/Control/Error.hs
 	$(GHCC) -c lib/Data/Bool.hs
 	$(GHCC) -c lib/Data/Char.hs
@@ -37,6 +42,9 @@ a.out:
 	$(GHCC) -c Main.hs
 	$(GHC) $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o
 
+boottest:	a.out
+	./a.out
+
 test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
 	cd tests; make test
 
@@ -47,9 +55,5 @@ example:	$(BIN)/eval $(BIN)/uhs Example.hs
 	$(BIN)/uhs -ilib Example && $(BIN)/eval
 
 clean:
-	rm -f src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out
+	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR)
 	cd tests; make clean
-
-
-#ghc -Wall -O -isrc src/MicroHs/Main.hs -o $(BIN)/uhs
-#ghc -c ghc/Primitives.hs
