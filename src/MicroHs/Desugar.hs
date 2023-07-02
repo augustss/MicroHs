@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-type-defaults #-}
 module MicroHs.Desugar(
   desugar,
   Module(..),
@@ -67,6 +68,14 @@ dsDef syms tys (Fcn (f, xs) e) = [(f, lams xs $ dsExpr (extSyms syms xs) tys e)]
 dsDef _ _ Sign{} = []
 dsDef _ _ Import{} = []
 
+dsBind :: SymTable -> TypeTable -> EBind -> [LDef]
+dsBind syms tys (BFcn (f, xs) e) = [(f, lams xs $ dsExpr (extSyms syms xs) tys e)]
+dsBind syms tys b@(BPat p e) =
+  let v = newVar (allVarsBind b)
+      de = (v, dsExpr syms tys e)
+      ds = [ (i, dsExpr syms tys (ECase (EVar v) [(p, EVar i)])) | i <- patVars p ]
+  in  de : ds
+
 dsExpr :: SymTable -> TypeTable -> Expr -> Exp
 dsExpr syms _ (EVar i) =
   case M.lookup i syms of
@@ -85,7 +94,7 @@ dsExpr syms tys (ECase e as) = apps (dsExpr syms tys e) (map dsArm as')
 -- For now, just sequential bindings; each recursive
 dsExpr syms tys (ELet [] e) = dsExpr syms tys e
 dsExpr syms tys (ELet (d:ds) e) =
-  let ds' = dsDef syms' tys d
+  let ds' = dsBind syms' tys d
       syms' = extSyms syms (map fst ds')
       e' = dsExpr syms' tys (ELet ds e)
       def (i, r) a = App (Lam i a) (App (Prim "Y") (Lam i r))
@@ -97,13 +106,13 @@ dsExpr syms tys (ETuple [e]) = dsExpr syms tys e
 dsExpr syms tys (ETuple es) = Lam "_f" $ foldl App (Var "_f") $ map (dsExpr syms tys) es
 dsExpr syms tys (EStr cs) = dsExpr syms tys $ EList $ map EChar cs
 dsExpr _ _ (EDo _ []) = error "empty do"
-dsExpr _ _ (EDo _ [Bind _ _]) = error "do without final expression"
-dsExpr syms tys (EDo _ [Then e]) = dsExpr syms tys e
-dsExpr syms tys (EDo mn (Bind i e : ss)) =
+dsExpr _ _ (EDo _ [SBind _ _]) = error "do without final expression"
+dsExpr syms tys (EDo _ [SThen e]) = dsExpr syms tys e
+dsExpr syms tys (EDo mn (SBind i e : ss)) =
   dsExpr syms tys $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [i] (EDo mn ss))
-dsExpr syms tys (EDo mn (Then   e : ss)) =
+dsExpr syms tys (EDo mn (SThen   e : ss)) =
   dsExpr syms tys $ EApp (EApp (EVar (mqual mn ">>")) e) (EDo mn ss)
-dsExpr syms tys (EDo mn (Let ds : ss)) =
+dsExpr syms tys (EDo mn (SLet ds : ss)) =
   dsExpr syms tys $ ELet ds (EDo mn ss)
 dsExpr _ _ (EPrim s) = Prim s
 dsExpr syms tys (ESectL e op) =
@@ -113,11 +122,11 @@ dsExpr syms tys (ESectR op e) =
 dsExpr syms tys (EIf e1 e2 e3) =
   App2 (dsExpr syms tys e1) (dsExpr syms tys e3) (dsExpr syms tys e2)
 dsExpr syms tys (ECompr e []) = dsExpr syms tys (EList [e])
-dsExpr syms tys (ECompr e (Bind i b : ss)) =
+dsExpr syms tys (ECompr e (SBind i b : ss)) =
   App2 (Var "Data.List.concatMap") (dsExpr syms tys (ELam [i] (ECompr e ss))) (dsExpr syms tys b)
-dsExpr syms tys (ECompr e (Then c : ss)) =
+dsExpr syms tys (ECompr e (SThen c : ss)) =
   dsExpr syms tys (EIf c (ECompr e ss) (EList []))
-dsExpr syms tys (ECompr e (Let d : ss)) =
+dsExpr syms tys (ECompr e (SLet d : ss)) =
   dsExpr syms tys (ELet d (ECompr e ss))
 
 mqual :: Maybe Ident -> Ident -> Ident
@@ -154,3 +163,44 @@ dsData _ = []
 
 extSyms :: SymTable -> [Ident] -> SymTable
 extSyms = foldr (\ x -> M.insert x [Var x])
+
+patVars :: EPat -> [Ident]
+patVars (PConstr _ is) = is
+patVars (PTuple is) = is
+
+newVar :: [Ident] -> Ident
+newVar is = head $ [ "nv" ++ show i | i <- [1..] ] \\ is
+
+allVarsBind :: EBind -> [Ident]
+allVarsBind (BFcn l e) = allVarsLHS l ++ allVarsExpr e
+allVarsBind (BPat p e) = allVarsPat p ++ allVarsExpr e
+
+allVarsLHS :: LHS -> [Ident]
+allVarsLHS (i, is) = i : is
+
+allVarsPat :: EPat -> [Ident]
+allVarsPat (PConstr i is) = i : is
+allVarsPat (PTuple is) = is
+
+allVarsExpr :: Expr -> [Ident]
+allVarsExpr (EVar i) = [i]
+allVarsExpr (EApp e1 e2) = allVarsExpr e1 ++ allVarsExpr e2
+allVarsExpr (ELam is e) = is ++ allVarsExpr e
+allVarsExpr (EInt _) = []
+allVarsExpr (EChar _) = []
+allVarsExpr (EStr _) = []
+allVarsExpr (ECase e as) = allVarsExpr e ++ concatMap (\ (p, a) -> allVarsPat p ++ allVarsExpr a) as
+allVarsExpr (ELet bs e) = concatMap allVarsBind bs ++ allVarsExpr e
+allVarsExpr (ETuple es) = concatMap allVarsExpr es
+allVarsExpr (EList es) = concatMap allVarsExpr es
+allVarsExpr (EDo mi ss) = maybe [] (:[]) mi ++ concatMap allVarsStmt ss
+allVarsExpr (EPrim _) = []
+allVarsExpr (ESectL e i) = i : allVarsExpr e
+allVarsExpr (ESectR i e) = i : allVarsExpr e
+allVarsExpr (EIf e1 e2 e3) = allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
+allVarsExpr (ECompr e ss) = allVarsExpr e ++ concatMap allVarsStmt ss
+
+allVarsStmt :: EStmt -> [Ident]
+allVarsStmt (SBind i e) = i : allVarsExpr e
+allVarsStmt (SThen e) = allVarsExpr e
+allVarsStmt (SLet bs) = concatMap allVarsBind bs

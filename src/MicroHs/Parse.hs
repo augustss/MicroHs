@@ -9,8 +9,10 @@ module MicroHs.Parse(
   Expr(..),
   EStmt(..),
   EPat(..),
+  EBind(..),
   EModule(..),
   ExportSpec(..),
+  LHS,
   ) where
 import Control.Monad
 import Control.Monad.State.Strict
@@ -44,7 +46,7 @@ data Expr
   | EChar Char
   | EStr String
   | ECase Expr [(EPat, Expr)]
-  | ELet [EDef] Expr
+  | ELet [EBind] Expr
   | ETuple [Expr]
   | EList [Expr]
   | EDo (Maybe Ident) [EStmt]
@@ -55,7 +57,10 @@ data Expr
   | ECompr Expr [EStmt]
   deriving (Show)
 
-data EStmt = Bind Ident Expr | Then Expr | Let [EDef]
+data EStmt = SBind Ident Expr | SThen Expr | SLet [EBind]
+  deriving (Show)
+
+data EBind = BFcn LHS Expr | BPat EPat Expr
   deriving (Show)
 
 data EPat
@@ -355,7 +360,7 @@ pPat =
   <|> ((\ x s y -> PConstr s [x,y]) <$> pLIdent_ <*> pOperU <*> pLIdent_)
 
 pLet :: P Expr
-pLet = ELet <$> (pKeyword' "let" *> pBlock pDef) <*> (pKeyword "in" *> pExpr)
+pLet = ELet <$> (pKeyword' "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)
 
 pExprOp :: P Expr
 pExprOp = p0
@@ -413,9 +418,14 @@ pIf = EIf <$> (pKeyword "if" *> pExpr) <*> (pKeyword "then" *> pExpr) <*> (pKeyw
 
 pStmt :: P EStmt
 pStmt =
-      (Bind <$> (pLIdent <* pSymbol "<-") <*> pExpr)
-  <|> (Let  <$> (pKeyword' "let" *> pBlock pDef))
-  <|> (Then <$> pExpr)
+      (SBind <$> (pLIdent <* pSymbol "<-") <*> pExpr)
+  <|> (SLet  <$> (pKeyword' "let" *> pBlock pBind))
+  <|> (SThen <$> pExpr)
+
+pBind :: P EBind
+pBind = 
+      BFcn <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
+  <|> BPat <$> (pPat <* pSymbol "=") <*> pExpr
 
 pQualDo :: P String
 pQualDo = do
