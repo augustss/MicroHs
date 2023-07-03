@@ -1,7 +1,12 @@
 module IOTest(module IOTest) where
 import Prelude
+import System.IO as IO
 
 f x = x*2+1
+
+foo = IO.do
+  putStrLn "foo 1"
+  putStrLn "foo 2"
 
 main = do
   putChar 'a'
@@ -27,3 +32,4 @@ main = do
   writeSerialized "f.tmp" f
   g <- readSerialized "f.tmp"
   putStrLn $ showInt $ g 5
+  foo
