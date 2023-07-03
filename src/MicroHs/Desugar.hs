@@ -48,6 +48,9 @@ mkSymTable mdls =
       where types (is, Module mn _ tds _) = [ (v, [td]) | td@(TypeDef _ cs) <- tds, (c, _) <- cs, v <- qns is mn c ]
   in  SymTable allVals allTypes
 
+-- Combine two symbol table, first one has shadows second one.
+unionSymTable :: SymTable -> SymTable -> SymTable
+unionSymTable (SymTable lv lt) (SymTable rv rt) = SymTable (M.union lv rv) (M.union lt rt)
 
 desugar :: [(ImportSpec, Module)] -> EModule -> Module
 desugar imdls (EModule mdln especs ds) =
@@ -65,8 +68,9 @@ desugar imdls (EModule mdln especs ds) =
         else
           [ e | (_, Module mn es _ _) <- imdls, mn == m, e <- es ]
       mdl = Module mdln exps tyds [(qual mdln i, e) | (i, e) <- ds']
-      mdls = (ImportSpec False mdln Nothing, mdl) : imdls
-      allSyms = mkSymTable mdls
+      impSyms = mkSymTable imdls
+      thisSyms = mkSymTable [(ImportSpec False mdln Nothing, mdl)]
+      allSyms = unionSymTable thisSyms impSyms
   in  mdl
 
 dsDef :: SymTable -> EDef -> [LDef]
