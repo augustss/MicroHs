@@ -34,6 +34,21 @@ data SymTable = SymTable { sVal :: ValTable, sType :: TypeTable }
 extVals :: SymTable -> [Ident] -> SymTable
 extVals (SymTable vals tys) is = SymTable (foldr (\ x -> M.insert x [Var x]) vals is) tys
 
+mkSymTable :: [(ImportSpec, Module)] -> SymTable
+mkSymTable mdls =
+  let
+    qns (ImportSpec q _ mas) mn i =
+      let mn' = fromMaybe mn mas
+      in  if q then [qual mn' i] else [i, qual mn' i]
+    allVals :: ValTable
+    allVals = M.fromListWith union $ concatMap syms mdls
+      where syms (is, Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- qns is mn i ]
+    allTypes :: TypeTable
+    allTypes = M.fromListWith union $ concatMap types mdls
+      where types (is, Module mn _ tds _) = [ (v, [td]) | td@(TypeDef _ cs) <- tds, (c, _) <- cs, v <- qns is mn c ]
+  in  SymTable allVals allTypes
+
+
 desugar :: [(ImportSpec, Module)] -> EModule -> Module
 desugar imdls (EModule mdln especs ds) =
   let ds' = concatMap (dsDef allSyms) ds
@@ -51,16 +66,7 @@ desugar imdls (EModule mdln especs ds) =
           [ e | (_, Module mn es _ _) <- imdls, mn == m, e <- es ]
       mdl = Module mdln exps tyds [(qual mdln i, e) | (i, e) <- ds']
       mdls = (ImportSpec False mdln Nothing, mdl) : imdls
-      qns (ImportSpec q _ mas) mn i =
-        let mn' = fromMaybe mn mas
-        in  if q then [qual mn' i] else [i, qual mn' i]
-      allVals :: ValTable
-      allVals = M.fromListWith union $ concatMap syms mdls
-        where syms (is, Module mn qis _ _) = [ (v, [Var qi]) | (i, qi) <- qis, v <- qns is mn i ]
-      allTypes :: TypeTable
-      allTypes = M.fromListWith union $ concatMap types mdls
-        where types (is, Module mn _ tds _) = [ (v, [td]) | td@(TypeDef _ cs) <- tds, (c, _) <- cs, v <- qns is mn c ]
-      allSyms = SymTable { sVal = allVals, sType = allTypes }
+      allSyms = mkSymTable mdls
   in  mdl
 
 dsDef :: SymTable -> EDef -> [LDef]
