@@ -4,6 +4,7 @@ import Data.Bool
 import Data.Function
 import Data.Int
 import Data.List_Type
+import Data.Maybe
 
 -- By parser some parser hacks we can use [] instead of Nil
 --data List a = Nil | (:) a (List a)
@@ -55,6 +56,12 @@ foldr f z =
         [] -> z
         x : xs -> f x (rec xs)
   in rec
+
+foldr1 :: (a -> a -> a) -> [a] -> a
+foldr1 f arg =
+  case arg of
+    [] -> error "foldr1"
+    x : xs -> foldr f x xs
 
 foldl :: (b -> a -> b) -> b -> [a] -> b
 foldl f z arg =
@@ -108,3 +115,19 @@ unzip axys =
         (x, y) ->
           case unzip xys of
             (xs, ys) -> (x:xs, y:ys)
+
+stripPrefix :: String -> String -> Maybe String
+stripPrefix p s =
+  case p of
+    [] -> Just s
+    c : cs ->
+      case s of
+        [] -> Nothing
+        d : ds ->
+          if c == d then
+            stripPrefix cs ds
+          else
+            Nothing
+
+splitAt :: Int -> [a] -> ([a], [a])
+splitAt n xs = (take n xs, drop n xs)
