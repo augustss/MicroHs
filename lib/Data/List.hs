@@ -1,5 +1,5 @@
 module Data.List(module Data.List, module Data.List_Type) where
---import Primitives
+import Control.Error
 import Data.Bool
 import Data.Function
 import Data.Int
@@ -56,6 +56,18 @@ foldr f z =
         x : xs -> f x (rec xs)
   in rec
 
+foldl :: (b -> a -> b) -> b -> [a] -> b
+foldl f z arg =
+  case arg of
+    [] -> z
+    x : xs -> foldl f (f z x) xs
+
+foldl1 :: (a -> a -> a) -> [a] -> a
+foldl1 f arg =
+  case arg of
+    [] -> error "foldl1"
+    x : xs -> foldl f x xs
+
 sum = foldr (+) 0
 product = foldr (*) 1
 and = foldr (&&) True
@@ -80,3 +92,19 @@ drop n arg =
         [] -> []
         _ : xs -> drop (n-1) xs
     True -> arg
+
+length :: [a] -> Int
+length axs =
+  case axs of
+    [] -> 0
+    _:xs -> 1 + length xs
+
+unzip :: [(a, b)] -> ([a], [b])
+unzip axys =
+  case axys of
+    [] -> ([], [])
+    xy : xys ->
+      case xy of
+        (x, y) ->
+          case unzip xys of
+            (xs, ys) -> (x:xs, y:ys)
