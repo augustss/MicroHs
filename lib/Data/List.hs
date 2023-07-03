@@ -116,7 +116,7 @@ unzip axys =
           case unzip xys of
             (xs, ys) -> (x:xs, y:ys)
 
-stripPrefix :: String -> String -> Maybe String
+--stripPrefix :: (Eq a) => [a] -> [a] -> Maybe [a]
 stripPrefix p s =
   case p of
     [] -> Just s

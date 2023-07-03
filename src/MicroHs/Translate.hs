@@ -11,12 +11,14 @@ import MicroHs.Desugar(LDef)
 import MicroHs.Parse(Ident)
 import MicroHs.Exp
 
+data DIO a = DIO { unDIO :: IO a }
+
 translate :: (Ident, [LDef]) -> IO ()
 translate (mainName, ds) =
   let m :: M.Map Ident Any
       m = M.fromList [(n, trans look d) | (n, d) <- ds ]
       look n = fromMaybe (error $ "not found " ++ n) $ M.lookup n m
-  in  unsafeCoerce $ look mainName
+  in  unDIO $ unsafeCoerce $ look mainName
 
 --aa :: Any -> (Any -> Any)
 --aa = unsafeCoerce
@@ -74,18 +76,19 @@ primOps =
     cmp n f = comb n (\ x y -> if f x y then cTrue else cFalse)
     cTrue _x y = y
     cFalse x _y = x
-    iobind :: IO a -> (a -> IO b) -> IO b
-    iobind = (>>=)
-    iothen :: IO a -> IO b -> IO b
-    iothen = (>>)
-    ioret :: a -> IO a
-    ioret = return
+    iobind :: DIO a -> (a -> DIO b) -> DIO b
+    iobind a k = unDIO a >>= k
+    iothen :: DIO a -> DIO b -> DIO b
+    iothen a b = unDIO a >> b
+    ioret :: a -> DIO a
+    ioret = DIO . return
 --    getc h = undefined -- fromEnum <$> hGetChar h  -- XXX
-    putc :: Any -> Any -> Any
-    putc hh cc = unsafeCoerce $ unsafePerformIO $ do
-      let h = unsafeCoerce hh :: Handle; c = unsafeCoerce cc :: Int
+    putc :: Handle -> Int -> DIO ()
+    putc h c = do
+--      let h = unsafeCoerce hh :: Handle
+--          c = unsafeCoerce cc :: Int
       print (h, c)
-      hPutChar h (toEnum c)
+      DIO $ hPutChar h (toEnum c)
 --    open = undefined
 --    close = undefined
 --    isnull = undefined

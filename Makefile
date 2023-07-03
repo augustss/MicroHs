@@ -22,7 +22,7 @@ $(BIN)/uhs:	src/*/*.hs convert.sh
 trtest:	$(BIN)/uhs
 	$(BIN)/uhs -ilib Main
 
-a.out:
+$(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
@@ -33,17 +33,17 @@ a.out:
 	$(GHCC) -c lib/Data/Either.hs
 	$(GHCC) -c lib/Data/Function.hs
 	$(GHCC) -c lib/Data/Int.hs
-	$(GHCC) -c lib/Data/List.hs
 	$(GHCC) -c lib/Data/Maybe.hs
+	$(GHCC) -c lib/Data/List.hs
 	$(GHCC) -c lib/Data/Tuple.hs
 	$(GHCC) -c lib/System/IO.hs
 	$(GHCC) -c lib/Text/String.hs
 	$(GHCC) -c lib/Prelude.hs
 	$(GHCC) -c Main.hs
-	$(GHC) $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o
+	$(GHC) -o $(BIN)/tr $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o
 
-boottest:	a.out
-	./a.out
+boottest:	$(BIN)/tr
+	$(BIN)/tr
 
 test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
 	cd tests; make test
