@@ -5,7 +5,7 @@ import qualified Data.Map as M
 import GHC.Types
 import Unsafe.Coerce
 import System.IO
-import System.IO.Unsafe
+--import System.IO.Unsafe
 
 import MicroHs.Desugar(LDef)
 import MicroHs.Parse(Ident)
@@ -77,18 +77,18 @@ primOps =
     cTrue _x y = y
     cFalse x _y = x
     iobind :: DIO a -> (a -> DIO b) -> DIO b
-    iobind a k = unDIO a >>= k
+    iobind a k = DIO (unDIO a >>= \ x -> unDIO (k x))
     iothen :: DIO a -> DIO b -> DIO b
-    iothen a b = unDIO a >> b
+    iothen a b = DIO (unDIO a >> unDIO b)
     ioret :: a -> DIO a
-    ioret = DIO . return
+    ioret a = DIO (return a)
 --    getc h = undefined -- fromEnum <$> hGetChar h  -- XXX
     putc :: Handle -> Int -> DIO ()
-    putc h c = do
+    putc h c = DIO $ do
 --      let h = unsafeCoerce hh :: Handle
 --          c = unsafeCoerce cc :: Int
       print (h, c)
-      DIO $ hPutChar h (toEnum c)
+      hPutChar h (toEnum c)
 --    open = undefined
 --    close = undefined
 --    isnull = undefined

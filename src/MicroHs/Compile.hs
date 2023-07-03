@@ -10,7 +10,8 @@ import MicroHs.Parse
 
 data Flags = Flags {
   verbose :: Bool,
-  paths :: [FilePath]
+  runIt   :: Bool,
+  paths   :: [FilePath]
   }
   deriving (Show)
 

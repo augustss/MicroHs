@@ -9,9 +9,6 @@ import MicroHs.Compile
 import MicroHs.Translate
 import MicroHs.Desugar(LDef)
 
-run :: Bool
-run = False
-
 main :: IO ()
 main = do
   args <- getArgs
@@ -19,7 +16,8 @@ main = do
              [s] -> s
              _ -> error "Usage: uhs [-v] [-iPATH] ModuleName"
       flags = Flags { verbose = "-v" `elem` args,
-                      paths = "." : catMaybes (map (stripPrefix "-i") args)
+                      runIt   = "-r" `elem` args,
+                      paths   = "." : catMaybes (map (stripPrefix "-i") args)
                     }
   cmdl@(mainName, ds) <- compileTop flags mn
   let defs :: M.Map Ident Exp
@@ -36,10 +34,13 @@ main = do
   when (verbose flags) $ do
     mapM_ (\ (i, e) -> putStrLn $  i ++ " = " ++ toStringP e) ds
     --putStrLn $ toStringP res
-  writeFile "out.comb" $ toStringP res
-  when run $ do
+  if runIt flags then do
     let prg = translate cmdl
+    putStrLn "Run:"
     prg
+    putStrLn "done"
+   else
+    writeFile "out.comb" $ toStringP res
 
 type CModule = (Ident, [LDef])
 
