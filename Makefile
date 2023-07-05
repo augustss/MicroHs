@@ -39,16 +39,24 @@ $(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs convertY.sh
 	$(GHCC) -c lib/System/IO.hs
 	$(GHCC) -c lib/Text/String.hs
 	$(GHCC) -c lib/Prelude.hs
+	$(GHCC) -c lib/PreludeNoIO.hs
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
 	$(GHCC) -c Main.hs
 	$(GHC) -o $(BIN)/tr $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
 
+# Test Haskell version with local libraries
 boottest:	$(BIN)/tr
 	$(BIN)/tr
 
+# Test normal Haskell version
 test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
 	cd tests; make test
+
+# Test uhs version
+uhstest:	$(BIN)/uhs $(BIN)/eval
+	$(BIN)/uhs -ilib -isrc Main
+	$(BIN)/eval
 
 time:	$(BIN)/eval $(BIN)/uhs tests/*.hs
 	cd tests; make time
