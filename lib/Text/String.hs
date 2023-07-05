@@ -78,3 +78,15 @@ showEither fa fb arg =
   case arg of
     Left  a -> "(Left " ++ fa a ++ ")"
     Right b -> "(Right " ++ fb b ++ ")"
+
+readInt :: String -> Int
+readInt =
+  let
+    rd r axs =
+      case axs of
+        [] -> r
+        x : xs -> rd (r*10 + ord x - ord '0') xs
+  in  rd 0
+
+eqString :: String -> String -> Bool
+eqString axs ays = (length axs == length ays) && and (zipWith eqChar axs ays)
