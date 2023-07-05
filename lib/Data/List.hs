@@ -5,6 +5,7 @@ import Data.Function
 import Data.Int
 import Data.List_Type
 import Data.Maybe
+import Data.Tuple
 
 -- By parser some parser hacks we can use [] instead of Nil
 --data List a = Nil | (:) a (List a)
@@ -195,3 +196,13 @@ elemBy eq a = any (eq a)
 
 enumFrom :: Int -> [Int]
 enumFrom n = n : enumFrom (n+1)
+
+find :: (a -> Bool) -> [a] -> Maybe a
+find p axs =
+  case axs of
+    [] -> Nothing
+    x:xs ->
+      if p x then Just x else find p xs
+
+lookupBy :: (a -> a -> Bool) -> a -> [(a, b)] -> Maybe b
+lookupBy eq x xys = fmapMaybe snd (find (eq x . fst) xys)

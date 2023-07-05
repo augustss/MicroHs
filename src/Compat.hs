@@ -1,4 +1,5 @@
 module Compat(module Compat) where
+import Data.List
 
 -- Functions needed for ghc
 eqChar :: Char -> Char -> Bool
@@ -34,3 +35,6 @@ stripPrefixBy eq p s =
             stripPrefixBy eq cs ds
           else
             Nothing
+
+lookupBy :: (a -> a -> Bool) -> a -> [(a, b)] -> Maybe b
+lookupBy eq x xys = fmap snd (find (eq x . fst) xys)
