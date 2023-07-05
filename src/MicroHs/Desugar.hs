@@ -101,7 +101,7 @@ dsExpr syms (EVar i) =
     Just qis -> error $ "ambiguous: " ++ show i ++ ", " ++ show qis
 dsExpr syms (EApp f a) = App (dsExpr syms f) (dsExpr syms a)
 dsExpr syms (ELam xs e) = lams xs (dsExpr (extVals syms xs) e)
-dsExpr _ (EInt i) = Int (fromInteger i)
+dsExpr _ (EInt i) = Int i
 dsExpr _ (EChar c) = Int (fromEnum c)
 dsExpr syms (ECase e as) = apps (dsExpr syms e) (map dsArm as')
   where dsArm (PConstr _ vs, r) = lams vs $ dsExpr (extVals syms vs) r

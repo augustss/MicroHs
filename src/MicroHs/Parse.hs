@@ -46,7 +46,7 @@ data Expr
   = EVar Ident
   | EApp Expr Expr
   | ELam [Ident] Expr
-  | EInt Integer
+  | EInt Int
   | EChar Char
   | EStr String
   | ECase Expr [(EPat, Expr)]
