@@ -295,7 +295,7 @@ pIdent = P.do
 pQIdent :: P String
 pQIdent = intercalate "." <$> esepBy1 pIdent (char '.')
 
-pInt :: P Integer
+pInt :: P Int
 pInt = (read <$> (skipWhite $ esome $ satisfy "digit" isDigit)) <?> "int"
 
 pChar :: P Char
