@@ -88,5 +88,8 @@ readInt =
         x : xs -> rd (r*10 + ord x - ord '0') xs
   in  rd 0
 
+unlines :: [String] -> String
+unlines = concatMap (++ "\n")
+
 eqString :: String -> String -> Bool
 eqString axs ays = (length axs == length ays) && and (zipWith eqChar axs ays)
