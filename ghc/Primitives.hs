@@ -63,10 +63,13 @@ primThen         :: IO a -> IO b -> IO b
 primThen          = (>>)
 primReturn       :: a -> IO a
 primReturn        = return
-primHPutChar      = hPutChar
-primHGetChar      = hGetChar
-primOpenFile      = undefined
-primIsNullHandle  = undefined
+primHPutChar     :: Handle -> Int -> IO ()
+primHPutChar h c  = hPutChar h (toEnum c)
+primHGetChar     :: Handle -> IO Int
+primHGetChar h    = do eof <- hIsEOF h; if eof then pure (-1) else fromEnum <$> hGetChar h
+primOpenFile     :: String -> Int -> IO Handle
+primOpenFile s m  = openFile s (case m of 0->ReadMode; 1->WriteMode; 2->AppendMode; 3->ReadWriteMode)
+primIsNullHandle  = const False
 primHSerialize    = undefined
 primHDeserialize  = undefined
 primHClose        = hClose

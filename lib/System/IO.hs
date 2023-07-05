@@ -14,7 +14,6 @@ data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
 (>>=)        = P.primBind
 (>>)         = P.primThen
 return       = P.primReturn
-hPutChar     = P.primHPutChar
 hSerialize   = P.primHSerialize
 hdeserialize = P.primHDeserialize
 hClose       = P.primHClose
@@ -25,9 +24,11 @@ stderr       = P.primStderr
 hGetChar :: Handle -> IO Char
 hGetChar h = do
   c <- P.primHGetChar h
-  case ord c == negate 1 of
-    False -> return c
+  case c == negate 1 of
+    False -> return (chr c)
     True  -> error "hGetChar: EOF"
+
+hPutChar h c = P.primHPutChar h (ord c)
 
 openFile :: String -> IOMode -> IO Handle
 openFile p m = do
@@ -105,8 +106,8 @@ readFile p = do
 hGetContents :: Handle -> IO String
 hGetContents h = do
   c <- P.primHGetChar h
-  case ord c == negate 1 of
-    False -> do { cs <- hGetContents h; return (c:cs) }
+  case c == negate 1 of
+    False -> do { cs <- hGetContents h; return (chr c:cs) }
     True  -> return ""
 
 writeSerialized :: String -> a -> IO ()
