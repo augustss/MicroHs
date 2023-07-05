@@ -1,6 +1,6 @@
 import Control.Monad
 import Data.List
-import qualified Data.Map as M
+import qualified MicroHs.Map as M
 import Data.Maybe
 import System.Environment(getArgs)
 import MicroHs.Parse
@@ -23,7 +23,7 @@ main = do
   cmdl@(mainName, ds) <- compileTop flags mn
   let defs :: M.Map Ident Exp
       defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds [0..] ]
-      findIdent n = fromMaybe (error $ "undefined: " ++ show n) $ M.lookup n defs
+      findIdent n = fromMaybe (error $ "undefined: " ++ show n) $ M.lookup eqString n defs
       emain = findIdent mainName
       subst (Var n) = findIdent n
       subst (App f a) = App (subst f) (subst a)
