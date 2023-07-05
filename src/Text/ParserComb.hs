@@ -15,15 +15,17 @@ module Text.ParserComb(
   inject,
 -}
   )where
-import Prelude --X hiding (Monad(..), MonadFail(..), Applicative(..), Functor(..), (<$>), showString)
+--Ximport Prelude()
+import PreludeNoIO
 {-
 import Control.Monad
 import Control.Monad.State.Strict
 import Control.Applicative --hiding (many, some)
 -}
 --import Data.Char
-import Data.List
+--import Data.List
 --import Debug.Trace
+--Ximport Compat
 
 data LastFail
   = LastFail Int [(String, [String])]
@@ -73,39 +75,46 @@ pure :: a -> Prsr s a
 pure a = P $ \ t -> Many [(a, t)] noFail
 
 --Xinfixl 1 >>=
+--Yinfixl 1 >>=
 (>>=) :: Prsr s a -> (a -> Prsr s b) -> Prsr s b
 (>>=) p k = P $ \ t ->
     case runP p t of
       Many aus plf ->
         let { xss = [ runP (k a) u | au <- aus, let { (a, u) = au } ] }
         in  case unzip [ (rs, lf) | xs <- xss, let { Many rs lf = xs } ] of
-              (rss, lfs) -> Many (concat rss) (longests $ plf : lfs)
+              (rss, lfs) -> Many (concat rss) (longests (plf : lfs))
 
 -- XXX needs (x,y) <- e
 
 --Xinfixl 1 >>
+--Yinfixl 1 >>
 (>>) :: Prsr s a -> Prsr s b -> Prsr s b
 (>>) p k = p >>= \ _ -> k
 
 --Xinfixl 4 <*>
+--Yinfixl 4 <*>
 (<*>) :: Prsr s (a -> b) -> Prsr s a -> Prsr s b
 (<*>) m1 m2 = m1 >>= \ x1 -> m2 >>= \ x2 -> pure (x1 x2)
 
 --Xinfixl 4 <*
+--Yinfixl 4 <*
 (<*) :: Prsr s a -> Prsr s b -> Prsr s a
 (<*) m1 m2 = m1 >>= \ x1 -> m2 >> pure x1
 
 --Xinfixl 4 *>
+--Yinfixl 4 *>
 (*>) :: Prsr s a -> Prsr s b -> Prsr s b
 (*>) m1 m2 = m1 >> m2 >>= \ x2 -> pure x2
 
 --Xinfixl 4 <$>
+--Yinfixl 4 <$>
 (<$>) :: (a -> b) -> Prsr s a -> Prsr s b
 (<$>) f p = P $ \ t ->
     case runP p t of
       Many aus lf -> Many [ (f a, u) | au <- aus, let { (a, u) = au } ] lf
 
 --Xinfixl 4 <$
+--Yinfixl 4 <$
 (<$) :: a -> Prsr s b -> Prsr s a
 (<$) a p = p >> pure a
 
@@ -116,6 +125,7 @@ empty :: Prsr s a
 empty = P $ \ t -> Many [] (LastFail (length (fst t)) [("empty", ["<empty>"])])
 
 --Xinfixl 3 <|>
+--Yinfixl 3 <|>
 (<|>) :: Prsr s a -> Prsr s a -> Prsr s a
 (<|>) p q = P $ \ t ->
     case runP p t of
@@ -176,7 +186,7 @@ runPrsr s pp fn f =
             []  -> Left $ formatFailed fn f lf
             _:_ -> Right [(a, snd x) | ax <- xs, let { (a, x) = ax } ]
 
-formatFailed :: FilePath -> String -> LastFail -> String
+formatFailed :: String -> String -> LastFail -> String
 formatFailed fn file lf =
   case lf of
     LastFail len _ ->
@@ -185,7 +195,7 @@ formatFailed fn file lf =
         count lc x =
           case lc of
             (l, c) ->
-              if x == '\n' then (l+1, 0) else (l, c+1)
+              if eqChar x '\n' then (l+1, 0) else (l, c+1)
         (line, col) = foldl count (1, 0) pre
       in showString fn ++ ": " ++
          "line " ++ showInt line ++ ", col " ++ showInt col ++ ":\n" ++
@@ -222,13 +232,13 @@ satisfy msg f = P $ \ t ->
               bad
 
 char :: Char -> Prsr s Char
-char c = satisfy "char" (== c)
+char c = satisfy "char" (eqChar c)
 
 string :: String -> Prsr s String
 string str = P $ \ t ->
   case t of
     (cs, s) ->
-      case stripPrefix str cs of
+      case stripPrefixBy eqChar str cs of
         Just cs' -> Many [(str, (cs', s))] noFail
         Nothing  -> Many [] (LastFail (length cs) [("string", [showString str])])
 
