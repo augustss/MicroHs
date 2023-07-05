@@ -206,3 +206,18 @@ find p axs =
 
 lookupBy :: (a -> a -> Bool) -> a -> [(a, b)] -> Maybe b
 lookupBy eq x xys = fmapMaybe snd (find (eq x . fst) xys)
+
+unionBy :: (a -> a -> Bool) -> [a] -> [a] -> [a]
+unionBy eq xs ys =  xs ++ foldl (flip (deleteBy eq)) (nubBy eq ys) xs
+
+deleteBy  :: (a -> a -> Bool) -> a -> [a] -> [a]
+deleteBy eq x ays =
+  case ays of
+    []   -> []
+    y:ys -> if eq x y then ys else y : deleteBy eq x ys
+
+nubBy :: (a -> a -> Bool) -> [a] -> [a]
+nubBy eq axs =
+  case axs of
+    [] -> []
+    x:xs -> x : nubBy eq (filter (\ y -> not (eq x y)) xs)
