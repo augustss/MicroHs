@@ -106,6 +106,18 @@ length axs =
     [] -> 0
     _:xs -> 1 + length xs
 
+zip :: [a] -> [b] -> [(a, b)]
+zip = zipWith (\ x y -> (x, y))
+
+zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
+zipWith f axs ays =
+  case axs of
+    [] -> []
+    x:xs ->
+      case ays of
+        [] -> []
+        y:ys -> f x y : zipWith f xs ys
+
 unzip :: [(a, b)] -> ([a], [b])
 unzip axys =
   case axys of
@@ -116,18 +128,67 @@ unzip axys =
           case unzip xys of
             (xs, ys) -> (x:xs, y:ys)
 
---stripPrefix :: (Eq a) => [a] -> [a] -> Maybe [a]
-stripPrefix p s =
+stripPrefixBy :: (a -> a -> Bool) -> [a] -> [a] -> Maybe [a]
+stripPrefixBy eq p s =
   case p of
     [] -> Just s
     c : cs ->
       case s of
         [] -> Nothing
         d : ds ->
-          if c == d then
-            stripPrefix cs ds
+          if eq c d then
+            stripPrefixBy eq cs ds
           else
             Nothing
 
 splitAt :: Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
+
+reverse :: [a] -> [a]
+reverse =
+  let
+    rev r axs =
+      case axs of
+        [] -> r
+        x:xs -> rev (x:r) xs
+  in  rev []
+
+takeWhile :: (a -> Bool) -> [a] -> [a]
+takeWhile p axs =
+  case axs of
+    [] -> []
+    x:xs ->
+      if p x then
+        x : takeWhile p xs
+      else
+        []
+
+head :: [a] -> a
+head xs =
+  case xs of
+    [] -> error "head"
+    x:_ -> x
+
+tail :: [a] -> [a]
+tail xs =
+  case xs of
+    [] -> error "tail"
+    _:ys -> ys
+
+intersperse :: a -> [a] -> [a]
+intersperse sep axs =
+  case axs of
+    [] -> []
+    x:xs  -> x : prependToAll sep xs
+
+prependToAll :: a -> [a] -> [a]
+prependToAll sep axs =
+  case axs of
+    [] -> []
+    x:xs -> sep : x : prependToAll sep xs
+
+intercalate :: [a] -> [[a]] -> [a]
+intercalate xs xss = concat (intersperse xs xss)
+
+elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
+elemBy eq a = any (eq a)
