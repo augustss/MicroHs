@@ -3,6 +3,9 @@ import Primitives
 
 type Int = Primitives.Int
 
+--Yinfixl 6 +,-
+--Yinfixl 7 *
+
 -- Arithmetic
 (+)  = primIntAdd
 (-)  = primIntSub
@@ -15,6 +18,8 @@ negate x = 0 - x
 
 --------------------------------
 
+--Yinfix 4 ==,/=,<,<=,>,>=
+
 -- Comparison
 (==) = primIntEQ
 (/=) = primIntNE
@@ -25,7 +30,3 @@ negate x = 0 - x
 (>=) = primIntGE
 
 --------------------------------
-
--- Conversion
-chr = primChr
-ord = primOrd
