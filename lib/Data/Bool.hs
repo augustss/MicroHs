@@ -16,3 +16,8 @@ import Data.Bool_Type
     False -> False
     True  -> y
 
+not :: Bool -> Bool
+not b =
+  case b of
+    False -> True
+    True  -> False
