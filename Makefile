@@ -2,11 +2,11 @@ BIN=bin
 BOOTDIR=ghc-boot
 OUTDIR=ghc-out
 GHCB=ghc -outputdir $(BOOTDIR)
-GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude
+GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude -F -pgmF $(CURDIR)/convertY.sh 
 GHCC=$(GHCB) $(GHCFLAGS)
 GHC=ghc
 # $(CURDIR) might not be quite right
-GHCE=$(GHC) -F -pgmF $(CURDIR)/convert.sh -outputdir $(OUTDIR)
+GHCE=$(GHC) -F -pgmF $(CURDIR)/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
 .PHONY: all trtest boottest test time example
 
@@ -16,31 +16,33 @@ $(BIN)/eval:	src/runtime/eval.c
 	@mkdir -p bin
 	$(GCC) -Wall -O3 src/runtime/eval.c -o $(BIN)/eval
 
-$(BIN)/uhs:	src/*/*.hs convert.sh
+$(BIN)/uhs:	src/*/*.hs convertX.sh
 	$(GHCE) -package mtl -isrc -Wall -O src/MicroHs/Main.hs -o $(BIN)/uhs
 
 trtest:	$(BIN)/uhs
 	$(BIN)/uhs -ilib Main
 
-$(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
+$(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs convertY.sh
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
 	$(GHCB) -c ghc/Data/List_Type.hs
 	$(GHCC) -c lib/Control/Error.hs
 	$(GHCC) -c lib/Data/Bool.hs
+	$(GHCC) -c lib/Data/Int.hs
 	$(GHCC) -c lib/Data/Char.hs
 	$(GHCC) -c lib/Data/Either.hs
+	$(GHCC) -c lib/Data/Tuple.hs
 	$(GHCC) -c lib/Data/Function.hs
-	$(GHCC) -c lib/Data/Int.hs
 	$(GHCC) -c lib/Data/Maybe.hs
 	$(GHCC) -c lib/Data/List.hs
-	$(GHCC) -c lib/Data/Tuple.hs
 	$(GHCC) -c lib/System/IO.hs
 	$(GHCC) -c lib/Text/String.hs
 	$(GHCC) -c lib/Prelude.hs
+	$(GHCC) -c src/Text/ParserComb.hs
+	$(GHCC) -c src/MicroHs/Parse.hs
 	$(GHCC) -c Main.hs
-	$(GHC) -o $(BIN)/tr $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o
+	$(GHC) -o $(BIN)/tr $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
 
 boottest:	$(BIN)/tr
 	$(BIN)/tr
