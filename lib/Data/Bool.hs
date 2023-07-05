@@ -4,12 +4,14 @@ module Data.Bool(
   ) where
 import Data.Bool_Type
 
+--Yinfixr 2 ||
 (||) :: Bool -> Bool -> Bool
 (||) x y =
   case x of
     False -> y
     True  -> True
 
+--Yinfixr 3 &&
 (&&) :: Bool -> Bool -> Bool
 (&&) x y =
   case x of

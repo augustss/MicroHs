@@ -11,9 +11,17 @@ type Handle = P.Handle
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
 
+--Yinfixl 1 >>=
+(>>=)       :: IO a -> (a -> IO b) -> IO b
 (>>=)        = P.primBind
+
+--Yinfixl 1 >>
+(>>)        :: IO a -> IO b -> IO b
 (>>)         = P.primThen
+
+return      :: a -> IO a
 return       = P.primReturn
+
 hSerialize   = P.primHSerialize
 hdeserialize = P.primHDeserialize
 hClose       = P.primHClose
