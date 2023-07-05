@@ -6,6 +6,7 @@ import Data.Tuple
 ($) :: (a -> b) -> a -> b
 ($) f x = f x
 
+--Yinfixr 9 .
 (.) :: (b -> c) -> (a -> b) -> (a -> c)
 (.) f g x = f (g x)
 
