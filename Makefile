@@ -22,7 +22,7 @@ $(BIN)/uhs:	src/*/*.hs convertX.sh
 trtest:	$(BIN)/uhs
 	$(BIN)/uhs -ilib Main
 
-$(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs convertY.sh
+$(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs src/*/*.hs Main.hs convertY.sh
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs

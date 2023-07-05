@@ -9,7 +9,7 @@ main = do
     fn = "t.hs"
   file <- readFile fn
   putStrLn $ "File read: " ++ fn ++ "\n"
-  putStrLn file
+  --putStrLn file
   let
     p = parseDie pTop fn file
   putStrLn (showEModule p)
@@ -17,7 +17,14 @@ main = do
 showEModule :: EModule -> String
 showEModule am =
   case am of
-    EModule i es ds -> "module " ++ i
+    EModule i es ds -> "module " ++ i ++ "(\n" ++
+      unlines (intersperse "," (map showExportSpec es)) ++
+      "\n) where\n"
+
+showExportSpec :: ExportSpec -> String
+showExportSpec ae =
+  case ae of
+    ExpModule i -> "module " ++ i
 
 showExpr :: Expr -> String
 showExpr ae =
