@@ -44,6 +44,7 @@ $(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs src/*/*.hs Main.hs
 	$(GHCC) -c lib/PreludeNoIO.hs
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
+	$(GHCC) -c src/MicroHs/Exp.hs
 	$(GHCC) -c Main.hs
 	$(GHC) -o $(BIN)/tr $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
 

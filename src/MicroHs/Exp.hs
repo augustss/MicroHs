@@ -1,8 +1,9 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 module MicroHs.Exp(module MicroHs.Exp) where
+import Prelude
 import MicroHs.Parse --X(Ident)
-import Compat
+--Ximport Compat
 --import Debug.Trace
 
 type PrimOp = String
@@ -15,6 +16,69 @@ data Exp
   | Prim PrimOp
   --Xderiving (Show, Eq)
 
+data MaybeApp = NotApp | IsApp Exp Exp
+
+getApp :: Exp -> MaybeApp
+getApp ae =
+  case ae of
+    Var _   -> NotApp
+    App f a -> IsApp f a
+    Lam _ _ -> NotApp
+    Int _   -> NotApp
+    Prim _  -> NotApp
+
+getVar :: Exp -> Maybe Ident
+getVar ae =
+  case ae of
+    Var v   -> Just v
+    App _ _ -> Nothing
+    Lam _ _ -> Nothing
+    Int _   -> Nothing
+    Prim _  -> Nothing
+
+isPrim :: String -> Exp -> Bool
+isPrim s ae =
+  case ae of
+    Prim ss -> eqString s ss
+    Var _ -> False
+    App _ _ -> False
+    Lam _ _ -> False
+    Int _ -> False
+
+isK :: Exp -> Bool
+isK = isPrim "K"
+
+isI :: Exp -> Bool
+isI = isPrim "I"
+
+isB :: Exp -> Bool
+isB = isPrim "B"
+
+isC :: Exp -> Bool
+isC = isPrim "C"
+
+isY :: Exp -> Bool
+isY = isPrim "Y"
+
+isP :: Exp -> Bool
+isP = isPrim "P"
+
+app2 :: Exp -> Exp -> Exp -> Exp
+app2 f a1 a2 = App (App f a1) a2
+
+app3 :: Exp -> Exp -> Exp -> Exp -> Exp
+app3 f a1 a2 a3 = App (app2 f a1 a2) a3
+
+cCons :: Exp
+cCons = Prim "O"
+
+cNil :: Exp
+cNil = Prim "K"
+
+cFlip :: Exp
+cFlip = Prim "C"
+
+{-
 pattern App2 :: Exp -> Exp -> Exp -> Exp
 pattern App2 x y z = App (App x y) z
 
@@ -37,6 +101,7 @@ pattern CT = Prim "T"
 pattern CY = Prim "Y"
 pattern CP = Prim "P"
 pattern CO = Prim "O"
+-}
 
 toStringP :: Exp -> String
 toStringP ae =
@@ -51,47 +116,173 @@ compileOpt :: Exp -> Exp
 compileOpt = improveT . compile
 
 compile :: Exp -> Exp
-compile (App f a) = App (compile f) (compile a)
-compile (Lam x a) = abstract x a
-compile e = e
+compile ae =
+  case ae of
+    App f a -> App (compile f) (compile a)
+    Lam x a -> abstract x a
+    Var _   -> ae
+    Prim _  -> ae
+    Int _   -> ae
 
 abstract :: Ident -> Exp -> Exp
-abstract x (Var y) = if x == y then CI else cK (Var y)
-abstract x (App f a) = cS (abstract x f) (abstract x a)
-abstract x (Lam y e) = abstract x $ abstract y e
-abstract _ e = cK e
+abstract x ae =
+  case ae of
+    Var y  -> if eqString x y then Prim "I" else cK (Var y)
+    App f a -> cS (abstract x f) (abstract x a)
+    Lam y e -> abstract x $ abstract y e
+    Prim _ -> cK ae
+    Int _ -> cK ae
 
 cK :: Exp -> Exp
---cK CI = CT
-cK e  = App CK e
+cK e  = App (Prim "K") e
 
 cS :: Exp -> Exp -> Exp
+cS a1 a2 =
+  let
+    r = cS2 a1 a2
+  in
+    case getApp a1 of
+      NotApp -> r
+      IsApp k1 e1 ->
+        if isK k1 then
+          case getApp a2 of
+            IsApp k2 e2 ->
+              if isK k2 then
+                cK (App e1 e2)
+              else
+                cB e1 a2
+            NotApp ->
+              if isI a2 then
+                e1
+              else
+                cB e1 a2
+        else
+          r
+cS2 :: Exp -> Exp -> Exp
+cS2 a1 a2 =
+  case getApp a2 of
+    NotApp -> cS3 a1 a2
+    IsApp k2 e2 ->
+      if isK k2 then
+        cC a1 e2
+      else
+        cS3 a1 a2
+
+cS3 :: Exp -> Exp -> Exp
+cS3 a1 a2 =
+  let
+    r = app2 (Prim "S") a1 a2
+  in
+    case getApp a1 of
+      NotApp -> r
+      IsApp be1 e2 ->
+        case getApp be1 of
+          NotApp -> r
+          IsApp b1 e1 ->
+            if isB b1 then
+              cSS e1 e2 a2
+            else
+              r
+
+{-
 --cS e1 e2 | trace ("S (" ++ toString e1 ++ ") (" ++ toString e2 ++ ")") False = undefined
 cS (App CK e1)     (App CK e2) = cK (App e1 e2)    -- S (K e1) (K e2) = K (e1 e2)
 cS (App CK e1)     CI          = e1                -- S (K e1) I      = e1
 cS (App CK e1)     e2          = cB e1 e2          -- S (K e1) e2     = B e1 e2
 cS e1              (App CK e2) = cC e1 e2          -- S e1     (K e2) = C e1 e2
-cS (App2 CB e1 e2) e3          = cS' e1 e2 e3      -- S (B e1 e2) e3  = S' e1 e2 e3
+cS (App (App CB e1) e2) e3     = cSS e1 e2 e3      -- S (B e1 e2) e3  = S' e1 e2 e3
 cS e1 e2                       = App2 CS e1 e2
+-}
 
 cC :: Exp -> Exp -> Exp
-cC (App2 CB e1 e2) e3          = cC' e1 e2 e3      -- C (B e1 e2) e3  = C' e1 e2 e3
-cC (Var op)        e2 | Just op' <- lookup op flipOps = App (Var op') e2 -- C op e = flip-op e
-cC (App2 CC CI e1) e2          = App2 CP e1 e2
-cC e1              e2          = App2 CC e1 e2
+cC a1 e3 =
+  let
+    r = cC2 a1 e3
+  in
+    case getApp a1 of
+      NotApp -> r
+      IsApp x1 e2 ->
+        case getApp x1 of
+          NotApp -> r
+          IsApp bc e1 ->
+            if isB bc then
+              cCC e1 e2 e3
+            else if isC bc && isI e1 then
+              app2 (Prim "P") e2 e3
+            else
+              r
+
+cC2 :: Exp -> Exp -> Exp
+cC2 a1 a2 =
+  let
+    r = app2 (Prim "C") a1 a2
+  in
+    case getVar a1 of
+      Nothing -> r
+      Just op ->
+        case lookupBy eqString op flipOps of
+          Just oq -> App (Var oq) a2
+          Nothing -> r
+{-
+cC (App (App CB e1) e2) e3          = cCC e1 e2 e3      -- C (B e1 e2) e3  = C' e1 e2 e3
+cC (Var op)             e2 | Just op' <- lookup op flipOps = App (Var op') e2 -- C op e = flip-op e
+cC (App (App CC CI) e2) e3          = app2 CP e2 e3
+cC e1                   e2          = app2 CC e1 e2
+-}
 
 cB :: Exp -> Exp -> Exp
-cB CC          (App CC CI)    = CP -- Pair
+cB a1 a2 =
+  let
+    r = cB2 a1 a2
+  in
+    case getApp a1 of
+      NotApp -> r
+      IsApp cb ck ->
+        if isB cb && isK ck && isP a2 then
+          Prim "O"
+        else
+          r
+
+cB2 :: Exp -> Exp -> Exp
+cB2 a1 a2 =
+  let
+    r = cB3 a1 a2
+  in
+    case getApp a2 of
+      IsApp x1 x2 ->
+        case getApp x1 of
+          IsApp cb ck ->
+            if isY a1 && isB cb && isK ck then
+              x2
+            else
+              r
+          NotApp ->
+            if isC a1 && isC x1 && isI x2 then
+              Prim "P"
+            else
+              r
+      NotApp -> r
+
+cB3 :: Exp -> Exp -> Exp
+cB3 a1 a2 =
+  if isI a1 then
+    a2
+  else
+    app2 (Prim "B") a1 a2
+
+{-
 cB (App CB CK) CP             = CO -- Cons
-cB CY          (App2 CB CK e) = e  -- B Y (B K e) = e
+cB CY          (App (App CB CK) e) = e  -- B Y (B K e) = e
+cB CC          (App CC CI)    = CP -- Pair
 cB CI          e              = e  -- B I e = e
-cB e1          e2             = App2 CB e1 e2
+cB e1          e2             = app2 CB e1 e2
+-}
 
-cS' :: Exp -> Exp -> Exp -> Exp
-cS' e1 e2 e3 = App3 CS' e1 e2 e3
+cSS :: Exp -> Exp -> Exp -> Exp
+cSS e1 e2 e3 = app3 (Prim "S'") e1 e2 e3
 
-cC' :: Exp -> Exp -> Exp -> Exp
-cC' e1 e2 e3 = App3 CC' e1 e2 e3
+cCC :: Exp -> Exp -> Exp -> Exp
+cCC e1 e2 e3 = app3 (Prim "C'") e1 e2 e3
 
 -- This is a hack, it assumes things about the Prelude
 flipOps :: [(PrimOp, PrimOp)]
@@ -108,9 +299,29 @@ flipOps =
   ]
 
 improveT :: Exp -> Exp
+improveT ae =
+  case getApp ae of
+    NotApp -> ae
+    IsApp f a ->
+      let
+        ff = improveT f
+        aa = improveT a
+      in
+        if isK ff && isI aa then
+          Prim "T"
+        else
+          case getApp aa of
+            NotApp -> App ff aa
+            IsApp ck e ->
+              if isY ff && isK ck then
+                e
+              else
+                App ff aa
+{-
 improveT (App f a) =
   case (improveT f, improveT a) of
     (CK,                     CI) -> CT
     (CY,               App CK e) -> e
     (e1,                     e2) -> App e1 e2
 improveT e = e
+-}

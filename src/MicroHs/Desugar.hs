@@ -117,7 +117,7 @@ dsExpr syms (ELet (d:ds) e) =
       def (i, r) a = App (Lam i a) (App (Prim "Y") (Lam i r))
   in  foldr def e' ds'
 dsExpr syms (EList es) =
-  foldr (App2 CO) CK $ map (dsExpr syms) es
+  foldr (app2 cCons) cNil $ map (dsExpr syms) es
 dsExpr _ (ETuple []) = Lam "_x" (Var "_x")    -- encoding of ()
 dsExpr syms (ETuple [e]) = dsExpr syms e
 dsExpr syms (ETuple es) = Lam "_f" $ foldl App (Var "_f") $ map (dsExpr syms) es
@@ -135,12 +135,12 @@ dsExpr _ (EPrim s) = Prim s
 dsExpr syms (ESectL e op) =
   App (dsExpr syms (EVar op)) (dsExpr syms e)
 dsExpr syms (ESectR op e) =
-  App2 CC (dsExpr syms (EVar op)) (dsExpr syms e)
+  app2 cFlip (dsExpr syms (EVar op)) (dsExpr syms e)
 dsExpr syms (EIf e1 e2 e3) =
-  App2 (dsExpr syms e1) (dsExpr syms e3) (dsExpr syms e2)
+  app2 (dsExpr syms e1) (dsExpr syms e3) (dsExpr syms e2)
 dsExpr syms (ECompr e []) = dsExpr syms (EList [e])
 dsExpr syms (ECompr e (SBind i b : ss)) =
-  App2 (Var "Data.List.concatMap") (dsExpr syms (ELam [i] (ECompr e ss))) (dsExpr syms b)
+  app2 (Var "Data.List.concatMap") (dsExpr syms (ELam [i] (ECompr e ss))) (dsExpr syms b)
 dsExpr syms (ECompr e (SThen c : ss)) =
   dsExpr syms (EIf c (ECompr e ss) (EList []))
 dsExpr syms (ECompr e (SLet d : ss)) =
