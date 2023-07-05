@@ -8,6 +8,7 @@ import MicroHs.Exp hiding (compile)
 import MicroHs.Compile
 import MicroHs.Translate
 import MicroHs.Desugar(LDef)
+import Compat
 
 main :: IO ()
 main = do
@@ -24,13 +25,14 @@ main = do
       defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds [0..] ]
       findIdent n = fromMaybe (error $ "undefined: " ++ show n) $ M.lookup n defs
       emain = findIdent mainName
-      res = foldr def emain (zip ds [0..])
-      def :: ((Ident, Exp), Int) -> Exp -> Exp
-      def ((_, e), i) r = App2 CT (Lbl i (subst e)) r
       subst (Var n) = findIdent n
       subst (App f a) = App (subst f) (subst a)
       subst e = e
-      ref i = Var $ "_" ++ show (i::Int)
+      def :: ((Ident, Exp), Int) -> String -> String
+      def ((_, e), i) r = "(($T :" ++ showInt i ++ " " ++ toStringP (subst e) ++ ") " ++ r ++ ")"
+        -- App2 CT (Lbl i (subst e)) r
+      ref i = Var $ "_" ++ showInt i
+      res = foldr def (toStringP emain) (zip ds (enumFrom 0))
   when (verbose flags) $ do
     mapM_ (\ (i, e) -> putStrLn $  i ++ " = " ++ toStringP e) ds
     --putStrLn $ toStringP res
@@ -40,7 +42,7 @@ main = do
     prg
     putStrLn "done"
    else
-    writeFile "out.comb" $ toStringP res
+    writeFile "out.comb" res
 
 type CModule = (Ident, [LDef])
 

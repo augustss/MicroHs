@@ -13,6 +13,12 @@ eqString = (==)
 readInt :: String -> Int
 readInt = read
 
+showInt :: Int -> String
+showInt = show
+
+showString :: String -> String
+showString = show
+
 elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
 

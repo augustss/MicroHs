@@ -1,7 +1,8 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
-module MicroHs.Exp where
-import MicroHs.Parse(Ident)
+module MicroHs.Exp(module MicroHs.Exp) where
+import MicroHs.Parse --X(Ident)
+import Compat
 --import Debug.Trace
 
 type PrimOp = String
@@ -12,8 +13,7 @@ data Exp
   | Lam Ident Exp
   | Int Int
   | Prim PrimOp
-  | Lbl Int Exp
-  deriving (Show, Eq)
+  --Xderiving (Show, Eq)
 
 pattern App2 :: Exp -> Exp -> Exp -> Exp
 pattern App2 x y z = App (App x y) z
@@ -39,12 +39,13 @@ pattern CP = Prim "P"
 pattern CO = Prim "O"
 
 toStringP :: Exp -> String
-toStringP (Var x) = x
-toStringP (Prim x) = '$':x
-toStringP (Int i) = show i
-toStringP (Lam x e) = "(\\" ++ x ++ " " ++ toStringP e ++ ")"
-toStringP (App f a) = "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
-toStringP (Lbl i e) = ":" ++ show i ++ " " ++ toStringP e
+toStringP ae =
+  case ae of
+    Var x   -> x
+    Prim x  -> '$':x
+    Int i   -> showInt i
+    Lam x e -> "(\\" ++ x ++ " " ++ toStringP e ++ ")"
+    App f a -> "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
 
 compileOpt :: Exp -> Exp
 compileOpt = improveT . compile
@@ -55,7 +56,7 @@ compile (Lam x a) = abstract x a
 compile e = e
 
 abstract :: Ident -> Exp -> Exp
-abstract x (Var y) | x == y = CI
+abstract x (Var y) = if x == y then CI else cK (Var y)
 abstract x (App f a) = cS (abstract x f) (abstract x a)
 abstract x (Lam y e) = abstract x $ abstract y e
 abstract _ e = cK e

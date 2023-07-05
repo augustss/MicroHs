@@ -31,11 +31,6 @@ data LastFail
   = LastFail Int [(String, [String])]
   --deriving (Show)
 
---XshowString :: String -> String
---XshowString = show
---XshowInt :: Int -> String
---XshowInt = show
-
 maxInt :: Int
 maxInt = 1000000000
 

@@ -192,3 +192,6 @@ intercalate xs xss = concat (intersperse xs xss)
 
 elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
+
+enumFrom :: Int -> [Int]
+enumFrom n = n : enumFrom (n+1)

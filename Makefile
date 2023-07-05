@@ -8,9 +8,11 @@ GHC=ghc
 # $(CURDIR) might not be quite right
 GHCE=$(GHC) -F -pgmF $(CURDIR)/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
-.PHONY: all trtest boottest test time example
+.PHONY: all trtest boottest uhstest test alltest time example
 
 all:	$(BIN)/eval $(BIN)/uhs
+
+alltest:	test boottest uhstest
 
 $(BIN)/eval:	src/runtime/eval.c
 	@mkdir -p bin
