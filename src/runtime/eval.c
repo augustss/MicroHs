@@ -21,6 +21,7 @@ enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
                 IO_SERIALIZE, IO_DESERIALIZE,
                 IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE,
                 IO_STDIN, IO_STDOUT, IO_STDERR,
+                IO_GETARGS,
 };
 
 typedef int64_t value_t;
@@ -128,6 +129,9 @@ int64_t heap_size = HEAP_CELLS; /* number of heap cells */
 int64_t heap_start;             /* first location in heap that needs GC */
 NODEPTR next_free;              /* Free list */
 
+int glob_argc;
+char **glob_argv;
+
 NODEPTR
 alloc_node(enum node_tag t)
 {
@@ -201,6 +205,7 @@ struct {
   { "IO.stdin", IO_STDIN },
   { "IO.stdout", IO_STDOUT },
   { "IO.stderr", IO_STDERR },
+  { "IO.getArgs", IO_GETARGS },
 };
 
 void
@@ -405,7 +410,7 @@ parse(FILE *f)
       if (strcmp(primops[j].name, buf) == 0)
         return primops[j].node;
     }
-    fprintf(stderr, "bad primop %s\n", buf);
+    fprintf(stderr, "eval: bad primop %s\n", buf);
     ERR("no primop");
   case '_' :
     /* Reference to a shared value: _label */
@@ -520,6 +525,7 @@ printrec(FILE *f, NODEPTR n)
   case IO_OPEN: fprintf(f, "$IO.open"); break;
   case IO_CLOSE: fprintf(f, "$IO.close"); break;
   case IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
+  case IO_GETARGS: fprintf(f, "$IO.getArgs"); break;
   default: ERR("print tag");
   }
 }
@@ -868,6 +874,7 @@ eval(NODEPTR n)
     case IO_DESERIALIZE:
     case IO_OPEN:
     case IO_CLOSE:
+    case IO_GETARGS:
       RET;
     default:
       fprintf(stderr, "bad tag %d\n", TAG(n));
@@ -978,6 +985,9 @@ evalio(NODEPTR n)
       stack_ptr = stk;
       return (n);
       //RETIO(n);
+    case IO_GETARGS:
+      CHECKIO(0);
+      ERR("IO_GETARGS not implemented");
     default:
       fprintf(stderr, "bad tag %d\n", TAG(n));
       ERR("evalio tag");
@@ -993,21 +1003,24 @@ main(int argc, char **argv)
   
   argc--, argv++;
   while (argc > 0 && argv[0][0] == '-') {
-    if (strcmp(argv[0], "-v") == 0)
-      verbose++;
-    else if (strncmp(argv[0], "-H", 2) == 0)
-      heap_size = atoi(&argv[0][2]);
-    else
-      ERR("Bad flag");
     argc--;
     argv++;
+    if (strcmp(argv[-1], "-v") == 0)
+      verbose++;
+    else if (strncmp(argv[-1], "-H", 2) == 0)
+      heap_size = atoi(&argv[-1][2]);
+    else if (strncmp(argv[-1], "-r", 2) == 0)
+      fn = &argv[-1][2];
+    else if (strcmp(argv[-1], "--") == 0)
+      break;
+    else
+      ERR("Bad flag");
   }
-  if (argc == 0)
+  glob_argc = argc;
+  glob_argv = argv;
+
+  if (fn == 0)
     fn = "out.comb";
-  else if (argc == 1)
-    fn = argv[0];
-  else
-    ERR("too many files");
 
   init_nodes();
   FILE *f = fopen(fn, "r");

@@ -6,6 +6,7 @@ module Primitives(
   Handle,
   ) where
 import System.IO
+import System.Environment
 
 primIntAdd :: Int -> Int -> Int
 primIntAdd = (+)
@@ -76,4 +77,5 @@ primHClose        = hClose
 primStdin         = stdin
 primStdout        = stdout
 primStderr        = stderr
+primGetArgs       = getArgs
 
