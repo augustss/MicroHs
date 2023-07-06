@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module MicroHs.Exp(module MicroHs.Exp) where
 import Prelude
-import MicroHs.Parse --X(Ident)
+import MicroHs.Parse --X(Ident, eqIdent)
 --Ximport Compat
 --import Debug.Trace
 
@@ -78,30 +78,44 @@ cNil = Prim "K"
 cFlip :: Exp
 cFlip = Prim "C"
 
-{-
-pattern App2 :: Exp -> Exp -> Exp -> Exp
-pattern App2 x y z = App (App x y) z
-
-pattern App3 :: Exp -> Exp -> Exp -> Exp -> Exp
-pattern App3 x y z w = App (App (App x y) z) w
-
-pattern App4 :: Exp -> Exp -> Exp -> Exp -> Exp -> Exp
-pattern App4 x y z w v = App (App (App (App x y) z) w) v
-
-pattern CI, CK, CS, CC, CB, CS', CC', CB', CT, CY, CP, CO :: Exp
-pattern CI = Prim "I"
-pattern CK = Prim "K"
-pattern CS = Prim "S"
-pattern CC = Prim "C"
-pattern CB = Prim "B"
-pattern CS' = Prim "S'"
-pattern CC' = Prim "C'"
-pattern CB' = Prim "B'"
-pattern CT = Prim "T"
-pattern CY = Prim "Y"
-pattern CP = Prim "P"
-pattern CO = Prim "O"
--}
+eqExp :: Exp -> Exp -> Bool
+eqExp ae1 ae2 =
+  case ae1 of
+    Var i1 ->
+      case ae2 of
+        Var i2 -> eqIdent i1 i2
+        App _ _ -> False
+        Lam _ _ -> False
+        Int _ -> False
+        Prim _ -> False
+    App e11 e12 ->
+      case ae2 of
+        Var _ -> False
+        App e21 e22 -> eqExp e11 e21 && eqExp e12 e22
+        Lam _ _ -> False
+        Int _ -> False
+        Prim _ -> False
+    Lam i1 e1 ->
+      case ae2 of
+        Var _ -> False
+        App _ _ -> False
+        Lam i2 e2 -> eqIdent i1 i2 && eqExp e1 e2
+        Int _ -> False
+        Prim _ -> False
+    Int i1 ->
+      case ae2 of
+        Var _ -> False
+        App _ _ -> False
+        Lam _ _ -> False
+        Int i2 -> i1 == i2
+        Prim _ -> False
+    Prim p1 ->
+      case ae2 of
+        Var _ -> False
+        App _ _ -> False
+        Lam _ _ -> False
+        Int _ -> False
+        Prim p2 -> eqString p1 p2
 
 toStringP :: Exp -> String
 toStringP ae =

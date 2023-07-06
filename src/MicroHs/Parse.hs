@@ -29,12 +29,6 @@ import Text.ParserComb as P
 --import Debug.Trace
 --Ximport Compat
 
------------------------------
-
-pair :: a -> b -> (a, b)
-pair x y = (x, y)
-
------------------------------
 
 type P a = Prsr [Int] a
 
@@ -91,6 +85,11 @@ data ExportSpec = ExpModule IdentModule
 type LHS = (Ident, [Ident])
 type Constr = (Ident, [Type])
 type Type = Expr
+
+eqIdent :: Ident -> Ident -> Bool
+eqIdent = eqString
+
+---------------------------------
 
 qual :: Ident -> Ident -> Ident
 qual qi i = qi ++ "." ++ i
