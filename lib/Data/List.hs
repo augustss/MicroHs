@@ -221,3 +221,15 @@ nubBy eq axs =
   case axs of
     [] -> []
     x:xs -> x : nubBy eq (filter (\ y -> not (eq x y)) xs)
+
+eqList :: (a -> a -> Bool) -> [a] -> [a] -> Bool
+eqList eq axs ays =
+  case axs of
+    [] ->
+      case ays of
+        [] -> True
+        _:_ -> False
+    x:xs ->
+      case ays of
+        [] -> False
+        y:ys -> eq x y && eqList eq xs ys

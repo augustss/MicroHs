@@ -29,4 +29,7 @@ negate x = 0 - x
 (>)  = primIntGT
 (>=) = primIntGE
 
+--eqInt :: Int -> Int -> Bool
+eqInt = (==)
+
 --------------------------------
