@@ -73,7 +73,6 @@ data EBind = BFcn LHS Expr | BPat EPat Expr
 
 data EPat
   = PConstr Ident [Ident]
-  | PTuple [Ident]
   --Xderiving (Show)
 
 data EModule = EModule IdentModule [ExportSpec] [EDef]
@@ -88,6 +87,12 @@ type Type = Expr
 
 eqIdent :: Ident -> Ident -> Bool
 eqIdent = eqString
+
+tupleConstr :: Int -> Ident
+tupleConstr n = replicate (n-1) ','
+
+untupleConstr :: Ident -> Int
+untupleConstr s = length s + 1
 
 ---------------------------------
 
@@ -434,10 +439,13 @@ pCase =
 pPat :: P EPat
 pPat =
       ((uncurry PConstr) <$> pLHS pUIdent)
-  <|> (PTuple <$> (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
+  <|> (cTuple <$> (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
   <|> (PConstr "Nil" [] <$ (pSym '[' <* pSym ']'))   -- Hack for [] = Nil
   <|> (PConstr "Unit" [] <$ (pSym '(' <* pSym ')'))   -- Hack for () = Unit
   <|> ((\ x s y -> PConstr s [x,y]) <$> pLIdent_ <*> pOperU <*> pLIdent_)
+
+cTuple :: [Ident] -> EPat
+cTuple xs = PConstr (tupleConstr (length xs)) xs
 
 pLet :: P Expr
 pLet = ELet <$> (pKeywordW "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)

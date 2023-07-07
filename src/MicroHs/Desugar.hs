@@ -105,8 +105,6 @@ dsExpr _ (EInt i) = Int i
 dsExpr _ (EChar c) = Int (fromEnum c)
 dsExpr syms (ECase e as) = apps (dsExpr syms e) (map dsArm as')
   where dsArm (PConstr _ vs, r) = lams vs $ dsExpr (extVals syms vs) r
-        dsArm (PTuple [_], _) = error "dsExpr: singleton tuple"
-        dsArm (PTuple vs, r) = lams vs $ dsExpr (extVals syms vs) r
         as' = reorderArms (sType syms) as
 -- For now, just sequential bindings; each recursive
 dsExpr syms (ELet [] e) = dsExpr syms e
@@ -151,22 +149,27 @@ mqual (Just qi) i = qual qi i
 mqual Nothing   i = i
 
 reorderArms :: TypeTable -> [(EPat, Expr)] -> [(EPat, Expr)]
-reorderArms _ [] = error "case has no arms"
-reorderArms _ as@[(PTuple _, _)] = as
+reorderArms _ [] = undefined
 reorderArms tys as@((PConstr con _, _) : _) =
   let arms = [(c, a) | a@(PConstr c _, _) <- as] in
   if length arms /= length as then error "bad tuple pattern" else
-  case M.lookup con tys of
-    Nothing -> error $ "undefined constructor: " ++ show con
-    Just [TypeDef _ cs] -> map arm cs
+  case constrType con tys of
+    TypeDef _ cs -> map arm cs
       where arm (c, k) =
               case lookup c arms of
                 Nothing -> error $ "constructor missing: " ++ show (c, con)
                 Just a@(PConstr _ vs, _) ->
                   if length vs == k then a else error $ "bad contructor arity: " ++ show a
-                _ -> undefined
-    Just _tds -> error $ "ambiguous constructor: " ++ show con
-reorderArms _ _ = undefined
+
+constrType :: Ident -> TypeTable -> TypeDef
+constrType con tys =
+  if take 1 con == "," then
+    TypeDef con [(con, untupleConstr con)]
+  else
+    case M.lookup con tys of
+      Nothing -> error $ "undefined constructor: " ++ show con
+      Just [td] -> td
+      Just _tds -> error $ "ambiguous constructor: " ++ show con
 
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs
@@ -180,7 +183,6 @@ dsData _ = []
 
 patVars :: EPat -> [Ident]
 patVars (PConstr _ is) = is
-patVars (PTuple is) = is
 
 newVar :: [Ident] -> Ident
 newVar is = head $ [ "nv" ++ show i | i <- [1..] ] \\ is
@@ -194,7 +196,6 @@ allVarsLHS (i, is) = i : is
 
 allVarsPat :: EPat -> [Ident]
 allVarsPat (PConstr i is) = i : is
-allVarsPat (PTuple is) = is
 
 allVarsExpr :: Expr -> [Ident]
 allVarsExpr (EVar i) = [i]
