@@ -222,6 +222,15 @@ nubBy eq axs =
     [] -> []
     x:xs -> x : nubBy eq (filter (\ y -> not (eq x y)) xs)
 
+replicate :: Int -> a -> [a]
+replicate n x = take n (repeat x)
+
+repeat :: a -> [a]
+repeat x =
+  let
+    xs = x:xs
+  in xs
+
 eqList :: (a -> a -> Bool) -> [a] -> [a] -> Bool
 eqList eq axs ays =
   case axs of
