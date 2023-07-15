@@ -106,7 +106,8 @@ dsExpr syms (ELam xs e) = lams xs (dsExpr (extVals syms xs) e)
 dsExpr _ (EInt i) = Int i
 dsExpr _ (EChar c) = Int (fromEnum c)
 dsExpr syms (ECase e as) = apps (dsExpr syms e) (map dsArm as')
-  where dsArm (PConstr _ vs, r) = lams vs $ dsExpr (extVals syms vs) r
+  where dsArm (PConstr _ xxxvs, r) = lams vs $ dsExpr (extVals syms vs) r
+          where vs = map (\ (PVar v) -> v) xxxvs
         as' = reorderArms (sType syms) as
 -- For now, just sequential bindings; each recursive
 dsExpr syms (ELet [] e) = dsExpr syms e
@@ -184,7 +185,8 @@ dsData (Data (tn, _) cs) = [TypeDef tn [(c, length ts) | (c, ts) <- cs ]]
 dsData _ = []
 
 patVars :: EPat -> [Ident]
-patVars (PConstr _ is) = is
+patVars (PVar i) = [i]
+patVars (PConstr _ ps) = concatMap patVars ps
 
 newVar :: [Ident] -> Ident
 newVar is = head $ [ "nv" ++ show i | i <- [1..] ] \\ is
@@ -197,7 +199,8 @@ allVarsLHS :: LHS -> [Ident]
 allVarsLHS (i, is) = i : is
 
 allVarsPat :: EPat -> [Ident]
-allVarsPat (PConstr i is) = i : is
+allVarsPat (PVar i) = [i]
+allVarsPat (PConstr i ps) = i : concatMap allVarsPat ps
 
 allVarsExpr :: Expr -> [Ident]
 allVarsExpr (EVar i) = [i]

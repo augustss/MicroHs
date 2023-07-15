@@ -55,7 +55,7 @@ data Expr
   | EInt Int
   | EChar Char
   | EStr String
-  | ECase Expr [(EPat, Expr)]
+  | ECase Expr [ECaseArm]
   | ELet [EBind] Expr
   | ETuple [Expr]
   | EList [Expr]
@@ -67,6 +67,8 @@ data Expr
   | ECompr Expr [EStmt]
   --Xderiving (Show)
 
+type ECaseArm = (EPat, Expr)
+
 data EStmt = SBind Ident Expr | SThen Expr | SLet [EBind]
   --Xderiving (Show)
 
@@ -74,8 +76,15 @@ data EBind = BFcn LHS Expr | BPat EPat Expr
   --Xderiving (Show)
 
 data EPat
-  = PConstr Ident [Ident]
+  = PConstr Ident [EPat]
+  | PVar Ident
   --Xderiving (Show)
+
+isPVar :: EPat -> Bool
+isPVar p =
+  case p of
+    PConstr _ _ -> False
+    PVar _ -> True
 
 data EModule = EModule IdentModule [ExportSpec] [EDef]
   --Xderiving (Show)
@@ -438,15 +447,28 @@ pCase =
     pArm = pair <$> (pPat <* pSymbol "->") <*> pExpr
   in  ECase <$> (pKeyword "case" *> pExpr) <*> (pKeywordW "of" *> pBlock pArm)
 
-pPat :: P EPat
-pPat =
-      ((uncurry PConstr) <$> pLHS pUIdent)
-  <|> (cTuple <$> (pSym '(' *> esepBy pLIdent_ (pSym ',') <* pSym ')'))
+pPatAtom :: P EPat
+pPatAtom =
+      (PVar <$> pLIdent_)
+  <|> (pSym '(' *> pPat <* pSym ')')
+  <|> (cTuple <$> (pSym '(' *> esepBy pPat (pSym ',') <* pSym ')'))
+  <|> (PConstr <$> pUIdent <*> pure [])
   <|> (PConstr "Nil" [] <$ (pSym '[' <* pSym ']'))   -- Hack for [] = Nil
   <|> (PConstr "Unit" [] <$ (pSym '(' <* pSym ')'))   -- Hack for () = Unit
-  <|> ((\ x s y -> PConstr s [x,y]) <$> pLIdent_ <*> pOperU <*> pLIdent_)
 
-cTuple :: [Ident] -> EPat
+pPat :: P EPat
+pPat =
+      pPatAtom
+  <|> (PConstr <$> pUIdent <*> esome pPatAtom)
+  <|> ((\ x s y -> PConstr s [x,y]) <$> pPatAtom <*> pOperU <*> pPatAtom)
+
+pPatC :: P EPat
+pPatC = P.do
+  p <- pPat
+  guard (not (isPVar p))
+  pure p
+
+cTuple :: [EPat] -> EPat
 cTuple xs = PConstr (tupleConstr (length xs)) xs
 
 pLet :: P Expr
@@ -523,7 +545,7 @@ pStmt =
 pBind :: P EBind
 pBind = 
       BFcn <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
-  <|> BPat <$> (pPat <* pSymbol "=") <*> pExpr
+  <|> BPat <$> (pPatC <* pSymbol "=") <*> pExpr
 
 pQualDo :: P String
 pQualDo = P.do
