@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 module Data.Char(module Data.Char) where
 import qualified Primitives
 import Data.Bool

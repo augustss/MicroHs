@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 import Control.Monad
 import Data.List
 import qualified MicroHs.Map as M

@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 module Data.Function(module Data.Function) where
 import Primitives
 import Data.Tuple

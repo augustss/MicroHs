@@ -1,3 +1,6 @@
+/* Copyright 2023 Lennart Augustsson
+ * See LICENSE file for full license.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

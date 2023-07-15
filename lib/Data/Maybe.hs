@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 module Data.Maybe(module Data.Maybe) where
 
 data Maybe a = Nothing | Just a

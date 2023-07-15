@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 module MicroHs.Translate where
 import Data.Char
 import Data.Maybe

@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 module MicroHs.Compile where
 import Control.Exception
 import Control.Monad

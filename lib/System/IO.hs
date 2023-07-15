@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 module System.IO(module System.IO) where
 import qualified Primitives as P
 import Control.Error
