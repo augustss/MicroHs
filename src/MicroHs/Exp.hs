@@ -154,6 +154,7 @@ cK e  = App (Prim "K") e
 
 cS :: Exp -> Exp -> Exp
 cS a1 a2 =
+ if isK a1 then Prim "I" else
   let
     r = cS2 a1 a2
   in
@@ -202,6 +203,7 @@ cS3 a1 a2 =
 
 {-
 --cS e1 e2 | trace ("S (" ++ toString e1 ++ ") (" ++ toString e2 ++ ")") False = undefined
+cS CK              _           = CI                -- S K e           = I
 cS (App CK e1)     (App CK e2) = cK (App e1 e2)    -- S (K e1) (K e2) = K (e1 e2)
 cS (App CK e1)     CI          = e1                -- S (K e1) I      = e1
 cS (App CK e1)     e2          = cB e1 e2          -- S (K e1) e2     = B e1 e2
