@@ -100,6 +100,9 @@ type Type = Expr
 eqIdent :: Ident -> Ident -> Bool
 eqIdent = eqString
 
+showIdent :: Ident -> String
+showIdent i = i
+
 tupleConstr :: Int -> Ident
 tupleConstr n = replicate (n-1) ','
 
