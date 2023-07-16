@@ -1,7 +1,5 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TypeFamilies #-}
 module MicroHs.Exp(module MicroHs.Exp) where
 import Prelude
 import MicroHs.Parse --X(Ident, eqIdent)
@@ -23,29 +21,20 @@ data MaybeApp = NotApp | IsApp Exp Exp
 getApp :: Exp -> MaybeApp
 getApp ae =
   case ae of
-    Var _   -> NotApp
     App f a -> IsApp f a
-    Lam _ _ -> NotApp
-    Int _   -> NotApp
-    Prim _  -> NotApp
+    _       -> NotApp
 
 getVar :: Exp -> Maybe Ident
 getVar ae =
   case ae of
-    Var v   -> Just v
-    App _ _ -> Nothing
-    Lam _ _ -> Nothing
-    Int _   -> Nothing
-    Prim _  -> Nothing
+    Var v -> Just v
+    _     -> Nothing
 
 isPrim :: String -> Exp -> Bool
 isPrim s ae =
   case ae of
     Prim ss -> eqString s ss
-    Var _ -> False
-    App _ _ -> False
-    Lam _ _ -> False
-    Int _ -> False
+    _       -> False
 
 isK :: Exp -> Bool
 isK = isPrim "K"
@@ -86,38 +75,23 @@ eqExp ae1 ae2 =
     Var i1 ->
       case ae2 of
         Var i2 -> eqIdent i1 i2
-        App _ _ -> False
-        Lam _ _ -> False
-        Int _ -> False
-        Prim _ -> False
+        _ -> False
     App e11 e12 ->
       case ae2 of
-        Var _ -> False
         App e21 e22 -> eqExp e11 e21 && eqExp e12 e22
-        Lam _ _ -> False
-        Int _ -> False
-        Prim _ -> False
+        _ -> False
     Lam i1 e1 ->
       case ae2 of
-        Var _ -> False
-        App _ _ -> False
         Lam i2 e2 -> eqIdent i1 i2 && eqExp e1 e2
-        Int _ -> False
-        Prim _ -> False
+        _ -> False
     Int i1 ->
       case ae2 of
-        Var _ -> False
-        App _ _ -> False
-        Lam _ _ -> False
         Int i2 -> i1 == i2
-        Prim _ -> False
+        _ -> False
     Prim p1 ->
       case ae2 of
-        Var _ -> False
-        App _ _ -> False
-        Lam _ _ -> False
-        Int _ -> False
         Prim p2 -> eqString p1 p2
+        _ -> False
 
 toStringP :: Exp -> String
 toStringP ae =
@@ -136,9 +110,7 @@ compile ae =
   case ae of
     App f a -> App (compile f) (compile a)
     Lam x a -> abstract x a
-    Var _   -> ae
-    Prim _  -> ae
-    Int _   -> ae
+    _       -> ae
 
 abstract :: Ident -> Exp -> Exp
 abstract x ae =
