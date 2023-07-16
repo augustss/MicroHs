@@ -9,7 +9,9 @@ data Map k v = Map [(k, v)]
   --Xderiving(Show)
 
 insert :: k -> v -> Map k v -> Map k v
-insert k v (Map kvs) = Map ((k, v):kvs)
+insert k v amap =
+  case amap of
+    Map kvs -> Map ((k, v):kvs)
 
 fromListWith :: (k -> k -> Bool) -> (v -> v -> v) -> [(k, v)] -> Map k v
 fromListWith eq un =
@@ -29,7 +31,13 @@ fromList :: [(k, v)] -> Map k v
 fromList = Map
 
 union :: Map k v -> Map k v -> Map k v
-union (Map kvs1) (Map kvs2) = Map (kvs1 ++ kvs2)
+union akvs1 akvs2 =
+  case akvs1 of
+    Map kvs1 ->
+      case akvs2 of
+        Map kvs2 -> Map (kvs1 ++ kvs2)
 
 lookup :: (k -> k -> Bool) -> k -> Map k v -> Maybe v
-lookup eq k (Map kvs) = lookupBy eq k kvs
+lookup eq k akvs =
+  case akvs of
+    Map kvs -> lookupBy eq k kvs
