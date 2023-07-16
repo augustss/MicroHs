@@ -233,6 +233,9 @@ repeat x =
     xs = x:xs
   in xs
 
+deleteFirstsBy :: (a -> a -> Bool) -> [a] -> [a] -> [a]
+deleteFirstsBy eq = foldl (flip (deleteBy eq))
+
 eqList :: (a -> a -> Bool) -> [a] -> [a] -> Bool
 eqList eq axs ays =
   case axs of

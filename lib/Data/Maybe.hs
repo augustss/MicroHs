@@ -10,6 +10,12 @@ maybe r f arg =
     Nothing -> r
     Just a  -> f a
 
+fromMaybe :: a -> Maybe a -> a
+fromMaybe a arg =
+  case arg of
+    Nothing -> a
+    Just x -> x
+
 fmapMaybe :: (a -> b) -> Maybe a -> Maybe b
 fmapMaybe f am =
   case am of
