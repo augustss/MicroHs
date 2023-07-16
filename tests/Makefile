@@ -8,6 +8,7 @@ test:
 	$(UHS) ListTest && $(EVAL) > ListTest.out && diff ListTest.ref ListTest.out
 	$(UHS) Fac && $(EVAL) > Fac.out && diff Fac.ref Fac.out
 	$(UHS) Misc && $(EVAL) > Misc.out && diff Misc.ref Misc.out
+	$(UHS) Case && $(EVAL) > Case.out && diff Case.ref Case.out
 
 time:
 	@echo Expect about 10s runtime
