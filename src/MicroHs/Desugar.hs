@@ -10,6 +10,7 @@ module MicroHs.Desugar(
   SymTable,
   TypeTable,
   ) where
+--import Debug.Trace
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -105,10 +106,13 @@ dsExpr syms (EApp f a) = App (dsExpr syms f) (dsExpr syms a)
 dsExpr syms (ELam xs e) = lams xs (dsExpr (extVals syms xs) e)
 dsExpr _ (EInt i) = Int i
 dsExpr _ (EChar c) = Int (fromEnum c)
+dsExpr syms (ECase e as) = dsCase syms e as
+{-
 dsExpr syms (ECase e as) = apps (dsExpr syms e) (map dsArm as')
   where dsArm (PConstr _ xxxvs, r) = lams vs $ dsExpr (extVals syms vs) r
           where vs = map (\ (PVar v) -> v) xxxvs
         as' = reorderArms (sType syms) as
+-}
 -- For now, just sequential bindings; each recursive
 dsExpr syms (ELet [] e) = dsExpr syms e
 dsExpr syms (ELet (d:ds) e) =
@@ -126,8 +130,11 @@ dsExpr syms (EStr cs) = dsExpr syms $ EList $ map EChar cs
 dsExpr _ (EDo _ []) = error "empty do"
 dsExpr _ (EDo _ [SBind _ _]) = error "do without final expression"
 dsExpr syms (EDo _ [SThen e]) = dsExpr syms e
-dsExpr syms (EDo mn (SBind i e : ss)) =
-  dsExpr syms $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [i] (EDo mn ss))
+dsExpr syms ee@(EDo mn (SBind p e : ss)) =
+  let
+    nv = newVar (allVarsExpr ee)
+    body = ECase (EVar nv) [(p, EDo mn ss), (PVar dummyIdent, eError "dopat")]
+  in  dsExpr syms $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [nv] body)
 dsExpr syms (EDo mn (SThen   e : ss)) =
   dsExpr syms $ EApp (EApp (EVar (mqual mn ">>")) e) (EDo mn ss)
 dsExpr syms (EDo mn (SLet ds : ss)) =
@@ -140,29 +147,94 @@ dsExpr syms (ESectR op e) =
 dsExpr syms (EIf e1 e2 e3) =
   app2 (dsExpr syms e1) (dsExpr syms e3) (dsExpr syms e2)
 dsExpr syms (ECompr e []) = dsExpr syms (EList [e])
-dsExpr syms (ECompr e (SBind i b : ss)) =
-  app2 (Var "Data.List.concatMap") (dsExpr syms (ELam [i] (ECompr e ss))) (dsExpr syms b)
+dsExpr syms ee@(ECompr e (SBind p b : ss)) =
+  let
+    nv = newVar (allVarsExpr ee)
+    body = ECase (EVar nv) [(p, ECompr e ss), (PVar dummyIdent, EList [])]
+  in app2 (Var "Data.List.concatMap") (dsExpr syms (ELam [nv] body)) (dsExpr syms b)
 dsExpr syms (ECompr e (SThen c : ss)) =
   dsExpr syms (EIf c (ECompr e ss) (EList []))
 dsExpr syms (ECompr e (SLet d : ss)) =
   dsExpr syms (ELet d (ECompr e ss))
+dsExpr _ EBad = error "complex case not implemented"
 
 mqual :: Maybe Ident -> Ident -> Ident
 mqual (Just qi) i = qual qi i
 mqual Nothing   i = i
 
-reorderArms :: TypeTable -> [(EPat, Expr)] -> [(EPat, Expr)]
-reorderArms _ [] = undefined
-reorderArms tys as@((PConstr con _, _) : _) =
-  let arms = [(c, a) | a@(PConstr c _, _) <- as] in
-  if length arms /= length as then error "bad tuple pattern" else
-  case constrType con tys of
-    TypeDef _ cs -> map arm cs
-      where arm (c, k) =
-              case lookup c arms of
-                Nothing -> error $ "constructor missing: " ++ show (c, con)
-                Just a@(PConstr _ vs, _) ->
-                  if length vs == k then a else error $ "bad contructor arity: " ++ show a
+dsCase :: SymTable -> Expr -> [ECaseArm] -> Exp
+dsCase syms ecase aarms =
+  case findDefault aarms of
+    (arms, dexpr) ->
+      case arms of
+        -- No pattern matching
+        [] -> App (dsExpr syms dexpr) (dsExpr syms ecase)
+        (pat, _) : _ ->
+          case pat of
+            PVar _ -> undefined  -- impossible
+            PConstr con _ ->
+              case constrType con (sType syms) of
+                TypeDef _ cs ->
+                  let
+                    nvs = newVars (allVarsExpr (ECase ecase aarms))
+                  in  dsCaseArms syms nvs cs ecase arms dexpr
+
+dummyIdent :: Ident
+dummyIdent = "_"
+
+eError :: String -> Expr
+eError s = EApp (EPrim "error") (EStr s)
+
+findDefault :: [ECaseArm] -> ([ECaseArm], Expr)
+findDefault aarms =
+  case aarms of
+    [] -> ([], ELam [dummyIdent] $ eError "no match")
+    arm : arms ->
+      case arm of
+        (pat, rhs) ->
+          case pat of
+            PVar i -> ([], ELam [i] rhs)
+            PConstr _ _ ->
+              case findDefault arms of
+                (narms, dflt) -> (arm : narms, dflt)
+
+dsCaseArms :: SymTable -> [Ident] -> [(Ident, Int)] -> Expr -> [ECaseArm] -> Expr -> Exp
+dsCaseArms syms nvs constrs e arms dflt =
+  let
+    nv = head nvs
+    (ev, elet) = asVar nv (dsExpr syms e)
+    --(ed, dlet) = asVar (head (tail nvs)) $ App (dsExpr syms dflt) (Var ev)
+    edflt = EApp dflt (EVar ev)
+
+    rarms = reorderArms constrs arms edflt
+
+    dsArm (PVar _, _) = undefined -- impossible
+    dsArm (PConstr _ ps, rhs) =
+      let
+        vs = take (length ps) (tail nvs)
+        pat (v, p) r = ECase (EVar v) [(p, r), (PVar dummyIdent, EBad)]
+        cr = foldr pat rhs (zip vs ps)
+      in lams vs $ dsExpr (extVals syms (ev:vs)) cr
+
+  in
+    elet $ apps (Var ev) (map dsArm rarms)
+
+asVar :: Ident -> Exp -> (Ident, Exp -> Exp)
+asVar i ae =
+  case ae of
+    Var ii -> (ii, id)
+    _ -> (i, \ e -> App (Lam i e) ae)
+
+reorderArms :: [(Ident, Int)] -> [ECaseArm] -> Expr -> [ECaseArm]
+reorderArms constrs as ed =
+  let arms = [(c, a) | a@(PConstr c _, _) <- as]
+      arm (c, k) =
+        case lookup c arms of
+          Nothing -> (PConstr c (replicate k (PVar dummyIdent)), ed)
+          Just a@(PConstr _ ps, _) ->
+            if length ps == k then a else error $ "bad contructor arity: " ++ show a
+          Just _ -> undefined -- impossible
+  in  map arm constrs
 
 constrType :: Ident -> TypeTable -> TypeDef
 constrType con tys =
@@ -188,8 +260,11 @@ patVars :: EPat -> [Ident]
 patVars (PVar i) = [i]
 patVars (PConstr _ ps) = concatMap patVars ps
 
+newVars :: [Ident] -> [Ident]
+newVars is = [ "nv" ++ show i | i <- [1..] ] \\ is
+
 newVar :: [Ident] -> Ident
-newVar is = head $ [ "nv" ++ show i | i <- [1..] ] \\ is
+newVar = head . newVars
 
 allVarsBind :: EBind -> [Ident]
 allVarsBind (BFcn l e) = allVarsLHS l ++ allVarsExpr e
@@ -219,8 +294,9 @@ allVarsExpr (ESectL e i) = i : allVarsExpr e
 allVarsExpr (ESectR i e) = i : allVarsExpr e
 allVarsExpr (EIf e1 e2 e3) = allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
 allVarsExpr (ECompr e ss) = allVarsExpr e ++ concatMap allVarsStmt ss
+allVarsExpr EBad = []
 
 allVarsStmt :: EStmt -> [Ident]
-allVarsStmt (SBind i e) = i : allVarsExpr e
+allVarsStmt (SBind p e) = allVarsPat p ++ allVarsExpr e
 allVarsStmt (SThen e) = allVarsExpr e
 allVarsStmt (SLet bs) = concatMap allVarsBind bs

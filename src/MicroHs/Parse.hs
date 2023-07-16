@@ -65,11 +65,12 @@ data Expr
   | ESectR Ident Expr
   | EIf Expr Expr Expr
   | ECompr Expr [EStmt]
+  | EBad
   --Xderiving (Show)
 
 type ECaseArm = (EPat, Expr)
 
-data EStmt = SBind Ident Expr | SThen Expr | SLet [EBind]
+data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
   --Xderiving (Show)
 
 data EBind = BFcn LHS Expr | BPat EPat Expr
@@ -109,6 +110,9 @@ untupleConstr s = length s + 1
 
 qual :: Ident -> Ident -> Ident
 qual qi i = qi ++ "." ++ i
+
+esepBy2 :: P a -> P b -> P [a]
+esepBy2 pa pb = (:) <$> (pa <* pb) <*> esepBy1 pa pb
 
 skipWhite :: P a -> P a
 skipWhite p = p <* pWhite
@@ -451,7 +455,7 @@ pPatAtom :: P EPat
 pPatAtom =
       (PVar <$> pLIdent_)
   <|> (pSym '(' *> pPat <* pSym ')')
-  <|> (cTuple <$> (pSym '(' *> esepBy pPat (pSym ',') <* pSym ')'))
+  <|> (cTuple <$> (pSym '(' *> esepBy2 pPat (pSym ',') <* pSym ')'))
   <|> (PConstr <$> pUIdent <*> pure [])
   <|> (PConstr "Nil" [] <$ (pSym '[' <* pSym ']'))   -- Hack for [] = Nil
   <|> (PConstr "Unit" [] <$ (pSym '(' <* pSym ')'))   -- Hack for () = Unit
@@ -538,7 +542,7 @@ pIf = EIf <$> (pKeyword "if" *> pExpr) <*> (pKeyword "then" *> pExpr) <*> (pKeyw
 
 pStmt :: P EStmt
 pStmt =
-      (SBind <$> (pLIdent <* pSymbol "<-") <*> pExpr)
+      (SBind <$> (pPat <* pSymbol "<-") <*> pExpr)
   <|> (SLet  <$> (pKeywordW "let" *> pBlock pBind))
   <|> (SThen <$> pExpr)
 

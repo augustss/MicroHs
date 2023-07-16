@@ -8,6 +8,11 @@ main = do
   putStrLn $ showInt  $ f2 True
 --  putStrLn $ showInt  $ f3 False
   putStrLn $ showList showRGB $ map f4 [R,G,B]
+  putStrLn $ showInt $ f5 [(3,4)]
+  --putStrLn $ showInt $ f6 [(3,4)]
+  putStrLn $ showList showInt $ [ i | Just i <- [Just 1, Nothing, Just 2] ]
+  (x,y) <- return (2,3)
+  putStrLn $ showInt $ x + y
 
 f1 :: Bool -> Bool
 f1 b =
@@ -46,3 +51,17 @@ f4 c =
   case nextRGB c of
     R -> R
     k -> nextRGB k
+
+f5 :: [(Int, Int)] -> Int
+f5 arg =
+  case arg of
+    [] -> 0
+    (x,y) : _ -> x+y
+
+{-
+f6 :: [(Int, Int)] -> Int
+f6 arg =
+  case arg of
+    [] -> 0
+    (x,y) : ((u,v) : _) -> x+y
+-}
