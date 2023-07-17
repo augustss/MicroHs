@@ -21,3 +21,6 @@ fmapMaybe f am =
   case am of
     Nothing -> Nothing
     Just a  -> Just (f a)
+
+catMaybes :: [Maybe a] -> [a]
+catMaybes mxs = [ x | Just x <- mxs ]

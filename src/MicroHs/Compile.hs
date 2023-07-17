@@ -76,19 +76,19 @@ compileModuleCached flags nm = S.do
   case M.lookup eqIdent nm ch of
     Nothing -> S.do
       ws <- gets working
-      when (elemBy eqIdent nm ws) $
+      S.when (elemBy eqIdent nm ws) $
         error $ "recursive module: " ++ showIdent nm
       modify $ \ c -> updWorking (nm : working c) c
-      when (verbose flags > 0) $
+      S.when (verbose flags > 0) $
         liftIO $ putStrLn $ "importing " ++ showIdent nm
       cm <- compileModule flags nm
-      when (verbose flags > 0) $
+      S.when (verbose flags > 0) $
         liftIO $ putStrLn $ "importing done " ++ showIdent nm
       c <- get
       put $ Cache (tail (working c)) (M.insert nm cm (cache c))
       S.return cm
     Just cm -> S.do
-      when (verbose flags > 0) $
+      S.when (verbose flags > 0) $
         liftIO $ putStrLn $ "importing cached " ++ showIdent nm
       S.return cm
 
@@ -99,7 +99,7 @@ compileModule flags nm = S.do
   mdl <- S.fmap (parseDie pTop fn) (liftIO (readFilePath (paths flags) fn))
   let
     EModule nmn _ defs = mdl
-  when (not (eqIdent nm nmn)) $
+  S.when (not (eqIdent nm nmn)) $
     error $ "module name does not agree with file name: " ++ showIdent nm
   let
     specs = [ s | Import s <- defs ]

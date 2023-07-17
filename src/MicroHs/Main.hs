@@ -1,44 +1,52 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-import Control.Monad
-import Data.List
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
+module MicroHs.Main(module MicroHs.Main) where
+import Prelude
 import qualified MicroHs.Map as M
 import Data.Maybe
-import System.Environment(getArgs)
+import System.Environment
 import MicroHs.Parse
 import MicroHs.Exp
 import MicroHs.Compile
-import MicroHs.Translate
-import MicroHs.Desugar(LDef)
-import Compat
+--import MicroHs.Translate
+import MicroHs.Desugar
+--Ximport Compat
 
 main :: IO ()
 main = do
   args <- getArgs
-  let mn = case filter ((/= "-") . take 1) args of
-             [s] -> s
-             _ -> error "Usage: uhs [-v] [-iPATH] ModuleName"
-      flags = Flags (length (filter (eqString "-v") args))
-                    (elemBy eqString "-r" args)
-                    ("." : catMaybes (map (stripPrefix "-i") args))
-  cmdl@(mainName, ds) <- compileTop flags mn
-  let defs :: M.Map Ident Exp
-      defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds [0..] ]
-      findIdent n = fromMaybe (error $ "undefined: " ++ show n) $ M.lookup eqString n defs
-      emain = findIdent mainName
-      subst (Var n) = findIdent n
-      subst (App f a) = App (subst f) (subst a)
-      subst e = e
-      def :: ((Ident, Exp), Int) -> String -> String
-      def ((_, e), i) r = "(($T :" ++ showInt i ++ " " ++ toStringP (subst e) ++ ") " ++ r ++ ")"
+  let
+    mn =
+      let
+        ss = filter (not . (eqString "-") . take 1) args
+      in   if length ss == 1 then head ss else error "Usage: uhs [-v] [-r] [-iPATH] ModuleName"
+    flags = Flags (length (filter (eqString "-v") args))
+                  (elemBy eqString "-r" args)
+                  ("." : catMaybes (map (stripPrefixBy eqChar "-i") args))
+  cmdl <- compileTop flags mn
+  let
+    (mainName, ds) = cmdl
+    ref i = Var $ "_" ++ showInt i
+    defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds (enumFrom 0) ]
+    findIdent n = fromMaybe (error $ "undefined: " ++ showIdent n) $ M.lookup eqString n defs
+    emain = findIdent mainName
+    subst aexp =
+      case aexp of
+        Var n -> findIdent n
+        App f a -> App (subst f) (subst a)
+        e -> e
+    --def :: ((Ident, Exp), Int) -> String -> String
+    def d r =
+      case d of
+        ((_, e), i) -> "(($T :" ++ showInt i ++ " " ++ toStringP (subst e) ++ ") " ++ r ++ ")"
         -- App2 CT (Lbl i (subst e)) r
-      ref i = Var $ "_" ++ showInt i
-      res = foldr def (toStringP emain) (zip ds (enumFrom 0))
-  when (verbose flags > 1) $ do
-    mapM_ (\ (i, e) -> putStrLn $  i ++ " = " ++ toStringP e) ds
-    --putStrLn $ toStringP res
+    res = foldr def (toStringP emain) (zip ds (enumFrom 0))
+  when (verbose flags > 1) $
+    mapM_ (\ ie -> case ie of { (i, e) -> putStrLn $ i ++ " = " ++ toStringP e}) ds
   if runIt flags then do
-    let prg = translate cmdl
+    let
+      prg = undefined -- translate cmdl
     putStrLn "Run:"
     prg
     putStrLn "done"
@@ -50,5 +58,6 @@ type CModule = (Ident, [LDef])
 compileTop :: Flags -> IdentModule -> IO CModule
 compileTop flags mn = do
   ds <- compile flags mn
-  let ds' = [ (n, compileOpt e) | (n, e) <- ds ]
-  return (qual mn "main", ds')
+  let
+    dsn = [ (n, compileOpt e) | (n, e) <- ds ]
+  return (qual mn "main", dsn)

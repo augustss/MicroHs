@@ -94,6 +94,9 @@ mapM_ f =
           rec as
   in rec
 
+when :: Bool -> IO () -> IO ()
+when b io = if b then io else return ()
+
 putStr :: String -> IO ()
 putStr = hPutStr stdout
 

@@ -19,7 +19,7 @@ $(BIN)/eval:	src/runtime/eval.c
 	$(GCC) -Wall -O3 src/runtime/eval.c -o $(BIN)/eval
 
 $(BIN)/uhs:	src/*/*.hs convertX.sh
-	$(GHCE) -package mtl -isrc -Wall -O src/MicroHs/Main.hs -o $(BIN)/uhs
+	$(GHCE) -package mtl -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/uhs
 
 trtest:	$(BIN)/uhs
 	$(BIN)/uhs -ilib Main
@@ -38,8 +38,9 @@ $(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs src/*/*.hs Main.hs
 	$(GHCC) -c lib/Data/Function.hs
 	$(GHCC) -c lib/Data/Maybe.hs
 	$(GHCC) -c lib/Data/List.hs
-	$(GHCC) -c lib/System/IO.hs
 	$(GHCC) -c lib/Text/String.hs
+	$(GHCC) -c lib/System/IO.hs
+	$(GHCC) -c lib/System/Environment.hs
 	$(GHCC) -c lib/Prelude.hs
 	$(GHCC) -c lib/PreludeNoIO.hs
 	$(GHCC) -c src/Text/ParserComb.hs
@@ -49,12 +50,12 @@ $(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs src/*/*.hs Main.hs
 	$(GHCC) -c src/MicroHs/Desugar.hs
 	$(GHCC) -c src/MicroHs/StateIO.hs
 	$(GHCC) -c src/MicroHs/Compile.hs
-	$(GHCC) -c Main.hs
+	$(GHCC) -c -main-is MicroHs.Main src/MicroHs/Main.hs
 	$(GHC) -o $(BIN)/tr $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
 
 # Test Haskell version with local libraries
 boottest:	$(BIN)/tr
-	$(BIN)/tr
+	$(BIN)/tr -v -v T
 
 # Test normal Haskell version
 test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
