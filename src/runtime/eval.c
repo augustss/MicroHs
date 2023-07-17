@@ -1017,7 +1017,7 @@ main(int argc, char **argv)
     else if (strcmp(argv[-1], "--") == 0)
       break;
     else
-      ERR("Bad flag");
+      ERR("Usage: eval [-v] [-Hheap-size] [-rFILE] [-- arg ...]");
   }
   glob_argc = argc;
   glob_argv = argv;
