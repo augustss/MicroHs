@@ -24,7 +24,7 @@ enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
                 IO_SERIALIZE, IO_DESERIALIZE,
                 IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE,
                 IO_STDIN, IO_STDOUT, IO_STDERR,
-                IO_GETARGS,
+                IO_GETARGS, IO_PERFORMIO,
 };
 
 typedef int64_t value_t;
@@ -209,6 +209,7 @@ struct {
   { "IO.stdout", IO_STDOUT },
   { "IO.stderr", IO_STDERR },
   { "IO.getArgs", IO_GETARGS },
+  { "IO.performIO", IO_PERFORMIO },
 };
 
 void
@@ -530,6 +531,7 @@ printrec(FILE *f, NODEPTR n)
   case IO_CLOSE: fprintf(f, "$IO.close"); break;
   case IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
   case IO_GETARGS: fprintf(f, "$IO.getArgs"); break;
+  case IO_PERFORMIO: fprintf(f, "$IO.performIO"); break;
   default: ERR("print tag");
   }
 }
@@ -668,6 +670,8 @@ evalstring(NODEPTR n)
   *p = 0;
   return name;
 }
+
+NODEPTR evalio(NODEPTR n);
 
 /* Evaluate a node, returns when the node is in WHNF. */
 void
@@ -880,6 +884,13 @@ eval(NODEPTR n)
     case IO_CLOSE:
     case IO_GETARGS:
       RET;
+    case IO_PERFORMIO:
+      CHECK(1);
+      x = evalio(ARG(TOP(1)));
+      n = TOP(1);
+      SETIND(n, x);
+      POP(1);
+      GOTO ind;
     default:
       fprintf(stderr, "bad tag %d\n", TAG(n));
       ERR("eval tag");

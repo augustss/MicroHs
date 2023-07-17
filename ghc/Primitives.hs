@@ -6,6 +6,7 @@ module Primitives(
   Handle,
   ) where
 import System.IO
+import System.IO.Unsafe
 import System.Environment
 
 primIntAdd :: Int -> Int -> Int
@@ -78,3 +79,5 @@ primStdin         = stdin
 primStdout        = stdout
 primStderr        = stderr
 primGetArgs       = getArgs
+primPerformIO    :: IO a -> a
+primPerformIO     = unsafePerformIO
