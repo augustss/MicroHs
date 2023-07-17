@@ -1,6 +1,7 @@
 module IOTest(module IOTest) where
 import Prelude
 import System.IO as IO
+import System.Environment
 import Debug.Trace
 
 f x = x*2+1
@@ -35,3 +36,5 @@ main = do
   putStrLn $ showInt $ g 5
   foo
   putStrLn $ showInt $ trace "tracing" 5
+  as <- getArgs
+  putStrLn $ showList showString as

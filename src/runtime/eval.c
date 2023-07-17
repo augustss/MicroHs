@@ -1038,10 +1038,12 @@ evalio(NODEPTR n)
         /* The returned list will need a CONS for each string, and a NIL */
         size += glob_argc * 2 + 1;
         GCCHECK(size);
+        /*
         printf("total size %d:", size);
         for(int i = 0; i < glob_argc; i++)
           printf(" %s", glob_argv[i]);
         printf("\n");
+        */
         n = mkNil();
         for(int i = glob_argc-1; i >= 0; i--) {
           n = mkCons(mkString(glob_argv[i]), n);
