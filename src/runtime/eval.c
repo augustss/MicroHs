@@ -135,6 +135,8 @@ NODEPTR next_free;              /* Free list */
 int glob_argc;
 char **glob_argv;
 
+int verbose = 0;
+
 NODEPTR
 alloc_node(enum node_tag t)
 {
@@ -317,26 +319,32 @@ gc(void)
 {
   num_gc++;
   num_marked = 0;
-  // fprintf(stderr, "gc mark\n");
+  if (verbose)
+    fprintf(stderr, "gc mark\n");
   for (int i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
-  // fprintf(stderr, "gc scan\n");
+  if (verbose)
+    fprintf(stderr, "gc scan\n");
   scan();
 
   if (num_marked > max_num_marked)
     max_num_marked = num_marked;
-  //  fprintf(stderr, "gc done, %d free\n", heap_size - heap_start - num_marked);
+  if (verbose)
+    fprintf(stderr, "gc done, %ld free\n", (long)(heap_size - heap_start - num_marked));
 }
 
 /* Check that there are k nodes available, if not then GC. */
 void
-gc_check(int k)
+gc_check(int kk)
 {
   NODEPTR n;
-  for (n = next_free; n != NIL && k > 0; n = NEXT(n), k--)
+  int k;
+  for (k = kk, n = next_free; n != NIL && k > 0; n = NEXT(n), k--)
     ;
   if (n != NIL)
     return;
+  if (verbose)
+    fprintf(stderr, "gc_check: %d\n", kk);
   gc();
 }
 
@@ -1060,7 +1068,6 @@ evalio(NODEPTR n)
 int
 main(int argc, char **argv)
 {
-  int verbose = 0;
   char *fn = 0;
   
   argc--, argv++;
