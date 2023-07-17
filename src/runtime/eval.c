@@ -159,7 +159,7 @@ new_ap(NODEPTR f, NODEPTR a)
 }
 
 /* Needed during reduction */
-NODEPTR combK, combT, combI;
+NODEPTR combK, combT, combI, combO;
 
 /* One node of each kind for primitives, these are never GCd */
 struct {
@@ -227,6 +227,7 @@ init_nodes(void)
     case K: combK = n; break;
     case T: combT = n; break;
     case I: combI = n; break;
+    case O: combO = n; break;
     case IO_STDIN:  TAG(n) = HDL; HANDLE(n) = stdin;  break;
     case IO_STDOUT: TAG(n) = HDL; HANDLE(n) = stdout; break;
     case IO_STDERR: TAG(n) = HDL; HANDLE(n) = stderr; break;
@@ -886,6 +887,32 @@ eval(NODEPTR n)
   }
 }
 
+NODEPTR
+mkNil(void)
+{
+  return combK;
+}
+
+NODEPTR
+mkCons(NODEPTR x, NODEPTR xs)
+{
+  return new_ap(new_ap(combO, x), xs);
+}
+
+NODEPTR
+mkString(const char *str)
+{
+  NODEPTR n, nc;
+
+  n = mkNil();
+  for(int i = strlen(str)-1; i >= 0; i--) {
+    nc = alloc_node(INT);
+    SETVALUE(nc, str[i]);
+    n = mkCons(nc, n);
+  }
+  return n;
+}
+
 /* This is the interpreter for the IO monad operations. */
 /* It takes a monadic expression and returns the unwrapped expression (unevaluated). */
 NODEPTR
@@ -985,12 +1012,31 @@ evalio(NODEPTR n)
       GCCHECK(1);
       n = alloc_node(HDL);
       HANDLE(n) = hdl;
-      stack_ptr = stk;
-      return (n);
-      //RETIO(n);
+      RETIO(n);
     case IO_GETARGS:
       CHECKIO(0);
-      ERR("IO_GETARGS not implemented");
+      {
+      /* compute total number of characters */
+        int size = 0;
+        for(int i = 0; i < glob_argc; i++)
+          size += strlen(glob_argv[i]);
+        /* Each character will need a CHAR node and a CONS node, a CONS uses 2 AP nodes */
+        size *= (1 + 2);
+        /* And each string will need a NIL */
+        size += glob_argc;
+        /* The returned list will need a CONS for each string, and a NIL */
+        size += glob_argc * 2 + 1;
+        GCCHECK(size);
+        printf("total size %d:", size);
+        for(int i = 0; i < glob_argc; i++)
+          printf(" %s", glob_argv[i]);
+        printf("\n");
+        n = mkNil();
+        for(int i = glob_argc-1; i >= 0; i--) {
+          n = mkCons(mkString(glob_argv[i]), n);
+        }
+      }
+      RETIO(n);
     default:
       fprintf(stderr, "bad tag %d\n", TAG(n));
       ERR("evalio tag");
