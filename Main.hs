@@ -1,6 +1,8 @@
 module Main(module Main) where
 import Prelude
 import MicroHs.Parse
+import MicroHs.Desugar
+import MicroHs.Exp
 
 main :: IO ()
 main = do
@@ -12,7 +14,9 @@ main = do
   --putStrLn file
   let
     p = parseDie pTop fn file
+    _d = desugar [] p
   putStrLn (showEModule p)
+  --putStrLn (toStringP d)
 
 showEModule :: EModule -> String
 showEModule am =

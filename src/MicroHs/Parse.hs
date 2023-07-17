@@ -432,7 +432,9 @@ pAExpr =
   <|> (EInt <$> pInt)
   <|> (EChar <$> pChar)
   <|> (EStr <$> pString)
-  <|> (ETuple <$> (pSym '(' *> esepBy pExpr (pSym ',') <* pSym ')'))
+  <|> (ETuple [] <$ (pSym '(' <* pSym ')')
+  <|> (pSym '(' *> pExpr <* pSym ')'))
+  <|> (ETuple <$> (pSym '(' *> esepBy2 pExpr (pSym ',') <* pSym ')'))
   <|> (EList <$> (pSym '[' *> esepBy pExpr (pSym ',') <* pSym ']'))
   <|> (EPrim <$> (pKeyword "primitive" *> pString))
   <|> (ESectL <$> (pSym '(' *> pExprArg) <*> (pOper <* pSym ')'))
@@ -486,7 +488,7 @@ pExprOp =
   let
     p10 = pExprArg
     p9 = pRightAssoc (pOpers ["."]) $
-         pLeftAssoc  (pOpers ["?"]) p10
+         pLeftAssoc  (pOpers ["?", "!!"]) p10
     p8 = p9
     p7 = pLeftAssoc  (pOpers ["*", "quot", "rem"]) p8
     p6 = pLeftAssoc  (pOpers ["+", "-"]) p7
