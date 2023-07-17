@@ -269,28 +269,25 @@ pExportSpec :: P ExportSpec
 pExportSpec = ExpModule <$> (pKeyword "module" *> pUIdent)
 
 pKeyword :: String -> P ()
-pKeyword kw = skipWhite (
+pKeyword kw = skipWhite $
   P.do
     s <- pWord
     guard (eqString kw s)
     pure ()
-  )
 
 pKeywordW :: String -> P ()
-pKeywordW kw = skipWhiteW (
+pKeywordW kw = skipWhiteW $
   P.do
     s <- pWord
     guard (eqString kw s)
     pure ()
-  )
 
 pLIdentA :: P String
-pLIdentA = skipWhite (
+pLIdentA = skipWhite $
   P.do
     s <- pQIdent
     guard $ isLower $ head s
     pure s
-  )
 
 pLIdent :: P String
 pLIdent = pLIdentA <|> (pSym '(' *> pOperL <* pSym ')')
@@ -299,12 +296,11 @@ pLIdent_ :: P String
 pLIdent_ = pLIdent <|> skipWhite (string "_")
 
 pUIdentA :: P String
-pUIdentA = skipWhite (
+pUIdentA = skipWhite $
   P.do
     s <- pQIdent
     guard $ isUpper $ head s
     pure s
-  )
 
 pUIdent :: P String
 pUIdent = pUIdentA <|> (pSym '(' *> pOperU <* pSym ')')
@@ -314,9 +310,9 @@ keywords = ["case", "data", "do", "else", "if", "import",
   "in", "let", "module", "of", "primitive", "then", "type", "where"]
 
 pWord :: P String
-pWord = (:) <$> satisfy "letter" isLetter <*>
+pWord = (:) <$> satisfy "letter" isAlpha <*>
                 (emany $ satisfy "letter, digit" $ \ c ->
-                    isLetter c || isDigit c ||
+                    isAlpha c || isDigit c ||
                     eqChar c '_' || eqChar c '\'')
 
 pIdent :: P String
@@ -495,7 +491,8 @@ pExprOp :: P Expr
 pExprOp =
   let
     p10 = pExprArg
-    p9 = pRightAssoc (pOpers ["."]) $
+    p9 = --pRightAssoc (pOpers ["."]) $
+         pRightAssoc (pDot) $
          pLeftAssoc  (pOpers ["?", "!!"]) p10
     p8 = p9
     p7 = pLeftAssoc  (pOpers ["*", "quot", "rem"]) p8
@@ -509,6 +506,13 @@ pExprOp =
     p1 = pLeftAssoc  (pOpers [">>=", ">>"]) p2
     p0 = pRightAssoc (pOpers ["$", "->"]) p1   -- XXX where should -> be?
   in  p0
+
+-- A hack so that the . operator is not followed by a letter
+pDot :: P String
+pDot = skipWhite $ P.do
+  char '.'
+  notFollowedBy (satisfy "not alpha" isAlpha)
+  pure "."
 
 appOp :: String -> Expr -> Expr -> Expr
 appOp op e1 e2 = EApp (EApp (EVar op) e1) e2
@@ -542,10 +546,10 @@ pLeftAssoc pOp p = P.do
   pure $ foldl (\ x opy -> appOp (fst opy) x (snd opy)) e1 es
 
 pExprArg :: P Expr
-pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pIf
+pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pIf <|> pDo
 
 pExpr :: P Expr
-pExpr = pExprOp <|> pDo
+pExpr = pExprOp
 
 pDo :: P Expr
 pDo = EDo <$> ((Just <$> pQualDo) <|< (Nothing <$ pKeywordW "do")) <*> pBlock pStmt

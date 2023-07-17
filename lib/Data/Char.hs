@@ -20,8 +20,8 @@ isLower c = (ord 'a' <= ord c) && (ord c <= ord 'z')
 isUpper :: Char -> Bool
 isUpper c = (ord 'A' <= ord c) && (ord c <= ord 'Z')
 
-isLetter :: Char -> Bool
-isLetter c = isLower c || isUpper c
+isAlpha :: Char -> Bool
+isAlpha c = isLower c || isUpper c
 
 isDigit :: Char -> Bool
 isDigit c = (ord '0' <= ord c) && (ord c <= ord '9')
