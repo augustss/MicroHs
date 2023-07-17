@@ -236,6 +236,18 @@ repeat x =
 deleteFirstsBy :: (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteFirstsBy eq = foldl (flip (deleteBy eq))
 
+(!!) :: Int -> [a] -> a
+(!!) i =
+  if i < 0 then
+    error "!!: <0"
+  else
+    let
+      nth n axs =
+        case axs of
+          [] -> error "!!: empty"
+          x:xs -> if n == 0 then x else nth (n-1) xs
+    in nth i
+
 eqList :: (a -> a -> Bool) -> [a] -> [a] -> Bool
 eqList eq axs ays =
   case axs of
