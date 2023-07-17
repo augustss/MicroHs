@@ -103,12 +103,12 @@ toStringP ae =
     App f a -> "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
 
 compileOpt :: Exp -> Exp
-compileOpt = improveT . compile
+compileOpt = improveT . compileExp
 
-compile :: Exp -> Exp
-compile ae =
+compileExp :: Exp -> Exp
+compileExp ae =
   case ae of
-    App f a -> App (compile f) (compile a)
+    App f a -> App (compileExp f) (compileExp a)
     Lam x a -> abstract x a
     _       -> ae
 

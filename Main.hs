@@ -1,12 +1,12 @@
 module Main(module Main) where
 import Prelude
 import MicroHs.Parse
-import MicroHs.Desugar
-import MicroHs.Exp
+import MicroHs.Compile
 
 main :: IO ()
 main = do
   putStrLn "Start"
+{-
   let
     fn = "t.hs"
   file <- readFile fn
@@ -16,7 +16,13 @@ main = do
     p = parseDie pTop fn file
     _d = desugar [] p
   putStrLn (showEModule p)
+-}
+  let
+    flags = Flags 0 False ["."]
+  defs <- compile flags "T"
+  putStrLn $ showInt $ length defs
   --putStrLn (toStringP d)
+  --hSerialize stdout d
 
 showEModule :: EModule -> String
 showEModule am =

@@ -1,78 +1,126 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module MicroHs.Compile where
-import Control.Exception
-import Control.Monad
-import Control.Monad.State.Strict
-import qualified Data.Map as M
-import System.IO
+{-# LANGUAGE QualifiedDo #-}
+module MicroHs.Compile(module MicroHs.Compile) where
+import Prelude --Xhiding (Monad(..), mapM, showString)
+import qualified System.IO as IO
+--Ximport Compat
+--Ximport qualified CompatIO as IO
 
+import qualified MicroHs.Map as M
+import MicroHs.StateIO as S
 import MicroHs.Desugar
 import MicroHs.Parse
 
-data Flags = Flags {
-  verbose :: Bool,
-  runIt   :: Bool,
-  paths   :: [FilePath]
-  }
-  deriving (Show)
+data Flags = Flags Int Bool [String]
+  --Xderiving (Show)
 
-data Cache = Cache
-  { working :: [IdentModule]
-  , cache   :: M.Map IdentModule Module
-  }
-  deriving (Show)
+verbose :: Flags -> Int
+verbose f =
+  case f of
+    Flags x _ _ -> x
+
+runIt :: Flags -> Bool
+runIt f =
+  case f of
+    Flags _ x _ -> x
+
+paths :: Flags -> [String]
+paths f =
+  case f of
+    Flags _ _ x -> x
+
+-----------------
+
+data Cache = Cache [IdentModule] (M.Map IdentModule Module)
+  --Xderiving (Show)
+
+working :: Cache -> [IdentModule]
+working c =
+  case c of
+    Cache x _ -> x
+
+updWorking :: [IdentModule] -> Cache -> Cache
+updWorking w c =
+  case c of
+    Cache _ m -> Cache w m
+
+cache :: Cache -> M.Map IdentModule Module
+cache c =
+  case c of
+    Cache _ x -> x
+
+{-
+updCache :: M.Map IdentModule Module -> Cache -> Cache
+updCache x c =
+  case c of
+    Cache w _ -> Cache w x
+-}
+
+-----------------
+
+-----------------
 
 compile :: Flags -> IdentModule -> IO [LDef]
-compile flags nm = do
-  ch <- execStateT (compileModuleCached flags nm) Cache{ working = [], cache = M.empty }
-  let defs (Module _ _ _ ds) = ds
-  pure $ concatMap defs $ M.elems $ cache ch
+compile flags nm = IO.do
+  ch <- execStateIO (compileModuleCached flags nm) (Cache [] M.empty)
+  let
+    defs m =
+      case m of
+        Module _ _ _ ds -> ds
+  IO.return $ concatMap defs $ M.elems $ cache ch
 
-compileModuleCached :: Flags -> IdentModule -> StateT Cache IO Module
-compileModuleCached flags nm = do
+compileModuleCached :: Flags -> IdentModule -> StateIO Cache Module
+compileModuleCached flags nm = S.do
   ch <- gets cache
-  case M.lookup nm ch of
-    Nothing -> do
+  case M.lookup eqIdent nm ch of
+    Nothing -> S.do
       ws <- gets working
-      when (nm `elem` ws) $
-        error $ "recursive module: " ++ show nm
-      modify $ \ c -> c { working = nm : working c }
-      when (verbose flags) $
-        liftIO $ putStrLn $ "importing " ++ show nm
+      when (elemBy eqIdent nm ws) $
+        error $ "recursive module: " ++ showIdent nm
+      modify $ \ c -> updWorking (nm : working c) c
+      when (verbose flags > 0) $
+        liftIO $ putStrLn $ "importing " ++ showIdent nm
       cm <- compileModule flags nm
-      when (verbose flags) $
-        liftIO $ putStrLn $ "importing done " ++ show nm
-      modify $ \ c -> c { working = tail (working c), cache = M.insert nm cm (cache c) }
-      pure cm
-    Just cm -> do
-      when (verbose flags) $
-        liftIO $ putStrLn $ "importing cached " ++ show nm
-      pure cm
+      when (verbose flags > 0) $
+        liftIO $ putStrLn $ "importing done " ++ showIdent nm
+      c <- get
+      put $ Cache (tail (working c)) (M.insert nm cm (cache c))
+      S.return cm
+    Just cm -> S.do
+      when (verbose flags > 0) $
+        liftIO $ putStrLn $ "importing cached " ++ showIdent nm
+      S.return cm
 
-compileModule :: Flags -> IdentModule -> StateT Cache IO Module
-compileModule flags nm = do
-  let fn = map (\ c -> if c == '.' then '/' else c) nm ++ ".hs"
-  mdl@(EModule nm' _ defs) <- parseDie pTop fn <$> liftIO (readFilePath (paths flags) fn)
-  when (nm /= nm') $
-    error $ "module name does not agree with file name: " ++ show nm
-  let specs = [ s | Import s <- defs ]
-  impMdls <- mapM (compileModuleCached flags) [ m | ImportSpec _ m _ <- specs ]
-  pure $ desugar (zip specs impMdls) mdl
+compileModule :: Flags -> IdentModule -> StateIO Cache Module
+compileModule flags nm = S.do
+  let
+    fn = map (\ c -> if eqChar c '.' then '/' else c) nm ++ ".hs"
+  mdl <- S.fmap (parseDie pTop fn) (liftIO (readFilePath (paths flags) fn))
+  let
+    EModule nmn _ defs = mdl
+  when (not (eqIdent nm nmn)) $
+    error $ "module name does not agree with file name: " ++ showIdent nm
+  let
+    specs = [ s | Import s <- defs ]
+  impMdls <- S.mapM (compileModuleCached flags) [ m | ImportSpec _ m _ <- specs ]
+  S.return $ desugar (zip specs impMdls) mdl
 
 ------------------
 
-readFilePath :: [FilePath] -> String -> IO String
-readFilePath path name = hGetContents =<< openFilePath path name
+readFilePath :: [String] -> String -> IO String
+readFilePath path name = IO.do
+  h <- openFilePath path name
+  IO.hGetContents h
 
-tryOpenFile :: FilePath -> IO (Either IOError Handle)
-tryOpenFile path = try $ openFile path ReadMode
-
-openFilePath :: [FilePath] -> String -> IO Handle
-openFilePath [] fileName = error $ "File not found: " ++ show fileName
-openFilePath (dir:dirs) fileName = do
-    let path = dir ++ "/" ++ fileName
-    result <- tryOpenFile path
-    case result of
-        Left _ -> openFilePath dirs fileName -- If opening failed, try the next directory
-        Right hdl -> return hdl
+openFilePath :: [String] -> String -> IO IO.Handle
+openFilePath adirs fileName =
+  case adirs of
+    [] -> error $ "File not found: " ++ showString fileName
+    dir:dirs -> IO.do
+      let
+        path = dir ++ "/" ++ fileName
+      mh <- openFileM path IO.ReadMode
+      case mh of
+        Nothing -> openFilePath dirs fileName -- If opening failed, try the next directory
+        Just hdl -> IO.return hdl

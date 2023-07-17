@@ -6,7 +6,7 @@ import qualified MicroHs.Map as M
 import Data.Maybe
 import System.Environment(getArgs)
 import MicroHs.Parse
-import MicroHs.Exp hiding (compile)
+import MicroHs.Exp
 import MicroHs.Compile
 import MicroHs.Translate
 import MicroHs.Desugar(LDef)
@@ -18,10 +18,9 @@ main = do
   let mn = case filter ((/= "-") . take 1) args of
              [s] -> s
              _ -> error "Usage: uhs [-v] [-iPATH] ModuleName"
-      flags = Flags { verbose = "-v" `elem` args,
-                      runIt   = "-r" `elem` args,
-                      paths   = "." : catMaybes (map (stripPrefix "-i") args)
-                    }
+      flags = Flags (length (filter (eqString "-v") args))
+                    (elemBy eqString "-r" args)
+                    ("." : catMaybes (map (stripPrefix "-i") args))
   cmdl@(mainName, ds) <- compileTop flags mn
   let defs :: M.Map Ident Exp
       defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds [0..] ]
@@ -35,7 +34,7 @@ main = do
         -- App2 CT (Lbl i (subst e)) r
       ref i = Var $ "_" ++ showInt i
       res = foldr def (toStringP emain) (zip ds (enumFrom 0))
-  when (verbose flags) $ do
+  when (verbose flags > 1) $ do
     mapM_ (\ (i, e) -> putStrLn $  i ++ " = " ++ toStringP e) ds
     --putStrLn $ toStringP res
   if runIt flags then do

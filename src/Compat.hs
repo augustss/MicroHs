@@ -1,7 +1,10 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
+-- Functions for GHC that are defined in the UHS libs.
 module Compat(module Compat) where
+import Control.Exception
 import Data.List
+import System.IO
 
 -- Functions needed for ghc
 eqChar :: Char -> Char -> Bool
@@ -66,3 +69,10 @@ eqPair eqa eqb ab1 ab2 =
 
 eqInt :: Int -> Int -> Bool
 eqInt = (==)
+
+openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
+openFileM path m = do
+  r <- (try $ openFile path m) :: IO (Either IOError Handle)
+  case r of
+    Left _ -> return Nothing
+    Right h -> return (Just h)
