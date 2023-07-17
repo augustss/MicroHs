@@ -7,6 +7,7 @@ import Data.Bool
 import Data.Char
 import Data.Int
 import Data.List
+import Data.Maybe
 
 type IO = P.IO
 type Handle = P.Handle
@@ -25,7 +26,7 @@ return      :: a -> IO a
 return       = P.primReturn
 
 hSerialize   = P.primHSerialize
-hdeserialize = P.primHDeserialize
+hDeserialize = P.primHDeserialize
 hClose       = P.primHClose
 stdin        = P.primStdin
 stdout       = P.primStdout
@@ -40,8 +41,8 @@ hGetChar h = do
 
 hPutChar h c = P.primHPutChar h (ord c)
 
-openFile :: String -> IOMode -> IO Handle
-openFile p m = do
+openFileM :: String -> IOMode -> IO (Maybe Handle)
+openFileM p m = do
   let {
     n = case m of
           ReadMode -> 0
@@ -51,8 +52,15 @@ openFile p m = do
     }
   hdl <- P.primOpenFile p n
   case P.primIsNullHandle hdl of
-    False -> return hdl
-    True  -> error ("openFile: cannot open " ++ p)
+    False -> return (Just hdl)
+    True  -> return Nothing
+
+openFile :: String -> IOMode -> IO Handle
+openFile p m = do
+  mh <- openFileM p m
+  case mh of
+    Nothing -> error ("openFile: cannot open " ++ p)
+    Just h -> return h
 
 putChar :: Char -> IO ()
 putChar = hPutChar stdout
@@ -129,6 +137,6 @@ writeSerialized p s = do
 readSerialized :: String -> IO a
 readSerialized p = do
   h <- openFile p ReadMode
-  a <- hdeserialize h
+  a <- hDeserialize h
   hClose h
   return a
