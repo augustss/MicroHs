@@ -93,5 +93,8 @@ readInt =
 unlines :: [String] -> String
 unlines = concatMap (++ "\n")
 
+unwords :: [String] -> String
+unwords ss = concat (intersperse " " ss)
+
 eqString :: String -> String -> Bool
 eqString axs ays = (length axs == length ays) && and (zipWith eqChar axs ays)
