@@ -114,9 +114,6 @@ untupleConstr s = length s + 1
 qual :: Ident -> Ident -> Ident
 qual qi i = qi ++ "." ++ i
 
-esepBy2 :: P a -> P b -> P [a]
-esepBy2 pa pb = (:) <$> (pa <* pb) <*> esepBy1 pa pb
-
 skipWhite :: P a -> P a
 skipWhite p = p <* pWhite
 
@@ -432,14 +429,21 @@ pAExpr =
   <|> (EInt <$> pInt)
   <|> (EChar <$> pChar)
   <|> (EStr <$> pString)
-  <|> (ETuple [] <$ (pSym '(' <* pSym ')')
-  <|> (pSym '(' *> pExpr <* pSym ')'))
-  <|> (ETuple <$> (pSym '(' *> esepBy2 pExpr (pSym ',') <* pSym ')'))
+  <|> (eTuple <$> (pSym '(' *> esepBy pExpr (pSym ',') <* pSym ')'))
   <|> (EList <$> (pSym '[' *> esepBy pExpr (pSym ',') <* pSym ']'))
   <|> (EPrim <$> (pKeyword "primitive" *> pString))
   <|> (ESectL <$> (pSym '(' *> pExprArg) <*> (pOper <* pSym ')'))
   <|> (ESectR <$> (pSym '(' *> pOper) <*> (pExprArg <* pSym ')'))
   <|> (ECompr <$> (pSym '[' *> pExpr <* pSym '|') <*> (esepBy1 pStmt (pSym ',') <* pSym ']'))
+
+eTuple :: [Expr] -> Expr
+eTuple aes =
+  case aes of
+    [] -> ETuple aes
+    e:es ->
+      case es of
+        [] -> e
+        _ -> ETuple aes
 
 pExprApp :: P Expr
 pExprApp = P.do
@@ -456,20 +460,18 @@ pCase =
     pArm = pair <$> (pPat <* pSymbol "->") <*> pExpr
   in  ECase <$> (pKeyword "case" *> pExpr) <*> (pKeywordW "of" *> pBlock pArm)
 
-pPatAtom :: P EPat
-pPatAtom =
+pAPat :: P EPat
+pAPat =
       (PVar <$> pLIdent_)
-  <|> (pSym '(' *> pPat <* pSym ')')
-  <|> (cTuple <$> (pSym '(' *> esepBy2 pPat (pSym ',') <* pSym ')'))
+  <|> (cTuple <$> (pSym '(' *> esepBy pPat (pSym ',') <* pSym ')'))
   <|> (PConstr <$> pUIdent <*> pure [])
   <|> (PConstr "Nil" [] <$ (pSym '[' <* pSym ']'))   -- Hack for [] = Nil
-  <|> (PConstr "Unit" [] <$ (pSym '(' <* pSym ')'))   -- Hack for () = Unit
 
 pPat :: P EPat
 pPat =
-      pPatAtom
-  <|> (PConstr <$> pUIdent <*> esome pPatAtom)
-  <|> ((\ x s y -> PConstr s [x,y]) <$> pPatAtom <*> pOperU <*> pPatAtom)
+      pAPat
+  <|> (PConstr <$> pUIdent <*> esome pAPat)
+  <|> ((\ x s y -> PConstr s [x,y]) <$> pAPat <*> pOperU <*> pAPat)
 
 pPatC :: P EPat
 pPatC = P.do
@@ -478,7 +480,13 @@ pPatC = P.do
   pure p
 
 cTuple :: [EPat] -> EPat
-cTuple xs = PConstr (tupleConstr (length xs)) xs
+cTuple aps =
+  case aps of
+    [] -> PConstr "Unit" []  -- Hack for () = Unit
+    p:ps ->
+      case ps of
+        [] -> p
+        _ -> PConstr (tupleConstr (length aps)) aps
 
 pLet :: P Expr
 pLet = ELet <$> (pKeywordW "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)
