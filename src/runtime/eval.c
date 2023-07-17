@@ -665,6 +665,7 @@ evalstring(NODEPTR n)
   size_t sz = 10000;
   char *p, *name = malloc(sz);
   value_t c;
+  NODEPTR x;
 
   if (!name)
     ERR("evalstring malloc");
@@ -674,8 +675,8 @@ evalstring(NODEPTR n)
     n = evali(n);
     if (TAG(n) == K)            /* Nil */
       break;
-    else if (TAG(n) == AP && TAG(indir(FUN(n))) == AP && TAG(indir(FUN(indir(FUN(n))))) == O) { /* Cons */
-      c = evalint(ARG(FUN(n)));
+    else if (TAG(n) == AP && TAG(x = indir(FUN(n))) == AP && TAG(indir(FUN(x))) == O) { /* Cons */
+      c = evalint(ARG(x));
       if (c < 0 || c > 127)
 	ERR("invalid char");
       *p++ = (char)c;
