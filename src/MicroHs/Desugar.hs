@@ -20,6 +20,7 @@ import Data.List
 import qualified MicroHs.Map as M
 import Data.Maybe
 --Ximport Compat
+--import Debug.Trace
 
 import MicroHs.Parse
 import MicroHs.Exp

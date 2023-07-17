@@ -59,8 +59,6 @@ updCache x c =
 
 -----------------
 
------------------
-
 compile :: Flags -> IdentModule -> IO [LDef]
 compile flags nm = IO.do
   ch <- execStateIO (compileModuleCached flags nm) (Cache [] M.empty)
@@ -97,6 +95,7 @@ compileModule flags nm = S.do
   let
     fn = map (\ c -> if eqChar c '.' then '/' else c) nm ++ ".hs"
   mdl <- S.fmap (parseDie pTop fn) (liftIO (readFilePath (paths flags) fn))
+  --liftIO $ putStrLn $ showEModule mdl
   let
     EModule nmn _ defs = mdl
   S.when (not (eqIdent nm nmn)) $
