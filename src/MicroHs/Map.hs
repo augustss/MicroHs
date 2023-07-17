@@ -41,3 +41,11 @@ lookup :: (k -> k -> Bool) -> k -> Map k v -> Maybe v
 lookup eq k akvs =
   case akvs of
     Map kvs -> lookupBy eq k kvs
+
+empty :: Map k v
+empty = Map []
+
+elems :: Map k v -> [v]
+elems m =
+  case m of
+    Map kvs -> map snd kvs
