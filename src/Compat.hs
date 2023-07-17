@@ -23,8 +23,29 @@ readInt = read
 showInt :: Int -> String
 showInt = show
 
+showChar :: Char -> String
+showChar = show
+
 showString :: String -> String
 showString = show
+
+showList :: (a -> String) -> [a] -> String
+showList sa arg =
+  let
+    showRest as =
+      case as of
+        [] -> "]"
+        x : xs -> "," ++ sa x ++ showRest xs
+  in
+    case arg of
+      [] -> "[]"
+      a : as -> "[" ++ sa a ++ showRest as
+
+showMaybe :: (a -> String) -> Maybe a -> String
+showMaybe fa arg =
+  case arg of
+    Nothing -> "Nothing"
+    Just a  -> "(Just " ++ fa a ++ ")"
 
 elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
