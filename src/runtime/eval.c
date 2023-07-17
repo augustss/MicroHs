@@ -611,6 +611,15 @@ evali(NODEPTR n)
   return n;
 }
 
+/* Follow indirections */
+NODEPTR
+indir(NODEPTR n)
+{
+  while (TAG(n) == IND)
+    n = INDIR(n);
+  return n;
+}
+
 /* Evaluate to an INT */
 value_t
 evalint(NODEPTR n)
@@ -665,7 +674,7 @@ evalstring(NODEPTR n)
     n = evali(n);
     if (TAG(n) == K)            /* Nil */
       break;
-    else if (TAG(n) == AP && TAG(FUN(n)) == AP && TAG(FUN(FUN(n))) == O) { /* Cons */
+    else if (TAG(n) == AP && TAG(indir(FUN(n))) == AP && TAG(indir(FUN(indir(FUN(n))))) == O) { /* Cons */
       c = evalint(ARG(FUN(n)));
       if (c < 0 || c > 127)
 	ERR("invalid char");
