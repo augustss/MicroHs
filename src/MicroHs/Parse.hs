@@ -626,7 +626,7 @@ showEModule am =
     EModule i es ds -> "module " ++ i ++ "(\n" ++
       unlines (intersperse "," (map showExportSpec es)) ++
       "\n) where\n" ++
-      unlines (map showEDef ds)
+      showEDefs ds
 
 showExportSpec :: ExportSpec -> String
 showExportSpec ae =
@@ -639,24 +639,26 @@ showEDef def =
     Fcn (f, vs) e -> unwords (f : vs) ++ " = " ++ showExpr e
     _ -> "<<EDef>>"
 
+showEDefs :: [EDef] -> String
+showEDefs ds = unlines (map showEDef ds)
+
 showExpr :: Expr -> String
 showExpr ae =
   case ae of
     EVar v -> "(EVar " ++ v ++ ")"
-    EApp _ _ -> "EApp"
-    ELam _ _ -> "ELam"
+    EApp f a -> "(EApp " ++ showExpr f ++ " " ++ showExpr a ++ ")"
+    ELam is e -> "(ELam " ++ showList id is ++ " " ++ showExpr e ++ ")"
     EInt i -> "(EInt " ++ showInt i ++ ")"
-    EChar _ -> "EChar"
-    EStr _ -> "EStr"
+    EChar c -> "(EChar " ++ showChar c ++ ")"
+    EStr s -> "(EStr " ++ showString s ++ ")"
     ECase _ _ -> "ECase"
     ELet _ _ -> "ELet"
-    ETuple _ -> "ETuple"
-    EList _ -> "EList"
+    ETuple es -> "(EUple " ++ showList showExpr es ++ ")"
+    EList es -> "(EList " ++ showList showExpr es ++ ")"
     EDo _ _ -> "EDo"
-    EPrim _ -> "EPrim"
-    ESectL _ _ -> "ESectL"
-    ESectR _ _ -> "ESectR"
+    EPrim p -> "(EPrim " ++ p ++ ")"
+    ESectL e i -> "(ESectL " ++ showExpr e ++ " " ++ i ++ ")"
+    ESectR i e -> "(ESectR " ++ i ++ " " ++ showExpr e ++ ")"
     EIf _ _ _ -> "EIf"
     ECompr _ _ -> "ECompr"
     EBad -> "EBad"
-
