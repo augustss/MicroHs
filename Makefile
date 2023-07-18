@@ -75,7 +75,7 @@ uhstest:	$(BIN)/uhs $(BIN)/eval
 uhs.comb:	$(BIN)/uhs $(ALLSRC)
 	$(BIN)/uhs -ilib -isrc -ouhs.comb MicroHs.Main
 
-ushcomp:	uhs.comb
+ushcomp:	$(BIN)/eval uhs.comb
 	$(BIN)/eval -H1000000 -v -ruhs.comb -- $(ARG)
 
 time:	$(BIN)/eval $(BIN)/uhs tests/*.hs
