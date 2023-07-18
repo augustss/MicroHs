@@ -26,6 +26,12 @@ showInt = show
 showChar :: Char -> String
 showChar = show
 
+showBool :: Bool -> String
+showBool = show
+
+showUnit :: () -> String
+showUnit = show
+
 showString :: String -> String
 showString = show
 
