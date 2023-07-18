@@ -25,7 +25,7 @@ $(BIN)/eval:	src/runtime/eval.c
 $(BIN)/uhs:	src/*/*.hs convertX.sh
 	$(GHCE) -package mtl -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/uhs
 
-$(BIN)/bootuhs:	$(ALLSRC) Main.hs convertY.sh
+$(BIN)/bootuhs:	$(ALLSRC) convertY.sh
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
@@ -46,12 +46,14 @@ $(BIN)/bootuhs:	$(ALLSRC) Main.hs convertY.sh
 	$(GHCC) -c lib/PreludeNoIO.hs
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
+#	$(GHCC) -c -package containers -package ghc-prim -package base src/MicroHs/Map.hs
 	$(GHCC) -c src/MicroHs/Map.hs
 	$(GHCC) -c src/MicroHs/Exp.hs
 	$(GHCC) -c src/MicroHs/Desugar.hs
 	$(GHCC) -c src/MicroHs/StateIO.hs
 	$(GHCC) -c src/MicroHs/Compile.hs
 	$(GHCC) -c -main-is MicroHs.Main src/MicroHs/Main.hs
+#	$(GHC) $(PROF) -hide-all-packages -package containers -package ghc-prim -o $(BIN)/bootuhs $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
 	$(GHC) $(PROF) -hide-all-packages -o $(BIN)/bootuhs $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
 
 # Test Haskell version with local libraries
