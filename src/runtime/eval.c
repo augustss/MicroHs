@@ -118,8 +118,8 @@ NODEPTR *args;
 #error "Pick a node representation"
 #endif
 
-int num_reductions = 0;
-int num_gc = 0;
+int64_t num_reductions = 0;
+int64_t num_gc = 0;
 
 NODEPTR *stack;
 int64_t stack_ptr = -1;
@@ -245,7 +245,7 @@ init_nodes(void)
 
   /* Set up free list */
   next_free = NIL;
-  for (int i = heap_start; i < heap_size; i++) {
+  for (int64_t i = heap_start; i < heap_size; i++) {
     NODEPTR n = HEAPREF(i);
     MARK(n) = NOTMARKED;
     TAG(n) = FREE;
@@ -254,7 +254,7 @@ init_nodes(void)
   }
 }
 
-int num_marked;
+int64_t num_marked;
 
 /* Mark all used nodes reachable from *np */
 void
@@ -295,7 +295,7 @@ void
 scan(void)
 {
   next_free = NIL;
-  for(int i = heap_start; i < heap_size; i++) {
+  for(int64_t i = heap_start; i < heap_size; i++) {
     NODEPTR n = HEAPREF(i);
     if (MARK(n) == NOTMARKED) {
       if (TAG(n) == HDL && HANDLE(n) != 0 &&
@@ -312,7 +312,7 @@ scan(void)
   }
 }
 
-int max_num_marked = 0;
+int64_t max_num_marked = 0;
 
 /* Perform a garbage collection:
    - First mark from all roots; roots are on the stack.
@@ -325,7 +325,7 @@ gc(void)
   num_marked = 0;
   if (verbose)
     fprintf(stderr, "gc mark\n");
-  for (int i = 0; i <= stack_ptr; i++)
+  for (int64_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
   if (verbose)
     fprintf(stderr, "gc scan\n");
@@ -464,7 +464,7 @@ NODEPTR
 parse_top(FILE *f)
 {
   shared = malloc(heap_size * sizeof(NODEPTR));
-  for(int i = 0; i < heap_size; i++)
+  for(int64_t i = 0; i < heap_size; i++)
     shared[i] = NIL;
   NODEPTR n = parse(f);
   free(shared);
@@ -1137,7 +1137,7 @@ main(int argc, char **argv)
   NODEPTR n = parse_top(f);
   fclose(f);
   PUSH(n); gc(); n = TOP(0); POP(1);
-  int start_size = num_marked;
+  int64_t start_size = num_marked;
   if (verbose > 1)
     pp(stdout, n);
   n = evalio(n);
@@ -1145,8 +1145,8 @@ main(int argc, char **argv)
     printf("\nmain returns ");
     pp(stdout, n);
     printf("node size=%ld, heap size=%ld\n", NODE_SIZE, (long)heap_size);
-    printf("%d reductions, %d GCs, max cells used %d\n", num_reductions, num_gc, max_num_marked);
-    printf("%d cells at start\n", start_size);
+    printf("%ld reductions, %ld GCs, max cells used %ld\n", num_reductions, num_gc, max_num_marked);
+    printf("%ld cells at start\n", start_size);
   }
   exit(0);
 }
