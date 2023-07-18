@@ -8,6 +8,7 @@ GHC=ghc
 # $(CURDIR) might not be quite right
 GHCE=$(GHC) -F -pgmF $(CURDIR)/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
+ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
 .PHONY: all trtest boottest uhstest test alltest time example
 
 all:	$(BIN)/eval $(BIN)/uhs
@@ -24,7 +25,7 @@ $(BIN)/uhs:	src/*/*.hs convertX.sh
 trtest:	$(BIN)/uhs
 	$(BIN)/uhs -ilib Main
 
-$(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs src/*/*.hs Main.hs convertY.sh
+$(BIN)/bootuhs:	$(ALLSRC) Main.hs convertY.sh
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
@@ -51,11 +52,16 @@ $(BIN)/tr:	src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs src/*/*.hs Main.hs
 	$(GHCC) -c src/MicroHs/StateIO.hs
 	$(GHCC) -c src/MicroHs/Compile.hs
 	$(GHCC) -c -main-is MicroHs.Main src/MicroHs/Main.hs
-	$(GHC) -o $(BIN)/tr $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
+	$(GHC) -o $(BIN)/bootuhs $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
 
 # Test Haskell version with local libraries
-boottest:	$(BIN)/tr
-	$(BIN)/tr -v -v T
+boottest:	$(BIN)/bootuhs
+	$(BIN)/bootuhs -v -v T
+
+bootboottest:	$(BIN)/uhs $(BIN)/bootuhs
+	$(BIN)/uhs     -ilib -isrc -omain-uhs.comb  MicroHs.Main
+	$(BIN)/bootuhs -ilib -isrc -omain-boot.comb MicroHs.Main
+	cmp main-uhs.comb main-boot.comb
 
 # Test normal Haskell version
 test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
@@ -65,6 +71,12 @@ test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
 uhstest:	$(BIN)/uhs $(BIN)/eval
 	$(BIN)/uhs -ilib -isrc Main
 	$(BIN)/eval
+
+uhs.comb:	$(BIN)/uhs $(ALLSRC)
+	$(BIN)/uhs -ilib -isrc -ouhs.comb MicroHs.Main
+
+ushcomp:	uhs.comb
+	$(BIN)/eval -H1000000 -v -ruhs.comb -- $(ARG)
 
 time:	$(BIN)/eval $(BIN)/uhs tests/*.hs
 	cd tests; make time
