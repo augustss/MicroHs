@@ -726,7 +726,7 @@ eval(NODEPTR n)
     case INT:
     case HDL:
       RET;
-    case S:
+    case S:                     /* S f g x = f x (g x) */
       CHECK(3);
       GCCHECK(2);
       f = ARG(TOP(1));
@@ -738,7 +738,7 @@ eval(NODEPTR n)
       ARG(n) = new_ap(g, x);
       GOTO ap;
       break;
-    case SS:
+    case SS:                    /* S' k f g x = k (f x) (g x) */
       CHECK(4);
       GCCHECK(3);
       k = ARG(TOP(1));
@@ -751,28 +751,28 @@ eval(NODEPTR n)
       ARG(n) = new_ap(g, x);
       GOTO ap;
       break;
-    case K:
+    case K:                     /* K x y = * x */
       CHECK(2);
       x = ARG(TOP(1));
       POP(2);
       n = TOP(0);
       SETIND(n, x);
       GOTO ind;
-    case T:
+    case T:                     /* T x y = * y */
       CHECK(2);
       x = ARG(TOP(2));
       POP(2);
       n = TOP(0);
       SETIND(n, x);
       GOTO ind;
-    case I:
+    case I:                     /* I x = * x */
       CHECK(1);
       x = ARG(TOP(1));
       POP(1);
       n = TOP(0);
       SETIND(n, x);
       GOTO ind;
-    case Y:
+    case Y:                     /* yf@(Y f) = f yf */
       CHECK(1);
       f = ARG(TOP(1));
       POP(1);
@@ -780,7 +780,7 @@ eval(NODEPTR n)
       FUN(n) = f;
       ARG(n) = n;
       GOTO ap;
-    case B:
+    case B:                     /* B f g x = f (g x) */
       CHECK(3);
       GCCHECK(1);
       f = ARG(TOP(1));
@@ -792,7 +792,7 @@ eval(NODEPTR n)
       ARG(n) = new_ap(g, x);
       GOTO ap;
       break;
-    case C:
+    case C:                     /* C f g x = f x g */
       CHECK(3);
       GCCHECK(1);
       f = ARG(TOP(1));
@@ -803,7 +803,7 @@ eval(NODEPTR n)
       FUN(n) = new_ap(f, x);
       ARG(n) = g;
       GOTO ap;
-    case CC:
+    case CC:                    /* C' k f g x = k (f x) g */
       CHECK(4);
       GCCHECK(2);
       k = ARG(TOP(1));
@@ -974,11 +974,17 @@ evalio(NODEPTR n)
       break;
 
     case IO_BIND:
+      /* XXX could use associativity to avoid deep evalio recursion. */
+      /* (m >>= g) >>= h    ===  m >>= (\ x -> g x >>= h) */
+      /* BIND (BIND m g) h  ===  BIND m (\ x -> BIND (g x) h) == BIND m (C' BIND g h)*/
       CHECKIO(2);
       x = evalio(ARG(TOP(1)));  /* first argument, unwrapped */
+
+      /* Do a GC check, make sure we keep the x live */
       PUSH(x);
       GCCHECK(1);
       x = TOP(0); POP(1);
+
       f = ARG(TOP(2));          /* second argument, the continuation */
       n = new_ap(f, x);
       POP(3);
