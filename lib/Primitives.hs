@@ -24,6 +24,8 @@ primFix    = primitive "Y"
 primChr x = x
 primOrd x = x
 
+primUnsafeCoerce x = x
+
 --data List a = Nil | (:) a (List a)
 
 primBind          = primitive "IO.>>="

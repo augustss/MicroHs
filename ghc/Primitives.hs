@@ -59,6 +59,9 @@ primFix f = let a = f a in a
 primError :: String -> a
 primError = error
 
+primUnsafeCoerce :: a -> b
+primUnsafeCoerce = unsafeCoerce
+
 ------
 
 primBind         :: IO a -> (a -> IO b) -> IO b

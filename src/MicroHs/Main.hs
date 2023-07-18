@@ -9,7 +9,7 @@ import System.Environment
 import MicroHs.Parse
 import MicroHs.Exp
 import MicroHs.Compile
---import MicroHs.Translate
+import MicroHs.Translate
 import MicroHs.Desugar
 --Ximport Compat
 
@@ -47,7 +47,7 @@ main = do
     mapM_ (\ ie -> case ie of { (i, e) -> putStrLn $ i ++ " = " ++ toStringP e}) ds
   if runIt flags then do
     let
-      prg = undefined -- translate cmdl
+      prg = translate cmdl
     putStrLn "Run:"
     prg
     putStrLn "done"

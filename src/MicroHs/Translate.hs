@@ -1,99 +1,78 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module MicroHs.Translate where
-import Data.Char
+module MicroHs.Translate(module MicroHs.Translate) where
+import Prelude
 import Data.Maybe
-import qualified Data.Map as M
-import GHC.Types
+import qualified MicroHs.Map as M
+--Ximport GHC.Types
 import Unsafe.Coerce
-import System.IO
---import System.IO.Unsafe
+--Ximport Compat
+--Ximport PrimTable
+--Yimport PrimTable
 
-import MicroHs.Desugar(LDef)
-import MicroHs.Parse(Ident)
+import MicroHs.Desugar
+import MicroHs.Parse
 import MicroHs.Exp
 
-data DIO a = DIO { unDIO :: IO a }
-
 translate :: (Ident, [LDef]) -> IO ()
-translate (mainName, ds) =
-  let m :: M.Map Ident Any
-      m = M.fromList [(n, trans look d) | (n, d) <- ds ]
-      look n = fromMaybe (error $ "not found " ++ n) $ M.lookup n m
-  in  unDIO $ unsafeCoerce $ look mainName
-
---aa :: Any -> (Any -> Any)
---aa = unsafeCoerce
+translate mds =
+  case mds of
+    (mainName, ds) ->
+      let
+        look m n = fromMaybe (error $ "not found " ++ n) $ M.lookup eqString n m
+        --Xmp :: M.Map Ident Any
+        mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
+      in  unsafeCoerce $ look mp mainName
 
 trans :: (Ident -> Any) -> Exp -> Any
-trans r (Var n) = r n
-trans r (App f a) = unsafeCoerce (trans r f) (trans r a)
-trans _ (Int i) = unsafeCoerce i
-trans _ (Prim p) = fromMaybe (error $ "Prim " ++ p) $ lookup p primOps
-trans _ e = error $ "impossible: " ++ show e
+trans r ae =
+  case ae of
+    Var n -> r n
+    App f a -> unsafeCoerce (trans r f) (trans r a)
+    Int i -> unsafeCoerce i
+    Prim p -> fromMaybe (error "primlookup") $ lookupBy eqString p primTable
+    _ -> error "trans: impossible"
 
-primOps :: [(String, Any)]
-primOps =
-  [ comb "S" (\ f g x -> f x (g x))
-  , comb "K" (\ x _y -> x)
-  , comb "I" (\ x -> x)
-  , comb "C" (\ f g x -> f x g)
-  , comb "B" (\ f g x -> f (g x))
-  , comb "T" (\ _x y -> y)
-  , comb "Y" (\ f -> let r = f r in r)
-  , comb "P" (\ x y f -> f x y)
-  , comb "O" (\ x y _g f -> f x y)
-  , comb "S'" (\ k f g x -> k f x (g x))
-  , comb "B'" (\ k f g x -> k f (g x))
-  , comb "C'" (\ k f g x -> k f x g)
-  , arith "+" (+)
-  , arith "-" (-)
-  , arith "*" (*)
-  , arith "quot" quot
-  , arith "rem" rem
-  , arith "subtract" subtract
-  , cmp "==" (==)
-  , cmp "/=" (/=)
-  , cmp "<"  (<)
-  , cmp "<=" (<=)
-  , cmp ">"  (>)
-  , cmp ">=" (>=)
-  , cmp "error" err
-  , comb "ord" ord
-  , comb "chr" chr
-  , comb "IO.>>=" iobind
-  , comb "IO.>>" iothen
-  , comb "IO.return" ioret
---  , comb "IO.getChar" getc
-  , comb "IO.putChar" putc
-  , comb "IO.stdin" stdin
-  , comb "IO.stdout" stdout
-  , comb "IO.stderr" stderr
+primTable :: [(String, Any)]
+primTable = [
+  ("S", primitive "S"),
+  ("K", primitive "K"),
+  ("I", primitive "I"),
+  ("C", primitive "C"),
+  ("B", primitive "B"),
+  ("T", primitive "T"),
+  ("Y", primitive "Y"),
+  ("S'", primitive "S'"),
+  ("C'", primitive "C'"),
+  ("B'", primitive "B'"),
+  ("P", primitive "P"),
+  ("O", primitive "O"),
+  ("+", primitive "+"),
+  ("-", primitive "-"),
+  ("*", primitive "*"),
+  ("quot", primitive "quot"),
+  ("rem", primitive "rem"),
+  ("subtract", primitive "subtract"),
+  ("==", primitive "=="),
+  ("/=", primitive "/="),
+  ("<", primitive "<"),
+  ("<=", primitive "<="),
+  (">", primitive ">"),
+  (">=", primitive ">="),
+  ("error", primitive "error"),
+  ("IO.>>=", primitive "IO.>>="),
+  ("IO.>>", primitive "IO.>>"),
+  ("IO.return", primitive "IO.return"),
+  ("IO.getChar", primitive "IO.getChar"),
+  ("IO.putChar", primitive "IO.putChar"),
+  ("IO.serialize", primitive "IO.serialize"),
+  ("IO.deserialize", primitive "IO.deserialize"),
+  ("IO.open", primitive "IO.open"),
+  ("IO.close", primitive "IO.close"),
+  ("IO.isNullHandle", primitive "IO.isNullHandle"),
+  ("IO.stdin", primitive "IO.stdin"),
+  ("IO.stdout", primitive "IO.stdout"),
+  ("IO.stderr", primitive "IO.stderr"),
+  ("IO.getArgs", primitive "IO.getArgs"),
+  ("IO.performIO", primitive "IO.performIO")
   ]
-  where
-    comb n f = (n, unsafeCoerce f)
-    arith :: String -> (Int -> Int -> Int) -> (String, Any)
-    arith = comb
-    cmp :: String -> (Int -> Int -> Bool) -> (String, Any)
-    cmp n f = comb n (\ x y -> if f x y then cTrue else cFalse)
-    cTrue _x y = y
-    cFalse x _y = x
-    iobind :: DIO a -> (a -> DIO b) -> DIO b
-    iobind a k = DIO (unDIO a >>= \ x -> unDIO (k x))
-    iothen :: DIO a -> DIO b -> DIO b
-    iothen a b = DIO (unDIO a >> unDIO b)
-    ioret :: a -> DIO a
-    ioret a = DIO (return a)
---    getc h = undefined -- fromEnum <$> hGetChar h  -- XXX
-    putc :: Handle -> Int -> DIO ()
-    putc h c = DIO $ do
---      let h = unsafeCoerce hh :: Handle
---          c = unsafeCoerce cc :: Int
-      print (h, c)
-      hPutChar h (toEnum c)
---    open = undefined
---    close = undefined
---    isnull = undefined
-
-    err _ = error "ERROR"
-
