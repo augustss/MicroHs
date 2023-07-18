@@ -7,6 +7,7 @@ import Data.Either
 import Data.Int
 import Data.List
 import Data.Maybe
+import Data.Tuple
 
 showChar :: Char -> String
 showChar c =
@@ -47,10 +48,10 @@ showBool arg =
     False -> "False"
     True  -> "True"
 
---showUnit :: () -> String
---showUnit arg =
---  case arg of
---    () -> "()"
+showUnit :: () -> String
+showUnit arg =
+  case arg of
+    () -> "()"
 
 showPair :: (a -> String) -> (b -> String) -> (a, b) -> String
 showPair sa sb ab =
