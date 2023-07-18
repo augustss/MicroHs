@@ -63,6 +63,11 @@ bootboottest:	$(BIN)/uhs $(BIN)/bootuhs
 	$(BIN)/bootuhs -ilib -isrc -omain-boot.comb MicroHs.Main
 	cmp main-uhs.comb main-boot.comb
 
+bootcombtest:	$(BIN)/uhs uhs.comb
+	$(BIN)/uhs -ilib -isrc -omain-uhs.comb  MicroHs.Main
+	$(BIN)/eval -H10000000 -K1000000 -ruhs.comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
+	cmp main-uhs.comb main-comb.comb
+
 # Test normal Haskell version
 test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
 	cd tests; make test
