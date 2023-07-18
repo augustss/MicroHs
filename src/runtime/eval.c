@@ -323,17 +323,17 @@ gc(void)
 {
   num_gc++;
   num_marked = 0;
-  if (verbose)
+  if (verbose > 1)
     fprintf(stderr, "gc mark\n");
   for (int64_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
-  if (verbose)
+  if (verbose > 1)
     fprintf(stderr, "gc scan\n");
   scan();
 
   if (num_marked > max_num_marked)
     max_num_marked = num_marked;
-  if (verbose)
+  if (verbose > 1)
     fprintf(stderr, "gc done, %ld free\n", (long)(heap_size - heap_start - num_marked));
 }
 
@@ -347,7 +347,7 @@ gc_check(int kk)
     ;
   if (n != NIL)
     return;
-  if (verbose)
+  if (verbose > 1)
     fprintf(stderr, "gc_check: %d\n", kk);
   gc();
 }
@@ -1138,13 +1138,15 @@ main(int argc, char **argv)
   fclose(f);
   PUSH(n); gc(); n = TOP(0); POP(1);
   int64_t start_size = num_marked;
-  if (verbose > 1)
+  if (verbose > 2)
     pp(stdout, n);
   n = evalio(n);
   if (verbose) {
-    printf("\nmain returns ");
-    pp(stdout, n);
-    printf("node size=%ld, heap size=%ld\n", NODE_SIZE, (long)heap_size);
+    if (verbose > 1) {
+      printf("\nmain returns ");
+      pp(stdout, n);
+      printf("node size=%ld, heap size=%ld\n", NODE_SIZE, (long)heap_size);
+    }
     printf("%ld reductions, %ld GCs, max cells used %ld\n", num_reductions, num_gc, max_num_marked);
     printf("%ld cells at start\n", start_size);
   }
