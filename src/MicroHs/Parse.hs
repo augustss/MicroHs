@@ -356,8 +356,18 @@ decodeChar :: Char -> Char
 decodeChar c =
   if eqChar c 'n' then
     '\n'
+  else if eqChar c 'r' then
+    '\r'
+  else if eqChar c 't' then
+    '\t'
+  else if eqChar c '\\' then
+    '\\'
+  else if eqChar c '\'' then
+    '\''
+  else if eqChar c '"' then
+    '"'
   else
-    c
+    error $ "decodeChar: " ++ showChar c
 
 pSymbol :: String -> P ()
 pSymbol s = P.do
