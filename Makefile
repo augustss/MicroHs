@@ -30,6 +30,7 @@ $(BIN)/bootuhs:	$(ALLSRC) convertY.sh
 	$(GHCB) -c ghc/Primitives.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
 	$(GHCB) -c ghc/Data/List_Type.hs
+	$(GHCB) -c src/PrimTable.hs
 	$(GHCC) -c lib/Control/Error.hs
 	$(GHCC) -c lib/Data/Bool.hs
 	$(GHCC) -c lib/Data/Int.hs
@@ -44,6 +45,7 @@ $(BIN)/bootuhs:	$(ALLSRC) convertY.sh
 	$(GHCC) -c lib/System/Environment.hs
 	$(GHCC) -c lib/Prelude.hs
 	$(GHCC) -c lib/PreludeNoIO.hs
+	$(GHCC) -c lib/Unsafe/Coerce.hs
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
 #	$(GHCC) -c -package containers -package ghc-prim -package base src/MicroHs/Map.hs
@@ -52,13 +54,14 @@ $(BIN)/bootuhs:	$(ALLSRC) convertY.sh
 	$(GHCC) -c src/MicroHs/Desugar.hs
 	$(GHCC) -c src/MicroHs/StateIO.hs
 	$(GHCC) -c src/MicroHs/Compile.hs
+	$(GHCC) -c src/MicroHs/Translate.hs
 	$(GHCC) -c -main-is MicroHs.Main src/MicroHs/Main.hs
 #	$(GHC) $(PROF) -hide-all-packages -package containers -package ghc-prim -o $(BIN)/bootuhs $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
-	$(GHC) $(PROF) -hide-all-packages -o $(BIN)/bootuhs $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
+	$(GHC) $(PROF) -hide-all-packages -o $(BIN)/bootuhs $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o
 
 # Test Haskell version with local libraries
 boottest:	$(BIN)/bootuhs
-	$(BIN)/bootuhs -v -v T
+	$(BIN)/bootuhs -ilib Example
 
 # Compare version compiled with normal GHC libraries and uhs libraries
 bootboottest:	$(BIN)/uhs $(BIN)/bootuhs
@@ -92,6 +95,13 @@ time:	$(BIN)/eval $(BIN)/uhs tests/*.hs
 
 example:	$(BIN)/eval $(BIN)/uhs Example.hs
 	$(BIN)/uhs -ilib Example && $(BIN)/eval
+
+# does not work
+exampleboot:	$(BIN)/bootuhs Example.hs
+	$(BIN)/bootuhs -r -ilib Example
+
+examplecomb:	$(BIN)/eval uhs.comb Example.hs
+	$(BIN)/eval -H5000000 -ruhs.comb -- -r -ilib Example
 
 clean:
 	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR)
