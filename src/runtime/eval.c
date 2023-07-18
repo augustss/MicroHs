@@ -333,8 +333,11 @@ gc(void)
 
   if (num_marked > max_num_marked)
     max_num_marked = num_marked;
+  int64_t free = heap_size - heap_start - num_marked;
+  if (free < heap_size / 50)
+    ERR("heap exhausted");
   if (verbose > 1)
-    fprintf(stderr, "gc done, %ld free\n", (long)(heap_size - heap_start - num_marked));
+    fprintf(stderr, "gc done, %ld free\n", (long)free);
 }
 
 /* Check that there are k nodes available, if not then GC. */
