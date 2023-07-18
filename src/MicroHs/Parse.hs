@@ -156,7 +156,7 @@ esepBy1 :: Prsr s a -> Prsr s sep -> Prsr s [a]
 esepBy1 p sep = (:) <$> p <*> emany (sep *> p)
 
 esepBy :: Prsr s a -> Prsr s sep -> Prsr s [a]
-esepBy p sep = esepBy1 p sep <|> pure []
+esepBy p sep = esepBy1 p sep <|< pure []
 
 --XparseDie :: (Show a) => P a -> FilePath -> String -> a
 parseDie p fn file =
