@@ -163,6 +163,7 @@ new_ap(NODEPTR f, NODEPTR a)
 
 /* Needed during reduction */
 NODEPTR combK, combT, combI, combO;
+NODEPTR combCC, combIOBIND;
 
 /* One node of each kind for primitives, these are never GCd */
 struct {
@@ -232,6 +233,8 @@ init_nodes(void)
     case T: combT = n; break;
     case I: combI = n; break;
     case O: combO = n; break;
+    case CC: combCC = n; break;
+    case IO_BIND: combIOBIND = n; break;
     case IO_STDIN:  TAG(n) = HDL; HANDLE(n) = stdin;  break;
     case IO_STDOUT: TAG(n) = HDL; HANDLE(n) = stdout; break;
     case IO_STDERR: TAG(n) = HDL; HANDLE(n) = stderr; break;
@@ -957,6 +960,7 @@ evalio(NODEPTR n)
 /* IO operations need all arguments, anything else should not happen. */
 #define CHECKIO(n) do { if (stack_ptr - stk != (n+1)) {ERR("CHECKIO");}; } while(0)
 #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)
+#define GCCHECKSAVE(p, n) do { PUSH(p); GCCHECK(n); (p) = TOP(0); POP(1); } while(0)
 
  top:
   n = evali(n);
@@ -974,16 +978,27 @@ evalio(NODEPTR n)
       break;
 
     case IO_BIND:
-      /* XXX could use associativity to avoid deep evalio recursion. */
-      /* (m >>= g) >>= h    ===  m >>= (\ x -> g x >>= h) */
-      /* BIND (BIND m g) h  ===  BIND m (\ x -> BIND (g x) h) == BIND m (C' BIND g h)*/
       CHECKIO(2);
+      {
+        /* Use associativity to avoid deep evalio recursion. */
+        /* (m >>= g) >>= h      ===  m >>= (\ x -> g x >>= h) */
+        /* BIND ((BIND m) g) h  ===  BIND m (\ x -> BIND (g x) h) == (BIND m) (((C' BIND) g) h)*/
+        NODEPTR bm;
+        NODEPTR bmg = evali(ARG(TOP(1)));
+        GCCHECKSAVE(bmg, 4);
+        if (TAG(bmg) == AP && TAG(bm = indir(FUN(bmg))) == AP && TAG(indir(FUN(bm))) == IO_BIND) {
+          NODEPTR g = ARG(bmg);
+          NODEPTR h = ARG(TOP(2));
+          n = new_ap(bm, new_ap(new_ap(new_ap(combCC, combIOBIND), g), h));
+          POP(3);
+          goto top;
+        }
+      }
+
       x = evalio(ARG(TOP(1)));  /* first argument, unwrapped */
 
       /* Do a GC check, make sure we keep the x live */
-      PUSH(x);
-      GCCHECK(1);
-      x = TOP(0); POP(1);
+      GCCHECKSAVE(x, 1);
 
       f = ARG(TOP(2));          /* second argument, the continuation */
       n = new_ap(f, x);
