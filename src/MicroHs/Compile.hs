@@ -12,23 +12,28 @@ import MicroHs.StateIO as S
 import MicroHs.Desugar
 import MicroHs.Parse
 
-data Flags = Flags Int Bool [String]
+data Flags = Flags Int Bool [String] String
   --Xderiving (Show)
 
 verbose :: Flags -> Int
 verbose f =
   case f of
-    Flags x _ _ -> x
+    Flags x _ _ _ -> x
 
 runIt :: Flags -> Bool
 runIt f =
   case f of
-    Flags _ x _ -> x
+    Flags _ x _ _ -> x
 
 paths :: Flags -> [String]
 paths f =
   case f of
-    Flags _ _ x -> x
+    Flags _ _ x _ -> x
+
+output :: Flags -> String
+output f =
+  case f of
+    Flags _ _ _ x -> x
 
 -----------------
 

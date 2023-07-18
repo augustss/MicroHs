@@ -18,7 +18,7 @@ main = do
   putStrLn (showEModule p)
 -}
   let
-    flags = Flags 0 False ["."]
+    flags = Flags 0 False ["."] "out.comb"
   defs <- compile flags "T"
   putStrLn $ showInt $ length defs
   --putStrLn (toStringP d)

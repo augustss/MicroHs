@@ -1,5 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE QualifiedDo #-}
 -- State monad over IO
 module MicroHs.StateIO(module MicroHs.StateIO) where
