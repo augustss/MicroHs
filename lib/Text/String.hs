@@ -98,4 +98,13 @@ unwords :: [String] -> String
 unwords ss = concat (intersperse " " ss)
 
 eqString :: String -> String -> Bool
-eqString axs ays = (length axs == length ays) && and (zipWith eqChar axs ays)
+eqString axs ays =
+  case axs of
+    [] ->
+      case ays of
+        [] -> True
+        _  -> False
+    x:xs ->
+      case ays of
+        [] -> False
+        y:ys -> eqChar x y && eqString xs ys
