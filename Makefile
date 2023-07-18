@@ -10,13 +10,13 @@ GHC=ghc
 GHCE=$(GHC) -F -pgmF $(CURDIR)/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
-.PHONY: all boottest bootboottest bootcombtest uhstest test alltest time example
+.PHONY: all alltest everytest boottest bootboottest bootcombtest uhstest test alltest time example
 
 all:	$(BIN)/eval $(BIN)/uhs
 
 alltest:	test boottest
 
-everytest:	alltest bootboottest bootcombtest
+everytest:	alltest example examplecomb bootboottest bootcombtest
 
 $(BIN)/eval:	src/runtime/eval.c
 	@mkdir -p bin
