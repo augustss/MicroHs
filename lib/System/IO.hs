@@ -128,9 +128,12 @@ hGetContents :: Handle -> IO String
 hGetContents h = do
   c <- P.primHGetChar h
   case c == negate 1 of
-    False -> do { cs <- hGetContents h; return (chr c:cs) }
+    False ->
+      do { cs <- hGetContents h; return (chr c:cs) }
+      -- This should use less stack, but it doesn't work. :(
+      --return (chr c : P.primPerformIO (hGetContents h))
     True  -> return ""
-
+  
 writeSerialized :: String -> a -> IO ()
 writeSerialized p s = do
   h <- openFile p WriteMode
