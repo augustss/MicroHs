@@ -5,9 +5,11 @@ module Primitives(
   IO,
   Handle,
   ) where
+import Control.Exception(try)
 import System.IO
 import System.IO.Unsafe
 import System.Environment
+import Unsafe.Coerce
 
 primIntAdd :: Int -> Int -> Int
 primIntAdd = (+)
@@ -70,8 +72,14 @@ primHPutChar h c  = hPutChar h (toEnum c)
 primHGetChar     :: Handle -> IO Int
 primHGetChar h    = do eof <- hIsEOF h; if eof then pure (-1) else fromEnum <$> hGetChar h
 primOpenFile     :: String -> Int -> IO Handle
-primOpenFile s m  = openFile s (case m of 0->ReadMode; 1->WriteMode; 2->AppendMode; 3->ReadWriteMode)
-primIsNullHandle  = const False
+primOpenFile s m  = do
+  r <- (try $ openFile s (case m of 0->ReadMode; 1->WriteMode; 2->AppendMode; 3->ReadWriteMode)) :: IO (Either IOError Handle)
+  -- A gruesome hack to signal a failed as a Handle
+  case r of
+    Left _ -> return $ unsafeCoerce (0 :: Int)
+    Right h -> return h
+primIsNullHandle :: Handle -> Bool
+primIsNullHandle h = unsafeCoerce h == (0 :: Int)
 primHSerialize    = undefined
 primHDeserialize  = undefined
 primHClose        = hClose
