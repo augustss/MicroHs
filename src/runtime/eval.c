@@ -121,9 +121,9 @@ NODEPTR *args;
 int num_reductions = 0;
 int num_gc = 0;
 
-NODEPTR stack[STACK_SIZE];
+NODEPTR *stack;
 int64_t stack_ptr = -1;
-#define PUSH(x) stack[++stack_ptr] = (x)
+#define PUSH(x) do { if (stack_ptr >= stack_size-1) ERR("stack overflow"); stack[++stack_ptr] = (x); } while(0)
 #define TOP(n) stack[stack_ptr - (n)]
 #define POP(n) stack_ptr -= (n)
 #define GCCHECK(n) gc_check((n))
@@ -131,6 +131,7 @@ int64_t stack_ptr = -1;
 int64_t heap_size = HEAP_CELLS; /* number of heap cells */
 int64_t heap_start;             /* first location in heap that needs GC */
 NODEPTR next_free;              /* Free list */
+int64_t stack_size = STACK_SIZE;
 
 int glob_argc;
 char **glob_argv;
@@ -974,8 +975,10 @@ evalio(NODEPTR n)
 
     case IO_BIND:
       CHECKIO(2);
-      GCCHECK(1);
       x = evalio(ARG(TOP(1)));  /* first argument, unwrapped */
+      PUSH(x);
+      GCCHECK(1);
+      x = TOP(0); POP(1);
       f = ARG(TOP(2));          /* second argument, the continuation */
       n = new_ap(f, x);
       POP(3);
@@ -1088,6 +1091,8 @@ main(int argc, char **argv)
       verbose++;
     else if (strncmp(argv[-1], "-H", 2) == 0)
       heap_size = atoi(&argv[-1][2]);
+    else if (strncmp(argv[-1], "-K", 2) == 0)
+      stack_size = atoi(&argv[-1][2]);
     else if (strncmp(argv[-1], "-r", 2) == 0)
       fn = &argv[-1][2];
     else if (strcmp(argv[-1], "--") == 0)
@@ -1102,6 +1107,9 @@ main(int argc, char **argv)
     fn = "out.comb";
 
   init_nodes();
+  stack = malloc(sizeof(NODEPTR) * stack_size);
+  if (!stack)
+    abort();
   FILE *f = fopen(fn, "r");
   if (!f)
     ERR("file not found");
