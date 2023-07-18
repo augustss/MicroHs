@@ -4,6 +4,38 @@ module MicroHs.Map(module MicroHs.Map) where
 import Prelude
 --Ximport Compat
 
+{-
+import qualified Data.Map as M
+import GHC.Classes(Ord)
+import qualified GHC.Maybe
+
+type Map k v = M.Map k v
+
+insert :: (Ord k) => k -> v -> Map k v -> Map k v
+insert = M.insert
+
+fromListWith :: (Ord k) => (k -> k -> Bool) -> (v -> v -> v) -> [(k, v)] -> Map k v
+fromListWith _ = M.fromListWith
+
+fromList :: (Ord k) => [(k, v)] -> Map k v
+fromList = M.fromList
+
+union :: (Ord k) => Map k v -> Map k v -> Map k v
+union = M.union
+
+lookup :: (Ord k) => (k -> k -> Bool) -> k -> Map k v -> Maybe v
+lookup _ k m =
+  case M.lookup k m of
+    GHC.Maybe.Nothing -> Nothing
+    GHC.Maybe.Just v -> Just v
+
+empty :: Map k v
+empty = M.empty
+
+elems :: Map k v -> [v]
+elems = M.elems
+-}
+
 -- This is a pretty bad implementation.
 data Map k v = Map [(k, v)]
   --Xderiving(Show)
