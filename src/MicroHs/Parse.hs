@@ -39,9 +39,9 @@ type IdentModule = Ident
 
 data EDef
   = Data LHS [Constr]
-  | Type LHS Type
+  | Type LHS EType
   | Fcn LHS Expr
-  | Sign Ident Type
+  | Sign Ident ETypeScheme
   | Import ImportSpec
   --Xderiving (Show)
 
@@ -94,8 +94,17 @@ data ExportSpec = ExpModule IdentModule
   --Xderiving (Show)
 
 type LHS = (Ident, [Ident])
-type Constr = (Ident, [Type])
-type Type = Expr
+type Constr = (Ident, [EType])
+
+-- No higher order type variables (yet)
+data EType
+  = TVar Ident
+  | TConstr Ident [EType]
+  | TUVar Int
+  --Xderiving (Show)
+
+data ETypeScheme = ETypeScheme [Ident] EType
+  --Xderiving (Show)
 
 eqIdent :: Ident -> Ident -> Bool
 eqIdent = eqString
@@ -306,7 +315,7 @@ pUIdent :: P String
 pUIdent = pUIdentA <|> (pSym '(' *> pOperU <* pSym ')')
 
 keywords :: [String]
-keywords = ["case", "data", "do", "else", "if", "import",
+keywords = ["case", "data", "do", "else", "forall", "if", "import",
   "in", "let", "module", "of", "primitive", "then", "type", "where"]
 
 pWord :: P String
@@ -413,7 +422,7 @@ pDef =
       Data   <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 (pair <$> pUIdent <*> many pAType) (pSymbol "|")
   <|> Type   <$> (pKeyword "type" *> pLHS pUIdent <* pSymbol "=") <*> pType
   <|> Fcn    <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
-  <|> Sign   <$> (pLIdent <* pSymbol "::") <*> pType
+  <|> Sign   <$> (pLIdent <* pSymbol "::") <*> pTypeScheme
   <|> Import <$> (pKeyword "import" *> pImportSpec)
 
 pImportSpec :: P ImportSpec
@@ -422,11 +431,41 @@ pImportSpec =
     pQua = (True <$ pKeyword "qualified") <|< pure False
   in  ImportSpec <$> pQua <*> pUIdent <*> optional (pKeyword "as" *> pUIdent)
 
-pAType :: P Type
-pAType = pAExpr
+pAType :: P EType
+pAType =
+      (TVar <$> pLIdent)
+  <|> (flip TConstr [] <$> pUIdent)
+  <|> (tTuple <$> (pSym '(' *> esepBy pType (pSym ',') <* pSym ')'))
+  <|> (\ t -> TConstr "[]" [t]) <$> (pSym '[' *> pType <* pSym ']')
 
-pType :: P Type
-pType = pExpr
+tTuple :: [EType] -> EType
+tTuple ats =
+  case ats of
+    [] -> TConstr "()" []
+    t:ts ->
+      case ts of
+        [] -> t
+        _ -> TConstr (tupleConstr (length ats)) ats
+
+pType :: P EType
+pType = P.do
+  let
+    arr t mt =
+      case mt of
+        Nothing -> t
+        Just r  -> TConstr "->" [t, r]
+  arr <$> pTypeB <*> optional (pOpers ["->"] *> pType)
+
+pTypeB :: P EType
+pTypeB =
+      (TConstr <$> pUIdent <*> esome pAType)
+  <|> pAType
+
+pTypeScheme :: P ETypeScheme
+pTypeScheme = P.do
+  vs <- (pKeyword "forall" *> esome pLIdent <* pSym '.') <|< pure []
+  t <- pType
+  pure $ ETypeScheme vs t
 
 pAExpr :: P Expr
 pAExpr =
@@ -637,6 +676,7 @@ showEDef :: EDef -> String
 showEDef def =
   case def of
     Fcn (f, vs) e -> unwords (f : vs) ++ " = " ++ showExpr e
+    Sign i t -> i ++ " :: " ++ showETypeScheme t
     _ -> "<<EDef>>"
 
 showEDefs :: [EDef] -> String
@@ -653,7 +693,7 @@ showExpr ae =
     EStr s -> "(EStr " ++ showString s ++ ")"
     ECase _ _ -> "ECase"
     ELet _ _ -> "ELet"
-    ETuple es -> "(EUple " ++ showList showExpr es ++ ")"
+    ETuple es -> "(ETUple " ++ showList showExpr es ++ ")"
     EList es -> "(EList " ++ showList showExpr es ++ ")"
     EDo _ _ -> "EDo"
     EPrim p -> "(EPrim " ++ p ++ ")"
@@ -662,3 +702,22 @@ showExpr ae =
     EIf _ _ _ -> "EIf"
     ECompr _ _ -> "ECompr"
     EBad -> "EBad"
+
+showEType :: EType -> String
+showEType at =
+  case at of
+    TVar i -> i
+    TConstr c ts ->
+      if null ts then
+        c
+      else
+        "(" ++ unwords (c : map showEType ts) ++ ")"
+    TUVar n -> "a" ++ showInt n
+
+showETypeScheme :: ETypeScheme -> String
+showETypeScheme ts =
+  case ts of
+    ETypeScheme vs t ->
+      if null vs
+      then showEType t
+      else unwords ("forall" : vs ++ [".", showEType t])
