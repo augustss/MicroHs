@@ -9,11 +9,13 @@ GHC=ghc
 GHCE=$(GHC) -F -pgmF $(CURDIR)/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
-.PHONY: all trtest boottest uhstest test alltest time example
+.PHONY: all boottest bootboottest bootcombtest uhstest test alltest time example
 
 all:	$(BIN)/eval $(BIN)/uhs
 
-alltest:	test boottest uhstest
+alltest:	test boottest
+
+everytest:	alltest bootboottest bootcombtest
 
 $(BIN)/eval:	src/runtime/eval.c
 	@mkdir -p bin
@@ -21,9 +23,6 @@ $(BIN)/eval:	src/runtime/eval.c
 
 $(BIN)/uhs:	src/*/*.hs convertX.sh
 	$(GHCE) -package mtl -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/uhs
-
-trtest:	$(BIN)/uhs
-	$(BIN)/uhs -ilib Main
 
 $(BIN)/bootuhs:	$(ALLSRC) Main.hs convertY.sh
 	rm -rf $(BOOTDIR)
@@ -65,7 +64,7 @@ bootboottest:	$(BIN)/uhs $(BIN)/bootuhs
 
 bootcombtest:	$(BIN)/uhs uhs.comb
 	$(BIN)/uhs -ilib -isrc -omain-uhs.comb  MicroHs.Main
-	$(BIN)/eval -H10000000 -K1000000 -ruhs.comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
+	$(BIN)/eval -H10000000 -ruhs.comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
 	cmp main-uhs.comb main-comb.comb
 
 # Test normal Haskell version
