@@ -1,7 +1,8 @@
 BIN=bin
 BOOTDIR=ghc-boot
 OUTDIR=ghc-out
-GHCB=ghc -outputdir $(BOOTDIR)
+PROF= #-prof -fprof-auto
+GHCB=ghc $(PROF) -outputdir $(BOOTDIR)
 GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude -F -pgmF $(CURDIR)/convertY.sh 
 GHCC=$(GHCB) $(GHCFLAGS)
 GHC=ghc
@@ -51,17 +52,19 @@ $(BIN)/bootuhs:	$(ALLSRC) Main.hs convertY.sh
 	$(GHCC) -c src/MicroHs/StateIO.hs
 	$(GHCC) -c src/MicroHs/Compile.hs
 	$(GHCC) -c -main-is MicroHs.Main src/MicroHs/Main.hs
-	$(GHC) -o $(BIN)/bootuhs $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
+	$(GHC) $(PROF) -hide-all-packages -o $(BIN)/bootuhs $(BOOTDIR)/*.o $(BOOTDIR)/Data/*.o $(BOOTDIR)/System/*.o $(BOOTDIR)/Text/*.o $(BOOTDIR)/Control/*.o $(BOOTDIR)/MicroHs/*.o
 
 # Test Haskell version with local libraries
 boottest:	$(BIN)/bootuhs
 	$(BIN)/bootuhs -v -v T
 
+# Compare version compiled with normal GHC libraries and uhs libraries
 bootboottest:	$(BIN)/uhs $(BIN)/bootuhs
 	$(BIN)/uhs     -ilib -isrc -omain-uhs.comb  MicroHs.Main
 	$(BIN)/bootuhs -ilib -isrc -omain-boot.comb MicroHs.Main
 	cmp main-uhs.comb main-boot.comb
 
+# Compare version compiled with GHC, and bootstrapped combinator version
 bootcombtest:	$(BIN)/uhs uhs.comb
 	$(BIN)/uhs -ilib -isrc -omain-uhs.comb  MicroHs.Main
 	$(BIN)/eval -H10000000 -ruhs.comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
