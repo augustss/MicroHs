@@ -11,11 +11,17 @@ primIntSubR = primitive "subtract"
 
 primIntEQ   = primitive "=="
 primIntNE   = primitive "/="
-
 primIntLT   = primitive "<"
 primIntLE   = primitive "<="
 primIntGT   = primitive ">"
 primIntGE   = primitive ">="
+
+primCharEQ  = primitive "=="
+primCharNE  = primitive "/="
+primCharLT  = primitive "<"
+primCharLE  = primitive "<="
+primCharGT  = primitive ">"
+primCharGE  = primitive ">="
 
 primError  = primitive "error"
 

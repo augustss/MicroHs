@@ -1,33 +1,33 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Char(module Data.Char) where
-import qualified Primitives
+import qualified Primitives as P
 import Data.Bool
 import Data.Int
 
-type Char = Primitives.Char
+type Char = P.Char
 type String = [Char]
 
 chr :: Int -> Char
-chr = Primitives.primChr
+chr = P.primChr
 
 ord :: Char -> Int
-ord = Primitives.primOrd
+ord = P.primOrd
 
 isLower :: Char -> Bool
-isLower c = (ord 'a' <= ord c) && (ord c <= ord 'z')
+isLower c = (P.primCharLE 'a' c) && (P.primCharLE c 'z')
 
 isUpper :: Char -> Bool
-isUpper c = (ord 'A' <= ord c) && (ord c <= ord 'Z')
+isUpper c = (P.primCharLE 'A' c) && (P.primCharLE c 'Z')
 
 isAlpha :: Char -> Bool
 isAlpha c = isLower c || isUpper c
 
 isDigit :: Char -> Bool
-isDigit c = (ord '0' <= ord c) && (ord c <= ord '9')
+isDigit c = (P.primCharLE '0' c) && (P.primCharLE c '9')
 
 eqChar :: Char -> Char -> Bool
-eqChar a b = ord a == ord b
+eqChar = P.primCharEQ
 
 neChar :: Char -> Char -> Bool
-neChar a b = not (eqChar a b)
+neChar = P.primCharNE

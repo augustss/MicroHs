@@ -47,6 +47,24 @@ primIntGT = (>)
 primIntGE :: Int -> Int -> Bool
 primIntGE = (>=)
 
+primCharEQ :: Char -> Char -> Bool
+primCharEQ = (==)
+
+primCharNE :: Char -> Char -> Bool
+primCharNE = (/=)
+
+primCharLT :: Char -> Char -> Bool
+primCharLT = (<)
+
+primCharLE :: Char -> Char -> Bool
+primCharLE = (<=)
+
+primCharGT :: Char -> Char -> Bool
+primCharGT = (>)
+
+primCharGE :: Char -> Char -> Bool
+primCharGE = (>=)
+
 primOrd :: Char -> Int
 primOrd = fromEnum
 
