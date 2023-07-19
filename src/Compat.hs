@@ -17,6 +17,9 @@ neChar = (/=)
 eqString :: String -> String -> Bool
 eqString = (==)
 
+leString :: String -> String -> Bool
+leString = (<=)
+
 readInt :: String -> Int
 readInt = read
 

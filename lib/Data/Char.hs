@@ -31,3 +31,9 @@ eqChar = P.primCharEQ
 
 neChar :: Char -> Char -> Bool
 neChar = P.primCharNE
+
+leChar :: Char -> Char -> Bool
+leChar = P.primCharLE
+
+ltChar :: Char -> Char -> Bool
+ltChar = P.primCharLT

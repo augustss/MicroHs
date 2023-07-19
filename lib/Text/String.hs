@@ -108,3 +108,12 @@ eqString axs ays =
       case ays of
         [] -> False
         y:ys -> eqChar x y && eqString xs ys
+
+leString :: String -> String -> Bool
+leString axs ays =
+  case axs of
+    [] -> True
+    x:xs ->
+      case ays of
+        [] -> False
+        y:ys -> ltChar x y || eqChar x y && leString xs ys
