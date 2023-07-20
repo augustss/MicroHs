@@ -59,7 +59,7 @@ There are a number of libraries that some of the standard Haskell functions.
 But in general, the `Prelude` contains less.
 
 ## Compiler
-The compiler is written in Haskell (not Micro Haskell yet).
+The compiler is written in Micro Haskell.
 It takes a name of a module and compiles it to a file called `out.comb`.
 
 ### Compiler modules
