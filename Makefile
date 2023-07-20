@@ -10,9 +10,10 @@ GHC=ghc
 GHCE=$(GHC) -F -pgmF $(CURDIR)/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
-.PHONY: all alltest everytest boottest bootboottest bootcombtest uhstest test alltest time example
+MHS=mhs
+.PHONY: all alltest everytest boottest bootboottest bootcombtest $(MHS)test test alltest time example
 
-all:	$(BIN)/eval $(BIN)/uhs
+all:	$(BIN)/eval $(BIN)/$(MHS)
 
 alltest:	test boottest
 
@@ -22,10 +23,10 @@ $(BIN)/eval:	src/runtime/eval.c
 	@mkdir -p bin
 	$(GCC) -Wall -O3 src/runtime/eval.c -o $(BIN)/eval
 
-$(BIN)/uhs:	src/*/*.hs convertX.sh
-	$(GHCE) -package mtl -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/uhs
+$(BIN)/$(MHS):	src/*/*.hs convertX.sh
+	$(GHCE) -package mtl -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
-$(BIN)/bootuhs:	$(ALLSRC) convertY.sh
+$(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
@@ -57,52 +58,52 @@ $(BIN)/bootuhs:	$(ALLSRC) convertY.sh
 	$(GHCC) -c src/MicroHs/Compile.hs
 	$(GHCC) -c src/MicroHs/Translate.hs
 	$(GHCC) -c -main-is MicroHs.Main src/MicroHs/Main.hs
-	$(GHC) $(PROF) -hide-all-packages -o $(BIN)/bootuhs $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o
-#	$(GHC) $(PROF) -hide-all-packages -package containers -o $(BIN)/bootuhs $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o
+	$(GHC) $(PROF) -hide-all-packages -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o
+#	$(GHC) $(PROF) -hide-all-packages -package containers -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o
 
 # Test Haskell version with local libraries
-boottest:	$(BIN)/bootuhs
-	$(BIN)/bootuhs -ilib Example
+boottest:	$(BIN)/boot$(MHS)
+	$(BIN)/boot$(MHS) -ilib Example
 
-# Compare version compiled with normal GHC libraries and uhs libraries
-bootboottest:	$(BIN)/uhs $(BIN)/bootuhs
-	$(BIN)/uhs     -ilib -isrc -omain-uhs.comb  MicroHs.Main
-	$(BIN)/bootuhs -ilib -isrc -omain-boot.comb MicroHs.Main
-	cmp main-uhs.comb main-boot.comb
+# Compare version compiled with normal GHC libraries and $(MHS) libraries
+bootboottest:	$(BIN)/$(MHS) $(BIN)/boot$(MHS)
+	$(BIN)/$(MHS)     -ilib -isrc -omain-$(MHS).comb  MicroHs.Main
+	$(BIN)/boot$(MHS) -ilib -isrc -omain-boot.comb MicroHs.Main
+	cmp main-$(MHS).comb main-boot.comb
 
 # Compare version compiled with GHC, and bootstrapped combinator version
-bootcombtest:	$(BIN)/uhs $(BIN)/eval uhs.comb
-	$(BIN)/uhs -ilib -isrc -omain-uhs.comb  MicroHs.Main
-	$(BIN)/eval -H10000000 -ruhs.comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
-	cmp main-uhs.comb main-comb.comb
+bootcombtest:	$(BIN)/$(MHS) $(BIN)/eval $(MHS).comb
+	$(BIN)/$(MHS) -ilib -isrc -omain-$(MHS).comb  MicroHs.Main
+	$(BIN)/eval -H10000000 -r$(MHS).comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
+	cmp main-$(MHS).comb main-comb.comb
 
 # Test normal Haskell version
-test:	$(BIN)/eval $(BIN)/uhs tests/*.hs
+test:	$(BIN)/eval $(BIN)/$(MHS) tests/*.hs
 	cd tests; make test
 
-# Test uhs version
-uhstest:	$(BIN)/uhs $(BIN)/eval
-	$(BIN)/uhs -ilib -isrc Main
+# Test $(MHS) version
+$(MHS)test:	$(BIN)/$(MHS) $(BIN)/eval
+	$(BIN)/$(MHS) -ilib -isrc Main
 	$(BIN)/eval
 
-uhs.comb:	$(BIN)/uhs $(ALLSRC)
-	$(BIN)/uhs -ilib -isrc -ouhs.comb MicroHs.Main
+$(MHS).comb:	$(BIN)/$(MHS) $(ALLSRC)
+	$(BIN)/$(MHS) -ilib -isrc -o$(MHS).comb MicroHs.Main
 
-ushcomp:	$(BIN)/eval uhs.comb
-	$(BIN)/eval -H1000000 -v -ruhs.comb -- $(ARG)
+ushcomp:	$(BIN)/eval $(MHS).comb
+	$(BIN)/eval -H1000000 -v -r$(MHS).comb -- $(ARG)
 
-time:	$(BIN)/eval $(BIN)/uhs tests/*.hs
+time:	$(BIN)/eval $(BIN)/$(MHS) tests/*.hs
 	cd tests; make time
 
-example:	$(BIN)/eval $(BIN)/uhs Example.hs
-	$(BIN)/uhs -ilib Example && $(BIN)/eval
+example:	$(BIN)/eval $(BIN)/$(MHS) Example.hs
+	$(BIN)/$(MHS) -ilib Example && $(BIN)/eval
 
 # does not work
-exampleboot:	$(BIN)/bootuhs Example.hs
-	$(BIN)/bootuhs -r -ilib Example
+exampleboot:	$(BIN)/boot$(MHS) Example.hs
+	$(BIN)/boot$(MHS) -r -ilib Example
 
-examplecomb:	$(BIN)/eval uhs.comb Example.hs
-	$(BIN)/eval -H5000000 -ruhs.comb -- -r -ilib Example
+examplecomb:	$(BIN)/eval $(MHS).comb Example.hs
+	$(BIN)/eval -H5000000 -r$(MHS).comb -- -r -ilib Example
 
 clean:
 	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR)
