@@ -10,28 +10,21 @@ import qualified GHC.Maybe
 
 type Map v = M.Map String v
 
-insert :: String -> v -> Map v -> Map v
 insert = M.insert
 
-fromListWith :: (v -> v -> v) -> [(String, v)] -> Map v
 fromListWith = M.fromListWith
 
-fromList :: [(String, v)] -> Map v
 fromList = M.fromList
 
-union :: Map v -> Map v -> Map v
 union = M.union
 
-lookup :: String -> Map v -> Maybe v
 lookup k m =
   case M.lookup k m of
     GHC.Maybe.Nothing -> Nothing
     GHC.Maybe.Just v -> Just v
 
-empty :: Map v
 empty = M.empty
 
-elems :: Map v -> [v]
 elems = M.elems
 -}
 
@@ -39,12 +32,10 @@ elems = M.elems
 data Map v = Map [(String, v)]
   --Xderiving(Show)
 
-insert :: String -> v -> Map v -> Map v
 insert k v amap =
   case amap of
     Map kvs -> Map ((k, v):kvs)
 
-fromListWith :: (v -> v -> v) -> [(String, v)] -> Map v
 fromListWith un =
   let
     ins ikv akvs =
@@ -62,17 +53,14 @@ fromListWith un =
   in
      Map . foldr ins []
 
-fromList :: [(String, v)] -> Map v
 fromList = Map
 
-union :: Map v -> Map v -> Map v
 union akvs1 akvs2 =
   case akvs1 of
     Map kvs1 ->
       case akvs2 of
         Map kvs2 -> Map (kvs1 ++ kvs2)
 
-lookup :: String -> Map v -> Maybe v
 lookup ak am =
   case am of
     Map m ->
@@ -85,10 +73,33 @@ lookup ak am =
                 (k, v) -> if eqString ak k then Just v else look kvs
       in look m
 
-empty :: Map v
 empty = Map []
 
-elems :: Map v -> [v]
 elems m =
   case m of
     Map kvs -> map snd kvs
+
+{-
+import qualified Data.Map as M
+
+type Map v = M.Map String v
+
+insert = M.insertBy leString
+fromListWith = M.fromListByWith leString
+fromList = M.fromListBy leString
+union = M.unionBy leString
+lookup = M.lookupBy leString
+empty = M.empty
+elems = M.elems
+-}
+
+-------
+
+insert :: String -> v -> Map v -> Map v
+fromListWith :: (v -> v -> v) -> [(String, v)] -> Map v
+fromList :: [(String, v)] -> Map v
+union :: Map v -> Map v -> Map v
+lookup :: String -> Map v -> Maybe v
+empty :: Map v
+elems :: Map v -> [v]
+

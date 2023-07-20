@@ -45,6 +45,7 @@ $(BIN)/bootuhs:	$(ALLSRC) convertY.sh
 	$(GHCC) -c lib/System/Environment.hs
 	$(GHCC) -c lib/Prelude.hs
 	$(GHCC) -c lib/PreludeNoIO.hs
+	$(GHCC) -c lib/Data/Map.hs
 	$(GHCC) -c lib/Unsafe/Coerce.hs
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
@@ -70,7 +71,7 @@ bootboottest:	$(BIN)/uhs $(BIN)/bootuhs
 	cmp main-uhs.comb main-boot.comb
 
 # Compare version compiled with GHC, and bootstrapped combinator version
-bootcombtest:	$(BIN)/uhs uhs.comb
+bootcombtest:	$(BIN)/uhs $(BIN)/eval uhs.comb
 	$(BIN)/uhs -ilib -isrc -omain-uhs.comb  MicroHs.Main
 	$(BIN)/eval -H10000000 -ruhs.comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
 	cmp main-uhs.comb main-comb.comb

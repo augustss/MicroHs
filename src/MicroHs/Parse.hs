@@ -109,6 +109,9 @@ data ETypeScheme = ETypeScheme [Ident] EType
 eqIdent :: Ident -> Ident -> Bool
 eqIdent = eqString
 
+leIdent :: Ident -> Ident -> Bool
+leIdent = leString
+
 showIdent :: Ident -> String
 showIdent i = i
 
