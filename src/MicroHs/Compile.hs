@@ -7,7 +7,7 @@ import qualified System.IO as IO
 --Ximport Compat
 --Ximport qualified CompatIO as IO
 
-import qualified MicroHs.Map as M
+import qualified MicroHs.StringMap as M
 import MicroHs.StateIO as S
 import MicroHs.Desugar
 import MicroHs.Parse
@@ -37,7 +37,7 @@ output f =
 
 -----------------
 
-data Cache = Cache [IdentModule] (M.Map IdentModule Module)
+data Cache = Cache [IdentModule] (M.Map Module)
   --Xderiving (Show)
 
 working :: Cache -> [IdentModule]
@@ -50,13 +50,13 @@ updWorking w c =
   case c of
     Cache _ m -> Cache w m
 
-cache :: Cache -> M.Map IdentModule Module
+cache :: Cache -> M.Map Module
 cache c =
   case c of
     Cache _ x -> x
 
 {-
-updCache :: M.Map IdentModule Module -> Cache -> Cache
+updCache :: M.Map Module -> Cache -> Cache
 updCache x c =
   case c of
     Cache w _ -> Cache w x
@@ -76,7 +76,7 @@ compile flags nm = IO.do
 compileModuleCached :: Flags -> IdentModule -> StateIO Cache Module
 compileModuleCached flags nm = S.do
   ch <- gets cache
-  case M.lookup eqIdent nm ch of
+  case M.lookup nm ch of
     Nothing -> S.do
       ws <- gets working
       S.when (elemBy eqIdent nm ws) $

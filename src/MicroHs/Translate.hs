@@ -3,7 +3,7 @@
 module MicroHs.Translate(module MicroHs.Translate) where
 import Prelude
 import Data.Maybe
-import qualified MicroHs.Map as M
+import qualified MicroHs.StringMap as M
 --Ximport GHC.Types
 import Unsafe.Coerce
 --Ximport Compat
@@ -19,8 +19,8 @@ translate mds =
   case mds of
     (mainName, ds) ->
       let
-        look m n = fromMaybe (error $ "not found " ++ n) $ M.lookup eqString n m
-        --Xmp :: M.Map Ident Any
+        look m n = fromMaybe (error $ "not found " ++ n) $ M.lookup n m
+        --Xmp :: M.Map Any
         mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
       in  unsafeCoerce $ look mp mainName
 

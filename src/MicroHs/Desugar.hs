@@ -17,7 +17,7 @@ module MicroHs.Desugar(
 import Prelude
 import Data.Char
 import Data.List
-import qualified MicroHs.Map as M
+import qualified MicroHs.StringMap as M
 import Data.Maybe
 --Ximport Compat
 --import Debug.Trace
@@ -35,8 +35,8 @@ data TypeDef = TypeDef Ident [(Ident, Int)]   -- constructor name, arity
 
 type LDef = (Ident, Exp)
 
-type ValTable = M.Map Ident [Exp]
-type TypeTable = M.Map Ident [TypeDef]
+type ValTable = M.Map [Exp]
+type TypeTable = M.Map [TypeDef]
 
 data SymTable = SymTable ValTable TypeTable
   --Xderiving (Show)
@@ -79,7 +79,7 @@ mkSymTable mdls =
         syms arg =
           case arg of
             (is, Module mn qis _ _) -> [ (v, [Var qi]) | (i, qi) <- qis, v <- qns is mn i ]
-      in  M.fromListWith eqIdent (unionBy eqExp) $ concatMap syms mdls
+      in  M.fromListWith (unionBy eqExp) $ concatMap syms mdls
     --XallTypes :: TypeTable
     allTypes =
       let
@@ -87,7 +87,7 @@ mkSymTable mdls =
           case arg of
             (is, Module mn _ tds _) ->
               [ (v, [td]) | td <- tds, let { TypeDef _ cs = td }, (c, _) <- cs, v <- qns is mn c ]
-      in M.fromListWith eqIdent (unionBy eqTypeDef) $ concatMap types mdls
+      in M.fromListWith (unionBy eqTypeDef) $ concatMap types mdls
   in  SymTable allVals allTypes
 
 -- Combine two symbol table, first one has shadows second one.
@@ -166,7 +166,7 @@ dsExpr :: SymTable -> Expr -> Exp
 dsExpr syms aexpr =
   case aexpr of
     EVar i ->
-      case M.lookup eqIdent i (sVal syms) of
+      case M.lookup i (sVal syms) of
         Nothing -> error $ "undefined: " ++ showIdent i
         Just qis ->
           if length qis == 1 then head qis
@@ -339,7 +339,7 @@ constrType con tys =
   if eqString (take 1 con) "," then
     TypeDef con [(con, untupleConstr con)]
   else
-    case M.lookup eqIdent con tys of
+    case M.lookup con tys of
       Nothing -> error $ "undefined constructor: " ++ showIdent con
       Just tds ->
         if length tds == 1 then head tds else error $ "ambiguous constructor: " ++ showIdent con

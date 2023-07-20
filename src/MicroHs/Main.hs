@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 module MicroHs.Main(module MicroHs.Main) where
 import Prelude
-import qualified MicroHs.Map as M
+import qualified MicroHs.StringMap as M
 import Data.Maybe
 import System.Environment
 import MicroHs.Parse
@@ -30,7 +30,7 @@ main = do
     (mainName, ds) = cmdl
     ref i = Var $ "_" ++ showInt i
     defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds (enumFrom 0) ]
-    findIdent n = fromMaybe (error $ "undefined: " ++ showIdent n) $ M.lookup eqString n defs
+    findIdent n = fromMaybe (error $ "undefined: " ++ showIdent n) $ M.lookup n defs
     emain = findIdent mainName
     subst aexp =
       case aexp of
