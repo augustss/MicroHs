@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define VERSION "v1.0\n"
+
 /* Node representation:
  * NODE_NAIVE   all fields in a struct, regular pointers
  * NODE_INDEX   use 32 bit indices instead of pointers
@@ -1107,6 +1109,18 @@ evalio(NODEPTR n)
   }
 }
 
+void
+checkversion(FILE *f)
+{
+  char *p = VERSION;
+  int c;
+
+  while ((c = *p++)) {
+    if (c != fgetc(f))
+      ERR("version mismatch");
+  }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1142,6 +1156,7 @@ main(int argc, char **argv)
   FILE *f = fopen(fn, "r");
   if (!f)
     ERR("file not found");
+  checkversion(f);
   NODEPTR n = parse_top(f);
   fclose(f);
   PUSH(n); gc(); n = TOP(0); POP(1);

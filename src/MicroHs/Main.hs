@@ -52,7 +52,10 @@ main = do
     prg
     putStrLn "done"
    else
-    writeFile (output flags) res
+    writeFile (output flags) $ version ++ res
+
+version :: String
+version = "v1.0\n"
 
 type CModule = (Ident, [LDef])
 
