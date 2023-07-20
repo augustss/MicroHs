@@ -62,6 +62,9 @@ But in general, the `Prelude` contains less.
 The compiler is written in Micro Haskell.
 It takes a name of a module and compiles it to a file called `out.comb`.
 
+### Compiler flags
+TBD
+
 ### Compiler modules
 
 * `Main`, the main module.  Decodes flags, compiles, and writes result.
@@ -82,3 +85,6 @@ There is a also a simple mark-scan garbage collector.
 The runtime system can serialize and deserialize any expression
 and keep its graph structure (sharing and cycles).
 The only exception to this is file handles, which cannot be serialized.
+
+### Runtime flags
+TBD
