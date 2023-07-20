@@ -2,6 +2,8 @@
 This directory contains an implementation of a very small subset of Haskell.
 It uses combinators for the runtime execution.
 
+The compiler can compile itself.
+
 ## Language
 The language is a subset of Haskell.  There is no static type checking (yet).
 
@@ -16,6 +18,7 @@ It has the following features:
 * let expressions, no mutual recursion, no pattern matching
 * tuples
 * list syntax
+* list comprehensions
 * arithmetic and comparison operators, but only for `Int`
 * qualified `do` notation, e.g., `IO.do`
 * data type declarations
@@ -54,19 +57,6 @@ Some factorials
 ## Libraries
 There are a number of libraries that some of the standard Haskell functions.
 But in general, the `Prelude` contains less.
-The `Prelude` re-exports the following modules.
-
-* `Control.Error`, `error` function
-* `Data.Bool`
-* `Data.Either`
-* `Data.Function`
-* `Data.Int`
-* `Data.List`
-* `Data.Maybe`
-* `Data.Tuple`
-* `System.IO`
-* `Text.String`, various functions to convert data to strings
-
 
 ## Compiler
 The compiler is written in Haskell (not Micro Haskell yet).
@@ -80,6 +70,7 @@ It takes a name of a module and compiles it to a file called `out.comb`.
 * `Desugar`, desugar full expressions to simple expressions.
 * `Parse`, parse and build and abstract syntax tree.
 * `ParserComb`, simple parser combinator library.
+* `Translate`, convert an expression tree to its value.
 
 ## Runtime
 The runtime system is written in C and is in `eval.c`.
