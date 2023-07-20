@@ -33,20 +33,22 @@ trans r ae =
     Prim p -> fromMaybe (error "primlookup") $ lookupBy eqString p primTable
     _ -> error "trans: impossible"
 
+-- Use linear search in this table.
+-- 99% of the hits are among the combinators.
 primTable :: [(String, Any)]
 primTable = [
-  ("S", primitive "S"),
-  ("K", primitive "K"),
-  ("I", primitive "I"),
-  ("C", primitive "C"),
   ("B", primitive "B"),
-  ("T", primitive "T"),
-  ("Y", primitive "Y"),
-  ("S'", primitive "S'"),
-  ("C'", primitive "C'"),
-  ("B'", primitive "B'"),
-  ("P", primitive "P"),
   ("O", primitive "O"),
+  ("K", primitive "K"),
+  ("C'", primitive "C'"),
+  ("C", primitive "C"),
+  ("T", primitive "T"),
+  ("S'", primitive "S'"),
+  ("P", primitive "P"),
+  ("I", primitive "I"),
+  ("S", primitive "S"),
+  ("Y", primitive "Y"),
+  ("B'", primitive "B'"),
   ("+", primitive "+"),
   ("-", primitive "-"),
   ("*", primitive "*"),

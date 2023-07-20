@@ -165,25 +165,29 @@ new_ap(NODEPTR f, NODEPTR a)
 NODEPTR combK, combT, combI, combO;
 NODEPTR combCC, combIOBIND;
 
-/* One node of each kind for primitives, these are never GCd */
+/* One node of each kind for primitives, these are never GCd. */
+/* We use linear search in this, because almost all lookups
+ * are among the combinators.
+ */
 struct {
   char *name;
   enum node_tag tag;
   NODEPTR node;
 } primops[] = {
   /* combinators */
-  { "S", S },
-  { "K", K },
-  { "I", I },
-  { "C", C },
+  /* sorted by frequency in a typical program */
   { "B", B },
-  { "T", T },
-  { "Y", Y },
-  { "S'", SS },
-  { "C'", CC },
-  { "B'", BB },
-  { "P", P },
   { "O", O },
+  { "K", K },
+  { "C'", CC },
+  { "C", C },
+  { "T", T },
+  { "S'", SS },
+  { "P", P },
+  { "I", I },
+  { "S", S },
+  { "Y", Y },
+  { "B'", BB },
   /* primops */
   { "+", ADD },
   { "-", SUB },
@@ -427,8 +431,9 @@ parse(FILE *f)
     }
     /* Look up the primop and use the preallocated node. */
     for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
-      if (strcmp(primops[j].name, buf) == 0)
+      if (strcmp(primops[j].name, buf) == 0) {
         return primops[j].node;
+      }
     }
     fprintf(stderr, "eval: bad primop %s\n", buf);
     ERR("no primop");
