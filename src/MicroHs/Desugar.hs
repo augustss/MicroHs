@@ -64,6 +64,11 @@ extVals sym is =
   case sym of
     SymTable vals tys -> SymTable (foldr (\ x -> M.insert x [Var x]) vals is) tys
 
+extVal :: SymTable -> Ident -> SymTable
+extVal sym x =
+  case sym of
+    SymTable vals tys -> SymTable (M.insert x [Var x] vals) tys
+
 mkSymTable :: [(ImportSpec, Module)] -> SymTable
 mkSymTable mdls =
   let
@@ -172,7 +177,7 @@ dsExpr syms aexpr =
           if length qis == 1 then head qis
           else error $ "ambiguous: " ++ showIdent i -- ++ ", " ++ show qis
     EApp f a -> App (dsExpr syms f) (dsExpr syms a)
-    ELam xs e -> lams xs (dsExpr (extVals syms xs) e)
+    ELam x e -> Lam x (dsExpr (extVal syms x) e)
     EInt i -> Int i
     EChar c -> Int (ord c)
     ECase e as -> dsCase syms e as
@@ -206,7 +211,7 @@ dsExpr syms aexpr =
                 let
                   nv = newVar (allVarsExpr aexpr)
                   body = ECase (EVar nv) [(p, EDo mn stmts), (PVar dummyIdent, eError "dopat")]
-                in  dsExpr syms $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [nv] body)
+                in  dsExpr syms $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam nv body)
             SThen e ->
               if null stmts then
                 dsExpr syms e
@@ -232,7 +237,7 @@ dsExpr syms aexpr =
               let
                 nv = newVar (allVarsExpr aexpr)
                 body = ECase (EVar nv) [(p, ECompr e stmts), (PVar dummyIdent, EList [])]
-              in app2 (Var "Data.List.concatMap") (dsExpr syms (ELam [nv] body)) (dsExpr syms b)
+              in app2 (Var "Data.List.concatMap") (dsExpr syms (ELam nv body)) (dsExpr syms b)
             SThen c ->
               dsExpr syms (EIf c (ECompr e stmts) (EList []))
             SLet ds ->
@@ -271,12 +276,12 @@ eError s = EApp (EPrim "error") (EStr s)
 findDefault :: [ECaseArm] -> ([ECaseArm], Expr)
 findDefault aarms =
   case aarms of
-    [] -> ([], ELam [dummyIdent] $ eError "no match")
+    [] -> ([], ELam dummyIdent $ eError "no match")
     arm : arms ->
       case arm of
          (pat, rhs) ->
            case pat of
-             PVar i -> ([], ELam [i] rhs)
+             PVar i -> ([], ELam i rhs)
              PConstr _ _ ->
                case findDefault arms of
                  (narms, dflt) -> (arm : narms, dflt)
@@ -390,7 +395,7 @@ allVarsExpr aexpr =
   case aexpr of
     EVar i -> [i]
     EApp e1 e2 -> allVarsExpr e1 ++ allVarsExpr e2
-    ELam is e -> is ++ allVarsExpr e
+    ELam i e -> i : allVarsExpr e
     EInt _ -> []
     EChar _ -> []
     EStr _ -> []
@@ -412,3 +417,15 @@ allVarsStmt astmt =
     SBind p e -> allVarsPat p ++ allVarsExpr e
     SThen e -> allVarsExpr e
     SLet bs -> concatMap allVarsBind bs
+
+dsType :: EType -> EType
+dsType ea =
+  case ea of
+    EVar _ -> ea
+    EApp f a -> EApp (dsType f) (dsType a)
+    ETuple ts -> foldl EApp (EVar (tupleConstr (length ts))) (map dsType ts)
+    EList ts ->
+      case ts of
+        [] -> EVar "[]"
+        t : _ -> EApp (EVar "[]") (dsType t)
+    _ -> undefined

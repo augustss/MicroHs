@@ -51,7 +51,7 @@ data ImportSpec = ImportSpec Bool Ident (Maybe Ident)
 data Expr
   = EVar Ident
   | EApp Expr Expr
-  | ELam [Ident] Expr
+  | ELam Ident Expr
   | EInt Int
   | EChar Char
   | EStr String
@@ -496,7 +496,10 @@ pExprApp = P.do
   pure $ foldl EApp f as
 
 pLam :: P Expr
-pLam = ELam <$> (pSymbol "\\" *> esome pLIdent_) <*> (pSymbol "->" *> pExpr)
+pLam = eLams <$> (pSymbol "\\" *> esome pLIdent_) <*> (pSymbol "->" *> pExpr)
+
+eLams :: [Ident] -> Expr -> Expr
+eLams is e = foldr ELam e is
 
 pCase :: P Expr
 pCase =
@@ -685,7 +688,7 @@ showExpr ae =
   case ae of
     EVar v -> v
     EApp f a -> "(" ++ showExpr f ++ " " ++ showExpr a ++ ")"
-    ELam is e -> "(\\" ++ unwords is ++ " -> " ++ showExpr e ++ ")"
+    ELam i e -> "(\\" ++ i ++ " -> " ++ showExpr e ++ ")"
     EInt i -> showInt i
     EChar c -> showChar c
     EStr s -> showString s
