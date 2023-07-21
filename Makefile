@@ -30,7 +30,6 @@ $(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
-	$(GHCB) -c ghc/Data/List_Type.hs
 	$(GHCB) -c src/PrimTable.hs
 	$(GHCC) -c lib/Control/Error.hs
 	$(GHCC) -c lib/Data/Bool.hs

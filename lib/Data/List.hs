@@ -1,16 +1,14 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.List(module Data.List, module Data.List_Type) where
+module Data.List(module Data.List) where
 import Control.Error
 import Data.Bool
 import Data.Function
 import Data.Int
-import Data.List_Type
 import Data.Maybe
 import Data.Tuple
 
--- By parser some parser hacks we can use [] instead of Nil
---data List a = Nil | (:) a (List a)
+data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable --Z
 
 null :: [a] -> Bool
 null arg =
