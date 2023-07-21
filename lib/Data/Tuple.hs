@@ -3,9 +3,11 @@
 module Data.Tuple(module Data.Tuple) where
 import Data.Bool
 
-data Unit = Unit   -- Parser hacks allows () to be used
+data () = ()   -- Parser hacks allows () to be used --Z
 
 --data (a,b) = (a,b)  -- all tuples are built in
+--data (a,b,c) = (a,b,c)
+-- etc
 
 fst :: (a, b) -> a
 fst p =

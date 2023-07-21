@@ -8,6 +8,7 @@ import Data.Char
 import Data.Int
 import Data.List
 import Data.Maybe
+import Data.Tuple
 
 type IO = P.IO
 type Handle = P.Handle

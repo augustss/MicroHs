@@ -134,16 +134,19 @@ qual :: Ident -> Ident -> Ident
 qual qi i = qi ++ "." ++ i
 
 skipWhite :: P a -> P a
-skipWhite p = p <* pWhite
+skipWhite p = p <* pWhiteIndent
 
 skipWhiteW :: P a -> P a
 skipWhiteW p = p <* emany (char ' ')
+
+pWhite :: P String
+pWhite = emany (satisfy "white-space" (\ c -> elemBy eqChar c " \n\r"))
 
 -- Skip white-space.
 -- If there is a newline, return the indentation of the last line.
 pIndent :: P (Maybe String)
 pIndent = P.do
-  s <- emany (satisfy "white-space" (\ c -> elemBy eqChar c " \n\r"))
+  s <- pWhite
   let
     ss = takeWhile (eqChar ' ') $ reverse s
   if eqString s ss then
@@ -151,8 +154,8 @@ pIndent = P.do
    else
     pure $ Just ss
 
-pWhite :: P ()
-pWhite = P.do
+pWhiteIndent :: P ()
+pWhiteIndent = P.do
   msp <- pIndent
   case msp of
     Nothing -> pure ()
@@ -322,7 +325,11 @@ pUIdentA = skipWhite $
     pure s
 
 pUIdent :: P String
-pUIdent = pUIdentA <|> (pSym '(' *> pOperU <* pSym ')')
+pUIdent =
+      pUIdentA
+  <|> (pSym '(' *> pOperU <* pSym ')')
+  <|> ("()" <$ (pSym '(' *> pWhite *> pSym ')'))  -- Allow () as a constructor name
+  <|> ("[]" <$ (pSym '[' *> pWhite *> pSym ']'))  -- Allow [] as a constructor name
 
 keywords :: [String]
 keywords = ["case", "data", "do", "else", "forall", "if", "import",
@@ -466,8 +473,8 @@ pAExpr =
   <|> (EInt <$> pInt)
   <|> (EChar <$> pChar)
   <|> (EStr <$> pString)
-  <|> (eTuple <$> (pSym '(' *> esepBy pExpr (pSym ',') <* pSym ')'))
-  <|> (EList <$> (pSym '[' *> esepBy pExpr (pSym ',') <* pSym ']'))
+  <|> (eTuple <$> (pSym '(' *> esepBy1 pExpr (pSym ',') <* pSym ')'))
+  <|> (EList <$> (pSym '[' *> esepBy1 pExpr (pSym ',') <* pSym ']'))
   <|> (EPrim <$> (pKeyword "primitive" *> pString))
   <|> (ESectL <$> (pSym '(' *> pExprArg) <*> (pOper <* pSym ')'))
   <|> (ESectR <$> (pSym '(' *> pOper) <*> (pExprArg <* pSym ')'))
@@ -476,7 +483,7 @@ pAExpr =
 eTuple :: [Expr] -> Expr
 eTuple aes =
   case aes of
-    [] -> ETuple aes
+    [] -> undefined
     e:es ->
       case es of
         [] -> e
@@ -500,9 +507,8 @@ pCase =
 pAPat :: P EPat
 pAPat =
       (PVar <$> pLIdent_)
-  <|> (cTuple <$> (pSym '(' *> esepBy pPat (pSym ',') <* pSym ')'))
+  <|> (cTuple <$> (pSym '(' *> esepBy1 pPat (pSym ',') <* pSym ')'))
   <|> (PConstr <$> pUIdent <*> pure [])
-  <|> (PConstr "Nil" [] <$ (pSym '[' <* pSym ']'))   -- Hack for [] = Nil
 
 pPat :: P EPat
 pPat =
@@ -519,7 +525,7 @@ pPatC = P.do
 cTuple :: [EPat] -> EPat
 cTuple aps =
   case aps of
-    [] -> PConstr "Unit" []  -- Hack for () = Unit
+    [] -> undefined
     p:ps ->
       case ps of
         [] -> p
