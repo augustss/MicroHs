@@ -677,21 +677,21 @@ showEDefs ds = unlines (map showEDef ds)
 showExpr :: Expr -> String
 showExpr ae =
   case ae of
-    EVar v -> "(EVar " ++ v ++ ")"
-    EApp f a -> "(EApp " ++ showExpr f ++ " " ++ showExpr a ++ ")"
-    ELam is e -> "(ELam " ++ showList id is ++ " " ++ showExpr e ++ ")"
-    EInt i -> "(EInt " ++ showInt i ++ ")"
-    EChar c -> "(EChar " ++ showChar c ++ ")"
-    EStr s -> "(EStr " ++ showString s ++ ")"
+    EVar v -> v
+    EApp f a -> "(" ++ showExpr f ++ " " ++ showExpr a ++ ")"
+    ELam is e -> "(\\" ++ unwords is ++ " -> " ++ showExpr e ++ ")"
+    EInt i -> showInt i
+    EChar c -> showChar c
+    EStr s -> showString s
     ECase _ _ -> "ECase"
     ELet _ _ -> "ELet"
-    ETuple es -> "(ETUple " ++ showList showExpr es ++ ")"
-    EList es -> "(EList " ++ showList showExpr es ++ ")"
+    ETuple es -> "(" ++ intercalate "," (map showExpr es) ++ ")"
+    EList es -> showList showExpr es
     EDo _ _ -> "EDo"
-    EPrim p -> "(EPrim " ++ p ++ ")"
-    ESectL e i -> "(ESectL " ++ showExpr e ++ " " ++ i ++ ")"
-    ESectR i e -> "(ESectR " ++ i ++ " " ++ showExpr e ++ ")"
-    EIf _ _ _ -> "EIf"
+    EPrim p -> p
+    ESectL e i -> "(" ++ showExpr e ++ " " ++ i ++ ")"
+    ESectR i e -> "(" ++ i ++ " " ++ showExpr e ++ ")"
+    EIf e1 e2 e3 -> "if " ++ showExpr e1 ++ " then " ++ showExpr e2 ++ " else " ++ showExpr e3
     ECompr _ _ -> "ECompr"
     EBad -> "EBad"
 
