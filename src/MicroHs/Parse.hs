@@ -96,12 +96,19 @@ data ExportSpec = ExpModule IdentModule
 type LHS = (Ident, [Ident])
 type Constr = (Ident, [EType])
 
--- No higher order type variables (yet)
-data EType
-  = TVar Ident
-  | TConstr Ident [EType]
-  | TUVar Int
-  --Xderiving (Show)
+-- Expr restricted to
+--  * after desugaring: EApp and EVar
+--  * before desugaring: EApp, EVar, ETuple, EList
+type EType = Expr
+
+validType :: Expr -> Bool
+validType ae =
+  case ae of
+    EVar _ -> True
+    EApp f a -> validType f && validType a
+    EList es -> length es <= 1 && all validType (take 1 es)
+    ETuple es -> all validType es
+    _ -> False
 
 data ETypeScheme = ETypeScheme [Ident] EType
   --Xderiving (Show)
@@ -435,34 +442,16 @@ pImportSpec =
   in  ImportSpec <$> pQua <*> pUIdent <*> optional (pKeyword "as" *> pUIdent)
 
 pAType :: P EType
-pAType =
-      (TVar <$> pLIdent)
-  <|> (flip TConstr [] <$> pUIdent)
-  <|> (tTuple <$> (pSym '(' *> esepBy pType (pSym ',') <* pSym ')'))
-  <|> (\ t -> TConstr "[]" [t]) <$> (pSym '[' *> pType <* pSym ']')
-
-tTuple :: [EType] -> EType
-tTuple ats =
-  case ats of
-    [] -> TConstr "()" []
-    t:ts ->
-      case ts of
-        [] -> t
-        _ -> TConstr (tupleConstr (length ats)) ats
+pAType = P.do
+  t <- pAExpr
+  guard (validType t)
+  pure t
 
 pType :: P EType
 pType = P.do
-  let
-    arr t mt =
-      case mt of
-        Nothing -> t
-        Just r  -> TConstr "->" [t, r]
-  arr <$> pTypeB <*> optional (pOpers ["->"] *> pType)
-
-pTypeB :: P EType
-pTypeB =
-      (TConstr <$> pUIdent <*> esome pAType)
-  <|> pAType
+  t <- pExpr
+  guard (validType t)
+  pure t
 
 pTypeScheme :: P ETypeScheme
 pTypeScheme = P.do
@@ -707,15 +696,7 @@ showExpr ae =
     EBad -> "EBad"
 
 showEType :: EType -> String
-showEType at =
-  case at of
-    TVar i -> i
-    TConstr c ts ->
-      if null ts then
-        c
-      else
-        "(" ++ unwords (c : map showEType ts) ++ ")"
-    TUVar n -> "a" ++ showInt n
+showEType = showEType
 
 showETypeScheme :: ETypeScheme -> String
 showETypeScheme ts =
