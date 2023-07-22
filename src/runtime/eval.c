@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 #define VERSION "v1.0\n"
 
@@ -1168,10 +1169,10 @@ main(int argc, char **argv)
     if (verbose > 1) {
       printf("\nmain returns ");
       pp(stdout, n);
-      printf("node size=%ld, heap size=%ld\n", NODE_SIZE, (long)heap_size);
+      printf("node size=%ld, heap size=%"PRId64"\n", NODE_SIZE, heap_size);
     }
-    printf("%ld reductions, %ld GCs, max cells used %ld\n", num_reductions, num_gc, max_num_marked);
-    printf("%ld cells at start\n", start_size);
+    printf("%"PRId64" reductions, %"PRId64" GCs, max cells used %"PRId64"\n", num_reductions, num_gc, max_num_marked);
+    printf("%"PRId64" cells at start\n", start_size);
   }
   exit(0);
 }
