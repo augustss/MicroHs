@@ -3,7 +3,7 @@ module MicroHs.TypeCheck(module MicroHs.TypeCheck) where
 import Control.Monad.State as T
 import Parse
 
-data Typed a = Typed EType a
+type Typed a = (a, EType)
 
 tCon :: Ident -> EType
 tCon = EVar
@@ -14,44 +14,78 @@ tApps i ts = foldl EApp (tCon i) ts
 tArrow :: EType -> EType -> EType
 tArrow a r = EApp (EApp (EVar "->") a) r
 
+munify :: Maybe EType -> EType T ()
+munify mt b =
+  case mt of
+    Nothing -> return ()
+    Just a -> unify a b
+
+unify :: EType -> EType -> T ()
+unify _a _b = undefined
+
+unMType :: Maybe EType -> T EType
+unMType mt =
+  case mt of
+    Nothing -> newUVar
+    Just t -> return t
+
+newUVar :: T EType
+newUVar = undefined
+
+{-
+unMTypeArrow :: Maybe EType -> T (EType, Maybe EType)
+unMTypeArrow mt =
+  case mt of
+    Nothing -> T.do
+      t <- newUVar
+      return (t, Nothing)
+    Just tarr -> T.do
+      case getArrow tarr of
+        Just (ta, tr) -> (ta, Just tr)
+	Nothing -> T.do
+-}
+
 tcExpr :: Maybe EType -> Expr -> T (Typed Expr)
 tcExpr mt ae =
-  let
-    ret t = TExpr t ae
-  in
-    case ae of
-      EVar i -> T.do
-        t <- tLookup i
-        munify mt t
-        ret t
-      EApp f a -> T.do
-        ta <- tcExpr Nothing a
-        tr <- unMType mt
-        tcExpr (Just (tArrow ta tr)) f
-        ret tr
-      ELam i e -> T.do
-        (ta, mtr) <- unMTypeArrow mt
-        tr <- ext t ta $ tcExpr mtr e
-        ret (tArrow ta tr)
-      EInt _ -> ret (tCon "Data.Int.Int")
-      EChar _ -> ret (tCon "Data.Char.Char")
-      EStr _ -> ret (tApps "Data.List.[]") [tCon "Data.Char.Char"]
-      ECase _ -> undefined
-      ELet _ -> undefined
-      ETuple es -> T.do
-        let
-          n = length es
-        mts <- unMTypeTuple n mt
-        trs <- zipWithM tcExpr mts es
-        ret (tApps (tupleConstr n) trs)
-      EList es -> T.do
-        met <- unMTypeList mt
-        mapM_ (tcExpr met) es
-        ret (unMType mt)
-      EDo _ -> undefined
-      EPrim p -> ret (lookupPrimType p)
-      ESectL _ _ -> undefined
-      ESectR _ _ -> undefined
-      EIf e1 e2 e3 -> do
-        tcExpr (Just (tCon "Data.Bool.Bool")) e1
-        tc
+  case ae of
+    EVar i -> T.do
+      t <- tLookupInst i
+      munify mt t
+      return (ae, t)
+    EApp f a -> T.do
+      (ea, ta) <- tcExpr Nothing a
+      tr <- unMType mt
+      (ef, _) <- tcExpr (Just (tArrow ta tr)) f
+      return (EApp ea ef, tr)
+    ELam i e -> T.do
+      ta <- newUVar
+      (ee, tr) <- extVals i ta $ tcExpr Nothing e
+      let
+        tlam = tArrow ta tr
+      munify mt tlam
+      return (ELam i ee, tlam)
+    EInt _ -> return (ea, tCon "Data.Int.Int")
+    EChar _ -> return (ea, tCon "Data.Char.Char")
+    EStr _ -> return (ea, tApps "Data.List.[]") [tCon "Data.Char.Char"]
+    ECase _ -> undefined
+    ELet _ -> undefined
+    ETuple es -> T.do
+      let
+        n = length es
+      mts <- unMTypeTuple n mt
+      (ees, tes) <- unzip <$> zipWithM tcExpr mts es
+      return (ETuple ees, tApps (tupleConstr n) tes)
+    EList es -> T.do
+      met <- unMTypeList mt
+      (ees, _) <- unzip <$> mapM_ (tcExpr met) es
+      return (EList ees, unMType mt)
+    EDo _ -> undefined
+    EPrim p -> return (ea, lookupPrimType p)
+    ESectL _ _ -> undefined
+    ESectR _ _ -> undefined
+    EIf e1 e2 e3 -> do
+      (ee1, _) <- tcExpr (Just (tCon "Data.Bool.Bool")) e1
+      (ee2, te2) <- tcExpr mt e2
+      (ee3, te3) <- tcExpr mt e3
+      unify te2 te3
+      return (EIf ee1 ee2 ee3, te2)
