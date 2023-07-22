@@ -72,9 +72,11 @@ tcExpr mt ae =
     ETuple es -> T.do
       let
         n = length es
-      mts <- unMTypeTuple n mt
       (ees, tes) <- unzip <$> zipWithM tcExpr mts es
-      return (ETuple ees, tApps (tupleConstr n) tes)
+      let
+        ttup = tApps (tupleConstr n) tes
+      munify mt ttup
+      return (ETuple ees, ttup)
     EList es -> T.do
       met <- unMTypeList mt
       (ees, _) <- unzip <$> mapM_ (tcExpr met) es
