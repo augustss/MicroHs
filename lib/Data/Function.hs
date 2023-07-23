@@ -5,23 +5,24 @@ import Primitives
 import Data.Tuple
 
 --Yinfixr 0 $
-($) :: (a -> b) -> a -> b
+($) :: forall a b . (a -> b) -> a -> b
 ($) f x = f x
 
 --Yinfixr 9 .
-(.) :: (b -> c) -> (a -> b) -> (a -> c)
+(.) :: forall a b c . (b -> c) -> (a -> b) -> (a -> c)
 (.) f g x = f (g x)
 
-id :: a -> a
+id :: forall a . a -> a
 id x = x
 
-const :: a -> b -> a
+const :: forall a b . a -> b -> a
 const x _ = x
 
-flip :: (b -> a -> c) -> a -> b -> c
+flip :: forall a b c . (b -> a -> c) -> a -> b -> c
 flip f a b = f b a
 
+fix :: forall a . (a -> a) -> a
 fix = primFix
 
-uncurry :: (a -> b -> c) -> (a, b) -> c
+uncurry :: forall a b c . (a -> b -> c) -> (a, b) -> c
 uncurry f ab = f (fst ab) (snd ab)

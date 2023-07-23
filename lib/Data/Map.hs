@@ -18,7 +18,7 @@ data OneOrTwo a
   | OOT2 a a
   --Xderiving (Show)
 
-height :: Map k v -> Int
+height :: forall k v . Map k v -> Int
 height m =
   case m of
     Empty -> undefined
@@ -26,7 +26,7 @@ height m =
     Node2 h _ _ _ -> h
     Node3 h _ _ _ _ -> h
 
-smallest :: Map k v -> k
+smallest :: forall k v . Map k v -> k
 smallest m =
   case m of
     Empty -> undefined
@@ -34,7 +34,7 @@ smallest m =
     Node2 _ k _ _ -> k
     Node3 _ k _ _ _ -> k
 
-replSmallest :: (v -> v) -> Map k v -> Map k v
+replSmallest :: forall k v . (v -> v) -> Map k v -> Map k v
 replSmallest f m =
   case m of
     Empty -> undefined
@@ -42,13 +42,13 @@ replSmallest f m =
     Node2 h s a b -> Node2 h s (replSmallest f a) b
     Node3 h s a b c -> Node3 h s (replSmallest f a) b c
 
-node2 :: Map k v -> Map k v -> Map k v
+node2 :: forall k v . Map k v -> Map k v -> Map k v
 node2 a b = Node2 (height a + 1) (smallest a) a b
 
-node3 :: Map k v -> Map k v -> Map k v -> Map k v
+node3 :: forall k v . Map k v -> Map k v -> Map k v -> Map k v
 node3 a b c = Node3 (height a + 1) (smallest a) a b c
 
-meld :: OneOrTwo (Map k v) -> OneOrTwo (Map k v) -> OneOrTwo (Map k v)
+meld :: forall k v . OneOrTwo (Map k v) -> OneOrTwo (Map k v) -> OneOrTwo (Map k v)
 meld m1 m2 =
   case m1 of
     OOT1 a ->
@@ -60,7 +60,7 @@ meld m1 m2 =
         OOT1 c -> OOT1 $ node3 a b c
         OOT2 c d -> OOT2 (node2 a b) (node2 c d)
 
-mergeToSameHeight :: Map k v -> Map k v -> OneOrTwo (Map k v)
+mergeToSameHeight :: forall k v . Map k v -> Map k v -> OneOrTwo (Map k v)
 mergeToSameHeight a b =
   if height a < height b then
     case b of
@@ -76,7 +76,7 @@ mergeToSameHeight a b =
     OOT2 a b
 
 -- All elements in aa smaller than elements in ab
-merge :: Map k v -> Map k v -> Map k v
+merge :: forall k v . Map k v -> Map k v -> Map k v
 merge aa ab =
   case aa of
     Empty -> ab
@@ -88,7 +88,7 @@ merge aa ab =
             OOT1 t -> t
             OOT2 t u -> node2 t u
 
-split :: (k -> Bool) -> Map k v -> (Map k v, Map k v)
+split :: forall k v . (k -> Bool) -> Map k v -> (Map k v, Map k v)
 split f am =
   case am of
     Empty -> (Empty, Empty)
@@ -117,7 +117,7 @@ split f am =
 
 -----------------------------------------
 
-insertByWith :: (k -> k -> Bool) -> (v -> v -> v) -> k -> v -> Map k v -> Map k v
+insertByWith :: forall k v . (k -> k -> Bool) -> (v -> v -> v) -> k -> v -> Map k v -> Map k v
 insertByWith le f k v a =
   case split (le k) a of
     (a1, a2) ->
@@ -129,10 +129,10 @@ insertByWith le f k v a =
           else
             merge (merge a1 (Leaf k v)) a2
 
-insertBy :: (k -> k -> Bool) -> k -> v -> Map k v -> Map k v
+insertBy :: forall k v . (k -> k -> Bool) -> k -> v -> Map k v -> Map k v
 insertBy le = insertByWith le const
 
-lookupBy :: (k -> k -> Bool) -> k -> Map k v -> Maybe v
+lookupBy :: forall k v . (k -> k -> Bool) -> k -> Map k v -> Maybe v
 lookupBy le x am =
   case am of
     Empty -> Nothing
@@ -150,13 +150,13 @@ lookupBy le x am =
       else
         lookupBy le x a
 
-unionBy :: (k -> k -> Bool) -> Map k v -> Map k v -> Map k v
+unionBy :: forall k v . (k -> k -> Bool) -> Map k v -> Map k v -> Map k v
 unionBy le m1 m2 = foldr (uncurry (insertBy le)) m2 (toList m1)
 
-fromListByWith :: (k -> k -> Bool) -> (v -> v -> v) -> [(k, v)] -> Map k v
+fromListByWith :: forall k v . (k -> k -> Bool) -> (v -> v -> v) -> [(k, v)] -> Map k v
 fromListByWith le f = foldr (uncurry (insertByWith le f)) Empty
 
-toList :: Map k v -> [(k, v)]
+toList :: forall k v . Map k v -> [(k, v)]
 toList m =
   let
     pre aa xs =
@@ -167,11 +167,11 @@ toList m =
         Node3 _ _ a b c -> pre a (pre b (pre c xs))
   in pre m []
 
-fromListBy :: (k -> k -> Bool) -> [(k, v)] -> Map k v
+fromListBy :: forall k v . (k -> k -> Bool) -> [(k, v)] -> Map k v
 fromListBy le = fromListByWith le const
 
-empty :: Map k v
+empty :: forall k v . Map k v
 empty = Empty
 
-elems :: Map k v -> [v]
+elems :: forall k v . Map k v -> [v]
 elems = map snd . toList

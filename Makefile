@@ -3,7 +3,7 @@ BOOTDIR=ghc-boot
 OUTDIR=ghc-out
 PROF= #-prof -fprof-auto
 GHCB=ghc $(PROF) -outputdir $(BOOTDIR)
-GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude -F -pgmF $(CURDIR)/convertY.sh 
+GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude -XScopedTypeVariables -F -pgmF $(CURDIR)/convertY.sh 
 GHCC=$(GHCB) $(GHCFLAGS)
 GHC=ghc
 # $(CURDIR) might not be quite right
