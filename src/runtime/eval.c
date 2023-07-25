@@ -400,6 +400,7 @@ parse(FILE *f)
   NODEPTR r;
   int l;
   value_t i;
+  value_t neg;
   int c;
   char buf[80];                 /* store names of primitives. */
 
@@ -414,10 +415,20 @@ parse(FILE *f)
     ARG(r) = parse(f);
     if (!gobble(f, ')')) ERR("parse ')'");
     return r;
+  case '-':
+    c = getc(f);
+    if ('0' <= c && c <= '9') {
+      neg = -1;
+      goto number;
+    } else {
+      ERR("got -");
+    }
   case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
     /* integer [0-9]+*/
+    neg = 1;
+  number:
     ungetc(c, f);
-    i = parse_int(f);
+    i = neg * parse_int(f);
     r = alloc_node(INT);
     SETVALUE(r, i);
     return r;
