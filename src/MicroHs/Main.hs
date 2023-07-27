@@ -32,15 +32,15 @@ main = do
     defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds (enumFrom 0) ]
     findIdent n = fromMaybe (error $ "undefined: " ++ showIdent n) $ M.lookup n defs
     emain = findIdent mainName
-    subst aexp =
+    substv aexp =
       case aexp of
         Var n -> findIdent n
-        App f a -> App (subst f) (subst a)
+        App f a -> App (substv f) (substv a)
         e -> e
     --def :: ((Ident, Exp), Int) -> String -> String
     def d r =
       case d of
-        ((_, e), i) -> "(($T :" ++ showInt i ++ " " ++ toStringP (subst e) ++ ") " ++ r ++ ")"
+        ((_, e), i) -> "(($T :" ++ showInt i ++ " " ++ toStringP (substv e) ++ ") " ++ r ++ ")"
         -- App2 CT (Lbl i (subst e)) r
     res = foldr def (toStringP emain) (zip ds (enumFrom 0))
   when (verbose flags > 1) $

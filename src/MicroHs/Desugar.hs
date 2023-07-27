@@ -243,6 +243,8 @@ dsExpr syms aexpr =
             SLet ds ->
               dsExpr syms (ELet ds (ECompr e stmts))
     EBad -> error "complex case not implemented"
+    EUVar _ -> undefined
+    ECaseT _ _ _ -> undefined
 
 mqual :: Maybe Ident -> Ident -> Ident
 mqual mqi i =
@@ -410,6 +412,8 @@ allVarsExpr aexpr =
     EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
     ECompr e ss -> allVarsExpr e ++ concatMap allVarsStmt ss
     EBad -> []
+    EUVar _ -> []
+    ECaseT _ e as -> allVarsExpr e ++ concatMap (\ pa -> allVarsPat (fst pa) ++ allVarsExpr (snd pa)) as
 
 allVarsStmt :: EStmt -> [Ident]
 allVarsStmt astmt =

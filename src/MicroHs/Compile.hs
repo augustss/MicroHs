@@ -9,8 +9,9 @@ import qualified System.IO as IO
 
 import qualified MicroHs.StringMap as M
 import MicroHs.StateIO as S
-import MicroHs.Desugar
+--import MicroHs.Desugar
 import MicroHs.Parse
+import MicroHs.TypeCheck
 
 data Flags = Flags Int Bool [String] String
   --Xderiving (Show)
@@ -37,7 +38,7 @@ output f =
 
 -----------------
 
-data Cache = Cache [IdentModule] (M.Map Module)
+data Cache = Cache [IdentModule] (M.Map (TModule LDef))
   --Xderiving (Show)
 
 working :: Cache -> [IdentModule]
@@ -50,7 +51,7 @@ updWorking w c =
   case c of
     Cache _ m -> Cache w m
 
-cache :: Cache -> M.Map Module
+cache :: Cache -> M.Map (TModule LDef)
 cache c =
   case c of
     Cache _ x -> x
@@ -73,7 +74,7 @@ compile flags nm = IO.do
         Module _ _ _ ds -> ds
   IO.return $ concatMap defs $ M.elems $ cache ch
 
-compileModuleCached :: Flags -> IdentModule -> StateIO Cache Module
+compileModuleCached :: Flags -> IdentModule -> StateIO Cache (TModule Exp)
 compileModuleCached flags nm = S.do
   ch <- gets cache
   case M.lookup nm ch of
@@ -95,7 +96,7 @@ compileModuleCached flags nm = S.do
         liftIO $ putStrLn $ "importing cached " ++ showIdent nm
       S.return cm
 
-compileModule :: Flags -> IdentModule -> StateIO Cache Module
+compileModule :: Flags -> IdentModule -> StateIO Cache (TModule Exp)
 compileModule flags nm = S.do
   let
     fn = map (\ c -> if eqChar c '.' then '/' else c) nm ++ ".hs"
@@ -108,7 +109,11 @@ compileModule flags nm = S.do
   let
     specs = [ s | Import s <- defs ]
   impMdls <- S.mapM (compileModuleCached flags) [ m | ImportSpec _ m _ <- specs ]
-  S.return $ desugar (zip specs impMdls) mdl
+  let tmdl = tcModule (zip specs impMdls) mdl
+  S.return $ desugar tmdl
+
+desugar :: TModule EModule -> TModule [LDef]
+desugar = undefined
 
 ------------------
 

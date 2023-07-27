@@ -27,12 +27,17 @@ import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..)
 --import Control.Applicative --hiding (many, some)
 import Data.Char
 import Data.List
+import Data.Maybe
 import Text.ParserComb as P
 --import Debug.Trace
 --Ximport Compat
 
 
-type P a = Prsr [Int] a
+data EModule = EModule IdentModule [ExportSpec] [EDef]
+  --Xderiving (Show)
+
+data ExportSpec = ExpModule IdentModule
+  --Xderiving (Show)
 
 type Ident = String
 type IdentModule = Ident
@@ -66,9 +71,18 @@ data Expr
   | EIf Expr Expr Expr
   | ECompr Expr [EStmt]
   | EBad
+  -- Only while type checking
+  | EUVar Int
+  -- Extra info for desugaring
+  | ECaseT TypeInfo Expr [ECaseArm]
   --Xderiving (Show)
 
 type ECaseArm = (EPat, Expr)
+
+data TypeInfo
+  = TAbs EKind
+  | TConc EKind [(Ident, Int)]   -- constructor name and arity
+  --Xderiving (Show)
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
   --Xderiving (Show)
@@ -86,12 +100,6 @@ isPVar p =
   case p of
     PConstr _ _ -> False
     PVar _ -> True
-
-data EModule = EModule IdentModule [ExportSpec] [EDef]
-  --Xderiving (Show)
-
-data ExportSpec = ExpModule IdentModule
-  --Xderiving (Show)
 
 type LHS = (Ident, [Ident])
 type Constr = (Ident, [EType])
@@ -113,6 +121,8 @@ validType ae =
 data ETypeScheme = ETypeScheme [Ident] EType
   --Xderiving (Show)
 
+type EKind = EType
+
 eqIdent :: Ident -> Ident -> Bool
 eqIdent = eqString
 
@@ -129,6 +139,8 @@ untupleConstr :: Ident -> Int
 untupleConstr s = length s + 1
 
 ---------------------------------
+
+type P a = Prsr [Int] a
 
 qual :: Ident -> Ident -> Ident
 qual qi i = qi ++ "." ++ i
@@ -703,6 +715,8 @@ showExpr ae =
     EIf e1 e2 e3 -> "if " ++ showExpr e1 ++ " then " ++ showExpr e2 ++ " else " ++ showExpr e3
     ECompr _ _ -> "ECompr"
     EBad -> "EBad"
+    EUVar i -> "a" ++ showInt i
+    ECaseT _ _ _ -> "ECase"
 
 showEType :: EType -> String
 showEType = showEType
@@ -714,3 +728,13 @@ showETypeScheme ts =
       if null vs
       then showEType t
       else unwords ("forall" : vs ++ [".", showEType t])
+
+subst :: [(Ident, Expr)] -> Expr -> Expr
+subst s =
+  let
+    sub ae =
+      case ae of
+        EVar i -> fromMaybe ae $ lookupBy eqIdent i s
+        EApp f a -> EApp (sub f) (sub a)
+        _ -> error "subst unimplemented"
+  in sub
