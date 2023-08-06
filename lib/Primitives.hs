@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Primitives(module Primitives) where
+--import Data.Bool_Type
 
 primIntAdd :: Int -> Int -> Int
 primIntAdd  = primitive "+"
@@ -44,7 +45,7 @@ primCharGE  = primitive ">="
 primError  :: forall a . [Char] -> a
 primError  = primitive "error"
 
-primError  :: forall a . (a -> a) -> a
+primFix    :: forall a . (a -> a) -> a
 primFix    = primitive "Y"
 
 primChr :: Int -> Char
@@ -59,9 +60,9 @@ primUnsafeCoerce = primitive "I"
 
 primBind         :: forall a b . IO a -> (a -> IO b) -> IO b
 primBind          = primitive "IO.>>="
-primBind         :: forall a b . IO a -> IO b -> IO b
+primThen         :: forall a b . IO a -> IO b -> IO b
 primThen          = primitive "IO.>>"
-primReturn       :: a -> IO a
+primReturn       :: forall a . a -> IO a
 primReturn        = primitive "IO.return"
 primHPutChar     :: Handle -> Int -> IO ()
 primHPutChar      = primitive "IO.putChar"
@@ -73,7 +74,7 @@ primIsNullHandle :: Handle -> Bool
 primIsNullHandle  = primitive "IO.isNullHandle"
 primHSerialize   :: forall a . Handle -> a -> [Char]
 primHSerialize    = primitive "IO.serialize"
-primHDeerialize  :: forall a . Handle -> [Char] -> a
+primHDeserialize :: forall a . Handle -> [Char] -> a
 primHDeserialize  = primitive "IO.deserialize"
 primHClose       :: Handle -> IO ()
 primHClose        = primitive "IO.close"

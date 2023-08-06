@@ -34,10 +34,10 @@ import Text.ParserComb as P
 
 
 data EModule = EModule IdentModule [ExportSpec] [EDef]
-  --Xderiving (Show)
+  --Xderiving (Show, Eq)
 
 data ExportSpec = ExpModule IdentModule
-  --Xderiving (Show)
+  --Xderiving (Show, Eq)
 
 type Ident = String
 type IdentModule = Ident
@@ -48,10 +48,10 @@ data EDef
   | Fcn LHS Expr
   | Sign Ident ETypeScheme
   | Import ImportSpec
-  --Xderiving (Show)
+  --Xderiving (Show, Eq)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident)
-  --Xderiving (Show)
+  --Xderiving (Show, Eq)
 
 data Expr
   = EVar Ident
@@ -73,33 +73,42 @@ data Expr
   | EBad
   -- Only while type checking
   | EUVar Int
-  -- Extra info for desugaring
-  | ECaseT TypeInfo Expr [ECaseArm]
-  --Xderiving (Show)
+  -- Constructors after type checking
+  | ECon ConTyInfo Ident
+  --Xderiving (Show, Eq)
 
 type ECaseArm = (EPat, Expr)
 
 data TypeInfo
   = TAbs EKind
-  | TConc EKind [(Ident, Int)]   -- constructor name and arity
-  --Xderiving (Show)
+  | TConc EKind [(Ident, ETypeScheme)]   -- constructor name, arity, and type
+  | TSyn EKind ETypeScheme
+  --Xderiving (Show, Eq)
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
-  --Xderiving (Show)
+  --Xderiving (Show, Eq)
 
 data EBind = BFcn LHS Expr | BPat EPat Expr
-  --Xderiving (Show)
+  --Xderiving (Show, Eq)
+
+type ConTyInfo = [(Ident, Int)]    -- All constructors with their arities
 
 data EPat
-  = PConstr Ident [EPat]
+  = PConstr ConTyInfo Ident [EPat]
   | PVar Ident
-  --Xderiving (Show)
+  --Xderiving (Show, Eq)
 
 isPVar :: EPat -> Bool
 isPVar p =
   case p of
-    PConstr _ _ -> False
+    PConstr _ _ _ -> False
     PVar _ -> True
+
+patVars :: EPat -> [Ident]
+patVars apat =
+  case apat of
+    PVar i -> [i]
+    PConstr _ _ ps -> concatMap patVars ps
 
 type LHS = (Ident, [Ident])
 type Constr = (Ident, [EType])
@@ -119,7 +128,7 @@ validType ae =
     _ -> False
 
 data ETypeScheme = ETypeScheme [Ident] EType
-  --Xderiving (Show)
+  --Xderiving (Show, Eq)
 
 type EKind = EType
 
@@ -523,13 +532,13 @@ pAPat :: P EPat
 pAPat =
       (PVar <$> pLIdent_)
   <|> (cTuple <$> (pSym '(' *> esepBy1 pPat (pSym ',') <* pSym ')'))
-  <|> (PConstr <$> pUIdent <*> pure [])
+  <|> (PConstr [] <$> pUIdent <*> pure [])
 
 pPat :: P EPat
 pPat =
       pAPat
-  <|> (PConstr <$> pUIdent <*> esome pAPat)
-  <|> ((\ x s y -> PConstr s [x,y]) <$> pAPat <*> pOperU <*> pAPat)
+  <|> (PConstr [] <$> pUIdent <*> esome pAPat)
+  <|> ((\ x s y -> PConstr [] s [x,y]) <$> pAPat <*> pOperU <*> pAPat)
 
 pPatC :: P EPat
 pPatC = P.do
@@ -544,7 +553,7 @@ cTuple aps =
     p:ps ->
       case ps of
         [] -> p
-        _ -> PConstr (tupleConstr (length aps)) aps
+        _ -> PConstr [] (tupleConstr (length aps)) aps
 
 pLet :: P Expr
 pLet = ELet <$> (pKeywordW "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)
@@ -688,9 +697,16 @@ showExportSpec ae =
 showEDef :: EDef -> String
 showEDef def =
   case def of
-    Fcn (f, vs) e -> unwords (f : vs) ++ " = " ++ showExpr e
+    Data lhs _cs -> "data " ++ showLHS lhs ++ " = ..."
+    Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
+    Fcn lhs e -> showLHS lhs ++ " = " ++ showExpr e
     Sign i t -> i ++ " :: " ++ showETypeScheme t
-    _ -> "<<EDef>>"
+    Import (ImportSpec q m mm) -> "import " ++ (if q then "qualified " else "") ++ m ++ maybe "" (" as " ++) mm
+
+showLHS :: LHS -> String
+showLHS lhs =
+  case lhs of
+    (f, vs) -> unwords (f : vs)
 
 showEDefs :: [EDef] -> String
 showEDefs ds = unlines (map showEDef ds)
@@ -704,7 +720,7 @@ showExpr ae =
     EInt i -> showInt i
     EChar c -> showChar c
     EStr s -> showString s
-    ECase _ _ -> "ECase"
+    ECase e as -> "case " ++ showExpr e ++ " of {\n" ++ unlines (map showCaseArm as) ++ "}"
     ELet _ _ -> "ELet"
     ETuple es -> "(" ++ intercalate "," (map showExpr es) ++ ")"
     EList es -> showList showExpr es
@@ -716,10 +732,21 @@ showExpr ae =
     ECompr _ _ -> "ECompr"
     EBad -> "EBad"
     EUVar i -> "a" ++ showInt i
-    ECaseT _ _ _ -> "ECase"
+    ECon _ i -> i
+
+showCaseArm :: ECaseArm -> String
+showCaseArm arm =
+  case arm of
+    (p, e) -> showEPat p ++ " -> " ++ showExpr e
+
+showEPat :: EPat -> String
+showEPat apat =
+  case apat of
+    PVar i -> i
+    PConstr _ c ps -> unwords (c : map showEPat ps)
 
 showEType :: EType -> String
-showEType = showEType
+showEType = showExpr
 
 showETypeScheme :: ETypeScheme -> String
 showETypeScheme ts =
@@ -736,5 +763,6 @@ subst s =
       case ae of
         EVar i -> fromMaybe ae $ lookupBy eqIdent i s
         EApp f a -> EApp (sub f) (sub a)
+        EUVar _ -> ae
         _ -> error "subst unimplemented"
   in sub

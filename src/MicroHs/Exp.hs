@@ -315,3 +315,21 @@ improveT (App f a) =
     (e1,                     e2) -> App e1 e2
 improveT e = e
 -}
+
+showExp :: Exp -> String
+showExp ae =
+  case ae of
+    Var i -> i
+    App f a -> "(" ++ showExp f ++ " " ++ showExp a ++ ")"
+    Lam i e -> "(\\" ++ i ++ ". " ++ showExp e ++ ")"
+    Int i -> showInt i
+    Prim p -> p
+
+--------
+-- Possible additions
+--
+--  R = C C
+--  R x y z = (C C x y) z = C y x z = y z x
+--
+--  Q = C I
+--  Q x y z = (C I x y) z = I y x z = y x z

@@ -3,8 +3,8 @@
 module Control.Error(module Control.Error) where
 import Primitives
 
---error :: String -> a
+error :: forall a . [Char] -> a
 error = primError
 
-undefined :: a
+undefined :: forall a . a
 undefined = error "undefined"

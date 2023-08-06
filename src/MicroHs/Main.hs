@@ -10,7 +10,7 @@ import MicroHs.Parse
 import MicroHs.Exp
 import MicroHs.Compile
 import MicroHs.Translate
-import MicroHs.Desugar
+import MicroHs.Desugar(LDef)
 --Ximport Compat
 
 main :: IO ()
@@ -57,9 +57,9 @@ main = do
 version :: String
 version = "v1.0\n"
 
-type CModule = (Ident, [LDef])
+type Program = (Ident, [LDef])
 
-compileTop :: Flags -> IdentModule -> IO CModule
+compileTop :: Flags -> IdentModule -> IO Program
 compileTop flags mn = do
   ds <- compile flags mn
   let

@@ -9,7 +9,7 @@ import qualified System.IO as IO
 
 import qualified MicroHs.StringMap as M
 import MicroHs.StateIO as S
---import MicroHs.Desugar
+import MicroHs.Desugar
 import MicroHs.Parse
 import MicroHs.TypeCheck
 
@@ -38,7 +38,8 @@ output f =
 
 -----------------
 
-data Cache = Cache [IdentModule] (M.Map (TModule LDef))
+type CModule = TModule [LDef]
+data Cache = Cache [IdentModule] (M.Map CModule)
   --Xderiving (Show)
 
 working :: Cache -> [IdentModule]
@@ -51,7 +52,7 @@ updWorking w c =
   case c of
     Cache _ m -> Cache w m
 
-cache :: Cache -> M.Map (TModule LDef)
+cache :: Cache -> M.Map CModule
 cache c =
   case c of
     Cache _ x -> x
@@ -71,10 +72,10 @@ compile flags nm = IO.do
   let
     defs m =
       case m of
-        Module _ _ _ ds -> ds
+        TModule _ _ _ ds -> ds
   IO.return $ concatMap defs $ M.elems $ cache ch
 
-compileModuleCached :: Flags -> IdentModule -> StateIO Cache (TModule Exp)
+compileModuleCached :: Flags -> IdentModule -> StateIO Cache CModule
 compileModuleCached flags nm = S.do
   ch <- gets cache
   case M.lookup nm ch of
@@ -96,7 +97,7 @@ compileModuleCached flags nm = S.do
         liftIO $ putStrLn $ "importing cached " ++ showIdent nm
       S.return cm
 
-compileModule :: Flags -> IdentModule -> StateIO Cache (TModule Exp)
+compileModule :: Flags -> IdentModule -> StateIO Cache CModule
 compileModule flags nm = S.do
   let
     fn = map (\ c -> if eqChar c '.' then '/' else c) nm ++ ".hs"
@@ -109,11 +110,14 @@ compileModule flags nm = S.do
   let
     specs = [ s | Import s <- defs ]
   impMdls <- S.mapM (compileModuleCached flags) [ m | ImportSpec _ m _ <- specs ]
-  let tmdl = tcModule (zip specs impMdls) mdl
-  S.return $ desugar tmdl
-
-desugar :: TModule EModule -> TModule [LDef]
-desugar = undefined
+  let tmdl = typeCheck (zip specs impMdls) mdl
+  liftIO $ putStrLn $ drop 1000000 $ show tmdl
+  S.when (verbose flags > 2) $
+    liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
+  let dmdl = desugar tmdl
+  S.when (verbose flags > 2) $
+    liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl
+  S.return dmdl
 
 ------------------
 

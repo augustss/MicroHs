@@ -5,7 +5,7 @@ import qualified Primitives as P
 import Data.Bool
 import Data.Int
 
-type Char = P.Char
+--type Char = P.Char
 type String = [Char]
 
 chr :: Int -> Char
