@@ -53,12 +53,12 @@ showUnit arg =
   case arg of
     () -> "()"
 
-showPair :: (a -> String) -> (b -> String) -> (a, b) -> String
+showPair :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
 showPair sa sb ab =
   case ab of
     (a, b) -> "(" ++ sa a ++ "," ++ sb b ++ ")"
 
-showList :: (a -> String) -> [a] -> String
+showList :: forall a . (a -> String) -> [a] -> String
 showList sa arg =
   let
     showRest as =
@@ -70,13 +70,13 @@ showList sa arg =
       [] -> "[]"
       a : as -> "[" ++ sa a ++ showRest as
 
-showMaybe :: (a -> String) -> Maybe a -> String
+showMaybe :: forall a . (a -> String) -> Maybe a -> String
 showMaybe fa arg =
   case arg of
     Nothing -> "Nothing"
     Just a  -> "(Just " ++ fa a ++ ")"
 
-showEither :: (a -> String) -> (b -> String) -> Either a b -> String
+showEither :: forall a b . (a -> String) -> (b -> String) -> Either a b -> String
 showEither fa fb arg =
   case arg of
     Left  a -> "(Left " ++ fa a ++ ")"

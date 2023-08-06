@@ -10,27 +10,33 @@ import Data.List
 import Data.Maybe
 import Data.Tuple
 
-type IO = P.IO
-type Handle = P.Handle
+--Ytype IO = P.IO
+--Ytype Handle = P.Handle
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
 
 --Yinfixl 1 >>=
-(>>=)       :: IO a -> (a -> IO b) -> IO b
+(>>=)       :: forall a b . IO a -> (a -> IO b) -> IO b
 (>>=)        = P.primBind
 
 --Yinfixl 1 >>
-(>>)        :: IO a -> IO b -> IO b
+(>>)        :: forall a b . IO a -> IO b -> IO b
 (>>)         = P.primThen
 
-return      :: a -> IO a
+return      :: forall a . a -> IO a
 return       = P.primReturn
 
+hSerialize   :: forall a . Handle -> a -> IO ()
 hSerialize   = P.primHSerialize
+hDeserialize :: forall a . Handle -> IO a
 hDeserialize = P.primHDeserialize
+hClose       :: Handle -> IO ()
 hClose       = P.primHClose
+stdin        :: Handle
 stdin        = P.primStdin
+stdout       :: Handle
 stdout       = P.primStdout
+stderr       :: Handle
 stderr       = P.primStderr
 
 hGetChar :: Handle -> IO Char
@@ -40,6 +46,7 @@ hGetChar h = do
     False -> return (chr c)
     True  -> error "hGetChar: EOF"
 
+hPutChar :: Handle -> Char -> IO ()
 hPutChar h c = P.primHPutChar h (ord c)
 
 openFileM :: String -> IOMode -> IO (Maybe Handle)
@@ -69,10 +76,10 @@ putChar = hPutChar stdout
 getChar :: IO Char
 getChar = hGetChar stdin
 
-print :: a -> IO ()
+print :: forall a . a -> IO ()
 print = hSerialize stdout
 
-mapM :: (a -> IO b) -> [a] -> IO [b]
+mapM :: forall a b . (a -> IO b) -> [a] -> IO [b]
 mapM f =
   let
     rec arg =
@@ -84,7 +91,7 @@ mapM f =
           return (b : bs)
   in rec
 
-mapM_ :: (a -> IO b) -> [a] -> IO ()
+mapM_ :: forall a b . (a -> IO b) -> [a] -> IO ()
 mapM_ f =
   let
     rec arg =
@@ -135,13 +142,13 @@ hGetContents h = do
       --return (chr c : P.primPerformIO (hGetContents h))
     True  -> return ""
   
-writeSerialized :: String -> a -> IO ()
+writeSerialized :: forall a . String -> a -> IO ()
 writeSerialized p s = do
   h <- openFile p WriteMode
   hSerialize h s
   hClose h
 
-readSerialized :: String -> IO a
+readSerialized :: forall a . String -> IO a
 readSerialized p = do
   h <- openFile p ReadMode
   a <- hDeserialize h

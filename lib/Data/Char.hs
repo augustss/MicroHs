@@ -5,7 +5,8 @@ import qualified Primitives as P
 import Data.Bool
 import Data.Int
 
---type Char = P.Char
+--Ytype Char = P.Char
+--Ytype Int  = P.Int
 type String = [Char]
 
 chr :: Int -> Char

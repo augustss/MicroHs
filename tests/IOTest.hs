@@ -4,12 +4,15 @@ import System.IO as IO
 import System.Environment
 import Debug.Trace
 
+f :: Int -> Int
 f x = x*2+1
 
+foo :: IO ()
 foo = IO.do
   putStrLn "foo 1"
   putStrLn "foo 2"
 
+main :: IO ()
 main = do
   putChar 'a'
   putChar 'b'

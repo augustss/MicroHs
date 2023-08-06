@@ -8,6 +8,9 @@ import Data.Int
 import Data.Maybe
 import Data.Tuple
 
+--Yimport Data.Char
+--type Int = P.Int
+
 data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable --Z
 
 null :: forall a . [a] -> Bool

@@ -36,7 +36,7 @@ put s = S $ \ _ -> ((), s)
 get :: State s s
 get = S $ \ s -> (s, s)
 
-gets :: (s -> a) State s a
+gets :: (s -> a) -> State s a
 gets f = S $ \ s -> (f s, s)
 
 mapM :: (a -> State s b) -> [a] -> State s [b]

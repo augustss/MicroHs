@@ -1,6 +1,7 @@
 module StringTest(module StringTest) where
 import Prelude
 
+main :: IO ()
 main = do
   putStrLn $ showInt 1234
   putStrLn $ showInt 0

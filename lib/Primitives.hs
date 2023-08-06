@@ -72,9 +72,9 @@ primOpenFile     :: String -> Int -> IO Handle
 primOpenFile      = primitive "IO.open"
 primIsNullHandle :: Handle -> Bool
 primIsNullHandle  = primitive "IO.isNullHandle"
-primHSerialize   :: forall a . Handle -> a -> [Char]
+primHSerialize   :: forall a . Handle -> a -> IO ()
 primHSerialize    = primitive "IO.serialize"
-primHDeserialize :: forall a . Handle -> [Char] -> a
+primHDeserialize :: forall a . Handle -> IO a
 primHDeserialize  = primitive "IO.deserialize"
 primHClose       :: Handle -> IO ()
 primHClose        = primitive "IO.close"
