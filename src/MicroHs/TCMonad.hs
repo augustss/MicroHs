@@ -4,7 +4,7 @@ module MicroHs.TCMonad(
   runState,
   fmap,
   fail,
-  mapM,
+  mapM, mapM_,
   get, gets, put,
   ) where
 --import Control.Monad

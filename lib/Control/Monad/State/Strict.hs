@@ -1,5 +1,5 @@
 {-# LANGUAGE QualifiedDo #-}
-module Control.Monad.State(module Control.Monad.State) where
+module Control.Monad.State.Strict(module Control.Monad.State.Strict) where
 import Prelude
 
 data State s a = S (s -> (a, s))
@@ -44,9 +44,12 @@ mapM f =
   let
     rec arg =
       case arg of
-        [] -> Control.Monad.State.return []
-        a : as -> Control.Monad.State.do
+        [] -> Control.Monad.State.Strict.return []
+        a : as -> Control.Monad.State.Strict.do
           b <- f a
           bs <- rec as
-          Control.Monad.State.return (b : bs)
+          Control.Monad.State.Strict.return (b : bs)
   in rec
+
+fail :: String -> State s a
+fail = error

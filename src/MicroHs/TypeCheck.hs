@@ -15,7 +15,7 @@ import qualified MicroHs.StringMap as M
 import MicroHs.Parse
 --Ximport Compat
 --import Debug.Trace
-import GHC.Stack
+--Ximport GHC.Stack
 
 data TModule a = TModule IdentModule [TypeExport] [ValueExport] a
   --Xderiving (Show)
@@ -261,7 +261,8 @@ addUVar i t = T.do
     EUVar j -> if i == j then T.return () else add
     _ -> add
 
-munify :: HasCallStack => Maybe EType -> EType -> T ()
+munify :: --XHasCallStack =>
+          Maybe EType -> EType -> T ()
 munify mt b =
   case mt of
     Nothing -> T.return ()
@@ -299,13 +300,15 @@ derefUVar at =
         Just t -> derefUVar t
     _ -> T.return at
 
-unify :: HasCallStack => EType -> EType -> T ()
+unify :: --XHasCallStack =>
+         EType -> EType -> T ()
 unify a b = T.do
   aa <- expandType a
   bb <- expandType b
   unifyR aa bb
   
-unifyR :: HasCallStack => EType -> EType -> T ()
+unifyR :: --XHasCallStack =>
+          EType -> EType -> T ()
 unifyR a b = T.do
   venv <- gets valueTable
   tenv <- gets typeTable
@@ -367,24 +370,28 @@ tInst as =
     ETypeScheme vs t ->
       if null vs then T.return t
       else T.do
-        us <- mapM (const newUVar) (replicate (length vs) ())
+        us <- T.mapM (const newUVar) (replicate (length vs) ())
         T.return (subst (zip vs us) t)
 
-extValE :: HasCallStack => Ident -> ETypeScheme -> Expr -> T ()
+extValE :: --XHasCallStack =>
+           Ident -> ETypeScheme -> Expr -> T ()
 extValE i t e = T.do
   venv <- gets valueTable
   putValueTable (M.insert i [Entry e t] (fst venv), snd venv)
 
-extQVal :: HasCallStack => Ident -> ETypeScheme -> T ()
+extQVal :: --XHasCallStack =>
+           Ident -> ETypeScheme -> T ()
 extQVal i t = T.do
   mn <- gets moduleName
   extValE i t (EVar $ qual mn i)
 
-extVal :: HasCallStack => Ident -> ETypeScheme -> T ()
+extVal :: --XHasCallStack =>
+          Ident -> ETypeScheme -> T ()
 extVal i t = extValE i t $ EVar i
 
-extVals :: HasCallStack => [(Ident, ETypeScheme)] -> T ()
-extVals = mapM_ (uncurry extVal)
+extVals :: --XHasCallStack =>
+           [(Ident, ETypeScheme)] -> T ()
+extVals = T.mapM_ (uncurry extVal)
 
 extTyp :: Ident -> ETypeScheme -> T ()
 extTyp i t = T.do
@@ -392,14 +399,15 @@ extTyp i t = T.do
   putTypeTable (M.insert i [Entry (EVar i) t] tenv)
 
 extTyps :: [(Ident, ETypeScheme)] -> T ()
-extTyps = mapM_ (uncurry extTyp)
+extTyps = T.mapM_ (uncurry extTyp)
 
 extSyn :: Ident -> ETypeScheme -> T ()
 extSyn i t = T.do
   venv <- gets valueTable
   putValueTable (fst venv, M.insert i t (snd venv))
 
-withExtVal :: HasCallStack => Ident -> ETypeScheme -> T a -> T a
+withExtVal :: --XHasCallStack =>
+              Ident -> ETypeScheme -> T a -> T a
 withExtVal i t ta = T.do
   venv <- gets valueTable
   extVal i t
@@ -407,7 +415,8 @@ withExtVal i t ta = T.do
   putValueTable venv
   T.return a
 
-withExtVals :: HasCallStack => [(Ident, ETypeScheme)] -> T a -> T a
+withExtVals :: --XHasCallStack =>
+               [(Ident, ETypeScheme)] -> T a -> T a
 withExtVals env ta = T.do
   venv <- gets valueTable
   extVals env
@@ -443,7 +452,7 @@ tcDefs :: [EDef] -> T [EDef]
 tcDefs ds = T.do
 --  traceM ("tcDefs ds=" ++ show ds)
   dst <- tcDefsType ds
-  mapM_ addTypeSyn dst
+  T.mapM_ addTypeSyn dst
 --  traceM ("tcDefs dst=\n" ++ showEDefs dst)
 --  tenv <- gets typeTable
 --  traceM ("tcDefs tenv=\n" ++ show tenv)
@@ -451,8 +460,8 @@ tcDefs ds = T.do
 
 tcDefsType :: [EDef] -> T [EDef]
 tcDefsType ds = withTypeTable $ T.do
-  mapM_ addTypeKind ds
-  mapM tcDefType ds
+  T.mapM_ addTypeKind ds
+  T.mapM tcDefType ds
 
 addTypeKind :: EDef -> T ()
 addTypeKind d =
@@ -477,7 +486,7 @@ addTypeSyn adef =
 tcDefType :: EDef -> T EDef
 tcDefType d =
   case d of
-    Data lhs cs -> Data lhs <$> withVars (lhsKinds lhs) (mapM tcConstr cs)
+    Data lhs cs -> Data lhs <$> withVars (lhsKinds lhs) (T.mapM tcConstr cs)
     Type lhs t  -> Type lhs <$> withVars (lhsKinds lhs) (fst <$> tcType (Just kType) t)
     Sign i t    -> Sign i   <$> tcTypeScheme (Just kType) t
     _ -> T.return d
@@ -501,12 +510,12 @@ withVars aiks ta =
 tcConstr :: Constr -> T Constr
 tcConstr con =
   case con of
-    (i, ts) -> (,) i <$> mapM (\ t -> fst <$> tcType (Just kType) t) ts
+    (i, ts) -> (,) i <$> T.mapM (\ t -> fst <$> tcType (Just kType) t) ts
 
 tcDefsValue :: [EDef] -> T [EDef]
 tcDefsValue ds = T.do
-  mapM_ addValueType ds
-  mapM tcDefValue ds
+  T.mapM_ addValueType ds
+  T.mapM tcDefValue ds
 
 addValueType :: EDef -> T ()
 addValueType d = T.do
@@ -520,7 +529,7 @@ addValueType d = T.do
         addCon con =
           case con of
             (c, ts) -> extValE c (ETypeScheme vs $ foldr tArrow tret ts) (ECon cti (qual mn c))
-      mapM_ addCon cs
+      T.mapM_ addCon cs
     _ -> T.return ()
 
 tcDefValue :: EDef -> T EDef
@@ -582,7 +591,7 @@ tcExpr' mt ae =
     EStr _ -> T.return (ae, tApps "Data.List.[]" [tCon "Primitives.Char"])
     ECase a arms -> T.do
       (ea, ta) <- tcExpr Nothing a
-      (earms, tarms) <- unzip <$> mapM (tcArm mt ta) arms
+      (earms, tarms) <- unzip <$> T.mapM (tcArm mt ta) arms
       T.return (ECase ea earms, head tarms)
     ELet bs a -> tcBinds bs $ \ ebs -> T.do { (ea, ta) <- tcExpr mt a; T.return (ELet ebs ea, ta) }
     ETuple es -> T.do
@@ -694,7 +703,7 @@ tcArm mt t arm =
 tcPat :: Maybe EType -> EPat -> (EPat -> T a) -> T a
 tcPat mt ap ta = T.do
 --  traceM $ "tcPat: " ++ show ap
-  env <- mapM (\ v -> (,) v . ETypeScheme [] <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
+  env <- T.mapM (\ v -> (,) v . ETypeScheme [] <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
   withExtVals env $ T.do
     (ep, _) <- tcExpr mt (ePatToExpr ap)
     pp <- exprToEPat ep
@@ -705,9 +714,9 @@ tcBinds :: [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = T.do
   let
     xs = concatMap getBindVars xbs
-  xts <- mapM (\ x -> ((,) x . ETypeScheme []) <$> newUVar) xs
+  xts <- T.mapM (\ x -> ((,) x . ETypeScheme []) <$> newUVar) xs
   withExtVals xts $ T.do
-    nbs <- mapM tcBind xbs
+    nbs <- T.mapM tcBind xbs
     ta nbs
 
 tcBind :: EBind -> T EBind
@@ -774,7 +783,7 @@ exprToEPat =
             n = length es
             c = tupleConstr n
             cti = [(c, n)]
-          xps <- mapM exprToEPat es
+          xps <- T.mapM exprToEPat es
           pure $ PConstr cti c xps
         EApp f a -> T.do
           p <- exprToEPat a
@@ -782,10 +791,11 @@ exprToEPat =
         _ -> impossible
   in  to []
 
-impossible :: HasCallStack => forall a . a
+impossible :: --XHasCallStack =>
+              forall a . a
 impossible = error "impossible"
 
-showTModule :: (a -> String) -> TModule a -> String
+showTModule :: forall a . (a -> String) -> TModule a -> String
 showTModule sh amdl =
   case amdl of
     TModule mn _texps _vexps a -> "Tmodule " ++ mn ++ "\n" ++ sh a

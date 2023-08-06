@@ -46,13 +46,15 @@ $(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
 	$(GHCC) -c lib/Prelude.hs
 	$(GHCC) -c lib/PreludeNoIO.hs
 	$(GHCC) -c lib/Data/Map.hs
+	$(GHCC) -c lib/Data/IntMap.hs
 	$(GHCC) -c lib/Unsafe/Coerce.hs
-	$(GHCC) -c lib/Control/Monad/State.hs
+	$(GHCC) -c lib/Control/Monad/State/Strict.hs
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
 	$(GHCC) -c src/MicroHs/StringMap.hs
 #	$(GHCC) -c -package containers -package base src/MicroHs/StringMap.hs
 	$(GHCC) -c src/MicroHs/Exp.hs
+	$(GHCC) -c src/MicroHs/TCMonad.hs
 	$(GHCC) -c src/MicroHs/TypeCheck.hs
 	$(GHCC) -c src/MicroHs/Desugar.hs
 	$(GHCC) -c src/MicroHs/StateIO.hs

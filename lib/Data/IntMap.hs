@@ -1,13 +1,13 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.IntMap(module Data.IntMap) where
-import Prelude hiding(lookup)
+import Prelude --Xhiding(lookup)
 
 data IntMap a
   = Empty
   | Leaf Int a
   | Node (IntMap a) (IntMap a) (IntMap a) (IntMap a)
-  deriving (Show)
+  --Xderiving (Show)
 
 -- This works for y>0
 divModX :: Int -> Int -> (Int, Int)
