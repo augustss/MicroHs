@@ -62,18 +62,18 @@ data Res s a = Many [(a, (String, s))] LastFail
   --deriving (Show)
 
 data Prsr s a = P ((String, s) -> Res s a)
-runP :: Prsr s a -> ((String, s) -> Res s a)
+runP :: forall s a . Prsr s a -> ((String, s) -> Res s a)
 runP pp =
   case pp of
     P p -> p
 --instance Show (Prsr s a) where show _ = "<<Prsr>>"
 
-pure :: a -> Prsr s a
+pure :: forall s a . a -> Prsr s a
 pure a = P $ \ t -> Many [(a, t)] noFail
 
 --Xinfixl 1 >>=
 --Yinfixl 1 >>=
-(>>=) :: Prsr s a -> (a -> Prsr s b) -> Prsr s b
+(>>=) :: forall s a b . Prsr s a -> (a -> Prsr s b) -> Prsr s b
 (>>=) p k = P $ \ t ->
     case runP p t of
       Many aus plf ->
@@ -85,65 +85,65 @@ pure a = P $ \ t -> Many [(a, t)] noFail
 
 --Xinfixl 1 >>
 --Yinfixl 1 >>
-(>>) :: Prsr s a -> Prsr s b -> Prsr s b
+(>>) :: forall s a b . Prsr s a -> Prsr s b -> Prsr s b
 (>>) p k = p >>= \ _ -> k
 
 --Xinfixl 4 <*>
 --Yinfixl 4 <*>
-(<*>) :: Prsr s (a -> b) -> Prsr s a -> Prsr s b
+(<*>) :: forall s a b . Prsr s (a -> b) -> Prsr s a -> Prsr s b
 (<*>) m1 m2 = m1 >>= \ x1 -> m2 >>= \ x2 -> pure (x1 x2)
 
 --Xinfixl 4 <*
 --Yinfixl 4 <*
-(<*) :: Prsr s a -> Prsr s b -> Prsr s a
+(<*) :: forall s a b . Prsr s a -> Prsr s b -> Prsr s a
 (<*) m1 m2 = m1 >>= \ x1 -> m2 >> pure x1
 
 --Xinfixl 4 *>
 --Yinfixl 4 *>
-(*>) :: Prsr s a -> Prsr s b -> Prsr s b
+(*>) :: forall s a b . Prsr s a -> Prsr s b -> Prsr s b
 (*>) m1 m2 = m1 >> m2 >>= \ x2 -> pure x2
 
 --Xinfixl 4 <$>
 --Yinfixl 4 <$>
-(<$>) :: (a -> b) -> Prsr s a -> Prsr s b
+(<$>) :: forall s a b . (a -> b) -> Prsr s a -> Prsr s b
 (<$>) f p = P $ \ t ->
     case runP p t of
       Many aus lf -> Many [ (f a, u) | au <- aus, let { (a, u) = au } ] lf
 
 --Xinfixl 4 <$
 --Yinfixl 4 <$
-(<$) :: a -> Prsr s b -> Prsr s a
+(<$) :: forall s a b . a -> Prsr s b -> Prsr s a
 (<$) a p = p >> pure a
 
-guard :: Bool -> Prsr s ()
+guard :: forall s . Bool -> Prsr s ()
 guard b = if b then pure () else empty
 
-empty :: Prsr s a
+empty :: forall s a . Prsr s a
 empty = P $ \ t -> Many [] (LastFail (length (fst t)) [("empty", ["<empty>"])])
 
 --Xinfixl 3 <|>
 --Yinfixl 3 <|>
-(<|>) :: Prsr s a -> Prsr s a -> Prsr s a
+(<|>) :: forall s a . Prsr s a -> Prsr s a -> Prsr s a
 (<|>) p q = P $ \ t ->
     case runP p t of
       Many a lfa ->
         case runP q t of
           Many b lfb -> Many (a ++ b) (longest lfa lfb)
 
-fail :: String -> Prsr s a
+fail :: forall s a . String -> Prsr s a
 fail m = P $ \ t -> Many [] (LastFail (length (fst t)) [("fail", [m])])
 
-get :: Prsr s s
+get :: forall s . Prsr s s
 get = P $ \ t -> Many [(snd t, t)] noFail
 
-put :: s -> Prsr s ()
+put :: forall s . s -> Prsr s ()
 put s = P $ \ t -> Many [((), (fst t, s))] noFail
 
-modify :: (s -> s) -> Prsr s ()
+modify :: forall s . (s -> s) -> Prsr s ()
 modify f = get >>= \ s -> put (f s)
 
 -- Left biased choice
-(<|<) :: Prsr s a -> Prsr s a -> Prsr s a
+(<|<) :: forall s a . Prsr s a -> Prsr s a -> Prsr s a
 (<|<) p q = P $ \ t ->
   let
     r = runP p t
@@ -155,25 +155,26 @@ modify f = get >>= \ s -> put (f s)
                Many b lfb -> Many b (longest lfa lfb)
            _:_ -> r
 
-many :: Prsr s a -> Prsr s [a]
+many :: forall s a . Prsr s a -> Prsr s [a]
 many p = some p <|> pure []
 
-some :: Prsr s a -> Prsr s [a]
+some :: forall s a . Prsr s a -> Prsr s [a]
 some p = (:) <$> p <*> many p
 
-optional :: Prsr s a -> Prsr s (Maybe a)
+optional :: forall s a . Prsr s a -> Prsr s (Maybe a)
 optional p = (Just <$> p) <|> pure Nothing
 
-emany :: Prsr s a -> Prsr s [a]
+emany :: forall s a . Prsr s a -> Prsr s [a]
 emany p = esome p <|< pure []
 
-esome :: Prsr s a -> Prsr s [a]
+esome :: forall s a . Prsr s a -> Prsr s [a]
 esome p = (:) <$> p <*> emany p
 
-eoptional :: Prsr s a -> Prsr s (Maybe a)
+eoptional :: forall s a . Prsr s a -> Prsr s (Maybe a)
 eoptional p = (Just <$> p) <|< pure Nothing
 
---XrunPrsr :: (Show a, Show s) => s -> Prsr s a -> FilePath -> String -> Either String [(a, s)]
+runPrsr :: forall s a . --X(Show a, Show s) =>
+           s -> Prsr s a -> String -> String -> Either String [(a, s)]
 runPrsr s pp fn f =
   case pp of
     P p ->
@@ -207,13 +208,13 @@ formatFailed fn file lf =
       unlines (map pr xs')
 -}
 
-choice :: [Prsr s a] -> Prsr s a
+choice :: forall s a . [Prsr s a] -> Prsr s a
 choice ps =
   case ps of
     [] -> empty
     _:_ -> foldr1 (<|>) ps
 
-satisfy :: String -> (Char -> Bool) -> Prsr s Char
+satisfy :: forall s . String -> (Char -> Bool) -> Prsr s Char
 satisfy msg f = P $ \ t ->
   case t of
     (acs, s) ->
@@ -228,10 +229,10 @@ satisfy msg f = P $ \ t ->
             else
               bad
 
-char :: Char -> Prsr s Char
+char :: forall s . Char -> Prsr s Char
 char c = satisfy "char" (eqChar c)
 
-string :: String -> Prsr s String
+string :: forall s . String -> Prsr s String
 string str = P $ \ t ->
   case t of
     (cs, s) ->
@@ -239,7 +240,7 @@ string str = P $ \ t ->
         Just cs' -> Many [(str, (cs', s))] noFail
         Nothing  -> Many [] (LastFail (length cs) [("string", [showString str])])
 
-eof :: Prsr s ()
+eof :: forall s . Prsr s ()
 eof = P $ \ t ->
   let
     cs = fst t
@@ -249,7 +250,7 @@ eof = P $ \ t ->
      else
        Many [] (LastFail (length cs) [("eof", ["end-of-file"])])
 
-(<?>) :: Prsr s a -> String -> Prsr s a
+(<?>) :: forall s a . Prsr s a -> String -> Prsr s a
 (<?>) p e = P $ \ t ->
 --  trace ("<?> " ++ show e) $
   case runP p t of
@@ -257,7 +258,7 @@ eof = P $ \ t ->
       case lf of
         LastFail l xs -> Many rs (LastFail l [(m, e:es) | mes <- xs, let { (m, es) = mes } ])
 
-notFollowedBy :: Prsr s a -> Prsr s ()
+notFollowedBy :: forall s a . Prsr s a -> Prsr s ()
 notFollowedBy p = P $ \ t ->
   case runP p t of
     Many rs _ ->
@@ -266,7 +267,7 @@ notFollowedBy p = P $ \ t ->
       else
         Many [] (LastFail (length (fst t)) [("notFollowedBy", [])])
 
-lookAhead :: Prsr s a -> Prsr s ()
+lookAhead :: forall s a . Prsr s a -> Prsr s ()
 lookAhead p = P $ \ t ->
   case runP p t of
     Many rs lf ->
@@ -276,5 +277,5 @@ lookAhead p = P $ \ t ->
       else
         Many [((), t)] noFail
 
-inject :: String -> Prsr s ()
+inject :: forall s . String -> Prsr s ()
 inject s = P $ \ csst -> case csst of { (cs, st) -> Many [((), (s ++ cs, st))] noFail }

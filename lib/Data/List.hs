@@ -173,6 +173,16 @@ takeWhile p axs =
       else
         []
 
+dropWhile :: forall a . (a -> Bool) -> [a] -> [a]
+dropWhile p axs =
+  case axs of
+    [] -> []
+    x:xs ->
+      if p x then
+        dropWhile p xs
+      else
+        x : xs
+
 head :: forall a . [a] -> a
 head xs =
   case xs of
@@ -205,6 +215,9 @@ elemBy eq a = any (eq a)
 
 enumFrom :: Int -> [Int]
 enumFrom n = n : enumFrom (n+1)
+
+enumFromTo :: Int -> Int -> [Int]
+enumFromTo l h = takeWhile (<= h) (enumFrom l)
 
 find :: forall a . (a -> Bool) -> [a] -> Maybe a
 find p axs =

@@ -10,7 +10,7 @@ import MicroHs.Parse
 import MicroHs.Exp
 import MicroHs.Compile
 import MicroHs.Translate
-import MicroHs.Desugar(LDef)
+import MicroHs.Desugar
 --Ximport Compat
 
 main :: IO ()

@@ -4,42 +4,45 @@ import Prelude
 
 data State s a = S (s -> (a, s))
 
-runState :: State s a -> (s -> (a,s))
+runState :: forall s a . State s a -> (s -> (a,s))
 runState sa =
   case sa of
     S x -> x
 
-(>>=) :: State s a -> (a -> State s b) -> State s b
+(>>=) :: forall s a b . State s a -> (a -> State s b) -> State s b
 (>>=) m k = S $ \ s ->
   case runState m s of
     (a, ss) -> runState (k a) ss
 
-(>>) :: State s a -> State s b -> State s b
+(>>) :: forall s a b . State s a -> State s b -> State s b
 (>>) m k = S $ \ s ->
   case runState m s of
     (_, ss) -> runState k ss
 
-return :: a -> State s a
+return :: forall s a . a -> State s a
 return a = S $ \ s -> (a, s)
 
-fmap :: (a -> b) -> State s a -> State s b
+fmap :: forall s a b . (a -> b) -> State s a -> State s b
 fmap f sa = S $ \ s ->
   case runState sa s of
     (a, ss) -> (f a, ss)
 
-modify :: (s -> s) -> State s ()
+(<$>) :: forall s a b . (a -> b) -> State s a -> State s b
+(<$>) = fmap
+
+modify :: forall s . (s -> s) -> State s ()
 modify f = S $ \ s -> ((), f s)
 
-put :: s -> State s ()
+put :: forall s . s -> State s ()
 put s = S $ \ _ -> ((), s)
 
-get :: State s s
+get :: forall s . State s s
 get = S $ \ s -> (s, s)
 
-gets :: (s -> a) -> State s a
+gets :: forall s a . (s -> a) -> State s a
 gets f = S $ \ s -> (f s, s)
 
-mapM :: (a -> State s b) -> [a] -> State s [b]
+mapM :: forall s a b . (a -> State s b) -> [a] -> State s [b]
 mapM f =
   let
     rec arg =
@@ -51,5 +54,16 @@ mapM f =
           Control.Monad.State.Strict.return (b : bs)
   in rec
 
-fail :: String -> State s a
+mapM_ :: forall s a b . (a -> State s b) -> [a] -> State s ()
+mapM_ f =
+  let
+    rec arg =
+      case arg of
+        [] -> Control.Monad.State.Strict.return ()
+        a : as -> Control.Monad.State.Strict.do
+          f a
+          rec as
+  in rec
+
+fail :: forall s a . String -> State s a
 fail = error

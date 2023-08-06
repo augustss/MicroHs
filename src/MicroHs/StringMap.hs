@@ -95,11 +95,10 @@ elems = M.elems
 
 -------
 
-insert :: String -> v -> Map v -> Map v
-fromListWith :: (v -> v -> v) -> [(String, v)] -> Map v
-fromList :: [(String, v)] -> Map v
-union :: Map v -> Map v -> Map v
-lookup :: String -> Map v -> Maybe v
-empty :: Map v
-elems :: Map v -> [v]
-
+insert :: forall v . String -> v -> Map v -> Map v
+fromListWith :: forall v . (v -> v -> v) -> [(String, v)] -> Map v
+fromList :: forall v . [(String, v)] -> Map v
+union :: forall v . Map v -> Map v -> Map v
+lookup :: forall v . String -> Map v -> Maybe v
+empty :: forall v . Map v
+elems :: forall v . Map v -> [v]

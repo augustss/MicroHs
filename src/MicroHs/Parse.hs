@@ -154,10 +154,10 @@ type P a = Prsr [Int] a
 qual :: Ident -> Ident -> Ident
 qual qi i = qi ++ "." ++ i
 
-skipWhite :: P a -> P a
+skipWhite :: forall a . P a -> P a
 skipWhite p = p <* pWhiteIndent
 
-skipWhiteW :: P a -> P a
+skipWhiteW :: forall a . P a -> P a
 skipWhiteW p = p <* emany (char ' ')
 
 pWhite :: P String
@@ -195,13 +195,14 @@ pWhiteIndent = P.do
            else P.do
             eof <|> inject ";"
 
-esepBy1 :: Prsr s a -> Prsr s sep -> Prsr s [a]
+esepBy1 :: forall s a sep . Prsr s a -> Prsr s sep -> Prsr s [a]
 esepBy1 p sep = (:) <$> p <*> emany (sep *> p)
 
-esepBy :: Prsr s a -> Prsr s sep -> Prsr s [a]
+esepBy :: forall s a sep . Prsr s a -> Prsr s sep -> Prsr s [a]
 esepBy p sep = esepBy1 p sep <|< pure []
 
---XparseDie :: (Show a) => P a -> FilePath -> String -> a
+parseDie :: forall a . --X (Show a) =>
+            P a -> String -> String -> a
 parseDie p fn file =
   case runPrsr [] p fn (removeComments file) of
     Left err -> error err
@@ -672,7 +673,7 @@ pRCurl =
           eof
   in  pSym '}' <|> softRC
 
-pBlock :: P a -> P [a]
+pBlock :: forall a . P a -> P [a]
 pBlock p = P.do
   pLCurl
   as <- esepBy p (pSym ';')

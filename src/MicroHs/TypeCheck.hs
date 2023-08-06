@@ -292,7 +292,10 @@ expandSyn at =
 derefUVar :: EType -> T EType
 derefUVar at =
   case at of
-    EApp f a -> EApp <$> expandType f <*> expandType a
+    EApp f a -> T.do
+      fx <- expandType f
+      ax <- expandType a
+      T.return $ EApp fx ax
     EUVar i -> T.do
       sub <- gets uvarSubst
       case IM.lookup i sub of
@@ -312,10 +315,10 @@ unifyR :: --XHasCallStack =>
 unifyR a b = T.do
   venv <- gets valueTable
   tenv <- gets typeTable
-  let bad = error $ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n" ++
-                    show a ++ " - " ++ show b ++ "\n" ++
-                    show tenv ++ "\n" ++
-                    show venv
+  let bad = error $ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n"
+--X                    ++ show a ++ " - " ++ show b ++ "\n"
+--X                    ++ show tenv ++ "\n"
+--X                    ++ show venv
   case a of
     EVar ia ->
       case b of
@@ -348,7 +351,7 @@ tLookupInst :: Ident -> T (Expr, EType)
 tLookupInst i = T.do
   (e, s) <- tLookup i
   t <- tInst s
-  return (e, t)
+  T.return (e, t)
 
 tLookup :: Ident -> T (Expr, ETypeScheme)
 tLookup i = T.do
@@ -698,12 +701,12 @@ tcArm mt t arm =
   case arm of
     (p, a) -> T.do
       (pp, (ea, ta)) <- tcPat (Just t) p $ \ pp -> (,) pp <$> tcExpr mt a
-      pure ((pp, ea), ta)
+      T.return ((pp, ea), ta)
 
 tcPat :: Maybe EType -> EPat -> (EPat -> T a) -> T a
 tcPat mt ap ta = T.do
 --  traceM $ "tcPat: " ++ show ap
-  env <- T.mapM (\ v -> (,) v . ETypeScheme [] <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
+  env <- T.mapM (\ v -> ((,) v . ETypeScheme []) <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
   withExtVals env $ T.do
     (ep, _) <- tcExpr mt (ePatToExpr ap)
     pp <- exprToEPat ep
@@ -714,7 +717,7 @@ tcBinds :: [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = T.do
   let
     xs = concatMap getBindVars xbs
-  xts <- T.mapM (\ x -> ((,) x . ETypeScheme []) <$> newUVar) xs
+  xts <- T.mapM (\ x -> ((,) x . ETypeScheme []) T.<$> newUVar) xs
   withExtVals xts $ T.do
     nbs <- T.mapM tcBind xbs
     ta nbs
@@ -776,15 +779,15 @@ exprToEPat =
     to :: [EPat] -> Expr -> T EPat
     to ps ae =
       case ae of
-        EVar i -> if null ps then pure $ PVar i else impossible
-        ECon cs i -> pure $ PConstr cs i ps
+        EVar i -> if null ps then T.return $ PVar i else impossible
+        ECon cs i -> T.return $ PConstr cs i ps
         ETuple es -> T.do
           let
             n = length es
             c = tupleConstr n
             cti = [(c, n)]
           xps <- T.mapM exprToEPat es
-          pure $ PConstr cti c xps
+          T.return $ PConstr cti c xps
         EApp f a -> T.do
           p <- exprToEPat a
           to (p : ps) f
