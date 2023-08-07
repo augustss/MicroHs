@@ -698,7 +698,7 @@ showExportSpec ae =
 showEDef :: EDef -> String
 showEDef def =
   case def of
-    Data lhs _cs -> "data " ++ showLHS lhs ++ " = ..."
+    Data lhs _ -> "data " ++ showLHS lhs ++ " = ..."
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
     Fcn lhs e -> showLHS lhs ++ " = " ++ showExpr e
     Sign i t -> i ++ " :: " ++ showETypeScheme t
@@ -715,6 +715,11 @@ showEDefs ds = unlines (map showEDef ds)
 showExpr :: Expr -> String
 showExpr ae =
   case ae of
+--X    EVar "Primitives.Char" -> "Char"
+--X    EVar "Primitives.->" -> "(->)"
+--X    EApp (EApp (EVar "Primitives.->") a) b -> "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
+--X    EApp (EVar "Data.List.[]") a -> "[" ++ showExpr a ++ "]"
+--X    EApp (EApp (EVar ",") a) b -> showExpr (ETuple [a,b])
     EVar v -> v
     EApp f a -> "(" ++ showExpr f ++ " " ++ showExpr a ++ ")"
     ELam i e -> "(\\" ++ i ++ " -> " ++ showExpr e ++ ")"
