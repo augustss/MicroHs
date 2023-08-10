@@ -110,11 +110,13 @@ compileModule flags nm = S.do
   let
     specs = [ s | Import s <- defs ]
   impMdls <- S.mapM (compileModuleCached flags) [ m | ImportSpec _ m _ <- specs ]
-  let tmdl = typeCheck (zip specs impMdls) mdl
+  let
+    tmdl = typeCheck (zip specs impMdls) mdl
   liftIO $ putStr $ drop 1000000 $ showTModule showEDefs tmdl
   S.when (verbose flags > 2) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
-  let dmdl = desugar tmdl
+  let
+    dmdl = desugar tmdl
   S.when (verbose flags > 2) $
     liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl
   S.return dmdl

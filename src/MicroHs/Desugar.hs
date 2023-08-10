@@ -131,7 +131,7 @@ dsExpr aexpr =
               dsExpr (EIf c (ECompr e stmts) (EList []))
             SLet ds ->
               dsExpr (ELet ds (ECompr e stmts))
-    EBad -> error "complex case not implemented"
+    EBad msg -> error $ "complex case not implemented: " ++ msg
     EUVar _ -> undefined
     ECon _ i -> Var i
 
@@ -176,14 +176,14 @@ findDefault aarms =
                  (narms, dflt) -> (arm : narms, dflt)
 
 dsCaseArms :: [Ident] -> [(Ident, Int)] -> Expr -> [ECaseArm] -> Expr -> Exp
-dsCaseArms nvs constrs e arms dflt =
+dsCaseArms nvs cons e arms dflt =
   let
     nv = head nvs
     (ev, elet) = asVar nv (dsExpr e)
     --(ed, dlet) = asVar (head (tail nvs)) $ App (dsExpr dflt) (Var ev)
     edflt = EApp dflt (EVar ev)
 
-    rarms = reorderArms constrs arms edflt
+    rarms = reorderArms cons arms edflt
 
     dsArm aarm =
       case aarm of
@@ -195,7 +195,7 @@ dsCaseArms nvs constrs e arms dflt =
                 vs = take (length ps) (tail nvs)
                 pat vp r =
                   case vp of
-                    (v, p) -> ECase (EVar v) [(p, r), (PVar dummyIdent, EBad)]
+                    (v, p) -> ECase (EVar v) [(p, r), (PVar dummyIdent, EBad (showEPat p))]
                 cr = foldr pat rhs (zip vs ps)
               in lams vs $ dsExpr cr
 
@@ -209,7 +209,7 @@ asVar i ae =
 
 reorderArms :: [(Ident, Int)] -> [ECaseArm] -> Expr -> [ECaseArm]
 --reorderArms cs as ed | trace (show (cs, as, ed)) False = undefined
-reorderArms constrs as ed =
+reorderArms cons as ed =
   let
     conName arg =
       case arg of
@@ -224,10 +224,10 @@ reorderArms constrs as ed =
       case ck of
         (c, k) ->
           case lookupBy eqIdent c arms of
-            Nothing -> (PConstr constrs c (replicate k (PVar dummyIdent)), ed)
+            Nothing -> (PConstr cons c (replicate k (PVar dummyIdent)), ed)
             Just a ->
               if conArity (fst a) == k then a else error $ "bad contructor arity: " ++ showIdent c
-  in  map arm constrs
+  in  map arm cons
 
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs
@@ -277,7 +277,7 @@ allVarsExpr aexpr =
     ESectR i e -> i : allVarsExpr e
     EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
     ECompr e ss -> allVarsExpr e ++ concatMap allVarsStmt ss
-    EBad -> []
+    EBad _ -> []
     EUVar _ -> []
     ECon _ i -> [i]
 

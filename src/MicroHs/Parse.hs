@@ -70,7 +70,7 @@ data Expr
   | ESectR Ident Expr
   | EIf Expr Expr Expr
   | ECompr Expr [EStmt]
-  | EBad
+  | EBad String
   -- Only while type checking
   | EUVar Int
   -- Constructors after type checking
@@ -736,7 +736,7 @@ showExpr ae =
     ESectR i e -> "(" ++ i ++ " " ++ showExpr e ++ ")"
     EIf e1 e2 e3 -> "if " ++ showExpr e1 ++ " then " ++ showExpr e2 ++ " else " ++ showExpr e3
     ECompr _ _ -> "ECompr"
-    EBad -> "EBad"
+    EBad _ -> "EBad"
     EUVar i -> "a" ++ showInt i
     ECon _ i -> i
 
