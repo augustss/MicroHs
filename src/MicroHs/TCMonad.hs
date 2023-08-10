@@ -1,6 +1,7 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-dodgy-imports #-}
 module MicroHs.TCMonad(
---X(<$>),
+--X  (<$>),
+--X  module Control.Monad,
   module MicroHs.TCMonad,
   module Control.Monad.State.Strict
 {-
@@ -13,7 +14,7 @@ module MicroHs.TCMonad(
   get, gets, put,
 -}
   ) where
---import Control.Monad
+--Ximport Control.Monad hiding(ap)
 --Ximport Data.Functor.Identity
 import Control.Monad.State.Strict --Xhiding(ap)
 

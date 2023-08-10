@@ -1,5 +1,5 @@
 module Unsafe.Coerce(module Unsafe.Coerce) where
 import Primitives
 
-unsafeCoerce :: a -> b
+unsafeCoerce :: forall a b . a -> b
 unsafeCoerce = primUnsafeCoerce

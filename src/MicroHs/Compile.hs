@@ -6,6 +6,7 @@ import Prelude --Xhiding (Monad(..), mapM, showString)
 import qualified System.IO as IO
 --Ximport Compat
 --Ximport qualified CompatIO as IO
+--Ximport System.IO(Handle)
 
 import qualified MicroHs.StringMap as M
 import MicroHs.StateIO as S
@@ -118,7 +119,7 @@ compileModule flags nm = S.do
   let
     dmdl = desugar tmdl
   S.when (verbose flags > 2) $
-    liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl
+    (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   S.return dmdl
 
 ------------------
@@ -128,7 +129,7 @@ readFilePath path name = IO.do
   h <- openFilePath path name
   IO.hGetContents h
 
-openFilePath :: [String] -> String -> IO IO.Handle
+openFilePath :: [String] -> String -> IO Handle
 openFilePath adirs fileName =
   case adirs of
     [] -> error $ "File not found: " ++ showString fileName

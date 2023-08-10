@@ -2,8 +2,8 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 module MicroHs.Desugar(
-  --module MicroHs.Desugar
-  desugar, LDef, showLDefs,
+  module MicroHs.Desugar
+  --desugar, LDef, showLDefs,
   {-
   desugar,
   Module(..),
@@ -176,6 +176,7 @@ findDefault aarms =
                  (narms, dflt) -> (arm : narms, dflt)
 
 dsCaseArms :: [Ident] -> [(Ident, Int)] -> Expr -> [ECaseArm] -> Expr -> Exp
+--dsCaseArms nvs cons e arms dflt | trace (show (arms, dflt)) False = undefined
 dsCaseArms nvs cons e arms dflt =
   let
     nv = head nvs
@@ -195,7 +196,7 @@ dsCaseArms nvs cons e arms dflt =
                 vs = take (length ps) (tail nvs)
                 pat vp r =
                   case vp of
-                    (v, p) -> ECase (EVar v) [(p, r), (PVar dummyIdent, EBad (showEPat p))]
+                    (v, p) -> ECase (EVar v) [(p, r), (PVar dummyIdent, if length arms == 1 then edflt else EBad (showEPat p))]
                 cr = foldr pat rhs (zip vs ps)
               in lams vs $ dsExpr cr
 

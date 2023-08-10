@@ -43,7 +43,7 @@ gets :: forall s a . (s -> a) -> StateIO s a
 gets f = S $ \ s -> IO.return (f s, s)
 
 when :: forall s . Bool -> StateIO s () -> StateIO s ()
-when b s = if b then s else return ()
+when b s = if b then s else MicroHs.StateIO.return ()
 
 modify :: forall s . (s -> s) -> StateIO s ()
 modify f = S $ \ s -> IO.return ((), f s)
@@ -64,9 +64,9 @@ mapM f =
   let
     rec arg =
       case arg of
-        [] -> return []
+        [] -> MicroHs.StateIO.return []
         a : as -> MicroHs.StateIO.do
           b <- f a
           bs <- rec as
-          return (b : bs)
+          MicroHs.StateIO.return (b : bs)
   in rec

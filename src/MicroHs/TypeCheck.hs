@@ -205,6 +205,7 @@ primTypes =
        ("Int",    [entry "Primitives.Int"      t]),
        ("Char",   [entry "Primitives.Char"     t]),
        ("Handle", [entry "Primitives.Handle"   t]),
+       ("Any",    [entry "Primitives.Any"      t]),
        ("String", [entry "Data.Char.String"    t]),
        ("[]",     [entry "Data.List.[]"        tt]),
        ("()",     [entry "Data.Tuple.()"       t]),
@@ -356,6 +357,12 @@ unMType mt =
     Nothing -> newUVar
     Just t -> T.return t
 
+-- Reset type variable and unification map
+tcReset :: T ()
+tcReset = T.do
+  TC mn _ tenv venv _ <- get
+  put (TC mn 0 tenv venv IM.empty)
+
 newUVar :: T EType
 newUVar = T.do
   TC mn n tenv venv sub <- get
@@ -481,7 +488,7 @@ tcDefs ds = T.do
 tcDefsType :: [EDef] -> T [EDef]
 tcDefsType ds = withTypeTable $ T.do
   T.mapM_ addTypeKind ds
-  T.mapM tcDefType ds
+  T.mapM (\ d -> T.do {tcReset; tcDefType d}) ds
 
 addTypeKind :: EDef -> T ()
 addTypeKind d =
@@ -541,7 +548,7 @@ tcConstr con =
 tcDefsValue :: [EDef] -> T [EDef]
 tcDefsValue ds = T.do
   T.mapM_ addValueType ds
-  T.mapM tcDefValue ds
+  T.mapM (\ d -> T.do { tcReset; tcDefValue d}) ds
 
 addValueType :: EDef -> T ()
 addValueType d = T.do
@@ -683,8 +690,8 @@ tcExprR mt ae =
       (EApp (EVar ii) ee, t) <- tcExpr mt (EApp (EVar i) e)
       T.return (ESectL ee ii, t)
     ESectR i e -> T.do
-      (ELam _ (EApp (EApp (EVar ii) _) ee), t) <- tcExpr mt (ELam "$x" (EApp (EApp (EVar i) (EVar "$x")) e))
-      T.return (ESectR ii ee, t)
+      (ELam _ (EApp (EApp var _) ee), t) <- tcExpr mt (ELam "$x" (EApp (EApp (EVar i) (EVar "$x")) e))
+      T.return (ESectR (getIdent var) ee, t)
     EIf e1 e2 e3 -> T.do
       (ee1, _) <- tcExpr (Just tBool) e1
       (ee2, te2) <- tcExpr mt e2
@@ -773,7 +780,7 @@ dsType at =
   case at of
     EVar _ -> at
     EApp f a -> EApp (dsType f) (dsType a)
-    EList (t:_) -> tApps listConstr [dsType t]
+    EList ts -> tApps listConstr [dsType (head ts)]  -- XXX should be [t]
     ETuple ts -> tApps (tupleConstr (length ts)) (map dsType ts)
     _ -> impossible
 

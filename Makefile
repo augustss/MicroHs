@@ -77,22 +77,17 @@ bootboottest:	$(BIN)/$(MHS) $(BIN)/boot$(MHS)
 # Compare version compiled with GHC, and bootstrapped combinator version
 bootcombtest:	$(BIN)/$(MHS) $(BIN)/eval $(MHS).comb
 	$(BIN)/$(MHS) -ilib -isrc -omain-$(MHS).comb  MicroHs.Main
-	$(BIN)/eval -H10000000 -r$(MHS).comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
+	$(BIN)/eval -H50000000 -r$(MHS).comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
 	cmp main-$(MHS).comb main-comb.comb
 
 # Test normal Haskell version
 test:	$(BIN)/eval $(BIN)/$(MHS) tests/*.hs
 	cd tests; make test
 
-# Test $(MHS) version
-$(MHS)test:	$(BIN)/$(MHS) $(BIN)/eval
-	$(BIN)/$(MHS) -ilib -isrc Main
-	$(BIN)/eval
-
 $(MHS).comb:	$(BIN)/$(MHS) $(ALLSRC)
 	$(BIN)/$(MHS) -ilib -isrc -o$(MHS).comb MicroHs.Main
 
-ushcomp:	$(BIN)/eval $(MHS).comb
+$(MHS)comp:	$(BIN)/eval $(MHS).comb
 	$(BIN)/eval -H1000000 -v -r$(MHS).comb -- $(ARG)
 
 time:	$(BIN)/eval $(BIN)/$(MHS) tests/*.hs
