@@ -6,6 +6,8 @@
 #include <string.h>
 #include <inttypes.h>
 #include <locale.h>
+#include <sys/time.h>
+#include <ctype.h>
 
 #define VERSION "v1.0\n"
 
@@ -125,6 +127,9 @@ NODEPTR *args;
 int64_t num_reductions = 0;
 int64_t num_alloc;
 int64_t num_gc = 0;
+double gc_scan_time = 0;
+double gc_mark_time = 0;
+double run_time = 0;
 
 NODEPTR *stack;
 int64_t stack_ptr = -1;
@@ -142,6 +147,14 @@ int glob_argc;
 char **glob_argv;
 
 int verbose = 0;
+
+double
+gettime()
+{
+  struct timeval tv;
+  (void)gettimeofday(&tv, NULL);
+  return tv.tv_sec + tv.tv_usec * 1e-6;
+}
 
 NODEPTR
 alloc_node(enum node_tag t)
@@ -331,15 +344,22 @@ int64_t max_num_marked = 0;
 void
 gc(void)
 {
+  double t;
+  
   num_gc++;
   num_marked = 0;
   if (verbose > 1)
     fprintf(stderr, "gc mark\n");
+  gc_mark_time -= gettime();
   for (int64_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
+  t = gettime();
+  gc_mark_time += t;
   if (verbose > 1)
     fprintf(stderr, "gc scan\n");
+  gc_scan_time -= t;
   scan();
+  gc_scan_time += gettime();
 
   if (num_marked > max_num_marked)
     max_num_marked = num_marked;
@@ -1136,10 +1156,26 @@ checkversion(FILE *f)
   }
 }
 
+int64_t
+memsize(const char *p)
+{
+  int64_t n = atoi(p);
+  while (isdigit(*p))
+    p++;
+  switch (*p) {
+  case 'k': case 'K': n *= 1000; break;
+  case 'm': case 'M': n *= 1000000; break;
+  case 'g': case 'G': n *= 1000000000; break;
+  default: break;
+  }
+  return n;
+}
+
 int
 main(int argc, char **argv)
 {
   char *fn = 0;
+  int64_t file_size;
   
   argc--, argv++;
   while (argc > 0 && argv[0][0] == '-') {
@@ -1148,9 +1184,9 @@ main(int argc, char **argv)
     if (strcmp(argv[-1], "-v") == 0)
       verbose++;
     else if (strncmp(argv[-1], "-H", 2) == 0)
-      heap_size = atoi(&argv[-1][2]);
+      heap_size = memsize(&argv[-1][2]);
     else if (strncmp(argv[-1], "-K", 2) == 0)
-      stack_size = atoi(&argv[-1][2]);
+      stack_size = memsize(&argv[-1][2]);
     else if (strncmp(argv[-1], "-r", 2) == 0)
       fn = &argv[-1][2];
     else if (strcmp(argv[-1], "--") == 0)
@@ -1173,12 +1209,15 @@ main(int argc, char **argv)
     ERR("file not found");
   checkversion(f);
   NODEPTR n = parse_top(f);
+  file_size = ftell(f);
   fclose(f);
   PUSH(n); gc(); n = TOP(0); POP(1);
   int64_t start_size = num_marked;
   if (verbose > 2)
     pp(stdout, n);
+  run_time -= gettime();
   n = evalio(n);
+  run_time += gettime();
   if (verbose) {
     if (verbose > 1) {
       printf("\nmain returns ");
@@ -1186,11 +1225,17 @@ main(int argc, char **argv)
       printf("node size=%ld, heap size=%"PRId64"\n", NODE_SIZE, heap_size);
     }
     setlocale(LC_NUMERIC, "");
+    printf("%'15"PRId64" combinator file size\n", file_size);
     printf("%'15"PRId64" cells at start\n", start_size);
+    printf("%'15"PRId64" heap size\n", heap_size);
     printf("%'15"PRId64" cells allocated\n", num_alloc);
     printf("%'15"PRId64" GCs\n", num_gc);
     printf("%'15"PRId64" max cells used\n", max_num_marked);
     printf("%'15"PRId64" reductions\n", num_reductions);
+    printf("%15.2fs total execution time\n", run_time);
+    printf("%15.2fs total gc time\n", gc_mark_time + gc_scan_time);
+    printf("    %15.2fs mark time\n", gc_mark_time);
+    printf("    %15.2fs scan time\n", gc_scan_time);
   }
   exit(0);
 }
