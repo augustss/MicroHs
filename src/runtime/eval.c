@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <locale.h>
 
 #define VERSION "v1.0\n"
 
@@ -122,6 +123,7 @@ NODEPTR *args;
 #endif
 
 int64_t num_reductions = 0;
+int64_t num_alloc;
 int64_t num_gc = 0;
 
 NODEPTR *stack;
@@ -152,6 +154,7 @@ alloc_node(enum node_tag t)
     abort();
   next_free = NEXT(n);
   TAG(n) = t;
+  num_alloc++;
   return n;
 }
 
@@ -1182,8 +1185,12 @@ main(int argc, char **argv)
       pp(stdout, n);
       printf("node size=%ld, heap size=%"PRId64"\n", NODE_SIZE, heap_size);
     }
-    printf("%"PRId64" reductions, %"PRId64" GCs, max cells used %"PRId64"\n", num_reductions, num_gc, max_num_marked);
-    printf("%"PRId64" cells at start\n", start_size);
+    setlocale(LC_NUMERIC, "");
+    printf("%'15"PRId64" cells at start\n", start_size);
+    printf("%'15"PRId64" cells allocated\n", num_alloc);
+    printf("%'15"PRId64" GCs\n", num_gc);
+    printf("%'15"PRId64" max cells used\n", max_num_marked);
+    printf("%'15"PRId64" reductions\n", num_reductions);
   }
   exit(0);
 }
