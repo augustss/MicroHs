@@ -19,6 +19,7 @@ import Prelude
 import Data.Char
 import Data.List
 --Ximport Compat
+--Ximport GHC.Stack
 --import Debug.Trace
 
 import MicroHs.Parse
@@ -99,7 +100,7 @@ dsExpr aexpr =
               else
                 let
                   nv = newVar (allVarsExpr aexpr)
-                  body = ECase (EVar nv) [(p, EDo mn stmts), (PVar dummyIdent, eError "dopat")]
+                  body = ECase (EVar nv) [(p, EDo mn stmts), (EVar dummyIdent, eError "dopat")]
                 in  dsExpr $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam nv body)
             SThen e ->
               if null stmts then
@@ -125,15 +126,20 @@ dsExpr aexpr =
             SBind p b ->
               let
                 nv = newVar (allVarsExpr aexpr)
-                body = ECase (EVar nv) [(p, ECompr e stmts), (PVar dummyIdent, EList [])]
+                body = ECase (EVar nv) [(p, ECompr e stmts), (EVar dummyIdent, EList [])]
               in app2 (Var "Data.List.concatMap") (dsExpr (ELam nv body)) (dsExpr b)
             SThen c ->
               dsExpr (EIf c (ECompr e stmts) (EList []))
             SLet ds ->
               dsExpr (ELet ds (ECompr e stmts))
     EBad msg -> error $ "complex case not implemented: " ++ msg
+    EAt _ _ -> undefined
     EUVar _ -> undefined
-    ECon _ i -> Var i
+    ECon _ i ->
+      if eqChar (head i) ',' then
+        undefined  -- not implemented yet
+      else
+        Var i
 
 mqual :: Maybe Ident -> Ident -> Ident
 mqual mqi i =
@@ -143,18 +149,72 @@ mqual mqi i =
 
 dsCase :: Expr -> [ECaseArm] -> Exp
 dsCase ecase aarms =
-  case findDefault aarms of
+  case findDefault [(dsPat p, e) | (p, e) <- aarms] of
     (arms, dexpr) ->
       case arms of
         -- No pattern matching
         [] -> App (dsExpr dexpr) (dsExpr ecase)
         (pat, _) : _ ->
-          case pat of
-            PVar _ -> undefined  -- impossible
-            PConstr cs _ _ ->
-              let
-                nvs = newVars (allVarsExpr (ECase ecase aarms))
-              in  dsCaseArms nvs cs ecase arms dexpr
+          let
+            cs = getConTyInfo pat
+            nvs = newVars (allVarsExpr (ECase ecase aarms))
+          in  dsCaseArms nvs cs ecase arms dexpr
+
+-- Handle special syntax for lists and tuples
+dsPat :: EPat -> EPat
+dsPat ap =
+  case ap of
+    EVar _ -> ap
+    ECon _ _ -> ap
+    EApp f a -> EApp (dsPat f) (dsPat a)
+    EList ps -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
+    ETuple ps -> dsPat $ foldl EApp (tupleCon (length ps)) ps
+    _ -> impossible
+
+consCon :: EPat
+consCon =
+  let
+    n = "Data.List.[]"
+    c = "Data.List.:"
+  in ECon [(n, 0), (c, 2)] c
+
+nilCon :: EPat
+nilCon =
+  let
+    n = "Data.List.[]"
+    c = "Data.List.:"
+  in ECon [(n, 0), (c, 2)] n
+
+tupleCon :: Int -> EPat
+tupleCon n =
+  let
+    c = tupleConstr n
+  in ECon [(c, n)] c
+
+getConTyInfo :: --XHasCallStack =>
+                EPat -> ConTyInfo
+getConTyInfo ap =
+  case ap of
+    ECon cs _ -> cs
+    EApp f _ -> getConTyInfo f
+    _ -> impossible
+
+getSubPats :: EPat -> [EPat]
+getSubPats =
+  let
+    get ps ap =
+      case ap of
+        ECon _ _ -> ps
+        EApp f p -> get (p:ps) f
+        _ -> impossible
+  in get []
+
+getConName :: EPat -> Ident
+getConName ap =
+  case ap of
+    ECon _ c -> c
+    EApp f _ -> getConName f
+    _ -> impossible
 
 dummyIdent :: Ident
 dummyIdent = "_"
@@ -170,8 +230,8 @@ findDefault aarms =
       case arm of
          (pat, rhs) ->
            case pat of
-             PVar i -> ([], ELam i rhs)
-             PConstr _ _ _ ->
+             EVar i -> ([], ELam i rhs)
+             _ ->
                case findDefault arms of
                  (narms, dflt) -> (arm : narms, dflt)
 
@@ -189,16 +249,14 @@ dsCaseArms nvs cons e arms dflt =
     dsArm aarm =
       case aarm of
         (apat, rhs) ->
-          case apat of
-            PVar _ -> undefined -- impossible
-            PConstr _ _ ps ->
-              let
-                vs = take (length ps) (tail nvs)
-                pat vp r =
-                  case vp of
-                    (v, p) -> ECase (EVar v) [(p, r), (PVar dummyIdent, if length arms == 1 then edflt else EBad (showEPat p))]
-                cr = foldr pat rhs (zip vs ps)
-              in lams vs $ dsExpr cr
+          let
+            ps = getSubPats apat
+            vs = take (length ps) (tail nvs)
+            pat vp r =
+              case vp of
+                (v, p) -> ECase (EVar v) [(p, r), (EVar dummyIdent, if length arms == 1 then edflt else EBad (showEPat p))]
+            cr = foldr pat rhs (zip vs ps)
+          in lams vs $ dsExpr cr
 
   in elet $ apps (Var ev) (map dsArm rarms)
 
@@ -212,20 +270,13 @@ reorderArms :: [(Ident, Int)] -> [ECaseArm] -> Expr -> [ECaseArm]
 --reorderArms cs as ed | trace (show (cs, as, ed)) False = undefined
 reorderArms cons as ed =
   let
-    conName arg =
-      case arg of
-        PConstr _ c _ -> c
-        _ -> undefined
-    conArity arg =
-      case arg of
-        PConstr _ _ ps -> length ps
-        _ -> undefined
-    arms = map (\ a -> (conName (fst a), a)) as
+    conArity = length . getSubPats
+    arms = map (\ a -> (getConName (fst a), a)) as
     arm ck =
       case ck of
         (c, k) ->
           case lookupBy eqIdent c arms of
-            Nothing -> (PConstr cons c (replicate k (PVar dummyIdent)), ed)
+            Nothing -> (foldl EApp (ECon cons c) (replicate k (EVar dummyIdent)), ed)
             Just a ->
               if conArity (fst a) == k then a else error $ "bad contructor arity: " ++ showIdent c
   in  map arm cons
@@ -241,53 +292,6 @@ newVars is = deleteFirstsBy eqIdent [ "nv" ++ showInt i | i <- enumFrom 1 ] is
 
 newVar :: [Ident] -> Ident
 newVar = head . newVars
-
-allVarsBind :: EBind -> [Ident]
-allVarsBind abind =
-  case abind of
-    BFcn l e -> allVarsLHS l ++ allVarsExpr e
-    BPat p e -> allVarsPat p ++ allVarsExpr e
-
-allVarsLHS :: LHS -> [Ident]
-allVarsLHS iis =
-  case iis of
-    (i, is) -> i : is
-
-allVarsPat :: EPat -> [Ident]
-allVarsPat apat =
-  case apat of
-    PConstr _ i ps -> i : concatMap allVarsPat ps
-    PVar i -> [i]
-
-allVarsExpr :: Expr -> [Ident]
-allVarsExpr aexpr =
-  case aexpr of
-    EVar i -> [i]
-    EApp e1 e2 -> allVarsExpr e1 ++ allVarsExpr e2
-    ELam i e -> i : allVarsExpr e
-    EInt _ -> []
-    EChar _ -> []
-    EStr _ -> []
-    ECase e as -> allVarsExpr e ++ concatMap (\ pa -> allVarsPat (fst pa) ++ allVarsExpr (snd pa)) as
-    ELet bs e -> concatMap allVarsBind bs ++ allVarsExpr e
-    ETuple es -> concatMap allVarsExpr es
-    EList es -> concatMap allVarsExpr es
-    EDo mi ss -> maybe [] (:[]) mi ++ concatMap allVarsStmt ss
-    EPrim _ -> []
-    ESectL e i -> i : allVarsExpr e
-    ESectR i e -> i : allVarsExpr e
-    EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
-    ECompr e ss -> allVarsExpr e ++ concatMap allVarsStmt ss
-    EBad _ -> []
-    EUVar _ -> []
-    ECon _ i -> [i]
-
-allVarsStmt :: EStmt -> [Ident]
-allVarsStmt astmt =
-  case astmt of
-    SBind p e -> allVarsPat p ++ allVarsExpr e
-    SThen e -> allVarsExpr e
-    SLet bs -> concatMap allVarsBind bs
 
 showLDefs :: [LDef] -> String
 showLDefs = unlines . map showLDef

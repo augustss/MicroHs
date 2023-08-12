@@ -42,6 +42,12 @@ data ExportSpec = ExpModule IdentModule
 type Ident = String
 type IdentModule = Ident
 
+isConIdent :: Ident -> Bool
+isConIdent i =
+  let
+    c = head i
+  in isUpper c || eqChar c ':' || eqChar c ',' || eqIdent i "[]" 
+
 data EDef
   = Data LHS [Constr]
   | Type LHS EType
@@ -70,6 +76,7 @@ data Expr
   | ESectR Ident Expr
   | EIf Expr Expr Expr
   | ECompr Expr [EStmt]
+  | EAt Ident Expr  -- only in patterns
   | EBad String
   -- Only while type checking
   | EUVar Int
@@ -93,22 +100,29 @@ data EBind = BFcn LHS Expr | BPat EPat Expr
 
 type ConTyInfo = [(Ident, Int)]    -- All constructors with their arities
 
+{-
 data EPat
   = PConstr ConTyInfo Ident [EPat]
   | PVar Ident
   --Xderiving (Show, Eq)
+-}
+type EPat = Expr
 
 isPVar :: EPat -> Bool
 isPVar p =
   case p of
-    PConstr _ _ _ -> False
-    PVar _ -> True
+    EVar i -> not (isConIdent i)
+    _ -> False
+
+isPConApp :: EPat -> Bool
+isPConApp p =
+  case p of
+    EVar i -> isConIdent i
+    EApp f _ -> isPConApp f
+    _ -> True
 
 patVars :: EPat -> [Ident]
-patVars apat =
-  case apat of
-    PVar i -> [i]
-    PConstr _ _ ps -> concatMap patVars ps
+patVars = filter (not . isConIdent) . allVarsExpr
 
 type LHS = (Ident, [Ident])
 type Constr = (Ident, [EType])
@@ -126,6 +140,48 @@ validType ae =
     EList es -> length es <= 1 && all validType (take 1 es)
     ETuple es -> all validType es
     _ -> False
+
+{-
+validExpr :: Expr -> Bool
+validExpr _ae = True
+  case ae of
+    EVar _ -> True
+    EApp f a -> validExpr f && validExpr a
+    ELam _ e -> validExpr e
+    EInt _ -> True
+    EChar _ -> True
+    EStr _ -> True
+    ECase e arms -> validExpr e && all validArm arms
+    ELet bs e -> all validBind bs && validExpr e
+    ETuple es -> all validExpr es
+    EList es -> all validExpr es
+    EDo _ stmts -> all validStmt stmts -- XXX could check last is an expression
+    EPrim _ -> True
+    ESectL e _ -> validExpr e
+    ESectR _ e -> validExpr e
+    EIf e1 e2 e3 -> validExpr e1 && validExpr e2 && validExpr e3
+    ECompr e stmts -> validExpr e && all validStmt stmts
+    EAt _ _ -> False
+    _ -> undefined
+
+validArm :: ECaseArm -> Bool
+validArm ape =
+  case ape of
+    (_, e) -> validExpr e
+
+validStmt :: EStmt -> Bool
+validStmt as =
+  case as of
+    SBind _ e -> validExpr e
+    SThen e -> validExpr e
+    SLet bs -> all validBind bs
+
+validBind :: EBind -> Bool
+validBind ab =
+  case ab of
+    BFcn _ e -> validExpr e
+    BPat _ e -> validExpr e
+-}
 
 data ETypeScheme = ETypeScheme [Ident] EType
   --Xderiving (Show, Eq)
@@ -212,7 +268,7 @@ parseDie p fn file =
         fst (head as)
       else
         error $ "Ambiguous:"
---                 ++ unlines (map (show . fst) as)
+--X                 ++ unlines (map (show . fst) as)
 
 -- Remove comments first instead of having them in the parser.
 removeComments :: String -> String
@@ -330,14 +386,11 @@ pLIdentA :: P String
 pLIdentA = skipWhite $
   P.do
     s <- pQIdent
-    guard $ isLower $ head s
+    guard $ isLower_ $ head s
     pure s
 
 pLIdent :: P String
 pLIdent = pLIdentA <|> (pSym '(' *> pOperL <* pSym ')')
-
-pLIdent_ :: P String
-pLIdent_ = pLIdent <|> skipWhite (string "_")
 
 pUIdentA :: P String
 pUIdentA = skipWhite $
@@ -350,6 +403,7 @@ pUIdent :: P String
 pUIdent =
       pUIdentA
   <|> (pSym '(' *> pOperU <* pSym ')')
+  <|> (pSym '(' *> some (char ',') <* pSym ')')
   <|> ("()" <$ (pSym '(' *> pWhite *> pSym ')'))  -- Allow () as a constructor name
   <|> ("[]" <$ (pSym '[' *> pWhite *> pSym ']'))  -- Allow [] as a constructor name
 
@@ -357,11 +411,17 @@ keywords :: [String]
 keywords = ["case", "data", "do", "else", "forall", "if", "import",
   "in", "let", "module", "of", "primitive", "then", "type", "where"]
 
+isAlpha_ :: Char -> Bool
+isAlpha_ c = eqChar c '_' || isAlpha c
+
+isLower_ :: Char -> Bool
+isLower_ c = eqChar c '_' || isLower c
+
 pWord :: P String
-pWord = (:) <$> satisfy "letter" isAlpha <*>
+pWord = (:) <$> satisfy "letter" isAlpha_ <*>
                 (emany $ satisfy "letter, digit" $ \ c ->
-                    isAlpha c || isDigit c ||
-                    eqChar c '_' || eqChar c '\'')
+                    isAlpha_ c || isDigit c ||
+                    eqChar c '\'')
 
 pIdent :: P String
 pIdent = P.do
@@ -454,13 +514,13 @@ pSym :: Char -> P ()
 pSym c = () <$ (skipWhite $ char c)
 
 pLHS :: P Ident -> P LHS
-pLHS pId = pair <$> pId <*> many pLIdent_
+pLHS pId = pair <$> pId <*> many pLIdent
 
 pDef :: P EDef
 pDef =
       Data   <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 (pair <$> pUIdent <*> many pAType) (pSymbol "|")
   <|> Type   <$> (pKeyword "type" *> pLHS pUIdent <* pSymbol "=") <*> pType
-  <|> Fcn    <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
+  <|> Fcn    <$> (pLHS pLIdent <* pSymbol "=") <*> pExpr
   <|> Sign   <$> (pLIdent <* pSymbol "::") <*> pTypeScheme
   <|> Import <$> (pKeyword "import" *> pImportSpec)
 
@@ -472,14 +532,20 @@ pImportSpec =
 
 pAType :: P EType
 pAType = P.do
-  t <- pAExpr
+  t <- pAExprPT
   guard (validType t)
   pure t
 
 pType :: P EType
 pType = P.do
-  t <- pExpr
+  t <- pExprPT
   guard (validType t)
+  pure t
+
+pExpr :: P Expr
+pExpr = P.do
+  t <- pExprPT
+  -- guard (validExpr t)
   pure t
 
 pTypeScheme :: P ETypeScheme
@@ -488,19 +554,19 @@ pTypeScheme = P.do
   t <- pType
   pure $ ETypeScheme vs t
 
-pAExpr :: P Expr
-pAExpr =
+pAExprPT :: P Expr
+pAExprPT =
       (EVar <$> pLIdent)
   <|> (EVar <$> pUIdent)
   <|> (EInt <$> pInt)
   <|> (EChar <$> pChar)
   <|> (EStr <$> pString)
-  <|> (eTuple <$> (pSym '(' *> esepBy1 pExpr (pSym ',') <* pSym ')'))
-  <|> (EList <$> (pSym '[' *> esepBy1 pExpr (pSym ',') <* pSym ']'))
+  <|> (eTuple <$> (pSym '(' *> esepBy1 pExprPT (pSym ',') <* pSym ')'))
+  <|> (EList <$> (pSym '[' *> esepBy1 pExprPT (pSym ',') <* pSym ']'))
   <|> (EPrim <$> (pKeyword "primitive" *> pString))
   <|> (ESectL <$> (pSym '(' *> pExprArg) <*> (pOper <* pSym ')'))
   <|> (ESectR <$> (pSym '(' *> pOper) <*> (pExprArg <* pSym ')'))
-  <|> (ECompr <$> (pSym '[' *> pExpr <* pSym '|') <*> (esepBy1 pStmt (pSym ',') <* pSym ']'))
+  <|> (ECompr <$> (pSym '[' *> pExprPT <* pSym '|') <*> (esepBy1 pStmt (pSym ',') <* pSym ']'))
 
 eTuple :: [Expr] -> Expr
 eTuple aes =
@@ -513,51 +579,73 @@ eTuple aes =
 
 pExprApp :: P Expr
 pExprApp = P.do
-  f <- pAExpr
-  as <- emany pAExpr
+  f <- pAExprPT
+  as <- emany pAExprPT
   pure $ foldl EApp f as
 
 pLam :: P Expr
-pLam = eLams <$> (pSymbol "\\" *> esome pLIdent_) <*> (pSymbol "->" *> pExpr)
+pLam = eLams <$> (pSymbol "\\" *> esome pLIdent) <*> (pSymbol "->" *> pExprPT)
 
 eLams :: [Ident] -> Expr -> Expr
 eLams is e = foldr ELam e is
 
 pCase :: P Expr
-pCase =
-  let
-    pArm = pair <$> (pPat <* pSymbol "->") <*> pExpr
-  in  ECase <$> (pKeyword "case" *> pExpr) <*> (pKeywordW "of" *> pBlock pArm)
+pCase = ECase <$> (pKeyword "case" *> pExprPT) <*> (pKeywordW "of" *> pBlock pCaseArm)
 
+pCaseArm :: P ECaseArm
+pCaseArm = pair <$> pPat <*> (pSymbol "->" *> pExpr)
+
+-- Sadly pattern and expression parsing cannot be joined because the
+-- use of '->' in 'case' and lambda makes it weird.
+-- Instead this is just a copy of some of the expression rules.
 pAPat :: P EPat
 pAPat =
-      (PVar <$> pLIdent_)
-  <|> (cTuple <$> (pSym '(' *> esepBy1 pPat (pSym ',') <* pSym ')'))
-  <|> (PConstr [] <$> pUIdent <*> pure [])
+      (EVar <$> pLIdent)
+  <|> (EVar <$> pUIdent)
+  <|> (EInt <$> pInt)
+  <|> (EChar <$> pChar)
+  <|> (EStr <$> pString)
+  <|> (eTuple <$> (pSym '(' *> esepBy1 pPat (pSym ',') <* pSym ')'))
+  <|> (EList <$> (pSym '[' *> esepBy1 pPat (pSym ',') <* pSym ']'))
+  <|> (EAt <$> (pLIdent <* pSymbol "@") <*> pAPat)
 
 pPat :: P EPat
-pPat =
-      pAPat
-  <|> (PConstr [] <$> pUIdent <*> esome pAPat)
-  <|> ((\ x s y -> PConstr [] s [x,y]) <$> pAPat <*> pOperU <*> pAPat)
+pPat = pPatOp
 
-pPatC :: P EPat
-pPatC = P.do
+pPatOp :: P EPat
+pPatOp =
+  let
+    p10 = pPatArg
+    p9 = p10
+    p8 = p9
+    p7 = p8
+    p6 = p7
+    p5 = pRightAssoc (pOpers [":"]) p6
+    p4 = p5
+    p3 = p4
+    p2 = p3
+    p1 = p2
+    p0 = p1
+  in  p0
+
+pPatArg :: P EPat
+pPatArg = pPatApp
+
+pPatApp :: P EPat
+pPatApp = P.do
+  f <- pAPat
+  as <- emany pAPat
+  guard (null as || isPConApp f)
+  pure $ foldl EApp f as
+
+pPatNotVar :: P EPat
+pPatNotVar = P.do
   p <- pPat
   guard (not (isPVar p))
   pure p
 
-cTuple :: [EPat] -> EPat
-cTuple aps =
-  case aps of
-    [] -> undefined
-    p:ps ->
-      case ps of
-        [] -> p
-        _ -> PConstr [] (tupleConstr (length aps)) aps
-
 pLet :: P Expr
-pLet = ELet <$> (pKeywordW "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)
+pLet = ELet <$> (pKeywordW "let" *> pBlock pBind) <*> (pKeyword "in" *> pExprPT)
 
 pExprOp :: P Expr
 pExprOp =
@@ -576,14 +664,14 @@ pExprOp =
          pLeftAssoc  (pOpers ["<|>","<|<"]) p4
     p2 = pRightAssoc (pOpers ["||"]) p3
     p1 = pLeftAssoc  (pOpers [">>=", ">>"]) p2
-    p0 = pRightAssoc (pOpers ["$", "->"]) p1   -- XXX where should -> be?
+    p0 = pRightAssoc (pOpers ["$","->"]) p1
   in  p0
 
 -- A hack so that the . operator is not followed by a letter
 pDot :: P String
 pDot = skipWhite $ P.do
   char '.'
-  notFollowedBy (satisfy "not alpha" isAlpha)
+  notFollowedBy (satisfy "not alpha" isAlpha_)
   pure "."
 
 appOp :: String -> Expr -> Expr -> Expr
@@ -620,25 +708,25 @@ pLeftAssoc pOp p = P.do
 pExprArg :: P Expr
 pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pIf <|> pDo
 
-pExpr :: P Expr
-pExpr = pExprOp
+pExprPT :: P Expr
+pExprPT = pExprOp
 
 pDo :: P Expr
 pDo = EDo <$> ((Just <$> pQualDo) <|< (Nothing <$ pKeywordW "do")) <*> pBlock pStmt
 
 pIf :: P Expr
-pIf = EIf <$> (pKeyword "if" *> pExpr) <*> (pKeyword "then" *> pExpr) <*> (pKeyword "else" *> pExpr)
+pIf = EIf <$> (pKeyword "if" *> pExprPT) <*> (pKeyword "then" *> pExprPT) <*> (pKeyword "else" *> pExprPT)
 
 pStmt :: P EStmt
 pStmt =
-      (SBind <$> (pPat <* pSymbol "<-") <*> pExpr)
+      (SBind <$> (pPat <* pSymbol "<-") <*> pExprPT)
   <|> (SLet  <$> (pKeywordW "let" *> pBlock pBind))
-  <|> (SThen <$> pExpr)
+  <|> (SThen <$> pExprPT)
 
 pBind :: P EBind
 pBind = 
-      BFcn <$> (pLHS pLIdent_ <* pSymbol "=") <*> pExpr
-  <|> BPat <$> (pPatC <* pSymbol "=") <*> pExpr
+      BFcn <$> (pLHS pLIdent <* pSymbol "=") <*> pExprPT
+  <|> BPat <$> (pPatNotVar <* pSymbol "=") <*> pExprPT
 
 pQualDo :: P String
 pQualDo = P.do
@@ -727,7 +815,7 @@ showExpr ae =
     EChar c -> showChar c
     EStr s -> showString s
     ECase e as -> "case " ++ showExpr e ++ " of {\n" ++ unlines (map showCaseArm as) ++ "}"
-    ELet _ _ -> "ELet"
+    ELet bs e -> "let\n" ++ unlines (map showEBind bs) ++ "in " ++ showExpr e
     ETuple es -> "(" ++ intercalate "," (map showExpr es) ++ ")"
     EList es -> showList showExpr es
     EDo _ _ -> "EDo"
@@ -736,9 +824,16 @@ showExpr ae =
     ESectR i e -> "(" ++ i ++ " " ++ showExpr e ++ ")"
     EIf e1 e2 e3 -> "if " ++ showExpr e1 ++ " then " ++ showExpr e2 ++ " else " ++ showExpr e3
     ECompr _ _ -> "ECompr"
+    EAt i e -> i ++ "@" ++ showExpr e
     EBad _ -> "EBad"
     EUVar i -> "a" ++ showInt i
     ECon _ i -> i
+
+showEBind :: EBind -> String
+showEBind ab =
+  case ab of
+    BFcn lhs rhs -> showEDef (Fcn lhs rhs)
+    BPat p e -> showEPat p ++ " = " ++ showExpr e
 
 showCaseArm :: ECaseArm -> String
 showCaseArm arm =
@@ -746,10 +841,7 @@ showCaseArm arm =
     (p, e) -> showEPat p ++ " -> " ++ showExpr e
 
 showEPat :: EPat -> String
-showEPat apat =
-  case apat of
-    PVar i -> i
-    PConstr _ c ps -> unwords (c : map showEPat ps)
+showEPat = showExpr
 
 showEType :: EType -> String
 showEType = showExpr
@@ -772,3 +864,49 @@ subst s =
         EUVar _ -> ae
         _ -> error "subst unimplemented"
   in sub
+
+allVarsBind :: EBind -> [Ident]
+allVarsBind abind =
+  case abind of
+    BFcn l e -> allVarsLHS l ++ allVarsExpr e
+    BPat p e -> allVarsPat p ++ allVarsExpr e
+
+allVarsLHS :: LHS -> [Ident]
+allVarsLHS iis =
+  case iis of
+    (i, is) -> i : is
+
+allVarsPat :: EPat -> [Ident]
+allVarsPat = allVarsExpr
+
+allVarsExpr :: Expr -> [Ident]
+allVarsExpr aexpr =
+  case aexpr of
+    EVar i -> [i]
+    EApp e1 e2 -> allVarsExpr e1 ++ allVarsExpr e2
+    ELam i e -> i : allVarsExpr e
+    EInt _ -> []
+    EChar _ -> []
+    EStr _ -> []
+    ECase e as -> allVarsExpr e ++ concatMap (\ pa -> allVarsPat (fst pa) ++ allVarsExpr (snd pa)) as
+    ELet bs e -> concatMap allVarsBind bs ++ allVarsExpr e
+    ETuple es -> concatMap allVarsExpr es
+    EList es -> concatMap allVarsExpr es
+    EDo mi ss -> maybe [] (:[]) mi ++ concatMap allVarsStmt ss
+    EPrim _ -> []
+    ESectL e i -> i : allVarsExpr e
+    ESectR i e -> i : allVarsExpr e
+    EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
+    ECompr e ss -> allVarsExpr e ++ concatMap allVarsStmt ss
+    EAt i e -> i : allVarsExpr e
+    EBad _ -> []
+    EUVar _ -> []
+    ECon _ i -> [i]
+
+allVarsStmt :: EStmt -> [Ident]
+allVarsStmt astmt =
+  case astmt of
+    SBind p e -> allVarsPat p ++ allVarsExpr e
+    SThen e -> allVarsExpr e
+    SLet bs -> concatMap allVarsBind bs
+

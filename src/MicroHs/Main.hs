@@ -30,7 +30,7 @@ main = do
     (mainName, ds) = cmdl
     ref i = Var $ "_" ++ showInt i
     defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds (enumFrom 0) ]
-    findIdent n = fromMaybe (error $ "undefined: " ++ showIdent n) $ M.lookup n defs
+    findIdent n = fromMaybe (error $ "main: undefined: " ++ showIdent n) $ M.lookup n defs
     emain = findIdent mainName
     substv aexp =
       case aexp of

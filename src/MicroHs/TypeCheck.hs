@@ -16,8 +16,8 @@ import MicroHs.TCMonad as T
 import qualified MicroHs.StringMap as M
 import MicroHs.Parse
 --Ximport Compat
---import Debug.Trace
 --Ximport GHC.Stack
+--import Debug.Trace
 
 data TModule a = TModule IdentModule [TypeExport] [ValueExport] a
   --Xderiving (Show)
@@ -182,7 +182,8 @@ initTC mn ts vs =
 --  trace ("initTC " ++ show (ts, vs)) $
   let
     xts = foldr (uncurry M.insert) ts primTypes
-  in TC mn 1 xts vs IM.empty
+    xvs = (foldr (uncurry M.insert) (fst vs) primValues, snd vs)
+  in TC mn 1 xts xvs IM.empty
 
 -- XXX moduleOf is not correct
 moduleOf :: Ident -> IdentModule
@@ -211,6 +212,18 @@ primTypes =
        ("()",     [entry "Data.Tuple.()"       t]),
        ("Bool",   [entry "Data.Bool_Type.Bool" t])] ++
       map tuple (enumFromTo 2 10)
+
+primValues :: [(Ident, [Entry])]
+primValues =
+  let
+    tuple n =
+      let
+        c = tupleConstr n
+        vs = ["a" ++ showInt i | i <- enumFromTo 1 n]
+        ts = map tVar vs
+        r = tApps c ts
+      in  (c, [Entry (ECon [(c, n)] c) $ ETypeScheme vs $ foldr tArrow r ts ])
+  in  map tuple (enumFromTo 2 10)
 
 type T a = TC TCState a
 
@@ -372,6 +385,7 @@ newUVar = T.do
 tLookupInst :: Ident -> T (Expr, EType)
 tLookupInst i = T.do
   (e, s) <- tLookup i
+--  traceM ("lookup " ++ show (i, s))
   t <- tInst s
   T.return (e, t)
 
@@ -567,10 +581,12 @@ addValueType d = T.do
       T.mapM_ addCon cs
     _ -> T.return ()
 
-tcDefValue :: EDef -> T EDef
+tcDefValue :: --XHasCallStack =>
+              EDef -> T EDef
 tcDefValue d =
   case d of
     Fcn (i, vs) rhs -> T.do
+--      traceM $ "tcDefValue: " ++ showLHS (i, vs) ++ " = " ++ showExpr rhs
       (_, ETypeScheme tvs t) <- tLookup i
       let
         vks = zip tvs (repeat (ETypeScheme [] kType))
@@ -591,13 +607,16 @@ dropLam n ae =
 tcType :: Maybe EKind -> EType -> T (Typed EType)
 tcType mk = tcExpr mk . dsType
 
-tcExpr :: Maybe EType -> Expr -> T (Typed Expr)
+tcExpr :: --XHasCallStack =>
+          Maybe EType -> Expr -> T (Typed Expr)
 tcExpr mt ae = T.do
---  traceM ("tcExpr enter: " ++ show (ae, mt))
+--  traceM ("tcExpr enter: " ++ showExpr ae ++ " :: " ++ showMaybe showExpr mt)
   r <- tcExprR mt ae
---  traceM ("tcExpr exit: " ++ show r)
+--  t <- expandType (snd r)
+--  traceM ("tcExpr exit: " ++ showExpr (fst r) ++ " :: " ++ showExpr t)
   T.return r
-tcExprR :: Maybe EType -> Expr -> T (Typed Expr)
+tcExprR :: --XHasCallStack =>
+           Maybe EType -> Expr -> T (Typed Expr)
 tcExprR mt ae =
   case ae of
     EVar i ->
@@ -606,7 +625,7 @@ tcExprR mt ae =
         pair ae <$> newUVar
       else T.do
         (e, t) <- tLookupInst i
---        traceM $ "*** " ++ i ++ " :: " ++ showExpr t --  (i, e, t)
+--        traceM $ "*** " ++ i ++ " :: " ++ showExpr t ++ " = " ++ showMaybe showExpr mt
         munify mt t
         T.return (e, t)
     EApp f a -> T.do
@@ -724,6 +743,11 @@ tcExprR mt ae =
         tr = tApp tList ta
       munify mt tr
       T.return (ECompr ea rss, tr)
+    EAt i e -> T.do
+      (ee, t) <- tcExpr mt e
+      (_, ti) <- tLookupInst i
+      unify t ti
+      T.return (EAt i ee, t)
     -----
     EBad _ -> impossible    -- shouldn't happen
     EUVar _ -> impossible -- shouldn't happen
@@ -741,8 +765,7 @@ tcPat mt ap ta = T.do
 --  traceM $ "tcPat: " ++ show ap
   env <- T.mapM (\ v -> (pair v . ETypeScheme []) <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
   withExtVals env $ T.do
-    (ep, _) <- tcExpr mt (ePatToExpr ap)
-    pp <- exprToEPat ep
+    (pp, _) <- tcExpr mt ap
     ta pp
 
 -- XXX No mutual recursion yet
@@ -763,10 +786,9 @@ tcBind abind =
       (ea, _) <- tcExpr (Just t) $ foldr ELam a vs
       T.return $ BFcn (i, vs) $ dropLam (length vs) ea
     BPat p a -> T.do
-      (ep, tp) <- tcExpr Nothing (ePatToExpr p)
+      (ep, tp) <- tcExpr Nothing p
       (ea, _)  <- tcExpr (Just tp) a
-      pp <- exprToEPat ep
-      T.return $ BPat pp ea
+      T.return $ BPat ep ea
 
 getBindVars :: EBind -> [Ident]
 getBindVars abind =
@@ -792,37 +814,6 @@ tList = tCon "Data.List.[]"
 
 tBool :: EType
 tBool = tCon "Data.Bool_Type.Bool"
-
-ePatToExpr :: EPat -> Expr
-ePatToExpr ap =
-  case ap of
-    PVar i -> EVar i
-    PConstr _ c ps ->
-      if eqChar (head c) ',' then
-        ETuple (map ePatToExpr ps)
-      else
-        foldl EApp (EVar c) (map ePatToExpr ps)
-
-exprToEPat :: Expr -> T EPat
-exprToEPat =
-  let
-    --Xto :: [EPat] -> Expr -> T EPat
-    to ps ae =
-      case ae of
-        EVar i -> if null ps then T.return $ PVar i else impossible
-        ECon cs i -> T.return $ PConstr cs i ps
-        ETuple es -> T.do
-          let
-            n = length es
-            c = tupleConstr n
-            cti = [(c, n)]
-          xps <- T.mapM exprToEPat es
-          T.return $ PConstr cti c xps
-        EApp f a -> T.do
-          p <- exprToEPat a
-          to (p : ps) f
-        _ -> impossible
-  in  to []
 
 impossible :: --XHasCallStack =>
               forall a . a

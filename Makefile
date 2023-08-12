@@ -77,7 +77,7 @@ bootboottest:	$(BIN)/$(MHS) $(BIN)/boot$(MHS)
 # Compare version compiled with GHC, and bootstrapped combinator version
 bootcombtest:	$(BIN)/$(MHS) $(BIN)/eval $(MHS).comb
 	$(BIN)/$(MHS) -ilib -isrc -omain-$(MHS).comb  MicroHs.Main
-	$(BIN)/eval -H50000000 -r$(MHS).comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
+	$(BIN)/eval -H50M -r$(MHS).comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
 	cmp main-$(MHS).comb main-comb.comb
 
 # Test normal Haskell version
@@ -88,7 +88,7 @@ $(MHS).comb:	$(BIN)/$(MHS) $(ALLSRC)
 	$(BIN)/$(MHS) -ilib -isrc -o$(MHS).comb MicroHs.Main
 
 $(MHS)comp:	$(BIN)/eval $(MHS).comb
-	$(BIN)/eval -H1000000 -v -r$(MHS).comb -- $(ARG)
+	$(BIN)/eval -H1M -v -r$(MHS).comb -- $(ARG)
 
 time:	$(BIN)/eval $(BIN)/$(MHS) tests/*.hs
 	cd tests; make time
@@ -101,7 +101,7 @@ exampleboot:	$(BIN)/boot$(MHS) Example.hs
 	$(BIN)/boot$(MHS) -r -ilib Example
 
 examplecomb:	$(BIN)/eval $(MHS).comb Example.hs
-	$(BIN)/eval -H5000000 -r$(MHS).comb -- -r -ilib Example
+	$(BIN)/eval -H5M -r$(MHS).comb -- -r -ilib Example
 
 clean:
 	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR)
