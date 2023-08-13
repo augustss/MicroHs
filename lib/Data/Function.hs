@@ -26,3 +26,6 @@ fix = primFix
 
 uncurry :: forall a b c . (a -> b -> c) -> (a, b) -> c
 uncurry f ab = f (fst ab) (snd ab)
+
+on :: forall a b c . (a -> a -> b) -> (c -> a) -> (c -> c -> b)
+on op sel x y = op (sel x) (sel y)

@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-type-defaults #-}
+{-# LANGUAGE QualifiedDo #-}
 module MicroHs.Desugar(
   module MicroHs.Desugar
   --desugar, LDef, showLDefs,
@@ -18,6 +19,7 @@ module MicroHs.Desugar(
 import Prelude
 import Data.Char
 import Data.List
+import Control.Monad.State.Strict as S
 --Ximport Compat
 --Ximport GHC.Stack
 --import Debug.Trace
@@ -300,3 +302,88 @@ showLDef :: LDef -> String
 showLDef a =
   case a of
     (i, e) -> i ++ " = " ++ showExp e
+
+----------------
+
+type MState = [Ident]  -- supply of unused variables.
+
+type M a = State MState a
+type Arm = ([EPat], Expr)
+type Matrix = [Arm]
+
+-- Desugar a pattern matrix.
+-- The input is an identifier vector vector i1, ..., en
+-- and patterns matrix p11, ..., p1n   -> e1
+--                     p21, ..., p2n
+--                     pm1, ..., pmn   -> em
+-- The output is an expressions where each case expressions
+-- only has simple matching, i.e., case e { C1 v11 ... v1n -> e1; ...; _ -> ed }
+dsMatrix :: Expr -> [Ident] -> Matrix -> M Expr
+dsMatrix d [] [] = d
+dsMatrix _ [] ((_,e):_) = S.return e
+dsMatrix _  _ [] = S.return eMatchErr
+dsMatrix d iis@(i:is) aarms = S.do
+  let
+    -- XXX handle EAt
+    (arms, darms, rarms) = splitArms aarms
+    eRest = dsMatrix d iis rarms
+    ndarms = map (\ (PVar x : ps, ed) -> (ps, substAlpha x i ed)) darms
+    ndflt = dsMatrix d is ndarms
+    grps = groupEq (on leIdent (conIdent . pConOf . head . fst)) arms
+    oneGroup grp = S.do
+      let
+        (pat:_, _) : _ = grp
+        con = pConOf pat
+      xs <- mapM (const getIdent) (enumFrom 1 (conArity con))
+      let
+        cpat = foldl EApp con (map EVar xs)
+        cexp = dsMatrix ndflt (xs ++ is) (map (\ (p:ps, e) -> pArgs p ++ ps, e) grp)
+      S.return (cpat, cexp)
+  narms <- mapM oneGroup grps
+  S.return $ ECase (EVar i) narms
+
+eMatchErr :: Expr
+eMatchErr = EApp (EPrim "error") (EStr "no match")
+
+-- Split the matrix into segments so each first column has initially patterns
+-- followed by a single default case.
+splitArms :: Matrix -> (Matrix, Matrix, Matrix)
+splitArms am =
+  let
+    ps  = takeWhile (not . isPVar . head . fst) am
+    nps = dropWhile (not . isPVar . head . fst) am
+    ds  = takeWhile (      isPVar . head . fst) nps
+    rs  = dropWhile (      isPVar . head . fst) nps
+  in (ps, ds, rs)
+
+-- Change from x to y inside e.
+-- XXX Doing it at runtime.
+substAlpha :: Ident -> Ident -> Expr -> Expr
+substAlpha x y e = ELet [BFcn (x,[]) (EVar y)] e
+
+pConOf :: EPat -> EPat
+pConOf p@(ECon _ _) = p
+pConOf (EAt _ p) = pConOf p
+pConOf (EApp p _) = pConOf p
+pConOf _ = impossible
+
+pArgs :: EPat -> [EPat]
+pArgs (ECon _ _) = []
+pArgs (EAp _ p) = pArgs p
+pArgs (EApp f a) = pArgs f ++ [a]
+pArgs _ = impossible
+
+conIdent :: EPat -> Ident
+conIdent (ECon _ i) = i
+conIdent _ = impossible
+
+conArity :: EPat -> Int
+conArity (ECon cs i) = fromMaybe impossible $ lookupBy eqIdent i cs
+
+-- XXX quadratic
+groupEq :: (a -> a -> Bool) -> [a] -> [[a]]
+groupEq eq [] = []
+groupEq eq (x:xs) =
+  let
+    (es, ns) = partition (eq x) xs
+  in (x:es) : groupEq eq ns

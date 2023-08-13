@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 -- Functions for GHC that are defined in the UHS libs.
 module Compat(module Compat) where
+import qualified Data.Function as F
 import qualified Control.Monad as M
 import Control.Exception
 import Data.List
@@ -110,3 +111,6 @@ openFileM path m = do
 
 when :: Bool -> IO () -> IO ()
 when = M.when
+
+on :: (a -> a -> b) -> (c -> a) -> (c -> c -> b)
+on = F.on
