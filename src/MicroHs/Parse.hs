@@ -81,8 +81,30 @@ data Expr
   -- Only while type checking
   | EUVar Int
   -- Constructors after type checking
-  | ECon ConTyInfo Ident
+  | ECon Con
+  | ECaseS Expr [(SPat, Expr)]  -- simple, complete patterns
   --Xderiving (Show, Eq)
+
+data Con = Con ConTyInfo Ident
+  --Xderiving(Show, Eq)
+
+conIdent :: Con -> Ident
+conIdent c =
+  case c of
+    Con _ i -> i
+
+conTyInfo :: Con -> ConTyInfo
+conTyInfo c =
+  case c of
+    Con cs _ -> cs
+
+conArity :: Con -> Int
+conArity c =
+  case c of
+    Con cs i -> fromMaybe undefined $ lookupBy eqIdent i cs
+
+data SPat = SPat Con [Ident]    -- simple pattern
+  --Xderiving(Show, Eq)
 
 type ECaseArm = (EPat, Expr)
 
@@ -827,7 +849,8 @@ showExpr ae =
     EAt i e -> i ++ "@" ++ showExpr e
     EBad _ -> "EBad"
     EUVar i -> "a" ++ showInt i
-    ECon _ i -> i
+    ECon c -> conIdent c
+    ECaseS e as -> showExpr $ ECase e [(foldl EApp (ECon c) (map EVar xs), r) | (SPat c xs, r) <- as]
 
 showEBind :: EBind -> String
 showEBind ab =
@@ -901,7 +924,8 @@ allVarsExpr aexpr =
     EAt i e -> i : allVarsExpr e
     EBad _ -> []
     EUVar _ -> []
-    ECon _ i -> [i]
+    ECon c -> [conIdent c]
+    ECaseS e as -> allVarsExpr e ++ [ i | (SPat c xs, r) <- as, i <- conIdent c : xs ++ allVarsExpr r ]
 
 allVarsStmt :: EStmt -> [Ident]
 allVarsStmt astmt =

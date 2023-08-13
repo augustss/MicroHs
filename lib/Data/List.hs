@@ -279,3 +279,6 @@ eqList eq axs ays =
       case ays of
         [] -> False
         y:ys -> eq x y && eqList eq xs ys
+
+partition :: forall a . (a -> Bool) -> [a] -> ([a], [a])
+partition p xs = (filter p xs, filter (not . p) xs)

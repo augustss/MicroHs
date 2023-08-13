@@ -68,7 +68,7 @@ mkTables mdls =
     --XallValues :: M.Map [Entry]
     allValues =
       let
-        con mn ti i = ECon [(qual mn c, arityOf t) | (c, ETypeScheme _ t) <- constrs ti] (qual mn i)
+        con mn ti i = ECon $ Con [(qual mn c, arityOf t) | (c, ETypeScheme _ t) <- constrs ti] (qual mn i)
         syms arg =
           case arg of
             (is, TModule mn tes ves _) ->
@@ -121,7 +121,7 @@ getIdent :: Expr -> Ident
 getIdent ae =
   case ae of
     EVar i -> i
-    ECon _ i -> i
+    ECon c -> conIdent c
     _ -> impossible
 
 --------------------------
@@ -222,7 +222,7 @@ primValues =
         vs = ["a" ++ showInt i | i <- enumFromTo 1 n]
         ts = map tVar vs
         r = tApps c ts
-      in  (c, [Entry (ECon [(c, n)] c) $ ETypeScheme vs $ foldr tArrow r ts ])
+      in  (c, [Entry (ECon $ Con [(c, n)] c) $ ETypeScheme vs $ foldr tArrow r ts ])
   in  map tuple (enumFromTo 2 10)
 
 type T a = TC TCState a
@@ -577,7 +577,7 @@ addValueType d = T.do
         tret = foldl tApp (tCon (qual mn i)) (map tVar vs)
         addCon con =
           case con of
-            (c, ts) -> extValE c (ETypeScheme vs $ foldr tArrow tret ts) (ECon cti (qual mn c))
+            (c, ts) -> extValE c (ETypeScheme vs $ foldr tArrow tret ts) (ECon $ Con cti (qual mn c))
       T.mapM_ addCon cs
     _ -> T.return ()
 
@@ -751,7 +751,8 @@ tcExprR mt ae =
     -----
     EBad _ -> impossible    -- shouldn't happen
     EUVar _ -> impossible -- shouldn't happen
-    ECon _ _ -> impossible
+    ECon _ -> impossible
+    ECaseS _ _ -> impossible
 
 tcArm :: Maybe EType -> EType -> ECaseArm -> T (Typed ECaseArm)
 tcArm mt t arm =

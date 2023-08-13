@@ -9,6 +9,9 @@ runState sa =
   case sa of
     S x -> x
 
+evalState :: forall s a . State s a -> (s -> a)
+evalState sa = fst . runState sa
+
 (>>=) :: forall s a b . State s a -> (a -> State s b) -> State s b
 (>>=) m k = S $ \ s ->
   case runState m s of
