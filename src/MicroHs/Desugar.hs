@@ -364,7 +364,8 @@ dsMatrix dflt iis aarms =
   let
     -- XXX handle EAt
     (arms, darms, rarms) = splitArms aarms
-    ndarms = map (\ xxx -> let { (EVar x : ps, ed) = xxx } in (ps, substAlpha x i ed)) darms
+--    ndarms = map (\ xxx -> let { (EVar x : ps, ed) = xxx } in (ps, substAlpha x i ed)) darms
+    ndarms = map (\ xxx -> case xxx of { (pps, ed) -> case pps of {p : ps -> case p of { EVar x -> (ps, substAlpha x i ed) }}} ) darms
 --  traceM ("split " ++ show (arms, darms, rarms))
   letBind (dsMatrix dflt iis rarms) $ \ drest ->
     letBind (dsMatrix drest is ndarms) $ \ ndflt ->
@@ -381,8 +382,10 @@ dsMatrix dflt iis aarms =
           let
             one arg =
               case arg of
-                (EAt a p : ps, e) -> one (p:ps, substAlpha a i e)
-                (p : ps, e) -> (pArgs p ++ ps, e)
+                (p : ps, e) ->
+                  case p of
+                    EAt a pp -> one (pp:ps, substAlpha a i e)
+                    _        -> (pArgs p ++ ps, e)
                 _ -> impossible
           cexp <- dsMatrix ndflt (xs ++ is) (map one grp)
           S.return (SPat con xs, cexp)
