@@ -299,19 +299,40 @@ improveT ae =
       in
         if isK ff && isI aa then
           Prim "T"
+--        else if isI ff then
+--          aa
         else
-          case getApp aa of
-            NotApp -> App ff aa
-            IsApp ck e ->
-              if isY ff && isK ck then
-                e
-              else
-                App ff aa
+          let
+            def =
+              case getApp aa of
+                IsApp ck e ->
+                  if isY ff && isK ck then
+                    e
+                  else
+                    App ff aa
+                NotApp -> App ff aa
+          in
+            def
 {-
+            case getApp ff of
+              IsApp xf xa ->
+                if isK xf then
+                  xa
+                else
+                  def
+              NotApp -> def
+-}
+            
+{-
+-- K I      -->  T
+-- Y (K e)  -->  e
+-- K x y    -->  x
 improveT (App f a) =
   case (improveT f, improveT a) of
     (CK,                     CI) -> CT
+--    (CI,                      e) -> e
     (CY,               App CK e) -> e
+--    (App CK e1,              e2) -> e1
     (e1,                     e2) -> App e1 e2
 improveT e = e
 -}
