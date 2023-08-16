@@ -309,8 +309,9 @@ dsCase :: Expr -> [ECaseArm] -> Exp
 dsCase ae as =
   let
     r = runS (allVarsExpr (ECase ae as)) [ae] [([dsPat p], e) | (p, e) <- as]
-  in dsExpr r
-      --error (showExpr r)
+  in --trace (showExpr r) $
+     dsExpr r
+     
 
 type MState = [Ident]  -- supply of unused variables.
 
@@ -336,18 +337,19 @@ runS used ss mtrx =
     supply = (deleteFirstsBy eqIdent [ "nv" ++ showInt i | i <- enumFrom 1 ] used)
     ds xs aes =
       case aes of
-        [] -> letBind (S.return eMatchErr) $ \ d -> dsMatrix d (reverse xs) mtrx
+        []   -> --letBind (S.return eMatchErr) $ \ d ->
+                dsMatrix eMatchErr (reverse xs) mtrx
         e:es -> letBind (S.return e) $ \ x -> ds (x:xs) es
   in S.evalState (ds [] ss) supply
 
 -- Desugar a pattern matrix.
--- The input is an identifier vector vector i1, ..., en
+-- The input is a (usually identifier) vector e1, ..., en
 -- and patterns matrix p11, ..., p1n   -> e1
 --                     p21, ..., p2n
 --                     pm1, ..., pmn   -> em
 -- The output is an expressions where each case expressions
 -- only has simple matching, i.e., case e { C1 v11 ... v1n -> e1; ...; _ -> ed }
-dsMatrix :: Ident -> [Ident] -> Matrix -> M Expr
+dsMatrix :: Expr -> [Expr] -> Matrix -> M Expr
 {-
 dsMatrix d _ [] = S.return (EVar d)
 dsMatrix _ [] ((_,e):_) = S.return e
@@ -356,7 +358,7 @@ dsMatrix dflt iis@(i:is) aarms = S.do
 -}
 dsMatrix dflt iis aarms =
  if null aarms then
-   S.return (EVar dflt)
+   S.return dflt
  else
  case iis of
  [] -> S.return (snd (head aarms))
@@ -370,7 +372,7 @@ dsMatrix dflt iis aarms =
   letBind (dsMatrix dflt iis rarms) $ \ drest ->
     letBind (dsMatrix drest is ndarms) $ \ ndflt ->
      if null arms then
-       S.return $ EVar ndflt
+       S.return ndflt
      else S.do
       let
         grps = groupEq (on eqIdent (conIdent . pConOf . head . fst)) arms
@@ -387,28 +389,42 @@ dsMatrix dflt iis aarms =
                     EAt a pp -> one (pp:ps, substAlpha a i e)
                     _        -> (pArgs p ++ ps, e)
                 _ -> impossible
-          cexp <- dsMatrix ndflt (xs ++ is) (map one grp)
+          cexp <- dsMatrix ndflt (map EVar xs ++ is) (map one grp)
           S.return (SPat con xs, cexp)
 --      traceM $ "grps " ++ show grps
       narms <- S.mapM oneGroup grps
-      S.return $ mkCase i narms (EVar ndflt)
+      S.return $ mkCase i narms ndflt
 
 eMatchErr :: Expr
 eMatchErr = EApp (EPrim "error") (EStr "no match")
 
 -- If the first expression isn't a variable, the use
 -- a let binding and pass variable to f.
-letBind :: M Expr -> (Ident -> M Expr) -> M Expr
+letBind :: M Expr -> (Expr -> M Expr) -> M Expr
 letBind me f = S.do
   e <- me
-  case e of
-    EVar i -> f i
-    _ -> S.do
-      x <- newIdent
-      r <- f x
-      S.return $ eLet x e r
+  if cheap e then
+    f e
+   else S.do
+    x <- newIdent
+    r <- f (EVar x)
+    S.return $ eLet x e r
 
-mkCase :: Ident -> [(SPat, Expr)] -> Expr -> Expr
+cheap :: Expr -> Bool
+cheap ae =
+  case ae of
+    EVar _ -> True
+    ECon _ -> True
+    EInt _ -> True
+    EChar _ -> True
+    EStr _ -> True
+    EApp f _ ->
+      case f of
+        EPrim _ -> True
+        _ -> False
+    _ -> False
+
+mkCase :: Expr -> [(SPat, Expr)] -> Expr -> Expr
 mkCase var pes dflt =
 --  trace ("mkCase " ++ show pes) $
   let
@@ -420,7 +436,7 @@ mkCase var pes dflt =
                              [ (replicate k dummyIdent, dflt) ]
         in if length vs /= k then error "bad arity" else
            (SPat (Con cs c) vs, rhs)
-  in  ECaseS (EVar var) (map arm cs)
+  in  ECaseS var (map arm cs)
 
 -- Split the matrix into segments so each first column has initially patterns
 -- followed by a single default case.
@@ -435,8 +451,9 @@ splitArms am =
 
 -- Change from x to y inside e.
 -- XXX Doing it at runtime.
-substAlpha :: Ident -> Ident -> Expr -> Expr
-substAlpha x y e = eLet x (EVar y) e
+substAlpha :: Ident -> Expr -> Expr -> Expr
+substAlpha x y e = eLet x y e
+--  subst [(x, y)] e
 
 eLet :: Ident -> Expr -> Expr -> Expr
 eLet i e b =
