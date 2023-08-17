@@ -60,19 +60,6 @@ dsBind abind =
         ds = [ (i, dsExpr (ECase (EVar v) [(p, EVar i)])) | i <- patVars p ]
       in  de : ds
 
-xxxx :: Expr -> Exp -> Exp
-xxxx _ec e = --trace ("xxx: " ++ showInt (sizeExp e) ++ " " ++ showExpr ec)
-           e
-
-sizeExp :: Exp -> Int
-sizeExp ea =
-  case ea of
-    Var _ -> 1
-    App f a -> 1 + sizeExp f + sizeExp a
-    Lam _ e -> 1 + sizeExp e
-    Int _ -> 1
-    Prim _ -> 1
-
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
   case aexpr of
@@ -81,7 +68,7 @@ dsExpr aexpr =
     ELam x e -> Lam x (dsExpr e)
     EInt i -> Int i
     EChar c -> Int (ord c)
-    ECase e as -> xxxx (ECase e as) $ dsCase e as
+    ECase e as -> dsCase e as
 -- For now, just sequential bindings; each recursive
     ELet ads e ->
       case ads of
@@ -267,12 +254,6 @@ data SPat = SPat Con [Ident]    -- simple pattern
 --                     pm1, ..., pmn   -> em
 -- Note that the RHSs are of type Exp.
 dsMatrix :: Exp -> [Exp] -> Matrix -> M Exp
-{-
-dsMatrix d _ [] = S.return (EVar d)
-dsMatrix _ [] ((_,e):_) = S.return e
---dsMatrix _  _ [] = S.return eMatchErr
-dsMatrix dflt iis@(i:is) aarms = S.do
--}
 dsMatrix dflt iis aarms =
  if null aarms then
    S.return dflt
