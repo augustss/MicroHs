@@ -14,7 +14,7 @@ import Control.Monad.State.Strict as S --Xhiding(ap)
 --Ximport Control.Monad as S hiding(ap)
 --Ximport Compat
 --Ximport GHC.Stack
---import Debug.Trace
+--Ximport Debug.Trace
 
 import MicroHs.Parse
 import MicroHs.Exp
@@ -178,6 +178,7 @@ dsPat ap =
     EList ps -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
     ETuple ps -> dsPat $ foldl EApp (tupleCon (length ps)) ps
     EAt i p -> EAt i (dsPat p)
+    EInt _ -> ap
     _ -> impossible
 
 consCon :: EPat
@@ -339,20 +340,34 @@ cheap ae =
     App (Prim _) _ -> True
     _ -> False
 
+-- Ugh, what a hack
+isInt :: String -> Bool
+isInt cs =
+  case cs of
+    c:ds ->
+      isDigit c ||
+      eqChar c '-' && case ds of { d:_ -> isDigit d; _ -> False }
+    _ -> False
+
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
---  trace ("mkCase " ++ show pes) $
+  --trace ("mkCase " ++ show pes) $
   case pes of
-    (SPat (Con cs _) _, _) : _ ->
-      let
-        arm ck =
-          let
-            (c, k) = ck
-            (vs, rhs) = head $ [ (xs, e) | (SPat (Con _ i) xs, e) <- pes, eqIdent c i ] ++
-                               [ (replicate k dummyIdent, dflt) ]
-          in if length vs /= k then error "bad arity" else
-             (SPat (Con cs c) vs, rhs)
-      in  eCase var (map arm cs)
+    (SPat (Con cs name) _, arhs) : _ ->
+      if isInt name then
+        let
+          cond = app2 (Prim "==") var (Int (readInt name))
+        in app2 cond dflt arhs
+      else
+        let
+          arm ck =
+            let
+              (c, k) = ck
+              (vs, rhs) = head $ [ (xs, e) | (SPat (Con _ i) xs, e) <- pes, eqIdent c i ] ++
+                                 [ (replicate k dummyIdent, dflt) ]
+            in if length vs /= k then error "bad arity" else
+               (SPat (Con cs c) vs, rhs)
+        in  eCase var (map arm cs)
     _ -> impossible
 
 eCase :: Exp -> [(SPat, Exp)] -> Exp
@@ -396,6 +411,7 @@ pConOf ap =
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
+    EInt i -> let { n = showInt i } in Con [(n, 0)] n
     _ -> impossible
 
 pArgs :: EPat -> [EPat]
