@@ -42,9 +42,7 @@ dsDef mn adef =
               in (qual mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
       in  zipWith dsConstr (enumFrom 0) cs
     Type _ _ -> []
-    Fcn fxs e ->
-      case fxs of
-        (f, xs) -> [(f, lams xs $ dsExpr e)]
+    Fcn (f, xs) e -> [(f, lams xs $ dsExpr e)]
     Sign _ _ -> []
     Import _ -> []
 
@@ -80,8 +78,7 @@ dsExpr aexpr =
                 case ir of
                   (i, r) -> App (Lam i a) (App (Prim "Y") (Lam i r))
           in  foldr def de dsd
-    EList es ->
-      foldr (app2 cCons) cNil $ map dsExpr es
+    EList es -> foldr (app2 cCons) cNil $ map dsExpr es
     ETuple es -> Lam "$f" $ foldl App (Var "$f") $ map dsExpr es
     EStr cs -> dsExpr $ EList $ map EChar cs
     EDo mn astmts ->
@@ -325,25 +322,24 @@ cheap ae =
     Var _ -> True
     Int _ -> True
     Prim _ -> True
-    App f _ ->
-      case f of
-        Prim _ -> True
-        _ -> False
-    Lam _ _ -> False
+    App (Prim _) _ -> True
+    _ -> False
 
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
 --  trace ("mkCase " ++ show pes) $
-  let
-      (SPat (Con cs _) _, _) : _ = pes
-      arm ck =
-        let
-          (c, k) = ck
-          (vs, rhs) = head $ [ (xs, e) | (SPat (Con _ i) xs, e) <- pes, eqIdent c i ] ++
-                             [ (replicate k dummyIdent, dflt) ]
-        in if length vs /= k then error "bad arity" else
-           (SPat (Con cs c) vs, rhs)
-  in  eCase var (map arm cs)
+  case pes of
+    (SPat (Con cs _) _, _) : _ ->
+      let
+        arm ck =
+          let
+            (c, k) = ck
+            (vs, rhs) = head $ [ (xs, e) | (SPat (Con _ i) xs, e) <- pes, eqIdent c i ] ++
+                               [ (replicate k dummyIdent, dflt) ]
+          in if length vs /= k then error "bad arity" else
+             (SPat (Con cs c) vs, rhs)
+      in  eCase var (map arm cs)
+    _ -> impossible
 
 eCase :: Exp -> [(SPat, Exp)] -> Exp
 eCase e as = apps e [lams xs r | (SPat _ xs, r) <- as ]

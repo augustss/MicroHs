@@ -40,8 +40,11 @@ typeCheck imps amdl =
                 thisMdl = (mn, mkTModule mn tds impossible)
                 impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm, tm) <- imps]
                 impMap = M.fromList (thisMdl : impMdls)
-                (texps, vexps) = unzip [ (te, ve) | ExpModule m <- exps,
-                                         let { TModule _ te ve _ = fromMaybe (error $ "import " ++ m) (M.lookup m impMap) } ]
+                (texps, vexps) =
+                  unzip [ case M.lookup m impMap of
+                            Just (TModule _ te ve _) -> (te, ve)
+                            _ -> error $ "import " ++ m
+                        | ExpModule m <- exps ]
               in  TModule mn (concat texps) (concat vexps) tds
 
 mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
