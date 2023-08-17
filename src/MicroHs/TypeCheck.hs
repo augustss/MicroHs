@@ -589,19 +589,12 @@ tcDefValue d =
       (_, ETypeScheme tvs t) <- tLookup i
       let
         vks = zip tvs (repeat (ETypeScheme [] kType))
-      (et, _) <- withExtTyps vks $ tcExpr (Just t) $ foldr ELam rhs vs
       mn <- gets moduleName
-      T.return $ Fcn (qual mn i, vs) $ dropLam (length vs) et
+      (ELam _avs et, _) <- withExtTyps vks $ tcExpr (Just t) $ ELam (map EVar vs) rhs
+      T.return $ Fcn (qual mn i, vs) et
+--      (et, _) <- withExtTyps vks (tcExpr (Just t) (foldr eLam1 rhs vs))
+--      T.return (Fcn (qual mn i, vs) (dropLam (length vs) et))
     _ -> T.return d
-
-dropLam :: Int -> Expr -> Expr
-dropLam n ae =
-  if n == 0 then
-    ae
-  else
-    case ae of
-      ELam _ e -> dropLam (n-1) e
-      _        -> impossible
 
 tcType :: Maybe EKind -> EType -> T (Typed EType)
 tcType mk = tcExpr mk . dsType
@@ -632,13 +625,7 @@ tcExprR mt ae =
       tr <- unMType mt
       (ef, _) <- tcExpr (Just (tArrow ta tr)) f
       T.return (EApp ef ea, tr)
-    ELam i e -> T.do
-      ta <- newUVar
-      (ee, tr) <- withExtVal i (ETypeScheme [] ta) $ tcExpr Nothing e
-      let
-        tlam = tArrow ta tr
-      munify mt tlam
-      T.return (ELam i ee, tlam)
+    ELam is e -> tcExprLam mt is e
     EInt _ -> T.return (ae, tCon "Primitives.Int")
     EChar _ -> T.return (ae, tCon "Primitives.Char")
     EStr _ -> T.return (ae, tApps "Data.List.[]" [tCon "Primitives.Char"])
@@ -687,7 +674,7 @@ tcExprR mt ae =
                 (EApp (EApp _ ea) (ELam _ (ECase _ ((ep, EDo mn ys): _)))
                  , tr) <-
                   tcExpr Nothing (EApp (EApp (EVar sbind) a)
-                                       (ELam "%x" (ECase (EVar "%x") [(p, EDo mmn ss)])))
+                                       (ELam [EVar "$x"] (ECase (EVar "$x") [(p, EDo mmn ss)])))
                 T.return (EDo mn (SBind ep ea : ys), tr)
               SThen a -> T.do
                 let
@@ -708,7 +695,7 @@ tcExprR mt ae =
       (EApp (EVar ii) ee, t) <- tcExpr mt (EApp (EVar i) e)
       T.return (ESectL ee ii, t)
     ESectR i e -> T.do
-      (ELam _ (EApp (EApp var _) ee), t) <- tcExpr mt (ELam "$x" (EApp (EApp (EVar i) (EVar "$x")) e))
+      (ELam _ (EApp (EApp var _) ee), t) <- tcExpr mt (ELam [EVar "$x"] (EApp (EApp (EVar i) (EVar "$x")) e))
       T.return (ESectR (getIdent var) ee, t)
     EIf e1 e2 e3 -> T.do
       (ee1, _) <- tcExpr (Just tBool) e1
@@ -752,6 +739,20 @@ tcExprR mt ae =
     EUVar _ -> impossible -- shouldn't happen
     ECon _ -> impossible
 
+tcExprLam :: Maybe EType -> [EPat] -> Expr -> T (Typed Expr)
+tcExprLam mt aps expr =
+  case aps of
+    [] -> T.do
+      (er, tr) <- tcExpr mt expr
+      T.return (ELam [] er, tr)
+    p:ps -> T.do
+      ta <- newUVar
+      ((pr, ELam psr er), tr) <- tcArm Nothing ta (p, ELam ps expr)
+      let
+        tlam = tArrow ta tr
+      munify mt tlam
+      T.return (ELam (pr:psr) er, tlam)
+
 tcArm :: Maybe EType -> EType -> ECaseArm -> T (Typed ECaseArm)
 tcArm mt t arm =
   case arm of
@@ -782,8 +783,10 @@ tcBind abind =
   case abind of
     BFcn (i, vs) a -> T.do
       (_, t) <- tLookupInst i
-      (ea, _) <- tcExpr (Just t) $ foldr ELam a vs
-      T.return $ BFcn (i, vs) $ dropLam (length vs) ea
+      (ELam _avs ea, _) <- tcExpr (Just t) $ ELam (map EVar vs) a
+      T.return $ BFcn (i, vs) ea
+--      (ea, _) <- tcExpr (Just t) $ foldr eLam1 a vs
+--      T.return $ BFcn (i, vs) $ dropLam (length vs) ea
     BPat p a -> T.do
       (ep, tp) <- tcExpr Nothing p
       (ea, _)  <- tcExpr (Just tp) a

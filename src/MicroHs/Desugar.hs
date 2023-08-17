@@ -64,7 +64,7 @@ dsExpr aexpr =
   case aexpr of
     EVar i -> Var i
     EApp f a -> App (dsExpr f) (dsExpr a)
-    ELam x e -> Lam x (dsExpr e)
+    ELam xs e -> dsLam xs e
     EInt i -> Int i
     EChar c -> Int (ord c)
     ECase e as -> dsCase e as
@@ -82,7 +82,7 @@ dsExpr aexpr =
           in  foldr def de dsd
     EList es ->
       foldr (app2 cCons) cNil $ map dsExpr es
-    ETuple es -> Lam "_f" $ foldl App (Var "_f") $ map dsExpr es
+    ETuple es -> Lam "$f" $ foldl App (Var "$f") $ map dsExpr es
     EStr cs -> dsExpr $ EList $ map EChar cs
     EDo mn astmts ->
       case astmts of
@@ -92,10 +92,15 @@ dsExpr aexpr =
             SBind p e ->
               if null stmts then error "do without final expression"
               else
-                let
-                  nv = newVar (allVarsExpr aexpr)
-                  body = ECase (EVar nv) [(p, EDo mn stmts), (EVar dummyIdent, eError "dopat")]
-                in  dsExpr $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam nv body)
+--                case p of
+--                  EVar v -> dsExpr $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [v] $ EDo mn stmts)
+--                  _ ->
+                    let
+                      nv = newVar (allVarsExpr aexpr)
+                      body = ECase (EVar nv) [(p, EDo mn stmts), (EVar dummyIdent, eError "dopat")]
+                      res = dsExpr $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [EVar nv] body)
+                    in res
+                      
             SThen e ->
               if null stmts then
                 dsExpr e
@@ -121,7 +126,7 @@ dsExpr aexpr =
               let
                 nv = newVar (allVarsExpr aexpr)
                 body = ECase (EVar nv) [(p, ECompr e stmts), (EVar dummyIdent, EList [])]
-              in app2 (Var "Data.List.concatMap") (dsExpr (ELam nv body)) (dsExpr b)
+              in app2 (Var "Data.List.concatMap") (dsExpr (ELam [EVar nv] body)) (dsExpr b)
             SThen c ->
               dsExpr (EIf c (ECompr e stmts) (EList []))
             SLet ds ->
@@ -134,6 +139,14 @@ dsExpr aexpr =
         undefined  -- not implemented yet
       else
         Var (conIdent c)
+
+dsLam :: [EPat] -> Expr -> Exp
+dsLam ps e =
+  let
+    vs = allVarsExpr (ELam ps e)
+    xs = take (length ps) (newVars vs)
+    ex = runS (vs ++ xs) (map Var xs) [(ps, dsExpr e)]
+  in foldr Lam ex xs
 
 spatVars :: SPat -> [Ident]
 spatVars ap =

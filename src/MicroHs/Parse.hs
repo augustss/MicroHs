@@ -61,7 +61,7 @@ data ImportSpec = ImportSpec Bool Ident (Maybe Ident)
 data Expr
   = EVar Ident
   | EApp Expr Expr
-  | ELam Ident Expr
+  | ELam [EPat] Expr
   | EInt Int
   | EChar Char
   | EStr String
@@ -601,10 +601,7 @@ pExprApp = P.do
   pure $ foldl EApp f as
 
 pLam :: P Expr
-pLam = eLams <$> (pSymbol "\\" *> esome pLIdent) <*> (pSymbol "->" *> pExprPT)
-
-eLams :: [Ident] -> Expr -> Expr
-eLams is e = foldr ELam e is
+pLam = ELam <$> (pSymbol "\\" *> esome pAPat) <*> (pSymbol "->" *> pExprPT)
 
 pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExprPT) <*> (pKeywordW "of" *> pBlock pCaseArm)
@@ -827,7 +824,7 @@ showExpr ae =
 --X    EApp (EApp (EVar ",") a) b -> showExpr (ETuple [a,b])
     EVar v -> v
     EApp f a -> "(" ++ showExpr f ++ " " ++ showExpr a ++ ")"
-    ELam i e -> "(\\" ++ i ++ " -> " ++ showExpr e ++ ")"
+    ELam ps e -> "(\\" ++ unwords (map showExpr ps) ++ " -> " ++ showExpr e ++ ")"
     EInt i -> showInt i
     EChar c -> showChar c
     EStr s -> showString s
@@ -835,7 +832,7 @@ showExpr ae =
     ELet bs e -> "let\n" ++ unlines (map showEBind bs) ++ "in " ++ showExpr e
     ETuple es -> "(" ++ intercalate "," (map showExpr es) ++ ")"
     EList es -> showList showExpr es
-    EDo _ _ -> "EDo"
+    EDo mn ss -> maybe "do" (\n -> n ++ ".do\n") mn ++ unlines (map showEStmt ss)
     EPrim p -> p
     ESectL e i -> "(" ++ showExpr e ++ " " ++ i ++ ")"
     ESectR i e -> "(" ++ i ++ " " ++ showExpr e ++ ")"
@@ -845,6 +842,13 @@ showExpr ae =
     EBad _ -> "EBad"
     EUVar i -> "a" ++ showInt i
     ECon c -> conIdent c
+
+showEStmt :: EStmt -> String
+showEStmt as =
+  case as of
+    SBind p e -> showEPat p ++ " <- " ++ showExpr e
+    SThen e -> showExpr e
+    SLet bs -> "let\n" ++ unlines (map showEBind bs)
 
 showEBind :: EBind -> String
 showEBind ab =
@@ -902,7 +906,7 @@ allVarsExpr aexpr =
   case aexpr of
     EVar i -> [i]
     EApp e1 e2 -> allVarsExpr e1 ++ allVarsExpr e2
-    ELam i e -> i : allVarsExpr e
+    ELam ps e -> concatMap allVarsPat ps ++ allVarsExpr e
     EInt _ -> []
     EChar _ -> []
     EStr _ -> []

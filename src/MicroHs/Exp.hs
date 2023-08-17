@@ -356,10 +356,16 @@ substExp si se ae =
                  ae
                else if elemBy eqIdent i (freeVars se) then
                  let
-                   j = head $ deleteFirstsBy eqIdent ["a" ++ showInt n | n <- enumFrom 0] (freeVars se ++ freeVars e)
-                 in Lam j (substExp si se (substExp i (Var j) e))
+                   fe = allVarsExp e
+                   ase = allVarsExp se
+                   j = --head $ deleteFirstsBy eqIdent ["a" ++ showInt n | n <- enumFrom 0] (freeVars se ++ freeVars e)
+                       --head [ v | n <- enumFrom 0, let { v = "a" ++ showInt n }, not (elemBy eqIdent v fse), not (elemBy eqIdent v fe) ]
+                       head [ v | n <- enumFrom 0, let { v = "a" ++ showInt n }, not (elemBy eqIdent v ase), not (elemBy eqIdent v fe) ]
+                 in
+                   --trace ("substExp " ++ unwords [si, i, j]) $
+                   Lam j (substExp si se (substExp i (Var j) e))
                else
-                 Lam i (substExp si se e)
+                   Lam i (substExp si se e)
     Int _ -> ae
     Prim _ -> ae
 
@@ -369,6 +375,15 @@ freeVars ae =
     Var i -> [i]
     App f a -> freeVars f ++ freeVars a
     Lam i e -> deleteBy eqIdent i (freeVars e)
+    Int _ -> []
+    Prim _ -> []
+
+allVarsExp :: Exp -> [Ident]
+allVarsExp ae =
+  case ae of
+    Var i -> [i]
+    App f a -> allVarsExp f ++ allVarsExp a
+    Lam i e -> i : allVarsExp e
     Int _ -> []
     Prim _ -> []
 
