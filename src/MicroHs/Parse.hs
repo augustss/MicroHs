@@ -50,7 +50,7 @@ isConIdent i =
 data EDef
   = Data LHS [Constr]
   | Type LHS EType
-  | Fcn LHS Expr
+  | Fcn Ident [Eqn]
   | Sign Ident ETypeScheme
   | Import ImportSpec
   --Xderiving (Show, Eq)
@@ -112,7 +112,11 @@ data TypeInfo
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
   --Xderiving (Show, Eq)
 
-data EBind = BFcn LHS Expr | BPat EPat Expr
+data EBind = BFcn Ident [Eqn] | BPat EPat Expr
+  --Xderiving (Show, Eq)
+
+-- A single equation for a function
+data Eqn = Eqn [EPat] Expr
   --Xderiving (Show, Eq)
 
 type ConTyInfo = [(Ident, Int)]    -- All constructors with their arities
@@ -157,48 +161,6 @@ validType ae =
     EList es -> length es <= 1 && all validType (take 1 es)
     ETuple es -> all validType es
     _ -> False
-
-{-
-validExpr :: Expr -> Bool
-validExpr _ae = True
-  case ae of
-    EVar _ -> True
-    EApp f a -> validExpr f && validExpr a
-    ELam _ e -> validExpr e
-    EInt _ -> True
-    EChar _ -> True
-    EStr _ -> True
-    ECase e arms -> validExpr e && all validArm arms
-    ELet bs e -> all validBind bs && validExpr e
-    ETuple es -> all validExpr es
-    EList es -> all validExpr es
-    EDo _ stmts -> all validStmt stmts -- XXX could check last is an expression
-    EPrim _ -> True
-    ESectL e _ -> validExpr e
-    ESectR _ e -> validExpr e
-    EIf e1 e2 e3 -> validExpr e1 && validExpr e2 && validExpr e3
-    ECompr e stmts -> validExpr e && all validStmt stmts
-    EAt _ _ -> False
-    _ -> undefined
-
-validArm :: ECaseArm -> Bool
-validArm ape =
-  case ape of
-    (_, e) -> validExpr e
-
-validStmt :: EStmt -> Bool
-validStmt as =
-  case as of
-    SBind _ e -> validExpr e
-    SThen e -> validExpr e
-    SLet bs -> all validBind bs
-
-validBind :: EBind -> Bool
-validBind ab =
-  case ab of
-    BFcn _ e -> validExpr e
-    BPat _ e -> validExpr e
--}
 
 data ETypeScheme = ETypeScheme [Ident] EType
   --Xderiving (Show, Eq)
@@ -537,9 +499,24 @@ pDef :: P EDef
 pDef =
       Data   <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 (pair <$> pUIdent <*> many pAType) (pSymbol "|")
   <|> Type   <$> (pKeyword "type" *> pLHS pUIdent <* pSymbol "=") <*> pType
-  <|> Fcn    <$> (pLHS pLIdent <* pSymbol "=") <*> pExpr
+  <|> uncurry Fcn <$> pEqns
   <|> Sign   <$> (pLIdent <* pSymbol "::") <*> pTypeScheme
   <|> Import <$> (pKeyword "import" *> pImportSpec)
+
+pEqns :: P (Ident, [Eqn])
+pEqns = P.do
+  (name, eqn@(Eqn ps _)) <- pEqn (\ _ _ -> True)
+  neqns <- emany (pSym ';' *> pEqn (\ n l -> eqIdent n name && l == length ps))
+  P.pure (name, eqn : map snd neqns)
+
+pEqn :: (Ident -> Int -> Bool) -> P (Ident, Eqn)
+pEqn test = P.do
+  name <- pLIdent
+  pats <- emany pAPat
+  pSymbol "="
+  guard (test name (length pats))
+  rhs <- pExpr
+  P.pure (name, Eqn pats rhs)
 
 pImportSpec :: P ImportSpec
 pImportSpec =
@@ -739,7 +716,7 @@ pStmt =
 
 pBind :: P EBind
 pBind = 
-      BFcn <$> (pLHS pLIdent <* pSymbol "=") <*> pExprPT
+      uncurry BFcn <$> pEqns
   <|> BPat <$> (pPatNotVar <* pSymbol "=") <*> pExprPT
 
 pQualDo :: P String
@@ -802,7 +779,7 @@ showEDef def =
   case def of
     Data lhs _ -> "data " ++ showLHS lhs ++ " = ..."
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
-    Fcn lhs e -> showLHS lhs ++ " = " ++ showExpr e
+    Fcn i eqns -> unlines (map (\ (Eqn ps e) -> i ++ unwords (map showEPat ps) ++ " = " ++ showExpr e) eqns)
     Sign i t -> i ++ " :: " ++ showETypeScheme t
     Import (ImportSpec q m mm) -> "import " ++ (if q then "qualified " else "") ++ m ++ maybe "" (" as " ++) mm
 
@@ -853,7 +830,7 @@ showEStmt as =
 showEBind :: EBind -> String
 showEBind ab =
   case ab of
-    BFcn lhs rhs -> showEDef (Fcn lhs rhs)
+    BFcn i eqns -> showEDef (Fcn i eqns)
     BPat p e -> showEPat p ++ " = " ++ showExpr e
 
 showCaseArm :: ECaseArm -> String
@@ -890,8 +867,13 @@ subst s =
 allVarsBind :: EBind -> [Ident]
 allVarsBind abind =
   case abind of
-    BFcn l e -> allVarsLHS l ++ allVarsExpr e
+    BFcn i eqns -> i : concatMap allVarsEqn eqns
     BPat p e -> allVarsPat p ++ allVarsExpr e
+
+allVarsEqn :: Eqn -> [Ident]
+allVarsEqn eqn =
+  case eqn of
+    Eqn ps e -> concatMap allVarsPat ps ++ allVarsExpr e
 
 allVarsLHS :: LHS -> [Ident]
 allVarsLHS iis =

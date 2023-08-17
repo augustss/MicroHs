@@ -14,7 +14,7 @@ import Control.Monad.State.Strict as S --Xhiding(ap)
 --Ximport Control.Monad as S hiding(ap)
 --Ximport Compat
 --Ximport GHC.Stack
---Ximport Debug.Trace
+--import Debug.Trace
 
 import MicroHs.Parse
 import MicroHs.Exp
@@ -42,20 +42,31 @@ dsDef mn adef =
               in (qual mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
       in  zipWith dsConstr (enumFrom 0) cs
     Type _ _ -> []
-    Fcn (f, xs) e -> [(f, lams xs $ dsExpr e)]
+    Fcn f eqns -> [(f, dsEqns eqns)]
     Sign _ _ -> []
     Import _ -> []
 
 dsBind :: EBind -> [LDef]
 dsBind abind =
   case abind of
-    BFcn (f, xs) e -> [(f, lams xs $ dsExpr e)]
+    BFcn f eqns -> [(f, dsEqns eqns)]
     BPat p e ->
       let
         v = newVar (allVarsBind abind)
         de = (v, dsExpr e)
         ds = [ (i, dsExpr (ECase (EVar v) [(p, EVar i)])) | i <- patVars p ]
       in  de : ds
+
+dsEqns :: [Eqn] -> Exp
+dsEqns eqns =
+  case eqns of
+    Eqn aps _ : _ ->
+      let
+        vs = allVarsBind $ BFcn "" eqns
+        xs = take (length aps) $ newVars vs
+        ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsExpr e) | Eqn ps e <- eqns]
+      in foldr Lam ex xs
+    _ -> impossible
 
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
@@ -157,7 +168,8 @@ mqual mqi i =
     Nothing -> i
 
 -- Handle special syntax for lists and tuples
-dsPat :: EPat -> EPat
+dsPat :: --XHasCallStack =>
+         EPat -> EPat
 dsPat ap =
   case ap of
     EVar _ -> ap
@@ -165,6 +177,7 @@ dsPat ap =
     EApp f a -> EApp (dsPat f) (dsPat a)
     EList ps -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
     ETuple ps -> dsPat $ foldl EApp (tupleCon (length ps)) ps
+    EAt i p -> EAt i (dsPat p)
     _ -> impossible
 
 consCon :: EPat
@@ -243,6 +256,7 @@ newIdent = S.do
 
 runS :: [Ident] -> [Exp] -> Matrix -> Exp
 runS used ss mtrx =
+  --trace ("runS " ++ show (ss, mtrx)) $
   let
     supply = deleteFirstsBy eqIdent [ "x" ++ showInt i | i <- enumFrom 1 ] used
 --    ds :: [Exp] -> [Exp] -> M Exp

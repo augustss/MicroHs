@@ -587,14 +587,15 @@ tcDefValue :: --XHasCallStack =>
               EDef -> T EDef
 tcDefValue d =
   case d of
-    Fcn (i, vs) rhs -> T.do
+    Fcn i eqns -> T.do
 --      traceM $ "tcDefValue: " ++ showLHS (i, vs) ++ " = " ++ showExpr rhs
       (_, ETypeScheme tvs t) <- tLookup i
       let
         vks = zip tvs (repeat (ETypeScheme [] kType))
       mn <- gets moduleName
-      (ELam _avs et, _) <- withExtTyps vks $ tcExpr (Just t) $ ELam (map EVar vs) rhs
-      T.return $ Fcn (qual mn i, vs) et
+      teqns <- withExtTyps vks $ tcEqns t eqns
+               --tcExpr (Just t) $ ELam (map EVar vs) rhs
+      T.return $ Fcn (qual mn i) teqns
 --      (et, _) <- withExtTyps vks (tcExpr (Just t) (foldr eLam1 rhs vs))
 --      T.return (Fcn (qual mn i, vs) (dropLam (length vs) et))
     _ -> T.return d
@@ -756,6 +757,16 @@ tcExprLam mt aps expr =
       munify mt tlam
       T.return (ELam (pr:psr) er, tlam)
 
+tcEqns :: EType -> [Eqn] -> T [Eqn]
+tcEqns t eqns = T.mapM (tcEqn t) eqns
+
+tcEqn :: EType -> Eqn -> T Eqn
+tcEqn t eqn =
+  case eqn of
+    Eqn ps rhs -> T.do
+      (ELam aps arhs, _) <- tcExpr (Just t) (ELam ps rhs)
+      T.return (Eqn aps arhs)
+
 tcArm :: Maybe EType -> EType -> ECaseArm -> T (Typed ECaseArm)
 tcArm mt t arm =
   case arm of
@@ -784,10 +795,11 @@ tcBinds xbs ta = T.do
 tcBind :: EBind -> T EBind
 tcBind abind =
   case abind of
-    BFcn (i, vs) a -> T.do
+    BFcn i eqns -> T.do
       (_, t) <- tLookupInst i
-      (ELam _avs ea, _) <- tcExpr (Just t) $ ELam (map EVar vs) a
-      T.return $ BFcn (i, vs) ea
+      --(ELam _avs ea, _) <- tcExpr (Just t) $ ELam (map EVar vs) a
+      teqns <- tcEqns t eqns
+      T.return $ BFcn i teqns
 --      (ea, _) <- tcExpr (Just t) $ foldr eLam1 a vs
 --      T.return $ BFcn (i, vs) $ dropLam (length vs) ea
     BPat p a -> T.do
@@ -798,7 +810,7 @@ tcBind abind =
 getBindVars :: EBind -> [Ident]
 getBindVars abind =
   case abind of
-    BFcn (i, _) _ -> [i]
+    BFcn i _ -> [i]
     BPat p _ -> patVars p
 
 -- Desugar [T] and (T,T,...)
