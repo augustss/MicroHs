@@ -1,7 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-type-defaults -Wno-incomplete-uni-patterns -Wno-unused-imports #-}
-{-# LANGUAGE QualifiedDo #-}
 module MicroHs.Desugar(
   module MicroHs.Desugar
   --desugar, LDef, showLDefs,

@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# LANGUAGE QualifiedDo #-}
 module MicroHs.TypeCheck(
   module MicroHs.TypeCheck
 {-

@@ -1,6 +1,5 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# LANGUAGE QualifiedDo #-}
 module MicroHs.Compile(module MicroHs.Compile) where
 import Prelude --Xhiding (Monad(..), mapM, showString)
 import qualified System.IO as IO

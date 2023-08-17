@@ -2,12 +2,13 @@ BIN=bin
 BOOTDIR=ghc-boot
 OUTDIR=ghc-out
 PROF= #-prof -fprof-auto
+EXTS= -XScopedTypeVariables -XQualifiedDo
 GHCB=ghc $(PROF) -outputdir $(BOOTDIR)
-GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude -XScopedTypeVariables -F -pgmF $(CURDIR)/convertY.sh 
+GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude $(EXTS) -F -pgmF $(CURDIR)/convertY.sh 
 GHCC=$(GHCB) $(GHCFLAGS)
 GHC=ghc
 # $(CURDIR) might not be quite right
-GHCE=$(GHC) -F -pgmF $(CURDIR)/convertX.sh -outputdir $(OUTDIR)
+GHCE=$(GHC) $(EXTS) -F -pgmF $(CURDIR)/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
 MHS=mhs
