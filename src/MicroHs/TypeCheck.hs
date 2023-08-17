@@ -752,7 +752,6 @@ tcExprR mt ae =
     EBad _ -> impossible    -- shouldn't happen
     EUVar _ -> impossible -- shouldn't happen
     ECon _ -> impossible
-    ECaseS _ _ -> impossible
 
 tcArm :: Maybe EType -> EType -> ECaseArm -> T (Typed ECaseArm)
 tcArm mt t arm =

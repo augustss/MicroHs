@@ -15,7 +15,7 @@ import Control.Monad.State.Strict as S --Xhiding(ap)
 --Ximport Control.Monad as S hiding(ap)
 --Ximport Compat
 --Ximport GHC.Stack
---import Debug.Trace
+--Ximport Debug.Trace
 
 import MicroHs.Parse
 import MicroHs.Exp
@@ -60,6 +60,19 @@ dsBind abind =
         ds = [ (i, dsExpr (ECase (EVar v) [(p, EVar i)])) | i <- patVars p ]
       in  de : ds
 
+xxxx :: Expr -> Exp -> Exp
+xxxx _ec e = --trace ("xxx: " ++ showInt (sizeExp e) ++ " " ++ showExpr ec)
+           e
+
+sizeExp :: Exp -> Int
+sizeExp ea =
+  case ea of
+    Var _ -> 1
+    App f a -> 1 + sizeExp f + sizeExp a
+    Lam _ e -> 1 + sizeExp e
+    Int _ -> 1
+    Prim _ -> 1
+
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
   case aexpr of
@@ -68,7 +81,7 @@ dsExpr aexpr =
     ELam x e -> Lam x (dsExpr e)
     EInt i -> Int i
     EChar c -> Int (ord c)
-    ECase e as -> dsCase e as
+    ECase e as -> xxxx (ECase e as) $ dsCase e as
 -- For now, just sequential bindings; each recursive
     ELet ads e ->
       case ads of
@@ -135,28 +148,17 @@ dsExpr aexpr =
         undefined  -- not implemented yet
       else
         Var (conIdent c)
-    ECaseS e as -> apps (dsExpr e) [lams xs $ dsExpr r | (SPat _ xs, r) <- as ]
+
+spatVars :: SPat -> [Ident]
+spatVars ap =
+  case ap of
+    SPat _ is -> is
 
 mqual :: Maybe Ident -> Ident -> Ident
 mqual mqi i =
   case mqi of
     Just qi -> qual qi i
     Nothing -> i
-
-{-
-dsCase :: Expr -> [ECaseArm] -> Exp
-dsCase ecase aarms =
-  case findDefault [(dsPat p, e) | (p, e) <- aarms] of
-    (arms, dexpr) ->
-      case arms of
-        -- No pattern matching
-        [] -> App (dsExpr dexpr) (dsExpr ecase)
-        (pat, _) : _ ->
-          let
-            cs = getConTyInfo pat
-            nvs = newVars (allVarsExpr (ECase ecase aarms))
-          in  dsCaseArms nvs cs ecase arms dexpr
--}
 
 -- Handle special syntax for lists and tuples
 dsPat :: EPat -> EPat
@@ -189,99 +191,11 @@ tupleCon n =
     c = tupleConstr n
   in ECon $ Con [(c, n)] c
 
-{-
-getConTyInfo :: --XHasCallStack =>
-                EPat -> ConTyInfo
-getConTyInfo ap =
-  case ap of
-    ECon c -> conTyInfo c
-    EApp f _ -> getConTyInfo f
-    _ -> impossible
-
-getSubPats :: EPat -> [EPat]
-getSubPats =
-  let
-    getsp ps ap =
-      case ap of
-        ECon _ -> ps
-        EApp f p -> getsp (p:ps) f
-        _ -> impossible
-  in getsp []
-
-getConName :: EPat -> Ident
-getConName ap =
-  case ap of
-    ECon c -> conIdent c
-    EApp f _ -> getConName f
-    _ -> impossible
--}
-
 dummyIdent :: Ident
 dummyIdent = "_"
 
 eError :: String -> Expr
 eError s = EApp (EPrim "error") (EStr s)
-
-{-
-findDefault :: [ECaseArm] -> ([ECaseArm], Expr)
-findDefault aarms =
-  case aarms of
-    [] -> ([], ELam dummyIdent $ eError "no match")
-    arm : arms ->
-      case arm of
-         (pat, rhs) ->
-           case pat of
-             EVar i -> ([], ELam i rhs)
-             _ ->
-               case findDefault arms of
-                 (narms, dflt) -> (arm : narms, dflt)
-
-dsCaseArms :: [Ident] -> [(Ident, Int)] -> Expr -> [ECaseArm] -> Expr -> Exp
---dsCaseArms nvs cons e arms dflt | trace (show (arms, dflt)) False = undefined
-dsCaseArms nvs cons e arms dflt =
-  let
-    nv = head nvs
-    (ev, elet) = asVar nv (dsExpr e)
-    --(ed, dlet) = asVar (head (tail nvs)) $ App (dsExpr dflt) (Var ev)
-    edflt = EApp dflt (EVar ev)
-
-    rarms = reorderArms cons arms edflt
-
-    dsArm aarm =
-      case aarm of
-        (apat, rhs) ->
-          let
-            ps = getSubPats apat
-            vs = take (length ps) (tail nvs)
-            pat vp r =
-              case vp of
-                (v, p) -> ECase (EVar v) [(p, r), (EVar dummyIdent, if length arms == 1 then edflt else EBad (showEPat p))]
-            cr = foldr pat rhs (zip vs ps)
-          in lams vs $ dsExpr cr
-
-  in elet $ apps (Var ev) (map dsArm rarms)
-
-asVar :: Ident -> Exp -> (Ident, Exp -> Exp)
-asVar i ae =
-  case ae of
-    Var ii -> (ii, id)
-    _ -> (i, \ e -> App (Lam i e) ae)
-
-reorderArms :: [(Ident, Int)] -> [ECaseArm] -> Expr -> [ECaseArm]
---reorderArms cs as ed | trace (show (cs, as, ed)) False = undefined
-reorderArms cons as ed =
-  let
-    npats = length . getSubPats
-    arms = map (\ a -> (getConName (fst a), a)) as
-    arm ck =
-      case ck of
-        (c, k) ->
-          case lookupBy eqIdent c arms of
-            Nothing -> (foldl EApp (ECon $ Con cons c) (replicate k (EVar dummyIdent)), ed)
-            Just a ->
-              if npats (fst a) == k then a else error $ "bad contructor arity: " ++ showIdent c
-  in  map arm cons
--}
 
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs
@@ -290,7 +204,7 @@ apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
 newVars :: [Ident] -> [Ident]
-newVars is = deleteFirstsBy eqIdent [ "nv" ++ showInt i | i <- enumFrom 1 ] is
+newVars is = deleteFirstsBy eqIdent [ "q" ++ showInt i | i <- enumFrom 1 ] is
 
 newVar :: [Ident] -> Ident
 newVar = head . newVars
@@ -308,15 +222,15 @@ showLDef a =
 dsCase :: Expr -> [ECaseArm] -> Exp
 dsCase ae as =
   let
-    r = runS (allVarsExpr (ECase ae as)) [ae] [([dsPat p], e) | (p, e) <- as]
-  in --trace (showExpr r) $
-     dsExpr r
+    r = runS (allVarsExpr (ECase ae as)) [dsExpr ae] [([dsPat p], dsExpr e) | (p, e) <- as]
+  in --trace (showExp r) $
+     r
      
 
 type MState = [Ident]  -- supply of unused variables.
 
 type M a = State MState a
-type Arm = ([EPat], Expr)
+type Arm = ([EPat], Exp)
 type Matrix = [Arm]
 
 newIdents :: Int -> M [Ident]
@@ -331,10 +245,11 @@ newIdent = S.do
   put (tail is)
   S.return (head is)
 
-runS :: [Ident] -> [Expr] -> Matrix -> Expr
+runS :: [Ident] -> [Exp] -> Matrix -> Exp
 runS used ss mtrx =
   let
-    supply = (deleteFirstsBy eqIdent [ "nv" ++ showInt i | i <- enumFrom 1 ] used)
+    supply = deleteFirstsBy eqIdent [ "x" ++ showInt i | i <- enumFrom 1 ] used
+--    ds :: [Exp] -> [Exp] -> M Exp
     ds xs aes =
       case aes of
         []   -> --letBind (S.return eMatchErr) $ \ d ->
@@ -342,14 +257,16 @@ runS used ss mtrx =
         e:es -> letBind (S.return e) $ \ x -> ds (x:xs) es
   in S.evalState (ds [] ss) supply
 
+data SPat = SPat Con [Ident]    -- simple pattern
+  --Xderiving(Show, Eq)
+
 -- Desugar a pattern matrix.
 -- The input is a (usually identifier) vector e1, ..., en
 -- and patterns matrix p11, ..., p1n   -> e1
 --                     p21, ..., p2n
 --                     pm1, ..., pmn   -> em
--- The output is an expressions where each case expressions
--- only has simple matching, i.e., case e { C1 v11 ... v1n -> e1; ...; _ -> ed }
-dsMatrix :: Expr -> [Expr] -> Matrix -> M Expr
+-- Note that the RHSs are of type Exp.
+dsMatrix :: Exp -> [Exp] -> Matrix -> M Exp
 {-
 dsMatrix d _ [] = S.return (EVar d)
 dsMatrix _ [] ((_,e):_) = S.return e
@@ -389,42 +306,40 @@ dsMatrix dflt iis aarms =
                     EAt a pp -> one (pp:ps, substAlpha a i e)
                     _        -> (pArgs p ++ ps, e)
                 _ -> impossible
-          cexp <- dsMatrix ndflt (map EVar xs ++ is) (map one grp)
+          cexp <- dsMatrix ndflt (map Var xs ++ is) (map one grp)
           S.return (SPat con xs, cexp)
 --      traceM $ "grps " ++ show grps
       narms <- S.mapM oneGroup grps
       S.return $ mkCase i narms ndflt
 
-eMatchErr :: Expr
-eMatchErr = EApp (EPrim "error") (EStr "no match")
+eMatchErr :: Exp
+eMatchErr = dsExpr $ EApp (EPrim "error") (EStr "no match")
 
 -- If the first expression isn't a variable, the use
 -- a let binding and pass variable to f.
-letBind :: M Expr -> (Expr -> M Expr) -> M Expr
+letBind :: M Exp -> (Exp -> M Exp) -> M Exp
 letBind me f = S.do
   e <- me
   if cheap e then
     f e
    else S.do
     x <- newIdent
-    r <- f (EVar x)
+    r <- f (Var x)
     S.return $ eLet x e r
 
-cheap :: Expr -> Bool
+cheap :: Exp -> Bool
 cheap ae =
   case ae of
-    EVar _ -> True
-    ECon _ -> True
-    EInt _ -> True
-    EChar _ -> True
-    EStr _ -> True
-    EApp f _ ->
+    Var _ -> True
+    Int _ -> True
+    Prim _ -> True
+    App f _ ->
       case f of
-        EPrim _ -> True
+        Prim _ -> True
         _ -> False
-    _ -> False
+    Lam _ _ -> False
 
-mkCase :: Expr -> [(SPat, Expr)] -> Expr -> Expr
+mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
 --  trace ("mkCase " ++ show pes) $
   let
@@ -436,7 +351,10 @@ mkCase var pes dflt =
                              [ (replicate k dummyIdent, dflt) ]
         in if length vs /= k then error "bad arity" else
            (SPat (Con cs c) vs, rhs)
-  in  ECaseS var (map arm cs)
+  in  eCase var (map arm cs)
+
+eCase :: Exp -> [(SPat, Exp)] -> Exp
+eCase e as = apps e [lams xs r | (SPat _ xs, r) <- as ]
 
 -- Split the matrix into segments so each first column has initially patterns
 -- followed by a single default case.
@@ -451,19 +369,22 @@ splitArms am =
 
 -- Change from x to y inside e.
 -- XXX Doing it at runtime.
-substAlpha :: Ident -> Expr -> Expr -> Expr
-substAlpha x y e = eLet x y e
---  subst [(x, y)] e
+substAlpha :: Ident -> Exp -> Exp -> Exp
+substAlpha x y e =
+  if eqIdent x dummyIdent then
+    e
+  else
+    substExp x y e
 
-eLet :: Ident -> Expr -> Expr -> Expr
+eLet :: Ident -> Exp -> Exp -> Exp
 eLet i e b =
   if eqIdent i dummyIdent then
     b
   else
     let
-      r = ELet [(BFcn (i,[]) e)] b
+      r = App (Lam i b) e
     in case b of
-         EVar j -> if eqIdent i j then e else r
+         Var j -> if eqIdent i j then e else r
          _ -> r
 
 pConOf :: EPat -> Con

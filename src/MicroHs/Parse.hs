@@ -82,7 +82,6 @@ data Expr
   | EUVar Int
   -- Constructors after type checking
   | ECon Con
-  | ECaseS Expr [(SPat, Expr)]  -- simple, complete patterns
   --Xderiving (Show, Eq)
 
 data Con = Con ConTyInfo Ident
@@ -102,9 +101,6 @@ conArity :: Con -> Int
 conArity c =
   case c of
     Con cs i -> fromMaybe undefined $ lookupBy eqIdent i cs
-
-data SPat = SPat Con [Ident]    -- simple pattern
-  --Xderiving(Show, Eq)
 
 type ECaseArm = (EPat, Expr)
 
@@ -850,7 +846,6 @@ showExpr ae =
     EBad _ -> "EBad"
     EUVar i -> "a" ++ showInt i
     ECon c -> conIdent c
-    ECaseS e as -> showExpr $ ECase e [(foldl EApp (ECon c) (map EVar xs), r) | (SPat c xs, r) <- as]
 
 showEBind :: EBind -> String
 showEBind ab =
@@ -877,55 +872,17 @@ showETypeScheme ts =
       then showEType t
       else unwords ("forall" : vs ++ [".", showEType t])
 
-lhsVars :: LHS -> [Ident]
-lhsVars lhs =
-  case lhs of
-    (i, is) -> i:is
-
--- XXX Assumes no name clashes!
+-- Enough to handle subsitution in types
 subst :: [(Ident, Expr)] -> Expr -> Expr
-subst s expr =
-  if null s then expr else
+subst s =
   let
-    minus s is = filter (\ ab -> not (elemBy eqIdent (fst ab) is)) s
-    bsub ab =
-      case ab of
-        BFcn lhs e -> BFcn lhs (subst (minus s (lhsVars lhs)) e)  -- XXX
-        BPat p e -> BPat p (subst (minus s (patVars p)) e) -- XXX
-    ssub as =
-      case as of
-        SBind p e -> SBind p (subst (minus s (patVars p)) e) -- XXX
-        SThen e -> SThen (subst s e)
-        SLet bs -> SLet (map bsub bs)
     sub ae =
       case ae of
         EVar i -> fromMaybe ae $ lookupBy eqIdent i s
         EApp f a -> EApp (sub f) (sub a)
-        ELam i e -> ELam i (subst (minus s [i]) e)  -- XXX
-        EInt _ -> ae
-        EChar _ -> ae
-        EStr _ -> ae
-        ECase e as -> ECase (sub e) [(p, subst (minus s (patVars p)) r) | (p, r) <- as] -- XXX
-        ELet bs e -> ELet (map bsub bs) (sub e)
-        ETuple es -> ETuple (map sub es)
-        EList es -> EList (map sub es)
-        EDo mi ss -> EDo mi (map ssub ss)
-        EPrim _ -> ae
-        ESectL e i -> ESectL (sub e) i
-        ESectR i e -> ESectR i (sub e)
-        EIf e1 e2 e3 -> EIf (sub e1) (sub e2) (sub e3)
-        ECompr e ss -> ECompr (sub e) (map ssub ss)
-        EAt _ _ -> ae
-        EBad _ -> ae
         EUVar _ -> ae
-        ECon _ -> ae
-        ECaseS e as -> ECaseS (sub e) [(p, subst (minus s (spatVars p)) e) | (p, e) <- as ]  -- XXX
-  in sub expr
-
-spatVars :: SPat -> [Ident]
-spatVars ap =
-  case ap of
-    SPat _ is -> is
+        _ -> error "subst unimplemented"
+  in sub
 
 allVarsBind :: EBind -> [Ident]
 allVarsBind abind =
@@ -964,7 +921,6 @@ allVarsExpr aexpr =
     EBad _ -> []
     EUVar _ -> []
     ECon c -> [conIdent c]
-    ECaseS e as -> allVarsExpr e ++ [ i | (SPat c xs, r) <- as, i <- conIdent c : xs ++ allVarsExpr r ]
 
 allVarsStmt :: EStmt -> [Ident]
 allVarsStmt astmt =
