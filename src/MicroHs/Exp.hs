@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module MicroHs.Exp(module MicroHs.Exp) where
 import Prelude
+import Data.List
 import MicroHs.Parse --X(Ident, eqIdent)
 --Ximport Compat
 --import Debug.Trace
@@ -345,6 +346,31 @@ showExp ae =
     Lam i e -> "(\\" ++ i ++ ". " ++ showExp e ++ ")"
     Int i -> showInt i
     Prim p -> p
+
+substExp :: Ident -> Exp -> Exp -> Exp
+substExp si se ae =
+  case ae of
+    Var i -> if eqIdent i si then se else ae
+    App f a -> App (substExp si se f) (substExp si se a)
+    Lam i e -> if eqIdent si i then
+                 ae
+               else if elemBy eqIdent i (freeVars se) then
+                 let
+                   j = head $ deleteFirstsBy eqIdent ["a" ++ showInt n | n <- enumFrom 0] (freeVars se ++ freeVars e)
+                 in Lam j (substExp si se (substExp i (Var j) e))
+               else
+                 Lam i (substExp si se e)
+    Int _ -> ae
+    Prim _ -> ae
+
+freeVars :: Exp -> [Ident]
+freeVars ae =
+  case ae of
+    Var i -> [i]
+    App f a -> freeVars f ++ freeVars a
+    Lam i e -> deleteBy eqIdent i (freeVars e)
+    Int _ -> []
+    Prim _ -> []
 
 --------
 -- Possible additions
