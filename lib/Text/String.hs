@@ -42,6 +42,12 @@ showUnsignedInt n =
         False -> showUnsignedInt (quot n 10) ++ [c]
         True  -> [c]
 
+readInt :: String -> Int
+readInt cs =
+  let
+    rd = foldl (\ a c -> a * 10 + ord c - ord '0') 0
+  in if eqChar (head cs) '-' then 0 - rd (tail cs) else rd cs
+
 showBool :: Bool -> String
 showBool arg =
   case arg of
@@ -81,15 +87,6 @@ showEither fa fb arg =
   case arg of
     Left  a -> "(Left " ++ fa a ++ ")"
     Right b -> "(Right " ++ fb b ++ ")"
-
-readInt :: String -> Int
-readInt =
-  let
-    rd r axs =
-      case axs of
-        [] -> r
-        x : xs -> rd (r*10 + ord x - ord '0') xs
-  in  rd 0
 
 unlines :: [String] -> String
 unlines = concatMap (++ "\n")
