@@ -779,7 +779,7 @@ showEDef def =
   case def of
     Data lhs _ -> "data " ++ showLHS lhs ++ " = ..."
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
-    Fcn i eqns -> unlines (map (\ (Eqn ps e) -> i ++ unwords (map showEPat ps) ++ " = " ++ showExpr e) eqns)
+    Fcn i eqns -> unlines (map (\ (Eqn ps e) -> i ++ " " ++ unwords (map showEPat ps) ++ " = " ++ showExpr e) eqns)
     Sign i t -> i ++ " :: " ++ showETypeScheme t
     Import (ImportSpec q m mm) -> "import " ++ (if q then "qualified " else "") ++ m ++ maybe "" (" as " ++) mm
 

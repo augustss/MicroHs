@@ -278,15 +278,15 @@ cCC e1 e2 e3 = app3 (Prim "C'") e1 e2 e3
 -- This is a hack, it assumes things about the Prelude
 flipOps :: [(PrimOp, PrimOp)]
 flipOps =
-  [("Prelude.+",  "Prelude.+")
-  ,("Prelude.-",  "Prelude.subtract")
-  ,("Prelude.*",  "Prelude.*")
-  ,("Prelude.==", "Prelude.==")
-  ,("Prelude./=", "Prelude./=")
-  ,("Prelude.<",  "Prelude.>")
-  ,("Prelude.<=", "Prelude.>=")
-  ,("Prelude.>",  "Prelude.<")
-  ,("Prelude.>=", "Prelude.<=")
+  [("Data.Int.+",  "Data.Int.+")
+  ,("Data.Int.-",  "Data.Int.subtract")
+  ,("Data.Int.*",  "Data.Int.*")
+  ,("Data.Int.==", "Data.Int.==")
+  ,("Data.Int./=", "Data.Int./=")
+  ,("Data.Int.<",  "Data.Int.>")
+  ,("Data.Int.<=", "Data.Int.>=")
+  ,("Data.Int.>",  "Data.Int.<")
+  ,("Data.Int.>=", "Data.Int.<=")
   ]
 
 improveT :: Exp -> Exp

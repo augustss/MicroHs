@@ -349,6 +349,10 @@ isInt cs =
       eqChar c '-' && case ds of { d:_ -> isDigit d; _ -> False }
     _ -> False
 
+-- Could use Prim "==", but that misses out some optimizations
+eEqInt :: Exp
+eEqInt = Var "Data.Int.=="
+
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
   --trace ("mkCase " ++ show pes) $
@@ -356,7 +360,7 @@ mkCase var pes dflt =
     (SPat (Con cs name) _, arhs) : _ ->
       if isInt name then
         let
-          cond = app2 (Prim "==") var (Int (readInt name))
+          cond = app2 eEqInt var (Int (readInt name))
         in app2 cond dflt arhs
       else
         let
