@@ -145,7 +145,7 @@ dsLam ps e =
   let
     vs = allVarsExpr (ELam ps e)
     xs = take (length ps) (newVars vs)
-    ex = runS (vs ++ xs) (map Var xs) [(ps, dsExpr e)]
+    ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsExpr e)]
   in foldr Lam ex xs
 
 spatVars :: SPat -> [Ident]
@@ -276,8 +276,7 @@ dsMatrix dflt iis aarms =
   let
     -- XXX handle EAt
     (arms, darms, rarms) = splitArms aarms
---    ndarms = map (\ xxx -> let { (EVar x : ps, ed) = xxx } in (ps, substAlpha x i ed)) darms
-    ndarms = map (\ xxx -> case xxx of { (pps, ed) -> case pps of {p : ps -> case p of { EVar x -> (ps, substAlpha x i ed) }}} ) darms
+    ndarms = map (\ (EVar x : ps, ed) -> (ps, substAlpha x i ed) ) darms
 --  traceM ("split " ++ show (arms, darms, rarms))
   letBind (dsMatrix dflt iis rarms) $ \ drest ->
     letBind (dsMatrix drest is ndarms) $ \ ndflt ->
@@ -380,7 +379,8 @@ eLet i e b =
          Var j -> if eqIdent i j then e else r
          _ -> r
 
-pConOf :: EPat -> Con
+pConOf :: --XHasCallStack =>
+          EPat -> Con
 pConOf ap =
   case ap of
     ECon c -> c

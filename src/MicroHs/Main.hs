@@ -44,7 +44,7 @@ main = do
         -- App2 CT (Lbl i (subst e)) r
     res = foldr def (toStringP emain) (zip ds (enumFrom 0))
   when (verbose flags > 1) $
-    mapM_ (\ ie -> case ie of { (i, e) -> putStrLn $ i ++ " = " ++ toStringP e}) ds
+    mapM_ (\ (i, e) -> putStrLn $ i ++ " = " ++ toStringP e) ds
   if runIt flags then do
     let
       prg = translate cmdl
