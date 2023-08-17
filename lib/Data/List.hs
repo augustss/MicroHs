@@ -232,6 +232,9 @@ lookupBy eq x xys = fmapMaybe snd (find (eq x . fst) xys)
 unionBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 unionBy eq xs ys =  xs ++ foldl (flip (deleteBy eq)) (nubBy eq ys) xs
 
+intersectBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
+intersectBy eq xs ys = filter (\ x -> not (elemBy eq x ys)) xs
+
 deleteBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
 deleteBy eq x ays =
   case ays of
