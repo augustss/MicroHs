@@ -107,12 +107,6 @@ conArity c =
 
 type ECaseArm = (EPat, Expr)
 
-data TypeInfo
-  = TAbs EKind
-  | TConc EKind [(Ident, ETypeScheme)]   -- constructor name, arity, and type
-  | TSyn EKind ETypeScheme
-  --Xderiving (Show, Eq)
-
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
   --Xderiving (Show, Eq)
 

@@ -18,14 +18,29 @@ import MicroHs.Parse
 --Ximport GHC.Stack
 --import Debug.Trace
 
-data TModule a = TModule IdentModule [TypeExport] [ValueExport] a
+data TModule a = TModule IdentModule [TypeExport] [SynDef] [ValueExport] a
   --Xderiving (Show)
 
 data TypeExport = TypeExport Ident Ident TypeInfo  -- exported name, original name
   --Xderiving (Show)
 
-data ValueExport = ValueExport Ident Ident ETypeScheme
+data ValueExport = ValueExport Ident Entry
   --Xderiving (Show)
+
+data TypeInfo
+  = TAbs EKind
+  | TConc EKind [(Ident, ETypeScheme)]   -- constructor name, arity, and type
+  | TSyn EKind ETypeScheme
+  --Xderiving (Show, Eq)
+
+type SynDef = (Ident, ETypeScheme)
+
+data Entry = Entry Expr ETypeScheme
+  --Xderiving(Show)
+
+type ValueTable = M.Map [Entry]
+type TypeTable  = M.Map [Entry]
+type SynTable   = M.Map ETypeScheme
 
 typeCheck :: forall a . [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
 typeCheck imps amdl =
@@ -40,25 +55,26 @@ typeCheck imps amdl =
                 thisMdl = (mn, mkTModule mn tds impossible)
                 impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm, tm) <- imps]
                 impMap = M.fromList (thisMdl : impMdls)
-                (mdltexps, mdlvexps) =
-                  unzip [ case M.lookup m impMap of
-                            Just (TModule _ te ve _) -> (te, ve)
+                (mdltexps, mdlsexps, mdlvexps) =
+                  unzip3 [ case M.lookup m impMap of
+                            Just (TModule _ te se ve _) -> (te, se, ve)
                             _ -> error $ "import " ++ m
                         | ExpModule m <- exps ]
 --                types = typeTable ts
 --                (values, syns) = valueTable ts
-              in  TModule mn (concat mdltexps) (concat mdlvexps) tds
+              in  TModule mn (concat mdltexps) (concat mdlsexps) (concat mdlvexps) tds
 
 mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
 mkTModule mn tds a =
   let
-    ves = [ ValueExport i (qual mn i) t | Sign i t <- tds ]
+    ves = [ ValueExport i (Entry (EVar (qual mn i)) ts) | Sign i ts <- tds ]
     con it vs icts =
       case icts of
         (ic, ts) -> (ic, ETypeScheme vs (foldr tArrow (tApps (qual mn it) (map tVar vs)) ts))
     tes = [ TypeExport  i (qual mn i) (TConc (lhsKind vs) (map (con i vs) cs)) | Data (i, vs) cs <- tds ] ++
           [ TypeExport  i (qual mn i) (TSyn  (lhsKind vs) (ETypeScheme vs t))  | Type (i, vs) t  <- tds ]
-  in  TModule mn tes ves a
+    ses = [ (qual mn i, ETypeScheme vs t) | Type (i, vs) t  <- tds ]
+  in  TModule mn tes ses ves a
 
 mkTables :: forall a . [(ImportSpec, TModule a)] -> (TypeTable, SynTable, ValueTable)
 mkTables mdls =
@@ -75,22 +91,22 @@ mkTables mdls =
         con mn ti i = ECon $ Con [(qual mn c, arityOf t) | (c, ETypeScheme _ t) <- constrs ti] (qual mn i)
         syms arg =
           case arg of
-            (is, TModule mn tes ves _) ->
-              [ (v, [Entry (EVar qi)                t]) | ValueExport i qi t  <- ves,                       v <- qns is mn i ] ++
+            (is, TModule mn tes _ ves _) ->
+              [ (v, [e])                                | ValueExport i e     <- ves,                       v <- qns is mn i ] ++
               [ (v, [Entry (con (moduleOf qi) ti i) t]) | TypeExport  _ qi ti <- tes, (i, t) <- constrs ti, v <- qns is mn i ]
       in  M.fromListWith (unionBy eqEntry) $ concatMap syms mdls
     allSyns =
       let
         syns arg =
           case arg of
-            (_, TModule _ tes _ _) -> [(qi, ts) | TypeExport _ qi (TSyn _ ts) <- tes ]
+            (_, TModule _ _ ses _ _) -> ses
       in  M.fromList (concatMap syns mdls)
     --XallTypes :: TypeTable
     allTypes =
       let
         types arg =
           case arg of
-            (is, TModule mn tes _ _) -> [ (v, [Entry (EVar qi) (kindOf ti)]) | TypeExport i qi ti <- tes, v <- qns is mn i ]
+            (is, TModule mn tes _ _ _) -> [ (v, [Entry (EVar qi) (kindOf ti)]) | TypeExport i qi ti <- tes, v <- qns is mn i ]
       in M.fromListWith (unionBy eqEntry) $ concatMap types mdls
   in  (allTypes, allSyns, allValues)
 
@@ -131,13 +147,6 @@ getIdent ae =
 --------------------------
 
 type Typed a = (a, EType)
-
-data Entry = Entry Expr ETypeScheme
-  --Xderiving(Show)
-
-type ValueTable = M.Map [Entry]
-type TypeTable  = M.Map [Entry]
-type SynTable   = M.Map ETypeScheme
 
 data TCState = TC IdentModule Int TypeTable SynTable ValueTable (IM.IntMap EType)
   --Xderiving (Show)
@@ -861,7 +870,7 @@ impossible = error "impossible"
 showTModule :: forall a . (a -> String) -> TModule a -> String
 showTModule sh amdl =
   case amdl of
-    TModule mn _ _ a -> "Tmodule " ++ mn ++ "\n" ++ sh a
+    TModule mn _ _ _ a -> "Tmodule " ++ mn ++ "\n" ++ sh a
 
 isUnderscore :: Ident -> Bool
 isUnderscore = eqIdent "_"

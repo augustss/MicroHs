@@ -74,7 +74,7 @@ compile flags nm = IO.do
   let
     defs m =
       case m of
-        TModule _ _ _ ds -> ds
+        TModule _ _ _ _ ds -> ds
   IO.when (verbose flags > 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (showInt t) ++ "ms"
   IO.return $ concatMap defs $ M.elems $ cache ch
