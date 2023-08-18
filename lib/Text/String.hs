@@ -114,3 +114,6 @@ leString axs ays =
       case ays of
         [] -> False
         y:ys -> ltChar x y || eqChar x y && leString xs ys
+
+padLeft :: Int -> String -> String
+padLeft n s = replicate (n - length s) ' ' ++ s

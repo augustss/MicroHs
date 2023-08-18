@@ -119,3 +119,6 @@ on = F.on
 
 getTimeMilli :: IO Int
 getTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds <$> getCurrentTime
+
+padLeft :: Int -> String -> String
+padLeft n s = replicate (n - length s) ' ' ++ s

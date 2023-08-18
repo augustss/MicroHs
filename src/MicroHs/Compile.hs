@@ -16,6 +16,8 @@ import MicroHs.TypeCheck
 data Flags = Flags Int Bool [String] String
   --Xderiving (Show)
 
+type Time = Int
+
 verbose :: Flags -> Int
 verbose f =
   case f of
@@ -68,14 +70,18 @@ updCache x c =
 
 compile :: Flags -> IdentModule -> IO [LDef]
 compile flags nm = IO.do
-  ch <- execStateIO (compileModuleCached flags nm) (Cache [] M.empty)
+  ((_, t), ch) <- runStateIO (compileModuleCached flags nm) (Cache [] M.empty)
   let
     defs m =
       case m of
         TModule _ _ _ ds -> ds
+  IO.when (verbose flags > 0) $
+    putStrLn $ "total import time     " ++ padLeft 6 (showInt t) ++ "ms"
   IO.return $ concatMap defs $ M.elems $ cache ch
 
-compileModuleCached :: Flags -> IdentModule -> StateIO Cache CModule
+-- Compile a module with the given name.
+-- If the module has already been compiled, return the caches result.
+compileModuleCached :: Flags -> IdentModule -> StateIO Cache (CModule, Time)
 compileModuleCached flags nm = S.do
   ch <- gets cache
   case M.lookup nm ch of
@@ -86,19 +92,22 @@ compileModuleCached flags nm = S.do
       modify $ \ c -> updWorking (nm : working c) c
       S.when (verbose flags > 0) $
         liftIO $ putStrLn $ "importing " ++ showIdent nm
-      cm <- compileModule flags nm
+      (cm, tp, tt, ts) <- compileModule flags nm
       S.when (verbose flags > 0) $
-        liftIO $ putStrLn $ "importing done " ++ showIdent nm
+        liftIO $ putStrLn $ "importing done " ++ showIdent nm ++ ", " ++ showInt (tp + tt) ++ "ms (" ++ showInt tp ++ " + " ++ showInt tt ++ ")"
       c <- get
       put $ Cache (tail (working c)) (M.insert nm cm (cache c))
-      S.return cm
+      S.return (cm, tp + tt + ts)
     Just cm -> S.do
       S.when (verbose flags > 0) $
         liftIO $ putStrLn $ "importing cached " ++ showIdent nm
-      S.return cm
+      S.return (cm, 0)
 
-compileModule :: Flags -> IdentModule -> StateIO Cache CModule
+-- Find and compile a module with the given name.
+-- The times are (parsing, typecheck+desugar, imported modules)
+compileModule :: Flags -> IdentModule -> StateIO Cache (CModule, Time, Time, Time)
 compileModule flags nm = S.do
+  t1 <- liftIO getTimeMilli
   let
     fn = map (\ c -> if eqChar c '.' then '/' else c) nm ++ ".hs"
   mdl <- S.fmap (parseDie pTop fn) (liftIO (readFilePath (paths flags) fn))
@@ -109,17 +118,20 @@ compileModule flags nm = S.do
     error $ "module name does not agree with file name: " ++ showIdent nm
   let
     specs = [ s | Import s <- defs ]
-  impMdls <- S.mapM (compileModuleCached flags) [ m | ImportSpec _ m _ <- specs ]
+  t2 <- liftIO getTimeMilli
+  (impMdls, ts) <- S.fmap unzip $ S.mapM (compileModuleCached flags) [ m | ImportSpec _ m _ <- specs ]
+  t3 <- liftIO getTimeMilli
   let
     tmdl = typeCheck (zip specs impMdls) mdl
-  liftIO $ putStr $ drop 1000000 $ showTModule showEDefs tmdl
   S.when (verbose flags > 2) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   let
     dmdl = desugar tmdl
+  liftIO $ putStr $ drop 1000000 $ showTModule showLDefs dmdl
+  t4 <- liftIO getTimeMilli
   S.when (verbose flags > 2) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
-  S.return dmdl
+  S.return (dmdl, t2-t1, t4-t3, sum ts)
 
 ------------------
 

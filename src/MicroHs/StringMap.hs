@@ -79,6 +79,10 @@ elems m =
   case m of
     Map kvs -> map snd kvs
 
+size m =
+  case m of
+    Map kvs -> length kvs
+
 {-
 import qualified Data.Map as M
 
@@ -102,3 +106,4 @@ union :: forall v . Map v -> Map v -> Map v
 lookup :: forall v . String -> Map v -> Maybe v
 empty :: forall v . Map v
 elems :: forall v . Map v -> [v]
+size :: forall v . Map v -> Int

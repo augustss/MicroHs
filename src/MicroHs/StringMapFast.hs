@@ -3,14 +3,15 @@
 --
 -- Inspired by https://sortingsearching.com/2020/05/23/2-3-trees.html
 --
-module Data.Map(module Data.Map) where
-import Prelude --Yhiding(lookupBy)
+module MicroHs.StringMapFast(module MicroHs.StringMapFast) where
+import Prelude --Xhiding(lookup)
+--Ximport Compat
 
-data Map k v
+data Map v
   = Empty
-  | Leaf k v
-  | Node2 Int k (Map k v) (Map k v)
-  | Node3 Int k (Map k v) (Map k v) (Map k v)
+  | Leaf String v
+  | Node2 Int String (Map v) (Map v)
+  | Node3 Int String (Map v) (Map v) (Map v)
   --Xderiving (Show)
 
 data OneOrTwo a
@@ -18,7 +19,7 @@ data OneOrTwo a
   | OOT2 a a
   --Xderiving (Show)
 
-height :: forall k v . Map k v -> Int
+height :: forall v . Map v -> Int
 height m =
   case m of
     Empty -> undefined
@@ -26,7 +27,7 @@ height m =
     Node2 h _ _ _ -> h
     Node3 h _ _ _ _ -> h
 
-smallest :: forall k v . Map k v -> k
+smallest :: forall v . Map v -> String
 smallest m =
   case m of
     Empty -> undefined
@@ -34,7 +35,7 @@ smallest m =
     Node2 _ k _ _ -> k
     Node3 _ k _ _ _ -> k
 
-replSmallest :: forall k v . (v -> v) -> Map k v -> Map k v
+replSmallest :: forall v . (v -> v) -> Map v -> Map v
 replSmallest f m =
   case m of
     Empty -> undefined
@@ -42,13 +43,13 @@ replSmallest f m =
     Node2 h s a b -> Node2 h s (replSmallest f a) b
     Node3 h s a b c -> Node3 h s (replSmallest f a) b c
 
-node2 :: forall k v . Map k v -> Map k v -> Map k v
+node2 :: forall v . Map v -> Map v -> Map v
 node2 a b = Node2 (height a + 1) (smallest a) a b
 
-node3 :: forall k v . Map k v -> Map k v -> Map k v -> Map k v
+node3 :: forall v . Map v -> Map v -> Map v -> Map v
 node3 a b c = Node3 (height a + 1) (smallest a) a b c
 
-meld :: forall k v . OneOrTwo (Map k v) -> OneOrTwo (Map k v) -> OneOrTwo (Map k v)
+meld :: forall v . OneOrTwo (Map v) -> OneOrTwo (Map v) -> OneOrTwo (Map v)
 meld m1 m2 =
   case m1 of
     OOT1 a ->
@@ -60,7 +61,7 @@ meld m1 m2 =
         OOT1 c -> OOT1 $ node3 a b c
         OOT2 c d -> OOT2 (node2 a b) (node2 c d)
 
-mergeToSameHeight :: forall k v . Map k v -> Map k v -> OneOrTwo (Map k v)
+mergeToSameHeight :: forall v . Map v -> Map v -> OneOrTwo (Map v)
 mergeToSameHeight a b =
   if height a < height b then
     case b of
@@ -76,7 +77,7 @@ mergeToSameHeight a b =
     OOT2 a b
 
 -- All elements in aa smaller than elements in ab
-merge :: forall k v . Map k v -> Map k v -> Map k v
+merge :: forall v . Map v -> Map v -> Map v
 merge aa ab =
   case aa of
     Empty -> ab
@@ -88,7 +89,7 @@ merge aa ab =
             OOT1 t -> t
             OOT2 t u -> node2 t u
 
-split :: forall k v . (k -> Bool) -> Map k v -> (Map k v, Map k v)
+split :: forall v . (String -> Bool) -> Map v -> (Map v, Map v)
 split f am =
   case am of
     Empty -> (Empty, Empty)
@@ -117,46 +118,46 @@ split f am =
 
 -----------------------------------------
 
-insertByWith :: forall k v . (k -> k -> Bool) -> (v -> v -> v) -> k -> v -> Map k v -> Map k v
-insertByWith le f k v a =
-  case split (le k) a of
+insertWith :: forall v . (v -> v -> v) -> String -> v -> Map v -> Map v
+insertWith f k v a =
+  case split (leString k) a of
     (a1, a2) ->
       case a2 of
         Empty -> merge a1 (Leaf k v)
         _ ->
-          if le (smallest a2) k then
+          if leString (smallest a2) k then
             merge a1 (replSmallest (f v) a2)
           else
             merge (merge a1 (Leaf k v)) a2
 
-insertBy :: forall k v . (k -> k -> Bool) -> k -> v -> Map k v -> Map k v
-insertBy le = insertByWith le const
+insert :: forall v . String -> v -> Map v -> Map v
+insert = insertWith const
 
-lookupBy :: forall k v . (k -> k -> Bool) -> k -> Map k v -> Maybe v
-lookupBy le x am =
+lookup :: forall v . String -> Map v -> Maybe v
+lookup x am =
   case am of
     Empty -> Nothing
-    Leaf k v -> if le k x && le x k then Just v else Nothing
+    Leaf k v -> if leString k x && leString x k then Just v else Nothing
     Node2 _ _ a b ->
-      if le (smallest b) x then
-        lookupBy le x b
+      if leString (smallest b) x then
+        lookup x b
       else
-        lookupBy le x a
+        lookup x a
     Node3 _ _ a b c ->
-      if le (smallest c) x then
-        lookupBy le x c
-      else if le (smallest b) x then
-        lookupBy le x b
+      if leString (smallest c) x then
+        lookup x c
+      else if leString (smallest b) x then
+        lookup x b
       else
-        lookupBy le x a
+        lookup x a
 
-unionBy :: forall k v . (k -> k -> Bool) -> Map k v -> Map k v -> Map k v
-unionBy le m1 m2 = foldr (uncurry (insertBy le)) m2 (toList m1)
+union :: forall v . Map v -> Map v -> Map v
+union m1 m2 = foldr (uncurry insert) m2 (toList m1)
 
-fromListByWith :: forall k v . (k -> k -> Bool) -> (v -> v -> v) -> [(k, v)] -> Map k v
-fromListByWith le f = foldr (uncurry (insertByWith le f)) Empty
+fromListWith :: forall v . (v -> v -> v) -> [(String, v)] -> Map v
+fromListWith f = foldr (uncurry (insertWith f)) Empty
 
-toList :: forall k v . Map k v -> [(k, v)]
+toList :: forall v . Map v -> [(String, v)]
 toList m =
   let
     pre aa xs =
@@ -167,16 +168,16 @@ toList m =
         Node3 _ _ a b c -> pre a (pre b (pre c xs))
   in pre m []
 
-fromListBy :: forall k v . (k -> k -> Bool) -> [(k, v)] -> Map k v
-fromListBy le = fromListByWith le const
+fromList :: forall v . [(String, v)] -> Map v
+fromList = fromListWith const
 
-empty :: forall k v . Map k v
+empty :: forall v . Map v
 empty = Empty
 
-elems :: forall k v . Map k v -> [v]
+elems :: forall v . Map v -> [v]
 elems = map snd . toList
 
-size :: forall k v . Map k v -> Int
+size :: forall v . Map v -> Int
 size m =
   case m of
     Empty -> 0
