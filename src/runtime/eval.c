@@ -30,7 +30,7 @@ enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
                 IO_SERIALIZE, IO_DESERIALIZE,
                 IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE,
                 IO_STDIN, IO_STDOUT, IO_STDERR,
-                IO_GETARGS, IO_PERFORMIO,
+                IO_GETARGS, IO_PERFORMIO, IO_GETTIMEMILLI,
 };
 
 typedef int64_t value_t;
@@ -236,6 +236,7 @@ struct {
   { "IO.stdout", IO_STDOUT },
   { "IO.stderr", IO_STDERR },
   { "IO.getArgs", IO_GETARGS },
+  { "IO.getTimeMilli", IO_GETTIMEMILLI },
   { "IO.performIO", IO_PERFORMIO },
 };
 
@@ -367,7 +368,7 @@ gc(void)
   if (free < heap_size / 50)
     ERR("heap exhausted");
   if (verbose > 1)
-    fprintf(stderr, "gc done, %ld free\n", (long)free);
+    fprintf(stderr, "gc done, %"PRId64" free\n", free);
 }
 
 /* Check that there are k nodes available, if not then GC. */
@@ -541,7 +542,7 @@ printrec(FILE *f, NODEPTR n)
     printrec(f, ARG(n));
     fputc(')', f);
     break;
-  case INT: fprintf(f, "%lld", (long long int)GETVALUE(n)); break;
+  case INT: fprintf(f, "%"PRId64, GETVALUE(n)); break;
   case HDL:
     if (HANDLE(n) == stdin)
       fprintf(f, "$IO.stdin");
@@ -588,6 +589,7 @@ printrec(FILE *f, NODEPTR n)
   case IO_CLOSE: fprintf(f, "$IO.close"); break;
   case IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
   case IO_GETARGS: fprintf(f, "$IO.getArgs"); break;
+  case IO_GETTIMEMILLI: fprintf(f, "$IO.getTimeMilli"); break;
   case IO_PERFORMIO: fprintf(f, "$IO.performIO"); break;
   default: ERR("print tag");
   }
@@ -950,6 +952,7 @@ eval(NODEPTR n)
     case IO_OPEN:
     case IO_CLOSE:
     case IO_GETARGS:
+    case IO_GETTIMEMILLI:
       RET;
     case IO_PERFORMIO:
       CHECK(1);
@@ -1137,6 +1140,12 @@ evalio(NODEPTR n)
         }
       }
       RETIO(n);
+    case IO_GETTIMEMILLI:
+      CHECKIO(0);
+      GCCHECK(1);
+      n = alloc_node(INT);
+      SETVALUE(n, (int64_t)(gettime() * 1000));
+      RETIO(n);
     default:
       fprintf(stderr, "bad tag %d\n", TAG(n));
       ERR("evalio tag");
@@ -1222,7 +1231,7 @@ main(int argc, char **argv)
     if (verbose > 1) {
       printf("\nmain returns ");
       pp(stdout, n);
-      printf("node size=%ld, heap size=%"PRId64"\n", NODE_SIZE, heap_size);
+      printf("node size=%"PRId64", heap size=%"PRId64"\n", (int64_t)NODE_SIZE, heap_size);
     }
     setlocale(LC_NUMERIC, "");
     printf("%'15"PRId64" combinator file size\n", file_size);

@@ -18,14 +18,14 @@ all:	$(BIN)/eval $(BIN)/$(MHS)
 
 alltest:	test boottest
 
-everytest:	alltest example examplecomb bootboottest bootcombtest
+everytest:	alltest example exampleboot examplecomb bootboottest bootcombtest
 
 $(BIN)/eval:	src/runtime/eval.c
 	@mkdir -p bin
 	$(GCC) -Wall -O3 src/runtime/eval.c -o $(BIN)/eval
 
-$(BIN)/$(MHS):	src/*/*.hs convertX.sh
-	$(GHCE) -package mtl -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
+$(BIN)/$(MHS):	src/*.hs src/*/*.hs convertX.sh
+	$(GHCE) -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
 $(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
 	rm -rf $(BOOTDIR)
@@ -62,7 +62,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
 	$(GHCC) -c src/MicroHs/Compile.hs
 	$(GHCC) -c src/MicroHs/Translate.hs
 	$(GHCC) -c -main-is MicroHs.Main src/MicroHs/Main.hs
-	$(GHC) $(PROF) -hide-all-packages -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o $(BOOTDIR)/*/*/*/*.o
+	$(GHC) $(PROF) -hide-all-packages -package time -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o $(BOOTDIR)/*/*/*/*.o
 #	$(GHC) $(PROF) -hide-all-packages -package containers -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o $(BOOTDIR)/*/*/*/*.o
 
 # Test Haskell version with local libraries
@@ -78,7 +78,7 @@ bootboottest:	$(BIN)/$(MHS) $(BIN)/boot$(MHS)
 # Compare version compiled with GHC, and bootstrapped combinator version
 bootcombtest:	$(BIN)/$(MHS) $(BIN)/eval $(MHS).comb
 	$(BIN)/$(MHS) -ilib -isrc -omain-$(MHS).comb  MicroHs.Main
-	$(BIN)/eval -H50M -r$(MHS).comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
+	$(BIN)/eval -v -H50M -r$(MHS).comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
 	cmp main-$(MHS).comb main-comb.comb
 
 # Test normal Haskell version
@@ -99,7 +99,7 @@ example:	$(BIN)/eval $(BIN)/$(MHS) Example.hs
 
 # does not work
 exampleboot:	$(BIN)/boot$(MHS) Example.hs
-	$(BIN)/boot$(MHS) -r -ilib Example
+	$(BIN)/boot$(MHS) -r -ilib Example && $(BIN)/eval
 
 examplecomb:	$(BIN)/eval $(MHS).comb Example.hs
 	$(BIN)/eval -H5M -r$(MHS).comb -- -r -ilib Example

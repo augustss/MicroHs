@@ -3,6 +3,8 @@
 -- Functions for GHC that are defined in the UHS libs.
 module Compat(module Compat) where
 import qualified Data.Function as F
+import Data.Time
+import Data.Time.Clock.POSIX
 import qualified Control.Monad as M
 import Control.Exception
 import Data.List
@@ -114,3 +116,6 @@ when = M.when
 
 on :: (a -> a -> b) -> (c -> a) -> (c -> c -> b)
 on = F.on
+
+getTimeMilli :: IO Int
+getTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds <$> getCurrentTime

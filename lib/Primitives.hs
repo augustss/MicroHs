@@ -88,3 +88,5 @@ primGetArgs      :: IO [[Char]]
 primGetArgs       = primitive "IO.getArgs"
 primPerformIO    :: forall a . IO a -> a
 primPerformIO     = primitive "IO.performIO"
+primGetTimeMilli :: IO Int
+primGetTimeMilli  = primitive "IO.getTimeMilli"

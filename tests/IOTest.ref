@@ -11,3 +11,4 @@ foo 2
 tracing
 5
 ["a","bb","ccc"]
+1ms execution time

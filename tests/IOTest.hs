@@ -14,6 +14,7 @@ foo = IO.do
 
 main :: IO ()
 main = do
+  tstart <- getTimeMilli
   putChar 'a'
   putChar 'b'
   c <- getChar
@@ -41,3 +42,5 @@ main = do
   putStrLn $ showInt $ trace "tracing" 5
   as <- getArgs
   putStrLn $ showList showString as
+  tend <- getTimeMilli
+  putStrLn $ showInt (tend - tstart) ++ "ms execution time"

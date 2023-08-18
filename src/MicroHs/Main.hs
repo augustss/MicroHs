@@ -48,9 +48,9 @@ main = do
   if runIt flags then do
     let
       prg = translate cmdl
-    putStrLn "Run:"
+--    putStrLn "Run:"
     prg
-    putStrLn "done"
+--    putStrLn "done"
    else
     writeFile (output flags) $ version ++ res
 

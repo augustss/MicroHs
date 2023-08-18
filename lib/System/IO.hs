@@ -154,3 +154,6 @@ readSerialized p = do
   a <- hDeserialize h
   hClose h
   return a
+
+getTimeMilli :: IO Int
+getTimeMilli = P.primGetTimeMilli

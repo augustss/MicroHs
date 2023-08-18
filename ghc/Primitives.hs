@@ -6,6 +6,8 @@ module Primitives(
   Handle,
   ) where
 import Control.Exception(try)
+import Data.Time
+import Data.Time.Clock.POSIX
 import System.IO
 import System.IO.Unsafe
 import System.Environment
@@ -110,3 +112,6 @@ primStderr        = stderr
 primGetArgs       = getArgs
 primPerformIO    :: IO a -> a
 primPerformIO     = unsafePerformIO
+-- Current time (since 1970-01-01T00:00:00UTC) in ms
+primGetTimeMilli :: IO Int
+primGetTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds <$> getCurrentTime
