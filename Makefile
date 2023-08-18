@@ -53,6 +53,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
 	$(GHCC) -c src/MicroHs/StringMap.hs
+	$(GHCC) -c src/MicroHs/StringMapFast.hs
 #	$(GHCC) -c -package containers -package base src/MicroHs/StringMap.hs
 	$(GHCC) -c src/MicroHs/Exp.hs
 	$(GHCC) -c src/MicroHs/TCMonad.hs
