@@ -31,10 +31,10 @@ typeCheck :: forall a . [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
 typeCheck imps amdl =
 --  trace (show amdl) $
   let
-    (ts, vs) = mkTables imps
+    (ts, ss, vs) = mkTables imps
   in  case amdl of
         EModule mn exps defs ->
-          case runState (tcDefs defs) (initTC mn ts vs) of
+          case runState (tcDefs defs) (initTC mn ts ss vs) of
             (tds, _) ->
               let
                 thisMdl = (mn, mkTModule mn tds impossible)
@@ -60,7 +60,7 @@ mkTModule mn tds a =
           [ TypeExport  i (qual mn i) (TSyn  (lhsKind vs) (ETypeScheme vs t))  | Type (i, vs) t  <- tds ]
   in  TModule mn tes ves a
 
-mkTables :: forall a . [(ImportSpec, TModule a)] -> (TypeTable, ValueTable)
+mkTables :: forall a . [(ImportSpec, TModule a)] -> (TypeTable, SynTable, ValueTable)
 mkTables mdls =
   let
     qns aisp mn i =
@@ -92,7 +92,7 @@ mkTables mdls =
           case arg of
             (is, TModule mn tes _ _) -> [ (v, [Entry (EVar qi) (kindOf ti)]) | TypeExport i qi ti <- tes, v <- qns is mn i ]
       in M.fromListWith (unionBy eqEntry) $ concatMap types mdls
-  in  (allTypes, (allValues, allSyns))
+  in  (allTypes, allSyns, allValues)
 
 arityOf :: EType -> Int
 arityOf at =
@@ -135,59 +135,70 @@ type Typed a = (a, EType)
 data Entry = Entry Expr ETypeScheme
   --Xderiving(Show)
 
-type ValueTable = (M.Map [Entry], M.Map ETypeScheme)
+type ValueTable = M.Map [Entry]
 type TypeTable  = M.Map [Entry]
+type SynTable   = M.Map ETypeScheme
 
-data TCState = TC IdentModule Int TypeTable ValueTable (IM.IntMap EType)
+data TCState = TC IdentModule Int TypeTable SynTable ValueTable (IM.IntMap EType)
   --Xderiving (Show)
 
 typeTable :: TCState -> TypeTable
 typeTable ts =
   case ts of
-    TC _ _ tt _ _ -> tt
+    TC _ _ tt _ _ _ -> tt
 
 valueTable :: TCState -> ValueTable
 valueTable ts =
   case ts of
-    TC _ _ _ vt _ -> vt
+    TC _ _ _ _ vt _ -> vt
+
+synTable :: TCState -> SynTable
+synTable ts =
+  case ts of
+    TC _ _ _ st _ _ -> st
 
 uvarSubst :: TCState -> IM.IntMap EType
 uvarSubst ts =
   case ts of
-    TC _ _ _ _ sub -> sub
+    TC _ _ _ _ _ sub -> sub
 
 moduleName :: TCState -> IdentModule
 moduleName ts =
   case ts of
-    TC mn _ _ _ _ -> mn
+    TC mn _ _ _ _ _ -> mn
 
 putValueTable :: ValueTable -> T ()
 putValueTable venv = T.do
-  TC mn n tenv _ m <- get
-  put (TC mn n tenv venv m)
+  TC mn n tenv senv _ m <- get
+  put (TC mn n tenv senv venv m)
 
 putTypeTable :: TypeTable -> T ()
 putTypeTable tenv = T.do
-  TC mn n _ venv m <- get
-  put (TC mn n tenv venv m)
+  TC mn n _ senv venv m <- get
+  put (TC mn n tenv senv venv m)
+
+putSynTable :: SynTable -> T ()
+putSynTable senv = T.do
+  TC mn n tenv _ venv m <- get
+  put (TC mn n tenv senv venv m)
 
 -- Use the type table as the value table, and an empty type table
 withTypeTable :: forall a . T a -> T a
 withTypeTable ta = T.do
-  TC mn n tt vt m <- get
-  put (TC mn n M.empty (tt, M.empty) m)
+  TC mn n tt st vt m <- get
+  put (TC mn n M.empty M.empty tt m)
   a <- ta
-  TC mnr nr _ (ttr, _) mr <- get
-  put (TC mnr nr ttr vt mr)
+  TC mnr nr _ _ ttr mr <- get
+  put (TC mnr nr ttr st vt mr)
   T.return a
 
-initTC :: IdentModule -> TypeTable -> ValueTable -> TCState
-initTC mn ts vs =
+initTC :: IdentModule -> TypeTable -> SynTable -> ValueTable -> TCState
+initTC mn ts ss vs =
 --  trace ("initTC " ++ show (ts, vs)) $
   let
     xts = foldr (uncurry M.insert) ts primTypes
-    xvs = (foldr (uncurry M.insert) (fst vs) primValues, snd vs)
-  in TC mn 1 xts xvs IM.empty
+    xvs = foldr (uncurry M.insert) vs primValues
+  in TC mn 1 xts ss xvs IM.empty
 
 -- XXX moduleOf is not correct
 moduleOf :: Ident -> IdentModule
@@ -279,8 +290,8 @@ addUVar :: Int -> EType -> T ()
 addUVar i t = T.do
   let
     add = T.do
-      TC mn n tenv venv sub <- get
-      put (TC mn n tenv venv (IM.insert i t sub))
+      TC mn n tenv senv venv sub <- get
+      put (TC mn n tenv senv venv (IM.insert i t sub))
   case t of
     EUVar j -> if i == j then T.return () else add
     _ -> add
@@ -308,8 +319,8 @@ expandSyn at =
           aa <- expandSyn a
           syn (aa:ts) f
         EVar i -> T.do
-          synTable <- gets (snd . valueTable)
-          case M.lookup i synTable of
+          syns <- gets synTable
+          case M.lookup i syns of
             Nothing -> T.return $ foldl tApp t ts
             Just (ETypeScheme vs tt) ->
               if length vs /= length ts then error $ "bad syn app: " --X ++ show (i, vs, ts)
@@ -345,13 +356,14 @@ unify a b = T.do
 unifyR :: --XHasCallStack =>
           EType -> EType -> T ()
 unifyR a b = T.do
---X  venv <- gets valueTable
+--  venv <- gets valueTable
 --  tenv <- gets typeTable
+--X  senv <- gets synTable
   let
     bad = error $ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n"
 --X                    ++ show a ++ " - " ++ show b ++ "\n"
 --                    ++ show tenv ++ "\n"
---X                    ++ show (snd venv)
+--X                    ++ show senv
   case a of
     EVar ia ->
       case b of
@@ -377,13 +389,13 @@ unMType mt =
 -- Reset type variable and unification map
 tcReset :: T ()
 tcReset = T.do
-  TC mn _ tenv venv _ <- get
-  put (TC mn 0 tenv venv IM.empty)
+  TC mn _ tenv senv venv _ <- get
+  put (TC mn 0 tenv senv venv IM.empty)
 
 newUVar :: T EType
 newUVar = T.do
-  TC mn n tenv venv sub <- get
-  put (TC mn (n+1) tenv venv sub)
+  TC mn n tenv senv venv sub <- get
+  put (TC mn (n+1) tenv senv venv sub)
   T.return (EUVar n)
 
 tLookupInst :: Ident -> T (Expr, EType)
@@ -395,7 +407,7 @@ tLookupInst i = T.do
 
 tLookup :: Ident -> T (Expr, ETypeScheme)
 tLookup i = T.do
-  env <- gets (fst . valueTable)
+  env <- gets valueTable
   case M.lookup i env of
     Nothing -> error $ "undefined variable " ++ i -- ++ "\n" ++ show env ;
     Just aes ->
@@ -422,7 +434,7 @@ extValE :: --XHasCallStack =>
            Ident -> ETypeScheme -> Expr -> T ()
 extValE i t e = T.do
   venv <- gets valueTable
-  putValueTable (M.insert i [Entry e t] (fst venv), snd venv)
+  putValueTable (M.insert i [Entry e t] venv)
 
 extQVal :: --XHasCallStack =>
            Ident -> ETypeScheme -> T ()
@@ -448,8 +460,8 @@ extTyps = T.mapM_ (uncurry extTyp)
 
 extSyn :: Ident -> ETypeScheme -> T ()
 extSyn i t = T.do
-  venv <- gets valueTable
-  putValueTable (fst venv, M.insert i t (snd venv))
+  senv <- gets synTable
+  putSynTable (M.insert i t senv)
 
 withExtVal :: forall a . --XHasCallStack =>
               Ident -> ETypeScheme -> T a -> T a
