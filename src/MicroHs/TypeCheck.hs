@@ -757,6 +757,17 @@ tcExprR mt ae =
     EUVar _ -> impossible -- shouldn't happen
     ECon _ -> impossible
 
+unArrow :: Maybe EType -> T (EType, EType)
+unArrow Nothing = T.do { a <- newUVar; r <- newUVar; T.return (a, r) }
+unArrow (Just t) =
+  case getArrow t of
+    Just ar -> T.return ar
+    Nothing -> T.do
+      a <- newUVar
+      r <- newUVar
+      unify t (tArrow a r)
+      T.return (a, r)
+
 tcExprLam :: Maybe EType -> [EPat] -> Expr -> T (Typed Expr)
 tcExprLam mt aps expr =
   case aps of
@@ -764,12 +775,9 @@ tcExprLam mt aps expr =
       (er, tr) <- tcExpr mt expr
       T.return (ELam [] er, tr)
     p:ps -> T.do
-      ta <- newUVar
-      ((pr, ELam psr er), tr) <- tcArm Nothing ta (p, ELam ps expr)
-      let
-        tlam = tArrow ta tr
-      munify mt tlam
-      T.return (ELam (pr:psr) er, tlam)
+      (ta, r) <- unArrow mt
+      ((pr, ELam psr er), tr) <- tcArm (Just r) ta (p, ELam ps expr)
+      T.return (ELam (pr:psr) er, tArrow ta tr)
 
 tcEqns :: EType -> [Eqn] -> T [Eqn]
 tcEqns t eqns = T.mapM (tcEqn t) eqns
@@ -778,7 +786,7 @@ tcEqn :: EType -> Eqn -> T Eqn
 tcEqn t eqn =
   case eqn of
     Eqn ps rhs -> T.do
-      (ELam aps arhs, _) <- tcExpr (Just t) (ELam ps rhs)
+      (ELam aps arhs, _) <- tcExprLam (Just t) ps rhs
       T.return (Eqn aps arhs)
 
 tcArm :: Maybe EType -> EType -> ECaseArm -> T (Typed ECaseArm)
