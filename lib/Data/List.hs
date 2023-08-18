@@ -138,6 +138,16 @@ unzip axys =
           case unzip xys of
             (xs, ys) -> (x:xs, y:ys)
 
+unzip3 :: forall a b c . [(a, b, c)] -> ([a], [b], [c])
+unzip3 axyzs =
+  case axyzs of
+    [] -> ([], [], [])
+    xyz : xyzs ->
+      case xyz of
+        (x, y, z) ->
+          case unzip3 xyzs of
+            (xs, ys, zs) -> (x:xs, y:ys, z:zs)
+
 stripPrefixBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Maybe [a]
 stripPrefixBy eq p s =
   case p of
