@@ -74,6 +74,8 @@ primIsNullHandle :: Handle -> Bool
 primIsNullHandle  = primitive "IO.isNullHandle"
 primHSerialize   :: forall a . Handle -> a -> IO ()
 primHSerialize    = primitive "IO.serialize"
+primHPrint       :: forall a . Handle -> a -> IO ()
+primHPrint        = primitive "IO.print"
 primHDeserialize :: forall a . Handle -> IO a
 primHDeserialize  = primitive "IO.deserialize"
 primHClose       :: Handle -> IO ()

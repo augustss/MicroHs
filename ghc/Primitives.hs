@@ -105,6 +105,7 @@ primIsNullHandle :: Handle -> Bool
 primIsNullHandle h = unsafeCoerce h == (0 :: Int)
 primHSerialize    = undefined
 primHDeserialize  = undefined
+primHPrint        = undefined
 primHClose        = hClose
 primStdin         = stdin
 primStdout        = stdout

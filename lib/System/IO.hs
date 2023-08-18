@@ -77,7 +77,7 @@ getChar :: IO Char
 getChar = hGetChar stdin
 
 print :: forall a . a -> IO ()
-print = hSerialize stdout
+print = P.primHPrint stdout
 
 mapM :: forall a b . (a -> IO b) -> [a] -> IO [b]
 mapM f =

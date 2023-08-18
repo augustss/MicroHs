@@ -9,7 +9,7 @@
 #include <sys/time.h>
 #include <ctype.h>
 
-#define VERSION "v1.0\n"
+#define VERSION "v2.0\n"
 
 /* Node representation:
  * NODE_NAIVE   all fields in a struct, regular pointers
@@ -30,7 +30,7 @@ enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
                 IO_SERIALIZE, IO_DESERIALIZE,
                 IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE,
                 IO_STDIN, IO_STDOUT, IO_STDERR,
-                IO_GETARGS, IO_PERFORMIO, IO_GETTIMEMILLI,
+                IO_GETARGS, IO_PERFORMIO, IO_GETTIMEMILLI, IO_PRINT,
 };
 
 typedef int64_t value_t;
@@ -228,6 +228,7 @@ struct {
   { "IO.getChar", IO_GETCHAR },
   { "IO.putChar", IO_PUTCHAR },
   { "IO.serialize", IO_SERIALIZE },
+  { "IO.print", IO_PRINT },
   { "IO.deserialize", IO_DESERIALIZE },
   { "IO.open", IO_OPEN },
   { "IO.close", IO_CLOSE },
@@ -416,13 +417,39 @@ parse_int(FILE *f)
 }
 
 /* Table of labelled nodes for sharing during parsing. */
-NODEPTR *shared;
+struct shared_entry {
+  int64_t label;
+  NODEPTR node;                 /* NIL indicates unused */
+} *shared_table;
+int64_t shared_table_size;
+
+/* Look for the label in the table.
+ * If it's found, return the node.
+ * If not found, return the first empty entry.
+*/
+NODEPTR *
+find_label(int64_t label)
+{
+  int hash = label % shared_table_size;
+  for(int i = hash; ; i++) {
+    if (shared_table[i].node == NIL) {
+      /* The slot is empty, so claim and return it */
+      shared_table[i].label = label;
+      return &shared_table[i].node;
+    } else if (shared_table[i].label == label) {
+      /* Found the label, so return it. */
+      return &shared_table[i].node;
+    }
+    /* Not empty and not found, try next. */
+  }
+}
 
 NODEPTR
 parse(FILE *f)
 {
   NODEPTR r;
-  int l;
+  NODEPTR *nodep;
+  int64_t l;
   value_t i;
   value_t neg;
   int c;
@@ -477,27 +504,29 @@ parse(FILE *f)
     ERR("no primop");
   case '_' :
     /* Reference to a shared value: _label */
-    l = (int)parse_int(f);  /* The label */
-    if (shared[l] == NIL) {
+    l = parse_int(f);  /* The label */
+    nodep = find_label(l);
+    if (*nodep == NIL) {
       /* Not yet defined, so make it an indirection */
-      shared[l] = alloc_node(IND);
-      INDIR(shared[l]) = NIL;
+      *nodep = alloc_node(IND);
+      INDIR(*nodep) = NIL;
     }
-    return shared[l];
+    return *nodep;
   case ':' :
     /* Define a shared expression: :label e */
-    l = (int)parse_int(f);  /* The label */
+    l = parse_int(f);  /* The label */
     if (!gobble(f, ' ')) ERR("parse ' '");
-    if (shared[l] == NIL) {
+    nodep = find_label(l);
+    if (*nodep == NIL) {
       /* not referenced yet, so create a node */
-      shared[l] = alloc_node(IND);
-      INDIR(shared[l]) = NIL;
+      *nodep = alloc_node(IND);
+      INDIR(*nodep) = NIL;
     } else {
       /* Sanity check */
-      if (INDIR(shared[l]) != NIL) ERR("shared != NIL");
+      if (INDIR(*nodep) != NIL) ERR("shared != NIL");
     }
     r = parse(f);
-    INDIR(shared[l]) = r;
+    INDIR(*nodep) = r;
     return r;
   default:
     fprintf(stderr, "parse '%c'\n", c);
@@ -505,15 +534,32 @@ parse(FILE *f)
   }
 }
 
+void
+checkversion(FILE *f)
+{
+  char *p = VERSION;
+  int c;
+
+  while ((c = *p++)) {
+    if (c != fgetc(f))
+      ERR("version mismatch");
+  }
+}
+
 /* Parse a file */
 NODEPTR
 parse_top(FILE *f)
 {
-  shared = malloc(heap_size * sizeof(NODEPTR));
-  for(int64_t i = 0; i < heap_size; i++)
-    shared[i] = NIL;
+  checkversion(f);
+  int64_t numLabels = parse_int(f);
+  if (!gobble(f, '\n'))
+    ERR("size parse");
+  shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
+  shared_table = malloc(shared_table_size * sizeof(struct shared_entry));
+  for(int64_t i = 0; i < shared_table_size; i++)
+    shared_table[i].node = NIL;
   NODEPTR n = parse(f);
-  free(shared);
+  free(shared_table);
   return n;
 }
 
@@ -584,6 +630,7 @@ printrec(FILE *f, NODEPTR n)
   case IO_GETCHAR: fprintf(f, "$IO.getChar"); break;
   case IO_PUTCHAR: fprintf(f, "$IO.putChar"); break;
   case IO_SERIALIZE: fprintf(f, "$IO.serialize"); break;
+  case IO_PRINT: fprintf(f, "$IO.print"); break;
   case IO_DESERIALIZE: fprintf(f, "$IO.deserialize"); break;
   case IO_OPEN: fprintf(f, "$IO.open"); break;
   case IO_CLOSE: fprintf(f, "$IO.close"); break;
@@ -594,6 +641,8 @@ printrec(FILE *f, NODEPTR n)
   default: ERR("print tag");
   }
 }
+
+int64_t num_shared;
 
 /* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
 void
@@ -606,6 +655,7 @@ find_sharing(NODEPTR n)
       ;
     } else if (MARK(n) == MARKED) {
       MARK(n) = SHARED;
+      num_shared++;
     } else {
       MARK(n) = MARKED;
       find_sharing(FUN(n));
@@ -631,9 +681,12 @@ clear_sharing(NODEPTR n)
 
 /* Serialize a graph to file. */
 void
-print(FILE *f, NODEPTR n)
+print(FILE *f, NODEPTR n, int header)
 {
+  num_shared = 0;
   find_sharing(n);
+  if (header)
+    fprintf(f, "%s%"PRId64"\n", VERSION, num_shared);
   printrec(f, n);
   clear_sharing(n);
 }
@@ -642,7 +695,7 @@ print(FILE *f, NODEPTR n)
 void
 pp(FILE *f, NODEPTR n)
 {
-  print(f, n);
+  print(f, n, 0);
   fprintf(f, "\n");
 }
 
@@ -948,6 +1001,7 @@ eval(NODEPTR n)
     case IO_GETCHAR:
     case IO_PUTCHAR:
     case IO_SERIALIZE:
+    case IO_PRINT:
     case IO_DESERIALIZE:
     case IO_OPEN:
     case IO_CLOSE:
@@ -1002,6 +1056,7 @@ evalio(NODEPTR n)
   int64_t stk = stack_ptr;
   NODEPTR f, x;
   int c;
+  int hdr;
   FILE *hdl;
   char *name;
 
@@ -1077,19 +1132,24 @@ evalio(NODEPTR n)
       c = evalint(ARG(TOP(2)));
       putc(c, hdl);
       RETIO(combI);
+    case IO_PRINT:
+      hdr = 0;
+      goto ser;
     case IO_SERIALIZE:
+      hdr = 1;
+    ser:
       CHECKIO(2);
       hdl = evalhandle(ARG(TOP(1)));
       x = evali(ARG(TOP(2)));
       //x = ARG(TOP(1));
-      print(hdl, x);
+      print(hdl, x, hdr);
       fprintf(hdl, "\n");
       RETIO(combI);
     case IO_DESERIALIZE:
       CHECKIO(1);
       hdl = evalhandle(ARG(TOP(1)));
       gc();                     /* parser runs without GC */
-      n = parse(hdl);
+      n = parse_top(hdl);
       RETIO(n);
     case IO_CLOSE:
       CHECKIO(1);
@@ -1153,18 +1213,6 @@ evalio(NODEPTR n)
   }
 }
 
-void
-checkversion(FILE *f)
-{
-  char *p = VERSION;
-  int c;
-
-  while ((c = *p++)) {
-    if (c != fgetc(f))
-      ERR("version mismatch");
-  }
-}
-
 int64_t
 memsize(const char *p)
 {
@@ -1216,7 +1264,6 @@ main(int argc, char **argv)
   FILE *f = fopen(fn, "r");
   if (!f)
     ERR("file not found");
-  checkversion(f);
   NODEPTR n = parse_top(f);
   file_size = ftell(f);
   fclose(f);

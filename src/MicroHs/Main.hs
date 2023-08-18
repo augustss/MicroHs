@@ -45,8 +45,9 @@ main = do
         ((_, e), i) -> "(($T :" ++ showInt i ++ " " ++ toStringP (substv e) ++ ") " ++ r ++ ")"
         -- App2 CT (Lbl i (subst e)) r
     res = foldr def (toStringP emain) (zip ds (enumFrom 0))
+    numDefs = M.size defs
   when (verbose flags > 0) $
-    putStrLn $ "top level defns: " ++ showInt (M.size defs)
+    putStrLn $ "top level defns: " ++ showInt numDefs
   when (verbose flags > 1) $
     mapM_ (\ (i, e) -> putStrLn $ i ++ " = " ++ toStringP e) ds
   if runIt flags then do
@@ -56,13 +57,13 @@ main = do
     prg
 --    putStrLn "done"
    else do
-    writeFile (output flags) $ version ++ res
+    writeFile (output flags) $ version ++ showInt numDefs ++ "\n" ++ res
     t2 <- getTimeMilli
     when (verbose flags > 0) $
       putStrLn $ "final pass            " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
 
 version :: String
-version = "v1.0\n"
+version = "v2.0\n"
 
 type Program = (Ident, [LDef])
 
