@@ -40,12 +40,14 @@ typeCheck imps amdl =
                 thisMdl = (mn, mkTModule mn tds impossible)
                 impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm, tm) <- imps]
                 impMap = M.fromList (thisMdl : impMdls)
-                (texps, vexps) =
+                (mdltexps, mdlvexps) =
                   unzip [ case M.lookup m impMap of
                             Just (TModule _ te ve _) -> (te, ve)
                             _ -> error $ "import " ++ m
                         | ExpModule m <- exps ]
-              in  TModule mn (concat texps) (concat vexps) tds
+--                types = typeTable ts
+--                (values, syns) = valueTable ts
+              in  TModule mn (concat mdltexps) (concat mdlvexps) tds
 
 mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
 mkTModule mn tds a =

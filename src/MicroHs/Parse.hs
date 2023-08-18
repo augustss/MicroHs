@@ -35,7 +35,11 @@ import Text.ParserComb as P
 data EModule = EModule IdentModule [ExportSpec] [EDef]
   --Xderiving (Show, Eq)
 
-data ExportSpec = ExpModule IdentModule
+data ExportSpec
+  = ExpModule IdentModule
+  | ExpTypeCon Ident
+  | ExpType Ident
+  | ExpValue Ident
   --Xderiving (Show, Eq)
 
 type Ident = String
@@ -345,7 +349,11 @@ pModule = EModule <$> (pKeyword "module" *> pUIdent) <*>
                       (pKeywordW "where" *> pBlock pDef)
 
 pExportSpec :: P ExportSpec
-pExportSpec = ExpModule <$> (pKeyword "module" *> pUIdent)
+pExportSpec =
+      ExpModule <$> (pKeyword "module" *> pUIdent)
+  <|> ExpTypeCon <$> (pUIdent <* pSym '(' <* pSymbol ".." <* pSym ')')
+  <|> ExpType <$> pUIdent
+  <|> ExpValue <$> pLIdent
 
 pKeyword :: String -> P ()
 pKeyword kw = skipWhite $
@@ -773,6 +781,9 @@ showExportSpec :: ExportSpec -> String
 showExportSpec ae =
   case ae of
     ExpModule i -> "module " ++ i
+    ExpTypeCon i -> i ++ "(..)"
+    ExpType i -> i
+    ExpValue i -> i
 
 showEDef :: EDef -> String
 showEDef def =
