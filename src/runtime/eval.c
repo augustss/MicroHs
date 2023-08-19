@@ -10,6 +10,7 @@
 #include <ctype.h>
 
 #define FASTTAGS 1
+#define UNIONPTR 1
 
 #define VERSION "v2.0\n"
 
@@ -30,6 +31,8 @@ enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, /* 0 - 9 */
 
 typedef int64_t value_t;
 
+#if NAIVE
+
 /* Naive node representation with minimal unions */
 typedef struct node {
   enum node_tag tag;
@@ -46,7 +49,8 @@ typedef struct node* NODEPTR;
 #define NIL 0
 #define HEAPREF(i) &cells[(i)]
 #define MARK(p) (p)->mark
-#define TAG(p) (p)->tag
+#define GETTAG(p) (p)->tag
+#define SETTAG(p, t) do { (p)->tag = (t); } while(0)
 #define GETVALUE(p) (p)->u.value
 #define SETVALUE(p,v) (p)->u.value = v
 #define FUN(p) (p)->u.s.fun
@@ -58,6 +62,41 @@ typedef struct node* NODEPTR;
 #define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) ((uint64_t)((n) - cells))
 node *cells;                 /* All cells */
+
+#elif UNIONPTR
+
+typedef struct node {
+  union {
+    struct node *uufun;
+    uint64_t uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is an AP node */
+  } ufun;
+  union {
+    struct node *uuarg;
+    value_t uuvalue;
+    FILE *uufile;
+  } uarg;
+} node;
+typedef struct node* NODEPTR;
+#define NIL 0
+#define HEAPREF(i) &cells[(i)]
+#define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) : AP)
+#define SETTAG(p,t) do { if (t != AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
+#define GETVALUE(p) (p)->uarg.uuvalue
+#define SETVALUE(p,v) (p)->uarg.uuvalue = v
+#define FUN(p) (p)->ufun.uufun
+#define ARG(p) (p)->uarg.uuarg
+#define INDIR(p) ARG(p)
+#define HANDLE(p) (p)->uarg.uufile
+#define NODE_SIZE sizeof(node)
+#define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
+#define LABEL(n) ((uint64_t)((n) - cells))
+node *cells;                 /* All cells */
+
+#else
+
+#error "pick a node type"
+
+#endif
 
 int64_t num_reductions = 0;
 int64_t num_alloc;
@@ -157,7 +196,7 @@ alloc_node(enum node_tag t)
   //if (MARK(n) == MARKED)
   //  ERR("alloc_node MARKED");
 
-  TAG(n) = t;
+  SETTAG(n, t);
   num_alloc++;
   num_free--;
   return n;
@@ -247,7 +286,7 @@ init_nodes(void)
     NODEPTR n = HEAPREF(heap_start++);
     primops[j].node = n;
     //MARK(n) = MARKED;
-    TAG(n) = primops[j].tag;
+    SETTAG(n, primops[j].tag);
     switch (primops[j].tag) {
     case K: combK = n; break;
     case T: combT = n; break;
@@ -255,9 +294,9 @@ init_nodes(void)
     case O: combO = n; break;
     case CC: combCC = n; break;
     case IO_BIND: combIOBIND = n; break;
-    case IO_STDIN:  TAG(n) = HDL; HANDLE(n) = stdin;  break;
-    case IO_STDOUT: TAG(n) = HDL; HANDLE(n) = stdout; break;
-    case IO_STDERR: TAG(n) = HDL; HANDLE(n) = stderr; break;
+    case IO_STDIN:  SETTAG(n, HDL); HANDLE(n) = stdin;  break;
+    case IO_STDOUT: SETTAG(n, HDL); HANDLE(n) = stdout; break;
+    case IO_STDERR: SETTAG(n, HDL); HANDLE(n) = stderr; break;
     default:
       break;
     }
@@ -265,7 +304,7 @@ init_nodes(void)
 #else
   for(enum node_tag t = FREE; t < LAST_TAG; t++) {
     NODEPTR n = HEAPREF(heap_start++);
-    TAG(n) = t;
+    SETTAG(n, t);
     switch (t) {
     case K: combK = n; break;
     case T: combT = n; break;
@@ -273,9 +312,9 @@ init_nodes(void)
     case O: combO = n; break;
     case CC: combCC = n; break;
     case IO_BIND: combIOBIND = n; break;
-    case IO_STDIN:  TAG(n) = HDL; HANDLE(n) = stdin;  break;
-    case IO_STDOUT: TAG(n) = HDL; HANDLE(n) = stdout; break;
-    case IO_STDERR: TAG(n) = HDL; HANDLE(n) = stderr; break;
+    case IO_STDIN:  SETTAG(n, HDL); HANDLE(n) = stdin;  break;
+    case IO_STDOUT: SETTAG(n, HDL); HANDLE(n) = stdout; break;
+    case IO_STDERR: SETTAG(n, HDL); HANDLE(n) = stderr; break;
     default:
       break;
     }
@@ -312,10 +351,10 @@ mark(NODEPTR *np)
 #if GCRED
   top:
 #endif
-  if (TAG(n) == IND) {
+  if (GETTAG(n) == IND) {
     int loop = 0;
     /* Skip indirections, and redirect start pointer */
-    while (TAG(n) == IND) {
+    while (GETTAG(n) == IND) {
       //      printf("*"); fflush(stdout);
       n = INDIR(n);
       if (loop++ > 10000000) {
@@ -345,32 +384,32 @@ mark(NODEPTR *np)
   mark_used(n);
 #if GCRED
   /* This is really only fruitful just after parsing.  It can be removed. */
-  if (TAG(n) == AP && TAG(FUN(n)) == AP && TAG(FUN(FUN(n))) == T) {
+  if (GETTAG(n) == AP && GETTAG(FUN(n)) == AP && GETTAG(FUN(FUN(n))) == T) {
     /* Do the T x y --> y reduction */
     NODEPTR y = ARG(n);
-    TAG(n) = IND;
+    SETTAG(n, IND);
     INDIR(n) = y;
     red_t++;
     goto top;
   }
-  if (TAG(n) == AP && TAG(FUN(n)) == AP && TAG(FUN(FUN(n))) == K) {
+  if (GETTAG(n) == AP && GETTAG(FUN(n)) == AP && GETTAG(FUN(FUN(n))) == K) {
     /* Do the K x y --> x reduction */
     NODEPTR x = ARG(FUN(n));
-    TAG(n) = IND;
+    SETTAG(n, IND);
     INDIR(n) = x;
     red_k++;
     goto top;
   }
-  if (TAG(n) == AP && TAG(FUN(n)) == I) {
+  if (GETTAG(n) == AP && GETTAG(FUN(n)) == I) {
     /* Do the I x --> x reduction */
     NODEPTR x = ARG(n);
-    TAG(n) = IND;
+    SETTAG(n, IND);
     INDIR(n) = x;
     red_i++;
     goto top;
   }
 #endif
-  if (TAG(n) == AP) {
+  if (GETTAG(n) == AP) {
     mark(&FUN(n));
     mark(&ARG(n));
   }
@@ -384,12 +423,12 @@ scan(void)
   for(int64_t i = heap_start; i < heap_size; i++) {
     NODEPTR n = HEAPREF(i);
     if (MARK(n) == NOTMARKED) {
-      if (TAG(n) == HDL && HANDLE(n) != 0 &&
+      if (GETTAG(n) == HDL && HANDLE(n) != 0 &&
          HANDLE(n) != stdin && HANDLE(n) != stdout && HANDLE(n) != stderr) {
         /* A FILE* has become garbage, so close it. */
         fclose(HANDLE(n));
       }
-      TAG(n) = FREE;
+      SETTAG(n, FREE);
       //      NEXT(n) = next_free;
       //      next_free = n;
     } else {
@@ -652,10 +691,10 @@ static inline uint64_t test_bit(uint64_t *bits, NODEPTR n)
 void
 find_sharing(NODEPTR n)
 {
-  while (TAG(n) == IND)
+  while (GETTAG(n) == IND)
     n = INDIR(n);
   //printf("find_sharing %p %llu ", n, LABEL(n));
-  if (TAG(n) == AP) {
+  if (GETTAG(n) == AP) {
     if (test_bit(shared_bits, n)) {
       /* Alread marked as shared */
       //printf("shared\n");
@@ -698,7 +737,7 @@ printrec(FILE *f, NODEPTR n)
     }
   }
 
-  switch (TAG(n)) {
+  switch (GETTAG(n)) {
   case IND: /*putc('*', f);*/ printrec(f, INDIR(n)); break;
   case AP:
     fputc('(', f);
@@ -797,7 +836,7 @@ evali(NODEPTR n)
   eval(n);
   n = TOP(0);
   POP(1);
-  while (TAG(n) == IND)
+  while (GETTAG(n) == IND)
     n = INDIR(n);
   return n;
 }
@@ -806,7 +845,7 @@ evali(NODEPTR n)
 NODEPTR
 indir(NODEPTR n)
 {
-  while (TAG(n) == IND)
+  while (GETTAG(n) == IND)
     n = INDIR(n);
   return n;
 }
@@ -816,8 +855,8 @@ value_t
 evalint(NODEPTR n)
 {
   n = evali(n);
-  if (TAG(n) != INT) {
-    fprintf(stderr, "bad tag %d\n", TAG(n));
+  if (GETTAG(n) != INT) {
+    fprintf(stderr, "bad tag %d\n", GETTAG(n));
     ERR("evalint");
   }
   return GETVALUE(n);
@@ -828,8 +867,8 @@ FILE *
 evalhandleN(NODEPTR n)
 {
   n = evali(n);
-  if (TAG(n) != HDL) {
-    fprintf(stderr, "bad tag %d\n", TAG(n));
+  if (GETTAG(n) != HDL) {
+    fprintf(stderr, "bad tag %d\n", GETTAG(n));
     ERR("evalhandle");
   }
   return HANDLE(n);
@@ -864,9 +903,9 @@ evalstring(NODEPTR n)
     if (p >= name + sz)
       ERR("evalstring too long");
     n = evali(n);
-    if (TAG(n) == K)            /* Nil */
+    if (GETTAG(n) == K)            /* Nil */
       break;
-    else if (TAG(n) == AP && TAG(x = indir(FUN(n))) == AP && TAG(indir(FUN(x))) == O) { /* Cons */
+    else if (GETTAG(n) == AP && GETTAG(x = indir(FUN(n))) == AP && GETTAG(indir(FUN(x))) == O) { /* Cons */
       c = evalint(ARG(x));
       if (c < 0 || c > 127)
 	ERR("invalid char");
@@ -897,7 +936,7 @@ eval(NODEPTR n)
 /* Check that there are at least n arguments, return if not. */
 #define CHECK(n) do { if (stack_ptr - stk <= (n)) RET; } while(0)
 
-#define SETIND(n, x) do { TAG((n)) = IND; INDIR((n)) = (x); } while(0)
+#define SETIND(n, x) do { SETTAG((n), IND); INDIR((n)) = (x); } while(0)
 #define GOTO num_reductions++; goto
 
   PUSH(n);
@@ -906,13 +945,13 @@ eval(NODEPTR n)
     l = LABEL(n);
 #if FASTTAG
     if (l < IO_BIND) {
-      if (l != TAG(n)) {
-        printf("%lu %lu\n", l, (uint64_t)(TAG(n)));
+      if (l != GETTAG(n)) {
+        printf("%lu %lu\n", l, (uint64_t)(GETTAG(n)));
         ERR("bad tag");
       }
     }
 #endif
-    enum node_tag tag = l < IO_BIND ? l : TAG(n);
+    enum node_tag tag = l < IO_BIND ? l : GETTAG(n);
     switch (tag) {
     ind:
     case IND:
@@ -1039,7 +1078,7 @@ eval(NODEPTR n)
       ARG(n) = y;
       GOTO ap;
 
-#define SETINT(n,r) do { TAG((n)) = INT; SETVALUE((n), (r)); } while(0)
+#define SETINT(n,r) do { SETTAG((n), INT); SETVALUE((n), (r)); } while(0)
 #define ARITH2(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETINT(n, r); POP(2); } while(0)
     case ADD:
       ARITH2(+);
@@ -1114,7 +1153,7 @@ eval(NODEPTR n)
       POP(1);
       GOTO ind;
     default:
-      fprintf(stderr, "bad tag %d\n", TAG(n));
+      fprintf(stderr, "bad tag %d\n", GETTAG(n));
       ERR("eval tag");
     }
   }
@@ -1168,7 +1207,7 @@ evalio(NODEPTR n)
   PUSH(n);
   for(;;) {
     num_reductions++;
-    switch (TAG(n)) {
+    switch (GETTAG(n)) {
     case IND:
       n = INDIR(n);
       TOP(0) = n;
@@ -1187,7 +1226,7 @@ evalio(NODEPTR n)
         NODEPTR bm;
         NODEPTR bmg = evali(ARG(TOP(1)));
         GCCHECKSAVE(bmg, 4);
-        if (TAG(bmg) == AP && TAG(bm = indir(FUN(bmg))) == AP && TAG(indir(FUN(bm))) == IO_BIND) {
+        if (GETTAG(bmg) == AP && GETTAG(bm = indir(FUN(bmg))) == AP && GETTAG(indir(FUN(bm))) == IO_BIND) {
           NODEPTR g = ARG(bmg);
           NODEPTR h = ARG(TOP(2));
           n = new_ap(bm, new_ap(new_ap(new_ap(combCC, combIOBIND), g), h));
@@ -1305,7 +1344,7 @@ evalio(NODEPTR n)
       SETVALUE(n, (int64_t)(gettime() * 1000));
       RETIO(n);
     default:
-      fprintf(stderr, "bad tag %d\n", TAG(n));
+      fprintf(stderr, "bad tag %d\n", GETTAG(n));
       ERR("evalio tag");
     }
   }
