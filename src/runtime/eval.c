@@ -143,6 +143,10 @@ int64_t heap_start;             /* first location in heap that needs GC */
 NODEPTR next_free;              /* Free list */
 int64_t stack_size = STACK_SIZE;
 
+int64_t num_marked;
+int64_t max_num_marked = 0;
+int64_t num_free;
+
 int glob_argc;
 char **glob_argv;
 
@@ -168,6 +172,7 @@ alloc_node(enum node_tag t)
   next_free = NEXT(n);
   TAG(n) = t;
   num_alloc++;
+  num_free--;
   return n;
 }
 
@@ -277,9 +282,8 @@ init_nodes(void)
     NEXT(n) = next_free;
     next_free = n;
   }
+  num_free = heap_size - heap_start;
 }
-
-int64_t num_marked;
 
 /* Mark all used nodes reachable from *np */
 void
@@ -337,8 +341,6 @@ scan(void)
   }
 }
 
-int64_t max_num_marked = 0;
-
 /* Perform a garbage collection:
    - First mark from all roots; roots are on the stack.
    - Then scan for unmarked nodes.
@@ -365,25 +367,21 @@ gc(void)
 
   if (num_marked > max_num_marked)
     max_num_marked = num_marked;
-  int64_t free = heap_size - heap_start - num_marked;
-  if (free < heap_size / 50)
+  num_free = heap_size - heap_start - num_marked;
+  if (num_free < heap_size / 50)
     ERR("heap exhausted");
   if (verbose > 1)
-    fprintf(stderr, "gc done, %"PRId64" free\n", free);
+    fprintf(stderr, "gc done, %"PRId64" free\n", num_free);
 }
 
 /* Check that there are k nodes available, if not then GC. */
 void
-gc_check(int kk)
+gc_check(int k)
 {
-  NODEPTR n;
-  int k;
-  for (k = kk, n = next_free; n != NIL && k > 0; n = NEXT(n), k--)
-    ;
-  if (n != NIL)
+  if (k < num_free)
     return;
   if (verbose > 1)
-    fprintf(stderr, "gc_check: %d\n", kk);
+    fprintf(stderr, "gc_check: %d\n", k);
   gc();
 }
 
