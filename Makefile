@@ -8,7 +8,7 @@ GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude $(EX
 GHCC=$(GHCB) $(GHCFLAGS)
 GHC=ghc
 # $(CURDIR) might not be quite right
-GHCE=$(GHC) $(EXTS) -F -pgmF $(CURDIR)/convertX.sh -outputdir $(OUTDIR)
+GHCE=$(GHC) $(EXTS) -package mtl -F -pgmF $(CURDIR)/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
 MHS=mhs
