@@ -9,6 +9,8 @@
 #include <sys/time.h>
 #include <ctype.h>
 
+#define FASTTAGS 1
+
 #define VERSION "v2.0\n"
 
 #define HEAP_CELLS 100000
@@ -16,13 +18,14 @@
 
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
-enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
-                ADD, SUB, MUL, QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR,
-                IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR,
-                IO_SERIALIZE, IO_DESERIALIZE,
-                IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE,
-                IO_STDIN, IO_STDOUT, IO_STDERR,
-                IO_GETARGS, IO_PERFORMIO, IO_GETTIMEMILLI, IO_PRINT,
+enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, /* 0 - 9 */
+                T, Y, SS, BB, CC, P, O, ADD, SUB, MUL,  /* 10 - 19 */
+                QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR, /* 20-29 */
+                IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR, /* 30-34 */
+                IO_SERIALIZE, IO_DESERIALIZE, IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE, /* 35-39 */
+                IO_STDIN, IO_STDOUT, IO_STDERR, IO_GETARGS, IO_PERFORMIO, /* 40-44 */
+                IO_GETTIMEMILLI, IO_PRINT, /* 45 - 46 */
+                LAST_TAG,
 };
 
 typedef int64_t value_t;
@@ -239,6 +242,7 @@ init_nodes(void)
 
   /* Set up permanent nodes */
   heap_start = 0;
+#if !FASTTAGS
   for (int j = 0; j < sizeof primops / sizeof primops[0];j++) {
     NODEPTR n = HEAPREF(heap_start++);
     primops[j].node = n;
@@ -258,6 +262,30 @@ init_nodes(void)
       break;
     }
   }
+#else
+  for(enum node_tag t = FREE; t < LAST_TAG; t++) {
+    NODEPTR n = HEAPREF(heap_start++);
+    TAG(n) = t;
+    switch (t) {
+    case K: combK = n; break;
+    case T: combT = n; break;
+    case I: combI = n; break;
+    case O: combO = n; break;
+    case CC: combCC = n; break;
+    case IO_BIND: combIOBIND = n; break;
+    case IO_STDIN:  TAG(n) = HDL; HANDLE(n) = stdin;  break;
+    case IO_STDOUT: TAG(n) = HDL; HANDLE(n) = stdout; break;
+    case IO_STDERR: TAG(n) = HDL; HANDLE(n) = stderr; break;
+    default:
+      break;
+    }
+    for (int j = 0; j < sizeof primops / sizeof primops[0];j++) {
+      if (primops[j].tag == t) {
+        primops[j].node = n;
+      }
+    }
+  }
+#endif
   /* Round up heap_start to the next bitword boundary to avoid the permanent nodes. */
   heap_start = (heap_start + BITS_PER_UINT64 - 1) / BITS_PER_UINT64 * BITS_PER_UINT64;
 
@@ -862,6 +890,7 @@ eval(NODEPTR n)
   NODEPTR f, g, x, k, y;
   value_t r;
   FILE *hdl;
+  int64_t l;
 
 /* Reset stack pointer and return. */
 #define RET do { stack_ptr = stk; return; } while(0)
@@ -874,7 +903,17 @@ eval(NODEPTR n)
   PUSH(n);
   for(;;) {
     num_reductions++;
-    switch (TAG(n)) {
+    l = LABEL(n);
+#if FASTTAG
+    if (l < IO_BIND) {
+      if (l != TAG(n)) {
+        printf("%lu %lu\n", l, (uint64_t)(TAG(n)));
+        ERR("bad tag");
+      }
+    }
+#endif
+    enum node_tag tag = l < IO_BIND ? l : TAG(n);
+    switch (tag) {
     ind:
     case IND:
       n = INDIR(n);
@@ -1339,7 +1378,7 @@ main(int argc, char **argv)
     if (verbose > 1) {
       printf("\nmain returns ");
       pp(stdout, n);
-      printf("node size=%"PRId64", heap size=%"PRId64"\n", (int64_t)NODE_SIZE, heap_size);
+      printf("node size=%"PRId64", heap size bytes=%"PRId64"\n", (int64_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
     setlocale(LC_NUMERIC, "");
     printf("%'15"PRId64" combinator file size\n", file_size);
