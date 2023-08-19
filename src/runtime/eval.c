@@ -11,19 +11,11 @@
 
 #define VERSION "v2.0\n"
 
-/* Node representation:
- * NODE_NAIVE   all fields in a struct, regular pointers
- * NODE_INDEX   use 32 bit indices instead of pointers
- * NODE_SPLIT   split flags, funs, and args
- */
-#define NODE_NAIVE
-
 #define HEAP_CELLS 100000
 #define STACK_SIZE 10000
 
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
-enum node_mark { NOTMARKED, MARKED, SHARED, PRINTED }; /* SHARED, PRINTED only for printing */
 enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
                 ADD, SUB, MUL, QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR,
                 IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR,
@@ -35,10 +27,8 @@ enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, T, Y, SS, BB, CC, P, O,
 
 typedef int64_t value_t;
 
-#if defined(NODE_NAIVE)
 /* Naive node representation with minimal unions */
 typedef struct node {
-  enum node_mark mark;
   enum node_tag tag;
   union {
     value_t value;
@@ -63,66 +53,8 @@ typedef struct node* NODEPTR;
 #define HANDLE(p) (p)->u.file
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
-#define LABEL(n) ((int)((n) - cells))
+#define LABEL(n) ((uint64_t)((n) - cells))
 node *cells;                 /* All cells */
-
-#elif defined(NODE_INDEX)
-/* Naive node representation with minimal unions */
-typedef u_int32_t NODEPTR;
-typedef struct node {
-  enum node_mark mark;
-  enum node_tag tag;
-  union {
-    value_t value;
-    FILE *file;
-    struct {
-      NODEPTR fun;
-      NODEPTR arg;
-    } s;
-  } u;
-} node;
-#define NIL (-1)
-#define HEAPREF(i) (i)
-#define MARK(p) cells[p].mark
-#define TAG(p) cells[p].tag
-#define GETVALUE(p) cells[p].u.value
-#define SETVALUE(p,v) cells[p].u.value = v
-#define FUN(p) cells[p].u.s.fun
-#define ARG(p) cells[p].u.s.arg
-#define NEXT(p) FUN(p)
-#define INDIR(p) FUN(p)
-#define HANDLE(p) cells[p].u.file
-#define NODE_SIZE sizeof(node)
-#define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
-#define LABEL(n) (n)
-node *cells;                 /* All cells */
-
-#elif defined(NODE_SPLIT)
-struct node_flags {
-  enum node_mark xmark:1;
-  enum node_tag xtag:7;
-};
-typedef u_int32_t NODEPTR;
-#define NIL ((NODEPTR)(~0))
-#define HEAPREF(i) (i)
-#define MARK(p)  ((struct node_flags *)(&flagsmem[p]))->xmark
-#define TAG(p)   ((struct node_flags *)(&flagsmem[p]))->xtag
-#define GETVALUE(p) ((value_t)funs[p])
-#define SETVALUE(p,v) funs[p] = (NODEPTR)(v)
-#define FUN(p)   funs[p]
-#define ARG(p)   args[p]
-#define NEXT(p)  FUN(p)
-#define INDIR(p) FUN(p)
-#define NODE_SIZE (sizeof(u_int8_t) + 2*sizeof(NODEPTR))
-#define ALLOC_HEAP(n) do { flagsmem = calloc(n, sizeof(u_int8_t)); funs = calloc(n, sizeof(NODEPTR)); args = calloc(n, sizeof(NODEPTR)); } while(0)
-#define LABEL(n) ((int)(n))
-u_int8_t *flagsmem;
-NODEPTR *funs;
-NODEPTR *args;
-
-#else
-#error "Pick a node representation"
-#endif
 
 int64_t num_reductions = 0;
 int64_t num_alloc;
@@ -140,12 +72,44 @@ int64_t stack_ptr = -1;
 
 int64_t heap_size = HEAP_CELLS; /* number of heap cells */
 int64_t heap_start;             /* first location in heap that needs GC */
-NODEPTR next_free;              /* Free list */
 int64_t stack_size = STACK_SIZE;
 
 int64_t num_marked;
 int64_t max_num_marked = 0;
 int64_t num_free;
+
+#define BITS_PER_UINT64 64
+uint64_t *free_map;             /* 1 bit per node, 0=free, 1=used */
+uint64_t free_map_nwords;
+uint64_t next_scan_index;
+
+/* Set FREE bit to 0 */
+static inline void mark_used(NODEPTR n)
+{
+  uint64_t i = LABEL(n);
+  if (i < heap_start)
+    return;
+  //printf("  mark %p\n", n);
+  if (i >= free_map_nwords * BITS_PER_UINT64) ERR("mark_used");
+  free_map[i / BITS_PER_UINT64] &= ~(1ULL << (i % BITS_PER_UINT64));
+}
+
+/* Test if FREE bit is 0 */
+static inline int is_marked_used(NODEPTR n)
+{
+  uint64_t i = LABEL(n);
+  if (i < heap_start)
+    return 1;
+  //printf("ismark %p\n", n);
+  if (i >= free_map_nwords * BITS_PER_UINT64) ERR("is_marked_used");;
+  return (free_map[i / BITS_PER_UINT64] & (1ULL << (i % BITS_PER_UINT64))) == 0;
+}
+
+static inline void mark_all_free(void)
+{
+  memset(free_map, ~0, free_map_nwords * sizeof(uint64_t));
+  next_scan_index = heap_start;
+}
 
 int glob_argc;
 char **glob_argv;
@@ -163,13 +127,33 @@ gettime()
 NODEPTR
 alloc_node(enum node_tag t)
 {
-  NODEPTR n = next_free;
-  if (n == NIL) {
-    ERR("out of memory");
+  if (num_free <= 0)
+    ERR("alloc_node");
+
+  uint64_t i = next_scan_index / BITS_PER_UINT64;
+  int k;
+  for(;;) {
+    uint64_t word = free_map[i];
+    k = ffsl(word);
+    if (k)
+      break;
+    i++;
+    if (i >= heap_size)
+      ERR("alloc_node free_map");
   }
-  if (TAG(n) != FREE)
-    abort();
-  next_free = NEXT(n);
+  uint64_t pos = i * BITS_PER_UINT64 + k - 1; /* first free node */
+  NODEPTR n = HEAPREF(pos);
+  mark_used(n);
+  //printf("%llu %llu %d\n", next_scan_index, pos, t);
+  next_scan_index = pos;
+
+  // XXX check if tag is HDL, if so possibly close */
+  //  if (TAG(n) != FREE)
+  //    ERR("not free");
+
+  //if (MARK(n) == MARKED)
+  //  ERR("alloc_node MARKED");
+
   TAG(n) = t;
   num_alloc++;
   num_free--;
@@ -250,13 +234,15 @@ void
 init_nodes(void)
 {
   ALLOC_HEAP(heap_size);
+  free_map_nwords = (heap_size + BITS_PER_UINT64 - 1) / BITS_PER_UINT64; /* bytes needed for free map */
+  free_map = malloc(free_map_nwords * sizeof(uint64_t));
 
   /* Set up permanent nodes */
   heap_start = 0;
   for (int j = 0; j < sizeof primops / sizeof primops[0];j++) {
     NODEPTR n = HEAPREF(heap_start++);
     primops[j].node = n;
-    MARK(n) = NOTMARKED;
+    //MARK(n) = MARKED;
     TAG(n) = primops[j].tag;
     switch (primops[j].tag) {
     case K: combK = n; break;
@@ -272,18 +258,22 @@ init_nodes(void)
       break;
     }
   }
+  /* Round up heap_start to the next bitword boundary to avoid the permanent nodes. */
+  heap_start = (heap_start + BITS_PER_UINT64 - 1) / BITS_PER_UINT64 * BITS_PER_UINT64;
 
-  /* Set up free list */
-  next_free = NIL;
-  for (int64_t i = heap_start; i < heap_size; i++) {
-    NODEPTR n = HEAPREF(i);
-    MARK(n) = NOTMARKED;
-    TAG(n) = FREE;
-    NEXT(n) = next_free;
-    next_free = n;
-  }
+  mark_all_free();
+
+  //for (int64_t i = heap_start; i < heap_size; i++) {
+  //  NODEPTR n = HEAPREF(i);
+  //  MARK(n) = NOTMARKED;
+  //  TAG(n) = FREE;
+  //}
   num_free = heap_size - heap_start;
 }
+
+#if GCRED
+int red_t, red_k, red_i;
+#endif
 
 /* Mark all used nodes reachable from *np */
 void
@@ -291,25 +281,64 @@ mark(NODEPTR *np)
 {
   NODEPTR n = *np;
 
- top:
+#if GCRED
+  top:
+#endif
   if (TAG(n) == IND) {
+    int loop = 0;
     /* Skip indirections, and redirect start pointer */
     while (TAG(n) == IND) {
+      //      printf("*"); fflush(stdout);
       n = INDIR(n);
+      if (loop++ > 100000) {
+        printf("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
+        ERR("IND loop");
+      }
     }
+    //    if (loop)
+    //      printf("\n");
     *np = n;
   }
-  if (MARK(n) == MARKED)
+  if (is_marked_used(n)) {
+#if SANITY
+    if (MARK(n) != MARKED)
+      ERR("not marked");
+#endif
     return;
-  num_marked++;
+  }
+#if SANITY
+  if (MARK(n) == MARKED) {
+    printf("%p %llu\n", n, LABEL(n));
+    ERR("marked");
+  }
   MARK(n) = MARKED;
-#if 1
+#endif
+  num_marked++;
+  mark_used(n);
+#if GCRED
   /* This is really only fruitful just after parsing.  It can be removed. */
   if (TAG(n) == AP && TAG(FUN(n)) == AP && TAG(FUN(FUN(n))) == T) {
     /* Do the T x y --> y reduction */
     NODEPTR y = ARG(n);
     TAG(n) = IND;
     INDIR(n) = y;
+    red_t++;
+    goto top;
+  }
+  if (TAG(n) == AP && TAG(FUN(n)) == AP && TAG(FUN(FUN(n))) == K) {
+    /* Do the K x y --> x reduction */
+    NODEPTR x = ARG(FUN(n));
+    TAG(n) = IND;
+    INDIR(n) = x;
+    red_k++;
+    goto top;
+  }
+  if (TAG(n) == AP && TAG(FUN(n)) == I) {
+    /* Do the I x --> x reduction */
+    NODEPTR x = ARG(n);
+    TAG(n) = IND;
+    INDIR(n) = x;
+    red_i++;
     goto top;
   }
 #endif
@@ -323,27 +352,28 @@ mark(NODEPTR *np)
 void
 scan(void)
 {
-  next_free = NIL;
+#if SANITY
   for(int64_t i = heap_start; i < heap_size; i++) {
     NODEPTR n = HEAPREF(i);
     if (MARK(n) == NOTMARKED) {
       if (TAG(n) == HDL && HANDLE(n) != 0 &&
-	  HANDLE(n) != stdin && HANDLE(n) != stdout && HANDLE(n) != stderr) {
+         HANDLE(n) != stdin && HANDLE(n) != stdout && HANDLE(n) != stderr) {
         /* A FILE* has become garbage, so close it. */
         fclose(HANDLE(n));
       }
       TAG(n) = FREE;
-      NEXT(n) = next_free;
-      next_free = n;
+      //      NEXT(n) = next_free;
+      //      next_free = n;
     } else {
       MARK(n) = NOTMARKED;
     }
   }
+#endif
 }
+
 
 /* Perform a garbage collection:
    - First mark from all roots; roots are on the stack.
-   - Then scan for unmarked nodes.
 */
 void
 gc(void)
@@ -355,6 +385,7 @@ gc(void)
   if (verbose > 1)
     fprintf(stderr, "gc mark\n");
   gc_mark_time -= gettime();
+  mark_all_free();
   for (int64_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
   t = gettime();
@@ -561,20 +592,82 @@ parse_top(FILE *f)
   return n;
 }
 
+void printrec(FILE *f, NODEPTR n);
+
+int64_t num_shared;
+
+/* Two bits per node: marked, shared
+ * 0, 0   -- not visited
+ * 1, 0   -- visited once
+ * 1, 1   -- visited more than once
+ * 0, 1   -- printed
+ */
+uint64_t *marked_bits;
+uint64_t *shared_bits;
+static inline void set_bit(uint64_t *bits, NODEPTR n)
+{
+  uint64_t i = LABEL(n);
+  bits[i / BITS_PER_UINT64] |= (1ULL << (i % BITS_PER_UINT64));
+}
+static inline void clear_bit(uint64_t *bits, NODEPTR n)
+{
+  uint64_t i = LABEL(n);
+  bits[i / BITS_PER_UINT64] &= ~(1ULL << (i % BITS_PER_UINT64));
+}
+static inline uint64_t test_bit(uint64_t *bits, NODEPTR n)
+{
+  uint64_t i = LABEL(n);
+  return bits[i / BITS_PER_UINT64] & (1ULL << (i % BITS_PER_UINT64));
+}
+
+/* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
+void
+find_sharing(NODEPTR n)
+{
+  while (TAG(n) == IND)
+    n = INDIR(n);
+  //printf("find_sharing %p %llu ", n, LABEL(n));
+  if (TAG(n) == AP) {
+    if (test_bit(shared_bits, n)) {
+      /* Alread marked as shared */
+      //printf("shared\n");
+      ;
+    } else if (test_bit(marked_bits, n)) {
+      /* Already marked, so now mark as shared */
+      //printf("marked\n");
+      set_bit(shared_bits, n);
+      num_shared++;
+    } else {
+      /* Mark as shared, and recurse */
+      //printf("unmarked\n");
+      set_bit(marked_bits, n);
+      find_sharing(FUN(n));
+      find_sharing(ARG(n));
+    }
+  } else {
+    /* Not an application */
+    //printf("not AP\n");
+    ;
+  }
+}
+
 /* Recursively print an expression.
    This assumes that the shared nodes has been marked as such.
 */
 void
 printrec(FILE *f, NODEPTR n)
 {
-  if (MARK(n) == PRINTED) {
-    /* This node has already been printer, so just use a reference. */
-    fprintf(f, "_%d", LABEL(n));
-    return;
-  } else if (MARK(n) == SHARED) {
-    /* This node is shared, mark it as printed now to avoid loops. */
-    fprintf(f, ":%d ", LABEL(n));
-    MARK(n) = PRINTED;
+  if (test_bit(shared_bits, n)) {
+    /* The node is shared */
+    if (test_bit(marked_bits, n)) {
+      /* Not yet printed, so emit a label */
+      fprintf(f, ":%"PRIu64" ", LABEL(n));
+      clear_bit(marked_bits, n);  /* mark as printed */
+    } else {
+      /* This node has already been printed, so just use a reference. */
+      fprintf(f, "_%"PRIu64, LABEL(n));
+      return;
+    }
   }
 
   switch (TAG(n)) {
@@ -615,7 +708,7 @@ printrec(FILE *f, NODEPTR n)
   case QUOT: fprintf(f, "$quot"); break;
   case REM: fprintf(f, "$rem"); break;
   case SUBR: fprintf(f, "$subtract"); break;
-  case EQ: fprintf(f, "$="); break;
+  case EQ: fprintf(f, "$=="); break;
   case NE: fprintf(f, "$/="); break;
   case LT: fprintf(f, "$<"); break;
   case LE: fprintf(f, "$<="); break;
@@ -640,53 +733,21 @@ printrec(FILE *f, NODEPTR n)
   }
 }
 
-int64_t num_shared;
-
-/* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
-void
-find_sharing(NODEPTR n)
-{
-  while (TAG(n) == IND)
-    n = INDIR(n);
-  if (TAG(n) == AP) {
-    if (MARK(n) == SHARED) {
-      ;
-    } else if (MARK(n) == MARKED) {
-      MARK(n) = SHARED;
-      num_shared++;
-    } else {
-      MARK(n) = MARKED;
-      find_sharing(FUN(n));
-      find_sharing(ARG(n));
-    }
-  }
-}
-
-/* Clear all sharing markers after printing. */
-void
-clear_sharing(NODEPTR n)
-{
-  while (TAG(n) == IND)
-    n = INDIR(n);
-  if (MARK(n) == NOTMARKED)
-    return;
-  if (TAG(n) == AP) {
-    MARK(n) = NOTMARKED;
-    clear_sharing(FUN(n));
-    clear_sharing(ARG(n));
-  }
-}
-
 /* Serialize a graph to file. */
 void
 print(FILE *f, NODEPTR n, int header)
 {
   num_shared = 0;
+  marked_bits = calloc(free_map_nwords, sizeof(uint64_t));
+  shared_bits = calloc(free_map_nwords, sizeof(uint64_t));
+  if (!marked_bits || !shared_bits)
+    ERR("print memory");
   find_sharing(n);
   if (header)
     fprintf(f, "%s%"PRId64"\n", VERSION, num_shared);
   printrec(f, n);
-  clear_sharing(n);
+  free(marked_bits);
+  free(shared_bits);
 }
 
 /* Show a graph. */
@@ -1258,7 +1319,7 @@ main(int argc, char **argv)
   init_nodes();
   stack = malloc(sizeof(NODEPTR) * stack_size);
   if (!stack)
-    abort();
+    ERR("stack alloc");
   FILE *f = fopen(fn, "r");
   if (!f)
     ERR("file not found");
@@ -1267,8 +1328,10 @@ main(int argc, char **argv)
   fclose(f);
   PUSH(n); gc(); n = TOP(0); POP(1);
   int64_t start_size = num_marked;
-  if (verbose > 2)
-    pp(stdout, n);
+  if (verbose > 2) {
+    //pp(stdout, n);
+    print(stdout, n, 1);
+  }
   run_time -= gettime();
   n = evalio(n);
   run_time += gettime();
@@ -1290,6 +1353,9 @@ main(int argc, char **argv)
     printf("%15.2fs total gc time\n", gc_mark_time + gc_scan_time);
     printf("    %15.2fs mark time\n", gc_mark_time);
     printf("    %15.2fs scan time\n", gc_scan_time);
+#if GCRED
+    printf(" GC reductions T=%d, K=%d, I=%d\n", red_t, red_k, red_i);
+#endif
   }
   exit(0);
 }
