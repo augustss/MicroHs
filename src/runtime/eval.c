@@ -166,7 +166,7 @@ gettime()
   return tv.tv_sec + tv.tv_usec * 1e-6;
 }
 
-NODEPTR
+static inline NODEPTR
 alloc_node(enum node_tag t)
 {
   if (num_free <= 0)
@@ -202,7 +202,7 @@ alloc_node(enum node_tag t)
   return n;
 }
 
-NODEPTR
+static inline NODEPTR
 new_ap(NODEPTR f, NODEPTR a)
 {
   NODEPTR n = alloc_node(AP);
