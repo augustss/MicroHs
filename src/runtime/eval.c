@@ -290,7 +290,7 @@ mark(NODEPTR *np)
     while (TAG(n) == IND) {
       //      printf("*"); fflush(stdout);
       n = INDIR(n);
-      if (loop++ > 100000) {
+      if (loop++ > 10000000) {
         printf("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
         ERR("IND loop");
       }
