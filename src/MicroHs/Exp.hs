@@ -307,7 +307,7 @@ improveT ae =
         aa = improveT a
       in
         if isK ff && isI aa then
-          Prim "T"
+          Prim "A"
 --        else if isI ff then
 --          aa
         else
@@ -333,12 +333,12 @@ improveT ae =
 -}
             
 {-
--- K I      -->  T
+-- K I      -->  A
 -- Y (K e)  -->  e
 -- K x y    -->  x
 improveT (App f a) =
   case (improveT f, improveT a) of
-    (CK,                     CI) -> CT
+    (CK,                     CI) -> CA
 --    (CI,                      e) -> e
     (CY,               App CK e) -> e
 --    (App CK e1,              e2) -> e1

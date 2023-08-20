@@ -42,7 +42,7 @@ main = do
     --def :: ((Ident, Exp), Int) -> String -> String
     def d r =
       case d of
-        ((_, e), i) -> "(($T :" ++ showInt i ++ " " ++ toStringP (substv e) ++ ") " ++ r ++ ")"
+        ((_, e), i) -> "(($A :" ++ showInt i ++ " " ++ toStringP (substv e) ++ ") " ++ r ++ ")"
         -- App2 CT (Lbl i (subst e)) r
     res = foldr def (toStringP emain) (zip ds (enumFrom 0))
     numDefs = M.size defs
@@ -63,7 +63,7 @@ main = do
       putStrLn $ "final pass            " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
 
 version :: String
-version = "v2.0\n"
+version = "v2.1\n"
 
 type Program = (Ident, [LDef])
 

@@ -12,7 +12,7 @@
 #define FASTTAGS 1
 #define UNIONPTR 1
 
-#define VERSION "v2.0\n"
+#define VERSION "v2.1\n"
 
 #define HEAP_CELLS 100000
 #define STACK_SIZE 10000
@@ -20,7 +20,7 @@
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, /* 0 - 9 */
-                T, Y, SS, BB, CC, P, O, ADD, SUB, MUL,  /* 10 - 19 */
+                A, Y, SS, BB, CC, P, O, ADD, SUB, MUL,  /* 10 - 19 */
                 QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR, /* 20-29 */
                 IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR, /* 30-34 */
                 IO_SERIALIZE, IO_DESERIALIZE, IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE, /* 35-39 */
@@ -212,7 +212,7 @@ new_ap(NODEPTR f, NODEPTR a)
 }
 
 /* Needed during reduction */
-NODEPTR combK, combT, combI, combO;
+NODEPTR combFalse, comTrue, combI, combCons;
 NODEPTR combCC, combIOBIND;
 
 /* One node of each kind for primitives, these are never GCd. */
@@ -231,7 +231,7 @@ struct {
   { "K", K },
   { "C'", CC },
   { "C", C },
-  { "T", T },
+  { "A", A },
   { "S'", SS },
   { "P", P },
   { "I", I },
@@ -288,10 +288,10 @@ init_nodes(void)
     //MARK(n) = MARKED;
     SETTAG(n, primops[j].tag);
     switch (primops[j].tag) {
-    case K: combK = n; break;
-    case T: combT = n; break;
+    case K: combFalse = n; break;
+    case A: comTrue = n; break;
     case I: combI = n; break;
-    case O: combO = n; break;
+    case O: combCons = n; break;
     case CC: combCC = n; break;
     case IO_BIND: combIOBIND = n; break;
     case IO_STDIN:  SETTAG(n, HDL); HANDLE(n) = stdin;  break;
@@ -306,10 +306,10 @@ init_nodes(void)
     NODEPTR n = HEAPREF(heap_start++);
     SETTAG(n, t);
     switch (t) {
-    case K: combK = n; break;
-    case T: combT = n; break;
+    case K: combFalse = n; break;
+    case A: comTrue = n; break;
     case I: combI = n; break;
-    case O: combO = n; break;
+    case O: combCons = n; break;
     case CC: combCC = n; break;
     case IO_BIND: combIOBIND = n; break;
     case IO_STDIN:  SETTAG(n, HDL); HANDLE(n) = stdin;  break;
@@ -762,7 +762,7 @@ printrec(FILE *f, NODEPTR n)
   case I: fprintf(f, "$I"); break;
   case C: fprintf(f, "$C"); break;
   case B: fprintf(f, "$B"); break;
-  case T: fprintf(f, "$T"); break;
+  case A: fprintf(f, "$A"); break;
   case Y: fprintf(f, "$Y"); break;
   case P: fprintf(f, "$P"); break;
   case O: fprintf(f, "$O"); break;
@@ -998,7 +998,7 @@ eval(NODEPTR n)
       n = TOP(0);
       SETIND(n, x);
       GOTO ind;
-    case T:                     /* T x y = * y */
+    case A:                     /* A x y = * y */
       CHECK(2);
       x = ARG(TOP(2));
       POP(2);
@@ -1100,7 +1100,7 @@ eval(NODEPTR n)
       CHECK(2); r = evalint(ARG(TOP(2))) - evalint(ARG(TOP(1))); n = TOP(2); SETINT(n, r); POP(2);
       RET;
 
-#define CMP(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETIND(n, r ? combT : combK); POP(2); } while(0)
+#define CMP(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETIND(n, r ? comTrue : combFalse); POP(2); } while(0)
     case EQ:
       CMP(==);
       break;
@@ -1129,7 +1129,7 @@ eval(NODEPTR n)
       CHECK(1);
       hdl = evalhandleN(ARG(TOP(1)));
       n = TOP(1);
-      SETIND(n, hdl == 0 ? combT : combK);
+      SETIND(n, hdl == 0 ? comTrue : combFalse);
       POP(1);
       break;
     case IO_BIND:
@@ -1162,13 +1162,13 @@ eval(NODEPTR n)
 NODEPTR
 mkNil(void)
 {
-  return combK;
+  return combFalse;
 }
 
 NODEPTR
 mkCons(NODEPTR x, NODEPTR xs)
 {
-  return new_ap(new_ap(combO, x), xs);
+  return new_ap(new_ap(combCons, x), xs);
 }
 
 NODEPTR
