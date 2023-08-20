@@ -21,7 +21,7 @@ import MicroHs.Parse
 data TModule a = TModule IdentModule [TypeExport] [SynDef] [ValueExport] a
   --Xderiving (Show)
 
-data TypeExport = TypeExport Ident Ident TypeInfo  -- exported name, original name
+data TypeExport = TypeExport Ident Entry [ValueExport]
   --Xderiving (Show)
 
 data ValueExport = ValueExport Ident Entry
@@ -68,11 +68,18 @@ mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
 mkTModule mn tds a =
   let
     ves = [ ValueExport i (Entry (EVar (qual mn i)) ts) | Sign i ts <- tds ]
-    con it vs icts =
-      case icts of
-        (ic, ts) -> (ic, ETypeScheme vs (foldr tArrow (tApps (qual mn it) (map tVar vs)) ts))
-    tes = [ TypeExport  i (qual mn i) (TConc (lhsKind vs) (map (con i vs) cs)) | Data (i, vs) cs <- tds ] ++
-          [ TypeExport  i (qual mn i) (TSyn  (lhsKind vs) (ETypeScheme vs t))  | Type (i, vs) t  <- tds ]
+    con ci it vs (ic, ts) =
+      let
+        e = ECon $ Con ci (qual mn ic)
+      in ValueExport ic $ Entry e (ETypeScheme vs (foldr tArrow (tApps (qual mn it) (map tVar vs)) ts))
+    cons i vs cs =
+      let
+        ci = [ (qual mn c, length ts) | (c, ts) <- cs ]
+      in map (con ci i vs) cs
+    tentry i vs = Entry (EVar (qual mn i)) (ETypeScheme [] $ lhsKind vs)
+    tes =
+      [ TypeExport i (tentry i vs) (cons i vs cs) | Data (i, vs) cs <- tds ] ++
+      [ TypeExport i (tentry i vs) []             | Type (i, vs) _  <- tds ]
     ses = [ (qual mn i, ETypeScheme vs t) | Type (i, vs) t  <- tds ]
   in  TModule mn tes ses ves a
 
@@ -88,12 +95,11 @@ mkTables mdls =
     --XallValues :: M.Map [Entry]
     allValues =
       let
-        con mn ti i = ECon $ Con [(qual mn c, arityOf t) | (c, ETypeScheme _ t) <- constrs ti] (qual mn i)
         syms arg =
           case arg of
             (is, TModule mn tes _ ves _) ->
-              [ (v, [e])                                | ValueExport i e     <- ves,                       v <- qns is mn i ] ++
-              [ (v, [Entry (con (moduleOf qi) ti i) t]) | TypeExport  _ qi ti <- tes, (i, t) <- constrs ti, v <- qns is mn i ]
+              [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
+              [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ]
       in  M.fromListWith (unionBy eqEntry) $ concatMap syms mdls
     allSyns =
       let
@@ -106,7 +112,7 @@ mkTables mdls =
       let
         types arg =
           case arg of
-            (is, TModule mn tes _ _ _) -> [ (v, [Entry (EVar qi) (kindOf ti)]) | TypeExport i qi ti <- tes, v <- qns is mn i ]
+            (is, TModule mn tes _ _ _) -> [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
       in M.fromListWith (unionBy eqEntry) $ concatMap types mdls
   in  (allTypes, allSyns, allValues)
 
