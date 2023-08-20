@@ -97,9 +97,7 @@ data Con = Con ConTyInfo Ident
   --Xderiving(Show, Eq)
 
 conIdent :: Con -> Ident
-conIdent c =
-  case c of
-    Con _ i -> i
+conIdent (Con _ i) = i
 
 {-
 conTyInfo :: Con -> ConTyInfo
@@ -108,9 +106,7 @@ conTyInfo c =
     Con cs _ -> cs
 -}
 conArity :: Con -> Int
-conArity c =
-  case c of
-    Con cs i -> fromMaybe undefined $ lookupBy eqIdent i cs
+conArity (Con cs i) = fromMaybe undefined $ lookupBy eqIdent i cs
 
 type ECaseArm = (EPat, Expr)
 
@@ -135,17 +131,13 @@ data EPat
 type EPat = Expr
 
 isPVar :: EPat -> Bool
-isPVar p =
-  case p of
-    EVar i -> not (isConIdent i)
-    _ -> False
+isPVar (EVar i) = not (isConIdent i)
+isPVar _ = False    
 
 isPConApp :: EPat -> Bool
-isPConApp p =
-  case p of
-    EVar i -> isConIdent i
-    EApp f _ -> isPConApp f
-    _ -> True
+isPConApp (EVar i) = isConIdent i
+isPConApp (EApp f _) = isPConApp f
+isPConApp _ = True
 
 patVars :: EPat -> [Ident]
 patVars = filter (not . isConIdent) . allVarsExpr
@@ -250,13 +242,9 @@ parseDie :: forall a . --X (Show a) =>
 parseDie p fn file =
   case runPrsr [] p fn (removeComments file) of
     Left err -> error err
-    Right as ->
--- XXX parsing foo $ do ... is ambiguous
-      if length as == 1 then
-        fst (head as)
-      else
-        error $ "Ambiguous:"
---X                 ++ unlines (map (show . fst) as)
+    Right [(a, _)] -> a
+    Right as -> error $ "Ambiguous:"
+--X                     ++ unlines (map (show . fst) as)
 
 -- Remove comments first instead of having them in the parser.
 removeComments :: String -> String

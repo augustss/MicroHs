@@ -40,21 +40,19 @@ type TypeTable  = M.Map [Entry]
 type SynTable   = M.Map ETypeScheme
 
 typeCheck :: forall a . [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
-typeCheck imps amdl =
+typeCheck imps (EModule mn exps defs) =
 --  trace (show amdl) $
   let
     (ts, ss, vs) = mkTables imps
-  in  case amdl of
-        EModule mn exps defs ->
-          case runState (tcDefs defs) (initTC mn ts ss vs) of
-            (tds, tcs) ->
-              let
-                thisMdl = (mn, mkTModule mn tds impossible)
-                impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm, tm) <- imps]
-                impMap = M.fromList (thisMdl : impMdls)
-                (texps, sexps, vexps) =
-                  unzip3 $ map (getExps impMap (typeTable tcs) (synTable tcs) (valueTable tcs)) exps
-              in  TModule mn (concat texps) (concat sexps) (concat vexps) tds
+  in case runState (tcDefs defs) (initTC mn ts ss vs) of
+       (tds, tcs) ->
+         let
+           thisMdl = (mn, mkTModule mn tds impossible)
+           impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm, tm) <- imps]
+           impMap = M.fromList (thisMdl : impMdls)
+           (texps, sexps, vexps) =
+             unzip3 $ map (getExps impMap (typeTable tcs) (synTable tcs) (valueTable tcs)) exps
+         in  TModule mn (concat texps) (concat sexps) (concat vexps) tds
 
 getExps :: forall a . M.Map (TModule a) -> TypeTable -> SynTable -> ValueTable -> ExportSpec ->
            ([TypeExport], [SynDef], [ValueExport])
@@ -203,29 +201,19 @@ data TCState = TC IdentModule Int TypeTable SynTable ValueTable (IM.IntMap EType
   --Xderiving (Show)
 
 typeTable :: TCState -> TypeTable
-typeTable ts =
-  case ts of
-    TC _ _ tt _ _ _ -> tt
+typeTable (TC _ _ tt _ _ _) = tt
 
 valueTable :: TCState -> ValueTable
-valueTable ts =
-  case ts of
-    TC _ _ _ _ vt _ -> vt
+valueTable (TC _ _ _ _ vt _) = vt
 
 synTable :: TCState -> SynTable
-synTable ts =
-  case ts of
-    TC _ _ _ st _ _ -> st
+synTable (TC _ _ _ st _ _) = st
 
 uvarSubst :: TCState -> IM.IntMap EType
-uvarSubst ts =
-  case ts of
-    TC _ _ _ _ _ sub -> sub
+uvarSubst (TC _ _ _ _ _ sub) = sub
 
 moduleName :: TCState -> IdentModule
-moduleName ts =
-  case ts of
-    TC mn _ _ _ _ _ -> mn
+moduleName (TC mn _ _ _ _ _) = mn
 
 putValueTable :: ValueTable -> T ()
 putValueTable venv = T.do
@@ -324,16 +312,9 @@ kType :: EKind
 kType = EVar "Type"
 
 getArrow :: EType -> Maybe (EType, EType)
-getArrow at =
-  case at of
-    EApp f a ->
-      case f of
-        EApp arr b ->
-          case arr of
-            EVar n -> if eqIdent n "->" || eqIdent n "Primitives.->" then Just (b, a) else Nothing
-            _ -> Nothing
-        _ -> Nothing
-    _ -> Nothing
+getArrow (EApp (EApp (EVar n) a) b) =
+  if eqIdent n "->" || eqIdent n "Primitives.->" then Just (a, b) else Nothing
+getArrow _ = Nothing
 
 {-
 getArrow2 :: EType -> (EType, EType, EType)
@@ -358,10 +339,8 @@ addUVar i t = T.do
 
 munify :: --XHasCallStack =>
           Maybe EType -> EType -> T ()
-munify mt b =
-  case mt of
-    Nothing -> T.return ()
-    Just a -> unify a b
+munify Nothing _ = T.return ()
+munify (Just a) b = unify a b
 
 expandType :: --XHasCallStack =>
               EType -> T EType
@@ -549,22 +528,6 @@ withExtTyps env ta = T.do
   putTypeTable venv
   T.return a
 
---lookupPrimType :: String -> EType
---lookupPrimType = undefined
-
-{-
-unMTypeArrow :: Maybe EType -> T (EType, Maybe EType)
-unMTypeArrow mt =
-  case mt of
-    Nothing -> T.do
-      t <- newUVar
-      T.return (t, Nothing)
-    Just tarr -> T.do
-      case getArrow tarr of
-        Just (ta, tr) -> (ta, Just tr)
-        Nothing -> T.do
--}
-
 tcDefs :: [EDef] -> T [EDef]
 tcDefs ds = T.do
 --  traceM ("tcDefs ds=" ++ show ds)
@@ -581,16 +544,14 @@ tcDefsType ds = withTypeTable $ T.do
   T.mapM (\ d -> T.do {tcReset; tcDefType d}) ds
 
 addTypeKind :: EDef -> T ()
-addTypeKind d =
-  case d of
+addTypeKind adef =
+  case adef of
     Data lhs _ -> addLHSKind lhs
     Type lhs _ -> addLHSKind lhs
     _          -> T.return ()
 
 addLHSKind :: LHS -> T ()
-addLHSKind ivs =
-  case ivs of
-    (i, vs) -> extQVal i (ETypeScheme [] $ lhsKind vs)
+addLHSKind (i, vs) = extQVal i (ETypeScheme [] $ lhsKind vs)
 
 lhsKind :: [Ident] -> EKind
 lhsKind vs = foldr (\ _ -> kArrow kType) kType vs
@@ -614,15 +575,11 @@ tcDefType d =
     _ -> T.return d
 
 tcTypeScheme :: Maybe EKind -> ETypeScheme -> T ETypeScheme
-tcTypeScheme mk ts =
-  --trace ("tcTypeScheme " ++ (show ts)) $
-  case ts of
-    ETypeScheme vs t -> ETypeScheme vs <$> withVars (lhsKinds (impossible, vs)) (fst <$> tcType mk t)
+tcTypeScheme mk (ETypeScheme vs t) =
+  ETypeScheme vs <$> withVars (lhsKinds (impossible, vs)) (fst <$> tcType mk t)
 
 lhsKinds :: LHS -> [(Ident, ETypeScheme)]
-lhsKinds lhs =
-  case lhs of
-    (_, vs) -> zip vs (repeat (ETypeScheme [] kType))
+lhsKinds (_, vs) = zip vs (repeat (ETypeScheme [] kType))
 
 withVars :: forall a . [(Ident, ETypeScheme)] -> T a -> T a
 withVars aiks ta =
@@ -631,9 +588,7 @@ withVars aiks ta =
     (i,k) : iks -> withExtVal i k $ withVars iks ta
 
 tcConstr :: Constr -> T Constr
-tcConstr con =
-  case con of
-    (i, ts) -> pair i <$> T.mapM (\ t -> fst <$> tcType (Just kType) t) ts
+tcConstr (i, ts) = pair i <$> T.mapM (\ t -> fst <$> tcType (Just kType) t) ts
 
 tcDefsValue :: [EDef] -> T [EDef]
 tcDefsValue ds = T.do
@@ -641,9 +596,9 @@ tcDefsValue ds = T.do
   T.mapM (\ d -> T.do { tcReset; tcDefValue d}) ds
 
 addValueType :: EDef -> T ()
-addValueType d = T.do
+addValueType adef = T.do
   mn <- gets moduleName
-  case d of
+  case adef of
     Sign i t -> T.do
       extQVal i t
       extVal (qual mn i) t
@@ -659,8 +614,8 @@ addValueType d = T.do
 
 tcDefValue :: --XHasCallStack =>
               EDef -> T EDef
-tcDefValue d =
-  case d of
+tcDefValue adef =
+  case adef of
     Fcn i eqns -> T.do
 --      traceM $ "tcDefValue: " ++ showLHS (i, vs) ++ " = " ++ showExpr rhs
       (_, ETypeScheme tvs t) <- tLookup i
@@ -672,7 +627,7 @@ tcDefValue d =
       T.return $ Fcn (qual mn i) teqns
 --      (et, _) <- withExtTyps vks (tcExpr (Just t) (foldr eLam1 rhs vs))
 --      T.return (Fcn (qual mn i, vs) (dropLam (length vs) et))
-    _ -> T.return d
+    _ -> T.return adef
 
 tcType :: Maybe EKind -> EType -> T (Typed EType)
 tcType mk = tcExpr mk . dsType
@@ -688,6 +643,7 @@ tcExpr mt ae = T.do
 tcExprR :: --XHasCallStack =>
            Maybe EType -> Expr -> T (Typed Expr)
 tcExprR mt ae =
+  let { lit t = T.do { munify mt t; T.return (ae, t) } } in
   case ae of
     EVar i ->
       if isUnderscore i then
@@ -704,9 +660,9 @@ tcExprR mt ae =
       (ef, _) <- tcExpr (Just (tArrow ta tr)) f
       T.return (EApp ef ea, tr)
     ELam is e -> tcExprLam mt is e
-    EInt _ -> T.return (ae, tCon "Primitives.Int")
-    EChar _ -> T.return (ae, tCon "Primitives.Char")
-    EStr _ -> T.return (ae, tApps "Data.List.[]" [tCon "Primitives.Char"])
+    EInt _ -> lit (tCon "Primitives.Int")
+    EChar _ -> lit (tCon "Primitives.Char")
+    EStr _ -> lit (tApps "Data.List.[]" [tCon "Primitives.Char"])
     ECase a arms -> T.do
       (ea, ta) <- tcExpr Nothing a
       (earms, tarms) <- unzip <$> T.mapM (tcArm mt ta) arms
@@ -767,7 +723,7 @@ tcExprR mt ae =
                 T.return (EDo mn (SLet ebs : ys), tr)
 
     EPrim _ -> T.do
-      t <- newUVar  -- pretend it is anything
+      t <- unMType mt  -- pretend it is anything
       T.return (ae, t)
     ESectL e i -> T.do
       (EApp (EVar ii) ee, t) <- tcExpr mt (EApp (EVar i) e)

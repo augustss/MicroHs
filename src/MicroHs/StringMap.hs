@@ -38,9 +38,7 @@ elems = M.elems
 data Map v = Map [(String, v)]
   --Xderiving(Show)
 
-insert k v amap =
-  case amap of
-    Map kvs -> Map ((k, v):kvs)
+insert k v (Map kvs) = Map ((k, v):kvs)
 
 fromListWith un =
   let
@@ -69,9 +67,7 @@ union akvs1 akvs2 =
         Map kvs2 -> Map (kvs1 ++ kvs2)
 -}
 
-lookup ak am =
-  case am of
-    Map m ->
+lookup ak (Map m) =
       let
         look akvs =
           case akvs of
@@ -83,13 +79,9 @@ lookup ak am =
 
 empty = Map []
 
-elems m =
-  case m of
-    Map kvs -> map snd kvs
+elems (Map kvs) = map snd kvs
 
-size m =
-  case m of
-    Map kvs -> length kvs
+size (Map kvs) = length kvs
 
 toList (Map kvs) = kvs
 

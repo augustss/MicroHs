@@ -22,24 +22,16 @@ data Flags = Flags Int Bool [String] String
 type Time = Int
 
 verbose :: Flags -> Int
-verbose f =
-  case f of
-    Flags x _ _ _ -> x
+verbose (Flags x _ _ _) = x
 
 runIt :: Flags -> Bool
-runIt f =
-  case f of
-    Flags _ x _ _ -> x
+runIt (Flags _ x _ _) = x
 
 paths :: Flags -> [String]
-paths f =
-  case f of
-    Flags _ _ x _ -> x
+paths (Flags _ _ x _) = x
 
 output :: Flags -> String
-output f =
-  case f of
-    Flags _ _ _ x -> x
+output (Flags _ _ _ x) = x
 
 -----------------
 
@@ -48,19 +40,13 @@ data Cache = Cache [IdentModule] (M.Map CModule)
   --Xderiving (Show)
 
 working :: Cache -> [IdentModule]
-working c =
-  case c of
-    Cache x _ -> x
+working (Cache x _) = x
 
 updWorking :: [IdentModule] -> Cache -> Cache
-updWorking w c =
-  case c of
-    Cache _ m -> Cache w m
+updWorking w (Cache _ m) = Cache w m
 
 cache :: Cache -> M.Map CModule
-cache c =
-  case c of
-    Cache _ x -> x
+cache (Cache _ x) = x
 
 {-
 updCache :: M.Map Module -> Cache -> Cache
@@ -75,9 +61,7 @@ compile :: Flags -> IdentModule -> IO [LDef]
 compile flags nm = IO.do
   ((_, t), ch) <- runStateIO (compileModuleCached flags nm) (Cache [] M.empty)
   let
-    defs m =
-      case m of
-        TModule _ _ _ _ ds -> ds
+    defs (TModule _ _ _ _ ds) = ds
   IO.when (verbose flags > 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (showInt t) ++ "ms"
   IO.return $ concatMap defs $ M.elems $ cache ch

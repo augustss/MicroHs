@@ -17,14 +17,12 @@ import MicroHs.Parse
 import MicroHs.Exp
 
 translate :: (Ident, [LDef]) -> IO ()
-translate mds =
-  case mds of
-    (mainName, ds) ->
-      let
-        look m n = fromMaybe (error $ "not found " ++ n) $ M.lookup n m
-        --Xmp :: M.Map Any
-        mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
-      in  unsafeCoerce $ look mp mainName
+translate (mainName, ds) =
+  let
+    look m n = fromMaybe (error $ "not found " ++ n) $ M.lookup n m
+    --Xmp :: M.Map Any
+    mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
+  in  unsafeCoerce $ look mp mainName
 
 trans :: (Ident -> Any) -> Exp -> Any
 trans r ae =
