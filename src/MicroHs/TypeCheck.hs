@@ -818,7 +818,13 @@ tcPat mt ap ta = T.do
   env <- T.mapM (\ v -> (pair v . ETypeScheme []) <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
   withExtVals env $ T.do
     (pp, _) <- tcExpr mt ap
+    () <- checkArity 0 pp
     ta pp
+
+checkArity :: Int -> EPat -> T ()
+checkArity n (EApp f _) = checkArity (n+1) f
+checkArity n (ECon c) = if n == conArity c then T.return () else error "con arity"
+checkArity _ _ = T.return ()
 
 -- XXX No mutual recursion yet
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
