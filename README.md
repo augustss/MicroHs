@@ -116,5 +116,18 @@ To bootstrap:
 
 # FAQ
 * 
-  * Q: When will it get <insert feature>?
+  * Q: When will it get _insert feature_?
   * A: Maybe some time, maybe never.
+*
+  * Q: Why are the error messages so bad?
+  * A: Error messages are boring.  But I plan to add location information to them.
+*
+  * Q: Why is the so much source code?
+  * A: I wonder this myself.  Over 5000 lines of Haskell seems excessive.
+       1500 lines of C is also more than I'd like for such a simple system.
+*
+  * Q: Why are the binaries so big?
+  * A: The combinator file is rather verbose.  Compressed the combinator file
+       for the compiler shrinks from 150kB to 20kB.  The evaluator is 44kB so
+       the total size for runtime and (compressed) compiler is about 65k.
+       I'm sorry if you're running on a 16 bit system.
