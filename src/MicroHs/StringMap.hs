@@ -83,6 +83,8 @@ size m =
   case m of
     Map kvs -> length kvs
 
+toList (Map kvs) = kvs
+
 {-
 import qualified Data.Map as M
 
@@ -95,6 +97,7 @@ union = M.unionBy leString
 lookup = M.lookupBy leString
 empty = M.empty
 elems = M.elems
+toList = M.toList
 -}
 
 -------
@@ -107,3 +110,4 @@ lookup :: forall v . String -> Map v -> Maybe v
 empty :: forall v . Map v
 elems :: forall v . Map v -> [v]
 size :: forall v . Map v -> Int
+toList :: forall v . Map v -> [(String, v)]
