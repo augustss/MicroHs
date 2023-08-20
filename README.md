@@ -116,5 +116,5 @@ To bootstrap:
 
 # FAQ
 * 
- * Q: When will it get <insert feature>?
- * A: Maybe some time, maybe never.
+  * Q: When will it get <insert feature>?
+  * A: Maybe some time, maybe never.
