@@ -87,6 +87,7 @@ The runtime system is written in C and is in `eval.c`.
 It uses combinators for handling variables, and has some primitive operations
 for integers and for executing IO operations.
 There is a also a simple mark-scan garbage collector.
+It is written in a reasonably portable C code.
 
 ### Runtime flags
 * `-HSIZE` set heap size to `SIZE` cells, can be suffixed by `k`, `M`, or `G`
@@ -105,10 +106,10 @@ It is possible to recompile the compiler without access to a Haskell compiler.
 The combinator file for the compiler itself is available in `comb/mhs.comb`.
 The bootstrapping process takes about 30s.
 To bootstrap:
- * build the evaluator `make bin/eval`, this requires a C compiler
- * compiler the compiler
-```
-bin/eval -H50M -rcomb/mhs.comb -- -ilib -isrc -onewmhs.comb MicroHs.Main
-```
+ * build the evaluator, `make bin/eval`, this requires a C compiler
+ * compile the compiler
+   ```
+   bin/eval -H50M -rcomb/mhs.comb -- -ilib -isrc -onewmhs.comb MicroHs.Main
+   ```
  * The file `newmhs.comb` is the new combinator binary and it should be
    identical to `comb/mhs.comb`.
