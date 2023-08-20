@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
-module MicroHs.Main(module MicroHs.Main) where
+module MicroHs.Main(main) where
 import Prelude
 import qualified MicroHs.StringMapFast as M
 import Data.Maybe

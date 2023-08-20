@@ -1,6 +1,8 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module MicroHs.Translate(module MicroHs.Translate) where
+module MicroHs.Translate(
+  translate
+  ) where
 import Prelude
 import Data.Maybe
 import qualified MicroHs.StringMap as M

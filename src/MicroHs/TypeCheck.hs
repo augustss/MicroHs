@@ -1,11 +1,8 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module MicroHs.TypeCheck(
-  module MicroHs.TypeCheck
-{-
   typeCheck,
-  TModule(..),
-  showTModule,
--}
+  TModule(..), showTModule,
+  impossible
   ) where
 import Prelude
 import Data.List
@@ -162,6 +159,7 @@ mkTables mdls =
       in M.fromListWith (unionBy eqEntry) $ concatMap types mdls
   in  (allTypes, allSyns, allValues)
 
+{-
 arityOf :: EType -> Int
 arityOf at =
   case getArrow at of
@@ -181,6 +179,7 @@ kindOf ti =
     TAbs k -> ETypeScheme [] k
     TConc k _ -> ETypeScheme [] k
     TSyn k _ -> ETypeScheme [] k
+-}
 
 eqEntry :: Entry -> Entry -> Bool
 eqEntry x y =

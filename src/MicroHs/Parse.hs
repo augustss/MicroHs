@@ -2,23 +2,29 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-type-defaults -Wno-name-shadowing -Wno-unused-do-bind #-}
 module MicroHs.Parse(
-  module MicroHs.Parse
-{-
-  pTop,
-  parseDie,
-  Ident,
+  pTop, parseDie,
+  Ident, eqIdent, qual, showIdent,
   IdentModule,
-  qual,
-  EDef(..),
-  ImportSpec(..),
-  Expr(..),
-  EStmt(..),
-  EPat(..),
-  EBind(..),
   EModule(..),
   ExportSpec(..),
+  ImportSpec(..),
+  EDef(..), showEDefs,
+  Expr(..), showExpr,
+  EBind(..),
+  Eqn(..),
+  EStmt(..),
+  ECaseArm,
+  EType,
+  EPat, patVars, isPVar,
+  EKind,
   LHS,
--}
+  Constr,
+  ConTyInfo,
+  ETypeScheme(..),
+  Con(..), conIdent, conArity,
+  tupleConstr,
+  subst,
+  allVarsExpr, allVarsBind
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
 --import Control.Monad
@@ -95,11 +101,12 @@ conIdent c =
   case c of
     Con _ i -> i
 
+{-
 conTyInfo :: Con -> ConTyInfo
 conTyInfo c =
   case c of
     Con cs _ -> cs
-
+-}
 conArity :: Con -> Int
 conArity c =
   case c of
@@ -168,8 +175,10 @@ type EKind = EType
 eqIdent :: Ident -> Ident -> Bool
 eqIdent = eqString
 
+{-
 leIdent :: Ident -> Ident -> Bool
 leIdent = leString
+-}
 
 showIdent :: Ident -> String
 showIdent i = i
@@ -177,8 +186,10 @@ showIdent i = i
 tupleConstr :: Int -> Ident
 tupleConstr n = replicate (n-1) ','
 
+{-
 untupleConstr :: Ident -> Int
 untupleConstr s = length s + 1
+-}
 
 ---------------------------------
 
@@ -763,6 +774,7 @@ pBlock p = P.do
 
 --------------
 
+{-
 showEModule :: EModule -> String
 showEModule am =
   case am of
@@ -778,6 +790,7 @@ showExportSpec ae =
     ExpTypeCon i -> i ++ "(..)"
     ExpType i -> i
     ExpValue i -> i
+-}
 
 showEDef :: EDef -> String
 showEDef def =
@@ -880,10 +893,12 @@ allVarsEqn eqn =
   case eqn of
     Eqn ps e -> concatMap allVarsPat ps ++ allVarsExpr e
 
+{-
 allVarsLHS :: LHS -> [Ident]
 allVarsLHS iis =
   case iis of
     (i, is) -> i : is
+-}
 
 allVarsPat :: EPat -> [Ident]
 allVarsPat = allVarsExpr

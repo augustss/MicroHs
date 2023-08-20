@@ -1,6 +1,9 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module MicroHs.Compile(module MicroHs.Compile) where
+module MicroHs.Compile(
+  compile,
+  Flags(..), verbose, runIt, output
+  ) where
 import Prelude --Xhiding (Monad(..), mapM, showString)
 import qualified System.IO as IO
 --Ximport Compat

@@ -1,6 +1,12 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module MicroHs.Exp(module MicroHs.Exp) where
+module MicroHs.Exp(
+  compileOpt,
+  substExp,
+  Exp(..), showExp, toStringP,
+  PrimOp,
+  app2, cCons, cNil, cFlip
+  ) where
 import Prelude
 import Data.List
 import MicroHs.Parse --X(Ident, eqIdent)
@@ -70,6 +76,7 @@ cNil = Prim "K"
 cFlip :: Exp
 cFlip = Prim "C"
 
+{-
 eqExp :: Exp -> Exp -> Bool
 eqExp ae1 ae2 =
   case ae1 of
@@ -93,6 +100,7 @@ eqExp ae1 ae2 =
       case ae2 of
         Prim p2 -> eqString p1 p2
         _ -> False
+-}
 
 toStringP :: Exp -> String
 toStringP ae =

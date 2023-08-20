@@ -1,7 +1,13 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module MicroHs.StringMap(module MicroHs.StringMap) where
-import Prelude
+module MicroHs.StringMap(
+  Map,
+  size,
+  empty, insert, lookup,
+  fromList, fromListWith,
+  toList, elems
+  ) where
+import Prelude --Xhiding(lookup)
 --Ximport Compat
 
 {-
@@ -16,7 +22,7 @@ fromListWith = M.fromListWith
 
 fromList = M.fromList
 
-union = M.union
+--union = M.union
 
 lookup k m =
   case M.lookup k m of
@@ -55,11 +61,13 @@ fromListWith un =
 
 fromList = Map
 
+{-
 union akvs1 akvs2 =
   case akvs1 of
     Map kvs1 ->
       case akvs2 of
         Map kvs2 -> Map (kvs1 ++ kvs2)
+-}
 
 lookup ak am =
   case am of
@@ -93,7 +101,7 @@ type Map v = M.Map String v
 insert = M.insertBy leString
 fromListWith = M.fromListByWith leString
 fromList = M.fromListBy leString
-union = M.unionBy leString
+--union = M.unionBy leString
 lookup = M.lookupBy leString
 empty = M.empty
 elems = M.elems
@@ -105,7 +113,7 @@ toList = M.toList
 insert :: forall v . String -> v -> Map v -> Map v
 fromListWith :: forall v . (v -> v -> v) -> [(String, v)] -> Map v
 fromList :: forall v . [(String, v)] -> Map v
-union :: forall v . Map v -> Map v -> Map v
+--union :: forall v . Map v -> Map v -> Map v
 lookup :: forall v . String -> Map v -> Maybe v
 empty :: forall v . Map v
 elems :: forall v . Map v -> [v]

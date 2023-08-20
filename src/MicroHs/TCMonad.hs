@@ -1,12 +1,11 @@
-{-# OPTIONS_GHC -Wno-orphans -Wno-dodgy-imports #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-dodgy-imports -Wno-unused-imports #-}
 module MicroHs.TCMonad(
---X  (<$>),
---X  module Control.Monad,
-  module MicroHs.TCMonad,
-  module Control.Monad.State.Strict
+  TC, runState,
+  fmap, (<$>),
+  (>>=), (>>), return, fail,
+  get, put, gets,
+  mapM, mapM_
 {-
-  TC,
-  (>>=), (>>), return,
   runState,
   fmap,
   fail,

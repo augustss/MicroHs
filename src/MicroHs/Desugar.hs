@@ -2,8 +2,8 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-type-defaults -Wno-incomplete-uni-patterns -Wno-unused-imports #-}
 module MicroHs.Desugar(
-  module MicroHs.Desugar
-  --desugar, LDef, showLDefs,
+  desugar,
+  LDef, showLDefs
   ) where
 --import Debug.Trace
 import Prelude
@@ -155,11 +155,6 @@ dsLam ps e =
     xs = take (length ps) (newVars vs)
     ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsExpr e)]
   in foldr Lam ex xs
-
-spatVars :: SPat -> [Ident]
-spatVars ap =
-  case ap of
-    SPat _ is -> is
 
 mqual :: Maybe Ident -> Ident -> Ident
 mqual mqi i =

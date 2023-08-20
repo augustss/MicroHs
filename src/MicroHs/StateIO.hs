@@ -14,11 +14,13 @@ runStateIO sa =
   case sa of
     S x -> x
 
+{-
 execStateIO :: forall s a . StateIO s a -> s -> IO s
 execStateIO sa s = IO.do
   as <- runStateIO sa s
   case as of
     (_, ss) -> IO.return ss
+-}
 
 (>>=) :: forall s a b . StateIO s a -> (a -> StateIO s b) -> StateIO s b
 (>>=) m k = S $ \ s -> IO.do
