@@ -28,6 +28,7 @@ It has the following features:
 * importing of other modules, `qualified` and `as` supported, but no import list
 * exporting with mandatory export list
 * the `Prelude` has to be imported explicitely
+* terrible, terrible error messages
 
 ## Example
 The file `Example.hs` contains the following:
@@ -102,9 +103,12 @@ The only exception to this is file handles, which cannot be serialized.
 ## Bootstrapping
 It is possible to recompile the compiler without access to a Haskell compiler.
 The combinator file for the compiler itself is available in `comb/mhs.comb`.
+The bootstrapping process takes about 30s.
 To bootstrap:
  * build the evaluator `make bin/eval`, this requires a C compiler
  * compiler the compiler
 ```
 bin/eval -H50M -rcomb/mhs.comb -- -ilib -isrc -onewmhs.comb MicroHs.Main
 ```
+ * The file `newmhs.comb` is the new combinator binary and it should be
+   identical to `comb/mhs.comb`.
