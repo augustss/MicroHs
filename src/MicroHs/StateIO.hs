@@ -71,3 +71,6 @@ mapM f =
           bs <- rec as
           MicroHs.StateIO.return (b : bs)
   in rec
+
+fail :: forall s a . String -> StateIO s a
+fail = error

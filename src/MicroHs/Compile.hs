@@ -97,10 +97,8 @@ compileModule flags nm = S.do
   t1 <- liftIO getTimeMilli
   let
     fn = map (\ c -> if eqChar c '.' then '/' else c) nm ++ ".hs"
-  mdl <- S.fmap (parseDie pTop fn) (liftIO (readFilePath (paths flags) fn))
+  mdl@(EModule nmn _ defs) <- S.fmap (parseDie pTop fn) (liftIO (readFilePath (paths flags) fn))
   --liftIO $ putStrLn $ showEModule mdl
-  let
-    EModule nmn _ defs = mdl
   S.when (not (eqIdent nm nmn)) $
     error $ "module name does not agree with file name: " ++ showIdent nm
   let

@@ -1,0 +1,61 @@
+cabal-version:       3.6
+name:                MicroHs
+version:             0.1
+synopsis:            A compiler for a small subset of Haskell
+license:             Apache-2.0
+license-file:        LICENSE
+copyright:           2023 Lennart Augustsson
+category:            language
+author:              lennart@augustsson.net
+maintainer:          lennart@augustsson.net
+stability:           experimental
+description:         A compiler for a small subset of Haskell.
+                     The compiler translates to combinators and can compile itself.
+build-type:          Simple
+
+extra-source-files:
+      LICENSE
+      Example.hs
+      Makefile
+      README.md
+      convertX.sh
+      convertY.sh
+      comb/*.comb
+      ghc/Primitives.hs
+      ghc/Data/Bool_Type.hs
+      lib/**/*.hs
+      src/runtime/eval.c
+      tests/Makefile
+      tests/*.hs
+      tests/*.ref
+
+source-repository head
+    type:     git
+    location: https://github.com/augustss/MicroHs
+
+executable mhs
+  default-language:    Haskell98
+  hs-source-dirs:      src
+  ghc-options:         -Wall -F -pgmF ./convertX.sh -main-is MicroHs.Main
+  main-is:             MicroHs/Main.hs
+  default-extensions:  ScopedTypeVariables QualifiedDo
+  other-modules:       MicroHs.Compile
+                       MicroHs.Desugar
+                       MicroHs.Exp
+                       MicroHs.Parse
+                       MicroHs.StateIO
+                       MicroHs.StringMap
+                       MicroHs.StringMapFast
+                       MicroHs.TCMonad
+                       MicroHs.Translate
+                       MicroHs.TypeCheck
+                       PreludeNoIO
+                       Text.ParserComb
+                       Compat
+                       CompatIO
+                       PrimTable
+  build-depends:       base         >= 4.10 && < 4.20,
+                       containers   >= 0.5 && < 0.8,
+                       ghc-prim     >= 0.5 && < 0.11,
+                       mtl          >= 2.0 && < 2.4,
+                       time         >= 1.1 && < 1.15
