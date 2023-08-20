@@ -272,7 +272,9 @@ data SPat = SPat Con [Ident]    -- simple pattern
 --                     p21, ..., p2n
 --                     pm1, ..., pmn   -> em
 -- Note that the RHSs are of type Exp.
-dsMatrix :: Exp -> [Exp] -> Matrix -> M Exp
+dsMatrix :: --XHasCallStack =>
+            Exp -> [Exp] -> Matrix -> M Exp
+dsMatrix _ _ [] = impossible
 dsMatrix dflt iis aarms =
  if null aarms then
    S.return dflt
@@ -353,6 +355,7 @@ mkCase var pes dflt =
   --trace ("mkCase " ++ show pes) $
   case pes of
     (SPat (Con cs name) _, arhs) : _ ->
+      -- A hack for Int pattern matching
       if isInt name then
         let
           cond = app2 eEqInt var (Int (readInt name))
@@ -372,8 +375,7 @@ mkCase var pes dflt =
 eCase :: Exp -> [(SPat, Exp)] -> Exp
 eCase e as = apps e [lams xs r | (SPat _ xs, r) <- as ]
 
--- Split the matrix into segments so each first column has initially patterns
--- followed by a single default case.
+-- Split the matrix into segments so each first column has initially patterns -- followed by variables, followed by the rest.
 splitArms :: Matrix -> (Matrix, Matrix, Matrix)
 splitArms am =
   let
