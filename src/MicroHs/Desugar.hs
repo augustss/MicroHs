@@ -274,7 +274,6 @@ data SPat = SPat Con [Ident]    -- simple pattern
 -- Note that the RHSs are of type Exp.
 dsMatrix :: --XHasCallStack =>
             Exp -> [Exp] -> Matrix -> M Exp
-dsMatrix _ _ [] = impossible
 dsMatrix dflt iis aarms =
  if null aarms then
    S.return dflt
@@ -367,8 +366,7 @@ mkCase var pes dflt =
               (c, k) = ck
               (vs, rhs) = head $ [ (xs, e) | (SPat (Con _ i) xs, e) <- pes, eqIdent c i ] ++
                                  [ (replicate k dummyIdent, dflt) ]
-            in if length vs /= k then error "bad arity" else
-               (SPat (Con cs c) vs, rhs)
+            in (SPat (Con cs c) vs, rhs)
         in  eCase var (map arm cs)
     _ -> impossible
 
