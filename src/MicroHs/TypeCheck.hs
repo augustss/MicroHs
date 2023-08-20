@@ -50,24 +50,69 @@ typeCheck imps amdl =
   in  case amdl of
         EModule mn exps defs ->
           case runState (tcDefs defs) (initTC mn ts ss vs) of
-            (tds, _) ->
+            (tds, tcs) ->
               let
                 thisMdl = (mn, mkTModule mn tds impossible)
                 impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm, tm) <- imps]
                 impMap = M.fromList (thisMdl : impMdls)
-                (mdltexps, mdlsexps, mdlvexps) =
-                  unzip3 [ case M.lookup m impMap of
-                            Just (TModule _ te se ve _) -> (te, se, ve)
-                            _ -> error $ "import " ++ m
-                        | ExpModule m <- exps ]
---                types = typeTable ts
---                (values, syns) = valueTable ts
-              in  TModule mn (concat mdltexps) (concat mdlsexps) (concat mdlvexps) tds
+                (texps, sexps, vexps) =
+                  unzip3 $ map (getExps impMap (typeTable tcs) (synTable tcs) (valueTable tcs)) exps
+              in  TModule mn (concat texps) (concat sexps) (concat vexps) tds
+
+getExps :: forall a . M.Map (TModule a) -> TypeTable -> SynTable -> ValueTable -> ExportSpec ->
+           ([TypeExport], [SynDef], [ValueExport])
+getExps impMap _ _ _ (ExpModule m) =
+  case M.lookup m impMap of
+    Just (TModule _ te se ve _) -> (te, se, ve)
+    _ -> expErr m
+getExps _ tys _ vals (ExpTypeCon i) =
+  let
+    e = expLookup i tys
+    qi = tyQIdent e
+  in ([TypeExport i e []], [], constrsOf qi (M.toList vals))
+getExps _ tys syns _ (ExpType i) =
+  let
+    e = expLookup i tys
+    qi = tyQIdent e
+    se = case M.lookup qi syns of
+           Nothing -> []
+           Just ts -> [(qi, ts)]
+  in ([TypeExport i e []], se, [])
+getExps _ _ _ vals (ExpValue i) =
+    ([], [], [ValueExport i (expLookup i vals)])
+
+expLookup :: Ident -> M.Map [Entry] -> Entry
+expLookup i m =
+  case M.lookup i m of
+    Just [e] -> e
+    Just _ -> error $ "export ambig " ++ i
+    Nothing -> expErr i
+
+tyQIdent :: Entry -> Ident
+tyQIdent (Entry (EVar qi) _) = qi
+tyQIdent _ = undefined
+
+constrsOf :: Ident -> [(Ident, [Entry])] -> [ValueExport]
+constrsOf qi ies =
+  [ ValueExport i e | (i, es) <- ies, e@(Entry (ECon _) (ETypeScheme _ t)) <- es, eqIdent (retTyCon t) qi ]
+
+retTyCon :: EType -> Ident
+retTyCon t =
+  case getArrow t of
+    Nothing -> getAppCon t
+    Just (_, a) -> retTyCon a
+
+getAppCon :: EType -> Ident
+getAppCon (EVar i) = i
+getAppCon (EApp f _) = getAppCon f
+getAppCon _ = undefined
+
+expErr :: forall a . Ident -> a
+expErr i = error $ "export: " ++ i
 
 mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
 mkTModule mn tds a =
   let
-    ves = [ ValueExport i (Entry (EVar (qual mn i)) ts) | Sign i ts <- tds ]
     con ci it vs (ic, ts) =
       let
         e = ECon $ Con ci (qual mn ic)
@@ -77,6 +122,7 @@ mkTModule mn tds a =
         ci = [ (qual mn c, length ts) | (c, ts) <- cs ]
       in map (con ci i vs) cs
     tentry i vs = Entry (EVar (qual mn i)) (ETypeScheme [] $ lhsKind vs)
+    ves = [ ValueExport i (Entry (EVar (qual mn i)) ts) | Sign i ts <- tds ]
     tes =
       [ TypeExport i (tentry i vs) (cons i vs cs) | Data (i, vs) cs <- tds ] ++
       [ TypeExport i (tentry i vs) []             | Type (i, vs) _  <- tds ]
