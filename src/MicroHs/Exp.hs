@@ -310,6 +310,8 @@ improveT ae =
           Prim "A"
 --        else if isI ff then
 --          aa
+        else if isC ff && isI aa then
+          Prim "T"
         else
           let
             def =
@@ -334,6 +336,7 @@ improveT ae =
             
 {-
 -- K I      -->  A
+-- C I      -->  T
 -- Y (K e)  -->  e
 -- K x y    -->  x
 improveT (App f a) =

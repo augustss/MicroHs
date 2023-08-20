@@ -12,7 +12,7 @@
 #define FASTTAGS 1
 #define UNIONPTR 1
 
-#define VERSION "v2.1\n"
+#define VERSION "v2.2\n"
 
 #define HEAP_CELLS 100000
 #define STACK_SIZE 10000
@@ -20,12 +20,12 @@
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, /* 0 - 9 */
-                A, Y, SS, BB, CC, P, O, ADD, SUB, MUL,  /* 10 - 19 */
-                QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR, /* 20-29 */
-                IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR, /* 30-34 */
-                IO_SERIALIZE, IO_DESERIALIZE, IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE, /* 35-39 */
-                IO_STDIN, IO_STDOUT, IO_STDERR, IO_GETARGS, IO_PERFORMIO, /* 40-44 */
-                IO_GETTIMEMILLI, IO_PRINT, /* 45 - 46 */
+                A, Y, SS, BB, CC, P, O, T, ADD, SUB, MUL,  /* 10 - 20 */
+                QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR, /* 21-30 */
+                IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR, /* 31-35 */
+                IO_SERIALIZE, IO_DESERIALIZE, IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE, /* 36-40 */
+                IO_STDIN, IO_STDOUT, IO_STDERR, IO_GETARGS, IO_PERFORMIO, /* 41-45 */
+                IO_GETTIMEMILLI, IO_PRINT, /* 46 - 47 */
                 LAST_TAG,
 };
 
@@ -236,6 +236,7 @@ struct {
   { "P", P },
   { "I", I },
   { "S", S },
+  { "T", T },
   { "Y", Y },
   { "B'", BB },
   /* primops */
@@ -1000,11 +1001,20 @@ eval(NODEPTR n)
       GOTO ind;
     case A:                     /* A x y = * y */
       CHECK(2);
-      x = ARG(TOP(2));
+      y = ARG(TOP(2));
       POP(2);
       n = TOP(0);
-      SETIND(n, x);
+      SETIND(n, y);
       GOTO ind;
+    case T:                     /* T x y = y x */
+      CHECK(2);
+      x = ARG(TOP(1));
+      y = ARG(TOP(2));
+      POP(2);
+      n = TOP(0);
+      FUN(n) = y;
+      ARG(n) = x;
+      GOTO ap;
     case I:                     /* I x = * x */
       CHECK(1);
       x = ARG(TOP(1));

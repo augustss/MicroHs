@@ -63,7 +63,7 @@ main = do
       putStrLn $ "final pass            " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
 
 version :: String
-version = "v2.1\n"
+version = "v2.2\n"
 
 type Program = (Ident, [LDef])
 
