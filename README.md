@@ -113,3 +113,8 @@ To bootstrap:
    ```
  * The file `newmhs.comb` is the new combinator binary and it should be
    identical to `comb/mhs.comb`.
+
+# FAQ
+* 
+ * Q: When will it get <insert feature>?
+ * A: Maybe some time, maybe never.

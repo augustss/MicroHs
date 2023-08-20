@@ -1401,22 +1401,27 @@ main(int argc, char **argv)
   FILE *f = fopen(fn, "r");
   if (!f)
     ERR("file not found");
-  NODEPTR n = parse_top(f);
+  NODEPTR prog = parse_top(f);
   file_size = ftell(f);
   fclose(f);
-  PUSH(n); gc(); n = TOP(0); POP(1);
+  PUSH(prog); gc(); prog = TOP(0); POP(1);
   int64_t start_size = num_marked;
   if (verbose > 2) {
-    //pp(stdout, n);
-    print(stdout, n, 1);
+    //pp(stdout, prog);
+    print(stdout, prog, 1);
   }
   run_time -= gettime();
-  n = evalio(n);
+  NODEPTR res = evalio(prog);
   run_time += gettime();
+  if (0) {
+    FILE *out = fopen("prog.comb", "w");
+    print(out, prog, 1);
+    fclose(out);
+  }
   if (verbose) {
     if (verbose > 1) {
       printf("\nmain returns ");
-      pp(stdout, n);
+      pp(stdout, res);
       printf("node size=%"PRId64", heap size bytes=%"PRId64"\n", (int64_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
     setlocale(LC_NUMERIC, "");
