@@ -1562,7 +1562,7 @@ main(int argc, char **argv)
       pp(stdout, res);
       printf("node size=%"PRIu64", heap size bytes=%"PRIu64"\n", (uint64_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
-    setlocale(LC_NUMERIC, "");
+    setlocale(LC_NUMERIC, "");  /* Make %' work on platforms that support it */
     printf("%"PCOMMA"15"PRIu64" combinator file size\n", file_size);
     printf("%"PCOMMA"15"PRIu64" cells at start\n", start_size);
     printf("%"PCOMMA"15"PRIu64" heap size\n", heap_size);

@@ -84,7 +84,6 @@ data Expr
   | EIf Expr Expr Expr
   | ECompr Expr [EStmt]
   | EAt Ident Expr  -- only in patterns
-  | EBad String
   -- Only while type checking
   | EUVar Int
   -- Constructors after type checking
@@ -822,7 +821,6 @@ showExpr ae =
     EIf e1 e2 e3 -> "if " ++ showExpr e1 ++ " then " ++ showExpr e2 ++ " else " ++ showExpr e3
     ECompr _ _ -> "ECompr"
     EAt i e -> i ++ "@" ++ showExpr e
-    EBad _ -> "EBad"
     EUVar i -> "a" ++ showInt i
     ECon c -> conIdent c
 
@@ -916,7 +914,6 @@ allVarsExpr aexpr =
     EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
     ECompr e ss -> allVarsExpr e ++ concatMap allVarsStmt ss
     EAt i e -> i : allVarsExpr e
-    EBad _ -> []
     EUVar _ -> []
     ECon c -> [conIdent c]
 

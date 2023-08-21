@@ -763,7 +763,6 @@ tcExprR mt ae =
       unify t ti
       T.return (EAt i ee, t)
     -----
-    EBad _ -> impossible    -- shouldn't happen
     EUVar _ -> impossible -- shouldn't happen
     ECon _ -> impossible
 
