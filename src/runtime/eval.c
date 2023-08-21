@@ -6,8 +6,51 @@
 #include <string.h>
 #include <inttypes.h>
 #include <locale.h>
+#if !defined(_MSC_VER)
 #include <sys/time.h>
+#endif
 #include <ctype.h>
+
+#if defined(__MINGW32__)
+#define ffsl __builtin_ffsll
+#endif
+#if defined(_MSC_VER)
+#pragma warning(disable : 4996)
+#pragma intrinsic(_BitScanForward)
+#define FFSL(ret, arg) do { unsigned long r; if (_BitScanForward64(&r, (arg))) { (ret) = r+1; } else (ret) = 0; } while(0)
+#define PCOMMA ""
+
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+typedef struct timeval {
+    long tv_sec;
+    long tv_usec;
+} timeval;
+
+int gettimeofday(struct timeval * tp, struct timezone * tzp)
+{
+    static const uint64_t EPOCH = ((uint64_t) 116444736000000000ULL);
+
+    SYSTEMTIME  system_time;
+    FILETIME    file_time;
+    uint64_t    time;
+
+    GetSystemTime( &system_time );
+    SystemTimeToFileTime( &system_time, &file_time );
+    time =  ((uint64_t)file_time.dwLowDateTime )      ;
+    time += ((uint64_t)file_time.dwHighDateTime) << 32;
+
+    tp->tv_sec  = (long) ((time - EPOCH) / 10000000L);
+    tp->tv_usec = (long) (system_time.wMilliseconds * 1000);
+    return 0;
+}
+
+#else  /* defined(_MSC_VER) */
+#define FFSL(ret, arg) ((ret) = ffsl(arg))
+#define PCOMMA "'"
+
+#endif  /* !defined(_MSC_VER) */
 
 #define FASTTAGS 1
 #define UNIONPTR 1
@@ -19,14 +62,14 @@
 
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
-enum node_tag { FREE, IND, AP, INT, HDL, S, K, I, B, C, /* 0 - 9 */
-                A, Y, SS, BB, CC, P, O, T, ADD, SUB, MUL,  /* 10 - 20 */
-                QUOT, REM, SUBR, EQ, NE, LT, LE, GT, GE, ERROR, /* 21-30 */
-                IO_BIND, IO_THEN, IO_RETURN, IO_GETCHAR, IO_PUTCHAR, /* 31-35 */
-                IO_SERIALIZE, IO_DESERIALIZE, IO_OPEN, IO_CLOSE, IO_ISNULLHANDLE, /* 36-40 */
-                IO_STDIN, IO_STDOUT, IO_STDERR, IO_GETARGS, IO_PERFORMIO, /* 41-45 */
-                IO_GETTIMEMILLI, IO_PRINT, /* 46 - 47 */
-                LAST_TAG,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C, /* 0 - 9 */
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_ADD, T_SUB, T_MUL,  /* 10 - 20 */
+                T_QUOT, T_REM, T_SUBR, T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ERROR, /* 21-30 */
+                T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR, /* 31-35 */
+                T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE, /* 36-40 */
+                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO, /* 41-45 */
+                T_IO_GETTIMEMILLI, T_IO_PRINT, /* 46 - 47 */
+                T_LAST_TAG,
 };
 
 typedef int64_t value_t;
@@ -59,7 +102,7 @@ typedef struct node* NODEPTR;
 #define INDIR(p) FUN(p)
 #define HANDLE(p) (p)->u.file
 #define NODE_SIZE sizeof(node)
-#define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
+#define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); if (!cells) memerr(); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) ((uint64_t)((n) - cells))
 node *cells;                 /* All cells */
 
@@ -68,7 +111,7 @@ node *cells;                 /* All cells */
 typedef struct node {
   union {
     struct node *uufun;
-    uint64_t uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is an AP node */
+    uint64_t uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is anT_AP node */
   } ufun;
   union {
     struct node *uuarg;
@@ -79,8 +122,8 @@ typedef struct node {
 typedef struct node* NODEPTR;
 #define NIL 0
 #define HEAPREF(i) &cells[(i)]
-#define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) : AP)
-#define SETTAG(p,t) do { if (t != AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
+#define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) :T_AP)
+#define SETTAG(p,t) do { if (t !=T_AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
 #define FUN(p) (p)->ufun.uufun
@@ -98,9 +141,9 @@ node *cells;                 /* All cells */
 
 #endif
 
-int64_t num_reductions = 0;
-int64_t num_alloc;
-int64_t num_gc = 0;
+uint64_t num_reductions = 0;
+uint64_t num_alloc;
+uint64_t num_gc = 0;
 double gc_scan_time = 0;
 double gc_mark_time = 0;
 double run_time = 0;
@@ -112,18 +155,25 @@ int64_t stack_ptr = -1;
 #define POP(n) stack_ptr -= (n)
 #define GCCHECK(n) gc_check((n))
 
-int64_t heap_size = HEAP_CELLS; /* number of heap cells */
-int64_t heap_start;             /* first location in heap that needs GC */
+uint64_t heap_size = HEAP_CELLS; /* number of heap cells */
+uint64_t heap_start;             /* first location in heap that needs GC */
 int64_t stack_size = STACK_SIZE;
 
-int64_t num_marked;
-int64_t max_num_marked = 0;
-int64_t num_free;
+uint64_t num_marked;
+uint64_t max_num_marked = 0;
+uint64_t num_free;
 
 #define BITS_PER_UINT64 64
 uint64_t *free_map;             /* 1 bit per node, 0=free, 1=used */
 uint64_t free_map_nwords;
 uint64_t next_scan_index;
+
+void
+memerr(void)
+{
+  fprintf(stderr, "Out of memory\n");
+  exit(1);
+}
 
 /* Set FREE bit to 0 */
 static inline void mark_used(NODEPTR n)
@@ -173,14 +223,14 @@ alloc_node(enum node_tag t)
     ERR("alloc_node");
 
   uint64_t i = next_scan_index / BITS_PER_UINT64;
-  int k;
+  int k;                        /* will contain bit pos + 1 */
   for(;;) {
     uint64_t word = free_map[i];
-    k = ffsl(word);
+    FFSL(k, word);
     if (k)
       break;
     i++;
-    if (i >= heap_size)
+    if (i >= free_map_nwords)
       ERR("alloc_node free_map");
   }
   uint64_t pos = i * BITS_PER_UINT64 + k - 1; /* first free node */
@@ -189,7 +239,7 @@ alloc_node(enum node_tag t)
   //printf("%llu %llu %d\n", next_scan_index, pos, t);
   next_scan_index = pos;
 
-  // XXX check if tag is HDL, if so possibly close */
+  // XXX check if tag is T_HDL, if so possibly close */
   //  if (TAG(n) != FREE)
   //    ERR("not free");
 
@@ -205,7 +255,7 @@ alloc_node(enum node_tag t)
 static inline NODEPTR
 new_ap(NODEPTR f, NODEPTR a)
 {
-  NODEPTR n = alloc_node(AP);
+  NODEPTR n = alloc_node(T_AP);
   FUN(n) = f;
   ARG(n) = a;
   return n;
@@ -226,51 +276,51 @@ struct {
 } primops[] = {
   /* combinators */
   /* sorted by frequency in a typical program */
-  { "B", B },
-  { "O", O },
-  { "K", K },
-  { "C'", CC },
-  { "C", C },
-  { "A", A },
-  { "S'", SS },
-  { "P", P },
-  { "I", I },
-  { "S", S },
-  { "T", T },
-  { "Y", Y },
-  { "B'", BB },
+  { "B", T_B },
+  { "O", T_O },
+  { "K", T_K },
+  { "C'", T_CC },
+  { "C", T_C },
+  { "A", T_A },
+  { "S'", T_SS },
+  { "P", T_P },
+  { "I", T_I },
+  { "S", T_S },
+  { "T", T_T },
+  { "Y", T_Y },
+  { "B'", T_BB },
   /* primops */
-  { "+", ADD },
-  { "-", SUB },
-  { "*", MUL },
-  { "quot", QUOT },
-  { "rem", REM },
-  { "subtract", SUBR },
-  { "==", EQ },
-  { "/=", NE },
-  { "<", LT },
-  { "<=", LE },
-  { ">", GT },
-  { ">=", GE },
-  { "error", ERROR },
+  { "+", T_ADD },
+  { "-", T_SUB },
+  { "*", T_MUL },
+  { "quot", T_QUOT },
+  { "rem", T_REM },
+  { "subtract", T_SUBR },
+  { "==", T_EQ },
+  { "/=", T_NE },
+  { "<", T_LT },
+  { "<=", T_LE },
+  { ">", T_GT },
+  { ">=", T_GE },
+  { "error", T_ERROR },
   /* IO primops */
-  { "IO.>>=", IO_BIND },
-  { "IO.>>", IO_THEN },
-  { "IO.return", IO_RETURN },
-  { "IO.getChar", IO_GETCHAR },
-  { "IO.putChar", IO_PUTCHAR },
-  { "IO.serialize", IO_SERIALIZE },
-  { "IO.print", IO_PRINT },
-  { "IO.deserialize", IO_DESERIALIZE },
-  { "IO.open", IO_OPEN },
-  { "IO.close", IO_CLOSE },
-  { "IO.isNullHandle", IO_ISNULLHANDLE },
-  { "IO.stdin", IO_STDIN },
-  { "IO.stdout", IO_STDOUT },
-  { "IO.stderr", IO_STDERR },
-  { "IO.getArgs", IO_GETARGS },
-  { "IO.getTimeMilli", IO_GETTIMEMILLI },
-  { "IO.performIO", IO_PERFORMIO },
+  { "IO.>>=", T_IO_BIND },
+  { "IO.>>", T_IO_THEN },
+  { "IO.return", T_IO_RETURN },
+  { "IO.getChar", T_IO_GETCHAR },
+  { "IO.putChar", T_IO_PUTCHAR },
+  { "IO.serialize", T_IO_SERIALIZE },
+  { "IO.print", T_IO_PRINT },
+  { "IO.deserialize", T_IO_DESERIALIZE },
+  { "IO.open", T_IO_OPEN },
+  { "IO.close", T_IO_CLOSE },
+  { "IO.isNullHandle", T_IO_ISNULLHANDLE },
+  { "IO.stdin", T_IO_STDIN },
+  { "IO.stdout", T_IO_STDOUT },
+  { "IO.stderr", T_IO_STDERR },
+  { "IO.getArgs", T_IO_GETARGS },
+  { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
+  { "IO.performIO", T_IO_PERFORMIO },
 };
 
 void
@@ -279,6 +329,8 @@ init_nodes(void)
   ALLOC_HEAP(heap_size);
   free_map_nwords = (heap_size + BITS_PER_UINT64 - 1) / BITS_PER_UINT64; /* bytes needed for free map */
   free_map = malloc(free_map_nwords * sizeof(uint64_t));
+  if (!free_map)
+    memerr();
 
   /* Set up permanent nodes */
   heap_start = 0;
@@ -289,33 +341,33 @@ init_nodes(void)
     //MARK(n) = MARKED;
     SETTAG(n, primops[j].tag);
     switch (primops[j].tag) {
-    case K: combFalse = n; break;
-    case A: comTrue = n; break;
-    case I: combI = n; break;
-    case O: combCons = n; break;
-    case CC: combCC = n; break;
-    case IO_BIND: combIOBIND = n; break;
-    case IO_STDIN:  SETTAG(n, HDL); HANDLE(n) = stdin;  break;
-    case IO_STDOUT: SETTAG(n, HDL); HANDLE(n) = stdout; break;
-    case IO_STDERR: SETTAG(n, HDL); HANDLE(n) = stderr; break;
+    case T_K: combFalse = n; break;
+    case T_A: comTrue = n; break;
+    case T_I: combI = n; break;
+    case T_O: combCons = n; break;
+    case T_CC: combCC = n; break;
+    case T_IO_BIND: combIOBIND = n; break;
+    case T_IO_STDIN:  SETTAG(n, T_HDL); HANDLE(n) = stdin;  break;
+    case T_IO_STDOUT: SETTAG(n, T_HDL); HANDLE(n) = stdout; break;
+    case T_IO_STDERR: SETTAG(n, T_HDL); HANDLE(n) = stderr; break;
     default:
       break;
     }
   }
 #else
-  for(enum node_tag t = FREE; t < LAST_TAG; t++) {
+  for(enum node_tag t = T_FREE; t < T_LAST_TAG; t++) {
     NODEPTR n = HEAPREF(heap_start++);
     SETTAG(n, t);
     switch (t) {
-    case K: combFalse = n; break;
-    case A: comTrue = n; break;
-    case I: combI = n; break;
-    case O: combCons = n; break;
-    case CC: combCC = n; break;
-    case IO_BIND: combIOBIND = n; break;
-    case IO_STDIN:  SETTAG(n, HDL); HANDLE(n) = stdin;  break;
-    case IO_STDOUT: SETTAG(n, HDL); HANDLE(n) = stdout; break;
-    case IO_STDERR: SETTAG(n, HDL); HANDLE(n) = stderr; break;
+    case T_K: combFalse = n; break;
+    case T_A: comTrue = n; break;
+    case T_I: combI = n; break;
+    case T_O: combCons = n; break;
+    case T_CC: combCC = n; break;
+    case T_IO_BIND: combIOBIND = n; break;
+    case T_IO_STDIN:  SETTAG(n, T_HDL); HANDLE(n) = stdin;  break;
+    case T_IO_STDOUT: SETTAG(n, T_HDL); HANDLE(n) = stdout; break;
+    case T_IO_STDERR: SETTAG(n, T_HDL); HANDLE(n) = stderr; break;
     default:
       break;
     }
@@ -352,10 +404,10 @@ mark(NODEPTR *np)
 #if GCRED
   top:
 #endif
-  if (GETTAG(n) == IND) {
+  if (GETTAG(n) == T_IND) {
     int loop = 0;
     /* Skip indirections, and redirect start pointer */
-    while (GETTAG(n) == IND) {
+    while (GETTAG(n) == T_IND) {
       //      printf("*"); fflush(stdout);
       n = INDIR(n);
       if (loop++ > 10000000) {
@@ -385,32 +437,32 @@ mark(NODEPTR *np)
   mark_used(n);
 #if GCRED
   /* This is really only fruitful just after parsing.  It can be removed. */
-  if (GETTAG(n) == AP && GETTAG(FUN(n)) == AP && GETTAG(FUN(FUN(n))) == T) {
+  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_T) {
     /* Do the T x y --> y reduction */
     NODEPTR y = ARG(n);
-    SETTAG(n, IND);
+    SETTAG(n, T_IND);
     INDIR(n) = y;
     red_t++;
     goto top;
   }
-  if (GETTAG(n) == AP && GETTAG(FUN(n)) == AP && GETTAG(FUN(FUN(n))) == K) {
+  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
     /* Do the K x y --> x reduction */
     NODEPTR x = ARG(FUN(n));
-    SETTAG(n, IND);
+    SETTAG(n, T_IND);
     INDIR(n) = x;
     red_k++;
     goto top;
   }
-  if (GETTAG(n) == AP && GETTAG(FUN(n)) == I) {
+  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == I) {
     /* Do the I x --> x reduction */
     NODEPTR x = ARG(n);
-    SETTAG(n, IND);
+    SETTAG(n, T_IND);
     INDIR(n) = x;
     red_i++;
     goto top;
   }
 #endif
-  if (GETTAG(n) == AP) {
+  if (GETTAG(n) == T_AP) {
     mark(&FUN(n));
     mark(&ARG(n));
   }
@@ -421,10 +473,10 @@ void
 scan(void)
 {
 #if SANITY
-  for(int64_t i = heap_start; i < heap_size; i++) {
+  for(uint64_t i = heap_start; i < heap_size; i++) {
     NODEPTR n = HEAPREF(i);
     if (MARK(n) == NOTMARKED) {
-      if (GETTAG(n) == HDL && HANDLE(n) != 0 &&
+      if (GETTAG(n) == T_HDL && HANDLE(n) != 0 &&
          HANDLE(n) != stdin && HANDLE(n) != stdout && HANDLE(n) != stderr) {
         /* A FILE* has become garbage, so close it. */
         fclose(HANDLE(n));
@@ -470,7 +522,7 @@ gc(void)
   if (num_free < heap_size / 50)
     ERR("heap exhausted");
   if (verbose > 1)
-    fprintf(stderr, "gc done, %"PRId64" free\n", num_free);
+    fprintf(stderr, "gc done, %"PRIu64" free\n", num_free);
 }
 
 /* Check that there are k nodes available, if not then GC. */
@@ -515,19 +567,19 @@ parse_int(FILE *f)
 
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
-  int64_t label;
+  uint64_t label;
   NODEPTR node;                 /* NIL indicates unused */
 } *shared_table;
-int64_t shared_table_size;
+uint64_t shared_table_size;
 
 /* Look for the label in the table.
  * If it's found, return the node.
  * If not found, return the first empty entry.
 */
 NODEPTR *
-find_label(int64_t label)
+find_label(uint64_t label)
 {
-  int hash = label % shared_table_size;
+  int hash = (int)(label % shared_table_size);
   for(int i = hash; ; i++) {
     if (shared_table[i].node == NIL) {
       /* The slot is empty, so claim and return it */
@@ -557,7 +609,7 @@ parse(FILE *f)
   switch (c) {
   case '(' :
     /* application: (f a) */
-    r = alloc_node(AP);
+    r = alloc_node(T_AP);
     FUN(r) = parse(f);
     if (!gobble(f, ' ')) ERR("parse ' '");
     ARG(r) = parse(f);
@@ -577,7 +629,7 @@ parse(FILE *f)
   number:
     ungetc(c, f);
     i = neg * parse_int(f);
-    r = alloc_node(INT);
+    r = alloc_node(T_INT);
     SETVALUE(r, i);
     return r;
   case '$':
@@ -605,7 +657,7 @@ parse(FILE *f)
     nodep = find_label(l);
     if (*nodep == NIL) {
       /* Not yet defined, so make it an indirection */
-      *nodep = alloc_node(IND);
+      *nodep = alloc_node(T_IND);
       INDIR(*nodep) = NIL;
     }
     return *nodep;
@@ -616,7 +668,7 @@ parse(FILE *f)
     nodep = find_label(l);
     if (*nodep == NIL) {
       /* not referenced yet, so create a node */
-      *nodep = alloc_node(IND);
+      *nodep = alloc_node(T_IND);
       INDIR(*nodep) = NIL;
     } else {
       /* Sanity check */
@@ -641,6 +693,7 @@ checkversion(FILE *f)
     if (c != fgetc(f))
       ERR("version mismatch");
   }
+  gobble(f, '\r');                 /* allow extra CR */
 }
 
 /* Parse a file */
@@ -648,12 +701,15 @@ NODEPTR
 parse_top(FILE *f)
 {
   checkversion(f);
-  int64_t numLabels = parse_int(f);
+  uint64_t numLabels = parse_int(f);
   if (!gobble(f, '\n'))
     ERR("size parse");
+  gobble(f, '\r');                 /* allow extra CR */
   shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
   shared_table = malloc(shared_table_size * sizeof(struct shared_entry));
-  for(int64_t i = 0; i < shared_table_size; i++)
+  if (!shared_table)
+    memerr();
+  for(uint64_t i = 0; i < shared_table_size; i++)
     shared_table[i].node = NIL;
   NODEPTR n = parse(f);
   free(shared_table);
@@ -662,7 +718,7 @@ parse_top(FILE *f)
 
 void printrec(FILE *f, NODEPTR n);
 
-int64_t num_shared;
+uint64_t num_shared;
 
 /* Two bits per node: marked, shared
  * 0, 0   -- not visited
@@ -692,10 +748,10 @@ static inline uint64_t test_bit(uint64_t *bits, NODEPTR n)
 void
 find_sharing(NODEPTR n)
 {
-  while (GETTAG(n) == IND)
+  while (GETTAG(n) == T_IND)
     n = INDIR(n);
   //printf("find_sharing %p %llu ", n, LABEL(n));
-  if (GETTAG(n) == AP) {
+  if (GETTAG(n) ==T_AP) {
     if (test_bit(shared_bits, n)) {
       /* Alread marked as shared */
       //printf("shared\n");
@@ -706,15 +762,15 @@ find_sharing(NODEPTR n)
       set_bit(shared_bits, n);
       num_shared++;
     } else {
-      /* Mark as shared, and recurse */
+      /* Mark as visited, and recurse */
       //printf("unmarked\n");
       set_bit(marked_bits, n);
       find_sharing(FUN(n));
       find_sharing(ARG(n));
     }
   } else {
-    /* Not an application */
-    //printf("not AP\n");
+    /* Not an application, so do nothing */
+    //printf("notT_AP\n");
     ;
   }
 }
@@ -739,16 +795,16 @@ printrec(FILE *f, NODEPTR n)
   }
 
   switch (GETTAG(n)) {
-  case IND: /*putc('*', f);*/ printrec(f, INDIR(n)); break;
-  case AP:
+  case T_IND: /*putc('*', f);*/ printrec(f, INDIR(n)); break;
+  case T_AP:
     fputc('(', f);
     printrec(f, FUN(n));
     fputc(' ', f);
     printrec(f, ARG(n));
     fputc(')', f);
     break;
-  case INT: fprintf(f, "%"PRId64, GETVALUE(n)); break;
-  case HDL:
+  case T_INT: fprintf(f, "%"PRIu64, GETVALUE(n)); break;
+  case T_HDL:
     if (HANDLE(n) == stdin)
       fprintf(f, "$IO.stdin");
     else if (HANDLE(n) == stdout)
@@ -758,45 +814,46 @@ printrec(FILE *f, NODEPTR n)
     else
       ERR("Cannot serialize handles");
     break;
-  case S: fprintf(f, "$S"); break;
-  case K: fprintf(f, "$K"); break;
-  case I: fprintf(f, "$I"); break;
-  case C: fprintf(f, "$C"); break;
-  case B: fprintf(f, "$B"); break;
-  case A: fprintf(f, "$A"); break;
-  case Y: fprintf(f, "$Y"); break;
-  case P: fprintf(f, "$P"); break;
-  case O: fprintf(f, "$O"); break;
-  case SS: fprintf(f, "$S'"); break;
-  case BB: fprintf(f, "$B'"); break;
-  case CC: fprintf(f, "$C'"); break;
-  case ADD: fprintf(f, "$+"); break;
-  case SUB: fprintf(f, "$-"); break;
-  case MUL: fprintf(f, "$*"); break;
-  case QUOT: fprintf(f, "$quot"); break;
-  case REM: fprintf(f, "$rem"); break;
-  case SUBR: fprintf(f, "$subtract"); break;
-  case EQ: fprintf(f, "$=="); break;
-  case NE: fprintf(f, "$/="); break;
-  case LT: fprintf(f, "$<"); break;
-  case LE: fprintf(f, "$<="); break;
-  case GT: fprintf(f, "$>"); break;
-  case GE: fprintf(f, "$>="); break;
-  case ERROR: fprintf(f, "$error"); break;
-  case IO_BIND: fprintf(f, "$IO.>>="); break;
-  case IO_THEN: fprintf(f, "$IO.>>"); break;
-  case IO_RETURN: fprintf(f, "$IO.return"); break;
-  case IO_GETCHAR: fprintf(f, "$IO.getChar"); break;
-  case IO_PUTCHAR: fprintf(f, "$IO.putChar"); break;
-  case IO_SERIALIZE: fprintf(f, "$IO.serialize"); break;
-  case IO_PRINT: fprintf(f, "$IO.print"); break;
-  case IO_DESERIALIZE: fprintf(f, "$IO.deserialize"); break;
-  case IO_OPEN: fprintf(f, "$IO.open"); break;
-  case IO_CLOSE: fprintf(f, "$IO.close"); break;
-  case IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
-  case IO_GETARGS: fprintf(f, "$IO.getArgs"); break;
-  case IO_GETTIMEMILLI: fprintf(f, "$IO.getTimeMilli"); break;
-  case IO_PERFORMIO: fprintf(f, "$IO.performIO"); break;
+  case T_S: fprintf(f, "$S"); break;
+  case T_K: fprintf(f, "$K"); break;
+  case T_I: fprintf(f, "$I"); break;
+  case T_C: fprintf(f, "$C"); break;
+  case T_B: fprintf(f, "$B"); break;
+  case T_A: fprintf(f, "$A"); break;
+  case T_T: fprintf(f, "$T"); break;
+  case T_Y: fprintf(f, "$Y"); break;
+  case T_P: fprintf(f, "$P"); break;
+  case T_O: fprintf(f, "$O"); break;
+  case T_SS: fprintf(f, "$S'"); break;
+  case T_BB: fprintf(f, "$B'"); break;
+  case T_CC: fprintf(f, "$C'"); break;
+  case T_ADD: fprintf(f, "$+"); break;
+  case T_SUB: fprintf(f, "$-"); break;
+  case T_MUL: fprintf(f, "$*"); break;
+  case T_QUOT: fprintf(f, "$quot"); break;
+  case T_REM: fprintf(f, "$rem"); break;
+  case T_SUBR: fprintf(f, "$subtract"); break;
+  case T_EQ: fprintf(f, "$=="); break;
+  case T_NE: fprintf(f, "$/="); break;
+  case T_LT: fprintf(f, "$<"); break;
+  case T_LE: fprintf(f, "$<="); break;
+  case T_GT: fprintf(f, "$>"); break;
+  case T_GE: fprintf(f, "$>="); break;
+  case T_ERROR: fprintf(f, "$error"); break;
+  case T_IO_BIND: fprintf(f, "$IO.>>="); break;
+  case T_IO_THEN: fprintf(f, "$IO.>>"); break;
+  case T_IO_RETURN: fprintf(f, "$IO.return"); break;
+  case T_IO_GETCHAR: fprintf(f, "$IO.getChar"); break;
+  case T_IO_PUTCHAR: fprintf(f, "$IO.putChar"); break;
+  case T_IO_SERIALIZE: fprintf(f, "$IO.serialize"); break;
+  case T_IO_PRINT: fprintf(f, "$IO.print"); break;
+  case T_IO_DESERIALIZE: fprintf(f, "$IO.deserialize"); break;
+  case T_IO_OPEN: fprintf(f, "$IO.open"); break;
+  case T_IO_CLOSE: fprintf(f, "$IO.close"); break;
+  case T_IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
+  case T_IO_GETARGS: fprintf(f, "$IO.getArgs"); break;
+  case T_IO_GETTIMEMILLI: fprintf(f, "$IO.getTimeMilli"); break;
+  case T_IO_PERFORMIO: fprintf(f, "$IO.performIO"); break;
   default: ERR("print tag");
   }
 }
@@ -807,12 +864,14 @@ print(FILE *f, NODEPTR n, int header)
 {
   num_shared = 0;
   marked_bits = calloc(free_map_nwords, sizeof(uint64_t));
+  if (!marked_bits)
+    memerr();
   shared_bits = calloc(free_map_nwords, sizeof(uint64_t));
-  if (!marked_bits || !shared_bits)
-    ERR("print memory");
+  if (!shared_bits)
+    memerr();
   find_sharing(n);
   if (header)
-    fprintf(f, "%s%"PRId64"\n", VERSION, num_shared);
+    fprintf(f, "%s%"PRIu64"\n", VERSION, num_shared);
   printrec(f, n);
   free(marked_bits);
   free(shared_bits);
@@ -837,7 +896,7 @@ evali(NODEPTR n)
   eval(n);
   n = TOP(0);
   POP(1);
-  while (GETTAG(n) == IND)
+  while (GETTAG(n) == T_IND)
     n = INDIR(n);
   return n;
 }
@@ -846,7 +905,7 @@ evali(NODEPTR n)
 NODEPTR
 indir(NODEPTR n)
 {
-  while (GETTAG(n) == IND)
+  while (GETTAG(n) == T_IND)
     n = INDIR(n);
   return n;
 }
@@ -856,26 +915,26 @@ value_t
 evalint(NODEPTR n)
 {
   n = evali(n);
-  if (GETTAG(n) != INT) {
+  if (GETTAG(n) != T_INT) {
     fprintf(stderr, "bad tag %d\n", GETTAG(n));
     ERR("evalint");
   }
   return GETVALUE(n);
 }
 
-/* Evaluate to a HDL */
+/* Evaluate to a T_HDL */
 FILE *
 evalhandleN(NODEPTR n)
 {
   n = evali(n);
-  if (GETTAG(n) != HDL) {
+  if (GETTAG(n) != T_HDL) {
     fprintf(stderr, "bad tag %d\n", GETTAG(n));
     ERR("evalhandle");
   }
   return HANDLE(n);
 }
 
-/* Evaluate to a HDL, and check for closed */
+/* Evaluate to a T_HDL, and check for closed */
 FILE *
 evalhandle(NODEPTR n)
 {
@@ -899,14 +958,14 @@ evalstring(NODEPTR n)
   NODEPTR x;
 
   if (!name)
-    ERR("evalstring malloc");
+    memerr();
   for (p = name;;) {
     if (p >= name + sz)
       ERR("evalstring too long");
     n = evali(n);
-    if (GETTAG(n) == K)            /* Nil */
+    if (GETTAG(n) == T_K)            /* Nil */
       break;
-    else if (GETTAG(n) == AP && GETTAG(x = indir(FUN(n))) == AP && GETTAG(indir(FUN(x))) == O) { /* Cons */
+    else if (GETTAG(n) ==T_AP && GETTAG(x = indir(FUN(n))) ==T_AP && GETTAG(indir(FUN(x))) == T_O) { /* Cons */
       c = evalint(ARG(x));
       if (c < 0 || c > 127)
 	ERR("invalid char");
@@ -937,7 +996,7 @@ eval(NODEPTR n)
 /* Check that there are at least n arguments, return if not. */
 #define CHECK(n) do { if (stack_ptr - stk <= (n)) RET; } while(0)
 
-#define SETIND(n, x) do { SETTAG((n), IND); INDIR((n)) = (x); } while(0)
+#define SETIND(n, x) do { SETTAG((n), T_IND); INDIR((n)) = (x); } while(0)
 #define GOTO num_reductions++; goto
 
   PUSH(n);
@@ -945,29 +1004,29 @@ eval(NODEPTR n)
     num_reductions++;
     l = LABEL(n);
 #if FASTTAG
-    if (l < IO_BIND) {
+    if (l < T_IO_BIND) {
       if (l != GETTAG(n)) {
         printf("%lu %lu\n", l, (uint64_t)(GETTAG(n)));
         ERR("bad tag");
       }
     }
 #endif
-    enum node_tag tag = l < IO_BIND ? l : GETTAG(n);
+    enum node_tag tag = l < T_IO_BIND ? l : GETTAG(n);
     switch (tag) {
     ind:
-    case IND:
+    case T_IND:
       n = INDIR(n);
       TOP(0) = n;
       break;
     ap:
-    case AP:
+    case T_AP:
       n = FUN(n);
       PUSH(n);
       break;
-    case INT:
-    case HDL:
+    case T_INT:
+    case T_HDL:
       RET;
-    case S:                     /* S f g x = f x (g x) */
+    case T_S:                     /* S f g x = f x (g x) */
       CHECK(3);
       GCCHECK(2);
       f = ARG(TOP(1));
@@ -979,7 +1038,7 @@ eval(NODEPTR n)
       ARG(n) = new_ap(g, x);
       GOTO ap;
       break;
-    case SS:                    /* S' k f g x = k (f x) (g x) */
+    case T_SS:                    /* S' k f g x = k (f x) (g x) */
       CHECK(4);
       GCCHECK(3);
       k = ARG(TOP(1));
@@ -992,21 +1051,21 @@ eval(NODEPTR n)
       ARG(n) = new_ap(g, x);
       GOTO ap;
       break;
-    case K:                     /* K x y = * x */
+    case T_K:                     /* K x y = * x */
       CHECK(2);
       x = ARG(TOP(1));
       POP(2);
       n = TOP(0);
       SETIND(n, x);
       GOTO ind;
-    case A:                     /* A x y = * y */
+    case T_A:                     /* A x y = * y */
       CHECK(2);
       y = ARG(TOP(2));
       POP(2);
       n = TOP(0);
       SETIND(n, y);
       GOTO ind;
-    case T:                     /* T x y = y x */
+    case T_T:                     /* T x y = y x */
       CHECK(2);
       x = ARG(TOP(1));
       y = ARG(TOP(2));
@@ -1015,14 +1074,14 @@ eval(NODEPTR n)
       FUN(n) = y;
       ARG(n) = x;
       GOTO ap;
-    case I:                     /* I x = * x */
+    case T_I:                     /* I x = * x */
       CHECK(1);
       x = ARG(TOP(1));
       POP(1);
       n = TOP(0);
       SETIND(n, x);
       GOTO ind;
-    case Y:                     /* yf@(Y f) = f yf */
+    case T_Y:                     /* yf@(Y f) = f yf */
       CHECK(1);
       f = ARG(TOP(1));
       POP(1);
@@ -1030,7 +1089,7 @@ eval(NODEPTR n)
       FUN(n) = f;
       ARG(n) = n;
       GOTO ap;
-    case B:                     /* B f g x = f (g x) */
+    case T_B:                     /* B f g x = f (g x) */
       CHECK(3);
       GCCHECK(1);
       f = ARG(TOP(1));
@@ -1042,7 +1101,7 @@ eval(NODEPTR n)
       ARG(n) = new_ap(g, x);
       GOTO ap;
       break;
-    case C:                     /* C f g x = f x g */
+    case T_C:                     /* C f g x = f x g */
       CHECK(3);
       GCCHECK(1);
       f = ARG(TOP(1));
@@ -1053,7 +1112,7 @@ eval(NODEPTR n)
       FUN(n) = new_ap(f, x);
       ARG(n) = g;
       GOTO ap;
-    case CC:                    /* C' k f g x = k (f x) g */
+    case T_CC:                    /* C' k f g x = k (f x) g */
       CHECK(4);
       GCCHECK(2);
       k = ARG(TOP(1));
@@ -1065,7 +1124,7 @@ eval(NODEPTR n)
       FUN(n) = new_ap(k, new_ap(f, x));
       ARG(n) = g;
       GOTO ap;
-    case P:                     /* P x y f = f x y */
+    case T_P:                     /* P x y f = f x y */
       CHECK(3);
       GCCHECK(1);
       x = ARG(TOP(1));
@@ -1076,7 +1135,7 @@ eval(NODEPTR n)
       FUN(n) = new_ap(f, x);
       ARG(n) = y;
       GOTO ap;
-    case O:                     /* O x y g f = f x y */
+    case T_O:                     /* O x y g f = f x y */
       CHECK(4);
       GCCHECK(1);
       x = ARG(TOP(1));
@@ -1088,74 +1147,74 @@ eval(NODEPTR n)
       ARG(n) = y;
       GOTO ap;
 
-#define SETINT(n,r) do { SETTAG((n), INT); SETVALUE((n), (r)); } while(0)
+#define SETINT(n,r) do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define ARITH2(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETINT(n, r); POP(2); } while(0)
-    case ADD:
+    case T_ADD:
       ARITH2(+);
       RET;
-    case SUB:
+    case T_SUB:
       ARITH2(-);
       RET;
-    case MUL:
+    case T_MUL:
       ARITH2(*);
       RET;
-    case QUOT:
+    case T_QUOT:
       ARITH2(/);
       RET;
-    case REM:
+    case T_REM:
       ARITH2(%);
       RET;
-    case SUBR:
+    case T_SUBR:
       /* - with arguments reversed */
       CHECK(2); r = evalint(ARG(TOP(2))) - evalint(ARG(TOP(1))); n = TOP(2); SETINT(n, r); POP(2);
       RET;
 
 #define CMP(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETIND(n, r ? comTrue : combFalse); POP(2); } while(0)
-    case EQ:
+    case T_EQ:
       CMP(==);
       break;
-    case NE:
+    case T_NE:
       CMP(!=);
       break;
-    case LT:
+    case T_LT:
       CMP(<);
       break;
-    case LE:
+    case T_LE:
       CMP(<=);
       break;
-    case GT:
+    case T_GT:
       CMP(>);
       break;
-    case GE:
+    case T_GE:
       CMP(>=);
       break;
-    case ERROR:
+    case T_ERROR:
       CHECK(1);
       x = ARG(TOP(1));
       char *msg = evalstring(x);
       fprintf(stderr, "error: %s\n", msg);
       exit(1);
-    case IO_ISNULLHANDLE:
+    case T_IO_ISNULLHANDLE:
       CHECK(1);
       hdl = evalhandleN(ARG(TOP(1)));
       n = TOP(1);
       SETIND(n, hdl == 0 ? comTrue : combFalse);
       POP(1);
       break;
-    case IO_BIND:
-    case IO_THEN:
-    case IO_RETURN:
-    case IO_GETCHAR:
-    case IO_PUTCHAR:
-    case IO_SERIALIZE:
-    case IO_PRINT:
-    case IO_DESERIALIZE:
-    case IO_OPEN:
-    case IO_CLOSE:
-    case IO_GETARGS:
-    case IO_GETTIMEMILLI:
+    case T_IO_BIND:
+    case T_IO_THEN:
+    case T_IO_RETURN:
+    case T_IO_GETCHAR:
+    case T_IO_PUTCHAR:
+    case T_IO_SERIALIZE:
+    case T_IO_PRINT:
+    case T_IO_DESERIALIZE:
+    case T_IO_OPEN:
+    case T_IO_CLOSE:
+    case T_IO_GETARGS:
+    case T_IO_GETTIMEMILLI:
       RET;
-    case IO_PERFORMIO:
+    case T_IO_PERFORMIO:
       CHECK(1);
       x = evalio(ARG(TOP(1)));
       n = TOP(1);
@@ -1187,8 +1246,8 @@ mkString(const char *str)
   NODEPTR n, nc;
 
   n = mkNil();
-  for(int i = strlen(str)-1; i >= 0; i--) {
-    nc = alloc_node(INT);
+  for(int i = (int)strlen(str)-1; i >= 0; i--) {
+    nc = alloc_node(T_INT);
     SETVALUE(nc, str[i]);
     n = mkCons(nc, n);
   }
@@ -1218,16 +1277,16 @@ evalio(NODEPTR n)
   for(;;) {
     num_reductions++;
     switch (GETTAG(n)) {
-    case IND:
+    case T_IND:
       n = INDIR(n);
       TOP(0) = n;
       break;
-    case AP:
+    case T_AP:
       n = FUN(n);
       PUSH(n);
       break;
 
-    case IO_BIND:
+    case T_IO_BIND:
       CHECKIO(2);
       {
         /* Use associativity to avoid deep evalio recursion. */
@@ -1236,7 +1295,7 @@ evalio(NODEPTR n)
         NODEPTR bm;
         NODEPTR bmg = evali(ARG(TOP(1)));
         GCCHECKSAVE(bmg, 4);
-        if (GETTAG(bmg) == AP && GETTAG(bm = indir(FUN(bmg))) == AP && GETTAG(indir(FUN(bm))) == IO_BIND) {
+        if (GETTAG(bmg) ==T_AP && GETTAG(bm = indir(FUN(bmg))) ==T_AP && GETTAG(indir(FUN(bm))) == T_IO_BIND) {
           NODEPTR g = ARG(bmg);
           NODEPTR h = ARG(TOP(2));
           n = new_ap(bm, new_ap(new_ap(new_ap(combCC, combIOBIND), g), h));
@@ -1254,35 +1313,35 @@ evalio(NODEPTR n)
       n = new_ap(f, x);
       POP(3);
       goto top;
-    case IO_THEN:
+    case T_IO_THEN:
       CHECKIO(2);
       (void)evalio(ARG(TOP(1))); /* first argument, unwrapped, ignored */
       n = ARG(TOP(2));          /* second argument, the continuation */
       POP(3);
       goto top;
-    case IO_RETURN:
+    case T_IO_RETURN:
       CHECKIO(1);
       n = ARG(TOP(1));
       POP(1);
       RETIO(n);
-    case IO_GETCHAR:
+    case T_IO_GETCHAR:
       CHECKIO(1);
       hdl = evalhandle(ARG(TOP(1)));
       GCCHECK(1);
       c = getc(hdl);
-      n = alloc_node(INT);
+      n = alloc_node(T_INT);
       SETVALUE(n, c);
       RETIO(n);
-    case IO_PUTCHAR:
+    case T_IO_PUTCHAR:
       CHECKIO(2);
       hdl = evalhandle(ARG(TOP(1)));
-      c = evalint(ARG(TOP(2)));
+      c = (int)evalint(ARG(TOP(2)));
       putc(c, hdl);
       RETIO(combI);
-    case IO_PRINT:
+    case T_IO_PRINT:
       hdr = 0;
       goto ser;
-    case IO_SERIALIZE:
+    case T_IO_SERIALIZE:
       hdr = 1;
     ser:
       CHECKIO(2);
@@ -1292,20 +1351,20 @@ evalio(NODEPTR n)
       print(hdl, x, hdr);
       fprintf(hdl, "\n");
       RETIO(combI);
-    case IO_DESERIALIZE:
+    case T_IO_DESERIALIZE:
       CHECKIO(1);
       hdl = evalhandle(ARG(TOP(1)));
       gc();                     /* parser runs without GC */
       n = parse_top(hdl);
       RETIO(n);
-    case IO_CLOSE:
+    case T_IO_CLOSE:
       CHECKIO(1);
       hdl = evalhandle(ARG(TOP(1)));
       n = evali(ARG(TOP(1)));
       HANDLE(n) = 0;
       fclose(hdl);
       RETIO(combI);
-    case IO_OPEN:
+    case T_IO_OPEN:
       CHECKIO(2);
       name = evalstring(ARG(TOP(1)));
       switch (evalint(ARG(TOP(2)))) {
@@ -1318,17 +1377,17 @@ evalio(NODEPTR n)
       }
       free(name);
       GCCHECK(1);
-      n = alloc_node(HDL);
+      n = alloc_node(T_HDL);
       HANDLE(n) = hdl;
       RETIO(n);
-    case IO_GETARGS:
+    case T_IO_GETARGS:
       CHECKIO(0);
       {
       /* compute total number of characters */
         int size = 0;
         for(int i = 0; i < glob_argc; i++)
-          size += strlen(glob_argv[i]);
-        /* Each character will need a CHAR node and a CONS node, a CONS uses 2 AP nodes */
+          size += (int)strlen(glob_argv[i]);
+        /* Each character will need a CHAR node and a CONS node, a CONS uses 2 T_AP nodes */
         size *= (1 + 2);
         /* And each string will need a NIL */
         size += glob_argc;
@@ -1347,11 +1406,11 @@ evalio(NODEPTR n)
         }
       }
       RETIO(n);
-    case IO_GETTIMEMILLI:
+    case T_IO_GETTIMEMILLI:
       CHECKIO(0);
       GCCHECK(1);
-      n = alloc_node(INT);
-      SETVALUE(n, (int64_t)(gettime() * 1000));
+      n = alloc_node(T_INT);
+      SETVALUE(n, (value_t)(gettime() * 1000));
       RETIO(n);
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));
@@ -1360,10 +1419,10 @@ evalio(NODEPTR n)
   }
 }
 
-int64_t
+uint64_t
 memsize(const char *p)
 {
-  int64_t n = atoi(p);
+  uint64_t n = atoi(p);
   while (isdigit(*p))
     p++;
   switch (*p) {
@@ -1379,8 +1438,12 @@ int
 main(int argc, char **argv)
 {
   char *fn = 0;
-  int64_t file_size;
+  uint64_t file_size;
   
+  /* MINGW doesn't do buffering right */
+  setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
+  setvbuf(stderr, NULL, _IONBF, BUFSIZ);
+
   argc--, argv++;
   while (argc > 0 && argv[0][0] == '-') {
     argc--;
@@ -1407,7 +1470,7 @@ main(int argc, char **argv)
   init_nodes();
   stack = malloc(sizeof(NODEPTR) * stack_size);
   if (!stack)
-    ERR("stack alloc");
+    memerr();
   FILE *f = fopen(fn, "r");
   if (!f)
     ERR("file not found");
@@ -1415,7 +1478,7 @@ main(int argc, char **argv)
   file_size = ftell(f);
   fclose(f);
   PUSH(prog); gc(); prog = TOP(0); POP(1);
-  int64_t start_size = num_marked;
+  uint64_t start_size = num_marked;
   if (verbose > 2) {
     //pp(stdout, prog);
     print(stdout, prog, 1);
@@ -1432,16 +1495,16 @@ main(int argc, char **argv)
     if (verbose > 1) {
       printf("\nmain returns ");
       pp(stdout, res);
-      printf("node size=%"PRId64", heap size bytes=%"PRId64"\n", (int64_t)NODE_SIZE, heap_size * NODE_SIZE);
+      printf("node size=%"PRIu64", heap size bytes=%"PRIu64"\n", (uint64_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
     setlocale(LC_NUMERIC, "");
-    printf("%'15"PRId64" combinator file size\n", file_size);
-    printf("%'15"PRId64" cells at start\n", start_size);
-    printf("%'15"PRId64" heap size\n", heap_size);
-    printf("%'15"PRId64" cells allocated\n", num_alloc);
-    printf("%'15"PRId64" GCs\n", num_gc);
-    printf("%'15"PRId64" max cells used\n", max_num_marked);
-    printf("%'15"PRId64" reductions\n", num_reductions);
+    printf("%"PCOMMA"15"PRIu64" combinator file size\n", file_size);
+    printf("%"PCOMMA"15"PRIu64" cells at start\n", start_size);
+    printf("%"PCOMMA"15"PRIu64" heap size\n", heap_size);
+    printf("%"PCOMMA"15"PRIu64" cells allocated\n", num_alloc);
+    printf("%"PCOMMA"15"PRIu64" GCs\n", num_gc);
+    printf("%"PCOMMA"15"PRIu64" max cells used\n", max_num_marked);
+    printf("%"PCOMMA"15"PRIu64" reductions\n", num_reductions);
     printf("%15.2fs total execution time\n", run_time);
     printf("%15.2fs total gc time\n", gc_mark_time + gc_scan_time);
     printf("    %15.2fs mark time\n", gc_mark_time);

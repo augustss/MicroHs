@@ -21,6 +21,7 @@ alltest:	test boottest
 
 everytest:	alltest example exampleboot examplecomb bootboottest bootcombtest
 
+# On MINGW you might need the additional flags -Wl,--stack,50000000 to increase stack space.
 $(BIN)/eval:	src/runtime/eval.c
 	@mkdir -p bin
 	$(GCC) -Wall -O3 src/runtime/eval.c -o $(BIN)/eval

@@ -121,6 +121,9 @@ To bootstrap:
  * The file `newmhs.comb` is the new combinator binary and it should be
    identical to `comb/mhs.comb`.
 
+**NOTE** The GC mark phase currently uses a ridiculously deep stack.
+You might have to increase it on your system.
+
 # FAQ
 * 
   * Q: When will it get _insert feature_?
