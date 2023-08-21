@@ -527,12 +527,12 @@ gc(void)
 
 /* Check that there are k nodes available, if not then GC. */
 void
-gc_check(int k)
+gc_check(size_t k)
 {
   if (k < num_free)
     return;
   if (verbose > 1)
-    fprintf(stderr, "gc_check: %d\n", k);
+    fprintf(stderr, "gc_check: %d\n", (int)k);
   gc();
 }
 
@@ -1240,15 +1240,26 @@ mkCons(NODEPTR x, NODEPTR xs)
   return new_ap(new_ap(combCons, x), xs);
 }
 
+size_t
+strNodes(size_t len)
+{
+  /* Each character will need a CHAR node and a CONS node, a CONS uses 2 T_AP nodes */
+  len *= (1 + 2);
+  /* And each string will need a NIL */
+  len += 1;
+  return len;
+}
+
+/* Turn a C string into a combinator string */
 NODEPTR
-mkString(const char *str)
+mkString(const char *str, size_t len)
 {
   NODEPTR n, nc;
 
   n = mkNil();
-  for(int i = (int)strlen(str)-1; i >= 0; i--) {
+  for(size_t i = len; i > 0; i--) {
     nc = alloc_node(T_INT);
-    SETVALUE(nc, str[i]);
+    SETVALUE(nc, str[i-1]);
     n = mkCons(nc, n);
   }
   return n;
@@ -1384,13 +1395,10 @@ evalio(NODEPTR n)
       CHECKIO(0);
       {
       /* compute total number of characters */
-        int size = 0;
-        for(int i = 0; i < glob_argc; i++)
-          size += (int)strlen(glob_argv[i]);
-        /* Each character will need a CHAR node and a CONS node, a CONS uses 2 T_AP nodes */
-        size *= (1 + 2);
-        /* And each string will need a NIL */
-        size += glob_argc;
+        size_t size = 0;
+        for(int i = 0; i < glob_argc; i++) {
+          size += strNodes(strlen(glob_argv[i]));
+        }
         /* The returned list will need a CONS for each string, and a NIL */
         size += glob_argc * 2 + 1;
         GCCHECK(size);
@@ -1402,7 +1410,7 @@ evalio(NODEPTR n)
         */
         n = mkNil();
         for(int i = glob_argc-1; i >= 0; i--) {
-          n = mkCons(mkString(glob_argv[i]), n);
+          n = mkCons(mkString(glob_argv[i], strlen(glob_argv[i])), n);
         }
       }
       RETIO(n);
