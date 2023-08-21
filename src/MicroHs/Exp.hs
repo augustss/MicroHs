@@ -5,9 +5,11 @@ module MicroHs.Exp(
   substExp,
   Exp(..), showExp, toStringP,
   PrimOp,
+  encodeString,
   app2, cCons, cNil, cFlip
   ) where
 import Prelude
+import Data.Char
 import Data.List
 import MicroHs.Parse
 --Ximport Compat
@@ -117,9 +119,29 @@ toStringP :: Exp -> String
 toStringP ae =
   case ae of
     Var x   -> x
+    Lit (LStr s) ->
+      -- Encode very short string directly as combinators.
+      if length s > 1 then
+        quoteString s
+      else
+        toStringP (encodeString s)
     Lit l   -> showLit l
     Lam x e -> "(\\" ++ x ++ " " ++ toStringP e ++ ")"
     App f a -> "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
+
+quoteString :: String -> String
+quoteString s =
+  let
+    char c =
+      if eqChar c '"' || eqChar c '\\' || ltChar c ' ' || ltChar '~' c then
+        '\\' : showInt (ord c) ++ ['&']
+      else
+        [c]
+  in '"' : concatMap char s ++ ['"']
+
+encodeString :: String -> Exp
+encodeString [] = cNil
+encodeString (c:cs) = app2 cCons (Lit (LInt (ord c))) (encodeString cs)
 
 compileOpt :: Exp -> Exp
 compileOpt = improveT . compileExp

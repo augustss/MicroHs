@@ -17,6 +17,9 @@ eqChar = (==)
 neChar :: Char -> Char -> Bool
 neChar = (/=)
 
+ltChar :: Char -> Char -> Bool
+ltChar = (<)
+
 eqString :: String -> String -> Bool
 eqString = (==)
 

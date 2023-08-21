@@ -30,6 +30,7 @@ trans r ae =
     Var n -> r n
     App f a -> unsafeCoerce (trans r f) (trans r a)
     Lit (LInt i) -> unsafeCoerce i
+    Lit (LStr s) -> trans r (encodeString s)
     Lit (LPrim p) -> fromMaybe (error "primlookup") $ lookupBy eqString p primTable
     _ -> error "trans: impossible"
 

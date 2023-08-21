@@ -75,7 +75,7 @@ dsExpr aexpr =
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam xs e -> dsLam xs e
     ELit (LChar c) -> Lit (LInt (ord c))
-    ELit (LStr cs) -> dsExpr $ EList $ map (ELit . LChar) cs
+--    ELit (LStr cs) -> dsExpr $ EList $ map (ELit . LChar) cs
     ELit l -> Lit l
     ECase e as -> dsCase e as
 -- For now, just sequential bindings; each recursive

@@ -55,7 +55,7 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 #define FASTTAGS 1
 #define UNIONPTR 1
 
-#define VERSION "v2.2\n"
+#define VERSION "v3.0\n"
 
 #define HEAP_CELLS 100000
 #define STACK_SIZE 10000
@@ -64,11 +64,12 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C, /* 0 - 9 */
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_ADD, T_SUB, T_MUL,  /* 10 - 20 */
-                T_QUOT, T_REM, T_SUBR, T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ERROR, /* 21-30 */
-                T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR, /* 31-35 */
-                T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE, /* 36-40 */
-                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO, /* 41-45 */
+                T_QUOT, T_REM, T_SUBR, T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ERROR, /* 21 - 30 */
+                T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR, /* 31 - 35 */
+                T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE, /* 36 - 40 */
+                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO, /* 41 - 45 */
                 T_IO_GETTIMEMILLI, T_IO_PRINT, /* 46 - 47 */
+                T_STR,                         /* 48 */
                 T_LAST_TAG,
 };
 
@@ -82,6 +83,7 @@ typedef struct node {
   union {
     value_t value;
     FILE *file;
+    const char *string;
     struct {
       struct node *fun;
       struct node *arg;
@@ -117,6 +119,7 @@ typedef struct node {
     struct node *uuarg;
     value_t uuvalue;
     FILE *uufile;
+    const char *uustring;
   } uarg;
 } node;
 typedef struct node* NODEPTR;
@@ -128,6 +131,7 @@ typedef struct node* NODEPTR;
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
+#define STR(p) (p)->uarg.uustring
 #define INDIR(p) ARG(p)
 #define HANDLE(p) (p)->uarg.uufile
 #define NODE_SIZE sizeof(node)
@@ -565,6 +569,14 @@ parse_int(FILE *f)
   return i;
 }
 
+NODEPTR
+mkStrNode(const char *str)
+{
+  NODEPTR n = alloc_node(T_STR);
+  STR(n) = str;
+  return n;
+}
+
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
   uint64_t label;
@@ -677,6 +689,31 @@ parse(FILE *f)
     r = parse(f);
     INDIR(*nodep) = r;
     return r;
+  case '"' :
+    /* Everything up to the next " is a string.
+     * Special characters are encoded as \NNN&,
+     * where NNN is the decimal value of the character */
+    /* XXX assume there are no NULs in the string, and all fit in a char */
+    /* XXX allocation is a hack */
+    {
+      char *buffer = malloc(10000);
+      char *p = buffer;
+      for(;;) {
+        c = getc(f);
+        if (c == '"')
+          break;
+        if (c == '\\') {
+          *p++ = (char)parse_int(f);
+          if (!gobble(f, '&'))
+            ERR("parse string");
+        } else {
+          *p++ = c;
+        }
+      }
+      *p++ = 0;
+      r = mkStrNode(realloc(buffer, p - buffer));
+      return r;
+    }
   default:
     fprintf(stderr, "parse '%c'\n", c);
     ERR("parse default");
@@ -804,6 +841,19 @@ printrec(FILE *f, NODEPTR n)
     fputc(')', f);
     break;
   case T_INT: fprintf(f, "%"PRIu64, GETVALUE(n)); break;
+  case T_STR:
+    {
+      const char *p = STR(n);
+      int c;
+      fputc('"', f);
+      while ((c = *p++)) {
+        if (c == '"' || c == '\\' || c < ' ' || c > '~') {
+          fprintf(f, "\\%d&", c);
+        }
+      }
+      fputc('"', f);
+      break;
+    }
   case T_HDL:
     if (HANDLE(n) == stdin)
       fprintf(f, "$IO.stdin");
@@ -883,6 +933,43 @@ pp(FILE *f, NODEPTR n)
 {
   print(f, n, 0);
   fprintf(f, "\n");
+}
+
+NODEPTR
+mkNil(void)
+{
+  return combFalse;
+}
+
+NODEPTR
+mkCons(NODEPTR x, NODEPTR xs)
+{
+  return new_ap(new_ap(combCons, x), xs);
+}
+
+size_t
+strNodes(size_t len)
+{
+  /* Each character will need a CHAR node and a CONS node, a CONS uses 2 T_AP nodes */
+  len *= (1 + 2);
+  /* And each string will need a NIL */
+  len += 1;
+  return len;
+}
+
+/* Turn a C string into a combinator string */
+NODEPTR
+mkString(const char *str, size_t len)
+{
+  NODEPTR n, nc;
+
+  n = mkNil();
+  for(size_t i = len; i > 0; i--) {
+    nc = alloc_node(T_INT);
+    SETVALUE(nc, str[i-1]);
+    n = mkCons(nc, n);
+  }
+  return n;
 }
 
 void eval(NODEPTR n);
@@ -1014,11 +1101,13 @@ eval(NODEPTR n)
     enum node_tag tag = l < T_IO_BIND ? l : GETTAG(n);
     switch (tag) {
     ind:
+    num_reductions++;
     case T_IND:
       n = INDIR(n);
       TOP(0) = n;
       break;
     ap:
+    num_reductions++;
     case T_AP:
       n = FUN(n);
       PUSH(n);
@@ -1026,6 +1115,11 @@ eval(NODEPTR n)
     case T_INT:
     case T_HDL:
       RET;
+    case T_STR:
+      GCCHECK(strNodes(strlen(STR(n))));
+      x = mkString(STR(n), strlen(STR(n)));
+      SETIND(n, x);
+      goto ind;
     case T_S:                     /* S f g x = f x (g x) */
       CHECK(3);
       GCCHECK(2);
@@ -1226,43 +1320,6 @@ eval(NODEPTR n)
       ERR("eval tag");
     }
   }
-}
-
-NODEPTR
-mkNil(void)
-{
-  return combFalse;
-}
-
-NODEPTR
-mkCons(NODEPTR x, NODEPTR xs)
-{
-  return new_ap(new_ap(combCons, x), xs);
-}
-
-size_t
-strNodes(size_t len)
-{
-  /* Each character will need a CHAR node and a CONS node, a CONS uses 2 T_AP nodes */
-  len *= (1 + 2);
-  /* And each string will need a NIL */
-  len += 1;
-  return len;
-}
-
-/* Turn a C string into a combinator string */
-NODEPTR
-mkString(const char *str, size_t len)
-{
-  NODEPTR n, nc;
-
-  n = mkNil();
-  for(size_t i = len; i > 0; i--) {
-    nc = alloc_node(T_INT);
-    SETVALUE(nc, str[i-1]);
-    n = mkCons(nc, n);
-  }
-  return n;
 }
 
 /* This is the interpreter for the IO monad operations. */
