@@ -29,8 +29,8 @@ trans r ae =
   case ae of
     Var n -> r n
     App f a -> unsafeCoerce (trans r f) (trans r a)
-    Int i -> unsafeCoerce i
-    Prim p -> fromMaybe (error "primlookup") $ lookupBy eqString p primTable
+    Lit (LInt i) -> unsafeCoerce i
+    Lit (LPrim p) -> fromMaybe (error "primlookup") $ lookupBy eqString p primTable
     _ -> error "trans: impossible"
 
 -- Use linear search in this table.

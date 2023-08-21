@@ -74,8 +74,9 @@ dsExpr aexpr =
     EVar i -> Var i
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam xs e -> dsLam xs e
-    EInt i -> Int i
-    EChar c -> Int (ord c)
+    ELit (LChar c) -> Lit (LInt (ord c))
+    ELit (LStr cs) -> dsExpr $ EList $ map (ELit . LChar) cs
+    ELit l -> Lit l
     ECase e as -> dsCase e as
 -- For now, just sequential bindings; each recursive
     ELet ads e ->
@@ -87,11 +88,10 @@ dsExpr aexpr =
             de = dsExpr (ELet ds e)
             def ir a =
                 case ir of
-                  (i, r) -> App (Lam i a) (App (Prim "Y") (Lam i r))
+                  (i, r) -> App (Lam i a) (App (Lit (LPrim "Y")) (Lam i r))
           in  foldr def de dsd
     EList es -> foldr (app2 cCons) cNil $ map dsExpr es
     ETuple es -> Lam "$f" $ foldl App (Var "$f") $ map dsExpr es
-    EStr cs -> dsExpr $ EList $ map EChar cs
     EDo mn astmts ->
       case astmts of
         [] -> error "empty do"
@@ -118,7 +118,6 @@ dsExpr aexpr =
               if null stmts then error "do without final expression" else
                 dsExpr $ ELet ds (EDo mn stmts)
 
-    EPrim s -> Prim s
     ESectL e op ->
       App (dsExpr (EVar op)) (dsExpr e)
     ESectR op e ->
@@ -173,7 +172,7 @@ dsPat ap =
     EList ps -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
     ETuple ps -> dsPat $ foldl EApp (tupleCon (length ps)) ps
     EAt i p -> EAt i (dsPat p)
-    EInt _ -> ap
+    ELit _ -> ap
     _ -> impossible
 
 consCon :: EPat
@@ -200,7 +199,7 @@ dummyIdent :: Ident
 dummyIdent = "_"
 
 eError :: String -> Expr
-eError s = EApp (EPrim "error") (EStr s)
+eError s = EApp (ELit (LPrim "error")) (ELit $ LStr s)
 
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs
@@ -313,7 +312,7 @@ dsMatrix dflt iis aarms =
       S.return $ mkCase i narms ndflt
 
 eMatchErr :: Exp
-eMatchErr = dsExpr $ EApp (EPrim "error") (EStr "no match")
+eMatchErr = dsExpr $ EApp (ELit (LPrim "error")) (ELit $ LStr "no match")
 
 -- If the first expression isn't a variable, the use
 -- a let binding and pass variable to f.
@@ -331,9 +330,8 @@ cheap :: Exp -> Bool
 cheap ae =
   case ae of
     Var _ -> True
-    Int _ -> True
-    Prim _ -> True
-    App (Prim _) _ -> True
+    Lit _ -> True
+    App (Lit _) _ -> True
     _ -> False
 
 -- Ugh, what a hack
@@ -357,7 +355,7 @@ mkCase var pes dflt =
       -- A hack for Int pattern matching
       if isInt name then
         let
-          cond = app2 eEqInt var (Int (readInt name))
+          cond = app2 eEqInt var (Lit (LInt (readInt name)))
         in app2 cond dflt arhs
       else
         let
@@ -410,7 +408,7 @@ pConOf ap =
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
-    EInt i -> let { n = showInt i } in Con [(n, 0)] n
+    ELit (LInt i) -> let { n = showInt i } in Con [(n, 0)] n
     _ -> impossible
 
 pArgs :: EPat -> [EPat]

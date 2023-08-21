@@ -9,7 +9,7 @@ module MicroHs.Exp(
   ) where
 import Prelude
 import Data.List
-import MicroHs.Parse --X(Ident, eqIdent)
+import MicroHs.Parse
 --Ximport Compat
 --import Debug.Trace
 
@@ -19,8 +19,7 @@ data Exp
   = Var Ident
   | App Exp Exp
   | Lam Ident Exp
-  | Int Int
-  | Prim PrimOp
+  | Lit Lit
   --Xderiving (Show, Eq)
 
 data MaybeApp = NotApp | IsApp Exp Exp
@@ -40,7 +39,7 @@ getVar ae =
 isPrim :: String -> Exp -> Bool
 isPrim s ae =
   case ae of
-    Prim ss -> eqString s ss
+    Lit (LPrim ss) -> eqString s ss
     _       -> False
 
 isK :: Exp -> Bool
@@ -68,13 +67,25 @@ app3 :: Exp -> Exp -> Exp -> Exp -> Exp
 app3 f a1 a2 a3 = App (app2 f a1 a2) a3
 
 cCons :: Exp
-cCons = Prim "O"
+cCons = Lit (LPrim "O")
 
 cNil :: Exp
-cNil = Prim "K"
+cNil = Lit (LPrim "K")
 
 cFlip :: Exp
-cFlip = Prim "C"
+cFlip = Lit (LPrim "C")
+
+cId :: Exp
+cId = Lit (LPrim "I")
+
+cConst :: Exp
+cConst = Lit (LPrim "K")
+
+cSpread :: Exp
+cSpread = Lit (LPrim "S")
+
+cP :: Exp
+cP = Lit (LPrim "P")
 
 {-
 eqExp :: Exp -> Exp -> Bool
@@ -106,8 +117,7 @@ toStringP :: Exp -> String
 toStringP ae =
   case ae of
     Var x   -> x
-    Prim x  -> '$':x
-    Int i   -> showInt i
+    Lit l   -> showLit l
     Lam x e -> "(\\" ++ x ++ " " ++ toStringP e ++ ")"
     App f a -> "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
 
@@ -124,18 +134,17 @@ compileExp ae =
 abstract :: Ident -> Exp -> Exp
 abstract x ae =
   case ae of
-    Var y  -> if eqString x y then Prim "I" else cK (Var y)
+    Var y  -> if eqString x y then cId else cK (Var y)
     App f a -> cS (abstract x f) (abstract x a)
     Lam y e -> abstract x $ abstract y e
-    Prim _ -> cK ae
-    Int _ -> cK ae
+    Lit _ -> cK ae
 
 cK :: Exp -> Exp
-cK e  = App (Prim "K") e
+cK e  = App cConst e
 
 cS :: Exp -> Exp -> Exp
 cS a1 a2 =
- if isK a1 then Prim "I" else
+ if isK a1 then cId else
   let
     r = cS2 a1 a2
   in
@@ -169,7 +178,7 @@ cS2 a1 a2 =
 cS3 :: Exp -> Exp -> Exp
 cS3 a1 a2 =
   let
-    r = app2 (Prim "S") a1 a2
+    r = app2 cSpread a1 a2
   in
     case getApp a1 of
       NotApp -> r
@@ -207,14 +216,14 @@ cC a1 e3 =
             if isB bc then
               cCC e1 e2 e3
             else if isC bc && isI e1 then
-              app2 (Prim "P") e2 e3
+              app2 cP e2 e3
             else
               r
 
 cC2 :: Exp -> Exp -> Exp
 cC2 a1 a2 =
   let
-    r = app2 (Prim "C") a1 a2
+    r = app2 cFlip a1 a2
   in
     case getVar a1 of
       Nothing -> r
@@ -238,7 +247,7 @@ cB a1 a2 =
       NotApp -> r
       IsApp cb ck ->
         if isB cb && isK ck && isP a2 then
-          Prim "O"
+          Lit (LPrim "O")
         else
           r
 
@@ -257,7 +266,7 @@ cB2 a1 a2 =
               r
           NotApp ->
             if isC a1 && isC x1 && isI x2 then
-              Prim "P"
+              cP
             else
               r
       NotApp -> r
@@ -267,7 +276,7 @@ cB3 a1 a2 =
   if isI a1 then
     a2
   else
-    app2 (Prim "B") a1 a2
+    app2 (Lit (LPrim "B")) a1 a2
 
 {-
 cB (App CB CK) CP             = CO -- Cons
@@ -278,10 +287,10 @@ cB e1          e2             = app2 CB e1 e2
 -}
 
 cSS :: Exp -> Exp -> Exp -> Exp
-cSS e1 e2 e3 = app3 (Prim "S'") e1 e2 e3
+cSS e1 e2 e3 = app3 (Lit (LPrim "S'")) e1 e2 e3
 
 cCC :: Exp -> Exp -> Exp -> Exp
-cCC e1 e2 e3 = app3 (Prim "C'") e1 e2 e3
+cCC e1 e2 e3 = app3 (Lit (LPrim "C'")) e1 e2 e3
 
 -- This is a hack, it assumes things about the Prelude
 flipOps :: [(PrimOp, PrimOp)]
@@ -307,11 +316,11 @@ improveT ae =
         aa = improveT a
       in
         if isK ff && isI aa then
-          Prim "A"
+          Lit (LPrim "A")
 --        else if isI ff then
 --          aa
         else if isC ff && isI aa then
-          Prim "T"
+          Lit (LPrim "T")
         else
           let
             def =
@@ -355,8 +364,7 @@ showExp ae =
     Var i -> i
     App f a -> "(" ++ showExp f ++ " " ++ showExp a ++ ")"
     Lam i e -> "(\\" ++ i ++ ". " ++ showExp e ++ ")"
-    Int i -> showInt i
-    Prim p -> p
+    Lit l -> showLit l
 
 substExp :: Ident -> Exp -> Exp -> Exp
 substExp si se ae =
@@ -377,8 +385,7 @@ substExp si se ae =
                    Lam j (substExp si se (substExp i (Var j) e))
                else
                    Lam i (substExp si se e)
-    Int _ -> ae
-    Prim _ -> ae
+    Lit _ -> ae
 
 freeVars :: Exp -> [Ident]
 freeVars ae =
@@ -386,8 +393,7 @@ freeVars ae =
     Var i -> [i]
     App f a -> freeVars f ++ freeVars a
     Lam i e -> deleteBy eqIdent i (freeVars e)
-    Int _ -> []
-    Prim _ -> []
+    Lit _ -> []
 
 allVarsExp :: Exp -> [Ident]
 allVarsExp ae =
@@ -395,8 +401,7 @@ allVarsExp ae =
     Var i -> [i]
     App f a -> allVarsExp f ++ allVarsExp a
     Lam i e -> i : allVarsExp e
-    Int _ -> []
-    Prim _ -> []
+    Lit _ -> []
 
 --------
 -- Possible additions

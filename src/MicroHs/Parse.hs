@@ -10,6 +10,7 @@ module MicroHs.Parse(
   ImportSpec(..),
   EDef(..), showEDefs,
   Expr(..), showExpr,
+  Lit(..), showLit,
   EBind(..),
   Eqn(..),
   EStmt(..),
@@ -72,15 +73,12 @@ data Expr
   = EVar Ident
   | EApp Expr Expr
   | ELam [EPat] Expr
-  | EInt Int
-  | EChar Char
-  | EStr String
+  | ELit Lit
   | ECase Expr [ECaseArm]
   | ELet [EBind] Expr
   | ETuple [Expr]
   | EList [Expr]
   | EDo (Maybe Ident) [EStmt]
-  | EPrim String
   | ESectL Expr Ident
   | ESectR Ident Expr
   | EIf Expr Expr Expr
@@ -107,6 +105,9 @@ conTyInfo c =
 -}
 conArity :: Con -> Int
 conArity (Con cs i) = fromMaybe undefined $ lookupBy eqIdent i cs
+
+data Lit = LInt Int | LChar Char | LStr String | LPrim String
+  --Xderiving (Show, Eq)
 
 type ECaseArm = (EPat, Expr)
 
@@ -553,15 +554,19 @@ pAExprPT :: P Expr
 pAExprPT =
       (EVar <$> pLIdent)
   <|> (EVar <$> pUIdent)
-  <|> (EInt <$> pInt)
-  <|> (EChar <$> pChar)
-  <|> (EStr <$> pString)
+  <|> (ELit <$> pLit)
   <|> (eTuple <$> (pSym '(' *> esepBy1 pExprPT (pSym ',') <* pSym ')'))
   <|> (EList <$> (pSym '[' *> esepBy1 pExprPT (pSym ',') <* pSym ']'))
-  <|> (EPrim <$> (pKeyword "primitive" *> pString))
+  <|> (ELit . LPrim <$> (pKeyword "primitive" *> pString))
   <|> (ESectL <$> (pSym '(' *> pExprArg) <*> (pOper <* pSym ')'))
   <|> (ESectR <$> (pSym '(' *> pOper) <*> (pExprArg <* pSym ')'))
   <|> (ECompr <$> (pSym '[' *> pExprPT <* pSym '|') <*> (esepBy1 pStmt (pSym ',') <* pSym ']'))
+
+pLit :: P Lit
+pLit =
+      (LInt <$> pInt)
+  <|> (LChar <$> pChar)
+  <|> (LStr <$> pString)
 
 eTuple :: [Expr] -> Expr
 eTuple aes =
@@ -594,9 +599,7 @@ pAPat :: P EPat
 pAPat =
       (EVar <$> pLIdent)
   <|> (EVar <$> pUIdent)
-  <|> (EInt <$> pInt)
-  <|> (EChar <$> pChar)
-  <|> (EStr <$> pString)
+  <|> (ELit <$> pLit)
   <|> (eTuple <$> (pSym '(' *> esepBy1 pPat (pSym ',') <* pSym ')'))
   <|> (EList <$> (pSym '[' *> esepBy1 pPat (pSym ',') <* pSym ']'))
   <|> (EAt <$> (pLIdent <* pSymbol "@") <*> pAPat)
@@ -808,15 +811,12 @@ showExpr ae =
     EVar v -> v
     EApp f a -> "(" ++ showExpr f ++ " " ++ showExpr a ++ ")"
     ELam ps e -> "(\\" ++ unwords (map showExpr ps) ++ " -> " ++ showExpr e ++ ")"
-    EInt i -> showInt i
-    EChar c -> showChar c
-    EStr s -> showString s
+    ELit i -> showLit i
     ECase e as -> "case " ++ showExpr e ++ " of {\n" ++ unlines (map showCaseArm as) ++ "}"
     ELet bs e -> "let\n" ++ unlines (map showEBind bs) ++ "in " ++ showExpr e
     ETuple es -> "(" ++ intercalate "," (map showExpr es) ++ ")"
     EList es -> showList showExpr es
     EDo mn ss -> maybe "do" (\n -> n ++ ".do\n") mn ++ unlines (map showEStmt ss)
-    EPrim p -> p
     ESectL e i -> "(" ++ showExpr e ++ " " ++ i ++ ")"
     ESectR i e -> "(" ++ i ++ " " ++ showExpr e ++ ")"
     EIf e1 e2 e3 -> "if " ++ showExpr e1 ++ " then " ++ showExpr e2 ++ " else " ++ showExpr e3
@@ -825,6 +825,14 @@ showExpr ae =
     EBad _ -> "EBad"
     EUVar i -> "a" ++ showInt i
     ECon c -> conIdent c
+
+showLit :: Lit -> String
+showLit l =
+  case l of
+    LInt i -> showInt i
+    LChar c -> showChar c
+    LStr s -> showString s
+    LPrim s -> '$':s
 
 showEStmt :: EStmt -> String
 showEStmt as =
@@ -897,15 +905,12 @@ allVarsExpr aexpr =
     EVar i -> [i]
     EApp e1 e2 -> allVarsExpr e1 ++ allVarsExpr e2
     ELam ps e -> concatMap allVarsPat ps ++ allVarsExpr e
-    EInt _ -> []
-    EChar _ -> []
-    EStr _ -> []
+    ELit _ -> []
     ECase e as -> allVarsExpr e ++ concatMap (\ pa -> allVarsPat (fst pa) ++ allVarsExpr (snd pa)) as
     ELet bs e -> concatMap allVarsBind bs ++ allVarsExpr e
     ETuple es -> concatMap allVarsExpr es
     EList es -> concatMap allVarsExpr es
     EDo mi ss -> maybe [] (:[]) mi ++ concatMap allVarsStmt ss
-    EPrim _ -> []
     ESectL e i -> i : allVarsExpr e
     ESectR i e -> i : allVarsExpr e
     EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3

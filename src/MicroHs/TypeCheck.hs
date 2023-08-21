@@ -643,7 +643,6 @@ tcExpr mt ae = T.do
 tcExprR :: --XHasCallStack =>
            Maybe EType -> Expr -> T (Typed Expr)
 tcExprR mt ae =
-  let { lit t = T.do { munify mt t; T.return (ae, t) } } in
   case ae of
     EVar i ->
       if isUnderscore i then
@@ -660,9 +659,7 @@ tcExprR mt ae =
       (ef, _) <- tcExpr (Just (tArrow ta tr)) f
       T.return (EApp ef ea, tr)
     ELam is e -> tcExprLam mt is e
-    EInt _ -> lit (tCon "Primitives.Int")
-    EChar _ -> lit (tCon "Primitives.Char")
-    EStr _ -> lit (tApps "Data.List.[]" [tCon "Primitives.Char"])
+    ELit l -> tcLit mt l
     ECase a arms -> T.do
       (ea, ta) <- tcExpr Nothing a
       (earms, tarms) <- unzip <$> T.mapM (tcArm mt ta) arms
@@ -722,9 +719,6 @@ tcExprR mt ae =
                   tcExpr Nothing (ELet bs (EDo mmn ss))
                 T.return (EDo mn (SLet ebs : ys), tr)
 
-    EPrim _ -> T.do
-      t <- unMType mt  -- pretend it is anything
-      T.return (ae, t)
     ESectL e i -> T.do
       (EApp (EVar ii) ee, t) <- tcExpr mt (EApp (EVar i) e)
       T.return (ESectL ee ii, t)
@@ -772,6 +766,17 @@ tcExprR mt ae =
     EBad _ -> impossible    -- shouldn't happen
     EUVar _ -> impossible -- shouldn't happen
     ECon _ -> impossible
+
+tcLit :: Maybe EType -> Lit -> T (Typed Expr)
+tcLit mt l =
+  let { lit t = T.do { munify mt t; T.return (ELit l, t) } } in
+  case l of
+    LInt _ -> lit (tCon "Primitives.Int")
+    LChar _ -> lit (tCon "Primitives.Char")
+    LStr _ -> lit (tApps "Data.List.[]" [tCon "Primitives.Char"])
+    LPrim _ -> T.do
+      t <- unMType mt  -- pretend it is anything
+      T.return (ELit l, t)
 
 unArrow :: Maybe EType -> T (EType, EType)
 unArrow Nothing = T.do { a <- newUVar; r <- newUVar; T.return (a, r) }
