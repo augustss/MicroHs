@@ -59,7 +59,7 @@ Some factorials
 
 ## Libraries
 There are a number of libraries that some of the standard Haskell functions.
-But in general, the `Prelude` contains less.
+But in general, the `Prelude` contains much less.
 
 ## Compiler
 The compiler is written in Micro Haskell.
@@ -71,6 +71,14 @@ It takes a name of a module and compiles it to a file called `out.comb`.
 * `-r` run directly, does work if compiled with GHC
 * `-v` be more verbose, flag can be repeated
 
+With the `-v` flag the processing time for each module is reported.
+E.g.
+  ```
+  importing done MicroHs.Exp, 716ms (368 + 348)
+  ```
+which means tha processing `MicroHs.Exp.hs` took 716ms,
+with parsing taking 368ms and typecheck&desugar taking 348ms.
+
 ### Compiler modules
 
 * `Main`, the main module.  Decodes flags, compiles, and writes result.
@@ -78,7 +86,6 @@ It takes a name of a module and compiles it to a file called `out.comb`.
 * `Exp`, simple expression type, combinator abstraction and optimization
 * `Desugar`, desugar full expressions to simple expressions.
 * `Parse`, parse and build and abstract syntax tree.
-* `ParserComb`, simple parser combinator library.
 * `Translate`, convert an expression tree to its value.
 * `TypeCheck`, type checker
 
@@ -90,10 +97,10 @@ There is a also a simple mark-scan garbage collector.
 It is written in a reasonably portable C code.
 
 ### Runtime flags
-* `-HSIZE` set heap size to `SIZE` cells, can be suffixed by `k`, `M`, or `G`
-* `-KSIZE` set stack size to `SIZE` entries, can be suffixed by `k`, `M`, or `G`
-* `-rFILE` read combinators from `FILE`
-* `-v` be more verbose, flag can be repeated.
+* `-HSIZE` set heap size to `SIZE` cells, can be suffixed by `k`, `M`, or `G`, default is `100k`
+* `-KSIZE` set stack size to `SIZE` entries, can be suffixed by `k`, `M`, or `G`, default is`10k`
+* `-rFILE` read combinators from `FILE`, instead of `out.comb`
+* `-v` be more verbose, flag can be repeated
 * `--` end of flags, the rest of the arguments are available to the running program
 
 ### Features
