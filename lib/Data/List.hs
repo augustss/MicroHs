@@ -14,16 +14,12 @@ import Data.Tuple
 data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable --Z
 
 null :: forall a . [a] -> Bool
-null arg =
-  case arg of
-    []    -> True
-    _ : _ -> False
+null [] = True
+null _  = False
 
 (++) :: forall a . [a] -> [a] -> [a]
-(++) as ys =
-  case as of
-    [] -> ys
-    x : xs -> x : xs ++ ys
+(++) [] ys = ys
+(++) (x : xs) ys = x : xs ++ ys 
 
 concat :: forall a . [[a]] -> [a]
 concat = foldr (++) []
@@ -34,19 +30,15 @@ concatMap f = concat . map f
 map :: forall a b . (a -> b) -> [a] -> [b]
 map f =
   let
-    rec arg =
-      case arg of
-        [] -> []
-        a : as -> f a : rec as
+    rec [] = []
+    rec (a : as) = f a : rec as
   in rec
 
 filter :: forall a . (a -> Bool) -> [a] -> [a]
 filter p =
   let
-    rec arg =
-      case arg of
-        [] -> []
-        x : xs ->
+    rec [] = []
+    rec (x : xs) =
           case p x of
             False -> rec xs
             True  -> x : rec xs
@@ -55,10 +47,8 @@ filter p =
 foldr :: forall a b . (a -> b -> b) -> b -> [a] -> b
 foldr f z =
   let
-    rec arg =
-      case arg of
-        [] -> z
-        x : xs -> f x (rec xs)
+    rec [] = z
+    rec (x : xs) = f x (rec xs)
   in rec
 
 foldr1 :: forall a . (a -> a -> a) -> [a] -> a
@@ -120,13 +110,8 @@ zip :: forall a b . [a] -> [b] -> [(a, b)]
 zip = zipWith (\ x y -> (x, y))
 
 zipWith :: forall a b c . (a -> b -> c) -> [a] -> [b] -> [c]
-zipWith f axs ays =
-  case axs of
-    [] -> []
-    x:xs ->
-      case ays of
-        [] -> []
-        y:ys -> f x y : zipWith f xs ys
+zipWith f (x:xs) (y:ys) = f x y : zipWith f xs ys
+zipWith _ _ _ = []
 
 unzip :: forall a b . [(a, b)] -> ([a], [b])
 unzip axys =
@@ -167,37 +152,29 @@ splitAt n xs = (take n xs, drop n xs)
 reverse :: forall a . [a] -> [a]
 reverse =
   let
-    rev r axs =
-      case axs of
-        [] -> r
-        x:xs -> rev (x:r) xs
+    rev r [] = r
+    rev r (x:xs) = rev (x:r) xs
   in  rev []
 
 takeWhile :: forall a . (a -> Bool) -> [a] -> [a]
-takeWhile p axs =
-  case axs of
-    [] -> []
-    x:xs ->
-      if p x then
-        x : takeWhile p xs
-      else
-        []
+takeWhile _ [] = []
+takeWhile p (x:xs) =
+  if p x then
+    x : takeWhile p xs
+  else
+    []
 
 dropWhile :: forall a . (a -> Bool) -> [a] -> [a]
-dropWhile p axs =
-  case axs of
-    [] -> []
-    x:xs ->
-      if p x then
-        dropWhile p xs
-      else
-        x : xs
+dropWhile _ [] = []
+dropWhile p (x:xs) =
+  if p x then
+    dropWhile p xs
+  else
+    x : xs
 
 head :: forall a . [a] -> a
-head xs =
-  case xs of
-    [] -> error "head"
-    x:_ -> x
+head [] = error "head"
+head (x:_) = x
 
 tail :: forall a . [a] -> [a]
 tail xs =
