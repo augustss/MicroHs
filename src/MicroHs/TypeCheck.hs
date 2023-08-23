@@ -618,11 +618,11 @@ tcDefValue adef =
   case adef of
     Fcn i eqns -> T.do
 --      traceM $ "tcDefValue: " ++ showLHS (i, vs) ++ " = " ++ showExpr rhs
-      (_, ETypeScheme tvs t) <- tLookup i
+      (_, ETypeScheme tvs tfn) <- tLookup i
       let
         vks = zip tvs (repeat (ETypeScheme [] kType))
       mn <- gets moduleName
-      teqns <- withExtTyps vks $ tcEqns t eqns
+      teqns <- withExtTyps vks $ tcEqns tfn eqns
                --tcExpr (Just t) $ ELam (map EVar vs) rhs
       T.return $ Fcn (qual mn i) teqns
 --      (et, _) <- withExtTyps vks (tcExpr (Just t) (foldr eLam1 rhs vs))
@@ -662,8 +662,9 @@ tcExprR mt ae =
     ELit l -> tcLit mt l
     ECase a arms -> T.do
       (ea, ta) <- tcExpr Nothing a
-      (earms, tarms) <- unzip <$> T.mapM (tcArm mt ta) arms
-      T.return (ECase ea earms, head tarms)
+      tt <- unMType mt
+      earms <- T.mapM (tcArm tt ta) arms
+      T.return (ECase ea earms, tt)
     ELet bs a -> tcBinds bs $ \ ebs -> T.do { (ea, ta) <- tcExpr mt a; T.return (ELet ebs ea, ta) }
     ETuple es -> T.do
       let
@@ -702,10 +703,10 @@ tcExprR mt ae =
               SBind p a -> T.do
                 let
                   sbind = maybe ">>=" (\ mn -> qual mn ">>=") mmn
-                (EApp (EApp _ ea) (ELam _ (ECase _ ((ep, EDo mn ys): _)))
+                (EApp (EApp _ ea) (ELam _ (ECase _ ((ep, [(_, EDo mn ys)]): _)))
                  , tr) <-
                   tcExpr Nothing (EApp (EApp (EVar sbind) a)
-                                       (ELam [EVar "$x"] (ECase (EVar "$x") [(p, EDo mmn ss)])))
+                                       (ELam [EVar "$x"] (ECase (EVar "$x") [(p, [([], EDo mmn ss)])])))
                 T.return (EDo mn (SBind ep ea : ys), tr)
               SThen a -> T.do
                 let
@@ -744,7 +745,7 @@ tcExprR mt ae =
                 SBind p a -> T.do
                   v <- newUVar
                   (ea, _) <- tcExpr (Just $ tApp tList v) a
-                  tcPat (Just v) p $ \ ep ->
+                  tcPat v p $ \ ep ->
                     doStmts (SBind ep ea : rss) ss
                 SThen a -> T.do
                   (ea, _) <- tcExpr (Just tBool) a
@@ -788,16 +789,18 @@ unArrow (Just t) =
       unify t (tArrow a r)
       T.return (a, r)
 
+tcPats :: forall a . EType -> [EPat] -> (EType -> [Typed EPat] -> T a) -> T a
+tcPats t [] ta = ta t []
+tcPats t (p:ps) ta = T.do
+  (tp, tr) <- unArrow (Just t)
+  tcPat tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt ((pp, tp) : pps)
+
 tcExprLam :: Maybe EType -> [EPat] -> Expr -> T (Typed Expr)
-tcExprLam mt aps expr =
-  case aps of
-    [] -> T.do
-      (er, tr) <- tcExpr mt expr
-      T.return (ELam [] er, tr)
-    p:ps -> T.do
-      (ta, r) <- unArrow mt
-      ((pr, ELam psr er), tr) <- tcArm (Just r) ta (p, ELam ps expr)
-      T.return (ELam (pr:psr) er, tArrow ta tr)
+tcExprLam mt aps expr = T.do
+  t <- unMType mt
+  tcPats t aps $ \ tt pts -> T.do
+    (er, tr) <- tcExpr (Just tt) expr
+    T.return (ELam (map fst pts) er, foldr tArrow tr (map snd pts))
 
 tcEqns :: EType -> [Eqn] -> T [Eqn]
 tcEqns t eqns = T.mapM (tcEqn t) eqns
@@ -805,23 +808,39 @@ tcEqns t eqns = T.mapM (tcEqn t) eqns
 tcEqn :: EType -> Eqn -> T Eqn
 tcEqn t eqn =
   case eqn of
-    Eqn ps rhs -> T.do
-      (ELam aps arhs, _) <- tcExprLam (Just t) ps rhs
-      T.return (Eqn aps arhs)
+    Eqn ps alts -> tcPats t ps $ \ tt tps -> T.do
+      aalts <- T.mapM (tcAlt tt) alts
+      T.return (Eqn (map fst tps) aalts)
 
-tcArm :: Maybe EType -> EType -> ECaseArm -> T (Typed ECaseArm)
-tcArm mt t arm =
+tcAlt :: EType -> EAlt -> T EAlt
+tcAlt t (ss, rhs) = tcGuards ss $ \ sss -> T.do { (rrhs,_) <- tcExpr (Just t) rhs; T.return (sss, rrhs) }
+
+tcGuards :: forall a . [EStmt] -> ([EStmt] -> T a) -> T a
+tcGuards [] ta = ta []
+tcGuards (s:ss) ta = tcGuard s $ \ rs -> tcGuards ss $ \ rss -> ta (rs:rss)
+
+tcGuard :: forall a . EStmt -> (EStmt -> T a) -> T a
+tcGuard (SBind p e) ta = T.do
+  (ee, tt) <- tcExpr Nothing e
+  tcPat tt p $ \ pp -> ta (SBind pp ee)
+tcGuard (SThen e) ta = T.do
+  (ee, _) <- tcExpr (Just tBool) e
+  ta (SThen ee)
+tcGuard (SLet bs) ta = tcBinds bs $ \ bbs -> ta (SLet bbs)
+
+tcArm :: EType -> EType -> ECaseArm -> T ECaseArm
+tcArm t tpat arm =
   case arm of
-    (p, a) -> T.do
-      (pp, (ea, ta)) <- tcPat (Just t) p $ \ pp -> pair pp <$> tcExpr mt a
-      T.return ((pp, ea), ta)
+    (p, alts) -> tcPat tpat p $ \ pp -> T.do
+      aalts <- T.mapM (tcAlt t) alts
+      T.return (pp, aalts)
 
-tcPat ::forall a .  Maybe EType -> EPat -> (EPat -> T a) -> T a
-tcPat mt ap ta = T.do
+tcPat ::forall a .  EType -> EPat -> (EPat -> T a) -> T a
+tcPat t ap ta = T.do
 --  traceM $ "tcPat: " ++ show ap
   env <- T.mapM (\ v -> (pair v . ETypeScheme []) <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
   withExtVals env $ T.do
-    (pp, _) <- tcExpr mt ap
+    (pp, _) <- tcExpr (Just t) ap
     () <- checkArity 0 pp
     ta pp
 

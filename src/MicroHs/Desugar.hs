@@ -46,6 +46,9 @@ dsDef mn adef =
     Sign _ _ -> []
     Import _ -> []
 
+oneAlt :: Expr -> [EAlt]
+oneAlt e = [([], e)]
+
 dsBind :: EBind -> [LDef]
 dsBind abind =
   case abind of
@@ -54,7 +57,7 @@ dsBind abind =
       let
         v = newVar (allVarsBind abind)
         de = (v, dsExpr e)
-        ds = [ (i, dsExpr (ECase (EVar v) [(p, EVar i)])) | i <- patVars p ]
+        ds = [ (i, dsExpr (ECase (EVar v) [(p, oneAlt $ EVar i)])) | i <- patVars p ]
       in  de : ds
 
 dsEqns :: [Eqn] -> Exp
@@ -64,9 +67,13 @@ dsEqns eqns =
       let
         vs = allVarsBind $ BFcn "" eqns
         xs = take (length aps) $ newVars vs
-        ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsExpr e) | Eqn ps e <- eqns]
+        ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts alts) | Eqn ps alts <- eqns]
       in foldr Lam ex xs
     _ -> impossible
+
+dsAlts :: [EAlt] -> (Exp -> Exp)
+dsAlts [([], e)] = \ _ -> dsExpr e
+dsAlts _ = undefined
 
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
@@ -105,7 +112,7 @@ dsExpr aexpr =
 --                  _ ->
                     let
                       nv = newVar (allVarsExpr aexpr)
-                      body = ECase (EVar nv) [(p, EDo mn stmts), (EVar dummyIdent, eError "dopat")]
+                      body = ECase (EVar nv) [(p, oneAlt $ EDo mn stmts), (EVar dummyIdent, oneAlt $ eError "dopat")]
                       res = dsExpr $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [EVar nv] body)
                     in res
                       
@@ -132,7 +139,7 @@ dsExpr aexpr =
             SBind p b ->
               let
                 nv = newVar (allVarsExpr aexpr)
-                body = ECase (EVar nv) [(p, ECompr e stmts), (EVar dummyIdent, EList [])]
+                body = ECase (EVar nv) [(p, oneAlt $ ECompr e stmts), (EVar dummyIdent, oneAlt $ EList [])]
               in app2 (Var "Data.List.concatMap") (dsExpr (ELam [EVar nv] body)) (dsExpr b)
             SThen c ->
               dsExpr (EIf c (ECompr e stmts) (EList []))
@@ -151,7 +158,7 @@ dsLam ps e =
   let
     vs = allVarsExpr (ELam ps e)
     xs = take (length ps) (newVars vs)
-    ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsExpr e)]
+    ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts $ oneAlt e)]
   in foldr Lam ex xs
 
 mqual :: Maybe Ident -> Ident -> Ident
@@ -225,15 +232,14 @@ showLDef a =
 dsCase :: Expr -> [ECaseArm] -> Exp
 dsCase ae as =
   let
-    r = runS (allVarsExpr (ECase ae as)) [dsExpr ae] [([dsPat p], dsExpr e) | (p, e) <- as]
+    r = runS (allVarsExpr (ECase ae as)) [dsExpr ae] [([dsPat p], dsAlts alts) | (p, alts) <- as]
   in --trace (showExp r) $
      r
-     
 
 type MState = [Ident]  -- supply of unused variables.
 
 type M a = State MState a
-type Arm = ([EPat], Exp)
+type Arm = ([EPat], Exp -> Exp)
 type Matrix = [Arm]
 
 newIdents :: Int -> M [Ident]
@@ -277,12 +283,11 @@ dsMatrix dflt iis aarms =
    S.return dflt
  else
  case iis of
- [] -> S.return (snd (head aarms))
+ [] -> S.return $ (snd (head aarms)) dflt
  i:is -> S.do
   let
-    -- XXX handle EAt
     (arms, darms, rarms) = splitArms aarms
-    ndarms = map (\ (EVar x : ps, ed) -> (ps, substAlpha x i ed) ) darms
+    ndarms = map (\ (EVar x : ps, ed) -> (ps, substAlpha x i . ed) ) darms
 --  traceM ("split " ++ show (arms, darms, rarms))
   letBind (dsMatrix dflt iis rarms) $ \ drest ->
     letBind (dsMatrix drest is ndarms) $ \ ndflt ->
@@ -301,7 +306,7 @@ dsMatrix dflt iis aarms =
               case arg of
                 (p : ps, e) ->
                   case p of
-                    EAt a pp -> one (pp:ps, substAlpha a i e)
+                    EAt a pp -> one (pp:ps, substAlpha a i . e)
                     _        -> (pArgs p ++ ps, e)
                 _ -> impossible
           cexp <- dsMatrix ndflt (map Var xs ++ is) (map one grp)

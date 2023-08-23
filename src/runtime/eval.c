@@ -6,9 +6,6 @@
 #include <string.h>
 #include <inttypes.h>
 #include <locale.h>
-#if !defined(_MSC_VER)
-#include <sys/time.h>
-#endif
 #include <ctype.h>
 
 #if defined(__MINGW32__)
@@ -47,11 +44,15 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 }
 
 #else  /* defined(_MSC_VER) */
+
+#include <sys/time.h>
+
 #define FFSL(ret, arg) ((ret) = ffsl(arg))
 #define PCOMMA "'"
 
 #endif  /* !defined(_MSC_VER) */
 
+#define GCRED    0
 #define FASTTAGS 1
 #define UNIONPTR 1
 
@@ -457,7 +458,7 @@ mark(NODEPTR *np)
     red_k++;
     goto top;
   }
-  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == I) {
+  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_I) {
     /* Do the I x --> x reduction */
     NODEPTR x = ARG(n);
     SETTAG(n, T_IND);

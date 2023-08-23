@@ -14,6 +14,7 @@ module MicroHs.Parse(
   EBind(..),
   Eqn(..),
   EStmt(..),
+  EAlt,
   ECaseArm,
   EType,
   EPat, patVars, isPVar,
@@ -108,7 +109,7 @@ conArity (Con cs i) = fromMaybe undefined $ lookupBy eqIdent i cs
 data Lit = LInt Int | LChar Char | LStr String | LPrim String
   --Xderiving (Show, Eq)
 
-type ECaseArm = (EPat, Expr)
+type ECaseArm = (EPat, [EAlt])
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
   --Xderiving (Show, Eq)
@@ -117,8 +118,10 @@ data EBind = BFcn Ident [Eqn] | BPat EPat Expr
   --Xderiving (Show, Eq)
 
 -- A single equation for a function
-data Eqn = Eqn [EPat] Expr
+data Eqn = Eqn [EPat] [EAlt]
   --Xderiving (Show, Eq)
+
+type EAlt = ([EStmt], Expr)
 
 type ConTyInfo = [(Ident, Int)]    -- All constructors with their arities
 
@@ -514,10 +517,9 @@ pEqn :: (Ident -> Int -> Bool) -> P (Ident, Eqn)
 pEqn test = P.do
   name <- pLIdent
   pats <- emany pAPat
-  pSymbol "="
+  alts <- pAlts (pSymbol "=")
   guard (test name (length pats))
-  rhs <- pExpr
-  P.pure (name, Eqn pats rhs)
+  P.pure (name, Eqn pats alts)
 
 pImportSpec :: P ImportSpec
 pImportSpec =
@@ -589,7 +591,12 @@ pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExprPT) <*> (pKeywordW "of" *> pBlock pCaseArm)
 
 pCaseArm :: P ECaseArm
-pCaseArm = pair <$> pPat <*> (pSymbol "->" *> pExpr)
+pCaseArm = pair <$> pPat <*> pAlts (pSymbol "->")
+
+pAlts :: P () -> P [EAlt]
+pAlts sep =
+      esome (pair <$> (pSym '|' *> esepBy1 pStmt (pSym ',')) <*> (sep *> pExpr))
+  <|< ((\ e -> [([], e)]) <$> (sep *> pExpr))
 
 -- Sadly pattern and expression parsing cannot be joined because the
 -- use of '->' in 'case' and lambda makes it weird.
@@ -720,7 +727,7 @@ pStmt =
 pBind :: P EBind
 pBind = 
       uncurry BFcn <$> pEqns
-  <|> BPat <$> (pPatNotVar <* pSymbol "=") <*> pExprPT
+  <|> BPat <$> (pPatNotVar <* pSym '=') <*> pExprPT
 
 pQualDo :: P String
 pQualDo = P.do
@@ -787,7 +794,7 @@ showEDef def =
   case def of
     Data lhs _ -> "data " ++ showLHS lhs ++ " = ..."
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
-    Fcn i eqns -> unlines (map (\ (Eqn ps e) -> i ++ " " ++ unwords (map showEPat ps) ++ " = " ++ showExpr e) eqns)
+    Fcn i eqns -> unlines (map (\ (Eqn ps alts) -> i ++ " " ++ unwords (map showEPat ps) ++ showAlts "=" alts) eqns)
     Sign i t -> i ++ " :: " ++ showETypeScheme t
     Import (ImportSpec q m mm) -> "import " ++ (if q then "qualified " else "") ++ m ++ maybe "" (" as " ++) mm
 
@@ -798,6 +805,13 @@ showLHS lhs =
 
 showEDefs :: [EDef] -> String
 showEDefs ds = unlines (map showEDef ds)
+
+showAlts :: String -> [EAlt] -> String
+showAlts sep [([], e)] = " " ++ sep ++ " " ++ showExpr e
+showAlts sep alts = unlines (map (showAlt sep) alts)
+
+showAlt :: String -> EAlt -> String
+showAlt sep (ss, e) = " | " ++ concat (intersperse ", " (map showEStmt ss)) ++ " " ++ sep ++ " " ++ showExpr e
 
 showExpr :: Expr -> String
 showExpr ae =
@@ -848,7 +862,7 @@ showEBind ab =
 showCaseArm :: ECaseArm -> String
 showCaseArm arm =
   case arm of
-    (p, e) -> showEPat p ++ " -> " ++ showExpr e
+    (p, alts) -> showEPat p ++ showAlts "->" alts
 
 showEPat :: EPat -> String
 showEPat = showExpr
@@ -885,7 +899,10 @@ allVarsBind abind =
 allVarsEqn :: Eqn -> [Ident]
 allVarsEqn eqn =
   case eqn of
-    Eqn ps e -> concatMap allVarsPat ps ++ allVarsExpr e
+    Eqn ps alts -> concatMap allVarsPat ps ++ concatMap allVarsAlt alts
+
+allVarsAlt :: EAlt -> [Ident]
+allVarsAlt (ss, e) = concatMap allVarsStmt ss ++ allVarsExpr e
 
 {-
 allVarsLHS :: LHS -> [Ident]
@@ -904,7 +921,7 @@ allVarsExpr aexpr =
     EApp e1 e2 -> allVarsExpr e1 ++ allVarsExpr e2
     ELam ps e -> concatMap allVarsPat ps ++ allVarsExpr e
     ELit _ -> []
-    ECase e as -> allVarsExpr e ++ concatMap (\ pa -> allVarsPat (fst pa) ++ allVarsExpr (snd pa)) as
+    ECase e as -> allVarsExpr e ++ concatMap allVarsCaseArm as
     ELet bs e -> concatMap allVarsBind bs ++ allVarsExpr e
     ETuple es -> concatMap allVarsExpr es
     EList es -> concatMap allVarsExpr es
@@ -916,6 +933,9 @@ allVarsExpr aexpr =
     EAt i e -> i : allVarsExpr e
     EUVar _ -> []
     ECon c -> [conIdent c]
+
+allVarsCaseArm :: ECaseArm -> [Ident]
+allVarsCaseArm (p, alts) = allVarsPat p ++ concatMap allVarsAlt alts
 
 allVarsStmt :: EStmt -> [Ident]
 allVarsStmt astmt =
