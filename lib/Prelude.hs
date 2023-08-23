@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Prelude(
+  module Prelude,
   module Control.Error,
   module Data.Bool,
   module Data.Char,
