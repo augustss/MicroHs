@@ -72,8 +72,19 @@ dsEqns eqns =
     _ -> impossible
 
 dsAlts :: [EAlt] -> (Exp -> Exp)
-dsAlts [([], e)] = \ _ -> dsExpr e
-dsAlts _ = undefined
+dsAlts []                 dflt = dflt
+dsAlts [([], e)]             _ = dsExpr e  -- fast special case
+dsAlts ((ss, rhs) : alts) dflt =
+  let
+    erest = dsAlts alts dflt
+    x = newVar (allVarsExp erest)
+  in eLet x erest (dsExpr $ dsAlt (EVar x) ss rhs)
+
+dsAlt :: Expr -> [EStmt] -> Expr -> Expr
+dsAlt _ [] rhs = rhs
+dsAlt dflt (SBind p e : ss) rhs = ECase e [(p, [(ss, rhs)]), (EVar dummyIdent, oneAlt dflt)]
+dsAlt dflt (SThen e   : ss) rhs = EIf e (dsAlt dflt ss rhs) dflt
+dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
@@ -379,10 +390,12 @@ eCase e as = apps e [lams xs r | (SPat _ xs, r) <- as ]
 splitArms :: Matrix -> (Matrix, Matrix, Matrix)
 splitArms am =
   let
-    ps  = takeWhile (not . isPVar . head . fst) am
-    nps = dropWhile (not . isPVar . head . fst) am
-    ds  = takeWhile (      isPVar . head . fst) nps
-    rs  = dropWhile (      isPVar . head . fst) nps
+    (ps, nps) = span (not . isPVar . head . fst) am
+    --(ds, rs)  = span (      isPVar . head . fst) nps
+    (ds, rs) =
+      case nps of
+        d@(EVar _ : _, _) : rrs -> ([d], rrs)
+        _ -> ([], nps)
   in (ps, ds, rs)
 
 -- Change from x to y inside e.

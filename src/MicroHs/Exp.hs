@@ -6,7 +6,8 @@ module MicroHs.Exp(
   Exp(..), showExp, toStringP,
   PrimOp,
   encodeString,
-  app2, cCons, cNil, cFlip
+  app2, cCons, cNil, cFlip,
+  allVarsExp
   ) where
 import Prelude
 import Data.Char

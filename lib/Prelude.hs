@@ -25,3 +25,6 @@ import Data.Maybe
 import Data.Tuple
 import System.IO
 import Text.String
+
+otherwise :: Bool
+otherwise = True
