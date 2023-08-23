@@ -46,8 +46,8 @@ dsDef mn adef =
     Sign _ _ -> []
     Import _ -> []
 
-oneAlt :: Expr -> [EAlt]
-oneAlt e = [([], e)]
+oneAlt :: Expr -> EAlts
+oneAlt e = EAlts [([], e)] []
 
 dsBind :: EBind -> [LDef]
 dsBind abind =
@@ -71,20 +71,36 @@ dsEqns eqns =
       in foldr Lam ex xs
     _ -> impossible
 
-dsAlts :: [EAlt] -> (Exp -> Exp)
-dsAlts []                 dflt = dflt
-dsAlts [([], e)]             _ = dsExpr e  -- fast special case
-dsAlts ((ss, rhs) : alts) dflt =
+dsAlts :: EAlts -> (Exp -> Exp)
+dsAlts (EAlts alts bs) = dsBinds bs . dsAltsL alts
+
+dsAltsL :: [EAlt] -> (Exp -> Exp)
+dsAltsL []                 dflt = dflt
+dsAltsL [([], e)]             _ = dsExpr e  -- fast special case
+dsAltsL ((ss, rhs) : alts) dflt =
   let
-    erest = dsAlts alts dflt
+    erest = dsAltsL alts dflt
     x = newVar (allVarsExp erest)
   in eLet x erest (dsExpr $ dsAlt (EVar x) ss rhs)
 
 dsAlt :: Expr -> [EStmt] -> Expr -> Expr
 dsAlt _ [] rhs = rhs
-dsAlt dflt (SBind p e : ss) rhs = ECase e [(p, [(ss, rhs)]), (EVar dummyIdent, oneAlt dflt)]
+dsAlt dflt (SBind p e : ss) rhs = ECase e [(p, EAlts [(ss, rhs)] []), (EVar dummyIdent, oneAlt dflt)]
 dsAlt dflt (SThen e   : ss) rhs = EIf e (dsAlt dflt ss rhs) dflt
 dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
+
+dsBinds :: [EBind] -> Exp -> Exp
+dsBinds ads ret =
+  case ads of
+    [] -> ret
+    d:ds ->
+      let
+        dsd = dsBind d
+        de = dsBinds ds ret
+        def ir a =
+          case ir of
+            (i, r) -> App (Lam i a) (App (Lit (LPrim "Y")) (Lam i r))
+      in  foldr def de dsd
 
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
@@ -97,17 +113,7 @@ dsExpr aexpr =
     ELit l -> Lit l
     ECase e as -> dsCase e as
 -- For now, just sequential bindings; each recursive
-    ELet ads e ->
-      case ads of
-        [] -> dsExpr e
-        d:ds ->
-          let
-            dsd = dsBind d
-            de = dsExpr (ELet ds e)
-            def ir a =
-                case ir of
-                  (i, r) -> App (Lam i a) (App (Lit (LPrim "Y")) (Lam i r))
-          in  foldr def de dsd
+    ELet ads e -> dsBinds ads (dsExpr e)
     EList es -> foldr (app2 cCons) cNil $ map dsExpr es
     ETuple es -> Lam "$f" $ foldl App (Var "$f") $ map dsExpr es
     EDo mn astmts ->

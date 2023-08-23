@@ -703,10 +703,10 @@ tcExprR mt ae =
               SBind p a -> T.do
                 let
                   sbind = maybe ">>=" (\ mn -> qual mn ">>=") mmn
-                (EApp (EApp _ ea) (ELam _ (ECase _ ((ep, [(_, EDo mn ys)]): _)))
+                (EApp (EApp _ ea) (ELam _ (ECase _ ((ep, EAlts [(_, EDo mn ys)] _): _)))
                  , tr) <-
                   tcExpr Nothing (EApp (EApp (EVar sbind) a)
-                                       (ELam [EVar "$x"] (ECase (EVar "$x") [(p, [([], EDo mmn ss)])])))
+                                       (ELam [EVar "$x"] (ECase (EVar "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
                 T.return (EDo mn (SBind ep ea : ys), tr)
               SThen a -> T.do
                 let
@@ -809,8 +809,12 @@ tcEqn :: EType -> Eqn -> T Eqn
 tcEqn t eqn =
   case eqn of
     Eqn ps alts -> tcPats t ps $ \ tt tps -> T.do
-      aalts <- T.mapM (tcAlt tt) alts
+      aalts <- tcAlts tt alts
       T.return (Eqn (map fst tps) aalts)
+
+tcAlts :: EType -> EAlts -> T EAlts
+tcAlts tt (EAlts alts bs) =
+  tcBinds bs $ \ bbs -> T.do { aalts <- T.mapM (tcAlt tt) alts; T.return (EAlts aalts bbs) }
 
 tcAlt :: EType -> EAlt -> T EAlt
 tcAlt t (ss, rhs) = tcGuards ss $ \ sss -> T.do { (rrhs,_) <- tcExpr (Just t) rhs; T.return (sss, rrhs) }
@@ -832,7 +836,7 @@ tcArm :: EType -> EType -> ECaseArm -> T ECaseArm
 tcArm t tpat arm =
   case arm of
     (p, alts) -> tcPat tpat p $ \ pp -> T.do
-      aalts <- T.mapM (tcAlt t) alts
+      aalts <- tcAlts t alts
       T.return (pp, aalts)
 
 tcPat ::forall a .  EType -> EPat -> (EPat -> T a) -> T a

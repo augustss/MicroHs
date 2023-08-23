@@ -14,6 +14,7 @@ module MicroHs.Parse(
   EBind(..),
   Eqn(..),
   EStmt(..),
+  EAlts(..),
   EAlt,
   ECaseArm,
   EType,
@@ -109,7 +110,7 @@ conArity (Con cs i) = fromMaybe undefined $ lookupBy eqIdent i cs
 data Lit = LInt Int | LChar Char | LStr String | LPrim String
   --Xderiving (Show, Eq)
 
-type ECaseArm = (EPat, [EAlt])
+type ECaseArm = (EPat, EAlts)
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
   --Xderiving (Show, Eq)
@@ -118,7 +119,10 @@ data EBind = BFcn Ident [Eqn] | BPat EPat Expr
   --Xderiving (Show, Eq)
 
 -- A single equation for a function
-data Eqn = Eqn [EPat] [EAlt]
+data Eqn = Eqn [EPat] EAlts
+  --Xderiving (Show, Eq)
+
+data EAlts = EAlts [EAlt] [EBind]
   --Xderiving (Show, Eq)
 
 type EAlt = ([EStmt], Expr)
@@ -593,10 +597,21 @@ pCase = ECase <$> (pKeyword "case" *> pExprPT) <*> (pKeywordW "of" *> pBlock pCa
 pCaseArm :: P ECaseArm
 pCaseArm = pair <$> pPat <*> pAlts (pSymbol "->")
 
-pAlts :: P () -> P [EAlt]
-pAlts sep =
+pAlts :: P () -> P EAlts
+pAlts sep = P.do
+  alts <- pAltsL sep
+  bs <- pWhere
+  P.pure (EAlts alts bs)
+  
+pAltsL :: P () -> P [EAlt]
+pAltsL sep =
       esome (pair <$> (pSym '|' *> esepBy1 pStmt (pSym ',')) <*> (sep *> pExpr))
   <|< ((\ e -> [([], e)]) <$> (sep *> pExpr))
+
+pWhere :: P [EBind]
+pWhere =
+      (pKeyword "where" *> pBlock pBind)
+  <|< P.pure []
 
 -- Sadly pattern and expression parsing cannot be joined because the
 -- use of '->' in 'case' and lambda makes it weird.
@@ -806,9 +821,16 @@ showLHS lhs =
 showEDefs :: [EDef] -> String
 showEDefs ds = unlines (map showEDef ds)
 
-showAlts :: String -> [EAlt] -> String
-showAlts sep [([], e)] = " " ++ sep ++ " " ++ showExpr e
-showAlts sep alts = unlines (map (showAlt sep) alts)
+showAlts :: String -> EAlts -> String
+showAlts sep (EAlts alts bs) = showAltsL sep alts ++ showWhere bs
+
+showWhere :: [EBind] -> String
+showWhere [] = ""
+showWhere bs = "where\n" ++ unlines (map showEBind bs)
+
+showAltsL :: String -> [EAlt] -> String
+showAltsL sep [([], e)] = " " ++ sep ++ " " ++ showExpr e
+showAltsL sep alts = unlines (map (showAlt sep) alts)
 
 showAlt :: String -> EAlt -> String
 showAlt sep (ss, e) = " | " ++ concat (intersperse ", " (map showEStmt ss)) ++ " " ++ sep ++ " " ++ showExpr e
@@ -899,7 +921,10 @@ allVarsBind abind =
 allVarsEqn :: Eqn -> [Ident]
 allVarsEqn eqn =
   case eqn of
-    Eqn ps alts -> concatMap allVarsPat ps ++ concatMap allVarsAlt alts
+    Eqn ps alts -> concatMap allVarsPat ps ++ allVarsAlts alts
+
+allVarsAlts :: EAlts -> [Ident]
+allVarsAlts (EAlts alts bs) = concatMap allVarsAlt alts ++ concatMap allVarsBind bs
 
 allVarsAlt :: EAlt -> [Ident]
 allVarsAlt (ss, e) = concatMap allVarsStmt ss ++ allVarsExpr e
@@ -935,7 +960,7 @@ allVarsExpr aexpr =
     ECon c -> [conIdent c]
 
 allVarsCaseArm :: ECaseArm -> [Ident]
-allVarsCaseArm (p, alts) = allVarsPat p ++ concatMap allVarsAlt alts
+allVarsCaseArm (p, alts) = allVarsPat p ++ allVarsAlts alts
 
 allVarsStmt :: EStmt -> [Ident]
 allVarsStmt astmt =
