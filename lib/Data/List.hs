@@ -172,6 +172,13 @@ dropWhile p (x:xs) =
   else
     x : xs
 
+span :: forall a . (a -> Bool) -> [a] -> ([a], [a])
+span p =
+  let
+    rec r [] = (reverse r, [])
+    rec r (x:xs) = if p x then rec (x:r) xs else (reverse r, x:xs)
+  in rec []
+
 head :: forall a . [a] -> a
 head [] = error "head"
 head (x:_) = x
