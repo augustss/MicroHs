@@ -437,18 +437,18 @@ newUVar = T.do
   put (TC mn (n+1) tenv senv venv sub)
   T.return (EUVar n)
 
-tLookupInst :: Ident -> T (Expr, EType)
-tLookupInst i = T.do
-  (e, s) <- tLookup i
+tLookupInst :: String -> Ident -> T (Expr, EType)
+tLookupInst msg i = T.do
+  (e, s) <- tLookup msg i
 --  traceM ("lookup " ++ show (i, s))
   t <- tInst s
   T.return (e, t)
 
-tLookup :: Ident -> T (Expr, ETypeScheme)
-tLookup i = T.do
+tLookup :: String -> Ident -> T (Expr, ETypeScheme)
+tLookup msg i = T.do
   env <- gets valueTable
   case M.lookup i env of
-    Nothing -> error $ "undefined variable " ++ i -- ++ "\n" ++ show env ;
+    Nothing -> error $ "undefined, " ++ msg ++ ": " ++ i -- ++ "\n" ++ show env ;
     Just aes ->
       case aes of
         [] -> impossible
@@ -618,7 +618,7 @@ tcDefValue adef =
   case adef of
     Fcn i eqns -> T.do
 --      traceM $ "tcDefValue: " ++ showLHS (i, vs) ++ " = " ++ showExpr rhs
-      (_, ETypeScheme tvs tfn) <- tLookup i
+      (_, ETypeScheme tvs tfn) <- tLookup "no type signature" i
       let
         vks = zip tvs (repeat (ETypeScheme [] kType))
       mn <- gets moduleName
@@ -649,7 +649,7 @@ tcExprR mt ae =
         -- this only happens with patterns translated into expressions
         pair ae <$> newUVar
       else T.do
-        (e, t) <- tLookupInst i
+        (e, t) <- tLookupInst "variable" i
 --        traceM $ "*** " ++ i ++ " :: " ++ showExpr t ++ " = " ++ showMaybe showExpr mt
         munify mt t
         T.return (e, t)
@@ -693,7 +693,7 @@ tcExprR mt ae =
                 (ea, ta) <- tcExpr mt a
                 let
                   sbind = maybe ">>=" (\ mn -> qual mn ">>=") mmn
-                (EVar qi, _) <- tLookupInst sbind 
+                (EVar qi, _) <- tLookupInst "variable" sbind 
                 let
                   mn = moduleOf qi
                 T.return (EDo (Just mn) [SThen ea], ta)
@@ -760,7 +760,7 @@ tcExprR mt ae =
       T.return (ECompr ea rss, tr)
     EAt i e -> T.do
       (ee, t) <- tcExpr mt e
-      (_, ti) <- tLookupInst i
+      (_, ti) <- tLookupInst "impossible!" i
       unify t ti
       T.return (EAt i ee, t)
     -----
@@ -863,7 +863,7 @@ tcBind :: EBind -> T EBind
 tcBind abind =
   case abind of
     BFcn i eqns -> T.do
-      (_, t) <- tLookupInst i
+      (_, t) <- tLookupInst "impossible!" i
       --(ELam _avs ea, _) <- tcExpr (Just t) $ ELam (map EVar vs) a
       teqns <- tcEqns t eqns
       T.return $ BFcn i teqns
