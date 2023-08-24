@@ -195,16 +195,12 @@ tail [] = error "tail"
 tail (_:ys) = ys
 
 intersperse :: forall a . a -> [a] -> [a]
-intersperse sep axs =
-  case axs of
-    [] -> []
-    x:xs  -> x : prependToAll sep xs
+intersperse _ [] = []
+intersperse sep (x:xs) = x : prependToAll sep xs
 
 prependToAll :: forall a . a -> [a] -> [a]
-prependToAll sep axs =
-  case axs of
-    [] -> []
-    x:xs -> sep : x : prependToAll sep xs
+prependToAll _ [] = []
+prependToAll sep (x:xs) = sep : x : prependToAll sep xs
 
 intercalate :: forall a . [a] -> [[a]] -> [a]
 intercalate xs xss = concat (intersperse xs xss)
@@ -232,16 +228,12 @@ intersectBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 intersectBy eq xs ys = filter (\ x -> not (elemBy eq x ys)) xs
 
 deleteBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
-deleteBy eq x ays =
-  case ays of
-    []   -> []
-    y:ys -> if eq x y then ys else y : deleteBy eq x ys
+deleteBy _ _ [] = []
+deleteBy eq x (y:ys) = if eq x y then ys else y : deleteBy eq x ys
 
 nubBy :: forall a . (a -> a -> Bool) -> [a] -> [a]
-nubBy eq axs =
-  case axs of
-    [] -> []
-    x:xs -> x : nubBy eq (filter (\ y -> not (eq x y)) xs)
+nubBy _ [] = []
+nubBy eq (x:xs) = x : nubBy eq (filter (\ y -> not (eq x y)) xs)
 
 replicate :: forall a . Int -> a -> [a]
 replicate n x = take n (repeat x)
@@ -261,23 +253,14 @@ deleteFirstsBy eq = foldl (flip (deleteBy eq))
     error "!!: <0"
   else
     let
-      nth n axs =
-        case axs of
-          [] -> error "!!: empty"
-          x:xs -> if n == 0 then x else nth (n-1) xs
+      nth _ [] = error "!!: empty"
+      nth n (x:xs) = if n == 0 then x else nth (n-1) xs
     in nth i
 
 eqList :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
-eqList eq axs ays =
-  case axs of
-    [] ->
-      case ays of
-        [] -> True
-        _:_ -> False
-    x:xs ->
-      case ays of
-        [] -> False
-        y:ys -> eq x y && eqList eq xs ys
+eqList _ [] [] = True
+eqList eq (x:xs) (y:ys) = eq x y && eqList eq xs ys
+eqList _ _ _ = False
 
 partition :: forall a . (a -> Bool) -> [a] -> ([a], [a])
 partition p xs = (filter p xs, filter (not . p) xs)
