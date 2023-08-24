@@ -77,16 +77,12 @@ mergeToSameHeight a b =
 
 -- All elements in aa smaller than elements in ab
 merge :: forall k v . Map k v -> Map k v -> Map k v
+merge Empty ab = ab
+merge aa Empty = aa
 merge aa ab =
-  case aa of
-    Empty -> ab
-    _ ->
-      case ab of
-        Empty -> aa
-        _ ->
-          case mergeToSameHeight aa ab of
-            OOT1 t -> t
-            OOT2 t u -> node2 t u
+  case mergeToSameHeight aa ab of
+    OOT1 t -> t
+    OOT2 t u -> node2 t u
 
 split :: forall k v . (k -> Bool) -> Map k v -> (Map k v, Map k v)
 split f am =

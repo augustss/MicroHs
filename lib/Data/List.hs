@@ -38,10 +38,7 @@ filter :: forall a . (a -> Bool) -> [a] -> [a]
 filter p =
   let
     rec [] = []
-    rec (x : xs) =
-          case p x of
-            False -> rec xs
-            True  -> x : rec xs
+    rec (x : xs) = if p x then x : rec xs else rec xs
   in rec
 
 foldr :: forall a b . (a -> b -> b) -> b -> [a] -> b
@@ -52,59 +49,56 @@ foldr f z =
   in rec
 
 foldr1 :: forall a . (a -> a -> a) -> [a] -> a
-foldr1 f arg =
-  case arg of
-    [] -> error "foldr1"
-    x : xs -> foldr f x xs
+foldr1 _ [] = error "foldr1"
+foldr1 f (x : xs) = foldr f x xs
 
 foldl :: forall a b . (b -> a -> b) -> b -> [a] -> b
-foldl f z arg =
-  case arg of
-    [] -> z
-    x : xs -> foldl f (f z x) xs
+foldl _ z [] = z
+foldl f z (x : xs) = foldl f (f z x) xs
 
 foldl1 :: forall a . (a -> a -> a) -> [a] -> a
-foldl1 f arg =
-  case arg of
-    [] -> error "foldl1"
-    x : xs -> foldl f x xs
+foldl1 _ [] = error "foldl1"
+foldl1 f (x : xs) = foldl f x xs
 
 sum :: [Int] -> Int
 sum = foldr (+) 0
+
 product :: [Int] -> Int
 product = foldr (*) 1
+
 and :: [Bool] -> Bool
 and = foldr (&&) True
+
 or :: [Bool] -> Bool
 or = foldr (||) False
+
 any :: forall a . (a -> Bool) -> [a] -> Bool
 any p = or . map p
+
 all :: forall a . (a -> Bool) -> [a] -> Bool
 all p = and . map p
 
 take :: forall a . Int -> [a] -> [a]
 take n arg =
-  case n <= 0 of
-    False ->
-      case arg of
-        [] -> []
-        x : xs -> x : take (n-1) xs
-    True -> []
+  if n <= 0 then
+    []
+  else
+    case arg of
+      [] -> []
+      x : xs -> x : take (n-1) xs
 
 drop :: forall a . Int -> [a] -> [a]
 drop n arg =
-  case n <= 0 of
-    False ->
-      case arg of
-        [] -> []
-        _ : xs -> drop (n-1) xs
-    True -> arg
+  if n <= 0 then
+    arg
+  else
+    case arg of
+      [] -> []
+      _ : xs -> drop (n-1) xs
 
 length :: forall a . [a] -> Int
-length axs =
-  case axs of
-    [] -> 0
-    _:xs -> 1 + length xs
+length [] = 0
+length (_:xs) = 1 + length xs
 
 zip :: forall a b . [a] -> [b] -> [(a, b)]
 zip = zipWith (\ x y -> (x, y))
@@ -117,34 +111,30 @@ unzip :: forall a b . [(a, b)] -> ([a], [b])
 unzip axys =
   case axys of
     [] -> ([], [])
-    xy : xys ->
-      case xy of
-        (x, y) ->
-          case unzip xys of
-            (xs, ys) -> (x:xs, y:ys)
+    (x,y) : xys ->
+      case unzip xys of
+        (xs, ys) -> (x:xs, y:ys)
 
 unzip3 :: forall a b c . [(a, b, c)] -> ([a], [b], [c])
 unzip3 axyzs =
   case axyzs of
     [] -> ([], [], [])
-    xyz : xyzs ->
-      case xyz of
-        (x, y, z) ->
-          case unzip3 xyzs of
-            (xs, ys, zs) -> (x:xs, y:ys, z:zs)
+    (x, y, z) : xyzs ->
+      case unzip3 xyzs of
+        (xs, ys, zs) -> (x:xs, y:ys, z:zs)
 
 stripPrefixBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Maybe [a]
-stripPrefixBy eq p s =
-  case p of
-    [] -> Just s
-    c : cs ->
-      case s of
-        [] -> Nothing
-        d : ds ->
-          if eq c d then
-            stripPrefixBy eq cs ds
-          else
-            Nothing
+stripPrefixBy eq [] s = Just s
+stripPrefixBy eq (c:cs) [] = Nothing
+{-
+stripPrefixBy eq (c:cs) (d:ds) | eq c d = stripPrefixBy eq cs ds
+                               | otherwise = Nothing
+-}
+stripPrefixBy eq (c:cs) (d:ds) =
+  if eq c d then
+    stripPrefixBy eq cs ds
+  else
+    Nothing
 
 splitAt :: forall a . Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
