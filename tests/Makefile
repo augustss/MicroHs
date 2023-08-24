@@ -11,6 +11,8 @@ test:
 	$(MHS) Case && $(EVAL) > Case.out && diff Case.ref Case.out
 	$(MHS) Arith && $(EVAL) > Arith.out && diff Arith.ref Arith.out
 	$(MHS) Guard && $(EVAL) > Guard.out && diff Guard.ref Guard.out
+	$(MHS) Newtype && $(EVAL) > Newtype.out && diff Newtype.ref Newtype.out
+	$(MHS) LitMatch && $(EVAL) > LitMatch.out && diff LitMatch.ref LitMatch.out
 
 time:
 	@echo Expect about 10s runtime

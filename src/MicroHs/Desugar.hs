@@ -34,13 +34,12 @@ dsDef mn adef =
       let
         f i = "$f" ++ showInt i
         fs = [f i | (i, _) <- zip (enumFrom 0) cs]
-        dsConstr i cts =
-          case cts of
-            (c, ts) ->
-              let
-                xs = ["$x" ++ showInt j | (j, _) <- zip (enumFrom 0) ts]
-              in (qual mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
+        dsConstr i (c, ts) =
+          let
+            xs = ["$x" ++ showInt j | (j, _) <- zip (enumFrom 0) ts]
+          in (qual mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
       in  zipWith dsConstr (enumFrom 0) cs
+    Newtype _ c _ -> [ (qual mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
     Fcn f eqns -> [(f, dsEqns eqns)]
     Sign _ _ -> []
@@ -214,20 +213,20 @@ consCon =
   let
     n = "Data.List.[]"
     c = "Data.List.:"
-  in ECon $ Con [(n, 0), (c, 2)] c
+  in ECon $ ConData [(n, 0), (c, 2)] c
 
 nilCon :: EPat
 nilCon =
   let
     n = "Data.List.[]"
     c = "Data.List.:"
-  in ECon $ Con [(n, 0), (c, 2)] n
+  in ECon $ ConData [(n, 0), (c, 2)] n
 
 tupleCon :: Int -> EPat
 tupleCon n =
   let
     c = tupleConstr n
-  in ECon $ Con [(c, n)] c
+  in ECon $ ConData [(c, n)] c
 
 dummyIdent :: Ident
 dummyIdent = "_"
@@ -323,9 +322,9 @@ dsMatrix dflt iis aarms =
        S.return ndflt
      else S.do
       let
-        idOf (p:_, _, _) = conIdent (pConOf p)
+        idOf (p:_, _, _) = pConOf p
         idOf _ = impossible
-        grps = groupEq (on eqIdent idOf) arms
+        grps = groupEq (on eqCon idOf) arms
         oneGroup grp = S.do
           let
             (pat:_, _, _) : _ = grp
@@ -368,38 +367,40 @@ cheap ae =
 --    App (Lit _) _ -> True
     _ -> False
 
--- Ugh, what a hack
-isInt :: String -> Bool
-isInt cs =
-  case cs of
-    c:ds ->
-      isDigit c ||
-      eqChar c '-' && case ds of { d:_ -> isDigit d; _ -> False }
-    _ -> False
-
 -- Could use Prim "==", but that misses out some optimizations
 eEqInt :: Exp
 eEqInt = Var "Data.Int.=="
+
+eEqChar :: Exp
+eEqChar = Var "Data.Char.eqChar"
+
+eEqStr :: Exp
+eEqStr = Var "Text.String.eqString"
 
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
   --trace ("mkCase " ++ show pes) $
   case pes of
-    (SPat (Con cs name) _, arhs) : _ ->
-      -- A hack for Int pattern matching
-      if isInt name then
-        let
-          cond = app2 eEqInt var (Lit (LInt (readInt name)))
-        in app2 cond dflt arhs
-      else
-        let
-          arm ck =
-            let
-              (c, k) = ck
-              (vs, rhs) = head $ [ (xs, e) | (SPat (Con _ i) xs, e) <- pes, eqIdent c i ] ++
-                                 [ (replicate k dummyIdent, dflt) ]
-            in (SPat (Con cs c) vs, rhs)
-        in  eCase var (map arm cs)
+    [] -> dflt
+    [(SPat (ConNew _) [x], arhs)] -> eLet x var arhs
+    (SPat (ConLit l) _,   arhs) : rpes -> 
+      let
+        cond =
+          case l of
+            LInt  _ -> app2 eEqInt  var (Lit l)
+            LChar c -> app2 eEqChar var (Lit (LInt (ord c)))
+            LStr  _ -> app2 eEqStr  var (Lit l)
+            _ -> impossible
+      in app2 cond (mkCase var rpes dflt) arhs
+    (SPat (ConData cs _) _, _) : _ ->
+      let
+        arm ck =
+          let
+            (c, k) = ck
+            (vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i) xs, e) <- pes, eqIdent c i ] ++
+                               [ (replicate k dummyIdent, dflt) ]
+          in (SPat (ConData cs c) vs, rhs)
+      in  eCase var (map arm cs)
     _ -> impossible
 
 eCase :: Exp -> [(SPat, Exp)] -> Exp
@@ -449,7 +450,7 @@ pConOf ap =
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
-    ELit (LInt i) -> let { n = showInt i } in Con [(n, 0)] n
+    ELit l -> ConLit l
     _ -> impossible
 
 pArgs :: EPat -> [EPat]
@@ -457,6 +458,7 @@ pArgs ap =
   case ap of
     ECon _ -> []
     EApp f a -> pArgs f ++ [a]
+    ELit _ -> []
     _ -> impossible
 
 -- XXX quadratic

@@ -24,7 +24,7 @@ module MicroHs.Parse(
   Constr,
   ConTyInfo,
   ETypeScheme(..),
-  Con(..), conIdent, conArity,
+  Con(..), conIdent, conArity, eqCon,
   tupleConstr, untupleConstr,
   subst,
   allVarsExpr, allVarsBind
@@ -39,7 +39,7 @@ import Data.Maybe
 import Text.ParserComb as P
 --import Debug.Trace
 --Ximport Compat
-
+--Ximport GHC.Stack
 
 data EModule = EModule IdentModule [ExportSpec] [EDef]
   --Xderiving (Show, Eq)
@@ -62,6 +62,7 @@ isConIdent i =
 
 data EDef
   = Data LHS [Constr]
+  | Newtype LHS Ident EType
   | Type LHS EType
   | Fcn Ident [Eqn]
   | Sign Ident ETypeScheme
@@ -92,23 +93,40 @@ data Expr
   | ECon Con
   --Xderiving (Show, Eq)
 
-data Con = Con ConTyInfo Ident
+data Con
+  = ConData ConTyInfo Ident
+  | ConNew Ident
+  | ConLit Lit
+--  | ConTup Int
   --Xderiving(Show, Eq)
 
-conIdent :: Con -> Ident
-conIdent (Con _ i) = i
+conIdent :: --XHasCallStack =>
+            Con -> Ident
+conIdent (ConData _ i) = i
+conIdent (ConNew i) = i
+conIdent _ = undefined
 
-{-
-conTyInfo :: Con -> ConTyInfo
-conTyInfo c =
-  case c of
-    Con cs _ -> cs
--}
 conArity :: Con -> Int
-conArity (Con cs i) = fromMaybe undefined $ lookupBy eqIdent i cs
+conArity (ConData cs i) = fromMaybe undefined $ lookupBy eqIdent i cs
+conArity (ConNew _) = 1
+conArity (ConLit _) = 0
+--conArity (ConTup n) = n
+
+eqCon :: Con -> Con -> Bool
+eqCon (ConData _ i) (ConData _ j) = eqIdent i j
+eqCon (ConNew    i) (ConNew    j) = eqIdent i j
+eqCon (ConLit    l) (ConLit    k) = eqLit   l k
+eqCon _             _             = False
 
 data Lit = LInt Int | LChar Char | LStr String | LPrim String
   --Xderiving (Show, Eq)
+
+eqLit :: Lit -> Lit -> Bool
+eqLit (LInt x)  (LInt  y) = x == y
+eqLit (LChar x) (LChar y) = eqChar x y
+eqLit (LStr  x) (LStr  y) = eqString x y
+eqLit (LPrim x) (LPrim y) = eqString x y
+eqLit _         _         = False
 
 type ECaseArm = (EPat, EAlts)
 
@@ -401,7 +419,7 @@ pUIdent =
 
 keywords :: [String]
 keywords = ["case", "data", "do", "else", "forall", "if", "import",
-  "in", "let", "module", "of", "primitive", "then", "type", "where"]
+  "in", "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
 isAlpha_ :: Char -> Bool
 isAlpha_ c = eqChar c '_' || isAlpha c
@@ -505,16 +523,17 @@ pOpers ops = P.do
 pSym :: Char -> P ()
 pSym c = () <$ (skipWhite $ char c)
 
-pLHS :: P Ident -> P LHS
-pLHS pId = pair <$> pId <*> many pLIdent
+pLHS :: P LHS
+pLHS = pair <$> pUIdent <*> many pLIdent
 
 pDef :: P EDef
 pDef =
-      Data   <$> (pKeyword "data" *> pLHS pUIdent <* pSymbol "=") <*> esepBy1 (pair <$> pUIdent <*> many pAType) (pSymbol "|")
-  <|> Type   <$> (pKeyword "type" *> pLHS pUIdent <* pSymbol "=") <*> pType
+      Data        <$> (pKeyword "data"    *> pLHS <* pSym '=') <*> esepBy1 (pair <$> pUIdent <*> many pAType) (pSymbol "|")
+  <|> Newtype     <$> (pKeyword "newtype" *> pLHS <* pSym '=') <*> pUIdent <*> pAType
+  <|> Type        <$> (pKeyword "type"    *> pLHS <* pSym '=') <*> pType
   <|> uncurry Fcn <$> pEqns
-  <|> Sign   <$> (pLIdent <* pSymbol "::") <*> pTypeScheme
-  <|> Import <$> (pKeyword "import" *> pImportSpec)
+  <|> Sign        <$> (pLIdent <* pSymbol "::") <*> pTypeScheme
+  <|> Import      <$> (pKeyword "import" *> pImportSpec)
 
 pEqns :: P (Ident, [Eqn])
 pEqns = P.do
@@ -865,6 +884,7 @@ showEDef :: EDef -> String
 showEDef def =
   case def of
     Data lhs _ -> "data " ++ showLHS lhs ++ " = ..."
+    Newtype lhs c t -> "newtype " ++ showLHS lhs ++ " = " ++ c ++ " " ++ showEType t
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
     Fcn i eqns -> unlines (map (\ (Eqn ps alts) -> i ++ " " ++ unwords (map showEPat ps) ++ showAlts "=" alts) eqns)
     Sign i t -> i ++ " :: " ++ showETypeScheme t
@@ -918,7 +938,10 @@ showExpr ae =
     ECon c -> showCon c
 
 showCon :: Con -> String
-showCon (Con _ s) = s
+showCon (ConData _ s) = s
+showCon (ConNew s) = s
+showCon (ConLit l) = showLit l
+--showCon (ConTup n) = "(" ++ tupleConstr n ++ ")"
 
 showLit :: Lit -> String
 showLit l =
