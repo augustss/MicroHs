@@ -11,10 +11,22 @@
 #if defined(__MINGW32__)
 #define ffsl __builtin_ffsll
 #endif
+
 #if defined(_MSC_VER)
+
+/* Make Microsoft compiler a little more compatible. */
+
 #pragma warning(disable : 4996)
 #pragma intrinsic(_BitScanForward)
-#define FFSL(ret, arg) do { unsigned long r; if (_BitScanForward64(&r, (arg))) { (ret) = r+1; } else (ret) = 0; } while(0)
+static inline int
+ffsl(int64_t arg)
+{
+  unsigned long r;
+  if (_BitScanForward64(&r, arg))
+    return (int)(r+1);
+  else
+    return 0;
+}
 #define PCOMMA ""
 
 #define WIN32_LEAN_AND_MEAN
@@ -47,7 +59,6 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 #include <sys/time.h>
 
-#define FFSL(ret, arg) ((ret) = ffsl(arg))
 #define PCOMMA "'"
 
 #endif  /* !defined(_MSC_VER) */
@@ -231,7 +242,7 @@ alloc_node(enum node_tag t)
   int k;                        /* will contain bit pos + 1 */
   for(;;) {
     uint64_t word = free_map[i];
-    FFSL(k, word);
+    k = ffsl(word);
     if (k)
       break;
     i++;
