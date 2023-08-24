@@ -56,7 +56,7 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 #define FASTTAGS 1
 #define UNIONPTR 1
 
-#define VERSION "v3.0\n"
+#define VERSION "v3.1\n"
 
 #define HEAP_CELLS 100000
 #define STACK_SIZE 10000
@@ -64,13 +64,13 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C, /* 0 - 9 */
-                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_ADD, T_SUB, T_MUL,  /* 10 - 20 */
-                T_QUOT, T_REM, T_SUBR, T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ERROR, /* 21 - 30 */
-                T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR, /* 31 - 35 */
-                T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE, /* 36 - 40 */
-                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO, /* 41 - 45 */
-                T_IO_GETTIMEMILLI, T_IO_PRINT, /* 46 - 47 */
-                T_STR,                         /* 48 */
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,  /* 10 - 21 */
+                T_QUOT, T_REM, T_SUBR, T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ERROR, /* 22 - 31 */
+                T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR, /* 32 - 36 */
+                T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE, /* 37 - 41 */
+                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO, /* 42 - 46 */
+                T_IO_GETTIMEMILLI, T_IO_PRINT, /* 47 - 48 */
+                T_STR,                         /* 49 */
                 T_LAST_TAG,
 };
 
@@ -294,6 +294,7 @@ struct {
   { "T", T_T },
   { "Y", T_Y },
   { "B'", T_BB },
+  { "BK", T_BK },
   /* primops */
   { "+", T_ADD },
   { "-", T_SUB },
@@ -877,6 +878,7 @@ printrec(FILE *f, NODEPTR n)
   case T_O: fprintf(f, "$O"); break;
   case T_SS: fprintf(f, "$S'"); break;
   case T_BB: fprintf(f, "$B'"); break;
+  case T_BK: fprintf(f, "$BK"); break;
   case T_CC: fprintf(f, "$C'"); break;
   case T_ADD: fprintf(f, "$+"); break;
   case T_SUB: fprintf(f, "$-"); break;
@@ -1194,6 +1196,16 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = f;
       ARG(n) = new_ap(g, x);
+      GOTO ap;
+      break;
+    case T_BK:                     /* BK f g x = f g */
+      CHECK(3);
+      f = ARG(TOP(1));
+      g = ARG(TOP(2));
+      POP(3);
+      n = TOP(0);
+      FUN(n) = f;
+      ARG(n) = g;
       GOTO ap;
       break;
     case T_C:                     /* C f g x = f x g */

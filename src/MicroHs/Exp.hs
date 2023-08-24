@@ -340,8 +340,12 @@ improveT ae =
       in
         if isK ff && isI aa then
           Lit (LPrim "A")
---        else if isI ff then
---          aa
+{- Using I x --> x does not improve things.
+        else if isI ff then
+          aa
+-}
+        else if isB ff && isK aa then
+          Lit (LPrim "BK")
         else if isC ff && isI aa then
           Lit (LPrim "T")
         else
@@ -434,3 +438,6 @@ allVarsExp ae =
 --
 --  Q = C I
 --  Q x y z = (C I x y) z = I y x z = y x z
+--
+--  BK = B K
+--  BK x y z = B K x y z = K (x y) z = x y

@@ -339,7 +339,7 @@ dsMatrix dflt iis aarms =
       S.return $ mkCase i narms ndflt
 
 eMatchErr :: Exp
-eMatchErr = dsExpr $ EApp (ELit (LPrim "error")) (ELit $ LStr "no match")
+eMatchErr = App (Lit (LPrim "error")) (Lit (LStr "no match"))
 
 -- If the first expression isn't a variable, the use
 -- a let binding and pass variable to f.
@@ -358,7 +358,7 @@ cheap ae =
   case ae of
     Var _ -> True
     Lit _ -> True
-    App (Lit _) _ -> True
+--    App (Lit _) _ -> True
     _ -> False
 
 -- Ugh, what a hack
