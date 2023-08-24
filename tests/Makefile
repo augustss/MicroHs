@@ -10,6 +10,7 @@ test:
 	$(MHS) Misc && $(EVAL) > Misc.out && diff Misc.ref Misc.out
 	$(MHS) Case && $(EVAL) > Case.out && diff Case.ref Case.out
 	$(MHS) Arith && $(EVAL) > Arith.out && diff Arith.ref Arith.out
+	$(MHS) Guard && $(EVAL) > Guard.out && diff Guard.ref Guard.out
 
 time:
 	@echo Expect about 10s runtime
