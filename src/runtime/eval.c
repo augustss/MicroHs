@@ -1142,7 +1142,6 @@ eval(NODEPTR n)
 #define CHECK(n) do { if (stack_ptr - stk <= (n)) RET; } while(0)
 
 #define SETIND(n, x) do { SETTAG((n), T_IND); INDIR((n)) = (x); } while(0)
-#define GOTO num_reductions++; goto
 
   PUSH(n);
   for(;;) {
@@ -1188,7 +1187,7 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = new_ap(f, x);
       ARG(n) = new_ap(g, x);
-      GOTO ap;
+      goto ap;
       break;
     case T_SS:                    /* S' k f g x = k (f x) (g x) */
       CHECK(4);
@@ -1201,7 +1200,7 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = new_ap(k, new_ap(f, x));
       ARG(n) = new_ap(g, x);
-      GOTO ap;
+      goto ap;
       break;
     case T_K:                     /* K x y = * x */
       CHECK(2);
@@ -1209,14 +1208,14 @@ eval(NODEPTR n)
       POP(2);
       n = TOP(0);
       SETIND(n, x);
-      GOTO ind;
+      goto ind;
     case T_A:                     /* A x y = * y */
       CHECK(2);
       y = ARG(TOP(2));
       POP(2);
       n = TOP(0);
       SETIND(n, y);
-      GOTO ind;
+      goto ind;
     case T_T:                     /* T x y = y x */
       CHECK(2);
       x = ARG(TOP(1));
@@ -1225,14 +1224,14 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = y;
       ARG(n) = x;
-      GOTO ap;
+      goto ap;
     case T_I:                     /* I x = * x */
       CHECK(1);
       x = ARG(TOP(1));
       POP(1);
       n = TOP(0);
       SETIND(n, x);
-      GOTO ind;
+      goto ind;
     case T_Y:                     /* yf@(Y f) = f yf */
       CHECK(1);
       f = ARG(TOP(1));
@@ -1240,7 +1239,7 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = f;
       ARG(n) = n;
-      GOTO ap;
+      goto ap;
     case T_B:                     /* B f g x = f (g x) */
       CHECK(3);
       GCCHECK(1);
@@ -1251,8 +1250,7 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = f;
       ARG(n) = new_ap(g, x);
-      GOTO ap;
-      break;
+      goto ap;
     case T_BK:                     /* BK f g x = f g */
       CHECK(3);
       f = ARG(TOP(1));
@@ -1261,8 +1259,7 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = f;
       ARG(n) = g;
-      GOTO ap;
-      break;
+      goto ap;
     case T_C:                     /* C f g x = f x g */
       CHECK(3);
       GCCHECK(1);
@@ -1273,7 +1270,7 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = new_ap(f, x);
       ARG(n) = g;
-      GOTO ap;
+      goto ap;
     case T_CC:                    /* C' k f g x = k (f x) g */
       CHECK(4);
       GCCHECK(2);
@@ -1285,7 +1282,7 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = new_ap(k, new_ap(f, x));
       ARG(n) = g;
-      GOTO ap;
+      goto ap;
     case T_P:                     /* P x y f = f x y */
       CHECK(3);
       GCCHECK(1);
@@ -1296,7 +1293,7 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = new_ap(f, x);
       ARG(n) = y;
-      GOTO ap;
+      goto ap;
     case T_O:                     /* O x y g f = f x y */
       CHECK(4);
       GCCHECK(1);
@@ -1307,7 +1304,7 @@ eval(NODEPTR n)
       n = TOP(0);
       FUN(n) = new_ap(f, x);
       ARG(n) = y;
-      GOTO ap;
+      goto ap;
 
 #define SETINT(n,r) do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define ARITH2(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETINT(n, r); POP(2); } while(0)
@@ -1382,7 +1379,7 @@ eval(NODEPTR n)
       n = TOP(1);
       SETIND(n, x);
       POP(1);
-      GOTO ind;
+      goto ind;
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));
       ERR("eval tag");
