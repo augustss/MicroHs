@@ -6,5 +6,7 @@ bin/*
 tests/*.tmp
 tests/*.out
 old/*
+tmp/*
 a.out
 *.prof
+dist-newstyle/
