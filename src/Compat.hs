@@ -125,3 +125,10 @@ getTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeco
 
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s
+
+spanUntil :: forall a . (a -> Bool) -> [a] -> ([a], [a])
+spanUntil p =
+  let
+    rec r [] = (reverse r, [])
+    rec r (x:xs) = if p x then rec (x:r) xs else (reverse (x:r), xs)
+  in rec []

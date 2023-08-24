@@ -179,6 +179,13 @@ span p =
     rec r (x:xs) = if p x then rec (x:r) xs else (reverse r, x:xs)
   in rec []
 
+spanUntil :: forall a . (a -> Bool) -> [a] -> ([a], [a])
+spanUntil p =
+  let
+    rec r [] = (reverse r, [])
+    rec r (x:xs) = if p x then rec (x:r) xs else (reverse (x:r), xs)
+  in rec []
+
 head :: forall a . [a] -> a
 head [] = error "head"
 head (x:_) = x
@@ -212,11 +219,8 @@ enumFromTo :: Int -> Int -> [Int]
 enumFromTo l h = takeWhile (<= h) (enumFrom l)
 
 find :: forall a . (a -> Bool) -> [a] -> Maybe a
-find p axs =
-  case axs of
-    [] -> Nothing
-    x:xs ->
-      if p x then Just x else find p xs
+find p [] = Nothing
+find p (x:xs) = if p x then Just x else find p xs
 
 lookupBy :: forall a b . (a -> a -> Bool) -> a -> [(a, b)] -> Maybe b
 lookupBy eq x xys = fmapMaybe snd (find (eq x . fst) xys)

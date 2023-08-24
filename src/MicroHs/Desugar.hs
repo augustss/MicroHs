@@ -67,9 +67,13 @@ dsEqns eqns =
       let
         vs = allVarsBind $ BFcn "" eqns
         xs = take (length aps) $ newVars vs
-        ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts alts) | Eqn ps alts <- eqns]
+        ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts alts, hasGuards alts) | Eqn ps alts <- eqns]
       in foldr Lam ex xs
     _ -> impossible
+
+hasGuards :: EAlts -> Bool
+hasGuards (EAlts [([], _)] _) = False
+hasGuards _ = True
 
 dsAlts :: EAlts -> (Exp -> Exp)
 dsAlts (EAlts alts bs) = dsBinds bs . dsAltsL alts
@@ -175,7 +179,7 @@ dsLam ps e =
   let
     vs = allVarsExpr (ELam ps e)
     xs = take (length ps) (newVars vs)
-    ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts $ oneAlt e)]
+    ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts $ oneAlt e, False)]
   in foldr Lam ex xs
 
 mqual :: Maybe Ident -> Ident -> Ident
@@ -249,14 +253,14 @@ showLDef a =
 dsCase :: Expr -> [ECaseArm] -> Exp
 dsCase ae as =
   let
-    r = runS (allVarsExpr (ECase ae as)) [dsExpr ae] [([dsPat p], dsAlts alts) | (p, alts) <- as]
+    r = runS (allVarsExpr (ECase ae as)) [dsExpr ae] [([dsPat p], dsAlts alts, hasGuards alts) | (p, alts) <- as]
   in --trace (showExp r) $
      r
 
 type MState = [Ident]  -- supply of unused variables.
 
 type M a = State MState a
-type Arm = ([EPat], Exp -> Exp)
+type Arm = ([EPat], Exp -> Exp, Bool)  -- boolean indicates that the arm has guards
 type Matrix = [Arm]
 
 newIdents :: Int -> M [Ident]
@@ -300,11 +304,11 @@ dsMatrix dflt iis aarms =
    S.return dflt
  else
  case iis of
- [] -> S.return $ (snd (head aarms)) dflt
+ [] -> let { (_, f, _) : _ = aarms } in S.return $ f dflt
  i:is -> S.do
   let
     (arms, darms, rarms) = splitArms aarms
-    ndarms = map (\ (EVar x : ps, ed) -> (ps, substAlpha x i . ed) ) darms
+    ndarms = map (\ (EVar x : ps, ed, g) -> (ps, substAlpha x i . ed, g) ) darms
 --  traceM ("split " ++ show (arms, darms, rarms))
   letBind (dsMatrix dflt iis rarms) $ \ drest ->
     letBind (dsMatrix drest is ndarms) $ \ ndflt ->
@@ -312,19 +316,21 @@ dsMatrix dflt iis aarms =
        S.return ndflt
      else S.do
       let
-        grps = groupEq (on eqIdent (conIdent . pConOf . head . fst)) arms
+        idOf (p:_, _, _) = conIdent (pConOf p)
+        idOf _ = impossible
+        grps = groupEq (on eqIdent idOf) arms
         oneGroup grp = S.do
           let
-            (pat:_, _) : _ = grp
+            (pat:_, _, _) : _ = grp
             con = pConOf pat
           xs <- newIdents (conArity con)
           let
             one arg =
               case arg of
-                (p : ps, e) ->
+                (p : ps, e, g) ->
                   case p of
-                    EAt a pp -> one (pp:ps, substAlpha a i . e)
-                    _        -> (pArgs p ++ ps, e)
+                    EAt a pp -> one (pp:ps, substAlpha a i . e, g)
+                    _        -> (pArgs p ++ ps, e, g)
                 _ -> impossible
           cexp <- dsMatrix ndflt (map Var xs ++ is) (map one grp)
           S.return (SPat con xs, cexp)
@@ -390,18 +396,21 @@ mkCase var pes dflt =
     _ -> impossible
 
 eCase :: Exp -> [(SPat, Exp)] -> Exp
-eCase e as = apps e [lams xs r | (SPat _ xs, r) <- as ]
+eCase e as =
+  --trace ("eCase " ++ showExp e ++ "\n" ++
+  --       unlines [ unwords (conIdent c : xs) ++ " -> " ++ showExp r | (SPat c xs, r) <- as ]) $
+  apps e [lams xs r | (SPat _ xs, r) <- as ]
 
 -- Split the matrix into segments so each first column has initially patterns -- followed by variables, followed by the rest.
 splitArms :: Matrix -> (Matrix, Matrix, Matrix)
 splitArms am =
   let
-    (ps, nps) = span (not . isPVar . head . fst) am
-    --(ds, rs)  = span (      isPVar . head . fst) nps
-    (ds, rs) =
-      case nps of
-        d@(EVar _ : _, _) : rrs -> ([d], rrs)
-        _ -> ([], nps)
+    isConPat (p:_, _, _) = not (isPVar p)
+    isConPat _ = impossible
+    isVarPat (p:_, _, g) = isPVar p && not g  -- only group variable patterns that cannot fail
+    isVarPat _ = False
+    (ps, nps) = span isConPat am
+    (ds, rs)  = spanUntil isVarPat nps
   in (ps, ds, rs)
 
 -- Change from x to y inside e.
@@ -420,7 +429,11 @@ eLet i e b =
   else
     case b of
       Var j | eqIdent i j -> e
-      _ -> App (Lam i b) e
+      _ ->
+        case filter (eqIdent i) (freeVars b) of
+          []  -> b                -- no occurences, no need to bind
+          [_] -> substExp i e b   -- single occurrence, substitute  XXX coule be worse if under lambda
+          _   -> App (Lam i b) e  -- just use a beta redex
 
 pConOf :: --XHasCallStack =>
           EPat -> Con
