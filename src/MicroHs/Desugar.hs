@@ -170,10 +170,16 @@ dsExpr aexpr =
     EAt _ _ -> undefined
     EUVar _ -> undefined
     ECon c ->
-      if eqChar (head (conIdent c)) ',' then
-        undefined  -- not implemented yet
-      else
-        Var (conIdent c)
+      let
+        ci = conIdent c
+      in
+        if eqChar (head ci) ',' then
+          let
+            xs = ["x" ++ showInt i | i <- enumFromTo 1 (untupleConstr ci) ]
+            body = Lam "$f" $ foldl App (Var "$f") $ map Var xs
+          in foldr Lam body xs
+        else
+          Var (conIdent c)
 
 dsLam :: [EPat] -> Expr -> Exp
 dsLam ps e =

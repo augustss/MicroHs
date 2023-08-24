@@ -25,7 +25,7 @@ module MicroHs.Parse(
   ConTyInfo,
   ETypeScheme(..),
   Con(..), conIdent, conArity,
-  tupleConstr,
+  tupleConstr, untupleConstr,
   subst,
   allVarsExpr, allVarsBind
   ) where
@@ -187,10 +187,8 @@ showIdent i = i
 tupleConstr :: Int -> Ident
 tupleConstr n = replicate (n-1) ','
 
-{-
 untupleConstr :: Ident -> Int
 untupleConstr s = length s + 1
--}
 
 ---------------------------------
 
@@ -917,7 +915,10 @@ showExpr ae =
     ECompr _ _ -> "ECompr"
     EAt i e -> i ++ "@" ++ showExpr e
     EUVar i -> "a" ++ showInt i
-    ECon c -> conIdent c
+    ECon c -> showCon c
+
+showCon :: Con -> String
+showCon (Con _ s) = s
 
 showLit :: Lit -> String
 showLit l =
