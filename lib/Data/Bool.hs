@@ -19,3 +19,6 @@ import Data.Bool_Type
 not :: Bool -> Bool
 not False = True
 not True  = False
+
+otherwise :: Bool
+otherwise = True
