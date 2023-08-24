@@ -63,11 +63,16 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 #endif  /* !defined(_MSC_VER) */
 
-#define GCRED    0
+#define GCRED    1
 #define FASTTAGS 1
 #define UNIONPTR 1
+#define INTTABLE 1
 
 #define VERSION "v3.1\n"
+
+/* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
+#define LOW_INT (-10)
+#define HIGH_INT 128
 
 #define HEAP_CELLS 100000
 #define STACK_SIZE 10000
@@ -278,6 +283,7 @@ new_ap(NODEPTR f, NODEPTR a)
 }
 
 /* Needed during reduction */
+NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combFalse, comTrue, combI, combCons;
 NODEPTR combCC, combIOBIND;
 
@@ -395,6 +401,17 @@ init_nodes(void)
     }
   }
 #endif
+
+#if INTTABLE
+  /* Allocate permanent Int nodes */
+  for (int i = LOW_INT; i < HIGH_INT; i++) {
+    NODEPTR n = HEAPREF(heap_start++);
+    intTable[i - LOW_INT] = n;
+    SETTAG(n, T_INT);
+    SETVALUE(n, i);
+  }
+#endif
+
   /* Round up heap_start to the next bitword boundary to avoid the permanent nodes. */
   heap_start = (heap_start + BITS_PER_UINT64 - 1) / BITS_PER_UINT64 * BITS_PER_UINT64;
 
@@ -409,7 +426,7 @@ init_nodes(void)
 }
 
 #if GCRED
-int red_t, red_k, red_i;
+int red_a, red_k, red_i, red_int;
 #endif
 
 /* Mark all used nodes reachable from *np */
@@ -417,6 +434,7 @@ void
 mark(NODEPTR *np)
 {
   NODEPTR n = *np;
+  value_t i;
 
 #if GCRED
   top:
@@ -454,14 +472,16 @@ mark(NODEPTR *np)
   mark_used(n);
 #if GCRED
   /* This is really only fruitful just after parsing.  It can be removed. */
-  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_T) {
-    /* Do the T x y --> y reduction */
+  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
+    /* Do the A x y --> y reduction */
     NODEPTR y = ARG(n);
     SETTAG(n, T_IND);
     INDIR(n) = y;
-    red_t++;
+    red_a++;
     goto top;
   }
+#if 0
+  /* This never seems to happen */
   if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
     /* Do the K x y --> x reduction */
     NODEPTR x = ARG(FUN(n));
@@ -470,6 +490,7 @@ mark(NODEPTR *np)
     red_k++;
     goto top;
   }
+#endif
   if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_I) {
     /* Do the I x --> x reduction */
     NODEPTR x = ARG(n);
@@ -478,7 +499,15 @@ mark(NODEPTR *np)
     red_i++;
     goto top;
   }
-#endif
+#if INTTABLE
+  if (GETTAG(n) == T_INT && LOW_INT <= (i = GETVALUE(n)) && i < HIGH_INT) {
+    SETTAG(n, T_IND);
+    INDIR(n) = intTable[i - LOW_INT];
+    red_int++;
+    goto top;
+  }
+#endif  /* INTTABLE */
+#endif  /* GCRED */
   if (GETTAG(n) == T_AP) {
     mark(&FUN(n));
     mark(&ARG(n));
@@ -590,6 +619,8 @@ mkStrNode(const char *str)
   return n;
 }
 
+NODEPTR mkInt(int i);
+
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
   uint64_t label;
@@ -654,8 +685,7 @@ parse(FILE *f)
   number:
     ungetc(c, f);
     i = neg * parse_int(f);
-    r = alloc_node(T_INT);
-    SETVALUE(r, i);
+    r = mkInt(i);
     return r;
   case '$':
     /* A primitive, keep getting char's until end */
@@ -950,6 +980,21 @@ pp(FILE *f, NODEPTR n)
 }
 
 NODEPTR
+mkInt(int i)
+{
+#if INTTABLE
+  if (LOW_INT <= i && i < HIGH_INT) {
+    return intTable[i - LOW_INT];
+  }
+#endif
+
+  NODEPTR n;
+  n = alloc_node(T_INT);
+  SETVALUE(n, i);
+  return n;
+}
+
+NODEPTR
 mkNil(void)
 {
   return combFalse;
@@ -979,8 +1024,7 @@ mkString(const char *str, size_t len)
 
   n = mkNil();
   for(size_t i = len; i > 0; i--) {
-    nc = alloc_node(T_INT);
-    SETVALUE(nc, str[i-1]);
+    nc = mkInt(str[i-1]);
     n = mkCons(nc, n);
   }
   return n;
@@ -1421,8 +1465,7 @@ evalio(NODEPTR n)
       hdl = evalhandle(ARG(TOP(1)));
       GCCHECK(1);
       c = getc(hdl);
-      n = alloc_node(T_INT);
-      SETVALUE(n, c);
+      n = mkInt(c);
       RETIO(n);
     case T_IO_PUTCHAR:
       CHECKIO(2);
@@ -1599,7 +1642,7 @@ main(int argc, char **argv)
     printf("    %15.2fs mark time\n", gc_mark_time);
     printf("    %15.2fs scan time\n", gc_scan_time);
 #if GCRED
-    printf(" GC reductions T=%d, K=%d, I=%d\n", red_t, red_k, red_i);
+    printf(" GC reductions A=%d, K=%d, I=%d, int=%d\n", red_a, red_k, red_i, red_int);
 #endif
   }
   exit(0);
