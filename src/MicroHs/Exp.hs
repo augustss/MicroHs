@@ -7,7 +7,7 @@ module MicroHs.Exp(
   PrimOp,
   encodeString,
   app2, cCons, cNil, cFlip,
-  allVarsExp
+  allVarsExp, freeVars
   ) where
 import Prelude
 import Data.Char

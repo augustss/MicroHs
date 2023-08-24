@@ -157,6 +157,7 @@ type Constr = (Ident, [EType])
 --  * before desugaring: EApp, EVar, ETuple, EList
 type EType = Expr
 
+{-
 validType :: Expr -> Bool
 validType ae =
   case ae of
@@ -165,6 +166,7 @@ validType ae =
     EList es -> length es <= 1 && all validType (take 1 es)
     ETuple es -> all validType es
     _ -> False
+-}
 
 data ETypeScheme = ETypeScheme [Ident] EType
   --Xderiving (Show, Eq)
@@ -237,6 +239,11 @@ pWhiteIndent = P.do
             pure ()
            else P.do
             eof <|> inject ";"
+
+{-
+sepBy1 :: forall s a sep . Prsr s a -> Prsr s sep -> Prsr s [a]
+sepBy1 p sep = (:) <$> p <*> many (sep *> p)
+-}
 
 esepBy1 :: forall s a sep . Prsr s a -> Prsr s sep -> Prsr s [a]
 esepBy1 p sep = (:) <$> p <*> emany (sep *> p)
@@ -531,6 +538,7 @@ pImportSpec =
     pQua = (True <$ pKeyword "qualified") <|< pure False
   in  ImportSpec <$> pQua <*> pUIdent <*> optional (pKeyword "as" *> pUIdent)
 
+{-
 pAType :: P EType
 pAType = P.do
   t <- pAExprPT
@@ -542,6 +550,52 @@ pType = P.do
   t <- pExprPT
   guard (validType t)
   pure t
+-}
+
+--
+-- Partial copy of pExpr, but that includes '->'.
+-- Including '->' in pExprOp interacts poorly with '->'
+-- in lambda and 'case'.
+pType :: P EType
+pType = pTypeOp
+
+pTypeOp :: P EType
+pTypeOp =
+  let
+{-
+    p10 = pTypeArg
+    p9 = p10
+    p8 = p9
+    p7 = p8
+    p6 = p7
+    p5 = p6
+    p4 = p5
+    p3 = p4
+    p2 = p3
+    p1 = p2
+    p0 = pRightAssoc (pOpers ["->"]) p1
+-}
+    p0 = pRightAssoc (pOpers ["->"]) pTypeArg
+  in  p0
+
+pTypeArg :: P EType
+pTypeArg = pTypeApp
+
+pTypeApp :: P EType
+pTypeApp = P.do
+  f <- pAType
+  as <- emany pAType
+  pure $ foldl EApp f as
+
+pAType :: P Expr
+pAType =
+      (EVar <$> pLIdent)
+  <|> (EVar <$> pUIdent)
+  <|> (ELit <$> pLit)
+  <|> (eTuple <$> (pSym '(' *> esepBy1 pType (pSym ',') <* pSym ')'))
+  <|> (EList . (:[]) <$> (pSym '[' *> pType <* pSym ']'))  -- Unlike expressions, only allow a single element.
+
+------------------
 
 pExpr :: P Expr
 pExpr = P.do
@@ -616,6 +670,8 @@ pWhere =
 -- Sadly pattern and expression parsing cannot be joined because the
 -- use of '->' in 'case' and lambda makes it weird.
 -- Instead this is just a copy of some of the expression rules.
+-- XXX This can probably be joined with pExpr again now that pType
+-- is separate.
 pAPat :: P EPat
 pAPat =
       (EVar <$> pLIdent)
@@ -631,6 +687,7 @@ pPat = pPatOp
 pPatOp :: P EPat
 pPatOp =
   let
+{-
     p10 = pPatArg
     p9 = p10
     p8 = p9
@@ -642,6 +699,8 @@ pPatOp =
     p2 = p3
     p1 = p2
     p0 = p1
+-}
+    p0 = pRightAssoc (pOpers [":"]) pPatArg
   in  p0
 
 pPatArg :: P EPat
@@ -680,7 +739,7 @@ pExprOp =
          pLeftAssoc  (pOpers ["<|>","<|<"]) p4
     p2 = pRightAssoc (pOpers ["||"]) p3
     p1 = pLeftAssoc  (pOpers [">>=", ">>"]) p2
-    p0 = pRightAssoc (pOpers ["$","->"]) p1
+    p0 = pRightAssoc (pOpers ["$"]) p1
   in  p0
 
 -- A hack so that the . operator is not followed by a letter
@@ -928,13 +987,6 @@ allVarsAlts (EAlts alts bs) = concatMap allVarsAlt alts ++ concatMap allVarsBind
 
 allVarsAlt :: EAlt -> [Ident]
 allVarsAlt (ss, e) = concatMap allVarsStmt ss ++ allVarsExpr e
-
-{-
-allVarsLHS :: LHS -> [Ident]
-allVarsLHS iis =
-  case iis of
-    (i, is) -> i : is
--}
 
 allVarsPat :: EPat -> [Ident]
 allVarsPat = allVarsExpr

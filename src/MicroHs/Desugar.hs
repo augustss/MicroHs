@@ -418,11 +418,9 @@ eLet i e b =
   if eqIdent i dummyIdent then
     b
   else
-    let
-      r = App (Lam i b) e
-    in case b of
-         Var j -> if eqIdent i j then e else r
-         _ -> r
+    case b of
+      Var j | eqIdent i j -> e
+      _ -> App (Lam i b) e
 
 pConOf :: --XHasCallStack =>
           EPat -> Con
