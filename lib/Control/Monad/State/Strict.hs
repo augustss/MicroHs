@@ -5,9 +5,7 @@ import Prelude
 data State s a = S (s -> (a, s))
 
 runState :: forall s a . State s a -> (s -> (a,s))
-runState sa =
-  case sa of
-    S x -> x
+runState (S x) = x
 
 evalState :: forall s a . State s a -> (s -> a)
 evalState sa = fst . runState sa

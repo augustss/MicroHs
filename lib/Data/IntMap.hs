@@ -63,9 +63,7 @@ fromList = foldr (uncurry insert) empty
 toList :: forall a . IntMap a -> [(Int, a)]
 toList am =
   let
-    f o ka =
-      case ka of
-        (k, a) -> (k*4 + o, a)
+    f o (k, a) = (k*4 + o, a)
   in
     case am of
       Empty -> []

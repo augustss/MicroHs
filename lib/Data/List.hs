@@ -184,10 +184,8 @@ head [] = error "head"
 head (x:_) = x
 
 tail :: forall a . [a] -> [a]
-tail xs =
-  case xs of
-    [] -> error "tail"
-    _:ys -> ys
+tail [] = error "tail"
+tail (_:ys) = ys
 
 intersperse :: forall a . a -> [a] -> [a]
 intersperse sep axs =

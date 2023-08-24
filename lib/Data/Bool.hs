@@ -8,20 +8,14 @@ import Data.Bool_Type
 
 --Yinfixr 2 ||
 (||) :: Bool -> Bool -> Bool
-(||) x y =
-  case x of
-    False -> y
-    True  -> True
+(||) False y = y
+(||) True  _ = True
 
 --Yinfixr 3 &&
 (&&) :: Bool -> Bool -> Bool
-(&&) x y =
-  case x of
-    False -> False
-    True  -> y
+(&&) False _ = False
+(&&) True  y = y
 
 not :: Bool -> Bool
-not b =
-  case b of
-    False -> True
-    True  -> False
+not False = True
+not True  = False
