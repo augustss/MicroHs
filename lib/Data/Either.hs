@@ -5,8 +5,5 @@ module Data.Either(module Data.Either) where
 data Either a b = Left a | Right b
 
 either :: forall a b r . (a -> r) -> (b -> r) -> Either a b -> r
-either fa fb arg =
-  case arg of
-    Left  a -> fa a
-    Right b -> fb b
-
+either f _ (Left  a) = f a
+either _ f (Right b) = f b
