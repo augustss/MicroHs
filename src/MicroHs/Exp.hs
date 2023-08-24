@@ -439,5 +439,13 @@ allVarsExp ae =
 --  Q = C I
 --  Q x y z = (C I x y) z = I y x z = y x z
 --
+-- Added:
 --  BK = B K
 --  BK x y z = B K x y z = K (x y) z = x y
+--
+--  BKK = BK K
+--  BKK x y z = BK K x y z = (K x) z = x
+--
+--  C'B = C' B
+--  C'B x y z w = C' B x y z w = B (x z) y w = x z (y w)
+
