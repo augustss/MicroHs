@@ -1188,7 +1188,6 @@ eval(NODEPTR n)
       FUN(n) = new_ap(f, x);
       ARG(n) = new_ap(g, x);
       goto ap;
-      break;
     case T_SS:                    /* S' k f g x = k (f x) (g x) */
       CHECK(4);
       GCCHECK(3);
@@ -1201,7 +1200,6 @@ eval(NODEPTR n)
       FUN(n) = new_ap(k, new_ap(f, x));
       ARG(n) = new_ap(g, x);
       goto ap;
-      break;
     case T_K:                     /* K x y = * x */
       CHECK(2);
       x = ARG(TOP(1));
