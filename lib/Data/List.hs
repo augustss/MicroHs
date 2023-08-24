@@ -126,15 +126,8 @@ unzip3 axyzs =
 stripPrefixBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Maybe [a]
 stripPrefixBy eq [] s = Just s
 stripPrefixBy eq (c:cs) [] = Nothing
-{-
 stripPrefixBy eq (c:cs) (d:ds) | eq c d = stripPrefixBy eq cs ds
                                | otherwise = Nothing
--}
-stripPrefixBy eq (c:cs) (d:ds) =
-  if eq c d then
-    stripPrefixBy eq cs ds
-  else
-    Nothing
 
 splitAt :: forall a . Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
