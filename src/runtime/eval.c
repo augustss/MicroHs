@@ -8,6 +8,13 @@
 #include <locale.h>
 #include <ctype.h>
 
+#define GCRED    1              /* do some reductions during GC */
+#define FASTTAGS 1              /* compute tag by pointer subtraction */
+#define UNIONPTR 1              /* use compact (2 pointer) layout */
+#define INTTABLE 1              /* use fixed table of small INT nodes */
+#define SANITY   1              /* do some sanity checks */
+#define STACKOVL 1              /* check for stack overflow */
+
 #if defined(__MINGW32__)
 #define ffsl __builtin_ffsll
 #endif
@@ -62,11 +69,6 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 #define PCOMMA "'"
 
 #endif  /* !defined(_MSC_VER) */
-
-#define GCRED    1
-#define FASTTAGS 1
-#define UNIONPTR 1
-#define INTTABLE 1
 
 #define VERSION "v3.1\n"
 
@@ -165,13 +167,16 @@ node *cells;                 /* All cells */
 uint64_t num_reductions = 0;
 uint64_t num_alloc;
 uint64_t num_gc = 0;
-double gc_scan_time = 0;
 double gc_mark_time = 0;
 double run_time = 0;
 
 NODEPTR *stack;
 int64_t stack_ptr = -1;
+#if STACKOVL
 #define PUSH(x) do { if (stack_ptr >= stack_size-1) ERR("stack overflow"); stack[++stack_ptr] = (x); } while(0)
+#else  /* SANITY */
+#define PUSH(x) do {                                                       stack[++stack_ptr] = (x); } while(0)
+#endif  /* SANITY */
 #define TOP(n) stack[stack_ptr - (n)]
 #define POP(n) stack_ptr -= (n)
 #define GCCHECK(n) gc_check((n))
@@ -202,8 +207,9 @@ static inline void mark_used(NODEPTR n)
   uint64_t i = LABEL(n);
   if (i < heap_start)
     return;
-  //printf("  mark %p\n", n);
+#if SANITY
   if (i >= free_map_nwords * BITS_PER_UINT64) ERR("mark_used");
+#endif
   free_map[i / BITS_PER_UINT64] &= ~(1ULL << (i % BITS_PER_UINT64));
 }
 
@@ -213,8 +219,9 @@ static inline int is_marked_used(NODEPTR n)
   uint64_t i = LABEL(n);
   if (i < heap_start)
     return 1;
-  //printf("ismark %p\n", n);
+#if SANITY
   if (i >= free_map_nwords * BITS_PER_UINT64) ERR("is_marked_used");;
+#endif
   return (free_map[i / BITS_PER_UINT64] & (1ULL << (i % BITS_PER_UINT64))) == 0;
 }
 
@@ -240,8 +247,10 @@ gettime()
 static inline NODEPTR
 alloc_node(enum node_tag t)
 {
+#if SANITY
   if (num_free <= 0)
     ERR("alloc_node");
+#endif
 
   uint64_t i = next_scan_index / BITS_PER_UINT64;
   int k;                        /* will contain bit pos + 1 */
@@ -251,21 +260,15 @@ alloc_node(enum node_tag t)
     if (k)
       break;
     i++;
+#if SANITY
     if (i >= free_map_nwords)
       ERR("alloc_node free_map");
+#endif
   }
   uint64_t pos = i * BITS_PER_UINT64 + k - 1; /* first free node */
   NODEPTR n = HEAPREF(pos);
   mark_used(n);
-  //printf("%llu %llu %d\n", next_scan_index, pos, t);
   next_scan_index = pos;
-
-  // XXX check if tag is T_HDL, if so possibly close */
-  //  if (TAG(n) != FREE)
-  //    ERR("not free");
-
-  //if (MARK(n) == MARKED)
-  //  ERR("alloc_node MARKED");
 
   SETTAG(n, t);
   num_alloc++;
@@ -440,6 +443,7 @@ mark(NODEPTR *np)
   top:
 #endif
   if (GETTAG(n) == T_IND) {
+#if SANITY
     int loop = 0;
     /* Skip indirections, and redirect start pointer */
     while (GETTAG(n) == T_IND) {
@@ -452,22 +456,16 @@ mark(NODEPTR *np)
     }
     //    if (loop)
     //      printf("\n");
+#else  /* SANITY */
+    while (GETTAG(n) == T_IND) {
+      n = INDIR(n);
+    }
+#endif  /* SANITY */
     *np = n;
   }
   if (is_marked_used(n)) {
-#if SANITY
-    if (MARK(n) != MARKED)
-      ERR("not marked");
-#endif
     return;
   }
-#if SANITY
-  if (MARK(n) == MARKED) {
-    printf("%p %llu\n", n, LABEL(n));
-    ERR("marked");
-  }
-  MARK(n) = MARKED;
-#endif
   num_marked++;
   mark_used(n);
 #if GCRED
@@ -514,30 +512,6 @@ mark(NODEPTR *np)
   }
 }
 
-/* Scan for unmarked nodes and put them on the free list. */
-void
-scan(void)
-{
-#if SANITY
-  for(uint64_t i = heap_start; i < heap_size; i++) {
-    NODEPTR n = HEAPREF(i);
-    if (MARK(n) == NOTMARKED) {
-      if (GETTAG(n) == T_HDL && HANDLE(n) != 0 &&
-         HANDLE(n) != stdin && HANDLE(n) != stdout && HANDLE(n) != stderr) {
-        /* A FILE* has become garbage, so close it. */
-        fclose(HANDLE(n));
-      }
-      SETTAG(n, FREE);
-      //      NEXT(n) = next_free;
-      //      next_free = n;
-    } else {
-      MARK(n) = NOTMARKED;
-    }
-  }
-#endif
-}
-
-
 /* Perform a garbage collection:
    - First mark from all roots; roots are on the stack.
 */
@@ -558,9 +532,6 @@ gc(void)
   gc_mark_time += t;
   if (verbose > 1)
     fprintf(stderr, "gc scan\n");
-  gc_scan_time -= t;
-  scan();
-  gc_scan_time += gettime();
 
   if (num_marked > max_num_marked)
     max_num_marked = num_marked;
@@ -572,7 +543,7 @@ gc(void)
 }
 
 /* Check that there are k nodes available, if not then GC. */
-void
+static inline void
 gc_check(size_t k)
 {
   if (k < num_free)
@@ -994,13 +965,13 @@ mkInt(int i)
   return n;
 }
 
-NODEPTR
+static inline NODEPTR
 mkNil(void)
 {
   return combFalse;
 }
 
-NODEPTR
+static inline NODEPTR
 mkCons(NODEPTR x, NODEPTR xs)
 {
   return new_ap(new_ap(combCons, x), xs);
@@ -1039,7 +1010,7 @@ mkStringC(const char *str)
 void eval(NODEPTR n);
 
 /* Evaluate and skip indirections. */
-NODEPTR
+static inline NODEPTR
 evali(NODEPTR n)
 {
   /* Need to push and pop in case GC happens */
@@ -1053,7 +1024,7 @@ evali(NODEPTR n)
 }
 
 /* Follow indirections */
-NODEPTR
+static inline NODEPTR
 indir(NODEPTR n)
 {
   while (GETTAG(n) == T_IND)
@@ -1062,14 +1033,16 @@ indir(NODEPTR n)
 }
 
 /* Evaluate to an INT */
-value_t
+static inline value_t
 evalint(NODEPTR n)
 {
   n = evali(n);
+#if SANITY
   if (GETTAG(n) != T_INT) {
     fprintf(stderr, "bad tag %d\n", GETTAG(n));
     ERR("evalint");
   }
+#endif
   return GETVALUE(n);
 }
 
@@ -1078,10 +1051,12 @@ FILE *
 evalhandleN(NODEPTR n)
 {
   n = evali(n);
+#if SANITY
   if (GETTAG(n) != T_HDL) {
     fprintf(stderr, "bad tag %d\n", GETTAG(n));
     ERR("evalhandle");
   }
+#endif
   return HANDLE(n);
 }
 
@@ -1506,9 +1481,7 @@ main(int argc, char **argv)
     printf("%"PCOMMA"15"PRIu64" max cells used\n", max_num_marked);
     printf("%"PCOMMA"15"PRIu64" reductions\n", num_reductions);
     printf("%15.2fs total execution time\n", run_time);
-    printf("%15.2fs total gc time\n", gc_mark_time + gc_scan_time);
-    printf("    %15.2fs mark time\n", gc_mark_time);
-    printf("    %15.2fs scan time\n", gc_scan_time);
+    printf("%15.2fs total gc time\n", gc_mark_time);
 #if GCRED
     printf(" GC reductions A=%d, K=%d, I=%d, int=%d\n", red_a, red_k, red_i, red_int);
 #endif
