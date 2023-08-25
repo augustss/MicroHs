@@ -130,7 +130,7 @@ node *cells;                 /* All cells */
 typedef struct node {
   union {
     struct node *uufun;
-    uint64_t uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is anT_AP node */
+    uint64_t uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
   } ufun;
   union {
     struct node *uuarg;
@@ -142,8 +142,8 @@ typedef struct node {
 typedef struct node* NODEPTR;
 #define NIL 0
 #define HEAPREF(i) &cells[(i)]
-#define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) :T_AP)
-#define SETTAG(p,t) do { if (t !=T_AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
+#define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) : T_AP)
+#define SETTAG(p,t) do { if (t != T_AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
 #define FUN(p) (p)->ufun.uufun
@@ -831,7 +831,7 @@ find_sharing(NODEPTR n)
   while (GETTAG(n) == T_IND)
     n = INDIR(n);
   //printf("find_sharing %p %llu ", n, LABEL(n));
-  if (GETTAG(n) ==T_AP) {
+  if (GETTAG(n) == T_AP) {
     if (test_bit(shared_bits, n)) {
       /* Alread marked as shared */
       //printf("shared\n");
@@ -850,7 +850,7 @@ find_sharing(NODEPTR n)
     }
   } else {
     /* Not an application, so do nothing */
-    //printf("notT_AP\n");
+    //printf("not T_AP\n");
     ;
   }
 }
@@ -1147,7 +1147,7 @@ eval(NODEPTR n)
 /* Reset stack pointer and return. */
 #define RET do { stack_ptr = stk; return; } while(0)
 /* Check that there are at least n arguments, return if not. */
-#define CHECK(n) do { if (stack_ptr - stk <= (n)) RET; } while(0)
+#define CHECK(n) do { if (stack_ptr - stk < (n)) RET; } while(0)
 
 #define SETIND(n, x) do { SETTAG((n), T_IND); INDIR((n)) = (x); } while(0)
 #define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
@@ -1160,20 +1160,19 @@ eval(NODEPTR n)
  * NOTE: No GC is allowed after these, since the stack has been popped.
  */
 #define CHKARG0 do { } while(0)
-#define CHKARG1 do { CHECK(1); POP(1); n = TOP(0); x = ARG(n); } while(0)
-#define CHKARG2 do { CHECK(2); POP(2); n = TOP(0); y = ARG(n); x = ARG(TOP(-1)); } while(0)
-#define CHKARG3 do { CHECK(3); POP(3); n = TOP(0); z = ARG(n); y = ARG(TOP(-1)); x = ARG(TOP(-2)); } while(0)
-#define CHKARG4 do { CHECK(4); POP(4); n = TOP(0); w = ARG(n); z = ARG(TOP(-1)); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
+#define CHKARG1 do { CHECK(1); POP(1); n = TOP(-1); x = ARG(n); } while(0)
+#define CHKARG2 do { CHECK(2); POP(2); n = TOP(-1); y = ARG(n); x = ARG(TOP(-2)); } while(0)
+#define CHKARG3 do { CHECK(3); POP(3); n = TOP(-1); z = ARG(n); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
+#define CHKARG4 do { CHECK(4); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
 
 /* Alloc a possible GC action, e, between setting x and popping */
-#define CHKARGEV1(e) do { CHECK(1); x = ARG(TOP(1)); e; POP(1); n = TOP(0); } while(0)
+#define CHKARGEV1(e) do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
 
 #define SETINT(n,r)  do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
-#define OPINT2(e)    do { CHECK(2); xi = evalint(ARG(TOP(1))); yi = evalint(ARG(TOP(2))); e; POP(2); n = TOP(0); } while(0);
+#define OPINT2(e)    do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define ARITHBIN(op) do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define CMP(op)      do { OPINT2(r = xi op yi); GOIND(r ? comTrue : combFalse); } while(0)
 
-  PUSH(n);
   for(;;) {
     num_reductions++;
 #if FASTTAGS
@@ -1193,11 +1192,11 @@ eval(NODEPTR n)
     switch (tag) {
     ind:
       num_reductions++;
-    case T_IND:  n = INDIR(n); TOP(0) = n; break;
+    case T_IND:  n = INDIR(n); break;
 
     ap:
       num_reductions++;
-    case T_AP:   n = FUN(n); PUSH(n); break;
+    case T_AP:   PUSH(n); n = FUN(n); break;
 
     case T_STR:  GCCHECK(strNodes(strlen(STR(n)))); GOIND(mkStringC(STR(n)));
     case T_INT:  RET;
@@ -1299,7 +1298,7 @@ evalio(NODEPTR n)
         NODEPTR bm;
         NODEPTR bmg = evali(ARG(TOP(1)));
         GCCHECKSAVE(bmg, 4);
-        if (GETTAG(bmg) ==T_AP && GETTAG(bm = indir(FUN(bmg))) ==T_AP && GETTAG(indir(FUN(bm))) == T_IO_BIND) {
+        if (GETTAG(bmg) == T_AP && GETTAG(bm = indir(FUN(bmg))) == T_AP && GETTAG(indir(FUN(bm))) == T_IO_BIND) {
           NODEPTR g = ARG(bmg);
           NODEPTR h = ARG(TOP(2));
           n = new_ap(bm, new_ap(new_ap(new_ap(combCC, combIOBIND), g), h));
@@ -1485,6 +1484,7 @@ main(int argc, char **argv)
   }
   run_time -= gettime();
   NODEPTR res = evalio(prog);
+  res = evali(res);
   run_time += gettime();
   if (0) {
     FILE *out = fopen("prog.comb", "w");
