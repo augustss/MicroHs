@@ -284,7 +284,7 @@ new_ap(NODEPTR f, NODEPTR a)
 
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combFalse, comTrue, combI, combCons;
+NODEPTR combFalse, comTrue, combUnit, combCons;
 NODEPTR combCC, combIOBIND;
 
 /* One node of each kind for primitives, these are never GCd. */
@@ -366,7 +366,7 @@ init_nodes(void)
     switch (primops[j].tag) {
     case T_K: combFalse = n; break;
     case T_A: comTrue = n; break;
-    case T_I: combI = n; break;
+    case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
     case T_CC: combCC = n; break;
     case T_IO_BIND: combIOBIND = n; break;
@@ -384,7 +384,7 @@ init_nodes(void)
     switch (t) {
     case T_K: combFalse = n; break;
     case T_A: comTrue = n; break;
-    case T_I: combI = n; break;
+    case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
     case T_CC: combCC = n; break;
     case T_IO_BIND: combIOBIND = n; break;
@@ -1116,10 +1116,10 @@ evalstring(NODEPTR n)
     n = evali(n);
     if (GETTAG(n) == T_K)            /* Nil */
       break;
-    else if (GETTAG(n) ==T_AP && GETTAG(x = indir(FUN(n))) ==T_AP && GETTAG(indir(FUN(x))) == T_O) { /* Cons */
+    else if (GETTAG(n) == T_AP && GETTAG(x = indir(FUN(n))) == T_AP && GETTAG(indir(FUN(x))) == T_O) { /* Cons */
       c = evalint(ARG(x));
       if (c < 0 || c > 127)
-	ERR("invalid char");
+	ERR("invalid char");    /* Only allow ASCII */
       *p++ = (char)c;
       n = ARG(n);
     } else {
@@ -1165,6 +1165,7 @@ eval(NODEPTR n)
 #define CHKARG3 do { CHECK(3); POP(3); n = TOP(0); z = ARG(n); y = ARG(TOP(-1)); x = ARG(TOP(-2)); } while(0)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(0); w = ARG(n); z = ARG(TOP(-1)); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
 
+/* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e) do { CHECK(1); x = ARG(TOP(1)); e; POP(1); n = TOP(0); } while(0)
 
 #define SETINT(n,r)  do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
@@ -1230,7 +1231,7 @@ eval(NODEPTR n)
     case T_GT:   CMP(>);
     case T_GE:   CMP(>=);
 
-    case T_ERROR:           CHKARGEV1(msg = evalstring(x)); fprintf(stderr, "error: %s\n", msg); exit(1);
+    case T_ERROR:           CHKARGEV1(msg = evalstring(x)); fprintf(stderr, "error: %s\n", msg); free(msg); exit(1);
 
     case T_IO_ISNULLHANDLE: CHKARGEV1(hdl = evalhandleN(x)); GOIND(hdl == 0 ? comTrue : combFalse);
 
@@ -1339,7 +1340,7 @@ evalio(NODEPTR n)
       hdl = evalhandle(ARG(TOP(1)));
       c = (int)evalint(ARG(TOP(2)));
       putc(c, hdl);
-      RETIO(combI);
+      RETIO(combUnit);
     case T_IO_PRINT:
       hdr = 0;
       goto ser;
@@ -1352,7 +1353,7 @@ evalio(NODEPTR n)
       //x = ARG(TOP(1));
       print(hdl, x, hdr);
       fprintf(hdl, "\n");
-      RETIO(combI);
+      RETIO(combUnit);
     case T_IO_DESERIALIZE:
       CHECKIO(1);
       hdl = evalhandle(ARG(TOP(1)));
@@ -1365,7 +1366,7 @@ evalio(NODEPTR n)
       n = evali(ARG(TOP(1)));
       HANDLE(n) = 0;
       fclose(hdl);
-      RETIO(combI);
+      RETIO(combUnit);
     case T_IO_OPEN:
       CHECKIO(2);
       name = evalstring(ARG(TOP(1)));
