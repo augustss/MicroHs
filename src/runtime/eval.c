@@ -1030,6 +1030,12 @@ mkString(const char *str, size_t len)
   return n;
 }
 
+NODEPTR
+mkStringC(const char *str)
+{
+  return mkString(str, strlen(str));
+}
+
 void eval(NODEPTR n);
 
 /* Evaluate and skip indirections. */
@@ -1131,7 +1137,8 @@ void
 eval(NODEPTR n)
 {
   int64_t stk = stack_ptr;
-  NODEPTR f, g, x, k, y;
+  NODEPTR x, y, z, w;
+  value_t xi, yi;
   value_t r;
   FILE *hdl;
   int64_t l;
@@ -1142,209 +1149,83 @@ eval(NODEPTR n)
 #define CHECK(n) do { if (stack_ptr - stk <= (n)) RET; } while(0)
 
 #define SETIND(n, x) do { SETTAG((n), T_IND); INDIR((n)) = (x); } while(0)
+#define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
+#define GOAP(f,a) do { FUN((n)) = (f); ARG((n)) = (a); goto ap; } while(0)
+/* CHKARGN checks that there are at least N arguments.
+ * It also
+ *  - sets n to the "top" node
+ *  - set x, y, ... to the arguments
+ *  - pops N stack elements
+ * NOTE: No GC is allowed after these, since the stack has been popped.
+ */
+#define CHKARG0 do { } while(0)
+#define CHKARG1 do { CHECK(1); POP(1); n = TOP(0); x = ARG(n); } while(0)
+#define CHKARG2 do { CHECK(2); POP(2); n = TOP(0); y = ARG(n); x = ARG(TOP(-1)); } while(0)
+#define CHKARG3 do { CHECK(3); POP(3); n = TOP(0); z = ARG(n); y = ARG(TOP(-1)); x = ARG(TOP(-2)); } while(0)
+#define CHKARG4 do { CHECK(4); POP(4); n = TOP(0); w = ARG(n); z = ARG(TOP(-1)); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
+
+#define SETINT(n,r)  do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
+#define OPINT2(e)    do { CHECK(2); xi = evalint(ARG(TOP(1))); yi = evalint(ARG(TOP(2))); e; POP(2); n = TOP(0); } while(0);
+#define ARITHBIN(op) do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
+#define CMP(op)      do { OPINT2(r = xi op yi); GOIND(r ? comTrue : combFalse); } while(0)
 
   PUSH(n);
   for(;;) {
     num_reductions++;
+#if FASTTAGS
     l = LABEL(n);
-#if FASTTAG
+#if FASTTAGSCHECK
     if (l < T_IO_BIND) {
       if (l != GETTAG(n)) {
         printf("%lu %lu\n", l, (uint64_t)(GETTAG(n)));
         ERR("bad tag");
       }
     }
-#endif
+#endif  /* FASTTAGSCHECK */
     enum node_tag tag = l < T_IO_BIND ? l : GETTAG(n);
+#else   /* FASTTAGS */
+    enum node_tag tag = GETTAG(n);
+#endif  /* FASTTAGS */
     switch (tag) {
     ind:
-    num_reductions++;
-    case T_IND:
-      n = INDIR(n);
-      TOP(0) = n;
-      break;
+      num_reductions++;
+    case T_IND:  n = INDIR(n); TOP(0) = n; break;
+
     ap:
-    num_reductions++;
-    case T_AP:
-      n = FUN(n);
-      PUSH(n);
-      break;
-    case T_INT:
-    case T_HDL:
-      RET;
-    case T_STR:
-      GCCHECK(strNodes(strlen(STR(n))));
-      x = mkString(STR(n), strlen(STR(n)));
-      SETIND(n, x);
-      goto ind;
-    case T_S:                     /* S f g x = f x (g x) */
-      CHECK(3);
-      GCCHECK(2);
-      f = ARG(TOP(1));
-      g = ARG(TOP(2));
-      x = ARG(TOP(3));
-      POP(3);
-      n = TOP(0);
-      FUN(n) = new_ap(f, x);
-      ARG(n) = new_ap(g, x);
-      goto ap;
-    case T_SS:                    /* S' k f g x = k (f x) (g x) */
-      CHECK(4);
-      GCCHECK(3);
-      k = ARG(TOP(1));
-      f = ARG(TOP(2));
-      g = ARG(TOP(3));
-      x = ARG(TOP(4));
-      POP(4);
-      n = TOP(0);
-      FUN(n) = new_ap(k, new_ap(f, x));
-      ARG(n) = new_ap(g, x);
-      goto ap;
-    case T_K:                     /* K x y = * x */
-      CHECK(2);
-      x = ARG(TOP(1));
-      POP(2);
-      n = TOP(0);
-      SETIND(n, x);
-      goto ind;
-    case T_A:                     /* A x y = * y */
-      CHECK(2);
-      y = ARG(TOP(2));
-      POP(2);
-      n = TOP(0);
-      SETIND(n, y);
-      goto ind;
-    case T_T:                     /* T x y = y x */
-      CHECK(2);
-      x = ARG(TOP(1));
-      y = ARG(TOP(2));
-      POP(2);
-      n = TOP(0);
-      FUN(n) = y;
-      ARG(n) = x;
-      goto ap;
-    case T_I:                     /* I x = * x */
-      CHECK(1);
-      x = ARG(TOP(1));
-      POP(1);
-      n = TOP(0);
-      SETIND(n, x);
-      goto ind;
-    case T_Y:                     /* yf@(Y f) = f yf */
-      CHECK(1);
-      f = ARG(TOP(1));
-      POP(1);
-      n = TOP(0);
-      FUN(n) = f;
-      ARG(n) = n;
-      goto ap;
-    case T_B:                     /* B f g x = f (g x) */
-      CHECK(3);
-      GCCHECK(1);
-      f = ARG(TOP(1));
-      g = ARG(TOP(2));
-      x = ARG(TOP(3));
-      POP(3);
-      n = TOP(0);
-      FUN(n) = f;
-      ARG(n) = new_ap(g, x);
-      goto ap;
-    case T_BK:                     /* BK f g x = f g */
-      CHECK(3);
-      f = ARG(TOP(1));
-      g = ARG(TOP(2));
-      POP(3);
-      n = TOP(0);
-      FUN(n) = f;
-      ARG(n) = g;
-      goto ap;
-    case T_C:                     /* C f g x = f x g */
-      CHECK(3);
-      GCCHECK(1);
-      f = ARG(TOP(1));
-      g = ARG(TOP(2));
-      x = ARG(TOP(3));
-      POP(3);
-      n = TOP(0);
-      FUN(n) = new_ap(f, x);
-      ARG(n) = g;
-      goto ap;
-    case T_CC:                    /* C' k f g x = k (f x) g */
-      CHECK(4);
-      GCCHECK(2);
-      k = ARG(TOP(1));
-      f = ARG(TOP(2));
-      g = ARG(TOP(3));
-      x = ARG(TOP(4));
-      POP(4);
-      n = TOP(0);
-      FUN(n) = new_ap(k, new_ap(f, x));
-      ARG(n) = g;
-      goto ap;
-    case T_P:                     /* P x y f = f x y */
-      CHECK(3);
-      GCCHECK(1);
-      x = ARG(TOP(1));
-      y = ARG(TOP(2));
-      f = ARG(TOP(3));
-      POP(3);
-      n = TOP(0);
-      FUN(n) = new_ap(f, x);
-      ARG(n) = y;
-      goto ap;
-    case T_O:                     /* O x y g f = f x y */
-      CHECK(4);
-      GCCHECK(1);
-      x = ARG(TOP(1));
-      y = ARG(TOP(2));
-      f = ARG(TOP(4));
-      POP(4);
-      n = TOP(0);
-      FUN(n) = new_ap(f, x);
-      ARG(n) = y;
-      goto ap;
+      num_reductions++;
+    case T_AP:   n = FUN(n); PUSH(n); break;
 
-#define SETINT(n,r) do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
-#define ARITH2(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETINT(n, r); POP(2); } while(0)
-    case T_ADD:
-      ARITH2(+);
-      RET;
-    case T_SUB:
-      ARITH2(-);
-      RET;
-    case T_MUL:
-      ARITH2(*);
-      RET;
-    case T_QUOT:
-      ARITH2(/);
-      RET;
-    case T_REM:
-      ARITH2(%);
-      RET;
-    case T_SUBR:
-      /* - with arguments reversed */
-      CHECK(2); r = evalint(ARG(TOP(2))) - evalint(ARG(TOP(1))); n = TOP(2); SETINT(n, r); POP(2);
-      RET;
+    case T_STR:  GCCHECK(strNodes(strlen(STR(n)))); GOIND(mkStringC(STR(n)));
+    case T_INT:  RET;
+    case T_HDL:  RET;
 
-#define CMP(op) do { CHECK(2); r = evalint(ARG(TOP(1))) op evalint(ARG(TOP(2))); n = TOP(2); SETIND(n, r ? comTrue : combFalse); POP(2); } while(0)
-    case T_EQ:
-      CMP(==);
-      break;
-    case T_NE:
-      CMP(!=);
-      break;
-    case T_LT:
-      CMP(<);
-      break;
-    case T_LE:
-      CMP(<=);
-      break;
-    case T_GT:
-      CMP(>);
-      break;
-    case T_GE:
-      CMP(>=);
-      break;
+    case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
+    case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
+    case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
+    case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
+    case T_T:                CHKARG2; GOAP(y, x);                                           /* T x y = y x */
+    case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
+    case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
+    case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
+    case T_BK:               CHKARG3; GOAP(x, y);                                           /* BK x y z = x y */
+    case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
+    case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
+    case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
+    case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
+
+    case T_ADD:  ARITHBIN(+);
+    case T_SUB:  ARITHBIN(-);
+    case T_MUL:  ARITHBIN(*);
+    case T_QUOT: ARITHBIN(/);
+    case T_REM:  ARITHBIN(%);
+    case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
+
+    case T_EQ:   CMP(==);
+    case T_NE:   CMP(!=);
+    case T_LT:   CMP(<);
+    case T_LE:   CMP(<=);
+    case T_GT:   CMP(>);
+    case T_GE:   CMP(>=);
     case T_ERROR:
       CHECK(1);
       x = ARG(TOP(1));
@@ -1354,10 +1235,9 @@ eval(NODEPTR n)
     case T_IO_ISNULLHANDLE:
       CHECK(1);
       hdl = evalhandleN(ARG(TOP(1)));
-      n = TOP(1);
-      SETIND(n, hdl == 0 ? comTrue : combFalse);
       POP(1);
-      break;
+      n = TOP(0);
+      GOIND(hdl == 0 ? comTrue : combFalse);
     case T_IO_BIND:
     case T_IO_THEN:
     case T_IO_RETURN:
@@ -1374,10 +1254,9 @@ eval(NODEPTR n)
     case T_IO_PERFORMIO:
       CHECK(1);
       x = evalio(ARG(TOP(1)));
-      n = TOP(1);
-      SETIND(n, x);
       POP(1);
-      goto ind;
+      n = TOP(0);
+      GOIND(x);
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));
       ERR("eval tag");
