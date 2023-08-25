@@ -1141,6 +1141,7 @@ eval(NODEPTR n)
   value_t xi, yi;
   value_t r;
   FILE *hdl;
+  char *msg;
   int64_t l;
 
 /* Reset stack pointer and return. */
@@ -1163,6 +1164,8 @@ eval(NODEPTR n)
 #define CHKARG2 do { CHECK(2); POP(2); n = TOP(0); y = ARG(n); x = ARG(TOP(-1)); } while(0)
 #define CHKARG3 do { CHECK(3); POP(3); n = TOP(0); z = ARG(n); y = ARG(TOP(-1)); x = ARG(TOP(-2)); } while(0)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(0); w = ARG(n); z = ARG(TOP(-1)); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
+
+#define CHKARGEV1(e) do { CHECK(1); x = ARG(TOP(1)); e; POP(1); n = TOP(0); } while(0)
 
 #define SETINT(n,r)  do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define OPINT2(e)    do { CHECK(2); xi = evalint(ARG(TOP(1))); yi = evalint(ARG(TOP(2))); e; POP(2); n = TOP(0); } while(0);
@@ -1226,18 +1229,13 @@ eval(NODEPTR n)
     case T_LE:   CMP(<=);
     case T_GT:   CMP(>);
     case T_GE:   CMP(>=);
-    case T_ERROR:
-      CHECK(1);
-      x = ARG(TOP(1));
-      char *msg = evalstring(x);
-      fprintf(stderr, "error: %s\n", msg);
-      exit(1);
-    case T_IO_ISNULLHANDLE:
-      CHECK(1);
-      hdl = evalhandleN(ARG(TOP(1)));
-      POP(1);
-      n = TOP(0);
-      GOIND(hdl == 0 ? comTrue : combFalse);
+
+    case T_ERROR:           CHKARGEV1(msg = evalstring(x)); fprintf(stderr, "error: %s\n", msg); exit(1);
+
+    case T_IO_ISNULLHANDLE: CHKARGEV1(hdl = evalhandleN(x)); GOIND(hdl == 0 ? comTrue : combFalse);
+
+    case T_IO_PERFORMIO:    CHKARGEV1(x = evalio(x)); GOIND(x);
+
     case T_IO_BIND:
     case T_IO_THEN:
     case T_IO_RETURN:
@@ -1251,12 +1249,7 @@ eval(NODEPTR n)
     case T_IO_GETARGS:
     case T_IO_GETTIMEMILLI:
       RET;
-    case T_IO_PERFORMIO:
-      CHECK(1);
-      x = evalio(ARG(TOP(1)));
-      POP(1);
-      n = TOP(0);
-      GOIND(x);
+
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));
       ERR("eval tag");
