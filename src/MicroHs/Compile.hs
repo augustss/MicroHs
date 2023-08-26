@@ -120,12 +120,12 @@ compileModule flags nm = S.do
 
 ------------------
 
-readFilePath :: [String] -> String -> IO String
+readFilePath :: [FilePath] -> FilePath -> IO String
 readFilePath path name = IO.do
   h <- openFilePath path name
   IO.hGetContents h
 
-openFilePath :: [String] -> String -> IO Handle
+openFilePath :: [FilePath] -> FilePath -> IO Handle
 openFilePath adirs fileName =
   case adirs of
     [] -> error $ "File not found: " ++ showString fileName

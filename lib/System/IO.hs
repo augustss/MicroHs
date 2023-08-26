@@ -13,6 +13,8 @@ import Data.Tuple
 --Ytype IO = P.IO
 --Ytype Handle = P.Handle
 
+type FilePath = String
+
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
 
 --Yinfixl 1 >>=
@@ -49,7 +51,7 @@ hGetChar h = do
 hPutChar :: Handle -> Char -> IO ()
 hPutChar h c = P.primHPutChar h (ord c)
 
-openFileM :: String -> IOMode -> IO (Maybe Handle)
+openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM p m = do
   let {
     n = case m of
@@ -117,14 +119,14 @@ putStrLn = hPutStrLn stdout
 hPutStrLn :: Handle -> String -> IO ()
 hPutStrLn h s = hPutStr h s >> hPutChar h '\n'
 
-writeFile :: String -> String -> IO ()
+writeFile :: FilePath -> String -> IO ()
 writeFile p s = do
   h <- openFile p WriteMode
   hPutStr h s
   hClose h
 
 -- Strict readFile
-readFile :: String -> IO String
+readFile :: FilePath -> IO String
 readFile p = do
   h <- openFile p ReadMode
   cs <- hGetContents h
