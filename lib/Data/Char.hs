@@ -27,6 +27,9 @@ isAlpha c = isLower c || isUpper c
 isDigit :: Char -> Bool
 isDigit c = (P.primCharLE '0' c) && (P.primCharLE c '9')
 
+isPrint :: Char -> Bool
+isPrint c = P.primCharGE ' ' c && P.primCharLE c '~'
+
 eqChar :: Char -> Char -> Bool
 eqChar = P.primCharEQ
 

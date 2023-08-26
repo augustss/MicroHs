@@ -40,6 +40,7 @@ import Text.ParserComb as P
 --import Debug.Trace
 --Ximport Compat
 --Ximport GHC.Stack
+import MicroHs.Lex
 
 data EModule = EModule IdentModule [ExportSpec] [EDef]
   --Xderiving (Show, Eq)
