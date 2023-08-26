@@ -44,26 +44,27 @@ stderr       = P.primStderr
 hGetChar :: Handle -> IO Char
 hGetChar h = do
   c <- P.primHGetChar h
-  case c == negate 1 of
-    False -> return (chr c)
-    True  -> error "hGetChar: EOF"
+  if c == negate 1 then
+    error "hGetChar: EOF"
+   else
+    return (chr c)
 
 hPutChar :: Handle -> Char -> IO ()
 hPutChar h c = P.primHPutChar h (ord c)
 
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM p m = do
-  let {
+  let
     n = case m of
           ReadMode -> 0
           WriteMode -> 1
           AppendMode -> 2
           ReadWriteMode -> 3
-    }
   hdl <- P.primOpenFile p n
-  case P.primIsNullHandle hdl of
-    False -> return (Just hdl)
-    True  -> return Nothing
+  if P.primIsNullHandle hdl then
+    return Nothing
+   else
+    return (Just hdl)
 
 openFile :: String -> IOMode -> IO Handle
 openFile p m = do
@@ -84,24 +85,20 @@ print = P.primHPrint stdout
 mapM :: forall a b . (a -> IO b) -> [a] -> IO [b]
 mapM f =
   let
-    rec arg =
-      case arg of
-        [] -> return []
-        a : as -> do
-          b <- f a
-          bs <- rec as
-          return (b : bs)
+    rec [] = return []
+    rec (a : as) = do
+      b <- f a
+      bs <- rec as
+      return (b : bs)
   in rec
 
 mapM_ :: forall a b . (a -> IO b) -> [a] -> IO ()
 mapM_ f =
   let
-    rec arg =
-      case arg of
-        [] -> return ()
-        a : as -> do
-          f a
-          rec as
+    rec [] = return ()
+    rec (a : as) = do
+      f a
+      rec as
   in rec
 
 when :: Bool -> IO () -> IO ()
@@ -125,24 +122,24 @@ writeFile p s = do
   hPutStr h s
   hClose h
 
--- Strict readFile
+-- Lazy readFile
 readFile :: FilePath -> IO String
 readFile p = do
   h <- openFile p ReadMode
   cs <- hGetContents h
-  hClose h
+  --hClose h  can't close with lazy hGetContents
   return cs
 
--- Strict hGetContents
+-- Lazy hGetContents
 hGetContents :: Handle -> IO String
 hGetContents h = do
   c <- P.primHGetChar h
-  case c == negate 1 of
-    False ->
-      do { cs <- hGetContents h; return (chr c:cs) }
-      -- This should use less stack, but it doesn't work. :(
-      --return (chr c : P.primPerformIO (hGetContents h))
-    True  -> return ""
+  if c == negate 1 then do
+    hClose h   -- EOF, so close the handle
+    return ""
+   else do
+    cs <- unsafeInterleaveIO (hGetContents h)
+    return (chr c : cs)
   
 writeSerialized :: forall a . String -> a -> IO ()
 writeSerialized p s = do
@@ -159,3 +156,6 @@ readSerialized p = do
 
 getTimeMilli :: IO Int
 getTimeMilli = P.primGetTimeMilli
+
+unsafeInterleaveIO :: forall a . IO a -> IO a
+unsafeInterleaveIO ioa = return (P.primPerformIO ioa)
