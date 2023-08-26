@@ -210,7 +210,7 @@ untupleConstr s = length s + 1
 
 ---------------------------------
 
-type P a = Prsr [Int] a
+type P a = Prsr [Int] Char a
 
 qual :: Ident -> Ident -> Ident
 qual qi i = qi ++ "." ++ i
@@ -256,22 +256,11 @@ pWhiteIndent = P.do
            else P.do
             eof <|> inject ";"
 
-{-
-sepBy1 :: forall s a sep . Prsr s a -> Prsr s sep -> Prsr s [a]
-sepBy1 p sep = (:) <$> p <*> many (sep *> p)
--}
-
-esepBy1 :: forall s a sep . Prsr s a -> Prsr s sep -> Prsr s [a]
-esepBy1 p sep = (:) <$> p <*> emany (sep *> p)
-
-esepBy :: forall s a sep . Prsr s a -> Prsr s sep -> Prsr s [a]
-esepBy p sep = esepBy1 p sep <|< pure []
-
 parseDie :: forall a . --X (Show a) =>
             P a -> String -> String -> a
 parseDie p fn file =
-  case runPrsr [] p fn (removeComments file) of
-    Left err -> error err
+  case runPrsr [] p (removeComments file) of
+    Left lf -> error $ formatFailed fn file lf
     Right [(a, _)] -> a
     Right as -> error $ "Ambiguous:"
 --X                     ++ unlines (map (show . fst) as)
@@ -1045,3 +1034,31 @@ allVarsStmt astmt =
     SThen e -> allVarsExpr e
     SLet bs -> concatMap allVarsBind bs
 
+----------------
+
+formatFailed :: String -> String -> LastFail -> String
+formatFailed fn file lf =
+  case lf of
+    LastFail len _ ->
+      let
+        (pre, post) = splitAt (length file - len) file
+        count lc x =
+          case lc of
+            (l, c) ->
+              if eqChar x '\n' then (l+1, 0) else (l, c+1)
+        (line, col) = foldl count (1, 0) pre
+      in showString fn ++ ": " ++
+         "line " ++ showInt line ++ ", col " ++ showInt col ++ ":\n" ++
+         "   found: " ++ showString (take 10 post)
+{-
+    xs' = nub $ map trim xs
+    pr e = "   expeced: " ++ e
+    trim arg = unwords (snd arg) -- (last $ init $ "" : "" : es)
+  in  show fn ++ ": " ++
+      "line " ++ show line ++ ", col " ++ show col ++ ":\n" ++
+      "   found: " ++ show (takeWhile (not . isSpace) post) ++ "\n" ++
+      unlines (map pr xs')
+-}
+
+char :: forall s . Char -> Prsr s Char Char
+char c = satisfy "char" (eqChar c)
