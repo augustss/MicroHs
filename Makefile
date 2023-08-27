@@ -56,6 +56,8 @@ $(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
 	$(GHCC) -c src/MicroHs/Lex.hs
 	$(GHCC) -c src/MicroHs/Expr.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
+	$(GHCC) -c src/MicroHs/Lex.hs
+	$(GHCC) -c src/MicroHs/ParseN.hs
 	$(GHCC) -c src/MicroHs/StringMap.hs
 	$(GHCC) -c src/MicroHs/StringMapFast.hs
 #	$(GHCC) -c -package containers -package base src/MicroHs/StringMap.hs

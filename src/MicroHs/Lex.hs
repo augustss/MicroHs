@@ -1,4 +1,4 @@
-module MicroHs.Lex(lexTop, Token(..), Line, Col, Loc, isLower_) where
+module MicroHs.Lex(lexTop, Token(..), Line, Col, Loc, isLower_, tokensLoc) where
 import Prelude --Xhiding(lex, showChar)
 import Data.Char
 --Ximport Compat
@@ -29,12 +29,12 @@ type Loc = (Line, Col)
 lexTop :: String -> [Token]
 lexTop = layout [] .
          --take 10 .
-         indent 1
+         lex 1 1
 
 lex :: Line -> Col -> String -> [Token]
 lex l c (' ':cs)  = lex l (c+1) cs
-lex l _ ('\n':cs) = indent (l+1) cs
---lex l c ('\r':cs) = lex     l c cs
+lex l _ ('\n':cs) = tIndent (lex (l+1) 1 cs)
+lex l c ('\r':cs) = lex l c cs
 lex l c ('{':'-':cs) = skipNest l (c+2) 1 cs
 lex l c ('-':'-':cs) | isComm rs = skipLine l (c+2+length ds) cs
   where {
@@ -45,7 +45,7 @@ lex l c ('-':'-':cs) | isComm rs = skipLine l (c+2+length ds) cs
 lex l c (d:cs) | isLower_ d =
   case span isIdent cs of
     (ds, rs) -> tIdent (l, c) [] (d:ds) (lex l (c + 1 + length ds) rs)
-lex l c cs@(d:_) | isUpper d = upperIdent l c [] cs
+lex l c cs@(d:_) | isUpper d = upperIdent l c c [] cs
 lex l c ('-':d:cs) | isDigit d =
   case span isDigit cs of
     (ds, rs) -> TInt (l, c) (readInt ('-':d:ds)) : lex l (c + 2 + length ds) rs
@@ -74,8 +74,8 @@ lex _ _ [] = []
 -- Skip a { - - } style comment
 skipNest :: Line -> Col -> Int -> String -> [Token]
 skipNest l c 0 cs = lex l c cs
-skipNest l c n ('{':'-':cs) = skipNest l (c+2) (n+1) cs
-skipNest l c n ('-':'}':cs) = skipNest l (c+2) (n-1) cs
+skipNest l c n ('{':'-':cs) = skipNest l (c+2) (n + 1) cs
+skipNest l c n ('-':'}':cs) = skipNest l (c+2) (n - 1) cs
 skipNest l _ n ('\n':cs)    = skipNest (l+1) 1 n     cs
 skipNest l c n ('\r':cs)    = skipNest l     c n     cs
 skipNest l c n (_:cs)       = skipNest l (c+1) n     cs
@@ -87,12 +87,9 @@ skipLine l c cs@('\n':_) = lex l c cs
 skipLine l c (_:cs)      = skipLine l c cs
 skipLine _ _ []          = []
 
-indent :: Line -> String -> [Token]
-indent l ('\r':acs) = indent l acs
-indent l acs =
-  case span (eqChar ' ') acs of
-    (_, '\n':cs) -> indent (l+1) cs
-    (ss, cs)     -> TIndent (1+length ss) : lex l 1 cs
+tIndent :: [Token] -> [Token]
+tIndent ts@(TIndent _ : _) = ts
+tIndent ts = TIndent (snd (tokensLoc ts)) : ts
 
 takeChars :: Loc -> (String -> Token) -> Char -> Int -> String -> String -> (Token, Int, String)
 takeChars loc _ c n _ [] = (TError loc ("Unmatched " ++ [c]), n, [])
@@ -121,35 +118,33 @@ isIdent c = isLower_ c || isUpper c || isDigit c || eqChar c '\''
 isLower_ :: Char -> Bool
 isLower_ c = isLower c || eqChar c '_'
 
-upperIdent :: Line -> Col -> [String] -> String -> [Token]
+upperIdent :: Line -> Col -> Col -> [String] -> String -> [Token]
 --upperIdent l c qs acs | trace (show (l, c, qs, acs)) False = undefined
-upperIdent l c qs acs =
+upperIdent l c sc qs acs =
   case span isIdent acs of
    (ds, rs) ->
     case rs of
-      '.':cs@(d:_) | isUpper d -> upperIdent l (c + 1 + length ds) (ds:qs) cs
+      '.':cs@(d:_) | isUpper d -> upperIdent l (c + 1 + length ds) sc (ds:qs) cs
                    | isLower d -> ident isIdent
                    | isOper  d -> ident isOper
          where {
            ident p =
              case span p cs of
-               (xs, ys) -> tIdent (l, c) (reverse (ds:qs)) xs (lex l (c + 1 + length ds + length xs) ys)
+               (xs, ys) -> tIdent (l, sc) (reverse (ds:qs)) xs (lex l (c + 1 + length ds + length xs) ys)
            }
-      _ -> TIdent (l, c) (reverse qs) ds : lex l (c + length ds) rs
+      _ -> TIdent (l, sc) (reverse qs) ds : lex l (c + length ds) rs
 
 tIdent :: Loc -> [String] -> String -> [Token] -> [Token]
-tIdent loc qs kw ts | elemBy eqString kw ["let", "where", "do", "of"]
-                    , Just n <- ins ts = ti : TBrace n : drp ts
-                    | otherwise = ti : ts
+tIdent loc qs kw ats | elemBy eqString kw ["let", "where", "do", "of"]
+                                 = ti : tBrace ats
+                     | otherwise = ti : ats
   where {
     ti = TIdent loc qs kw;
 
-    ins (TSpec _ '{' : _) = Nothing;
-    ins tts = Just (snd (tokensLoc tts));
-
-    -- Since we inserted a {n} we don't want the <n> that follows.
-    drp (TIndent _ : tts) = tts;
-    drp tts = tts
+    tBrace ts@(TSpec _ '{' : _) = ts;
+    tBrace ts@(TIndent _ : TSpec _ '{' : _) = ts;
+    tBrace (TIndent _ : ts) = TBrace (snd $ tokensLoc ts) : ts;
+    tBrace ts = TBrace (snd $ tokensLoc ts) : ts
     }
 
 tokensLoc :: [Token] -> Loc
@@ -160,7 +155,7 @@ tokensLoc (TInt    loc _  :_) = loc
 tokensLoc (TSpec   loc _  :_) = loc
 tokensLoc (TError  loc _  :_) = loc
 tokensLoc (           _  :ts) = tokensLoc ts
-tokensLoc []                  = (0,0)
+tokensLoc []                  = (0,1)
 
 layout :: [Int] -> [Token] -> [Token]
 layout mms@(m : ms) tts@(TIndent n : ts) | n == m = TSpec (tokensLoc ts) ';' : layout    mms  ts

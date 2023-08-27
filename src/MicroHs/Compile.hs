@@ -14,7 +14,7 @@ import qualified MicroHs.StringMap as M
 import MicroHs.StateIO as S
 import MicroHs.Desugar
 import MicroHs.Expr
-import MicroHs.Parse
+import MicroHs.ParseN
 import MicroHs.TypeCheck
 
 data Flags = Flags Int Bool [String] String
@@ -101,7 +101,7 @@ compileModule flags nm = S.do
   mdl@(EModule nmn _ defs) <- S.fmap (parseDie pTop fn) (liftIO (readFilePath (paths flags) fn))
   --liftIO $ putStrLn $ showEModule mdl
   S.when (not (eqIdent nm nmn)) $
-    error $ "module name does not agree with file name: " ++ showIdent nm
+    error $ "module name does not agree with file name: " ++ showIdent nm ++ " " ++ showIdent nmn
   let
     specs = [ s | Import s <- defs ]
   t2 <- liftIO getTimeMilli

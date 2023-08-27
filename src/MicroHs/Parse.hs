@@ -122,7 +122,7 @@ skipBlock n acs =
       Just cs -> skipBlock (n+1) cs
       Nothing ->
         case stripPrefixBy eqChar "-}" acs of
-          Just cs -> skipBlock (n-1) cs
+          Just cs -> skipBlock (n - 1) cs
           Nothing ->
             case acs of
               [] -> ""
@@ -148,8 +148,8 @@ skipBlock n acs =
         skipToNL "" = ""
         skipBlock :: Int -> String -> String
         skipBlock 0 cs = remCom cs
-        skipBlock n ('{':'-':cs) = skipBlock (n+1) cs
-        skipBlock n ('-':'}':cs) = skipBlock (n-1) cs
+        skipBlock n ('{':'-':cs) = skipBlock (n + 1) cs
+        skipBlock n ('-':'}':cs) = skipBlock (n - 1) cs
         skipBlock n ('\n':cs) = '\n' : skipBlock n cs
         skipBlock n (_:cs) = skipBlock n cs
         skipBlock _ "" = ""

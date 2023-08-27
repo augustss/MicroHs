@@ -19,7 +19,7 @@ divModX x y =
     if x >= 0 || r == 0 then
       (q, r)
     else
-      (q-1, r+y)
+      (q - 1, r + y)
 
 empty :: forall a . IntMap a
 empty = Empty

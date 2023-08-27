@@ -687,7 +687,8 @@ tcExprR mt ae =
                 let
                   mn = moduleOf qi
                 T.return (EDo (Just mn) [SThen ea], ta)
-              _ -> error "bad do"
+              _ -> error $ "bad do "
+                         --X++ show as
           else
             case as of
               SBind p a -> T.do

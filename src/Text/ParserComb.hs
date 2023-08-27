@@ -25,7 +25,7 @@ import PreludeNoIO
 
 data LastFail t
   = LastFail Int [t] [(String, [String])]
-  --deriving (Show)
+  --Xderiving (Show)
 
 maxInt :: Int
 maxInt = 1000000000

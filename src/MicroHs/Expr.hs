@@ -197,7 +197,7 @@ showIdent :: Ident -> String
 showIdent i = i
 
 tupleConstr :: Int -> Ident
-tupleConstr n = replicate (n-1) ','
+tupleConstr n = replicate (n - 1) ','
 
 untupleConstr :: Ident -> Int
 untupleConstr s = length s + 1

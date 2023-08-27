@@ -85,7 +85,7 @@ take n arg =
   else
     case arg of
       [] -> []
-      x : xs -> x : take (n-1) xs
+      x : xs -> x : take (n - 1) xs
 
 drop :: forall a . Int -> [a] -> [a]
 drop n arg =
@@ -94,7 +94,7 @@ drop n arg =
   else
     case arg of
       [] -> []
-      _ : xs -> drop (n-1) xs
+      _ : xs -> drop (n - 1) xs
 
 length :: forall a . [a] -> Int
 length [] = 0
@@ -237,7 +237,7 @@ deleteFirstsBy eq = foldl (flip (deleteBy eq))
   else
     let
       nth _ [] = error "!!: empty"
-      nth n (x:xs) = if n == 0 then x else nth (n-1) xs
+      nth n (x:xs) = if n == 0 then x else nth (n - 1) xs
     in nth i
 
 eqList :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
