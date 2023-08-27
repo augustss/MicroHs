@@ -12,7 +12,6 @@ import Data.Char
 import Data.List
 import Text.ParserComb as P
 --import Debug.Trace
---import MicroHs.Lex
 import MicroHs.Expr
 --Ximport Compat
 
@@ -659,10 +658,10 @@ pBlock p = P.do
 
 ----------------
 
-formatFailed :: String -> String -> LastFail -> String
+formatFailed :: String -> String -> LastFail Char -> String
 formatFailed fn file lf =
   case lf of
-    LastFail len _ ->
+    LastFail len _ _ ->
       let
         (pre, post) = splitAt (length file - len) file
         count lc x =

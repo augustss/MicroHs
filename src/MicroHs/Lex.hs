@@ -1,4 +1,4 @@
-module MicroHs.Lex(lexTop) where
+module MicroHs.Lex(lexTop, Token(..), Line, Col, Loc, isLower_) where
 import Prelude --Xhiding(lex, showChar)
 import Data.Char
 --Ximport Compat
