@@ -415,10 +415,13 @@ splitArms am =
   let
     isConPat (p:_, _, _) = not (isPVar p)
     isConPat _ = impossible
-    isVarPat (p:_, _, g) = isPVar p && not g  -- only group variable patterns that cannot fail
-    isVarPat _ = False
     (ps, nps) = span isConPat am
-    (ds, rs)  = spanUntil isVarPat nps
+    loop xs [] = (reverse xs, [])
+    loop xs pps@(pg@(p:_, _, g) : rps) | not (isPVar p) = (reverse xs, pps)
+                                       | otherwise = if g then (reverse (pg:xs), rps)
+                                                         else loop (pg:xs) rps
+    loop _ _ = impossible
+    (ds, rs)  = loop [] nps
   in (ps, ds, rs)
 
 -- Change from x to y inside e.

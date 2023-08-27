@@ -37,13 +37,14 @@ lex l _ ('\n':cs) = indent (l+1) cs
 --lex l c ('\r':cs) = lex     l c cs
 lex l c ('{':'-':cs) = skipNest l (c+2) 1 cs
 lex l c ('-':'-':cs) | isComm rs = skipLine l (c+2+length ds) cs
-  where
-    (ds, rs) = span (eqChar '-') cs
-    isComm [] = True
+  where {
+    (ds, rs) = span (eqChar '-') cs;
+    isComm [] = True;
     isComm (d:_) = not (isOper d)
-lex l c (d:cs) | isLower_ d = tIdent (l, c) [] (d:ds) (lex l (c + 1 + length ds) rs)
-  where
-    (ds, rs) = span isIdent cs
+    }
+lex l c (d:cs) | isLower_ d =
+  case span isIdent cs of
+    (ds, rs) -> tIdent (l, c) [] (d:ds) (lex l (c + 1 + length ds) rs)
 lex l c cs@(d:_) | isUpper d = upperIdent l c [] cs
 lex l c ('-':d:cs) | isDigit d =
   case span isDigit cs of
@@ -65,7 +66,7 @@ lex l c ('\'':cs) =
   let
     loc = (l, c)
   in
-    case takeChars loc (TChar loc . head) '\'' 0 [] cs  -- XXX head of
+    case takeChars loc (TChar loc . head) '\'' 0 [] cs of  -- XXX head of
       (t, n, rs) -> t : lex l (c + 2 + n) rs
 lex l c (d:_) = [TError (l, c) $ "Unrecognized input: " ++ showChar d]
 lex _ _ [] = []
@@ -78,7 +79,7 @@ skipNest l c n ('-':'}':cs) = skipNest l (c+2) (n-1) cs
 skipNest l _ n ('\n':cs)    = skipNest (l+1) 1 n     cs
 skipNest l c n ('\r':cs)    = skipNest l     c n     cs
 skipNest l c n (_:cs)       = skipNest l (c+1) n     cs
-skipNest l c _ []           = [TError (l, c) "Unclosed {\- comment"]
+skipNest l c _ []           = [TError (l, c) "Unclosed {- comment"]
 
 -- Skip a -- style comment
 skipLine :: Line -> Col -> String -> [Token]
@@ -129,25 +130,27 @@ upperIdent l c qs acs =
       '.':cs@(d:_) | isUpper d -> upperIdent l (c + 1 + length ds) (ds:qs) cs
                    | isLower d -> ident isIdent
                    | isOper  d -> ident isOper
-         where
+         where {
            ident p =
              case span p cs of
                (xs, ys) -> tIdent (l, c) (reverse (ds:qs)) xs (lex l (c + 1 + length ds + length xs) ys)
+           }
       _ -> TIdent (l, c) (reverse qs) ds : lex l (c + length ds) rs
 
 tIdent :: Loc -> [String] -> String -> [Token] -> [Token]
 tIdent loc qs kw ts | elemBy eqString kw ["let", "where", "do", "of"]
                     , Just n <- ins ts = ti : TBrace n : drp ts
                     | otherwise = ti : ts
-  where
-    ti = TIdent loc qs kw
+  where {
+    ti = TIdent loc qs kw;
 
-    ins (TSpec _ '{' : _) = Nothing
-    ins tts = Just (snd (tokensLoc tts))
+    ins (TSpec _ '{' : _) = Nothing;
+    ins tts = Just (snd (tokensLoc tts));
 
     -- Since we inserted a {n} we don't want the <n> that follows.
-    drp (TIndent _ : tts) = tts
+    drp (TIndent _ : tts) = tts;
     drp tts = tts
+    }
 
 tokensLoc :: [Token] -> Loc
 tokensLoc (TIdent  loc _ _:_) = loc
