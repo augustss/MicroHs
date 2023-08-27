@@ -11,11 +11,13 @@ import Data.Tuple
 
 showChar :: Char -> String
 showChar c =
-  case lookupBy eqChar c spec of
-    Nothing -> if isPrint c then ['\'', c, '\''] else "'\\" ++ showInt (ord c) ++ "'"
-    Just s  -> s
-  where
-    spec = [('\n', "'\\n'"), ('\r', "'\\r'"), ('\t', "'\\t'")]
+  let
+    spec = [('\n', "'\\n'"), ('\r', "'\\r'"), ('\t', "'\\t'"),
+            ('\\', "'\\\\'"), ('\'', "'\\''")]
+  in
+    case lookupBy eqChar c spec of
+      Nothing -> if isPrint c then ['\'', c, '\''] else "'\\" ++ showInt (ord c) ++ "'"
+      Just s  -> s
 
 showString :: String -> String
 showString s =

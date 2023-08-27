@@ -40,7 +40,7 @@ import Text.ParserComb as P
 --import Debug.Trace
 --Ximport Compat
 --Ximport GHC.Stack
-import MicroHs.Lex
+--import MicroHs.Lex
 
 data EModule = EModule IdentModule [ExportSpec] [EDef]
   --Xderiving (Show, Eq)
@@ -474,6 +474,8 @@ decodeChar c =
     '\''
   else if eqChar c '"' then
     '"'
+  else if eqChar c '\'' then
+    '\''
   else
     error $ "decodeChar: " ++ showChar c
 

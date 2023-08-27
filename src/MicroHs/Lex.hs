@@ -1,12 +1,14 @@
-module MicroHs.Lex where
+module MicroHs.Lex(lexTop) where
 import Prelude --Xhiding(lex, showChar)
 import Data.Char
 --Ximport Compat
-import Debug.Trace
+--import Debug.Trace
 
+{-
 foo fn = do
   s <- readFile fn
   print (lexTop s)
+-}
 
 data Token
   = TIdent  Loc [String] String
@@ -43,28 +45,32 @@ lex l c (d:cs) | isLower_ d = tIdent (l, c) [] (d:ds) (lex l (c + 1 + length ds)
   where
     (ds, rs) = span isIdent cs
 lex l c cs@(d:_) | isUpper d = upperIdent l c [] cs
-lex l c ('-':d:cs) | isDigit d = TInt (l, c) (readInt ('-':d:ds)) : lex l (c + 2 + length ds) rs
-  where
-    (ds, rs) = span isDigit cs
-lex l c (d:cs) | isDigit d = TInt (l, c) (readInt (d:ds)) : lex l (c + 1 + length ds) rs
-  where
-    (ds, rs) = span isDigit cs
-lex l c (d:cs) | isOper d  = TIdent (l, c) [] (d:ds) : lex l (c + 1 + length ds) rs
-  where
-    (ds, rs) = span isOper cs
+lex l c ('-':d:cs) | isDigit d =
+  case span isDigit cs of
+    (ds, rs) -> TInt (l, c) (readInt ('-':d:ds)) : lex l (c + 2 + length ds) rs
+lex l c (d:cs) | isDigit d =
+  case span isDigit cs of
+    (ds, rs) -> TInt (l, c) (readInt (d:ds)) : lex l (c + 1 + length ds) rs
+lex l c (d:cs) | isOper d  =
+  case span isOper cs of
+    (ds, rs) -> TIdent (l, c) [] (d:ds) : lex l (c + 1 + length ds) rs
 lex l c (d:cs) | isSpec d  = TSpec (l, c) d : lex l (c+1) cs
-lex l c ('"':cs) = t : lex l (c + 2 + n) rs
-  where
+lex l c ('"':cs) =
+  let
     loc = (l, c)
-    (t, n, rs) = takeChars loc (TString loc) '"' 0 [] cs
-lex l c ('\'':cs) = t : lex l (c + 2 + n) rs
-  where
+  in 
+    case takeChars loc (TString loc) '"' 0 [] cs of
+      (t, n, rs) -> t : lex l (c + 2 + n) rs
+lex l c ('\'':cs) =
+  let
     loc = (l, c)
-    (t, n, rs) = takeChars loc (TChar loc . head) '\'' 0 [] cs  -- XXX head
+  in
+    case takeChars loc (TChar loc . head) '\'' 0 [] cs  -- XXX head of
+      (t, n, rs) -> t : lex l (c + 2 + n) rs
 lex l c (d:_) = [TError (l, c) $ "Unrecognized input: " ++ showChar d]
 lex _ _ [] = []
 
--- Skip a {- -} style comment
+-- Skip a { - - } style comment
 skipNest :: Line -> Col -> Int -> String -> [Token]
 skipNest l c 0 cs = lex l c cs
 skipNest l c n ('{':'-':cs) = skipNest l (c+2) (n+1) cs
@@ -72,7 +78,7 @@ skipNest l c n ('-':'}':cs) = skipNest l (c+2) (n-1) cs
 skipNest l _ n ('\n':cs)    = skipNest (l+1) 1 n     cs
 skipNest l c n ('\r':cs)    = skipNest l     c n     cs
 skipNest l c n (_:cs)       = skipNest l (c+1) n     cs
-skipNest l c _ []           = [TError (l, c) "Unclosed {- comment"]
+skipNest l c _ []           = [TError (l, c) "Unclosed {\- comment"]
 
 -- Skip a -- style comment
 skipLine :: Line -> Col -> String -> [Token]
@@ -103,10 +109,10 @@ decodeChar n (c  :cs) = (c,    n+1, cs)
 decodeChar n []       = ('X',  n,   [])
 
 isOper :: Char -> Bool
-isOper c = elem c "@\\=+-:<>.!#$%^&*/|~?"
+isOper c = elemBy eqChar c "@\\=+-:<>.!#$%^&*/|~?"
 
 isSpec :: Char -> Bool
-isSpec c = elem c "()[],{}`;"
+isSpec c = elemBy eqChar c "()[],{}`;"
 
 isIdent :: Char -> Bool
 isIdent c = isLower_ c || isUpper c || isDigit c || eqChar c '\''
@@ -130,7 +136,7 @@ upperIdent l c qs acs =
       _ -> TIdent (l, c) (reverse qs) ds : lex l (c + length ds) rs
 
 tIdent :: Loc -> [String] -> String -> [Token] -> [Token]
-tIdent loc qs kw ts | elem kw ["let", "where", "do", "of"]
+tIdent loc qs kw ts | elemBy eqString kw ["let", "where", "do", "of"]
                     , Just n <- ins ts = ti : TBrace n : drp ts
                     | otherwise = ti : ts
   where
