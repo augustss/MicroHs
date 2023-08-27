@@ -13,6 +13,7 @@ import qualified System.IO as IO
 import qualified MicroHs.StringMap as M
 import MicroHs.StateIO as S
 import MicroHs.Desugar
+import MicroHs.Expr
 import MicroHs.Parse
 import MicroHs.TypeCheck
 

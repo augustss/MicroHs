@@ -54,6 +54,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
 	$(GHCC) -c lib/Control/Monad/State/Strict.hs
 	$(GHCC) -c src/Text/ParserComb.hs
 #	$(GHCC) -c src/MicroHs/Lex.hs
+	$(GHCC) -c src/MicroHs/Expr.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
 	$(GHCC) -c src/MicroHs/StringMap.hs
 	$(GHCC) -c src/MicroHs/StringMapFast.hs

@@ -10,7 +10,7 @@ import Data.Maybe
 import qualified Data.IntMap as IM
 import MicroHs.TCMonad as T
 import qualified MicroHs.StringMap as M
-import MicroHs.Parse
+import MicroHs.Expr
 --Ximport Compat
 --Ximport GHC.Stack
 --Ximport Debug.Trace

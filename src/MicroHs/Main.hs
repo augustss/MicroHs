@@ -6,7 +6,7 @@ import Prelude
 import qualified MicroHs.StringMapFast as M
 import Data.Maybe
 import System.Environment
-import MicroHs.Parse
+import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.Compile
 import MicroHs.Translate

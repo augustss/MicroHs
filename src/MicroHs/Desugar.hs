@@ -16,7 +16,7 @@ import Control.Monad.State.Strict as S --Xhiding(ap)
 --Ximport GHC.Stack
 --Ximport Debug.Trace
 
-import MicroHs.Parse
+import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.TypeCheck
 

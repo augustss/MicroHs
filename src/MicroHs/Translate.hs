@@ -13,7 +13,7 @@ import Unsafe.Coerce
 --Yimport PrimTable
 
 import MicroHs.Desugar
-import MicroHs.Parse
+import MicroHs.Expr
 import MicroHs.Exp
 
 translate :: (Ident, [LDef]) -> IO ()

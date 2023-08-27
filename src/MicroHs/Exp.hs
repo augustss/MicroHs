@@ -12,7 +12,7 @@ module MicroHs.Exp(
 import Prelude
 import Data.Char
 import Data.List
-import MicroHs.Parse
+import MicroHs.Expr
 --Ximport Compat
 --import Debug.Trace
 
