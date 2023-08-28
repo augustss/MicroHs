@@ -70,7 +70,7 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 #endif  /* !defined(_MSC_VER) */
 
-#define VERSION "v3.1\n"
+#define VERSION "v3.2\n"
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -83,12 +83,12 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C, /* 0 - 9 */
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,  /* 10 - 21 */
-                T_QUOT, T_REM, T_SUBR, T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ERROR, /* 22 - 31 */
-                T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR, /* 32 - 36 */
-                T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE, /* 37 - 41 */
-                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO, /* 42 - 46 */
-                T_IO_GETTIMEMILLI, T_IO_PRINT, /* 47 - 48 */
-                T_STR,                         /* 49 */
+                T_QUOT, T_REM, T_SUBR, T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ERROR, T_SEQ, /* 22 - 32 */
+                T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR, /* 33 - 37 */
+                T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE, /* 38 - 42 */
+                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO, /* 43 - 47 */
+                T_IO_GETTIMEMILLI, T_IO_PRINT, /* 48 - 49 */
+                T_STR,                         /* 50 */
                 T_LAST_TAG,
 };
 
@@ -328,6 +328,7 @@ struct {
   { "<=", T_LE },
   { ">", T_GT },
   { ">=", T_GE },
+  { "seq", T_SEQ },
   { "error", T_ERROR },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
@@ -905,6 +906,7 @@ printrec(FILE *f, NODEPTR n)
   case T_GT: fprintf(f, "$>"); break;
   case T_GE: fprintf(f, "$>="); break;
   case T_ERROR: fprintf(f, "$error"); break;
+  case T_SEQ: fprintf(f, "$seq"); break;
   case T_IO_BIND: fprintf(f, "$IO.>>="); break;
   case T_IO_THEN: fprintf(f, "$IO.>>"); break;
   case T_IO_RETURN: fprintf(f, "$IO.return"); break;
@@ -1206,6 +1208,7 @@ eval(NODEPTR n)
     case T_GE:   CMP(>=);
 
     case T_ERROR:           CHKARGEV1(msg = evalstring(x)); fprintf(stderr, "error: %s\n", msg); free(msg); exit(1);
+    case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
     case T_IO_ISNULLHANDLE: CHKARGEV1(hdl = evalhandleN(x)); GOIND(hdl == 0 ? comTrue : combFalse);
 

@@ -159,3 +159,6 @@ getTimeMilli = P.primGetTimeMilli
 
 unsafeInterleaveIO :: forall a . IO a -> IO a
 unsafeInterleaveIO ioa = return (P.primPerformIO ioa)
+
+seq :: forall a b . a -> b -> b
+seq = P.primSeq

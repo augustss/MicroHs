@@ -82,6 +82,9 @@ primError = error
 primUnsafeCoerce :: a -> b
 primUnsafeCoerce = unsafeCoerce
 
+primSeq :: a -> b -> b
+primSeq = seq
+
 ------
 
 primBind         :: IO a -> (a -> IO b) -> IO b

@@ -48,6 +48,9 @@ primError  = primitive "error"
 primFix    :: forall a . (a -> a) -> a
 primFix    = primitive "Y"
 
+primSeq    :: forall a b . a -> b -> b
+primSeq    = primitive "seq"
+
 primChr :: Int -> Char
 primChr = primitive "I"
 primOrd :: Char -> Int

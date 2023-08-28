@@ -42,5 +42,7 @@ main = do
   putStrLn $ showInt $ trace "tracing" 5
   as <- getArgs
   putStrLn $ showList showString as
+  putStrLn $ showInt $ seq (1 + 2) 5
+  putStrLn $ showInt $ seq (1 + trace "seq" 2) 5
   tend <- getTimeMilli
   putStrLn $ showInt (tend - tstart) ++ "ms execution time"
