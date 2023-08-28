@@ -348,6 +348,8 @@ improveT ae =
           Lit (LPrim "BK")
         else if isC ff && isI aa then
           Lit (LPrim "T")
+        else if isB ff && isB aa then
+          Lit (LPrim "B'")
         else
           let
             def =
@@ -373,6 +375,7 @@ improveT ae =
 {-
 -- K I      -->  A
 -- C I      -->  T
+-- B B      -->  B'
 -- Y (K e)  -->  e
 -- K x y    -->  x
 improveT (App f a) =
@@ -449,3 +452,7 @@ allVarsExp ae =
 --  C'B = C' B
 --  C'B x y z w = C' B x y z w = B (x z) y w = x z (y w)
 
+--  B (B e) x y z = B e (x y) z = e (x y z)
+--
+--  B' :: (a -> b -> c) -> a -> (d -> b) -> d -> c
+--  B' k f g x = k f (g x)

@@ -1263,6 +1263,7 @@ eval(NODEPTR n)
     case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
     case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
     case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
+    case T_BB:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
     case T_BK:               CHKARG3; GOAP(x, y);                                           /* BK x y z = x y */
     case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
     case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
