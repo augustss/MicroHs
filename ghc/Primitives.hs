@@ -8,6 +8,7 @@ module Primitives(
 import Control.Exception(try)
 import Data.Time
 import Data.Time.Clock.POSIX
+import Data.Word
 import System.IO
 import System.IO.Unsafe
 import System.Environment
@@ -84,6 +85,21 @@ primUnsafeCoerce = unsafeCoerce
 
 primSeq :: a -> b -> b
 primSeq = seq
+
+primWordAdd :: Word -> Word -> Word
+primWordAdd = (+)
+
+primWordSub :: Word -> Word -> Word
+primWordSub = (-)
+
+primWordMul :: Word -> Word -> Word
+primWordMul = (*)
+
+primWordQuot :: Word -> Word -> Word
+primWordQuot = quot
+
+primWordRem :: Word -> Word -> Word
+primIntRem = rem
 
 ------
 

@@ -76,19 +76,19 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 #define LOW_INT (-10)
 #define HIGH_INT 128
 
-#define HEAP_CELLS 100000
-#define STACK_SIZE 10000
+#define HEAP_CELLS 50000000
+#define STACK_SIZE 100000
 
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C, /* 0 - 9 */
-                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,  /* 10 - 21 */
-                T_QUOT, T_REM, T_SUBR, T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ERROR, T_SEQ, /* 22 - 32 */
-                T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR, /* 33 - 37 */
-                T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE, /* 38 - 42 */
-                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO, /* 43 - 47 */
-                T_IO_GETTIMEMILLI, T_IO_PRINT, /* 48 - 49 */
-                T_STR,                         /* 50 */
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
+                T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ERROR, T_SEQ,
+                T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
+                T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE,
+                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO,
+                T_IO_GETTIMEMILLI, T_IO_PRINT,
+                T_STR,
                 T_LAST_TAG,
 };
 
@@ -355,6 +355,8 @@ struct {
   { "*", T_MUL },
   { "quot", T_QUOT },
   { "rem", T_REM },
+  { "uquot", T_UQUOT },
+  { "urem", T_UREM },
   { "subtract", T_SUBR },
   { "==", T_EQ },
   { "/=", T_NE },
@@ -969,6 +971,8 @@ printrec(FILE *f, NODEPTR n)
   case T_MUL: fprintf(f, "$*"); break;
   case T_QUOT: fprintf(f, "$quot"); break;
   case T_REM: fprintf(f, "$rem"); break;
+  case T_UQUOT: fprintf(f, "$uquot"); break;
+  case T_UREM: fprintf(f, "$urem"); break;
   case T_SUBR: fprintf(f, "$subtract"); break;
   case T_EQ: fprintf(f, "$=="); break;
   case T_NE: fprintf(f, "$/="); break;
@@ -1216,10 +1220,11 @@ eval(NODEPTR n)
 /* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e) do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
 
-#define SETINT(n,r)  do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
-#define OPINT2(e)    do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
-#define ARITHBIN(op) do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
-#define CMP(op)      do { OPINT2(r = xi op yi); GOIND(r ? comTrue : combFalse); } while(0)
+#define SETINT(n,r)   do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
+#define OPINT2(e)     do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
+#define ARITHBIN(op)  do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
+#define ARITHBINU(op) do { OPINT2(r = (int64_t)((uint64_t)xi op (uint64_t)yi)); SETINT(n, r); RET; } while(0)
+#define CMP(op)       do { OPINT2(r = xi op yi); GOIND(r ? comTrue : combFalse); } while(0)
 
   for(;;) {
     num_reductions++;
@@ -1270,6 +1275,8 @@ eval(NODEPTR n)
     case T_QUOT: ARITHBIN(/);
     case T_REM:  ARITHBIN(%);
     case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
+    case T_UQUOT: ARITHBINU(/);
+    case T_UREM:  ARITHBINU(%);
 
     case T_EQ:   CMP(==);
     case T_NE:   CMP(!=);
@@ -1482,35 +1489,49 @@ memsize(const char *p)
   return n;
 }
 
+BFILE *comb_internal;
+
 int
 main(int argc, char **argv)
 {
   char *fn = 0;
+  char **av;
   size_t file_size;
+  NODEPTR prog;
+  int inrts;
   
   /* MINGW doesn't do buffering right */
   setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
   setvbuf(stderr, NULL, _IONBF, BUFSIZ);
 
   argc--, argv++;
-  while (argc > 0 && argv[0][0] == '-') {
-    argc--;
-    argv++;
-    if (strcmp(argv[-1], "-v") == 0)
-      verbose++;
-    else if (strncmp(argv[-1], "-H", 2) == 0)
-      heap_size = memsize(&argv[-1][2]);
-    else if (strncmp(argv[-1], "-K", 2) == 0)
-      stack_size = memsize(&argv[-1][2]);
-    else if (strncmp(argv[-1], "-r", 2) == 0)
-      fn = &argv[-1][2];
-    else if (strcmp(argv[-1], "--") == 0)
-      break;
-    else
-      ERR("Usage: eval [-v] [-Hheap-size] [-Kstack-size] [-rFILE] [-- arg ...]");
-  }
-  glob_argc = argc;
   glob_argv = argv;
+  for (av = argv, inrts = 0; argc--; argv++) {
+    char *p = *argv;
+    if (inrts) {
+      if (strcmp(p, "-RTS") == 0) {
+        inrts = 0;
+      } else {
+        if (strcmp(p, "-v") == 0)
+          verbose++;
+        else if (strncmp(p, "-H", 2) == 0)
+          heap_size = memsize(&p[2]);
+        else if (strncmp(p, "-K", 2) == 0)
+          stack_size = memsize(&p[2]);
+        else if (strncmp(p, "-r", 2) == 0)
+          fn = &p[2];
+        else
+          ERR("Usage: eval [+RTS [-v] [-Hheap-size] [-Kstack-size] [-rFILE] -RTS] arg ...");
+      }
+    } else {
+      if (strcmp(p, "+RTS") == 0) {
+        inrts = 1;
+      } else {
+        *av++ = p;
+      }
+    }
+  }
+  glob_argc = av - glob_argv;
 
   if (fn == 0)
     fn = "out.comb";
@@ -1519,7 +1540,13 @@ main(int argc, char **argv)
   stack = malloc(sizeof(NODEPTR) * stack_size);
   if (!stack)
     memerr();
-  NODEPTR prog = parse_file(fn, &file_size);
+
+  if (comb_internal) {
+    prog = parse_top(comb_internal);
+  } else {
+    prog = parse_file(fn, &file_size);
+  }
+
   PUSH(prog); gc(); prog = TOP(0); POP(1);
   uint64_t start_size = num_marked;
   if (verbose > 2) {

@@ -3,6 +3,4 @@
   - Parse as a string of atom oper atom oper ... atom
   - Resolve fixity in type checker
   - Add fixity table to TModule
-* Read entire combinator file in evaluator.
-  - Use this to package evaluator with code.
 * Put on hackage

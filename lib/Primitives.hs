@@ -16,6 +16,17 @@ primIntRem  = primitive "rem"
 primIntSubR :: Int -> Int -> Int
 primIntSubR = primitive "subtract"
 
+primWordAdd :: Word -> Word -> Word
+primWordAdd  = primitive "+"
+primWordSub :: Word -> Word -> Word
+primWordSub  = primitive "-"
+primWordMul :: Word -> Word -> Word
+primWordMul  = primitive "*"
+primWordQuot :: Word -> Word -> Word
+primWordQuot = primitive "uquot"
+primWordRem :: Word -> Word -> Word
+primWordRem  = primitive "urem"
+
 primIntEQ   :: Int -> Int -> Bool
 primIntEQ   = primitive "=="
 primIntNE   :: Int -> Int -> Bool

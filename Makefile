@@ -10,6 +10,7 @@ GHC=ghc
 # $(CURDIR) might not be quite right
 GHCE=$(GHC) $(EXTS) -package mtl -F -pgmF ./convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
+UPX=upx
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
 MHS=mhs
 COMB=comb/
@@ -84,7 +85,7 @@ bootboottest:	$(BIN)/$(MHS) $(BIN)/boot$(MHS)
 # Compare version compiled with GHC, and bootstrapped combinator version
 bootcombtest:	$(BIN)/$(MHS) $(BIN)/eval $(COMB)$(MHS).comb
 	$(BIN)/$(MHS) -ilib -isrc -omain-$(MHS).comb  MicroHs.Main
-	$(BIN)/eval -v -H50M -r$(COMB)$(MHS).comb --  -ilib -isrc -omain-comb.comb MicroHs.Main
+	$(BIN)/eval +RTS -v -r$(COMB)$(MHS).comb -RTS -ilib -isrc -omain-comb.comb MicroHs.Main
 	cmp main-$(MHS).comb main-comb.comb
 
 # Test normal Haskell version
@@ -95,7 +96,7 @@ $(COMB)$(MHS).comb:	$(BIN)/$(MHS) $(ALLSRC)
 	$(BIN)/$(MHS) -ilib -isrc -o$(COMB)$(MHS).comb MicroHs.Main
 
 $(MHS)comp:	$(BIN)/eval $(COMB)$(MHS).comb
-	$(BIN)/eval -H1M -v -r$(COMB)$(MHS).comb -- $(ARG)
+	$(BIN)/eval +RTS -v -r$(COMB)$(MHS).comb -RTS $(ARG)
 
 time:	$(BIN)/eval $(BIN)/$(MHS) tests/*.hs
 	cd tests; make time
@@ -108,8 +109,23 @@ exampleboot:	$(BIN)/boot$(MHS) Example.hs
 	$(BIN)/boot$(MHS) -r -ilib Example && $(BIN)/eval
 
 examplecomb:	$(BIN)/eval $(COMB)$(MHS).comb Example.hs
-	$(BIN)/eval -H5M -r$(COMB)$(MHS).comb -- -r -ilib Example
+	$(BIN)/eval +RTS -r$(COMB)$(MHS).comb -RTS -r -ilib Example
 
 clean:
-	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR)
+	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR) tmp/eval.c
 	cd tests; make clean
+
+$(BIN)/addcombs:	Tools/Addcombs.hs
+	$(GHC) Tools/Addcombs.hs -o $(BIN)/addcombs
+
+tmp/eval.c: src/runtime/eval.c $(COMB)$(MHS).comb $(BIN)/addcombs
+	@mkdir -p tmp
+	cp src/runtime/eval.c tmp/eval.c
+	$(BIN)/addcombs $(COMB)$(MHS).comb >> tmp/eval.c
+
+$(BIN)/cmhs: tmp/eval.c
+	$(GCC) -Wall -O3 tmp/eval.c -o $(BIN)/cmhs
+	strip $(BIN)/cmhs
+
+$(BIN)/umhs: $(BIN)/cmhs
+	$(UPX) -o$(BIN)/umhs $(BIN)/cmhs

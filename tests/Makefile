@@ -3,7 +3,7 @@ EVAL=../bin/eval
 .PHONY: test time clean
 
 test:
-	$(MHS) IOTest && (echo q | $(EVAL) -- a bb ccc | sed 's/^.ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
+	$(MHS) IOTest && (echo q | $(EVAL) a bb ccc | sed 's/^.ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
 	$(MHS) StringTest && $(EVAL) > StringTest.out && diff StringTest.ref StringTest.out
 	$(MHS) ListTest && $(EVAL) > ListTest.out && diff ListTest.ref ListTest.out
 	$(MHS) Fac && $(EVAL) > Fac.out && diff Fac.ref Fac.out

@@ -57,6 +57,8 @@ primTable = [
   ("*", primitive "*"),
   ("quot", primitive "quot"),
   ("rem", primitive "rem"),
+  ("uquot", primitive "uquot"),
+  ("urem", primitive "urem"),
   ("subtract", primitive "subtract"),
   ("==", primitive "=="),
   ("/=", primitive "/="),
