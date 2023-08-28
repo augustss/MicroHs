@@ -1,9 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# OPTIONS_GHC -Wno-type-defaults -Wno-name-shadowing -Wno-unused-do-bind #-}
-module MicroHs.Parse(
-  pTop, parseDie
-  ) where
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
+module MicroHs.Parse(pTop, parseDie) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
 --import Control.Monad
 --import Control.Monad.State.Strict
@@ -12,356 +10,215 @@ import Data.Char
 import Data.List
 import Text.ParserComb as P
 --import Debug.Trace
+--import MicroHs.Lex
+import MicroHs.Lex
 import MicroHs.Expr
 --Ximport Compat
 
 
-type P a = Prsr [Int] Char a
-
-skipWhite :: forall a . P a -> P a
-skipWhite p = p <* pWhiteIndent
-
-skipWhiteW :: forall a . P a -> P a
-skipWhiteW p = p <* emany (char ' ')
-
-pWhite :: P String
-pWhite = emany (satisfy "white-space" (\ c -> elemBy eqChar c " \n\r"))
-
--- Skip white-space.
--- If there is a newline, return the indentation of the last line.
-pIndent :: P (Maybe String)
-pIndent = P.do
-  s <- pWhite
-  let
-    ss = takeWhile (eqChar ' ') $ reverse s
-  if eqString s ss then
-    pure Nothing
-   else
-    pure $ Just ss
-
-pWhiteIndent :: P ()
-pWhiteIndent = P.do
-  msp <- pIndent
-  case msp of
-    Nothing -> pure ()
-    Just sp -> P.do
-      st <- get
-      case st of
-        [] -> pure ()
-        i : is -> P.do
-          let
-            c = length sp
-          if c < i then P.do
-            inject ('}' : '\n' : sp)
-            put is
-           else if c > i then
-            pure ()
-           else P.do
-            eof <|> inject ";"
+type P a = Prsr () Token a
 
 parseDie :: forall a . --X (Show a) =>
             P a -> String -> String -> a
 parseDie p fn file =
-  case runPrsr [] p (removeComments file) of
-    Left lf -> error $ formatFailed fn file lf
+  let { ts = lexTop file } in
+--  trace (show ts) $
+  case runPrsr () p ts of
+    Left lf -> error $ formatFailed fn ts lf
     Right [(a, _)] -> a
     Right as -> error $ "Ambiguous:"
 --X                     ++ unlines (map (show . fst) as)
 
--- Remove comments first instead of having them in the parser.
-removeComments :: String -> String
-removeComments = remCom
-
-remCom :: [Char] -> [Char]
-remCom acs =
-  case stripPrefixBy eqChar "--" acs of
-    Just cs -> skipToNL cs
-    Nothing ->
-      case stripPrefixBy eqChar "{-" acs of
-        Just cs -> skipBlock 1 cs
-        Nothing ->
-          case acs of
-            [] -> ""
-            c:cs ->
-              if eqChar c '"' then '"' : getStr cs
-              else if eqChar c '\'' then '\'' : getChr cs
-              else c : remCom cs
-
-getStr :: [Char] -> [Char]
-getStr acs =
-  case acs of
-    [] -> ""
-    c:cs ->
-      if eqChar c '"' then '"' : remCom cs
-      else if eqChar c '\\' then '\\':head cs:getStr (tail cs)
-      else c : getStr cs
-
-getChr :: [Char] -> [Char]
-getChr acs =
-  case acs of
-    [] -> ""
-    c:cs ->
-      if eqChar c '\'' then '\'' : remCom cs
-      else if eqChar c '\\' then '\\':head cs:getChr (tail cs)
-      else c : getChr cs
-
-skipToNL :: [Char] -> [Char]
-skipToNL acs =
-  case acs of
-    [] -> ""
-    c:cs ->
-      if eqChar c '\n' then '\n' : remCom cs
-      else skipToNL cs
-
-skipBlock :: Int -> [Char] -> [Char]
-skipBlock n acs =
-  if n == 0 then
-    remCom acs
-  else
-    case stripPrefixBy eqChar "{-" acs of
-      Just cs -> skipBlock (n+1) cs
-      Nothing ->
-        case stripPrefixBy eqChar "-}" acs of
-          Just cs -> skipBlock (n - 1) cs
-          Nothing ->
-            case acs of
-              [] -> ""
-              c:cs -> if eqChar c '\n' then '\n' : skipBlock n cs
-                      else skipBlock n cs
-{-
-        remCom ('-':'-':cs) = skipToNL cs
-        remCom ('{':'-':cs) = skipBlock 1 cs
-        remCom ('"':cs) = '"':str cs
-        remCom ('\'':cs) = '\'':chr cs
-        remCom (c:cs) = c : remCom cs
-        remCom "" = ""
-        str ('"':cs) = '"' : remCom cs
-        str ('\\':c:cs) = '\\':c:str cs
-        str (c:cs) = c:str cs
-        str "" = ""
-        chr ('\'':cs) = '\'' : remCom cs
-        chr ('\\':c:cs) = '\\':c:chr cs
-        chr (c:cs) = c:chr cs
-        chr "" = ""
-        skipToNL ('\n':cs) = '\n' : remCom cs
-        skipToNL (_ : cs) = skipToNL cs
-        skipToNL "" = ""
-        skipBlock :: Int -> String -> String
-        skipBlock 0 cs = remCom cs
-        skipBlock n ('{':'-':cs) = skipBlock (n + 1) cs
-        skipBlock n ('-':'}':cs) = skipBlock (n - 1) cs
-        skipBlock n ('\n':cs) = '\n' : skipBlock n cs
-        skipBlock n (_:cs) = skipBlock n cs
-        skipBlock _ "" = ""
--}
-
 pTop :: P EModule
-pTop = skipWhite (pure ()) *> pModule <* eof
+pTop = pModule <* eof
 
 pModule :: P EModule
-pModule = EModule <$> (pKeyword "module" *> pUIdent) <*>
-                      (pSym '(' *> esepBy pExportSpec (pSym ',') <* pSym ')') <*>
-                      (pKeywordW "where" *> pBlock pDef)
+pModule = EModule <$> (pKeyword "module" *> pUQIdentA) <*>
+                      (pSpec '(' *> esepBy pExportSpec (pSpec ',') <* pSpec ')') <*>
+                      (pKeyword "where" *> pBlock pDef)
 
-pExportSpec :: P ExportSpec
-pExportSpec =
-      ExpModule <$> (pKeyword "module" *> pUIdent)
-  <|> ExpTypeCon <$> (pUIdent <* pSym '(' <* pSymbol ".." <* pSym ')')
-  <|> ExpType <$> pUIdent
-  <|> ExpValue <$> pLIdent
+pQIdent :: P Ident
+pQIdent = satisfyM "QIdent" is
+  where
+    is (TIdent _ qs s) | isAlpha_ (head s) = Just (qualName qs s)
+    is _ = Nothing
 
-pKeyword :: String -> P ()
-pKeyword kw = skipWhite $
-  P.do
-    s <- pWord
-    guard (eqString kw s)
-    pure ()
+pUIdentA :: P Ident
+pUIdentA = satisfyM "UIdent" is
+  where
+    is (TIdent _ [] s) | isUpper (head s) = Just s
+    is _ = Nothing
 
-pKeywordW :: String -> P ()
-pKeywordW kw = skipWhiteW $
-  P.do
-    s <- pWord
-    guard (eqString kw s)
-    pure ()
-
-pLIdentA :: P String
-pLIdentA = skipWhite $
-  P.do
-    s <- pQIdent
-    guard $ isLower_ $ head s
-    pure s
-
-pLIdent :: P String
-pLIdent = pLIdentA <|> (pSym '(' *> pOperL <* pSym ')')
-
-pUIdentA :: P String
-pUIdentA = skipWhite $
-  P.do
-    s <- pQIdent
-    guard $ isUpper $ head s
-    pure s
-
-pUIdent :: P String
+pUIdent :: P Ident
 pUIdent =
       pUIdentA
-  <|> (pSym '(' *> pOperU <* pSym ')')
-  <|> (pSym '(' *> some (char ',') <* pSym ')')
-  <|> ("()" <$ (pSym '(' *> pWhite *> pSym ')'))  -- Allow () as a constructor name
-  <|> ("[]" <$ (pSym '[' *> pWhite *> pSym ']'))  -- Allow [] as a constructor name
+  <|> pUIdentSpecial
+
+pUIdentSym :: P Ident
+pUIdentSym = pUIdent <|< pParens pUSymOper
+
+pUIdentSpecial :: P Ident
+pUIdentSpecial =
+      (map (const ',') <$> (pSpec '(' *> some (pSpec ',') <* pSpec ')'))
+  <|> ("()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
+  <|> ("[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
+
+pUQIdentA :: P Ident
+pUQIdentA = satisfyM "UQIdent" is
+  where
+    is (TIdent _ qs s) | isUpper (head s) = Just (qualName qs s)
+    is _ = Nothing
+
+pUQIdent :: P Ident
+pUQIdent =
+      pUQIdentA
+  <|> pUIdentSpecial
+
+pLIdent :: P Ident
+pLIdent = satisfyM "LIdent" is
+  where
+    is (TIdent _ [] s) | isLower_ (head s) && not (elemBy eqString s keywords) = Just s
+    is _ = Nothing
+
+pLQIdent :: P Ident
+pLQIdent = satisfyM "LQIdent" is
+  where
+    is (TIdent _ qs s) | isLower_ (head s) && not (elemBy eqString s keywords) = Just (qualName qs s)
+    is _ = Nothing
 
 keywords :: [String]
 keywords = ["case", "data", "do", "else", "forall", "if", "import",
   "in", "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
-isAlpha_ :: Char -> Bool
-isAlpha_ c = eqChar c '_' || isAlpha c
-
-isLower_ :: Char -> Bool
-isLower_ c = eqChar c '_' || isLower c
-
-pWord :: P String
-pWord = (:) <$> satisfy "letter" isAlpha_ <*>
-                (emany $ satisfy "letter, digit" $ \ c ->
-                    isAlpha_ c || isDigit c ||
-                    eqChar c '\'')
-
-pIdent :: P String
-pIdent = P.do
-  s <- pWord
-  guard (not (elemBy eqString s keywords))
-  pure s
-
-pQIdent :: P String
-pQIdent = intercalate "." <$> esepBy1 pIdent (char '.')
-
-pInt :: P Int
-pInt = readInt <$> (skipWhite $ esome $ satisfy "digit" isDigit)
-
-pChar :: P Char
-pChar =
-  let
-    pc =
-      P.do
-        c <- satisfy "char" (neChar '\'')
-        if eqChar c '\\' then
-          decodeChar <$> satisfy "char" (const True)
-         else
-          pure c
-  in  skipWhite (char '\'' *> pc <* char '\'')
-
-pString :: P String
-pString =
-  let
-    pc =
-      P.do
-        c <- satisfy "char" (neChar '"')
-        guard (neChar c '\n')
-        if eqChar c '\\' then
-          decodeChar <$> satisfy "char" (const True)
-         else
-          pure c
-  in  skipWhite (char '"' *> emany pc <* char '"')
-
-decodeChar :: Char -> Char
-decodeChar c =
-  if eqChar c 'n' then
-    '\n'
-  else if eqChar c 'r' then
-    '\r'
-  else if eqChar c 't' then
-    '\t'
-  else if eqChar c '\\' then
-    '\\'
-  else if eqChar c '\'' then
-    '\''
-  else if eqChar c '"' then
-    '"'
-  else if eqChar c '\'' then
-    '\''
-  else
-    error $ "decodeChar: " ++ showChar c
+pSpec :: Char -> P ()
+pSpec c = () <$ satisfy [c] is
+  where
+    is (TSpec _ d) = eqChar c d
+    is _ = False
 
 pSymbol :: String -> P ()
-pSymbol s = P.do
-  ss <- pOperW
-  guard (eqString s ss)
-  pure ()
-
-pOperW :: P String
-pOperW = skipWhite $ esome $ satisfy "symbol" (\x -> elemBy eqChar x "@\\=+-:<>.!#$%^&*/|~?")
+pSymbol sym = () <$ satisfy sym is
+  where
+    is (TIdent _ [] s) = eqString s sym
+    is _ = False
 
 pOper :: P String
-pOper = P.do
-  s <- pOperW
-  guard $ not $ elemBy eqString s ["=", "|", "::", "<-", "@"]
-  pure s
+pOper = pQSymOper <|< (pSpec '`' *> pQIdent <* pSpec '`')
 
-pOperL :: P String
-pOperL = P.do
-  s <- pOper
-  guard $ neChar (head s) ':'
-  pure s
+pQSymOper :: P Ident
+pQSymOper = satisfyM "QSymOper" is
+  where
+    is (TIdent _ qs s) | not (isAlpha_ (head s)) && not (elemBy eqString s reservedOps) = Just (qualName qs s)
+    is _ = Nothing
 
-pOperU :: P String
-pOperU = P.do
-  s <- pOper
-  guard $ eqChar (head s) ':'
-  pure s
+pSymOper :: P Ident
+pSymOper = satisfyM "SymOper" is
+  where
+    is (TIdent _ [] s) | not (isAlpha_ (head s)) && not (elemBy eqString s reservedOps) = Just s
+    is _ = Nothing
 
-pOpers :: [String] -> P String
-pOpers ops = P.do
-  op <- pOper
-  guard (elemBy eqString op ops)
-  pure op
+pUQSymOper :: P Ident
+pUQSymOper = P.do
+  s <- pQSymOper
+  guard (eqChar (head s) ':')
+  P.pure s
 
-pSym :: Char -> P ()
-pSym c = () <$ (skipWhite $ char c)
+pUSymOper :: P Ident
+pUSymOper = P.do
+  s <- pSymOper
+  guard (eqChar (head s) ':')
+  P.pure s
 
-pLHS :: P LHS
-pLHS = pair <$> pUIdent <*> many pLIdent
+pLQSymOper :: P Ident
+pLQSymOper = P.do
+  s <- pQSymOper
+  guard (neChar (head s) ':')
+  P.pure s
+
+pLSymOper :: P Ident
+pLSymOper = P.do
+  s <- pSymOper
+  guard (neChar (head s) ':')
+  P.pure s
+
+reservedOps :: [String]
+reservedOps = ["=", "|", "::", "<-", "@"]
+
+pUQIdentSym :: P Ident
+pUQIdentSym = pUQIdent <|< pParens pUQSymOper
+
+pLQIdentSym :: P Ident
+pLQIdentSym = pLQIdent <|< pParens pLQSymOper 
+
+pLIdentSym :: P Ident
+pLIdentSym = pLIdent <|< pParens pLSymOper
+
+pParens :: forall a . P a -> P a
+pParens p = pSpec '(' *> p <* pSpec ')'
+
+pLit :: P Lit
+pLit = satisfyM "Lit" is
+  where
+    is (TString _ s) = Just (LStr s)
+    is (TChar _ c) = Just (LChar c)
+    is (TInt _ i) = Just (LInt i)
+    is _ = Nothing
+
+pString :: P String
+pString = satisfyM "string" is
+  where
+    is (TString _ s) = Just s
+    is _ = Nothing
+
+---------------
+
+pExportSpec :: P ExportSpec
+pExportSpec =
+      ExpModule <$> (pKeyword "module" *> pUQIdent)
+  <|> ExpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pSymbol ".." <* pSpec ')')
+  <|> ExpType <$> pUQIdentSym
+  <|> ExpValue <$> pLQIdentSym
+
+pKeyword :: String -> P ()
+pKeyword kw = () <$ satisfy kw is
+  where
+    is (TIdent _ [] s) = eqString kw s
+    is _ = False
+
+pBlock :: forall a . P a -> P [a]
+pBlock p = P.do
+  pSpec '{'
+  as <- esepBy p (pSpec ';')
+  optional (pSpec ';')
+  pSpec '}'
+  pure as
 
 pDef :: P EDef
 pDef =
-      Data        <$> (pKeyword "data"    *> pLHS <* pSym '=') <*> esepBy1 (pair <$> pUIdent <*> many pAType) (pSymbol "|")
-  <|> Newtype     <$> (pKeyword "newtype" *> pLHS <* pSym '=') <*> pUIdent <*> pAType
-  <|> Type        <$> (pKeyword "type"    *> pLHS <* pSym '=') <*> pType
+      Data        <$> (pKeyword "data"    *> pLHS <* pSymbol "=") <*> esepBy1 (pair <$> pUIdentSym <*> many pAType) (pSymbol "|")
+  <|> Newtype     <$> (pKeyword "newtype" *> pLHS <* pSymbol "=") <*> pUIdent <*> pAType
+  <|> Type        <$> (pKeyword "type"    *> pLHS <* pSymbol "=") <*> pType
   <|> uncurry Fcn <$> pEqns
-  <|> Sign        <$> (pLIdent <* pSymbol "::") <*> pTypeScheme
+  <|> Sign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
   <|> Import      <$> (pKeyword "import" *> pImportSpec)
 
-pEqns :: P (Ident, [Eqn])
-pEqns = P.do
-  (name, eqn@(Eqn ps _)) <- pEqn (\ _ _ -> True)
-  neqns <- emany (pSym ';' *> pEqn (\ n l -> eqIdent n name && l == length ps))
-  P.pure (name, eqn : map snd neqns)
-
-pEqn :: (Ident -> Int -> Bool) -> P (Ident, Eqn)
-pEqn test = P.do
-  name <- pLIdent
-  pats <- emany pAPat
-  alts <- pAlts (pSymbol "=")
-  guard (test name (length pats))
-  P.pure (name, Eqn pats alts)
+pLHS :: P LHS
+pLHS = pair <$> pUIdentSym <*> many pLIdentSym
 
 pImportSpec :: P ImportSpec
 pImportSpec =
   let
     pQua = (True <$ pKeyword "qualified") <|< pure False
-  in  ImportSpec <$> pQua <*> pUIdent <*> optional (pKeyword "as" *> pUIdent)
+  in  ImportSpec <$> pQua <*> pUQIdentA <*> optional (pKeyword "as" *> pUQIdent)
 
-{-
-pAType :: P EType
-pAType = P.do
-  t <- pAExprPT
-  guard (validType t)
-  pure t
+--------
+-- Types
 
-pType :: P EType
-pType = P.do
-  t <- pExprPT
-  guard (validType t)
-  pure t
--}
+pTypeScheme :: P ETypeScheme
+pTypeScheme = P.do
+  vs <- (pKeyword "forall" *> esome pLIdentSym <* pSymbol ".") <|< pure []
+  t <- pType
+  pure $ ETypeScheme vs t
 
 --
 -- Partial copy of pExpr, but that includes '->'.
@@ -400,83 +257,14 @@ pTypeApp = P.do
 
 pAType :: P Expr
 pAType =
-      (EVar <$> pLIdent)
-  <|> (EVar <$> pUIdent)
+      (EVar <$> pLQIdentSym)
+  <|> (EVar <$> pUQIdentSym)
   <|> (ELit <$> pLit)
-  <|> (eTuple <$> (pSym '(' *> esepBy1 pType (pSym ',') <* pSym ')'))
-  <|> (EList . (:[]) <$> (pSym '[' *> pType <* pSym ']'))  -- Unlike expressions, only allow a single element.
+  <|> (eTuple <$> (pSpec '(' *> esepBy1 pType (pSpec ',') <* pSpec ')'))
+  <|> (EList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
 
-------------------
-
-pExpr :: P Expr
-pExpr = P.do
-  t <- pExprPT
-  -- guard (validExpr t)
-  pure t
-
-pTypeScheme :: P ETypeScheme
-pTypeScheme = P.do
-  vs <- (pKeyword "forall" *> esome pLIdent <* pSym '.') <|< pure []
-  t <- pType
-  pure $ ETypeScheme vs t
-
-pAExprPT :: P Expr
-pAExprPT =
-      (EVar <$> pLIdent)
-  <|> (EVar <$> pUIdent)
-  <|> (ELit <$> pLit)
-  <|> (eTuple <$> (pSym '(' *> esepBy1 pExprPT (pSym ',') <* pSym ')'))
-  <|> (EList <$> (pSym '[' *> esepBy1 pExprPT (pSym ',') <* pSym ']'))
-  <|> (ELit . LPrim <$> (pKeyword "primitive" *> pString))
-  <|> (ESectL <$> (pSym '(' *> pExprArg) <*> (pOper <* pSym ')'))
-  <|> (ESectR <$> (pSym '(' *> pOper) <*> (pExprArg <* pSym ')'))
-  <|> (ECompr <$> (pSym '[' *> pExprPT <* pSym '|') <*> (esepBy1 pStmt (pSym ',') <* pSym ']'))
-
-pLit :: P Lit
-pLit =
-      (LInt <$> pInt)
-  <|> (LChar <$> pChar)
-  <|> (LStr <$> pString)
-
-eTuple :: [Expr] -> Expr
-eTuple aes =
-  case aes of
-    [] -> undefined
-    e:es ->
-      case es of
-        [] -> e
-        _ -> ETuple aes
-
-pExprApp :: P Expr
-pExprApp = P.do
-  f <- pAExprPT
-  as <- emany pAExprPT
-  pure $ foldl EApp f as
-
-pLam :: P Expr
-pLam = ELam <$> (pSymbol "\\" *> esome pAPat) <*> (pSymbol "->" *> pExprPT)
-
-pCase :: P Expr
-pCase = ECase <$> (pKeyword "case" *> pExprPT) <*> (pKeywordW "of" *> pBlock pCaseArm)
-
-pCaseArm :: P ECaseArm
-pCaseArm = pair <$> pPat <*> pAlts (pSymbol "->")
-
-pAlts :: P () -> P EAlts
-pAlts sep = P.do
-  alts <- pAltsL sep
-  bs <- pWhere
-  P.pure (EAlts alts bs)
-  
-pAltsL :: P () -> P [EAlt]
-pAltsL sep =
-      esome (pair <$> (pSym '|' *> esepBy1 pStmt (pSym ',')) <*> (sep *> pExpr))
-  <|< ((\ e -> [([], e)]) <$> (sep *> pExpr))
-
-pWhere :: P [EBind]
-pWhere =
-      (pKeyword "where" *> pBlock pBind)
-  <|< P.pure []
+-------------
+-- Patterns
 
 -- Sadly pattern and expression parsing cannot be joined because the
 -- use of '->' in 'case' and lambda makes it weird.
@@ -485,12 +273,12 @@ pWhere =
 -- is separate.
 pAPat :: P EPat
 pAPat =
-      (EVar <$> pLIdent)
-  <|> (EVar <$> pUIdent)
+      (EVar <$> pLIdentSym)
+  <|> (EVar <$> pUQIdentSym)
   <|> (ELit <$> pLit)
-  <|> (eTuple <$> (pSym '(' *> esepBy1 pPat (pSym ',') <* pSym ')'))
-  <|> (EList <$> (pSym '[' *> esepBy1 pPat (pSym ',') <* pSym ']'))
-  <|> (EAt <$> (pLIdent <* pSymbol "@") <*> pAPat)
+  <|> (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
+  <|> (EList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
+  <|> (EAt <$> (pLIdentSym <* pSymbol "@") <*> pAPat)
 
 pPat :: P EPat
 pPat = pPatOp
@@ -530,15 +318,103 @@ pPatNotVar = P.do
   guard (not (isPVar p))
   pure p
 
+-------------
+
+pEqns :: P (Ident, [Eqn])
+pEqns = P.do
+  (name, eqn@(Eqn ps _)) <- pEqn (\ _ _ -> True)
+  neqns <- emany (pSpec ';' *> pEqn (\ n l -> eqIdent n name && l == length ps))
+  P.pure (name, eqn : map snd neqns)
+
+pEqn :: (Ident -> Int -> Bool) -> P (Ident, Eqn)
+pEqn test = P.do
+  name <- pLIdentSym
+  pats <- emany pAPat
+  alts <- pAlts (pSymbol "=")
+  guard (test name (length pats))
+  P.pure (name, Eqn pats alts)
+
+pAlts :: P () -> P EAlts
+pAlts sep = P.do
+  alts <- pAltsL sep
+  bs <- pWhere
+  P.pure (EAlts alts bs)
+  
+pAltsL :: P () -> P [EAlt]
+pAltsL sep =
+      esome (pair <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr))
+  <|< ((\ e -> [([], e)]) <$> (sep *> pExpr))
+
+pWhere :: P [EBind]
+pWhere =
+      (pKeyword "where" *> pBlock pBind)
+  <|< P.pure []
+
+-------------
+-- Statements
+
+pStmt :: P EStmt
+pStmt =
+      (SBind <$> (pPat <* pSymbol "<-") <*> pExpr)
+  <|> (SLet  <$> (pKeyword "let" *> pBlock pBind))
+  <|> (SThen <$> pExpr)
+
+-------------
+-- Expressions
+
+pExpr :: P Expr
+pExpr = pExprOp
+
+pExprArg :: P Expr
+pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pIf <|> pDo
+
+pExprApp :: P Expr
+pExprApp = P.do
+  f <- pAExpr
+  as <- emany pAExpr
+  pure $ foldl EApp f as
+
+pLam :: P Expr
+pLam = ELam <$> (pSymbol "\\" *> esome pAPat) <*> (pSymbol "->" *> pExpr)
+
+pCase :: P Expr
+pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword "of" *> pBlock pCaseArm)
+
+pCaseArm :: P ECaseArm
+pCaseArm = pair <$> pPat <*> pAlts (pSymbol "->")
+
 pLet :: P Expr
-pLet = ELet <$> (pKeywordW "let" *> pBlock pBind) <*> (pKeyword "in" *> pExprPT)
+pLet = ELet <$> (pKeyword "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)
+
+pDo :: P Expr
+pDo = EDo <$> ((Just <$> pQualDo) <|< (Nothing <$ pKeyword "do")) <*> pBlock pStmt
+
+pIf :: P Expr
+pIf = EIf <$> (pKeyword "if" *> pExpr) <*> (pKeyword "then" *> pExpr) <*> (pKeyword "else" *> pExpr)
+
+pQualDo :: P String
+pQualDo = satisfyM "QualDo" is
+  where
+    is (TIdent _ qs@(_:_) "do") = Just (intercalate "." qs)
+    is _ = Nothing
+
+pAExpr :: P Expr
+pAExpr =
+      (EVar   <$> pLQIdentSym)
+  <|> (EVar   <$> pUQIdentSym)
+  <|> (ELit   <$> pLit)
+  <|> (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
+  <|> (EList  <$> (pSpec '[' *> esepBy1 pExpr (pSpec ',') <* pSpec ']'))
+  <|> (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOper <* pSpec ')'))
+  <|> (ESectR <$> (pSpec '(' *> pOper) <*> (pExprArg <* pSpec ')'))
+  <|> (ECompr <$> (pSpec '[' *> pExpr <* pSymbol "|") <*> (esepBy1 pStmt (pSpec ',') <* pSpec ']'))
+  <|> (ELit . LPrim <$> (pKeyword "primitive" *> pString))
 
 pExprOp :: P Expr
 pExprOp =
   let
     p10 = pExprArg
-    p9 = --pRightAssoc (pOpers ["."]) $
-         pRightAssoc (pDot) $
+    p9 = pRightAssoc (pOpers ["."]) $
          pLeftAssoc  (pOpers ["?", "!!"]) p10
     p8 = p9
     p7 = pLeftAssoc  (pOpers ["*", "quot", "rem"]) p8
@@ -553,15 +429,15 @@ pExprOp =
     p0 = pRightAssoc (pOpers ["$"]) p1
   in  p0
 
--- A hack so that the . operator is not followed by a letter
-pDot :: P String
-pDot = skipWhite $ P.do
-  char '.'
-  notFollowedBy (satisfy "not alpha" isAlpha_)
-  pure "."
+-------------
+-- Bindings
 
-appOp :: String -> Expr -> Expr -> Expr
-appOp op e1 e2 = EApp (EApp (EVar op) e1) e2
+pBind :: P EBind
+pBind = 
+      uncurry BFcn <$> pEqns
+  <|> BPat <$> (pPatNotVar <* pSymbol "=") <*> pExpr
+
+-------------
 
 pRightAssoc :: P String -> P Expr -> P Expr
 pRightAssoc pOp p = P.do
@@ -589,98 +465,44 @@ pLeftAssoc :: P String -> P Expr -> P Expr
 pLeftAssoc pOp p = P.do
   e1 <- p
   es <- emany (pair <$> pOp <*> p)
-  pure $ foldl (\ x opy -> appOp (fst opy) x (snd opy)) e1 es
+  pure $ foldl (\ x (op, y) -> appOp op x y) e1 es
 
-pExprArg :: P Expr
-pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pIf <|> pDo
+pOpers :: [String] -> P String
+pOpers ops = P.do
+  op <- pOper
+  guard (elemBy eqString op ops)
+  pure op
 
-pExprPT :: P Expr
-pExprPT = pExprOp
+-------------
 
-pDo :: P Expr
-pDo = EDo <$> ((Just <$> pQualDo) <|< (Nothing <$ pKeywordW "do")) <*> pBlock pStmt
+eTuple :: [Expr] -> Expr
+eTuple [] = undefined
+eTuple [e] = e
+eTuple es = ETuple es
 
-pIf :: P Expr
-pIf = EIf <$> (pKeyword "if" *> pExprPT) <*> (pKeyword "then" *> pExprPT) <*> (pKeyword "else" *> pExprPT)
+appOp :: String -> Expr -> Expr -> Expr
+appOp op e1 e2 = EApp (EApp (EVar op) e1) e2
 
-pStmt :: P EStmt
-pStmt =
-      (SBind <$> (pPat <* pSymbol "<-") <*> pExprPT)
-  <|> (SLet  <$> (pKeywordW "let" *> pBlock pBind))
-  <|> (SThen <$> pExprPT)
+isAlpha_ :: Char -> Bool
+isAlpha_ c = isLower_ c || isUpper c
 
-pBind :: P EBind
-pBind = 
-      uncurry BFcn <$> pEqns
-  <|> BPat <$> (pPatNotVar <* pSym '=') <*> pExprPT
+qualName :: [String] -> String -> String
+qualName qs s = intercalate "." (qs ++ [s])
 
-pQualDo :: P String
-pQualDo = P.do
-  s <- pUIdent
-  char '.'
-  pKeywordW "do"
-  pure s
+-------------
 
-pLCurl :: P ()
-pLCurl =
+formatFailed :: String -> [Token] -> LastFail Token -> String
+formatFailed fn _fs _lf@(LastFail _ ts _msgs) =
   let
-    softLC =
-      P.do
-        msp <- pIndent
-        case msp of
-          Nothing -> fail "\\n"
-          Just sp -> P.do
---            traceM ("push " ++ show (length sp))
-            modify $ \ st -> length sp : st
-  in  pSym '{' <|< softLC
+    loc = tokensLoc ts
+    line = getLin loc
+    col = getCol loc
+  in
+    showString fn ++ ": "
+         ++ "line " ++ showInt line ++ ", col " ++ showInt col ++ ":\n"
+--         ++ "   found: " ++ tokenString (head ts)
+--         ++ show lf ++ "\n"
+--         ++ show fs
 
-pRCurl :: P ()
-pRCurl =
-  let
-    softRC =
-      P.do
-        is <- get
-        if null is then
-          fail "}"
-         else P.do
-          put (tail is)
-          eof
-  in  pSym '}' <|> softRC
-
-pBlock :: forall a . P a -> P [a]
-pBlock p = P.do
-  pLCurl
-  as <- esepBy p (pSym ';')
-  pRCurl
-  pure as
-
---------------
-
-----------------
-
-formatFailed :: String -> String -> LastFail Char -> String
-formatFailed fn file lf =
-  case lf of
-    LastFail len _ _ ->
-      let
-        (pre, post) = splitAt (length file - len) file
-        count lc x =
-          case lc of
-            (l, c) ->
-              if eqChar x '\n' then (l+1, 0) else (l, c+1)
-        (line, col) = foldl count (1, 0) pre
-      in showString fn ++ ": " ++
-         "line " ++ showInt line ++ ", col " ++ showInt col ++ ":\n" ++
-         "   found: " ++ showString (take 10 post)
-{-
-    xs' = nub $ map trim xs
-    pr e = "   expeced: " ++ e
-    trim arg = unwords (snd arg) -- (last $ init $ "" : "" : es)
-  in  show fn ++ ": " ++
-      "line " ++ show line ++ ", col " ++ show col ++ ":\n" ++
-      "   found: " ++ show (takeWhile (not . isSpace) post) ++ "\n" ++
-      unlines (map pr xs')
--}
-
-char :: forall s . Char -> Prsr s Char Char
-char c = satisfy "char" (eqChar c)
+--tokenString :: Token -> String
+--tokenString 

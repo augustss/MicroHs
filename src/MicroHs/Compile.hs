@@ -14,7 +14,7 @@ import qualified MicroHs.StringMap as M
 import MicroHs.StateIO as S
 import MicroHs.Desugar
 import MicroHs.Expr
-import MicroHs.ParseN
+import MicroHs.Parse
 import MicroHs.TypeCheck
 
 data Flags = Flags Int Bool [String] String
