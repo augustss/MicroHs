@@ -44,7 +44,8 @@ typedef struct timeval {
     long tv_usec;
 } timeval;
 
-int gettimeofday(struct timeval * tp, struct timezone * tzp)
+int
+gettimeofday(struct timeval * tp, struct timezone * tzp)
 {
     static const uint64_t EPOCH = ((uint64_t) 116444736000000000ULL);
 
@@ -83,7 +84,9 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
-                T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ERROR, T_SEQ,
+                T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
+                T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
+                T_ERROR, T_SEQ,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO,
@@ -361,6 +364,10 @@ struct {
   { "==", T_EQ },
   { "/=", T_NE },
   { "<", T_LT },
+  { "u<", T_ULT },
+  { "u<=", T_ULE },
+  { "u>", T_UGT },
+  { "u>=", T_UGE },
   { "<=", T_LE },
   { ">", T_GT },
   { ">=", T_GE },
@@ -627,7 +634,7 @@ mkStrNode(const char *str)
   return n;
 }
 
-NODEPTR mkInt(int i);
+NODEPTR mkInt(int64_t i);
 
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
@@ -980,6 +987,10 @@ printrec(FILE *f, NODEPTR n)
   case T_LE: fprintf(f, "$<="); break;
   case T_GT: fprintf(f, "$>"); break;
   case T_GE: fprintf(f, "$>="); break;
+  case T_ULT: fprintf(f, "$u<"); break;
+  case T_ULE: fprintf(f, "$u<="); break;
+  case T_UGT: fprintf(f, "$u>"); break;
+  case T_UGE: fprintf(f, "$u>="); break;
   case T_ERROR: fprintf(f, "$error"); break;
   case T_SEQ: fprintf(f, "$seq"); break;
   case T_IO_BIND: fprintf(f, "$IO.>>="); break;
@@ -1028,7 +1039,7 @@ pp(FILE *f, NODEPTR n)
 }
 
 NODEPTR
-mkInt(int i)
+mkInt(int64_t i)
 {
 #if INTTABLE
   if (LOW_INT <= i && i < HIGH_INT) {
@@ -1225,6 +1236,7 @@ eval(NODEPTR n)
 #define ARITHBIN(op)  do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op) do { OPINT2(r = (int64_t)((uint64_t)xi op (uint64_t)yi)); SETINT(n, r); RET; } while(0)
 #define CMP(op)       do { OPINT2(r = xi op yi); GOIND(r ? comTrue : combFalse); } while(0)
+#define CMPU(op)      do { OPINT2(r = (uint64_t)xi op (uint64_t)yi); GOIND(r ? comTrue : combFalse); } while(0)
 
   for(;;) {
     num_reductions++;
@@ -1285,6 +1297,10 @@ eval(NODEPTR n)
     case T_LE:   CMP(<=);
     case T_GT:   CMP(>);
     case T_GE:   CMP(>=);
+    case T_ULT:  CMPU(<);
+    case T_ULE:  CMPU(<=);
+    case T_UGT:  CMPU(>);
+    case T_UGE:  CMPU(>=);
 
     case T_ERROR:           CHKARGEV1(msg = evalstring(x)); fprintf(stderr, "error: %s\n", msg); free(msg); exit(1);
     case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */

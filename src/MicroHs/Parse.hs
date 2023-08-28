@@ -501,8 +501,8 @@ formatFailed fn _fs _lf@(LastFail _ ts _msgs) =
     showString fn ++ ": "
          ++ "line " ++ showInt line ++ ", col " ++ showInt col ++ ":\n"
 --         ++ "   found: " ++ tokenString (head ts)
---         ++ show lf ++ "\n"
---         ++ show fs
+--X         ++ show _lf ++ "\n"
+--X         ++ show _fs
 
 --tokenString :: Token -> String
 --tokenString 

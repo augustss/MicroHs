@@ -45,6 +45,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
 	$(GHCC) -c lib/Data/Maybe.hs
 	$(GHCC) -c lib/Data/List.hs
 	$(GHCC) -c lib/Text/String.hs
+	$(GHCC) -c lib/Data/Word.hs
 	$(GHCC) -c lib/System/IO.hs
 	$(GHCC) -c lib/System/Environment.hs
 	$(GHCC) -c lib/Prelude.hs

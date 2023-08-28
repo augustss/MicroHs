@@ -40,6 +40,19 @@ primIntGT   = primitive ">"
 primIntGE   :: Int -> Int -> Bool
 primIntGE   = primitive ">="
 
+primWordEQ  :: Word -> Word -> Bool
+primWordEQ  = primitive "=="
+primWordNE  :: Word -> Word -> Bool
+primWordNE  = primitive "/="
+primWordLT  :: Word -> Word -> Bool
+primWordLT  = primitive "u<"
+primWordLE   :: Word -> Word -> Bool
+primWordLE   = primitive "<="
+primWordGT   :: Word -> Word -> Bool
+primWordGT   = primitive ">"
+primWordGE   :: Word -> Word -> Bool
+primWordGE   = primitive ">="
+
 primCharEQ :: Char -> Char -> Bool
 primCharEQ  = primitive "=="
 primCharNE :: Char -> Char -> Bool

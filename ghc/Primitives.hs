@@ -87,6 +87,12 @@ primUnsafeCoerce = unsafeCoerce
 primSeq :: a -> b -> b
 primSeq = seq
 
+primWordEQ :: Word -> Word -> Bool
+primWordEQ = (==)
+
+primWordNE :: Word -> Word -> Bool
+primWordNE = (/=)
+
 primWordAdd :: Word -> Word -> Word
 primWordAdd = (+)
 
@@ -101,6 +107,18 @@ primWordQuot = quot
 
 primWordRem :: Word -> Word -> Word
 primWordRem = rem
+
+primWordLT :: Word -> Word -> Bool
+primWordLT = (<)
+
+primWordLE :: Word -> Word -> Bool
+primWordLE = (<=)
+
+primWordGT :: Word -> Word -> Bool
+primWordGT = (>)
+
+primWordGE :: Word -> Word -> Bool
+primWordGE = (>=)
 
 ------
 
