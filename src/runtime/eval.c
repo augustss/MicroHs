@@ -194,11 +194,45 @@ uint64_t *free_map;             /* 1 bit per node, 0=free, 1=used */
 uint64_t free_map_nwords;
 uint64_t next_scan_index;
 
+typedef struct {
+  size_t b_size;
+  size_t b_pos;
+  uint8_t  b_buffer[1];
+} BFILE;
+
 void
 memerr(void)
 {
   fprintf(stderr, "Out of memory\n");
   exit(1);
+}
+
+BFILE *
+alloc_buffer(size_t size)
+{
+  BFILE *p;
+  p = malloc(sizeof(BFILE) + size);
+  if (!p)
+    memerr();
+  p->b_size = size;
+  p->b_pos = 0;
+  return p;
+}
+
+int
+getb(BFILE *p)
+{
+  if (p->b_pos >= p->b_size)
+    return -1;
+  return p->b_buffer[p->b_pos++];
+}
+
+void
+ungetb(int c, BFILE *p)
+{
+  if (p->b_pos == 0)
+    ERR("ungetb");
+  p->b_buffer[--p->b_pos] = (uint8_t)c;
 }
 
 /* Set FREE bit to 0 */
@@ -556,27 +590,27 @@ gc_check(size_t k)
 
 /* If the next input character is c, then consume it, else leave it alone. */
 int
-gobble(FILE *f, int c)
+gobble(BFILE *f, int c)
 {
-  int d = getc(f);
+  int d = getb(f);
   if (c == d) {
     return 1;
   } else {
-    ungetc(d, f);
+    ungetb(d, f);
     return 0;
   }
 }
 
 int64_t
-parse_int(FILE *f)
+parse_int(BFILE *f)
 {
   int64_t i = 0;
-  int c = getc(f);
+  int c = getb(f);
   for(;;) {
     i = i * 10 + c - '0';
-    c = getc(f);
+    c = getb(f);
     if (c < '0' || c > '9') {
-      ungetc(c, f);
+      ungetb(c, f);
       break;
     }
   }
@@ -622,7 +656,7 @@ find_label(uint64_t label)
 }
 
 NODEPTR
-parse(FILE *f)
+parse(BFILE *f)
 {
   NODEPTR r;
   NODEPTR *nodep;
@@ -632,7 +666,7 @@ parse(FILE *f)
   int c;
   char buf[80];                 /* store names of primitives. */
 
-  c = getc(f);
+  c = getb(f);
   if (c < 0) ERR("parse EOF");
   switch (c) {
   case '(' :
@@ -644,7 +678,7 @@ parse(FILE *f)
     if (!gobble(f, ')')) ERR("parse ')'");
     return r;
   case '-':
-    c = getc(f);
+    c = getb(f);
     if ('0' <= c && c <= '9') {
       neg = -1;
       goto number;
@@ -655,16 +689,16 @@ parse(FILE *f)
     /* integer [0-9]+*/
     neg = 1;
   number:
-    ungetc(c, f);
+    ungetb(c, f);
     i = neg * parse_int(f);
     r = mkInt(i);
     return r;
   case '$':
     /* A primitive, keep getting char's until end */
     for (int j = 0;;) {
-      c = getc(f);
+      c = getb(f);
       if (c == ' ' || c == ')') {
-        ungetc(c, f);
+        ungetb(c, f);
         buf[j] = 0;
         break;
       }
@@ -714,7 +748,7 @@ parse(FILE *f)
       char *buffer = malloc(10000);
       char *p = buffer;
       for(;;) {
-        c = getc(f);
+        c = getb(f);
         if (c == '"')
           break;
         if (c == '\\') {
@@ -736,13 +770,13 @@ parse(FILE *f)
 }
 
 void
-checkversion(FILE *f)
+checkversion(BFILE *f)
 {
   char *p = VERSION;
   int c;
 
   while ((c = *p++)) {
-    if (c != fgetc(f))
+    if (c != getb(f))
       ERR("version mismatch");
   }
   gobble(f, '\r');                 /* allow extra CR */
@@ -750,7 +784,7 @@ checkversion(FILE *f)
 
 /* Parse a file */
 NODEPTR
-parse_top(FILE *f)
+parse_top(BFILE *f)
 {
   checkversion(f);
   uint64_t numLabels = parse_int(f);
@@ -767,6 +801,43 @@ parse_top(FILE *f)
   free(shared_table);
   return n;
 }
+
+NODEPTR
+parse_FILE(FILE *f)
+{
+  size_t size;
+  off_t pos;
+  
+  /* Determine how much is left of the file */
+  pos = ftell(f);
+  (void)fseek(f, 0, SEEK_END);
+  size = (size_t)(ftell(f) - pos);
+  (void)fseek(f, pos, SEEK_SET);
+
+  /* Read entire file */
+  BFILE *b = alloc_buffer(size);
+  if (fread(b->b_buffer, 1, size, f) != size)
+    ERR("fread");
+
+  /* And parse it */
+  NODEPTR n = parse_top(b);
+
+  free(b);
+  return n;
+}
+
+NODEPTR
+parse_file(const char *fn, size_t *psize)
+{
+  FILE *f = fopen(fn, "r");
+  if (!f)
+    ERR("file not found");
+  NODEPTR n = parse_FILE(f);
+  *psize = ftell(f);
+  fclose(f);
+  return n;
+}
+
 
 void printrec(FILE *f, NODEPTR n);
 
@@ -1335,7 +1406,7 @@ evalio(NODEPTR n)
       CHECKIO(1);
       hdl = evalhandle(ARG(TOP(1)));
       gc();                     /* parser runs without GC */
-      n = parse_top(hdl);
+      n = parse_FILE(hdl);
       RETIO(n);
     case T_IO_CLOSE:
       CHECKIO(1);
@@ -1415,7 +1486,7 @@ int
 main(int argc, char **argv)
 {
   char *fn = 0;
-  uint64_t file_size;
+  size_t file_size;
   
   /* MINGW doesn't do buffering right */
   setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
@@ -1448,12 +1519,7 @@ main(int argc, char **argv)
   stack = malloc(sizeof(NODEPTR) * stack_size);
   if (!stack)
     memerr();
-  FILE *f = fopen(fn, "r");
-  if (!f)
-    ERR("file not found");
-  NODEPTR prog = parse_top(f);
-  file_size = ftell(f);
-  fclose(f);
+  NODEPTR prog = parse_file(fn, &file_size);
   PUSH(prog); gc(); prog = TOP(0); POP(1);
   uint64_t start_size = num_marked;
   if (verbose > 2) {
@@ -1476,7 +1542,7 @@ main(int argc, char **argv)
       printf("node size=%"PRIu64", heap size bytes=%"PRIu64"\n", (uint64_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
     setlocale(LC_NUMERIC, "");  /* Make %' work on platforms that support it */
-    printf("%"PCOMMA"15"PRIu64" combinator file size\n", file_size);
+    printf("%"PCOMMA"15"PRIu64" combinator file size\n", (uint64_t)file_size);
     printf("%"PCOMMA"15"PRIu64" cells at start\n", start_size);
     printf("%"PCOMMA"15"PRIu64" heap size\n", heap_size);
     printf("%"PCOMMA"15"PRIu64" cells allocated\n", num_alloc);
