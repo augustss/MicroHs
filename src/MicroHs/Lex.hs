@@ -20,66 +20,66 @@ type Col  = Int
 
 type Loc = (Line, Col)
 
+incrLine :: Loc -> Loc
+incrLine (l, _) = (l+1, 1)
+
+addCol :: Loc -> Int -> Loc
+addCol (l, c) i = (l, c + i)
+
 lexTop :: String -> [Token]
 lexTop = layout [] .
          --take 10 .
-         lex 1 1
+         lex (1, 1)
 
-lex :: Line -> Col -> String -> [Token]
-lex l c (' ':cs)  = lex l (c+1) cs
-lex l _ ('\n':cs) = tIndent (lex (l+1) 1 cs)
-lex l c ('\r':cs) = lex l c cs
-lex l c ('{':'-':cs) = skipNest l (c+2) 1 cs
-lex l c ('-':'-':cs) | isComm rs = skipLine l (c+2+length ds) cs
+lex :: Loc -> String -> [Token]
+lex loc (' ':cs)  = lex (addCol loc 1) cs
+lex loc ('\n':cs) = tIndent (lex (incrLine loc) cs)
+lex loc ('\r':cs) = lex loc cs
+lex loc ('{':'-':cs) = skipNest (addCol loc 2) 1 cs
+lex loc ('-':'-':cs) | isComm rs = skipLine (addCol loc $ 2+length ds) cs
   where {
     (ds, rs) = span (eqChar '-') cs;
     isComm [] = True;
     isComm (d:_) = not (isOper d)
     }
-lex l c (d:cs) | isLower_ d =
+lex loc (d:cs) | isLower_ d =
   case span isIdent cs of
-    (ds, rs) -> tIdent (l, c) [] (d:ds) (lex l (c + 1 + length ds) rs)
-lex l c cs@(d:_) | isUpper d = upperIdent l c c [] cs
-lex l c ('-':d:cs) | isDigit d =
+    (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
+lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
+lex loc ('-':d:cs) | isDigit d =
   case span isDigit cs of
-    (ds, rs) -> TInt (l, c) (readInt ('-':d:ds)) : lex l (c + 2 + length ds) rs
-lex l c (d:cs) | isDigit d =
+    (ds, rs) -> TInt loc (readInt ('-':d:ds)) : lex (addCol loc $ 2 + length ds) rs
+lex loc (d:cs) | isDigit d =
   case span isDigit cs of
-    (ds, rs) -> TInt (l, c) (readInt (d:ds)) : lex l (c + 1 + length ds) rs
-lex l c (d:cs) | isOper d  =
+    (ds, rs) -> TInt loc (readInt (d:ds)) : lex (addCol loc $ 1 + length ds) rs
+lex loc (d:cs) | isOper d  =
   case span isOper cs of
-    (ds, rs) -> TIdent (l, c) [] (d:ds) : lex l (c + 1 + length ds) rs
-lex l c (d:cs) | isSpec d  = TSpec (l, c) d : lex l (c+1) cs
-lex l c ('"':cs) =
-  let
-    loc = (l, c)
-  in 
-    case takeChars loc (TString loc) '"' 0 [] cs of
-      (t, n, rs) -> t : lex l (c + 2 + n) rs
-lex l c ('\'':cs) =
-  let
-    loc = (l, c)
-  in
-    case takeChars loc (TChar loc . head) '\'' 0 [] cs of  -- XXX head of
-      (t, n, rs) -> t : lex l (c + 2 + n) rs
-lex l c (d:_) = [TError (l, c) $ "Unrecognized input: " ++ showChar d]
-lex _ _ [] = []
+    (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
+lex loc (d:cs) | isSpec d  = TSpec loc d : lex (addCol loc 1) cs
+lex loc ('"':cs) =
+  case takeChars loc (TString loc) '"' 0 [] cs of
+    (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
+lex loc ('\'':cs) =
+  case takeChars loc (TChar loc . head) '\'' 0 [] cs of  -- XXX head of
+    (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
+lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ showChar d]
+lex _ [] = []
 
 -- Skip a { - - } style comment
-skipNest :: Line -> Col -> Int -> String -> [Token]
-skipNest l c 0 cs = lex l c cs
-skipNest l c n ('{':'-':cs) = skipNest l (c+2) (n + 1) cs
-skipNest l c n ('-':'}':cs) = skipNest l (c+2) (n - 1) cs
-skipNest l _ n ('\n':cs)    = skipNest (l+1) 1 n     cs
-skipNest l c n ('\r':cs)    = skipNest l     c n     cs
-skipNest l c n (_:cs)       = skipNest l (c+1) n     cs
-skipNest l c _ []           = [TError (l, c) "Unclosed {- comment"]
+skipNest :: Loc -> Int -> String -> [Token]
+skipNest loc 0 cs           = lex loc cs
+skipNest loc n ('{':'-':cs) = skipNest (addCol loc 2) (n + 1) cs
+skipNest loc n ('-':'}':cs) = skipNest (addCol loc 2) (n - 1) cs
+skipNest loc n ('\n':cs)    = skipNest (incrLine loc)  n     cs
+skipNest loc n ('\r':cs)    = skipNest loc             n     cs
+skipNest loc n (_:cs)       = skipNest (addCol loc 1)  n     cs
+skipNest loc _ []           = [TError loc "Unclosed {- comment"]
 
 -- Skip a -- style comment
-skipLine :: Line -> Col -> String -> [Token]
-skipLine l c cs@('\n':_) = lex l c cs
-skipLine l c (_:cs)      = skipLine l c cs
-skipLine _ _ []          = []
+skipLine :: Loc -> String -> [Token]
+skipLine loc cs@('\n':_) = lex loc cs
+skipLine loc (_:cs)      = skipLine loc cs
+skipLine   _ []          = []
 
 tIndent :: [Token] -> [Token]
 tIndent ts@(TIndent _ : _) = ts
@@ -112,21 +112,21 @@ isIdent c = isLower_ c || isUpper c || isDigit c || eqChar c '\''
 isLower_ :: Char -> Bool
 isLower_ c = isLower c || eqChar c '_'
 
-upperIdent :: Line -> Col -> Col -> [String] -> String -> [Token]
+upperIdent :: Loc -> Loc -> [String] -> String -> [Token]
 --upperIdent l c qs acs | trace (show (l, c, qs, acs)) False = undefined
-upperIdent l c sc qs acs =
+upperIdent loc sloc qs acs =
   case span isIdent acs of
    (ds, rs) ->
     case rs of
-      '.':cs@(d:_) | isUpper d -> upperIdent l (c + 1 + length ds) sc (ds:qs) cs
+      '.':cs@(d:_) | isUpper d -> upperIdent (addCol loc $ 1 + length ds) sloc (ds:qs) cs
                    | isLower d -> ident isIdent
                    | isOper  d -> ident isOper
          where {
            ident p =
              case span p cs of
-               (xs, ys) -> tIdent (l, sc) (reverse (ds:qs)) xs (lex l (c + 1 + length ds + length xs) ys)
+               (xs, ys) -> tIdent sloc (reverse (ds:qs)) xs (lex (addCol loc $ 1 + length ds + length xs) ys)
            }
-      _ -> TIdent (l, sc) (reverse qs) ds : lex l (c + length ds) rs
+      _ -> TIdent sloc (reverse qs) ds : lex (addCol loc $ length ds) rs
 
 tIdent :: Loc -> [String] -> String -> [Token] -> [Token]
 tIdent loc qs kw ats | elemBy eqString kw ["let", "where", "do", "of"]
