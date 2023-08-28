@@ -4,12 +4,6 @@ import Data.Char
 --Ximport Compat
 --import Debug.Trace
 
-{-
-foo fn = do
-  s <- readFile fn
-  print (lexTop s)
--}
-
 data Token
   = TIdent  Loc [String] String
   | TString Loc String
@@ -17,8 +11,8 @@ data Token
   | TInt    Loc Int
   | TSpec   Loc Char
   | TError  Loc String
-  | TBrace  Int
-  | TIndent Int
+  | TBrace  Loc
+  | TIndent Loc
   --Xderiving (Show)
 
 type Line = Int
@@ -89,7 +83,7 @@ skipLine _ _ []          = []
 
 tIndent :: [Token] -> [Token]
 tIndent ts@(TIndent _ : _) = ts
-tIndent ts = TIndent (snd (tokensLoc ts)) : ts
+tIndent ts = TIndent (tokensLoc ts) : ts
 
 takeChars :: Loc -> (String -> Token) -> Char -> Int -> String -> String -> (Token, Int, String)
 takeChars loc _ c n _ [] = (TError loc ("Unmatched " ++ [c]), n, [])
@@ -143,8 +137,8 @@ tIdent loc qs kw ats | elemBy eqString kw ["let", "where", "do", "of"]
 
     tBrace ts@(TSpec _ '{' : _) = ts;
     tBrace ts@(TIndent _ : TSpec _ '{' : _) = ts;
-    tBrace (TIndent _ : ts) = TBrace (snd $ tokensLoc ts) : ts;
-    tBrace ts = TBrace (snd $ tokensLoc ts) : ts
+    tBrace (TIndent _ : ts) = TBrace (tokensLoc ts) : ts;
+    tBrace ts = TBrace (tokensLoc ts) : ts
     }
 
 tokensLoc :: [Token] -> Loc
@@ -154,19 +148,20 @@ tokensLoc (TChar   loc _  :_) = loc
 tokensLoc (TInt    loc _  :_) = loc
 tokensLoc (TSpec   loc _  :_) = loc
 tokensLoc (TError  loc _  :_) = loc
-tokensLoc (           _  :ts) = tokensLoc ts
+tokensLoc (TBrace  loc    :_) = loc
+tokensLoc (TIndent loc    :_) = loc
 tokensLoc []                  = (0,1)
 
 layout :: [Int] -> [Token] -> [Token]
-layout mms@(m : ms) tts@(TIndent n : ts) | n == m = TSpec (tokensLoc ts) ';' : layout    mms  ts
-                                         | n <  m = TSpec (tokensLoc ts) '}' : layout     ms tts
-layout          ms      (TIndent _ : ts)          =                            layout     ms  ts
-layout mms@(m :  _)     (TBrace  n : ts) | n > m  = TSpec (tokensLoc ts) '{' : layout (n:mms) ts
-layout          []      (TBrace  n : ts) | n > 0  = TSpec (tokensLoc ts) '{' : layout     [n] ts
-layout     (0 : ms)     (t@(TSpec _ '}') : ts)    =                        t : layout     ms  ts 
-layout           _      (  (TSpec l '}') :  _)    = TError l "layout error }": []
-layout          ms      (t@(TSpec _ '{') : ts)    =                        t : layout  (0:ms) ts
-layout          ms      (t               : ts)    =                        t : layout     ms  ts
-layout     (_ : ms)     []                        = TSpec (0,0) '}'          : layout     ms  []
-layout          []      []                        =                            []
---layout           _      _                         = TError (0,0) "layout error"  : []
+layout mms@(m : ms) tts@(TIndent (_,n)   : ts) | n == m = TSpec (tokensLoc ts) ';' : layout    mms  ts
+                                               | n <  m = TSpec (tokensLoc ts) '}' : layout     ms tts
+layout          ms      (TIndent _       : ts)          =                            layout     ms  ts
+layout mms@(m :  _)     (TBrace (_,n)    : ts) | n > m  = TSpec (tokensLoc ts) '{' : layout (n:mms) ts
+layout          []      (TBrace (_,n)    : ts) | n > 0  = TSpec (tokensLoc ts) '{' : layout     [n] ts
+layout     (0 : ms)     (t@(TSpec _ '}') : ts)          =                        t : layout     ms  ts 
+layout           _      (  (TSpec l '}') :  _)          = TError l "layout error }": []
+layout          ms      (t@(TSpec _ '{') : ts)          =                        t : layout  (0:ms) ts
+layout          ms      (t               : ts)          =                        t : layout     ms  ts
+layout     (_ : ms)     []                              = TSpec (0,0) '}'          : layout     ms  []
+layout          []      []                              =                            []
+--layout           _      _                             = TError (0,0) "layout error"  : []
