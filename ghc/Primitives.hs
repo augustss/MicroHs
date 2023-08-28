@@ -2,6 +2,7 @@ module Primitives(
   module Primitives,
   Char,
   Int,
+  Word,
   IO,
   Handle,
   ) where
@@ -99,7 +100,7 @@ primWordQuot :: Word -> Word -> Word
 primWordQuot = quot
 
 primWordRem :: Word -> Word -> Word
-primIntRem = rem
+primWordRem = rem
 
 ------
 

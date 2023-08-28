@@ -250,6 +250,7 @@ primTypes =
       [("IO",     [entry "Primitives.IO"       tt]),
        ("->",     [entry "Primitives.->"       ttt]),
        ("Int",    [entry "Primitives.Int"      t]),
+       ("Word",   [entry "Primitives.Word"     t]),
        ("Char",   [entry "Primitives.Char"     t]),
        ("Handle", [entry "Primitives.Handle"   t]),
        ("Any",    [entry "Primitives.Any"      t]),
