@@ -1,4 +1,9 @@
-module MicroHs.Lex(lexTop, Token(..), Line, Col, Loc, isLower_, tokensLoc) where
+module MicroHs.Lex(
+  lexTop,
+  Token(..), Line, Col,
+  Loc, getCol, getLin,
+  isLower_,
+  tokensLoc) where
 import Prelude --Xhiding(lex, showChar)
 import Data.Char
 --Ximport Compat
@@ -26,10 +31,41 @@ incrLine (l, _) = (l+1, 1)
 addCol :: Loc -> Int -> Loc
 addCol (l, c) i = (l, c + i)
 
+mkLoc :: Line -> Col -> Loc
+mkLoc l c = (l, c)
+
+getCol :: Loc -> Col
+getCol (_, c) = c
+
+getLin :: Loc -> Col
+getLin (l, _) = l
+
+{-  This is slower and allocates more.
+    It needs some strictness, probably
+type Loc = Int
+
+incrLine :: Loc -> Loc
+incrLine l = (quot l 1000000 + 1) * 1000000 + 1
+
+addCol :: Loc -> Int -> Loc
+addCol loc i = loc + i
+
+mkLoc :: Line -> Col -> Loc
+mkLoc l c = l * 1000000 + c
+
+getCol :: Loc -> Col
+getCol loc = rem loc 1000000
+
+getLin :: Loc -> Line
+getLin loc = quot loc 1000000
+-}
+
+---------
+
 lexTop :: String -> [Token]
 lexTop = layout [] .
          --take 10 .
-         lex (1, 1)
+         lex (mkLoc 1 1)
 
 lex :: Loc -> String -> [Token]
 lex loc (' ':cs)  = lex (addCol loc 1) cs
@@ -150,18 +186,18 @@ tokensLoc (TSpec   loc _  :_) = loc
 tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
-tokensLoc []                  = (0,1)
+tokensLoc []                  = mkLoc 0 1
 
 layout :: [Int] -> [Token] -> [Token]
-layout mms@(m : ms) tts@(TIndent (_,n)   : ts) | n == m = TSpec (tokensLoc ts) ';' : layout    mms  ts
-                                               | n <  m = TSpec (tokensLoc ts) '}' : layout     ms tts
+layout mms@(m : ms) tts@(TIndent x       : ts) | n == m = TSpec (tokensLoc ts) ';' : layout    mms  ts
+                                               | n <  m = TSpec (tokensLoc ts) '}' : layout     ms tts where {n = getCol x}
 layout          ms      (TIndent _       : ts)          =                            layout     ms  ts
-layout mms@(m :  _)     (TBrace (_,n)    : ts) | n > m  = TSpec (tokensLoc ts) '{' : layout (n:mms) ts
-layout          []      (TBrace (_,n)    : ts) | n > 0  = TSpec (tokensLoc ts) '{' : layout     [n] ts
+layout mms@(m :  _)     (TBrace x        : ts) | n > m  = TSpec (tokensLoc ts) '{' : layout (n:mms) ts where {n = getCol x}
+layout          []      (TBrace x        : ts) | n > 0  = TSpec (tokensLoc ts) '{' : layout     [n] ts where {n = getCol x}
 layout     (0 : ms)     (t@(TSpec _ '}') : ts)          =                        t : layout     ms  ts 
 layout           _      (  (TSpec l '}') :  _)          = TError l "layout error }": []
 layout          ms      (t@(TSpec _ '{') : ts)          =                        t : layout  (0:ms) ts
 layout          ms      (t               : ts)          =                        t : layout     ms  ts
-layout     (_ : ms)     []                              = TSpec (0,0) '}'          : layout     ms  []
+layout     (_ : ms)     []                              = TSpec (mkLoc 0 0) '}'    : layout     ms  []
 layout          []      []                              =                            []
---layout           _      _                             = TError (0,0) "layout error"  : []
+--layout           _      _                             = TError (mkLoc 0 0) "layout error"  : []

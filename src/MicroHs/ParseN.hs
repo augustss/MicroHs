@@ -494,7 +494,9 @@ qualName qs s = intercalate "." (qs ++ [s])
 formatFailed :: String -> [Token] -> LastFail Token -> String
 formatFailed fn _fs _lf@(LastFail _ ts _msgs) =
   let
-    (line, col) = tokensLoc ts
+    loc = tokensLoc ts
+    line = getLin loc
+    col = getCol loc
   in
     showString fn ++ ": "
          ++ "line " ++ showInt line ++ ", col " ++ showInt col ++ ":\n"
