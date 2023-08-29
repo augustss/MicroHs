@@ -1,12 +1,12 @@
 # Micro Haskell
-This directory contains an implementation of a very small subset of Haskell.
+This directory contains an implementation of a small subset of Haskell.
 It uses combinators for the runtime execution.
 
 The compiler can compile itself.
 
 ## Language
-The language is a subset of Haskell.  There is only simple Hindley-Milner overloading,
-no type classes.
+The language is a subset of Haskell.  There is only simple Hindley-Milner polymorphism,
+no type classes (yet).
 
 It has the following features:
 * variables
@@ -16,13 +16,13 @@ It has the following features:
 * character literals
 * string (list of characters) literals
 * case expressions
-* let expressions, no mutual recursion
+* let expressions, no mutual recursion (yet)
 * tuples
 * list syntax
 * list comprehensions
 * arithmetic and comparison operators, but only for `Int`
 * qualified `do` notation, e.g., `IO.do`
-* data type declarations
+* data (and newtype) type declarations
 * type synonyms
 * type signatures
 * importing of other modules, `qualified` and `as` supported, but no import list
@@ -33,7 +33,7 @@ It has the following features:
 ## Example
 The file `Example.hs` contains the following:
 ```Haskell
-module Example(module Example) where
+module Example(main) where
 import Prelude
 
 fac :: Int -> Int
@@ -50,7 +50,7 @@ main = do
 
 First, make sure the binaries are built.  E.g., by doing `make test`.
 Then compile the file by `bin/mhs -ilib Example` which produces `out.comb`.
-Finally, run the combinator file by `bin/eval out.comb`.
+Finally, run the combinator file by `bin/eval +RTS -rout.comb`.
 This should produce
 ```
 Some factorials
@@ -58,8 +58,8 @@ Some factorials
 ```
 
 ## Libraries
-There are a number of libraries that some of the standard Haskell functions.
-But in general, the `Prelude` contains much less.
+There are a number of libraries that have some of the standard Haskell functions.
+But in general, the `Prelude` contains much, much less.
 
 ## Compiler
 The compiler is written in Micro Haskell.
@@ -68,7 +68,7 @@ It takes a name of a module and compiles it to a file called `out.comb`.
 ### Compiler flags
 * `-iDIR` add `DIR` to search path for modules
 * `-oFILE` output combinators to `FILE` instead of `out.comb`
-* `-r` run directly, does work if compiled with GHC
+* `-r` run directly, does not work if compiled with GHC
 * `-v` be more verbose, flag can be repeated
 
 With the `-v` flag the processing time for each module is reported.
@@ -83,15 +83,16 @@ with parsing taking 368ms and typecheck&desugar taking 348ms.
 
 * `Main`, the main module.  Decodes flags, compiles, and writes result.
 * `Compile`, top level compiler.  Maintains a cache of already compiled modules.
-* `Exp`, simple expression type, combinator abstraction and optimization
+* `Exp`, simple expression type, combinator abstraction and optimization.
 * `Desugar`, desugar full expressions to simple expressions.
+* `Lex`, lexical analysis and indentation processing.
 * `Parse`, parse and build and abstract syntax tree.
 * `Translate`, convert an expression tree to its value.
-* `TypeCheck`, type checker
+* `TypeCheck`, type checker.
 
 ## Runtime
 The runtime system is written in C and is in `eval.c`.
-It uses combinators for handling variables, and has some primitive operations
+It uses combinators for handling variables, and has primitive operations
 for integers and for executing IO operations.
 There is a also a simple mark-scan garbage collector.
 It is written in a reasonably portable C code.
@@ -108,18 +109,38 @@ The runtime system can serialize and deserialize any expression
 and keep its graph structure (sharing and cycles).
 The only exception to this is file handles, which cannot be serialized.
 
+### Memory layout
+Memory allocation is based on cells.  Each cell has room for two pointers (two words, i.e., 16 bytes),
+so it can represent an application node.  One bit is used to indicate if
+the cell has an application or something else.  If it is something else one
+word is a tag indicating what it is, e.g., a combinator or an integer.
+The second word is then used to store any payload, e.g., the number itself for an integer node.
+
+Memory allocation is based on having a bitmap with one bit per cell.
+Allocating a cell consists of finding the next free cell using the bitmap,
+and then marking it as used.  The garbage collector first clears the bitmap
+and then (recursively) marks every used cell in the bitmap.
+There is no explicit scan phase since that is baked into the allocation.
+
+It is possible to use smaller cells by using 32 bit "pointers" instead of 64 bit pointers.
+This has a performance penalty, though.
+
 ## Bootstrapping
 It is possible to recompile the compiler without access to a Haskell compiler.
 The combinator file for the compiler itself is available in `comb/mhs.comb`.
-The bootstrapping process takes about 30s.
+The bootstrapping process takes about 15s.
 To bootstrap:
  * build the evaluator, `make bin/eval`, this requires a C compiler
  * compile the compiler
    ```
-   bin/eval -H50M -rcomb/mhs.comb -- -ilib -isrc -onewmhs.comb MicroHs.Main
+   bin/eval +RTS -rcomb/mhs.comb -RTS -ilib -isrc -onewmhs.comb MicroHs.Main
    ```
  * The file `newmhs.comb` is the new combinator binary and it should be
    identical to `comb/mhs.comb`.
+ * It is also possible to bake the combinator code into the binary.
+   See `make` target `bin/cmhs` for how it is done.
+ * For systems where `upx` works you can compress further compress
+   the binary.  See `bin/umhs` target.
 
 **NOTE** The GC mark phase currently uses a ridiculously deep stack.
 You might have to increase it on your system.
@@ -133,11 +154,11 @@ You might have to increase it on your system.
   * A: Error messages are boring.  But I plan to add location information to them.
 *
   * Q: Why is the so much source code?
-  * A: I wonder this myself.  Over 5000 lines of Haskell seems excessive.
-       1500 lines of C is also more than I'd like for such a simple system.
+  * A: I wonder this myself.  Over 5500 lines of Haskell seems excessive.
+       1600 lines of C is also more than I'd like for such a simple system.
 *
   * Q: Why are the binaries so big?
   * A: The combinator file is rather verbose.  Compressed the combinator file
-       for the compiler shrinks from 150kB to 20kB.  The evaluator is 44kB so
-       the total size for runtime and (compressed) compiler is about 65k.
+       for the compiler shrinks from 150kB to 20kB.  The evaluator is about 40kB so
+       the total size for runtime and (compressed) compiler is about 40k.
        I'm sorry if you're running on a 16 bit system.

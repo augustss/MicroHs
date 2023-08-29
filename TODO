@@ -4,3 +4,17 @@
   - Resolve fixity in type checker
   - Add fixity table to TModule
 * Put on hackage
+* Have compile return a Stats record of timing etc
+* Add location to Ident
+  - with file name
+* Prettier printing of types
+* Report location in type errors
+* Special noMatch function with location
+* Add overloading
+* Add forall to the syntax of types so it can be nested
+* Implement mutual recursion in let
+  - Use SCC
+* Add [x..y] syntax
+* Add the possibility to save a compiler cache in a file
+  - Add SHA checksumming to the C code
+  - Use SHA as the cache lookup key.

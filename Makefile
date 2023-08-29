@@ -53,6 +53,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
 	$(GHCC) -c lib/Data/Map.hs
 	$(GHCC) -c lib/Data/IntMap.hs
 	$(GHCC) -c lib/Unsafe/Coerce.hs
+	$(GHCC) -c lib/Data/Integer.hs
 	$(GHCC) -c lib/Control/Monad/State/Strict.hs
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Lex.hs
