@@ -99,11 +99,11 @@ It is written in a reasonably portable C code.
 
 ### Runtime flags
 Runtime flags are given between the flags `+RTS` and `-RTS`.
-Btween those the runtime decodes the flags, everything else is available to
+Between those the runtime decodes the flags, everything else is available to
 the running program.
 
-* `-HSIZE` set heap size to `SIZE` cells, can be suffixed by `k`, `M`, or `G`, default is `100k`
-* `-KSIZE` set stack size to `SIZE` entries, can be suffixed by `k`, `M`, or `G`, default is`10k`
+* `-HSIZE` set heap size to `SIZE` cells, can be suffixed by `k`, `M`, or `G`, default is `50M`
+* `-KSIZE` set stack size to `SIZE` entries, can be suffixed by `k`, `M`, or `G`, default is`100k`
 * `-rFILE` read combinators from `FILE`, instead of `out.comb`
 * `-v` be more verbose, flag can be repeated
 
@@ -114,16 +114,16 @@ whereas the runtime system sets the heap to 1M cells and is verbose.
 ### Features
 The runtime system can serialize and deserialize any expression
 and keep its graph structure (sharing and cycles).
-The only exception to this is file handles, which cannot be serialized.
+The only exception to this is file handles, which cannot be serialized (except for `stdin`, `stdout`, and `stderr`).
 
 ### Memory layout
-Memory allocation is based on cells.  Each cell has room for two pointers (two words, i.e., 16 bytes),
+Memory allocation is based on cells.  Each cell has room for two pointers (i.e., two words, i.e., 16 bytes),
 so it can represent an application node.  One bit is used to indicate if
 the cell has an application or something else.  If it is something else one
 word is a tag indicating what it is, e.g., a combinator or an integer.
 The second word is then used to store any payload, e.g., the number itself for an integer node.
 
-Memory allocation is based on having a bitmap with one bit per cell.
+Memory allocation has a bitmap with one bit per cell.
 Allocating a cell consists of finding the next free cell using the bitmap,
 and then marking it as used.  The garbage collector first clears the bitmap
 and then (recursively) marks every used cell in the bitmap.
@@ -131,6 +131,14 @@ There is no explicit scan phase since that is baked into the allocation.
 
 It is possible to use smaller cells by using 32 bit "pointers" instead of 64 bit pointers.
 This has a performance penalty, though.
+
+### Portability
+The C code for the evaluator does not use any special features, and should be
+portable to many platforms.  It has mostly been test with MacOS and Linus,
+so there are undoubtedly problems on Windows.
+
+The code has only been tested on 64 bit platforms, so again, there are lurking problems
+with other word sizees.
 
 ## Bootstrapping
 It is possible to recompile the compiler without access to a Haskell compiler.
