@@ -98,11 +98,18 @@ There is a also a simple mark-scan garbage collector.
 It is written in a reasonably portable C code.
 
 ### Runtime flags
+Runtime flags are given between the flags `+RTS` and `-RTS`.
+Btween those the runtime decodes the flags, everything else is available to
+the running program.
+
 * `-HSIZE` set heap size to `SIZE` cells, can be suffixed by `k`, `M`, or `G`, default is `100k`
 * `-KSIZE` set stack size to `SIZE` entries, can be suffixed by `k`, `M`, or `G`, default is`10k`
 * `-rFILE` read combinators from `FILE`, instead of `out.comb`
 * `-v` be more verbose, flag can be repeated
-* `--` end of flags, the rest of the arguments are available to the running program
+
+For example, `bin/eval +RTS -H1M -v -RTS hello` runs `out.comb` and the program gets the argument `hello`,
+whereas the runtime system sets the heap to 1M cells and is verbose.
+
 
 ### Features
 The runtime system can serialize and deserialize any expression
