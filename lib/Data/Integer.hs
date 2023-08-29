@@ -21,12 +21,12 @@ maxW :: Word
 maxW = W.intToWord 4294967296
 
 (+) :: Integer -> Integer -> Integer
-(+) (I Plus  xs) (I Plus  ys)             = I Plus    (add xs ys)
+(+) (I Plus  xs) (I Plus  ys)             = I Plus  (add xs ys)
 (+) (I Plus  xs) (I Minus ys) | ltW xs ys = I Minus (sub ys xs)
                               | True      = I Plus  (sub xs ys)
 (+) (I Minus xs) (I Plus  ys) | ltW ys xs = I Minus (sub xs ys)
                               | True      = I Plus  (sub ys xs)
-(+) (I Minus xs) (I Minus ys)             = I Minus   (add xs ys)
+(+) (I Minus xs) (I Minus ys)             = I Minus (add xs ys)
 
 negate :: Integer -> Integer
 negate (I Plus  x) = I Minus x
@@ -49,8 +49,8 @@ addW :: Word -> Word -> Word -> (Word, Word)
 addW x y z = (W.quot s maxW, W.rem s maxW)  where s = (W.+) ((W.+) x y) z
 
 -- We always have xs <= ys
-sub :: [Word] -> [Word] -> (Sign, [Word])
-sub xs ys = if ltW xs ys then (Minus, sub' zeroW ys xs) else (Plus, sub' zeroW xs ys)
+sub :: [Word] -> [Word] -> [Word]
+sub = sub' zeroW
 
 sub' :: Word -> [Word] -> [Word] -> [Word]
 sub' bi (x : xs) (y : ys) = d : sub' bo xs ys  where (d, bo) = subW bi x y

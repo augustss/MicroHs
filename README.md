@@ -138,12 +138,12 @@ portable to many platforms.  It has mostly been test with MacOS and Linus,
 so there are undoubtedly problems on Windows.
 
 The code has only been tested on 64 bit platforms, so again, there are lurking problems
-with other word sizees.
+with other word sizes.
 
 ## Bootstrapping
 It is possible to recompile the compiler without access to a Haskell compiler.
 The combinator file for the compiler itself is available in `comb/mhs.comb`.
-The bootstrapping process takes about 15s.
+The bootstrapping process takes about 15s (on a modern machine).
 To bootstrap:
  * build the evaluator, `make bin/eval`, this requires a C compiler
  * compile the compiler
