@@ -318,15 +318,15 @@ cCC e1 e2 e3 = app3 (Lit (LPrim "C'")) e1 e2 e3
 -- This is a hack, it assumes things about the Prelude
 flipOps :: [(Ident, Ident)]
 flipOps =
-  [(Ident "Data.Int.+",  Ident "Data.Int.+")
-  ,(Ident "Data.Int.-",  Ident "Data.Int.subtract")
-  ,(Ident "Data.Int.*",  Ident "Data.Int.*")
-  ,(Ident "Data.Int.==", Ident "Data.Int.==")
-  ,(Ident "Data.Int./=", Ident "Data.Int./=")
-  ,(Ident "Data.Int.<",  Ident "Data.Int.>")
-  ,(Ident "Data.Int.<=", Ident "Data.Int.>=")
-  ,(Ident "Data.Int.>",  Ident "Data.Int.<")
-  ,(Ident "Data.Int.>=", Ident "Data.Int.<=")
+  [(mkIdent "Data.Int.+",  mkIdent "Data.Int.+")
+  ,(mkIdent "Data.Int.-",  mkIdent "Data.Int.subtract")
+  ,(mkIdent "Data.Int.*",  mkIdent "Data.Int.*")
+  ,(mkIdent "Data.Int.==", mkIdent "Data.Int.==")
+  ,(mkIdent "Data.Int./=", mkIdent "Data.Int./=")
+  ,(mkIdent "Data.Int.<",  mkIdent "Data.Int.>")
+  ,(mkIdent "Data.Int.<=", mkIdent "Data.Int.>=")
+  ,(mkIdent "Data.Int.>",  mkIdent "Data.Int.<")
+  ,(mkIdent "Data.Int.>=", mkIdent "Data.Int.<=")
   ]
 
 improveT :: Exp -> Exp
@@ -409,7 +409,7 @@ substExp si se ae =
                    ase = allVarsExp se
                    j = --head $ deleteFirstsBy eqIdent ["a" ++ showInt n | n <- enumFrom 0] (freeVars se ++ freeVars e)
                        --head [ v | n <- enumFrom 0, let { v = "a" ++ showInt n }, not (elemBy eqIdent v fse), not (elemBy eqIdent v fe) ]
-                       head [ v | n <- enumFrom 0, let { v = Ident ("a" ++ showInt n) }, not (elemBy eqIdent v ase), not (elemBy eqIdent v fe) ]
+                       head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ showInt n) }, not (elemBy eqIdent v ase), not (elemBy eqIdent v fe) ]
                  in
                    --trace ("substExp " ++ unwords [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))

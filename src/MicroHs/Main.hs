@@ -25,11 +25,11 @@ main = do
                   (elemBy eqString "-r" args)
                   ("." : catMaybes (map (stripPrefixBy eqChar "-i") args))
                   (head $ catMaybes (map (stripPrefixBy eqChar "-o") args) ++ ["out.comb"])
-  cmdl <- compileTop flags (Ident mn)
+  cmdl <- compileTop flags (mkIdent mn)
   t1 <- getTimeMilli
   let
     (mainName, ds) = cmdl
-    ref i = Var $ Ident $ "_" ++ showInt i
+    ref i = Var $ mkIdent $ "_" ++ showInt i
     defs = M.fromList [ (unIdent n, ref i) | ((n, _), i) <- zip ds (enumFrom 0) ]
     findIdent n = fromMaybe (error $ "main: findIdent: " ++ showIdent n) $
                   M.lookup (unIdent n) defs
@@ -77,4 +77,4 @@ compileTop flags mn = do
   t2 <- getTimeMilli
   when (verbose flags > 0) $
     putStrLn $ "combinator conversion " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
-  return (qual mn (Ident "main"), dsn)
+  return (qual mn (mkIdent "main"), dsn)

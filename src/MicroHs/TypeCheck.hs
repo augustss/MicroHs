@@ -103,7 +103,7 @@ getAppCon (EApp f _) = getAppCon f
 getAppCon _ = undefined
 
 eVarI :: String -> Expr
-eVarI = EVar . Ident
+eVarI = EVar . mkIdent
 
 expErr :: forall a . Ident -> a
 expErr i = error $ "export: " ++ showIdent i
@@ -236,12 +236,12 @@ initTC mn ts ss vs =
 
 -- XXX moduleOf is not correct
 moduleOf :: Ident -> IdentModule
-moduleOf = Ident . reverse . tail . dropWhile (neChar '.') . reverse . unIdent
+moduleOf = mkIdent . reverse . tail . dropWhile (neChar '.') . reverse . unIdent
 
 primTypes :: [(Ident, [Entry])]
 primTypes =
   let
-    entry i = Entry (EVar (Ident i))
+    entry i = Entry (EVar (mkIdent i))
     tuple n =
       let
         i = tupleConstr n
@@ -250,17 +250,17 @@ primTypes =
     tt = ETypeScheme [] $ kArrow kType kType
     ttt = ETypeScheme [] $ kArrow kType $ kArrow kType kType
   in  
-      [(Ident "IO",     [entry "Primitives.IO"       tt]),
-       (Ident "->",     [entry "Primitives.->"       ttt]),
-       (Ident "Int",    [entry "Primitives.Int"      t]),
-       (Ident "Word",   [entry "Primitives.Word"     t]),
-       (Ident "Char",   [entry "Primitives.Char"     t]),
-       (Ident "Handle", [entry "Primitives.Handle"   t]),
-       (Ident "Any",    [entry "Primitives.Any"      t]),
-       (Ident "String", [entry "Data.Char.String"    t]),
-       (Ident "[]",     [entry "Data.List.[]"        tt]),
-       (Ident "()",     [entry "Data.Tuple.()"       t]),
-       (Ident "Bool",   [entry "Data.Bool_Type.Bool" t])] ++
+      [(mkIdent "IO",     [entry "Primitives.IO"       tt]),
+       (mkIdent "->",     [entry "Primitives.->"       ttt]),
+       (mkIdent "Int",    [entry "Primitives.Int"      t]),
+       (mkIdent "Word",   [entry "Primitives.Word"     t]),
+       (mkIdent "Char",   [entry "Primitives.Char"     t]),
+       (mkIdent "Handle", [entry "Primitives.Handle"   t]),
+       (mkIdent "Any",    [entry "Primitives.Any"      t]),
+       (mkIdent "String", [entry "Data.Char.String"    t]),
+       (mkIdent "[]",     [entry "Data.List.[]"        tt]),
+       (mkIdent "()",     [entry "Data.Tuple.()"       t]),
+       (mkIdent "Bool",   [entry "Data.Bool_Type.Bool" t])] ++
       map tuple (enumFromTo 2 10)
 
 primValues :: [(Ident, [Entry])]
@@ -269,7 +269,7 @@ primValues =
     tuple n =
       let
         c = tupleConstr n
-        vs = [Ident ("a" ++ showInt i) | i <- enumFromTo 1 n]
+        vs = [mkIdent ("a" ++ showInt i) | i <- enumFromTo 1 n]
         ts = map tVar vs
         r = tApps c ts
       in  (c, [Entry (ECon $ ConData [(c, n)] c) $ ETypeScheme vs $ foldr tArrow r ts ])
@@ -299,8 +299,8 @@ kType :: EKind
 kType = tConI "Type"
 
 getArrow :: EType -> Maybe (EType, EType)
-getArrow (EApp (EApp (EVar (Ident n)) a) b) =
-  if eqString n "->" || eqString n "Primitives.->" then Just (a, b) else Nothing
+getArrow (EApp (EApp (EVar n) a) b) =
+  if eqIdent n (mkIdent "->") || eqIdent n (mkIdent "Primitives.->") then Just (a, b) else Nothing
 getArrow _ = Nothing
 
 {-
@@ -674,7 +674,7 @@ tcExprR mt ae =
               [] -> newUVar
               t : _ -> T.return t
       let
-        tlist = tApps (Ident "Data.List.[]") [te]
+        tlist = tApps (mkIdent "Data.List.[]") [te]
       munify mt tlist
       T.return (EList ees, tlist)
     EDo mmn ass -> T.do
@@ -686,7 +686,7 @@ tcExprR mt ae =
               SThen a -> T.do
                 (ea, ta) <- tcExpr mt a
                 let
-                  sbind = maybe (Ident ">>=") (\ mn -> qual mn (Ident ">>=")) mmn
+                  sbind = maybe (mkIdent ">>=") (\ mn -> qual mn (mkIdent ">>=")) mmn
                 (EVar qi, _) <- tLookupInst "variable" sbind 
                 let
                   mn = moduleOf qi
@@ -697,7 +697,7 @@ tcExprR mt ae =
             case as of
               SBind p a -> T.do
                 let
-                  sbind = maybe (Ident ">>=") (\ mn -> qual mn (Ident ">>=")) mmn
+                  sbind = maybe (mkIdent ">>=") (\ mn -> qual mn (mkIdent ">>=")) mmn
                 (EApp (EApp _ ea) (ELam _ (ECase _ ((ep, EAlts [(_, EDo mn ys)] _): _)))
                  , tr) <-
                   tcExpr Nothing (EApp (EApp (EVar sbind) a)
@@ -705,7 +705,7 @@ tcExprR mt ae =
                 T.return (EDo mn (SBind ep ea : ys), tr)
               SThen a -> T.do
                 let
-                  sthen = maybe (Ident ">>") (\ mn -> qual mn (Ident ">>") ) mmn
+                  sthen = maybe (mkIdent ">>") (\ mn -> qual mn (mkIdent ">>") ) mmn
                 (EApp (EApp _ ea) (EDo mn ys), tr) <-
                   tcExpr Nothing (EApp (EApp (EVar sthen) a) (EDo mmn ss))
                 T.return (EDo mn (SThen ea : ys), tr)
@@ -768,7 +768,7 @@ tcLit mt l =
   case l of
     LInt _ -> lit (tConI "Primitives.Int")
     LChar _ -> lit (tConI "Primitives.Char")
-    LStr _ -> lit (tApps (Ident "Data.List.[]") [tConI "Primitives.Char"])
+    LStr _ -> lit (tApps (mkIdent "Data.List.[]") [tConI "Primitives.Char"])
     LPrim _ -> T.do
       t <- unMType mt  -- pretend it is anything
       T.return (ELit l, t)
@@ -890,10 +890,10 @@ dsType at =
     _ -> impossible
 
 listConstr :: Ident
-listConstr = Ident "[]"
+listConstr = mkIdent "[]"
 
 tConI :: String -> EType
-tConI = tCon . Ident
+tConI = tCon . mkIdent
 
 tList :: EType
 tList = tConI "Data.List.[]"

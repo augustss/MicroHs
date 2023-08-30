@@ -1,5 +1,5 @@
 module MicroHs.Expr(
-  Ident(..), unIdent, eqIdent, qual, showIdent,
+  Ident, mkIdent, unIdent, eqIdent, qual, showIdent,
   IdentModule,
   EModule(..),
   ExportSpec(..),
@@ -45,6 +45,9 @@ data ExportSpec
 newtype Ident = Ident String
   --Xderiving (Show, Eq)
 type IdentModule = Ident
+
+mkIdent :: String -> Ident
+mkIdent = Ident
 
 unIdent :: Ident -> String
 unIdent (Ident s) = s

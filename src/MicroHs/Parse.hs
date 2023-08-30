@@ -46,7 +46,7 @@ pQIdent = satisfyM "QIdent" is
 pUIdentA :: P Ident
 pUIdentA = satisfyM "UIdent" is
   where
-    is (TIdent _ [] s) | isUpper (head s) = Just (Ident s)
+    is (TIdent _ [] s) | isUpper (head s) = Just (mkIdent s)
     is _ = Nothing
 
 pUIdent :: P Ident
@@ -59,9 +59,9 @@ pUIdentSym = pUIdent <|< pParens pUSymOper
 
 pUIdentSpecial :: P Ident
 pUIdentSpecial =
-      (Ident . map (const ',') <$> (pSpec '(' *> some (pSpec ',') <* pSpec ')'))
-  <|> (Ident "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
-  <|> (Ident "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
+      (mkIdent . map (const ',') <$> (pSpec '(' *> some (pSpec ',') <* pSpec ')'))
+  <|> (mkIdent "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
+  <|> (mkIdent "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
 
 pUQIdentA :: P Ident
 pUQIdentA = satisfyM "UQIdent" is
@@ -77,7 +77,7 @@ pUQIdent =
 pLIdent :: P Ident
 pLIdent = satisfyM "LIdent" is
   where
-    is (TIdent _ [] s) | isLower_ (head s) && not (elemBy eqString s keywords) = Just (Ident s)
+    is (TIdent _ [] s) | isLower_ (head s) && not (elemBy eqString s keywords) = Just (mkIdent s)
     is _ = Nothing
 
 pLQIdent :: P Ident
@@ -114,7 +114,7 @@ pQSymOper = satisfyM "QSymOper" is
 pSymOper :: P Ident
 pSymOper = satisfyM "SymOper" is
   where
-    is (TIdent _ [] s) | not (isAlpha_ (head s)) && not (elemBy eqString s reservedOps) = Just (Ident s)
+    is (TIdent _ [] s) | not (isAlpha_ (head s)) && not (elemBy eqString s reservedOps) = Just (mkIdent s)
     is _ = Nothing
 
 pUQSymOper :: P Ident
@@ -398,7 +398,7 @@ pIf = EIf <$> (pKeyword "if" *> pExpr) <*> (pKeyword "then" *> pExpr) <*> (pKeyw
 pQualDo :: P Ident
 pQualDo = satisfyM "QualDo" is
   where
-    is (TIdent _ qs@(_:_) "do") = Just (Ident (intercalate "." qs))
+    is (TIdent _ qs@(_:_) "do") = Just (mkIdent (intercalate "." qs))
     is _ = Nothing
 
 pAExpr :: P Expr
@@ -472,8 +472,8 @@ pLeftAssoc pOp p = P.do
 
 pOpers :: [String] -> P Ident
 pOpers ops = P.do
-  op@(Ident s) <- pOper
-  guard (elemBy eqString s ops)
+  op <- pOper
+  guard (elemBy eqString (unIdent op) ops)
   pure op
 
 -------------
@@ -490,7 +490,7 @@ isAlpha_ :: Char -> Bool
 isAlpha_ c = isLower_ c || isUpper c
 
 qualName :: [String] -> String -> Ident
-qualName qs s = Ident (intercalate "." (qs ++ [s]))
+qualName qs s = mkIdent (intercalate "." (qs ++ [s]))
 
 -------------
 

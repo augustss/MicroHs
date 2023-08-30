@@ -32,11 +32,11 @@ dsDef mn adef =
   case adef of
     Data _ cs ->
       let
-        f i = Ident ("$f" ++ showInt i)
+        f i = mkIdent ("$f" ++ showInt i)
         fs = [f i | (i, _) <- zip (enumFrom 0) cs]
         dsConstr i (c, ts) =
           let
-            xs = [Ident ("$x" ++ showInt j) | (j, _) <- zip (enumFrom 0) ts]
+            xs = [mkIdent ("$x" ++ showInt j) | (j, _) <- zip (enumFrom 0) ts]
           in (qual mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
       in  zipWith dsConstr (enumFrom 0) cs
     Newtype _ c _ -> [ (qual mn c, Lit (LPrim "I")) ]
@@ -64,7 +64,7 @@ dsEqns eqns =
   case eqns of
     Eqn aps _ : _ ->
       let
-        vs = allVarsBind $ BFcn (Ident "") eqns
+        vs = allVarsBind $ BFcn (mkIdent "") eqns
         xs = take (length aps) $ newVars vs
         ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts alts, hasGuards alts) | Eqn ps alts <- eqns]
       in foldr Lam ex xs
@@ -89,7 +89,7 @@ dsAltsL ((ss, rhs) : alts) dflt =
 dsAlt :: Expr -> [EStmt] -> Expr -> Expr
 dsAlt _ [] rhs = rhs
 dsAlt dflt (SBind p e : ss) rhs = ECase e [(p, EAlts [(ss, rhs)] []), (EVar dummyIdent, oneAlt dflt)]
-dsAlt dflt (SThen (EVar i) : ss) rhs | eqIdent i (Ident "Data.Bool.otherwise") = dsAlt dflt ss rhs
+dsAlt dflt (SThen (EVar i) : ss) rhs | eqIdent i (mkIdent "Data.Bool.otherwise") = dsAlt dflt ss rhs
 dsAlt dflt (SThen e   : ss) rhs = EIf e (dsAlt dflt ss rhs) dflt
 dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
@@ -119,7 +119,7 @@ dsExpr aexpr =
 -- For now, just sequential bindings; each recursive
     ELet ads e -> dsBinds ads (dsExpr e)
     EList es -> foldr (app2 cCons) cNil $ map dsExpr es
-    ETuple es -> Lam (Ident "$f") $ foldl App (Var $ Ident "$f") $ map dsExpr es
+    ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
     EDo mn astmts ->
       case astmts of
         [] -> error "empty do"
@@ -129,19 +129,19 @@ dsExpr aexpr =
               if null stmts then error "do without final expression"
               else
 --                case p of
---                  EVar v -> dsExpr $ EApp (EApp (EVar (mqual mn (Ident ">>="))) e) (ELam [v] $ EDo mn stmts)
+--                  EVar v -> dsExpr $ EApp (EApp (EVar (mqual mn (mkIdent ">>="))) e) (ELam [v] $ EDo mn stmts)
 --                  _ ->
                     let
                       nv = newVar (allVarsExpr aexpr)
                       body = ECase (EVar nv) [(p, oneAlt $ EDo mn stmts), (EVar dummyIdent, oneAlt $ eError "dopat")]
-                      res = dsExpr $ EApp (EApp (EVar (mqual mn (Ident ">>="))) e) (ELam [EVar nv] body)
+                      res = dsExpr $ EApp (EApp (EVar (mqual mn (mkIdent ">>="))) e) (ELam [EVar nv] body)
                     in res
                       
             SThen e ->
               if null stmts then
                 dsExpr e
               else
-                dsExpr $ EApp (EApp (EVar (mqual mn (Ident ">>"))) e) (EDo mn stmts)
+                dsExpr $ EApp (EApp (EVar (mqual mn (mkIdent ">>"))) e) (EDo mn stmts)
             SLet ds ->
               if null stmts then error "do without final expression" else
                 dsExpr $ ELet ds (EDo mn stmts)
@@ -161,7 +161,7 @@ dsExpr aexpr =
               let
                 nv = newVar (allVarsExpr aexpr)
                 body = ECase (EVar nv) [(p, oneAlt $ ECompr e stmts), (EVar dummyIdent, oneAlt $ EList [])]
-              in app2 (Var (Ident "Data.List.concatMap")) (dsExpr (ELam [EVar nv] body)) (dsExpr b)
+              in app2 (Var (mkIdent "Data.List.concatMap")) (dsExpr (ELam [EVar nv] body)) (dsExpr b)
             SThen c ->
               dsExpr (EIf c (ECompr e stmts) (EList []))
             SLet ds ->
@@ -174,8 +174,8 @@ dsExpr aexpr =
       in
         if eqChar (head $ unIdent ci) ',' then
           let
-            xs = [Ident ("x" ++ showInt i) | i <- enumFromTo 1 (untupleConstr ci) ]
-            body = Lam (Ident "$f") $ foldl App (Var (Ident "$f")) $ map Var xs
+            xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 (untupleConstr ci) ]
+            body = Lam (mkIdent "$f") $ foldl App (Var (mkIdent "$f")) $ map Var xs
           in foldr Lam body xs
         else
           Var (conIdent c)
@@ -211,15 +211,15 @@ dsPat ap =
 consCon :: EPat
 consCon =
   let
-    n = Ident "Data.List.[]"
-    c = Ident "Data.List.:"
+    n = mkIdent "Data.List.[]"
+    c = mkIdent "Data.List.:"
   in ECon $ ConData [(n, 0), (c, 2)] c
 
 nilCon :: EPat
 nilCon =
   let
-    n = Ident "Data.List.[]"
-    c = Ident "Data.List.:"
+    n = mkIdent "Data.List.[]"
+    c = mkIdent "Data.List.:"
   in ECon $ ConData [(n, 0), (c, 2)] n
 
 tupleCon :: Int -> EPat
@@ -229,7 +229,7 @@ tupleCon n =
   in ECon $ ConData [(c, n)] c
 
 dummyIdent :: Ident
-dummyIdent = Ident "_"
+dummyIdent = mkIdent "_"
 
 eError :: String -> Expr
 eError s = EApp (ELit (LPrim "error")) (ELit $ LStr s)
@@ -241,7 +241,7 @@ apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
 newVars :: [Ident] -> [Ident]
-newVars is = deleteFirstsBy eqIdent [ Ident ("q" ++ showInt i) | i <- enumFrom 1 ] is
+newVars is = deleteFirstsBy eqIdent [ mkIdent ("q" ++ showInt i) | i <- enumFrom 1 ] is
 
 newVar :: [Ident] -> Ident
 newVar = head . newVars
@@ -285,7 +285,7 @@ runS :: [Ident] -> [Exp] -> Matrix -> Exp
 runS used ss mtrx =
   --trace ("runS " ++ show (ss, mtrx)) $
   let
-    supply = deleteFirstsBy eqIdent [ Ident ("x" ++ showInt i) | i <- enumFrom 1 ] used
+    supply = deleteFirstsBy eqIdent [ mkIdent ("x" ++ showInt i) | i <- enumFrom 1 ] used
 --    ds :: [Exp] -> [Exp] -> M Exp
     ds xs aes =
       case aes of
@@ -369,13 +369,13 @@ cheap ae =
 
 -- Could use Prim "==", but that misses out some optimizations
 eEqInt :: Exp
-eEqInt = Var $ Ident "Data.Int.=="
+eEqInt = Var $ mkIdent "Data.Int.=="
 
 eEqChar :: Exp
-eEqChar = Var $ Ident "Data.Char.eqChar"
+eEqChar = Var $ mkIdent "Data.Char.eqChar"
 
 eEqStr :: Exp
-eEqStr = Var $ Ident "Text.String.eqString"
+eEqStr = Var $ mkIdent "Text.String.eqString"
 
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
