@@ -18,3 +18,4 @@
 * Add the possibility to save a compiler cache in a file
   - Add SHA checksumming to the C code
   - Use SHA as the cache lookup key.
+* use 'data = primitive "Int"' for primitive types.

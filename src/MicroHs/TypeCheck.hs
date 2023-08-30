@@ -49,7 +49,7 @@ typeCheck imps (EModule mn exps defs) =
          let
            thisMdl = (mn, mkTModule mn tds impossible)
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm, tm) <- imps]
-           impMap = M.fromList (thisMdl : impMdls)
+           impMap = M.fromList [(unIdent i, m) | (i, m) <- (thisMdl : impMdls)]
            (texps, sexps, vexps) =
              unzip3 $ map (getExps impMap (typeTable tcs) (synTable tcs) (valueTable tcs)) exps
          in  TModule mn (concat texps) (concat sexps) (concat vexps) tds
@@ -57,7 +57,7 @@ typeCheck imps (EModule mn exps defs) =
 getExps :: forall a . M.Map (TModule a) -> TypeTable -> SynTable -> ValueTable -> ExportSpec ->
            ([TypeExport], [SynDef], [ValueExport])
 getExps impMap _ _ _ (ExpModule m) =
-  case M.lookup m impMap of
+  case M.lookup (unIdent m) impMap of
     Just (TModule _ te se ve _) -> (te, se, ve)
     _ -> expErr m
 getExps _ tys _ vals (ExpTypeCon i) =
@@ -69,7 +69,7 @@ getExps _ tys syns _ (ExpType i) =
   let
     e = expLookup i tys
     qi = tyQIdent e
-    se = case M.lookup qi syns of
+    se = case M.lookup (unIdent qi) syns of
            Nothing -> []
            Just ts -> [(qi, ts)]
   in ([TypeExport i e []], se, [])
@@ -78,18 +78,18 @@ getExps _ _ _ vals (ExpValue i) =
 
 expLookup :: Ident -> M.Map [Entry] -> Entry
 expLookup i m =
-  case M.lookup i m of
+  case M.lookup (unIdent i) m of
     Just [e] -> e
-    Just _ -> error $ "export ambig " ++ i
+    Just _ -> error $ "export ambig " ++ showIdent i
     Nothing -> expErr i
 
 tyQIdent :: Entry -> Ident
 tyQIdent (Entry (EVar qi) _) = qi
 tyQIdent _ = undefined
 
-constrsOf :: Ident -> [(Ident, [Entry])] -> [ValueExport]
+constrsOf :: Ident -> [(String, [Entry])] -> [ValueExport]
 constrsOf qi ies =
-  [ ValueExport i e | (i, es) <- ies, e@(Entry (ECon _) (ETypeScheme _ t)) <- es, eqIdent (retTyCon t) qi ]
+  [ ValueExport (Ident i) e | (i, es) <- ies, e@(Entry (ECon _) (ETypeScheme _ t)) <- es, eqIdent (retTyCon t) qi ]
 
 retTyCon :: EType -> Ident
 retTyCon t =
@@ -102,8 +102,11 @@ getAppCon (EVar i) = i
 getAppCon (EApp f _) = getAppCon f
 getAppCon _ = undefined
 
+eVarI :: String -> Expr
+eVarI = EVar . Ident
+
 expErr :: forall a . Ident -> a
-expErr i = error $ "export: " ++ i
+expErr i = error $ "export: " ++ showIdent i
 
 mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
 mkTModule mn tds a =
@@ -144,21 +147,21 @@ mkTables mdls =
         syms arg =
           case arg of
             (is, TModule mn tes _ ves _) ->
-              [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
-              [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ]
+              [ (unIdent v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
+              [ (unIdent v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ]
       in  M.fromListWith (unionBy eqEntry) $ concatMap syms mdls
     allSyns =
       let
         syns arg =
           case arg of
-            (_, TModule _ _ ses _ _) -> ses
+            (_, TModule _ _ ses _ _) -> [ (unIdent i, x) | (i, x) <- ses ]
       in  M.fromList (concatMap syns mdls)
     --XallTypes :: TypeTable
     allTypes =
       let
         types arg =
           case arg of
-            (is, TModule mn tes _ _ _) -> [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
+            (is, TModule mn tes _ _ _) -> [ (unIdent v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
       in M.fromListWith (unionBy eqEntry) $ concatMap types mdls
   in  (allTypes, allSyns, allValues)
 
@@ -233,16 +236,16 @@ initTC mn ts ss vs =
 
 -- XXX moduleOf is not correct
 moduleOf :: Ident -> IdentModule
-moduleOf = reverse . tail . dropWhile (neChar '.') . reverse
+moduleOf = Ident . reverse . tail . dropWhile (neChar '.') . reverse . unIdent
 
-primTypes :: [(Ident, [Entry])]
+primTypes :: [(String, [Entry])]
 primTypes =
   let
-    entry i = Entry (EVar i)
+    entry i = Entry (EVar (Ident i))
     tuple n =
       let
         i = tupleConstr n
-      in  (i, [entry i $ ETypeScheme [] $ foldr kArrow kType (replicate n kType)])
+      in  (unIdent i, [entry (unIdent i) $ ETypeScheme [] $ foldr kArrow kType (replicate n kType)])
     t = ETypeScheme [] kType
     tt = ETypeScheme [] $ kArrow kType kType
     ttt = ETypeScheme [] $ kArrow kType $ kArrow kType kType
@@ -260,16 +263,16 @@ primTypes =
        ("Bool",   [entry "Data.Bool_Type.Bool" t])] ++
       map tuple (enumFromTo 2 10)
 
-primValues :: [(Ident, [Entry])]
+primValues :: [(String, [Entry])]
 primValues =
   let
     tuple n =
       let
         c = tupleConstr n
-        vs = ["a" ++ showInt i | i <- enumFromTo 1 n]
+        vs = [Ident ("a" ++ showInt i) | i <- enumFromTo 1 n]
         ts = map tVar vs
         r = tApps c ts
-      in  (c, [Entry (ECon $ ConData [(c, n)] c) $ ETypeScheme vs $ foldr tArrow r ts ])
+      in  (unIdent c, [Entry (ECon $ ConData [(c, n)] c) $ ETypeScheme vs $ foldr tArrow r ts ])
   in  map tuple (enumFromTo 2 10)
 
 type T a = TC TCState a
@@ -287,17 +290,17 @@ tApps :: Ident -> [EType] -> EType
 tApps i ts = foldl tApp (tCon i) ts
 
 tArrow :: EType -> EType -> EType
-tArrow a r = tApp (tApp (tCon "Primitives.->") a) r
+tArrow a r = tApp (tApp (tConI "Primitives.->") a) r
 
 kArrow :: EKind -> EKind -> EKind
 kArrow = tArrow
 
 kType :: EKind
-kType = EVar "Type"
+kType = tConI "Type"
 
 getArrow :: EType -> Maybe (EType, EType)
-getArrow (EApp (EApp (EVar n) a) b) =
-  if eqIdent n "->" || eqIdent n "Primitives.->" then Just (a, b) else Nothing
+getArrow (EApp (EApp (EVar (Ident n)) a) b) =
+  if eqString n "->" || eqString n "Primitives.->" then Just (a, b) else Nothing
 getArrow _ = Nothing
 
 {-
@@ -343,7 +346,7 @@ expandSyn at =
           syn (aa:ts) f
         EVar i -> T.do
           syns <- gets synTable
-          case M.lookup i syns of
+          case M.lookup (unIdent i) syns of
             Nothing -> T.return $ foldl tApp t ts
             Just (ETypeScheme vs tt) ->
               if length vs /= length ts then error $ "bad syn app: " --X ++ show (i, vs, ts)
@@ -431,8 +434,8 @@ tLookupInst msg i = T.do
 tLookup :: String -> Ident -> T (Expr, ETypeScheme)
 tLookup msg i = T.do
   env <- gets valueTable
-  case M.lookup i env of
-    Nothing -> error $ "undefined, " ++ msg ++ ": " ++ i -- ++ "\n" ++ show env ;
+  case M.lookup (unIdent i) env of
+    Nothing -> error $ "undefined, " ++ msg ++ ": " ++ showIdent i -- ++ "\n" ++ show env ;
     Just aes ->
       case aes of
         [] -> impossible
@@ -457,7 +460,7 @@ extValE :: --XHasCallStack =>
            Ident -> ETypeScheme -> Expr -> T ()
 extValE i t e = T.do
   venv <- gets valueTable
-  putValueTable (M.insert i [Entry e t] venv)
+  putValueTable (M.insert (unIdent i) [Entry e t] venv)
 
 extQVal :: --XHasCallStack =>
            Ident -> ETypeScheme -> T ()
@@ -476,7 +479,7 @@ extVals = T.mapM_ (uncurry extVal)
 extTyp :: Ident -> ETypeScheme -> T ()
 extTyp i t = T.do
   tenv <- gets typeTable
-  putTypeTable (M.insert i [Entry (EVar i) t] tenv)
+  putTypeTable (M.insert (unIdent i) [Entry (EVar i) t] tenv)
 
 extTyps :: [(Ident, ETypeScheme)] -> T ()
 extTyps = T.mapM_ (uncurry extTyp)
@@ -484,7 +487,7 @@ extTyps = T.mapM_ (uncurry extTyp)
 extSyn :: Ident -> ETypeScheme -> T ()
 extSyn i t = T.do
   senv <- gets synTable
-  putSynTable (M.insert i t senv)
+  putSynTable (M.insert (unIdent i) t senv)
 
 withExtVal :: forall a . --XHasCallStack =>
               Ident -> ETypeScheme -> T a -> T a
@@ -671,7 +674,7 @@ tcExprR mt ae =
               [] -> newUVar
               t : _ -> T.return t
       let
-        tlist = tApps "Data.List.[]" [te]
+        tlist = tApps (Ident "Data.List.[]") [te]
       munify mt tlist
       T.return (EList ees, tlist)
     EDo mmn ass -> T.do
@@ -683,7 +686,7 @@ tcExprR mt ae =
               SThen a -> T.do
                 (ea, ta) <- tcExpr mt a
                 let
-                  sbind = maybe ">>=" (\ mn -> qual mn ">>=") mmn
+                  sbind = maybe (Ident ">>=") (\ mn -> qual mn (Ident ">>=")) mmn
                 (EVar qi, _) <- tLookupInst "variable" sbind 
                 let
                   mn = moduleOf qi
@@ -694,15 +697,15 @@ tcExprR mt ae =
             case as of
               SBind p a -> T.do
                 let
-                  sbind = maybe ">>=" (\ mn -> qual mn ">>=") mmn
+                  sbind = maybe (Ident ">>=") (\ mn -> qual mn (Ident ">>=")) mmn
                 (EApp (EApp _ ea) (ELam _ (ECase _ ((ep, EAlts [(_, EDo mn ys)] _): _)))
                  , tr) <-
                   tcExpr Nothing (EApp (EApp (EVar sbind) a)
-                                       (ELam [EVar "$x"] (ECase (EVar "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
+                                       (ELam [eVarI "$x"] (ECase (eVarI "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
                 T.return (EDo mn (SBind ep ea : ys), tr)
               SThen a -> T.do
                 let
-                  sthen = maybe ">>"  (\ mn -> qual mn ">>" ) mmn
+                  sthen = maybe (Ident ">>") (\ mn -> qual mn (Ident ">>") ) mmn
                 (EApp (EApp _ ea) (EDo mn ys), tr) <-
                   tcExpr Nothing (EApp (EApp (EVar sthen) a) (EDo mmn ss))
                 T.return (EDo mn (SThen ea : ys), tr)
@@ -716,7 +719,7 @@ tcExprR mt ae =
       (EApp (EVar ii) ee, t) <- tcExpr mt (EApp (EVar i) e)
       T.return (ESectL ee ii, t)
     ESectR i e -> T.do
-      (ELam _ (EApp (EApp var _) ee), t) <- tcExpr mt (ELam [EVar "$x"] (EApp (EApp (EVar i) (EVar "$x")) e))
+      (ELam _ (EApp (EApp var _) ee), t) <- tcExpr mt (ELam [eVarI "$x"] (EApp (EApp (EVar i) (eVarI "$x")) e))
       T.return (ESectR (getIdent var) ee, t)
     EIf e1 e2 e3 -> T.do
       (ee1, _) <- tcExpr (Just tBool) e1
@@ -763,9 +766,9 @@ tcLit :: Maybe EType -> Lit -> T (Typed Expr)
 tcLit mt l =
   let { lit t = T.do { munify mt t; T.return (ELit l, t) } } in
   case l of
-    LInt _ -> lit (tCon "Primitives.Int")
-    LChar _ -> lit (tCon "Primitives.Char")
-    LStr _ -> lit (tApps "Data.List.[]" [tCon "Primitives.Char"])
+    LInt _ -> lit (tConI "Primitives.Int")
+    LChar _ -> lit (tConI "Primitives.Char")
+    LStr _ -> lit (tApps (Ident "Data.List.[]") [tConI "Primitives.Char"])
     LPrim _ -> T.do
       t <- unMType mt  -- pretend it is anything
       T.return (ELit l, t)
@@ -887,13 +890,16 @@ dsType at =
     _ -> impossible
 
 listConstr :: Ident
-listConstr = "[]"
+listConstr = Ident "[]"
+
+tConI :: String -> EType
+tConI = tCon . Ident
 
 tList :: EType
-tList = tCon "Data.List.[]"
+tList = tConI "Data.List.[]"
 
 tBool :: EType
-tBool = tCon "Data.Bool_Type.Bool"
+tBool = tConI "Data.Bool_Type.Bool"
 
 impossible :: --XHasCallStack =>
               forall a . a
@@ -902,7 +908,7 @@ impossible = error "impossible"
 showTModule :: forall a . (a -> String) -> TModule a -> String
 showTModule sh amdl =
   case amdl of
-    TModule mn _ _ _ a -> "Tmodule " ++ mn ++ "\n" ++ sh a
+    TModule mn _ _ _ a -> "Tmodule " ++ showIdent mn ++ "\n" ++ sh a
 
 isUnderscore :: Ident -> Bool
-isUnderscore = eqIdent "_"
+isUnderscore = eqString "_" . unIdent

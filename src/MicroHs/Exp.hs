@@ -5,6 +5,7 @@ module MicroHs.Exp(
   substExp,
   Exp(..), showExp, toStringP,
   PrimOp,
+  EIdent, eqEIdent,
   encodeString,
   app2, cCons, cNil, cFlip,
   allVarsExp, freeVars
@@ -18,10 +19,14 @@ import MicroHs.Expr
 
 type PrimOp = String
 
+type EIdent = String
+eqEIdent :: EIdent -> EIdent -> Bool
+eqEIdent = eqString
+
 data Exp
-  = Var Ident
+  = Var EIdent
   | App Exp Exp
-  | Lam Ident Exp
+  | Lam EIdent Exp
   | Lit Lit
   --Xderiving (Show, Eq)
 
@@ -33,7 +38,7 @@ getApp ae =
     App f a -> IsApp f a
     _       -> NotApp
 
-getVar :: Exp -> Maybe Ident
+getVar :: Exp -> Maybe EIdent
 getVar ae =
   case ae of
     Var v -> Just v
@@ -154,7 +159,7 @@ compileExp ae =
     Lam x a -> abstract x a
     _       -> ae
 
-abstract :: Ident -> Exp -> Exp
+abstract :: EIdent -> Exp -> Exp
 abstract x ae =
   case ae of
     Var y  -> if eqString x y then cId else cK (Var y)
@@ -396,20 +401,20 @@ showExp ae =
     Lam i e -> "(\\" ++ i ++ ". " ++ showExp e ++ ")"
     Lit l -> showLit l
 
-substExp :: Ident -> Exp -> Exp -> Exp
+substExp :: EIdent -> Exp -> Exp -> Exp
 substExp si se ae =
   case ae of
-    Var i -> if eqIdent i si then se else ae
+    Var i -> if eqEIdent i si then se else ae
     App f a -> App (substExp si se f) (substExp si se a)
-    Lam i e -> if eqIdent si i then
+    Lam i e -> if eqEIdent si i then
                  ae
-               else if elemBy eqIdent i (freeVars se) then
+               else if elemBy eqEIdent i (freeVars se) then
                  let
                    fe = allVarsExp e
                    ase = allVarsExp se
                    j = --head $ deleteFirstsBy eqIdent ["a" ++ showInt n | n <- enumFrom 0] (freeVars se ++ freeVars e)
                        --head [ v | n <- enumFrom 0, let { v = "a" ++ showInt n }, not (elemBy eqIdent v fse), not (elemBy eqIdent v fe) ]
-                       head [ v | n <- enumFrom 0, let { v = "a" ++ showInt n }, not (elemBy eqIdent v ase), not (elemBy eqIdent v fe) ]
+                       head [ v | n <- enumFrom 0, let { v = "a" ++ showInt n }, not (elemBy eqEIdent v ase), not (elemBy eqEIdent v fe) ]
                  in
                    --trace ("substExp " ++ unwords [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))
@@ -417,15 +422,15 @@ substExp si se ae =
                    Lam i (substExp si se e)
     Lit _ -> ae
 
-freeVars :: Exp -> [Ident]
+freeVars :: Exp -> [EIdent]
 freeVars ae =
   case ae of
     Var i -> [i]
     App f a -> freeVars f ++ freeVars a
-    Lam i e -> deleteBy eqIdent i (freeVars e)
+    Lam i e -> deleteBy eqEIdent i (freeVars e)
     Lit _ -> []
 
-allVarsExp :: Exp -> [Ident]
+allVarsExp :: Exp -> [EIdent]
 allVarsExp ae =
   case ae of
     Var i -> [i]

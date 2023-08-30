@@ -1,5 +1,5 @@
 module MicroHs.Expr(
-  Ident, eqIdent, qual, showIdent,
+  Ident(..), unIdent, eqIdent, qual, showIdent,
   IdentModule,
   EModule(..),
   ExportSpec(..),
@@ -42,17 +42,24 @@ data ExportSpec
   | ExpValue Ident
   --Xderiving (Show, Eq)
 
-type Ident = String
+newtype Ident = Ident String
+  --Xderiving (Show, Eq)
 type IdentModule = Ident
 
+unIdent :: Ident -> String
+unIdent (Ident s) = s
+
+eqIdent :: Ident -> Ident -> Bool
+eqIdent (Ident i) (Ident j) = eqString i j
+
 qual :: Ident -> Ident -> Ident
-qual qi i = qi ++ "." ++ i
+qual (Ident qi) (Ident i) = Ident (qi ++ "." ++ i)
 
 isConIdent :: Ident -> Bool
-isConIdent i =
+isConIdent (Ident i) =
   let
     c = head i
-  in isUpper c || eqChar c ':' || eqChar c ',' || eqIdent i "[]" 
+  in isUpper c || eqChar c ':' || eqChar c ',' || eqString i "[]" 
 
 data EDef
   = Data LHS [Constr]
@@ -185,22 +192,16 @@ data ETypeScheme = ETypeScheme [Ident] EType
 
 type EKind = EType
 
-eqIdent :: Ident -> Ident -> Bool
-eqIdent = eqString
-
 {-
 leIdent :: Ident -> Ident -> Bool
 leIdent = leString
 -}
 
-showIdent :: Ident -> String
-showIdent i = i
-
 tupleConstr :: Int -> Ident
-tupleConstr n = replicate (n - 1) ','
+tupleConstr n = Ident (replicate (n - 1) ',')
 
 untupleConstr :: Ident -> Int
-untupleConstr s = length s + 1
+untupleConstr (Ident s) = length s + 1
 
 ---------------------------------
 
@@ -286,20 +287,23 @@ showExportSpec ae =
     ExpValue i -> i
 -}
 
+showIdent :: Ident -> String
+showIdent (Ident i) = i
+
 showEDef :: EDef -> String
 showEDef def =
   case def of
     Data lhs _ -> "data " ++ showLHS lhs ++ " = ..."
-    Newtype lhs c t -> "newtype " ++ showLHS lhs ++ " = " ++ c ++ " " ++ showEType t
+    Newtype lhs c t -> "newtype " ++ showLHS lhs ++ " = " ++ showIdent c ++ " " ++ showEType t
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
-    Fcn i eqns -> unlines (map (\ (Eqn ps alts) -> i ++ " " ++ unwords (map showEPat ps) ++ showAlts "=" alts) eqns)
-    Sign i t -> i ++ " :: " ++ showETypeScheme t
-    Import (ImportSpec q m mm) -> "import " ++ (if q then "qualified " else "") ++ m ++ maybe "" (" as " ++) mm
+    Fcn i eqns -> unlines (map (\ (Eqn ps alts) -> showIdent i ++ " " ++ unwords (map showEPat ps) ++ showAlts "=" alts) eqns)
+    Sign i t -> showIdent i ++ " :: " ++ showETypeScheme t
+    Import (ImportSpec q m mm) -> "import " ++ (if q then "qualified " else "") ++ showIdent m ++ maybe "" ((" as " ++) . unIdent) mm
 
 showLHS :: LHS -> String
 showLHS lhs =
   case lhs of
-    (f, vs) -> unwords (f : vs)
+    (f, vs) -> unwords (map unIdent (f : vs))
 
 showEDefs :: [EDef] -> String
 showEDefs ds = unlines (map showEDef ds)
@@ -321,12 +325,12 @@ showAlt sep (ss, e) = " | " ++ concat (intersperse ", " (map showEStmt ss)) ++ "
 showExpr :: Expr -> String
 showExpr ae =
   case ae of
---X    EVar "Primitives.Char" -> "Char"
---X    EVar "Primitives.->" -> "(->)"
---X    EApp (EApp (EVar "Primitives.->") a) b -> "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
---X    EApp (EVar "Data.List.[]") a -> "[" ++ showExpr a ++ "]"
---X    EApp (EApp (EVar ",") a) b -> showExpr (ETuple [a,b])
-    EVar v -> v
+--X    EVar (Ident "Primitives.Char") -> "Char"
+--X    EVar (Ident "Primitives.->") -> "(->)"
+--X    EApp (EApp (EVar (Ident "Primitives.->")) a) b -> "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
+--X    EApp (EVar (Ident "Data.List.[]")) a -> "[" ++ showExpr a ++ "]"
+--X    EApp (EApp (EVar (Ident ",")) a) b -> showExpr (ETuple [a,b])
+    EVar v -> showIdent v
     EApp f a -> "(" ++ showExpr f ++ " " ++ showExpr a ++ ")"
     ELam ps e -> "(\\" ++ unwords (map showExpr ps) ++ " -> " ++ showExpr e ++ ")"
     ELit i -> showLit i
@@ -334,18 +338,18 @@ showExpr ae =
     ELet bs e -> "let\n" ++ unlines (map showEBind bs) ++ "in " ++ showExpr e
     ETuple es -> "(" ++ intercalate "," (map showExpr es) ++ ")"
     EList es -> showList showExpr es
-    EDo mn ss -> maybe "do" (\n -> n ++ ".do\n") mn ++ unlines (map showEStmt ss)
-    ESectL e i -> "(" ++ showExpr e ++ " " ++ i ++ ")"
-    ESectR i e -> "(" ++ i ++ " " ++ showExpr e ++ ")"
+    EDo mn ss -> maybe "do" (\ n -> showIdent n ++ ".do\n") mn ++ unlines (map showEStmt ss)
+    ESectL e i -> "(" ++ showExpr e ++ " " ++ showIdent i ++ ")"
+    ESectR i e -> "(" ++ showIdent i ++ " " ++ showExpr e ++ ")"
     EIf e1 e2 e3 -> "if " ++ showExpr e1 ++ " then " ++ showExpr e2 ++ " else " ++ showExpr e3
     ECompr _ _ -> "ECompr"
-    EAt i e -> i ++ "@" ++ showExpr e
+    EAt i e -> showIdent i ++ "@" ++ showExpr e
     EUVar i -> "a" ++ showInt i
     ECon c -> showCon c
 
 showCon :: Con -> String
-showCon (ConData _ s) = s
-showCon (ConNew s) = s
+showCon (ConData _ s) = showIdent s
+showCon (ConNew s) = showIdent s
 showCon (ConLit l) = showLit l
 --showCon (ConTup n) = "(" ++ tupleConstr n ++ ")"
 
@@ -387,5 +391,5 @@ showETypeScheme ts =
     ETypeScheme vs t ->
       if null vs
       then showEType t
-      else unwords ("forall" : vs ++ [".", showEType t])
+      else unwords ("forall" : map unIdent vs ++ [".", showEType t])
 

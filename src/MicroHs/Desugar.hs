@@ -229,7 +229,10 @@ tupleCon n =
   in ECon $ ConData [(c, n)] c
 
 dummyIdent :: Ident
-dummyIdent = "_"
+dummyIdent = Ident "_"
+
+dummyEIdent :: EIdent
+dummyEIdent = "_"
 
 eError :: String -> Expr
 eError s = EApp (ELit (LPrim "error")) (ELit $ LStr s)
@@ -281,6 +284,18 @@ newIdent = S.do
   put (tail is)
   S.return (head is)
 
+newEIdents :: Int -> M [EIdent]
+newEIdents n = S.do
+  is <- get
+  put (drop n is)
+  S.return (map unIdent (take n is))
+
+newEIdent :: M EIdent
+newEIdent = S.do
+  is <- get
+  put (tail is)
+  S.return (head is)
+
 runS :: [Ident] -> [Exp] -> Matrix -> Exp
 runS used ss mtrx =
   --trace ("runS " ++ show (ss, mtrx)) $
@@ -314,7 +329,7 @@ dsMatrix dflt iis aarms =
  i:is -> S.do
   let
     (arms, darms, rarms) = splitArms aarms
-    ndarms = map (\ (EVar x : ps, ed, g) -> (ps, substAlpha x i . ed, g) ) darms
+    ndarms = map (\ (EVar x : ps, ed, g) -> (ps, substAlpha (unIdent x) i . ed, g) ) darms
 --  traceM ("split " ++ show (arms, darms, rarms))
   letBind (dsMatrix dflt iis rarms) $ \ drest ->
     letBind (dsMatrix drest is ndarms) $ \ ndflt ->
@@ -329,17 +344,17 @@ dsMatrix dflt iis aarms =
           let
             (pat:_, _, _) : _ = grp
             con = pConOf pat
-          xs <- newIdents (conArity con)
+          xs <- newEIdents (conArity con)
           let
             one arg =
               case arg of
                 (p : ps, e, g) ->
                   case p of
-                    EAt a pp -> one (pp:ps, substAlpha a i . e, g)
+                    EAt a pp -> one (pp:ps, substAlpha (unIdent a) i . e, g)
                     _        -> (pArgs p ++ ps, e, g)
                 _ -> impossible
           cexp <- dsMatrix ndflt (map Var xs ++ is) (map one grp)
-          S.return (SPat con xs, cexp)
+          S.return (SPat con (map Ident xs), cexp)
 --      traceM $ "grps " ++ show grps
       narms <- S.mapM oneGroup grps
       S.return $ mkCase i narms ndflt
@@ -355,7 +370,7 @@ letBind me f = S.do
   if cheap e then
     f e
    else S.do
-    x <- newIdent
+    x <- newEIdent
     r <- f (Var x)
     S.return $ eLet x e r
 
@@ -382,7 +397,7 @@ mkCase var pes dflt =
   --trace ("mkCase " ++ show pes) $
   case pes of
     [] -> dflt
-    [(SPat (ConNew _) [x], arhs)] -> eLet x var arhs
+    [(SPat (ConNew _) [x], arhs)] -> eLet (unIdent x) var arhs
     (SPat (ConLit l) _,   arhs) : rpes -> 
       let
         cond =
@@ -426,22 +441,22 @@ splitArms am =
 
 -- Change from x to y inside e.
 -- XXX Doing it at runtime.
-substAlpha :: Ident -> Exp -> Exp -> Exp
+substAlpha :: EIdent -> Exp -> Exp -> Exp
 substAlpha x y e =
-  if eqIdent x dummyIdent then
+  if eqEIdent x dummyEIdent then
     e
   else
     substExp x y e
 
-eLet :: Ident -> Exp -> Exp -> Exp
+eLet :: EIdent -> Exp -> Exp -> Exp
 eLet i e b =
-  if eqIdent i dummyIdent then
+  if eqEIdent i dummyEIdent then
     b
   else
     case b of
-      Var j | eqIdent i j -> e
+      Var j | eqEIdent i j -> e
       _ ->
-        case filter (eqIdent i) (freeVars b) of
+        case filter (eqEIdent i) (freeVars b) of
           []  -> b                -- no occurences, no need to bind
           [_] -> substExp i e b   -- single occurrence, substitute  XXX coule be worse if under lambda
           _   -> App (Lam i b) e  -- just use a beta redex

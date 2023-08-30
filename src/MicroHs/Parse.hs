@@ -439,7 +439,7 @@ pBind =
 
 -------------
 
-pRightAssoc :: P String -> P Expr -> P Expr
+pRightAssoc :: P Ident -> P Expr -> P Expr
 pRightAssoc pOp p = P.do
   e1 <- p
   let
@@ -450,7 +450,7 @@ pRightAssoc pOp p = P.do
         pure $ appOp op e1 e2
   rest <|< pure e1
 
-pNonAssoc :: P String -> P Expr -> P Expr
+pNonAssoc :: P Ident -> P Expr -> P Expr
 pNonAssoc pOp p = P.do
   e1 <- p
   let
@@ -461,17 +461,17 @@ pNonAssoc pOp p = P.do
         pure $ appOp op e1 e2
   rest <|< pure e1
 
-pLeftAssoc :: P String -> P Expr -> P Expr
+pLeftAssoc :: P Ident -> P Expr -> P Expr
 pLeftAssoc pOp p = P.do
   e1 <- p
   es <- emany (pair <$> pOp <*> p)
   pure $ foldl (\ x (op, y) -> appOp op x y) e1 es
 
-pOpers :: [String] -> P String
+pOpers :: [String] -> P Ident
 pOpers ops = P.do
   op <- pOper
   guard (elemBy eqString op ops)
-  pure op
+  pure (Ident op)
 
 -------------
 
