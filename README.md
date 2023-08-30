@@ -50,7 +50,7 @@ main = do
 
 First, make sure the binaries are built.  E.g., by doing `make test`.
 Then compile the file by `bin/mhs -ilib Example` which produces `out.comb`.
-Finally, run the combinator file by `bin/eval +RTS -rout.comb`.
+Finally, run the combinator file by `bin/eval`.
 This should produce
 ```
 Some factorials
@@ -60,6 +60,15 @@ Some factorials
 ## Libraries
 There are a number of libraries that have some of the standard Haskell functions.
 But in general, the `Prelude` contains much, much less.
+
+## Types
+There two primitive data types `Int` and `Handle`.  These are known by the runtime system
+and various primitive operations work on them.  The runtime system also knows how lists
+are encoded.  The function type, `->`, is also built in.
+
+All other types are defined with the language.  They are converted to lambda terms using
+the Scott encoding.
+
 
 ## Compiler
 The compiler is written in Micro Haskell.
@@ -84,6 +93,7 @@ with parsing taking 368ms and typecheck&desugar taking 348ms.
 * `Main`, the main module.  Decodes flags, compiles, and writes result.
 * `Compile`, top level compiler.  Maintains a cache of already compiled modules.
 * `Exp`, simple expression type, combinator abstraction and optimization.
+* `Expr`, parsed expression type.
 * `Desugar`, desugar full expressions to simple expressions.
 * `Lex`, lexical analysis and indentation processing.
 * `Parse`, parse and build and abstract syntax tree.
