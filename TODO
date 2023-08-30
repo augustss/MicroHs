@@ -8,6 +8,7 @@
 * Add location to Ident
   - with file name
 * Prettier printing of types
+  - unqualIdent
 * Report location in type errors
 * Special noMatch function with location
 * Add overloading
@@ -17,5 +18,15 @@
 * Add [x..y] syntax
 * Add the possibility to save a compiler cache in a file
   - Add SHA checksumming to the C code
-  - Use SHA as the cache lookup key.
+  - Use filename as the cache lookup key and SHA for validation
 * use 'data = primitive "Int"' for primitive types.
+* make an interactive version
+  - implement a simple readline
+  - implement catch (and maybe throw)
+  - make the runtime system catch ^C and stop execution
+* implement low level equality
+  - maybe?
+  - could be used instead of derived when all is derived
+* use pointer stack during GC instead of recursion.
+* add Double primitive type
+* implement Data.Integer

@@ -10,7 +10,7 @@ import qualified System.IO as IO
 --Ximport qualified CompatIO as IO
 --Ximport System.IO(Handle)
 
-import qualified MicroHs.StringMap as M
+import qualified MicroHs.IdentMap as M
 import MicroHs.StateIO as S
 import MicroHs.Desugar
 import MicroHs.Expr
@@ -72,7 +72,7 @@ compile flags nm = IO.do
 compileModuleCached :: Flags -> IdentModule -> StateIO Cache (CModule, Time)
 compileModuleCached flags nm = S.do
   ch <- gets cache
-  case M.lookup (unIdent nm) ch of
+  case M.lookup nm ch of
     Nothing -> S.do
       ws <- gets working
       S.when (elemBy eqIdent nm ws) $
@@ -84,7 +84,7 @@ compileModuleCached flags nm = S.do
       S.when (verbose flags > 0) $
         liftIO $ putStrLn $ "importing done " ++ showIdent nm ++ ", " ++ showInt (tp + tt) ++ "ms (" ++ showInt tp ++ " + " ++ showInt tt ++ ")"
       c <- get
-      put $ Cache (tail (working c)) (M.insert (unIdent nm) cm (cache c))
+      put $ Cache (tail (working c)) (M.insert nm cm (cache c))
       S.return (cm, tp + tt + ts)
     Just cm -> S.do
       S.when (verbose flags > 0) $

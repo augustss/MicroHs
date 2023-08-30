@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module MicroHs.StringMap(
+module MicroHs.IdentMap(
   Map,
   size,
   empty, insert, lookup,
@@ -9,12 +9,13 @@ module MicroHs.StringMap(
   ) where
 import Prelude --Xhiding(lookup)
 --Ximport Compat
+import MicroHs.Expr --X(Ident, eqIdent)
 
 {-
 import qualified Data.Map as M
 import qualified GHC.Maybe
 
-type Map v = M.Map String v
+type Map v = M.Map Ident v
 
 insert = M.insert
 
@@ -35,7 +36,7 @@ elems = M.elems
 -}
 
 -- This is a pretty bad implementation.
-data Map v = Map [(String, v)]
+data Map v = Map [(Ident, v)]
   --Xderiving(Show)
 
 insert k v (Map kvs) = Map ((k, v):kvs)
@@ -50,7 +51,7 @@ fromListWith un =
             (ik, iv) ->
               case kv of
                 (k, v) ->
-                  if eqString ik k then
+                  if eqIdent ik k then
                     (k, un iv v) : kvs
                   else
                     kv : ins ikv kvs
@@ -74,7 +75,7 @@ lookup ak (Map m) =
             [] -> Nothing
             kv : kvs ->
               case kv of
-                (k, v) -> if eqString ak k then Just v else look kvs
+                (k, v) -> if eqIdent ak k then Just v else look kvs
       in look m
 
 empty = Map []
@@ -88,13 +89,13 @@ toList (Map kvs) = kvs
 {-
 import qualified Data.Map as M
 
-type Map v = M.Map String v
+type Map v = M.Map Ident v
 
-insert = M.insertBy leString
-fromListWith = M.fromListByWith leString
-fromList = M.fromListBy leString
---union = M.unionBy leString
-lookup = M.lookupBy leString
+insert = M.insertBy leIdent
+fromListWith = M.fromListByWith leIdent
+fromList = M.fromListBy leIdent
+--union = M.unionBy leIdent
+lookup = M.lookupBy leIdent
 empty = M.empty
 elems = M.elems
 toList = M.toList
@@ -102,12 +103,12 @@ toList = M.toList
 
 -------
 
-insert :: forall v . String -> v -> Map v -> Map v
-fromListWith :: forall v . (v -> v -> v) -> [(String, v)] -> Map v
-fromList :: forall v . [(String, v)] -> Map v
+insert :: forall v . Ident -> v -> Map v -> Map v
+fromListWith :: forall v . (v -> v -> v) -> [(Ident, v)] -> Map v
+fromList :: forall v . [(Ident, v)] -> Map v
 --union :: forall v . Map v -> Map v -> Map v
-lookup :: forall v . String -> Map v -> Maybe v
+lookup :: forall v . Ident -> Map v -> Maybe v
 empty :: forall v . Map v
 elems :: forall v . Map v -> [v]
 size :: forall v . Map v -> Int
-toList :: forall v . Map v -> [(String, v)]
+toList :: forall v . Map v -> [(Ident, v)]
