@@ -32,11 +32,11 @@ dsDef mn adef =
   case adef of
     Data _ cs ->
       let
-        f i = "$f" ++ showInt i
+        f i = Ident ("$f" ++ showInt i)
         fs = [f i | (i, _) <- zip (enumFrom 0) cs]
         dsConstr i (c, ts) =
           let
-            xs = ["$x" ++ showInt j | (j, _) <- zip (enumFrom 0) ts]
+            xs = [Ident ("$x" ++ showInt j) | (j, _) <- zip (enumFrom 0) ts]
           in (qual mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
       in  zipWith dsConstr (enumFrom 0) cs
     Newtype _ c _ -> [ (qual mn c, Lit (LPrim "I")) ]
@@ -64,7 +64,7 @@ dsEqns eqns =
   case eqns of
     Eqn aps _ : _ ->
       let
-        vs = allVarsBind $ BFcn "" eqns
+        vs = allVarsBind $ BFcn (Ident "") eqns
         xs = take (length aps) $ newVars vs
         ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts alts, hasGuards alts) | Eqn ps alts <- eqns]
       in foldr Lam ex xs
@@ -89,7 +89,7 @@ dsAltsL ((ss, rhs) : alts) dflt =
 dsAlt :: Expr -> [EStmt] -> Expr -> Expr
 dsAlt _ [] rhs = rhs
 dsAlt dflt (SBind p e : ss) rhs = ECase e [(p, EAlts [(ss, rhs)] []), (EVar dummyIdent, oneAlt dflt)]
-dsAlt dflt (SThen (EVar i) : ss) rhs | eqIdent i "Data.Bool.otherwise" = dsAlt dflt ss rhs
+dsAlt dflt (SThen (EVar i) : ss) rhs | eqIdent i (Ident "Data.Bool.otherwise") = dsAlt dflt ss rhs
 dsAlt dflt (SThen e   : ss) rhs = EIf e (dsAlt dflt ss rhs) dflt
 dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
@@ -119,7 +119,7 @@ dsExpr aexpr =
 -- For now, just sequential bindings; each recursive
     ELet ads e -> dsBinds ads (dsExpr e)
     EList es -> foldr (app2 cCons) cNil $ map dsExpr es
-    ETuple es -> Lam "$f" $ foldl App (Var "$f") $ map dsExpr es
+    ETuple es -> Lam (Ident "$f") $ foldl App (Var $ Ident "$f") $ map dsExpr es
     EDo mn astmts ->
       case astmts of
         [] -> error "empty do"
@@ -129,19 +129,19 @@ dsExpr aexpr =
               if null stmts then error "do without final expression"
               else
 --                case p of
---                  EVar v -> dsExpr $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [v] $ EDo mn stmts)
+--                  EVar v -> dsExpr $ EApp (EApp (EVar (mqual mn (Ident ">>="))) e) (ELam [v] $ EDo mn stmts)
 --                  _ ->
                     let
                       nv = newVar (allVarsExpr aexpr)
                       body = ECase (EVar nv) [(p, oneAlt $ EDo mn stmts), (EVar dummyIdent, oneAlt $ eError "dopat")]
-                      res = dsExpr $ EApp (EApp (EVar (mqual mn ">>=")) e) (ELam [EVar nv] body)
+                      res = dsExpr $ EApp (EApp (EVar (mqual mn (Ident ">>="))) e) (ELam [EVar nv] body)
                     in res
                       
             SThen e ->
               if null stmts then
                 dsExpr e
               else
-                dsExpr $ EApp (EApp (EVar (mqual mn ">>")) e) (EDo mn stmts)
+                dsExpr $ EApp (EApp (EVar (mqual mn (Ident ">>"))) e) (EDo mn stmts)
             SLet ds ->
               if null stmts then error "do without final expression" else
                 dsExpr $ ELet ds (EDo mn stmts)
@@ -161,7 +161,7 @@ dsExpr aexpr =
               let
                 nv = newVar (allVarsExpr aexpr)
                 body = ECase (EVar nv) [(p, oneAlt $ ECompr e stmts), (EVar dummyIdent, oneAlt $ EList [])]
-              in app2 (Var "Data.List.concatMap") (dsExpr (ELam [EVar nv] body)) (dsExpr b)
+              in app2 (Var (Ident "Data.List.concatMap")) (dsExpr (ELam [EVar nv] body)) (dsExpr b)
             SThen c ->
               dsExpr (EIf c (ECompr e stmts) (EList []))
             SLet ds ->
@@ -172,10 +172,10 @@ dsExpr aexpr =
       let
         ci = conIdent c
       in
-        if eqChar (head ci) ',' then
+        if eqChar (head $ unIdent ci) ',' then
           let
-            xs = ["x" ++ showInt i | i <- enumFromTo 1 (untupleConstr ci) ]
-            body = Lam "$f" $ foldl App (Var "$f") $ map Var xs
+            xs = [Ident ("x" ++ showInt i) | i <- enumFromTo 1 (untupleConstr ci) ]
+            body = Lam (Ident "$f") $ foldl App (Var (Ident "$f")) $ map Var xs
           in foldr Lam body xs
         else
           Var (conIdent c)
@@ -211,15 +211,15 @@ dsPat ap =
 consCon :: EPat
 consCon =
   let
-    n = "Data.List.[]"
-    c = "Data.List.:"
+    n = Ident "Data.List.[]"
+    c = Ident "Data.List.:"
   in ECon $ ConData [(n, 0), (c, 2)] c
 
 nilCon :: EPat
 nilCon =
   let
-    n = "Data.List.[]"
-    c = "Data.List.:"
+    n = Ident "Data.List.[]"
+    c = Ident "Data.List.:"
   in ECon $ ConData [(n, 0), (c, 2)] n
 
 tupleCon :: Int -> EPat
@@ -231,9 +231,6 @@ tupleCon n =
 dummyIdent :: Ident
 dummyIdent = Ident "_"
 
-dummyEIdent :: EIdent
-dummyEIdent = "_"
-
 eError :: String -> Expr
 eError s = EApp (ELit (LPrim "error")) (ELit $ LStr s)
 
@@ -244,7 +241,7 @@ apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
 newVars :: [Ident] -> [Ident]
-newVars is = deleteFirstsBy eqIdent [ "q" ++ showInt i | i <- enumFrom 1 ] is
+newVars is = deleteFirstsBy eqIdent [ Ident ("q" ++ showInt i) | i <- enumFrom 1 ] is
 
 newVar :: [Ident] -> Ident
 newVar = head . newVars
@@ -255,7 +252,7 @@ showLDefs = unlines . map showLDef
 showLDef :: LDef -> String
 showLDef a =
   case a of
-    (i, e) -> i ++ " = " ++ showExp e
+    (i, e) -> showIdent i ++ " = " ++ showExp e
 
 ----------------
 
@@ -284,23 +281,11 @@ newIdent = S.do
   put (tail is)
   S.return (head is)
 
-newEIdents :: Int -> M [EIdent]
-newEIdents n = S.do
-  is <- get
-  put (drop n is)
-  S.return (map unIdent (take n is))
-
-newEIdent :: M EIdent
-newEIdent = S.do
-  is <- get
-  put (tail is)
-  S.return (head is)
-
 runS :: [Ident] -> [Exp] -> Matrix -> Exp
 runS used ss mtrx =
   --trace ("runS " ++ show (ss, mtrx)) $
   let
-    supply = deleteFirstsBy eqIdent [ "x" ++ showInt i | i <- enumFrom 1 ] used
+    supply = deleteFirstsBy eqIdent [ Ident ("x" ++ showInt i) | i <- enumFrom 1 ] used
 --    ds :: [Exp] -> [Exp] -> M Exp
     ds xs aes =
       case aes of
@@ -329,7 +314,7 @@ dsMatrix dflt iis aarms =
  i:is -> S.do
   let
     (arms, darms, rarms) = splitArms aarms
-    ndarms = map (\ (EVar x : ps, ed, g) -> (ps, substAlpha (unIdent x) i . ed, g) ) darms
+    ndarms = map (\ (EVar x : ps, ed, g) -> (ps, substAlpha x i . ed, g) ) darms
 --  traceM ("split " ++ show (arms, darms, rarms))
   letBind (dsMatrix dflt iis rarms) $ \ drest ->
     letBind (dsMatrix drest is ndarms) $ \ ndflt ->
@@ -344,17 +329,17 @@ dsMatrix dflt iis aarms =
           let
             (pat:_, _, _) : _ = grp
             con = pConOf pat
-          xs <- newEIdents (conArity con)
+          xs <- newIdents (conArity con)
           let
             one arg =
               case arg of
                 (p : ps, e, g) ->
                   case p of
-                    EAt a pp -> one (pp:ps, substAlpha (unIdent a) i . e, g)
+                    EAt a pp -> one (pp:ps, substAlpha a i . e, g)
                     _        -> (pArgs p ++ ps, e, g)
                 _ -> impossible
           cexp <- dsMatrix ndflt (map Var xs ++ is) (map one grp)
-          S.return (SPat con (map Ident xs), cexp)
+          S.return (SPat con xs, cexp)
 --      traceM $ "grps " ++ show grps
       narms <- S.mapM oneGroup grps
       S.return $ mkCase i narms ndflt
@@ -370,7 +355,7 @@ letBind me f = S.do
   if cheap e then
     f e
    else S.do
-    x <- newEIdent
+    x <- newIdent
     r <- f (Var x)
     S.return $ eLet x e r
 
@@ -384,20 +369,20 @@ cheap ae =
 
 -- Could use Prim "==", but that misses out some optimizations
 eEqInt :: Exp
-eEqInt = Var "Data.Int.=="
+eEqInt = Var $ Ident "Data.Int.=="
 
 eEqChar :: Exp
-eEqChar = Var "Data.Char.eqChar"
+eEqChar = Var $ Ident "Data.Char.eqChar"
 
 eEqStr :: Exp
-eEqStr = Var "Text.String.eqString"
+eEqStr = Var $ Ident "Text.String.eqString"
 
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
   --trace ("mkCase " ++ show pes) $
   case pes of
     [] -> dflt
-    [(SPat (ConNew _) [x], arhs)] -> eLet (unIdent x) var arhs
+    [(SPat (ConNew _) [x], arhs)] -> eLet x var arhs
     (SPat (ConLit l) _,   arhs) : rpes -> 
       let
         cond =
@@ -441,22 +426,22 @@ splitArms am =
 
 -- Change from x to y inside e.
 -- XXX Doing it at runtime.
-substAlpha :: EIdent -> Exp -> Exp -> Exp
+substAlpha :: Ident -> Exp -> Exp -> Exp
 substAlpha x y e =
-  if eqEIdent x dummyEIdent then
+  if eqIdent x dummyIdent then
     e
   else
     substExp x y e
 
-eLet :: EIdent -> Exp -> Exp -> Exp
+eLet :: Ident -> Exp -> Exp -> Exp
 eLet i e b =
-  if eqEIdent i dummyEIdent then
+  if eqIdent i dummyIdent then
     b
   else
     case b of
-      Var j | eqEIdent i j -> e
+      Var j | eqIdent i j -> e
       _ ->
-        case filter (eqEIdent i) (freeVars b) of
+        case filter (eqIdent i) (freeVars b) of
           []  -> b                -- no occurences, no need to bind
           [_] -> substExp i e b   -- single occurrence, substitute  XXX coule be worse if under lambda
           _   -> App (Lam i b) e  -- just use a beta redex

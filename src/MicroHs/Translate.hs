@@ -19,9 +19,10 @@ import MicroHs.Exp
 translate :: (Ident, [LDef]) -> IO ()
 translate (mainName, ds) =
   let
-    look m n = fromMaybe (error $ "not found " ++ n) $ M.lookup n m
+    --Xlook :: M.Map Any -> Ident -> Any
+    look m n = fromMaybe (error $ "not found " ++ showIdent n) $ M.lookup (unIdent n) m
     --Xmp :: M.Map Any
-    mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
+    mp = M.fromList [(unIdent n, trans (look mp) d) | (n, d) <- ds ]
   in  unsafeCoerce $ look mp mainName
 
 trans :: (Ident -> Any) -> Exp -> Any

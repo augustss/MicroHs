@@ -72,7 +72,7 @@ compile flags nm = IO.do
 compileModuleCached :: Flags -> IdentModule -> StateIO Cache (CModule, Time)
 compileModuleCached flags nm = S.do
   ch <- gets cache
-  case M.lookup nm ch of
+  case M.lookup (unIdent nm) ch of
     Nothing -> S.do
       ws <- gets working
       S.when (elemBy eqIdent nm ws) $
@@ -84,7 +84,7 @@ compileModuleCached flags nm = S.do
       S.when (verbose flags > 0) $
         liftIO $ putStrLn $ "importing done " ++ showIdent nm ++ ", " ++ showInt (tp + tt) ++ "ms (" ++ showInt tp ++ " + " ++ showInt tt ++ ")"
       c <- get
-      put $ Cache (tail (working c)) (M.insert nm cm (cache c))
+      put $ Cache (tail (working c)) (M.insert (unIdent nm) cm (cache c))
       S.return (cm, tp + tt + ts)
     Just cm -> S.do
       S.when (verbose flags > 0) $
@@ -97,7 +97,7 @@ compileModule :: Flags -> IdentModule -> StateIO Cache (CModule, Time, Time, Tim
 compileModule flags nm = S.do
   t1 <- liftIO getTimeMilli
   let
-    fn = map (\ c -> if eqChar c '.' then '/' else c) nm ++ ".hs"
+    fn = map (\ c -> if eqChar c '.' then '/' else c) (unIdent nm) ++ ".hs"
   mdl@(EModule nmn _ defs) <- S.fmap (parseDie pTop fn) (liftIO (readFilePath (paths flags) fn))
   --liftIO $ putStrLn $ showEModule mdl
   S.when (not (eqIdent nm nmn)) $
