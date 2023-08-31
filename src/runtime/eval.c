@@ -1588,7 +1588,7 @@ main(int argc, char **argv)
     setlocale(LC_NUMERIC, "");  /* Make %' work on platforms that support it */
     printf("%"PCOMMA"15"PRIu64" combinator file size\n", (uint64_t)file_size);
     printf("%"PCOMMA"15"PRIu64" cells at start\n", start_size);
-    printf("%"PCOMMA"15"PRIu64" heap size\n", heap_size);
+    printf("%"PCOMMA"15"PRIu64" cells heap size (%"PCOMMA""PRIu64" bytes)\n", heap_size, heap_size * NODE_SIZE);
     printf("%"PCOMMA"15"PRIu64" cells allocated\n", num_alloc);
     printf("%"PCOMMA"15"PRIu64" GCs\n", num_gc);
     printf("%"PCOMMA"15"PRIu64" max cells used\n", max_num_marked);
