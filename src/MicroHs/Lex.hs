@@ -8,6 +8,7 @@ import Prelude --Xhiding(lex, showChar)
 import Data.Char
 --Ximport Compat
 --import Debug.Trace
+import MicroHs.Expr --X(Line, Col, Loc)
 
 data Token
   = TIdent  Loc [String] String
@@ -19,11 +20,6 @@ data Token
   | TBrace  Loc
   | TIndent Loc
   --Xderiving (Show)
-
-type Line = Int
-type Col  = Int
-
-type Loc = (Line, Col)
 
 incrLine :: Loc -> Loc
 incrLine (l, _) = (l+1, 1)

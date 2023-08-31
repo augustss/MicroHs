@@ -1,5 +1,7 @@
 module MicroHs.Expr(
-  Ident, mkIdent, unIdent, eqIdent, qual, showIdent,
+  Ident, mkIdent, mkIdentLoc, unIdent, eqIdent, qual, showIdent,
+  SLoc(..),
+  Line, Col, Loc,
   IdentModule,
   EModule(..),
   ExportSpec(..),
@@ -32,6 +34,38 @@ import Data.Maybe
 --Ximport Compat
 --Ximport GHC.Stack
 
+type Line = Int
+type Col  = Int
+type Loc  = (Line, Col)
+--type SLoc = (FilePath, Loc)
+
+data SLoc = SLoc FilePath Line Col
+  --Xderiving (Show, Eq)
+
+noSLoc :: SLoc
+noSLoc = SLoc "" 0 0
+
+--noLoc :: Loc
+--noLoc = (0,0)
+
+data Ident = Ident SLoc String
+  --Xderiving (Show, Eq)
+type IdentModule = Ident
+
+mkIdent :: String -> Ident
+mkIdent = Ident noSLoc
+
+mkIdentLoc :: FilePath -> Loc -> String -> Ident
+mkIdentLoc fn (l, c) s = Ident (SLoc fn l c) s
+
+unIdent :: Ident -> String
+unIdent (Ident _ s) = s
+
+eqIdent :: Ident -> Ident -> Bool
+eqIdent (Ident _ i) (Ident _ j) = eqString i j
+
+----------------------
+
 data EModule = EModule IdentModule [ExportSpec] [EDef]
   --Xderiving (Show, Eq)
 
@@ -42,27 +76,14 @@ data ExportSpec
   | ExpValue Ident
   --Xderiving (Show, Eq)
 
-newtype Ident = Ident String
-  --Xderiving (Show, Eq)
-type IdentModule = Ident
-
-mkIdent :: String -> Ident
-mkIdent = Ident
-
-unIdent :: Ident -> String
-unIdent (Ident s) = s
-
-eqIdent :: Ident -> Ident -> Bool
-eqIdent (Ident i) (Ident j) = eqString i j
-
 qual :: Ident -> Ident -> Ident
-qual (Ident qi) (Ident i) = Ident (qi ++ "." ++ i)
+qual (Ident loc qi) (Ident _ i) = Ident loc (qi ++ "." ++ i)
 
 isConIdent :: Ident -> Bool
-isConIdent (Ident i) =
+isConIdent (Ident _ i) =
   let
     c = head i
-  in isUpper c || eqChar c ':' || eqChar c ',' || eqString i "[]" 
+  in isUpper c || eqChar c ':' || eqChar c ',' || eqString i "[]"  || eqString i "()"
 
 data EDef
   = Data LHS [Constr]
@@ -201,10 +222,10 @@ leIdent = leString
 -}
 
 tupleConstr :: Int -> Ident
-tupleConstr n = Ident (replicate (n - 1) ',')
+tupleConstr n = mkIdent (replicate (n - 1) ',')
 
 untupleConstr :: Ident -> Int
-untupleConstr (Ident s) = length s + 1
+untupleConstr i = length (unIdent i) + 1
 
 ---------------------------------
 
@@ -291,7 +312,7 @@ showExportSpec ae =
 -}
 
 showIdent :: Ident -> String
-showIdent (Ident i) = i
+showIdent (Ident _ i) = i
 
 showEDef :: EDef -> String
 showEDef def =
@@ -328,11 +349,11 @@ showAlt sep (ss, e) = " | " ++ concat (intersperse ", " (map showEStmt ss)) ++ "
 showExpr :: Expr -> String
 showExpr ae =
   case ae of
---X    EVar (Ident "Primitives.Char") -> "Char"
---X    EVar (Ident "Primitives.->") -> "(->)"
---X    EApp (EApp (EVar (Ident "Primitives.->")) a) b -> "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
---X    EApp (EVar (Ident "Data.List.[]")) a -> "[" ++ showExpr a ++ "]"
---X    EApp (EApp (EVar (Ident ",")) a) b -> showExpr (ETuple [a,b])
+--X    EVar (Ident _ "Primitives.Char") -> "Char"
+--X    EVar (Ident _ "Primitives.->") -> "(->)"
+--X    EApp (EApp (EVar (Ident _ "Primitives.->")) a) b -> "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
+--X    EApp (EVar (Ident _ "Data.List.[]")) a -> "[" ++ showExpr a ++ "]"
+--X    EApp (EApp (EVar (Ident _ ",")) a) b -> showExpr (ETuple [a,b])
     EVar v -> showIdent v
     EApp f a -> "(" ++ showExpr f ++ " " ++ showExpr a ++ ")"
     ELam ps e -> "(\\" ++ unwords (map showExpr ps) ++ " -> " ++ showExpr e ++ ")"

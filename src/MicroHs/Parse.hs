@@ -16,18 +16,26 @@ import MicroHs.Expr
 --Ximport Compat
 
 
-type P a = Prsr () Token a
+type P a = Prsr FilePath Token a
+
+getFileName :: P FilePath
+getFileName = get
 
 parseDie :: forall a . --X (Show a) =>
-            P a -> String -> String -> a
+            P a -> FilePath -> String -> a
 parseDie p fn file =
   let { ts = lexTop file } in
 --  trace (show ts) $
-  case runPrsr () p ts of
+  case runPrsr fn p ts of
     Left lf -> error $ formatFailed fn ts lf
     Right [(a, _)] -> a
     Right as -> error $ "Ambiguous:"
 --X                     ++ unlines (map (show . fst) as)
+
+getLoc :: P Loc
+getLoc = P.do
+  t <- nextToken
+  P.pure (tokensLoc [t])
 
 pTop :: P EModule
 pTop = pModule <* eof
@@ -38,16 +46,20 @@ pModule = EModule <$> (pKeyword "module" *> pUQIdentA) <*>
                       (pKeyword "where" *> pBlock pDef)
 
 pQIdent :: P Ident
-pQIdent = satisfyM "QIdent" is
-  where
-    is (TIdent _ qs s) | isAlpha_ (head s) = Just (qualName qs s)
+pQIdent = P.do
+  fn <- getFileName
+  let
+    is (TIdent loc qs s) | isAlpha_ (head s) = Just (qualName fn loc qs s)
     is _ = Nothing
+  satisfyM "QIdent" is
 
 pUIdentA :: P Ident
-pUIdentA = satisfyM "UIdent" is
-  where
-    is (TIdent _ [] s) | isUpper (head s) = Just (mkIdent s)
+pUIdentA = P.do
+  fn <- getFileName
+  let
+    is (TIdent loc [] s) | isUpper (head s) = Just (mkIdentLoc fn loc s)
     is _ = Nothing
+  satisfyM "UIdent" is
 
 pUIdent :: P Ident
 pUIdent =
@@ -58,16 +70,23 @@ pUIdentSym :: P Ident
 pUIdentSym = pUIdent <|< pParens pUSymOper
 
 pUIdentSpecial :: P Ident
-pUIdentSpecial =
-      (mkIdent . map (const ',') <$> (pSpec '(' *> some (pSpec ',') <* pSpec ')'))
-  <|> (mkIdent "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
-  <|> (mkIdent "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
+pUIdentSpecial = P.do
+  fn <- getFileName
+  loc <- getLoc
+  let
+    mk = mkIdentLoc fn loc
+  
+  (mk . map (const ',') <$> (pSpec '(' *> some (pSpec ',') <* pSpec ')'))
+    <|> (mk "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
+    <|> (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
 
 pUQIdentA :: P Ident
-pUQIdentA = satisfyM "UQIdent" is
-  where
-    is (TIdent _ qs s) | isUpper (head s) = Just (qualName qs s)
+pUQIdentA = P.do
+  fn <- getFileName
+  let
+    is (TIdent loc qs s) | isUpper (head s) = Just (qualName fn loc qs s)
     is _ = Nothing
+  satisfyM "UQIdent" is
 
 pUQIdent :: P Ident
 pUQIdent =
@@ -75,16 +94,20 @@ pUQIdent =
   <|> pUIdentSpecial
 
 pLIdent :: P Ident
-pLIdent = satisfyM "LIdent" is
-  where
-    is (TIdent _ [] s) | isLower_ (head s) && not (elemBy eqString s keywords) = Just (mkIdent s)
+pLIdent = P.do
+  fn <- getFileName
+  let
+    is (TIdent loc [] s) | isLower_ (head s) && not (elemBy eqString s keywords) = Just (mkIdentLoc fn loc s)
     is _ = Nothing
+  satisfyM "LIdent" is
 
 pLQIdent :: P Ident
-pLQIdent = satisfyM "LQIdent" is
-  where
-    is (TIdent _ qs s) | isLower_ (head s) && not (elemBy eqString s keywords) = Just (qualName qs s)
+pLQIdent = P.do
+  fn <- getFileName
+  let
+    is (TIdent loc qs s) | isLower_ (head s) && not (elemBy eqString s keywords) = Just (qualName fn loc qs s)
     is _ = Nothing
+  satisfyM "LQIdent" is
 
 keywords :: [String]
 keywords = ["case", "data", "do", "else", "forall", "if", "import",
@@ -106,16 +129,20 @@ pOper :: P Ident
 pOper = pQSymOper <|< (pSpec '`' *> pQIdent <* pSpec '`')
 
 pQSymOper :: P Ident
-pQSymOper = satisfyM "QSymOper" is
-  where
-    is (TIdent _ qs s) | not (isAlpha_ (head s)) && not (elemBy eqString s reservedOps) = Just (qualName qs s)
+pQSymOper = P.do
+  fn <- getFileName
+  let
+    is (TIdent loc qs s) | not (isAlpha_ (head s)) && not (elemBy eqString s reservedOps) = Just (qualName fn loc qs s)
     is _ = Nothing
+  satisfyM "QSymOper" is
 
 pSymOper :: P Ident
-pSymOper = satisfyM "SymOper" is
-  where
-    is (TIdent _ [] s) | not (isAlpha_ (head s)) && not (elemBy eqString s reservedOps) = Just (mkIdent s)
+pSymOper = P.do
+  fn <- getFileName
+  let
+    is (TIdent loc [] s) | not (isAlpha_ (head s)) && not (elemBy eqString s reservedOps) = Just (mkIdentLoc fn loc s)
     is _ = Nothing
+  satisfyM "SymOper" is
 
 pUQSymOper :: P Ident
 pUQSymOper = P.do
@@ -396,10 +423,12 @@ pIf :: P Expr
 pIf = EIf <$> (pKeyword "if" *> pExpr) <*> (pKeyword "then" *> pExpr) <*> (pKeyword "else" *> pExpr)
 
 pQualDo :: P Ident
-pQualDo = satisfyM "QualDo" is
-  where
-    is (TIdent _ qs@(_:_) "do") = Just (mkIdent (intercalate "." qs))
+pQualDo = P.do
+  fn <- getFileName
+  let
+    is (TIdent loc qs@(_:_) "do") = Just (mkIdentLoc fn loc (intercalate "." qs))
     is _ = Nothing
+  satisfyM "QualDo" is
 
 pAExpr :: P Expr
 pAExpr =
@@ -489,8 +518,8 @@ appOp op e1 e2 = EApp (EApp (EVar op) e1) e2
 isAlpha_ :: Char -> Bool
 isAlpha_ c = isLower_ c || isUpper c
 
-qualName :: [String] -> String -> Ident
-qualName qs s = mkIdent (intercalate "." (qs ++ [s]))
+qualName :: FilePath -> Loc -> [String] -> String -> Ident
+qualName fn loc qs s = mkIdentLoc fn loc (intercalate "." (qs ++ [s]))
 
 -------------
 

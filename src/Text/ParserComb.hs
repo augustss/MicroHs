@@ -15,7 +15,7 @@ module Text.ParserComb(
   esepBy, sepBy1, esepBy1,
   (<?>), (<|<),
   notFollowedBy, lookAhead,
-  inject,
+  inject, nextToken,
   LastFail(..)
   ) where
 --Ximport Prelude()
@@ -203,6 +203,12 @@ lookAhead p = P $ \ t ->
   case runP p t of
     Many [] (LastFail l ts xs) -> Many [] (LastFail l (take 1 ts) [("lookAhead-" ++ m, es) | (m, es) <- xs ])
     _                          -> Many [((), t)] noFail
+
+nextToken :: forall s t . Prsr s t t
+nextToken = P $ \ t@(cs, _) ->
+  case cs of
+    [] ->  Many [] (LastFail (length cs) [] [("nextToken", [])])
+    c:_ -> Many [(c, t)] noFail
 
 inject :: forall s t . [t] -> Prsr s t ()
 inject s = P $ \ (cs, st) -> Many [((), (s ++ cs, st))] noFail
