@@ -13,8 +13,9 @@ import Unsafe.Coerce
 --Yimport PrimTable
 
 import MicroHs.Desugar
-import MicroHs.Expr
+import MicroHs.Expr --X(Lit(..))
 import MicroHs.Exp
+import MicroHs.Ident
 
 translate :: (Ident, [LDef]) -> IO ()
 translate (mainName, ds) =

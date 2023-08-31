@@ -12,7 +12,8 @@ module MicroHs.Exp(
 import Prelude
 import Data.Char
 import Data.List
-import MicroHs.Expr
+import MicroHs.Ident
+import MicroHs.Expr --X(Lit(..), showLit)
 --Ximport Compat
 --import Debug.Trace
 

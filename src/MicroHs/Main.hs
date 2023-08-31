@@ -6,11 +6,12 @@ import Prelude
 import qualified MicroHs.StringMapFast as M
 import Data.Maybe
 import System.Environment
+import MicroHs.Compile
+import MicroHs.Desugar
 import MicroHs.Expr
 import MicroHs.Exp
-import MicroHs.Compile
+import MicroHs.Ident
 import MicroHs.Translate
-import MicroHs.Desugar
 --Ximport Compat
 
 main :: IO ()
@@ -77,4 +78,4 @@ compileTop flags mn = do
   t2 <- getTimeMilli
   when (verbose flags > 0) $
     putStrLn $ "combinator conversion " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
-  return (qual mn (mkIdent "main"), dsn)
+  return (qualIdent mn (mkIdent "main"), dsn)

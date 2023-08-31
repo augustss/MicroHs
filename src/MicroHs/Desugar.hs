@@ -18,6 +18,7 @@ import Control.Monad.State.Strict as S --Xhiding(ap)
 
 import MicroHs.Expr
 import MicroHs.Exp
+import MicroHs.Ident
 import MicroHs.TypeCheck
 
 type LDef = (Ident, Exp)
@@ -37,9 +38,9 @@ dsDef mn adef =
         dsConstr i (c, ts) =
           let
             xs = [mkIdent ("$x" ++ showInt j) | (j, _) <- zip (enumFrom 0) ts]
-          in (qual mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
+          in (qualIdent mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
       in  zipWith dsConstr (enumFrom 0) cs
-    Newtype _ c _ -> [ (qual mn c, Lit (LPrim "I")) ]
+    Newtype _ c _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
     Fcn f eqns -> [(f, dsEqns eqns)]
     Sign _ _ -> []
@@ -191,7 +192,7 @@ dsLam ps e =
 mqual :: Maybe Ident -> Ident -> Ident
 mqual mqi i =
   case mqi of
-    Just qi -> qual qi i
+    Just qi -> qualIdent qi i
     Nothing -> i
 
 -- Handle special syntax for lists and tuples

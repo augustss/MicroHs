@@ -1,7 +1,4 @@
 module MicroHs.Expr(
-  Ident, mkIdent, mkIdentLoc, unIdent, eqIdent, qual, showIdent,
-  SLoc(..),
-  Line, Col, Loc,
   IdentModule,
   EModule(..),
   ExportSpec(..),
@@ -28,41 +25,13 @@ module MicroHs.Expr(
   allVarsExpr, allVarsBind
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
-import Data.Char
 import Data.List
 import Data.Maybe
 --Ximport Compat
 --Ximport GHC.Stack
+import MicroHs.Ident
 
-type Line = Int
-type Col  = Int
-type Loc  = (Line, Col)
---type SLoc = (FilePath, Loc)
-
-data SLoc = SLoc FilePath Line Col
-  --Xderiving (Show, Eq)
-
-noSLoc :: SLoc
-noSLoc = SLoc "" 0 0
-
---noLoc :: Loc
---noLoc = (0,0)
-
-data Ident = Ident SLoc String
-  --Xderiving (Show, Eq)
 type IdentModule = Ident
-
-mkIdent :: String -> Ident
-mkIdent = Ident noSLoc
-
-mkIdentLoc :: FilePath -> Loc -> String -> Ident
-mkIdentLoc fn (l, c) s = Ident (SLoc fn l c) s
-
-unIdent :: Ident -> String
-unIdent (Ident _ s) = s
-
-eqIdent :: Ident -> Ident -> Bool
-eqIdent (Ident _ i) (Ident _ j) = eqString i j
 
 ----------------------
 
@@ -75,15 +44,6 @@ data ExportSpec
   | ExpType Ident
   | ExpValue Ident
   --Xderiving (Show, Eq)
-
-qual :: Ident -> Ident -> Ident
-qual (Ident loc qi) (Ident _ i) = Ident loc (qi ++ "." ++ i)
-
-isConIdent :: Ident -> Bool
-isConIdent (Ident _ i) =
-  let
-    c = head i
-  in isUpper c || eqChar c ':' || eqChar c ',' || eqString i "[]"  || eqString i "()"
 
 data EDef
   = Data LHS [Constr]
@@ -311,9 +271,6 @@ showExportSpec ae =
     ExpValue i -> i
 -}
 
-showIdent :: Ident -> String
-showIdent (Ident _ i) = i
-
 showEDef :: EDef -> String
 showEDef def =
   case def of
@@ -349,13 +306,8 @@ showAlt sep (ss, e) = " | " ++ concat (intersperse ", " (map showEStmt ss)) ++ "
 showExpr :: Expr -> String
 showExpr ae =
   case ae of
---X    EVar (Ident _ "Primitives.Char") -> "Char"
---X    EVar (Ident _ "Primitives.->") -> "(->)"
---X    EApp (EApp (EVar (Ident _ "Primitives.->")) a) b -> "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
---X    EApp (EVar (Ident _ "Data.List.[]")) a -> "[" ++ showExpr a ++ "]"
---X    EApp (EApp (EVar (Ident _ ",")) a) b -> showExpr (ETuple [a,b])
     EVar v -> showIdent v
-    EApp f a -> "(" ++ showExpr f ++ " " ++ showExpr a ++ ")"
+    EApp _ _ -> showApp [] ae
     ELam ps e -> "(\\" ++ unwords (map showExpr ps) ++ " -> " ++ showExpr e ++ ")"
     ELit i -> showLit i
     ECase e as -> "case " ++ showExpr e ++ " of {\n" ++ unlines (map showCaseArm as) ++ "}"
@@ -370,7 +322,13 @@ showExpr ae =
     EAt i e -> showIdent i ++ "@" ++ showExpr e
     EUVar i -> "a" ++ showInt i
     ECon c -> showCon c
-
+  where
+    showApp as (EApp f a) = showApp (as ++ [a]) f
+    showApp as (EVar i) | eqString op "->", [a, b] <- as = "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
+                        | eqChar (head op) ',' = "(" ++ intercalate ", " (map showExpr as) ++ ")"
+                        | eqString op "[]", [a] <- as = "[" ++ showExpr a ++ "]"
+                        where op = unQualString (unIdent i)
+    showApp as f = "(" ++ unwords (map showExpr (f:as)) ++ ")"
 showCon :: Con -> String
 showCon (ConData _ s) = showIdent s
 showCon (ConNew s) = showIdent s

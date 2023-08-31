@@ -8,7 +8,7 @@ module MicroHs.IdentMap(
   toList, elems
   ) where
 import Prelude --Xhiding(lookup)
-import MicroHs.Expr --X(Ident, eqIdent)
+import MicroHs.Ident
 
 {-
 import qualified Data.Map as M

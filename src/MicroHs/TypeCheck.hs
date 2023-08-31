@@ -10,6 +10,7 @@ import Data.Maybe
 import qualified Data.IntMap as IM
 import MicroHs.TCMonad as T
 import qualified MicroHs.IdentMap as M
+import MicroHs.Ident
 import MicroHs.Expr
 --Ximport Compat
 --Ximport GHC.Stack
@@ -113,23 +114,23 @@ mkTModule mn tds a =
   let
     con ci it vs (ic, ts) =
       let
-        e = ECon $ ConData ci (qual mn ic)
-      in ValueExport ic $ Entry e (ETypeScheme vs (foldr tArrow (tApps (qual mn it) (map tVar vs)) ts))
+        e = ECon $ ConData ci (qualIdent mn ic)
+      in ValueExport ic $ Entry e (ETypeScheme vs (foldr tArrow (tApps (qualIdent mn it) (map tVar vs)) ts))
     cons i vs cs =
       let
-        ci = [ (qual mn c, length ts) | (c, ts) <- cs ]
+        ci = [ (qualIdent mn c, length ts) | (c, ts) <- cs ]
       in map (con ci i vs) cs
     conn it vs ic t =
       let
-        e = ECon $ ConNew (qual mn ic)
-      in [ValueExport ic $ Entry e (ETypeScheme vs (tArrow t (tApps (qual mn it) (map tVar vs))))]
-    tentry i vs = Entry (EVar (qual mn i)) (ETypeScheme [] $ lhsKind vs)
-    ves = [ ValueExport i (Entry (EVar (qual mn i)) ts) | Sign i ts <- tds ]
+        e = ECon $ ConNew (qualIdent mn ic)
+      in [ValueExport ic $ Entry e (ETypeScheme vs (tArrow t (tApps (qualIdent mn it) (map tVar vs))))]
+    tentry i vs = Entry (EVar (qualIdent mn i)) (ETypeScheme [] $ lhsKind vs)
+    ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign i ts <- tds ]
     tes =
       [ TypeExport i (tentry i vs) (cons i vs cs)  | Data (i, vs) cs <- tds ] ++
       [ TypeExport i (tentry i vs) (conn i vs c t) | Newtype (i, vs) c t <- tds ] ++
       [ TypeExport i (tentry i vs) []              | Type (i, vs) _  <- tds ]
-    ses = [ (qual mn i, ETypeScheme vs t) | Type (i, vs) t  <- tds ]
+    ses = [ (qualIdent mn i, ETypeScheme vs t) | Type (i, vs) t  <- tds ]
   in  TModule mn tes ses ves a
 
 mkTables :: forall a . [(ImportSpec, TModule a)] -> (TypeTable, SynTable, ValueTable)
@@ -140,7 +141,7 @@ mkTables mdls =
         ImportSpec q _ mas ->
           let
             m = fromMaybe mn mas
-          in  if q then [qual m i] else [i, qual m i]
+          in  if q then [qualIdent m i] else [i, qualIdent m i]
     --XallValues :: M.Map [Entry]
     allValues =
       let
@@ -466,7 +467,7 @@ extQVal :: --XHasCallStack =>
            Ident -> ETypeScheme -> T ()
 extQVal i t = T.do
   mn <- gets moduleName
-  extValE i t (EVar $ qual mn i)
+  extValE i t (EVar $ qualIdent mn i)
 
 extVal :: --XHasCallStack =>
           Ident -> ETypeScheme -> T ()
@@ -553,7 +554,7 @@ addTypeSyn adef =
     Type (i, vs) t -> T.do
       extSyn i (ETypeScheme vs t)
       mn <- gets moduleName
-      extSyn (qual mn i) (ETypeScheme vs t)
+      extSyn (qualIdent mn i) (ETypeScheme vs t)
     _ -> T.return ()
 
 tcDefType :: EDef -> T EDef
@@ -592,18 +593,18 @@ addValueType adef = T.do
   case adef of
     Sign i t -> T.do
       extQVal i t
-      extVal (qual mn i) t
+      extVal (qualIdent mn i) t
     Data (i, vs) cs -> T.do
       let
-        cti = [ (qual mn c, length ts) | (c, ts) <- cs ]
-        tret = foldl tApp (tCon (qual mn i)) (map tVar vs)
+        cti = [ (qualIdent mn c, length ts) | (c, ts) <- cs ]
+        tret = foldl tApp (tCon (qualIdent mn i)) (map tVar vs)
         addCon (c, ts) =
-          extValE c (ETypeScheme vs $ foldr tArrow tret ts) (ECon $ ConData cti (qual mn c))
+          extValE c (ETypeScheme vs $ foldr tArrow tret ts) (ECon $ ConData cti (qualIdent mn c))
       T.mapM_ addCon cs
     Newtype (i, vs) c t -> T.do
       let
-        tret = foldl tApp (tCon (qual mn i)) (map tVar vs)
-      extValE c (ETypeScheme vs $ tArrow t tret) (ECon $ ConNew (qual mn c))
+        tret = foldl tApp (tCon (qualIdent mn i)) (map tVar vs)
+      extValE c (ETypeScheme vs $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
     _ -> T.return ()
 
 tcDefValue :: --XHasCallStack =>
@@ -618,9 +619,9 @@ tcDefValue adef =
       mn <- gets moduleName
       teqns <- withExtTyps vks $ tcEqns tfn eqns
                --tcExpr (Just t) $ ELam (map EVar vs) rhs
-      T.return $ Fcn (qual mn i) teqns
+      T.return $ Fcn (qualIdent mn i) teqns
 --      (et, _) <- withExtTyps vks (tcExpr (Just t) (foldr eLam1 rhs vs))
---      T.return (Fcn (qual mn i, vs) (dropLam (length vs) et))
+--      T.return (Fcn (qualIdent mn i, vs) (dropLam (length vs) et))
     _ -> T.return adef
 
 tcType :: Maybe EKind -> EType -> T (Typed EType)
@@ -686,7 +687,7 @@ tcExprR mt ae =
               SThen a -> T.do
                 (ea, ta) <- tcExpr mt a
                 let
-                  sbind = maybe (mkIdent ">>=") (\ mn -> qual mn (mkIdent ">>=")) mmn
+                  sbind = maybe (mkIdent ">>=") (\ mn -> qualIdent mn (mkIdent ">>=")) mmn
                 (EVar qi, _) <- tLookupInst "variable" sbind 
                 let
                   mn = moduleOf qi
@@ -697,7 +698,7 @@ tcExprR mt ae =
             case as of
               SBind p a -> T.do
                 let
-                  sbind = maybe (mkIdent ">>=") (\ mn -> qual mn (mkIdent ">>=")) mmn
+                  sbind = maybe (mkIdent ">>=") (\ mn -> qualIdent mn (mkIdent ">>=")) mmn
                 (EApp (EApp _ ea) (ELam _ (ECase _ ((ep, EAlts [(_, EDo mn ys)] _): _)))
                  , tr) <-
                   tcExpr Nothing (EApp (EApp (EVar sbind) a)
@@ -705,7 +706,7 @@ tcExprR mt ae =
                 T.return (EDo mn (SBind ep ea : ys), tr)
               SThen a -> T.do
                 let
-                  sthen = maybe (mkIdent ">>") (\ mn -> qual mn (mkIdent ">>") ) mmn
+                  sthen = maybe (mkIdent ">>") (\ mn -> qualIdent mn (mkIdent ">>") ) mmn
                 (EApp (EApp _ ea) (EDo mn ys), tr) <-
                   tcExpr Nothing (EApp (EApp (EVar sthen) a) (EDo mmn ss))
                 T.return (EDo mn (SThen ea : ys), tr)

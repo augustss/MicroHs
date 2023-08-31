@@ -14,6 +14,7 @@ import qualified MicroHs.IdentMap as M
 import MicroHs.StateIO as S
 import MicroHs.Desugar
 import MicroHs.Expr
+import MicroHs.Ident
 import MicroHs.Parse
 import MicroHs.TypeCheck
 

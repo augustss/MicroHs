@@ -2,13 +2,12 @@ module MicroHs.Lex(
   lexTop,
   Token(..), Line, Col,
   Loc, getCol, getLin,
-  isLower_,
   tokensLoc) where
 import Prelude --Xhiding(lex, showChar)
 import Data.Char
 --Ximport Compat
 --import Debug.Trace
-import MicroHs.Expr --X(Line, Col, Loc)
+import MicroHs.Ident
 
 data Token
   = TIdent  Loc [String] String
@@ -72,10 +71,10 @@ lex loc ('-':'-':cs) | isComm rs = skipLine (addCol loc $ 2+length ds) cs
   where {
     (ds, rs) = span (eqChar '-') cs;
     isComm [] = True;
-    isComm (d:_) = not (isOper d)
+    isComm (d:_) = not (isOperChar d)
     }
 lex loc (d:cs) | isLower_ d =
-  case span isIdent cs of
+  case span isIdentChar cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('-':d:cs) | isDigit d =
@@ -84,8 +83,8 @@ lex loc ('-':d:cs) | isDigit d =
 lex loc (d:cs) | isDigit d =
   case span isDigit cs of
     (ds, rs) -> TInt loc (readInt (d:ds)) : lex (addCol loc $ 1 + length ds) rs
-lex loc (d:cs) | isOper d  =
-  case span isOper cs of
+lex loc (d:cs) | isOperChar d  =
+  case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
 lex loc (d:cs) | isSpec d  = TSpec loc d : lex (addCol loc 1) cs
 lex loc ('"':cs) =
@@ -132,27 +131,18 @@ decodeChar n ('t':cs) = ('\t', n+1, cs)
 decodeChar n (c  :cs) = (c,    n+1, cs)
 decodeChar n []       = ('X',  n,   [])
 
-isOper :: Char -> Bool
-isOper c = elemBy eqChar c "@\\=+-:<>.!#$%^&*/|~?"
-
 isSpec :: Char -> Bool
 isSpec c = elemBy eqChar c "()[],{}`;"
-
-isIdent :: Char -> Bool
-isIdent c = isLower_ c || isUpper c || isDigit c || eqChar c '\''
-
-isLower_ :: Char -> Bool
-isLower_ c = isLower c || eqChar c '_'
 
 upperIdent :: Loc -> Loc -> [String] -> String -> [Token]
 --upperIdent l c qs acs | trace (show (l, c, qs, acs)) False = undefined
 upperIdent loc sloc qs acs =
-  case span isIdent acs of
+  case span isIdentChar acs of
    (ds, rs) ->
     case rs of
-      '.':cs@(d:_) | isUpper d -> upperIdent (addCol loc $ 1 + length ds) sloc (ds:qs) cs
-                   | isLower d -> ident isIdent
-                   | isOper  d -> ident isOper
+      '.':cs@(d:_) | isUpper d    -> upperIdent (addCol loc $ 1 + length ds) sloc (ds:qs) cs
+                   | isLower d    -> ident isIdentChar
+                   | isOperChar d -> ident isOperChar
          where {
            ident p =
              case span p cs of

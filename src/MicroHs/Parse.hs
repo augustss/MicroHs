@@ -13,6 +13,7 @@ import Text.ParserComb as P
 --import MicroHs.Lex
 import MicroHs.Lex
 import MicroHs.Expr
+import MicroHs.Ident
 --Ximport Compat
 
 
