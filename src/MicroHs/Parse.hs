@@ -527,13 +527,11 @@ qualName fn loc qs s = mkIdentLoc fn loc (intercalate "." (qs ++ [s]))
 formatFailed :: String -> [Token] -> LastFail Token -> String
 formatFailed fn _fs _lf@(LastFail _ ts _msgs) =
   let
-    loc = tokensLoc ts
-    line = getLin loc
-    col = getCol loc
+    (line, col) = tokensLoc ts
   in
     showString fn ++ ": "
          ++ "line " ++ showInt line ++ ", col " ++ showInt col ++ ":\n"
---         ++ "   found: " ++ tokenString (head ts)
+         ++ "   found: " ++ showToken (head ts)  -- XXX head
 --X         ++ show _lf ++ "\n"
 --X         ++ show _fs
 

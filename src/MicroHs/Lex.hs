@@ -1,10 +1,10 @@
 module MicroHs.Lex(
   lexTop,
-  Token(..), Line, Col,
-  Loc, getCol, getLin,
+  Token(..), showToken,
   tokensLoc) where
-import Prelude --Xhiding(lex, showChar)
+import Prelude --Xhiding(lex, showChar, showString)
 import Data.Char
+import Data.List
 --Ximport Compat
 --import Debug.Trace
 import MicroHs.Ident
@@ -20,6 +20,16 @@ data Token
   | TIndent Loc
   --Xderiving (Show)
 
+showToken :: Token -> String
+showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])
+showToken (TString _ s) = showString s
+showToken (TChar _ c) = showChar c
+showToken (TInt _ i) = showInt i
+showToken (TSpec _ c) = [c]
+showToken (TError _ s) = "ERROR " ++ s
+showToken (TBrace _) = "TBrace"
+showToken (TIndent _) = "TIndent"
+
 incrLine :: Loc -> Loc
 incrLine (l, _) = (l+1, 1)
 
@@ -32,8 +42,8 @@ mkLoc l c = (l, c)
 getCol :: Loc -> Col
 getCol (_, c) = c
 
-getLin :: Loc -> Col
-getLin (l, _) = l
+--getLin :: Loc -> Col
+--getLin (l, _) = l
 
 {-  This is slower and allocates more.
     It needs some strictness, probably
