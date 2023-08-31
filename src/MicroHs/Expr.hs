@@ -132,12 +132,6 @@ type EAlt = ([EStmt], Expr)
 
 type ConTyInfo = [(Ident, Int)]    -- All constructors with their arities
 
-{-
-data EPat
-  = PConstr ConTyInfo Ident [EPat]
-  | PVar Ident
-  --Xderiving (Show, Eq)
--}
 type EPat = Expr
 
 isPVar :: EPat -> Bool
@@ -175,11 +169,6 @@ data ETypeScheme = ETypeScheme [Ident] EType
   --Xderiving (Show, Eq)
 
 type EKind = EType
-
-{-
-leIdent :: Ident -> Ident -> Bool
-leIdent = leString
--}
 
 tupleConstr :: Int -> Ident
 tupleConstr n = mkIdent (replicate (n - 1) ',')
@@ -325,15 +314,15 @@ showExpr ae =
   where
     showApp as (EApp f a) = showApp (as ++ [a]) f
     showApp as (EVar i) | eqString op "->", [a, b] <- as = "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
-                        | eqChar (head op) ',' = "(" ++ intercalate ", " (map showExpr as) ++ ")"
-                        | eqString op "[]", [a] <- as = "[" ++ showExpr a ++ "]"
+                        | eqChar (head op) ',' = showExpr (ETuple as)
+                        | eqString op "[]", length as == 1 = showExpr (EList as)
                         where op = unQualString (unIdent i)
     showApp as f = "(" ++ unwords (map showExpr (f:as)) ++ ")"
+
 showCon :: Con -> String
 showCon (ConData _ s) = showIdent s
 showCon (ConNew s) = showIdent s
 showCon (ConLit l) = showLit l
---showCon (ConTup n) = "(" ++ tupleConstr n ++ ")"
 
 showLit :: Lit -> String
 showLit l =
