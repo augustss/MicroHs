@@ -5,13 +5,10 @@
   - Add fixity table to TModule
 * Put on hackage
 * Have compile return a Stats record of timing etc
-* Add location to Ident
-  - with file name
 * Prettier printing of types
-  - unqualIdent
-* Report location in type errors
 * Special noMatch function with location
 * Add overloading
+* Implement deriving
 * Add forall to the syntax of types so it can be nested
 * Implement mutual recursion in let
   - Use SCC
@@ -30,3 +27,4 @@
 * use pointer stack during GC instead of recursion.
 * add Double primitive type
 * implement Data.Integer
+* add pretty printing library
