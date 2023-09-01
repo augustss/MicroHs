@@ -135,6 +135,7 @@ $(BIN)/umhs: $(BIN)/cmhs
 
 # Test that the compiler can bootstrap
 bootstraptest: $(EVAL)
+	@mkdir -p tmp
 	@echo Build stage 1 with distribution combinator file
 	$(EVAL) +RTS -rcomb/mhs.comb  -RTS -ilib -isrc -otmp/mhs.comb.1 MicroHs.Main
 	@echo Build stage 2 with output from stage 1
