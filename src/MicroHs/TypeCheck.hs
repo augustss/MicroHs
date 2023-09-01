@@ -436,7 +436,8 @@ tLookup :: String -> Ident -> T (Expr, ETypeScheme)
 tLookup msg i = T.do
   env <- gets valueTable
   case M.lookup i env of
-    Nothing -> error $ "undefined, " ++ msg ++ ": " ++ showIdent i -- ++ "\n" ++ show env ;
+    Nothing -> error $ showSLoc (getSLocIdent i) ++ ": undefined " ++ msg ++ ": " ++ showIdent i
+               -- ++ "\n" ++ show env ;
     Just aes ->
       case aes of
         [] -> impossible
