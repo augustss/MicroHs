@@ -18,8 +18,9 @@ extra-source-files:
       Example.hs
       Makefile
       README.md
-      convertX.sh
-      convertY.sh
+      Tools/convertX.sh
+      Tools/convertY.sh
+      Tools/Addcombs.hs
       comb/*.comb
       ghc/Primitives.hs
       ghc/Data/Bool_Type.hs
@@ -36,7 +37,7 @@ source-repository head
 executable mhs
   default-language:    Haskell98
   hs-source-dirs:      src
-  ghc-options:         -Wall -F -pgmF ./convertX.sh -main-is MicroHs.Main
+  ghc-options:         -Wall -F -pgmF ./Tools/convertX.sh -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
   default-extensions:  ScopedTypeVariables QualifiedDo
   other-modules:       MicroHs.Compile

@@ -1,14 +1,15 @@
 BIN=bin
 BOOTDIR=ghc-boot
 OUTDIR=ghc-out
+TOOLS=Tools
 PROF= #-prof -fprof-auto
 EXTS= -XScopedTypeVariables -XQualifiedDo
 GHCB=ghc $(PROF) -outputdir $(BOOTDIR)
-GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude $(EXTS) -F -pgmF ./convertY.sh 
+GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude $(EXTS) -F -pgmF $(TOOLS)/convertY.sh 
 GHCC=$(GHCB) $(GHCFLAGS)
 GHC=ghc
 # $(CURDIR) might not be quite right
-GHCE=$(GHC) $(EXTS) -package mtl -F -pgmF ./convertX.sh -outputdir $(OUTDIR)
+GHCE=$(GHC) $(EXTS) -package mtl -F -pgmF Tools/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
 UPX=upx
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
@@ -28,10 +29,10 @@ $(EVAL):	src/runtime/eval.c
 	@mkdir -p bin
 	$(GCC) -Wall -O3 src/runtime/eval.c -o $(EVAL)
 
-$(BIN)/$(MHS):	src/*.hs src/*/*.hs convertX.sh
+$(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
 	$(GHCE) -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
-$(BIN)/boot$(MHS):	$(ALLSRC) convertY.sh
+$(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
@@ -115,7 +116,7 @@ examplecomb:	$(EVAL) $(COMB)$(MHS).comb Example.hs
 	$(EVAL) +RTS -r$(COMB)$(MHS).comb -RTS -r -ilib Example
 
 clean:
-	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR) tmp/eval.c
+	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR) tmp/eval.c Tools/*.o Tools/*.hi
 	cd tests; make clean
 
 $(BIN)/addcombs:	Tools/Addcombs.hs
