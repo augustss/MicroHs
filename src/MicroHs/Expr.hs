@@ -22,7 +22,8 @@ module MicroHs.Expr(
   Con(..), conIdent, conArity, eqCon,
   tupleConstr, untupleConstr,
   subst,
-  allVarsExpr, allVarsBind
+  allVarsExpr, allVarsBind,
+  getSLocExpr
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
 import Data.List
@@ -239,6 +240,10 @@ allVarsStmt astmt =
     SBind p e -> allVarsPat p ++ allVarsExpr e
     SThen e -> allVarsExpr e
     SLet bs -> concatMap allVarsBind bs
+
+-- XXX Should use locations in ELit
+getSLocExpr :: Expr -> SLoc
+getSLocExpr e = head $ map getSLocIdent (allVarsExpr e) ++ [noSLoc]
 
 ----------------
 

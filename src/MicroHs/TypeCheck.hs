@@ -326,9 +326,9 @@ addUVar i t = T.do
     _ -> add
 
 munify :: --XHasCallStack =>
-          Maybe EType -> EType -> T ()
-munify Nothing _ = T.return ()
-munify (Just a) b = unify a b
+          SLoc -> Maybe EType -> EType -> T ()
+munify _ Nothing _ = T.return ()
+munify loc (Just a) b = unify loc a b
 
 expandType :: --XHasCallStack =>
               EType -> T EType
@@ -372,25 +372,26 @@ derefUVar at =
     _ -> impossible
 
 unify :: --XHasCallStack =>
-         EType -> EType -> T ()
-unify a b = T.do
+         SLoc -> EType -> EType -> T ()
+unify loc a b = T.do
 --  traceM ("unify1 " ++ showExpr a ++ " = " ++ showExpr b)
   aa <- expandType a
   bb <- expandType b
 --  traceM ("unify2 " ++ showExpr aa ++ " = " ++ showExpr bb)
-  unifyR aa bb
+  unifyR loc aa bb
   
 unifyR :: --XHasCallStack =>
-          EType -> EType -> T ()
-unifyR a b = T.do
+          SLoc -> EType -> EType -> T ()
+unifyR loc a b = T.do
 --  venv <- gets valueTable
 --  tenv <- gets typeTable
---X  senv <- gets synTable
+--  senv <- gets synTable
   let
-    bad = error $ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n"
---X                    ++ show a ++ " - " ++ show b ++ "\n"
+    bad = error $ showSLoc loc ++ ": "
+                      ++ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n"
+--                    ++ show a ++ " - " ++ show b ++ "\n"
 --                    ++ show tenv ++ "\n"
---X                    ++ show senv
+--                    ++ show senv
   case a of
     EVar ia ->
       case b of
@@ -401,7 +402,7 @@ unifyR a b = T.do
     EApp fa xa ->
       case b of
         EVar _     -> bad
-        EApp fb xb -> T.do { unify fa fb; unify xa xb }
+        EApp fb xb -> T.do { unify loc fa fb; unify loc xa xb }
         EUVar i    -> addUVar i a
         _          -> impossible
     EUVar i -> addUVar i b
@@ -647,7 +648,7 @@ tcExprR mt ae =
       else T.do
         (e, t) <- tLookupInst "variable" i
 --        traceM $ "*** " ++ i ++ " :: " ++ showExpr t ++ " = " ++ showMaybe showExpr mt
-        munify mt t
+        munify (getSLocIdent i) mt t
         T.return (e, t)
     EApp f a -> T.do
       (ea, ta) <- tcExpr Nothing a
@@ -668,7 +669,7 @@ tcExprR mt ae =
       (ees, tes) <- T.fmap unzip (T.mapM (tcExpr Nothing) es)
       let
         ttup = tApps (tupleConstr n) tes
-      munify mt ttup
+      munify (getSLocExpr ae) mt ttup
       T.return (ETuple ees, ttup)
     EList es -> T.do
       (ees, ts) <- T.fmap unzip (T.mapM (tcExpr Nothing) es)
@@ -677,7 +678,7 @@ tcExprR mt ae =
               t : _ -> T.return t
       let
         tlist = tApps (mkIdent "Data.List.[]") [te]
-      munify mt tlist
+      munify (getSLocExpr ae) mt tlist
       T.return (EList ees, tlist)
     EDo mmn ass -> T.do
       case ass of
@@ -727,7 +728,7 @@ tcExprR mt ae =
       (ee1, _) <- tcExpr (Just tBool) e1
       (ee2, te2) <- tcExpr mt e2
       (ee3, te3) <- tcExpr mt e3
-      unify te2 te3
+      unify (getSLocExpr ae) te2 te3
       T.return (EIf ee1 ee2 ee3, te2)
     ECompr eret ass -> T.do
       let
@@ -753,12 +754,12 @@ tcExprR mt ae =
       (rss, (ea, ta)) <- doStmts [] ass
       let
         tr = tApp tList ta
-      munify mt tr
+      munify (getSLocExpr ae) mt tr
       T.return (ECompr ea rss, tr)
     EAt i e -> T.do
       (ee, t) <- tcExpr mt e
       (_, ti) <- tLookupInst "impossible!" i
-      unify t ti
+      unify (getSLocExpr ae) t ti
       T.return (EAt i ee, t)
     -----
     EUVar _ -> impossible -- shouldn't happen
@@ -766,7 +767,7 @@ tcExprR mt ae =
 
 tcLit :: Maybe EType -> SLoc -> Lit -> T (Typed Expr)
 tcLit mt loc l =
-  let { lit t = T.do { munify mt t; T.return (ELit loc l, t) } } in
+  let { lit t = T.do { munify loc mt t; T.return (ELit loc l, t) } } in
   case l of
     LInt _ -> lit (tConI "Primitives.Int")
     LChar _ -> lit (tConI "Primitives.Char")
@@ -775,21 +776,21 @@ tcLit mt loc l =
       t <- unMType mt  -- pretend it is anything
       T.return (ELit loc l, t)
 
-unArrow :: Maybe EType -> T (EType, EType)
-unArrow Nothing = T.do { a <- newUVar; r <- newUVar; T.return (a, r) }
-unArrow (Just t) =
+unArrow :: SLoc -> Maybe EType -> T (EType, EType)
+unArrow _ Nothing = T.do { a <- newUVar; r <- newUVar; T.return (a, r) }
+unArrow loc (Just t) =
   case getArrow t of
     Just ar -> T.return ar
     Nothing -> T.do
       a <- newUVar
       r <- newUVar
-      unify t (tArrow a r)
+      unify loc t (tArrow a r)
       T.return (a, r)
 
 tcPats :: forall a . EType -> [EPat] -> (EType -> [Typed EPat] -> T a) -> T a
 tcPats t [] ta = ta t []
 tcPats t (p:ps) ta = T.do
-  (tp, tr) <- unArrow (Just t)
+  (tp, tr) <- unArrow (getSLocExpr p) (Just t)
   tcPat tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt ((pp, tp) : pps)
 
 tcExprLam :: Maybe EType -> [EPat] -> Expr -> T (Typed Expr)
