@@ -8,6 +8,7 @@ import Data.Time.Clock.POSIX
 import qualified Control.Monad as M
 import Control.Exception
 import Data.List
+import System.Environment
 import System.IO
 
 -- Functions needed for ghc
@@ -132,3 +133,9 @@ spanUntil p =
     rec r [] = (reverse r, [])
     rec r (x:xs) = if p x then rec (x:r) xs else (reverse (x:r), xs)
   in rec []
+
+-- A hack until we have a real withArgs
+withDropArgs :: Int -> IO a -> IO a
+withDropArgs i ioa = do
+  as <- getArgs
+  withArgs (drop i as) ioa

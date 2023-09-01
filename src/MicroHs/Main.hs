@@ -16,8 +16,9 @@ import MicroHs.Translate
 
 main :: IO ()
 main = do
-  args <- getArgs
+  aargs <- getArgs
   let
+    args = takeWhile (not . eqString "--") aargs
     mn =
       let
         ss = filter (not . (eqString "-") . take 1) args

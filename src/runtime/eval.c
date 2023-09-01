@@ -89,7 +89,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_ERROR, T_SEQ,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE,
-                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_PERFORMIO,
+                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
+                T_IO_PERFORMIO,
                 T_IO_GETTIMEMILLI, T_IO_PRINT,
                 T_STR,
                 T_LAST_TAG,
@@ -389,6 +390,7 @@ struct {
   { "IO.stdout", T_IO_STDOUT },
   { "IO.stderr", T_IO_STDERR },
   { "IO.getArgs", T_IO_GETARGS },
+  { "IO.dropArgs", T_IO_DROPARGS },
   { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
 };
@@ -1005,6 +1007,7 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_CLOSE: fprintf(f, "$IO.close"); break;
   case T_IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
   case T_IO_GETARGS: fprintf(f, "$IO.getArgs"); break;
+  case T_IO_DROPARGS: fprintf(f, "$IO.dropArgs"); break;
   case T_IO_GETTIMEMILLI: fprintf(f, "$IO.getTimeMilli"); break;
   case T_IO_PERFORMIO: fprintf(f, "$IO.performIO"); break;
   default: ERR("print tag");
@@ -1320,6 +1323,7 @@ eval(NODEPTR n)
     case T_IO_OPEN:
     case T_IO_CLOSE:
     case T_IO_GETARGS:
+    case T_IO_DROPARGS:
     case T_IO_GETTIMEMILLI:
       RET;
 
@@ -1478,6 +1482,14 @@ evalio(NODEPTR n)
         }
       }
       RETIO(n);
+    case T_IO_DROPARGS:
+      CHECKIO(1);
+      c = (int)evalint(ARG(TOP(1)));
+      if (c > glob_argc)
+        c = glob_argc;
+      glob_argc -= c;
+      glob_argv += c;
+      RETIO(combUnit);
     case T_IO_GETTIMEMILLI:
       CHECKIO(0);
       GCCHECK(1);

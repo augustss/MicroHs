@@ -115,7 +115,12 @@ primStderr       :: Handle
 primStderr        = primitive "IO.stderr"
 primGetArgs      :: IO [[Char]]
 primGetArgs       = primitive "IO.getArgs"
+primDropArgs     :: Int -> IO ()
+primDropArgs      = primitive "IO.dropArgs"
 primPerformIO    :: forall a . IO a -> a
 primPerformIO     = primitive "IO.performIO"
 primGetTimeMilli :: IO Int
 primGetTimeMilli  = primitive "IO.getTimeMilli"
+
+primWithDropArgs :: forall a . Int -> IO a -> IO a
+primWithDropArgs i ioa = primThen (primDropArgs i) ioa

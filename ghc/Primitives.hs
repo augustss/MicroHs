@@ -148,7 +148,12 @@ primHClose        = hClose
 primStdin         = stdin
 primStdout        = stdout
 primStderr        = stderr
+primGetArgs      :: IO [[Char]]
 primGetArgs       = getArgs
+primWithDropArgs :: Int -> IO a -> IO a
+primWithDropArgs i ioa = do
+  as <- getArgs
+  withArgs (drop i as) ioa
 primPerformIO    :: IO a -> a
 primPerformIO     = unsafePerformIO
 -- Current time (since 1970-01-01T00:00:00UTC) in ms

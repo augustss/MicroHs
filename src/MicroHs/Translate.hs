@@ -6,6 +6,7 @@ module MicroHs.Translate(
 import Prelude
 import Data.Maybe
 import qualified MicroHs.IdentMap as M
+import System.Environment
 --Ximport GHC.Types
 import Unsafe.Coerce
 --Ximport Compat
@@ -18,13 +19,17 @@ import MicroHs.Exp
 import MicroHs.Ident
 
 translate :: (Ident, [LDef]) -> IO ()
-translate (mainName, ds) =
+translate (mainName, ds) = do
   let
     --Xlook :: M.Map Any -> Ident -> Any
     look m n = fromMaybe (error $ "not found " ++ showIdent n) $ M.lookup n m
     --Xmp :: M.Map Any
     mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
-  in  unsafeCoerce $ look mp mainName
+  -- Drop all argument up to '--'
+  args <- getArgs
+  let prog = unsafeCoerce $ look mp mainName
+  withDropArgs (length (takeWhile (not . eqString "--") args) + 1)
+    prog
 
 trans :: (Ident -> Any) -> Exp -> Any
 trans r ae =
@@ -88,5 +93,6 @@ primTable = [
   ("IO.stdout", primitive "IO.stdout"),
   ("IO.stderr", primitive "IO.stderr"),
   ("IO.getArgs", primitive "IO.getArgs"),
+  ("IO.dropArgs", primitive "IO.dropArgs"),
   ("IO.performIO", primitive "IO.performIO")
   ]

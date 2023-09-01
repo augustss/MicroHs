@@ -15,7 +15,8 @@ showChunk = concatMap (\ c -> showInt (ord c) ++ ",")
 main :: IO ()
 main = do
   args <- getArgs
-  file <- readFile (head args)
+  let fn = case args of { [a] -> a; _ -> error "Usage: Addcombs file" }
+  file <- readFile fn
   let size = length file
       chunks = chunkify 20 file
   putStrLn $ "struct { size_t b_size; size_t b_pos; uint8_t b_buffer[]; } combs = { " ++ showInt size ++ ", 0, {"
