@@ -1,4 +1,6 @@
-module Main where
+module Addcombs(main) where
+import Prelude
+import Data.Char
 import System.Environment
 
 chunkify :: Int -> [Char] -> [[Char]]
@@ -8,7 +10,7 @@ chunkify n xs =
   in  as : chunkify n bs
 
 showChunk :: [Char] -> String
-showChunk = concatMap (\ c -> show (fromEnum c) ++ ",")
+showChunk = concatMap (\ c -> show (ord c) ++ ",")
 
 main :: IO ()
 main = do
