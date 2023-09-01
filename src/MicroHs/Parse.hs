@@ -187,13 +187,15 @@ pLIdentSym = pLIdent <|< pParens pLSymOper
 pParens :: forall a . P a -> P a
 pParens p = pSpec '(' *> p <* pSpec ')'
 
-pLit :: P Lit
-pLit = satisfyM "Lit" is
-  where
-    is (TString _ s) = Just (LStr s)
-    is (TChar _ c) = Just (LChar c)
-    is (TInt _ i) = Just (LInt i)
+pLit :: P Expr
+pLit = P.do
+  fn <- getFileName
+  let
+    is (TString (l, c) s) = Just (ELit (SLoc fn l c) (LStr s))
+    is (TChar   (l, c) a) = Just (ELit (SLoc fn l c) (LChar a))
+    is (TInt    (l, c) i) = Just (ELit (SLoc fn l c) (LInt i))
     is _ = Nothing
+  satisfyM "literal" is
 
 pString :: P String
 pString = satisfyM "string" is
@@ -290,7 +292,7 @@ pAType :: P Expr
 pAType =
       (EVar <$> pLQIdentSym)
   <|> (EVar <$> pUQIdentSym)
-  <|> (ELit <$> pLit)
+  <|> pLit
   <|> (eTuple <$> (pSpec '(' *> esepBy1 pType (pSpec ',') <* pSpec ')'))
   <|> (EList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
 
@@ -306,7 +308,7 @@ pAPat :: P EPat
 pAPat =
       (EVar <$> pLIdentSym)
   <|> (EVar <$> pUQIdentSym)
-  <|> (ELit <$> pLit)
+  <|> pLit
   <|> (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
   <|> (EList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
   <|> (EAt <$> (pLIdentSym <* pSymbol "@") <*> pAPat)
@@ -435,13 +437,13 @@ pAExpr :: P Expr
 pAExpr = (
       (EVar   <$> pLQIdentSym)
   <|> (EVar   <$> pUQIdentSym)
-  <|> (ELit   <$> pLit)
+  <|> pLit
   <|> (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
   <|> (EList  <$> (pSpec '[' *> esepBy1 pExpr (pSpec ',') <* pSpec ']'))
   <|> (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOper <* pSpec ')'))
   <|> (ESectR <$> (pSpec '(' *> pOper) <*> (pExprArg <* pSpec ')'))
   <|> (ECompr <$> (pSpec '[' *> pExpr <* pSymbol "|") <*> (esepBy1 pStmt (pSpec ',') <* pSpec ']'))
-  <|> (ELit . LPrim <$> (pKeyword "primitive" *> pString))
+  <|> (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
   )
   -- This weirdly slows down parsing
   -- <?> "aexpr"

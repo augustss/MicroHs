@@ -655,7 +655,7 @@ tcExprR mt ae =
       (ef, _) <- tcExpr (Just (tArrow ta tr)) f
       T.return (EApp ef ea, tr)
     ELam is e -> tcExprLam mt is e
-    ELit l -> tcLit mt l
+    ELit loc l -> tcLit mt loc l
     ECase a arms -> T.do
       (ea, ta) <- tcExpr Nothing a
       tt <- unMType mt
@@ -764,16 +764,16 @@ tcExprR mt ae =
     EUVar _ -> impossible -- shouldn't happen
     ECon _ -> impossible
 
-tcLit :: Maybe EType -> Lit -> T (Typed Expr)
-tcLit mt l =
-  let { lit t = T.do { munify mt t; T.return (ELit l, t) } } in
+tcLit :: Maybe EType -> SLoc -> Lit -> T (Typed Expr)
+tcLit mt loc l =
+  let { lit t = T.do { munify mt t; T.return (ELit loc l, t) } } in
   case l of
     LInt _ -> lit (tConI "Primitives.Int")
     LChar _ -> lit (tConI "Primitives.Char")
     LStr _ -> lit (tApps (mkIdent "Data.List.[]") [tConI "Primitives.Char"])
     LPrim _ -> T.do
       t <- unMType mt  -- pretend it is anything
-      T.return (ELit l, t)
+      T.return (ELit loc l, t)
 
 unArrow :: Maybe EType -> T (EType, EType)
 unArrow Nothing = T.do { a <- newUVar; r <- newUVar; T.return (a, r) }

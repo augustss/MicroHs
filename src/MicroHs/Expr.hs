@@ -61,7 +61,7 @@ data Expr
   = EVar Ident
   | EApp Expr Expr
   | ELam [EPat] Expr
-  | ELit Lit
+  | ELit SLoc Lit
   | ECase Expr [ECaseArm]
   | ELet [EBind] Expr
   | ETuple [Expr]
@@ -216,7 +216,7 @@ allVarsExpr aexpr =
     EVar i -> [i]
     EApp e1 e2 -> allVarsExpr e1 ++ allVarsExpr e2
     ELam ps e -> concatMap allVarsPat ps ++ allVarsExpr e
-    ELit _ -> []
+    ELit _ _ -> []
     ECase e as -> allVarsExpr e ++ concatMap allVarsCaseArm as
     ELet bs e -> concatMap allVarsBind bs ++ allVarsExpr e
     ETuple es -> concatMap allVarsExpr es
@@ -298,7 +298,7 @@ showExpr ae =
     EVar v -> showIdent v
     EApp _ _ -> showApp [] ae
     ELam ps e -> "(\\" ++ unwords (map showExpr ps) ++ " -> " ++ showExpr e ++ ")"
-    ELit i -> showLit i
+    ELit _ i -> showLit i
     ECase e as -> "case " ++ showExpr e ++ " of {\n" ++ unlines (map showCaseArm as) ++ "}"
     ELet bs e -> "let\n" ++ unlines (map showEBind bs) ++ "in " ++ showExpr e
     ETuple es -> "(" ++ intercalate "," (map showExpr es) ++ ")"

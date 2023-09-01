@@ -113,9 +113,9 @@ dsExpr aexpr =
     EVar i -> Var i
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam xs e -> dsLam xs e
-    ELit (LChar c) -> Lit (LInt (ord c))
---    ELit (LStr cs) -> dsExpr $ EList $ map (ELit . LChar) cs
-    ELit l -> Lit l
+    ELit _ (LChar c) -> Lit (LInt (ord c))
+--    ELit _ (LStr cs) -> dsExpr $ EList $ map (ELit . LChar) cs
+    ELit _ l -> Lit l
     ECase e as -> dsCase e as
 -- For now, just sequential bindings; each recursive
     ELet ads e -> dsBinds ads (dsExpr e)
@@ -206,7 +206,7 @@ dsPat ap =
     EList ps -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
     ETuple ps -> dsPat $ foldl EApp (tupleCon (length ps)) ps
     EAt i p -> EAt i (dsPat p)
-    ELit _ -> ap
+    ELit _ _ -> ap
     _ -> impossible
 
 consCon :: EPat
@@ -233,7 +233,7 @@ dummyIdent :: Ident
 dummyIdent = mkIdent "_"
 
 eError :: String -> Expr
-eError s = EApp (ELit (LPrim "error")) (ELit $ LStr s)
+eError s = EApp (ELit noSLoc (LPrim "error")) (ELit noSLoc $ LStr s)
 
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs
@@ -454,7 +454,7 @@ pConOf ap =
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
-    ELit l -> ConLit l
+    ELit _ l -> ConLit l
     _ -> impossible
 
 pArgs :: EPat -> [EPat]
@@ -462,7 +462,7 @@ pArgs ap =
   case ap of
     ECon _ -> []
     EApp f a -> pArgs f ++ [a]
-    ELit _ -> []
+    ELit _ _ -> []
     _ -> impossible
 
 -- XXX quadratic
