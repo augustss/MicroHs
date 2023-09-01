@@ -1595,7 +1595,7 @@ main(int argc, char **argv)
     printf("%"PCOMMA"15"PRIu64" reductions\n", num_reductions);
     printf("%15.2fs total execution time\n", run_time);
     printf("%15.2fs total gc time\n", gc_mark_time);
-#if GCRED
+#if GCRED && 0
     printf(" GC reductions A=%d, K=%d, I=%d, int=%d\n", red_a, red_k, red_i, red_int);
 #endif
   }

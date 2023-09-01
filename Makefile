@@ -14,18 +14,19 @@ UPX=upx
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
 MHS=mhs
 COMB=comb/
-.PHONY: all alltest everytest boottest bootboottest bootcombtest $(MHS)test test alltest time example
+EVAL=$(BIN)/eval
+.PHONY: all alltest everytest boottest bootboottest bootcombtest $(MHS)test test alltest time example bootstraptest
 
-all:	$(BIN)/eval $(BIN)/$(MHS)
+all:	$(EVAL) $(BIN)/$(MHS)
 
 alltest:	test boottest
 
 everytest:	alltest example exampleboot examplecomb bootboottest bootcombtest
 
 # On MINGW you might need the additional flags -Wl,--stack,50000000 to increase stack space.
-$(BIN)/eval:	src/runtime/eval.c
+$(EVAL):	src/runtime/eval.c
 	@mkdir -p bin
-	$(GCC) -Wall -O3 src/runtime/eval.c -o $(BIN)/eval
+	$(GCC) -Wall -O3 src/runtime/eval.c -o $(EVAL)
 
 $(BIN)/$(MHS):	src/*.hs src/*/*.hs convertX.sh
 	$(GHCE) -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
@@ -85,33 +86,33 @@ bootboottest:	$(BIN)/$(MHS) $(BIN)/boot$(MHS)
 	cmp main-$(MHS).comb main-boot.comb
 
 # Compare version compiled with GHC, and bootstrapped combinator version
-bootcombtest:	$(BIN)/$(MHS) $(BIN)/eval $(COMB)$(MHS).comb
+bootcombtest:	$(BIN)/$(MHS) $(EVAL) $(COMB)$(MHS).comb
 	$(BIN)/$(MHS) -ilib -isrc -omain-$(MHS).comb  MicroHs.Main
-	$(BIN)/eval +RTS -v -r$(COMB)$(MHS).comb -RTS -ilib -isrc -omain-comb.comb MicroHs.Main
+	$(EVAL) +RTS -v -r$(COMB)$(MHS).comb -RTS -ilib -isrc -omain-comb.comb MicroHs.Main
 	cmp main-$(MHS).comb main-comb.comb
 
 # Test normal Haskell version
-test:	$(BIN)/eval $(BIN)/$(MHS) tests/*.hs
+test:	$(EVAL) $(BIN)/$(MHS) tests/*.hs
 	cd tests; make test
 
 $(COMB)$(MHS).comb:	$(BIN)/$(MHS) $(ALLSRC)
 	$(BIN)/$(MHS) -ilib -isrc -o$(COMB)$(MHS).comb MicroHs.Main
 
-$(MHS)comp:	$(BIN)/eval $(COMB)$(MHS).comb
-	$(BIN)/eval +RTS -v -r$(COMB)$(MHS).comb -RTS $(ARG)
+$(MHS)comp:	$(EVAL) $(COMB)$(MHS).comb
+	$(EVAL) +RTS -v -r$(COMB)$(MHS).comb -RTS $(ARG)
 
-time:	$(BIN)/eval $(BIN)/$(MHS) tests/*.hs
+time:	$(EVAL) $(BIN)/$(MHS) tests/*.hs
 	cd tests; make time
 
-example:	$(BIN)/eval $(BIN)/$(MHS) Example.hs
-	$(BIN)/$(MHS) -ilib Example && $(BIN)/eval
+example:	$(EVAL) $(BIN)/$(MHS) Example.hs
+	$(BIN)/$(MHS) -ilib Example && $(EVAL)
 
 # does not work
 exampleboot:	$(BIN)/boot$(MHS) Example.hs
-	$(BIN)/boot$(MHS) -r -ilib Example && $(BIN)/eval
+	$(BIN)/boot$(MHS) -r -ilib Example && $(EVAL)
 
-examplecomb:	$(BIN)/eval $(COMB)$(MHS).comb Example.hs
-	$(BIN)/eval +RTS -r$(COMB)$(MHS).comb -RTS -r -ilib Example
+examplecomb:	$(EVAL) $(COMB)$(MHS).comb Example.hs
+	$(EVAL) +RTS -r$(COMB)$(MHS).comb -RTS -r -ilib Example
 
 clean:
 	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR) tmp/eval.c
@@ -131,3 +132,13 @@ $(BIN)/cmhs: tmp/eval.c
 
 $(BIN)/umhs: $(BIN)/cmhs
 	$(UPX) -o$(BIN)/umhs $(BIN)/cmhs
+
+# Test that the compiler can bootstrap
+bootstraptest: $(EVAL)
+	@echo Build stage 1 with distribution combinator file
+	$(EVAL) +RTS -rcomb/mhs.comb  -RTS -ilib -isrc -otmp/mhs.comb.1 MicroHs.Main
+	@echo Build stage 2 with output from stage 1
+	$(EVAL) +RTS -rtmp/mhs.comb.1 -RTS -ilib -isrc -otmp/mhs.comb.2 MicroHs.Main
+	@echo Build stage 3 with output from stage 2
+	$(EVAL) +RTS -rtmp/mhs.comb.2 -RTS -ilib -isrc -otmp/mhs.comb.3 MicroHs.Main
+	cmp tmp/mhs.comb.1 tmp/mhs.comb.2 && echo Success
