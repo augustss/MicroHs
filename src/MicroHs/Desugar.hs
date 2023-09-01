@@ -127,7 +127,7 @@ dsExpr aexpr =
         stmt : stmts ->
           case stmt of
             SBind p e ->
-              if null stmts then error "do without final expression"
+              if null stmts then errorMessage (getSLocExpr aexpr) "do without final expression"
               else
 --                case p of
 --                  EVar v -> dsExpr $ EApp (EApp (EVar (mqual mn (mkIdent ">>="))) e) (ELam [v] $ EDo mn stmts)
@@ -144,8 +144,7 @@ dsExpr aexpr =
               else
                 dsExpr $ EApp (EApp (EVar (mqual mn (mkIdent ">>"))) e) (EDo mn stmts)
             SLet ds ->
-              if null stmts then error "do without final expression" else
-                dsExpr $ ELet ds (EDo mn stmts)
+              dsExpr $ ELet ds (EDo mn stmts)
 
     ESectL e op ->
       App (dsExpr (EVar op)) (dsExpr e)
