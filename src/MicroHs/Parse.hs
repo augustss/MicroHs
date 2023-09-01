@@ -432,7 +432,7 @@ pQualDo = P.do
   satisfyM "QualDo" is
 
 pAExpr :: P Expr
-pAExpr =
+pAExpr = (
       (EVar   <$> pLQIdentSym)
   <|> (EVar   <$> pUQIdentSym)
   <|> (ELit   <$> pLit)
@@ -442,13 +442,16 @@ pAExpr =
   <|> (ESectR <$> (pSpec '(' *> pOper) <*> (pExprArg <* pSpec ')'))
   <|> (ECompr <$> (pSpec '[' *> pExpr <* pSymbol "|") <*> (esepBy1 pStmt (pSpec ',') <* pSpec ']'))
   <|> (ELit . LPrim <$> (pKeyword "primitive" *> pString))
+  )
+  -- This weirdly slows down parsing
+  -- <?> "aexpr"
 
 pExprOp :: P Expr
 pExprOp =
   let
     p10 = pExprArg
     p9 = pRightAssoc (pOpers ["."]) $
-         pLeftAssoc  (pOpers ["?", "!!"]) p10
+         pLeftAssoc  (pOpers ["?", "!!", "<?>"]) p10
     p8 = p9
     p7 = pLeftAssoc  (pOpers ["*", "quot", "rem"]) p8
     p6 = pLeftAssoc  (pOpers ["+", "-"]) p7
@@ -525,15 +528,11 @@ qualName fn loc qs s = mkIdentLoc fn loc (intercalate "." (qs ++ [s]))
 -------------
 
 formatFailed :: String -> [Token] -> LastFail Token -> String
-formatFailed fn _fs _lf@(LastFail _ ts _msgs) =
+formatFailed fn _fs (LastFail _ ts msgs) =
   let
     (line, col) = tokensLoc ts
+    sloc = SLoc fn line col
   in
-    showString fn ++ ": "
-         ++ "line " ++ showInt line ++ ", col " ++ showInt col ++ ":\n"
-         ++ "   found: " ++ showToken (head ts)  -- XXX head
---X         ++ show _lf ++ "\n"
---X         ++ show _fs
-
---tokenString :: Token -> String
---tokenString 
+    showSLoc sloc ++ ":\n"
+      ++ "  found:    " ++ head (map showToken ts ++ ["EOF"]) ++ "\n"
+      ++ "  expected: " ++ unwords (nubBy eqString msgs)

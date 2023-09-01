@@ -14,7 +14,8 @@ module Text.ParserComb(
   some, esome,
   esepBy, sepBy1, esepBy1,
   (<?>), (<|<),
-  notFollowedBy, lookAhead,
+  --notFollowedBy,
+  lookAhead,
   inject, nextToken,
   LastFail(..)
   ) where
@@ -24,7 +25,7 @@ import PreludeNoIO
 --import Compat
 
 data LastFail t
-  = LastFail Int [t] [(String, [String])]
+  = LastFail Int [t] [String]
   --Xderiving (Show)
 
 maxInt :: Int
@@ -34,13 +35,13 @@ noFail :: forall t . LastFail t
 noFail = LastFail maxInt [] []
 
 longest :: forall t . LastFail t -> LastFail t -> LastFail t
-longest lf1@(LastFail l1 t1 x1) lf2@(LastFail l2 t2 x2) =
+longest lf1@(LastFail l1 t1 x1) lf2@(LastFail l2 _ x2) =
   if l1 < l2 then
     lf1
   else if l2 < l1 then
     lf2
   else
-    LastFail l1 (t1 ++ t2) (x1 ++ x2)
+    LastFail l1 t1 (x1 ++ x2)
 
 longests :: forall t . [LastFail t] -> LastFail t
 longests xs = foldl1 longest xs
@@ -105,7 +106,7 @@ guard :: forall s t . Bool -> Prsr s t ()
 guard b = if b then pure () else empty
 
 empty :: forall s t a . Prsr s t a
-empty = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [("empty", ["<empty>"])])
+empty = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [])
 
 --Xinfixl 3 <|>
 --Yinfixl 3 <|>
@@ -117,7 +118,7 @@ empty = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [("empty", ["
           Many b lfb -> Many (a ++ b) (longest lfa lfb)
 
 fail :: forall s t a . String -> Prsr s t a
-fail m = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [("fail", [m])])
+fail m = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [m])
 
 get :: forall s t . Prsr s t s
 get = P $ \ t@(_, s) -> Many [(s, t)] noFail
@@ -170,44 +171,46 @@ satisfy :: forall s t . String -> (t -> Bool) -> Prsr s t t
 satisfy msg f = P $ \ (acs, s) ->
   case acs of
     c:cs | f c -> Many [(c, (cs, s))] noFail
-    _ -> Many [] (LastFail (length acs) (take 1 acs) [("satisfy", [msg])])
+    _ -> Many [] (LastFail (length acs) (take 1 acs) [msg])
 
 satisfyM :: forall s t a . String -> (t -> Maybe a) -> Prsr s t a
 satisfyM msg f = P $ \ (acs, s) ->
   case acs of
     c:cs | Just a <- f c -> Many [(a, (cs, s))] noFail
-    _ -> Many [] (LastFail (length acs) (take 1 acs) [("satisfyM", [msg])])
+    _ -> Many [] (LastFail (length acs) (take 1 acs) [msg])
 
 eof :: forall s t . Prsr s t ()
 eof = P $ \ t@(cs, _) ->
  if null cs then
    Many [((), t)] noFail
  else
-   Many [] (LastFail (length cs) (take 1 cs) [("eof", ["end-of-file"])])
+   Many [] (LastFail (length cs) (take 1 cs) ["eof"])
 
 (<?>) :: forall s t a . Prsr s t a -> String -> Prsr s t a
 (<?>) p e = P $ \ t ->
 --  trace ("<?> " ++ show e) $
   case runP p t of
-    Many rs (LastFail l ts xs) ->
-      Many rs (LastFail l ts [(m, e:es) | (m, es) <- xs ])
+    Many rs (LastFail l ts _) ->
+      Many rs (LastFail l ts [e])
 
+{-
 notFollowedBy :: forall s t a . Prsr s t a -> Prsr s t ()
 notFollowedBy p = P $ \ t@(ts,_) ->
   case runP p t of
     Many [] _ -> Many [((), t)] noFail
-    _         -> Many [] (LastFail (length ts) (take 1 ts) [("notFollowedBy", [])])
+    _         -> Many [] (LastFail (length ts) (take 1 ts) ["!"])
+-}
 
 lookAhead :: forall s t a . Prsr s t a -> Prsr s t ()
 lookAhead p = P $ \ t ->
   case runP p t of
-    Many [] (LastFail l ts xs) -> Many [] (LastFail l (take 1 ts) [("lookAhead-" ++ m, es) | (m, es) <- xs ])
+    Many [] (LastFail l ts xs) -> Many [] (LastFail l (take 1 ts) xs)
     _                          -> Many [((), t)] noFail
 
 nextToken :: forall s t . Prsr s t t
 nextToken = P $ \ t@(cs, _) ->
   case cs of
-    [] ->  Many [] (LastFail (length cs) [] [("nextToken", [])])
+    [] ->  Many [] (LastFail (length cs) [] ["!eof"])
     c:_ -> Many [(c, t)] noFail
 
 inject :: forall s t . [t] -> Prsr s t ()

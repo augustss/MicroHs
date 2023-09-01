@@ -4,9 +4,9 @@ module MicroHs.Ident(
   mkIdent, mkIdentLoc, unIdent, eqIdent, qualIdent, showIdent,
   isLower_, isIdentChar, isOperChar, isConIdent,
   unQualString,
-  SLoc(..), noSLoc
+  SLoc(..), noSLoc, showSLoc
   ) where
-import Prelude
+import Prelude --Xhiding(showString)
 import Data.Char
 --Ximport Compat
 
@@ -64,3 +64,7 @@ isIdentChar c = isLower_ c || isUpper c || isDigit c || eqChar c '\''
 isLower_ :: Char -> Bool
 isLower_ c = isLower c || eqChar c '_'
 
+showSLoc :: SLoc -> String
+showSLoc (SLoc fn l c) =
+  if null fn then "no location" else
+  showString fn ++ ": " ++ "line " ++ showInt l ++ ", col " ++ showInt c
