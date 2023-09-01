@@ -139,6 +139,4 @@ bootstraptest: $(EVAL)
 	$(EVAL) +RTS -rcomb/mhs.comb  -RTS -ilib -isrc -otmp/mhs.comb.1 MicroHs.Main
 	@echo Build stage 2 with output from stage 1
 	$(EVAL) +RTS -rtmp/mhs.comb.1 -RTS -ilib -isrc -otmp/mhs.comb.2 MicroHs.Main
-	@echo Build stage 3 with output from stage 2
-	$(EVAL) +RTS -rtmp/mhs.comb.2 -RTS -ilib -isrc -otmp/mhs.comb.3 MicroHs.Main
 	cmp tmp/mhs.comb.1 tmp/mhs.comb.2 && echo Success
