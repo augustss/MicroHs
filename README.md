@@ -62,12 +62,11 @@ There are a number of libraries that have some of the standard Haskell functions
 But in general, the `Prelude` contains much, much less.
 
 ## Types
-There two primitive data types `Int` and `Handle`.  These are known by the runtime system
-and various primitive operations work on them.  The runtime system also knows how lists
-are encoded.  The function type, `->`, is also built in.
+There are two primitive data types `Int` and `Handle`.  These are known by the runtime system
+and various primitive operations work on them.  The function type, `->`, is (of course) also built in.
 
 All other types are defined with the language.  They are converted to lambda terms using
-the Scott encoding.
+the Scott encoding.   The runtime system knows how lists are encoded and booleans are encoded.
 
 
 ## Compiler
