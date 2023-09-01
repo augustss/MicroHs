@@ -4,7 +4,7 @@ module MicroHs.Compile(
   compile,
   Flags(..), verbose, runIt, output
   ) where
-import Prelude --Xhiding (Monad(..), mapM, showString)
+import Prelude --Xhiding (Monad(..), mapM, showString, showList)
 import qualified System.IO as IO
 --Ximport Compat
 --Ximport qualified CompatIO as IO
@@ -99,7 +99,8 @@ compileModule flags nm = S.do
   t1 <- liftIO getTimeMilli
   let
     fn = map (\ c -> if eqChar c '.' then '/' else c) (unIdent nm) ++ ".hs"
-  mdl@(EModule nmn _ defs) <- S.fmap (parseDie pTop fn) (liftIO (readFilePath (paths flags) fn))
+  (pathfn, file) <- liftIO (readFilePath (paths flags) fn)
+  let mdl@(EModule nmn _ defs) = parseDie pTop pathfn file
   --liftIO $ putStrLn $ showEModule mdl
   S.when (not (eqIdent nm nmn)) $
     error $ "module name does not agree with file name: " ++ showIdent nm ++ " " ++ showIdent nmn
@@ -122,19 +123,23 @@ compileModule flags nm = S.do
 
 ------------------
 
-readFilePath :: [FilePath] -> FilePath -> IO String
+readFilePath :: [FilePath] -> FilePath -> IO (FilePath, String)
 readFilePath path name = IO.do
-  h <- openFilePath path name
-  IO.hGetContents h
+  mh <- openFilePath path name
+  case mh of
+    Nothing -> error $ "File not found: " ++ showString name ++ "\npath=" ++ showList showString path
+    Just (fn, h) -> IO.do
+      file <- IO.hGetContents h
+      IO.return (fn, file)
 
-openFilePath :: [FilePath] -> FilePath -> IO Handle
+openFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
 openFilePath adirs fileName =
   case adirs of
-    [] -> error $ "File not found: " ++ showString fileName
+    [] -> IO.return Nothing
     dir:dirs -> IO.do
       let
         path = dir ++ "/" ++ fileName
       mh <- openFileM path IO.ReadMode
       case mh of
         Nothing -> openFilePath dirs fileName -- If opening failed, try the next directory
-        Just hdl -> IO.return hdl
+        Just hdl -> IO.return (Just (path, hdl))
