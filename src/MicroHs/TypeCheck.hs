@@ -81,7 +81,7 @@ expLookup :: Ident -> M.Map [Entry] -> Entry
 expLookup i m =
   case M.lookup i m of
     Just [e] -> e
-    Just _ -> error $ "export ambig " ++ showIdent i
+    Just _ -> errorMessage (getSLocIdent i) $ ": Ambiguous export " ++ showIdent i
     Nothing -> expErr i
 
 tyQIdent :: Entry -> Ident
@@ -107,7 +107,7 @@ eVarI :: String -> Expr
 eVarI = EVar . mkIdent
 
 expErr :: forall a . Ident -> a
-expErr i = error $ "export: " ++ showIdent i
+expErr i = errorMessage (getSLocIdent i) $ ": export undefined " ++ showIdent i
 
 mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
 mkTModule mn tds a =
@@ -350,7 +350,7 @@ expandSyn at =
           case M.lookup i syns of
             Nothing -> T.return $ foldl tApp t ts
             Just (ETypeScheme vs tt) ->
-              if length vs /= length ts then error $ "bad syn app: " --X ++ show (i, vs, ts)
+              if length vs /= length ts then errorMessage (getSLocIdent i) $ ": bad synonym use: " --X ++ show (i, vs, ts)
               else expandSyn $ subst (zip vs ts) tt
         EUVar _ -> T.return $ foldl tApp t ts
         _ -> impossible
@@ -379,7 +379,8 @@ unify loc a b = T.do
   bb <- expandType b
 --  traceM ("unify2 " ++ showExpr aa ++ " = " ++ showExpr bb)
   unifyR loc aa bb
-  
+
+-- XXX should do occur check
 unifyR :: --XHasCallStack =>
           SLoc -> EType -> EType -> T ()
 unifyR loc a b = T.do
@@ -387,7 +388,7 @@ unifyR loc a b = T.do
 --  tenv <- gets typeTable
 --  senv <- gets synTable
   let
-    bad = error $ showSLoc loc ++ ": "
+    bad = errorMessage loc $ ": "
                       ++ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n"
 --                    ++ show a ++ " - " ++ show b ++ "\n"
 --                    ++ show tenv ++ "\n"
@@ -437,7 +438,7 @@ tLookup :: String -> Ident -> T (Expr, ETypeScheme)
 tLookup msg i = T.do
   env <- gets valueTable
   case M.lookup i env of
-    Nothing -> error $ showSLoc (getSLocIdent i) ++ ": undefined " ++ msg ++ ": " ++ showIdent i
+    Nothing -> errorMessage (getSLocIdent i) $ ": undefined " ++ msg ++ ": " ++ showIdent i
                -- ++ "\n" ++ show env ;
     Just aes ->
       case aes of
@@ -448,7 +449,7 @@ tLookup msg i = T.do
               if null es then
                 T.return (e, s)
               else
-                error "ambiguous"
+                errorMessage (getSLocIdent i) $ ": ambiguous " ++ showIdent i
 
 tInst :: ETypeScheme -> T EType
 tInst as =
@@ -694,7 +695,7 @@ tcExprR mt ae =
                 let
                   mn = moduleOf qi
                 T.return (EDo (Just mn) [SThen ea], ta)
-              _ -> error $ "bad do "
+              _ -> errorMessage (getSLocExpr ae) $ "bad do "
                          --X++ show as
           else
             case as of
@@ -843,13 +844,13 @@ tcPat t ap ta = T.do
   env <- T.mapM (\ v -> (pair v . ETypeScheme []) <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
   withExtVals env $ T.do
     (pp, _) <- tcExpr (Just t) ap
-    () <- checkArity 0 pp
+    () <- checkArity (getSLocExpr ap) 0 pp
     ta pp
 
-checkArity :: Int -> EPat -> T ()
-checkArity n (EApp f _) = checkArity (n+1) f
-checkArity n (ECon c) = if n == conArity c then T.return () else error "con arity"
-checkArity _ _ = T.return ()
+checkArity :: SLoc -> Int -> EPat -> T ()
+checkArity loc n (EApp f _) = checkArity loc (n+1) f
+checkArity loc n (ECon c) = if n == conArity c then T.return () else errorMessage loc ": con arity"
+checkArity _ _ _ = T.return ()
 
 -- XXX No mutual recursion yet
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a

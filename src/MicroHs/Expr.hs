@@ -23,7 +23,8 @@ module MicroHs.Expr(
   tupleConstr, untupleConstr,
   subst,
   allVarsExpr, allVarsBind,
-  getSLocExpr
+  getSLocExpr,
+  errorMessage
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
 import Data.List
@@ -244,6 +245,9 @@ allVarsStmt astmt =
 -- XXX Should use locations in ELit
 getSLocExpr :: Expr -> SLoc
 getSLocExpr e = head $ map getSLocIdent (allVarsExpr e) ++ [noSLoc]
+
+errorMessage :: forall a . SLoc -> String -> a
+errorMessage loc msg = error $ showSLoc loc ++ msg
 
 ----------------
 
