@@ -15,6 +15,7 @@ module MicroHs.Expr(
   EType,
   EPat, patVars, isPVar, isPConApp,
   EKind,
+  IdKind(..), idKindIdent,
   LHS,
   Constr,
   ConTyInfo,
@@ -149,7 +150,7 @@ isPConApp _ = True
 patVars :: EPat -> [Ident]
 patVars = filter (not . isConIdent) . allVarsExpr
 
-type LHS = (Ident, [Ident])
+type LHS = (Ident, [IdKind])
 type Constr = (Ident, [EType])
 
 -- Expr restricted to
@@ -168,8 +169,14 @@ validType ae =
     _ -> False
 -}
 
-data ETypeScheme = ETypeScheme [Ident] EType
+data ETypeScheme = ETypeScheme [IdKind] EType
   --Xderiving (Show, Eq)
+
+data IdKind = IdKind Ident EKind
+  --Xderiving (Show, Eq)
+
+idKindIdent :: IdKind -> Ident
+idKindIdent (IdKind i _) = i
 
 type EKind = EType
 
@@ -284,7 +291,10 @@ showEDef def =
 showLHS :: LHS -> String
 showLHS lhs =
   case lhs of
-    (f, vs) -> unwords (map unIdent (f : vs))
+    (f, vs) -> unwords (showIdent f : map showIdKind vs)
+
+showIdKind :: IdKind -> String
+showIdKind (IdKind i k) = "(" ++ showIdent i ++ "::" ++ showEKind k ++ ")"
 
 showEDefs :: [EDef] -> String
 showEDefs ds = unlines (map showEDef ds)
@@ -368,11 +378,14 @@ showEPat = showExpr
 showEType :: EType -> String
 showEType = showExpr
 
+showEKind :: EKind -> String
+showEKind = showEType
+
 showETypeScheme :: ETypeScheme -> String
 showETypeScheme ts =
   case ts of
     ETypeScheme vs t ->
       if null vs
       then showEType t
-      else unwords ("forall" : map unIdent vs ++ [".", showEType t])
+      else unwords ("forall" : map showIdKind vs ++ [".", showEType t])
 

@@ -236,7 +236,7 @@ pDef =
   <|> Import      <$> (pKeyword "import" *> pImportSpec)
 
 pLHS :: P LHS
-pLHS = pair <$> pUIdentSym <*> many pLIdentSym
+pLHS = pair <$> pUIdentSym <*> many pIdKind
 
 pImportSpec :: P ImportSpec
 pImportSpec =
@@ -247,9 +247,20 @@ pImportSpec =
 --------
 -- Types
 
+pIdKind :: P IdKind
+pIdKind =
+      ((\ i -> IdKind i kType) <$> pLIdentSym)
+  <|> pParens (IdKind <$> pLIdentSym <*> (pSymbol "::" *> pKind))
+
+pKind :: P EKind
+pKind = pType
+
+kType :: EKind
+kType = EVar (Ident noSLoc "Type")
+
 pTypeScheme :: P ETypeScheme
 pTypeScheme = P.do
-  vs <- (pKeyword "forall" *> esome pLIdentSym <* pSymbol ".") <|< pure []
+  vs <- (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
   t <- pType
   pure $ ETypeScheme vs t
 

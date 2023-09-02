@@ -112,24 +112,24 @@ expErr i = errorMessage (getSLocIdent i) $ ": export undefined " ++ showIdent i
 mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
 mkTModule mn tds a =
   let
-    con ci it vs (ic, ts) =
+    con ci it vks (ic, ts) =
       let
         e = ECon $ ConData ci (qualIdent mn ic)
-      in ValueExport ic $ Entry e (ETypeScheme vs (foldr tArrow (tApps (qualIdent mn it) (map tVar vs)) ts))
-    cons i vs cs =
+      in ValueExport ic $ Entry e (ETypeScheme vks (foldr tArrow (tApps (qualIdent mn it) (map tVarK vks)) ts))
+    cons i vks cs =
       let
         ci = [ (qualIdent mn c, length ts) | (c, ts) <- cs ]
-      in map (con ci i vs) cs
-    conn it vs ic t =
+      in map (con ci i vks) cs
+    conn it vks ic t =
       let
         e = ECon $ ConNew (qualIdent mn ic)
-      in [ValueExport ic $ Entry e (ETypeScheme vs (tArrow t (tApps (qualIdent mn it) (map tVar vs))))]
-    tentry i vs = Entry (EVar (qualIdent mn i)) (ETypeScheme [] $ lhsKind vs)
+      in [ValueExport ic $ Entry e (ETypeScheme vks (tArrow t (tApps (qualIdent mn it) (map tVarK vks))))]
+    tentry i vks kret = Entry (EVar (qualIdent mn i)) (ETypeScheme [] $ lhsKind vks kret)
     ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign i ts <- tds ]
     tes =
-      [ TypeExport i (tentry i vs) (cons i vs cs)  | Data (i, vs) cs <- tds ] ++
-      [ TypeExport i (tentry i vs) (conn i vs c t) | Newtype (i, vs) c t <- tds ] ++
-      [ TypeExport i (tentry i vs) []              | Type (i, vs) _  <- tds ]
+      [ TypeExport i (tentry i vks kType) (cons i vks cs)  | Data    (i, vks) cs  <- tds ] ++
+      [ TypeExport i (tentry i vks kType) (conn i vks c t) | Newtype (i, vks) c t <- tds ] ++
+      [ TypeExport i (tentry i vks kType) []               | Type    (i, vks) _   <- tds ]   -- XXX kType is wrong
     ses = [ (qualIdent mn i, ETypeScheme vs t) | Type (i, vs) t  <- tds ]
   in  TModule mn tes ses ves a
 
@@ -270,10 +270,10 @@ primValues =
     tuple n =
       let
         c = tupleConstr n
-        vs = [mkIdent ("a" ++ showInt i) | i <- enumFromTo 1 n]
-        ts = map tVar vs
+        vks = [IdKind (mkIdent ("a" ++ showInt i)) kType | i <- enumFromTo 1 n]
+        ts = map tVarK vks
         r = tApps c ts
-      in  (c, [Entry (ECon $ ConData [(c, n)] c) $ ETypeScheme vs $ foldr tArrow r ts ])
+      in  (c, [Entry (ECon $ ConData [(c, n)] c) $ ETypeScheme vks $ foldr tArrow r ts ])
   in  map tuple (enumFromTo 2 10)
 
 type T a = TC TCState a
@@ -281,8 +281,11 @@ type T a = TC TCState a
 tCon :: Ident -> EType
 tCon = EVar
 
-tVar :: Ident -> EType
-tVar = EVar
+--tVar :: Ident -> EType
+--tVar = EVar
+
+tVarK :: IdKind -> EType
+tVarK (IdKind i _) = EVar i
 
 tApp :: EType -> EType -> EType
 tApp = EApp
@@ -349,9 +352,9 @@ expandSyn at =
           syns <- gets synTable
           case M.lookup i syns of
             Nothing -> T.return $ foldl tApp t ts
-            Just (ETypeScheme vs tt) ->
-              if length vs /= length ts then errorMessage (getSLocIdent i) $ ": bad synonym use: " --X ++ show (i, vs, ts)
-              else expandSyn $ subst (zip vs ts) tt
+            Just (ETypeScheme vks tt) ->
+              if length vks /= length ts then errorMessage (getSLocIdent i) $ ": bad synonym use: " --X ++ show (i, vks, ts)
+              else expandSyn $ subst (zip (map idKindIdent vks) ts) tt
         EUVar _ -> T.return $ foldl tApp t ts
         _ -> impossible
   in syn [] at
@@ -454,9 +457,10 @@ tLookup msg i = T.do
 tInst :: ETypeScheme -> T EType
 tInst as =
   case as of
-    ETypeScheme vs t ->
-      if null vs then T.return t
+    ETypeScheme vks t ->
+      if null vks then T.return t
       else T.do
+        let vs = map idKindIdent vks
         us <- T.mapM (const newUVar) (replicate (length vs) ())
         T.return (subst (zip vs us) t)
 
@@ -539,16 +543,16 @@ tcDefsType ds = withTypeTable $ T.do
 addTypeKind :: EDef -> T ()
 addTypeKind adef =
   case adef of
-    Data    lhs _   -> addLHSKind lhs
-    Newtype lhs _ _ -> addLHSKind lhs
-    Type    lhs _   -> addLHSKind lhs
+    Data    lhs _   -> addLHSKind lhs kType
+    Newtype lhs _ _ -> addLHSKind lhs kType
+    Type    lhs _   -> addLHSKind lhs kType  -- XXX
     _               -> T.return ()
 
-addLHSKind :: LHS -> T ()
-addLHSKind (i, vs) = extQVal i (ETypeScheme [] $ lhsKind vs)
+addLHSKind :: LHS -> EKind -> T ()
+addLHSKind (i, vs) kret = extQVal i (ETypeScheme [] $ lhsKind vs kret)
 
-lhsKind :: [Ident] -> EKind
-lhsKind vs = foldr (\ _ -> kArrow kType) kType vs
+lhsKind :: [IdKind] -> EKind -> EKind
+lhsKind vks kret = foldr (\ (IdKind _ k) -> kArrow k) kret vks
 
 -- Add type synonyms to the value table
 addTypeSyn :: EDef -> T ()
@@ -574,7 +578,7 @@ tcTypeScheme mk (ETypeScheme vs t) =
   ETypeScheme vs <$> withVars (lhsKinds (impossible, vs)) (fst <$> tcType mk t)
 
 lhsKinds :: LHS -> [(Ident, ETypeScheme)]
-lhsKinds (_, vs) = zip vs (repeat (ETypeScheme [] kType))
+lhsKinds (_, vks) = map (\ (IdKind i k) -> (i, ETypeScheme [] k)) vks
 
 withVars :: forall a . [(Ident, ETypeScheme)] -> T a -> T a
 withVars aiks ta =
@@ -597,17 +601,17 @@ addValueType adef = T.do
     Sign i t -> T.do
       extQVal i t
       extVal (qualIdent mn i) t
-    Data (i, vs) cs -> T.do
+    Data (i, vks) cs -> T.do
       let
         cti = [ (qualIdent mn c, length ts) | (c, ts) <- cs ]
-        tret = foldl tApp (tCon (qualIdent mn i)) (map tVar vs)
+        tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
         addCon (c, ts) =
-          extValE c (ETypeScheme vs $ foldr tArrow tret ts) (ECon $ ConData cti (qualIdent mn c))
+          extValE c (ETypeScheme vks $ foldr tArrow tret ts) (ECon $ ConData cti (qualIdent mn c))
       T.mapM_ addCon cs
-    Newtype (i, vs) c t -> T.do
+    Newtype (i, vks) c t -> T.do
       let
-        tret = foldl tApp (tCon (qualIdent mn i)) (map tVar vs)
-      extValE c (ETypeScheme vs $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
+        tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
+      extValE c (ETypeScheme vks $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
     _ -> T.return ()
 
 tcDefValue :: --XHasCallStack =>
@@ -616,10 +620,9 @@ tcDefValue adef =
   case adef of
     Fcn i eqns -> T.do
 --      traceM $ "tcDefValue: " ++ showLHS (i, vs) ++ " = " ++ showExpr rhs
-      (_, ETypeScheme tvs tfn) <- tLookup "no type signature" i
-      let
-        vks = zip tvs (repeat (ETypeScheme [] kType))
+      (_, ETypeScheme iks tfn) <- tLookup "no type signature" i
       mn <- gets moduleName
+      let vks = map (\ (IdKind v k) -> (v, ETypeScheme [] k)) iks
       teqns <- withExtTyps vks $ tcEqns tfn eqns
                --tcExpr (Just t) $ ELam (map EVar vs) rhs
       T.return $ Fcn (qualIdent mn i) teqns
