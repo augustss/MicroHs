@@ -28,3 +28,4 @@
 * add Double primitive type
 * implement Data.Integer
 * add pretty printing library
+* add kind signatures
