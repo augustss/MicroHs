@@ -405,7 +405,10 @@ pExprApp :: P Expr
 pExprApp = P.do
   f <- pAExpr
   as <- emany pAExpr
-  pure $ foldl EApp f as
+  mt <- optional (pSymbol "::" *> pType)
+  let
+    r = foldl EApp f as
+  pure $ maybe r (ESign r) mt
 
 pLam :: P Expr
 pLam = ELam <$> (pSymbol "\\" *> esome pAPat) <*> (pSymbol "->" *> pExpr)

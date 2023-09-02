@@ -166,6 +166,7 @@ dsExpr aexpr =
               dsExpr (EIf c (ECompr e stmts) (EList []))
             SLet ds ->
               dsExpr (ELet ds (ECompr e stmts))
+    ESign e _ -> dsExpr e
     EAt _ _ -> undefined
     EUVar _ -> undefined
     ECon c ->

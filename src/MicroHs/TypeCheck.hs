@@ -757,6 +757,11 @@ tcExprR mt ae =
         tr = tApp tList ta
       munify (getSLocExpr ae) mt tr
       T.return (ECompr ea rss, tr)
+    ESign e t -> T.do
+      (tt, _) <- withTypeTable $ tcType (Just kType) t
+      (ee, _) <- tcExpr (Just tt) e
+      munify (getSLocExpr ae) mt tt
+      T.return (ESign ee tt, tt)
     EAt i e -> T.do
       (ee, t) <- tcExpr mt e
       (_, ti) <- tLookupInst "impossible!" i

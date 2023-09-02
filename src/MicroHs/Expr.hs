@@ -73,6 +73,7 @@ data Expr
   | ESectR Ident Expr
   | EIf Expr Expr Expr
   | ECompr Expr [EStmt]
+  | ESign Expr EType
   | EAt Ident Expr  -- only in patterns
   -- Only while type checking
   | EUVar Int
@@ -228,6 +229,7 @@ allVarsExpr aexpr =
     ESectR i e -> i : allVarsExpr e
     EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
     ECompr e ss -> allVarsExpr e ++ concatMap allVarsStmt ss
+    ESign e _ -> allVarsExpr e
     EAt i e -> i : allVarsExpr e
     EUVar _ -> []
     ECon c -> [conIdent c]
@@ -317,6 +319,7 @@ showExpr ae =
     ESectR i e -> "(" ++ showIdent i ++ " " ++ showExpr e ++ ")"
     EIf e1 e2 e3 -> "if " ++ showExpr e1 ++ " then " ++ showExpr e2 ++ " else " ++ showExpr e3
     ECompr _ _ -> "ECompr"
+    ESign e t -> showExpr e ++ " :: " ++ showEType t
     EAt i e -> showIdent i ++ "@" ++ showExpr e
     EUVar i -> "a" ++ showInt i
     ECon c -> showCon c
