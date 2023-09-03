@@ -21,10 +21,9 @@ import MicroHs.Ident
 translate :: (Ident, [LDef]) -> IO ()
 translate (mainName, ds) = do
   let
-    --Xlook :: M.Map Any -> Ident -> Any
     look m n = fromMaybe (error $ "not found " ++ showIdent n) $ M.lookup n m
-    --Xmp :: M.Map Any
     mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
+
   -- Drop all argument up to '--'
   args <- getArgs
   let prog = unsafeCoerce $ look mp mainName
