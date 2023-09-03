@@ -257,7 +257,8 @@ primKindTable =
   in M.fromList [
        (mkIdent "Primitives.Type", [entry "Primitives.Type" kTypeS]),
        (mkIdent "Type",            [entry "Primitives.Type" kTypeS]),
-       (mkIdent "->",              [entry "Primitives.->"  kTypeTypeTypeS])
+       (mkIdent "Primitives.->",   [entry "Primitives.->"   kTypeTypeTypeS]),
+       (mkIdent "->",              [entry "Primitives.->"   kTypeTypeTypeS])
        ]
 
 primTypes :: [(Ident, [Entry])]
@@ -371,6 +372,7 @@ expandSyn at =
               if length vks /= length ts then errorMessage (getSLocIdent i) $ ": bad synonym use: " --X ++ show (i, vks, ts)
               else expandSyn $ subst (zip (map idKindIdent vks) ts) tt
         EUVar _ -> T.return $ foldl tApp t ts
+        ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
         _ -> impossible
   in syn [] at
 
@@ -387,6 +389,7 @@ derefUVar at =
         Nothing -> T.return at
         Just t -> derefUVar t
     EVar _ -> T.return at
+    ESign t k -> flip ESign k <$> derefUVar t
     _ -> impossible
 
 unify :: --XHasCallStack =>
@@ -623,7 +626,7 @@ tcDefType d = T.do
   case d of
     Data    lhs cs   -> Data    lhs   <$> withVars (snd lhs) (T.mapM tcConstr cs)
     Newtype lhs c  t -> Newtype lhs c <$> withVars (snd lhs) (fst <$> tcTypeT (Just kType) t)
-    Type    lhs    t -> Type    lhs   <$> withVars (snd lhs) (fst <$> tcTypeT (Just kType) t)
+    Type    lhs    t -> Type    lhs   <$> withVars (snd lhs) (fst <$> tcTypeT Nothing t)
     Sign    i      t -> Sign    i     <$> tcTypeScheme (Just kType) t
     _ -> T.return d
 
@@ -967,6 +970,7 @@ dsType at =
     EApp f a -> EApp (dsType f) (dsType a)
     EList ts -> tApps listConstr [dsType (head ts)]  -- XXX should be [t]
     ETuple ts -> tApps (tupleConstr (length ts)) (map dsType ts)
+    ESign t k -> ESign (dsType t) k
     _ -> impossible
 
 listConstr :: Ident

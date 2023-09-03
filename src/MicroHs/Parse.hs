@@ -294,7 +294,10 @@ pTypeApp :: P EType
 pTypeApp = P.do
   f <- pAType
   as <- emany pAType
-  pure $ foldl EApp f as
+  mt <- optional (pSymbol "::" *> pType)
+  let
+    r = foldl EApp f as
+  pure $ maybe r (ESign r) mt
 
 pAType :: P Expr
 pAType =

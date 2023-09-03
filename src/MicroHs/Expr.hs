@@ -199,6 +199,7 @@ subst s =
       case ae of
         EVar i -> fromMaybe ae $ lookupBy eqIdent i s
         EApp f a -> EApp (sub f) (sub a)
+        ESign e t -> ESign (sub e) t
         EUVar _ -> ae
         _ -> error "subst unimplemented"
   in sub
