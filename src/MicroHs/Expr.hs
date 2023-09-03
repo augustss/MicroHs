@@ -285,12 +285,15 @@ showExportSpec ae =
 showEDef :: EDef -> String
 showEDef def =
   case def of
-    Data lhs _ -> "data " ++ showLHS lhs ++ " = ..."
+    Data lhs cs -> "data " ++ showLHS lhs ++ " = " ++ intercalate " | " (map showConstr cs)
     Newtype lhs c t -> "newtype " ++ showLHS lhs ++ " = " ++ showIdent c ++ " " ++ showEType t
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
     Fcn i eqns -> unlines (map (\ (Eqn ps alts) -> showIdent i ++ " " ++ unwords (map showEPat ps) ++ showAlts "=" alts) eqns)
     Sign i t -> showIdent i ++ " :: " ++ showETypeScheme t
     Import (ImportSpec q m mm) -> "import " ++ (if q then "qualified " else "") ++ showIdent m ++ maybe "" ((" as " ++) . unIdent) mm
+
+showConstr :: Constr -> String
+showConstr (i, ts) = unwords (showIdent i : map showEType ts)
 
 showLHS :: LHS -> String
 showLHS lhs =

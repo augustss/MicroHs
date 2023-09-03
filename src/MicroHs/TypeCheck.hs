@@ -38,6 +38,7 @@ data Entry = Entry Expr ETypeScheme
 
 type ValueTable = M.Map [Entry]
 type TypeTable  = M.Map [Entry]
+type KindTable  = M.Map [Entry]
 type SynTable   = M.Map ETypeScheme
 
 typeCheck :: forall a . [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
@@ -217,11 +218,12 @@ putSynTable senv = T.do
   TC mn n tenv _ venv m <- get
   put (TC mn n tenv senv venv m)
 
--- Use the type table as the value table, and an empty type table
+-- Use the type table as the value table, and the primKind table as the type table.
 withTypeTable :: forall a . T a -> T a
 withTypeTable ta = T.do
   TC mn n tt st vt m <- get
-  put (TC mn n M.empty M.empty tt m)
+--BBB  put (TC mn n M.empty M.empty tt m)
+  put (TC mn n primKindTable M.empty tt m)
   a <- ta
   TC mnr nr _ _ ttr mr <- get
   put (TC mnr nr ttr st vt mr)
@@ -239,6 +241,25 @@ initTC mn ts ss vs =
 moduleOf :: Ident -> IdentModule
 moduleOf = mkIdent . reverse . tail . dropWhile (neChar '.') . reverse . unIdent
 
+kTypeS :: ETypeScheme
+kTypeS = ETypeScheme [] kType
+
+kTypeTypeS :: ETypeScheme
+kTypeTypeS = ETypeScheme [] $ kArrow kType kType
+
+kTypeTypeTypeS :: ETypeScheme
+kTypeTypeTypeS = ETypeScheme [] $ kArrow kType $ kArrow kType kType
+
+primKindTable :: KindTable
+primKindTable =
+  let
+    entry i = Entry (EVar (mkIdent i))
+  in M.fromList [
+       (mkIdent "Primitives.Type", [entry "Primitives.Type" kTypeS]),
+       (mkIdent "Type",            [entry "Primitives.Type" kTypeS]),
+       (mkIdent "->",              [entry "Primitives.->"  kTypeTypeTypeS])
+       ]
+
 primTypes :: [(Ident, [Entry])]
 primTypes =
   let
@@ -247,21 +268,18 @@ primTypes =
       let
         i = tupleConstr n
       in  (i, [entry (unIdent i) $ ETypeScheme [] $ foldr kArrow kType (replicate n kType)])
-    t = ETypeScheme [] kType
-    tt = ETypeScheme [] $ kArrow kType kType
-    ttt = ETypeScheme [] $ kArrow kType $ kArrow kType kType
   in  
-      [(mkIdent "IO",     [entry "Primitives.IO"       tt]),
-       (mkIdent "->",     [entry "Primitives.->"       ttt]),
-       (mkIdent "Int",    [entry "Primitives.Int"      t]),
-       (mkIdent "Word",   [entry "Primitives.Word"     t]),
-       (mkIdent "Char",   [entry "Primitives.Char"     t]),
-       (mkIdent "Handle", [entry "Primitives.Handle"   t]),
-       (mkIdent "Any",    [entry "Primitives.Any"      t]),
-       (mkIdent "String", [entry "Data.Char.String"    t]),
-       (mkIdent "[]",     [entry "Data.List.[]"        tt]),
-       (mkIdent "()",     [entry "Data.Tuple.()"       t]),
-       (mkIdent "Bool",   [entry "Data.Bool_Type.Bool" t])] ++
+      [(mkIdent "IO",     [entry "Primitives.IO"       kTypeTypeS]),
+       (mkIdent "->",     [entry "Primitives.->"       kTypeTypeTypeS]),
+       (mkIdent "Int",    [entry "Primitives.Int"      kTypeS]),
+       (mkIdent "Word",   [entry "Primitives.Word"     kTypeS]),
+       (mkIdent "Char",   [entry "Primitives.Char"     kTypeS]),
+       (mkIdent "Handle", [entry "Primitives.Handle"   kTypeS]),
+       (mkIdent "Any",    [entry "Primitives.Any"      kTypeS]),
+       (mkIdent "String", [entry "Data.Char.String"    kTypeS]),
+       (mkIdent "[]",     [entry "Data.List.[]"        kTypeTypeS]),
+       (mkIdent "()",     [entry "Data.Tuple.()"       kTypeS]),
+       (mkIdent "Bool",   [entry "Data.Bool_Type.Bool" kTypeS])] ++
       map tuple (enumFromTo 2 10)
 
 primValues :: [(Ident, [Entry])]
@@ -298,9 +316,6 @@ tArrow a r = tApp (tApp (tConI "Primitives.->") a) r
 
 kArrow :: EKind -> EKind -> EKind
 kArrow = tArrow
-
-kType :: EKind
-kType = tConI "Type"
 
 getArrow :: EType -> Maybe (EType, EType)
 getArrow (EApp (EApp (EVar n) a) b) =
@@ -430,14 +445,16 @@ newUVar = T.do
   put (TC mn (n+1) tenv senv venv sub)
   T.return (EUVar n)
 
-tLookupInst :: String -> Ident -> T (Expr, EType)
+tLookupInst :: --XHasCallStack =>
+               String -> Ident -> T (Expr, EType)
 tLookupInst msg i = T.do
   (e, s) <- tLookup msg i
 --  traceM ("lookup " ++ show (i, s))
   t <- tInst s
   T.return (e, t)
 
-tLookup :: String -> Ident -> T (Expr, ETypeScheme)
+tLookup :: --XHasCallStack =>
+           String -> Ident -> T (Expr, ETypeScheme)
 tLookup msg i = T.do
   env <- gets valueTable
   case M.lookup i env of
@@ -537,19 +554,55 @@ tcDefs ds = T.do
 
 tcDefsType :: [EDef] -> T [EDef]
 tcDefsType ds = withTypeTable $ T.do
-  T.mapM_ addTypeKind ds
-  T.mapM (\ d -> T.do {tcReset; tcDefType d}) ds
+  dsk <- T.mapM tcDefKind ds                     -- Check&rename kinds in all type definitions
+--  traceM ("tcDefs dsk=\n" ++ showEDefs dsk)
+  T.mapM_ addTypeKind dsk                        -- Add the kind of each type to the environment
+  T.mapM tcDefType dsk
+
+tcDefKind :: EDef -> T EDef
+tcDefKind adef = T.do
+  tcReset
+  case adef of
+    Data    (i, vks) cs  -> withVks vks kType $ \ vvks _  -> T.return $ Data    (i, vvks) cs
+    Newtype (i, vks) c t -> withVks vks kType $ \ vvks _  -> T.return $ Newtype (i, vvks) c t
+    Type    (i, vks) at  ->
+      case at of
+        ESign t k        -> withVks vks k     $ \ vvks kr -> T.return $ Type    (i, vvks) (ESign t kr)
+        _                -> withVks vks kType $ \ vvks _  -> T.return $ Type    (i, vvks) at
+    _                    -> T.return adef
+
+-- Check&rename the given kinds, apply reconstruction at the end
+withVks :: forall a . [IdKind] -> EKind -> ([IdKind] -> EKind -> T a) -> T a
+withVks vks kr fun = T.do
+  (nvks, nkr) <-
+    withTypeTable $ T.do
+      let
+        loop r [] = T.do
+          (kkr, _) <- tcTypeT Nothing kr
+          T.return (reverse r, kkr)
+        loop r (IdKind i k : iks) = T.do
+          (kk, _) <- tcTypeT Nothing k
+          withExtVal i (ETypeScheme [] kk) $ loop (IdKind i kk : r) iks
+      loop [] vks
+  fun nvks nkr
 
 addTypeKind :: EDef -> T ()
-addTypeKind adef =
+addTypeKind adef = T.do
+  tcReset
   case adef of
     Data    lhs _   -> addLHSKind lhs kType
     Newtype lhs _ _ -> addLHSKind lhs kType
-    Type    lhs _   -> addLHSKind lhs kType  -- XXX
+    Type    lhs t   -> addLHSKind lhs (getTypeKind t)
     _               -> T.return ()
 
+getTypeKind :: EType -> EKind
+getTypeKind (ESign _ k) = k
+getTypeKind _ = kType
+
 addLHSKind :: LHS -> EKind -> T ()
-addLHSKind (i, vs) kret = extQVal i (ETypeScheme [] $ lhsKind vs kret)
+addLHSKind (i, vks) kret =
+--  trace ("addLHSKind " ++ showIdent i ++ " :: " ++ showExpr (lhsKind vks kret)) $
+  extQVal i (ETypeScheme [] $ lhsKind vks kret)
 
 lhsKind :: [IdKind] -> EKind -> EKind
 lhsKind vks kret = foldr (\ (IdKind _ k) -> kArrow k) kret vks
@@ -565,29 +618,30 @@ addTypeSyn adef =
     _ -> T.return ()
 
 tcDefType :: EDef -> T EDef
-tcDefType d =
+tcDefType d = T.do
+  tcReset
   case d of
-    Data    lhs cs   -> Data    lhs   <$> withVars (lhsKinds lhs) (T.mapM tcConstr cs)
-    Newtype lhs c  t -> Newtype lhs c <$> withVars (lhsKinds lhs) (fst <$> tcType (Just kType) t)
-    Type    lhs    t -> Type    lhs   <$> withVars (lhsKinds lhs) (fst <$> tcType (Just kType) t)
+    Data    lhs cs   -> Data    lhs   <$> withVars (snd lhs) (T.mapM tcConstr cs)
+    Newtype lhs c  t -> Newtype lhs c <$> withVars (snd lhs) (fst <$> tcTypeT (Just kType) t)
+    Type    lhs    t -> Type    lhs   <$> withVars (snd lhs) (fst <$> tcTypeT (Just kType) t)
     Sign    i      t -> Sign    i     <$> tcTypeScheme (Just kType) t
     _ -> T.return d
 
-tcTypeScheme :: Maybe EKind -> ETypeScheme -> T ETypeScheme
-tcTypeScheme mk (ETypeScheme vs t) =
-  ETypeScheme vs <$> withVars (lhsKinds (impossible, vs)) (fst <$> tcType mk t)
+tcTypeScheme :: --XHasCallStack =>
+                Maybe EKind -> ETypeScheme -> T ETypeScheme
+tcTypeScheme mk (ETypeScheme vks t) =
+  withVks vks kType $ \ vvks _ ->
+    ETypeScheme vvks <$> withVars vvks (fst <$> tcTypeT mk t)
 
-lhsKinds :: LHS -> [(Ident, ETypeScheme)]
-lhsKinds (_, vks) = map (\ (IdKind i k) -> (i, ETypeScheme [] k)) vks
-
-withVars :: forall a . [(Ident, ETypeScheme)] -> T a -> T a
+withVars :: forall a . [IdKind] -> T a -> T a
 withVars aiks ta =
   case aiks of
     [] -> ta
-    (i,k) : iks -> withExtVal i k $ withVars iks ta
+    IdKind i k : iks -> T.do
+      withExtVal i (ETypeScheme [] k) $ withVars iks ta
 
 tcConstr :: Constr -> T Constr
-tcConstr (i, ts) = pair i <$> T.mapM (\ t -> fst <$> tcType (Just kType) t) ts
+tcConstr (i, ts) = pair i <$> T.mapM (\ t -> fst <$> tcTypeT (Just kType) t) ts
 
 tcDefsValue :: [EDef] -> T [EDef]
 tcDefsValue ds = T.do
@@ -630,8 +684,22 @@ tcDefValue adef =
 --      T.return (Fcn (qualIdent mn i, vs) (dropLam (length vs) et))
     _ -> T.return adef
 
-tcType :: Maybe EKind -> EType -> T (Typed EType)
-tcType mk = tcExpr mk . dsType
+-- Kind check a type while already in type checking mode
+tcTypeT :: --XHasCallStack =>
+           Maybe EKind -> EType -> T (Typed EType)
+tcTypeT mk = tcExpr mk . dsType
+
+-- Kind check a type while in value checking mode
+tcType :: --XHasCallStack =>
+          Maybe EKind -> EType -> T (Typed EType)
+tcType mk = withTypeTable . tcTypeT mk
+
+{-
+-- Sort check a kind while already in type cheking mode
+tcKind :: --XHasCallStack =>
+          EKind -> T EKind
+tcKind e = fst <$> withTypeTable (tcType (Just kType) e)
+-}
 
 tcExpr :: --XHasCallStack =>
           Maybe EType -> Expr -> T (Typed Expr)
@@ -761,7 +829,7 @@ tcExprR mt ae =
       munify (getSLocExpr ae) mt tr
       T.return (ECompr ea rss, tr)
     ESign e t -> T.do
-      (tt, _) <- withTypeTable $ tcType (Just kType) t
+      (tt, _) <- tcType (Just kType) t
       (ee, _) <- tcExpr (Just tt) e
       munify (getSLocExpr ae) mt tt
       T.return (ESign ee tt, tt)
