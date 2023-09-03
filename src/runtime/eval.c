@@ -1601,10 +1601,10 @@ main(int argc, char **argv)
     printf("%"PCOMMA"15"PRIu64" combinator file size\n", (uint64_t)file_size);
     printf("%"PCOMMA"15"PRIu64" cells at start\n", start_size);
     printf("%"PCOMMA"15"PRIu64" cells heap size (%"PCOMMA""PRIu64" bytes)\n", heap_size, heap_size * NODE_SIZE);
-    printf("%"PCOMMA"15"PRIu64" cells allocated\n", num_alloc);
+    printf("%"PCOMMA"15"PRIu64" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / run_time / 1000000);
     printf("%"PCOMMA"15"PRIu64" GCs\n", num_gc);
     printf("%"PCOMMA"15"PRIu64" max cells used\n", max_num_marked);
-    printf("%"PCOMMA"15"PRIu64" reductions\n", num_reductions);
+    printf("%"PCOMMA"15"PRIu64" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / run_time / 1000000);
     printf("%15.2fs total execution time\n", run_time);
     printf("%15.2fs total gc time\n", gc_mark_time);
 #if GCRED && 0
