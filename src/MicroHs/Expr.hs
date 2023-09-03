@@ -14,7 +14,7 @@ module MicroHs.Expr(
   ECaseArm,
   EType,
   EPat, patVars, isPVar, isPConApp,
-  EKind,
+  EKind, kType,
   IdKind(..), idKindIdent,
   LHS,
   Constr,
@@ -180,6 +180,9 @@ idKindIdent (IdKind i _) = i
 
 type EKind = EType
 
+kType :: EKind
+kType = EVar (Ident noSLoc "Primitives.Type")
+
 tupleConstr :: Int -> Ident
 tupleConstr n = mkIdent (replicate (n - 1) ',')
 
@@ -255,7 +258,8 @@ allVarsStmt astmt =
 getSLocExpr :: Expr -> SLoc
 getSLocExpr e = head $ map getSLocIdent (allVarsExpr e) ++ [noSLoc]
 
-errorMessage :: forall a . SLoc -> String -> a
+errorMessage :: --XHasCallStack =>
+                forall a . SLoc -> String -> a
 errorMessage loc msg = error $ showSLoc loc ++ msg
 
 ----------------

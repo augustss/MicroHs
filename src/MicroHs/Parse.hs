@@ -255,9 +255,6 @@ pIdKind =
 pKind :: P EKind
 pKind = pType
 
-kType :: EKind
-kType = EVar (Ident noSLoc "Type")
-
 pTypeScheme :: P ETypeScheme
 pTypeScheme = P.do
   vs <- (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
