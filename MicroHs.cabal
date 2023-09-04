@@ -39,13 +39,16 @@ executable mhs
   hs-source-dirs:      src
   ghc-options:         -Wall -F -pgmF ./Tools/convertX.sh -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
-  default-extensions:  ScopedTypeVariables QualifiedDo
+  default-extensions:  ScopedTypeVariables QualifiedDo PatternGuards
   other-modules:       MicroHs.Compile
                        MicroHs.Desugar
                        MicroHs.Exp
+                       MicroHs.Expr
+                       MicroHs.Ident
+                       MicroHs.Lex
                        MicroHs.Parse
                        MicroHs.StateIO
-                       MicroHs.StringMap
+                       MicroHs.IdentMap
                        MicroHs.StringMapFast
                        MicroHs.TCMonad
                        MicroHs.Translate
