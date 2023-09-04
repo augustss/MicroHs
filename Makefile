@@ -119,13 +119,14 @@ clean:
 	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR) tmp/eval.c Tools/*.o Tools/*.hi
 	cd tests; make clean
 
-$(BIN)/addcombs:	Tools/Addcombs.hs
-	$(GHC) Tools/Addcombs.hs -o $(BIN)/addcombs
+#$(BIN)/addcombs:	Tools/Addcombs.hs
+#	$(GHC) -main-is -make -iTools Addcomb.main Tools/Addcombs.hs -o $(BIN)/addcombs
 
-tmp/eval.c: src/runtime/eval.c $(COMB)$(MHS).comb $(BIN)/addcombs
+tmp/eval.c: src/runtime/eval.c $(COMB)$(MHS).comb $(BIN)/eval
 	@mkdir -p tmp
 	cp src/runtime/eval.c tmp/eval.c
-	$(BIN)/addcombs $(COMB)$(MHS).comb >> tmp/eval.c
+#	$(BIN)/addcombs $(COMB)$(MHS).comb >> tmp/eval.c
+	$(BIN)/eval +RTS -K10M -r$(COMB)$(MHS).comb -RTS -ilib -iTools -r Addcombs -- $(COMB)$(MHS).comb >> tmp/eval.c
 
 $(BIN)/cmhs: tmp/eval.c
 	$(GCC) -Wall -O3 tmp/eval.c -o $(BIN)/cmhs
