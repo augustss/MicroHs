@@ -122,7 +122,7 @@ clean:
 #$(BIN)/addcombs:	Tools/Addcombs.hs
 #	$(GHC) -main-is -make -iTools Addcomb.main Tools/Addcombs.hs -o $(BIN)/addcombs
 
-tmp/eval.c: src/runtime/eval.c $(COMB)$(MHS).comb $(BIN)/eval
+tmp/eval.c: src/runtime/eval.c $(BIN)/eval
 	@mkdir -p tmp
 	cp src/runtime/eval.c tmp/eval.c
 #	$(BIN)/addcombs $(COMB)$(MHS).comb >> tmp/eval.c
