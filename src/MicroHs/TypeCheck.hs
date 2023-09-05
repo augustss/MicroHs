@@ -934,12 +934,12 @@ dsType at =
   case at of
     EVar _ -> at
     EApp f a -> EApp (dsType f) (dsType a)
-    EList ts -> tApps listConstr [dsType (head ts)]  -- XXX should be [t]
+    EList [t] -> tApps listConstr [dsType t]
     ETuple ts -> tApps (tupleConstr (length ts)) (map dsType ts)
     ESign t k -> ESign (dsType t) k
     _ -> impossible
 
-listConstr :: Ident
+listConstr :: Ident      -- XXX use qualified name?
 listConstr = mkIdent "[]"
 
 tConI :: String -> EType

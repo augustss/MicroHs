@@ -66,7 +66,7 @@ dsEqns eqns =
     Eqn aps _ : _ ->
       let
         vs = allVarsBind $ BFcn (mkIdent "") eqns
-        xs = take (length aps) $ newVars vs
+        xs = take (length aps) $ newVars "q" vs
         ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts alts, hasGuards alts) | Eqn ps alts <- eqns]
       in foldr Lam ex xs
     _ -> impossible
@@ -154,7 +154,7 @@ dsLam :: [EPat] -> Expr -> Exp
 dsLam ps e =
   let
     vs = allVarsExpr (ELam ps e)
-    xs = take (length ps) (newVars vs)
+    xs = take (length ps) (newVars "l" vs)
     ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts $ oneAlt e, False)]
   in foldr Lam ex xs
 
@@ -201,11 +201,11 @@ lams xs e = foldr Lam e xs
 apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
-newVars :: [Ident] -> [Ident]
-newVars is = deleteFirstsBy eqIdent [ mkIdent ("q" ++ showInt i) | i <- enumFrom 1 ] is
+newVars :: String -> [Ident] -> [Ident]
+newVars s is = deleteFirstsBy eqIdent [ mkIdent (s ++ showInt i) | i <- enumFrom 1 ] is
 
 newVar :: [Ident] -> Ident
-newVar = head . newVars
+newVar = head . newVars "q"
 
 showLDefs :: [LDef] -> String
 showLDefs = unlines . map showLDef
@@ -244,14 +244,11 @@ newIdent = S.do
 
 runS :: [Ident] -> [Exp] -> Matrix -> Exp
 runS used ss mtrx =
-  --trace ("runS " ++ show (ss, mtrx)) $
   let
-    supply = deleteFirstsBy eqIdent [ mkIdent ("x" ++ showInt i) | i <- enumFrom 1 ] used
---    ds :: [Exp] -> [Exp] -> M Exp
+    supply = newVars "x" used
     ds xs aes =
       case aes of
-        []   -> --letBind (S.return eMatchErr) $ \ d ->
-                dsMatrix eMatchErr (reverse xs) mtrx
+        []   -> dsMatrix eMatchErr (reverse xs) mtrx
         e:es -> letBind (S.return e) $ \ x -> ds (x:xs) es
   in S.evalState (ds [] ss) supply
 
@@ -308,7 +305,7 @@ dsMatrix dflt iis aarms =
 eMatchErr :: Exp
 eMatchErr = App (Lit (LPrim "error")) (Lit (LStr "no match"))
 
--- If the first expression isn't a variable, the use
+-- If the first expression isn't a variable/literal, then use
 -- a let binding and pass variable to f.
 letBind :: M Exp -> (Exp -> M Exp) -> M Exp
 letBind me f = S.do
@@ -325,7 +322,6 @@ cheap ae =
   case ae of
     Var _ -> True
     Lit _ -> True
---    App (Lit _) _ -> True
     _ -> False
 
 -- Could use Prim "==", but that misses out some optimizations
@@ -386,7 +382,6 @@ splitArms am =
   in (ps, ds, rs)
 
 -- Change from x to y inside e.
--- XXX Doing it at runtime.
 substAlpha :: Ident -> Exp -> Exp -> Exp
 substAlpha x y e =
   if eqIdent x dummyIdent then
@@ -404,7 +399,7 @@ eLet i e b =
       _ ->
         case filter (eqIdent i) (freeVars b) of
           []  -> b                -- no occurences, no need to bind
-          [_] -> substExp i e b   -- single occurrence, substitute  XXX coule be worse if under lambda
+          [_] -> substExp i e b   -- single occurrence, substitute  XXX could be worse if under lambda
           _   -> App (Lam i b) e  -- just use a beta redex
 
 pConOf :: --XHasCallStack =>

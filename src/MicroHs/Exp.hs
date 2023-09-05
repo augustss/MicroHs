@@ -408,9 +408,7 @@ substExp si se ae =
                  let
                    fe = allVarsExp e
                    ase = allVarsExp se
-                   j = --head $ deleteFirstsBy eqIdent ["a" ++ showInt n | n <- enumFrom 0] (freeVars se ++ freeVars e)
-                       --head [ v | n <- enumFrom 0, let { v = "a" ++ showInt n }, not (elemBy eqIdent v fse), not (elemBy eqIdent v fe) ]
-                       head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ showInt n) }, not (elemBy eqIdent v ase), not (elemBy eqIdent v fe) ]
+                   j = head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ showInt n) }, not (elemBy eqIdent v ase), not (elemBy eqIdent v fe) ]
                  in
                    --trace ("substExp " ++ unwords [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))
