@@ -764,12 +764,9 @@ tcExprR mt ae =
               SLet bs ->
                 tcExpr Nothing (ELet bs (EDo mmn ss))
 
-    ESectL e i -> T.do
-      (EApp (EVar ii) ee, t) <- tcExpr mt (EApp (EVar i) e)
-      T.return (ESectL ee ii, t)
-    ESectR i e -> T.do
-      (ELam _ (EApp (EApp var _) ee), t) <- tcExpr mt (ELam [eVarI "$x"] (EApp (EApp (EVar i) (eVarI "$x")) e))
-      T.return (ESectR (getIdent var) ee, t)
+    ESectL e i -> tcExpr mt (EApp (EVar i) e)
+    ESectR i e ->
+      tcExpr mt (ELam [eVarI "$x"] (EApp (EApp (EVar i) (eVarI "$x")) e))
     EIf e1 e2 e3 -> T.do
       (ee1, _) <- tcExpr (Just tBool) e1
       (ee2, te2) <- tcExpr mt e2
@@ -806,23 +803,21 @@ tcExprR mt ae =
       (tt, _) <- tcType (Just kType) t
       (ee, _) <- tcExpr (Just tt) e
       munify (getSLocExpr ae) mt tt
-      T.return (ESign ee tt, tt)
+      T.return (ee, tt)
     EAt i e -> T.do
       (ee, t) <- tcExpr mt e
       (_, ti) <- tLookupInst "impossible!" i
       unify (getSLocExpr ae) t ti
       T.return (EAt i ee, t)
-    -----
-    EUVar _ -> impossible -- shouldn't happen
-    ECon _ -> impossible
+    _ -> impossible
 
 tcLit :: Maybe EType -> SLoc -> Lit -> T (Typed Expr)
 tcLit mt loc l =
   let { lit t = T.do { munify loc mt t; T.return (ELit loc l, t) } } in
   case l of
-    LInt _ -> lit (tConI "Primitives.Int")
+    LInt _  -> lit (tConI "Primitives.Int")
     LChar _ -> lit (tConI "Primitives.Char")
-    LStr _ -> lit (tApps (mkIdent "Data.List.[]") [tConI "Primitives.Char"])
+    LStr _  -> lit (tApps (mkIdent "Data.List.[]") [tConI "Primitives.Char"])
     LPrim _ -> T.do
       t <- unMType mt  -- pretend it is anything
       T.return (ELit loc l, t)

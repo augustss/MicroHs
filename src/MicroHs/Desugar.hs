@@ -121,10 +121,6 @@ dsExpr aexpr =
     ELet ads e -> dsBinds ads (dsExpr e)
     EList es -> foldr (app2 cCons) cNil $ map dsExpr es
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
-    ESectL e op ->
-      App (dsExpr (EVar op)) (dsExpr e)
-    ESectR op e ->
-      app2 cFlip (dsExpr (EVar op)) (dsExpr e)
     EIf e1 e2 e3 ->
       app2 (dsExpr e1) (dsExpr e3) (dsExpr e2)
     ECompr e astmts ->
@@ -141,7 +137,6 @@ dsExpr aexpr =
               dsExpr (EIf c (ECompr e stmts) (EList []))
             SLet ds ->
               dsExpr (ELet ds (ECompr e stmts))
-    ESign e _ -> dsExpr e
     ECon c ->
       let
         ci = conIdent c
