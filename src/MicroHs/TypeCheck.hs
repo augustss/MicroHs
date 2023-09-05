@@ -237,10 +237,6 @@ initTC mn ts ss vs =
     xvs = foldr (uncurry M.insert) vs primValues
   in TC mn 1 xts ss xvs IM.empty
 
--- XXX moduleOf is not correct
-moduleOf :: Ident -> IdentModule
-moduleOf = mkIdent . reverse . tail . dropWhile (neChar '.') . reverse . unIdent
-
 kTypeS :: ETypeScheme
 kTypeS = ETypeScheme [] kType
 
@@ -322,17 +318,6 @@ getArrow :: EType -> Maybe (EType, EType)
 getArrow (EApp (EApp (EVar n) a) b) =
   if eqIdent n (mkIdent "->") || eqIdent n (mkIdent "Primitives.->") then Just (a, b) else Nothing
 getArrow _ = Nothing
-
-{-
-getArrow2 :: EType -> (EType, EType, EType)
-getArrow2 abc =
-  case getArrow abc of
-    Nothing -> error "getArrow2"
-    Just (a, bc) ->
-      case getArrow bc of
-        Nothing -> error "getArrow2"
-        Just (b, c) -> (a, b, c)
--}
 
 addUVar :: Int -> EType -> T ()
 addUVar i t = T.do
@@ -761,14 +746,7 @@ tcExprR mt ae =
         as : ss ->
           if null ss then
             case as of
-              SThen a -> T.do
-                (ea, ta) <- tcExpr mt a
-                let
-                  sbind = maybe (mkIdent ">>=") (\ mn -> qualIdent mn (mkIdent ">>=")) mmn
-                (EVar qi, _) <- tLookupInst "variable" sbind 
-                let
-                  mn = moduleOf qi
-                T.return (EDo (Just mn) [SThen ea], ta)
+              SThen a -> tcExpr mt a
               _ -> errorMessage (getSLocExpr ae) $ "bad do "
                          --X++ show as
           else
@@ -776,22 +754,15 @@ tcExprR mt ae =
               SBind p a -> T.do
                 let
                   sbind = maybe (mkIdent ">>=") (\ mn -> qualIdent mn (mkIdent ">>=")) mmn
-                (EApp (EApp _ ea) (ELam _ (ECase _ ((ep, EAlts [(_, EDo mn ys)] _): _)))
-                 , tr) <-
-                  tcExpr Nothing (EApp (EApp (EVar sbind) a)
-                                       (ELam [eVarI "$x"] (ECase (eVarI "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
-                T.return (EDo mn (SBind ep ea : ys), tr)
+                tcExpr Nothing (EApp (EApp (EVar sbind) a)
+                                     (ELam [eVarI "$x"] (ECase (eVarI "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
               SThen a -> T.do
                 let
                   sthen = maybe (mkIdent ">>") (\ mn -> qualIdent mn (mkIdent ">>") ) mmn
-                (EApp (EApp _ ea) (EDo mn ys), tr) <-
-                  tcExpr Nothing (EApp (EApp (EVar sthen) a) (EDo mmn ss))
-                T.return (EDo mn (SThen ea : ys), tr)
+                tcExpr Nothing (EApp (EApp (EVar sthen) a) (EDo mmn ss))
                   
-              SLet bs -> T.do
-                (ELet ebs (EDo mn ys), tr) <-
-                  tcExpr Nothing (ELet bs (EDo mmn ss))
-                T.return (EDo mn (SLet ebs : ys), tr)
+              SLet bs ->
+                tcExpr Nothing (ELet bs (EDo mmn ss))
 
     ESectL e i -> T.do
       (EApp (EVar ii) ee, t) <- tcExpr mt (EApp (EVar i) e)

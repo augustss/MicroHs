@@ -121,31 +121,6 @@ dsExpr aexpr =
     ELet ads e -> dsBinds ads (dsExpr e)
     EList es -> foldr (app2 cCons) cNil $ map dsExpr es
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
-    EDo mn astmts ->
-      case astmts of
-        [] -> error "empty do"
-        stmt : stmts ->
-          case stmt of
-            SBind p e ->
-              if null stmts then errorMessage (getSLocExpr aexpr) "do without final expression"
-              else
---                case p of
---                  EVar v -> dsExpr $ EApp (EApp (EVar (mqual mn (mkIdent ">>="))) e) (ELam [v] $ EDo mn stmts)
---                  _ ->
-                    let
-                      nv = newVar (allVarsExpr aexpr)
-                      body = ECase (EVar nv) [(p, oneAlt $ EDo mn stmts), (EVar dummyIdent, oneAlt $ eError "dopat")]
-                      res = dsExpr $ EApp (EApp (EVar (mqual mn (mkIdent ">>="))) e) (ELam [EVar nv] body)
-                    in res
-                      
-            SThen e ->
-              if null stmts then
-                dsExpr e
-              else
-                dsExpr $ EApp (EApp (EVar (mqual mn (mkIdent ">>"))) e) (EDo mn stmts)
-            SLet ds ->
-              dsExpr $ ELet ds (EDo mn stmts)
-
     ESectL e op ->
       App (dsExpr (EVar op)) (dsExpr e)
     ESectR op e ->
@@ -167,8 +142,6 @@ dsExpr aexpr =
             SLet ds ->
               dsExpr (ELet ds (ECompr e stmts))
     ESign e _ -> dsExpr e
-    EAt _ _ -> undefined
-    EUVar _ -> undefined
     ECon c ->
       let
         ci = conIdent c
@@ -180,6 +153,7 @@ dsExpr aexpr =
           in foldr Lam body xs
         else
           Var (conIdent c)
+    _ -> impossible
 
 dsLam :: [EPat] -> Expr -> Exp
 dsLam ps e =
@@ -188,12 +162,6 @@ dsLam ps e =
     xs = take (length ps) (newVars vs)
     ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts $ oneAlt e, False)]
   in foldr Lam ex xs
-
-mqual :: Maybe Ident -> Ident -> Ident
-mqual mqi i =
-  case mqi of
-    Just qi -> qualIdent qi i
-    Nothing -> i
 
 -- Handle special syntax for lists and tuples
 dsPat :: --XHasCallStack =>
@@ -231,9 +199,6 @@ tupleCon n =
 
 dummyIdent :: Ident
 dummyIdent = mkIdent "_"
-
-eError :: String -> Expr
-eError s = EApp (ELit noSLoc (LPrim "error")) (ELit noSLoc $ LStr s)
 
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs
