@@ -194,8 +194,19 @@ elemBy eq a = any (eq a)
 enumFrom :: Int -> [Int]
 enumFrom n = n : enumFrom (n+1)
 
+enumFromThen :: Int -> Int -> [Int]
+enumFromThen n m = n : enumFrom (n+d)
+  where d = m - n
+
 enumFromTo :: Int -> Int -> [Int]
 enumFromTo l h = takeWhile (<= h) (enumFrom l)
+
+enumFromThenTo :: Int -> Int -> Int -> [Int]
+enumFromThenTo l m h =
+  if m - l > 0 then
+    takeWhile (<= h) (enumFromThen l m)
+  else
+    takeWhile (>= h) (enumFromThen l m)
 
 find :: forall a . (a -> Bool) -> [a] -> Maybe a
 find p [] = Nothing
