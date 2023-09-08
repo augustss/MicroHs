@@ -14,6 +14,7 @@ test:
 	$(MHS) Newtype && $(EVAL) > Newtype.out && diff Newtype.ref Newtype.out
 	$(MHS) LitMatch && $(EVAL) > LitMatch.out && diff LitMatch.ref LitMatch.out
 	$(MHS) Word && $(EVAL) > Word.out && diff Word.ref Word.out
+	$(MHS) Enum && $(EVAL) > Enum.out && diff Enum.ref Enum.out
 
 time:
 	@echo Expect about 10s runtime

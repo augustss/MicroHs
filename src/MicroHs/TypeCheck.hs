@@ -731,15 +731,6 @@ tcExprR mt ae =
         ttup = tApps (tupleConstr n) tes
       munify (getSLocExpr ae) mt ttup
       T.return (ETuple ees, ttup)
-    EList es -> T.do
-      (ees, ts) <- T.fmap unzip (T.mapM (tcExpr Nothing) es)
-      te <- case ts of
-              [] -> newUVar
-              t : _ -> T.return t
-      let
-        tlist = tApps (mkIdent "Data.List.[]") [te]
-      munify (getSLocExpr ae) mt tlist
-      T.return (EList ees, tlist)
     EDo mmn ass -> T.do
       case ass of
         [] -> impossible
@@ -773,7 +764,16 @@ tcExprR mt ae =
       (ee3, te3) <- tcExpr mt e3
       unify (getSLocExpr ae) te2 te3
       T.return (EIf ee1 ee2 ee3, te2)
-    ECompr eret ass -> T.do
+    EListish (LList es) -> T.do
+      (ees, ts) <- T.fmap unzip (T.mapM (tcExpr Nothing) es)
+      te <- case ts of
+              [] -> newUVar
+              t : _ -> T.return t
+      let
+        tlist = tApps (mkIdent "Data.List.[]") [te]
+      munify (getSLocExpr ae) mt tlist
+      T.return (EListish (LList ees), tlist)
+    EListish (LCompr eret ass) -> T.do
       let
         --XdoStmts :: [EStmt] -> [EStmt] -> T ([EStmt], Typed Expr)
         doStmts rss xs =
@@ -798,7 +798,11 @@ tcExprR mt ae =
       let
         tr = tApp tList ta
       munify (getSLocExpr ae) mt tr
-      T.return (ECompr ea rss, tr)
+      T.return (EListish (LCompr ea rss), tr)
+    EListish (LFrom       e)        -> tcExpr mt (enum "From" [e])
+    EListish (LFromTo     e1 e2)    -> tcExpr mt (enum "FromTo" [e1, e2])
+    EListish (LFromThen   e1 e2)    -> tcExpr mt (enum "FromThen" [e1,e2])
+    EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enum "FromThenTo" [e1,e2,e3])
     ESign e t -> T.do
       (tt, _) <- tcType (Just kType) t
       (ee, _) <- tcExpr (Just tt) e
@@ -810,6 +814,9 @@ tcExprR mt ae =
       unify (getSLocExpr ae) t ti
       T.return (EAt i ee, t)
     _ -> impossible
+
+enum :: String -> [Expr] -> Expr
+enum f = foldl EApp (EVar (mkIdent ("enum" ++ f)))
 
 tcLit :: Maybe EType -> SLoc -> Lit -> T (Typed Expr)
 tcLit mt loc l =
@@ -934,7 +941,7 @@ dsType at =
   case at of
     EVar _ -> at
     EApp f a -> EApp (dsType f) (dsType a)
-    EList [t] -> tApps listConstr [dsType t]
+    EListish (LList [t]) -> tApps listConstr [dsType t]
     ETuple ts -> tApps (tupleConstr (length ts)) (map dsType ts)
     ESign t k -> ESign (dsType t) k
     _ -> impossible

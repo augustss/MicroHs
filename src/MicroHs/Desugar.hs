@@ -114,29 +114,29 @@ dsExpr aexpr =
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam xs e -> dsLam xs e
     ELit _ (LChar c) -> Lit (LInt (ord c))
---    ELit _ (LStr cs) -> dsExpr $ EList $ map (ELit . LChar) cs
+--    ELit _ (LStr cs) -> dsExpr $ EListish $ LList $ map (ELit . LChar) cs
     ELit _ l -> Lit l
     ECase e as -> dsCase e as
 -- For now, just sequential bindings; each recursive
     ELet ads e -> dsBinds ads (dsExpr e)
-    EList es -> foldr (app2 cCons) cNil $ map dsExpr es
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
     EIf e1 e2 e3 ->
       app2 (dsExpr e1) (dsExpr e3) (dsExpr e2)
-    ECompr e astmts ->
+    EListish (LList es) -> foldr (app2 cCons) cNil $ map dsExpr es
+    EListish (LCompr e astmts) ->
       case astmts of
-        [] -> dsExpr (EList [e])
+        [] -> dsExpr (EListish (LList [e]))
         stmt : stmts ->
           case stmt of
             SBind p b ->
               let
                 nv = newVar (allVarsExpr aexpr)
-                body = ECase (EVar nv) [(p, oneAlt $ ECompr e stmts), (EVar dummyIdent, oneAlt $ EList [])]
+                body = ECase (EVar nv) [(p, oneAlt $ EListish (LCompr e stmts)), (EVar dummyIdent, oneAlt $ EListish (LList []))]
               in app2 (Var (mkIdent "Data.List.concatMap")) (dsExpr (ELam [EVar nv] body)) (dsExpr b)
             SThen c ->
-              dsExpr (EIf c (ECompr e stmts) (EList []))
+              dsExpr (EIf c (EListish (LCompr e stmts)) (EListish (LList [])))
             SLet ds ->
-              dsExpr (ELet ds (ECompr e stmts))
+              dsExpr (ELet ds (EListish (LCompr e stmts)))
     ECon c ->
       let
         ci = conIdent c
@@ -166,7 +166,7 @@ dsPat ap =
     EVar _ -> ap
     ECon _ -> ap
     EApp f a -> EApp (dsPat f) (dsPat a)
-    EList ps -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
+    EListish (LList ps) -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
     ETuple ps -> dsPat $ foldl EApp (tupleCon (length ps)) ps
     EAt i p -> EAt i (dsPat p)
     ELit _ _ -> ap

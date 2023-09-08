@@ -195,8 +195,9 @@ enumFrom :: Int -> [Int]
 enumFrom n = n : enumFrom (n+1)
 
 enumFromThen :: Int -> Int -> [Int]
-enumFromThen n m = n : enumFrom (n+d)
+enumFromThen n m = from n
   where d = m - n
+        from i = i : from (i+d)
 
 enumFromTo :: Int -> Int -> [Int]
 enumFromTo l h = takeWhile (<= h) (enumFrom l)

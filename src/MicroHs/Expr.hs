@@ -5,6 +5,7 @@ module MicroHs.Expr(
   ImportSpec(..),
   EDef(..), showEDefs,
   Expr(..), showExpr,
+  Listish(..),
   Lit(..), showLit,
   EBind(..),
   Eqn(..),
@@ -68,12 +69,11 @@ data Expr
   | ECase Expr [ECaseArm]
   | ELet [EBind] Expr
   | ETuple [Expr]
-  | EList [Expr]
+  | EListish Listish
   | EDo (Maybe Ident) [EStmt]
   | ESectL Expr Ident
   | ESectR Ident Expr
   | EIf Expr Expr Expr
-  | ECompr Expr [EStmt]
   | ESign Expr EType
   | EAt Ident Expr  -- only in patterns
   -- Only while type checking
@@ -87,6 +87,15 @@ data Con
   | ConNew Ident
   | ConLit Lit
 --  | ConTup Int
+  --Xderiving(Show, Eq)
+
+data Listish
+  = LList [Expr]
+  | LCompr Expr [EStmt]
+  | LFrom Expr
+  | LFromTo Expr Expr
+  | LFromThen Expr Expr
+  | LFromThenTo Expr Expr Expr
   --Xderiving(Show, Eq)
 
 conIdent :: --XHasCallStack =>
@@ -234,12 +243,12 @@ allVarsExpr aexpr =
     ECase e as -> allVarsExpr e ++ concatMap allVarsCaseArm as
     ELet bs e -> concatMap allVarsBind bs ++ allVarsExpr e
     ETuple es -> concatMap allVarsExpr es
-    EList es -> concatMap allVarsExpr es
+    EListish (LList es) -> concatMap allVarsExpr es
     EDo mi ss -> maybe [] (:[]) mi ++ concatMap allVarsStmt ss
     ESectL e i -> i : allVarsExpr e
     ESectR i e -> i : allVarsExpr e
     EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
-    ECompr e ss -> allVarsExpr e ++ concatMap allVarsStmt ss
+    EListish (LCompr e ss) -> allVarsExpr e ++ concatMap allVarsStmt ss
     ESign e _ -> allVarsExpr e
     EAt i e -> i : allVarsExpr e
     EUVar _ -> []
@@ -331,12 +340,12 @@ showExpr ae =
     ECase e as -> "case " ++ showExpr e ++ " of {\n" ++ unlines (map showCaseArm as) ++ "}"
     ELet bs e -> "let\n" ++ unlines (map showEBind bs) ++ "in " ++ showExpr e
     ETuple es -> "(" ++ intercalate "," (map showExpr es) ++ ")"
-    EList es -> showList showExpr es
+    EListish (LList es) -> showList showExpr es
     EDo mn ss -> maybe "do" (\ n -> showIdent n ++ ".do\n") mn ++ unlines (map showEStmt ss)
     ESectL e i -> "(" ++ showExpr e ++ " " ++ showIdent i ++ ")"
     ESectR i e -> "(" ++ showIdent i ++ " " ++ showExpr e ++ ")"
     EIf e1 e2 e3 -> "if " ++ showExpr e1 ++ " then " ++ showExpr e2 ++ " else " ++ showExpr e3
-    ECompr _ _ -> "ECompr"
+    EListish (LCompr _ _) -> "ECompr"
     ESign e t -> showExpr e ++ " :: " ++ showEType t
     EAt i e -> showIdent i ++ "@" ++ showExpr e
     EUVar i -> "a" ++ showInt i
@@ -345,7 +354,7 @@ showExpr ae =
     showApp as (EApp f a) = showApp (as ++ [a]) f
     showApp as (EVar i) | eqString op "->", [a, b] <- as = "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
                         | eqChar (head op) ',' = showExpr (ETuple as)
-                        | eqString op "[]", length as == 1 = showExpr (EList as)
+                        | eqString op "[]", length as == 1 = showExpr (EListish (LList as))
                         where op = unQualString (unIdent i)
     showApp as f = "(" ++ unwords (map showExpr (f:as)) ++ ")"
 

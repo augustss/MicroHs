@@ -173,7 +173,7 @@ pLSymOper = P.do
   P.pure s
 
 reservedOps :: [String]
-reservedOps = ["=", "|", "::", "<-", "@"]
+reservedOps = ["=", "|", "::", "<-", "@", ".."]
 
 pUQIdentSym :: P Ident
 pUQIdentSym = pUQIdent <|< pParens pUQSymOper
@@ -305,7 +305,7 @@ pAType =
   <|> (EVar <$> pUQIdentSym)
   <|> pLit
   <|> (eTuple <$> (pSpec '(' *> esepBy1 pType (pSpec ',') <* pSpec ')'))
-  <|> (EList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
+  <|> (EListish . LList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
 
 -------------
 -- Patterns
@@ -321,7 +321,7 @@ pAPat =
   <|> (EVar <$> pUQIdentSym)
   <|> pLit
   <|> (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
-  <|> (EList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
+  <|> (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
   <|> (EAt <$> (pLIdentSym <* pSymbol "@") <*> pAPat)
 
 pPat :: P EPat
@@ -453,14 +453,29 @@ pAExpr = (
   <|> (EVar   <$> pUQIdentSym)
   <|> pLit
   <|> (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
-  <|> (EList  <$> (pSpec '[' *> esepBy1 pExpr (pSpec ',') <* pSpec ']'))
+  <|> EListish <$> (pSpec '[' *> pListish <* pSpec ']')
   <|> (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOper <* pSpec ')'))
   <|> (ESectR <$> (pSpec '(' *> pOper) <*> (pExprArg <* pSpec ')'))
-  <|> (ECompr <$> (pSpec '[' *> pExpr <* pSymbol "|") <*> (esepBy1 pStmt (pSpec ',') <* pSpec ']'))
   <|> (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
   )
   -- This weirdly slows down parsing
   -- <?> "aexpr"
+
+pListish :: P Listish
+pListish = P.do
+  e1 <- pExpr
+  let
+    pMore = P.do
+      e2 <- pExpr
+      ((\ es -> LList (e1:e2:es)) <$> esome (pSpec ',' *> pExpr))
+       <|< (LFromThenTo e1 e2 <$> (pSymbol ".." *> pExpr))
+       <|< (LFromThen e1 e2 <$ pSymbol "..")
+       <|< P.pure (LList [e1,e2])
+  (pSpec ',' *> pMore)
+   <|< (LCompr e1 <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')))
+   <|< (LFromTo e1 <$> (pSymbol ".." *> pExpr))
+   <|< (LFrom e1 <$ pSymbol "..")
+   <|< P.pure (LList [e1])
 
 pExprOp :: P Expr
 pExprOp =
