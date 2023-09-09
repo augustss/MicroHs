@@ -46,7 +46,7 @@ typeCheck imps (EModule mn exps defs) =
 --  trace (show amdl) $
   let
     (ts, ss, vs) = mkTables imps
-  in case runState (tcDefs defs) (initTC mn ts ss vs) of
+  in case tcRun (tcDefs defs) (initTC mn ts ss vs) of
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule mn tds impossible)
@@ -106,6 +106,9 @@ getAppCon _ = undefined
 
 eVarI :: String -> Expr
 eVarI = EVar . mkIdent
+
+--tcExpErr :: forall a . Ident -> T a
+--tcExpErr i = tcError (getSLocIdent i) $ ": export undefined " ++ showIdent i
 
 expErr :: forall a . Ident -> a
 expErr i = errorMessage (getSLocIdent i) $ ": export undefined " ++ showIdent i
@@ -354,7 +357,7 @@ expandSyn at =
           case M.lookup i syns of
             Nothing -> T.return $ foldl tApp t ts
             Just (ETypeScheme vks tt) ->
-              if length vks /= length ts then errorMessage (getSLocIdent i) $ ": bad synonym use: " --X ++ show (i, vks, ts)
+              if length vks /= length ts then tcError (getSLocIdent i) $ ": bad synonym use: " --X ++ show (i, vks, ts)
               else expandSyn $ subst (zip (map idKindIdent vks) ts) tt
         EUVar _ -> T.return $ foldl tApp t ts
         ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
@@ -394,7 +397,7 @@ unifyR loc a b = T.do
 --  tenv <- gets typeTable
 --  senv <- gets synTable
   let
-    bad = errorMessage loc $ ": "
+    bad = tcError loc $ ": "
                       ++ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n"
 --                    ++ show a ++ " - " ++ show b ++ "\n"
 --                    ++ show tenv ++ "\n"
@@ -446,7 +449,7 @@ tLookup :: --XHasCallStack =>
 tLookup msg i = T.do
   env <- gets valueTable
   case M.lookup i env of
-    Nothing -> errorMessage (getSLocIdent i) $ ": undefined " ++ msg ++ ": " ++ showIdent i
+    Nothing -> tcError (getSLocIdent i) $ ": undefined " ++ msg ++ ": " ++ showIdent i
                -- ++ "\n" ++ show env ;
     Just aes ->
       case aes of
@@ -457,7 +460,7 @@ tLookup msg i = T.do
               if null es then
                 T.return (e, s)
               else
-                errorMessage (getSLocIdent i) $ ": ambiguous " ++ showIdent i
+                tcError (getSLocIdent i) $ ": ambiguous " ++ showIdent i
 
 tInst :: ETypeScheme -> T EType
 tInst as =
@@ -738,7 +741,7 @@ tcExprR mt ae =
           if null ss then
             case as of
               SThen a -> tcExpr mt a
-              _ -> errorMessage (getSLocExpr ae) $ "bad do "
+              _ -> tcError (getSLocExpr ae) $ "bad do "
                          --X++ show as
           else
             case as of
@@ -901,7 +904,7 @@ tcPat t ap ta = T.do
 
 checkArity :: SLoc -> Int -> EPat -> T ()
 checkArity loc n (EApp f _) = checkArity loc (n+1) f
-checkArity loc n (ECon c) = if n == conArity c then T.return () else errorMessage loc ": con arity"
+checkArity loc n (ECon c) = if n == conArity c then T.return () else tcError loc ": con arity"
 checkArity _ _ _ = T.return ()
 
 -- XXX No mutual recursion yet

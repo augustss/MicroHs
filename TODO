@@ -12,7 +12,6 @@
   - Rank-N requires small changes in the type checker
 * Implement mutual recursion in let
   - Use SCC
-* Add [x..y] syntax
 * Add the possibility to save a compiler cache in a file
   - Add SHA checksumming to the C code
   - Use filename as the cache lookup key and SHA for validation
