@@ -74,6 +74,7 @@ data Expr
   | ESectL Expr Ident
   | ESectR Ident Expr
   | EIf Expr Expr Expr
+--  | EOpers Expr [(Ident, Expr)]
   | ESign Expr EType
   | EAt Ident Expr  -- only in patterns
   -- Only while type checking
@@ -248,11 +249,19 @@ allVarsExpr aexpr =
     ESectL e i -> i : allVarsExpr e
     ESectR i e -> i : allVarsExpr e
     EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
-    EListish (LCompr e ss) -> allVarsExpr e ++ concatMap allVarsStmt ss
+    EListish l -> allVarsListish l
     ESign e _ -> allVarsExpr e
     EAt i e -> i : allVarsExpr e
     EUVar _ -> []
     ECon c -> [conIdent c]
+
+allVarsListish :: Listish -> [Ident]
+allVarsListish (LList es) = concatMap allVarsExpr es
+allVarsListish (LCompr e ss) = allVarsExpr e ++ concatMap allVarsStmt ss
+allVarsListish (LFrom e) = allVarsExpr e
+allVarsListish (LFromTo e1 e2) = allVarsExpr e1 ++ allVarsExpr e2
+allVarsListish (LFromThen e1 e2) = allVarsExpr e1 ++ allVarsExpr e2
+allVarsListish (LFromThenTo e1 e2 e3) = allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
 
 allVarsCaseArm :: ECaseArm -> [Ident]
 allVarsCaseArm (p, alts) = allVarsPat p ++ allVarsAlts alts
@@ -345,7 +354,7 @@ showExpr ae =
     ESectL e i -> "(" ++ showExpr e ++ " " ++ showIdent i ++ ")"
     ESectR i e -> "(" ++ showIdent i ++ " " ++ showExpr e ++ ")"
     EIf e1 e2 e3 -> "if " ++ showExpr e1 ++ " then " ++ showExpr e2 ++ " else " ++ showExpr e3
-    EListish (LCompr _ _) -> "ECompr"
+    EListish l -> showListish l
     ESign e t -> showExpr e ++ " :: " ++ showEType t
     EAt i e -> showIdent i ++ "@" ++ showExpr e
     EUVar i -> "a" ++ showInt i
@@ -357,6 +366,9 @@ showExpr ae =
                         | eqString op "[]", length as == 1 = showExpr (EListish (LList as))
                         where op = unQualString (unIdent i)
     showApp as f = "(" ++ unwords (map showExpr (f:as)) ++ ")"
+
+showListish :: Listish -> String
+showListish _ = "<<Listish>>"
 
 showCon :: Con -> String
 showCon (ConData _ s) = showIdent s
