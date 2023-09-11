@@ -15,6 +15,20 @@
 #define SANITY   1              /* do some sanity checks */
 #define STACKOVL 1              /* check for stack overflow */
 
+typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
+#define PRIvalue PRIdPTR
+typedef uintptr_t uvalue_t;     /* Make unsigned value the same size as pointers, since they are in a union */
+#define PRIuvalue PRIuPTR
+typedef uintptr_t heapoffs_t;   /* Heap offsets */
+#define PRIheap PRIuPTR
+typedef uintptr_t tag_t;        /* Room for tag, low order bit indicates AP/not-AP */
+typedef intptr_t stackptr_t;    /* Index into stack */
+/* These types can be changed for 32 bit platforms. */
+typedef uint64_t counter_t;     /* Statistics counter, can be smaller since overflow doesn't matter */
+#define PRIcounter PRIu64
+typedef uint64_t bits_t;        /* One word of bits */
+
+
 #if defined(__MINGW32__)
 #define ffsl __builtin_ffsll
 #endif
@@ -96,8 +110,6 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_LAST_TAG,
 };
 
-typedef int64_t value_t;
-
 #if NAIVE
 
 /* Naive node representation with minimal unions */
@@ -128,7 +140,7 @@ typedef struct node* NODEPTR;
 #define HANDLE(p) (p)->u.file
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); if (!cells) memerr(); memset(cells, 0x55, n * sizeof(node)); } while(0)
-#define LABEL(n) ((uint64_t)((n) - cells))
+#define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
 #elif UNIONPTR
@@ -136,7 +148,7 @@ node *cells;                 /* All cells */
 typedef struct node {
   union {
     struct node *uufun;
-    uint64_t uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
+    tag_t uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
   } ufun;
   union {
     struct node *uuarg;
@@ -159,7 +171,7 @@ typedef struct node* NODEPTR;
 #define HANDLE(p) (p)->uarg.uufile
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
-#define LABEL(n) ((uint64_t)((n) - cells))
+#define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
 #else
@@ -168,14 +180,14 @@ node *cells;                 /* All cells */
 
 #endif
 
-uint64_t num_reductions = 0;
-uint64_t num_alloc;
-uint64_t num_gc = 0;
+counter_t num_reductions = 0;
+counter_t num_alloc;
+counter_t num_gc = 0;
 double gc_mark_time = 0;
 double run_time = 0;
 
 NODEPTR *stack;
-int64_t stack_ptr = -1;
+stackptr_t stack_ptr = -1;
 #if STACKOVL
 #define PUSH(x) do { if (stack_ptr >= stack_size-1) ERR("stack overflow"); stack[++stack_ptr] = (x); } while(0)
 #else  /* SANITY */
@@ -185,18 +197,18 @@ int64_t stack_ptr = -1;
 #define POP(n) stack_ptr -= (n)
 #define GCCHECK(n) gc_check((n))
 
-uint64_t heap_size = HEAP_CELLS; /* number of heap cells */
-uint64_t heap_start;             /* first location in heap that needs GC */
-int64_t stack_size = STACK_SIZE;
+heapoffs_t heap_size = HEAP_CELLS; /* number of heap cells */
+heapoffs_t heap_start;             /* first location in heap that needs GC */
+stackptr_t stack_size = STACK_SIZE;
 
-uint64_t num_marked;
-uint64_t max_num_marked = 0;
-uint64_t num_free;
+counter_t num_marked;
+counter_t max_num_marked = 0;
+counter_t num_free;
 
-#define BITS_PER_UINT64 64
-uint64_t *free_map;             /* 1 bit per node, 0=free, 1=used */
-uint64_t free_map_nwords;
-uint64_t next_scan_index;
+#define BITS_PER_WORD (sizeof(bits_t) * 8)
+bits_t *free_map;             /* 1 bit per node, 0=free, 1=used */
+heapoffs_t free_map_nwords;
+heapoffs_t next_scan_index;
 
 typedef struct {
   size_t b_size;
@@ -242,30 +254,30 @@ ungetb(int c, BFILE *p)
 /* Set FREE bit to 0 */
 static inline void mark_used(NODEPTR n)
 {
-  uint64_t i = LABEL(n);
+  heapoffs_t i = LABEL(n);
   if (i < heap_start)
     return;
 #if SANITY
-  if (i >= free_map_nwords * BITS_PER_UINT64) ERR("mark_used");
+  if (i >= free_map_nwords * BITS_PER_WORD) ERR("mark_used");
 #endif
-  free_map[i / BITS_PER_UINT64] &= ~(1ULL << (i % BITS_PER_UINT64));
+  free_map[i / BITS_PER_WORD] &= ~(1ULL << (i % BITS_PER_WORD));
 }
 
 /* Test if FREE bit is 0 */
 static inline int is_marked_used(NODEPTR n)
 {
-  uint64_t i = LABEL(n);
+  heapoffs_t i = LABEL(n);
   if (i < heap_start)
     return 1;
 #if SANITY
-  if (i >= free_map_nwords * BITS_PER_UINT64) ERR("is_marked_used");;
+  if (i >= free_map_nwords * BITS_PER_WORD) ERR("is_marked_used");;
 #endif
-  return (free_map[i / BITS_PER_UINT64] & (1ULL << (i % BITS_PER_UINT64))) == 0;
+  return (free_map[i / BITS_PER_WORD] & (1ULL << (i % BITS_PER_WORD))) == 0;
 }
 
 static inline void mark_all_free(void)
 {
-  memset(free_map, ~0, free_map_nwords * sizeof(uint64_t));
+  memset(free_map, ~0, free_map_nwords * sizeof(bits_t));
   next_scan_index = heap_start;
 }
 
@@ -290,10 +302,10 @@ alloc_node(enum node_tag t)
     ERR("alloc_node");
 #endif
 
-  uint64_t i = next_scan_index / BITS_PER_UINT64;
+  heapoffs_t i = next_scan_index / BITS_PER_WORD;
   int k;                        /* will contain bit pos + 1 */
   for(;;) {
-    uint64_t word = free_map[i];
+    heapoffs_t word = free_map[i];
     k = ffsl(word);
     if (k)
       break;
@@ -303,7 +315,7 @@ alloc_node(enum node_tag t)
       ERR("alloc_node free_map");
 #endif
   }
-  uint64_t pos = i * BITS_PER_UINT64 + k - 1; /* first free node */
+  heapoffs_t pos = i * BITS_PER_WORD + k - 1; /* first free node */
   NODEPTR n = HEAPREF(pos);
   mark_used(n);
   next_scan_index = pos;
@@ -399,8 +411,8 @@ void
 init_nodes(void)
 {
   ALLOC_HEAP(heap_size);
-  free_map_nwords = (heap_size + BITS_PER_UINT64 - 1) / BITS_PER_UINT64; /* bytes needed for free map */
-  free_map = malloc(free_map_nwords * sizeof(uint64_t));
+  free_map_nwords = (heap_size + BITS_PER_WORD - 1) / BITS_PER_WORD; /* bytes needed for free map */
+  free_map = malloc(free_map_nwords * sizeof(bits_t));
   if (!free_map)
     memerr();
 
@@ -462,15 +474,10 @@ init_nodes(void)
 #endif
 
   /* Round up heap_start to the next bitword boundary to avoid the permanent nodes. */
-  heap_start = (heap_start + BITS_PER_UINT64 - 1) / BITS_PER_UINT64 * BITS_PER_UINT64;
+  heap_start = (heap_start + BITS_PER_WORD - 1) / BITS_PER_WORD * BITS_PER_WORD;
 
   mark_all_free();
 
-  //for (int64_t i = heap_start; i < heap_size; i++) {
-  //  NODEPTR n = HEAPREF(i);
-  //  MARK(n) = NOTMARKED;
-  //  TAG(n) = FREE;
-  //}
   num_free = heap_size - heap_start;
 }
 
@@ -572,7 +579,7 @@ gc(void)
     fprintf(stderr, "gc mark\n");
   gc_mark_time -= gettime();
   mark_all_free();
-  for (int64_t i = 0; i <= stack_ptr; i++)
+  for (stackptr_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
   t = gettime();
   gc_mark_time += t;
@@ -585,7 +592,7 @@ gc(void)
   if (num_free < heap_size / 50)
     ERR("heap exhausted");
   if (verbose > 1)
-    fprintf(stderr, "gc done, %"PRIu64" free\n", num_free);
+    fprintf(stderr, "gc done, %"PRIcounter" free\n", num_free);
 }
 
 /* Check that there are k nodes available, if not then GC. */
@@ -612,10 +619,10 @@ gobble(BFILE *f, int c)
   }
 }
 
-int64_t
+value_t
 parse_int(BFILE *f)
 {
-  int64_t i = 0;
+  value_t i = 0;
   int c = getb(f);
   for(;;) {
     i = i * 10 + c - '0';
@@ -636,21 +643,21 @@ mkStrNode(const char *str)
   return n;
 }
 
-NODEPTR mkInt(int64_t i);
+NODEPTR mkInt(value_t i);
 
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
-  uint64_t label;
+  heapoffs_t label;
   NODEPTR node;                 /* NIL indicates unused */
 } *shared_table;
-uint64_t shared_table_size;
+heapoffs_t shared_table_size;
 
 /* Look for the label in the table.
  * If it's found, return the node.
  * If not found, return the first empty entry.
 */
 NODEPTR *
-find_label(uint64_t label)
+find_label(heapoffs_t label)
 {
   int hash = (int)(label % shared_table_size);
   for(int i = hash; ; i++) {
@@ -671,7 +678,7 @@ parse(BFILE *f)
 {
   NODEPTR r;
   NODEPTR *nodep;
-  int64_t l;
+  heapoffs_t l;
   value_t i;
   value_t neg;
   int c;
@@ -798,7 +805,7 @@ NODEPTR
 parse_top(BFILE *f)
 {
   checkversion(f);
-  uint64_t numLabels = parse_int(f);
+  heapoffs_t numLabels = parse_int(f);
   if (!gobble(f, '\n'))
     ERR("size parse");
   gobble(f, '\r');                 /* allow extra CR */
@@ -806,7 +813,7 @@ parse_top(BFILE *f)
   shared_table = malloc(shared_table_size * sizeof(struct shared_entry));
   if (!shared_table)
     memerr();
-  for(uint64_t i = 0; i < shared_table_size; i++)
+  for(heapoffs_t i = 0; i < shared_table_size; i++)
     shared_table[i].node = NIL;
   NODEPTR n = parse(f);
   free(shared_table);
@@ -852,7 +859,7 @@ parse_file(const char *fn, size_t *psize)
 
 void printrec(FILE *f, NODEPTR n);
 
-uint64_t num_shared;
+counter_t num_shared;
 
 /* Two bits per node: marked, shared
  * 0, 0   -- not visited
@@ -860,22 +867,22 @@ uint64_t num_shared;
  * 1, 1   -- visited more than once
  * 0, 1   -- printed
  */
-uint64_t *marked_bits;
-uint64_t *shared_bits;
-static inline void set_bit(uint64_t *bits, NODEPTR n)
+bits_t *marked_bits;
+bits_t *shared_bits;
+static inline void set_bit(bits_t *bits, NODEPTR n)
 {
-  uint64_t i = LABEL(n);
-  bits[i / BITS_PER_UINT64] |= (1ULL << (i % BITS_PER_UINT64));
+  heapoffs_t i = LABEL(n);
+  bits[i / BITS_PER_WORD] |= (1ULL << (i % BITS_PER_WORD));
 }
-static inline void clear_bit(uint64_t *bits, NODEPTR n)
+static inline void clear_bit(bits_t *bits, NODEPTR n)
 {
-  uint64_t i = LABEL(n);
-  bits[i / BITS_PER_UINT64] &= ~(1ULL << (i % BITS_PER_UINT64));
+  heapoffs_t i = LABEL(n);
+  bits[i / BITS_PER_WORD] &= ~(1ULL << (i % BITS_PER_WORD));
 }
-static inline uint64_t test_bit(uint64_t *bits, NODEPTR n)
+static inline int test_bit(bits_t *bits, NODEPTR n)
 {
-  uint64_t i = LABEL(n);
-  return bits[i / BITS_PER_UINT64] & (1ULL << (i % BITS_PER_UINT64));
+  heapoffs_t i = LABEL(n);
+  return (bits[i / BITS_PER_WORD] & (1ULL << (i % BITS_PER_WORD))) != 0;
 }
 
 /* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
@@ -919,11 +926,11 @@ printrec(FILE *f, NODEPTR n)
     /* The node is shared */
     if (test_bit(marked_bits, n)) {
       /* Not yet printed, so emit a label */
-      fprintf(f, ":%"PRIu64" ", LABEL(n));
+      fprintf(f, ":%"PRIheap" ", LABEL(n));
       clear_bit(marked_bits, n);  /* mark as printed */
     } else {
       /* This node has already been printed, so just use a reference. */
-      fprintf(f, "_%"PRIu64, LABEL(n));
+      fprintf(f, "_%"PRIheap, LABEL(n));
       return;
     }
   }
@@ -937,7 +944,7 @@ printrec(FILE *f, NODEPTR n)
     printrec(f, ARG(n));
     fputc(')', f);
     break;
-  case T_INT: fprintf(f, "%"PRIu64, GETVALUE(n)); break;
+  case T_INT: fprintf(f, "%"PRIvalue, GETVALUE(n)); break;
   case T_STR:
     {
       const char *p = STR(n);
@@ -1019,15 +1026,15 @@ void
 print(FILE *f, NODEPTR n, int header)
 {
   num_shared = 0;
-  marked_bits = calloc(free_map_nwords, sizeof(uint64_t));
+  marked_bits = calloc(free_map_nwords, sizeof(bits_t));
   if (!marked_bits)
     memerr();
-  shared_bits = calloc(free_map_nwords, sizeof(uint64_t));
+  shared_bits = calloc(free_map_nwords, sizeof(bits_t));
   if (!shared_bits)
     memerr();
   find_sharing(n);
   if (header)
-    fprintf(f, "%s%"PRIu64"\n", VERSION, num_shared);
+    fprintf(f, "%s%"PRIcounter"\n", VERSION, num_shared);
   printrec(f, n);
   free(marked_bits);
   free(shared_bits);
@@ -1042,7 +1049,7 @@ pp(FILE *f, NODEPTR n)
 }
 
 NODEPTR
-mkInt(int64_t i)
+mkInt(value_t i)
 {
 #if INTTABLE
   if (LOW_INT <= i && i < HIGH_INT) {
@@ -1202,13 +1209,13 @@ NODEPTR evalio(NODEPTR n);
 void
 eval(NODEPTR n)
 {
-  int64_t stk = stack_ptr;
+  stackptr_t stk = stack_ptr;
   NODEPTR x, y, z, w;
   value_t xi, yi;
   value_t r;
   FILE *hdl;
   char *msg;
-  int64_t l;
+  heapoffs_t l;
 
 /* Reset stack pointer and return. */
 #define RET do { stack_ptr = stk; return; } while(0)
@@ -1237,9 +1244,9 @@ eval(NODEPTR n)
 #define SETINT(n,r)   do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define OPINT2(e)     do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define ARITHBIN(op)  do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
-#define ARITHBINU(op) do { OPINT2(r = (int64_t)((uint64_t)xi op (uint64_t)yi)); SETINT(n, r); RET; } while(0)
+#define ARITHBINU(op) do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
 #define CMP(op)       do { OPINT2(r = xi op yi); GOIND(r ? comTrue : combFalse); } while(0)
-#define CMPU(op)      do { OPINT2(r = (uint64_t)xi op (uint64_t)yi); GOIND(r ? comTrue : combFalse); } while(0)
+#define CMPU(op)      do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? comTrue : combFalse); } while(0)
 
   for(;;) {
     num_reductions++;
@@ -1248,7 +1255,7 @@ eval(NODEPTR n)
 #if FASTTAGSCHECK
     if (l < T_IO_BIND) {
       if (l != GETTAG(n)) {
-        printf("%lu %lu\n", l, (uint64_t)(GETTAG(n)));
+        printf("%lu %lu\n", l, (tag_t)(GETTAG(n)));
         ERR("bad tag");
       }
     }
@@ -1339,7 +1346,7 @@ eval(NODEPTR n)
 NODEPTR
 evalio(NODEPTR n)
 {
-  int64_t stk = stack_ptr;
+  stackptr_t stk = stack_ptr;
   NODEPTR f, x;
   int c;
   int hdr;
@@ -1503,10 +1510,10 @@ evalio(NODEPTR n)
   }
 }
 
-uint64_t
+heapoffs_t
 memsize(const char *p)
 {
-  uint64_t n = atoi(p);
+  heapoffs_t n = atoi(p);
   while (isdigit(*p))
     p++;
   switch (*p) {
@@ -1577,7 +1584,7 @@ main(int argc, char **argv)
   }
 
   PUSH(prog); gc(); prog = TOP(0); POP(1);
-  uint64_t start_size = num_marked;
+  heapoffs_t start_size = num_marked;
   if (verbose > 2) {
     //pp(stdout, prog);
     print(stdout, prog, 1);
@@ -1595,16 +1602,16 @@ main(int argc, char **argv)
     if (verbose > 1) {
       printf("\nmain returns ");
       pp(stdout, res);
-      printf("node size=%"PRIu64", heap size bytes=%"PRIu64"\n", (uint64_t)NODE_SIZE, heap_size * NODE_SIZE);
+      printf("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
     setlocale(LC_NUMERIC, "");  /* Make %' work on platforms that support it */
-    printf("%"PCOMMA"15"PRIu64" combinator file size\n", (uint64_t)file_size);
-    printf("%"PCOMMA"15"PRIu64" cells at start\n", start_size);
-    printf("%"PCOMMA"15"PRIu64" cells heap size (%"PCOMMA""PRIu64" bytes)\n", heap_size, heap_size * NODE_SIZE);
-    printf("%"PCOMMA"15"PRIu64" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / run_time / 1000000);
-    printf("%"PCOMMA"15"PRIu64" GCs\n", num_gc);
-    printf("%"PCOMMA"15"PRIu64" max cells used\n", max_num_marked);
-    printf("%"PCOMMA"15"PRIu64" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / run_time / 1000000);
+    printf("%"PCOMMA"15"PRIheap" combinator file size\n", (heapoffs_t)file_size);
+    printf("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
+    printf("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
+    printf("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / run_time / 1000000);
+    printf("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
+    printf("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
+    printf("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / run_time / 1000000);
     printf("%15.2fs total execution time\n", run_time);
     printf("%15.2fs total gc time\n", gc_mark_time);
 #if GCRED && 0
