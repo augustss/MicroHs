@@ -28,6 +28,8 @@ typedef uint64_t counter_t;     /* Statistics counter, can be smaller since over
 #define PRIcounter PRIu64
 typedef uint64_t bits_t;        /* One word of bits */
 
+/* We cast all FFI functions to this type.  It's reasonably portable */
+typedef void (*funptr_t)(void);
 
 #if defined(__MINGW32__)
 #define ffsl __builtin_ffsll
@@ -85,7 +87,7 @@ gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 #endif  /* !defined(_MSC_VER) */
 
-#define VERSION "v3.2\n"
+#define VERSION "v3.3\n"
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -106,6 +108,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
                 T_IO_PERFORMIO,
                 T_IO_GETTIMEMILLI, T_IO_PRINT,
+                T_IO_CCALL,
                 T_STR,
                 T_LAST_TAG,
 };
@@ -167,6 +170,7 @@ typedef struct node* NODEPTR;
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
 #define STR(p) (p)->uarg.uustring
+#define FUNPTR(p) (p)->uarg.uufunptr
 #define INDIR(p) ARG(p)
 #define HANDLE(p) (p)->uarg.uufile
 #define NODE_SIZE sizeof(node)
@@ -606,6 +610,37 @@ gc_check(size_t k)
   gc();
 }
 
+/*
+ * Table of FFI callable functions.
+ * (For a more flexible solution use dlopen()/dlsym()/dlclose())
+ * The table contains the information needed to do the actual call.
+ * The types are
+ *   V    void name(void)
+ *   I    int  name(void)
+ *   IV   void name(int)
+ *   II   int  name(int)
+ *   IIV  void name(int, int)
+ *   III  int  name(int, int)
+ * more can easily be added.
+ */
+struct {
+  const char *ffi_name;
+  const funptr_t ffi_fun;
+  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III } ffi_how;
+} ffi_table[] = {
+  { "llabs", (funptr_t)llabs, FFI_II },
+};
+
+/* Look up an FFI function by name */
+value_t
+lookupFFIname(const char *name)
+{
+  for(int i = 0; i < sizeof(ffi_table) / sizeof(ffi_table[0]); i++)
+    if (strcmp(ffi_table[i].ffi_name, name) == 0)
+      return (value_t)i;
+  ERR("lookupFFIname");
+}
+
 /* If the next input character is c, then consume it, else leave it alone. */
 int
 gobble(BFILE *f, int c)
@@ -781,6 +816,20 @@ parse(BFILE *f)
       r = mkStrNode(realloc(buffer, p - buffer));
       return r;
     }
+  case '#':
+    /* An FFI name */
+    for (int j = 0;;) {
+      c = getb(f);
+      if (c == ' ' || c == ')') {
+        ungetb(c, f);
+        buf[j] = 0;
+        break;
+      }
+      buf[j++] = c;
+    }
+    r = alloc_node(T_IO_CCALL);
+    SETVALUE(r, lookupFFIname(buf));
+    return r;
   default:
     fprintf(stderr, "parse '%c'\n", c);
     ERR("parse default");
@@ -1017,6 +1066,7 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_DROPARGS: fprintf(f, "$IO.dropArgs"); break;
   case T_IO_GETTIMEMILLI: fprintf(f, "$IO.getTimeMilli"); break;
   case T_IO_PERFORMIO: fprintf(f, "$IO.performIO"); break;
+  case T_IO_CCALL: fprintf(f, "#%s", ffi_table[GETVALUE(n)].ffi_name); break;
   default: ERR("print tag");
   }
 }
@@ -1332,6 +1382,7 @@ eval(NODEPTR n)
     case T_IO_GETARGS:
     case T_IO_DROPARGS:
     case T_IO_GETTIMEMILLI:
+    case T_IO_CCALL:
       RET;
 
     default:
@@ -1503,6 +1554,26 @@ evalio(NODEPTR n)
       n = alloc_node(T_INT);
       SETVALUE(n, (value_t)(gettime() * 1000));
       RETIO(n);
+    case T_IO_CCALL:
+      {
+        int a = (int)GETVALUE(n);
+        funptr_t f = ffi_table[a].ffi_fun;
+        value_t r, x, y;
+#define INTARG(n) evalint(ARG(TOP(n)))
+#define FFIV(n) CHECKIO(n)
+#define FFI(n) CHECKIO(n); GCCHECK(1)
+        /* This isn't great, but this is MicroHs, so it's good enough. */
+        switch (ffi_table[a].ffi_how) {
+        case FFI_V:   FFIV(0);                                   (*                               f)();                  RETIO(combUnit);
+        case FFI_I:   FFI (0);                               r = (*(value_t (*)(void            ))f)();    n = mkInt(r); RETIO(n);
+        case FFI_IV:  FFIV(1); x = INTARG(1);                    (*(void    (*)(value_t         ))f)(x);                 RETIO(combUnit);
+        case FFI_II:  FFI (1); x = INTARG(1);                r = (*(value_t (*)(value_t         ))f)(x);   n = mkInt(r); RETIO(n);
+        case FFI_IIV: FFIV(1); x = INTARG(1); y = INTARG(2);     (*(void    (*)(value_t, value_t))f)(x,y);               RETIO(combUnit);
+        case FFI_III: FFI (1); x = INTARG(1); y = INTARG(2); r = (*(value_t (*)(value_t, value_t))f)(x,y); n = mkInt(r); RETIO(n);
+        default: ERR("T_IO_CCALL");
+        }
+      }
+
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));
       ERR("evalio tag");

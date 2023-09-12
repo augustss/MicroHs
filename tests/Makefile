@@ -15,6 +15,7 @@ test:
 	$(MHS) LitMatch && $(EVAL) > LitMatch.out && diff LitMatch.ref LitMatch.out
 	$(MHS) Word && $(EVAL) > Word.out && diff Word.ref Word.out
 	$(MHS) Enum && $(EVAL) > Enum.out && diff Enum.ref Enum.out
+	$(MHS) Foreign && $(EVAL) > Foreign.out && diff Foreign.ref Foreign.out
 
 time:
 	@echo Expect about 10s runtime

@@ -616,6 +616,7 @@ tcDefType d = T.do
     Newtype lhs c  t -> Newtype lhs c <$> withVars (snd lhs) (fst <$> tcTypeT (Just kType) t)
     Type    lhs    t -> Type    lhs   <$> withVars (snd lhs) (fst <$> tcTypeT Nothing t)
     Sign    i      t -> Sign    i     <$> tcTypeScheme (Just kType) t
+    ForImp  ie i   t -> (ForImp ie i . fst) <$> tcTypeT (Just kType) t
     _ -> T.return d
 
 tcTypeScheme :: --XHasCallStack =>
@@ -657,6 +658,10 @@ addValueType adef = T.do
       let
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
       extValE c (ETypeScheme vks $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
+    ForImp _ i t -> T.do
+      let t' = ETypeScheme [] t
+      extQVal i t'
+      extVal (qualIdent mn i) t'
     _ -> T.return ()
 
 tcDefValue :: --XHasCallStack =>
@@ -673,6 +678,9 @@ tcDefValue adef =
       T.return $ Fcn (qualIdent mn i) teqns
 --      (et, _) <- withExtTyps vks (tcExpr (Just t) (foldr eLam1 rhs vs))
 --      T.return (Fcn (qualIdent mn i, vs) (dropLam (length vs) et))
+    ForImp ie i t -> T.do
+      mn <- gets moduleName
+      T.return (ForImp ie (qualIdent mn i) t)
     _ -> T.return adef
 
 -- Kind check a type while already in type checking mode
@@ -831,6 +839,7 @@ tcLit mt loc l =
     LPrim _ -> T.do
       t <- unMType mt  -- pretend it is anything
       T.return (ELit loc l, t)
+    LForImp _ -> impossible
 
 unArrow :: SLoc -> Maybe EType -> T (EType, EType)
 unArrow _ Nothing = T.do { a <- newUVar; r <- newUVar; T.return (a, r) }

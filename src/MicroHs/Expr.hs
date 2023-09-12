@@ -13,7 +13,7 @@ module MicroHs.Expr(
   EAlts(..),
   EAlt,
   ECaseArm,
-  EType,
+  EType, showEType,
   EPat, patVars, isPVar, isPConApp,
   EKind, kType,
   IdKind(..), idKindIdent,
@@ -56,6 +56,7 @@ data EDef
   | Fcn Ident [Eqn]
   | Sign Ident ETypeScheme
   | Import ImportSpec
+  | ForImp String Ident EType
   --Xderiving (Show, Eq)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident)
@@ -117,7 +118,12 @@ eqCon (ConNew    i) (ConNew    j) = eqIdent i j
 eqCon (ConLit    l) (ConLit    k) = eqLit   l k
 eqCon _             _             = False
 
-data Lit = LInt Int | LChar Char | LStr String | LPrim String
+data Lit
+  = LInt Int
+  | LChar Char
+  | LStr String
+  | LPrim String
+  | LForImp String
   --Xderiving (Show, Eq)
 
 eqLit :: Lit -> Lit -> Bool
@@ -125,6 +131,7 @@ eqLit (LInt x)  (LInt  y) = x == y
 eqLit (LChar x) (LChar y) = eqChar x y
 eqLit (LStr  x) (LStr  y) = eqString x y
 eqLit (LPrim x) (LPrim y) = eqString x y
+eqLit (LForImp x) (LForImp y) = eqString x y
 eqLit _         _         = False
 
 type ECaseArm = (EPat, EAlts)
@@ -310,6 +317,7 @@ showEDef def =
     Fcn i eqns -> unlines (map (\ (Eqn ps alts) -> showIdent i ++ " " ++ unwords (map showEPat ps) ++ showAlts "=" alts) eqns)
     Sign i t -> showIdent i ++ " :: " ++ showETypeScheme t
     Import (ImportSpec q m mm) -> "import " ++ (if q then "qualified " else "") ++ showIdent m ++ maybe "" ((" as " ++) . unIdent) mm
+    ForImp ie i t -> "foreign import ccall " ++ showString ie ++ " " ++ showIdent i ++ " :: " ++ showEType t
 
 showConstr :: Constr -> String
 showConstr (i, ts) = unwords (showIdent i : map showEType ts)
@@ -381,7 +389,8 @@ showLit l =
     LInt i -> showInt i
     LChar c -> showChar c
     LStr s -> showString s
-    LPrim s -> '$':s
+    LPrim s -> '$' : s
+    LForImp s -> '#' : s
 
 showEStmt :: EStmt -> String
 showEStmt as =

@@ -45,6 +45,7 @@ dsDef mn adef =
     Fcn f eqns -> [(f, dsEqns eqns)]
     Sign _ _ -> []
     Import _ -> []
+    ForImp ie i _ -> [(i, Lit $ LForImp ie)]
 
 oneAlt :: Expr -> EAlts
 oneAlt e = EAlts [([], e)] []

@@ -111,7 +111,7 @@ pLQIdent = P.do
   satisfyM "LQIdent" is
 
 keywords :: [String]
-keywords = ["case", "data", "do", "else", "forall", "if", "import",
+keywords = ["case", "data", "do", "else", "forall", "foreign", "if", "import",
   "in", "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
@@ -234,6 +234,7 @@ pDef =
   <|> uncurry Fcn <$> pEqns
   <|> Sign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
   <|> Import      <$> (pKeyword "import" *> pImportSpec)
+  <|> ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
 
 pLHS :: P LHS
 pLHS = pair <$> pUIdentSym <*> many pIdKind
