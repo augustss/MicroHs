@@ -25,7 +25,7 @@ module MicroHs.Expr(
   tupleConstr, untupleConstr,
   subst,
   allVarsExpr, allVarsBind,
-  getSLocExpr,
+  getSLocExpr, setSLocExpr,
   errorMessage
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
@@ -65,6 +65,7 @@ data ImportSpec = ImportSpec Bool Ident (Maybe Ident)
 data Expr
   = EVar Ident
   | EApp Expr Expr
+  | EOper Expr [(Ident, Expr)]
   | ELam [EPat] Expr
   | ELit SLoc Lit
   | ECase Expr [ECaseArm]
@@ -75,7 +76,6 @@ data Expr
   | ESectL Expr Ident
   | ESectR Ident Expr
   | EIf Expr Expr Expr
---  | EOpers Expr [(Ident, Expr)]
   | ESign Expr EType
   | EAt Ident Expr  -- only in patterns
   -- Only while type checking
@@ -175,17 +175,6 @@ type Constr = (Ident, [EType])
 --  * before desugaring: EApp, EVar, ETuple, EList
 type EType = Expr
 
-{-
-validType :: Expr -> Bool
-validType ae =
-  case ae of
-    EVar _ -> True
-    EApp f a -> validType f && validType a
-    EList es -> length es <= 1 && all validType (take 1 es)
-    ETuple es -> all validType es
-    _ -> False
--}
-
 data ETypeScheme = ETypeScheme [IdKind] EType
   --Xderiving (Show, Eq)
 
@@ -246,6 +235,7 @@ allVarsExpr aexpr =
   case aexpr of
     EVar i -> [i]
     EApp e1 e2 -> allVarsExpr e1 ++ allVarsExpr e2
+    EOper e1 ies -> allVarsExpr e1 ++ concatMap (\ (i,e2) -> i : allVarsExpr e2) ies
     ELam ps e -> concatMap allVarsPat ps ++ allVarsExpr e
     ELit _ _ -> []
     ECase e as -> allVarsExpr e ++ concatMap allVarsCaseArm as
@@ -284,9 +274,19 @@ allVarsStmt astmt =
 getSLocExpr :: Expr -> SLoc
 getSLocExpr e = head $ map getSLocIdent (allVarsExpr e) ++ [noSLoc]
 
+setSLocExpr :: SLoc -> Expr -> Expr
+setSLocExpr l (EVar i) = EVar (setSLocIdent l i)
+setSLocExpr l (ECon c) = ECon (setSLocCon l c)
+setSLocExpr _ _ = undefined  -- what other cases do we need?
+
+setSLocCon :: SLoc -> Con -> Con
+setSLocCon l (ConData ti i) = ConData ti (setSLocIdent l i)
+setSLocCon l (ConNew i) = ConNew (setSLocIdent l i)
+setSLocCon _ c = c
+
 errorMessage :: --XHasCallStack =>
                 forall a . SLoc -> String -> a
-errorMessage loc msg = error $ showSLoc loc ++ msg
+errorMessage loc msg = error $ showSLoc loc ++ ": " ++ msg
 
 ----------------
 
@@ -352,6 +352,7 @@ showExpr ae =
   case ae of
     EVar v -> showIdent v
     EApp _ _ -> showApp [] ae
+    EOper e ies -> showExpr (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
     ELam ps e -> "(\\" ++ unwords (map showExpr ps) ++ " -> " ++ showExpr e ++ ")"
     ELit _ i -> showLit i
     ECase e as -> "case " ++ showExpr e ++ " of {\n" ++ unlines (map showCaseArm as) ++ "}"

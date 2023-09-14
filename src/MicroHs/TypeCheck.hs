@@ -451,16 +451,8 @@ tLookup msg i = T.do
   case M.lookup i env of
     Nothing -> tcError (getSLocIdent i) $ ": undefined " ++ msg ++ ": " ++ showIdent i
                -- ++ "\n" ++ show env ;
-    Just aes ->
-      case aes of
-        [] -> impossible
-        eee : es ->
-          case eee of   -- XXX why parse error if combined with pre
-            Entry e s ->
-              if null es then
-                T.return (e, s)
-              else
-                tcError (getSLocIdent i) $ ": ambiguous " ++ showIdent i
+    Just [Entry e s] -> T.return (setSLocExpr (getSLocIdent i) e, s)
+    Just _ -> tcError (getSLocIdent i) $ ": ambiguous " ++ showIdent i
 
 tInst :: ETypeScheme -> T EType
 tInst as =
@@ -726,6 +718,7 @@ tcExprR mt ae =
       tr <- unMType mt
       (ef, _) <- tcExpr (Just (tArrow ta tr)) f
       T.return (EApp ef ea, tr)
+    EOper e ies -> tcOper mt e ies
     ELam is e -> tcExprLam mt is e
     ELit loc l -> tcLit mt loc l
     ECase a arms -> T.do
@@ -841,6 +834,53 @@ tcLit mt loc l =
       T.return (ELit loc l, t)
     LForImp _ -> impossible
 
+
+tcOper :: Maybe EType -> Expr -> [(Ident, Expr)] -> T (Typed Expr)
+tcOper mt ae aies = T.do
+  let
+    appOp (f, ft) (e1, t1) (e2, t2) = T.do
+      let l = getSLocExpr f
+      (fta1, ftr1) <- unArrow l (Just ft)
+      (fta2, ftr2) <- unArrow l (Just ftr1)
+      unify l fta1 t1
+      unify l fta2 t2
+--      traceM (showExpr (EApp (EApp f e1) e2))
+      T.return (EApp (EApp f e1) e2, ftr2)
+
+    -- XXX clc should calc.  It's an ugly hack until we get mutual recursion
+    doOp clc (e1:e2:es) o os ies = T.do
+      e <- appOp o e2 e1
+      clc (e:es) os ies
+    doOp _ _ _ _ _ = impossible
+
+    --Xcalc :: [Typed Expr] -> [(Typed Expr, Fixity)] -> [((Typed Expr, Fixity), Expr)] -> T (Typed Expr) 
+    calc [et@(_, t)] [] [] = T.do munify (getSLocExpr ae) mt t; T.return et
+    calc es ((o, _):os) [] = doOp calc es o os []
+    calc es oos@((oy, (ay, py)):os) iies@((oo@(ox, (ax, px)), e) : ies) = T.do
+--      traceM (show ((unIdent (getIdent (fst o)), ay, py), (unIdent i, ax, px)))
+      if px == py && (not (eqAssoc ax ay) || eqAssoc ax AssocNone) then
+        tcError (getSLocExpr (fst ox)) "Ambiguous operator expression"
+       else if px < py || eqAssoc ax AssocLeft && px == py then
+        doOp calc es oy os iies
+       else T.do
+        et <- tcExpr Nothing e
+        calc (et:es) (oo : oos) ies
+    calc es [] ((o, e) : ies) = T.do
+      ee <- tcExpr Nothing e
+      calc (ee:es) [o] ies
+    calc _ _ _ = impossible
+
+    opfix fixs (i, e) = T.do
+      o@(ei, _) <- tcExpr Nothing (EVar i)
+      let fx = getFixity fixs (getIdent ei)
+      T.return ((o, fx), e)
+
+  aet <- tcExpr Nothing ae
+  ites <- T.mapM (opfix fixities) aies
+  et@(_, t) <- calc [aet] [] ites
+  munify (getSLocExpr ae) mt t
+  T.return et
+
 unArrow :: SLoc -> Maybe EType -> T (EType, EType)
 unArrow _ Nothing = T.do { a <- newUVar; r <- newUVar; T.return (a, r) }
 unArrow loc (Just t) =
@@ -851,6 +891,46 @@ unArrow loc (Just t) =
       r <- newUVar
       unify loc t (tArrow a r)
       T.return (a, r)
+
+data Assoc = AssocLeft | AssocRight | AssocNone
+  --Xderiving (Show)
+
+eqAssoc :: Assoc -> Assoc -> Bool
+eqAssoc AssocLeft AssocLeft = True
+eqAssoc AssocRight AssocRight = True
+eqAssoc AssocNone AssocNone = True
+eqAssoc _ _ = False
+
+type Fixity = (Assoc, Int)
+type FixTable = [(String, Fixity)]
+
+-- A hack until we do it right
+getFixity :: FixTable -> Ident -> Fixity
+getFixity fixs i = fromMaybe (AssocLeft, 9) $ lookupBy eqString (unQualString (unIdent i)) fixs
+
+fixities :: FixTable
+fixities = concat
+    [infixr_ 9  ["."]
+    ,infixl_ 9  ["?", "!!", "<?>"]
+    ,infixr_ 8  ["^","^^","**"]
+    ,infixl_ 7  ["*","quot","`rem`"]
+    ,infixl_ 6  ["+","-"]
+    ,infixr_ 5  [":","++"]
+    ,infix_  4  ["==","/=","<","<=",">=",">","elem","notElem"]
+    ,infixl_ 4  ["<$>","<$","<*>","<*","*>"]
+    ,infixr_ 3  ["&&"]
+    ,infixl_ 3  ["<|>","<|<"]
+    ,infixr_ 2  ["||"]
+    ,infixl_ 1  [">>",">>="]
+    ,infixr_ 1  ["=<<"]
+    ,infixr_ 0  ["$","seq"]
+    ,infixr_ 0  ["->"]
+    ]
+  where
+    fixity a p = map (\ s -> (s, (a, p)))
+    infixr_ = fixity AssocRight
+    infixl_ = fixity AssocLeft
+    infix_  = fixity AssocNone
 
 tcPats :: forall a . EType -> [EPat] -> (EType -> [Typed EPat] -> T a) -> T a
 tcPats t [] ta = ta t []
@@ -953,6 +1033,7 @@ dsType at =
   case at of
     EVar _ -> at
     EApp f a -> EApp (dsType f) (dsType a)
+    EOper t ies -> EOper (dsType t) [(i, dsType e) | (i, e) <- ies]
     EListish (LList [t]) -> tApps listConstr [dsType t]
     ETuple ts -> tApps (tupleConstr (length ts)) (map dsType ts)
     ESign t k -> ESign (dsType t) k

@@ -68,3 +68,7 @@ mapM_ f =
 
 fail :: forall s a . String -> State s a
 fail = error
+
+when :: forall s . Bool -> State s () -> State s ()
+when True  s = s
+when False _ = Control.Monad.State.Strict.return ()

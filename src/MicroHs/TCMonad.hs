@@ -5,6 +5,7 @@ module MicroHs.TCMonad(
   (>>=), (>>), return, fail,
   get, put, gets,
   mapM, mapM_,
+  when,
   tcError
   ) where
 --Ximport Control.Monad hiding(ap)

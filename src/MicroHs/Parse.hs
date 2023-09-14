@@ -173,7 +173,7 @@ pLSymOper = P.do
   P.pure s
 
 reservedOps :: [String]
-reservedOps = ["=", "|", "::", "<-", "@", ".."]
+reservedOps = ["=", "|", "::", "<-", "@", "..", "->"]
 
 pUQIdentSym :: P Ident
 pUQIdentSym = pUQIdent <|< pParens pUQSymOper
@@ -270,23 +270,10 @@ pType :: P EType
 pType = pTypeOp
 
 pTypeOp :: P EType
-pTypeOp =
-  let
-{-
-    p10 = pTypeArg
-    p9 = p10
-    p8 = p9
-    p7 = p8
-    p6 = p7
-    p5 = p6
-    p4 = p5
-    p3 = p4
-    p2 = p3
-    p1 = p2
-    p0 = pRightAssoc (pOpers ["->"]) p1
--}
-    p0 = pRightAssoc (pOpers ["->"]) pTypeArg
-  in  p0
+pTypeOp = pOperators pTypeOper pTypeArg
+
+pTypeOper :: P Ident
+pTypeOper = pOper <|> (mkIdent "->" <$ pSymbol "->")
 
 pTypeArg :: P EType
 pTypeArg = pTypeApp
@@ -329,23 +316,7 @@ pPat :: P EPat
 pPat = pPatOp
 
 pPatOp :: P EPat
-pPatOp =
-  let
-{-
-    p10 = pPatArg
-    p9 = p10
-    p8 = p9
-    p7 = p8
-    p6 = p7
-    p5 = pRightAssoc (pOpers [":"]) p6
-    p4 = p5
-    p3 = p4
-    p2 = p3
-    p1 = p2
-    p0 = p1
--}
-    p0 = pRightAssoc (pOpers [":"]) pPatArg
-  in  p0
+pPatOp = pOperators pOper pPatArg
 
 pPatArg :: P EPat
 pPatArg = pPatApp
@@ -479,23 +450,12 @@ pListish = P.do
    <|< P.pure (LList [e1])
 
 pExprOp :: P Expr
-pExprOp =
-  let
-    p10 = pExprArg
-    p9 = pRightAssoc (pOpers ["."]) $
-         pLeftAssoc  (pOpers ["?", "!!", "<?>"]) p10
-    p8 = p9
-    p7 = pLeftAssoc  (pOpers ["*", "quot", "rem"]) p8
-    p6 = pLeftAssoc  (pOpers ["+", "-"]) p7
-    p5 = pRightAssoc (pOpers [":", "++"]) p6
-    p4 = pNonAssoc   (pOpers ["==", "/=", "<", "<=", ">", ">="]) $
-         pLeftAssoc  (pOpers ["<*>", "<*", "*>", "<$>", "<$"])   p5
-    p3 = pRightAssoc (pOpers ["&&"]) $
-         pLeftAssoc  (pOpers ["<|>","<|<"]) p4
-    p2 = pRightAssoc (pOpers ["||"]) p3
-    p1 = pLeftAssoc  (pOpers [">>=", ">>"]) p2
-    p0 = pRightAssoc (pOpers ["$"]) p1
-  in  p0
+pExprOp = pOperators pOper pExprArg
+
+pOperators :: P Ident -> P Expr -> P Expr
+pOperators oper one = eOper <$> one <*> emany (pair <$> oper <*> one)
+  where eOper e [] = e
+        eOper e ies = EOper e ies
 
 -------------
 -- Bindings
@@ -507,49 +467,10 @@ pBind =
 
 -------------
 
-pRightAssoc :: P Ident -> P Expr -> P Expr
-pRightAssoc pOp p = P.do
-  e1 <- p
-  let
-    rest =
-      P.do
-        op <- pOp
-        e2 <- pRightAssoc pOp p
-        pure $ appOp op e1 e2
-  rest <|< pure e1
-
-pNonAssoc :: P Ident -> P Expr -> P Expr
-pNonAssoc pOp p = P.do
-  e1 <- p
-  let
-    rest =
-      P.do
-        op <- pOp
-        e2 <- p
-        pure $ appOp op e1 e2
-  rest <|< pure e1
-
-pLeftAssoc :: P Ident -> P Expr -> P Expr
-pLeftAssoc pOp p = P.do
-  e1 <- p
-  es <- emany (pair <$> pOp <*> p)
-  pure $ foldl (\ x (op, y) -> appOp op x y) e1 es
-
-pOpers :: [String] -> P Ident
-pOpers ops = P.do
-  op <- pOper
-  guard (elemBy eqString (unIdent op) ops)
-  pure op
-
--------------
-
 eTuple :: [Expr] -> Expr
 eTuple [] = undefined
 eTuple [e] = e
 eTuple es = ETuple es
-
-appOp :: Ident -> Expr -> Expr -> Expr
-appOp op e1 e2 = EApp (EApp (EVar op) e1) e2
 
 isAlpha_ :: Char -> Bool
 isAlpha_ c = isLower_ c || isUpper c

@@ -1,7 +1,7 @@
 module MicroHs.Ident(
   Line, Col, Loc,
   Ident(..),
-  mkIdent, mkIdentLoc, unIdent, eqIdent, qualIdent, showIdent, getSLocIdent,
+  mkIdent, mkIdentLoc, unIdent, eqIdent, qualIdent, showIdent, getSLocIdent, setSLocIdent,
   isLower_, isIdentChar, isOperChar, isConIdent,
   unQualString,
   SLoc(..), noSLoc, showSLoc
@@ -34,6 +34,9 @@ unIdent (Ident _ s) = s
 
 getSLocIdent :: Ident -> SLoc
 getSLocIdent (Ident loc _) = loc
+
+setSLocIdent :: SLoc -> Ident -> Ident
+setSLocIdent l (Ident _ s) = Ident l s
 
 showIdent :: Ident -> String
 showIdent (Ident _ i) = i
