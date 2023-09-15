@@ -3,6 +3,12 @@
 module Primitives(module Primitives) where
 --import Data.Bool_Type
 
+--X{-
+--Y{-
+infixr -1 ->
+--Y-}
+--X-}
+
 primIntAdd :: Int -> Int -> Int
 primIntAdd  = primitive "+"
 primIntSub :: Int -> Int -> Int

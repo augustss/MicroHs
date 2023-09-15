@@ -16,7 +16,7 @@ import MicroHs.Expr
 --Ximport GHC.Stack
 --Ximport Debug.Trace
 
-data TModule a = TModule IdentModule [TypeExport] [SynDef] [ValueExport] a
+data TModule a = TModule IdentModule [FixDef] [TypeExport] [SynDef] [ValueExport] a
   --Xderiving (Show)
 
 data TypeExport = TypeExport Ident Entry [ValueExport]
@@ -31,6 +31,7 @@ data TypeInfo
   | TSyn EKind ETypeScheme
   --Xderiving (Show, Eq)
 
+type FixDef = (Ident, Fixity)
 type SynDef = (Ident, ETypeScheme)
 
 data Entry = Entry Expr ETypeScheme
@@ -40,34 +41,44 @@ type ValueTable = M.Map [Entry]
 type TypeTable  = M.Map [Entry]
 type KindTable  = M.Map [Entry]
 type SynTable   = M.Map ETypeScheme
+type FixTable   = M.Map Fixity
 
 typeCheck :: forall a . [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
 typeCheck imps (EModule mn exps defs) =
 --  trace (show amdl) $
   let
-    (ts, ss, vs) = mkTables imps
-  in case tcRun (tcDefs defs) (initTC mn ts ss vs) of
+    (fs, ts, ss, vs) = mkTables imps
+  in case tcRun (tcDefs defs) (initTC mn fs ts ss vs) of
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule mn tds impossible)
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- (thisMdl : impMdls)]
            (texps, sexps, vexps) =
-             unzip3 $ map (getExps impMap (typeTable tcs) (synTable tcs) (valueTable tcs)) exps
-         in  TModule mn (concat texps) (concat sexps) (concat vexps) tds
+             unzip3 $ map (getTVExps impMap (typeTable tcs) (synTable tcs) (valueTable tcs)) exps
+{-
+         in  TModule mn [] (concat texps) (concat sexps) (concat vexps) tds
+           (texps, vexps) =
+             unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs)) exps
+           (fexps, sexps) = unzip $ getFSExps impMap
+-}
+           fexps = [ fe | TModule _ fe _ _ _ _ <- M.elems impMap ]
+         in  TModule mn (concat fexps) (concat texps) (concat sexps) (concat vexps) tds
 
-getExps :: forall a . M.Map (TModule a) -> TypeTable -> SynTable -> ValueTable -> ExportSpec ->
+-- Type and value exports
+getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> SynTable -> ValueTable -> ExportSpec ->
            ([TypeExport], [SynDef], [ValueExport])
-getExps impMap _ _ _ (ExpModule m) =
+getTVExps impMap _ _ _ (ExpModule m) =
   case M.lookup m impMap of
-    Just (TModule _ te se ve _) -> (te, se, ve)
+    Just (TModule _ _ te se ve _) -> (te, se, ve)
+--    Just (TModule _ _ te _ ve _) -> (te, ve)
     _ -> expErr m
-getExps _ tys _ vals (ExpTypeCon i) =
+getTVExps _ tys _ vals (ExpTypeCon i) =
   let
     e = expLookup i tys
     qi = tyQIdent e
   in ([TypeExport i e []], [], constrsOf qi (M.toList vals))
-getExps _ tys syns _ (ExpType i) =
+getTVExps _ tys syns _ (ExpType i) =
   let
     e = expLookup i tys
     qi = tyQIdent e
@@ -75,8 +86,14 @@ getExps _ tys syns _ (ExpType i) =
            Nothing -> []
            Just ts -> [(qi, ts)]
   in ([TypeExport i e []], se, [])
-getExps _ _ _ vals (ExpValue i) =
+--  in ([TypeExport i e []], [])
+getTVExps _ _ _ vals (ExpValue i) =
     ([], [], [ValueExport i (expLookup i vals)])
+
+-- Export all fixities and synonyms.
+-- The synonyms might be needed, and the fixities are harmless
+--getFSExps :: forall a . M.Map (TModule a) -> [([FixDef], [SynDef])]
+--getFSExps impMap = [ (fe, se) | TModule _ fe _ se _ _ <- M.elems impMap ]
 
 expLookup :: Ident -> M.Map [Entry] -> Entry
 expLookup i m =
@@ -135,9 +152,10 @@ mkTModule mn tds a =
       [ TypeExport i (tentry i vks kType) (conn i vks c t) | Newtype (i, vks) c t <- tds ] ++
       [ TypeExport i (tentry i vks kType) []               | Type    (i, vks) _   <- tds ]   -- XXX kType is wrong
     ses = [ (qualIdent mn i, ETypeScheme vs t) | Type (i, vs) t  <- tds ]
-  in  TModule mn tes ses ves a
+    fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
+  in  TModule mn fes tes ses ves a
 
-mkTables :: forall a . [(ImportSpec, TModule a)] -> (TypeTable, SynTable, ValueTable)
+mkTables :: forall a . [(ImportSpec, TModule a)] -> (FixTable, TypeTable, SynTable, ValueTable)
 mkTables mdls =
   let
     qns aisp mn i =
@@ -151,7 +169,7 @@ mkTables mdls =
       let
         syms arg =
           case arg of
-            (is, TModule mn tes _ ves _) ->
+            (is, TModule mn _ tes _ ves _) ->
               [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
               [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ]
       in  M.fromListWith (unionBy eqEntry) $ concatMap syms mdls
@@ -159,16 +177,20 @@ mkTables mdls =
       let
         syns arg =
           case arg of
-            (_, TModule _ _ ses _ _) -> [ (i, x) | (i, x) <- ses ]
+            (_, TModule _ _ _ ses _ _) -> [ (i, x) | (i, x) <- ses ]
       in  M.fromList (concatMap syns mdls)
     --XallTypes :: TypeTable
     allTypes =
       let
         types arg =
           case arg of
-            (is, TModule mn tes _ _ _) -> [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
+            (is, TModule mn _ tes _ _ _) -> [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
       in M.fromListWith (unionBy eqEntry) $ concatMap types mdls
-  in  (allTypes, allSyns, allValues)
+    allFixes =
+      let
+        fixes (_, TModule _ fes _ _ _ _) = fes
+      in M.fromList (concatMap fixes mdls)
+  in  (allFixes, allTypes, allSyns, allValues)
 
 eqEntry :: Entry -> Entry -> Bool
 eqEntry x y =
@@ -188,57 +210,60 @@ getIdent ae =
 
 type Typed a = (a, EType)
 
-data TCState = TC IdentModule Int TypeTable SynTable ValueTable (IM.IntMap EType)
+data TCState = TC IdentModule Int FixTable TypeTable SynTable ValueTable (IM.IntMap EType)
   --Xderiving (Show)
 
 typeTable :: TCState -> TypeTable
-typeTable (TC _ _ tt _ _ _) = tt
+typeTable (TC _ _ _ tt _ _ _) = tt
 
 valueTable :: TCState -> ValueTable
-valueTable (TC _ _ _ _ vt _) = vt
+valueTable (TC _ _ _ _ _ vt _) = vt
 
 synTable :: TCState -> SynTable
-synTable (TC _ _ _ st _ _) = st
+synTable (TC _ _ _ _ st _ _) = st
+
+fixTable :: TCState -> FixTable
+fixTable (TC _ _ ft _ _ _ _) = ft
 
 uvarSubst :: TCState -> IM.IntMap EType
-uvarSubst (TC _ _ _ _ _ sub) = sub
+uvarSubst (TC _ _ _ _ _ _ sub) = sub
 
 moduleName :: TCState -> IdentModule
-moduleName (TC mn _ _ _ _ _) = mn
+moduleName (TC mn _ _ _ _ _ _) = mn
 
 putValueTable :: ValueTable -> T ()
 putValueTable venv = T.do
-  TC mn n tenv senv _ m <- get
-  put (TC mn n tenv senv venv m)
+  TC mn n fx tenv senv _ m <- get
+  put (TC mn n fx tenv senv venv m)
 
 putTypeTable :: TypeTable -> T ()
 putTypeTable tenv = T.do
-  TC mn n _ senv venv m <- get
-  put (TC mn n tenv senv venv m)
+  TC mn n fx _ senv venv m <- get
+  put (TC mn n fx tenv senv venv m)
 
 putSynTable :: SynTable -> T ()
 putSynTable senv = T.do
-  TC mn n tenv _ venv m <- get
-  put (TC mn n tenv senv venv m)
+  TC mn n fx tenv _ venv m <- get
+  put (TC mn n fx tenv senv venv m)
 
 -- Use the type table as the value table, and the primKind table as the type table.
 withTypeTable :: forall a . T a -> T a
 withTypeTable ta = T.do
-  TC mn n tt st vt m <- get
+  TC mn n fx tt st vt m <- get
 --BBB  put (TC mn n M.empty M.empty tt m)
-  put (TC mn n primKindTable M.empty tt m)
+  put (TC mn n fx primKindTable M.empty tt m)
   a <- ta
-  TC mnr nr _ _ ttr mr <- get
-  put (TC mnr nr ttr st vt mr)
+  TC mnr nr _ _ _ ttr mr <- get
+  put (TC mnr nr fx ttr st vt mr)
   T.return a
 
-initTC :: IdentModule -> TypeTable -> SynTable -> ValueTable -> TCState
-initTC mn ts ss vs =
+initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ValueTable -> TCState
+initTC mn fs ts ss vs =
 --  trace ("initTC " ++ show (ts, vs)) $
   let
     xts = foldr (uncurry M.insert) ts primTypes
     xvs = foldr (uncurry M.insert) vs primValues
-  in TC mn 1 xts ss xvs IM.empty
+  in TC mn 1 fs xts ss xvs IM.empty
 
 kTypeS :: ETypeScheme
 kTypeS = ETypeScheme [] kType
@@ -326,8 +351,8 @@ addUVar :: Int -> EType -> T ()
 addUVar i t = T.do
   let
     add = T.do
-      TC mn n tenv senv venv sub <- get
-      put (TC mn n tenv senv venv (IM.insert i t sub))
+      TC mn n fx tenv senv venv sub <- get
+      put (TC mn n fx tenv senv venv (IM.insert i t sub))
   case t of
     EUVar j -> if i == j then T.return () else add
     _ -> add
@@ -427,13 +452,13 @@ unMType mt =
 -- Reset type variable and unification map
 tcReset :: T ()
 tcReset = T.do
-  TC mn _ tenv senv venv _ <- get
-  put (TC mn 0 tenv senv venv IM.empty)
+  TC mn _ fx tenv senv venv _ <- get
+  put (TC mn 0 fx tenv senv venv IM.empty)
 
 newUVar :: T EType
 newUVar = T.do
-  TC mn n tenv senv venv sub <- get
-  put (TC mn (n+1) tenv senv venv sub)
+  TC mn n fx tenv senv venv sub <- get
+  put (TC mn (n+1) fx tenv senv venv sub)
   T.return (EUVar n)
 
 tLookupInst :: --XHasCallStack =>
@@ -497,6 +522,12 @@ extSyn i t = T.do
   senv <- gets synTable
   putSynTable (M.insert i t senv)
 
+extFix :: Ident -> Fixity -> T ()
+extFix i fx = T.do
+  TC mn n fenv tenv senv venv sub <- get
+  put $ TC mn n (M.insert i fx fenv) tenv senv venv sub
+  T.return ()
+
 withExtVal :: forall a . --XHasCallStack =>
               Ident -> ETypeScheme -> T a -> T a
 withExtVal i t ta = T.do
@@ -525,6 +556,7 @@ withExtTyps env ta = T.do
 
 tcDefs :: [EDef] -> T [EDef]
 tcDefs ds = T.do
+  T.mapM_ tcAddInfix ds
 --  traceM ("tcDefs ds=" ++ show ds)
   dst <- tcDefsType ds
   T.mapM_ addTypeSyn dst
@@ -534,6 +566,12 @@ tcDefs ds = T.do
 --  venv <- gets valueTable
 --  traceM ("tcDefs venv=\n" ++ show venv)
   tcDefsValue dst
+
+tcAddInfix :: EDef -> T ()
+tcAddInfix (Infix fx is) = T.do
+  mn <- gets moduleName
+  T.mapM_ (\ i -> extFix (qualIdent mn i) fx) is
+tcAddInfix _ = T.return ()
 
 tcDefsType :: [EDef] -> T [EDef]
 tcDefsType ds = withTypeTable $ T.do
@@ -876,7 +914,9 @@ tcOper mt ae aies = T.do
       T.return ((o, fx), e)
 
   aet <- tcExpr Nothing ae
-  ites <- T.mapM (opfix fixities) aies
+  fixs <- gets fixTable
+--  traceM $ unlines $ map show [(unIdent i, fx) | (i, fx) <- M.toList fixs]
+  ites <- T.mapM (opfix fixs) aies
   et@(_, t) <- calc [aet] [] ites
   munify (getSLocExpr ae) mt t
   T.return et
@@ -892,13 +932,17 @@ unArrow loc (Just t) =
       unify loc t (tArrow a r)
       T.return (a, r)
 
-type FixTable = [(String, Fixity)]
+getFixity :: FixTable -> Ident -> Fixity
+getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
+
+{-
+type FixTableS = [(String, Fixity)]
 
 -- A hack until we do it right
-getFixity :: FixTable -> Ident -> Fixity
+getFixity :: FixTableS -> Ident -> Fixity
 getFixity fixs i = fromMaybe (AssocLeft, 9) $ lookupBy eqString (unQualString (unIdent i)) fixs
 
-fixities :: FixTable
+fixities :: FixTableS
 fixities = concat
     [infixr_ 9  ["."]
     ,infixl_ 9  ["?", "!!", "<?>"]
@@ -921,6 +965,7 @@ fixities = concat
     infixr_ = fixity AssocRight
     infixl_ = fixity AssocLeft
     infix_  = fixity AssocNone
+-}
 
 tcPats :: forall a . EType -> [EPat] -> (EType -> [Typed EPat] -> T a) -> T a
 tcPats t [] ta = ta t []
@@ -1048,7 +1093,7 @@ impossible = error "impossible"
 showTModule :: forall a . (a -> String) -> TModule a -> String
 showTModule sh amdl =
   case amdl of
-    TModule mn _ _ _ a -> "Tmodule " ++ showIdent mn ++ "\n" ++ sh a
+    TModule mn _ _ _ _ a -> "Tmodule " ++ showIdent mn ++ "\n" ++ sh a
 
 isUnderscore :: Ident -> Bool
 isUnderscore = eqString "_" . unIdent

@@ -58,8 +58,7 @@ runP (P p) = p
 pure :: forall s t a . a -> Prsr s t a
 pure a = P $ \ t -> Many [(a, t)] noFail
 
---Xinfixl 1 >>=
---Yinfixl 1 >>=
+infixl 1 >>=
 (>>=) :: forall s t a b . Prsr s t a -> (a -> Prsr s t b) -> Prsr s t b
 (>>=) p k = P $ \ t ->
     case runP p t of
@@ -70,35 +69,29 @@ pure a = P $ \ t -> Many [(a, t)] noFail
 
 -- XXX needs (x,y) <- e
 
---Xinfixl 1 >>
---Yinfixl 1 >>
+infixl 1 >>
 (>>) :: forall s t a b . Prsr s t a -> Prsr s t b -> Prsr s t b
 (>>) p k = p >>= \ _ -> k
 
---Xinfixl 4 <*>
---Yinfixl 4 <*>
+infixl 4 <*>
 (<*>) :: forall s t a b . Prsr s t (a -> b) -> Prsr s t a -> Prsr s t b
 (<*>) m1 m2 = m1 >>= \ x1 -> m2 >>= \ x2 -> pure (x1 x2)
 
---Xinfixl 4 <*
---Yinfixl 4 <*
+infixl 4 <*
 (<*) :: forall s t a b . Prsr s t a -> Prsr s t b -> Prsr s t a
 (<*) m1 m2 = m1 >>= \ x1 -> m2 >> pure x1
 
---Xinfixl 4 *>
---Yinfixl 4 *>
+infixl 4 *>
 (*>) :: forall s t a b . Prsr s t a -> Prsr s t b -> Prsr s t b
 (*>) m1 m2 = m1 >> m2 >>= \ x2 -> pure x2
 
---Xinfixl 4 <$>
---Yinfixl 4 <$>
+infixl 4 <$>
 (<$>) :: forall s t a b . (a -> b) -> Prsr s t a -> Prsr s t b
 (<$>) f p = P $ \ t ->
     case runP p t of
       Many aus lf -> Many [ (f a, u) | (a, u) <- aus ] lf
 
---Xinfixl 4 <$
---Yinfixl 4 <$
+infixl 4 <$
 (<$) :: forall s t a b . a -> Prsr s t b -> Prsr s t a
 (<$) a p = p >> pure a
 
@@ -108,8 +101,7 @@ guard b = if b then pure () else empty
 empty :: forall s t a . Prsr s t a
 empty = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [])
 
---Xinfixl 3 <|>
---Yinfixl 3 <|>
+infixl 3 <|>
 (<|>) :: forall s t a . Prsr s t a -> Prsr s t a -> Prsr s t a
 (<|>) p q = P $ \ t ->
     case runP p t of
@@ -130,6 +122,7 @@ modify :: forall s t . (s -> s) -> Prsr s t ()
 modify f = get >>= \ s -> put (f s)
 
 -- Left biased choice
+infixl 3 <|<
 (<|<) :: forall s t a . Prsr s t a -> Prsr s t a -> Prsr s t a
 (<|<) p q = P $ \ t ->
   case runP p t of
@@ -186,6 +179,7 @@ eof = P $ \ t@(cs, _) ->
  else
    Many [] (LastFail (length cs) (take 1 cs) ["eof"])
 
+infixl 9 <?>
 (<?>) :: forall s t a . Prsr s t a -> String -> Prsr s t a
 (<?>) p e = P $ \ t ->
 --  trace ("<?> " ++ show e) $

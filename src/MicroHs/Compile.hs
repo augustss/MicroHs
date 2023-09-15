@@ -63,7 +63,7 @@ compile :: Flags -> IdentModule -> IO [LDef]
 compile flags nm = IO.do
   ((_, t), ch) <- runStateIO (compileModuleCached flags nm) (Cache [] M.empty)
   let
-    defs (TModule _ _ _ _ ds) = ds
+    defs (TModule _ _ _ _ _ ds) = ds
   IO.when (verbose flags > 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (showInt t) ++ "ms"
   IO.return $ concatMap defs $ M.elems $ cache ch

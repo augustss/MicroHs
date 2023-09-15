@@ -4,11 +4,11 @@ module Data.Function(module Data.Function) where
 import Primitives
 import Data.Tuple
 
---Yinfixr 0 $
+infixr 0 $
 ($) :: forall a b . (a -> b) -> a -> b
 ($) f x = f x
 
---Yinfixr 9 .
+infixr 9 .
 (.) :: forall a b c . (b -> c) -> (a -> b) -> (a -> c)
 (.) f g x = f (g x)
 
@@ -27,5 +27,6 @@ fix = primFix
 uncurry :: forall a b c . (a -> b -> c) -> (a, b) -> c
 uncurry f ab = f (fst ab) (snd ab)
 
+infixl 0 `on`
 on :: forall a b c . (a -> a -> b) -> (c -> a) -> (c -> c -> b)
 on op sel x y = op (sel x) (sel y)

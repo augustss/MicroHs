@@ -10,8 +10,8 @@ import Text.String
 
 --type Word = Primitives.Word
 
---Yinfixl 6 +,-
---Yinfixl 7 *
+infixl 6 +,-
+infixl 7 *,`quot`,`rem`
 
 -- Arithmetic
 (+) :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> {-Data.Word.-}Word
@@ -27,7 +27,7 @@ rem  = primWordRem
 
 --------------------------------
 
---Yinfix 4 ==,/=,<,<=,>,>=
+infix 4 ==,/=,<,<=,>,>=
 
 -- Comparison
 (==) :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> Bool

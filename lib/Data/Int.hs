@@ -6,8 +6,8 @@ import Data.Bool_Type
 
 --type Int = Primitives.Int
 
---Yinfixl 6 +,-
---Yinfixl 7 *
+infixl 6 +,-
+infixl 7 *,`quot`,`rem`
 
 -- Arithmetic
 (+) :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> {-Data.Int.-}Int
@@ -29,7 +29,7 @@ negate x = 0 - x
 
 --------------------------------
 
---Yinfix 4 ==,/=,<,<=,>,>=
+infix 4 ==,/=,<,<=,>,>=
 
 -- Comparison
 (==) :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> Bool

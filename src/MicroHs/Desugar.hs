@@ -26,7 +26,7 @@ type LDef = (Ident, Exp)
 desugar :: TModule [EDef] -> TModule [LDef]
 desugar atm =
   case atm of
-    TModule mn tys syns vals ds -> TModule mn tys syns vals (concatMap (dsDef mn) ds)
+    TModule mn fxs tys syns vals ds -> TModule mn fxs tys syns vals (concatMap (dsDef mn) ds)
 
 dsDef :: IdentModule -> EDef -> [LDef]
 dsDef mn adef =
@@ -46,6 +46,7 @@ dsDef mn adef =
     Sign _ _ -> []
     Import _ -> []
     ForImp ie i _ -> [(i, Lit $ LForImp ie)]
+    Infix _ _ -> []
 
 oneAlt :: Expr -> EAlts
 oneAlt e = EAlts [([], e)] []

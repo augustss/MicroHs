@@ -17,11 +17,11 @@ type FilePath = String
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
 
---Yinfixl 1 >>=
+infixl 1 >>=
 (>>=)       :: forall a b . IO a -> (a -> IO b) -> IO b
 (>>=)        = P.primBind
 
---Yinfixl 1 >>
+infixl 1 >>
 (>>)        :: forall a b . IO a -> IO b -> IO b
 (>>)         = P.primThen
 

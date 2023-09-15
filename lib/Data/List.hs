@@ -11,6 +11,12 @@ import Data.Tuple
 --Yimport Data.Char
 --type Int = P.Int
 
+--X{-
+--Y{-
+infixr 5 :
+--Y-}
+--X-}
+
 data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable --Z
 
 null :: forall a . [a] -> Bool
@@ -242,6 +248,7 @@ repeat x =
 deleteFirstsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteFirstsBy eq = foldl (flip (deleteBy eq))
 
+infixl 9 !!
 (!!) :: forall a . Int -> [a] -> a
 (!!) i =
   if i < 0 then
