@@ -235,6 +235,12 @@ pDef =
   <|> Sign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
   <|> Import      <$> (pKeyword "import" *> pImportSpec)
   <|> ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
+  <|> Infix       <$> (pair <$> pAssoc <*> pPrec) <*> esepBy1 pOper (pSpec ',')
+  where
+    pAssoc = (AssocLeft <$ pKeyword "infixl") <|> (AssocRight <$ pKeyword "infixr") <|> (AssocNone <$ pKeyword "infix")
+    dig (TInt _ i) | 0 <= i && i <= 9 = Just i
+    dig _ = Nothing
+    pPrec = satisfyM "digit" dig
 
 pLHS :: P LHS
 pLHS = pair <$> pUIdentSym <*> many pIdKind
