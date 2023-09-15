@@ -892,16 +892,6 @@ unArrow loc (Just t) =
       unify loc t (tArrow a r)
       T.return (a, r)
 
-data Assoc = AssocLeft | AssocRight | AssocNone
-  --Xderiving (Show)
-
-eqAssoc :: Assoc -> Assoc -> Bool
-eqAssoc AssocLeft AssocLeft = True
-eqAssoc AssocRight AssocRight = True
-eqAssoc AssocNone AssocNone = True
-eqAssoc _ _ = False
-
-type Fixity = (Assoc, Int)
 type FixTable = [(String, Fixity)]
 
 -- A hack until we do it right

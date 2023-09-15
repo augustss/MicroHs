@@ -26,7 +26,8 @@ module MicroHs.Expr(
   subst,
   allVarsExpr, allVarsBind,
   getSLocExpr, setSLocExpr,
-  errorMessage
+  errorMessage,
+  Assoc(..), eqAssoc, Fixity
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
 import Data.List
@@ -57,6 +58,7 @@ data EDef
   | Sign Ident ETypeScheme
   | Import ImportSpec
   | ForImp String Ident EType
+  | Infix Fixity [Ident]
   --Xderiving (Show, Eq)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident)
@@ -197,6 +199,19 @@ untupleConstr i = length (unIdent i) + 1
 
 ---------------------------------
 
+data Assoc = AssocLeft | AssocRight | AssocNone
+  --Xderiving (Eq, Show)
+
+eqAssoc :: Assoc -> Assoc -> Bool
+eqAssoc AssocLeft AssocLeft = True
+eqAssoc AssocRight AssocRight = True
+eqAssoc AssocNone AssocNone = True
+eqAssoc _ _ = False
+
+type Fixity = (Assoc, Int)
+
+---------------------------------
+
 -- Enough to handle subsitution in types
 subst :: [(Ident, Expr)] -> Expr -> Expr
 subst s =
@@ -318,6 +333,8 @@ showEDef def =
     Sign i t -> showIdent i ++ " :: " ++ showETypeScheme t
     Import (ImportSpec q m mm) -> "import " ++ (if q then "qualified " else "") ++ showIdent m ++ maybe "" ((" as " ++) . unIdent) mm
     ForImp ie i t -> "foreign import ccall " ++ showString ie ++ " " ++ showIdent i ++ " :: " ++ showEType t
+    Infix (a, p) is -> "infix" ++ f a ++ " " ++ showInt p ++ " " ++ intercalate ", " (map showIdent is)
+      where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
 
 showConstr :: Constr -> String
 showConstr (i, ts) = unwords (showIdent i : map showEType ts)
