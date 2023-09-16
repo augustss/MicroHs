@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.Exp(
@@ -421,7 +422,7 @@ freeVars ae =
   case ae of
     Var i -> [i]
     App f a -> freeVars f ++ freeVars a
-    Lam i e -> deleteBy eqIdent i (freeVars e)
+    Lam i e -> deleteAllBy eqIdent i (freeVars e)
     Lit _ -> []
 
 allVarsExp :: Exp -> [Ident]

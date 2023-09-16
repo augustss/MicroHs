@@ -225,6 +225,8 @@ subst s =
         _ -> error "subst unimplemented"
   in sub
 
+---------------------------------
+
 allVarsBind :: EBind -> [Ident]
 allVarsBind abind =
   case abind of
@@ -284,6 +286,72 @@ allVarsStmt astmt =
     SBind p e -> allVarsPat p ++ allVarsExpr e
     SThen e -> allVarsExpr e
     SLet bs -> concatMap allVarsBind bs
+
+---------------------------------
+
+{-  XXX Incomplete 
+freeVarsBind :: EBind -> [Ident]
+freeVarsBind abind =
+  case abind of
+    BFcn i eqns -> deleteAllBy eqIdent i (concatMap freeVarsEqn eqns)
+    BPat p e -> deleteAllsBy eqIdent (allVarsPat p) (freeVarsExpr e)
+
+freeVarsEqn :: Eqn -> [Ident]
+freeVarsEqn eqn =
+  case eqn of
+    Eqn ps alts -> deleteAllsBy eqIdent (concatMap allVarsPat ps) (freeVarsAlts alts)
+
+freeVarsAlts :: EAlts -> [Ident]
+freeVarsAlts (EAlts alts bs) = concatMap freeVarsAlt alts ++ concatMap freeVarsBind bs
+
+freeVarsAlt :: EAlt -> [Ident]
+freeVarsAlt (ss, e) = concatMap freeVarsStmt ss ++ freeVarsExpr e
+
+freeVarsPat :: EPat -> [Ident]
+freeVarsPat = freeVarsExpr
+
+freeVarsExpr :: Expr -> [Ident]
+freeVarsExpr aexpr =
+  case aexpr of
+    EVar i -> [i]
+    EApp e1 e2 -> freeVarsExpr e1 ++ freeVarsExpr e2
+    EOper e1 ies -> freeVarsExpr e1 ++ concatMap (\ (i,e2) -> i : freeVarsExpr e2) ies
+    ELam ps e -> concatMap freeVarsPat ps ++ freeVarsExpr e
+    ELit _ _ -> []
+    ECase e as -> freeVarsExpr e ++ concatMap freeVarsCaseArm as
+    ELet bs e -> concatMap freeVarsBind bs ++ freeVarsExpr e
+    ETuple es -> concatMap freeVarsExpr es
+    EListish (LList es) -> concatMap freeVarsExpr es
+    EDo mi ss -> maybe [] (:[]) mi ++ concatMap freeVarsStmt ss
+    ESectL e i -> i : freeVarsExpr e
+    ESectR i e -> i : freeVarsExpr e
+    EIf e1 e2 e3 -> freeVarsExpr e1 ++ freeVarsExpr e2 ++ freeVarsExpr e3
+    EListish l -> freeVarsListish l
+    ESign e _ -> freeVarsExpr e
+    EAt i e -> i : freeVarsExpr e
+    EUVar _ -> []
+    ECon c -> [conIdent c]
+
+freeVarsListish :: Listish -> [Ident]
+freeVarsListish (LList es) = concatMap freeVarsExpr es
+freeVarsListish (LCompr e ss) = freeVarsExpr e ++ concatMap freeVarsStmt ss
+freeVarsListish (LFrom e) = freeVarsExpr e
+freeVarsListish (LFromTo e1 e2) = freeVarsExpr e1 ++ freeVarsExpr e2
+freeVarsListish (LFromThen e1 e2) = freeVarsExpr e1 ++ freeVarsExpr e2
+freeVarsListish (LFromThenTo e1 e2 e3) = freeVarsExpr e1 ++ freeVarsExpr e2 ++ freeVarsExpr e3
+
+freeVarsCaseArm :: ECaseArm -> [Ident]
+freeVarsCaseArm (p, alts) = freeVarsPat p ++ freeVarsAlts alts
+
+freeVarsStmt :: EStmt -> [Ident]
+freeVarsStmt astmt =
+  case astmt of
+    SBind p e -> freeVarsPat p ++ freeVarsExpr e
+    SThen e -> freeVarsExpr e
+    SLet bs -> concatMap freeVarsBind bs
+-}
+
+-----------------------------
 
 -- XXX Should use locations in ELit
 getSLocExpr :: Expr -> SLoc

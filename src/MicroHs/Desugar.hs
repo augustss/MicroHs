@@ -205,7 +205,7 @@ apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
 newVars :: String -> [Ident] -> [Ident]
-newVars s is = deleteFirstsBy eqIdent [ mkIdent (s ++ showInt i) | i <- enumFrom 1 ] is
+newVars s is = deleteAllsBy eqIdent [ mkIdent (s ++ showInt i) | i <- enumFrom 1 ] is
 
 newVar :: [Ident] -> Ident
 newVar = head . newVars "q"

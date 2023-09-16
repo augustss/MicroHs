@@ -232,6 +232,10 @@ deleteBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
 deleteBy _ _ [] = []
 deleteBy eq x (y:ys) = if eq x y then ys else y : deleteBy eq x ys
 
+deleteAllBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
+deleteAllBy _ _ [] = []
+deleteAllBy eq x (y:ys) = if eq x y then deleteAllBy eq x ys else y : deleteAllBy eq x ys
+
 nubBy :: forall a . (a -> a -> Bool) -> [a] -> [a]
 nubBy _ [] = []
 nubBy eq (x:xs) = x : nubBy eq (filter (\ y -> not (eq x y)) xs)
@@ -247,6 +251,9 @@ repeat x =
 
 deleteFirstsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteFirstsBy eq = foldl (flip (deleteBy eq))
+
+deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
+deleteAllsBy eq = foldl (flip (deleteAllBy eq))
 
 infixl 9 !!
 (!!) :: forall a . Int -> [a] -> a

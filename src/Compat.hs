@@ -145,3 +145,10 @@ sortLE :: forall a . (a -> a -> Bool) -> [a] -> [a]
 sortLE _  [] = []
 sortLE le (x:xs) = sortLE le lt ++ (x : sortLE le ge)
   where (ge, lt) = partition (le x) xs
+
+deleteAllBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
+deleteAllBy _ _ [] = []
+deleteAllBy eq x (y:ys) = if eq x y then deleteAllBy eq x ys else y : deleteAllBy eq x ys
+
+deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
+deleteAllsBy eq = foldl (flip (deleteAllBy eq))
