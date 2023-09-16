@@ -8,7 +8,7 @@
 #include <locale.h>
 #include <ctype.h>
 
-#define GCRED    1              /* do some reductions during GC */
+#define GCRED    0              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */
 #define UNIONPTR 1              /* use compact (2 pointer) layout */
 #define INTTABLE 1              /* use fixed table of small INT nodes */
@@ -493,11 +493,12 @@ int red_a, red_k, red_i, red_int;
 void
 mark(NODEPTR *np)
 {
-  NODEPTR n = *np;
-  value_t i;
+  NODEPTR n;
+  //value_t i;
 
-#if GCRED
   top:
+  n = *np;
+#if GCRED
 #endif
   if (GETTAG(n) == T_IND) {
 #if SANITY
@@ -565,7 +566,9 @@ mark(NODEPTR *np)
 #endif  /* GCRED */
   if (GETTAG(n) == T_AP) {
     mark(&FUN(n));
-    mark(&ARG(n));
+    //mark(&ARG(n));
+    np = &ARG(n);
+    goto top;                   /* Avoid tail recursion */
   }
 }
 
