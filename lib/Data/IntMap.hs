@@ -1,6 +1,9 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.IntMap(module Data.IntMap) where
+module Data.IntMap(
+  IntMap,
+  empty, lookup, insert, fromList, toList
+  ) where
 import Prelude --Xhiding(lookup)
 
 data IntMap a

@@ -54,6 +54,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/PreludeNoIO.hs
 	$(GHCC) -c lib/Data/Map.hs
 	$(GHCC) -c lib/Data/IntMap.hs
+	$(GHCC) -c lib/Data/IntSet.hs
 	$(GHCC) -c lib/Unsafe/Coerce.hs
 	$(GHCC) -c lib/Data/Integer.hs
 	$(GHCC) -c lib/Control/Monad/State/Strict.hs
