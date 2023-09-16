@@ -1,8 +1,4 @@
 * Add strict constructors
-* Add infix declarations
-  - Parse as a string of atom oper atom oper ... atom
-  - Resolve fixity in type checker
-  - Add fixity table to TModule
 * Put on hackage
 * Have compile return a Stats record of timing etc
 * Special noMatch function with location
