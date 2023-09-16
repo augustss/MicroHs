@@ -494,12 +494,12 @@ void
 mark(NODEPTR *np)
 {
   NODEPTR n;
-  //value_t i;
+#if GCRED
+  value_t i;
+#endif
 
   top:
   n = *np;
-#if GCRED
-#endif
   if (GETTAG(n) == T_IND) {
 #if SANITY
     int loop = 0;
