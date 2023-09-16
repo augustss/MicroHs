@@ -61,6 +61,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Ident.hs
 	$(GHCC) -c src/MicroHs/Expr.hs
+	$(GHCC) -c src/MicroHs/Graph.hs
 	$(GHCC) -c src/MicroHs/Lex.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
 	$(GHCC) -c src/MicroHs/IdentMap.hs

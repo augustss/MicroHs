@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 module Data.IntMap(
   IntMap,
-  empty, lookup, insert, fromList, toList
+  empty, lookup, insert, fromList, toList, insertWith, (!), keys
   ) where
 import Prelude --Xhiding(lookup)
 
@@ -40,6 +40,7 @@ lookup k am =
          else if m == 2 then lookup d m2
          else                lookup d m3
 
+-- Reusing insertWith would save code.
 insert :: forall a . Int -> a -> IntMap a -> IntMap a
 insert ak a =
   let
@@ -76,3 +77,32 @@ toList am =
         map (f 1) (toList m1) ++
         map (f 2) (toList m2) ++
         map (f 3) (toList m3)
+
+keys :: forall a . IntMap a -> [Int]
+keys = map fst . toList
+
+(!) :: forall a . IntMap a -> Int -> a
+(!) m k =
+  case lookup k m of
+    Just i -> i
+    Nothing -> error "Data.IntMap.!"
+
+insertWith :: forall a . (a -> a -> a) -> Int -> a -> IntMap a -> IntMap a
+insertWith comb ak a =
+  let
+    ins k am =
+      case am of
+        Empty -> Leaf k a
+        Leaf i b ->
+          if k == i then
+            Leaf k (comb a b)
+          else
+            ins k $ insert i b $ Node Empty Empty Empty Empty
+        Node m0 m1 m2 m3 ->
+          let
+            (d, m) = divModX k 4
+          in      if m == 0 then Node (ins d m0) m1 m2 m3
+             else if m == 1 then Node m0 (ins d m1) m2 m3
+             else if m == 2 then Node m0 m1 (ins d m2) m3
+             else                Node m0 m1 m2 (ins d m3)
+  in ins ak

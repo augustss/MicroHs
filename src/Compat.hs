@@ -139,3 +139,9 @@ withDropArgs :: Int -> IO a -> IO a
 withDropArgs i ioa = do
   as <- getArgs
   withArgs (drop i as) ioa
+
+-- A simple "quicksort" for now.
+sortLE :: forall a . (a -> a -> Bool) -> [a] -> [a]
+sortLE _  [] = []
+sortLE le (x:xs) = sortLE le lt ++ (x : sortLE le ge)
+  where (ge, lt) = partition (le x) xs

@@ -19,3 +19,7 @@ fmapMaybe f (Just a) = Just (f a)
 
 catMaybes :: forall a . [Maybe a] -> [a]
 catMaybes mxs = [ x | Just x <- mxs ]
+
+{-
+mapMaybe is in Data,List to avoid recursive modules
+-}

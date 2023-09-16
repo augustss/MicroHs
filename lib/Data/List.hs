@@ -266,3 +266,16 @@ eqList _ _ _ = False
 
 partition :: forall a . (a -> Bool) -> [a] -> ([a], [a])
 partition p xs = (filter p xs, filter (not . p) xs)
+
+-- A simple "quicksort" for now.
+sortLE :: forall a . (a -> a -> Bool) -> [a] -> [a]
+sortLE _  [] = []
+sortLE le (x:xs) = sortLE le lt ++ (x : sortLE le ge)
+  where (ge, lt) = partition (le x) xs
+
+mapMaybe :: forall a b . (a -> Maybe b) -> [a] -> [b]
+mapMaybe _ [] = []
+mapMaybe f (a:as) =
+  case f a of
+    Nothing -> mapMaybe f as
+    Just b -> b : mapMaybe f as

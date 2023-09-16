@@ -18,6 +18,7 @@ import Control.Monad.State.Strict as S --Xhiding(ap)
 
 import MicroHs.Expr
 import MicroHs.Exp
+import MicroHs.Graph
 import MicroHs.Ident
 import MicroHs.TypeCheck
 
