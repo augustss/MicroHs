@@ -44,6 +44,7 @@ executable mhs
                        MicroHs.Desugar
                        MicroHs.Exp
                        MicroHs.Expr
+                       MicroHs.Graph
                        MicroHs.Ident
                        MicroHs.Lex
                        MicroHs.Parse
