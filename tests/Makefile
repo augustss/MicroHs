@@ -16,6 +16,7 @@ test:
 	$(MHS) Word && $(EVAL) > Word.out && diff Word.ref Word.out
 	$(MHS) Enum && $(EVAL) > Enum.out && diff Enum.ref Enum.out
 	$(MHS) Foreign && $(EVAL) > Foreign.out && diff Foreign.ref Foreign.out
+	$(MHS) MutRec && $(EVAL) > MutRec.out && diff MutRec.ref MutRec.out
 
 time:
 	@echo Expect about 10s runtime

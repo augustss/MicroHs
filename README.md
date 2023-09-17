@@ -16,7 +16,7 @@ It has the following features:
 * character literals
 * string (list of characters) literals
 * case expressions
-* let expressions, no mutual recursion (yet)
+* let expressions
 * tuples
 * list syntax
 * list comprehensions
