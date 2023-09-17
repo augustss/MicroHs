@@ -152,7 +152,7 @@ with other word sizes.
 ## Bootstrapping
 It is possible to recompile the compiler without access to a Haskell compiler.
 The combinator file for the compiler itself is available in `comb/mhs.comb`.
-The bootstrapping process takes about 15s (on a modern machine).
+The bootstrapping process takes about 20s (on a modern machine).
 To bootstrap:
  * build the evaluator, `make bin/eval`, this requires a C compiler
  * compile the compiler
@@ -178,8 +178,8 @@ You might have to increase it on your system.
   * A: Error messages are boring.  But I plan to add location information to them.
 *
   * Q: Why is the so much source code?
-  * A: I wonder this myself.  Over 5500 lines of Haskell seems excessive.
-       1600 lines of C is also more than I'd like for such a simple system.
+  * A: I wonder this myself.  Over 4000 lines of Haskell seems excessive.
+       1700 lines of C is also more than I'd like for such a simple system.
 *
   * Q: Why are the binaries so big?
   * A: The combinator file is rather verbose.  Compressed the combinator file
