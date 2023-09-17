@@ -256,15 +256,15 @@ deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteAllsBy eq = foldl (flip (deleteAllBy eq))
 
 infixl 9 !!
-(!!) :: forall a . Int -> [a] -> a
-(!!) i =
+(!!) :: forall a . [a] -> Int -> a
+(!!) axs i =
   if i < 0 then
     error "!!: <0"
   else
     let
       nth _ [] = error "!!: empty"
       nth n (x:xs) = if n == 0 then x else nth (n - 1) xs
-    in nth i
+    in nth i axs
 
 eqList :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
 eqList _ [] [] = True
