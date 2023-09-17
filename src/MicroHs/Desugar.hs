@@ -27,7 +27,8 @@ type LDef = (Ident, Exp)
 desugar :: TModule [EDef] -> TModule [LDef]
 desugar atm =
   case atm of
-    TModule mn fxs tys syns vals ds -> TModule mn fxs tys syns vals (concatMap (dsDef mn) ds)
+    TModule mn fxs tys syns vals ds ->
+      TModule mn fxs tys syns vals $ checkDup $ concatMap (dsDef mn) ds
 
 dsDef :: IdentModule -> EDef -> [LDef]
 dsDef mn adef =
@@ -103,7 +104,7 @@ dsBinds ads ret =
     vs = newVars "q" $ concatMap allVarsBind ads
     ds = concat $ zipWith dsBind vs ads
     node ie@(i, e) = (ie, i, freeVars e)
-    gr = map node ds
+    gr = map node $ checkDup ds
     asccs = stronglyConnComp leIdent gr
     loop [] = ret
     loop (AcyclicSCC (i, e) : sccs) =
@@ -435,6 +436,16 @@ groupEq eq axs =
   case axs of
     [] -> []
     x:xs ->
-      let
-        (es, ns) = partition (eq x) xs
-      in (x:es) : groupEq eq ns
+      case partition (eq x) xs of
+        (es, ns) -> (x:es) : groupEq eq ns
+
+getDups :: forall a . (a -> a -> Bool) -> [a] -> [[a]]
+getDups eq = filter ((> 1) . length) . groupEq eq
+
+checkDup :: [LDef] -> [LDef]
+checkDup ds =
+  case getDups eqIdent (filter (not . eqIdent dummyIdent) $ map fst ds) of
+    [] -> ds
+    (i1:i2:_) : _ ->
+      errorMessage (getSLocIdent i1) $ "Duplicate " ++ showIdent i1 ++ " " ++ showSLoc (getSLocIdent i2)
+    _ -> undefined
