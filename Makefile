@@ -16,22 +16,31 @@ ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
 MHS=mhs
 COMB=comb/
 EVAL=$(BIN)/eval
-.PHONY: all alltest everytest boottest bootboottest bootcombtest $(MHS)test test alltest time example bootstraptest
+.PHONY: all alltest everytest runtest bootboottest bootcombtest $(MHS)test test alltest time example bootstraptest
 
 all:	$(EVAL) $(BIN)/$(MHS)
 
-alltest:	test boottest
+everytest:	runtest example exampleboot examplecomb bootboottest bootcombtest
 
-everytest:	alltest example exampleboot examplecomb bootboottest bootcombtest
-
+###
+### Build evaluator (runtime system)
+###
 # On MINGW you might need the additional flags -Wl,--stack,50000000 to increase stack space.
 $(EVAL):	src/runtime/eval.c
 	@mkdir -p bin
 	$(GCC) -Wall -O3 src/runtime/eval.c -o $(EVAL)
 
+###
+### Build the compiler with ghc, using standard libraries (Prelude, Data.List, etc)
+###
 $(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
 	$(GHCE) -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
+###
+### Build the compiler with ghc, using MicroHs libraries (Prelude, Data.List, etc)
+###
+# Due to a ghc bug we need to list all the commands.
+# The bug is that OPTIONS_GHC does not accept the -package flag.
 $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
@@ -79,10 +88,6 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHC) $(PROF) -hide-all-packages -package time -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o $(BOOTDIR)/*/*/*/*.o
 #	$(GHC) $(PROF) -hide-all-packages -package containers -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o $(BOOTDIR)/*/*/*/*.o
 
-# Test Haskell version with local libraries
-boottest:	$(BIN)/boot$(MHS)
-	$(BIN)/boot$(MHS) -ilib Example
-
 # Compare version compiled with normal GHC libraries and $(MHS) libraries
 bootboottest:	$(BIN)/$(MHS) $(BIN)/boot$(MHS)
 	$(BIN)/$(MHS)     -ilib -isrc -omain-$(MHS).comb  MicroHs.Main
@@ -95,15 +100,23 @@ bootcombtest:	$(BIN)/$(MHS) $(EVAL) $(COMB)$(MHS).comb
 	$(EVAL) +RTS -v -r$(COMB)$(MHS).comb -RTS -ilib -isrc -omain-comb.comb MicroHs.Main
 	cmp main-$(MHS).comb main-comb.comb
 
-# Test normal Haskell version
-test:	$(EVAL) $(BIN)/$(MHS) tests/*.hs
+###
+### Run test examples with ghc-compiled compiler
+###
+runtest:	$(EVAL) $(BIN)/$(MHS) tests/*.hs
 	cd tests; make test
 
+###
+### Run test examples with MicroHs compiler
+###
+runtestcomb: $(EVAL) $(COMB)$(MHS).comb
+	cd tests; make MHS='../$(EVAL) +RTS -r../$(COMB)$(MHS).comb -RTS -i../lib'
+
+###
+### Build combinator file for the compiler, using ghc-compiled compiler
+###
 $(COMB)$(MHS).comb:	$(BIN)/$(MHS) $(ALLSRC)
 	$(BIN)/$(MHS) -ilib -isrc -o$(COMB)$(MHS).comb MicroHs.Main
-
-$(MHS)comp:	$(EVAL) $(COMB)$(MHS).comb
-	$(EVAL) +RTS -v -r$(COMB)$(MHS).comb -RTS $(ARG)
 
 time:	$(EVAL) $(BIN)/$(MHS) tests/*.hs
 	cd tests; make time
