@@ -101,21 +101,50 @@ dsBinds :: [EBind] -> Exp -> Exp
 dsBinds [] ret = ret
 dsBinds ads ret =
   let
-    vs = newVars "q" $ concatMap allVarsBind ads
-    ds = concat $ zipWith dsBind vs ads
+    avs = concatMap allVarsBind ads
+    pvs = newVars "p" avs
+    mvs = newVars "m" avs
+    ds = concat $ zipWith dsBind pvs ads
     node ie@(i, e) = (ie, i, freeVars e)
     gr = map node $ checkDup ds
     asccs = stronglyConnComp leIdent gr
-    loop [] = ret
-    loop (AcyclicSCC (i, e) : sccs) =
-      let b = loop sccs
-      in  App (Lam i b) e
-    loop (CyclicSCC [(i, e)] : sccs) =
-      let b = loop sccs
-      in  App (Lam i b) (App (Lit (LPrim "Y")) (Lam i e))
-    loop (CyclicSCC ies : _sccs) =
-      error $ "Mutual recursion not implemented " ++ showList showIdent (map fst ies)
-  in loop asccs
+    loop _ [] = ret
+    loop vs (AcyclicSCC (i, e) : sccs) =
+      letE i e $ loop vs sccs
+    loop vs (CyclicSCC [(i, e)] : sccs) =
+      letRecE i e $ loop vs sccs
+    loop (v:vs) (CyclicSCC ies : sccs) = mutualRec v ies (loop vs sccs)
+    loop _ _ = undefined
+  in loop mvs asccs
+
+letE :: Ident -> Exp -> Exp -> Exp
+letE i e b = App (Lam i b) e
+
+letRecE :: Ident -> Exp -> Exp -> Exp
+letRecE i e b = letE i (App (Lit (LPrim "Y")) (Lam i e)) b
+
+-- Do mutual recursion by tupling up all the definitions.
+--  let f = ... g ...
+--      g = ... f ...
+--  in  body
+-- turns into
+--  letrec v =
+--        let f = sel_0_2 v
+--            g = sel_1_2 v
+--        in  (... g ..., ... f ...)
+--  in
+--    let f = sel_0_2 v
+--        g = sel_1_2 v
+--    in  body
+mutualRec :: Ident -> [LDef] -> Exp -> Exp
+mutualRec v ies body =
+  let (is, es) = unzip ies
+      n = length is
+      ev = Var v
+      one m i = letE i (mkTupleSel m n ev)
+      bnds = foldr (.) id $ zipWith one [0..] is
+  in  letRecE v (bnds $ mkTuple es) $
+      bnds body
 
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
@@ -154,11 +183,22 @@ dsExpr aexpr =
         if eqChar (head $ unIdent ci) ',' then
           let
             xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 (untupleConstr ci) ]
-            body = Lam (mkIdent "$f") $ foldl App (Var (mkIdent "$f")) $ map Var xs
+            body = mkTuple $ map Var xs
           in foldr Lam body xs
         else
           Var (conIdent c)
     _ -> impossible
+
+-- Use tuple encoding to make a tuple
+mkTuple :: [Exp] -> Exp
+mkTuple = Lam (mkIdent "$f") . foldl App (Var (mkIdent "$f"))
+
+-- Select component m from an n-tuple
+mkTupleSel :: Int -> Int -> Exp -> Exp
+mkTupleSel m n tup =
+  let
+    xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 n ]
+  in App tup (foldr Lam (Var (xs !! m)) xs)
 
 dsLam :: [EPat] -> Expr -> Exp
 dsLam ps e =
