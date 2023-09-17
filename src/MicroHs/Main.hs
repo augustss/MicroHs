@@ -22,7 +22,7 @@ main = do
     mn =
       let
         ss = filter (not . (eqString "-") . take 1) args
-      in   if length ss == 1 then head ss else error "Usage: uhs [-v] [-r] [-iPATH] [-oFILE] ModuleName"
+      in   if length ss == 1 then head ss else error "Usage: mhs [-v] [-r] [-iPATH] [-oFILE] ModuleName"
     flags = Flags (length (filter (eqString "-v") args))
                   (elemBy eqString "-r" args)
                   ("." : catMaybes (map (stripPrefixBy eqChar "-i") args))
