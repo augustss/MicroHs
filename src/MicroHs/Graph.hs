@@ -37,7 +37,7 @@ data SCC vertex = AcyclicSCC vertex     -- ^ A single vertex that is not
                                         -- in any cycle.
                 | CyclicSCC  [vertex]   -- ^ A maximal set of mutually
                                         -- reachable vertices.
-  --deriving (Eq, Show)
+  --Xderiving (Show)
 
 stronglyConnComp
         :: forall key node .

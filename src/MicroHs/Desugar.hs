@@ -6,7 +6,7 @@ module MicroHs.Desugar(
   LDef, showLDefs
   ) where
 --import Debug.Trace
-import Prelude
+import Prelude --Xhiding(showList)
 import Data.Char
 import Data.List
 import Data.Maybe
@@ -52,13 +52,12 @@ dsDef mn adef =
 oneAlt :: Expr -> EAlts
 oneAlt e = EAlts [([], e)] []
 
-dsBind :: EBind -> [LDef]
-dsBind abind =
+dsBind :: Ident -> EBind -> [LDef]
+dsBind v abind =
   case abind of
     BFcn f eqns -> [(f, dsEqns eqns)]
     BPat p e ->
       let
-        v = newVar (allVarsBind abind)
         de = (v, dsExpr e)
         ds = [ (i, dsExpr (ECase (EVar v) [(p, oneAlt $ EVar i)])) | i <- patVars p ]
       in  de : ds
@@ -98,17 +97,24 @@ dsAlt dflt (SThen e   : ss) rhs = EIf e (dsAlt dflt ss rhs) dflt
 dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
 dsBinds :: [EBind] -> Exp -> Exp
+dsBinds [] ret = ret
 dsBinds ads ret =
-  case ads of
-    [] -> ret
-    d:ds ->
-      let
-        dsd = dsBind d
-        de = dsBinds ds ret
-        def ir a =
-          case ir of
-            (i, r) -> App (Lam i a) (App (Lit (LPrim "Y")) (Lam i r))
-      in  foldr def de dsd
+  let
+    vs = newVars "q" $ concatMap allVarsBind ads
+    ds = concat $ zipWith dsBind vs ads
+    node ie@(i, e) = (ie, i, freeVars e)
+    gr = map node ds
+    asccs = stronglyConnComp leIdent gr
+    loop [] = ret
+    loop (AcyclicSCC (i, e) : sccs) =
+      let b = loop sccs
+      in  App (Lam i b) e
+    loop (CyclicSCC [(i, e)] : sccs) =
+      let b = loop sccs
+      in  App (Lam i b) (App (Lit (LPrim "Y")) (Lam i e))
+    loop (CyclicSCC ies : _sccs) =
+      error $ "Mutual recursion not implemented " ++ showList showIdent (map fst ies)
+  in loop asccs
 
 dsExpr :: Expr -> Exp
 dsExpr aexpr =

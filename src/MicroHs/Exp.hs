@@ -4,7 +4,7 @@
 module MicroHs.Exp(
   compileOpt,
   substExp,
-  Exp(..), showExp, toStringP,
+  Exp(..), showExp, eqExp, toStringP,
   PrimOp,
   encodeString,
   app2, cCons, cNil, cFlip,
@@ -14,7 +14,7 @@ import Prelude
 import Data.Char
 import Data.List
 import MicroHs.Ident
-import MicroHs.Expr --X(Lit(..), showLit)
+import MicroHs.Expr --X(Lit(..), showLit, eqLit)
 --Ximport Compat
 --import Debug.Trace
 
@@ -26,6 +26,13 @@ data Exp
   | Lam Ident Exp
   | Lit Lit
   --Xderiving (Show, Eq)
+
+eqExp :: Exp -> Exp -> Bool
+eqExp (Var i1) (Var i2) = eqIdent i1 i2
+eqExp (App f1 a1) (App f2 a2) = eqExp f1 f2 && eqExp a1 a2
+eqExp (Lam i1 e1) (Lam i2 e2) = eqIdent i1 i2 && eqExp e1 e2
+eqExp (Lit l1) (Lit l2) = eqLit l1 l2
+eqExp _ _ = False
 
 data MaybeApp = NotApp | IsApp Exp Exp
 
