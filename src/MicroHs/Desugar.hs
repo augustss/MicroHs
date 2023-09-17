@@ -113,8 +113,9 @@ dsBinds ads ret =
       letE i e $ loop vs sccs
     loop vs (CyclicSCC [(i, e)] : sccs) =
       letRecE i e $ loop vs sccs
-    loop (v:vs) (CyclicSCC ies : sccs) = mutualRec v ies (loop vs sccs)
-    loop _ _ = undefined
+    loop vvs (CyclicSCC ies : sccs) =
+      let (v:vs) = vvs
+      in mutualRec v ies (loop vs sccs)
   in loop mvs asccs
 
 letE :: Ident -> Exp -> Exp -> Exp
