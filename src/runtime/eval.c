@@ -489,7 +489,7 @@ init_nodes(void)
 int red_a, red_k, red_i, red_int;
 #endif
 
-counter_t mark_depth;
+//counter_t mark_depth;
 
 /* Mark all used nodes reachable from *np */
 void
@@ -500,9 +500,9 @@ mark(NODEPTR *np)
   value_t i;
 #endif
 
-  mark_depth++;
-  if (mark_depth % 10000 == 0)
-    printf("mark depth %"PRIcounter"\n", mark_depth);
+  //  mark_depth++;
+  //  if (mark_depth % 10000 == 0)
+  //    printf("mark depth %"PRIcounter"\n", mark_depth);
   top:
   n = *np;
   if (GETTAG(n) == T_IND) {
@@ -527,7 +527,7 @@ mark(NODEPTR *np)
     *np = n;
   }
   if (is_marked_used(n)) {
-    mark_depth--;
+    //    mark_depth--;
     return;
   }
   num_marked++;
@@ -598,7 +598,7 @@ gc(void)
     fprintf(stderr, "gc mark\n");
   gc_mark_time -= gettime();
   mark_all_free();
-  mark_depth = 0;
+  //  mark_depth = 0;
   for (stackptr_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
   t = gettime();
