@@ -8,7 +8,7 @@
 #include <locale.h>
 #include <ctype.h>
 
-#define GCRED    0              /* do some reductions during GC */
+#define GCRED    1              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */
 #define UNIONPTR 1              /* use compact (2 pointer) layout */
 #define INTTABLE 1              /* use fixed table of small INT nodes */
@@ -489,6 +489,8 @@ init_nodes(void)
 int red_a, red_k, red_i, red_int;
 #endif
 
+counter_t mark_depth;
+
 /* Mark all used nodes reachable from *np */
 void
 mark(NODEPTR *np)
@@ -498,6 +500,9 @@ mark(NODEPTR *np)
   value_t i;
 #endif
 
+  mark_depth++;
+  if (mark_depth % 10000 == 0)
+    printf("mark depth %"PRIcounter"\n", mark_depth);
   top:
   n = *np;
   if (GETTAG(n) == T_IND) {
@@ -522,6 +527,7 @@ mark(NODEPTR *np)
     *np = n;
   }
   if (is_marked_used(n)) {
+    mark_depth--;
     return;
   }
   num_marked++;
@@ -565,10 +571,16 @@ mark(NODEPTR *np)
 #endif  /* INTTABLE */
 #endif  /* GCRED */
   if (GETTAG(n) == T_AP) {
+#if 1
     mark(&FUN(n));
     //mark(&ARG(n));
     np = &ARG(n);
     goto top;                   /* Avoid tail recursion */
+#else
+    mark(&ARG(n));
+    np = &FUN(n);
+    goto top;                   /* Avoid tail recursion */
+#endif
   }
 }
 
@@ -586,6 +598,7 @@ gc(void)
     fprintf(stderr, "gc mark\n");
   gc_mark_time -= gettime();
   mark_all_free();
+  mark_depth = 0;
   for (stackptr_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
   t = gettime();
