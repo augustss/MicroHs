@@ -277,8 +277,9 @@ partition p xs = (filter p xs, filter (not . p) xs)
 -- A simple "quicksort" for now.
 sortLE :: forall a . (a -> a -> Bool) -> [a] -> [a]
 sortLE _  [] = []
-sortLE le (x:xs) = sortLE le lt ++ (x : sortLE le ge)
-  where (ge, lt) = partition (le x) xs
+sortLE le (x:xs) =
+  case partition (le x) xs of
+    (ge, lt) -> sortLE le lt ++ (x : sortLE le ge)
 
 mapMaybe :: forall a b . (a -> Maybe b) -> [a] -> [b]
 mapMaybe _ [] = []
