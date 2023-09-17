@@ -64,6 +64,7 @@ insert ak a =
 fromList :: forall a . [(Int, a)] -> IntMap a
 fromList = foldr (uncurry insert) empty
 
+-- XXX There must be a better way
 toList :: forall a . IntMap a -> [(Int, a)]
 toList am =
   let
@@ -73,10 +74,15 @@ toList am =
       Empty -> []
       Leaf l a -> [(l, a)]
       Node m0 m1 m2 m3 ->
-        map (f 0) (toList m0) ++
-        map (f 1) (toList m1) ++
-        map (f 2) (toList m2) ++
+        map (f 0) (toList m0) `merge`
+        map (f 1) (toList m1) `merge`
+        map (f 2) (toList m2) `merge`
         map (f 3) (toList m3)
+
+merge :: forall a . [(Int, a)] -> [(Int, a)] -> [(Int, a)]
+merge [] ys = ys
+merge xs [] = xs
+merge xxs@(xa@(x,_):xs) yys@(yb@(y,b):ys) = if x < y then xa : merge xs yys else yb : merge xxs ys
 
 keys :: forall a . IntMap a -> [Int]
 keys = map fst . toList
