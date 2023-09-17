@@ -135,23 +135,29 @@ clean:
 	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR) tmp/eval.c Tools/*.o Tools/*.hi
 	cd tests; make clean
 
-#$(BIN)/addcombs:	Tools/Addcombs.hs
-#	$(GHC) -main-is -make -iTools Addcomb.main Tools/Addcombs.hs -o $(BIN)/addcombs
-
+###
+### Make an eval.c that contains the combinator code.
+###
 tmp/eval.c: src/runtime/eval.c $(BIN)/eval
 	@mkdir -p tmp
 	cp src/runtime/eval.c tmp/eval.c
-#	$(BIN)/addcombs $(COMB)$(MHS).comb >> tmp/eval.c
 	$(BIN)/eval +RTS -K10M -r$(COMB)$(MHS).comb -RTS -ilib -iTools -r Addcombs -- $(COMB)$(MHS).comb >> tmp/eval.c
 
+###
+### Make an executable that contains the combinator code.
+###
 $(BIN)/cmhs: tmp/eval.c
 	$(GCC) -Wall -O3 tmp/eval.c -o $(BIN)/cmhs
 	strip $(BIN)/cmhs
 
+###
+### Compress the binary (broken on MacOS)
+###
 $(BIN)/umhs: $(BIN)/cmhs
 	$(UPX) -o$(BIN)/umhs $(BIN)/cmhs
-
-# Test that the compiler can bootstrap
+###
+### Test that the compiler can bootstrap
+###
 bootstraptest: $(EVAL)
 	@mkdir -p tmp
 	@echo Build stage 1 with distribution combinator file
