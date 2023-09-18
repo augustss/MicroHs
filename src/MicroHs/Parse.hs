@@ -65,7 +65,7 @@ pUIdentA = P.do
 pUIdent :: P Ident
 pUIdent =
       pUIdentA
-  <|> pUIdentSpecial
+  <|< pUIdentSpecial
 
 pUIdentSym :: P Ident
 pUIdentSym = pUIdent <|< pParens pUSymOper
@@ -78,8 +78,8 @@ pUIdentSpecial = P.do
     mk = mkIdentLoc fn loc
   
   (mk . map (const ',') <$> (pSpec '(' *> esome (pSpec ',') <* pSpec ')'))
-    <|> (mk "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
-    <|> (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
+    <|< (mk "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
+    <|< (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
 
 pUQIdentA :: P Ident
 pUQIdentA = P.do
@@ -92,7 +92,7 @@ pUQIdentA = P.do
 pUQIdent :: P Ident
 pUQIdent =
       pUQIdentA
-  <|> pUIdentSpecial
+  <|< pUIdentSpecial
 
 pLIdent :: P Ident
 pLIdent = P.do
@@ -209,9 +209,9 @@ pString = satisfyM "string" is
 pExportSpec :: P ExportSpec
 pExportSpec =
       ExpModule <$> (pKeyword "module" *> pUQIdent)
-  <|> ExpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pSymbol ".." <* pSpec ')')
-  <|> ExpType <$> pUQIdentSym
-  <|> ExpValue <$> pLQIdentSym
+  <|< ExpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pSymbol ".." <* pSpec ')')
+  <|< ExpType <$> pUQIdentSym
+  <|< ExpValue <$> pLQIdentSym
 
 pKeyword :: String -> P ()
 pKeyword kw = () <$ satisfy kw is
@@ -229,23 +229,23 @@ pBlock p = P.do
 
 pDef :: P EDef
 pDef =
-      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 (pair <$> pUIdentSym <*> many pAType) (pSymbol "|"))
+      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 (pair <$> pUIdentSym <*> emany pAType) (pSymbol "|"))
                                                         <|< P.pure [])
-  <|> Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> pUIdent) <*> pAType
-  <|> Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
-  <|> uncurry Fcn <$> pEqns
-  <|> Sign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
-  <|> Import      <$> (pKeyword "import" *> pImportSpec)
-  <|> ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
-  <|> Infix       <$> (pair <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
+  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> pUIdent) <*> pAType
+  <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
+  <|< uncurry Fcn <$> pEqns
+  <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
+  <|< Import      <$> (pKeyword "import" *> pImportSpec)
+  <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
+  <|< Infix       <$> (pair <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   where
-    pAssoc = (AssocLeft <$ pKeyword "infixl") <|> (AssocRight <$ pKeyword "infixr") <|> (AssocNone <$ pKeyword "infix")
+    pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ i) | -1 <= i && i <= 9 = Just i
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
 
 pLHS :: P LHS
-pLHS = pair <$> pUIdentSym <*> many pIdKind
+pLHS = pair <$> pUIdentSym <*> emany pIdKind
 
 pImportSpec :: P ImportSpec
 pImportSpec =
@@ -259,7 +259,7 @@ pImportSpec =
 pIdKind :: P IdKind
 pIdKind =
       ((\ i -> IdKind i kType) <$> pLIdentSym)
-  <|> pParens (IdKind <$> pLIdentSym <*> (pSymbol "::" *> pKind))
+  <|< pParens (IdKind <$> pLIdentSym <*> (pSymbol "::" *> pKind))
 
 pKind :: P EKind
 pKind = pType
@@ -281,7 +281,7 @@ pTypeOp :: P EType
 pTypeOp = pOperators pTypeOper pTypeArg
 
 pTypeOper :: P Ident
-pTypeOper = pOper <|> (mkIdent "->" <$ pSymbol "->")
+pTypeOper = pOper <|< (mkIdent "->" <$ pSymbol "->")
 
 pTypeArg :: P EType
 pTypeArg = pTypeApp
@@ -298,10 +298,10 @@ pTypeApp = P.do
 pAType :: P Expr
 pAType =
       (EVar <$> pLQIdentSym)
-  <|> (EVar <$> pUQIdentSym)
-  <|> pLit
-  <|> (eTuple <$> (pSpec '(' *> esepBy1 pType (pSpec ',') <* pSpec ')'))
-  <|> (EListish . LList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
+  <|< (EVar <$> pUQIdentSym)
+  <|< pLit
+  <|< (eTuple <$> (pSpec '(' *> esepBy1 pType (pSpec ',') <* pSpec ')'))
+  <|< (EListish . LList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
 
 -------------
 -- Patterns
@@ -313,12 +313,14 @@ pAType =
 -- is separate.
 pAPat :: P EPat
 pAPat =
-      (EVar <$> pLIdentSym)
-  <|> (EVar <$> pUQIdentSym)
-  <|> pLit
-  <|> (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
-  <|> (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
-  <|> (EAt <$> (pLIdentSym <* pSymbol "@") <*> pAPat)
+      (P.do
+         i <- pLIdentSym
+         (EAt i <$> (pSymbol "@" *> pAPat)) <|< pure (EVar i)
+      )
+  <|< (EVar <$> pUQIdentSym)
+  <|< pLit
+  <|< (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
+  <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
 
 pPat :: P EPat
 pPat = pPatOp
@@ -380,8 +382,8 @@ pWhere =
 pStmt :: P EStmt
 pStmt =
       (SBind <$> (pPat <* pSymbol "<-") <*> pExpr)
-  <|> (SLet  <$> (pKeyword "let" *> pBlock pBind))
-  <|> (SThen <$> pExpr)
+  <|< (SLet  <$> (pKeyword "let" *> pBlock pBind))
+  <|< (SThen <$> pExpr)
 
 -------------
 -- Expressions
@@ -390,7 +392,7 @@ pExpr :: P Expr
 pExpr = pExprOp
 
 pExprArg :: P Expr
-pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pIf <|> pDo
+pExprArg = pExprApp <|< pLam <|< pCase <|< pLet <|< pIf <|< pDo
 
 pExprApp :: P Expr
 pExprApp = P.do
@@ -430,13 +432,13 @@ pQualDo = P.do
 pAExpr :: P Expr
 pAExpr = (
       (EVar   <$> pLQIdentSym)
-  <|> (EVar   <$> pUQIdentSym)
-  <|> pLit
-  <|> (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
-  <|> EListish <$> (pSpec '[' *> pListish <* pSpec ']')
-  <|> (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOper <* pSpec ')'))
-  <|> (ESectR <$> (pSpec '(' *> pOper) <*> (pExprArg <* pSpec ')'))
-  <|> (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
+  <|< (EVar   <$> pUQIdentSym)
+  <|< pLit
+  <|< (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
+  <|< EListish <$> (pSpec '[' *> pListish <* pSpec ']')
+  <|< (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOper <* pSpec ')'))
+  <|< (ESectR <$> (pSpec '(' *> pOper) <*> (pExprArg <* pSpec ')'))
+  <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
   )
   -- This weirdly slows down parsing
   -- <?> "aexpr"
@@ -471,7 +473,7 @@ pOperators oper one = eOper <$> one <*> emany (pair <$> oper <*> one)
 pBind :: P EBind
 pBind = 
       uncurry BFcn <$> pEqns
-  <|> BPat <$> (pPatNotVar <* pSymbol "=") <*> pExpr
+  <|< BPat <$> (pPatNotVar <* pSymbol "=") <*> pExpr
 
 -------------
 
