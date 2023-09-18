@@ -77,7 +77,7 @@ pUIdentSpecial = P.do
   let
     mk = mkIdentLoc fn loc
   
-  (mk . map (const ',') <$> (pSpec '(' *> some (pSpec ',') <* pSpec ')'))
+  (mk . map (const ',') <$> (pSpec '(' *> esome (pSpec ',') <* pSpec ')'))
     <|> (mk "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
     <|> (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
 
