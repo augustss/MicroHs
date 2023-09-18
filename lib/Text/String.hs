@@ -5,6 +5,7 @@ import Primitives
 import Data.Bool
 import Data.Char
 import Data.Either
+import Data.Function
 import Data.Int
 import Data.List
 import Data.Maybe
@@ -92,6 +93,12 @@ showEither fa fb arg =
   case arg of
     Left  a -> "(Left " ++ fa a ++ ")"
     Right b -> "(Right " ++ fb b ++ ")"
+
+lines :: String -> [String]
+lines "" = []
+lines s =
+  case span (not . eqChar '\n') s of
+    (l, s') -> case s' of { [] -> [l]; _:s'' -> l : lines s'' }
 
 unlines :: [String] -> String
 unlines = concatMap (++ "\n")
