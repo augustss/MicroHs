@@ -87,7 +87,7 @@ gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 #endif  /* !defined(_MSC_VER) */
 
-#define VERSION "v3.3\n"
+#define VERSION "v3.4\n"
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -102,7 +102,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
                 T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
-                T_ERROR, T_SEQ,
+                T_ERROR, T_SEQ, T_EQUAL,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
@@ -170,7 +170,6 @@ typedef struct node* NODEPTR;
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
 #define STR(p) (p)->uarg.uustring
-#define FUNPTR(p) (p)->uarg.uufunptr
 #define INDIR(p) ARG(p)
 #define HANDLE(p) (p)->uarg.uufile
 #define NODE_SIZE sizeof(node)
@@ -390,6 +389,7 @@ struct {
   { ">=", T_GE },
   { "seq", T_SEQ },
   { "error", T_ERROR },
+  { "equal", T_EQUAL },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
@@ -1066,6 +1066,7 @@ printrec(FILE *f, NODEPTR n)
   case T_UGT: fprintf(f, "$u>"); break;
   case T_UGE: fprintf(f, "$u>="); break;
   case T_ERROR: fprintf(f, "$error"); break;
+  case T_EQUAL: fprintf(f, "$equal"); break;
   case T_SEQ: fprintf(f, "$seq"); break;
   case T_IO_BIND: fprintf(f, "$IO.>>="); break;
   case T_IO_THEN: fprintf(f, "$IO.>>"); break;
@@ -1269,6 +1270,40 @@ evalstring(NODEPTR n)
   return name;
 }
 
+int
+equal(NODEPTR p, NODEPTR q)
+{
+ top:
+  PUSH(q);                      /* save for GC */
+  p = evali(p);
+  q = evali(TOP(0));
+  POP(1);
+  enum node_tag ptag = GETTAG(p);
+  enum node_tag qtag = GETTAG(q);
+  if (ptag != qtag)
+    return 0;
+  switch (ptag) {
+  case T_AP:
+    PUSH(ARG(p));
+    PUSH(ARG(q));
+    if (!equal(FUN(p), FUN(q))) {
+      POP(2);
+      return 0;
+    }
+    q = TOP(0);
+    p = TOP(1);
+    POP(2);
+    goto top;
+  case T_INT:
+  case T_IO_CCALL:
+    return GETVALUE(p) == GETVALUE(q);
+  case T_HDL:
+    return HANDLE(p) == HANDLE(q);
+  default:
+    return 1;
+  }
+}
+
 NODEPTR evalio(NODEPTR n);
 
 /* Evaluate a node, returns when the node is in WHNF. */
@@ -1380,6 +1415,8 @@ eval(NODEPTR n)
 
     case T_ERROR:           CHKARGEV1(msg = evalstring(x)); fprintf(stderr, "error: %s\n", msg); free(msg); exit(1);
     case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
+
+    case T_EQUAL: r = equal(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r ? comTrue : combFalse);
 
     case T_IO_ISNULLHANDLE: CHKARGEV1(hdl = evalhandleN(x)); GOIND(hdl == 0 ? comTrue : combFalse);
 

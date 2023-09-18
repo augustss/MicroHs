@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Text.String(module Text.String) where
+import Primitives
 import Data.Bool
 import Data.Char
 import Data.Either
@@ -98,7 +99,10 @@ unlines = concatMap (++ "\n")
 unwords :: [String] -> String
 unwords ss = concat (intersperse " " ss)
 
+-- Using a primitive for string equality makes a huge speed difference.
 eqString :: String -> String -> Bool
+eqString = primEqString
+{-
 eqString axs ays =
   case axs of
     [] ->
@@ -109,6 +113,7 @@ eqString axs ays =
       case ays of
         [] -> False
         y:ys -> eqChar x y && eqString xs ys
+-}
 
 leString :: String -> String -> Bool
 leString axs ays =

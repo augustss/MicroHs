@@ -13,9 +13,6 @@
   - implement a simple readline
   - implement catch (and maybe throw) using setjmp & longjmp
   - make the runtime system catch ^C and stop execution
-* implement low level equality
-  - maybe?
-  - could be used instead of derived when all is derived
 * use pointer stack during GC instead of recursion.
 * add Double primitive type
 * implement Data.Integer

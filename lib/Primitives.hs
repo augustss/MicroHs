@@ -86,6 +86,12 @@ primFix    = primitive "Y"
 primSeq    :: forall a b . a -> b -> b
 primSeq    = primitive "seq"
 
+--primEqual  :: forall a . a -> a -> Bool
+--primEqual  = primitive "equal"
+
+primEqString  :: [Char] -> [Char] -> Bool
+primEqString  = primitive "equal"
+
 primChr :: Int -> Char
 primChr = primitive "I"
 primOrd :: Char -> Int
