@@ -12,41 +12,37 @@ import Data.Maybe
 import Data.Tuple
 
 showChar :: Char -> String
-showChar c =
+showChar c = "'" ++ encodeChar c ++ "'"
+
+encodeChar :: Char -> String
+encodeChar c =
   let
-    spec = [('\n', "'\\n'"), ('\r', "'\\r'"), ('\t', "'\\t'"),
-            ('\\', "'\\\\'"), ('\'', "'\\''")]
+    spec = [('\n', "\\n"), ('\r', "\\r"), ('\t', "\\t"), ('\b', "\\b"),
+            ('\\', "\\\\"), ('\'', "\\'"), ('"', "\"")]
   in
     case lookupBy eqChar c spec of
-      Nothing -> if isPrint c then ['\'', c, '\''] else "'\\" ++ showInt (ord c) ++ "'"
+      Nothing -> if isPrint c then [c] else "'\\" ++ showInt (ord c) ++ "'"
       Just s  -> s
 
 showString :: String -> String
-showString s =
-  let
-    loop arg =
-      case arg of
-        [] -> "\""
-        c : cs ->
-          case ord c == ord '\n' of
-            False -> c : loop cs
-            True  -> '\\' : 'n' : loop cs
-  in '"' : loop s
+showString s = "\"" ++ concatMap encodeChar s ++ "\""
 
 -- XXX wrong for minInt
 showInt :: Int -> String
 showInt n =
-  case n < 0 of
-    False -> showUnsignedInt n
-    True  -> '-' : showUnsignedInt (negate n)
+  if n < 0 then
+    '-' : showUnsignedInt (negate n)
+  else
+    showUnsignedInt n
 
 showUnsignedInt :: Int -> String
 showUnsignedInt n =
   let
     c = chr (ord '0' + rem n 10)
-  in  case n < 10 of
-        False -> showUnsignedInt (quot n 10) ++ [c]
-        True  -> [c]
+  in  if n < 10 then
+        [c]
+      else
+        showUnsignedInt (quot n 10) ++ [c]
 
 readInt :: String -> Int
 readInt cs =
@@ -71,28 +67,15 @@ showPair sa sb ab =
     (a, b) -> "(" ++ sa a ++ "," ++ sb b ++ ")"
 
 showList :: forall a . (a -> String) -> [a] -> String
-showList sa arg =
-  let
-    showRest as =
-      case as of
-        [] -> "]"
-        x : xs -> "," ++ sa x ++ showRest xs
-  in
-    case arg of
-      [] -> "[]"
-      a : as -> "[" ++ sa a ++ showRest as
+showList sa as = "[" ++ intercalate "," (map sa as) ++ "]"
 
 showMaybe :: forall a . (a -> String) -> Maybe a -> String
-showMaybe fa arg =
-  case arg of
-    Nothing -> "Nothing"
-    Just a  -> "(Just " ++ fa a ++ ")"
+showMaybe _ Nothing = "Nothing"
+showMaybe fa (Just a) = "(Just " ++ fa a ++ ")"
 
 showEither :: forall a b . (a -> String) -> (b -> String) -> Either a b -> String
-showEither fa fb arg =
-  case arg of
-    Left  a -> "(Left " ++ fa a ++ ")"
-    Right b -> "(Right " ++ fb b ++ ")"
+showEither fa _ (Left  a) = "(Left "  ++ fa a ++ ")"
+showEither _ fb (Right b) = "(Right " ++ fb b ++ ")"
 
 lines :: String -> [String]
 lines "" = []
@@ -104,7 +87,7 @@ unlines :: [String] -> String
 unlines = concatMap (++ "\n")
 
 unwords :: [String] -> String
-unwords ss = concat (intersperse " " ss)
+unwords ss = intercalate " " ss
 
 -- Using a primitive for string equality makes a huge speed difference.
 eqString :: String -> String -> Bool
