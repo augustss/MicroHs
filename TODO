@@ -11,7 +11,6 @@
 * Add the possibility to save a compiler cache in a file
   - Add SHA checksumming to the C code
   - Use filename as the cache lookup key and SHA for validation
-* use 'data = primitive "Int"' for primitive types.
 * make an interactive version
   - implement a simple readline
   - implement catch (and maybe throw) using setjmp & longjmp
