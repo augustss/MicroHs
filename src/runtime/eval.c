@@ -1566,7 +1566,6 @@ evalio(NODEPTR n)
     case T_IO_RETURN:
       CHECKIO(1);
       n = ARG(TOP(1));
-      POP(1);
       RETIO(n);
     case T_IO_GETCHAR:
       CHECKIO(1);
@@ -1577,6 +1576,7 @@ evalio(NODEPTR n)
       RETIO(n);
     case T_IO_GETRAW:
       CHECKIO(0);
+      GCCHECK(1);
       c = getraw();
       n = mkInt(c);
       RETIO(n);
@@ -1615,8 +1615,6 @@ evalio(NODEPTR n)
     case T_IO_FLUSH:
       CHECKIO(1);
       hdl = evalhandle(ARG(TOP(1)));
-      n = evali(ARG(TOP(1)));
-      HANDLE(n) = 0;
       fflush(hdl);
       RETIO(combUnit);
     case T_IO_OPEN:
