@@ -138,6 +138,7 @@ decodeChar :: Int -> String -> (Char, Int, String)
 decodeChar n ('n':cs) = ('\n', n+1, cs)
 decodeChar n ('r':cs) = ('\r', n+1, cs)
 decodeChar n ('t':cs) = ('\t', n+1, cs)
+decodeChar n ('b':cs) = ('\b', n+1, cs)
 decodeChar n (c  :cs) = (c,    n+1, cs)
 decodeChar n []       = ('X',  n,   [])
 
