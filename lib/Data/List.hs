@@ -11,13 +11,10 @@ import Data.Tuple
 
 --Yimport Data.Char
 
---X{-
 --Y{-
 infixr 5 :
+data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable
 --Y-}
---X-}
-
-data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable --Z
 
 null :: forall a . [a] -> Bool
 null [] = True
@@ -113,6 +110,7 @@ zipWith :: forall a b c . (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith f (x:xs) (y:ys) = f x y : zipWith f xs ys
 zipWith _ _ _ = []
 
+-- XXX not as lazy as it could be
 unzip :: forall a b . [(a, b)] -> ([a], [b])
 unzip axys =
   case axys of
@@ -121,6 +119,7 @@ unzip axys =
       case unzip xys of
         (xs, ys) -> (x:xs, y:ys)
 
+-- XXX not as lazy as it could be
 unzip3 :: forall a b c . [(a, b, c)] -> ([a], [b], [c])
 unzip3 axyzs =
   case axyzs of
@@ -185,11 +184,10 @@ tail (_:ys) = ys
 
 intersperse :: forall a . a -> [a] -> [a]
 intersperse _ [] = []
-intersperse sep (x:xs) = x : prependToAll sep xs
-
-prependToAll :: forall a . a -> [a] -> [a]
-prependToAll _ [] = []
-prependToAll sep (x:xs) = sep : x : prependToAll sep xs
+intersperse sep (a:as) = a : prepend as
+  where
+    prepend [] = []
+    prepend (x:xs) = sep : x : prepend xs
 
 intercalate :: forall a . [a] -> [[a]] -> [a]
 intercalate xs xss = concat (intersperse xs xss)
