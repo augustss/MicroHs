@@ -218,7 +218,7 @@ pBlock :: forall a . P a -> P [a]
 pBlock p = P.do
   pSpec '{'
   as <- esepBy p (pSpec ';')
-  optional (pSpec ';')
+  eoptional (pSpec ';')
   pSpec '}'
   pure as
 
@@ -246,7 +246,7 @@ pImportSpec :: P ImportSpec
 pImportSpec =
   let
     pQua = (True <$ pKeyword "qualified") <|< pure False
-  in  ImportSpec <$> pQua <*> pUQIdentA <*> optional (pKeyword "as" *> pUQIdent)
+  in  ImportSpec <$> pQua <*> pUQIdentA <*> eoptional (pKeyword "as" *> pUQIdent)
 
 --------
 -- Types
@@ -285,7 +285,7 @@ pTypeApp :: P EType
 pTypeApp = P.do
   f <- pAType
   as <- emany pAType
-  mt <- optional (pSymbol "::" *> pType)
+  mt <- eoptional (pSymbol "::" *> pType)
   let
     r = foldl EApp f as
   pure $ maybe r (ESign r) mt
@@ -393,7 +393,7 @@ pExprApp :: P Expr
 pExprApp = P.do
   f <- pAExpr
   as <- emany pAExpr
-  mt <- optional (pSymbol "::" *> pType)
+  mt <- eoptional (pSymbol "::" *> pType)
   let
     r = foldl EApp f as
   pure $ maybe r (ESign r) mt
