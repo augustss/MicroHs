@@ -9,6 +9,13 @@ infixr -1 ->
 --Y-}
 --X-}
 
+data Any
+data Char
+data Handle
+data Int
+data IO a
+data Word
+
 primIntAdd :: Int -> Int -> Int
 primIntAdd  = primitive "+"
 primIntSub :: Int -> Int -> Int

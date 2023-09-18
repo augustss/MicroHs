@@ -112,7 +112,8 @@ pLQIdent = P.do
 
 keywords :: [String]
 keywords = ["case", "data", "do", "else", "forall", "foreign", "if", "import",
-  "in", "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
+  "in", "infix", "infixl", "infixr",
+  "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
 pSpec c = () <$ satisfy [c] is
@@ -228,9 +229,10 @@ pBlock p = P.do
 
 pDef :: P EDef
 pDef =
-      Data        <$> (pKeyword "data"    *> pLHS <* pSymbol "=") <*> esepBy1 (pair <$> pUIdentSym <*> many pAType) (pSymbol "|")
-  <|> Newtype     <$> (pKeyword "newtype" *> pLHS <* pSymbol "=") <*> pUIdent <*> pAType
-  <|> Type        <$> (pKeyword "type"    *> pLHS <* pSymbol "=") <*> pType
+      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 (pair <$> pUIdentSym <*> many pAType) (pSymbol "|"))
+                                                        <|< P.pure [])
+  <|> Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> pUIdent) <*> pAType
+  <|> Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
   <|> uncurry Fcn <$> pEqns
   <|> Sign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
   <|> Import      <$> (pKeyword "import" *> pImportSpec)

@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.List(module Data.List) where
+import Primitives as P
 import Control.Error
 import Data.Bool
 import Data.Function
@@ -9,7 +10,6 @@ import Data.Maybe
 import Data.Tuple
 
 --Yimport Data.Char
---type Int = P.Int
 
 --X{-
 --Y{-
@@ -66,10 +66,10 @@ foldl1 :: forall a . (a -> a -> a) -> [a] -> a
 foldl1 _ [] = error "foldl1"
 foldl1 f (x : xs) = foldl f x xs
 
-sum :: [Int] -> Int
+sum :: [P.Int] -> P.Int
 sum = foldr (+) 0
 
-product :: [Int] -> Int
+product :: [P.Int] -> P.Int
 product = foldr (*) 1
 
 and :: [Bool] -> Bool
@@ -84,7 +84,7 @@ any p = or . map p
 all :: forall a . (a -> Bool) -> [a] -> Bool
 all p = and . map p
 
-take :: forall a . Int -> [a] -> [a]
+take :: forall a . P.Int -> [a] -> [a]
 take n arg =
   if n <= 0 then
     []
@@ -93,7 +93,7 @@ take n arg =
       [] -> []
       x : xs -> x : take (n - 1) xs
 
-drop :: forall a . Int -> [a] -> [a]
+drop :: forall a . P.Int -> [a] -> [a]
 drop n arg =
   if n <= 0 then
     arg
@@ -102,7 +102,7 @@ drop n arg =
       [] -> []
       _ : xs -> drop (n - 1) xs
 
-length :: forall a . [a] -> Int
+length :: forall a . [a] -> P.Int
 length [] = 0
 length (_:xs) = 1 + length xs
 
@@ -135,7 +135,7 @@ stripPrefixBy eq (c:cs) [] = Nothing
 stripPrefixBy eq (c:cs) (d:ds) | eq c d = stripPrefixBy eq cs ds
                                | otherwise = Nothing
 
-splitAt :: forall a . Int -> [a] -> ([a], [a])
+splitAt :: forall a . P.Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
 
 reverse :: forall a . [a] -> [a]
@@ -197,18 +197,18 @@ intercalate xs xss = concat (intersperse xs xss)
 elemBy :: forall a . (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
 
-enumFrom :: Int -> [Int]
+enumFrom :: P.Int -> [P.Int]
 enumFrom n = n : enumFrom (n+1)
 
-enumFromThen :: Int -> Int -> [Int]
+enumFromThen :: P.Int -> P.Int -> [P.Int]
 enumFromThen n m = from n
   where d = m - n
         from i = i : from (i+d)
 
-enumFromTo :: Int -> Int -> [Int]
+enumFromTo :: P.Int -> P.Int -> [P.Int]
 enumFromTo l h = takeWhile (<= h) (enumFrom l)
 
-enumFromThenTo :: Int -> Int -> Int -> [Int]
+enumFromThenTo :: P.Int -> P.Int -> P.Int -> [P.Int]
 enumFromThenTo l m h =
   if m - l > 0 then
     takeWhile (<= h) (enumFromThen l m)
@@ -240,7 +240,7 @@ nubBy :: forall a . (a -> a -> Bool) -> [a] -> [a]
 nubBy _ [] = []
 nubBy eq (x:xs) = x : nubBy eq (filter (\ y -> not (eq x y)) xs)
 
-replicate :: forall a . Int -> a -> [a]
+replicate :: forall a . P.Int -> a -> [a]
 replicate n x = take n (repeat x)
 
 repeat :: forall a . a -> [a]
@@ -256,7 +256,7 @@ deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteAllsBy eq = foldl (flip (deleteAllBy eq))
 
 infixl 9 !!
-(!!) :: forall a . [a] -> Int -> a
+(!!) :: forall a . [a] -> P.Int -> a
 (!!) axs i =
   if i < 0 then
     error "!!: <0"

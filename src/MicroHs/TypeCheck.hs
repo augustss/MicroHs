@@ -25,12 +25,6 @@ data TypeExport = TypeExport Ident Entry [ValueExport]
 data ValueExport = ValueExport Ident Entry
   --Xderiving (Show)
 
-data TypeInfo
-  = TAbs EKind
-  | TConc EKind [(Ident, ETypeScheme)]   -- constructor name, arity, and type
-  | TSyn EKind ETypeScheme
-  --Xderiving (Show, Eq)
-
 type FixDef = (Ident, Fixity)
 type SynDef = (Ident, ETypeScheme)
 
@@ -294,13 +288,8 @@ primTypes =
         i = tupleConstr n
       in  (i, [entry (unIdent i) $ ETypeScheme [] $ foldr kArrow kType (replicate n kType)])
   in  
-      [(mkIdent "IO",     [entry "Primitives.IO"       kTypeTypeS]),
+      [
        (mkIdent "->",     [entry "Primitives.->"       kTypeTypeTypeS]),
-       (mkIdent "Int",    [entry "Primitives.Int"      kTypeS]),
-       (mkIdent "Word",   [entry "Primitives.Word"     kTypeS]),
-       (mkIdent "Char",   [entry "Primitives.Char"     kTypeS]),
-       (mkIdent "Handle", [entry "Primitives.Handle"   kTypeS]),
-       (mkIdent "Any",    [entry "Primitives.Any"      kTypeS]),
        (mkIdent "String", [entry "Data.Char.String"    kTypeS]),
        (mkIdent "[]",     [entry "Data.List.[]"        kTypeTypeS]),
        (mkIdent "()",     [entry "Data.Tuple.()"       kTypeS]),

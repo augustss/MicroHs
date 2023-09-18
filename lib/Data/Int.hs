@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Int(module Data.Int) where
+module Data.Int(module Data.Int, Int) where
 import Primitives
 import Data.Bool_Type
 

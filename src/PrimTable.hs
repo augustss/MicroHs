@@ -1,4 +1,4 @@
-module PrimTable(module PrimTable, Any) where
+module PrimTable(module PrimTable) where
 import Data.Char
 import Data.Maybe
 import System.IO
