@@ -14,7 +14,7 @@ import Unsafe.Coerce
 --Yimport PrimTable
 
 import MicroHs.Desugar
-import MicroHs.Expr --X(Lit(..))
+import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.Ident
 

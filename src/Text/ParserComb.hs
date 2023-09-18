@@ -21,8 +21,6 @@ module Text.ParserComb(
   ) where
 --Ximport Prelude()
 import PreludeNoIO
---import Debug.Trace
---import Compat
 
 data LastFail t
   = LastFail Int [t] [String]
@@ -66,8 +64,6 @@ infixl 1 >>=
         let { xss = [ runP (k a) u | au <- aus, let { (a, u) = au } ] }
         in  case unzip [ (rs, lf) | xs <- xss, let { Many rs lf = xs } ] of
               (rss, lfs) -> Many (concat rss) (longests (plf : lfs))
-
--- XXX needs (x,y) <- e
 
 infixl 1 >>
 (>>) :: forall s t a b . Prsr s t a -> Prsr s t b -> Prsr s t b
