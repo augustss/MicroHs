@@ -4,27 +4,25 @@ module Data.Int(module Data.Int, Int) where
 import Primitives
 import Data.Bool_Type
 
---type Int = Primitives.Int
-
 infixl 6 +,-
 infixl 7 *,`quot`,`rem`
 
 -- Arithmetic
-(+) :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> {-Data.Int.-}Int
+(+) :: Int -> Int -> Int
 (+)  = primIntAdd
-(-) :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> {-Data.Int.-}Int
+(-) :: Int -> Int -> Int
 (-)  = primIntSub
-(*) :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> {-Data.Int.-}Int
+(*) :: Int -> Int -> Int
 (*)  = primIntMul
-quot :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> {-Data.Int.-}Int
+quot :: Int -> Int -> Int
 quot = primIntQuot
-rem :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> {-Data.Int.-}Int
+rem :: Int -> Int -> Int
 rem  = primIntRem
 
-subtract :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> {-Data.Int.-}Int
+subtract :: Int -> Int -> Int
 subtract = primIntSubR
 
-negate :: {-Data.Int.-}Int -> {-Data.Int.-}Int
+negate :: Int -> Int
 negate x = 0 - x
 
 --------------------------------
@@ -32,21 +30,21 @@ negate x = 0 - x
 infix 4 ==,/=,<,<=,>,>=
 
 -- Comparison
-(==) :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> Bool
+(==) :: Int -> Int -> Bool
 (==) = primIntEQ
-(/=) :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> Bool
+(/=) :: Int -> Int -> Bool
 (/=) = primIntNE
 
-(<)  :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> Bool
+(<)  :: Int -> Int -> Bool
 (<)  = primIntLT
-(<=) :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> Bool
+(<=) :: Int -> Int -> Bool
 (<=) = primIntLE
-(>)  :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> Bool
+(>)  :: Int -> Int -> Bool
 (>)  = primIntGT
-(>=) :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> Bool
+(>=) :: Int -> Int -> Bool
 (>=) = primIntGE
 
-eqInt :: {-Data.Int.-}Int -> {-Data.Int.-}Int -> Bool
+eqInt :: Int -> Int -> Bool
 eqInt = (==)
 
 --------------------------------
