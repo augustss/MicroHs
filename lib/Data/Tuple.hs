@@ -1,9 +1,12 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Tuple(module Data.Tuple) where
+module Data.Tuple(module Data.Tuple
+--Y{-
+                 , ()(..)
+--Y-}
+                 ) where
+import Primitives  -- for ()
 import Data.Bool
-
-data () = ()   -- Parser hacks allows () to be used --Z
 
 --data (a,b) = (a,b)  -- all tuples are built in
 --data (a,b,c) = (a,b,c)

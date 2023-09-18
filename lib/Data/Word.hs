@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Word(module Data.Word) where
+module Data.Word(module Data.Word, Word) where
 import Primitives
 import Data.Bool_Type
 import qualified Data.Char as C
@@ -8,21 +8,19 @@ import qualified Data.Int as I
 import Data.List
 import Text.String
 
---type Word = Primitives.Word
-
 infixl 6 +,-
 infixl 7 *,`quot`,`rem`
 
 -- Arithmetic
-(+) :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> {-Data.Word.-}Word
+(+) :: Word -> Word -> Word
 (+)  = primWordAdd
-(-) :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> {-Data.Word.-}Word
+(-) :: Word -> Word -> Word
 (-)  = primWordSub
-(*) :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> {-Data.Word.-}Word
+(*) :: Word -> Word -> Word
 (*)  = primWordMul
-quot :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> {-Data.Word.-}Word
+quot :: Word -> Word -> Word
 quot = primWordQuot
-rem :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> {-Data.Word.-}Word
+rem :: Word -> Word -> Word
 rem  = primWordRem
 
 --------------------------------
@@ -30,21 +28,21 @@ rem  = primWordRem
 infix 4 ==,/=,<,<=,>,>=
 
 -- Comparison
-(==) :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> Bool
+(==) :: Word -> Word -> Bool
 (==) = primWordEQ
-(/=) :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> Bool
+(/=) :: Word -> Word -> Bool
 (/=) = primWordNE
 
-(<)  :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> Bool
+(<)  :: Word -> Word -> Bool
 (<)  = primWordLT
-(<=) :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> Bool
+(<=) :: Word -> Word -> Bool
 (<=) = primWordLE
-(>)  :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> Bool
+(>)  :: Word -> Word -> Bool
 (>)  = primWordGT
-(>=) :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> Bool
+(>=) :: Word -> Word -> Bool
 (>=) = primWordGE
 
-eqWord :: {-Data.Word.-}Word -> {-Data.Word.-}Word -> Bool
+eqWord :: Word -> Word -> Bool
 eqWord = (==)
 
 intToWord :: Int -> Word

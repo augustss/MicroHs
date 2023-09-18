@@ -1,10 +1,11 @@
 module Primitives(
   module Primitives,
+  Any,
   Char,
-  Int,
-  Word,
-  IO,
   Handle,
+  Int,
+  IO,
+  Word,
   ) where
 import Control.Exception(try)
 import Data.Time
@@ -14,6 +15,7 @@ import System.IO
 import System.IO.Unsafe
 import System.Environment
 import Unsafe.Coerce
+import GHC.Types(Any)
 
 primIntAdd :: Int -> Int -> Int
 primIntAdd = (+)

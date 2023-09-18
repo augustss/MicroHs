@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module System.IO(module System.IO) where
-import qualified Primitives as P
+module System.IO(module System.IO, Handle, IO) where
+import Primitives
 import Control.Error
 import Data.Bool
 import Data.Char
@@ -10,47 +10,44 @@ import Data.List
 import Data.Maybe
 import Data.Tuple
 
---Ytype IO = P.IO
---Ytype Handle = P.Handle
-
 type FilePath = String
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
 
 infixl 1 >>=
 (>>=)       :: forall a b . IO a -> (a -> IO b) -> IO b
-(>>=)        = P.primBind
+(>>=)        = primBind
 
 infixl 1 >>
 (>>)        :: forall a b . IO a -> IO b -> IO b
-(>>)         = P.primThen
+(>>)         = primThen
 
 return      :: forall a . a -> IO a
-return       = P.primReturn
+return       = primReturn
 
 hSerialize   :: forall a . Handle -> a -> IO ()
-hSerialize   = P.primHSerialize
+hSerialize   = primHSerialize
 hDeserialize :: forall a . Handle -> IO a
-hDeserialize = P.primHDeserialize
+hDeserialize = primHDeserialize
 hClose       :: Handle -> IO ()
-hClose       = P.primHClose
+hClose       = primHClose
 stdin        :: Handle
-stdin        = P.primStdin
+stdin        = primStdin
 stdout       :: Handle
-stdout       = P.primStdout
+stdout       = primStdout
 stderr       :: Handle
-stderr       = P.primStderr
+stderr       = primStderr
 
 hGetChar :: Handle -> IO Char
 hGetChar h = do
-  c <- P.primHGetChar h
+  c <- primHGetChar h
   if c == negate 1 then
     error "hGetChar: EOF"
    else
     return (chr c)
 
 hPutChar :: Handle -> Char -> IO ()
-hPutChar h c = P.primHPutChar h (ord c)
+hPutChar h c = primHPutChar h (ord c)
 
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM p m = do
@@ -60,8 +57,8 @@ openFileM p m = do
           WriteMode -> 1
           AppendMode -> 2
           ReadWriteMode -> 3
-  hdl <- P.primOpenFile p n
-  if P.primIsNullHandle hdl then
+  hdl <- primOpenFile p n
+  if primIsNullHandle hdl then
     return Nothing
    else
     return (Just hdl)
@@ -80,7 +77,7 @@ getChar :: IO Char
 getChar = hGetChar stdin
 
 print :: forall a . a -> IO ()
-print = P.primHPrint stdout
+print = primHPrint stdout
 
 mapM :: forall a b . (a -> IO b) -> [a] -> IO [b]
 mapM f =
@@ -133,7 +130,7 @@ readFile p = do
 -- Lazy hGetContents
 hGetContents :: Handle -> IO String
 hGetContents h = do
-  c <- P.primHGetChar h
+  c <- primHGetChar h
   if c == negate 1 then do
     hClose h   -- EOF, so close the handle
     return ""
@@ -155,10 +152,10 @@ readSerialized p = do
   return a
 
 getTimeMilli :: IO Int
-getTimeMilli = P.primGetTimeMilli
+getTimeMilli = primGetTimeMilli
 
 unsafeInterleaveIO :: forall a . IO a -> IO a
-unsafeInterleaveIO ioa = return (P.primPerformIO ioa)
+unsafeInterleaveIO ioa = return (primPerformIO ioa)
 
 seq :: forall a b . a -> b -> b
-seq = P.primSeq
+seq = primSeq

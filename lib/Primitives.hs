@@ -1,13 +1,18 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Primitives(module Primitives) where
---import Data.Bool_Type
+import Data.Bool_Type
 
---X{-
---Y{-
 infixr -1 ->
---Y-}
---X-}
+
+data Any
+data Char
+data Handle
+data Int
+data IO a
+data Word
+
+data () = ()   -- Parser hacks allows () to be used
 
 primIntAdd :: Int -> Int -> Int
 primIntAdd  = primitive "+"
@@ -89,8 +94,6 @@ primOrd = primitive "I"
 primUnsafeCoerce :: forall a b . a -> b
 primUnsafeCoerce = primitive "I"
 
---data List a = Nil | (:) a (List a)
-
 primBind         :: forall a b . IO a -> (a -> IO b) -> IO b
 primBind          = primitive "IO.>>="
 primThen         :: forall a b . IO a -> IO b -> IO b
@@ -101,7 +104,7 @@ primHPutChar     :: Handle -> Int -> IO ()
 primHPutChar      = primitive "IO.putChar"
 primHGetChar     :: Handle -> IO Int
 primHGetChar      = primitive "IO.getChar"
-primOpenFile     :: String -> Int -> IO Handle
+primOpenFile     :: [Char] -> Int -> IO Handle
 primOpenFile      = primitive "IO.open"
 primIsNullHandle :: Handle -> Bool
 primIsNullHandle  = primitive "IO.isNullHandle"
