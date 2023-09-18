@@ -3,11 +3,7 @@
 module Primitives(module Primitives) where
 --import Data.Bool_Type
 
---X{-
---Y{-
 infixr -1 ->
---Y-}
---X-}
 
 data Any
 data Char
