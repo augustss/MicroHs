@@ -40,26 +40,8 @@ lookup k am =
          else if m == 2 then lookup d m2
          else                lookup d m3
 
--- Reusing insertWith would save code.
 insert :: forall a . Int -> a -> IntMap a -> IntMap a
-insert ak a =
-  let
-    ins k am =
-      case am of
-        Empty -> Leaf k a
-        Leaf i b ->
-          if k == i then
-            Leaf k a
-          else
-            ins k $ insert i b $ Node Empty Empty Empty Empty
-        Node m0 m1 m2 m3 ->
-          let
-            (d, m) = divModX k 4
-          in      if m == 0 then Node (ins d m0) m1 m2 m3
-             else if m == 1 then Node m0 (ins d m1) m2 m3
-             else if m == 2 then Node m0 m1 (ins d m2) m3
-             else                Node m0 m1 m2 (ins d m3)
-  in ins ak
+insert = insertWith const
 
 fromList :: forall a . [(Int, a)] -> IntMap a
 fromList = foldr (uncurry insert) empty
