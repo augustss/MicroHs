@@ -21,5 +21,6 @@ catMaybes :: forall a . [Maybe a] -> [a]
 catMaybes mxs = [ x | Just x <- mxs ]
 
 {-
-mapMaybe is in Data,List to avoid recursive modules
+mapMaybe is in Data.List to avoid recursive modules
+maybeToList is in Data.List to avoid recursive modules
 -}

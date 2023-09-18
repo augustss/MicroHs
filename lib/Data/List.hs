@@ -287,3 +287,12 @@ mapMaybe f (a:as) =
   case f a of
     Nothing -> mapMaybe f as
     Just b -> b : mapMaybe f as
+
+maybeToList :: forall a . Maybe a -> [a]
+maybeToList Nothing = []
+maybeToList (Just a) = [a]
+
+last :: forall a . [a] -> a
+last [] = error "last: []"
+last [x] = x
+last (_:xs) = last xs
