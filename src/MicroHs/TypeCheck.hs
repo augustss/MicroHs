@@ -412,8 +412,7 @@ unifyR loc a b = T.do
 --  tenv <- gets typeTable
 --  senv <- gets synTable
   let
-    bad = tcError loc $ ": "
-                      ++ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n"
+    bad = tcError loc $ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n"
 --                    ++ show a ++ " - " ++ show b ++ "\n"
 --                    ++ show tenv ++ "\n"
 --                    ++ show senv
@@ -766,26 +765,26 @@ tcExprR mt ae =
     EDo mmn ass -> T.do
       case ass of
         [] -> impossible
-        as : ss ->
-          if null ss then
-            case as of
-              SThen a -> tcExpr mt a
-              _ -> tcError (getSLocExpr ae) $ "bad do "
-                         --X++ show as
-          else
-            case as of
-              SBind p a -> T.do
-                let
-                  sbind = maybe (mkIdent ">>=") (\ mn -> qualIdent mn (mkIdent ">>=")) mmn
-                tcExpr Nothing (EApp (EApp (EVar sbind) a)
-                                     (ELam [eVarI "$x"] (ECase (eVarI "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
-              SThen a -> T.do
-                let
-                  sthen = maybe (mkIdent ">>") (\ mn -> qualIdent mn (mkIdent ">>") ) mmn
-                tcExpr Nothing (EApp (EApp (EVar sthen) a) (EDo mmn ss))
-                  
-              SLet bs ->
-                tcExpr Nothing (ELet bs (EDo mmn ss))
+        [as] ->
+          case as of
+            SThen a -> tcExpr mt a
+            _ -> tcError (getSLocExpr ae) $ "bad do "
+        as : ss -> T.do
+          let
+            loc = getSLocExpr ae
+          case as of
+            SBind p a -> T.do
+              let
+                sbind = maybe (mkIdentSLoc loc ">>=") (\ mn -> qualIdent mn (mkIdentSLoc loc ">>=")) mmn
+              tcExpr mt (EApp (EApp (EVar sbind) a)
+                              (ELam [eVarI "$x"] (ECase (eVarI "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
+            SThen a -> T.do
+              let
+                sthen = maybe (mkIdentSLoc loc ">>") (\ mn -> qualIdent mn (mkIdentSLoc loc ">>") ) mmn
+              tcExpr mt (EApp (EApp (EVar sthen) a) (EDo mmn ss))
+                
+            SLet bs ->
+              tcExpr mt (ELet bs (EDo mmn ss))
 
     ESectL e i -> tcExpr mt (EApp (EVar i) e)
     ESectR i e ->
