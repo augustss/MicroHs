@@ -8,22 +8,25 @@ import GHC.Types(Any)
 primitive :: String -> Any
 primitive s = fromMaybe (error $ "primitive: " ++ s) $ lookup s primOps
 
-data DIO a = DIO { unDIO :: IO a }
+newtype DIO a = DIO { unDIO :: IO a }
 
 primOps :: [(String, Any)]
 primOps =
   [ comb "S" (\ f g x -> f x (g x))
+  , comb "S'" (\ k f g x -> k f x (g x))
   , comb "K" (\ x _y -> x)
+  , comb "A" (\ _x y -> y)
+  , comb "T" (\ x y -> y x)
   , comb "I" (\ x -> x)
-  , comb "C" (\ f g x -> f x g)
-  , comb "B" (\ f g x -> f (g x))
-  , comb "T" (\ _x y -> y)
   , comb "Y" (\ f -> let r = f r in r)
+  , comb "B" (\ f g x -> f (g x))
+  , comb "B'" (\ k f g x -> k f (g x))
+  , comb "BK" (\ f g _x -> f g)
+  , comb "C" (\ f g x -> f x g)
+  , comb "C'" (\ k f g x -> k f x g)
   , comb "P" (\ x y f -> f x y)
   , comb "O" (\ x y _g f -> f x y)
-  , comb "S'" (\ k f g x -> k f x (g x))
-  , comb "B'" (\ k f g x -> k f (g x))
-  , comb "C'" (\ k f g x -> k f x g)
+
   , arith "+" (+)
   , arith "-" (-)
   , arith "*" (*)
@@ -67,7 +70,7 @@ primOps =
     putc h c = DIO $ do
 --      let h = unsafeCoerce hh :: Handle
 --          c = unsafeCoerce cc :: Int
-      print (h, c)
+--      print (h, c)
       hPutChar h (toEnum c)
 --    open = undefined
 --    close = undefined
