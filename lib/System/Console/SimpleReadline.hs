@@ -1,3 +1,8 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
+--
+-- Simple readline with line editing and history.
+-- Only assumes the terminal is capable of (sane) backspace.
 module System.Console.SimpleReadline(
   getInputLine,
   getInputLineHist
@@ -5,12 +10,18 @@ module System.Console.SimpleReadline(
 import Primitives
 import Prelude
 
+-- Get an input line with editing.
+-- Return Nothing if the input is ^D, otherwise the typed string.
 getInputLine :: String -> IO (Maybe String)
 getInputLine prompt = do
   putStr prompt
   (_, r) <- loop ([],[]) "" ""
   return r
 
+
+-- Get an input line with editing.
+-- Return Nothing if the input is ^D, otherwise the typed string.
+-- The FilePath gives the name of a file that stores the history.
 getInputLineHist :: FilePath -> String -> IO (Maybe String)
 getInputLineHist hfn prompt = do
   mhdl <- openFileM hfn ReadMode
