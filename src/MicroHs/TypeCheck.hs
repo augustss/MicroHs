@@ -291,9 +291,7 @@ primTypes =
       [
        -- The function arrow is bothersome to define in Primtives, so keep it here.
        (mkIdent "->",     [entry "Primitives.->"       kTypeTypeTypeS]),
-       (mkIdent "String", [entry "Data.Char.String"    kTypeS]),
        (mkIdent "[]",     [entry "Data.List.[]"        kTypeTypeS])
---       (mkIdent "()",     [entry "Data.Tuple.()"       kTypeS])
       ] ++
       map tuple (enumFromTo 2 10)
 

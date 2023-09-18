@@ -104,7 +104,7 @@ primHPutChar     :: Handle -> Int -> IO ()
 primHPutChar      = primitive "IO.putChar"
 primHGetChar     :: Handle -> IO Int
 primHGetChar      = primitive "IO.getChar"
-primOpenFile     :: String -> Int -> IO Handle
+primOpenFile     :: [Char] -> Int -> IO Handle
 primOpenFile      = primitive "IO.open"
 primIsNullHandle :: Handle -> Bool
 primIsNullHandle  = primitive "IO.isNullHandle"
