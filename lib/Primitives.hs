@@ -122,6 +122,8 @@ primHDeserialize :: forall a . Handle -> IO a
 primHDeserialize  = primitive "IO.deserialize"
 primHClose       :: Handle -> IO ()
 primHClose        = primitive "IO.close"
+primHFlush       :: Handle -> IO ()
+primHFlush        = primitive "IO.flush"
 primStdin        :: Handle
 primStdin         = primitive "IO.stdin"
 primStdout       :: Handle
@@ -136,6 +138,8 @@ primPerformIO    :: forall a . IO a -> a
 primPerformIO     = primitive "IO.performIO"
 primGetTimeMilli :: IO Int
 primGetTimeMilli  = primitive "IO.getTimeMilli"
+primGetRaw       :: IO Int
+primGetRaw        = primitive "IO.getRaw"
 
 primWithDropArgs :: forall a . Int -> IO a -> IO a
 primWithDropArgs i ioa = primThen (primDropArgs i) ioa

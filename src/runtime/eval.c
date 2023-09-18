@@ -14,6 +14,7 @@
 #define INTTABLE 1              /* use fixed table of small INT nodes */
 #define SANITY   1              /* do some sanity checks */
 #define STACKOVL 1              /* check for stack overflow */
+#define GETRAW   1              /* implement raw character get */
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -79,13 +80,59 @@ gettimeofday(struct timeval * tp, struct timezone * tzp)
     return 0;
 }
 
+int
+getraw()
+{
+  return -1;                    /* too tedious */
+}
+
 #else  /* defined(_MSC_VER) */
 
 #include <sys/time.h>
 
 #define PCOMMA "'"
 
+#if GETRAW
+#include <termios.h>
+#include <unistd.h>
+
+/*
+ * Set the terminal in raw mode and read a single character.
+ * Return this character, or -1 on any kind of failure.
+ */
+int
+getraw(void)
+{
+  struct termios old, new;
+  char c;
+  int r;
+  
+  if (tcgetattr(0, &old))
+    return -1;
+  cfmakeraw(&new);
+  if (tcsetattr(0, TCSANOW, &new))
+    return -1;
+  r = read(0, &c, 1);
+  (void)tcsetattr(0, TCSANOW, &old);
+  if (r == 1)
+    return c;
+  else
+    return -1;
+}
+#else  /* GETRAW */
+
+int
+getraw()
+{
+  return -1;                    /* not implemented */
+}
+
+#endif /* GETRAW */
+
 #endif  /* !defined(_MSC_VER) */
+
+
+/***************************************/
 
 #define VERSION "v3.4\n"
 
@@ -108,7 +155,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
                 T_IO_PERFORMIO,
                 T_IO_GETTIMEMILLI, T_IO_PRINT,
-                T_IO_CCALL,
+                T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH,
                 T_STR,
                 T_LAST_TAG,
 };
@@ -395,12 +442,14 @@ struct {
   { "IO.>>", T_IO_THEN },
   { "IO.return", T_IO_RETURN },
   { "IO.getChar", T_IO_GETCHAR },
+  { "IO.getRaw", T_IO_GETRAW },
   { "IO.putChar", T_IO_PUTCHAR },
   { "IO.serialize", T_IO_SERIALIZE },
   { "IO.print", T_IO_PRINT },
   { "IO.deserialize", T_IO_DESERIALIZE },
   { "IO.open", T_IO_OPEN },
   { "IO.close", T_IO_CLOSE },
+  { "IO.flush", T_IO_FLUSH },
   { "IO.isNullHandle", T_IO_ISNULLHANDLE },
   { "IO.stdin", T_IO_STDIN },
   { "IO.stdout", T_IO_STDOUT },
@@ -1072,12 +1121,14 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_THEN: fprintf(f, "$IO.>>"); break;
   case T_IO_RETURN: fprintf(f, "$IO.return"); break;
   case T_IO_GETCHAR: fprintf(f, "$IO.getChar"); break;
+  case T_IO_GETRAW: fprintf(f, "$IO.getRaw"); break;
   case T_IO_PUTCHAR: fprintf(f, "$IO.putChar"); break;
   case T_IO_SERIALIZE: fprintf(f, "$IO.serialize"); break;
   case T_IO_PRINT: fprintf(f, "$IO.print"); break;
   case T_IO_DESERIALIZE: fprintf(f, "$IO.deserialize"); break;
   case T_IO_OPEN: fprintf(f, "$IO.open"); break;
   case T_IO_CLOSE: fprintf(f, "$IO.close"); break;
+  case T_IO_FLUSH: fprintf(f, "$IO.flush"); break;
   case T_IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
   case T_IO_GETARGS: fprintf(f, "$IO.getArgs"); break;
   case T_IO_DROPARGS: fprintf(f, "$IO.dropArgs"); break;
@@ -1426,12 +1477,14 @@ eval(NODEPTR n)
     case T_IO_THEN:
     case T_IO_RETURN:
     case T_IO_GETCHAR:
+    case T_IO_GETRAW:
     case T_IO_PUTCHAR:
     case T_IO_SERIALIZE:
     case T_IO_PRINT:
     case T_IO_DESERIALIZE:
     case T_IO_OPEN:
     case T_IO_CLOSE:
+    case T_IO_FLUSH:
     case T_IO_GETARGS:
     case T_IO_DROPARGS:
     case T_IO_GETTIMEMILLI:
@@ -1522,6 +1575,11 @@ evalio(NODEPTR n)
       c = getc(hdl);
       n = mkInt(c);
       RETIO(n);
+    case T_IO_GETRAW:
+      CHECKIO(0);
+      c = getraw();
+      n = mkInt(c);
+      RETIO(n);
     case T_IO_PUTCHAR:
       CHECKIO(2);
       hdl = evalhandle(ARG(TOP(1)));
@@ -1553,6 +1611,13 @@ evalio(NODEPTR n)
       n = evali(ARG(TOP(1)));
       HANDLE(n) = 0;
       fclose(hdl);
+      RETIO(combUnit);
+    case T_IO_FLUSH:
+      CHECKIO(1);
+      hdl = evalhandle(ARG(TOP(1)));
+      n = evali(ARG(TOP(1)));
+      HANDLE(n) = 0;
+      fflush(hdl);
       RETIO(combUnit);
     case T_IO_OPEN:
       CHECKIO(2);

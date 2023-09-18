@@ -31,6 +31,8 @@ hDeserialize :: forall a . Handle -> IO a
 hDeserialize = primHDeserialize
 hClose       :: Handle -> IO ()
 hClose       = primHClose
+hFlush       :: Handle -> IO ()
+hFlush       = primHFlush
 stdin        :: Handle
 stdin        = primStdin
 stdout       :: Handle

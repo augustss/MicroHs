@@ -150,6 +150,7 @@ primHSerialize    = undefined
 primHDeserialize  = undefined
 primHPrint        = undefined
 primHClose        = hClose
+primHFlush        = hFlush
 primStdin         = stdin
 primStdout        = stdout
 primStderr        = stderr
@@ -164,3 +165,5 @@ primPerformIO     = unsafePerformIO
 -- Current time (since 1970-01-01T00:00:00UTC) in ms
 primGetTimeMilli :: IO Int
 primGetTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds <$> getCurrentTime
+primGetRaw       :: IO Int
+primGetRaw        = return (-1) -- not implemented
