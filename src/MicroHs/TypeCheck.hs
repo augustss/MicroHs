@@ -246,7 +246,6 @@ putSynTable senv = T.do
 withTypeTable :: forall a . T a -> T a
 withTypeTable ta = T.do
   TC mn n fx tt st vt m <- get
---BBB  put (TC mn n M.empty M.empty tt m)
   put (TC mn n fx primKindTable M.empty tt m)
   a <- ta
   TC mnr nr _ _ _ ttr mr <- get
@@ -315,9 +314,6 @@ type T a = TC TCState a
 
 tCon :: Ident -> EType
 tCon = EVar
-
---tVar :: Ident -> EType
---tVar = EVar
 
 tVarK :: IdKind -> EType
 tVarK (IdKind i _) = EVar i
@@ -410,14 +406,8 @@ unify loc a b = T.do
 unifyR :: --XHasCallStack =>
           SLoc -> EType -> EType -> T ()
 unifyR loc a b = T.do
---  venv <- gets valueTable
---  tenv <- gets typeTable
---  senv <- gets synTable
   let
     bad = tcError loc $ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n"
---                    ++ show a ++ " - " ++ show b ++ "\n"
---                    ++ show tenv ++ "\n"
---                    ++ show senv
   case a of
     EVar ia ->
       case b of
@@ -548,14 +538,8 @@ withExtTyps env ta = T.do
 tcDefs :: [EDef] -> T [EDef]
 tcDefs ds = T.do
   T.mapM_ tcAddInfix ds
---  traceM ("tcDefs ds=" ++ show ds)
   dst <- tcDefsType ds
   T.mapM_ addTypeSyn dst
---  traceM ("tcDefs dst=\n" ++ showEDefs dst)
---  tenv <- gets typeTable
---  traceM ("tcDefs tenv=\n" ++ show tenv)
---  venv <- gets valueTable
---  traceM ("tcDefs venv=\n" ++ show venv)
   tcDefsValue dst
 
 tcAddInfix :: EDef -> T ()
@@ -567,7 +551,6 @@ tcAddInfix _ = T.return ()
 tcDefsType :: [EDef] -> T [EDef]
 tcDefsType ds = withTypeTable $ T.do
   dsk <- T.mapM tcDefKind ds                     -- Check&rename kinds in all type definitions
---  traceM ("tcDefs dsk=\n" ++ showEDefs dsk)
   T.mapM_ addTypeKind dsk                        -- Add the kind of each type to the environment
   T.mapM tcDefType dsk
 
@@ -925,38 +908,6 @@ unArrow loc (Just t) =
 
 getFixity :: FixTable -> Ident -> Fixity
 getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
-
-{-
-type FixTableS = [(String, Fixity)]
-
--- A hack until we do it right
-getFixity :: FixTableS -> Ident -> Fixity
-getFixity fixs i = fromMaybe (AssocLeft, 9) $ lookupBy eqString (unQualString (unIdent i)) fixs
-
-fixities :: FixTableS
-fixities = concat
-    [infixr_ 9  ["."]
-    ,infixl_ 9  ["?", "!!", "<?>"]
-    ,infixr_ 8  ["^","^^","**"]
-    ,infixl_ 7  ["*","quot","`rem`"]
-    ,infixl_ 6  ["+","-"]
-    ,infixr_ 5  [":","++"]
-    ,infix_  4  ["==","/=","<","<=",">=",">","elem","notElem"]
-    ,infixl_ 4  ["<$>","<$","<*>","<*","*>"]
-    ,infixr_ 3  ["&&"]
-    ,infixl_ 3  ["<|>","<|<"]
-    ,infixr_ 2  ["||"]
-    ,infixl_ 1  [">>",">>="]
-    ,infixr_ 1  ["=<<"]
-    ,infixr_ 0  ["$","seq"]
-    ,infixr_ 0  ["->"]
-    ]
-  where
-    fixity a p = map (\ s -> (s, (a, p)))
-    infixr_ = fixity AssocRight
-    infixl_ = fixity AssocLeft
-    infix_  = fixity AssocNone
--}
 
 tcPats :: forall a . EType -> [EPat] -> (EType -> [Typed EPat] -> T a) -> T a
 tcPats t [] ta = ta t []

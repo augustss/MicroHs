@@ -112,7 +112,6 @@ conArity :: Con -> Int
 conArity (ConData cs i) = fromMaybe undefined $ lookupBy eqIdent i cs
 conArity (ConNew _) = 1
 conArity (ConLit _) = 0
---conArity (ConTup n) = n
 
 eqCon :: Con -> Con -> Bool
 eqCon (ConData _ i) (ConData _ j) = eqIdent i j

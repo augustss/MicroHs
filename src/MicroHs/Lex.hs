@@ -6,7 +6,6 @@ import Prelude --Xhiding(lex, showChar, showString)
 import Data.Char
 import Data.List
 --Ximport Compat
---import Debug.Trace
 import MicroHs.Ident
 
 data Token
@@ -106,7 +105,7 @@ lex loc ('\'':cs) =
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ showChar d]
 lex _ [] = []
 
--- Skip a { - - } style comment
+-- Skip a {- -} style comment
 skipNest :: Loc -> Int -> String -> [Token]
 skipNest loc 0 cs           = lex loc cs
 skipNest loc n ('{':'-':cs) = skipNest (addCol loc 2) (n + 1) cs
@@ -197,4 +196,3 @@ layout          ms      (t@(TSpec _ '{') : ts)          =                       
 layout          ms      (t               : ts)          =                        t : layout     ms  ts
 layout     (_ : ms)     []                              = TSpec (mkLoc 0 0) '}'    : layout     ms  []
 layout          []      []                              =                            []
---layout           _      _                             = TError (mkLoc 0 0) "layout error"  : []

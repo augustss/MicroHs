@@ -41,11 +41,10 @@ main = do
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-    --def :: ((Ident, Exp), Int) -> String -> String
+    --Xdef :: ((Ident, Exp), Int) -> String -> String
     def d r =
       case d of
         ((_, e), i) -> "(($A :" ++ showInt i ++ " " ++ toStringP (substv e) ++ ") " ++ r ++ ")"
-        -- App2 CT (Lbl i (subst e)) r
     res = foldr def (toStringP emain) (zip ds (enumFrom 0))
     numDefs = M.size defs
   when (verbose flags > 0) $

@@ -50,13 +50,6 @@ updWorking w (Cache _ m) = Cache w m
 cache :: Cache -> M.Map CModule
 cache (Cache _ x) = x
 
-{-
-updCache :: M.Map Module -> Cache -> Cache
-updCache x c =
-  case c of
-    Cache w _ -> Cache w x
--}
-
 -----------------
 
 compile :: Flags -> IdentModule -> IO [LDef]

@@ -26,12 +26,6 @@ data Tree a = Node a [Tree a]
 
 type Forest a = [Tree a]
 
--------------------------------------------------------------------------
---                                                                      -
---      Strongly Connected Components
---                                                                      -
--------------------------------------------------------------------------
-
 -- | Strongly connected component.
 data SCC vertex = AcyclicSCC vertex     -- ^ A single vertex that is not
                                         -- in any cycle.

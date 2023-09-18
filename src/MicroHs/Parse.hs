@@ -3,14 +3,9 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
 module MicroHs.Parse(pTop, parseDie) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
---import Control.Monad
---import Control.Monad.State.Strict
---import Control.Applicative --hiding (many, some)
 import Data.Char
 import Data.List
 import Text.ParserComb as P
---import Debug.Trace
---import MicroHs.Lex
 import MicroHs.Lex
 import MicroHs.Expr
 import MicroHs.Ident

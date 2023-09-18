@@ -5,7 +5,6 @@ module MicroHs.Desugar(
   desugar,
   LDef, showLDefs
   ) where
---import Debug.Trace
 import Prelude --Xhiding(showList)
 import Data.Char
 import Data.List
@@ -154,10 +153,8 @@ dsExpr aexpr =
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam xs e -> dsLam xs e
     ELit _ (LChar c) -> Lit (LInt (ord c))
---    ELit _ (LStr cs) -> dsExpr $ EListish $ LList $ map (ELit . LChar) cs
     ELit _ l -> Lit l
     ECase e as -> dsCase e as
--- For now, just sequential bindings; each recursive
     ELet ads e -> dsBinds ads (dsExpr e)
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
     EIf e1 e2 e3 ->
