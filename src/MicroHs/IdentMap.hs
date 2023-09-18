@@ -34,30 +34,32 @@ empty = M.empty
 elems = M.elems
 -}
 
--- This is a pretty bad implementation.
-data Map v = Map [(Ident, v)]
+-- This is a pretty bad implementation,
+-- but linear search is great for small maps.
+newtype Map v = Map [(Ident, v)]
   --Xderiving(Show)
 
-insert k v (Map kvs) = Map ((k, v):kvs)
+insert k v (Map kvs) =
+  Map ((k, v):kvs)
+  -- This is much slower
+  --Map ((k, v) : filter (not . eqIdent k . fst) kvs)
 
-fromListWith un =
+fromListWith un xs =
   let
-    ins ikv akvs =
-      case akvs of
-        [] -> [ikv]
-        kv : kvs ->
-          case ikv of
-            (ik, iv) ->
-              case kv of
-                (k, v) ->
-                  if eqIdent ik k then
+    ins ikv@(ik, iv) =
+      let eq = eqIdent ik
+          loop [] = [ikv]
+          loop (kv@(k, v):kvs) =
+                  if eq k then
                     (k, un iv v) : kvs
                   else
-                    kv : ins ikv kvs
+                    kv : loop kvs
+      in  loop
   in
-     Map . foldr ins []
+     Map (foldr ins [] xs)
 
 fromList = Map
+  --fromListWith const
 
 {-
 union akvs1 akvs2 =
@@ -69,12 +71,12 @@ union akvs1 akvs2 =
 
 lookup ak (Map m) =
       let
+        eq = eqIdent ak
         look akvs =
           case akvs of
             [] -> Nothing
-            kv : kvs ->
-              case kv of
-                (k, v) -> if eqIdent ak k then Just v else look kvs
+            (k, v) : kvs ->
+              if eq k then Just v else look kvs
       in look m
 
 empty = Map []
@@ -86,6 +88,7 @@ size (Map kvs) = length kvs
 toList (Map kvs) = kvs
 
 {-
+
 import qualified Data.Map as M
 
 type Map v = M.Map Ident v
