@@ -273,6 +273,7 @@ primKindTable =
   let
     entry i = Entry (EVar (mkIdent i))
   in M.fromList [
+       -- The kinds are wired in (for now)
        (mkIdent "Primitives.Type", [entry "Primitives.Type" kTypeS]),
        (mkIdent "Type",            [entry "Primitives.Type" kTypeS]),
        (mkIdent "Primitives.->",   [entry "Primitives.->"   kTypeTypeTypeS]),
@@ -290,8 +291,9 @@ primTypes =
   in  
       [
        -- The function arrow is bothersome to define in Primtives, so keep it here.
-       (mkIdent "->",     [entry "Primitives.->"       kTypeTypeTypeS]),
-       (mkIdent "[]",     [entry "Data.List.[]"        kTypeTypeS])
+       (mkIdent "->",           [entry "Primitives.->"       kTypeTypeTypeS]),
+       -- Primitives.hs uses the type [], and it's annoying to fix that.
+       (mkIdent "Data.List.[]", [entry "Data.List.[]"        kTypeTypeS])
       ] ++
       map tuple (enumFromTo 2 10)
 
@@ -1057,13 +1059,10 @@ dsType at =
     EVar _ -> at
     EApp f a -> EApp (dsType f) (dsType a)
     EOper t ies -> EOper (dsType t) [(i, dsType e) | (i, e) <- ies]
-    EListish (LList [t]) -> tApps listConstr [dsType t]
+    EListish (LList [t]) -> tApp tList (dsType t)
     ETuple ts -> tApps (tupleConstr (length ts)) (map dsType ts)
     ESign t k -> ESign (dsType t) k
     _ -> impossible
-
-listConstr :: Ident      -- XXX use qualified name?
-listConstr = mkIdent "[]"
 
 tConI :: String -> EType
 tConI = tCon . mkIdent
