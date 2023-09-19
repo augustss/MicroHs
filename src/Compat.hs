@@ -163,3 +163,11 @@ forceList f (a:as) = case f a of { () -> forceList f as }
 
 writeSerialized :: FilePath -> a -> IO ()
 writeSerialized _ _ = error "writeSerialized"
+
+eqBool :: Bool -> Bool -> Bool
+eqBool True  x = x
+eqBool False x = not x
+
+neBool :: Bool -> Bool -> Bool
+neBool True  x = not x
+neBool False x = x
