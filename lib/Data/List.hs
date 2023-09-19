@@ -300,3 +300,7 @@ last :: forall a . [a] -> a
 last [] = error "last: []"
 last [x] = x
 last (_:xs) = last xs
+
+forceList :: forall a . (a -> ()) -> [a] -> ()
+forceList _ [] = ()
+forceList f (a:as) = case f a of { () -> forceList f as }

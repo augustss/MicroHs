@@ -116,3 +116,7 @@ leString axs ays =
 
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s
+
+forceString :: String -> ()
+forceString [] = ()
+forceString (c:cs) = c `primSeq` forceString cs

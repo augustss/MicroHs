@@ -5,6 +5,7 @@ module MicroHs.Ident(
   Ident(..),
   mkIdent, mkIdentLoc, unIdent, eqIdent, leIdent, qualIdent, showIdent, getSLocIdent, setSLocIdent,
   mkIdentSLoc,
+  forceIdent,
   isLower_, isIdentChar, isOperChar, isConIdent,
   unQualString,
   SLoc(..), noSLoc, showSLoc
@@ -83,3 +84,7 @@ showSLoc :: SLoc -> String
 showSLoc (SLoc fn l c) =
   if null fn then "no location" else
   showString fn ++ ": " ++ "line " ++ showInt l ++ ", col " ++ showInt c
+
+-- Does not force location
+forceIdent :: Ident -> ()
+forceIdent (Ident _ s) = forceString s

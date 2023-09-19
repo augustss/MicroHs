@@ -74,7 +74,7 @@ compileTop flags mn = do
   t1 <- getTimeMilli
   let
     dsn = [ (n, compileOpt e) | (n, e) <- ds ]
-  putStr $ drop 1000000 $ showLDefs dsn
+  () <- return (forceList forceLDef dsn)
   t2 <- getTimeMilli
   when (verbose flags > 0) $
     putStrLn $ "combinator conversion " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"

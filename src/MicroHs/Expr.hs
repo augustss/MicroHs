@@ -6,7 +6,7 @@ module MicroHs.Expr(
   EDef(..), showEDefs,
   Expr(..), showExpr,
   Listish(..),
-  Lit(..), showLit, eqLit,
+  Lit(..), showLit, eqLit, forceLit,
   EBind(..),
   Eqn(..),
   EStmt(..),
@@ -134,6 +134,13 @@ eqLit (LStr  x) (LStr  y) = eqString x y
 eqLit (LPrim x) (LPrim y) = eqString x y
 eqLit (LForImp x) (LForImp y) = eqString x y
 eqLit _         _         = False
+
+forceLit :: Lit -> ()
+forceLit (LInt i) = seq i ()
+forceLit (LChar c) = seq c ()
+forceLit (LStr s) = forceString s
+forceLit (LPrim s) = forceString s
+forceLit (LForImp s) = forceString s
 
 type ECaseArm = (EPat, EAlts)
 

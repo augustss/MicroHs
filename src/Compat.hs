@@ -152,3 +152,14 @@ deleteAllBy eq x (y:ys) = if eq x y then deleteAllBy eq x ys else y : deleteAllB
 
 deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteAllsBy eq = foldl (flip (deleteAllBy eq))
+
+forceString :: String -> ()
+forceString [] = ()
+forceString (c:cs) = c `seq` forceString cs
+
+forceList :: forall a . (a -> ()) -> [a] -> ()
+forceList _ [] = ()
+forceList f (a:as) = case f a of { () -> forceList f as }
+
+writeSerialized :: FilePath -> a -> IO ()
+writeSerialized _ _ = error "writeSerialized"

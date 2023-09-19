@@ -8,13 +8,14 @@ module MicroHs.Exp(
   PrimOp,
   encodeString,
   app2, cCons, cNil, cFlip,
-  allVarsExp, freeVars
+  allVarsExp, freeVars,
+  forceExp
   ) where
 import Prelude
 import Data.Char
 import Data.List
 import MicroHs.Ident
-import MicroHs.Expr --X(Lit(..), showLit, eqLit)
+import MicroHs.Expr --X(Lit(..), showLit, eqLit, forceLit)
 --Ximport Compat
 --import Debug.Trace
 
@@ -33,6 +34,12 @@ eqExp (App f1 a1) (App f2 a2) = eqExp f1 f2 && eqExp a1 a2
 eqExp (Lam i1 e1) (Lam i2 e2) = eqIdent i1 i2 && eqExp e1 e2
 eqExp (Lit l1) (Lit l2) = eqLit l1 l2
 eqExp _ _ = False
+
+forceExp :: Exp -> ()
+forceExp (Var i) = forceIdent i
+forceExp (App f a) = case forceExp f of { () -> forceExp a }
+forceExp (Lam i e) = case forceIdent i of { () -> forceExp e }
+forceExp (Lit l) = forceLit l
 
 data MaybeApp = NotApp | IsApp Exp Exp
 
