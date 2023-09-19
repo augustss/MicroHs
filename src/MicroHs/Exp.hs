@@ -132,19 +132,21 @@ eqExp ae1 ae2 =
         _ -> False
 -}
 
-toStringP :: Exp -> String
+-- Avoid quadratic concatenation by using difference lists,
+-- turning concatenation into function composition.
+toStringP :: Exp -> (String -> String)
 toStringP ae =
   case ae of
-    Var x   -> showIdent x
+    Var x   -> (showIdent x ++)
     Lit (LStr s) ->
       -- Encode very short string directly as combinators.
       if length s > 1 then
-        quoteString s
+        (quoteString s ++)
       else
         toStringP (encodeString s)
-    Lit l   -> showLit l
-    Lam x e -> "(\\" ++ showIdent x ++ " " ++ toStringP e ++ ")"
-    App f a -> "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
+    Lit l   -> (showLit l ++)
+    Lam x e -> (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
+    App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
 
 quoteString :: String -> String
 quoteString s =

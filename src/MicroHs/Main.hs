@@ -41,20 +41,22 @@ main = do
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-    --Xdef :: ((Ident, Exp), Int) -> String -> String
+    def :: ((Ident, Exp), Int) -> (String -> String) -> (String -> String)
     def d r =
       case d of
-        ((_, e), i) -> "(($A :" ++ showInt i ++ " " ++ toStringP (substv e) ++ ") " ++ r ++ ")"
-    res = foldr def (toStringP emain) (zip ds (enumFrom 0))
+        ((_, e), i) ->
+          (("(($A :" ++ showInt i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
+    res = foldr def (toStringP emain) (zip ds (enumFrom 0)) ""
     numDefs = M.size defs
   when (verbose flags > 0) $
     putStrLn $ "top level defns: " ++ showInt numDefs
   when (verbose flags > 1) $
-    mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e) ds
+    mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") ds
   if runIt flags then do
     let
       prg = translate cmdl
 --    putStrLn "Run:"
+--    writeSerialized "ser.comb" prg
     prg
 --    putStrLn "done"
    else do
