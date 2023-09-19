@@ -1,7 +1,7 @@
 module MicroHs.Expr(
   IdentModule,
   EModule(..),
-  ExportSpec(..),
+  ExportItem(..),
   ImportSpec(..),
   EDef(..), showEDefs,
   Expr(..), showExpr,
@@ -40,10 +40,10 @@ type IdentModule = Ident
 
 ----------------------
 
-data EModule = EModule IdentModule [ExportSpec] [EDef]
+data EModule = EModule IdentModule [ExportItem] [EDef]
   --Xderiving (Show, Eq)
 
-data ExportSpec
+data ExportItem
   = ExpModule IdentModule
   | ExpTypeCon Ident
   | ExpType Ident
@@ -321,12 +321,12 @@ showEModule :: EModule -> String
 showEModule am =
   case am of
     EModule i es ds -> "module " ++ i ++ "(\n" ++
-      unlines (intersperse "," (map showExportSpec es)) ++
+      unlines (intersperse "," (map showExportItem es)) ++
       "\n) where\n" ++
       showEDefs ds
 
-showExportSpec :: ExportSpec -> String
-showExportSpec ae =
+showExportItem :: ExportItem -> String
+showExportItem ae =
   case ae of
     ExpModule i -> "module " ++ i
     ExpTypeCon i -> i ++ "(..)"

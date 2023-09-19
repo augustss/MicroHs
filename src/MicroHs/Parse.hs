@@ -38,7 +38,7 @@ pTop = pModule <* eof
 
 pModule :: P EModule
 pModule = EModule <$> (pKeyword "module" *> pUQIdentA) <*>
-                      (pSpec '(' *> esepEndBy pExportSpec (pSpec ',') <* pSpec ')') <*>
+                      (pSpec '(' *> esepEndBy pExportItem (pSpec ',') <* pSpec ')') <*>
                       (pKeyword "where" *> pBlock pDef)
 
 pQIdent :: P Ident
@@ -201,8 +201,8 @@ pString = satisfyM "string" is
 
 ---------------
 
-pExportSpec :: P ExportSpec
-pExportSpec =
+pExportItem :: P ExportItem
+pExportItem =
       ExpModule <$> (pKeyword "module" *> pUQIdent)
   <|< ExpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pSymbol ".." <* pSpec ')')
   <|< ExpType <$> pUQIdentSym

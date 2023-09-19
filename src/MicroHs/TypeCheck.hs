@@ -62,7 +62,7 @@ typeCheck imps (EModule mn exps defs) =
          in  TModule mn (concat fexps) (concat texps) (concat sexps) (concat vexps) tds
 
 -- Type and value exports
-getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> SynTable -> ValueTable -> ExportSpec ->
+getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> SynTable -> ValueTable -> ExportItem ->
            ([TypeExport], [SynDef], [ValueExport])
 getTVExps impMap _ _ _ (ExpModule m) =
   case M.lookup m impMap of
