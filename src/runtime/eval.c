@@ -1067,6 +1067,8 @@ printrec(FILE *f, NODEPTR n)
       while ((c = *p++)) {
         if (c == '"' || c == '\\' || c < ' ' || c > '~') {
           fprintf(f, "\\%d&", c);
+        } else {
+          fputc(c, f);
         }
       }
       fputc('"', f);
