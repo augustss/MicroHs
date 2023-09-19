@@ -37,7 +37,7 @@ trans r ae =
     App f a -> unsafeCoerce (trans r f) (trans r a)
     Lit (LInt i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
-    Lit (LPrim p) -> fromMaybe (error "primlookup") $ lookupBy eqString p primTable
+    Lit (LPrim p) -> fromMaybe (error $ "primlookup: " ++ p) $ lookupBy eqString p primTable
     _ -> error "trans: impossible"
 
 -- Use linear search in this table.
@@ -96,5 +96,6 @@ primTable = [
   ("IO.stderr", primitive "IO.stderr"),
   ("IO.getArgs", primitive "IO.getArgs"),
   ("IO.dropArgs", primitive "IO.dropArgs"),
-  ("IO.performIO", primitive "IO.performIO")
+  ("IO.performIO", primitive "IO.performIO"),
+  ("IO.getTimeMilli", primitive "IO.getTimeMilli")
   ]
