@@ -13,11 +13,12 @@ module Text.ParserComb(
   many, emany, optional, eoptional,
   some, esome,
   esepBy, sepBy1, esepBy1,
+  esepEndBy, esepEndBy1,
   (<?>), (<|<),
   --notFollowedBy,
   lookAhead,
   inject, nextToken,
-  LastFail(..)
+  LastFail(..),
   ) where
 --Ximport Prelude()
 import PreludeNoIO
@@ -214,3 +215,9 @@ esepBy1 p sep = (:) <$> p <*> emany (sep *> p)
 
 esepBy :: forall s t a sep . Prsr s t a -> Prsr s t sep -> Prsr s t [a]
 esepBy p sep = esepBy1 p sep <|< pure []
+
+esepEndBy :: forall s t a sep . Prsr s t a -> Prsr s t sep -> Prsr s t [a]
+esepEndBy p sep = esepEndBy1 p sep <|< pure []
+
+esepEndBy1 :: forall s t a sep . Prsr s t a -> Prsr s t sep -> Prsr s t [a]
+esepEndBy1 p sep = (:) <$> p <*> ((sep *> esepEndBy p sep) <|< pure [])

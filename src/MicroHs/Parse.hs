@@ -38,7 +38,7 @@ pTop = pModule <* eof
 
 pModule :: P EModule
 pModule = EModule <$> (pKeyword "module" *> pUQIdentA) <*>
-                      (pSpec '(' *> esepBy pExportSpec (pSpec ',') <* pSpec ')') <*>
+                      (pSpec '(' *> esepEndBy pExportSpec (pSpec ',') <* pSpec ')') <*>
                       (pKeyword "where" *> pBlock pDef)
 
 pQIdent :: P Ident
