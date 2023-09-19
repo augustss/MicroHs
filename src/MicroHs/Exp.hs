@@ -15,7 +15,7 @@ import Prelude
 import Data.Char
 import Data.List
 import MicroHs.Ident
-import MicroHs.Expr --X(Lit(..), showLit, eqLit, forceLit)
+import MicroHs.Expr(Lit(..), showLit, eqLit, forceLit)
 --Ximport Compat
 --import Debug.Trace
 
