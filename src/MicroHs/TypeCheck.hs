@@ -59,7 +59,7 @@ typeCheck imps (EModule mn exps defs) =
            (fexps, sexps) = unzip $ getFSExps impMap
 -}
            fexps = [ fe | TModule _ fe _ _ _ _ <- M.elems impMap ]
-         in  TModule mn (concat fexps) (concat texps) (concat sexps) (concat vexps) tds
+         in  TModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) (concat sexps) (concat vexps) tds
 
 filterImports :: forall a . Maybe (Bool, [ImportItem]) -> TModule a -> TModule a
 filterImports Nothing tm = tm
