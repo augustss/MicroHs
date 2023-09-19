@@ -40,16 +40,17 @@ type SynTable   = M.Map ETypeScheme
 type FixTable   = M.Map Fixity
 
 typeCheck :: forall a . [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
-typeCheck imps (EModule mn exps defs) =
+typeCheck aimps (EModule mn exps defs) =
 --  trace (show amdl) $
   let
+    imps = map filterImports aimps
     (fs, ts, ss, vs) = mkTables imps
   in case tcRun (tcDefs defs) (initTC mn fs ts ss vs) of
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule mn tds impossible)
-           impMdls = [(fromMaybe m mm, filterImports mis tm) | (ImportSpec _ m mm mis, tm) <- imps]
-           impMap = M.fromList [(i, m) | (i, m) <- (thisMdl : impMdls)]
+           impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm _, tm) <- imps]
+           impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
            (texps, sexps, vexps) =
              unzip3 $ map (getTVExps impMap (typeTable tcs) (synTable tcs) (valueTable tcs)) exps
 {-
@@ -61,9 +62,20 @@ typeCheck imps (EModule mn exps defs) =
            fexps = [ fe | TModule _ fe _ _ _ _ <- M.elems impMap ]
          in  TModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) (concat sexps) (concat vexps) tds
 
-filterImports :: forall a . Maybe (Bool, [ImportItem]) -> TModule a -> TModule a
-filterImports Nothing tm = tm
-filterImports (Just (_hide, _is)) tm = tm -- XXX
+filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
+filterImports it@(ImportSpec _ _ _ Nothing, _) = it
+filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss vs a) =
+  let
+    keep x xs = elemBy eqIdent x xs `neBool` hide
+    ivs = [ i | ImpValue i <- is ]
+    vs' = filter (\ (ValueExport i _) -> keep i ivs) vs
+    cts = [ i | ImpTypeCon i <- is ]
+    its = [ i | ImpType i <- is ] ++ cts
+    ts' = map (\ te@(TypeExport i e _) -> if keep i cts then te else TypeExport i e []) $
+          filter (\ (TypeExport i _ _) -> keep i its) ts
+  in
+    --trace (show (ts, vs)) $
+    (imp, TModule mn fx ts' ss vs' a)
 
 -- Type and value exports
 getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> SynTable -> ValueTable -> ExportItem ->
@@ -77,7 +89,7 @@ getTVExps _ tys _ vals (ExpTypeCon i) =
   let
     e = expLookup i tys
     qi = tyQIdent e
-  in ([TypeExport i e []], [], constrsOf qi (M.toList vals))
+  in ([TypeExport i e $ constrsOf qi (M.toList vals)], [], [])
 getTVExps _ tys syns _ (ExpType i) =
   let
     e = expLookup i tys
