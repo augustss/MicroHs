@@ -3,6 +3,7 @@ module MicroHs.Expr(
   EModule(..),
   ExportItem(..),
   ImportSpec(..),
+  ImportItem(..),
   EDef(..), showEDefs,
   Expr(..), showExpr,
   Listish(..),
@@ -61,7 +62,13 @@ data EDef
   | Infix Fixity [Ident]
   --Xderiving (Show, Eq)
 
-data ImportSpec = ImportSpec Bool Ident (Maybe Ident)
+data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
+  --Xderiving (Show, Eq)
+
+data ImportItem
+  = ImpTypeCon Ident
+  | ImpType Ident
+  | ImpValue Ident
   --Xderiving (Show, Eq)
 
 data Expr
@@ -334,6 +341,13 @@ showExportItem ae =
     ExpValue i -> i
 -}
 
+showImportItem :: ImportItem -> String
+showImportItem ae =
+  case ae of
+    ImpTypeCon i -> showIdent i ++ "(..)"
+    ImpType i -> showIdent i
+    ImpValue i -> showIdent i
+
 showEDef :: EDef -> String
 showEDef def =
   case def of
@@ -342,7 +356,10 @@ showEDef def =
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
     Fcn i eqns -> unlines (map (\ (Eqn ps alts) -> showIdent i ++ " " ++ unwords (map showEPat ps) ++ showAlts "=" alts) eqns)
     Sign i t -> showIdent i ++ " :: " ++ showETypeScheme t
-    Import (ImportSpec q m mm) -> "import " ++ (if q then "qualified " else "") ++ showIdent m ++ maybe "" ((" as " ++) . unIdent) mm
+    Import (ImportSpec q m mm mis) -> "import " ++ (if q then "qualified " else "") ++ showIdent m ++ maybe "" ((" as " ++) . unIdent) mm ++
+      case mis of
+        Nothing -> ""
+        Just (h, is) -> (if h then " hiding" else "") ++ "(" ++ intercalate ", " (map showImportItem is) ++ ")"
     ForImp ie i t -> "foreign import ccall " ++ showString ie ++ " " ++ showIdent i ++ " :: " ++ showEType t
     Infix (a, p) is -> "infix" ++ f a ++ " " ++ showInt p ++ " " ++ intercalate ", " (map showIdent is)
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""

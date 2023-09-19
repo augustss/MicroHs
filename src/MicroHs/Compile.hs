@@ -100,7 +100,7 @@ compileModule flags nm = S.do
   let
     specs = [ s | Import s <- defs ]
   t2 <- liftIO getTimeMilli
-  (impMdls, ts) <- S.fmap unzip $ S.mapM (compileModuleCached flags) [ m | ImportSpec _ m _ <- specs ]
+  (impMdls, ts) <- S.fmap unzip $ S.mapM (compileModuleCached flags) [ m | ImportSpec _ m _ _ <- specs ]
   t3 <- liftIO getTimeMilli
   let
     tmdl = typeCheck (zip specs impMdls) mdl

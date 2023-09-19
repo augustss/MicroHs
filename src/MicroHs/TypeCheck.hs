@@ -48,7 +48,7 @@ typeCheck imps (EModule mn exps defs) =
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule mn tds impossible)
-           impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm, tm) <- imps]
+           impMdls = [(fromMaybe m mm, filterImports mis tm) | (ImportSpec _ m mm mis, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- (thisMdl : impMdls)]
            (texps, sexps, vexps) =
              unzip3 $ map (getTVExps impMap (typeTable tcs) (synTable tcs) (valueTable tcs)) exps
@@ -60,6 +60,10 @@ typeCheck imps (EModule mn exps defs) =
 -}
            fexps = [ fe | TModule _ fe _ _ _ _ <- M.elems impMap ]
          in  TModule mn (concat fexps) (concat texps) (concat sexps) (concat vexps) tds
+
+filterImports :: forall a . Maybe (Bool, [ImportItem]) -> TModule a -> TModule a
+filterImports Nothing tm = tm
+filterImports (Just (_hide, _is)) tm = tm -- XXX
 
 -- Type and value exports
 getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> SynTable -> ValueTable -> ExportItem ->
@@ -156,11 +160,11 @@ mkTables mdls =
   let
     qns aisp mn i =
       case aisp of
-        ImportSpec q _ mas ->
+        ImportSpec q _ mas _ ->
           let
             m = fromMaybe mn mas
           in  if q then [qualIdent m i] else [i, qualIdent m i]
-    --XallValues :: M.Map [Entry]
+    allValues :: ValueTable
     allValues =
       let
         syms arg =
@@ -175,7 +179,7 @@ mkTables mdls =
           case arg of
             (_, TModule _ _ _ ses _ _) -> [ (i, x) | (i, x) <- ses ]
       in  M.fromList (concatMap syns mdls)
-    --XallTypes :: TypeTable
+    allTypes :: TypeTable
     allTypes =
       let
         types arg =
@@ -788,7 +792,7 @@ tcExprR mt ae =
       T.return (EListish (LList ees), tlist)
     EListish (LCompr eret ass) -> T.do
       let
-        --XdoStmts :: [EStmt] -> [EStmt] -> T ([EStmt], Typed Expr)
+        doStmts :: [EStmt] -> [EStmt] -> T ([EStmt], Typed Expr)
         doStmts rss xs =
           case xs of
             [] -> T.do
@@ -862,7 +866,7 @@ tcOper mt ae aies = T.do
       clc (e:es) os ies
     doOp _ _ _ _ _ = impossible
 
-    --Xcalc :: [Typed Expr] -> [(Typed Expr, Fixity)] -> [((Typed Expr, Fixity), Expr)] -> T (Typed Expr) 
+    calc :: [Typed Expr] -> [(Typed Expr, Fixity)] -> [((Typed Expr, Fixity), Expr)] -> T (Typed Expr) 
     calc [et@(_, t)] [] [] = T.do munify (getSLocExpr ae) mt t; T.return et
     calc es ((o, _):os) [] = doOp calc es o os []
     calc es oos@((oy, (ay, py)):os) iies@((oo@(ox, (ax, px)), e) : ies) = T.do

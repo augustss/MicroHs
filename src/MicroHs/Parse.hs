@@ -246,7 +246,14 @@ pImportSpec :: P ImportSpec
 pImportSpec =
   let
     pQua = (True <$ pKeyword "qualified") <|< pure False
-  in  ImportSpec <$> pQua <*> pUQIdentA <*> eoptional (pKeyword "as" *> pUQIdent)
+  in  ImportSpec <$> pQua <*> pUQIdentA <*> eoptional (pKeyword "as" *> pUQIdent) <*>
+                     eoptional (pair <$> ((True <$ pKeyword "hiding") <|> pure False) <*> pParens (emany pImportItem))
+
+pImportItem :: P ImportItem
+pImportItem =
+      ImpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pSymbol ".." <* pSpec ')')
+  <|< ImpType <$> pUQIdentSym
+  <|< ImpValue <$> pLQIdentSym
 
 --------
 -- Types
