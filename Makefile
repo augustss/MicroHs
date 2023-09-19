@@ -132,7 +132,7 @@ examplecomb:	$(EVAL) $(COMB)$(MHS).comb Example.hs
 	$(EVAL) +RTS -r$(COMB)$(MHS).comb -RTS -r -ilib Example
 
 clean:
-	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR) tmp/eval.c Tools/*.o Tools/*.hi
+	rm -rf src/*/*.hi src/*/*.o eval Main *.comb *.tmp *~ $(BIN)/* a.out $(BOOTDIR) $(OUTDIR) tmp/eval.c Tools/*.o Tools/*.hi dist-newstyle
 	cd tests; make clean
 
 ###
@@ -155,7 +155,7 @@ $(BIN)/cmhs: tmp/eval.c
 ###
 $(BIN)/umhs: $(BIN)/cmhs
 	rm -f $(BIN)/umhs
-	$(UPX) -o$(BIN)/umhs $(BIN)/cmhs
+	$(UPX) -q -q -o$(BIN)/umhs $(BIN)/cmhs
 ###
 ### Test that the compiler can bootstrap
 ###
