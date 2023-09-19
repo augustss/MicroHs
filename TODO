@@ -16,4 +16,4 @@
 * add Double primitive type
 * implement Data.Integer
 * add pretty printing library
-* implement import specs
+* reimplement Map with Adams trees

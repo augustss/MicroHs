@@ -154,6 +154,7 @@ $(BIN)/cmhs: tmp/eval.c
 ### Compress the binary (broken on MacOS)
 ###
 $(BIN)/umhs: $(BIN)/cmhs
+	rm -f $(BIN)/umhs
 	$(UPX) -o$(BIN)/umhs $(BIN)/cmhs
 ###
 ### Test that the compiler can bootstrap
