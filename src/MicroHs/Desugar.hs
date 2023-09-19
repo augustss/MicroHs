@@ -61,6 +61,7 @@ dsBind v abind =
         de = (v, dsExpr e)
         ds = [ (i, dsExpr (ECase (EVar v) [(p, oneAlt $ EVar i)])) | i <- patVars p ]
       in  de : ds
+    BSign _ _ -> []
 
 dsEqns :: [Eqn] -> Exp
 dsEqns eqns =

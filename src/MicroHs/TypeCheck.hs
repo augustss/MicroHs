@@ -527,8 +527,9 @@ withExtVals env ta = T.do
   putValueTable venv
   T.return a
 
-withExtTyps :: forall a . [(Ident, ETypeScheme)] -> T a -> T a
-withExtTyps env ta = T.do
+withExtTyps :: forall a . [IdKind] -> T a -> T a
+withExtTyps iks ta = T.do
+  let env = map (\ (IdKind v k) -> (v, ETypeScheme [] k)) iks
   venv <- gets typeTable
   extTyps env
   a <- ta
@@ -676,12 +677,8 @@ tcDefValue adef =
 --      traceM $ "tcDefValue: " ++ showLHS (i, vs) ++ " = " ++ showExpr rhs
       (_, ETypeScheme iks tfn) <- tLookup "no type signature" i
       mn <- gets moduleName
-      let vks = map (\ (IdKind v k) -> (v, ETypeScheme [] k)) iks
-      teqns <- withExtTyps vks $ tcEqns tfn eqns
-               --tcExpr (Just t) $ ELam (map EVar vs) rhs
+      teqns <- withExtTyps iks $ tcEqns tfn eqns
       T.return $ Fcn (qualIdent mn i) teqns
---      (et, _) <- withExtTyps vks (tcExpr (Just t) (foldr eLam1 rhs vs))
---      T.return (Fcn (qualIdent mn i, vs) (dropLam (length vs) et))
     ForImp ie i t -> T.do
       mn <- gets moduleName
       T.return (ForImp ie (qualIdent mn i) t)
@@ -977,32 +974,42 @@ checkArity _ _ _ = T.return ()
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = T.do
   let
+    tmap = M.fromList [ (i, t) | BSign i t <- xbs ]
     xs = concatMap getBindVars xbs
-  xts <- T.mapM (\ x -> T.fmap (pair x . ETypeScheme []) newUVar) xs
+  xts <- T.mapM (tcBindVarT tmap) xs
   withExtVals xts $ T.do
     nbs <- T.mapM tcBind xbs
     ta nbs
+
+tcBindVarT :: M.Map ETypeScheme -> Ident -> T (Ident, ETypeScheme)
+tcBindVarT tmap x = T.do
+  case M.lookup x tmap of
+    Nothing -> T.do
+      t <- newUVar
+      T.return (x, ETypeScheme [] t)
+    Just t -> T.do
+      tt <- withTypeTable $ tcTypeScheme (Just kType) t
+      T.return (x, tt)
 
 tcBind :: EBind -> T EBind
 tcBind abind =
   case abind of
     BFcn i eqns -> T.do
-      (_, t) <- tLookupInst "impossible!" i
-      --(ELam _avs ea, _) <- tcExpr (Just t) $ ELam (map EVar vs) a
-      teqns <- tcEqns t eqns
+      (_, ETypeScheme iks tfn) <- tLookup "impossible!" i
+      teqns <- withExtTyps iks $ tcEqns tfn eqns
       T.return $ BFcn i teqns
---      (ea, _) <- tcExpr (Just t) $ foldr eLam1 a vs
---      T.return $ BFcn (i, vs) $ dropLam (length vs) ea
     BPat p a -> T.do
       (ep, tp) <- tcExpr Nothing p
       (ea, _)  <- tcExpr (Just tp) a
       T.return $ BPat ep ea
+    BSign _ _ -> T.return abind
 
 getBindVars :: EBind -> [Ident]
 getBindVars abind =
   case abind of
-    BFcn i _ -> [i]
-    BPat p _ -> patVars p
+    BFcn i _  -> [i]
+    BPat p _  -> patVars p
+    BSign _ _ -> []
 
 -- Desugar [T] and (T,T,...)
 dsType :: EType -> EType

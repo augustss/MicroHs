@@ -468,7 +468,8 @@ pOperators oper one = eOper <$> one <*> emany (pair <$> oper <*> one)
 pBind :: P EBind
 pBind = 
       uncurry BFcn <$> pEqns
-  <|< BPat <$> (pPatNotVar <* pSymbol "=") <*> pExpr
+  <|< BPat         <$> (pPatNotVar <* pSymbol "=") <*> pExpr
+  <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
 
 -------------
 

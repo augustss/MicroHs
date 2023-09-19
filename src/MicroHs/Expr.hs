@@ -140,7 +140,7 @@ type ECaseArm = (EPat, EAlts)
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
   --Xderiving (Show, Eq)
 
-data EBind = BFcn Ident [Eqn] | BPat EPat Expr
+data EBind = BFcn Ident [Eqn] | BPat EPat Expr | BSign Ident ETypeScheme
   --Xderiving (Show, Eq)
 
 -- A single equation for a function
@@ -231,6 +231,7 @@ allVarsBind abind =
   case abind of
     BFcn i eqns -> i : concatMap allVarsEqn eqns
     BPat p e -> allVarsPat p ++ allVarsExpr e
+    BSign i _ -> [i]
 
 allVarsEqn :: Eqn -> [Ident]
 allVarsEqn eqn =
@@ -425,6 +426,7 @@ showEBind ab =
   case ab of
     BFcn i eqns -> showEDef (Fcn i eqns)
     BPat p e -> showEPat p ++ " = " ++ showExpr e
+    BSign i t -> showIdent i ++ " :: " ++ showETypeScheme t
 
 showCaseArm :: ECaseArm -> String
 showCaseArm arm =
