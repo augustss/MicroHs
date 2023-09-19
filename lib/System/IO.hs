@@ -140,13 +140,13 @@ hGetContents h = do
     cs <- unsafeInterleaveIO (hGetContents h)
     return (chr c : cs)
   
-writeSerialized :: forall a . String -> a -> IO ()
+writeSerialized :: forall a . FilePath -> a -> IO ()
 writeSerialized p s = do
   h <- openFile p WriteMode
   hSerialize h s
   hClose h
 
-readSerialized :: forall a . String -> IO a
+readSerialized :: forall a . FilePath -> IO a
 readSerialized p = do
   h <- openFile p ReadMode
   a <- hDeserialize h
