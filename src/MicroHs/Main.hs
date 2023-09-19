@@ -52,7 +52,7 @@ main = do
     mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") ds
   if runIt flags then do
     let
-      prg = translate cmdl
+      prg = translateAndRun cmdl
 --    putStrLn "Run:"
 --    writeSerialized "ser.comb" prg
     prg

@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.Translate(
-  translate
+  translate, translateAndRun
   ) where
 import Prelude
 import Data.Maybe
@@ -18,17 +18,20 @@ import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.Ident
 
-translate :: (Ident, [LDef]) -> IO ()
-translate (mainName, ds) = do
+translateAndRun :: (Ident, [LDef]) -> IO ()
+translateAndRun defs = do
+  -- Drop all argument up to '--'
+  args <- getArgs
+  let prog = unsafeCoerce $ translate defs
+  withDropArgs (length (takeWhile (not . eqString "--") args) + 1)
+    prog
+
+translate :: (Ident, [LDef]) -> Any
+translate (mainName, ds) =
   let
     look m n = fromMaybe (error $ "not found " ++ showIdent n) $ M.lookup n m
     mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
-
-  -- Drop all argument up to '--'
-  args <- getArgs
-  let prog = unsafeCoerce $ look mp mainName
-  withDropArgs (length (takeWhile (not . eqString "--") args) + 1)
-    prog
+  in look mp mainName
 
 trans :: (Ident -> Any) -> Exp -> Any
 trans r ae =
