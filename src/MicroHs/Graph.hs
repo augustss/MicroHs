@@ -134,7 +134,7 @@ dff g = dfs g (vertices g)
 dfs :: Graph -> [Vertex] -> Forest Vertex
 dfs g vs0 = snd $ go IS.empty vs0
   where
-    --Xgo :: IS.IntSet -> [Vertex] -> (IS.IntSet, Forest Vertex)
+    go :: IS.IntSet -> [Vertex] -> (IS.IntSet, Forest Vertex)
     go done [] = (done, [])
     go done (v:vs) =
       if IS.member v done
