@@ -444,6 +444,11 @@ pQualDo = P.do
     is _ = Nothing
   satisfyM "QualDo" is
 
+pOperComma :: P Ident
+pOperComma = pOper <|< pComma
+  where
+    pComma = mkIdentLoc <$> getFileName <*> getLoc <*> ("," <$ pSpec ',')
+
 pAExpr :: P Expr
 pAExpr = (
       (EVar   <$> pLQIdentSym)
@@ -451,8 +456,8 @@ pAExpr = (
   <|< pLit
   <|< (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
   <|< EListish <$> (pSpec '[' *> pListish <* pSpec ']')
-  <|< (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOper <* pSpec ')'))
-  <|< (ESectR <$> (pSpec '(' *> pOper) <*> (pExprArg <* pSpec ')'))
+  <|< (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOperComma <* pSpec ')'))
+  <|< (ESectR <$> (pSpec '(' *> pOperComma) <*> (pExprArg <* pSpec ')'))
   <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
   )
   -- This weirdly slows down parsing
