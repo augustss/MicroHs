@@ -13,12 +13,12 @@ import Unsafe.Coerce
 --Ximport PrimTable
 --Yimport PrimTable
 
-import MicroHs.Desugar
 import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.Ident
 
-translateAndRun :: (Ident, [LDef]) -> IO ()
+--translateAndRun :: (Ident, [LDef]) -> IO ()
+translateAndRun :: (Ident, [(Ident, Exp)]) -> IO ()
 translateAndRun defs = do
   -- Drop all argument up to '--'
   args <- getArgs
@@ -26,7 +26,8 @@ translateAndRun defs = do
   withDropArgs (length (takeWhile (not . eqString "--") args) + 1)
     prog
 
-translate :: (Ident, [LDef]) -> Any
+--translate :: (Ident, [LDef]) -> Any
+translate :: (Ident, [(Ident, Exp)]) -> Any
 translate (mainName, ds) =
   let
     look m n = fromMaybe (error $ "not found " ++ showIdent n) $ M.lookup n m
@@ -100,5 +101,7 @@ primTable = [
   ("IO.getArgs", primitive "IO.getArgs"),
   ("IO.dropArgs", primitive "IO.dropArgs"),
   ("IO.performIO", primitive "IO.performIO"),
-  ("IO.getTimeMilli", primitive "IO.getTimeMilli")
+  ("IO.getTimeMilli", primitive "IO.getTimeMilli"),
+  ("isInt", primitive "isInt"),
+  ("isIO", primitive "isIO")
   ]

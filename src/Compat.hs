@@ -10,6 +10,7 @@ import Control.Exception
 import Data.List
 import System.Environment
 import System.IO
+import GHC.Types(Any)
 
 -- Functions needed for ghc
 eqChar :: Char -> Char -> Bool
@@ -105,6 +106,9 @@ eqPair eqa eqb ab1 ab2 =
         (a2, b2) ->
           eqa a1 a2 && eqb b1 b2
 
+showPair :: (a -> String) -> (b -> String) -> (a, b) -> String
+showPair f g (a, b) = "(" ++ f a ++ "," ++ g b ++ ")"
+
 eqInt :: Int -> Int -> Bool
 eqInt = (==)
 
@@ -171,3 +175,9 @@ eqBool False x = not x
 neBool :: Bool -> Bool -> Bool
 neBool True  x = not x
 neBool False x = x
+
+-- Temporary until overloading
+primIsInt        :: Any -> Bool
+primIsInt         = error "isInt"
+primIsIO         :: Any -> Bool
+primIsIO          = error "isIO"

@@ -116,7 +116,7 @@ expLookup i m =
 
 tyQIdent :: Entry -> Ident
 tyQIdent (Entry (EVar qi) _) = qi
-tyQIdent _ = undefined
+tyQIdent _ = error "tyQIdent"
 
 constrsOf :: Ident -> [(Ident, [Entry])] -> [ValueExport]
 constrsOf qi ies =
@@ -132,7 +132,7 @@ retTyCon t =
 getAppCon :: EType -> Ident
 getAppCon (EVar i) = i
 getAppCon (EApp f _) = getAppCon f
-getAppCon _ = undefined
+getAppCon _ = error "getAppCon"
 
 eVarI :: SLoc -> String -> Expr
 eVarI loc = EVar . mkIdentSLoc loc

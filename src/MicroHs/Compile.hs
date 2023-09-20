@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.Compile(
-  compile,
+  compile, compileTop,
   Flags(..), verbose, runIt, output
   ) where
 import Prelude --Xhiding (Monad(..), mapM, showString, showList)
@@ -13,6 +13,7 @@ import qualified System.IO as IO
 import qualified MicroHs.IdentMap as M
 import MicroHs.StateIO as S
 import MicroHs.Desugar
+import MicroHs.Exp
 import MicroHs.Expr
 import MicroHs.Ident
 import MicroHs.Parse
@@ -52,6 +53,20 @@ cache (Cache _ x) = x
 
 -----------------
 
+
+--compileTop :: Flags -> IdentModule -> IO [LDef]
+compileTop :: Flags -> Ident -> IO [(Ident, Exp)]
+compileTop flags mn = IO.do
+  ds <- compile flags mn
+  t1 <- getTimeMilli
+  let
+    dsn = [ (n, compileOpt e) | (n, e) <- ds ]
+  () <- IO.return (forceList forceLDef dsn)
+  t2 <- getTimeMilli
+  IO.when (verbose flags > 0) $
+    putStrLn $ "combinator conversion " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
+  IO.return dsn
+
 compile :: Flags -> IdentModule -> IO [LDef]
 compile flags nm = IO.do
   ((_, t), ch) <- runStateIO (compileModuleCached flags nm) (Cache [] M.empty)
@@ -62,7 +77,7 @@ compile flags nm = IO.do
   IO.return $ concatMap defs $ M.elems $ cache ch
 
 -- Compile a module with the given name.
--- If the module has already been compiled, return the caches result.
+-- If the module has already been compiled, return the cached result.
 compileModuleCached :: Flags -> IdentModule -> StateIO Cache (CModule, Time)
 compileModuleCached flags nm = S.do
   ch <- gets cache
@@ -76,7 +91,8 @@ compileModuleCached flags nm = S.do
         liftIO $ putStrLn $ "importing " ++ showIdent nm
       (cm, tp, tt, ts) <- compileModule flags nm
       S.when (verbose flags > 0) $
-        liftIO $ putStrLn $ "importing done " ++ showIdent nm ++ ", " ++ showInt (tp + tt) ++ "ms (" ++ showInt tp ++ " + " ++ showInt tt ++ ")"
+        liftIO $ putStrLn $ "importing done " ++ showIdent nm ++ ", " ++ showInt (tp + tt) ++
+                 "ms (" ++ showInt tp ++ " + " ++ showInt tt ++ ")"
       c <- get
       put $ Cache (tail (working c)) (M.insert nm cm (cache c))
       S.return (cm, tp + tt + ts)

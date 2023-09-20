@@ -515,7 +515,7 @@ pBind =
 -------------
 
 eTuple :: [Expr] -> Expr
-eTuple [] = undefined
+eTuple [] = error "eTuple"
 eTuple [e] = e
 eTuple es = ETuple es
 

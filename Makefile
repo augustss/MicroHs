@@ -34,7 +34,7 @@ $(EVAL):	src/runtime/eval.c
 ### Build the compiler with ghc, using standard libraries (Prelude, Data.List, etc)
 ###
 $(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
-	$(GHCE) -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
+	$(GHCE) -isrc -ighc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
 ###
 ### Build the compiler with ghc, using MicroHs libraries (Prelude, Data.List, etc)
@@ -68,6 +68,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Data/Integer.hs
 	$(GHCC) -c lib/Control/Monad/State/Strict.hs
 #	$(GHCC) -c lib/Debug/Trace.hs
+	$(GHCC) -c lib/System/Console/SimpleReadline.hs
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Ident.hs
 	$(GHCC) -c src/MicroHs/Expr.hs
@@ -84,8 +85,9 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c src/MicroHs/StateIO.hs
 	$(GHCC) -c src/MicroHs/Compile.hs
 	$(GHCC) -c src/MicroHs/Translate.hs
+	$(GHCC) -c src/MicroHs/Interactive.hs
 	$(GHCC) -c -main-is MicroHs.Main src/MicroHs/Main.hs
-	$(GHC) $(PROF) -hide-all-packages -package time -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o $(BOOTDIR)/*/*/*/*.o
+	$(GHC) $(PROF) -hide-all-packages -package time -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o $(BOOTDIR)/*/*/*.o $(BOOTDIR)/*/*/*/*.o
 #	$(GHC) $(PROF) -hide-all-packages -package containers -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o $(BOOTDIR)/*/*/*/*.o
 
 # Compare version compiled with normal GHC libraries and $(MHS) libraries
@@ -138,7 +140,7 @@ clean:
 ###
 ### Make an eval.c that contains the combinator code.
 ###
-tmp/eval.c: src/runtime/eval.c $(BIN)/eval
+tmp/eval.c: src/runtime/eval.c $(BIN)/eval $(COMB)$(MHS).comb 
 	@mkdir -p tmp
 	cp src/runtime/eval.c tmp/eval.c
 	$(BIN)/eval +RTS -K10M -r$(COMB)$(MHS).comb -RTS -ilib -iTools -r Addcombs -- $(COMB)$(MHS).comb >> tmp/eval.c

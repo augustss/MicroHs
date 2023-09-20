@@ -167,3 +167,9 @@ primGetTimeMilli :: IO Int
 primGetTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds <$> getCurrentTime
 primGetRaw       :: IO Int
 primGetRaw        = return (-1) -- not implemented
+
+-- Temporary until overloading
+primIsInt        :: Any -> Bool
+primIsInt         = error "isInt"
+primIsIO         :: Any -> Bool
+primIsIO          = error "isIO"

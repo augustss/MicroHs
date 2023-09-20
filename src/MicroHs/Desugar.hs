@@ -485,7 +485,7 @@ checkDup ds =
     [] -> ds
     (i1:i2:_) : _ ->
       errorMessage (getSLocIdent i1) $ "Duplicate " ++ showIdent i1 ++ " " ++ showSLoc (getSLocIdent i2)
-    _ -> undefined
+    _ -> error "checkDup"
 
 forceLDef :: LDef -> ()
 forceLDef (i, e) = case forceIdent i of { () -> forceExp e }

@@ -157,6 +157,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_IO_GETTIMEMILLI, T_IO_PRINT,
                 T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH,
                 T_STR,
+                T_ISINT, T_ISIO,
                 T_LAST_TAG,
 };
 
@@ -458,6 +459,8 @@ struct {
   { "IO.dropArgs", T_IO_DROPARGS },
   { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
+  { "isInt", T_ISINT },
+  { "isIO", T_ISIO },
 };
 
 void
@@ -1137,6 +1140,8 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_GETTIMEMILLI: fprintf(f, "$IO.getTimeMilli"); break;
   case T_IO_PERFORMIO: fprintf(f, "$IO.performIO"); break;
   case T_IO_CCALL: fprintf(f, "#%s", ffi_table[GETVALUE(n)].ffi_name); break;
+  case T_ISINT: fprintf(f, "$isInt"); break;
+  case T_ISIO: fprintf(f, "$isIO"); break;
   default: ERR("print tag");
   }
 }
@@ -1492,6 +1497,19 @@ eval(NODEPTR n)
     case T_IO_GETTIMEMILLI:
     case T_IO_CCALL:
       RET;
+
+    case T_ISINT:
+      CHECK(1);
+      x = evali(ARG(TOP(0)));
+      POP(1);
+      GOIND(GETTAG(x) == T_INT ? comTrue : combFalse);
+
+    case T_ISIO:
+      CHECK(1);
+      x = evali(ARG(TOP(0)));
+      POP(1);
+      l = GETTAG(x);
+      GOIND(T_IO_BIND <= l && l <= T_IO_FLUSH ? comTrue : combFalse);
 
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));

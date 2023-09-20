@@ -114,10 +114,10 @@ conIdent :: --XHasCallStack =>
             Con -> Ident
 conIdent (ConData _ i) = i
 conIdent (ConNew i) = i
-conIdent _ = undefined
+conIdent _ = error "conIdent"
 
 conArity :: Con -> Int
-conArity (ConData cs i) = fromMaybe undefined $ lookupBy eqIdent i cs
+conArity (ConData cs i) = fromMaybe (error "conArity") $ lookupBy eqIdent i cs
 conArity (ConNew _) = 1
 conArity (ConLit _) = 0
 
@@ -313,7 +313,7 @@ setSLocExpr :: SLoc -> Expr -> Expr
 setSLocExpr l (EVar i) = EVar (setSLocIdent l i)
 setSLocExpr l (ECon c) = ECon (setSLocCon l c)
 setSLocExpr l (ELit _ k) = ELit l k
-setSLocExpr _ _ = undefined  -- what other cases do we need?
+setSLocExpr _ _ = error "setSLocExpr"  -- what other cases do we need?
 
 setSLocCon :: SLoc -> Con -> Con
 setSLocCon l (ConData ti i) = ConData ti (setSLocIdent l i)

@@ -25,6 +25,9 @@ infixl 1 >>
 return      :: forall a . a -> IO a
 return       = primReturn
 
+fail        :: forall a . String -> IO a
+fail s       = error s
+
 hSerialize   :: forall a . Handle -> a -> IO ()
 hSerialize   = primHSerialize
 hDeserialize :: forall a . Handle -> IO a

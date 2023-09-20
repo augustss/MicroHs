@@ -14,3 +14,6 @@ return = P.return
 
 when :: Bool -> IO () -> IO ()
 when = M.when
+
+fail        :: forall a . String -> IO a
+fail s       = error s

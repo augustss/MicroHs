@@ -7,11 +7,10 @@ import qualified MicroHs.StringMapFast as M
 import Data.Maybe
 import System.Environment
 import MicroHs.Compile
-import MicroHs.Desugar
-import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.Ident
 import MicroHs.Translate
+import MicroHs.Interactive
 --Ximport Compat
 
 main :: IO ()
@@ -19,18 +18,23 @@ main = do
   aargs <- getArgs
   let
     args = takeWhile (not . eqString "--") aargs
-    mn =
-      let
-        ss = filter (not . (eqString "-") . take 1) args
-      in   if length ss == 1 then head ss else error "Usage: mhs [-v] [-r] [-iPATH] [-oFILE] ModuleName"
+    ss = filter (not . (eqString "-") . take 1) args
     flags = Flags (length (filter (eqString "-v") args))
                   (elemBy eqString "-r" args)
                   ("." : catMaybes (map (stripPrefixBy eqChar "-i") args))
                   (head $ catMaybes (map (stripPrefixBy eqChar "-o") args) ++ ["out.comb"])
-  cmdl <- compileTop flags (mkIdent mn)
+  case ss of
+    [] -> mainInteractive flags
+    [s] -> mainCompile flags (mkIdent s)
+    _ -> error "Usage: mhs [-v] [-r] [-iPATH] [-oFILE] [ModuleName]"
+
+mainCompile :: Flags -> Ident -> IO ()
+mainCompile flags mn = do
+  ds <- compileTop flags mn
   t1 <- getTimeMilli
   let
-    (mainName, ds) = cmdl
+    mainName = qualIdent mn (mkIdent "main")
+    cmdl = (mainName, ds)
     ref i = Var $ mkIdent $ "_" ++ showInt i
     defs = M.fromList [ (unIdent n, ref i) | ((n, _), i) <- zip ds (enumFrom 0) ]
     findIdent n = fromMaybe (error $ "main: findIdent: " ++ showIdent n) $
@@ -65,17 +69,3 @@ main = do
 
 version :: String
 version = "v3.4\n"
-
-type Program = (Ident, [LDef])
-
-compileTop :: Flags -> IdentModule -> IO Program
-compileTop flags mn = do
-  ds <- compile flags mn
-  t1 <- getTimeMilli
-  let
-    dsn = [ (n, compileOpt e) | (n, e) <- ds ]
-  () <- return (forceList forceLDef dsn)
-  t2 <- getTimeMilli
-  when (verbose flags > 0) $
-    putStrLn $ "combinator conversion " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
-  return (qualIdent mn (mkIdent "main"), dsn)

@@ -143,3 +143,9 @@ primGetRaw        = primitive "IO.getRaw"
 
 primWithDropArgs :: forall a . Int -> IO a -> IO a
 primWithDropArgs i ioa = primThen (primDropArgs i) ioa
+
+-- Temporary until overloading
+primIsInt        :: Any -> Bool
+primIsInt         = primitive "isInt"
+primIsIO         :: Any -> Bool
+primIsIO          = primitive "isIO"

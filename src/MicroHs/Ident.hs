@@ -66,9 +66,9 @@ unQualString :: String -> String
 unQualString s =
   case span isIdentChar s of
     ("", r) -> r
+    (r, "") -> r                       -- XXX bug!  swapping with next line goes wrong
     (_, '.':r) -> unQualString r
-    (r, "") -> r
-    _ -> undefined
+    x -> error $ "unQualString: " ++ showPair showString (showPair showString showString) (s, x)
 
 isConIdent :: Ident -> Bool
 isConIdent (Ident _ i) =
