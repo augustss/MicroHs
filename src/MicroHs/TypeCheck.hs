@@ -348,7 +348,7 @@ tApps :: Ident -> [EType] -> EType
 tApps i ts = foldl tApp (tCon i) ts
 
 tArrow :: EType -> EType -> EType
-tArrow a r = tApp (tApp (tConI "Primitives.->") a) r
+tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
 
 kArrow :: EKind -> EKind -> EKind
 kArrow = tArrow
@@ -809,7 +809,7 @@ tcExprR mt ae =
     ESectR i e ->
       tcExpr mt (ELam [eVarI loc "$x"] (EApp (EApp (EVar i) (eVarI loc"$x")) e))
     EIf e1 e2 e3 -> T.do
-      (ee1, _) <- tcExpr (Just tBool) e1
+      (ee1, _) <- tcExpr (Just (tBool (getSLocExpr e1))) e1
       (ee2, te2) <- tcExpr mt e2
       (ee3, te3) <- tcExpr mt e3
       unify loc te2 te3
@@ -820,7 +820,7 @@ tcExprR mt ae =
               [] -> newUVar
               t : _ -> T.return t
       let
-        tlist = tApps (mkIdentSLoc loc "Data.List.[]") [te]
+        tlist = tApp (tList loc) te
       munify loc mt tlist
       T.return (EListish (LList ees), tlist)
     EListish (LCompr eret ass) -> T.do
@@ -835,18 +835,18 @@ tcExprR mt ae =
               case as of
                 SBind p a -> T.do
                   v <- newUVar
-                  (ea, _) <- tcExpr (Just $ tApp tList v) a
+                  (ea, _) <- tcExpr (Just $ tApp (tList loc) v) a
                   tcPat v p $ \ ep ->
                     doStmts (SBind ep ea : rss) ss
                 SThen a -> T.do
-                  (ea, _) <- tcExpr (Just tBool) a
+                  (ea, _) <- tcExpr (Just (tBool (getSLocExpr a))) a
                   doStmts (SThen ea : rss) ss
                 SLet bs ->
                   tcBinds bs $ \ ebs ->
                     doStmts (SLet ebs : rss) ss
       (rss, (ea, ta)) <- doStmts [] ass
       let
-        tr = tApp tList ta
+        tr = tApp (tList loc) ta
       munify loc mt tr
       T.return (EListish (LCompr ea rss), tr)
     EListish (LFrom       e)        -> tcExpr mt (enum loc "From" [e])
@@ -876,9 +876,9 @@ tcLit :: Maybe EType -> SLoc -> Lit -> T (Typed Expr)
 tcLit mt loc l =
   let { lit t = T.do { munify loc mt t; T.return (ELit loc l, t) } } in
   case l of
-    LInt _  -> lit (tConI "Primitives.Int")
-    LChar _ -> lit (tConI "Primitives.Char")
-    LStr _  -> lit (tApps (mkIdent "Data.List.[]") [tConI "Primitives.Char"])
+    LInt _  -> lit (tConI loc "Primitives.Int")
+    LChar _ -> lit (tConI loc "Primitives.Char")
+    LStr _  -> lit (tApp (tConI loc "Data.List.[]") (tConI loc "Primitives.Char"))
     LPrim _ -> T.do
       t <- unMType mt  -- pretend it is anything
       T.return (ELit loc l, t)
@@ -984,7 +984,7 @@ tcGuard (SBind p e) ta = T.do
   (ee, tt) <- tcExpr Nothing e
   tcPat tt p $ \ pp -> ta (SBind pp ee)
 tcGuard (SThen e) ta = T.do
-  (ee, _) <- tcExpr (Just tBool) e
+  (ee, _) <- tcExpr (Just (tBool (getSLocExpr e))) e
   ta (SThen ee)
 tcGuard (SLet bs) ta = tcBinds bs $ \ bbs -> ta (SLet bbs)
 
@@ -1060,20 +1060,20 @@ dsType at =
     EVar _ -> at
     EApp f a -> EApp (dsType f) (dsType a)
     EOper t ies -> EOper (dsType t) [(i, dsType e) | (i, e) <- ies]
-    EListish (LList [t]) -> tApp tList (dsType t)
+    EListish (LList [t]) -> tApp (tList (getSLocExpr at)) (dsType t)
     ETuple ts -> tApps (tupleConstr (getSLocExpr at) (length ts)) (map dsType ts)
     ESign t k -> ESign (dsType t) k
     EForall iks t -> EForall iks (dsType t)
     _ -> impossible
 
-tConI :: String -> EType
-tConI = tCon . mkIdent
+tConI :: SLoc -> String -> EType
+tConI loc = tCon . mkIdentSLoc loc
 
-tList :: EType
-tList = tConI "Data.List.[]"
+tList :: SLoc -> EType
+tList loc = tConI loc "Data.List.[]"
 
-tBool :: EType
-tBool = tConI "Data.Bool_Type.Bool"
+tBool :: SLoc -> EType
+tBool loc = tConI loc "Data.Bool_Type.Bool"
 
 impossible :: --XHasCallStack =>
               forall a . a
