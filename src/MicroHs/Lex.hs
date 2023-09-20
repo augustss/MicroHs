@@ -14,6 +14,7 @@ data Token
   | TString Loc String
   | TChar   Loc Char
   | TInt    Loc Int
+  | TDouble Loc Double
   | TSpec   Loc Char
   | TError  Loc String
   | TBrace  Loc
@@ -25,6 +26,7 @@ showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])
 showToken (TString _ s) = showString s
 showToken (TChar _ c) = showChar c
 showToken (TInt _ i) = showInt i
+showToken (TDouble _ d) = showDouble d
 showToken (TSpec _ c) = [c]
 showToken (TError _ s) = "ERROR " ++ s
 showToken (TBrace _) = "TBrace"
@@ -72,6 +74,7 @@ lexTop = layout [] .
          --take 10 .
          lex (mkLoc 1 1)
 
+-- | Take a location and string and produce a list of tokens
 lex :: Loc -> String -> [Token]
 lex loc (' ':cs)  = lex (addCol loc 1) cs
 lex loc ('\n':cs) = tIndent (lex (incrLine loc) cs)
@@ -89,10 +92,14 @@ lex loc (d:cs) | isLower_ d =
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('-':d:cs) | isDigit d =
   case span isDigit cs of
-    (ds, rs) -> TInt loc (readInt ('-':d:ds)) : lex (addCol loc $ 2 + length ds) rs
+    (ds, rs) | null rs || not (eqChar (head rs) '.') -> TInt loc (readInt ('-':d:ds)) : lex (addCol loc $ 2 + length ds) rs
+             | otherwise -> case span isDigit (tail rs) of
+      (ns, rs') -> TDouble loc (readDouble ('-':d:ds ++ '.':ns)) : lex (addCol loc $ 3 + length ds + length ns) rs'
 lex loc (d:cs) | isDigit d =
   case span isDigit cs of
-    (ds, rs) -> TInt loc (readInt (d:ds)) : lex (addCol loc $ 1 + length ds) rs
+    (ds, rs) | null rs || not (eqChar (head rs) '.') -> TInt loc (readInt (d:ds)) : lex (addCol loc $ 1 + length ds) rs
+             | otherwise -> case span isDigit (tail rs) of
+      (ns, rs') -> TDouble loc (readDouble (d:ds ++ '.':ns)) : lex (addCol loc $ 2 + length ds + length ns) rs' 
 lex loc (d:cs) | isOperChar d  =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
@@ -122,6 +129,9 @@ skipLine loc cs@('\n':_) = lex loc cs
 skipLine loc (_:cs)      = skipLine loc cs
 skipLine   _ []          = []
 
+-- | Takes a list of tokens and produces a list of tokens. If the first token in
+-- the input list is a TIndent, the input is returned unaltered. Otherwise, a
+-- TIndent is prepended to the input list        
 tIndent :: [Token] -> [Token]
 tIndent ts@(TIndent _ : _) = ts
 tIndent ts = TIndent (tokensLoc ts) : ts
@@ -178,12 +188,14 @@ tokensLoc (TIdent  loc _ _:_) = loc
 tokensLoc (TString loc _  :_) = loc
 tokensLoc (TChar   loc _  :_) = loc
 tokensLoc (TInt    loc _  :_) = loc
+tokensLoc (TDouble loc _ : _) = loc
 tokensLoc (TSpec   loc _  :_) = loc
 tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
 tokensLoc []                  = mkLoc 0 1
 
+-- | This appears to be the magical layout resolver, I wondered where it was...
 layout :: [Int] -> [Token] -> [Token]
 layout mms@(m : ms) tts@(TIndent x       : ts) | n == m = TSpec (tokensLoc ts) ';' : layout    mms  ts
                                                | n <  m = TSpec (tokensLoc ts) '}' : layout     ms tts where {n = getCol x}

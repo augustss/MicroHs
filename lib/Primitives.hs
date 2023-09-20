@@ -16,6 +16,27 @@ primIntRem  = primitive "rem"
 primIntSubR :: Int -> Int -> Int
 primIntSubR = primitive "subtract"
 
+primDoubleAdd :: Double -> Double -> Double
+primDoubleAdd  = primitive "fadd"
+primDoubleSub :: Double -> Double -> Double
+primDoubleSub  = primitive "fsub"
+primDoubleMul :: Double -> Double -> Double
+primDoubleMul  = primitive "fmul"
+primDoubleEQ :: Double -> Double -> Bool
+primDoubleEQ = primitive "feq"
+primDoubleNE :: Double -> Double -> Bool
+primDoubleNE = primitive "fne"
+primDoubleLT :: Double -> Double -> Bool
+primDoubleLT = primitive "flt"
+primDoubleLE :: Double -> Double -> Bool
+primDoubleLE = primitive "fle"
+primDoubleGT :: Double -> Double -> Bool
+primDoubleGT = primitive "fgt"
+primDoubleGE :: Double -> Double -> Bool
+primDoubleGE = primitive "fge"
+primDoubleShow :: Double -> String
+primDoubleShow = primitive "fshow"
+
 primWordAdd :: Word -> Word -> Word
 primWordAdd  = primitive "+"
 primWordSub :: Word -> Word -> Word

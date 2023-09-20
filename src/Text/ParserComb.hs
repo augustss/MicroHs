@@ -49,6 +49,7 @@ longests xs = foldl1 longest xs
 data Res s t a = Many [(a, ([t], s))] (LastFail t)
   --deriving (Show)
 
+-- | 
 data Prsr s t a = P (([t], s) -> Res s t a)
 --instance Show (Prsr s t a) where show _ = "<<Prsr>>"
 

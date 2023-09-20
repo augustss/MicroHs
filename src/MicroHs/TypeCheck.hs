@@ -273,6 +273,7 @@ primTypes =
       [(mkIdent "IO",     [entry "Primitives.IO"       kTypeTypeS]),
        (mkIdent "->",     [entry "Primitives.->"       kTypeTypeTypeS]),
        (mkIdent "Int",    [entry "Primitives.Int"      kTypeS]),
+       (mkIdent "Double", [entry "Primitives.Double"   kTypeS]),
        (mkIdent "Word",   [entry "Primitives.Word"     kTypeS]),
        (mkIdent "Char",   [entry "Primitives.Char"     kTypeS]),
        (mkIdent "Handle", [entry "Primitives.Handle"   kTypeS]),
@@ -850,6 +851,7 @@ tcLit mt loc l =
   let { lit t = T.do { munify loc mt t; T.return (ELit loc l, t) } } in
   case l of
     LInt _ -> lit (tConI "Primitives.Int")
+    LDouble _ -> lit (tConI "Primitives.Double")
     LChar _ -> lit (tConI "Primitives.Char")
     LStr _ -> lit (tApps (mkIdent "Data.List.[]") [tConI "Primitives.Char"])
     LPrim _ -> T.do

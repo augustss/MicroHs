@@ -5,6 +5,7 @@ import Data.Bool
 import Data.Char
 import Data.Either
 import Data.Int
+import qualified Data.Double as DD
 import Data.List
 import Data.Maybe
 import Data.Tuple

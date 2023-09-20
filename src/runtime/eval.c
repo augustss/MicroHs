@@ -82,9 +82,11 @@ gettimeofday(struct timeval * tp, struct timezone * tzp)
 
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
                 T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
+                T_FADD, T_FSUB, T_FMUL,
+                T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
                 T_ERROR, T_SEQ,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
@@ -120,7 +122,9 @@ typedef struct node* NODEPTR;
 #define GETTAG(p) (p)->tag
 #define SETTAG(p, t) do { (p)->tag = (t); } while(0)
 #define GETVALUE(p) (p)->u.value
+#define GETDOUBLEVALUE(p,d) do { memcpy(&d, &((p)->u.value), 8); } while(0)
 #define SETVALUE(p,v) (p)->u.value = v
+#define SETDOUBLEVALUE(p,v) do { memcpy(&((p)->u.value), &v, 8); } while(0)
 #define FUN(p) (p)->u.s.fun
 #define ARG(p) (p)->u.s.arg
 #define NEXT(p) FUN(p)
@@ -151,7 +155,9 @@ typedef struct node* NODEPTR;
 #define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) : T_AP)
 #define SETTAG(p,t) do { if (t != T_AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
+#define GETDOUBLEVALUE(p, d) do { memcpy(&d, &((p)->uarg.uuvalue), 8); } while(0)
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
+#define SETDOUBLEVALUE(p,v) do { memcpy(&((p)->uarg.uuvalue), &v, 8); } while(0)
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
 #define STR(p) (p)->uarg.uustring
@@ -362,6 +368,16 @@ struct {
   { "uquot", T_UQUOT },
   { "urem", T_UREM },
   { "subtract", T_SUBR },
+  { "fadd" , T_FADD},
+  { "fsub" , T_FSUB},
+  { "fmul" , T_FMUL},
+  {"feq", T_FEQ},
+  {"fne", T_FNE},
+  {"flt", T_FLT},
+  {"fle", T_FLE},
+  {"fgt", T_FGT},
+  {"fge", T_FGE},
+  {"fshow", T_FSHOW},
   { "==", T_EQ },
   { "/=", T_NE },
   { "<", T_LT },
@@ -628,6 +644,42 @@ parse_int(BFILE *f)
   return i;
 }
 
+double
+parse_double(BFILE *f)
+{
+  // apparently longest float, when rendered, takes up 24 characters
+  // I expect Lennart will hate this...
+  char floatstr[24];
+  int i = 0;
+  for(;;) {
+    int c = getb(f);
+//    printf("%d\n", c);
+    if (c < '0' || c > '9') {
+      ungetb(c, f);
+      break;
+    }
+    floatstr[i++] = c;
+  }
+  int c = getb(f);
+  if(c != '.') {
+    ERR("can not parse double");
+  }
+  floatstr[i++] = '.';
+
+  for(;;) {
+    int c = getb(f);
+    if(c < '0' || c > '9') {
+      ungetb(c, f);
+      break;
+    }
+    floatstr[i++] = c;
+  }
+
+  floatstr[i++] = '\0';
+  double d = strtod(floatstr, NULL);
+  return d;
+}
+
 NODEPTR
 mkStrNode(const char *str)
 {
@@ -637,6 +689,7 @@ mkStrNode(const char *str)
 }
 
 NODEPTR mkInt(int64_t i);
+NODEPTR mkDouble(double d);
 
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
@@ -673,6 +726,7 @@ parse(BFILE *f)
   NODEPTR *nodep;
   int64_t l;
   value_t i;
+  double d;
   value_t neg;
   int c;
   char buf[80];                 /* store names of primitives. */
@@ -686,6 +740,9 @@ parse(BFILE *f)
     FUN(r) = parse(f);
     if (!gobble(f, ' ')) ERR("parse ' '");
     ARG(r) = parse(f);
+    c = getb(f);
+//    printf("got %c\n", c);
+    ungetb(c, f); 
     if (!gobble(f, ')')) ERR("parse ')'");
     return r;
   case '-':
@@ -693,8 +750,20 @@ parse(BFILE *f)
     if ('0' <= c && c <= '9') {
       neg = -1;
       goto number;
+    } else if (c == 'f') {
+      neg = -1;
+      goto flabel; // this stuff is cursed, I am not as much of a hacker as Lennart
     } else {
       ERR("got -");
+    }
+  case 'f':
+  flabel:
+    c = getb(f);
+    if('0' <= c && c <= '9') {
+      neg = 1;
+      goto floatingnumber;
+    } else {
+      ERR("got f");
     }
   case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
     /* integer [0-9]+*/
@@ -703,8 +772,17 @@ parse(BFILE *f)
     ungetb(c, f);
     i = neg * parse_int(f);
     r = mkInt(i);
+//    printf("%ld\n", i);
     return r;
+  floatingnumber:
+    ungetb(c, f);
+    d = neg * parse_double(f);
+    r = mkDouble(d);
+//    printf("%f\n", d);
+    return r;
+  /* somewhere here, add case for doubles */
   case '$':
+//    printf("$\n");
     /* A primitive, keep getting char's until end */
     for (int j = 0;;) {
       c = getb(f);
@@ -715,6 +793,7 @@ parse(BFILE *f)
       }
       buf[j++] = c;
     }
+//    printf("%s\n", buf);
     /* Look up the primop and use the preallocated node. */
     for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
       if (strcmp(primops[j].name, buf) == 0) {
@@ -938,6 +1017,11 @@ printrec(FILE *f, NODEPTR n)
     fputc(')', f);
     break;
   case T_INT: fprintf(f, "%"PRIu64, GETVALUE(n)); break;
+  case T_DOUBLE:
+    double d;
+    GETDOUBLEVALUE(n, d);
+    fprintf(f, "%f", d);
+    break;
   case T_STR:
     {
       const char *p = STR(n);
@@ -983,6 +1067,16 @@ printrec(FILE *f, NODEPTR n)
   case T_UQUOT: fprintf(f, "$uquot"); break;
   case T_UREM: fprintf(f, "$urem"); break;
   case T_SUBR: fprintf(f, "$subtract"); break;
+  case T_FADD:  fprintf(f, "$fadd"); break;
+  case T_FSUB:  fprintf(f, "$fsub"); break;
+  case T_FMUL:  fprintf(f, "$fmul"); break;
+  case T_FEQ: fprintf(f, "$feq"); break;
+  case T_FNE: fprintf(f, "$fne"); break;
+  case T_FLT: fprintf(f, "$flt"); break;
+  case T_FLE: fprintf(f, "$fle"); break;
+  case T_FGT: fprintf(f, "$fgt"); break;
+  case T_FGE: fprintf(f, "$fge"); break;
+  case T_FSHOW: fprintf(f, "$fshow"); break;
   case T_EQ: fprintf(f, "$=="); break;
   case T_NE: fprintf(f, "$/="); break;
   case T_LT: fprintf(f, "$<"); break;
@@ -1056,6 +1150,15 @@ mkInt(int64_t i)
   return n;
 }
 
+NODEPTR
+mkDouble(double d)
+{
+  NODEPTR n;
+  n = alloc_node(T_DOUBLE);
+  SETDOUBLEVALUE(n, d);
+  return n;
+}
+
 static inline NODEPTR
 mkNil(void)
 {
@@ -1114,6 +1217,18 @@ evali(NODEPTR n)
   return n;
 }
 
+static inline NODEPTR
+evald(NODEPTR n)
+{
+  PUSH(n);
+  eval(n);
+  n = TOP(0);
+  POP(1);
+  while (GETTAG(n) == T_IND)
+    n = INDIR(n);
+  return n;
+}
+
 /* Follow indirections */
 static inline NODEPTR
 indir(NODEPTR n)
@@ -1135,6 +1250,22 @@ evalint(NODEPTR n)
   }
 #endif
   return GETVALUE(n);
+}
+
+/* Evaluate to a Double */
+static inline double
+evaldouble(NODEPTR n)
+{
+  n = evald(n);
+  #if SANITY
+  if (GETTAG(n) != T_DOUBLE) {
+    fprintf(stderr, "bad tag %d\n", GETTAG(n));
+    ERR("evaldouble");
+  }
+  #endif
+  double d;
+  GETDOUBLEVALUE(n, d);
+  return d;
 }
 
 /* Evaluate to a T_HDL */
@@ -1205,7 +1336,9 @@ eval(NODEPTR n)
   int64_t stk = stack_ptr;
   NODEPTR x, y, z, w;
   value_t xi, yi;
+  double xd, yd;
   value_t r;
+  double rd;
   FILE *hdl;
   char *msg;
   int64_t l;
@@ -1234,14 +1367,20 @@ eval(NODEPTR n)
 /* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e) do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
 
-#define SETINT(n,r)   do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
-#define OPINT2(e)     do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
-#define ARITHBIN(op)  do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
-#define ARITHBINU(op) do { OPINT2(r = (int64_t)((uint64_t)xi op (uint64_t)yi)); SETINT(n, r); RET; } while(0)
-#define CMP(op)       do { OPINT2(r = xi op yi); GOIND(r ? comTrue : combFalse); } while(0)
-#define CMPU(op)      do { OPINT2(r = (uint64_t)xi op (uint64_t)yi); GOIND(r ? comTrue : combFalse); } while(0)
+#define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
+#define SETSTRING(n,r) do { SETTAG((n), T_STR); SETVALUE((n), (r)); } while(0)
+#define SETDOUBLE(n,d) do { SETTAG((n), T_DOUBLE); SETDOUBLEVALUE((n), (d)); } while(0)
+#define OPINT2(e)      do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
+#define OPDOUBLE2(e)   do { CHECK(2); xd = evaldouble(ARG(TOP(0))); yd = evaldouble(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
+#define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
+#define ARITHBINU(op)  do { OPINT2(r = (int64_t)((uint64_t)xi op (uint64_t)yi)); SETINT(n, r); RET; } while(0)
+#define FARITHBIN(op)  do { OPDOUBLE2(rd = xd op yd); SETDOUBLE(n, rd); RET; } while(0) // TODO FIXME
+#define CMP(op)        do { OPINT2(r = xi op yi); GOIND(r ? comTrue : combFalse); } while(0)
+#define CMPF(op)       do { OPDOUBLE2(r = xd op yd); GOIND(r ? comTrue : combFalse); } while(0)
+#define CMPU(op)       do { OPINT2(r = (uint64_t)xi op (uint64_t)yi); GOIND(r ? comTrue : combFalse); } while(0)
 
   for(;;) {
+    printf("eval %d\n", GETTAG(n));
     num_reductions++;
 #if FASTTAGS
     l = LABEL(n);
@@ -1268,6 +1407,7 @@ eval(NODEPTR n)
 
     case T_STR:  GCCHECK(strNodes(strlen(STR(n)))); GOIND(mkStringC(STR(n)));
     case T_INT:  RET;
+    case T_DOUBLE: RET;
     case T_HDL:  RET;
 
     case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
@@ -1291,6 +1431,37 @@ eval(NODEPTR n)
     case T_QUOT: ARITHBIN(/);
     case T_REM:  ARITHBIN(%);
     case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
+    case T_FADD:  FARITHBIN(+);
+    case T_FSUB:  FARITHBIN(-);
+    case T_FMUL:  FARITHBIN(*);
+    case T_FEQ: CMPF(==);
+    case T_FNE: CMPF(!=);
+    case T_FLT: CMPF(<);
+    case T_FLE: CMPF(<=);
+    case T_FGT: CMPF(>);
+    case T_FGE: CMPF(>=);
+    case T_FSHOW:
+      // check that the double exists
+      CHECK(1);
+
+      // evaluate it, I have verified that it is properly evaluated
+      xd = evaldouble(ARG(TOP(0)));
+
+      // turn it into a string, which I have also verified does what it is supposed to
+      char str[25];
+      memset(str, 0, 25);
+      snprintf(str, 25, "%f", xd);
+      NODEPTR s = mkStringC(str);
+
+      // remove the double from the stack
+      POP(1);
+      n = TOP(-1);
+
+      // make the node point to the new string
+      SETIND(n,s);
+
+      // return
+      RET;
     case T_UQUOT: ARITHBINU(/);
     case T_UREM:  ARITHBINU(%);
 
@@ -1355,6 +1526,7 @@ evalio(NODEPTR n)
   n = evali(n);
   PUSH(n);
   for(;;) {
+    printf("evalio %d\n", GETTAG(n));
     num_reductions++;
     switch (GETTAG(n)) {
     case T_IND:

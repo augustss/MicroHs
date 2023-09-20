@@ -107,7 +107,7 @@ eqCon (ConNew    i) (ConNew    j) = eqIdent i j
 eqCon (ConLit    l) (ConLit    k) = eqLit   l k
 eqCon _             _             = False
 
-data Lit = LInt Int | LChar Char | LStr String | LPrim String
+data Lit = LInt Int | LDouble Double | LChar Char | LStr String | LPrim String
   --Xderiving (Show, Eq)
 
 eqLit :: Lit -> Lit -> Bool
@@ -358,6 +358,9 @@ showLit :: Lit -> String
 showLit l =
   case l of
     LInt i -> showInt i
+    LDouble d -> case showDouble d of
+      '-':xs -> '-':'f':xs
+      xs -> 'f':xs
     LChar c -> showChar c
     LStr s -> showString s
     LPrim s -> '$':s

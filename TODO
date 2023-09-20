@@ -25,6 +25,6 @@
   - maybe?
   - could be used instead of derived when all is derived
 * use pointer stack during GC instead of recursion.
-* add Double primitive type
+ROBERT * add Double primitive type
 * implement Data.Integer
 * add pretty printing library

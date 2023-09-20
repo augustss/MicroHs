@@ -29,7 +29,7 @@ $(EVAL):	src/runtime/eval.c
 	@mkdir -p bin
 	$(GCC) -Wall -O3 src/runtime/eval.c -o $(EVAL)
 
-$(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
+$(BIN)/$(MHS):	src/*.hs src/*/*.hs lib/Primitives.hs $(TOOLS)/convertX.sh
 	$(GHCE) -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
 $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
