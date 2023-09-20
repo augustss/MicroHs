@@ -418,7 +418,7 @@ showExpr ae =
     ECon c -> showCon c
     EForall iks e -> "forall " ++ unwords (map showIdKind iks) ++ " . " ++ showEType e
   where
-    showApp as (EApp f a) = showApp (as ++ [a]) f
+    showApp as (EApp f a) = showApp (a:as) f
     showApp as (EVar i) | eqString op "->", [a, b] <- as = "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
                         | eqChar (head op) ',' = showExpr (ETuple as)
                         | eqString op "[]", length as == 1 = showExpr (EListish (LList as))
