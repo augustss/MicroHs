@@ -122,6 +122,8 @@ typedef struct node* NODEPTR;
 #define GETTAG(p) (p)->tag
 #define SETTAG(p, t) do { (p)->tag = (t); } while(0)
 #define GETVALUE(p) (p)->u.value
+// to squeeze a double into value_t we must exactly copy and read the bits
+// this is a stm, and not an exp
 #define GETDOUBLEVALUE(p,d) do { memcpy(&d, &((p)->u.value), 8); } while(0)
 #define SETVALUE(p,v) (p)->u.value = v
 #define SETDOUBLEVALUE(p,v) do { memcpy(&((p)->u.value), &v, 8); } while(0)
@@ -748,20 +750,19 @@ parse(BFILE *f)
     return r;
   case '-':
     c = getb(f);
+    neg = -1;
     if ('0' <= c && c <= '9') {
-      neg = -1;
       goto number;
     } else if (c == 'f') {
-      neg = -1;
       goto flabel; // this stuff is cursed, I am not as much of a hacker as Lennart
     } else {
       ERR("got -");
     }
   case 'f':
+  neg = 1;
   flabel:
     c = getb(f);
     if('0' <= c && c <= '9') {
-      neg = 1;
       goto floatingnumber;
     } else {
       ERR("got f");
@@ -1381,7 +1382,7 @@ eval(NODEPTR n)
 #define CMPU(op)       do { OPINT2(r = (uint64_t)xi op (uint64_t)yi); GOIND(r ? comTrue : combFalse); } while(0)
 
   for(;;) {
-    printf("eval %d\n", GETTAG(n));
+//    printf("eval %d\n", GETTAG(n));
     num_reductions++;
 #if FASTTAGS
     l = LABEL(n);
@@ -1459,10 +1460,12 @@ eval(NODEPTR n)
       n = TOP(-1);
 
       // make the node point to the new string
-      SETIND(n,s);
+      //SETIND(n,s);
+
+      GOIND(s);
 
       // return
-      RET;
+//      RET;
     case T_UQUOT: ARITHBINU(/);
     case T_UREM:  ARITHBINU(%);
 
@@ -1527,7 +1530,7 @@ evalio(NODEPTR n)
   n = evali(n);
   PUSH(n);
   for(;;) {
-    printf("evalio %d\n", GETTAG(n));
+//    printf("evalio %d\n", GETTAG(n));
     num_reductions++;
     switch (GETTAG(n)) {
     case T_IND:

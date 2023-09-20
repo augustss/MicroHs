@@ -46,4 +46,7 @@ ltDouble = (<)
 showDouble :: Double -> String
 showDouble = primDoubleShow
 
+addDouble :: Double -> Double -> Double
+addDouble = (+)
+
 --------------------------------
