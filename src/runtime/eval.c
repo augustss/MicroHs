@@ -1501,12 +1501,14 @@ eval(NODEPTR n)
     case T_ISINT:
       CHECK(1);
       x = evali(ARG(TOP(0)));
+      n = TOP(0);
       POP(1);
       GOIND(GETTAG(x) == T_INT ? comTrue : combFalse);
 
     case T_ISIO:
       CHECK(1);
       x = evali(ARG(TOP(0)));
+      n = TOP(0);
       POP(1);
       l = GETTAG(x);
       GOIND(T_IO_BIND <= l && l <= T_IO_FLUSH ? comTrue : combFalse);
