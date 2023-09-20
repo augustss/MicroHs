@@ -43,7 +43,7 @@ dsDef mn adef =
       in  zipWith dsConstr (enumFrom 0) cs
     Newtype _ c _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
-    Fcn f eqns -> [(f, dsEqns eqns)]
+    Fcn f eqns -> [(f, dsEqns (getSLocIdent f) eqns)]
     Sign _ _ -> []
     Import _ -> []
     ForImp ie i _ -> [(i, Lit $ LForImp ie)]
@@ -55,7 +55,7 @@ oneAlt e = EAlts [([], e)] []
 dsBind :: Ident -> EBind -> [LDef]
 dsBind v abind =
   case abind of
-    BFcn f eqns -> [(f, dsEqns eqns)]
+    BFcn f eqns -> [(f, dsEqns (getSLocIdent f) eqns)]
     BPat p e ->
       let
         de = (v, dsExpr e)
@@ -63,14 +63,14 @@ dsBind v abind =
       in  de : ds
     BSign _ _ -> []
 
-dsEqns :: [Eqn] -> Exp
-dsEqns eqns =
+dsEqns :: SLoc -> [Eqn] -> Exp
+dsEqns loc eqns =
   case eqns of
     Eqn aps _ : _ ->
       let
         vs = allVarsBind $ BFcn (mkIdent "") eqns
         xs = take (length aps) $ newVars "q" vs
-        ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts alts, hasGuards alts) | Eqn ps alts <- eqns]
+        ex = runS loc (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts alts, hasGuards alts) | Eqn ps alts <- eqns]
       in foldr Lam ex xs
     _ -> impossible
 
@@ -152,10 +152,10 @@ dsExpr aexpr =
   case aexpr of
     EVar i -> Var i
     EApp f a -> App (dsExpr f) (dsExpr a)
-    ELam xs e -> dsLam xs e
+    ELam xs e -> dsLam (getSLocExpr aexpr) xs e
     ELit _ (LChar c) -> Lit (LInt (ord c))
     ELit _ l -> Lit l
-    ECase e as -> dsCase e as
+    ECase e as -> dsCase (getSLocExpr aexpr) e as
     ELet ads e -> dsBinds ads (dsExpr e)
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
     EIf e1 e2 e3 ->
@@ -199,12 +199,12 @@ mkTupleSel m n tup =
     xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 n ]
   in App tup (foldr Lam (Var (xs !! m)) xs)
 
-dsLam :: [EPat] -> Expr -> Exp
-dsLam ps e =
+dsLam :: SLoc -> [EPat] -> Expr -> Exp
+dsLam loc ps e =
   let
     vs = allVarsExpr (ELam ps e)
     xs = take (length ps) (newVars "l" vs)
-    ex = runS (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts $ oneAlt e, False)]
+    ex = runS loc (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts $ oneAlt e, False)]
   in foldr Lam ex xs
 
 -- Handle special syntax for lists and tuples
@@ -266,12 +266,9 @@ showLDef a =
 
 ----------------
 
-dsCase :: Expr -> [ECaseArm] -> Exp
-dsCase ae as =
-  let
-    r = runS (allVarsExpr (ECase ae as)) [dsExpr ae] [([dsPat p], dsAlts alts, hasGuards alts) | (p, alts) <- as]
-  in --trace (showExp r) $
-     r
+dsCase :: SLoc -> Expr -> [ECaseArm] -> Exp
+dsCase loc ae as =
+  runS loc (allVarsExpr (ECase ae as)) [dsExpr ae] [([dsPat p], dsAlts alts, hasGuards alts) | (p, alts) <- as]
 
 type MState = [Ident]  -- supply of unused variables.
 
@@ -291,13 +288,13 @@ newIdent = S.do
   put (tail is)
   S.return (head is)
 
-runS :: [Ident] -> [Exp] -> Matrix -> Exp
-runS used ss mtrx =
+runS :: SLoc -> [Ident] -> [Exp] -> Matrix -> Exp
+runS loc used ss mtrx =
   let
     supply = newVars "x" used
     ds xs aes =
       case aes of
-        []   -> dsMatrix eMatchErr (reverse xs) mtrx
+        []   -> dsMatrix (eMatchErr loc) (reverse xs) mtrx
         e:es -> letBind (S.return e) $ \ x -> ds (x:xs) es
   in S.evalState (ds [] ss) supply
 
@@ -351,8 +348,9 @@ dsMatrix dflt iis aarms =
       narms <- S.mapM oneGroup grps
       S.return $ mkCase i narms ndflt
 
-eMatchErr :: Exp
-eMatchErr = App (Lit (LPrim "error")) (Lit (LStr "no match"))
+eMatchErr :: SLoc -> Exp
+eMatchErr (SLoc fn l c) =
+  App (App (App (Var (mkIdent "Prelude._noMatch")) (Lit (LStr fn))) (Lit (LInt l))) (Lit (LInt c))
 
 -- If the first expression isn't a variable/literal, then use
 -- a let binding and pass variable to f.

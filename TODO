@@ -1,7 +1,6 @@
 * Add strict constructors
 * Put on hackage
 * Have compile return a Stats record of timing etc
-* Special noMatch function with location
 * Add overloading
 * Implement deriving
 * Add forall to the syntax of types so it can be nested
