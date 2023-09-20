@@ -979,6 +979,8 @@ tcArm t tpat arm =
       T.return (pp, aalts)
 
 tcPat ::forall a .  EType -> EPat -> (EPat -> T a) -> T a
+tcPat t p@(EVar v) ta | not (isConIdent v) = T.do  -- simple special case
+  withExtVals [(v, t)] $ ta p
 tcPat t ap ta = T.do
 --  traceM $ "tcPat: " ++ show ap
   env <- T.mapM (\ v -> (v,) <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
