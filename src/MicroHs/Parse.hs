@@ -237,7 +237,7 @@ pBlock p = P.do
 
 pDef :: P EDef
 pDef =
-      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 (pair <$> pUIdentSym <*> emany pAType) (pSymbol "|"))
+      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 ((,) <$> pUIdentSym <*> emany pAType) (pSymbol "|"))
                                                         <|< P.pure [])
   <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> pUIdent) <*> pAType
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
@@ -245,7 +245,7 @@ pDef =
   <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
   <|< Import      <$> (pKeyword "import" *> pImportSpec)
   <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
-  <|< Infix       <$> (pair <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
+  <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ i) | -1 <= i && i <= 9 = Just i
@@ -253,14 +253,14 @@ pDef =
     pPrec = satisfyM "digit" dig
 
 pLHS :: P LHS
-pLHS = pair <$> pUIdentSym <*> emany pIdKind
+pLHS = (,) <$> pUIdentSym <*> emany pIdKind
 
 pImportSpec :: P ImportSpec
 pImportSpec =
   let
     pQua = (True <$ pKeyword "qualified") <|< pure False
   in  ImportSpec <$> pQua <*> pUQIdentA <*> eoptional (pKeyword "as" *> pUQIdent) <*>
-        eoptional (pair <$> ((True <$ pKeyword "hiding") <|> pure False) <*> pParens (esepEndBy pImportItem (pSpec ',')))
+        eoptional ((,) <$> ((True <$ pKeyword "hiding") <|> pure False) <*> pParens (esepEndBy pImportItem (pSpec ',')))
 
 pImportItem :: P ImportItem
 pImportItem =
@@ -383,7 +383,7 @@ pAlts sep = P.do
   
 pAltsL :: P () -> P [EAlt]
 pAltsL sep =
-      esome (pair <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr))
+      esome ((,) <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr))
   <|< ((\ e -> [([], e)]) <$> (sep *> pExpr))
 
 pWhere :: P [EBind]
@@ -425,7 +425,7 @@ pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword "of" *> pBlock pCaseArm)
 
 pCaseArm :: P ECaseArm
-pCaseArm = pair <$> pPat <*> pAlts (pSymbol "->")
+pCaseArm = (,) <$> pPat <*> pAlts (pSymbol "->")
 
 pLet :: P Expr
 pLet = ELet <$> (pKeyword "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)
@@ -478,7 +478,7 @@ pExprOp :: P Expr
 pExprOp = pOperators pOper pExprArg
 
 pOperators :: P Ident -> P Expr -> P Expr
-pOperators oper one = eOper <$> one <*> emany (pair <$> oper <*> one)
+pOperators oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
   where eOper e [] = e
         eOper e ies = EOper e ies
 

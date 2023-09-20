@@ -654,7 +654,7 @@ withVars aiks ta =
       withExtVal i (ETypeScheme [] k) $ withVars iks ta
 
 tcConstr :: Constr -> T Constr
-tcConstr (i, ts) = pair i <$> T.mapM (\ t -> fst <$> tcTypeT (Just kType) t) ts
+tcConstr (i, ts) = (,) i <$> T.mapM (\ t -> fst <$> tcTypeT (Just kType) t) ts
 
 tcDefsValue :: [EDef] -> T [EDef]
 tcDefsValue ds = T.do
@@ -732,7 +732,7 @@ tcExprR mt ae =
     EVar i ->
       if isUnderscore i then
         -- this only happens with patterns translated into expressions
-        pair ae <$> newUVar
+        (,) ae <$> newUVar
       else T.do
         (e, t) <- tLookupInst "variable" i
 --        traceM $ "*** " ++ i ++ " :: " ++ showExpr t ++ " = " ++ showMaybe showExpr mt
@@ -975,7 +975,7 @@ tcArm t tpat arm =
 tcPat ::forall a .  EType -> EPat -> (EPat -> T a) -> T a
 tcPat t ap ta = T.do
 --  traceM $ "tcPat: " ++ show ap
-  env <- T.mapM (\ v -> (pair v . ETypeScheme []) <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
+  env <- T.mapM (\ v -> ((,) v . ETypeScheme []) <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
   withExtVals env $ T.do
     (pp, _) <- tcExpr (Just t) ap
     () <- checkArity (getSLocExpr ap) 0 pp
