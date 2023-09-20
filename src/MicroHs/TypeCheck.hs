@@ -1069,3 +1069,9 @@ showTModule sh amdl =
 
 isUnderscore :: Ident -> Bool
 isUnderscore = eqString "_" . unIdent
+
+{-
+showValueTable :: ValueTable -> String
+showValueTable vt =
+  unlines $ take 5 [showIdent i ++ " : " ++ showExpr t | (i, [Entry _ t]) <- M.toList vt]
+-}
