@@ -305,11 +305,12 @@ allVarsStmt astmt =
 
 -- XXX Should use locations in ELit
 getSLocExpr :: Expr -> SLoc
-getSLocExpr e = head $ map getSLocIdent (allVarsExpr e) ++ [noSLoc]
+getSLocExpr e = head $ filter (not . isNoSLoc) (map getSLocIdent (allVarsExpr e)) ++ [noSLoc]
 
 setSLocExpr :: SLoc -> Expr -> Expr
 setSLocExpr l (EVar i) = EVar (setSLocIdent l i)
 setSLocExpr l (ECon c) = ECon (setSLocCon l c)
+setSLocExpr l (ELit _ k) = ELit l k
 setSLocExpr _ _ = undefined  -- what other cases do we need?
 
 setSLocCon :: SLoc -> Con -> Con

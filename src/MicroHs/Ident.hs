@@ -8,7 +8,8 @@ module MicroHs.Ident(
   forceIdent,
   isLower_, isIdentChar, isOperChar, isConIdent,
   unQualString,
-  SLoc(..), noSLoc, showSLoc
+  SLoc(..), noSLoc, isNoSLoc,
+  showSLoc
   ) where
 import Prelude --Xhiding(showString)
 import Data.Char
@@ -21,11 +22,15 @@ type Loc  = (Line, Col)
 data SLoc = SLoc FilePath Line Col
   --Xderiving (Show, Eq)
 
+data Ident = Ident SLoc String
+  --Xderiving (Show, Eq)
+
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
 
-data Ident = Ident SLoc String
-  --Xderiving (Show, Eq)
+isNoSLoc :: SLoc -> Bool
+isNoSLoc (SLoc "" 0 0) = True
+isNoSLoc _ = False
 
 mkIdent :: String -> Ident
 mkIdent = Ident noSLoc
