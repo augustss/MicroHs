@@ -3,8 +3,7 @@
 * Have compile return a Stats record of timing etc
 * Add overloading
 * Implement deriving
-* Add forall to the syntax of types so it can be nested
-  - Rank-N requires small changes in the type checker
+* Make sure rank-N works correctly
 * Add the possibility to save a compiler cache in a file
   - Add SHA checksumming to the C code
   - Use filename as the cache lookup key and SHA for validation

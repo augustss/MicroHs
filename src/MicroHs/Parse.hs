@@ -279,18 +279,25 @@ pIdKind =
 pKind :: P EKind
 pKind = pType
 
+{-
 pTypeScheme :: P ETypeScheme
 pTypeScheme = P.do
   vs <- (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
   t <- pType
   pure $ if null vs then t else EForall vs t
+-}
+pTypeScheme :: P ETypeScheme
+pTypeScheme = pType
 
 --
 -- Partial copy of pExpr, but that includes '->'.
 -- Including '->' in pExprOp interacts poorly with '->'
 -- in lambda and 'case'.
 pType :: P EType
-pType = pTypeOp
+pType = P.do
+  vs <- (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
+  t <- pTypeOp
+  pure $ if null vs then t else EForall vs t
 
 pTypeOp :: P EType
 pTypeOp = pOperators pTypeOper pTypeArg

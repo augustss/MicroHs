@@ -440,7 +440,9 @@ unifyR loc a b = T.do
         EVar _     -> bad
         EApp fb xb -> T.do { unify loc fa fb; unify loc xa xb }
         EUVar i    -> addUVar i a
-        _          -> impossible
+        _          ->
+          --trace ("impossible unify " ++ showExpr a ++ " = " ++ showExpr b) $
+          impossible
     EUVar i -> addUVar i b
     _ -> impossible
 
@@ -738,14 +740,26 @@ tcExprR mt ae =
         (ae,) <$> newUVar
       else T.do
         (e, t) <- tLookupInst "variable" i
---        traceM $ "*** " ++ i ++ " :: " ++ showExpr t ++ " = " ++ showMaybe showExpr mt
-        munify (getSLocIdent i) mt t
-        T.return (e, t)
+        case mt of
+          Just tu@(EForall _ tt) -> T.do
+            unify (getSLocExpr ae) tt t
+            T.return (e, tu)
+          _ -> T.do
+            munify (getSLocIdent i) mt t
+            T.return (e, t)
     EApp f a -> T.do
+      let loc = getSLocExpr ae
+      (ef, tf) <- tcExpr Nothing f
+      (ta, tr) <- unArrow loc tf
+      (ea, _) <- tcExpr (Just ta) a
+      munify loc mt tr
+      T.return (EApp ef ea, tr)
+{- slower and uses more memory
       (ea, ta) <- tcExpr Nothing a
       tr <- unMType mt
       (ef, _) <- tcExpr (Just (tArrow ta tr)) f
       T.return (EApp ef ea, tr)
+-}
     EOper e ies -> tcOper mt e ies
     ELam is e -> tcExprLam mt is e
     ELit loc l -> tcLit mt loc l
@@ -872,8 +886,8 @@ tcOper mt ae aies = T.do
   let
     appOp (f, ft) (e1, t1) (e2, t2) = T.do
       let l = getSLocExpr f
-      (fta1, ftr1) <- unArrow l (Just ft)
-      (fta2, ftr2) <- unArrow l (Just ftr1)
+      (fta1, ftr1) <- unArrow l ft
+      (fta2, ftr2) <- unArrow l ftr1
       unify l fta1 t1
       unify l fta2 t2
 --      traceM (showExpr (EApp (EApp f e1) e2))
@@ -914,9 +928,8 @@ tcOper mt ae aies = T.do
   munify (getSLocExpr ae) mt t
   T.return et
 
-unArrow :: SLoc -> Maybe EType -> T (EType, EType)
-unArrow _ Nothing = T.do { a <- newUVar; r <- newUVar; T.return (a, r) }
-unArrow loc (Just t) =
+unArrow :: SLoc -> EType -> T (EType, EType)
+unArrow loc t =
   case getArrow t of
     Just ar -> T.return ar
     Nothing -> T.do
@@ -931,7 +944,7 @@ getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
 tcPats :: forall a . EType -> [EPat] -> (EType -> [Typed EPat] -> T a) -> T a
 tcPats t [] ta = ta t []
 tcPats t (p:ps) ta = T.do
-  (tp, tr) <- unArrow (getSLocExpr p) (Just t)
+  (tp, tr) <- unArrow (getSLocExpr p) t
   tcPat tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt ((pp, tp) : pps)
 
 tcExprLam :: Maybe EType -> [EPat] -> Expr -> T (Typed Expr)
