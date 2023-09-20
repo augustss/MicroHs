@@ -7,7 +7,6 @@ module Prelude(
   module Data.Either,
   module Data.Function,
   module Data.Int,
-  module Data.Double,
   module Data.List,
   module Data.Maybe,
   module Data.Tuple,
@@ -20,7 +19,6 @@ import Data.Char
 import Data.Either
 import Data.Function
 import Data.Int
-import Data.Double
 import Data.List
 import Data.Maybe
 import Data.Tuple

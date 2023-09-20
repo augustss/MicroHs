@@ -18,6 +18,13 @@ import Data.Bool_Type
 negate :: Double -> Double
 negate x = 0.0 - x
 
+addDouble :: Double -> Double -> Double
+addDouble = (+)
+subDouble :: Double -> Double -> Double
+subDouble = (-)
+mulDouble :: Double -> Double -> Double
+mulDouble = (*)
+
 --------------------------------
 
 --Yinfix 4 ==,/=,<,<=,>,>=
@@ -28,6 +35,11 @@ negate x = 0.0 - x
 (/=) :: Double -> Double -> Bool
 (/=) = primDoubleNE
 
+eqDouble :: Double -> Double -> Bool
+eqDouble = (==)
+neqDouble :: Double -> Double -> Bool
+neqDouble = (/=)
+
 (<)  :: Double -> Double -> Bool
 (<)  = primDoubleLT
 (<=) :: Double -> Double -> Bool
@@ -37,16 +49,19 @@ negate x = 0.0 - x
 (>=) :: Double -> Double -> Bool
 (>=) = primDoubleGE
 
-eqDouble :: Double -> Double -> Bool
-eqDouble = (==)
-
 ltDouble :: Double -> Double -> Bool
 ltDouble = (<)
 
+leDouble :: Double -> Double -> Bool
+leDouble = (<=)
+
+gtDouble :: Double -> Double -> Bool
+gtDouble = (>)
+
+geDouble :: Double -> Double -> Bool
+geDouble = (>=)
+
 showDouble :: Double -> String
 showDouble = primDoubleShow
-
-addDouble :: Double -> Double -> Double
-addDouble = (+)
 
 --------------------------------
