@@ -230,6 +230,7 @@ dsPat ap =
     EListish (LList ps) -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
     ETuple ps -> dsPat $ foldl EApp (tupleCon (getSLocExpr ap) (length ps)) ps
     EAt i p -> EAt i (dsPat p)
+    ELit loc (LStr cs) | length cs < 2 -> dsPat (EListish (LList (map (ELit loc . LChar) cs)))
     ELit _ _ -> ap
     _ -> impossible
 
