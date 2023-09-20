@@ -648,6 +648,7 @@ double
 parse_double(BFILE *f)
 {
   // apparently longest float, when rendered, takes up 24 characters
+  // https://stackoverflow.com/questions/1701055/what-is-the-maximum-length-in-chars-needed-to-represent-any-double-value
   // I expect Lennart will hate this...
   char floatstr[24];
   int i = 0;
