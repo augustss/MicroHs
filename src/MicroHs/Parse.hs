@@ -162,6 +162,19 @@ pLQSymOper = P.do
   guard (not (isUOper s))
   P.pure s
 
+-- Allow -> as well
+pLQSymOperArr :: P Ident
+pLQSymOperArr = pLQSymOper <|< pQArrow
+
+-- Parse ->, possibly qualified
+pQArrow :: P Ident
+pQArrow = P.do
+  fn <- getFileName
+  let
+    is (TIdent loc qs s@"->") = Just (qualName fn loc qs s)
+    is _ = Nothing
+  satisfyM "->" is
+
 pLSymOper :: P Ident
 pLSymOper = P.do
   s <- pSymOper
@@ -175,7 +188,7 @@ pUQIdentSym :: P Ident
 pUQIdentSym = pUQIdent <|< pParens pUQSymOper
 
 pLQIdentSym :: P Ident
-pLQIdentSym = pLQIdent <|< pParens pLQSymOper 
+pLQIdentSym = pLQIdent <|< pParens pLQSymOperArr
 
 pLIdentSym :: P Ident
 pLIdentSym = pLIdent <|< pParens pLSymOper
