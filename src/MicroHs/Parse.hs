@@ -283,7 +283,7 @@ pTypeScheme :: P ETypeScheme
 pTypeScheme = P.do
   vs <- (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
   t <- pType
-  pure $ ETypeScheme vs t
+  pure $ if null vs then t else EForall vs t
 
 --
 -- Partial copy of pExpr, but that includes '->'.

@@ -15,13 +15,13 @@ module MicroHs.Expr(
   EAlt,
   ECaseArm,
   EType, showEType,
+  ETypeScheme,
   EPat, patVars, isPVar, isPConApp,
   EKind, kType,
   IdKind(..), idKindIdent,
   LHS,
   Constr,
   ConTyInfo,
-  ETypeScheme(..),
   Con(..), conIdent, conArity, eqCon,
   tupleConstr, untupleConstr,
   subst,
@@ -56,7 +56,7 @@ data EDef
   | Newtype LHS Ident EType
   | Type LHS EType
   | Fcn Ident [Eqn]
-  | Sign Ident ETypeScheme
+  | Sign Ident EType
   | Import ImportSpec
   | ForImp String Ident EType
   | Infix Fixity [Ident]
@@ -91,6 +91,7 @@ data Expr
   | EUVar Int
   -- Constructors after type checking
   | ECon Con
+  | EForall [IdKind] Expr -- only in types
   --Xderiving (Show, Eq)
 
 data Con
@@ -154,7 +155,7 @@ type ECaseArm = (EPat, EAlts)
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
   --Xderiving (Show, Eq)
 
-data EBind = BFcn Ident [Eqn] | BPat EPat Expr | BSign Ident ETypeScheme
+data EBind = BFcn Ident [Eqn] | BPat EPat Expr | BSign Ident EType
   --Xderiving (Show, Eq)
 
 -- A single equation for a function
@@ -190,8 +191,8 @@ type Constr = (Ident, [EType])
 --  * before desugaring: EApp, EVar, ETuple, EList
 type EType = Expr
 
-data ETypeScheme = ETypeScheme [IdKind] EType
-  --Xderiving (Show, Eq)
+-- A type starting with an EForall
+type ETypeScheme = EType
 
 data IdKind = IdKind Ident EKind
   --Xderiving (Show, Eq)
@@ -282,6 +283,7 @@ allVarsExpr aexpr =
     EAt i e -> i : allVarsExpr e
     EUVar _ -> []
     ECon c -> [conIdent c]
+    EForall iks e -> map (\ (IdKind i _) -> i) iks ++ allVarsExpr e
 
 allVarsListish :: Listish -> [Ident]
 allVarsListish (LList es) = concatMap allVarsExpr es
@@ -356,7 +358,7 @@ showEDef def =
     Newtype lhs c t -> "newtype " ++ showLHS lhs ++ " = " ++ showIdent c ++ " " ++ showEType t
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
     Fcn i eqns -> unlines (map (\ (Eqn ps alts) -> showIdent i ++ " " ++ unwords (map showEPat ps) ++ showAlts "=" alts) eqns)
-    Sign i t -> showIdent i ++ " :: " ++ showETypeScheme t
+    Sign i t -> showIdent i ++ " :: " ++ showEType t
     Import (ImportSpec q m mm mis) -> "import " ++ (if q then "qualified " else "") ++ showIdent m ++ maybe "" ((" as " ++) . unIdent) mm ++
       case mis of
         Nothing -> ""
@@ -414,6 +416,7 @@ showExpr ae =
     EAt i e -> showIdent i ++ "@" ++ showExpr e
     EUVar i -> "a" ++ showInt i
     ECon c -> showCon c
+    EForall iks e -> "forall " ++ unwords (map showIdKind iks) ++ " . " ++ showEType e
   where
     showApp as (EApp f a) = showApp (as ++ [a]) f
     showApp as (EVar i) | eqString op "->", [a, b] <- as = "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
@@ -451,7 +454,7 @@ showEBind ab =
   case ab of
     BFcn i eqns -> showEDef (Fcn i eqns)
     BPat p e -> showEPat p ++ " = " ++ showExpr e
-    BSign i t -> showIdent i ++ " :: " ++ showETypeScheme t
+    BSign i t -> showIdent i ++ " :: " ++ showEType t
 
 showCaseArm :: ECaseArm -> String
 showCaseArm arm =
@@ -466,12 +469,3 @@ showEType = showExpr
 
 showEKind :: EKind -> String
 showEKind = showEType
-
-showETypeScheme :: ETypeScheme -> String
-showETypeScheme ts =
-  case ts of
-    ETypeScheme vs t ->
-      if null vs
-      then showEType t
-      else unwords ("forall" : map showIdKind vs ++ [".", showEType t])
-
