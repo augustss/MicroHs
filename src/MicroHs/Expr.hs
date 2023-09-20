@@ -205,8 +205,8 @@ type EKind = EType
 kType :: EKind
 kType = EVar (Ident noSLoc "Primitives.Type")
 
-tupleConstr :: Int -> Ident
-tupleConstr n = mkIdent (replicate (n - 1) ',')
+tupleConstr :: SLoc -> Int -> Ident
+tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
 
 untupleConstr :: Ident -> Int
 untupleConstr i = length (unIdent i) + 1

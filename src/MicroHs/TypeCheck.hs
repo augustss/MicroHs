@@ -134,8 +134,8 @@ getAppCon (EVar i) = i
 getAppCon (EApp f _) = getAppCon f
 getAppCon _ = undefined
 
-eVarI :: String -> Expr
-eVarI = EVar . mkIdent
+eVarI :: SLoc -> String -> Expr
+eVarI loc = EVar . mkIdentSLoc loc
 
 --tcExpErr :: forall a . Ident -> T a
 --tcExpErr i = tcError (getSLocIdent i) $ ": export undefined " ++ showIdent i
@@ -286,32 +286,38 @@ kTypeTypeS = kArrow kType kType
 kTypeTypeTypeS :: ETypeScheme
 kTypeTypeTypeS = kArrow kType $ kArrow kType kType
 
+builtinLoc :: SLoc
+builtinLoc = SLoc "builtin" 0 0
+
+mkIdentB :: String -> Ident
+mkIdentB = mkIdentSLoc builtinLoc
+
 primKindTable :: KindTable
 primKindTable =
   let
-    entry i = Entry (EVar (mkIdent i))
+    entry i = Entry (EVar (mkIdentB i))
   in M.fromList [
        -- The kinds are wired in (for now)
-       (mkIdent "Primitives.Type", [entry "Primitives.Type" kTypeS]),
-       (mkIdent "Type",            [entry "Primitives.Type" kTypeS]),
-       (mkIdent "Primitives.->",   [entry "Primitives.->"   kTypeTypeTypeS]),
-       (mkIdent "->",              [entry "Primitives.->"   kTypeTypeTypeS])
+       (mkIdentB "Primitives.Type", [entry "Primitives.Type" kTypeS]),
+       (mkIdentB "Type",            [entry "Primitives.Type" kTypeS]),
+       (mkIdentB "Primitives.->",   [entry "Primitives.->"   kTypeTypeTypeS]),
+       (mkIdentB "->",              [entry "Primitives.->"   kTypeTypeTypeS])
        ]
 
 primTypes :: [(Ident, [Entry])]
 primTypes =
   let
-    entry i = Entry (EVar (mkIdent i))
+    entry i = Entry (EVar (mkIdentB i))
     tuple n =
       let
-        i = tupleConstr n
+        i = tupleConstr builtinLoc n
       in  (i, [entry (unIdent i) $ foldr kArrow kType (replicate n kType)])
   in  
       [
        -- The function arrow is bothersome to define in Primtives, so keep it here.
-       (mkIdent "->",           [entry "Primitives.->"       kTypeTypeTypeS]),
+       (mkIdentB "->",           [entry "Primitives.->"       kTypeTypeTypeS]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
-       (mkIdent "Data.List.[]", [entry "Data.List.[]"        kTypeTypeS])
+       (mkIdentB "Data.List.[]", [entry "Data.List.[]"        kTypeTypeS])
       ] ++
       map tuple (enumFromTo 2 10)
 
@@ -320,7 +326,7 @@ primValues =
   let
     tuple n =
       let
-        c = tupleConstr n
+        c = tupleConstr builtinLoc n
         vks = [IdKind (mkIdent ("a" ++ showInt i)) kType | i <- enumFromTo 1 n]
         ts = map tVarK vks
         r = tApps c ts
@@ -733,6 +739,7 @@ tcExpr mt ae = T.do
 tcExprR :: --XHasCallStack =>
            Maybe EType -> Expr -> T (Typed Expr)
 tcExprR mt ae =
+  let { loc = getSLocExpr ae } in
   case ae of
     EVar i ->
       if isUnderscore i then
@@ -742,13 +749,12 @@ tcExprR mt ae =
         (e, t) <- tLookupInst "variable" i
         case mt of
           Just tu@(EForall _ tt) -> T.do
-            unify (getSLocExpr ae) tt t
+            unify loc tt t  -- XXX is this really sufficient?
             T.return (e, tu)
           _ -> T.do
-            munify (getSLocIdent i) mt t
+            munify loc mt t
             T.return (e, t)
     EApp f a -> T.do
-      let loc = getSLocExpr ae
       (ef, tf) <- tcExpr Nothing f
       (ta, tr) <- unArrow loc tf
       (ea, _) <- tcExpr (Just ta) a
@@ -762,7 +768,7 @@ tcExprR mt ae =
 -}
     EOper e ies -> tcOper mt e ies
     ELam is e -> tcExprLam mt is e
-    ELit loc l -> tcLit mt loc l
+    ELit loc' l -> tcLit mt loc' l
     ECase a arms -> T.do
       (ea, ta) <- tcExpr Nothing a
       tt <- unMType mt
@@ -774,8 +780,8 @@ tcExprR mt ae =
         n = length es
       (ees, tes) <- T.fmap unzip (T.mapM (tcExpr Nothing) es)
       let
-        ttup = tApps (tupleConstr n) tes
-      munify (getSLocExpr ae) mt ttup
+        ttup = tApps (tupleConstr loc n) tes
+      munify loc mt ttup
       T.return (ETuple ees, ttup)
     EDo mmn ass -> T.do
       case ass of
@@ -783,16 +789,14 @@ tcExprR mt ae =
         [as] ->
           case as of
             SThen a -> tcExpr mt a
-            _ -> tcError (getSLocExpr ae) $ "bad do "
+            _ -> tcError loc $ "bad do "
         as : ss -> T.do
-          let
-            loc = getSLocExpr ae
           case as of
             SBind p a -> T.do
               let
                 sbind = maybe (mkIdentSLoc loc ">>=") (\ mn -> qualIdent mn (mkIdentSLoc loc ">>=")) mmn
               tcExpr mt (EApp (EApp (EVar sbind) a)
-                              (ELam [eVarI "$x"] (ECase (eVarI "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
+                              (ELam [eVarI loc "$x"] (ECase (eVarI loc "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
             SThen a -> T.do
               let
                 sthen = maybe (mkIdentSLoc loc ">>") (\ mn -> qualIdent mn (mkIdentSLoc loc ">>") ) mmn
@@ -803,12 +807,12 @@ tcExprR mt ae =
 
     ESectL e i -> tcExpr mt (EApp (EVar i) e)
     ESectR i e ->
-      tcExpr mt (ELam [eVarI "$x"] (EApp (EApp (EVar i) (eVarI "$x")) e))
+      tcExpr mt (ELam [eVarI loc "$x"] (EApp (EApp (EVar i) (eVarI loc"$x")) e))
     EIf e1 e2 e3 -> T.do
       (ee1, _) <- tcExpr (Just tBool) e1
       (ee2, te2) <- tcExpr mt e2
       (ee3, te3) <- tcExpr mt e3
-      unify (getSLocExpr ae) te2 te3
+      unify loc te2 te3
       T.return (EIf ee1 ee2 ee3, te2)
     EListish (LList es) -> T.do
       (ees, ts) <- T.fmap unzip (T.mapM (tcExpr Nothing) es)
@@ -816,8 +820,8 @@ tcExprR mt ae =
               [] -> newUVar
               t : _ -> T.return t
       let
-        tlist = tApps (mkIdent "Data.List.[]") [te]
-      munify (getSLocExpr ae) mt tlist
+        tlist = tApps (mkIdentSLoc loc "Data.List.[]") [te]
+      munify loc mt tlist
       T.return (EListish (LList ees), tlist)
     EListish (LCompr eret ass) -> T.do
       let
@@ -843,21 +847,21 @@ tcExprR mt ae =
       (rss, (ea, ta)) <- doStmts [] ass
       let
         tr = tApp tList ta
-      munify (getSLocExpr ae) mt tr
+      munify loc mt tr
       T.return (EListish (LCompr ea rss), tr)
-    EListish (LFrom       e)        -> tcExpr mt (enum "From" [e])
-    EListish (LFromTo     e1 e2)    -> tcExpr mt (enum "FromTo" [e1, e2])
-    EListish (LFromThen   e1 e2)    -> tcExpr mt (enum "FromThen" [e1,e2])
-    EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enum "FromThenTo" [e1,e2,e3])
+    EListish (LFrom       e)        -> tcExpr mt (enum loc "From" [e])
+    EListish (LFromTo     e1 e2)    -> tcExpr mt (enum loc "FromTo" [e1, e2])
+    EListish (LFromThen   e1 e2)    -> tcExpr mt (enum loc "FromThen" [e1,e2])
+    EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enum loc "FromThenTo" [e1,e2,e3])
     ESign e t -> T.do
       (tt, _) <- tcType (Just kType) t
       (ee, _) <- tcExpr (Just tt) e
-      munify (getSLocExpr ae) mt tt
+      munify loc mt tt
       T.return (ee, tt)
     EAt i e -> T.do
       (ee, t) <- tcExpr mt e
       (_, ti) <- tLookupInst "impossible!" i
-      unify (getSLocExpr ae) t ti
+      unify loc t ti
       T.return (EAt i ee, t)
     EForall vks t ->
       withVks vks kType $ \ vvks _ -> T.do
@@ -865,8 +869,8 @@ tcExprR mt ae =
         T.return (EForall vvks tt, k)
     _ -> impossible
 
-enum :: String -> [Expr] -> Expr
-enum f = foldl EApp (EVar (mkIdent ("enum" ++ f)))
+enum :: SLoc -> String -> [Expr] -> Expr
+enum loc f = foldl EApp (EVar (mkIdentSLoc loc ("enum" ++ f)))
 
 tcLit :: Maybe EType -> SLoc -> Lit -> T (Typed Expr)
 tcLit mt loc l =
@@ -1057,7 +1061,7 @@ dsType at =
     EApp f a -> EApp (dsType f) (dsType a)
     EOper t ies -> EOper (dsType t) [(i, dsType e) | (i, e) <- ies]
     EListish (LList [t]) -> tApp tList (dsType t)
-    ETuple ts -> tApps (tupleConstr (length ts)) (map dsType ts)
+    ETuple ts -> tApps (tupleConstr (getSLocExpr at) (length ts)) (map dsType ts)
     ESign t k -> ESign (dsType t) k
     EForall iks t -> EForall iks (dsType t)
     _ -> impossible

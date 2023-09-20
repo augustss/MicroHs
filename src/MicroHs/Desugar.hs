@@ -216,7 +216,7 @@ dsPat ap =
     ECon _ -> ap
     EApp f a -> EApp (dsPat f) (dsPat a)
     EListish (LList ps) -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
-    ETuple ps -> dsPat $ foldl EApp (tupleCon (length ps)) ps
+    ETuple ps -> dsPat $ foldl EApp (tupleCon (getSLocExpr ap) (length ps)) ps
     EAt i p -> EAt i (dsPat p)
     ELit _ _ -> ap
     _ -> impossible
@@ -235,10 +235,10 @@ nilCon =
     c = mkIdent "Data.List.:"
   in ECon $ ConData [(n, 0), (c, 2)] n
 
-tupleCon :: Int -> EPat
-tupleCon n =
+tupleCon :: SLoc -> Int -> EPat
+tupleCon loc n =
   let
-    c = tupleConstr n
+    c = tupleConstr loc n
   in ECon $ ConData [(c, n)] c
 
 dummyIdent :: Ident
