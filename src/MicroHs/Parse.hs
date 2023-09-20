@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
-module MicroHs.Parse(pTop, parseDie) where
+module MicroHs.Parse(pTop, parseDie, parse, pExprTop) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
 import Data.Char
 import Data.List
@@ -20,12 +20,18 @@ getFileName = get
 parseDie :: forall a . --X (Show a) =>
             P a -> FilePath -> String -> a
 parseDie p fn file =
+  case parse p fn file of
+    Left msg -> error msg
+    Right a -> a
+
+parse :: forall a . --X (Show a) =>
+         P a -> FilePath -> String -> Either String a
+parse p fn file =
   let { ts = lexTop file } in
---  trace (show ts) $
   case runPrsr fn p ts of
-    Left lf -> error $ formatFailed fn ts lf
-    Right [(a, _)] -> a
-    Right as -> error $ "Ambiguous:"
+    Left lf -> Left $ formatFailed fn ts lf
+    Right [(a, _)] -> Right a
+    Right as -> Left $ "Ambiguous:"
 --X                     ++ unlines (map (show . fst) as)
 
 getLoc :: P Loc
@@ -35,6 +41,9 @@ getLoc = P.do
 
 pTop :: P EModule
 pTop = pModule <* eof
+
+pExprTop :: P Expr
+pExprTop = pExpr <* eof
 
 pModule :: P EModule
 pModule = EModule <$> (pKeyword "module" *> pUQIdentA) <*>
