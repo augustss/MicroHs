@@ -656,7 +656,6 @@ parse_double(BFILE *f)
   int i = 0;
   for(;;) {
     int c = getb(f);
-//    printf("%d\n", c);
     if (c < '0' || c > '9') {
       ungetb(c, f);
       break;
@@ -743,9 +742,6 @@ parse(BFILE *f)
     FUN(r) = parse(f);
     if (!gobble(f, ' ')) ERR("parse ' '");
     ARG(r) = parse(f);
-    c = getb(f);
-//    printf("got %c\n", c);
-    ungetb(c, f); 
     if (!gobble(f, ')')) ERR("parse ')'");
     return r;
   case '-':
@@ -774,17 +770,13 @@ parse(BFILE *f)
     ungetb(c, f);
     i = neg * parse_int(f);
     r = mkInt(i);
-//    printf("%ld\n", i);
     return r;
   floatingnumber:
     ungetb(c, f);
     d = neg * parse_double(f);
     r = mkDouble(d);
-//    printf("%f\n", d);
     return r;
-  /* somewhere here, add case for doubles */
   case '$':
-//    printf("$\n");
     /* A primitive, keep getting char's until end */
     for (int j = 0;;) {
       c = getb(f);
@@ -795,7 +787,6 @@ parse(BFILE *f)
       }
       buf[j++] = c;
     }
-//    printf("%s\n", buf);
     /* Look up the primop and use the preallocated node. */
     for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
       if (strcmp(primops[j].name, buf) == 0) {
@@ -1382,7 +1373,6 @@ eval(NODEPTR n)
 #define CMPU(op)       do { OPINT2(r = (uint64_t)xi op (uint64_t)yi); GOIND(r ? comTrue : combFalse); } while(0)
 
   for(;;) {
-//    printf("eval %d\n", GETTAG(n));
     num_reductions++;
 #if FASTTAGS
     l = LABEL(n);
@@ -1446,26 +1436,38 @@ eval(NODEPTR n)
       // check that the double exists
       CHECK(1);
 
-      // evaluate it, I have verified that it is properly evaluated
+      // evaluate it
       xd = evaldouble(ARG(TOP(0)));
 
-      // turn it into a string, which I have also verified does what it is supposed to
+      // turn it into a string
       char str[25];
-      memset(str, 0, 25);
+      memset(str, '\0', 25);
       snprintf(str, 25, "%f", xd);
+
+      /* C will render floats with potentially many training zeros, shave the
+      off by moving the NULL terminator */
+      int idx = 24;
+      while(str[idx] == '\0') idx--;
+      for(int i = idx; i >= 0; i--) {
+        if(str[i] == '.') {
+          str[i+2] = '\0'; // number is x.0, create {x, '.', '0', '\0'}
+          break;
+        }
+        if(str[i] != '0') {
+          str[i+1] = '\0';
+          break;
+        }
+      }
+
+      // turn it into a mhs string
       NODEPTR s = mkStringC(str);
 
       // remove the double from the stack
       POP(1);
       n = TOP(-1);
 
-      // make the node point to the new string
-      //SETIND(n,s);
-
+      // update n to be s
       GOIND(s);
-
-      // return
-//      RET;
     case T_UQUOT: ARITHBINU(/);
     case T_UREM:  ARITHBINU(%);
 
@@ -1530,7 +1532,6 @@ evalio(NODEPTR n)
   n = evali(n);
   PUSH(n);
   for(;;) {
-//    printf("evalio %d\n", GETTAG(n));
     num_reductions++;
     switch (GETTAG(n)) {
     case T_IND:
