@@ -70,13 +70,24 @@ dsEqns loc eqns =
       let
         vs = allVarsBind $ BFcn (mkIdent "") eqns
         xs = take (length aps) $ newVars "q" vs
-        ex = runS loc (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts alts, hasGuards alts) | Eqn ps alts <- eqns]
+        mkArm (Eqn ps alts) =
+          let ps' = map dsPat ps
+          in  (ps', dsAlts alts, hasGuards alts || any hasLit ps')
+        ex = runS loc (vs ++ xs) (map Var xs) (map mkArm eqns)
       in foldr Lam ex xs
     _ -> impossible
 
 hasGuards :: EAlts -> Bool
 hasGuards (EAlts [([], _)] _) = False
 hasGuards _ = True
+
+hasLit :: EPat -> Bool
+hasLit (ELit _ _) = True
+hasLit (EVar _) = False
+hasLit (ECon _) = False
+hasLit (EApp f a) = hasLit f || hasLit a
+hasLit (EAt _ p) = hasLit p
+hasLit _ = impossible
 
 dsAlts :: EAlts -> (Exp -> Exp)
 dsAlts (EAlts alts bs) = dsBinds bs . dsAltsL alts
@@ -204,7 +215,8 @@ dsLam loc ps e =
   let
     vs = allVarsExpr (ELam ps e)
     xs = take (length ps) (newVars "l" vs)
-    ex = runS loc (vs ++ xs) (map Var xs) [(map dsPat ps, dsAlts $ oneAlt e, False)]
+    ps' = map dsPat ps
+    ex = runS loc (vs ++ xs) (map Var xs) [(ps', dsAlts $ oneAlt e, any hasLit ps')]
   in foldr Lam ex xs
 
 -- Handle special syntax for lists and tuples
@@ -268,13 +280,20 @@ showLDef a =
 
 dsCase :: SLoc -> Expr -> [ECaseArm] -> Exp
 dsCase loc ae as =
-  runS loc (allVarsExpr (ECase ae as)) [dsExpr ae] [([dsPat p], dsAlts alts, hasGuards alts) | (p, alts) <- as]
+  runS loc (allVarsExpr (ECase ae as)) [dsExpr ae] (map mkArm as)
+  where
+    mkArm (p, alts) =
+      let p' = dsPat p
+      in  ([p'], dsAlts alts, hasGuards alts || hasLit p')
 
 type MState = [Ident]  -- supply of unused variables.
 
 type M a = State MState a
 type Arm = ([EPat], Exp -> Exp, Bool)  -- boolean indicates that the arm has guards
 type Matrix = [Arm]
+
+--showArm :: Arm -> String
+--showArm (ps, _, b) = showList showExpr ps ++ "," ++ showBool b
 
 newIdents :: Int -> M [Ident]
 newIdents n = S.do
@@ -379,7 +398,8 @@ eEqChar :: Exp
 eEqChar = Var $ mkIdent "Data.Char.eqChar"
 
 eEqStr :: Exp
-eEqStr = Var $ mkIdent "Text.String.eqString"
+eEqStr = --Var $ mkIdent "Text.String.eqString"
+         Lit (LPrim "equal")
 
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
@@ -423,7 +443,7 @@ splitArms am =
     loop xs [] = (reverse xs, [])
     loop xs pps@(pg@(p:_, _, g) : rps) | not (isPVar p) = (reverse xs, pps)
                                        | otherwise = if g then (reverse (pg:xs), rps)
-                                                         else loop (pg:xs) rps
+                                                          else loop (pg:xs) rps
     loop _ _ = impossible
     (ds, rs)  = loop [] nps
   in (ps, ds, rs)
