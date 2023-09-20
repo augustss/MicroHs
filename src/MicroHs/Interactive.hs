@@ -41,7 +41,7 @@ itName :: String
 itName = "_it"
 
 mkIt :: String -> String
-mkIt l = itName ++ " :: Any\n" ++ itName ++ " = unsafeCoerce (" ++ l ++ ")"
+mkIt l = itName ++ " :: Any\n" ++ itName ++ " = unsafeCoerce (" ++ l ++ ")\n"
 
 oneline :: String -> I ()
 oneline line = S.do
@@ -50,7 +50,7 @@ oneline line = S.do
   case exprTest of
     Right m -> evalExpr m
     Left  _ -> S.do
-      let lls = ls ++ "\n" ++ line
+      let lls = ls ++ line ++ "\n"
       defTest <- tryCompile lls
       case defTest of
         Right _ -> S.put (lls, flgs)
@@ -69,9 +69,7 @@ evalExpr cmdl = S.do
   S.liftIO $
     if primIsInt val then
       putStrLn $ showInt $ unsafeCoerce val
-{-
     else if primIsIO val then
       unsafeCoerce val
--}
     else
       putStrLn "Type must be Int or IO"
