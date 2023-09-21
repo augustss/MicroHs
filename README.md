@@ -113,7 +113,7 @@ Available commands:
 * `:quit` Quit the interactive system
 * `:clear` Clear all definitions
 * `:del STR` Delete all lines that begin with `STR`
-* `expr` Evaluate expression
+* `expr` Evaluate expression. ***NOTE*** Currently only expressions of type `Int` as allowed.
 * `defn` Add definition (can also be an `import`)
 
 ## Runtime
