@@ -8,7 +8,6 @@
   - Add SHA checksumming to the C code
   - Use filename as the cache lookup key and SHA for validation
 * make an interactive version
-  - implement catch (and maybe throw) using setjmp & longjmp
   - make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
 * add Double primitive type

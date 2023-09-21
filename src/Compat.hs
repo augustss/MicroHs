@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 -- Functions for GHC that are defined in the UHS libs.
 module Compat(module Compat) where
+--import Control.Exception
 import qualified Data.Function as F
 import Data.Time
 import Data.Time.Clock.POSIX
@@ -181,3 +182,7 @@ primIsInt        :: Any -> Bool
 primIsInt         = error "isInt"
 primIsIO         :: Any -> Bool
 primIsIO          = error "isIO"
+
+newtype Exn = Exn String
+  deriving (Show)
+instance Exception Exn

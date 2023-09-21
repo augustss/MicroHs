@@ -1,5 +1,6 @@
 module MicroHs.Interactive(module MicroHs.Interactive) where
 import Prelude
+import Control.Exception
 import qualified MicroHs.StateIO as S
 import MicroHs.Compile
 import MicroHs.Exp(Exp)
@@ -17,6 +18,7 @@ type I a = S.StateIO IState a
 
 mainInteractive :: Flags -> IO ()
 mainInteractive flags = do
+  putStrLn "Welcome to interactive MicroHs!"
   putStrLn "Type ':quit' to quit"
   _ <- S.runStateIO repl (preamble, flags)
   return ()
@@ -53,23 +55,30 @@ oneline line = S.do
       let lls = ls ++ line ++ "\n"
       defTest <- tryCompile lls
       case defTest of
-        Right _ -> S.put (lls, flgs)
-        Left  s -> S.liftIO $ putStrLn s
+        Right      _ -> S.put (lls, flgs)
+        Left (Exn s) -> S.liftIO $ putStrLn s
 
-tryCompile :: String -> I (Either String [LDef])
+tryCompile :: String -> I (Either Exn [LDef])
 tryCompile file = S.do
   S.liftIO $ writeFile (interactiveName ++ ".hs") file
   flgs <- S.gets snd
-  cmdl <- S.liftIO $ compileTop flgs (mkIdent interactiveName)
-  S.return (Right cmdl)
+  S.liftIO $ try $ compileTop flgs (mkIdent interactiveName)
 
 evalExpr :: [LDef] -> I ()
 evalExpr cmdl = S.do
-  let val = translate (mkIdent (interactiveName ++ "." ++ itName), cmdl)
+  let res = translate (mkIdent (interactiveName ++ "." ++ itName), cmdl)
+      err s = putStrLn $ "Error: " ++ s
+  mval <- S.liftIO $ try (seq res (return res))
   S.liftIO $
-    if primIsInt val then
-      putStrLn $ showInt $ unsafeCoerce val
-    else if primIsIO val then
-      unsafeCoerce val
-    else
-      putStrLn "Type must be Int or IO"
+    case mval of
+      Left (Exn s) -> err s
+      Right val ->
+        if primIsInt val then
+          putStrLn $ showInt $ unsafeCoerce val
+        else if primIsIO val then do
+          mio <- try (unsafeCoerce val)
+          case mio of
+            Left (Exn s) -> err s
+            Right _ -> return ()
+        else
+          putStrLn "Type must be Int or IO"
