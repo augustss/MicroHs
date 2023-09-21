@@ -472,3 +472,18 @@ allVarsExp ae =
 --
 --  B' :: (a -> b -> c) -> a -> (d -> b) -> d -> c
 --  B' k f g x = k f (g x)
+--
+-- Common:
+--  817: C' B
+--  616: B BK
+--  531: C' C
+--  352: BK K
+--  305: C' S
+--
+--  BBK = B BK
+--  BBK x y z w = B BK x y z w = BK (x y) z w = x y z
+--
+--  C'C = C' C
+--  C'C x y z w = C' C x y z w = C (x z) y w = x z w y
+
+
