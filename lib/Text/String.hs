@@ -9,6 +9,7 @@ import Data.Function
 import Data.Int
 import Data.List
 import Data.Maybe
+import Data.Ord
 import Data.Tuple
 
 showChar :: Char -> String
@@ -77,6 +78,11 @@ showEither :: forall a b . (a -> String) -> (b -> String) -> Either a b -> Strin
 showEither fa _ (Left  a) = "(Left "  ++ fa a ++ ")"
 showEither _ fb (Right b) = "(Right " ++ fb b ++ ")"
 
+showOrdering :: Ordering -> String
+showOrdering LT = "LT"
+showOrdering EQ = "EQ"
+showOrdering GT = "GT"
+
 lines :: String -> [String]
 lines "" = []
 lines s =
@@ -120,3 +126,29 @@ padLeft n s = replicate (n - length s) ' ' ++ s
 forceString :: String -> ()
 forceString [] = ()
 forceString (c:cs) = c `primSeq` forceString cs
+
+{-
+compareString :: [Char] -> [Char] -> Ordering
+compareString s t =
+  let
+    r1 = compareString1 s t
+    r2 = compareString2 s t
+  in r2
+    if eqOrdering r1 r2 then r1 else
+    primError $ "compareString " ++ showString s ++ showString t ++ showOrdering r1 ++ showOrdering r2
+
+compareString2 :: [Char] -> [Char] -> Ordering
+compareString2 s t =
+  if leString s t then
+    if eqString s t then
+      EQ
+    else
+      LT
+  else
+    GT
+-}
+
+compareString :: [Char] -> [Char] -> Ordering
+compareString s t = if r < 0 then LT else if r > 0 then GT else EQ
+  where r = primCompare s t
+

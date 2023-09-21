@@ -1359,8 +1359,14 @@ compare(NODEPTR p, NODEPTR q)
   POP(1);
   enum node_tag ptag = GETTAG(p);
   enum node_tag qtag = GETTAG(q);
-  if (ptag != qtag)
+  if (ptag != qtag) {
+    /* Hack to make Nil < Cons */
+    if (ptag == T_K && qtag == T_AP)
+      return -1;
+    if (ptag == T_AP && qtag == T_K)
+      return 1;
     return ptag < qtag ? -1 : 1;
+  }
   switch (ptag) {
   case T_AP:
     PUSH(ARG(p));

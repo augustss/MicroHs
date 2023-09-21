@@ -176,3 +176,11 @@ primIsInt        :: Any -> Bool
 primIsInt         = error "primIsInt"
 primIsIO         :: Any -> Bool
 primIsIO          = error "primIsIO"
+
+primCompare      :: String -> String -> Int
+primCompare s t =
+  case compare s t of
+    LT -> -1
+    EQ -> 0
+    GT -> 1
+    

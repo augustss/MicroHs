@@ -191,3 +191,10 @@ isPrefixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
 isPrefixOfBy _ [] _ = True
 isPrefixOfBy _ _ [] = False
 isPrefixOfBy eq (c:cs) (d:ds) = eq c d && isPrefixOfBy eq cs ds
+
+isEQ :: Ordering -> Bool
+isEQ EQ = True
+isEQ _  = False
+
+compareString :: String -> String -> Ordering
+compareString = compare

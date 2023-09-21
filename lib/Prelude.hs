@@ -9,6 +9,7 @@ module Prelude(
   module Data.Int,
   module Data.List,
   module Data.Maybe,
+  module Data.Ord,
   module Data.Tuple,
   module System.IO,
   module Text.String,
@@ -22,6 +23,7 @@ import Data.Function
 import Data.Int
 import Data.List
 import Data.Maybe
+import Data.Ord
 import Data.Tuple
 import System.IO
 import Text.String
