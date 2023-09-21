@@ -13,14 +13,14 @@ import MicroHs.Ident
 --Ximport Compat
 
 data Map a
-  = Nil        -- empty tree
-  | One Ident a      -- singleton
-  | Node       -- tree node
-    (Map a)   -- left subtree
-    Int          -- size of this tree
-    Ident
-    a            -- element stored in the node
-    (Map a)   -- right subtree
+  = Nil           -- empty tree
+  | One Ident a   -- singleton
+  | Node          -- tree node
+    (Map a)        -- left subtree
+    Int            -- size of this tree
+    Ident          -- key stored in the node
+    a              -- element stored in the node
+    (Map a)        -- right subtree
   --Xderiving(Show)
 
 empty :: forall a . Map a
