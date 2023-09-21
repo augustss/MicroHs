@@ -28,6 +28,9 @@ return       = primReturn
 fail        :: forall a . String -> IO a
 fail s       = error s
 
+fmap        :: forall a b . (a -> b) -> IO a -> IO b
+fmap f ioa   = ioa >>= \ a -> return (f a)
+
 hSerialize   :: forall a . Handle -> a -> IO ()
 hSerialize   = primHSerialize
 hDeserialize :: forall a . Handle -> IO a
