@@ -186,3 +186,8 @@ primIsIO          = error "isIO"
 newtype Exn = Exn String
   deriving (Show)
 instance Exception Exn
+
+isPrefixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
+isPrefixOfBy _ [] _ = True
+isPrefixOfBy _ _ [] = False
+isPrefixOfBy eq (c:cs) (d:ds) = eq c d && isPrefixOfBy eq cs ds

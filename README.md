@@ -99,6 +99,23 @@ with parsing taking 368ms and typecheck&desugar taking 348ms.
 * `Translate`, convert an expression tree to its value.
 * `TypeCheck`, type checker.
 
+## Interactive mode
+If no module name is given the compiler enters interactive mode.
+You can enter expressions to be evaluated, or top level definitions.
+Simple line editing is available.
+
+All definitions is saved in the file `Interactive.hs` and all input
+lines as saved in `.mhsi`.  The latter file is read on startup so
+the command history is persisted.
+
+Available commands:
+
+* `:quit` Quit the interactive system
+* `:clear` Clear all definitions
+* `:del STR` Delete all lines that begin with `STR`
+* `expr` Evaluate expression
+* `defn` Add definition (can also be an `import`)
+
 ## Runtime
 The runtime system is written in C and is in `eval.c`.
 It uses combinators for handling variables, and has primitive operations

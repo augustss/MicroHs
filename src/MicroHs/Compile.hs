@@ -1,8 +1,10 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.Compile(
-  compile, compileTop,
-  Flags(..), verbose, runIt, output
+  compileTop,
+  Flags(..), verbose, runIt, output,
+  compileCacheTop,
+  Cache, emptyCache, deleteFromCache,
   ) where
 import Prelude --Xhiding (Monad(..), mapM, showString, showList)
 import qualified System.IO as IO
@@ -51,13 +53,17 @@ updWorking w (Cache _ m) = Cache w m
 cache :: Cache -> M.Map CModule
 cache (Cache _ x) = x
 
+emptyCache :: Cache
+emptyCache = Cache [] M.empty
+
+deleteFromCache :: Ident -> Cache -> Cache
+deleteFromCache mn (Cache is m) = Cache is (M.delete mn m)
+
 -----------------
 
-
---compileTop :: Flags -> IdentModule -> IO [LDef]
-compileTop :: Flags -> Ident -> IO [(Ident, Exp)]
-compileTop flags mn = IO.do
-  ds <- compile flags mn
+compileCacheTop :: Flags -> Ident -> Cache -> IO ([(Ident, Exp)], Cache)
+compileCacheTop flags mn ch = IO.do
+  (ds, ch') <- compile flags mn ch
   t1 <- getTimeMilli
   let
     dsn = [ (n, compileOpt e) | (n, e) <- ds ]
@@ -65,16 +71,20 @@ compileTop flags mn = IO.do
   t2 <- getTimeMilli
   IO.when (verbose flags > 0) $
     putStrLn $ "combinator conversion " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
-  IO.return dsn
+  IO.return (dsn, ch')
 
-compile :: Flags -> IdentModule -> IO [LDef]
-compile flags nm = IO.do
-  ((_, t), ch) <- runStateIO (compileModuleCached flags nm) (Cache [] M.empty)
+--compileTop :: Flags -> IdentModule -> IO [LDef]
+compileTop :: Flags -> Ident -> IO [(Ident, Exp)]
+compileTop flags mn = IO.fmap fst $ compileCacheTop flags mn emptyCache
+
+compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)
+compile flags nm ach = IO.do
+  ((_, t), ch) <- runStateIO (compileModuleCached flags nm) ach
   let
     defs (TModule _ _ _ _ _ ds) = ds
   IO.when (verbose flags > 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (showInt t) ++ "ms"
-  IO.return $ concatMap defs $ M.elems $ cache ch
+  IO.return (concatMap defs $ M.elems $ cache ch, ch)
 
 -- Compile a module with the given name.
 -- If the module has already been compiled, return the cached result.

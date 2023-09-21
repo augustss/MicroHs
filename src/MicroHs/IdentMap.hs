@@ -4,6 +4,7 @@ module MicroHs.IdentMap(
   Map,
   size,
   empty, insert, lookup,
+  delete,
   fromList, fromListWith,
   toList, elems
   ) where
@@ -87,6 +88,8 @@ size (Map kvs) = length kvs
 
 toList (Map kvs) = kvs
 
+delete i (Map kvs) = Map (filter (\ (k, _) -> not (eqIdent i k)) kvs)
+
 {-
 
 import qualified Data.Map as M
@@ -114,3 +117,4 @@ empty :: forall v . Map v
 elems :: forall v . Map v -> [v]
 size :: forall v . Map v -> Int
 toList :: forall v . Map v -> [(Ident, v)]
+delete :: forall v . Ident -> Map v -> Map v

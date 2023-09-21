@@ -140,6 +140,11 @@ stripPrefixBy eq (c:cs) [] = Nothing
 stripPrefixBy eq (c:cs) (d:ds) | eq c d = stripPrefixBy eq cs ds
                                | otherwise = Nothing
 
+isPrefixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
+isPrefixOfBy _ [] _ = True
+isPrefixOfBy _ _ [] = False
+isPrefixOfBy eq (c:cs) (d:ds) = eq c d && isPrefixOfBy eq cs ds
+
 splitAt :: forall a . P.Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
 
