@@ -99,10 +99,9 @@ evalExpr cmdl = S.do
       Right val ->
         if primIsInt val then
           putStrLn $ showInt $ unsafeCoerce val
-        else if primIsIO val then do
-          mio <- try (unsafeCoerce val)
+        else do
+          putStrLn "Warning: not an Int"
+          mio <- try (print ((unsafeCoerce val)::Int))
           case mio of
             Left  e -> err e
             Right _ -> return ()
-        else
-          putStrLn "Type must be Int or IO"
