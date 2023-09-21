@@ -9,6 +9,9 @@ module System.Console.SimpleReadline(
   ) where
 import Primitives
 import Prelude
+import Data.Char
+import System.IO
+--Ximport Compat
 
 -- Get an input line with editing.
 -- Return Nothing if the input is ^D, otherwise the typed string.

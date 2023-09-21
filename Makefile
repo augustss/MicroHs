@@ -34,7 +34,7 @@ $(EVAL):	src/runtime/eval.c
 ### Build the compiler with ghc, using standard libraries (Prelude, Data.List, etc)
 ###
 $(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
-	$(GHCE) -isrc -ighc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
+	$(GHCE) -ighc -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
 ###
 ### Build the compiler with ghc, using MicroHs libraries (Prelude, Data.List, etc)
@@ -69,8 +69,8 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Data/Integer.hs
 	$(GHCC) -c lib/Control/Monad/State/Strict.hs
 #	$(GHCC) -c lib/Debug/Trace.hs
-	$(GHCC) -c lib/System/Console/SimpleReadline.hs
 	$(GHCC) -c lib/Control/Exception.hs
+	$(GHCC) -c src/System/Console/SimpleReadline.hs
 	$(GHCC) -c src/Text/ParserComb.hs
 	$(GHCC) -c src/MicroHs/Ident.hs
 	$(GHCC) -c src/MicroHs/Expr.hs
@@ -78,9 +78,6 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c src/MicroHs/Lex.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
 	$(GHCC) -c src/MicroHs/IdentMap.hs
-#	$(GHCC) -c src/MicroHs/BBMap.hs
-	$(GHCC) -c src/MicroHs/StringMapFast.hs
-#	$(GHCC) -c -package containers -package base src/MicroHs/StringMap.hs
 	$(GHCC) -c src/MicroHs/Exp.hs
 	$(GHCC) -c src/MicroHs/TCMonad.hs
 	$(GHCC) -c src/MicroHs/TypeCheck.hs
