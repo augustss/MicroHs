@@ -135,7 +135,7 @@ getraw()
 
 /***************************************/
 
-#define VERSION "v3.4\n"
+#define VERSION "v3.5\n"
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -150,7 +150,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
                 T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
-                T_ERROR, T_SEQ, T_EQUAL,
+                T_ERROR, T_SEQ, T_EQUAL, T_COMPARE,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
@@ -446,6 +446,7 @@ struct {
   { "seq", T_SEQ },
   { "error", T_ERROR },
   { "equal", T_EQUAL },
+  { "compare", T_COMPARE },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
@@ -1130,6 +1131,7 @@ printrec(FILE *f, NODEPTR n)
   case T_UGE: fprintf(f, "$u>="); break;
   case T_ERROR: fprintf(f, "$error"); break;
   case T_EQUAL: fprintf(f, "$equal"); break;
+  case T_COMPARE: fprintf(f, "$compare"); break;
   case T_SEQ: fprintf(f, "$seq"); break;
   case T_IO_BIND: fprintf(f, "$IO.>>="); break;
   case T_IO_THEN: fprintf(f, "$IO.>>"); break;
@@ -1338,9 +1340,18 @@ evalstring(NODEPTR n)
   return name;
 }
 
+/* Compares anything, but really only works well on strings.
+ * if p < q  return -1
+ * if p > q  return 1
+ * if p == q return 0
+ */
 int
-equal(NODEPTR p, NODEPTR q)
+compare(NODEPTR p, NODEPTR q)
 {
+  int r;
+  value_t x, y;
+  FILE *f, *g;
+  
  top:
   PUSH(q);                      /* save for GC */
   p = evali(p);
@@ -1349,14 +1360,15 @@ equal(NODEPTR p, NODEPTR q)
   enum node_tag ptag = GETTAG(p);
   enum node_tag qtag = GETTAG(q);
   if (ptag != qtag)
-    return 0;
+    return ptag < qtag ? -1 : 1;
   switch (ptag) {
   case T_AP:
     PUSH(ARG(p));
     PUSH(ARG(q));
-    if (!equal(FUN(p), FUN(q))) {
+    r = compare(FUN(p), FUN(q));
+    if (r != 0) {
       POP(2);
-      return 0;
+      return r;
     }
     q = TOP(0);
     p = TOP(1);
@@ -1364,11 +1376,15 @@ equal(NODEPTR p, NODEPTR q)
     goto top;
   case T_INT:
   case T_IO_CCALL:
-    return GETVALUE(p) == GETVALUE(q);
+    x = GETVALUE(p);
+    y = GETVALUE(q);
+    return x < y ? -1 : x > y ? 1 : 0;
   case T_HDL:
-    return HANDLE(p) == HANDLE(q);
+    f = HANDLE(p);
+    g = HANDLE(q);
+    return f < g ? -1 : f > g ? 1 : 0;
   default:
-    return 1;
+    return 0;
   }
 }
 
@@ -1496,7 +1512,8 @@ eval(NODEPTR n)
       }
     case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
-    case T_EQUAL: r = equal(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r ? comTrue : combFalse);
+    case T_EQUAL: r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r==0 ? comTrue : combFalse);
+    case T_COMPARE: r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, r); RET;
 
     case T_IO_ISNULLHANDLE: CHKARGEV1(hdl = evalhandleN(x)); GOIND(hdl == 0 ? comTrue : combFalse);
 

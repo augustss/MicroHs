@@ -83,6 +83,7 @@ primTable = [
   ("seq", primitive "seq"),
   ("error", primitive "error"),
   ("equal", primitive "equal"),
+  ("compare", primitive "compare"),
   ("IO.>>=", primitive "IO.>>="),
   ("IO.>>", primitive "IO.>>"),
   ("IO.return", primitive "IO.return"),
