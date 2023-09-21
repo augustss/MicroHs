@@ -9,7 +9,8 @@ module MicroHs.Ident(
   isLower_, isIdentChar, isOperChar, isConIdent,
   unQualString,
   SLoc(..), noSLoc, isNoSLoc,
-  showSLoc
+  showSLoc,
+  compareIdent,
   ) where
 import Prelude --Xhiding(showString)
 import Data.Char
@@ -93,3 +94,8 @@ showSLoc (SLoc fn l c) =
 -- Does not force location
 forceIdent :: Ident -> ()
 forceIdent (Ident _ s) = forceString s
+
+compareIdent :: Ident -> Ident -> Ordering
+compareIdent (Ident _ s) (Ident _ t) = compareString s t
+
+

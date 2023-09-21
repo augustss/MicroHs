@@ -54,6 +54,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Data/Tuple.hs
 	$(GHCC) -c lib/Data/Function.hs
 	$(GHCC) -c lib/Data/Maybe.hs
+	$(GHCC) -c lib/Data/Ord.hs
 	$(GHCC) -c lib/Data/List.hs
 	$(GHCC) -c lib/Text/String.hs
 	$(GHCC) -c lib/Data/Word.hs
@@ -77,6 +78,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c src/MicroHs/Lex.hs
 	$(GHCC) -c src/MicroHs/Parse.hs
 	$(GHCC) -c src/MicroHs/IdentMap.hs
+#	$(GHCC) -c src/MicroHs/BBMap.hs
 	$(GHCC) -c src/MicroHs/StringMapFast.hs
 #	$(GHCC) -c -package containers -package base src/MicroHs/StringMap.hs
 	$(GHCC) -c src/MicroHs/Exp.hs

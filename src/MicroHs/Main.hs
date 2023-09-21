@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 module MicroHs.Main(main) where
 import Prelude
-import qualified MicroHs.StringMapFast as M
+import qualified MicroHs.IdentMap as M
 import Data.Maybe
 import System.Environment
 import MicroHs.Compile
@@ -36,9 +36,9 @@ mainCompile flags mn = do
     mainName = qualIdent mn (mkIdent "main")
     cmdl = (mainName, ds)
     ref i = Var $ mkIdent $ "_" ++ showInt i
-    defs = M.fromList [ (unIdent n, ref i) | ((n, _), i) <- zip ds (enumFrom 0) ]
+    defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds (enumFrom 0) ]
     findIdent n = fromMaybe (error $ "main: findIdent: " ++ showIdent n) $
-                  M.lookup (unIdent n) defs
+                  M.lookup n defs
     emain = findIdent mainName
     substv aexp =
       case aexp of
