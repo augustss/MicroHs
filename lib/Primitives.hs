@@ -144,6 +144,10 @@ primGetRaw        = primitive "IO.getRaw"
 primWithDropArgs :: forall a . Int -> IO a -> IO a
 primWithDropArgs i ioa = primThen (primDropArgs i) ioa
 
+-- Use string for the exception until we can do better.
+primCatch        :: forall a . IO a -> ([Char] -> IO a) -> IO a
+primCatch         = primitive "IO.catch"
+
 -- Temporary until overloading
 primIsInt        :: Any -> Bool
 primIsInt         = primitive "isInt"

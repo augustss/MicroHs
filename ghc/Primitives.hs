@@ -168,8 +168,11 @@ primGetTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIX
 primGetRaw       :: IO Int
 primGetRaw        = return (-1) -- not implemented
 
+primCatch        :: forall a . IO a -> (String -> IO a) -> IO a
+primCatch         = error "primCatch"
+
 -- Temporary until overloading
 primIsInt        :: Any -> Bool
-primIsInt         = error "isInt"
+primIsInt         = error "primIsInt"
 primIsIO         :: Any -> Bool
-primIsIO          = error "isIO"
+primIsIO          = error "primIsIO"

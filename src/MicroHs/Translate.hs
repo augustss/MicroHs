@@ -102,6 +102,7 @@ primTable = [
   ("IO.dropArgs", primitive "IO.dropArgs"),
   ("IO.performIO", primitive "IO.performIO"),
   ("IO.getTimeMilli", primitive "IO.getTimeMilli"),
+  ("IO.catch", primitive "IO.catch"),
   ("isInt", primitive "isInt"),
   ("isIO", primitive "isIO")
   ]

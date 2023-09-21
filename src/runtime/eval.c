@@ -7,6 +7,7 @@
 #include <inttypes.h>
 #include <locale.h>
 #include <ctype.h>
+#include <setjmp.h>
 
 #define GCRED    1              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */
@@ -154,7 +155,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
                 T_IO_PERFORMIO,
-                T_IO_GETTIMEMILLI, T_IO_PRINT,
+                T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
                 T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH,
                 T_STR,
                 T_ISINT, T_ISIO,
@@ -262,10 +263,17 @@ heapoffs_t free_map_nwords;
 heapoffs_t next_scan_index;
 
 typedef struct {
-  size_t b_size;
-  size_t b_pos;
+  size_t   b_size;
+  size_t   b_pos;
   uint8_t  b_buffer[1];
 } BFILE;
+
+struct handler {
+  jmp_buf         hdl_buf;      /* env storage */
+  struct handler *hdl_old;      /* old handler */
+  stackptr_t      hdl_stack;    /* old stack pointer */
+  NODEPTR         hdl_exn;     /* used temporarily to pass the exception value */
+} *cur_handler = 0;
 
 void
 memerr(void)
@@ -459,6 +467,7 @@ struct {
   { "IO.dropArgs", T_IO_DROPARGS },
   { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
+  { "IO.catch", T_IO_CATCH },
   { "isInt", T_ISINT },
   { "isIO", T_ISIO },
 };
@@ -1140,6 +1149,7 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_GETTIMEMILLI: fprintf(f, "$IO.getTimeMilli"); break;
   case T_IO_PERFORMIO: fprintf(f, "$IO.performIO"); break;
   case T_IO_CCALL: fprintf(f, "#%s", ffi_table[GETVALUE(n)].ffi_name); break;
+  case T_IO_CATCH: fprintf(f, "$IO.catch"); break;
   case T_ISINT: fprintf(f, "$isInt"); break;
   case T_ISIO: fprintf(f, "$isIO"); break;
   default: ERR("print tag");
@@ -1398,7 +1408,7 @@ eval(NODEPTR n)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
 
 /* Alloc a possible GC action, e, between setting x and popping */
-#define CHKARGEV1(e) do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
+#define CHKARGEV1(e)  do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
 
 #define SETINT(n,r)   do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define OPINT2(e)     do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
@@ -1471,7 +1481,19 @@ eval(NODEPTR n)
     case T_UGT:  CMPU(>);
     case T_UGE:  CMPU(>=);
 
-    case T_ERROR:           CHKARGEV1(msg = evalstring(x)); fprintf(stderr, "error: %s\n", msg); free(msg); exit(1);
+    case T_ERROR:
+      if (cur_handler) {
+        /* Pass the string to the handler */
+        CHKARG1;
+        cur_handler->hdl_exn = x;
+        longjmp(cur_handler->hdl_buf, 1);
+      } else {
+        /* No handler, so just die. */
+        CHKARGEV1(msg = evalstring(x));
+        fprintf(stderr, "error: %s\n", msg);
+        free(msg);
+        exit(1);
+      }
     case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
     case T_EQUAL: r = equal(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r ? comTrue : combFalse);
@@ -1496,6 +1518,7 @@ eval(NODEPTR n)
     case T_IO_DROPARGS:
     case T_IO_GETTIMEMILLI:
     case T_IO_CCALL:
+    case T_IO_CATCH:
       RET;
 
     case T_ISINT:
@@ -1709,6 +1732,35 @@ evalio(NODEPTR n)
         case FFI_IIV: FFIV(1); x = INTARG(1); y = INTARG(2);     (*(void    (*)(value_t, value_t))f)(x,y);               RETIO(combUnit);
         case FFI_III: FFI (1); x = INTARG(1); y = INTARG(2); r = (*(value_t (*)(value_t, value_t))f)(x,y); n = mkInt(r); RETIO(n);
         default: ERR("T_IO_CCALL");
+        }
+      }
+
+    case T_IO_CATCH:
+      {
+        struct handler *h = malloc(sizeof *h);
+        if (!h)
+          memerr();
+        CHECKIO(2);
+        h->hdl_old = cur_handler;
+        h->hdl_stack = stack_ptr;
+        cur_handler = h;
+        if (setjmp(h->hdl_buf)) {
+          /* An exception occurred: */
+          stack_ptr = h->hdl_stack;
+          x = h->hdl_exn;       /* exception value */
+          GCCHECKSAVE(x, 1);
+          f = ARG(TOP(2));      /* second argument, handler */
+          n = new_ap(f, x);
+          cur_handler = h->hdl_old;
+          free(h);
+          POP(3);
+          goto top;
+        } else {
+          /* Normal execution: */
+          n = evalio(ARG(TOP(1))); /* execute first argument */
+          cur_handler = h->hdl_old; /* restore old handler */
+          free(h);
+          RETIO(n);             /* return result */
         }
       }
 

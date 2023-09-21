@@ -19,6 +19,7 @@ test:
 	$(MHS) MutRec     && $(EVAL) > MutRec.out     && diff MutRec.ref MutRec.out
 	$(MHS) LocalPoly  && $(EVAL) > LocalPoly.out  && diff LocalPoly.ref LocalPoly.out
 	$(MHS) Rank2      && $(EVAL) > Rank2.out      && diff Rank2.ref Rank2.out
+	$(MHS) Catch      && $(EVAL) > Catch.out      && diff Catch.ref Catch.out
 
 time:
 	@echo Expect about 10s runtime
