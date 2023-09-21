@@ -106,6 +106,10 @@ loop hist before after = do
       eraseLine
       loop hist "" ""
     noop = loop hist before after
+    kill = do
+      putStr after
+      putStr $ concat $ replicate (length after) "\b \b"
+      loop hist before ""
 
     next =
       case hist of
@@ -141,6 +145,7 @@ loop hist before after = do
     14 -> next               -- CTL-N, next line
     15 -> previous           -- CTL-P, previous line
     21 -> erase              -- CTL-U, erase line
+    11 -> kill               -- CTL-K, kill to eol
     27 -> do                 -- ESC
       b <- getRaw
       if b /= ord '[' then
