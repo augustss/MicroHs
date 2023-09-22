@@ -43,10 +43,11 @@ It has the following features:
 * data (and newtype) type declarations
 * type synonyms
 * type signatures
-* importing of other modules, `qualified` and `as` supported, but no import list
+* importing of other modules, `qualified` and `as` supported
 * exporting with mandatory export list
 * the `Prelude` has to be imported explicitely
-* terrible, terrible error messages
+* mandatory type signatures at the top level, with mandatory `forall` for polymorphism
+* terrible error messages, some errors are not even flagged
 
 ## Example
 The file `Example.hs` contains the following:
