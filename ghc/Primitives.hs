@@ -12,7 +12,7 @@ import Control.DeepSeq
 import Control.Exception(try)
 import Data.Time
 import Data.Time.Clock.POSIX
-import Data.Word
+--import Data.Word
 import System.IO
 import System.IO.Unsafe
 import System.Environment
@@ -141,20 +141,28 @@ primHGetChar     :: Handle -> IO Int
 primHGetChar h    = do eof <- hIsEOF h; if eof then pure (-1) else fromEnum <$> hGetChar h
 primOpenFile     :: String -> Int -> IO Handle
 primOpenFile s m  = do
-  r <- (try $ openFile s (case m of 0->ReadMode; 1->WriteMode; 2->AppendMode; 3->ReadWriteMode)) :: IO (Either IOError Handle)
+  r <- (try $ openFile s (case m of 0->ReadMode; 1->WriteMode; 2->AppendMode; 3->ReadWriteMode; _->undefined)) :: IO (Either IOError Handle)
   -- A gruesome hack to signal a failed as a Handle
   case r of
     Left _ -> return $ unsafeCoerce (0 :: Int)
     Right h -> return h
 primIsNullHandle :: Handle -> Bool
 primIsNullHandle h = unsafeCoerce h == (0 :: Int)
+primHSerialize   :: Handle -> a -> IO ()
 primHSerialize    = undefined
+primHDeserialize :: Handle -> IO a
 primHDeserialize  = undefined
+primHPrint       :: Handle -> a -> IO ()
 primHPrint        = undefined
+primHClose       :: Handle -> IO ()
 primHClose        = hClose
+primHFlush       :: Handle -> IO ()
 primHFlush        = hFlush
+primStdin        :: Handle
 primStdin         = stdin
+primStdout       :: Handle
 primStdout        = stdout
+primStderr       :: Handle
 primStderr        = stderr
 primGetArgs      :: IO [[Char]]
 primGetArgs       = getArgs
