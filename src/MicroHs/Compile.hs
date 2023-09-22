@@ -8,10 +8,7 @@ module MicroHs.Compile(
   ) where
 import Prelude --Xhiding (Monad(..), mapM, showString, showList)
 import qualified System.IO as IO
---Ximport Compat
---Ximport qualified CompatIO as IO
---Ximport System.IO(Handle)
-
+import Control.DeepSeq
 import qualified MicroHs.IdentMap as M
 import MicroHs.StateIO as S
 import MicroHs.Desugar
@@ -20,6 +17,9 @@ import MicroHs.Expr
 import MicroHs.Ident
 import MicroHs.Parse
 import MicroHs.TypeCheck
+--Ximport Compat
+--Ximport qualified CompatIO as IO
+--Ximport System.IO(Handle)
 
 data Flags = Flags Int Bool [String] String
   --Xderiving (Show)
@@ -67,7 +67,7 @@ compileCacheTop flags mn ch = IO.do
   t1 <- getTimeMilli
   let
     dsn = [ (n, compileOpt e) | (n, e) <- ds ]
-  () <- IO.return (forceList forceLDef dsn)
+  () <- IO.return (rnf dsn)
   t2 <- getTimeMilli
   IO.when (verbose flags > 0) $
     putStrLn $ "combinator conversion " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"

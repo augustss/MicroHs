@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-type-defaults -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-dodgy-imports #-}
 module MicroHs.Desugar(
   desugar,
-  LDef, showLDefs, forceLDef
+  LDef, showLDefs,
   ) where
 import Prelude --Xhiding(showList)
 import Data.Char
@@ -507,7 +507,3 @@ checkDup ds =
     (i1:i2:_) : _ ->
       errorMessage (getSLocIdent i1) $ "Duplicate " ++ showIdent i1 ++ " " ++ showSLoc (getSLocIdent i2)
     _ -> error "checkDup"
-
-forceLDef :: LDef -> ()
-forceLDef (i, e) = case forceIdent i of { () -> forceExp e }
-

@@ -7,7 +7,7 @@ module MicroHs.Expr(
   EDef(..), showEDefs,
   Expr(..), showExpr,
   Listish(..),
-  Lit(..), showLit, eqLit, forceLit,
+  Lit(..), showLit, eqLit,
   EBind(..),
   Eqn(..),
   EStmt(..),
@@ -33,9 +33,11 @@ module MicroHs.Expr(
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
 import Data.List
 import Data.Maybe
+import MicroHs.Ident
 --Ximport Compat
 --Ximport GHC.Stack
-import MicroHs.Ident
+--Ximport Control.DeepSeq
+--Yimport Primitives(NFData(..))
 
 type IdentModule = Ident
 
@@ -134,6 +136,8 @@ data Lit
   | LPrim String
   | LForImp String
   --Xderiving (Show, Eq)
+--Xinstance NFData Lit where rnf (LInt i) = rnf i; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
+--Yinstance NFData Lit where rnf (LInt i) = rnf i; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
 
 eqLit :: Lit -> Lit -> Bool
 eqLit (LInt x)  (LInt  y) = x == y
@@ -142,13 +146,6 @@ eqLit (LStr  x) (LStr  y) = eqString x y
 eqLit (LPrim x) (LPrim y) = eqString x y
 eqLit (LForImp x) (LForImp y) = eqString x y
 eqLit _         _         = False
-
-forceLit :: Lit -> ()
-forceLit (LInt i) = seq i ()
-forceLit (LChar c) = seq c ()
-forceLit (LStr s) = forceString s
-forceLit (LPrim s) = forceString s
-forceLit (LForImp s) = forceString s
 
 type ECaseArm = (EPat, EAlts)
 

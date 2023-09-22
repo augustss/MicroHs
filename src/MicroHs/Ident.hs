@@ -5,7 +5,6 @@ module MicroHs.Ident(
   Ident(..),
   mkIdent, mkIdentLoc, unIdent, eqIdent, leIdent, qualIdent, showIdent, getSLocIdent, setSLocIdent,
   mkIdentSLoc,
-  forceIdent,
   isLower_, isIdentChar, isOperChar, isConIdent,
   unQualString,
   SLoc(..), noSLoc, isNoSLoc,
@@ -13,6 +12,8 @@ module MicroHs.Ident(
   compareIdent,
   ) where
 import Prelude --Xhiding(showString)
+--Ximport Control.DeepSeq
+--Yimport Primitives(NFData(..))
 import Data.Char
 --Ximport Compat
 
@@ -25,6 +26,8 @@ data SLoc = SLoc FilePath Line Col
 
 data Ident = Ident SLoc String
   --Xderiving (Show, Eq)
+--Xinstance NFData Ident where rnf (Ident _ s) = rnf s
+--Yinstance NFData Ident where rnf (Ident _ s) = rnf s
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
@@ -90,10 +93,6 @@ showSLoc :: SLoc -> String
 showSLoc (SLoc fn l c) =
   if null fn then "no location" else
   showString fn ++ ": " ++ "line " ++ showInt l ++ ", col " ++ showInt c
-
--- Does not force location
-forceIdent :: Ident -> ()
-forceIdent (Ident _ s) = forceString s
 
 compareIdent :: Ident -> Ident -> Ordering
 compareIdent (Ident _ s) (Ident _ t) = compareString s t

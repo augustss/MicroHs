@@ -6,7 +6,7 @@ module Primitives(
   Int,
   IO,
   Word,
-  NFData,
+  NFData(..),
   ) where
 import Control.DeepSeq
 import Control.Exception(try)

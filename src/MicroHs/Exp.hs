@@ -9,14 +9,15 @@ module MicroHs.Exp(
   encodeString,
   app2, cCons, cNil, cFlip,
   allVarsExp, freeVars,
-  forceExp
   ) where
 import Prelude
 import Data.Char
 import Data.List
 import MicroHs.Ident
-import MicroHs.Expr(Lit(..), showLit, eqLit, forceLit)
+import MicroHs.Expr(Lit(..), showLit, eqLit)
+--Ximport Control.DeepSeq
 --Ximport Compat
+--Yimport Primitives(NFData(..))
 --import Debug.Trace
 
 type PrimOp = String
@@ -28,18 +29,15 @@ data Exp
   | Lit Lit
   --Xderiving (Show, Eq)
 
+--Xinstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
+--Yinstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
+
 eqExp :: Exp -> Exp -> Bool
 eqExp (Var i1) (Var i2) = eqIdent i1 i2
 eqExp (App f1 a1) (App f2 a2) = eqExp f1 f2 && eqExp a1 a2
 eqExp (Lam i1 e1) (Lam i2 e2) = eqIdent i1 i2 && eqExp e1 e2
 eqExp (Lit l1) (Lit l2) = eqLit l1 l2
 eqExp _ _ = False
-
-forceExp :: Exp -> ()
-forceExp (Var i) = forceIdent i
-forceExp (App f a) = case forceExp f of { () -> forceExp a }
-forceExp (Lam i e) = case forceIdent i of { () -> forceExp e }
-forceExp (Lit l) = forceLit l
 
 data MaybeApp = NotApp | IsApp Exp Exp
 

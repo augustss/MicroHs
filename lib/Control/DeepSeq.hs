@@ -1,5 +1,5 @@
 module Control.DeepSeq(module Control.DeepSeq) where
-import Primitives
+import Primitives --Yhiding(rnf)
 import Prelude
 
 rnf :: forall a . --YNFData a =>
