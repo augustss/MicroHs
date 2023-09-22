@@ -759,7 +759,9 @@ tcExprR mt ae =
         (e, t) <- tLookupInst "variable" i
         case mt of
           Just tu@(EForall _ tt) -> T.do
-            unify loc tt t  -- XXX is this really sufficient?
+            -- XXX This is wrong in many ways.
+            -- Both t and tt may contain unification variables bound elsewhere.
+            unify loc tt t
             T.return (e, tu)
           _ -> T.do
             munify loc mt t
