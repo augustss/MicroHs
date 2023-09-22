@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 -- Functions for GHC that are defined in the UHS libs.
 module Compat(module Compat) where
+--import Control.Exception
 import qualified Data.Function as F
 import Data.Time
 import Data.Time.Clock.POSIX
@@ -10,6 +11,7 @@ import Control.Exception
 import Data.List
 import System.Environment
 import System.IO
+import GHC.Types(Any)
 
 -- Functions needed for ghc
 eqChar :: Char -> Char -> Bool
@@ -111,6 +113,9 @@ eqPair eqa eqb ab1 ab2 =
         (a2, b2) ->
           eqa a1 a2 && eqb b1 b2
 
+showPair :: (a -> String) -> (b -> String) -> (a, b) -> String
+showPair f g (a, b) = "(" ++ f a ++ "," ++ g b ++ ")"
+
 eqInt :: Int -> Int -> Bool
 eqInt = (==)
 
@@ -145,3 +150,57 @@ withDropArgs :: Int -> IO a -> IO a
 withDropArgs i ioa = do
   as <- getArgs
   withArgs (drop i as) ioa
+
+-- A simple "quicksort" for now.
+sortLE :: forall a . (a -> a -> Bool) -> [a] -> [a]
+sortLE _  [] = []
+sortLE le (x:xs) = sortLE le lt ++ (x : sortLE le ge)
+  where (ge, lt) = partition (le x) xs
+
+deleteAllBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
+deleteAllBy _ _ [] = []
+deleteAllBy eq x (y:ys) = if eq x y then deleteAllBy eq x ys else y : deleteAllBy eq x ys
+
+deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
+deleteAllsBy eq = foldl (flip (deleteAllBy eq))
+
+forceString :: String -> ()
+forceString [] = ()
+forceString (c:cs) = c `seq` forceString cs
+
+forceList :: forall a . (a -> ()) -> [a] -> ()
+forceList _ [] = ()
+forceList f (a:as) = case f a of { () -> forceList f as }
+
+writeSerialized :: FilePath -> a -> IO ()
+writeSerialized _ _ = error "writeSerialized"
+
+eqBool :: Bool -> Bool -> Bool
+eqBool True  x = x
+eqBool False x = not x
+
+neBool :: Bool -> Bool -> Bool
+neBool True  x = not x
+neBool False x = x
+
+-- Temporary until overloading
+primIsInt        :: Any -> Bool
+primIsInt         = error "isInt"
+primIsIO         :: Any -> Bool
+primIsIO          = error "isIO"
+
+newtype Exn = Exn String
+  deriving (Show)
+instance Exception Exn
+
+isPrefixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
+isPrefixOfBy _ [] _ = True
+isPrefixOfBy _ _ [] = False
+isPrefixOfBy eq (c:cs) (d:ds) = eq c d && isPrefixOfBy eq cs ds
+
+isEQ :: Ordering -> Bool
+isEQ EQ = True
+isEQ _  = False
+
+compareString :: String -> String -> Ordering
+compareString = compare

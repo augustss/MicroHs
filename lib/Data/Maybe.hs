@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Maybe(module Data.Maybe) where
+import Primitives
 
 data Maybe a = Nothing | Just a
 
@@ -18,3 +19,8 @@ fmapMaybe f (Just a) = Just (f a)
 
 catMaybes :: forall a . [Maybe a] -> [a]
 catMaybes mxs = [ x | Just x <- mxs ]
+
+{-
+mapMaybe is in Data.List to avoid recursive modules
+maybeToList is in Data.List to avoid recursive modules
+-}

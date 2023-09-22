@@ -1,29 +1,13 @@
 * Add strict constructors
-* Add infix declarations
-  - Parse as a string of atom oper atom oper ... atom
-  - Resolve fixity in type checker
-  - Add fixity table to TModule
 * Put on hackage
 * Have compile return a Stats record of timing etc
-* Special noMatch function with location
 * Add overloading
 * Implement deriving
-* Add forall to the syntax of types so it can be nested
-  - Rank-N requires small changes in the type checker
-* Implement mutual recursion in let
-  - Use SCC
-* Add [x..y] syntax
+* Make sure rank-N works correctly
 * Add the possibility to save a compiler cache in a file
   - Add SHA checksumming to the C code
   - Use filename as the cache lookup key and SHA for validation
-* use 'data = primitive "Int"' for primitive types.
-* make an interactive version
-  - implement a simple readline
-  - implement catch (and maybe throw) using setjmp & longjmp
-  - make the runtime system catch ^C and stop execution
-* implement low level equality
-  - maybe?
-  - could be used instead of derived when all is derived
+* make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
 ROBERT * add Double primitive type
 * implement Data.Integer

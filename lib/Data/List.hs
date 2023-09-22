@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.List(module Data.List) where
+import Primitives as P
 import Control.Error
 import Data.Bool
 import Data.Function
@@ -9,9 +10,11 @@ import Data.Maybe
 import Data.Tuple
 
 --Yimport Data.Char
---type Int = P.Int
 
-data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable --Z
+--Y{-
+infixr 5 :
+data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable
+--Y-}
 
 null :: forall a . [a] -> Bool
 null [] = True
@@ -60,10 +63,10 @@ foldl1 :: forall a . (a -> a -> a) -> [a] -> a
 foldl1 _ [] = error "foldl1"
 foldl1 f (x : xs) = foldl f x xs
 
-sum :: [Int] -> Int
+sum :: [P.Int] -> P.Int
 sum = foldr (+) 0
 
-product :: [Int] -> Int
+product :: [P.Int] -> P.Int
 product = foldr (*) 1
 
 and :: [Bool] -> Bool
@@ -78,7 +81,7 @@ any p = or . map p
 all :: forall a . (a -> Bool) -> [a] -> Bool
 all p = and . map p
 
-take :: forall a . Int -> [a] -> [a]
+take :: forall a . P.Int -> [a] -> [a]
 take n arg =
   if n <= 0 then
     []
@@ -87,7 +90,7 @@ take n arg =
       [] -> []
       x : xs -> x : take (n - 1) xs
 
-drop :: forall a . Int -> [a] -> [a]
+drop :: forall a . P.Int -> [a] -> [a]
 drop n arg =
   if n <= 0 then
     arg
@@ -96,9 +99,15 @@ drop n arg =
       [] -> []
       _ : xs -> drop (n - 1) xs
 
-length :: forall a . [a] -> Int
-length [] = 0
-length (_:xs) = 1 + length xs
+length :: forall a . [a] -> P.Int
+length =
+  -- Make it tail recursive and strict
+  let
+    rec r [] = r
+    rec r (_:xs) =
+          let r' = r + 1
+          in  r' `primSeq` rec r' xs
+  in rec 0
 
 zip :: forall a b . [a] -> [b] -> [(a, b)]
 zip = zipWith (\ x y -> (x, y))
@@ -107,6 +116,7 @@ zipWith :: forall a b c . (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith f (x:xs) (y:ys) = f x y : zipWith f xs ys
 zipWith _ _ _ = []
 
+-- XXX not as lazy as it could be
 unzip :: forall a b . [(a, b)] -> ([a], [b])
 unzip axys =
   case axys of
@@ -115,6 +125,7 @@ unzip axys =
       case unzip xys of
         (xs, ys) -> (x:xs, y:ys)
 
+-- XXX not as lazy as it could be
 unzip3 :: forall a b c . [(a, b, c)] -> ([a], [b], [c])
 unzip3 axyzs =
   case axyzs of
@@ -129,7 +140,12 @@ stripPrefixBy eq (c:cs) [] = Nothing
 stripPrefixBy eq (c:cs) (d:ds) | eq c d = stripPrefixBy eq cs ds
                                | otherwise = Nothing
 
-splitAt :: forall a . Int -> [a] -> ([a], [a])
+isPrefixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
+isPrefixOfBy _ [] _ = True
+isPrefixOfBy _ _ [] = False
+isPrefixOfBy eq (c:cs) (d:ds) = eq c d && isPrefixOfBy eq cs ds
+
+splitAt :: forall a . P.Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
 
 reverse :: forall a . [a] -> [a]
@@ -179,11 +195,10 @@ tail (_:ys) = ys
 
 intersperse :: forall a . a -> [a] -> [a]
 intersperse _ [] = []
-intersperse sep (x:xs) = x : prependToAll sep xs
-
-prependToAll :: forall a . a -> [a] -> [a]
-prependToAll _ [] = []
-prependToAll sep (x:xs) = sep : x : prependToAll sep xs
+intersperse sep (a:as) = a : prepend as
+  where
+    prepend [] = []
+    prepend (x:xs) = sep : x : prepend xs
 
 intercalate :: forall a . [a] -> [[a]] -> [a]
 intercalate xs xss = concat (intersperse xs xss)
@@ -191,11 +206,23 @@ intercalate xs xss = concat (intersperse xs xss)
 elemBy :: forall a . (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
 
-enumFrom :: Int -> [Int]
+enumFrom :: P.Int -> [P.Int]
 enumFrom n = n : enumFrom (n+1)
 
-enumFromTo :: Int -> Int -> [Int]
+enumFromThen :: P.Int -> P.Int -> [P.Int]
+enumFromThen n m = from n
+  where d = m - n
+        from i = i : from (i+d)
+
+enumFromTo :: P.Int -> P.Int -> [P.Int]
 enumFromTo l h = takeWhile (<= h) (enumFrom l)
+
+enumFromThenTo :: P.Int -> P.Int -> P.Int -> [P.Int]
+enumFromThenTo l m h =
+  if m - l > 0 then
+    takeWhile (<= h) (enumFromThen l m)
+  else
+    takeWhile (>= h) (enumFromThen l m)
 
 find :: forall a . (a -> Bool) -> [a] -> Maybe a
 find p [] = Nothing
@@ -214,11 +241,15 @@ deleteBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
 deleteBy _ _ [] = []
 deleteBy eq x (y:ys) = if eq x y then ys else y : deleteBy eq x ys
 
+deleteAllBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
+deleteAllBy _ _ [] = []
+deleteAllBy eq x (y:ys) = if eq x y then deleteAllBy eq x ys else y : deleteAllBy eq x ys
+
 nubBy :: forall a . (a -> a -> Bool) -> [a] -> [a]
 nubBy _ [] = []
 nubBy eq (x:xs) = x : nubBy eq (filter (\ y -> not (eq x y)) xs)
 
-replicate :: forall a . Int -> a -> [a]
+replicate :: forall a . P.Int -> a -> [a]
 replicate n x = take n (repeat x)
 
 repeat :: forall a . a -> [a]
@@ -230,15 +261,19 @@ repeat x =
 deleteFirstsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteFirstsBy eq = foldl (flip (deleteBy eq))
 
-(!!) :: forall a . Int -> [a] -> a
-(!!) i =
+deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
+deleteAllsBy eq = foldl (flip (deleteAllBy eq))
+
+infixl 9 !!
+(!!) :: forall a . [a] -> P.Int -> a
+(!!) axs i =
   if i < 0 then
     error "!!: <0"
   else
     let
       nth _ [] = error "!!: empty"
       nth n (x:xs) = if n == 0 then x else nth (n - 1) xs
-    in nth i
+    in nth i axs
 
 eqList :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
 eqList _ [] [] = True
@@ -247,3 +282,26 @@ eqList _ _ _ = False
 
 partition :: forall a . (a -> Bool) -> [a] -> ([a], [a])
 partition p xs = (filter p xs, filter (not . p) xs)
+
+-- A simple "quicksort" for now.
+sortLE :: forall a . (a -> a -> Bool) -> [a] -> [a]
+sortLE _  [] = []
+sortLE le (x:xs) =
+  case partition (le x) xs of
+    (ge, lt) -> sortLE le lt ++ (x : sortLE le ge)
+
+mapMaybe :: forall a b . (a -> Maybe b) -> [a] -> [b]
+mapMaybe _ [] = []
+mapMaybe f (a:as) =
+  case f a of
+    Nothing -> mapMaybe f as
+    Just b -> b : mapMaybe f as
+
+maybeToList :: forall a . Maybe a -> [a]
+maybeToList Nothing = []
+maybeToList (Just a) = [a]
+
+last :: forall a . [a] -> a
+last [] = error "last: []"
+last [x] = x
+last (_:xs) = last xs

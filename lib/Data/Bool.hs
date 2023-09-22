@@ -4,14 +4,15 @@ module Data.Bool(
   module Data.Bool,
   module Data.Bool_Type
   ) where
+import Primitives
 import Data.Bool_Type
 
---Yinfixr 2 ||
+infixr 2 ||
 (||) :: Bool -> Bool -> Bool
 (||) False y = y
 (||) True  _ = True
 
---Yinfixr 3 &&
+infixr 3 &&
 (&&) :: Bool -> Bool -> Bool
 (&&) False _ = False
 (&&) True  y = y
@@ -22,3 +23,11 @@ not True  = False
 
 otherwise :: Bool
 otherwise = True
+
+eqBool :: Bool -> Bool -> Bool
+eqBool True  x = x
+eqBool False x = not x
+
+neBool :: Bool -> Bool -> Bool
+neBool True  x = not x
+neBool False x = x

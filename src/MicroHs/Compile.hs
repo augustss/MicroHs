@@ -1,22 +1,25 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.Compile(
-  compile,
-  Flags(..), verbose, runIt, output
+  compileTop,
+  Flags(..), verbose, runIt, output,
+  compileCacheTop,
+  Cache, emptyCache, deleteFromCache,
   ) where
 import Prelude --Xhiding (Monad(..), mapM, showString, showList)
 import qualified System.IO as IO
---Ximport Compat
---Ximport qualified CompatIO as IO
---Ximport System.IO(Handle)
-
+import Control.DeepSeq
 import qualified MicroHs.IdentMap as M
 import MicroHs.StateIO as S
 import MicroHs.Desugar
+import MicroHs.Exp
 import MicroHs.Expr
 import MicroHs.Ident
 import MicroHs.Parse
 import MicroHs.TypeCheck
+--Ximport Compat
+--Ximport qualified CompatIO as IO
+--Ximport System.IO(Handle)
 
 data Flags = Flags Int Bool [String] String
   --Xderiving (Show)
@@ -50,26 +53,41 @@ updWorking w (Cache _ m) = Cache w m
 cache :: Cache -> M.Map CModule
 cache (Cache _ x) = x
 
-{-
-updCache :: M.Map Module -> Cache -> Cache
-updCache x c =
-  case c of
-    Cache w _ -> Cache w x
--}
+emptyCache :: Cache
+emptyCache = Cache [] M.empty
+
+deleteFromCache :: Ident -> Cache -> Cache
+deleteFromCache mn (Cache is m) = Cache is (M.delete mn m)
 
 -----------------
 
-compile :: Flags -> IdentModule -> IO [LDef]
-compile flags nm = IO.do
-  ((_, t), ch) <- runStateIO (compileModuleCached flags nm) (Cache [] M.empty)
+compileCacheTop :: Flags -> Ident -> Cache -> IO ([(Ident, Exp)], Cache)
+compileCacheTop flags mn ch = IO.do
+  (ds, ch') <- compile flags mn ch
+  t1 <- getTimeMilli
   let
-    defs (TModule _ _ _ _ ds) = ds
+    dsn = [ (n, compileOpt e) | (n, e) <- ds ]
+  () <- IO.return (rnf dsn)
+  t2 <- getTimeMilli
+  IO.when (verbose flags > 0) $
+    putStrLn $ "combinator conversion " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
+  IO.return (dsn, ch')
+
+--compileTop :: Flags -> IdentModule -> IO [LDef]
+compileTop :: Flags -> Ident -> IO [(Ident, Exp)]
+compileTop flags mn = IO.fmap fst $ compileCacheTop flags mn emptyCache
+
+compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)
+compile flags nm ach = IO.do
+  ((_, t), ch) <- runStateIO (compileModuleCached flags nm) ach
+  let
+    defs (TModule _ _ _ _ _ ds) = ds
   IO.when (verbose flags > 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (showInt t) ++ "ms"
-  IO.return $ concatMap defs $ M.elems $ cache ch
+  IO.return (concatMap defs $ M.elems $ cache ch, ch)
 
 -- Compile a module with the given name.
--- If the module has already been compiled, return the caches result.
+-- If the module has already been compiled, return the cached result.
 compileModuleCached :: Flags -> IdentModule -> StateIO Cache (CModule, Time)
 compileModuleCached flags nm = S.do
   ch <- gets cache
@@ -83,7 +101,8 @@ compileModuleCached flags nm = S.do
         liftIO $ putStrLn $ "importing " ++ showIdent nm
       (cm, tp, tt, ts) <- compileModule flags nm
       S.when (verbose flags > 0) $
-        liftIO $ putStrLn $ "importing done " ++ showIdent nm ++ ", " ++ showInt (tp + tt) ++ "ms (" ++ showInt tp ++ " + " ++ showInt tt ++ ")"
+        liftIO $ putStrLn $ "importing done " ++ showIdent nm ++ ", " ++ showInt (tp + tt) ++
+                 "ms (" ++ showInt tp ++ " + " ++ showInt tt ++ ")"
       c <- get
       put $ Cache (tail (working c)) (M.insert nm cm (cache c))
       S.return (cm, tp + tt + ts)
@@ -107,7 +126,7 @@ compileModule flags nm = S.do
   let
     specs = [ s | Import s <- defs ]
   t2 <- liftIO getTimeMilli
-  (impMdls, ts) <- S.fmap unzip $ S.mapM (compileModuleCached flags) [ m | ImportSpec _ m _ <- specs ]
+  (impMdls, ts) <- S.fmap unzip $ S.mapM (compileModuleCached flags) [ m | ImportSpec _ m _ _ <- specs ]
   t3 <- liftIO getTimeMilli
   let
     tmdl = typeCheck (zip specs impMdls) mdl

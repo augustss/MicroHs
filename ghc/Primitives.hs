@@ -1,19 +1,23 @@
 module Primitives(
   module Primitives,
+  Any,
   Char,
-  Int,
-  Word,
-  IO,
   Handle,
+  Int,
+  IO,
+  Word,
+  NFData(..),
   ) where
+import Control.DeepSeq
 import Control.Exception(try)
 import Data.Time
 import Data.Time.Clock.POSIX
-import Data.Word
+--import Data.Word
 import System.IO
 import System.IO.Unsafe
 import System.Environment
 import Unsafe.Coerce
+import GHC.Types(Any)
 
 primIntAdd :: Int -> Int -> Int
 primIntAdd = (+)
@@ -81,6 +85,9 @@ primFix f = let a = f a in a
 primError :: String -> a
 primError = error
 
+primEqString :: String -> String -> Bool
+primEqString = (==)
+
 primUnsafeCoerce :: a -> b
 primUnsafeCoerce = unsafeCoerce
 
@@ -134,19 +141,28 @@ primHGetChar     :: Handle -> IO Int
 primHGetChar h    = do eof <- hIsEOF h; if eof then pure (-1) else fromEnum <$> hGetChar h
 primOpenFile     :: String -> Int -> IO Handle
 primOpenFile s m  = do
-  r <- (try $ openFile s (case m of 0->ReadMode; 1->WriteMode; 2->AppendMode; 3->ReadWriteMode)) :: IO (Either IOError Handle)
+  r <- (try $ openFile s (case m of 0->ReadMode; 1->WriteMode; 2->AppendMode; 3->ReadWriteMode; _->undefined)) :: IO (Either IOError Handle)
   -- A gruesome hack to signal a failed as a Handle
   case r of
     Left _ -> return $ unsafeCoerce (0 :: Int)
     Right h -> return h
 primIsNullHandle :: Handle -> Bool
 primIsNullHandle h = unsafeCoerce h == (0 :: Int)
+primHSerialize   :: Handle -> a -> IO ()
 primHSerialize    = undefined
+primHDeserialize :: Handle -> IO a
 primHDeserialize  = undefined
+primHPrint       :: Handle -> a -> IO ()
 primHPrint        = undefined
+primHClose       :: Handle -> IO ()
 primHClose        = hClose
+primHFlush       :: Handle -> IO ()
+primHFlush        = hFlush
+primStdin        :: Handle
 primStdin         = stdin
+primStdout       :: Handle
 primStdout        = stdout
+primStderr       :: Handle
 primStderr        = stderr
 primGetArgs      :: IO [[Char]]
 primGetArgs       = getArgs
@@ -159,3 +175,28 @@ primPerformIO     = unsafePerformIO
 -- Current time (since 1970-01-01T00:00:00UTC) in ms
 primGetTimeMilli :: IO Int
 primGetTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds <$> getCurrentTime
+primGetRaw       :: IO Int
+primGetRaw        = return (-1) -- not implemented
+
+primCatch        :: forall a . IO a -> (String -> IO a) -> IO a
+primCatch         = error "primCatch"
+
+-- Temporary until overloading
+primIsInt        :: Any -> Bool
+primIsInt         = error "primIsInt"
+primIsIO         :: Any -> Bool
+primIsIO          = error "primIsIO"
+
+{-
+primCompare      :: String -> String -> Int
+primCompare s t =
+  case compare s t of
+    LT -> -1
+    EQ -> 0
+    GT -> 1
+-}
+primCompare      :: String -> String -> Ordering
+primCompare = compare
+
+primRnf :: (NFData a) => a -> ()
+primRnf = rnf

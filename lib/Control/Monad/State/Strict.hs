@@ -29,7 +29,7 @@ fmap f sa = S $ \ s ->
     (a, ss) -> (f a, ss)
 
 (<$>) :: forall s a b . (a -> b) -> State s a -> State s b
-(<$>) = fmap
+(<$>) = Control.Monad.State.Strict.fmap
 
 modify :: forall s . (s -> s) -> State s ()
 modify f = S $ \ s -> ((), f s)
@@ -68,3 +68,7 @@ mapM_ f =
 
 fail :: forall s a . String -> State s a
 fail = error
+
+when :: forall s . Bool -> State s () -> State s ()
+when True  s = s
+when False _ = Control.Monad.State.Strict.return ()

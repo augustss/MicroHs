@@ -1,7 +1,19 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Primitives(module Primitives) where
---import Data.Bool_Type
+import Data.Bool_Type
+import Data.Ordering_Type
+
+infixr -1 ->
+
+data Any
+data Char
+data Handle
+data Int
+data IO a
+data Word
+
+data () = ()   -- Parser hacks allows () to be used
 
 primIntAdd :: Int -> Int -> Int
 primIntAdd  = primitive "+"
@@ -96,6 +108,16 @@ primFix    = primitive "Y"
 primSeq    :: forall a b . a -> b -> b
 primSeq    = primitive "seq"
 
+--primEqual  :: forall a . a -> a -> Bool
+--primEqual  = primitive "equal"
+
+--primCompare  :: forall a . a -> a -> Int
+primCompare :: [Char] -> [Char] -> Ordering
+primCompare  = primitive "compare"
+
+primEqString  :: [Char] -> [Char] -> Bool
+primEqString  = primitive "equal"
+
 primChr :: Int -> Char
 primChr = primitive "I"
 primOrd :: Char -> Int
@@ -103,8 +125,6 @@ primOrd = primitive "I"
 
 primUnsafeCoerce :: forall a b . a -> b
 primUnsafeCoerce = primitive "I"
-
---data List a = Nil | (:) a (List a)
 
 primBind         :: forall a b . IO a -> (a -> IO b) -> IO b
 primBind          = primitive "IO.>>="
@@ -116,7 +136,7 @@ primHPutChar     :: Handle -> Int -> IO ()
 primHPutChar      = primitive "IO.putChar"
 primHGetChar     :: Handle -> IO Int
 primHGetChar      = primitive "IO.getChar"
-primOpenFile     :: String -> Int -> IO Handle
+primOpenFile     :: [Char] -> Int -> IO Handle
 primOpenFile      = primitive "IO.open"
 primIsNullHandle :: Handle -> Bool
 primIsNullHandle  = primitive "IO.isNullHandle"
@@ -128,6 +148,8 @@ primHDeserialize :: forall a . Handle -> IO a
 primHDeserialize  = primitive "IO.deserialize"
 primHClose       :: Handle -> IO ()
 primHClose        = primitive "IO.close"
+primHFlush       :: Handle -> IO ()
+primHFlush        = primitive "IO.flush"
 primStdin        :: Handle
 primStdin         = primitive "IO.stdin"
 primStdout       :: Handle
@@ -142,6 +164,21 @@ primPerformIO    :: forall a . IO a -> a
 primPerformIO     = primitive "IO.performIO"
 primGetTimeMilli :: IO Int
 primGetTimeMilli  = primitive "IO.getTimeMilli"
+primGetRaw       :: IO Int
+primGetRaw        = primitive "IO.getRaw"
 
 primWithDropArgs :: forall a . Int -> IO a -> IO a
 primWithDropArgs i ioa = primThen (primDropArgs i) ioa
+
+-- Use string for the exception until we can do better.
+primCatch        :: forall a . IO a -> ([Char] -> IO a) -> IO a
+primCatch         = primitive "IO.catch"
+
+primRnf          :: forall a . a -> ()
+primRnf           = primitive "rnf"
+
+-- Temporary until overloading
+primIsInt        :: Any -> Bool
+primIsInt         = primitive "isInt"
+primIsIO         :: Any -> Bool
+primIsIO          = primitive "isIO"

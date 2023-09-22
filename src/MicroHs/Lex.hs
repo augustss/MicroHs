@@ -6,7 +6,6 @@ import Prelude --Xhiding(lex, showChar, showString)
 import Data.Char
 import Data.List
 --Ximport Compat
---import Debug.Trace
 import MicroHs.Ident
 
 data Token
@@ -71,7 +70,6 @@ getLin loc = quot loc 1000000
 
 lexTop :: String -> [Token]
 lexTop = layout [] .
-         --take 10 .
          lex (mkLoc 1 1)
 
 -- | Take a location and string and produce a list of tokens
@@ -81,11 +79,10 @@ lex loc ('\n':cs) = tIndent (lex (incrLine loc) cs)
 lex loc ('\r':cs) = lex loc cs
 lex loc ('{':'-':cs) = skipNest (addCol loc 2) 1 cs
 lex loc ('-':'-':cs) | isComm rs = skipLine (addCol loc $ 2+length ds) cs
-  where {
-    (ds, rs) = span (eqChar '-') cs;
-    isComm [] = True;
+  where
+    (ds, rs) = span (eqChar '-') cs
+    isComm [] = True
     isComm (d:_) = not (isOperChar d)
-    }
 lex loc (d:cs) | isLower_ d =
   case span isIdentChar cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
@@ -108,19 +105,21 @@ lex loc ('"':cs) =
   case takeChars loc (TString loc) '"' 0 [] cs of
     (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
 lex loc ('\'':cs) =
-  case takeChars loc (TChar loc . head) '\'' 0 [] cs of  -- XXX head of
-    (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
+  let tchar [c] = TChar loc c
+      tchar _ = TError loc "Illegal Char literal"
+  in  case takeChars loc tchar '\'' 0 [] cs of  -- XXX head of
+        (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ showChar d]
 lex _ [] = []
 
--- Skip a { - - } style comment
+-- Skip a {- -} style comment
 skipNest :: Loc -> Int -> String -> [Token]
 skipNest loc 0 cs           = lex loc cs
 skipNest loc n ('{':'-':cs) = skipNest (addCol loc 2) (n + 1) cs
 skipNest loc n ('-':'}':cs) = skipNest (addCol loc 2) (n - 1) cs
-skipNest loc n ('\n':cs)    = skipNest (incrLine loc)  n     cs
-skipNest loc n ('\r':cs)    = skipNest loc             n     cs
-skipNest loc n (_:cs)       = skipNest (addCol loc 1)  n     cs
+skipNest loc n ('\n':cs)    = skipNest (incrLine loc)  n      cs
+skipNest loc n ('\r':cs)    = skipNest loc             n      cs
+skipNest loc n (_:cs)       = skipNest (addCol loc 1)  n      cs
 skipNest loc _ []           = [TError loc "Unclosed {- comment"]
 
 -- Skip a -- style comment
@@ -148,6 +147,7 @@ decodeChar :: Int -> String -> (Char, Int, String)
 decodeChar n ('n':cs) = ('\n', n+1, cs)
 decodeChar n ('r':cs) = ('\r', n+1, cs)
 decodeChar n ('t':cs) = ('\t', n+1, cs)
+decodeChar n ('b':cs) = ('\b', n+1, cs)
 decodeChar n (c  :cs) = (c,    n+1, cs)
 decodeChar n []       = ('X',  n,   [])
 
@@ -208,4 +208,3 @@ layout          ms      (t@(TSpec _ '{') : ts)          =                       
 layout          ms      (t               : ts)          =                        t : layout     ms  ts
 layout     (_ : ms)     []                              = TSpec (mkLoc 0 0) '}'    : layout     ms  []
 layout          []      []                              =                            []
---layout           _      _                             = TError (mkLoc 0 0) "layout error"  : []

@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Either(module Data.Either) where
+import Primitives
 
 data Either a b = Left a | Right b
 

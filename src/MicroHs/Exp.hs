@@ -1,20 +1,23 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.Exp(
   compileOpt,
   substExp,
-  Exp(..), showExp, toStringP,
+  Exp(..), showExp, eqExp, toStringP,
   PrimOp,
   encodeString,
   app2, cCons, cNil, cFlip,
-  allVarsExp, freeVars
+  allVarsExp, freeVars,
   ) where
 import Prelude
 import Data.Char
 import Data.List
 import MicroHs.Ident
-import MicroHs.Expr --X(Lit(..), showLit)
+import MicroHs.Expr(Lit(..), showLit, eqLit)
+--Ximport Control.DeepSeq
 --Ximport Compat
+--Yimport Primitives(NFData(..))
 --import Debug.Trace
 
 type PrimOp = String
@@ -25,6 +28,15 @@ data Exp
   | Lam Ident Exp
   | Lit Lit
   --Xderiving (Show, Eq)
+
+--Winstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
+
+eqExp :: Exp -> Exp -> Bool
+eqExp (Var i1) (Var i2) = eqIdent i1 i2
+eqExp (App f1 a1) (App f2 a2) = eqExp f1 f2 && eqExp a1 a2
+eqExp (Lam i1 e1) (Lam i2 e2) = eqIdent i1 i2 && eqExp e1 e2
+eqExp (Lit l1) (Lit l2) = eqLit l1 l2
+eqExp _ _ = False
 
 data MaybeApp = NotApp | IsApp Exp Exp
 
@@ -117,19 +129,21 @@ eqExp ae1 ae2 =
         _ -> False
 -}
 
-toStringP :: Exp -> String
+-- Avoid quadratic concatenation by using difference lists,
+-- turning concatenation into function composition.
+toStringP :: Exp -> (String -> String)
 toStringP ae =
   case ae of
-    Var x   -> showIdent x
+    Var x   -> (showIdent x ++)
     Lit (LStr s) ->
       -- Encode very short string directly as combinators.
       if length s > 1 then
-        quoteString s
+        (quoteString s ++)
       else
         toStringP (encodeString s)
-    Lit l   -> showLit l
-    Lam x e -> "(\\" ++ showIdent x ++ " " ++ toStringP e ++ ")"
-    App f a -> "(" ++ toStringP f ++ " " ++ toStringP a ++ ")"
+    Lit l   -> (showLit l ++)
+    Lam x e -> (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
+    App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
 
 quoteString :: String -> String
 quoteString s =
@@ -408,9 +422,7 @@ substExp si se ae =
                  let
                    fe = allVarsExp e
                    ase = allVarsExp se
-                   j = --head $ deleteFirstsBy eqIdent ["a" ++ showInt n | n <- enumFrom 0] (freeVars se ++ freeVars e)
-                       --head [ v | n <- enumFrom 0, let { v = "a" ++ showInt n }, not (elemBy eqIdent v fse), not (elemBy eqIdent v fe) ]
-                       head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ showInt n) }, not (elemBy eqIdent v ase), not (elemBy eqIdent v fe) ]
+                   j = head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ showInt n) }, not (elemBy eqIdent v ase), not (elemBy eqIdent v fe) ]
                  in
                    --trace ("substExp " ++ unwords [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))
@@ -423,7 +435,7 @@ freeVars ae =
   case ae of
     Var i -> [i]
     App f a -> freeVars f ++ freeVars a
-    Lam i e -> deleteBy eqIdent i (freeVars e)
+    Lam i e -> deleteAllBy eqIdent i (freeVars e)
     Lit _ -> []
 
 allVarsExp :: Exp -> [Ident]
@@ -457,3 +469,18 @@ allVarsExp ae =
 --
 --  B' :: (a -> b -> c) -> a -> (d -> b) -> d -> c
 --  B' k f g x = k f (g x)
+--
+-- Common:
+--  817: C' B
+--  616: B BK
+--  531: C' C
+--  352: BK K
+--  305: C' S
+--
+--  BBK = B BK
+--  BBK x y z w = B BK x y z w = BK (x y) z w = x y z
+--
+--  C'C = C' C
+--  C'C x y z w = C' C x y z w = C (x z) y w = x z w y
+
+

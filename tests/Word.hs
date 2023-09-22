@@ -9,6 +9,5 @@ main = do
   putStrLn $ W.showWord twoTo32M1
   putStrLn $ W.showWord $ (W.*) twoTo32M1 twoTo32M1
 
-twoTo32M1 :: Word
+twoTo32M1 :: W.Word
 twoTo32M1 = W.intToWord 4294967295
-

@@ -1,16 +1,11 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
-module MicroHs.Parse(pTop, parseDie) where
+module MicroHs.Parse(pTop, parseDie, parse, pExprTop) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
---import Control.Monad
---import Control.Monad.State.Strict
---import Control.Applicative --hiding (many, some)
 import Data.Char
 import Data.List
 import Text.ParserComb as P
---import Debug.Trace
---import MicroHs.Lex
 import MicroHs.Lex
 import MicroHs.Expr
 import MicroHs.Ident
@@ -25,12 +20,18 @@ getFileName = get
 parseDie :: forall a . --X (Show a) =>
             P a -> FilePath -> String -> a
 parseDie p fn file =
+  case parse p fn file of
+    Left msg -> error msg
+    Right a -> a
+
+parse :: forall a . --X (Show a) =>
+         P a -> FilePath -> String -> Either String a
+parse p fn file =
   let { ts = lexTop file } in
---  trace (show ts) $
   case runPrsr fn p ts of
-    Left lf -> error $ formatFailed fn ts lf
-    Right [(a, _)] -> a
-    Right as -> error $ "Ambiguous:"
+    Left lf -> Left $ formatFailed fn ts lf
+    Right [(a, _)] -> Right a
+    Right as -> Left $ "Ambiguous:"
 --X                     ++ unlines (map (show . fst) as)
 
 getLoc :: P Loc
@@ -41,9 +42,12 @@ getLoc = P.do
 pTop :: P EModule
 pTop = pModule <* eof
 
+pExprTop :: P Expr
+pExprTop = pExpr <* eof
+
 pModule :: P EModule
 pModule = EModule <$> (pKeyword "module" *> pUQIdentA) <*>
-                      (pSpec '(' *> esepBy pExportSpec (pSpec ',') <* pSpec ')') <*>
+                      (pSpec '(' *> esepEndBy pExportItem (pSpec ',') <* pSpec ')') <*>
                       (pKeyword "where" *> pBlock pDef)
 
 pQIdent :: P Ident
@@ -65,7 +69,7 @@ pUIdentA = P.do
 pUIdent :: P Ident
 pUIdent =
       pUIdentA
-  <|> pUIdentSpecial
+  <|< pUIdentSpecial
 
 pUIdentSym :: P Ident
 pUIdentSym = pUIdent <|< pParens pUSymOper
@@ -77,9 +81,9 @@ pUIdentSpecial = P.do
   let
     mk = mkIdentLoc fn loc
   
-  (mk . map (const ',') <$> (pSpec '(' *> some (pSpec ',') <* pSpec ')'))
-    <|> (mk "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
-    <|> (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
+  (mk . map (const ',') <$> (pSpec '(' *> esome (pSpec ',') <* pSpec ')'))
+    <|< (mk "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
+    <|< (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
 
 pUQIdentA :: P Ident
 pUQIdentA = P.do
@@ -92,7 +96,7 @@ pUQIdentA = P.do
 pUQIdent :: P Ident
 pUQIdent =
       pUQIdentA
-  <|> pUIdentSpecial
+  <|< pUIdentSpecial
 
 pLIdent :: P Ident
 pLIdent = P.do
@@ -111,8 +115,9 @@ pLQIdent = P.do
   satisfyM "LQIdent" is
 
 keywords :: [String]
-keywords = ["case", "data", "do", "else", "forall", "if", "import",
-  "in", "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
+keywords = ["case", "data", "do", "else", "forall", "foreign", "if", "import",
+  "in", "infix", "infixl", "infixr",
+  "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
 pSpec c = () <$ satisfy [c] is
@@ -166,6 +171,19 @@ pLQSymOper = P.do
   guard (not (isUOper s))
   P.pure s
 
+-- Allow -> as well
+pLQSymOperArr :: P Ident
+pLQSymOperArr = pLQSymOper <|< pQArrow
+
+-- Parse ->, possibly qualified
+pQArrow :: P Ident
+pQArrow = P.do
+  fn <- getFileName
+  let
+    is (TIdent loc qs s@"->") = Just (qualName fn loc qs s)
+    is _ = Nothing
+  satisfyM "->" is
+
 pLSymOper :: P Ident
 pLSymOper = P.do
   s <- pSymOper
@@ -173,13 +191,13 @@ pLSymOper = P.do
   P.pure s
 
 reservedOps :: [String]
-reservedOps = ["=", "|", "::", "<-", "@"]
+reservedOps = ["=", "|", "::", "<-", "@", "..", "->"]
 
 pUQIdentSym :: P Ident
 pUQIdentSym = pUQIdent <|< pParens pUQSymOper
 
 pLQIdentSym :: P Ident
-pLQIdentSym = pLQIdent <|< pParens pLQSymOper 
+pLQIdentSym = pLQIdent <|< pParens pLQSymOperArr
 
 pLIdentSym :: P Ident
 pLIdentSym = pLIdent <|< pParens pLSymOper
@@ -206,12 +224,12 @@ pString = satisfyM "string" is
 
 ---------------
 
-pExportSpec :: P ExportSpec
-pExportSpec =
+pExportItem :: P ExportItem
+pExportItem =
       ExpModule <$> (pKeyword "module" *> pUQIdent)
-  <|> ExpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pSymbol ".." <* pSpec ')')
-  <|> ExpType <$> pUQIdentSym
-  <|> ExpValue <$> pLQIdentSym
+  <|< ExpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pSymbol ".." <* pSpec ')')
+  <|< ExpType <$> pUQIdentSym
+  <|< ExpValue <$> pLQIdentSym
 
 pKeyword :: String -> P ()
 pKeyword kw = () <$ satisfy kw is
@@ -223,27 +241,42 @@ pBlock :: forall a . P a -> P [a]
 pBlock p = P.do
   pSpec '{'
   as <- esepBy p (pSpec ';')
-  optional (pSpec ';')
+  eoptional (pSpec ';')
   pSpec '}'
   pure as
 
 pDef :: P EDef
 pDef =
-      Data        <$> (pKeyword "data"    *> pLHS <* pSymbol "=") <*> esepBy1 (pair <$> pUIdentSym <*> many pAType) (pSymbol "|")
-  <|> Newtype     <$> (pKeyword "newtype" *> pLHS <* pSymbol "=") <*> pUIdent <*> pAType
-  <|> Type        <$> (pKeyword "type"    *> pLHS <* pSymbol "=") <*> pType
-  <|> uncurry Fcn <$> pEqns
-  <|> Sign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
-  <|> Import      <$> (pKeyword "import" *> pImportSpec)
+      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 ((,) <$> pUIdentSym <*> emany pAType) (pSymbol "|"))
+                                                        <|< P.pure [])
+  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> pUIdent) <*> pAType
+  <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
+  <|< uncurry Fcn <$> pEqns
+  <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
+  <|< Import      <$> (pKeyword "import" *> pImportSpec)
+  <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
+  <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
+  where
+    pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
+    dig (TInt _ i) | -1 <= i && i <= 9 = Just i
+    dig _ = Nothing
+    pPrec = satisfyM "digit" dig
 
 pLHS :: P LHS
-pLHS = pair <$> pUIdentSym <*> many pIdKind
+pLHS = (,) <$> pUIdentSym <*> emany pIdKind
 
 pImportSpec :: P ImportSpec
 pImportSpec =
   let
     pQua = (True <$ pKeyword "qualified") <|< pure False
-  in  ImportSpec <$> pQua <*> pUQIdentA <*> optional (pKeyword "as" *> pUQIdent)
+  in  ImportSpec <$> pQua <*> pUQIdentA <*> eoptional (pKeyword "as" *> pUQIdent) <*>
+        eoptional ((,) <$> ((True <$ pKeyword "hiding") <|> pure False) <*> pParens (esepEndBy pImportItem (pSpec ',')))
+
+pImportItem :: P ImportItem
+pImportItem =
+      ImpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pSymbol ".." <* pSpec ')')
+  <|< ImpType <$> pUQIdentSym
+  <|< ImpValue <$> pLQIdentSym
 
 --------
 -- Types
@@ -251,42 +284,36 @@ pImportSpec =
 pIdKind :: P IdKind
 pIdKind =
       ((\ i -> IdKind i kType) <$> pLIdentSym)
-  <|> pParens (IdKind <$> pLIdentSym <*> (pSymbol "::" *> pKind))
+  <|< pParens (IdKind <$> pLIdentSym <*> (pSymbol "::" *> pKind))
 
 pKind :: P EKind
 pKind = pType
 
+{-
 pTypeScheme :: P ETypeScheme
 pTypeScheme = P.do
   vs <- (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
   t <- pType
-  pure $ ETypeScheme vs t
+  pure $ if null vs then t else EForall vs t
+-}
+pTypeScheme :: P ETypeScheme
+pTypeScheme = pType
 
 --
 -- Partial copy of pExpr, but that includes '->'.
 -- Including '->' in pExprOp interacts poorly with '->'
 -- in lambda and 'case'.
 pType :: P EType
-pType = pTypeOp
+pType = P.do
+  vs <- (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
+  t <- pTypeOp
+  pure $ if null vs then t else EForall vs t
 
 pTypeOp :: P EType
-pTypeOp =
-  let
-{-
-    p10 = pTypeArg
-    p9 = p10
-    p8 = p9
-    p7 = p8
-    p6 = p7
-    p5 = p6
-    p4 = p5
-    p3 = p4
-    p2 = p3
-    p1 = p2
-    p0 = pRightAssoc (pOpers ["->"]) p1
--}
-    p0 = pRightAssoc (pOpers ["->"]) pTypeArg
-  in  p0
+pTypeOp = pOperators pTypeOper pTypeArg
+
+pTypeOper :: P Ident
+pTypeOper = pOper <|< (mkIdent "->" <$ pSymbol "->")
 
 pTypeArg :: P EType
 pTypeArg = pTypeApp
@@ -295,7 +322,7 @@ pTypeApp :: P EType
 pTypeApp = P.do
   f <- pAType
   as <- emany pAType
-  mt <- optional (pSymbol "::" *> pType)
+  mt <- eoptional (pSymbol "::" *> pType)
   let
     r = foldl EApp f as
   pure $ maybe r (ESign r) mt
@@ -303,10 +330,10 @@ pTypeApp = P.do
 pAType :: P Expr
 pAType =
       (EVar <$> pLQIdentSym)
-  <|> (EVar <$> pUQIdentSym)
-  <|> pLit
-  <|> (eTuple <$> (pSpec '(' *> esepBy1 pType (pSpec ',') <* pSpec ')'))
-  <|> (EList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
+  <|< (EVar <$> pUQIdentSym)
+  <|< pLit
+  <|< (eTuple <$> (pSpec '(' *> esepBy1 pType (pSpec ',') <* pSpec ')'))
+  <|< (EListish . LList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
 
 -------------
 -- Patterns
@@ -318,34 +345,20 @@ pAType =
 -- is separate.
 pAPat :: P EPat
 pAPat =
-      (EVar <$> pLIdentSym)
-  <|> (EVar <$> pUQIdentSym)
-  <|> pLit
-  <|> (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
-  <|> (EList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
-  <|> (EAt <$> (pLIdentSym <* pSymbol "@") <*> pAPat)
+      (P.do
+         i <- pLIdentSym
+         (EAt i <$> (pSymbol "@" *> pAPat)) <|< pure (EVar i)
+      )
+  <|< (EVar <$> pUQIdentSym)
+  <|< pLit
+  <|< (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
+  <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
 
 pPat :: P EPat
 pPat = pPatOp
 
 pPatOp :: P EPat
-pPatOp =
-  let
-{-
-    p10 = pPatArg
-    p9 = p10
-    p8 = p9
-    p7 = p8
-    p6 = p7
-    p5 = pRightAssoc (pOpers [":"]) p6
-    p4 = p5
-    p3 = p4
-    p2 = p3
-    p1 = p2
-    p0 = p1
--}
-    p0 = pRightAssoc (pOpers [":"]) pPatArg
-  in  p0
+pPatOp = pOperators pOper pPatArg
 
 pPatArg :: P EPat
 pPatArg = pPatApp
@@ -387,7 +400,7 @@ pAlts sep = P.do
   
 pAltsL :: P () -> P [EAlt]
 pAltsL sep =
-      esome (pair <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr))
+      esome ((,) <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr))
   <|< ((\ e -> [([], e)]) <$> (sep *> pExpr))
 
 pWhere :: P [EBind]
@@ -401,8 +414,8 @@ pWhere =
 pStmt :: P EStmt
 pStmt =
       (SBind <$> (pPat <* pSymbol "<-") <*> pExpr)
-  <|> (SLet  <$> (pKeyword "let" *> pBlock pBind))
-  <|> (SThen <$> pExpr)
+  <|< (SLet  <$> (pKeyword "let" *> pBlock pBind))
+  <|< (SThen <$> pExpr)
 
 -------------
 -- Expressions
@@ -411,13 +424,13 @@ pExpr :: P Expr
 pExpr = pExprOp
 
 pExprArg :: P Expr
-pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pIf <|> pDo
+pExprArg = pExprApp <|< pLam <|< pCase <|< pLet <|< pIf <|< pDo
 
 pExprApp :: P Expr
 pExprApp = P.do
   f <- pAExpr
   as <- emany pAExpr
-  mt <- optional (pSymbol "::" *> pType)
+  mt <- eoptional (pSymbol "::" *> pType)
   let
     r = foldl EApp f as
   pure $ maybe r (ESign r) mt
@@ -429,7 +442,7 @@ pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword "of" *> pBlock pCaseArm)
 
 pCaseArm :: P ECaseArm
-pCaseArm = pair <$> pPat <*> pAlts (pSymbol "->")
+pCaseArm = (,) <$> pPat <*> pAlts (pSymbol "->")
 
 pLet :: P Expr
 pLet = ELet <$> (pKeyword "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)
@@ -448,39 +461,48 @@ pQualDo = P.do
     is _ = Nothing
   satisfyM "QualDo" is
 
+pOperComma :: P Ident
+pOperComma = pOper <|< pComma
+  where
+    pComma = mkIdentLoc <$> getFileName <*> getLoc <*> ("," <$ pSpec ',')
+
 pAExpr :: P Expr
 pAExpr = (
       (EVar   <$> pLQIdentSym)
-  <|> (EVar   <$> pUQIdentSym)
-  <|> pLit
-  <|> (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
-  <|> (EList  <$> (pSpec '[' *> esepBy1 pExpr (pSpec ',') <* pSpec ']'))
-  <|> (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOper <* pSpec ')'))
-  <|> (ESectR <$> (pSpec '(' *> pOper) <*> (pExprArg <* pSpec ')'))
-  <|> (ECompr <$> (pSpec '[' *> pExpr <* pSymbol "|") <*> (esepBy1 pStmt (pSpec ',') <* pSpec ']'))
-  <|> (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
+  <|< (EVar   <$> pUQIdentSym)
+  <|< pLit
+  <|< (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
+  <|< EListish <$> (pSpec '[' *> pListish <* pSpec ']')
+  <|< (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOperComma <* pSpec ')'))
+  <|< (ESectR <$> (pSpec '(' *> pOperComma) <*> (pExprArg <* pSpec ')'))
+  <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
   )
   -- This weirdly slows down parsing
   -- <?> "aexpr"
 
-pExprOp :: P Expr
-pExprOp =
+pListish :: P Listish
+pListish = P.do
+  e1 <- pExpr
   let
-    p10 = pExprArg
-    p9 = pRightAssoc (pOpers ["."]) $
-         pLeftAssoc  (pOpers ["?", "!!", "<?>"]) p10
-    p8 = p9
-    p7 = pLeftAssoc  (pOpers ["*", "quot", "rem"]) p8
-    p6 = pLeftAssoc  (pOpers ["+", "-"]) p7
-    p5 = pRightAssoc (pOpers [":", "++"]) p6
-    p4 = pNonAssoc   (pOpers ["==", "/=", "<", "<=", ">", ">="]) $
-         pLeftAssoc  (pOpers ["<*>", "<*", "*>", "<$>", "<$"])   p5
-    p3 = pRightAssoc (pOpers ["&&"]) $
-         pLeftAssoc  (pOpers ["<|>","<|<"]) p4
-    p2 = pRightAssoc (pOpers ["||"]) p3
-    p1 = pLeftAssoc  (pOpers [">>=", ">>"]) p2
-    p0 = pRightAssoc (pOpers ["$"]) p1
-  in  p0
+    pMore = P.do
+      e2 <- pExpr
+      ((\ es -> LList (e1:e2:es)) <$> esome (pSpec ',' *> pExpr))
+       <|< (LFromThenTo e1 e2 <$> (pSymbol ".." *> pExpr))
+       <|< (LFromThen e1 e2 <$ pSymbol "..")
+       <|< P.pure (LList [e1,e2])
+  (pSpec ',' *> pMore)
+   <|< (LCompr e1 <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')))
+   <|< (LFromTo e1 <$> (pSymbol ".." *> pExpr))
+   <|< (LFrom e1 <$ pSymbol "..")
+   <|< P.pure (LList [e1])
+
+pExprOp :: P Expr
+pExprOp = pOperators pOper pExprArg
+
+pOperators :: P Ident -> P Expr -> P Expr
+pOperators oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
+  where eOper e [] = e
+        eOper e ies = EOper e ies
 
 -------------
 -- Bindings
@@ -488,53 +510,15 @@ pExprOp =
 pBind :: P EBind
 pBind = 
       uncurry BFcn <$> pEqns
-  <|> BPat <$> (pPatNotVar <* pSymbol "=") <*> pExpr
-
--------------
-
-pRightAssoc :: P Ident -> P Expr -> P Expr
-pRightAssoc pOp p = P.do
-  e1 <- p
-  let
-    rest =
-      P.do
-        op <- pOp
-        e2 <- pRightAssoc pOp p
-        pure $ appOp op e1 e2
-  rest <|< pure e1
-
-pNonAssoc :: P Ident -> P Expr -> P Expr
-pNonAssoc pOp p = P.do
-  e1 <- p
-  let
-    rest =
-      P.do
-        op <- pOp
-        e2 <- p
-        pure $ appOp op e1 e2
-  rest <|< pure e1
-
-pLeftAssoc :: P Ident -> P Expr -> P Expr
-pLeftAssoc pOp p = P.do
-  e1 <- p
-  es <- emany (pair <$> pOp <*> p)
-  pure $ foldl (\ x (op, y) -> appOp op x y) e1 es
-
-pOpers :: [String] -> P Ident
-pOpers ops = P.do
-  op <- pOper
-  guard (elemBy eqString (unIdent op) ops)
-  pure op
+  <|< BPat         <$> (pPatNotVar <* pSymbol "=") <*> pExpr
+  <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
 
 -------------
 
 eTuple :: [Expr] -> Expr
-eTuple [] = undefined
+eTuple [] = error "eTuple"
 eTuple [e] = e
 eTuple es = ETuple es
-
-appOp :: Ident -> Expr -> Expr -> Expr
-appOp op e1 e2 = EApp (EApp (EVar op) e1) e2
 
 isAlpha_ :: Char -> Bool
 isAlpha_ c = isLower_ c || isUpper c
