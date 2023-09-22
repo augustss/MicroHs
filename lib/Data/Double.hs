@@ -64,7 +64,7 @@ geDouble = (>=)
 -- | this primitive will print doubles with up to 6 decimal points
 -- it turns out that doubles are extremely tricky, and just printing them is a
 -- herculean task of its own...
-showDouble :: Double -> String
+showDouble :: Double -> [Char]
 showDouble = primDoubleShow
 
 --------------------------------

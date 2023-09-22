@@ -1608,9 +1608,9 @@ eval(NODEPTR n)
 #define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
 #define FARITHBIN(op)  do { OPDOUBLE2(rd = xd op yd); SETDOUBLE(n, rd); RET; } while(0) // TODO FIXME
-#define CMP(op)        do { OPINT2(r = xi op yi); GOIND(r ? comTrue : combFalse); } while(0)
-#define CMPF(op)       do { OPDOUBLE2(r = xd op yd); GOIND(r ? comTrue : combFalse); } while(0)
-#define CMPU(op)       do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? comTrue : combFalse); } while(0)
+#define CMP(op)        do { OPINT2(r = xi op yi); GOIND(r ? combTrue : combFalse); } while(0)
+#define CMPF(op)       do { OPDOUBLE2(r = xd op yd); GOIND(r ? combTrue : combFalse); } while(0)
+#define CMPU(op)       do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? combTrue : combFalse); } while(0)
 
   for(;;) {
     num_reductions++;

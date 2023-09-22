@@ -120,7 +120,8 @@ compileModule flags nm = S.do
     fn = map (\ c -> if eqChar c '.' then '/' else c) (unIdent nm) ++ ".hs"
   (pathfn, file) <- liftIO (readFilePath (paths flags) fn)
   let mdl@(EModule nmn _ defs) = parseDie pTop pathfn file
-  --liftIO $ putStrLn $ showEModule mdl
+  -- liftIO $ putStrLn $ showEModule mdl
+  -- liftIO $ putStrLn $ showEDefs defs
   S.when (not (eqIdent nm nmn)) $
     error $ "module name does not agree with file name: " ++ showIdent nm ++ " " ++ showIdent nmn
   let

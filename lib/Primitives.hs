@@ -10,6 +10,7 @@ data Any
 data Char
 data Handle
 data Int
+data Double
 data IO a
 data Word
 
@@ -46,7 +47,7 @@ primDoubleGT :: Double -> Double -> Bool
 primDoubleGT = primitive "fgt"
 primDoubleGE :: Double -> Double -> Bool
 primDoubleGE = primitive "fge"
-primDoubleShow :: Double -> String
+primDoubleShow :: Double -> [Char]
 primDoubleShow = primitive "fshow"
 
 primWordAdd :: Word -> Word -> Word
