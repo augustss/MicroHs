@@ -118,8 +118,9 @@ eqString axs ays =
         [] -> False
         y:ys -> eqChar x y && eqString xs ys
 -}
-
 leString :: String -> String -> Bool
+leString s t = not (eqOrdering GT (compareString s t))
+{-
 leString axs ays =
   case axs of
     [] -> True
@@ -127,6 +128,7 @@ leString axs ays =
       case ays of
         [] -> False
         y:ys -> ltChar x y || eqChar x y && leString xs ys
+-}
 
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s
