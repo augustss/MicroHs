@@ -199,7 +199,7 @@ To bootstrap:
    identical to `comb/mhs.comb`.
  * It is also possible to bake the combinator code into the binary.
    See `make` target `bin/cmhs` for how it is done.
- * For systems where `upx` works you can compress further compress
+ * For systems where `upx` works you can further compress
    the binary.  See `bin/umhs` target.
 
 **NOTE** The GC mark phase currently uses a ridiculously deep stack.
