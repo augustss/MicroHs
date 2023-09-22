@@ -39,3 +39,6 @@ leChar = primCharLE
 
 ltChar :: Char -> Char -> Bool
 ltChar = primCharLT
+
+isSpace :: Char -> Bool
+isSpace c = eqChar c ' ' || eqChar c '\t' || eqChar c '\n'
