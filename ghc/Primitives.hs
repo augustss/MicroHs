@@ -6,7 +6,9 @@ module Primitives(
   Int,
   IO,
   Word,
+  NFData,
   ) where
+import Control.DeepSeq
 import Control.Exception(try)
 import Data.Time
 import Data.Time.Clock.POSIX
@@ -184,3 +186,6 @@ primCompare s t =
     EQ -> 0
     GT -> 1
     
+
+primRnf :: (NFData a) => a -> ()
+primRnf = rnf

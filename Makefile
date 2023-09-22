@@ -68,6 +68,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Unsafe/Coerce.hs
 	$(GHCC) -c lib/Data/Integer.hs
 	$(GHCC) -c lib/Control/Monad/State/Strict.hs
+	$(GHCC) -c lib/Control/DeepSeq.hs
 #	$(GHCC) -c lib/Debug/Trace.hs
 	$(GHCC) -c lib/Control/Exception.hs
 	$(GHCC) -c src/System/Console/SimpleReadline.hs

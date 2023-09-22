@@ -150,7 +150,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
                 T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
-                T_ERROR, T_SEQ, T_EQUAL, T_COMPARE,
+                T_ERROR, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
@@ -396,7 +396,7 @@ new_ap(NODEPTR f, NODEPTR a)
 
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combFalse, comTrue, combUnit, combCons;
+NODEPTR combFalse, combTrue, combUnit, combCons;
 NODEPTR combCC, combIOBIND;
 
 /* One node of each kind for primitives, these are never GCd. */
@@ -447,6 +447,7 @@ struct {
   { "error", T_ERROR },
   { "equal", T_EQUAL },
   { "compare", T_COMPARE },
+  { "rnf", T_RNF },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
@@ -492,7 +493,7 @@ init_nodes(void)
     SETTAG(n, primops[j].tag);
     switch (primops[j].tag) {
     case T_K: combFalse = n; break;
-    case T_A: comTrue = n; break;
+    case T_A: combTrue = n; break;
     case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
     case T_CC: combCC = n; break;
@@ -510,7 +511,7 @@ init_nodes(void)
     SETTAG(n, t);
     switch (t) {
     case T_K: combFalse = n; break;
-    case T_A: comTrue = n; break;
+    case T_A: combTrue = n; break;
     case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
     case T_CC: combCC = n; break;
@@ -1016,6 +1017,7 @@ static inline int test_bit(bits_t *bits, NODEPTR n)
 void
 find_sharing(NODEPTR n)
 {
+ top:
   while (GETTAG(n) == T_IND)
     n = INDIR(n);
   //printf("find_sharing %p %llu ", n, LABEL(n));
@@ -1034,7 +1036,8 @@ find_sharing(NODEPTR n)
       //printf("unmarked\n");
       set_bit(marked_bits, n);
       find_sharing(FUN(n));
-      find_sharing(ARG(n));
+      n = ARG(n);
+      goto top;
     }
   } else {
     /* Not an application, so do nothing */
@@ -1132,6 +1135,7 @@ printrec(FILE *f, NODEPTR n)
   case T_ERROR: fprintf(f, "$error"); break;
   case T_EQUAL: fprintf(f, "$equal"); break;
   case T_COMPARE: fprintf(f, "$compare"); break;
+  case T_RNF: fprintf(f, "$rnf"); break;
   case T_SEQ: fprintf(f, "$seq"); break;
   case T_IO_BIND: fprintf(f, "$IO.>>="); break;
   case T_IO_THEN: fprintf(f, "$IO.>>"); break;
@@ -1394,6 +1398,32 @@ compare(NODEPTR p, NODEPTR q)
   }
 }
 
+void
+rnf_rec(NODEPTR n)
+{
+ top:
+  if (test_bit(marked_bits, n))
+    return;
+  set_bit(marked_bits, n);
+  n = evali(n);
+  if (GETTAG(n) == T_AP) {
+    rnf_rec(FUN(n));
+    n = ARG(n);
+    goto top;
+  }
+}
+
+void
+rnf(NODEPTR n)
+{
+  /* Mark visited nodes to avoid getting stuck in loops. */
+  marked_bits = calloc(free_map_nwords, sizeof(bits_t));
+  if (!marked_bits)
+    memerr();
+  rnf_rec(n);
+  free(marked_bits);
+}
+
 NODEPTR evalio(NODEPTR n);
 
 /* Evaluate a node, returns when the node is in WHNF. */
@@ -1436,8 +1466,8 @@ eval(NODEPTR n)
 #define OPINT2(e)     do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define ARITHBIN(op)  do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op) do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
-#define CMP(op)       do { OPINT2(r = xi op yi); GOIND(r ? comTrue : combFalse); } while(0)
-#define CMPU(op)      do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? comTrue : combFalse); } while(0)
+#define CMP(op)       do { OPINT2(r = xi op yi); GOIND(r ? combTrue : combFalse); } while(0)
+#define CMPU(op)      do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? combTrue : combFalse); } while(0)
 
   for(;;) {
     num_reductions++;
@@ -1518,10 +1548,12 @@ eval(NODEPTR n)
       }
     case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
-    case T_EQUAL: r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r==0 ? comTrue : combFalse);
+    case T_EQUAL: r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
     case T_COMPARE: r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, r); RET;
 
-    case T_IO_ISNULLHANDLE: CHKARGEV1(hdl = evalhandleN(x)); GOIND(hdl == 0 ? comTrue : combFalse);
+    case T_RNF: rnf(ARG(TOP(0))); POP(1); n = TOP(-1); GOIND(combUnit);
+
+    case T_IO_ISNULLHANDLE: CHKARGEV1(hdl = evalhandleN(x)); GOIND(hdl == 0 ? combTrue : combFalse);
 
     case T_IO_PERFORMIO:    CHKARGEV1(x = evalio(x)); GOIND(x);
 
@@ -1549,7 +1581,7 @@ eval(NODEPTR n)
       x = evali(ARG(TOP(0)));
       n = TOP(0);
       POP(1);
-      GOIND(GETTAG(x) == T_INT ? comTrue : combFalse);
+      GOIND(GETTAG(x) == T_INT ? combTrue : combFalse);
 
     case T_ISIO:
       CHECK(1);
@@ -1557,7 +1589,7 @@ eval(NODEPTR n)
       n = TOP(0);
       POP(1);
       l = GETTAG(x);
-      GOIND(T_IO_BIND <= l && l <= T_IO_FLUSH ? comTrue : combFalse);
+      GOIND(T_IO_BIND <= l && l <= T_IO_FLUSH ? combTrue : combFalse);
 
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));

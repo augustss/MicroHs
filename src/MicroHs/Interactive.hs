@@ -1,5 +1,6 @@
 module MicroHs.Interactive(module MicroHs.Interactive) where
 import Prelude
+import Control.DeepSeq
 import Control.Exception
 import qualified MicroHs.StateIO as S
 import MicroHs.Compile
@@ -101,7 +102,7 @@ evalExpr cmdl = S.do
           putStrLn $ showInt $ unsafeCoerce val
         else do
           putStrLn "Warning: not an Int"
-          mio <- try (print ((unsafeCoerce val)::Int))
+          mio <- try (print (force ((unsafeCoerce val)::Int)))
           case mio of
             Left  e -> err e
             Right _ -> return ()
