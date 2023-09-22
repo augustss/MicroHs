@@ -92,6 +92,14 @@ lines s =
 unlines :: [String] -> String
 unlines = concatMap (++ "\n")
 
+
+words :: String -> [String]
+words s =
+  case dropWhile isSpace s of
+    "" -> []
+    s' -> w : words s''
+      where (w, s'') = span (not . isSpace) s'
+
 unwords :: [String] -> String
 unwords ss = intercalate " " ss
 
