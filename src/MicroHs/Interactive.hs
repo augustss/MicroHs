@@ -36,6 +36,7 @@ repl = S.do
     Just ":quit" -> S.liftIO $ putStrLn "Bye"
     Just ":clear" -> S.do
       updateLines (const preamble)
+      S.modify $ \ (ls, flgs, _) -> (ls, flgs, emptyCache)
       repl
     Just s | Just del <- stripPrefixBy eqChar ":del " s -> S.do
       updateLines (unlines . filter (not . isPrefixOfBy eqChar del) . lines)
