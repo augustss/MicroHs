@@ -1,69 +1,86 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 -- *** WIP, do not use! ***
-module Data.Integer(Integer) where
---Yimport Primitives(Word)
+module Data.Integer(module Data.Integer) where
+import Prelude
+{-
 import Control.Error
 import Data.Bool
 import Data.Function
-import qualified Data.Int as I
+import Data.Int
 import Data.List
-import qualified Data.Word as W
+-}
 
 data Sign = Plus | Minus
 
-data Integer = I Sign [Word]   -- each word is <2^32, LSW first
+type Digit = Int
 
-zeroW :: Word
-zeroW = W.intToWord 0
+data Integer = I Sign [Digit]   -- each word is <2^32, least significant digit first, no trailing 0s
 
-maxW :: Word
-maxW = W.intToWord 4294967296
+intToInteger :: Int -> Integer
+intToInteger i | i > 0 = I Plus  (f i)
+               | i < 0 = I Minus (f (negate i)) -- XXX minInt
+               | True  = I Plus  []
+  where f x | x >= maxD = [rem x maxD, quot x maxD]
+            | True      = [x]
 
-(+) :: Integer -> Integer -> Integer
-(+) (I Plus  xs) (I Plus  ys)             = I Plus  (add xs ys)
-(+) (I Plus  xs) (I Minus ys) | ltW xs ys = I Minus (sub ys xs)
-                              | True      = I Plus  (sub xs ys)
-(+) (I Minus xs) (I Plus  ys) | ltW ys xs = I Minus (sub xs ys)
-                              | True      = I Plus  (sub ys xs)
-(+) (I Minus xs) (I Minus ys)             = I Minus (add xs ys)
+zeroD :: Digit
+zeroD = 0
 
-negate :: Integer -> Integer
-negate (I Plus  x) = I Minus x
-negate (I Minus x) = I Plus  x
+maxD :: Digit
+maxD = 4294967296  -- - 2^32
 
-(-) :: Integer -> Integer -> Integer
-(-) x y = x + negate y
+addI :: Integer -> Integer -> Integer
+addI (I Plus  xs) (I Plus  ys)             = I Plus  (add xs ys)
+addI (I Plus  xs) (I Minus ys) | ltW xs ys = I Minus (sub ys xs)
+                               | True      = I Plus  (sub xs ys)
+addI (I Minus xs) (I Plus  ys) | ltW ys xs = I Minus (sub xs ys)
+                               | True      = I Plus  (sub ys xs)
+addI (I Minus xs) (I Minus ys)             = I Minus (add xs ys)
 
-add :: [Word] -> [Word] -> [Word]
-add = add' zeroW
+negateI :: Integer -> Integer
+negateI (I Plus  x) = I Minus x
+negateI (I Minus x) = I Plus  x
 
-add' :: Word -> [Word] -> [Word] -> [Word]
-add' ci (x : xs) (y : ys) = s : add' co xs ys  where (s, co) = addW ci x y
-add' ci (x : xs) []       = s : add' co xs []  where (s, co) = addW ci x zeroW
-add' ci []       (y : ys) = s : add' co [] ys  where (s, co) = addW ci zeroW y
-add' ci []       []       = if (W.==) ci zeroW then [] else [ci]
+subI :: Integer -> Integer -> Integer
+subI x y = addI x (negateI y)
 
--- Add 3 words with carry
-addW :: Word -> Word -> Word -> (Word, Word)
-addW x y z = (W.quot s maxW, W.rem s maxW)  where s = (W.+) ((W.+) x y) z
+add :: [Digit] -> [Digit] -> [Digit]
+add = add' zeroD
 
--- We always have xs <= ys
-sub :: [Word] -> [Word] -> [Word]
-sub = sub' zeroW
+add' :: Digit -> [Digit] -> [Digit] -> [Digit]
+add' ci (x : xs) (y : ys) = s : add' co xs ys  where (s, co) = addD ci x y
+add' ci (x : xs) []       = s : add' co xs []  where (s, co) = addD ci x zeroD
+add' ci []       (y : ys) = s : add' co [] ys  where (s, co) = addD ci zeroD y
+add' ci []       []       = if ci == zeroD then [] else [ci]
 
-sub' :: Word -> [Word] -> [Word] -> [Word]
+-- Add 3 digits with carry
+addD :: Digit -> Digit -> Digit -> (Digit, Digit)
+addD x y z = (quot s maxD, rem s maxD)  where s = x + y + z
+
+-- We always have xs >= ys
+sub :: [Digit] -> [Digit] -> [Digit]
+sub xs ys = trim0 (sub' zeroD xs ys)
+
+sub' :: Digit -> [Digit] -> [Digit] -> [Digit]
 sub' bi (x : xs) (y : ys) = d : sub' bo xs ys  where (d, bo) = subW bi x y
+sub' bi (x : xs) []       = d : sub' bo xs []  where (d, bo) = subW bi x zeroD
+sub' bi []       _        = error "sub'"
 
-subW :: Word -> Word -> Word -> (Word, Word)
-subW _ _ _ = error "subW"
+subW :: Digit -> Digit -> Digit -> (Digit, Digit)
+subW x y z = (quot d maxD, rem d maxD)  where d = y - z + x
 
-ltW :: [Word] -> [Word] -> Bool
-ltW axs ays = (I.<) lxs lys || (I.==) lxs lys && cmp (reverse axs) (reverse ays)
+-- Remove trailing 0s
+trim0 :: [Digit] -> [Digit]
+trim0 = reverse . dropWhile (== 0) . reverse
+
+-- Is axs < ays?
+ltW :: [Digit] -> [Digit] -> Bool
+ltW axs ays = lxs < lys || lxs == lys && cmp (reverse axs) (reverse ays)
   where
     lxs = length axs
     lys = length ays
-    cmp (x:xs) (y:ys) = (W.<) x y || (W.==) x y && cmp xs ys
+    cmp (x:xs) (y:ys) = x < y || x == y && cmp xs ys
     cmp []     []     = False
     cmp _      _      = error "cmp"
     
