@@ -136,8 +136,7 @@ data Lit
   | LPrim String
   | LForImp String
   --Xderiving (Show, Eq)
---Xinstance NFData Lit where rnf (LInt i) = rnf i; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
---Yinstance NFData Lit where rnf (LInt i) = rnf i; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
+--Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
 
 eqLit :: Lit -> Lit -> Bool
 eqLit (LInt x)  (LInt  y) = x == y

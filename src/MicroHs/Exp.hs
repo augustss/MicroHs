@@ -29,8 +29,7 @@ data Exp
   | Lit Lit
   --Xderiving (Show, Eq)
 
---Xinstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
---Yinstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
+--Winstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
 
 eqExp :: Exp -> Exp -> Bool
 eqExp (Var i1) (Var i2) = eqIdent i1 i2

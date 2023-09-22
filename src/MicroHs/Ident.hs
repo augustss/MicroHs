@@ -26,8 +26,7 @@ data SLoc = SLoc FilePath Line Col
 
 data Ident = Ident SLoc String
   --Xderiving (Show, Eq)
---Xinstance NFData Ident where rnf (Ident _ s) = rnf s
---Yinstance NFData Ident where rnf (Ident _ s) = rnf s
+--Winstance NFData Ident where rnf (Ident _ s) = rnf s
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0

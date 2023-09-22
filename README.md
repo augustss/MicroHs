@@ -4,6 +4,17 @@ It uses combinators for the runtime execution.
 
 The compiler can compile itself.
 
+## Compiling MicroHs
+There are three different ways to compile MicroHs
+* Using GHC with standard `Prelude` and libraries. `Makefile` target `bin/mhs`
+* Using GHC, but with `Prelude` and libraries from MicroHs. `Makefile` target `bin/bootmhs`
+* Using mhs, with the supplied `comb/mhs.comb`. `Makefile` target `comb/mhs-new.comb`
+These differenty ways need slightly different imports etc.  To accomodate this
+each source file is preprocessed for the first two targets.
+When compiling with GHC and standard libraries the strings `--X` and `--W` are removed from the source file.
+When compiling with GHC and MicroHs libraries the strings `--Y` and `--W` are removed from the source file.
+This way anything special needed with GHC is just treated as comments by mhs.
+
 ## Language
 The language is a subset of Haskell.  There is only simple Hindley-Milner polymorphism,
 no type classes (yet).

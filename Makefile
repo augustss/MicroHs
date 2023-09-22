@@ -91,6 +91,10 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHC) $(PROF) -hide-all-packages -package time -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o $(BOOTDIR)/*/*/*.o $(BOOTDIR)/*/*/*/*.o
 #	$(GHC) $(PROF) -hide-all-packages -package containers -o $(BIN)/boot$(MHS) $(BOOTDIR)/*.o $(BOOTDIR)/*/*.o $(BOOTDIR)/*/*/*/*.o
 
+# Self compile using comb/mhs.comb
+$(COMB)$(MHS)-new.comb: $(EVAL)
+	$(EVAL) +RTS -r$(COMB)$(MHS).comb -RTS -ilib -isrc -o$(COMB)$(MHS)-new.comb MicroHs.Main
+
 # Compare version compiled with normal GHC libraries and $(MHS) libraries
 bootboottest:	$(BIN)/$(MHS) $(BIN)/boot$(MHS)
 	$(BIN)/$(MHS)     -ilib -isrc -omain-$(MHS).comb  MicroHs.Main

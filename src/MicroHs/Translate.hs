@@ -10,8 +10,7 @@ import System.Environment
 --Ximport GHC.Types
 import Unsafe.Coerce
 --Ximport Compat
---Ximport PrimTable
---Yimport PrimTable
+--Wimport PrimTable
 
 import MicroHs.Expr
 import MicroHs.Exp
