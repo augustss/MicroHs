@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module Primitives(module Primitives) where
 import Data.Bool_Type
+import Data.Ordering_Type
 
 infixr -1 ->
 
@@ -89,7 +90,8 @@ primSeq    = primitive "seq"
 --primEqual  :: forall a . a -> a -> Bool
 --primEqual  = primitive "equal"
 
-primCompare  :: forall a . a -> a -> Int
+--primCompare  :: forall a . a -> a -> Int
+primCompare :: [Char] -> [Char] -> Ordering
 primCompare  = primitive "compare"
 
 primEqString  :: [Char] -> [Char] -> Bool

@@ -148,7 +148,8 @@ compareString2 s t =
     GT
 -}
 
-compareString :: [Char] -> [Char] -> Ordering
-compareString s t = if r < 0 then LT else if r > 0 then GT else EQ
-  where r = primCompare s t
+compareString :: String -> String -> Ordering
+compareString = primCompare
+--compareString s t = if r < 0 then LT else if r > 0 then GT else EQ
+--  where r = primCompare s t
 

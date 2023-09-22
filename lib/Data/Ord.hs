@@ -4,9 +4,8 @@ module Data.Ord(
   isEQ,
   ) where
 import Data.Bool_Type
+import Data.Ordering_Type
 import Data.Int
-
-data Ordering = LT | EQ | GT
 
 isEQ :: Ordering -> Bool
 isEQ EQ = True

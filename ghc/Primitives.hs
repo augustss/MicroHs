@@ -187,13 +187,16 @@ primIsInt         = error "primIsInt"
 primIsIO         :: Any -> Bool
 primIsIO          = error "primIsIO"
 
+{-
 primCompare      :: String -> String -> Int
 primCompare s t =
   case compare s t of
     LT -> -1
     EQ -> 0
     GT -> 1
-    
+-}
+primCompare      :: String -> String -> Ordering
+primCompare = compare
 
 primRnf :: (NFData a) => a -> ()
 primRnf = rnf

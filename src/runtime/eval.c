@@ -397,7 +397,8 @@ new_ap(NODEPTR f, NODEPTR a)
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combFalse, combTrue, combUnit, combCons;
-NODEPTR combCC, combIOBIND;
+NODEPTR combCC, combBK, combIOBIND;
+NODEPTR combLT, combEQ, combGT;
 
 /* One node of each kind for primitives, these are never GCd. */
 /* We use linear search in this, because almost all lookups
@@ -497,6 +498,7 @@ init_nodes(void)
     case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
     case T_CC: combCC = n; break;
+    case T_BK: combBK = n; break;
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_STDIN:  SETTAG(n, T_HDL); HANDLE(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_HDL); HANDLE(n) = stdout; break;
@@ -515,6 +517,7 @@ init_nodes(void)
     case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
     case T_CC: combCC = n; break;
+    case T_BK: combBK = n; break;
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_STDIN:  SETTAG(n, T_HDL); HANDLE(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_HDL); HANDLE(n) = stdout; break;
@@ -529,6 +532,16 @@ init_nodes(void)
     }
   }
 #endif
+
+  /* The representation of the constructors of
+   *  data Ordering = LT | EQ | GT
+   * do not have single constructors.
+   * But we can make compound one, since that are irreducible.
+   */
+#define NEWAP(c, f, a) do { NODEPTR n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
+  NEWAP(combLT, combBK,    combFalse);  /* BK B */
+  NEWAP(combEQ, combFalse, combFalse);  /* K K */
+  NEWAP(combGT, combFalse, combTrue);   /* K A */
 
 #if INTTABLE
   /* Allocate permanent Int nodes */
@@ -1549,7 +1562,8 @@ eval(NODEPTR n)
     case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
     case T_EQUAL: r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
-    case T_COMPARE: r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, r); RET;
+    case T_COMPARE: //r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, r); RET;
+      r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
 
     case T_RNF: rnf(ARG(TOP(0))); POP(1); n = TOP(-1); GOIND(combUnit);
 

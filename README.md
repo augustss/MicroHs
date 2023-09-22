@@ -211,14 +211,15 @@ You might have to increase it on your system.
   * A: Maybe some time, maybe never.
 *
   * Q: Why are the error messages so bad?
-  * A: Error messages are boring.  But I plan to add location information to them.
+  * A: Error messages are boring.
 *
   * Q: Why is the so much source code?
-  * A: I wonder this myself.  Over 4000 lines of Haskell seems excessive.
-       1700 lines of C is also more than I'd like for such a simple system.
+  * A: I wonder this myself.  Over 5000 lines of Haskell seems excessive.
+       2000 lines of C is also more than I'd like for such a simple system.
 *
   * Q: Why are the binaries so big?
-  * A: The combinator file is rather verbose.  Compressed the combinator file
-       for the compiler shrinks from 150kB to 20kB.  The evaluator is about 40kB so
-       the total size for runtime and (compressed) compiler is about 40k.
+  * A: The combinator file is rather verbose.  The combinator file
+       for the compiler shrinks from 170kB to 30kB when compressed.
+       The evaluator is about 60kB.
+       The total compressed size for runtime and compiler is about 50k.
        I'm sorry if you're running on a 16 bit system.
