@@ -16,6 +16,7 @@
 #define SANITY   1              /* do some sanity checks */
 #define STACKOVL 1              /* check for stack overflow */
 #define GETRAW   1              /* implement raw character get */
+#define POINTERMARK 1           /* Pointer-reversal marking */
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -569,7 +570,7 @@ int red_a, red_k, red_i, red_int;
 //counter_t mark_depth;
 
 
-
+#if POINTERMARK
 
 NODEPTR abandonIndirections(NODEPTR node){
   while (GETTAG(node) == T_IND) {
@@ -715,6 +716,103 @@ mark(NODEPTR *np)
     }
   }
 }
+
+#else
+
+/* Mark all used nodes reachable from *np */
+void
+mark(NODEPTR *np)
+{
+  NODEPTR n;
+#if GCRED
+  value_t i;
+#endif
+
+  //  mark_depth++;
+  //  if (mark_depth % 10000 == 0)
+  //    printf("mark depth %"PRIcounter"\n", mark_depth);
+  top:
+  n = *np;
+  if (GETTAG(n) == T_IND) {
+#if SANITY
+    int loop = 0;
+    /* Skip indirections, and redirect start pointer */
+    while (GETTAG(n) == T_IND) {
+      //      printf("*"); fflush(stdout);
+      n = INDIR(n);
+      if (loop++ > 10000000) {
+        printf("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
+        ERR("IND loop");
+      }
+    }
+    //    if (loop)
+    //      printf("\n");
+#else  /* SANITY */
+    while (GETTAG(n) == T_IND) {
+      n = INDIR(n);
+    }
+#endif  /* SANITY */
+    *np = n;
+  }
+  if (is_marked_used(n)) {
+    //    mark_depth--;
+    return;
+  }
+  num_marked++;
+  mark_used(n);
+#if GCRED
+  /* This is really only fruitful just after parsing.  It can be removed. */
+  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
+    /* Do the A x y --> y reduction */
+    NODEPTR y = ARG(n);
+    SETTAG(n, T_IND);
+    INDIR(n) = y;
+    red_a++;
+    goto top;
+  }
+#if 0
+  /* This never seems to happen */
+  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
+    /* Do the K x y --> x reduction */
+    NODEPTR x = ARG(FUN(n));
+    SETTAG(n, T_IND);
+    INDIR(n) = x;
+    red_k++;
+    goto top;
+  }
+#endif
+  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_I) {
+    /* Do the I x --> x reduction */
+    NODEPTR x = ARG(n);
+    SETTAG(n, T_IND);
+    INDIR(n) = x;
+    red_i++;
+    goto top;
+  }
+#if INTTABLE
+  if (GETTAG(n) == T_INT && LOW_INT <= (i = GETVALUE(n)) && i < HIGH_INT) {
+    SETTAG(n, T_IND);
+    INDIR(n) = intTable[i - LOW_INT];
+    red_int++;
+    goto top;
+  }
+#endif  /* INTTABLE */
+#endif  /* GCRED */
+  if (GETTAG(n) == T_AP) {
+#if 1
+    mark(&FUN(n));
+    //mark(&ARG(n));
+    np = &ARG(n);
+    goto top;                   /* Avoid tail recursion */
+#else
+    mark(&ARG(n));
+    np = &FUN(n);
+    goto top;                   /* Avoid tail recursion */
+#endif
+  }
+}
+
+#endif /* POINTERMARK */
 
 /* Perform a garbage collection:
    - First mark from all roots; roots are on the stack.
