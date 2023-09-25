@@ -60,7 +60,17 @@ typeCheck aimps (EModule mn exps defs) =
            (fexps, sexps) = unzip $ getFSExps impMap
 -}
            fexps = [ fe | TModule _ fe _ _ _ _ <- M.elems impMap ]
-         in  TModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) (concat sexps) (concat vexps) tds
+         in  tModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) (concat sexps) (concat vexps) tds
+
+-- A hack to force evaluation of errors.
+-- This should be redone to all happen in the T monad.
+tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [SynDef] -> [ValueExport] -> [EDef] ->
+           TModule [EDef]
+tModule mn fs ts ss vs ds = seqL ts `seq` seqL vs `seq` TModule mn fs ts ss vs ds
+  where
+    seqL :: forall a . [a] -> ()
+    seqL [] = ()
+    seqL (x:xs) = x `seq` seqL xs
 
 filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
 filterImports it@(ImportSpec _ _ _ Nothing, _) = it
@@ -749,7 +759,9 @@ tcExprR mt ae =
         (e, t) <- tLookupInst "variable" i
         case mt of
           Just tu@(EForall _ tt) -> T.do
-            unify loc tt t  -- XXX is this really sufficient?
+            -- XXX This is wrong in many ways.
+            -- Both t and tt may contain unification variables bound elsewhere.
+            unify loc tt t
             T.return (e, tu)
           _ -> T.do
             munify loc mt t

@@ -130,10 +130,15 @@ the command history is persisted.
 Available commands:
 
 * `:quit` Quit the interactive system
-* `:clear` Clear all definitions
+* `:clear` Get back to start state
 * `:del STR` Delete all definitions that begin with `STR`
 * `expr` Evaluate expression. ***NOTE*** Currently only expressions of type `Int` are allowed.
 * `defn` Add definition (can also be an `import`)
+
+***NOTE*** When you `import` a module it is cached.
+If the file changes and you import it again it will not reload.
+You can use `:clear` no get back to an empty cache.
+This is a bug.
 
 ## Runtime
 The runtime system is written in C and is in `eval.c`.

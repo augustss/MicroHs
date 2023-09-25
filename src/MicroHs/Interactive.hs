@@ -33,16 +33,44 @@ repl = S.do
   ms <- S.liftIO $ getInputLineHist ".mhsi" "> "
   case ms of
     Nothing -> repl
-    Just ":quit" -> S.liftIO $ putStrLn "Bye"
-    Just ":clear" -> S.do
+    Just s ->
+      case s of
+        [] -> repl
+        ':':r -> S.do
+          c <- command r
+          if c then repl else S.liftIO $ putStrLn "Bye"
+        _ -> S.do
+          oneline s
+          repl
+
+command :: String -> I Bool
+command s =
+  case words s of
+    [] -> S.return True
+    c : ws ->
+      case filter (isPrefixOfBy eqChar c . fst) commands of
+        [] -> S.do
+          S.liftIO $ putStrLn "Unrecognized command"
+          S.return True
+        [(_, cmd)] ->
+          cmd (unwords ws)
+        xs -> S.do
+          S.liftIO $ putStrLn $ "Ambiguous command: " ++ unwords (map fst xs)
+          S.return True
+
+commands :: [(String, String -> I Bool)]
+commands =
+  [ ("quit", const $ S.return False)
+  , ("clear", const $ S.do
       updateLines (const preamble)
-      repl
-    Just s | Just del <- stripPrefixBy eqChar ":del " s -> S.do
+      S.modify $ \ (ls, flgs, _) -> (ls, flgs, emptyCache)
+      S.return True
+    )
+  , ("delete", \ del -> S.do
       updateLines (unlines . filter (not . isPrefixOfBy eqChar del) . lines)
-      repl
-    Just s -> S.do
-      oneline s
-      repl
+      S.return True
+    )
+  ]
 
 updateLines :: (String -> String) -> I ()
 updateLines f = S.modify $ \ (ls, flgs, cache) -> (f ls, flgs, cache)

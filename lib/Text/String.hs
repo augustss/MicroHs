@@ -96,6 +96,14 @@ lines s =
 unlines :: [String] -> String
 unlines = concatMap (++ "\n")
 
+
+words :: String -> [String]
+words s =
+  case dropWhile isSpace s of
+    "" -> []
+    s' -> w : words s''
+      where (w, s'') = span (not . isSpace) s'
+
 unwords :: [String] -> String
 unwords ss = intercalate " " ss
 
@@ -114,8 +122,9 @@ eqString axs ays =
         [] -> False
         y:ys -> eqChar x y && eqString xs ys
 -}
-
 leString :: String -> String -> Bool
+leString s t = not (eqOrdering GT (compareString s t))
+{-
 leString axs ays =
   case axs of
     [] -> True
@@ -123,6 +132,7 @@ leString axs ays =
       case ays of
         [] -> False
         y:ys -> ltChar x y || eqChar x y && leString xs ys
+-}
 
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s

@@ -305,3 +305,8 @@ last :: forall a . [a] -> a
 last [] = error "last: []"
 last [x] = x
 last (_:xs) = last xs
+
+init :: forall a . [a] -> [a]
+init [] = error "init: []"
+init [_] = []
+init (x:xs) = x : init xs
