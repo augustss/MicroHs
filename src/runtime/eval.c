@@ -568,8 +568,49 @@ int red_a, red_k, red_i, red_int;
 
 //counter_t mark_depth;
 
-/* Mark all used nodes reachable from *np */
 
+
+
+NODEPTR abandonIndirections(NODEPTR node){
+  while (GETTAG(node) == T_IND) {
+    node = INDIR(node);
+  }
+  return node;
+}
+
+/*
+ * gets the ith field in a T_AP node and loses
+ * the indirections on the way; this requires
+ * updating the parent T_AP with the new child
+ * address after losing the indirections
+ */
+NODEPTR get_n_i_lose_indirections(NODEPTR *np, int i){
+  NODEPTR n = *np;
+  NODEPTR y;
+  if(GETTAG(n) == T_AP){
+    if(i==0){
+      y = FUN(n);
+      if(GETTAG(y) == T_IND){
+        y = abandonIndirections(y);
+        FUN(*np) = y;
+      }
+    } else {
+      y = ARG(n);
+      if(GETTAG(y) == T_IND){
+        y = abandonIndirections(y);
+        ARG(*np) = y;
+      }
+    }
+  } else{
+    y = NULL;
+  }
+  return y;
+}
+
+/*
+ * simply gets the ith field of a T_AP and
+ * doesn't touch the indirection nodes
+ */
 NODEPTR get_n_i(NODEPTR n, int i){
   if(GETTAG(n) == T_AP)
     return((i == 0) ? (FUN(n)) : ARG(n));
@@ -577,7 +618,7 @@ NODEPTR get_n_i(NODEPTR n, int i){
     return NULL;
 }
 
-
+// sets the ith field of a T_AP node
 void set_n_i(int i, NODEPTR n, NODEPTR t){
   if(i == 0)
     FUN(n) = t;
@@ -586,7 +627,41 @@ void set_n_i(int i, NODEPTR n, NODEPTR t){
 }
 
 
-void pp(FILE *f, NODEPTR n);
+/* The Pointer-Reversal Marking algorithm
+   ---------------------------------------
+   First marks the node *np and then for the following T_AP
+   nodes does "recursive" marking but using the pointer stack
+
+   A node now has an additional field `done` that
+   can be in 1 of the 3 states -
+   done = 0 -- none of the children marked
+   done = 1 -- the left children and their successors marked
+   done = 2 -- all children marked
+
+   The variable `t` represents the "stack top" where stack
+   refers to the fictitious stack encoded in the fields of
+   a `T_AP` node. `y` refers to the child node to be processed
+   next. It is assigned to `n`, marked and then `done` is set to 0.
+   For non-T_AP fields the `done` field is simply incremented.
+
+   The "recursion" unrolls when the `done` field's value
+   becomes 2, where the breadcrumbs are followed using the
+   respective T_AP field. For the original root node where the
+   "recursion" begins NULL is stored and when the path finally
+   encounters NULL the marking stops.
+
+   The function `get_n_i_lose_indirections`, as the name implies,
+   loses the indirection nodes, but importantly updates the parent
+   node's address with the new child address after losing the
+   indirections.
+
+   OPTIMISATIONS
+   -------------
+   - No GCRED reductions currently being done;
+   - Instead of a 4 byte int field for `done`, perhaps some
+     bits can be stolen from `ufun`? We require simply 2 bits;
+
+ */
 
 void
 mark(NODEPTR *np)
@@ -594,9 +669,7 @@ mark(NODEPTR *np)
   NODEPTR n;
   n = *np;
   if (GETTAG(n) == T_IND) {
-    while (GETTAG(n) == T_IND) {
-      n = INDIR(n);
-    }
+    n = abandonIndirections(n);
     *np = n;
   }
   if (is_marked_used(n)) {
@@ -604,11 +677,8 @@ mark(NODEPTR *np)
   }
   num_marked++;
   mark_used(n);
-  /* if (GETTAG(n) == T_AP) { */
-  /*   mark(&FUN(n)); */
-  /*   mark(&ARG(n)); */
-  /* } */
 
+  // Pointer-reversal marking begins
   NODEPTR t = NULL;
   NODEPTR y;
   n->done = 0;
@@ -617,38 +687,12 @@ mark(NODEPTR *np)
       int i = n->done;
       if(i < 2){
 
-        //y = get_n_i(&n,i);
-
-        if(GETTAG(n) == T_AP){
-          if(i==0){
-            y = FUN(n);
-            if(GETTAG(y) == T_IND){
-                    while (GETTAG(y) == T_IND) {
-                      /* printf("Followed indir"); */
-                      y = INDIR(y);
-                    }
-                    FUN(n) = y;
-            }
-          } else {
-            y = ARG(n);
-            if(GETTAG(y) == T_IND){
-              while (GETTAG(y) == T_IND) {
-                /* printf("Followed indir"); */
-                y = INDIR(y);
-              }
-              ARG(n) = y;
-            }
-          }
-        } else{
-          y = NULL;
-        }
-
+        y = get_n_i_lose_indirections(&n,i);
 
         if(y != NULL && !is_marked_used(y)){
           set_n_i(i, n, t);
           t = n;
           n = y;
-
 
           num_marked++;
           mark_used(n);
@@ -658,7 +702,7 @@ mark(NODEPTR *np)
         }
       } else {
 
-        // unrolling the recursion
+        // unrolling the pointer stack
         y = n;
         n = t;
         if (n == NULL)
