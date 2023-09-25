@@ -578,37 +578,6 @@ NODEPTR get_n_i(NODEPTR n, int i){
 }
 
 
-/* NODEPTR get_n_i(NODEPTR *np, int i){ */
-/*   NODEPTR n; */
-/*   n = *np; */
-
-/*   if(GETTAG(n) == T_AP){ */
-/*     return((i == 0) ? (FUN(n)) : ARG(n)); */
-/*   } */
-/*   else{ */
-/*     if (GETTAG(n) == T_IND) { */
-/*       /\* printf(" Before while "); *\/ */
-/*       while (GETTAG(n) == T_IND) { */
-/*         /\* printf("Followed indir"); *\/ */
-/*         n = INDIR(n); */
-/*       } */
-/*       *np = n; */
-/*       /\* printf("Followed indir if"); *\/ */
-/*     } */
-
-/*     if(GETTAG(n) == T_AP){ */
-/*       return((i == 0) ? (FUN(n)) : ARG(n)); */
-/*     } */
-
-/*     return NULL; */
-/*   } */
-
-/* } */
-
-
-
-
-
 void set_n_i(int i, NODEPTR n, NODEPTR t){
   if(i == 0)
     FUN(n) = t;
@@ -659,7 +628,6 @@ mark(NODEPTR *np)
                       y = INDIR(y);
                     }
                     FUN(n) = y;
-
             }
           } else {
             y = ARG(n);
@@ -669,18 +637,11 @@ mark(NODEPTR *np)
                 y = INDIR(y);
               }
               ARG(n) = y;
-
             }
-
           }
-
         } else{
           y = NULL;
         }
-
-
-
-
 
 
         if(y != NULL && !is_marked_used(y)){
@@ -688,17 +649,6 @@ mark(NODEPTR *np)
           t = n;
           n = y;
 
-
-          //should abandon all the indirection nodes here
-          /* if (GETTAG(n) == T_IND) { */
-          /*   /\* printf(" Before while "); *\/ */
-          /*   while (GETTAG(n) == T_IND) { */
-          /*     /\* printf("Followed indir"); *\/ */
-          /*     n = INDIR(n); */
-          /*   } */
-          /*   /\* printf("Followed indir if"); *\/ */
-          /* } */
-          // abandon indirection nodes ends
 
           num_marked++;
           mark_used(n);
@@ -720,14 +670,6 @@ mark(NODEPTR *np)
       }
     }
   }
-
-
-
-
-
-
-
-
 }
 
 /* Perform a garbage collection:
