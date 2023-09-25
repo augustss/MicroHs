@@ -593,13 +593,13 @@ NODEPTR get_n_i_lose_indirections(NODEPTR *np, int i){
       y = FUN(n);
       if(GETTAG(y) == T_IND){
         y = abandonIndirections(y);
-        FUN(*np) = y;
+        FUN(*np) = y; // update the parent
       }
     } else {
       y = ARG(n);
       if(GETTAG(y) == T_IND){
         y = abandonIndirections(y);
-        ARG(*np) = y;
+        ARG(*np) = y; // update the parent
       }
     }
   } else{
@@ -688,6 +688,8 @@ mark(NODEPTR *np)
       int i = n->done;
       if(i < 2){
 
+        // note we send &n because parent address
+        // requires updating after losing indirections
         y = get_n_i_lose_indirections(&n,i);
 
         if(y != NULL && !is_marked_used(y)){
