@@ -150,7 +150,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
                 T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
                 T_FADD, T_FSUB, T_FMUL,
-                T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW,
+                T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
                 T_ERROR, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
@@ -452,6 +452,7 @@ struct {
   {"fgt", T_FGT},
   {"fge", T_FGE},
   {"fshow", T_FSHOW},
+  {"fread", T_FREAD},
   { "==", T_EQ },
   { "/=", T_NE },
   { "<", T_LT },
@@ -1222,6 +1223,7 @@ printrec(FILE *f, NODEPTR n)
   case T_FGT: fprintf(f, "$fgt"); break;
   case T_FGE: fprintf(f, "$fge"); break;
   case T_FSHOW: fprintf(f, "$fshow"); break;
+  case T_FREAD: fprintf(f, "$fread"); break;
   case T_EQ: fprintf(f, "$=="); break;
   case T_NE: fprintf(f, "$/="); break;
   case T_LT: fprintf(f, "$<"); break;
@@ -1672,6 +1674,17 @@ eval(NODEPTR n)
     case T_FLE: CMPF(<=);
     case T_FGT: CMPF(>);
     case T_FGE: CMPF(>=);
+    case T_FREAD:
+      CHECK(1);
+      msg = evalstring(ARG(TOP(0)));
+      xd = strtod(msg, NULL);
+      free(msg);
+
+      POP(1);
+      n = TOP(-1);
+      
+      GOIND(mkDouble(xd));
+
     case T_FSHOW:
       // check that the double exists
       CHECK(1);

@@ -4,6 +4,7 @@ module Primitives(
   Char,
   Handle,
   Int,
+  Double,
   IO,
   Word,
   NFData(..),
@@ -126,6 +127,39 @@ primWordGT = (>)
 
 primWordGE :: Word -> Word -> Bool
 primWordGE = (>=)
+
+primDoubleAdd :: Double -> Double -> Double
+primDoubleAdd  = (+)
+
+primDoubleSub :: Double -> Double -> Double
+primDoubleSub  = (-)
+
+primDoubleMul :: Double -> Double -> Double
+primDoubleMul  = (*)
+
+primDoubleEQ :: Double -> Double -> Bool
+primDoubleEQ = (==)
+
+primDoubleNE :: Double -> Double -> Bool
+primDoubleNE = (/=)
+
+primDoubleLT :: Double -> Double -> Bool
+primDoubleLT = (<)
+
+primDoubleLE :: Double -> Double -> Bool
+primDoubleLE = (<=)
+
+primDoubleGT :: Double -> Double -> Bool
+primDoubleGT = (>)
+
+primDoubleGE :: Double -> Double -> Bool
+primDoubleGE = (>=)
+
+primDoubleShow :: Double -> [Char]
+primDoubleShow = show
+
+primDoubleRead :: [Char] -> Double
+primDoubleRead = read
 
 ------
 

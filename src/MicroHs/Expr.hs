@@ -34,6 +34,7 @@ import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..)
 import Data.List
 import Data.Maybe
 import MicroHs.Ident
+import qualified Data.Double as D
 --Ximport Compat
 --Ximport GHC.Stack
 --Ximport Control.DeepSeq
@@ -131,7 +132,7 @@ eqCon _             _             = False
 
 data Lit
   = LInt Int
-  | LDouble Double
+  | LDouble D.Double
   | LChar Char
   | LStr String
   | LPrim String
@@ -434,7 +435,7 @@ showLit :: Lit -> String
 showLit l =
   case l of
     LInt i -> showInt i
-    LDouble d -> case showDouble d of
+    LDouble d -> case D.showDouble d of
       '-':xs -> '-':'f':xs
       xs -> 'f':xs
     LChar c -> showChar c
