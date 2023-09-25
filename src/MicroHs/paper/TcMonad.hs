@@ -2,7 +2,7 @@ module TcMonad(
   Tc, -- The monad type constructor
   runTc, ErrMsg, lift, check,
   -- Environment manipulation
-  extendVarEnv, lookupVar,
+  extendVarEnv, extendVarEnvList, lookupVar,
   getEnvTypes, getFreeTyVars, getMetaTyVars,
   -- Types and unification
   newTyVarTy,
@@ -16,7 +16,7 @@ import BasicTypes
 import qualified Data.Map as Map
 import Text.PrettyPrint.HughesPJ
 import Data.IORef
-import Data.List( nub, (\\) )
+import Data.List( (\\) )
 ------------------------------------------
 -- The monad itself --
 ------------------------------------------
@@ -86,6 +86,12 @@ extendVarEnv var ty (Tc m)
   = Tc (\env -> m (extend env))
   where
     extend env = env { var_env = Map.insert var ty (var_env env) }
+
+extendVarEnvList :: [(Name, Sigma)] -> Tc a -> Tc a
+extendVarEnvList varTys (Tc m)
+  = Tc (\env -> m (extend env))
+  where
+    extend env = env { var_env = foldr (uncurry Map.insert) (var_env env) varTys }
 
 getEnv :: Tc (Map.Map Name Sigma)
 getEnv = Tc (\ env -> return (Right (var_env env)))
@@ -204,6 +210,9 @@ zonkType (MetaTv tv) -- A mutable type variable
            Just ty -> do { ty' <- zonkType ty
                          ; writeTv tv ty' -- "Short out" multiple hops
                          ; return ty' } }
+zonkType (TyApp arg res) = do { arg' <- zonkType arg
+                              ; res' <- zonkType res
+                              ; return (TyApp arg' res') }
 
 ------------------------------------------
 -- Unification --
@@ -223,6 +232,9 @@ unify (Fun arg1 res1)
 unify (TyCon tc1) (TyCon tc2)
   | tc1 == tc2
   = return ()
+unify (TyApp arg1 res1)
+      (TyApp arg2 res2)
+  = do { unify arg1 arg2; unify res1 res2 }
 unify ty1 ty2 = failTc (text "Cannot unify types:" <+> vcat [ppr ty1, ppr ty2])
 
 -----------------------------------------

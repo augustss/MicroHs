@@ -33,8 +33,10 @@ inferRho expr
 tcRho :: Term -> Expected Rho -> Tc ()
 -- Invariant: if the second argument is (Check rho),
 -- then rho is in weak-prenex form
-tcRho (Lit _) exp_ty
+tcRho (LitI _) exp_ty
   = instSigma intType exp_ty
+tcRho (LitB _) exp_ty
+  = instSigma boolType exp_ty
 tcRho (Var v) exp_ty
   = do { v_sigma <- lookupVar v
        ; instSigma v_sigma exp_ty }
@@ -63,6 +65,66 @@ tcRho (Let var rhs body) exp_ty
 tcRho (Ann body ann_ty) exp_ty
   = do { checkSigma body ann_ty
        ; instSigma ann_ty exp_ty }
+tcRho (If e1 e2 e3) (Check exp_ty)  -- This?
+  = do { checkRho e1 boolType
+       ; checkSigma e2 exp_ty
+       ; checkSigma e3 exp_ty }
+tcRho (If e1 e2 e3) (Infer ref)
+  = do { checkRho e1 boolType
+       ; rho1 <- inferRho e2
+       ; rho2 <- inferRho e3
+       ; subsCheck rho1 rho2
+       ; subsCheck rho2 rho1
+       ; writeTcRef ref rho1 }
+tcRho (PLam pat body) (Infer ref)
+  = do { (binds, pat_ty) <- inferPat pat
+       ; body_ty <- extendVarEnvList binds (inferRho body)
+       ; writeTcRef ref (pat_ty --> body_ty) }
+tcRho (PLam pat body) (Check ty)
+  = do { (arg_ty, res_ty) <- unifyFun ty
+       ; binds <- checkPat pat arg_ty
+       ; extendVarEnvList binds (checkRho body res_ty) }
+
+tcPat :: Pat -> Expected Sigma -> Tc [(Name,Sigma)]
+tcPat PWild _exp_ty = return []
+tcPat (PVar v) (Infer ref) = do { ty <- newTyVarTy
+                                ; writeTcRef ref ty
+                                ; return [(v,ty)] }
+tcPat (PVar v) (Check ty) = return [(v, ty)]
+tcPat (PAnn p pat_ty) exp_ty = do { binds <- checkPat p pat_ty
+                                  ; instPatSigma pat_ty exp_ty
+                                  ; return binds }
+tcPat (PCon con ps) exp_ty
+  = do { (arg_tys, res_ty) <- instDataCon con
+       ; envs <- mapM check_arg (ps `zip` arg_tys)
+       ; instPatSigma res_ty exp_ty
+       ; return (concat envs) }
+  where
+    check_arg (p,ty) = checkPat p ty
+
+instPatSigma :: Sigma -> Expected Sigma -> Tc ()
+instPatSigma pat_ty (Infer ref) = writeTcRef ref pat_ty
+instPatSigma pat_ty (Check exp_ty) = subsCheck exp_ty pat_ty
+
+checkPat :: Pat -> Sigma -> Tc [(Name, Sigma)]
+checkPat p exp_ty = tcPat p (Check exp_ty)
+
+inferPat :: Pat -> Tc ([(Name, Sigma)], Sigma)
+inferPat pat
+  = do { ref <- newTcRef (error "inferPat: empty result")
+       ; binds <- tcPat pat (Infer ref)
+       ; ty <- readTcRef ref
+       ; return (binds, ty) }
+
+instDataCon :: Name -> Tc ([Sigma], Tau)
+instDataCon c = do
+  v_sigma <- lookupVar c
+  v_sigma' <- instantiate v_sigma
+  return (argsAndRes v_sigma')
+
+argsAndRes :: Rho -> ([Sigma], Tau)
+argsAndRes (Fun arg_ty res_ty) = (arg_ty : arg_tys, res_ty') where (arg_tys, res_ty') = argsAndRes res_ty
+argsAndRes t = ([], t)
 
 ------------------------------------------
 -- inferSigma and checkSigma
