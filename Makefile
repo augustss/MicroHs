@@ -46,10 +46,12 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCB) -c ghc/Primitives.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
 	$(GHCB) -c ghc/Data/Ordering_Type.hs
+	$(GHCB) -c ghc/Data/Double.hs
 	$(GHCB) -c src/PrimTable.hs
 	$(GHCC) -c lib/Control/Error.hs
 	$(GHCC) -c lib/Data/Bool.hs
 	$(GHCC) -c lib/Data/Int.hs
+	$(GHCC) -c lib/Data/Double.hs
 	$(GHCC) -c lib/Data/Char.hs
 	$(GHCC) -c lib/Data/Either.hs
 	$(GHCC) -c lib/Data/Tuple.hs

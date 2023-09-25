@@ -889,6 +889,7 @@ tcLit mt loc l =
   let { lit t = T.do { munify loc mt t; T.return (ELit loc l, t) } } in
   case l of
     LInt _  -> lit (tConI loc "Primitives.Int")
+    LDouble _ -> lit (tConI loc "Primitives.Double")
     LChar _ -> lit (tConI loc "Primitives.Char")
     LStr _  -> lit (tApp (tConI loc "Data.List.[]") (tConI loc "Primitives.Char"))
     LPrim _ -> T.do

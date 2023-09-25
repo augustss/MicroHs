@@ -34,6 +34,7 @@ import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..)
 import Data.List
 import Data.Maybe
 import MicroHs.Ident
+import qualified Data.Double as D
 --Ximport Compat
 --Ximport GHC.Stack
 --Ximport Control.DeepSeq
@@ -131,12 +132,13 @@ eqCon _             _             = False
 
 data Lit
   = LInt Int
+  | LDouble D.Double
   | LChar Char
   | LStr String
   | LPrim String
   | LForImp String
   --Xderiving (Show, Eq)
---Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
+--Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LDouble d) = rnf d; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
 
 eqLit :: Lit -> Lit -> Bool
 eqLit (LInt x)  (LInt  y) = x == y
@@ -433,6 +435,7 @@ showLit :: Lit -> String
 showLit l =
   case l of
     LInt i -> showInt i
+    LDouble d -> '%' : D.showDouble d
     LChar c -> showChar c
     LStr s -> showString s
     LPrim s -> '$' : s

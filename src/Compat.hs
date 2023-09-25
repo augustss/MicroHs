@@ -32,8 +32,14 @@ leString = (<=)
 readInt :: String -> Int
 readInt = read
 
+readDouble :: String -> Double
+readDouble = read
+
 showInt :: Int -> String
 showInt = show
+
+showDouble :: Double -> String
+showDouble = show
 
 showChar :: Char -> String
 showChar = show

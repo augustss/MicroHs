@@ -212,6 +212,7 @@ pLit = P.do
     is (TString (l, c) s) = Just (ELit (SLoc fn l c) (LStr s))
     is (TChar   (l, c) a) = Just (ELit (SLoc fn l c) (LChar a))
     is (TInt    (l, c) i) = Just (ELit (SLoc fn l c) (LInt i))
+    is (TDouble (l, c) d) = Just (ELit (SLoc fn l c) (LDouble d))
     is _ = Nothing
   satisfyM "literal" is
 

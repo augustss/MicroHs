@@ -7,6 +7,7 @@ import Data.Char
 import Data.Either
 import Data.Function
 import Data.Int
+import qualified Data.Double as DD
 import Data.List
 import Data.Maybe
 import Data.Ord
@@ -50,6 +51,9 @@ readInt cs =
   let
     rd = foldl (\ a c -> a * 10 + ord c - ord '0') 0
   in if eqChar (head cs) '-' then 0 - rd (tail cs) else rd cs
+
+readDouble :: String -> Double
+readDouble = primDoubleRead
 
 showBool :: Bool -> String
 showBool arg =

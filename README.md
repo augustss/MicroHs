@@ -31,14 +31,15 @@ It has the following features:
 * application
 * lambda
 * integer literals
+* double literals (no exponents)
 * character literals
 * string (list of characters) literals
 * case expressions
 * let expressions
 * tuples
-* list syntax
+* list syntax (for stuff like `[x..y]` you unfortunately need to write `[x .. y]`, as the parsers support for `Double` literals is simple)
 * list comprehensions
-* arithmetic and comparison operators, but only for `Int`
+* arithmetic and comparison operators, the prelude exports the ones for `Int`, but for the other types you need to do a qulified import (e.g for `Double` and for `Word`).
 * qualified `do` notation, e.g., `IO.do`
 * data (and newtype) type declarations
 * type synonyms
@@ -81,8 +82,7 @@ There are a number of libraries that have some of the standard Haskell functions
 But in general, the `Prelude` contains much, much less.
 
 ## Types
-There are two primitive data types `Int` and `Handle`.  These are known by the runtime system
-and various primitive operations work on them.  The function type, `->`, is (of course) also built in.
+There are some primitive data types, e.g `Int`, `Handle`, and `Double`.  These are known by the runtime system and various primitive operations work on them.  The function type, `->`, is (of course) also built in. The support for rendering (printing) `Double`s is a bit primitive, and only at most 6 decimal places will be shown. The actual value can contain more precise values, however.
 
 All other types are defined with the language.  They are converted to lambda terms using
 the Scott encoding.   The runtime system knows how lists are encoded and booleans are encoded.
@@ -214,14 +214,14 @@ You might have to increase it on your system.
 * 
   * Q: When will it get _insert feature_?
   * A: Maybe some time, maybe never.
-*
+* 
   * Q: Why are the error messages so bad?
   * A: Error messages are boring.
-*
+* 
   * Q: Why is the so much source code?
   * A: I wonder this myself.  Over 5000 lines of Haskell seems excessive.
        2000 lines of C is also more than I'd like for such a simple system.
-*
+* 
   * Q: Why are the binaries so big?
   * A: The combinator file is rather verbose.  The combinator file
        for the compiler shrinks from 170kB to 30kB when compressed.

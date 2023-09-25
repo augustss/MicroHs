@@ -33,6 +33,16 @@ primOps =
   , arith "quot" quot
   , arith "rem" rem
   , arith "subtract" subtract
+  , farith "fadd" (+)
+  , farith "fsub" (-)
+  , farith "fmul" (*)
+  , cmp "feq" (==)
+  , cmp "fne" (/=)
+  , cmp "flt" (<)
+  , cmp "fle" (<=)
+  , cmp "fgt" (>)
+  , cmp "fge" (>=)
+  , comb "fshow" (show :: Double -> String)
   , cmp "==" (==)
   , cmp "/=" (/=)
   , cmp "<"  (<)
@@ -55,6 +65,8 @@ primOps =
     comb n f = (n, unsafeCoerce f)
     arith :: String -> (Int -> Int -> Int) -> (String, Any)
     arith = comb
+    farith :: String -> (Double -> Double -> Double) -> (String, Any)
+    farith = comb
     cmp :: String -> (Int -> Int -> Bool) -> (String, Any)
     cmp n f = comb n (\ x y -> if f x y then cTrue else cFalse)
     cTrue _x y = y
