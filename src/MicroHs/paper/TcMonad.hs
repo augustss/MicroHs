@@ -126,9 +126,9 @@ writeTv (Meta _ ref) ty = writeTcRef ref (Just ty)
 
 newUnique :: Tc Uniq
 newUnique = Tc (\ (TcEnv {uniqs = ref}) ->
-                  do { uniq <- readIORef ref ;
-                       ; writeIORef ref (uniq + 1)
-                       ; return (Right uniq) })
+                  do { uniq <- readIORef ref
+                     ; writeIORef ref (uniq + 1)
+                     ; return (Right uniq) })
 
 ------------------------------------------
 -- Instantiation --
@@ -162,7 +162,7 @@ quantify :: [MetaTv] -> Rho -> Tc Sigma
 -- Quantify over the specified type variables (all flexible)
 quantify tvs ty
   = do { mapM_ bind (tvs `zip` new_bndrs) -- 'bind' is just a cunning way
-       ; ty' <- zonkType ty -- of doing the substitution
+       ; ty' <- zonkType ty               -- of doing the substitution
        ; return (ForAll new_bndrs ty') }
   where
     used_bndrs = tyVarBndrs ty -- Avoid quantified type variables in use
@@ -178,8 +178,8 @@ allBinders = [ BoundTv [x] | x <- ['a'..'z'] ] ++
 ------------------------------------------
 getEnvTypes :: Tc [Type]
 -- Get the types mentioned in the environment
-getEnvTypes = do { env <- getEnv;
-                   ; return (Map.elems env) }
+getEnvTypes = do { env <- getEnv
+                 ; return (Map.elems env) }
 getMetaTyVars :: [Type] -> Tc [MetaTv]
 -- This function takes account of zonking, and returns a set
 -- (no duplicates) of unbound meta-type variables
