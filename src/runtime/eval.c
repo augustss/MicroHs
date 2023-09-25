@@ -208,6 +208,7 @@ typedef struct node {
     FILE *uufile;
     const char *uustring;
   } uarg;
+  int done;
 } node;
 typedef struct node* NODEPTR;
 #define NIL 0
@@ -568,96 +569,165 @@ int red_a, red_k, red_i, red_int;
 //counter_t mark_depth;
 
 /* Mark all used nodes reachable from *np */
+
+NODEPTR get_n_i(NODEPTR n, int i){
+  if(GETTAG(n) == T_AP)
+    return((i == 0) ? (FUN(n)) : ARG(n));
+  else
+    return NULL;
+}
+
+
+/* NODEPTR get_n_i(NODEPTR *np, int i){ */
+/*   NODEPTR n; */
+/*   n = *np; */
+
+/*   if(GETTAG(n) == T_AP){ */
+/*     return((i == 0) ? (FUN(n)) : ARG(n)); */
+/*   } */
+/*   else{ */
+/*     if (GETTAG(n) == T_IND) { */
+/*       /\* printf(" Before while "); *\/ */
+/*       while (GETTAG(n) == T_IND) { */
+/*         /\* printf("Followed indir"); *\/ */
+/*         n = INDIR(n); */
+/*       } */
+/*       *np = n; */
+/*       /\* printf("Followed indir if"); *\/ */
+/*     } */
+
+/*     if(GETTAG(n) == T_AP){ */
+/*       return((i == 0) ? (FUN(n)) : ARG(n)); */
+/*     } */
+
+/*     return NULL; */
+/*   } */
+
+/* } */
+
+
+
+
+
+void set_n_i(int i, NODEPTR n, NODEPTR t){
+  if(i == 0)
+    FUN(n) = t;
+  else
+    ARG(n) = t;
+}
+
+
+void pp(FILE *f, NODEPTR n);
+
 void
 mark(NODEPTR *np)
 {
   NODEPTR n;
-#if GCRED
-  value_t i;
-#endif
-
-  //  mark_depth++;
-  //  if (mark_depth % 10000 == 0)
-  //    printf("mark depth %"PRIcounter"\n", mark_depth);
-  top:
   n = *np;
   if (GETTAG(n) == T_IND) {
-#if SANITY
-    int loop = 0;
-    /* Skip indirections, and redirect start pointer */
-    while (GETTAG(n) == T_IND) {
-      //      printf("*"); fflush(stdout);
-      n = INDIR(n);
-      if (loop++ > 10000000) {
-        printf("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
-        ERR("IND loop");
-      }
-    }
-    //    if (loop)
-    //      printf("\n");
-#else  /* SANITY */
     while (GETTAG(n) == T_IND) {
       n = INDIR(n);
     }
-#endif  /* SANITY */
     *np = n;
   }
   if (is_marked_used(n)) {
-    //    mark_depth--;
     return;
   }
   num_marked++;
   mark_used(n);
-#if GCRED
-  /* This is really only fruitful just after parsing.  It can be removed. */
-  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
-    /* Do the A x y --> y reduction */
-    NODEPTR y = ARG(n);
-    SETTAG(n, T_IND);
-    INDIR(n) = y;
-    red_a++;
-    goto top;
+  /* if (GETTAG(n) == T_AP) { */
+  /*   mark(&FUN(n)); */
+  /*   mark(&ARG(n)); */
+  /* } */
+
+  NODEPTR t = NULL;
+  NODEPTR y;
+  n->done = 0;
+  if(GETTAG(n) == T_AP){
+    while (1){
+      int i = n->done;
+      if(i < 2){
+
+        //y = get_n_i(&n,i);
+
+        if(GETTAG(n) == T_AP){
+          if(i==0){
+            y = FUN(n);
+            if(GETTAG(y) == T_IND){
+                    while (GETTAG(y) == T_IND) {
+                      /* printf("Followed indir"); */
+                      y = INDIR(y);
+                    }
+                    FUN(n) = y;
+
+            }
+          } else {
+            y = ARG(n);
+            if(GETTAG(y) == T_IND){
+              while (GETTAG(y) == T_IND) {
+                /* printf("Followed indir"); */
+                y = INDIR(y);
+              }
+              ARG(n) = y;
+
+            }
+
+          }
+
+        } else{
+          y = NULL;
+        }
+
+
+
+
+
+
+        if(y != NULL && !is_marked_used(y)){
+          set_n_i(i, n, t);
+          t = n;
+          n = y;
+
+
+          //should abandon all the indirection nodes here
+          /* if (GETTAG(n) == T_IND) { */
+          /*   /\* printf(" Before while "); *\/ */
+          /*   while (GETTAG(n) == T_IND) { */
+          /*     /\* printf("Followed indir"); *\/ */
+          /*     n = INDIR(n); */
+          /*   } */
+          /*   /\* printf("Followed indir if"); *\/ */
+          /* } */
+          // abandon indirection nodes ends
+
+          num_marked++;
+          mark_used(n);
+          n->done = 0;
+        } else {
+          n->done = i + 1;
+        }
+      } else {
+
+        // unrolling the recursion
+        y = n;
+        n = t;
+        if (n == NULL)
+          break;
+        i = n->done;
+        t = get_n_i(n, i);
+        set_n_i(i, n, y);
+        n->done = i+1;
+      }
+    }
   }
-#if 0
-  /* This never seems to happen */
-  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
-    /* Do the K x y --> x reduction */
-    NODEPTR x = ARG(FUN(n));
-    SETTAG(n, T_IND);
-    INDIR(n) = x;
-    red_k++;
-    goto top;
-  }
-#endif
-  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_I) {
-    /* Do the I x --> x reduction */
-    NODEPTR x = ARG(n);
-    SETTAG(n, T_IND);
-    INDIR(n) = x;
-    red_i++;
-    goto top;
-  }
-#if INTTABLE
-  if (GETTAG(n) == T_INT && LOW_INT <= (i = GETVALUE(n)) && i < HIGH_INT) {
-    SETTAG(n, T_IND);
-    INDIR(n) = intTable[i - LOW_INT];
-    red_int++;
-    goto top;
-  }
-#endif  /* INTTABLE */
-#endif  /* GCRED */
-  if (GETTAG(n) == T_AP) {
-#if 1
-    mark(&FUN(n));
-    //mark(&ARG(n));
-    np = &ARG(n);
-    goto top;                   /* Avoid tail recursion */
-#else
-    mark(&ARG(n));
-    np = &FUN(n);
-    goto top;                   /* Avoid tail recursion */
-#endif
-  }
+
+
+
+
+
+
+
+
 }
 
 /* Perform a garbage collection:
