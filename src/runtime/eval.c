@@ -209,7 +209,7 @@ typedef struct node {
     FILE *uufile;
     const char *uustring;
   } uarg;
-  int done;
+  uint8_t done;
 } node;
 typedef struct node* NODEPTR;
 #define NIL 0
@@ -659,7 +659,7 @@ void set_n_i(int i, NODEPTR n, NODEPTR t){
    OPTIMISATIONS
    -------------
    - No GCRED reductions currently being done;
-   - Instead of a 4 byte int field for `done`, perhaps some
+   - Instead of a 1 byte int field for `done`, perhaps some
      bits can be stolen from `ufun`? We require simply 2 bits;
 
  */
