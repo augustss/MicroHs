@@ -49,6 +49,8 @@ primDoubleGE :: Double -> Double -> Bool
 primDoubleGE = primitive "fge"
 primDoubleShow :: Double -> [Char]
 primDoubleShow = primitive "fshow"
+primDoubleRead :: [Char] -> Double
+primDoubleRead = primitive "fread"
 
 primWordAdd :: Word -> Word -> Word
 primWordAdd  = primitive "+"

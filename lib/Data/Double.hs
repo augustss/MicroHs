@@ -1,11 +1,11 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Double(module Data.Double) where
+module Data.Double(module Data.Double, Double) where
 import Primitives
 import Data.Bool_Type
 
---Yinfixl 6 +,-
---Yinfixl 7 *
+infixl 6 +,-
+infixl 7 *
 
 -- Arithmetic
 (+) :: Double -> Double -> Double
@@ -27,7 +27,7 @@ mulDouble = (*)
 
 --------------------------------
 
---Yinfix 4 ==,/=,<,<=,>,>=
+infix 4 ==,/=,<,<=,>,>=
 
 -- Comparison
 (==) :: Double -> Double -> Bool

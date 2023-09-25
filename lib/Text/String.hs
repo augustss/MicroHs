@@ -52,6 +52,9 @@ readInt cs =
     rd = foldl (\ a c -> a * 10 + ord c - ord '0') 0
   in if eqChar (head cs) '-' then 0 - rd (tail cs) else rd cs
 
+readDouble :: String -> Double
+readDouble = primDoubleRead
+
 showBool :: Bool -> String
 showBool arg =
   case arg of

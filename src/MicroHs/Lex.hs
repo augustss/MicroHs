@@ -5,6 +5,7 @@ module MicroHs.Lex(
 import Prelude --Xhiding(lex, showChar, showString)
 import Data.Char
 import Data.List
+import qualified Data.Double as D
 --Ximport Compat
 import MicroHs.Ident
 
@@ -13,7 +14,7 @@ data Token
   | TString Loc String
   | TChar   Loc Char
   | TInt    Loc Int
-  | TDouble Loc Double
+  | TDouble Loc D.Double
   | TSpec   Loc Char
   | TError  Loc String
   | TBrace  Loc
@@ -25,7 +26,7 @@ showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])
 showToken (TString _ s) = showString s
 showToken (TChar _ c) = showChar c
 showToken (TInt _ i) = showInt i
-showToken (TDouble _ d) = showDouble d
+showToken (TDouble _ d) = D.showDouble d
 showToken (TSpec _ c) = [c]
 showToken (TError _ s) = "ERROR " ++ s
 showToken (TBrace _) = "TBrace"
@@ -91,12 +92,12 @@ lex loc ('-':d:cs) | isDigit d =
   case span isDigit cs of
     (ds, rs) | null rs || not (eqChar (head rs) '.') -> TInt loc (readInt ('-':d:ds)) : lex (addCol loc $ 2 + length ds) rs
              | otherwise -> case span isDigit (tail rs) of
-      (ns, rs') -> TDouble loc (readDouble ('-':d:ds ++ '.':ns)) : lex (addCol loc $ 3 + length ds + length ns) rs'
+      (ns, rs') -> TDouble loc (readDouble (('-':d:ds) ++ ('.':ns))) : lex (addCol loc $ 3 + length ds + length ns) rs'
 lex loc (d:cs) | isDigit d =
   case span isDigit cs of
     (ds, rs) | null rs || not (eqChar (head rs) '.') -> TInt loc (readInt (d:ds)) : lex (addCol loc $ 1 + length ds) rs
              | otherwise -> case span isDigit (tail rs) of
-      (ns, rs') -> TDouble loc (readDouble (d:ds ++ '.':ns)) : lex (addCol loc $ 2 + length ds + length ns) rs' 
+      (ns, rs') -> TDouble loc (readDouble ((d:ds) ++ ('.':ns))) : lex (addCol loc $ 2 + length ds + length ns) rs' 
 lex loc (d:cs) | isOperChar d  =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
