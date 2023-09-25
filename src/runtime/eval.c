@@ -1618,6 +1618,9 @@ eval(NODEPTR n)
     case T_QUOT: ARITHBIN(/);
     case T_REM:  ARITHBIN(%);
     case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
+    case T_UQUOT: ARITHBINU(/);
+    case T_UREM:  ARITHBINU(%);
+
     case T_FADD: FARITHBIN(+);
     case T_FSUB: FARITHBIN(-);
     case T_FMUL: FARITHBIN(*);
@@ -1642,25 +1645,17 @@ eval(NODEPTR n)
     case T_FSHOW:
       // check that the double exists
       CHECK(1);
-
       // evaluate it
       xd = evaldouble(ARG(TOP(0)));
-
       // turn it into a string
-      char str[25];
-      int idx = snprintf(str, 25, "%f", xd);
-
-      /* C will render floats with potentially many training zeros, shave the
-      off by moving the NULL terminator */
-      for(int i = idx - 1; i >= 0; i--) {
-        if(str[i] == '.') {
-          str[i+2] = '\0'; // number is x.0, create {x, '.', '0', '\0'}
-          break;
-        }
-        if(str[i] != '0') {
-          str[i+1] = '\0';
-          break;
-        }
+      char str[30];
+      /* Using 16 decimals will lose some precision.
+       * 17 would keep the precision, but it frequently looks very ugly.
+       */
+      (void)snprintf(str, 25, "%.16g", xd);
+      if (!strchr(str, '.') && !strchr(str, 'e') && !strchr(str, 'E')) {
+        /* There is no decimal point and no exponent, so add a decimal point */
+        strcat(str, ".0");
       }
 
       // turn it into a mhs string
@@ -1669,11 +1664,8 @@ eval(NODEPTR n)
       // remove the double from the stack
       POP(1);
       n = TOP(-1);
-
       // update n to be s
       GOIND(s);
-    case T_UQUOT: ARITHBINU(/);
-    case T_UREM:  ARITHBINU(%);
 
     case T_EQ:   CMP(==);
     case T_NE:   CMP(!=);
