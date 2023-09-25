@@ -769,6 +769,21 @@ gobble(BFILE *f, int c)
   }
 }
 
+/* Get a non-terminating character.  ' ' and ')' terminate a token. */
+int
+getNT(BFILE *f)
+{
+  int c;
+  
+  c = getb(f);
+  if (c == ' ' || c == ')') {
+    ungetb(c, f);
+    return 0;
+  } else {
+    return c;
+  }
+}
+
 value_t
 parse_int(BFILE *f)
 {
@@ -791,21 +806,11 @@ parse_double(BFILE *f)
   // apparently longest float, when rendered, takes up 24 characters. We add one more for a potential
   // minus sign, and another one for the final null terminator.
   // https://stackoverflow.com/questions/1701055/what-is-the-maximum-length-in-chars-needed-to-represent-any-double-value
-  // I expect Lennart will hate this...
-  char floatstr[26];
-  int i = 0;
-  for(;;) {
-    int c = getb(f);
-    if ((c != '-' && c != '.') && (c < '0' || c > '9')) {
-      ungetb(c, f);
-      break;
-    }
-    floatstr[i++] = c;
-  }
+  char buf[26];
+  for(int j = 0; (buf[j] = getNT(f)); j++)
+    ;
 
-  floatstr[i++] = '\0';
-  double d = strtod(floatstr, NULL);
-  return d;
+  return strtod(buf, NULL);;
 }
 
 NODEPTR
@@ -892,15 +897,8 @@ parse(BFILE *f)
     return r;
   case '$':
     /* A primitive, keep getting char's until end */
-    for (int j = 0;;) {
-      c = getb(f);
-      if (c == ' ' || c == ')') {
-        ungetb(c, f);
-        buf[j] = 0;
-        break;
-      }
-      buf[j++] = c;
-    }
+    for (int j = 0; (buf[j] = getNT(f)); j++)
+      ;
     /* Look up the primop and use the preallocated node. */
     for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
       if (strcmp(primops[j].name, buf) == 0) {
@@ -962,15 +960,8 @@ parse(BFILE *f)
     }
   case '#':
     /* An FFI name */
-    for (int j = 0;;) {
-      c = getb(f);
-      if (c == ' ' || c == ')') {
-        ungetb(c, f);
-        buf[j] = 0;
-        break;
-      }
-      buf[j++] = c;
-    }
+    for (int j = 0; (buf[j] = getNT(f)); j++)
+      ;
     r = alloc_node(T_IO_CCALL);
     SETVALUE(r, lookupFFIname(buf));
     return r;
