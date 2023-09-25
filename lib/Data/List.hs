@@ -20,6 +20,7 @@ null :: forall a . [a] -> Bool
 null [] = True
 null _  = False
 
+infixr 5 ++
 (++) :: forall a . [a] -> [a] -> [a]
 (++) [] ys = ys
 (++) (x : xs) ys = x : xs ++ ys 

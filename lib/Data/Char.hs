@@ -42,3 +42,11 @@ ltChar = primCharLT
 
 isSpace :: Char -> Bool
 isSpace c = eqChar c ' ' || eqChar c '\t' || eqChar c '\n'
+
+toLower :: Char -> Char
+toLower c | leChar 'A' c && leChar c 'Z' = chr (ord c - ord 'A' + ord 'a')
+          | True = c
+
+toUpper :: Char -> Char
+toUpper c | leChar 'a' c && leChar c 'a' = chr (ord c - ord 'a' + ord 'A')
+          | True = c

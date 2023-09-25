@@ -88,8 +88,8 @@ lex loc (d:cs) | isLower_ d =
   case span isIdentChar cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
-lex loc ('-':cs@(d:_)) | isDigit d = number loc 1 cs
-lex loc      cs@(d:_)  | isDigit d = number loc 0 cs
+lex loc ('-':cs@(d:_)) | isDigit d = number loc "-" cs
+lex loc      cs@(d:_)  | isDigit d = number loc ""  cs
 lex loc (d:cs) | isOperChar d  =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
@@ -105,20 +105,26 @@ lex loc ('\'':cs) =
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ showChar d]
 lex _ [] = []
 
-number :: Loc -> Int -> String -> [Token]   -- neg=1 means negative, neg=0 means positive
-number loc neg cs =
+number :: Loc -> String -> String -> [Token]   -- neg=1 means negative, neg=0 means positive
+number loc sign cs =
   case span isDigit cs of
     (ds, rs) | null rs || not (eqChar (head rs) '.') || eqString (take 2 rs) ".." ->
-               let i = readInt ds
-                   i' = if neg == 0 then i else negate i
-               in  TInt loc i' : lex (addCol loc $ neg + 1 + length ds) rs
+               let s = sign ++ ds
+                   i = readInt s
+               in  TInt loc i : lex (addCol loc $ length s) rs
              | otherwise ->
                case span isDigit (tail rs) of
                  (ns, rs') ->
-                   let d = readDouble (ds ++ ('.':ns))
-                       d' = if neg == 0 then d else D.negate d
-                   in  TDouble loc d' : lex (addCol loc $ neg + 2 + length ds + length ns) rs' 
-
+                   let s = sign ++ ds ++ '.':ns
+                       mkD x r = TDouble loc (readDouble x) : lex (addCol loc $ length x) r
+                   in  case expo rs' of
+                         Nothing -> mkD s rs'
+                         Just (es, rs'') -> mkD (s ++ es) rs''
+  where
+    expo (e:'-':xs@(d:_)) | eqChar (toLower e) 'w' && isDigit d = Just ('e':'-':as, bs) where (as, bs) = span isDigit xs
+    expo (e:'+':xs@(d:_)) | eqChar (toLower e) 'w' && isDigit d = Just ('e':'+':as, bs) where (as, bs) = span isDigit xs
+    expo (e:    xs@(d:_)) | eqChar (toLower e) 'w' && isDigit d = Just ('e':    as, bs) where (as, bs) = span isDigit xs
+    expo _ = Nothing
 
 -- Skip a {- -} style comment
 skipNest :: Loc -> Int -> String -> [Token]
