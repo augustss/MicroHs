@@ -14,6 +14,8 @@ infixl 7 *
 (-)  = primDoubleSub
 (*) :: Double -> Double -> Double
 (*)  = primDoubleMul
+(/) :: Double -> Double -> Double
+(/) = primDoubleDiv
 
 negate :: Double -> Double
 negate x = 0.0 - x
@@ -24,6 +26,8 @@ subDouble :: Double -> Double -> Double
 subDouble = (-)
 mulDouble :: Double -> Double -> Double
 mulDouble = (*)
+divDouble :: Double -> Double -> Double
+divDouble = (/)
 
 --------------------------------
 

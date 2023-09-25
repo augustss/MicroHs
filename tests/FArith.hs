@@ -15,6 +15,8 @@ main :: IO ()
 main = do
   putStrLn $ showList D.showDouble [ op x y | x <- list1, y <- list2, op <- [D.addDouble, D.subDouble, D.mulDouble] ]
   putStrLn $ showList showBool [ op x y | x <- list1, y <- list2, op <- [D.eqDouble, D.neqDouble, D.ltDouble, D.leDouble, D.gtDouble, D.geDouble] ]
+  putStrLn $ showList D.showDouble [ D.divDouble x y | x <- [2.234983, 1.232, 23.0], y <- [1.0, 5.0, 10.0, 100.0]]
+  putStrLn $ showList D.showDouble [ D.divDouble x y | x <- [-2.234983, -1.232, -23.0], y <- [1.0, -5.0, 10.0, -100.0]]
   let str = readDouble "1.576"
   putStrLn $ D.showDouble str
   putStrLn $ D.showDouble $ D.addDouble 1.0 $ readDouble "2.5"

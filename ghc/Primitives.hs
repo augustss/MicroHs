@@ -137,6 +137,9 @@ primDoubleSub  = (-)
 primDoubleMul :: Double -> Double -> Double
 primDoubleMul  = (*)
 
+primDoubleDiv :: Double -> Double -> Double
+primDoubleDiv = (/)
+
 primDoubleEQ :: Double -> Double -> Bool
 primDoubleEQ = (==)
 

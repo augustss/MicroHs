@@ -149,7 +149,7 @@ getraw()
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
                 T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
-                T_FADD, T_FSUB, T_FMUL,
+                T_FADD, T_FSUB, T_FMUL, T_FDIV,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
                 T_ERROR, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
@@ -447,14 +447,15 @@ struct {
   { "fadd" , T_FADD},
   { "fsub" , T_FSUB},
   { "fmul" , T_FMUL},
-  {"feq", T_FEQ},
-  {"fne", T_FNE},
-  {"flt", T_FLT},
-  {"fle", T_FLE},
-  {"fgt", T_FGT},
-  {"fge", T_FGE},
-  {"fshow", T_FSHOW},
-  {"fread", T_FREAD},
+  { "fdiv", T_FDIV},
+  { "feq", T_FEQ},
+  { "fne", T_FNE},
+  { "flt", T_FLT},
+  { "fle", T_FLE},
+  { "fgt", T_FGT},
+  { "fge", T_FGE},
+  { "fshow", T_FSHOW},
+  { "fread", T_FREAD},
   { "==", T_EQ },
   { "/=", T_NE },
   { "<", T_LT },
@@ -1186,9 +1187,10 @@ printrec(FILE *f, NODEPTR n)
   case T_UQUOT: fprintf(f, "$uquot"); break;
   case T_UREM: fprintf(f, "$urem"); break;
   case T_SUBR: fprintf(f, "$subtract"); break;
-  case T_FADD:  fprintf(f, "$fadd"); break;
-  case T_FSUB:  fprintf(f, "$fsub"); break;
-  case T_FMUL:  fprintf(f, "$fmul"); break;
+  case T_FADD: fprintf(f, "$fadd"); break;
+  case T_FSUB: fprintf(f, "$fsub"); break;
+  case T_FMUL: fprintf(f, "$fmul"); break;
+  case T_FDIV: fprintf(f, "$fdiv"); break;
   case T_FEQ: fprintf(f, "$feq"); break;
   case T_FNE: fprintf(f, "$fne"); break;
   case T_FLT: fprintf(f, "$flt"); break;
@@ -1624,9 +1626,10 @@ eval(NODEPTR n)
     case T_QUOT: ARITHBIN(/);
     case T_REM:  ARITHBIN(%);
     case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
-    case T_FADD:  FARITHBIN(+);
-    case T_FSUB:  FARITHBIN(-);
-    case T_FMUL:  FARITHBIN(*);
+    case T_FADD: FARITHBIN(+);
+    case T_FSUB: FARITHBIN(-);
+    case T_FMUL: FARITHBIN(*);
+    case T_FDIV: FARITHBIN(/);
     case T_FEQ: CMPF(==);
     case T_FNE: CMPF(!=);
     case T_FLT: CMPF(<);
