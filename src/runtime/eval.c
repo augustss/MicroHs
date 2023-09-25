@@ -558,12 +558,13 @@ init_nodes(void)
   /* The representation of the constructors of
    *  data Ordering = LT | EQ | GT
    * do not have single constructors.
-   * But we can make compound one, since that are irreducible.
+   * But we can make compound one, since they are irreducible.
    */
 #define NEWAP(c, f, a) do { NODEPTR n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
   NEWAP(combLT, combBK,    combFalse);  /* BK B */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
+#undef NEWAP
 
 #if INTTABLE
   /* Allocate permanent Int nodes */
