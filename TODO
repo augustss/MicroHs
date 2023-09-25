@@ -9,6 +9,5 @@
   - Use filename as the cache lookup key and SHA for validation
 * make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
-ROBERT * add Double primitive type
 * implement Data.Integer
 * add pretty printing library
