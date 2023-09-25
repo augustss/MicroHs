@@ -171,6 +171,7 @@ typedef struct node {
   enum node_tag tag;
   union {
     value_t value;
+    double doublevalue;
     FILE *file;
     const char *string;
     struct {
@@ -188,9 +189,9 @@ typedef struct node* NODEPTR;
 #define GETVALUE(p) (p)->u.value
 // to squeeze a double into value_t we must exactly copy and read the bits
 // this is a stm, and not an exp
-#define GETDOUBLEVALUE(p,d) do { memcpy(&d, &((p)->u.value), 8); } while(0)
+#define GETDOUBLEVALUE(p) (p)->u.doublevalue
 #define SETVALUE(p,v) (p)->u.value = v
-#define SETDOUBLEVALUE(p,v) do { memcpy(&((p)->u.value), &v, 8); } while(0)
+#define SETDOUBLEVALUE(p,v) (p)->u.doublevalue = v
 #define FUN(p) (p)->u.s.fun
 #define ARG(p) (p)->u.s.arg
 #define NEXT(p) FUN(p)
@@ -211,6 +212,7 @@ typedef struct node {
   union {
     struct node *uuarg;
     value_t uuvalue;
+    double uudoublevalue;
     FILE *uufile;
     const char *uustring;
   } uarg;
@@ -221,9 +223,9 @@ typedef struct node* NODEPTR;
 #define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) : T_AP)
 #define SETTAG(p,t) do { if (t != T_AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
-#define GETDOUBLEVALUE(p, d) do { memcpy(&d, &((p)->uarg.uuvalue), 8); } while(0)
+#define GETDOUBLEVALUE(p) (p)->uarg.uudoublevalue
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
-#define SETDOUBLEVALUE(p,v) do { memcpy(&((p)->uarg.uuvalue), &v, 8); } while(0)
+#define SETDOUBLEVALUE(p,v) (p)->uarg.uudoublevalue = v
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
 #define STR(p) (p)->uarg.uustring
@@ -784,28 +786,15 @@ parse_int(BFILE *f)
 double
 parse_double(BFILE *f)
 {
-  // apparently longest float, when rendered, takes up 24 characters
+  // apparently longest float, when rendered, takes up 24 characters. We add one more for a potential
+  // minus sign, and another one for the final null terminator.
   // https://stackoverflow.com/questions/1701055/what-is-the-maximum-length-in-chars-needed-to-represent-any-double-value
   // I expect Lennart will hate this...
-  char floatstr[24];
+  char floatstr[26];
   int i = 0;
   for(;;) {
     int c = getb(f);
-    if (c < '0' || c > '9') {
-      ungetb(c, f);
-      break;
-    }
-    floatstr[i++] = c;
-  }
-  int c = getb(f);
-  if(c != '.') {
-    ERR("can not parse double");
-  }
-  floatstr[i++] = '.';
-
-  for(;;) {
-    int c = getb(f);
-    if(c < '0' || c > '9') {
+    if ((c != '-' && c != '.') && (c < '0' || c > '9')) {
       ungetb(c, f);
       break;
     }
@@ -884,20 +873,13 @@ parse(BFILE *f)
     neg = -1;
     if ('0' <= c && c <= '9') {
       goto number;
-    } else if (c == 'f') {
-      goto flabel; // this stuff is cursed, I am not as much of a hacker as Lennart
     } else {
       ERR("got -");
     }
-  case 'f':
-  neg = 1;
-  flabel:
-    c = getb(f);
-    if('0' <= c && c <= '9') {
-      goto floatingnumber;
-    } else {
-      ERR("got f");
-    }
+  case '%':
+    d = parse_double(f);
+    r = mkDouble(d);
+    return r;
   case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
     /* integer [0-9]+*/
     neg = 1;
@@ -905,11 +887,6 @@ parse(BFILE *f)
     ungetb(c, f);
     i = neg * parse_int(f);
     r = mkInt(i);
-    return r;
-  floatingnumber:
-    ungetb(c, f);
-    d = neg * parse_double(f);
-    r = mkDouble(d);
     return r;
   case '$':
     /* A primitive, keep getting char's until end */
@@ -1161,11 +1138,7 @@ printrec(FILE *f, NODEPTR n)
     fputc(')', f);
     break;
   case T_INT: fprintf(f, "%"PRIvalue, GETVALUE(n)); break;
-  case T_DOUBLE:
-    double d;
-    GETDOUBLEVALUE(n, d);
-    fprintf(f, "%f", d);
-    break;
+  case T_DOUBLE: fprintf(f, "%f", GETDOUBLEVALUE(n)); break;
   case T_STR:
     {
       const char *p = STR(n);
@@ -1373,18 +1346,6 @@ evali(NODEPTR n)
   return n;
 }
 
-static inline NODEPTR
-evald(NODEPTR n)
-{
-  PUSH(n);
-  eval(n);
-  n = TOP(0);
-  POP(1);
-  while (GETTAG(n) == T_IND)
-    n = INDIR(n);
-  return n;
-}
-
 /* Follow indirections */
 static inline NODEPTR
 indir(NODEPTR n)
@@ -1412,16 +1373,14 @@ evalint(NODEPTR n)
 static inline double
 evaldouble(NODEPTR n)
 {
-  n = evald(n);
+  n = evali(n);
   #if SANITY
   if (GETTAG(n) != T_DOUBLE) {
     fprintf(stderr, "bad tag %d\n", GETTAG(n));
     ERR("evaldouble");
   }
   #endif
-  double d;
-  GETDOUBLEVALUE(n, d);
-  return d;
+  return GETDOUBLEVALUE(n);
 }
 
 /* Evaluate to a T_HDL */
@@ -1694,14 +1653,11 @@ eval(NODEPTR n)
 
       // turn it into a string
       char str[25];
-      memset(str, '\0', 25);
-      snprintf(str, 25, "%f", xd);
+      int idx = snprintf(str, 25, "%f", xd);
 
       /* C will render floats with potentially many training zeros, shave the
       off by moving the NULL terminator */
-      int idx = 24;
-      while(str[idx] == '\0') idx--;
-      for(int i = idx; i >= 0; i--) {
+      for(int i = idx - 1; i >= 0; i--) {
         if(str[i] == '.') {
           str[i+2] = '\0'; // number is x.0, create {x, '.', '0', '\0'}
           break;

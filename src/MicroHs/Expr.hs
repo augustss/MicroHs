@@ -435,9 +435,7 @@ showLit :: Lit -> String
 showLit l =
   case l of
     LInt i -> showInt i
-    LDouble d -> case D.showDouble d of
-      '-':xs -> '-':'f':xs
-      xs -> 'f':xs
+    LDouble d -> '%' : D.showDouble d
     LChar c -> showChar c
     LStr s -> showString s
     LPrim s -> '$' : s
