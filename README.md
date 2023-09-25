@@ -6,7 +6,6 @@ The compiler can compile itself.
 
 ## Compiling MicroHs
 There are three different ways to compile MicroHs
-
 * Using GHC with standard `Prelude` and libraries. `Makefile` target `bin/mhs`
 * Using GHC, but with `Prelude` and libraries from MicroHs. `Makefile` target `bin/bootmhs`
 * Using mhs, with the supplied `comb/mhs.comb`. `Makefile` target `comb/mhs-new.comb`
@@ -28,7 +27,6 @@ The language is a subset of Haskell.  There is only simple Hindley-Milner polymo
 no type classes (yet).
 
 It has the following features:
-
 * variables
 * application
 * lambda
@@ -89,6 +87,7 @@ There are some primitive data types, e.g `Int`, `Handle`, and `Double`.  These a
 All other types are defined with the language.  They are converted to lambda terms using
 the Scott encoding.   The runtime system knows how lists are encoded and booleans are encoded.
 
+
 ## Compiler
 The compiler is written in Micro Haskell.
 It takes a name of a module and compiles it to a file called `out.comb`.
@@ -104,11 +103,11 @@ E.g.
   ```
   importing done MicroHs.Exp, 716ms (368 + 348)
   ```
-
 which means tha processing `MicroHs.Exp.hs` took 716ms,
 with parsing taking 368ms and typecheck&desugar taking 348ms.
 
 ### Compiler modules
+
 * `Main`, the main module.  Decodes flags, compiles, and writes result.
 * `Compile`, top level compiler.  Maintains a cache of already compiled modules.
 * `Exp`, simple expression type, combinator abstraction and optimization.
@@ -161,6 +160,7 @@ the running program.
 For example, `bin/eval +RTS -H1M -v -RTS hello` runs `out.comb` and the program gets the argument `hello`,
 whereas the runtime system sets the heap to 1M cells and is verbose.
 
+
 ### Features
 The runtime system can serialize and deserialize any expression
 and keep its graph structure (sharing and cycles).
@@ -197,9 +197,9 @@ The bootstrapping process takes about 20s (on a modern machine).
 To bootstrap:
  * build the evaluator, `make bin/eval`, this requires a C compiler
  * compile the compiler
-  ```
-  bin/eval +RTS -rcomb/mhs.comb -RTS -ilib -isrc -onewmhs.comb MicroHs.Main
-  ```
+   ```
+   bin/eval +RTS -rcomb/mhs.comb -RTS -ilib -isrc -onewmhs.comb MicroHs.Main
+   ```
  * The file `newmhs.comb` is the new combinator binary and it should be
    identical to `comb/mhs.comb`.
  * It is also possible to bake the combinator code into the binary.
@@ -211,20 +211,20 @@ To bootstrap:
 You might have to increase it on your system.
 
 # FAQ
-*
+* 
   * Q: When will it get _insert feature_?
   * A: Maybe some time, maybe never.
-*
+* 
   * Q: Why are the error messages so bad?
   * A: Error messages are boring.
-*
+* 
   * Q: Why is the so much source code?
   * A: I wonder this myself.  Over 5000 lines of Haskell seems excessive.
-    2000 lines of C is also more than I'd like for such a simple system.
-*
+       2000 lines of C is also more than I'd like for such a simple system.
+* 
   * Q: Why are the binaries so big?
   * A: The combinator file is rather verbose.  The combinator file
-    for the compiler shrinks from 170kB to 30kB when compressed.
-    The evaluator is about 60kB.
-    The total compressed size for runtime and compiler is about 50k.
-    I'm sorry if you're running on a 16 bit system.
+       for the compiler shrinks from 170kB to 30kB when compressed.
+       The evaluator is about 60kB.
+       The total compressed size for runtime and compiler is about 50k.
+       I'm sorry if you're running on a 16 bit system.
