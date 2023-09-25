@@ -88,16 +88,8 @@ lex loc (d:cs) | isLower_ d =
   case span isIdentChar cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
-lex loc ('-':d:cs) | isDigit d =
-  case span isDigit cs of
-    (ds, rs) | null rs || not (eqChar (head rs) '.') -> TInt loc (readInt ('-':d:ds)) : lex (addCol loc $ 2 + length ds) rs
-             | otherwise -> case span isDigit (tail rs) of
-      (ns, rs') -> TDouble loc (readDouble (('-':d:ds) ++ ('.':ns))) : lex (addCol loc $ 3 + length ds + length ns) rs'
-lex loc (d:cs) | isDigit d =
-  case span isDigit cs of
-    (ds, rs) | null rs || not (eqChar (head rs) '.') -> TInt loc (readInt (d:ds)) : lex (addCol loc $ 1 + length ds) rs
-             | otherwise -> case span isDigit (tail rs) of
-      (ns, rs') -> TDouble loc (readDouble ((d:ds) ++ ('.':ns))) : lex (addCol loc $ 2 + length ds + length ns) rs' 
+lex loc ('-':cs@(d:_)) | isDigit d = number loc 1 cs
+lex loc      cs@(d:_)  | isDigit d = number loc 0 cs
 lex loc (d:cs) | isOperChar d  =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
@@ -112,6 +104,21 @@ lex loc ('\'':cs) =
         (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ showChar d]
 lex _ [] = []
+
+number :: Loc -> Int -> String -> [Token]   -- neg=1 means negative, neg=0 means positive
+number loc neg cs =
+  case span isDigit cs of
+    (ds, rs) | null rs || not (eqChar (head rs) '.') || eqString (take 2 rs) ".." ->
+               let i = readInt ds
+                   i' = if neg == 0 then i else negate i
+               in  TInt loc i' : lex (addCol loc $ neg + 1 + length ds) rs
+             | otherwise ->
+               case span isDigit (tail rs) of
+                 (ns, rs') ->
+                   let d = readDouble (ds ++ ('.':ns))
+                       d' = if neg == 0 then d else D.negate d
+                   in  TDouble loc d' : lex (addCol loc $ neg + 2 + length ds + length ns) rs' 
+
 
 -- Skip a {- -} style comment
 skipNest :: Loc -> Int -> String -> [Token]
@@ -196,7 +203,7 @@ tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
 tokensLoc []                  = mkLoc 0 1
 
--- | This appears to be the magical layout resolver, I wondered where it was...
+-- | This is the magical layout resolver, straight from the Haskell report.
 layout :: [Int] -> [Token] -> [Token]
 layout mms@(m : ms) tts@(TIndent x       : ts) | n == m = TSpec (tokensLoc ts) ';' : layout    mms  ts
                                                | n <  m = TSpec (tokensLoc ts) '}' : layout     ms tts where {n = getCol x}

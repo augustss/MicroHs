@@ -103,7 +103,7 @@ graphFromEdges le edges0
 
     max_v           = length edges0 - 1
     sorted_edges    = sortLE lek edges0
-    edges1          = zip [0 .. ] sorted_edges
+    edges1          = zip [0..] sorted_edges
 
     key_map         = IM.fromList [(v, k)                      | (v, (_,    k, _ )) <- edges1]
 

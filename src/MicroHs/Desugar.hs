@@ -154,7 +154,7 @@ mutualRec v ies body =
       n = length is
       ev = Var v
       one m i = letE i (mkTupleSel m n ev)
-      bnds = foldr (.) id $ zipWith one [0 .. ] is
+      bnds = foldr (.) id $ zipWith one [0..] is
   in  letRecE v (bnds $ mkTuple es) $
       bnds body
 

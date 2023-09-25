@@ -37,7 +37,7 @@ It has the following features:
 * case expressions
 * let expressions
 * tuples
-* list syntax (for stuff like `[x..y]` you unfortunately need to write `[x .. y]`, as the parsers support for `Double` literals is simple)
+* list syntax
 * list comprehensions
 * arithmetic and comparison operators, the prelude exports the ones for `Int`, but for the other types you need to do a qulified import (e.g for `Double` and for `Word`).
 * qualified `do` notation, e.g., `IO.do`
