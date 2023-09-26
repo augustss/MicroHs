@@ -19,7 +19,8 @@ main = do
   file <- readFile fn
   let size = length file
       chunks = chunkify 20 file
-  putStrLn $ "struct { size_t b_size; size_t b_pos; uint8_t b_buffer[]; } combs = { " ++ showInt size ++ ", 0, {"
+  putStrLn $ "struct { BFILE mets; size_t b_size; size_t b_pos; uint8_t b_buffer[]; } combs =\n { { getb_buf, ungetb_buf, closeb_buf }, "
+             ++ showInt size ++ ", 0, {"
   mapM_ (putStrLn . showChunk) chunks
   putStrLn "}};"
   putStrLn "BFILE *comb_internal = (BFILE*)&combs;"

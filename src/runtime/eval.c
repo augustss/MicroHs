@@ -272,19 +272,7 @@ bits_t *free_map;             /* 1 bit per node, 0=free, 1=used */
 heapoffs_t free_map_nwords;
 heapoffs_t next_scan_index;
 
-typedef struct {
-  size_t   b_size;
-  size_t   b_pos;
-  uint8_t  b_buffer[1];
-} BFILE;
-
-struct handler {
-  jmp_buf         hdl_buf;      /* env storage */
-  struct handler *hdl_old;      /* old handler */
-  stackptr_t      hdl_stack;    /* old stack pointer */
-  NODEPTR         hdl_exn;     /* used temporarily to pass the exception value */
-} *cur_handler = 0;
-
+__attribute__ ((noreturn)) // [[noreturn]]
 void
 memerr(void)
 {
@@ -292,33 +280,97 @@ memerr(void)
   exit(1);
 }
 
-BFILE *
-alloc_buffer(size_t size)
-{
-  BFILE *p;
-  p = malloc(sizeof(BFILE) + size);
-  if (!p)
-    memerr();
-  p->b_size = size;
-  p->b_pos = 0;
-  return p;
-}
+/***************** BFILE *******************/
+
+/* BFILE will have different implementations, they all have these methods */
+typedef struct BFILE {
+  int (*getb)(struct BFILE*);
+  void (*ungetb)(int c, struct BFILE*);
+  void (*closeb)(struct BFILE*);
+} BFILE;
+
+/*** BFILE from static buffer ***/
+struct BFILE_buffer {
+  BFILE    mets;
+  size_t   b_size;
+  size_t   b_pos;
+  uint8_t  b_buffer[1];
+};
 
 int
-getb(BFILE *p)
+getb_buf(BFILE *bp)
 {
+  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
   if (p->b_pos >= p->b_size)
     return -1;
   return p->b_buffer[p->b_pos++];
 }
 
 void
-ungetb(int c, BFILE *p)
+ungetb_buf(int c, BFILE *bp)
 {
+  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
   if (p->b_pos == 0)
     ERR("ungetb");
   p->b_buffer[--p->b_pos] = (uint8_t)c;
 }
+
+void
+closeb_buf(BFILE *)
+{
+}
+
+/*** BFILE via FILE ***/
+struct BFILE_file {
+  BFILE    mets;
+  FILE    *file;
+};
+
+int
+getb_file(BFILE *bp)
+{
+  struct BFILE_file *p = (struct BFILE_file *)bp;
+  return fgetc(p->file);
+}
+
+void
+ungetb_file(int c, BFILE *bp)
+{
+  struct BFILE_file *p = (struct BFILE_file *)bp;
+  ungetc(c, p->file);
+}
+
+void
+closeb_file(BFILE *bp)
+{
+  struct BFILE_file *p = (struct BFILE_file *)bp;
+  free(p);
+}
+
+BFILE *
+openb_FILE(FILE *f)
+{
+  struct BFILE_file *p = malloc(sizeof (struct BFILE_file));
+  if (!p)
+    memerr();
+  p->mets.getb   = getb_file;
+  p->mets.ungetb = ungetb_file;
+  p->mets.closeb = closeb_file;
+  p->file = f;
+  return (BFILE*)p;
+}
+
+/*** Coming soon: BFILE via decompression ***/
+
+
+/*****************************************************************************/
+
+struct handler {
+  jmp_buf         hdl_buf;      /* env storage */
+  struct handler *hdl_old;      /* old handler */
+  stackptr_t      hdl_stack;    /* old stack pointer */
+  NODEPTR         hdl_exn;     /* used temporarily to pass the exception value */
+} *cur_handler = 0;
 
 /* Set FREE bit to 0 */
 static inline void mark_used(NODEPTR n)
@@ -760,11 +812,11 @@ lookupFFIname(const char *name)
 int
 gobble(BFILE *f, int c)
 {
-  int d = getb(f);
+  int d = f->getb(f);
   if (c == d) {
     return 1;
   } else {
-    ungetb(d, f);
+    f->ungetb(d, f);
     return 0;
   }
 }
@@ -775,9 +827,9 @@ getNT(BFILE *f)
 {
   int c;
   
-  c = getb(f);
+  c = f->getb(f);
   if (c == ' ' || c == ')') {
-    ungetb(c, f);
+    f->ungetb(c, f);
     return 0;
   } else {
     return c;
@@ -788,12 +840,12 @@ value_t
 parse_int(BFILE *f)
 {
   value_t i = 0;
-  int c = getb(f);
+  int c = f->getb(f);
   for(;;) {
     i = i * 10 + c - '0';
-    c = getb(f);
+    c = f->getb(f);
     if (c < '0' || c > '9') {
-      ungetb(c, f);
+      f->ungetb(c, f);
       break;
     }
   }
@@ -864,7 +916,7 @@ parse(BFILE *f)
   int c;
   char buf[80];                 /* store names of primitives. */
 
-  c = getb(f);
+  c = f->getb(f);
   if (c < 0) ERR("parse EOF");
   switch (c) {
   case '(' :
@@ -876,7 +928,7 @@ parse(BFILE *f)
     if (!gobble(f, ')')) ERR("parse ')'");
     return r;
   case '-':
-    c = getb(f);
+    c = f->getb(f);
     neg = -1;
     if ('0' <= c && c <= '9') {
       goto number;
@@ -891,7 +943,7 @@ parse(BFILE *f)
     /* integer [0-9]+*/
     neg = 1;
   number:
-    ungetb(c, f);
+    f->ungetb(c, f);
     i = neg * parse_int(f);
     r = mkInt(i);
     return r;
@@ -943,7 +995,7 @@ parse(BFILE *f)
       char *buffer = malloc(10000);
       char *p = buffer;
       for(;;) {
-        c = getb(f);
+        c = f->getb(f);
         if (c == '"')
           break;
         if (c == '\\') {
@@ -978,7 +1030,7 @@ checkversion(BFILE *f)
   int c;
 
   while ((c = *p++)) {
-    if (c != getb(f))
+    if (c != f->getb(f))
       ERR("version mismatch");
   }
   gobble(f, '\r');                 /* allow extra CR */
@@ -1007,24 +1059,10 @@ parse_top(BFILE *f)
 NODEPTR
 parse_FILE(FILE *f)
 {
-  size_t size;
-  off_t pos;
-  
-  /* Determine how much is left of the file */
-  pos = ftell(f);
-  (void)fseek(f, 0, SEEK_END);
-  size = (size_t)(ftell(f) - pos);
-  (void)fseek(f, pos, SEEK_SET);
-
-  /* Read entire file */
-  BFILE *b = alloc_buffer(size);
-  if (fread(b->b_buffer, 1, size, f) != size)
-    ERR("fread");
-
+  BFILE *p = openb_FILE(f);
   /* And parse it */
-  NODEPTR n = parse_top(b);
-
-  free(b);
+  NODEPTR n = parse_top(p);
+  p->closeb(p);
   return n;
 }
 
@@ -1034,9 +1072,10 @@ parse_file(const char *fn, size_t *psize)
   FILE *f = fopen(fn, "r");
   if (!f)
     ERR("file not found");
+
+  /* And parse it */
   NODEPTR n = parse_FILE(f);
   *psize = ftell(f);
-  fclose(f);
   return n;
 }
 
