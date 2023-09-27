@@ -316,8 +316,9 @@ ungetb_buf(int c, BFILE *bp)
 }
 
 void
-closeb_buf(BFILE *)
+closeb_buf(BFILE *bp)
 {
+  (void)bp;                     /* shut up warning */
 }
 
 /*** BFILE via FILE ***/

@@ -15,8 +15,8 @@ prefixmhs="$prefix/lib/mhs"
 
 compflags=""
 output=""
-while [ `expr substr "X$1" 1 2` = "X-" ]; do
-    if [ `expr substr "$1" 1 2` = "-o" ]; then
+while [ `expr "X$1" : "X-"` = "2" ]; do
+    if [ `expr "$1" : "-o"` = "2" ]; then
         output="$1"
     else
         compflags="$compflags $1"
@@ -35,14 +35,15 @@ compile="$prefix/bin/mhseval +RTS -r$prefixmhs/comb/mhs.comb -RTS"
 compress="$compile -r $lib -i$prefixmhs/Tools Compress"
 addcomb="$compile -r $lib -i$prefixmhs/Tools Addcombs"
 
-tmpcomb=`mktemp -t comb.XXXXXX`
-tmpeval=`mktemp -t eval.XXXXXX.c`
+tmp=${TMPDIR:=/tmp}
+tmpcomb=`mktemp -t $tmp comb.XXXXXX`
+tmpeval=`mktemp -t $tmp eval.XXXXXX.c`
 
-trap "rm -f $tmpcomb $tmpeval" EXIT
+##trap "rm -f $tmpcomb $tmpeval" EXIT
 
 ex=""
 $ex $compile $lib $compflags -o$tmpcomb "$input"
 $ex cp $prefixmhs/src/runtime/eval.c $tmpeval
 $ex $compress < $tmpcomb | $addcomb >> $tmpeval
 $ex $cc -O3 $tmpeval $output
-$ex rm -f $tmpcomb $tmpeval
+##$ex rm -f $tmpcomb $tmpeval
