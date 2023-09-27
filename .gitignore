@@ -10,3 +10,6 @@ tmp/*
 a.out
 *.prof
 dist-newstyle/
+.mhsi
+Interactive.hs
+lib/mhs
