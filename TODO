@@ -4,10 +4,10 @@
 * Add overloading
 * Implement deriving
 * Make sure rank-N works correctly
+  - redo type checker
 * Add the possibility to save a compiler cache in a file
   - Add SHA checksumming to the C code
   - Use filename as the cache lookup key and SHA for validation
 * make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
-* implement Data.Integer
 * add pretty printing library
