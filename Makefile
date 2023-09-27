@@ -195,4 +195,4 @@ install:	$(EVAL)
 	cp comb/mhs.comb $(PREFIX)/lib/mhs/comb
 	cp src/runtime/eval.c $(PREFIX)/lib/mhs/src/runtime
 	cp -r lib $(PREFIX)/lib/mhs
-	$(PREFIX)/bin/mhsc -v -isrc -o$(PREFIX)/bin/mhs MicroHs.Main
+	$(PREFIX)/bin/mhsc -isrc -o$(PREFIX)/bin/mhs MicroHs.Main

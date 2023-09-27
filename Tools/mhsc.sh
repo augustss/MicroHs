@@ -36,10 +36,10 @@ compress="$compile -r $lib -i$prefixmhs/Tools Compress"
 addcomb="$compile -r $lib -i$prefixmhs/Tools Addcombs"
 
 tmp=${TMPDIR:=/tmp}
-tmpcomb=`mktemp -t $tmp comb.XXXXXX`
-tmpeval=`mktemp -t $tmp eval.XXXXXX.c`
+tmpcomb=`mktemp $tmp/comb.XXXXXX`
+tmpeval=`mktemp $tmp/eval.XXXXXX.c`
 
-##trap "rm -f $tmpcomb $tmpeval" EXIT
+trap "rm -f $tmpcomb $tmpeval" EXIT
 
 ex=""
 $ex $compile $lib $compflags -o$tmpcomb "$input"
