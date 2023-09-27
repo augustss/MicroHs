@@ -1,5 +1,5 @@
 MHS=../bin/mhs -i../lib
-EVAL=../bin/eval
+EVAL=../bin/mhseval
 .PHONY: test time clean
 
 test:
