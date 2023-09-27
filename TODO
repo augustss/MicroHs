@@ -11,3 +11,13 @@
 * make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
 * add pretty printing library
+* whith dictionaries we need two optimizations to get rid of them
+  -   case d of (d1,d2) -> ... (d1,d2) ...
+    transforms to
+      case d of (d1,d2) -> ... d ...
+    this takes care of dictionary reconstruction
+  -   f x y = ... f x e ...
+    transforms to
+      f x = let f' y = ... f' e ...
+    this will specialize recursive functions
+    (and make more efficient 'map' etc)
