@@ -493,10 +493,10 @@ tLookup :: --XHasCallStack =>
 tLookup msg i = T.do
   env <- gets valueTable
   case M.lookup i env of
-    Nothing -> tcError (getSLocIdent i) $ ": undefined " ++ msg ++ ": " ++ showIdent i
+    Nothing -> tcError (getSLocIdent i) $ "undefined " ++ msg ++ ": " ++ showIdent i
                -- ++ "\n" ++ show env ;
     Just [Entry e s] -> T.return (setSLocExpr (getSLocIdent i) e, s)
-    Just _ -> tcError (getSLocIdent i) $ ": ambiguous " ++ showIdent i
+    Just _ -> tcError (getSLocIdent i) $ "ambiguous " ++ showIdent i
 
 tInst :: ETypeScheme -> T EType
 tInst as =
