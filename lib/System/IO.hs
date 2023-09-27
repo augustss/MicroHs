@@ -167,3 +167,7 @@ unsafeInterleaveIO ioa = return (primPerformIO ioa)
 
 seq :: forall a b . a -> b -> b
 seq = primSeq
+
+-- MicroHs is always in binary mode
+hSetBinaryMode :: Handle -> Bool -> IO ()
+hSetBinaryMode _ _ = return ()
