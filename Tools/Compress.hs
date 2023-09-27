@@ -5,7 +5,18 @@ import Data.Char
 import System.IO
 --import Debug.Trace
 
+--
+-- A simple LZW compressor
+-- It uses a dictionary of maximum size 4096.
+-- The 12 bit code words are encoded with 2 code words in 3 bytes.
+-- It can only compress input of printable ASCII + '\n'
+
 type Table = M.Map [Char] Int
+
+-- Don't change this lightly.
+-- It needs to be coordinated with the decompressor transducer in eval.c
+maxDict :: Int
+maxDict = 4096
 
 toChar :: Int -> Char
 toChar i = chr (i + 32)
@@ -21,7 +32,7 @@ compress t [] p = [ t ! p ]
 compress t (c:cs) p =
   let p' = p ++ [c]
       s = M.size t
-      t' = if s < 4096 then M.insertBy compareString p' s t else t
+      t' = if s < maxDict then M.insertBy compareString p' s t else t
   in
 --      trace ("compress " ++ showString p') $
 --      trace (showList (showPair showString showInt) (M.toList t)) $
@@ -47,9 +58,14 @@ toBytes (i1:i2:is) =
       b3 = i `quot` (256*256)
   in  b1 : b2 : b3 : toBytes is
 
+bad :: Char -> Bool
+bad c = not (isPrint c || eqChar c '\n')
+
 main :: IO ()
 main = do
   f <- hGetContents stdin
+  when (any bad f) $
+    error "Non-printable ASCII in input"
   let bs = compress initTable f []
   hSetBinaryMode stdout True
   putStr $ 'Z' : (map chr $ toBytes bs)
