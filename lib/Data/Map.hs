@@ -1,181 +1,155 @@
--- Copyright 2023 Lennart Augustsson
--- See LICENSE file for full license.
 --
--- Inspired by https://sortingsearching.com/2020/05/23/2-3-trees.html
+-- Balanced binary trees
+-- Similar to Data.Map
+-- Based on https://ufal.mff.cuni.cz/~straka/papers/2011-bbtree.pdf
 --
-module Data.Map(module Data.Map) where
-import Prelude --Yhiding(lookupBy)
+module Data.NMap(
+  Map,
+  insertBy, insertByWith, fromListByWith, fromListBy, lookupBy, empty, elems, size, toList, deleteBy,
+  ) where
+import Prelude
 
-data Map k v
-  = Empty
-  | Leaf k v
-  | Node2 Int k (Map k v) (Map k v)
-  | Node3 Int k (Map k v) (Map k v) (Map k v)
-  --Xderiving (Show)
+data Map k a
+  = Nil           -- empty tree
+  | One k a       -- singleton
+  | Node          -- tree node
+    (Map k a)      -- left subtree
+    Int            -- size of this tree
+    k              -- key stored in the node
+    a              -- element stored in the node
+    (Map k a)      -- right subtree
+  --Xderiving(Show)
 
-data OneOrTwo a
-  = OOT1 a
-  | OOT2 a a
-  --Xderiving (Show)
-
-height :: forall k v . Map k v -> Int
-height m =
-  case m of
-    Empty -> undefined
-    Leaf _ _ -> 0
-    Node2 h _ _ _ -> h
-    Node3 h _ _ _ _ -> h
-
-smallest :: forall k v . Map k v -> k
-smallest m =
-  case m of
-    Empty -> undefined
-    Leaf k _ -> k
-    Node2 _ k _ _ -> k
-    Node3 _ k _ _ _ -> k
-
-replSmallest :: forall k v . (v -> v) -> Map k v -> Map k v
-replSmallest f m =
-  case m of
-    Empty -> undefined
-    Leaf k v -> Leaf k (f v)
-    Node2 h s a b -> Node2 h s (replSmallest f a) b
-    Node3 h s a b c -> Node3 h s (replSmallest f a) b c
-
-node2 :: forall k v . Map k v -> Map k v -> Map k v
-node2 a b = Node2 (height a + 1) (smallest a) a b
-
-node3 :: forall k v . Map k v -> Map k v -> Map k v -> Map k v
-node3 a b c = Node3 (height a + 1) (smallest a) a b c
-
-meld :: forall k v . OneOrTwo (Map k v) -> OneOrTwo (Map k v) -> OneOrTwo (Map k v)
-meld m1 m2 =
-  case m1 of
-    OOT1 a ->
-      case m2 of
-        OOT1 b -> OOT1 $ node2 a b
-        OOT2 b c -> OOT1 $ node3 a b c
-    OOT2 a b ->
-      case m2 of
-        OOT1 c -> OOT1 $ node3 a b c
-        OOT2 c d -> OOT2 (node2 a b) (node2 c d)
-
-mergeToSameHeight :: forall k v . Map k v -> Map k v -> OneOrTwo (Map k v)
-mergeToSameHeight a b =
-  if height a < height b then
-    case b of
-      Node2 _ _ b1 b2 -> meld (mergeToSameHeight a b1) (OOT1 b2)
-      Node3 _ _ b1 b2 b3 -> meld (mergeToSameHeight a b1) (OOT2 b2 b3)
-      _ -> undefined
-  else if height a > height b then
-    case a of
-      Node2 _ _ a1 a2 -> meld (OOT1 a1) (mergeToSameHeight a2 b)
-      Node3 _ _ a1 a2 a3 -> meld (OOT2 a1 a2) (mergeToSameHeight a3 b)
-      _ -> undefined
-  else
-    OOT2 a b
-
--- All elements in aa smaller than elements in ab
-merge :: forall k v . Map k v -> Map k v -> Map k v
-merge Empty ab = ab
-merge aa Empty = aa
-merge aa ab =
-  case mergeToSameHeight aa ab of
-    OOT1 t -> t
-    OOT2 t u -> node2 t u
-
-split :: forall k v . (k -> Bool) -> Map k v -> (Map k v, Map k v)
-split f am =
-  case am of
-    Empty -> (Empty, Empty)
-    Leaf k _ ->
-      if f k then
-        (Empty, am)
-      else
-        (am, Empty)
-    Node2 _ _ a b ->
-      if f (smallest b) then
-        case split f a of
-          (a1,a2) -> (a1, merge a2 b)
-      else
-        case split f b of
-          (b1,b2) -> (merge a b1, b2)
-    Node3 _ _ a b c ->
-      if f (smallest b) then
-        case split f a of
-          (a1,a2) -> (a1, merge a2 (node2 b c))
-      else if f (smallest c) then
-        case split f b of
-          (b1,b2) -> (merge a b1, merge b2 c)
-      else
-        case split f c of
-          (c1,c2) -> (merge (node2 a b) c1, c2)
-
------------------------------------------
-
-insertByWith :: forall k v . (k -> k -> Bool) -> (v -> v -> v) -> k -> v -> Map k v -> Map k v
-insertByWith le f k v a =
-  case split (le k) a of
-    (a1, a2) ->
-      case a2 of
-        Empty -> merge a1 (Leaf k v)
-        _ ->
-          if le (smallest a2) k then
-            merge a1 (replSmallest (f v) a2)
-          else
-            merge (merge a1 (Leaf k v)) a2
-
-insertBy :: forall k v . (k -> k -> Bool) -> k -> v -> Map k v -> Map k v
-insertBy le = insertByWith le const
-
-lookupBy :: forall k v . (k -> k -> Bool) -> k -> Map k v -> Maybe v
-lookupBy le x am =
-  case am of
-    Empty -> Nothing
-    Leaf k v -> if le k x && le x k then Just v else Nothing
-    Node2 _ _ a b ->
-      if le (smallest b) x then
-        lookupBy le x b
-      else
-        lookupBy le x a
-    Node3 _ _ a b c ->
-      if le (smallest c) x then
-        lookupBy le x c
-      else if le (smallest b) x then
-        lookupBy le x b
-      else
-        lookupBy le x a
-
-unionBy :: forall k v . (k -> k -> Bool) -> Map k v -> Map k v -> Map k v
-unionBy le m1 m2 = foldr (uncurry (insertBy le)) m2 (toList m1)
-
-fromListByWith :: forall k v . (k -> k -> Bool) -> (v -> v -> v) -> [(k, v)] -> Map k v
-fromListByWith le f = foldr (uncurry (insertByWith le f)) Empty
-
-toList :: forall k v . Map k v -> [(k, v)]
-toList m =
-  let
-    pre aa xs =
-      case aa of
-        Empty -> xs
-        Leaf k v -> (k, v) : xs
-        Node2 _ _ a b -> pre a (pre b xs)
-        Node3 _ _ a b c -> pre a (pre b (pre c xs))
-  in pre m []
-
-fromListBy :: forall k v . (k -> k -> Bool) -> [(k, v)] -> Map k v
-fromListBy le = fromListByWith le const
-
-empty :: forall k v . Map k v
-empty = Empty
+empty :: forall k a . Map k a
+empty = Nil
 
 elems :: forall k v . Map k v -> [v]
 elems = map snd . toList
 
-size :: forall k v . Map k v -> Int
-size m =
-  case m of
-    Empty -> 0
-    Leaf _ _ -> 1
-    Node2 _ _ m1 m2 -> size m1 + size m2
-    Node3 _ _ m1 m2 m3 -> size m1 + size m2 + size m3
+toList :: forall k v . Map k v -> [(k, v)]
+toList t = to t []
+  where
+    to Nil q = q
+    to (One k v) q = (k, v):q
+    to (Node l _ k v r) q = to l ((k, v) : to r q)
+
+fromListBy :: forall k v . (k -> k -> Ordering) -> [(k, v)] -> Map k v
+fromListBy cmp = fromListByWith cmp const
+
+fromListByWith :: forall k v . (k -> k -> Ordering) -> (v -> v -> v) -> [(k, v)] -> Map k v
+fromListByWith cmp comb = foldr (uncurry (insertByWith cmp comb)) empty
+
+size :: forall k a . Map k a -> Int
+size Nil = 0
+size (One _ _) = 1
+size (Node _ s _ _ _) = s
+
+node :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
+node Nil  key val Nil   = One key val
+node left key val right = Node left (size left + 1 + size right) key val right
+
+lookupBy :: forall k a . (k -> k -> Ordering) -> k -> Map k a -> Maybe a
+lookupBy cmp k = look
+  where
+    look Nil = Nothing
+    look (One key val) | isEQ (cmp k key) = Just val
+                       | otherwise = Nothing
+    look (Node left _ key val right) =
+      case k `cmp` key of
+        LT -> look left
+        EQ -> Just val
+        GT -> look right
+
+insertBy :: forall k a . (k -> k -> Ordering) -> k -> a -> Map k a -> Map k a
+insertBy cmp = insertByWith cmp const
+
+insertByWith :: forall k a . (k -> k -> Ordering) -> (a -> a -> a) -> k -> a -> Map k a -> Map k a
+insertByWith cmp comb k v = ins
+  where
+    ins Nil = One k v
+    ins (One a v) = ins (Node Nil 1 a v Nil)
+    ins (Node left _ key val right) =
+      case k `cmp` key of
+        LT -> balance (ins left) key val right
+        EQ -> node left k (comb v val) right
+        GT -> balance left key val (ins right)
+
+deleteBy :: forall k a . (k -> k -> Ordering) -> k -> Map k a -> Map k a
+deleteBy cmp k = del
+  where
+    del Nil = Nil
+    del t@(One a _) | isEQ (k `cmp` a) = Nil
+                    | otherwise        = t
+    del (Node left _ key val right) =
+      case k `cmp` key of
+        LT -> balance (del left) key val right
+        EQ -> glue left right
+        GT -> balance left key val (del right)
+      where
+        glue Nil right = right
+        glue left Nil = left
+        glue left right
+          | size left > size right =
+            let (key', val', left') = extractMax left
+            in node left' key' val' right
+          | otherwise =
+            let (key', val', right') = extractMin right
+            in node left key' val' right'
+extractMin :: forall k a . Map k a -> (k, a, Map k a)
+extractMin Nil = undefined
+extractMin (One key val) = (key, val, Nil)
+extractMin (Node Nil _ key val right) = (key, val, right)
+extractMin (Node left _ key val right) =
+  case extractMin left of
+    (min, vmin, left') -> (min, vmin, balance left' key val right)
+
+extractMax :: forall k a . Map k a -> (k, a, Map k a)
+extractMax Nil = undefined
+extractMax (One key val) = (key, val, Nil)
+extractMax (Node left _ key val Nil) = (key, val, left)
+extractMax (Node left _ key val right) =
+  case extractMax right of
+    (max, vmax, right') -> (max, vmax, balance left key val right')
+
+omega :: Int
+omega = 3
+alpha :: Int
+alpha = 2
+delta :: Int
+delta = 0
+
+balance :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
+balance left key val right
+  | size left + size right <= 1 = node left key val right
+balance (One k v) key val right = balance (Node Nil 1 k v Nil) key val right
+balance left key val (One k v)  = balance left key val (Node Nil 1 k v Nil)
+balance left key val right
+  | size right > omega * size left + delta =
+      case right of
+        (Node rl _ _ _ rr) | size rl < alpha*size rr -> singleL left key val right
+                           | otherwise -> doubleL left key val right
+        _ -> undefined
+  | size left > omega * size right + delta =
+      case left of
+        (Node ll _ _ _ lr) | size lr < alpha*size ll -> singleR left key val right
+                           | otherwise -> doubleR left key val right
+        _ -> undefined
+  | otherwise = node left key val right
+
+singleL :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
+singleL l k v (Node rl _ rk rv rr) = node (node l k v rl) rk rv rr
+singleL _ _ _ _ = undefined
+
+singleR :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
+singleR (Node ll _ lk lv lr) k v r = node ll lk lv (node lr k v r)
+singleR _ _ _ _ = undefined
+
+doubleL :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
+doubleL l k v (Node (Node rll _ rlk rlv rlr) _ rk rv rr) = node (node l k v rll) rlk rlv (node rlr rk rv rr)
+doubleL l k v (Node (One        rlk rlv    ) _ rk rv rr) = node (node l k v Nil) rlk rlv (node Nil rk rv rr)
+doubleL _ _ _ _ = undefined
+
+doubleR :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
+doubleR (Node ll _ lk lv (Node lrl _ lrk lrv lrr)) k v r = node (node ll lk lv lrl) lrk lrv (node lrr k v r)
+doubleR (Node ll _ lk lv (One        lrk lrv    )) k v r = node (node ll lk lv Nil) lrk lrv (node Nil k v r)
+doubleR _ _ _ _ = undefined
