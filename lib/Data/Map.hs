@@ -3,7 +3,7 @@
 -- Similar to Data.Map
 -- Based on https://ufal.mff.cuni.cz/~straka/papers/2011-bbtree.pdf
 --
-module Data.NMap(
+module Data.Map(
   Map,
   insertBy, insertByWith, fromListByWith, fromListBy, lookupBy, empty, elems, size, toList, deleteBy,
   ) where

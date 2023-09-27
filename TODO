@@ -11,9 +11,3 @@
 * use pointer stack during GC instead of recursion.
 * implement Data.Integer
 * add pretty printing library
-* add a Makefile 'install' target
-  - install libraries too
-  - somehow get the path of libraries into the binary
-* change BFILE to have methods
-* add a compressor/decompressor for the combinator file
-* add a shell script to make a binary with (compressed) combinators included

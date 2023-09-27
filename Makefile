@@ -1,3 +1,5 @@
+# installtion prefix
+PREFIX=/usr/local
 BIN=bin
 BOOTDIR=ghc-boot
 OUTDIR=ghc-out
@@ -15,7 +17,7 @@ UPX=upx
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
 MHS=mhs
 COMB=comb/
-EVAL=$(BIN)/eval
+EVAL=$(BIN)/mhseval
 .PHONY: all alltest everytest runtest bootboottest bootcombtest $(MHS)test test alltest time example bootstraptest
 
 all:	$(EVAL) $(BIN)/$(MHS)
@@ -176,3 +178,21 @@ bootstraptest: $(EVAL)
 	@echo Build stage 2 with output from stage 1
 	$(EVAL) +RTS -rtmp/mhs.comb.1 -RTS -ilib -isrc -otmp/mhs.comb.2 MicroHs.Main
 	cmp tmp/mhs.comb.1 tmp/mhs.comb.2 && echo Success
+
+# installs linraries the the following binaries:
+#  bin/mhseval         - the evaluator that can read a combinator file and run it
+#  bin/mhsc            - a compiler that produces a proper binary
+#  bin/mhs             - a compiler/repl that can compile to combinators
+install:	$(EVAL)
+	mkdir -p $(PREFIX)/bin
+	cp $(EVAL) $(PREFIX)/bin
+	(echo "prefix=$(PREFIX)"; cat Tools/mhsc.sh) > $(PREFIX)/bin/mhsc
+	chmod +x $(PREFIX)/bin/mhsc
+	mkdir -p $(PREFIX)/lib/mhs/Tools
+	mkdir -p $(PREFIX)/lib/mhs/comb
+	mkdir -p $(PREFIX)/lib/mhs/src/runtime
+	cp Tools/* $(PREFIX)/lib/mhs/Tools
+	cp comb/mhs.comb $(PREFIX)/lib/mhs/comb
+	cp src/runtime/eval.c $(PREFIX)/lib/mhs/src/runtime
+	cp -r lib $(PREFIX)/lib/mhs
+	$(PREFIX)/bin/mhsc -v -isrc -o$(PREFIX)/bin/mhs MicroHs.Main

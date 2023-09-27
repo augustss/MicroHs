@@ -1,6 +1,6 @@
 module Compress(main) where
 import Prelude
-import Data.NMap as M
+import Data.Map as M
 import Data.Char
 import System.IO
 --import Debug.Trace
@@ -52,4 +52,4 @@ main = do
   f <- hGetContents stdin
   let bs = compress initTable f []
   hSetBinaryMode stdout True
-  putStr $ map chr $ toBytes bs
+  putStr $ 'Z' : (map chr $ toBytes bs)
