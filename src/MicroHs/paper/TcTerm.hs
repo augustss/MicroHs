@@ -178,9 +178,11 @@ subsCheckRho (Fun a1 r1) rho2 -- Rule FUN
   = do { (a2,r2) <- unifyFun rho2; subsCheckFun a1 r1 a2 r2 }
 subsCheckRho tau1 tau2 -- Rule MONO
   = unify tau1 tau2 -- Revert to ordinary unification
+
 subsCheckFun :: Sigma -> Rho -> Sigma -> Rho -> Tc ()
 subsCheckFun a1 r1 a2 r2
   = do { subsCheck a2 a1 ; subsCheckRho r1 r2 }
+
 instSigma :: Sigma -> Expected Rho -> Tc ()
 -- Invariant: if the second argument is (Check rho),
 -- then rho is in weak-prenex form

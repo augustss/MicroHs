@@ -4,7 +4,7 @@
 module MicroHs.TypeCheck(
   typeCheck,
   TModule(..), showTModule,
-  impossible
+  impossible,
   ) where
 import Prelude
 import Data.List
@@ -32,6 +32,9 @@ type SynDef = (Ident, ETypeScheme)
 
 data Entry = Entry Expr ETypeScheme
   --Xderiving(Show)
+
+--entryType :: Entry -> ETypeScheme
+--entryType (Entry _ t) = t
 
 type ValueTable = M.Map [Entry]
 type TypeTable  = M.Map [Entry]
@@ -378,6 +381,9 @@ addUVar i t = T.do
     EUVar j -> if i == j then T.return () else add
     _ -> add
 
+getUVar :: Int -> T (Maybe EType)
+getUVar i = gets (IM.lookup i . uvarSubst)
+
 munify :: --XHasCallStack =>
           SLoc -> Maybe EType -> EType -> T ()
 munify _ Nothing _ = T.return ()
@@ -420,8 +426,8 @@ derefUVar at =
       ax <- derefUVar a
       T.return $ EApp fx ax
     EUVar i -> T.do
-      sub <- gets uvarSubst
-      case IM.lookup i sub of
+      mt <- getUVar i
+      case mt of
         Nothing -> T.return at
         Just t -> derefUVar t
     EVar _ -> T.return at
@@ -475,10 +481,13 @@ tcReset = T.do
   put (TC mn 0 fx tenv senv venv IM.empty)
 
 newUVar :: T EType
-newUVar = T.do
+newUVar = EUVar <$> newUniq
+
+newUniq :: T Int
+newUniq = T.do
   TC mn n fx tenv senv venv sub <- get
   put (TC mn (n+1) fx tenv senv venv sub)
-  T.return (EUVar n)
+  T.return n
 
 tLookupInst :: --XHasCallStack =>
                String -> Ident -> T (Expr, EType)
@@ -1104,4 +1113,301 @@ isUnderscore = eqString "_" . unIdent
 showValueTable :: ValueTable -> String
 showValueTable vt =
   unlines $ take 5 [showIdent i ++ " : " ++ showExpr t | (i, [Entry _ t]) <- M.toList vt]
+-}
+
+-----------------------------------------------------
+{-
+
+type Sigma = EType
+type Tau   = EType
+type Rho   = EType
+type TyVar = Ident
+
+type TcRef = Int
+data Expected = Infer TcRef | Check EType
+type MetaTv = TcRef
+
+type Tc a = T a
+
+newTcRef   :: EType -> Tc TcRef
+newTcRef t = T.do
+  r <- newUniq
+  addUVar r t
+  T.return r
+readTcRef  :: TcRef -> Tc EType
+readTcRef r = T.do
+  mt <- getUVar r
+  case mt of
+    Just t -> T.return t
+    Nothing -> error "readTcRef"
+writeTcRef :: TcRef -> EType -> Tc ()
+writeTcRef r t = addUVar r t
+
+getFreeTyVars :: [EType] -> Tc [TyVar]
+getFreeTyVars tys = do
+  tys' <- mapM zonkType tys
+  return (freeTyVars tys')
+
+getMetaTyVars :: [EType] -> Tc [MetaTv]
+getMetaTyVars tys = T.do
+  tys' <- mapM zonkType tys
+  return (metaTvs tys')
+
+getEnvTypes :: Tc [EType]
+getEnvTypes = gets (map entryType . concat . M.elems . valueTable)
+
+zonkType :: EType -> Tc EType
+zonkType (EForall ns ty) = T.do
+  ty' <- zonkType ty
+  T.return (EForall ns ty')
+zonkType t@(EVar n) = return t
+zonkType t@(EUVar tv) = T.do -- A mutable type variable
+  mb_ty <- getUVar tv
+  case mb_ty of
+    Nothing -> return t
+    Just ty -> T.do
+      ty' <- zonkType ty
+      writeTcRef tv ty' -- "Short out" multiple hops
+      T.return ty'
+zonkType (EApp arg res) = T.do
+  arg' <- zonkType arg
+  res' <- zonkType res
+  T.return (EApp arg' res')
+zonkType t = undefined
+
+quantify :: [MetaTv] -> Rho -> Tc Sigma
+-- Quantify over the specified type variables (all flexible)
+quantify tvs ty = T.do
+   mapM_ bind (tvs `zip` new_bndrs) -- 'bind' is just a cunning way
+   ty' <- zonkType ty               -- of doing the substitution
+   T.return (EForall new_bndrs_kind ty')
+  where
+    used_bndrs = tyVarBndrs ty -- Avoid quantified type variables in use
+    new_bndrs = deleteFirstsBy eqIdent allBinders used_bndrs
+    bind (tv, name) = writeTcRef tv (EVar name)
+    new_bndrs_kind = map (\ i -> IdKind i undefined) new_bndrs
+
+allBinders :: [Ident] -- a,b,..z, a1, b1,... z1, a2, b2,...
+allBinders = [ mkIdent [x] | x <- ['a'..'z'] ] ++
+             [ mkIdent (x : show i) | i <- [1 ..], x <- ['a'..'z']]
+
+skolemise :: Sigma -> Tc ([TyVar], Rho)
+-- Performs deep skolemisation, retuning the
+-- skolem constants and the skolemised type
+skolemise (EForall tvs ty) = T.do -- Rule PRPOLY
+  sks1 <- mapM (newSkolemTyVar . idKindIdent) tvs
+  (sks2, ty') <- skolemise (substTy (map idKindIdent tvs) (map EVar sks1) ty)
+  T.return (sks1 ++ sks2, ty')
+skolemise (EApp arg_ty res_ty) = T.do -- Rule PRFUN
+  (sks, res_ty') <- skolemise res_ty
+  T.return (sks, EApp arg_ty res_ty')
+skolemise ty@(EVar _) = T.return ([], ty) -- Rule PRMONO
+skolemise ty = undefined
+
+-- Skolem tyvars are just identifiers that start with a uniq
+newSkolemTyVar :: Ident -> Tc Ident
+newSkolemTyVar tv = T.do
+  uniq <- newUniq
+  return (mkIdentSLoc (getSLocIdent tv) (show uniq ++ unIdent tv))
+
+------------------
+
+freeTyVars :: [EType] -> [TyVar]
+-- Get the free TyVars from a type; no duplicates in result
+freeTyVars = foldr (go []) []
+  where
+    go :: [TyVar] -- Ignore occurrences of bound type variables
+       -> EType   -- Type to look at
+       -> [TyVar] -- Accumulates result
+       -> [TyVar]
+    go bound (EVar tv) acc
+      | elemBy eqIdent tv bound = acc
+      | elemBy eqIdent tv acc = acc
+      | otherwise = tv : acc
+    go bound (EForall tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
+    go bound (EApp fun arg) acc = go bound fun (go bound arg acc)
+    go _bound (EUVar _) acc = acc
+    go _ _ _ = undefined
+
+metaTvs :: [EType] -> [MetaTv]
+-- Get the MetaTvs from a type; no duplicates in result
+metaTvs tys = foldr go [] tys
+  where
+    go (EUVar tv) acc
+      | elemBy eqInt tv acc = acc
+      | otherwise = tv : acc
+    go (EVar _) acc = acc
+    go (EForall _ ty) acc = go ty acc -- ForAll binds TyVars only
+    go (EApp fun arg) acc = go fun (go arg acc)
+    go _ _ = undefined
+
+tyVarBndrs :: Rho -> [TyVar]
+-- Get all the binders used in ForAlls in the type, so that
+-- when quantifying an outer for-all we can avoid these inner ones
+tyVarBndrs ty = nub (bndrs ty)
+  where
+    bndrs (EForall tvs body) = map idKindIdent tvs ++ bndrs body
+    bndrs (EApp arg res) = bndrs arg ++ bndrs res
+    bndrs (EVar _) = []
+    bndrs _ = undefined
+
+substTy :: [Ident] -> [EType] -> EType -> EType
+
+-- Replace the specified quantified type variables by
+-- given meta type variables
+-- No worries about capture, because the two kinds of type
+-- variable are distinct
+substTy tvs tys ty = subst_ty (tvs `zip` tys) ty
+
+subst_ty :: [(TyVar, Tau)] -> EType -> EType
+subst_ty env (EApp arg res) = EApp (subst_ty env arg) (subst_ty env res)
+subst_ty env ty@(EVar n) = fromMaybe ty (lookupBy eqIdent n env)
+subst_ty _env (EUVar tv) = EUVar tv
+subst_ty env (EForall nks rho) = EForall nks (subst_ty env' rho)
+  where
+    env' = [(n, ty') | (n, ty') <- env, not (elemBy eqIdent n ns)]
+    ns = map idKindIdent nks
+subst_ty _ _ = undefined
+
+-----------------------
+
+check :: Bool -> String -> Tc ()
+check False msg = error msg
+check True  _   = return ()
+
+inferSigma :: Expr -> Tc (Expr, Sigma)
+inferSigma e = T.do
+  (e', exp_ty) <- inferRho e
+  env_tys      <- getEnvTypes
+  env_tvs      <- getMetaTyVars env_tys
+  res_tvs      <- getMetaTyVars [exp_ty]
+  let forall_tvs = deleteFirstsBy eqInt res_tvs env_tvs
+  (e',) <$> quantify forall_tvs exp_ty
+
+checkSigma :: Expr -> Sigma -> Tc Expr
+checkSigma expr sigma = T.do
+  (skol_tvs, rho) <- skolemise sigma
+  expr' <- checkRho expr rho
+  env_tys <- getEnvTypes
+  esc_tvs <- getFreeTyVars (sigma : env_tys)
+  let bad_tvs = filter (\ i -> elemBy eqIdent i esc_tvs) skol_tvs
+  check (null bad_tvs) $
+    "Type not polymorphic enough"
+  T.return expr'
+
+checkRho :: Expr -> Rho -> Tc Expr
+checkRho expr ty =
+  tcRho expr (Check ty)
+
+inferRho :: Expr -> Tc (Expr, Rho)
+inferRho expr = T.do
+  ref <- newTcRef (error "inferRho: empty result")
+  expr' <- tcRho expr (Infer ref)
+  (expr',) <$> readTcRef ref
+
+tcRho :: Expr -> Expected -> Tc Expr
+tcRho (EVar v) exp_ty = T.do
+  (expr', v_sigma) <- tLookup "variable" v
+  instSigma v_sigma exp_ty
+  T.return expr'
+tcRho (EApp fun arg) exp_ty = T.do
+  (fun', fun_ty) <- inferRho fun
+  (arg_ty, res_ty) <- unifyFun fun_ty
+  arg' <- checkSigma arg arg_ty
+  instSigma res_ty exp_ty
+  T.return (EApp fun' arg')
+tcRho (EOper e ies) _ = undefined
+tcRho (ELam [] body) exp_ty = tcRho body exp_ty
+tcRho (ELam (pat:pats) body) exp_ty = tcLamRho pat (ELam pats body) exp_ty
+tcRho expr@(ELit loc l) exp_ty = T.do
+  tcLitRho loc l exp_ty
+  T.return expr
+tcRho (ECase a arms) _ = undefined
+tcRho (ELet bs a) _ = undefined
+tcRho (ETuple es) _ = undefined
+tcRho (EDo mmn ass) _ = undefined
+tcRho (ESectL e i) _ = undefined
+tcRho (ESectR i e) _ = undefined
+tcRho (EIf e1 e2 e3) _ = undefined
+tcRho (EListish _) _ = undefined
+tcRho (ESign e t) _ = undefined
+tcRho (EAt i e) _ = undefined
+tcRho (EForall vks t) _ = undefined
+
+tcLitRho :: SLoc -> Lit -> Expected -> Tc ()
+tcLitRho loc l exp_ty = T.do
+  let
+    lit t = instSigma t exp_ty
+  case l of
+    LInt _  -> lit (tConI loc "Primitives.Int")
+    LDouble _ -> lit (tConI loc "Primitives.Double")
+    LChar _ -> lit (tConI loc "Primitives.Char")
+    LStr _  -> lit (tApp (tConI loc "Data.List.[]") (tConI loc "Primitives.Char"))
+    LPrim _ -> newUVar >>= lit
+    LForImp _ -> impossible
+
+tcLamRho :: EPat -> Expr -> Expected -> Tc Expr
+tcLamRho pat body (Infer ref) = T.do
+  (binds, pat_ty) <- inferPat pat
+  body_ty <- extendVarEnvList binds (inferRho body)
+  writeTcRef ref (pat_ty `tArrow` body_ty)
+
+unifyFun :: Rho -> Tc (Sigma, Rho)
+-- (arg,res) <- unifyFunTy fun
+-- unifies 'fun' with '(arg -> res)'
+unifyFun tau =
+  case getArrow tau of
+    Just tt -> return tt
+    Nothing -> T.do
+      arg_ty <- newUVar
+      res_ty <- newUVar
+      unify noSLoc tau (arg_ty `tArrow` res_ty)
+      return (arg_ty, res_ty)
+
+subsCheck :: Sigma -> Sigma -> Tc ()
+-- (subsCheck args off exp) checks that
+-- 'off' is at least as polymorphic as 'args -> exp'
+subsCheck sigma1 sigma2 = T.do -- Rule DEEP-SKOL
+  (skol_tvs, rho2) <- skolemise sigma2
+  subsCheckRho sigma1 rho2
+  esc_tvs <- getFreeTyVars [sigma1,sigma2]
+  let bad_tvs = filter (`elem` esc_tvs) skol_tvs
+  check (null bad_tvs)
+        "Subsumption check failed"
+
+subsCheckRho :: Sigma -> Rho -> Tc ()
+-- Invariant: the second argument is in weak-prenex form
+subsCheckRho sigma1@(EForall _ _) rho2 = T.do -- Rule SPEC
+  rho1 <- instantiate sigma1
+  subsCheckRho rho1 rho2
+subsCheckRho rho1 rho2 | Just (a2, r2) <- getArrow rho2 = T.do -- Rule FUN
+  (a1, r1) <- unifyFun rho1
+  subsCheckFun a1 r1 a2 r2
+subsCheckRho rho1 rho2 | Just (a1, r1) <- getArrow rho1 = T.do -- Rule FUN
+  (a2,r2) <- unifyFun rho2
+  subsCheckFun a1 r1 a2 r2
+subsCheckRho tau1 tau2 -- Rule MONO
+  = unify noSLoc tau1 tau2 -- Revert to ordinary unification
+
+subsCheckFun :: Sigma -> Rho -> Sigma -> Rho -> Tc ()
+subsCheckFun a1 r1 a2 r2
+  = do { subsCheck a2 a1 ; subsCheckRho r1 r2 }
+
+instantiate :: Sigma -> Tc Rho
+-- Instantiate the topmost for-alls of the argument type
+-- with flexible type variables
+instantiate (EForall tvs ty) = T.do
+  tvs' <- mapM (\_ -> newUVar) tvs
+  return (substTy (map idKindIdent tvs) tvs' ty)
+instantiate ty =
+  return ty
+
+instSigma :: Sigma -> Expected -> Tc ()
+-- Invariant: if the second argument is (Check rho),
+-- then rho is in weak-prenex form
+instSigma t1 (Check t2) = subsCheckRho t1 t2
+instSigma t1 (Infer r) = T.do
+  t1' <- instantiate t1
+  writeTcRef r t1'
+
 -}
