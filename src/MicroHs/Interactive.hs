@@ -21,12 +21,13 @@ type I a = S.StateIO IState a
 mainInteractive :: Flags -> IO ()
 mainInteractive flags = do
   putStrLn "Welcome to interactive MicroHs!"
-  putStrLn "Type ':quit' to quit"
+  putStrLn "Type ':quit' to quit, ':help' for help"
   _ <- S.runStateIO repl (preamble, flags, emptyCache)
   return ()
 
 preamble :: String
-preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++ ") where\nimport Prelude\nimport Unsafe.Coerce\n"
+preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++
+           ") where\nimport Prelude\nimport Unsafe.Coerce\n"
 
 repl :: I ()
 repl = S.do
@@ -70,7 +71,14 @@ commands =
       updateLines (unlines . filter (not . isPrefixOfBy eqChar del) . lines)
       S.return True
     )
+  , ("help", \ _ -> S.do
+      S.liftIO $ putStrLn helpText
+      S.return True
+    )
   ]
+
+helpText :: String
+helpText = "Commands:\n  :quit      quit MicroHs\n  :clear     clear all definitions\n  :delete d  delete definition(s) d\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
 
 updateLines :: (String -> String) -> I ()
 updateLines f = S.modify $ \ (ls, flgs, cache) -> (f ls, flgs, cache)
