@@ -33,8 +33,8 @@ type SynDef = (Ident, ETypeScheme)
 data Entry = Entry Expr ETypeScheme
   --Xderiving(Show)
 
---entryType :: Entry -> ETypeScheme
---entryType (Entry _ t) = t
+entryType :: Entry -> ETypeScheme
+entryType (Entry _ t) = t
 
 type ValueTable = M.Map [Entry]
 type TypeTable  = M.Map [Entry]
@@ -1210,6 +1210,14 @@ newSkolemTyVar tv = T.do
   uniq <- newUniq
   return (mkIdentSLoc (getSLocIdent tv) (show uniq ++ unIdent tv))
 
+extendVarEnvList :: [(Ident, Sigma)] -> Tc a -> Tc a
+extendVarEnvList varTys ta = T.do
+  venv <- gets valueTable
+  putValueTable (foldr (\ (i, t) -> M.insert i [Entry (EVar i) t]) venv varTys)
+  a <- ta
+  putValueTable venv
+  T.return a
+
 ------------------
 
 freeTyVars :: [EType] -> [TyVar]
@@ -1349,8 +1357,62 @@ tcLitRho loc l exp_ty = T.do
 tcLamRho :: EPat -> Expr -> Expected -> Tc Expr
 tcLamRho pat body (Infer ref) = T.do
   (binds, pat_ty) <- inferPat pat
-  body_ty <- extendVarEnvList binds (inferRho body)
+  (body', body_ty) <- extendVarEnvList binds (inferRho body)
   writeTcRef ref (pat_ty `tArrow` body_ty)
+  T.return (ELam pat body')
+
+checkPat :: EPat -> Sigma -> Tc [(Ident, Sigma)]
+checkPat p exp_ty = tcPatRho p (Check exp_ty)
+
+inferPat :: EPat -> Tc ([(Ident, Sigma)], Sigma)
+inferPat pat = T.do
+  ref <- newTcRef (error "inferPat: empty result")
+  binds <- tcPatRho pat (Infer ref)
+  ty <- readTcRef ref
+  return (binds, ty)
+
+tcPatRho :: EPat -> Expected -> Tc [(Ident,Sigma)]
+tcPatRho (EVar i) _exp_ty | isUnderscore i = return []
+tcPatRho econ exp_ty | Just (con, ps) <- getConApp econ = T.do
+  (arg_tys, res_ty) <- instDataCon con
+  let check_arg (p, ty) = checkPat p ty
+  check (length ps == length arg_tys) "Bad constructor pattern"
+  envs <- T.mapM check_arg (ps `zip` arg_tys)
+  instPatSigma res_ty exp_ty
+  T.return (concat envs)
+tcPatRho (EVar v) (Infer ref) = T.do
+  ty <- newUVar
+  writeTcRef ref ty
+  T.return [(v,ty)]
+tcPatRho (EVar v) (Check ty) =
+  T.return [(v, ty)]
+tcPatRho (ESign p pat_ty) exp_ty = T.do
+  binds <- checkPat p pat_ty
+  instPatSigma pat_ty exp_ty
+  T.return binds
+tcPatRho _ _ = undefined
+
+instPatSigma :: Sigma -> Expected -> Tc ()
+instPatSigma pat_ty (Infer ref) = writeTcRef ref pat_ty
+instPatSigma pat_ty (Check exp_ty) = subsCheck exp_ty pat_ty
+
+getConApp (EApp f a) | Just (con, ps) <- getConApp f = Just (con, ps ++ [a])
+getConApp (EVar i) | isConIdent i = Just (i, [])
+getConApp _ = Nothing
+
+instDataCon :: Ident -> Tc ([Sigma], Tau)
+instDataCon c = do
+  (_, v_sigma) <- tLookup "constructor" c
+  v_sigma' <- instantiate v_sigma
+  return (argsAndRes v_sigma')
+
+argsAndRes :: Rho -> ([Sigma], Tau)
+argsAndRes t | Just (arg_ty, res_ty) <- getArrow t =
+  let (arg_tys, res_ty') = argsAndRes res_ty
+  in  (arg_ty : arg_tys, res_ty')
+argsAndRes t = ([], t)
+
+---------------
 
 unifyFun :: Rho -> Tc (Sigma, Rho)
 -- (arg,res) <- unifyFunTy fun
