@@ -23,7 +23,7 @@ module MicroHs.Expr(
   Constr,
   ConTyInfo,
   Con(..), conIdent, conArity, eqCon,
-  tupleConstr, untupleConstr,
+  tupleConstr, untupleConstr, isTupleConstr,
   subst,
   allVarsExpr, allVarsBind,
   getSLocExpr, setSLocExpr,
@@ -208,6 +208,9 @@ tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
 
 untupleConstr :: Ident -> Int
 untupleConstr i = length (unIdent i) + 1
+
+isTupleConstr :: Int -> Ident -> Bool
+isTupleConstr n i = eqChar (head (unIdent i)) ',' && untupleConstr i == n
 
 ---------------------------------
 
