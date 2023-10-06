@@ -72,3 +72,6 @@ fail = error
 when :: forall s . Bool -> State s () -> State s ()
 when True  s = s
 when False _ = Control.Monad.State.Strict.return ()
+
+sequence :: forall s a . [State s a] -> State s [a]
+sequence = Control.Monad.State.Strict.mapM id
