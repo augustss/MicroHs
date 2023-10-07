@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module Data.Maybe(module Data.Maybe) where
 import Primitives
+import Data.Bool
 
 data Maybe a = Nothing | Just a
 
@@ -19,6 +20,10 @@ fmapMaybe f (Just a) = Just (f a)
 
 catMaybes :: forall a . [Maybe a] -> [a]
 catMaybes mxs = [ x | Just x <- mxs ]
+
+isJust :: forall a . Maybe a -> Bool
+isJust Nothing = False
+isJust (Just _) = True
 
 {-
 mapMaybe is in Data.List to avoid recursive modules
