@@ -548,7 +548,7 @@ tLookup msg i = T.do
     Nothing -> tcError (getSLocIdent i) $ "undefined " ++ msg ++ ": " ++ showIdent i
                -- ++ "\n" ++ show env ;
     Just [Entry e s] -> T.return (setSLocExpr (getSLocIdent i) e, s)
-    Just _ -> tcError (getSLocIdent i) $ "ambiguous " ++ showIdent i
+    Just _ -> tcError (getSLocIdent i) $ "ambiguous " ++ msg ++ ": " ++ showIdent i
 
 tInst :: ETypeScheme -> T EType
 tInst as =
@@ -910,7 +910,7 @@ tcExprR mt ae =
           instSigma loc rt mt
           T.return (EApp f' a')
 
-    EOper e ies -> tcOper mt e ies
+    EOper e ies -> T.do e' <- tcOper e ies; tcExpr mt e'
     ELam ps e -> tcExprLam mt ps e
     ELit loc' l -> tcLit mt loc' l
     ECase a arms -> T.do
@@ -1043,52 +1043,39 @@ tcLit mt loc l =
     LForImp _ -> impossible
 
 tcOper :: --XHasCallStack =>
-          Expected -> Expr -> [(Ident, Expr)] -> T Expr
-tcOper mt ae aies = T.do
+          Expr -> [(Ident, Expr)] -> T Expr
+tcOper ae aies = T.do
   let
-    appOp (f, ft) (e1, t1) (e2, t2) = T.do
-      let l = getSLocExpr f
-      (fta1, ftr1) <- unArrow l ft
-      (fta2, ftr2) <- unArrow l ftr1
-      unify l fta1 t1
-      unify l fta2 t2
---      traceM (showExpr (EApp (EApp f e1) e2))
-      T.return (EApp (EApp f e1) e2, ftr2)
-
-    doOp (e1:e2:es) o os ies = T.do
-      e <- appOp o e2 e1
-      calc (e:es) os ies
+    doOp (e1:e2:es) o os ies =
+      let e = EApp (EApp o e2) e1
+      in  calc (e:es) os ies
     doOp _ _ _ _ = impossible
 
-    calc :: [Typed Expr] -> [(Typed Expr, Fixity)] -> [((Typed Expr, Fixity), Expr)] -> T (Typed Expr) 
-    calc [et@(_, t)] [] [] = T.do munify (getSLocExpr ae) mt t; T.return et
+    calc :: [Expr] -> [(Expr, Fixity)] -> [((Expr, Fixity), Expr)] -> Expr
+    calc [et] [] [] = et
     calc es ((o, _):os) [] = doOp es o os []
-    calc es oos@((oy, (ay, py)):os) iies@((oo@(ox, (ax, px)), e) : ies) = T.do
+    calc es oos@((oy, (ay, py)):os) iies@((oo@(ox, (ax, px)), e) : ies) =
 --      traceM (show ((unIdent (getIdent (fst o)), ay, py), (unIdent i, ax, px)))
       if px == py && (not (eqAssoc ax ay) || eqAssoc ax AssocNone) then
-        tcError (getSLocExpr (fst ox)) "Ambiguous operator expression"
+        errorMessage (getSLocExpr ox) "Ambiguous operator expression"
        else if px < py || eqAssoc ax AssocLeft && px == py then
         doOp es oy os iies
-       else T.do
-        et <- tInferExpr e
-        calc (et:es) (oo : oos) ies
-    calc es [] ((o, e) : ies) = T.do
-      ee <- tInferExpr e
-      calc (ee:es) [o] ies
+       else
+        calc (e:es) (oo : oos) ies
+    calc es [] ((o, e) : ies) =
+      calc (e:es) [o] ies
     calc _ _ _ = impossible
 
+    opfix :: FixTable -> (Ident, Expr) -> T ((Expr, Fixity), Expr)
     opfix fixs (i, e) = T.do
-      o@(ei, _) <- tInferExpr (EVar i)
+      (ei, _) <- tLookup "operator" i
       let fx = getFixity fixs (getIdent ei)
-      T.return ((o, fx), e)
+      T.return ((EVar i, fx), e)
 
-  aet <- tInferExpr ae
   fixs <- gets fixTable
 --  traceM $ unlines $ map show [(unIdent i, fx) | (i, fx) <- M.toList fixs]
   ites <- T.mapM (opfix fixs) aies
-  (e, _) <- calc [aet] [] ites
---  munify (getSLocExpr ae) mt t
-  T.return e
+  T.return $ calc [ae] [] ites
 
 unArrow :: SLoc -> EType -> T (EType, EType)
 unArrow loc t =
