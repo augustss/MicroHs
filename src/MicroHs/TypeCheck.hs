@@ -165,13 +165,13 @@ expErr i = errorMessage (getSLocIdent i) $ ": export undefined " ++ showIdent i
 mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
 mkTModule mn tds a =
   let
-    con ci it vks (ic, ts) =
+    con ci it vks (Constr ic ts) =
       let
         e = ECon $ ConData ci (qualIdent mn ic)
       in ValueExport ic $ Entry e (EForall vks (foldr tArrow (tApps (qualIdent mn it) (map tVarK vks)) ts))
     cons i vks cs =
       let
-        ci = [ (qualIdent mn c, length ts) | (c, ts) <- cs ]
+        ci = [ (qualIdent mn c, length ts) | Constr c ts <- cs ]
       in map (con ci i vks) cs
     conn it vks ic t =
       let
@@ -734,7 +734,7 @@ withVars aiks ta =
       withExtVal i k $ withVars iks ta
 
 tcConstr :: Constr -> T Constr
-tcConstr (i, ts) = (i,) <$> T.mapM (\ t -> tcTypeT (Check kType) t) ts
+tcConstr (Constr i ts) = Constr i <$> T.mapM (\ t -> tcTypeT (Check kType) t) ts
 
 tcDefsValue :: [EDef] -> T [EDef]
 tcDefsValue ds = T.do
@@ -750,9 +750,9 @@ addValueType adef = T.do
       extVal (qualIdent mn i) t
     Data (i, vks) cs -> T.do
       let
-        cti = [ (qualIdent mn c, length ts) | (c, ts) <- cs ]
+        cti = [ (qualIdent mn c, length ts) | Constr c ts <- cs ]
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
-        addCon (c, ts) =
+        addCon (Constr c ts) =
           extValE c (EForall vks $ foldr tArrow tret ts) (ECon $ ConData cti (qualIdent mn c))
       T.mapM_ addCon cs
     Newtype (i, vks) c t -> T.do

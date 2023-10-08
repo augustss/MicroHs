@@ -20,7 +20,7 @@ module MicroHs.Expr(
   EKind, kType,
   IdKind(..), idKindIdent,
   LHS,
-  Constr,
+  Constr(..),
   ConTyInfo,
   Con(..), conIdent, conArity, eqCon, getSLocCon,
   tupleConstr, untupleConstr, isTupleConstr,
@@ -182,7 +182,9 @@ patVars :: EPat -> [Ident]
 patVars = filter (not . isConIdent) . allVarsExpr
 
 type LHS = (Ident, [IdKind])
-type Constr = (Ident, [EType])
+
+data Constr = Constr Ident [EType]
+  --Xderiving(Show, Eq)
 
 -- Expr restricted to
 --  * after desugaring: EApp and EVar
@@ -374,7 +376,7 @@ showEDef def =
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
 
 showConstr :: Constr -> String
-showConstr (i, ts) = unwords (showIdent i : map showEType ts)
+showConstr (Constr i ts) = unwords (showIdent i : map showEType ts)
 
 showLHS :: LHS -> String
 showLHS lhs =

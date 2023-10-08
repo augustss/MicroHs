@@ -247,7 +247,7 @@ pBlock p = P.do
 
 pDef :: P EDef
 pDef =
-      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 ((,) <$> pUIdentSym <*> emany pAType) (pSymbol "|"))
+      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 (Constr <$> pUIdentSym <*> emany pAType) (pSymbol "|"))
                                                         <|< P.pure [])
   <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> pUIdent) <*> pAType
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)

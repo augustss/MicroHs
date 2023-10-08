@@ -36,7 +36,7 @@ dsDef mn adef =
       let
         f i = mkIdent ("$f" ++ showInt i)
         fs = [f i | (i, _) <- zip (enumFrom 0) cs]
-        dsConstr i (c, ts) =
+        dsConstr i (Constr c ts) =
           let
             xs = [mkIdent ("$x" ++ showInt j) | (j, _) <- zip (enumFrom 0) ts]
           in (qualIdent mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
