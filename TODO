@@ -23,3 +23,5 @@
   - allow generalization for local bindings
   - use subsumption (like if) in the arms of alternatives.
   - allow missing top level signatures (and generalize)
+  - instead of skolemization, use regular variables, making sure they are unique
+  

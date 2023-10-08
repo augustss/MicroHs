@@ -17,4 +17,4 @@ main = do
   putStrLn $ showPair showInt showBool $ f id
   putStrLn $ showPair showInt showBool $ g const
   case iD of
-    Id i -> showPair showInt showBool (i 1, i True)
+    Id i -> putStrLn $ showPair showInt showBool (i 1, i True)

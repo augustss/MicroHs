@@ -509,10 +509,11 @@ unifyR loc a b = T.do
         EApp fb xb -> T.do { unify loc fa fb; unify loc xa xb }
         EUVar i    -> addUVar i a
         _          ->
-          --trace ("impossible unify " ++ showExpr a ++ " = " ++ showExpr b) $
+          --Xtrace ("impossible unify 1 " ++ showExpr a ++ " = " ++ showExpr b) $
           impossible
     EUVar i -> addUVar i b
-    _ -> impossible
+    _ -> --Xtrace ("impossible unify 2 " ++ showExpr a ++ " = " ++ showExpr b) $
+         impossible
 
 {-
 unMType :: Expected -> T EType
@@ -903,7 +904,15 @@ tcExprR mt ae =
           -- Type checking an expression (or type)
           T.when (isUnderscore i) impossible
           (e, t) <- tLookup "variable" i
-          instSigma loc t mt
+          -- Variables bound in patterns start with an (EUVar ref) type,
+          -- which can be instantiated to a polytype.
+          -- Dereference such a ref.
+          t' <-
+            case t of
+              EUVar r -> T.fmap (fromMaybe t) (getUVar r)
+              _ -> T.return t
+--          traceM ("EVar " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t')
+          instSigma loc t' mt
           T.return e
 
     EApp f a -> T.do
@@ -1086,8 +1095,9 @@ tcOper ae aies = T.do
   ites <- T.mapM (opfix fixs) aies
   T.return $ calc [ae] [] ites
 
-unArrow :: SLoc -> EType -> T (EType, EType)
-unArrow loc t =
+unArrow :: --XHasCallStack =>
+           SLoc -> EType -> T (EType, EType)
+unArrow loc t = T.do
   case getArrow t of
     Just ar -> T.return ar
     Nothing -> T.do
