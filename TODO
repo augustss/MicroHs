@@ -3,8 +3,6 @@
 * Have compile return a Stats record of timing etc
 * Add overloading
 * Implement deriving
-* Make sure rank-N works correctly
-  - redo type checker
 * Add the possibility to save a compiler cache in a file
   - Add SHA checksumming to the C code
   - Use filename as the cache lookup key and SHA for validation
@@ -21,3 +19,7 @@
       f x = let f' y = ... f' e ...
     this will specialize recursive functions
     (and make more efficient 'map' etc)
+* Type checker improvements:
+  - allow generalization for local bindings
+  - use subsumption (like if) in the arms of alternatives.
+  - allow missing top level signatures (and generalize)

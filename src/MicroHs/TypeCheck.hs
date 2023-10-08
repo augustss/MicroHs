@@ -43,6 +43,11 @@ type KindTable  = M.Map [Entry]
 type SynTable   = M.Map ETypeScheme
 type FixTable   = M.Map Fixity
 
+type Sigma = EType
+--type Tau   = EType
+type Rho   = EType
+type TyVar = Ident
+
 typeCheck :: forall a . [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
 typeCheck aimps (EModule mn exps defs) =
 --  trace (show amdl) $
@@ -467,7 +472,10 @@ derefUVar at =
       mt <- getUVar i
       case mt of
         Nothing -> T.return at
-        Just t -> derefUVar t
+        Just t -> T.do
+          t' <- derefUVar t
+          addUVar i t'
+          T.return t'
     EVar _ -> T.return at
     ESign t k -> flip ESign k <$> derefUVar t
     EForall iks t -> EForall iks <$> derefUVar t
@@ -506,6 +514,7 @@ unifyR loc a b = T.do
     EUVar i -> addUVar i b
     _ -> impossible
 
+{-
 unMType :: Expected -> T EType
 unMType mt =
   case mt of
@@ -514,6 +523,7 @@ unMType mt =
       tSetRefType r t
       T.return t
     Check t -> T.return t
+-}
 
 -- Reset type variable and unification map
 tcReset :: T ()
@@ -903,7 +913,7 @@ tcExprR mt ae =
       case tcm of
         TCPat -> T.do
           a' <- tCheckExpr at a
-          instPatSigmaE loc rt mt
+          instPatSigma loc rt mt
           T.return (EApp f' a')
         _ -> T.do
           a' <- checkSigma a at
@@ -915,7 +925,7 @@ tcExprR mt ae =
     ELit loc' l -> tcLit mt loc' l
     ECase a arms -> T.do
       (ea, ta) <- tInferExpr a
-      tt <- unMType mt
+      tt <- tGetExpTypeSet mt
       earms <- T.mapM (tcArm tt ta) arms
       T.return (ECase ea earms)
     ELet bs a -> tcBinds bs $ \ ebs -> T.do { ea <- tcExpr mt a; T.return (ELet ebs ea) }
@@ -954,27 +964,25 @@ tcExprR mt ae =
       let x = eVarI loc "$x"
       tcExpr mt (ELam [x] (EApp (EApp (EVar i) x) e))
     EIf e1 e2 e3 -> T.do
-      ee1 <- tCheckExpr (tBool (getSLocExpr e1)) e1
+      e1' <- tCheckExpr (tBool (getSLocExpr e1)) e1
       case mt of
         Check t -> T.do
-          ee2 <- tCheckExpr t e2
-          ee3 <- tCheckExpr t e3
-          T.return (EIf ee1 ee2 ee3)
+          e2' <- checkSigma e2 t
+          e3' <- checkSigma e3 t
+          T.return (EIf e1' e2' e3')
         Infer ref -> T.do
-          (ee2, te2) <- tInferExpr e2
-          (ee3, te3) <- tInferExpr e3
-          unify loc te2 te3
-          tSetRefType ref te2
-          T.return (EIf ee1 ee2 ee3)
+          (e2', t1) <- tInferExpr e2
+          (e3', t2) <- tInferExpr e3
+          subsCheck loc t1 t2
+          subsCheck loc t2 t1
+          tSetRefType ref t1
+          T.return (EIf e1' e2' e3')  
+
     EListish (LList es) -> T.do
-      (ees, ts) <- T.fmap unzip (T.mapM tInferExpr es)
-      te <- case ts of
-              [] -> newUVar
-              t : _ -> T.return t
-      let
-        tlist = tApp (tList loc) te
-      munify loc mt tlist
-      T.return (EListish (LList ees))
+      te <- newUVar
+      munify loc mt (tApp (tList loc) te)
+      es' <- T.mapM (tCheckExpr te) es
+      T.return (EListish (LList es'))
     EListish (LCompr eret ass) -> T.do
       let
         doStmts :: [EStmt] -> [EStmt] -> T ([EStmt], Typed Expr)
@@ -1009,7 +1017,7 @@ tcExprR mt ae =
       tcm <- gets tcMode
       case tcm of
         TCPat -> T.do
-          instPatSigmaE loc t' mt
+          instPatSigma loc t' mt
           tCheckExpr t' e
         _ -> T.do
           instSigma loc t' mt
@@ -1032,8 +1040,8 @@ enum :: SLoc -> String -> [Expr] -> Expr
 enum loc f = foldl EApp (EVar (mkIdentSLoc loc ("enum" ++ f)))
 
 tcLit :: Expected -> SLoc -> Lit -> T Expr
-tcLit mt loc l =
-  let { lit t = T.do { munify loc mt t; T.return (ELit loc l) } } in
+tcLit mt loc l = T.do
+  let lit t = instSigma loc t mt
   case l of
     LInt _  -> lit (tConI loc "Primitives.Int")
     LDouble _ -> lit (tConI loc "Primitives.Double")
@@ -1041,6 +1049,7 @@ tcLit mt loc l =
     LStr _  -> lit (tApp (tConI loc "Data.List.[]") (tConI loc "Primitives.Char"))
     LPrim _ -> newUVar T.>>= lit  -- pretend it is anything
     LForImp _ -> impossible
+  T.return (ELit loc l)
 
 tcOper :: --XHasCallStack =>
           Expr -> [(Ident, Expr)] -> T Expr
@@ -1098,7 +1107,7 @@ tcPats t (p:ps) ta = T.do
 
 tcExprLam :: Expected -> [EPat] -> Expr -> T Expr
 tcExprLam mt aps expr = T.do
-  t <- unMType mt
+  t <- tGetExpTypeSet mt
   tcPats t aps $ \ tt ps -> T.do
     er <- tCheckExpr tt expr
     T.return (ELam ps er)
@@ -1141,70 +1150,16 @@ tcArm t tpat arm =
       T.return (pp, aalts)
 
 
-{-
-tcPatE :: forall a . --XHasCallStack =>
-          Expected -> EPat -> (EPat -> T a) -> T a
-tcPatE _ p@(EVar i) ta | isUnderscore i =
-  ta p
-tcPatE mt p@(EVar i) ta | isConIdent i = T.do
-  p' <- tcExpr mt p   -- just instantiate constructor
-  ta p'
-tcPatE mt p@(EVar i) ta = T.do
-  t <- tGetExpTypeSet mt
-  withExtVal i t $ ta p
-tcPatE mt ap@(EApp _ _) ta = T.do
-  let apps (EApp f a) as = apps f (a:as)
-      apps (EVar i) as | isConIdent i = T.do
-        (c, t) <- tLookupInst "constructor" i
-        unApps c t as
-      apps p _ = tcError (getSLocExpr p) "Bad pattern"
-      unApps p t [] = T.do
-        T.when (isArrow t) $
-          tcError (getSLocExpr p) "Too few constructor arguments"
-        instPatSigmaE (getSLocExpr p) t mt
-        ta p
-      -- getArrow is OK here rather than unifyFun, since the
-      -- constructor arrows are inserted by the compiler.
-      unApps p t (a:as) | Just (arg, res) <- getArrow t =
-        tcPatE (Check arg) a $ \ a' -> unApps (EApp p a') res as
-      unApps p _ _ = tcError (getSLocExpr p) "Too many constructor arguments"
-  apps ap []
-tcPatE mt (ESign p pt) ta = T.do
-  instPatSigmaE (getSLocExpr p) pt mt
-  tcPatE (Check pt) p ta
-tcPatE mt (EAt i p) ta =
-  tcPatE mt p $ \ p' -> T.do
-    t <- tGetExpType mt
-    withExtVal i t $ ta (EAt i p')
-tcPatE mt p@(ELit _ _) ta = T.do
-  p' <- tcExpr mt p
-  ta p'
-tcPatE mt ap@(ETuple ps) ta = T.do
-  let p = foldl EApp (EVar c) ps  -- desugar
-      c = tupleConstr (getSLocExpr ap) (length ps)
-  tcPatE mt p ta
-tcPatE mt ap@(EListish (LList aps)) ta = T.do  -- XXX could do better for Check
-  te <- newUVar
-  let loc = getSLocExpr ap
-      loop [] ps' = T.do
-        instPatSigmaE loc (tApp (tList loc) te) mt
-        ta (EListish (LList ps'))
-      loop (p:ps) ps' = tcPatE (Check te) p $ \ p' -> loop ps (ps' ++ [p'])
-  loop aps []
-tcPatE _ p _ = --Xtrace ("tcPatE: " ++ show p) $
-               impossible
--}
-
-instPatSigmaE :: --XHasCallStack =>
+instPatSigma :: --XHasCallStack =>
                  SLoc -> Sigma -> Expected -> T ()
-instPatSigmaE _   pt (Infer r) = tSetRefType r pt
-instPatSigmaE loc pt (Check t) = subsCheckE loc t pt
+instPatSigma _   pt (Infer r) = tSetRefType r pt
+instPatSigma loc pt (Check t) = subsCheck loc t pt
 
-subsCheckE :: --XHasCallStack =>
+subsCheck :: --XHasCallStack =>
               SLoc -> Sigma -> Sigma -> T ()
 -- (subsCheck args off exp) checks that
 -- 'off' is at least as polymorphic as 'args -> exp'
-subsCheckE loc sigma1 sigma2 = T.do -- Rule DEEP-SKOL
+subsCheck loc sigma1 sigma2 = T.do -- Rule DEEP-SKOL
   (skol_tvs, rho2) <- skolemise sigma2
   subsCheckRho loc sigma1 rho2
   esc_tvs <- getFreeTyVars [sigma1,sigma2]
@@ -1252,7 +1207,6 @@ checkArity n p =
   where
     check0 = if n /= 0 then tcError (getSLocExpr p) "Bad pattern" else T.return ()
 
--- XXX No mutual recursion yet
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = T.do
   let
@@ -1339,55 +1293,23 @@ showValueTable vt =
 
 -----------------------------------------------------
 
-type Sigma = EType
---type Tau   = EType
-type Rho   = EType
-type TyVar = Ident
-
-type Tc a = T a
-
-{-
-
-type TcRef = Int
---data Expected = Infer TcRef | Check EType
-type MetaTv = TcRef
-
-xtypecheck :: EType -> Tc Sigma
-xtypecheck e = T.do
-  (ty, _) <- inferSigma e
-  zonkType ty
-
-newTcRef   :: EType -> Tc TcRef
-newTcRef t = T.do
-  r <- newUniq
-  addUVar r t
-  T.return r
-readTcRef  :: TcRef -> Tc EType
-readTcRef r = T.do
-  mt <- getUVar r
-  case mt of
-    Just t -> T.return t
-    Nothing -> error "readTcRef"
-writeTcRef :: TcRef -> EType -> Tc ()
-writeTcRef r t = addUVar r t
--}
-
-getFreeTyVars :: [EType] -> Tc [TyVar]
+getFreeTyVars :: [EType] -> T [TyVar]
 getFreeTyVars tys = T.do
-  tys' <- T.mapM zonkType tys
+  tys' <- T.mapM derefUVar tys
   T.return (freeTyVars tys')
 
 {-
-getMetaTyVars :: [EType] -> Tc [MetaTv]
+getMetaTyVars :: [EType] -> T [MetaTv]
 getMetaTyVars tys = T.do
   tys' <- T.mapM zonkType tys
   T.return (metaTvs tys')
 -}
 
-getEnvTypes :: Tc [EType]
+getEnvTypes :: T [EType]
 getEnvTypes = gets (map entryType . concat . M.elems . valueTable)
 
-zonkType :: EType -> Tc EType
+{-
+zonkType :: EType -> T EType
 zonkType (EForall ns ty) = T.do
   ty' <- zonkType ty
   T.return (EForall ns ty')
@@ -1406,9 +1328,9 @@ zonkType (EApp arg res) = T.do
   res' <- zonkType res
   T.return (EApp arg' res')
 zonkType _ = undefined
-
+-}
 {-
-quantify :: [MetaTv] -> Rho -> Tc Sigma
+quantify :: [MetaTv] -> Rho -> T Sigma
 -- Quantify over the specified type variables (all flexible)
 quantify tvs ty = T.do
    T.mapM_ bind (tvs `zip` new_bndrs) -- 'bind' is just a cunning way
@@ -1426,7 +1348,7 @@ allBinders = [ mkIdent [chr x] | x <- [ord 'a' .. ord 'z'] ] ++
 -}
 
 skolemise :: --XHasCallStack =>
-             Sigma -> Tc ([TyVar], Rho)
+             Sigma -> T ([TyVar], Rho)
 -- Performs deep skolemisation, returning the
 -- skolem constants and the skolemised type
 skolemise (EForall tvs ty) = T.do -- Rule PRPOLY
@@ -1444,22 +1366,10 @@ skolemise ty =
   T.return ([], ty) -- Rule PRMONO
 
 -- Skolem tyvars are just identifiers that start with a uniq
-newSkolemTyVar :: Ident -> Tc Ident
+newSkolemTyVar :: Ident -> T Ident
 newSkolemTyVar tv = T.do
   uniq <- newUniq
   T.return (mkIdentSLoc (getSLocIdent tv) (showInt uniq ++ unIdent tv))
-
-{-
-extendVarEnvList :: forall a . [(Ident, Sigma)] -> Tc a -> Tc a
-extendVarEnvList varTys ta = T.do
-  venv <- gets valueTable
-  putValueTable (foldr (\ (i, t) -> M.insert i [Entry (EVar i) t]) venv varTys)
-  a <- ta
-  putValueTable venv
-  T.return a
-
-------------------
--}
 
 freeTyVars :: [EType] -> [TyVar]
 -- Get the free TyVars from a type; no duplicates in result
@@ -1501,31 +1411,7 @@ tyVarBndrs ty = nubBy eqIdent (bndrs ty)
     bndrs (EVar _) = []
     bndrs _ = undefined
 
-substTy :: [Ident] -> [EType] -> EType -> EType
-
--- Replace the specified quantified type variables by
--- given meta type variables
--- No worries about capture, because the two kinds of type
--- variable are distinct
-substTy tvs tys ty = subst_ty (tvs `zip` tys) ty
-
-subst_ty :: [(TyVar, Tau)] -> EType -> EType
-subst_ty env (EApp arg res) = EApp (subst_ty env arg) (subst_ty env res)
-subst_ty env ty@(EVar n) = fromMaybe ty (lookupBy eqIdent n env)
-subst_ty _env (EUVar tv) = EUVar tv
-subst_ty env (EForall nks rho) = EForall nks (subst_ty env' rho)
-  where
-    env' = [(n, ty') | (n, ty') <- env, not (elemBy eqIdent n ns)]
-    ns = map idKindIdent nks
-subst_ty _ _ = undefined
-
------------------------
-
-check :: Bool -> String -> Tc ()
-check False msg = error msg
-check True  _   = T.return ()
-
-inferSigma :: Expr -> Tc (Expr, Sigma)
+inferSigma :: Expr -> T (Expr, Sigma)
 inferSigma e = T.do
   (e', exp_ty) <- inferRho e
   env_tys      <- getEnvTypes
@@ -1535,7 +1421,7 @@ inferSigma e = T.do
   (e',) <$> quantify forall_tvs exp_ty
 -}
 
-checkSigma :: Expr -> Sigma -> Tc Expr
+checkSigma :: Expr -> Sigma -> T Expr
 checkSigma expr sigma = T.do
   (skol_tvs, rho) <- skolemise sigma
   expr' <- tCheckExpr rho expr
@@ -1550,288 +1436,7 @@ checkSigma expr sigma = T.do
       tcError (getSLocExpr expr) "Type not polymorphic enough"
     T.return expr'
 
-{-
-checkRho :: Expr -> Rho -> Tc Expr
-checkRho expr ty =
-  tcRho expr (Check ty)
-
-inferRho :: Expr -> Tc (Expr, Rho)
-inferRho expr = T.do
-  ref <- newTcRef (error "inferRho: empty result")
-  expr' <- tcRho expr (Infer ref)
-  (expr',) <$> readTcRef ref
-
-tcRho :: Expr -> Expected -> Tc Expr
-tcRho (EVar v) exp_ty = T.do
-  (expr', v_sigma) <- tLookup "variable" v
-  instSigma noSLoc v_sigma exp_ty
-  T.return expr'
-tcRho (EApp fun arg) exp_ty = T.do
-  (fun', fun_ty) <- inferRho fun
-  (arg_ty, res_ty) <- unifyFun noSLoc fun_ty
-  arg' <- checkSigma arg arg_ty
-  instSigma noSLoc res_ty exp_ty
-  T.return (EApp fun' arg')
-tcRho (EOper _e _ies) _ = undefined
-tcRho (ELam [] body) exp_ty = ELam [] <$> tcRho body exp_ty
-tcRho (ELam (pat:pats) body) exp_ty = T.do
-  (pat', ELam pats' body') <- tcLamRho pat (ELam pats body) exp_ty
-  T.return (ELam (pat' : pats') body')
-tcRho expr@(ELit loc l) exp_ty = T.do
-  tcLitRho loc l exp_ty
-  T.return expr
-{-
-tcRho (ECase _ []) _ = impossible
-tcRho (ECase e arms) (Check exp_ty) = T.do
-  (e', tpat) <- inferRho e  -- XXX check for kind Type
-  let checkArm (pat, alts) = T.do
-        binds <- checkPat pat tpat
-        alts' <- extendVarEnvList binds $ checkAlts alts exp_ty
-        T.return (pat, alts')
-  arms' <- mapM checkArm arms
-  T.return (ECase e' arms')
-tcRho (ECase e arms) (Infer ref) = T.do
-  (e', tpat) <- inferRho e  -- XXX check for kind Type
-  let inferArm (pat, alts) = T.do
-        binds <- checkPat pat tpat
-        (alts', rho) <- extendVarEnvList binds $ inferAlts alts
-        T.return ((pat, alts'), rho)
-  (arms', rho:rhos) <- unzip <$> mapM inferArm arms
-  mapM_ (\ r -> do { subsCheck rho r; subsCheck r rho }) rhos
-  writeTcRef ref rho
-  T.return (ECase e' arms')
--}
-tcRho (ELet _bs _a) _ = undefined
-tcRho (ETuple es) (Check exp_ty) = T.do
-  ts <- unifyTuple (length es) exp_ty
-  es' <- T.sequence (zipWith checkRho es ts)
-  T.return (ETuple es')
-tcRho (ETuple es) (Infer ref) = T.do
-  let n = length es
-  (es', ts) <- unzip <$> T.mapM inferRho es
-  writeTcRef ref $ tApps (tupleConstr builtinLoc n) ts
-  T.return (ETuple es')
-tcRho (EDo _mmn _ass) _ = undefined
-tcRho (ESectL e i) exp_ty = tcRho (EApp (EVar i) e) exp_ty
-tcRho (ESectR i e) exp_ty = T.do
-  let x = eVarI (getSLocIdent i) "$x"
-  tcRho (ELam [x] (EApp (EApp (EVar i) x) e)) exp_ty
-tcRho (EIf e1 e2 e3) (Check exp_ty) = T.do
-  e1' <- checkRho e1 (tBool (getSLocExpr e1))
-  e2' <- checkSigma e2 exp_ty
-  e3' <- checkSigma e3 exp_ty
-  T.return (EIf e1' e2' e3')
-tcRho (EIf e1 e2 e3) (Infer ref) = T.do
-  e1' <- checkRho e1 (tBool (getSLocExpr e1))
-  (e2', rho1) <- inferRho e2
-  (e3', rho2) <- inferRho e3
-  subsCheck noSLoc rho1 rho2
-  subsCheck noSLoc rho2 rho1
-  writeTcRef ref rho1
-  T.return (EIf e1' e2' e3')  
-tcRho ee@(EListish lst) exp_ty = T.do
-  let loc = getSLocExpr ee
-  case lst of
-    LList es ->
-      case exp_ty of
-        Check tl -> T.do
-          te <- unifyList tl
-          es' <- T.mapM (\ e -> checkRho e te) es
-          T.return (EListish (LList es'))
-        Infer ref -> T.do
-          (es', ts') <- unzip <$> T.mapM inferRho es
-          te <- case ts' of
-                  [] -> newUVar
-                  tt : tts -> T.do
-                    T.mapM_ (unify loc tt) tts
-                    T.return tt
-          writeTcRef ref (tApp (tList loc) te)
-          T.return (EListish (LList es'))
-{-
-    LCompr eret ass -> T.do
-      let
-        doStmts :: [EStmt] -> [EStmt] -> T ([EStmt], Typed Expr)
-        doStmts rss xs =
-          case xs of
-            [] -> T.do
-              r <- tcExpr Nothing eret
-              T.return (reverse rss, r)
-            as : ss ->
-              case as of
-                SBind p a -> T.do
-                  v <- newUVar
-                  (ea, _) <- tcExpr (Just $ tApp (tList loc) v) a
-                  tcPat v p $ \ ep ->
-                    doStmts (SBind ep ea : rss) ss
-                SThen a -> T.do
-                  (ea, _) <- tcExpr (Just (tBool (getSLocExpr a))) a
-                  doStmts (SThen ea : rss) ss
-                SLet bs ->
-                  tcBinds bs $ \ ebs ->
-                    doStmts (SLet ebs : rss) ss
-      (rss, (ea, ta)) <- doStmts [] ass
-      let
-        tr = tApp (tList loc) ta
-      munify loc mt tr
-      T.return (EListish (LCompr ea rss), tr)
--}
-    LFrom       e        -> tcRho (enum loc "From"       [e])        exp_ty
-    LFromTo     e1 e2    -> tcRho (enum loc "FromTo"     [e1, e2])   exp_ty
-    LFromThen   e1 e2    -> tcRho (enum loc "FromThen"   [e1,e2])    exp_ty
-    LFromThenTo e1 e2 e3 -> tcRho (enum loc "FromThenTo" [e1,e2,e3]) exp_ty
-tcRho (ESign body ann_ty) exp_ty = T.do
-  body' <- checkSigma body ann_ty
-  instSigma noSLoc ann_ty exp_ty
-  T.return body'
-tcRho (EAt _i _e) _ = impossible
-tcRho (EForall vks t) exp_ty =
-  withVks vks kType $ \ vvks _ -> T.do
-    t' <- withVars vvks (tcRho t exp_ty)
-    T.return (EForall vvks t')
-tcRho _ _ = impossible
-
-tcLitRho :: SLoc -> Lit -> Expected -> Tc ()
-tcLitRho loc l exp_ty = T.do
-  let
-    lit t = instSigma loc t exp_ty
-  case l of
-    LInt _    -> lit (tConI loc "Primitives.Int")
-    LDouble _ -> lit (tConI loc "Primitives.Double")
-    LChar _   -> lit (tConI loc "Primitives.Char")
-    LStr _    -> lit (tApp (tConI loc "Data.List.[]") (tConI loc "Primitives.Char"))
-    LPrim _   -> newUVar T.>>= lit
-    LForImp _ -> impossible
-
-tcLamRho :: EPat -> Expr -> Expected -> Tc (EPat, Expr)
-tcLamRho pat body (Infer ref) = T.do
-  (binds, pat_ty) <- inferPat pat
-  (body', body_ty) <- extendVarEnvList binds (inferRho body)
-  writeTcRef ref (pat_ty `tArrow` body_ty)
-  T.return (pat, body')
-tcLamRho pat body (Check ty) = T.do
-  (arg_ty, res_ty) <- unifyFun noSLoc ty
-  binds <- checkPat pat arg_ty
-  body' <- extendVarEnvList binds (checkRho body res_ty)
-  T.return (pat, body')  
-
-checkPat :: EPat -> Sigma -> Tc [(Ident, Sigma)]
-checkPat p exp_ty = tcPatRho p (Check exp_ty)
-
-inferPat :: EPat -> Tc ([(Ident, Sigma)], Sigma)
-inferPat pat = T.do
-  ref <- newTcRef (error "inferPat: empty result")
-  binds <- tcPatRho pat (Infer ref)
-  ty <- readTcRef ref
-  T.return (binds, ty)
-
-tcPatRho :: EPat -> Expected -> Tc [(Ident,Sigma)]
-tcPatRho (EVar i) _exp_ty | isUnderscore i = T.return []
-tcPatRho econ exp_ty | Just (con, ps) <- getConApp econ = T.do
-  (arg_tys, res_ty) <- instDataCon con
-  let check_arg (p, ty) = checkPat p ty
-  check (length ps == length arg_tys) "Bad constructor pattern"
-  envs <- T.mapM check_arg (ps `zip` arg_tys)
-  instPatSigma res_ty exp_ty
-  T.return (concat envs)
-tcPatRho (EVar v) (Infer ref) = T.do
-  ty <- newUVar
-  writeTcRef ref ty
-  T.return [(v,ty)]
-tcPatRho (EVar v) (Check ty) =
-  T.return [(v, ty)]
-tcPatRho (ESign p pat_ty) exp_ty = T.do
-  binds <- checkPat p pat_ty
-  instPatSigma pat_ty exp_ty
-  T.return binds
-tcPatRho _ _ = impossible
-
-instPatSigma :: Sigma -> Expected -> Tc ()
-instPatSigma pat_ty (Infer ref) = writeTcRef ref pat_ty
-instPatSigma pat_ty (Check exp_ty) = subsCheck noSLoc exp_ty pat_ty
-
-getConApp :: Expr -> Maybe (Ident, [Expr])
-getConApp (EApp f a) | Just (con, ps) <- getConApp f = Just (con, ps ++ [a])
-getConApp (EVar i) | isConIdent i = Just (i, [])
-getConApp _ = Nothing
-
-instDataCon :: Ident -> Tc ([Sigma], Tau)
-instDataCon c = T.do
-  (_, v_sigma) <- tLookup "constructor" c
-  v_sigma' <- instantiate v_sigma
-  T.return (argsAndRes v_sigma')
-
-argsAndRes :: Rho -> ([Sigma], Tau)
-argsAndRes t | Just (arg_ty, res_ty) <- getArrow t =
-  let (arg_tys, res_ty') = argsAndRes res_ty
-  in  (arg_ty : arg_tys, res_ty')
-argsAndRes t = ([], t)
-
-{-
-checkAlts :: EAlts -> EType -> Tc EAlts
-checkAlts alts ty = tcAltsRho alts (Check ty)
-
-inferAlts :: EAlts -> Tc (EAlts, Sigma)
-inferAlts (EAlts pat alts) = T.do
-  ref <- newTcRef (error "inferAlts: empty result")
-  alts <- tcAltsRho pat (Infer ref)
-  ty <- readTcRef ref
-  T.return (alts, ty)
-
-tcAltsRho :: EAlts -> Expected -> Tc (EAlts, EType)
-tcAltsRho (EAlts alts bs) exp_ty =
-  tcBindsRho bs $ \ bs' -> T.do { alts' <- T.mapM (\ a -> tcAlt a exp_ty) alts; T.return (EAlts alts' bs') }
-
-tcBindsRho :: [EBind] -> ([EBind] -> Tc EAlts) -> Tc (EAlts, EType)
-tcBindsRho = undefined
--}
-
----------------
-
-unifyList :: Rho -> Tc Rho
-unifyList (EApp (EVar i) t) | eqIdent i (tListI noSLoc) = T.return t
-unifyList tau = T.do
-  t <- newUVar
-  unify noSLoc tau (tApp (tList noSLoc) t)
-  T.return t
-
-unifyTuple :: Int -> Rho -> Tc [Rho]
-unifyTuple n tau =
-  case getTuple n tau of
-    Just ts -> T.return ts
-    Nothing -> T.do
-      ts <- sequence (replicate n newUVar)
-      let con = tupleConstr builtinLoc n
-      unify noSLoc tau $ tApps con ts
-      T.return ts
--}
-
-{-
-unifyFun :: SLoc -> Rho -> Tc (Sigma, Rho)
--- (arg,res) <- unifyFunTy fun
--- unifies 'fun' with '(arg -> res)'
-unifyFun loc tau =
-  case getArrow tau of
-    Just tt -> T.return tt
-    Nothing -> T.do
-      arg_ty <- newUVar
-      res_ty <- newUVar
-      unify loc tau (arg_ty `tArrow` res_ty)
-      T.return (arg_ty, res_ty)
--}
-
-subsCheck :: SLoc -> Sigma -> Sigma -> Tc ()
--- (subsCheck args off exp) checks that
--- 'off' is at least as polymorphic as 'args -> exp'
-subsCheck loc sigma1 sigma2 = T.do -- Rule DEEP-SKOL
-  (skol_tvs, rho2) <- skolemise sigma2
-  subsCheckRho loc sigma1 rho2
-  esc_tvs <- getFreeTyVars [sigma1,sigma2]
-  let bad_tvs = filter (\ i -> elemBy eqIdent i esc_tvs) skol_tvs
-  T.when (not (null bad_tvs)) $
-    tcError loc "Subsumption check failed"
-
-subsCheckRho :: SLoc -> Sigma -> Rho -> Tc ()
--- Invariant: the second argument is in weak-prenex form
+subsCheckRho :: SLoc -> Sigma -> Rho -> T ()
 subsCheckRho loc sigma1@(EForall _ _) rho2 = T.do -- Rule SPEC
   rho1 <- tInst sigma1
   subsCheckRho loc rho1 rho2
@@ -1844,36 +1449,12 @@ subsCheckRho loc rho1 rho2 | Just (a1, r1) <- getArrow rho1 = T.do -- Rule FUN
 subsCheckRho loc tau1 tau2 -- Rule MONO
   = unify loc tau1 tau2 -- Revert to ordinary unification
 
-subsCheckFun :: SLoc -> Sigma -> Rho -> Sigma -> Rho -> Tc ()
+subsCheckFun :: SLoc -> Sigma -> Rho -> Sigma -> Rho -> T ()
 subsCheckFun loc a1 r1 a2 r2 = T.do
   subsCheck loc a2 a1
   subsCheckRho loc r1 r2
 
---instantiate :: Sigma -> Tc Rho
---instantiate = tInst
-
-{-
-instantiate :: Sigma -> Tc Rho
--- Instantiate the topmost for-alls of the argument type
--- with flexible type variables
-instantiate (EForall tvs ty) = T.do
-  tvs' <- T.mapM (\_ -> newUVar) tvs
-  T.return (substTy (map idKindIdent tvs) tvs' ty)
-instantiate ty =
-  T.return ty
-
-instSigma :: SLoc -> Sigma -> Expected -> Tc ()
--- Invariant: if the second argument is (Check rho),
--- then rho is in weak-prenex form
-instSigma loc t1 (Check t2) = subsCheckRho loc t1 t2
-instSigma _   t1 (Infer r) = T.do
-  t1' <- instantiate t1
-  writeTcRef r t1'
--}
-
-instSigma :: SLoc -> Sigma -> Expected -> Tc ()
--- Invariant: if the second argument is (Check rho),
--- then rho is in weak-prenex form
+instSigma :: SLoc -> Sigma -> Expected -> T ()
 instSigma loc t1 (Check t2) = subsCheckRho loc t1 t2
 instSigma _   t1 (Infer r) = T.do
   t1' <- tInst t1
