@@ -204,3 +204,7 @@ isEQ _  = False
 
 compareString :: String -> String -> Ordering
 compareString = compare
+
+anySameBy :: (a -> a -> Bool) -> [a] -> Bool
+anySameBy _ [] = False
+anySameBy eq (x:xs) = elemBy eq x xs || anySameBy eq xs

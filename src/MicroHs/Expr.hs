@@ -22,7 +22,7 @@ module MicroHs.Expr(
   LHS,
   Constr,
   ConTyInfo,
-  Con(..), conIdent, conArity, eqCon,
+  Con(..), conIdent, conArity, eqCon, getSLocCon,
   tupleConstr, untupleConstr, isTupleConstr,
   subst,
   allVarsExpr, allVarsBind,
@@ -309,6 +309,11 @@ allVarsStmt astmt =
 -- XXX Should use locations in ELit
 getSLocExpr :: Expr -> SLoc
 getSLocExpr e = head $ filter (not . isNoSLoc) (map getSLocIdent (allVarsExpr e)) ++ [noSLoc]
+
+getSLocCon :: Con -> SLoc
+getSLocCon (ConData _ i) = getSLocIdent i
+getSLocCon (ConNew i) = getSLocIdent i
+getSLocCon _ = noSLoc
 
 setSLocExpr :: SLoc -> Expr -> Expr
 setSLocExpr l (EVar i) = EVar (setSLocIdent l i)

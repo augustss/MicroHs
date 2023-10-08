@@ -103,8 +103,8 @@ tcPat (PCon con ps) exp_ty
     check_arg (p,ty) = checkPat p ty
 
 instPatSigma :: Sigma -> Expected Sigma -> Tc ()
-instPatSigma pat_ty (Infer ref) = writeTcRef ref pat_ty
 instPatSigma pat_ty (Check exp_ty) = subsCheck exp_ty pat_ty
+instPatSigma pat_ty (Infer ref) = writeTcRef ref pat_ty
 
 checkPat :: Pat -> Sigma -> Tc [(Name, Sigma)]
 checkPat p exp_ty = tcPat p (Check exp_ty)

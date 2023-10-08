@@ -311,3 +311,7 @@ init :: forall a . [a] -> [a]
 init [] = error "init: []"
 init [_] = []
 init (x:xs) = x : init xs
+
+anySameBy :: forall a . (a -> a -> Bool) -> [a] -> Bool
+anySameBy _ [] = False
+anySameBy eq (x:xs) = elemBy eq x xs || anySameBy eq xs

@@ -237,55 +237,74 @@ getIdent ae =
 
 type Typed a = (a, EType)
 
-data TCState = TC IdentModule Int FixTable TypeTable SynTable ValueTable (IM.IntMap EType)
+data TCState = TC IdentModule Int FixTable TypeTable SynTable ValueTable (IM.IntMap EType) TCMode
+  --Xderiving (Show)
+
+data TCMode = TCExpr | TCPat | TCType
   --Xderiving (Show)
 
 typeTable :: TCState -> TypeTable
-typeTable (TC _ _ _ tt _ _ _) = tt
+typeTable (TC _ _ _ tt _ _ _ _) = tt
 
 valueTable :: TCState -> ValueTable
-valueTable (TC _ _ _ _ _ vt _) = vt
+valueTable (TC _ _ _ _ _ vt _ _) = vt
 
 synTable :: TCState -> SynTable
-synTable (TC _ _ _ _ st _ _) = st
+synTable (TC _ _ _ _ st _ _ _) = st
 
 fixTable :: TCState -> FixTable
-fixTable (TC _ _ ft _ _ _ _) = ft
+fixTable (TC _ _ ft _ _ _ _ _) = ft
 
 uvarSubst :: TCState -> IM.IntMap EType
-uvarSubst (TC _ _ _ _ _ _ sub) = sub
+uvarSubst (TC _ _ _ _ _ _ sub _) = sub
 
 moduleName :: TCState -> IdentModule
-moduleName (TC mn _ _ _ _ _ _) = mn
+moduleName (TC mn _ _ _ _ _ _ _) = mn
+
+tcMode :: TCState -> TCMode
+tcMode (TC _ _ _ _ _ _ _ m) = m
 
 putValueTable :: ValueTable -> T ()
 putValueTable venv = T.do
-  TC mn n fx tenv senv _ m <- get
-  put (TC mn n fx tenv senv venv m)
+  TC mn n fx tenv senv _ sub m <- get
+  put (TC mn n fx tenv senv venv sub m)
 
 putTypeTable :: TypeTable -> T ()
 putTypeTable tenv = T.do
-  TC mn n fx _ senv venv m <- get
-  put (TC mn n fx tenv senv venv m)
+  TC mn n fx _ senv venv sub m <- get
+  put (TC mn n fx tenv senv venv sub m)
 
 putSynTable :: SynTable -> T ()
 putSynTable senv = T.do
-  TC mn n fx tenv _ venv m <- get
-  put (TC mn n fx tenv senv venv m)
+  TC mn n fx tenv _ venv sub m <- get
+  put (TC mn n fx tenv senv venv sub m)
 
 putUvarSubst :: IM.IntMap EType -> T ()
-putUvarSubst m = T.do
-  TC mn n fx tenv senv venv _ <- get
-  put (TC mn n fx tenv senv venv m)
+putUvarSubst sub = T.do
+  TC mn n fx tenv senv venv _ m <- get
+  put (TC mn n fx tenv senv venv sub m)
+
+putTCMode :: TCMode -> T ()
+putTCMode m = T.do
+  TC mn n fx tenv senv venv sub _ <- get
+  put (TC mn n fx tenv senv venv sub m)
+
+withTCMode :: forall a . TCMode -> T a -> T a
+withTCMode m ta = T.do
+  om <- gets tcMode
+  putTCMode m
+  a <- ta
+  putTCMode om
+  T.return a
 
 -- Use the type table as the value table, and the primKind table as the type table.
 withTypeTable :: forall a . T a -> T a
 withTypeTable ta = T.do
-  TC mn n fx tt st vt m <- get
-  put (TC mn n fx primKindTable M.empty tt m)
+  TC mn n fx tt st vt sub m <- get
+  put (TC mn n fx primKindTable M.empty tt sub m)
   a <- ta
-  TC mnr nr _ _ _ ttr mr <- get
-  put (TC mnr nr fx ttr st vt mr)
+  TC mnr nr _ _ _ ttr subr mr <- get
+  put (TC mnr nr fx ttr st vt subr mr)
   T.return a
 
 initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ValueTable -> TCState
@@ -294,7 +313,7 @@ initTC mn fs ts ss vs =
   let
     xts = foldr (uncurry M.insert) ts primTypes
     xvs = foldr (uncurry M.insert) vs primValues
-  in TC mn 1 fs xts ss xvs IM.empty
+  in TC mn 1 fs xts ss xvs IM.empty TCExpr
 
 kTypeS :: ETypeScheme
 kTypeS = kType
@@ -372,26 +391,30 @@ tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
 kArrow :: EKind -> EKind -> EKind
 kArrow = tArrow
 
+{-
 isArrow :: EType -> Bool
 isArrow = isJust . getArrow
+-}
 
 getArrow :: EType -> Maybe (EType, EType)
 getArrow (EApp (EApp (EVar n) a) b) =
   if eqIdent n (mkIdent "->") || eqIdent n (mkIdent "Primitives.->") then Just (a, b) else Nothing
 getArrow _ = Nothing
 
+{-
 getTuple :: Int -> EType -> Maybe [EType]
 getTuple n t = loop t []
   where loop (EVar i) r | isTupleConstr n i && length r == n = Just (reverse r)
         loop (EApp f a) r = loop f (a:r)
         loop _ _ = Nothing
+-}
 
 addUVar :: Int -> EType -> T ()
 addUVar i t = T.do
   let
     add = T.do
-      TC mn n fx tenv senv venv sub <- get
-      put (TC mn n fx tenv senv venv (IM.insert i t sub))
+      TC mn n fx tenv senv venv sub m <- get
+      put (TC mn n fx tenv senv venv (IM.insert i t sub) m)
   case t of
     EUVar j -> if i == j then T.return () else add
     _ -> add
@@ -495,8 +518,8 @@ unMType mt =
 -- Reset type variable and unification map
 tcReset :: T ()
 tcReset = T.do
-  TC mn _ fx tenv senv venv _ <- get
-  put (TC mn 0 fx tenv senv venv IM.empty)
+  TC mn _ fx tenv senv venv _ m <- get
+  put (TC mn 0 fx tenv senv venv IM.empty m)
 
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
@@ -505,8 +528,8 @@ type TRef = Int
 
 newUniq :: T TRef
 newUniq = T.do
-  TC mn n fx tenv senv venv sub <- get
-  put (TC mn (n+1) fx tenv senv venv sub)
+  TC mn n fx tenv senv venv sub m <- get
+  put (TC mn (n+1) fx tenv senv venv sub m)
   T.return n
 
 tLookupInst :: --XHasCallStack =>
@@ -573,8 +596,8 @@ extSyn i t = T.do
 
 extFix :: Ident -> Fixity -> T ()
 extFix i fx = T.do
-  TC mn n fenv tenv senv venv sub <- get
-  put $ TC mn n (M.insert i fx fenv) tenv senv venv sub
+  TC mn n fenv tenv senv venv sub m <- get
+  put $ TC mn n (M.insert i fx fenv) tenv senv venv sub m
   T.return ()
 
 withExtVal :: forall a . --XHasCallStack =>
@@ -757,7 +780,7 @@ tcInferTypeT t = fst <$> tInfer tcTypeT t
 -- Kind check a type while already in type checking mode
 tcTypeT :: --XHasCallStack =>
            Expected -> EType -> T EType
-tcTypeT mk = tcExpr mk . dsType
+tcTypeT mk t = withTCMode TCType (tcExpr mk (dsType t))
 
 -- Kind check a type while in value checking mode
 tcType :: --XHasCallStack =>
@@ -778,7 +801,8 @@ tcKind e = fst <$> withTypeTable (tcType (Just kType) e)
 data Expected = Infer TRef | Check EType
   --Xderiving(Show)
 
-tInfer :: forall a . (Expected -> a -> T a) -> a -> T (Typed a)
+tInfer :: forall a . --XHasCallStack =>
+          (Expected -> a -> T a) -> a -> T (Typed a)
 tInfer tc a = T.do
   ref <- newUniq
   a' <- tc (Infer ref) a
@@ -788,10 +812,12 @@ tInfer tc a = T.do
 tCheck :: forall a . (Expected -> a -> T a) -> EType -> a -> T a
 tCheck tc t = tc (Check t)
 
-tInferExpr :: Expr -> T (Typed Expr)
+tInferExpr :: --XHasCallStack =>
+              Expr -> T (Typed Expr)
 tInferExpr = tInfer tcExpr
 
-tCheckExpr :: EType -> Expr -> T Expr
+tCheckExpr :: --XHasCallStack =>
+              EType -> Expr -> T Expr
 tCheckExpr = tCheck tcExpr
 
 tGetRefType :: --XHasCallStack =>
@@ -837,31 +863,55 @@ tcExprR :: --XHasCallStack =>
 tcExprR mt ae =
   let { loc = getSLocExpr ae } in
   case ae of
-    EVar i ->
-      if isUnderscore i then T.do
-        -- this only happens with patterns translated into expressions
-        t <- newUVar
-        munify loc mt t
-        T.return ae
-      else T.do
-        (e, t) <- tLookupInst "variable" i
-        case mt of
-          Check (EForall _ tt) -> T.do
-            -- XXX This is wrong in many ways.
-            -- Both t and tt may contain unification variables bound elsewhere.
-            unify loc tt t
-            T.return e
-          _ -> T.do
-            munify loc mt t
-            T.return e
+    EVar i -> T.do
+      tcm <- gets tcMode
+      case tcm of
+        TCPat | isUnderscore i -> T.do
+                -- _ can be anything, so just ignore it
+                _ <- tGetExpTypeSet mt
+                T.return ae
+
+              | isConIdent i -> T.do
+                (p, pt) <- tLookupInst "constructor" i
+                -- We will only have an expected type for a non-nullary constructor
+                case mt of
+                  Check ext -> subsCheck loc ext pt
+                  Infer r   -> tSetRefType r pt
+                T.return p
+
+              | otherwise -> T.do
+                -- All pattern variables are in the environment as
+                -- type references.  Assign the reference the given type.
+                ext <- tGetExpTypeSet mt
+                (p, t) <- tLookup "IMPOSSIBLE" i
+                case t of
+                  EUVar r -> tSetRefType r ext
+                  _ -> impossible
+                T.return p
+          
+        _ -> T.do
+          -- Type checking an expression (or type)
+          T.when (isUnderscore i) impossible
+          (e, t) <- tLookup "variable" i
+          instSigma loc t mt
+          T.return e
+
     EApp f a -> T.do
-      (ef, tf) <- tInferExpr f
-      (ta, tr) <- unArrow loc tf
-      ea <- tCheckExpr ta a
-      munify loc mt tr
-      T.return (EApp ef ea)
+      (f', ft) <- tInferExpr f
+      (at, rt) <- unArrow loc ft
+      tcm <- gets tcMode
+      case tcm of
+        TCPat -> T.do
+          a' <- tCheckExpr at a
+          instPatSigmaE loc rt mt
+          T.return (EApp f' a')
+        _ -> T.do
+          a' <- checkSigma a at
+          instSigma loc rt mt
+          T.return (EApp f' a')
+
     EOper e ies -> tcOper mt e ies
-    ELam is e -> tcExprLam mt is e
+    ELam ps e -> tcExprLam mt ps e
     ELit loc' l -> tcLit mt loc' l
     ECase a arms -> T.do
       (ea, ta) <- tInferExpr a
@@ -938,7 +988,7 @@ tcExprR mt ae =
                 SBind p a -> T.do
                   v <- newUVar
                   ea <- tCheckExpr (tApp (tList loc) v) a
-                  tcPatE (Check v) p $ \ ep -> doStmts (SBind ep ea : rss) ss
+                  tCheckPat v p $ \ ep -> doStmts (SBind ep ea : rss) ss
                 SThen a -> T.do
                   ea <- tCheckExpr (tBool (getSLocExpr a)) a
                   doStmts (SThen ea : rss) ss
@@ -955,15 +1005,22 @@ tcExprR mt ae =
     EListish (LFromThen   e1 e2)    -> tcExpr mt (enum loc "FromThen" [e1,e2])
     EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enum loc "FromThenTo" [e1,e2,e3])
     ESign e t -> T.do
-      tt <- tcType (Check kType) t
-      ee <- tCheckExpr tt e
-      munify loc mt tt
-      T.return ee
+      t' <- tcType (Check kType) t
+      tcm <- gets tcMode
+      case tcm of
+        TCPat -> T.do
+          instPatSigmaE loc t' mt
+          tCheckExpr t' e
+        _ -> T.do
+          instSigma loc t' mt
+          checkSigma e t'
     EAt i e -> T.do
-      (_, ti) <- tLookupInst "impossible!" i
+      (_, ti) <- tLookup "IMPOSSIBLE" i
       e' <- tcExpr mt e
       tt <- tGetExpType mt
-      unify loc tt ti
+      case ti of
+        EUVar r -> tSetRefType r tt
+        _ -> impossible
       T.return (EAt i e')
     EForall vks t ->
       withVks vks kType $ \ vvks _ -> T.do
@@ -985,7 +1042,8 @@ tcLit mt loc l =
     LPrim _ -> newUVar T.>>= lit  -- pretend it is anything
     LForImp _ -> impossible
 
-tcOper :: Expected -> Expr -> [(Ident, Expr)] -> T Expr
+tcOper :: --XHasCallStack =>
+          Expected -> Expr -> [(Ident, Expr)] -> T Expr
 tcOper mt ae aies = T.do
   let
     appOp (f, ft) (e1, t1) (e2, t2) = T.do
@@ -1049,7 +1107,7 @@ tcPats :: forall a . EType -> [EPat] -> (EType -> [EPat] -> T a) -> T a
 tcPats t [] ta = ta t []
 tcPats t (p:ps) ta = T.do
   (tp, tr) <- unArrow (getSLocExpr p) t
-  tcPat tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt (pp : pps)
+  tCheckPat tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt (pp : pps)
 
 tcExprLam :: Expected -> [EPat] -> Expr -> T Expr
 tcExprLam mt aps expr = T.do
@@ -1082,7 +1140,7 @@ tcGuards (s:ss) ta = tcGuard s $ \ rs -> tcGuards ss $ \ rss -> ta (rs:rss)
 tcGuard :: forall a . EStmt -> (EStmt -> T a) -> T a
 tcGuard (SBind p e) ta = T.do
   (ee, tt) <- tInferExpr e
-  tcPatE (Check tt) p $ \ pp -> ta (SBind pp ee)
+  tCheckPat tt p $ \ pp -> ta (SBind pp ee)
 tcGuard (SThen e) ta = T.do
   ee <- tCheckExpr (tBool (getSLocExpr e)) e
   ta (SThen ee)
@@ -1091,18 +1149,12 @@ tcGuard (SLet bs) ta = tcBinds bs $ \ bbs -> ta (SLet bbs)
 tcArm :: EType -> EType -> ECaseArm -> T ECaseArm
 tcArm t tpat arm =
   case arm of
-    (p, alts) -> tcPatE (Check tpat) p $ \ pp -> T.do
+    (p, alts) -> tCheckPat tpat p $ \ pp -> T.do
       aalts <- tcAlts t alts
       T.return (pp, aalts)
 
-tInferPatE :: forall a . --XHasCallStack =>
-              EPat -> (EPat -> EType -> T a) -> T a
-tInferPatE p ta = T.do
-  r <- newUniq
-  tcPatE (Infer r) p $ \ p' -> T.do
-    t <- tGetRefType r
-    ta p' t
 
+{-
 tcPatE :: forall a . --XHasCallStack =>
           Expected -> EPat -> (EPat -> T a) -> T a
 tcPatE _ p@(EVar i) ta | isUnderscore i =
@@ -1154,6 +1206,7 @@ tcPatE mt ap@(EListish (LList aps)) ta = T.do  -- XXX could do better for Check
   loop aps []
 tcPatE _ p _ = --Xtrace ("tcPatE: " ++ show p) $
                impossible
+-}
 
 instPatSigmaE :: --XHasCallStack =>
                  SLoc -> Sigma -> Expected -> T ()
@@ -1172,21 +1225,45 @@ subsCheckE loc sigma1 sigma2 = T.do -- Rule DEEP-SKOL
   T.when (not (null bad_tvs)) $
     tcError loc "Subsumption check failed"
 
-tcPat :: forall a . EType -> EPat -> (EPat -> T a) -> T a
-tcPat t p@(EVar v) ta | not (isConIdent v) = T.do  -- simple special case
+tCheckPat :: forall a . EType -> EPat -> (EPat -> T a) -> T a
+tCheckPat t p@(EVar v) ta | not (isConIdent v) = T.do  -- simple special case
   withExtVals [(v, t)] $ ta p
-tcPat t ap ta = T.do
+tCheckPat t ap ta = T.do
 --  traceM $ "tcPat: " ++ show ap
-  env <- T.mapM (\ v -> (v,) <$> newUVar) $ filter (not . isUnderscore) $ patVars ap
+  let vs = filter (not . isUnderscore) $ patVars ap
+  T.when (anySameBy eqIdent vs) $
+    tcError (getSLocIdent (head vs)) "Multiply defined"
+  env <- T.mapM (\ v -> (v,) <$> newUVar) vs
   withExtVals env $ T.do
-    pp <- tCheckExpr t ap
-    () <- checkArity (getSLocExpr ap) 0 pp
+    pp <- withTCMode TCPat $ tCheckExpr t ap
+    () <- checkArity 0 pp
     ta pp
 
-checkArity :: SLoc -> Int -> EPat -> T ()
-checkArity loc n (EApp f _) = checkArity loc (n+1) f
-checkArity loc n (ECon c) = if n == conArity c then T.return () else tcError loc ": con arity"
-checkArity _ _ _ = T.return ()
+checkArity :: Int -> EPat -> T ()
+checkArity n (EApp f a) = T.do
+  checkArity (n+1) f
+  checkArity 0 a
+checkArity n (ECon c) =
+  let a = conArity c
+  in  if n < a then
+        tcError (getSLocCon c) "too few arguments"
+      else if n > a then
+        tcError (getSLocCon c) "too many arguments"
+      else
+        T.return ()
+checkArity n (EAt _ p) = checkArity n p
+checkArity n (ESign p _) = checkArity n p
+checkArity n p =
+  case p of
+    ETuple _           -> check0
+    EListish (LList _) -> check0
+    EVar _             -> check0
+    ELit _ _           -> check0
+    _ ->
+         --Xerror (show p)
+         impossible
+  where
+    check0 = if n /= 0 then tcError (getSLocExpr p) "Bad pattern" else T.return ()
 
 -- XXX No mutual recursion yet
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
@@ -1218,7 +1295,7 @@ tcBind abind =
       teqns <- withExtTyps iks $ tcEqns tfn eqns
       T.return $ BFcn i teqns
     BPat p a -> T.do
-      (ep, tp) <- tInferExpr p
+      (ep, tp) <- withTCMode TCPat $ tInferExpr p  -- pattern variables already bound
       ea       <- tCheckExpr tp a
       T.return $ BPat ep ea
     BSign _ _ -> T.return abind
@@ -1276,7 +1353,7 @@ showValueTable vt =
 -----------------------------------------------------
 
 type Sigma = EType
-type Tau   = EType
+--type Tau   = EType
 type Rho   = EType
 type TyVar = Ident
 
@@ -1318,10 +1395,10 @@ getMetaTyVars :: [EType] -> Tc [MetaTv]
 getMetaTyVars tys = T.do
   tys' <- T.mapM zonkType tys
   T.return (metaTvs tys')
+-}
 
 getEnvTypes :: Tc [EType]
 getEnvTypes = gets (map entryType . concat . M.elems . valueTable)
--}
 
 zonkType :: EType -> Tc EType
 zonkType (EForall ns ty) = T.do
@@ -1469,18 +1546,24 @@ inferSigma e = T.do
   res_tvs      <- getMetaTyVars [exp_ty]
   let forall_tvs = deleteFirstsBy eqInt res_tvs env_tvs
   (e',) <$> quantify forall_tvs exp_ty
+-}
 
 checkSigma :: Expr -> Sigma -> Tc Expr
 checkSigma expr sigma = T.do
   (skol_tvs, rho) <- skolemise sigma
-  expr' <- checkRho expr rho
-  env_tys <- getEnvTypes
-  esc_tvs <- getFreeTyVars (sigma : env_tys)
-  let bad_tvs = filter (\ i -> elemBy eqIdent i esc_tvs) skol_tvs
-  check (null bad_tvs) $
-    "Type not polymorphic enough"
-  T.return expr'
+  expr' <- tCheckExpr rho expr
+  if null skol_tvs then
+    -- Fast special case
+    T.return expr'
+   else T.do
+    env_tys <- getEnvTypes
+    esc_tvs <- getFreeTyVars (sigma : env_tys)
+    let bad_tvs = filter (\ i -> elemBy eqIdent i esc_tvs) skol_tvs
+    T.when (not (null bad_tvs)) $
+      tcError (getSLocExpr expr) "Type not polymorphic enough"
+    T.return expr'
 
+{-
 checkRho :: Expr -> Rho -> Tc Expr
 checkRho expr ty =
   tcRho expr (Check ty)
@@ -1735,6 +1818,7 @@ unifyTuple n tau =
       T.return ts
 -}
 
+{-
 unifyFun :: SLoc -> Rho -> Tc (Sigma, Rho)
 -- (arg,res) <- unifyFunTy fun
 -- unifies 'fun' with '(arg -> res)'
@@ -1746,6 +1830,7 @@ unifyFun loc tau =
       res_ty <- newUVar
       unify loc tau (arg_ty `tArrow` res_ty)
       T.return (arg_ty, res_ty)
+-}
 
 subsCheck :: SLoc -> Sigma -> Sigma -> Tc ()
 -- (subsCheck args off exp) checks that
@@ -1761,13 +1846,13 @@ subsCheck loc sigma1 sigma2 = T.do -- Rule DEEP-SKOL
 subsCheckRho :: SLoc -> Sigma -> Rho -> Tc ()
 -- Invariant: the second argument is in weak-prenex form
 subsCheckRho loc sigma1@(EForall _ _) rho2 = T.do -- Rule SPEC
-  rho1 <- instantiate sigma1
+  rho1 <- tInst sigma1
   subsCheckRho loc rho1 rho2
 subsCheckRho loc rho1 rho2 | Just (a2, r2) <- getArrow rho2 = T.do -- Rule FUN
-  (a1, r1) <- unifyFun loc rho1
+  (a1, r1) <- unArrow loc rho1
   subsCheckFun loc a1 r1 a2 r2
 subsCheckRho loc rho1 rho2 | Just (a1, r1) <- getArrow rho1 = T.do -- Rule FUN
-  (a2,r2) <- unifyFun loc rho2
+  (a2,r2) <- unArrow loc rho2
   subsCheckFun loc a1 r1 a2 r2
 subsCheckRho loc tau1 tau2 -- Rule MONO
   = unify loc tau1 tau2 -- Revert to ordinary unification
@@ -1777,8 +1862,8 @@ subsCheckFun loc a1 r1 a2 r2 = T.do
   subsCheck loc a2 a1
   subsCheckRho loc r1 r2
 
-instantiate :: Sigma -> Tc Rho
-instantiate = tInst
+--instantiate :: Sigma -> Tc Rho
+--instantiate = tInst
 
 {-
 instantiate :: Sigma -> Tc Rho
@@ -1798,3 +1883,11 @@ instSigma _   t1 (Infer r) = T.do
   t1' <- instantiate t1
   writeTcRef r t1'
 -}
+
+instSigma :: SLoc -> Sigma -> Expected -> Tc ()
+-- Invariant: if the second argument is (Check rho),
+-- then rho is in weak-prenex form
+instSigma loc t1 (Check t2) = subsCheckRho loc t1 t2
+instSigma _   t1 (Infer r) = T.do
+  t1' <- tInst t1
+  tSetRefType r t1'
