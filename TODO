@@ -25,3 +25,6 @@
   - allow missing top level signatures (and generalize)
   - instead of skolemization, use regular variables, making sure they are unique
   - allow existential quantification
+* Add occurrence check
+* Fix bug in type variable expansion for unification
+* Try Oleg's abstraction algorithm
