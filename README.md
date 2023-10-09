@@ -14,7 +14,7 @@ These different ways of compiling need slightly different imports etc.
 To accomodate this each source file is preprocessed for the first two targets.
 When compiling with GHC and standard libraries the strings `--X` and `--W` are removed from the source file.
 When compiling with GHC and MicroHs libraries the strings `--Y` and `--W` are removed from the source file.
-This way anything special things needed with GHC is just treated as comments by mhs.
+This way anything special needed with GHC is just treated as comments by mhs.
 
 Compiling MicroHs is really best done using `make`, but there is also a `MicroHs.cabal` file
 for use with `cabal`.  This only builds what corresponds to the first target.
@@ -70,7 +70,7 @@ main = do
 
 First, make sure the binaries are built.  E.g., by doing `make test`.
 Then compile the file by `bin/mhs -ilib Example` which produces `out.comb`.
-Finally, run the combinator file by `bin/eval`.
+Finally, run the combinator file by `bin/mhseval`.
 This should produce
 ```
 Some factorials
@@ -85,12 +85,14 @@ But in general, the `Prelude` contains much, much less.
 There are some primitive data types, e.g `Int`, `Handle`, and `Double`.  These are known by the runtime system and various primitive operations work on them.  The function type, `->`, is (of course) also built in.
 
 All other types are defined with the language.  They are converted to lambda terms using
-the Scott encoding.   The runtime system knows how lists are encoded and booleans are encoded.
+the Scott encoding.   The runtime system knows how lists and booleans are encoded.
 
 
 ## Compiler
 The compiler is written in Micro Haskell.
 It takes a name of a module and compiles it to a file called `out.comb`.
+This module should contain the function `main` of type `IO ()` and
+it will be the entry point to the program.
 
 ### Compiler flags
 * `-iDIR` add `DIR` to search path for modules
@@ -101,29 +103,35 @@ It takes a name of a module and compiles it to a file called `out.comb`.
 With the `-v` flag the processing time for each module is reported.
 E.g.
   ```
-  importing done MicroHs.Exp, 716ms (368 + 348)
+  importing done MicroHs.Exp, 284ms (91 + 193)
   ```
-which means tha processing `MicroHs.Exp.hs` took 716ms,
-with parsing taking 368ms and typecheck&desugar taking 348ms.
+which means that processing the module `MicroHs.Exp` took 284ms,
+with parsing taking 91ms and typecheck&desugar taking 193ms.
 
 ### Compiler modules
 
-* `Main`, the main module.  Decodes flags, compiles, and writes result.
 * `Compile`, top level compiler.  Maintains a cache of already compiled modules.
+* `Desugar`, desugar full expressions to simple expressions.
 * `Exp`, simple expression type, combinator abstraction and optimization.
 * `Expr`, parsed expression type.
-* `Desugar`, desugar full expressions to simple expressions.
+* `Graph`, strongly connected component algorithm.
+* `Ident`, identifiers and related types.
+* `IdentMap`, map from identifiers to something.
+* `Interactive`, top level for the interactive REPL.
 * `Lex`, lexical analysis and indentation processing.
+* `Main`, the main module.  Decodes flags, compiles, and writes result.
 * `Parse`, parse and build and abstract syntax tree.
+* `StateIO`, state + IO monad.
+* `TCMonad`, type checking monad.
 * `Translate`, convert an expression tree to its value.
 * `TypeCheck`, type checker.
 
 ## Interactive mode
 If no module name is given the compiler enters interactive mode.
-You can enter expressions to be evaluated, or top level definitions.
+You can enter expressions to be evaluated, or top level definitions (including `import`).
 Simple line editing is available.
 
-All definitions is saved in the file `Interactive.hs` and all input
+All definitions are saved in the file `Interactive.hs` and all input
 lines as saved in `.mhsi`.  The latter file is read on startup so
 the command history is persisted.
 
@@ -132,20 +140,20 @@ Available commands:
 * `:quit` Quit the interactive system
 * `:clear` Get back to start state
 * `:del STR` Delete all definitions that begin with `STR`
-* `expr` Evaluate expression. ***NOTE*** Currently only expressions of type `Int` are allowed.
+* `expr` Evaluate expression. ***NOTE*** Currently only expressions of type `Int` work well.
 * `defn` Add definition (can also be an `import`)
 
 ***NOTE*** When you `import` a module it is cached.
 If the file changes and you import it again it will not reload.
-You can use `:clear` no get back to an empty cache.
+You can use `:clear` to get back to an empty cache.
 This is a bug.
 
 ## Runtime
 The runtime system is written in C and is in `eval.c`.
 It uses combinators for handling variables, and has primitive operations
-for integers and for executing IO operations.
+for built in types and for executing IO operations.
 There is a also a simple mark-scan garbage collector.
-It is written in a reasonably portable C code.
+The runtime system is written in a reasonably portable C code.
 
 ### Runtime flags
 Runtime flags are given between the flags `+RTS` and `-RTS`.
@@ -157,7 +165,7 @@ the running program.
 * `-rFILE` read combinators from `FILE`, instead of `out.comb`
 * `-v` be more verbose, flag can be repeated
 
-For example, `bin/eval +RTS -H1M -v -RTS hello` runs `out.comb` and the program gets the argument `hello`,
+For example, `bin/mhseval +RTS -H1M -v -RTS hello` runs `out.comb` and the program gets the argument `hello`,
 whereas the runtime system sets the heap to 1M cells and is verbose.
 
 
@@ -169,7 +177,7 @@ The only exception to this is file handles, which cannot be serialized (except f
 ### Memory layout
 Memory allocation is based on cells.  Each cell has room for two pointers (i.e., two words, i.e., 16 bytes),
 so it can represent an application node.  One bit is used to indicate if
-the cell has an application or something else.  If it is something else one
+the cell is an application or something else.  If it is something else one
 word is a tag indicating what it is, e.g., a combinator or an integer.
 The second word is then used to store any payload, e.g., the number itself for an integer node.
 
@@ -184,7 +192,7 @@ This has a performance penalty, though.
 
 ### Portability
 The C code for the evaluator does not use any special features, and should be
-portable to many platforms.  It has mostly been test with MacOS and Linus,
+portable to many platforms.  It has mostly been test with MacOS and Linux,
 so there are undoubtedly problems on Windows.
 
 The code has only been tested on 64 bit platforms, so again, there are lurking problems
@@ -195,10 +203,10 @@ It is possible to recompile the compiler without access to a Haskell compiler.
 The combinator file for the compiler itself is available in `comb/mhs.comb`.
 The bootstrapping process takes about 20s (on a modern machine).
 To bootstrap:
- * build the evaluator, `make bin/eval`, this requires a C compiler
+ * build the evaluator, `make bin/mhseval`, this requires a C compiler
  * compile the compiler
    ```
-   bin/eval +RTS -rcomb/mhs.comb -RTS -ilib -isrc -onewmhs.comb MicroHs.Main
+   bin/mhseval +RTS -rcomb/mhs.comb -RTS -ilib -isrc -onewmhs.comb MicroHs.Main
    ```
  * The file `newmhs.comb` is the new combinator binary and it should be
    identical to `comb/mhs.comb`.
@@ -219,12 +227,12 @@ You might have to increase it on your system.
   * A: Error messages are boring.
 * 
   * Q: Why is the so much source code?
-  * A: I wonder this myself.  Over 5000 lines of Haskell seems excessive.
-       2000 lines of C is also more than I'd like for such a simple system.
+  * A: I wonder this myself.  5000 lines of Haskell seems excessive.
+       2500 lines of C is also more than I'd like for such a simple system.
 * 
   * Q: Why are the binaries so big?
   * A: The combinator file is rather verbose.  The combinator file
-       for the compiler shrinks from 170kB to 30kB when compressed.
-       The evaluator is about 60kB.
+       for the compiler shrinks from 175kB to 31kB when compressed.
+       The evaluator is about 70kB.
        The total compressed size for runtime and compiler is about 50k.
        I'm sorry if you're running on a 16 bit system.

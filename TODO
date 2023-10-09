@@ -28,3 +28,9 @@
 * Add occurrence check
 * Fix bug in type variable expansion for unification
 * Try Oleg's abstraction algorithm
+* Generate (compressed) combinators in a separate file for compilation
+  - Distribute this file instead of .comb file
+* Use more compact(?) combinator file ('@f a ' instead of '(f a)')
+* Generate C file directly from compiler
+* Implement IORef
+  - The IORef will need GC support
