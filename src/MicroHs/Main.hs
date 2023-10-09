@@ -68,8 +68,4 @@ mainCompile flags mn = do
       putStrLn $ "final pass            " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
 
 version :: String
-<<<<<<< HEAD
 version = "v4.0\n"
-=======
-version = "v3.6\n"
->>>>>>> 0145e3f (Rename the P combinator to R (more standard name).)

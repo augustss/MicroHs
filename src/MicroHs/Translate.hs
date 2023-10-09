@@ -54,7 +54,7 @@ primTable = [
   ("C", primitive "C"),
   ("A", primitive "A"),
   ("S'", primitive "S'"),
-  ("R", primitive "R"),
+  ("P", primitive "P"),
   ("I", primitive "I"),
   ("S", primitive "S"),
   ("T", primitive "T"),

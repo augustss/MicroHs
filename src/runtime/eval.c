@@ -135,11 +135,7 @@ getraw()
 
 /***************************************/
 
-<<<<<<< HEAD
 #define VERSION "v4.0\n"
-=======
-#define VERSION "v3.6\n"
->>>>>>> 0145e3f (Rename the P combinator to R (more standard name).)
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -151,7 +147,7 @@ getraw()
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B, T_C,
-                T_A, T_Y, T_SS, T_BB, T_CC, T_R, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
                 T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
                 T_FADD, T_FSUB, T_FMUL, T_FDIV,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
@@ -635,6 +631,7 @@ struct {
   { "C", T_C },
   { "A", T_A },
   { "S'", T_SS },
+  { "P", T_P },
   { "R", T_R },
   { "I", T_I },
   { "S", T_S },
@@ -1359,7 +1356,6 @@ printrec(FILE *f, NODEPTR n)
     else
       ERR("Cannot serialize handles");
     break;
-<<<<<<< HEAD
   case T_S: fprintf(f, "S"); break;
   case T_K: fprintf(f, "K"); break;
   case T_I: fprintf(f, "I"); break;
@@ -1369,6 +1365,7 @@ printrec(FILE *f, NODEPTR n)
   case T_T: fprintf(f, "T"); break;
   case T_Y: fprintf(f, "Y"); break;
   case T_P: fprintf(f, "P"); break;
+  case T_R: fprintf(f, "R"); break;
   case T_O: fprintf(f, "O"); break;
   case T_SS: fprintf(f, "S'"); break;
   case T_BB: fprintf(f, "B'"); break;
@@ -1430,78 +1427,6 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_CATCH: fprintf(f, "IO.catch"); break;
   case T_ISINT: fprintf(f, "isInt"); break;
   case T_ISIO: fprintf(f, "isIO"); break;
-=======
-  case T_S: fprintf(f, "$S"); break;
-  case T_K: fprintf(f, "$K"); break;
-  case T_I: fprintf(f, "$I"); break;
-  case T_C: fprintf(f, "$C"); break;
-  case T_B: fprintf(f, "$B"); break;
-  case T_A: fprintf(f, "$A"); break;
-  case T_T: fprintf(f, "$T"); break;
-  case T_Y: fprintf(f, "$Y"); break;
-  case T_R: fprintf(f, "$R"); break;
-  case T_O: fprintf(f, "$O"); break;
-  case T_SS: fprintf(f, "$S'"); break;
-  case T_BB: fprintf(f, "$B'"); break;
-  case T_BK: fprintf(f, "$BK"); break;
-  case T_CC: fprintf(f, "$C'"); break;
-  case T_ADD: fprintf(f, "$+"); break;
-  case T_SUB: fprintf(f, "$-"); break;
-  case T_MUL: fprintf(f, "$*"); break;
-  case T_QUOT: fprintf(f, "$quot"); break;
-  case T_REM: fprintf(f, "$rem"); break;
-  case T_UQUOT: fprintf(f, "$uquot"); break;
-  case T_UREM: fprintf(f, "$urem"); break;
-  case T_SUBR: fprintf(f, "$subtract"); break;
-  case T_FADD: fprintf(f, "$fadd"); break;
-  case T_FSUB: fprintf(f, "$fsub"); break;
-  case T_FMUL: fprintf(f, "$fmul"); break;
-  case T_FDIV: fprintf(f, "$fdiv"); break;
-  case T_FEQ: fprintf(f, "$feq"); break;
-  case T_FNE: fprintf(f, "$fne"); break;
-  case T_FLT: fprintf(f, "$flt"); break;
-  case T_FLE: fprintf(f, "$fle"); break;
-  case T_FGT: fprintf(f, "$fgt"); break;
-  case T_FGE: fprintf(f, "$fge"); break;
-  case T_FSHOW: fprintf(f, "$fshow"); break;
-  case T_FREAD: fprintf(f, "$fread"); break;
-  case T_EQ: fprintf(f, "$=="); break;
-  case T_NE: fprintf(f, "$/="); break;
-  case T_LT: fprintf(f, "$<"); break;
-  case T_LE: fprintf(f, "$<="); break;
-  case T_GT: fprintf(f, "$>"); break;
-  case T_GE: fprintf(f, "$>="); break;
-  case T_ULT: fprintf(f, "$u<"); break;
-  case T_ULE: fprintf(f, "$u<="); break;
-  case T_UGT: fprintf(f, "$u>"); break;
-  case T_UGE: fprintf(f, "$u>="); break;
-  case T_ERROR: fprintf(f, "$error"); break;
-  case T_EQUAL: fprintf(f, "$equal"); break;
-  case T_COMPARE: fprintf(f, "$compare"); break;
-  case T_RNF: fprintf(f, "$rnf"); break;
-  case T_SEQ: fprintf(f, "$seq"); break;
-  case T_IO_BIND: fprintf(f, "$IO.>>="); break;
-  case T_IO_THEN: fprintf(f, "$IO.>>"); break;
-  case T_IO_RETURN: fprintf(f, "$IO.return"); break;
-  case T_IO_GETCHAR: fprintf(f, "$IO.getChar"); break;
-  case T_IO_GETRAW: fprintf(f, "$IO.getRaw"); break;
-  case T_IO_PUTCHAR: fprintf(f, "$IO.putChar"); break;
-  case T_IO_SERIALIZE: fprintf(f, "$IO.serialize"); break;
-  case T_IO_PRINT: fprintf(f, "$IO.print"); break;
-  case T_IO_DESERIALIZE: fprintf(f, "$IO.deserialize"); break;
-  case T_IO_OPEN: fprintf(f, "$IO.open"); break;
-  case T_IO_CLOSE: fprintf(f, "$IO.close"); break;
-  case T_IO_FLUSH: fprintf(f, "$IO.flush"); break;
-  case T_IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
-  case T_IO_GETARGS: fprintf(f, "$IO.getArgs"); break;
-  case T_IO_DROPARGS: fprintf(f, "$IO.dropArgs"); break;
-  case T_IO_GETTIMEMILLI: fprintf(f, "$IO.getTimeMilli"); break;
-  case T_IO_PERFORMIO: fprintf(f, "$IO.performIO"); break;
-  case T_IO_CCALL: fprintf(f, "#%s", ffi_table[GETVALUE(n)].ffi_name); break;
-  case T_IO_CATCH: fprintf(f, "$IO.catch"); break;
-  case T_ISINT: fprintf(f, "$isInt"); break;
-  case T_ISIO: fprintf(f, "$isIO"); break;
->>>>>>> 0145e3f (Rename the P combinator to R (more standard name).)
   default: ERR("print tag");
   }
 }
@@ -1884,7 +1809,7 @@ eval(NODEPTR n)
     case T_BK:               CHKARG3; GOAP(x, y);                                           /* BK x y z = x y */
     case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
     case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
-    case T_R:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* R x y z = z x y */
+    case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
     case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
 
     case T_ADD:  ARITHBIN(+);
