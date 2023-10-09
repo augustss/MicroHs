@@ -73,8 +73,8 @@ isC = isPrim "C"
 isY :: Exp -> Bool
 isY = isPrim "Y"
 
-isP :: Exp -> Bool
-isP = isPrim "P"
+isR :: Exp -> Bool
+isR = isPrim "R"
 
 app2 :: Exp -> Exp -> Exp -> Exp
 app2 f a1 a2 = App (App f a1) a2
@@ -100,8 +100,8 @@ cConst = Lit (LPrim "K")
 cSpread :: Exp
 cSpread = Lit (LPrim "S")
 
-cP :: Exp
-cP = Lit (LPrim "P")
+cR :: Exp
+cR = Lit (LPrim "R")
 
 {-
 eqExp :: Exp -> Exp -> Bool
@@ -254,7 +254,7 @@ cC a1 e3 =
             if isB bc then
               cCC e1 e2 e3
             else if isC bc && isI e1 then
-              app2 cP e2 e3
+              app2 cR e2 e3
             else
               r
 
@@ -272,7 +272,7 @@ cC2 a1 a2 =
 {-
 cC (App (App CB e1) e2) e3          = cCC e1 e2 e3      -- C (B e1 e2) e3  = C' e1 e2 e3
 cC (Var op)             e2 | Just op' <- lookup op flipOps = App (Var op') e2 -- C op e = flip-op e
-cC (App (App CC CI) e2) e3          = app2 CP e2 e3
+cC (App (App CC CI) e2) e3          = app2 CR e2 e3
 cC e1                   e2          = app2 CC e1 e2
 -}
 
@@ -284,7 +284,7 @@ cB a1 a2 =
     case getApp a1 of
       NotApp -> r
       IsApp cb ck ->
-        if isB cb && isK ck && isP a2 then
+        if isB cb && isK ck && isR a2 then
           Lit (LPrim "O")
         else
           r
@@ -304,7 +304,7 @@ cB2 a1 a2 =
               r
           NotApp ->
             if isC a1 && isC x1 && isI x2 then
-              cP
+              cR
             else
               r
       NotApp -> r
