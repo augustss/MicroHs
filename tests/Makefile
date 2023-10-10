@@ -21,6 +21,7 @@ test:
 	$(MHS) Rank2      && $(EVAL) > Rank2.out      && diff Rank2.ref Rank2.out
 	$(MHS) Catch      && $(EVAL) > Catch.out      && diff Catch.ref Catch.out
 	$(MHS) FArith     && $(EVAL) > FArith.out     && diff FArith.ref FArith.out
+	$(MHS) Infix      && $(EVAL) > Infix.out      && diff Infix.ref Infix.out
 
 time:
 	@echo Expect about 10s runtime

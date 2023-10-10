@@ -391,11 +391,24 @@ pEqns = P.do
 
 pEqn :: (Ident -> Int -> Bool) -> P (Ident, Eqn)
 pEqn test = P.do
-  name <- pLIdentSym
-  pats <- emany pAPat
+  (name, pats) <- pEqnLHS
   alts <- pAlts (pSymbol "=")
   guard (test name (length pats))
   P.pure (name, Eqn pats alts)
+
+pEqnLHS :: P (Ident, [EPat])
+pEqnLHS =
+  ((,) <$> pLIdentSym <*> emany pAPat)
+  <|>   -- XXX this <|> causes a slowdown, but is necessary
+  pOpLHS
+  <|<
+  ((\ (i, ps1) ps2 -> (i, ps1 ++ ps2)) <$> pParens pOpLHS <*> emany pAPat)
+  where
+    pOpLHS = (\ p1 i p2 -> (i, [p1,p2])) <$> pPatApp <*> pLOper <*> pPatApp
+    pLOper = P.do
+      i <- pOper
+      guard (not (isConIdent i))
+      P.pure i
 
 pAlts :: P () -> P EAlts
 pAlts sep = P.do
