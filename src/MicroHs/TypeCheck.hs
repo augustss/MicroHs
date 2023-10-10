@@ -414,15 +414,10 @@ getTuple n t = loop t []
         loop _ _ = Nothing
 -}
 
-addUVar :: Int -> EType -> T ()
-addUVar i t = T.do
-  let
-    add = T.do
-      TC mn n fx tenv senv venv sub m <- get
-      put (TC mn n fx tenv senv venv (IM.insert i t sub) m)
-  case t of
-    EUVar j -> if i == j then T.return () else add
-    _ -> add
+setUVar :: TRef -> EType -> T ()
+setUVar i t = T.do
+  TC mn n fx tenv senv venv sub m <- get
+  put (TC mn n fx tenv senv venv (IM.insert i t sub) m)
 
 getUVar :: Int -> T (Maybe EType)
 getUVar i = gets (IM.lookup i . uvarSubst)
@@ -431,12 +426,6 @@ munify :: --XHasCallStack =>
           SLoc -> Expected -> EType -> T ()
 munify _   (Infer r) b = tSetRefType r b
 munify loc (Check a) b = unify loc a b
-
-expandType :: --XHasCallStack =>
-              EType -> T EType
-expandType at = T.do
-  tt <- derefUVar at
-  expandSyn tt
 
 expandSyn :: --XHasCallStack =>
              EType -> T EType
@@ -474,13 +463,55 @@ derefUVar at =
         Nothing -> T.return at
         Just t -> T.do
           t' <- derefUVar t
-          addUVar i t'
+          setUVar i t'
           T.return t'
     EVar _ -> T.return at
     ESign t k -> flip ESign k <$> derefUVar t
     EForall iks t -> EForall iks <$> derefUVar t
     _ -> impossible
 
+unify :: --XHasCallStack =>
+         SLoc -> EType -> EType -> T ()
+unify loc a b = T.do
+  aa <- expandSyn a
+  bb <- expandSyn b
+  unifyR loc aa bb
+
+-- XXX should do occur check
+unifyR :: --XHasCallStack =>
+          SLoc -> EType -> EType -> T ()
+unifyR _   (EVar x1)    (EVar x2)  | eqIdent x1 x2 = T.return ()
+unifyR loc (EApp f1 a1) (EApp f2 a2)               = T.do { unifyR loc f1 f2; unifyR loc a1 a2 }
+unifyR _   (EUVar r1)   (EUVar r2) | r1 == r2      = T.return ()
+unifyR loc (EUVar r1)   t2                         = unifyVar loc r1 t2
+unifyR loc t1           (EUVar r2)                 = unifyVar loc r2 t1
+unifyR loc t1           t2                         =
+  tcError loc $ "Cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2 ++ "\n"
+
+unifyVar :: --XHasCallStack =>
+            SLoc -> TRef -> EType -> T ()
+unifyVar loc r t = T.do
+  mt <- getUVar r
+  case mt of
+    Nothing -> unifyUnboundVar loc r t
+    Just t' -> unify loc t' t
+
+unifyUnboundVar :: --XHasCallStack =>
+            SLoc -> TRef -> EType -> T ()
+unifyUnboundVar loc r1 at2@(EUVar r2) = T.do
+  -- We know r1 /= r2
+  mt2 <- getUVar r2
+  case mt2 of
+    Nothing -> setUVar r1 at2
+    Just t2 -> unify loc (EUVar r1) t2
+unifyUnboundVar loc r1 t2 = T.do
+  vs <- getMetaTyVars [t2]
+  if elemBy (==) r1 vs then
+    tcError loc $ "Cyclic type"
+   else
+    setUVar r1 t2
+
+{-
 unify :: --XHasCallStack =>
          SLoc -> EType -> EType -> T ()
 unify loc a b = T.do
@@ -514,6 +545,7 @@ unifyR loc a b = T.do
     EUVar i -> addUVar i b
     _ -> --Xtrace ("impossible unify 2 " ++ showExpr a ++ " = " ++ showExpr b) $
          impossible
+-}
 
 {-
 unMType :: Expected -> T EType
@@ -1311,37 +1343,14 @@ getFreeTyVars tys = T.do
   tys' <- T.mapM derefUVar tys
   T.return (freeTyVars tys')
 
-{-
-getMetaTyVars :: [EType] -> T [MetaTv]
+getMetaTyVars :: [EType] -> T [TRef]
 getMetaTyVars tys = T.do
-  tys' <- T.mapM zonkType tys
+  tys' <- T.mapM derefUVar tys
   T.return (metaTvs tys')
--}
 
 getEnvTypes :: T [EType]
 getEnvTypes = gets (map entryType . concat . M.elems . valueTable)
 
-{-
-zonkType :: EType -> T EType
-zonkType (EForall ns ty) = T.do
-  ty' <- zonkType ty
-  T.return (EForall ns ty')
-zonkType t@(EVar _) = T.return t
-zonkType t@(EUVar tv) = T.do -- A mutable type variable
-  mb_ty <- getUVar tv
-  case mb_ty of
-    Nothing -> T.return t
-    Just ty -> T.do
-      ty' <- zonkType ty
-      --writeTcRef tv ty' -- "Short out" multiple hops
-      addUVar tv ty'
-      T.return ty'
-zonkType (EApp arg res) = T.do
-  arg' <- zonkType arg
-  res' <- zonkType res
-  T.return (EApp arg' res')
-zonkType _ = undefined
--}
 {-
 quantify :: [MetaTv] -> Rho -> T Sigma
 -- Quantify over the specified type variables (all flexible)
@@ -1401,8 +1410,7 @@ freeTyVars = foldr (go []) []
     go _bound (EUVar _) acc = acc
     go _ _ _ = undefined
 
-{-
-metaTvs :: [EType] -> [MetaTv]
+metaTvs :: [EType] -> [TRef]
 -- Get the MetaTvs from a type; no duplicates in result
 metaTvs tys = foldr go [] tys
   where
@@ -1410,10 +1418,11 @@ metaTvs tys = foldr go [] tys
       | elemBy eqInt tv acc = acc
       | otherwise = tv : acc
     go (EVar _) acc = acc
-    go (EForall _ ty) acc = go ty acc -- ForAll binds TyVars only
+    go (EForall _ ty) acc = go ty acc
     go (EApp fun arg) acc = go fun (go arg acc)
     go _ _ = undefined
 
+{-
 tyVarBndrs :: Rho -> [TyVar]
 -- Get all the binders used in ForAlls in the type, so that
 -- when quantifying an outer for-all we can avoid these inner ones
