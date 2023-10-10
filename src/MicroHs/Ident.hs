@@ -6,6 +6,7 @@ module MicroHs.Ident(
   mkIdent, mkIdentLoc, unIdent, eqIdent, leIdent, qualIdent, showIdent, getSLocIdent, setSLocIdent,
   mkIdentSLoc,
   isLower_, isIdentChar, isOperChar, isConIdent,
+  isDummyIdent,
   unQualString,
   SLoc(..), noSLoc, isNoSLoc,
   showSLoc,
@@ -87,6 +88,10 @@ isIdentChar c = isLower_ c || isUpper c || isDigit c || eqChar c '\''
 
 isLower_ :: Char -> Bool
 isLower_ c = isLower c || eqChar c '_'
+
+isDummyIdent :: Ident -> Bool
+isDummyIdent (Ident _ "_") = True
+isDummyIdent _ = False
 
 showSLoc :: SLoc -> String
 showSLoc (SLoc fn l c) =

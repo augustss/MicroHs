@@ -179,7 +179,8 @@ isPConApp (EApp f _) = isPConApp f
 isPConApp _ = True
 
 patVars :: EPat -> [Ident]
-patVars = filter (not . isConIdent) . allVarsExpr
+patVars = filter isVar . allVarsExpr
+  where isVar v = not (isConIdent v) && not (isDummyIdent v)
 
 type LHS = (Ident, [IdKind])
 

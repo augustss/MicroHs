@@ -877,7 +877,7 @@ tcExprR mt ae =
     EVar i -> T.do
       tcm <- gets tcMode
       case tcm of
-        TCPat | isUnderscore i -> T.do
+        TCPat | isDummyIdent i -> T.do
                 -- _ can be anything, so just ignore it
                 _ <- tGetExpTypeSet mt
                 T.return ae
@@ -902,7 +902,7 @@ tcExprR mt ae =
           
         _ -> T.do
           -- Type checking an expression (or type)
-          T.when (isUnderscore i) impossible
+          T.when (isDummyIdent i) impossible
           (e, t) <- tLookup "variable" i
           -- Variables bound in patterns start with an (EUVar ref) type,
           -- which can be instantiated to a polytype.
@@ -1182,7 +1182,7 @@ tCheckPat t p@(EVar v) ta | not (isConIdent v) = T.do  -- simple special case
   withExtVals [(v, t)] $ ta p
 tCheckPat t ap ta = T.do
 --  traceM $ "tcPat: " ++ show ap
-  let vs = filter (not . isUnderscore) $ patVars ap
+  let vs = patVars ap
   multCheck vs
   env <- T.mapM (\ v -> (v,) <$> newUVar) vs
   withExtVals env $ T.do
@@ -1297,9 +1297,6 @@ showTModule :: forall a . (a -> String) -> TModule a -> String
 showTModule sh amdl =
   case amdl of
     TModule mn _ _ _ _ a -> "Tmodule " ++ showIdent mn ++ "\n" ++ sh a
-
-isUnderscore :: Ident -> Bool
-isUnderscore = eqString "_" . unIdent
 
 {-
 showValueTable :: ValueTable -> String
