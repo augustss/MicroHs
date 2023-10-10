@@ -1183,13 +1183,18 @@ tCheckPat t p@(EVar v) ta | not (isConIdent v) = T.do  -- simple special case
 tCheckPat t ap ta = T.do
 --  traceM $ "tcPat: " ++ show ap
   let vs = filter (not . isUnderscore) $ patVars ap
-  T.when (anySameBy eqIdent vs) $
-    tcError (getSLocIdent (head vs)) "Multiply defined"
+  multCheck vs
   env <- T.mapM (\ v -> (v,) <$> newUVar) vs
   withExtVals env $ T.do
     pp <- withTCMode TCPat $ tCheckExpr t ap
     () <- checkArity 0 pp
     ta pp
+
+multCheck :: [Ident] -> T ()
+multCheck vs =
+  T.when (anySameBy eqIdent vs) $ T.do
+    let v = head vs
+    tcError (getSLocIdent v) $ "Multiply defined: " ++ showIdent v
 
 checkArity :: Int -> EPat -> T ()
 checkArity n (EApp f a) = T.do
@@ -1222,6 +1227,7 @@ tcBinds xbs ta = T.do
   let
     tmap = M.fromList [ (i, t) | BSign i t <- xbs ]
     xs = concatMap getBindVars xbs
+  multCheck xs
   xts <- T.mapM (tcBindVarT tmap) xs
   withExtVals xts $ T.do
     nbs <- T.mapM tcBind xbs

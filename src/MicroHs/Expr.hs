@@ -8,7 +8,7 @@ module MicroHs.Expr(
   Expr(..), showExpr,
   Listish(..),
   Lit(..), showLit, eqLit,
-  EBind(..),
+  EBind(..), showEBind,
   Eqn(..),
   EStmt(..),
   EAlts(..),
