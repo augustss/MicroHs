@@ -47,7 +47,7 @@ mainCompile flags mn = do
         e -> e
     def :: ((Ident, Exp), Int) -> (String -> String) -> (String -> String)
     def ((_, e), i) r =
-      (("(($A :" ++ showInt i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
+      (("((A :" ++ showInt i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
     res = foldr def (toStringP emain) (zip ds (enumFrom 0)) ""
     numDefs = M.size defs
   when (verbose flags > 0) $
@@ -68,4 +68,4 @@ mainCompile flags mn = do
       putStrLn $ "final pass            " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
 
 version :: String
-version = "v3.5\n"
+version = "v4.0\n"

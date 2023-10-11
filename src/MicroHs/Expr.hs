@@ -442,15 +442,22 @@ showCon (ConData _ s) = showIdent s
 showCon (ConNew s) = showIdent s
 showCon (ConLit l) = showLit l
 
+-- Literals are tagged the way they appear in the combinator file:
+--  #   Int
+--  %   Double
+--  '   Char    (not in file)
+--  "   String
+--  ^   FFI function
+--      primitive
 showLit :: Lit -> String
 showLit l =
   case l of
-    LInt i -> showInt i
+    LInt i    -> '#' : showInt i
     LDouble d -> '%' : D.showDouble d
-    LChar c -> showChar c
-    LStr s -> showString s
-    LPrim s -> '$' : s
-    LForImp s -> '#' : s
+    LChar c   -> showChar c
+    LStr s    -> showString s
+    LPrim s   -> s
+    LForImp s -> '^' : s
 
 showEStmt :: EStmt -> String
 showEStmt as =

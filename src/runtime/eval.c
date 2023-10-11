@@ -135,7 +135,7 @@ getraw()
 
 /***************************************/
 
-#define VERSION "v3.5\n"
+#define VERSION "v4.0\n"
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -991,7 +991,12 @@ value_t
 parse_int(BFILE *f)
 {
   value_t i = 0;
+  value_t neg = 1;
   int c = f->getb(f);
+  if (c == '-') {
+    neg = -1;
+    c = f->getb(f);
+  }
   for(;;) {
     i = i * 10 + c - '0';
     c = f->getb(f);
@@ -1000,7 +1005,7 @@ parse_int(BFILE *f)
       break;
     }
   }
-  return i;
+  return neg * i;
 }
 
 double
@@ -1063,7 +1068,6 @@ parse(BFILE *f)
   heapoffs_t l;
   value_t i;
   double d;
-  value_t neg;
   int c;
   char buf[80];                 /* store names of primitives. */
 
@@ -1078,6 +1082,15 @@ parse(BFILE *f)
     ARG(r) = parse(f);
     if (!gobble(f, ')')) ERR("parse ')'");
     return r;
+  case '%':
+    d = parse_double(f);
+    r = mkDouble(d);
+    return r;
+  case '#':
+    i = parse_int(f);
+    r = mkInt(i);
+    return r;
+#if 0
   case '-':
     c = f->getb(f);
     neg = -1;
@@ -1086,10 +1099,6 @@ parse(BFILE *f)
     } else {
       ERR("got -");
     }
-  case '%':
-    d = parse_double(f);
-    r = mkDouble(d);
-    return r;
   case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
     /* integer [0-9]+*/
     neg = 1;
@@ -1098,18 +1107,7 @@ parse(BFILE *f)
     i = neg * parse_int(f);
     r = mkInt(i);
     return r;
-  case '$':
-    /* A primitive, keep getting char's until end */
-    for (int j = 0; (buf[j] = getNT(f)); j++)
-      ;
-    /* Look up the primop and use the preallocated node. */
-    for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
-      if (strcmp(primops[j].name, buf) == 0) {
-        return primops[j].node;
-      }
-    }
-    fprintf(stderr, "eval: bad primop %s\n", buf);
-    ERR("no primop");
+#endif
   case '_' :
     /* Reference to a shared value: _label */
     l = parse_int(f);  /* The label */
@@ -1161,7 +1159,7 @@ parse(BFILE *f)
       r = mkStrNode(realloc(buffer, p - buffer));
       return r;
     }
-  case '#':
+  case '^':
     /* An FFI name */
     for (int j = 0; (buf[j] = getNT(f)); j++)
       ;
@@ -1169,8 +1167,18 @@ parse(BFILE *f)
     SETVALUE(r, lookupFFIname(buf));
     return r;
   default:
-    fprintf(stderr, "parse '%c'\n", c);
-    ERR("parse default");
+    buf[0] = c;
+    /* A primitive, keep getting char's until end */
+    for (int j = 1; (buf[j] = getNT(f)); j++)
+      ;
+    /* Look up the primop and use the preallocated node. */
+    for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
+      if (strcmp(primops[j].name, buf) == 0) {
+        return primops[j].node;
+      }
+    }
+    fprintf(stderr, "eval: bad primop %s\n", buf);
+    ERR("no primop");
   }
 }
 
@@ -1320,8 +1328,8 @@ printrec(FILE *f, NODEPTR n)
     printrec(f, ARG(n));
     fputc(')', f);
     break;
-  case T_INT: fprintf(f, "%"PRIvalue, GETVALUE(n)); break;
-  case T_DOUBLE: fprintf(f, "%f", GETDOUBLEVALUE(n)); break;
+  case T_INT: fprintf(f, "#%"PRIvalue, GETVALUE(n)); break;
+  case T_DOUBLE: fprintf(f, "%%%f", GETDOUBLEVALUE(n)); break;
   case T_STR:
     {
       const char *p = STR(n);
@@ -1339,84 +1347,84 @@ printrec(FILE *f, NODEPTR n)
     }
   case T_HDL:
     if (HANDLE(n) == stdin)
-      fprintf(f, "$IO.stdin");
+      fprintf(f, "IO.stdin");
     else if (HANDLE(n) == stdout)
-      fprintf(f, "$IO.stdout");
+      fprintf(f, "IO.stdout");
     else if (HANDLE(n) == stderr)
-      fprintf(f, "$IO.stderr");
+      fprintf(f, "IO.stderr");
     else
       ERR("Cannot serialize handles");
     break;
-  case T_S: fprintf(f, "$S"); break;
-  case T_K: fprintf(f, "$K"); break;
-  case T_I: fprintf(f, "$I"); break;
-  case T_C: fprintf(f, "$C"); break;
-  case T_B: fprintf(f, "$B"); break;
-  case T_A: fprintf(f, "$A"); break;
-  case T_T: fprintf(f, "$T"); break;
-  case T_Y: fprintf(f, "$Y"); break;
-  case T_P: fprintf(f, "$P"); break;
-  case T_O: fprintf(f, "$O"); break;
-  case T_SS: fprintf(f, "$S'"); break;
-  case T_BB: fprintf(f, "$B'"); break;
-  case T_BK: fprintf(f, "$BK"); break;
-  case T_CC: fprintf(f, "$C'"); break;
-  case T_ADD: fprintf(f, "$+"); break;
-  case T_SUB: fprintf(f, "$-"); break;
-  case T_MUL: fprintf(f, "$*"); break;
-  case T_QUOT: fprintf(f, "$quot"); break;
-  case T_REM: fprintf(f, "$rem"); break;
-  case T_UQUOT: fprintf(f, "$uquot"); break;
-  case T_UREM: fprintf(f, "$urem"); break;
-  case T_SUBR: fprintf(f, "$subtract"); break;
-  case T_FADD: fprintf(f, "$fadd"); break;
-  case T_FSUB: fprintf(f, "$fsub"); break;
-  case T_FMUL: fprintf(f, "$fmul"); break;
-  case T_FDIV: fprintf(f, "$fdiv"); break;
-  case T_FEQ: fprintf(f, "$feq"); break;
-  case T_FNE: fprintf(f, "$fne"); break;
-  case T_FLT: fprintf(f, "$flt"); break;
-  case T_FLE: fprintf(f, "$fle"); break;
-  case T_FGT: fprintf(f, "$fgt"); break;
-  case T_FGE: fprintf(f, "$fge"); break;
-  case T_FSHOW: fprintf(f, "$fshow"); break;
-  case T_FREAD: fprintf(f, "$fread"); break;
-  case T_EQ: fprintf(f, "$=="); break;
-  case T_NE: fprintf(f, "$/="); break;
-  case T_LT: fprintf(f, "$<"); break;
-  case T_LE: fprintf(f, "$<="); break;
-  case T_GT: fprintf(f, "$>"); break;
-  case T_GE: fprintf(f, "$>="); break;
-  case T_ULT: fprintf(f, "$u<"); break;
-  case T_ULE: fprintf(f, "$u<="); break;
-  case T_UGT: fprintf(f, "$u>"); break;
-  case T_UGE: fprintf(f, "$u>="); break;
-  case T_ERROR: fprintf(f, "$error"); break;
-  case T_EQUAL: fprintf(f, "$equal"); break;
-  case T_COMPARE: fprintf(f, "$compare"); break;
-  case T_RNF: fprintf(f, "$rnf"); break;
-  case T_SEQ: fprintf(f, "$seq"); break;
-  case T_IO_BIND: fprintf(f, "$IO.>>="); break;
-  case T_IO_THEN: fprintf(f, "$IO.>>"); break;
-  case T_IO_RETURN: fprintf(f, "$IO.return"); break;
-  case T_IO_GETCHAR: fprintf(f, "$IO.getChar"); break;
-  case T_IO_GETRAW: fprintf(f, "$IO.getRaw"); break;
-  case T_IO_PUTCHAR: fprintf(f, "$IO.putChar"); break;
-  case T_IO_SERIALIZE: fprintf(f, "$IO.serialize"); break;
-  case T_IO_PRINT: fprintf(f, "$IO.print"); break;
-  case T_IO_DESERIALIZE: fprintf(f, "$IO.deserialize"); break;
-  case T_IO_OPEN: fprintf(f, "$IO.open"); break;
-  case T_IO_CLOSE: fprintf(f, "$IO.close"); break;
-  case T_IO_FLUSH: fprintf(f, "$IO.flush"); break;
-  case T_IO_ISNULLHANDLE: fprintf(f, "$IO.isNullHandle"); break;
-  case T_IO_GETARGS: fprintf(f, "$IO.getArgs"); break;
-  case T_IO_DROPARGS: fprintf(f, "$IO.dropArgs"); break;
-  case T_IO_GETTIMEMILLI: fprintf(f, "$IO.getTimeMilli"); break;
-  case T_IO_PERFORMIO: fprintf(f, "$IO.performIO"); break;
-  case T_IO_CCALL: fprintf(f, "#%s", ffi_table[GETVALUE(n)].ffi_name); break;
-  case T_IO_CATCH: fprintf(f, "$IO.catch"); break;
-  case T_ISINT: fprintf(f, "$isInt"); break;
-  case T_ISIO: fprintf(f, "$isIO"); break;
+  case T_S: fprintf(f, "S"); break;
+  case T_K: fprintf(f, "K"); break;
+  case T_I: fprintf(f, "I"); break;
+  case T_C: fprintf(f, "C"); break;
+  case T_B: fprintf(f, "B"); break;
+  case T_A: fprintf(f, "A"); break;
+  case T_T: fprintf(f, "T"); break;
+  case T_Y: fprintf(f, "Y"); break;
+  case T_P: fprintf(f, "P"); break;
+  case T_O: fprintf(f, "O"); break;
+  case T_SS: fprintf(f, "S'"); break;
+  case T_BB: fprintf(f, "B'"); break;
+  case T_BK: fprintf(f, "BK"); break;
+  case T_CC: fprintf(f, "C'"); break;
+  case T_ADD: fprintf(f, "+"); break;
+  case T_SUB: fprintf(f, "-"); break;
+  case T_MUL: fprintf(f, "*"); break;
+  case T_QUOT: fprintf(f, "quot"); break;
+  case T_REM: fprintf(f, "rem"); break;
+  case T_UQUOT: fprintf(f, "uquot"); break;
+  case T_UREM: fprintf(f, "urem"); break;
+  case T_SUBR: fprintf(f, "subtract"); break;
+  case T_FADD: fprintf(f, "fadd"); break;
+  case T_FSUB: fprintf(f, "fsub"); break;
+  case T_FMUL: fprintf(f, "fmul"); break;
+  case T_FDIV: fprintf(f, "fdiv"); break;
+  case T_FEQ: fprintf(f, "feq"); break;
+  case T_FNE: fprintf(f, "fne"); break;
+  case T_FLT: fprintf(f, "flt"); break;
+  case T_FLE: fprintf(f, "fle"); break;
+  case T_FGT: fprintf(f, "fgt"); break;
+  case T_FGE: fprintf(f, "fge"); break;
+  case T_FSHOW: fprintf(f, "fshow"); break;
+  case T_FREAD: fprintf(f, "fread"); break;
+  case T_EQ: fprintf(f, "=="); break;
+  case T_NE: fprintf(f, "/="); break;
+  case T_LT: fprintf(f, "<"); break;
+  case T_LE: fprintf(f, "<="); break;
+  case T_GT: fprintf(f, ">"); break;
+  case T_GE: fprintf(f, ">="); break;
+  case T_ULT: fprintf(f, "u<"); break;
+  case T_ULE: fprintf(f, "u<="); break;
+  case T_UGT: fprintf(f, "u>"); break;
+  case T_UGE: fprintf(f, "u>="); break;
+  case T_ERROR: fprintf(f, "error"); break;
+  case T_EQUAL: fprintf(f, "equal"); break;
+  case T_COMPARE: fprintf(f, "compare"); break;
+  case T_RNF: fprintf(f, "rnf"); break;
+  case T_SEQ: fprintf(f, "seq"); break;
+  case T_IO_BIND: fprintf(f, "IO.>>="); break;
+  case T_IO_THEN: fprintf(f, "IO.>>"); break;
+  case T_IO_RETURN: fprintf(f, "IO.return"); break;
+  case T_IO_GETCHAR: fprintf(f, "IO.getChar"); break;
+  case T_IO_GETRAW: fprintf(f, "IO.getRaw"); break;
+  case T_IO_PUTCHAR: fprintf(f, "IO.putChar"); break;
+  case T_IO_SERIALIZE: fprintf(f, "IO.serialize"); break;
+  case T_IO_PRINT: fprintf(f, "IO.print"); break;
+  case T_IO_DESERIALIZE: fprintf(f, "IO.deserialize"); break;
+  case T_IO_OPEN: fprintf(f, "IO.open"); break;
+  case T_IO_CLOSE: fprintf(f, "IO.close"); break;
+  case T_IO_FLUSH: fprintf(f, "IO.flush"); break;
+  case T_IO_ISNULLHANDLE: fprintf(f, "IO.isNullHandle"); break;
+  case T_IO_GETARGS: fprintf(f, "IO.getArgs"); break;
+  case T_IO_DROPARGS: fprintf(f, "IO.dropArgs"); break;
+  case T_IO_GETTIMEMILLI: fprintf(f, "IO.getTimeMilli"); break;
+  case T_IO_PERFORMIO: fprintf(f, "IO.performIO"); break;
+  case T_IO_CCALL: fprintf(f, "^%s", ffi_table[GETVALUE(n)].ffi_name); break;
+  case T_IO_CATCH: fprintf(f, "IO.catch"); break;
+  case T_ISINT: fprintf(f, "isInt"); break;
+  case T_ISIO: fprintf(f, "isIO"); break;
   default: ERR("print tag");
   }
 }
@@ -2249,6 +2257,12 @@ main(int argc, char **argv)
 
   PUSH(prog); gc(); prog = TOP(0); POP(1);
   heapoffs_t start_size = num_marked;
+  if (0) {
+    /* Save GCed file, it's smaller */
+    FILE *out = fopen("gc.comb", "w");
+    print(out, prog, 1);
+    fclose(out);
+  }
   if (verbose > 2) {
     //pp(stdout, prog);
     print(stdout, prog, 1);
