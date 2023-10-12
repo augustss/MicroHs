@@ -2190,7 +2190,8 @@ BFILE *comb_internal;
 int
 main(int argc, char **argv)
 {
-  char *fn = 0;
+  char *inname = 0;
+  char *outname = 0;
   char **av;
   size_t file_size;
   NODEPTR prog;
@@ -2215,9 +2216,11 @@ main(int argc, char **argv)
         else if (strncmp(p, "-K", 2) == 0)
           stack_size = memsize(&p[2]);
         else if (strncmp(p, "-r", 2) == 0)
-          fn = &p[2];
+          inname = &p[2];
+        else if (strncmp(p, "-o", 2) == 0)
+          outname = &p[2];
         else
-          ERR("Usage: eval [+RTS [-v] [-Hheap-size] [-Kstack-size] [-rFILE] -RTS] arg ...");
+          ERR("Usage: eval [+RTS [-v] [-Hheap-size] [-Kstack-size] [-rFILE] [-oFILE] -RTS] arg ...");
       }
     } else {
       if (strcmp(p, "+RTS") == 0) {
@@ -2229,8 +2232,8 @@ main(int argc, char **argv)
   }
   glob_argc = av - glob_argv;
 
-  if (fn == 0)
-    fn = "out.comb";
+  if (inname == 0)
+    inname = "out.comb";
 
   init_nodes();
   stack = malloc(sizeof(NODEPTR) * stack_size);
@@ -2252,16 +2255,19 @@ main(int argc, char **argv)
     prog = parse_top(bf);
     bf->closeb(bf);
   } else {
-    prog = parse_file(fn, &file_size);
+    prog = parse_file(inname, &file_size);
   }
 
   PUSH(prog); gc(); prog = TOP(0); POP(1);
   heapoffs_t start_size = num_marked;
-  if (0) {
-    /* Save GCed file, it's smaller */
-    FILE *out = fopen("gc.comb", "w");
+  if (outname) {
+    /* Save GCed file (smaller), and exit. */
+    FILE *out = fopen(outname, "w");
+    if (!out)
+      ERR("output file");
     print(out, prog, 1);
     fclose(out);
+    exit(0);
   }
   if (verbose > 2) {
     //pp(stdout, prog);

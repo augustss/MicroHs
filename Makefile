@@ -153,7 +153,8 @@ clean:
 tmp/eval.c: src/runtime/eval.c $(EVAL) $(COMB)$(MHS).comb 
 	@mkdir -p tmp
 	cp src/runtime/eval.c tmp/eval.c
-	$(EVAL) +RTS -K10M -r$(COMB)$(MHS).comb -RTS -ilib -iTools -r Compress < $(COMB)$(MHS).comb | \
+	$(EVAL) +RTS -r$(COMB)$(MHS).comb -o$(COMB)$(MHS)-gc.comb -RTS
+	$(EVAL) +RTS -K10M -r$(COMB)$(MHS).comb -RTS -ilib -iTools -r Compress < $(COMB)$(MHS)-gc.comb | \
 	$(EVAL) +RTS -K10M -r$(COMB)$(MHS).comb -RTS -ilib -iTools -r Addcombs >> tmp/eval.c
 
 ###
