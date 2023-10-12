@@ -15,7 +15,6 @@ module MicroHs.Expr(
   EAlt,
   ECaseArm,
   EType, showEType,
-  ETypeScheme,
   EPat, patVars, isPVar, isPConApp,
   EKind, kType,
   IdKind(..), idKindIdent,
@@ -191,9 +190,6 @@ data Constr = Constr Ident [EType]
 --  * after desugaring: EApp and EVar
 --  * before desugaring: EApp, EVar, ETuple, EList
 type EType = Expr
-
--- A type starting with an EForall
-type ETypeScheme = EType
 
 data IdKind = IdKind Ident EKind
   --Xderiving (Show, Eq)

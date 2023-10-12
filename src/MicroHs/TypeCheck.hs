@@ -29,18 +29,18 @@ data ValueExport = ValueExport Ident Entry
   --Xderiving (Show)
 
 type FixDef = (Ident, Fixity)
-type SynDef = (Ident, ETypeScheme)
+type SynDef = (Ident, EType)
 
-data Entry = Entry Expr ETypeScheme
+data Entry = Entry Expr EType
   --Xderiving(Show)
 
-entryType :: Entry -> ETypeScheme
+entryType :: Entry -> EType
 entryType (Entry _ t) = t
 
 type ValueTable = M.Map [Entry]
 type TypeTable  = M.Map [Entry]
 type KindTable  = M.Map [Entry]
-type SynTable   = M.Map ETypeScheme
+type SynTable   = M.Map EType
 type FixTable   = M.Map Fixity
 
 type Sigma = EType
@@ -320,13 +320,13 @@ initTC mn fs ts ss vs =
     xvs = foldr (uncurry M.insert) vs primValues
   in TC mn 1 fs xts ss xvs IM.empty TCExpr
 
-kTypeS :: ETypeScheme
+kTypeS :: EType
 kTypeS = kType
 
-kTypeTypeS :: ETypeScheme
+kTypeTypeS :: EType
 kTypeTypeS = kArrow kType kType
 
-kTypeTypeTypeS :: ETypeScheme
+kTypeTypeTypeS :: EType
 kTypeTypeTypeS = kArrow kType $ kArrow kType kType
 
 builtinLoc :: SLoc
@@ -584,7 +584,7 @@ tLookupInst msg i = T.do
   T.return (e, t)
 
 tLookup :: --XHasCallStack =>
-           String -> Ident -> T (Expr, ETypeScheme)
+           String -> Ident -> T (Expr, EType)
 tLookup msg i = T.do
   env <- gets valueTable
   case M.lookup i env of
@@ -593,7 +593,7 @@ tLookup msg i = T.do
     Just [Entry e s] -> T.return (setSLocExpr (getSLocIdent i) e, s)
     Just _ -> tcError (getSLocIdent i) $ "ambiguous " ++ msg ++ ": " ++ showIdent i
 
-tInst :: ETypeScheme -> T EType
+tInst :: EType -> T EType
 tInst as =
   case as of
     EForall vks t ->
@@ -605,34 +605,34 @@ tInst as =
     t -> T.return t
 
 extValE :: --XHasCallStack =>
-           Ident -> ETypeScheme -> Expr -> T ()
+           Ident -> EType -> Expr -> T ()
 extValE i t e = T.do
   venv <- gets valueTable
   putValueTable (M.insert i [Entry e t] venv)
 
 extQVal :: --XHasCallStack =>
-           Ident -> ETypeScheme -> T ()
+           Ident -> EType -> T ()
 extQVal i t = T.do
   mn <- gets moduleName
   extValE i t (EVar $ qualIdent mn i)
 
 extVal :: --XHasCallStack =>
-          Ident -> ETypeScheme -> T ()
+          Ident -> EType -> T ()
 extVal i t = extValE i t $ EVar i
 
 extVals :: --XHasCallStack =>
-           [(Ident, ETypeScheme)] -> T ()
+           [(Ident, EType)] -> T ()
 extVals = T.mapM_ (uncurry extVal)
 
-extTyp :: Ident -> ETypeScheme -> T ()
+extTyp :: Ident -> EType -> T ()
 extTyp i t = T.do
   tenv <- gets typeTable
   putTypeTable (M.insert i [Entry (EVar i) t] tenv)
 
-extTyps :: [(Ident, ETypeScheme)] -> T ()
+extTyps :: [(Ident, EType)] -> T ()
 extTyps = T.mapM_ (uncurry extTyp)
 
-extSyn :: Ident -> ETypeScheme -> T ()
+extSyn :: Ident -> EType -> T ()
 extSyn i t = T.do
   senv <- gets synTable
   putSynTable (M.insert i t senv)
@@ -644,7 +644,7 @@ extFix i fx = T.do
   T.return ()
 
 withExtVal :: forall a . --XHasCallStack =>
-              Ident -> ETypeScheme -> T a -> T a
+              Ident -> EType -> T a -> T a
 withExtVal i t ta = T.do
   venv <- gets valueTable
   extVal i t
@@ -653,7 +653,7 @@ withExtVal i t ta = T.do
   T.return a
 
 withExtVals :: forall a . --XHasCallStack =>
-               [(Ident, ETypeScheme)] -> T a -> T a
+               [(Ident, EType)] -> T a -> T a
 withExtVals env ta = T.do
   venv <- gets valueTable
   extVals env
@@ -1265,7 +1265,7 @@ tcBinds xbs ta = T.do
     nbs <- T.mapM tcBind xbs
     ta nbs
 
-tcBindVarT :: M.Map ETypeScheme -> Ident -> T (Ident, ETypeScheme)
+tcBindVarT :: M.Map EType -> Ident -> T (Ident, EType)
 tcBindVarT tmap x = T.do
   case M.lookup x tmap of
     Nothing -> T.do

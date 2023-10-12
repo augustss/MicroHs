@@ -252,7 +252,7 @@ pDef =
   <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> pUIdent) <*> pAType
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
   <|< uncurry Fcn <$> pEqns
-  <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
+  <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pType
   <|< Import      <$> (pKeyword "import" *> pImportSpec)
   <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
@@ -288,16 +288,6 @@ pIdKind =
 
 pKind :: P EKind
 pKind = pType
-
-{-
-pTypeScheme :: P ETypeScheme
-pTypeScheme = P.do
-  vs <- (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
-  t <- pType
-  pure $ if null vs then t else EForall vs t
--}
-pTypeScheme :: P ETypeScheme
-pTypeScheme = pType
 
 --
 -- Partial copy of pExpr, but that includes '->'.
@@ -529,7 +519,7 @@ pBind :: P EBind
 pBind = 
       uncurry BFcn <$> pEqns
   <|< BPat         <$> (pPatNotVar <* pSymbol "=") <*> pExpr
-  <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pTypeScheme
+  <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pType
 
 -------------
 
