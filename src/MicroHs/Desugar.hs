@@ -506,6 +506,8 @@ checkDup :: [LDef] -> [LDef]
 checkDup ds =
   case getDups eqIdent (filter (not . eqIdent dummyIdent) $ map fst ds) of
     [] -> ds
-    (i1:i2:_) : _ ->
-      errorMessage (getSLocIdent i1) $ "Duplicate " ++ showIdent i1 ++ " " ++ showSLoc (getSLocIdent i2)
+    (i1:_i2:_) : _ ->
+      errorMessage (getSLocIdent i1) $ "duplicate definition " ++ showIdent i1
+        -- XXX mysteriously the location for i2 is the same as i1
+        -- ++ ", also at " ++ showSLoc (getSLocIdent i2)
     _ -> error "checkDup"

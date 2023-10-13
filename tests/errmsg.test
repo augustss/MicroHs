@@ -1,8 +1,25 @@
+amodule M() where
+-----
+mhs: "../tmp/E.hs": line 2, col 1:
+  found:    amodule
+  expected: module
+
+=====
+module M() where
+x :: Int
+x = 1 +
+y = 0
+-----
+mhs: "../tmp/E.hs": line 5, col 1:
+  found:    ;
+  expected: LQIdent ( UQIdent [ literal primitive \ case let if QualDo do
+
+=====
 module E() where
 import Prelude
 x = y
 -----
-mhs: "../tmp/E.hs": line 4, col 1: undefined no type signature: x
+mhs: "../tmp/E.hs": line 4, col 1: no type signature: x
 
 =====
 module E() where
@@ -10,7 +27,24 @@ import Prelude
 x :: Int
 x = y
 -----
-mhs: "../tmp/E.hs": line 5, col 5: undefined variable: y
+mhs: "../tmp/E.hs": line 5, col 5: undefined value identifier: y
+
+=====
+module E() where
+import Prelude
+x :: Int
+x = A
+-----
+mhs: "../tmp/E.hs": line 5, col 5: undefined value identifier: A
+
+=====
+module E() where
+import Prelude
+import Control.Monad.State.Strict
+x :: Int
+x = fmap
+-----
+mhs: "../tmp/E.hs": line 6, col 5: ambiguous value identifier: fmap
 
 =====
 module E() where
@@ -18,7 +52,27 @@ import Prelude
 x :: T
 x = 1
 -----
-mhs: "../tmp/E.hs": line 4, col 6: undefined variable: T
+mhs: "../tmp/E.hs": line 4, col 6: undefined type identifier: T
+
+=====
+module E() where
+import Prelude
+x :: a
+x = 1
+-----
+mhs: "../tmp/E.hs": line 4, col 6: undefined type identifier: a
+
+=====
+module E() where
+import Prelude
+x :: Int
+x = 1
+y :: Int
+y = 2
+x :: Int
+x = 3
+-----
+mhs: "../tmp/E.hs": line 2, col 8: duplicate definition E.x
 
 =====
 module E() where
@@ -60,6 +114,21 @@ x :: Int
 x = 1 +++ 2 *** 3
 -----
 mhs: "../tmp/E.hs": line 11, col 13: ambiguous operator expression
+
+=====
+module E() where
+import Prelude
+a :: Int
+a = 'a'
+-----
+mhs: "../tmp/E.hs": line 5, col 5: type error: cannot unify Primitives.Char and Primitives.Int
+
+=====
+module E() where
+import Prelude
+data T = C Maybe
+-----
+mhs: "../tmp/E.hs": line 4, col 12: kind error: cannot unify Primitives.Type and (a0 -> a1)
 
 =====
 END

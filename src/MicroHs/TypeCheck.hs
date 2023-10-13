@@ -482,6 +482,14 @@ derefUVar at =
     EForall iks t -> EForall iks <$> derefUVar t
     _ -> impossible
 
+tcErrorTK :: SLoc -> String -> T ()
+tcErrorTK loc msg = T.do
+  tcm <- gets tcMode
+  let s = case tcm of
+            TCType -> "kind"
+            _      -> "type"
+  tcError loc $ s ++ " error: " ++ msg
+
 unify :: --XHasCallStack =>
          SLoc -> EType -> EType -> T ()
 unify loc a b = T.do
@@ -498,7 +506,7 @@ unifyR _   (EUVar r1)   (EUVar r2) | r1 == r2      = T.return ()
 unifyR loc (EUVar r1)   t2                         = unifyVar loc r1 t2
 unifyR loc t1           (EUVar r2)                 = unifyVar loc r2 t1
 unifyR loc t1           t2                         =
-  tcError loc $ "Cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2 ++ "\n"
+  tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
 
 unifyVar :: --XHasCallStack =>
             SLoc -> TRef -> EType -> T ()
@@ -519,7 +527,7 @@ unifyUnboundVar loc r1 at2@(EUVar r2) = T.do
 unifyUnboundVar loc r1 t2 = T.do
   vs <- getMetaTyVars [t2]
   if elemBy (==) r1 vs then
-    tcError loc $ "Cyclic type"
+    tcErrorTK loc $ "cyclic " ++ showExpr (EUVar r1) ++ " = " ++ showExpr t2
    else
     setUVar r1 t2
 
@@ -587,23 +595,24 @@ newUniq = T.do
   put (TC mn (n+1) fx tenv senv venv sub m)
   T.return n
 
-tLookupInst :: --XHasCallStack =>
-               String -> Ident -> T (Expr, EType)
-tLookupInst msg i = T.do
-  (e, s) <- tLookup msg i
---  traceM ("lookup " ++ show (i, s))
-  t <- tInst s
-  T.return (e, t)
-
 tLookup :: --XHasCallStack =>
-           String -> Ident -> T (Expr, EType)
-tLookup msg i = T.do
+           String -> String -> Ident -> T (Expr, EType)
+tLookup msg0 msgN i = T.do
   env <- gets valueTable
   case M.lookup i env of
-    Nothing -> tcError (getSLocIdent i) $ "undefined " ++ msg ++ ": " ++ showIdent i
+    Nothing -> tcError (getSLocIdent i) $ msg0 ++ ": " ++ showIdent i
                -- ++ "\n" ++ show env ;
     Just [Entry e s] -> T.return (setSLocExpr (getSLocIdent i) e, s)
-    Just _ -> tcError (getSLocIdent i) $ "ambiguous " ++ msg ++ ": " ++ showIdent i
+    Just _ -> tcError (getSLocIdent i) $ msgN ++ ": " ++ showIdent i
+
+tLookupV :: --XHasCallStack =>
+           Ident -> T (Expr, EType)
+tLookupV i = T.do
+  tcm <- gets tcMode
+  let s = case tcm of
+            TCType -> "type"
+            _      -> "value"
+  tLookup ("undefined " ++ s ++ " identifier") ("ambiguous " ++ s ++ " identifier") i
 
 tInst :: EType -> T EType
 tInst as =
@@ -818,7 +827,7 @@ tcDefValue adef =
   case adef of
     Fcn i eqns -> T.do
 --      traceM $ "tcDefValue: " ++ show i -- ++ " = " ++ showExpr rhs
-      (_, tt) <- tLookup "no type signature" i
+      (_, tt) <- tLookup "no type signature" "many type signatures" i
       let (iks, tfn) = unForall tt
       mn <- gets moduleName
       teqns <- withExtTyps iks $ tcEqns tfn eqns
@@ -927,7 +936,8 @@ tcExprR mt ae =
                 T.return ae
 
               | isConIdent i -> T.do
-                (p, pt) <- tLookupInst "constructor" i
+                (p, cpt) <- tLookupV i
+                pt <- tInst cpt
                 -- We will only have an expected type for a non-nullary constructor
                 case mt of
                   Check ext -> subsCheck loc ext pt
@@ -938,7 +948,7 @@ tcExprR mt ae =
                 -- All pattern variables are in the environment as
                 -- type references.  Assign the reference the given type.
                 ext <- tGetExpTypeSet mt
-                (p, t) <- tLookup "IMPOSSIBLE" i
+                (p, t) <- tLookupV i
                 case t of
                   EUVar r -> tSetRefType r ext
                   _ -> impossible
@@ -947,7 +957,7 @@ tcExprR mt ae =
         _ -> T.do
           -- Type checking an expression (or type)
           T.when (isDummyIdent i) impossible
-          (e, t) <- tLookup "variable" i
+          (e, t) <- tLookupV i
           -- Variables bound in patterns start with an (EUVar ref) type,
           -- which can be instantiated to a polytype.
           -- Dereference such a ref.
@@ -996,7 +1006,7 @@ tcExprR mt ae =
         [as] ->
           case as of
             SThen a -> tcExpr mt a
-            _ -> tcError loc $ "bad do "
+            _ -> tcError loc $ "bad final do statement"
         as : ss -> T.do
           case as of
             SBind p a -> T.do
@@ -1076,7 +1086,7 @@ tcExprR mt ae =
           instSigma loc t' mt
           checkSigma e t'
     EAt i e -> T.do
-      (_, ti) <- tLookup "IMPOSSIBLE" i
+      (_, ti) <- tLookupV i
       e' <- tcExpr mt e
       tt <- tGetExpType mt
       case ti of
@@ -1130,7 +1140,7 @@ tcOper ae aies = T.do
 
     opfix :: FixTable -> (Ident, Expr) -> T ((Expr, Fixity), Expr)
     opfix fixs (i, e) = T.do
-      (ei, _) <- tLookup "operator" i
+      (ei, _) <- tLookupV i
       let fx = getFixity fixs (getIdent ei)
       T.return ((EVar i, fx), e)
 
@@ -1219,7 +1229,7 @@ subsCheck loc sigma1 sigma2 = T.do -- Rule DEEP-SKOL
   esc_tvs <- getFreeTyVars [sigma1,sigma2]
   let bad_tvs = filter (\ i -> elemBy eqIdent i esc_tvs) skol_tvs
   T.when (not (null bad_tvs)) $
-    tcError loc "Subsumption check failed"
+    tcErrorTK loc "Subsumption check failed"
 
 tCheckPat :: forall a . EType -> EPat -> (EPat -> T a) -> T a
 tCheckPat t p@(EVar v) ta | not (isConIdent v) = T.do  -- simple special case
@@ -1291,7 +1301,7 @@ tcBind :: EBind -> T EBind
 tcBind abind =
   case abind of
     BFcn i eqns -> T.do
-      (_, tt) <- tLookup "impossible!" i
+      (_, tt) <- tLookupV i
       let (iks, tfn) = unForall tt
       teqns <- withExtTyps iks $ tcEqns tfn eqns
       T.return $ BFcn i teqns
@@ -1467,7 +1477,7 @@ checkSigma expr sigma = T.do
     esc_tvs <- getFreeTyVars (sigma : env_tys)
     let bad_tvs = filter (\ i -> elemBy eqIdent i esc_tvs) skol_tvs
     T.when (not (null bad_tvs)) $
-      tcError (getSLocExpr expr) "Type not polymorphic enough"
+      tcErrorTK (getSLocExpr expr) "not polymorphic enough"
     T.return expr'
 
 subsCheckRho :: SLoc -> Sigma -> Rho -> T ()
