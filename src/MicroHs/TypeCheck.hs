@@ -132,7 +132,7 @@ expLookup :: Ident -> M.Map [Entry] -> Entry
 expLookup i m =
   case M.lookup i m of
     Just [e] -> e
-    Just _ -> errorMessage (getSLocIdent i) $ ": Ambiguous export " ++ showIdent i
+    Just _ -> errorMessage (getSLocIdent i) $ "ambiguous export " ++ showIdent i
     Nothing -> expErr i
 
 tyQIdent :: Entry -> Ident
@@ -158,11 +158,8 @@ getAppCon _ = error "getAppCon"
 eVarI :: SLoc -> String -> Expr
 eVarI loc = EVar . mkIdentSLoc loc
 
---tcExpErr :: forall a . Ident -> T a
---tcExpErr i = tcError (getSLocIdent i) $ ": export undefined " ++ showIdent i
-
 expErr :: forall a . Ident -> a
-expErr i = errorMessage (getSLocIdent i) $ ": export undefined " ++ showIdent i
+expErr i = errorMessage (getSLocIdent i) $ "export undefined " ++ showIdent i
 
 mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
 mkTModule mn tds a =
@@ -1122,7 +1119,7 @@ tcOper ae aies = T.do
     calc es oos@((oy, (ay, py)):os) iies@((oo@(ox, (ax, px)), e) : ies) =
 --      traceM (show ((unIdent (getIdent (fst o)), ay, py), (unIdent i, ax, px)))
       if px == py && (not (eqAssoc ax ay) || eqAssoc ax AssocNone) then
-        errorMessage (getSLocExpr ox) "Ambiguous operator expression"
+        errorMessage (getSLocExpr ox) "ambiguous operator expression"
        else if px < py || eqAssoc ax AssocLeft && px == py then
         doOp es oy os iies
        else

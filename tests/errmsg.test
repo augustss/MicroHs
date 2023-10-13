@@ -1,22 +1,65 @@
+module E() where
+import Prelude
 x = y
 -----
-mhs: "../tmp/E.hs": line 3, col 1: undefined no type signature: x
+mhs: "../tmp/E.hs": line 4, col 1: undefined no type signature: x
+
 =====
+module E() where
+import Prelude
 x :: Int
 x = y
 -----
-mhs: "../tmp/E.hs": line 4, col 5: undefined variable: y
+mhs: "../tmp/E.hs": line 5, col 5: undefined variable: y
+
 =====
+module E() where
+import Prelude
 x :: T
 x = 1
 -----
-mhs: "../tmp/E.hs": line 3, col 6: undefined variable: T
+mhs: "../tmp/E.hs": line 4, col 6: undefined variable: T
+
 =====
+module E() where
+import Prelude
 type T a = [a]
 data D (f :: Type -> Type) = D (f Int)
 x :: D T
 x = [0]
 -----
-mhs: "../tmp/E.hs": line 5, col 8: bad synonym use
+mhs: "../tmp/E.hs": line 6, col 8: bad synonym use
+
+=====
+module E(fmap) where
+import Prelude
+import Control.Monad.State.Strict
+-----
+mhs: "../tmp/E.hs": line 2, col 10: ambiguous export fmap
+
+=====
+module E(module M) where
+-----
+mhs: "../tmp/E.hs": line 2, col 17: export undefined M
+
+=====
+module E(M) where
+-----
+mhs: "../tmp/E.hs": line 2, col 10: export undefined M
+
+=====
+module E() where
+import Prelude
+infixl 5 +++
+infixr 5 ***
+(+++) :: Int -> Int -> Int
+(+++) = (+)
+(***) :: Int -> Int -> Int
+(***) = (*)
+x :: Int
+x = 1 +++ 2 *** 3
+-----
+mhs: "../tmp/E.hs": line 11, col 13: ambiguous operator expression
+
 =====
 END
