@@ -33,6 +33,6 @@ while [ "$line" != "END" ]; do
     #cat $err
     #echo "==="
     #echo "next: $line"
-    $comp -i../lib -i../tmp E 2>&1 | sed -e '/CallStack/,$d' > $cerr
+    $comp -i../lib -i../tmp E 2>&1 | sed -e '/CallStack/,$d' -e '/^XX/d' > $cerr
     diff $err $cerr || exit 1
 done

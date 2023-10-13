@@ -12,4 +12,11 @@ x = 1
 -----
 mhs: "../tmp/E.hs": line 3, col 6: undefined variable: T
 =====
+type T a = [a]
+data D (f :: Type -> Type) = D (f Int)
+x :: D T
+x = [0]
+-----
+mhs: "../tmp/E.hs": line 5, col 8: bad synonym use
+=====
 END

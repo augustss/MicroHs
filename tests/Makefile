@@ -1,6 +1,8 @@
 MHS=../bin/mhs -i../lib
 EVAL=../bin/mhseval
-.PHONY: test time clean
+.PHONY: test time clean errtest alltest
+
+alltest:	test errtest
 
 test:
 	$(MHS) IOTest && (echo q | $(EVAL) a bb ccc | sed 's/^.ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
@@ -22,6 +24,8 @@ test:
 	$(MHS) Catch      && $(EVAL) > Catch.out      && diff Catch.ref Catch.out
 	$(MHS) FArith     && $(EVAL) > FArith.out     && diff FArith.ref FArith.out
 	$(MHS) Infix      && $(EVAL) > Infix.out      && diff Infix.ref Infix.out
+
+errtest:
 	sh errtester.sh < errmsg.test
 
 time:
