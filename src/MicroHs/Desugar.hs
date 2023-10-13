@@ -48,6 +48,8 @@ dsDef mn adef =
     Import _ -> []
     ForImp ie i _ -> [(i, Lit $ LForImp ie)]
     Infix _ _ -> []
+    Class _ _ _ -> []  -- XXX probably needs a default instance
+    Instance _ _ _ -> []  -- XXX probably needs instance record
 
 oneAlt :: Expr -> EAlts
 oneAlt e = EAlts [([], e)] []

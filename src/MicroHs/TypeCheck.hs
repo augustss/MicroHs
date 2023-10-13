@@ -329,6 +329,14 @@ kTypeTypeS = kArrow kType kType
 kTypeTypeTypeS :: EType
 kTypeTypeTypeS = kArrow kType $ kArrow kType kType
 
+-- (=>) :: Constraint -> Type -> Type
+kConstraintTypeTypeS :: EType
+kConstraintTypeTypeS = kArrow kConstraint $ kArrow kType kType
+
+-- (~) :: Type -> Type -> Constraint
+kTypeTypeConstraintS :: EType
+kTypeTypeConstraintS = kArrow kType (kArrow kType kConstraint)
+
 builtinLoc :: SLoc
 builtinLoc = SLoc "builtin" 0 0
 
@@ -343,6 +351,7 @@ primKindTable =
        -- The kinds are wired in (for now)
        (mkIdentB "Primitives.Type", [entry "Primitives.Type" kTypeS]),
        (mkIdentB "Type",            [entry "Primitives.Type" kTypeS]),
+       (mkIdentB "Constraint",      [entry "Primitives.Constraint" kTypeS]),
        (mkIdentB "Primitives.->",   [entry "Primitives.->"   kTypeTypeTypeS]),
        (mkIdentB "->",              [entry "Primitives.->"   kTypeTypeTypeS])
        ]
@@ -357,8 +366,11 @@ primTypes =
       in  (i, [entry (unIdent i) $ foldr kArrow kType (replicate n kType)])
   in  
       [
-       -- The function arrow is bothersome to define in Primtives, so keep it here.
+       -- The function arrow et al are bothersome to define in Primitives, so keep them here.
+       -- But the fixity is defined in Primitives.
        (mkIdentB "->",           [entry "Primitives.->"       kTypeTypeTypeS]),
+       (mkIdentB "=>",           [entry "Primitives.=>"       kConstraintTypeTypeS]),
+       (mkIdentB "~",            [entry "Primitives.~"        kTypeTypeConstraintS]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        (mkIdentB "Data.List.[]", [entry "Data.List.[]"        kTypeTypeS])
       ] ++

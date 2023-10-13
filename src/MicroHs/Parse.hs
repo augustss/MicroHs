@@ -115,9 +115,10 @@ pLQIdent = P.do
   satisfyM "LQIdent" is
 
 keywords :: [String]
-keywords = ["case", "data", "do", "else", "forall", "foreign", "if", "import",
-  "in", "infix", "infixl", "infixr",
-  "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
+keywords =
+  ["case", "class", "data", "do", "else", "forall", "foreign", "if", "import",
+   "in", "infix", "infixl", "infixr", "instance",
+   "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
 pSpec c = () <$ satisfy [c] is
@@ -253,14 +254,17 @@ pDef =
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
   <|< uncurry Fcn <$> pEqns
   <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pType
-  <|< Import      <$> (pKeyword "import" *> pImportSpec)
+  <|< Import      <$> (pKeyword "import"  *> pImportSpec)
   <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
+  <|< Class       <$> (pKeyword "class"    *> pContext) <*> pLHS     <*> pWhere pClsBind
+  <|< Instance    <$> (pKeyword "instance" *> pContext) <*> pTypeApp <*> pWhere pClsBind
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
-    dig (TInt _ i) | -1 <= i && i <= 9 = Just i
+    dig (TInt _ i) | -2 <= i && i <= 9 = Just i
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
+    pContext = optional (pTypeApp <* pSymbol "=>")
 
 pLHS :: P LHS
 pLHS = (,) <$> pUIdentSym <*> emany pIdKind
@@ -303,7 +307,7 @@ pTypeOp :: P EType
 pTypeOp = pOperators pTypeOper pTypeArg
 
 pTypeOper :: P Ident
-pTypeOper = pOper <|< (mkIdent "->" <$ pSymbol "->")
+pTypeOper = pOper <|< (mkIdent "->" <$ pSymbol "->") <|< (mkIdent "=>" <$ pSymbol "=>")
 
 pTypeArg :: P EType
 pTypeArg = pTypeApp
@@ -403,7 +407,7 @@ pEqnLHS =
 pAlts :: P () -> P EAlts
 pAlts sep = P.do
   alts <- pAltsL sep
-  bs <- pWhere
+  bs <- pWhere pBind
   P.pure (EAlts alts bs)
   
 pAltsL :: P () -> P [EAlt]
@@ -411,9 +415,9 @@ pAltsL sep =
       esome ((,) <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr))
   <|< ((\ e -> [([], e)]) <$> (sep *> pExpr))
 
-pWhere :: P [EBind]
-pWhere =
-      (pKeyword "where" *> pBlock pBind)
+pWhere :: P EBind -> P [EBind]
+pWhere pb =
+      (pKeyword "where" *> pBlock pb)
   <|< P.pure []
 
 -------------
@@ -517,8 +521,12 @@ pOperators oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
 
 pBind :: P EBind
 pBind = 
+      BPat         <$> (pPatNotVar <* pSymbol "=") <*> pExpr
+  <|< pClsBind
+
+pClsBind :: P EBind
+pClsBind = 
       uncurry BFcn <$> pEqns
-  <|< BPat         <$> (pPatNotVar <* pSymbol "=") <*> pExpr
   <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pType
 
 -------------

@@ -15,8 +15,9 @@ module MicroHs.Expr(
   EAlt,
   ECaseArm,
   EType, showEType,
+  EConstraint,
   EPat, patVars, isPVar, isPConApp,
-  EKind, kType,
+  EKind, kType, kConstraint,
   IdKind(..), idKindIdent,
   LHS,
   Constr(..),
@@ -62,6 +63,8 @@ data EDef
   | Import ImportSpec
   | ForImp String Ident EType
   | Infix Fixity [Ident]
+  | Class (Maybe EConstraint) LHS [EBind]
+  | Instance (Maybe EConstraint) EType [EBind]  -- no deriving yet
   --Xderiving (Show, Eq)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
@@ -191,6 +194,8 @@ data Constr = Constr Ident [EType]
 --  * before desugaring: EApp, EVar, ETuple, EList
 type EType = Expr
 
+type EConstraint = EType
+
 data IdKind = IdKind Ident EKind
   --Xderiving (Show, Eq)
 
@@ -201,6 +206,9 @@ type EKind = EType
 
 kType :: EKind
 kType = EVar (Ident noSLoc "Primitives.Type")
+
+kConstraint :: EKind
+kConstraint = EVar (Ident noSLoc "Primitives.Constraint")
 
 tupleConstr :: SLoc -> Int -> Ident
 tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
@@ -371,6 +379,10 @@ showEDef def =
     ForImp ie i t -> "foreign import ccall " ++ showString ie ++ " " ++ showIdent i ++ " :: " ++ showEType t
     Infix (a, p) is -> "infix" ++ f a ++ " " ++ showInt p ++ " " ++ intercalate ", " (map showIdent is)
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
+    Class sup lhs bs -> "class " ++ ctx sup ++ showLHS lhs ++ showWhere bs
+    Instance ct ty bs -> "instance " ++ ctx ct ++ showEType ty ++ showWhere bs
+ where ctx Nothing = ""
+       ctx (Just t) = showEType t ++ " => "
 
 showConstr :: Constr -> String
 showConstr (Constr i ts) = unwords (showIdent i : map showEType ts)
