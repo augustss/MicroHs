@@ -1,8 +1,10 @@
 {-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# LANGUAGE PatternSynonyms #-}
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.Exp(
   compileOpt,
+--  compileOptX,
   substExp,
   Exp(..), showExp, eqExp, toStringP,
   PrimOp,
@@ -21,6 +23,27 @@ import MicroHs.Expr(Lit(..), showLit, eqLit)
 --import Debug.Trace
 
 type PrimOp = String
+
+--
+-- Used combinators
+--   * indicates that the implementation uses an indirection
+--   + indicates allocation in the implementation
+-- S  x y z   = x z (y z)             +
+-- K  x y     = x                     *
+-- I  x       = x                     *
+-- B  x y z   = x (y z)               +
+-- C  x y z   = x z y                 +
+-- S' x y z w = x (y w) (z w)         +
+-- B' x y z w = x y (z w)             +
+-- C' x y z w = x (y w) z             +
+-- A  x y     = y                     *
+-- T  x y     = y x
+-- n@(Y x)    = x n
+-- BK x y z   = x y
+-- P  x y z   = z x y                 +
+-- R  x y z   = y z x                 +
+-- O  x y z w = w x y                 +
+--
 
 data Exp
   = Var Ident
@@ -102,6 +125,9 @@ cSpread = Lit (LPrim "S")
 
 cP :: Exp
 cP = Lit (LPrim "P")
+
+--cR :: Exp
+--cR = Lit (LPrim "R")
 
 {-
 eqExp :: Exp -> Exp -> Bool
@@ -255,6 +281,8 @@ cC a1 e3 =
               cCC e1 e2 e3
             else if isC bc && isI e1 then
               app2 cP e2 e3
+--            else if isC bc && isC e1 then
+--              app2 cR e2 e3
             else
               r
 
@@ -273,6 +301,7 @@ cC2 a1 a2 =
 cC (App (App CB e1) e2) e3          = cCC e1 e2 e3      -- C (B e1 e2) e3  = C' e1 e2 e3
 cC (Var op)             e2 | Just op' <- lookup op flipOps = App (Var op') e2 -- C op e = flip-op e
 cC (App (App CC CI) e2) e3          = app2 CP e2 e3
+cC (App (App CC CC) e2) e3          = app2 CR e2 e3
 cC e1                   e2          = app2 CC e1 e2
 -}
 
@@ -365,6 +394,8 @@ improveT ae =
           Lit (LPrim "T")
         else if isB ff && isB aa then
           Lit (LPrim "B'")
+        else if isC ff && isC aa then
+          Lit (LPrim "R")
         else
           let
             def =
@@ -449,6 +480,7 @@ allVarsExp ae =
 --------
 -- Possible additions
 --
+-- Added:
 --  R = C C
 --  R x y z = (C C x y) z = C y x z = y z x
 --
@@ -484,3 +516,82 @@ allVarsExp ae =
 --  C'C x y z w = C' C x y z w = C (x z) y w = x z w y
 
 
+---------------------------------------------------------------
+
+{-
+data Peano = S Peano | Z
+  --Xderiving (Show)
+data DB = N Peano | L DB | A DB DB | Free Ident | K Lit
+  --Xderiving (Show)
+
+index :: Ident -> [Ident] -> Maybe Peano
+index x xs = lookupBy eqIdent x $ zip xs $ iterate S Z
+
+deBruijn :: Exp -> DB
+deBruijn = go [] where
+  go binds e =
+    case e of
+      Var x -> maybe (Free x) N $ index x binds
+      App t u -> A (go binds t) (go binds u)
+      Lam x t -> L $ go (x:binds) t
+      Lit l -> K l
+
+type CL = Exp
+type BCL = ([Bool], CL)
+
+com :: String -> Exp
+com s = Lit (LPrim s)
+(@@) :: Exp -> Exp -> Exp
+(@@) f a = App f a
+
+convertBool :: (BCL -> BCL -> CL) -> DB -> BCL
+convertBool (#) ee =
+  case ee of
+    N Z -> (True:[], com "I")
+    N (S e) -> (False:g, d) where (g, d) = rec $ N e
+    L e -> case rec e of
+             ([], d) -> ([], com "K" @@ d)
+             (False:g, d) -> (g, ([], com "K") # (g, d))
+             (True:g, d) -> (g, d)
+    A e1 e2 -> (zipWithDefault False (||) g1 g2, t1 # t2) where
+      t1@(g1, _) = rec e1
+      t2@(g2, _) = rec e2
+    Free s -> ([], Var s)
+    K l -> ([], Lit l)
+  where rec = convertBool (#)
+
+optEta :: DB -> BCL
+optEta = convertBool (#) where
+  (#) ([], d1)           {- # -} ([],       d2)      = d1 @@ d2
+  (#) ([], d1)           {- # -} (True:[],  Lit (LPrim "I")) = d1
+  (#) ([], d1)           {- # -} (True:g2,  d2)      = ([], com "B" @@ d1) # (g2, d2)
+  (#) ([], d1)           {- # -} (False:g2, d2)      = ([], d1) # (g2, d2)
+  (#) (True:[], Lit (LPrim "I")) {- # -} ([],       d2)      = com "T" @@ d2
+  (#) (True:[], Lit (LPrim "I")) {- # -} (False:g2, d2)      = ([], com "T") # (g2, d2)
+  (#) (True:g1, d1)      {- # -} ([],       d2)      = ([], com "R" @@ d2) # (g1, d1)
+  (#) (True:g1, d1)      {- # -} (True:g2,  d2)      = (g1, ([], com "S") # (g1, d1)) # (g2, d2)
+  (#) (True:g1, d1)      {- # -} (False:g2, d2)      = (g1, ([], com "C") # (g1, d1)) # (g2, d2)
+  (#) (False:g1, d1)     {- # -} ([],       d2)      = (g1, d1) # ([], d2)
+  (#) (False:_g1, d1)    {- # -} (True:[],  Lit (LPrim "I")) = d1
+  (#) (False:g1, d1)     {- # -} (True:g2,  d2)      = (g1, ([], com "B") # (g1, d1)) # (g2, d2)
+  (#) (False:g1, d1)     {- # -} (False:g2, d2)      = (g1, d1) # (g2, d2)
+
+zipWithDefault :: forall a b . a -> (a -> a -> b) -> [a] -> [a] -> [b]
+zipWithDefault d f     []     ys = map (f d) ys
+zipWithDefault d f     xs     [] = map (flip f d) xs
+zipWithDefault d f (x:xt) (y:yt) = f x y : zipWithDefault d f xt yt
+
+compileOptX :: Exp -> Exp
+compileOptX = snd . optEta . deBruijn
+-}
+
+---------
+--
+-- C C x y z = C y x z = y z x
+-- C C == R
+-- R x y z = y z x
+--
+-- R True False x = False x True = K x A = x A 
+-- not x = R True False x = 
+-- False = K
+-- True = A
