@@ -108,7 +108,7 @@ getTVExps _ tys _ vals (ExpTypeCon i) =
   let
     e = expLookup i tys
     qi = tyQIdent e
-  in ([TypeExport i e $ constrsOf qi (M.toList vals)], [], [])
+  in seq e ([TypeExport i e $ constrsOf qi (M.toList vals)], [], [])
 getTVExps _ tys syns _ (ExpType i) =
   let
     e = expLookup i tys
@@ -116,10 +116,12 @@ getTVExps _ tys syns _ (ExpType i) =
     se = case M.lookup qi syns of
            Nothing -> []
            Just ts -> [(qi, ts)]
-  in ([TypeExport i e []], se, [])
+  in seq e ([TypeExport i e []], se, [])
 --  in ([TypeExport i e []], [])
 getTVExps _ _ _ vals (ExpValue i) =
-    ([], [], [ValueExport i (expLookup i vals)])
+  let
+    e = (expLookup i vals)
+  in seq e ([], [], [ValueExport i e])
 
 -- Export all fixities and synonyms.
 -- The synonyms might be needed, and the fixities are harmless
