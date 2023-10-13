@@ -34,5 +34,5 @@ while [ "$line" != "END" ]; do
     #echo "==="
     #echo "next: $line"
     $comp -i../lib -i../tmp E 2>&1 | sed -e '/CallStack/,$d' > $cerr
-    diff $err $cerr
+    diff $err $cerr || exit 1
 done

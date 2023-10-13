@@ -22,6 +22,7 @@ test:
 	$(MHS) Catch      && $(EVAL) > Catch.out      && diff Catch.ref Catch.out
 	$(MHS) FArith     && $(EVAL) > FArith.out     && diff FArith.ref FArith.out
 	$(MHS) Infix      && $(EVAL) > Infix.out      && diff Infix.ref Infix.out
+	sh errtester.sh < errmsg.test
 
 time:
 	@echo Expect about 10s runtime
