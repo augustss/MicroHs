@@ -738,14 +738,14 @@ tcDefType d = T.do
     Type    lhs    t -> Type    lhs   <$> withVars (snd lhs) (tcInferTypeT t)
     Sign    i      t -> (Sign    i  ) <$> tcTypeT (Check kType) t
     ForImp  ie i   t -> (ForImp ie i) <$> tcTypeT (Check kType) t
-    Class   mc lhs m -> withVars (snd lhs) $ Class <$> tcCtx mc <*> pure lhs <*> mapM tcMethod m
-    Instance vs mc t m -> withVars vs $ Instance vs <$> tcCtx mc <*> tcTypeT (Check kConstraint) t <*> pure m
+    Class   mc lhs m -> withVars (snd lhs) $ Class <$> tcCtx mc T.<*> T.return lhs T.<*> T.mapM tcMethod m
+    Instance vs mc t m -> withVars vs $ Instance vs <$> tcCtx mc T.<*> tcTypeT (Check kConstraint) t T.<*> T.return m
     _                -> T.return d
  where
-   tcCtx Nothing  = pure Nothing
+   tcCtx Nothing  = T.return Nothing
    tcCtx (Just c) = Just <$> tcTypeT (Check kConstraint) c
    tcMethod (BSign i t) = BSign i <$> tcTypeT (Check kType) t
-   tcMethod m = pure m
+   tcMethod m = T.return m
 
 withVars :: forall a . [IdKind] -> T a -> T a
 withVars aiks ta =

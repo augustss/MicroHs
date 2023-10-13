@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans -Wno-dodgy-imports -Wno-unused-imports #-}
 module MicroHs.TCMonad(
   TC, tcRun,
-  fmap, (<$>),
+  fmap, (<$>), (<*>),
   (>>=), (>>), return, fail,
   get, put, gets,
   mapM, mapM_,

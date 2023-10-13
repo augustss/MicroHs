@@ -31,6 +31,12 @@ fmap f sa = S $ \ s ->
 (<$>) :: forall s a b . (a -> b) -> State s a -> State s b
 (<$>) = Control.Monad.State.Strict.fmap
 
+(<*>) :: forall s a b . State s (a -> b) -> State s a -> State s b
+(<*>) sf sa = Control.Monad.State.Strict.do
+  f <- sf
+  a <- sa
+  Control.Monad.State.Strict.return (f a)
+
 modify :: forall s . (s -> s) -> State s ()
 modify f = S $ \ s -> ((), f s)
 
