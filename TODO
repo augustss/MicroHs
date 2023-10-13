@@ -34,3 +34,4 @@
   - The IORef will need GC support
 * Redo type synonym expansion
   - Only non-injective synonyms necessitate expansion(?)
+* Tests for error messages
