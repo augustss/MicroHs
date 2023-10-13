@@ -63,8 +63,8 @@ data EDef
   | Import ImportSpec
   | ForImp String Ident EType
   | Infix Fixity [Ident]
-  | Class (Maybe EConstraint) LHS [EBind]
-  | Instance (Maybe EConstraint) EType [EBind]  -- no deriving yet
+  | Class (Maybe EConstraint) LHS [EBind]  -- XXX will probable need initial forall with FD
+  | Instance [IdKind] (Maybe EConstraint) EConstraint [EBind]  -- no deriving yet
   --Xderiving (Show, Eq)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
@@ -380,7 +380,7 @@ showEDef def =
     Infix (a, p) is -> "infix" ++ f a ++ " " ++ showInt p ++ " " ++ intercalate ", " (map showIdent is)
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs bs -> "class " ++ ctx sup ++ showLHS lhs ++ showWhere bs
-    Instance ct ty bs -> "instance " ++ ctx ct ++ showEType ty ++ showWhere bs
+    Instance vs ct ty bs -> "instance " ++ showForall vs ++ ctx ct ++ showEType ty ++ showWhere bs
  where ctx Nothing = ""
        ctx (Just t) = showEType t ++ " => "
 
@@ -403,7 +403,7 @@ showAlts sep (EAlts alts bs) = showAltsL sep alts ++ showWhere bs
 
 showWhere :: [EBind] -> String
 showWhere [] = ""
-showWhere bs = "where\n" ++ unlines (map showEBind bs)
+showWhere bs = " where\n" ++ unlines (map showEBind bs)
 
 showAltsL :: String -> [EAlt] -> String
 showAltsL sep [([], e)] = " " ++ sep ++ " " ++ showExpr e
@@ -433,14 +433,19 @@ showExpr ae =
     EAt i e -> showIdent i ++ "@" ++ showExpr e
     EUVar i -> "a" ++ showInt i
     ECon c -> showCon c
-    EForall iks e -> "forall " ++ unwords (map showIdKind iks) ++ " . " ++ showEType e
+    EForall iks e -> showForall iks ++ showEType e
   where
     showApp as (EApp f a) = showApp (a:as) f
     showApp as (EVar i) | eqString op "->", [a, b] <- as = "(" ++ showExpr a ++ " -> " ++ showExpr b ++ ")"
+                        | eqString op "=>", [a, b] <- as = showExpr a ++ " => " ++ showExpr b
                         | eqChar (head op) ',' = showExpr (ETuple as)
                         | eqString op "[]", length as == 1 = showExpr (EListish (LList as))
                         where op = unQualString (unIdent i)
     showApp as f = "(" ++ unwords (map showExpr (f:as)) ++ ")"
+
+showForall :: [IdKind] -> String
+showForall [] = ""
+showForall iks = "forall " ++ unwords (map showIdKind iks) ++ " . "
 
 showListish :: Listish -> String
 showListish _ = "<<Listish>>"

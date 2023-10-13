@@ -258,7 +258,7 @@ pDef =
   <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class       <$> (pKeyword "class"    *> pContext) <*> pLHS     <*> pWhere pClsBind
-  <|< Instance    <$> (pKeyword "instance" *> pContext) <*> pTypeApp <*> pWhere pClsBind
+  <|< Instance    <$> (pKeyword "instance" *> pForall) <*> pContext <*> pTypeApp <*> pWhere pClsBind
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ i) | -2 <= i && i <= 9 = Just i
@@ -299,9 +299,12 @@ pKind = pType
 -- in lambda and 'case'.
 pType :: P EType
 pType = P.do
-  vs <- (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
+  vs <- pForall
   t <- pTypeOp
   pure $ if null vs then t else EForall vs t
+
+pForall :: P [IdKind]
+pForall = (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
 
 pTypeOp :: P EType
 pTypeOp = pOperators pTypeOper pTypeArg

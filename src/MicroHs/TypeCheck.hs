@@ -348,11 +348,12 @@ primKindTable =
     entry i = Entry (EVar (mkIdentB i))
   in M.fromList [
        -- The kinds are wired in (for now)
-       (mkIdentB "Primitives.Type", [entry "Primitives.Type" kTypeS]),
-       (mkIdentB "Type",            [entry "Primitives.Type" kTypeS]),
-       (mkIdentB "Constraint",      [entry "Primitives.Constraint" kTypeS]),
-       (mkIdentB "Primitives.->",   [entry "Primitives.->"   kTypeTypeTypeS]),
-       (mkIdentB "->",              [entry "Primitives.->"   kTypeTypeTypeS])
+       (mkIdentB "Primitives.Type",       [entry "Primitives.Type" kTypeS]),
+       (mkIdentB "Type",                  [entry "Primitives.Type" kTypeS]),
+       (mkIdentB "Constraint",            [entry "Primitives.Constraint" kTypeS]),
+       (mkIdentB "Primitives.Constraint", [entry "Primitives.Constraint" kTypeS]),
+       (mkIdentB "Primitives.->",         [entry "Primitives.->"   kTypeTypeTypeS]),
+       (mkIdentB "->",                    [entry "Primitives.->"   kTypeTypeTypeS])
        ]
 
 primTypes :: [(Ident, [Entry])]
@@ -531,53 +532,6 @@ unifyUnboundVar loc r1 t2 = T.do
    else
     setUVar r1 t2
 
-{-
-unify :: --XHasCallStack =>
-         SLoc -> EType -> EType -> T ()
-unify loc a b = T.do
---  traceM ("unify1 " ++ showExpr a ++ " = " ++ showExpr b)
-  aa <- expandType a
-  bb <- expandType b
---  traceM ("unify2 " ++ showExpr aa ++ " = " ++ showExpr bb)
-  unifyR loc aa bb
-
--- XXX should do occur check
-unifyR :: --XHasCallStack =>
-          SLoc -> EType -> EType -> T ()
-unifyR loc a b = T.do
-  let
-    bad = tcError loc $ "Cannot unify " ++ showExpr a ++ " and " ++ showExpr b ++ "\n"
-  case a of
-    EVar ia ->
-      case b of
-        EVar ib  -> if eqIdent ia ib then T.return () else bad
-        EApp _ _ -> bad
-        EUVar i  -> addUVar i a
-        _        -> impossible
-    EApp fa xa ->
-      case b of
-        EVar _     -> bad
-        EApp fb xb -> T.do { unify loc fa fb; unify loc xa xb }
-        EUVar i    -> addUVar i a
-        _          ->
-          --Xtrace ("impossible unify 1 " ++ showExpr a ++ " = " ++ showExpr b) $
-          impossible
-    EUVar i -> addUVar i b
-    _ -> --Xtrace ("impossible unify 2 " ++ showExpr a ++ " = " ++ showExpr b) $
-         impossible
--}
-
-{-
-unMType :: Expected -> T EType
-unMType mt =
-  case mt of
-    Infer r -> T.do
-      t <- newUVar
-      tSetRefType r t
-      T.return t
-    Check t -> T.return t
--}
-
 -- Reset type variable and unification map
 tcReset :: T ()
 tcReset = T.do
@@ -710,6 +664,7 @@ tcDefsType ds = withTypeTable $ T.do
   T.mapM_ addTypeKind dsk                        -- Add the kind of each type to the environment
   T.mapM tcDefType dsk
 
+-- Make sure that the kind expressions are well formed.
 tcDefKind :: EDef -> T EDef
 tcDefKind adef = T.do
   tcReset
@@ -720,6 +675,8 @@ tcDefKind adef = T.do
       case at of
         ESign t k        -> withVks vks k     $ \ vvks kr -> T.return $ Type    (i, vvks) (ESign t kr)
         _                -> withVks vks kType $ \ vvks _  -> T.return $ Type    (i, vvks) at
+    Class ctx (i, vks) ms-> withVks vks kConstraint $ \ vvks _ -> T.return $ Class ctx (i, vvks) ms
+    Instance vks ctx t d -> withVks vks kConstraint $ \ vvks _ -> T.return $ Instance vvks ctx t d
     _                    -> T.return adef
 
 -- Check&rename the given kinds, apply reconstruction at the end
@@ -737,6 +694,7 @@ withVks vks kr fun = T.do
       loop [] vks
   fun nvks nkr
 
+-- Add symbol table entries (with kind) for all top level typeish definitions
 addTypeKind :: EDef -> T ()
 addTypeKind adef = T.do
   tcReset
@@ -744,6 +702,7 @@ addTypeKind adef = T.do
     Data    lhs _   -> addLHSKind lhs kType
     Newtype lhs _ _ -> addLHSKind lhs kType
     Type    lhs t   -> addLHSKind lhs (getTypeKind t)
+    Class _ lhs _   -> addLHSKind lhs kConstraint
     _               -> T.return ()
 
 getTypeKind :: EType -> EKind
@@ -768,6 +727,8 @@ addTypeSyn adef =
       extSyn (qualIdent mn i) (EForall vs t)
     _ -> T.return ()
 
+-- Do kind checking of all typeish definitions.
+-- XXX check method signatures?
 tcDefType :: EDef -> T EDef
 tcDefType d = T.do
   tcReset
@@ -777,7 +738,14 @@ tcDefType d = T.do
     Type    lhs    t -> Type    lhs   <$> withVars (snd lhs) (tcInferTypeT t)
     Sign    i      t -> (Sign    i  ) <$> tcTypeT (Check kType) t
     ForImp  ie i   t -> (ForImp ie i) <$> tcTypeT (Check kType) t
-    _ -> T.return d
+    Class   mc lhs m -> withVars (snd lhs) $ Class <$> tcCtx mc <*> pure lhs <*> mapM tcMethod m
+    Instance vs mc t m -> withVars vs $ Instance vs <$> tcCtx mc <*> tcTypeT (Check kConstraint) t <*> pure m
+    _                -> T.return d
+ where
+   tcCtx Nothing  = pure Nothing
+   tcCtx (Just c) = Just <$> tcTypeT (Check kConstraint) c
+   tcMethod (BSign i t) = BSign i <$> tcTypeT (Check kType) t
+   tcMethod m = pure m
 
 withVars :: forall a . [IdKind] -> T a -> T a
 withVars aiks ta =
