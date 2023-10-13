@@ -1,0 +1,15 @@
+x = y
+-----
+mhs: "../tmp/E.hs": line 3, col 1: undefined no type signature: x
+=====
+x :: Int
+x = y
+-----
+mhs: "../tmp/E.hs": line 4, col 5: undefined variable: y
+=====
+x :: T
+x = 1
+-----
+mhs: "../tmp/E.hs": line 3, col 6: undefined variable: T
+=====
+END
