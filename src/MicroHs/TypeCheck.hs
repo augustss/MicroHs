@@ -453,7 +453,8 @@ expandSyn at =
           case M.lookup i syns of
             Nothing -> T.return $ foldl tApp t ts
             Just (EForall vks tt) ->
-              if length vks /= length ts then tcError (getSLocIdent i) $ ": bad synonym use: " --X ++ show (i, vks, ts)
+              if length vks /= length ts then tcError (getSLocIdent i) $ "bad synonym use"
+                                                                         --X ++ "\nXX " ++ show (i, vks, ts)
               else expandSyn $ subst (zip (map idKindIdent vks) ts) tt
             Just _ -> impossible
         EUVar _ -> T.return $ foldl tApp t ts
