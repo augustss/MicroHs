@@ -147,7 +147,7 @@ getraw()
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B, T_C,
-                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
                 T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
                 T_FADD, T_FSUB, T_FMUL, T_FDIV,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
@@ -632,6 +632,7 @@ struct {
   { "A", T_A },
   { "S'", T_SS },
   { "P", T_P },
+  { "R", T_R },
   { "I", T_I },
   { "S", T_S },
   { "T", T_T },
@@ -1364,6 +1365,7 @@ printrec(FILE *f, NODEPTR n)
   case T_T: fprintf(f, "T"); break;
   case T_Y: fprintf(f, "Y"); break;
   case T_P: fprintf(f, "P"); break;
+  case T_R: fprintf(f, "R"); break;
   case T_O: fprintf(f, "O"); break;
   case T_SS: fprintf(f, "S'"); break;
   case T_BB: fprintf(f, "B'"); break;
@@ -1808,6 +1810,7 @@ eval(NODEPTR n)
     case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
     case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
     case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
+    case T_R:    GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
     case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
 
     case T_ADD:  ARITHBIN(+);
