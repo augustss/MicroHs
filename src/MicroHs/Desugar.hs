@@ -256,9 +256,6 @@ tupleCon loc n =
     c = tupleConstr loc n
   in ECon $ ConData [(c, n)] c
 
-dummyIdent :: Ident
-dummyIdent = mkIdent "_"
-
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs
 

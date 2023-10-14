@@ -6,8 +6,9 @@ module MicroHs.Ident(
   mkIdent, mkIdentLoc, unIdent, eqIdent, leIdent, qualIdent, showIdent, getSLocIdent, setSLocIdent,
   mkIdentSLoc,
   isLower_, isIdentChar, isOperChar, isConIdent,
-  isDummyIdent,
+  dummyIdent, isDummyIdent,
   unQualString,
+  addIdentSuffix,
   SLoc(..), noSLoc, isNoSLoc,
   showSLoc,
   compareIdent,
@@ -17,6 +18,7 @@ import Prelude --Xhiding(showString)
 --Yimport Primitives(NFData(..))
 import Data.Char
 --Ximport Compat
+--Ximport GHC.Stack
 
 type Line = Int
 type Col  = Int
@@ -66,7 +68,11 @@ leIdent (Ident _ i) (Ident _ j) = leString i j
 qualIdent :: Ident -> Ident -> Ident
 qualIdent (Ident loc qi) (Ident _ i) = Ident loc (qi ++ "." ++ i)
 
-unQualString :: String -> String
+addIdentSuffix :: Ident -> String -> Ident
+addIdentSuffix (Ident loc i) s = Ident loc (i ++ s)
+
+unQualString :: --XHasCallStack =>
+                String -> String
 unQualString s =
   case span isIdentChar s of
     ("", r) -> r
@@ -88,6 +94,9 @@ isIdentChar c = isLower_ c || isUpper c || isDigit c || eqChar c '\''
 
 isLower_ :: Char -> Bool
 isLower_ c = isLower c || eqChar c '_'
+
+dummyIdent :: Ident
+dummyIdent = mkIdent "_"
 
 isDummyIdent :: Ident -> Bool
 isDummyIdent (Ident _ "_") = True

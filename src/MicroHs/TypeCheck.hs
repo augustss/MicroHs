@@ -405,6 +405,9 @@ tApps i ts = foldl tApp (tCon i) ts
 tArrow :: EType -> EType -> EType
 tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
 
+tImplies :: EType -> EType -> EType
+tImplies a r = tApp (tApp (tConI builtinLoc "Primitives.=>") a) r
+
 kArrow :: EKind -> EKind -> EKind
 kArrow = tArrow
 
@@ -649,6 +652,7 @@ tcDefs :: [EDef] -> T [EDef]
 tcDefs ds = T.do
   T.mapM_ tcAddInfix ds
   dst <- tcDefsType ds
+  traceM (showEDefs dst)
   T.mapM_ addTypeSyn dst
   tcDefsValue dst
 
@@ -662,7 +666,9 @@ tcDefsType :: [EDef] -> T [EDef]
 tcDefsType ds = withTypeTable $ T.do
   dsk <- T.mapM tcDefKind ds                     -- Check&rename kinds in all type definitions
   T.mapM_ addTypeKind dsk                        -- Add the kind of each type to the environment
-  T.mapM tcDefType dsk
+  dst <- T.mapM tcDefType dsk                    -- Kind check all type expressions (except local signatures)
+  dss <- T.mapM expandClassInst dst              -- Expand all class & instance definitions
+  T.return (concat dss)
 
 -- Make sure that the kind expressions are well formed.
 tcDefKind :: EDef -> T EDef
@@ -728,7 +734,6 @@ addTypeSyn adef =
     _ -> T.return ()
 
 -- Do kind checking of all typeish definitions.
--- XXX check method signatures?
 tcDefType :: EDef -> T EDef
 tcDefType d = T.do
   tcReset
@@ -756,6 +761,67 @@ withVars aiks ta =
 
 tcConstr :: Constr -> T Constr
 tcConstr (Constr i ts) = Constr i <$> T.mapM (\ t -> tcTypeT (Check kType) t) ts
+
+expandClassInst :: EDef -> T [EDef]
+expandClassInst d@(Class _ lhs m) = (d:) <$> expandClass lhs m
+expandClassInst d@(Instance vs mc _ m) = (d:) <$> expandInst vs mc m
+expandClassInst d = T.return [d]
+
+-- Expand a class defintion to
+--  * a type for the dictionary
+--  * method selectors
+--  * default methods
+-- E.g.
+--   class Eq a where
+--     (==) :: a -> a -> Bool
+--     (/=) :: a -> a -> a
+--     x /= y = not (x == y)
+-- expands to
+--   data Eq$Dict a = Eq (a -> a -> Bool) (a -> a -> Bool)
+--   (==) :: forall a . Eq$Dict a -> (a -> a -> Bool)
+--   (==) (Eq x _) = x
+--   (/=) :: forall a . Eq$Dict a -> (a -> a -> Bool)
+--   (/=) (Eq _ x) = x
+--   (==$dflt) :: forall a . (Eq a) => (a -> a -> Bool)
+--   (==$dflt) = _noDefault "Eq.=="
+--   (/=$dflt) :: forall a . (Eq a) => (a -> a -> Bool)
+--   (/=$dflt) x y = not (x == y)
+--
+expandClass :: LHS -> [EBind] -> T [EDef]
+expandClass (iCls, vs) ms = T.do
+  mn <- gets moduleName
+  let iDict = addIdentSuffix iCls "Dict" {-"$Dict"-}
+      meths = [ b | b@(BSign _ _) <- ms ]
+      mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
+      nMeths = length meths
+      iCon = iCls
+      dData = Data (iDict, vs) [Constr iCon $ map (\ (BSign _ t) -> t) meths]
+
+      ex = EVar (mkIdent "x")
+      tForall = EForall vs
+      tDict = tApps (qualIdent mn iDict) (map (EVar . idKindIdent) vs)
+      pat k n = foldl EApp (EVar iCon) [ if k == i then ex else EVar dummyIdent | i <- [1..n] ]
+      mkSel (BSign i t) k = [ Sign i $ tForall $ tArrow tDict t, Fcn i [Eqn [pat k nMeths] $ EAlts [([], ex)] []] ]
+      mkSel _ _ = impossible
+      dSels = concat $ zipWith mkSel meths [1..]
+
+      tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vs)
+      mkDflt (BSign i t) = [ Sign iDflt $ tForall $ tCtx `tImplies` t, def $ lookupBy eqIdent i mdflts ]
+        where def Nothing = Fcn iDflt [Eqn [] $ EAlts [([], noDflt)] []]
+              def (Just eqns) = Fcn iDflt eqns
+              iDflt = addIdentSuffix i "dflt" {-"$dflt"-}
+              -- XXX This isn't right, "Prelude._nodefault" might not be in scope
+              noDflt = EApp (EVar (mkIdent "Prelude._noDefault")) (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent i)))
+      mkDflt _ = impossible
+      dDflts = concatMap mkDflt meths
+
+  -- XXX add iDict to symbol table
+  T.return $ [dData] ++ dSels ++ dDflts
+
+expandInst :: [IdKind] -> Maybe EConstraint -> [EBind] -> T [EDef]
+expandInst _ _ _ = T.return [] -- XXX
+
+---------------------
 
 tcDefsValue :: [EDef] -> T [EDef]
 tcDefsValue ds = T.do
