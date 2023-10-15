@@ -28,26 +28,34 @@ data TModule a = TModule
   a               -- bindings
   --Xderiving (Show)
 
-data TypeExport = TypeExport Ident Entry [ValueExport]
+data TypeExport = TypeExport
+  Ident           -- unqualified name
+  Entry           -- symbol table entry
+  [ValueExport]   -- associated values, i.e., constructors, selectors, methods
   --Xderiving (Show)
 
-data ValueExport = ValueExport Ident Entry
+data ValueExport = ValueExport
+  Ident           -- unqualified name
+  Entry           -- symbol table entry
   --Xderiving (Show)
 
 type FixDef = (Ident, Fixity)
 type SynDef = (Ident, EType)
 
-data Entry = Entry Expr EType
+-- Symbol table entry for symbol i.
+data Entry = Entry
+  Expr             -- convert (EVar i) to this expression; sometimes just (EVar i)
+  EType            -- type/kind of identifier
   --Xderiving(Show)
 
 entryType :: Entry -> EType
 entryType (Entry _ t) = t
 
-type ValueTable = M.Map [Entry]
-type TypeTable  = M.Map [Entry]
-type KindTable  = M.Map [Entry]
-type SynTable   = M.Map EType
-type FixTable   = M.Map Fixity
+type ValueTable = M.Map [Entry]    -- type of value identifiers, used during type checking values
+type TypeTable  = M.Map [Entry]    -- kind of type  identifiers, used during kind checking types
+type KindTable  = M.Map [Entry]    -- sort of kind  identifiers, used during sort checking kinds
+type SynTable   = M.Map EType      -- body of type synonyms
+type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 
 type Sigma = EType
 --type Tau   = EType
