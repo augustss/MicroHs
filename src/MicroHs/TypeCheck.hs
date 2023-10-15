@@ -56,6 +56,7 @@ type TypeTable  = M.Map [Entry]    -- kind of type  identifiers, used during kin
 type KindTable  = M.Map [Entry]    -- sort of kind  identifiers, used during sort checking kinds
 type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
+type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
 
 type Sigma = EType
 --type Tau   = EType
@@ -71,7 +72,7 @@ typeCheck aimps (EModule mn exps defs) =
   in case tcRun (tcDefs defs) (initTC mn fs ts ss vs) of
        (tds, tcs) ->
          let
-           thisMdl = (mn, mkTModule mn tds impossible)
+           thisMdl = (mn, mkTModule tds tcs)
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm _, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
            (texps, vexps) =
@@ -165,9 +166,10 @@ eVarI loc = EVar . mkIdentSLoc loc
 expErr :: forall a . Ident -> a
 expErr i = errorMessage (getSLocIdent i) $ ": export undefined " ++ showIdent i
 
-mkTModule :: forall a . IdentModule -> [EDef] -> a -> TModule a
-mkTModule mn tds a =
+mkTModule :: forall a . [EDef] -> TCState -> TModule a
+mkTModule tds tcs =
   let
+
     con ci it vks (Constr ic ets) =
       let
         e = ECon $ ConData ci (qualIdent mn ic)
@@ -181,15 +183,24 @@ mkTModule mn tds a =
       let
         e = ECon $ ConNew (qualIdent mn ic)
       in [ValueExport ic $ Entry e (EForall vks (tArrow t (tApps (qualIdent mn it) (map tVarK vks))))]
-    tentry i vks kret = Entry (EVar (qualIdent mn i)) (lhsKind vks kret)
+
+    mn = moduleName tcs
+    tt = typeTable tcs
+    tentry i =
+      case M.lookup (qualIdent mn i) tt of
+        Just [e] -> e
+        _        -> impossible
     ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign i ts <- tds ]
     tes =
-      [ TypeExport i (tentry i vks kType) (cons i vks cs)  | Data    (i, vks) cs  <- tds ] ++
-      [ TypeExport i (tentry i vks kType) (conn i vks c t) | Newtype (i, vks) c t <- tds ] ++
-      [ TypeExport i (tentry i vks kType) []               | Type    (i, vks) _   <- tds ]   -- XXX kType is wrong
+      [ TypeExport i (tentry i) (cons i vks cs)  | Data    (i, vks) cs  <- tds ] ++
+      [ TypeExport i (tentry i) (conn i vks c t) | Newtype (i, vks) c t <- tds ] ++
+--      [ TypeExport i (tentry i) (assoc i) | Data    (i, _) _   <- tds ] ++
+--      [ TypeExport i (tentry i) (assoc i) | Newtype (i, _) _ _ <- tds ] ++
+      [ TypeExport i (tentry i) []        | Type    (i, _) _   <- tds ]
+
     ses = [ (qualIdent mn i, EForall vs t) | Type (i, vs) t  <- tds ]
     fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
-  in  TModule mn fes tes ses ves a
+  in  TModule mn fes tes ses ves impossible
 
 mkTables :: forall a . [(ImportSpec, TModule a)] -> (FixTable, TypeTable, SynTable, ValueTable)
 mkTables mdls =
