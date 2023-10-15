@@ -619,7 +619,10 @@ extQVal :: --XHasCallStack =>
            Ident -> EType -> T ()
 extQVal i t = T.do
   mn <- gets moduleName
-  extValE i t (EVar $ qualIdent mn i)
+  let qi = qualIdent mn i
+      eqi = EVar qi
+  extValE qi t eqi
+  extValE  i t eqi
 
 extVal :: --XHasCallStack =>
           Ident -> EType -> T ()
