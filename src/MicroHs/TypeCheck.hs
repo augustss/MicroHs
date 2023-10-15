@@ -19,7 +19,13 @@ import MicroHs.Expr
 --Ximport GHC.Stack
 --Ximport Debug.Trace
 
-data TModule a = TModule IdentModule [FixDef] [TypeExport] [SynDef] [ValueExport] a
+data TModule a = TModule
+  IdentModule     -- module names
+  [FixDef]        -- all fixities, exported or not
+  [TypeExport]    -- exported types
+  [SynDef]        -- all type synonyms, exported or not
+  [ValueExport]   -- exported values (including from T(..))
+  a               -- bindings
   --Xderiving (Show)
 
 data TypeExport = TypeExport Ident Entry [ValueExport]
@@ -60,15 +66,10 @@ typeCheck aimps (EModule mn exps defs) =
            thisMdl = (mn, mkTModule mn tds impossible)
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm _, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
-           (texps, sexps, vexps) =
-             unzip3 $ map (getTVExps impMap (typeTable tcs) (synTable tcs) (valueTable tcs)) exps
-{-
-         in  TModule mn [] (concat texps) (concat sexps) (concat vexps) tds
            (texps, vexps) =
              unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs)) exps
-           (fexps, sexps) = unzip $ getFSExps impMap
--}
            fexps = [ fe | TModule _ fe _ _ _ _ <- M.elems impMap ]
+           sexps = [ se | TModule _ _ _ se _ _ <- M.elems impMap ]
          in  tModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) (concat sexps) (concat vexps) tds
 
 -- A hack to force evaluation of errors.
@@ -97,29 +98,23 @@ filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss vs 
     (imp, TModule mn fx ts' ss vs' a)
 
 -- Type and value exports
-getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> SynTable -> ValueTable -> ExportItem ->
-           ([TypeExport], [SynDef], [ValueExport])
-getTVExps impMap _ _ _ (ExpModule m) =
+getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> ExportItem ->
+           ([TypeExport], [ValueExport])
+getTVExps impMap _ _ (ExpModule m) =
   case M.lookup m impMap of
-    Just (TModule _ _ te se ve _) -> (te, se, ve)
---    Just (TModule _ _ te _ ve _) -> (te, ve)
+    Just (TModule _ _ te _ ve _) -> (te, ve)
     _ -> expErr m
-getTVExps _ tys _ vals (ExpTypeCon i) =
+getTVExps _ tys vals (ExpTypeCon i) =
   let
     e = expLookup i tys
     qi = tyQIdent e
-  in ([TypeExport i e $ constrsOf qi (M.toList vals)], [], [])
-getTVExps _ tys syns _ (ExpType i) =
+  in ([TypeExport i e $ constrsOf qi (M.toList vals)], [])
+getTVExps _ tys _ (ExpType i) =
   let
     e = expLookup i tys
-    qi = tyQIdent e
-    se = case M.lookup qi syns of
-           Nothing -> []
-           Just ts -> [(qi, ts)]
-  in ([TypeExport i e []], se, [])
---  in ([TypeExport i e []], [])
-getTVExps _ _ _ vals (ExpValue i) =
-    ([], [], [ValueExport i (expLookup i vals)])
+  in ([TypeExport i e []], [])
+getTVExps _ _ vals (ExpValue i) =
+    ([], [ValueExport i (expLookup i vals)])
 
 -- Export all fixities and synonyms.
 -- The synonyms might be needed, and the fixities are harmless
