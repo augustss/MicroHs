@@ -73,12 +73,14 @@ addIdentSuffix (Ident loc i) s = Ident loc (i ++ s)
 
 unQualString :: --XHasCallStack =>
                 String -> String
-unQualString s =
-  case span isIdentChar s of
-    ("", r) -> r
-    (r, "") -> r                       -- XXX bug!  swapping with next line goes wrong
-    (_, '.':r) -> unQualString r
-    x -> error $ "unQualString: " ++ showPair showString (showPair showString showString) (s, x)
+unQualString [] = ""
+unQualString s@(c:_) =
+  if isIdentChar c then
+    case dropWhile (neChar '.') s of
+      "" -> s
+      '.':r -> unQualString r
+  else
+    s
 
 isConIdent :: Ident -> Bool
 isConIdent (Ident _ i) =
