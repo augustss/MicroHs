@@ -63,8 +63,8 @@ data EDef
   | Import ImportSpec
   | ForImp String Ident EType
   | Infix Fixity [Ident]
-  | Class (Maybe EConstraint) LHS [EBind]  -- XXX will probable need initial forall with FD
-  | Instance [IdKind] (Maybe EConstraint) EConstraint [EBind]  -- no deriving yet
+  | Class [EConstraint] LHS [EBind]  -- XXX will probable need initial forall with FD
+  | Instance [IdKind] [EConstraint] EConstraint [EBind]  -- no deriving yet
   --Xderiving (Show, Eq)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
@@ -381,8 +381,8 @@ showEDef def =
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs bs -> "class " ++ ctx sup ++ showLHS lhs ++ showWhere bs
     Instance vs ct ty bs -> "instance " ++ showForall vs ++ ctx ct ++ showEType ty ++ showWhere bs
- where ctx Nothing = ""
-       ctx (Just t) = showEType t ++ " => "
+ where ctx [] = ""
+       ctx ts = showEType (ETuple ts) ++ " => "
 
 showConstr :: Constr -> String
 showConstr (Constr i ts) = unwords (showIdent i : map showEType ts)

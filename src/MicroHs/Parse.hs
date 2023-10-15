@@ -264,7 +264,8 @@ pDef =
     dig (TInt _ i) | -2 <= i && i <= 9 = Just i
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
-    pContext = optional (pTypeApp <* pSymbol "=>")
+    pContext = (pCtx <* pSymbol "=>") <|< P.pure []
+    pCtx = pParens (emany pType) <|< ((:[]) <$> pTypeApp)
 
 pLHS :: P LHS
 pLHS = (,) <$> pUIdentSym <*> emany pIdKind
