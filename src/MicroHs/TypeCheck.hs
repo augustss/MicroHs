@@ -652,7 +652,7 @@ tcDefs :: [EDef] -> T [EDef]
 tcDefs ds = T.do
   T.mapM_ tcAddInfix ds
   dst <- tcDefsType ds
-  traceM (showEDefs dst)
+  --traceM (showEDefs dst)
   T.mapM_ addTypeSyn dst
   tcDefsValue dst
 
@@ -692,10 +692,10 @@ withVks vks kr fun = T.do
     withTypeTable $ T.do
       let
         loop r [] = T.do
-          kkr <- tcInferTypeT kr
+          kkr <- tInferTypeT kr
           T.return (reverse r, kkr)
         loop r (IdKind i k : iks) = T.do
-          kk <- tcInferTypeT k
+          kk <- tInferTypeT k
           withExtVal i kk $ loop (IdKind i kk : r) iks
       loop [] vks
   fun nvks nkr
@@ -738,17 +738,16 @@ tcDefType :: EDef -> T EDef
 tcDefType d = T.do
   tcReset
   case d of
-    Data    lhs cs   -> Data    lhs   <$> withVars (snd lhs) (T.mapM tcConstr cs)
-    Newtype lhs c  t -> Newtype lhs c <$> withVars (snd lhs) (tcTypeT (Check kType) t)
-    Type    lhs    t -> Type    lhs   <$> withVars (snd lhs) (tcInferTypeT t)
-    Sign    i      t -> (Sign    i  ) <$> tcTypeT (Check kType) t
-    ForImp  ie i   t -> (ForImp ie i) <$> tcTypeT (Check kType) t
-    Class   mc lhs m -> withVars (snd lhs) $ Class <$> tcCtx mc T.<*> T.return lhs T.<*> T.mapM tcMethod m
-    Instance vs mc t m -> withVars vs $ Instance vs <$> tcCtx mc T.<*> tcTypeT (Check kConstraint) t T.<*> T.return m
-    _                -> T.return d
+    Data    lhs@(_, iks) cs     -> withVars iks $ Data    lhs   <$> T.mapM tcConstr cs
+    Newtype lhs@(_, iks) c  t   -> withVars iks $ Newtype lhs c <$> tCheckTypeT kType t
+    Type    lhs@(_, iks)    t   -> withVars iks $ Type    lhs   <$> tInferTypeT t
+    Sign         i          t   ->                Sign    i     <$> tCheckTypeT kType t
+    ForImp  ie i            t   ->                ForImp ie i   <$> tCheckTypeT kType t
+    Class   ctx lhs@(_, iks) ms -> withVars iks $ Class         <$> tcCtx ctx T.<*> T.return lhs              T.<*> T.mapM tcMethod ms
+    Instance iks ctx c m        -> withVars iks $ Instance iks  <$> tcCtx ctx T.<*> tCheckTypeT kConstraint c T.<*> T.return m
+    _                           -> T.return d
  where
-   tcCtx Nothing  = T.return Nothing
-   tcCtx (Just c) = Just <$> tcTypeT (Check kConstraint) c
+   tcCtx = T.mapM (tCheckTypeT kConstraint)
    tcMethod (BSign i t) = BSign i <$> tcTypeT (Check kType) t
    tcMethod m = T.return m
 
@@ -763,12 +762,13 @@ tcConstr :: Constr -> T Constr
 tcConstr (Constr i ts) = Constr i <$> T.mapM (\ t -> tcTypeT (Check kType) t) ts
 
 expandClassInst :: EDef -> T [EDef]
-expandClassInst d@(Class _ lhs m) = (d:) <$> expandClass lhs m
-expandClassInst d@(Instance vs mc _ m) = (d:) <$> expandInst vs mc m
+expandClassInst d@(Class ctx lhs m)     = (d:) <$> expandClass ctx lhs m
+expandClassInst d@(Instance iks mc c m) = (d:) <$> expandInst iks mc c m
 expandClassInst d = T.return [d]
 
 -- Expand a class defintion to
 --  * a type for the dictionary
+--  * superclass selectors
 --  * method selectors
 --  * default methods
 -- E.g.
@@ -778,48 +778,89 @@ expandClassInst d = T.return [d]
 --     x /= y = not (x == y)
 -- expands to
 --   data Eq$Dict a = Eq (a -> a -> Bool) (a -> a -> Bool)
---   (==) :: forall a . Eq$Dict a -> (a -> a -> Bool)
---   (==) (Eq x _) = x
---   (/=) :: forall a . Eq$Dict a -> (a -> a -> Bool)
---   (/=) (Eq _ x) = x
---   (==$dflt) :: forall a . (Eq a) => (a -> a -> Bool)
---   (==$dflt) = _noDefault "Eq.=="
---   (/=$dflt) :: forall a . (Eq a) => (a -> a -> Bool)
---   (/=$dflt) x y = not (x == y)
+--   Eq$== :: forall a . Eq$Dict a -> (a -> a -> Bool)
+--   Eq$== (Eq x _) = x
+--   Eq$/= :: forall a . Eq$Dict a -> (a -> a -> Bool)
+--   Eq$/= (Eq _ x) = x
+--   Eq$==$dflt :: forall a . (Eq a) => (a -> a -> Bool)
+--   Eq$==$dflt = _noDefault "Eq.=="
+--   Eq$/=$dflt :: forall a . (Eq a) => (a -> a -> Bool)
+--   Eq$/=$dflt x y = not (x == y)
 --
-expandClass :: LHS -> [EBind] -> T [EDef]
-expandClass (iCls, vs) ms = T.do
+expandClass :: [EConstraint] -> LHS -> [EBind] -> T [EDef]
+expandClass sups (iCls, vs) ms = T.do
   mn <- gets moduleName
-  let iDict = addIdentSuffix iCls "Dict" {-"$Dict"-}
+  supTys <- T.mapM clsToDict sups
+  let iDict = mkDictId iCls                 -- dictionary type name
       meths = [ b | b@(BSign _ _) <- ms ]
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
+      methTys = map (\ (BSign _ t) -> t) meths
       nMeths = length meths
-      iCon = iCls
-      dData = Data (iDict, vs) [Constr iCon $ map (\ (BSign _ t) -> t) meths]
+      nSups = length sups
+      nArgs = nSups + nMeths
+      iCon = iDict                          -- dictionary constructor name
+      dData = Data (iDict, vs) [Constr iCon $ supTys ++ methTys]
 
       ex = EVar (mkIdent "x")
       tForall = EForall vs
       tDict = tApps (qualIdent mn iDict) (map (EVar . idKindIdent) vs)
       pat k n = foldl EApp (EVar iCon) [ if k == i then ex else EVar dummyIdent | i <- [1..n] ]
-      mkSel (BSign i t) k = [ Sign i $ tForall $ tArrow tDict t, Fcn i [Eqn [pat k nMeths] $ EAlts [([], ex)] []] ]
+      mkSel (BSign i t) k = [ Sign mid $ tForall $ tDict `tArrow` t, selFcn mid k ]
+        where mid = mkMethodId iCls i
       mkSel _ _ = impossible
-      dSels = concat $ zipWith mkSel meths [1..]
+      dSels = concat $ zipWith mkSel meths [nSups+1 ..]
+      selFcn i k = Fcn i [Eqn [pat k nArgs] $ EAlts [([], ex)] []]
+
+      mkSupSel tsup k = [Sign sid $ tForall $ tDict `tArrow` tsup, selFcn sid k]
+        where sid = mkMethodId iCls (mkIdent ("Super" ++ showInt k))
+      dSupers = concat $ zipWith mkSupSel supTys [1 ..]
 
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vs)
       mkDflt (BSign i t) = [ Sign iDflt $ tForall $ tCtx `tImplies` t, def $ lookupBy eqIdent i mdflts ]
         where def Nothing = Fcn iDflt [Eqn [] $ EAlts [([], noDflt)] []]
               def (Just eqns) = Fcn iDflt eqns
-              iDflt = addIdentSuffix i "dflt" {-"$dflt"-}
+              iDflt = mkDefaultMethodId iCls i
               -- XXX This isn't right, "Prelude._nodefault" might not be in scope
               noDflt = EApp (EVar (mkIdent "Prelude._noDefault")) (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent i)))
       mkDflt _ = impossible
       dDflts = concatMap mkDflt meths
 
   -- XXX add iDict to symbol table
-  T.return $ [dData] ++ dSels ++ dDflts
+  T.return $ [dData] ++ dSupers ++ dSels ++ dDflts
 
-expandInst :: [IdKind] -> Maybe EConstraint -> [EBind] -> T [EDef]
-expandInst _ _ _ = T.return [] -- XXX
+-- Turn a (unqualified) class name into the dictionary type name.
+mkDictId :: Ident -> Ident
+mkDictId cls = addIdentSuffix cls "$Dict"
+
+-- Turn (unqualified) class and method names into a selector name.
+mkMethodId :: Ident -> Ident -> Ident
+mkMethodId cls meth = addIdentSuffix cls ("$" ++ unIdent meth)
+
+-- Turn (unqualified) class and method names into a default method name
+mkDefaultMethodId :: Ident -> Ident -> Ident
+mkDefaultMethodId cls meth = addIdentSuffix cls ("$" ++ unIdent meth ++ "$dflt")
+
+clsToDict :: EType -> T EType
+clsToDict = T.do
+  -- XXX for now, only allow contexts of the form (C t1 ... tn)
+  let usup as (EVar c) | isConIdent c = T.return (tApps (mkDictId c) as)
+      usup as (EApp f a) = usup (a:as) f
+      usup _ t = tcError (getSLocExpr t) ("bad context " ++ showEType t)
+  usup []
+
+expandInst :: [IdKind] -> [EConstraint] -> EType -> [EBind] -> T [EDef]
+expandInst vks _ctx cc bs = T.do
+  ct <- clsToDict cc
+  let iCon = getAppCon ct
+      iInst = mkIdent "inst$"
+      sign = Sign iInst (eForall vks ct)
+      bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar iCon) meths)] bs]
+      meths = []
+  T.return [sign, bind]
+
+eForall :: [IdKind] -> EType -> EType
+eForall [] t = t
+eForall vs t = EForall vs t
 
 ---------------------
 
@@ -872,8 +913,11 @@ tcDefValue adef =
       T.return (ForImp ie (qualIdent mn i) t)
     _ -> T.return adef
 
-tcInferTypeT :: EType -> T EType
-tcInferTypeT t = fst <$> tInfer tcTypeT t
+tCheckTypeT :: EType -> EType -> T EType
+tCheckTypeT = tCheck tcTypeT
+
+tInferTypeT :: EType -> T EType
+tInferTypeT t = fst <$> tInfer tcTypeT t
 
 -- Kind check a type while already in type checking mode
 tcTypeT :: --XHasCallStack =>
