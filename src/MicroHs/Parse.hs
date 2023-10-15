@@ -247,7 +247,7 @@ pBlock p = P.do
 
 pDef :: P EDef
 pDef =
-      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 (Constr <$> pUIdentSym <*> emany pAType) (pSymbol "|"))
+      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 (Constr <$> pUIdentSym <*> pFields) (pSymbol "|"))
                                                         <|< P.pure [])
   <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> pUIdent) <*> pAType
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
@@ -261,6 +261,8 @@ pDef =
     dig (TInt _ i) | -1 <= i && i <= 9 = Just i
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
+    pFields = Left  <$> emany pAType <|<
+              Right <$> (pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "::") <*> pType) (pSpec ',') <* pSpec '}')
 
 pLHS :: P LHS
 pLHS = (,) <$> pUIdentSym <*> emany pIdKind
