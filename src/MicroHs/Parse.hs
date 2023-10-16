@@ -248,9 +248,9 @@ pBlock p = P.do
 
 pDef :: P EDef
 pDef =
-      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 (Constr <$> pUIdentSym <*> emany pAType) (pSymbol "|"))
+      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 (Constr <$> pUIdentSym <*> pFields) (pSymbol "|"))
                                                         <|< P.pure [])
-  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> pUIdent) <*> pAType
+  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr <$> pUIdentSym <*> pField))
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
   <|< uncurry Fcn <$> pEqns
   <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pType
@@ -266,6 +266,13 @@ pDef =
     pPrec = satisfyM "digit" dig
     pContext = (pCtx <* pSymbol "=>") <|< P.pure []
     pCtx = pParens (emany pType) <|< ((:[]) <$> pTypeApp)
+
+    pFields = Left  <$> emany pAType <|<
+              Right <$> (pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "::") <*> pType) (pSpec ',') <* pSpec '}')
+    pField = P.do
+      fs <- pFields
+      guard $ either length length fs == 1
+      P.pure fs
 
 pLHS :: P LHS
 pLHS = (,) <$> pUIdentSym <*> emany pIdKind

@@ -7,6 +7,7 @@ module MicroHs.Ident(
   mkIdentSLoc,
   isLower_, isIdentChar, isOperChar, isConIdent,
   dummyIdent, isDummyIdent,
+  unQualIdent,
   unQualString,
   addIdentSuffix,
   SLoc(..), noSLoc, isNoSLoc,
@@ -81,6 +82,9 @@ unQualString s@(c:_) =
       '.':r -> unQualString r
   else
     s
+
+unQualIdent :: Ident -> Ident
+unQualIdent (Ident l s) = Ident l (unQualString s)
 
 isConIdent :: Ident -> Bool
 isConIdent (Ident _ i) =

@@ -20,7 +20,7 @@ module MicroHs.Expr(
   EKind, kType, kConstraint,
   IdKind(..), idKindIdent,
   LHS,
-  Constr(..),
+  Constr(..), ConstrField,
   ConTyInfo,
   Con(..), conIdent, conArity, eqCon, getSLocCon,
   tupleConstr, untupleConstr, isTupleConstr,
@@ -56,7 +56,7 @@ data ExportItem
 
 data EDef
   = Data LHS [Constr]
-  | Newtype LHS Ident EType
+  | Newtype LHS Constr
   | Type LHS EType
   | Fcn Ident [Eqn]
   | Sign Ident EType
@@ -186,8 +186,10 @@ patVars = filter isVar . allVarsExpr
 
 type LHS = (Ident, [IdKind])
 
-data Constr = Constr Ident [EType]
+data Constr = Constr Ident (Either [EType] [ConstrField])
   --Xderiving(Show, Eq)
+
+type ConstrField = (Ident, EType)              -- record label and type
 
 -- Expr restricted to
 --  * after desugaring: EApp and EVar
@@ -368,7 +370,7 @@ showEDef :: EDef -> String
 showEDef def =
   case def of
     Data lhs cs -> "data " ++ showLHS lhs ++ " = " ++ intercalate " | " (map showConstr cs)
-    Newtype lhs c t -> "newtype " ++ showLHS lhs ++ " = " ++ showIdent c ++ " " ++ showEType t
+    Newtype lhs c -> "newtype " ++ showLHS lhs ++ " = " ++ showConstr c
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
     Fcn i eqns -> unlines (map (\ (Eqn ps alts) -> showIdent i ++ " " ++ unwords (map showEPat ps) ++ showAlts "=" alts) eqns)
     Sign i t -> showIdent i ++ " :: " ++ showEType t
@@ -385,7 +387,9 @@ showEDef def =
        ctx ts = showEType (ETuple ts) ++ " => "
 
 showConstr :: Constr -> String
-showConstr (Constr i ts) = unwords (showIdent i : map showEType ts)
+showConstr (Constr c (Left  ts)) = unwords (showIdent c : map showEType ts)
+showConstr (Constr c (Right fs)) = unwords (showIdent c : "{" : map f fs ++ ["}"])
+  where f (i, t) = showIdent i ++ " :: " ++ showEType t ++ ","
 
 showLHS :: LHS -> String
 showLHS lhs =
