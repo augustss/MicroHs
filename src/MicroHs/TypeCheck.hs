@@ -252,7 +252,16 @@ getIdent ae =
 
 type Typed a = (a, EType)
 
-data TCState = TC IdentModule Int FixTable TypeTable SynTable ValueTable AssocTable (IM.IntMap EType) TCMode
+data TCState = TC
+  IdentModule           -- current module name
+  Int                   -- unique number
+  FixTable              -- fixities, indexed by QIdent
+  TypeTable             -- type symbol table
+  SynTable              -- synonyms, indexed by QIdent
+  ValueTable            -- value symbol table
+  AssocTable            -- values associated with a type, indexed by QIdent
+  (IM.IntMap EType)     -- mapping from unique id to type
+  TCMode                -- pattern, value, or type
   --Xderiving (Show)
 
 data TCMode = TCExpr | TCPat | TCType
@@ -683,7 +692,7 @@ tcDefs :: [EDef] -> T [EDef]
 tcDefs ds = T.do
   T.mapM_ tcAddInfix ds
   dst <- tcDefsType ds
-  --traceM (showEDefs dst)
+--  traceM (showEDefs dst)
   T.mapM_ addTypeSyn dst
   tcDefsValue dst
 
@@ -809,7 +818,7 @@ expandClassInst d@(Instance iks mc c m) = (d:) <$> expandInst iks mc c m
 expandClassInst d = T.return [d]
 
 -- Expand a class defintion to
---  * a type for the dictionary
+--  * a "data" type for the dictionary, with kind Constraint
 --  * superclass selectors
 --  * method selectors
 --  * default methods
@@ -819,21 +828,48 @@ expandClassInst d = T.return [d]
 --     (/=) :: a -> a -> a
 --     x /= y = not (x == y)
 -- expands to
---   data Eq$Dict a = Eq (a -> a -> Bool) (a -> a -> Bool)
---   Eq$== :: forall a . Eq$Dict a -> (a -> a -> Bool)
---   Eq$== (Eq x _) = x
---   Eq$/= :: forall a . Eq$Dict a -> (a -> a -> Bool)
---   Eq$/= (Eq _ x) = x
---   Eq$==$dflt :: forall a . (Eq a) => (a -> a -> Bool)
---   Eq$==$dflt = _noDefault "Eq.=="
---   Eq$/=$dflt :: forall a . (Eq a) => (a -> a -> Bool)
---   Eq$/=$dflt x y = not (x == y)
+--   data Eq a = Eq$ (a -> a -> Bool) (a -> a -> Bool)
+--               :: Constraint
+--   == :: forall a . Eq a -> (a -> a -> Bool)
+--   == (Eq x _) = x
+--   /= :: forall a . Eq a -> (a -> a -> Bool)
+--   /= (Eq _ x) = x
+--   ==$dflt :: forall a . (Eq a) => (a -> a -> Bool)
+--   ==$dflt = _noDefault "Eq.=="
+--   /=$dflt :: forall a . (Eq a) => (a -> a -> Bool)
+--   /=$dflt x y = not (x == y)
 --
+--   class (Eq a) => Ord a where
+--     (<=) :: a -> a -> Bool
+-- expands to
+--   data Ord a = Ord$ (Eq a) (a -> a -> Bool)
+--   Ord$super1 :: forall a . Ord a -> Eq a
+--   <= :: forall a . Ord a -> (a -> a -> Bool)
+--   <=$dflt = _noDefault "Ord.<="
+-- The actual definitions for the constructor and methods are added
+-- in the desugaring pass.
+-- Default methods are added as actual definitions.
+-- The constructor and mathods are added to the symbol table in addValueType.
 expandClass :: [EConstraint] -> LHS -> [EBind] -> T [EDef]
-expandClass sups (iCls, vs) ms = T.do
+expandClass _sups (iCls, vs) ms = T.do
   mn <- gets moduleName
-  supTys <- T.mapM clsToDict sups
-  let iDict = mkDictId iCls                 -- dictionary type name
+  let
+      meths = [ b | b@(BSign _ _) <- ms ]
+      mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
+      tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vs)
+      mkDflt (BSign i t) = [ Sign iDflt $ EForall vs $ tCtx `tImplies` t, def $ lookupBy eqIdent i mdflts ]
+        where def Nothing = Fcn iDflt [Eqn [] $ EAlts [([], noDflt)] []]
+              def (Just eqns) = Fcn iDflt eqns
+              iDflt = mkDefaultMethodId i
+              -- XXX This isn't right, "Prelude._nodefault" might not be in scope
+              noDflt = EApp (EVar (mkIdent "Prelude._noDefault")) (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent i)))
+      mkDflt _ = impossible
+      dDflts = concatMap mkDflt meths
+  T.return dDflts
+{-
+  mn <- gets moduleName
+  supTys <- T.return sups -- T.mapM clsToDict sups
+  let iDict = iCls                 -- dictionary type name
       meths = [ b | b@(BSign _ _) <- ms ]
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
       methTys = map (\ (BSign _ t) -> t) meths
@@ -848,20 +884,20 @@ expandClass sups (iCls, vs) ms = T.do
       tDict = tApps (qualIdent mn iDict) (map (EVar . idKindIdent) vs)
       pat k n = foldl EApp (EVar iCon) [ if k == i then ex else EVar dummyIdent | i <- [1..n] ]
       mkSel (BSign i t) k = [ Sign mid $ tForall $ tDict `tArrow` t, selFcn mid k ]
-        where mid = mkMethodId iCls i
+        where mid = i
       mkSel _ _ = impossible
       dSels = concat $ zipWith mkSel meths [nSups+1 ..]
       selFcn i k = Fcn i [Eqn [pat k nArgs] $ EAlts [([], ex)] []]
 
       mkSupSel tsup k = [Sign sid $ tForall $ tDict `tArrow` tsup, selFcn sid k]
-        where sid = mkMethodId iCls (mkIdent ("Super" ++ showInt k))
+        where sid = mkIdent (unIdent iCls ++ "$super" ++ showInt k)
       dSupers = concat $ zipWith mkSupSel supTys [1 ..]
 
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vs)
       mkDflt (BSign i t) = [ Sign iDflt $ tForall $ tCtx `tImplies` t, def $ lookupBy eqIdent i mdflts ]
         where def Nothing = Fcn iDflt [Eqn [] $ EAlts [([], noDflt)] []]
               def (Just eqns) = Fcn iDflt eqns
-              iDflt = mkDefaultMethodId iCls i
+              iDflt = mkDefaultMethodId i
               -- XXX This isn't right, "Prelude._nodefault" might not be in scope
               noDflt = EApp (EVar (mkIdent "Prelude._noDefault")) (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent i)))
       mkDflt _ = impossible
@@ -869,33 +905,33 @@ expandClass sups (iCls, vs) ms = T.do
 
   -- XXX add iDict to symbol table
   T.return $ [dData] ++ dSupers ++ dSels ++ dDflts
-
--- Turn a (unqualified) class name into the dictionary type name.
-mkDictId :: Ident -> Ident
-mkDictId cls = addIdentSuffix cls "$Dict"
-
--- Turn (unqualified) class and method names into a selector name.
-mkMethodId :: Ident -> Ident -> Ident
-mkMethodId cls meth = addIdentSuffix cls ("$" ++ unIdent meth)
-
+-}
 -- Turn (unqualified) class and method names into a default method name
-mkDefaultMethodId :: Ident -> Ident -> Ident
-mkDefaultMethodId cls meth = addIdentSuffix cls ("$" ++ unIdent meth ++ "$dflt")
+mkDefaultMethodId :: Ident -> Ident
+mkDefaultMethodId meth = addIdentSuffix meth "$dflt"
 
+{-
 clsToDict :: EType -> T EType
 clsToDict = T.do
   -- XXX for now, only allow contexts of the form (C t1 ... tn)
-  let usup as (EVar c) | isConIdent c = T.return (tApps (mkDictId c) as)
+  let usup as (EVar c) | isConIdent c = T.return (tApps c as)
       usup as (EApp f a) = usup (a:as) f
       usup _ t = tcError (getSLocExpr t) ("bad context " ++ showEType t)
   usup []
+-}
 
+-- Implement:
+--  * Look up class to get number of super-classes and methods
+--     Generate Cls$C dict$ dict$ ...  method1 ... methodN
+--      Where methodK is either from bs of the default method.
+--      There's one magic dict$ for each superclass.
+--  * Add instance to instance table
 expandInst :: [IdKind] -> [EConstraint] -> EType -> [EBind] -> T [EDef]
 expandInst vks _ctx cc bs = T.do
-  ct <- clsToDict cc
-  let iCon = getAppCon ct
-      iInst = mkIdent "inst$"
-      sign = Sign iInst (eForall vks ct)
+  let loc@(SLoc _ l c) = getSLocExpr cc
+      iCon = getAppCon cc
+      iInst = mkIdentSLoc loc $ "inst$L" ++ showInt l ++ "C" ++ showInt c
+      sign = Sign iInst (eForall vks cc)
       bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar iCon) meths)] bs]
       meths = []
   T.return [sign, bind]
@@ -930,7 +966,24 @@ addValueType adef = T.do
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
       extValETop c (EForall vks $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
     ForImp _ i t -> extValQTop i t
+    Class ctx (i, vks) ms -> addValueClass ctx i vks ms
     _ -> T.return ()
+
+addValueClass :: [EConstraint] -> Ident -> [IdKind] -> [EBind] -> T ()
+addValueClass ctx iCls vks ms = T.do
+  mn <- gets moduleName
+  let
+      meths = [ b | b@(BSign _ _) <- ms ]
+      methTys = map (\ (BSign _ t) -> t) meths
+      supTys = ctx  -- XXX should do some checking
+      targs = supTys ++ methTys
+      tret = tApps iCls (map tVarK vks)
+      cti = [ (qualIdent mn iCon, length targs) ]
+      iCon = mkClassConstructor iCls
+  extValETop iCon (EForall vks $ foldr tArrow tret targs) (ECon $ ConData cti (qualIdent mn iCon))
+
+mkClassConstructor :: Ident -> Ident
+mkClassConstructor i = addIdentSuffix i "$C"
 
 unForall :: EType -> ([IdKind], EType)
 unForall (EForall iks t) = (iks, t)
