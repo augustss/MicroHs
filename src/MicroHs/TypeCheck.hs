@@ -57,6 +57,9 @@ type KindTable  = M.Map [Entry]    -- sort of kind  identifiers, used during sor
 type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
+type ClassTable = M.Map ([Ident], [Ident]) -- super class selector names, instance names
+type Instances  = [([IdKind], [EConstraint], EConstraint)]
+type Constraints= [(Ident, EConstraint)]
 
 type Sigma = EType
 --type Tau   = EType
@@ -262,59 +265,62 @@ data TCState = TC
   AssocTable            -- values associated with a type, indexed by QIdent
   (IM.IntMap EType)     -- mapping from unique id to type
   TCMode                -- pattern, value, or type
+  ClassTable            -- class info, indexed by QIdent
+  Instances             -- instances
+  Constraints           -- constraints that have to be solved
   --Xderiving (Show)
 
 data TCMode = TCExpr | TCPat | TCType
   --Xderiving (Show)
 
 typeTable :: TCState -> TypeTable
-typeTable (TC _ _ _ tt _ _ _ _ _) = tt
+typeTable (TC _ _ _ tt _ _ _ _ _ _ _ _) = tt
 
 valueTable :: TCState -> ValueTable
-valueTable (TC _ _ _ _ _ vt _ _ _) = vt
+valueTable (TC _ _ _ _ _ vt _ _ _ _ _ _) = vt
 
 synTable :: TCState -> SynTable
-synTable (TC _ _ _ _ st _ _ _ _) = st
+synTable (TC _ _ _ _ st _ _ _ _ _ _ _) = st
 
 fixTable :: TCState -> FixTable
-fixTable (TC _ _ ft _ _ _ _ _ _) = ft
+fixTable (TC _ _ ft _ _ _ _ _ _ _ _ _) = ft
 
 assocTable :: TCState -> AssocTable
-assocTable (TC _ _ _ _ _ _ ast _ _) = ast
+assocTable (TC _ _ _ _ _ _ ast _ _ _ _ _) = ast
 
 uvarSubst :: TCState -> IM.IntMap EType
-uvarSubst (TC _ _ _ _ _ _ _ sub _) = sub
+uvarSubst (TC _ _ _ _ _ _ _ sub _ _ _ _) = sub
 
 moduleName :: TCState -> IdentModule
-moduleName (TC mn _ _ _ _ _ _ _ _) = mn
+moduleName (TC mn _ _ _ _ _ _ _ _ _ _ _) = mn
 
 tcMode :: TCState -> TCMode
-tcMode (TC _ _ _ _ _ _ _ _ m) = m
+tcMode (TC _ _ _ _ _ _ _ _ m _ _ _) = m
 
 putValueTable :: ValueTable -> T ()
 putValueTable venv = T.do
-  TC mn n fx tenv senv _ ast sub m <- get
-  put (TC mn n fx tenv senv venv ast sub m)
+  TC mn n fx tenv senv _ ast sub m cs is es <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es)
 
 putTypeTable :: TypeTable -> T ()
 putTypeTable tenv = T.do
-  TC mn n fx _ senv venv ast sub m <- get
-  put (TC mn n fx tenv senv venv ast sub m)
+  TC mn n fx _ senv venv ast sub m cs is es <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es)
 
 putSynTable :: SynTable -> T ()
 putSynTable senv = T.do
-  TC mn n fx tenv _ venv ast sub m <- get
-  put (TC mn n fx tenv senv venv ast sub m)
+  TC mn n fx tenv _ venv ast sub m cs is es <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es)
 
 putUvarSubst :: IM.IntMap EType -> T ()
 putUvarSubst sub = T.do
-  TC mn n fx tenv senv venv ast _ m <- get
-  put (TC mn n fx tenv senv venv ast sub m)
+  TC mn n fx tenv senv venv ast _ m cs is es <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es)
 
 putTCMode :: TCMode -> T ()
 putTCMode m = T.do
-  TC mn n fx tenv senv venv ast sub _ <- get
-  put (TC mn n fx tenv senv venv ast sub m)
+  TC mn n fx tenv senv venv ast sub _ cs is es <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es)
 
 withTCMode :: forall a . TCMode -> T a -> T a
 withTCMode m ta = T.do
@@ -327,25 +333,26 @@ withTCMode m ta = T.do
 -- Use the type table as the value table, and the primKind table as the type table.
 withTypeTable :: forall a . T a -> T a
 withTypeTable ta = T.do
-  TC mn n fx tt st vt ast sub m <- get
-  put (TC mn n fx primKindTable M.empty tt ast sub m)
+  TC mn n fx tt st vt ast sub m cs is es <- get
+  put (TC mn n fx primKindTable M.empty tt ast sub m cs is es)
   a <- ta
-  TC mnr nr _ _ _ ttr astr subr mr <- get
-  put (TC mnr nr fx ttr st vt astr subr mr)
+  TC mnr nr _ _ _ ttr astr subr mr csr isr esr <- get
+  put (TC mnr nr fx ttr st vt astr subr mr csr isr esr)
   T.return a
 
 addAssocTable :: Ident -> [Ident] -> T ()
-addAssocTable i is = T.do
-  TC mn n fx tt st vt ast sub m <- get
-  put $ TC mn n fx tt st vt (M.insert i is ast) sub m
+addAssocTable i ids = T.do
+  TC mn n fx tt st vt ast sub m cs is es <- get
+  put $ TC mn n fx tt st vt (M.insert i ids ast) sub m cs is es
 
+-- XXX handle imports
 initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ValueTable -> AssocTable -> TCState
 initTC mn fs ts ss vs as =
 --  trace ("initTC " ++ show (ts, vs)) $
   let
     xts = foldr (uncurry M.insert) ts primTypes
     xvs = foldr (uncurry M.insert) vs primValues
-  in TC mn 1 fs xts ss xvs as IM.empty TCExpr
+  in TC mn 1 fs xts ss xvs as IM.empty TCExpr M.empty [] []
 
 kTypeS :: EType
 kTypeS = kType
@@ -459,8 +466,8 @@ getTuple n t = loop t []
 
 setUVar :: TRef -> EType -> T ()
 setUVar i t = T.do
-  TC mn n fx tenv senv venv ast sub m <- get
-  put (TC mn n fx tenv senv venv ast (IM.insert i t sub) m)
+  TC mn n fx tenv senv venv ast sub m cs is es <- get
+  put (TC mn n fx tenv senv venv ast (IM.insert i t sub) m cs is es)
 
 getUVar :: Int -> T (Maybe EType)
 getUVar i = gets (IM.lookup i . uvarSubst)
@@ -566,8 +573,8 @@ unifyUnboundVar loc r1 t2 = T.do
 -- Reset type variable and unification map
 tcReset :: T ()
 tcReset = T.do
-  TC mn _ fx tenv senv venv ast _ m <- get
-  put (TC mn 0 fx tenv senv venv ast IM.empty m)
+  TC mn _ fx tenv senv venv ast _ m cs is es <- get
+  put (TC mn 0 fx tenv senv venv ast IM.empty m cs is es)
 
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
@@ -576,8 +583,9 @@ type TRef = Int
 
 newUniq :: T TRef
 newUniq = T.do
-  TC mn n fx tenv senv venv ast sub m <- get
-  put (TC mn (n+1) fx tenv senv venv ast sub m)
+  TC mn n fx tenv senv venv ast sub m cs is es <- get
+  let n' = n+1
+  put (seq n' $ TC mn n' fx tenv senv venv ast sub m cs is es)
   T.return n
 
 tLookup :: --XHasCallStack =>
@@ -657,8 +665,8 @@ extSyn i t = T.do
 
 extFix :: Ident -> Fixity -> T ()
 extFix i fx = T.do
-  TC mn n fenv tenv senv venv ast sub m <- get
-  put $ TC mn n (M.insert i fx fenv) tenv senv venv ast sub m
+  TC mn n fenv tenv senv venv ast sub m cs is es <- get
+  put $ TC mn n (M.insert i fx fenv) tenv senv venv ast sub m cs is es
   T.return ()
 
 withExtVal :: forall a . --XHasCallStack =>
