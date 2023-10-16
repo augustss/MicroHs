@@ -51,6 +51,7 @@ executable mhs
                        MicroHs.StateIO
                        MicroHs.IdentMap
                        MicroHs.Interactive
+                       MicroHs.State
                        MicroHs.TCMonad
                        MicroHs.Translate
                        MicroHs.TypeCheck

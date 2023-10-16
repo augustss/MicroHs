@@ -11,6 +11,7 @@ import Data.Char
 import Data.List
 import Data.Maybe
 import qualified Data.IntMap as IM
+import qualified MicroHs.State as S
 import MicroHs.TCMonad as T
 import qualified MicroHs.IdentMap as M
 import MicroHs.Ident
@@ -57,7 +58,7 @@ type KindTable  = M.Map [Entry]    -- sort of kind  identifiers, used during sor
 type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
-type ClassTable = M.Map ([Ident], [Ident]) -- super class selector names, instance names
+type ClassTable = M.Map (Int, [Ident]) -- # super classes, instance names
 type Instances  = [([IdKind], [EConstraint], EConstraint)]
 type Constraints= [(Ident, EConstraint)]
 
@@ -294,6 +295,9 @@ uvarSubst (TC _ _ _ _ _ _ _ sub _ _ _ _) = sub
 moduleName :: TCState -> IdentModule
 moduleName (TC mn _ _ _ _ _ _ _ _ _ _ _) = mn
 
+classTable :: TCState -> ClassTable
+classTable (TC _ _ _ _ _ _ _ _ _ ct _ _) = ct
+
 tcMode :: TCState -> TCMode
 tcMode (TC _ _ _ _ _ _ _ _ m _ _ _) = m
 
@@ -344,6 +348,16 @@ addAssocTable :: Ident -> [Ident] -> T ()
 addAssocTable i ids = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt (M.insert i ids ast) sub m cs is es
+
+addClassTable :: Ident -> (Int, [Ident]) -> T ()
+addClassTable i x = T.do
+  TC mn n fx tt st vt ast sub m cs is es <- get
+  put $ TC mn n fx tt st vt ast sub m (M.insert i x cs) is es
+
+addInstance :: ([IdKind], [EConstraint], EConstraint) -> T ()
+addInstance inst = T.do
+  TC mn n fx tt st vt ast sub m cs is es <- get
+  put $ TC mn n fx tt st vt ast sub m cs (inst : is) es
 
 -- XXX handle imports
 initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ValueTable -> AssocTable -> TCState
@@ -715,8 +729,9 @@ tcDefsType ds = withTypeTable $ T.do
   dsk <- T.mapM tcDefKind ds                     -- Check&rename kinds in all type definitions
   T.mapM_ addTypeKind dsk                        -- Add the kind of each type to the environment
   dst <- T.mapM tcDefType dsk                    -- Kind check all type expressions (except local signatures)
-  dss <- T.mapM expandClassInst dst              -- Expand all class & instance definitions
-  T.return (concat dss)
+  dsc <- T.mapM expandClass dst                  -- Expand all class definitions
+  dsi <- T.mapM expandInst (concat dsc)          -- Expand all instance definitions
+  T.return (concat dsi)
 
 -- Make sure that the kind expressions are well formed.
 tcDefKind :: EDef -> T EDef
@@ -820,10 +835,6 @@ tcConstr (Constr c ets) =
   Constr c <$> either (\ x -> Left  T.<$> T.mapM (\ t     ->          tcTypeT (Check kType) t) x)
                       (\ x -> Right T.<$> T.mapM (\ (i,t) -> (i,) <$> tcTypeT (Check kType) t) x) ets
 
-expandClassInst :: EDef -> T [EDef]
-expandClassInst d@(Class ctx lhs m)     = (d:) <$> expandClass ctx lhs m
-expandClassInst d@(Instance iks mc c m) = (d:) <$> expandInst iks mc c m
-expandClassInst d = T.return [d]
 
 -- Expand a class defintion to
 --  * a "data" type for the dictionary, with kind Constraint
@@ -858,10 +869,11 @@ expandClassInst d = T.return [d]
 -- in the desugaring pass.
 -- Default methods are added as actual definitions.
 -- The constructor and mathods are added to the symbol table in addValueType.
-expandClass :: [EConstraint] -> LHS -> [EBind] -> T [EDef]
-expandClass _sups (iCls, vs) ms = T.do
+expandClass :: EDef -> T [EDef]
+expandClass dcls@(Class ctx (iCls, vs) ms) = T.do
   mn <- gets moduleName
   let
+      methIds = [ i | (BSign i _) <- ms ]
       meths = [ b | b@(BSign _ _) <- ms ]
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vs)
@@ -873,7 +885,9 @@ expandClass _sups (iCls, vs) ms = T.do
               noDflt = EApp (EVar (mkIdent "Prelude._noDefault")) (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent i)))
       mkDflt _ = impossible
       dDflts = concatMap mkDflt meths
-  T.return dDflts
+  addClassTable (qualIdent mn iCls) (length ctx, methIds)
+  T.return $ dcls : dDflts
+expandClass d = T.return [d]
 {-
   mn <- gets moduleName
   supTys <- T.return sups -- T.mapM clsToDict sups
@@ -934,15 +948,35 @@ clsToDict = T.do
 --      Where methodK is either from bs of the default method.
 --      There's one magic dict$ for each superclass.
 --  * Add instance to instance table
-expandInst :: [IdKind] -> [EConstraint] -> EType -> [EBind] -> T [EDef]
-expandInst vks _ctx cc bs = T.do
+expandInst :: EDef -> T [EDef]
+expandInst dinst@(Instance vks ctx cc bs) = T.do
   let loc@(SLoc _ l c) = getSLocExpr cc
-      iCon = getAppCon cc
+      iCls = getAppCon cc
       iInst = mkIdentSLoc loc $ "inst$L" ++ showInt l ++ "C" ++ showInt c
       sign = Sign iInst (eForall vks cc)
-      bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar iCon) meths)] bs]
-      meths = []
-  T.return [sign, bind]
+  (e, _) <- tLookupV iCls
+  ct <- gets classTable
+  let qiCls = getAppCon e
+  (nsup, mis) <-
+    case M.lookup qiCls ct of
+      Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
+      Just x -> T.return x
+  let (bs', (_, ims)) =
+          let f (BFcn i eqns) = S.do
+                (n, xs) <- S.get
+                let mi = mkIdentSLoc (getSLocIdent i) ("meth$" ++ showInt n)
+                S.put (n+1, (i, mi):xs)
+                S.return (BFcn mi eqns)
+              f b = S.return b
+          in  S.runState (S.mapM f bs) (1, [])
+      meths = map meth mis
+        where meth i = EVar $ fromMaybe (mkDefaultMethodId i) $ lookupBy eqIdent i ims
+      sups = replicate nsup (EVar $ mkIdentSLoc loc "dict$")
+      args = sups ++ meths
+  let bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar $ mkClassConstructor iCls) args)] bs']
+  addInstance (vks, ctx, cc)
+  T.return [dinst, sign, bind]
+expandInst d = T.return [d]
 
 eForall :: [IdKind] -> EType -> EType
 eForall [] t = t

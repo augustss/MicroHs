@@ -86,6 +86,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c src/MicroHs/IdentMap.hs
 	$(GHCC) -c src/MicroHs/Exp.hs
 	$(GHCC) -c src/MicroHs/TCMonad.hs
+	$(GHCC) -c src/MicroHs/State.hs
 	$(GHCC) -c src/MicroHs/TypeCheck.hs
 	$(GHCC) -c src/MicroHs/Desugar.hs
 	$(GHCC) -c src/MicroHs/StateIO.hs
