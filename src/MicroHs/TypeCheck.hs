@@ -76,7 +76,7 @@ typeCheck aimps (EModule mn exps defs) =
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm _, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
            (texps, vexps) =
-             unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs)) exps
+             unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
            fexps = [ fe | TModule _ fe _ _ _ _ <- M.elems impMap ]
            sexps = [ se | TModule _ _ _ se _ _ <- M.elems impMap ]
          in  tModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) (concat sexps) (concat vexps) tds
@@ -107,22 +107,23 @@ filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss vs 
     (imp, TModule mn fx ts' ss vs' a)
 
 -- Type and value exports
-getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> ExportItem ->
+getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ExportItem ->
            ([TypeExport], [ValueExport])
-getTVExps impMap _ _ (ExpModule m) =
+getTVExps impMap _ _ _ (ExpModule m) =
   case M.lookup m impMap of
     Just (TModule _ _ te _ ve _) -> (te, ve)
     _ -> expErr m
-getTVExps _ tys vals (ExpTypeCon i) =
+getTVExps _ tys vals ast (ExpTypeCon i) =
   let
     e = expLookup i tys
     qi = tyQIdent e
-  in ([TypeExport i e $ constrsOf qi (M.toList vals)], [])
-getTVExps _ tys _ (ExpType i) =
+    ves = getAssocs vals ast qi
+  in ([TypeExport i e ves], [])
+getTVExps _ tys _ _ (ExpType i) =
   let
     e = expLookup i tys
   in ([TypeExport i e []], [])
-getTVExps _ _ vals (ExpValue i) =
+getTVExps _ _ vals _ (ExpValue i) =
     ([], [ValueExport i (expLookup i vals)])
 
 -- Export all fixities and synonyms.
@@ -140,22 +141,6 @@ expLookup i m =
 tyQIdent :: Entry -> Ident
 tyQIdent (Entry (EVar qi) _) = qi
 tyQIdent _ = error "tyQIdent"
-
-constrsOf :: Ident -> [(Ident, [Entry])] -> [ValueExport]
-constrsOf qi ies =
-  [ ValueExport i e | (i, es) <- ies, e@(Entry (ECon _) t) <- es, eqIdent (retTyCon t) qi ]
-
-retTyCon :: EType -> Ident
-retTyCon (EForall _ t) = retTyCon t
-retTyCon t =
-  case getArrow t of
-    Nothing -> getAppCon t
-    Just (_, a) -> retTyCon a
-
-getAppCon :: EType -> Ident
-getAppCon (EVar i) = i
-getAppCon (EApp f _) = getAppCon f
-getAppCon _ = error "getAppCon"
 
 eVarI :: SLoc -> String -> Expr
 eVarI loc = EVar . mkIdentSLoc loc
@@ -183,12 +168,7 @@ mkTModule tds tcs =
         Just [e] -> e
         _        -> impossible
     -- Find all value Entry for names associated with a type.
-    assoc i =
-      let qis = fromMaybe [] $ M.lookup (qualIdent mn i) at
-          val qi = case M.lookup qi vt of
-                     Just [e] -> e
-                     _        -> impossible
-      in  map (\ qi -> ValueExport (unQualIdent qi) (val qi)) qis
+    assoc i = getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
     ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign i ts <- tds ]
@@ -205,6 +185,15 @@ mkTModule tds tcs =
     -- All fixity declaration.
     fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
   in  TModule mn fes tes ses ves impossible
+
+-- Find all value Entry for names associated with a type.
+getAssocs :: ValueTable -> AssocTable -> Ident -> [ValueExport]
+getAssocs vt at ai =
+  let qis = fromMaybe [] $ M.lookup ai at
+      val qi = case M.lookup qi vt of
+                 Just [e] -> e
+                 _        -> impossible
+  in  map (\ qi -> ValueExport (unQualIdent qi) (val qi)) qis
 
 mkTables :: forall a . [(ImportSpec, TModule a)] -> (FixTable, TypeTable, SynTable, ValueTable, AssocTable)
 mkTables mdls =
