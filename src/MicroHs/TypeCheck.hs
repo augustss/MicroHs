@@ -195,9 +195,9 @@ mkTModule tds tcs =
 
     -- All top level types possible to export.
     tes =
-      [ TypeExport i (tentry i) (assoc i) | Data    (i, _) _   <- tds ] ++
-      [ TypeExport i (tentry i) (assoc i) | Newtype (i, _) _ _ <- tds ] ++
-      [ TypeExport i (tentry i) []        | Type    (i, _) _   <- tds ]
+      [ TypeExport i (tentry i) (assoc i) | Data    (i, _) _ <- tds ] ++
+      [ TypeExport i (tentry i) (assoc i) | Newtype (i, _) _ <- tds ] ++
+      [ TypeExport i (tentry i) []        | Type    (i, _) _ <- tds ]
 
     -- All type synonym definitions.
     ses = [ (qualIdent mn i, EForall vs t) | Type (i, vs) t  <- tds ]
@@ -734,7 +734,7 @@ tcDefKind adef = T.do
   tcReset
   case adef of
     Data    (i, vks) cs  -> withVks vks kType $ \ vvks _  -> T.return $ Data    (i, vvks) cs
-    Newtype (i, vks) c t -> withVks vks kType $ \ vvks _  -> T.return $ Newtype (i, vvks) c t
+    Newtype (i, vks) c   -> withVks vks kType $ \ vvks _  -> T.return $ Newtype (i, vvks) c
     Type    (i, vks) at  ->
       case at of
         ESign t k        -> withVks vks k     $ \ vvks kr -> T.return $ Type    (i, vvks) (ESign t kr)
@@ -768,9 +768,9 @@ addTypeKind adef = T.do
     Data    lhs@(i, _) cs   -> T.do
       addLHSKind lhs kType
       addAssoc i (nubBy eqIdent $ concatMap assocData cs)
-    Newtype lhs@(i, _) c _ -> T.do
+    Newtype lhs@(i, _) c -> T.do
       addLHSKind lhs kType
-      addAssoc i [c]
+      addAssoc i (assocData c)
     Type    lhs t   -> addLHSKind lhs (getTypeKind t)
     _               -> T.return ()
 
@@ -800,11 +800,11 @@ tcDefType :: EDef -> T EDef
 tcDefType d = T.do
   tcReset
   case d of
-    Data    lhs cs   -> Data    lhs   <$> withVars (snd lhs) (T.mapM tcConstr cs)
-    Newtype lhs c  t -> Newtype lhs c <$> withVars (snd lhs) (tcTypeT (Check kType) t)
-    Type    lhs    t -> Type    lhs   <$> withVars (snd lhs) (tcInferTypeT t)
-    Sign    i      t -> (Sign    i  ) <$> tcTypeT (Check kType) t
-    ForImp  ie i   t -> (ForImp ie i) <$> tcTypeT (Check kType) t
+    Data    lhs cs -> Data    lhs   <$> withVars (snd lhs) (T.mapM tcConstr cs)
+    Newtype lhs c  -> Newtype lhs   <$> withVars (snd lhs) (tcConstr c)
+    Type    lhs  t -> Type    lhs   <$> withVars (snd lhs) (tcInferTypeT t)
+    Sign    i    t -> (Sign    i  ) <$> tcTypeT (Check kType) t
+    ForImp  ie i t -> (ForImp ie i) <$> tcTypeT (Check kType) t
     _ -> T.return d
 
 withVars :: forall a . [IdKind] -> T a -> T a
@@ -837,8 +837,9 @@ addValueType adef = T.do
           let ts = either id (map snd) ets
           extValETop c (EForall vks $ foldr tArrow tret ts) (ECon $ ConData cti (qualIdent mn c))
       T.mapM_ addCon cs
-    Newtype (i, vks) c t -> T.do
+    Newtype (i, vks) (Constr c fs) -> T.do
       let
+        t = head $ either id (map snd) fs
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
       extValETop c (EForall vks $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
     ForImp _ i t -> extValQTop i t

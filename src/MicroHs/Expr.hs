@@ -55,7 +55,7 @@ data ExportItem
 
 data EDef
   = Data LHS [Constr]
-  | Newtype LHS Ident EType
+  | Newtype LHS Constr
   | Type LHS EType
   | Fcn Ident [Eqn]
   | Sign Ident EType
@@ -362,7 +362,7 @@ showEDef :: EDef -> String
 showEDef def =
   case def of
     Data lhs cs -> "data " ++ showLHS lhs ++ " = " ++ intercalate " | " (map showConstr cs)
-    Newtype lhs c t -> "newtype " ++ showLHS lhs ++ " = " ++ showIdent c ++ " " ++ showEType t
+    Newtype lhs c -> "newtype " ++ showLHS lhs ++ " = " ++ showConstr c
     Type lhs t -> "type " ++ showLHS lhs ++ " = " ++ showEType t
     Fcn i eqns -> unlines (map (\ (Eqn ps alts) -> showIdent i ++ " " ++ unwords (map showEPat ps) ++ showAlts "=" alts) eqns)
     Sign i t -> showIdent i ++ " :: " ++ showEType t
