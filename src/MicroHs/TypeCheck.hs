@@ -59,8 +59,10 @@ type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
 type ClassTable = M.Map (Int, [Ident]) -- # super classes, instance names
-type Instances  = [([IdKind], [EConstraint], EConstraint)]
+type Instances  = [InstDict]
 type Constraints= [(Ident, EConstraint)]
+
+type InstDict   = (Ident, [IdKind], [EConstraint], EConstraint)
 
 type Sigma = EType
 --type Tau   = EType
@@ -301,6 +303,12 @@ classTable (TC _ _ _ _ _ _ _ _ _ ct _ _) = ct
 tcMode :: TCState -> TCMode
 tcMode (TC _ _ _ _ _ _ _ _ m _ _ _) = m
 
+instances :: TCState -> Instances
+instances (TC _ _ _ _ _ _ _ _ _ _ is _) = is
+
+constraints :: TCState -> Constraints
+constraints (TC _ _ _ _ _ _ _ _ _ _ _ e) = e
+
 putValueTable :: ValueTable -> T ()
 putValueTable venv = T.do
   TC mn n fx tenv senv _ ast sub m cs is es <- get
@@ -324,6 +332,11 @@ putUvarSubst sub = T.do
 putTCMode :: TCMode -> T ()
 putTCMode m = T.do
   TC mn n fx tenv senv venv ast sub _ cs is es <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es)
+
+putInstances :: Instances -> T ()
+putInstances is = T.do
+  TC mn n fx tenv senv venv ast sub m cs _ es <- get
   put (TC mn n fx tenv senv venv ast sub m cs is es)
 
 withTCMode :: forall a . TCMode -> T a -> T a
@@ -354,10 +367,24 @@ addClassTable i x = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt ast sub m (M.insert i x cs) is es
 
-addInstance :: ([IdKind], [EConstraint], EConstraint) -> T ()
-addInstance inst = T.do
+addInstance :: InstDict -> T ()
+addInstance ic = T.do
+  is <- gets instances
+  putInstances (ic : is)
+
+addConstraint :: (Ident, EConstraint) -> T ()
+addConstraint e = T.do
+  traceM (show e)
   TC mn n fx tt st vt ast sub m cs is es <- get
-  put $ TC mn n fx tt st vt ast sub m cs (inst : is) es
+  put $ TC mn n fx tt st vt ast sub m cs is (e : es)
+
+withDict :: forall a . InstDict -> T a -> T a
+withDict ic ta = T.do
+  is <- gets instances
+  putInstances (ic : is)
+  a <- ta
+  putInstances is
+  T.return a
 
 -- XXX handle imports
 initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ValueTable -> AssocTable -> TCState
@@ -470,6 +497,11 @@ getArrow (EApp (EApp (EVar n) a) b) =
   if eqIdent n (mkIdent "->") || eqIdent n (mkIdent "Primitives.->") then Just (a, b) else Nothing
 getArrow _ = Nothing
 
+getImplies :: EType -> Maybe (EType, EType)
+getImplies (EApp (EApp (EVar n) a) b) =
+  if eqIdent n (mkIdent "=>") || eqIdent n (mkIdent "Primitives.=>") then Just (a, b) else Nothing
+getImplies _ = Nothing
+
 {-
 getTuple :: Int -> EType -> Maybe [EType]
 getTuple n t = loop t []
@@ -535,7 +567,8 @@ derefUVar at =
     EForall iks t -> EForall iks <$> derefUVar t
     _ -> impossible
 
-tcErrorTK :: SLoc -> String -> T ()
+tcErrorTK :: --XHasCallStack =>
+             SLoc -> String -> T ()
 tcErrorTK loc msg = T.do
   tcm <- gets tcMode
   let s = case tcm of
@@ -622,7 +655,10 @@ tLookupV i = T.do
   tLookup ("undefined " ++ s ++ " identifier") ("ambiguous " ++ s ++ " identifier") i
 
 tInst :: EType -> T EType
-tInst as =
+tInst t = tInst' t T.>>= tDict
+
+tInst' :: EType -> T EType
+tInst' as =
   case as of
     EForall vks t ->
       if null vks then T.return t
@@ -631,6 +667,14 @@ tInst as =
         us <- T.mapM (const newUVar) vks
         T.return (subst (zip vs us) t)
     t -> T.return t
+
+tDict :: EType -> T EType
+tDict (EApp (EApp (EVar (Ident loc "Primitives.=>")) ctx) t) = T.do
+  u <- newUniq
+  let d = mkIdentSLoc loc ("dict$" ++ showInt u)
+  addConstraint (d, ctx)
+  tDict t
+tDict t = T.return t
 
 extValE :: --XHasCallStack =>
            Ident -> EType -> Expr -> T ()
@@ -974,7 +1018,7 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
       sups = replicate nsup (EVar $ mkIdentSLoc loc "dict$")
       args = sups ++ meths
   let bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar $ mkClassConstructor iCls) args)] bs']
-  addInstance (vks, ctx, cc)
+  addInstance (iInst, vks, ctx, cc)
   T.return [dinst, sign, bind]
 expandInst d = T.return [d]
 
@@ -1036,12 +1080,13 @@ tcDefValue :: --XHasCallStack =>
 tcDefValue adef =
   case adef of
     Fcn i eqns -> T.do
---      traceM $ "tcDefValue: " ++ show i -- ++ " = " ++ showExpr rhs
       (_, tt) <- tLookup "no type signature" "many type signatures" i
       let (iks, tfn) = unForall tt
+      traceM $ "tcDefValue: " ++ show i ++ " :: " ++ showExpr tt
       mn <- gets moduleName
       teqns <- withExtTyps iks $ tcEqns tfn eqns
 --      traceM (showEDefs [Fcn i eqns, Fcn i teqns])
+      _ <- solveConstraints
       T.return $ Fcn (qualIdent mn i) teqns
     ForImp ie i t -> T.do
       mn <- gets moduleName
@@ -1095,7 +1140,12 @@ tInferExpr = tInfer tcExpr
 
 tCheckExpr :: --XHasCallStack =>
               EType -> Expr -> T Expr
-tCheckExpr = tCheck tcExpr
+tCheckExpr t e | Just (ctx, t') <- getImplies t = T.do
+  u <- newUniq
+  let d = mkIdentSLoc (getSLocExpr e) ("adict$" ++ showInt u)
+  e' <- withDict (d, [], [], ctx) $ tCheckExpr t' e
+  T.return $ ELam [EVar d] e'
+tCheckExpr t e = tCheck tcExpr t e
 
 tGetRefType :: --XHasCallStack =>
                TRef -> T EType
@@ -1716,3 +1766,15 @@ instSigma loc t1 (Check t2) = subsCheckRho loc t1 t2
 instSigma _   t1 (Infer r) = T.do
   t1' <- tInst t1
   tSetRefType r t1'
+
+-----
+
+solveConstraints :: T ()
+solveConstraints = T.do
+  cs <- gets constraints
+  if null cs then
+    T.return ()
+   else T.do
+    traceM "solveConstraints"
+    traceM (unlines $ map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs)
+    T.return ()
