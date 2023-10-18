@@ -80,6 +80,7 @@ unQualString s@(c:_) =
     case dropWhile (neChar '.') s of
       "" -> s
       '.':r -> unQualString r
+      _ -> undefined -- This cannot happen, but GHC doesn't know that
   else
     s
 

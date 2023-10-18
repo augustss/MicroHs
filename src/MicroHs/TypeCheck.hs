@@ -372,9 +372,9 @@ addInstance ic = T.do
   is <- gets instances
   putInstances (ic : is)
 
-addConstraint :: (Ident, EConstraint) -> T ()
-addConstraint e = T.do
-  traceM (show e)
+addConstraint :: String -> (Ident, EConstraint) -> T ()
+addConstraint msg e@(d, ctx) = T.do
+--  traceM $ "addConstraint: " ++ msg ++ " " ++ showIdent d ++ " :: " ++ showEType ctx
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt ast sub m cs is (e : es)
 
@@ -621,7 +621,7 @@ unifyUnboundVar loc r1 t2 = T.do
 tcReset :: T ()
 tcReset = T.do
   TC mn u fx tenv senv venv ast _ m cs is es <- get
-  put (TC mn 0 fx tenv senv venv ast IM.empty m cs is es)
+  put (TC mn u fx tenv senv venv ast IM.empty m cs is es)
 
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
@@ -635,13 +635,18 @@ newUniq = T.do
   put (seq n' $ TC mn n' fx tenv senv venv ast sub m cs is es)
   T.return n
 
+newIdent :: SLoc -> String -> T Ident
+newIdent loc s = T.do
+  u <- newUniq
+  T.return $ mkIdentSLoc loc $ s ++ "$" ++ showInt u
+
 tLookup :: --XHasCallStack =>
            String -> String -> Ident -> T (Expr, EType)
 tLookup msg0 msgN i = T.do
   env <- gets valueTable
   case M.lookup i env of
     Nothing -> tcError (getSLocIdent i) $ msg0 ++ ": " ++ showIdent i
-               -- ++ "\n" ++ show env ;
+               -- ++ "\n" ++ show (map (unIdent . fst) (M.toList env))
     Just [Entry e s] -> T.return (setSLocExpr (getSLocIdent i) e, s)
     Just _ -> tcError (getSLocIdent i) $ msgN ++ ": " ++ showIdent i
 
@@ -672,7 +677,8 @@ tDict :: EType -> T EType
 tDict (EApp (EApp (EVar (Ident loc "Primitives.=>")) ctx) t) = T.do
   u <- newUniq
   let d = mkIdentSLoc loc ("dict$" ++ showInt u)
-  addConstraint (d, ctx)
+  --traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
+  addConstraint "from tDict " (d, ctx)
   tDict t
 tDict t = T.return t
 
@@ -994,10 +1000,10 @@ clsToDict = T.do
 --  * Add instance to instance table
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance vks ctx cc bs) = T.do
-  let loc@(SLoc _ l c) = getSLocExpr cc
+  let loc = getSLocExpr cc
       iCls = getAppCon cc
-      iInst = mkIdentSLoc loc $ "inst$L" ++ showInt l ++ "C" ++ showInt c
-      sign = Sign iInst (eForall vks cc)
+  iInst <- newIdent loc "inst"
+  let sign = Sign iInst (eForall vks cc)
   (e, _) <- tLookupV iCls
   ct <- gets classTable
   let qiCls = getAppCon e
@@ -1018,7 +1024,8 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
       sups = replicate nsup (EVar $ mkIdentSLoc loc "dict$")
       args = sups ++ meths
   let bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar $ mkClassConstructor iCls) args)] bs']
-  addInstance (iInst, vks, ctx, cc)
+  mn <- gets moduleName
+  addInstance (qualIdent mn iInst, vks, ctx, cc)
   T.return [dinst, sign, bind]
 expandInst d = T.return [d]
 
@@ -1063,10 +1070,22 @@ addValueClass ctx iCls vks ms = T.do
       methTys = map (\ (BSign _ t) -> t) meths
       supTys = ctx  -- XXX should do some checking
       targs = supTys ++ methTys
-      tret = tApps iCls (map tVarK vks)
+      qiCls = qualIdent mn iCls
+      tret = tApps qiCls (map tVarK vks)
       cti = [ (qualIdent mn iCon, length targs) ]
       iCon = mkClassConstructor iCls
   extValETop iCon (EForall vks $ foldr tArrow tret targs) (ECon $ ConData cti (qualIdent mn iCon))
+  let addMethod (BSign i t) = extValETop i (EForall vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar i)
+      addMethod _ = impossible
+--  traceM ("addValueClass " ++ showEType (ETuple ctx))
+  T.mapM_ addMethod meths
+
+{-
+bundleConstraints :: [EConstraint] -> EType -> EType
+bundleConstraints []  t = t
+bundleConstraints [c] t = tImplies c t
+bundleConstraints cs  t = tImplies (ETuple cs) t
+-}
 
 mkClassConstructor :: Ident -> Ident
 mkClassConstructor i = addIdentSuffix i "$C"
@@ -1082,11 +1101,10 @@ tcDefValue adef =
     Fcn i eqns -> T.do
       (_, tt) <- tLookup "no type signature" "many type signatures" i
       let (iks, tfn) = unForall tt
-      traceM $ "tcDefValue: " ++ show i ++ " :: " ++ showExpr tt
+--      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr tt
       mn <- gets moduleName
       teqns <- withExtTyps iks $ tcEqns tfn eqns
 --      traceM (showEDefs [Fcn i eqns, Fcn i teqns])
-      _ <- solveConstraints
       T.return $ Fcn (qualIdent mn i) teqns
     ForImp ie i t -> T.do
       mn <- gets moduleName
@@ -1141,6 +1159,7 @@ tInferExpr = tInfer tcExpr
 tCheckExpr :: --XHasCallStack =>
               EType -> Expr -> T Expr
 tCheckExpr t e | Just (ctx, t') <- getImplies t = T.do
+  _ <- undefined -- XXX
   u <- newUniq
   let d = mkIdentSLoc (getSLocExpr e) ("adict$" ++ showInt u)
   e' <- withDict (d, [], [], ctx) $ tCheckExpr t' e
@@ -1217,6 +1236,14 @@ tcExprR mt ae =
                   _ -> impossible
                 T.return p
           
+        _ | eqIdent i (mkIdent "dict$") -> T.do
+          -- Magic variable that just becomes the dictionary
+          d <- newIdent (getSLocIdent i) "dict$"
+          case mt of
+            Infer _ -> impossible
+            Check t -> addConstraint "from dict$" (d, t)
+          T.return (EVar d)
+
         _ -> T.do
           -- Type checking an expression (or type)
           T.when (isDummyIdent i) impossible
@@ -1236,6 +1263,7 @@ tcExprR mt ae =
       (f', ft) <- tInferExpr f
       (at, rt) <- unArrow loc ft
       tcm <- gets tcMode
+--      traceM ("tcExpr EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
       case tcm of
         TCPat -> T.do
           a' <- tCheckExpr at a
@@ -1440,6 +1468,16 @@ tcExprLam mt aps expr = T.do
     T.return (ELam ps er)
 
 tcEqns :: EType -> [Eqn] -> T [Eqn]
+tcEqns t eqns | Just (ctx, t') <- getImplies t = T.do
+  let loc = getSLocExpr $ ELet [BFcn dummyIdent eqns] (EVar dummyIdent)
+  d <- newIdent loc "adict"
+  f <- newIdent loc "fcn"
+  eqns' <- withDict (d, [], [], ctx) $ T.do
+    es <- tcEqns t' eqns
+    _ <- solveConstraints
+    T.return es
+  let eqn = Eqn [EVar d] $ EAlts [([], EVar f)] [BFcn f eqns']
+  T.return [eqn]
 tcEqns t eqns = T.mapM (tcEqn t) eqns
 
 tcEqn :: EType -> Eqn -> T Eqn
@@ -1454,6 +1492,7 @@ tcAlts tt (EAlts alts bs) =
   tcBinds bs $ \ bbs -> T.do { aalts <- T.mapM (tcAlt tt) alts; T.return (EAlts aalts bbs) }
 
 tcAlt :: EType -> EAlt -> T EAlt
+--tcAlt t _ | trace ("tcAlt: " ++ showExpr t) False = undefined
 tcAlt t (ss, rhs) = tcGuards ss $ \ sss -> T.do { rrhs <- tCheckExpr t rhs; T.return (sss, rrhs) }
 
 tcGuards :: forall a . [EStmt] -> ([EStmt] -> T a) -> T a
@@ -1743,7 +1782,9 @@ checkSigma expr sigma = T.do
       tcErrorTK (getSLocExpr expr) "not polymorphic enough"
     T.return expr'
 
-subsCheckRho :: SLoc -> Sigma -> Rho -> T ()
+subsCheckRho :: --XHasCallStack =>
+                SLoc -> Sigma -> Rho -> T ()
+--subsCheckRho _ t1 t2 | trace ("subsCheckRho: " ++ showEType t1 ++ " = " ++ showEType t2) False = undefined
 subsCheckRho loc sigma1@(EForall _ _) rho2 = T.do -- Rule SPEC
   rho1 <- tInst sigma1
   subsCheckRho loc rho1 rho2
@@ -1761,7 +1802,8 @@ subsCheckFun loc a1 r1 a2 r2 = T.do
   subsCheck loc a2 a1
   subsCheckRho loc r1 r2
 
-instSigma :: SLoc -> Sigma -> Expected -> T ()
+instSigma :: --XHasCallStack =>
+             SLoc -> Sigma -> Expected -> T ()
 instSigma loc t1 (Check t2) = subsCheckRho loc t1 t2
 instSigma _   t1 (Infer r) = T.do
   t1' <- tInst t1
@@ -1775,6 +1817,9 @@ solveConstraints = T.do
   if null cs then
     T.return ()
    else T.do
-    traceM "solveConstraints"
-    traceM (unlines $ map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs)
+--    traceM "solveConstraints"
+    cs' <- T.mapM (\ (i,t) -> T.do { t' <- derefUVar t; T.return (i,t') }) cs
+--    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
+    is <- gets instances
+--    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showIdent i ++ " :: " ++ showExpr t) is))
     T.return ()
