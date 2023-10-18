@@ -620,7 +620,7 @@ unifyUnboundVar loc r1 t2 = T.do
 -- Reset type variable and unification map
 tcReset :: T ()
 tcReset = T.do
-  TC mn _ fx tenv senv venv ast _ m cs is es <- get
+  TC mn u fx tenv senv venv ast _ m cs is es <- get
   put (TC mn 0 fx tenv senv venv ast IM.empty m cs is es)
 
 newUVar :: T EType
