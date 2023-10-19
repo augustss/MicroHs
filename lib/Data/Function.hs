@@ -8,6 +8,10 @@ infixr 0 $
 ($) :: forall a b . (a -> b) -> a -> b
 ($) f x = f x
 
+infixr 0 $!
+($!) :: forall a b . (a -> b) -> a -> b
+($!) f x = x `primSeq` f x
+
 infixr 9 .
 (.) :: forall a b c . (b -> c) -> (a -> b) -> (a -> c)
 (.) f g x = f (g x)
