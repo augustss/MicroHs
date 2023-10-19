@@ -1841,18 +1841,18 @@ solveConstraints = T.do
   if null cs then
     T.return []
    else T.do
-    traceM "solveConstraints"
+--    traceM "solveConstraints"
     cs' <- T.mapM (\ (i,t) -> T.do { t' <- derefUVar t; T.return (i,t') }) cs
-    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
+--    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
     is <- gets instances
-    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) is))
+--    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) is))
     let xs = map solve cs'
         solve c@(d, t) =
           case [ e | (e, [], [], t') <- is, eqEType t t' ] of
             [e] -> Right (d, e)
             _   -> Left c
     putConstraints [ c | Left c <- xs ]
-    traceM ("solved:\n " ++ unlines [ showIdent i ++ " = " ++ showExpr e | Right (i, e) <- xs ])
+--    traceM ("solved:\n " ++ unlines [ showIdent i ++ " = " ++ showExpr e | Right (i, e) <- xs ])
     T.return [ ie | Right ie <- xs ]
 
 checkConstraints :: T ()
