@@ -697,7 +697,8 @@ tDict (ae, EApp (EApp (EVar (Ident loc "Primitives.=>")) ctx) t) = T.do
   u <- newUniq
   let d = mkIdentSLoc loc ("dict$" ++ showInt u)
   --traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
-  addConstraint "from tDict " (d, ctx)
+  ctx' <- expandSyn ctx
+  addConstraint "from tDict " (d, ctx')
   tDict (EApp ae (EVar d), t)
 tDict at = T.return at
 
@@ -1230,7 +1231,9 @@ tcExprR mt ae =
           d <- newIdent (getSLocIdent i) "dict$"
           case mt of
             Infer _ -> impossible
-            Check t -> addConstraint "from dict$" (d, t)
+            Check t -> T.do
+              t' <- expandSyn t
+              addConstraint "from dict$" (d, t')
           T.return (EVar d)
 
         _ -> T.do
@@ -1814,8 +1817,12 @@ instSigma _   e1 t1 (Infer r) = T.do
 
 -----
 
+-- Given a dictionary of a (constraint type), split it up
+--  * name components of a tupled constraint
+--  * name superclasses of a constraint
 expandDict :: Expr -> EConstraint -> T [InstDict]
-expandDict edict cn = do
+expandDict edict acn = T.do
+  cn <- expandSyn acn
   let
     (iCls, args) = getApp cn
   case getTupleConstr iCls of
@@ -1832,6 +1839,10 @@ expandDict edict cn = do
 mkSuperSel :: IdentModule -> Ident -> Int -> Ident
 mkSuperSel mn c i = qualIdent mn $ mkIdent $ unIdent c ++ "$super" ++ showInt i
 
+-- Solve as many constraints as possible.
+-- Return bindings for the dictionary witnesses.
+-- Unimplemented:
+--  instances with a context
 solveConstraints :: T [(Ident, Expr)]
 solveConstraints = T.do
   cs <- gets constraints
@@ -1863,6 +1874,7 @@ solveConstraints = T.do
 --    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
     T.return solved
 
+-- Check that there are no unsolved constraints.
 checkConstraints :: T ()
 checkConstraints = T.do
   cs <- gets constraints
