@@ -412,8 +412,10 @@ ppIdKind :: IdKind -> Doc
 ppIdKind (IdKind i k) = parens $ ppIdent i <> text "::" <> ppEKind k
 
 ppEDefs :: [EDef] -> Doc
-ppEDefs ds = vcat (map (nl . ppEDef) ds)
-  where nl d = d $+$ text ""
+ppEDefs ds = vcat (map pp ds)
+  where pp d@(Sign _ _) = ppEDef d
+        pp d@(Import _) = ppEDef d
+        pp d            = ppEDef d $+$ text ""
 
 ppAlts :: Doc -> EAlts -> Doc
 ppAlts asep (EAlts alts bs) = ppWhere (ppAltsL asep alts) bs

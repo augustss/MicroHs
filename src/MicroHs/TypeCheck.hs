@@ -450,11 +450,14 @@ primTypes :: [(Ident, [Entry])]
 primTypes =
   let
     entry i = Entry (EVar (mkIdentB i))
+    k = mkIdent "k"
+    kv = EVar k
+    kk = IdKind k kTypeS
     tuple n =
       let
         i = tupleConstr builtinLoc n
-      in  (i, [entry (unIdent i) $ foldr kArrow kType (replicate n kType)])
-  in  
+      in  (i, [entry (unIdent i) $ EForall [kk] $ foldr kArrow kv (replicate n kv)])
+  in
       [
        -- The function arrow et al are bothersome to define in Primitives, so keep them here.
        -- But the fixity is defined in Primitives.
@@ -931,10 +934,25 @@ tcConstr (Constr c ets) =
 --   Ord$super1 :: forall a . Ord a -> Eq a
 --   <= :: forall a . Ord a -> (a -> a -> Bool)
 --   <=$dflt = _noDefault "Ord.<="
+--
+--   instance Eq Int where (==) = primEqInt
+-- expands to
+--   inst$999 = Eq$ meth$1 meth$2
+--     where meth$1 = primEqInt
+--           meth$2 = /=$dflt dict$999
+--
+--   instance Ord Int where (<=) = primLEInt
+-- expands to
+--   inst$888 = Ord$ dict$ meth$1
+--     where meth$1 = primLEInt
+-- where dict$ is a special magic identifier that the type checker expands
+-- to whatever dictionary is forced by the type.
+-- In this case (dict$ :: Eq Int), so it with be inst$999
+--
 -- The actual definitions for the constructor and methods are added
 -- in the desugaring pass.
 -- Default methods are added as actual definitions.
--- The constructor and mathods are added to the symbol table in addValueType.
+-- The constructor and methods are added to the symbol table in addValueType.
 expandClass :: EDef -> T [EDef]
 expandClass dcls@(Class ctx (iCls, vks) ms) = T.do
   mn <- gets moduleName
@@ -954,46 +972,7 @@ expandClass dcls@(Class ctx (iCls, vks) ms) = T.do
   addClassTable (qualIdent mn iCls) (vks, ctx, methIds)
   T.return $ dcls : dDflts
 expandClass d = T.return [d]
-{-
-  mn <- gets moduleName
-  supTys <- T.return sups -- T.mapM clsToDict sups
-  let iDict = iCls                 -- dictionary type name
-      meths = [ b | b@(BSign _ _) <- ms ]
-      mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
-      methTys = map (\ (BSign _ t) -> t) meths
-      nMeths = length meths
-      nSups = length sups
-      nArgs = nSups + nMeths
-      iCon = iDict                          -- dictionary constructor name
-      dData = Data (iDict, vs) [Constr iCon $ Left $ supTys ++ methTys]
 
-      ex = EVar (mkIdent "x")
-      tForall = EForall vs
-      tDict = tApps (qualIdent mn iDict) (map (EVar . idKindIdent) vs)
-      pat k n = foldl EApp (EVar iCon) [ if k == i then ex else EVar dummyIdent | i <- [1..n] ]
-      mkSel (BSign i t) k = [ Sign mid $ tForall $ tDict `tArrow` t, selFcn mid k ]
-        where mid = i
-      mkSel _ _ = impossible
-      dSels = concat $ zipWith mkSel meths [nSups+1 ..]
-      selFcn i k = Fcn i [Eqn [pat k nArgs] $ EAlts [([], ex)] []]
-
-      mkSupSel tsup k = [Sign sid $ tForall $ tDict `tArrow` tsup, selFcn sid k]
-        where sid = mkIdent (unIdent iCls ++ "$super" ++ showInt k)
-      dSupers = concat $ zipWith mkSupSel supTys [1 ..]
-
-      tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vs)
-      mkDflt (BSign i t) = [ Sign iDflt $ tForall $ tCtx `tImplies` t, def $ lookupBy eqIdent i mdflts ]
-        where def Nothing = Fcn iDflt [Eqn [] $ EAlts [([], noDflt)] []]
-              def (Just eqns) = Fcn iDflt eqns
-              iDflt = mkDefaultMethodId i
-              -- XXX This isn't right, "Prelude._nodefault" might not be in scope
-              noDflt = EApp (EVar (mkIdent "Prelude._noDefault")) (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent i)))
-      mkDflt _ = impossible
-      dDflts = concatMap mkDflt meths
-
-  -- XXX add iDict to symbol table
-  T.return $ [dData] ++ dSupers ++ dSels ++ dDflts
--}
 -- Turn (unqualified) class and method names into a default method name
 mkDefaultMethodId :: Ident -> Ident
 mkDefaultMethodId meth = addIdentSuffix meth "$dflt"
@@ -1008,12 +987,6 @@ clsToDict = T.do
   usup []
 -}
 
--- Implement:
---  * Look up class to get number of super-classes and methods
---     Generate Cls$C dict$ dict$ ...  method1 ... methodN
---      Where methodK is either from bs of the default method.
---      There's one magic dict$ for each superclass.
---  * Add instance to instance table
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance vks ctx cc bs) = T.do
   let loc = getSLocExpr cc
@@ -1865,19 +1838,30 @@ solveConstraints = T.do
   if null cs then
     T.return []
    else T.do
-    traceM "solveConstraints"
+--    traceM "solveConstraints"
     cs' <- T.mapM (\ (i,t) -> T.do { t' <- derefUVar t; T.return (i,t') }) cs
-    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
+--    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
     is <- gets instances
-    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) is))
-    let xs = map solve cs'
-        solve c@(d, t) =
-          case [ e | (e, [], [], t') <- is, eqEType t t' ] of
-            [e] -> Right (d, e)
-            _   -> Left c
-    putConstraints [ c | Left c <- xs ]
-    traceM ("solved:\n" ++ unlines [ showIdent i ++ " = " ++ showExpr e | Right (i, e) <- xs ])
-    T.return [ ie | Right ie <- xs ]
+--    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) is))
+    let solve :: [(Ident, EType)] -> [(Ident, EType)] -> [(Ident, Expr)] -> T ([(Ident, EType)], [(Ident, Expr)])
+        solve [] uns sol = T.return (uns, sol)
+        solve (cns@(di, ct) : cnss) uns sol = T.do
+          let loc = getSLocIdent di
+              (iCls, cts) = getApp ct
+          case getTupleConstr iCls of
+            Just _ -> T.do
+              goals <- T.mapM (\ c -> T.do { d <- newIdent loc "dict"; T.return (d, c) }) cts
+              solve (goals ++ cnss) uns ((di, ETuple (map (EVar . fst) goals)) : sol)
+            Nothing ->
+              case [ de | (de, [], [], t) <- is, eqEType ct t ] of
+                []   -> solve cnss (cns : uns)     sol
+                [de] -> solve cnss uns ((di, de) : sol)
+                _    -> tcError loc $ "Multiple constraint solutions for: " ++ showEType ct
+    (unsolved, solved) <- solve cs' [] []
+    putConstraints unsolved
+--    traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
+--    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
+    T.return solved
 
 checkConstraints :: T ()
 checkConstraints = T.do
