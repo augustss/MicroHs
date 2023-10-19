@@ -8,7 +8,6 @@
   - Use filename as the cache lookup key and SHA for validation
 * make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
-* add pretty printing library
 * whith dictionaries we need two optimizations to get rid of them
   -   case d of (d1,d2) -> ... (d1,d2) ...
     transforms to
