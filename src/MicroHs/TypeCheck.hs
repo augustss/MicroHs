@@ -6,6 +6,7 @@ module MicroHs.TypeCheck(
   TModule(..), showTModule,
   impossible,
   mkClassConstructor,
+  mkSuperSel,
   ) where
 import Prelude --Xhiding(showList)
 import Data.Char
@@ -59,7 +60,7 @@ type KindTable  = M.Map [Entry]    -- sort of kind  identifiers, used during sor
 type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
-type ClassTable = M.Map (Int, [Ident]) -- # super classes, instance names
+type ClassTable = M.Map ([IdKind], [EConstraint], [Ident]) -- super classes, instance names
 type Instances  = [InstDict]
 type Constraints= [(Ident, EConstraint)]
 
@@ -159,6 +160,12 @@ getAppCon :: EType -> Ident
 getAppCon (EVar i) = i
 getAppCon (EApp f _) = getAppCon f
 getAppCon _ = error "getAppCon"
+
+getApp :: EType -> (Ident, [EType])
+getApp = loop []
+  where loop as (EVar i) = (i, as)
+        loop as (EApp f a) = loop (a:as) f
+        loop _ _ = error "getApp"
 
 -- Construct a dummy TModule for the currently compiled module.
 -- It has all the relevant export tables.
@@ -368,15 +375,15 @@ addAssocTable i ids = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt (M.insert i ids ast) sub m cs is es
 
-addClassTable :: Ident -> (Int, [Ident]) -> T ()
+addClassTable :: Ident -> ([IdKind], [EConstraint], [Ident]) -> T ()
 addClassTable i x = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt ast sub m (M.insert i x cs) is es
 
-addInstance :: InstDict -> T ()
-addInstance ic = T.do
+addInstances :: [InstDict] -> T ()
+addInstances ics = T.do
   is <- gets instances
-  putInstances (ic : is)
+  putInstances (ics ++ is)
 
 addConstraint :: String -> (Ident, EConstraint) -> T ()
 addConstraint _msg e@(_d, _ctx) = T.do
@@ -384,10 +391,11 @@ addConstraint _msg e@(_d, _ctx) = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt ast sub m cs is (e : es)
 
-withDict :: forall a . InstDict -> T a -> T a
-withDict ic ta = T.do
+withDict :: forall a . Ident -> EConstraint -> T a -> T a
+withDict i c ta = T.do
   is <- gets instances
-  putInstances (ic : is)
+  ics <- expandDict (EVar i) c
+  addInstances ics
   a <- ta
   putInstances is
   T.return a
@@ -928,14 +936,14 @@ tcConstr (Constr c ets) =
 -- Default methods are added as actual definitions.
 -- The constructor and mathods are added to the symbol table in addValueType.
 expandClass :: EDef -> T [EDef]
-expandClass dcls@(Class ctx (iCls, vs) ms) = T.do
+expandClass dcls@(Class ctx (iCls, vks) ms) = T.do
   mn <- gets moduleName
   let
       methIds = [ i | (BSign i _) <- ms ]
       meths = [ b | b@(BSign _ _) <- ms ]
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
-      tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vs)
-      mkDflt (BSign methId t) = [ Sign iDflt $ EForall vs $ tCtx `tImplies` t, def $ lookupBy eqIdent methId mdflts ]
+      tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
+      mkDflt (BSign methId t) = [ Sign iDflt $ EForall vks $ tCtx `tImplies` t, def $ lookupBy eqIdent methId mdflts ]
         where def Nothing = Fcn iDflt [Eqn [] $ EAlts [([], noDflt)] []]
               def (Just eqns) = Fcn iDflt eqns
               iDflt = mkDefaultMethodId methId
@@ -943,7 +951,7 @@ expandClass dcls@(Class ctx (iCls, vs) ms) = T.do
               noDflt = EApp (EVar (mkIdent "Prelude._noDefault")) (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent methId)))
       mkDflt _ = impossible
       dDflts = concatMap mkDflt meths
-  addClassTable (qualIdent mn iCls) (length ctx, methIds)
+  addClassTable (qualIdent mn iCls) (vks, ctx, methIds)
   T.return $ dcls : dDflts
 expandClass d = T.return [d]
 {-
@@ -1015,7 +1023,7 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
   (e, _) <- tLookupV iCls
   ct <- gets classTable
   let qiCls = getAppCon e
-  (nsup, mis) <-
+  (_, supers, mis) <-
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> T.return x
@@ -1029,11 +1037,11 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
           in  S.runState (S.mapM f bs) (1, [])
       meths = map meth mis
         where meth i = EVar $ fromMaybe (mkDefaultMethodId i) $ lookupBy eqIdent i ims
-      sups = replicate nsup (EVar $ mkIdentSLoc loc "dict$")
+      sups = map (const (EVar $ mkIdentSLoc loc "dict$")) supers
       args = sups ++ meths
   let bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar $ mkClassConstructor iCls) args)] bs']
   mn <- gets moduleName
-  addInstance (EVar $ qualIdent mn iInst, vks, ctx, cc)
+  addInstances [(EVar $ qualIdent mn iInst, vks, ctx, cc)]
   T.return [dinst, sign, bind]
 expandInst d = T.return [d]
 
@@ -1171,7 +1179,7 @@ tCheckExpr t e | Just (ctx, t') <- getImplies t = T.do
   _ <- undefined -- XXX
   u <- newUniq
   let d = mkIdentSLoc (getSLocExpr e) ("adict$" ++ showInt u)
-  e' <- withDict (EVar d, [], [], ctx) $ tCheckExpr t' e
+  e' <- withDict d ctx $ tCheckExpr t' e
   T.return $ ELam [EVar d] e'
 tCheckExpr t e = tCheck tcExpr t e
 
@@ -1477,7 +1485,7 @@ tcEqns t eqns | Just (ctx, t') <- getImplies t = T.do
   let loc = getSLocEqns eqns
   d <- newIdent loc "adict"
   f <- newIdent loc "fcnD"
-  withDict (EVar d, [], [], ctx) $ T.do
+  withDict d ctx $ T.do
     eqns' <- tcEqns t' eqns
     let eqn =
           case eqns' of
@@ -1833,24 +1841,42 @@ instSigma _   e1 t1 (Infer r) = T.do
 
 -----
 
+expandDict :: Expr -> EConstraint -> T [InstDict]
+expandDict edict cn = do
+  let
+    (iCls, args) = getApp cn
+  case getTupleConstr iCls of
+    Just _ -> concat <$> T.mapM (\ (i, a) -> expandDict (mkTupleSel i (length args) `EApp` edict) a) (zip [0..] args)
+    Nothing -> T.do
+      ct <- gets classTable
+      let (iks, sups, _) = fromMaybe impossible $ M.lookup iCls ct
+          sub = zip (map idKindIdent iks) args
+          sups' = map (subst sub) sups
+      mn <- gets moduleName
+      insts <- concat <$> T.mapM (\ (i, sup) -> expandDict (EVar (mkSuperSel mn iCls i) `EApp` edict) sup) (zip [1 ..] sups')
+      T.return $ (edict, [], [], cn) : insts
+
+mkSuperSel :: IdentModule -> Ident -> Int -> Ident
+mkSuperSel mn c i = qualIdent mn $ mkIdent $ unIdent c ++ "$super" ++ showInt i
+
 solveConstraints :: T [(Ident, Expr)]
 solveConstraints = T.do
   cs <- gets constraints
   if null cs then
     T.return []
    else T.do
---    traceM "solveConstraints"
+    traceM "solveConstraints"
     cs' <- T.mapM (\ (i,t) -> T.do { t' <- derefUVar t; T.return (i,t') }) cs
---    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
+    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
     is <- gets instances
---    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) is))
+    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) is))
     let xs = map solve cs'
         solve c@(d, t) =
           case [ e | (e, [], [], t') <- is, eqEType t t' ] of
             [e] -> Right (d, e)
             _   -> Left c
     putConstraints [ c | Left c <- xs ]
---    traceM ("solved:\n " ++ unlines [ showIdent i ++ " = " ++ showExpr e | Right (i, e) <- xs ])
+    traceM ("solved:\n" ++ unlines [ showIdent i ++ " = " ++ showExpr e | Right (i, e) <- xs ])
     T.return [ ie | Right ie <- xs ]
 
 checkConstraints :: T ()

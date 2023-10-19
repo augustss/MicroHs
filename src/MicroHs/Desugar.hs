@@ -54,7 +54,7 @@ dsDef mn adef =
           meths :: [Ident]
           meths = [ i | (BSign i _) <- bs ]
           supers :: [Ident]
-          supers = [ qualIdent mn $ mkIdent $ unIdent c ++ "$super" ++ showInt i | i <- [1 .. length ctx] ]
+          supers = [ mkSuperSel mn c i | i <- [1 .. length ctx] ]
           xs = [ mkIdent ("$x" ++ showInt j) | j <- [ 1 .. length ctx + length meths ] ]
       in  (qualIdent mn $ mkClassConstructor c, lams xs $ Lam f $ apps (Var f) (map Var xs)) :
           zipWith (\ i x -> (qualIdent mn i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
@@ -165,9 +165,9 @@ mutualRec v ies body =
   let (is, es) = unzip ies
       n = length is
       ev = Var v
-      one m i = letE i (mkTupleSel m n ev)
+      one m i = letE i (mkTupleSelE m n ev)
       bnds = foldr (.) id $ zipWith one [0..] is
-  in  letRecE v (bnds $ mkTuple es) $
+  in  letRecE v (bnds $ mkTupleE es) $
       bnds body
 
 dsExpr :: Expr -> Exp
@@ -202,22 +202,22 @@ dsExpr aexpr =
       let
         ci = conIdent c
       in
-        if eqChar (head $ unIdent ci) ',' then
-          let
-            xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 (untupleConstr ci) ]
-            body = mkTuple $ map Var xs
-          in foldr Lam body xs
-        else
-          Var (conIdent c)
+        case getTupleConstr ci of
+          Just n ->
+            let
+              xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 n ]
+              body = mkTupleE $ map Var xs
+            in foldr Lam body xs
+          Nothing -> Var (conIdent c)
     _ -> impossible
 
 -- Use tuple encoding to make a tuple
-mkTuple :: [Exp] -> Exp
-mkTuple = Lam (mkIdent "$f") . foldl App (Var (mkIdent "$f"))
+mkTupleE :: [Exp] -> Exp
+mkTupleE = Lam (mkIdent "$f") . foldl App (Var (mkIdent "$f"))
 
 -- Select component m from an n-tuple
-mkTupleSel :: Int -> Int -> Exp -> Exp
-mkTupleSel m n tup =
+mkTupleSelE :: Int -> Int -> Exp -> Exp
+mkTupleSelE m n tup =
   let
     xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 n ]
   in App tup (foldr Lam (Var (xs !! m)) xs)
