@@ -5,6 +5,7 @@ module MicroHs.TypeCheck(
   typeCheck,
   TModule(..), showTModule,
   impossible,
+  mkClassConstructor,
   ) where
 import Prelude --Xhiding(showList)
 import Data.Char
@@ -339,6 +340,11 @@ putInstances is = T.do
   TC mn n fx tenv senv venv ast sub m cs _ es <- get
   put (TC mn n fx tenv senv venv ast sub m cs is es)
 
+putConstraints :: Constraints -> T ()
+putConstraints es = T.do
+  TC mn n fx tenv senv venv ast sub m cs is _ <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es)
+
 withTCMode :: forall a . TCMode -> T a -> T a
 withTCMode m ta = T.do
   om <- gets tcMode
@@ -373,7 +379,7 @@ addInstance ic = T.do
   putInstances (ic : is)
 
 addConstraint :: String -> (Ident, EConstraint) -> T ()
-addConstraint msg e@(d, ctx) = T.do
+addConstraint _msg e@(_d, _ctx) = T.do
 --  traceM $ "addConstraint: " ++ msg ++ " " ++ showIdent d ++ " :: " ++ showEType ctx
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt ast sub m cs is (e : es)
@@ -659,28 +665,30 @@ tLookupV i = T.do
             _      -> "value"
   tLookup ("undefined " ++ s ++ " identifier") ("ambiguous " ++ s ++ " identifier") i
 
-tInst :: EType -> T EType
+tInst :: (Expr, EType) -> T (Expr, EType)
 tInst t = tInst' t T.>>= tDict
 
-tInst' :: EType -> T EType
-tInst' as =
-  case as of
+tInst' :: (Expr, EType) -> T (Expr, EType)
+tInst' et@(ae, at) =
+  case at of
     EForall vks t ->
-      if null vks then T.return t
+      if null vks then
+        T.return (ae, t)
       else T.do
         let vs = map idKindIdent vks
         us <- T.mapM (const newUVar) vks
-        T.return (subst (zip vs us) t)
-    t -> T.return t
+--        tInst' (ae, subst (zip vs us) t)
+        T.return (ae, subst (zip vs us) t)
+    _ -> T.return et
 
-tDict :: EType -> T EType
-tDict (EApp (EApp (EVar (Ident loc "Primitives.=>")) ctx) t) = T.do
+tDict :: (Expr, EType) -> T (Expr, EType)
+tDict (ae, EApp (EApp (EVar (Ident loc "Primitives.=>")) ctx) t) = T.do
   u <- newUniq
   let d = mkIdentSLoc loc ("dict$" ++ showInt u)
   --traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
   addConstraint "from tDict " (d, ctx)
-  tDict t
-tDict t = T.return t
+  tDict (EApp ae (EVar d), t)
+tDict at = T.return at
 
 extValE :: --XHasCallStack =>
            Ident -> EType -> Expr -> T ()
@@ -927,12 +935,12 @@ expandClass dcls@(Class ctx (iCls, vs) ms) = T.do
       meths = [ b | b@(BSign _ _) <- ms ]
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vs)
-      mkDflt (BSign i t) = [ Sign iDflt $ EForall vs $ tCtx `tImplies` t, def $ lookupBy eqIdent i mdflts ]
+      mkDflt (BSign methId t) = [ Sign iDflt $ EForall vs $ tCtx `tImplies` t, def $ lookupBy eqIdent methId mdflts ]
         where def Nothing = Fcn iDflt [Eqn [] $ EAlts [([], noDflt)] []]
               def (Just eqns) = Fcn iDflt eqns
-              iDflt = mkDefaultMethodId i
+              iDflt = mkDefaultMethodId methId
               -- XXX This isn't right, "Prelude._nodefault" might not be in scope
-              noDflt = EApp (EVar (mkIdent "Prelude._noDefault")) (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent i)))
+              noDflt = EApp (EVar (mkIdent "Prelude._noDefault")) (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent methId)))
       mkDflt _ = impossible
       dDflts = concatMap mkDflt meths
   addClassTable (qualIdent mn iCls) (length ctx, methIds)
@@ -1075,7 +1083,7 @@ addValueClass ctx iCls vks ms = T.do
       cti = [ (qualIdent mn iCon, length targs) ]
       iCon = mkClassConstructor iCls
   extValETop iCon (EForall vks $ foldr tArrow tret targs) (ECon $ ConData cti (qualIdent mn iCon))
-  let addMethod (BSign i t) = extValETop i (EForall vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar i)
+  let addMethod (BSign i t) = extValETop i (EForall vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
       addMethod _ = impossible
 --  traceM ("addValueClass " ++ showEType (ETuple ctx))
   T.mapM_ addMethod meths
@@ -1105,6 +1113,7 @@ tcDefValue adef =
       mn <- gets moduleName
       teqns <- withExtTyps iks $ tcEqns tfn eqns
 --      traceM (showEDefs [Fcn i eqns, Fcn i teqns])
+      checkConstraints
       T.return $ Fcn (qualIdent mn i) teqns
     ForImp ie i t -> T.do
       mn <- gets moduleName
@@ -1218,13 +1227,12 @@ tcExprR mt ae =
                 T.return ae
 
               | isConIdent i -> T.do
-                (p, cpt) <- tLookupV i
-                pt <- tInst cpt
+                ipt <- tLookupV i
+                (p, pt) <- tInst' ipt  -- XXX
                 -- We will only have an expected type for a non-nullary constructor
                 case mt of
-                  Check ext -> subsCheck loc ext pt
-                  Infer r   -> tSetRefType r pt
-                T.return p
+                  Check ext -> subsCheck loc p ext pt
+                  Infer r   -> T.do { tSetRefType r pt; T.return p }
 
               | otherwise -> T.do
                 -- All pattern variables are in the environment as
@@ -1256,8 +1264,7 @@ tcExprR mt ae =
               EUVar r -> T.fmap (fromMaybe t) (getUVar r)
               _ -> T.return t
 --          traceM ("EVar " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t')
-          instSigma loc t' mt
-          T.return e
+          instSigma loc e t' mt
 
     EApp f a -> T.do
       (f', ft) <- tInferExpr f
@@ -1271,8 +1278,7 @@ tcExprR mt ae =
           T.return (EApp f' a')
         _ -> T.do
           a' <- checkSigma a at
-          instSigma loc rt mt
-          T.return (EApp f' a')
+          instSigma loc (EApp f' a') rt mt
 
     EOper e ies -> T.do e' <- tcOper e ies; tcExpr mt e'
     ELam ps e -> tcExprLam mt ps e
@@ -1325,12 +1331,12 @@ tcExprR mt ae =
           e3' <- checkSigma e3 t
           T.return (EIf e1' e2' e3')
         Infer ref -> T.do
-          (e2', t1) <- tInferExpr e2
-          (e3', t2) <- tInferExpr e3
-          subsCheck loc t1 t2
-          subsCheck loc t2 t1
-          tSetRefType ref t1
-          T.return (EIf e1' e2' e3')  
+          (e2', t2) <- tInferExpr e2
+          (e3', t3) <- tInferExpr e3
+          e2'' <- subsCheck loc e2' t2 t3
+          e3'' <- subsCheck loc e3' t3 t2
+          tSetRefType ref t2
+          T.return (EIf e1' e2'' e3'')
 
     EListish (LList es) -> T.do
       te <- newUVar
@@ -1374,8 +1380,8 @@ tcExprR mt ae =
           instPatSigma loc t' mt
           tCheckExpr t' e
         _ -> T.do
-          instSigma loc t' mt
-          checkSigma e t'
+          e' <- instSigma loc e t' mt
+          checkSigma e' t'
     EAt i e -> T.do
       (_, ti) <- tLookupV i
       e' <- tcExpr mt e
@@ -1395,7 +1401,7 @@ enum loc f = foldl EApp (EVar (mkIdentSLoc loc ("enum" ++ f)))
 
 tcLit :: Expected -> SLoc -> Lit -> T Expr
 tcLit mt loc l = T.do
-  let lit t = instSigma loc t mt
+  let lit t = instSigma loc (ELit loc l) t mt
   case l of
     LInt _  -> lit (tConI loc "Primitives.Int")
     LDouble _ -> lit (tConI loc "Primitives.Double")
@@ -1403,7 +1409,6 @@ tcLit mt loc l = T.do
     LStr _  -> lit (tApp (tConI loc "Data.List.[]") (tConI loc "Primitives.Char"))
     LPrim _ -> newUVar T.>>= lit  -- pretend it is anything
     LForImp _ -> impossible
-  T.return (ELit loc l)
 
 tcOper :: --XHasCallStack =>
           Expr -> [(Ident, Expr)] -> T Expr
@@ -1469,16 +1474,30 @@ tcExprLam mt aps expr = T.do
 
 tcEqns :: EType -> [Eqn] -> T [Eqn]
 tcEqns t eqns | Just (ctx, t') <- getImplies t = T.do
-  let loc = getSLocExpr $ ELet [BFcn dummyIdent eqns] (EVar dummyIdent)
+  let loc = getSLocEqns eqns
   d <- newIdent loc "adict"
   f <- newIdent loc "fcn"
-  eqns' <- withDict (d, [], [], ctx) $ T.do
-    es <- tcEqns t' eqns
-    _ <- solveConstraints
-    T.return es
-  let eqn = Eqn [EVar d] $ EAlts [([], EVar f)] [BFcn f eqns']
-  T.return [eqn]
-tcEqns t eqns = T.mapM (tcEqn t) eqns
+  withDict (d, [], [], ctx) $ T.do
+    eqns' <- tcEqns t' eqns
+    ds <- solveConstraints
+    T.when (not (null ds)) impossible
+    let
+      -- XXX special case if eqns' is [Eqn [] ...] to avoid new binding
+      bs = eBinds ds
+      eqn = Eqn [EVar d] $ EAlts [([], EVar f)] (bs ++ [BFcn f eqns'])
+    T.return [eqn]
+tcEqns t eqns = T.do
+  let loc = getSLocEqns eqns
+  f <- newIdent loc "fcn"
+  eqns' <- T.mapM (tcEqn t) eqns
+  ds <- solveConstraints
+  case ds of
+    [] -> T.return eqns'
+    _  -> T.do
+      let
+        bs = eBinds ds
+        eqn = Eqn [] $ EAlts [([], EVar f)] (bs ++ [BFcn f eqns'])
+      T.return [eqn]
 
 tcEqn :: EType -> Eqn -> T Eqn
 tcEqn t eqn =
@@ -1515,23 +1534,26 @@ tcArm t tpat arm =
       aalts <- tcAlts t alts
       T.return (pp, aalts)
 
+eBinds :: [(Ident, Expr)] -> [EBind]
+eBinds ds = [BFcn i [Eqn [] (EAlts [([], e)] [])] | (i, e) <- ds]
 
 instPatSigma :: --XHasCallStack =>
                  SLoc -> Sigma -> Expected -> T ()
 instPatSigma _   pt (Infer r) = tSetRefType r pt
-instPatSigma loc pt (Check t) = subsCheck loc t pt
+instPatSigma loc pt (Check t) = T.do { _ <- subsCheck loc undefined t pt; T.return () } -- XXX really?
 
 subsCheck :: --XHasCallStack =>
-              SLoc -> Sigma -> Sigma -> T ()
+              SLoc -> Expr -> Sigma -> Sigma -> T Expr
 -- (subsCheck args off exp) checks that
 -- 'off' is at least as polymorphic as 'args -> exp'
-subsCheck loc sigma1 sigma2 = T.do -- Rule DEEP-SKOL
+subsCheck loc exp1 sigma1 sigma2 = T.do -- Rule DEEP-SKOL
   (skol_tvs, rho2) <- skolemise sigma2
-  subsCheckRho loc sigma1 rho2
+  exp1' <- subsCheckRho loc exp1 sigma1 rho2
   esc_tvs <- getFreeTyVars [sigma1,sigma2]
   let bad_tvs = filter (\ i -> elemBy eqIdent i esc_tvs) skol_tvs
   T.when (not (null bad_tvs)) $
     tcErrorTK loc "Subsumption check failed"
+  T.return exp1'
 
 tCheckPat :: forall a . EType -> EPat -> (EPat -> T a) -> T a
 tCheckPat t p@(EVar v) ta | not (isConIdent v) = T.do  -- simple special case
@@ -1783,43 +1805,64 @@ checkSigma expr sigma = T.do
     T.return expr'
 
 subsCheckRho :: --XHasCallStack =>
-                SLoc -> Sigma -> Rho -> T ()
---subsCheckRho _ t1 t2 | trace ("subsCheckRho: " ++ showEType t1 ++ " = " ++ showEType t2) False = undefined
-subsCheckRho loc sigma1@(EForall _ _) rho2 = T.do -- Rule SPEC
-  rho1 <- tInst sigma1
-  subsCheckRho loc rho1 rho2
-subsCheckRho loc rho1 rho2 | Just (a2, r2) <- getArrow rho2 = T.do -- Rule FUN
+                SLoc -> Expr -> Sigma -> Rho -> T Expr
+--subsCheckRho _ e1 t1 t2 | trace ("subsCheckRho: " ++ {-showExpr e1 ++ " :: " ++ -} showEType t1 ++ " = " ++ showEType t2) False = undefined
+subsCheckRho loc exp1 sigma1@(EForall _ _) rho2 = T.do -- Rule SPEC
+  (exp1', rho1) <- tInst (exp1, sigma1)
+  subsCheckRho loc exp1' rho1 rho2
+subsCheckRho loc exp1 rho1 rho2 | Just (a2, r2) <- getArrow rho2 = T.do -- Rule FUN
   (a1, r1) <- unArrow loc rho1
-  subsCheckFun loc a1 r1 a2 r2
-subsCheckRho loc rho1 rho2 | Just (a1, r1) <- getArrow rho1 = T.do -- Rule FUN
+  subsCheckFun loc exp1 a1 r1 a2 r2
+subsCheckRho loc exp1 rho1 rho2 | Just (a1, r1) <- getArrow rho1 = T.do -- Rule FUN
   (a2,r2) <- unArrow loc rho2
-  subsCheckFun loc a1 r1 a2 r2
-subsCheckRho loc tau1 tau2 -- Rule MONO
-  = unify loc tau1 tau2 -- Revert to ordinary unification
+  subsCheckFun loc exp1 a1 r1 a2 r2
+subsCheckRho loc exp1 tau1 tau2 = T.do  -- Rule MONO
+  unify loc tau1 tau2 -- Revert to ordinary unification
+  T.return exp1
 
-subsCheckFun :: SLoc -> Sigma -> Rho -> Sigma -> Rho -> T ()
-subsCheckFun loc a1 r1 a2 r2 = T.do
-  subsCheck loc a2 a1
-  subsCheckRho loc r1 r2
+subsCheckFun :: SLoc -> Expr -> Sigma -> Rho -> Sigma -> Rho -> T Expr
+subsCheckFun loc e1 a1 r1 a2 r2 = T.do
+  _ <- subsCheck loc undefined a2 a1   -- XXX
+  subsCheckRho loc e1 r1 r2
 
 instSigma :: --XHasCallStack =>
-             SLoc -> Sigma -> Expected -> T ()
-instSigma loc t1 (Check t2) = subsCheckRho loc t1 t2
-instSigma _   t1 (Infer r) = T.do
-  t1' <- tInst t1
+             SLoc -> Expr -> Sigma -> Expected -> T Expr
+instSigma loc e1 t1 (Check t2) = subsCheckRho loc e1 t1 t2
+instSigma _   e1 t1 (Infer r) = T.do
+  (e1', t1') <- tInst (e1, t1)
   tSetRefType r t1'
+  T.return e1'
 
 -----
 
-solveConstraints :: T ()
+solveConstraints :: T [(Ident, Expr)]
 solveConstraints = T.do
   cs <- gets constraints
   if null cs then
-    T.return ()
+    T.return []
    else T.do
---    traceM "solveConstraints"
+    traceM "solveConstraints"
     cs' <- T.mapM (\ (i,t) -> T.do { t' <- derefUVar t; T.return (i,t') }) cs
---    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
+    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
     is <- gets instances
---    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showIdent i ++ " :: " ++ showExpr t) is))
-    T.return ()
+    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showIdent i ++ " :: " ++ showExpr t) is))
+    let xs = map solve cs'
+        solve c@(d, t) =
+          case [ i | (i, _, _, t') <- is, eqEType t t' ] of
+            [i] -> Right (d, EVar i)
+            _   -> Left c
+    putConstraints [ c | Left c <- xs ]
+--    traceM (show (head cs) ++ "\n" ++ show (head is))
+    traceM ("solved " ++ show [ ie | Right ie <- xs ])
+    T.return [ ie | Right ie <- xs ]
+
+checkConstraints :: T ()
+checkConstraints = T.do
+  cs <- gets constraints
+  case cs of
+    [] -> T.return ()
+    (i, t) : _ -> T.do
+      t' <- derefUVar t
+      tcError (getSLocIdent i) $ "Cannot satisfy constraint: " ++ showExpr t'
+      --traceM $ "Cannot satisfy constraint: " ++ showExpr t'
+      --T.return ()

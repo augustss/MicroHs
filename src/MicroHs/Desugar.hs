@@ -49,8 +49,16 @@ dsDef mn adef =
     Import _ -> []
     ForImp ie i _ -> [(i, Lit $ LForImp ie)]
     Infix _ _ -> []
-    Class _ _ _ -> []  -- XXX probably needs a default instance
-    Instance _ _ _ _ -> []  -- XXX probably needs instance record
+    Class ctx (c, _) bs ->
+      let f = mkIdent "$f"
+          meths :: [Ident]
+          meths = [ i | (BSign i _) <- bs ]
+          supers :: [Ident]
+          supers = [ qualIdent mn $ mkIdent $ unIdent c ++ "$super" ++ showInt i | i <- [1 .. length ctx] ]
+          xs = [ mkIdent ("$x" ++ showInt j) | j <- [ 1 .. length ctx + length meths ] ]
+      in  (qualIdent mn $ mkClassConstructor c, lams xs $ Lam f $ apps (Var f) (map Var xs)) :
+          zipWith (\ i x -> (qualIdent mn i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
+    Instance _ _ _ _ -> []
 
 oneAlt :: Expr -> EAlts
 oneAlt e = EAlts [([], e)] []

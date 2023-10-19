@@ -14,7 +14,7 @@ module MicroHs.Expr(
   EAlts(..),
   EAlt,
   ECaseArm,
-  EType, showEType,
+  EType, showEType, eqEType,
   EConstraint,
   EPat, patVars, isPVar, isPConApp,
   EKind, kType, kConstraint,
@@ -27,6 +27,7 @@ module MicroHs.Expr(
   subst,
   allVarsExpr, allVarsBind,
   getSLocExpr, setSLocExpr,
+  getSLocEqns,
   errorMessage,
   Assoc(..), eqAssoc, Fixity
   ) where
@@ -251,6 +252,14 @@ subst s =
 
 ---------------------------------
 
+-- XXX needs more?
+eqEType :: EType -> EType -> Bool
+eqEType (EVar i) (EVar i') = eqIdent i i'
+eqEType (EApp f a) (EApp f' a') = eqEType f f' && eqEType a a'
+eqEType _ _ = False
+
+---------------------------------
+
 allVarsBind :: EBind -> [Ident]
 allVarsBind abind =
   case abind of
@@ -318,6 +327,9 @@ allVarsStmt astmt =
 -- XXX Should use locations in ELit
 getSLocExpr :: Expr -> SLoc
 getSLocExpr e = head $ filter (not . isNoSLoc) (map getSLocIdent (allVarsExpr e)) ++ [noSLoc]
+
+getSLocEqns :: [Eqn] -> SLoc
+getSLocEqns eqns = getSLocExpr $ ELet [BFcn dummyIdent eqns] (EVar dummyIdent)
 
 getSLocCon :: Con -> SLoc
 getSLocCon (ConData _ i) = getSLocIdent i
