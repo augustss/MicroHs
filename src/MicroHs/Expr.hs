@@ -23,7 +23,8 @@ module MicroHs.Expr(
   Constr(..), ConstrField,
   ConTyInfo,
   Con(..), conIdent, conArity, eqCon, getSLocCon,
-  tupleConstr, untupleConstr, isTupleConstr,
+  tupleConstr, getTupleConstr,
+  mkTupleSel,
   subst,
   allVarsExpr, allVarsBind,
   getSLocExpr, setSLocExpr,
@@ -35,11 +36,11 @@ import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..)
 import Data.Maybe
 import MicroHs.Ident
 import qualified Data.Double as D
+import Text.PrettyPrint.HughesPJ
 --Ximport Compat
 --Ximport GHC.Stack
 --Ximport Control.DeepSeq
 --Yimport Primitives(NFData(..))
-import MicroHs.Pretty
 
 type IdentModule = Ident
 
@@ -216,11 +217,17 @@ kConstraint = EVar (Ident noSLoc "Primitives.Constraint")
 tupleConstr :: SLoc -> Int -> Ident
 tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
 
-untupleConstr :: Ident -> Int
-untupleConstr i = length (unIdent i) + 1
+-- Check if it is a suple constructor
+getTupleConstr :: Ident -> Maybe Int
+getTupleConstr i =
+  case unIdent i of
+    ',':xs -> Just (length xs + 2)  -- "," is 2-tuple
+    _ -> Nothing
 
-isTupleConstr :: Int -> Ident -> Bool
-isTupleConstr n i = eqChar (head (unIdent i)) ',' && untupleConstr i == n
+-- Create a tuple selector, component i (0 based) of n
+mkTupleSel :: Int -> Int -> Expr
+mkTupleSel i n = ELam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [0 .. n - 1] ]] (EVar x)
+  where x = mkIdent "$x"
 
 ---------------------------------
 

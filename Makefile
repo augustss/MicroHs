@@ -11,7 +11,7 @@ GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude $(EX
 GHCC=$(GHCB) $(GHCFLAGS)
 GHC=ghc
 # $(CURDIR) might not be quite right
-GHCE=$(GHC) $(EXTS) -package mtl -F -pgmF Tools/convertX.sh -outputdir $(OUTDIR)
+GHCE=$(GHC) $(EXTS) -package mtl -package pretty -F -pgmF Tools/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
 UPX=upx
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
@@ -76,9 +76,9 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Control/DeepSeq.hs
 #	$(GHCC) -c lib/Debug/Trace.hs
 	$(GHCC) -c lib/Control/Exception.hs
+	$(GHCC) -c lib/Text/PrettyPrint/HughesPJ.hs
 	$(GHCC) -c src/System/Console/SimpleReadline.hs
 	$(GHCC) -c src/Text/ParserComb.hs
-	$(GHCC) -c src/MicroHs/Pretty.hs
 	$(GHCC) -c src/MicroHs/Ident.hs
 	$(GHCC) -c src/MicroHs/Expr.hs
 	$(GHCC) -c src/MicroHs/Graph.hs

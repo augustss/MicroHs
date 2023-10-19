@@ -19,9 +19,9 @@ import Prelude --Xhiding(showString)
 --Ximport Control.DeepSeq
 --Yimport Primitives(NFData(..))
 import Data.Char
+import Text.PrettyPrint.HughesPJ
 --Ximport Compat
 --Ximport GHC.Stack
-import MicroHs.Pretty
 
 type Line = Int
 type Col  = Int
