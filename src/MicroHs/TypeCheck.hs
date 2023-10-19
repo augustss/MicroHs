@@ -1476,19 +1476,17 @@ tcEqns :: EType -> [Eqn] -> T [Eqn]
 tcEqns t eqns | Just (ctx, t') <- getImplies t = T.do
   let loc = getSLocEqns eqns
   d <- newIdent loc "adict"
-  f <- newIdent loc "fcn"
+  f <- newIdent loc "fcnD"
   withDict (EVar d, [], [], ctx) $ T.do
     eqns' <- tcEqns t' eqns
-    ds <- solveConstraints
-    T.when (not (null ds)) impossible
-    let
-      -- XXX special case if eqns' is [Eqn [] ...] to avoid new binding
-      bs = eBinds ds
-      eqn = Eqn [EVar d] $ EAlts [([], EVar f)] (bs ++ [BFcn f eqns'])
+    let eqn =
+          case eqns' of
+            [Eqn [] alts] -> Eqn [EVar d] alts
+            _             -> Eqn [EVar d] $ EAlts [([], EVar f)] [BFcn f eqns']
     T.return [eqn]
 tcEqns t eqns = T.do
   let loc = getSLocEqns eqns
-  f <- newIdent loc "fcn"
+  f <- newIdent loc "fcnS"
   eqns' <- T.mapM (tcEqn t) eqns
   ds <- solveConstraints
   case ds of

@@ -388,8 +388,8 @@ ppEDef def =
     ForImp ie i t -> text ("foreign import ccall " ++ showString ie) <+> ppIdent i <+> text "::" <+> ppEType t
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (showInt p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
-    Class sup lhs bs -> text "class" <+> ctx sup <+> ppLHS lhs <> ppWhere bs
-    Instance vs ct ty bs -> text "instance" <+> ppForall vs <+> ctx ct <+> ppEType ty <> ppWhere bs
+    Class sup lhs bs -> ppWhere (text "class" <+> ctx sup <+> ppLHS lhs) bs
+    Instance vs ct ty bs -> ppWhere (text "instance" <+> ppForall vs <+> ctx ct <+> ppEType ty) bs
  where ctx [] = empty
        ctx ts = ppEType (ETuple ts) <+> text "=>"
 
@@ -405,14 +405,15 @@ ppIdKind :: IdKind -> Doc
 ppIdKind (IdKind i k) = parens $ ppIdent i <> text "::" <> ppEKind k
 
 ppEDefs :: [EDef] -> Doc
-ppEDefs ds = vcat (map ppEDef ds)
+ppEDefs ds = vcat (map (nl . ppEDef) ds)
+  where nl d = d $+$ text ""
 
 ppAlts :: Doc -> EAlts -> Doc
-ppAlts asep (EAlts alts bs) = ppAltsL asep alts <> ppWhere bs
+ppAlts asep (EAlts alts bs) = ppWhere (ppAltsL asep alts) bs
 
-ppWhere :: [EBind] -> Doc
-ppWhere [] = empty
-ppWhere bs = text "where" $+$ nest 2 (vcat (map ppEBind bs))
+ppWhere :: Doc -> [EBind] -> Doc
+ppWhere d [] = d
+ppWhere d bs = (d <+> text "where") $+$ nest 2 (vcat (map ppEBind bs))
 
 ppAltsL :: Doc -> [EAlt] -> Doc
 ppAltsL asep [([], e)] = text "" <+> asep <+> ppExpr e
@@ -446,6 +447,7 @@ ppExpr ae =
   where
     ppApp as (EApp f a) = ppApp (a:as) f
     ppApp as (EVar i) | eqString op "->", [a, b] <- as = parens $ ppExpr a <+> text "->" <+> ppExpr b
+                      | eqString op "=>", [a, b] <- as = parens $ ppExpr a <+> text "=>" <+> ppExpr b
                       | eqChar (head op) ',' = ppExpr (ETuple as)
                       | eqString op "[]", length as == 1 = ppExpr (EListish (LList as))
                         where op = unQualString (unIdent i)

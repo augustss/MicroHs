@@ -49,11 +49,9 @@ reduceDoc p              = p
 hcat :: [Doc] -> Doc
 hcat = snd . reduceHoriz . foldr (\p q -> Beside p False q) empty
 
--- | List version of '<+>'.
 hsep :: [Doc] -> Doc
 hsep = snd . reduceHoriz . foldr (\p q -> Beside p True q)  empty
 
--- | List version of '$$'.
 vcat :: [Doc] -> Doc
 vcat = snd . reduceVert . foldr (\p q -> Above p False q) empty
 

@@ -141,7 +141,8 @@ dsBinds ads ret =
   in loop mvs asccs
 
 letE :: Ident -> Exp -> Exp -> Exp
-letE i e b = App (Lam i b) e
+letE i e b = eLet i e b          -- do some minor optimizations
+             --App (Lam i b) e
 
 letRecE :: Ident -> Exp -> Exp -> Exp
 letRecE i e b = letE i (App (Lit (LPrim "Y")) (Lam i e)) b
