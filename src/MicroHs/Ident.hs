@@ -4,6 +4,7 @@ module MicroHs.Ident(
   Line, Col, Loc,
   Ident(..),
   mkIdent, mkIdentLoc, unIdent, eqIdent, leIdent, qualIdent, showIdent, getSLocIdent, setSLocIdent,
+  ppIdent,
   mkIdentSLoc,
   isLower_, isIdentChar, isOperChar, isConIdent,
   dummyIdent, isDummyIdent,
@@ -20,6 +21,7 @@ import Prelude --Xhiding(showString)
 import Data.Char
 --Ximport Compat
 --Ximport GHC.Stack
+import MicroHs.Pretty
 
 type Line = Int
 type Col  = Int
@@ -59,6 +61,9 @@ setSLocIdent l (Ident _ s) = Ident l s
 
 showIdent :: Ident -> String
 showIdent (Ident _ i) = i
+
+ppIdent :: Ident -> Doc
+ppIdent (Ident _ i) = text i
 
 eqIdent :: Ident -> Ident -> Bool
 eqIdent (Ident _ i) (Ident _ j) = eqString i j

@@ -78,6 +78,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Control/Exception.hs
 	$(GHCC) -c src/System/Console/SimpleReadline.hs
 	$(GHCC) -c src/Text/ParserComb.hs
+	$(GHCC) -c src/MicroHs/Pretty.hs
 	$(GHCC) -c src/MicroHs/Ident.hs
 	$(GHCC) -c src/MicroHs/Expr.hs
 	$(GHCC) -c src/MicroHs/Graph.hs
