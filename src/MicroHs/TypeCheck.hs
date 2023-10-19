@@ -63,7 +63,7 @@ type ClassTable = M.Map (Int, [Ident]) -- # super classes, instance names
 type Instances  = [InstDict]
 type Constraints= [(Ident, EConstraint)]
 
-type InstDict   = (Ident, [IdKind], [EConstraint], EConstraint)
+type InstDict   = (Expr, [IdKind], [EConstraint], EConstraint)
 
 type Sigma = EType
 --type Tau   = EType
@@ -1033,7 +1033,7 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
       args = sups ++ meths
   let bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar $ mkClassConstructor iCls) args)] bs']
   mn <- gets moduleName
-  addInstance (qualIdent mn iInst, vks, ctx, cc)
+  addInstance (EVar $ qualIdent mn iInst, vks, ctx, cc)
   T.return [dinst, sign, bind]
 expandInst d = T.return [d]
 
@@ -1171,7 +1171,7 @@ tCheckExpr t e | Just (ctx, t') <- getImplies t = T.do
   _ <- undefined -- XXX
   u <- newUniq
   let d = mkIdentSLoc (getSLocExpr e) ("adict$" ++ showInt u)
-  e' <- withDict (d, [], [], ctx) $ tCheckExpr t' e
+  e' <- withDict (EVar d, [], [], ctx) $ tCheckExpr t' e
   T.return $ ELam [EVar d] e'
 tCheckExpr t e = tCheck tcExpr t e
 
@@ -1477,7 +1477,7 @@ tcEqns t eqns | Just (ctx, t') <- getImplies t = T.do
   let loc = getSLocEqns eqns
   d <- newIdent loc "adict"
   f <- newIdent loc "fcn"
-  withDict (d, [], [], ctx) $ T.do
+  withDict (EVar d, [], [], ctx) $ T.do
     eqns' <- tcEqns t' eqns
     ds <- solveConstraints
     T.when (not (null ds)) impossible
@@ -1845,15 +1845,14 @@ solveConstraints = T.do
     cs' <- T.mapM (\ (i,t) -> T.do { t' <- derefUVar t; T.return (i,t') }) cs
     traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
     is <- gets instances
-    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showIdent i ++ " :: " ++ showExpr t) is))
+    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) is))
     let xs = map solve cs'
         solve c@(d, t) =
-          case [ i | (i, _, _, t') <- is, eqEType t t' ] of
-            [i] -> Right (d, EVar i)
+          case [ e | (e, [], [], t') <- is, eqEType t t' ] of
+            [e] -> Right (d, e)
             _   -> Left c
     putConstraints [ c | Left c <- xs ]
---    traceM (show (head cs) ++ "\n" ++ show (head is))
-    traceM ("solved " ++ show [ ie | Right ie <- xs ])
+    traceM ("solved:\n " ++ unlines [ showIdent i ++ " = " ++ showExpr e | Right (i, e) <- xs ])
     T.return [ ie | Right ie <- xs ]
 
 checkConstraints :: T ()
