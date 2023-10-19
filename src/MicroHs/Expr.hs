@@ -353,3 +353,160 @@ errorMessage loc msg = error $ showSLoc loc ++ ": " ++ msg
 
 ----------------
 
+showExpr :: Expr -> String
+showExpr = render . ppExpr
+
+showEDefs :: [EDef] -> String
+showEDefs = render . ppEDefs
+
+showEBind :: EBind -> String
+showEBind = render . ppEBind
+
+showEType :: EType -> String
+showEType = render . ppEType
+
+ppImportItem :: ImportItem -> Doc
+ppImportItem ae =
+  case ae of
+    ImpTypeCon i -> ppIdent i <> text "(..)"
+    ImpType i -> ppIdent i
+    ImpValue i -> ppIdent i
+
+ppEDef :: EDef -> Doc
+ppEDef def =
+  case def of
+    Data lhs [] -> text "data" <+> ppLHS lhs
+    Data lhs cs -> text "data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs))
+    Newtype lhs c -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c
+    Type lhs t -> text "type" <+> ppLHS lhs <+> text "=" <+> ppEType t
+    Fcn i eqns -> vcat (map (\ (Eqn ps alts) -> sep [ppIdent i <+> hsep (map ppEPat ps), ppAlts (text "=") alts]) eqns)
+    Sign i t -> ppIdent i <+> text "::" <+> ppEType t
+    Import (ImportSpec q m mm mis) -> text "import" <+> (if q then text "qualified" else empty) <+> ppIdent m <> text (maybe "" ((" as " ++) . unIdent) mm) <>
+      case mis of
+        Nothing -> empty
+        Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ", ") (map ppImportItem is))
+    ForImp ie i t -> text ("foreign import ccall " ++ showString ie) <+> ppIdent i <+> text "::" <+> ppEType t
+    Infix (a, p) is -> text ("infix" ++ f a) <+> text (showInt p) <+> hsep (punctuate (text ", ") (map ppIdent is))
+      where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
+    Class sup lhs bs -> text "class" <+> ctx sup <+> ppLHS lhs <> ppWhere bs
+    Instance vs ct ty bs -> text "instance" <+> ppForall vs <+> ctx ct <+> ppEType ty <> ppWhere bs
+ where ctx [] = empty
+       ctx ts = ppEType (ETuple ts) <+> text "=>"
+
+ppConstr :: Constr -> Doc
+ppConstr (Constr c (Left  ts)) = hsep (ppIdent c : map ppEType ts)
+ppConstr (Constr c (Right fs)) = ppIdent c <> braces (hsep $ map f fs)
+  where f (i, t) = ppIdent i <+> text "::" <+> ppEType t <> text ","
+
+ppLHS :: LHS -> Doc
+ppLHS (f, vs) = hsep (ppIdent f : map ppIdKind vs)
+
+ppIdKind :: IdKind -> Doc
+ppIdKind (IdKind i k) = parens $ ppIdent i <> text "::" <> ppEKind k
+
+ppEDefs :: [EDef] -> Doc
+ppEDefs ds = vcat (map ppEDef ds)
+
+ppAlts :: Doc -> EAlts -> Doc
+ppAlts asep (EAlts alts bs) = ppAltsL asep alts <> ppWhere bs
+
+ppWhere :: [EBind] -> Doc
+ppWhere [] = empty
+ppWhere bs = text "where" $+$ nest 2 (vcat (map ppEBind bs))
+
+ppAltsL :: Doc -> [EAlt] -> Doc
+ppAltsL asep [([], e)] = text "" <+> asep <+> ppExpr e
+ppAltsL asep alts = vcat (map (ppAlt asep) alts)
+
+ppAlt :: Doc -> EAlt -> Doc
+ppAlt asep (ss, e) = text " |" <+> hsep (punctuate (text ",") (map ppEStmt ss)) <+> asep <+> ppExpr e
+
+ppExpr :: Expr -> Doc
+ppExpr ae =
+  case ae of
+    EVar v -> ppIdent v
+    EApp _ _ -> ppApp [] ae
+    EOper e ies -> ppExpr (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
+    ELam ps e -> parens $ text "\\" <> hsep (map ppExpr ps) <+> text "->" <+> ppExpr e
+    ELit _ i -> text (showLit i)
+    ECase e as -> text "case" <+> ppExpr e <+> text "of" $$ nest 2 (vcat (map ppCaseArm as))
+    ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppExpr e
+    ETuple es -> parens $ hsep $ punctuate (text ",") (map ppExpr es)
+    EListish (LList es) -> ppList ppExpr es
+    EDo mn ss -> maybe (text "do") (\ n -> ppIdent n <> text ".do") mn $$ nest 2 (vcat (map ppEStmt ss))
+    ESectL e i -> parens $ ppExpr e <+> ppIdent i
+    ESectR i e -> parens $ ppIdent i <+> ppExpr e
+    EIf e1 e2 e3 -> parens $ sep [text "if" <+> ppExpr e1, text "then" <+> ppExpr e2, text "else" <+> ppExpr e3]
+    EListish l -> ppListish l
+    ESign e t -> ppExpr e <+> text "::" <+> ppEType t
+    EAt i e -> ppIdent i <> text "@" <> ppExpr e
+    EUVar i -> text ("a" ++ showInt i)
+    ECon c -> ppCon c
+    EForall iks e -> ppForall iks <+> ppEType e
+  where
+    ppApp as (EApp f a) = ppApp (a:as) f
+    ppApp as (EVar i) | eqString op "->", [a, b] <- as = parens $ ppExpr a <+> text "->" <+> ppExpr b
+                      | eqChar (head op) ',' = ppExpr (ETuple as)
+                      | eqString op "[]", length as == 1 = ppExpr (EListish (LList as))
+                        where op = unQualString (unIdent i)
+    ppApp as f = parens $ hsep (map ppExpr (f:as))
+
+ppForall :: [IdKind] -> Doc
+ppForall [] = empty
+ppForall iks = text "forall" <+> hsep (map ppIdKind iks) <+> text "."
+
+ppListish :: Listish -> Doc
+ppListish _ = text "<<Listish>>"
+
+ppCon :: Con -> Doc
+ppCon (ConData _ s) = ppIdent s
+ppCon (ConNew s) = ppIdent s
+ppCon (ConLit l) = text (showLit l)
+
+-- Literals are tagged the way they appear in the combinator file:
+--  #   Int
+--  %   Double
+--  '   Char    (not in file)
+--  "   String
+--  ^   FFI function
+--      primitive
+showLit :: Lit -> String
+showLit l =
+  case l of
+    LInt i    -> '#' : showInt i
+    LDouble d -> '%' : D.showDouble d
+    LChar c   -> showChar c
+    LStr s    -> showString s
+    LPrim s   -> s
+    LForImp s -> '^' : s
+
+ppEStmt :: EStmt -> Doc
+ppEStmt as =
+  case as of
+    SBind p e -> ppEPat p <+> text "<-" <+> ppExpr e
+    SThen e -> ppExpr e
+    SLet bs -> text "let" $$ nest 2 (vcat (map ppEBind bs))
+
+ppEBind :: EBind -> Doc
+ppEBind ab =
+  case ab of
+    BFcn i eqns -> ppEDef (Fcn i eqns)
+    BPat p e -> ppEPat p <+> text "=" <+> ppExpr e
+    BSign i t -> ppIdent i <+> text "::" <+> ppEType t
+
+ppCaseArm :: ECaseArm -> Doc
+ppCaseArm arm =
+  case arm of
+    (p, alts) -> ppEPat p <> ppAlts (text "->") alts
+
+ppEPat :: EPat -> Doc
+ppEPat = ppExpr
+
+ppEType :: EType -> Doc
+ppEType = ppExpr
+
+ppEKind :: EKind -> Doc
+ppEKind = ppEType
+
+ppList :: forall a . (a -> Doc) -> [a] -> Doc
+ppList pp xs = brackets $ hsep $ punctuate (text ",") (map pp xs)
