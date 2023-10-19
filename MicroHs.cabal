@@ -48,6 +48,7 @@ executable mhs
                        MicroHs.Ident
                        MicroHs.Lex
                        MicroHs.Parse
+                       MicroHs.Pretty
                        MicroHs.StateIO
                        MicroHs.IdentMap
                        MicroHs.Interactive

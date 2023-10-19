@@ -498,5 +498,5 @@ ppEType = ppExpr
 ppEKind :: EKind -> Doc
 ppEKind = ppEType
 
-ppList :: (a -> Doc) -> [a] -> Doc
+ppList :: forall a . (a -> Doc) -> [a] -> Doc
 ppList pp xs = brackets $ hsep $ punctuate (text ",") (map pp xs)
