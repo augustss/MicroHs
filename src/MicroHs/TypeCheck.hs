@@ -61,7 +61,7 @@ type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
 type ClassTable = M.Map ([IdKind], [EConstraint], [Ident]) -- super classes, instance names
-type Instances  = [InstDict]
+type InstTable  = M.Map [InstDict] -- indexed by class name
 type Constraints= [(Ident, EConstraint)]
 
 type InstDict   = (Expr, [IdKind], [EConstraint], EConstraint)
@@ -262,6 +262,15 @@ getIdent ae =
     ECon c -> conIdent c
     _ -> impossible
 
+-- Approximate equality for dictionaries.
+-- The important thing is to avoid exact duplicates in the instance table.
+eqInstDict :: InstDict -> InstDict -> Bool
+eqInstDict (EVar i, _, _, _) (EVar i', _, _, _) | i == i' = True
+eqInstDict _                 _                            = False
+
+getInstCon :: InstDict -> Ident
+getInstCon (_, _, _, t) = getAppCon t
+
 --------------------------
 
 type Typed a = (a, EType)
@@ -277,7 +286,7 @@ data TCState = TC
   (IM.IntMap EType)     -- mapping from unique id to type
   TCMode                -- pattern, value, or type
   ClassTable            -- class info, indexed by QIdent
-  Instances             -- instances
+  InstTable             -- instances
   Constraints           -- constraints that have to be solved
   --Xderiving (Show)
 
@@ -311,7 +320,7 @@ classTable (TC _ _ _ _ _ _ _ _ _ ct _ _) = ct
 tcMode :: TCState -> TCMode
 tcMode (TC _ _ _ _ _ _ _ _ m _ _ _) = m
 
-instances :: TCState -> Instances
+instances :: TCState -> InstTable
 instances (TC _ _ _ _ _ _ _ _ _ _ is _) = is
 
 constraints :: TCState -> Constraints
@@ -342,8 +351,8 @@ putTCMode m = T.do
   TC mn n fx tenv senv venv ast sub _ cs is es <- get
   put (TC mn n fx tenv senv venv ast sub m cs is es)
 
-putInstances :: Instances -> T ()
-putInstances is = T.do
+putInstTable :: InstTable -> T ()
+putInstTable is = T.do
   TC mn n fx tenv senv venv ast sub m cs _ es <- get
   put (TC mn n fx tenv senv venv ast sub m cs is es)
 
@@ -380,10 +389,10 @@ addClassTable i x = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt ast sub m (M.insert i x cs) is es
 
-addInstances :: [InstDict] -> T ()
-addInstances ics = T.do
+addInstTable :: [InstDict] -> T ()
+addInstTable ics = T.do
   is <- gets instances
-  putInstances (ics ++ is)
+  putInstTable $ foldr (\ ic -> M.insertWith (unionBy eqInstDict) (getInstCon ic) [ic]) is ics
 
 addConstraint :: String -> (Ident, EConstraint) -> T ()
 addConstraint _msg e@(_d, _ctx) = T.do
@@ -395,9 +404,9 @@ withDict :: forall a . Ident -> EConstraint -> T a -> T a
 withDict i c ta = T.do
   is <- gets instances
   ics <- expandDict (EVar i) c
-  addInstances ics
+  addInstTable ics
   a <- ta
-  putInstances is
+  putInstTable is
   T.return a
 
 -- XXX handle imports
@@ -407,7 +416,7 @@ initTC mn fs ts ss vs as =
   let
     xts = foldr (uncurry M.insert) ts primTypes
     xvs = foldr (uncurry M.insert) vs primValues
-  in TC mn 1 fs xts ss xvs as IM.empty TCExpr M.empty [] []
+  in TC mn 1 fs xts ss xvs as IM.empty TCExpr M.empty M.empty []
 
 kTypeS :: EType
 kTypeS = kType
@@ -989,12 +998,20 @@ clsToDict = T.do
   usup []
 -}
 
+addConstraints :: [EConstraint] -> EType -> EType
+addConstraints []  t = t
+addConstraints [c] t = c `tImplies` t
+addConstraints cs  t = tupleConstraints cs `tImplies` t
+
+tupleConstraints :: [EConstraint] -> EConstraint
+tupleConstraints cs = tApps (tupleConstr noSLoc (length cs)) cs
+
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance vks ctx cc bs) = T.do
   let loc = getSLocExpr cc
       iCls = getAppCon cc
   iInst <- newIdent loc "inst"
-  let sign = Sign iInst (eForall vks cc)
+  let sign = Sign iInst (eForall vks $ addConstraints ctx cc)
   (e, _) <- tLookupV iCls
   ct <- gets classTable
   let qiCls = getAppCon e
@@ -1016,7 +1033,7 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
       args = sups ++ meths
   let bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar $ mkClassConstructor iCls) args)] bs']
   mn <- gets moduleName
-  addInstances [(EVar $ qualIdent mn iInst, vks, ctx, cc)]
+  addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc)]
   T.return [dinst, sign, bind]
 expandInst d = T.return [d]
 
@@ -1458,6 +1475,7 @@ tcExprLam mt aps expr = T.do
     T.return (ELam ps er)
 
 tcEqns :: EType -> [Eqn] -> T [Eqn]
+--tcEqns t eqns | trace ("tcEqns: " ++ showEBind (BFcn dummyIdent eqns) ++ " :: " ++ showEType t) False = undefined
 tcEqns t eqns | Just (ctx, t') <- getImplies t = T.do
   let loc = getSLocEqns eqns
   d <- newIdent loc "adict"
@@ -1850,11 +1868,12 @@ solveConstraints = T.do
   if null cs then
     T.return []
    else T.do
---    traceM "solveConstraints"
+    traceM "solveConstraints"
     cs' <- T.mapM (\ (i,t) -> T.do { t' <- derefUVar t; T.return (i,t') }) cs
---    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
-    is <- gets instances
---    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) is))
+    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
+    it <- gets instances
+    let instsOf c = fromMaybe [] $ M.lookup c it
+    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) (concat $ M.elems it)))
     let solve :: [(Ident, EType)] -> [(Ident, EType)] -> [(Ident, Expr)] -> T ([(Ident, EType)], [(Ident, Expr)])
         solve [] uns sol = T.return (uns, sol)
         solve (cns@(di, ct) : cnss) uns sol = T.do
@@ -1865,14 +1884,14 @@ solveConstraints = T.do
               goals <- T.mapM (\ c -> T.do { d <- newIdent loc "dict"; T.return (d, c) }) cts
               solve (goals ++ cnss) uns ((di, ETuple (map (EVar . fst) goals)) : sol)
             Nothing ->
-              case [ de | (de, [], [], t) <- is, eqEType ct t ] of
+              case [ de | (de, [], [], t) <- instsOf iCls, eqEType ct t ] of
                 []   -> solve cnss (cns : uns)     sol
                 [de] -> solve cnss uns ((di, de) : sol)
                 _    -> tcError loc $ "Multiple constraint solutions for: " ++ showEType ct
     (unsolved, solved) <- solve cs' [] []
     putConstraints unsolved
---    traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
---    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
+    traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
+    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
     T.return solved
 
 -- Check that there are no unsolved constraints.

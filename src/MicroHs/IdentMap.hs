@@ -6,7 +6,13 @@
 --
 module MicroHs.IdentMap(
   Map,
-  insert, fromListWith, fromList, lookup, empty, elems, size, toList, delete,
+  empty,
+  insertWith, insert,
+  fromListWith, fromList,
+  delete,
+  lookup,
+  size,
+  toList, elems,
   ) where
 import Prelude --Xhiding(lookup)
 import MicroHs.Ident
