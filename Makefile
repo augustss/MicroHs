@@ -51,6 +51,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCB) -c ghc/Data/Double.hs
 	$(GHCB) -c src/PrimTable.hs
 	$(GHCC) -c lib/Control/Error.hs
+	$(GHCC) -c lib/Data/Eq.hs
 	$(GHCC) -c lib/Data/Bool.hs
 	$(GHCC) -c lib/Data/Int.hs
 	$(GHCC) -c lib/Data/Double.hs

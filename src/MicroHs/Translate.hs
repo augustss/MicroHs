@@ -96,6 +96,7 @@ primTable = [
   ("equal", primitive "equal"),
   ("compare", primitive "compare"),
   ("rnf", primitive "rnf"),
+  ("noDefault", primitive "noDefault"),
   ("IO.>>=", primitive "IO.>>="),
   ("IO.>>", primitive "IO.>>"),
   ("IO.return", primitive "IO.return"),

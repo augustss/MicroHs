@@ -26,8 +26,8 @@ type LDef = (Ident, Exp)
 desugar :: TModule [EDef] -> TModule [LDef]
 desugar atm =
   case atm of
-    TModule mn fxs tys syns insts vals ds ->
-      TModule mn fxs tys syns insts vals $ checkDup $ concatMap (dsDef mn) ds
+    TModule mn fxs tys syns clss insts vals ds ->
+      TModule mn fxs tys syns clss insts vals $ checkDup $ concatMap (dsDef mn) ds
 
 dsDef :: IdentModule -> EDef -> [LDef]
 dsDef mn adef =
@@ -402,10 +402,10 @@ cheap ae =
 
 -- Could use Prim "==", but that misses out some optimizations
 eEqInt :: Exp
-eEqInt = Var $ mkIdent "Data.Int.=="
+eEqInt = Var $ mkIdent "Primitives.primIntEQ"
 
 eEqChar :: Exp
-eEqChar = Var $ mkIdent "Data.Char.eqChar"
+eEqChar = Var $ mkIdent "Primitives.primCharEQ"
 
 eEqStr :: Exp
 eEqStr = --Var $ mkIdent "Text.String.eqString"

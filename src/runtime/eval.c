@@ -152,7 +152,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B,
                 T_FADD, T_FSUB, T_FMUL, T_FDIV,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
-                T_ERROR, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
+                T_ERROR, T_NODEFAULT, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
@@ -672,6 +672,7 @@ struct {
   { ">=", T_GE },
   { "seq", T_SEQ },
   { "error", T_ERROR },
+  { "noDefault", T_NODEFAULT },
   { "equal", T_EQUAL },
   { "compare", T_COMPARE },
   { "rnf", T_RNF },
@@ -1402,6 +1403,7 @@ printrec(FILE *f, NODEPTR n)
   case T_UGT: fprintf(f, "u>"); break;
   case T_UGE: fprintf(f, "u>="); break;
   case T_ERROR: fprintf(f, "error"); break;
+  case T_NODEFAULT: fprintf(f, "noDefault"); break;
   case T_EQUAL: fprintf(f, "equal"); break;
   case T_COMPARE: fprintf(f, "compare"); break;
   case T_RNF: fprintf(f, "rnf"); break;
@@ -1730,6 +1732,7 @@ eval(NODEPTR n)
   double rd;
   FILE *hdl;
   char *msg;
+  char *emsg;
   heapoffs_t l;
 
 /* Reset stack pointer and return. */
@@ -1879,7 +1882,12 @@ eval(NODEPTR n)
     case T_UGT:  CMPU(>);
     case T_UGE:  CMPU(>=);
 
+    case T_NODEFAULT:
+      emsg = "no default for ";
+      goto err;                 /* XXX not right if the error is caught */
     case T_ERROR:
+      emsg = "";
+    err:
       if (cur_handler) {
         /* Pass the string to the handler */
         CHKARG1;
@@ -1888,7 +1896,7 @@ eval(NODEPTR n)
       } else {
         /* No handler, so just die. */
         CHKARGEV1(msg = evalstring(x));
-        fprintf(stderr, "error: %s\n", msg);
+        fprintf(stderr, "error: %s%s\n", emsg, msg);
         free(msg);
         exit(1);
       }
