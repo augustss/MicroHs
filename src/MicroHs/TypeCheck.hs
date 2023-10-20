@@ -1010,11 +1010,12 @@ clsToDict = T.do
 
 addConstraints :: [EConstraint] -> EType -> EType
 addConstraints []  t = t
-addConstraints [c] t = c `tImplies` t
 addConstraints cs  t = tupleConstraints cs `tImplies` t
 
 tupleConstraints :: [EConstraint] -> EConstraint
-tupleConstraints cs = tApps (tupleConstr noSLoc (length cs)) cs
+tupleConstraints []  = error "tupleConstraints"
+tupleConstraints [c] = c
+tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
 
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance vks ctx cc bs) = T.do
@@ -1868,6 +1869,17 @@ expandDict edict acn = T.do
 mkSuperSel :: IdentModule -> Ident -> Int -> Ident
 mkSuperSel mn c i = qualIdent mn $ mkIdent $ unIdent c ++ "$super" ++ showInt i
 
+{-
+showInstDict :: InstDict -> String
+showInstDict (e, iks, ctx, ct) = showExpr e ++ " :: " ++ showEType (eForall iks $ addConstraints ctx ct)
+
+showConstraint :: (Ident, EConstraint) -> String
+showConstraint (i, t) = showIdent i ++ " :: " ++ showEType t
+
+showMatch :: (Expr, [EConstraint]) -> String
+showMatch (e, ts) = showExpr e ++ " " ++ showList showEType ts
+-}
+
 -- Solve as many constraints as possible.
 -- Return bindings for the dictionary witnesses.
 -- Unimplemented:
@@ -1878,31 +1890,89 @@ solveConstraints = T.do
   if null cs then
     T.return []
    else T.do
---    traceM "solveConstraints"
+--    traceM "------------------------------------------\nsolveConstraints"
     cs' <- T.mapM (\ (i,t) -> T.do { t' <- derefUVar t; T.return (i,t') }) cs
---    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
+--    traceM ("constraints:\n" ++ unlines (map showConstraint cs'))
     it <- gets instTable
     let instsOf c = fromMaybe [] $ M.lookup c it
---    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) (concat $ M.elems it)))
+--    traceM ("instances:\n" ++ unlines (map showInstDict (concat $ M.elems it)))
     let solve :: [(Ident, EType)] -> [(Ident, EType)] -> [(Ident, Expr)] -> T ([(Ident, EType)], [(Ident, Expr)])
         solve [] uns sol = T.return (uns, sol)
         solve (cns@(di, ct) : cnss) uns sol = T.do
+--          traceM ("trying " ++ showEType ct)
           let loc = getSLocIdent di
               (iCls, cts) = getApp ct
           case getTupleConstr iCls of
             Just _ -> T.do
               goals <- T.mapM (\ c -> T.do { d <- newIdent loc "dict"; T.return (d, c) }) cts
               solve (goals ++ cnss) uns ((di, ETuple (map (EVar . fst) goals)) : sol)
-            Nothing ->
-              case [ de | (de, [], [], t) <- instsOf iCls, eqEType ct t ] of
-                []   -> solve cnss (cns : uns)     sol
-                [de] -> solve cnss uns ((di, de) : sol)
-                _    -> tcError loc $ "Multiple constraint solutions for: " ++ showEType ct
+            Nothing -> T.do
+              let matches = getBestMatches $ findMatches (instsOf iCls) ct
+--              traceM ("matches " ++ showList showMatch matches)
+              case matches of
+                []          -> solve cnss (cns :  uns)             sol
+                [(de, ctx)] ->
+                  if null ctx then
+                    solve cnss uns ((di, de) : sol)
+                  else T.do
+                    d <- newIdent (getSLocIdent iCls) "dict"
+--                    traceM ("constraint " ++ showIdent di ++ " :: " ++ showEType ct ++ "\n" ++
+--                            "   turns into " ++ showIdent d ++ " :: " ++ showEType (tupleConstraints ctx) ++ ", " ++
+--                            showIdent di ++ " = " ++ showExpr (EApp de (EVar d)))
+                    solve ((d, tupleConstraints ctx) : cnss) uns ((di, EApp de (EVar d)) : sol)
+                _           -> tcError loc $ "Multiple constraint solutions for: " ++ showEType ct
+
     (unsolved, solved) <- solve cs' [] []
     putConstraints unsolved
 --    traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
 --    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
     T.return solved
+
+-- Given some instances and a constraint, find the matching instances.
+-- For each matching instance return: (subst-size, (dict-expression, new-constraints))
+-- The subst-size is the size of the substitution that made the input instance match.
+-- It is a measure of how exact the match is.
+findMatches :: [InstDict] -> EConstraint -> [(Int, (Expr, [EConstraint]))]
+findMatches ds ct =
+ let rrr =
+       [ (length s, (de, map (substEUVar s . subst r) ctx))
+       | (de, iks, ctx, t) <- ds, let { r = freshSubst iks }, Just s <- [matchType [] (subst r t) ct] ]
+ in --trace ("findMatches: " ++ showList showInstDict ds ++ "; " ++ showEType ct ++ "; " ++ show rrr)
+    rrr
+  where
+    -- Change type variable to unique unification variables.
+    -- These unification variables will never leak out of findMatches.
+    freshSubst iks = zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [1000000000 ..] -- make sure the variables are unique
+
+    -- Match two types, instantiate variables in the first type.
+    matchType r (EVar i) (EVar i') | eqIdent i i' = Just r
+    matchType r (EApp f a) (EApp f' a') = -- XXX should use Maybe monad
+      case matchType r f f' of
+        Nothing -> Nothing
+        Just r' -> matchType r' a a'
+    matchType r (EUVar i) t =
+      -- For a variable, check that any previous match is the same.
+      case lookupBy eqInt i r of
+        Just t' -> if eqEType t t' then Just r else Nothing
+        Nothing -> Just ((i, t) : r)
+    matchType _ _ _ = Nothing
+
+    -- Do substitution for EUVar.
+    -- XXX similat to derefUVar
+    substEUVar [] t = t
+    substEUVar _ t@(EVar _) = t
+    substEUVar s (EApp f a) = EApp (substEUVar s f) (substEUVar s a)
+    substEUVar s t@(EUVar i) = fromMaybe t $ lookupBy (eqInt) i s
+    substEUVar s (EForall iks t) = EForall iks (substEUVar s t)
+    substEUVar _ _ = impossible
+
+
+-- Get the best matches.  These are the matches with the smallest substitution.
+getBestMatches :: [(Int, (Expr, [EConstraint]))] -> [(Expr, [EConstraint])]
+getBestMatches [] = []
+getBestMatches ms =
+  let b = minimum (map fst ms)         -- minimum substitution size
+  in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest
 
 -- Check that there are no unsolved constraints.
 checkConstraints :: T ()

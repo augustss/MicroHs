@@ -64,6 +64,10 @@ foldl1 :: forall a . (a -> a -> a) -> [a] -> a
 foldl1 _ [] = error "foldl1"
 foldl1 f (x : xs) = foldl f x xs
 
+minimum :: [P.Int] -> P.Int
+minimum [] = error "minimum"
+minimum (x:ys) = foldr (\ y m -> if y < m then y else m) x ys
+
 sum :: [P.Int] -> P.Int
 sum = foldr (+) 0
 
@@ -262,6 +266,7 @@ repeat x =
 deleteFirstsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteFirstsBy eq = foldl (flip (deleteBy eq))
 
+-- Delete all from the second argument from the first argument
 deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteAllsBy eq = foldl (flip (deleteAllBy eq))
 

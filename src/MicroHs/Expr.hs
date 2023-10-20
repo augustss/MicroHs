@@ -246,6 +246,7 @@ type Fixity = (Assoc, Int)
 
 -- Enough to handle subsitution in types
 subst :: [(Ident, Expr)] -> Expr -> Expr
+subst [] = id
 subst s =
   let
     sub ae =
@@ -254,6 +255,8 @@ subst s =
         EApp f a -> EApp (sub f) (sub a)
         ESign e t -> ESign (sub e) t
         EUVar _ -> ae
+        EForall iks t -> EForall iks $ subst [ x | x@(i, _) <- s, not (elemBy eqIdent i is) ] t
+          where is = map idKindIdent iks
         _ -> error "subst unimplemented"
   in sub
 
