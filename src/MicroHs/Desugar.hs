@@ -26,8 +26,8 @@ type LDef = (Ident, Exp)
 desugar :: TModule [EDef] -> TModule [LDef]
 desugar atm =
   case atm of
-    TModule mn fxs tys syns vals ds ->
-      TModule mn fxs tys syns vals $ checkDup $ concatMap (dsDef mn) ds
+    TModule mn fxs tys syns insts vals ds ->
+      TModule mn fxs tys syns insts vals $ checkDup $ concatMap (dsDef mn) ds
 
 dsDef :: IdentModule -> EDef -> [LDef]
 dsDef mn adef =

@@ -27,6 +27,7 @@ data TModule a = TModule
   [FixDef]        -- all fixities, exported or not
   [TypeExport]    -- exported types
   [SynDef]        -- all type synonyms, exported or not
+  [InstDict]      -- all instances
   [ValueExport]   -- exported values (including from T(..))
   a               -- bindings
   --Xderiving (Show)
@@ -76,8 +77,8 @@ typeCheck aimps (EModule mn exps defs) =
 --  trace (show amdl) $
   let
     imps = map filterImports aimps
-    (fs, ts, ss, vs, as) = mkTables imps
-  in case tcRun (tcDefs defs) (initTC mn fs ts ss vs as) of
+    (fs, ts, ss, is, vs, as) = mkTables imps
+  in case tcRun (tcDefs defs) (initTC mn fs ts ss is vs as) of
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule tds tcs)
@@ -85,15 +86,16 @@ typeCheck aimps (EModule mn exps defs) =
            impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
            (texps, vexps) =
              unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
-           fexps = [ fe | TModule _ fe _ _ _ _ <- M.elems impMap ]
-           sexps = [ se | TModule _ _ _ se _ _ <- M.elems impMap ]
-         in  tModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) (concat sexps) (concat vexps) tds
+           fexps = [ fe | TModule _ fe _ _ _ _ _ <- M.elems impMap ]
+           sexps = [ se | TModule _ _ _ se _ _ _ <- M.elems impMap ]
+           iexps = [ ie | TModule _ _ _ _ ie _ _ <- M.elems impMap ]
+         in  tModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) (concat sexps) (concat iexps) (concat vexps) tds
 
 -- A hack to force evaluation of errors.
 -- This should be redone to all happen in the T monad.
-tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [SynDef] -> [ValueExport] -> [EDef] ->
+tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [SynDef] -> [InstDict] -> [ValueExport] -> [EDef] ->
            TModule [EDef]
-tModule mn fs ts ss vs ds = seqL ts `seq` seqL vs `seq` TModule mn fs ts ss vs ds
+tModule mn fs ts ss is vs ds = seqL ts `seq` seqL vs `seq` TModule mn fs ts ss is vs ds
   where
     seqL :: forall a . [a] -> ()
     seqL [] = ()
@@ -101,7 +103,7 @@ tModule mn fs ts ss vs ds = seqL ts `seq` seqL vs `seq` TModule mn fs ts ss vs d
 
 filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
 filterImports it@(ImportSpec _ _ _ Nothing, _) = it
-filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss vs a) =
+filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss ins vs a) =
   let
     keep x xs = elemBy eqIdent x xs `neBool` hide
     ivs = [ i | ImpValue i <- is ]
@@ -112,14 +114,14 @@ filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss vs 
           filter (\ (TypeExport i _ _) -> keep i its) ts
   in
     --trace (show (ts, vs)) $
-    (imp, TModule mn fx ts' ss vs' a)
+    (imp, TModule mn fx ts' ss ins vs' a)
 
 -- Type and value exports
 getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ExportItem ->
            ([TypeExport], [ValueExport])
 getTVExps impMap _ _ _ (ExpModule m) =
   case M.lookup m impMap of
-    Just (TModule _ _ te _ ve _) -> (te, ve)
+    Just (TModule _ _ te _ _ ve _) -> (te, ve)
     _ -> expErr m
 getTVExps _ tys vals ast (ExpTypeCon i) =
   let
@@ -177,6 +179,7 @@ mkTModule tds tcs =
     tt = typeTable  tcs
     at = assocTable tcs
     vt = valueTable tcs
+    it = instTable  tcs
 
     -- Find the Entry for a type.
     tentry i =
@@ -200,7 +203,10 @@ mkTModule tds tcs =
 
     -- All fixity declaration.
     fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
-  in  TModule mn fes tes ses ves impossible
+
+    -- All instances
+    ies = concat $ M.elems it
+  in  TModule mn fes tes ses ies ves impossible
 
 -- Find all value Entry for names associated with a type.
 getAssocs :: ValueTable -> AssocTable -> Ident -> [ValueExport]
@@ -211,7 +217,7 @@ getAssocs vt at ai =
                  _        -> impossible
   in  map (\ qi -> ValueExport (unQualIdent qi) (val qi)) qis
 
-mkTables :: forall a . [(ImportSpec, TModule a)] -> (FixTable, TypeTable, SynTable, ValueTable, AssocTable)
+mkTables :: forall a . [(ImportSpec, TModule a)] -> (FixTable, TypeTable, SynTable, InstTable, ValueTable, AssocTable)
 mkTables mdls =
   let
     qns (ImportSpec q _ mas _) mn i =
@@ -221,32 +227,37 @@ mkTables mdls =
     allValues :: ValueTable
     allValues =
       let
-        syms (is, TModule mn _ tes _ ves _) =
+        syms (is, TModule mn _ tes _ _ ves _) =
           [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ]
       in  M.fromListWith (unionBy eqEntry) $ concatMap syms mdls
     allSyns =
       let
-        syns (_, TModule _ _ _ ses _ _) = ses
+        syns (_, TModule _ _ _ ses _ _ _) = ses
       in  M.fromList (concatMap syns mdls)
     allTypes :: TypeTable
     allTypes =
       let
-        types (is, TModule mn _ tes _ _ _) = [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
+        types (is, TModule mn _ tes _ _ _ _) = [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
       in M.fromListWith (unionBy eqEntry) $ concatMap types mdls
     allFixes =
       let
-        fixes (_, TModule _ fes _ _ _ _) = fes
+        fixes (_, TModule _ fes _ _ _ _ _) = fes
       in M.fromList (concatMap fixes mdls)
     allAssocs :: AssocTable
     allAssocs =
       let
-        assocs (ImportSpec _ _ mas _, TModule mn _ tes _ _ _) =
+        assocs (ImportSpec _ _ mas _, TModule mn _ tes _ _ _ _) =
           let
             m = fromMaybe mn mas
           in  [ (qualIdent m i, [qualIdent m a | ValueExport a _ <- cs]) | TypeExport i _ cs <- tes ]
       in  M.fromList $ concatMap assocs mdls
-  in  (allFixes, allTypes, allSyns, allValues, allAssocs)
+    allInsts :: InstTable
+    allInsts =
+      let
+        insts (_, TModule _ _ _ _ ies _ _) = map (\ ie -> (getInstCon ie, [ie])) ies
+      in  M.fromListWith (unionBy eqInstDict) $ concatMap insts mdls
+  in  (allFixes, allTypes, allSyns, allInsts, allValues, allAssocs)
 
 eqEntry :: Entry -> Entry -> Bool
 eqEntry x y =
@@ -265,8 +276,8 @@ getIdent ae =
 -- Approximate equality for dictionaries.
 -- The important thing is to avoid exact duplicates in the instance table.
 eqInstDict :: InstDict -> InstDict -> Bool
-eqInstDict (EVar i, _, _, _) (EVar i', _, _, _) | i == i' = True
-eqInstDict _                 _                            = False
+eqInstDict (EVar i, _, _, _) (EVar i', _, _, _) = eqIdent i i'
+eqInstDict _                 _                  = False
 
 getInstCon :: InstDict -> Ident
 getInstCon (_, _, _, t) = getAppCon t
@@ -320,8 +331,8 @@ classTable (TC _ _ _ _ _ _ _ _ _ ct _ _) = ct
 tcMode :: TCState -> TCMode
 tcMode (TC _ _ _ _ _ _ _ _ m _ _ _) = m
 
-instances :: TCState -> InstTable
-instances (TC _ _ _ _ _ _ _ _ _ _ is _) = is
+instTable :: TCState -> InstTable
+instTable (TC _ _ _ _ _ _ _ _ _ _ is _) = is
 
 constraints :: TCState -> Constraints
 constraints (TC _ _ _ _ _ _ _ _ _ _ _ e) = e
@@ -391,7 +402,7 @@ addClassTable i x = T.do
 
 addInstTable :: [InstDict] -> T ()
 addInstTable ics = T.do
-  is <- gets instances
+  is <- gets instTable
   putInstTable $ foldr (\ ic -> M.insertWith (unionBy eqInstDict) (getInstCon ic) [ic]) is ics
 
 addConstraint :: String -> (Ident, EConstraint) -> T ()
@@ -402,21 +413,20 @@ addConstraint _msg e@(_d, _ctx) = T.do
 
 withDict :: forall a . Ident -> EConstraint -> T a -> T a
 withDict i c ta = T.do
-  is <- gets instances
+  is <- gets instTable
   ics <- expandDict (EVar i) c
   addInstTable ics
   a <- ta
   putInstTable is
   T.return a
 
--- XXX handle imports
-initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ValueTable -> AssocTable -> TCState
-initTC mn fs ts ss vs as =
+initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> InstTable -> ValueTable -> AssocTable -> TCState
+initTC mn fs ts ss is vs as =
 --  trace ("initTC " ++ show (ts, vs)) $
   let
     xts = foldr (uncurry M.insert) ts primTypes
     xvs = foldr (uncurry M.insert) vs primValues
-  in TC mn 1 fs xts ss xvs as IM.empty TCExpr M.empty M.empty []
+  in TC mn 1 fs xts ss xvs as IM.empty TCExpr M.empty is []
 
 kTypeS :: EType
 kTypeS = kType
@@ -1675,7 +1685,7 @@ impossible = error "impossible"
 showTModule :: forall a . (a -> String) -> TModule a -> String
 showTModule sh amdl =
   case amdl of
-    TModule mn _ _ _ _ a -> "Tmodule " ++ showIdent mn ++ "\n" ++ sh a ++ "\n"
+    TModule mn _ _ _ _ _ a -> "Tmodule " ++ showIdent mn ++ "\n" ++ sh a ++ "\n"
 
 {-
 showValueTable :: ValueTable -> String
@@ -1868,12 +1878,12 @@ solveConstraints = T.do
   if null cs then
     T.return []
    else T.do
-    traceM "solveConstraints"
+--    traceM "solveConstraints"
     cs' <- T.mapM (\ (i,t) -> T.do { t' <- derefUVar t; T.return (i,t') }) cs
-    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
-    it <- gets instances
+--    traceM ("constraints:\n" ++ unlines (map (\ (i, t) -> showIdent i ++ " :: " ++ showExpr t) cs'))
+    it <- gets instTable
     let instsOf c = fromMaybe [] $ M.lookup c it
-    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) (concat $ M.elems it)))
+--    traceM ("instances:\n" ++ unlines (map (\ (i, _, _, t) -> showExpr i ++ " :: " ++ showExpr t) (concat $ M.elems it)))
     let solve :: [(Ident, EType)] -> [(Ident, EType)] -> [(Ident, Expr)] -> T ([(Ident, EType)], [(Ident, Expr)])
         solve [] uns sol = T.return (uns, sol)
         solve (cns@(di, ct) : cnss) uns sol = T.do
@@ -1890,8 +1900,8 @@ solveConstraints = T.do
                 _    -> tcError loc $ "Multiple constraint solutions for: " ++ showEType ct
     (unsolved, solved) <- solve cs' [] []
     putConstraints unsolved
-    traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
-    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
+--    traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
+--    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
     T.return solved
 
 -- Check that there are no unsolved constraints.
