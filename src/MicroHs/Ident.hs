@@ -38,7 +38,7 @@ noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
 
 isNoSLoc :: SLoc -> Bool
-isNoSLoc (SLoc "" 0 0) = True
+isNoSLoc (SLoc _ 0 0) = True
 isNoSLoc _ = False
 
 mkIdent :: String -> Ident

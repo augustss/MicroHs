@@ -693,10 +693,11 @@ tInst' et@(ae, at) =
     _ -> T.return et
 
 tDict :: (Expr, EType) -> T (Expr, EType)
-tDict (ae, EApp (EApp (EVar (Ident loc "Primitives.=>")) ctx) t) = T.do
+tDict (ae, EApp (EApp (EVar (Ident _ "Primitives.=>")) ctx) t) = T.do
   u <- newUniq
   let d = mkIdentSLoc loc ("dict$" ++ showInt u)
-  --traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
+      loc = getSLocExpr ae
+  --traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx ++ " " ++ showSLoc loc
   ctx' <- expandSyn ctx
   addConstraint "from tDict " (d, ctx')
   tDict (EApp ae (EVar d), t)
