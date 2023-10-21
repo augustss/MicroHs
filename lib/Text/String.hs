@@ -109,7 +109,7 @@ unwords ss = intercalate " " ss
 
 -- Using a primitive for string equality makes a huge speed difference.
 eqString :: String -> String -> Bool
-eqString = primEqString
+eqString = primStringEQ
 {-
 eqString axs ays =
   case axs of

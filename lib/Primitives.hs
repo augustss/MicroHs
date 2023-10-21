@@ -118,12 +118,11 @@ primSeq    = primitive "seq"
 --primEqual  :: forall a . a -> a -> Bool
 --primEqual  = primitive "equal"
 
---primCompare  :: forall a . a -> a -> Int
 primCompare :: [Char] -> [Char] -> Ordering
 primCompare  = primitive "compare"
 
-primEqString  :: [Char] -> [Char] -> Bool
-primEqString  = primitive "equal"
+primStringEQ  :: [Char] -> [Char] -> Bool
+primStringEQ  = primitive "equal"
 
 primChr :: Int -> Char
 primChr = primitive "I"

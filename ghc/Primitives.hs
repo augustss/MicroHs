@@ -86,8 +86,8 @@ primFix f = let a = f a in a
 primError :: String -> a
 primError = error
 
-primEqString :: String -> String -> Bool
-primEqString = (==)
+primStringEQ :: String -> String -> Bool
+primStringEQ = (==)
 
 primUnsafeCoerce :: a -> b
 primUnsafeCoerce = unsafeCoerce
