@@ -3,6 +3,7 @@
 module Data.Int(module Data.Int, Int) where
 import Primitives
 import Data.Bool_Type
+import Data.Eq
 
 infixl 6 +,-
 infixl 7 *,`quot`,`rem`
@@ -27,13 +28,19 @@ negate x = 0 - x
 
 --------------------------------
 
-infix 4 ==,/=,<,<=,>,>=
+-- infix 4 ==,/=
+infix 4 <,<=,>,>=
 
 -- Comparison
+{-
 (==) :: Int -> Int -> Bool
 (==) = primIntEQ
 (/=) :: Int -> Int -> Bool
 (/=) = primIntNE
+-}
+instance Eq Int where
+  (==) = primIntEQ
+  (/=) = primIntNE
 
 (<)  :: Int -> Int -> Bool
 (<)  = primIntLT

@@ -5,6 +5,7 @@ module Prelude(
   module Data.Bool,
   module Data.Char,
   module Data.Either,
+  module Data.Eq,
   module Data.Function,
   module Data.Int,
   module Data.List,
@@ -20,6 +21,7 @@ import Control.Error
 import Data.Bool
 import Data.Char
 import Data.Either
+import Data.Eq
 import Data.Function
 import Data.Int
 import Data.List

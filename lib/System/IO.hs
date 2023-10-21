@@ -5,6 +5,7 @@ import Primitives
 import Control.Error
 import Data.Bool
 import Data.Char
+import Data.Eq
 import Data.Int
 import Data.List
 import Data.Maybe

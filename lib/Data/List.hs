@@ -4,6 +4,7 @@ module Data.List(module Data.List) where
 import Primitives as P
 import Control.Error
 import Data.Bool
+import Data.Eq
 import Data.Function
 import Data.Int
 import Data.Maybe
