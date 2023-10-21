@@ -1524,8 +1524,7 @@ tcEqns t eqns | Just (ctx, t') <- getImplies t = T.do
 tcEqns t eqns = T.do
   let loc = getSLocEqns eqns
   f <- newIdent loc "fcnS"
-  eqns' <- T.mapM (tcEqn t) eqns
-  ds <- solveConstraints
+  (eqns', ds) <- solveLocalConstraints $ T.mapM (tcEqn t) eqns
   case ds of
     [] -> T.return eqns'
     _  -> T.do
@@ -1891,6 +1890,20 @@ expandDict edict acn = T.do
 
 mkSuperSel :: IdentModule -> Ident -> Int -> Ident
 mkSuperSel mn c i = qualIdent mn $ mkIdent $ unIdent c ++ "$super" ++ showInt i
+
+---------------------------------
+
+-- Solve constraints generated locally in 'ta'.
+-- Keep any unsolved ones for later.
+solveLocalConstraints :: forall a . T a -> T (a, [(Ident, Expr)])
+solveLocalConstraints ta = T.do
+  cs <- gets constraints           -- old constraints
+  putConstraints []                -- start empty
+  a <- ta                          -- compute, generating constraints
+  ds <- solveConstraints           -- solve those
+  un <- gets constraints           -- get remaining unsolved
+  putConstraints (un ++ cs)        -- put back unsolved and old constraints
+  T.return (a, ds)
 
 {-
 showInstDict :: InstDict -> String
