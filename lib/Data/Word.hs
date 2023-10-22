@@ -4,6 +4,7 @@ module Data.Word(module Data.Word, Word) where
 import Primitives
 import Data.Bool_Type
 import qualified Data.Char as C
+import Data.Eq
 import qualified Data.Int as I
 import Data.List
 import Text.String
@@ -25,13 +26,20 @@ rem  = primWordRem
 
 --------------------------------
 
-infix 4 ==,/=,<,<=,>,>=
+--infix 4 ==,/=
+infix 4 <,<=,>,>=
 
+{-
 -- Comparison
 (==) :: Word -> Word -> Bool
 (==) = primWordEQ
 (/=) :: Word -> Word -> Bool
 (/=) = primWordNE
+-}
+
+instance Eq Word where
+  (==) = primWordEQ
+  (/=) = primWordNE
 
 (<)  :: Word -> Word -> Bool
 (<)  = primWordLT

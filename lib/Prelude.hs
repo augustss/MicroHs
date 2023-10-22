@@ -15,7 +15,6 @@ module Prelude(
   module System.IO,
   module Text.String,
   _noMatch,
-  _noDefault,
   ) where
 import Control.Error
 import Data.Bool
@@ -36,7 +35,3 @@ _noMatch :: forall a . [Char] -> Int -> Int -> a
 _noMatch fn l c = error $ "no match at " ++
   if null fn then "no location" else
   showString fn ++ ": " ++ "line " ++ showInt l ++ ", col " ++ showInt c
-
--- Called when the default method is missing
-_noDefault :: forall a . [Char] -> a
-_noDefault s = error ("no default for " ++ s)

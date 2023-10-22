@@ -26,7 +26,7 @@ import Debug.Trace
 -- It has the following invariants:
 --  * each digit is >= 0 and < maxD
 --  * least signification digits first, most significant last
---  * no tariling 0s in the digits
+--  * no trailing 0s in the digits
 --  * 0 is positive
 data Integer = I Sign [Digit]
   --deriving Show
@@ -35,6 +35,12 @@ type Digit = Int
 
 data Sign = Plus | Minus
   --deriving Show
+
+instance Eq Integer where
+  x == y  =  isZero (subI x y)
+
+isZero :: Integer -> Bool
+isZero (I _ ds) = null ds
 
 eqSign :: Sign -> Sign -> Bool
 eqSign Plus Plus = True

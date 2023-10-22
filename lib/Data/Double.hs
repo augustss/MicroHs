@@ -3,6 +3,7 @@
 module Data.Double(module Data.Double, Double) where
 import Primitives
 import Data.Bool_Type
+import Data.Eq
 
 infixl 6 +,-
 infixl 7 *
@@ -31,13 +32,20 @@ divDouble = (/)
 
 --------------------------------
 
-infix 4 ==,/=,<,<=,>,>=
+--infix 4 ==,/=
+infix 4 <,<=,>,>=
 
+{-
 -- Comparison
 (==) :: Double -> Double -> Bool
 (==) = primDoubleEQ
 (/=) :: Double -> Double -> Bool
 (/=) = primDoubleNE
+-}
+
+instance Eq Double where
+  (==) = primDoubleEQ
+  (/=) = primDoubleNE
 
 eqDouble :: Double -> Double -> Bool
 eqDouble = (==)

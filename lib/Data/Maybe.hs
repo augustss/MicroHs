@@ -3,8 +3,14 @@
 module Data.Maybe(module Data.Maybe) where
 import Primitives
 import Data.Bool
+import Data.Eq
 
 data Maybe a = Nothing | Just a
+
+instance forall a . Eq a => Eq (Maybe a) where
+  Nothing == Nothing  =  True
+  Just x  == Just x'  =  x == x'
+  _       == _        =  False
 
 maybe :: forall a r . r -> (a -> r) -> Maybe a -> r
 maybe r _ Nothing = r

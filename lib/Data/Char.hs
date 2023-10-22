@@ -3,9 +3,17 @@
 module Data.Char(module Data.Char, Char) where
 import Primitives
 import Data.Bool
+import Data.Eq
 import Data.Int
 
 type String = [Char]
+
+instance Eq Char where
+  (==) = primCharEQ
+  (/=) = primCharNE
+
+instance Eq [Char] where
+  (==) = primStringEQ
 
 chr :: Int -> Char
 chr = primChr

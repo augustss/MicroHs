@@ -17,6 +17,11 @@ infixr 5 :
 data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable
 --Y-}
 
+instance forall a . Eq a => Eq [a] where
+  []     == []      =  True
+  (x:xs) == (y:ys)  =  x == y && xs == ys
+  _      == _       =  False
+
 null :: forall a . [a] -> Bool
 null [] = True
 null _  = False
@@ -234,11 +239,20 @@ find :: forall a . (a -> Bool) -> [a] -> Maybe a
 find p [] = Nothing
 find p (x:xs) = if p x then Just x else find p xs
 
+lookup :: forall a b . Eq a => a -> [(a, b)] -> Maybe b
+lookup = lookupBy (==)
+
 lookupBy :: forall a b . (a -> a -> Bool) -> a -> [(a, b)] -> Maybe b
 lookupBy eq x xys = fmapMaybe snd (find (eq x . fst) xys)
 
+union :: forall a . Eq a => [a] -> [a] -> [a]
+union = unionBy (==)
+
 unionBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 unionBy eq xs ys =  xs ++ foldl (flip (deleteBy eq)) (nubBy eq ys) xs
+
+intersect :: forall a . Eq a => [a] -> [a] -> [a]
+intersect = intersectBy (==)
 
 intersectBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 intersectBy eq xs ys = filter (\ x -> not (elemBy eq x ys)) xs
@@ -250,6 +264,9 @@ deleteBy eq x (y:ys) = if eq x y then ys else y : deleteBy eq x ys
 deleteAllBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
 deleteAllBy _ _ [] = []
 deleteAllBy eq x (y:ys) = if eq x y then deleteAllBy eq x ys else y : deleteAllBy eq x ys
+
+nub :: forall a . Eq a => [a] -> [a]
+nub = nubBy (==)
 
 nubBy :: forall a . (a -> a -> Bool) -> [a] -> [a]
 nubBy _ [] = []
@@ -263,6 +280,10 @@ repeat x =
   let
     xs = x:xs
   in xs
+
+infix 5 \\
+(\\) :: forall a . Eq a => [a] -> [a] -> [a]
+(\\) = deleteFirstsBy (==)
 
 deleteFirstsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteFirstsBy eq = foldl (flip (deleteBy eq))
@@ -317,6 +338,9 @@ init :: forall a . [a] -> [a]
 init [] = error "init: []"
 init [_] = []
 init (x:xs) = x : init xs
+
+anySame :: forall a . Eq a => [a] -> Bool
+anySame = anySameBy (==)
 
 anySameBy :: forall a . (a -> a -> Bool) -> [a] -> Bool
 anySameBy _ [] = False

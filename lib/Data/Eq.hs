@@ -10,10 +10,8 @@ class Eq a where
   (/=) :: a -> a -> Bool
   x /= y = not (x == y)
 
-{-
-instance Eq Int where
-  (==) = primIntEq
-
-instance Eq Char where
-  (==) = primCharEq
--}
+-- Put Eq instance here, it would be a circular dependency
+-- if it were in Data.Bool.
+instance Eq Bool where
+  False == x  =  not x
+  True  == x  =  x
