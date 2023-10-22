@@ -27,7 +27,7 @@ desugar :: TModule [EDef] -> TModule [LDef]
 desugar atm =
   case atm of
     TModule mn fxs tys syns clss insts vals ds ->
-      TModule mn fxs tys syns clss insts vals $ checkDup $ concatMap (dsDef mn) ds
+      TModule mn fxs tys syns clss insts vals $ map lazier $ checkDup $ concatMap (dsDef mn) ds
 
 dsDef :: IdentModule -> EDef -> [LDef]
 dsDef mn adef =
@@ -408,8 +408,7 @@ eEqChar :: Exp
 eEqChar = Var $ mkIdent "Primitives.primCharEQ"
 
 eEqStr :: Exp
-eEqStr = --Var $ mkIdent "Text.String.eqString"
-         Lit (LPrim "equal")
+eEqStr = Lit (LPrim "equal")
 
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
@@ -518,3 +517,29 @@ checkDup ds =
         -- XXX mysteriously the location for i2 is the same as i1
         -- ++ ", also at " ++ showSLoc (getSLocIdent i2)
     _ -> error "checkDup"
+
+-- Make recursive definitions lazier.
+-- The idea is that we have
+--  f x y = ... (f x) ...
+-- we turn this into
+--  f x = letrec f' y = ... f' ... in f'
+-- thus avoiding the extra argument passing.
+-- XXX should generalize for an arbitrary length prefix of variables.
+lazier :: LDef -> LDef
+{-
+lazier def@(fcn, Lam x (Lam y body)) =
+  let fcn' = addIdentSuffix fcn "@"
+      vfcn' = Var fcn'
+      repl :: Exp -> S.State Bool Exp
+      repl (Lam i e) = Lam i <$> repl e
+      repl (App (Var af) (Var ax)) | eqIdent af fcn && eqIdent ax x = S.do
+        put True
+        S.return vfcn'
+      repl (App f a) = App <$> repl f <*> repl a
+      repl e@(Var _) = S.return e
+      repl e@(Lit _) = S.return e
+  in  case S.runState (repl body) False of
+        (_, False) -> def
+        (e', True) -> (fcn, Lam x $ letRecE fcn' (Lam y e') vfcn')
+-}
+lazier def = def
