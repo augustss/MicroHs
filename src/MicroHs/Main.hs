@@ -4,6 +4,7 @@
 module MicroHs.Main(main) where
 import Prelude
 import qualified MicroHs.IdentMap as M
+--Ximport Data.List
 import Data.Maybe
 import System.Environment
 import MicroHs.Compile
@@ -21,8 +22,8 @@ main = do
     ss = filter (not . (eqString "-") . take 1) args
     flags = Flags (length (filter (eqString "-v") args))
                   (elemBy eqString "-r" args)
-                  ("." : catMaybes (map (stripPrefixBy eqChar "-i") args))
-                  (head $ catMaybes (map (stripPrefixBy eqChar "-o") args) ++ ["out.comb"])
+                  ("." : catMaybes (map (stripPrefix "-i") args))
+                  (head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"])
   case ss of
     [] -> mainInteractive flags
     [s] -> mainCompile flags (mkIdent s)

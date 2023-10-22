@@ -1,5 +1,6 @@
 module MicroHs.Interactive(module MicroHs.Interactive) where
 import Prelude
+--Ximport Data.List
 import Control.DeepSeq
 import Control.Exception
 import qualified MicroHs.StateIO as S
@@ -49,7 +50,7 @@ command s =
   case words s of
     [] -> S.return True
     c : ws ->
-      case filter (isPrefixOfBy eqChar c . fst) commands of
+      case filter (isPrefixOf c . fst) commands of
         [] -> S.do
           S.liftIO $ putStrLn "Unrecognized command"
           S.return True
@@ -68,7 +69,7 @@ commands =
       S.return True
     )
   , ("delete", \ del -> S.do
-      updateLines (unlines . filter (not . isPrefixOfBy eqChar del) . lines)
+      updateLines (unlines . filter (not . isPrefixOf del) . lines)
       S.return True
     )
   , ("help", \ _ -> S.do
