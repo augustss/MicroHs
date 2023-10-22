@@ -133,7 +133,7 @@ compileModule flags nm = S.do
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   let
     dmdl = desugar tmdl
-  liftIO $ putStr $ drop 1000000 $ showTModule showLDefs dmdl
+  () <- S.return $ rnf $ bindingsOf dmdl
   t4 <- liftIO getTimeMilli
   S.when (verbose flags > 2) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
