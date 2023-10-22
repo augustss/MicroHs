@@ -12,11 +12,12 @@ module MicroHs.Exp(
   app2, cCons, cNil, cFlip,
   allVarsExp, freeVars,
   ) where
-import Prelude
+import Prelude --Xhiding((<>))
 import Data.Char
 import Data.List
 import MicroHs.Ident
 import MicroHs.Expr(Lit(..), showLit, eqLit)
+import Text.PrettyPrint.HughesPJ
 --Ximport Control.DeepSeq
 --Ximport Compat
 --Yimport Primitives(NFData(..))
@@ -51,6 +52,9 @@ data Exp
   | Lam Ident Exp
   | Lit Lit
   --Xderiving (Show, Eq)
+
+--pattern Let :: Ident -> Exp -> Exp -> Exp
+--pattern Let i e b = App (Lam i b) e
 
 --Winstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
 
@@ -174,12 +178,12 @@ toStringP ae =
 quoteString :: String -> String
 quoteString s =
   let
-    char c =
+    achar c =
       if eqChar c '"' || eqChar c '\\' || ltChar c ' ' || ltChar '~' c then
         '\\' : showInt (ord c) ++ ['&']
       else
         [c]
-  in '"' : concatMap char s ++ ['"']
+  in '"' : concatMap achar s ++ ['"']
 
 encodeString :: String -> Exp
 encodeString [] = cNil
@@ -435,12 +439,16 @@ improveT e = e
 -}
 
 showExp :: Exp -> String
-showExp ae =
+showExp = render . ppExp
+
+ppExp :: Exp -> Doc
+ppExp ae =
   case ae of
-    Var i -> showIdent i
-    App f a -> "(" ++ showExp f ++ " " ++ showExp a ++ ")"
-    Lam i e -> "(\\" ++ showIdent i ++ ". " ++ showExp e ++ ")"
-    Lit l -> showLit l
+--    Let i e b -> sep [ text "let" <+> ppIdent i <+> text "=" <+> ppExp e, text "in" <+> ppExp b ]
+    Var i -> ppIdent i
+    App f a -> parens $ ppExp f <+> ppExp a
+    Lam i e -> parens $ text "\\" <> ppIdent i <> text "." <+> ppExp e
+    Lit l -> text (showLit l)
 
 substExp :: Ident -> Exp -> Exp -> Exp
 substExp si se ae =
