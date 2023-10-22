@@ -214,6 +214,9 @@ intersperse sep (a:as) = a : prepend as
 intercalate :: forall a . [a] -> [[a]] -> [a]
 intercalate xs xss = concat (intersperse xs xss)
 
+elem :: forall a . (Eq a) => a -> [a] -> Bool
+elem = elemBy (==)
+
 elemBy :: forall a . (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
 

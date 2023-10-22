@@ -51,7 +51,4 @@ instance Eq Int where
 (>=) :: Int -> Int -> Bool
 (>=) = primIntGE
 
-eqInt :: Int -> Int -> Bool
-eqInt = (==)
-
 --------------------------------

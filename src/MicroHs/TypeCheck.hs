@@ -1834,7 +1834,7 @@ metaTvs :: [EType] -> [TRef]
 metaTvs tys = foldr go [] tys
   where
     go (EUVar tv) acc
-      | elemBy eqInt tv acc = acc
+      | elem tv acc = acc
       | otherwise = tv : acc
     go (EVar _) acc = acc
     go (EForall _ ty) acc = go ty acc
@@ -2049,7 +2049,7 @@ findMatches ds ct =
         Just r' -> matchType r' a a'
     matchType r (EUVar i) t =
       -- For a variable, check that any previous match is the same.
-      case lookupBy eqInt i r of
+      case lookup i r of
         Just t' -> if eqEType t t' then Just r else Nothing
         Nothing -> Just ((i, t) : r)
     matchType _ _ _ = Nothing
@@ -2059,7 +2059,7 @@ findMatches ds ct =
     substEUVar [] t = t
     substEUVar _ t@(EVar _) = t
     substEUVar s (EApp f a) = EApp (substEUVar s f) (substEUVar s a)
-    substEUVar s t@(EUVar i) = fromMaybe t $ lookupBy (eqInt) i s
+    substEUVar s t@(EUVar i) = fromMaybe t $ lookup i s
     substEUVar s (EForall iks t) = EForall iks (substEUVar s t)
     substEUVar _ _ = impossible
 
