@@ -145,11 +145,17 @@ unzip3 axyzs =
       case unzip3 xyzs of
         (xs, ys, zs) -> (x:xs, y:ys, z:zs)
 
+stripPrefix :: forall a . Eq a => [a] -> [a] -> Maybe [a]
+stripPrefix = stripPrefixBy (==)
+
 stripPrefixBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Maybe [a]
 stripPrefixBy eq [] s = Just s
 stripPrefixBy eq (c:cs) [] = Nothing
 stripPrefixBy eq (c:cs) (d:ds) | eq c d = stripPrefixBy eq cs ds
                                | otherwise = Nothing
+
+isPrefixOf :: forall a . Eq a => [a] -> [a] -> Bool
+isPrefixOf = isPrefixOfBy (==)
 
 isPrefixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
 isPrefixOfBy _ [] _ = True
