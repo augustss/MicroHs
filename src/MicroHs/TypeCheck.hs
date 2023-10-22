@@ -7,6 +7,7 @@ module MicroHs.TypeCheck(
   impossible,
   mkClassConstructor,
   mkSuperSel,
+  bindingsOf,
   ) where
 import Prelude --Xhiding(showList)
 import Data.Char
@@ -32,6 +33,9 @@ data TModule a = TModule
   [ValueExport]   -- exported values (including from T(..))
   a               -- bindings
   --Xderiving (Show)
+
+bindingsOf :: forall a . TModule a -> a
+bindingsOf (TModule _ _ _ _ _ _ _ a) = a
 
 data TypeExport = TypeExport
   Ident           -- unqualified name
