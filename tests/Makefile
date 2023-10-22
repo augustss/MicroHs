@@ -25,6 +25,7 @@ test:
 	$(MHS) FArith     && $(EVAL) > FArith.out     && diff FArith.ref FArith.out
 	$(MHS) Infix      && $(EVAL) > Infix.out      && diff Infix.ref Infix.out
 	$(MHS) Class      && $(EVAL) > Class.out      && diff Class.ref Class.out
+	$(MHS) Eq         && $(EVAL) > Eq.out         && diff Eq.ref Eq.out
 
 errtest:
 	sh errtester.sh < errmsg.test
