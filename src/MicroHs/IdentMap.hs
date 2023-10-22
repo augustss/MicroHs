@@ -6,7 +6,7 @@
 --
 module MicroHs.IdentMap(
   Map,
-  empty,
+  empty, singleton,
   insertWith, insert,
   fromListWith, fromList,
   delete,
@@ -14,7 +14,7 @@ module MicroHs.IdentMap(
   size,
   toList, elems,
   ) where
-import Prelude --Xhiding(lookup)
+import Prelude hiding(lookup)
 import MicroHs.Ident
 --Ximport Compat
 
@@ -31,6 +31,9 @@ data Map a
 
 empty :: forall a . Map a
 empty = Nil
+
+singleton :: forall a . Ident -> a -> Map a
+singleton i a = One i a
 
 elems :: forall v . Map v -> [v]
 elems = map snd . toList
