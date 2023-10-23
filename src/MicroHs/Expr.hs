@@ -146,7 +146,7 @@ data Lit
 
 eqLit :: Lit -> Lit -> Bool
 eqLit (LInt x)  (LInt  y) = x == y
-eqLit (LChar x) (LChar y) = eqChar x y
+eqLit (LChar x) (LChar y) = x == y
 eqLit (LStr  x) (LStr  y) = eqString x y
 eqLit (LPrim x) (LPrim y) = eqString x y
 eqLit (LForImp x) (LForImp y) = eqString x y
@@ -460,7 +460,7 @@ ppExpr ae =
     ppApp as (EApp f a) = ppApp (a:as) f
     ppApp as (EVar i) | eqString op "->", [a, b] <- as = parens $ ppExpr a <+> text "->" <+> ppExpr b
                       | eqString op "=>", [a, b] <- as = parens $ ppExpr a <+> text "=>" <+> ppExpr b
-                      | eqChar (head op) ',' = ppExpr (ETuple as)
+                      | head op == ',' = ppExpr (ETuple as)
                       | eqString op "[]", length as == 1 = ppExpr (EListish (LList as))
                         where op = unQualString (unIdent i)
     ppApp as f = parens $ hsep (map ppExpr (f:as))

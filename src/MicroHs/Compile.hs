@@ -115,7 +115,7 @@ compileModule :: Flags -> IdentModule -> StateIO Cache (CModule, Time, Time, Tim
 compileModule flags nm = S.do
   t1 <- liftIO getTimeMilli
   let
-    fn = map (\ c -> if eqChar c '.' then '/' else c) (unIdent nm) ++ ".hs"
+    fn = map (\ c -> if c == '.' then '/' else c) (unIdent nm) ++ ".hs"
   (pathfn, file) <- liftIO (readFilePath (paths flags) fn)
   let mdl@(EModule nmn _ defs) = parseDie pTop pathfn file
   -- liftIO $ putStrLn $ showEModule mdl

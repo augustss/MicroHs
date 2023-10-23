@@ -96,16 +96,16 @@ isConIdent :: Ident -> Bool
 isConIdent (Ident _ i) =
   let
     c = head i
-  in isUpper c || eqChar c ':' || eqChar c ',' || eqString i "[]"  || eqString i "()"
+  in isUpper c || c == ':' || c == ',' || eqString i "[]"  || eqString i "()"
 
 isOperChar :: Char -> Bool
-isOperChar c = elemBy eqChar c "@\\=+-:<>.!#$%^&*/|~?"
+isOperChar c = elem c "@\\=+-:<>.!#$%^&*/|~?"
 
 isIdentChar :: Char -> Bool
-isIdentChar c = isLower_ c || isUpper c || isDigit c || eqChar c '\''
+isIdentChar c = isLower_ c || isUpper c || isDigit c || c == '\''
 
 isLower_ :: Char -> Bool
-isLower_ c = isLower c || eqChar c '_'
+isLower_ c = isLower c || c == '_'
 
 dummyIdent :: Ident
 dummyIdent = mkIdent "_"

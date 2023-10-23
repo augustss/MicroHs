@@ -81,7 +81,7 @@ lex loc ('\r':cs) = lex loc cs
 lex loc ('{':'-':cs) = skipNest (addCol loc 2) 1 cs
 lex loc ('-':'-':cs) | isComm rs = skipLine (addCol loc $ 2+length ds) cs
   where
-    (ds, rs) = span (eqChar '-') cs
+    (ds, rs) = span (== '-') cs
     isComm [] = True
     isComm (d:_) = not (isOperChar d)
 lex loc (d:cs) | isLower_ d =
@@ -108,7 +108,7 @@ lex _ [] = []
 number :: Loc -> String -> String -> [Token]   -- neg=1 means negative, neg=0 means positive
 number loc sign cs =
   case span isDigit cs of
-    (ds, rs) | null rs || not (eqChar (head rs) '.') || eqString (take 2 rs) ".." ->
+    (ds, rs) | null rs || not (head rs == '.') || eqString (take 2 rs) ".." ->
                let s = sign ++ ds
                    i = readInt s
                in  TInt loc i : lex (addCol loc $ length s) rs
@@ -121,9 +121,9 @@ number loc sign cs =
                          Nothing -> mkD s rs'
                          Just (es, rs'') -> mkD (s ++ es) rs''
   where
-    expo (e:'-':xs@(d:_)) | eqChar (toLower e) 'w' && isDigit d = Just ('e':'-':as, bs) where (as, bs) = span isDigit xs
-    expo (e:'+':xs@(d:_)) | eqChar (toLower e) 'w' && isDigit d = Just ('e':'+':as, bs) where (as, bs) = span isDigit xs
-    expo (e:    xs@(d:_)) | eqChar (toLower e) 'w' && isDigit d = Just ('e':    as, bs) where (as, bs) = span isDigit xs
+    expo (e:'-':xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':'-':as, bs) where (as, bs) = span isDigit xs
+    expo (e:'+':xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':'+':as, bs) where (as, bs) = span isDigit xs
+    expo (e:    xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':    as, bs) where (as, bs) = span isDigit xs
     expo _ = Nothing
 
 -- Skip a {- -} style comment
@@ -154,7 +154,7 @@ takeChars loc _ c n _ [] = (TError loc ("Unmatched " ++ [c]), n, [])
 takeChars loc fn c n str ('\\':cs) =
   case decodeChar (n+1) cs of
     (d, m, rs) -> takeChars loc fn c m (d:str) rs
-takeChars   _ fn c n str (d:cs) | eqChar c d = (fn (reverse str), n, cs)
+takeChars   _ fn c n str (d:cs) | c == d = (fn (reverse str), n, cs)
 takeChars loc fn c n str (d:cs) = takeChars loc fn c (n+1) (d:str) cs
 
 decodeChar :: Int -> String -> (Char, Int, String)
@@ -166,7 +166,7 @@ decodeChar n (c  :cs) = (c,    n+1, cs)
 decodeChar n []       = ('X',  n,   [])
 
 isSpec :: Char -> Bool
-isSpec c = elemBy eqChar c "()[],{}`;"
+isSpec c = elem c "()[],{}`;"
 
 upperIdent :: Loc -> Loc -> [String] -> String -> [Token]
 --upperIdent l c qs acs | trace (show (l, c, qs, acs)) False = undefined
