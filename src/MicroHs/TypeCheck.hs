@@ -9,6 +9,7 @@ module MicroHs.TypeCheck(
   mkSuperSel,
   bindingsOf,
   ) where
+import Data.Eq -- XXX why needed?
 import Prelude --Xhiding(showList)
 import Data.Char
 import Data.List
@@ -60,6 +61,9 @@ data Entry = Entry
   Expr             -- convert (EVar i) to this expression; sometimes just (EVar i)
   EType            -- type/kind of identifier
   --Xderiving(Show)
+
+instance Eq Entry where
+  Entry x _ == Entry y _  =  getIdent x == getIdent y
 
 entryType :: Entry -> EType
 entryType (Entry _ t) = t
@@ -265,7 +269,7 @@ mkTables mdls =
         syms (is, TModule mn _ tes _ _ _ ves _) =
           [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ]
-      in  M.fromListWith (unionBy eqEntry) $ concatMap syms mdls
+      in  M.fromListWith union $ concatMap syms mdls
     allSyns =
       let
         syns (_, TModule _ _ _ ses _ _ _ _) = ses
@@ -274,7 +278,7 @@ mkTables mdls =
     allTypes =
       let
         types (is, TModule mn _ tes _ _ _ _ _) = [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
-      in M.fromListWith (unionBy eqEntry) $ concatMap types mdls
+      in M.fromListWith union $ concatMap types mdls
     allFixes =
       let
         fixes (_, TModule _ fes _ _ _ _ _ _) = fes
@@ -306,13 +310,6 @@ mergeInstInfo (InstInfo m1 l1) (InstInfo m2 l2) =
     mrg e1 e2 = if eqExpr e1 e2 then e1 else errorMessage (getSLocExpr e1) $ "Multiple instances: " ++ showSLoc (getSLocExpr e2)
     l = unionBy eqInstDict l1 l2
   in  InstInfo m l
-
-eqEntry :: Entry -> Entry -> Bool
-eqEntry x y =
-  case x of
-    Entry ix _ ->
-      case y of
-        Entry iy _ -> (getIdent ix) == (getIdent iy)
 
 getIdent :: Expr -> Ident
 getIdent ae =
