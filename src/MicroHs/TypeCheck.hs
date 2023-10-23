@@ -587,12 +587,12 @@ isArrow = isJust . getArrow
 
 getArrow :: EType -> Maybe (EType, EType)
 getArrow (EApp (EApp (EVar n) a) b) =
-  if n == mkIdent "->" || n == mkIdent "Primitives.->" then Just (a, b) else Nothing
+  if isIdent "->" n || isIdent "Primitives.->" n then Just (a, b) else Nothing
 getArrow _ = Nothing
 
 getImplies :: EType -> Maybe (EType, EType)
 getImplies (EApp (EApp (EVar n) a) b) =
-  if n == mkIdent "=>" || n == mkIdent "Primitives.=>" then Just (a, b) else Nothing
+  if isIdent "=>" n || isIdent "Primitives.=>" n then Just (a, b) else Nothing
 getImplies _ = Nothing
 
 {-
@@ -1317,7 +1317,7 @@ tcExprR mt ae =
                   _ -> impossible
                 T.return p
           
-        _ | i == mkIdent "dict$" -> T.do
+        _ | isIdent "dict$" i -> T.do
           -- Magic variable that just becomes the dictionary
           d <- newIdent (getSLocIdent i) "dict$"
           case mt of

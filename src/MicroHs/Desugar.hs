@@ -115,7 +115,7 @@ dsAltsL ((ss, rhs) : alts) dflt =
 dsAlt :: Expr -> [EStmt] -> Expr -> Expr
 dsAlt _ [] rhs = rhs
 dsAlt dflt (SBind p e : ss) rhs = ECase e [(p, EAlts [(ss, rhs)] []), (EVar dummyIdent, oneAlt dflt)]
-dsAlt dflt (SThen (EVar i) : ss) rhs | i == mkIdent "Data.Bool.otherwise" = dsAlt dflt ss rhs
+dsAlt dflt (SThen (EVar i) : ss) rhs | isIdent "Data.Bool.otherwise" i = dsAlt dflt ss rhs
 dsAlt dflt (SThen e   : ss) rhs = EIf e (dsAlt dflt ss rhs) dflt
 dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
