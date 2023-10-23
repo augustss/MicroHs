@@ -59,7 +59,7 @@ toBytes (i1:i2:is) =
   in  b1 : b2 : b3 : toBytes is
 
 bad :: Char -> Bool
-bad c = not (isPrint c || eqChar c '\n')
+bad c = not (isPrint c || c == '\n')
 
 main :: IO ()
 main = do

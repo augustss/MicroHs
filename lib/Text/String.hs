@@ -5,6 +5,7 @@ import Primitives
 import Data.Bool
 import Data.Char
 import Data.Either
+import Data.Eq
 import Data.Function
 import Data.Int
 import qualified Data.Double as DD
@@ -22,7 +23,7 @@ encodeChar c =
     spec = [('\n', "\\n"), ('\r', "\\r"), ('\t', "\\t"), ('\b', "\\b"),
             ('\\', "\\\\"), ('\'', "\\'"), ('"', "\"")]
   in
-    case lookupBy eqChar c spec of
+    case lookup c spec of
       Nothing -> if isPrint c then [c] else "'\\" ++ showInt (ord c) ++ "'"
       Just s  -> s
 
@@ -50,7 +51,7 @@ readInt :: String -> Int
 readInt cs =
   let
     rd = foldl (\ a c -> a * 10 + ord c - ord '0') 0
-  in if eqChar (head cs) '-' then 0 - rd (tail cs) else rd cs
+  in if head cs == '-' then 0 - rd (tail cs) else rd cs
 
 readDouble :: String -> Double
 readDouble = primDoubleRead
@@ -90,7 +91,7 @@ showOrdering GT = "GT"
 lines :: String -> [String]
 lines "" = []
 lines s =
-  case span (not . eqChar '\n') s of
+  case span (not . (== '\n')) s of
     (l, s') -> case s' of { [] -> [l]; _:s'' -> l : lines s'' }
 
 unlines :: [String] -> String
@@ -110,29 +111,9 @@ unwords ss = intercalate " " ss
 -- Using a primitive for string equality makes a huge speed difference.
 eqString :: String -> String -> Bool
 eqString = primStringEQ
-{-
-eqString axs ays =
-  case axs of
-    [] ->
-      case ays of
-        [] -> True
-        _  -> False
-    x:xs ->
-      case ays of
-        [] -> False
-        y:ys -> eqChar x y && eqString xs ys
--}
+
 leString :: String -> String -> Bool
 leString s t = not (eqOrdering GT (compareString s t))
-{-
-leString axs ays =
-  case axs of
-    [] -> True
-    x:xs ->
-      case ays of
-        [] -> False
-        y:ys -> ltChar x y || eqChar x y && leString xs ys
--}
 
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s
@@ -141,29 +122,6 @@ forceString :: String -> ()
 forceString [] = ()
 forceString (c:cs) = c `primSeq` forceString cs
 
-{-
-compareString :: [Char] -> [Char] -> Ordering
-compareString s t =
-  let
-    r1 = compareString1 s t
-    r2 = compareString2 s t
-  in r2
-    if eqOrdering r1 r2 then r1 else
-    primError $ "compareString " ++ showString s ++ showString t ++ showOrdering r1 ++ showOrdering r2
-
-compareString2 :: [Char] -> [Char] -> Ordering
-compareString2 s t =
-  if leString s t then
-    if eqString s t then
-      EQ
-    else
-      LT
-  else
-    GT
--}
-
 compareString :: String -> String -> Ordering
 compareString = primCompare
---compareString s t = if r < 0 then LT else if r > 0 then GT else EQ
---  where r = primCompare s t
 

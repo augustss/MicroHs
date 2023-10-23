@@ -123,7 +123,7 @@ keywords =
 pSpec :: Char -> P ()
 pSpec c = () <$ satisfy [c] is
   where
-    is (TSpec _ d) = eqChar c d
+    is (TSpec _ d) = c == d
     is _ = False
 
 pSymbol :: String -> P ()
@@ -158,7 +158,7 @@ pUQSymOper = P.do
   P.pure s
 
 isUOper :: Ident -> Bool
-isUOper = eqChar ':' . head . unIdent
+isUOper = (== ':') . head . unIdent
 
 pUSymOper :: P Ident
 pUSymOper = P.do
