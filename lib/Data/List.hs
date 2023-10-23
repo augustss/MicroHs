@@ -223,6 +223,9 @@ intercalate xs xss = concat (intersperse xs xss)
 elem :: forall a . (Eq a) => a -> [a] -> Bool
 elem = elemBy (==)
 
+notElem :: forall a . (Eq a) => a -> [a] -> Bool
+notElem a as = not (elem a as)
+
 elemBy :: forall a . (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
 

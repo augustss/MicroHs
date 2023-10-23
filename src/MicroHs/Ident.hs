@@ -66,7 +66,7 @@ ppIdent :: Ident -> Doc
 ppIdent (Ident _ i) = text i
 
 eqIdent :: Ident -> Ident -> Bool
-eqIdent (Ident _ i) (Ident _ j) = eqString i j
+eqIdent (Ident _ i) (Ident _ j) = i == j
 
 leIdent :: Ident -> Ident -> Bool
 leIdent (Ident _ i) (Ident _ j) = leString i j
@@ -96,7 +96,7 @@ isConIdent :: Ident -> Bool
 isConIdent (Ident _ i) =
   let
     c = head i
-  in isUpper c || c == ':' || c == ',' || eqString i "[]"  || eqString i "()"
+  in isUpper c || c == ':' || c == ',' || i == "[]"  || i == "()"
 
 isOperChar :: Char -> Bool
 isOperChar c = elem c "@\\=+-:<>.!#$%^&*/|~?"

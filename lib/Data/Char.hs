@@ -12,8 +12,10 @@ instance Eq Char where
   (==) = primCharEQ
   (/=) = primCharNE
 
+--Y{-  Overlapping instance for ghc
 instance Eq [Char] where
   (==) = primStringEQ
+--Y-}
 
 chr :: Int -> Char
 chr = primChr

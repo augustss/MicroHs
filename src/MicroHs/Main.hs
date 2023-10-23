@@ -18,10 +18,10 @@ main :: IO ()
 main = do
   aargs <- getArgs
   let
-    args = takeWhile (not . eqString "--") aargs
-    ss = filter (not . (eqString "-") . take 1) args
-    flags = Flags (length (filter (eqString "-v") args))
-                  (elemBy eqString "-r" args)
+    args = takeWhile (/= "--") aargs
+    ss = filter ((/= "-") . take 1) args
+    flags = Flags (length (filter (== "-v") args))
+                  (elem "-r" args)
                   ("." : catMaybes (map (stripPrefix "-i") args))
                   (head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"])
   case ss of

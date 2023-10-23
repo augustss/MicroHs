@@ -9,7 +9,6 @@ import Text.ParserComb as P
 import MicroHs.Lex
 import MicroHs.Expr
 import MicroHs.Ident
---Ximport Compat
 
 
 type P a = Prsr FilePath Token a
@@ -102,7 +101,7 @@ pLIdent :: P Ident
 pLIdent = P.do
   fn <- getFileName
   let
-    is (TIdent loc [] s) | isLower_ (head s) && not (elemBy eqString s keywords) = Just (mkIdentLoc fn loc s)
+    is (TIdent loc [] s) | isLower_ (head s) && not (elem s keywords) = Just (mkIdentLoc fn loc s)
     is _ = Nothing
   satisfyM "LIdent" is
 
@@ -110,7 +109,7 @@ pLQIdent :: P Ident
 pLQIdent = P.do
   fn <- getFileName
   let
-    is (TIdent loc qs s) | isLower_ (head s) && not (elemBy eqString s keywords) = Just (qualName fn loc qs s)
+    is (TIdent loc qs s) | isLower_ (head s) && not (elem s keywords) = Just (qualName fn loc qs s)
     is _ = Nothing
   satisfyM "LQIdent" is
 
@@ -129,7 +128,7 @@ pSpec c = () <$ satisfy [c] is
 pSymbol :: String -> P ()
 pSymbol sym = () <$ satisfy sym is
   where
-    is (TIdent _ [] s) = eqString s sym
+    is (TIdent _ [] s) = s == sym
     is _ = False
 
 pOper :: P Ident
@@ -139,7 +138,7 @@ pQSymOper :: P Ident
 pQSymOper = P.do
   fn <- getFileName
   let
-    is (TIdent loc qs s) | not (isAlpha_ (head s)) && not (elemBy eqString s reservedOps) = Just (qualName fn loc qs s)
+    is (TIdent loc qs s) | not (isAlpha_ (head s)) && not (elem s reservedOps) = Just (qualName fn loc qs s)
     is _ = Nothing
   satisfyM "QSymOper" is
 
@@ -147,7 +146,7 @@ pSymOper :: P Ident
 pSymOper = P.do
   fn <- getFileName
   let
-    is (TIdent loc [] s) | not (isAlpha_ (head s)) && not (elemBy eqString s reservedOps) = Just (mkIdentLoc fn loc s)
+    is (TIdent loc [] s) | not (isAlpha_ (head s)) && not (elem s reservedOps) = Just (mkIdentLoc fn loc s)
     is _ = Nothing
   satisfyM "SymOper" is
 
@@ -235,7 +234,7 @@ pExportItem =
 pKeyword :: String -> P ()
 pKeyword kw = () <$ satisfy kw is
   where
-    is (TIdent _ [] s) = eqString kw s
+    is (TIdent _ [] s) = kw == s
     is _ = False
 
 pBlock :: forall a . P a -> P [a]
@@ -563,4 +562,4 @@ formatFailed fn _fs (LastFail _ ts msgs) =
   in
     showSLoc sloc ++ ":\n"
       ++ "  found:    " ++ head (map showToken ts ++ ["EOF"]) ++ "\n"
-      ++ "  expected: " ++ unwords (nubBy eqString msgs)
+      ++ "  expected: " ++ unwords (nub msgs)

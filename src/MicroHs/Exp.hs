@@ -82,7 +82,7 @@ getVar ae =
 isPrim :: String -> Exp -> Bool
 isPrim s ae =
   case ae of
-    Lit (LPrim ss) -> eqString s ss
+    Lit (LPrim ss) -> s == ss
     _       -> False
 
 isK :: Exp -> Bool

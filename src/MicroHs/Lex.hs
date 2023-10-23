@@ -108,7 +108,7 @@ lex _ [] = []
 number :: Loc -> String -> String -> [Token]   -- neg=1 means negative, neg=0 means positive
 number loc sign cs =
   case span isDigit cs of
-    (ds, rs) | null rs || not (head rs == '.') || eqString (take 2 rs) ".." ->
+    (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
                let s = sign ++ ds
                    i = readInt s
                in  TInt loc i : lex (addCol loc $ length s) rs
@@ -185,7 +185,7 @@ upperIdent loc sloc qs acs =
       _ -> TIdent sloc (reverse qs) ds : lex (addCol loc $ length ds) rs
 
 tIdent :: Loc -> [String] -> String -> [Token] -> [Token]
-tIdent loc qs kw ats | elemBy eqString kw ["let", "where", "do", "of"]
+tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
                                  = ti : tBrace ats
                      | otherwise = ti : ats
   where {
