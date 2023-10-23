@@ -113,10 +113,10 @@ typeCheck aimps (EModule mn exps defs) =
            (texps, vexps) =
              unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
            fexps = [ fe | TModule _ fe _ _ _ _ _ _ <- M.elems impMap ]
-           sexps = [ se | TModule _ _ _ se _ _ _ _ <- M.elems impMap ]
+           sexps = M.toList (synTable tcs)
            cexps = [ ce | TModule _ _ _ _ ce _ _ _ <- M.elems impMap ]
-           iexps = [ ie | TModule _ _ _ _ _ ie _ _ <- M.elems impMap ]
-         in  tModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) (concat sexps) (concat cexps) (concat iexps) (concat vexps) tds
+           iexps = M.toList (instTable tcs)
+         in  tModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) sexps (concat cexps) iexps (concat vexps) tds
 
 -- A hack to force evaluation of errors.
 -- This should be redone to all happen in the T monad.
