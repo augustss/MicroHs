@@ -1097,11 +1097,14 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
                 S.return (BFcn mi eqns)
               f b = S.return b
           in  S.runState (S.mapM f bs) (1, [])
+      bs'' = map tr bs'
+        where tr (BSign i t) = BSign (fromMaybe i $ lookup i ims) t
+              tr b = b
       meths = map meth mis
         where meth i = EVar $ fromMaybe (mkDefaultMethodId i) $ lookup i ims
       sups = map (const (EVar $ mkIdentSLoc loc "dict$")) supers
       args = sups ++ meths
-  let bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar $ mkClassConstructor iCls) args)] bs']
+  let bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar $ mkClassConstructor iCls) args)] bs'']
   mn <- gets moduleName
   addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc)]
   T.return [dinst, sign, bind]
