@@ -390,7 +390,7 @@ pEqns = P.do
       -- don't collect equations when of the form 'i = e'
       P.pure (name, [eqn])
     _ -> P.do
-      neqns <- emany (pSpec ';' *> pEqn (\ n l -> eqIdent n name && l == length ps))
+      neqns <- emany (pSpec ';' *> pEqn (\ n l -> n == name && l == length ps))
       P.pure (name, eqn : map snd neqns)
 
 pEqn :: (Ident -> Int -> Bool) -> P (Ident, Eqn)

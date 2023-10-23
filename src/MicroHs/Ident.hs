@@ -3,7 +3,7 @@
 module MicroHs.Ident(
   Line, Col, Loc,
   Ident(..),
-  mkIdent, mkIdentLoc, unIdent, eqIdent, leIdent, qualIdent, showIdent, getSLocIdent, setSLocIdent,
+  mkIdent, mkIdentLoc, unIdent, leIdent, qualIdent, showIdent, getSLocIdent, setSLocIdent,
   ppIdent,
   mkIdentSLoc,
   isLower_, isIdentChar, isOperChar, isConIdent,
@@ -15,11 +15,12 @@ module MicroHs.Ident(
   showSLoc,
   compareIdent,
   ) where
+import Data.Eq
 import Prelude --Xhiding(showString)
---Ximport Control.DeepSeq
---Yimport Primitives(NFData(..))
 import Data.Char
 import Text.PrettyPrint.HughesPJ
+--Ximport Control.DeepSeq
+--Yimport Primitives(NFData(..))
 --Ximport Compat
 --Ximport GHC.Stack
 
@@ -31,8 +32,11 @@ data SLoc = SLoc FilePath Line Col
   --Xderiving (Show, Eq)
 
 data Ident = Ident SLoc String
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 --Winstance NFData Ident where rnf (Ident _ s) = rnf s
+
+instance Eq Ident where
+  Ident _ i == Ident _ j  =  i == j
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
@@ -64,9 +68,6 @@ showIdent (Ident _ i) = i
 
 ppIdent :: Ident -> Doc
 ppIdent (Ident _ i) = text i
-
-eqIdent :: Ident -> Ident -> Bool
-eqIdent (Ident _ i) (Ident _ j) = i == j
 
 leIdent :: Ident -> Ident -> Bool
 leIdent (Ident _ i) (Ident _ j) = leString i j

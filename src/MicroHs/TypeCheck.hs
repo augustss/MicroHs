@@ -116,7 +116,7 @@ typeCheck aimps (EModule mn exps defs) =
            sexps = M.toList (synTable tcs)
            cexps = [ ce | TModule _ _ _ _ ce _ _ _ <- M.elems impMap ]
            iexps = M.toList (instTable tcs)
-         in  tModule mn (nubBy (eqIdent `on` fst) (concat fexps)) (concat texps) sexps (concat cexps) iexps (concat vexps) tds
+         in  tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) sexps (concat cexps) iexps (concat vexps) tds
 
 -- A hack to force evaluation of errors.
 -- This should be redone to all happen in the T monad.
@@ -134,7 +134,7 @@ filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
 filterImports it@(ImportSpec _ _ _ Nothing, _) = it
 filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs ins vs a) =
   let
-    keep x xs = elemBy eqIdent x xs `neBool` hide
+    keep x xs = elem x xs `neBool` hide
     ivs = [ i | ImpValue i <- is ]
     vs' = filter (\ (ValueExport i _) -> keep i ivs) vs
     cts = [ i | ImpTypeCon i <- is ]
@@ -312,7 +312,7 @@ eqEntry x y =
   case x of
     Entry ix _ ->
       case y of
-        Entry iy _ -> eqIdent (getIdent ix) (getIdent iy)
+        Entry iy _ -> (getIdent ix) == (getIdent iy)
 
 getIdent :: Expr -> Ident
 getIdent ae =
@@ -332,7 +332,7 @@ getInstCon (_, _, _, t) = getAppCon t
 -- Very partial implementation of Expr equality.
 -- It is only used to compare instances, so this suffices.
 eqExpr :: Expr -> Expr -> Bool
-eqExpr (EVar i) (EVar i') = eqIdent i i'
+eqExpr (EVar i) (EVar i') = i == i'
 eqExpr (EApp f a) (EApp f' a') = eqExpr f f' && eqExpr a a'
 eqExpr _ _ = False
 
@@ -587,12 +587,12 @@ isArrow = isJust . getArrow
 
 getArrow :: EType -> Maybe (EType, EType)
 getArrow (EApp (EApp (EVar n) a) b) =
-  if eqIdent n (mkIdent "->") || eqIdent n (mkIdent "Primitives.->") then Just (a, b) else Nothing
+  if n == mkIdent "->" || n == mkIdent "Primitives.->" then Just (a, b) else Nothing
 getArrow _ = Nothing
 
 getImplies :: EType -> Maybe (EType, EType)
 getImplies (EApp (EApp (EVar n) a) b) =
-  if eqIdent n (mkIdent "=>") || eqIdent n (mkIdent "Primitives.=>") then Just (a, b) else Nothing
+  if n == mkIdent "=>" || n == mkIdent "Primitives.=>" then Just (a, b) else Nothing
 getImplies _ = Nothing
 
 {-
@@ -679,7 +679,7 @@ unify loc a b = T.do
 -- XXX should do occur check
 unifyR :: --XHasCallStack =>
           SLoc -> EType -> EType -> T ()
-unifyR _   (EVar x1)    (EVar x2)  | eqIdent x1 x2 = T.return ()
+unifyR _   (EVar x1)    (EVar x2)  | x1 == x2      = T.return ()
 unifyR loc (EApp f1 a1) (EApp f2 a2)               = T.do { unifyR loc f1 f2; unifyR loc a1 a2 }
 unifyR _   (EUVar r1)   (EUVar r2) | r1 == r2      = T.return ()
 unifyR loc (EUVar r1)   t2                         = unifyVar loc r1 t2
@@ -922,7 +922,7 @@ addTypeKind adef = T.do
   case adef of
     Data    lhs@(i, _) cs -> T.do
       addLHSKind lhs kType
-      addAssoc i (nubBy eqIdent $ concatMap assocData cs)
+      addAssoc i (nub $ concatMap assocData cs)
     Newtype lhs@(i, _) c  -> T.do
       addLHSKind lhs kType
       addAssoc i (assocData c)
@@ -1041,7 +1041,7 @@ expandClass dcls@(Class ctx (iCls, vks) ms) = T.do
       meths = [ b | b@(BSign _ _) <- ms ]
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
-      mkDflt (BSign methId t) = [ Sign iDflt $ EForall vks $ tCtx `tImplies` t, def $ lookupBy eqIdent methId mdflts ]
+      mkDflt (BSign methId t) = [ Sign iDflt $ EForall vks $ tCtx `tImplies` t, def $ lookup methId mdflts ]
         where def Nothing = Fcn iDflt [Eqn [] $ EAlts [([], noDflt)] []]
               def (Just eqns) = Fcn iDflt eqns
               iDflt = mkDefaultMethodId methId
@@ -1101,7 +1101,7 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
               f b = S.return b
           in  S.runState (S.mapM f bs) (1, [])
       meths = map meth mis
-        where meth i = EVar $ fromMaybe (mkDefaultMethodId i) $ lookupBy eqIdent i ims
+        where meth i = EVar $ fromMaybe (mkDefaultMethodId i) $ lookup i ims
       sups = map (const (EVar $ mkIdentSLoc loc "dict$")) supers
       args = sups ++ meths
   let bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar $ mkClassConstructor iCls) args)] bs']
@@ -1317,7 +1317,7 @@ tcExprR mt ae =
                   _ -> impossible
                 T.return p
           
-        _ | eqIdent i (mkIdent "dict$") -> T.do
+        _ | i == mkIdent "dict$" -> T.do
           -- Magic variable that just becomes the dictionary
           d <- newIdent (getSLocIdent i) "dict$"
           case mt of
@@ -1623,7 +1623,7 @@ subsCheck loc exp1 sigma1 sigma2 = T.do -- Rule DEEP-SKOL
   (skol_tvs, rho2) <- skolemise sigma2
   exp1' <- subsCheckRho loc exp1 sigma1 rho2
   esc_tvs <- getFreeTyVars [sigma1,sigma2]
-  let bad_tvs = filter (\ i -> elemBy eqIdent i esc_tvs) skol_tvs
+  let bad_tvs = filter (\ i -> elem i esc_tvs) skol_tvs
   T.when (not (null bad_tvs)) $
     tcErrorTK loc "Subsumption check failed"
   T.return exp1'
@@ -1643,7 +1643,7 @@ tCheckPat t ap ta = T.do
 
 multCheck :: [Ident] -> T ()
 multCheck vs =
-  T.when (anySameBy eqIdent vs) $ T.do
+  T.when (anySame vs) $ T.do
     let v = head vs
     tcError (getSLocIdent v) $ "Multiply defined: " ++ showIdent v
 
@@ -1821,8 +1821,8 @@ freeTyVars = foldr (go []) []
        -> [TyVar] -- Accumulates result
        -> [TyVar]
     go bound (EVar tv) acc
-      | elemBy eqIdent tv bound = acc
-      | elemBy eqIdent tv acc = acc
+      | elem tv bound = acc
+      | elem tv acc = acc
       | otherwise = tv : acc
     go bound (EForall tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
     go bound (EApp fun arg) acc = go bound fun (go bound arg acc)
@@ -1872,7 +1872,7 @@ checkSigma expr sigma = T.do
    else T.do
     env_tys <- getEnvTypes
     esc_tvs <- getFreeTyVars (sigma : env_tys)
-    let bad_tvs = filter (\ i -> elemBy eqIdent i esc_tvs) skol_tvs
+    let bad_tvs = filter (\ i -> elem i esc_tvs) skol_tvs
     T.when (not (null bad_tvs)) $
       tcErrorTK (getSLocExpr expr) "not polymorphic enough"
     T.return expr'
@@ -2042,7 +2042,7 @@ findMatches ds ct =
     freshSubst iks = zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [1000000000 ..] -- make sure the variables are unique
 
     -- Match two types, instantiate variables in the first type.
-    matchType r (EVar i) (EVar i') | eqIdent i i' = Just r
+    matchType r (EVar i) (EVar i') | i == i' = Just r
     matchType r (EApp f a) (EApp f' a') = -- XXX should use Maybe monad
       case matchType r f f' of
         Nothing -> Nothing

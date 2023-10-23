@@ -59,9 +59,9 @@ data Exp
 --Winstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
 
 eqExp :: Exp -> Exp -> Bool
-eqExp (Var i1) (Var i2) = eqIdent i1 i2
+eqExp (Var i1) (Var i2) = i1 == i2
 eqExp (App f1 a1) (App f2 a2) = eqExp f1 f2 && eqExp a1 a2
-eqExp (Lam i1 e1) (Lam i2 e2) = eqIdent i1 i2 && eqExp e1 e2
+eqExp (Lam i1 e1) (Lam i2 e2) = i1 == i2 && eqExp e1 e2
 eqExp (Lit l1) (Lit l2) = eqLit l1 l2
 eqExp _ _ = False
 
@@ -202,7 +202,7 @@ compileExp ae =
 abstract :: Ident -> Exp -> Exp
 abstract x ae =
   case ae of
-    Var y  -> if eqIdent x y then cId else cK (Var y)
+    Var y  -> if x == y then cId else cK (Var y)
     App f a -> cS (abstract x f) (abstract x a)
     Lam y e -> abstract x $ abstract y e
     Lit _ -> cK ae
@@ -298,7 +298,7 @@ cC2 a1 a2 =
     case getVar a1 of
       Nothing -> r
       Just op ->
-        case lookupBy eqIdent op flipOps of
+        case lookup op flipOps of
           Just oq -> App (Var oq) a2
           Nothing -> r
 {-
@@ -453,15 +453,15 @@ ppExp ae =
 substExp :: Ident -> Exp -> Exp -> Exp
 substExp si se ae =
   case ae of
-    Var i -> if eqIdent i si then se else ae
+    Var i -> if i == si then se else ae
     App f a -> App (substExp si se f) (substExp si se a)
-    Lam i e -> if eqIdent si i then
+    Lam i e -> if si == i then
                  ae
-               else if elemBy eqIdent i (freeVars se) then
+               else if elem i (freeVars se) then
                  let
                    fe = allVarsExp e
                    ase = allVarsExp se
-                   j = head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ showInt n) }, not (elemBy eqIdent v ase), not (elemBy eqIdent v fe) ]
+                   j = head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ showInt n) }, not (elem v ase), not (elem v fe) ]
                  in
                    --trace ("substExp " ++ unwords [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))
@@ -474,7 +474,7 @@ freeVars ae =
   case ae of
     Var i -> [i]
     App f a -> freeVars f ++ freeVars a
-    Lam i e -> deleteAllBy eqIdent i (freeVars e)
+    Lam i e -> deleteAllBy (==) i (freeVars e)
     Lit _ -> []
 
 allVarsExp :: Exp -> [Ident]

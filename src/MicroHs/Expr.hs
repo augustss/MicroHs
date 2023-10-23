@@ -124,13 +124,13 @@ conIdent (ConNew i) = i
 conIdent _ = error "conIdent"
 
 conArity :: Con -> Int
-conArity (ConData cs i) = fromMaybe (error "conArity") $ lookupBy eqIdent i cs
+conArity (ConData cs i) = fromMaybe (error "conArity") $ lookup i cs
 conArity (ConNew _) = 1
 conArity (ConLit _) = 0
 
 eqCon :: Con -> Con -> Bool
-eqCon (ConData _ i) (ConData _ j) = eqIdent i j
-eqCon (ConNew    i) (ConNew    j) = eqIdent i j
+eqCon (ConData _ i) (ConData _ j) = i == j
+eqCon (ConNew    i) (ConNew    j) = i == j
 eqCon (ConLit    l) (ConLit    k) = eqLit   l k
 eqCon _             _             = False
 
@@ -251,11 +251,11 @@ subst s =
   let
     sub ae =
       case ae of
-        EVar i -> fromMaybe ae $ lookupBy eqIdent i s
+        EVar i -> fromMaybe ae $ lookup i s
         EApp f a -> EApp (sub f) (sub a)
         ESign e t -> ESign (sub e) t
         EUVar _ -> ae
-        EForall iks t -> EForall iks $ subst [ x | x@(i, _) <- s, not (elemBy eqIdent i is) ] t
+        EForall iks t -> EForall iks $ subst [ x | x@(i, _) <- s, not (elem i is) ] t
           where is = map idKindIdent iks
         _ -> error "subst unimplemented"
   in sub
@@ -264,7 +264,7 @@ subst s =
 
 -- XXX needs more?
 eqEType :: EType -> EType -> Bool
-eqEType (EVar i) (EVar i') = eqIdent i i'
+eqEType (EVar i) (EVar i') = i == i'
 eqEType (EApp f a) (EApp f' a') = eqEType f f' && eqEType a a'
 eqEType _ _ = False
 

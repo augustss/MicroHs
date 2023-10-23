@@ -92,7 +92,7 @@ compileModuleCached flags nm = S.do
   case M.lookup nm ch of
     Nothing -> S.do
       ws <- gets working
-      S.when (elemBy eqIdent nm ws) $
+      S.when (elem nm ws) $
         error $ "recursive module: " ++ showIdent nm
       modify $ \ c -> updWorking (nm : working c) c
       S.when (verbose flags > 0) $
@@ -120,7 +120,7 @@ compileModule flags nm = S.do
   let mdl@(EModule nmn _ defs) = parseDie pTop pathfn file
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
-  S.when (not (eqIdent nm nmn)) $
+  S.when (nm /= nmn) $
     error $ "module name does not agree with file name: " ++ showIdent nm ++ " " ++ showIdent nmn
   let
     specs = [ s | Import s <- defs ]

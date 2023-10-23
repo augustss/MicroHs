@@ -115,7 +115,7 @@ dsAltsL ((ss, rhs) : alts) dflt =
 dsAlt :: Expr -> [EStmt] -> Expr -> Expr
 dsAlt _ [] rhs = rhs
 dsAlt dflt (SBind p e : ss) rhs = ECase e [(p, EAlts [(ss, rhs)] []), (EVar dummyIdent, oneAlt dflt)]
-dsAlt dflt (SThen (EVar i) : ss) rhs | eqIdent i (mkIdent "Data.Bool.otherwise") = dsAlt dflt ss rhs
+dsAlt dflt (SThen (EVar i) : ss) rhs | i == mkIdent "Data.Bool.otherwise" = dsAlt dflt ss rhs
 dsAlt dflt (SThen e   : ss) rhs = EIf e (dsAlt dflt ss rhs) dflt
 dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
@@ -273,7 +273,7 @@ apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
 newVars :: String -> [Ident] -> [Ident]
-newVars s is = deleteAllsBy eqIdent [ mkIdent (s ++ showInt i) | i <- enumFrom 1 ] is
+newVars s is = deleteAllsBy (==) [ mkIdent (s ++ showInt i) | i <- enumFrom 1 ] is
 
 newVar :: [Ident] -> Ident
 newVar = head . newVars "q"
@@ -430,7 +430,7 @@ mkCase var pes dflt =
         arm ck =
           let
             (c, k) = ck
-            (vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i) xs, e) <- pes, eqIdent c i ] ++
+            (vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i) xs, e) <- pes, c == i ] ++
                                [ (replicate k dummyIdent, dflt) ]
           in (SPat (ConData cs c) vs, rhs)
       in  eCase var (map arm cs)
@@ -460,20 +460,20 @@ splitArms am =
 -- Change from x to y inside e.
 substAlpha :: Ident -> Exp -> Exp -> Exp
 substAlpha x y e =
-  if eqIdent x dummyIdent then
+  if x == dummyIdent then
     e
   else
     substExp x y e
 
 eLet :: Ident -> Exp -> Exp -> Exp
 eLet i e b =
-  if eqIdent i dummyIdent then
+  if i == dummyIdent then
     b
   else
     case b of
-      Var j | eqIdent i j -> e
+      Var j | i == j -> e
       _ ->
-        case filter (eqIdent i) (freeVars b) of
+        case filter (== i) (freeVars b) of
           []  -> b                -- no occurences, no need to bind
           [_] -> substExp i e b   -- single occurrence, substitute  XXX could be worse if under lambda
           _   -> App (Lam i b) e  -- just use a beta redex
@@ -510,7 +510,7 @@ getDups eq = filter ((> 1) . length) . groupEq eq
 
 checkDup :: [LDef] -> [LDef]
 checkDup ds =
-  case getDups eqIdent (filter (not . eqIdent dummyIdent) $ map fst ds) of
+  case getDups (==) (filter (/= dummyIdent) $ map fst ds) of
     [] -> ds
     (i1:_i2:_) : _ ->
       errorMessage (getSLocIdent i1) $ "duplicate definition " ++ showIdent i1
