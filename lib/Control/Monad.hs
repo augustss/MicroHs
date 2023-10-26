@@ -8,8 +8,8 @@ infixl 1 >>=
 class (Applicative m) => Monad (m :: Type -> Type) where
   (>>=)  :: forall a b . m a -> (a -> m b) -> m b
   (>>)   :: forall a b . m a -> m b -> m b
+  ma >> mb = ma >>= \ _ -> mb
 
---  ma >> mb = ma >>= \ _ -> mb
-
-return :: forall (m :: Type -> Type) a . Monad m => a -> m a
-return = pure
+  -- Maybe remove this
+  return :: forall a . a -> m a
+  return = pure
