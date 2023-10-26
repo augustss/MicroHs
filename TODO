@@ -33,3 +33,10 @@
   - The IORef will need GC support
 * Redo type synonym expansion
   - Only non-injective synonyms necessitate expansion(?)
+  - Do expansion during unification
+* Redo handling of synonym and instance tables.
+  - These tables can persist during the compilation
+    and only grow
+* Just put exported classes in class export
+* Implement two level tables for instances even in the tricky cases
+* Handle tupled dictionaries better for recursive calls

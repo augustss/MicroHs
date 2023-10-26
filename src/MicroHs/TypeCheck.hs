@@ -612,7 +612,7 @@ getUVar i = gets (IM.lookup i . uvarSubst)
 
 munify :: --XHasCallStack =>
           SLoc -> Expected -> EType -> T ()
-munify _   (Infer r) b = tSetRefType r b
+munify loc (Infer r) b = tSetRefType loc r b
 munify loc (Check a) b = unify loc a b
 
 expandSyn :: --XHasCallStack =>
@@ -695,7 +695,7 @@ unifyVar loc r t = T.do
     Just t' -> unify loc t' t
 
 unifyUnboundVar :: --XHasCallStack =>
-            SLoc -> TRef -> EType -> T ()
+                   SLoc -> TRef -> EType -> T ()
 unifyUnboundVar loc r1 at2@(EUVar r2) = T.do
   -- We know r1 /= r2
   mt2 <- getUVar r2
@@ -709,7 +709,7 @@ unifyUnboundVar loc r1 t2 = T.do
    else
     setUVar r1 t2
 
--- Reset type variable and unification map
+-- Reset unification map
 tcReset :: T ()
 tcReset = T.do
   TC mn u fx tenv senv venv ast _ m cs is es <- get
@@ -1256,30 +1256,32 @@ tGetRefType :: --XHasCallStack =>
 tGetRefType ref = T.do
   m <- gets uvarSubst
   case IM.lookup ref m of
-    Nothing -> error "tGetRefType"
-    Just t -> T.return t
+    Nothing -> T.return (EUVar ref) -- error "tGetRefType"
+    Just t  -> T.return t
 
 -- Set the type for an Infer
 tSetRefType :: --XHasCallStack =>
-               TRef -> EType -> T ()
-tSetRefType ref t = T.do
+               SLoc -> TRef -> EType -> T ()
+tSetRefType loc ref t = T.do
   m <- gets uvarSubst
   case IM.lookup ref m of
     Nothing -> putUvarSubst (IM.insert ref t m)
-    Just _ -> error "tSetRefType"
+    Just tt -> unify loc tt t
 
 -- Get the type of an already set Expected
 tGetExpType :: Expected -> T EType
 tGetExpType (Check t) = T.return t
 tGetExpType (Infer r) = tGetRefType r
 
--- Get the type of an unset Expected
-tGetExpTypeSet :: Expected -> T EType
-tGetExpTypeSet (Check t) = T.return t
-tGetExpTypeSet (Infer r) = T.do
+{-
+-- Get the type of a possibly unset Expected
+tGetExpTypeSet :: SLoc -> Expected -> T EType
+tGetExpTypeSet _   (Check t) = T.return t
+tGetExpTypeSet loc (Infer r) = tGetRefType r {-T.do
   t <- newUVar
-  tSetRefType r t
-  T.return t
+  tSetRefType loc r t
+  T.return t-}
+-}
 
 tcExpr :: --XHasCallStack =>
           Expected -> Expr -> T Expr
@@ -1299,7 +1301,7 @@ tcExprR mt ae =
       case tcm of
         TCPat | isDummyIdent i -> T.do
                 -- _ can be anything, so just ignore it
-                _ <- tGetExpTypeSet mt
+                _ <- tGetExpType mt
                 T.return ae
 
               | isConIdent i -> T.do
@@ -1308,15 +1310,15 @@ tcExprR mt ae =
                 -- We will only have an expected type for a non-nullary constructor
                 case mt of
                   Check ext -> subsCheck loc p ext pt
-                  Infer r   -> T.do { tSetRefType r pt; T.return p }
+                  Infer r   -> T.do { tSetRefType loc r pt; T.return p }
 
               | otherwise -> T.do
                 -- All pattern variables are in the environment as
                 -- type references.  Assign the reference the given type.
-                ext <- tGetExpTypeSet mt
+                ext <- tGetExpType mt
                 (p, t) <- tLookupV i
                 case t of
-                  EUVar r -> tSetRefType r ext
+                  EUVar r -> tSetRefType loc r ext
                   _ -> impossible
                 T.return p
           
@@ -1364,7 +1366,7 @@ tcExprR mt ae =
     ELit loc' l -> tcLit mt loc' l
     ECase a arms -> T.do
       (ea, ta) <- tInferExpr a
-      tt <- tGetExpTypeSet mt
+      tt <- tGetExpType mt
       earms <- T.mapM (tcArm tt ta) arms
       T.return (ECase ea earms)
     ELet bs a -> tcBinds bs $ \ ebs -> T.do { ea <- tcExpr mt a; T.return (ELet ebs ea) }
@@ -1414,7 +1416,7 @@ tcExprR mt ae =
           (e3', t3) <- tInferExpr e3
           e2'' <- subsCheck loc e2' t2 t3
           e3'' <- subsCheck loc e3' t3 t2
-          tSetRefType ref t2
+          tSetRefType loc ref t2
           T.return (EIf e1' e2'' e3'')
 
     EListish (LList es) -> T.do
@@ -1466,7 +1468,7 @@ tcExprR mt ae =
       e' <- tcExpr mt e
       tt <- tGetExpType mt
       case ti of
-        EUVar r -> tSetRefType r tt
+        EUVar r -> tSetRefType loc r tt
         _ -> impossible
       T.return (EAt i e')
     EForall vks t ->
@@ -1546,7 +1548,7 @@ tcPats t (p:ps) ta = T.do
 
 tcExprLam :: Expected -> [EPat] -> Expr -> T Expr
 tcExprLam mt aps expr = T.do
-  t <- tGetExpTypeSet mt
+  t <- tGetExpType mt
   tcPats t aps $ \ tt ps -> T.do
     er <- tCheckExpr tt expr
     T.return (ELam ps er)
@@ -1618,7 +1620,7 @@ eBinds ds = [BFcn i [Eqn [] (EAlts [([], e)] [])] | (i, e) <- ds]
 
 instPatSigma :: --XHasCallStack =>
                  SLoc -> Sigma -> Expected -> T ()
-instPatSigma _   pt (Infer r) = tSetRefType r pt
+instPatSigma loc pt (Infer r) = tSetRefType loc r pt
 instPatSigma loc pt (Check t) = T.do { _ <- subsCheck loc undefined t pt; T.return () } -- XXX really?
 
 subsCheck :: --XHasCallStack =>
@@ -1911,10 +1913,10 @@ instSigma :: --XHasCallStack =>
 instSigma loc e1 t1 (Check t2) = T.do
 --  traceM ("instSigma: Check " ++ showEType t1 ++ " = " ++ showEType t2)
   subsCheckRho loc e1 t1 t2
-instSigma _   e1 t1 (Infer r) = T.do
+instSigma loc e1 t1 (Infer r) = T.do
   (e1', t1') <- tInst (e1, t1)
 --  traceM ("instSigma: Infer " ++ showEType t1 ++ " ==> " ++ showEType t1')
-  tSetRefType r t1'
+  tSetRefType loc r t1'
   T.return e1'
 
 -----
