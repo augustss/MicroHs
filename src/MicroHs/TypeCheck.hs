@@ -256,7 +256,8 @@ getAssocs vt at ai =
                  _        -> impossible
   in  map (\ qi -> ValueExport (unQualIdent qi) (val qi)) qis
 
-mkTables :: forall a . [(ImportSpec, TModule a)] -> (FixTable, TypeTable, SynTable, ClassTable, InstTable, ValueTable, AssocTable)
+mkTables :: forall a . [(ImportSpec, TModule a)] ->
+            (FixTable, TypeTable, SynTable, ClassTable, InstTable, ValueTable, AssocTable)
 mkTables mdls =
   let
     qns (ImportSpec q _ mas _) mn i =
@@ -1810,7 +1811,7 @@ skolemise ty =
 newSkolemTyVar :: Ident -> T Ident
 newSkolemTyVar tv = T.do
   uniq <- newUniq
-  T.return (mkIdentSLoc (getSLocIdent tv) (showInt uniq ++ unIdent tv))
+  T.return (mkIdentSLoc (getSLocIdent tv) (unIdent tv ++ "#" ++ showInt uniq))
 
 freeTyVars :: [EType] -> [TyVar]
 -- Get the free TyVars from a type; no duplicates in result
@@ -1823,6 +1824,7 @@ freeTyVars = foldr (go []) []
     go bound (EVar tv) acc
       | elem tv bound = acc
       | elem tv acc = acc
+      | isConIdent tv = acc
       | otherwise = tv : acc
     go bound (EForall tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
     go bound (EApp fun arg) acc = go bound fun (go bound arg acc)
@@ -1862,7 +1864,8 @@ inferSigma e = T.do
   (e',) <$> quantify forall_tvs exp_ty
 -}
 
-checkSigma :: Expr -> Sigma -> T Expr
+checkSigma :: --XHasCallStack =>
+              Expr -> Sigma -> T Expr
 checkSigma expr sigma = T.do
   (skol_tvs, rho) <- skolemise sigma
   expr' <- tCheckExpr rho expr
@@ -1874,7 +1877,7 @@ checkSigma expr sigma = T.do
     esc_tvs <- getFreeTyVars (sigma : env_tys)
     let bad_tvs = filter (\ i -> elem i esc_tvs) skol_tvs
     T.when (not (null bad_tvs)) $
-      tcErrorTK (getSLocExpr expr) "not polymorphic enough"
+      tcErrorTK (getSLocExpr expr) $ "not polymorphic enough: " ++ unwords (map showIdent bad_tvs)
     T.return expr'
 
 subsCheckRho :: --XHasCallStack =>
@@ -1893,14 +1896,17 @@ subsCheckRho loc exp1 tau1 tau2 = T.do  -- Rule MONO
   unify loc tau1 tau2 -- Revert to ordinary unification
   T.return exp1
 
-subsCheckFun :: SLoc -> Expr -> Sigma -> Rho -> Sigma -> Rho -> T Expr
+subsCheckFun :: --XHasCallStack =>
+                SLoc -> Expr -> Sigma -> Rho -> Sigma -> Rho -> T Expr
 subsCheckFun loc e1 a1 r1 a2 r2 = T.do
   _ <- subsCheck loc undefined a2 a1   -- XXX
   subsCheckRho loc e1 r1 r2
 
 instSigma :: --XHasCallStack =>
              SLoc -> Expr -> Sigma -> Expected -> T Expr
-instSigma loc e1 t1 (Check t2) = subsCheckRho loc e1 t1 t2
+instSigma loc e1 t1 (Check t2) = T.do
+--  traceM ("instSigma: " ++ showEType t1 ++ " = " ++ showEType t2)
+  subsCheckRho loc e1 t1 t2
 instSigma _   e1 t1 (Infer r) = T.do
   (e1', t1') <- tInst (e1, t1)
   tSetRefType r t1'
