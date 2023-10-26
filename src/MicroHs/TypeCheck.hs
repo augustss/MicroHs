@@ -751,24 +751,23 @@ tLookupV i = T.do
             _      -> "value"
   tLookup ("undefined " ++ s ++ " identifier") ("ambiguous " ++ s ++ " identifier") i
 
+-- Maybe iterate these?
 tInst :: (Expr, EType) -> T (Expr, EType)
-tInst t = tInst' t T.>>= tDict
+tInst t = tInst' t T.>>= tDict T.>>= tInst'
 
 tInst' :: (Expr, EType) -> T (Expr, EType)
-tInst' et@(ae, at) =
-  case at of
-    EForall vks t ->
-      if null vks then
-        T.return (ae, t)
-      else T.do
-        let vs = map idKindIdent vks
-        us <- T.mapM (const newUVar) vks
+tInst' (ae, EForall vks t) =
+  if null vks then
+    T.return (ae, t)
+  else T.do
+    let vs = map idKindIdent vks
+    us <- T.mapM (const newUVar) vks
 --        tInst' (ae, subst (zip vs us) t)
-        T.return (ae, subst (zip vs us) t)
-    _ -> T.return et
+    T.return (ae, subst (zip vs us) t)
+tInst' et = T.return et
 
 tDict :: (Expr, EType) -> T (Expr, EType)
-tDict (ae, EApp (EApp (EVar (Ident _ "Primitives.=>")) ctx) t) = T.do
+tDict (ae, at) | Just (ctx, t) <- getImplies at = T.do
   u <- newUniq
   let d = mkIdentSLoc loc ("dict$" ++ showInt u)
       loc = getSLocExpr ae
@@ -1333,7 +1332,7 @@ tcExprR mt ae =
           -- Type checking an expression (or type)
           T.when (isDummyIdent i) impossible
           (e, t) <- tLookupV i
-          -- Variables bound in patterns start with an (EUVar ref) type,
+          -- Variables bound in patterns start out with an (EUVar ref) type,
           -- which can be instantiated to a polytype.
           -- Dereference such a ref.
           t' <-
@@ -1345,6 +1344,7 @@ tcExprR mt ae =
 
     EApp f a -> T.do
       (f', ft) <- tInferExpr f
+--      traceM $ "EApp f=" ++ showExpr f ++ "; e'=" ++ showExpr f' ++ " :: " ++ showEType ft
       (at, rt) <- unArrow loc ft
       tcm <- gets tcMode
 --      traceM ("tcExpr EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
@@ -1906,10 +1906,11 @@ subsCheckFun loc e1 a1 r1 a2 r2 = T.do
 instSigma :: --XHasCallStack =>
              SLoc -> Expr -> Sigma -> Expected -> T Expr
 instSigma loc e1 t1 (Check t2) = T.do
---  traceM ("instSigma: " ++ showEType t1 ++ " = " ++ showEType t2)
+--  traceM ("instSigma: Check " ++ showEType t1 ++ " = " ++ showEType t2)
   subsCheckRho loc e1 t1 t2
 instSigma _   e1 t1 (Infer r) = T.do
   (e1', t1') <- tInst (e1, t1)
+--  traceM ("instSigma: Infer " ++ showEType t1 ++ " ==> " ++ showEType t1')
   tSetRefType r t1'
   T.return e1'
 
