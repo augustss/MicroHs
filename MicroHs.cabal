@@ -58,6 +58,7 @@ executable mhs
                        PreludeNoIO
                        Text.ParserComb
                        System.Console.SimpleReadline
+                       Data.Double
                        Compat
                        CompatIO
                        PrimTable
