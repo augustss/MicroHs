@@ -48,7 +48,6 @@ executable mhs
                        MicroHs.Ident
                        MicroHs.Lex
                        MicroHs.Parse
-                       MicroHs.Pretty
                        MicroHs.StateIO
                        MicroHs.IdentMap
                        MicroHs.Interactive
@@ -69,5 +68,5 @@ executable mhs
                        deepseq      >= 1.1 && < 1.6,
                        ghc-prim     >= 0.5 && < 0.11,
                        mtl          >= 2.0 && < 2.4,
-                       time         >= 1.1 && < 1.15
+                       time         >= 1.1 && < 1.15,
                        pretty       >= 1.0 && < 1.2
