@@ -1185,6 +1185,7 @@ tcDefValue adef =
     Fcn i eqns -> T.do
       (_, tt) <- tLookup "no type signature" "many type signatures" i
 --      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr tt
+--      traceM $ showEDefs [adef]
       mn <- gets moduleName
       teqns <- tcEqns tt eqns
 --      traceM (showEDefs [Fcn i eqns, Fcn i teqns])
