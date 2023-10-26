@@ -1172,9 +1172,11 @@ bundleConstraints cs  t = tImplies (ETuple cs) t
 mkClassConstructor :: Ident -> Ident
 mkClassConstructor i = addIdentSuffix i "$C"
 
+{-
 unForall :: EType -> ([IdKind], EType)
 unForall (EForall iks t) = (iks, t)
 unForall t = ([], t)
+-}
 
 tcDefValue :: --XHasCallStack =>
               EDef -> T EDef
@@ -1182,10 +1184,9 @@ tcDefValue adef =
   case adef of
     Fcn i eqns -> T.do
       (_, tt) <- tLookup "no type signature" "many type signatures" i
-      let (iks, tfn) = unForall tt
 --      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr tt
       mn <- gets moduleName
-      teqns <- withExtTyps iks $ tcEqns tfn eqns
+      teqns <- tcEqns tt eqns
 --      traceM (showEDefs [Fcn i eqns, Fcn i teqns])
       checkConstraints
       T.return $ Fcn (qualIdent mn i) teqns
@@ -1551,6 +1552,7 @@ tcExprLam mt aps expr = T.do
 
 tcEqns :: EType -> [Eqn] -> T [Eqn]
 --tcEqns t eqns | trace ("tcEqns: " ++ showEBind (BFcn dummyIdent eqns) ++ " :: " ++ showEType t) False = undefined
+tcEqns (EForall iks t) eqns = withExtTyps iks $ tcEqns t eqns
 tcEqns t eqns | Just (ctx, t') <- getImplies t = T.do
   let loc = getSLocEqns eqns
   d <- newIdent loc "adict"
@@ -1575,6 +1577,7 @@ tcEqns t eqns = T.do
       T.return [eqn]
 
 tcEqn :: EType -> Eqn -> T Eqn
+--tcEqn t _eqn | trace ("tcEqn: " ++ showEType t) False = undefined
 tcEqn t eqn =
   case eqn of
     Eqn ps alts -> tcPats t ps $ \ tt ps' -> T.do
@@ -1586,7 +1589,7 @@ tcAlts tt (EAlts alts bs) =
   tcBinds bs $ \ bbs -> T.do { aalts <- T.mapM (tcAlt tt) alts; T.return (EAlts aalts bbs) }
 
 tcAlt :: EType -> EAlt -> T EAlt
---tcAlt t _ | trace ("tcAlt: " ++ showExpr t) False = undefined
+--tcAlt t (_, rhs) | trace ("tcAlt: " ++ showExpr rhs ++ " :: " ++ showEType t) False = undefined
 tcAlt t (ss, rhs) = tcGuards ss $ \ sss -> T.do { rrhs <- tCheckExpr t rhs; T.return (sss, rrhs) }
 
 tcGuards :: forall a . [EStmt] -> ([EStmt] -> T a) -> T a
@@ -1701,8 +1704,7 @@ tcBind abind =
   case abind of
     BFcn i eqns -> T.do
       (_, tt) <- tLookupV i
-      let (iks, tfn) = unForall tt
-      teqns <- withExtTyps iks $ tcEqns tfn eqns
+      teqns <- tcEqns tt eqns
       T.return $ BFcn i teqns
     BPat p a -> T.do
       (ep, tp) <- withTCMode TCPat $ tInferExpr p  -- pattern variables already bound
