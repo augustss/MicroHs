@@ -64,7 +64,11 @@ data Entry = Entry
   --Xderiving(Show)
 
 instance Eq Entry where
-  Entry x _ == Entry y _  =  getIdent x == getIdent y
+  (==) = eqEntry
+
+eqEntry :: Entry -> Entry -> Bool
+eqEntry (Entry x _) (Entry y _) = eqIdent (getIdent x) (getIdent y)
+
 
 entryType :: Entry -> EType
 entryType (Entry _ t) = t
@@ -729,8 +733,8 @@ newIdent loc s = T.do
   T.return $ mkIdentSLoc loc $ s ++ "$" ++ showInt u
 
 tLookup :: --XHasCallStack =>
-           String -> String -> Ident -> T (Expr, EType)
-tLookup msg0 msgN i = T.do
+           String -> Ident -> T (Expr, EType)
+tLookup msg i = T.do
   env <- gets valueTable
   case stLookup msg i env of
     Right (Entry e s) -> T.return (setSLocExpr (getSLocIdent i) e, s)
@@ -743,7 +747,7 @@ tLookupV i = T.do
   let s = case tcm of
             TCType -> "type"
             _      -> "value"
-  tLookup ("undefined " ++ s ++ " identifier") ("ambiguous " ++ s ++ " identifier") i
+  tLookup s i
 
 -- Maybe iterate these?
 tInst :: (Expr, EType) -> T (Expr, EType)
@@ -1180,7 +1184,7 @@ tcDefValue :: --XHasCallStack =>
 tcDefValue adef =
   case adef of
     Fcn i eqns -> T.do
-      (_, tt) <- tLookup "no type signature" "many type signatures" i
+      (_, tt) <- tLookup "type signature" i
 --      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr tt
 --      traceM $ showEDefs [adef]
       mn <- gets moduleName
