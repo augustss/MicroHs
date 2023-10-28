@@ -164,7 +164,7 @@ dsExpr aexpr =
   case aexpr of
     EVar i -> Var i
     EApp f a -> App (dsExpr f) (dsExpr a)
-    ELam xs e -> dsLam (getSLocExpr aexpr) xs e
+    ELam qs -> dsEqns (getSLocExpr aexpr) qs
     ELit _ (LChar c) -> Lit (LInt (ord c))
     ELit _ l -> Lit l
     ECase e as -> dsCase (getSLocExpr aexpr) e as
@@ -182,7 +182,7 @@ dsExpr aexpr =
               let
                 nv = newVar (allVarsExpr aexpr)
                 body = ECase (EVar nv) [(p, oneAlt $ EListish (LCompr e stmts)), (EVar dummyIdent, oneAlt $ EListish (LList []))]
-              in app2 (Var (mkIdent "Data.List.concatMap")) (dsExpr (ELam [EVar nv] body)) (dsExpr b)
+              in app2 (Var (mkIdent "Data.List.concatMap")) (dsExpr (eLam [EVar nv] body)) (dsExpr b)
             SThen c ->
               dsExpr (EIf c (EListish (LCompr e stmts)) (EListish (LList [])))
             SLet ds ->
@@ -210,15 +210,6 @@ mkTupleSel m n tup =
   let
     xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 n ]
   in App tup (foldr Lam (Var (xs !! m)) xs)
-
-dsLam :: SLoc -> [EPat] -> Expr -> Exp
-dsLam loc ps e =
-  let
-    vs = allVarsExpr (ELam ps e)
-    xs = take (length ps) (newVars "l" vs)
-    ps' = map dsPat ps
-    ex = runS loc (vs ++ xs) (map Var xs) [(ps', dsAlts $ oneAlt e, any hasLit ps')]
-  in foldr Lam ex xs
 
 -- Handle special syntax for lists and tuples
 dsPat :: --XHasCallStack =>

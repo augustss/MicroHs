@@ -997,7 +997,7 @@ tcExprR mt ae =
           T.return (EApp f' a')
 
     EOper e ies -> T.do e' <- tcOper e ies; tcExpr mt e'
-    ELam ps e -> tcExprLam mt ps e
+    ELam qs -> tcExprLam mt qs
     ELit loc' l -> tcLit mt loc' l
     ECase a arms -> T.do
       (ea, ta) <- tInferExpr a
@@ -1026,7 +1026,7 @@ tcExprR mt ae =
               let
                 sbind = maybe (mkIdentSLoc loc ">>=") (\ mn -> qualIdent mn (mkIdentSLoc loc ">>=")) mmn
               tcExpr mt (EApp (EApp (EVar sbind) a)
-                              (ELam [eVarI loc "$x"] (ECase (eVarI loc "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
+                              (eLam [eVarI loc "$x"] (ECase (eVarI loc "$x") [(p, EAlts [([], EDo mmn ss)] [])])))
             SThen a -> T.do
               let
                 sthen = maybe (mkIdentSLoc loc ">>") (\ mn -> qualIdent mn (mkIdentSLoc loc ">>") ) mmn
@@ -1038,7 +1038,7 @@ tcExprR mt ae =
     ESectL e i -> tcExpr mt (EApp (EVar i) e)
     ESectR i e -> T.do
       let x = eVarI loc "$x"
-      tcExpr mt (ELam [x] (EApp (EApp (EVar i) x) e))
+      tcExpr mt (eLam [x] (EApp (EApp (EVar i) x) e))
     EIf e1 e2 e3 -> T.do
       e1' <- tCheckExpr (tBool (getSLocExpr e1)) e1
       case mt of
@@ -1182,12 +1182,10 @@ tcPats t (p:ps) ta = T.do
   (tp, tr) <- unArrow (getSLocExpr p) t
   tCheckPat tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt (pp : pps)
 
-tcExprLam :: Expected -> [EPat] -> Expr -> T Expr
-tcExprLam mt aps expr = T.do
+tcExprLam :: Expected -> [Eqn] -> T Expr
+tcExprLam mt qs = T.do
   t <- tGetExpTypeSet mt
-  tcPats t aps $ \ tt ps -> T.do
-    er <- tCheckExpr tt expr
-    T.return (ELam ps er)
+  ELam <$> tcEqns t qs
 
 tcEqns :: EType -> [Eqn] -> T [Eqn]
 tcEqns t eqns = T.mapM (tcEqn t) eqns
