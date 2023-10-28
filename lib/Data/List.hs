@@ -158,9 +158,9 @@ isPrefixOf :: forall a . Eq a => [a] -> [a] -> Bool
 isPrefixOf = isPrefixOfBy (==)
 
 isPrefixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
-isPrefixOfBy _ [] _ = True
-isPrefixOfBy _ _ [] = False
 isPrefixOfBy eq (c:cs) (d:ds) = eq c d && isPrefixOfBy eq cs ds
+isPrefixOfBy _ [] _ = True
+isPrefixOfBy _ _  _ = False
 
 splitAt :: forall a . P.Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
