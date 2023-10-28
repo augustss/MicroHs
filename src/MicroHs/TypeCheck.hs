@@ -328,8 +328,8 @@ initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ValueTable -> Asso
 initTC mn fs ts ss vs as =
 --  trace ("initTC " ++ show (ts, vs)) $
   let
-    xts = foldr (uncurry stInsert) ts primTypes
-    xvs = foldr (uncurry stInsert) vs primValues
+    xts = foldr (uncurry stInsertGlb) ts primTypes
+    xvs = foldr (uncurry stInsertGlb) vs primValues
   in TC mn 1 fs xts ss xvs as IM.empty TCExpr
 
 kTypeS :: EType
@@ -619,16 +619,19 @@ extValE :: --XHasCallStack =>
            Ident -> EType -> Expr -> T ()
 extValE i t e = T.do
   venv <- gets valueTable
-  putValueTable (stInsert i [Entry e t] venv)
+  putValueTable (stInsertLcl i (Entry e t) venv)
 
--- Extend the symbol table with i = e :: t
+-- Extend the global symbol table with i = e :: t
 -- Add both qualified and unqualified versions of i.
 extValETop :: --XHasCallStack =>
               Ident -> EType -> Expr -> T ()
 extValETop i t e = T.do
   mn <- gets moduleName
-  extValE (qualIdent mn i) t e
-  extValE               i  t e
+  venv <- gets valueTable
+  let qi = qualIdent mn i
+      venv'  = stInsertGlb qi [Entry e t] venv
+      venv'' = stInsertGlb  i [Entry e t] venv'
+  putValueTable venv''
 
 -- Extend symbol table with i::t.
 -- The translation for i will be the qualified name.
@@ -650,7 +653,7 @@ extVals = T.mapM_ (uncurry extVal)
 extTyp :: Ident -> EType -> T ()
 extTyp i t = T.do
   tenv <- gets typeTable
-  putTypeTable (stInsert i [Entry (EVar i) t] tenv)
+  putTypeTable (stInsertLcl i (Entry (EVar i) t) tenv)
 
 extTyps :: [(Ident, EType)] -> T ()
 extTyps = T.mapM_ (uncurry extTyp)
@@ -1381,7 +1384,7 @@ getMetaTyVars tys = T.do
   T.return (metaTvs tys')
 
 getEnvTypes :: T [EType]
-getEnvTypes = gets (map entryType . concat . stElems . valueTable)
+getEnvTypes = gets (map entryType . stElemsLcl . valueTable)
 
 {-
 quantify :: [MetaTv] -> Rho -> T Sigma
@@ -1516,25 +1519,33 @@ instSigma _   t1 (Infer r) = T.do
 
 ---------------------
 
-data SymTab a = SymTab (M.Map [a]) -- [(Ident, a)]
+data SymTab a = SymTab (M.Map [a]) [(Ident, a)]
   --Xderiving(Show)
   
-stLookup :: forall a . String -> Ident -> SymTab a -> Either String a
-stLookup msg i (SymTab genv) =
-  case M.lookup i genv of
-    Just [e] -> Right e
-    Just _   -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i
-    Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
-                       -- ++ "\n" ++ show env ;
+stLookup :: forall a . --XShow a =>
+            String -> Ident -> SymTab a -> Either String a
+stLookup msg i (SymTab genv lenv) =
+  case lookupBy eqIdent i lenv of
+    Just e -> Right e
+    Nothing ->
+      case M.lookup i genv of
+        Just [e] -> Right e
+        Just _   -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i
+        Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
+                           --X ++ "\n" ++ show lenv ++ "\n" ++ show genv
 
 stFromListWith :: forall a . ([a] -> [a] -> [a]) -> [(Ident, [a])] -> SymTab a
-stFromListWith comb ias = SymTab (M.fromListWith comb ias)
+stFromListWith comb ias = SymTab (M.fromListWith comb ias) []
 
 stFromList :: forall a . [(Ident, [a])] -> SymTab a
-stFromList ias = SymTab (M.fromList ias)
+stFromList ias = SymTab (M.fromList ias) []
 
-stElems :: forall a . SymTab a -> [[a]]
-stElems (SymTab genv) = M.elems genv
+stElemsLcl :: forall a . SymTab a -> [a]
+stElemsLcl (SymTab _genv lenv) = map snd lenv
 
-stInsert :: forall a . Ident -> [a] -> SymTab a -> SymTab a
-stInsert i as (SymTab genv) = SymTab (M.insert i as genv)
+stInsertLcl :: forall a . Ident -> a -> SymTab a -> SymTab a
+stInsertLcl i a (SymTab genv lenv) = SymTab genv ((i,a) : lenv)
+
+-- XXX Use insertWith to follow Haskell semantics.
+stInsertGlb :: forall a . Ident -> [a] -> SymTab a -> SymTab a
+stInsertGlb i as (SymTab genv lenv) = SymTab (M.insert i as genv) lenv
