@@ -1091,22 +1091,14 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> T.return x
-  let (bs', (_, ims)) =
-          let f (BFcn i eqns) = S.do
-                (n, xs) <- S.get
-                let mi = mkIdentSLoc (getSLocIdent i) ("meth$" ++ showInt n)
-                S.put (n+1, (i, mi):xs)
-                S.return (BFcn mi eqns)
-              f b = S.return b
-          in  S.runState (S.mapM f bs) (1, [])
-      bs'' = map tr bs'
-        where tr (BSign i t) = BSign (fromMaybe i $ lookup i ims) t
-              tr b = b
+  -- XXX this ignores type signatures and other bindings
+  -- XXX should tack on signatures with ESign
+  let ies = [(i, ELam qs) | BFcn i qs <- bs]
+      meth i = fromMaybe (EVar $ mkDefaultMethodId i) $ lookup i ies
       meths = map meth mis
-        where meth i = EVar $ fromMaybe (mkDefaultMethodId i) $ lookup i ims
       sups = map (const (EVar $ mkIdentSLoc loc "dict$")) supers
       args = sups ++ meths
-  let bind = Fcn iInst [Eqn [] $ EAlts [([], foldl EApp (EVar $ mkClassConstructor iCls) args)] bs'']
+  let bind = Fcn iInst $ eEqns [] $ foldl EApp (EVar $ mkClassConstructor iCls) args
   mn <- gets moduleName
   addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc)]
   T.return [dinst, sign, bind]

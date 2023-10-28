@@ -5,7 +5,7 @@ module MicroHs.Expr(
   ImportSpec(..),
   ImportItem(..),
   EDef(..), showEDefs,
-  Expr(..), eLam, showExpr,
+  Expr(..), eLam, eEqns, showExpr,
   Listish(..),
   Lit(..), showLit, eqLit,
   EBind(..), showEBind, showEBinds,
@@ -103,7 +103,10 @@ data Expr
   --Xderiving (Show, Eq)
 
 eLam :: [EPat] -> Expr -> Expr
-eLam ps e = ELam [Eqn ps (EAlts [([], e)] [])]
+eLam ps e = ELam $ eEqns ps e
+
+eEqns :: [EPat] -> Expr -> [Eqn]
+eEqns ps e = [Eqn ps (EAlts [([], e)] [])]
 
 data Con
   = ConData ConTyInfo Ident
