@@ -132,11 +132,7 @@ getTVExps _ _ vals _ (ExpValue i) =
 --getFSExps impMap = [ (fe, se) | TModule _ fe _ se _ _ <- M.elems impMap ]
 
 expLookup :: Ident -> M.Map [Entry] -> Entry
-expLookup i m =
-  case M.lookup i m of
-    Just [e] -> e
-    Just _ -> errorMessage (getSLocIdent i) $ ": Ambiguous export " ++ showIdent i
-    Nothing -> expErr i
+expLookup i m = either (errorMessage (getSLocIdent i)) id $ stLookup "export" i m
 
 tyQIdent :: Entry -> Ident
 tyQIdent (Entry (EVar qi) _) = qi
@@ -604,11 +600,17 @@ tLookup :: --XHasCallStack =>
            String -> Ident -> T (Expr, EType)
 tLookup msg i = T.do
   env <- gets valueTable
+  case stLookup msg i env of
+    Right (Entry e s) -> T.return (setSLocExpr (getSLocIdent i) e, s)
+    Left            e -> tcError (getSLocIdent i) e
+
+stLookup :: String -> Ident -> M.Map [Entry] -> Either String Entry
+stLookup msg i env =
   case M.lookup i env of
-    Nothing -> tcError (getSLocIdent i) $ "undefined " ++ msg ++ ": " ++ showIdent i
-               -- ++ "\n" ++ show env ;
-    Just [Entry e s] -> T.return (setSLocExpr (getSLocIdent i) e, s)
-    Just _ -> tcError (getSLocIdent i) $ "ambiguous " ++ msg ++ ": " ++ showIdent i
+    Just [e] -> Right e
+    Just _   -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i
+    Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
+                       -- ++ "\n" ++ show env ;
 
 tInst :: EType -> T EType
 tInst as =
