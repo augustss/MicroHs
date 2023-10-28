@@ -2098,7 +2098,7 @@ stLookup msg i (SymTab genv lenv) =
         Just [e] -> Right e
         Just _   -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
-                           --X ++ "\n" ++ show lenv ++ "\n" ++ show genv
+                           -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
 
 stFromListWith :: forall a . ([a] -> [a] -> [a]) -> [(Ident, [a])] -> SymTab a
 stFromListWith comb ias = SymTab (M.fromListWith comb ias) []
