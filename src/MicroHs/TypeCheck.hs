@@ -143,7 +143,7 @@ filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
 filterImports it@(ImportSpec _ _ _ Nothing, _) = it
 filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs ins vs a) =
   let
-    keep x xs = elem x xs `neBool` hide
+    keep x xs = elemBy eqIdent x xs `neBool` hide
     ivs = [ i | ImpValue i <- is ]
     vs' = filter (\ (ValueExport i _) -> keep i ivs) vs
     cts = [ i | ImpTypeCon i <- is ]
@@ -1186,10 +1186,10 @@ tcDefValue adef =
     Fcn i eqns -> T.do
       (_, tt) <- tLookup "type signature" i
 --      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr tt
---      traceM $ showEDefs [adef]
+--      traceM $ "tcDefValue: def=" ++ showEDefs [adef]
       mn <- gets moduleName
       teqns <- tcEqns tt eqns
---      traceM (showEDefs [Fcn i eqns, Fcn i teqns])
+--      traceM ("tcDefValue: after " ++ showEDefs [adef, Fcn i teqns])
       checkConstraints
       T.return $ Fcn (qualIdent mn i) teqns
     ForImp ie i t -> T.do
@@ -1287,10 +1287,9 @@ tGetExpTypeSet loc (Infer r) = tGetRefType r {-T.do
 tcExpr :: --XHasCallStack =>
           Expected -> Expr -> T Expr
 tcExpr mt ae = T.do
---  traceM ("tcExpr enter: " ++ showExpr ae ++ " :: " ++ showMaybe showExpr mt)
+--  traceM ("tcExpr enter: " ++ showExpr ae)
   r <- tcExprR mt ae
---  t <- expandType (snd r)
---  traceM ("tcExpr exit: " ++ showExpr (fst r) ++ " :: " ++ showExpr t)
+--  traceM ("tcExpr exit: " ++ showExpr r)
   T.return r
 tcExprR :: --XHasCallStack =>
            Expected -> Expr -> T Expr
@@ -1590,7 +1589,11 @@ tcEqn t eqn =
 
 tcAlts :: EType -> EAlts -> T EAlts
 tcAlts tt (EAlts alts bs) =
-  tcBinds bs $ \ bbs -> T.do { aalts <- T.mapM (tcAlt tt) alts; T.return (EAlts aalts bbs) }
+--  trace ("tcAlts: bs in " ++ showEBinds bs) $
+  tcBinds bs $ \ bbs -> T.do
+--    traceM ("tcAlts: bs out " ++ showEBinds bbs)
+    aalts <- T.mapM (tcAlt tt) alts
+    T.return (EAlts aalts bbs)
 
 tcAlt :: EType -> EAlt -> T EAlt
 --tcAlt t (_, rhs) | trace ("tcAlt: " ++ showExpr rhs ++ " :: " ++ showEType t) False = undefined
@@ -1715,13 +1718,6 @@ tcBind abind =
       ea       <- tCheckExpr tp a
       T.return $ BPat ep ea
     BSign _ _ -> T.return abind
-
-getBindVars :: EBind -> [Ident]
-getBindVars abind =
-  case abind of
-    BFcn i _  -> [i]
-    BPat p _  -> patVars p
-    BSign _ _ -> []
 
 -- Desugar [T] and (T,T,...)
 dsType :: EType -> EType

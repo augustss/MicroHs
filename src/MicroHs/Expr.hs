@@ -8,7 +8,7 @@ module MicroHs.Expr(
   Expr(..), showExpr,
   Listish(..),
   Lit(..), showLit, eqLit,
-  EBind(..), showEBind,
+  EBind(..), showEBind, showEBinds,
   Eqn(..),
   EStmt(..),
   EAlts(..),
@@ -26,11 +26,12 @@ module MicroHs.Expr(
   tupleConstr, getTupleConstr,
   mkTupleSel,
   subst,
-  allVarsExpr, allVarsBind,
+  allVarsExpr, allVarsBind, allVarsEqn,
   getSLocExpr, setSLocExpr,
   getSLocEqns,
   errorMessage,
   Assoc(..), eqAssoc, Fixity
+  getBindsVars,
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList, (<>))
 import Data.Maybe
@@ -372,6 +373,9 @@ showEDefs = render . ppEDefs
 showEBind :: EBind -> String
 showEBind = render . ppEBind
 
+showEBinds :: [EBind] -> String
+showEBinds = render . vcat . map ppEBind
+
 showEType :: EType -> String
 showEType = render . ppEType
 
@@ -524,3 +528,12 @@ ppEKind = ppEType
 
 ppList :: forall a . (a -> Doc) -> [a] -> Doc
 ppList pp xs = brackets $ hsep $ punctuate (text ",") (map pp xs)
+getBindVars :: EBind -> [Ident]
+getBindVars abind =
+  case abind of
+    BFcn i _  -> [i]
+    BPat p _  -> patVars p
+    BSign _ _ -> []
+
+getBindsVars :: [EBind] -> [Ident]
+getBindsVars = concatMap getBindVars
