@@ -5,7 +5,7 @@ module MicroHs.Expr(
   ImportSpec(..),
   ImportItem(..),
   EDef(..), showEDefs,
-  Expr(..), showExpr,
+  Expr(..), eLam, showExpr,
   Listish(..),
   Lit(..), showLit, eqLit,
   EBind(..), showEBind, showEBinds,
@@ -83,7 +83,7 @@ data Expr
   = EVar Ident
   | EApp Expr Expr
   | EOper Expr [(Ident, Expr)]
-  | ELam [EPat] Expr
+  | ELam [Eqn]
   | ELit SLoc Lit
   | ECase Expr [ECaseArm]
   | ELet [EBind] Expr
@@ -101,6 +101,9 @@ data Expr
   | ECon Con
   | EForall [IdKind] Expr -- only in types
   --Xderiving (Show, Eq)
+
+eLam :: [EPat] -> Expr -> Expr
+eLam ps e = ELam [Eqn ps (EAlts [([], e)] [])]
 
 data Con
   = ConData ConTyInfo Ident
@@ -227,7 +230,7 @@ getTupleConstr i =
 
 -- Create a tuple selector, component i (0 based) of n
 mkTupleSel :: Int -> Int -> Expr
-mkTupleSel i n = ELam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [0 .. n - 1] ]] (EVar x)
+mkTupleSel i n = eLam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [0 .. n - 1] ]] (EVar x)
   where x = mkIdent "$x"
 
 ---------------------------------
@@ -298,7 +301,7 @@ allVarsExpr aexpr =
     EVar i -> [i]
     EApp e1 e2 -> allVarsExpr e1 ++ allVarsExpr e2
     EOper e1 ies -> allVarsExpr e1 ++ concatMap (\ (i,e2) -> i : allVarsExpr e2) ies
-    ELam ps e -> concatMap allVarsPat ps ++ allVarsExpr e
+    ELam qs -> concatMap allVarsEqn qs
     ELit _ _ -> []
     ECase e as -> allVarsExpr e ++ concatMap allVarsCaseArm as
     ELet bs e -> concatMap allVarsBind bs ++ allVarsExpr e
@@ -393,7 +396,7 @@ ppEDef def =
     Data lhs cs -> text "data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs))
     Newtype lhs c -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c
     Type lhs t -> text "type" <+> ppLHS lhs <+> text "=" <+> ppEType t
-    Fcn i eqns -> vcat (map (\ (Eqn ps alts) -> sep [ppIdent i <+> hsep (map ppEPat ps), ppAlts (text "=") alts]) eqns)
+    Fcn i eqns -> ppEqns (ppIdent i) (text "=") eqns
     Sign i t -> ppIdent i <+> text "::" <+> ppEType t
     Import (ImportSpec q m mm mis) -> text "import" <+> (if q then text "qualified" else empty) <+> ppIdent m <> text (maybe "" ((" as " ++) . unIdent) mm) <>
       case mis of
@@ -406,6 +409,9 @@ ppEDef def =
     Instance vs ct ty bs -> ppWhere (text "instance" <+> ppForall vs <+> ctx ct <+> ppEType ty) bs
  where ctx [] = empty
        ctx ts = ppEType (ETuple ts) <+> text "=>"
+
+ppEqns :: Doc -> Doc -> [Eqn] -> Doc
+ppEqns name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map ppEPat ps), ppAlts sepr alts])
 
 ppConstr :: Constr -> Doc
 ppConstr (Constr c (Left  ts)) = hsep (ppIdent c : map ppEType ts)
@@ -444,7 +450,7 @@ ppExpr ae =
     EVar v -> ppIdent v
     EApp _ _ -> ppApp [] ae
     EOper e ies -> ppExpr (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
-    ELam ps e -> parens $ text "\\" <> hsep (map ppExpr ps) <+> text "->" <+> ppExpr e
+    ELam qs -> parens $ text "\\" <> ppEqns empty (text "->") qs
     ELit _ i -> text (showLit i)
     ECase e as -> text "case" <+> ppExpr e <+> text "of" $$ nest 2 (vcat (map ppCaseArm as))
     ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppExpr e
