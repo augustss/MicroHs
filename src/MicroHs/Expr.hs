@@ -30,7 +30,7 @@ module MicroHs.Expr(
   getSLocExpr, setSLocExpr,
   getSLocEqns,
   errorMessage,
-  Assoc(..), eqAssoc, Fixity
+  Assoc(..), eqAssoc, Fixity,
   getBindsVars,
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList, (<>))

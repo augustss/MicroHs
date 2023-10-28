@@ -1689,7 +1689,7 @@ tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = T.do
   let
     tmap = M.fromList [ (i, t) | BSign i t <- xbs ]
-    xs = concatMap getBindVars xbs
+    xs = getBindsVars xbs
   multCheck xs
   xts <- T.mapM (tcBindVarT tmap) xs
   withExtVals xts $ T.do
