@@ -51,9 +51,9 @@ data Entry = Entry
 entryType :: Entry -> EType
 entryType (Entry _ t) = t
 
-type ValueTable = M.Map [Entry]    -- type of value identifiers, used during type checking values
-type TypeTable  = M.Map [Entry]    -- kind of type  identifiers, used during kind checking types
-type KindTable  = M.Map [Entry]    -- sort of kind  identifiers, used during sort checking kinds
+type ValueTable = SymTab Entry     -- type of value identifiers, used during type checking values
+type TypeTable  = SymTab Entry     -- kind of type  identifiers, used during kind checking types
+type KindTable  = SymTab Entry     -- sort of kind  identifiers, used during sort checking kinds
 type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
@@ -131,7 +131,7 @@ getTVExps _ _ vals _ (ExpValue i) =
 --getFSExps :: forall a . M.Map (TModule a) -> [([FixDef], [SynDef])]
 --getFSExps impMap = [ (fe, se) | TModule _ fe _ se _ _ <- M.elems impMap ]
 
-expLookup :: Ident -> M.Map [Entry] -> Entry
+expLookup :: Ident -> SymTab Entry -> Entry
 expLookup i m = either (errorMessage (getSLocIdent i)) id $ stLookup "export" i m
 
 tyQIdent :: Entry -> Ident
@@ -160,9 +160,9 @@ mkTModule tds tcs =
 
     -- Find the Entry for a type.
     tentry i =
-      case M.lookup (qualIdent mn i) tt of
-        Just [e] -> e
-        _        -> impossible
+      case stLookup "" (qualIdent mn i) tt of
+        Right e -> e
+        _       -> impossible
     -- Find all value Entry for names associated with a type.
     assoc i = getAssocs vt at (qualIdent mn i)
 
@@ -186,9 +186,9 @@ mkTModule tds tcs =
 getAssocs :: ValueTable -> AssocTable -> Ident -> [ValueExport]
 getAssocs vt at ai =
   let qis = fromMaybe [] $ M.lookup ai at
-      val qi = case M.lookup qi vt of
-                 Just [e] -> e
-                 _        -> impossible
+      val qi = case stLookup "" qi vt of
+                 Right e -> e
+                 _       -> impossible
   in  map (\ qi -> ValueExport (unQualIdent qi) (val qi)) qis
 
 mkTables :: forall a . [(ImportSpec, TModule a)] -> (FixTable, TypeTable, SynTable, ValueTable, AssocTable)
@@ -204,7 +204,7 @@ mkTables mdls =
         syms (is, TModule mn _ tes _ ves _) =
           [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ]
-      in  M.fromListWith (unionBy eqEntry) $ concatMap syms mdls
+      in  stFromListWith (unionBy eqEntry) $ concatMap syms mdls
     allSyns =
       let
         syns (_, TModule _ _ _ ses _ _) = ses
@@ -213,7 +213,7 @@ mkTables mdls =
     allTypes =
       let
         types (is, TModule mn _ tes _ _ _) = [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
-      in M.fromListWith (unionBy eqEntry) $ concatMap types mdls
+      in stFromListWith (unionBy eqEntry) $ concatMap types mdls
     allFixes =
       let
         fixes (_, TModule _ fes _ _ _ _) = fes
@@ -328,8 +328,8 @@ initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ValueTable -> Asso
 initTC mn fs ts ss vs as =
 --  trace ("initTC " ++ show (ts, vs)) $
   let
-    xts = foldr (uncurry M.insert) ts primTypes
-    xvs = foldr (uncurry M.insert) vs primValues
+    xts = foldr (uncurry stInsert) ts primTypes
+    xvs = foldr (uncurry stInsert) vs primValues
   in TC mn 1 fs xts ss xvs as IM.empty TCExpr
 
 kTypeS :: EType
@@ -351,7 +351,7 @@ primKindTable :: KindTable
 primKindTable =
   let
     entry i = Entry (EVar (mkIdentB i))
-  in M.fromList [
+  in stFromList [
        -- The kinds are wired in (for now)
        (mkIdentB "Primitives.Type", [entry "Primitives.Type" kTypeS]),
        (mkIdentB "Type",            [entry "Primitives.Type" kTypeS]),
@@ -604,14 +604,6 @@ tLookup msg i = T.do
     Right (Entry e s) -> T.return (setSLocExpr (getSLocIdent i) e, s)
     Left            e -> tcError (getSLocIdent i) e
 
-stLookup :: String -> Ident -> M.Map [Entry] -> Either String Entry
-stLookup msg i env =
-  case M.lookup i env of
-    Just [e] -> Right e
-    Just _   -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i
-    Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
-                       -- ++ "\n" ++ show env ;
-
 tInst :: EType -> T EType
 tInst as =
   case as of
@@ -627,7 +619,7 @@ extValE :: --XHasCallStack =>
            Ident -> EType -> Expr -> T ()
 extValE i t e = T.do
   venv <- gets valueTable
-  putValueTable (M.insert i [Entry e t] venv)
+  putValueTable (stInsert i [Entry e t] venv)
 
 -- Extend the symbol table with i = e :: t
 -- Add both qualified and unqualified versions of i.
@@ -658,7 +650,7 @@ extVals = T.mapM_ (uncurry extVal)
 extTyp :: Ident -> EType -> T ()
 extTyp i t = T.do
   tenv <- gets typeTable
-  putTypeTable (M.insert i [Entry (EVar i) t] tenv)
+  putTypeTable (stInsert i [Entry (EVar i) t] tenv)
 
 extTyps :: [(Ident, EType)] -> T ()
 extTyps = T.mapM_ (uncurry extTyp)
@@ -1389,7 +1381,7 @@ getMetaTyVars tys = T.do
   T.return (metaTvs tys')
 
 getEnvTypes :: T [EType]
-getEnvTypes = gets (map entryType . concat . M.elems . valueTable)
+getEnvTypes = gets (map entryType . concat . stElems . valueTable)
 
 {-
 quantify :: [MetaTv] -> Rho -> T Sigma
@@ -1521,3 +1513,28 @@ instSigma loc t1 (Check t2) = subsCheckRho loc t1 t2
 instSigma _   t1 (Infer r) = T.do
   t1' <- tInst t1
   tSetRefType r t1'
+
+---------------------
+
+data SymTab a = SymTab (M.Map [a]) -- [(Ident, a)]
+  --Xderiving(Show)
+  
+stLookup :: forall a . String -> Ident -> SymTab a -> Either String a
+stLookup msg i (SymTab genv) =
+  case M.lookup i genv of
+    Just [e] -> Right e
+    Just _   -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i
+    Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
+                       -- ++ "\n" ++ show env ;
+
+stFromListWith :: forall a . ([a] -> [a] -> [a]) -> [(Ident, [a])] -> SymTab a
+stFromListWith comb ias = SymTab (M.fromListWith comb ias)
+
+stFromList :: forall a . [(Ident, [a])] -> SymTab a
+stFromList ias = SymTab (M.fromList ias)
+
+stElems :: forall a . SymTab a -> [[a]]
+stElems (SymTab genv) = M.elems genv
+
+stInsert :: forall a . Ident -> [a] -> SymTab a -> SymTab a
+stInsert i as (SymTab genv) = SymTab (M.insert i as genv)
