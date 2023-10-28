@@ -21,6 +21,7 @@ import MicroHs.TCMonad as T
 import qualified MicroHs.IdentMap as M
 import MicroHs.Ident
 import MicroHs.Expr
+import MicroHs.Graph
 --Ximport Compat
 --Ximport GHC.Stack
 --Ximport Debug.Trace
@@ -143,7 +144,7 @@ filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
 filterImports it@(ImportSpec _ _ _ Nothing, _) = it
 filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs ins vs a) =
   let
-    keep x xs = elem x xs `neBool` hide
+    keep x xs = elemBy eqIdent x xs `neBool` hide
     ivs = [ i | ImpValue i <- is ]
     vs' = filter (\ (ValueExport i _) -> keep i ivs) vs
     cts = [ i | ImpTypeCon i <- is ]
@@ -781,6 +782,16 @@ extValE i t e = T.do
   venv <- gets valueTable
   putValueTable (stInsertLcl i (Entry e t) venv)
 
+{-
+withExtValEs :: forall a . [(Ident, EType, Expr)] -> T a -> T a
+withExtValEs ites ta = T.do
+  venv <- gets valueTable
+  putValueTable $ foldr (\ (i, t, e) -> M.insert i [Entry e t]) venv ites
+  a <- ta
+  putValueTable venv
+  T.return a
+-}
+
 -- Extend the global symbol table with i = e :: t
 -- Add both qualified and unqualified versions of i.
 extValETop :: --XHasCallStack =>
@@ -1186,10 +1197,10 @@ tcDefValue adef =
     Fcn i eqns -> T.do
       (_, tt) <- tLookup "type signature" i
 --      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr tt
---      traceM $ showEDefs [adef]
+--      traceM $ "tcDefValue: def=" ++ showEDefs [adef]
       mn <- gets moduleName
       teqns <- tcEqns tt eqns
---      traceM (showEDefs [Fcn i eqns, Fcn i teqns])
+--      traceM ("tcDefValue: after " ++ showEDefs [adef, Fcn i teqns])
       checkConstraints
       T.return $ Fcn (qualIdent mn i) teqns
     ForImp ie i t -> T.do
@@ -1287,10 +1298,9 @@ tGetExpTypeSet loc (Infer r) = tGetRefType r {-T.do
 tcExpr :: --XHasCallStack =>
           Expected -> Expr -> T Expr
 tcExpr mt ae = T.do
---  traceM ("tcExpr enter: " ++ showExpr ae ++ " :: " ++ showMaybe showExpr mt)
+--  traceM ("tcExpr enter: " ++ showExpr ae)
   r <- tcExprR mt ae
---  t <- expandType (snd r)
---  traceM ("tcExpr exit: " ++ showExpr (fst r) ++ " :: " ++ showExpr t)
+--  traceM ("tcExpr exit: " ++ showExpr r)
   T.return r
 tcExprR :: --XHasCallStack =>
            Expected -> Expr -> T Expr
@@ -1299,6 +1309,7 @@ tcExprR mt ae =
   case ae of
     EVar i -> T.do
       tcm <- gets tcMode
+--      traceM ("EVar mode=" ++ show tcm)
       case tcm of
         TCPat | isDummyIdent i -> T.do
                 -- _ can be anything, so just ignore it
@@ -1590,7 +1601,11 @@ tcEqn t eqn =
 
 tcAlts :: EType -> EAlts -> T EAlts
 tcAlts tt (EAlts alts bs) =
-  tcBinds bs $ \ bbs -> T.do { aalts <- T.mapM (tcAlt tt) alts; T.return (EAlts aalts bbs) }
+--  trace ("tcAlts: bs in " ++ showEBinds bs) $
+  tcBinds bs $ \ bbs -> T.do
+--    traceM ("tcAlts: bs out " ++ showEBinds bbs)
+    aalts <- T.mapM (tcAlt tt) alts
+    T.return (EAlts aalts bbs)
 
 tcAlt :: EType -> EAlt -> T EAlt
 --tcAlt t (_, rhs) | trace ("tcAlt: " ++ showExpr rhs ++ " :: " ++ showEType t) False = undefined
@@ -1683,25 +1698,111 @@ checkArity n p =
     check0 = if n /= 0 then tcError (getSLocExpr p) "Bad pattern" else T.return ()
 
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
-tcBinds xbs ta = T.do
+tcBinds binds ta = T.do
   let
-    tmap = M.fromList [ (i, t) | BSign i t <- xbs ]
-    xs = concatMap getBindVars xbs
+    signs = [ (i, t) | BSign i t <- binds ]
+    xs = getBindsVars binds
+--  traceM ("tcBinds: xs=" ++ showList showIdent xs)
   multCheck xs
-  xts <- T.mapM (tcBindVarT tmap) xs
-  withExtVals xts $ T.do
-    nbs <- T.mapM tcBind xbs
-    ta nbs
+  -- Kind check all the signatures
+  tmap <- M.fromList <$> T.mapM (\ (i, t) -> withTypeTable $ (i,) <$> tcTypeT (Check kType) t) signs
+  -- Split into defns with and without signatures.
+  -- Pattern bindings are always considered as no signatures.
+  let (hasSign, noSign) = loop [] [] binds
+      --loop :: [(Ident, EType, [Eqn])] -> [EBind] -> [EBind] -> ([(Ident, EType, [Eqn])], [EBind])
+      loop s ns [] = (s, ns)
+      loop s ns (BSign _ _    : bs) = loop s ns bs
+      loop s ns (b@(BPat _ _) : bs) = loop s (b:ns) bs
+      loop s ns (b@(BFcn i q) : bs) | Just t <- M.lookup i tmap = loop ((i, t, q):s) ns bs
+                                  | otherwise                 = loop s (b:ns) bs
 
-tcBindVarT :: M.Map EType -> Ident -> T (Ident, EType)
+  -- Make the environment from the signatures.
+  let its = map (\ (i, t, _) -> (i, t)) hasSign
+  withExtVals its $
+    tcBindGrps (sccBinds noSign) [] $ \ nbs -> T.do
+      let tcFcn (i, t, q) = T.do { q' <- tcEqns t q; T.return (BFcn i q') }
+      -- Finally type check the functions with signatures.
+      -- All other bindings are in the environment at this point.
+      sbs <- T.mapM tcFcn hasSign
+      ta (sbs ++ nbs)
+
+{-
+tcBindVarT :: M.Map EType -> Ident -> T (Ident, EType, Expr)
 tcBindVarT tmap x = T.do
   case M.lookup x tmap of
     Nothing -> T.do
       t <- newUVar
-      T.return (x, t)
+      ie <- newIdent (getSLocIdent x) "q"
+      T.return (x, t, EApp (EVar ie) (EVar x))
     Just t -> T.do
       tt <- withTypeTable $ tcTypeT (Check kType) t
-      T.return (x, tt)
+      T.return (x, tt, EVar x)
+-}
+
+-- Split binding into strongly connected components.
+-- BPat complicates things.  It's a node with many labels.
+-- Fake it by giving it a unique label, and have all the other
+-- labels point to the unique label.
+sccBinds :: [EBind] -> [SCC EBind]
+sccBinds binds =
+  let node _ b@(BFcn i eqns) = [(Just b, i, freeEqns eqns)]
+      node i b@(BPat p e)    =
+        let v = mkIdent (showInt i)
+        in  (Just b, v, freeExpr e) : [ (Nothing, x, [v]) | x <- patVars p ]
+      node _ _               = []
+      gr = concat $ zipWith node [0 ..] binds
+      -- Remove the Just/Nothing inserted above
+      un (AcyclicSCC Nothing) = []
+      un (AcyclicSCC (Just b)) = [AcyclicSCC b]
+      un (CyclicSCC bs) = [CyclicSCC $ catMaybes bs]
+  in  concatMap un $ stronglyConnComp leIdent gr
+
+-- This is an approximation that works for SCC.
+-- It only means that some SCCs might be bigger.
+freeEqns :: [Eqn] -> [Ident]
+freeEqns = concatMap allVarsEqn
+freeExpr :: Expr -> [Ident]
+freeExpr = allVarsExpr
+
+tcBindGrps :: forall a . [SCC EBind] -> [EBind] -> ([EBind] -> T a) -> T a
+--tcBindGrps xs rbs _ | trace ("tcBindGrps: " ++ show (xs, rbs)) False = undefined
+tcBindGrps [] rbs ta = ta rbs
+tcBindGrps (bs:bss) rbs ta =
+  tcBindGrp bs $ \ bs' ->
+    tcBindGrps bss (bs' ++ rbs) ta
+
+tcBindGrp :: forall a . SCC EBind -> ([EBind] -> T a) -> T a
+--tcBindGrp x _ | trace ("tcBindGrp: " ++ show x) False = undefined
+tcBindGrp (AcyclicSCC (BPat p a)) ta = T.do
+  its <- T.mapM (\ i -> (i,) <$> newUVar) (patVars p)
+  withExtVals its $ T.do
+    (ep, tp) <- withTCMode TCPat $ tInferExpr p  -- pattern variables already bound
+    ea       <- tCheckExpr tp a
+    ta [BPat ep ea]
+tcBindGrp (AcyclicSCC (BFcn i eqns)) ta = T.do
+  t <- newUVar
+--  traceM ("tcBindGrp: t=" ++ showEType t)
+  eqns'   <- tcEqns t eqns
+--  withExtVals [(i, t)] $ ta [BFcn i eqns']
+--  tt <- derefUVar t
+--  traceM ("tcBindGrp: eqns done t=" ++ showEType tt)
+  env_tys <- getEnvTypes
+--  traceM ("tcBindGrp: AcyclicSCC env_tys = " ++ showList showEType env_tys)
+  env_tvs <- getMetaTyVars env_tys
+--  traceM ("tcBindGrp: AcyclicSCC env_tvs = " ++ showList showInt env_tvs)
+  res_tvs <- getMetaTyVars [t]
+--  traceM ("tcBindGrp: AcyclicSCC res_tvs = " ++ showList showInt res_tvs)
+  ty      <- quantify (res_tvs \\ env_tvs) t
+--  traceM ("***** tcBindGrp: " ++ showIdent i ++ " :: " ++ showEType ty)
+  withExtVals [(i, ty)] $ ta [BFcn i eqns']
+
+tcBindGrp (CyclicSCC bs) ta = T.do
+  its <- T.mapM (\ i -> (i,) <$> newUVar) $ getBindsVars bs
+  withExtVals its $ T.do
+    bs' <- T.mapM tcBind bs
+    -- XXX generalize, update its
+    ta bs'
+tcBindGrp _ _ = impossible
 
 tcBind :: EBind -> T EBind
 tcBind abind =
@@ -1715,13 +1816,6 @@ tcBind abind =
       ea       <- tCheckExpr tp a
       T.return $ BPat ep ea
     BSign _ _ -> T.return abind
-
-getBindVars :: EBind -> [Ident]
-getBindVars abind =
-  case abind of
-    BFcn i _  -> [i]
-    BPat p _  -> patVars p
-    BSign _ _ -> []
 
 -- Desugar [T] and (T,T,...)
 dsType :: EType -> EType
@@ -1778,23 +1872,23 @@ getMetaTyVars tys = T.do
 getEnvTypes :: T [EType]
 getEnvTypes = gets (map entryType . stElemsLcl . valueTable)
 
-{-
-quantify :: [MetaTv] -> Rho -> T Sigma
+quantify :: [TRef] -> Rho -> T Sigma
 -- Quantify over the specified type variables (all flexible)
+quantify [] ty = T.return ty
 quantify tvs ty = T.do
-   T.mapM_ bind (tvs `zip` new_bndrs) -- 'bind' is just a cunning way
-   ty' <- zonkType ty               -- of doing the substitution
-   T.return (EForall new_bndrs_kind ty')
-  where
-    used_bndrs = tyVarBndrs ty -- Avoid quantified type variables in use
-    new_bndrs = deleteFirstsBy eqIdent allBinders used_bndrs
-    bind (tv, name) = writeTcRef tv (EVar name)
-    new_bndrs_kind = map (\ i -> IdKind i undefined) new_bndrs
+  let
+    used_bndrs = tyVarBndrs ty -- Avoid quantified type variables in use  XXX use ty'?
+    new_bndrs = take (length tvs) (allBinders \\ used_bndrs)
+    bind (tv, name) = setUVar tv (EVar name)
+    new_bndrs_kind = map (\ i -> IdKind i (EUVar 0)) new_bndrs
+--  traceM ("quantify: used_bndrs=" ++ showList showIdent used_bndrs)
+  T.mapM_ bind (tvs `zip` new_bndrs) -- 'bind' is just a cunning way
+  ty' <- derefUVar ty                -- of doing the substitution
+  T.return (EForall new_bndrs_kind ty')
 
 allBinders :: [Ident] -- a,b,..z, a1, b1,... z1, a2, b2,...
 allBinders = [ mkIdent [chr x] | x <- [ord 'a' .. ord 'z'] ] ++
              [ mkIdent (chr x : showInt i) | i <- [1 ..], x <- [ord 'a' .. ord 'z']]
--}
 
 skolemise :: --XHasCallStack =>
              Sigma -> T ([TyVar], Rho)
@@ -1850,17 +1944,18 @@ metaTvs tys = foldr go [] tys
     go (EApp fun arg) acc = go fun (go arg acc)
     go _ _ = undefined
 
-{-
 tyVarBndrs :: Rho -> [TyVar]
 -- Get all the binders used in ForAlls in the type, so that
 -- when quantifying an outer for-all we can avoid these inner ones
-tyVarBndrs ty = nubBy eqIdent (bndrs ty)
+tyVarBndrs ty = nub (bndrs ty)
   where
     bndrs (EForall tvs body) = map idKindIdent tvs ++ bndrs body
     bndrs (EApp arg res) = bndrs arg ++ bndrs res
     bndrs (EVar _) = []
-    bndrs _ = undefined
+    bndrs (EUVar _) = []
+    bndrs t = error $ showEType t
 
+{-
 inferSigma :: Expr -> T (Expr, Sigma)
 inferSigma e = T.do
   (e', exp_ty) <- inferRho e

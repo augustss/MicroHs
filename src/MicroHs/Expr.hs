@@ -8,7 +8,7 @@ module MicroHs.Expr(
   Expr(..), showExpr,
   Listish(..),
   Lit(..), showLit, eqLit,
-  EBind(..), showEBind,
+  EBind(..), showEBind, showEBinds,
   Eqn(..),
   EStmt(..),
   EAlts(..),
@@ -26,13 +26,16 @@ module MicroHs.Expr(
   tupleConstr, getTupleConstr,
   mkTupleSel,
   subst,
-  allVarsExpr, allVarsBind,
+  allVarsExpr, allVarsBind, allVarsEqn,
   getSLocExpr, setSLocExpr,
   getSLocEqns,
   errorMessage,
-  Assoc(..), eqAssoc, Fixity
+  Assoc(..), eqAssoc, Fixity,
+--  Free(..),
+  getBindsVars,
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList, (<>))
+--import Data.List
 import Data.Maybe
 import MicroHs.Ident
 import qualified Data.Double as D
@@ -372,6 +375,9 @@ showEDefs = render . ppEDefs
 showEBind :: EBind -> String
 showEBind = render . ppEBind
 
+showEBinds :: [EBind] -> String
+showEBinds = render . vcat . map ppEBind
+
 showEType :: EType -> String
 showEType = render . ppEType
 
@@ -524,3 +530,80 @@ ppEKind = ppEType
 
 ppList :: forall a . (a -> Doc) -> [a] -> Doc
 ppList pp xs = brackets $ hsep $ punctuate (text ",") (map pp xs)
+
+{-
+class Free a where
+  freeV :: a -> [Ident]
+
+instance Free Expr where
+  freeV (EVar v) = [v]
+  freeV (EApp f a) = freeV f `union` freeV a
+  freeV (EOper e ies) = freeV e `union` freeV ies
+  freeV (ELam ps e) = freeV e \\ concatMap patVars ps
+  freeV (ELit _ _) = []
+  freeV (ECase e as) = freeV e `union` freeV as
+  freeV (ELet bs e) = (freeV e \\ bvs) `union` fvs where (bvs, fvs) = freeBinds bs
+  freeV (ETuple es) = freeV es
+  freeV (EListish l) = freeV l
+  freeV (EDo _ ss) = snd $ freeStmts ss
+  freeV (ESectL e i) = freeV e `union` [i]
+  freeV (ESectR i e) = [i] `union` freeV e
+  freeV (EIf e1 e2 e3) = freeV e1 `union` freeV e2 `union` freeV e3
+  freeV (ESign _ e) = freeV e
+  freeV (EAt _ _) = undefined
+  freeV (EUVar _) = undefined
+  freeV (ECon _) = undefined
+  freeV (EForall _ _) = undefined
+
+instance forall a . (Free a) => Free [a] where
+  freeV as = foldr (union . freeV) [] as
+
+instance Free (Ident, Expr) where
+  freeV (i, e) = [i] `union` freeV e
+
+--instance Free ECaseArm where
+instance Free (Expr, EAlts) where
+  freeV (p, as) = freeV as \\ patVars p
+
+instance Free Listish where
+  freeV (LList es) = freeV es
+  freeV (LCompr e ss) = (freeV e \\ bvs) `union` fvs where (bvs, fvs) = freeStmts ss
+  freeV (LFrom e) = freeV e
+  freeV (LFromTo e1 e2) = freeV e1 `union` freeV e2
+  freeV (LFromThen e1 e2) = freeV e1 `union` freeV e2
+  freeV (LFromThenTo e1 e2 e3) = freeV e1 `union` freeV e2 `union` freeV e3
+  
+instance Free EAlts where
+  freeV (EAlts as bs) = (freeV as \\ bvs) `union` fvs where (bvs, fvs) = freeBinds bs
+
+instance Free EAlt where
+  freeV (ss, e) = (freeV e \\ bvs) `union` fvs where (bvs, fvs) = freeStmts ss
+
+instance Free Eqn where
+  freeV (Eqn ps a) = freeV a \\ concatMap patVars ps
+
+freeStmts :: [EStmt] -> ([Ident], [Ident])
+freeStmts = loop [] []
+  where loop bvs fvs [] = (bvs, fvs)
+        loop bvs fvs (SBind p e : ss) = loop (patVars p `union` bvs) (fvs `union` (freeV e \\ bvs)) ss
+        loop bvs fvs (SThen e   : ss) = loop                    bvs  (fvs `union` (freeV e \\ bvs)) ss
+        loop bvs fvs (SLet bs   : ss) = loop (bvs'      `union` bvs) (fvs `union` (fvs'    \\ bvs)) ss
+          where (bvs', fvs') = freeBinds bs
+
+freeBinds :: [EBind] -> ([Ident], [Ident])
+freeBinds bs = (bvs, foldr (union . fv) [] bs \\ bvs)
+  where bvs = getBindsVars bs
+        fv (BSign _ _) = []
+        fv (BFcn _ x) = freeV x
+        fv (BPat _ x) = freeV x
+-}
+
+getBindVars :: EBind -> [Ident]
+getBindVars abind =
+  case abind of
+    BFcn i _  -> [i]
+    BPat p _  -> patVars p
+    BSign _ _ -> []
+
+getBindsVars :: [EBind] -> [Ident]
+getBindsVars = concatMap getBindVars

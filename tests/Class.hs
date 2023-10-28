@@ -1,4 +1,5 @@
 module Class(main) where
+import Primitives
 import Prelude
 
 class Eqq a where
@@ -7,10 +8,10 @@ class Eqq a where
   x /== y = not (x === y)
 
 instance Eqq Int where
-  (===) = (==)
+  (===) = primIntEQ
 
 instance Eqq Char where
-  (===) = eqChar
+  (===) = primCharEQ
 
 instance forall a . Eqq a => Eqq [a] where
   []     === []      =  True
