@@ -69,9 +69,9 @@ instance Eq Entry where
 entryType :: Entry -> EType
 entryType (Entry _ t) = t
 
-type ValueTable = M.Map [Entry]    -- type of value identifiers, used during type checking values
-type TypeTable  = M.Map [Entry]    -- kind of type  identifiers, used during kind checking types
-type KindTable  = M.Map [Entry]    -- sort of kind  identifiers, used during sort checking kinds
+type ValueTable = SymTab Entry     -- type of value identifiers, used during type checking values
+type TypeTable  = SymTab Entry     -- kind of type  identifiers, used during kind checking types
+type KindTable  = SymTab Entry     -- sort of kind  identifiers, used during sort checking kinds
 type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
@@ -175,12 +175,8 @@ getTVExps _ _ vals _ (ExpValue i) =
 --getFSExps :: forall a . M.Map (TModule a) -> [([FixDef], [SynDef])]
 --getFSExps impMap = [ (fe, se) | TModule _ fe _ se _ _ <- M.elems impMap ]
 
-expLookup :: Ident -> M.Map [Entry] -> Entry
-expLookup i m =
-  case M.lookup i m of
-    Just [e] -> e
-    Just _ -> errorMessage (getSLocIdent i) $ "ambiguous export " ++ showIdent i
-    Nothing -> expErr i
+expLookup :: Ident -> SymTab Entry -> Entry
+expLookup i m = either (errorMessage (getSLocIdent i)) id $ stLookup "export" i m
 
 tyQIdent :: Entry -> Ident
 tyQIdent (Entry (EVar qi) _) = qi
@@ -218,9 +214,9 @@ mkTModule tds tcs =
 
     -- Find the Entry for a type.
     tentry i =
-      case M.lookup (qualIdent mn i) tt of
-        Just [e] -> e
-        _        -> impossible
+      case stLookup "" (qualIdent mn i) tt of
+        Right e -> e
+        _       -> impossible
     -- Find all value Entry for names associated with a type.
     assoc i = getAssocs vt at (qualIdent mn i)
 
@@ -252,9 +248,9 @@ mkTModule tds tcs =
 getAssocs :: ValueTable -> AssocTable -> Ident -> [ValueExport]
 getAssocs vt at ai =
   let qis = fromMaybe [] $ M.lookup ai at
-      val qi = case M.lookup qi vt of
-                 Just [e] -> e
-                 _        -> impossible
+      val qi = case stLookup "" qi vt of
+                 Right e -> e
+                 _       -> impossible
   in  map (\ qi -> ValueExport (unQualIdent qi) (val qi)) qis
 
 mkTables :: forall a . [(ImportSpec, TModule a)] ->
@@ -271,7 +267,7 @@ mkTables mdls =
         syms (is, TModule mn _ tes _ _ _ ves _) =
           [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ]
-      in  M.fromListWith union $ concatMap syms mdls
+      in  stFromListWith (unionBy eqEntry) $ concatMap syms mdls
     allSyns =
       let
         syns (_, TModule _ _ _ ses _ _ _ _) = ses
@@ -280,7 +276,7 @@ mkTables mdls =
     allTypes =
       let
         types (is, TModule mn _ tes _ _ _ _ _) = [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
-      in M.fromListWith union $ concatMap types mdls
+      in stFromListWith (unionBy eqEntry) $ concatMap types mdls
     allFixes =
       let
         fixes (_, TModule _ fes _ _ _ _ _ _) = fes
@@ -480,8 +476,8 @@ initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ClassTable -> Inst
 initTC mn fs ts ss cs is vs as =
 --  trace ("initTC " ++ show (ts, vs)) $
   let
-    xts = foldr (uncurry M.insert) ts primTypes
-    xvs = foldr (uncurry M.insert) vs primValues
+    xts = foldr (uncurry stInsertGlb) ts primTypes
+    xvs = foldr (uncurry stInsertGlb) vs primValues
   in TC mn 1 fs xts ss xvs as IM.empty TCExpr cs is []
 
 kTypeS :: EType
@@ -511,7 +507,7 @@ primKindTable :: KindTable
 primKindTable =
   let
     entry i = Entry (EVar (mkIdentB i))
-  in M.fromList [
+  in stFromList [
        -- The kinds are wired in (for now)
        (mkIdentB "Primitives.Type",       [entry "Primitives.Type" kTypeS]),
        (mkIdentB "Type",                  [entry "Primitives.Type" kTypeS]),
@@ -736,11 +732,9 @@ tLookup :: --XHasCallStack =>
            String -> String -> Ident -> T (Expr, EType)
 tLookup msg0 msgN i = T.do
   env <- gets valueTable
-  case M.lookup i env of
-    Nothing -> tcError (getSLocIdent i) $ msg0 ++ ": " ++ showIdent i
-               -- ++ "\n" ++ show (map (unIdent . fst) (M.toList env))
-    Just [Entry e s] -> T.return (setSLocExpr (getSLocIdent i) e, s)
-    Just _ -> tcError (getSLocIdent i) $ msgN ++ ": " ++ showIdent i
+  case stLookup msg i env of
+    Right (Entry e s) -> T.return (setSLocExpr (getSLocIdent i) e, s)
+    Left            e -> tcError (getSLocIdent i) e
 
 tLookupV :: --XHasCallStack =>
            Ident -> T (Expr, EType)
@@ -781,16 +775,19 @@ extValE :: --XHasCallStack =>
            Ident -> EType -> Expr -> T ()
 extValE i t e = T.do
   venv <- gets valueTable
-  putValueTable (M.insert i [Entry e t] venv)
+  putValueTable (stInsertLcl i (Entry e t) venv)
 
--- Extend the symbol table with i = e :: t
+-- Extend the global symbol table with i = e :: t
 -- Add both qualified and unqualified versions of i.
 extValETop :: --XHasCallStack =>
               Ident -> EType -> Expr -> T ()
 extValETop i t e = T.do
   mn <- gets moduleName
-  extValE (qualIdent mn i) t e
-  extValE               i  t e
+  venv <- gets valueTable
+  let qi = qualIdent mn i
+      venv'  = stInsertGlb qi [Entry e t] venv
+      venv'' = stInsertGlb  i [Entry e t] venv'
+  putValueTable venv''
 
 -- Extend symbol table with i::t.
 -- The translation for i will be the qualified name.
@@ -812,7 +809,7 @@ extVals = T.mapM_ (uncurry extVal)
 extTyp :: Ident -> EType -> T ()
 extTyp i t = T.do
   tenv <- gets typeTable
-  putTypeTable (M.insert i [Entry (EVar i) t] tenv)
+  putTypeTable (stInsertLcl i (Entry (EVar i) t) tenv)
 
 extTyps :: [(Ident, EType)] -> T ()
 extTyps = T.mapM_ (uncurry extTyp)
@@ -1775,7 +1772,7 @@ getMetaTyVars tys = T.do
   T.return (metaTvs tys')
 
 getEnvTypes :: T [EType]
-getEnvTypes = gets (map entryType . concat . M.elems . valueTable)
+getEnvTypes = gets (map entryType . stElemsLcl . valueTable)
 
 {-
 quantify :: [MetaTv] -> Rho -> T Sigma
@@ -2095,3 +2092,36 @@ checkConstraints = T.do
       tcError (getSLocIdent i) $ "Cannot satisfy constraint: " ++ showExpr t'
       --traceM $ "Cannot satisfy constraint: " ++ showExpr t'
       --T.return ()
+
+---------------------
+
+data SymTab a = SymTab (M.Map [a]) [(Ident, a)]
+  --Xderiving(Show)
+  
+stLookup :: forall a . --XShow a =>
+            String -> Ident -> SymTab a -> Either String a
+stLookup msg i (SymTab genv lenv) =
+  case lookupBy eqIdent i lenv of
+    Just e -> Right e
+    Nothing ->
+      case M.lookup i genv of
+        Just [e] -> Right e
+        Just _   -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i
+        Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
+                           --X ++ "\n" ++ show lenv ++ "\n" ++ show genv
+
+stFromListWith :: forall a . ([a] -> [a] -> [a]) -> [(Ident, [a])] -> SymTab a
+stFromListWith comb ias = SymTab (M.fromListWith comb ias) []
+
+stFromList :: forall a . [(Ident, [a])] -> SymTab a
+stFromList ias = SymTab (M.fromList ias) []
+
+stElemsLcl :: forall a . SymTab a -> [a]
+stElemsLcl (SymTab _genv lenv) = map snd lenv
+
+stInsertLcl :: forall a . Ident -> a -> SymTab a -> SymTab a
+stInsertLcl i a (SymTab genv lenv) = SymTab genv ((i,a) : lenv)
+
+-- XXX Use insertWith to follow Haskell semantics.
+stInsertGlb :: forall a . Ident -> [a] -> SymTab a -> SymTab a
+stInsertGlb i as (SymTab genv lenv) = SymTab (M.insert i as genv) lenv
