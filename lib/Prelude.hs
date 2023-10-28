@@ -14,7 +14,6 @@ module Prelude(
   module Data.Tuple,
   module System.IO,
   module Text.String,
-  _noMatch,
   ) where
 import Control.Error
 import Data.Bool
@@ -30,8 +29,10 @@ import Data.Tuple
 import System.IO
 import Text.String
 
+{-
 -- Called on pattern match failure.
 _noMatch :: forall a . [Char] -> Int -> Int -> a
 _noMatch fn l c = error $ "no match at " ++
   if null fn then "no location" else
   showString fn ++ ": " ++ "line " ++ showInt l ++ ", col " ++ showInt c
+-}

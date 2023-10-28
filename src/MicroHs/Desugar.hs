@@ -370,7 +370,7 @@ dsMatrix dflt iis aarms =
 
 eMatchErr :: SLoc -> Exp
 eMatchErr (SLoc fn l c) =
-  App (App (App (Var (mkIdent "Prelude._noMatch")) (Lit (LStr fn))) (Lit (LInt l))) (Lit (LInt c))
+  App (App (App (Lit (LPrim "noMatch")) (Lit (LStr fn))) (Lit (LInt l))) (Lit (LInt c))
 
 -- If the first expression isn't a variable/literal, then use
 -- a let binding and pass variable to f.
