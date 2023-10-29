@@ -22,8 +22,7 @@ extra-source-files:
       Tools/convertY.sh
       Tools/Addcombs.hs
       comb/*.comb
-      ghc/Primitives.hs
-      ghc/Data/Bool_Type.hs
+      ghc/**/*.hs
       lib/**/*.hs
       src/runtime/eval.c
       tests/Makefile
@@ -51,13 +50,13 @@ executable mhs
                        MicroHs.StateIO
                        MicroHs.IdentMap
                        MicroHs.Interactive
-                       MicroHs.State
                        MicroHs.TCMonad
                        MicroHs.Translate
                        MicroHs.TypeCheck
                        PreludeNoIO
                        Text.ParserComb
                        System.Console.SimpleReadline
+                       Control.Alternative
                        Data.Double
                        Compat
                        CompatIO
