@@ -6,7 +6,7 @@ module Compat(module Compat) where
 import qualified Data.Function as F
 import Data.Time
 import Data.Time.Clock.POSIX
-import qualified Control.Monad as M
+--import qualified Control.Monad as M
 import Control.Exception
 import Data.List
 import System.Environment
@@ -126,8 +126,8 @@ openFileM path m = do
     Left _ -> return Nothing
     Right h -> return (Just h)
 
-when :: Bool -> IO () -> IO ()
-when = M.when
+--when :: Bool -> IO () -> IO ()
+--when = M.when
 
 on :: (a -> a -> b) -> (c -> a) -> (c -> c -> b)
 on = F.on

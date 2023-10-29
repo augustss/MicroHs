@@ -55,7 +55,7 @@ type SynDef = (Ident, EType)
 type ClsDef = (Ident, ClassInfo)
 type InstDef= (Ident, InstInfo)
 
-type ClassInfo = ([IdKind], [EConstraint], [Ident])  -- class tyvars, superclasses, methods
+type ClassInfo = ([IdKind], [EConstraint], EType, [Ident])  -- class tyvars, superclasses, methods
 
 -- Symbol table entry for symbol i.
 data Entry = Entry
@@ -109,7 +109,7 @@ type TyVar = Ident
 
 typeCheck :: forall a . [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
 typeCheck aimps (EModule mn exps defs) =
---  trace (show amdl) $
+--  trace (unlines $ map (showTModuleExps . snd) aimps) $
   let
     imps = map filterImports aimps
     (fs, ts, ss, cs, is, vs, as) = mkTables imps
@@ -132,7 +132,7 @@ typeCheck aimps (EModule mn exps defs) =
 tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [SynDef] -> [ClsDef] -> [InstDef] -> [ValueExport] -> [EDef] ->
            TModule [EDef]
 tModule mn fs ts ss cs is vs ds =
---  trace ("tmodule " ++ showIdent mn ++ ": " ++ show ts) $
+--  trace ("tmodule " ++ showIdent mn ++ ":\n" ++ show vs) $
   seqL ts `seq` seqL vs `seq` TModule mn fs ts ss cs is vs ds
   where
     seqL :: forall a . [a] -> ()
@@ -268,10 +268,13 @@ mkTables mdls =
     allValues :: ValueTable
     allValues =
       let
-        syms (is, TModule mn _ tes _ _ _ ves _) =
+        syms (is, TModule mn _ tes _ cls _ ves _) =
+--          trace ("allValues: mn=" ++ showIdent mn ++ " cls=" ++ showList showIdentClassInfo cls) $
           [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
-          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ]
-      in  stFromListWith (unionBy eqEntry) $ concatMap syms mdls
+          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ] ++
+          [ (v, [Entry (EVar v) t]) | (i, (_, _, t, _)) <- cls, let { v = mkClassConstructor i } ]
+      in  --(\ t -> trace ("allValues: " ++ showSymTab t) t) $
+          stFromListWith (unionBy eqEntry) $ concatMap syms mdls
     allSyns =
       let
         syns (_, TModule _ _ _ ses _ _ _ _) = ses
@@ -297,7 +300,8 @@ mkTables mdls =
     allClasses =
       let
         clss (_, TModule _ _ _ _ ces _ _ _) = ces
-      in  M.fromList $ concatMap clss mdls
+      in  --(\ m -> trace ("allClasses: " ++ showList showIdentClassInfo (M.toList m)) m) $
+          M.fromList $ concatMap clss mdls
     allInsts :: InstTable
     allInsts =
       let
@@ -448,7 +452,7 @@ addAssocTable i ids = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt (M.insert i ids ast) sub m cs is es
 
-addClassTable :: Ident -> ([IdKind], [EConstraint], [Ident]) -> T ()
+addClassTable :: Ident -> ClassInfo -> T ()
 addClassTable i x = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt ast sub m (M.insert i x cs) is es
@@ -928,8 +932,8 @@ addTypeKind adef = T.do
     Type    lhs t         -> addLHSKind lhs (getTypeKind t)
     Class _ lhs@(i, _) ms -> T.do
       addLHSKind lhs kConstraint
-      addAssoc i (mkClassConstructor i : [ m | BSign m _ <- ms ])
-    _               -> T.return ()
+      addAssoc i ({-mkClassConstructor i : -} [ m | BSign m _ <- ms ])
+    _ -> T.return ()
 
 getTypeKind :: EType -> EKind
 getTypeKind (ESign _ k) = k
@@ -1036,8 +1040,8 @@ expandClass :: EDef -> T [EDef]
 expandClass dcls@(Class ctx (iCls, vks) ms) = T.do
   mn <- gets moduleName
   let
-      methIds = [ i | (BSign i _) <- ms ]
       meths = [ b | b@(BSign _ _) <- ms ]
+      methIds = map (\ (BSign i _) -> i) meths
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
       mkDflt (BSign methId t) = [ Sign iDflt $ EForall vks $ tCtx `tImplies` t, def $ lookup methId mdflts ]
@@ -1048,7 +1052,7 @@ expandClass dcls@(Class ctx (iCls, vks) ms) = T.do
               noDflt = EApp noDefaultE (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent methId)))
       mkDflt _ = impossible
       dDflts = concatMap mkDflt meths
-  addClassTable (qualIdent mn iCls) (vks, ctx, methIds)
+  addClassTable (qualIdent mn iCls) (vks, ctx, EUVar 0, methIds)   -- Initial entry, no type needed.
   T.return $ dcls : dDflts
 expandClass d = T.return [d]
 
@@ -1081,13 +1085,13 @@ tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance vks ctx cc bs) = T.do
   let loc = getSLocExpr cc
-      iCls = getAppCon cc
+      qiCls = getAppCon cc
   iInst <- newIdent loc "inst"
   let sign = Sign iInst (eForall vks $ addConstraints ctx cc)
-  (e, _) <- tLookupV iCls
+--  (e, _) <- tLookupV iCls
   ct <- gets classTable
-  let qiCls = getAppCon e
-  (_, supers, mis) <-
+--  let qiCls = getAppCon e
+  (_, supers, _, mis) <-
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> T.return x
@@ -1098,7 +1102,7 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc "dict$")) supers
       args = sups ++ meths
-  let bind = Fcn iInst $ eEqns [] $ foldl EApp (EVar $ mkClassConstructor iCls) args
+  let bind = Fcn iInst $ eEqns [] $ foldl EApp (EVar $ mkClassConstructor qiCls) args
   mn <- gets moduleName
   addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc)]
   T.return [dinst, sign, bind]
@@ -1143,17 +1147,21 @@ addValueClass ctx iCls vks ms = T.do
   let
       meths = [ b | b@(BSign _ _) <- ms ]
       methTys = map (\ (BSign _ t) -> t) meths
+      methIds = map (\ (BSign i _) -> i) meths
       supTys = ctx  -- XXX should do some checking
       targs = supTys ++ methTys
       qiCls = qualIdent mn iCls
       tret = tApps qiCls (map tVarK vks)
       cti = [ (qualIdent mn iCon, length targs) ]
       iCon = mkClassConstructor iCls
-  extValETop iCon (EForall vks $ foldr tArrow tret targs) (ECon $ ConData cti (qualIdent mn iCon))
+      iConTy = EForall vks $ foldr tArrow tret targs
+  extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon))
   let addMethod (BSign i t) = extValETop i (EForall vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
       addMethod _ = impossible
 --  traceM ("addValueClass " ++ showEType (ETuple ctx))
   T.mapM_ addMethod meths
+  -- Update class table, now with actual constructor type.
+  addClassTable qiCls (vks, ctx, iConTy, methIds)
 
 {-
 bundleConstraints :: [EConstraint] -> EType -> EType
@@ -1920,7 +1928,7 @@ expandDict edict acn = T.do
     Just _ -> concat <$> T.mapM (\ (i, a) -> expandDict (mkTupleSel i (length args) `EApp` edict) a) (zip [0..] args)
     Nothing -> T.do
       ct <- gets classTable
-      let (iks, sups, _) = fromMaybe impossible $ M.lookup iCls ct
+      let (iks, sups, _, _) = fromMaybe impossible $ M.lookup iCls ct
           sub = zip (map idKindIdent iks) args
           sups' = map (subst sub) sups
       mn <- gets moduleName
@@ -2088,15 +2096,15 @@ checkConstraints = T.do
 data SymTab a = SymTab (M.Map [a]) [(Ident, a)]
   --Xderiving(Show)
   
-stLookup :: forall a . --XShow a =>
-            String -> Ident -> SymTab a -> Either String a
+stLookup :: --forall a . --XShow a =>
+            String -> Ident -> SymTab Entry -> Either String Entry
 stLookup msg i (SymTab genv lenv) =
   case lookupBy eqIdent i lenv of
     Just e -> Right e
     Nothing ->
       case M.lookup i genv of
         Just [e] -> Right e
-        Just _   -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i
+        Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++ showList showExpr [ e | Entry e _ <- es ]
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
 
@@ -2115,3 +2123,28 @@ stInsertLcl i a (SymTab genv lenv) = SymTab genv ((i,a) : lenv)
 -- XXX Use insertWith to follow Haskell semantics.
 stInsertGlb :: forall a . Ident -> [a] -> SymTab a -> SymTab a
 stInsertGlb i as (SymTab genv lenv) = SymTab (M.insert i as genv) lenv
+
+-----------------------------
+{-
+showSymTab :: SymTab Entry -> String
+showSymTab (SymTab im ies) = showList showIdent (map fst (M.toList im) ++ map fst ies)
+
+showTModuleExps :: TModule a -> String
+showTModuleExps (TModule mn _fxs tys _syns _clss _insts vals _defs) =
+  showIdent mn ++ ":\n" ++
+    unlines (map (("  " ++) . showValueExport) vals) ++
+    unlines (map (("  " ++) . showTypeExport)  tys)
+
+showValueExport :: ValueExport -> String
+showValueExport (ValueExport i (Entry qi t)) =
+  showIdent i ++ " = " ++ showExpr qi ++ " :: " ++ showEType t
+
+showTypeExport :: TypeExport -> String
+showTypeExport (TypeExport i (Entry qi t) vs) =
+  showIdent i ++ " = " ++ showExpr qi ++ " :: " ++ showEType t ++ " assoc=" ++ showList showValueExport vs
+
+showIdentClassInfo :: (Ident, ClassInfo) -> String
+showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
+  showIdent i ++ " :: " ++ showEType cc ++
+    " has " ++ showList showIdent ms
+-}

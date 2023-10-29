@@ -1,13 +1,21 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module System.IO(module System.IO, Handle, IO) where
+module System.IO(
+  module System.IO, Handle, IO,
+  module Data.Functor,
+  module Control.Applicative,
+  module Control.Monad,
+  ) where
 import Primitives
+import Control.Applicative
 import Control.Error
+import Control.Monad
 import Data.Bool
 import Data.Char
 import Data.Eq
 import Data.Int
 import Data.List
+import Data.Functor
 import Data.Maybe
 import Data.Tuple
 
@@ -15,6 +23,19 @@ type FilePath = String
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
 
+instance Functor IO where
+  fmap f ioa   = ioa `primBind` \ a -> primReturn (f a)
+instance Applicative IO where
+  pure         = primReturn
+  (<*>)        = ap
+instance Monad IO where
+  (>>=)        = primBind
+  (>>)         = primThen
+  return       = primReturn
+instance MonadFail IO where
+  fail         = error
+
+{-
 infixl 1 >>=
 (>>=)       :: forall a b . IO a -> (a -> IO b) -> IO b
 (>>=)        = primBind
@@ -31,6 +52,7 @@ fail s       = error s
 
 fmap        :: forall a b . (a -> b) -> IO a -> IO b
 fmap f ioa   = ioa >>= \ a -> return (f a)
+-}
 
 hSerialize   :: forall a . Handle -> a -> IO ()
 hSerialize   = primHSerialize
@@ -88,6 +110,7 @@ getChar = hGetChar stdin
 print :: forall a . a -> IO ()
 print = primHPrint stdout
 
+{-
 mapM :: forall a b . (a -> IO b) -> [a] -> IO [b]
 mapM f =
   let
@@ -109,6 +132,7 @@ mapM_ f =
 
 when :: Bool -> IO () -> IO ()
 when b io = if b then io else return ()
+-}
 
 putStr :: String -> IO ()
 putStr = hPutStr stdout

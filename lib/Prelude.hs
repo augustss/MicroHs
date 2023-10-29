@@ -1,12 +1,15 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Prelude(
+  module Control.Applicative,
   module Control.Error,
+  module Control.Monad,
   module Data.Bool,
   module Data.Char,
   module Data.Either,
   module Data.Eq,
   module Data.Function,
+  module Data.Functor,
   module Data.Int,
   module Data.List,
   module Data.Maybe,
@@ -15,12 +18,15 @@ module Prelude(
   module System.IO,
   module Text.String,
   ) where
+import Control.Applicative
 import Control.Error
+import Control.Monad
 import Data.Bool
 import Data.Char
 import Data.Either
 import Data.Eq
 import Data.Function
+import Data.Functor
 import Data.Int
 import Data.List
 import Data.Maybe

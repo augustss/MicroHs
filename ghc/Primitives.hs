@@ -8,6 +8,7 @@ module Primitives(
   IO,
   Word,
   NFData(..),
+  Type,
   ) where
 import Control.DeepSeq
 import Control.Exception(try)
@@ -18,7 +19,7 @@ import System.IO
 import System.IO.Unsafe
 import System.Environment
 import Unsafe.Coerce
-import GHC.Types(Any)
+import GHC.Types(Any, Type)
 
 primIntAdd :: Int -> Int -> Int
 primIntAdd = (+)

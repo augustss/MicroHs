@@ -62,6 +62,9 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Data/Maybe.hs
 	$(GHCC) -c lib/Data/Ord.hs
 	$(GHCC) -c lib/Data/List.hs
+	$(GHCC) -c lib/Data/Functor.hs
+	$(GHCC) -c lib/Control/Applicative.hs
+	$(GHCC) -c lib/Control/Monad.hs
 	$(GHCC) -c lib/Text/String.hs
 	$(GHCC) -c lib/Data/Word.hs
 	$(GHCC) -c lib/System/IO.hs

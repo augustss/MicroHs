@@ -13,7 +13,9 @@ module MicroHs.TCMonad(
 --Ximport Data.Functor.Identity
 --Ximport GHC.Stack
 import Data.Char  -- for String
+import Control.Applicative
 import Control.Monad.State.Strict --Xhiding(ap)
+import Data.Functor
 import MicroHs.Ident
 import MicroHs.Expr
 

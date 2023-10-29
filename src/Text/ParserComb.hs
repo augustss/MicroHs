@@ -21,7 +21,8 @@ module Text.ParserComb(
   LastFail(..),
   ) where
 --Ximport Prelude()
-import PreludeNoIO
+import Prelude
+import Control.Monad --Xhiding(guard)
 
 data LastFail t
   = LastFail Int [t] [String]
@@ -55,6 +56,29 @@ data Prsr s t a = P (([t], s) -> Res s t a)
 runP :: forall s t a . Prsr s t a -> (([t], s) -> Res s t a)
 runP (P p) = p
 
+instance forall s t . Functor (Prsr s t) where
+  fmap f p = P $ \ t ->
+    case runP p t of
+      Many aus lf -> Many [ (f a, u) | (a, u) <- aus ] lf
+
+instance forall s t . Applicative (Prsr s t) where
+  pure a = P $ \ t -> Many [(a, t)] noFail
+  (<*>) = ap
+  (*>) p k = p >>= \ _ -> k
+
+instance forall s t . Monad (Prsr s t) where
+  (>>=) p k = P $ \ t ->
+    case runP p t of
+      Many aus plf ->
+        let { xss = [ runP (k a) u | au <- aus, let { (a, u) = au } ] }
+        in  case unzip [ (rs, lf) | xs <- xss, let { Many rs lf = xs } ] of
+              (rss, lfs) -> Many (concat rss) (longests (plf : lfs))
+  return = pure
+
+instance forall s t . MonadFail (Prsr s t) where
+  fail m = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [m])
+
+{-
 pure :: forall s t a . a -> Prsr s t a
 pure a = P $ \ t -> Many [(a, t)] noFail
 
@@ -92,6 +116,7 @@ infixl 4 <$>
 infixl 4 <$
 (<$) :: forall s t a b . a -> Prsr s t b -> Prsr s t a
 (<$) a p = p >> pure a
+-}
 
 guard :: forall s t . Bool -> Prsr s t ()
 guard b = if b then pure () else empty
@@ -107,8 +132,10 @@ infixl 3 <|>
         case runP q t of
           Many b lfb -> Many (a ++ b) (longest lfa lfb)
 
+{-
 fail :: forall s t a . String -> Prsr s t a
 fail m = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [m])
+-}
 
 get :: forall s t . Prsr s t s
 get = P $ \ t@(_, s) -> Many [(s, t)] noFail

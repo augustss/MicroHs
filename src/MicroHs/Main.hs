@@ -3,13 +3,14 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 module MicroHs.Main(main) where
 import Prelude
-import qualified MicroHs.IdentMap as M
 --Ximport Data.List
+import Control.Monad
 import Data.Maybe
 import System.Environment
 import MicroHs.Compile
 import MicroHs.Exp
 import MicroHs.Ident
+import qualified MicroHs.IdentMap as M
 import MicroHs.Translate
 import MicroHs.Interactive
 --Ximport Compat
