@@ -1934,12 +1934,13 @@ expandDict edict acn = T.do
       let (iks, sups, _, _) = fromMaybe impossible $ M.lookup iCls ct
           sub = zip (map idKindIdent iks) args
           sups' = map (subst sub) sups
-      mn <- gets moduleName
-      insts <- concat <$> T.mapM (\ (i, sup) -> expandDict (EVar (mkSuperSel mn iCls i) `EApp` edict) sup) (zip [1 ..] sups')
+--      mn <- gets moduleName
+      insts <- concat <$> T.mapM (\ (i, sup) -> expandDict (EVar (expectQualified $ mkSuperSel iCls i) `EApp` edict) sup) (zip [1 ..] sups')
       T.return $ (edict, [], [], cn) : insts
 
-mkSuperSel :: IdentModule -> Ident -> Int -> Ident
-mkSuperSel mn c i = qualIdent mn $ mkIdent $ unIdent c ++ "$super" ++ showInt i
+mkSuperSel :: --XHasCallStack =>
+              Ident -> Int -> Ident
+mkSuperSel c i = addIdentSuffix c ("$super" ++ showInt i)
 
 ---------------------------------
 

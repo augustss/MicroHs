@@ -52,12 +52,12 @@ dsDef mn adef =
     Class ctx (c, _) bs ->
       let f = mkIdent "$f"
           meths :: [Ident]
-          meths = [ i | (BSign i _) <- bs ]
+          meths = [ qualIdent mn i | (BSign i _) <- bs ]
           supers :: [Ident]
-          supers = [ mkSuperSel mn c i | i <- [1 .. length ctx] ]
+          supers = [ qualIdent mn $ mkSuperSel c i | i <- [1 .. length ctx] ]
           xs = [ mkIdent ("$x" ++ showInt j) | j <- [ 1 .. length ctx + length meths ] ]
       in  (qualIdent mn $ mkClassConstructor c, lams xs $ Lam f $ apps (Var f) (map Var xs)) :
-          zipWith (\ i x -> (qualIdent mn i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
+          zipWith (\ i x -> (expectQualified i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
     Instance _ _ _ _ -> []
 
 oneAlt :: Expr -> EAlts

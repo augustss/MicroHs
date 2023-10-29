@@ -35,6 +35,9 @@ isAlpha c = isLower c || isUpper c
 isDigit :: Char -> Bool
 isDigit c = (primCharLE '0' c) && (primCharLE c '9')
 
+isAlphaNum :: Char -> Bool
+isAlphaNum c = isAlpha c || isDigit c
+
 isPrint :: Char -> Bool
 isPrint c = primCharLE ' ' c && primCharLE c '~'
 

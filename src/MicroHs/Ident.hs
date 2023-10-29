@@ -15,6 +15,7 @@ module MicroHs.Ident(
   SLoc(..), noSLoc, isNoSLoc,
   showSLoc,
   compareIdent,
+  expectQualified,
   ) where
 import Data.Eq
 import Prelude --Xhiding(showString)
@@ -79,8 +80,20 @@ leIdent (Ident _ i) (Ident _ j) = leString i j
 eqIdent :: Ident -> Ident -> Bool
 eqIdent (Ident _ i) (Ident _ j) = eqString i j
 
-qualIdent :: Ident -> Ident -> Ident
+qualIdent :: --XHasCallStack =>
+             Ident -> Ident -> Ident
+--XqualIdent _ (Ident _ i) | isQual i = error $ "already qualified " ++ i
 qualIdent (Ident loc qi) (Ident _ i) = Ident loc (qi ++ "." ++ i)
+
+expectQualified :: --XHasCallStack =>
+                   Ident -> Ident
+--XexpectQualified (Ident _ s) | not (isQual s) = error $ "not qualified " ++ s
+expectQualified i = i
+
+--XisQual :: String -> Bool
+--XisQual (c:'.':_:_) | isAlphaNum c = True
+--XisQual (_:cs) = isQual cs
+--XisQual "" = False
 
 addIdentSuffix :: Ident -> String -> Ident
 addIdentSuffix (Ident loc i) s = Ident loc (i ++ s)
