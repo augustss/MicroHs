@@ -1,12 +1,14 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Char(module Data.Char, Char) where
+module Data.Char(
+  module Data.Char,
+  module Data.Char_Type   -- exports Char and String
+  ) where
 import Primitives
 import Data.Bool
+import Data.Char_Type
 import Data.Eq
 import Data.Int
-
-type String = [Char]
 
 instance Eq Char where
   (==) = primCharEQ
