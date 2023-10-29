@@ -9,15 +9,27 @@ import Data.Bool
 import Data.Char_Type
 import Data.Eq
 import Data.Int
+import Data.Ord
 
 instance Eq Char where
   (==) = primCharEQ
   (/=) = primCharNE
 
---Y{-  Overlapping instance for ghc
+instance Ord Char where
+  (<)  = primCharLT
+  (<=) = primCharLE
+  (>)  = primCharGT
+  (>=) = primCharGE
+
 instance Eq [Char] where
   (==) = primStringEQ
---Y-}
+
+instance Ord [Char] where
+  compare = primCompare
+  x <  y  =  primCompare x y == LT
+  x <= y  =  primCompare x y /= GT
+  x >  y  =  primCompare x y == GT
+  x >=  y =  primCompare x y /= GT
 
 chr :: Int -> Char
 chr = primChr
@@ -43,6 +55,7 @@ isAlphaNum c = isAlpha c || isDigit c
 isPrint :: Char -> Bool
 isPrint c = primCharLE ' ' c && primCharLE c '~'
 
+{-
 eqChar :: Char -> Char -> Bool
 eqChar = primCharEQ
 
@@ -54,14 +67,15 @@ leChar = primCharLE
 
 ltChar :: Char -> Char -> Bool
 ltChar = primCharLT
+-}
 
 isSpace :: Char -> Bool
 isSpace c = c == ' ' || c == '\t' || c == '\n'
 
 toLower :: Char -> Char
-toLower c | leChar 'A' c && leChar c 'Z' = chr (ord c - ord 'A' + ord 'a')
+toLower c | primCharLE 'A' c && primCharLE c 'Z' = chr (ord c - ord 'A' + ord 'a')
           | True = c
 
 toUpper :: Char -> Char
-toUpper c | leChar 'a' c && leChar c 'a' = chr (ord c - ord 'a' + ord 'A')
+toUpper c | primCharLE 'a' c && primCharLE c 'a' = chr (ord c - ord 'a' + ord 'A')
           | True = c

@@ -108,12 +108,15 @@ words s =
 unwords :: [String] -> String
 unwords ss = intercalate " " ss
 
+{-
 -- Using a primitive for string equality makes a huge speed difference.
 eqString :: String -> String -> Bool
 eqString = primStringEQ
 
 leString :: String -> String -> Bool
-leString s t = not (eqOrdering GT (compareString s t))
+leString s t = compareString s t /= GT
+  --not (eqOrdering GT (compareString s t))
+-}
 
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s

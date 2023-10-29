@@ -40,3 +40,7 @@
 * Just put exported classes in class export
 * Implement two level tables for instances even in the tricky cases
 * Handle tupled dictionaries better for recursive calls
+
+Bugs
+ * Eq String, Ord String  no synonym expansion
+ * Removing [] from prim table

@@ -179,7 +179,7 @@ quoteString :: String -> String
 quoteString s =
   let
     achar c =
-      if c == '"' || c == '\\' || ltChar c ' ' || ltChar '~' c then
+      if c == '"' || c == '\\' || c < ' ' || c > '~' then
         '\\' : showInt (ord c) ++ ['&']
       else
         [c]

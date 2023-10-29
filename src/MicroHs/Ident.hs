@@ -75,10 +75,10 @@ isIdent :: String -> Ident -> Bool
 isIdent s (Ident _ i) = s == i
 
 leIdent :: Ident -> Ident -> Bool
-leIdent (Ident _ i) (Ident _ j) = leString i j
+leIdent (Ident _ i) (Ident _ j) = i <= j
 
 eqIdent :: Ident -> Ident -> Bool
-eqIdent (Ident _ i) (Ident _ j) = eqString i j
+eqIdent (Ident _ i) (Ident _ j) = i == j
 
 qualIdent :: --XHasCallStack =>
              Ident -> Ident -> Ident
@@ -103,7 +103,7 @@ unQualString :: --XHasCallStack =>
 unQualString [] = ""
 unQualString s@(c:_) =
   if isIdentChar c then
-    case dropWhile (neChar '.') s of
+    case dropWhile (/= '.') s of
       "" -> s
       '.':r -> unQualString r
       _ -> undefined -- This cannot happen, but GHC doesn't know that

@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports #-}
 -- State monad over IO
 module MicroHs.StateIO(
   module MicroHs.StateIO,
@@ -11,7 +11,7 @@ module MicroHs.StateIO(
 import Prelude
 import Control.Applicative
 import Control.Monad
-import Data.Functor
+import Data.Functor --Xhiding(unzip)
 --import qualified System.IO as IO
 --Ximport qualified CompatIO as IO
 

@@ -14,12 +14,13 @@ import Data.Function
 import Data.Functor
 import Data.Int
 import Data.List_Type
+import Data.Ord
 import Data.Maybe
 import Data.Tuple
 
 --Yimport Data.Char
 
-instance forall a . Eq a => Eq [a] where
+instance {-# OVERLAPPABLE #-} forall a . Eq a => Eq [a] where
   []     == []      =  True
   (x:xs) == (y:ys)  =  x == y && xs == ys
   _      == _       =  False

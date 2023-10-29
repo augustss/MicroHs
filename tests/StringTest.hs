@@ -3,8 +3,8 @@ import Prelude
 
 main :: IO ()
 main = do
-  putStrLn $ if eqString "abc" "abc" then "yes" else "no"
-  putStrLn $ if eqString "abc" "adc" then "yes" else "no"
+  putStrLn $ if (==) "abc" "abc" then "yes" else "no"
+  putStrLn $ if (==) "abc" "adc" then "yes" else "no"
   putStrLn $ showInt 1234
   putStrLn $ showInt 0
   putStrLn $ showInt (negate 567)
