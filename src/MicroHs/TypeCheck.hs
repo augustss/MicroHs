@@ -1490,7 +1490,7 @@ tcLit mt loc l = T.do
     LInt _  -> lit (tConI loc "Primitives.Int")
     LDouble _ -> lit (tConI loc "Primitives.Double")
     LChar _ -> lit (tConI loc "Primitives.Char")
-    LStr _  -> lit (tApp (tConI loc "Data.List.[]") (tConI loc "Primitives.Char"))
+    LStr _  -> lit (tApp (tList loc) (tConI loc "Primitives.Char"))
     LPrim _ -> newUVar T.>>= lit  -- pretend it is anything
     LForImp _ -> impossible
 
