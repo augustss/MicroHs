@@ -237,19 +237,17 @@ dsPat ap =
     ELit _ _ -> ap
     _ -> impossible
 
+iNil :: Ident
+iNil = mkIdent $ listPrefix ++ "[]"
+
+iCons :: Ident
+iCons = mkIdent $ listPrefix ++ ":"
+
 consCon :: EPat
-consCon =
-  let
-    n = mkIdent "Data.List.[]"
-    c = mkIdent "Data.List.:"
-  in ECon $ ConData [(n, 0), (c, 2)] c
+consCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iCons
 
 nilCon :: EPat
-nilCon =
-  let
-    n = mkIdent "Data.List.[]"
-    c = mkIdent "Data.List.:"
-  in ECon $ ConData [(n, 0), (c, 2)] n
+nilCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iNil
 
 tupleCon :: SLoc -> Int -> EPat
 tupleCon loc n =

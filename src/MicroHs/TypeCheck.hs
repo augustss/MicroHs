@@ -9,6 +9,8 @@ module MicroHs.TypeCheck(
   mkClassConstructor,
   mkSuperSel,
   bindingsOf,
+  boolPrefix,
+  listPrefix,
   ) where
 import Data.Eq -- XXX why needed?
 import Prelude --Xhiding(showList)
@@ -23,6 +25,12 @@ import MicroHs.Expr
 --Ximport Compat
 --Ximport GHC.Stack
 --Ximport Debug.Trace
+
+boolPrefix :: String
+boolPrefix = "Data.Bool_Type."
+
+listPrefix :: String
+listPrefix = "Data.List."
 
 data TModule a = TModule
   IdentModule     -- module names
@@ -547,7 +555,7 @@ primTypes =
        (mkIdentB "=>",           [entry "Primitives.=>"       kConstraintTypeTypeS]),
        (mkIdentB "~",            [entry "Primitives.~"        kTypeTypeConstraintS]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
-       (mkIdentB "Data.List.[]", [entry "Data.List.[]"        kTypeTypeS])
+       (mkIdentB (listPrefix ++ "[]"), [entry (listPrefix ++ "[]")        kTypeTypeS])
       ] ++
       map tuple (enumFromTo 2 10)
 
@@ -1737,13 +1745,13 @@ tConI :: SLoc -> String -> EType
 tConI loc = tCon . mkIdentSLoc loc
 
 tListI :: SLoc -> Ident
-tListI loc = mkIdentSLoc loc "Data.List.[]"
+tListI loc = mkIdentSLoc loc $ listPrefix ++ "[]"
 
 tList :: SLoc -> EType
 tList = tCon . tListI
 
 tBool :: SLoc -> EType
-tBool loc = tConI loc "Data.Bool_Type.Bool"
+tBool loc = tConI loc $ boolPrefix ++ "Bool"
 
 impossible :: --XHasCallStack =>
               forall a . a
