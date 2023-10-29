@@ -36,7 +36,7 @@ $(EVAL):	src/runtime/eval.c
 ### Build the compiler with ghc, using standard libraries (Prelude, Data.List, etc)
 ###
 $(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
-	$(GHCE) -ighc -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
+	$(GHCE) -ighc -isrc -Wall -Wno-x-partial -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
 ###
 ### Build the compiler with ghc, using MicroHs libraries (Prelude, Data.List, etc)
@@ -54,6 +54,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCB) -c ghc/PrimTable.hs
 	$(GHCC) -c lib/Control/Error.hs
 	$(GHCC) -c lib/Data/Eq.hs
+	$(GHCC) -c lib/Data/Ord.hs
 	$(GHCC) -c lib/Data/Bool.hs
 	$(GHCC) -c lib/Data/Tuple.hs
 	$(GHCC) -c lib/Data/Function.hs
