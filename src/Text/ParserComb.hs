@@ -22,6 +22,7 @@ module Text.ParserComb(
   ) where
 --Ximport Prelude()
 import Prelude
+import Control.Alternative
 import Control.Monad --Xhiding(guard)
 
 data LastFail t
@@ -78,6 +79,15 @@ instance forall s t . Monad (Prsr s t) where
 instance forall s t . MonadFail (Prsr s t) where
   fail m = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [m])
 
+instance forall s t . Alternative (Prsr s t) where
+  empty = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [])
+
+  (<|>) p q = P $ \ t ->
+    case runP p t of
+      Many a lfa ->
+        case runP q t of
+          Many b lfb -> Many (a ++ b) (longest lfa lfb)
+
 {-
 pure :: forall s t a . a -> Prsr s t a
 pure a = P $ \ t -> Many [(a, t)] noFail
@@ -116,7 +126,6 @@ infixl 4 <$>
 infixl 4 <$
 (<$) :: forall s t a b . a -> Prsr s t b -> Prsr s t a
 (<$) a p = p >> pure a
--}
 
 guard :: forall s t . Bool -> Prsr s t ()
 guard b = if b then pure () else empty
@@ -132,7 +141,6 @@ infixl 3 <|>
         case runP q t of
           Many b lfb -> Many (a ++ b) (longest lfa lfb)
 
-{-
 fail :: forall s t a . String -> Prsr s t a
 fail m = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [m])
 -}
@@ -156,11 +164,13 @@ infixl 3 <|<
          Many b lfb -> Many b (longest lfa lfb)
     r -> r
 
+{-
 many :: forall s t a . Prsr s t a -> Prsr s t [a]
 many p = some p <|> pure []
 
 some :: forall s t a . Prsr s t a -> Prsr s t [a]
 some p = (:) <$> p <*> many p
+-}
 
 optional :: forall s t a . Prsr s t a -> Prsr s t (Maybe a)
 optional p = (Just <$> p) <|> pure Nothing
