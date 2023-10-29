@@ -55,7 +55,7 @@ type SynDef = (Ident, EType)
 type ClsDef = (Ident, ClassInfo)
 type InstDef= (Ident, InstInfo)
 
-type ClassInfo = ([IdKind], [EConstraint], [Ident])  -- class tyvars, superclasses, methods
+type ClassInfo = ([IdKind], [EConstraint], EType, [Ident])  -- class tyvars, superclasses, methods
 
 -- Symbol table entry for symbol i.
 data Entry = Entry
@@ -165,14 +165,18 @@ getTVExps _ tys vals ast cls (ExpTypeCon i) =
     e = expLookup i tys
     qi = tyQIdent e
     ves = getAssocs vals ast qi
-    Just ci = M.lookup qi cls
-  in ([TypeExport i e ves], [(qi, ci)], [])
+    cl = case M.lookup qi cls of
+           Just ci -> [(qi, ci)]
+           Nothing -> []
+  in ([TypeExport i e ves], cl, [])
 getTVExps _ tys _ _ cls (ExpType i) =
   let
     e = expLookup i tys
     qi = tyQIdent e
-    Just ci = M.lookup qi cls
-  in ([TypeExport i e []], [(qi, ci)], [])
+    cl = case M.lookup qi cls of
+           Just ci -> [(qi, ci)]
+           Nothing -> []
+  in ([TypeExport i e []], cl, [])
 getTVExps _ _ vals _ _ (ExpValue i) =
     ([], [], [ValueExport i (expLookup i vals)])
 
@@ -270,9 +274,10 @@ mkTables mdls =
     allValues :: ValueTable
     allValues =
       let
-        syms (is, TModule mn _ tes _ _ _ ves _) =
+        syms (is, TModule mn _ tes _ cls _ ves _) =
           [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
-          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ]
+          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ] ++
+          [ (v, [Entry (EVar v) t]) | (i, (_, _, t, _)) <- cls, let { v = mkClassConstructor i } ]
       in  stFromListWith (unionBy eqEntry) $ concatMap syms mdls
     allSyns =
       let
@@ -450,7 +455,7 @@ addAssocTable i ids = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt (M.insert i ids ast) sub m cs is es
 
-addClassTable :: Ident -> ([IdKind], [EConstraint], [Ident]) -> T ()
+addClassTable :: Ident -> ClassInfo -> T ()
 addClassTable i x = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt ast sub m (M.insert i x cs) is es
@@ -930,8 +935,8 @@ addTypeKind adef = T.do
     Type    lhs t         -> addLHSKind lhs (getTypeKind t)
     Class _ lhs@(i, _) ms -> T.do
       addLHSKind lhs kConstraint
-      addAssoc i (mkClassConstructor i : [ m | BSign m _ <- ms ])
-    _               -> T.return ()
+      addAssoc i [ m | BSign m _ <- ms ]
+    _ -> T.return ()
 
 getTypeKind :: EType -> EKind
 getTypeKind (ESign _ k) = k
@@ -1038,8 +1043,8 @@ expandClass :: EDef -> T [EDef]
 expandClass dcls@(Class ctx (iCls, vks) ms) = T.do
   mn <- gets moduleName
   let
-      methIds = [ i | (BSign i _) <- ms ]
       meths = [ b | b@(BSign _ _) <- ms ]
+      methIds = map (\ (BSign i _) -> i) meths
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
       mkDflt (BSign methId t) = [ Sign iDflt $ EForall vks $ tCtx `tImplies` t, def $ lookup methId mdflts ]
@@ -1050,7 +1055,7 @@ expandClass dcls@(Class ctx (iCls, vks) ms) = T.do
               noDflt = EApp noDefaultE (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent methId)))
       mkDflt _ = impossible
       dDflts = concatMap mkDflt meths
-  addClassTable (qualIdent mn iCls) (vks, ctx, methIds)
+  addClassTable (qualIdent mn iCls) (vks, ctx, EUVar 0, methIds)   -- Initial entry, no type needed.
   T.return $ dcls : dDflts
 expandClass d = T.return [d]
 
@@ -1083,13 +1088,13 @@ tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance vks ctx cc bs) = T.do
   let loc = getSLocExpr cc
-      iCls = getAppCon cc
+      qiCls = getAppCon cc
   iInst <- newIdent loc "inst"
   let sign = Sign iInst (eForall vks $ addConstraints ctx cc)
-  (e, _) <- tLookupV iCls
+--  (e, _) <- tLookupV iCls
   ct <- gets classTable
-  let qiCls = getAppCon e
-  (_, supers, mis) <-
+--  let qiCls = getAppCon e
+  (_, supers, _, mis) <-
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> T.return x
@@ -1100,7 +1105,7 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc "dict$")) supers
       args = sups ++ meths
-  let bind = Fcn iInst $ eEqns [] $ foldl EApp (EVar $ mkClassConstructor iCls) args
+  let bind = Fcn iInst $ eEqns [] $ foldl EApp (EVar $ mkClassConstructor qiCls) args
   mn <- gets moduleName
   addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc)]
   T.return [dinst, sign, bind]
@@ -1145,17 +1150,21 @@ addValueClass ctx iCls vks ms = T.do
   let
       meths = [ b | b@(BSign _ _) <- ms ]
       methTys = map (\ (BSign _ t) -> t) meths
+      methIds = map (\ (BSign i _) -> i) meths
       supTys = ctx  -- XXX should do some checking
       targs = supTys ++ methTys
       qiCls = qualIdent mn iCls
       tret = tApps qiCls (map tVarK vks)
       cti = [ (qualIdent mn iCon, length targs) ]
       iCon = mkClassConstructor iCls
-  extValETop iCon (EForall vks $ foldr tArrow tret targs) (ECon $ ConData cti (qualIdent mn iCon))
+      iConTy = EForall vks $ foldr tArrow tret targs
+  extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon))
   let addMethod (BSign i t) = extValETop i (EForall vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
       addMethod _ = impossible
 --  traceM ("addValueClass " ++ showEType (ETuple ctx))
   T.mapM_ addMethod meths
+  -- Update class table, now with actual constructor type.
+  addClassTable qiCls (vks, ctx, iConTy, methIds)
 
 {-
 bundleConstraints :: [EConstraint] -> EType -> EType
@@ -1922,7 +1931,7 @@ expandDict edict acn = T.do
     Just _ -> concat <$> T.mapM (\ (i, a) -> expandDict (mkTupleSel i (length args) `EApp` edict) a) (zip [0..] args)
     Nothing -> T.do
       ct <- gets classTable
-      let (iks, sups, _) = fromMaybe impossible $ M.lookup iCls ct
+      let (iks, sups, _, _) = fromMaybe impossible $ M.lookup iCls ct
           sub = zip (map idKindIdent iks) args
           sups' = map (subst sub) sups
       mn <- gets moduleName
