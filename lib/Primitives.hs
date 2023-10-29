@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module Primitives(module Primitives) where
 import Data.Bool_Type
+import Data.List_Type
 import Data.Ordering_Type
 
 infixr -1 ->

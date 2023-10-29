@@ -1,21 +1,20 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.List(module Data.List) where
+module Data.List(
+  module Data.List,
+  module Data.List_Type
+  ) where
 import Primitives as P
 import Control.Error
 import Data.Bool
 import Data.Eq
 import Data.Function
 import Data.Int
+import Data.List_Type
 import Data.Maybe
 import Data.Tuple
 
 --Yimport Data.Char
-
---Y{-
-infixr 5 :
-data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable
---Y-}
 
 instance forall a . Eq a => Eq [a] where
   []     == []      =  True

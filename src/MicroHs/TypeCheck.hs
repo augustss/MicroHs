@@ -30,7 +30,7 @@ boolPrefix :: String
 boolPrefix = "Data.Bool_Type."
 
 listPrefix :: String
-listPrefix = "Data.List."
+listPrefix = "Data.List_Type."
 
 data TModule a = TModule
   IdentModule     -- module names
@@ -555,6 +555,7 @@ primTypes =
        (mkIdentB "=>",           [entry "Primitives.=>"       kConstraintTypeTypeS]),
        (mkIdentB "~",            [entry "Primitives.~"        kTypeTypeConstraintS]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
+       -- XXX should not be needed
        (mkIdentB (listPrefix ++ "[]"), [entry (listPrefix ++ "[]")        kTypeTypeS])
       ] ++
       map tuple (enumFromTo 2 10)

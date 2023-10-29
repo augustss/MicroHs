@@ -2,8 +2,9 @@
 -- See LICENSE file for full license.
 module Control.Error(module Control.Error) where
 import Primitives
+import Data.Char_Type
 
-error :: forall a . [Char] -> a
+error :: forall a . String -> a
 error = primError
 
 undefined :: forall a . a
