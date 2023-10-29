@@ -3,7 +3,7 @@
 module MicroHs.Ident(
   Line, Col, Loc,
   Ident(..),
-  mkIdent, mkIdentLoc, unIdent, eqIdent, leIdent, isIdent,
+  mkIdent, mkIdentLoc, unIdent, isIdent,
   qualIdent, showIdent, getSLocIdent, setSLocIdent,
   ppIdent,
   mkIdentSLoc,
@@ -40,6 +40,13 @@ data Ident = Ident SLoc String
 instance Eq Ident where
   Ident _ i == Ident _ j  =  i == j
 
+instance Ord Ident where
+  compare (Ident _ i) (Ident _ j) = compare i j
+  Ident _ i <  Ident _ j  =  i <  j
+  Ident _ i <= Ident _ j  =  i <= j
+  Ident _ i >  Ident _ j  =  i >  j
+  Ident _ i >= Ident _ j  =  i >= j
+
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
 
@@ -74,11 +81,13 @@ ppIdent (Ident _ i) = text i
 isIdent :: String -> Ident -> Bool
 isIdent s (Ident _ i) = s == i
 
+{-
 leIdent :: Ident -> Ident -> Bool
 leIdent (Ident _ i) (Ident _ j) = i <= j
 
 eqIdent :: Ident -> Ident -> Bool
 eqIdent (Ident _ i) (Ident _ j) = i == j
+-}
 
 qualIdent :: --XHasCallStack =>
              Ident -> Ident -> Ident

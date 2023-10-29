@@ -74,7 +74,7 @@ instance Eq Entry where
   (==) = eqEntry
 
 eqEntry :: Entry -> Entry -> Bool
-eqEntry (Entry x _) (Entry y _) = eqIdent (getIdent x) (getIdent y)
+eqEntry (Entry x _) (Entry y _) = (getIdent x) == (getIdent y)
 
 
 entryType :: Entry -> EType
@@ -149,7 +149,7 @@ filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
 filterImports it@(ImportSpec _ _ _ Nothing, _) = it
 filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs ins vs a) =
   let
-    keep x xs = elemBy eqIdent x xs `neBool` hide
+    keep x xs = elem x xs /= hide
     ivs = [ i | ImpValue i <- is ]
     vs' = filter (\ (ValueExport i _) -> keep i ivs) vs
     cts = [ i | ImpTypeCon i <- is ]
@@ -1793,7 +1793,7 @@ quantify tvs ty = T.do
    T.return (EForall new_bndrs_kind ty')
   where
     used_bndrs = tyVarBndrs ty -- Avoid quantified type variables in use
-    new_bndrs = deleteFirstsBy eqIdent allBinders used_bndrs
+    new_bndrs = allBinders \\ used_bndrs
     bind (tv, name) = writeTcRef tv (EVar name)
     new_bndrs_kind = map (\ i -> IdKind i undefined) new_bndrs
 
@@ -1860,7 +1860,7 @@ metaTvs tys = foldr go [] tys
 tyVarBndrs :: Rho -> [TyVar]
 -- Get all the binders used in ForAlls in the type, so that
 -- when quantifying an outer for-all we can avoid these inner ones
-tyVarBndrs ty = nubBy eqIdent (bndrs ty)
+tyVarBndrs ty = nub (bndrs ty)
   where
     bndrs (EForall tvs body) = map idKindIdent tvs ++ bndrs body
     bndrs (EApp arg res) = bndrs arg ++ bndrs res
@@ -1873,7 +1873,7 @@ inferSigma e = T.do
   env_tys      <- getEnvTypes
   env_tvs      <- getMetaTyVars env_tys
   res_tvs      <- getMetaTyVars [exp_ty]
-  let forall_tvs = deleteFirstsBy eqInt res_tvs env_tvs
+  let forall_tvs = res_tvs \\ env_tvs
   (e',) <$> quantify forall_tvs exp_ty
 -}
 
@@ -2112,7 +2112,7 @@ data SymTab a = SymTab (M.Map [a]) [(Ident, a)]
 stLookup :: --forall a . --XShow a =>
             String -> Ident -> SymTab Entry -> Either String Entry
 stLookup msg i (SymTab genv lenv) =
-  case lookupBy eqIdent i lenv of
+  case lookup i lenv of
     Just e -> Right e
     Nothing ->
       case M.lookup i genv of
