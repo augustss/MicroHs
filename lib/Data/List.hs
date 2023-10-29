@@ -255,7 +255,10 @@ lookup :: forall a b . Eq a => a -> [(a, b)] -> Maybe b
 lookup = lookupBy (==)
 
 lookupBy :: forall a b . (a -> a -> Bool) -> a -> [(a, b)] -> Maybe b
-lookupBy eq x xys = fmapMaybe snd (find (eq x . fst) xys)
+lookupBy eq x xys =
+  case find (eq x . fst) xys of
+    Nothing -> Nothing
+    Just (_, b) -> Just b
 
 union :: forall a . Eq a => [a] -> [a] -> [a]
 union = unionBy (==)

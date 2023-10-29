@@ -20,10 +20,6 @@ fromMaybe :: forall a . a -> Maybe a -> a
 fromMaybe a Nothing = a
 fromMaybe _ (Just a) = a
 
-fmapMaybe :: forall a b . (a -> b) -> Maybe a -> Maybe b
-fmapMaybe _ Nothing = Nothing
-fmapMaybe f (Just a) = Just (f a)
-
 catMaybes :: forall a . [Maybe a] -> [a]
 catMaybes mxs = [ x | Just x <- mxs ]
 
