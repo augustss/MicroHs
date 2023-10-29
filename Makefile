@@ -7,7 +7,7 @@ TOOLS=Tools
 PROF= #-prof -fprof-auto
 EXTS= -XScopedTypeVariables -XQualifiedDo -XTupleSections
 GHCB=ghc $(PROF) -outputdir $(BOOTDIR)
-GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude $(EXTS) -F -pgmF $(TOOLS)/convertY.sh 
+GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude -XRebindableSyntax $(EXTS) -F -pgmF $(TOOLS)/convertY.sh 
 GHCC=$(GHCB) $(GHCFLAGS)
 GHC=ghc
 # $(CURDIR) might not be quite right
@@ -91,7 +91,6 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c src/MicroHs/IdentMap.hs
 	$(GHCC) -c src/MicroHs/Exp.hs
 	$(GHCC) -c src/MicroHs/TCMonad.hs
-	$(GHCC) -c src/MicroHs/State.hs
 	$(GHCC) -c src/MicroHs/TypeCheck.hs
 	$(GHCC) -c src/MicroHs/Desugar.hs
 	$(GHCC) -c src/MicroHs/StateIO.hs

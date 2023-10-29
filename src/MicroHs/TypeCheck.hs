@@ -16,7 +16,6 @@ import Data.Char
 import Data.List
 import Data.Maybe
 import qualified Data.IntMap as IM
-import qualified MicroHs.State as S
 import MicroHs.TCMonad as T
 import qualified MicroHs.IdentMap as M
 import MicroHs.Ident

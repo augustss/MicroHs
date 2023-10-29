@@ -10,6 +10,8 @@ module Primitives(
   NFData(..),
   Type,
   ) where
+import Prelude hiding(fromInteger, fromRational)
+import qualified Prelude as P
 import Control.DeepSeq
 import Control.Exception(try)
 import Data.Time
@@ -238,3 +240,12 @@ primCompare = compare
 
 primRnf :: (NFData a) => a -> ()
 primRnf = rnf
+
+fromInteger :: Integer -> Int
+fromInteger = P.fromInteger
+
+fromRational :: Rational -> Double
+fromRational = P.fromRational
+
+ifThenElse :: Bool -> a -> a -> a
+ifThenElse c t e = if c then t else e

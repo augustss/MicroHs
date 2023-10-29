@@ -17,7 +17,9 @@ module Prelude(
   module Data.Tuple,
   module System.IO,
   module Text.String,
+  --Ymodule Primitives,
   ) where
+--Yimport Primitives(fromInteger, fromRational, ifThenElse)
 import Control.Applicative
 import Control.Error
 import Control.Monad
