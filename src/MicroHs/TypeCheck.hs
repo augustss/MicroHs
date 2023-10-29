@@ -119,11 +119,10 @@ typeCheck aimps (EModule mn exps defs) =
            thisMdl = (mn, mkTModule tds tcs)
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm _, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
-           (texps, vexps) =
-             unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
+           (texps, cexps, vexps) =
+             unzip3 $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs) (classTable tcs)) exps
            fexps = [ fe | TModule _ fe _ _ _ _ _ _ <- M.elems impMap ]
            sexps = M.toList (synTable tcs)
-           cexps = [ ce | TModule _ _ _ _ ce _ _ _ <- M.elems impMap ]
            iexps = M.toList (instTable tcs)
          in  tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) sexps (concat cexps) iexps (concat vexps) tds
 
@@ -155,24 +154,31 @@ filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs 
     (imp, TModule mn fx ts' ss cs ins vs' a)
 
 -- Type and value exports
-getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ExportItem ->
-           ([TypeExport], [ValueExport])
-getTVExps impMap _ _ _ (ExpModule m) =
+getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ClassTable -> ExportItem ->
+           ([TypeExport], [ClsDef], [ValueExport])
+getTVExps impMap _ _ _ _ (ExpModule m) =
   case M.lookup m impMap of
-    Just (TModule _ _ te _ _ _ ve _) -> (te, ve)
+    Just (TModule _ _ te _ ce _ ve _) -> (te, ce, ve)
     _ -> expErr m
-getTVExps _ tys vals ast (ExpTypeCon i) =
+getTVExps _ tys vals ast cls (ExpTypeCon i) =
   let
     e = expLookup i tys
     qi = tyQIdent e
     ves = getAssocs vals ast qi
-  in ([TypeExport i e ves], [])
-getTVExps _ tys _ _ (ExpType i) =
+    cl = case M.lookup qi cls of
+           Just ci -> [(qi, ci)]
+           Nothing -> []
+  in ([TypeExport i e ves], cl, [])
+getTVExps _ tys _ _ cls (ExpType i) =
   let
     e = expLookup i tys
-  in ([TypeExport i e []], [])
-getTVExps _ _ vals _ (ExpValue i) =
-    ([], [ValueExport i (expLookup i vals)])
+    qi = tyQIdent e
+    cl = case M.lookup qi cls of
+           Just ci -> [(qi, ci)]
+           Nothing -> []
+  in ([TypeExport i e []], cl, [])
+getTVExps _ _ vals _ _ (ExpValue i) =
+    ([], [], [ValueExport i (expLookup i vals)])
 
 -- Export all fixities and synonyms.
 -- The synonyms might be needed, and the fixities are harmless
@@ -269,12 +275,10 @@ mkTables mdls =
     allValues =
       let
         syms (is, TModule mn _ tes _ cls _ ves _) =
---          trace ("allValues: mn=" ++ showIdent mn ++ " cls=" ++ showList showIdentClassInfo cls) $
           [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ] ++
           [ (v, [Entry (EVar v) t]) | (i, (_, _, t, _)) <- cls, let { v = mkClassConstructor i } ]
-      in  --(\ t -> trace ("allValues: " ++ showSymTab t) t) $
-          stFromListWith (unionBy eqEntry) $ concatMap syms mdls
+      in  stFromListWith (unionBy eqEntry) $ concatMap syms mdls
     allSyns =
       let
         syns (_, TModule _ _ _ ses _ _ _ _) = ses
@@ -932,7 +936,7 @@ addTypeKind adef = T.do
     Type    lhs t         -> addLHSKind lhs (getTypeKind t)
     Class _ lhs@(i, _) ms -> T.do
       addLHSKind lhs kConstraint
-      addAssoc i ({-mkClassConstructor i : -} [ m | BSign m _ <- ms ])
+      addAssoc i [ m | BSign m _ <- ms ]
     _ -> T.return ()
 
 getTypeKind :: EType -> EKind
