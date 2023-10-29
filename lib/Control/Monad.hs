@@ -3,11 +3,11 @@ import Primitives  -- for fixity
 import Control.Applicative
 import Control.Error
 import Data.Bool
-import Data.Char
+import Data.Char_Type
 import Data.Function
 import Data.Functor
-import Data.List
-import Data.Maybe
+import Data.List_Type
+--import Data.Maybe
 
 infixl 1 >>
 infixl 1 >>=
@@ -74,20 +74,7 @@ infixr 1 >=>
 (>=>) :: forall (m :: Type -> Type) a b c . Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
 (>=>) = flip (<=<)
 
--- Since we depend on Data.List, these instances cannot go there.
-instance Functor [] where
-  fmap = map
-
-instance Applicative [] where
-  pure a = [a]
-  (<*>) = ap
-
-instance Monad [] where
-  (>>=) = flip concatMap
-
-instance MonadFail [] where
-  fail _ = []
-
+{-
 -- Same for Maybe
 instance Functor Maybe where
   fmap _ Nothing = Nothing
@@ -100,3 +87,4 @@ instance Applicative Maybe where
 instance Monad Maybe where
   Nothing >>= _ = Nothing
   Just a  >>= f = f a
+-}

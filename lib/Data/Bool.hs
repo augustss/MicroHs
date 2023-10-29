@@ -6,6 +6,11 @@ module Data.Bool(
   ) where
 import Primitives
 import Data.Bool_Type
+import Data.Eq
+
+instance Eq Bool where
+  False == x  =  not x
+  True  == x  =  x
 
 infixr 2 ||
 (||) :: Bool -> Bool -> Bool

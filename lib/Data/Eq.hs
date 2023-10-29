@@ -1,17 +1,13 @@
 module Data.Eq(
   module Data.Eq
   ) where
-import Data.Bool
+import Primitives
+import Data.Bool_Type
 
 infix 4 ==,/=
 
 class Eq a where
   (==) :: a -> a -> Bool
   (/=) :: a -> a -> Bool
-  x /= y = not (x == y)
+  x /= y = if x == y then False else True
 
--- Put Eq instance here, it would be a circular dependency
--- if it were in Data.Bool.
-instance Eq Bool where
-  False == x  =  not x
-  True  == x  =  x

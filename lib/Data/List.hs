@@ -5,10 +5,13 @@ module Data.List(
   module Data.List_Type
   ) where
 import Primitives as P
+import Control.Applicative
 import Control.Error
+import Control.Monad
 import Data.Bool
 import Data.Eq
 import Data.Function
+import Data.Functor
 import Data.Int
 import Data.List_Type
 import Data.Maybe
@@ -20,6 +23,19 @@ instance forall a . Eq a => Eq [a] where
   []     == []      =  True
   (x:xs) == (y:ys)  =  x == y && xs == ys
   _      == _       =  False
+
+instance Functor [] where
+  fmap = map
+
+instance Applicative [] where
+  pure a = [a]
+  (<*>) = ap
+
+instance Monad [] where
+  (>>=) = flip concatMap
+
+instance MonadFail [] where
+  fail _ = []
 
 null :: forall a . [a] -> Bool
 null [] = True
