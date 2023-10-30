@@ -71,10 +71,7 @@ data Entry = Entry
   --Xderiving(Show)
 
 instance Eq Entry where
-  (==) = eqEntry
-
-eqEntry :: Entry -> Entry -> Bool
-eqEntry (Entry x _) (Entry y _) = (getIdent x) == (getIdent y)
+  Entry x _ == Entry y _  =  getIdent x == getIdent y
 
 
 entryType :: Entry -> EType
@@ -285,7 +282,7 @@ mkTables mdls =
           [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ] ++
           [ (v, [Entry (EVar v) t]) | (i, (_, _, t, _)) <- cls, let { v = mkClassConstructor i } ]
-      in  stFromListWith (unionBy eqEntry) $ concatMap syms mdls
+      in  stFromListWith union $ concatMap syms mdls
     allSyns =
       let
         syns (_, TModule _ _ _ ses _ _ _ _) = ses
@@ -294,7 +291,7 @@ mkTables mdls =
     allTypes =
       let
         types (is, TModule mn _ tes _ _ _ _ _) = [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
-      in stFromListWith (unionBy eqEntry) $ concatMap types mdls
+      in stFromListWith union $ concatMap types mdls
     allFixes =
       let
         fixes (_, TModule _ fes _ _ _ _ _ _) = fes

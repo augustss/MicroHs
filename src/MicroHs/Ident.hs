@@ -14,7 +14,6 @@ module MicroHs.Ident(
   addIdentSuffix,
   SLoc(..), noSLoc, isNoSLoc,
   showSLoc,
-  compareIdent,
   expectQualified,
   ) where
 import Data.Eq
@@ -81,14 +80,6 @@ ppIdent (Ident _ i) = text i
 isIdent :: String -> Ident -> Bool
 isIdent s (Ident _ i) = s == i
 
-{-
-leIdent :: Ident -> Ident -> Bool
-leIdent (Ident _ i) (Ident _ j) = i <= j
-
-eqIdent :: Ident -> Ident -> Bool
-eqIdent (Ident _ i) (Ident _ j) = i == j
--}
-
 qualIdent :: --XHasCallStack =>
              Ident -> Ident -> Ident
 --XqualIdent _ (Ident _ i) | isQual i = error $ "already qualified " ++ i
@@ -148,8 +139,3 @@ showSLoc :: SLoc -> String
 showSLoc (SLoc fn l c) =
   if null fn then "no location" else
   showString fn ++ ": " ++ "line " ++ showInt l ++ ", col " ++ showInt c
-
-compareIdent :: Ident -> Ident -> Ordering
-compareIdent (Ident _ s) (Ident _ t) = compareString s t
-
-
