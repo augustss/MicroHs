@@ -513,14 +513,14 @@ checkDup ds =
 --  f x = letrec f' y = ... f' ... in f'
 -- thus avoiding the extra argument passing.
 -- XXX should generalize for an arbitrary length prefix of variables.
+-- This gives a small speedup with overloading.
 lazier :: LDef -> LDef
-{-
 lazier def@(fcn, Lam x (Lam y body)) =
   let fcn' = addIdentSuffix fcn "@"
       vfcn' = Var fcn'
       repl :: Exp -> S.State Bool Exp
       repl (Lam i e) = Lam i <$> repl e
-      repl (App (Var af) (Var ax)) | eqIdent af fcn && eqIdent ax x = S.do
+      repl (App (Var af) (Var ax)) | af == fcn && ax == x = S.do
         put True
         S.return vfcn'
       repl (App f a) = App <$> repl f <*> repl a
@@ -529,5 +529,5 @@ lazier def@(fcn, Lam x (Lam y body)) =
   in  case S.runState (repl body) False of
         (_, False) -> def
         (e', True) -> (fcn, Lam x $ letRecE fcn' (Lam y e') vfcn')
--}
+
 lazier def = def
