@@ -473,11 +473,12 @@ addInstTable ics = T.do
       mkInstInfo ic = InstInfo M.empty [ic]
   putInstTable $ foldr (\ ic -> M.insertWith mergeInstInfo (getInstCon ic) (mkInstInfo ic)) is ics
 
-addConstraint :: String -> (Ident, EConstraint) -> T ()
-addConstraint _msg e@(_d, _ctx) = T.do
+addConstraint :: Ident -> EConstraint -> T ()
+addConstraint d ctx = T.do
 --  traceM $ "addConstraint: " ++ msg ++ " " ++ showIdent d ++ " :: " ++ showEType ctx
+  ctx' <- expandSyn ctx
   TC mn n fx tt st vt ast sub m cs is es <- get
-  put $ TC mn n fx tt st vt ast sub m cs is (e : es)
+  put $ TC mn n fx tt st vt ast sub m cs is ((d, ctx') : es)
 
 withDict :: forall a . Ident -> EConstraint -> T a -> T a
 withDict i c ta = T.do
@@ -783,8 +784,7 @@ tDict (ae, at) | Just (ctx, t) <- getImplies at = T.do
   let d = mkIdentSLoc loc ("dict$" ++ showInt u)
       loc = getSLocExpr ae
   --traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx ++ " " ++ showSLoc loc
-  ctx' <- expandSyn ctx
-  addConstraint "from tDict " (d, ctx')
+  addConstraint d ctx
   tDict (EApp ae (EVar d), t)
 tDict at = T.return at
 
@@ -1336,9 +1336,7 @@ tcExprR mt ae =
           d <- newIdent (getSLocIdent i) "dict$"
           case mt of
             Infer _ -> impossible
-            Check t -> T.do
-              t' <- expandSyn t
-              addConstraint "from dict$" (d, t')
+            Check t -> addConstraint d t
           T.return (EVar d)
 
         _ -> T.do
