@@ -389,12 +389,11 @@ cheap ae =
     Lit _ -> True
     _ -> False
 
--- Could use Prim "==", but that misses out some optimizations
 eEqInt :: Exp
-eEqInt = Var $ mkIdent "Primitives.primIntEQ"
+eEqInt = Lit (LPrim "==")
 
 eEqChar :: Exp
-eEqChar = Var $ mkIdent "Primitives.primCharEQ"
+eEqChar = Lit (LPrim "==")
 
 eEqStr :: Exp
 eEqStr = Lit (LPrim "equal")

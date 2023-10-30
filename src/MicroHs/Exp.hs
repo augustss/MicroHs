@@ -73,12 +73,6 @@ getApp ae =
     App f a -> IsApp f a
     _       -> NotApp
 
-getVar :: Exp -> Maybe Ident
-getVar ae =
-  case ae of
-    Var v -> Just v
-    _     -> Nothing
-
 isPrim :: String -> Exp -> Bool
 isPrim s ae =
   case ae of
@@ -291,16 +285,8 @@ cC a1 e3 =
               r
 
 cC2 :: Exp -> Exp -> Exp
-cC2 a1 a2 =
-  let
-    r = app2 cFlip a1 a2
-  in
-    case getVar a1 of
-      Nothing -> r
-      Just op ->
-        case lookup op flipOps of
-          Just oq -> App (Var oq) a2
-          Nothing -> r
+cC2 a1 a2 = app2 cFlip a1 a2
+
 {-
 cC (App (App CB e1) e2) e3          = cCC e1 e2 e3      -- C (B e1 e2) e3  = C' e1 e2 e3
 cC (Var op)             e2 | Just op' <- lookup op flipOps = App (Var op') e2 -- C op e = flip-op e
@@ -363,6 +349,7 @@ cSS e1 e2 e3 = app3 (Lit (LPrim "S'")) e1 e2 e3
 cCC :: Exp -> Exp -> Exp -> Exp
 cCC e1 e2 e3 = app3 (Lit (LPrim "C'")) e1 e2 e3
 
+{-
 -- This is a hack, it assumes things about the Prelude
 flipOps :: [(Ident, Ident)]
 flipOps =
@@ -376,6 +363,7 @@ flipOps =
   ,(mkIdent "Data.Int.>",  mkIdent "Data.Int.<")
   ,(mkIdent "Data.Int.>=", mkIdent "Data.Int.<=")
   ]
+-}
 
 improveT :: Exp -> Exp
 improveT ae =
