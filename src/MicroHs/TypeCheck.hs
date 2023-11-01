@@ -102,9 +102,12 @@ data InstInfo = InstInfo
        [InstDict]                 -- slow path
   --Xderiving (Show)
 
--- This is the dictionary express, instance variables, instance context,
--- and class&types.
-type InstDict   = (Expr, [IdKind], [EConstraint], EConstraint)
+-- This is the dictionary expression, instance variables, instance context,
+-- and instance.
+type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint)
+-- This is the dictionary expression, instance variables, instance context,
+-- and types.  An instance (C T1 ... Tn) has the type list [T1,...,Tn]
+type InstDict   = (Expr, [IdKind], [EConstraint], [EType])
 
 type Sigma = EType
 --type Tau   = EType
@@ -465,14 +468,14 @@ addClassTable i x = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
   put $ TC mn n fx tt st vt ast sub m (M.insert i x cs) is es
 
-addInstTable :: [InstDict] -> T ()
+addInstTable :: [InstDictC] -> T ()
 addInstTable ics = T.do
-  let mkInstInfo :: InstDict -> T (Ident, InstInfo)
+  let mkInstInfo :: InstDictC -> T (Ident, InstInfo)
       mkInstInfo (e, iks, ctx, ct) = T.do
         ct' <- expandSyn ct
-        case (iks, ctx, ct') of
-          ([], [], EApp (EVar c) (EVar i)) -> T.return $ (c,             InstInfo (M.singleton i e) [])
-          _                                -> T.return $ (getAppCon ct', InstInfo M.empty [(e, iks, ctx, ct')])
+        case (iks, ctx, getApp ct') of
+          ([], [], (c, [EVar i])) -> T.return $ (c, InstInfo (M.singleton i e) [])
+          (_,  _,  (c, ts      )) -> T.return $ (c, InstInfo M.empty [(e, iks, ctx, ts)])
   iis <- T.mapM mkInstInfo ics
   it <- gets instTable
   putInstTable $ foldr (uncurry $ M.insertWith mergeInstInfo) it iis
@@ -913,7 +916,7 @@ tcDefKind adef = T.do
       case at of
         ESign t k        -> withVks vks k     $ \ vvks kr -> T.return $ Type    (i, vvks) (ESign t kr)
         _                -> withVks vks kType $ \ vvks _  -> T.return $ Type    (i, vvks) at
-    Class ctx (i, vks) ms-> withVks vks kConstraint $ \ vvks _ -> T.return $ Class ctx (i, vvks) ms
+    Class ctx (i, vks) fds ms-> withVks vks kConstraint $ \ vvks _ -> T.return $ Class ctx (i, vvks) fds ms
     Instance vks ctx t d -> withVks vks kConstraint $ \ vvks _ -> T.return $ Instance vvks ctx t d
     _                    -> T.return adef
 
@@ -1941,7 +1944,7 @@ instSigma loc e1 t1 (Infer r) = T.do
 -- Given a dictionary of a (constraint type), split it up
 --  * name components of a tupled constraint
 --  * name superclasses of a constraint
-expandDict :: Expr -> EConstraint -> T [InstDict]
+expandDict :: Expr -> EConstraint -> T [InstDictC]
 expandDict edict acn = T.do
   cn <- expandSyn acn
   let
@@ -1980,7 +1983,7 @@ showInstInfo :: InstInfo -> String
 showInstInfo (InstInfo m ds) = "InstInfo " ++ showList (showPair showIdent showExpr) (M.toList m) ++ " " ++ showList showInstDict ds
 
 showInstDict :: InstDict -> String
-showInstDict (e, iks, ctx, ct) = showExpr e ++ " :: " ++ showEType (eForall iks $ addConstraints ctx ct)
+showInstDict (e, iks, ctx, ts) = showExpr e ++ " :: " ++ showEType (eForall iks $ addConstraints ctx (tApps (mkIdent "X") ts))
 
 showInstDef :: InstDef -> String
 showInstDef (cls, InstInfo m ds) = "instDef " ++ showIdent cls ++ ": "
@@ -2037,7 +2040,8 @@ solveConstraints = T.do
 
         solveGen loc insts cns@(di, ct) cnss uns sol = T.do
 --          traceM ("solveGen " ++ showEType ct)
-          let matches = getBestMatches $ findMatches insts ct
+          let (_, ts) = getApp ct
+              matches = getBestMatches $ findMatches insts ts
 --          traceM ("matches " ++ showList showMatch matches)
           case matches of
             []          -> solve cnss (cns : uns) sol
@@ -2058,15 +2062,17 @@ solveConstraints = T.do
 --    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
     T.return solved
 
+type TySubst = [(TRef, EType)]
+
 -- Given some instances and a constraint, find the matching instances.
 -- For each matching instance return: (subst-size, (dict-expression, new-constraints))
 -- The subst-size is the size of the substitution that made the input instance match.
 -- It is a measure of how exact the match is.
-findMatches :: [InstDict] -> EConstraint -> [(Int, (Expr, [EConstraint]))]
-findMatches ds ct =
+findMatches :: [InstDict] -> [EType] -> [(Int, (Expr, [EConstraint]))]
+findMatches ds its =
  let rrr =
        [ (length s, (de, map (substEUVar s . subst r) ctx))
-       | (de, iks, ctx, t) <- ds, let { r = freshSubst iks }, Just s <- [matchType [] (subst r t) ct] ]
+       | (de, iks, ctx, ts) <- ds, let { r = freshSubst iks }, Just s <- [matchTypes [] (map (subst r) ts) its] ]
  in --trace ("findMatches: " ++ showList showInstDict ds ++ "; " ++ showEType ct ++ "; " ++ show rrr)
     rrr
   where
@@ -2074,6 +2080,14 @@ findMatches ds ct =
     -- Change type variable to unique unification variables.
     -- These unification variables will never leak out of findMatches.
     freshSubst iks = zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [1000000000 ..] -- make sure the variables are unique
+
+    -- Length of lists match, because of kind correctness
+    matchTypes :: TySubst -> [EType] -> [EType] -> Maybe TySubst
+    matchTypes r (t:ts) (t':ts') =
+      case matchType r t t' of
+        Nothing -> Nothing
+        Just r' -> matchTypes r' ts ts'
+    matchTypes r _ _ = Just r
 
     -- Match two types, instantiate variables in the first type.
     matchType r (EVar i) (EVar i') | i == i' = Just r
@@ -2089,7 +2103,7 @@ findMatches ds ct =
     matchType _ _ _ = Nothing
 
     -- Do substitution for EUVar.
-    -- XXX similat to derefUVar
+    -- XXX similar to derefUVar
     substEUVar [] t = t
     substEUVar _ t@(EVar _) = t
     substEUVar s (EApp f a) = EApp (substEUVar s f) (substEUVar s a)
