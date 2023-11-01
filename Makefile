@@ -36,7 +36,7 @@ $(EVAL):	src/runtime/eval.c
 ### Build the compiler with ghc, using standard libraries (Prelude, Data.List, etc)
 ###
 $(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
-	$(GHCE) -ighc -isrc -Wall -Wno-x-partial -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
+	$(GHCE) -ighc -isrc -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
 ###
 ### Build the compiler with ghc, using MicroHs libraries (Prelude, Data.List, etc)
