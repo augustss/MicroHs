@@ -337,9 +337,6 @@ getIdent ae =
 eqInstDict :: InstDict -> InstDict -> Bool
 eqInstDict (e, _, _, _) (e', _, _, _) = eqExpr e e'
 
-getInstCon :: InstDict -> Ident
-getInstCon (_, _, _, t) = getAppCon t
-
 -- Very partial implementation of Expr equality.
 -- It is only used to compare instances, so this suffices.
 eqExpr :: Expr -> Expr -> Bool
@@ -449,10 +446,13 @@ withTCMode m ta = T.do
 withTypeTable :: forall a . T a -> T a
 withTypeTable ta = T.do
   TC mn n fx tt st vt ast sub m cs is es <- get
-  put (TC mn n fx primKindTable M.empty tt ast sub m cs is es)
+  put (TC mn n fx primKindTable st tt ast sub m cs is es)
   a <- ta
-  TC mnr nr _ _ _ ttr astr subr mr csr isr esr <- get
-  put (TC mnr nr fx ttr st vt astr subr mr csr isr esr)
+  -- Discard kind table, it will not have changed
+  TC mnr nr fxr _kr str ttr astr subr mr csr isr esr <- get
+  -- Keep everyting, except that the returned value table
+  -- becomes the type tables, and the old type table is restored.
+  put (TC mnr nr fxr ttr str vt astr subr mr csr isr esr)
   T.return a
 
 addAssocTable :: Ident -> [Ident] -> T ()
@@ -467,11 +467,15 @@ addClassTable i x = T.do
 
 addInstTable :: [InstDict] -> T ()
 addInstTable ics = T.do
-  is <- gets instTable
-  let mkInstInfo :: InstDict -> InstInfo
-      mkInstInfo (e, [], [], EApp _ (EVar i)) = InstInfo (M.singleton i e) []
-      mkInstInfo ic = InstInfo M.empty [ic]
-  putInstTable $ foldr (\ ic -> M.insertWith mergeInstInfo (getInstCon ic) (mkInstInfo ic)) is ics
+  let mkInstInfo :: InstDict -> T (Ident, InstInfo)
+      mkInstInfo (e, iks, ctx, ct) = T.do
+        ct' <- expandSyn ct
+        case (iks, ctx, ct') of
+          ([], [], EApp (EVar c) (EVar i)) -> T.return $ (c,             InstInfo (M.singleton i e) [])
+          _                                -> T.return $ (getAppCon ct', InstInfo M.empty [(e, iks, ctx, ct')])
+  iis <- T.mapM mkInstInfo ics
+  it <- gets instTable
+  putInstTable $ foldr (uncurry $ M.insertWith mergeInstInfo) it iis
 
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = T.do
@@ -491,7 +495,7 @@ withDict i c ta = T.do
 
 initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ClassTable -> InstTable -> ValueTable -> AssocTable -> TCState
 initTC mn fs ts ss cs is vs as =
---  trace ("initTC " ++ show (ts, vs)) $
+--  trace ("**** initTC " ++ showIdent mn ++ ": " ++ showList (showPair showIdent showEType) (M.toList ss)) $
   let
     xts = foldr (uncurry stInsertGlb) ts primTypes
     xvs = foldr (uncurry stInsertGlb) vs primValues
@@ -873,9 +877,10 @@ tcDefs :: [EDef] -> T [EDef]
 tcDefs ds = T.do
   T.mapM_ tcAddInfix ds
   dst <- tcDefsType ds
---  traceM (showEDefs dst)
   T.mapM_ addTypeSyn dst
-  tcDefsValue dst
+  dst' <- tcExpand dst
+--  traceM (showEDefs dst')
+  tcDefsValue dst'
 
 tcAddInfix :: EDef -> T ()
 tcAddInfix (Infix fx is) = T.do
@@ -883,11 +888,16 @@ tcAddInfix (Infix fx is) = T.do
   T.mapM_ (\ i -> extFix (qualIdent mn i) fx) is
 tcAddInfix _ = T.return ()
 
+-- Check type definitions
 tcDefsType :: [EDef] -> T [EDef]
 tcDefsType ds = withTypeTable $ T.do
   dsk <- T.mapM tcDefKind ds                     -- Check&rename kinds in all type definitions
   T.mapM_ addTypeKind dsk                        -- Add the kind of each type to the environment
-  dst <- T.mapM tcDefType dsk                    -- Kind check all type expressions (except local signatures)
+  T.mapM tcDefType dsk                           -- Kind check all type expressions (except local signatures)
+
+-- Expand class and instance definitions (must be done after type synonym processing)
+tcExpand :: [EDef] -> T [EDef]
+tcExpand dst = withTypeTable $ T.do
   dsc <- T.mapM expandClass dst                  -- Expand all class definitions
   dsi <- T.mapM expandInst (concat dsc)          -- Expand all instance definitions
   T.return (concat dsi)
@@ -956,14 +966,15 @@ addLHSKind (i, vks) kret =
 lhsKind :: [IdKind] -> EKind -> EKind
 lhsKind vks kret = foldr (\ (IdKind _ k) -> kArrow k) kret vks
 
--- Add type synonyms to the value table
+-- Add type synonyms to the synonym table
 addTypeSyn :: EDef -> T ()
 addTypeSyn adef =
   case adef of
     Type (i, vs) t -> T.do
-      extSyn i (EForall vs t)
+      let t' = EForall vs t
+      extSyn i t'
       mn <- gets moduleName
-      extSyn (qualIdent mn i) (EForall vs t)
+      extSyn (qualIdent mn i) t'
     _ -> T.return ()
 
 -- Do kind checking of all typeish definitions.
@@ -1107,7 +1118,7 @@ expandInst dinst@(Instance vks ctx cc bs) = T.do
   -- XXX this ignores type signatures and other bindings
   -- XXX should tack on signatures with ESign
   let ies = [(i, ELam qs) | BFcn i qs <- bs]
-      meth i = fromMaybe (EVar $ mkDefaultMethodId i) $ lookup i ies
+      meth i = fromMaybe (EVar $ setSLocIdent loc $ mkDefaultMethodId i) $ lookup i ies
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc "dict$")) supers
       args = sups ++ meths
@@ -1961,6 +1972,9 @@ solveLocalConstraints ta = T.do
   T.return (a, ds)
 
 {-
+showInstInfo :: InstInfo -> String
+showInstInfo (InstInfo m ds) = "InstInfo " ++ showList (showPair showIdent showExpr) (M.toList m) ++ " " ++ showList showInstDict ds
+
 showInstDict :: InstDict -> String
 showInstDict (e, iks, ctx, ct) = showExpr e ++ " :: " ++ showEType (eForall iks $ addConstraints ctx ct)
 
@@ -2095,9 +2109,9 @@ checkConstraints = T.do
     [] -> T.return ()
     (i, t) : _ -> T.do
       t' <- derefUVar t
+      --is <- gets instTable
+      --traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> showIdent i ++ ":\n" ++ showInstInfo ii) (M.toList is))
       tcError (getSLocIdent i) $ "Cannot satisfy constraint: " ++ showExpr t'
-      --traceM $ "Cannot satisfy constraint: " ++ showExpr t'
-      --T.return ()
 
 ---------------------
 

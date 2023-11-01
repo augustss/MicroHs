@@ -21,10 +21,10 @@ instance Ord Char where
   (>)  = primCharGT
   (>=) = primCharGE
 
-instance Eq [Char] where
+instance Eq String where
   (==) = primStringEQ
 
-instance Ord [Char] where
+instance Ord String where
   compare = primCompare
   x <  y  =  primCompare x y == LT
   x <= y  =  primCompare x y /= GT
