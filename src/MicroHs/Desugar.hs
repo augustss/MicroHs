@@ -49,7 +49,7 @@ dsDef mn adef =
     Import _ -> []
     ForImp ie i _ -> [(i, Lit $ LForImp ie)]
     Infix _ _ -> []
-    Class ctx (c, _) bs ->
+    Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"
           meths :: [Ident]
           meths = [ qualIdent mn i | (BSign i _) <- bs ]

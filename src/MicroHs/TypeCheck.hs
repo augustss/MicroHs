@@ -241,7 +241,7 @@ mkTModule tds tcs =
     tes =
       [ TypeExport i (tentry i) (assoc i) | Data    (i, _) _ <- tds ] ++
       [ TypeExport i (tentry i) (assoc i) | Newtype (i, _) _ <- tds ] ++
-      [ TypeExport i (tentry i) (assoc i) | Class _ (i, _) _ <- tds ] ++
+      [ TypeExport i (tentry i) (assoc i) | Class _ (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) []        | Type    (i, _) _ <- tds ]
 
     -- All type synonym definitions.
@@ -949,7 +949,7 @@ addTypeKind adef = T.do
       addLHSKind lhs kType
       addAssoc i (assocData c)
     Type    lhs t         -> addLHSKind lhs (getTypeKind t)
-    Class _ lhs@(i, _) ms -> T.do
+    Class _ lhs@(i, _) _ ms -> T.do
       addLHSKind lhs kConstraint
       addAssoc i [ m | BSign m _ <- ms ]
     _ -> T.return ()
@@ -987,13 +987,15 @@ tcDefType d = T.do
     Type    lhs@(_, iks)    t   -> withVars iks $ Type    lhs   <$> tInferTypeT t
     Sign         i          t   ->                Sign    i     <$> tCheckTypeT kType t
     ForImp  ie i            t   ->                ForImp ie i   <$> tCheckTypeT kType t
-    Class   ctx lhs@(_, iks) ms -> withVars iks $ Class         <$> tcCtx ctx T.<*> T.return lhs              T.<*> T.mapM tcMethod ms
+    Class   ctx lhs@(_, iks) fds ms -> withVars iks $ Class     <$> tcCtx ctx T.<*> T.return lhs <*> mapM tcFD fds T.<*> T.mapM tcMethod ms
     Instance iks ctx c m        -> withVars iks $ Instance iks  <$> tcCtx ctx T.<*> tCheckTypeT kConstraint c T.<*> T.return m
     _                           -> T.return d
  where
    tcCtx = T.mapM (tCheckTypeT kConstraint)
    tcMethod (BSign i t) = BSign i <$> tcTypeT (Check kType) t
    tcMethod m = T.return m
+   tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
+     where tcV i = T.do { _ <- tLookup "fundep" i; T.return i }
 
 withVars :: forall a . [IdKind] -> T a -> T a
 withVars aiks ta =
@@ -1056,8 +1058,9 @@ tcConstr (Constr c ets) =
 -- in the desugaring pass.
 -- Default methods are added as actual definitions.
 -- The constructor and methods are added to the symbol table in addValueType.
+-- XXX FunDep
 expandClass :: EDef -> T [EDef]
-expandClass dcls@(Class ctx (iCls, vks) ms) = T.do
+expandClass dcls@(Class ctx (iCls, vks) _fds ms) = T.do
   mn <- gets moduleName
   let
       meths = [ b | b@(BSign _ _) <- ms ]
@@ -1158,11 +1161,12 @@ addValueType adef = T.do
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
       extValETop c (EForall vks $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
     ForImp _ i t -> extValQTop i t
-    Class ctx (i, vks) ms -> addValueClass ctx i vks ms
+    Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     _ -> T.return ()
 
-addValueClass :: [EConstraint] -> Ident -> [IdKind] -> [EBind] -> T ()
-addValueClass ctx iCls vks ms = T.do
+-- XXX FunDep
+addValueClass :: [EConstraint] -> Ident -> [IdKind] -> [FunDep] -> [EBind] -> T ()
+addValueClass ctx iCls vks _fds ms = T.do
   mn <- gets moduleName
   let
       meths = [ b | b@(BSign _ _) <- ms ]

@@ -260,7 +260,7 @@ pDef =
   <|< Import      <$> (pKeyword "import"  *> pImportSpec)
   <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
-  <|< Class       <$> (pKeyword "class"    *> pContext) <*> pLHS                  <*> pWhere pClsBind
+  <|< Class       <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance    <$> (pKeyword "instance" *> pForall)  <*> pContext <*> pTypeApp <*> pWhere pClsBind
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
@@ -276,6 +276,8 @@ pDef =
       fs <- pFields
       guard $ either length length fs == 1
       P.pure fs
+    pFunDeps = (pSpec '|' *> esome pFunDep) <|< P.pure []
+    pFunDep = (,) <$> esome pLIdent <*> (pSymbol "->" *> esome pLIdent)
 
 pLHS :: P LHS
 pLHS = (,) <$> pTypeIdentSym <*> emany pIdKind

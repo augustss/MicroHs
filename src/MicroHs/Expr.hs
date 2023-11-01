@@ -14,6 +14,7 @@ module MicroHs.Expr(
   EAlts(..),
   EAlt,
   ECaseArm,
+  FunDep,
   EType, showEType, eqEType,
   EConstraint,
   EPat, patVars, isPVar, isPConApp,
@@ -66,7 +67,7 @@ data EDef
   | Import ImportSpec
   | ForImp String Ident EType
   | Infix Fixity [Ident]
-  | Class [EConstraint] LHS [EBind]  -- XXX will probable need initial forall with FD
+  | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance [IdKind] [EConstraint] EConstraint [EBind]  -- no deriving yet
   --Xderiving (Show, Eq)
 
@@ -101,6 +102,8 @@ data Expr
   | ECon Con
   | EForall [IdKind] Expr -- only in types
   --Xderiving (Show, Eq)
+
+type FunDep = ([Ident], [Ident])
 
 eLam :: [EPat] -> Expr -> Expr
 eLam ps e = ELam $ eEqns ps e
@@ -408,10 +411,15 @@ ppEDef def =
     ForImp ie i t -> text ("foreign import ccall " ++ showString ie) <+> ppIdent i <+> text "::" <+> ppEType t
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (showInt p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
-    Class sup lhs bs -> ppWhere (text "class" <+> ctx sup <+> ppLHS lhs) bs
+    Class sup lhs fds bs -> ppWhere (text "class" <+> ctx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
     Instance vs ct ty bs -> ppWhere (text "instance" <+> ppForall vs <+> ctx ct <+> ppEType ty) bs
  where ctx [] = empty
        ctx ts = ppEType (ETuple ts) <+> text "=>"
+
+ppFunDeps :: [FunDep] -> Doc
+ppFunDeps [] = empty
+ppFunDeps fds =
+  text "|" <+> hsep (punctuate (text ",") (map (\ (is, os) -> hsep (map ppIdent is) <+> text "-" <+> hsep (map ppIdent os)) fds))
 
 ppEqns :: Doc -> Doc -> [Eqn] -> Doc
 ppEqns name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map ppEPat ps), ppAlts sepr alts])
