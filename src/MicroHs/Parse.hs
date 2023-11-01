@@ -113,6 +113,10 @@ pLQIdent = P.do
     is _ = Nothing
   satisfyM "LQIdent" is
 
+-- Type names can be any operator
+pTypeIdentSym :: P Ident
+pTypeIdentSym = pUIdent <|< pParens pSymOper
+
 keywords :: [String]
 keywords =
   ["case", "class", "data", "do", "else", "forall", "foreign", "if", "import",
@@ -256,8 +260,8 @@ pDef =
   <|< Import      <$> (pKeyword "import"  *> pImportSpec)
   <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
-  <|< Class       <$> (pKeyword "class"    *> pContext) <*> pLHS     <*> pWhere pClsBind
-  <|< Instance    <$> (pKeyword "instance" *> pForall) <*> pContext <*> pTypeApp <*> pWhere pClsBind
+  <|< Class       <$> (pKeyword "class"    *> pContext) <*> pLHS                  <*> pWhere pClsBind
+  <|< Instance    <$> (pKeyword "instance" *> pForall)  <*> pContext <*> pTypeApp <*> pWhere pClsBind
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ i) | -2 <= i && i <= 9 = Just i
@@ -274,7 +278,8 @@ pDef =
       P.pure fs
 
 pLHS :: P LHS
-pLHS = (,) <$> pUIdentSym <*> emany pIdKind
+pLHS = (,) <$> pTypeIdentSym <*> emany pIdKind
+    <|< (\ a c b -> (c, [a,b])) <$> pIdKind <*> pSymOper <*> pIdKind
 
 pImportSpec :: P ImportSpec
 pImportSpec =

@@ -17,6 +17,10 @@ data Double
 data IO a
 data Word
 
+-- Type equality as a constraint.
+-- XXX No functional dependencies yet.
+class a ~ b {- a -> b, b -> a -}
+
 data () = ()   -- Parser hacks allows () to be used
 
 primIntAdd :: Int -> Int -> Int
