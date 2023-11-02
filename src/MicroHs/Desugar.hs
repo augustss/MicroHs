@@ -80,7 +80,7 @@ dsEqns loc eqns =
     Eqn aps _ : _ ->
       let
         vs = allVarsBind $ BFcn (mkIdent "") eqns
-        xs = take (length aps) $ newVars "q" vs
+        xs = take (length aps) $ newVars "$q" vs
         mkArm (Eqn ps alts) =
           let ps' = map dsPat ps
           in  (ps', dsAlts alts, hasGuards alts || any hasLit ps')
@@ -124,8 +124,8 @@ dsBinds [] ret = ret
 dsBinds ads ret =
   let
     avs = concatMap allVarsBind ads
-    pvs = newVars "p" avs
-    mvs = newVars "m" avs
+    pvs = newVars "$p" avs
+    mvs = newVars "$m" avs
     ds = concat $ zipWith dsBind pvs ads
     node ie@(i, e) = (ie, i, freeVars e)
     gr = map node $ checkDup ds
@@ -265,7 +265,7 @@ newVars :: String -> [Ident] -> [Ident]
 newVars s is = deleteAllsBy (==) [ mkIdent (s ++ show i) | i <- enumFrom 1 ] is
 
 newVar :: [Ident] -> Ident
-newVar = head . newVars "q"
+newVar = head . newVars "$q"
 
 showLDefs :: [LDef] -> String
 showLDefs = unlines . map showLDef
@@ -309,7 +309,7 @@ newIdent = do
 runS :: SLoc -> [Ident] -> [Exp] -> Matrix -> Exp
 runS loc used ss mtrx =
   let
-    supply = newVars "x" used
+    supply = newVars "$x" used
     ds xs aes =
       case aes of
         []   -> dsMatrix (eMatchErr loc) (reverse xs) mtrx
@@ -426,8 +426,8 @@ mkCase var pes dflt =
 
 eCase :: Exp -> [(SPat, Exp)] -> Exp
 eCase e as =
-  --trace ("eCase " ++ showExp e ++ "\n" ++
-  --       unlines [ unwords (conIdent c : xs) ++ " -> " ++ showExp r | (SPat c xs, r) <- as ]) $
+--  trace ("eCase " ++ showExp e ++ "\n" ++
+--         unlines [ unwords (map showIdent (conIdent c : xs)) ++ " -> " ++ showExp r | (SPat c xs, r) <- as ]) $
   apps e [lams xs r | (SPat _ xs, r) <- as ]
 
 -- Split the matrix into segments so each first column has initially patterns -- followed by variables, followed by the rest.
