@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 module Data.Num(module Data.Num) where
 import Primitives
 
@@ -18,5 +20,3 @@ class Num a where
 
 subtract :: forall a . Num a => a -> a -> a
 subtract x y = y - x
-
-
