@@ -341,13 +341,6 @@ getIdent ae =
 eqInstDict :: InstDict -> InstDict -> Bool
 eqInstDict (e, _, _) (e', _, _) = eqExpr e e'
 
--- Very partial implementation of Expr equality.
--- It is only used to compare instances, so this suffices.
-eqExpr :: Expr -> Expr -> Bool
-eqExpr (EVar i) (EVar i') = i == i'
-eqExpr (EApp f a) (EApp f' a') = eqExpr f f' && eqExpr a a'
-eqExpr _ _ = False
-
 --------------------------
 
 type Typed a = (a, EType)

@@ -5,7 +5,7 @@ module MicroHs.Expr(
   ImportSpec(..),
   ImportItem(..),
   EDef(..), showEDefs,
-  Expr(..), eLam, eEqns, showExpr,
+  Expr(..), eLam, eEqns, showExpr, eqExpr,
   Listish(..),
   Lit(..), showLit,
   EBind(..), showEBind, showEBinds,
@@ -273,9 +273,16 @@ subst s =
 
 -- XXX needs more?
 eqEType :: EType -> EType -> Bool
-eqEType (EVar i) (EVar i') = i == i'
-eqEType (EApp f a) (EApp f' a') = eqEType f f' && eqEType a a'
-eqEType _ _ = False
+eqEType = eqExpr
+
+-- Very partial implementation of Expr equality.
+-- It is only used to compare instances, so this suffices.
+eqExpr :: Expr -> Expr -> Bool
+eqExpr (EVar i) (EVar i') = i == i'
+eqExpr (EVar _) (EApp _ _) = False
+eqExpr (EApp f a) (EApp f' a') = eqExpr f f' && eqExpr a a'
+eqExpr (EApp _ _) (EVar _) = False
+eqExpr _ _ = error "eqExpr: unimplemented"
 
 ---------------------------------
 
