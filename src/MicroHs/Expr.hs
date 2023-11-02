@@ -464,7 +464,10 @@ ppAlt asep (ss, e) = text " |" <+> hsep (punctuate (text ",") (map ppEStmt ss)) 
 ppExpr :: Expr -> Doc
 ppExpr ae =
   case ae of
-    EVar v -> ppIdent v
+    EVar i | isOperChar cop -> parens (text op)
+           | otherwise      -> text op
+             where op = unIdent (unQualIdent i)
+                   cop = head op
     EApp _ _ -> ppApp [] ae
     EOper e ies -> ppExpr (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
     ELam qs -> parens $ text "\\" <> ppEqns empty (text "->") qs
@@ -483,14 +486,16 @@ ppExpr ae =
     EUVar i -> text ("a" ++ show i)
     ECon c -> ppCon c
     EForall iks e -> ppForall iks <+> ppEType e
-  where
-    ppApp as (EApp f a) = ppApp (a:as) f
-    ppApp as (EVar i) | op == "->", [a, b] <- as = parens $ ppExpr a <+> text "->" <+> ppExpr b
-                      | op == "=>", [a, b] <- as = parens $ ppExpr a <+> text "=>" <+> ppExpr b
-                      | head op == ',' = ppExpr (ETuple as)
-                      | op == "[]", length as == 1 = ppExpr (EListish (LList as))
-                        where op = unQualString (unIdent i)
-    ppApp as f = parens $ hsep (map ppExpr (f:as))
+--  where
+ppApp :: [Expr] -> Expr -> Doc
+ppApp as (EApp f a) = ppApp (a:as) f
+ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppExpr a <+> text op <+> ppExpr b
+                  | isOperChar cop, [a] <- as    = parens $ ppExpr a <+> text op
+                  | cop == ','                   = ppExpr (ETuple as)
+                  | op == "[]", length as == 1   = ppExpr (EListish (LList as))
+                    where op = unIdent (unQualIdent i)
+                          cop = head op
+ppApp as f = parens $ hsep (map ppExpr (f:as))
 
 ppForall :: [IdKind] -> Doc
 ppForall [] = empty
