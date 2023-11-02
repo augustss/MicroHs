@@ -7,7 +7,7 @@ import qualified Data.Char as C
 import Data.Eq
 import qualified Data.Int as I
 import Data.List
-import Text.String
+import Text.Show
 
 infixl 6 +,-
 infixl 7 *,`quot`,`rem`
@@ -61,10 +61,13 @@ wordToInt = primUnsafeCoerce
 
 --------------------------------
 
-showWord :: Word -> C.String
-showWord n =
-  let
-    c = C.chr ((I.+) (C.ord '0') (wordToInt (rem n (intToWord 10))))
-  in  case n < intToWord 10 of
-        False -> showWord (quot n (intToWord 10)) ++ [c]
-        True  -> [c]
+instance Show Word where
+  show = showWord
+    where
+      showWord :: Word -> C.String
+      showWord n =
+        let
+          c = C.chr ((I.+) (C.ord '0') (wordToInt (rem n (intToWord 10))))
+        in  case n < intToWord 10 of
+              False -> showWord (quot n (intToWord 10)) ++ [c]
+              True  -> [c]

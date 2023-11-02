@@ -409,7 +409,7 @@ ppEDef def =
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ", ") (map ppImportItem is))
     ForImp ie i t -> text ("foreign import ccall " ++ show ie) <+> ppIdent i <+> text "::" <+> ppEType t
-    Infix (a, p) is -> text ("infix" ++ f a) <+> text (showInt p) <+> hsep (punctuate (text ", ") (map ppIdent is))
+    Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ctx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
     Instance vs ct ty bs -> ppWhere (text "instance" <+> ppForall vs <+> ctx ct <+> ppEType ty) bs
@@ -474,7 +474,7 @@ ppExpr ae =
     EListish l -> ppListish l
     ESign e t -> ppExpr e <+> text "::" <+> ppEType t
     EAt i e -> ppIdent i <> text "@" <> ppExpr e
-    EUVar i -> text ("a" ++ showInt i)
+    EUVar i -> text ("a" ++ show i)
     ECon c -> ppCon c
     EForall iks e -> ppForall iks <+> ppEType e
   where

@@ -65,22 +65,22 @@ instance Ord Int where
 --------------------------------
 
 instance Show Int where
-  show = showInt
+  show = showInt_
 
 -- XXX these should not be exported
 -- XXX wrong for minInt
-showInt :: Int -> String
-showInt n =
+showInt_ :: Int -> String
+showInt_ n =
   if n < 0 then
-    '-' : showUnsignedInt (negate n)
+    '-' : showUnsignedInt_ (negate n)
   else
-    showUnsignedInt n
+    showUnsignedInt_ n
 
-showUnsignedInt :: Int -> String
-showUnsignedInt n =
+showUnsignedInt_ :: Int -> String
+showUnsignedInt_ n =
   let
     c = primChr (primOrd '0' + rem n 10)
   in  if n < 10 then
         [c]
       else
-        showUnsignedInt (quot n 10) ++ [c]
+        showUnsignedInt_ (quot n 10) ++ [c]

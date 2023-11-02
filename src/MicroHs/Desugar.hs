@@ -34,12 +34,12 @@ dsDef mn adef =
   case adef of
     Data _ cs ->
       let
-        f i = mkIdent ("$f" ++ showInt i)
+        f i = mkIdent ("$f" ++ show i)
         fs = [f i | (i, _) <- zip (enumFrom 0) cs]
         dsConstr i (Constr c ets) =
           let
             ts = either id (map snd) ets
-            xs = [mkIdent ("$x" ++ showInt j) | (j, _) <- zip (enumFrom 0) ts]
+            xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip (enumFrom 0) ts]
           in (qualIdent mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
       in  zipWith dsConstr (enumFrom 0) cs
     Newtype _ (Constr c _) -> [ (qualIdent mn c, Lit (LPrim "I")) ]
@@ -55,7 +55,7 @@ dsDef mn adef =
           meths = [ qualIdent mn i | (BSign i _) <- bs ]
           supers :: [Ident]
           supers = [ qualIdent mn $ mkSuperSel c i | i <- [1 .. length ctx] ]
-          xs = [ mkIdent ("$x" ++ showInt j) | j <- [ 1 .. length ctx + length meths ] ]
+          xs = [ mkIdent ("$x" ++ show j) | j <- [ 1 .. length ctx + length meths ] ]
       in  (qualIdent mn $ mkClassConstructor c, lams xs $ Lam f $ apps (Var f) (map Var xs)) :
           zipWith (\ i x -> (expectQualified i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
     Instance _ _ _ _ -> []
@@ -205,7 +205,7 @@ dsExpr aexpr =
         case getTupleConstr ci of
           Just n ->
             let
-              xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 n ]
+              xs = [mkIdent ("x" ++ show i) | i <- enumFromTo 1 n ]
               body = mkTupleE $ map Var xs
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
@@ -219,7 +219,7 @@ mkTupleE = Lam (mkIdent "$f") . foldl App (Var (mkIdent "$f"))
 mkTupleSelE :: Int -> Int -> Exp -> Exp
 mkTupleSelE m n tup =
   let
-    xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 n ]
+    xs = [mkIdent ("x" ++ show i) | i <- enumFromTo 1 n ]
   in App tup (foldr Lam (Var (xs !! m)) xs)
 
 -- Handle special syntax for lists and tuples
@@ -262,7 +262,7 @@ apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
 newVars :: String -> [Ident] -> [Ident]
-newVars s is = deleteAllsBy (==) [ mkIdent (s ++ showInt i) | i <- enumFrom 1 ] is
+newVars s is = deleteAllsBy (==) [ mkIdent (s ++ show i) | i <- enumFrom 1 ] is
 
 newVar :: [Ident] -> Ident
 newVar = head . newVars "q"
@@ -292,7 +292,7 @@ type Arm = ([EPat], Exp -> Exp, Bool)  -- boolean indicates that the arm has gua
 type Matrix = [Arm]
 
 --showArm :: Arm -> String
---showArm (ps, _, b) = xshowList showExpr ps ++ "," ++ showBool b
+--showArm (ps, _, b) = showListS showExpr ps ++ "," ++ show b
 
 newIdents :: Int -> M [Ident]
 newIdents n = S.do

@@ -38,8 +38,8 @@ mainCompile flags mn = do
   let
     mainName = qualIdent mn (mkIdent "main")
     cmdl = (mainName, ds)
-    ref i = Var $ mkIdent $ "_" ++ showInt i
-    defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds (enumFrom 0) ]
+    ref i = Var $ mkIdent $ "_" ++ show i
+    defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds (enumFrom (0::Int)) ]
     findIdent n = fromMaybe (error $ "main: findIdent: " ++ showIdent n) $
                   M.lookup n defs
     emain = findIdent mainName
@@ -50,11 +50,11 @@ mainCompile flags mn = do
         e -> e
     def :: ((Ident, Exp), Int) -> (String -> String) -> (String -> String)
     def ((_, e), i) r =
-      (("((A :" ++ showInt i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
+      (("((A :" ++ show i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
     res = foldr def (toStringP emain) (zip ds (enumFrom 0)) ""
     numDefs = M.size defs
   when (verbose flags > 0) $
-    putStrLn $ "top level defns: " ++ showInt numDefs
+    putStrLn $ "top level defns: " ++ show numDefs
   when (verbose flags > 1) $
     mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") ds
   if runIt flags then do
@@ -65,10 +65,10 @@ mainCompile flags mn = do
     prg
 --    putStrLn "done"
    else do
-    writeFile (output flags) $ version ++ showInt numDefs ++ "\n" ++ res
+    writeFile (output flags) $ version ++ show numDefs ++ "\n" ++ res
     t2 <- getTimeMilli
     when (verbose flags > 0) $
-      putStrLn $ "final pass            " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
+      putStrLn $ "final pass            " ++ padLeft 6 (show (t2-t1)) ++ "ms"
 
 version :: String
 version = "v4.0\n"

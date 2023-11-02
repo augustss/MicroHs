@@ -11,13 +11,9 @@ class Show a where
   show      :: a -> String
   showList  :: [a] -> ShowS
 
-  showsPrec _ x s   = show x ++ s
-  show x            = showsPrec 0 x ""
-  showList []     s = '[' : ']' : s
-  showList (x:xs) s = '[' : shows x (shl xs)
-    where
-      shl []     = ']' : s
-      shl (y:ys) = ',' : shows y (shl ys)
+  showsPrec _ x s = show x ++ s
+  show x          = showsPrec 0 x ""
+  showList        = showListWith shows
 
 shows :: forall a . Show a => a -> ShowS
 shows = showsPrec 0
@@ -31,3 +27,10 @@ showString = (++)
 showParen :: Bool -> ShowS -> ShowS
 showParen False sh = sh
 showParen True  sh = \ x -> '(' : sh (')' : x)
+
+showListWith :: forall a . (a -> ShowS) -> [a] -> ShowS
+showListWith _  []     s = '[' : ']' : s
+showListWith sh (x:xs) s = '[' : sh x (shl xs)
+  where
+    shl []     = ']' : s
+    shl (y:ys) = ',' : sh y (shl ys)

@@ -154,7 +154,7 @@ evalExpr cmdl = S.do
       Left  e -> err e
       Right val ->
         if primIsInt val then
-          putStrLn $ showInt $ unsafeCoerce val
+          putStrLn $ show (unsafeCoerce val :: Int)
         else do
           putStrLn "Warning: not an Int"
           mio <- try (print (force ((unsafeCoerce val)::Int)))

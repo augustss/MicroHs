@@ -312,7 +312,7 @@ mkTables mdls =
     allClasses =
       let
         clss (_, TModule _ _ _ _ ces _ _ _) = ces
-      in  --(\ m -> trace ("allClasses: " ++ xshowList showIdentClassInfo (M.toList m)) m) $
+      in  --(\ m -> trace ("allClasses: " ++ showListS showIdentClassInfo (M.toList m)) m) $
           M.fromList $ concatMap clss mdls
     allInsts :: InstTable
     allInsts =
@@ -509,7 +509,7 @@ withDict i c ta = T.do
 
 initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ClassTable -> InstTable -> ValueTable -> AssocTable -> TCState
 initTC mn fs ts ss cs is vs as =
---  trace ("**** initTC " ++ showIdent mn ++ ": " ++ xshowList (showPair showIdent showEType) (M.toList ss)) $
+--  trace ("**** initTC " ++ showIdent mn ++ ": " ++ showListS (showPairS showIdent showEType) (M.toList ss)) $
   let
     xts = foldr (uncurry stInsertGlb) ts primTypes
     xvs = foldr (uncurry stInsertGlb) vs primValues
@@ -582,7 +582,7 @@ primValues =
     tuple n =
       let
         c = tupleConstr builtinLoc n
-        vks = [IdKind (mkIdent ("a" ++ showInt i)) kType | i <- enumFromTo 1 n]
+        vks = [IdKind (mkIdent ("a" ++ show i)) kType | i <- enumFromTo 1 n]
         ts = map tVarK vks
         r = tApps c ts
       in  (c, [Entry (ECon $ ConData [(c, n)] c) $ EForall vks $ foldr tArrow r ts ])
@@ -762,7 +762,7 @@ newUniq = T.do
 newIdent :: SLoc -> String -> T Ident
 newIdent loc s = T.do
   u <- newUniq
-  T.return $ mkIdentSLoc loc $ s ++ "$" ++ showInt u
+  T.return $ mkIdentSLoc loc $ s ++ "$" ++ show u
 
 tLookup :: --XHasCallStack =>
            String -> Ident -> T (Expr, EType)
@@ -799,7 +799,7 @@ tInst' et = T.return et
 tDict :: (Expr, EType) -> T (Expr, EType)
 tDict (ae, at) | Just (ctx, t) <- getImplies at = T.do
   u <- newUniq
-  let d = mkIdentSLoc loc ("dict$" ++ showInt u)
+  let d = mkIdentSLoc loc ("dict$" ++ show u)
       loc = getSLocExpr ae
   --traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx ++ " " ++ showSLoc loc
   addConstraint d ctx
@@ -1285,7 +1285,7 @@ tCheckExpr :: --XHasCallStack =>
 tCheckExpr t e | Just (ctx, t') <- getImplies t = T.do
   _ <- undefined -- XXX
   u <- newUniq
-  let d = mkIdentSLoc (getSLocExpr e) ("adict$" ++ showInt u)
+  let d = mkIdentSLoc (getSLocExpr e) ("adict$" ++ show u)
   e' <- withDict d ctx $ tCheckExpr t' e
   T.return $ eLam [EVar d] e'
 tCheckExpr t e = tCheck tcExpr t e
@@ -1823,7 +1823,7 @@ quantify tvs ty = T.do
 
 allBinders :: [Ident] -- a,b,..z, a1, b1,... z1, a2, b2,...
 allBinders = [ mkIdent [chr x] | x <- [ord 'a' .. ord 'z'] ] ++
-             [ mkIdent (chr x : showInt i) | i <- [1 ..], x <- [ord 'a' .. ord 'z']]
+             [ mkIdent (chr x : show i) | i <- [1 ..], x <- [ord 'a' .. ord 'z']]
 -}
 
 skolemise :: --XHasCallStack =>
@@ -1848,7 +1848,7 @@ skolemise ty =
 newSkolemTyVar :: Ident -> T Ident
 newSkolemTyVar tv = T.do
   uniq <- newUniq
-  T.return (mkIdentSLoc (getSLocIdent tv) (unIdent tv ++ "#" ++ showInt uniq))
+  T.return (mkIdentSLoc (getSLocIdent tv) (unIdent tv ++ "#" ++ show uniq))
 
 freeTyVars :: [EType] -> [TyVar]
 -- Get the free TyVars from a type; no duplicates in result
@@ -1973,7 +1973,7 @@ expandDict edict acn = T.do
 
 mkSuperSel :: --XHasCallStack =>
               Ident -> Int -> Ident
-mkSuperSel c i = addIdentSuffix c ("$super" ++ showInt i)
+mkSuperSel c i = addIdentSuffix c ("$super" ++ show i)
 
 ---------------------------------
 
@@ -1991,20 +1991,20 @@ solveLocalConstraints ta = T.do
 
 {-
 showInstInfo :: InstInfo -> String
-showInstInfo (InstInfo m ds) = "InstInfo " ++ xshowList (showPair showIdent showExpr) (M.toList m) ++ " " ++ showList showInstDict ds
+showInstInfo (InstInfo m ds) = "InstInfo " ++ showListS (showPair showIdent showExpr) (M.toList m) ++ " " ++ showList showInstDict ds
 
 showInstDict :: InstDict -> String
 showInstDict (e, iks, ctx, ts) = showExpr e ++ " :: " ++ showEType (eForall iks $ addConstraints ctx (tApps (mkIdent "X") ts))
 
 showInstDef :: InstDef -> String
 showInstDef (cls, InstInfo m ds) = "instDef " ++ showIdent cls ++ ": "
-            ++ xshowList (showPair showIdent showExpr) (M.toList m) ++ ", " ++ showList showInstDict ds
+            ++ showListS (showPair showIdent showExpr) (M.toList m) ++ ", " ++ showList showInstDict ds
 
 showConstraint :: (Ident, EConstraint) -> String
 showConstraint (i, t) = showIdent i ++ " :: " ++ showEType t
 
 showMatch :: (Expr, [EConstraint]) -> String
-showMatch (e, ts) = showExpr e ++ " " ++ xshowList showEType ts
+showMatch (e, ts) = showExpr e ++ " " ++ showListS showEType ts
 -}
 
 -- Solve as many constraints as possible.
@@ -2031,7 +2031,7 @@ solveConstraints = T.do
           case getTupleConstr iCls of
             Just _ -> T.do
               goals <- T.mapM (\ c -> T.do { d <- newIdent loc "dict"; T.return (d, c) }) cts
---              traceM ("split tuple " ++ xshowList showConstraint goals)
+--              traceM ("split tuple " ++ showListS showConstraint goals)
               solve (goals ++ cnss) uns ((di, ETuple (map (EVar . fst) goals)) : sol)
             Nothing ->
               case M.lookup iCls it of
@@ -2053,7 +2053,7 @@ solveConstraints = T.do
 --          traceM ("solveGen " ++ showEType ct)
           let (_, ts) = getApp ct
               matches = getBestMatches $ findMatches insts ts
---          traceM ("matches " ++ xshowList showMatch matches)
+--          traceM ("matches " ++ showListS showMatch matches)
           case matches of
             []          -> solve cnss (cns : uns) sol
             [(de, ctx)] ->
@@ -2084,7 +2084,7 @@ findMatches ds its =
  let rrr =
        [ (length s, (de, map (substEUVar s) ctx))
        | (de, ctx, ts) <- ds, Just s <- [matchTypes [] ts its] ]
- in --trace ("findMatches: " ++ xshowList showInstDict ds ++ "; " ++ showEType ct ++ "; " ++ show rrr)
+ in --trace ("findMatches: " ++ showListS showInstDict ds ++ "; " ++ showEType ct ++ "; " ++ show rrr)
     rrr
   where
 
@@ -2151,7 +2151,7 @@ stLookup msg i (SymTab genv lenv) =
     Nothing ->
       case M.lookup i genv of
         Just [e] -> Right e
-        Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++ xshowList showExpr [ e | Entry e _ <- es ]
+        Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++ showListS showExpr [ e | Entry e _ <- es ]
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
 
@@ -2174,7 +2174,7 @@ stInsertGlb i as (SymTab genv lenv) = SymTab (M.insert i as genv) lenv
 -----------------------------
 {-
 showSymTab :: SymTab Entry -> String
-showSymTab (SymTab im ies) = xshowList showIdent (map fst (M.toList im) ++ map fst ies)
+showSymTab (SymTab im ies) = showListS showIdent (map fst (M.toList im) ++ map fst ies)
 
 showTModuleExps :: TModule a -> String
 showTModuleExps (TModule mn _fxs tys _syns _clss _insts vals _defs) =
@@ -2188,10 +2188,10 @@ showValueExport (ValueExport i (Entry qi t)) =
 
 showTypeExport :: TypeExport -> String
 showTypeExport (TypeExport i (Entry qi t) vs) =
-  showIdent i ++ " = " ++ showExpr qi ++ " :: " ++ showEType t ++ " assoc=" ++ xshowList showValueExport vs
+  showIdent i ++ " = " ++ showExpr qi ++ " :: " ++ showEType t ++ " assoc=" ++ showListS showValueExport vs
 
 showIdentClassInfo :: (Ident, ClassInfo) -> String
 showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
   showIdent i ++ " :: " ++ showEType cc ++
-    " has " ++ xshowList showIdent ms
+    " has " ++ showListS showIdent ms
 -}

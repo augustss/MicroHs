@@ -8,11 +8,11 @@ import Data.Either
 import Data.Eq
 import Data.Function
 import Data.Int
-import qualified Data.Double as DD
 import Data.List
 import Data.Maybe
 import Data.Ord
 import Data.Tuple
+import Text.Show
 
 xshowChar :: Char -> String
 xshowChar c = "'" ++ xencodeChar c ++ "'"
@@ -24,7 +24,7 @@ xencodeChar c =
             ('\\', "\\\\"), ('\'', "\\'"), ('"', "\"")]
   in
     case lookup c spec of
-      Nothing -> if isPrint c then [c] else "'\\" ++ showInt (ord c) ++ "'"
+      Nothing -> if isPrint c then [c] else "'\\" ++ show (ord c) ++ "'"
       Just s  -> s
 
 readInt :: String -> Int
@@ -36,39 +36,11 @@ readInt cs =
 readDouble :: String -> Double
 readDouble = primDoubleRead
 
-{-
-showBool :: Bool -> String
-showBool arg =
-  case arg of
-    False -> "False"
-    True  -> "True"
+showListS :: forall a . (a -> String) -> [a] -> String
+showListS sa as = showListWith (\ a s -> sa a ++ s) as ""
 
-showUnit :: () -> String
-showUnit arg =
-  case arg of
-    () -> "()"
-
-showPair :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
-showPair sa sb ab =
-  case ab of
-    (a, b) -> "(" ++ sa a ++ "," ++ sb b ++ ")"
-
-showMaybe :: forall a . (a -> String) -> Maybe a -> String
-showMaybe _ Nothing = "Nothing"
-showMaybe fa (Just a) = "(Just " ++ fa a ++ ")"
-
-showEither :: forall a b . (a -> String) -> (b -> String) -> Either a b -> String
-showEither fa _ (Left  a) = "(Left "  ++ fa a ++ ")"
-showEither _ fb (Right b) = "(Right " ++ fb b ++ ")"
-
-showOrdering :: Ordering -> String
-showOrdering LT = "LT"
-showOrdering EQ = "EQ"
-showOrdering GT = "GT"
--}
-
-xshowList :: forall a . (a -> String) -> [a] -> String
-xshowList sa as = "[" ++ intercalate "," (map sa as) ++ "]"
+showPairS :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
+showPairS sa sb (a, b) = "(" ++ sa a ++ "," ++ sb b ++ ")"
 
 lines :: String -> [String]
 lines "" = []
@@ -79,7 +51,6 @@ lines s =
 unlines :: [String] -> String
 unlines = concatMap (++ "\n")
 
-
 words :: String -> [String]
 words s =
   case dropWhile isSpace s of
@@ -89,16 +60,6 @@ words s =
 
 unwords :: [String] -> String
 unwords ss = intercalate " " ss
-
-{-
--- Using a primitive for string equality makes a huge speed difference.
-eqString :: String -> String -> Bool
-eqString = primStringEQ
-
-leString :: String -> String -> Bool
-leString s t = compareString s t /= GT
-  --not (eqOrdering GT (compareString s t))
--}
 
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s

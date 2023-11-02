@@ -174,7 +174,7 @@ quoteString s =
   let
     achar c =
       if c == '"' || c == '\\' || c < ' ' || c > '~' then
-        '\\' : showInt (ord c) ++ ['&']
+        '\\' : show (ord c) ++ ['&']
       else
         [c]
   in '"' : concatMap achar s ++ ['"']
@@ -449,7 +449,7 @@ substExp si se ae =
                  let
                    fe = allVarsExp e
                    ase = allVarsExp se
-                   j = head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ showInt n) }, not (elem v ase), not (elem v fe) ]
+                   j = head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ show n) }, not (elem v ase), not (elem v fe) ]
                  in
                    --trace ("substExp " ++ unwords [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))

@@ -73,7 +73,7 @@ compileCacheTop flags mn ch = IO.do
   () <- IO.return (rnf dsn)
   t2 <- getTimeMilli
   IO.when (verbose flags > 0) $
-    putStrLn $ "combinator conversion " ++ padLeft 6 (showInt (t2-t1)) ++ "ms"
+    putStrLn $ "combinator conversion " ++ padLeft 6 (show (t2-t1)) ++ "ms"
   IO.return (dsn, ch')
 
 --compileTop :: Flags -> IdentModule -> IO [LDef]
@@ -84,7 +84,7 @@ compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)
 compile flags nm ach = IO.do
   ((_, t), ch) <- runStateIO (compileModuleCached flags nm) ach
   IO.when (verbose flags > 0) $
-    putStrLn $ "total import time     " ++ padLeft 6 (showInt t) ++ "ms"
+    putStrLn $ "total import time     " ++ padLeft 6 (show t) ++ "ms"
   IO.return (concatMap bindingsOf $ M.elems $ cache ch, ch)
 
 -- Compile a module with the given name.
@@ -102,8 +102,8 @@ compileModuleCached flags mn = S.do
         liftIO $ putStrLn $ "importing " ++ showIdent mn
       (cm, tp, tt, ts) <- compileModule flags mn
       S.when (verbose flags > 0) $
-        liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ showInt (tp + tt) ++
-                 "ms (" ++ showInt tp ++ " + " ++ showInt tt ++ ")"
+        liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tp + tt) ++
+                 "ms (" ++ show tp ++ " + " ++ show tt ++ ")"
       S.when (loading flags && mn /= mkIdent "Interactive") $
         liftIO $ putStrLn $ "import " ++ showIdent mn
       c <- get
@@ -150,7 +150,7 @@ readFilePath :: [FilePath] -> FilePath -> IO (FilePath, String)
 readFilePath path name = IO.do
   mh <- openFilePath path name
   case mh of
-    Nothing -> error $ "File not found: " ++ show name ++ "\npath=" ++ xshowList show path
+    Nothing -> error $ "File not found: " ++ show name ++ "\npath=" ++ show path
     Just (fn, h) -> IO.do
       file <- IO.hGetContents h
       IO.return (fn, file)
