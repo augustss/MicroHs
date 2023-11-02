@@ -31,7 +31,7 @@ module MicroHs.Expr(
   getSLocExpr, setSLocExpr,
   getSLocEqns,
   errorMessage,
-  Assoc(..), eqAssoc, Fixity,
+  Assoc(..), Fixity,
   getBindsVars,
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), (<>))
@@ -241,13 +241,13 @@ mkTupleSel i n = eLam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [
 ---------------------------------
 
 data Assoc = AssocLeft | AssocRight | AssocNone
-  --Xderiving (Eq, Show)
+  --Xderiving (Show)
 
-eqAssoc :: Assoc -> Assoc -> Bool
-eqAssoc AssocLeft AssocLeft = True
-eqAssoc AssocRight AssocRight = True
-eqAssoc AssocNone AssocNone = True
-eqAssoc _ _ = False
+instance Eq Assoc where
+  AssocLeft  == AssocLeft  = True
+  AssocRight == AssocRight = True
+  AssocNone  == AssocNone  = True
+  _          == _          = False
 
 type Fixity = (Assoc, Int)
 

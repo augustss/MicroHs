@@ -1541,9 +1541,9 @@ tcOper ae aies = T.do
     calc es ((o, _):os) [] = doOp es o os []
     calc es oos@((oy, (ay, py)):os) iies@((oo@(ox, (ax, px)), e) : ies) =
 --      traceM (show ((unIdent (getIdent (fst o)), ay, py), (unIdent i, ax, px)))
-      if px == py && (not (eqAssoc ax ay) || eqAssoc ax AssocNone) then
+      if px == py && (ax /= ay || ax == AssocNone) then
         errorMessage (getSLocExpr ox) "ambiguous operator expression"
-       else if px < py || eqAssoc ax AssocLeft && px == py then
+       else if px < py || ax == AssocLeft && px == py then
         doOp es oy os iies
        else
         calc (e:es) (oo : oos) ies
