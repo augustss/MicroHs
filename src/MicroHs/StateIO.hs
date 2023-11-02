@@ -24,10 +24,10 @@ runStateIO sa =
 
 {-
 execStateIO :: forall s a . StateIO s a -> s -> IO s
-execStateIO sa s = IO.do
+execStateIO sa s = do
   as <- runStateIO sa s
   case as of
-    (_, ss) -> IO.return ss
+    (_, ss) -> return ss
 -}
 
 instance forall s . Functor (StateIO s) where
@@ -50,33 +50,6 @@ instance forall s . Monad (StateIO s) where
 
 instance forall s . MonadFail (StateIO s) where
   fail = error
-
-{-
-(>>=) :: forall s a b . StateIO s a -> (a -> StateIO s b) -> StateIO s b
-(>>=) m k = S $ \ s -> IO.do
-  (a, ss) <- runStateIO m s
-  runStateIO (k a) ss
-
-(>>) :: forall s a b . StateIO s a -> StateIO s b -> StateIO s b
-(>>) m k = S $ \ s -> IO.do
-  (_, ss) <- runStateIO m s
-  runStateIO k ss
-
-return :: forall s a . a -> StateIO s a
-return a = S $ \ s -> IO.return (a, s)
-
-fmap :: forall s a b . (a -> b) -> StateIO s a -> StateIO s b
-fmap f sa = S $ \ s -> IO.do
-  (a, ss) <- runStateIO sa s
-  IO.return (f a, ss)
-
-fail :: forall s a . String -> StateIO s a
-fail = error
-
-when :: forall s . Bool -> StateIO s () -> StateIO s ()
-when b s = if b then s else return ()
-
--}
 
 gets :: forall s a . (s -> a) -> StateIO s a
 gets f = S $ \ s -> return (f s, s)

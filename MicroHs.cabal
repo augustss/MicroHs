@@ -38,7 +38,7 @@ executable mhs
   hs-source-dirs:      src ghc
   ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -F -pgmF ./Tools/convertX.sh -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
-  default-extensions:  ScopedTypeVariables QualifiedDo PatternGuards TupleSections
+  default-extensions:  ScopedTypeVariables PatternGuards TupleSections
   other-modules:       MicroHs.Compile
                        MicroHs.Desugar
                        MicroHs.Exp

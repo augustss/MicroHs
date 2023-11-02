@@ -295,16 +295,16 @@ type Matrix = [Arm]
 --showArm (ps, _, b) = showListS showExpr ps ++ "," ++ show b
 
 newIdents :: Int -> M [Ident]
-newIdents n = S.do
+newIdents n = do
   is <- get
   put (drop n is)
-  S.return (take n is)
+  return (take n is)
 
 newIdent :: M Ident
-newIdent = S.do
+newIdent = do
   is <- get
   put (tail is)
-  S.return (head is)
+  return (head is)
 
 runS :: SLoc -> [Ident] -> [Exp] -> Matrix -> Exp
 runS loc used ss mtrx =
@@ -313,8 +313,8 @@ runS loc used ss mtrx =
     ds xs aes =
       case aes of
         []   -> dsMatrix (eMatchErr loc) (reverse xs) mtrx
-        e:es -> letBind (S.return e) $ \ x -> ds (x:xs) es
-  in S.evalState (ds [] ss) supply
+        e:es -> letBind (return e) $ \ x -> ds (x:xs) es
+  in evalState (ds [] ss) supply
 
 data SPat = SPat Con [Ident]    -- simple pattern
   --Xderiving(Show, Eq)
@@ -329,11 +329,11 @@ dsMatrix :: --XHasCallStack =>
             Exp -> [Exp] -> Matrix -> M Exp
 dsMatrix dflt iis aarms =
  if null aarms then
-   S.return dflt
+   return dflt
  else
  case iis of
- [] -> let { (_, f, _) : _ = aarms } in S.return $ f dflt
- i:is -> S.do
+ [] -> let { (_, f, _) : _ = aarms } in return $ f dflt
+ i:is -> do
   let
     (arms, darms, rarms) = splitArms aarms
     ndarms = map (\ (EVar x : ps, ed, g) -> (ps, substAlpha x i . ed, g) ) darms
@@ -341,13 +341,13 @@ dsMatrix dflt iis aarms =
   letBind (dsMatrix dflt iis rarms) $ \ drest ->
     letBind (dsMatrix drest is ndarms) $ \ ndflt ->
      if null arms then
-       S.return ndflt
-     else S.do
+       return ndflt
+     else do
       let
         idOf (p:_, _, _) = pConOf p
         idOf _ = impossible
         grps = groupEq (on (==) idOf) arms
-        oneGroup grp = S.do
+        oneGroup grp = do
           let
             (pat:_, _, _) : _ = grp
             con = pConOf pat
@@ -361,10 +361,10 @@ dsMatrix dflt iis aarms =
                     _        -> (pArgs p ++ ps, e, g)
                 _ -> impossible
           cexp <- dsMatrix ndflt (map Var xs ++ is) (map one grp)
-          S.return (SPat con xs, cexp)
+          return (SPat con xs, cexp)
 --      traceM $ "grps " ++ show grps
-      narms <- S.mapM oneGroup grps
-      S.return $ mkCase i narms ndflt
+      narms <- mapM oneGroup grps
+      return $ mkCase i narms ndflt
 
 eMatchErr :: SLoc -> Exp
 eMatchErr (SLoc fn l c) =
@@ -373,14 +373,14 @@ eMatchErr (SLoc fn l c) =
 -- If the first expression isn't a variable/literal, then use
 -- a let binding and pass variable to f.
 letBind :: M Exp -> (Exp -> M Exp) -> M Exp
-letBind me f = S.do
+letBind me f = do
   e <- me
   if cheap e then
     f e
-   else S.do
+   else do
     x <- newIdent
     r <- f (Var x)
-    S.return $ eLet x e r
+    return $ eLet x e r
 
 cheap :: Exp -> Bool
 cheap ae =
@@ -518,15 +518,15 @@ lazier :: LDef -> LDef
 lazier def@(fcn, Lam x (Lam y body)) =
   let fcn' = addIdentSuffix fcn "@"
       vfcn' = Var fcn'
-      repl :: Exp -> S.State Bool Exp
+      repl :: Exp -> State Bool Exp
       repl (Lam i e) = Lam i <$> repl e
-      repl (App (Var af) (Var ax)) | af == fcn && ax == x = S.do
+      repl (App (Var af) (Var ax)) | af == fcn && ax == x = do
         put True
-        S.return vfcn'
+        return vfcn'
       repl (App f a) = App <$> repl f <*> repl a
-      repl e@(Var _) = S.return e
-      repl e@(Lit _) = S.return e
-  in  case S.runState (repl body) False of
+      repl e@(Var _) = return e
+      repl e@(Lit _) = return e
+  in  case runState (repl body) False of
         (_, False) -> def
         (e', True) -> (fcn, Lam x $ letRecE fcn' (Lam y e') vfcn')
 
