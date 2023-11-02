@@ -1,7 +1,7 @@
 module MicroHs.Interactive(module MicroHs.Interactive) where
 import Prelude
 --Ximport Data.List
-import Control.DeepSeq
+--import Control.DeepSeq
 import Control.Exception
 import qualified MicroHs.StateIO as S
 import MicroHs.Compile
@@ -29,7 +29,7 @@ mainInteractive (Flags a b c d _) = do
 
 preamble :: String
 preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++
-           ") where\nimport Prelude\nimport Unsafe.Coerce\n"
+           ") where\nimport Prelude\n"
 
 start :: I ()
 start = S.do
@@ -109,7 +109,7 @@ itName :: String
 itName = "_it"
 
 mkIt :: String -> String
-mkIt l = itName ++ " :: Any\n" ++ itName ++ " = unsafeCoerce (" ++ l ++ ")\n"
+mkIt l = itName ++ " :: IO ()\n" ++ itName ++ " = print (" ++ l ++ ")\n"
 
 err :: Exn -> IO ()
 err (Exn s) = putStrLn $ "Error: " ++ s
@@ -147,17 +147,14 @@ tryCompile file = S.do
 
 evalExpr :: [LDef] -> I ()
 evalExpr cmdl = S.do
-  let res = translate (mkIdent (interactiveName ++ "." ++ itName), cmdl)
+  let ares = translate (mkIdent (interactiveName ++ "." ++ itName), cmdl)
+      res = unsafeCoerce ares :: IO ()
   mval <- S.liftIO $ try (seq res (return res))
   S.liftIO $
     case mval of
       Left  e -> err e
-      Right val ->
-        if primIsInt val then
-          putStrLn $ show (unsafeCoerce val :: Int)
-        else do
-          putStrLn "Warning: not an Int"
-          mio <- try (print (force ((unsafeCoerce val)::Int)))
-          case mio of
-            Left  e -> err e
-            Right _ -> return ()
+      Right val -> S.do
+        mio <- try val
+        case mio of
+          Left  e -> err e
+          Right _ -> return ()
