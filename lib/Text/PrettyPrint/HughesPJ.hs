@@ -197,7 +197,7 @@ beside (p1 `Union` p2)     g q   = beside p1 g q `union_` beside p2 g q
 beside Empty               _ q   = q
 beside (Nest k p)          g q   = nest_ k $! beside p g q
 beside p@(Beside p1 g1 q1) g2 q2
-         | eqBool g1 g2          = beside p1 g1 $! beside q1 g2 q2
+         | g1 == g2              = beside p1 g1 $! beside q1 g2 q2
          | otherwise             = beside (reduceDoc p) g2 q2
 beside p@(Above _ _ _)     g q   = let { d = reduceDoc p } in beside d g q
 beside (NilAbove p)        g q   = nilAbove_ $! beside p g q

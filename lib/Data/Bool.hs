@@ -13,6 +13,10 @@ instance Eq Bool where
   False == x  =  not x
   True  == x  =  x
 
+instance Show Bool where
+  showsPrec _ False = showString "False"
+  showsPrec _ True  = showString "True"
+
 infixr 2 ||
 (||) :: Bool -> Bool -> Bool
 (||) False y = y
@@ -29,15 +33,3 @@ not True  = False
 
 otherwise :: Bool
 otherwise = True
-
-eqBool :: Bool -> Bool -> Bool
-eqBool True  x = x
-eqBool False x = not x
-
-neBool :: Bool -> Bool -> Bool
-neBool True  x = not x
-neBool False x = x
-
-instance Show Bool where
-  showsPrec _ False = showString "False"
-  showsPrec _ True  = showString "True"
