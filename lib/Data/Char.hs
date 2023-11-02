@@ -84,17 +84,20 @@ toUpper c | primCharLE 'a' c && primCharLE c 'a' = chr (ord c - ord 'a' + ord 'A
           | True = c
 
 instance Show Char where
+  showsPrec _ '\'' = showString "'\\''"
   showsPrec _ c = showChar '\'' . showString (encodeChar c) . showChar '\''
   showList    s = showChar '"'  . f s
     where f [] = showChar '"'
-          f (c:cs) = showString (encodeChar c) . f cs
+          f (c:cs) =
+            if c == '"' then showString "\\\"" . f cs
+            else showString (encodeChar c) . f cs
 
 -- XXX should not export this
 encodeChar :: Char -> String
 encodeChar c =
   let
     spec = [('\n', "\\n"), ('\r', "\\r"), ('\t', "\\t"), ('\b', "\\b"),
-            ('\\', "\\\\"), ('\'', "\\'"), ('"', "\"")]
-    look [] = if isPrint c then [c] else "XXX"  -- "'\\" ++ showInt (ord c) ++ "'"
+            ('\\', "\\\\")]
+    look [] = if isPrint c then [c] else "'\\" ++ show (ord c) ++ "'"
     look ((d,s):xs) = if d == c then s else look xs
   in look spec
