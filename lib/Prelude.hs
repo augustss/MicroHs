@@ -11,6 +11,7 @@ module Prelude(
   module Data.Function,
   module Data.Functor,
   module Data.Int,
+  module Data.Integral,
   module Data.List,
   module Data.Maybe,
   module Data.Num,
@@ -32,6 +33,7 @@ import Data.Eq
 import Data.Function
 import Data.Functor
 import Data.Int
+import Data.Integral
 import Data.List
 import Data.Maybe
 import Data.Num

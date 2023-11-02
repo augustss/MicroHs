@@ -6,11 +6,10 @@ import Data.Bool_Type
 import qualified Data.Char as C
 import Data.Eq
 import Data.Int()  -- insances only
+import Data.Integral
 import Data.List
 import Data.Num
 import Text.Show
-
-infixl 7 `quot`,`rem`
 
 instance Num Word where
   (+)  = primWordAdd
@@ -30,10 +29,9 @@ instance Num Word where
 (*)  = primWordMul
 -}
 
-quot :: Word -> Word -> Word
-quot = primWordQuot
-rem :: Word -> Word -> Word
-rem  = primWordRem
+instance Integral Word where
+  quot = primWordQuot
+  rem  = primWordRem
 
 --------------------------------
 

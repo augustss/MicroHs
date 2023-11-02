@@ -5,12 +5,11 @@ import Primitives
 import Data.Bool_Type
 import Data.Char_Type
 import Data.Eq
+import Data.Integral
 import Data.List_Type
 import Data.Num
 import Data.Ord
 import Text.Show
-
-infixl 7 `quot`,`rem`
 
 instance Num Int where
   (+)  = primIntAdd
@@ -35,10 +34,9 @@ instance Num Int where
 (*)  = primIntMul
 -}
 
-quot :: Int -> Int -> Int
-quot = primIntQuot
-rem :: Int -> Int -> Int
-rem  = primIntRem
+instance Integral Int where
+  quot = primIntQuot
+  rem  = primIntRem
 
 --------------------------------
 

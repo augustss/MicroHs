@@ -1,16 +1,21 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
--- *** WIP, do not use! ***
 module Data.Integer(
   Integer,
-  addI, subI, mulI, quotI, remI,
-  negateI, absI,
-  quotRemI,
-  eqI, neI, ltI, leI, gtI, geI,
   intToInteger,
-  showInteger,
   ) where
-import Prelude
+import Primitives
+import Control.Error
+import Data.Bool
+import Data.Char
+import Data.Eq
+import Data.Function
+import Data.Int
+import Data.Integral
+import Data.List
+import Data.Num
+import Data.Ord
+import Text.Show
 {-
 import Prelude hiding(Integer)
 import qualified Prelude as P
@@ -44,7 +49,7 @@ instance Ord Integer where
   (<)  = ltI
   (<=) = leI
   (>)  = gtI
-  (>+) = geI
+  (>=) = geI
 
 instance Show Integer where
   show i = showInteger i
@@ -61,6 +66,9 @@ instance Num Integer where
       EQ -> zeroI
       GT -> oneI
   fromInt = intToInteger
+
+instance Integral Integer where
+  quotRem = quotRemI
 
 isZero :: Integer -> Bool
 isZero (I _ ds) = null ds
@@ -181,12 +189,6 @@ mulM xs ys =
       ss = zipWith (++) (map (`replicate` 0) [0..]) rs
   in  foldl1 add ss
 
-quotI :: Integer -> Integer -> Integer
-quotI x y = fst (quotRemI x y)
-
-remI :: Integer -> Integer -> Integer
-remI x y = snd (quotRemI x y)
-
 -- Signs:
 --  + +  -> (+,+)
 --  + -  -> (-,+)
@@ -208,6 +210,11 @@ quotRemI (I sx xs) (I sy ys)  = qrRes sx sy (quotRemB xs ys)
 
 qrRes :: Sign -> Sign -> ([Digit], [Digit]) -> (Integer, Integer)
 qrRes sx sy (ds, rs) = (sI (mulSign sx sy) ds, sI sx rs)
+
+quotI :: Integer -> Integer -> Integer
+quotI x y =
+  case quotRemI x y of
+    (q, _) -> q
 
 -- Divide by a single digit.
 -- Does not return normalized numbers.
