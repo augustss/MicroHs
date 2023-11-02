@@ -81,7 +81,7 @@ loop hist before after = do
       loop hist "" (reverse before ++ after)
     eol = do
       putStr after
-      loop hist (before ++ reverse after) ""
+      loop hist (reverse after ++ before) ""
     bs = do
       case before of
         [] -> noop
