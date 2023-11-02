@@ -14,7 +14,7 @@ iD = Id (\ x -> x)
 
 main :: IO ()
 main = do
-  putStrLn $ showPair showInt showBool $ f id
-  putStrLn $ showPair showInt showBool $ g const
+  putStrLn $ show $ f id
+  putStrLn $ show $ g const
   case iD of
-    Id i -> putStrLn $ showPair showInt showBool (i 1, i True)
+    Id i -> putStrLn $ show (i 1, i True)

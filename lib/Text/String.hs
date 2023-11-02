@@ -36,6 +36,7 @@ readInt cs =
 readDouble :: String -> Double
 readDouble = primDoubleRead
 
+{-
 showBool :: Bool -> String
 showBool arg =
   case arg of
@@ -52,9 +53,6 @@ showPair sa sb ab =
   case ab of
     (a, b) -> "(" ++ sa a ++ "," ++ sb b ++ ")"
 
-xshowList :: forall a . (a -> String) -> [a] -> String
-xshowList sa as = "[" ++ intercalate "," (map sa as) ++ "]"
-
 showMaybe :: forall a . (a -> String) -> Maybe a -> String
 showMaybe _ Nothing = "Nothing"
 showMaybe fa (Just a) = "(Just " ++ fa a ++ ")"
@@ -67,6 +65,10 @@ showOrdering :: Ordering -> String
 showOrdering LT = "LT"
 showOrdering EQ = "EQ"
 showOrdering GT = "GT"
+-}
+
+xshowList :: forall a . (a -> String) -> [a] -> String
+xshowList sa as = "[" ++ intercalate "," (map sa as) ++ "]"
 
 lines :: String -> [String]
 lines "" = []

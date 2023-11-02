@@ -23,7 +23,7 @@ main = do
   p
   p
   p
-  print (+)
+  cprint (+)
   hout <- openFile "test.tmp" WriteMode
   hPutChar hout 'a'
   hPutChar hout 'z'
@@ -31,7 +31,7 @@ main = do
   hin <- openFile "test.tmp" ReadMode
   c1 <- hGetChar hin
   c2 <- hGetChar hin
-  putStrLn $ showPair show show (c1, c2)
+  putStrLn $ show (c1, c2)
   writeFile "test2.tmp" "more\n"
   s <- readFile "test2.tmp"
   putStrLn (show s)

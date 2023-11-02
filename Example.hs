@@ -10,4 +10,4 @@ main = do
   let
     rs = map fac [1,2,3,10]
   putStrLn "Some factorials"
-  putStrLn $ show rs
+  print rs

@@ -38,8 +38,8 @@ h a b = a === a && b === b
 
 main :: IO ()
 main = do
-  putStrLn $ showBool $ f 5
-  putStrLn $ showBool $ g 5
-  putStrLn $ showBool $ h 5 'a'
-  putStrLn $ showBool $ f [88]
-  putStrLn $ showBool $ f (1, 'a')
+  putStrLn $ show $ f 5
+  putStrLn $ show $ g 5
+  putStrLn $ show $ h 5 'a'
+  putStrLn $ show $ f [88]
+  putStrLn $ show $ f (1, 'a')

@@ -19,7 +19,7 @@ instance forall a . Eq a => Eq (Maybe a) where
   _       == _        =  False
 
 instance forall a . (Show a) => Show (Maybe a) where
-  showsPrec _ Nothing  = showsPrec 0 "Nothing"
+  showsPrec _ Nothing  = showString "Nothing"
   showsPrec p (Just a) = showParen (p >= 11) (showString "Just " . showsPrec 11 a)
 
 -- XXX instance Monad Maybe

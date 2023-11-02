@@ -15,8 +15,8 @@ main = do
   putStrLn $ show [1,20,3]
   putStrLn $ show [1]
   putStrLn $ show ([] :: [Int])
-  putStrLn $ showPair show show (123, 'a')
-  putStrLn $ showMaybe show (Nothing :: Maybe Int)
-  putStrLn $ showMaybe show (Just 890)
-  putStrLn $ showEither show show (Left   678 :: Either Int Bool)
-  putStrLn $ showEither show show (Right True :: Either Int Bool)
+  putStrLn $ show (123, 'a')
+  putStrLn $ show (Nothing :: Maybe Int)
+  putStrLn $ show (Just 890)
+  putStrLn $ show (Left   678 :: Either Int Bool)
+  putStrLn $ show (Right True :: Either Int Bool)

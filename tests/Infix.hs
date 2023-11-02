@@ -16,4 +16,4 @@ a &&& b = a * (b + 1)
 
 main :: IO ()
 main = do
-  putStrLn $ showBool $ 2 +++ 3 &&& 4 === 17
+  putStrLn $ show $ 2 +++ 3 &&& 4 === 17

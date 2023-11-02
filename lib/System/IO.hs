@@ -18,6 +18,7 @@ import Data.List
 import Data.Functor
 import Data.Maybe
 import Data.Tuple
+import Text.Show
 
 type FilePath = String
 
@@ -107,8 +108,11 @@ putChar = hPutChar stdout
 getChar :: IO Char
 getChar = hGetChar stdin
 
-print :: forall a . a -> IO ()
-print = primHPrint stdout
+cprint :: forall a . a -> IO ()
+cprint = primHPrint stdout
+
+print :: forall a . (Show a) => a -> IO ()
+print a = putStrLn (show a)
 
 {-
 mapM :: forall a b . (a -> IO b) -> [a] -> IO [b]

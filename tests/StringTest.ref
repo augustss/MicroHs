@@ -11,6 +11,6 @@ False
 []
 (123,'a')
 Nothing
-(Just 890)
-(Left 678)
-(Right True)
+Just 890
+Left 678
+Right True
