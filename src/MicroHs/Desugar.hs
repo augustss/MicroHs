@@ -346,7 +346,7 @@ dsMatrix dflt iis aarms =
       let
         idOf (p:_, _, _) = pConOf p
         idOf _ = impossible
-        grps = groupEq (on eqCon idOf) arms
+        grps = groupEq (on (==) idOf) arms
         oneGroup grp = S.do
           let
             (pat:_, _, _) : _ = grp

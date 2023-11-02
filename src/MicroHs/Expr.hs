@@ -7,7 +7,7 @@ module MicroHs.Expr(
   EDef(..), showEDefs,
   Expr(..), eLam, eEqns, showExpr,
   Listish(..),
-  Lit(..), showLit, eqLit,
+  Lit(..), showLit,
   EBind(..), showEBind, showEBinds,
   Eqn(..),
   EStmt(..),
@@ -23,7 +23,7 @@ module MicroHs.Expr(
   LHS,
   Constr(..), ConstrField,
   ConTyInfo,
-  Con(..), conIdent, conArity, eqCon, getSLocCon,
+  Con(..), conIdent, conArity, getSLocCon,
   tupleConstr, getTupleConstr,
   mkTupleSel,
   subst,
@@ -115,8 +115,7 @@ data Con
   = ConData ConTyInfo Ident
   | ConNew Ident
   | ConLit Lit
---  | ConTup Int
-  --Xderiving(Show, Eq)
+  --Xderiving(Show)
 
 data Listish
   = LList [Expr]
@@ -138,11 +137,11 @@ conArity (ConData cs i) = fromMaybe (error "conArity") $ lookup i cs
 conArity (ConNew _) = 1
 conArity (ConLit _) = 0
 
-eqCon :: Con -> Con -> Bool
-eqCon (ConData _ i) (ConData _ j) = i == j
-eqCon (ConNew    i) (ConNew    j) = i == j
-eqCon (ConLit    l) (ConLit    k) = eqLit   l k
-eqCon _             _             = False
+instance Eq Con where
+  (==) (ConData _ i) (ConData _ j) = i == j
+  (==) (ConNew    i) (ConNew    j) = i == j
+  (==) (ConLit    l) (ConLit    k) = l == k
+  (==) _             _             = False
 
 data Lit
   = LInt Int
@@ -151,16 +150,16 @@ data Lit
   | LStr String
   | LPrim String
   | LForImp String
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 --Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LDouble d) = rnf d; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
 
-eqLit :: Lit -> Lit -> Bool
-eqLit (LInt x)  (LInt  y) = x == y
-eqLit (LChar x) (LChar y) = x == y
-eqLit (LStr  x) (LStr  y) = x == y
-eqLit (LPrim x) (LPrim y) = x == y
-eqLit (LForImp x) (LForImp y) = x == y
-eqLit _         _         = False
+instance Eq Lit where
+  (==) (LInt x)  (LInt  y) = x == y
+  (==) (LChar x) (LChar y) = x == y
+  (==) (LStr  x) (LStr  y) = x == y
+  (==) (LPrim x) (LPrim y) = x == y
+  (==) (LForImp x) (LForImp y) = x == y
+  (==) _         _         = False
 
 type ECaseArm = (EPat, EAlts)
 
