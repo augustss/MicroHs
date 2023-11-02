@@ -105,9 +105,10 @@ data InstInfo = InstInfo
 -- This is the dictionary expression, instance variables, instance context,
 -- and instance.
 type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint)
--- This is the dictionary expression, instance variables, instance context,
--- and types.  An instance (C T1 ... Tn) has the type list [T1,...,Tn]
-type InstDict   = (Expr, [IdKind], [EConstraint], [EType])
+-- This is the dictionary expression, instance context, and types.
+-- An instance (C T1 ... Tn) has the type list [T1,...,Tn]
+-- The types and constraint have their type variables normalized to EUVar (-1), EUVar (-2), etc
+type InstDict   = (Expr, [EConstraint], [EType])
 
 type Sigma = EType
 --type Tau   = EType
@@ -338,7 +339,7 @@ getIdent ae =
 -- Approximate equality for dictionaries.
 -- The important thing is to avoid exact duplicates in the instance table.
 eqInstDict :: InstDict -> InstDict -> Bool
-eqInstDict (e, _, _, _) (e', _, _, _) = eqExpr e e'
+eqInstDict (e, _, _) (e', _, _) = eqExpr e e'
 
 -- Very partial implementation of Expr equality.
 -- It is only used to compare instances, so this suffices.
@@ -470,12 +471,22 @@ addClassTable i x = T.do
 
 addInstTable :: [InstDictC] -> T ()
 addInstTable ics = T.do
-  let mkInstInfo :: InstDictC -> T (Ident, InstInfo)
-      mkInstInfo (e, iks, ctx, ct) = T.do
-        ct' <- expandSyn ct
-        case (iks, ctx, getApp ct') of
-          ([], [], (c, [EVar i])) -> T.return $ (c, InstInfo (M.singleton i e) [])
-          (_,  _,  (c, ts      )) -> T.return $ (c, InstInfo M.empty [(e, iks, ctx, ts)])
+  let
+    -- Change type variable to unique unification variables.
+    -- These unification variables will never leak, but as an extra caution
+    -- we use negative numbers..
+    freshSubst iks =
+      zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [-1, -2 ..]
+
+    mkInstInfo :: InstDictC -> T (Ident, InstInfo)
+    mkInstInfo (e, iks, ctx, ct) = T.do
+      ct' <- expandSyn ct
+      case (iks, ctx, getApp ct') of
+        ([], [], (c, [EVar i])) -> T.return $ (c, InstInfo (M.singleton i e) [])
+        (_,  _,  (c, ts      )) -> T.return $ (c, InstInfo M.empty [(e, ctx', ts')])
+          where ctx' = map (subst s) ctx
+                ts'  = map (subst s) ts
+                s    = freshSubst iks
   iis <- T.mapM mkInstInfo ics
   it <- gets instTable
   putInstTable $ foldr (uncurry $ M.insertWith mergeInstInfo) it iis
@@ -2071,15 +2082,11 @@ type TySubst = [(TRef, EType)]
 findMatches :: [InstDict] -> [EType] -> [(Int, (Expr, [EConstraint]))]
 findMatches ds its =
  let rrr =
-       [ (length s, (de, map (substEUVar s . subst r) ctx))
-       | (de, iks, ctx, ts) <- ds, let { r = freshSubst iks }, Just s <- [matchTypes [] (map (subst r) ts) its] ]
+       [ (length s, (de, map (substEUVar s) ctx))
+       | (de, ctx, ts) <- ds, Just s <- [matchTypes [] ts its] ]
  in --trace ("findMatches: " ++ showList showInstDict ds ++ "; " ++ showEType ct ++ "; " ++ show rrr)
     rrr
   where
-
-    -- Change type variable to unique unification variables.
-    -- These unification variables will never leak out of findMatches.
-    freshSubst iks = zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [1000000000 ..] -- make sure the variables are unique
 
     -- Length of lists match, because of kind correctness
     matchTypes :: TySubst -> [EType] -> [EType] -> Maybe TySubst
