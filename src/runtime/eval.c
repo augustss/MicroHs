@@ -149,7 +149,7 @@ getraw()
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
                 T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
-                T_FADD, T_FSUB, T_FMUL, T_FDIV,
+                T_FADD, T_FSUB, T_FMUL, T_FDIV, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
                 T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
@@ -652,6 +652,7 @@ struct {
   { "fsub" , T_FSUB},
   { "fmul" , T_FMUL},
   { "fdiv", T_FDIV},
+  { "itof", T_ITOF},
   { "feq", T_FEQ},
   { "fne", T_FNE},
   { "flt", T_FLT},
@@ -1383,6 +1384,7 @@ printrec(FILE *f, NODEPTR n)
   case T_FSUB: fprintf(f, "fsub"); break;
   case T_FMUL: fprintf(f, "fmul"); break;
   case T_FDIV: fprintf(f, "fdiv"); break;
+  case T_ITOF: fprintf(f, "itof"); break;
   case T_FEQ: fprintf(f, "feq"); break;
   case T_FNE: fprintf(f, "fne"); break;
   case T_FLT: fprintf(f, "flt"); break;
@@ -1761,6 +1763,7 @@ eval(NODEPTR n)
 #define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define SETDOUBLE(n,d) do { SETTAG((n), T_DOUBLE); SETDOUBLEVALUE((n), (d)); } while(0)
 #define OPINT2(e)      do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
+#define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0))); e; POP(1); n = TOP(-1); } while(0);
 #define OPDOUBLE2(e)   do { CHECK(2); xd = evaldouble(ARG(TOP(0))); yd = evaldouble(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
@@ -1828,6 +1831,7 @@ eval(NODEPTR n)
     case T_FSUB: FARITHBIN(-);
     case T_FMUL: FARITHBIN(*);
     case T_FDIV: FARITHBIN(/);
+    case T_ITOF: OPINT1(rd = (double)xi); SETDOUBLE(n, rd); RET;
     case T_FEQ: CMPF(==);
     case T_FNE: CMPF(!=);
     case T_FLT: CMPF(<);

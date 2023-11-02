@@ -93,6 +93,7 @@ primTable = [
   ("fge", primitive "fge"),
   ("fshow", primitive "fshow"),
   ("fread", primitive "fread"),
+  ("itof", primitive "itof"),
   ("seq", primitive "seq"),
   ("error", primitive "error"),
   ("equal", primitive "equal"),

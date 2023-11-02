@@ -20,7 +20,7 @@ instance Num Double where
       LT -> -1.0
       EQ ->  0.0
       GT ->  1.0
-  fromInt x = error "Double.fromInt unimplemented"
+  fromInt = primDoubleFromInt
 
 instance Fractional Double where
   (/) = primDoubleDiv

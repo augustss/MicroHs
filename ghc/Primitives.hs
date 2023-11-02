@@ -167,6 +167,9 @@ primDoubleShow = show
 primDoubleRead :: [Char] -> Double
 primDoubleRead = read
 
+primDoubleFromInt :: Int -> Double
+primDoubleFromInt = fromIntegral
+
 ------
 
 primBind         :: IO a -> (a -> IO b) -> IO b
