@@ -39,6 +39,9 @@ data Sign = Plus | Minus
 instance Eq Integer where
   x == y  =  isZero (subI x y)
 
+instance Show Integer where
+  show i = showInteger i
+
 isZero :: Integer -> Bool
 isZero (I _ ds) = null ds
 

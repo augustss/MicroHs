@@ -6,6 +6,7 @@ import Primitives
 import Data.Bool_Type
 import Data.Ordering_Type
 import Data.Eq
+import Text.Show
 
 infix 4 <,<=,>,>=
 
@@ -35,3 +36,7 @@ isEQ :: Ordering -> Bool
 isEQ EQ = True
 isEQ _  = False
 
+instance Show Ordering where
+  showsPrec _ LT = showString "LT"
+  showsPrec _ EQ = showString "EQ"
+  showsPrec _ GT = showString "GT"

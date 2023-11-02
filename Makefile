@@ -49,16 +49,17 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCB) -c ghc/Data/Bool_Type.hs
 	$(GHCB) -c ghc/Data/Char_Type.hs
 	$(GHCB) -c ghc/Data/List_Type.hs
+	$(GHCB) -c lib/Data/Maybe_Type.hs
 	$(GHCB) -c ghc/Data/Ordering_Type.hs
 	$(GHCB) -c ghc/Data/Double.hs
 	$(GHCB) -c ghc/PrimTable.hs
 	$(GHCC) -c lib/Control/Error.hs
 	$(GHCC) -c lib/Data/Eq.hs
-	$(GHCC) -c lib/Data/Ord.hs
 	$(GHCC) -c lib/Text/Show.hs
+	$(GHCC) -c lib/Data/Ord.hs
 	$(GHCC) -c lib/Data/Bool.hs
-	$(GHCC) -c lib/Data/Tuple.hs
 	$(GHCC) -c lib/Data/Function.hs
+	$(GHCC) -c lib/Data/Tuple.hs
 	$(GHCC) -c lib/Data/Functor.hs
 	$(GHCC) -c lib/Control/Applicative.hs
 	$(GHCC) -c lib/Control/Monad.hs
@@ -66,9 +67,9 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Data/Double.hs
 	$(GHCC) -c lib/Data/Char.hs
 	$(GHCC) -c lib/Data/Either.hs
-	$(GHCC) -c lib/Data/Maybe.hs
 	$(GHCC) -c lib/Data/Ord.hs
 	$(GHCC) -c lib/Data/List.hs
+	$(GHCC) -c lib/Data/Maybe.hs
 	$(GHCC) -c lib/Control/Alternative.hs
 	$(GHCC) -c lib/Text/String.hs
 	$(GHCC) -c lib/Data/Word.hs

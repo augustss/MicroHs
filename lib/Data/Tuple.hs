@@ -8,6 +8,8 @@ module Data.Tuple(module Data.Tuple
 import Primitives  -- for ()
 import Data.Bool
 import Data.Eq
+import Data.Function
+import Text.Show
 
 --data (a,b) = (a,b)  -- all tuples are built in
 --data (a,b,c) = (a,b,c)
@@ -30,3 +32,12 @@ instance forall a b c . (Eq a, Eq b, Eq c) => Eq (a, b, c) where
 
 instance forall a b c d . (Eq a, Eq b, Eq c, Eq d) => Eq (a, b, c, d) where
   (a1, b1, c1, d1) == (a2, b2, c2, d2)  =  a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
+
+instance Show () where
+  showsPrec _ () = showString "()"
+
+instance forall a b . (Show a, Show b) => Show (a, b) where
+  showsPrec _ (a, b) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b)
+
+instance forall a b c . (Show a, Show b, Show c) => Show (a, b, c) where
+  showsPrec _ (a, b, c) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b . showString "," . showsPrec 0 c)

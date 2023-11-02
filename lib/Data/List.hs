@@ -15,7 +15,7 @@ import Data.Functor
 import Data.Int
 import Data.List_Type
 import Data.Ord
-import Data.Maybe
+import Data.Maybe_Type
 import Data.Tuple
 import Text.Show
 
@@ -347,17 +347,6 @@ sortLE _  [] = []
 sortLE le (x:xs) =
   case partition (le x) xs of
     (ge, lt) -> sortLE le lt ++ (x : sortLE le ge)
-
-mapMaybe :: forall a b . (a -> Maybe b) -> [a] -> [b]
-mapMaybe _ [] = []
-mapMaybe f (a:as) =
-  case f a of
-    Nothing -> mapMaybe f as
-    Just b -> b : mapMaybe f as
-
-maybeToList :: forall a . Maybe a -> [a]
-maybeToList Nothing = []
-maybeToList (Just a) = [a]
 
 last :: forall a . [a] -> a
 last [] = error "last: []"

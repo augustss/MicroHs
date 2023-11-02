@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 module Data.Function(module Data.Function) where
 import Primitives
-import Data.Tuple
+--import Data.Tuple
 
 infixr 0 $
 ($) :: forall a b . (a -> b) -> a -> b
@@ -29,7 +29,7 @@ fix :: forall a . (a -> a) -> a
 fix = primFix
 
 uncurry :: forall a b c . (a -> b -> c) -> (a, b) -> c
-uncurry f ab = f (fst ab) (snd ab)
+uncurry f (a, b) = f a b  -- XXX not lazy
 
 infixl 0 `on`
 on :: forall a b c . (a -> a -> b) -> (c -> a) -> (c -> c -> b)
