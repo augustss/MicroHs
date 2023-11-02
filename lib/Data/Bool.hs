@@ -7,6 +7,7 @@ module Data.Bool(
 import Primitives
 import Data.Bool_Type
 import Data.Eq
+import Text.Show
 
 instance Eq Bool where
   False == x  =  not x
@@ -36,3 +37,7 @@ eqBool False x = not x
 neBool :: Bool -> Bool -> Bool
 neBool True  x = not x
 neBool False x = x
+
+instance Show Bool where
+  showsPrec _ False = showString "False"
+  showsPrec _ True  = showString "True"

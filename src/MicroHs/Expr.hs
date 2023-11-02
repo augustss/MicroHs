@@ -34,7 +34,7 @@ module MicroHs.Expr(
   Assoc(..), eqAssoc, Fixity,
   getBindsVars,
   ) where
-import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList, (<>))
+import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), (<>))
 import Data.Maybe
 import MicroHs.Ident
 import qualified Data.Double as D
@@ -408,7 +408,7 @@ ppEDef def =
       case mis of
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ", ") (map ppImportItem is))
-    ForImp ie i t -> text ("foreign import ccall " ++ showString ie) <+> ppIdent i <+> text "::" <+> ppEType t
+    ForImp ie i t -> text ("foreign import ccall " ++ show ie) <+> ppIdent i <+> text "::" <+> ppEType t
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (showInt p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ctx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
@@ -508,10 +508,10 @@ ppCon (ConLit l) = text (showLit l)
 showLit :: Lit -> String
 showLit l =
   case l of
-    LInt i    -> '#' : showInt i
-    LDouble d -> '%' : D.showDouble d
-    LChar c   -> showChar c
-    LStr s    -> showString s
+    LInt i    -> '#' : show i
+    LDouble d -> '%' : show d
+    LChar c   -> xshowChar c
+    LStr s    -> show s
     LPrim s   -> s
     LForImp s -> '^' : s
 

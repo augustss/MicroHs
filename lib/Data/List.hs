@@ -17,6 +17,7 @@ import Data.List_Type
 import Data.Ord
 import Data.Maybe
 import Data.Tuple
+import Text.Show
 
 --Yimport Data.Char
 
@@ -38,14 +39,12 @@ instance Monad [] where
 instance MonadFail [] where
   fail _ = []
 
+instance forall a . Show a => Show [a] where
+  showsPrec _ = showList
+
 null :: forall a . [a] -> Bool
 null [] = True
 null _  = False
-
-infixr 5 ++
-(++) :: forall a . [a] -> [a] -> [a]
-(++) [] ys = ys
-(++) (x : xs) ys = x : xs ++ ys 
 
 concat :: forall a . [[a]] -> [a]
 concat = foldr (++) []

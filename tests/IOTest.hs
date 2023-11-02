@@ -31,18 +31,18 @@ main = do
   hin <- openFile "test.tmp" ReadMode
   c1 <- hGetChar hin
   c2 <- hGetChar hin
-  putStrLn $ showPair showChar showChar (c1, c2)
+  putStrLn $ showPair show show (c1, c2)
   writeFile "test2.tmp" "more\n"
   s <- readFile "test2.tmp"
-  putStrLn (showString s)
+  putStrLn (show s)
   writeSerialized "f.tmp" f
   g <- readSerialized "f.tmp"
-  putStrLn $ showInt $ g 5
+  putStrLn $ show $ (g 5 :: Int)
   foo
-  putStrLn $ showInt $ trace "tracing" 5
+  putStrLn $ show $ trace "tracing" 5
   as <- getArgs
-  putStrLn $ showList showString as
-  putStrLn $ showInt $ seq (1 + 2) 5
-  putStrLn $ showInt $ seq (1 + trace "seq" 2) 5
+  putStrLn $ show as
+  putStrLn $ show $ seq (1 + 2) 5
+  putStrLn $ show $ seq (1 + trace "seq" 2) 5
   tend <- getTimeMilli
-  putStrLn $ showInt (tend - tstart) ++ "ms execution time"
+  putStrLn $ show (tend - tstart) ++ "ms execution time"

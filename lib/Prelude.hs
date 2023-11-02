@@ -16,6 +16,7 @@ module Prelude(
   module Data.Ord,
   module Data.Tuple,
   module System.IO,
+  module Text.Show,
   module Text.String,
   --Ymodule Primitives,
   ) where
@@ -35,6 +36,7 @@ import Data.Maybe
 import Data.Ord
 import Data.Tuple
 import System.IO
+import Text.Show
 import Text.String
 
 {-

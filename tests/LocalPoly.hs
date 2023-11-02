@@ -3,7 +3,7 @@ import Prelude
 
 main :: IO ()
 main = do
-  putStrLn $ showPair (showPair showInt showString) (showPair showString showString) $ f 1 "a"
+  putStrLn $ showPair (showPair show show) (showPair show show) $ f 1 "a"
 
 f :: forall b . Int -> b -> ((Int, b), (b, b))
 f x b = (i x, i b)

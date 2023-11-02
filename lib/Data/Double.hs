@@ -4,6 +4,7 @@ module Data.Double(module Data.Double, Double) where
 import Primitives
 import Data.Bool_Type
 import Data.Eq
+import Text.Show
 
 infixl 6 +,-
 infixl 7 *
@@ -76,7 +77,7 @@ geDouble = (>=)
 -- | this primitive will print doubles with up to 6 decimal points
 -- it turns out that doubles are extremely tricky, and just printing them is a
 -- herculean task of its own...
-showDouble :: Double -> [Char]
-showDouble = primDoubleShow
+instance Show Double where
+  show = primDoubleShow
 
 --------------------------------

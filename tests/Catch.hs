@@ -5,6 +5,6 @@ import Control.Exception
 main :: IO ()
 main = do
   x <- catch (return ("o" ++ "k")) (\ _ -> return "what?")
-  putStrLn $ showString x
+  putStrLn $ show x
   y <- catch (do { error "bang!"; return "huh?" }) (\ (Exn s) -> return s)
-  putStrLn $ showString y
+  putStrLn $ show y

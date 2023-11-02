@@ -2,7 +2,7 @@ module MicroHs.Lex(
   lexTop,
   Token(..), showToken,
   tokensLoc) where
-import Prelude --Xhiding(lex, showChar, showString)
+import Prelude --Xhiding(lex)
 import Data.Char
 import Data.List
 import qualified Data.Double as D
@@ -23,10 +23,10 @@ data Token
 
 showToken :: Token -> String
 showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])
-showToken (TString _ s) = showString s
-showToken (TChar _ c) = showChar c
-showToken (TInt _ i) = showInt i
-showToken (TDouble _ d) = D.showDouble d
+showToken (TString _ s) = show s
+showToken (TChar _ c) = show c
+showToken (TInt _ i) = show i
+showToken (TDouble _ d) = show d
 showToken (TSpec _ c) = [c]
 showToken (TError _ s) = "ERROR " ++ s
 showToken (TBrace _) = "TBrace"
@@ -102,7 +102,7 @@ lex loc ('\'':cs) =
       tchar _ = TError loc "Illegal Char literal"
   in  case takeChars loc tchar '\'' 0 [] cs of  -- XXX head of
         (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
-lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ showChar d]
+lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ xshowChar d]
 lex _ [] = []
 
 number :: Loc -> String -> String -> [Token]   -- neg=1 means negative, neg=0 means positive

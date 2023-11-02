@@ -41,8 +41,8 @@ showInt = show
 showDouble :: Double -> String
 showDouble = show
 
-showChar :: Char -> String
-showChar = show
+xshowChar :: Char -> String
+xshowChar = show
 
 showBool :: Bool -> String
 showBool = show
@@ -53,8 +53,8 @@ showUnit = show
 showString :: String -> String
 showString = show
 
-showList :: (a -> String) -> [a] -> String
-showList sa arg =
+xshowList :: (a -> String) -> [a] -> String
+xshowList sa arg =
   let
     showRest as =
       case as of

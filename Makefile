@@ -55,6 +55,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Control/Error.hs
 	$(GHCC) -c lib/Data/Eq.hs
 	$(GHCC) -c lib/Data/Ord.hs
+	$(GHCC) -c lib/Text/Show.hs
 	$(GHCC) -c lib/Data/Bool.hs
 	$(GHCC) -c lib/Data/Tuple.hs
 	$(GHCC) -c lib/Data/Function.hs

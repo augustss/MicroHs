@@ -14,11 +14,11 @@ import Data.Maybe
 import Data.Ord
 import Data.Tuple
 
-showChar :: Char -> String
-showChar c = "'" ++ encodeChar c ++ "'"
+xshowChar :: Char -> String
+xshowChar c = "'" ++ xencodeChar c ++ "'"
 
-encodeChar :: Char -> String
-encodeChar c =
+xencodeChar :: Char -> String
+xencodeChar c =
   let
     spec = [('\n', "\\n"), ('\r', "\\r"), ('\t', "\\t"), ('\b', "\\b"),
             ('\\', "\\\\"), ('\'', "\\'"), ('"', "\"")]
@@ -26,26 +26,6 @@ encodeChar c =
     case lookup c spec of
       Nothing -> if isPrint c then [c] else "'\\" ++ showInt (ord c) ++ "'"
       Just s  -> s
-
-showString :: String -> String
-showString s = "\"" ++ concatMap encodeChar s ++ "\""
-
--- XXX wrong for minInt
-showInt :: Int -> String
-showInt n =
-  if n < 0 then
-    '-' : showUnsignedInt (negate n)
-  else
-    showUnsignedInt n
-
-showUnsignedInt :: Int -> String
-showUnsignedInt n =
-  let
-    c = chr (ord '0' + rem n 10)
-  in  if n < 10 then
-        [c]
-      else
-        showUnsignedInt (quot n 10) ++ [c]
 
 readInt :: String -> Int
 readInt cs =
@@ -72,8 +52,8 @@ showPair sa sb ab =
   case ab of
     (a, b) -> "(" ++ sa a ++ "," ++ sb b ++ ")"
 
-showList :: forall a . (a -> String) -> [a] -> String
-showList sa as = "[" ++ intercalate "," (map sa as) ++ "]"
+xshowList :: forall a . (a -> String) -> [a] -> String
+xshowList sa as = "[" ++ intercalate "," (map sa as) ++ "]"
 
 showMaybe :: forall a . (a -> String) -> Maybe a -> String
 showMaybe _ Nothing = "Nothing"

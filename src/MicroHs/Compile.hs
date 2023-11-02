@@ -6,7 +6,7 @@ module MicroHs.Compile(
   compileCacheTop,
   Cache, emptyCache, deleteFromCache,
   ) where
-import Prelude --Xhiding (Monad(..), mapM, showString, showList)
+import Prelude --Xhiding (Monad(..), mapM)
 import qualified System.IO as IO
 import Control.DeepSeq
 import qualified MicroHs.IdentMap as M
@@ -145,7 +145,7 @@ readFilePath :: [FilePath] -> FilePath -> IO (FilePath, String)
 readFilePath path name = IO.do
   mh <- openFilePath path name
   case mh of
-    Nothing -> error $ "File not found: " ++ showString name ++ "\npath=" ++ showList showString path
+    Nothing -> error $ "File not found: " ++ show name ++ "\npath=" ++ xshowList show path
     Just (fn, h) -> IO.do
       file <- IO.hGetContents h
       IO.return (fn, file)

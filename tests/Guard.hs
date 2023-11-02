@@ -12,4 +12,4 @@ f xs | l < 4 = 0
 
 main :: IO ()
 main = do
-  putStrLn $ showList showInt [f [0 - 7], f [5], f [20], f [2,3], f [1,2,3], f[1,2,3,4]]
+  putStrLn $ show [f [0 - 7], f [5], f [20], f [2,3], f [1,2,3], f[1,2,3,4]]

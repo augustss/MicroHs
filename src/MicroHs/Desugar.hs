@@ -5,7 +5,7 @@ module MicroHs.Desugar(
   desugar,
   LDef, showLDefs,
   ) where
-import Prelude --Xhiding(showList)
+import Prelude
 import Data.Char
 import Data.List
 import Data.Maybe
@@ -292,7 +292,7 @@ type Arm = ([EPat], Exp -> Exp, Bool)  -- boolean indicates that the arm has gua
 type Matrix = [Arm]
 
 --showArm :: Arm -> String
---showArm (ps, _, b) = showList showExpr ps ++ "," ++ showBool b
+--showArm (ps, _, b) = xshowList showExpr ps ++ "," ++ showBool b
 
 newIdents :: Int -> M [Ident]
 newIdents n = S.do

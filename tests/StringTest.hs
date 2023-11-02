@@ -5,18 +5,18 @@ main :: IO ()
 main = do
   putStrLn $ if (==) "abc" "abc" then "yes" else "no"
   putStrLn $ if (==) "abc" "adc" then "yes" else "no"
-  putStrLn $ showInt 1234
-  putStrLn $ showInt 0
-  putStrLn $ showInt (negate 567)
-  putStrLn $ showChar 'x'
-  putStrLn $ showChar '\n'
-  putStrLn $ showBool False
+  putStrLn $ show 1234
+  putStrLn $ show 0
+  putStrLn $ show (negate 567)
+  putStrLn $ show 'x'
+  putStrLn $ show '\n'
+  putStrLn $ show False
 --  putStrLn $ showUnit ()
-  putStrLn $ showList showInt [1,20,3]
-  putStrLn $ showList showInt [1]
-  putStrLn $ showList showInt []
-  putStrLn $ showPair showInt showChar (123, 'a')
-  putStrLn $ showMaybe showInt Nothing
-  putStrLn $ showMaybe showInt (Just 890)
-  putStrLn $ showEither showInt showBool (Left 678)
-  putStrLn $ showEither showInt showBool (Right True)
+  putStrLn $ show [1,20,3]
+  putStrLn $ show [1]
+  putStrLn $ show ([] :: [Int])
+  putStrLn $ showPair show show (123, 'a')
+  putStrLn $ showMaybe show (Nothing :: Maybe Int)
+  putStrLn $ showMaybe show (Just 890)
+  putStrLn $ showEither show show (Left   678 :: Either Int Bool)
+  putStrLn $ showEither show show (Right True :: Either Int Bool)

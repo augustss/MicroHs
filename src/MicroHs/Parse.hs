@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
 module MicroHs.Parse(pTop, parseDie, parse, pExprTop) where
-import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList)
+import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>))
 import Data.Char
 import Data.List
 import Text.ParserComb as P

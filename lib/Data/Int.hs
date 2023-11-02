@@ -3,8 +3,11 @@
 module Data.Int(module Data.Int, Int) where
 import Primitives
 import Data.Bool_Type
+import Data.Char_Type
 import Data.Eq
+import Data.List_Type
 import Data.Ord
+import Text.Show
 
 infixl 6 +,-
 infixl 7 *,`quot`,`rem`
@@ -60,3 +63,24 @@ instance Ord Int where
   (>=) = primIntGE
 
 --------------------------------
+
+instance Show Int where
+  show = showInt
+
+-- XXX these should not be exported
+-- XXX wrong for minInt
+showInt :: Int -> String
+showInt n =
+  if n < 0 then
+    '-' : showUnsignedInt (negate n)
+  else
+    showUnsignedInt n
+
+showUnsignedInt :: Int -> String
+showUnsignedInt n =
+  let
+    c = primChr (primOrd '0' + rem n 10)
+  in  if n < 10 then
+        [c]
+      else
+        showUnsignedInt (quot n 10) ++ [c]

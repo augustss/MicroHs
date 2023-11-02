@@ -3,16 +3,16 @@ import Prelude
 
 main :: IO ()
 main = do
-  putStrLn $ showBool $ f1 False
-  putStrLn $ showInt  $ f2 False
-  putStrLn $ showInt  $ f2 True
+  putStrLn $ show $ f1 False
+  putStrLn $ show  $ f2 False
+  putStrLn $ show  $ f2 True
 --  putStrLn $ showInt  $ f3 False
-  putStrLn $ showList showRGB $ map f4 [R,G,B]
-  putStrLn $ showInt $ f5 [(3,4)]
+  putStrLn $ show $ map f4 [R,G,B]
+  putStrLn $ show $ f5 [(3,4)]
   --putStrLn $ showInt $ f6 [(3,4)]
-  putStrLn $ showList showInt $ [ i | Just i <- [Just 1, Nothing, Just 2] ]
+  putStrLn $ show $ [ i | Just i <- [Just 1, Nothing, Just 2] ]
   (x,y) <- return (2,3)
-  putStrLn $ showInt $ x + y
+  putStrLn $ show $ x + y
 
 f1 :: Bool -> Bool
 f1 b =
@@ -31,6 +31,9 @@ f3 b =
     True -> 1
 
 data RGB = R | G | B
+
+instance Show RGB where
+  show = showRGB
 
 showRGB :: RGB -> String
 showRGB c =

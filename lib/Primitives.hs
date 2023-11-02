@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 module Primitives(module Primitives) where
 import Data.Bool_Type
-import Data.List_Type
+--import Data.List_Type
 import Data.Ordering_Type
 
 infixr -1 ->
@@ -18,8 +18,7 @@ data IO a
 data Word
 
 -- Type equality as a constraint.
--- XXX No functional dependencies yet.
-class a ~ b {- a -> b, b -> a -}
+class a ~ b {-x | a -> b, b -> a-}
 
 data () = ()   -- Parser hacks allows () to be used
 

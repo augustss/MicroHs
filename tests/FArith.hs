@@ -15,11 +15,11 @@ divide x y = if D.eqDouble y 0.0 then 0.0 else D.divDouble x y
 
 main :: IO ()
 main = do
-  putStrLn $ showList D.showDouble [ op x y | x <- list1, y <- list2, op <- [D.addDouble, D.subDouble, D.mulDouble, divide] ]
-  putStrLn $ showList showBool [ op x y | x <- list1, y <- list2, op <- [D.eqDouble, D.neqDouble, D.ltDouble, D.leDouble, D.gtDouble, D.geDouble] ]
-  putStrLn $ showList D.showDouble [ D.divDouble x y | x <- [2.234983, 1.232, 23.0], y <- [1.0, 5.0, 10.0, 100.0]]
-  putStrLn $ showList D.showDouble [ D.divDouble x y | x <- [-2.234983, -1.232, -23.0], y <- [1.0, -5.0, 10.0, -100.0]]
+  putStrLn $ show [ op x y | x <- list1, y <- list2, op <- [D.addDouble, D.subDouble, D.mulDouble, divide] ]
+  putStrLn $ show [ op x y | x <- list1, y <- list2, op <- [D.eqDouble, D.neqDouble, D.ltDouble, D.leDouble, D.gtDouble, D.geDouble] ]
+  putStrLn $ show [ D.divDouble x y | x <- [2.234983, 1.232, 23.0], y <- [1.0, 5.0, 10.0, 100.0]]
+  putStrLn $ show [ D.divDouble x y | x <- [-2.234983, -1.232, -23.0], y <- [1.0, -5.0, 10.0, -100.0]]
   let str = readDouble "1.576"
-  putStrLn $ D.showDouble str
-  putStrLn $ D.showDouble $ D.addDouble 1.0 $ readDouble "2.5"
-  putStrLn $ showList D.showDouble $ map readDouble ["1.5e42", "1.2e-90"]
+  putStrLn $ show str
+  putStrLn $ show $ D.addDouble 1.0 $ readDouble "2.5"
+  putStrLn $ show $ map readDouble ["1.5e42", "1.2e-90"]

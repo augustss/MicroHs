@@ -17,12 +17,11 @@ module MicroHs.Ident(
   expectQualified,
   ) where
 import Data.Eq
-import Prelude --Xhiding(showString)
+import Prelude
 import Data.Char
 import Text.PrettyPrint.HughesPJ
 --Ximport Control.DeepSeq
 --Yimport Primitives(NFData(..))
---Ximport Compat
 --Ximport GHC.Stack
 
 type Line = Int
@@ -138,4 +137,4 @@ isDummyIdent _ = False
 showSLoc :: SLoc -> String
 showSLoc (SLoc fn l c) =
   if null fn then "no location" else
-  showString fn ++ ": " ++ "line " ++ showInt l ++ ", col " ++ showInt c
+  show fn ++ ": " ++ "line " ++ show l ++ ", col " ++ show c
