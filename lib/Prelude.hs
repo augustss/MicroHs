@@ -13,6 +13,7 @@ module Prelude(
   module Data.Int,
   module Data.List,
   module Data.Maybe,
+  module Data.Num,
   module Data.Ord,
   module Data.Tuple,
   module System.IO,
@@ -33,6 +34,7 @@ import Data.Functor
 import Data.Int
 import Data.List
 import Data.Maybe
+import Data.Num
 import Data.Ord
 import Data.Tuple
 import System.IO

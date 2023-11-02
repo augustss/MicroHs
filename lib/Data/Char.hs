@@ -11,6 +11,7 @@ import Data.Eq
 import Data.Function
 import Data.Int
 import Data.List_Type
+import Data.Num
 import Data.Ord
 import Text.Show
 

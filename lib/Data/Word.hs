@@ -5,13 +5,22 @@ import Primitives
 import Data.Bool_Type
 import qualified Data.Char as C
 import Data.Eq
-import qualified Data.Int as I
+import Data.Int()  -- insances only
 import Data.List
+import Data.Num
 import Text.Show
 
-infixl 6 +,-
-infixl 7 *,`quot`,`rem`
+infixl 7 `quot`,`rem`
 
+instance Num Word where
+  (+)  = primWordAdd
+  (-)  = primWordSub
+  (*)  = primWordMul
+  abs x = x
+  signum x = if x == fromInt 0 then fromInt 0 else fromInt 1
+  fromInt = primUnsafeCoerce
+
+{-
 -- Arithmetic
 (+) :: Word -> Word -> Word
 (+)  = primWordAdd
@@ -19,6 +28,8 @@ infixl 7 *,`quot`,`rem`
 (-)  = primWordSub
 (*) :: Word -> Word -> Word
 (*)  = primWordMul
+-}
+
 quot :: Word -> Word -> Word
 quot = primWordQuot
 rem :: Word -> Word -> Word
@@ -67,7 +78,7 @@ instance Show Word where
       showWord :: Word -> C.String
       showWord n =
         let
-          c = C.chr ((I.+) (C.ord '0') (wordToInt (rem n (intToWord 10))))
+          c = C.chr ((+) (C.ord '0') (wordToInt (rem n (intToWord 10))))
         in  case n < intToWord 10 of
               False -> showWord (quot n (intToWord 10)) ++ [c]
               True  -> [c]

@@ -2,13 +2,26 @@
 -- See LICENSE file for full license.
 module Data.Double(module Data.Double, Double) where
 import Primitives
+import Control.Error
 import Data.Bool_Type
 import Data.Eq
+import Data.Ord
+import Data.Num
 import Text.Show
 
-infixl 6 +,-
-infixl 7 *
+instance Num Double where
+  (+)  = primDoubleAdd
+  (-)  = primDoubleSub
+  (*)  = primDoubleMul
+  abs x = if x < 0.0 then negate x else x
+  signum x =
+    case compare x 0.0 of
+      LT -> -1.0
+      EQ ->  0.0
+      GT ->  1.0
+  fromInt x = error "Double.fromInt unimplemented"
 
+{-
 -- Arithmetic
 (+) :: Double -> Double -> Double
 (+)  = primDoubleAdd
@@ -16,9 +29,12 @@ infixl 7 *
 (-)  = primDoubleSub
 (*) :: Double -> Double -> Double
 (*)  = primDoubleMul
+-}
+
 (/) :: Double -> Double -> Double
 (/) = primDoubleDiv
 
+{-
 negate :: Double -> Double
 negate x = 0.0 - x
 
@@ -30,11 +46,12 @@ mulDouble :: Double -> Double -> Double
 mulDouble = (*)
 divDouble :: Double -> Double -> Double
 divDouble = (/)
+-}
 
 --------------------------------
 
 --infix 4 ==,/=
-infix 4 <,<=,>,>=
+--infix 4 <,<=,>,>=
 
 {-
 -- Comparison
@@ -48,11 +65,20 @@ instance Eq Double where
   (==) = primDoubleEQ
   (/=) = primDoubleNE
 
+{-
 eqDouble :: Double -> Double -> Bool
 eqDouble = (==)
 neqDouble :: Double -> Double -> Bool
 neqDouble = (/=)
+-}
 
+instance Ord Double where
+  (<)  = primDoubleLT
+  (<=) = primDoubleLE
+  (>)  = primDoubleGT
+  (>=) = primDoubleGE
+  
+{-
 (<)  :: Double -> Double -> Bool
 (<)  = primDoubleLT
 (<=) :: Double -> Double -> Bool
@@ -73,6 +99,7 @@ gtDouble = (>)
 
 geDouble :: Double -> Double -> Bool
 geDouble = (>=)
+-}
 
 -- | this primitive will print doubles with up to 6 decimal points
 -- it turns out that doubles are extremely tricky, and just printing them is a

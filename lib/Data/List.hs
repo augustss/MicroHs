@@ -14,6 +14,7 @@ import Data.Function
 import Data.Functor
 import Data.Int
 import Data.List_Type
+import Data.Num
 import Data.Ord
 import Data.Maybe_Type
 import Data.Tuple

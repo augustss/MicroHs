@@ -10,6 +10,7 @@ import Data.Function
 import Data.Int
 import Data.List
 import Data.Maybe
+import Data.Num
 import Data.Ord
 import Data.Tuple
 import Text.Show

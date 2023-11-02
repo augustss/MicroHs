@@ -6,12 +6,26 @@ import Data.Bool_Type
 import Data.Char_Type
 import Data.Eq
 import Data.List_Type
+import Data.Num
 import Data.Ord
 import Text.Show
 
-infixl 6 +,-
-infixl 7 *,`quot`,`rem`
+infixl 7 `quot`,`rem`
 
+instance Num Int where
+  (+)  = primIntAdd
+  (-)  = primIntSub
+  (*)  = primIntMul
+  negate x = primIntSub 0 x
+  abs x = if x < 0 then negate x else x
+  signum x =
+    case compare x 0 of
+      LT -> -1
+      EQ ->  0
+      GT ->  1
+  fromInt x = x
+
+{-
 -- Arithmetic
 (+) :: Int -> Int -> Int
 (+)  = primIntAdd
@@ -19,16 +33,12 @@ infixl 7 *,`quot`,`rem`
 (-)  = primIntSub
 (*) :: Int -> Int -> Int
 (*)  = primIntMul
+-}
+
 quot :: Int -> Int -> Int
 quot = primIntQuot
 rem :: Int -> Int -> Int
 rem  = primIntRem
-
-subtract :: Int -> Int -> Int
-subtract = primIntSubR
-
-negate :: Int -> Int
-negate x = 0 - x
 
 --------------------------------
 

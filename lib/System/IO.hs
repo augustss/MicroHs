@@ -13,10 +13,11 @@ import Control.Monad
 import Data.Bool
 import Data.Char
 import Data.Eq
+import Data.Functor
 import Data.Int
 import Data.List
-import Data.Functor
 import Data.Maybe
+import Data.Num
 import Data.Tuple
 import Text.Show
 

@@ -37,10 +37,30 @@ data Sign = Plus | Minus
   --deriving Show
 
 instance Eq Integer where
-  x == y  =  isZero (subI x y)
+  (==) = eqI
+  (/=) = neI
+
+instance Ord Integer where
+  (<)  = ltI
+  (<=) = leI
+  (>)  = gtI
+  (>+) = geI
 
 instance Show Integer where
   show i = showInteger i
+
+instance Num Integer where
+  (+) = addI
+  (-) = subI
+  (*) = mulI
+  negate = negateI
+  abs = absI
+  signum x =
+    case compare x zeroI of
+      LT -> negOneI
+      EQ -> zeroI
+      GT -> oneI
+  fromInt = intToInteger
 
 isZero :: Integer -> Bool
 isZero (I _ ds) = null ds
@@ -235,6 +255,9 @@ oneI = I Plus [1]
 
 twoI :: Integer
 twoI = I Plus [2]
+
+negOneI :: Integer
+negOneI = I Minus [1]
 
 --------------
 
