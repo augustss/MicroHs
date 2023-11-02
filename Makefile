@@ -78,6 +78,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Data/Word.hs
 	$(GHCC) -c lib/System/IO.hs
 	$(GHCC) -c lib/System/Environment.hs
+	$(GHCC) -c lib/Data/Integer.hs
 	$(GHCC) -c lib/Prelude.hs
 	$(GHCC) -c lib/PreludeNoIO.hs
 	$(GHCC) -c lib/Data/Map.hs
