@@ -82,7 +82,7 @@ isIdent s (Ident _ i) = s == i
 qualIdent :: --XHasCallStack =>
              Ident -> Ident -> Ident
 --XqualIdent _ (Ident _ i) | isQual i = error $ "already qualified " ++ i
-qualIdent (Ident loc qi) (Ident _ i) = Ident loc (qi ++ "." ++ i)
+qualIdent (Ident _ qi) (Ident loc i) = Ident loc (qi ++ "." ++ i)
 
 expectQualified :: --XHasCallStack =>
                    Ident -> Ident
