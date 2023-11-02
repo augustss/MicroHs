@@ -97,7 +97,7 @@ reload = S.do
 
 
 helpText :: String
-helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n:clear     clear all definitions\n  :delete d  delete definition(s) d\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
+helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n  :clear     clear all definitions\n  :delete d  delete definition(s) d\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
 
 updateLines :: (String -> String) -> I ()
 updateLines f = S.modify $ \ (ls, flgs, cache) -> (f ls, flgs, cache)
