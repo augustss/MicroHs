@@ -24,12 +24,17 @@ mainInteractive (Flags a b c d _) = do
   putStrLn "Welcome to interactive MicroHs!"
   putStrLn "Type ':quit' to quit, ':help' for help"
   let flags' = Flags a b c d True
-  _ <- S.runStateIO repl (preamble, flags', emptyCache)
+  _ <- S.runStateIO start (preamble, flags', emptyCache)
   return ()
 
 preamble :: String
 preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++
            ") where\nimport Prelude\nimport Unsafe.Coerce\n"
+
+start :: I ()
+start = S.do
+  reload
+  repl
 
 repl :: I ()
 repl = S.do
@@ -71,6 +76,7 @@ commands =
     )
   , ("reload", const $ S.do
       S.modify $ \ (ls, flgs, _) -> (ls, flgs, emptyCache)
+      reload
       S.return True
     )
   , ("delete", \ del -> S.do
@@ -83,8 +89,15 @@ commands =
     )
   ]
 
+reload :: I ()
+reload = S.do
+  (ls, _, _) <- S.get
+  _ <- tryCompile ls   -- reload modules right away
+  S.return ()
+
+
 helpText :: String
-helpText = "Commands:\n  :quit      quit MicroHs\n  :clear     clear all definitions\n  :delete d  delete definition(s) d\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
+helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n:clear     clear all definitions\n  :delete d  delete definition(s) d\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
 
 updateLines :: (String -> String) -> I ()
 updateLines f = S.modify $ \ (ls, flgs, cache) -> (f ls, flgs, cache)
