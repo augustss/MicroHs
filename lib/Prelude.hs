@@ -6,8 +6,10 @@ module Prelude(
   module Control.Monad,
   module Data.Bool,
   module Data.Char,
+  module Data.Double,
   module Data.Either,
   module Data.Eq,
+  module Data.Fractional,
   module Data.Function,
   module Data.Functor,
   module Data.Int,
@@ -28,8 +30,10 @@ import Control.Error
 import Control.Monad
 import Data.Bool
 import Data.Char
+import Data.Double
 import Data.Either
 import Data.Eq
+import Data.Fractional
 import Data.Function
 import Data.Functor
 import Data.Int

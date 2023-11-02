@@ -5,6 +5,7 @@ import Primitives
 import Control.Error
 import Data.Bool_Type
 import Data.Eq
+import Data.Fractional
 import Data.Ord
 import Data.Num
 import Text.Show
@@ -31,8 +32,9 @@ instance Num Double where
 (*)  = primDoubleMul
 -}
 
-(/) :: Double -> Double -> Double
-(/) = primDoubleDiv
+instance Fractional Double where
+  (/) = primDoubleDiv
+  fromDouble x = x
 
 {-
 negate :: Double -> Double
