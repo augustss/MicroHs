@@ -6,7 +6,7 @@ module MicroHs.Exp(
   compileOpt,
 --  compileOptX,
   substExp,
-  Exp(..), showExp, eqExp, toStringP,
+  Exp(..), showExp, toStringP,
   PrimOp,
   encodeString,
   app2, cCons, cNil, cFlip,
@@ -51,19 +51,19 @@ data Exp
   | App Exp Exp
   | Lam Ident Exp
   | Lit Lit
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 
 --pattern Let :: Ident -> Exp -> Exp -> Exp
 --pattern Let i e b = App (Lam i b) e
 
 --Winstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
 
-eqExp :: Exp -> Exp -> Bool
-eqExp (Var i1) (Var i2) = i1 == i2
-eqExp (App f1 a1) (App f2 a2) = eqExp f1 f2 && eqExp a1 a2
-eqExp (Lam i1 e1) (Lam i2 e2) = i1 == i2 && eqExp e1 e2
-eqExp (Lit l1) (Lit l2) = eqLit l1 l2
-eqExp _ _ = False
+instance Eq Exp where
+  (==) (Var i1)    (Var i2)    = i1 == i2
+  (==) (App f1 a1) (App f2 a2) = f1 == f2 && a1 == a2
+  (==) (Lam i1 e1) (Lam i2 e2) = i1 == i2 && e1 == e2
+  (==) (Lit l1)    (Lit l2)    = eqLit l1 l2
+  (==) _           _           = False
 
 data MaybeApp = NotApp | IsApp Exp Exp
 
@@ -126,32 +126,6 @@ cP = Lit (LPrim "P")
 
 --cR :: Exp
 --cR = Lit (LPrim "R")
-
-{-
-eqExp :: Exp -> Exp -> Bool
-eqExp ae1 ae2 =
-  case ae1 of
-    Var i1 ->
-      case ae2 of
-        Var i2 -> eqIdent i1 i2
-        _ -> False
-    App e11 e12 ->
-      case ae2 of
-        App e21 e22 -> eqExp e11 e21 && eqExp e12 e22
-        _ -> False
-    Lam i1 e1 ->
-      case ae2 of
-        Lam i2 e2 -> eqIdent i1 i2 && eqExp e1 e2
-        _ -> False
-    Int i1 ->
-      case ae2 of
-        Int i2 -> i1 == i2
-        _ -> False
-    Prim p1 ->
-      case ae2 of
-        Prim p2 -> eqString p1 p2
-        _ -> False
--}
 
 -- Avoid quadratic concatenation by using difference lists,
 -- turning concatenation into function composition.
@@ -449,7 +423,7 @@ substExp si se ae =
                  let
                    fe = allVarsExp e
                    ase = allVarsExp se
-                   j = head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ show n) }, not (elem v ase), not (elem v fe) ]
+                   j = head [ v | n <- enumFrom (0::Int), let { v = mkIdent ("a" ++ show n) }, not (elem v ase), not (elem v fe) ]
                  in
                    --trace ("substExp " ++ unwords [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))
