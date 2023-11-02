@@ -20,10 +20,11 @@ type IState = (String, Flags, Cache)
 type I a = S.StateIO IState a
 
 mainInteractive :: Flags -> IO ()
-mainInteractive flags = do
+mainInteractive (Flags a b c d _) = do
   putStrLn "Welcome to interactive MicroHs!"
   putStrLn "Type ':quit' to quit, ':help' for help"
-  _ <- S.runStateIO repl (preamble, flags, emptyCache)
+  let flags' = Flags a b c d True
+  _ <- S.runStateIO repl (preamble, flags', emptyCache)
   return ()
 
 preamble :: String
@@ -65,6 +66,10 @@ commands =
   [ ("quit", const $ S.return False)
   , ("clear", const $ S.do
       updateLines (const preamble)
+      S.modify $ \ (ls, flgs, _) -> (ls, flgs, emptyCache)
+      S.return True
+    )
+  , ("reload", const $ S.do
       S.modify $ \ (ls, flgs, _) -> (ls, flgs, emptyCache)
       S.return True
     )

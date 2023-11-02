@@ -25,6 +25,7 @@ main = do
                   (elem "-r" args)
                   ("." : catMaybes (map (stripPrefix "-i") args))
                   (head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"])
+                  (elem "-l" args)
   case ss of
     [] -> mainInteractive flags
     [s] -> mainCompile flags (mkIdent s)

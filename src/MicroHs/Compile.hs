@@ -21,22 +21,25 @@ import MicroHs.TypeCheck
 --Ximport qualified CompatIO as IO
 --Ximport System.IO(Handle)
 
-data Flags = Flags Int Bool [String] String
+data Flags = Flags Int Bool [String] String Bool
   --Xderiving (Show)
 
 type Time = Int
 
 verbose :: Flags -> Int
-verbose (Flags x _ _ _) = x
+verbose (Flags x _ _ _ _) = x
 
 runIt :: Flags -> Bool
-runIt (Flags _ x _ _) = x
+runIt (Flags _ x _ _ _) = x
 
 paths :: Flags -> [String]
-paths (Flags _ _ x _) = x
+paths (Flags _ _ x _ _) = x
 
 output :: Flags -> String
-output (Flags _ _ _ x) = x
+output (Flags _ _ _ x _) = x
+
+loading :: Flags -> Bool
+loading (Flags _ _ _ _ x) = x
 
 -----------------
 
@@ -87,26 +90,28 @@ compile flags nm ach = IO.do
 -- Compile a module with the given name.
 -- If the module has already been compiled, return the cached result.
 compileModuleCached :: Flags -> IdentModule -> StateIO Cache (CModule, Time)
-compileModuleCached flags nm = S.do
+compileModuleCached flags mn = S.do
   ch <- gets cache
-  case M.lookup nm ch of
+  case M.lookup mn ch of
     Nothing -> S.do
       ws <- gets working
-      S.when (elem nm ws) $
-        error $ "recursive module: " ++ showIdent nm
-      modify $ \ c -> updWorking (nm : working c) c
+      S.when (elem mn ws) $
+        error $ "recursive module: " ++ showIdent mn
+      modify $ \ c -> updWorking (mn : working c) c
       S.when (verbose flags > 0) $
-        liftIO $ putStrLn $ "importing " ++ showIdent nm
-      (cm, tp, tt, ts) <- compileModule flags nm
+        liftIO $ putStrLn $ "importing " ++ showIdent mn
+      (cm, tp, tt, ts) <- compileModule flags mn
       S.when (verbose flags > 0) $
-        liftIO $ putStrLn $ "importing done " ++ showIdent nm ++ ", " ++ showInt (tp + tt) ++
+        liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ showInt (tp + tt) ++
                  "ms (" ++ showInt tp ++ " + " ++ showInt tt ++ ")"
+      S.when (loading flags && mn /= mkIdent "Interactive") $
+        liftIO $ putStrLn $ "import " ++ showIdent mn
       c <- get
-      put $ Cache (tail (working c)) (M.insert nm cm (cache c))
+      put $ Cache (tail (working c)) (M.insert mn cm (cache c))
       S.return (cm, tp + tt + ts)
     Just cm -> S.do
       S.when (verbose flags > 0) $
-        liftIO $ putStrLn $ "importing cached " ++ showIdent nm
+        liftIO $ putStrLn $ "importing cached " ++ showIdent mn
       S.return (cm, 0)
 
 -- Find and compile a module with the given name.
