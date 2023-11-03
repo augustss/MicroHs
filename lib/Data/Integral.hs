@@ -3,6 +3,7 @@
 module Data.Integral(module Data.Integral) where
 import Primitives
 import Data.Eq
+import Data.Integer_Type
 import Data.Num
 
 infixl 7 `quot`,`rem`
@@ -14,7 +15,7 @@ class {-(Real a, Enum a) => -} (Eq a, Num a) => Integral a where
   mod       :: a -> a -> a
   quotRem   :: a -> a -> (a, a)
   divMod    :: a -> a -> (a, a)
---  toInteger :: a -> Integer
+  toInteger :: a -> Integer
 
   n `quot` d       =  q  where (q,r) = quotRem n d
   n `rem` d        =  r  where (q,r) = quotRem n d

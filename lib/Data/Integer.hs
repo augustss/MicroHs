@@ -71,6 +71,7 @@ instance Num Integer where
 
 instance Integral Integer where
   quotRem = quotRemI
+  toInteger x = x
 
 isZero :: Integer -> Bool
 isZero (I _ ds) = null ds
@@ -86,15 +87,6 @@ sI s ds =
   case trim0 ds of
     []  -> I Plus []
     ds' -> I s    ds'
-
-_intToInteger :: Int -> Integer
-_intToInteger i | i >= 0        = I Plus  (f i)
-                | i == negate i = I Minus [0,0,2]  -- we are at minBound::Int.  XXX deal with this in a more portable way.
-                | otherwise     = I Minus (f (negate i))
-  where
-    f :: Int -> [Int]
-    f 0 = []
-    f x = rem x maxD : f (quot x maxD)
 
 zeroD :: Digit
 zeroD = 0

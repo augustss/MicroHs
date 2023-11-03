@@ -11,6 +11,7 @@ import Data.Integer
 import Data.Integral
 import Data.List
 import Data.Num
+import Data.Ord
 import Text.Show
 
 instance Num Word where
@@ -19,11 +20,12 @@ instance Num Word where
   (*)  = primWordMul
   abs x = x
   signum x = if x == 0 then 0 else 1
-  fromInteger x = primUnsafeCoerce (_integerToInt x)
+  fromInteger x = intToWord (_integerToInt x)
 
 instance Integral Word where
   quot = primWordQuot
   rem  = primWordRem
+  toInteger x = _intToInteger (wordToInt x)
 
 {-
 instance Bounded Word where
@@ -33,32 +35,15 @@ instance Bounded Word where
 
 --------------------------------
 
---infix 4 ==,/=
-infix 4 <,<=,>,>=
-
-{-
--- Comparison
-(==) :: Word -> Word -> Bool
-(==) = primWordEQ
-(/=) :: Word -> Word -> Bool
-(/=) = primWordNE
--}
-
 instance Eq Word where
   (==) = primWordEQ
   (/=) = primWordNE
 
-(<)  :: Word -> Word -> Bool
-(<)  = primWordLT
-(<=) :: Word -> Word -> Bool
-(<=) = primWordLE
-(>)  :: Word -> Word -> Bool
-(>)  = primWordGT
-(>=) :: Word -> Word -> Bool
-(>=) = primWordGE
-
-eqWord :: Word -> Word -> Bool
-eqWord = (==)
+instance Ord Word where
+  (<)  = primWordLT
+  (<=) = primWordLE
+  (>)  = primWordGT
+  (>=) = primWordGE
 
 intToWord :: Int -> Word
 intToWord = primUnsafeCoerce
@@ -74,7 +59,7 @@ instance Show Word where
       showWord :: Word -> String
       showWord n =
         let
-          c = chr ((+) (ord '0') (wordToInt (rem n (intToWord 10))))
+          c = chr ((ord '0') + (wordToInt (rem n (intToWord 10))))
         in  case n < intToWord 10 of
               False -> showWord (quot n (intToWord 10)) ++ [c]
               True  -> [c]

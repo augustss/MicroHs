@@ -173,7 +173,7 @@ mutualRec v ies body =
 encodeInteger :: Integer -> Exp
 encodeInteger i | -1000 < i && i < 1000 =  -- XXX use better bounds
 --  trace ("*** small integer " ++ show i) $
-  App (Var (mkIdent "Data.Integer._intToInteger")) (Lit (LInt (_integerToInt i)))
+  App (Var (mkIdent "Data.Integer_Type._intToInteger")) (Lit (LInt (_integerToInt i)))
                 | otherwise =
 --  trace ("*** large integer " ++ show i) $
   App (Var (mkIdent "Data.Integer._intListToInteger")) (encodeList (map (Lit . LInt) (_integerToIntList i)))

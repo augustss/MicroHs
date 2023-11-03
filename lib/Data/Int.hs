@@ -29,6 +29,7 @@ instance Num Int where
 instance Integral Int where
   quot = primIntQuot
   rem  = primIntRem
+  toInteger = _intToInteger
 
 {-
 instance Bounded Int where
