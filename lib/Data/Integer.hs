@@ -4,6 +4,8 @@ module Data.Integer(
   Integer,
   intToInteger,
   integerToInt,
+  _integerToIntList,
+  _intListToInteger,
   ) where
 import Primitives
 import Control.Error
@@ -305,6 +307,17 @@ gtI x y = ltI y x
 
 geI :: Integer -> Integer -> Bool
 geI x y = not (ltI x y)
+
+-- These two functions return an (opaque) representation of an
+-- Integer as [Int].
+-- This is used by the compiler to generate Integer literals.
+_integerToIntList :: Integer -> [Int]
+_integerToIntList (I Plus  ds) = ds
+_integerToIntList (I Minus ds) = -1 : ds
+
+_intListToInteger :: [Int] -> Integer
+_intListToInteger (-1 : ds) = I Minus ds
+_intListToInteger ds        = I Plus  ds
 
 ---------------------------------
 {-
