@@ -12,7 +12,7 @@ import Data.Bool
 import Data.Eq
 import Data.Fractional
 import Data.Function
-import Data.Int
+--import Data.Int
 import Data.Integer
 import Data.Integral
 import Data.Num

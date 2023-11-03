@@ -11,6 +11,8 @@ import Data.Integral
 import Data.List_Type
 import Data.Num
 import Data.Ord
+--import Data.Ratio
+import Data.Real
 import Text.Show
 
 instance Num Int where
@@ -36,6 +38,9 @@ instance Bounded Int where
   minBound = -9223372036854775808   -- -2^63
   maxBound =  9223372036854775807   --  2^63-1
 -}
+
+--instance Real Int where
+--  toRational i = i % 1
 
 --------------------------------
 
