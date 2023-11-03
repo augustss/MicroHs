@@ -39,30 +39,10 @@ instance Bounded Int where
 
 --------------------------------
 
--- infix 4 ==,/=
---infix 4 <,<=,>,>=
-
--- Comparison
-{-
-(==) :: Int -> Int -> Bool
-(==) = primIntEQ
-(/=) :: Int -> Int -> Bool
-(/=) = primIntNE
--}
 instance Eq Int where
   (==) = primIntEQ
   (/=) = primIntNE
 
-{-
-(<)  :: Int -> Int -> Bool
-(<)  = primIntLT
-(<=) :: Int -> Int -> Bool
-(<=) = primIntLE
-(>)  :: Int -> Int -> Bool
-(>)  = primIntGT
-(>=) :: Int -> Int -> Bool
-(>=) = primIntGE
--}
 instance Ord Int where
   (<)  = primIntLT
   (<=) = primIntLE

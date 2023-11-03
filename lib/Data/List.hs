@@ -86,15 +86,19 @@ foldl1 :: forall a . (a -> a -> a) -> [a] -> a
 foldl1 _ [] = error "foldl1"
 foldl1 f (x : xs) = foldl f x xs
 
-minimum :: [Int] -> Int
+minimum :: forall a . Ord a => [a] -> a
 minimum [] = error "minimum"
 minimum (x:ys) = foldr (\ y m -> if y < m then y else m) x ys
 
-sum :: [Int] -> Int
-sum = foldr (+) (0::Int)
+maximum :: forall a . Ord a => [a] -> a
+maximum [] = error "maximum"
+maximum (x:ys) = foldr (\ y m -> if y > m then y else m) x ys
 
-product :: [Int] -> Int
-product = foldr (*) (1::Int)
+sum :: forall a . Num a => [a] -> a
+sum = foldr (+) 0
+
+product :: forall a . Num a => [a] -> a
+product = foldr (*) 1
 
 and :: [Bool] -> Bool
 and = foldr (&&) True
@@ -336,6 +340,9 @@ infixl 9 !!
 
 partition :: forall a . (a -> Bool) -> [a] -> ([a], [a])
 partition p xs = (filter p xs, filter (not . p) xs)
+
+sort :: forall a . Ord a => [a] -> [a]
+sort = sortLE (<=)
 
 -- A simple "quicksort" for now.
 sortLE :: forall a . (a -> a -> Bool) -> [a] -> [a]
