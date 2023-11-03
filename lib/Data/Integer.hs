@@ -4,6 +4,7 @@ module Data.Integer(
   Integer,
   intToInteger,
   integerToInt,
+  readInteger,
   _integerToIntList,
   _intListToInteger,
   ) where
@@ -272,6 +273,9 @@ oneI = I Plus [1]
 twoI :: Integer
 twoI = I Plus [2]
 
+tenI :: Integer
+tenI = I Plus [10]
+
 negOneI :: Integer
 negOneI = I Minus [1]
 
@@ -287,6 +291,13 @@ showInteger' [] = ""
 showInteger' xs = showInteger' (trim0 xs') ++ [chr (ord '0' + d)]
   where
     (xs', [d]) = quotRemD xs 10
+
+readInteger :: String -> Integer
+readInteger ('-':ds) = negate (readUnsignedInteger ds)
+readInteger ds       =         readUnsignedInteger ds
+
+readUnsignedInteger :: String -> Integer
+readUnsignedInteger = foldl (\ r c -> r * tenI + intToInteger (ord c - ord '0')) zeroI
 
 eqI :: Integer -> Integer -> Bool
 eqI (I sx xs) (I sy ys) = eqSign sx sy && eqList (==) xs ys
