@@ -19,6 +19,7 @@ instance Num Word where
   abs x = x
   signum x = if x == fromInt 0 then fromInt 0 else fromInt 1
   fromInt = primUnsafeCoerce
+  fromInteger x = primUnsafeCoerce (_integerToInt x)
 
 instance Integral Word where
   quot = primWordQuot

@@ -9,7 +9,7 @@ import Text.ParserComb as P
 import MicroHs.Lex
 import MicroHs.Expr
 import MicroHs.Ident
-
+--Ximport Compat
 
 type P a = Prsr FilePath Token a
 
@@ -215,7 +215,7 @@ pLit = do
   let
     is (TString (l, c) s) = Just (ELit (SLoc fn l c) (LStr s))
     is (TChar   (l, c) a) = Just (ELit (SLoc fn l c) (LChar a))
-    is (TInt    (l, c) i) = Just (ELit (SLoc fn l c) (LInt i))
+    is (TInt    (l, c) i) = Just (ELit (SLoc fn l c) (LInteger i))
     is (TDouble (l, c) d) = Just (ELit (SLoc fn l c) (LDouble d))
     is _ = Nothing
   satisfyM "literal" is
@@ -264,7 +264,7 @@ pDef =
   <|< Instance    <$> (pKeyword "instance" *> pForall)  <*> pContext <*> pTypeApp <*> pWhere pClsBind
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
-    dig (TInt _ i) | -2 <= i && i <= 9 = Just i
+    dig (TInt _ ii) | -2 <= i && i <= 9 = Just i  where i = _integerToInt ii
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
     pContext = (pCtx <* pSymbol "=>") <|< pure []

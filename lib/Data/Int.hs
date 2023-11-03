@@ -6,6 +6,7 @@ import Data.Bool_Type
 import Data.Bounded
 import Data.Char_Type
 import Data.Eq
+import Data.Integer_Type
 import Data.Integral
 import Data.List_Type
 import Data.Num
@@ -24,6 +25,7 @@ instance Num Int where
       EQ ->  0
       GT ->  1
   fromInt x = x
+  fromInteger = _integerToInt
 
 instance Integral Int where
   quot = primIntQuot

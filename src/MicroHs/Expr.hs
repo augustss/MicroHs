@@ -37,7 +37,6 @@ module MicroHs.Expr(
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), (<>))
 import Data.Maybe
 import MicroHs.Ident
-import qualified Data.Double as D
 import Text.PrettyPrint.HughesPJ
 --Ximport Compat
 --Ximport GHC.Stack
@@ -145,13 +144,14 @@ instance Eq Con where
 
 data Lit
   = LInt Int
-  | LDouble D.Double
+  | LInteger Integer
+  | LDouble Double
   | LChar Char
   | LStr String
   | LPrim String
   | LForImp String
   --Xderiving (Show)
---Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LDouble d) = rnf d; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
+--Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LInteger i) = rnf i; rnf (LDouble d) = rnf d; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
 
 instance Eq Lit where
   (==) (LInt x)  (LInt  y) = x == y
@@ -519,12 +519,13 @@ ppCon (ConLit l) = text (showLit l)
 showLit :: Lit -> String
 showLit l =
   case l of
-    LInt i    -> '#' : show i
-    LDouble d -> '%' : show d
-    LChar c   -> xshowChar c
-    LStr s    -> show s
-    LPrim s   -> s
-    LForImp s -> '^' : s
+    LInt i     -> '#' : show i
+    LInteger i -> '#' : '#' : show i
+    LDouble d  -> '%' : show d
+    LChar c    -> xshowChar c
+    LStr s     -> show s
+    LPrim s    -> s
+    LForImp s  -> '^' : s
 
 ppEStmt :: EStmt -> Doc
 ppEStmt as =

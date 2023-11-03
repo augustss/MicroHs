@@ -21,6 +21,7 @@ instance Num Double where
       EQ ->  0.0
       GT ->  1.0
   fromInt = primDoubleFromInt
+  fromInteger _ = error "Double.fromInteger not implemented"
 
 instance Fractional Double where
   (/) = primDoubleDiv

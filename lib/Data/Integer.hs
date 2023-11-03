@@ -2,8 +2,8 @@
 -- See LICENSE file for full license.
 module Data.Integer(
   Integer,
-  intToInteger,
-  integerToInt,
+  _intToInteger,
+  _integerToInt,
   readInteger,
   _integerToIntList,
   _intListToInteger,
@@ -29,7 +29,8 @@ import Text.Show
 --  * least signification digits first, most significant last
 --  * no trailing 0s in the digits
 --  * 0 is positive
---data Integer = I Sign [Digit]
+{- These definitions are in Integer_Type
+data Integer = I Sign [Digit]
   --deriving Show
 
 type Digit = Int
@@ -37,8 +38,9 @@ type Digit = Int
 maxD :: Digit
 maxD = 2147483648  -- 2^31, this is used so multiplication of two digit doesn't overflow a 64 bit Int
 
---data Sign = Plus | Minus
+data Sign = Plus | Minus
   --deriving Show
+-}
 
 instance Eq Integer where
   (==) = eqI
@@ -64,7 +66,8 @@ instance Num Integer where
       LT -> negOneI
       EQ -> zeroI
       GT -> oneI
-  fromInt = intToInteger
+  fromInt = _intToInteger
+  fromInteger x = x
 
 instance Integral Integer where
   quotRem = quotRemI
@@ -84,27 +87,13 @@ sI s ds =
     []  -> I Plus []
     ds' -> I s    ds'
 
-intToInteger :: Int -> Integer
-intToInteger i | i >= 0        = I Plus  (f i)
-               | i == negate i = I Minus [0,0,2]  -- we are at minBound::Int.  XXX deal with this in a more portable way.
-               | otherwise     = I Minus (f (negate i))
+_intToInteger :: Int -> Integer
+_intToInteger i | i >= 0        = I Plus  (f i)
+                | i == negate i = I Minus [0,0,2]  -- we are at minBound::Int.  XXX deal with this in a more portable way.
+                | otherwise     = I Minus (f (negate i))
   where
     f 0 = []
     f x = rem x maxD : f (quot x maxD)
-
-integerToInt :: Integer -> Int
-integerToInt (I sign ds) = s * i
-  where
-    i =
-      case ds of
-        []         -> 0
-        [d1]       -> d1
-        [d1,d2]    -> d1 + maxD * d2
-        [d1,d2,d3] -> d1 + maxD * d2 + (maxD * maxD) * d3
-    s =
-      case sign of
-        Plus  -> 1
-        Minus -> -1
 
 zeroD :: Digit
 zeroD = 0
@@ -297,7 +286,7 @@ readInteger ('-':ds) = negate (readUnsignedInteger ds)
 readInteger ds       =         readUnsignedInteger ds
 
 readUnsignedInteger :: String -> Integer
-readUnsignedInteger = foldl (\ r c -> r * tenI + intToInteger (ord c - ord '0')) zeroI
+readUnsignedInteger = foldl (\ r c -> r * tenI + _intToInteger (ord c - ord '0')) zeroI
 
 eqI :: Integer -> Integer -> Bool
 eqI (I sx xs) (I sy ys) = eqSign sx sy && eqList (==) xs ys
@@ -357,7 +346,7 @@ instance Num Integer where
 
 instance Enum Integer where
   fromEnum = fromEnum . integerToPInteger
-  toEnum = intToInteger
+  toEnum = _intToInteger
 
 instance Real Integer where
   toRational = toRational . toInteger

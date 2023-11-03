@@ -41,8 +41,8 @@ nameDouble = "Primitives.Double"
 nameChar :: String
 nameChar = "Primitives.Char"
 
---nameInteger :: String
---nameInteger = "Data.Integer_Type.Integer"
+nameInteger :: String
+nameInteger = "Data.Integer_Type.Integer"
 
 ----------------------
 
@@ -1524,15 +1524,17 @@ enum :: SLoc -> String -> [Expr] -> Expr
 enum loc f = foldl EApp (EVar (mkIdentSLoc loc ("enum" ++ f)))
 
 tcLit :: Expected -> SLoc -> Lit -> T Expr
+tcLit mt loc (LInteger i) = tcLit mt loc (LInt (fromInteger i))
 tcLit mt loc l = do
   let lit t = instSigma loc (ELit loc l) t mt
   case l of
-    LInt _    -> lit (tConI loc nameInt)
-    LDouble _ -> lit (tConI loc nameDouble)
-    LChar _   -> lit (tConI loc nameChar)
-    LStr _    -> lit (tApp (tList loc) (tConI loc nameChar))
-    LPrim _   -> newUVar >>= lit  -- pretend it is anything
-    LForImp _ -> impossible
+    LInt _     -> lit (tConI loc nameInt)
+    LInteger _ -> lit (tConI loc nameInteger)
+    LDouble _  -> lit (tConI loc nameDouble)
+    LChar _    -> lit (tConI loc nameChar)
+    LStr _     -> lit (tApp (tList loc) (tConI loc nameChar))
+    LPrim _    -> newUVar >>= lit  -- pretend it is anything
+    LForImp _  -> impossible
 
 tcOper :: --XHasCallStack =>
           Expr -> [(Ident, Expr)] -> T Expr

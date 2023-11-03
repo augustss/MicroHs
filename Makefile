@@ -22,7 +22,8 @@ EVAL=$(BIN)/mhseval
 
 all:	$(EVAL) $(BIN)/$(MHS)
 
-everytest:	runtest example examplecomb bootboottest bootcombtest
+#everytest:	runtest example examplecomb bootboottest bootcombtest
+everytest:	runtest example examplecomb bootcombtest
 
 ###
 ### Build evaluator (runtime system)

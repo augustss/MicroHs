@@ -5,7 +5,6 @@ module MicroHs.Lex(
 import Prelude --Xhiding(lex)
 import Data.Char
 import Data.List
-import qualified Data.Double as D
 --Ximport Compat
 import MicroHs.Ident
 
@@ -13,8 +12,8 @@ data Token
   = TIdent  Loc [String] String
   | TString Loc String
   | TChar   Loc Char
-  | TInt    Loc Int
-  | TDouble Loc D.Double
+  | TInt    Loc Integer
+  | TDouble Loc Double
   | TSpec   Loc Char
   | TError  Loc String
   | TBrace  Loc
@@ -110,7 +109,7 @@ number loc sign cs =
   case span isDigit cs of
     (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
                let s = sign ++ ds
-                   i = readInt s
+                   i = readInteger s
                in  TInt loc i : lex (addCol loc $ length s) rs
              | otherwise ->
                case span isDigit (tail rs) of

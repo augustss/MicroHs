@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module Data.Num(module Data.Num) where
 import Primitives
+import Data.Integer_Type
 
 infixl 6 +,-
 infixl 7 *
@@ -13,7 +14,7 @@ class Num a where
   negate :: a -> a
   abs :: a -> a
   signum :: a -> a
---  fromInteger :: Integer -> a
+  fromInteger :: Integer -> a
   fromInt :: Int -> a
 
   negate x = fromInt 0 - x
