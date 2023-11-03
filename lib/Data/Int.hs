@@ -11,7 +11,7 @@ import Data.Integral
 import Data.List_Type
 import Data.Num
 import Data.Ord
---import Data.Ratio
+import Data.Ratio_Type
 import Data.Real
 import Text.Show
 
@@ -39,8 +39,8 @@ instance Bounded Int where
   maxBound =  9223372036854775807   --  2^63-1
 -}
 
---instance Real Int where
---  toRational i = i % 1
+instance Real Int where
+  toRational i = _integerToRational (_intToInteger i)
 
 --------------------------------
 

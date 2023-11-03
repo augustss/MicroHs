@@ -1431,8 +1431,9 @@ tcExprR mt ae =
               case mex of
                 -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
                 -- (which is not always in scope).
-                Just v | v == mkIdent nameInt    -> tcLit mt loc' (LInt (_integerToInt i))
-                       | v == mkIdent nameDouble -> tcLit mt loc' (LDouble (_integerToDouble i))
+                Just v | v == mkIdent nameInt     -> tcLit mt loc' (LInt (_integerToInt i))
+                       | v == mkIdent nameDouble  -> tcLit mt loc' (LDouble (_integerToDouble i))
+                       | v == mkIdent nameInteger -> tcLit mt loc' l
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft

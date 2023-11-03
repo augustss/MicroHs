@@ -21,7 +21,7 @@ import Data.Integral
 import Data.List
 import Data.Num
 import Data.Ord
---import Data.Ratio
+import Data.Ratio_Type
 import Data.Real
 import Text.Show
 
@@ -75,8 +75,8 @@ instance Integral Integer where
   quotRem = quotRemI
   toInteger x = x
 
---instance Real Int where
---  toRational i = i % 1
+instance Real Integer where
+  toRational i = _integerToRational i
 
 isZero :: Integer -> Bool
 isZero (I _ ds) = null ds
