@@ -13,7 +13,7 @@ import Control.Monad.State.Strict as S --Xhiding(ap)
 --Ximport Control.Monad as S hiding(ap)
 --Ximport Compat
 --Ximport GHC.Stack
---Ximport Debug.Trace
+import Debug.Trace
 
 import MicroHs.Expr
 import MicroHs.Exp
@@ -170,6 +170,14 @@ mutualRec v ies body =
   in  letRecE v (bnds $ mkTupleE es) $
       bnds body
 
+encodeInteger :: Integer -> Exp
+encodeInteger i | -1000 < i && i < 1000 =  -- XXX use better bounds
+--  trace ("*** small integer " ++ show i) $
+  App (Var (mkIdent "Data.Integer._intToInteger")) (Lit (LInt (_integerToInt i)))
+                | otherwise =
+--  trace ("*** large integer " ++ show i) $
+  App (Var (mkIdent "Data.Integer._intListToInteger")) (encodeList (map (Lit . LInt) (_integerToIntList i)))
+
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
   case aexpr of
@@ -177,13 +185,14 @@ dsExpr aexpr =
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam qs -> dsEqns (getSLocExpr aexpr) qs
     ELit _ (LChar c) -> Lit (LInt (ord c))
+    ELit _ (LInteger i) -> encodeInteger i
     ELit _ l -> Lit l
     ECase e as -> dsCase (getSLocExpr aexpr) e as
     ELet ads e -> dsBinds ads (dsExpr e)
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
     EIf e1 e2 e3 ->
       app2 (dsExpr e1) (dsExpr e3) (dsExpr e2)
-    EListish (LList es) -> foldr (app2 cCons) cNil $ map dsExpr es
+    EListish (LList es) -> encodeList $ map dsExpr es
     EListish (LCompr e astmts) ->
       case astmts of
         [] -> dsExpr (EListish (LList [e]))

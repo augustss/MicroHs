@@ -244,8 +244,8 @@ primCompare = compare
 primRnf :: (NFData a) => a -> ()
 primRnf = rnf
 
-fromInteger :: Integer -> Int
-fromInteger = P.fromInteger
+--fromInteger :: Integer -> Int
+--fromInteger = P.fromInteger
 
 fromRational :: Rational -> Double
 fromRational = P.fromRational

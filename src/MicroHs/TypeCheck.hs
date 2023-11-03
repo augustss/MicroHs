@@ -1410,25 +1410,36 @@ tcExprR mt ae =
     EOper e ies -> do e' <- tcOper e ies; tcExpr mt e'
     ELam qs -> tcExprLam mt qs
     ELit loc' l -> do
-      case l of
-        LInteger i -> do
-          let getExpected (Infer _) = pure Nothing
-              getExpected (Check t) = do
-                t' <- derefUVar t >>= expandSyn
-                case t' of
-                  EVar i -> pure (Just i)
-                  _      -> pure Nothing
-          mex <- getExpected mt
-          case mex of
-            -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
-            -- (which is not always in scope).
-            Just v | v == mkIdent nameInt -> tcLit mt loc' (LInt (fromInteger i))
-            _ -> do
-              (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow
-              (_at, rt) <- unArrow loc ft
-              -- We don't need to check that _at is Integer, it's part of the fromInteger type.
-              instSigma loc (EApp f ae) rt mt
-        _ -> tcLit mt loc' l
+      tcm <- gets tcMode
+--      traceM ("tcExpr EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
+      case tcm of
+        -- XXX This is temporary hack.  Don't allow polymorphic constrants in patterns
+        TCPat ->
+          case l of
+            LInteger i -> tcLit mt loc' (LInt (_integerToInt i))
+            _          -> tcLit mt loc' l
+        _ ->
+          case l of
+            LInteger i -> do
+              let getExpected (Infer _) = pure Nothing
+                  getExpected (Check t) = do
+                    t' <- derefUVar t >>= expandSyn
+                    case t' of
+                      EVar v -> pure (Just v)
+                      _      -> pure Nothing
+              mex <- getExpected mt
+              case mex of
+                -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
+                -- (which is not always in scope).
+                Just v | v == mkIdent nameInt    -> tcLit mt loc' (LInt (_integerToInt i))
+                       | v == mkIdent nameDouble -> tcLit mt loc' (LDouble (_integerToDouble i))
+                _ -> do
+                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow
+                  (_at, rt) <- unArrow loc ft
+                  -- We don't need to check that _at is Integer, it's part of the fromInteger type.
+                  instSigma loc (EApp f ae) rt mt
+            -- Not LInteger
+            _ -> tcLit mt loc' l
     ECase a arms -> do
       (ea, ta) <- tInferExpr a
       tt <- tGetExpType mt

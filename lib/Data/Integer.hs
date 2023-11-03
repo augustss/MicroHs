@@ -2,9 +2,10 @@
 -- See LICENSE file for full license.
 module Data.Integer(
   Integer,
+  readInteger,
   _intToInteger,
   _integerToInt,
-  readInteger,
+  _integerToDouble,
   _integerToIntList,
   _intListToInteger,
   ) where
@@ -66,7 +67,6 @@ instance Num Integer where
       LT -> negOneI
       EQ -> zeroI
       GT -> oneI
-  fromInt = _intToInteger
   fromInteger x = x
 
 instance Integral Integer where
@@ -92,6 +92,7 @@ _intToInteger i | i >= 0        = I Plus  (f i)
                 | i == negate i = I Minus [0,0,2]  -- we are at minBound::Int.  XXX deal with this in a more portable way.
                 | otherwise     = I Minus (f (negate i))
   where
+    f :: Int -> [Int]
     f 0 = []
     f x = rem x maxD : f (quot x maxD)
 
@@ -151,7 +152,7 @@ subW b x y =
 
 -- Remove trailing 0s
 trim0 :: [Digit] -> [Digit]
-trim0 = reverse . dropWhile (== 0) . reverse
+trim0 = reverse . dropWhile (== (0::Int)) . reverse
 
 -- Is axs < ays?
 ltW :: [Digit] -> [Digit] -> Bool
@@ -185,7 +186,7 @@ mulD ci (x:xs) y = r : mulD q xs y
 mulM :: [Digit] -> [Digit] -> [Digit]
 mulM xs ys =
   let rs = map (mulD zeroD xs) ys
-      ss = zipWith (++) (map (`replicate` 0) [0..]) rs
+      ss = zipWith (++) (map (`replicate` (0::Int)) [0::Int ..]) rs
   in  foldl1 add ss
 
 -- Signs:
@@ -196,7 +197,7 @@ mulM xs ys =
 quotRemI :: Integer -> Integer -> (Integer, Integer)
 quotRemI _         (I _  [])  = error "Integer: division by 0" -- n / 0
 quotRemI (I _  [])          _ = (I Plus [], I Plus [])         -- 0 / n
-quotRemI (I sx xs) (I sy ys) | all (== 0) ys' =
+quotRemI (I sx xs) (I sy ys) | all (== (0::Int)) ys' =
   -- All but the MSD are 0.  Scale numerator accordingly and divide.
   -- Then add back (the ++) the remainder we scaled off.
     case quotRemD xs' y of
@@ -232,7 +233,7 @@ quotRemB :: [Digit] -> [Digit] -> ([Digit], [Digit])
 quotRemB xs ys =
   let n  = I Plus xs
       d  = I Plus ys
-      a  = I Plus $ replicate (length ys - 1) 0 ++ [last ys]  -- only MSD of ys
+      a  = I Plus $ replicate (length ys - (1::Int)) (0::Int) ++ [last ys]  -- only MSD of ys
       aq = quotI n a
       ar = addI d oneI
       loop q r =
@@ -314,7 +315,7 @@ geI x y = not (ltI x y)
 -- This is used by the compiler to generate Integer literals.
 _integerToIntList :: Integer -> [Int]
 _integerToIntList (I Plus  ds) = ds
-_integerToIntList (I Minus ds) = -1 : ds
+_integerToIntList (I Minus ds) = (-1::Int) : ds
 
 _intListToInteger :: [Int] -> Integer
 _intListToInteger (-1 : ds) = I Minus ds

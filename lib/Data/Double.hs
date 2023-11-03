@@ -6,6 +6,7 @@ import Control.Error
 import Data.Bool_Type
 import Data.Eq
 import Data.Fractional
+import Data.Integer
 import Data.Ord
 import Data.Num
 import Text.Show
@@ -20,8 +21,7 @@ instance Num Double where
       LT -> -1.0
       EQ ->  0.0
       GT ->  1.0
-  fromInt = primDoubleFromInt
-  fromInteger _ = error "Double.fromInteger not implemented"
+  fromInteger = _integerToDouble
 
 instance Fractional Double where
   (/) = primDoubleDiv

@@ -74,7 +74,7 @@ stderr       = primStderr
 hGetChar :: Handle -> IO Char
 hGetChar h = do
   c <- primHGetChar h
-  if c == negate 1 then
+  if c == (-1::Int) then
     error "hGetChar: EOF"
    else
     return (chr c)
@@ -86,10 +86,10 @@ openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM p m = do
   let
     n = case m of
-          ReadMode -> 0
-          WriteMode -> 1
-          AppendMode -> 2
-          ReadWriteMode -> 3
+          ReadMode -> 0::Int
+          WriteMode -> 1::Int
+          AppendMode -> 2::Int
+          ReadWriteMode -> 3::Int
   hdl <- primOpenFile p n
   if primIsNullHandle hdl then
     return Nothing
@@ -114,30 +114,6 @@ cprint = primHPrint stdout
 
 print :: forall a . (Show a) => a -> IO ()
 print a = putStrLn (show a)
-
-{-
-mapM :: forall a b . (a -> IO b) -> [a] -> IO [b]
-mapM f =
-  let
-    rec [] = return []
-    rec (a : as) = do
-      b <- f a
-      bs <- rec as
-      return (b : bs)
-  in rec
-
-mapM_ :: forall a b . (a -> IO b) -> [a] -> IO ()
-mapM_ f =
-  let
-    rec [] = return ()
-    rec (a : as) = do
-      f a
-      rec as
-  in rec
-
-when :: Bool -> IO () -> IO ()
-when b io = if b then io else return ()
--}
 
 putStr :: String -> IO ()
 putStr = hPutStr stdout
@@ -169,7 +145,7 @@ readFile p = do
 hGetContents :: Handle -> IO String
 hGetContents h = do
   c <- primHGetChar h
-  if c == negate 1 then do
+  if c == (-1::Int) then do
     hClose h   -- EOF, so close the handle
     return ""
    else do

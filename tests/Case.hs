@@ -8,10 +8,10 @@ main = do
   putStrLn $ show  $ f2 True
 --  putStrLn $ showInt  $ f3 False
   putStrLn $ show $ map f4 [R,G,B]
-  putStrLn $ show $ f5 [(3,4)]
+  putStrLn $ show $ f5 [(3::Int,4::Int)]
   --putStrLn $ showInt $ f6 [(3,4)]
-  putStrLn $ show $ [ i | Just i <- [Just 1, Nothing, Just 2] ]
-  (x,y) <- return (2,3)
+  putStrLn $ show $ [ i | Just i <- [Just (1::Int), Nothing, Just 2] ]
+  (x,y) <- return (2::Int,3::Int)
   putStrLn $ show $ x + y
 
 f1 :: Bool -> Bool

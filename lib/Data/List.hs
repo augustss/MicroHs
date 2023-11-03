@@ -4,7 +4,7 @@ module Data.List(
   module Data.List,
   module Data.List_Type
   ) where
-import Primitives as P
+import Primitives
 import Control.Applicative
 import Control.Error
 import Control.Monad
@@ -86,15 +86,15 @@ foldl1 :: forall a . (a -> a -> a) -> [a] -> a
 foldl1 _ [] = error "foldl1"
 foldl1 f (x : xs) = foldl f x xs
 
-minimum :: [P.Int] -> P.Int
+minimum :: [Int] -> Int
 minimum [] = error "minimum"
 minimum (x:ys) = foldr (\ y m -> if y < m then y else m) x ys
 
-sum :: [P.Int] -> P.Int
-sum = foldr (+) 0
+sum :: [Int] -> Int
+sum = foldr (+) (0::Int)
 
-product :: [P.Int] -> P.Int
-product = foldr (*) 1
+product :: [Int] -> Int
+product = foldr (*) (1::Int)
 
 and :: [Bool] -> Bool
 and = foldr (&&) True
@@ -108,33 +108,33 @@ any p = or . map p
 all :: forall a . (a -> Bool) -> [a] -> Bool
 all p = and . map p
 
-take :: forall a . P.Int -> [a] -> [a]
+take :: forall a . Int -> [a] -> [a]
 take n arg =
-  if n <= 0 then
+  if n <= (0::Int) then
     []
   else
     case arg of
       [] -> []
-      x : xs -> x : take (n - 1) xs
+      x : xs -> x : take (n - (1::Int)) xs
 
-drop :: forall a . P.Int -> [a] -> [a]
+drop :: forall a . Int -> [a] -> [a]
 drop n arg =
-  if n <= 0 then
+  if n <= (0::Int) then
     arg
   else
     case arg of
       [] -> []
-      _ : xs -> drop (n - 1) xs
+      _ : xs -> drop (n - (1::Int)) xs
 
-length :: forall a . [a] -> P.Int
+length :: forall a . [a] -> Int
 length =
   -- Make it tail recursive and strict
   let
     rec r [] = r
     rec r (_:xs) =
-          let r' = r + 1
+          let r' = r + (1::Int)
           in  r' `primSeq` rec r' xs
-  in rec 0
+  in rec (0::Int)
 
 zip :: forall a b . [a] -> [b] -> [(a, b)]
 zip = zipWith (\ x y -> (x, y))
@@ -178,7 +178,7 @@ isPrefixOfBy eq (c:cs) (d:ds) = eq c d && isPrefixOfBy eq cs ds
 isPrefixOfBy _ [] _ = True
 isPrefixOfBy _ _  _ = False
 
-splitAt :: forall a . P.Int -> [a] -> ([a], [a])
+splitAt :: forall a . Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
 
 reverse :: forall a . [a] -> [a]
@@ -245,20 +245,20 @@ notElem a as = not (elem a as)
 elemBy :: forall a . (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
 
-enumFrom :: P.Int -> [P.Int]
+enumFrom :: Int -> [Int]
 enumFrom n = n : enumFrom (n+1)
 
-enumFromThen :: P.Int -> P.Int -> [P.Int]
+enumFromThen :: Int -> Int -> [Int]
 enumFromThen n m = from n
   where d = m - n
         from i = i : from (i+d)
 
-enumFromTo :: P.Int -> P.Int -> [P.Int]
+enumFromTo :: Int -> Int -> [Int]
 enumFromTo l h = takeWhile (<= h) (enumFrom l)
 
-enumFromThenTo :: P.Int -> P.Int -> P.Int -> [P.Int]
+enumFromThenTo :: Int -> Int -> Int -> [Int]
 enumFromThenTo l m h =
-  if m - l > 0 then
+  if m > l then
     takeWhile (<= h) (enumFromThen l m)
   else
     takeWhile (>= h) (enumFromThen l m)
@@ -303,7 +303,7 @@ nubBy :: forall a . (a -> a -> Bool) -> [a] -> [a]
 nubBy _ [] = []
 nubBy eq (x:xs) = x : nubBy eq (filter (\ y -> not (eq x y)) xs)
 
-replicate :: forall a . P.Int -> a -> [a]
+replicate :: forall a . Int -> a -> [a]
 replicate n x = take n (repeat x)
 
 repeat :: forall a . a -> [a]
@@ -324,14 +324,14 @@ deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteAllsBy eq = foldl (flip (deleteAllBy eq))
 
 infixl 9 !!
-(!!) :: forall a . [a] -> P.Int -> a
+(!!) :: forall a . [a] -> Int -> a
 (!!) axs i =
-  if i < 0 then
+  if i < (0::Int) then
     error "!!: <0"
   else
     let
       nth _ [] = error "!!: empty"
-      nth n (x:xs) = if n == 0 then x else nth (n - 1) xs
+      nth n (x:xs) = if n == (0::Int) then x else nth (n - (1::Int)) xs
     in nth i axs
 
 eqList :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool

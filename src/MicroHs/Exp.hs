@@ -11,6 +11,7 @@ module MicroHs.Exp(
   encodeString,
   app2, cCons, cNil, cFlip,
   allVarsExp, freeVars,
+  encodeList,
   ) where
 import Prelude --Xhiding((<>))
 import Data.Char
@@ -21,7 +22,7 @@ import Text.PrettyPrint.HughesPJ
 --Ximport Control.DeepSeq
 --Ximport Compat
 --Yimport Primitives(NFData(..))
---import Debug.Trace
+import Debug.Trace
 
 type PrimOp = String
 
@@ -139,7 +140,7 @@ toStringP ae =
         (quoteString s ++)
       else
         toStringP (encodeString s)
-    Lit (LInteger _) -> error "LInteger"
+    Lit (LInteger _) -> undefined
     Lit l   -> (showLit l ++)
     Lam x e -> (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
@@ -155,8 +156,10 @@ quoteString s =
   in '"' : concatMap achar s ++ ['"']
 
 encodeString :: String -> Exp
-encodeString [] = cNil
-encodeString (c:cs) = app2 cCons (Lit (LInt (ord c))) (encodeString cs)
+encodeString = encodeList . map (Lit . LInt . ord)
+
+encodeList :: [Exp] -> Exp
+encodeList = foldr (app2 cCons) cNil
 
 compileOpt :: Exp -> Exp
 compileOpt = improveT . compileExp

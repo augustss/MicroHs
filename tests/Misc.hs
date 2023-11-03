@@ -8,4 +8,4 @@ first ab =
 
 main :: IO ()
 main = do
-  print $ first (10,20)
+  print $ first (10::Int,20::Int)

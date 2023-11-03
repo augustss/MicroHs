@@ -37,12 +37,12 @@ main = do
   putStrLn (show s)
   writeSerialized "f.tmp" f
   g <- readSerialized "f.tmp"
-  putStrLn $ show $ (g 5 :: Int)
+  putStrLn $ show $ (g (5::Int) :: Int)
   foo
-  putStrLn $ show $ trace "tracing" 5
+  putStrLn $ show $ trace "tracing" (5::Int)
   as <- getArgs
   putStrLn $ show as
-  putStrLn $ show $ seq (1 + 2) 5
-  putStrLn $ show $ seq (1 + trace "seq" 2) 5
+  putStrLn $ show $ seq ((1::Int) + (2::Int)) (5::Int)
+  putStrLn $ show $ seq ((1::Int) + trace "seq" (2::Int)) (5::Int)
   tend <- getTimeMilli
   putStrLn $ show (tend - tstart) ++ "ms execution time"

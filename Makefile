@@ -47,6 +47,7 @@ $(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
 $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
+	$(GHCB) -c ghc/PrimFromInteger.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
 	$(GHCB) -c ghc/Data/Char_Type.hs
 	$(GHCB) -c ghc/Data/List_Type.hs

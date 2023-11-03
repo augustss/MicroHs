@@ -31,8 +31,8 @@ xencodeChar c =
 readInt :: String -> Int
 readInt cs =
   let
-    rd = foldl (\ a c -> a * 10 + ord c - ord '0') 0
-  in if head cs == '-' then 0 - rd (tail cs) else rd cs
+    rd = foldl (\ a c -> a * (10::Int) + ord c - ord '0') (0::Int)
+  in if head cs == '-' then (0::Int) - rd (tail cs) else rd cs
 
 readDouble :: String -> Double
 readDouble = primDoubleRead

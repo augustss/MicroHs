@@ -7,6 +7,7 @@ module Data.Tuple(
 --Y-}
   ) where
 import Primitives  -- for ()
+--Yimport PrimFromInteger
 import Data.Bool
 import Data.Bounded
 import Data.Eq

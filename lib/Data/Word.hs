@@ -6,7 +6,8 @@ import Data.Bool_Type
 import Data.Bounded
 import Data.Char
 import Data.Eq
-import Data.Int()  -- insances only
+import Data.Int()  -- instances only
+import Data.Integer
 import Data.Integral
 import Data.List
 import Data.Num
@@ -17,8 +18,7 @@ instance Num Word where
   (-)  = primWordSub
   (*)  = primWordMul
   abs x = x
-  signum x = if x == fromInt 0 then fromInt 0 else fromInt 1
-  fromInt = primUnsafeCoerce
+  signum x = if x == 0 then 0 else 1
   fromInteger x = primUnsafeCoerce (_integerToInt x)
 
 instance Integral Word where

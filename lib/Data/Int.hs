@@ -24,7 +24,6 @@ instance Num Int where
       LT -> -1
       EQ ->  0
       GT ->  1
-  fromInt x = x
   fromInteger = _integerToInt
 
 instance Integral Int where
