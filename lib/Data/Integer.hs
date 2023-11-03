@@ -3,6 +3,7 @@
 module Data.Integer(
   Integer,
   intToInteger,
+  integerToInt,
   ) where
 import Primitives
 import Control.Error
@@ -16,15 +17,6 @@ import Data.List
 import Data.Num
 import Data.Ord
 import Text.Show
-{-
-import Prelude hiding(Integer)
-import qualified Prelude as P
-import Data.Char
-import Compat
-import Test.QuickCheck
-import GHC.Stack
-import Debug.Trace
--}
 
 --
 -- The Integer is stored in sign-magniture format with digits in base maxD (2^31)
@@ -37,6 +29,9 @@ data Integer = I Sign [Digit]
   --deriving Show
 
 type Digit = Int
+
+maxD :: Digit
+maxD = 2147483648  -- 2^31, this is used so multiplication of two digit doesn't overflow a 64 bit Int
 
 data Sign = Plus | Minus
   --deriving Show
@@ -93,11 +88,22 @@ intToInteger i | i >= 0        = I Plus  (f i)
     f 0 = []
     f x = rem x maxD : f (quot x maxD)
 
+integerToInt :: Integer -> Int
+integerToInt (I sign ds) = s * i
+  where
+    i =
+      case ds of
+        []         -> 0
+        [d1]       -> d1
+        [d1,d2]    -> d1 + maxD * d2
+        [d1,d2,d3] -> d1 + maxD * d2 + (maxD * maxD) * d3
+    s =
+      case sign of
+        Plus  -> 1
+        Minus -> -1
+
 zeroD :: Digit
 zeroD = 0
-
-maxD :: Digit
-maxD = 2147483648  -- 2^31, this is used so multiplication of two digit doesn't overflow a 64 bit Int
 
 addI :: Integer -> Integer -> Integer
 addI (I Plus  xs) (I Plus  ys)             =  I Plus  (add xs ys)
