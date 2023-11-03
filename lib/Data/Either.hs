@@ -21,5 +21,5 @@ either f _ (Left  a) = f a
 either _ f (Right b) = f b
 
 instance forall a b . (Show a, Show b) => Show (Either a b) where
-  showsPrec p (Left  a) = showParen (p>=11) (showString "Left "  . showsPrec 11 a)
-  showsPrec p (Right b) = showParen (p>=11) (showString "Right " . showsPrec 11 b)
+  showsPrec p (Left  a) = showParen (p>=appPrec1) (showString "Left "  . showsPrec appPrec1 a)
+  showsPrec p (Right b) = showParen (p>=appPrec1) (showString "Right " . showsPrec appPrec1 b)

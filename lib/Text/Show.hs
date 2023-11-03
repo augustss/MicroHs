@@ -34,3 +34,8 @@ showListWith sh (x:xs) s = '[' : sh x (shl xs)
   where
     shl []     = ']' : s
     shl (y:ys) = ',' : sh y (shl ys)
+
+appPrec :: Int
+appPrec = 10
+appPrec1 :: Int
+appPrec1 = 11

@@ -139,6 +139,7 @@ toStringP ae =
         (quoteString s ++)
       else
         toStringP (encodeString s)
+    Lit (LInteger _) -> error "LInteger"
     Lit l   -> (showLit l ++)
     Lam x e -> (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)

@@ -777,7 +777,10 @@ tLookup msg i = do
   env <- gets valueTable
   case stLookup msg i env of
     Right (Entry e s) -> return (setSLocExpr (getSLocIdent i) e, s)
-    Left            e -> tcError (getSLocIdent i) e
+    Left            e -> do
+--      let SymTab m _ = env
+--      traceM (showListS showIdent (map fst (M.toList m)))
+      tcError (getSLocIdent i) e
 
 tLookupV :: --XHasCallStack =>
            Ident -> T (Expr, EType)
@@ -1406,7 +1409,26 @@ tcExprR mt ae =
 
     EOper e ies -> do e' <- tcOper e ies; tcExpr mt e'
     ELam qs -> tcExprLam mt qs
-    ELit loc' l -> tcLit mt loc' l
+    ELit loc' l -> do
+      case l of
+        LInteger i -> do
+          let getExpected (Infer _) = pure Nothing
+              getExpected (Check t) = do
+                t' <- derefUVar t >>= expandSyn
+                case t' of
+                  EVar i -> pure (Just i)
+                  _      -> pure Nothing
+          mex <- getExpected mt
+          case mex of
+            -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
+            -- (which is not always in scope).
+            Just v | v == mkIdent nameInt -> tcLit mt loc' (LInt (fromInteger i))
+            _ -> do
+              (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow
+              (_at, rt) <- unArrow loc ft
+              -- We don't need to check that _at is Integer, it's part of the fromInteger type.
+              instSigma loc (EApp f ae) rt mt
+        _ -> tcLit mt loc' l
     ECase a arms -> do
       (ea, ta) <- tInferExpr a
       tt <- tGetExpType mt
@@ -1524,7 +1546,7 @@ enum :: SLoc -> String -> [Expr] -> Expr
 enum loc f = foldl EApp (EVar (mkIdentSLoc loc ("enum" ++ f)))
 
 tcLit :: Expected -> SLoc -> Lit -> T Expr
-tcLit mt loc (LInteger i) = tcLit mt loc (LInt (fromInteger i))
+--tcLit mt loc (LInteger i) = tcLit mt loc (LInt (fromInteger i))
 tcLit mt loc l = do
   let lit t = instSigma loc (ELit loc l) t mt
   case l of
