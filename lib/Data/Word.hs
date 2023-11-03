@@ -5,6 +5,7 @@ import Primitives
 import Data.Bool_Type
 import Data.Bounded
 import Data.Char
+import Data.Enum
 import Data.Eq
 import Data.Int()  -- instances only
 import Data.Integer
@@ -44,6 +45,10 @@ instance Ord Word where
   (<=) = primWordLE
   (>)  = primWordGT
   (>=) = primWordGE
+
+instance Enum Word where
+  toEnum = intToWord
+  fromEnum = wordToInt
 
 intToWord :: Int -> Word
 intToWord = primUnsafeCoerce

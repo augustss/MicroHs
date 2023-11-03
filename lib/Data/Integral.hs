@@ -2,10 +2,12 @@
 -- See LICENSE file for full license.
 module Data.Integral(module Data.Integral) where
 import Primitives
+import Control.Error
 import Data.Bool
 import Data.Eq
 import Data.Integer_Type
 import Data.Num
+import Data.Ord
 
 infixl 7 `quot`,`rem`
 
@@ -36,3 +38,18 @@ lcm x y =
     0
   else
     abs ((x `quot` (gcd x y)) * y)
+
+even :: forall a . (Integral a) => a -> Bool
+even n = n `rem` 2 == 0
+
+odd :: forall a . (Integral a) => a -> Bool
+odd n = not (even n)
+
+infixr 8 ^
+(^) :: forall a b . (Num a, Integral b, Ord b) => a -> b -> a
+x0 ^ y0 | y0 < 0    = error "Data.Integral.^: negative exponent"
+        | otherwise = pow x0 y0
+  -- This does not do the minimal number of multiplications, but it's simple.
+  where pow x y | y == 0    = 1
+                | even y    =     pow (x * x) (y `quot` 2)
+                | otherwise = x * pow (x * x) (y `quot` 2)
