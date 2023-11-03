@@ -34,3 +34,6 @@ uncurry f (a, b) = f a b  -- XXX not lazy
 infixl 0 `on`
 on :: forall a b c . (a -> a -> b) -> (c -> a) -> (c -> c -> b)
 on op sel x y = op (sel x) (sel y)
+
+asTypeOf :: forall a . a -> a -> a
+asTypeOf = const

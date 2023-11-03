@@ -249,24 +249,6 @@ notElem a as = not (elem a as)
 elemBy :: forall a . (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
 
-enumFrom :: Int -> [Int]
-enumFrom n = n : enumFrom (n+1)
-
-enumFromThen :: Int -> Int -> [Int]
-enumFromThen n m = from n
-  where d = m - n
-        from i = i : from (i+d)
-
-enumFromTo :: Int -> Int -> [Int]
-enumFromTo l h = takeWhile (<= h) (enumFrom l)
-
-enumFromThenTo :: Int -> Int -> Int -> [Int]
-enumFromThenTo l m h =
-  if m > l then
-    takeWhile (<= h) (enumFromThen l m)
-  else
-    takeWhile (>= h) (enumFromThen l m)
-
 find :: forall a . (a -> Bool) -> [a] -> Maybe a
 find p [] = Nothing
 find p (x:xs) = if p x then Just x else find p xs

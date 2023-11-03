@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# OPTIONS_GHC -Wno-type-defaults -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-dodgy-imports #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-dodgy-imports #-}
 module MicroHs.Desugar(
   desugar,
   LDef, showLDefs,
@@ -35,13 +35,13 @@ dsDef mn adef =
     Data _ cs ->
       let
         f i = mkIdent ("$f" ++ show i)
-        fs = [f i | (i, _) <- zip (enumFrom 0) cs]
+        fs = [f i | (i, _) <- zip [0::Int ..] cs]
         dsConstr i (Constr c ets) =
           let
             ts = either id (map snd) ets
-            xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip (enumFrom 0) ts]
+            xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip [0::Int ..] ts]
           in (qualIdent mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
-      in  zipWith dsConstr (enumFrom 0) cs
+      in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr c _) -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
     Fcn f eqns -> [(f, dsEqns (getSLocIdent f) eqns)]
@@ -214,7 +214,7 @@ dsExpr aexpr =
         case getTupleConstr ci of
           Just n ->
             let
-              xs = [mkIdent ("x" ++ show i) | i <- enumFromTo 1 n ]
+              xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
               body = mkTupleE $ map Var xs
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
@@ -228,7 +228,7 @@ mkTupleE = Lam (mkIdent "$f") . foldl App (Var (mkIdent "$f"))
 mkTupleSelE :: Int -> Int -> Exp -> Exp
 mkTupleSelE m n tup =
   let
-    xs = [mkIdent ("x" ++ show i) | i <- enumFromTo 1 n ]
+    xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
   in App tup (foldr Lam (Var (xs !! m)) xs)
 
 -- Handle special syntax for lists and tuples
@@ -271,7 +271,7 @@ apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
 newVars :: String -> [Ident] -> [Ident]
-newVars s is = deleteAllsBy (==) [ mkIdent (s ++ show i) | i <- enumFrom 1 ] is
+newVars s is = deleteAllsBy (==) [ mkIdent (s ++ show i) | i <- [1::Int ..] ] is
 
 newVar :: [Ident] -> Ident
 newVar = head . newVars "$q"

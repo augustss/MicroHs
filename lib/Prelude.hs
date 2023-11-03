@@ -5,9 +5,11 @@ module Prelude(
   module Control.Error,
   module Control.Monad,
   module Data.Bool,
+  module Data.Bounded,
   module Data.Char,
   module Data.Double,
   module Data.Either,
+  module Data.Enum,
   module Data.Eq,
   module Data.Fractional,
   module Data.Function,
@@ -19,20 +21,23 @@ module Prelude(
   module Data.Maybe,
   module Data.Num,
   module Data.Ord,
+  module Data.Real,
   module Data.Tuple,
   module System.IO,
   module Text.Show,
   module Text.String,
   --Ymodule Primitives,
   ) where
---Yimport Primitives(fromInteger, fromRational, ifThenElse)
+--Yimport Primitives(ifThenElse)
 import Control.Applicative
 import Control.Error
 import Control.Monad
 import Data.Bool
+import Data.Bounded
 import Data.Char
 import Data.Double
 import Data.Either
+import Data.Enum
 import Data.Eq
 import Data.Fractional
 import Data.Function
@@ -44,6 +49,7 @@ import Data.List
 import Data.Maybe
 import Data.Num
 import Data.Ord
+import Data.Real
 import Data.Tuple
 import System.IO
 import Text.Show

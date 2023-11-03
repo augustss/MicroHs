@@ -13,6 +13,7 @@ import Primitives
 import Control.Error
 import Data.Bool
 import Data.Char
+import Data.Enum
 import Data.Eq
 import Data.Function
 import Data.Int
@@ -77,6 +78,24 @@ instance Integral Integer where
 
 instance Real Integer where
   toRational i = _integerToRational i
+
+instance Enum Integer where
+  succ x = x + 1
+  pred x = x - 1
+  toEnum x = _intToInteger x
+  fromEnum x = _integerToInt x
+  enumFrom n = n : enumFrom (n+1)
+  enumFromThen n m = from n
+    where d = m - n
+          from i = i : from (i+d)
+  enumFromTo l h = takeWhile (<= h) (enumFrom l)
+  enumFromThenTo l m h =
+    if m > l then
+      takeWhile (<= h) (enumFromThen l m)
+    else
+      takeWhile (>= h) (enumFromThen l m)
+
+------------------------------------------------
 
 isZero :: Integer -> Bool
 isZero (I _ ds) = null ds

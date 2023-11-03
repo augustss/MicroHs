@@ -26,7 +26,10 @@ instance Num Double where
 
 instance Fractional Double where
   (/) = primDoubleDiv
-  fromRational x = fromInteger (numerator x) `primDoubleDiv` fromInteger (denominator x)  -- XXX This isn't right
+  -- This version of fromRational can go horribly wrong
+  -- if the integers are bigger than can be represented in a Double.
+  -- It'll do for now.
+  fromRational x = fromInteger (numerator x) `primDoubleDiv` fromInteger (denominator x)
 
 instance Eq Double where
   (==) = primDoubleEQ

@@ -1238,6 +1238,7 @@ tcDefValue adef =
       mn <- gets moduleName
       teqns <- tcEqns tt eqns
 --      traceM ("tcDefValue: after " ++ showEDefs [adef, Fcn i teqns])
+      -- Defaulting should be done here
       checkConstraints
       return $ Fcn (qualIdent mn i) teqns
     ForImp ie i t -> do
@@ -2194,7 +2195,7 @@ stLookup msg i (SymTab genv lenv) =
     Nothing ->
       case M.lookup i genv of
         Just [e] -> Right e
-        Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++ showListS showExpr [ e | Entry e _ <- es ]
+        Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++ showListS (showIdent . getAppCon) [ e | Entry e _ <- es ]
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
 
