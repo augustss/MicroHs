@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module Data.Integral(module Data.Integral) where
 import Primitives
+import Data.Bool
 import Data.Eq
 import Data.Integer_Type
 import Data.Num
@@ -24,3 +25,14 @@ class {-(Real a, Enum a) => -} (Eq a, Num a) => Integral a where
   divMod n d       =  if signum r == negate (signum d) then (q - 1, r + d) else qr
                         where qr@(q,r) = quotRem n d
   quotRem n d      = (quot n d, rem n d)
+
+gcd :: forall a . (Integral a) => a -> a -> a
+gcd x y = gcd' (abs x) (abs y)
+  where gcd' a b = if b == 0 then a else gcd' b (a `rem` b)
+
+lcm :: forall a . (Integral a) => a -> a -> a
+lcm x y =
+  if x == 0 || y == 0 then
+    0
+  else
+    abs ((x `quot` (gcd x y)) * y)

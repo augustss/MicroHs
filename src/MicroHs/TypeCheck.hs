@@ -339,7 +339,7 @@ mergeInstInfo :: InstInfo -> InstInfo -> InstInfo
 mergeInstInfo (InstInfo m1 l1) (InstInfo m2 l2) =
   let
     m = foldr (uncurry $ M.insertWith mrg) m2 (M.toList m1)
-    mrg e1 e2 = if eqExpr e1 e2 then e1 else errorMessage (getSLocExpr e1) $ "Multiple instances: " ++ showSLoc (getSLocExpr e2)
+    mrg e1 _e2 = e1 -- XXX improve this if eqExpr e1 e2 then e1 else errorMessage (getSLocExpr e1) $ "Multiple instances: " ++ showSLoc (getSLocExpr e2)
     l = unionBy eqInstDict l1 l2
   in  InstInfo m l
 

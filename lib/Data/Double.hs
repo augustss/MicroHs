@@ -8,6 +8,7 @@ import Data.Eq
 import Data.Fractional
 import Data.Integer
 import Data.Ord
+import Data.Ratio
 import Data.Num
 import Text.Show
 
@@ -25,7 +26,7 @@ instance Num Double where
 
 instance Fractional Double where
   (/) = primDoubleDiv
-  fromDouble x = x
+  fromRational x = fromInteger (numerator x) `primDoubleDiv` fromInteger (denominator x)  -- XXX This isn't right
 
 instance Eq Double where
   (==) = primDoubleEQ

@@ -277,12 +277,14 @@ eqEType = eqExpr
 
 -- Very partial implementation of Expr equality.
 -- It is only used to compare instances, so this suffices.
-eqExpr :: Expr -> Expr -> Bool
+eqExpr :: --XHasCallStack =>
+          Expr -> Expr -> Bool
 eqExpr (EVar i) (EVar i') = i == i'
 eqExpr (EVar _) (EApp _ _) = False
 eqExpr (EApp f a) (EApp f' a') = eqExpr f f' && eqExpr a a'
 eqExpr (EApp _ _) (EVar _) = False
-eqExpr _ _ = error "eqExpr: unimplemented"
+eqExpr _ _ = False -- XXX good enough for instances
+--eqExpr e1 e2 = error $ "eqExpr: unimplemented " ++ showExpr e1 ++ " == " ++ showExpr e2
 
 ---------------------------------
 
