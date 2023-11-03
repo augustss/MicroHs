@@ -6,6 +6,7 @@ module Data.Bool(
   ) where
 import Primitives
 import Data.Bool_Type
+import Data.Bounded
 import Data.Eq
 import Text.Show
 
@@ -16,6 +17,10 @@ instance Eq Bool where
 instance Show Bool where
   showsPrec _ False = showString "False"
   showsPrec _ True  = showString "True"
+
+instance Bounded Bool where
+  minBound = False
+  maxBound = True
 
 infixr 2 ||
 (||) :: Bool -> Bool -> Bool

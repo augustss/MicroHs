@@ -3,7 +3,8 @@
 module Data.Word(module Data.Word, Word) where
 import Primitives
 import Data.Bool_Type
-import qualified Data.Char as C
+import Data.Bounded
+import Data.Char
 import Data.Eq
 import Data.Int()  -- insances only
 import Data.Integral
@@ -19,19 +20,15 @@ instance Num Word where
   signum x = if x == fromInt 0 then fromInt 0 else fromInt 1
   fromInt = primUnsafeCoerce
 
-{-
--- Arithmetic
-(+) :: Word -> Word -> Word
-(+)  = primWordAdd
-(-) :: Word -> Word -> Word
-(-)  = primWordSub
-(*) :: Word -> Word -> Word
-(*)  = primWordMul
--}
-
 instance Integral Word where
   quot = primWordQuot
   rem  = primWordRem
+
+{-
+instance Bounded Word where
+  minBound = 0
+  maxBound = 18446744073709551615  -- 2^64-1
+-}
 
 --------------------------------
 
@@ -73,10 +70,10 @@ wordToInt = primUnsafeCoerce
 instance Show Word where
   show = showWord
     where
-      showWord :: Word -> C.String
+      showWord :: Word -> String
       showWord n =
         let
-          c = C.chr ((+) (C.ord '0') (wordToInt (rem n (intToWord 10))))
+          c = chr ((+) (ord '0') (wordToInt (rem n (intToWord 10))))
         in  case n < intToWord 10 of
               False -> showWord (quot n (intToWord 10)) ++ [c]
               True  -> [c]

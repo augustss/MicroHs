@@ -1,12 +1,14 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Tuple(module Data.Tuple
+module Data.Tuple(
+  module Data.Tuple,
 --Y{-
-                 , ()(..)
+  ()(..)
 --Y-}
-                 ) where
+  ) where
 import Primitives  -- for ()
 import Data.Bool
+import Data.Bounded
 import Data.Eq
 import Data.Function
 import Text.Show
@@ -41,3 +43,23 @@ instance forall a b . (Show a, Show b) => Show (a, b) where
 
 instance forall a b c . (Show a, Show b, Show c) => Show (a, b, c) where
   showsPrec _ (a, b, c) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b . showString "," . showsPrec 0 c)
+
+instance forall a b c d . (Show a, Show b, Show c, Show d) => Show (a, b, c, d) where
+  showsPrec _ (a, b, c, d) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b . showString "," . showsPrec 0 c .
+                                             showString "," . showsPrec 0 d)
+
+instance Bounded () where
+  minBound = ()
+  maxBound = ()
+
+instance forall a b . (Bounded a, Bounded b) => Bounded (a, b) where
+  minBound = (minBound, minBound)
+  maxBound = (maxBound, maxBound)
+
+instance forall a b c . (Bounded a, Bounded b, Bounded c) => Bounded (a, b, c) where
+  minBound = (minBound, minBound, minBound)
+  maxBound = (maxBound, maxBound, maxBound)
+
+instance forall a b c d . (Bounded a, Bounded b, Bounded c, Bounded d) => Bounded (a, b, c, d) where
+  minBound = (minBound, minBound, minBound, minBound)
+  maxBound = (maxBound, maxBound, maxBound, maxBound)

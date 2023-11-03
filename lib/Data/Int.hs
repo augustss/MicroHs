@@ -3,6 +3,7 @@
 module Data.Int(module Data.Int, Int) where
 import Primitives
 import Data.Bool_Type
+import Data.Bounded
 import Data.Char_Type
 import Data.Eq
 import Data.Integral
@@ -24,19 +25,15 @@ instance Num Int where
       GT ->  1
   fromInt x = x
 
-{-
--- Arithmetic
-(+) :: Int -> Int -> Int
-(+)  = primIntAdd
-(-) :: Int -> Int -> Int
-(-)  = primIntSub
-(*) :: Int -> Int -> Int
-(*)  = primIntMul
--}
-
 instance Integral Int where
   quot = primIntQuot
   rem  = primIntRem
+
+{-
+instance Bounded Int where
+  minBound = -9223372036854775808   -- -2^63
+  maxBound =  9223372036854775807   --  2^63-1
+-}
 
 --------------------------------
 

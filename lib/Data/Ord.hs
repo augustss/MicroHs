@@ -4,6 +4,7 @@ module Data.Ord(
   ) where
 import Primitives
 import Data.Bool_Type
+import Data.Bounded
 import Data.Ordering_Type
 import Data.Eq
 import Text.Show
@@ -40,3 +41,8 @@ instance Show Ordering where
   showsPrec _ LT = showString "LT"
   showsPrec _ EQ = showString "EQ"
   showsPrec _ GT = showString "GT"
+
+instance Bounded Ordering where
+  minBound = LT
+  maxBound = GT
+

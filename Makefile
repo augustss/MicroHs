@@ -4,7 +4,7 @@ BIN=bin
 BOOTDIR=ghc-boot
 OUTDIR=ghc-out
 TOOLS=Tools
-PROF= #-prof -fprof-auto
+PROF= -prof -fprof-late #-prof -fprof-auto
 EXTS= -XScopedTypeVariables -XTupleSections
 GHCB=ghc $(PROF) -outputdir $(BOOTDIR)
 GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude -XRebindableSyntax $(EXTS) -F -pgmF $(TOOLS)/convertY.sh 
@@ -56,6 +56,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Control/Error.hs
 	$(GHCC) -c lib/Data/Eq.hs
 	$(GHCC) -c lib/Text/Show.hs
+	$(GHCC) -c lib/Data/Bounded.hs
 	$(GHCC) -c lib/Data/Ord.hs
 	$(GHCC) -c lib/Data/Bool.hs
 	$(GHCC) -c lib/Data/Function.hs

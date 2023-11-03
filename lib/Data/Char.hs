@@ -6,6 +6,7 @@ module Data.Char(
   ) where
 import Primitives
 import Data.Bool
+import Data.Bounded
 import Data.Char_Type
 import Data.Eq
 import Data.Function
@@ -34,6 +35,11 @@ instance Ord String where
   x <= y  =  primCompare x y /= GT
   x >  y  =  primCompare x y == GT
   x >=  y =  primCompare x y /= GT
+
+-- ASCII only for now
+instance Bounded Char where
+  minBound = chr 0
+  maxBound = chr 127
 
 chr :: Int -> Char
 chr = primChr
