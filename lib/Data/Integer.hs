@@ -14,6 +14,7 @@ import Data.Char
 import Data.Eq
 import Data.Function
 import Data.Int
+import Data.Integer_Type
 import Data.Integral
 import Data.List
 import Data.Num
@@ -27,7 +28,7 @@ import Text.Show
 --  * least signification digits first, most significant last
 --  * no trailing 0s in the digits
 --  * 0 is positive
-data Integer = I Sign [Digit]
+--data Integer = I Sign [Digit]
   --deriving Show
 
 type Digit = Int
@@ -35,7 +36,7 @@ type Digit = Int
 maxD :: Digit
 maxD = 2147483648  -- 2^31, this is used so multiplication of two digit doesn't overflow a 64 bit Int
 
-data Sign = Plus | Minus
+--data Sign = Plus | Minus
   --deriving Show
 
 instance Eq Integer where

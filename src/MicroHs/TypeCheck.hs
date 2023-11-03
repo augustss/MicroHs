@@ -32,6 +32,20 @@ boolPrefix = "Data.Bool_Type."
 listPrefix :: String
 listPrefix = "Data.List_Type."
 
+nameInt :: String
+nameInt = "Primitives.Int"
+
+nameDouble :: String
+nameDouble = "Primitives.Double"
+
+nameChar :: String
+nameChar = "Primitives.Char"
+
+--nameInteger :: String
+--nameInteger = "Data.Integer_Type.Integer"
+
+----------------------
+
 data TModule a = TModule
   IdentModule     -- module names
   [FixDef]        -- all fixities, exported or not
@@ -1513,11 +1527,11 @@ tcLit :: Expected -> SLoc -> Lit -> T Expr
 tcLit mt loc l = do
   let lit t = instSigma loc (ELit loc l) t mt
   case l of
-    LInt _  -> lit (tConI loc "Primitives.Int")
-    LDouble _ -> lit (tConI loc "Primitives.Double")
-    LChar _ -> lit (tConI loc "Primitives.Char")
-    LStr _  -> lit (tApp (tList loc) (tConI loc "Primitives.Char"))
-    LPrim _ -> newUVar >>= lit  -- pretend it is anything
+    LInt _    -> lit (tConI loc nameInt)
+    LDouble _ -> lit (tConI loc nameDouble)
+    LChar _   -> lit (tConI loc nameChar)
+    LStr _    -> lit (tApp (tList loc) (tConI loc nameChar))
+    LPrim _   -> newUVar >>= lit  -- pretend it is anything
     LForImp _ -> impossible
 
 tcOper :: --XHasCallStack =>

@@ -64,6 +64,7 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Data/Functor.hs
 	$(GHCC) -c lib/Control/Applicative.hs
 	$(GHCC) -c lib/Control/Monad.hs
+	$(GHCC) -c lib/Data/Integer_Type.hs
 	$(GHCC) -c lib/Data/Num.hs
 	$(GHCC) -c lib/Data/Integral.hs
 	$(GHCC) -c lib/Data/Fractional.hs
