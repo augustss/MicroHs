@@ -24,9 +24,6 @@ fst (a, _) = a
 snd :: forall a b . (a, b) -> b
 snd (_, b) = b
 
-eqPair :: forall a b . (a -> a -> Bool) -> (b -> b -> Bool) -> (a, b) -> (a, b) -> Bool
-eqPair eqa eqb (a1, b1) (a2, b2) = eqa a1 a2 && eqb b1 b2
-
 instance forall a b . (Eq a, Eq b) => Eq (a, b) where
   (a1, b1) == (a2, b2)  =  a1 == a2 && b1 == b2
 

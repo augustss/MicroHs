@@ -65,20 +65,6 @@ isAlphaNum c = isAlpha c || isDigit c
 isPrint :: Char -> Bool
 isPrint c = primCharLE ' ' c && primCharLE c '~'
 
-{-
-eqChar :: Char -> Char -> Bool
-eqChar = primCharEQ
-
-neChar :: Char -> Char -> Bool
-neChar = primCharNE
-
-leChar :: Char -> Char -> Bool
-leChar = primCharLE
-
-ltChar :: Char -> Char -> Bool
-ltChar = primCharLT
--}
-
 isSpace :: Char -> Bool
 isSpace c = c == ' ' || c == '\t' || c == '\n'
 

@@ -334,11 +334,6 @@ infixl 9 !!
       nth n (x:xs) = if n == (0::Int) then x else nth (n - (1::Int)) xs
     in nth i axs
 
-eqList :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
-eqList _ [] [] = True
-eqList eq (x:xs) (y:ys) = eq x y && eqList eq xs ys
-eqList _ _ _ = False
-
 partition :: forall a . (a -> Bool) -> [a] -> ([a], [a])
 partition p xs = (filter p xs, filter (not . p) xs)
 

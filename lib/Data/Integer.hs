@@ -76,10 +76,10 @@ instance Integral Integer where
 isZero :: Integer -> Bool
 isZero (I _ ds) = null ds
 
-eqSign :: Sign -> Sign -> Bool
-eqSign Plus Plus = True
-eqSign Minus Minus = True
-eqSign _ _ = False
+instance Eq Sign where
+  (==) Plus Plus = True
+  (==) Minus Minus = True
+  (==) _ _ = False
 
 -- Trim off 0s and make an Integer
 sI :: Sign -> [Digit] -> Integer
@@ -164,7 +164,7 @@ mulI (I sx xs)  (I sy [y]) = I (mulSign sx sy) (mulD zeroD xs y)
 mulI (I sx xs)  (I sy ys)  = I (mulSign sx sy) (mulM xs ys)
 
 mulSign :: Sign -> Sign -> Sign
-mulSign s t = if eqSign s t then Plus else Minus
+mulSign s t = if s == t then Plus else Minus
 
 -- Multiply with a single digit, and add carry.
 mulD :: Digit -> [Digit] -> Digit -> [Digit]
@@ -282,7 +282,7 @@ readUnsignedInteger :: String -> Integer
 readUnsignedInteger = foldl (\ r c -> r * tenI + _intToInteger (ord c - ord '0')) zeroI
 
 eqI :: Integer -> Integer -> Bool
-eqI (I sx xs) (I sy ys) = eqSign sx sy && eqList (==) xs ys
+eqI (I sx xs) (I sy ys) = sx == sy && xs == ys
 
 neI :: Integer -> Integer -> Bool
 neI x y = not (eqI x y)
@@ -305,6 +305,8 @@ geI x y = not (ltI x y)
 -- These two functions return an (opaque) representation of an
 -- Integer as [Int].
 -- This is used by the compiler to generate Integer literals.
+-- First _integerToIntList is used in the compiler to get a list of
+-- Int, and the generated code will have a call to _intListToInteger.
 _integerToIntList :: Integer -> [Int]
 _integerToIntList (I Plus  ds) = ds
 _integerToIntList (I Minus ds) = (-1::Int) : ds
