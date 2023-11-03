@@ -4,6 +4,7 @@
 module MicroHs.Desugar(
   desugar,
   LDef, showLDefs,
+  encodeInteger,
   ) where
 import Prelude
 import Data.Char
@@ -282,7 +283,7 @@ showLDefs = unlines . map showLDef
 showLDef :: LDef -> String
 showLDef a =
   case a of
-    (i, e) -> showIdent i ++ " = " ++ showExp e
+    (i, e) -> showIdent i ++ " = " ++ show e
 
 ----------------
 
@@ -435,8 +436,8 @@ mkCase var pes dflt =
 
 eCase :: Exp -> [(SPat, Exp)] -> Exp
 eCase e as =
---  trace ("eCase " ++ showExp e ++ "\n" ++
---         unlines [ unwords (map showIdent (conIdent c : xs)) ++ " -> " ++ showExp r | (SPat c xs, r) <- as ]) $
+--  trace ("eCase " ++ show e ++ "\n" ++
+--         unlines [ unwords (map showIdent (conIdent c : xs)) ++ " -> " ++ show r | (SPat c xs, r) <- as ]) $
   apps e [lams xs r | (SPat _ xs, r) <- as ]
 
 -- Split the matrix into segments so each first column has initially patterns -- followed by variables, followed by the rest.

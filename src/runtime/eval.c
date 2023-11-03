@@ -8,6 +8,7 @@
 #include <locale.h>
 #include <ctype.h>
 #include <setjmp.h>
+#include <math.h>
 
 #define GCRED    1              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */
@@ -941,14 +942,24 @@ gc_check(size_t k)
  *   II   int  name(int)
  *   IIV  void name(int, int)
  *   III  int  name(int, int)
+ *   DD   double name(double)
  * more can easily be added.
  */
 struct {
   const char *ffi_name;
   const funptr_t ffi_fun;
-  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III } ffi_how;
+  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD } ffi_how;
 } ffi_table[] = {
   { "llabs", (funptr_t)llabs, FFI_II },
+  { "log",   (funptr_t)log,   FFI_DD },
+  { "exp",   (funptr_t)exp,   FFI_DD },
+  { "sqrt",  (funptr_t)sqrt,  FFI_DD },
+  { "sin",   (funptr_t)sin,   FFI_DD },
+  { "cos",   (funptr_t)cos,   FFI_DD },
+  { "tan",   (funptr_t)tan,   FFI_DD },
+  { "asin",  (funptr_t)asin,  FFI_DD },
+  { "acos",  (funptr_t)acos,  FFI_DD },
+  { "atan",  (funptr_t)atan,  FFI_DD },
 };
 
 /* Look up an FFI function by name */
@@ -2156,7 +2167,9 @@ evalio(NODEPTR n)
         int a = (int)GETVALUE(n);
         funptr_t f = ffi_table[a].ffi_fun;
         value_t r, x, y;
+        double rd, xd;
 #define INTARG(n) evalint(ARG(TOP(n)))
+#define DBLARG(n) evaldouble(ARG(TOP(n)))
 #define FFIV(n) CHECKIO(n)
 #define FFI(n) CHECKIO(n); GCCHECK(1)
         /* This isn't great, but this is MicroHs, so it's good enough. */
@@ -2165,8 +2178,9 @@ evalio(NODEPTR n)
         case FFI_I:   FFI (0);                               r = (*(value_t (*)(void            ))f)();    n = mkInt(r); RETIO(n);
         case FFI_IV:  FFIV(1); x = INTARG(1);                    (*(void    (*)(value_t         ))f)(x);                 RETIO(combUnit);
         case FFI_II:  FFI (1); x = INTARG(1);                r = (*(value_t (*)(value_t         ))f)(x);   n = mkInt(r); RETIO(n);
-        case FFI_IIV: FFIV(1); x = INTARG(1); y = INTARG(2);     (*(void    (*)(value_t, value_t))f)(x,y);               RETIO(combUnit);
-        case FFI_III: FFI (1); x = INTARG(1); y = INTARG(2); r = (*(value_t (*)(value_t, value_t))f)(x,y); n = mkInt(r); RETIO(n);
+        case FFI_IIV: FFIV(2); x = INTARG(1); y = INTARG(2);     (*(void    (*)(value_t, value_t))f)(x,y);               RETIO(combUnit);
+        case FFI_III: FFI (2); x = INTARG(1); y = INTARG(2); r = (*(value_t (*)(value_t, value_t))f)(x,y); n = mkInt(r); RETIO(n);
+        case FFI_DD:  FFI (1); xd = DBLARG(1);               rd= (*(double  (*)(double          ))f)(xd);  n = mkDouble(rd); RETIO(n);
         default: ERR("T_IO_CCALL");
         }
       }

@@ -12,6 +12,7 @@ import Unsafe.Coerce
 --Ximport Compat
 --Wimport PrimTable
 
+import MicroHs.Desugar(encodeInteger)
 import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.Ident
@@ -42,7 +43,8 @@ trans r ae =
     Lit (LDouble i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
     Lit (LPrim p) -> fromMaybe (error $ "primlookup: " ++ p) $ lookup p primTable
-    _ -> error "trans: impossible"
+    Lit (LInteger i) -> trans r (encodeInteger i)
+    _ -> error $ "trans: impossible: " ++ show ae
 
 -- Use linear search in this table.
 -- 99% of the hits are among the combinators.

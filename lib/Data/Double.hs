@@ -5,6 +5,7 @@ import Primitives
 import Control.Error
 import Data.Bool_Type
 import Data.Eq
+import Data.Floating
 import Data.Fractional
 import Data.Integer
 import Data.Ord
@@ -46,3 +47,25 @@ instance Ord Double where
 -- herculean task of its own...
 instance Show Double where
   show = primDoubleShow
+
+instance Floating Double where
+  pi     = 3.141592653589793
+  log  x = primPerformIO (clog x)
+  exp  x = primPerformIO (cexp x)
+  sqrt x = primPerformIO (csqrt x)
+  sin  x = primPerformIO (csin x)
+  cos  x = primPerformIO (ccos x)
+  tan  x = primPerformIO (ctan x)
+  asin x = primPerformIO (casin x)
+  acos x = primPerformIO (cacos x)
+  atan x = primPerformIO (catan x)
+
+foreign import ccall "log"  clog  :: Double -> IO Double
+foreign import ccall "exp"  cexp  :: Double -> IO Double
+foreign import ccall "sqrt" csqrt :: Double -> IO Double
+foreign import ccall "sin"  csin  :: Double -> IO Double
+foreign import ccall "cos"  ccos  :: Double -> IO Double
+foreign import ccall "tan"  ctan  :: Double -> IO Double
+foreign import ccall "asin" casin :: Double -> IO Double
+foreign import ccall "acos" cacos :: Double -> IO Double
+foreign import ccall "atan" catan :: Double -> IO Double

@@ -11,6 +11,7 @@ module Prelude(
   module Data.Either,
   module Data.Enum,
   module Data.Eq,
+  module Data.Floating,
   module Data.Fractional,
   module Data.Function,
   module Data.Functor,
@@ -39,6 +40,7 @@ import Data.Double
 import Data.Either
 import Data.Enum
 import Data.Eq
+import Data.Floating
 import Data.Fractional
 import Data.Function
 import Data.Functor

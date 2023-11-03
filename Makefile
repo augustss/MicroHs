@@ -31,7 +31,7 @@ everytest:	runtest example examplecomb bootcombtest
 # On MINGW you might need the additional flags -Wl,--stack,50000000 to increase stack space.
 $(EVAL):	src/runtime/eval.c
 	@mkdir -p bin
-	$(GCC) -Wall -O3 src/runtime/eval.c -o $(EVAL)
+	$(GCC) -Wall -O3 src/runtime/eval.c -lm -o $(EVAL)
 
 ###
 ### Build the compiler with ghc, using standard libraries (Prelude, Data.List, etc)

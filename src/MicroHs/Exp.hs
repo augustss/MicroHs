@@ -6,7 +6,7 @@ module MicroHs.Exp(
   compileOpt,
 --  compileOptX,
   substExp,
-  Exp(..), showExp, toStringP,
+  Exp(..), toStringP,
   PrimOp,
   encodeString,
   app2, cCons, cNil, cFlip,
@@ -52,7 +52,6 @@ data Exp
   | App Exp Exp
   | Lam Ident Exp
   | Lit Lit
-  --Xderiving (Show)
 
 --pattern Let :: Ident -> Exp -> Exp -> Exp
 --pattern Let i e b = App (Lam i b) e
@@ -404,8 +403,8 @@ improveT (App f a) =
 improveT e = e
 -}
 
-showExp :: Exp -> String
-showExp = render . ppExp
+instance Show Exp where
+  show = render . ppExp
 
 ppExp :: Exp -> Doc
 ppExp ae =
