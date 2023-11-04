@@ -1,13 +1,13 @@
 module Word(main) where
 import Prelude
-import qualified Data.Word as W
+import Data.Word
 
 main :: IO ()
 main = do
   putStrLn $ show (4294967295::Int)
-  putStrLn $ show (W.intToWord (1000::Int))
+  putStrLn $ show (1000::Word)
   putStrLn $ show twoTo32M1
   putStrLn $ show $ (*) twoTo32M1 twoTo32M1
 
-twoTo32M1 :: W.Word
-twoTo32M1 = W.intToWord (4294967295::Int)
+twoTo32M1 :: Word
+twoTo32M1 = 4294967295::Word

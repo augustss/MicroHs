@@ -53,3 +53,6 @@ x0 ^ y0 | y0 < 0    = error "Data.Integral.^: negative exponent"
   where pow x y | y == 0    = 1
                 | even y    =     pow (x * x) (y `quot` 2)
                 | otherwise = x * pow (x * x) (y `quot` 2)
+
+fromIntegral :: forall a b . (Integral a, Num b) => a -> b
+fromIntegral x = fromInteger (toInteger x)

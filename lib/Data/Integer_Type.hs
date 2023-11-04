@@ -39,6 +39,15 @@ _integerToInt (I sign ds) = s `primIntMul` i
         Plus  -> 1::Int
         Minus -> 0 `primIntSub` 1
 
+_wordToInteger :: Word -> Integer
+_wordToInteger i = I Plus  (f i)
+  where
+    f :: Word -> [Int]
+    f x = if x `primWordEQ` (0::Word) then [] else primWordToInt (primWordRem x (primIntToWord maxD)) : f (primWordQuot x (primIntToWord maxD))
+
+_integerToWord :: Integer -> Word
+_integerToWord x = primIntToWord (_integerToInt x)
+
 _integerToDouble :: Integer -> Double
 _integerToDouble (I sign ds) = s `primDoubleMul` loop ds
   where

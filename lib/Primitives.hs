@@ -99,6 +99,11 @@ primWordGT   = primitive ">"
 primWordGE   :: Word -> Word -> Bool
 primWordGE   = primitive ">="
 
+primWordToInt :: Word -> Int
+primWordToInt = primitive "I"
+primIntToWord :: Int -> Word
+primIntToWord = primitive "I"
+
 primCharEQ :: Char -> Char -> Bool
 primCharEQ  = primitive "=="
 primCharNE :: Char -> Char -> Bool

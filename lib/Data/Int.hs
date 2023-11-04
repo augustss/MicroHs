@@ -35,8 +35,8 @@ instance Integral Int where
 
 {-
 instance Bounded Int where
-  minBound = -9223372036854775808   -- -2^63
-  maxBound =  9223372036854775807   --  2^63-1
+  minBound = -9223372036854775808::Int   -- -2^63
+  maxBound =  9223372036854775807::Int   --  2^63-1
 -}
 
 instance Real Int where

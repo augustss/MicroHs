@@ -13,6 +13,7 @@ import Data.Integral
 import Data.List
 import Data.Num
 import Data.Ord
+import Data.Real
 import Text.Show
 
 instance Num Word where
@@ -21,18 +22,37 @@ instance Num Word where
   (*)  = primWordMul
   abs x = x
   signum x = if x == 0 then 0 else 1
-  fromInteger x = intToWord (_integerToInt x)
+  fromInteger x = primIntToWord (_integerToInt x)
 
 instance Integral Word where
   quot = primWordQuot
   rem  = primWordRem
-  toInteger x = _intToInteger (wordToInt x)
+  toInteger = _wordToInteger
 
-{-
 instance Bounded Word where
-  minBound = 0
-  maxBound = 18446744073709551615  -- 2^64-1
--}
+  minBound = 0::Word
+  maxBound = 18446744073709551615::Word  -- 2^64-1
+
+instance Real Word where
+  toRational i = _integerToRational (_wordToInteger i)
+
+--------------------------------
+
+instance Enum Word where
+  succ x = x + 1
+  pred x = x - 1
+  toEnum = primIntToWord
+  fromEnum = primWordToInt
+  enumFrom n = n : enumFrom (n+1)
+  enumFromThen n m = from n
+    where d = m - n
+          from i = i : from (i+d)
+  enumFromTo l h = takeWhile (<= h) (enumFrom l)
+  enumFromThenTo l m h =
+    if m > l then
+      takeWhile (<= h) (enumFromThen l m)
+    else
+      takeWhile (>= h) (enumFromThen l m)
 
 --------------------------------
 
@@ -47,14 +67,8 @@ instance Ord Word where
   (>=) = primWordGE
 
 instance Enum Word where
-  toEnum = intToWord
-  fromEnum = wordToInt
-
-intToWord :: Int -> Word
-intToWord = primUnsafeCoerce
-
-wordToInt :: Word -> Int
-wordToInt = primUnsafeCoerce
+  toEnum = primIntToWord
+  fromEnum = primWordToInt
 
 --------------------------------
 
@@ -64,7 +78,7 @@ instance Show Word where
       showWord :: Word -> String
       showWord n =
         let
-          c = chr ((ord '0') + (wordToInt (rem n (intToWord 10))))
-        in  case n < intToWord 10 of
-              False -> showWord (quot n (intToWord 10)) ++ [c]
+          c = chr (ord '0' + primWordToInt (rem n (10::Word)))
+        in  case n < (10::Word) of
+              False -> showWord (quot n (10::Word)) ++ [c]
               True  -> [c]

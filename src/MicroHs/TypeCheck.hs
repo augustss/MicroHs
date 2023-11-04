@@ -35,6 +35,9 @@ listPrefix = "Data.List_Type."
 nameInt :: String
 nameInt = "Primitives.Int"
 
+nameWord :: String
+nameWord = "Primitives.Word"
+
 nameDouble :: String
 nameDouble = "Primitives.Double"
 
@@ -1432,9 +1435,10 @@ tcExprR mt ae =
               case mex of
                 -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
                 -- (which is not always in scope).
-                Just v | v == mkIdent nameInt     -> tcLit mt loc' (LInt (_integerToInt i))
-                       | v == mkIdent nameDouble  -> tcLit mt loc' (LDouble (_integerToDouble i))
-                       | v == mkIdent nameInteger -> tcLit mt loc' l
+                Just v | v == mkIdent nameInt     -> tcLit  mt loc' (LInt (_integerToInt i))
+                       | v == mkIdent nameWord    -> tcLit' mt loc' (LInt (_integerToInt i)) (tConI loc' nameWord)
+                       | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (_integerToDouble i))
+                       | v == mkIdent nameInteger -> tcLit  mt loc' l
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
@@ -1559,17 +1563,20 @@ enum :: SLoc -> String -> [Expr] -> Expr
 enum loc f = foldl EApp (EVar (mkIdentSLoc loc ("enum" ++ f)))
 
 tcLit :: Expected -> SLoc -> Lit -> T Expr
---tcLit mt loc (LInteger i) = tcLit mt loc (LInt (fromInteger i))
+tcLit mt loc l@(LPrim _) = newUVar >>= tcLit' mt loc l
 tcLit mt loc l = do
-  let lit t = instSigma loc (ELit loc l) t mt
-  case l of
-    LInt _     -> lit (tConI loc nameInt)
-    LInteger _ -> lit (tConI loc nameInteger)
-    LDouble _  -> lit (tConI loc nameDouble)
-    LChar _    -> lit (tConI loc nameChar)
-    LStr _     -> lit (tApp (tList loc) (tConI loc nameChar))
-    LPrim _    -> newUVar >>= lit  -- pretend it is anything
-    LForImp _  -> impossible
+  let t =
+        case l of
+          LInt _     -> tConI loc nameInt
+          LInteger _ -> tConI loc nameInteger
+          LDouble _  -> tConI loc nameDouble
+          LChar _    -> tConI loc nameChar
+          LStr _     -> tApp (tList loc) (tConI loc nameChar)
+          _          -> impossible
+  tcLit' mt loc l t
+
+tcLit' :: Expected -> SLoc -> Lit -> EType -> T Expr
+tcLit' mt loc l t = instSigma loc (ELit loc l) t mt
 
 tcOper :: --XHasCallStack =>
           Expr -> [(Ident, Expr)] -> T Expr

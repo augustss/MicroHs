@@ -5,7 +5,10 @@ module Data.Integer(
   readInteger,
   _intToInteger,
   _integerToInt,
+  _wordToInteger,
+  _integerToWord,
   _integerToDouble,
+  _integerToRational,
   _integerToIntList,
   _intListToInteger,
   ) where
