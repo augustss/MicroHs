@@ -39,7 +39,9 @@
 * Implement two level tables for instances even in the tricky cases
 * Handle tupled dictionaries better for recursive calls
 * Implement fundeps
-* Implement dynamic FFI lookup op
+* instance Bits ...
+* Split eval.c
+* Overloaded FP literals
 
 Bugs
  * Removing [] from prim table
