@@ -31,7 +31,7 @@ instance Integral Word where
 
 instance Bounded Word where
   minBound = 0::Word
-  maxBound = 18446744073709551615::Word  -- 2^64-1
+  maxBound = (-1::Word)
 
 instance Real Word where
   toRational i = _integerToRational (_wordToInteger i)

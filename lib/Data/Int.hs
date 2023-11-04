@@ -34,8 +34,8 @@ instance Integral Int where
   toInteger = _intToInteger
 
 instance Bounded Int where
-  minBound = -9223372036854775808::Int   -- -2^63
-  maxBound =  9223372036854775807::Int   --  2^63-1
+  minBound = primWordToInt ((-1::Word) `primWordQuot` 2) + 1
+  maxBound = primWordToInt ((-1::Word) `primWordQuot` 2)
 
 instance Real Int where
   toRational i = _integerToRational (_intToInteger i)
