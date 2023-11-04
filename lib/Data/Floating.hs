@@ -3,6 +3,8 @@ import Primitives
 import Data.Fractional
 import Data.Num
 
+infixr 8 **
+
 class (Fractional a) => Floating a  where
   pi       :: a
   exp      :: a -> a
