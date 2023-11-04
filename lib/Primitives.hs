@@ -193,9 +193,3 @@ primCatch         = primitive "IO.catch"
 
 primRnf          :: forall a . a -> ()
 primRnf           = primitive "rnf"
-
--- Temporary until overloading
-primIsInt        :: Any -> Bool
-primIsInt         = primitive "isInt"
-primIsIO         :: Any -> Bool
-primIsIO          = primitive "isIO"

@@ -159,9 +159,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
                 T_IO_PERFORMIO,
                 T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
-                T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH,
+                T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH, T_DYNSYM,
                 T_STR,
-                T_ISINT, T_ISIO,
                 T_LAST_TAG,
 };
 
@@ -701,8 +700,7 @@ struct {
   { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.catch", T_IO_CATCH },
-  { "isInt", T_ISINT },
-  { "isIO", T_ISIO },
+  { "dynsym", T_DYNSYM },
 };
 
 void
@@ -1440,8 +1438,7 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_PERFORMIO: fprintf(f, "IO.performIO"); break;
   case T_IO_CCALL: fprintf(f, "^%s", ffi_table[GETVALUE(n)].ffi_name); break;
   case T_IO_CATCH: fprintf(f, "IO.catch"); break;
-  case T_ISINT: fprintf(f, "isInt"); break;
-  case T_ISIO: fprintf(f, "isIO"); break;
+  case T_DYNSYM: fprintf(f, "dynsym"); break;
   default: ERR("print tag");
   }
 }
@@ -1968,6 +1965,19 @@ eval(NODEPTR n)
     case T_IO_CATCH:
       RET;
 
+    case T_DYNSYM:
+      /* A dynamic FFI lookup */
+      CHECK(1);
+      msg = evalstring(ARG(TOP(0)));
+      GCCHECK(1);
+      x = alloc_node(T_IO_CCALL);
+      SETVALUE(x, lookupFFIname(msg));
+      free(msg);
+      POP(1);
+      n = TOP(-1);
+      GOIND(x);
+
+#if 0
     case T_ISINT:
       CHECK(1);
       x = evali(ARG(TOP(0)));
@@ -1982,7 +1992,7 @@ eval(NODEPTR n)
       POP(1);
       l = GETTAG(x);
       GOIND(T_IO_BIND <= l && l <= T_IO_FLUSH ? combTrue : combFalse);
-
+#endif
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));
       ERR("eval tag");

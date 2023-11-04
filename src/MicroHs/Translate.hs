@@ -44,6 +44,7 @@ trans r ae =
     Lit (LStr s) -> trans r (encodeString s)
     Lit (LPrim p) -> fromMaybe (error $ "primlookup: " ++ p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
+    Lit (LForImp s) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
     _ -> error $ "trans: impossible: " ++ show ae
 
 -- Use linear search in this table.
@@ -122,6 +123,5 @@ primTable = [
   ("IO.performIO", primitive "IO.performIO"),
   ("IO.getTimeMilli", primitive "IO.getTimeMilli"),
   ("IO.catch", primitive "IO.catch"),
-  ("isInt", primitive "isInt"),
-  ("isIO", primitive "isIO")
+  ("dynsym", primitive "dynsym")
   ]
