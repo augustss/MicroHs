@@ -87,6 +87,7 @@ lex loc (d:cs) | isLower_ d =
   case span isIdentChar cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
+lex loc ('0':x:cs) | toLower x == 'x' = hexNumber loc cs
 lex loc ('-':cs@(d:_)) | isDigit d = number loc "-" cs
 lex loc      cs@(d:_)  | isDigit d = number loc ""  cs
 lex loc (d:cs) | isOperChar d  =
@@ -104,7 +105,12 @@ lex loc ('\'':cs) =
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ xshowChar d]
 lex _ [] = []
 
-number :: Loc -> String -> String -> [Token]   -- neg=1 means negative, neg=0 means positive
+hexNumber :: Loc -> String -> [Token]
+hexNumber loc cs =
+  case span isHexDigit cs of
+    (ds, rs) -> TInt loc (readHex ds) : lex (addCol loc $ length ds + 2) rs
+
+number :: Loc -> String -> String -> [Token]   -- neg="-" means negative, neg=0 means positive
 number loc sign cs =
   case span isDigit cs of
     (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
@@ -221,3 +227,6 @@ layout          ms      (t@(TSpec _ '{') : ts)          =                       
 layout          ms      (t               : ts)          =                        t : layout     ms  ts
 layout     (_ : ms)     []                              = TSpec (mkLoc 0 0) '}'    : layout     ms  []
 layout          []      []                              =                            []
+
+readHex :: String -> Integer
+readHex = foldl (\ r c -> r * 16 + toInteger (digitToInt c)) 0

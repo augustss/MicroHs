@@ -5,6 +5,7 @@ module Data.Char(
   module Data.Char_Type   -- exports Char and String
   ) where
 import Primitives
+import Control.Error
 import Data.Bool
 import Data.Bounded
 import Data.Char_Type
@@ -59,6 +60,9 @@ isAlpha c = isLower c || isUpper c
 isDigit :: Char -> Bool
 isDigit c = (primCharLE '0' c) && (primCharLE c '9')
 
+isHexDigit :: Char -> Bool
+isHexDigit c = isDigit c || (primCharLE 'a' c && primCharLE c 'f') || (primCharLE 'F' c && primCharLE c 'F') 
+
 isAlphaNum :: Char -> Bool
 isAlphaNum c = isAlpha c || isDigit c
 
@@ -67,6 +71,12 @@ isPrint c = primCharLE ' ' c && primCharLE c '~'
 
 isSpace :: Char -> Bool
 isSpace c = c == ' ' || c == '\t' || c == '\n'
+
+digitToInt :: Char -> Int
+digitToInt c | (primCharLE '0' c) && (primCharLE c '9') = ord c - ord '0'
+             | (primCharLE 'a' c) && (primCharLE c 'f') = ord c - (ord 'a' - 10)
+             | (primCharLE 'A' c) && (primCharLE c 'F') = ord c - (ord 'A' - 10)
+             | otherwise                                = error "digitToInt"
 
 toLower :: Char -> Char
 toLower c | primCharLE 'A' c && primCharLE c 'Z' = chr (ord c - ord 'A' + ord 'a')
