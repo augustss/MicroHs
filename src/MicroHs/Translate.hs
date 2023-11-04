@@ -30,7 +30,7 @@ translateAndRun defs = do
 translate :: (Ident, [(Ident, Exp)]) -> Any
 translate (mainName, ds) =
   let
-    look m n = fromMaybe (error $ "not found " ++ showIdent n) $ M.lookup n m
+    look m n = fromMaybe (error $ "translate: not found " ++ showIdent n) $ M.lookup n m
     mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
   in look mp mainName
 
@@ -42,7 +42,7 @@ trans r ae =
     Lit (LInt i) -> unsafeCoerce i
     Lit (LDouble i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
-    Lit (LPrim p) -> fromMaybe (error $ "primlookup: " ++ p) $ lookup p primTable
+    Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
     Lit (LForImp s) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
     _ -> error $ "trans: impossible: " ++ show ae
@@ -102,6 +102,7 @@ primTable = [
   ("equal", primitive "equal"),
   ("compare", primitive "compare"),
   ("rnf", primitive "rnf"),
+  ("noMatch", primitive "noMatch"),
   ("noDefault", primitive "noDefault"),
   ("IO.>>=", primitive "IO.>>="),
   ("IO.>>", primitive "IO.>>"),
