@@ -6,12 +6,17 @@ import Data.Bool
 import Data.Char
 import Data.Either
 import Data.Eq
+import Data.Fractional
 import Data.Function
 import Data.Int
+import Data.Integer
+import Data.Integral
 import Data.List
 import Data.Maybe
 import Data.Num
 import Data.Ord
+import Data.Ratio
+import Data.Real
 import Data.Tuple
 import Text.Show
 
@@ -72,3 +77,26 @@ forceString (c:cs) = c `primSeq` forceString cs
 compareString :: String -> String -> Ordering
 compareString = primCompare
 
+-- Convert string in scientific notation to a rational number.
+readRational :: String -> Rational
+readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
+                          | otherwise  =          rat1 acs
+  where
+    rat1 s1 =
+      case span isDigit s1 of
+        (ds1, cr1) | ('.':r1) <- cr1                   -> rat2 f1 r1
+                   | (c:r1)   <- cr1, toLower c == 'e' -> rat3 f1 r1
+                   | otherwise                         -> f1
+          where f1 = toRational (readInteger ds1)
+
+    rat2 f1 s2 =
+      case span isDigit s2 of
+        (ds2, cr2) | (c:r2) <- cr2, toLower c == 'e' -> rat3 f2 r2
+                   | otherwise                       -> f2
+          where f2 = f1 + toRational (readInteger ds2) * 10 ^^ (negate $ length ds2)
+
+    rat3 f2 ('+':s) = f2 * expo s
+    rat3 f2 ('-':s) = f2 / expo s
+    rat3 f2      s  = f2 * expo s
+
+    expo s = 10 ^ readInteger s
