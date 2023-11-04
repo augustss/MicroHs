@@ -4,6 +4,7 @@
 module Compat(module Compat) where
 --import Control.Exception
 import qualified Data.Function as F
+import Data.Char
 import Data.Time
 import Data.Time.Clock.POSIX
 --import qualified Control.Monad as M
@@ -183,3 +184,28 @@ anySame = anySameBy (==)
 anySameBy :: (a -> a -> Bool) -> [a] -> Bool
 anySameBy _ [] = False
 anySameBy eq (x:xs) = elemBy eq x xs || anySameBy eq xs
+
+-- Convert string in scientific notation to a rational number.
+readRational :: String -> Rational
+readRational "" = undefined
+readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
+                          | otherwise  =          rat1 acs
+  where
+    rat1 s1 =
+      case span isDigit s1 of
+        (ds1, cr1) | ('.':r1) <- cr1                   -> rat2 f1 r1
+                   | (c:r1)   <- cr1, toLower c == 'e' -> rat3 f1 r1
+                   | otherwise                         -> f1
+          where f1 = toRational (readInteger ds1)
+
+    rat2 f1 s2 =
+      case span isDigit s2 of
+        (ds2, cr2) | (c:r2) <- cr2, toLower c == 'e' -> rat3 f2 r2
+                   | otherwise                       -> f2
+          where f2 = f1 + toRational (readInteger ds2) * 10 ^^ (negate $ length ds2)
+
+    rat3 f2 ('+':s) = f2 * expo s
+    rat3 f2 ('-':s) = f2 / expo s
+    rat3 f2      s  = f2 * expo s
+
+    expo s = 10 ^ readInteger s

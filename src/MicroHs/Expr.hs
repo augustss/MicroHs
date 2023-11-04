@@ -146,19 +146,23 @@ data Lit
   = LInt Int
   | LInteger Integer
   | LDouble Double
+  | LRat Rational
   | LChar Char
   | LStr String
   | LPrim String
   | LForImp String
   --Xderiving (Show)
---Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LInteger i) = rnf i; rnf (LDouble d) = rnf d; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
+--Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LInteger i) = rnf i; rnf (LDouble d) = rnf d; rnf (LRat r) = rnf r; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
 
 instance Eq Lit where
-  (==) (LInt x)  (LInt  y) = x == y
-  (==) (LChar x) (LChar y) = x == y
-  (==) (LStr  x) (LStr  y) = x == y
-  (==) (LPrim x) (LPrim y) = x == y
-  (==) (LForImp x) (LForImp y) = x == y
+  (==) (LInt x)     (LInt  y) = x == y
+  (==) (LInteger x) (LInteger  y) = x == y
+  (==) (LDouble x)  (LDouble y) = x == y
+  (==) (LRat x)     (LRat y) = x == y
+  (==) (LChar x)    (LChar y) = x == y
+  (==) (LStr  x)    (LStr  y) = x == y
+  (==) (LPrim x)    (LPrim y) = x == y
+  (==) (LForImp x)  (LForImp y) = x == y
   (==) _         _         = False
 
 type ECaseArm = (EPat, EAlts)
@@ -523,7 +527,8 @@ showLit l =
   case l of
     LInt i     -> '#' : show i
     LInteger i -> '#' : '#' : show i
-    LDouble d  -> '%' : show d
+    LDouble d  -> '&' : show d
+    LRat r     -> '%' : show r
     LChar c    -> xshowChar c
     LStr s     -> show s
     LPrim s    -> s

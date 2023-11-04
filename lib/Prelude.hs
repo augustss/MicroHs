@@ -22,6 +22,7 @@ module Prelude(
   module Data.Maybe,
   module Data.Num,
   module Data.Ord,
+  module Data.Ratio,
   module Data.Real,
   module Data.Tuple,
   module System.IO,
@@ -51,6 +52,7 @@ import Data.List
 import Data.Maybe
 import Data.Num
 import Data.Ord
+import Data.Ratio(Rational)
 import Data.Real
 import Data.Tuple
 import System.IO

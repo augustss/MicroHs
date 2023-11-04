@@ -50,7 +50,7 @@ instance forall a . (Integral a, Ord a) => Fractional (Ratio a) where
     | y == 0        = error "Data.Ratio.recip: division by 0"
     | x < 0         = negate y :% negate x
     | otherwise     = y :% x
---  fromRational (x:%y) =  fromInteger x % fromInteger y
+  fromRational (x:%y) =  fromInteger x % fromInteger y
 
 instance forall a . (Show a) => Show (Ratio a)  where
   showsPrec p (x:%y) = showParen (p > 7) $

@@ -136,7 +136,7 @@ getraw()
 
 /***************************************/
 
-#define VERSION "v4.0\n"
+#define VERSION "v4.1\n"
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -1093,7 +1093,7 @@ parse(BFILE *f)
     ARG(r) = parse(f);
     if (!gobble(f, ')')) ERR("parse ')'");
     return r;
-  case '%':
+  case '&':
     d = parse_double(f);
     r = mkDouble(d);
     return r;

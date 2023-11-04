@@ -71,4 +71,4 @@ mainCompile flags mn = do
       putStrLn $ "final pass            " ++ padLeft 6 (show (t2-t1)) ++ "ms"
 
 version :: String
-version = "v4.0\n"
+version = "v4.1\n"

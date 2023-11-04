@@ -1422,15 +1422,15 @@ tcExprR mt ae =
           case l of
             LInteger i -> tcLit mt loc' (LInt (_integerToInt i))
             _          -> tcLit mt loc' l
-        _ ->
+        _ -> do
+          let getExpected (Infer _) = pure Nothing
+              getExpected (Check t) = do
+                t' <- derefUVar t >>= expandSyn
+                case t' of
+                  EVar v -> pure (Just v)
+                  _      -> pure Nothing
           case l of
             LInteger i -> do
-              let getExpected (Infer _) = pure Nothing
-                  getExpected (Check t) = do
-                    t' <- derefUVar t >>= expandSyn
-                    case t' of
-                      EVar v -> pure (Just v)
-                      _      -> pure Nothing
               mex <- getExpected mt
               case mex of
                 -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
@@ -1444,7 +1444,16 @@ tcExprR mt ae =
                   (_at, rt) <- unArrow loc ft
                   -- We don't need to check that _at is Integer, it's part of the fromInteger type.
                   instSigma loc (EApp f ae) rt mt
-            -- Not LInteger
+            LRat r -> do
+              mex <- getExpected mt
+              case mex of
+                Just v | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (fromRational r))
+                _ -> do               
+                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromRational"))  -- XXX should have this qualified somehow
+                  (_at, rt) <- unArrow loc ft
+                  -- We don't need to check that _at is Rational, it's part of the fromRational type.
+                  instSigma loc (EApp f ae) rt mt
+            -- Not LInteger, LRat
             _ -> tcLit mt loc' l
     ECase a arms -> do
       (ea, ta) <- tInferExpr a

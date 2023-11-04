@@ -10,6 +10,7 @@ import Data.Fractional
 import Data.Integer
 import Data.Ord
 import Data.Ratio
+import Data.Real
 import Data.Num
 import Text.Show
 
@@ -47,6 +48,9 @@ instance Ord Double where
 -- herculean task of its own...
 instance Show Double where
   show = primDoubleShow
+
+instance Real Double where
+  toRational _ = error "Double.toRational not implemented"
 
 instance Floating Double where
   pi     = 3.141592653589793

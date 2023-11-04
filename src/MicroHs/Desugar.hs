@@ -10,6 +10,7 @@ import Prelude
 import Data.Char
 import Data.List
 import Data.Maybe
+import Data.Ratio
 import Control.Monad.State.Strict as S --Xhiding(ap)
 --Ximport Control.Monad as S hiding(ap)
 --Ximport Compat
@@ -172,12 +173,16 @@ mutualRec v ies body =
       bnds body
 
 encodeInteger :: Integer -> Exp
-encodeInteger i | -1000 < i && i < 1000 =  -- XXX use better bounds
+encodeInteger i | toInteger (minBound::Int) <= i && i < toInteger (maxBound::Int) =
 --  trace ("*** small integer " ++ show i) $
   App (Var (mkIdent "Data.Integer_Type._intToInteger")) (Lit (LInt (_integerToInt i)))
                 | otherwise =
 --  trace ("*** large integer " ++ show i) $
   App (Var (mkIdent "Data.Integer._intListToInteger")) (encodeList (map (Lit . LInt) (_integerToIntList i)))
+
+encodeRational :: Rational -> Exp
+encodeRational r =
+  App (App (Var (mkIdent "Data.Ratio_Type._mkRational")) (encodeInteger (numerator r))) (encodeInteger (denominator r))
 
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
@@ -187,6 +192,7 @@ dsExpr aexpr =
     ELam qs -> dsEqns (getSLocExpr aexpr) qs
     ELit _ (LChar c) -> Lit (LInt (ord c))
     ELit _ (LInteger i) -> encodeInteger i
+    ELit _ (LRat i) -> encodeRational i
     ELit _ l -> Lit l
     ECase e as -> dsCase (getSLocExpr aexpr) e as
     ELet ads e -> dsBinds ads (dsExpr e)

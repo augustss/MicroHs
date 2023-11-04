@@ -140,6 +140,7 @@ toStringP ae =
       else
         toStringP (encodeString s)
     Lit (LInteger _) -> undefined
+    Lit (LRat _) -> undefined
     Lit l   -> (showLit l ++)
     Lam x e -> (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)

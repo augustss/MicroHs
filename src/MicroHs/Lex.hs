@@ -13,7 +13,7 @@ data Token
   | TString Loc String
   | TChar   Loc Char
   | TInt    Loc Integer
-  | TDouble Loc Double
+  | TRat    Loc Rational
   | TSpec   Loc Char
   | TError  Loc String
   | TBrace  Loc
@@ -25,7 +25,7 @@ showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])
 showToken (TString _ s) = show s
 showToken (TChar _ c) = show c
 showToken (TInt _ i) = show i
-showToken (TDouble _ d) = show d
+showToken (TRat _ d) = show d
 showToken (TSpec _ c) = [c]
 showToken (TError _ s) = "ERROR " ++ s
 showToken (TBrace _) = "TBrace"
@@ -115,7 +115,7 @@ number loc sign cs =
                case span isDigit (tail rs) of
                  (ns, rs') ->
                    let s = sign ++ ds ++ '.':ns
-                       mkD x r = TDouble loc (readDouble x) : lex (addCol loc $ length x) r
+                       mkD x r = TRat loc (readRational x) : lex (addCol loc $ length x) r
                    in  case expo rs' of
                          Nothing -> mkD s rs'
                          Just (es, rs'') -> mkD (s ++ es) rs''
@@ -201,7 +201,7 @@ tokensLoc (TIdent  loc _ _:_) = loc
 tokensLoc (TString loc _  :_) = loc
 tokensLoc (TChar   loc _  :_) = loc
 tokensLoc (TInt    loc _  :_) = loc
-tokensLoc (TDouble loc _ : _) = loc
+tokensLoc (TRat    loc _ : _) = loc
 tokensLoc (TSpec   loc _  :_) = loc
 tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
