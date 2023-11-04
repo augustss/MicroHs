@@ -33,11 +33,9 @@ instance Integral Int where
   rem  = primIntRem
   toInteger = _intToInteger
 
-{-
 instance Bounded Int where
   minBound = -9223372036854775808::Int   -- -2^63
   maxBound =  9223372036854775807::Int   --  2^63-1
--}
 
 instance Real Int where
   toRational i = _integerToRational (_intToInteger i)
@@ -64,15 +62,17 @@ instance Show Int where
 showInt_ :: Int -> String
 showInt_ n =
   if n < 0 then
-    '-' : showUnsignedInt_ (negate n)
+    '-' : _showUnsignedNegInt n
   else
-    showUnsignedInt_ n
+    _showUnsignedNegInt (negate n)
 
-showUnsignedInt_ :: Int -> String
-showUnsignedInt_ n =
+-- Some trickery to show minBound correctly.
+-- To print the number n, pass -n.
+_showUnsignedNegInt :: Int -> String
+_showUnsignedNegInt n =
   let
-    c = primChr (primOrd '0' + rem n 10)
-  in  if n < 10 then
+    c = primChr (primOrd '0' - rem n 10)
+  in  if n > -10 then
         [c]
       else
-        showUnsignedInt_ (quot n 10) ++ [c]
+        _showUnsignedNegInt (quot n 10) ++ [c]
