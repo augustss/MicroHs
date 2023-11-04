@@ -41,7 +41,7 @@
 * Implement fundeps
 * instance Bits ...
 * Split eval.c
-* Overloaded FP literals
+* Implement defaulting
 
 Bugs
  * Removing [] from prim table
