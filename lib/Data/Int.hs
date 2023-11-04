@@ -19,7 +19,7 @@ instance Num Int where
   (+)  = primIntAdd
   (-)  = primIntSub
   (*)  = primIntMul
-  negate x = primIntSub 0 x
+  negate x = primIntNeg x
   abs x = if x < 0 then negate x else x
   signum x =
     case compare x 0 of

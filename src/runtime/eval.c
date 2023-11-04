@@ -148,10 +148,12 @@ getraw()
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B, T_C,
-                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
-                T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK,
+                T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
+                T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
+                T_FTORAW, T_FFROMRAW,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
                 T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
@@ -648,6 +650,14 @@ struct {
   { "uquot", T_UQUOT },
   { "urem", T_UREM },
   { "subtract", T_SUBR },
+  { "neg", T_NEG },
+  { "and", T_AND },
+  { "or", T_OR },
+  { "xor", T_XOR },
+  { "inv", T_INV },
+  { "shl", T_SHL },
+  { "shr", T_SHR },
+  { "ashr", T_ASHR },
   { "fadd" , T_FADD},
   { "fsub" , T_FSUB},
   { "fmul" , T_FMUL},
@@ -661,6 +671,8 @@ struct {
   { "fge", T_FGE},
   { "fshow", T_FSHOW},
   { "fread", T_FREAD},
+  { "ftoraw", T_FTORAW},
+  { "ffromraw", T_FFROMRAW},
   { "==", T_EQ },
   { "/=", T_NE },
   { "<", T_LT },
@@ -1389,6 +1401,14 @@ printrec(FILE *f, NODEPTR n)
   case T_UQUOT: fprintf(f, "uquot"); break;
   case T_UREM: fprintf(f, "urem"); break;
   case T_SUBR: fprintf(f, "subtract"); break;
+  case T_NEG: fprintf(f, "neg"); break;
+  case T_AND: fprintf(f, "and"); break;
+  case T_OR: fprintf(f, "or"); break;
+  case T_XOR: fprintf(f, "xor"); break;
+  case T_INV: fprintf(f, "inv"); break;
+  case T_SHL: fprintf(f, "shl"); break;
+  case T_SHR: fprintf(f, "shr"); break;
+  case T_ASHR: fprintf(f, "ashr"); break;
   case T_FADD: fprintf(f, "fadd"); break;
   case T_FSUB: fprintf(f, "fsub"); break;
   case T_FMUL: fprintf(f, "fmul"); break;
@@ -1402,6 +1422,8 @@ printrec(FILE *f, NODEPTR n)
   case T_FGE: fprintf(f, "fge"); break;
   case T_FSHOW: fprintf(f, "fshow"); break;
   case T_FREAD: fprintf(f, "fread"); break;
+  case T_FTORAW: fprintf(f, "ftoraw"); break;
+  case T_FFROMRAW: fprintf(f, "ffromraw"); break;
   case T_EQ: fprintf(f, "=="); break;
   case T_NE: fprintf(f, "/="); break;
   case T_LT: fprintf(f, "<"); break;
@@ -1770,9 +1792,10 @@ eval(NODEPTR n)
 
 #define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define SETDOUBLE(n,d) do { SETTAG((n), T_DOUBLE); SETDOUBLEVALUE((n), (d)); } while(0)
+#define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPINT2(e)      do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
-#define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0))); e; POP(1); n = TOP(-1); } while(0);
 #define OPDOUBLE2(e)   do { CHECK(2); xd = evaldouble(ARG(TOP(0))); yd = evaldouble(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
+#define ARITHUN(op)    do { OPINT1(r = op xi); SETINT(n, r); RET; } while(0)
 #define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
 #define FARITHBIN(op)  do { OPDOUBLE2(rd = xd op yd); SETDOUBLE(n, rd); RET; } while(0) // TODO FIXME
@@ -1834,6 +1857,14 @@ eval(NODEPTR n)
     case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
     case T_UQUOT: ARITHBINU(/);
     case T_UREM:  ARITHBINU(%);
+    case T_NEG:  ARITHUN(-);
+    case T_AND:  ARITHBIN(&);
+    case T_OR:   ARITHBIN(|);
+    case T_XOR:  ARITHBIN(^);
+    case T_INV:  ARITHUN(~);
+    case T_SHL:  ARITHBIN(<<);
+    case T_SHR:  ARITHBINU(>>);
+    case T_ASHR: ARITHBIN(>>);
 
     case T_FADD: FARITHBIN(+);
     case T_FSUB: FARITHBIN(-);
@@ -1881,6 +1912,25 @@ eval(NODEPTR n)
       n = TOP(-1);
       // update n to be s
       GOIND(s);
+
+    case T_FTORAW:
+      CHECK(1);
+      x = evali(ARG(TOP(0)));
+      GCCHECK(1);
+      y = alloc_node(T_INT);
+      SETVALUE(y, GETVALUE(x));
+      POP(1);
+      n = TOP(-1);
+      GOIND(y);
+    case T_FFROMRAW:
+      CHECK(1);
+      x = evali(ARG(TOP(0)));
+      GCCHECK(1);
+      y = alloc_node(T_DOUBLE);
+      SETVALUE(y, GETVALUE(x));
+      POP(1);
+      n = TOP(-1);
+      GOIND(y);
 
     case T_EQ:   CMP(==);
     case T_NE:   CMP(!=);

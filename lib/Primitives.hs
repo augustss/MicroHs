@@ -34,6 +34,8 @@ primIntRem :: Int -> Int -> Int
 primIntRem  = primitive "rem"
 primIntSubR :: Int -> Int -> Int
 primIntSubR = primitive "subtract"
+primIntNeg :: Int -> Int
+primIntNeg = primitive "neg"
 
 primDoubleAdd :: Double -> Double -> Double
 primDoubleAdd  = primitive "fadd"
@@ -72,6 +74,24 @@ primWordQuot :: Word -> Word -> Word
 primWordQuot = primitive "uquot"
 primWordRem :: Word -> Word -> Word
 primWordRem  = primitive "urem"
+primWordAnd :: Word -> Word -> Word
+primWordAnd  = primitive "and"
+primWordOr :: Word -> Word -> Word
+primWordOr  = primitive "or"
+primWordXor :: Word -> Word -> Word
+primWordXor  = primitive "xor"
+primWordShl :: Word -> Int -> Word
+primWordShl  = primitive "shl"
+primWordShr :: Word -> Int -> Word
+primWordShr  = primitive "shr"
+primWordAshr :: Word -> Int -> Word
+primWordAshr  = primitive "ashr"
+primWordInv :: Word -> Word
+primWordInv  = primitive "inv"
+primWordToDoubleRaw :: Word -> Double
+primWordToDoubleRaw = primitive "ffromraw"
+primWordFromDoubleRaw :: Double -> Word
+primWordFromDoubleRaw = primitive "ftoraw"
 
 primIntEQ   :: Int -> Int -> Bool
 primIntEQ   = primitive "=="

@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module Data.Word(module Data.Word, Word) where
 import Primitives
+import Data.Bits
 import Data.Bool_Type
 import Data.Bounded
 import Data.Char
@@ -69,6 +70,20 @@ instance Ord Word where
 instance Enum Word where
   toEnum = primIntToWord
   fromEnum = primWordToInt
+
+--------------------------------
+
+instance Bits Word where
+  (.&.) = primWordAnd
+  (.|.) = primWordOr
+  xor   = primWordXor
+  complement = primWordInv
+  shiftL = primWordShl
+  shiftR = primWordShr
+--  bitSizeMaybe _ = Just 64   -- XXX
+  bitSize _ = 64
+  bit n = primWordShl 1 n
+  zeroBits = 0
 
 --------------------------------
 
