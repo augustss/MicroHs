@@ -48,14 +48,14 @@ type IdentModule = Ident
 ----------------------
 
 data EModule = EModule IdentModule [ExportItem] [EDef]
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 
 data ExportItem
   = ExpModule IdentModule
   | ExpTypeCon Ident
   | ExpType Ident
   | ExpValue Ident
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 
 data EDef
   = Data LHS [Constr]
@@ -68,16 +68,16 @@ data EDef
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance [IdKind] [EConstraint] EConstraint [EBind]  -- no deriving yet
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 
 data ImportItem
   = ImpTypeCon Ident
   | ImpType Ident
   | ImpValue Ident
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 
 data Expr
   = EVar Ident
@@ -100,7 +100,7 @@ data Expr
   -- Constructors after type checking
   | ECon Con
   | EForall [IdKind] Expr -- only in types
-  --Xderiving (Show, Eq)
+  --deriving (Show, Eq)
 
 type FunDep = ([Ident], [Ident])
 
@@ -123,7 +123,7 @@ data Listish
   | LFromTo Expr Expr
   | LFromThen Expr Expr
   | LFromThenTo Expr Expr Expr
-  --Xderiving(Show, Eq)
+  --deriving(Show, Eq)
 
 conIdent :: --XHasCallStack =>
             Con -> Ident
@@ -168,17 +168,17 @@ instance Eq Lit where
 type ECaseArm = (EPat, EAlts)
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 
 data EBind = BFcn Ident [Eqn] | BPat EPat Expr | BSign Ident EType
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 
 -- A single equation for a function
 data Eqn = Eqn [EPat] EAlts
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 
 data EAlts = EAlts [EAlt] [EBind]
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 
 type EAlt = ([EStmt], Expr)
 
@@ -202,7 +202,7 @@ patVars = filter isVar . allVarsExpr
 type LHS = (Ident, [IdKind])
 
 data Constr = Constr Ident (Either [EType] [ConstrField])
-  --Xderiving(Show, Eq)
+  --Xderiving(Show)
 
 type ConstrField = (Ident, EType)              -- record label and type
 
@@ -214,7 +214,10 @@ type EType = Expr
 type EConstraint = EType
 
 data IdKind = IdKind Ident EKind
-  --Xderiving (Show, Eq)
+  --deriving (Show, Eq)
+
+instance Show IdKind where
+  show (IdKind i k) = "(" ++ show i ++ "::" ++ show k ++ ")"
 
 idKindIdent :: IdKind -> Ident
 idKindIdent (IdKind i _) = i
@@ -445,6 +448,9 @@ errorMessage :: --XHasCallStack =>
 errorMessage loc msg = error $ showSLoc loc ++ ": " ++ msg
 
 ----------------
+
+instance Show Expr where
+  show = showExpr
 
 showExpr :: Expr -> String
 showExpr = render . ppExpr

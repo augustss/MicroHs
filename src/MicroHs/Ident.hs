@@ -32,7 +32,7 @@ data SLoc = SLoc FilePath Line Col
   --Xderiving (Show, Eq)
 
 data Ident = Ident SLoc String
-  --Xderiving (Show)
+  --deriving (Show)
 --Winstance NFData Ident where rnf (Ident _ s) = rnf s
 
 instance Eq Ident where
@@ -44,6 +44,9 @@ instance Ord Ident where
   Ident _ i <= Ident _ j  =  i <= j
   Ident _ i >  Ident _ j  =  i >  j
   Ident _ i >= Ident _ j  =  i >= j
+
+instance Show Ident where
+  show = showIdent
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
