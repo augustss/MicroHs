@@ -140,7 +140,7 @@ getraw()
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
-#define HIGH_INT 128
+#define HIGH_INT 256
 
 #define HEAP_CELLS 50000000
 #define STACK_SIZE 100000
