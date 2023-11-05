@@ -28,7 +28,7 @@ main = do
                   (elem "-l" args)
   case ss of
     [] -> mainInteractive flags
-    [s] -> mainCompile flags (mkIdent s)
+    [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
     _ -> error "Usage: mhs [-v] [-r] [-iPATH] [-oFILE] [ModuleName]"
 
 mainCompile :: Flags -> Ident -> IO ()

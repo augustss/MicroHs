@@ -119,7 +119,7 @@ compileModule flags nm = do
   t1 <- liftIO getTimeMilli
   let
     fn = map (\ c -> if c == '.' then '/' else c) (unIdent nm) ++ ".hs"
-  (pathfn, file) <- liftIO (readFilePath (paths flags) fn)
+  (pathfn, file) <- liftIO (readFilePath (getSLoc nm) (paths flags) fn)
   let mdl@(EModule nmn _ defs) = parseDie pTop pathfn file
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
@@ -144,11 +144,11 @@ compileModule flags nm = do
 
 ------------------
 
-readFilePath :: [FilePath] -> FilePath -> IO (FilePath, String)
-readFilePath path name = do
+readFilePath :: SLoc -> [FilePath] -> FilePath -> IO (FilePath, String)
+readFilePath loc path name = do
   mh <- openFilePath path name
   case mh of
-    Nothing -> error $ "File not found: " ++ show name ++ "\npath=" ++ show path
+    Nothing -> errorMessage loc $ "File not found: " ++ show name ++ "\npath=" ++ show path
     Just (fn, h) -> do
       file <- hGetContents h
       return (fn, file)

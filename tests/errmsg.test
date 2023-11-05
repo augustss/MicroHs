@@ -19,7 +19,7 @@ module E() where
 import Prelude
 x = y
 -----
-mhs: "../tmp/E.hs": line 4, col 1: no type signature: x
+mhs: "../tmp/E.hs": line 4, col 1: undefined type signature: x
 
 =====
 module E() where
@@ -27,7 +27,7 @@ import Prelude
 x :: Int
 x = y
 -----
-mhs: "../tmp/E.hs": line 5, col 5: undefined value identifier: y
+mhs: "../tmp/E.hs": line 5, col 5: undefined value: y
 
 =====
 module E() where
@@ -35,16 +35,7 @@ import Prelude
 x :: Int
 x = A
 -----
-mhs: "../tmp/E.hs": line 5, col 5: undefined value identifier: A
-
-=====
-module E() where
-import Prelude
-import Control.Monad.State.Strict
-x :: Int
-x = fmap
------
-mhs: "../tmp/E.hs": line 6, col 5: ambiguous value identifier: fmap
+mhs: "../tmp/E.hs": line 5, col 5: undefined value: A
 
 =====
 module E() where
@@ -52,7 +43,7 @@ import Prelude
 x :: T
 x = 1
 -----
-mhs: "../tmp/E.hs": line 4, col 6: undefined type identifier: T
+mhs: "../tmp/E.hs": line 4, col 6: undefined type: T
 
 =====
 module E() where
@@ -60,7 +51,7 @@ import Prelude
 x :: a
 x = 1
 -----
-mhs: "../tmp/E.hs": line 4, col 6: undefined type identifier: a
+mhs: "../tmp/E.hs": line 4, col 6: undefined type: a
 
 =====
 module E() where
@@ -72,7 +63,7 @@ y = 2
 x :: Int
 x = 3
 -----
-mhs: "../tmp/E.hs": line 2, col 8: duplicate definition E.x
+mhs: "../tmp/E.hs": line 5, col 1: duplicate definition E.x
 
 =====
 module E() where
@@ -85,21 +76,14 @@ x = [0]
 mhs: "../tmp/E.hs": line 6, col 8: bad synonym use
 
 =====
-module E(fmap) where
-import Prelude
-import Control.Monad.State.Strict
+module E(module M1) where
 -----
-mhs: "../tmp/E.hs": line 2, col 10: ambiguous export fmap
+mhs: "../tmp/E.hs": line 2, col 17: export undefined M1
 
 =====
-module E(module M) where
+module E(M2) where
 -----
-mhs: "../tmp/E.hs": line 2, col 17: export undefined M
-
-=====
-module E(M) where
------
-mhs: "../tmp/E.hs": line 2, col 10: export undefined M
+mhs: "../tmp/E.hs": line 2, col 10: export undefined M2
 
 =====
 module E() where
@@ -121,14 +105,14 @@ import Prelude
 a :: Int
 a = 'a'
 -----
-mhs: "../tmp/E.hs": line 5, col 5: type error: cannot unify Primitives.Char and Primitives.Int
+mhs: "../tmp/E.hs": line 5, col 5: type error: cannot unify Char and Int
 
 =====
 module E() where
 import Prelude
 data T = C Maybe
 -----
-mhs: "../tmp/E.hs": line 4, col 12: kind error: cannot unify Primitives.Type and (a0 -> a1)
+mhs: "../tmp/E.hs": line 4, col 12: kind error: cannot unify Type and (a2 -> a3)
 
 =====
 END
