@@ -103,7 +103,7 @@ compileModuleCached flags mn = do
         liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tp + tt) ++
                  "ms (" ++ show tp ++ " + " ++ show tt ++ ")"
       when (loading flags && mn /= mkIdent "Interactive") $
-        liftIO $ putStrLn $ "import " ++ showIdent mn
+        liftIO $ putStrLn $ "loaded " ++ showIdent mn
       c <- get
       put $ Cache (tail (working c)) (M.insert mn cm (cache c))
       return (cm, tp + tt + ts)
