@@ -1,7 +1,6 @@
 * Add strict constructors
 * Put on hackage
 * Have compile return a Stats record of timing etc
-* Add overloading
 * Implement deriving
 * Add the possibility to save a compiler cache in a file
   - Add SHA checksumming to the C code
@@ -33,3 +32,16 @@
   - The IORef will need GC support
 * Redo type synonym expansion
   - Only non-injective synonyms necessitate expansion(?)
+  - Do expansion during unification
+* Redo handling of synonym and instance tables.
+  - These tables can persist during the compilation
+    and only grow
+* Implement two level tables for instances even in the tricky cases
+* Handle tupled dictionaries better for recursive calls
+* Implement fundeps
+* instance Bits ...
+* Split eval.c
+* Implement defaulting
+
+Bugs
+ * Removing [] from prim table

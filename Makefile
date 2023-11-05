@@ -4,14 +4,14 @@ BIN=bin
 BOOTDIR=ghc-boot
 OUTDIR=ghc-out
 TOOLS=Tools
-PROF= #-prof -fprof-auto
-EXTS= -XScopedTypeVariables -XQualifiedDo -XTupleSections
+PROF= -prof -fprof-late #-prof -fprof-auto
+EXTS= -XScopedTypeVariables -XTupleSections
 GHCB=ghc $(PROF) -outputdir $(BOOTDIR)
-GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude $(EXTS) -F -pgmF $(TOOLS)/convertY.sh 
+GHCFLAGS=-i -ighc -ilib -i$(BOOTDIR) -hide-all-packages -XNoImplicitPrelude -XRebindableSyntax $(EXTS) -F -pgmF $(TOOLS)/convertY.sh 
 GHCC=$(GHCB) $(GHCFLAGS)
 GHC=ghc
 # $(CURDIR) might not be quite right
-GHCE=$(GHC) $(EXTS) -package mtl -F -pgmF Tools/convertX.sh -outputdir $(OUTDIR)
+GHCE=$(GHC) $(EXTS) -package mtl -package pretty -F -pgmF Tools/convertX.sh -outputdir $(OUTDIR)
 GCC=gcc
 UPX=upx
 ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
@@ -22,7 +22,8 @@ EVAL=$(BIN)/mhseval
 
 all:	$(EVAL) $(BIN)/$(MHS)
 
-everytest:	runtest example examplecomb bootboottest bootcombtest
+#everytest:	runtest example examplecomb bootboottest bootcombtest
+everytest:	runtest example examplecomb bootcombtest
 
 ###
 ### Build evaluator (runtime system)
@@ -30,13 +31,13 @@ everytest:	runtest example examplecomb bootboottest bootcombtest
 # On MINGW you might need the additional flags -Wl,--stack,50000000 to increase stack space.
 $(EVAL):	src/runtime/eval.c
 	@mkdir -p bin
-	$(GCC) -Wall -O3 src/runtime/eval.c -o $(EVAL)
+	$(GCC) -Wall -O3 src/runtime/eval.c -lm -o $(EVAL)
 
 ###
 ### Build the compiler with ghc, using standard libraries (Prelude, Data.List, etc)
 ###
 $(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
-	$(GHCE) -ighc -isrc -Wall -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
+	$(GHCE) -ighc -isrc -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
 ###
 ### Build the compiler with ghc, using MicroHs libraries (Prelude, Data.List, etc)
@@ -46,25 +47,42 @@ $(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
 $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	rm -rf $(BOOTDIR)
 	$(GHCB) -c ghc/Primitives.hs
+	$(GHCB) -c ghc/PrimFromInteger.hs
 	$(GHCB) -c ghc/Data/Bool_Type.hs
+	$(GHCB) -c ghc/Data/Char_Type.hs
+	$(GHCB) -c ghc/Data/List_Type.hs
+	$(GHCB) -c lib/Data/Maybe_Type.hs
 	$(GHCB) -c ghc/Data/Ordering_Type.hs
 	$(GHCB) -c ghc/Data/Double.hs
-	$(GHCB) -c src/PrimTable.hs
+	$(GHCB) -c ghc/PrimTable.hs
 	$(GHCC) -c lib/Control/Error.hs
+	$(GHCC) -c lib/Data/Eq.hs
+	$(GHCC) -c lib/Text/Show.hs
+	$(GHCC) -c lib/Data/Bounded.hs
+	$(GHCC) -c lib/Data/Ord.hs
 	$(GHCC) -c lib/Data/Bool.hs
+	$(GHCC) -c lib/Data/Function.hs
+	$(GHCC) -c lib/Data/Tuple.hs
+	$(GHCC) -c lib/Data/Functor.hs
+	$(GHCC) -c lib/Control/Applicative.hs
+	$(GHCC) -c lib/Control/Monad.hs
+	$(GHCC) -c lib/Data/Integer_Type.hs
+	$(GHCC) -c lib/Data/Num.hs
+	$(GHCC) -c lib/Data/Integral.hs
+	$(GHCC) -c lib/Data/Fractional.hs
 	$(GHCC) -c lib/Data/Int.hs
 	$(GHCC) -c lib/Data/Double.hs
 	$(GHCC) -c lib/Data/Char.hs
 	$(GHCC) -c lib/Data/Either.hs
-	$(GHCC) -c lib/Data/Tuple.hs
-	$(GHCC) -c lib/Data/Function.hs
-	$(GHCC) -c lib/Data/Maybe.hs
 	$(GHCC) -c lib/Data/Ord.hs
 	$(GHCC) -c lib/Data/List.hs
+	$(GHCC) -c lib/Data/Maybe.hs
+	$(GHCC) -c lib/Control/Alternative.hs
 	$(GHCC) -c lib/Text/String.hs
 	$(GHCC) -c lib/Data/Word.hs
 	$(GHCC) -c lib/System/IO.hs
 	$(GHCC) -c lib/System/Environment.hs
+	$(GHCC) -c lib/Data/Integer.hs
 	$(GHCC) -c lib/Prelude.hs
 	$(GHCC) -c lib/PreludeNoIO.hs
 	$(GHCC) -c lib/Data/Map.hs
@@ -76,9 +94,9 @@ $(BIN)/boot$(MHS):	$(ALLSRC) $(TOOLS)/convertY.sh
 	$(GHCC) -c lib/Control/DeepSeq.hs
 #	$(GHCC) -c lib/Debug/Trace.hs
 	$(GHCC) -c lib/Control/Exception.hs
+	$(GHCC) -c lib/Text/PrettyPrint/HughesPJ.hs
 	$(GHCC) -c src/System/Console/SimpleReadline.hs
 	$(GHCC) -c src/Text/ParserComb.hs
-	$(GHCC) -c src/MicroHs/Pretty.hs
 	$(GHCC) -c src/MicroHs/Ident.hs
 	$(GHCC) -c src/MicroHs/Expr.hs
 	$(GHCC) -c src/MicroHs/Graph.hs

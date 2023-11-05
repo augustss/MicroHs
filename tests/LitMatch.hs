@@ -25,7 +25,7 @@ s _ = 3
 
 main :: IO ()
 main = do
-  putStrLn $ showList showInt [f 0, f 1, f 10]
-  putStrLn $ showList showInt [g 1 0, g 1 1, g 2 0, g 2 1, g 2 2]
-  putStrLn $ showList showInt [h 'a', h 'b', h 'c']
-  putStrLn $ showList showInt [s "aaa", s "apa", s "foo"]
+  putStrLn $ show [f 0, f 1, f 10]
+  putStrLn $ show [g 1 0, g 1 1, g 2 0, g 2 1, g 2 2]
+  putStrLn $ show [h 'a', h 'b', h 'c']
+  putStrLn $ show [s "aaa", s "apa", s "foo"]

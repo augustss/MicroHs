@@ -6,9 +6,15 @@
 --
 module MicroHs.IdentMap(
   Map,
-  insert, fromListWith, fromList, lookup, empty, elems, size, toList, delete,
+  empty, singleton,
+  insertWith, insert,
+  fromListWith, fromList,
+  delete,
+  lookup,
+  size,
+  toList, elems,
   ) where
-import Prelude --Xhiding(lookup)
+import Prelude hiding(lookup)
 import MicroHs.Ident
 --Ximport Compat
 
@@ -25,6 +31,9 @@ data Map a
 
 empty :: forall a . Map a
 empty = Nil
+
+singleton :: forall a . Ident -> a -> Map a
+singleton i a = One i a
 
 elems :: forall v . Map v -> [v]
 elems = map snd . toList
@@ -55,10 +64,12 @@ lookup :: forall a . Ident -> Map a -> Maybe a
 lookup k = look
   where
     look Nil = Nothing
-    look (One key val) | isEQ (compareIdent k key) = Just val
-                       | otherwise = Nothing
+    look (One key val) =
+      case compare k key of
+        EQ -> Just val
+        _  -> Nothing
     look (Node left _ key val right) =
-      case k `compareIdent` key of
+      case k `compare` key of
         LT -> look left
         EQ -> Just val
         GT -> look right
@@ -72,7 +83,7 @@ insertWith comb k v = ins
     ins Nil = One k v
     ins (One a v) = ins (Node Nil 1 a v Nil)
     ins (Node left _ key val right) =
-      case k `compareIdent` key of
+      case k `compare` key of
         LT -> balance (ins left) key val right
         EQ -> node left k (comb v val) right
         GT -> balance left key val (ins right)
@@ -81,10 +92,10 @@ delete :: forall a . Ident -> Map a -> Map a
 delete k = del
   where
     del Nil = Nil
-    del t@(One a _) | isEQ (k `compareIdent` a) = Nil
+    del t@(One a _) | isEQ (k `compare` a) = Nil
                     | otherwise        = t
     del (Node left _ key val right) =
-      case k `compareIdent` key of
+      case k `compare` key of
         LT -> balance (del left) key val right
         EQ -> glue left right
         GT -> balance left key val (del right)

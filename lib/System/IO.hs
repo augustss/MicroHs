@@ -1,19 +1,43 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module System.IO(module System.IO, Handle, IO) where
+module System.IO(
+  module System.IO, Handle, IO,
+  module Data.Functor,
+  module Control.Applicative,
+  module Control.Monad,
+  ) where
 import Primitives
+import Control.Applicative
 import Control.Error
+import Control.Monad
 import Data.Bool
 import Data.Char
+import Data.Eq
+import Data.Functor
 import Data.Int
 import Data.List
 import Data.Maybe
+import Data.Num
 import Data.Tuple
+import Text.Show
 
 type FilePath = String
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
 
+instance Functor IO where
+  fmap f ioa   = ioa `primBind` \ a -> primReturn (f a)
+instance Applicative IO where
+  pure         = primReturn
+  (<*>)        = ap
+instance Monad IO where
+  (>>=)        = primBind
+  (>>)         = primThen
+  return       = primReturn
+instance MonadFail IO where
+  fail         = error
+
+{-
 infixl 1 >>=
 (>>=)       :: forall a b . IO a -> (a -> IO b) -> IO b
 (>>=)        = primBind
@@ -30,6 +54,7 @@ fail s       = error s
 
 fmap        :: forall a b . (a -> b) -> IO a -> IO b
 fmap f ioa   = ioa >>= \ a -> return (f a)
+-}
 
 hSerialize   :: forall a . Handle -> a -> IO ()
 hSerialize   = primHSerialize
@@ -49,7 +74,7 @@ stderr       = primStderr
 hGetChar :: Handle -> IO Char
 hGetChar h = do
   c <- primHGetChar h
-  if c == negate 1 then
+  if c == (-1::Int) then
     error "hGetChar: EOF"
    else
     return (chr c)
@@ -61,10 +86,10 @@ openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM p m = do
   let
     n = case m of
-          ReadMode -> 0
-          WriteMode -> 1
-          AppendMode -> 2
-          ReadWriteMode -> 3
+          ReadMode -> 0::Int
+          WriteMode -> 1::Int
+          AppendMode -> 2::Int
+          ReadWriteMode -> 3::Int
   hdl <- primOpenFile p n
   if primIsNullHandle hdl then
     return Nothing
@@ -84,30 +109,11 @@ putChar = hPutChar stdout
 getChar :: IO Char
 getChar = hGetChar stdin
 
-print :: forall a . a -> IO ()
-print = primHPrint stdout
+cprint :: forall a . a -> IO ()
+cprint = primHPrint stdout
 
-mapM :: forall a b . (a -> IO b) -> [a] -> IO [b]
-mapM f =
-  let
-    rec [] = return []
-    rec (a : as) = do
-      b <- f a
-      bs <- rec as
-      return (b : bs)
-  in rec
-
-mapM_ :: forall a b . (a -> IO b) -> [a] -> IO ()
-mapM_ f =
-  let
-    rec [] = return ()
-    rec (a : as) = do
-      f a
-      rec as
-  in rec
-
-when :: Bool -> IO () -> IO ()
-when b io = if b then io else return ()
+print :: forall a . (Show a) => a -> IO ()
+print a = putStrLn (show a)
 
 putStr :: String -> IO ()
 putStr = hPutStr stdout
@@ -139,7 +145,7 @@ readFile p = do
 hGetContents :: Handle -> IO String
 hGetContents h = do
   c <- primHGetChar h
-  if c == negate 1 then do
+  if c == (-1::Int) then do
     hClose h   -- EOF, so close the handle
     return ""
    else do

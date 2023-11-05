@@ -2,10 +2,9 @@ module MicroHs.Lex(
   lexTop,
   Token(..), showToken,
   tokensLoc) where
-import Prelude --Xhiding(lex, showChar, showString)
+import Prelude --Xhiding(lex)
 import Data.Char
 import Data.List
-import qualified Data.Double as D
 --Ximport Compat
 import MicroHs.Ident
 
@@ -13,8 +12,8 @@ data Token
   = TIdent  Loc [String] String
   | TString Loc String
   | TChar   Loc Char
-  | TInt    Loc Int
-  | TDouble Loc D.Double
+  | TInt    Loc Integer
+  | TRat    Loc Rational
   | TSpec   Loc Char
   | TError  Loc String
   | TBrace  Loc
@@ -23,10 +22,10 @@ data Token
 
 showToken :: Token -> String
 showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])
-showToken (TString _ s) = showString s
-showToken (TChar _ c) = showChar c
-showToken (TInt _ i) = showInt i
-showToken (TDouble _ d) = D.showDouble d
+showToken (TString _ s) = show s
+showToken (TChar _ c) = show c
+showToken (TInt _ i) = show i
+showToken (TRat _ d) = show d
 showToken (TSpec _ c) = [c]
 showToken (TError _ s) = "ERROR " ++ s
 showToken (TBrace _) = "TBrace"
@@ -81,13 +80,14 @@ lex loc ('\r':cs) = lex loc cs
 lex loc ('{':'-':cs) = skipNest (addCol loc 2) 1 cs
 lex loc ('-':'-':cs) | isComm rs = skipLine (addCol loc $ 2+length ds) cs
   where
-    (ds, rs) = span (eqChar '-') cs
+    (ds, rs) = span (== '-') cs
     isComm [] = True
     isComm (d:_) = not (isOperChar d)
 lex loc (d:cs) | isLower_ d =
   case span isIdentChar cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
+lex loc ('0':x:cs) | toLower x == 'x' = hexNumber loc cs
 lex loc ('-':cs@(d:_)) | isDigit d = number loc "-" cs
 lex loc      cs@(d:_)  | isDigit d = number loc ""  cs
 lex loc (d:cs) | isOperChar d  =
@@ -102,28 +102,33 @@ lex loc ('\'':cs) =
       tchar _ = TError loc "Illegal Char literal"
   in  case takeChars loc tchar '\'' 0 [] cs of  -- XXX head of
         (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
-lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ showChar d]
+lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ xshowChar d]
 lex _ [] = []
 
-number :: Loc -> String -> String -> [Token]   -- neg=1 means negative, neg=0 means positive
+hexNumber :: Loc -> String -> [Token]
+hexNumber loc cs =
+  case span isHexDigit cs of
+    (ds, rs) -> TInt loc (readHex ds) : lex (addCol loc $ length ds + 2) rs
+
+number :: Loc -> String -> String -> [Token]   -- neg="-" means negative, neg=0 means positive
 number loc sign cs =
   case span isDigit cs of
-    (ds, rs) | null rs || not (eqChar (head rs) '.') || eqString (take 2 rs) ".." ->
+    (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
                let s = sign ++ ds
-                   i = readInt s
+                   i = readInteger s
                in  TInt loc i : lex (addCol loc $ length s) rs
              | otherwise ->
                case span isDigit (tail rs) of
                  (ns, rs') ->
                    let s = sign ++ ds ++ '.':ns
-                       mkD x r = TDouble loc (readDouble x) : lex (addCol loc $ length x) r
+                       mkD x r = TRat loc (readRational x) : lex (addCol loc $ length x) r
                    in  case expo rs' of
                          Nothing -> mkD s rs'
                          Just (es, rs'') -> mkD (s ++ es) rs''
   where
-    expo (e:'-':xs@(d:_)) | eqChar (toLower e) 'w' && isDigit d = Just ('e':'-':as, bs) where (as, bs) = span isDigit xs
-    expo (e:'+':xs@(d:_)) | eqChar (toLower e) 'w' && isDigit d = Just ('e':'+':as, bs) where (as, bs) = span isDigit xs
-    expo (e:    xs@(d:_)) | eqChar (toLower e) 'w' && isDigit d = Just ('e':    as, bs) where (as, bs) = span isDigit xs
+    expo (e:'-':xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':'-':as, bs) where (as, bs) = span isDigit xs
+    expo (e:'+':xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':'+':as, bs) where (as, bs) = span isDigit xs
+    expo (e:    xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':    as, bs) where (as, bs) = span isDigit xs
     expo _ = Nothing
 
 -- Skip a {- -} style comment
@@ -154,7 +159,7 @@ takeChars loc _ c n _ [] = (TError loc ("Unmatched " ++ [c]), n, [])
 takeChars loc fn c n str ('\\':cs) =
   case decodeChar (n+1) cs of
     (d, m, rs) -> takeChars loc fn c m (d:str) rs
-takeChars   _ fn c n str (d:cs) | eqChar c d = (fn (reverse str), n, cs)
+takeChars   _ fn c n str (d:cs) | c == d = (fn (reverse str), n, cs)
 takeChars loc fn c n str (d:cs) = takeChars loc fn c (n+1) (d:str) cs
 
 decodeChar :: Int -> String -> (Char, Int, String)
@@ -166,7 +171,7 @@ decodeChar n (c  :cs) = (c,    n+1, cs)
 decodeChar n []       = ('X',  n,   [])
 
 isSpec :: Char -> Bool
-isSpec c = elemBy eqChar c "()[],{}`;"
+isSpec c = elem c "()[],{}`;"
 
 upperIdent :: Loc -> Loc -> [String] -> String -> [Token]
 --upperIdent l c qs acs | trace (show (l, c, qs, acs)) False = undefined
@@ -185,7 +190,7 @@ upperIdent loc sloc qs acs =
       _ -> TIdent sloc (reverse qs) ds : lex (addCol loc $ length ds) rs
 
 tIdent :: Loc -> [String] -> String -> [Token] -> [Token]
-tIdent loc qs kw ats | elemBy eqString kw ["let", "where", "do", "of"]
+tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
                                  = ti : tBrace ats
                      | otherwise = ti : ats
   where {
@@ -202,7 +207,7 @@ tokensLoc (TIdent  loc _ _:_) = loc
 tokensLoc (TString loc _  :_) = loc
 tokensLoc (TChar   loc _  :_) = loc
 tokensLoc (TInt    loc _  :_) = loc
-tokensLoc (TDouble loc _ : _) = loc
+tokensLoc (TRat    loc _ : _) = loc
 tokensLoc (TSpec   loc _  :_) = loc
 tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
@@ -222,3 +227,6 @@ layout          ms      (t@(TSpec _ '{') : ts)          =                       
 layout          ms      (t               : ts)          =                        t : layout     ms  ts
 layout     (_ : ms)     []                              = TSpec (mkLoc 0 0) '}'    : layout     ms  []
 layout          []      []                              =                            []
+
+readHex :: String -> Integer
+readHex = foldl (\ r c -> r * 16 + toInteger (digitToInt c)) 0

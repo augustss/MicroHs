@@ -35,13 +35,13 @@ compress t (c:cs) p =
       t' = if s < maxDict then M.insertBy compareString p' s t else t
   in
 --      trace ("compress " ++ showString p') $
---      trace (showList (showPair showString showInt) (M.toList t)) $
+--      trace show (M.toList t)) $
       case M.lookupBy compareString p' t of
         Just _ ->
 --          trace "found" $
           compress t cs p'
         Nothing ->
---          trace ("not found p=" ++ showString p ++ " " ++ showMaybe showInt (M.lookupBy compareString p t)) $
+--          trace ("not found p=" ++ show p ++ " " ++ show (M.lookupBy compareString p t)) $
           (t ! p) : compress t' cs [c]
 
 -- Initial table is ' ' .. '~', and '\n'
@@ -59,7 +59,7 @@ toBytes (i1:i2:is) =
   in  b1 : b2 : b3 : toBytes is
 
 bad :: Char -> Bool
-bad c = not (isPrint c || eqChar c '\n')
+bad c = not (isPrint c || c == '\n')
 
 main :: IO ()
 main = do

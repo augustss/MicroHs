@@ -8,7 +8,7 @@ f :: Int -> Int
 f x = x*2+1
 
 foo :: IO ()
-foo = IO.do
+foo = do
   putStrLn "foo 1"
   putStrLn "foo 2"
 
@@ -23,7 +23,7 @@ main = do
   p
   p
   p
-  print (+)
+  cprint ((+) :: Int->Int->Int)
   hout <- openFile "test.tmp" WriteMode
   hPutChar hout 'a'
   hPutChar hout 'z'
@@ -31,18 +31,18 @@ main = do
   hin <- openFile "test.tmp" ReadMode
   c1 <- hGetChar hin
   c2 <- hGetChar hin
-  putStrLn $ showPair showChar showChar (c1, c2)
+  putStrLn $ show (c1, c2)
   writeFile "test2.tmp" "more\n"
   s <- readFile "test2.tmp"
-  putStrLn (showString s)
+  putStrLn (show s)
   writeSerialized "f.tmp" f
   g <- readSerialized "f.tmp"
-  putStrLn $ showInt $ g 5
+  putStrLn $ show $ (g (5::Int) :: Int)
   foo
-  putStrLn $ showInt $ trace "tracing" 5
+  putStrLn $ show $ trace "tracing" (5::Int)
   as <- getArgs
-  putStrLn $ showList showString as
-  putStrLn $ showInt $ seq (1 + 2) 5
-  putStrLn $ showInt $ seq (1 + trace "seq" 2) 5
+  putStrLn $ show as
+  putStrLn $ show $ seq ((1::Int) + (2::Int)) (5::Int)
+  putStrLn $ show $ seq ((1::Int) + trace "seq" (2::Int)) (5::Int)
   tend <- getTimeMilli
-  putStrLn $ showInt (tend - tstart) ++ "ms execution time"
+  putStrLn $ show (tend - tstart) ++ "ms execution time"

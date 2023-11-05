@@ -5,39 +5,43 @@ module MicroHs.Expr(
   ImportSpec(..),
   ImportItem(..),
   EDef(..), showEDefs,
-  Expr(..), eLam, showExpr,
+  Expr(..), eLam, eEqns, showExpr, eqExpr,
   Listish(..),
-  Lit(..), showLit, eqLit,
-  EBind(..), showEBind,
+  Lit(..), showLit,
+  EBind(..), showEBind, showEBinds,
   Eqn(..),
   EStmt(..),
   EAlts(..),
   EAlt,
   ECaseArm,
-  EType, showEType,
+  FunDep,
+  EType, showEType, eqEType,
+  EConstraint,
   EPat, patVars, isPVar, isPConApp,
-  EKind, kType,
+  EKind, kType, kConstraint,
   IdKind(..), idKindIdent,
   LHS,
   Constr(..), ConstrField,
   ConTyInfo,
-  Con(..), conIdent, conArity, eqCon, getSLocCon,
-  tupleConstr, untupleConstr, isTupleConstr,
+  Con(..), conIdent, conArity, getSLocCon,
+  tupleConstr, getTupleConstr,
+  mkTupleSel,
   subst,
-  allVarsExpr, allVarsBind,
+  allVarsExpr, allVarsBind, allVarsEqn,
   getSLocExpr, setSLocExpr,
+  getSLocEqns,
   errorMessage,
-  Assoc(..), eqAssoc, Fixity
+  Assoc(..), Fixity,
+  getBindsVars,
   ) where
-import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), showString, showChar, showList, (<>))
+import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), (<>))
 import Data.Maybe
 import MicroHs.Ident
-import qualified Data.Double as D
+import Text.PrettyPrint.HughesPJ
 --Ximport Compat
 --Ximport GHC.Stack
 --Ximport Control.DeepSeq
 --Yimport Primitives(NFData(..))
-import MicroHs.Pretty
 
 type IdentModule = Ident
 
@@ -62,6 +66,8 @@ data EDef
   | Import ImportSpec
   | ForImp String Ident EType
   | Infix Fixity [Ident]
+  | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
+  | Instance [IdKind] [EConstraint] EConstraint [EBind]  -- no deriving yet
   --Xderiving (Show, Eq)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
@@ -96,15 +102,19 @@ data Expr
   | EForall [IdKind] Expr -- only in types
   --Xderiving (Show, Eq)
 
+type FunDep = ([Ident], [Ident])
+
 eLam :: [EPat] -> Expr -> Expr
-eLam ps e = ELam [Eqn ps (EAlts [([], e)] [])]
+eLam ps e = ELam $ eEqns ps e
+
+eEqns :: [EPat] -> Expr -> [Eqn]
+eEqns ps e = [Eqn ps (EAlts [([], e)] [])]
 
 data Con
   = ConData ConTyInfo Ident
   | ConNew Ident
   | ConLit Lit
---  | ConTup Int
-  --Xderiving(Show, Eq)
+  --Xderiving(Show)
 
 data Listish
   = LList [Expr]
@@ -122,33 +132,38 @@ conIdent (ConNew i) = i
 conIdent _ = error "conIdent"
 
 conArity :: Con -> Int
-conArity (ConData cs i) = fromMaybe (error "conArity") $ lookupBy eqIdent i cs
+conArity (ConData cs i) = fromMaybe (error "conArity") $ lookup i cs
 conArity (ConNew _) = 1
 conArity (ConLit _) = 0
 
-eqCon :: Con -> Con -> Bool
-eqCon (ConData _ i) (ConData _ j) = eqIdent i j
-eqCon (ConNew    i) (ConNew    j) = eqIdent i j
-eqCon (ConLit    l) (ConLit    k) = eqLit   l k
-eqCon _             _             = False
+instance Eq Con where
+  (==) (ConData _ i) (ConData _ j) = i == j
+  (==) (ConNew    i) (ConNew    j) = i == j
+  (==) (ConLit    l) (ConLit    k) = l == k
+  (==) _             _             = False
 
 data Lit
   = LInt Int
-  | LDouble D.Double
+  | LInteger Integer
+  | LDouble Double
+  | LRat Rational
   | LChar Char
   | LStr String
   | LPrim String
   | LForImp String
-  --Xderiving (Show, Eq)
---Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LDouble d) = rnf d; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
+  --Xderiving (Show)
+--Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LInteger i) = rnf i; rnf (LDouble d) = rnf d; rnf (LRat r) = rnf r; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
 
-eqLit :: Lit -> Lit -> Bool
-eqLit (LInt x)  (LInt  y) = x == y
-eqLit (LChar x) (LChar y) = eqChar x y
-eqLit (LStr  x) (LStr  y) = eqString x y
-eqLit (LPrim x) (LPrim y) = eqString x y
-eqLit (LForImp x) (LForImp y) = eqString x y
-eqLit _         _         = False
+instance Eq Lit where
+  (==) (LInt x)     (LInt  y) = x == y
+  (==) (LInteger x) (LInteger  y) = x == y
+  (==) (LDouble x)  (LDouble y) = x == y
+  (==) (LRat x)     (LRat y) = x == y
+  (==) (LChar x)    (LChar y) = x == y
+  (==) (LStr  x)    (LStr  y) = x == y
+  (==) (LPrim x)    (LPrim y) = x == y
+  (==) (LForImp x)  (LForImp y) = x == y
+  (==) _         _         = False
 
 type ECaseArm = (EPat, EAlts)
 
@@ -196,6 +211,8 @@ type ConstrField = (Ident, EType)              -- record label and type
 --  * before desugaring: EApp, EVar, ETuple, EList
 type EType = Expr
 
+type EConstraint = EType
+
 data IdKind = IdKind Ident EKind
   --Xderiving (Show, Eq)
 
@@ -207,25 +224,34 @@ type EKind = EType
 kType :: EKind
 kType = EVar (Ident noSLoc "Primitives.Type")
 
+kConstraint :: EKind
+kConstraint = EVar (Ident noSLoc "Primitives.Constraint")
+
 tupleConstr :: SLoc -> Int -> Ident
 tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
 
-untupleConstr :: Ident -> Int
-untupleConstr i = length (unIdent i) + 1
+-- Check if it is a suple constructor
+getTupleConstr :: Ident -> Maybe Int
+getTupleConstr i =
+  case unIdent i of
+    ',':xs -> Just (length xs + 2)  -- "," is 2-tuple
+    _ -> Nothing
 
-isTupleConstr :: Int -> Ident -> Bool
-isTupleConstr n i = eqChar (head (unIdent i)) ',' && untupleConstr i == n
+-- Create a tuple selector, component i (0 based) of n
+mkTupleSel :: Int -> Int -> Expr
+mkTupleSel i n = eLam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [0 .. n - 1] ]] (EVar x)
+  where x = mkIdent "$x"
 
 ---------------------------------
 
 data Assoc = AssocLeft | AssocRight | AssocNone
-  --Xderiving (Eq, Show)
+  --Xderiving (Show)
 
-eqAssoc :: Assoc -> Assoc -> Bool
-eqAssoc AssocLeft AssocLeft = True
-eqAssoc AssocRight AssocRight = True
-eqAssoc AssocNone AssocNone = True
-eqAssoc _ _ = False
+instance Eq Assoc where
+  AssocLeft  == AssocLeft  = True
+  AssocRight == AssocRight = True
+  AssocNone  == AssocNone  = True
+  _          == _          = False
 
 type Fixity = (Assoc, Int)
 
@@ -233,16 +259,36 @@ type Fixity = (Assoc, Int)
 
 -- Enough to handle subsitution in types
 subst :: [(Ident, Expr)] -> Expr -> Expr
+subst [] = id
 subst s =
   let
     sub ae =
       case ae of
-        EVar i -> fromMaybe ae $ lookupBy eqIdent i s
+        EVar i -> fromMaybe ae $ lookup i s
         EApp f a -> EApp (sub f) (sub a)
         ESign e t -> ESign (sub e) t
         EUVar _ -> ae
+        EForall iks t -> EForall iks $ subst [ x | x@(i, _) <- s, not (elem i is) ] t
+          where is = map idKindIdent iks
         _ -> error "subst unimplemented"
   in sub
+
+---------------------------------
+
+-- XXX needs more?
+eqEType :: EType -> EType -> Bool
+eqEType = eqExpr
+
+-- Very partial implementation of Expr equality.
+-- It is only used to compare instances, so this suffices.
+eqExpr :: --XHasCallStack =>
+          Expr -> Expr -> Bool
+eqExpr (EVar i) (EVar i') = i == i'
+eqExpr (EVar _) (EApp _ _) = False
+eqExpr (EApp f a) (EApp f' a') = eqExpr f f' && eqExpr a a'
+eqExpr (EApp _ _) (EVar _) = False
+eqExpr _ _ = False -- XXX good enough for instances
+--eqExpr e1 e2 = error $ "eqExpr: unimplemented " ++ showExpr e1 ++ " == " ++ showExpr e2
 
 ---------------------------------
 
@@ -314,6 +360,9 @@ allVarsStmt astmt =
 getSLocExpr :: Expr -> SLoc
 getSLocExpr e = head $ filter (not . isNoSLoc) (map getSLocIdent (allVarsExpr e)) ++ [noSLoc]
 
+getSLocEqns :: [Eqn] -> SLoc
+getSLocEqns eqns = getSLocExpr $ ELet [BFcn dummyIdent eqns] (EVar dummyIdent)
+
 getSLocCon :: Con -> SLoc
 getSLocCon (ConData _ i) = getSLocIdent i
 getSLocCon (ConNew i) = getSLocIdent i
@@ -336,24 +385,6 @@ errorMessage loc msg = error $ showSLoc loc ++ ": " ++ msg
 
 ----------------
 
-{-
-showEModule :: EModule -> String
-showEModule am =
-  case am of
-    EModule i es ds -> "module " ++ i ++ "(\n" ++
-      unlines (intersperse "," (map showExportItem es)) ++
-      "\n) where\n" ++
-      showEDefs ds
-
-showExportItem :: ExportItem -> String
-showExportItem ae =
-  case ae of
-    ExpModule i -> "module " ++ i
-    ExpTypeCon i -> i ++ "(..)"
-    ExpType i -> i
-    ExpValue i -> i
--}
-
 showExpr :: Expr -> String
 showExpr = render . ppExpr
 
@@ -362,6 +393,9 @@ showEDefs = render . ppEDefs
 
 showEBind :: EBind -> String
 showEBind = render . ppEBind
+
+showEBinds :: [EBind] -> String
+showEBinds = render . vcat . map ppEBind
 
 showEType :: EType -> String
 showEType = render . ppEType
@@ -386,9 +420,18 @@ ppEDef def =
       case mis of
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ", ") (map ppImportItem is))
-    ForImp ie i t -> text ("foreign import ccall " ++ showString ie) <+> ppIdent i <+> text "::" <+> ppEType t
-    Infix (a, p) is -> text ("infix" ++ f a) <+> text (showInt p) <+> hsep (punctuate (text ", ") (map ppIdent is))
+    ForImp ie i t -> text ("foreign import ccall " ++ show ie) <+> ppIdent i <+> text "::" <+> ppEType t
+    Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
+    Class sup lhs fds bs -> ppWhere (text "class" <+> ctx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
+    Instance vs ct ty bs -> ppWhere (text "instance" <+> ppForall vs <+> ctx ct <+> ppEType ty) bs
+ where ctx [] = empty
+       ctx ts = ppEType (ETuple ts) <+> text "=>"
+
+ppFunDeps :: [FunDep] -> Doc
+ppFunDeps [] = empty
+ppFunDeps fds =
+  text "|" <+> hsep (punctuate (text ",") (map (\ (is, os) -> hsep (map ppIdent is) <+> text "-" <+> hsep (map ppIdent os)) fds))
 
 ppEqns :: Doc -> Doc -> [Eqn] -> Doc
 ppEqns name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map ppEPat ps), ppAlts sepr alts])
@@ -405,14 +448,17 @@ ppIdKind :: IdKind -> Doc
 ppIdKind (IdKind i k) = parens $ ppIdent i <> text "::" <> ppEKind k
 
 ppEDefs :: [EDef] -> Doc
-ppEDefs ds = vcat (map ppEDef ds)
+ppEDefs ds = vcat (map pp ds)
+  where pp d@(Sign _ _) = ppEDef d
+        pp d@(Import _) = ppEDef d
+        pp d            = ppEDef d $+$ text ""
 
 ppAlts :: Doc -> EAlts -> Doc
-ppAlts asep (EAlts alts bs) = ppAltsL asep alts <> ppWhere bs
+ppAlts asep (EAlts alts bs) = ppWhere (ppAltsL asep alts) bs
 
-ppWhere :: [EBind] -> Doc
-ppWhere [] = empty
-ppWhere bs = text "where" $+$ nest 2 (vcat (map ppEBind bs))
+ppWhere :: Doc -> [EBind] -> Doc
+ppWhere d [] = d
+ppWhere d bs = (d <+> text "where") $+$ nest 2 (vcat (map ppEBind bs))
 
 ppAltsL :: Doc -> [EAlt] -> Doc
 ppAltsL asep [([], e)] = text "" <+> asep <+> ppExpr e
@@ -424,7 +470,10 @@ ppAlt asep (ss, e) = text " |" <+> hsep (punctuate (text ",") (map ppEStmt ss)) 
 ppExpr :: Expr -> Doc
 ppExpr ae =
   case ae of
-    EVar v -> ppIdent v
+    EVar i | isOperChar cop -> parens (text op)
+           | otherwise      -> text op
+             where op = unIdent (unQualIdent i)
+                   cop = head op
     EApp _ _ -> ppApp [] ae
     EOper e ies -> ppExpr (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
     ELam qs -> parens $ text "\\" <> ppEqns empty (text "->") qs
@@ -440,16 +489,23 @@ ppExpr ae =
     EListish l -> ppListish l
     ESign e t -> ppExpr e <+> text "::" <+> ppEType t
     EAt i e -> ppIdent i <> text "@" <> ppExpr e
-    EUVar i -> text ("a" ++ showInt i)
+    EUVar i -> text ("a" ++ show i)
     ECon c -> ppCon c
-    EForall iks e -> text "forall" <+> hsep (map ppIdKind iks) <+> text "." <+> ppEType e
-  where
-    ppApp as (EApp f a) = ppApp (a:as) f
-    ppApp as (EVar i) | eqString op "->", [a, b] <- as = parens $ ppExpr a <+> text "->" <+> ppExpr b
-                      | eqChar (head op) ',' = ppExpr (ETuple as)
-                      | eqString op "[]", length as == 1 = ppExpr (EListish (LList as))
-                        where op = unQualString (unIdent i)
-    ppApp as f = parens $ hsep (map ppExpr (f:as))
+    EForall iks e -> ppForall iks <+> ppEType e
+--  where
+ppApp :: [Expr] -> Expr -> Doc
+ppApp as (EApp f a) = ppApp (a:as) f
+ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppExpr a <+> text op <+> ppExpr b
+                  | isOperChar cop, [a] <- as    = parens $ ppExpr a <+> text op
+                  | cop == ','                   = ppExpr (ETuple as)
+                  | op == "[]", length as == 1   = ppExpr (EListish (LList as))
+                    where op = unIdent (unQualIdent i)
+                          cop = head op
+ppApp as f = parens $ hsep (map ppExpr (f:as))
+
+ppForall :: [IdKind] -> Doc
+ppForall [] = empty
+ppForall iks = text "forall" <+> hsep (map ppIdKind iks) <+> text "."
 
 ppListish :: Listish -> Doc
 ppListish _ = text "<<Listish>>"
@@ -469,12 +525,14 @@ ppCon (ConLit l) = text (showLit l)
 showLit :: Lit -> String
 showLit l =
   case l of
-    LInt i    -> '#' : showInt i
-    LDouble d -> '%' : D.showDouble d
-    LChar c   -> showChar c
-    LStr s    -> showString s
-    LPrim s   -> s
-    LForImp s -> '^' : s
+    LInt i     -> '#' : show i
+    LInteger i -> '#' : '#' : show i
+    LDouble d  -> '&' : show d
+    LRat r     -> '%' : show r
+    LChar c    -> xshowChar c
+    LStr s     -> show s
+    LPrim s    -> s
+    LForImp s  -> '^' : s
 
 ppEStmt :: EStmt -> Doc
 ppEStmt as =
@@ -506,3 +564,12 @@ ppEKind = ppEType
 
 ppList :: forall a . (a -> Doc) -> [a] -> Doc
 ppList pp xs = brackets $ hsep $ punctuate (text ",") (map pp xs)
+getBindVars :: EBind -> [Ident]
+getBindVars abind =
+  case abind of
+    BFcn i _  -> [i]
+    BPat p _  -> patVars p
+    BSign _ _ -> []
+
+getBindsVars :: [EBind] -> [Ident]
+getBindsVars = concatMap getBindVars

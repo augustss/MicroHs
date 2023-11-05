@@ -8,6 +8,7 @@
 #include <locale.h>
 #include <ctype.h>
 #include <setjmp.h>
+#include <math.h>
 
 #define GCRED    1              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */
@@ -135,7 +136,7 @@ getraw()
 
 /***************************************/
 
-#define VERSION "v4.0\n"
+#define VERSION "v4.1\n"
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -147,20 +148,21 @@ getraw()
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B, T_C,
-                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK, T_ADD, T_SUB, T_MUL,
-                T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM,
-                T_FADD, T_FSUB, T_FMUL, T_FDIV,
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK,
+                T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
+                T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
+                T_FADD, T_FSUB, T_FMUL, T_FDIV, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
+                T_FTORAW, T_FFROMRAW,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
-                T_ERROR, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
+                T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
                 T_IO_PERFORMIO,
                 T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
-                T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH,
+                T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH, T_DYNSYM,
                 T_STR,
-                T_ISINT, T_ISIO,
                 T_LAST_TAG,
 };
 
@@ -648,10 +650,19 @@ struct {
   { "uquot", T_UQUOT },
   { "urem", T_UREM },
   { "subtract", T_SUBR },
+  { "neg", T_NEG },
+  { "and", T_AND },
+  { "or", T_OR },
+  { "xor", T_XOR },
+  { "inv", T_INV },
+  { "shl", T_SHL },
+  { "shr", T_SHR },
+  { "ashr", T_ASHR },
   { "fadd" , T_FADD},
   { "fsub" , T_FSUB},
   { "fmul" , T_FMUL},
   { "fdiv", T_FDIV},
+  { "itof", T_ITOF},
   { "feq", T_FEQ},
   { "fne", T_FNE},
   { "flt", T_FLT},
@@ -660,6 +671,8 @@ struct {
   { "fge", T_FGE},
   { "fshow", T_FSHOW},
   { "fread", T_FREAD},
+  { "ftoraw", T_FTORAW},
+  { "ffromraw", T_FFROMRAW},
   { "==", T_EQ },
   { "/=", T_NE },
   { "<", T_LT },
@@ -672,6 +685,8 @@ struct {
   { ">=", T_GE },
   { "seq", T_SEQ },
   { "error", T_ERROR },
+  { "noDefault", T_NODEFAULT },
+  { "noMatch", T_NOMATCH },
   { "equal", T_EQUAL },
   { "compare", T_COMPARE },
   { "rnf", T_RNF },
@@ -697,8 +712,7 @@ struct {
   { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.catch", T_IO_CATCH },
-  { "isInt", T_ISINT },
-  { "isIO", T_ISIO },
+  { "dynsym", T_DYNSYM },
 };
 
 void
@@ -906,8 +920,6 @@ gc(void)
     mark(&stack[i]);
   t = gettime();
   gc_mark_time += t;
-  if (verbose > 1)
-    fprintf(stderr, "gc scan\n");
 
   if (num_marked > max_num_marked)
     max_num_marked = num_marked;
@@ -940,14 +952,24 @@ gc_check(size_t k)
  *   II   int  name(int)
  *   IIV  void name(int, int)
  *   III  int  name(int, int)
+ *   DD   double name(double)
  * more can easily be added.
  */
 struct {
   const char *ffi_name;
   const funptr_t ffi_fun;
-  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III } ffi_how;
+  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD } ffi_how;
 } ffi_table[] = {
   { "llabs", (funptr_t)llabs, FFI_II },
+  { "log",   (funptr_t)log,   FFI_DD },
+  { "exp",   (funptr_t)exp,   FFI_DD },
+  { "sqrt",  (funptr_t)sqrt,  FFI_DD },
+  { "sin",   (funptr_t)sin,   FFI_DD },
+  { "cos",   (funptr_t)cos,   FFI_DD },
+  { "tan",   (funptr_t)tan,   FFI_DD },
+  { "asin",  (funptr_t)asin,  FFI_DD },
+  { "acos",  (funptr_t)acos,  FFI_DD },
+  { "atan",  (funptr_t)atan,  FFI_DD },
 };
 
 /* Look up an FFI function by name */
@@ -1083,7 +1105,7 @@ parse(BFILE *f)
     ARG(r) = parse(f);
     if (!gobble(f, ')')) ERR("parse ')'");
     return r;
-  case '%':
+  case '&':
     d = parse_double(f);
     r = mkDouble(d);
     return r;
@@ -1379,10 +1401,19 @@ printrec(FILE *f, NODEPTR n)
   case T_UQUOT: fprintf(f, "uquot"); break;
   case T_UREM: fprintf(f, "urem"); break;
   case T_SUBR: fprintf(f, "subtract"); break;
+  case T_NEG: fprintf(f, "neg"); break;
+  case T_AND: fprintf(f, "and"); break;
+  case T_OR: fprintf(f, "or"); break;
+  case T_XOR: fprintf(f, "xor"); break;
+  case T_INV: fprintf(f, "inv"); break;
+  case T_SHL: fprintf(f, "shl"); break;
+  case T_SHR: fprintf(f, "shr"); break;
+  case T_ASHR: fprintf(f, "ashr"); break;
   case T_FADD: fprintf(f, "fadd"); break;
   case T_FSUB: fprintf(f, "fsub"); break;
   case T_FMUL: fprintf(f, "fmul"); break;
   case T_FDIV: fprintf(f, "fdiv"); break;
+  case T_ITOF: fprintf(f, "itof"); break;
   case T_FEQ: fprintf(f, "feq"); break;
   case T_FNE: fprintf(f, "fne"); break;
   case T_FLT: fprintf(f, "flt"); break;
@@ -1391,6 +1422,8 @@ printrec(FILE *f, NODEPTR n)
   case T_FGE: fprintf(f, "fge"); break;
   case T_FSHOW: fprintf(f, "fshow"); break;
   case T_FREAD: fprintf(f, "fread"); break;
+  case T_FTORAW: fprintf(f, "ftoraw"); break;
+  case T_FFROMRAW: fprintf(f, "ffromraw"); break;
   case T_EQ: fprintf(f, "=="); break;
   case T_NE: fprintf(f, "/="); break;
   case T_LT: fprintf(f, "<"); break;
@@ -1402,6 +1435,8 @@ printrec(FILE *f, NODEPTR n)
   case T_UGT: fprintf(f, "u>"); break;
   case T_UGE: fprintf(f, "u>="); break;
   case T_ERROR: fprintf(f, "error"); break;
+  case T_NODEFAULT: fprintf(f, "noDefault"); break;
+  case T_NOMATCH: fprintf(f, "noMatch"); break;
   case T_EQUAL: fprintf(f, "equal"); break;
   case T_COMPARE: fprintf(f, "compare"); break;
   case T_RNF: fprintf(f, "rnf"); break;
@@ -1425,8 +1460,7 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_PERFORMIO: fprintf(f, "IO.performIO"); break;
   case T_IO_CCALL: fprintf(f, "^%s", ffi_table[GETVALUE(n)].ffi_name); break;
   case T_IO_CATCH: fprintf(f, "IO.catch"); break;
-  case T_ISINT: fprintf(f, "isInt"); break;
-  case T_ISIO: fprintf(f, "isIO"); break;
+  case T_DYNSYM: fprintf(f, "dynsym"); break;
   default: ERR("print tag");
   }
 }
@@ -1758,8 +1792,10 @@ eval(NODEPTR n)
 
 #define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define SETDOUBLE(n,d) do { SETTAG((n), T_DOUBLE); SETDOUBLEVALUE((n), (d)); } while(0)
+#define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPINT2(e)      do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define OPDOUBLE2(e)   do { CHECK(2); xd = evaldouble(ARG(TOP(0))); yd = evaldouble(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
+#define ARITHUN(op)    do { OPINT1(r = op xi); SETINT(n, r); RET; } while(0)
 #define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
 #define FARITHBIN(op)  do { OPDOUBLE2(rd = xd op yd); SETDOUBLE(n, rd); RET; } while(0) // TODO FIXME
@@ -1821,11 +1857,20 @@ eval(NODEPTR n)
     case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
     case T_UQUOT: ARITHBINU(/);
     case T_UREM:  ARITHBINU(%);
+    case T_NEG:  ARITHUN(-);
+    case T_AND:  ARITHBIN(&);
+    case T_OR:   ARITHBIN(|);
+    case T_XOR:  ARITHBIN(^);
+    case T_INV:  ARITHUN(~);
+    case T_SHL:  ARITHBIN(<<);
+    case T_SHR:  ARITHBINU(>>);
+    case T_ASHR: ARITHBIN(>>);
 
     case T_FADD: FARITHBIN(+);
     case T_FSUB: FARITHBIN(-);
     case T_FMUL: FARITHBIN(*);
     case T_FDIV: FARITHBIN(/);
+    case T_ITOF: OPINT1(rd = (double)xi); SETDOUBLE(n, rd); RET;
     case T_FEQ: CMPF(==);
     case T_FNE: CMPF(!=);
     case T_FLT: CMPF(<);
@@ -1868,6 +1913,25 @@ eval(NODEPTR n)
       // update n to be s
       GOIND(s);
 
+    case T_FTORAW:
+      CHECK(1);
+      x = evali(ARG(TOP(0)));
+      GCCHECK(1);
+      y = alloc_node(T_INT);
+      SETVALUE(y, GETVALUE(x));
+      POP(1);
+      n = TOP(-1);
+      GOIND(y);
+    case T_FFROMRAW:
+      CHECK(1);
+      x = evali(ARG(TOP(0)));
+      GCCHECK(1);
+      y = alloc_node(T_DOUBLE);
+      SETVALUE(y, GETVALUE(x));
+      POP(1);
+      n = TOP(-1);
+      GOIND(y);
+
     case T_EQ:   CMP(==);
     case T_NE:   CMP(!=);
     case T_LT:   CMP(<);
@@ -1879,7 +1943,35 @@ eval(NODEPTR n)
     case T_UGT:  CMPU(>);
     case T_UGE:  CMPU(>=);
 
+    case T_NOMATCH:
+      {
+      CHECK(3);
+      msg = evalstring(ARG(TOP(0)));
+      xi = evalint(ARG(TOP(1)));
+      yi = evalint(ARG(TOP(2)));
+      int sz = strlen(msg) + 100;
+      char *res = malloc(sz);
+      snprintf(res, sz, "no match at %s, line %"PRIvalue", col %"PRIvalue, msg, xi, yi);
+      POP(2);
+      ARG(TOP(0)) = mkStringC(res);
+      free(res);
+      free(msg);
+      goto err;                 /* XXX not right message if the error is caught */
+      }
+    case T_NODEFAULT:
+      {
+      CHECK(1);
+      msg = evalstring(ARG(TOP(0)));
+      int sz = strlen(msg) + 100;
+      char *res = malloc(sz);
+      snprintf(res, sz, "no default for %s", msg);
+      ARG(TOP(0)) = mkStringC(res);
+      free(res);
+      free(msg);
+      goto err;                 /* XXX not right message if the error is caught */
+      }
     case T_ERROR:
+    err:
       if (cur_handler) {
         /* Pass the string to the handler */
         CHKARG1;
@@ -1923,6 +2015,19 @@ eval(NODEPTR n)
     case T_IO_CATCH:
       RET;
 
+    case T_DYNSYM:
+      /* A dynamic FFI lookup */
+      CHECK(1);
+      msg = evalstring(ARG(TOP(0)));
+      GCCHECK(1);
+      x = alloc_node(T_IO_CCALL);
+      SETVALUE(x, lookupFFIname(msg));
+      free(msg);
+      POP(1);
+      n = TOP(-1);
+      GOIND(x);
+
+#if 0
     case T_ISINT:
       CHECK(1);
       x = evali(ARG(TOP(0)));
@@ -1937,7 +2042,7 @@ eval(NODEPTR n)
       POP(1);
       l = GETTAG(x);
       GOIND(T_IO_BIND <= l && l <= T_IO_FLUSH ? combTrue : combFalse);
-
+#endif
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));
       ERR("eval tag");
@@ -2122,7 +2227,9 @@ evalio(NODEPTR n)
         int a = (int)GETVALUE(n);
         funptr_t f = ffi_table[a].ffi_fun;
         value_t r, x, y;
+        double rd, xd;
 #define INTARG(n) evalint(ARG(TOP(n)))
+#define DBLARG(n) evaldouble(ARG(TOP(n)))
 #define FFIV(n) CHECKIO(n)
 #define FFI(n) CHECKIO(n); GCCHECK(1)
         /* This isn't great, but this is MicroHs, so it's good enough. */
@@ -2131,8 +2238,9 @@ evalio(NODEPTR n)
         case FFI_I:   FFI (0);                               r = (*(value_t (*)(void            ))f)();    n = mkInt(r); RETIO(n);
         case FFI_IV:  FFIV(1); x = INTARG(1);                    (*(void    (*)(value_t         ))f)(x);                 RETIO(combUnit);
         case FFI_II:  FFI (1); x = INTARG(1);                r = (*(value_t (*)(value_t         ))f)(x);   n = mkInt(r); RETIO(n);
-        case FFI_IIV: FFIV(1); x = INTARG(1); y = INTARG(2);     (*(void    (*)(value_t, value_t))f)(x,y);               RETIO(combUnit);
-        case FFI_III: FFI (1); x = INTARG(1); y = INTARG(2); r = (*(value_t (*)(value_t, value_t))f)(x,y); n = mkInt(r); RETIO(n);
+        case FFI_IIV: FFIV(2); x = INTARG(1); y = INTARG(2);     (*(void    (*)(value_t, value_t))f)(x,y);               RETIO(combUnit);
+        case FFI_III: FFI (2); x = INTARG(1); y = INTARG(2); r = (*(value_t (*)(value_t, value_t))f)(x,y); n = mkInt(r); RETIO(n);
+        case FFI_DD:  FFI (1); xd = DBLARG(1);               rd= (*(double  (*)(double          ))f)(xd);  n = mkDouble(rd); RETIO(n);
         default: ERR("T_IO_CCALL");
         }
       }
@@ -2299,7 +2407,7 @@ main(int argc, char **argv)
     printf("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
     printf("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
     printf("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / run_time / 1000000);
-    printf("%15.2fs total execution time\n", run_time);
+    printf("%15.2fs total expired time\n", run_time);
     printf("%15.2fs total gc time\n", gc_mark_time);
 #if GCRED && 0
     printf(" GC reductions A=%d, K=%d, I=%d, int=%d\n", red_a, red_k, red_i, red_int);

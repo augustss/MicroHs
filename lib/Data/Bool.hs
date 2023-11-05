@@ -6,6 +6,21 @@ module Data.Bool(
   ) where
 import Primitives
 import Data.Bool_Type
+import Data.Bounded
+import Data.Eq
+import Text.Show
+
+instance Eq Bool where
+  False == x  =  not x
+  True  == x  =  x
+
+instance Show Bool where
+  showsPrec _ False = showString "False"
+  showsPrec _ True  = showString "True"
+
+instance Bounded Bool where
+  minBound = False
+  maxBound = True
 
 infixr 2 ||
 (||) :: Bool -> Bool -> Bool
@@ -23,11 +38,3 @@ not True  = False
 
 otherwise :: Bool
 otherwise = True
-
-eqBool :: Bool -> Bool -> Bool
-eqBool True  x = x
-eqBool False x = not x
-
-neBool :: Bool -> Bool -> Bool
-neBool True  x = not x
-neBool False x = x

@@ -4,7 +4,7 @@ module Data.IntMap(
   IntMap,
   empty, lookup, insert, fromList, toList, insertWith, (!), keys
   ) where
-import Prelude --Xhiding(lookup)
+import Prelude hiding(lookup)
 
 data IntMap a
   = Empty

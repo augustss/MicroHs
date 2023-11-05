@@ -1,19 +1,21 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# OPTIONS_GHC -Wno-type-defaults -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-dodgy-imports #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-dodgy-imports #-}
 module MicroHs.Desugar(
   desugar,
   LDef, showLDefs,
+  encodeInteger,
   ) where
-import Prelude --Xhiding(showList)
+import Prelude
 import Data.Char
 import Data.List
 import Data.Maybe
+import Data.Ratio
 import Control.Monad.State.Strict as S --Xhiding(ap)
 --Ximport Control.Monad as S hiding(ap)
 --Ximport Compat
 --Ximport GHC.Stack
---Ximport Debug.Trace
+import Debug.Trace
 
 import MicroHs.Expr
 import MicroHs.Exp
@@ -26,22 +28,22 @@ type LDef = (Ident, Exp)
 desugar :: TModule [EDef] -> TModule [LDef]
 desugar atm =
   case atm of
-    TModule mn fxs tys syns vals ds ->
-      TModule mn fxs tys syns vals $ checkDup $ concatMap (dsDef mn) ds
+    TModule mn fxs tys syns clss insts vals ds ->
+      TModule mn fxs tys syns clss insts vals $ map lazier $ checkDup $ concatMap (dsDef mn) ds
 
 dsDef :: IdentModule -> EDef -> [LDef]
 dsDef mn adef =
   case adef of
     Data _ cs ->
       let
-        f i = mkIdent ("$f" ++ showInt i)
-        fs = [f i | (i, _) <- zip (enumFrom 0) cs]
+        f i = mkIdent ("$f" ++ show i)
+        fs = [f i | (i, _) <- zip [0::Int ..] cs]
         dsConstr i (Constr c ets) =
           let
             ts = either id (map snd) ets
-            xs = [mkIdent ("$x" ++ showInt j) | (j, _) <- zip (enumFrom 0) ts]
+            xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip [0::Int ..] ts]
           in (qualIdent mn c, lams xs $ lams fs $ apps (Var (f i)) (map Var xs))
-      in  zipWith dsConstr (enumFrom 0) cs
+      in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr c _) -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
     Fcn f eqns -> [(f, dsEqns (getSLocIdent f) eqns)]
@@ -49,6 +51,16 @@ dsDef mn adef =
     Import _ -> []
     ForImp ie i _ -> [(i, Lit $ LForImp ie)]
     Infix _ _ -> []
+    Class ctx (c, _) _ bs ->
+      let f = mkIdent "$f"
+          meths :: [Ident]
+          meths = [ qualIdent mn i | (BSign i _) <- bs ]
+          supers :: [Ident]
+          supers = [ qualIdent mn $ mkSuperSel c i | i <- [1 .. length ctx] ]
+          xs = [ mkIdent ("$x" ++ show j) | j <- [ 1 .. length ctx + length meths ] ]
+      in  (qualIdent mn $ mkClassConstructor c, lams xs $ Lam f $ apps (Var f) (map Var xs)) :
+          zipWith (\ i x -> (expectQualified i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
+    Instance _ _ _ _ -> []
 
 oneAlt :: Expr -> EAlts
 oneAlt e = EAlts [([], e)] []
@@ -70,7 +82,7 @@ dsEqns loc eqns =
     Eqn aps _ : _ ->
       let
         vs = allVarsBind $ BFcn (mkIdent "") eqns
-        xs = take (length aps) $ newVars "q" vs
+        xs = take (length aps) $ newVars "$q" vs
         mkArm (Eqn ps alts) =
           let ps' = map dsPat ps
           in  (ps', dsAlts alts, hasGuards alts || any hasLit ps')
@@ -105,7 +117,7 @@ dsAltsL ((ss, rhs) : alts) dflt =
 dsAlt :: Expr -> [EStmt] -> Expr -> Expr
 dsAlt _ [] rhs = rhs
 dsAlt dflt (SBind p e : ss) rhs = ECase e [(p, EAlts [(ss, rhs)] []), (EVar dummyIdent, oneAlt dflt)]
-dsAlt dflt (SThen (EVar i) : ss) rhs | eqIdent i (mkIdent "Data.Bool.otherwise") = dsAlt dflt ss rhs
+dsAlt dflt (SThen (EVar i) : ss) rhs | isIdent "Data.Bool.otherwise" i = dsAlt dflt ss rhs
 dsAlt dflt (SThen e   : ss) rhs = EIf e (dsAlt dflt ss rhs) dflt
 dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
@@ -114,12 +126,12 @@ dsBinds [] ret = ret
 dsBinds ads ret =
   let
     avs = concatMap allVarsBind ads
-    pvs = newVars "p" avs
-    mvs = newVars "m" avs
+    pvs = newVars "$p" avs
+    mvs = newVars "$m" avs
     ds = concat $ zipWith dsBind pvs ads
     node ie@(i, e) = (ie, i, freeVars e)
     gr = map node $ checkDup ds
-    asccs = stronglyConnComp leIdent gr
+    asccs = stronglyConnComp (<=) gr
     loop _ [] = ret
     loop vs (AcyclicSCC (i, e) : sccs) =
       letE i e $ loop vs sccs
@@ -131,7 +143,8 @@ dsBinds ads ret =
   in loop mvs asccs
 
 letE :: Ident -> Exp -> Exp -> Exp
-letE i e b = App (Lam i b) e
+letE i e b = eLet i e b          -- do some minor optimizations
+             --App (Lam i b) e
 
 letRecE :: Ident -> Exp -> Exp -> Exp
 letRecE i e b = letE i (App (Lit (LPrim "Y")) (Lam i e)) b
@@ -154,10 +167,22 @@ mutualRec v ies body =
   let (is, es) = unzip ies
       n = length is
       ev = Var v
-      one m i = letE i (mkTupleSel m n ev)
+      one m i = letE i (mkTupleSelE m n ev)
       bnds = foldr (.) id $ zipWith one [0..] is
-  in  letRecE v (bnds $ mkTuple es) $
+  in  letRecE v (bnds $ mkTupleE es) $
       bnds body
+
+encodeInteger :: Integer -> Exp
+encodeInteger i | toInteger (minBound::Int) <= i && i < toInteger (maxBound::Int) =
+--  trace ("*** small integer " ++ show i) $
+  App (Var (mkIdent "Data.Integer_Type._intToInteger")) (Lit (LInt (_integerToInt i)))
+                | otherwise =
+--  trace ("*** large integer " ++ show i) $
+  App (Var (mkIdent "Data.Integer._intListToInteger")) (encodeList (map (Lit . LInt) (_integerToIntList i)))
+
+encodeRational :: Rational -> Exp
+encodeRational r =
+  App (App (Var (mkIdent "Data.Ratio_Type._mkRational")) (encodeInteger (numerator r))) (encodeInteger (denominator r))
 
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
@@ -166,13 +191,15 @@ dsExpr aexpr =
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam qs -> dsEqns (getSLocExpr aexpr) qs
     ELit _ (LChar c) -> Lit (LInt (ord c))
+    ELit _ (LInteger i) -> encodeInteger i
+    ELit _ (LRat i) -> encodeRational i
     ELit _ l -> Lit l
     ECase e as -> dsCase (getSLocExpr aexpr) e as
     ELet ads e -> dsBinds ads (dsExpr e)
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
     EIf e1 e2 e3 ->
       app2 (dsExpr e1) (dsExpr e3) (dsExpr e2)
-    EListish (LList es) -> foldr (app2 cCons) cNil $ map dsExpr es
+    EListish (LList es) -> encodeList $ map dsExpr es
     EListish (LCompr e astmts) ->
       case astmts of
         [] -> dsExpr (EListish (LList [e]))
@@ -191,24 +218,24 @@ dsExpr aexpr =
       let
         ci = conIdent c
       in
-        if eqChar (head $ unIdent ci) ',' then
-          let
-            xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 (untupleConstr ci) ]
-            body = mkTuple $ map Var xs
-          in foldr Lam body xs
-        else
-          Var (conIdent c)
+        case getTupleConstr ci of
+          Just n ->
+            let
+              xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
+              body = mkTupleE $ map Var xs
+            in foldr Lam body xs
+          Nothing -> Var (conIdent c)
     _ -> impossible
 
 -- Use tuple encoding to make a tuple
-mkTuple :: [Exp] -> Exp
-mkTuple = Lam (mkIdent "$f") . foldl App (Var (mkIdent "$f"))
+mkTupleE :: [Exp] -> Exp
+mkTupleE = Lam (mkIdent "$f") . foldl App (Var (mkIdent "$f"))
 
 -- Select component m from an n-tuple
-mkTupleSel :: Int -> Int -> Exp -> Exp
-mkTupleSel m n tup =
+mkTupleSelE :: Int -> Int -> Exp -> Exp
+mkTupleSelE m n tup =
   let
-    xs = [mkIdent ("x" ++ showInt i) | i <- enumFromTo 1 n ]
+    xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
   in App tup (foldr Lam (Var (xs !! m)) xs)
 
 -- Handle special syntax for lists and tuples
@@ -226,28 +253,23 @@ dsPat ap =
     ELit _ _ -> ap
     _ -> impossible
 
+iNil :: Ident
+iNil = mkIdent $ listPrefix ++ "[]"
+
+iCons :: Ident
+iCons = mkIdent $ listPrefix ++ ":"
+
 consCon :: EPat
-consCon =
-  let
-    n = mkIdent "Data.List.[]"
-    c = mkIdent "Data.List.:"
-  in ECon $ ConData [(n, 0), (c, 2)] c
+consCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iCons
 
 nilCon :: EPat
-nilCon =
-  let
-    n = mkIdent "Data.List.[]"
-    c = mkIdent "Data.List.:"
-  in ECon $ ConData [(n, 0), (c, 2)] n
+nilCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iNil
 
 tupleCon :: SLoc -> Int -> EPat
 tupleCon loc n =
   let
     c = tupleConstr loc n
   in ECon $ ConData [(c, n)] c
-
-dummyIdent :: Ident
-dummyIdent = mkIdent "_"
 
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs
@@ -256,10 +278,10 @@ apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
 newVars :: String -> [Ident] -> [Ident]
-newVars s is = deleteAllsBy eqIdent [ mkIdent (s ++ showInt i) | i <- enumFrom 1 ] is
+newVars s is = deleteAllsBy (==) [ mkIdent (s ++ show i) | i <- [1::Int ..] ] is
 
 newVar :: [Ident] -> Ident
-newVar = head . newVars "q"
+newVar = head . newVars "$q"
 
 showLDefs :: [LDef] -> String
 showLDefs = unlines . map showLDef
@@ -267,7 +289,7 @@ showLDefs = unlines . map showLDef
 showLDef :: LDef -> String
 showLDef a =
   case a of
-    (i, e) -> showIdent i ++ " = " ++ showExp e
+    (i, e) -> showIdent i ++ " = " ++ show e
 
 ----------------
 
@@ -286,29 +308,29 @@ type Arm = ([EPat], Exp -> Exp, Bool)  -- boolean indicates that the arm has gua
 type Matrix = [Arm]
 
 --showArm :: Arm -> String
---showArm (ps, _, b) = showList showExpr ps ++ "," ++ showBool b
+--showArm (ps, _, b) = showListS showExpr ps ++ "," ++ show b
 
 newIdents :: Int -> M [Ident]
-newIdents n = S.do
+newIdents n = do
   is <- get
   put (drop n is)
-  S.return (take n is)
+  return (take n is)
 
 newIdent :: M Ident
-newIdent = S.do
+newIdent = do
   is <- get
   put (tail is)
-  S.return (head is)
+  return (head is)
 
 runS :: SLoc -> [Ident] -> [Exp] -> Matrix -> Exp
 runS loc used ss mtrx =
   let
-    supply = newVars "x" used
+    supply = newVars "$x" used
     ds xs aes =
       case aes of
         []   -> dsMatrix (eMatchErr loc) (reverse xs) mtrx
-        e:es -> letBind (S.return e) $ \ x -> ds (x:xs) es
-  in S.evalState (ds [] ss) supply
+        e:es -> letBind (return e) $ \ x -> ds (x:xs) es
+  in evalState (ds [] ss) supply
 
 data SPat = SPat Con [Ident]    -- simple pattern
   --Xderiving(Show, Eq)
@@ -323,11 +345,11 @@ dsMatrix :: --XHasCallStack =>
             Exp -> [Exp] -> Matrix -> M Exp
 dsMatrix dflt iis aarms =
  if null aarms then
-   S.return dflt
+   return dflt
  else
  case iis of
- [] -> let { (_, f, _) : _ = aarms } in S.return $ f dflt
- i:is -> S.do
+ [] -> let { (_, f, _) : _ = aarms } in return $ f dflt
+ i:is -> do
   let
     (arms, darms, rarms) = splitArms aarms
     ndarms = map (\ (EVar x : ps, ed, g) -> (ps, substAlpha x i . ed, g) ) darms
@@ -335,13 +357,13 @@ dsMatrix dflt iis aarms =
   letBind (dsMatrix dflt iis rarms) $ \ drest ->
     letBind (dsMatrix drest is ndarms) $ \ ndflt ->
      if null arms then
-       S.return ndflt
-     else S.do
+       return ndflt
+     else do
       let
         idOf (p:_, _, _) = pConOf p
         idOf _ = impossible
-        grps = groupEq (on eqCon idOf) arms
-        oneGroup grp = S.do
+        grps = groupEq (on (==) idOf) arms
+        oneGroup grp = do
           let
             (pat:_, _, _) : _ = grp
             con = pConOf pat
@@ -355,26 +377,26 @@ dsMatrix dflt iis aarms =
                     _        -> (pArgs p ++ ps, e, g)
                 _ -> impossible
           cexp <- dsMatrix ndflt (map Var xs ++ is) (map one grp)
-          S.return (SPat con xs, cexp)
+          return (SPat con xs, cexp)
 --      traceM $ "grps " ++ show grps
-      narms <- S.mapM oneGroup grps
-      S.return $ mkCase i narms ndflt
+      narms <- mapM oneGroup grps
+      return $ mkCase i narms ndflt
 
 eMatchErr :: SLoc -> Exp
 eMatchErr (SLoc fn l c) =
-  App (App (App (Var (mkIdent "Prelude._noMatch")) (Lit (LStr fn))) (Lit (LInt l))) (Lit (LInt c))
+  App (App (App (Lit (LPrim "noMatch")) (Lit (LStr fn))) (Lit (LInt l))) (Lit (LInt c))
 
 -- If the first expression isn't a variable/literal, then use
 -- a let binding and pass variable to f.
 letBind :: M Exp -> (Exp -> M Exp) -> M Exp
-letBind me f = S.do
+letBind me f = do
   e <- me
   if cheap e then
     f e
-   else S.do
+   else do
     x <- newIdent
     r <- f (Var x)
-    S.return $ eLet x e r
+    return $ eLet x e r
 
 cheap :: Exp -> Bool
 cheap ae =
@@ -383,16 +405,14 @@ cheap ae =
     Lit _ -> True
     _ -> False
 
--- Could use Prim "==", but that misses out some optimizations
 eEqInt :: Exp
-eEqInt = Var $ mkIdent "Data.Int.=="
+eEqInt = Lit (LPrim "==")
 
 eEqChar :: Exp
-eEqChar = Var $ mkIdent "Data.Char.eqChar"
+eEqChar = Lit (LPrim "==")
 
 eEqStr :: Exp
-eEqStr = --Var $ mkIdent "Text.String.eqString"
-         Lit (LPrim "equal")
+eEqStr = Lit (LPrim "equal")
 
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
@@ -414,7 +434,7 @@ mkCase var pes dflt =
         arm ck =
           let
             (c, k) = ck
-            (vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i) xs, e) <- pes, eqIdent c i ] ++
+            (vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i) xs, e) <- pes, c == i ] ++
                                [ (replicate k dummyIdent, dflt) ]
           in (SPat (ConData cs c) vs, rhs)
       in  eCase var (map arm cs)
@@ -422,8 +442,8 @@ mkCase var pes dflt =
 
 eCase :: Exp -> [(SPat, Exp)] -> Exp
 eCase e as =
-  --trace ("eCase " ++ showExp e ++ "\n" ++
-  --       unlines [ unwords (conIdent c : xs) ++ " -> " ++ showExp r | (SPat c xs, r) <- as ]) $
+--  trace ("eCase " ++ show e ++ "\n" ++
+--         unlines [ unwords (map showIdent (conIdent c : xs)) ++ " -> " ++ show r | (SPat c xs, r) <- as ]) $
   apps e [lams xs r | (SPat _ xs, r) <- as ]
 
 -- Split the matrix into segments so each first column has initially patterns -- followed by variables, followed by the rest.
@@ -444,20 +464,20 @@ splitArms am =
 -- Change from x to y inside e.
 substAlpha :: Ident -> Exp -> Exp -> Exp
 substAlpha x y e =
-  if eqIdent x dummyIdent then
+  if x == dummyIdent then
     e
   else
     substExp x y e
 
 eLet :: Ident -> Exp -> Exp -> Exp
 eLet i e b =
-  if eqIdent i dummyIdent then
+  if i == dummyIdent then
     b
   else
     case b of
-      Var j | eqIdent i j -> e
+      Var j | i == j -> e
       _ ->
-        case filter (eqIdent i) (freeVars b) of
+        case filter (== i) (freeVars b) of
           []  -> b                -- no occurences, no need to bind
           [_] -> substExp i e b   -- single occurrence, substitute  XXX could be worse if under lambda
           _   -> App (Lam i b) e  -- just use a beta redex
@@ -494,8 +514,36 @@ getDups eq = filter ((> 1) . length) . groupEq eq
 
 checkDup :: [LDef] -> [LDef]
 checkDup ds =
-  case getDups eqIdent (filter (not . eqIdent dummyIdent) $ map fst ds) of
+  case getDups (==) (filter (/= dummyIdent) $ map fst ds) of
     [] -> ds
-    (i1:i2:_) : _ ->
-      errorMessage (getSLocIdent i1) $ "Duplicate " ++ showIdent i1 ++ " " ++ showSLoc (getSLocIdent i2)
+    (i1:_i2:_) : _ ->
+      errorMessage (getSLocIdent i1) $ "duplicate definition " ++ showIdent i1
+        -- XXX mysteriously the location for i2 is the same as i1
+        -- ++ ", also at " ++ showSLoc (getSLocIdent i2)
     _ -> error "checkDup"
+
+-- Make recursive definitions lazier.
+-- The idea is that we have
+--  f x y = ... (f x) ...
+-- we turn this into
+--  f x = letrec f' y = ... f' ... in f'
+-- thus avoiding the extra argument passing.
+-- XXX should generalize for an arbitrary length prefix of variables.
+-- This gives a small speedup with overloading.
+lazier :: LDef -> LDef
+lazier def@(fcn, Lam x (Lam y body)) =
+  let fcn' = addIdentSuffix fcn "@"
+      vfcn' = Var fcn'
+      repl :: Exp -> State Bool Exp
+      repl (Lam i e) = Lam i <$> repl e
+      repl (App (Var af) (Var ax)) | af == fcn && ax == x = do
+        put True
+        return vfcn'
+      repl (App f a) = App <$> repl f <*> repl a
+      repl e@(Var _) = return e
+      repl e@(Lit _) = return e
+  in  case runState (repl body) False of
+        (_, False) -> def
+        (e', True) -> (fcn, Lam x $ letRecE fcn' (Lam y e') vfcn')
+
+lazier def = def

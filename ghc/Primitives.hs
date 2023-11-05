@@ -8,7 +8,10 @@ module Primitives(
   IO,
   Word,
   NFData(..),
+  Type,
   ) where
+import Prelude hiding(fromInteger, fromRational)
+import qualified Prelude as P
 import Control.DeepSeq
 import Control.Exception(try)
 import Data.Time
@@ -18,7 +21,7 @@ import System.IO
 import System.IO.Unsafe
 import System.Environment
 import Unsafe.Coerce
-import GHC.Types(Any)
+import GHC.Types(Any, Type)
 
 primIntAdd :: Int -> Int -> Int
 primIntAdd = (+)
@@ -86,8 +89,8 @@ primFix f = let a = f a in a
 primError :: String -> a
 primError = error
 
-primEqString :: String -> String -> Bool
-primEqString = (==)
+primStringEQ :: String -> String -> Bool
+primStringEQ = (==)
 
 primUnsafeCoerce :: a -> b
 primUnsafeCoerce = unsafeCoerce
@@ -164,6 +167,9 @@ primDoubleShow = show
 primDoubleRead :: [Char] -> Double
 primDoubleRead = read
 
+primDoubleFromInt :: Int -> Double
+primDoubleFromInt = fromIntegral
+
 ------
 
 primBind         :: IO a -> (a -> IO b) -> IO b
@@ -237,3 +243,12 @@ primCompare = compare
 
 primRnf :: (NFData a) => a -> ()
 primRnf = rnf
+
+--fromInteger :: Integer -> Int
+--fromInteger = P.fromInteger
+
+fromRational :: Rational -> Double
+fromRational = P.fromRational
+
+ifThenElse :: Bool -> a -> a -> a
+ifThenElse c t e = if c then t else e

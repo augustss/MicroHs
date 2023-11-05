@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans -Wno-dodgy-imports -Wno-unused-imports #-}
 module MicroHs.TCMonad(
   TC, tcRun,
-  fmap, (<$>),
+  fmap, (<$>), (<*>),
   (>>=), (>>), return, fail,
   get, put, gets,
   mapM, mapM_,
@@ -13,7 +13,9 @@ module MicroHs.TCMonad(
 --Ximport Data.Functor.Identity
 --Ximport GHC.Stack
 import Data.Char  -- for String
+import Control.Applicative
 import Control.Monad.State.Strict --Xhiding(ap)
+import Data.Functor
 import MicroHs.Ident
 import MicroHs.Expr
 

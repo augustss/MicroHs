@@ -3,23 +3,26 @@
 module MicroHs.Ident(
   Line, Col, Loc,
   Ident(..),
-  mkIdent, mkIdentLoc, unIdent, eqIdent, leIdent, qualIdent, showIdent, getSLocIdent, setSLocIdent,
+  mkIdent, mkIdentLoc, unIdent, isIdent,
+  qualIdent, showIdent, getSLocIdent, setSLocIdent,
   ppIdent,
   mkIdentSLoc,
   isLower_, isIdentChar, isOperChar, isConIdent,
-  isDummyIdent,
+  dummyIdent, isDummyIdent,
   unQualIdent,
   unQualString,
+  addIdentSuffix,
   SLoc(..), noSLoc, isNoSLoc,
   showSLoc,
-  compareIdent,
+  expectQualified,
   ) where
-import Prelude --Xhiding(showString)
+import Data.Eq
+import Prelude
+import Data.Char
+import Text.PrettyPrint.HughesPJ
 --Ximport Control.DeepSeq
 --Yimport Primitives(NFData(..))
-import Data.Char
---Ximport Compat
-import MicroHs.Pretty
+--Ximport GHC.Stack
 
 type Line = Int
 type Col  = Int
@@ -29,14 +32,24 @@ data SLoc = SLoc FilePath Line Col
   --Xderiving (Show, Eq)
 
 data Ident = Ident SLoc String
-  --Xderiving (Show, Eq)
+  --Xderiving (Show)
 --Winstance NFData Ident where rnf (Ident _ s) = rnf s
+
+instance Eq Ident where
+  Ident _ i == Ident _ j  =  i == j
+
+instance Ord Ident where
+  compare (Ident _ i) (Ident _ j) = compare i j
+  Ident _ i <  Ident _ j  =  i <  j
+  Ident _ i <= Ident _ j  =  i <= j
+  Ident _ i >  Ident _ j  =  i >  j
+  Ident _ i >= Ident _ j  =  i >= j
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
 
 isNoSLoc :: SLoc -> Bool
-isNoSLoc (SLoc "" 0 0) = True
+isNoSLoc (SLoc _ 0 0) = True
 isNoSLoc _ = False
 
 mkIdent :: String -> Ident
@@ -63,40 +76,59 @@ showIdent (Ident _ i) = i
 ppIdent :: Ident -> Doc
 ppIdent (Ident _ i) = text i
 
-eqIdent :: Ident -> Ident -> Bool
-eqIdent (Ident _ i) (Ident _ j) = eqString i j
+isIdent :: String -> Ident -> Bool
+isIdent s (Ident _ i) = s == i
 
-leIdent :: Ident -> Ident -> Bool
-leIdent (Ident _ i) (Ident _ j) = leString i j
+qualIdent :: --XHasCallStack =>
+             Ident -> Ident -> Ident
+--XqualIdent _ (Ident _ i) | isQual i = error $ "already qualified " ++ i
+qualIdent (Ident _ qi) (Ident loc i) = Ident loc (qi ++ "." ++ i)
 
-qualIdent :: Ident -> Ident -> Ident
-qualIdent (Ident loc qi) (Ident _ i) = Ident loc (qi ++ "." ++ i)
+expectQualified :: --XHasCallStack =>
+                   Ident -> Ident
+--XexpectQualified (Ident _ s) | not (isQual s) = error $ "not qualified " ++ s
+expectQualified i = i
+
+--XisQual :: String -> Bool
+--XisQual (c:'.':_:_) | isAlphaNum c = True
+--XisQual (_:cs) = isQual cs
+--XisQual "" = False
+
+addIdentSuffix :: Ident -> String -> Ident
+addIdentSuffix (Ident loc i) s = Ident loc (i ++ s)
+
+unQualString :: --XHasCallStack =>
+                String -> String
+unQualString [] = ""
+unQualString s@(c:_) =
+  if isIdentChar c then
+    case dropWhile (/= '.') s of
+      "" -> s
+      '.':r -> unQualString r
+      _ -> undefined -- This cannot happen, but GHC doesn't know that
+  else
+    s
 
 unQualIdent :: Ident -> Ident
 unQualIdent (Ident l s) = Ident l (unQualString s)
-
-unQualString :: String -> String
-unQualString s =
-  case span isIdentChar s of
-    ("", r) -> r
-    (r, "") -> r                       -- XXX bug!  swapping with next line goes wrong
-    (_, '.':r) -> unQualString r
-    x -> error $ "unQualString: " ++ showPair showString (showPair showString showString) (s, x)
 
 isConIdent :: Ident -> Bool
 isConIdent (Ident _ i) =
   let
     c = head i
-  in isUpper c || eqChar c ':' || eqChar c ',' || eqString i "[]"  || eqString i "()"
+  in isUpper c || c == ':' || c == ',' || i == "[]"  || i == "()"
 
 isOperChar :: Char -> Bool
-isOperChar c = elemBy eqChar c "@\\=+-:<>.!#$%^&*/|~?"
+isOperChar c = elem c "@\\=+-:<>.!#$%^&*/|~?"
 
 isIdentChar :: Char -> Bool
-isIdentChar c = isLower_ c || isUpper c || isDigit c || eqChar c '\''
+isIdentChar c = isLower_ c || isUpper c || isDigit c || c == '\''
 
 isLower_ :: Char -> Bool
-isLower_ c = isLower c || eqChar c '_'
+isLower_ c = isLower c || c == '_'
+
+dummyIdent :: Ident
+dummyIdent = mkIdent "_"
 
 isDummyIdent :: Ident -> Bool
 isDummyIdent (Ident _ "_") = True
@@ -105,9 +137,4 @@ isDummyIdent _ = False
 showSLoc :: SLoc -> String
 showSLoc (SLoc fn l c) =
   if null fn then "no location" else
-  showString fn ++ ": " ++ "line " ++ showInt l ++ ", col " ++ showInt c
-
-compareIdent :: Ident -> Ident -> Ordering
-compareIdent (Ident _ s) (Ident _ t) = compareString s t
-
-
+  show fn ++ ": " ++ "line " ++ show l ++ ", col " ++ show c

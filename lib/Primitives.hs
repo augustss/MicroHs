@@ -2,9 +2,12 @@
 -- See LICENSE file for full license.
 module Primitives(module Primitives) where
 import Data.Bool_Type
+--import Data.List_Type
 import Data.Ordering_Type
 
 infixr -1 ->
+infixr -2 =>
+infix   4 ~
 
 data Any
 data Char
@@ -13,6 +16,9 @@ data Int
 data Double
 data IO a
 data Word
+
+-- Type equality as a constraint.
+class a ~ b {-x | a -> b, b -> a-}
 
 data () = ()   -- Parser hacks allows () to be used
 
@@ -28,6 +34,8 @@ primIntRem :: Int -> Int -> Int
 primIntRem  = primitive "rem"
 primIntSubR :: Int -> Int -> Int
 primIntSubR = primitive "subtract"
+primIntNeg :: Int -> Int
+primIntNeg = primitive "neg"
 
 primDoubleAdd :: Double -> Double -> Double
 primDoubleAdd  = primitive "fadd"
@@ -53,6 +61,8 @@ primDoubleShow :: Double -> [Char]
 primDoubleShow = primitive "fshow"
 primDoubleRead :: [Char] -> Double
 primDoubleRead = primitive "fread"
+primDoubleFromInt :: Int -> Double
+primDoubleFromInt = primitive "itof"
 
 primWordAdd :: Word -> Word -> Word
 primWordAdd  = primitive "+"
@@ -64,6 +74,24 @@ primWordQuot :: Word -> Word -> Word
 primWordQuot = primitive "uquot"
 primWordRem :: Word -> Word -> Word
 primWordRem  = primitive "urem"
+primWordAnd :: Word -> Word -> Word
+primWordAnd  = primitive "and"
+primWordOr :: Word -> Word -> Word
+primWordOr  = primitive "or"
+primWordXor :: Word -> Word -> Word
+primWordXor  = primitive "xor"
+primWordShl :: Word -> Int -> Word
+primWordShl  = primitive "shl"
+primWordShr :: Word -> Int -> Word
+primWordShr  = primitive "shr"
+primWordAshr :: Word -> Int -> Word
+primWordAshr  = primitive "ashr"
+primWordInv :: Word -> Word
+primWordInv  = primitive "inv"
+primWordToDoubleRaw :: Word -> Double
+primWordToDoubleRaw = primitive "ffromraw"
+primWordFromDoubleRaw :: Double -> Word
+primWordFromDoubleRaw = primitive "ftoraw"
 
 primIntEQ   :: Int -> Int -> Bool
 primIntEQ   = primitive "=="
@@ -91,6 +119,11 @@ primWordGT   = primitive ">"
 primWordGE   :: Word -> Word -> Bool
 primWordGE   = primitive ">="
 
+primWordToInt :: Word -> Int
+primWordToInt = primitive "I"
+primIntToWord :: Int -> Word
+primIntToWord = primitive "I"
+
 primCharEQ :: Char -> Char -> Bool
 primCharEQ  = primitive "=="
 primCharNE :: Char -> Char -> Bool
@@ -116,12 +149,11 @@ primSeq    = primitive "seq"
 --primEqual  :: forall a . a -> a -> Bool
 --primEqual  = primitive "equal"
 
---primCompare  :: forall a . a -> a -> Int
 primCompare :: [Char] -> [Char] -> Ordering
 primCompare  = primitive "compare"
 
-primEqString  :: [Char] -> [Char] -> Bool
-primEqString  = primitive "equal"
+primStringEQ  :: [Char] -> [Char] -> Bool
+primStringEQ  = primitive "equal"
 
 primChr :: Int -> Char
 primChr = primitive "I"
@@ -181,9 +213,3 @@ primCatch         = primitive "IO.catch"
 
 primRnf          :: forall a . a -> ()
 primRnf           = primitive "rnf"
-
--- Temporary until overloading
-primIsInt        :: Any -> Bool
-primIsInt         = primitive "isInt"
-primIsIO         :: Any -> Bool
-primIsIO          = primitive "isIO"

@@ -9,6 +9,7 @@ module System.Console.SimpleReadline(
   ) where
 import Primitives
 import Prelude
+import Control.Monad
 import Data.Char
 import System.IO
 --Ximport Compat
@@ -80,7 +81,7 @@ loop hist before after = do
       loop hist "" (reverse before ++ after)
     eol = do
       putStr after
-      loop hist (before ++ reverse after) ""
+      loop hist (reverse after ++ before) ""
     bs = do
       case before of
         [] -> noop
@@ -101,7 +102,7 @@ loop hist before after = do
           case ms of
             Nothing -> []
             Just "" -> []
-            Just s  | not (null o) && eqString s (last o) -> []
+            Just s  | not (null o) && s == last o -> []
                     | otherwise -> [s]
         h = o ++ l
       return (h, ms)

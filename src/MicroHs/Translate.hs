@@ -12,6 +12,7 @@ import Unsafe.Coerce
 --Ximport Compat
 --Wimport PrimTable
 
+import MicroHs.Desugar(encodeInteger)
 import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.Ident
@@ -22,14 +23,14 @@ translateAndRun defs = do
   -- Drop all argument up to '--'
   args <- getArgs
   let prog = unsafeCoerce $ translate defs
-  withDropArgs (length (takeWhile (not . eqString "--") args) + 1)
+  withDropArgs (length (takeWhile (/= "--") args) + 1)
     prog
 
 --translate :: (Ident, [LDef]) -> Any
 translate :: (Ident, [(Ident, Exp)]) -> Any
 translate (mainName, ds) =
   let
-    look m n = fromMaybe (error $ "not found " ++ showIdent n) $ M.lookup n m
+    look m n = fromMaybe (error $ "translate: not found " ++ showIdent n) $ M.lookup n m
     mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
   in look mp mainName
 
@@ -39,9 +40,12 @@ trans r ae =
     Var n -> r n
     App f a -> unsafeCoerce (trans r f) (trans r a)
     Lit (LInt i) -> unsafeCoerce i
+    Lit (LDouble i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
-    Lit (LPrim p) -> fromMaybe (error $ "primlookup: " ++ p) $ lookupBy eqString p primTable
-    _ -> error "trans: impossible"
+    Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ p) $ lookup p primTable
+    Lit (LInteger i) -> trans r (encodeInteger i)
+    Lit (LForImp s) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
+    _ -> error $ "trans: impossible: " ++ show ae
 
 -- Use linear search in this table.
 -- 99% of the hits are among the combinators.
@@ -69,6 +73,16 @@ primTable = [
   ("rem", primitive "rem"),
   ("uquot", primitive "uquot"),
   ("urem", primitive "urem"),
+  ("neg", primitive "neg"),
+  ("and", primitive "and"),
+  ("or", primitive "or"),
+  ("xor", primitive "xor"),
+  ("inv", primitive "inv"),
+  ("shl", primitive "shl"),
+  ("shr", primitive "shr"),
+  ("ashr", primitive "ashr"),
+  ("ftoraw", primitive "ftoraw"),
+  ("ffromraw", primitive "ffromraw"),
   ("subtract", primitive "subtract"),
   ("==", primitive "=="),
   ("/=", primitive "/="),
@@ -92,11 +106,14 @@ primTable = [
   ("fge", primitive "fge"),
   ("fshow", primitive "fshow"),
   ("fread", primitive "fread"),
+  ("itof", primitive "itof"),
   ("seq", primitive "seq"),
   ("error", primitive "error"),
   ("equal", primitive "equal"),
   ("compare", primitive "compare"),
   ("rnf", primitive "rnf"),
+  ("noMatch", primitive "noMatch"),
+  ("noDefault", primitive "noDefault"),
   ("IO.>>=", primitive "IO.>>="),
   ("IO.>>", primitive "IO.>>"),
   ("IO.return", primitive "IO.return"),
@@ -117,6 +134,5 @@ primTable = [
   ("IO.performIO", primitive "IO.performIO"),
   ("IO.getTimeMilli", primitive "IO.getTimeMilli"),
   ("IO.catch", primitive "IO.catch"),
-  ("isInt", primitive "isInt"),
-  ("isIO", primitive "isIO")
+  ("dynsym", primitive "dynsym")
   ]

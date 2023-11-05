@@ -1,6 +1,6 @@
 cabal-version:       3.6
 name:                MicroHs
-version:             0.2
+version:             0.5
 synopsis:            A compiler for a small subset of Haskell
 license:             Apache-2.0
 license-file:        LICENSE
@@ -22,8 +22,7 @@ extra-source-files:
       Tools/convertY.sh
       Tools/Addcombs.hs
       comb/*.comb
-      ghc/Primitives.hs
-      ghc/Data/Bool_Type.hs
+      ghc/**/*.hs
       lib/**/*.hs
       src/runtime/eval.c
       tests/Makefile
@@ -37,9 +36,9 @@ source-repository head
 executable mhs
   default-language:    Haskell98
   hs-source-dirs:      src ghc
-  ghc-options:         -Wall -F -pgmF ./Tools/convertX.sh -main-is MicroHs.Main
+  ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -F -pgmF ./Tools/convertX.sh -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
-  default-extensions:  ScopedTypeVariables QualifiedDo PatternGuards TupleSections
+  default-extensions:  ScopedTypeVariables PatternGuards TupleSections
   other-modules:       MicroHs.Compile
                        MicroHs.Desugar
                        MicroHs.Exp
@@ -48,7 +47,6 @@ executable mhs
                        MicroHs.Ident
                        MicroHs.Lex
                        MicroHs.Parse
-                       MicroHs.Pretty
                        MicroHs.StateIO
                        MicroHs.IdentMap
                        MicroHs.Interactive
@@ -58,6 +56,7 @@ executable mhs
                        PreludeNoIO
                        Text.ParserComb
                        System.Console.SimpleReadline
+                       Control.Alternative
                        Data.Double
                        Compat
                        CompatIO
@@ -66,6 +65,7 @@ executable mhs
   build-depends:       base         >= 4.10 && < 4.20,
                        containers   >= 0.5 && < 0.8,
                        deepseq      >= 1.1 && < 1.6,
-                       ghc-prim     >= 0.5 && < 0.11,
+                       ghc-prim     >= 0.5 && < 0.12,
                        mtl          >= 2.0 && < 2.4,
-                       time         >= 1.1 && < 1.15
+                       time         >= 1.1 && < 1.15,
+                       pretty       >= 1.0 && < 1.2

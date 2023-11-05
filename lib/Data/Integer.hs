@@ -1,45 +1,112 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
--- *** WIP, do not use! ***
 module Data.Integer(
   Integer,
-  addI, subI, mulI, quotI, remI,
-  negateI, absI,
-  quotRemI,
-  eqI, neI, ltI, leI, gtI, geI,
-  intToInteger,
-  showInteger,
+  readInteger,
+  _intToInteger,
+  _integerToInt,
+  _wordToInteger,
+  _integerToWord,
+  _integerToDouble,
+  _integerToRational,
+  _integerToIntList,
+  _intListToInteger,
   ) where
-import Prelude
-{-
-import Prelude hiding(Integer)
-import qualified Prelude as P
+import Primitives
+import Control.Error
+import Data.Bool
 import Data.Char
-import Compat
-import Test.QuickCheck
-import GHC.Stack
-import Debug.Trace
--}
+import Data.Enum
+import Data.Eq
+import Data.Function
+import Data.Int
+import Data.Integer_Type
+import Data.Integral
+import Data.List
+import Data.Num
+import Data.Ord
+import Data.Ratio_Type
+import Data.Real
+import Text.Show
 
 --
 -- The Integer is stored in sign-magniture format with digits in base maxD (2^31)
 -- It has the following invariants:
 --  * each digit is >= 0 and < maxD
 --  * least signification digits first, most significant last
---  * no tariling 0s in the digits
+--  * no trailing 0s in the digits
 --  * 0 is positive
+{- These definitions are in Integer_Type
 data Integer = I Sign [Digit]
   --deriving Show
 
 type Digit = Int
 
+maxD :: Digit
+maxD = 2147483648  -- 2^31, this is used so multiplication of two digit doesn't overflow a 64 bit Int
+
 data Sign = Plus | Minus
   --deriving Show
+-}
 
-eqSign :: Sign -> Sign -> Bool
-eqSign Plus Plus = True
-eqSign Minus Minus = True
-eqSign _ _ = False
+instance Eq Integer where
+  (==) = eqI
+  (/=) = neI
+
+instance Ord Integer where
+  (<)  = ltI
+  (<=) = leI
+  (>)  = gtI
+  (>=) = geI
+
+instance Show Integer where
+  show i = showInteger i
+
+instance Num Integer where
+  (+) = addI
+  (-) = subI
+  (*) = mulI
+  negate = negateI
+  abs = absI
+  signum x =
+    case compare x zeroI of
+      LT -> negOneI
+      EQ -> zeroI
+      GT -> oneI
+  fromInteger x = x
+
+instance Integral Integer where
+  quotRem = quotRemI
+  toInteger x = x
+
+instance Real Integer where
+  toRational i = _integerToRational i
+
+instance Enum Integer where
+  succ x = x + 1
+  pred x = x - 1
+  toEnum x = _intToInteger x
+  fromEnum x = _integerToInt x
+  enumFrom n = n : enumFrom (n+1)
+  enumFromThen n m = from n
+    where d = m - n
+          from i = i : from (i+d)
+  enumFromTo l h = takeWhile (<= h) (enumFrom l)
+  enumFromThenTo l m h =
+    if m > l then
+      takeWhile (<= h) (enumFromThen l m)
+    else
+      takeWhile (>= h) (enumFromThen l m)
+
+------------------------------------------------
+
+isZero :: Integer -> Bool
+isZero (I _ ds) = null ds
+
+instance Eq Sign where
+  (==) Plus Plus = True
+  (==) Minus Minus = True
+  (==) _ _ = False
 
 -- Trim off 0s and make an Integer
 sI :: Sign -> [Digit] -> Integer
@@ -48,19 +115,8 @@ sI s ds =
     []  -> I Plus []
     ds' -> I s    ds'
 
-intToInteger :: Int -> Integer
-intToInteger i | i >= 0        = I Plus  (f i)
-               | i == negate i = I Minus [0,0,2]  -- we are at minBound::Int.  XXX deal with this in a more portable way.
-               | otherwise     = I Minus (f (negate i))
-  where
-    f 0 = []
-    f x = rem x maxD : f (quot x maxD)
-
 zeroD :: Digit
 zeroD = 0
-
-maxD :: Digit
-maxD = 2147483648  -- 2^31, this is used so multiplication of two digit doesn't overflow a 64 bit Int
 
 addI :: Integer -> Integer -> Integer
 addI (I Plus  xs) (I Plus  ys)             =  I Plus  (add xs ys)
@@ -115,7 +171,7 @@ subW b x y =
 
 -- Remove trailing 0s
 trim0 :: [Digit] -> [Digit]
-trim0 = reverse . dropWhile (== 0) . reverse
+trim0 = reverse . dropWhile (== (0::Int)) . reverse
 
 -- Is axs < ays?
 ltW :: [Digit] -> [Digit] -> Bool
@@ -135,7 +191,7 @@ mulI (I sx xs)  (I sy [y]) = I (mulSign sx sy) (mulD zeroD xs y)
 mulI (I sx xs)  (I sy ys)  = I (mulSign sx sy) (mulM xs ys)
 
 mulSign :: Sign -> Sign -> Sign
-mulSign s t = if eqSign s t then Plus else Minus
+mulSign s t = if s == t then Plus else Minus
 
 -- Multiply with a single digit, and add carry.
 mulD :: Digit -> [Digit] -> Digit -> [Digit]
@@ -149,14 +205,8 @@ mulD ci (x:xs) y = r : mulD q xs y
 mulM :: [Digit] -> [Digit] -> [Digit]
 mulM xs ys =
   let rs = map (mulD zeroD xs) ys
-      ss = zipWith (++) (map (`replicate` 0) [0..]) rs
+      ss = zipWith (++) (map (`replicate` (0::Int)) [0::Int ..]) rs
   in  foldl1 add ss
-
-quotI :: Integer -> Integer -> Integer
-quotI x y = fst (quotRemI x y)
-
-remI :: Integer -> Integer -> Integer
-remI x y = snd (quotRemI x y)
 
 -- Signs:
 --  + +  -> (+,+)
@@ -166,7 +216,7 @@ remI x y = snd (quotRemI x y)
 quotRemI :: Integer -> Integer -> (Integer, Integer)
 quotRemI _         (I _  [])  = error "Integer: division by 0" -- n / 0
 quotRemI (I _  [])          _ = (I Plus [], I Plus [])         -- 0 / n
-quotRemI (I sx xs) (I sy ys) | all (== 0) ys' =
+quotRemI (I sx xs) (I sy ys) | all (== (0::Int)) ys' =
   -- All but the MSD are 0.  Scale numerator accordingly and divide.
   -- Then add back (the ++) the remainder we scaled off.
     case quotRemD xs' y of
@@ -179,6 +229,11 @@ quotRemI (I sx xs) (I sy ys)  = qrRes sx sy (quotRemB xs ys)
 
 qrRes :: Sign -> Sign -> ([Digit], [Digit]) -> (Integer, Integer)
 qrRes sx sy (ds, rs) = (sI (mulSign sx sy) ds, sI sx rs)
+
+quotI :: Integer -> Integer -> Integer
+quotI x y =
+  case quotRemI x y of
+    (q, _) -> q
 
 -- Divide by a single digit.
 -- Does not return normalized numbers.
@@ -197,7 +252,7 @@ quotRemB :: [Digit] -> [Digit] -> ([Digit], [Digit])
 quotRemB xs ys =
   let n  = I Plus xs
       d  = I Plus ys
-      a  = I Plus $ replicate (length ys - 1) 0 ++ [last ys]  -- only MSD of ys
+      a  = I Plus $ replicate (length ys - (1::Int)) (0::Int) ++ [last ys]  -- only MSD of ys
       aq = quotI n a
       ar = addI d oneI
       loop q r =
@@ -227,6 +282,12 @@ oneI = I Plus [1]
 twoI :: Integer
 twoI = I Plus [2]
 
+tenI :: Integer
+tenI = I Plus [10]
+
+negOneI :: Integer
+negOneI = I Minus [1]
+
 --------------
 
 showInteger :: Integer -> String
@@ -240,8 +301,15 @@ showInteger' xs = showInteger' (trim0 xs') ++ [chr (ord '0' + d)]
   where
     (xs', [d]) = quotRemD xs 10
 
+readInteger :: String -> Integer
+readInteger ('-':ds) = negate (readUnsignedInteger ds)
+readInteger ds       =         readUnsignedInteger ds
+
+readUnsignedInteger :: String -> Integer
+readUnsignedInteger = foldl (\ r c -> r * tenI + _intToInteger (ord c - ord '0')) zeroI
+
 eqI :: Integer -> Integer -> Bool
-eqI (I sx xs) (I sy ys) = eqSign sx sy && eqList (==) xs ys
+eqI (I sx xs) (I sy ys) = sx == sy && xs == ys
 
 neI :: Integer -> Integer -> Bool
 neI x y = not (eqI x y)
@@ -260,6 +328,19 @@ gtI x y = ltI y x
 
 geI :: Integer -> Integer -> Bool
 geI x y = not (ltI x y)
+
+-- These two functions return an (opaque) representation of an
+-- Integer as [Int].
+-- This is used by the compiler to generate Integer literals.
+-- First _integerToIntList is used in the compiler to get a list of
+-- Int, and the generated code will have a call to _intListToInteger.
+_integerToIntList :: Integer -> [Int]
+_integerToIntList (I Plus  ds) = ds
+_integerToIntList (I Minus ds) = (-1::Int) : ds
+
+_intListToInteger :: [Int] -> Integer
+_intListToInteger (-1 : ds) = I Minus ds
+_intListToInteger ds        = I Plus  ds
 
 ---------------------------------
 {-
@@ -287,7 +368,7 @@ instance Num Integer where
 
 instance Enum Integer where
   fromEnum = fromEnum . integerToPInteger
-  toEnum = intToInteger
+  toEnum = _intToInteger
 
 instance Real Integer where
   toRational = toRational . toInteger

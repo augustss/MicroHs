@@ -6,21 +6,23 @@ module MicroHs.Exp(
   compileOpt,
 --  compileOptX,
   substExp,
-  Exp(..), showExp, eqExp, toStringP,
+  Exp(..), toStringP,
   PrimOp,
   encodeString,
   app2, cCons, cNil, cFlip,
   allVarsExp, freeVars,
+  encodeList,
   ) where
-import Prelude
+import Prelude --Xhiding((<>))
 import Data.Char
 import Data.List
 import MicroHs.Ident
-import MicroHs.Expr(Lit(..), showLit, eqLit)
+import MicroHs.Expr(Lit(..), showLit)
+import Text.PrettyPrint.HughesPJ
 --Ximport Control.DeepSeq
 --Ximport Compat
 --Yimport Primitives(NFData(..))
---import Debug.Trace
+import Debug.Trace
 
 type PrimOp = String
 
@@ -50,16 +52,18 @@ data Exp
   | App Exp Exp
   | Lam Ident Exp
   | Lit Lit
-  --Xderiving (Show, Eq)
+
+--pattern Let :: Ident -> Exp -> Exp -> Exp
+--pattern Let i e b = App (Lam i b) e
 
 --Winstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
 
-eqExp :: Exp -> Exp -> Bool
-eqExp (Var i1) (Var i2) = eqIdent i1 i2
-eqExp (App f1 a1) (App f2 a2) = eqExp f1 f2 && eqExp a1 a2
-eqExp (Lam i1 e1) (Lam i2 e2) = eqIdent i1 i2 && eqExp e1 e2
-eqExp (Lit l1) (Lit l2) = eqLit l1 l2
-eqExp _ _ = False
+instance Eq Exp where
+  (==) (Var i1)    (Var i2)    = i1 == i2
+  (==) (App f1 a1) (App f2 a2) = f1 == f2 && a1 == a2
+  (==) (Lam i1 e1) (Lam i2 e2) = i1 == i2 && e1 == e2
+  (==) (Lit l1)    (Lit l2)    = l1 == l2
+  (==) _           _           = False
 
 data MaybeApp = NotApp | IsApp Exp Exp
 
@@ -69,16 +73,10 @@ getApp ae =
     App f a -> IsApp f a
     _       -> NotApp
 
-getVar :: Exp -> Maybe Ident
-getVar ae =
-  case ae of
-    Var v -> Just v
-    _     -> Nothing
-
 isPrim :: String -> Exp -> Bool
 isPrim s ae =
   case ae of
-    Lit (LPrim ss) -> eqString s ss
+    Lit (LPrim ss) -> s == ss
     _       -> False
 
 isK :: Exp -> Bool
@@ -129,32 +127,6 @@ cP = Lit (LPrim "P")
 --cR :: Exp
 --cR = Lit (LPrim "R")
 
-{-
-eqExp :: Exp -> Exp -> Bool
-eqExp ae1 ae2 =
-  case ae1 of
-    Var i1 ->
-      case ae2 of
-        Var i2 -> eqIdent i1 i2
-        _ -> False
-    App e11 e12 ->
-      case ae2 of
-        App e21 e22 -> eqExp e11 e21 && eqExp e12 e22
-        _ -> False
-    Lam i1 e1 ->
-      case ae2 of
-        Lam i2 e2 -> eqIdent i1 i2 && eqExp e1 e2
-        _ -> False
-    Int i1 ->
-      case ae2 of
-        Int i2 -> i1 == i2
-        _ -> False
-    Prim p1 ->
-      case ae2 of
-        Prim p2 -> eqString p1 p2
-        _ -> False
--}
-
 -- Avoid quadratic concatenation by using difference lists,
 -- turning concatenation into function composition.
 toStringP :: Exp -> (String -> String)
@@ -167,6 +139,8 @@ toStringP ae =
         (quoteString s ++)
       else
         toStringP (encodeString s)
+    Lit (LInteger _) -> undefined
+    Lit (LRat _) -> undefined
     Lit l   -> (showLit l ++)
     Lam x e -> (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
@@ -174,16 +148,18 @@ toStringP ae =
 quoteString :: String -> String
 quoteString s =
   let
-    char c =
-      if eqChar c '"' || eqChar c '\\' || ltChar c ' ' || ltChar '~' c then
-        '\\' : showInt (ord c) ++ ['&']
+    achar c =
+      if c == '"' || c == '\\' || c < ' ' || c > '~' then
+        '\\' : show (ord c) ++ ['&']
       else
         [c]
-  in '"' : concatMap char s ++ ['"']
+  in '"' : concatMap achar s ++ ['"']
 
 encodeString :: String -> Exp
-encodeString [] = cNil
-encodeString (c:cs) = app2 cCons (Lit (LInt (ord c))) (encodeString cs)
+encodeString = encodeList . map (Lit . LInt . ord)
+
+encodeList :: [Exp] -> Exp
+encodeList = foldr (app2 cCons) cNil
 
 compileOpt :: Exp -> Exp
 compileOpt = improveT . compileExp
@@ -198,7 +174,7 @@ compileExp ae =
 abstract :: Ident -> Exp -> Exp
 abstract x ae =
   case ae of
-    Var y  -> if eqIdent x y then cId else cK (Var y)
+    Var y  -> if x == y then cId else cK (Var y)
     App f a -> cS (abstract x f) (abstract x a)
     Lam y e -> abstract x $ abstract y e
     Lit _ -> cK ae
@@ -287,16 +263,8 @@ cC a1 e3 =
               r
 
 cC2 :: Exp -> Exp -> Exp
-cC2 a1 a2 =
-  let
-    r = app2 cFlip a1 a2
-  in
-    case getVar a1 of
-      Nothing -> r
-      Just op ->
-        case lookupBy eqIdent op flipOps of
-          Just oq -> App (Var oq) a2
-          Nothing -> r
+cC2 a1 a2 = app2 cFlip a1 a2
+
 {-
 cC (App (App CB e1) e2) e3          = cCC e1 e2 e3      -- C (B e1 e2) e3  = C' e1 e2 e3
 cC (Var op)             e2 | Just op' <- lookup op flipOps = App (Var op') e2 -- C op e = flip-op e
@@ -359,6 +327,7 @@ cSS e1 e2 e3 = app3 (Lit (LPrim "S'")) e1 e2 e3
 cCC :: Exp -> Exp -> Exp -> Exp
 cCC e1 e2 e3 = app3 (Lit (LPrim "C'")) e1 e2 e3
 
+{-
 -- This is a hack, it assumes things about the Prelude
 flipOps :: [(Ident, Ident)]
 flipOps =
@@ -372,6 +341,7 @@ flipOps =
   ,(mkIdent "Data.Int.>",  mkIdent "Data.Int.<")
   ,(mkIdent "Data.Int.>=", mkIdent "Data.Int.<=")
   ]
+-}
 
 improveT :: Exp -> Exp
 improveT ae =
@@ -434,26 +404,30 @@ improveT (App f a) =
 improveT e = e
 -}
 
-showExp :: Exp -> String
-showExp ae =
+instance Show Exp where
+  show = render . ppExp
+
+ppExp :: Exp -> Doc
+ppExp ae =
   case ae of
-    Var i -> showIdent i
-    App f a -> "(" ++ showExp f ++ " " ++ showExp a ++ ")"
-    Lam i e -> "(\\" ++ showIdent i ++ ". " ++ showExp e ++ ")"
-    Lit l -> showLit l
+--    Let i e b -> sep [ text "let" <+> ppIdent i <+> text "=" <+> ppExp e, text "in" <+> ppExp b ]
+    Var i -> ppIdent i
+    App f a -> parens $ ppExp f <+> ppExp a
+    Lam i e -> parens $ text "\\" <> ppIdent i <> text "." <+> ppExp e
+    Lit l -> text (showLit l)
 
 substExp :: Ident -> Exp -> Exp -> Exp
 substExp si se ae =
   case ae of
-    Var i -> if eqIdent i si then se else ae
+    Var i -> if i == si then se else ae
     App f a -> App (substExp si se f) (substExp si se a)
-    Lam i e -> if eqIdent si i then
+    Lam i e -> if si == i then
                  ae
-               else if elemBy eqIdent i (freeVars se) then
+               else if elem i (freeVars se) then
                  let
                    fe = allVarsExp e
                    ase = allVarsExp se
-                   j = head [ v | n <- enumFrom 0, let { v = mkIdent ("a" ++ showInt n) }, not (elemBy eqIdent v ase), not (elemBy eqIdent v fe) ]
+                   j = head [ v | n <- enumFrom (0::Int), let { v = mkIdent ("a" ++ show n) }, not (elem v ase), not (elem v fe) ]
                  in
                    --trace ("substExp " ++ unwords [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))
@@ -466,7 +440,7 @@ freeVars ae =
   case ae of
     Var i -> [i]
     App f a -> freeVars f ++ freeVars a
-    Lam i e -> deleteAllBy eqIdent i (freeVars e)
+    Lam i e -> deleteAllBy (==) i (freeVars e)
     Lit _ -> []
 
 allVarsExp :: Exp -> [Ident]

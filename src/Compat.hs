@@ -4,9 +4,10 @@
 module Compat(module Compat) where
 --import Control.Exception
 import qualified Data.Function as F
+import Data.Char
 import Data.Time
 import Data.Time.Clock.POSIX
-import qualified Control.Monad as M
+--import qualified Control.Monad as M
 import Control.Exception
 import Data.List
 import System.Environment
@@ -32,29 +33,33 @@ leString = (<=)
 readInt :: String -> Int
 readInt = read
 
+readInteger :: String -> Integer
+readInteger = read
+
 readDouble :: String -> Double
 readDouble = read
 
-showInt :: Int -> String
-showInt = show
+_integerToInt :: Integer -> Int
+_integerToInt = fromInteger
 
-showDouble :: Double -> String
-showDouble = show
+_intToInteger :: Int -> Integer
+_intToInteger = fromIntegral
 
-showChar :: Char -> String
-showChar = show
+_integerToDouble :: Integer -> Double
+_integerToDouble = fromIntegral
 
-showBool :: Bool -> String
-showBool = show
+-- Same as in Data.Integer
+_integerToIntList :: Integer -> [Int]
+_integerToIntList i | i < 0 = -1 : to (-i)
+                    | otherwise =  to i
+  where to 0 = []
+        to n = fromInteger r : to q  where (q, r) = quotRem n 2147483648
 
-showUnit :: () -> String
-showUnit = show
+xshowChar :: Char -> String
+xshowChar = show
 
-showString :: String -> String
-showString = show
-
-showList :: (a -> String) -> [a] -> String
-showList sa arg =
+showListS :: (a -> String) -> [a] -> String
+showListS sa arg =
   let
     showRest as =
       case as of
@@ -65,11 +70,8 @@ showList sa arg =
       [] -> "[]"
       a : as -> "[" ++ sa a ++ showRest as
 
-showMaybe :: (a -> String) -> Maybe a -> String
-showMaybe fa arg =
-  case arg of
-    Nothing -> "Nothing"
-    Just a  -> "(Just " ++ fa a ++ ")"
+showPairS :: (a -> String) -> (b -> String) -> (a, b) -> String
+showPairS f g (a, b) = "(" ++ f a ++ "," ++ g b ++ ")"
 
 elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
@@ -90,35 +92,6 @@ stripPrefixBy eq p s =
 lookupBy :: (a -> a -> Bool) -> a -> [(a, b)] -> Maybe b
 lookupBy eq x xys = fmap snd (find (eq x . fst) xys)
 
-pair :: a -> b -> (a, b)
-pair = (,)
-
-eqList :: (a -> a -> Bool) -> [a] -> [a] -> Bool
-eqList eq axs ays =
-  case axs of
-    [] ->
-      case ays of
-        [] -> True
-        _:_ -> False
-    x:xs ->
-      case ays of
-        [] -> False
-        y:ys -> eq x y && eqList eq xs ys
-
-eqPair :: (a -> a -> Bool) -> (b -> b -> Bool) -> (a, b) -> (a, b) -> Bool
-eqPair eqa eqb ab1 ab2 =
-  case ab1 of
-    (a1, b1) ->
-      case ab2 of
-        (a2, b2) ->
-          eqa a1 a2 && eqb b1 b2
-
-showPair :: (a -> String) -> (b -> String) -> (a, b) -> String
-showPair f g (a, b) = "(" ++ f a ++ "," ++ g b ++ ")"
-
-eqInt :: Int -> Int -> Bool
-eqInt = (==)
-
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM path m = do
   r <- (try $ openFile path m) :: IO (Either IOError Handle)
@@ -126,8 +99,8 @@ openFileM path m = do
     Left _ -> return Nothing
     Right h -> return (Just h)
 
-when :: Bool -> IO () -> IO ()
-when = M.when
+--when :: Bool -> IO () -> IO ()
+--when = M.when
 
 on :: (a -> a -> b) -> (c -> a) -> (c -> c -> b)
 on = F.on
@@ -205,6 +178,34 @@ isEQ _  = False
 compareString :: String -> String -> Ordering
 compareString = compare
 
+anySame :: (Eq a) => [a] -> Bool
+anySame = anySameBy (==)
+
 anySameBy :: (a -> a -> Bool) -> [a] -> Bool
 anySameBy _ [] = False
 anySameBy eq (x:xs) = elemBy eq x xs || anySameBy eq xs
+
+-- Convert string in scientific notation to a rational number.
+readRational :: String -> Rational
+readRational "" = undefined
+readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
+                          | otherwise  =          rat1 acs
+  where
+    rat1 s1 =
+      case span isDigit s1 of
+        (ds1, cr1) | ('.':r1) <- cr1                   -> rat2 f1 r1
+                   | (c:r1)   <- cr1, toLower c == 'e' -> rat3 f1 r1
+                   | otherwise                         -> f1
+          where f1 = toRational (readInteger ds1)
+
+    rat2 f1 s2 =
+      case span isDigit s2 of
+        (ds2, cr2) | (c:r2) <- cr2, toLower c == 'e' -> rat3 f2 r2
+                   | otherwise                       -> f2
+          where f2 = f1 + toRational (readInteger ds2) * 10 ^^ (negate $ length ds2)
+
+    rat3 f2 ('+':s) = f2 * expo s
+    rat3 f2 ('-':s) = f2 / expo s
+    rat3 f2      s  = f2 * expo s
+
+    expo s = 10 ^ readInteger s

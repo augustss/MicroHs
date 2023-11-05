@@ -2,8 +2,7 @@
 -- 'The Design of a Pretty-printing Library' by
 -- John Hughes in Advanced Functional Programming, 1995.
 -- With inspiration and code from the from the Hackage package pretty.
---module Text.PrettyPrint.HughesPJ(
-module MicroHs.Pretty(
+module Text.PrettyPrint.HughesPJ(
   Doc,
   text, empty,
   (<>), (<+>), ($$), ($+$),
@@ -17,8 +16,7 @@ module MicroHs.Pretty(
   Style,
   render, renderStyle,
   ) where
-import Prelude --X hiding((<>))
---Ximport Compat
+import Prelude
 
 infixl 6 <>, <+>
 infixl 5 $$, $+$
@@ -49,11 +47,9 @@ reduceDoc p              = p
 hcat :: [Doc] -> Doc
 hcat = snd . reduceHoriz . foldr (\p q -> Beside p False q) empty
 
--- | List version of '<+>'.
 hsep :: [Doc] -> Doc
 hsep = snd . reduceHoriz . foldr (\p q -> Beside p True q)  empty
 
--- | List version of '$$'.
 vcat :: [Doc] -> Doc
 vcat = snd . reduceVert . foldr (\p q -> Above p False q) empty
 
@@ -201,7 +197,7 @@ beside (p1 `Union` p2)     g q   = beside p1 g q `union_` beside p2 g q
 beside Empty               _ q   = q
 beside (Nest k p)          g q   = nest_ k $! beside p g q
 beside p@(Beside p1 g1 q1) g2 q2
-         | eqBool g1 g2          = beside p1 g1 $! beside q1 g2 q2
+         | g1 == g2              = beside p1 g1 $! beside q1 g2 q2
          | otherwise             = beside (reduceDoc p) g2 q2
 beside p@(Above _ _ _)     g q   = let { d = reduceDoc p } in beside d g q
 beside (NilAbove p)        g q   = nilAbove_ $! beside p g q

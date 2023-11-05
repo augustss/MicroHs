@@ -5,97 +5,57 @@ import Primitives
 import Data.Bool
 import Data.Char
 import Data.Either
+import Data.Eq
+import Data.Fractional
 import Data.Function
 import Data.Int
-import qualified Data.Double as DD
+import Data.Integer
+import Data.Integral
 import Data.List
 import Data.Maybe
+import Data.Num
 import Data.Ord
+import Data.Ratio
+import Data.Real
 import Data.Tuple
+import Text.Show
 
-showChar :: Char -> String
-showChar c = "'" ++ encodeChar c ++ "'"
+xshowChar :: Char -> String
+xshowChar c = "'" ++ xencodeChar c ++ "'"
 
-encodeChar :: Char -> String
-encodeChar c =
+xencodeChar :: Char -> String
+xencodeChar c =
   let
     spec = [('\n', "\\n"), ('\r', "\\r"), ('\t', "\\t"), ('\b', "\\b"),
             ('\\', "\\\\"), ('\'', "\\'"), ('"', "\"")]
   in
-    case lookupBy eqChar c spec of
-      Nothing -> if isPrint c then [c] else "'\\" ++ showInt (ord c) ++ "'"
+    case lookup c spec of
+      Nothing -> if isPrint c then [c] else "'\\" ++ show (ord c) ++ "'"
       Just s  -> s
-
-showString :: String -> String
-showString s = "\"" ++ concatMap encodeChar s ++ "\""
-
--- XXX wrong for minInt
-showInt :: Int -> String
-showInt n =
-  if n < 0 then
-    '-' : showUnsignedInt (negate n)
-  else
-    showUnsignedInt n
-
-showUnsignedInt :: Int -> String
-showUnsignedInt n =
-  let
-    c = chr (ord '0' + rem n 10)
-  in  if n < 10 then
-        [c]
-      else
-        showUnsignedInt (quot n 10) ++ [c]
 
 readInt :: String -> Int
 readInt cs =
   let
-    rd = foldl (\ a c -> a * 10 + ord c - ord '0') 0
-  in if eqChar (head cs) '-' then 0 - rd (tail cs) else rd cs
+    rd = foldl (\ a c -> a * (10::Int) + ord c - ord '0') (0::Int)
+  in if head cs == '-' then (0::Int) - rd (tail cs) else rd cs
 
 readDouble :: String -> Double
 readDouble = primDoubleRead
 
-showBool :: Bool -> String
-showBool arg =
-  case arg of
-    False -> "False"
-    True  -> "True"
+showListS :: forall a . (a -> String) -> [a] -> String
+showListS sa as = showListWith (\ a s -> sa a ++ s) as ""
 
-showUnit :: () -> String
-showUnit arg =
-  case arg of
-    () -> "()"
-
-showPair :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
-showPair sa sb ab =
-  case ab of
-    (a, b) -> "(" ++ sa a ++ "," ++ sb b ++ ")"
-
-showList :: forall a . (a -> String) -> [a] -> String
-showList sa as = "[" ++ intercalate "," (map sa as) ++ "]"
-
-showMaybe :: forall a . (a -> String) -> Maybe a -> String
-showMaybe _ Nothing = "Nothing"
-showMaybe fa (Just a) = "(Just " ++ fa a ++ ")"
-
-showEither :: forall a b . (a -> String) -> (b -> String) -> Either a b -> String
-showEither fa _ (Left  a) = "(Left "  ++ fa a ++ ")"
-showEither _ fb (Right b) = "(Right " ++ fb b ++ ")"
-
-showOrdering :: Ordering -> String
-showOrdering LT = "LT"
-showOrdering EQ = "EQ"
-showOrdering GT = "GT"
+showPairS :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
+showPairS sa sb (a, b) = "(" ++ sa a ++ "," ++ sb b ++ ")"
 
 lines :: String -> [String]
 lines "" = []
 lines s =
-  case span (not . eqChar '\n') s of
+  case span (not . (== '\n')) s of
     (l, s') -> case s' of { [] -> [l]; _:s'' -> l : lines s'' }
 
 unlines :: [String] -> String
 unlines = concatMap (++ "\n")
-
 
 words :: String -> [String]
 words s =
@@ -107,33 +67,6 @@ words s =
 unwords :: [String] -> String
 unwords ss = intercalate " " ss
 
--- Using a primitive for string equality makes a huge speed difference.
-eqString :: String -> String -> Bool
-eqString = primEqString
-{-
-eqString axs ays =
-  case axs of
-    [] ->
-      case ays of
-        [] -> True
-        _  -> False
-    x:xs ->
-      case ays of
-        [] -> False
-        y:ys -> eqChar x y && eqString xs ys
--}
-leString :: String -> String -> Bool
-leString s t = not (eqOrdering GT (compareString s t))
-{-
-leString axs ays =
-  case axs of
-    [] -> True
-    x:xs ->
-      case ays of
-        [] -> False
-        y:ys -> ltChar x y || eqChar x y && leString xs ys
--}
-
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s
 
@@ -141,29 +74,29 @@ forceString :: String -> ()
 forceString [] = ()
 forceString (c:cs) = c `primSeq` forceString cs
 
-{-
-compareString :: [Char] -> [Char] -> Ordering
-compareString s t =
-  let
-    r1 = compareString1 s t
-    r2 = compareString2 s t
-  in r2
-    if eqOrdering r1 r2 then r1 else
-    primError $ "compareString " ++ showString s ++ showString t ++ showOrdering r1 ++ showOrdering r2
-
-compareString2 :: [Char] -> [Char] -> Ordering
-compareString2 s t =
-  if leString s t then
-    if eqString s t then
-      EQ
-    else
-      LT
-  else
-    GT
--}
-
 compareString :: String -> String -> Ordering
 compareString = primCompare
---compareString s t = if r < 0 then LT else if r > 0 then GT else EQ
---  where r = primCompare s t
 
+-- Convert string in scientific notation to a rational number.
+readRational :: String -> Rational
+readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
+                          | otherwise  =          rat1 acs
+  where
+    rat1 s1 =
+      case span isDigit s1 of
+        (ds1, cr1) | ('.':r1) <- cr1                   -> rat2 f1 r1
+                   | (c:r1)   <- cr1, toLower c == 'e' -> rat3 f1 r1
+                   | otherwise                         -> f1
+          where f1 = toRational (readInteger ds1)
+
+    rat2 f1 s2 =
+      case span isDigit s2 of
+        (ds2, cr2) | (c:r2) <- cr2, toLower c == 'e' -> rat3 f2 r2
+                   | otherwise                       -> f2
+          where f2 = f1 + toRational (readInteger ds2) * 10 ^^ (negate $ length ds2)
+
+    rat3 f2 ('+':s) = f2 * expo s
+    rat3 f2 ('-':s) = f2 / expo s
+    rat3 f2      s  = f2 * expo s
+
+    expo s = 10 ^ readInteger s
