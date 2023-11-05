@@ -8,3 +8,6 @@ trace msg a = primitive "IO.performIO" (
     putStrLn msg
     return a
   )
+
+traceM :: forall (m :: Type -> Type) a . Monad m => String -> m ()
+traceM s = trace s (return ())
