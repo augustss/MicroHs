@@ -147,11 +147,11 @@ getraw()
 
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DOUBLE, T_HDL, T_S, T_K, T_I, T_B, T_C,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_HDL, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
-                T_FADD, T_FSUB, T_FMUL, T_FDIV, T_ITOF,
+                T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
                 T_FTORAW, T_FFROMRAW,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
@@ -191,9 +191,9 @@ typedef struct node* NODEPTR;
 #define GETVALUE(p) (p)->u.value
 // to squeeze a double into value_t we must exactly copy and read the bits
 // this is a stm, and not an exp
-#define GETDOUBLEVALUE(p) (p)->u.doublevalue
+#define GETDBLVALUE(p) (p)->u.doublevalue
 #define SETVALUE(p,v) (p)->u.value = v
-#define SETDOUBLEVALUE(p,v) (p)->u.doublevalue = v
+#define SETDBLVALUE(p,v) (p)->u.doublevalue = v
 #define FUN(p) (p)->u.s.fun
 #define ARG(p) (p)->u.s.arg
 #define NEXT(p) FUN(p)
@@ -225,9 +225,9 @@ typedef struct node* NODEPTR;
 #define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) : T_AP)
 #define SETTAG(p,t) do { if (t != T_AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
-#define GETDOUBLEVALUE(p) (p)->uarg.uudoublevalue
+#define GETDBLVALUE(p) (p)->uarg.uudoublevalue
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
-#define SETDOUBLEVALUE(p,v) (p)->uarg.uudoublevalue = v
+#define SETDBLVALUE(p,v) (p)->uarg.uudoublevalue = v
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
 #define STR(p) (p)->uarg.uustring
@@ -662,6 +662,7 @@ struct {
   { "fsub" , T_FSUB},
   { "fmul" , T_FMUL},
   { "fdiv", T_FDIV},
+  { "fneg", T_FNEG},
   { "itof", T_ITOF},
   { "feq", T_FEQ},
   { "fne", T_FNE},
@@ -1352,7 +1353,7 @@ printrec(FILE *f, NODEPTR n)
     fputc(')', f);
     break;
   case T_INT: fprintf(f, "#%"PRIvalue, GETVALUE(n)); break;
-  case T_DOUBLE: fprintf(f, "%%%f", GETDOUBLEVALUE(n)); break;
+  case T_DBL: fprintf(f, "%%%f", GETDBLVALUE(n)); break;
   case T_STR:
     {
       const char *p = STR(n);
@@ -1413,6 +1414,7 @@ printrec(FILE *f, NODEPTR n)
   case T_FSUB: fprintf(f, "fsub"); break;
   case T_FMUL: fprintf(f, "fmul"); break;
   case T_FDIV: fprintf(f, "fdiv"); break;
+  case T_FNEG: fprintf(f, "fneg"); break;
   case T_ITOF: fprintf(f, "itof"); break;
   case T_FEQ: fprintf(f, "feq"); break;
   case T_FNE: fprintf(f, "fne"); break;
@@ -1511,8 +1513,8 @@ NODEPTR
 mkDouble(double d)
 {
   NODEPTR n;
-  n = alloc_node(T_DOUBLE);
-  SETDOUBLEVALUE(n, d);
+  n = alloc_node(T_DBL);
+  SETDBLVALUE(n, d);
   return n;
 }
 
@@ -1599,16 +1601,16 @@ evalint(NODEPTR n)
 
 /* Evaluate to a Double */
 static inline double
-evaldouble(NODEPTR n)
+evaldbl(NODEPTR n)
 {
   n = evali(n);
   #if SANITY
-  if (GETTAG(n) != T_DOUBLE) {
+  if (GETTAG(n) != T_DBL) {
     fprintf(stderr, "bad tag %d\n", GETTAG(n));
-    ERR("evaldouble");
+    ERR("evaldbl");
   }
   #endif
-  return GETDOUBLEVALUE(n);
+  return GETDBLVALUE(n);
 }
 
 /* Evaluate to a T_HDL */
@@ -1791,16 +1793,18 @@ eval(NODEPTR n)
 #define CHKARGEV1(e)  do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
 
 #define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
-#define SETDOUBLE(n,d) do { SETTAG((n), T_DOUBLE); SETDOUBLEVALUE((n), (d)); } while(0)
+#define SETDBL(n,d)    do { SETTAG((n), T_DBL); SETDBLVALUE((n), (d)); } while(0)
 #define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPINT2(e)      do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
-#define OPDOUBLE2(e)   do { CHECK(2); xd = evaldouble(ARG(TOP(0))); yd = evaldouble(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
+#define OPDBL1(e)      do { CHECK(1); xd = evaldbl(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
+#define OPDBL2(e)      do { CHECK(2); xd = evaldbl(ARG(TOP(0))); yd = evaldbl(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define ARITHUN(op)    do { OPINT1(r = op xi); SETINT(n, r); RET; } while(0)
 #define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
-#define FARITHBIN(op)  do { OPDOUBLE2(rd = xd op yd); SETDOUBLE(n, rd); RET; } while(0) // TODO FIXME
+#define FARITHUN(op)   do { OPDBL1(rd = op xd); SETDBL(n, rd); RET; } while(0)
+#define FARITHBIN(op)  do { OPDBL2(rd = xd op yd); SETDBL(n, rd); RET; } while(0)
 #define CMP(op)        do { OPINT2(r = xi op yi); GOIND(r ? combTrue : combFalse); } while(0)
-#define CMPF(op)       do { OPDOUBLE2(r = xd op yd); GOIND(r ? combTrue : combFalse); } while(0)
+#define CMPF(op)       do { OPDBL2(r = xd op yd); GOIND(r ? combTrue : combFalse); } while(0)
 #define CMPU(op)       do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? combTrue : combFalse); } while(0)
 
   for(;;) {
@@ -1830,7 +1834,7 @@ eval(NODEPTR n)
 
     case T_STR:  GCCHECK(strNodes(strlen(STR(n)))); GOIND(mkStringC(STR(n)));
     case T_INT:  RET;
-    case T_DOUBLE: RET;
+    case T_DBL:  RET;
     case T_HDL:  RET;
 
     case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
@@ -1870,7 +1874,8 @@ eval(NODEPTR n)
     case T_FSUB: FARITHBIN(-);
     case T_FMUL: FARITHBIN(*);
     case T_FDIV: FARITHBIN(/);
-    case T_ITOF: OPINT1(rd = (double)xi); SETDOUBLE(n, rd); RET;
+    case T_FNEG: FARITHUN(-);
+    case T_ITOF: OPINT1(rd = (double)xi); SETDBL(n, rd); RET;
     case T_FEQ: CMPF(==);
     case T_FNE: CMPF(!=);
     case T_FLT: CMPF(<);
@@ -1892,7 +1897,7 @@ eval(NODEPTR n)
       // check that the double exists
       CHECK(1);
       // evaluate it
-      xd = evaldouble(ARG(TOP(0)));
+      xd = evaldbl(ARG(TOP(0)));
       // turn it into a string
       char str[30];
       /* Using 16 decimals will lose some precision.
@@ -1926,7 +1931,7 @@ eval(NODEPTR n)
       CHECK(1);
       x = evali(ARG(TOP(0)));
       GCCHECK(1);
-      y = alloc_node(T_DOUBLE);
+      y = alloc_node(T_DBL);
       SETVALUE(y, GETVALUE(x));
       POP(1);
       n = TOP(-1);
@@ -2229,7 +2234,7 @@ evalio(NODEPTR n)
         value_t r, x, y;
         double rd, xd;
 #define INTARG(n) evalint(ARG(TOP(n)))
-#define DBLARG(n) evaldouble(ARG(TOP(n)))
+#define DBLARG(n) evaldbl(ARG(TOP(n)))
 #define FFIV(n) CHECKIO(n)
 #define FFI(n) CHECKIO(n); GCCHECK(1)
         /* This isn't great, but this is MicroHs, so it's good enough. */

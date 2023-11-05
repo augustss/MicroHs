@@ -22,6 +22,7 @@ instance Num Double where
   (+)  = primDoubleAdd
   (-)  = primDoubleSub
   (*)  = primDoubleMul
+  negate = primDoubleNeg
   abs x = if x < 0.0 then negate x else x
   signum x =
     case compare x 0.0 of

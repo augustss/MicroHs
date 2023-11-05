@@ -45,6 +45,8 @@ primDoubleMul :: Double -> Double -> Double
 primDoubleMul  = primitive "fmul"
 primDoubleDiv :: Double -> Double -> Double
 primDoubleDiv = primitive "fdiv"
+primDoubleNeg :: Double -> Double
+primDoubleNeg = primitive "fneg"
 primDoubleEQ :: Double -> Double -> Bool
 primDoubleEQ = primitive "feq"
 primDoubleNE :: Double -> Double -> Bool
