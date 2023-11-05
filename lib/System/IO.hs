@@ -177,3 +177,15 @@ seq = primSeq
 -- MicroHs is always in binary mode
 hSetBinaryMode :: Handle -> Bool -> IO ()
 hSetBinaryMode _ _ = return ()
+
+--------
+
+-- Helper for interactive system
+class PrintOrRun a where
+  printOrRun :: a -> IO ()
+
+instance PrintOrRun (IO ()) where
+  printOrRun a = a
+
+instance forall a . Show a => PrintOrRun a where
+  printOrRun a = putStrLn (show a)

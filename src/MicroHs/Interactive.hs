@@ -109,7 +109,7 @@ itName :: String
 itName = "_it"
 
 mkIt :: String -> String
-mkIt l = itName ++ " :: IO ()\n" ++ itName ++ " = print (" ++ l ++ ")\n"
+mkIt l = itName ++ " :: IO ()\n" ++ itName ++ " = printOrRun (" ++ l ++ ")\n"
 
 err :: Exn -> IO ()
 err (Exn s) = putStrLn $ "Error: " ++ s
