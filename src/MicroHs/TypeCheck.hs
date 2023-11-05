@@ -24,7 +24,7 @@ import MicroHs.Ident
 import MicroHs.Expr
 --Ximport Compat
 --Ximport GHC.Stack
---Ximport Debug.Trace
+--import Debug.Trace
 
 boolPrefix :: String
 boolPrefix = "Data.Bool_Type."
@@ -2051,20 +2051,20 @@ solveLocalConstraints ta = do
 
 {-
 showInstInfo :: InstInfo -> String
-showInstInfo (InstInfo m ds) = "InstInfo " ++ showListS (showPair showIdent showExpr) (M.toList m) ++ " " ++ showList showInstDict ds
+showInstInfo (InstInfo m ds) = "InstInfo " ++ show (M.toList m) ++ " " ++ showListS showInstDict ds
 
 showInstDict :: InstDict -> String
-showInstDict (e, iks, ctx, ts) = showExpr e ++ " :: " ++ showEType (eForall iks $ addConstraints ctx (tApps (mkIdent "X") ts))
+showInstDict (e, ctx, ts) = showExpr e ++ " :: " ++ show (addConstraints ctx (tApps (mkIdent "CCC") ts))
 
 showInstDef :: InstDef -> String
-showInstDef (cls, InstInfo m ds) = "instDef " ++ showIdent cls ++ ": "
-            ++ showListS (showPair showIdent showExpr) (M.toList m) ++ ", " ++ showList showInstDict ds
+showInstDef (cls, InstInfo m ds) = "instDef " ++ show cls ++ ": "
+            ++ show (M.toList m) ++ ", " ++ showListS showInstDict ds
 
 showConstraint :: (Ident, EConstraint) -> String
-showConstraint (i, t) = showIdent i ++ " :: " ++ showEType t
+showConstraint (i, t) = show i ++ " :: " ++ show t
 
 showMatch :: (Expr, [EConstraint]) -> String
-showMatch (e, ts) = showExpr e ++ " " ++ showListS showEType ts
+showMatch (e, ts) = show e ++ " " ++ show ts
 -}
 
 -- Solve as many constraints as possible.
@@ -2102,12 +2102,15 @@ solveConstraints = do
                   case cts of
                     [EVar i] -> do
 --                      traceM ("solveSimple " ++ showIdent i ++ " -> " ++ showMaybe showExpr (M.lookup i atomMap))
-                      solveSimple (M.lookup i atomMap) cns cnss uns sol
+                      case M.lookup i atomMap of
+                        Just e -> solveSimple e cns cnss uns sol
+                        -- Not found, but there might be a generic instance
+                        Nothing -> solveGen loc insts cns cnss uns sol
                     _        -> solveGen loc insts cns cnss uns sol
 
         -- An instance of the form (C T)
-        solveSimple Nothing  cns     cnss uns sol = solve cnss (cns : uns)            sol   -- no instance
-        solveSimple (Just e) (di, _) cnss uns sol = solve cnss        uns  ((di, e) : sol)  -- e is the dictionary expression
+--        solveSimple Nothing  cns     cnss uns sol = solve cnss (cns : uns)            sol   -- no instance
+        solveSimple e (di, _) cnss uns sol = solve cnss        uns  ((di, e) : sol)  -- e is the dictionary expression
 
         solveGen loc insts cns@(di, ct) cnss uns sol = do
 --          traceM ("solveGen " ++ showEType ct)
@@ -2144,7 +2147,7 @@ findMatches ds its =
  let rrr =
        [ (length s, (de, map (substEUVar s) ctx))
        | (de, ctx, ts) <- ds, Just s <- [matchTypes [] ts its] ]
- in --trace ("findMatches: " ++ showListS showInstDict ds ++ "; " ++ showEType ct ++ "; " ++ show rrr)
+ in --trace ("findMatches: " ++ showListS showInstDict ds ++ "; " ++ showListS showEType its ++ "; " ++ show rrr)
     rrr
   where
 

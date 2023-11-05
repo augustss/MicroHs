@@ -42,6 +42,8 @@
 * instance Bits ...
 * Split eval.c
 * Implement defaulting
+* Add location to file not found
 
 Bugs
  * Removing [] from prim table
+ * :reload doesn't show error message
