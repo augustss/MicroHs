@@ -47,3 +47,5 @@
 Bugs
  * Removing [] from prim table
  * :reload doesn't show error message
+ * default methods not exported
+ 

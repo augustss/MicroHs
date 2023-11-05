@@ -24,6 +24,7 @@ module Prelude(
   module Data.Ord,
   module Data.Ratio,
   module Data.Real,
+  module Data.RealFloat,
   module Data.Tuple,
   module System.IO,
   module Text.Show,
@@ -54,6 +55,7 @@ import Data.Num
 import Data.Ord
 import Data.Ratio(Rational)
 import Data.Real
+import Data.RealFloat
 import Data.Tuple
 import System.IO
 import Text.Show
