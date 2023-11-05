@@ -120,6 +120,7 @@ primTable = [
   ("IO.getChar", primitive "IO.getChar"),
   ("IO.getRaw", primitive "IO.getRaw"),
   ("IO.putChar", primitive "IO.putChar"),
+  ("IO.print", primitive "IO.print"),
   ("IO.serialize", primitive "IO.serialize"),
   ("IO.deserialize", primitive "IO.deserialize"),
   ("IO.open", primitive "IO.open"),
