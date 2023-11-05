@@ -46,7 +46,7 @@ dsDef mn adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr c _) -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
-    Fcn f eqns -> [(f, dsEqns (getSLocIdent f) eqns)]
+    Fcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
     Sign _ _ -> []
     Import _ -> []
     ForImp ie i _ -> [(i, Lit $ LForImp ie)]
@@ -68,7 +68,7 @@ oneAlt e = EAlts [([], e)] []
 dsBind :: Ident -> EBind -> [LDef]
 dsBind v abind =
   case abind of
-    BFcn f eqns -> [(f, dsEqns (getSLocIdent f) eqns)]
+    BFcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
     BPat p e ->
       let
         de = (v, dsExpr e)
@@ -189,12 +189,12 @@ dsExpr aexpr =
   case aexpr of
     EVar i -> Var i
     EApp f a -> App (dsExpr f) (dsExpr a)
-    ELam qs -> dsEqns (getSLocExpr aexpr) qs
+    ELam qs -> dsEqns (getSLoc aexpr) qs
     ELit _ (LChar c) -> Lit (LInt (ord c))
     ELit _ (LInteger i) -> encodeInteger i
     ELit _ (LRat i) -> encodeRational i
     ELit _ l -> Lit l
-    ECase e as -> dsCase (getSLocExpr aexpr) e as
+    ECase e as -> dsCase (getSLoc aexpr) e as
     ELet ads e -> dsBinds ads (dsExpr e)
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
     EIf e1 e2 e3 ->
@@ -247,7 +247,7 @@ dsPat ap =
     ECon _ -> ap
     EApp f a -> EApp (dsPat f) (dsPat a)
     EListish (LList ps) -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
-    ETuple ps -> dsPat $ foldl EApp (tupleCon (getSLocExpr ap) (length ps)) ps
+    ETuple ps -> dsPat $ foldl EApp (tupleCon (getSLoc ap) (length ps)) ps
     EAt i p -> EAt i (dsPat p)
     ELit loc (LStr cs) | length cs < 2 -> dsPat (EListish (LList (map (ELit loc . LChar) cs)))
     ELit _ _ -> ap
@@ -420,7 +420,7 @@ mkCase var pes dflt =
   case pes of
     [] -> dflt
     [(SPat (ConNew _) [x], arhs)] -> eLet x var arhs
-    (SPat (ConLit l) _,   arhs) : rpes -> 
+    (SPat (ConLit _ l) _,   arhs) : rpes -> 
       let
         cond =
           case l of
@@ -489,7 +489,7 @@ pConOf ap =
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
-    ELit _ l -> ConLit l
+    ELit loc l -> ConLit loc l
     _ -> impossible
 
 pArgs :: EPat -> [EPat]
@@ -517,9 +517,9 @@ checkDup ds =
   case getDups (==) (filter (/= dummyIdent) $ map fst ds) of
     [] -> ds
     (i1:_i2:_) : _ ->
-      errorMessage (getSLocIdent i1) $ "duplicate definition " ++ showIdent i1
+      errorMessage (getSLoc i1) $ "duplicate definition " ++ showIdent i1
         -- XXX mysteriously the location for i2 is the same as i1
-        -- ++ ", also at " ++ showSLoc (getSLocIdent i2)
+        -- ++ ", also at " ++ showSLoc (getSLoc i2)
     _ -> error "checkDup"
 
 -- Make recursive definitions lazier.

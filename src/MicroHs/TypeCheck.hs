@@ -211,7 +211,7 @@ getTVExps _ _ vals _ _ (ExpValue i) =
 --getFSExps impMap = [ (fe, se) | TModule _ fe _ se _ _ <- M.elems impMap ]
 
 expLookup :: Ident -> SymTab Entry -> Entry
-expLookup i m = either (errorMessage (getSLocIdent i)) id $ stLookup "export" i m
+expLookup i m = either (errorMessage (getSLoc i)) id $ stLookup "export" i m
 
 tyQIdent :: Entry -> Ident
 tyQIdent (Entry (EVar qi) _) = qi
@@ -221,7 +221,7 @@ eVarI :: SLoc -> String -> Expr
 eVarI loc = EVar . mkIdentSLoc loc
 
 expErr :: forall a . Ident -> a
-expErr i = errorMessage (getSLocIdent i) $ "export undefined " ++ showIdent i
+expErr i = errorMessage (getSLoc i) $ "export undefined " ++ showIdent i
 
 getAppCon :: EType -> Ident
 getAppCon (EVar i) = i
@@ -342,7 +342,7 @@ mergeInstInfo :: InstInfo -> InstInfo -> InstInfo
 mergeInstInfo (InstInfo m1 l1) (InstInfo m2 l2) =
   let
     m = foldr (uncurry $ M.insertWith mrg) m2 (M.toList m1)
-    mrg e1 _e2 = e1 -- XXX improve this if eqExpr e1 e2 then e1 else errorMessage (getSLocExpr e1) $ "Multiple instances: " ++ showSLoc (getSLocExpr e2)
+    mrg e1 _e2 = e1 -- XXX improve this if eqExpr e1 e2 then e1 else errorMessage (getSLoc e1) $ "Multiple instances: " ++ showSLoc (getSLoc e2)
     l = unionBy eqInstDict l1 l2
   in  InstInfo m l
 
@@ -671,7 +671,7 @@ expandSyn at =
           case M.lookup i syns of
             Nothing -> return $ foldl tApp t ts
             Just (EForall vks tt) ->
-              if length vks /= length ts then tcError (getSLocIdent i) $ "bad synonym use"
+              if length vks /= length ts then tcError (getSLoc i) $ "bad synonym use"
                                                                          --X ++ "\nXX " ++ show (i, vks, ts)
               else expandSyn $ subst (zip (map idKindIdent vks) ts) tt
             Just _ -> impossible
@@ -779,11 +779,11 @@ tLookup :: --XHasCallStack =>
 tLookup msg i = do
   env <- gets valueTable
   case stLookup msg i env of
-    Right (Entry e s) -> return (setSLocExpr (getSLocIdent i) e, s)
+    Right (Entry e s) -> return (setSLocExpr (getSLoc i) e, s)
     Left            e -> do
 --      let SymTab m _ = env
 --      traceM (showListS showIdent (map fst (M.toList m)))
-      tcError (getSLocIdent i) e
+      tcError (getSLoc i) e
 
 tLookupV :: --XHasCallStack =>
            Ident -> T (Expr, EType)
@@ -813,7 +813,7 @@ tDict :: (Expr, EType) -> T (Expr, EType)
 tDict (ae, at) | Just (ctx, t) <- getImplies at = do
   u <- newUniq
   let d = mkIdentSLoc loc ("dict$" ++ show u)
-      loc = getSLocExpr ae
+      loc = getSLoc ae
   --traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx ++ " " ++ showSLoc loc
   addConstraint d ctx
   tDict (EApp ae (EVar d), t)
@@ -1119,7 +1119,7 @@ clsToDict = do
   -- XXX for now, only allow contexts of the form (C t1 ... tn)
   let usup as (EVar c) | isConIdent c = return (tApps c as)
       usup as (EApp f a) = usup (a:as) f
-      usup _ t = tcError (getSLocExpr t) ("bad context " ++ showEType t)
+      usup _ t = tcError (getSLoc t) ("bad context " ++ showEType t)
   usup []
 -}
 
@@ -1134,7 +1134,7 @@ tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
 
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance vks ctx cc bs) = do
-  let loc = getSLocExpr cc
+  let loc = getSLoc cc
       qiCls = getAppCon cc
   iInst <- newIdent loc "inst"
   let sign = Sign iInst (eForall vks $ addConstraints ctx cc)
@@ -1299,7 +1299,7 @@ tCheckExpr :: --XHasCallStack =>
 tCheckExpr t e | Just (ctx, t') <- getImplies t = do
   _ <- undefined -- XXX
   u <- newUniq
-  let d = mkIdentSLoc (getSLocExpr e) ("adict$" ++ show u)
+  let d = mkIdentSLoc (getSLoc e) ("adict$" ++ show u)
   e' <- withDict d ctx $ tCheckExpr t' e
   return $ eLam [EVar d] e'
 tCheckExpr t e = tCheck tcExpr t e
@@ -1346,7 +1346,7 @@ tcExpr mt ae = do
 tcExprR :: --XHasCallStack =>
            Expected -> Expr -> T Expr
 tcExprR mt ae =
-  let { loc = getSLocExpr ae } in
+  let { loc = getSLoc ae } in
   case ae of
     EVar i -> do
       tcm <- gets tcMode
@@ -1376,7 +1376,7 @@ tcExprR mt ae =
           
         _ | isIdent "dict$" i -> do
           -- Magic variable that just becomes the dictionary
-          d <- newIdent (getSLocIdent i) "dict$"
+          d <- newIdent (getSLoc i) "dict$"
           case mt of
             Infer _ -> impossible
             Check t -> addConstraint d t
@@ -1496,7 +1496,7 @@ tcExprR mt ae =
       let x = eVarI loc "$x"
       tcExpr mt (eLam [x] (EApp (EApp (EVar i) x) e))
     EIf e1 e2 e3 -> do
-      e1' <- tCheckExpr (tBool (getSLocExpr e1)) e1
+      e1' <- tCheckExpr (tBool (getSLoc e1)) e1
       case mt of
         Check t -> do
           e2' <- checkSigma e2 t
@@ -1530,7 +1530,7 @@ tcExprR mt ae =
                   ea <- tCheckExpr (tApp (tList loc) v) a
                   tCheckPat v p $ \ ep -> doStmts (SBind ep ea : rss) ss
                 SThen a -> do
-                  ea <- tCheckExpr (tBool (getSLocExpr a)) a
+                  ea <- tCheckExpr (tBool (getSLoc a)) a
                   doStmts (SThen ea : rss) ss
                 SLet bs ->
                   tcBinds bs $ \ ebs ->
@@ -1602,7 +1602,7 @@ tcOper ae aies = do
     calc es oos@((oy, (ay, py)):os) iies@((oo@(ox, (ax, px)), e) : ies) =
 --      traceM (show ((unIdent (getIdent (fst o)), ay, py), (unIdent i, ax, px)))
       if px == py && (ax /= ay || ax == AssocNone) then
-        errorMessage (getSLocExpr ox) "ambiguous operator expression"
+        errorMessage (getSLoc ox) "ambiguous operator expression"
        else if px < py || ax == AssocLeft && px == py then
         doOp es oy os iies
        else
@@ -1639,7 +1639,7 @@ getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
 tcPats :: forall a . EType -> [EPat] -> (EType -> [EPat] -> T a) -> T a
 tcPats t [] ta = ta t []
 tcPats t (p:ps) ta = do
-  (tp, tr) <- unArrow (getSLocExpr p) t
+  (tp, tr) <- unArrow (getSLoc p) t
   tCheckPat tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt (pp : pps)
 
 tcExprLam :: Expected -> [Eqn] -> T Expr
@@ -1651,7 +1651,7 @@ tcEqns :: EType -> [Eqn] -> T [Eqn]
 --tcEqns t eqns | trace ("tcEqns: " ++ showEBind (BFcn dummyIdent eqns) ++ " :: " ++ showEType t) False = undefined
 tcEqns (EForall iks t) eqns = withExtTyps iks $ tcEqns t eqns
 tcEqns t eqns | Just (ctx, t') <- getImplies t = do
-  let loc = getSLocEqns eqns
+  let loc = getSLoc eqns
   d <- newIdent loc "adict"
   f <- newIdent loc "fcnD"
   withDict d ctx $ do
@@ -1662,7 +1662,7 @@ tcEqns t eqns | Just (ctx, t') <- getImplies t = do
             _             -> Eqn [EVar d] $ EAlts [([], EVar f)] [BFcn f eqns']
     return [eqn]
 tcEqns t eqns = do
-  let loc = getSLocEqns eqns
+  let loc = getSLoc eqns
   f <- newIdent loc "fcnS"
   (eqns', ds) <- solveLocalConstraints $ mapM (tcEqn t) eqns
   case ds of
@@ -1702,7 +1702,7 @@ tcGuard (SBind p e) ta = do
   (ee, tt) <- tInferExpr e
   tCheckPat tt p $ \ pp -> ta (SBind pp ee)
 tcGuard (SThen e) ta = do
-  ee <- tCheckExpr (tBool (getSLocExpr e)) e
+  ee <- tCheckExpr (tBool (getSLoc e)) e
   ta (SThen ee)
 tcGuard (SLet bs) ta = tcBinds bs $ \ bbs -> ta (SLet bbs)
 
@@ -1751,7 +1751,7 @@ multCheck :: [Ident] -> T ()
 multCheck vs =
   when (anySame vs) $ do
     let v = head vs
-    tcError (getSLocIdent v) $ "Multiply defined: " ++ showIdent v
+    tcError (getSLoc v) $ "Multiply defined: " ++ showIdent v
 
 checkArity :: Int -> EPat -> T ()
 checkArity n (EApp f a) = do
@@ -1760,9 +1760,9 @@ checkArity n (EApp f a) = do
 checkArity n (ECon c) =
   let a = conArity c
   in  if n < a then
-        tcError (getSLocCon c) "too few arguments"
+        tcError (getSLoc c) "too few arguments"
       else if n > a then
-        tcError (getSLocCon c) "too many arguments"
+        tcError (getSLoc c) "too many arguments"
       else
         return ()
 checkArity n (EAt _ p) = checkArity n p
@@ -1777,7 +1777,7 @@ checkArity n p =
          --Xerror (show p)
          impossible
   where
-    check0 = if n /= 0 then tcError (getSLocExpr p) "Bad pattern" else return ()
+    check0 = if n /= 0 then tcError (getSLoc p) "Bad pattern" else return ()
 
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = do
@@ -1820,8 +1820,8 @@ dsType at =
     EVar _ -> at
     EApp f a -> EApp (dsType f) (dsType a)
     EOper t ies -> EOper (dsType t) [(i, dsType e) | (i, e) <- ies]
-    EListish (LList [t]) -> tApp (tList (getSLocExpr at)) (dsType t)
-    ETuple ts -> tApps (tupleConstr (getSLocExpr at) (length ts)) (map dsType ts)
+    EListish (LList [t]) -> tApp (tList (getSLoc at)) (dsType t)
+    ETuple ts -> tApps (tupleConstr (getSLoc at) (length ts)) (map dsType ts)
     ESign t k -> ESign (dsType t) k
     EForall iks t -> EForall iks (dsType t)
     _ -> impossible
@@ -1908,7 +1908,7 @@ skolemise ty =
 newSkolemTyVar :: Ident -> T Ident
 newSkolemTyVar tv = do
   uniq <- newUniq
-  return (mkIdentSLoc (getSLocIdent tv) (unIdent tv ++ "#" ++ show uniq))
+  return (mkIdentSLoc (getSLoc tv) (unIdent tv ++ "#" ++ show uniq))
 
 freeTyVars :: [EType] -> [TyVar]
 -- Get the free TyVars from a type; no duplicates in result
@@ -1974,7 +1974,7 @@ checkSigma expr sigma = do
     esc_tvs <- getFreeTyVars (sigma : env_tys)
     let bad_tvs = filter (\ i -> elem i esc_tvs) skol_tvs
     when (not (null bad_tvs)) $
-      tcErrorTK (getSLocExpr expr) $ "not polymorphic enough: " ++ unwords (map showIdent bad_tvs)
+      tcErrorTK (getSLoc expr) $ "not polymorphic enough: " ++ unwords (map showIdent bad_tvs)
     return expr'
 
 subsCheckRho :: --XHasCallStack =>
@@ -2086,7 +2086,7 @@ solveConstraints = do
         solve [] uns sol = return (uns, sol)
         solve (cns@(di, ct) : cnss) uns sol = do
 --          traceM ("trying " ++ showEType ct)
-          let loc = getSLocIdent di
+          let loc = getSLoc di
               (iCls, cts) = getApp ct
           case getTupleConstr iCls of
             Just _ -> do
@@ -2196,7 +2196,7 @@ checkConstraints = do
       t' <- derefUVar t
       --is <- gets instTable
       --traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> showIdent i ++ ":\n" ++ showInstInfo ii) (M.toList is))
-      tcError (getSLocIdent i) $ "Cannot satisfy constraint: " ++ showExpr t'
+      tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ showExpr t'
 
 ---------------------
 

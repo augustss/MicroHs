@@ -23,16 +23,16 @@ module MicroHs.Expr(
   LHS,
   Constr(..), ConstrField,
   ConTyInfo,
-  Con(..), conIdent, conArity, getSLocCon,
+  Con(..), conIdent, conArity,
   tupleConstr, getTupleConstr,
   mkTupleSel,
   subst,
   allVarsExpr, allVarsBind, allVarsEqn,
-  getSLocExpr, setSLocExpr,
-  getSLocEqns,
+  setSLocExpr,
   errorMessage,
   Assoc(..), Fixity,
   getBindsVars,
+  HasLoc(..),
   ) where
 import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), (<>))
 import Data.Maybe
@@ -113,7 +113,7 @@ eEqns ps e = [Eqn ps (EAlts [([], e)] [])]
 data Con
   = ConData ConTyInfo Ident
   | ConNew Ident
-  | ConLit Lit
+  | ConLit SLoc Lit
   --Xderiving(Show)
 
 data Listish
@@ -134,12 +134,12 @@ conIdent _ = error "conIdent"
 conArity :: Con -> Int
 conArity (ConData cs i) = fromMaybe (error "conArity") $ lookup i cs
 conArity (ConNew _) = 1
-conArity (ConLit _) = 0
+conArity (ConLit _ _) = 0
 
 instance Eq Con where
   (==) (ConData _ i) (ConData _ j) = i == j
   (==) (ConNew    i) (ConNew    j) = i == j
-  (==) (ConLit    l) (ConLit    k) = l == k
+  (==) (ConLit _  l) (ConLit _  k) = l == k
   (==) _             _             = False
 
 data Lit
@@ -241,6 +241,79 @@ getTupleConstr i =
 mkTupleSel :: Int -> Int -> Expr
 mkTupleSel i n = eLam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [0 .. n - 1] ]] (EVar x)
   where x = mkIdent "$x"
+
+---------------------------------
+
+-- Get the location of a syntactic element
+class HasLoc a where
+  getSLoc :: a -> SLoc
+
+instance HasLoc Ident where
+  getSLoc (Ident l _) = l
+
+-- Approximate location; only identifiers and literals carry a location
+instance HasLoc Expr where
+  getSLoc (EVar i) = getSLoc i
+  getSLoc (EApp e _) = getSLoc e
+  getSLoc (EOper e _) = getSLoc e
+  getSLoc (ELam qs) = getSLoc qs
+  getSLoc (ELit l _) = l
+  getSLoc (ECase e _) = getSLoc e
+  getSLoc (ELet bs _) = getSLoc bs
+  getSLoc (ETuple es) = getSLoc es
+  getSLoc (EListish l) = getSLoc l
+  getSLoc (EDo (Just i) _) = getSLoc i
+  getSLoc (EDo _ ss) = getSLoc ss
+  getSLoc (ESectL e _) = getSLoc e
+  getSLoc (ESectR i _) = getSLoc i
+  getSLoc (EIf e _ _) = getSLoc e
+  getSLoc (ESign e _) = getSLoc e
+  getSLoc (EAt i _) = getSLoc i
+  getSLoc (EUVar _) = error "getSLoc EUVar"
+  getSLoc (ECon c) = getSLoc c
+  getSLoc (EForall [] e) = getSLoc e
+  getSLoc (EForall iks _) = getSLoc iks
+
+instance forall a . HasLoc a => HasLoc [a] where
+  getSLoc [] = error "getSLoc []"
+  getSLoc (a:_) = getSLoc a
+
+instance HasLoc IdKind where
+  getSLoc (IdKind i _) = getSLoc i
+
+instance HasLoc Con where
+  getSLoc (ConData _ i) = getSLoc i
+  getSLoc (ConNew i) = getSLoc i
+  getSLoc (ConLit l _) = l
+
+instance HasLoc Listish where
+  getSLoc (LList es) = getSLoc es
+  getSLoc (LCompr e _) = getSLoc e
+  getSLoc (LFrom e) = getSLoc e
+  getSLoc (LFromTo e _) = getSLoc e
+  getSLoc (LFromThen e _) = getSLoc e
+  getSLoc (LFromThenTo e _ _) = getSLoc e
+
+instance HasLoc EStmt where
+  getSLoc (SBind p _) = getSLoc p
+  getSLoc (SThen e) = getSLoc e
+  getSLoc (SLet bs) = getSLoc bs
+
+instance HasLoc EBind where
+  getSLoc (BFcn i _) = getSLoc i
+  getSLoc (BPat p _) = getSLoc p
+  getSLoc (BSign i _) = getSLoc i
+
+instance HasLoc Eqn where
+  getSLoc (Eqn [] a) = getSLoc a
+  getSLoc (Eqn (p:_) _) = getSLoc p
+
+instance HasLoc EAlts where
+  getSLoc (EAlts as _) = getSLoc as
+
+instance HasLoc EAlt where
+  getSLoc ([], e) = getSLoc e
+  getSLoc (ss, _) = getSLoc ss
 
 ---------------------------------
 
@@ -355,18 +428,6 @@ allVarsStmt astmt =
     SLet bs -> concatMap allVarsBind bs
 
 -----------------------------
-
--- XXX Should use locations in ELit
-getSLocExpr :: Expr -> SLoc
-getSLocExpr e = head $ filter (not . isNoSLoc) (map getSLocIdent (allVarsExpr e)) ++ [noSLoc]
-
-getSLocEqns :: [Eqn] -> SLoc
-getSLocEqns eqns = getSLocExpr $ ELet [BFcn dummyIdent eqns] (EVar dummyIdent)
-
-getSLocCon :: Con -> SLoc
-getSLocCon (ConData _ i) = getSLocIdent i
-getSLocCon (ConNew i) = getSLocIdent i
-getSLocCon _ = noSLoc
 
 setSLocExpr :: SLoc -> Expr -> Expr
 setSLocExpr l (EVar i) = EVar (setSLocIdent l i)
@@ -513,7 +574,7 @@ ppListish _ = text "<<Listish>>"
 ppCon :: Con -> Doc
 ppCon (ConData _ s) = ppIdent s
 ppCon (ConNew s) = ppIdent s
-ppCon (ConLit l) = text (showLit l)
+ppCon (ConLit _ l) = text (showLit l)
 
 -- Literals are tagged the way they appear in the combinator file:
 --  #   Int
