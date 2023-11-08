@@ -44,6 +44,10 @@
 * Implement defaulting
 * Removing [] from prim table
 * Implement withCString
+* Parser cannot handle
+    x :+ y == x' :+ y'
+    probably needs total merge of pattern&expression with validation in type checker
+
 
 Bugs
  * :reload doesn't show error message
