@@ -3,7 +3,13 @@ import Prelude
 
 infix 6 :+
 
-data Complex a = (:+) a a    -- XXX should be strict
+data Complex a = a :+ a    -- XXX should be strict
+
+instance forall a . Eq a => Eq (Complex a) where
+  (:+) x y == (:+) x' y'  =  x == x' && y == y'   -- parser bug
+
+instance forall a . Show a => Show (Complex a) where
+  show (x :+ y) = show x ++ " :+ " ++ show y
 
 realPart :: forall a . Complex a -> a
 realPart (x :+ _) =  x
