@@ -251,7 +251,7 @@ pBlock p = do
 
 pDef :: P EDef
 pDef =
-      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 (Constr <$> pUIdentSym <*> pFields) (pSymbol "|"))
+      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 pConstr (pSymbol "|"))
                                                         <|< pure [])
   <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr <$> pUIdentSym <*> pField))
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
@@ -278,6 +278,9 @@ pDef =
       pure fs
     pFunDeps = (pSpec '|' *> esome pFunDep) <|< pure []
     pFunDep = (,) <$> esome pLIdent <*> (pSymbol "->" *> esome pLIdent)
+    pConstr :: P Constr
+    pConstr = (Constr <$> pUIdentSym <*> pFields)
+          <|< ((\ t1 c t2 -> Constr c (Left [t1, t2])) <$> pAType <*> pUSymOper <*> pAType)
 
 pLHS :: P LHS
 pLHS = (,) <$> pTypeIdentSym <*> emany pIdKind
