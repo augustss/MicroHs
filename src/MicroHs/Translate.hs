@@ -104,6 +104,7 @@ primTable = [
   ("fle", primitive "fle"),
   ("fgt", primitive "fgt"),
   ("fge", primitive "fge"),
+  ("fneg", primitive "fneg"),
   ("fshow", primitive "fshow"),
   ("fread", primitive "fread"),
   ("itof", primitive "itof"),
