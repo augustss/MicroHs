@@ -76,14 +76,40 @@ x = [0]
 mhs: "../tmp/E.hs": line 6, col 8: bad synonym use
 
 =====
-module E(module M1) where
+module E(module M) where
 -----
-mhs: "../tmp/E.hs": line 2, col 17: export undefined M1
+mhs: "../tmp/E.hs": line 2, col 17: undefined module: M
 
 =====
-module E(M2) where
+module E(T) where
 -----
-mhs: "../tmp/E.hs": line 2, col 10: export undefined M2
+mhs: "../tmp/E.hs": line 2, col 10: undefined export: T
+
+=====
+module E(T(..)) where
+-----
+mhs: "../tmp/E.hs": line 2, col 10: undefined export: T
+
+=====
+module E(x) where
+-----
+mhs: "../tmp/E.hs": line 2, col 10: undefined export: x
+
+=====
+module E(lookupBy) where
+import Prelude
+import Data.Map
+-----
+mhs: "../tmp/E.hs": line 2, col 10: ambiguous export: lookupBy [Data.List.lookupBy,Data.Map.lookupBy]
+
+=====
+module E() where
+import Prelude
+import Data.Map
+a :: ()
+a = lookupBy
+-----
+mhs: "../tmp/E.hs": line 6, col 5: ambiguous value: lookupBy [Data.List.lookupBy,Data.Map.lookupBy]
 
 =====
 module E() where

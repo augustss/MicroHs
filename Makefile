@@ -135,7 +135,7 @@ bootcombtest:	$(BIN)/$(MHS) $(EVAL) $(COMB)$(MHS).comb
 ### Run test examples with ghc-compiled compiler
 ###
 runtest:	$(EVAL) $(BIN)/$(MHS) tests/*.hs
-	cd tests; make test
+	cd tests; make alltest
 
 ###
 ### Run test examples with MicroHs compiler

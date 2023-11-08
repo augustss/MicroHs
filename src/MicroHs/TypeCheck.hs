@@ -157,11 +157,12 @@ tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [SynDef] -> [ClsDef] -> [I
            TModule [EDef]
 tModule mn fs ts ss cs is vs ds =
 --  trace ("tmodule " ++ showIdent mn ++ ":\n" ++ show vs) $
-  seqL ts `seq` seqL vs `seq` TModule mn fs ts ss cs is vs ds
+  tseq ts `seq` vseq vs `seq` TModule mn fs ts ss cs is vs ds
   where
-    seqL :: forall a . [a] -> ()
-    seqL [] = ()
-    seqL (x:xs) = x `seq` seqL xs
+    tseq [] = ()
+    tseq (TypeExport _ e _:xs) = e `seq` tseq xs
+    vseq [] = ()
+    vseq (ValueExport _ e:xs) = e `seq` vseq xs
 
 filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
 filterImports it@(ImportSpec _ _ _ Nothing, _) = it
@@ -184,7 +185,7 @@ getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTab
 getTVExps impMap _ _ _ _ (ExpModule m) =
   case M.lookup m impMap of
     Just (TModule _ _ te _ ce _ ve _) -> (te, ce, ve)
-    _ -> expErr m
+    _ -> errorMessage (getSLoc m) $ "undefined module: " ++ showIdent m
 getTVExps _ tys vals ast cls (ExpTypeCon i) =
   let
     e = expLookup i tys
@@ -219,9 +220,6 @@ tyQIdent _ = error "tyQIdent"
 
 eVarI :: SLoc -> String -> Expr
 eVarI loc = EVar . mkIdentSLoc loc
-
-expErr :: forall a . Ident -> a
-expErr i = errorMessage (getSLoc i) $ "export undefined " ++ showIdent i
 
 getAppCon :: EType -> Ident
 getAppCon (EVar i) = i
