@@ -182,6 +182,12 @@ isPrefixOfBy eq (c:cs) (d:ds) = eq c d && isPrefixOfBy eq cs ds
 isPrefixOfBy _ [] _ = True
 isPrefixOfBy _ _  _ = False
 
+isSuffixOf :: forall a . Eq a => [a] -> [a] -> Bool
+isSuffixOf = isSuffixOfBy (==)
+
+isSuffixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
+isSuffixOfBy eq n h = isPrefixOfBy eq (reverse n) (reverse h)
+
 splitAt :: forall a . Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
 

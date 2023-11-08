@@ -23,8 +23,8 @@ main = do
   file <- hGetContents stdin
   let size = length file
       chunks = chunkify 20 file
-  putStrLn $ "struct { BFILE mets; size_t b_size; size_t b_pos; uint8_t b_buffer[]; } combs =\n { { getb_buf, ungetb_buf, closeb_buf }, "
-             ++ show size ++ ", 0, {"
+  putStrLn $ "uint8_t combexprdata[] = {"
   mapM_ (putStrLn . showChunk) chunks
-  putStrLn "}};"
-  putStrLn "BFILE *comb_internal = (BFILE*)&combs;"
+  putStrLn "0 };"
+  putStrLn "uint8_t *combexpr = combexprdata;"
+  putStrLn $ "int combexprlen = " ++ show size ++ ";"

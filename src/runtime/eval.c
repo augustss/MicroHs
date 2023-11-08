@@ -296,7 +296,7 @@ struct BFILE_buffer {
   BFILE    mets;
   size_t   b_size;
   size_t   b_pos;
-  uint8_t  b_buffer[1];
+  uint8_t  *b_buffer;
 };
 
 int
@@ -1353,7 +1353,7 @@ printrec(FILE *f, NODEPTR n)
     fputc(')', f);
     break;
   case T_INT: fprintf(f, "#%"PRIvalue, GETVALUE(n)); break;
-  case T_DBL: fprintf(f, "%%%f", GETDBLVALUE(n)); break;
+  case T_DBL: fprintf(f, "&%.16g", GETDBLVALUE(n)); break;
   case T_STR:
     {
       const char *p = STR(n);
@@ -2301,7 +2301,8 @@ memsize(const char *p)
   return n;
 }
 
-BFILE *comb_internal;
+uint8_t *combexpr;                 /* Alternate version of internal data */
+int combexprlen;
 
 int
 main(int argc, char **argv)
@@ -2356,9 +2357,10 @@ main(int argc, char **argv)
   if (!stack)
     memerr();
 
-  if (comb_internal) {
+  if (combexpr) {
     int c;
-    BFILE *bf = comb_internal;
+    struct BFILE_buffer ibf = { { getb_buf, ungetb_buf, closeb_buf }, combexprlen, 0, combexpr };
+    BFILE *bf = (BFILE*)&ibf;
     c = bf->getb(bf);
     /* Compressed combinators start with a 'Z', otherwise 'v' (for version) */
     if (c == 'Z') {

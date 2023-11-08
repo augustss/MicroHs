@@ -13,6 +13,7 @@ import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.Translate
 import MicroHs.Interactive
+import MicroHs.MakeCArray
 --Ximport Compat
 
 main :: IO ()
@@ -65,7 +66,10 @@ mainCompile flags mn = do
     prg
 --    putStrLn "done"
    else do
-    writeFile (output flags) $ version ++ show numDefs ++ "\n" ++ res
+    let outFile = output flags
+        outData = version ++ show numDefs ++ "\n" ++ res
+        outData' = if ".c" `isSuffixOf` outFile then makeCArray outData else outData
+    writeFile outFile outData'
     t2 <- getTimeMilli
     when (verbose flags > 0) $
       putStrLn $ "final pass            " ++ padLeft 6 (show (t2-t1)) ++ "ms"
