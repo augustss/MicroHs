@@ -50,6 +50,5 @@
 
 
 Bugs
- * :reload doesn't show error message
  * default methods not exported
  * errtest broken

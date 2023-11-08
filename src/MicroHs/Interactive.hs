@@ -92,9 +92,10 @@ commands =
 reload :: I ()
 reload = do
   (ls, _, _) <- get
-  _ <- tryCompile ls   -- reload modules right away
-  return ()
-
+  rld <- tryCompile ls   -- reload modules right away
+  case rld of
+    Left msg -> liftIO $ err msg
+    Right _  -> return ()
 
 helpText :: String
 helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n  :clear     clear all definitions\n  :delete d  delete definition(s) d\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
