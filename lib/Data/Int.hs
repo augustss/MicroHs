@@ -47,6 +47,7 @@ instance Eq Int where
   (/=) = primIntNE
 
 instance Ord Int where
+  compare = primCompare
   (<)  = primIntLT
   (<=) = primIntLE
   (>)  = primIntGT

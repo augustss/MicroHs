@@ -22,6 +22,7 @@ instance Eq Char where
   (/=) = primCharNE
 
 instance Ord Char where
+  compare = primCompare
   (<)  = primCharLT
   (<=) = primCharLE
   (>)  = primCharGT
@@ -35,7 +36,7 @@ instance Ord String where
   x <  y  =  primCompare x y == LT
   x <= y  =  primCompare x y /= GT
   x >  y  =  primCompare x y == GT
-  x >=  y =  primCompare x y /= GT
+  x >= y  =  primCompare x y /= LT
 
 -- ASCII only for now
 instance Bounded Char where

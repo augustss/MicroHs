@@ -151,7 +151,8 @@ primSeq    = primitive "seq"
 --primEqual  :: forall a . a -> a -> Bool
 --primEqual  = primitive "equal"
 
-primCompare :: [Char] -> [Char] -> Ordering
+-- Works for Int, Char, String
+primCompare :: forall a . a -> a -> Ordering
 primCompare  = primitive "compare"
 
 primStringEQ  :: [Char] -> [Char] -> Bool
