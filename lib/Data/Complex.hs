@@ -89,8 +89,8 @@ instance forall a . (RealFloat a) => Floating (Complex a) where
         inf = 1/0
         nan = 0/0
 -}
---XXX    sqrt (0:+0)    =  0
-    sqrt z@(x:+y)  =  u :+ (if y < 0 then negate v else v)
+    sqrt z@(x:+y) | x==0 && y==0 = 0
+                  | otherwise    =  u :+ (if y < 0 then negate v else v)
                       where (u,v) = if x < 0 then (v',u') else (u',v')
                             v'    = abs y / (u'*2)
                             u'    = sqrt ((magnitude z + abs x) / 2)
