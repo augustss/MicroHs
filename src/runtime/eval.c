@@ -136,7 +136,7 @@ getraw()
 
 /***************************************/
 
-#define VERSION "v4.1\n"
+#define VERSION "v4.2\n"
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -147,7 +147,7 @@ getraw()
 
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_HDL, T_S, T_K, T_I, T_B, T_C,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_HDL, T_PTR, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
@@ -162,6 +162,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_HDL, T_S, T_K, T_I, T_B, T_
                 T_IO_PERFORMIO,
                 T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
                 T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH, T_DYNSYM,
+                T_NEWCASTRING, T_FREEPTR,
                 T_STR,
                 T_LAST_TAG,
 };
@@ -217,6 +218,7 @@ typedef struct node {
     double uudoublevalue;
     FILE *uufile;
     const char *uustring;
+    void *uuptr;
   } uarg;
 } node;
 typedef struct node* NODEPTR;
@@ -231,6 +233,7 @@ typedef struct node* NODEPTR;
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
 #define STR(p) (p)->uarg.uustring
+#define PTR(p) (p)->uarg.uuptr
 #define INDIR(p) ARG(p)
 #define HANDLE(p) (p)->uarg.uufile
 #define NODE_SIZE sizeof(node)
@@ -714,6 +717,8 @@ struct {
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.catch", T_IO_CATCH },
   { "dynsym", T_DYNSYM },
+  { "free", T_FREEPTR },
+  { "newCAString", T_NEWCASTRING },
 };
 
 void
@@ -954,12 +959,14 @@ gc_check(size_t k)
  *   IIV  void name(int, int)
  *   III  int  name(int, int)
  *   DD   double name(double)
+ *   PI   int  name(void*)
+ *   PPI  int  name(void*, void*)
  * more can easily be added.
  */
 struct {
   const char *ffi_name;
   const funptr_t ffi_fun;
-  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD } ffi_how;
+  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI, FFI_PPI } ffi_how;
 } ffi_table[] = {
   { "llabs", (funptr_t)llabs, FFI_II },
   { "log",   (funptr_t)log,   FFI_DD },
@@ -971,6 +978,7 @@ struct {
   { "asin",  (funptr_t)asin,  FFI_DD },
   { "acos",  (funptr_t)acos,  FFI_DD },
   { "atan",  (funptr_t)atan,  FFI_DD },
+  { "puts",  (funptr_t)puts,  FFI_PI },
 };
 
 /* Look up an FFI function by name */
@@ -1463,6 +1471,8 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_CCALL: fprintf(f, "^%s", ffi_table[GETVALUE(n)].ffi_name); break;
   case T_IO_CATCH: fprintf(f, "IO.catch"); break;
   case T_DYNSYM: fprintf(f, "dynsym"); break;
+  case T_NEWCASTRING: fprintf(f, "newCAString"); break;
+  case T_FREEPTR: fprintf(f, "free"); break;
   default: ERR("print tag");
   }
 }
@@ -1592,7 +1602,7 @@ evalint(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_INT) {
-    fprintf(stderr, "bad tag %d\n", GETTAG(n));
+    fprintf(stderr, "bad int tag %d\n", GETTAG(n));
     ERR("evalint");
   }
 #endif
@@ -1606,7 +1616,7 @@ evaldbl(NODEPTR n)
   n = evali(n);
   #if SANITY
   if (GETTAG(n) != T_DBL) {
-    fprintf(stderr, "bad tag %d\n", GETTAG(n));
+    fprintf(stderr, "bad double tag %d\n", GETTAG(n));
     ERR("evaldbl");
   }
   #endif
@@ -1620,11 +1630,25 @@ evalhandleN(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_HDL) {
-    fprintf(stderr, "bad tag %d\n", GETTAG(n));
+    fprintf(stderr, "bad handle tag %d\n", GETTAG(n));
     ERR("evalhandle");
   }
 #endif
   return HANDLE(n);
+}
+
+/* Evaluate to a T_PTR */
+void *
+evalptr(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_PTR) {
+    fprintf(stderr, "bad ptr tag %d\n", GETTAG(n));
+    ERR("evalhandle");
+  }
+#endif
+  return PTR(n);
 }
 
 /* Evaluate to a T_HDL, and check for closed */
@@ -1836,6 +1860,7 @@ eval(NODEPTR n)
     case T_INT:  RET;
     case T_DBL:  RET;
     case T_HDL:  RET;
+    case T_PTR:  RET;
 
     case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
     case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
@@ -2018,6 +2043,8 @@ eval(NODEPTR n)
     case T_IO_GETTIMEMILLI:
     case T_IO_CCALL:
     case T_IO_CATCH:
+    case T_FREEPTR:
+    case T_NEWCASTRING:
       RET;
 
     case T_DYNSYM:
@@ -2233,7 +2260,9 @@ evalio(NODEPTR n)
         funptr_t f = ffi_table[a].ffi_fun;
         value_t r, x, y;
         double rd, xd;
+        void *xp, *yp;
 #define INTARG(n) evalint(ARG(TOP(n)))
+#define PTRARG(n) evalptr(ARG(TOP(n)))
 #define DBLARG(n) evaldbl(ARG(TOP(n)))
 #define FFIV(n) CHECKIO(n)
 #define FFI(n) CHECKIO(n); GCCHECK(1)
@@ -2246,6 +2275,8 @@ evalio(NODEPTR n)
         case FFI_IIV: FFIV(2); x = INTARG(1); y = INTARG(2);     (*(void    (*)(value_t, value_t))f)(x,y);               RETIO(combUnit);
         case FFI_III: FFI (2); x = INTARG(1); y = INTARG(2); r = (*(value_t (*)(value_t, value_t))f)(x,y); n = mkInt(r); RETIO(n);
         case FFI_DD:  FFI (1); xd = DBLARG(1);               rd= (*(double  (*)(double          ))f)(xd);  n = mkDouble(rd); RETIO(n);
+        case FFI_PI:  FFI (1); xp = PTRARG(1);               r = (*(value_t (*)(void*           ))f)(xp);  n = mkInt(r); RETIO(n);
+        case FFI_PPI: FFI (2); xp = PTRARG(1);yp = PTRARG(2);r = (*(value_t (*)(void*, void*    ))f)(xp,yp); n = mkInt(r); RETIO(n);
         default: ERR("T_IO_CCALL");
         }
       }
@@ -2278,6 +2309,20 @@ evalio(NODEPTR n)
           RETIO(n);             /* return result */
         }
       }
+
+    case T_FREEPTR:
+      CHECKIO(1);
+      hdl = evalptr(ARG(TOP(1)));
+      free(hdl);
+      RETIO(combUnit);
+
+    case T_NEWCASTRING:
+      CHECKIO(1);
+      name = evalstring(ARG(TOP(1)));
+      GCCHECK(1);
+      n = alloc_node(T_PTR);
+      PTR(n) = name;
+      RETIO(n);
 
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));

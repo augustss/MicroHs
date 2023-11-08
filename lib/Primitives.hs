@@ -16,6 +16,7 @@ data Int
 data Double
 data IO a
 data Word
+data Ptr a
 
 -- Type equality as a constraint.
 class a ~ b {-x | a -> b, b -> a-}
@@ -216,3 +217,9 @@ primCatch         = primitive "IO.catch"
 
 primRnf          :: forall a . a -> ()
 primRnf           = primitive "rnf"
+
+primNewCAString :: [Char] -> IO (Ptr Char)
+primNewCAString = primitive "newCAString"
+
+primFree :: forall a . Ptr a -> IO ()
+primFree = primitive "free"

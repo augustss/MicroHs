@@ -136,5 +136,7 @@ primTable = [
   ("IO.performIO", primitive "IO.performIO"),
   ("IO.getTimeMilli", primitive "IO.getTimeMilli"),
   ("IO.catch", primitive "IO.catch"),
-  ("dynsym", primitive "dynsym")
+  ("dynsym", primitive "dynsym"),
+  ("newCAString", primitive "newCAString"),
+  ("free", primitive "free")
   ]
