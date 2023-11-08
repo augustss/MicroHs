@@ -58,7 +58,6 @@ instance Show Int where
   show = showInt_
 
 -- XXX these should not be exported
--- XXX wrong for minInt
 showInt_ :: Int -> String
 showInt_ n =
   if n < 0 then

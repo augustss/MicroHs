@@ -976,7 +976,7 @@ addTypeKind adef = do
     Type    lhs t         -> addLHSKind lhs (getTypeKind t)
     Class _ lhs@(i, _) _ ms -> do
       addLHSKind lhs kConstraint
-      addAssoc i [ m | BSign m _ <- ms ]
+      addAssoc i [ x | BSign m _ <- ms, x <- [m, mkDefaultMethodId m] ]
     _ -> return ()
 
 getTypeKind :: EType -> EKind

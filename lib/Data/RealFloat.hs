@@ -1,6 +1,5 @@
 module Data.RealFloat(
-  --RealFloat(..),  BUG
-  module Data.RealFloat,
+  RealFloat(..),
   ) where
 import Primitives
 import Data.Bool

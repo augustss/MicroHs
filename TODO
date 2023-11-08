@@ -47,7 +47,8 @@
 * Parser cannot handle
     x :+ y == x' :+ y'
     probably needs total merge of pattern&expression with validation in type checker
+* Parse pre4fix negation
 
 
 Bugs
- * default methods not exported
+
