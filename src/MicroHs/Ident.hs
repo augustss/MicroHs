@@ -28,10 +28,10 @@ type Line = Int
 type Col  = Int
 type Loc  = (Line, Col)
 
-data SLoc = SLoc FilePath Line Col
+data SLoc = SLoc !FilePath !Line !Col
   --Xderiving (Show, Eq)
 
-data Ident = Ident SLoc String
+data Ident = Ident !SLoc String
   --deriving (Show)
 --Winstance NFData Ident where rnf (Ident _ s) = rnf s
 
