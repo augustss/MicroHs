@@ -978,7 +978,7 @@ struct {
   { "asin",  (funptr_t)asin,  FFI_DD },
   { "acos",  (funptr_t)acos,  FFI_DD },
   { "atan",  (funptr_t)atan,  FFI_DD },
-  { "puts",  (funptr_t)puts,  FFI_PI },
+  { "system",(funptr_t)system,FFI_PI },
 };
 
 /* Look up an FFI function by name */
