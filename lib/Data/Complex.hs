@@ -3,7 +3,7 @@ import Prelude
 
 infix 6 :+
 
-data Complex a = a :+ a    -- XXX should be strict
+data Complex a = !a :+ !a
 
 instance forall a . Eq a => Eq (Complex a) where
   (:+) x y == (:+) x' y'  =  x == x' && y == y'   -- parser bug

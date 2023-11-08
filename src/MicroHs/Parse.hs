@@ -270,8 +270,8 @@ pDef =
     pContext = (pCtx <* pSymbol "=>") <|< pure []
     pCtx = pParens (emany pType) <|< ((:[]) <$> pTypeApp)
 
-    pFields = Left  <$> emany pAType <|<
-              Right <$> (pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "::") <*> pType) (pSpec ',') <* pSpec '}')
+    pFields = Left  <$> emany pSAType <|<
+              Right <$> (pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "::") <*> pSType) (pSpec ',') <* pSpec '}')
     pField = do
       fs <- pFields
       guard $ either length length fs == 1
@@ -280,7 +280,10 @@ pDef =
     pFunDep = (,) <$> esome pLIdent <*> (pSymbol "->" *> esome pLIdent)
     pConstr :: P Constr
     pConstr = (Constr <$> pUIdentSym <*> pFields)
-          <|< ((\ t1 c t2 -> Constr c (Left [t1, t2])) <$> pAType <*> pUSymOper <*> pAType)
+          <|< ((\ t1 c t2 -> Constr c (Left [t1, t2])) <$> pSAType <*> pUSymOper <*> pSAType)
+    pSAType = (,) <$> pStrict <*> pAType
+    pSType  = (,) <$> pStrict <*> pType
+    pStrict = (True <$ pSymbol "!") <|< pure False
 
 pLHS :: P LHS
 pLHS = (,) <$> pTypeIdentSym <*> emany pIdKind

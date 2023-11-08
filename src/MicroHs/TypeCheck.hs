@@ -1031,8 +1031,8 @@ withVars aiks ta =
 
 tcConstr :: Constr -> T Constr
 tcConstr (Constr c ets) =
-  Constr c <$> either (\ x -> Left  <$> mapM (\ t     ->          tcTypeT (Check kType) t) x)
-                      (\ x -> Right <$> mapM (\ (i,t) -> (i,) <$> tcTypeT (Check kType) t) x) ets
+  Constr c <$> either (\ x -> Left  <$> mapM (\ (s,t)     ->         (s,)  <$> tcTypeT (Check kType) t) x)
+                      (\ x -> Right <$> mapM (\ (i,(s,t)) -> ((i,) . (s,)) <$> tcTypeT (Check kType) t) x) ets
 
 
 -- Expand a class defintion to
@@ -1178,11 +1178,11 @@ addValueType adef = do
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
         addCon (Constr c ets) = do
           let ts = either id (map snd) ets
-          extValETop c (EForall vks $ foldr tArrow tret ts) (ECon $ ConData cti (qualIdent mn c))
+          extValETop c (EForall vks $ foldr (tArrow . snd) tret ts) (ECon $ ConData cti (qualIdent mn c))
       mapM_ addCon cs
     Newtype (i, vks) (Constr c fs) -> do
       let
-        t = head $ either id (map snd) fs
+        t = snd $ head $ either id (map snd) fs
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
       extValETop c (EForall vks $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
     ForImp _ i t -> extValQTop i t

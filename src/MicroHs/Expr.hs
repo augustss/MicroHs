@@ -21,7 +21,7 @@ module MicroHs.Expr(
   EKind, kType, kConstraint,
   IdKind(..), idKindIdent,
   LHS,
-  Constr(..), ConstrField,
+  Constr(..), ConstrField, SType,
   ConTyInfo,
   Con(..), conIdent, conArity,
   tupleConstr, getTupleConstr,
@@ -201,10 +201,11 @@ patVars = filter isVar . allVarsExpr
 
 type LHS = (Ident, [IdKind])
 
-data Constr = Constr Ident (Either [EType] [ConstrField])
+data Constr = Constr Ident (Either [SType] [ConstrField])
   --Xderiving(Show)
 
-type ConstrField = (Ident, EType)              -- record label and type
+type ConstrField = (Ident, SType)              -- record label and type
+type SType = (Bool, EType)                     -- the Bool indicates strict
 
 -- Expr restricted to
 --  * after desugaring: EApp and EVar
@@ -504,9 +505,13 @@ ppEqns :: Doc -> Doc -> [Eqn] -> Doc
 ppEqns name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map ppEPat ps), ppAlts sepr alts])
 
 ppConstr :: Constr -> Doc
-ppConstr (Constr c (Left  ts)) = hsep (ppIdent c : map ppEType ts)
+ppConstr (Constr c (Left  ts)) = hsep (ppIdent c : map ppSType ts)
 ppConstr (Constr c (Right fs)) = ppIdent c <> braces (hsep $ map f fs)
-  where f (i, t) = ppIdent i <+> text "::" <+> ppEType t <> text ","
+  where f (i, t) = ppIdent i <+> text "::" <+> ppSType t <> text ","
+
+ppSType :: SType -> Doc
+ppSType (False, t) = ppEType t
+ppSType (True, t) = text "!" <> ppEType t
 
 ppLHS :: LHS -> Doc
 ppLHS (f, vs) = hsep (ppIdent f : map ppIdKind vs)
