@@ -42,9 +42,10 @@
 * instance Bits ...
 * Split eval.c
 * Implement defaulting
+* Removing [] from prim table
+* Implement withCString
 
 Bugs
- * Removing [] from prim table
  * :reload doesn't show error message
  * default methods not exported
  * errtest broken
