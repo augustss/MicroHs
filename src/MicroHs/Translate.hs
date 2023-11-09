@@ -138,5 +138,8 @@ primTable = [
   ("IO.catch", primitive "IO.catch"),
   ("dynsym", primitive "dynsym"),
   ("newCAString", primitive "newCAString"),
-  ("free", primitive "free")
+  ("peekCAString", primitive "peekCAString"),
+  ("free", primitive "free"),
+  ("ptrToWord", primitive "ptrToWord"),
+  ("wordToPtr", primitive "wordToPtr")
   ]

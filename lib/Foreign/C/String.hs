@@ -1,6 +1,7 @@
 module Foreign.C.String(
   CChar, CString,
   newCAString, withCAString,
+  peekCAString,
   ) where
 import Primitives
 import Prelude
@@ -19,3 +20,6 @@ withCAString s io = do
   a  <- io cs
   primFree cs
   return a
+
+peekCAString :: CString -> IO String
+peekCAString = primPeekCAString

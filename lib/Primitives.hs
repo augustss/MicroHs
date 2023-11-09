@@ -223,3 +223,12 @@ primNewCAString = primitive "newCAString"
 
 primFree :: forall a . Ptr a -> IO ()
 primFree = primitive "free"
+
+primPeekCAString :: Ptr Char -> IO [Char]
+primPeekCAString = primitive "peekCAString"
+
+primWordToPtr :: forall a . Word -> Ptr a
+primWordToPtr = primitive "wordToPtr"
+
+primPtrToWord :: forall a . Ptr a -> Word
+primPtrToWord = primitive "ptrToWord"

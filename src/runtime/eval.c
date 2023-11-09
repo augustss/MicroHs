@@ -162,7 +162,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_HDL, T_PTR, T_S, T_K, T_I, 
                 T_IO_PERFORMIO,
                 T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
                 T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH, T_DYNSYM,
-                T_NEWCASTRING, T_FREEPTR,
+                T_NEWCASTRING, T_FREEPTR, T_PEEKCASTRING,
+                T_WORDTOPTR, T_PTRTOWORD,
                 T_STR,
                 T_LAST_TAG,
 };
@@ -719,6 +720,9 @@ struct {
   { "dynsym", T_DYNSYM },
   { "free", T_FREEPTR },
   { "newCAString", T_NEWCASTRING },
+  { "peekCAString", T_PEEKCASTRING },
+  { "wordToPtr", T_WORDTOPTR },
+  { "ptrToWord", T_PTRTOWORD },
 };
 
 void
@@ -952,21 +956,22 @@ gc_check(size_t k)
  * (For a more flexible solution use dlopen()/dlsym()/dlclose())
  * The table contains the information needed to do the actual call.
  * The types are
- *   V    void name(void)
- *   I    int  name(void)
- *   IV   void name(int)
- *   II   int  name(int)
- *   IIV  void name(int, int)
- *   III  int  name(int, int)
+ *   V    void   name(void)
+ *   I    int    name(void)
+ *   IV   void   name(int)
+ *   II   int    name(int)
+ *   IIV  void   name(int, int)
+ *   III  int    name(int, int)
  *   DD   double name(double)
- *   PI   int  name(void*)
- *   PPI  int  name(void*, void*)
+ *   PI   int    name(void*)
+ *   PP   void*  name(void*)
+ *   PPI  int    name(void*, void*)
  * more can easily be added.
  */
 struct {
   const char *ffi_name;
   const funptr_t ffi_fun;
-  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI, FFI_PPI } ffi_how;
+  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI, FFI_PPI, FFI_PP } ffi_how;
 } ffi_table[] = {
   { "llabs", (funptr_t)llabs, FFI_II },
   { "log",   (funptr_t)log,   FFI_DD },
@@ -979,6 +984,7 @@ struct {
   { "acos",  (funptr_t)acos,  FFI_DD },
   { "atan",  (funptr_t)atan,  FFI_DD },
   { "system",(funptr_t)system,FFI_PI },
+  { "getenv",(funptr_t)getenv,FFI_PP },
 };
 
 /* Look up an FFI function by name */
@@ -1062,7 +1068,8 @@ mkStrNode(const char *str)
 }
 
 NODEPTR mkInt(value_t i);
-NODEPTR mkDouble(double d);
+NODEPTR mkDbl(double d);
+NODEPTR mkPtr(void* p);
 
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
@@ -1116,7 +1123,7 @@ parse(BFILE *f)
     return r;
   case '&':
     d = parse_double(f);
-    r = mkDouble(d);
+    r = mkDbl(d);
     return r;
   case '#':
     i = parse_int(f);
@@ -1472,7 +1479,10 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_CATCH: fprintf(f, "IO.catch"); break;
   case T_DYNSYM: fprintf(f, "dynsym"); break;
   case T_NEWCASTRING: fprintf(f, "newCAString"); break;
+  case T_PEEKCASTRING: fprintf(f, "peekCAString"); break;
   case T_FREEPTR: fprintf(f, "free"); break;
+  case T_PTRTOWORD: fprintf(f, "ptrToWord"); break;
+  case T_WORDTOPTR: fprintf(f, "wordToPtr"); break;
   default: ERR("print tag");
   }
 }
@@ -1520,11 +1530,20 @@ mkInt(value_t i)
 }
 
 NODEPTR
-mkDouble(double d)
+mkDbl(double d)
 {
   NODEPTR n;
   n = alloc_node(T_DBL);
   SETDBLVALUE(n, d);
+  return n;
+}
+
+NODEPTR
+mkPtr(void* p)
+{
+  NODEPTR n;
+  n = alloc_node(T_PTR);
+  PTR(n) = p;
   return n;
 }
 
@@ -1916,7 +1935,7 @@ eval(NODEPTR n)
       POP(1);
       n = TOP(-1);
       
-      GOIND(mkDouble(xd));
+      GOIND(mkDbl(xd));
 
     case T_FSHOW:
       // check that the double exists
@@ -1935,6 +1954,7 @@ eval(NODEPTR n)
       }
 
       // turn it into a mhs string
+      GCCHECK(strNodes(strlen(str)));
       NODEPTR s = mkStringC(str);
 
       // remove the double from the stack
@@ -1962,6 +1982,25 @@ eval(NODEPTR n)
       n = TOP(-1);
       GOIND(y);
 
+    case T_PTRTOWORD:
+      CHECK(1);
+      x = evali(ARG(TOP(0)));
+      GCCHECK(1);
+      y = alloc_node(T_INT);
+      SETVALUE(y, GETVALUE(x));
+      POP(1);
+      n = TOP(-1);
+      GOIND(y);
+    case T_WORDTOPTR:
+      CHECK(1);
+      x = evali(ARG(TOP(0)));
+      GCCHECK(1);
+      y = alloc_node(T_PTR);
+      SETVALUE(y, GETVALUE(x));
+      POP(1);
+      n = TOP(-1);
+      GOIND(y);
+
     case T_EQ:   CMP(==);
     case T_NE:   CMP(!=);
     case T_LT:   CMP(<);
@@ -1983,6 +2022,7 @@ eval(NODEPTR n)
       char *res = malloc(sz);
       snprintf(res, sz, "no match at %s, line %"PRIvalue", col %"PRIvalue, msg, xi, yi);
       POP(2);
+      GCCHECK(strNodes(strlen(res)));
       ARG(TOP(0)) = mkStringC(res);
       free(res);
       free(msg);
@@ -1995,6 +2035,7 @@ eval(NODEPTR n)
       int sz = strlen(msg) + 100;
       char *res = malloc(sz);
       snprintf(res, sz, "no default for %s", msg);
+      GCCHECK(strNodes(strlen(res)));
       ARG(TOP(0)) = mkStringC(res);
       free(res);
       free(msg);
@@ -2045,6 +2086,7 @@ eval(NODEPTR n)
     case T_IO_CATCH:
     case T_FREEPTR:
     case T_NEWCASTRING:
+    case T_PEEKCASTRING:
       RET;
 
     case T_DYNSYM:
@@ -2258,25 +2300,26 @@ evalio(NODEPTR n)
       {
         int a = (int)GETVALUE(n);
         funptr_t f = ffi_table[a].ffi_fun;
-        value_t r, x, y;
+        value_t ri, xi, yi;
         double rd, xd;
-        void *xp, *yp;
+        void *xp, *yp, *rp;
 #define INTARG(n) evalint(ARG(TOP(n)))
 #define PTRARG(n) evalptr(ARG(TOP(n)))
 #define DBLARG(n) evaldbl(ARG(TOP(n)))
 #define FFIV(n) CHECKIO(n)
-#define FFI(n) CHECKIO(n); GCCHECK(1)
+#define FFI(n)  CHECKIO(n); GCCHECK(1)
         /* This isn't great, but this is MicroHs, so it's good enough. */
         switch (ffi_table[a].ffi_how) {
-        case FFI_V:   FFIV(0);                                   (*                               f)();                  RETIO(combUnit);
-        case FFI_I:   FFI (0);                               r = (*(value_t (*)(void            ))f)();    n = mkInt(r); RETIO(n);
-        case FFI_IV:  FFIV(1); x = INTARG(1);                    (*(void    (*)(value_t         ))f)(x);                 RETIO(combUnit);
-        case FFI_II:  FFI (1); x = INTARG(1);                r = (*(value_t (*)(value_t         ))f)(x);   n = mkInt(r); RETIO(n);
-        case FFI_IIV: FFIV(2); x = INTARG(1); y = INTARG(2);     (*(void    (*)(value_t, value_t))f)(x,y);               RETIO(combUnit);
-        case FFI_III: FFI (2); x = INTARG(1); y = INTARG(2); r = (*(value_t (*)(value_t, value_t))f)(x,y); n = mkInt(r); RETIO(n);
-        case FFI_DD:  FFI (1); xd = DBLARG(1);               rd= (*(double  (*)(double          ))f)(xd);  n = mkDouble(rd); RETIO(n);
-        case FFI_PI:  FFI (1); xp = PTRARG(1);               r = (*(value_t (*)(void*           ))f)(xp);  n = mkInt(r); RETIO(n);
-        case FFI_PPI: FFI (2); xp = PTRARG(1);yp = PTRARG(2);r = (*(value_t (*)(void*, void*    ))f)(xp,yp); n = mkInt(r); RETIO(n);
+        case FFI_V:   FFIV(0);                                      (*                               f)();                     RETIO(combUnit);
+        case FFI_I:   FFI (0);                                 ri = (*(value_t (*)(void            ))f)();      n = mkInt(ri); RETIO(n);
+        case FFI_IV:  FFIV(1); xi = INTARG(1);                      (*(void    (*)(value_t         ))f)(xi);                   RETIO(combUnit);
+        case FFI_II:  FFI (1); xi = INTARG(1);                 ri = (*(value_t (*)(value_t         ))f)(xi);    n = mkInt(ri); RETIO(n);
+        case FFI_IIV: FFIV(2); xi = INTARG(1); yi = INTARG(2);      (*(void    (*)(value_t, value_t))f)(xi,yi);                RETIO(combUnit);
+        case FFI_III: FFI (2); xi = INTARG(1); yi = INTARG(2); ri = (*(value_t (*)(value_t, value_t))f)(xi,yi); n = mkInt(ri); RETIO(n);
+        case FFI_DD:  FFI (1); xd = DBLARG(1);                 rd = (*(double  (*)(double          ))f)(xd);    n = mkDbl(rd); RETIO(n);
+        case FFI_PI:  FFI (1); xp = PTRARG(1);                 ri = (*(value_t (*)(void*           ))f)(xp);    n = mkInt(ri); RETIO(n);
+        case FFI_PP:  FFI (1); xp = PTRARG(1);                 rp = (*(void*   (*)(void*           ))f)(xp);    n = mkPtr(rp); RETIO(n);
+        case FFI_PPI: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(void*, void*    ))f)(xp,yp); n = mkInt(ri); RETIO(n);
         default: ERR("T_IO_CCALL");
         }
       }
@@ -2323,6 +2366,12 @@ evalio(NODEPTR n)
       n = alloc_node(T_PTR);
       PTR(n) = name;
       RETIO(n);
+
+    case T_PEEKCASTRING:
+      CHECKIO(1);
+      name = evalptr(ARG(TOP(1)));
+      GCCHECK(strNodes(strlen(name)));
+      RETIO(mkStringC(name));
 
     default:
       fprintf(stderr, "bad tag %d\n", GETTAG(n));
