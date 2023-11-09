@@ -91,6 +91,14 @@ loop hist before after = do
           putChar ' '
           back (length after + 1)
           loop hist cs after
+    del = do
+      case after of
+        [] -> noop
+        _:cs -> do
+          putStr cs
+          putChar ' '
+          back (length cs + 1)
+          loop hist before cs
     send =
       ret (Just cur)
     ret ms = do
@@ -137,12 +145,12 @@ loop hist before after = do
       if null before && null after then
         ret Nothing
       else
-        send
-    2 -> backward            -- CTL-B, backwards
-    6 -> forward             -- CTL-F, forwards
-    1 -> bol                 -- CTL-A, beginning of line
-    5 -> eol                 -- CTL-E, end of line
-    8 -> bs                  -- BS, backspace
+        del
+    2  -> backward           -- CTL-B, backwards
+    6  -> forward            -- CTL-F, forwards
+    1  -> bol                -- CTL-A, beginning of line
+    5  -> eol                -- CTL-E, end of line
+    8  -> bs                 -- BS, backspace
     127 -> bs                -- DEL, backspace
     13 -> send               -- CR, return
     10 -> send               -- LF, return
