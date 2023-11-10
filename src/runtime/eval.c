@@ -147,7 +147,7 @@ getraw()
 
 #define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_HDL, T_PTR, T_S, T_K, T_I, T_B, T_C,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_HDL, T_PTR, T_BADDYN, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
@@ -992,7 +992,25 @@ lookupFFIname(const char *name)
   for(int i = 0; i < sizeof(ffi_table) / sizeof(ffi_table[0]); i++)
     if (strcmp(ffi_table[i].ffi_name, name) == 0)
       return (value_t)i;
-  ERR("lookupFFIname");
+  return -1;
+}
+
+NODEPTR
+ffiNode(const char *buf)
+{
+  NODEPTR r;
+  value_t i = lookupFFIname(buf);
+  if (i < 0) {
+    /* lookup failed, generate a node that will dynamically generate an error */
+    r = alloc_node(T_BADDYN);
+    char *fun = malloc(strlen(buf) + 1);
+    strcpy(fun, buf);
+    STR(r) = fun;
+  } else {
+    r = alloc_node(T_IO_CCALL);
+    SETVALUE(r, i);
+  }
+  return r;
 }
 
 /* If the next input character is c, then consume it, else leave it alone. */
@@ -1200,8 +1218,7 @@ parse(BFILE *f)
     /* An FFI name */
     for (int j = 0; (buf[j] = getNT(f)); j++)
       ;
-    r = alloc_node(T_IO_CCALL);
-    SETVALUE(r, lookupFFIname(buf));
+    r = ffiNode(buf);
     return r;
   default:
     buf[0] = c;
@@ -1382,6 +1399,7 @@ printrec(FILE *f, NODEPTR n)
       fputc('"', f);
       break;
     }
+  case T_BADDYN: fprintf(f, "^%s", STR(n)); break;
   case T_HDL:
     if (HANDLE(n) == stdin)
       fprintf(f, "IO.stdin");
@@ -1661,7 +1679,7 @@ evalptr(NODEPTR n)
 #if SANITY
   if (GETTAG(n) != T_PTR) {
     fprintf(stderr, "bad ptr tag %d\n", GETTAG(n));
-    ERR("evalhandle");
+    ERR("evalptr");
   }
 #endif
   return PTR(n);
@@ -1877,6 +1895,7 @@ eval(NODEPTR n)
     case T_DBL:  RET;
     case T_HDL:  RET;
     case T_PTR:  RET;
+    case T_BADDYN: fprintf(stderr, "Unknown FFI function %s\n", STR(n)); ERR("FFI");
 
     case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
     case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
@@ -1961,7 +1980,7 @@ eval(NODEPTR n)
       GOIND(s);
 
     /* Retag a word sized value, keeping the bits */
-#define CONV(t) do { CHECK(1); x = evali(ARG(TOP(0))); GCCHECK(1); y = alloc_node(T_DBL); SETVALUE(y, GETVALUE(x)); POP(1); n = TOP(-1); GOIND(y); } while(0)
+#define CONV(t) do { CHECK(1); x = evali(ARG(TOP(0))); GCCHECK(1); y = alloc_node(t); SETVALUE(y, GETVALUE(x)); POP(1); n = TOP(-1); GOIND(y); } while(0)
     case T_TODBL: CONV(T_DBL);
     case T_TOINT: CONV(T_INT);
     case T_TOPTR: CONV(T_PTR);
@@ -2060,8 +2079,7 @@ eval(NODEPTR n)
       CHECK(1);
       msg = evalstring(ARG(TOP(0)));
       GCCHECK(1);
-      x = alloc_node(T_IO_CCALL);
-      SETVALUE(x, lookupFFIname(msg));
+      x = ffiNode(msg);
       free(msg);
       POP(1);
       n = TOP(-1);
@@ -2101,6 +2119,7 @@ evalio(NODEPTR n)
   int hdr;
   FILE *hdl;
   char *name;
+  void *ptr;
 
 /* IO operations need all arguments, anything else should not happen. */
 #define CHECKIO(n) do { if (stack_ptr - stk != (n+1)) {ERR("CHECKIO");}; } while(0)
@@ -2321,8 +2340,8 @@ evalio(NODEPTR n)
 
     case T_FREEPTR:
       CHECKIO(1);
-      hdl = evalptr(ARG(TOP(1)));
-      free(hdl);
+      ptr = evalptr(ARG(TOP(1)));
+      free(ptr);
       RETIO(combUnit);
 
     case T_NEWCASTRING:
