@@ -964,25 +964,28 @@ gc_check(size_t k)
  *   PI   int    name(void*)
  *   PP   void*  name(void*)
  *   PPI  int    name(void*, void*)
+ *   PPP  void*  name(void*, void*)
  * more can easily be added.
  */
 struct {
   const char *ffi_name;
   const funptr_t ffi_fun;
-  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI, FFI_PPI, FFI_PP } ffi_how;
+  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI, FFI_PPI, FFI_PP, FFI_PPP } ffi_how;
 } ffi_table[] = {
-  { "llabs", (funptr_t)llabs, FFI_II },
-  { "log",   (funptr_t)log,   FFI_DD },
-  { "exp",   (funptr_t)exp,   FFI_DD },
-  { "sqrt",  (funptr_t)sqrt,  FFI_DD },
-  { "sin",   (funptr_t)sin,   FFI_DD },
-  { "cos",   (funptr_t)cos,   FFI_DD },
-  { "tan",   (funptr_t)tan,   FFI_DD },
-  { "asin",  (funptr_t)asin,  FFI_DD },
-  { "acos",  (funptr_t)acos,  FFI_DD },
-  { "atan",  (funptr_t)atan,  FFI_DD },
-  { "system",(funptr_t)system,FFI_PI },
-  { "getenv",(funptr_t)getenv,FFI_PP },
+  { "llabs",    (funptr_t)llabs,   FFI_II },
+  { "log",      (funptr_t)log,     FFI_DD },
+  { "exp",      (funptr_t)exp,     FFI_DD },
+  { "sqrt",     (funptr_t)sqrt,    FFI_DD },
+  { "sin",      (funptr_t)sin,     FFI_DD },
+  { "cos",      (funptr_t)cos,     FFI_DD },
+  { "tan",      (funptr_t)tan,     FFI_DD },
+  { "asin",     (funptr_t)asin,    FFI_DD },
+  { "acos",     (funptr_t)acos,    FFI_DD },
+  { "atan",     (funptr_t)atan,    FFI_DD },
+  { "system",   (funptr_t)system,  FFI_PI },
+  { "unlink",   (funptr_t)unlink,  FFI_PI },
+  { "getenv",   (funptr_t)getenv,  FFI_PP },
+  { "tempnam",  (funptr_t)tempnam, FFI_PPP },
 };
 
 /* Look up an FFI function by name */
@@ -2305,6 +2308,7 @@ evalio(NODEPTR n)
         case FFI_PI:  FFI (1); xp = PTRARG(1);                 ri = (*(value_t (*)(void*           ))f)(xp);    n = mkInt(ri); RETIO(n);
         case FFI_PP:  FFI (1); xp = PTRARG(1);                 rp = (*(void*   (*)(void*           ))f)(xp);    n = mkPtr(rp); RETIO(n);
         case FFI_PPI: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(void*, void*    ))f)(xp,yp); n = mkInt(ri); RETIO(n);
+        case FFI_PPP: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  rp = (*(void*   (*)(void*, void*    ))f)(xp,yp); n = mkPtr(rp); RETIO(n);
         default: ERR("T_IO_CCALL");
         }
       }

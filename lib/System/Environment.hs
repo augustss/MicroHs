@@ -12,11 +12,11 @@ getArgs = primGetArgs
 withDropArgs :: forall a . Int -> IO a -> IO a
 withDropArgs = primWithDropArgs
 
-foreign import ccall "getenv" getenvc :: CString -> IO CString
+foreign import ccall "getenv" c_getenv :: CString -> IO CString
 
 lookupEnv :: String -> IO (Maybe String)
 lookupEnv var = do
-  cptr <- withCAString var getenvc
+  cptr <- withCAString var c_getenv
   if cptr == nullPtr then
     return Nothing
    else
