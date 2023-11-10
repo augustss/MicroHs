@@ -14,6 +14,9 @@ import qualified MicroHs.IdentMap as M
 import MicroHs.Translate
 import MicroHs.Interactive
 import MicroHs.MakeCArray
+import System.IO.Temp
+import System.IO
+import System.Process
 --Ximport Compat
 
 -- Version number of combinator file.
@@ -71,10 +74,26 @@ mainCompile flags mn = do
     prg
 --    putStrLn "done"
    else do
-    let outFile = output flags
-        outData = version ++ show numDefs ++ "\n" ++ res
-        outData' = if ".c" `isSuffixOf` outFile then makeCArray outData else outData
-    writeFile outFile outData'
+    let outData = version ++ show numDefs ++ "\n" ++ res
+    seq (length outData) (return ())
     t2 <- getTimeMilli
     when (verbose flags > 0) $
       putStrLn $ "final pass            " ++ padLeft 6 (show (t2-t1)) ++ "ms"
+    
+    -- Decode what to do:
+    --  * file ends in .comb: write combinator file
+    --  * file ends in .c: write C version of combinator
+    --  * otherwise, write C file and compile to a binary with cc
+    let outFile = output flags
+    if ".comb" `isSuffixOf` outFile then
+      writeFile outFile outData
+     else if ".c" `isSuffixOf` outFile then
+      writeFile outFile $ makeCArray outData
+     else withSystemTempFile "mhsc.c" $ \ fn h -> do
+       hPutStr h $ makeCArray outData
+       hClose h
+       mdir <- lookupEnv "MHSDIR"
+       let mhsdir = fromMaybe "." mdir
+       let cmd = "cc -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval.c " ++ fn ++ " -lm -o " ++ outFile
+       --print cmd
+       callCommand cmd
