@@ -92,9 +92,9 @@ primWordAshr  = primitive "ashr"
 primWordInv :: Word -> Word
 primWordInv  = primitive "inv"
 primWordToDoubleRaw :: Word -> Double
-primWordToDoubleRaw = primitive "ffromraw"
+primWordToDoubleRaw = primitive "toDbl"
 primWordFromDoubleRaw :: Double -> Word
-primWordFromDoubleRaw = primitive "ftoraw"
+primWordFromDoubleRaw = primitive "toInt"
 
 primIntEQ   :: Int -> Int -> Bool
 primIntEQ   = primitive "=="
@@ -228,7 +228,7 @@ primPeekCAString :: Ptr Char -> IO [Char]
 primPeekCAString = primitive "peekCAString"
 
 primWordToPtr :: forall a . Word -> Ptr a
-primWordToPtr = primitive "wordToPtr"
+primWordToPtr = primitive "toPtr"
 
 primPtrToWord :: forall a . Ptr a -> Word
-primPtrToWord = primitive "ptrToWord"
+primPtrToWord = primitive "toInt"

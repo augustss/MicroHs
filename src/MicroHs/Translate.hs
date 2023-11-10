@@ -81,8 +81,6 @@ primTable = [
   ("shl", primitive "shl"),
   ("shr", primitive "shr"),
   ("ashr", primitive "ashr"),
-  ("ftoraw", primitive "ftoraw"),
-  ("ffromraw", primitive "ffromraw"),
   ("subtract", primitive "subtract"),
   ("==", primitive "=="),
   ("/=", primitive "/="),
@@ -140,6 +138,7 @@ primTable = [
   ("newCAString", primitive "newCAString"),
   ("peekCAString", primitive "peekCAString"),
   ("free", primitive "free"),
-  ("ptrToWord", primitive "ptrToWord"),
-  ("wordToPtr", primitive "wordToPtr")
+  ("toInt", primitive "toInt"),
+  ("toPtr", primitive "toPtr"),
+  ("toDbl", primitive "toDbl")
   ]

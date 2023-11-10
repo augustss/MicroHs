@@ -16,6 +16,11 @@ import MicroHs.Interactive
 import MicroHs.MakeCArray
 --Ximport Compat
 
+-- Version number of combinator file.
+-- Must match version in eval.c.
+version :: String
+version = "v4.3\n"
+
 main :: IO ()
 main = do
   aargs <- getArgs
@@ -73,6 +78,3 @@ mainCompile flags mn = do
     t2 <- getTimeMilli
     when (verbose flags > 0) $
       putStrLn $ "final pass            " ++ padLeft 6 (show (t2-t1)) ++ "ms"
-
-version :: String
-version = "v4.2\n"

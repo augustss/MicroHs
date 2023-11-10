@@ -136,7 +136,7 @@ getraw()
 
 /***************************************/
 
-#define VERSION "v4.2\n"
+#define VERSION "v4.3\n"
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -153,7 +153,6 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_HDL, T_PTR, T_S, T_K, T_I, 
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
-                T_FTORAW, T_FFROMRAW,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
                 T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
@@ -163,7 +162,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_HDL, T_PTR, T_S, T_K, T_I, 
                 T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
                 T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH, T_DYNSYM,
                 T_NEWCASTRING, T_FREEPTR, T_PEEKCASTRING,
-                T_WORDTOPTR, T_PTRTOWORD,
+                T_TOPTR, T_TOINT, T_TODBL,
                 T_STR,
                 T_LAST_TAG,
 };
@@ -676,8 +675,6 @@ struct {
   { "fge", T_FGE},
   { "fshow", T_FSHOW},
   { "fread", T_FREAD},
-  { "ftoraw", T_FTORAW},
-  { "ffromraw", T_FFROMRAW},
   { "==", T_EQ },
   { "/=", T_NE },
   { "<", T_LT },
@@ -721,8 +718,9 @@ struct {
   { "free", T_FREEPTR },
   { "newCAString", T_NEWCASTRING },
   { "peekCAString", T_PEEKCASTRING },
-  { "wordToPtr", T_WORDTOPTR },
-  { "ptrToWord", T_PTRTOWORD },
+  { "toPtr", T_TOPTR },
+  { "toInt", T_TOINT },
+  { "toDbl", T_TODBL },
 };
 
 void
@@ -1439,8 +1437,6 @@ printrec(FILE *f, NODEPTR n)
   case T_FGE: fprintf(f, "fge"); break;
   case T_FSHOW: fprintf(f, "fshow"); break;
   case T_FREAD: fprintf(f, "fread"); break;
-  case T_FTORAW: fprintf(f, "ftoraw"); break;
-  case T_FFROMRAW: fprintf(f, "ffromraw"); break;
   case T_EQ: fprintf(f, "=="); break;
   case T_NE: fprintf(f, "/="); break;
   case T_LT: fprintf(f, "<"); break;
@@ -1481,8 +1477,9 @@ printrec(FILE *f, NODEPTR n)
   case T_NEWCASTRING: fprintf(f, "newCAString"); break;
   case T_PEEKCASTRING: fprintf(f, "peekCAString"); break;
   case T_FREEPTR: fprintf(f, "free"); break;
-  case T_PTRTOWORD: fprintf(f, "ptrToWord"); break;
-  case T_WORDTOPTR: fprintf(f, "wordToPtr"); break;
+  case T_TOINT: fprintf(f, "toInt"); break;
+  case T_TOPTR: fprintf(f, "toPtr"); break;
+  case T_TODBL: fprintf(f, "toDbl"); break;
   default: ERR("print tag");
   }
 }
@@ -1963,43 +1960,12 @@ eval(NODEPTR n)
       // update n to be s
       GOIND(s);
 
-    case T_FTORAW:
-      CHECK(1);
-      x = evali(ARG(TOP(0)));
-      GCCHECK(1);
-      y = alloc_node(T_INT);
-      SETVALUE(y, GETVALUE(x));
-      POP(1);
-      n = TOP(-1);
-      GOIND(y);
-    case T_FFROMRAW:
-      CHECK(1);
-      x = evali(ARG(TOP(0)));
-      GCCHECK(1);
-      y = alloc_node(T_DBL);
-      SETVALUE(y, GETVALUE(x));
-      POP(1);
-      n = TOP(-1);
-      GOIND(y);
-
-    case T_PTRTOWORD:
-      CHECK(1);
-      x = evali(ARG(TOP(0)));
-      GCCHECK(1);
-      y = alloc_node(T_INT);
-      SETVALUE(y, GETVALUE(x));
-      POP(1);
-      n = TOP(-1);
-      GOIND(y);
-    case T_WORDTOPTR:
-      CHECK(1);
-      x = evali(ARG(TOP(0)));
-      GCCHECK(1);
-      y = alloc_node(T_PTR);
-      SETVALUE(y, GETVALUE(x));
-      POP(1);
-      n = TOP(-1);
-      GOIND(y);
+    /* Retag a word sized value, keeping the bits */
+#define CONV(t) do { CHECK(1); x = evali(ARG(TOP(0))); GCCHECK(1); y = alloc_node(T_DBL); SETVALUE(y, GETVALUE(x)); POP(1); n = TOP(-1); GOIND(y); } while(0)
+    case T_TODBL: CONV(T_DBL);
+    case T_TOINT: CONV(T_INT);
+    case T_TOPTR: CONV(T_PTR);
+#undef CONV
 
     case T_EQ:   CMP(==);
     case T_NE:   CMP(!=);
