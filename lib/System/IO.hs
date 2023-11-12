@@ -13,6 +13,7 @@ import Control.Monad
 import Data.Bool
 import Data.Char
 import Data.Eq
+import Data.Function
 import Data.Functor
 import Data.Int
 import Data.List
@@ -20,6 +21,39 @@ import Data.Maybe
 import Data.Num
 import Data.Tuple
 import Text.Show
+import Foreign.C.String
+import Foreign.Ptr
+
+data FILE
+newtype Handle = Handle (Ptr FILE)
+
+primHSerialize   :: forall a . Handle -> a -> IO ()
+primHSerialize    = primitive "IO.serialize"
+primHPrint       :: forall a . Handle -> a -> IO ()
+primHPrint        = primitive "IO.print"
+primHDeserialize :: forall a . Handle -> IO a
+primHDeserialize  = primitive "IO.deserialize"
+primStdin        :: Handle
+primStdin         = primitive "IO.stdin"
+primStdout       :: Handle
+primStdout        = primitive "IO.stdout"
+primStderr       :: Handle
+primStderr        = primitive "IO.stderr"
+
+foreign import ccall "fopen"        c_fopen        :: CString -> CString -> IO Handle
+foreign import ccall "fclose"       c_fclose       :: Handle             -> IO Int
+foreign import ccall "fflush"       c_fflush       :: Handle             -> IO Int
+foreign import ccall "fgetc"        c_fgetc        :: Handle             -> IO Int
+foreign import ccall "fputc"        c_fputc        :: Int ->     Handle  -> IO Int
+foreign import ccall "getTimeMilli" c_getTimeMilli ::                       IO Int
+
+----------------------------------------------------------
+
+instance Eq Handle where
+  Handle p == Handle q  =  p == q
+
+nullHandle :: Handle
+nullHandle = Handle nullPtr
 
 type FilePath = String
 
@@ -37,33 +71,12 @@ instance Monad IO where
 instance MonadFail IO where
   fail         = error
 
-{-
-infixl 1 >>=
-(>>=)       :: forall a b . IO a -> (a -> IO b) -> IO b
-(>>=)        = primBind
-
-infixl 1 >>
-(>>)        :: forall a b . IO a -> IO b -> IO b
-(>>)         = primThen
-
-return      :: forall a . a -> IO a
-return       = primReturn
-
-fail        :: forall a . String -> IO a
-fail s       = error s
-
-fmap        :: forall a b . (a -> b) -> IO a -> IO b
-fmap f ioa   = ioa >>= \ a -> return (f a)
--}
-
 hSerialize   :: forall a . Handle -> a -> IO ()
 hSerialize   = primHSerialize
+
 hDeserialize :: forall a . Handle -> IO a
 hDeserialize = primHDeserialize
-hClose       :: Handle -> IO ()
-hClose       = primHClose
-hFlush       :: Handle -> IO ()
-hFlush       = primHFlush
+
 stdin        :: Handle
 stdin        = primStdin
 stdout       :: Handle
@@ -71,30 +84,36 @@ stdout       = primStdout
 stderr       :: Handle
 stderr       = primStderr
 
+hClose       :: Handle -> IO ()
+hClose h     = do { c_fclose h; return () }  -- ignore error code
+
+hFlush       :: Handle -> IO ()
+hFlush h     = do { c_fflush h; return () }  -- ignore error code
+
 hGetChar :: Handle -> IO Char
 hGetChar h = do
-  c <- primHGetChar h
+  c <- c_fgetc h
   if c == (-1::Int) then
     error "hGetChar: EOF"
    else
     return (chr c)
 
 hPutChar :: Handle -> Char -> IO ()
-hPutChar h c = primHPutChar h (ord c)
+hPutChar h c = do { c_fputc (ord c) h; return () }  -- ignore error code
 
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM p m = do
   let
-    n = case m of
-          ReadMode -> 0::Int
-          WriteMode -> 1::Int
-          AppendMode -> 2::Int
-          ReadWriteMode -> 3::Int
-  hdl <- primOpenFile p n
-  if primIsNullHandle hdl then
+    ms = case m of
+          ReadMode -> "r"
+          WriteMode -> "w"
+          AppendMode -> "a"
+          ReadWriteMode -> "w+"
+  h <- withCAString p $ \cp -> withCAString ms $ \ cm -> c_fopen cp cm
+  if h == nullHandle then
     return Nothing
    else
-    return (Just hdl)
+    return (Just h)
 
 openFile :: String -> IOMode -> IO Handle
 openFile p m = do
@@ -144,7 +163,7 @@ readFile p = do
 -- Lazy hGetContents
 hGetContents :: Handle -> IO String
 hGetContents h = do
-  c <- primHGetChar h
+  c <- c_fgetc h
   if c == (-1::Int) then do
     hClose h   -- EOF, so close the handle
     return ""
@@ -166,7 +185,7 @@ readSerialized p = do
   return a
 
 getTimeMilli :: IO Int
-getTimeMilli = primGetTimeMilli
+getTimeMilli = c_getTimeMilli
 
 unsafeInterleaveIO :: forall a . IO a -> IO a
 unsafeInterleaveIO ioa = return (primPerformIO ioa)

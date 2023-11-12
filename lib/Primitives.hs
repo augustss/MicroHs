@@ -173,40 +173,12 @@ primThen         :: forall a b . IO a -> IO b -> IO b
 primThen          = primitive "IO.>>"
 primReturn       :: forall a . a -> IO a
 primReturn        = primitive "IO.return"
-primHPutChar     :: Handle -> Int -> IO ()
-primHPutChar      = primitive "IO.putChar"
-primHGetChar     :: Handle -> IO Int
-primHGetChar      = primitive "IO.getChar"
-primOpenFile     :: [Char] -> Int -> IO Handle
-primOpenFile      = primitive "IO.open"
-primIsNullHandle :: Handle -> Bool
-primIsNullHandle  = primitive "IO.isNullHandle"
-primHSerialize   :: forall a . Handle -> a -> IO ()
-primHSerialize    = primitive "IO.serialize"
-primHPrint       :: forall a . Handle -> a -> IO ()
-primHPrint        = primitive "IO.print"
-primHDeserialize :: forall a . Handle -> IO a
-primHDeserialize  = primitive "IO.deserialize"
-primHClose       :: Handle -> IO ()
-primHClose        = primitive "IO.close"
-primHFlush       :: Handle -> IO ()
-primHFlush        = primitive "IO.flush"
-primStdin        :: Handle
-primStdin         = primitive "IO.stdin"
-primStdout       :: Handle
-primStdout        = primitive "IO.stdout"
-primStderr       :: Handle
-primStderr        = primitive "IO.stderr"
 primGetArgs      :: IO [[Char]]
 primGetArgs       = primitive "IO.getArgs"
 primDropArgs     :: Int -> IO ()
 primDropArgs      = primitive "IO.dropArgs"
 primPerformIO    :: forall a . IO a -> a
 primPerformIO     = primitive "IO.performIO"
-primGetTimeMilli :: IO Int
-primGetTimeMilli  = primitive "IO.getTimeMilli"
-primGetRaw       :: IO Int
-primGetRaw        = primitive "IO.getRaw"
 
 primWithDropArgs :: forall a . Int -> IO a -> IO a
 primWithDropArgs i ioa = primThen (primDropArgs i) ioa
@@ -220,9 +192,6 @@ primRnf           = primitive "rnf"
 
 primNewCAString :: [Char] -> IO (Ptr Char)
 primNewCAString = primitive "newCAString"
-
-primFree :: forall a . Ptr a -> IO ()
-primFree = primitive "free"
 
 primPeekCAString :: Ptr Char -> IO [Char]
 primPeekCAString = primitive "peekCAString"

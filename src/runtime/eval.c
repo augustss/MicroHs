@@ -1,22 +1,24 @@
 /* Copyright 2023 Lennart Augustsson
  * See LICENSE file for full license.
  */
+#include <inttypes.h>
+
+#include "config-unix-64.h"
+//#include "config-micro-64.h"
+
+#if WANT_STDIO
 #include <stdio.h>
+#include <locale.h>
+#endif  /* WANT_STDIO */
 #include <stdlib.h>
 #include <string.h>
-#include <inttypes.h>
-#include <locale.h>
 #include <ctype.h>
 #include <setjmp.h>
+#if WANT_MATH
 #include <math.h>
+#endif  /* WANT_MATH */
 
-#define GCRED    1              /* do some reductions during GC */
-#define FASTTAGS 1              /* compute tag by pointer subtraction */
-#define UNIONPTR 1              /* use compact (2 pointer) layout */
-#define INTTABLE 1              /* use fixed table of small INT nodes */
-#define SANITY   1              /* do some sanity checks */
-#define STACKOVL 1              /* check for stack overflow */
-#define GETRAW   1              /* implement raw character get */
+#define VERSION "v5.0\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -34,109 +36,23 @@ typedef uint64_t bits_t;        /* One word of bits */
 /* We cast all FFI functions to this type.  It's reasonably portable */
 typedef void (*funptr_t)(void);
 
-#if defined(__MINGW32__)
-#define ffsl __builtin_ffsll
-#endif
-
-#if defined(_MSC_VER)
-
-/* Make Microsoft compiler a little more compatible. */
-
-#pragma warning(disable : 4996)
-#pragma intrinsic(_BitScanForward)
-static inline int
-ffsl(int64_t arg)
-{
-  unsigned long r;
-  if (_BitScanForward64(&r, arg))
-    return (int)(r+1);
-  else
-    return 0;
-}
-#define PCOMMA ""
-
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-
-typedef struct timeval {
-    long tv_sec;
-    long tv_usec;
-} timeval;
-
-int
-gettimeofday(struct timeval * tp, struct timezone * tzp)
-{
-    static const uint64_t EPOCH = ((uint64_t) 116444736000000000ULL);
-
-    SYSTEMTIME  system_time;
-    FILETIME    file_time;
-    uint64_t    time;
-
-    GetSystemTime( &system_time );
-    SystemTimeToFileTime( &system_time, &file_time );
-    time =  ((uint64_t)file_time.dwLowDateTime )      ;
-    time += ((uint64_t)file_time.dwHighDateTime) << 32;
-
-    tp->tv_sec  = (long) ((time - EPOCH) / 10000000L);
-    tp->tv_usec = (long) (system_time.wMilliseconds * 1000);
-    return 0;
-}
-
-int
-getraw()
-{
-  return -1;                    /* too tedious */
-}
-
-#else  /* defined(_MSC_VER) */
-
-#include <sys/time.h>
-
+#if !defined(PCOMMA)
 #define PCOMMA "'"
+#endif  /* !defined(PCOMMA) */
 
-#if GETRAW
-#include <termios.h>
-#include <unistd.h>
+#if !defined(GETRAW)
+int GETRAW(void) { return -1; }
+#endif  /* !defined(getraw) */
 
-/*
- * Set the terminal in raw mode and read a single character.
- * Return this character, or -1 on any kind of failure.
- */
-int
-getraw(void)
-{
-  struct termios old, new;
-  char c;
-  int r;
-  
-  if (tcgetattr(0, &old))
-    return -1;
-  cfmakeraw(&new);
-  if (tcsetattr(0, TCSANOW, &new))
-    return -1;
-  r = read(0, &c, 1);
-  (void)tcsetattr(0, TCSANOW, &old);
-  if (r == 1)
-    return c;
-  else
-    return -1;
-}
-#else  /* GETRAW */
+#if !defined(GETTIMEMILLI)
+uint64_t GETTIMEMILLI(void) { return 0; }
+#endif  /* !define(GETTIMEMILLI) */
 
-int
-getraw()
-{
-  return -1;                    /* not implemented */
-}
-
-#endif /* GETRAW */
-
-#endif  /* !defined(_MSC_VER) */
-
+#if !defined(INLINE)
+#define INLINE inline
+#endif  /* !define(INLINE) */
 
 /***************************************/
-
-#define VERSION "v4.3\n"
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
 #define LOW_INT (-10)
@@ -145,80 +61,48 @@ getraw()
 #define HEAP_CELLS 50000000
 #define STACK_SIZE 100000
 
-#define ERR(s) do { fprintf(stderr, "ERR: %s\n", s); exit(1); } while(0)
+#if !defined(ERR)
+#if WANT_STDIO
+#define ERR(s)    do { fprintf(stderr,"ERR: "s"\n");   exit(1); } while(0)
+#define ERR1(s,a) do { fprintf(stderr,"ERR: "s"\n",a); exit(1); } while(0)
+#else  /* WANT_STDIO */
+#define ERR(s) exit(1)
+#define ERR1(s,a) exit(1)
+#endif  /* WANT_STDIO */
+#endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_HDL, T_PTR, T_BADDYN, T_S, T_K, T_I, T_B, T_C,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
+                T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
+                T_TOPTR, T_TOINT, T_TODBL,
+#if WANT_FLOAT
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
-                T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
+#endif
                 T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
-                T_IO_BIND, T_IO_THEN, T_IO_RETURN, T_IO_GETCHAR, T_IO_PUTCHAR,
-                T_IO_SERIALIZE, T_IO_DESERIALIZE, T_IO_OPEN, T_IO_CLOSE, T_IO_ISNULLHANDLE,
+                T_IO_BIND, T_IO_THEN, T_IO_RETURN,
+                T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
-                T_IO_PERFORMIO,
-                T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
-                T_IO_CCALL, T_IO_GETRAW, T_IO_FLUSH, T_DYNSYM,
-                T_NEWCASTRING, T_FREEPTR, T_PEEKCASTRING,
-                T_TOPTR, T_TOINT, T_TODBL,
+                T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
+                T_IO_CCALL, T_DYNSYM,
+                T_NEWCASTRING, T_PEEKCASTRING,
                 T_STR,
                 T_LAST_TAG,
 };
 
-#if NAIVE
-
-/* Naive node representation with minimal unions */
-typedef struct node {
-  enum node_tag tag;
-  union {
-    value_t value;
-    double doublevalue;
-    FILE *file;
-    const char *string;
-    struct {
-      struct node *fun;
-      struct node *arg;
-    } s;
-  } u;
-} node;
-typedef struct node* NODEPTR;
-#define NIL 0
-#define HEAPREF(i) &cells[(i)]
-#define MARK(p) (p)->mark
-#define GETTAG(p) (p)->tag
-#define SETTAG(p, t) do { (p)->tag = (t); } while(0)
-#define GETVALUE(p) (p)->u.value
-// to squeeze a double into value_t we must exactly copy and read the bits
-// this is a stm, and not an exp
-#define GETDBLVALUE(p) (p)->u.doublevalue
-#define SETVALUE(p,v) (p)->u.value = v
-#define SETDBLVALUE(p,v) (p)->u.doublevalue = v
-#define FUN(p) (p)->u.s.fun
-#define ARG(p) (p)->u.s.arg
-#define NEXT(p) FUN(p)
-#define INDIR(p) FUN(p)
-#define HANDLE(p) (p)->u.file
-#define NODE_SIZE sizeof(node)
-#define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); if (!cells) memerr(); memset(cells, 0x55, n * sizeof(node)); } while(0)
-#define LABEL(n) ((heapoffs_t)((n) - cells))
-node *cells;                 /* All cells */
-
-#elif UNIONPTR
-
 typedef struct node {
   union {
     struct node *uufun;
-    tag_t uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
+    tag_t        uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
   } ufun;
   union {
     struct node *uuarg;
-    value_t uuvalue;
-    double uudoublevalue;
-    FILE *uufile;
-    const char *uustring;
-    void *uuptr;
+    value_t      uuvalue;
+    double       uudoublevalue;
+    const char  *uustring;
+    void        *uuptr;
   } uarg;
 } node;
 typedef struct node* NODEPTR;
@@ -235,30 +119,23 @@ typedef struct node* NODEPTR;
 #define STR(p) (p)->uarg.uustring
 #define PTR(p) (p)->uarg.uuptr
 #define INDIR(p) ARG(p)
-#define HANDLE(p) (p)->uarg.uufile
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
-#else
-
-#error "pick a node type"
-
-#endif
-
 counter_t num_reductions = 0;
 counter_t num_alloc;
 counter_t num_gc = 0;
-double gc_mark_time = 0;
-double run_time = 0;
+uint64_t gc_mark_time = 0;
+uint64_t run_time = 0;
 
 NODEPTR *stack;
 stackptr_t stack_ptr = -1;
 #if STACKOVL
 #define PUSH(x) do { if (stack_ptr >= stack_size-1) ERR("stack overflow"); stack[++stack_ptr] = (x); } while(0)
 #else  /* SANITY */
-#define PUSH(x) do {                                                       stack[++stack_ptr] = (x); } while(0)
+#define PUSH(x) do {                                                        stack[++stack_ptr] = (x); } while(0)
 #endif  /* SANITY */
 #define TOP(n) stack[stack_ptr - (n)]
 #define POP(n) stack_ptr -= (n)
@@ -281,7 +158,7 @@ __attribute__ ((noreturn)) // [[noreturn]]
 void
 memerr(void)
 {
-  fprintf(stderr, "Out of memory\n");
+  ERR("Out of memory");
   exit(1);
 }
 
@@ -326,6 +203,7 @@ closeb_buf(BFILE *bp)
   (void)bp;                     /* shut up warning */
 }
 
+#if WANT_STDIO
 /*** BFILE via FILE ***/
 struct BFILE_file {
   BFILE    mets;
@@ -365,6 +243,7 @@ openb_FILE(FILE *f)
   p->file = f;
   return (BFILE*)p;
 }
+#endif
 
 /*** BFILE via simple LZW decompression ***/
 
@@ -529,7 +408,7 @@ struct handler {
 } *cur_handler = 0;
 
 /* Set FREE bit to 0 */
-static inline void mark_used(NODEPTR n)
+static INLINE void mark_used(NODEPTR n)
 {
   heapoffs_t i = LABEL(n);
   if (i < heap_start)
@@ -541,7 +420,7 @@ static inline void mark_used(NODEPTR n)
 }
 
 /* Test if FREE bit is 0 */
-static inline int is_marked_used(NODEPTR n)
+static INLINE int is_marked_used(NODEPTR n)
 {
   heapoffs_t i = LABEL(n);
   if (i < heap_start)
@@ -552,7 +431,7 @@ static inline int is_marked_used(NODEPTR n)
   return (free_map[i / BITS_PER_WORD] & (1ULL << (i % BITS_PER_WORD))) == 0;
 }
 
-static inline void mark_all_free(void)
+static INLINE void mark_all_free(void)
 {
   memset(free_map, ~0, free_map_nwords * sizeof(bits_t));
   next_scan_index = heap_start;
@@ -563,15 +442,7 @@ char **glob_argv;
 
 int verbose = 0;
 
-double
-gettime()
-{
-  struct timeval tv;
-  (void)gettimeofday(&tv, NULL);
-  return tv.tv_sec + tv.tv_usec * 1e-6;
-}
-
-static inline NODEPTR
+static INLINE NODEPTR
 alloc_node(enum node_tag t)
 {
 #if SANITY
@@ -603,7 +474,7 @@ alloc_node(enum node_tag t)
   return n;
 }
 
-static inline NODEPTR
+static INLINE NODEPTR
 new_ap(NODEPTR f, NODEPTR a)
 {
   NODEPTR n = alloc_node(T_AP);
@@ -661,6 +532,7 @@ struct {
   { "shl", T_SHL },
   { "shr", T_SHR },
   { "ashr", T_ASHR },
+#if WANT_FLOAT
   { "fadd" , T_FADD},
   { "fsub" , T_FSUB},
   { "fmul" , T_FMUL},
@@ -675,6 +547,7 @@ struct {
   { "fge", T_FGE},
   { "fshow", T_FSHOW},
   { "fread", T_FREAD},
+#endif  /* WANT_FLOAT */
   { "==", T_EQ },
   { "/=", T_NE },
   { "<", T_LT },
@@ -696,16 +569,9 @@ struct {
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
   { "IO.return", T_IO_RETURN },
-  { "IO.getChar", T_IO_GETCHAR },
-  { "IO.getRaw", T_IO_GETRAW },
-  { "IO.putChar", T_IO_PUTCHAR },
   { "IO.serialize", T_IO_SERIALIZE },
   { "IO.print", T_IO_PRINT },
   { "IO.deserialize", T_IO_DESERIALIZE },
-  { "IO.open", T_IO_OPEN },
-  { "IO.close", T_IO_CLOSE },
-  { "IO.flush", T_IO_FLUSH },
-  { "IO.isNullHandle", T_IO_ISNULLHANDLE },
   { "IO.stdin", T_IO_STDIN },
   { "IO.stdout", T_IO_STDOUT },
   { "IO.stderr", T_IO_STDERR },
@@ -715,7 +581,6 @@ struct {
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.catch", T_IO_CATCH },
   { "dynsym", T_DYNSYM },
-  { "free", T_FREEPTR },
   { "newCAString", T_NEWCASTRING },
   { "peekCAString", T_PEEKCASTRING },
   { "toPtr", T_TOPTR },
@@ -748,9 +613,11 @@ init_nodes(void)
     case T_CC: combCC = n; break;
     case T_BK: combBK = n; break;
     case T_IO_BIND: combIOBIND = n; break;
-    case T_IO_STDIN:  SETTAG(n, T_HDL); HANDLE(n) = stdin;  break;
-    case T_IO_STDOUT: SETTAG(n, T_HDL); HANDLE(n) = stdout; break;
-    case T_IO_STDERR: SETTAG(n, T_HDL); HANDLE(n) = stderr; break;
+#if WANT_STDIO
+    case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
+    case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
+    case T_IO_STDERR: SETTAG(n, T_PTR); PTR(n) = stderr; break;
+#endif  /* WANT_STDIO */
     default:
       break;
     }
@@ -767,9 +634,11 @@ init_nodes(void)
     case T_CC: combCC = n; break;
     case T_BK: combBK = n; break;
     case T_IO_BIND: combIOBIND = n; break;
-    case T_IO_STDIN:  SETTAG(n, T_HDL); HANDLE(n) = stdin;  break;
-    case T_IO_STDOUT: SETTAG(n, T_HDL); HANDLE(n) = stdout; break;
-    case T_IO_STDERR: SETTAG(n, T_HDL); HANDLE(n) = stderr; break;
+#if WANT_STDIO
+    case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
+    case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
+    case T_IO_STDERR: SETTAG(n, T_PTR); PTR(n) = stderr; break;
+#endif
     default:
       break;
     }
@@ -838,7 +707,7 @@ mark(NODEPTR *np)
       //      printf("*"); fflush(stdout);
       n = INDIR(n);
       if (loop++ > 10000000) {
-        printf("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
+        //printf("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
         ERR("IND loop");
       }
     }
@@ -915,37 +784,40 @@ mark(NODEPTR *np)
 void
 gc(void)
 {
-  double t;
-  
   num_gc++;
   num_marked = 0;
+#if WANT_STDIO
   if (verbose > 1)
     fprintf(stderr, "gc mark\n");
-  gc_mark_time -= gettime();
+#endif
+  gc_mark_time -= GETTIMEMILLI();
   mark_all_free();
   //  mark_depth = 0;
   for (stackptr_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
-  t = gettime();
-  gc_mark_time += t;
+  gc_mark_time += GETTIMEMILLI();
 
   if (num_marked > max_num_marked)
     max_num_marked = num_marked;
   num_free = heap_size - heap_start - num_marked;
   if (num_free < heap_size / 50)
     ERR("heap exhausted");
+#if WANT_STDIO
   if (verbose > 1)
     fprintf(stderr, "gc done, %"PRIcounter" free\n", num_free);
+#endif  /* !WANT_STDIO */
 }
 
 /* Check that there are k nodes available, if not then GC. */
-static inline void
+static INLINE void
 gc_check(size_t k)
 {
   if (k < num_free)
     return;
+#if WANT_STDIO
   if (verbose > 1)
     fprintf(stderr, "gc_check: %d\n", (int)k);
+#endif
   gc();
 }
 
@@ -953,26 +825,38 @@ gc_check(size_t k)
  * Table of FFI callable functions.
  * (For a more flexible solution use dlopen()/dlsym()/dlclose())
  * The table contains the information needed to do the actual call.
+ *   V    void
+ *   I    value_t
+ *   i    int
+ *   D    double
+ *   P    void*
  * The types are
- *   V    void   name(void)
- *   I    int    name(void)
- *   IV   void   name(int)
- *   II   int    name(int)
- *   IIV  void   name(int, int)
- *   III  int    name(int, int)
- *   DD   double name(double)
- *   PI   int    name(void*)
- *   PP   void*  name(void*)
- *   PPI  int    name(void*, void*)
- *   PPP  void*  name(void*, void*)
+ *   V    void    name(void)
+ *   i    int     name(void)
+ *   I    value_t name(voi)
+ *   IV   void    name(value_t)
+ *   II   value_t name(value_t)
+ *   IIV  void    name(value_t, value_t)
+ *   III  value_t name(value_t, value_t)
+ *   DD   double  name(double)
+ *   Pi   int     name(void*)
+ *   PI   value_t name(void*)
+ *   PP   void*   name(void*)
+ *   iPi  int     name(int, void*)
+ *   PPI  value_t name(void*, void*)
+ *   PPP  void*   name(void*, void*)
  * more can easily be added.
  */
 struct {
   const char *ffi_name;
   const funptr_t ffi_fun;
-  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI, FFI_PPI, FFI_PP, FFI_PPP } ffi_how;
+  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI,
+    FFI_i, FFI_Pi, FFI_iPi,
+    FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP
+  } ffi_how;
 } ffi_table[] = {
   { "llabs",    (funptr_t)llabs,   FFI_II },
+#if WANT_MATH
   { "log",      (funptr_t)log,     FFI_DD },
   { "exp",      (funptr_t)exp,     FFI_DD },
   { "sqrt",     (funptr_t)sqrt,    FFI_DD },
@@ -982,10 +866,27 @@ struct {
   { "asin",     (funptr_t)asin,    FFI_DD },
   { "acos",     (funptr_t)acos,    FFI_DD },
   { "atan",     (funptr_t)atan,    FFI_DD },
-  { "system",   (funptr_t)system,  FFI_PI },
-  { "unlink",   (funptr_t)unlink,  FFI_PI },
+#endif  /* WANT_MATH */
   { "getenv",   (funptr_t)getenv,  FFI_PP },
+
+  { "getRaw",   (funptr_t)GETRAW,  FFI_i },
+#if WANT_STDIO
+  { "fgetc",    (funptr_t)fgetc,   FFI_Pi },
+  { "fputc",    (funptr_t)fputc,   FFI_iPi },
+  //  { "cprint",   (funptr_t)cprint,  FFI_PAV },
+  //  { "serialize",(funptr_t)serialize,  FFI_PAV },
+  //  { "deserialize",(funptr_t)deserialize,  FFI_PA },
+  { "fclose",   (funptr_t)fclose,  FFI_Pi },
+  { "fflush",   (funptr_t)fflush,  FFI_Pi },
+  { "fopen",    (funptr_t)fopen,   FFI_PPP },
   { "tempnam",  (funptr_t)tempnam, FFI_PPP },
+  { "unlink",   (funptr_t)unlink,  FFI_Pi },
+  { "system",   (funptr_t)system,  FFI_Pi },
+#endif  /* WANT_STDIO */
+  //  { "getArgs",   (funptr_t)getArgs,  FFI_A },
+  { "getTimeMilli",(funptr_t)GETTIMEMILLI,  FFI_I },
+  { "free",     (funptr_t)free,    FFI_PV },
+  { "malloc",   (funptr_t)malloc,  FFI_IP }, /* The I is really a size_t */
 };
 
 /* Look up an FFI function by name */
@@ -1234,8 +1135,7 @@ parse(BFILE *f)
         return primops[j].node;
       }
     }
-    fprintf(stderr, "eval: bad primop %s\n", buf);
-    ERR("no primop");
+    ERR1("no primop %s", buf);
   }
 }
 
@@ -1272,6 +1172,7 @@ parse_top(BFILE *f)
   return n;
 }
 
+#if WANT_STDIO
 NODEPTR
 parse_FILE(FILE *f)
 {
@@ -1287,16 +1188,14 @@ parse_file(const char *fn, size_t *psize)
 {
   FILE *f = fopen(fn, "r");
   if (!f)
-    ERR("file not found");
+    ERR1("file not found %s", fn);
 
   /* And parse it */
   NODEPTR n = parse_FILE(f);
   *psize = ftell(f);
   return n;
 }
-
-
-void printrec(FILE *f, NODEPTR n);
+#endif  /* WANT_STDIO */
 
 counter_t num_shared;
 
@@ -1308,21 +1207,26 @@ counter_t num_shared;
  */
 bits_t *marked_bits;
 bits_t *shared_bits;
-static inline void set_bit(bits_t *bits, NODEPTR n)
+static INLINE void set_bit(bits_t *bits, NODEPTR n)
 {
   heapoffs_t i = LABEL(n);
   bits[i / BITS_PER_WORD] |= (1ULL << (i % BITS_PER_WORD));
 }
-static inline void clear_bit(bits_t *bits, NODEPTR n)
+#if WANT_STDIO
+static INLINE void clear_bit(bits_t *bits, NODEPTR n)
 {
   heapoffs_t i = LABEL(n);
   bits[i / BITS_PER_WORD] &= ~(1ULL << (i % BITS_PER_WORD));
 }
-static inline int test_bit(bits_t *bits, NODEPTR n)
+#endif
+static INLINE int test_bit(bits_t *bits, NODEPTR n)
 {
   heapoffs_t i = LABEL(n);
   return (bits[i / BITS_PER_WORD] & (1ULL << (i % BITS_PER_WORD))) != 0;
 }
+
+#if WANT_STDIO
+void printrec(FILE *f, NODEPTR n);
 
 /* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
 void
@@ -1387,6 +1291,16 @@ printrec(FILE *f, NODEPTR n)
     break;
   case T_INT: fprintf(f, "#%"PRIvalue, GETVALUE(n)); break;
   case T_DBL: fprintf(f, "&%.16g", GETDBLVALUE(n)); break;
+  case T_PTR:
+    if (PTR(n) == stdin)
+      fprintf(f, "IO.stdin");
+    else if (PTR(n) == stdout)
+      fprintf(f, "IO.stdout");
+    else if (PTR(n) == stderr)
+      fprintf(f, "IO.stderr");
+    else
+      ERR("Cannot serialize pointers");
+    break;
   case T_STR:
     {
       const char *p = STR(n);
@@ -1403,16 +1317,6 @@ printrec(FILE *f, NODEPTR n)
       break;
     }
   case T_BADDYN: fprintf(f, "^%s", STR(n)); break;
-  case T_HDL:
-    if (HANDLE(n) == stdin)
-      fprintf(f, "IO.stdin");
-    else if (HANDLE(n) == stdout)
-      fprintf(f, "IO.stdout");
-    else if (HANDLE(n) == stderr)
-      fprintf(f, "IO.stderr");
-    else
-      ERR("Cannot serialize handles");
-    break;
   case T_S: fprintf(f, "S"); break;
   case T_K: fprintf(f, "K"); break;
   case T_I: fprintf(f, "I"); break;
@@ -1444,6 +1348,7 @@ printrec(FILE *f, NODEPTR n)
   case T_SHL: fprintf(f, "shl"); break;
   case T_SHR: fprintf(f, "shr"); break;
   case T_ASHR: fprintf(f, "ashr"); break;
+#if WANT_FLOAT
   case T_FADD: fprintf(f, "fadd"); break;
   case T_FSUB: fprintf(f, "fsub"); break;
   case T_FMUL: fprintf(f, "fmul"); break;
@@ -1458,6 +1363,7 @@ printrec(FILE *f, NODEPTR n)
   case T_FGE: fprintf(f, "fge"); break;
   case T_FSHOW: fprintf(f, "fshow"); break;
   case T_FREAD: fprintf(f, "fread"); break;
+#endif
   case T_EQ: fprintf(f, "=="); break;
   case T_NE: fprintf(f, "/="); break;
   case T_LT: fprintf(f, "<"); break;
@@ -1478,16 +1384,9 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_BIND: fprintf(f, "IO.>>="); break;
   case T_IO_THEN: fprintf(f, "IO.>>"); break;
   case T_IO_RETURN: fprintf(f, "IO.return"); break;
-  case T_IO_GETCHAR: fprintf(f, "IO.getChar"); break;
-  case T_IO_GETRAW: fprintf(f, "IO.getRaw"); break;
-  case T_IO_PUTCHAR: fprintf(f, "IO.putChar"); break;
   case T_IO_SERIALIZE: fprintf(f, "IO.serialize"); break;
   case T_IO_PRINT: fprintf(f, "IO.print"); break;
   case T_IO_DESERIALIZE: fprintf(f, "IO.deserialize"); break;
-  case T_IO_OPEN: fprintf(f, "IO.open"); break;
-  case T_IO_CLOSE: fprintf(f, "IO.close"); break;
-  case T_IO_FLUSH: fprintf(f, "IO.flush"); break;
-  case T_IO_ISNULLHANDLE: fprintf(f, "IO.isNullHandle"); break;
   case T_IO_GETARGS: fprintf(f, "IO.getArgs"); break;
   case T_IO_DROPARGS: fprintf(f, "IO.dropArgs"); break;
   case T_IO_GETTIMEMILLI: fprintf(f, "IO.getTimeMilli"); break;
@@ -1497,7 +1396,6 @@ printrec(FILE *f, NODEPTR n)
   case T_DYNSYM: fprintf(f, "dynsym"); break;
   case T_NEWCASTRING: fprintf(f, "newCAString"); break;
   case T_PEEKCASTRING: fprintf(f, "peekCAString"); break;
-  case T_FREEPTR: fprintf(f, "free"); break;
   case T_TOINT: fprintf(f, "toInt"); break;
   case T_TOPTR: fprintf(f, "toPtr"); break;
   case T_TODBL: fprintf(f, "toDbl"); break;
@@ -1531,6 +1429,7 @@ pp(FILE *f, NODEPTR n)
   print(f, n, 0);
   fprintf(f, "\n");
 }
+#endif  /* WANT_STDIO */
 
 NODEPTR
 mkInt(value_t i)
@@ -1565,13 +1464,13 @@ mkPtr(void* p)
   return n;
 }
 
-static inline NODEPTR
+static INLINE NODEPTR
 mkNil(void)
 {
   return combFalse;
 }
 
-static inline NODEPTR
+static INLINE NODEPTR
 mkCons(NODEPTR x, NODEPTR xs)
 {
   return new_ap(new_ap(combCons, x), xs);
@@ -1610,7 +1509,7 @@ mkStringC(const char *str)
 void eval(NODEPTR n);
 
 /* Evaluate and skip indirections. */
-static inline NODEPTR
+static INLINE NODEPTR
 evali(NODEPTR n)
 {
   /* Need to push and pop in case GC happens */
@@ -1624,7 +1523,7 @@ evali(NODEPTR n)
 }
 
 /* Follow indirections */
-static inline NODEPTR
+static INLINE NODEPTR
 indir(NODEPTR n)
 {
   while (GETTAG(n) == T_IND)
@@ -1633,45 +1532,29 @@ indir(NODEPTR n)
 }
 
 /* Evaluate to an INT */
-static inline value_t
+static INLINE value_t
 evalint(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_INT) {
-    fprintf(stderr, "bad int tag %d\n", GETTAG(n));
-    ERR("evalint");
+    ERR1("evalint, bad tag %d", GETTAG(n));
   }
 #endif
   return GETVALUE(n);
 }
 
 /* Evaluate to a Double */
-static inline double
+static INLINE double
 evaldbl(NODEPTR n)
 {
   n = evali(n);
-  #if SANITY
-  if (GETTAG(n) != T_DBL) {
-    fprintf(stderr, "bad double tag %d\n", GETTAG(n));
-    ERR("evaldbl");
-  }
-  #endif
-  return GETDBLVALUE(n);
-}
-
-/* Evaluate to a T_HDL */
-FILE *
-evalhandleN(NODEPTR n)
-{
-  n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_HDL) {
-    fprintf(stderr, "bad handle tag %d\n", GETTAG(n));
-    ERR("evalhandle");
+  if (GETTAG(n) != T_DBL) {
+    ERR1("evaldbl, bad tag %d", GETTAG(n));
   }
 #endif
-  return HANDLE(n);
+  return GETDBLVALUE(n);
 }
 
 /* Evaluate to a T_PTR */
@@ -1681,24 +1564,10 @@ evalptr(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_PTR) {
-    fprintf(stderr, "bad ptr tag %d\n", GETTAG(n));
-    ERR("evalptr");
+    ERR1("evalptr, bad tag %d", GETTAG(n));
   }
 #endif
   return PTR(n);
-}
-
-/* Evaluate to a T_HDL, and check for closed */
-FILE *
-evalhandle(NODEPTR n)
-{
-  FILE *hdl;
-  hdl = evalhandleN(n);
-  if (hdl == 0) {
-    fprintf(stderr, "closed file\n");
-    ERR("evalhandle");
-  }
-  return hdl;
 }
 
 /* Evaluate a string, returns a newly allocated buffer. */
@@ -1743,7 +1612,7 @@ compare(NODEPTR p, NODEPTR q)
 {
   int r;
   value_t x, y;
-  FILE *f, *g;
+  void *f, *g;
   
  top:
   PUSH(q);                      /* save for GC */
@@ -1778,9 +1647,9 @@ compare(NODEPTR p, NODEPTR q)
     x = GETVALUE(p);
     y = GETVALUE(q);
     return x < y ? -1 : x > y ? 1 : 0;
-  case T_HDL:
-    f = HANDLE(p);
-    g = HANDLE(q);
+  case T_PTR:
+    f = PTR(p);
+    g = PTR(q);
     return f < g ? -1 : f > g ? 1 : 0;
   default:
     return 0;
@@ -1821,11 +1690,10 @@ eval(NODEPTR n)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR x, y, z, w;
-  value_t xi, yi;
-  double xd, yd;
-  value_t r;
-  double rd;
-  FILE *hdl;
+  value_t xi, yi, r;
+#if WANT_FLOAT
+  double xd, yd, rd;
+#endif  /* WANT_FLOAT */
   char *msg;
   heapoffs_t l;
 
@@ -1872,14 +1740,6 @@ eval(NODEPTR n)
     num_reductions++;
 #if FASTTAGS
     l = LABEL(n);
-#if FASTTAGSCHECK
-    if (l < T_IO_BIND) {
-      if (l != GETTAG(n)) {
-        printf("%lu %lu\n", l, (tag_t)(GETTAG(n)));
-        ERR("bad tag");
-      }
-    }
-#endif  /* FASTTAGSCHECK */
     enum node_tag tag = l < T_IO_BIND ? l : GETTAG(n);
 #else   /* FASTTAGS */
     enum node_tag tag = GETTAG(n);
@@ -1896,9 +1756,8 @@ eval(NODEPTR n)
     case T_STR:  GCCHECK(strNodes(strlen(STR(n)))); GOIND(mkStringC(STR(n)));
     case T_INT:  RET;
     case T_DBL:  RET;
-    case T_HDL:  RET;
     case T_PTR:  RET;
-    case T_BADDYN: fprintf(stderr, "Unknown FFI function %s\n", STR(n)); ERR("FFI");
+    case T_BADDYN: ERR1("FFI unknown %s", STR(n));
 
     case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
     case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
@@ -1933,6 +1792,7 @@ eval(NODEPTR n)
     case T_SHR:  ARITHBINU(>>);
     case T_ASHR: ARITHBIN(>>);
 
+#if WANT_FLOAT
     case T_FADD: FARITHBIN(+);
     case T_FSUB: FARITHBIN(-);
     case T_FMUL: FARITHBIN(*);
@@ -1981,6 +1841,7 @@ eval(NODEPTR n)
       n = TOP(-1);
       // update n to be s
       GOIND(s);
+#endif  /* WANT_FLOAT */
 
     /* Retag a word sized value, keeping the bits */
 #define CONV(t) do { CHECK(1); x = evali(ARG(TOP(0))); GCCHECK(1); y = alloc_node(t); SETVALUE(y, GETVALUE(x)); POP(1); n = TOP(-1); GOIND(y); } while(0)
@@ -2008,7 +1869,11 @@ eval(NODEPTR n)
       yi = evalint(ARG(TOP(2)));
       int sz = strlen(msg) + 100;
       char *res = malloc(sz);
+#if WANT_STDIO
       snprintf(res, sz, "no match at %s, line %"PRIvalue", col %"PRIvalue, msg, xi, yi);
+#else  /* WANT_STDIO */
+      strcpy(res, "no match");
+#endif  /* WANT_STDIO */
       POP(2);
       GCCHECK(strNodes(strlen(res)));
       ARG(TOP(0)) = mkStringC(res);
@@ -2022,7 +1887,12 @@ eval(NODEPTR n)
       msg = evalstring(ARG(TOP(0)));
       int sz = strlen(msg) + 100;
       char *res = malloc(sz);
+
+#if WANT_STDIO
       snprintf(res, sz, "no default for %s", msg);
+#else  /* WANT_STDIO */
+      strcpy(res, "no default");
+#endif  /* WANT_STDIO */
       GCCHECK(strNodes(strlen(res)));
       ARG(TOP(0)) = mkStringC(res);
       free(res);
@@ -2039,9 +1909,7 @@ eval(NODEPTR n)
       } else {
         /* No handler, so just die. */
         CHKARGEV1(msg = evalstring(x));
-        fprintf(stderr, "error: %s\n", msg);
-        free(msg);
-        exit(1);
+        ERR1("error: %s", msg);
       }
     case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
@@ -2051,28 +1919,19 @@ eval(NODEPTR n)
 
     case T_RNF: rnf(ARG(TOP(0))); POP(1); n = TOP(-1); GOIND(combUnit);
 
-    case T_IO_ISNULLHANDLE: CHKARGEV1(hdl = evalhandleN(x)); GOIND(hdl == 0 ? combTrue : combFalse);
-
     case T_IO_PERFORMIO:    CHKARGEV1(x = evalio(x)); GOIND(x);
 
     case T_IO_BIND:
     case T_IO_THEN:
     case T_IO_RETURN:
-    case T_IO_GETCHAR:
-    case T_IO_GETRAW:
-    case T_IO_PUTCHAR:
     case T_IO_SERIALIZE:
     case T_IO_PRINT:
     case T_IO_DESERIALIZE:
-    case T_IO_OPEN:
-    case T_IO_CLOSE:
-    case T_IO_FLUSH:
     case T_IO_GETARGS:
     case T_IO_DROPARGS:
     case T_IO_GETTIMEMILLI:
     case T_IO_CCALL:
     case T_IO_CATCH:
-    case T_FREEPTR:
     case T_NEWCASTRING:
     case T_PEEKCASTRING:
       RET;
@@ -2105,8 +1964,7 @@ eval(NODEPTR n)
       GOIND(T_IO_BIND <= l && l <= T_IO_FLUSH ? combTrue : combFalse);
 #endif
     default:
-      fprintf(stderr, "bad tag %d\n", GETTAG(n));
-      ERR("eval tag");
+      ERR1("eval tag %d", GETTAG(n));
     }
   }
 }
@@ -2119,10 +1977,11 @@ evalio(NODEPTR n)
   stackptr_t stk = stack_ptr;
   NODEPTR f, x;
   int c;
-  int hdr;
-  FILE *hdl;
   char *name;
+#if WANT_STDIO
   void *ptr;
+  int hdr;
+#endif  /* WANT_STDIO */
 
 /* IO operations need all arguments, anything else should not happen. */
 #define CHECKIO(n) do { if (stack_ptr - stk != (n+1)) {ERR("CHECKIO");}; } while(0)
@@ -2143,7 +2002,6 @@ evalio(NODEPTR n)
       n = FUN(n);
       PUSH(n);
       break;
-
     case T_IO_BIND:
       CHECKIO(2);
       {
@@ -2181,25 +2039,7 @@ evalio(NODEPTR n)
       CHECKIO(1);
       n = ARG(TOP(1));
       RETIO(n);
-    case T_IO_GETCHAR:
-      CHECKIO(1);
-      hdl = evalhandle(ARG(TOP(1)));
-      GCCHECK(1);
-      c = getc(hdl);
-      n = mkInt(c);
-      RETIO(n);
-    case T_IO_GETRAW:
-      CHECKIO(0);
-      GCCHECK(1);
-      c = getraw();
-      n = mkInt(c);
-      RETIO(n);
-    case T_IO_PUTCHAR:
-      CHECKIO(2);
-      hdl = evalhandle(ARG(TOP(1)));
-      c = (int)evalint(ARG(TOP(2)));
-      putc(c, hdl);
-      RETIO(combUnit);
+#if WANT_STDIO
     case T_IO_PRINT:
       hdr = 0;
       goto ser;
@@ -2207,46 +2047,19 @@ evalio(NODEPTR n)
       hdr = 1;
     ser:
       CHECKIO(2);
-      hdl = evalhandle(ARG(TOP(1)));
+      ptr = evalptr(ARG(TOP(1)));
       x = evali(ARG(TOP(2)));
       //x = ARG(TOP(1));
-      print(hdl, x, hdr);
-      fprintf(hdl, "\n");
+      print(ptr, x, hdr);
+      fprintf(ptr, "\n");
       RETIO(combUnit);
     case T_IO_DESERIALIZE:
       CHECKIO(1);
-      hdl = evalhandle(ARG(TOP(1)));
+      ptr = evalptr(ARG(TOP(1)));
       gc();                     /* parser runs without GC */
-      n = parse_FILE(hdl);
+      n = parse_FILE(ptr);
       RETIO(n);
-    case T_IO_CLOSE:
-      CHECKIO(1);
-      hdl = evalhandle(ARG(TOP(1)));
-      n = evali(ARG(TOP(1)));
-      HANDLE(n) = 0;
-      fclose(hdl);
-      RETIO(combUnit);
-    case T_IO_FLUSH:
-      CHECKIO(1);
-      hdl = evalhandle(ARG(TOP(1)));
-      fflush(hdl);
-      RETIO(combUnit);
-    case T_IO_OPEN:
-      CHECKIO(2);
-      name = evalstring(ARG(TOP(1)));
-      switch (evalint(ARG(TOP(2)))) {
-      case 0: hdl = fopen(name, "r"); break;
-      case 1: hdl = fopen(name, "w"); break;
-      case 2: hdl = fopen(name, "a"); break;
-      case 3: hdl = fopen(name, "r+"); break;
-      default:
-        ERR("IO_OPEN mode");
-      }
-      free(name);
-      GCCHECK(1);
-      n = alloc_node(T_HDL);
-      HANDLE(n) = hdl;
-      RETIO(n);
+#endif
     case T_IO_GETARGS:
       CHECKIO(0);
       {
@@ -2278,12 +2091,6 @@ evalio(NODEPTR n)
       glob_argc -= c;
       glob_argv += c;
       RETIO(combUnit);
-    case T_IO_GETTIMEMILLI:
-      CHECKIO(0);
-      GCCHECK(1);
-      n = alloc_node(T_INT);
-      SETVALUE(n, (value_t)(gettime() * 1000));
-      RETIO(n);
     case T_IO_CCALL:
       {
         int a = (int)GETVALUE(n);
@@ -2300,15 +2107,21 @@ evalio(NODEPTR n)
         switch (ffi_table[a].ffi_how) {
         case FFI_V:   FFIV(0);                                      (*                               f)();                     RETIO(combUnit);
         case FFI_I:   FFI (0);                                 ri = (*(value_t (*)(void            ))f)();      n = mkInt(ri); RETIO(n);
+        case FFI_i:   FFI (0);                                 ri = (*(int     (*)(void            ))f)();      n = mkInt(ri); RETIO(n);
         case FFI_IV:  FFIV(1); xi = INTARG(1);                      (*(void    (*)(value_t         ))f)(xi);                   RETIO(combUnit);
         case FFI_II:  FFI (1); xi = INTARG(1);                 ri = (*(value_t (*)(value_t         ))f)(xi);    n = mkInt(ri); RETIO(n);
         case FFI_IIV: FFIV(2); xi = INTARG(1); yi = INTARG(2);      (*(void    (*)(value_t, value_t))f)(xi,yi);                RETIO(combUnit);
         case FFI_III: FFI (2); xi = INTARG(1); yi = INTARG(2); ri = (*(value_t (*)(value_t, value_t))f)(xi,yi); n = mkInt(ri); RETIO(n);
         case FFI_DD:  FFI (1); xd = DBLARG(1);                 rd = (*(double  (*)(double          ))f)(xd);    n = mkDbl(rd); RETIO(n);
         case FFI_PI:  FFI (1); xp = PTRARG(1);                 ri = (*(value_t (*)(void*           ))f)(xp);    n = mkInt(ri); RETIO(n);
+        case FFI_Pi:  FFI (1); xp = PTRARG(1);                 ri = (*(int     (*)(void*           ))f)(xp);    n = mkInt(ri); RETIO(n);
+        case FFI_IP:  FFI (1); xi = INTARG(1);                 rp = (*(void*   (*)(value_t         ))f)(xi);    n = mkPtr(rp); RETIO(n);
         case FFI_PP:  FFI (1); xp = PTRARG(1);                 rp = (*(void*   (*)(void*           ))f)(xp);    n = mkPtr(rp); RETIO(n);
+        case FFI_PV:  FFI (1); xp = PTRARG(1);                      (*(void    (*)(void*           ))f)(xp);                   RETIO(combUnit);
         case FFI_PPI: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(void*, void*    ))f)(xp,yp); n = mkInt(ri); RETIO(n);
         case FFI_PPP: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  rp = (*(void*   (*)(void*, void*    ))f)(xp,yp); n = mkPtr(rp); RETIO(n);
+        case FFI_IPI: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(value_t, void*  ))f)(xi,yp); n = mkInt(ri); RETIO(n);
+        case FFI_iPi: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(int     (*)(int,   void*    ))f)(xi,yp); n = mkInt(ri); RETIO(n);
         default: ERR("T_IO_CCALL");
         }
       }
@@ -2342,12 +2155,6 @@ evalio(NODEPTR n)
         }
       }
 
-    case T_FREEPTR:
-      CHECKIO(1);
-      ptr = evalptr(ARG(TOP(1)));
-      free(ptr);
-      RETIO(combUnit);
-
     case T_NEWCASTRING:
       CHECKIO(1);
       name = evalstring(ARG(TOP(1)));
@@ -2363,8 +2170,7 @@ evalio(NODEPTR n)
       RETIO(mkStringC(name));
 
     default:
-      fprintf(stderr, "bad tag %d\n", GETTAG(n));
-      ERR("evalio tag");
+      ERR1("evalio tag %d", GETTAG(n));
     }
   }
 }
@@ -2391,15 +2197,19 @@ int
 main(int argc, char **argv)
 {
   char *inname = 0;
-  char *outname = 0;
   char **av;
-  size_t file_size;
   NODEPTR prog;
   int inrts;
+#if WANT_STDIO
+  char *outname = 0;
+  size_t file_size;
+#endif
   
+#if 0
   /* MINGW doesn't do buffering right */
   setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
   setvbuf(stderr, NULL, _IONBF, BUFSIZ);
+#endif
 
   argc--, argv++;
   glob_argv = argv;
@@ -2417,8 +2227,10 @@ main(int argc, char **argv)
           stack_size = memsize(&p[2]);
         else if (strncmp(p, "-r", 2) == 0)
           inname = &p[2];
+#if WANT_STDIO
         else if (strncmp(p, "-o", 2) == 0)
           outname = &p[2];
+#endif  /* WANT_STDIO */
         else
           ERR("Usage: eval [+RTS [-v] [-Hheap-size] [-Kstack-size] [-rFILE] [-oFILE] -RTS] arg ...");
       }
@@ -2456,16 +2268,21 @@ main(int argc, char **argv)
     prog = parse_top(bf);
     bf->closeb(bf);
   } else {
+#if WANT_STDIO
     prog = parse_file(inname, &file_size);
+#else
+    ERR("no stdio");
+#endif
   }
 
   PUSH(prog); gc(); prog = TOP(0); POP(1);
+#if WANT_STDIO
   heapoffs_t start_size = num_marked;
   if (outname) {
     /* Save GCed file (smaller), and exit. */
     FILE *out = fopen(outname, "w");
     if (!out)
-      ERR("output file");
+      ERR1("cannot open output file %s", outname);
     print(out, prog, 1);
     fclose(out);
     exit(0);
@@ -2474,10 +2291,12 @@ main(int argc, char **argv)
     //pp(stdout, prog);
     print(stdout, prog, 1);
   }
-  run_time -= gettime();
+#endif
+  run_time -= GETTIMEMILLI();
   NODEPTR res = evalio(prog);
   res = evali(res);
-  run_time += gettime();
+  run_time += GETTIMEMILLI();
+#if WANT_STDIO
   if (0) {
     FILE *out = fopen("prog.comb", "w");
     print(out, prog, 1);
@@ -2493,15 +2312,16 @@ main(int argc, char **argv)
     printf("%"PCOMMA"15"PRIheap" combinator file size\n", (heapoffs_t)file_size);
     printf("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
     printf("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
-    printf("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / run_time / 1000000);
+    printf("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / (double)run_time / 1000000000);
     printf("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
     printf("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
-    printf("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / run_time / 1000000);
-    printf("%15.2fs total expired time\n", run_time);
-    printf("%15.2fs total gc time\n", gc_mark_time);
+    printf("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / (double)run_time / 1000000000);
+    printf("%15.2fs total expired time\n", (double)run_time / 1000);
+    printf("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
 #if GCRED && 0
     printf(" GC reductions A=%d, K=%d, I=%d, int=%d\n", red_a, red_k, red_i, red_int);
 #endif
   }
+#endif  /* WANT_STDIO */
   exit(0);
 }

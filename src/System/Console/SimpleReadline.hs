@@ -7,12 +7,14 @@ module System.Console.SimpleReadline(
   getInputLine,
   getInputLineHist
   ) where
-import Primitives
 import Prelude
 import Control.Monad
 import Data.Char
 import System.IO
 --Ximport Compat
+
+foreign import ccall "getRaw" c_getRaw :: IO Int
+
 
 -- Get an input line with editing.
 -- Return Nothing if the input is ^D, otherwise the typed string.
@@ -44,7 +46,7 @@ getInputLineHist hfn prompt = do
 
 getRaw :: IO Int
 getRaw = do
-  i <- primGetRaw
+  i <- c_getRaw
   when (i < 0) $
     error "getRaw failed"
   return i

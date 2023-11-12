@@ -22,7 +22,7 @@ import System.Process
 -- Version number of combinator file.
 -- Must match version in eval.c.
 version :: String
-version = "v4.3\n"
+version = "v5.0\n"
 
 main :: IO ()
 main = do
@@ -92,8 +92,12 @@ mainCompile flags mn = do
      else withSystemTempFile "mhsc.c" $ \ fn h -> do
        hPutStr h $ makeCArray outData
        hClose h
+       ct1 <- getTimeMilli
        mdir <- lookupEnv "MHSDIR"
        let mhsdir = fromMaybe "." mdir
        let cmd = "cc -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval.c " ++ fn ++ " -lm -o " ++ outFile
        --print cmd
        callCommand cmd
+       ct2 <- getTimeMilli
+       when (verbose flags > 0) $
+         putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"
