@@ -18,11 +18,10 @@ ALLSRC=src/*/*.hs lib/*.hs lib/*/*.hs ghc/*.hs ghc/*/*.hs
 MHS=mhs
 COMB=comb/
 EVAL=$(BIN)/mhseval
-.PHONY: all alltest everytest runtest bootboottest bootcombtest $(MHS)test test alltest time example bootstraptest
+.PHONY: all alltest everytest runtest bootcombtest $(MHS)test test alltest time example bootstraptest
 
 all:	$(EVAL) $(BIN)/$(MHS)
 
-#everytest:	runtest example examplecomb bootboottest bootcombtest
 everytest:	runtest example examplecomb bootcombtest
 
 ###
@@ -36,18 +35,12 @@ $(EVAL):	src/runtime/eval.c
 ###
 ### Build the compiler with ghc, using standard libraries (Prelude, Data.List, etc)
 ###
-$(BIN)/$(MHS):	src/*.hs src/*/*.hs $(TOOLS)/convertX.sh
+$(BIN)/$(MHS):	src/*/*.hs $(TOOLS)/convertX.sh
 	$(GHCE) -ighc -isrc -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -O src/MicroHs/Main.hs -main-is MicroHs.Main -o $(BIN)/$(MHS)
 
 # Self compile using comb/mhs.comb
 $(COMB)$(MHS)-new.comb: $(EVAL)
 	$(EVAL) +RTS -r$(COMB)$(MHS).comb -RTS -ilib -isrc -o$(COMB)$(MHS)-new.comb MicroHs.Main
-
-# Compare version compiled with normal GHC libraries and $(MHS) libraries
-bootboottest:	$(BIN)/$(MHS) $(BIN)/boot$(MHS)
-	$(BIN)/$(MHS)     -ilib -isrc -omain-$(MHS).comb  MicroHs.Main
-	$(BIN)/boot$(MHS) -ilib -isrc -omain-boot.comb MicroHs.Main
-	cmp main-$(MHS).comb main-boot.comb
 
 # Compare version compiled with GHC, and bootstrapped combinator version
 bootcombtest:	$(BIN)/$(MHS) $(EVAL) $(COMB)$(MHS).comb

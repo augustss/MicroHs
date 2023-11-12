@@ -12,8 +12,6 @@ import Prelude
 import Control.Applicative
 import Control.Monad
 import Data.Functor --Xhiding(unzip)
---import qualified System.IO as IO
---Ximport qualified CompatIO as IO
 
 data StateIO s a = S (s -> IO (a,s))
 
