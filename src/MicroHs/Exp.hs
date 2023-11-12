@@ -21,7 +21,6 @@ import MicroHs.Expr(Lit(..), showLit)
 import Text.PrettyPrint.HughesPJ
 --Ximport Control.DeepSeq
 --Ximport Compat
---Yimport Primitives(NFData(..))
 import Debug.Trace
 
 type PrimOp = String
@@ -53,10 +52,7 @@ data Exp
   | Lam Ident Exp
   | Lit Lit
 
---pattern Let :: Ident -> Exp -> Exp -> Exp
---pattern Let i e b = App (Lam i b) e
-
---Winstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
+--Xinstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
 
 instance Eq Exp where
   (==) (Var i1)    (Var i2)    = i1 == i2

@@ -2,12 +2,9 @@
 -- See LICENSE file for full license.
 module Data.Tuple(
   module Data.Tuple,
---Y{-
   ()(..)
---Y-}
   ) where
 import Primitives  -- for ()
---Yimport PrimFromInteger
 import Data.Bool
 import Data.Bounded
 import Data.Eq

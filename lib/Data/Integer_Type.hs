@@ -3,7 +3,6 @@
 module Data.Integer_Type(module Data.Integer_Type) where
 import Primitives
 import Data.Bool_Type
---Yimport PrimFromInteger
 import Data.List_Type
 
 data Integer = I Sign [Digit]

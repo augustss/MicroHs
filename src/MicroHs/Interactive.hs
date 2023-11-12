@@ -5,15 +5,13 @@ import Prelude
 import Control.Exception
 import MicroHs.StateIO
 import MicroHs.Compile
-import MicroHs.Exp(Exp)
-import MicroHs.Ident(Ident, mkIdent)
+import MicroHs.Desugar(LDef)
+import MicroHs.Ident(mkIdent)
 import MicroHs.Parse
 import MicroHs.Translate
 import Unsafe.Coerce
 import System.Console.SimpleReadline
 --Ximport Compat
-
-type LDef = (Ident, Exp)  -- XXX why?
 
 type IState = (String, Flags, Cache)
 

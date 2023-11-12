@@ -7,18 +7,18 @@ import Prelude
 import Data.Maybe
 import qualified MicroHs.IdentMap as M
 import System.Environment
---Ximport GHC.Types
 import Unsafe.Coerce
+--Ximport GHC.Types
 --Ximport Compat
---Wimport PrimTable
+--Ximport PrimTable
 
-import MicroHs.Desugar(encodeInteger)
+import MicroHs.Desugar(LDef, encodeInteger)
 import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.Ident
 
---translateAndRun :: (Ident, [LDef]) -> IO ()
-translateAndRun :: (Ident, [(Ident, Exp)]) -> IO ()
+translateAndRun :: (Ident, [LDef]) -> IO ()
+--translateAndRun :: (Ident, [(Ident, Exp)]) -> IO ()
 translateAndRun defs = do
   -- Drop all argument up to '--'
   args <- getArgs
@@ -26,8 +26,8 @@ translateAndRun defs = do
   withDropArgs (length (takeWhile (/= "--") args) + 1)
     prog
 
---translate :: (Ident, [LDef]) -> Any
-translate :: (Ident, [(Ident, Exp)]) -> Any
+translate :: (Ident, [LDef]) -> Any
+--translate :: (Ident, [(Ident, Exp)]) -> Any
 translate (mainName, ds) =
   let
     look m n = fromMaybe (error $ "translate: not found " ++ showIdent n) $ M.lookup n m

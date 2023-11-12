@@ -20,8 +20,6 @@ import Data.Maybe_Type
 import Data.Tuple
 import Text.Show
 
---Yimport Data.Char
-
 instance {-# OVERLAPPABLE #-} forall a . Eq a => Eq [a] where
   []     == []      =  True
   (x:xs) == (y:ys)  =  x == y && xs == ys

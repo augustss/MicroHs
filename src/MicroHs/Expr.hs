@@ -41,7 +41,6 @@ import Text.PrettyPrint.HughesPJ
 --Ximport Compat
 --Ximport GHC.Stack
 --Ximport Control.DeepSeq
---Yimport Primitives(NFData(..))
 
 type IdentModule = Ident
 
@@ -152,7 +151,7 @@ data Lit
   | LPrim String
   | LForImp String
   --Xderiving (Show)
---Winstance NFData Lit where rnf (LInt i) = rnf i; rnf (LInteger i) = rnf i; rnf (LDouble d) = rnf d; rnf (LRat r) = rnf r; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
+--Xinstance NFData Lit where rnf (LInt i) = rnf i; rnf (LInteger i) = rnf i; rnf (LDouble d) = rnf d; rnf (LRat r) = rnf r; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
 
 instance Eq Lit where
   (==) (LInt x)     (LInt  y) = x == y

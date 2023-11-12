@@ -1,6 +1,5 @@
 module Text.Show(module Text.Show) where
 import Primitives
---Yimport PrimFromInteger
 import Data.Bool_Type
 import Data.Char_Type
 import Data.List_Type

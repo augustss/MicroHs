@@ -21,7 +21,6 @@ import Prelude
 import Data.Char
 import Text.PrettyPrint.HughesPJ
 --Ximport Control.DeepSeq
---Yimport Primitives(NFData(..))
 --Ximport GHC.Stack
 
 type Line = Int
@@ -33,7 +32,7 @@ data SLoc = SLoc !FilePath !Line !Col
 
 data Ident = Ident !SLoc String
   --deriving (Show)
---Winstance NFData Ident where rnf (Ident _ s) = rnf s
+--Xinstance NFData Ident where rnf (Ident _ s) = rnf s
 
 instance Eq Ident where
   Ident _ i == Ident _ j  =  i == j

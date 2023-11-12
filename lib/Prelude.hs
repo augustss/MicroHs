@@ -29,9 +29,7 @@ module Prelude(
   module System.IO,
   module Text.Show,
   module Text.String,
-  --Ymodule Primitives,
   ) where
---Yimport Primitives(ifThenElse)
 import Control.Applicative
 import Control.Error
 import Control.Monad
@@ -60,11 +58,3 @@ import Data.Tuple
 import System.IO
 import Text.Show
 import Text.String
-
-{-
--- Called on pattern match failure.
-_noMatch :: forall a . [Char] -> Int -> Int -> a
-_noMatch fn l c = error $ "no match at " ++
-  if null fn then "no location" else
-  showString fn ++ ": " ++ "line " ++ showInt l ++ ", col " ++ showInt c
--}
