@@ -2312,10 +2312,10 @@ main(int argc, char **argv)
     printf("%"PCOMMA"15"PRIheap" combinator file size\n", (heapoffs_t)file_size);
     printf("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
     printf("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
-    printf("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / (double)run_time / 1000000000);
+    printf("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / ((double)run_time / 1000) / 1000000);
     printf("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
     printf("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
-    printf("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / (double)run_time / 1000000000);
+    printf("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
     printf("%15.2fs total expired time\n", (double)run_time / 1000);
     printf("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
 #if GCRED && 0
