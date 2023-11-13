@@ -52,6 +52,9 @@ foreign import ccall "getTimeMilli" c_getTimeMilli ::                       IO I
 instance Eq Handle where
   Handle p == Handle q  =  p == q
 
+instance Show Handle where
+  show (Handle p) = "Handle-" ++ show p
+
 nullHandle :: Handle
 nullHandle = Handle nullPtr
 
