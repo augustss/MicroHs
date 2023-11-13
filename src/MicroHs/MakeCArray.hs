@@ -14,9 +14,9 @@ showChunk = concatMap (\ c -> show (ord c) ++ ",")
 makeCArray :: String -> String
 makeCArray file =
   let chunks = chunkify 20 file
-  in  unlines $ ["static char data[] = {"] ++
+  in  unlines $ ["static unsigned char data[] = {"] ++
                 map showChunk chunks ++
-                ["0 };",
+                ["};",
                  "unsigned char *combexpr = data;",
                  "int combexprlen = " ++ show (length file) ++ ";"
                 ]
