@@ -38,7 +38,7 @@ executable mhs
   hs-source-dirs:      src ghc
   ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -F -pgmF ./Tools/convertX.sh -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
-  default-extensions:  ScopedTypeVariables PatternGuards TupleSections
+  default-extensions:  ScopedTypeVariables PatternGuards TupleSections TypeSynonymInstances
   other-modules:       MicroHs.Compile
                        MicroHs.Desugar
                        MicroHs.Exp
@@ -53,15 +53,12 @@ executable mhs
                        MicroHs.TCMonad
                        MicroHs.Translate
                        MicroHs.TypeCheck
-                       PreludeNoIO
                        Text.ParserComb
                        System.Console.SimpleReadline
                        Control.Alternative
                        Data.Double
                        Compat
-                       CompatIO
                        PrimTable
-                       Primitives
   build-depends:       base         >= 4.10 && < 4.20,
                        containers   >= 0.5 && < 0.8,
                        deepseq      >= 1.1 && < 1.6,

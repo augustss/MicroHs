@@ -15,6 +15,7 @@ module MicroHs.TypeCheck(
 import Data.Eq -- XXX why needed?
 import Prelude
 import Data.Char
+import Data.Function
 import Data.List
 import Data.Maybe
 import qualified Data.IntMap as IM

@@ -20,19 +20,6 @@ import Data.Real
 import Data.Tuple
 import Text.Show
 
-xshowChar :: Char -> String
-xshowChar c = "'" ++ xencodeChar c ++ "'"
-
-xencodeChar :: Char -> String
-xencodeChar c =
-  let
-    spec = [('\n', "\\n"), ('\r', "\\r"), ('\t', "\\t"), ('\b', "\\b"),
-            ('\\', "\\\\"), ('\'', "\\'"), ('"', "\"")]
-  in
-    case lookup c spec of
-      Nothing -> if isPrint c then [c] else "'\\" ++ show (ord c) ++ "'"
-      Just s  -> s
-
 readInt :: String -> Int
 readInt cs =
   let

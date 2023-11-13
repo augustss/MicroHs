@@ -8,6 +8,7 @@ module MicroHs.Desugar(
   ) where
 import Prelude
 import Data.Char
+import Data.Function
 import Data.List
 import Data.Maybe
 import Data.Ratio

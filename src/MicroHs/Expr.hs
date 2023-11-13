@@ -38,7 +38,6 @@ import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..)
 import Data.Maybe
 import MicroHs.Ident
 import Text.PrettyPrint.HughesPJ
---Ximport Compat
 --Ximport GHC.Stack
 --Ximport Control.DeepSeq
 
@@ -600,7 +599,7 @@ showLit l =
     LInteger i -> '#' : '#' : show i
     LDouble d  -> '&' : show d
     LRat r     -> '%' : show r
-    LChar c    -> xshowChar c
+    LChar c    -> show c
     LStr s     -> show s
     LPrim s    -> s
     LForImp s  -> '^' : s

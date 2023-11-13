@@ -102,7 +102,7 @@ lex loc ('\'':cs) =
       tchar _ = TError loc "Illegal Char literal"
   in  case takeChars loc tchar '\'' 0 [] cs of  -- XXX head of
         (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
-lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ xshowChar d]
+lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ show d]
 lex _ [] = []
 
 hexNumber :: Loc -> String -> [Token]

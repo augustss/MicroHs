@@ -16,7 +16,6 @@ module MicroHs.IdentMap(
   ) where
 import Prelude hiding(lookup)
 import MicroHs.Ident
---Ximport Compat
 
 data Map a
   = Nil           -- empty tree
@@ -92,7 +91,7 @@ delete :: forall a . Ident -> Map a -> Map a
 delete k = del
   where
     del Nil = Nil
-    del t@(One a _) | isEQ (k `compare` a) = Nil
+    del t@(One a _) | (k `compare` a) == EQ = Nil
                     | otherwise        = t
     del (Node left _ key val right) =
       case k `compare` key of
