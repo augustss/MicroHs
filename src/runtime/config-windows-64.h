@@ -80,7 +80,7 @@ gettimemilli(void)
     time += ((uint64_t)file_time.dwHighDateTime) << 32;
 
     msec = (time - EPOCH) / 10000L;
-    msec = time + system_time.wMilliseconds;
+    //msec = time + system_time.wMilliseconds;
     return msec;
 }
 
