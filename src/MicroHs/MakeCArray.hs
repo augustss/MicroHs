@@ -17,6 +17,6 @@ makeCArray file =
   in  unlines $ ["static char data[] = {"] ++
                 map showChunk chunks ++
                 ["0 };",
-                 "char *combexpr = data;",
+                 "unsigned char *combexpr = data;",
                  "int combexprlen = " ++ show (length file) ++ ";"
                 ]
