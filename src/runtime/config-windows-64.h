@@ -31,8 +31,9 @@
  * It return the number of the least significant bit that is set.
  * Numberings starts from 1.  If no bit is set, it should return 0.
  */
-#pragma warning(disable : 4996)
-#pragma intrinsic(_BitScanForward)
+#include <intrin.h>
+//#pragma warning(disable : 4996)
+#pragma intrinsic(_BitScanForward64)
 static inline int
 FFS(int64_t arg)
 {
@@ -71,20 +72,28 @@ gettimemilli(void)
 
     SYSTEMTIME  system_time;
     FILETIME    file_time;
-    uint64_t    time;
+    uint64_t    time, msec;
 
     GetSystemTime( &system_time );
     SystemTimeToFileTime( &system_time, &file_time );
     time =  ((uint64_t)file_time.dwLowDateTime )      ;
     time += ((uint64_t)file_time.dwHighDateTime) << 32;
 
-    time /= 10000L;
-    time += system_time.wMilliseconds * 1000;
-    return time;
+    msec = (time - EPOCH) / 10000L;
+    msec = time + system_time.wMilliseconds;
+    return msec;
 }
 
 
 /*
  * The ERR macro should report an error and exit.
  * If not defined, a generic one will be used.
-/* #define ERR(s,a) */
+ */
+/* #define ERR(s) */
+/* #define ERR1(s,a) */
+
+#define GCRED    1              /* do some reductions during GC */
+#define FASTTAGS 1              /* compute tag by pointer subtraction */
+#define INTTABLE 1              /* use fixed table of small INT nodes */
+#define SANITY   1              /* do some sanity checks */
+#define STACKOVL 1              /* check for stack overflow */
