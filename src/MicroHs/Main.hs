@@ -91,12 +91,13 @@ mainCompile flags mn = do
       writeFile outFile $ makeCArray outData
      else withSystemTempFile "mhsc.c" $ \ fn h -> do
        hPutStr h $ makeCArray outData
-       hClose h
+       hFlush h
        ct1 <- getTimeMilli
        mdir <- lookupEnv "MHSDIR"
        let mhsdir = fromMaybe "." mdir
        let cmd = "cc -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval.c " ++ fn ++ " -lm -o " ++ outFile
-       --print cmd
+       when (verbose flags > 0) $
+         putStrLn $ "Execute: " ++ show cmd
        callCommand cmd
        ct2 <- getTimeMilli
        when (verbose flags > 0) $
