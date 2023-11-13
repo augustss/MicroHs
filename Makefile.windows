@@ -8,4 +8,4 @@ bin/mhs.exe:	src/runtime/eval.c src/runtime/config*.h #generated/mhs.c
 # Compile combinator evaluator
 bin/mhseval.exe:	src/runtime/eval.c src/runtime/config*.h src/runtime/comb.c
 	@-mkdir bin
-	cl /O2 src/runtime/eval.c src/runtime/comb.c /Febin/mhs.exe
+	cl /O2 src/runtime/eval.c src/runtime/comb.c /Febin/mhseval.exe
