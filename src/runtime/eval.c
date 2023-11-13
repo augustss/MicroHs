@@ -52,6 +52,10 @@ uint64_t GETTIMEMILLI(void) { return 0; }
 #define INLINE inline
 #endif  /* !define(INLINE) */
 
+#if !defined(NORETURN)
+#define NORETURN __attribute__ ((noreturn))
+#endif /* !defined(NORETURN) */
+
 /***************************************/
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
@@ -154,7 +158,7 @@ bits_t *free_map;             /* 1 bit per node, 0=free, 1=used */
 heapoffs_t free_map_nwords;
 heapoffs_t next_scan_index;
 
-__attribute__ ((noreturn)) // [[noreturn]]
+NORETURN
 void
 memerr(void)
 {

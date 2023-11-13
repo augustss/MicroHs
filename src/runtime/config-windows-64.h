@@ -84,6 +84,8 @@ gettimemilli(void)
     return msec;
 }
 
+/* Make this empty */
+#define NORETURN
 
 /*
  * The ERR macro should report an error and exit.
