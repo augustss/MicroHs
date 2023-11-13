@@ -8,15 +8,13 @@ GHC= ghc
 GHCINCS= -ighc -isrc
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial
 GHCOPTS= -O
-GHCEXTS= -XScopedTypeVariables -XTupleSections
-GHCPKGS= -package mtl -package pretty
+GHCEXTS= -XScopedTypeVariables -XPatternGuards -XTupleSections -XTypeSynonymInstances -XFlexibleInstances
+GHCPKGS= #-package mtl -package pretty -package temporary -package process
 GHCTOOL= -F -pgmF Tools/convertX.sh
 GHCOUTDIR= ghc-out
 GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
-#
-MHSCOMP= bin/mhs -ilib -isrc MicroHs.Main
 #
 .PHONY:	clean bootstrap
 
@@ -38,7 +36,7 @@ bin/gmhs:	src/*/*.hs Tools/convertX.sh
 # Generate distribution C file
 generated/mhs.c:	bin/mhs src/*/*.hs
 	@mkdir -p generated
-	$(MHSCOMP) -ogenerated/mhs.c
+	bin/mhs -ilib -isrc MicroHs.Main -ogenerated/mhs.c
 
 # Make sure boottrapping works
 bootstrap:	bin/mhs-stage2
@@ -49,7 +47,7 @@ bootstrap:	bin/mhs-stage2
 bin/mhs-stage1:	bin/mhs src/*/*.hs
 	@mkdir -p generated
 	@echo Build stage1 compiler
-	$(MHSCOMP) -ogenerated/mhs-stage1.c
+	bin/mhs -ilib -isrc MicroHs.Main -ogenerated/mhs-stage1.c
 	$(CCEVAL) generated/mhs-stage1.c -o bin/mhs-stage1
 
 # Build stage2 compiler with stage1 compiler, and compare
@@ -59,6 +57,11 @@ bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 	bin/mhs-stage1 -ilib -isrc MicroHs.Main -ogenerated/mhs-stage2.c
 	cmp generated/mhs-stage1.c generated/mhs-stage2.c
 	$(CCEVAL) generated/mhs-stage2.c -o bin/mhs-stage2
+
+# Run test examples with ghc-compiled compiler
+runtest:	bin/mhseval bin/gmhs tests/*.hs
+	cd tests; make alltest
+
 #
 clean:
 	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage*

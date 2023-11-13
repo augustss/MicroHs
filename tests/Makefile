@@ -1,4 +1,4 @@
-MHS=../bin/mhs -i../lib
+MHS=../bin/gmhs -i../lib
 EVAL=../bin/mhseval
 .PHONY: test time clean errtest alltest
 

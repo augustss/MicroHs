@@ -1909,7 +1909,12 @@ eval(NODEPTR n)
       } else {
         /* No handler, so just die. */
         CHKARGEV1(msg = evalstring(x));
+#if WANT_STDIO
+        fprintf(stderr, "mhs: %s\n", msg);
+        exit(1);
+#else  /* WANT_STDIO */
         ERR1("error: %s", msg);
+#endif  /* WANT_STDIO */
       }
     case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
