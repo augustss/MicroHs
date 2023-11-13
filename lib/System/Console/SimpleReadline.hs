@@ -20,7 +20,6 @@ foreign import ccall "getRaw" c_getRaw :: IO Int
 -- Return Nothing if the input is ^D, otherwise the typed string.
 getInputLine :: String -> IO (Maybe String)
 getInputLine prompt = do
-  putStr prompt
   (_, r) <- loop ([],[]) "" ""
   return r
 
