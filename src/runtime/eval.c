@@ -2190,8 +2190,8 @@ memsize(const char *p)
   return n;
 }
 
-uint8_t *combexpr;                 /* Alternate version of internal data */
-int combexprlen;
+extern uint8_t *combexpr;
+extern int combexprlen;
 
 int
 main(int argc, char **argv)
