@@ -454,7 +454,7 @@ alloc_node(enum node_tag t)
   int k;                        /* will contain bit pos + 1 */
   for(;;) {
     heapoffs_t word = free_map[i];
-    k = ffsl(word);
+    k = FFS(word);
     if (k)
       break;
     i++;
