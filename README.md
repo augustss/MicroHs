@@ -5,50 +5,56 @@ It uses combinators for the runtime execution.
 The compiler can compile itself.
 
 ## Compiling MicroHs
-There are three different ways to compile MicroHs
-* Using GHC with standard `Prelude` and libraries. `Makefile` target `bin/mhs`
-* Using GHC, but with `Prelude` and libraries from MicroHs. `Makefile` target `bin/bootmhs`
-* Using mhs, with the supplied `comb/mhs.comb`. `Makefile` target `comb/mhs-new.comb`
+There are two different ways to compile MicroHs
+* Using GHC with standard `Prelude` and libraries. `Makefile` target `bin/gmhs`
+* Using the included combinator file and runtime.  `Makefile` target `bin/mhs`
 
 These different ways of compiling need slightly different imports etc.
-To accomodate this each source file is preprocessed for the first two targets.
-When compiling with GHC and standard libraries the strings `--X` and `--W` are removed from the source file.
-When compiling with GHC and MicroHs libraries the strings `--Y` and `--W` are removed from the source file.
+To accomodate this each source file is preprocessed for the first target.
+When compiling with GHC the string `--X` is removed from the source file.
 This way anything special needed with GHC is just treated as comments by mhs.
 
 Compiling MicroHs is really best done using `make`, but there is also a `MicroHs.cabal` file
 for use with `cabal`.  This only builds what corresponds to the first target.
 
 Also note that there is no need to have a Haskell compiler to run MicroHs.
-All you need is a C compiler, and MicroHs can bootstrap, given the included combinator file (`comb/mhs.comb`).
+All you need is a C compiler, and MicroHs can bootstrap, given the included combinator file.
 
 ## Language
-The language is a subset of Haskell.  There is only simple Hindley-Milner polymorphism,
-no type classes (yet).
+The language is an extended subset of Haskell-98.
 
-It has the following features:
-* variables
-* application
-* lambda
-* integer literals
-* double literals (no exponents)
-* character literals
-* string (list of characters) literals
-* case expressions
-* let expressions
-* tuples
-* list syntax
-* list comprehensions
-* arithmetic and comparison operators, the prelude exports the ones for `Int`, but for the other types you need to do a qulified import (e.g for `Double` and for `Word`).
-* qualified `do` notation, e.g., `IO.do`
-* data (and newtype) type declarations
-* type synonyms
-* type signatures
-* importing of other modules, `qualified` and `as` supported
-* exporting with mandatory export list
-* the `Prelude` has to be imported explicitely
-* mandatory type signatures at the top level, with mandatory `forall` for polymorphism
-* terrible error messages, some errors are not even flagged
+Differences:
+ * Top level definitions must have a type signature.
+ * Type variables need an explicit `forall`.
+ * Type variables without a kind annotation are assumed to have kind `Type`.
+ * There is no prefix negation.
+ * There is no `Read` class.
+ * There is no defaulting.
+ * There is no deriving.
+ * The `Prelude` has to be imported explicitly.
+ * Polymorphic types are never inferred; use a type signature if you need it.
+ * Always enabled extension:
+   * EmptyDataDecls
+   * FlexibleContexts
+   * FlexibleInstance
+   * ForeignFunctionInterface
+   * Not yet! FunctionalDependencies
+   * IncoherentInstances
+   * KindSignatures
+   * MonoLocalBinds
+   * MultiParamTypeClasses
+   * NegativeLiterals
+   * NoMonomorphismRestriction
+   * OverlappingInstances
+   * RankNTypes
+   * QualifiedDo
+   * ScopedTypeVariables
+   * StarIsType
+   * TupleSections
+   * TypeSynonymInstances
+   * UndecidableInstances
+   * UndecidableSuperClasses
+ * `main` in the top module given to `mhs` serves at the program entry point.
 
 ## Example
 The file `Example.hs` contains the following:
@@ -65,12 +71,12 @@ main = do
   let
     rs = map fac [1,2,3,10]
   putStrLn "Some factorials"
-  putStrLn $ showList showInt rs
+  print rs
 ```
 
-First, make sure the binaries are built.  E.g., by doing `make test`.
-Then compile the file by `bin/mhs -ilib Example` which produces `out.comb`.
-Finally, run the combinator file by `bin/mhseval`.
+First, make sure the compiler is byuilt by doing `make`.
+Then compile the file by `bin/mhs -ilib Example -oExample` which produces `Example`.
+Finally, run the binary file by `./Example`.
 This should produce
 ```
 Some factorials
@@ -79,10 +85,12 @@ Some factorials
 
 ## Libraries
 There are a number of libraries that have some of the standard Haskell functions.
-But in general, the `Prelude` contains much, much less.
+But in general, the `Prelude` contains less.
 
 ## Types
-There are some primitive data types, e.g `Int`, `Handle`, and `Double`.  These are known by the runtime system and various primitive operations work on them.  The function type, `->`, is (of course) also built in.
+There are some primitive data types, e.g `Int`, `IO`, `Ptr`, and `Double`.
+These are known by the runtime system and various primitive operations work on them.
+The function type, `->`, is (of course) also built in.
 
 All other types are defined with the language.  They are converted to lambda terms using
 the Scott encoding.   The runtime system knows how lists and booleans are encoded.
@@ -140,12 +148,13 @@ Available commands:
 * `:quit` Quit the interactive system
 * `:clear` Get back to start state
 * `:del STR` Delete all definitions that begin with `STR`
-* `expr` Evaluate expression. ***NOTE*** Currently only expressions of type `Int` work well.
+* `:reload` Reload all modules
+* `expr` Evaluate expression.
 * `defn` Add definition (can also be an `import`)
 
 ***NOTE*** When you `import` a module it is cached.
 If the file changes and you import it again it will not reload.
-You can use `:clear` to get back to an empty cache.
+You can use `:clear` (or `:reload`) to get back to an empty cache.
 This is a bug.
 
 ## Runtime
@@ -198,24 +207,15 @@ so there are undoubtedly problems on Windows.
 The code has only been tested on 64 bit platforms, so again, there are lurking problems
 with other word sizes.
 
-## Bootstrapping
-It is possible to recompile the compiler without access to a Haskell compiler.
-The combinator file for the compiler itself is available in `comb/mhs.comb`.
-The bootstrapping process takes about 20s (on a modern machine).
-To bootstrap:
- * build the evaluator, `make bin/mhseval`, this requires a C compiler
- * compile the compiler
-   ```
-   bin/mhseval +RTS -rcomb/mhs.comb -RTS -ilib -isrc -onewmhs.comb MicroHs.Main
-   ```
- * The file `newmhs.comb` is the new combinator binary and it should be
-   identical to `comb/mhs.comb`.
- * It is also possible to bake the combinator code into the binary.
-   See `make` target `bin/cmhs` for how it is done.
- * For systems where `upx` works you can further compress
-   the binary.  See `bin/umhs` target.
+The `src/runtime/` directory contains configuration files for different platform.
+Edit `src/runtime/eval.c` to `#include` the right one.
 
-**NOTE** The GC mark phase currently uses a ridiculously deep stack.
+## Bootstrapping
+The compiler can compile itself.  To replace `bin/mhs` with a new version,
+do `make bootstrap`.  This will recompile the compiler twice and compare
+the outouts to make sure the new compiler still works.
+
+**NOTE** The GC mark phase currently uses a rather deep stack.
 You might have to increase it on your system.
 
 # FAQ
@@ -227,7 +227,7 @@ You might have to increase it on your system.
   * A: Error messages are boring.
 * 
   * Q: Why is the so much source code?
-  * A: I wonder this myself.  5000 lines of Haskell seems excessive.
+  * A: I wonder this myself.  6000 lines of Haskell seems excessive.
        2500 lines of C is also more than I'd like for such a simple system.
 * 
   * Q: Why are the binaries so big?
