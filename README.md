@@ -34,11 +34,11 @@ Differences:
  * The `Prelude` has to be imported explicitly.
  * Polymorphic types are never inferred; use a type signature if you need it.
  * Always enabled extension:
+   * ConstraintKinds
    * EmptyDataDecls
    * FlexibleContexts
    * FlexibleInstance
    * ForeignFunctionInterface
-   * Not yet! FunctionalDependencies
    * IncoherentInstances
    * KindSignatures
    * MonoLocalBinds
@@ -54,6 +54,9 @@ Differences:
    * TypeSynonymInstances
    * UndecidableInstances
    * UndecidableSuperClasses
+ * In the works
+   * FunctionalDependencies
+   * ExistentialQuantification
  * `main` in the top module given to `mhs` serves at the program entry point.
 
 ## Example
