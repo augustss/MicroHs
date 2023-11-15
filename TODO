@@ -22,10 +22,8 @@
   - allow missing top level signatures (and generalize)
   - instead of skolemization, use regular variables, making sure they are unique
   - allow existential quantification
+  - don't require kind signatures in forall
 * Try Oleg's abstraction algorithm
-* Generate (compressed) combinators in a separate file for compilation
-  - Distribute this file instead of .comb file
-* Use more compact(?) combinator file ('@f a ' instead of '(f a)')
 * Implement IORef
   - The IORef will need GC support
 * Redo type synonym expansion
@@ -37,15 +35,14 @@
 * Implement two level tables for instances even in the tricky cases
 * Handle tupled dictionaries better for recursive calls
 * Implement fundeps
-* instance Bits ...
 * Split eval.c
-* Implement defaulting
 * Removing [] from prim table
 * Parser cannot handle
     x :+ y == x' :+ y'
     probably needs total merge of pattern&expression with validation in type checker
 * Parse prefix negation
-
+* Set lib from envvar
+* Faster compression
 
 Bugs
 
