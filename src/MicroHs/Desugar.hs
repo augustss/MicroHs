@@ -65,6 +65,7 @@ dsDef mn adef =
       in  (qualIdent mn $ mkClassConstructor c, lams xs $ Lam f $ apps (Var f) (map Var xs)) :
           zipWith (\ i x -> (expectQualified i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
     Instance _ _ _ _ -> []
+    Default _ -> []
 
 oneAlt :: Expr -> EAlts
 oneAlt e = EAlts [([], e)] []

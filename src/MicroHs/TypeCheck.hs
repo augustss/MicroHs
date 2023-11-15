@@ -25,7 +25,7 @@ import MicroHs.Ident
 import MicroHs.Expr
 --Ximport Compat
 --Ximport GHC.Stack
---import Debug.Trace
+--Ximport Debug.Trace
 
 boolPrefix :: String
 boolPrefix = "Data.Bool_Type."
@@ -104,6 +104,7 @@ type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated c
 type ClassTable = M.Map ClassInfo  -- maps a class identifier to its associated information
 type InstTable  = M.Map InstInfo   -- indexed by class name
 type Constraints= [(Ident, EConstraint)]
+type Defaults   = [EType]          -- Current defaults
 
 -- To make type checking fast it is essential to solve constraints fast.
 -- The naive implementation of InstInfo would be [InstDict], but
@@ -374,78 +375,87 @@ data TCState = TC
   ClassTable            -- class info, indexed by QIdent
   InstTable             -- instances
   Constraints           -- constraints that have to be solved
+  Defaults              -- current defaults
   --Xderiving (Show)
 
 data TCMode = TCExpr | TCPat | TCType
   --Xderiving (Show)
 
 typeTable :: TCState -> TypeTable
-typeTable (TC _ _ _ tt _ _ _ _ _ _ _ _) = tt
+typeTable (TC _ _ _ tt _ _ _ _ _ _ _ _ _) = tt
 
 valueTable :: TCState -> ValueTable
-valueTable (TC _ _ _ _ _ vt _ _ _ _ _ _) = vt
+valueTable (TC _ _ _ _ _ vt _ _ _ _ _ _ _) = vt
 
 synTable :: TCState -> SynTable
-synTable (TC _ _ _ _ st _ _ _ _ _ _ _) = st
+synTable (TC _ _ _ _ st _ _ _ _ _ _ _ _) = st
 
 fixTable :: TCState -> FixTable
-fixTable (TC _ _ ft _ _ _ _ _ _ _ _ _) = ft
+fixTable (TC _ _ ft _ _ _ _ _ _ _ _ _ _) = ft
 
 assocTable :: TCState -> AssocTable
-assocTable (TC _ _ _ _ _ _ ast _ _ _ _ _) = ast
+assocTable (TC _ _ _ _ _ _ ast _ _ _ _ _ _) = ast
 
 uvarSubst :: TCState -> IM.IntMap EType
-uvarSubst (TC _ _ _ _ _ _ _ sub _ _ _ _) = sub
+uvarSubst (TC _ _ _ _ _ _ _ sub _ _ _ _ _) = sub
 
 moduleName :: TCState -> IdentModule
-moduleName (TC mn _ _ _ _ _ _ _ _ _ _ _) = mn
+moduleName (TC mn _ _ _ _ _ _ _ _ _ _ _ _) = mn
 
 classTable :: TCState -> ClassTable
-classTable (TC _ _ _ _ _ _ _ _ _ ct _ _) = ct
+classTable (TC _ _ _ _ _ _ _ _ _ ct _ _ _) = ct
 
 tcMode :: TCState -> TCMode
-tcMode (TC _ _ _ _ _ _ _ _ m _ _ _) = m
+tcMode (TC _ _ _ _ _ _ _ _ m _ _ _ _) = m
 
 instTable :: TCState -> InstTable
-instTable (TC _ _ _ _ _ _ _ _ _ _ is _) = is
+instTable (TC _ _ _ _ _ _ _ _ _ _ is _ _) = is
 
 constraints :: TCState -> Constraints
-constraints (TC _ _ _ _ _ _ _ _ _ _ _ e) = e
+constraints (TC _ _ _ _ _ _ _ _ _ _ _ e _) = e
+
+defaults :: TCState -> Defaults
+defaults (TC _ _ _ _ _ _ _ _ _ _ _ _ ds) = ds
 
 putValueTable :: ValueTable -> T ()
 putValueTable venv = do
-  TC mn n fx tenv senv _ ast sub m cs is es <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es)
+  TC mn n fx tenv senv _ ast sub m cs is es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
 
 putTypeTable :: TypeTable -> T ()
 putTypeTable tenv = do
-  TC mn n fx _ senv venv ast sub m cs is es <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es)
+  TC mn n fx _ senv venv ast sub m cs is es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
 
 putSynTable :: SynTable -> T ()
 putSynTable senv = do
-  TC mn n fx tenv _ venv ast sub m cs is es <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es)
+  TC mn n fx tenv _ venv ast sub m cs is es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
 
 putUvarSubst :: IM.IntMap EType -> T ()
 putUvarSubst sub = do
-  TC mn n fx tenv senv venv ast _ m cs is es <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es)
+  TC mn n fx tenv senv venv ast _ m cs is es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
 
 putTCMode :: TCMode -> T ()
 putTCMode m = do
-  TC mn n fx tenv senv venv ast sub _ cs is es <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es)
+  TC mn n fx tenv senv venv ast sub _ cs is es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
 
 putInstTable :: InstTable -> T ()
 putInstTable is = do
-  TC mn n fx tenv senv venv ast sub m cs _ es <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es)
+  TC mn n fx tenv senv venv ast sub m cs _ es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
 
 putConstraints :: Constraints -> T ()
 putConstraints es = do
-  TC mn n fx tenv senv venv ast sub m cs is _ <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es)
+  TC mn n fx tenv senv venv ast sub m cs is _ ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
+
+putDefaults :: Defaults -> T ()
+putDefaults ds = do
+  TC mn n fx tenv senv venv ast sub m cs is es _ <- get
+  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
 
 withTCMode :: forall a . TCMode -> T a -> T a
 withTCMode m ta = do
@@ -458,25 +468,25 @@ withTCMode m ta = do
 -- Use the type table as the value table, and the primKind table as the type table.
 withTypeTable :: forall a . T a -> T a
 withTypeTable ta = do
-  TC mn n fx tt st vt ast sub m cs is es <- get
-  put (TC mn n fx primKindTable st tt ast sub m cs is es)
+  TC mn n fx tt st vt ast sub m cs is es ds <- get
+  put (TC mn n fx primKindTable st tt ast sub m cs is es ds)
   a <- ta
   -- Discard kind table, it will not have changed
-  TC mnr nr fxr _kr str ttr astr subr mr csr isr esr <- get
+  TC mnr nr fxr _kr str ttr astr subr mr csr isr esr dsr <- get
   -- Keep everyting, except that the returned value table
   -- becomes the type tables, and the old type table is restored.
-  put (TC mnr nr fxr ttr str vt astr subr mr csr isr esr)
+  put (TC mnr nr fxr ttr str vt astr subr mr csr isr esr dsr)
   return a
 
 addAssocTable :: Ident -> [Ident] -> T ()
 addAssocTable i ids = do
-  TC mn n fx tt st vt ast sub m cs is es <- get
-  put $ TC mn n fx tt st vt (M.insert i ids ast) sub m cs is es
+  TC mn n fx tt st vt ast sub m cs is es ds <- get
+  put $ TC mn n fx tt st vt (M.insert i ids ast) sub m cs is es ds
 
 addClassTable :: Ident -> ClassInfo -> T ()
 addClassTable i x = do
-  TC mn n fx tt st vt ast sub m cs is es <- get
-  put $ TC mn n fx tt st vt ast sub m (M.insert i x cs) is es
+  TC mn n fx tt st vt ast sub m cs is es ds <- get
+  put $ TC mn n fx tt st vt ast sub m (M.insert i x cs) is es ds
 
 addInstTable :: [InstDictC] -> T ()
 addInstTable ics = do
@@ -504,8 +514,8 @@ addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  traceM $ "addConstraint: " ++ msg ++ " " ++ showIdent d ++ " :: " ++ showEType ctx
   ctx' <- expandSyn ctx
-  TC mn n fx tt st vt ast sub m cs is es <- get
-  put $ TC mn n fx tt st vt ast sub m cs is ((d, ctx') : es)
+  TC mn n fx tt st vt ast sub m cs is es ds <- get
+  put $ TC mn n fx tt st vt ast sub m cs is ((d, ctx') : es) ds
 
 withDict :: forall a . Ident -> EConstraint -> T a -> T a
 withDict i c ta = do
@@ -522,7 +532,7 @@ initTC mn fs ts ss cs is vs as =
   let
     xts = foldr (uncurry stInsertGlb) ts primTypes
     xvs = foldr (uncurry stInsertGlb) vs primValues
-  in TC mn 1 fs xts ss xvs as IM.empty TCExpr cs is []
+  in TC mn 1 fs xts ss xvs as IM.empty TCExpr cs is [] []
 
 kTypeS :: EType
 kTypeS = kType
@@ -645,8 +655,8 @@ getTuple n t = loop t []
 
 setUVar :: TRef -> EType -> T ()
 setUVar i t = do
-  TC mn n fx tenv senv venv ast sub m cs is es <- get
-  put (TC mn n fx tenv senv venv ast (IM.insert i t sub) m cs is es)
+  TC mn n fx tenv senv venv ast sub m cs is es ds <- get
+  put (TC mn n fx tenv senv venv ast (IM.insert i t sub) m cs is es ds)
 
 getUVar :: Int -> T (Maybe EType)
 getUVar i = gets (IM.lookup i . uvarSubst)
@@ -753,8 +763,8 @@ unifyUnboundVar loc r1 t2 = do
 -- Reset unification map
 tcReset :: T ()
 tcReset = do
-  TC mn u fx tenv senv venv ast _ m cs is es <- get
-  put (TC mn u fx tenv senv venv ast IM.empty m cs is es)
+  TC mn u fx tenv senv venv ast _ m cs is es ds <- get
+  put (TC mn u fx tenv senv venv ast IM.empty m cs is es ds)
 
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
@@ -763,9 +773,9 @@ type TRef = Int
 
 newUniq :: T TRef
 newUniq = do
-  TC mn n fx tenv senv venv ast sub m cs is es <- get
+  TC mn n fx tenv senv venv ast sub m cs is es ds <- get
   let n' = n+1
-  put (seq n' $ TC mn n' fx tenv senv venv ast sub m cs is es)
+  put (seq n' $ TC mn n' fx tenv senv venv ast sub m cs is es ds)
   return n
 
 newIdent :: SLoc -> String -> T Ident
@@ -868,8 +878,8 @@ extSyn i t = do
 
 extFix :: Ident -> Fixity -> T ()
 extFix i fx = do
-  TC mn n fenv tenv senv venv ast sub m cs is es <- get
-  put $ TC mn n (M.insert i fx fenv) tenv senv venv ast sub m cs is es
+  TC mn n fenv tenv senv venv ast sub m cs is es ds <- get
+  put $ TC mn n (M.insert i fx fenv) tenv senv venv ast sub m cs is es ds
   return ()
 
 withExtVal :: forall a . --XHasCallStack =>
@@ -906,7 +916,12 @@ tcDefs ds = do
   mapM_ addTypeSyn dst
   dst' <- tcExpand dst
 --  traceM (showEDefs dst')
+  setDefault dst'
   tcDefsValue dst'
+
+setDefault :: [EDef] -> T ()
+setDefault defs =
+  putDefaults $ last $ [] : [ ts | Default ts <- defs ]
 
 tcAddInfix :: EDef -> T ()
 tcAddInfix (Infix fx is) = do
@@ -1015,6 +1030,7 @@ tcDefType d = do
     ForImp  ie i            t   ->                ForImp ie i   <$> tCheckTypeT kType t
     Class   ctx lhs@(_, iks) fds ms -> withVars iks $ Class     <$> tcCtx ctx <*> return lhs <*> mapM tcFD fds <*> mapM tcMethod ms
     Instance iks ctx c m        -> withVars iks $ Instance iks  <$> tcCtx ctx <*> tCheckTypeT kConstraint c <*> return m
+    Default ts                  ->                Default       <$> mapM (tCheckTypeT kType) ts
     _                           -> return d
  where
    tcCtx = mapM (tCheckTypeT kConstraint)
@@ -1238,9 +1254,8 @@ tcDefValue adef =
 --      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr tt
 --      traceM $ "tcDefValue: def=" ++ showEDefs [adef]
       mn <- gets moduleName
-      teqns <- tcEqns tt eqns
+      teqns <- tcEqns True tt eqns
 --      traceM ("tcDefValue: after " ++ showEDefs [adef, Fcn i teqns])
-      -- Defaulting should be done here
       checkConstraints
       return $ Fcn (qualIdent mn i) teqns
     ForImp ie i t -> do
@@ -1644,26 +1659,26 @@ tcPats t (p:ps) ta = do
 tcExprLam :: Expected -> [Eqn] -> T Expr
 tcExprLam mt qs = do
   t <- tGetExpType mt
-  ELam <$> tcEqns t qs
+  ELam <$> tcEqns False t qs
 
-tcEqns :: EType -> [Eqn] -> T [Eqn]
+tcEqns :: Bool -> EType -> [Eqn] -> T [Eqn]
 --tcEqns t eqns | trace ("tcEqns: " ++ showEBind (BFcn dummyIdent eqns) ++ " :: " ++ showEType t) False = undefined
-tcEqns (EForall iks t) eqns = withExtTyps iks $ tcEqns t eqns
-tcEqns t eqns | Just (ctx, t') <- getImplies t = do
+tcEqns top (EForall iks t) eqns = withExtTyps iks $ tcEqns top t eqns
+tcEqns top t eqns | Just (ctx, t') <- getImplies t = do
   let loc = getSLoc eqns
   d <- newIdent loc "adict"
   f <- newIdent loc "fcnD"
   withDict d ctx $ do
-    eqns' <- tcEqns t' eqns
+    eqns' <- tcEqns top t' eqns
     let eqn =
           case eqns' of
             [Eqn [] alts] -> Eqn [EVar d] alts
             _             -> Eqn [EVar d] $ EAlts [([], EVar f)] [BFcn f eqns']
     return [eqn]
-tcEqns t eqns = do
+tcEqns top t eqns = do
   let loc = getSLoc eqns
   f <- newIdent loc "fcnS"
-  (eqns', ds) <- solveLocalConstraints $ mapM (tcEqn t) eqns
+  (eqns', ds) <- solveAndDefault top $ mapM (tcEqn t) eqns
   case ds of
     [] -> return eqns'
     _  -> do
@@ -1804,7 +1819,7 @@ tcBind abind =
   case abind of
     BFcn i eqns -> do
       (_, tt) <- tLookupV i
-      teqns <- tcEqns tt eqns
+      teqns <- tcEqns False tt eqns
       return $ BFcn i teqns
     BPat p a -> do
       (ep, tp) <- withTCMode TCPat $ tInferExpr p  -- pattern variables already bound
@@ -2036,9 +2051,11 @@ mkSuperSel c i = addIdentSuffix c ("$super" ++ show i)
 
 ---------------------------------
 
+type Solved = (Ident, Expr)
+
 -- Solve constraints generated locally in 'ta'.
 -- Keep any unsolved ones for later.
-solveLocalConstraints :: forall a . T a -> T (a, [(Ident, Expr)])
+solveLocalConstraints :: forall a . T a -> T (a, [Solved])
 solveLocalConstraints ta = do
   cs <- gets constraints           -- old constraints
   putConstraints []                -- start empty
@@ -2047,6 +2064,42 @@ solveLocalConstraints ta = do
   un <- gets constraints           -- get remaining unsolved
   putConstraints (un ++ cs)        -- put back unsolved and old constraints
   return (a, ds)
+
+solveAndDefault :: forall a . Bool -> T a -> T (a, [Solved])
+solveAndDefault False ta = solveLocalConstraints ta
+solveAndDefault True  ta = do
+  a <- ta
+  ds <- solveConstraints
+  cs <- gets constraints
+  vs <- getMetaTyVars (map snd cs)    -- These are the type variables that need defaulting
+--  traceM $ "solveAndDefault" ++ show vs
+  -- XXX may have to iterate this with fundeps
+  ds' <- concat <$> mapM defaultOneTyVar vs
+  return (a, ds ++ ds')
+
+constraintHasTyVar :: TRef -> (Ident, EConstraint) -> T Bool
+constraintHasTyVar tv (_, t) = elem tv <$> getMetaTyVars [t]
+
+defaultOneTyVar :: TRef -> T [Solved]
+defaultOneTyVar tv = do
+  old <- get             -- get entire old state
+  -- split constraints into those with the current tyvar and those without
+  (ourcs, othercs) <- partitionM (constraintHasTyVar tv) (constraints old)
+  let tryDefaults [] = return []
+      tryDefaults (ty:tys) = do
+        setUVar tv ty
+        putConstraints ourcs
+        ds <- solveConstraints
+        rcs <- gets constraints
+        if null rcs then do
+          -- Success, the type variable is gone
+          putConstraints othercs   -- put back the other constraints
+          return ds
+         else do
+          -- Not solved, try with the nest type
+          put old            -- restore solver state
+          tryDefaults tys    -- and try with next type
+  tryDefaults (defaults old)
 
 {-
 showInstInfo :: InstInfo -> String

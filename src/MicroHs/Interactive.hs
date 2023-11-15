@@ -27,7 +27,7 @@ mainInteractive (Flags a b c d _) = do
 
 preamble :: String
 preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++
-           ") where\nimport Prelude\n"
+           ") where\nimport Prelude\ndefault (Integer, Double)\n"
 
 start :: I ()
 start = do

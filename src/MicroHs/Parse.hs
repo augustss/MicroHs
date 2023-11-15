@@ -119,8 +119,8 @@ pTypeIdentSym = pUIdent <|< pParens pSymOper
 
 keywords :: [String]
 keywords =
-  ["case", "class", "data", "do", "else", "forall", "foreign", "if", "import",
-   "in", "infix", "infixl", "infixr", "instance",
+  ["case", "class", "data", "default", "do", "else", "forall", "foreign", "if",
+   "import", "in", "infix", "infixl", "infixr", "instance",
    "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
@@ -262,6 +262,7 @@ pDef =
   <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class       <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance    <$> (pKeyword "instance" *> pForall)  <*> pContext <*> pTypeApp <*> pWhere pClsBind
+  <|< Default     <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ ii) | -2 <= i && i <= 9 = Just i  where i = _integerToInt ii

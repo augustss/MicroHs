@@ -120,3 +120,11 @@ readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
     rat3 f2      s  = f2 * expo s
 
     expo s = 10 ^ readInteger s
+
+partitionM :: Monad m => (a -> m Bool) -> [a] -> m ([a], [a])
+partitionM _ [] = return ([], [])
+partitionM p (x:xs) = do
+  b <- p x
+  (ts,fs) <- partitionM p xs
+  return $ if b then (x:ts, fs) else (ts, x:fs)
+

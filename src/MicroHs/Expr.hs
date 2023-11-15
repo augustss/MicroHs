@@ -66,6 +66,7 @@ data EDef
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance [IdKind] [EConstraint] EConstraint [EBind]  -- no deriving yet
+  | Default [EType]
   --Xderiving (Show)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
@@ -491,6 +492,7 @@ ppEDef def =
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ctx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
     Instance vs ct ty bs -> ppWhere (text "instance" <+> ppForall vs <+> ctx ct <+> ppEType ty) bs
+    Default ts -> text "default" <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
  where ctx [] = empty
        ctx ts = ppEType (ETuple ts) <+> text "=>"
 

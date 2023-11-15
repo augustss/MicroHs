@@ -74,6 +74,21 @@ infixr 1 >=>
 (>=>) :: forall (m :: Type -> Type) a b c . Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
 (>=>) = flip (<=<)
 
+filterM :: forall (m :: Type -> Type) a . Monad m => (a -> m Bool) -> [a] -> m [a]
+filterM _ [] = return []
+filterM p (x:xs) = do
+  b <- p x
+  ts <- filterM p xs
+  return $ if b then x : ts else ts
+
+partitionM :: forall (m :: Type -> Type) a . Monad m => (a -> m Bool) -> [a] -> m ([a], [a])
+partitionM _ [] = return ([], [])
+partitionM p (x:xs) = do
+  b <- p x
+  (ts,fs) <- partitionM p xs
+  return $ if b then (x:ts, fs) else (ts, x:fs)
+  
+
 {-
 -- Same for Maybe
 instance Functor Maybe where

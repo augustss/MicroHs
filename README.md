@@ -29,13 +29,13 @@ Differences:
  * Type variables without a kind annotation are assumed to have kind `Type`.
  * There is no prefix negation.
  * There is no `Read` class.
- * There is no defaulting.
  * There is no deriving.
  * The `Prelude` has to be imported explicitly.
  * Polymorphic types are never inferred; use a type signature if you need it.
  * Always enabled extension:
    * ConstraintKinds
    * EmptyDataDecls
+   * ExtendedDefaultRules
    * FlexibleContexts
    * FlexibleInstance
    * ForeignFunctionInterface
