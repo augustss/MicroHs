@@ -18,7 +18,7 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
-.PHONY:	clean bootstrap install
+.PHONY:	clean bootstrap install ghcgen
 
 # Compile mhs from distribution, with C compiler
 bin/mhs:	src/runtime/eval.c src/runtime/config*.h #generated/mhs.c
@@ -42,22 +42,27 @@ generated/mhs.c:	bin/mhs src/*/*.hs
 
 # Make sure boottrapping works
 bootstrap:	bin/mhs-stage2
+	@echo "*** copy stage2 to bin/mhs"
 	cp bin/mhs-stage2 bin/mhs
 	cp generated/mhs-stage2.c generated/mhs.c 
+
+ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
+	bin/gmhs -ilib -isrc MicroHs.Main -ogenerated/mhs.c
 
 # Build stage1 compiler with existing compiler
 bin/mhs-stage1:	bin/mhs src/*/*.hs
 	@mkdir -p generated
-	@echo Build stage1 compiler, using bin/mhs
+	@echo "*** Build stage1 compiler, using bin/mhs"
 	bin/mhs -ilib -isrc MicroHs.Main -ogenerated/mhs-stage1.c
 	$(CCEVAL) generated/mhs-stage1.c -o bin/mhs-stage1
 
 # Build stage2 compiler with stage1 compiler, and compare
 bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 	@mkdir -p generated
-	@echo Build stage2 compiler, with stage1 compiler
+	@echo "*** Build stage2 compiler, with stage1 compiler"
 	bin/mhs-stage1 -ilib -isrc MicroHs.Main -ogenerated/mhs-stage2.c
 	cmp generated/mhs-stage1.c generated/mhs-stage2.c
+	@echo "*** stage2 equal to stage1"
 	$(CCEVAL) generated/mhs-stage2.c -o bin/mhs-stage2
 
 # Run test examples with ghc-compiled compiler

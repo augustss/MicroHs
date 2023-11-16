@@ -22,6 +22,7 @@ import Data.Num
 import Data.Tuple
 import Text.Show
 import Foreign.C.String
+import Foreign.Marshal.Alloc
 import Foreign.Ptr
 
 data FILE
@@ -199,6 +200,25 @@ seq = primSeq
 -- MicroHs is always in binary mode
 hSetBinaryMode :: Handle -> Bool -> IO ()
 hSetBinaryMode _ _ = return ()
+
+--------
+
+-- Create a temporary file, take a prefix and a suffix
+-- and returns a malloc()ed string.
+foreign import ccall "tmpname" c_tmpname :: CString -> CString -> IO CString
+
+-- Create and open a temporary file.
+openTmpFile :: String -> IO (String, Handle)
+openTmpFile tmpl = do
+  let (pre, suf) =
+        case span (/= '.') (reverse tmpl) of
+          (rsuf, "") -> (tmpl, "")
+          (rsuf, _:rpre) -> (reverse rpre, '.':reverse rsuf)
+  ctmp <- withCAString pre $ withCAString suf . c_tmpname
+  tmp <- peekCAString ctmp
+  free ctmp
+  h <- openFile tmp WriteMode
+  return (tmp, h)
 
 --------
 

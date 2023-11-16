@@ -68,5 +68,5 @@ executable mhs
                        mtl          >= 2.0 && < 2.4,
                        time         >= 1.1 && < 1.15,
                        pretty       >= 1.0 && < 1.2,
-                       temporary    >= 1.3 && < 1.5,
-                       process      >= 1.6 && < 1.8
+                       process      >= 1.6 && < 1.8,
+                       directory    >= 1.2 && < 1.5

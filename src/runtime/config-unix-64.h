@@ -41,7 +41,11 @@
 
 
 #include <termios.h>
+#include <sys/types.h>
 #include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <fcntl.h>
 
 /*
  * Set the terminal in raw mode and read a single character.
@@ -72,7 +76,6 @@ getraw(void)
  */
 #define GETRAW getraw
 
-
 /*
  * Get time since some epoch in milliseconds.
  */
@@ -87,6 +90,43 @@ gettimemilli(void)
 #define GETTIMEMILLI gettimemilli
 
 /*
+ * Create a unique file name.
+ * This is a very dodgy implementation.
+ * XXX This functions drags in a lot of functionality.
+ */
+char*
+tmpname(const char* pre, const char* suf)
+{
+  int pid = (int)getpid();
+  char *tmp = getenv("TMPDIR");
+  if (!tmp)
+    tmp = "/tmp";
+  char *s = malloc(strlen(tmp) + 1 + strlen(pre) + 5 + strlen(suf) + 1);
+  /* This might loop forever.  See if I care. :) */
+  for(;;) {
+    strcpy(s, tmp);
+    strcat(s, "/");
+    strcat(s, pre);
+    /* Insert 8 digits of the PID */
+    char *p = s + strlen(s) + 10;
+    *p-- = 0;
+    for(int i = 0; i < 10; i++) {
+      *p-- = pid % 10 + '0';
+      pid /= 10;
+    }
+    strcat(s, suf);
+    /* The file name is ready, do a quick if check that we can create it */
+    int fd = open(s, O_CREAT | O_EXCL, 0600);
+    if (fd >= 0) {
+      close(fd);                /* Close it again */
+      return s;
+    }
+    pid++;                      /* try with a different pid */
+  }
+}
+#define TMPNAME tmpname
+
+/*
  * The ERR macro should report an error and exit.
  * If not defined, a generic one will be used.
  */
@@ -98,4 +138,3 @@ gettimemilli(void)
 #define INTTABLE 1              /* use fixed table of small INT nodes */
 #define SANITY   1              /* do some sanity checks */
 #define STACKOVL 1              /* check for stack overflow */
-

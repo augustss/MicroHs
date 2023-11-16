@@ -14,7 +14,7 @@ import qualified MicroHs.IdentMap as M
 import MicroHs.Translate
 import MicroHs.Interactive
 import MicroHs.MakeCArray
-import System.IO.Temp
+import System.Directory
 import System.IO
 import System.Process
 --Ximport Compat
@@ -97,9 +97,10 @@ mainCompile mhsdir flags mn = do
       writeFile outFile outData
      else if ".c" `isSuffixOf` outFile then
       writeFile outFile $ makeCArray outData
-     else withSystemTempFile "mhsc.c" $ \ fn h -> do
+     else do
+       (fn, h) <- openTmpFile "mhsc.c"
        hPutStr h $ makeCArray outData
-       hFlush h
+       hClose h
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
        let cc = fromMaybe ("cc -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval.c $IN -lm -o $OUT") mcc
@@ -107,6 +108,7 @@ mainCompile mhsdir flags mn = do
        when (verbose flags > 0) $
          putStrLn $ "Execute: " ++ show cmd
        callCommand cmd
+       removeFile fn
        ct2 <- getTimeMilli
        when (verbose flags > 0) $
          putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"

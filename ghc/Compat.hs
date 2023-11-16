@@ -4,6 +4,7 @@
 module Compat(module Compat) where
 --import Control.Exception
 import Data.Char
+import Data.Maybe
 import Data.Time
 import Data.Time.Clock.POSIX
 --import qualified Control.Monad as M
@@ -132,3 +133,12 @@ substString :: forall a . Eq a => [a] -> [a] -> [a] -> [a]
 substString _ _ [] = []
 substString from to xs@(c:cs) | Just rs <- stripPrefix from xs = to ++ substString from to rs
                               | otherwise = c : substString from to cs
+
+openTmpFile :: String -> IO (String, Handle)
+openTmpFile tmplt = do
+  mtmp <- lookupEnv "TMPDIR"
+  let tmp = fromMaybe "/tmp" mtmp
+  res <- try $ openTempFile tmp tmplt
+  case res of
+    Right x -> return x
+    Left (_::SomeException) -> openTempFile "" tmplt

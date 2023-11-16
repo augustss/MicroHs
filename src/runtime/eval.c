@@ -48,6 +48,16 @@ int GETRAW(void) { return -1; }
 uint64_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(GETTIMEMILLI) */
 
+#if !defined(TMPNAME)
+char* TMPNAME(const char* pre, const char* post) {
+  char *s = malloc(strlen(pre) + 3 + strlen(post) + 1);
+  strcpy(s, pre);
+  strcat(s, "TMP");
+  strcat(s, post);
+  return s;
+}
+#endif
+
 #if !defined(INLINE)
 #define INLINE inline
 #endif  /* !define(INLINE) */
@@ -883,7 +893,7 @@ struct {
   { "fclose",   (funptr_t)fclose,  FFI_Pi },
   { "fflush",   (funptr_t)fflush,  FFI_Pi },
   { "fopen",    (funptr_t)fopen,   FFI_PPP },
-  { "tempnam",  (funptr_t)tempnam, FFI_PPP },
+  { "tmpname",  (funptr_t)TMPNAME, FFI_PPP },
   { "unlink",   (funptr_t)unlink,  FFI_Pi },
   { "system",   (funptr_t)system,  FFI_Pi },
 #endif  /* WANT_STDIO */
