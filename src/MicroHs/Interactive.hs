@@ -116,20 +116,20 @@ err (Exn s) = putStrLn $ "Error: " ++ s
 oneline :: String -> I ()
 oneline line = do
   (ls, _, _) <- get
-  case parse pExprTop "" line of
-    Right _ -> do
-      -- Looks like an expressions, make it a definition
-      exprTest <- tryCompile (ls ++ "\n" ++ mkIt line)
-      case exprTest of
-        Right m -> evalExpr m
-        Left  e -> liftIO $ err e
-    Left _ -> do
-      -- Not an expression, try adding it as a definition
-      let lls = ls ++ line ++ "\n"
-      defTest <- tryCompile lls
-      case defTest of
-        Right _ -> updateLines (const lls)
-        Left  e -> liftIO $ err e
+  -- Try adding the line as a definition
+  let lls = ls ++ line ++ "\n"
+  defTest <- tryCompile lls
+  case defTest of
+    Right _ -> updateLines (const lls)
+    Left  _ ->
+      -- Try parsing it as an expression expressions, make it a definition
+      case parse pExprTop "" line of
+        Right _ -> do
+          exprTest <- tryCompile (ls ++ "\n" ++ mkIt line)
+          case exprTest of
+            Right m -> evalExpr m
+            Left  e -> liftIO $ err e
+        Left  e -> liftIO $ err (Exn e)
 
 tryCompile :: String -> I (Either Exn [LDef])
 tryCompile file = do
