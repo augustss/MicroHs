@@ -13,3 +13,4 @@ dist-newstyle/
 .mhsi
 Interactive.hs
 lib/mhs
+generated/*
