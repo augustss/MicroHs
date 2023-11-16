@@ -236,5 +236,5 @@ the outputs to make sure the new compiler still works.
 * 
   * Q: Why are the binaries so big?
   * A: The combinator file is rather verbose.  The combinator file
-       for the compiler shrinks from 340kB to 74kB when compressed with upx.
-       The evaluator is about 70kB.
+       for the compiler shrinks from 350kB to 75kB when compressed with upx.
+       The evaluator alone is about 70kB (26kB compressed with upx).
