@@ -19,7 +19,12 @@ import MicroHs.Parse
 import MicroHs.TypeCheck
 --Ximport Compat
 
-data Flags = Flags Int Bool [String] String Bool
+data Flags = Flags
+  Int        -- verbosity level
+  Bool       -- run instead of compile
+  [String]   -- module search path
+  String     -- output file
+  Bool       -- show loading message
   --Xderiving (Show)
 
 type Time = Int

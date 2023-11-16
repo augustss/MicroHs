@@ -356,3 +356,8 @@ anySameBy eq (x:xs) = elemBy eq x xs || anySameBy eq xs
 
 iterate :: forall a . (a -> a) -> a -> [a]
 iterate f x = x : iterate f (f x)
+
+substString :: forall a . Eq a => [a] -> [a] -> [a] -> [a]
+substString _ _ [] = []
+substString from to xs@(c:cs) | Just rs <- stripPrefix from xs = to ++ substString from to rs
+                              | otherwise = c : substString from to cs

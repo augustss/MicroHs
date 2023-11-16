@@ -20,7 +20,6 @@ type I a = StateIO IState a
 mainInteractive :: Flags -> IO ()
 mainInteractive (Flags a b c d _) = do
   putStrLn "Welcome to interactive MicroHs!"
-  putStrLn "Type ':quit' to quit, ':help' for help"
   let flags' = Flags a b c d True
   _ <- runStateIO start (preamble, flags', emptyCache)
   return ()
@@ -32,6 +31,7 @@ preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++
 start :: I ()
 start = do
   reload
+  liftIO $ putStrLn "Type ':quit' to quit, ':help' for help"
   repl
 
 repl :: I ()

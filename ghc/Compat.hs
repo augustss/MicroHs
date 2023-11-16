@@ -128,3 +128,7 @@ partitionM p (x:xs) = do
   (ts,fs) <- partitionM p xs
   return $ if b then (x:ts, fs) else (ts, x:fs)
 
+substString :: forall a . Eq a => [a] -> [a] -> [a] -> [a]
+substString _ _ [] = []
+substString from to xs@(c:cs) | Just rs <- stripPrefix from xs = to ++ substString from to rs
+                              | otherwise = c : substString from to cs

@@ -21,27 +21,35 @@ import System.Process
 
 -- Version number of combinator file.
 -- Must match version in eval.c.
-version :: String
-version = "v5.0\n"
+combVersion :: String
+combVersion = "v5.0\n"
+
+mhsVersion :: String
+mhsVersion = "0.8"
 
 main :: IO ()
 main = do
   aargs <- getArgs
+  mdir <- lookupEnv "MHSDIR"
+  let dir = fromMaybe "." mdir
   let
     args = takeWhile (/= "--") aargs
     ss = filter ((/= "-") . take 1) args
     flags = Flags (length (filter (== "-v") args))
                   (elem "-r" args)
-                  ("." : catMaybes (map (stripPrefix "-i") args))
+                  ("." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args))
                   (head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"])
                   (elem "-l" args)
-  case ss of
-    [] -> mainInteractive flags
-    [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-    _ -> error "Usage: mhs [-v] [-r] [-iPATH] [-oFILE] [ModuleName]"
+  if "--version" `elem` args then
+    putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
+   else
+    case ss of
+      []  -> mainInteractive flags
+      [s] -> mainCompile dir flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+      _   -> error "Usage: mhs [-v] [-r] [-iPATH] [-oFILE] [ModuleName]"
 
-mainCompile :: Flags -> Ident -> IO ()
-mainCompile flags mn = do
+mainCompile :: FilePath -> Flags -> Ident -> IO ()
+mainCompile mhsdir flags mn = do
   ds <- compileTop flags mn
   t1 <- getTimeMilli
   let
@@ -74,7 +82,7 @@ mainCompile flags mn = do
     prg
 --    putStrLn "done"
    else do
-    let outData = version ++ show numDefs ++ "\n" ++ res
+    let outData = combVersion ++ show numDefs ++ "\n" ++ res
     seq (length outData) (return ())
     t2 <- getTimeMilli
     when (verbose flags > 0) $
@@ -93,9 +101,9 @@ mainCompile flags mn = do
        hPutStr h $ makeCArray outData
        hFlush h
        ct1 <- getTimeMilli
-       mdir <- lookupEnv "MHSDIR"
-       let mhsdir = fromMaybe "." mdir
-       let cmd = "cc -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval.c " ++ fn ++ " -lm -o " ++ outFile
+       mcc <- lookupEnv "MHSCC"
+       let cc = fromMaybe ("cc -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval.c $IN -lm -o $OUT") mcc
+           cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbose flags > 0) $
          putStrLn $ "Execute: " ++ show cmd
        callCommand cmd
