@@ -20,6 +20,8 @@ for use with `cabal`.  This only builds what corresponds to the first target.
 Also note that there is no need to have a Haskell compiler to run MicroHs.
 All you need is a C compiler, and MicroHs can bootstrap, given the included combinator file.
 
+To install `mhs` use `make install`.  You also need to set the environment variable `MHSDIR`.
+
 ## Language
 The language is an extended subset of Haskell-98.
 
@@ -32,6 +34,7 @@ Differences:
  * There is no deriving.
  * The `Prelude` has to be imported explicitly.
  * Polymorphic types are never inferred; use a type signature if you need it.
+ * A module must have an export list.
  * Always enabled extension:
    * ConstraintKinds
    * EmptyDataDecls
@@ -58,6 +61,8 @@ Differences:
    * FunctionalDependencies
    * ExistentialQuantification
  * `main` in the top module given to `mhs` serves at the program entry point.
+ * Many things that should be an error (but which are mostly harmless) are not reported.
+ * More differences that I don't remember right now.
 
 ## Example
 The file `Example.hs` contains the following:
@@ -78,8 +83,8 @@ main = do
 ```
 
 First, make sure the compiler is built by doing `make`.
-Then compile the file by `bin/mhs -ilib Example -oExample` which produces `Example`.
-Finally, run the binary file by `./Example`.
+Then compile the file by `bin/mhs Example -oEx` which produces `Ex`.
+Finally, run the binary file by `./Ex`.
 This should produce
 ```
 Some factorials
@@ -119,6 +124,10 @@ E.g.
 which means that processing the module `MicroHs.Exp` took 284ms,
 with parsing taking 91ms and typecheck&desugar taking 193ms.
 
+### Environment variables
+* `MHSDIR` the directory where `lib/` and `src/` are expected to be.  Defaults to `./`.
+* `MHSCC` command use to compile C file to produce binaries.  Look at the source for more information.
+
 ### Compiler modules
 
 * `Compile`, top level compiler.  Maintains a cache of already compiled modules.
@@ -131,6 +140,7 @@ with parsing taking 91ms and typecheck&desugar taking 193ms.
 * `Interactive`, top level for the interactive REPL.
 * `Lex`, lexical analysis and indentation processing.
 * `Main`, the main module.  Decodes flags, compiles, and writes result.
+* `MakeCArray`, generate a C version of the combinator file.
 * `Parse`, parse and build and abstract syntax tree.
 * `StateIO`, state + IO monad.
 * `TCMonad`, type checking monad.
