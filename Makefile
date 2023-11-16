@@ -62,6 +62,10 @@ bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 runtest:	bin/mhseval bin/gmhs tests/*.hs
 	cd tests; make alltest
 
+# Compress the binary (broken on MacOS)
+bin/umhs: bin/mhs
+	rm -f bin/umhs
+	upx -q -q -obin/umhs bin/mhs
 #
 clean:
 	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage*

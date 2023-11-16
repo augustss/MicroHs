@@ -77,7 +77,7 @@ main = do
   print rs
 ```
 
-First, make sure the compiler is byuilt by doing `make`.
+First, make sure the compiler is built by doing `make`.
 Then compile the file by `bin/mhs -ilib Example -oExample` which produces `Example`.
 Finally, run the binary file by `./Example`.
 This should produce
@@ -101,14 +101,14 @@ the Scott encoding.   The runtime system knows how lists and booleans are encode
 
 ## Compiler
 The compiler is written in Micro Haskell.
-It takes a name of a module and compiles it to a file called `out.comb`.
+It takes a name of a module and compiles to a target (see below).
 This module should contain the function `main` of type `IO ()` and
 it will be the entry point to the program.
 
 ### Compiler flags
 * `-iDIR` add `DIR` to search path for modules
-* `-oFILE` output combinators to `FILE` instead of `out.comb`
-* `-r` run directly, does not work if compiled with GHC
+* `-oFILE` output file.  If the `FILE` ends in `.comb` it will produce a textual combinator file.  If `FILE` ends in `.c` it will produce a C file with the combinators.  For all other `FILE` it will compiler the combinators together with the runtime system to produce a regular executable.
+* `-r` run directly (does not work if compiled with GHC)
 * `-v` be more verbose, flag can be repeated
 
 With the `-v` flag the processing time for each module is reported.
@@ -161,7 +161,7 @@ You can use `:clear` (or `:reload`) to get back to an empty cache.
 This is a bug.
 
 ## Runtime
-The runtime system is written in C and is in `eval.c`.
+The runtime system is written in C and is in `src/runtime/eval.c`.
 It uses combinators for handling variables, and has primitive operations
 for built in types and for executing IO operations.
 There is a also a simple mark-scan garbage collector.
@@ -180,14 +180,16 @@ the running program.
 For example, `bin/mhseval +RTS -H1M -v -RTS hello` runs `out.comb` and the program gets the argument `hello`,
 whereas the runtime system sets the heap to 1M cells and is verbose.
 
+### FFI
+MicroHs supports calling C functions, but all such functions must be in a table in the runtime system.
 
 ### Features
 The runtime system can serialize and deserialize any expression
 and keep its graph structure (sharing and cycles).
-The only exception to this is file handles, which cannot be serialized (except for `stdin`, `stdout`, and `stderr`).
+The only exceptions to this are C pointers file handles, which cannot be serialized (except for `stdin`, `stdout`, and `stderr`).
 
 ### Memory layout
-Memory allocation is based on cells.  Each cell has room for two pointers (i.e., two words, i.e., 16 bytes),
+Memory allocation is based on cells.  Each cell has room for two pointers (i.e., two words, typically 16 bytes),
 so it can represent an application node.  One bit is used to indicate if
 the cell is an application or something else.  If it is something else one
 word is a tag indicating what it is, e.g., a combinator or an integer.
@@ -198,6 +200,7 @@ Allocating a cell consists of finding the next free cell using the bitmap,
 and then marking it as used.  The garbage collector first clears the bitmap
 and then (recursively) marks every used cell in the bitmap.
 There is no explicit scan phase since that is baked into the allocation.
+Allocation is fast assuming the CPU has some kind of FindFirstSet instruction.
 
 It is possible to use smaller cells by using 32 bit "pointers" instead of 64 bit pointers.
 This has a performance penalty, though.
@@ -205,10 +208,10 @@ This has a performance penalty, though.
 ### Portability
 The C code for the evaluator does not use any special features, and should be
 portable to many platforms.  It has mostly been test with MacOS and Linux,
-so there are undoubtedly problems on Windows.
+and somewhat with Windows.
 
 The code has only been tested on 64 bit platforms, so again, there are lurking problems
-with other word sizes.
+with other word sizes, but they should be easy to fix.
 
 The `src/runtime/` directory contains configuration files for different platform.
 Edit `src/runtime/eval.c` to `#include` the right one.
@@ -216,10 +219,8 @@ Edit `src/runtime/eval.c` to `#include` the right one.
 ## Bootstrapping
 The compiler can compile itself.  To replace `bin/mhs` with a new version,
 do `make bootstrap`.  This will recompile the compiler twice and compare
-the outouts to make sure the new compiler still works.
+the outputs to make sure the new compiler still works.
 
-**NOTE** The GC mark phase currently uses a rather deep stack.
-You might have to increase it on your system.
 
 # FAQ
 * 
@@ -230,12 +231,10 @@ You might have to increase it on your system.
   * A: Error messages are boring.
 * 
   * Q: Why is the so much source code?
-  * A: I wonder this myself.  6000 lines of Haskell seems excessive.
-       2500 lines of C is also more than I'd like for such a simple system.
+  * A: I wonder this myself.  7000+ lines of Haskell seems excessive.
+       2500+ lines of C is also more than I'd like for such a simple system.
 * 
   * Q: Why are the binaries so big?
   * A: The combinator file is rather verbose.  The combinator file
-       for the compiler shrinks from 175kB to 31kB when compressed.
+       for the compiler shrinks from 340kB to 74kB when compressed with upx.
        The evaluator is about 70kB.
-       The total compressed size for runtime and compiler is about 50k.
-       I'm sorry if you're running on a 16 bit system.
