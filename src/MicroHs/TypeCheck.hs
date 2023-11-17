@@ -517,6 +517,10 @@ addConstraint d ctx = do
   TC mn n fx tt st vt ast sub m cs is es ds <- get
   put $ TC mn n fx tt st vt ast sub m cs is ((d, ctx') : es) ds
 
+withDicts :: forall a . [(Ident, EConstraint)] -> T a -> T a
+withDicts [] ta = ta
+withDicts ((i, c):ds) ta = withDict i c $ withDicts ds ta
+
 withDict :: forall a . Ident -> EConstraint -> T a -> T a
 withDict i c ta = do
   is <- gets instTable
@@ -1296,15 +1300,15 @@ tcKind e = fst <$> withTypeTable (tcType (Just kType) e)
 data Expected = Infer TRef | Check EType
   --Xderiving(Show)
 
-tInfer :: forall a . --XHasCallStack =>
-          (Expected -> a -> T a) -> a -> T (Typed a)
+tInfer :: forall a b . --XHasCallStack =>
+          (Expected -> a -> T b) -> a -> T (Typed b)
 tInfer tc a = do
   ref <- newUniq
   a' <- tc (Infer ref) a
   t <- tGetRefType ref
   return (a', t)
 
-tCheck :: forall a . (Expected -> a -> T a) -> EType -> a -> T a
+tCheck :: forall a b . (Expected -> a -> T b) -> EType -> a -> T b
 tCheck tc t = tc (Check t)
 
 tInferExpr :: --XHasCallStack =>
@@ -1313,12 +1317,15 @@ tInferExpr = tInfer tcExpr
 
 tCheckExpr :: --XHasCallStack =>
               EType -> Expr -> T Expr
-tCheckExpr t e | Just (ctx, t') <- getImplies t = do
+tCheckExpr t _e | Just (_ctx, _t') <- getImplies t = do
+  undefined
+{-
   _ <- undefined -- XXX
   u <- newUniq
   let d = mkIdentSLoc (getSLoc e) ("adict$" ++ show u)
   e' <- withDict d ctx $ tCheckExpr t' e
   return $ eLam [EVar d] e'
+-}
 tCheckExpr t e = tCheck tcExpr t e
 
 tGetRefType :: --XHasCallStack =>
@@ -1710,42 +1717,43 @@ tCheckPatC t ap ta = do
   multCheck vs
   env <- mapM (\ v -> (v,) <$> newUVar) vs
   withExtVals env $ do
-    pp <- tCheckPat t ap
+    (_sks, ds, pp) <- tCheckPat t ap
     () <- checkArity 0 pp
-    ta pp
+    withDicts ds $
+      ta pp
 
-tCheckPat :: EType -> EPat -> T EPat
+type EPatRet = ([TyVar], [(Ident, EConstraint)], EPat)  -- skolems, dictionaries, pattern
+
+tCheckPat :: EType -> EPat -> T EPatRet
 tCheckPat = tCheck tcPat
-tInferPat :: EPat -> T (Typed EPat)
+tInferPat :: EPat -> T (Typed EPatRet)
 tInferPat = tInfer tcPat
 
 -- XXX Has some duplication with tcExpr
-tcPat :: Expected -> Expr -> T Expr
+tcPat :: Expected -> EPat -> T EPatRet
 tcPat mt ae =
   let { loc = getSLoc ae } in
   case ae of
     EVar i | isDummyIdent i -> do
                -- _ can be anything, so just ignore it
                _ <- tGetExpType mt
-               return ae
+               return ([], [], ae)
 
            | isConIdent i -> do
                ipt <- tLookupV i
 --               traceM (show ipt)
-{-
                case ipt of
                   -- Sanity check
                   (_, EForall _ (EForall _ _)) -> return ()
                   _ -> undefined
-               (ap, apt) <- tInst' ipt
-               (_sks, spt) <- skolemise apt
+               (ap, EForall avs apt) <- tInst' ipt
+               (_sks, spt) <- shallowSkolemise avs apt
                (p, pt) <- xxxx (ap, spt)
--}
-               (p, pt) <- tInst' ipt >>= tInst'
                -- We will only have an expected type for a non-nullary constructor
-               case mt of
-                 Check ext -> subsCheck loc p ext pt
-                 Infer r   -> do { tSetRefType loc r pt; return p }
+               pp <- case mt of
+                       Check ext -> subsCheck loc p ext pt
+                       Infer r   -> do { tSetRefType loc r pt; return p }
+               return ([], [], pp)
 
            | otherwise -> do
                -- All pattern variables are in the environment as
@@ -1755,38 +1763,42 @@ tcPat mt ae =
                case t of
                  EUVar r -> tSetRefType loc r ext
                  _ -> impossible
-               return p
+               return ([], [], p)
 
     EOper e ies -> do e' <- tcOper e ies; tcPat mt e'
 
     EApp f a -> do
-      (f', ft) <- tInferPat f
---      traceM $ "EApp f=" ++ showExpr f ++ "; e'=" ++ showExpr f' ++ " :: " ++ showEType ft
+      ((skf, df, f'), ft) <- tInferPat f
+--      traceM $ "tcPat: EApp f=" ++ showExpr f ++ "; e'=" ++ showExpr f' ++ " :: " ++ showEType ft
       (at, rt) <- unArrow loc ft
---      traceM ("tcExpr EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
-      a' <- tCheckPat at a
+--      traceM ("tcPat EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
+      (ska, da, a') <- tCheckPat at a
       instPatSigma loc rt mt
-      return (EApp f' a')
+      return (skf ++ ska, df ++ da, EApp f' a')
            
     ETuple es -> do
       let
         n = length es
-      (ees, tes) <- fmap unzip (mapM tInferPat es)
+      (xs, tes) <- fmap unzip (mapM tInferPat es)
       let
+        (sks, ds, ees) = unzip3 xs
         ttup = tApps (tupleConstr loc n) tes
       munify loc mt ttup
-      return (ETuple ees)
+      return (concat sks, concat ds, ETuple ees)
 
     EListish (LList es) -> do
       te <- newUVar
       munify loc mt (tApp (tList loc) te)
-      es' <- mapM (tCheckPat te) es
-      return (EListish (LList es'))
+      xs <- mapM (tCheckPat te) es
+      let (sks, ds, es') = unzip3 xs
+      return (concat sks, concat ds, EListish (LList es'))
 
     ELit loc' l -> do
-      case l of
-        LInteger i -> tcLit mt loc' (LInt (_integerToInt i))
-        _          -> tcLit mt loc' l
+      -- XXX wrong
+      ee <- case l of
+              LInteger i -> tcLit mt loc' (LInt (_integerToInt i))
+              _          -> tcLit mt loc' l
+      return ([], [], ee)
 
     ESign e t -> do
       t' <- tcType (Check kType) t
@@ -1795,12 +1807,12 @@ tcPat mt ae =
 
     EAt i e -> do
       (_, ti) <- tLookupV i
-      e' <- tcPat mt e
+      (sk, d, e') <- tcPat mt e
       tt <- tGetExpType mt
       case ti of
         EUVar r -> tSetRefType loc r tt
         _ -> impossible
-      return (EAt i e')
+      return (sk, d, EAt i e')
 
     _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ show ae
          --impossible
@@ -1866,7 +1878,9 @@ tcBind abind =
       teqns <- tcEqns False tt eqns
       return $ BFcn i teqns
     BPat p a -> do
-      (ep, tp) <- tInferPat p  -- pattern variables already bound
+      ((sk, _, ep), tp) <- tInferPat p  -- pattern variables already bound
+      when (not (null sk)) $
+        tcError (getSLoc p) "existentials not allowed in pattern binding"
       ea       <- tCheckExpr tp a
       return $ BPat ep ea
     BSign _ _ -> return abind
@@ -1944,15 +1958,21 @@ allBinders = [ mkIdent [chr x] | x <- [ord 'a' .. ord 'z'] ] ++
              [ mkIdent (chr x : show i) | i <- [1 ..], x <- [ord 'a' .. ord 'z']]
 -}
 
+-- Skolemize the given variables
+shallowSkolemise :: [IdKind] -> EType -> T ([TyVar], EType)
+shallowSkolemise tvs ty = do
+  sks <- mapM (newSkolemTyVar . idKindIdent) tvs
+  return (sks, subst (zip (map idKindIdent tvs) (map EVar sks)) ty)
+
 skolemise :: --XHasCallStack =>
              Sigma -> T ([TyVar], Rho)
 -- Performs deep skolemisation, returning the
--- skolem constants and the skolemised type
+-- skolem constants and the skolemised type.
 skolemise (EForall tvs ty) = do -- Rule PRPOLY
-  sks1 <- mapM (newSkolemTyVar . idKindIdent) tvs
-  (sks2, ty') <- skolemise (subst (zip (map idKindIdent tvs) (map EVar sks1)) ty)
-  return (sks1 ++ sks2, ty')
-skolemise t@(EApp _ _) | Just (arg_ty, res_ty) <- getArrow t = do -- Rule PRFUN
+  (sks1, ty') <- shallowSkolemise tvs ty
+  (sks2, ty'') <- skolemise ty'
+  return (sks1 ++ sks2, ty'')
+skolemise t@(EApp _ _) | Just (arg_ty, res_ty) <- getArrow t = do
   (sks, res_ty') <- skolemise res_ty
   return (sks, arg_ty `tArrow` res_ty')
 skolemise (EApp f a) = do
@@ -1960,7 +1980,7 @@ skolemise (EApp f a) = do
   (sks2, a') <- skolemise a
   return (sks1 ++ sks2, EApp f' a')
 skolemise ty =
-  return ([], ty) -- Rule PRMONO
+  return ([], ty)
 
 -- Skolem tyvars are just identifiers that start with a uniq
 newSkolemTyVar :: Ident -> T Ident
