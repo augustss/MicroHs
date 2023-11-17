@@ -253,7 +253,7 @@ pDef :: P EDef
 pDef =
       Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 pConstr (pSymbol "|"))
                                                         <|< pure [])
-  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr <$> pUIdentSym <*> pField))
+  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField))
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
   <|< uncurry Fcn <$> pEqns
   <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pType
@@ -268,23 +268,34 @@ pDef =
     dig (TInt _ ii) | -2 <= i && i <= 9 = Just i  where i = _integerToInt ii
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
-    pContext = (pCtx <* pSymbol "=>") <|< pure []
-    pCtx = pParens (emany pType) <|< ((:[]) <$> pTypeApp)
 
-    pFields = Left  <$> emany pSAType <|<
-              Right <$> (pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "::") <*> pSType) (pSpec ',') <* pSpec '}')
+    pFunDeps = (pSpec '|' *> esome pFunDep) <|< pure []
+    pFunDep = (,) <$> esome pLIdent <*> (pSymbol "->" *> esome pLIdent)
     pField = do
       fs <- pFields
       guard $ either length length fs == 1
       pure fs
-    pFunDeps = (pSpec '|' *> esome pFunDep) <|< pure []
-    pFunDep = (,) <$> esome pLIdent <*> (pSymbol "->" *> esome pLIdent)
-    pConstr :: P Constr
-    pConstr = (Constr <$> pUIdentSym <*> pFields)
-          <|< ((\ t1 c t2 -> Constr c (Left [t1, t2])) <$> pSAType <*> pUSymOper <*> pSAType)
-    pSAType = (,) <$> pStrict <*> pAType
-    pSType  = (,) <$> pStrict <*> pType
-    pStrict = (True <$ pSymbol "!") <|< pure False
+
+pContext :: P [EConstraint]
+pContext = (pCtx <* pSymbol "=>") <|< pure []
+  where
+    pCtx = pParens (emany pType) <|< ((:[]) <$> pTypeApp)
+
+pConstr :: P Constr
+pConstr = (Constr <$> pForall <*> pContext <*> pUIdentSym <*> pFields)
+      <|< ((\ vs ct t1 c t2 -> Constr vs ct c (Left [t1, t2])) <$>
+            pForall <*> pContext <*> pSAType <*> pUSymOper <*> pSAType)
+
+pFields :: P (Either [SType] [(Ident, SType)])
+pFields = Left  <$> emany pSAType <|<
+          Right <$> (pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "::") <*> pSType) (pSpec ',') <* pSpec '}')
+
+pSAType :: P (Bool, EType)
+pSAType = (,) <$> pStrict <*> pAType
+pSType :: P (Bool, EType)
+pSType  = (,) <$> pStrict <*> pType
+pStrict :: P Bool
+pStrict = (True <$ pSymbol "!") <|< pure False
 
 pLHS :: P LHS
 pLHS = (,) <$> pTypeIdentSym <*> emany pIdKind

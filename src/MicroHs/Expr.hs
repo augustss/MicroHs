@@ -200,7 +200,10 @@ patVars = filter isVar . allVarsExpr
 
 type LHS = (Ident, [IdKind])
 
-data Constr = Constr Ident (Either [SType] [ConstrField])
+data Constr = Constr
+  [IdKind] [EConstraint]          -- existentials: forall vs . ctx =>
+  Ident                           -- constructor name
+  (Either [SType] [ConstrField])  -- types or named fields
   --Xderiving(Show)
 
 type ConstrField = (Ident, SType)              -- record label and type
@@ -490,11 +493,13 @@ ppEDef def =
     ForImp ie i t -> text ("foreign import ccall " ++ show ie) <+> ppIdent i <+> text "::" <+> ppEType t
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
-    Class sup lhs fds bs -> ppWhere (text "class" <+> ctx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
-    Instance vs ct ty bs -> ppWhere (text "instance" <+> ppForall vs <+> ctx ct <+> ppEType ty) bs
+    Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
+    Instance vs ct ty bs -> ppWhere (text "instance" <+> ppForall vs <+> ppCtx ct <+> ppEType ty) bs
     Default ts -> text "default" <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
- where ctx [] = empty
-       ctx ts = ppEType (ETuple ts) <+> text "=>"
+
+ppCtx :: [EConstraint] -> Doc
+ppCtx [] = empty
+ppCtx ts = ppEType (ETuple ts) <+> text "=>"
 
 ppFunDeps :: [FunDep] -> Doc
 ppFunDeps [] = empty
@@ -505,9 +510,10 @@ ppEqns :: Doc -> Doc -> [Eqn] -> Doc
 ppEqns name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map ppEPat ps), ppAlts sepr alts])
 
 ppConstr :: Constr -> Doc
-ppConstr (Constr c (Left  ts)) = hsep (ppIdent c : map ppSType ts)
-ppConstr (Constr c (Right fs)) = ppIdent c <> braces (hsep $ map f fs)
-  where f (i, t) = ppIdent i <+> text "::" <+> ppSType t <> text ","
+ppConstr (Constr iks ct c cs) = ppForall iks <+> ppCtx ct <+> ppIdent c <+> ppCs cs
+  where ppCs (Left  ts) = hsep (map ppSType ts)
+        ppCs (Right fs) = braces (hsep $ map f fs)
+          where f (i, t) = ppIdent i <+> text "::" <+> ppSType t <> text ","
 
 ppSType :: SType -> Doc
 ppSType (False, t) = ppEType t
@@ -576,7 +582,7 @@ ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppExpr a <+> text op
 ppApp as f = parens $ hsep (map ppExpr (f:as))
 
 ppForall :: [IdKind] -> Doc
-ppForall [] = empty
+--ppForall [] = empty
 ppForall iks = text "forall" <+> hsep (map ppIdKind iks) <+> text "."
 
 ppListish :: Listish -> Doc

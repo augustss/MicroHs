@@ -39,16 +39,17 @@ dsDef mn adef =
       let
         f i = mkIdent ("$f" ++ show i)
         fs = [f i | (i, _) <- zip [0::Int ..] cs]
-        dsConstr i (Constr c ets) =
+        dsConstr i (Constr _ ctx c ets) =
           let
-            ss = map fst $ either id (map snd) ets   -- strict flags
+            ss = (if null ctx then [] else [False]) ++
+                 map fst (either id (map snd) ets)   -- strict flags
             xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip [0::Int ..] ss]
             strict (False:ys) (_:is) e = strict ys is e
             strict (True:ys)  (x:is) e = App (App (Lit (LPrim "seq")) (Var x)) (strict ys is e)
             strict _ _ e = e
           in (qualIdent mn c, lams xs $ strict ss xs $ lams fs $ apps (Var (f i)) (map Var xs))
       in  zipWith dsConstr [0::Int ..] cs
-    Newtype _ (Constr c _) -> [ (qualIdent mn c, Lit (LPrim "I")) ]
+    Newtype _ (Constr _ _ c _) -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
     Fcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
     Sign _ _ -> []

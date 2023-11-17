@@ -980,8 +980,8 @@ addTypeKind adef = do
     addAssoc i is = do
       mn <- gets moduleName
       addAssocTable (qualIdent mn i) (map (qualIdent mn) is)
-    assocData (Constr c (Left _)) = [c]
-    assocData (Constr c (Right its)) = c : map fst its
+    assocData (Constr _ _ c (Left _)) = [c]
+    assocData (Constr _ _ c (Right its)) = c : map fst its
   case adef of
     Data    lhs@(i, _) cs -> do
       addLHSKind lhs kType
@@ -1047,9 +1047,9 @@ withVars aiks ta =
       withExtVal i k $ withVars iks ta
 
 tcConstr :: Constr -> T Constr
-tcConstr (Constr c ets) =
-  Constr c <$> either (\ x -> Left  <$> mapM (\ (s,t)     ->         (s,)  <$> tcTypeT (Check kType) t) x)
-                      (\ x -> Right <$> mapM (\ (i,(s,t)) -> ((i,) . (s,)) <$> tcTypeT (Check kType) t) x) ets
+tcConstr (Constr _ _ c ets) =
+  Constr [] [] c <$> either (\ x -> Left  <$> mapM (\ (s,t)     ->         (s,)  <$> tcTypeT (Check kType) t) x)
+                            (\ x -> Right <$> mapM (\ (i,(s,t)) -> ((i,) . (s,)) <$> tcTypeT (Check kType) t) x) ets
 
 
 -- Expand a class defintion to
@@ -1191,13 +1191,13 @@ addValueType adef = do
     Sign i t -> extValQTop i t
     Data (i, vks) cs -> do
       let
-        cti = [ (qualIdent mn c, either length length ets) | Constr c ets <- cs ]
+        cti = [ (qualIdent mn c, either length length ets) | Constr _ _ c ets <- cs ]
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
-        addCon (Constr c ets) = do
+        addCon (Constr _ _ c ets) = do
           let ts = either id (map snd) ets
           extValETop c (EForall vks $ foldr (tArrow . snd) tret ts) (ECon $ ConData cti (qualIdent mn c))
       mapM_ addCon cs
-    Newtype (i, vks) (Constr c fs) -> do
+    Newtype (i, vks) (Constr _ _ c fs) -> do
       let
         t = snd $ head $ either id (map snd) fs
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
