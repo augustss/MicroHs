@@ -803,30 +803,29 @@ tLookupV i = do
             _      -> "value"
   tLookup s i
 
--- Maybe iterate these?
 tInst :: (Expr, EType) -> T (Expr, EType)
-tInst t = tInst' t >>= tDict >>= tInst' >>= tDict >>= tInst'
+tInst (ae, EForall vks t) = tInstForall ae vks t >>= tInst
+tInst (ae, at) | Just (ctx, t) <- getImplies at = do
+  u <- newUniq
+  let d = mkIdentSLoc loc ("dict$" ++ show u)
+      loc = getSLoc ae
+  --traceM $ "tInst: addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx ++ " " ++ showSLoc loc
+  addConstraint d ctx
+  tInst (EApp ae (EVar d), t)
+tInst at = return at
 
-tInst' :: (Expr, EType) -> T (Expr, EType)
-tInst' (ae, EForall vks t) =
+tInstForall :: Expr -> [IdKind] -> EType -> T (Expr, EType)
+tInstForall ae vks t =
   if null vks then
     return (ae, t)
   else do
     let vs = map idKindIdent vks
     us <- mapM (const newUVar) vks
---        tInst' (ae, subst (zip vs us) t)
     return (ae, subst (zip vs us) t)
-tInst' et = return et
 
-tDict :: (Expr, EType) -> T (Expr, EType)
-tDict (ae, at) | Just (ctx, t) <- getImplies at = do
-  u <- newUniq
-  let d = mkIdentSLoc loc ("dict$" ++ show u)
-      loc = getSLoc ae
-  --traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx ++ " " ++ showSLoc loc
-  addConstraint d ctx
-  tDict (EApp ae (EVar d), t)
-tDict at = return at
+tInst' :: (Expr, EType) -> T (Expr, EType)
+tInst' (ae, EForall vks t) = tInstForall ae vks t
+tInst' et = return et
 
 extValE :: --XHasCallStack =>
            Ident -> EType -> Expr -> T ()
