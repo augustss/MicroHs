@@ -20,6 +20,8 @@ GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(G
 #
 .PHONY:	clean bootstrap install ghcgen
 
+all:	bin/gmhs
+
 # Compile mhs from distribution, with C compiler
 bin/mhs:	src/runtime/eval.c src/runtime/config*.h #generated/mhs.c
 	@mkdir -p bin
@@ -89,3 +91,12 @@ install:
 	@echo "*** Set environment variable MHSDIR to $(PREFIX)/lib/mhs"
 	@echo "***"
 
+everytest:	runtest bootcombtest
+
+runtest:	bin/mhseval bin/gmhs tests/*.hs
+	cd tests; make alltest
+
+bootcombtest:	bin/gmhs bin/mhseval
+	bin/gmhs -ilib -isrc -ogmhs.comb  MicroHs.Main
+	bin/mhseval +RTS -v -rgmhs.comb -RTS -ilib -isrc -omhs.comb MicroHs.Main
+	cmp gmhs.comb mhs.comb
