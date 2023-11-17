@@ -1613,12 +1613,6 @@ getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
 newDictIdent :: SLoc -> T Ident
 newDictIdent loc = newIdent loc "adict"
 
-tcPats :: forall a . EType -> [EPat] -> (EType -> [EPat] -> T a) -> T a
-tcPats t [] ta = ta t []
-tcPats t (p:ps) ta = do
-  (tp, tr) <- unArrow (getSLoc p) t
-  tCheckPatC tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt (pp : pps)
-
 tcExprLam :: Expected -> [Eqn] -> T Expr
 tcExprLam mt qs = do
   t <- tGetExpType mt
@@ -1655,8 +1649,14 @@ tcEqn :: EType -> Eqn -> T Eqn
 tcEqn t eqn =
   case eqn of
     Eqn ps alts -> tcPats t ps $ \ tt ps' -> do
-      aalts <- tcAlts tt alts
-      return (Eqn ps' aalts)
+      alts' <- tcAlts tt alts
+      return (Eqn ps' alts')
+
+tcPats :: forall a . EType -> [EPat] -> (EType -> [EPat] -> T a) -> T a
+tcPats t [] ta = ta t []
+tcPats t (p:ps) ta = do
+  (tp, tr) <- unArrow (getSLoc p) t
+  tCheckPatC tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt (pp : pps)
 
 tcAlts :: EType -> EAlts -> T EAlts
 tcAlts tt (EAlts alts bs) =
@@ -1687,8 +1687,8 @@ tcArm :: EType -> EType -> ECaseArm -> T ECaseArm
 tcArm t tpat arm =
   case arm of
     (p, alts) -> tCheckPatC tpat p $ \ pp -> do
-      aalts <- tcAlts t alts
-      return (pp, aalts)
+      alts' <- tcAlts t alts
+      return (pp, alts')
 
 eBinds :: [(Ident, Expr)] -> [EBind]
 eBinds ds = [BFcn i [Eqn [] (EAlts [([], e)] [])] | (i, e) <- ds]

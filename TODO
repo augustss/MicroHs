@@ -43,6 +43,7 @@
 * Parse prefix negation
 * Set lib from envvar
 * Faster compression
+* Fix polymorphic pattern literals
 
 Bugs
 
