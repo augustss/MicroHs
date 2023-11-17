@@ -1610,6 +1610,9 @@ unArrow loc t = do
 getFixity :: FixTable -> Ident -> Fixity
 getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
 
+newDictIdent :: SLoc -> T Ident
+newDictIdent loc = newIdent loc "adict"
+
 tcPats :: forall a . EType -> [EPat] -> (EType -> [EPat] -> T a) -> T a
 tcPats t [] ta = ta t []
 tcPats t (p:ps) ta = do
@@ -1626,7 +1629,7 @@ tcEqns :: Bool -> EType -> [Eqn] -> T [Eqn]
 tcEqns top (EForall iks t) eqns = withExtTyps iks $ tcEqns top t eqns
 tcEqns top t eqns | Just (ctx, t') <- getImplies t = do
   let loc = getSLoc eqns
-  d <- newIdent loc "adict"
+  d <- newDictIdent loc
   f <- newIdent loc "fcnD"
   withDict d ctx $ do
     eqns' <- tcEqns top t' eqns
@@ -1719,6 +1722,7 @@ tCheckPatC t ap ta = do
   withExtVals env $ do
     (_sks, ds, pp) <- tCheckPat t ap
     () <- checkArity 0 pp
+--    traceM ("tCheckPatC " ++ show ds)
     withDicts ds $
       ta pp
 
@@ -1747,13 +1751,19 @@ tcPat mt ae =
                   (_, EForall _ (EForall _ _)) -> return ()
                   _ -> undefined
                (ap, EForall avs apt) <- tInst' ipt
-               (_sks, spt) <- shallowSkolemise avs apt
-               (p, pt) <- xxxx (ap, spt)
+               (sks, spt) <- shallowSkolemise avs apt
+               (d, p, pt) <-
+                 case getImplies spt of
+                   Nothing -> return ([], ap, apt)
+                   Just (ctx, pt') -> do
+                     di <- newDictIdent loc
+                     return ([(di, ctx)], EApp ap (EVar i), pt')
+                   
                -- We will only have an expected type for a non-nullary constructor
                pp <- case mt of
                        Check ext -> subsCheck loc p ext pt
                        Infer r   -> do { tSetRefType loc r pt; return p }
-               return ([], [], pp)
+               return (sks, d, pp)
 
            | otherwise -> do
                -- All pattern variables are in the environment as

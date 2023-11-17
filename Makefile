@@ -93,9 +93,6 @@ install:
 
 everytest:	runtest bootcombtest
 
-runtest:	bin/mhseval bin/gmhs tests/*.hs
-	cd tests; make alltest
-
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs -ilib -isrc -ogmhs.comb  MicroHs.Main
 	bin/mhseval +RTS -v -rgmhs.comb -RTS -ilib -isrc -omhs.comb MicroHs.Main
