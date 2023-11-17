@@ -378,7 +378,7 @@ data TCState = TC
   Defaults              -- current defaults
   --Xderiving (Show)
 
-data TCMode = TCExpr | TCPat | TCType
+data TCMode = TCExpr | TCType
   --Xderiving (Show)
 
 typeTable :: TCState -> TypeTable
@@ -805,7 +805,7 @@ tLookupV i = do
 
 -- Maybe iterate these?
 tInst :: (Expr, EType) -> T (Expr, EType)
-tInst t = tInst' t >>= tDict >>= tInst'
+tInst t = tInst' t >>= tDict >>= tInst' >>= tDict >>= tInst'
 
 tInst' :: (Expr, EType) -> T (Expr, EType)
 tInst' (ae, EForall vks t) =
@@ -1033,11 +1033,13 @@ tcDefType d = do
     Default ts                  ->                Default       <$> mapM (tCheckTypeT kType) ts
     _                           -> return d
  where
-   tcCtx = mapM (tCheckTypeT kConstraint)
    tcMethod (BSign i t) = BSign i <$> tcTypeT (Check kType) t
    tcMethod m = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
+
+tcCtx :: [EConstraint] -> T [EConstraint]
+tcCtx = mapM (tCheckTypeT kConstraint)
 
 withVars :: forall a . [IdKind] -> T a -> T a
 withVars aiks ta =
@@ -1047,10 +1049,11 @@ withVars aiks ta =
       withExtVal i k $ withVars iks ta
 
 tcConstr :: Constr -> T Constr
-tcConstr (Constr _ _ c ets) =
-  Constr [] [] c <$> either (\ x -> Left  <$> mapM (\ (s,t)     ->         (s,)  <$> tcTypeT (Check kType) t) x)
-                            (\ x -> Right <$> mapM (\ (i,(s,t)) -> ((i,) . (s,)) <$> tcTypeT (Check kType) t) x) ets
-
+tcConstr (Constr iks ct c ets) =
+  withVars iks $
+    Constr iks <$> tcCtx ct <*> pure c <*>
+      either (\ x -> Left  <$> mapM (\ (s,t)     ->         (s,)  <$> tcTypeT (Check kType) t) x)
+             (\ x -> Right <$> mapM (\ (i,(s,t)) -> ((i,) . (s,)) <$> tcTypeT (Check kType) t) x) ets
 
 -- Expand a class defintion to
 --  * a "data" type for the dictionary, with kind Constraint
@@ -1191,17 +1194,18 @@ addValueType adef = do
     Sign i t -> extValQTop i t
     Data (i, vks) cs -> do
       let
-        cti = [ (qualIdent mn c, either length length ets) | Constr _ _ c ets <- cs ]
+        cti = [ (qualIdent mn c, either length length ets + if null ctx then 0 else 1) | Constr _ ctx c ets <- cs ]
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
-        addCon (Constr _ _ c ets) = do
+        addCon (Constr evks ectx c ets) = do
           let ts = either id (map snd) ets
-          extValETop c (EForall vks $ foldr (tArrow . snd) tret ts) (ECon $ ConData cti (qualIdent mn c))
+              cty = EForall vks $ EForall evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
+          extValETop c cty (ECon $ ConData cti (qualIdent mn c))
       mapM_ addCon cs
     Newtype (i, vks) (Constr _ _ c fs) -> do
       let
         t = snd $ head $ either id (map snd) fs
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
-      extValETop c (EForall vks $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
+      extValETop c (EForall vks $ EForall [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
     ForImp _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     _ -> return ()
@@ -1361,114 +1365,75 @@ tcExprR :: --XHasCallStack =>
            Expected -> Expr -> T Expr
 tcExprR mt ae =
   let { loc = getSLoc ae } in
+--  trace ("tcExprR " ++ show ae) $
   case ae of
-    EVar i -> do
-      tcm <- gets tcMode
-      case tcm of
-        TCPat | isDummyIdent i -> do
-                -- _ can be anything, so just ignore it
-                _ <- tGetExpType mt
-                return ae
+    EVar i | isIdent "dict$" i -> do
+             -- Magic variable that just becomes the dictionary
+             d <- newIdent (getSLoc i) "dict$"
+             case mt of
+               Infer _ -> impossible
+               Check t -> addConstraint d t
+             return (EVar d)
 
-              | isConIdent i -> do
-                ipt <- tLookupV i
-                (p, pt) <- tInst' ipt  -- XXX
-                -- We will only have an expected type for a non-nullary constructor
-                case mt of
-                  Check ext -> subsCheck loc p ext pt
-                  Infer r   -> do { tSetRefType loc r pt; return p }
-
-              | otherwise -> do
-                -- All pattern variables are in the environment as
-                -- type references.  Assign the reference the given type.
-                ext <- tGetExpType mt
-                (p, t) <- tLookupV i
-                case t of
-                  EUVar r -> tSetRefType loc r ext
-                  _ -> impossible
-                return p
-          
-        _ | isIdent "dict$" i -> do
-          -- Magic variable that just becomes the dictionary
-          d <- newIdent (getSLoc i) "dict$"
-          case mt of
-            Infer _ -> impossible
-            Check t -> addConstraint d t
-          return (EVar d)
-
-        _ -> do
-          -- Type checking an expression (or type)
-          when (isDummyIdent i) impossible
-          (e, t) <- tLookupV i
-          -- Variables bound in patterns start out with an (EUVar ref) type,
-          -- which can be instantiated to a polytype.
-          -- Dereference such a ref.
-          t' <-
-            case t of
-              EUVar r -> fmap (fromMaybe t) (getUVar r)
-              _ -> return t
---          traceM ("EVar " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t')
-          instSigma loc e t' mt
+           | isDummyIdent i ->
+             error $ "tcExprR: dummyIdent " ++ show (getSLoc i)
+             -- impossible
+           | otherwise -> do
+             -- Type checking an expression (or type)
+             (e, t) <- tLookupV i
+             -- Variables bound in patterns start out with an (EUVar ref) type,
+             -- which can be instantiated to a polytype.
+             -- Dereference such a ref.
+             t' <-
+               case t of
+                 EUVar r -> fmap (fromMaybe t) (getUVar r)
+                 _ -> return t
+--             traceM ("EVar " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t')
+             instSigma loc e t' mt
 
     EApp f a -> do
       (f', ft) <- tInferExpr f
 --      traceM $ "EApp f=" ++ showExpr f ++ "; e'=" ++ showExpr f' ++ " :: " ++ showEType ft
       (at, rt) <- unArrow loc ft
-      tcm <- gets tcMode
 --      traceM ("tcExpr EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
-      case tcm of
-        TCPat -> do
-          a' <- tCheckExpr at a
-          instPatSigma loc rt mt
-          return (EApp f' a')
-        _ -> do
-          a' <- checkSigma a at
-          instSigma loc (EApp f' a') rt mt
+      a' <- checkSigma a at
+      instSigma loc (EApp f' a') rt mt
 
     EOper e ies -> do e' <- tcOper e ies; tcExpr mt e'
     ELam qs -> tcExprLam mt qs
     ELit loc' l -> do
-      tcm <- gets tcMode
---      traceM ("tcExpr EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
-      case tcm of
-        -- XXX This is temporary hack.  Don't allow polymorphic constrants in patterns
-        TCPat ->
-          case l of
-            LInteger i -> tcLit mt loc' (LInt (_integerToInt i))
-            _          -> tcLit mt loc' l
-        _ -> do
-          let getExpected (Infer _) = pure Nothing
-              getExpected (Check t) = do
-                t' <- derefUVar t >>= expandSyn
-                case t' of
-                  EVar v -> pure (Just v)
-                  _      -> pure Nothing
-          case l of
-            LInteger i -> do
-              mex <- getExpected mt
-              case mex of
-                -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
-                -- (which is not always in scope).
-                Just v | v == mkIdent nameInt     -> tcLit  mt loc' (LInt (_integerToInt i))
-                       | v == mkIdent nameWord    -> tcLit' mt loc' (LInt (_integerToInt i)) (tConI loc' nameWord)
-                       | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (_integerToDouble i))
-                       | v == mkIdent nameInteger -> tcLit  mt loc' l
-                _ -> do
-                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow
-                  (_at, rt) <- unArrow loc ft
-                  -- We don't need to check that _at is Integer, it's part of the fromInteger type.
-                  instSigma loc (EApp f ae) rt mt
-            LRat r -> do
-              mex <- getExpected mt
-              case mex of
-                Just v | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (fromRational r))
-                _ -> do               
-                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromRational"))  -- XXX should have this qualified somehow
-                  (_at, rt) <- unArrow loc ft
-                  -- We don't need to check that _at is Rational, it's part of the fromRational type.
-                  instSigma loc (EApp f ae) rt mt
-            -- Not LInteger, LRat
-            _ -> tcLit mt loc' l
+      let getExpected (Infer _) = pure Nothing
+          getExpected (Check t) = do
+            t' <- derefUVar t >>= expandSyn
+            case t' of
+              EVar v -> pure (Just v)
+              _      -> pure Nothing
+      case l of
+        LInteger i -> do
+          mex <- getExpected mt
+          case mex of
+            -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
+            -- (which is not always in scope).
+            Just v | v == mkIdent nameInt     -> tcLit  mt loc' (LInt (_integerToInt i))
+                   | v == mkIdent nameWord    -> tcLit' mt loc' (LInt (_integerToInt i)) (tConI loc' nameWord)
+                   | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (_integerToDouble i))
+                   | v == mkIdent nameInteger -> tcLit  mt loc' l
+            _ -> do
+              (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow
+              (_at, rt) <- unArrow loc ft
+              -- We don't need to check that _at is Integer, it's part of the fromInteger type.
+              instSigma loc (EApp f ae) rt mt
+        LRat r -> do
+          mex <- getExpected mt
+          case mex of
+            Just v | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (fromRational r))
+            _ -> do
+              (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromRational"))  -- XXX should have this qualified somehow
+              (_at, rt) <- unArrow loc ft
+              -- We don't need to check that _at is Rational, it's part of the fromRational type.
+              instSigma loc (EApp f ae) rt mt
+        -- Not LInteger, LRat
+        _ -> tcLit mt loc' l
     ECase a arms -> do
       (ea, ta) <- tInferExpr a
       tt <- tGetExpType mt
@@ -1542,7 +1507,7 @@ tcExprR mt ae =
                 SBind p a -> do
                   v <- newUVar
                   ea <- tCheckExpr (tApp (tList loc) v) a
-                  tCheckPat v p $ \ ep -> doStmts (SBind ep ea : rss) ss
+                  tCheckPatC v p $ \ ep -> doStmts (SBind ep ea : rss) ss
                 SThen a -> do
                   ea <- tCheckExpr (tBool (getSLoc a)) a
                   doStmts (SThen ea : rss) ss
@@ -1560,27 +1525,14 @@ tcExprR mt ae =
     EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enum loc "FromThenTo" [e1,e2,e3])
     ESign e t -> do
       t' <- tcType (Check kType) t
-      tcm <- gets tcMode
-      case tcm of
-        TCPat -> do
-          instPatSigma loc t' mt
-          tCheckExpr t' e
-        _ -> do
-          e' <- instSigma loc e t' mt
-          checkSigma e' t'
-    EAt i e -> do
-      (_, ti) <- tLookupV i
-      e' <- tcExpr mt e
-      tt <- tGetExpType mt
-      case ti of
-        EUVar r -> tSetRefType loc r tt
-        _ -> impossible
-      return (EAt i e')
+      e' <- instSigma loc e t' mt
+      checkSigma e' t'
     EForall vks t ->
       withVks vks kType $ \ vvks _ -> do
         tt <- withVars vvks (tcExpr mt t)
         return (EForall vvks tt)
-    _ -> impossible
+    _ -> error $ "tcExpr: " ++ show (getSLoc ae) ++ " " ++ show ae
+      -- impossible
 
 enum :: SLoc -> String -> [Expr] -> Expr
 enum loc f = foldl EApp (EVar (mkIdentSLoc loc ("enum" ++ f)))
@@ -1601,6 +1553,8 @@ tcLit mt loc l = do
 tcLit' :: Expected -> SLoc -> Lit -> EType -> T Expr
 tcLit' mt loc l t = instSigma loc (ELit loc l) t mt
 
+-- tcOper is in T because it has to look up identifiers, and get the fixity table.
+-- But there is no type checking happening here.
 tcOper :: --XHasCallStack =>
           Expr -> [(Ident, Expr)] -> T Expr
 tcOper ae aies = do
@@ -1654,7 +1608,7 @@ tcPats :: forall a . EType -> [EPat] -> (EType -> [EPat] -> T a) -> T a
 tcPats t [] ta = ta t []
 tcPats t (p:ps) ta = do
   (tp, tr) <- unArrow (getSLoc p) t
-  tCheckPat tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt (pp : pps)
+  tCheckPatC tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt (pp : pps)
 
 tcExprLam :: Expected -> [Eqn] -> T Expr
 tcExprLam mt qs = do
@@ -1714,7 +1668,7 @@ tcGuards (s:ss) ta = tcGuard s $ \ rs -> tcGuards ss $ \ rss -> ta (rs:rss)
 tcGuard :: forall a . EStmt -> (EStmt -> T a) -> T a
 tcGuard (SBind p e) ta = do
   (ee, tt) <- tInferExpr e
-  tCheckPat tt p $ \ pp -> ta (SBind pp ee)
+  tCheckPatC tt p $ \ pp -> ta (SBind pp ee)
 tcGuard (SThen e) ta = do
   ee <- tCheckExpr (tBool (getSLoc e)) e
   ta (SThen ee)
@@ -1723,7 +1677,7 @@ tcGuard (SLet bs) ta = tcBinds bs $ \ bbs -> ta (SLet bbs)
 tcArm :: EType -> EType -> ECaseArm -> T ECaseArm
 tcArm t tpat arm =
   case arm of
-    (p, alts) -> tCheckPat tpat p $ \ pp -> do
+    (p, alts) -> tCheckPatC tpat p $ \ pp -> do
       aalts <- tcAlts t alts
       return (pp, aalts)
 
@@ -1748,18 +1702,109 @@ subsCheck loc exp1 sigma1 sigma2 = do -- Rule DEEP-SKOL
     tcErrorTK loc "Subsumption check failed"
   return exp1'
 
-tCheckPat :: forall a . EType -> EPat -> (EPat -> T a) -> T a
-tCheckPat t p@(EVar v) ta | not (isConIdent v) = do  -- simple special case
+tCheckPatC :: forall a . EType -> EPat -> (EPat -> T a) -> T a
+tCheckPatC t p@(EVar v) ta | not (isConIdent v) = do  -- simple special case
   withExtVals [(v, t)] $ ta p
-tCheckPat t ap ta = do
---  traceM $ "tcPat: " ++ show ap
+tCheckPatC t ap ta = do
+--  traceM $ "tCheckPat: " ++ show ap
   let vs = patVars ap
   multCheck vs
   env <- mapM (\ v -> (v,) <$> newUVar) vs
   withExtVals env $ do
-    pp <- withTCMode TCPat $ tCheckExpr t ap
+    pp <- tCheckPat t ap
     () <- checkArity 0 pp
     ta pp
+
+tCheckPat :: EType -> EPat -> T EPat
+tCheckPat = tCheck tcPat
+tInferPat :: EPat -> T (Typed EPat)
+tInferPat = tInfer tcPat
+
+-- XXX Has some duplication with tcExpr
+tcPat :: Expected -> Expr -> T Expr
+tcPat mt ae =
+  let { loc = getSLoc ae } in
+  case ae of
+    EVar i | isDummyIdent i -> do
+               -- _ can be anything, so just ignore it
+               _ <- tGetExpType mt
+               return ae
+
+           | isConIdent i -> do
+               ipt <- tLookupV i
+--               traceM (show ipt)
+{-
+               case ipt of
+                  -- Sanity check
+                  (_, EForall _ (EForall _ _)) -> return ()
+                  _ -> undefined
+               (ap, apt) <- tInst' ipt
+               (_sks, spt) <- skolemise apt
+               (p, pt) <- xxxx (ap, spt)
+-}
+               (p, pt) <- tInst' ipt >>= tInst'
+               -- We will only have an expected type for a non-nullary constructor
+               case mt of
+                 Check ext -> subsCheck loc p ext pt
+                 Infer r   -> do { tSetRefType loc r pt; return p }
+
+           | otherwise -> do
+               -- All pattern variables are in the environment as
+               -- type references.  Assign the reference the given type.
+               ext <- tGetExpType mt
+               (p, t) <- tLookupV i
+               case t of
+                 EUVar r -> tSetRefType loc r ext
+                 _ -> impossible
+               return p
+
+    EOper e ies -> do e' <- tcOper e ies; tcPat mt e'
+
+    EApp f a -> do
+      (f', ft) <- tInferPat f
+--      traceM $ "EApp f=" ++ showExpr f ++ "; e'=" ++ showExpr f' ++ " :: " ++ showEType ft
+      (at, rt) <- unArrow loc ft
+--      traceM ("tcExpr EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
+      a' <- tCheckPat at a
+      instPatSigma loc rt mt
+      return (EApp f' a')
+           
+    ETuple es -> do
+      let
+        n = length es
+      (ees, tes) <- fmap unzip (mapM tInferPat es)
+      let
+        ttup = tApps (tupleConstr loc n) tes
+      munify loc mt ttup
+      return (ETuple ees)
+
+    EListish (LList es) -> do
+      te <- newUVar
+      munify loc mt (tApp (tList loc) te)
+      es' <- mapM (tCheckPat te) es
+      return (EListish (LList es'))
+
+    ELit loc' l -> do
+      case l of
+        LInteger i -> tcLit mt loc' (LInt (_integerToInt i))
+        _          -> tcLit mt loc' l
+
+    ESign e t -> do
+      t' <- tcType (Check kType) t
+      instPatSigma loc t' mt
+      tCheckPat t' e
+
+    EAt i e -> do
+      (_, ti) <- tLookupV i
+      e' <- tcPat mt e
+      tt <- tGetExpType mt
+      case ti of
+        EUVar r -> tSetRefType loc r tt
+        _ -> impossible
+      return (EAt i e')
+
+    _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ show ae
+         --impossible
 
 multCheck :: [Ident] -> T ()
 multCheck vs =
@@ -1822,7 +1867,7 @@ tcBind abind =
       teqns <- tcEqns False tt eqns
       return $ BFcn i teqns
     BPat p a -> do
-      (ep, tp) <- withTCMode TCPat $ tInferExpr p  -- pattern variables already bound
+      (ep, tp) <- tInferPat p  -- pattern variables already bound
       ea       <- tCheckExpr tp a
       return $ BPat ep ea
     BSign _ _ -> return abind
