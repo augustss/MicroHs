@@ -29,6 +29,7 @@ test:
 	$(MHS) Floating   && $(EVAL) > Floating.out   && diff Floating.ref Floating.out
 	$(MHS) Default    && $(EVAL) > Default.out    && diff Default.ref Default.out
 	$(MHS) Multi      && $(EVAL) > Multi.out      && diff Multi.ref Multi.out
+	$(MHS) Exists     && $(EVAL) > Exists.out     && diff Exists.ref Exists.out
 
 errtest:
 	sh errtester.sh < errmsg.test

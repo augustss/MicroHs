@@ -5,7 +5,7 @@
 module MicroHs.TypeCheck(
   typeCheck,
   TModule(..), showTModule,
-  impossible,
+  impossible, impossibleShow,
   mkClassConstructor,
   mkSuperSel,
   bindingsOf,
@@ -1381,9 +1381,7 @@ tcExprR mt ae =
                Check t -> addConstraint d t
              return (EVar d)
 
-           | isDummyIdent i ->
-             error $ "tcExprR: dummyIdent " ++ show (getSLoc i)
-             -- impossible
+           | isDummyIdent i -> impossibleShow ae
            | otherwise -> do
              -- Type checking an expression (or type)
              (e, t) <- tLookupV i
@@ -1661,14 +1659,24 @@ tcPats t (p:ps) ta = do
 tcAlts :: EType -> EAlts -> T EAlts
 tcAlts tt (EAlts alts bs) =
 --  trace ("tcAlts: bs in " ++ showEBinds bs) $
-  tcBinds bs $ \ bbs -> do
+  tcBinds bs $ \ bs' -> do
 --    traceM ("tcAlts: bs out " ++ showEBinds bbs)
-    aalts <- mapM (tcAlt tt) alts
-    return (EAlts aalts bbs)
+    alts' <- mapM (tcAlt tt) alts
+    return (EAlts alts' bs')
 
 tcAlt :: EType -> EAlt -> T EAlt
 --tcAlt t (_, rhs) | trace ("tcAlt: " ++ showExpr rhs ++ " :: " ++ showEType t) False = undefined
-tcAlt t (ss, rhs) = tcGuards ss $ \ sss -> do { rrhs <- tCheckExpr t rhs; return (sss, rrhs) }
+tcAlt t (ss, rhs) = tcGuards ss $ \ ss' -> do
+  rhs' <- tCheckExprAndSolve t rhs
+  return (ss', rhs')
+
+tCheckExprAndSolve :: EType -> Expr -> T Expr
+tCheckExprAndSolve t e = do
+  (e', bs) <- solveLocalConstraints $ tCheckExpr t e
+  if null bs then
+    return e'
+   else
+    return $ ELet (eBinds bs) e'
 
 tcGuards :: forall a . [EStmt] -> ([EStmt] -> T a) -> T a
 tcGuards [] ta = ta []
@@ -1757,7 +1765,7 @@ tcPat mt ae =
                    Nothing -> return ([], ap, apt)
                    Just (ctx, pt') -> do
                      di <- newDictIdent loc
-                     return ([(di, ctx)], EApp ap (EVar i), pt')
+                     return ([(di, ctx)], EApp ap (EVar di), pt')
                    
                -- We will only have an expected type for a non-nullary constructor
                pp <- case mt of
@@ -1923,6 +1931,10 @@ tBool loc = tConI loc $ boolPrefix ++ "Bool"
 impossible :: --XHasCallStack =>
               forall a . a
 impossible = error "impossible"
+
+impossibleShow :: --XHasCallStack =>
+              forall a b . (Show a, HasLoc a) => a -> b
+impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ show a
 
 showTModule :: forall a . (a -> String) -> TModule a -> String
 showTModule sh amdl =

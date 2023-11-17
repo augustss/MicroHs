@@ -496,7 +496,8 @@ pConOf ap =
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
     ELit loc l -> ConLit loc l
-    _ -> impossible
+    EVar _ -> undefined
+    _ -> impossibleShow ap
 
 pArgs :: EPat -> [EPat]
 pArgs ap =
