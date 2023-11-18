@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 module MicroHs.Compile(
   compileTop,
-  Flags(..), verbose, runIt, output,
+  Flags(..), verbose, runIt, output, compileOnly,
   compileCacheTop,
   Cache, emptyCache, deleteFromCache,
   ) where
@@ -25,30 +25,36 @@ data Flags = Flags
   [String]   -- module search path
   String     -- output file
   Bool       -- show loading message
+  Bool       -- separate compilation
   --Xderiving (Show)
 
 type Time = Int
 
 verbose :: Flags -> Int
-verbose (Flags x _ _ _ _) = x
+verbose (Flags x _ _ _ _ _) = x
 
 runIt :: Flags -> Bool
-runIt (Flags _ x _ _ _) = x
+runIt (Flags _ x _ _ _ _) = x
 
 paths :: Flags -> [String]
-paths (Flags _ _ x _ _) = x
+paths (Flags _ _ x _ _ _) = x
 
 output :: Flags -> String
-output (Flags _ _ _ x _) = x
+output (Flags _ _ _ x _ _) = x
 
 loading :: Flags -> Bool
-loading (Flags _ _ _ _ x) = x
+loading (Flags _ _ _ _ x _) = x
+
+compileOnly :: Flags -> Bool
+compileOnly (Flags _ _ _ _ _ x) = x
 
 -----------------
 
 type CModule = TModule [LDef]
 data Cache = Cache [IdentModule] (M.Map CModule)
   --Xderiving (Show)
+
+--Xinstance NFData Cache where rnf _ = ()  -- dummy instance
 
 working :: Cache -> [IdentModule]
 working (Cache x _) = x
@@ -69,7 +75,7 @@ deleteFromCache mn (Cache is m) = Cache is (M.delete mn m)
 
 -- Compile the module with the given name, starting with the given cache.
 -- Return the "compiled module" and the resulting cache.
-compileCacheTop :: Flags -> Ident -> Cache -> IO ([(Ident, Exp)], Cache)
+compileCacheTop :: Flags -> IdentModule -> Cache -> IO ([(Ident, Exp)], Cache)
 compileCacheTop flags mn ch = do
   (ds, ch') <- compile flags mn ch
   t1 <- getTimeMilli
@@ -83,7 +89,18 @@ compileCacheTop flags mn ch = do
 
 --compileTop :: Flags -> IdentModule -> IO [LDef]
 compileTop :: Flags -> Ident -> IO [(Ident, Exp)]
-compileTop flags mn = fmap fst $ compileCacheTop flags mn emptyCache
+compileTop flags mn = do
+  mhin <- openFileM "cache/Prelude.comb" ReadMode
+  cach <-
+    case mhin of
+      Nothing -> return emptyCache
+      Just hin -> do
+        putStrLn "deserialize cache"
+        c <- hDeserialize hin
+        hClose hin
+        putStrLn "deserialize done"
+        return c
+  fst <$> compileCacheTop flags mn cach
 
 compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)
 compile flags nm ach = do

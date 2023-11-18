@@ -18,9 +18,9 @@ type IState = (String, Flags, Cache)
 type I a = StateIO IState a
 
 mainInteractive :: Flags -> IO ()
-mainInteractive (Flags a b c d _) = do
+mainInteractive (Flags a b c d _ f) = do
   putStrLn "Welcome to interactive MicroHs!"
-  let flags' = Flags a b c d True
+  let flags' = Flags a b c d True f
   _ <- runStateIO start (preamble, flags', emptyCache)
   return ()
 

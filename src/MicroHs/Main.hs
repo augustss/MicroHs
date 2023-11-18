@@ -4,6 +4,7 @@
 module MicroHs.Main(main) where
 import Prelude
 --Ximport Data.List
+import Control.DeepSeq
 import Control.Monad
 import Data.Maybe
 import System.Environment
@@ -40,16 +41,18 @@ main = do
                   ("." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args))
                   (head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"])
                   (elem "-l" args)
+                  (elem "-c" args)
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
    else
     case ss of
       []  -> mainInteractive flags
       [s] -> mainCompile dir flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-      _   -> error "Usage: mhs [-v] [-r] [-iPATH] [-oFILE] [ModuleName]"
+      _   -> error "Usage: mhs [-v] [-l] [-r] [-c] [-iPATH] [-oFILE] [ModuleName]"
 
 mainCompile :: FilePath -> Flags -> Ident -> IO ()
-mainCompile mhsdir flags mn = do
+mainCompile mhsdir flags mn | compileOnly flags = compileAndSave flags mn
+                            | otherwise = do
   ds <- compileTop flags mn
   t1 <- getTimeMilli
   let
@@ -112,3 +115,15 @@ mainCompile mhsdir flags mn = do
        ct2 <- getTimeMilli
        when (verbose flags > 0) $
          putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"
+
+compileAndSave :: Flags -> Ident -> IO ()
+compileAndSave flags mn = do
+--  putStrLn "Start"
+  (_, cache) <- compileCacheTop flags mn emptyCache
+--  putStrLn "compile done"
+  () <- seq (rnf cache) (return ())
+--  putStrLn "rnf done"
+  hout <- openFile (output flags) WriteMode
+  hSerialize hout cache
+--  putStrLn "write done"
+  hClose hout
