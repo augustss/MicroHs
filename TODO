@@ -22,6 +22,7 @@
   - allow missing top level signatures (and generalize)
   - instead of skolemization, use regular variables, making sure they are unique
   - allow existential quantification
+    # works partially, but not constraint solving doesn't happen in all the right places
   - don't require kind signatures in forall
 * Try Oleg's abstraction algorithm
 * Implement IORef
@@ -36,14 +37,17 @@
 * Handle tupled dictionaries better for recursive calls
 * Implement fundeps
 * Split eval.c
+  - Partially done
+  - Complete 32 bit support
 * Removing [] from prim table
 * Parser cannot handle
     x :+ y == x' :+ y'
     probably needs total merge of pattern&expression with validation in type checker
 * Parse prefix negation
-* Set lib from envvar
 * Faster compression
 * Fix polymorphic pattern literals
+  - Probably by implementing view patterns
+* Make float support work for 32 and 64 bit words
+* Make rnf work on graphs
 
 Bugs
-

@@ -23,7 +23,7 @@ toChar i = chr (i + 32)
 
 (!) :: Table -> [Char] -> Int
 (!) t s =
-  case M.lookupBy compareString s t of
+  case M.lookupBy compare s t of
     Nothing -> undefined -- error $ "(!): " ++ showString s
     Just i -> i
 
@@ -32,21 +32,21 @@ compress t [] p = [ t ! p ]
 compress t (c:cs) p =
   let p' = p ++ [c]
       s = M.size t
-      t' = if s < maxDict then M.insertBy compareString p' s t else t
+      t' = if s < maxDict then M.insertBy compare p' s t else t
   in
 --      trace ("compress " ++ showString p') $
 --      trace show (M.toList t)) $
-      case M.lookupBy compareString p' t of
+      case M.lookupBy compare p' t of
         Just _ ->
 --          trace "found" $
           compress t cs p'
         Nothing ->
---          trace ("not found p=" ++ show p ++ " " ++ show (M.lookupBy compareString p t)) $
+--          trace ("not found p=" ++ show p ++ " " ++ show (M.lookupBy compare p t)) $
           (t ! p) : compress t' cs [c]
 
 -- Initial table is ' ' .. '~', and '\n'
 initTable :: Table
-initTable = M.fromListBy compareString $ [([toChar c], c) | c <- [0..94] ] ++ [("\n", 95)]
+initTable = M.fromListBy compare $ [([toChar c], c) | c <- [0..94] ] ++ [("\n", 95)]
 
 toBytes :: [Int] -> [Int]
 toBytes [] = []

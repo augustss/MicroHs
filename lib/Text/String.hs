@@ -61,9 +61,6 @@ forceString :: String -> ()
 forceString [] = ()
 forceString (c:cs) = c `primSeq` forceString cs
 
-compareString :: String -> String -> Ordering
-compareString = primCompare
-
 -- Convert string in scientific notation to a rational number.
 readRational :: String -> Rational
 readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
