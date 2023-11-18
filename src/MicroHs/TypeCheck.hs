@@ -1646,24 +1646,24 @@ tcEqn :: EType -> Eqn -> T Eqn
 --tcEqn t _eqn | trace ("tcEqn: " ++ showEType t) False = undefined
 tcEqn t eqn =
   case eqn of
-    Eqn ps alts -> tcPats t ps $ \ tt ps' -> do
-      alts' <- tcAlts tt alts
+    Eqn ps alts -> tcPats t ps $ \ t' ps' -> do
+      alts' <- tcAlts t' alts
       return (Eqn ps' alts')
 
 -- Only used above
-tcPats :: forall a . EType -> [EPat] -> (EType -> [EPat] -> T a) -> T a
+tcPats :: EType -> [EPat] -> (EType -> [EPat] -> T Eqn) -> T Eqn
 tcPats t [] ta = ta t []
 tcPats t (p:ps) ta = do
   (tp, tr) <- unArrow (getSLoc p) t
   -- tCheckPatC dicts used in tcAlt solve
-  tCheckPatC tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt (pp : pps)
+  tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
 
 tcAlts :: EType -> EAlts -> T EAlts
-tcAlts tt (EAlts alts bs) =
+tcAlts t (EAlts alts bs) =
 --  trace ("tcAlts: bs in " ++ showEBinds bs) $
   tcBinds bs $ \ bs' -> do
 --    traceM ("tcAlts: bs out " ++ showEBinds bbs)
-    alts' <- mapM (tcAlt tt) alts
+    alts' <- mapM (tcAlt t) alts
     return (EAlts alts' bs')
 
 tcAlt :: EType -> EAlt -> T EAlt
@@ -1672,15 +1672,15 @@ tcAlt t (ss, rhs) = tcGuards ss $ \ ss' -> do
   rhs' <- tCheckExprAndSolve t rhs
   return (ss', rhs')
 
-tcGuards :: forall a . [EStmt] -> ([EStmt] -> T a) -> T a
+tcGuards :: [EStmt] -> ([EStmt] -> T EAlt) -> T EAlt
 tcGuards [] ta = ta []
 tcGuards (s:ss) ta = tcGuard s $ \ rs -> tcGuards ss $ \ rss -> ta (rs:rss)
 
-tcGuard :: forall a . EStmt -> (EStmt -> T a) -> T a
+tcGuard :: EStmt -> (EStmt -> T EAlt) -> T EAlt
 tcGuard (SBind p e) ta = do
-  (ee, tt) <- tInferExpr e
+  (e', tt) <- tInferExpr e
   -- tCheckPatC dicts used in solving in tcAlt
-  tCheckPatC tt p $ \ p' -> ta (SBind p' ee)
+  tCheckPatC tt p $ \ p' -> ta (SBind p' e')
 tcGuard (SThen e) ta = do
   e' <- tCheckExprAndSolve (tBool (getSLoc e)) e
   ta (SThen e')
@@ -1903,8 +1903,9 @@ tcBind abind =
       teqns <- tcEqns False tt eqns
       return $ BFcn i teqns
     BPat p a -> do
-      ((sk, _, ep), tp) <- tInferPat p  -- pattern variables already bound
-      when (not (null sk)) $
+      ((sk, ds, ep), tp) <- tInferPat p  -- pattern variables already bound
+      -- This is just to complicated.
+      when (not (null sk) || not (null ds)) $
         tcError (getSLoc p) "existentials not allowed in pattern binding"
       ea <- tCheckExprAndSolve tp a
       return $ BPat ep ea
