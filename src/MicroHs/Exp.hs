@@ -28,22 +28,22 @@ type PrimOp = String
 --
 -- Used combinators
 --   * indicates that the implementation uses an indirection
---   + indicates allocation in the implementation
--- S  x y z   = x z (y z)             +
+--   A indicates allocation in the implementation
+-- S  x y z   = x z (y z)             A
 -- K  x y     = x                     *
 -- I  x       = x                     *
--- B  x y z   = x (y z)               +
--- C  x y z   = x z y                 +
--- S' x y z w = x (y w) (z w)         +
--- B' x y z w = x y (z w)             +
--- C' x y z w = x (y w) z             +
+-- B  x y z   = x (y z)               A
+-- C  x y z   = x z y                 A
+-- S' x y z w = x (y w) (z w)         A
+-- B' x y z w = x y (z w)             A
+-- C' x y z w = x (y w) z             A
 -- A  x y     = y                     *
 -- T  x y     = y x
 -- n@(Y x)    = x n
 -- BK x y z   = x y
--- P  x y z   = z x y                 +
--- R  x y z   = y z x                 +
--- O  x y z w = w x y                 +
+-- P  x y z   = z x y                 A
+-- R  x y z   = y z x                 A
+-- O  x y z w = w x y                 A
 --
 
 data Exp

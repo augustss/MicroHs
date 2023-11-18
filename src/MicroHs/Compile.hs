@@ -67,6 +67,8 @@ deleteFromCache mn (Cache is m) = Cache is (M.delete mn m)
 
 -----------------
 
+-- Compile the module with the given name, starting with the given cache.
+-- Return the "compiled module" and the resulting cache.
 compileCacheTop :: Flags -> Ident -> Cache -> IO ([(Ident, Exp)], Cache)
 compileCacheTop flags mn ch = do
   (ds, ch') <- compile flags mn ch
