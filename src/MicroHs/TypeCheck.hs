@@ -1510,10 +1510,10 @@ tcExprR mt ae =
               case as of
                 SBind p a -> do
                   v <- newUVar
-                  ea <- tCheckExpr (tApp (tList loc) v) a
+                  ea <- tCheckExprAndSolve (tApp (tList loc) v) a
                   tCheckPatC v p $ \ ep -> doStmts (SBind ep ea : rss) ss
                 SThen a -> do
-                  ea <- tCheckExpr (tBool (getSLoc a)) a
+                  ea <- tCheckExprAndSolve (tBool (getSLoc a)) a
                   doStmts (SThen ea : rss) ss
                 SLet bs ->
                   tcBinds bs $ \ ebs ->
@@ -1650,10 +1650,12 @@ tcEqn t eqn =
       alts' <- tcAlts tt alts
       return (Eqn ps' alts')
 
+-- Only used above
 tcPats :: forall a . EType -> [EPat] -> (EType -> [EPat] -> T a) -> T a
 tcPats t [] ta = ta t []
 tcPats t (p:ps) ta = do
   (tp, tr) <- unArrow (getSLoc p) t
+  -- tCheckPatC dicts used in tcAlt solve
   tCheckPatC tp p $ \ pp -> tcPats tr ps $ \ tt pps -> ta tt (pp : pps)
 
 tcAlts :: EType -> EAlts -> T EAlts
@@ -1670,14 +1672,6 @@ tcAlt t (ss, rhs) = tcGuards ss $ \ ss' -> do
   rhs' <- tCheckExprAndSolve t rhs
   return (ss', rhs')
 
-tCheckExprAndSolve :: EType -> Expr -> T Expr
-tCheckExprAndSolve t e = do
-  (e', bs) <- solveLocalConstraints $ tCheckExpr t e
-  if null bs then
-    return e'
-   else
-    return $ ELet (eBinds bs) e'
-
 tcGuards :: forall a . [EStmt] -> ([EStmt] -> T a) -> T a
 tcGuards [] ta = ta []
 tcGuards (s:ss) ta = tcGuard s $ \ rs -> tcGuards ss $ \ rss -> ta (rs:rss)
@@ -1685,18 +1679,30 @@ tcGuards (s:ss) ta = tcGuard s $ \ rs -> tcGuards ss $ \ rss -> ta (rs:rss)
 tcGuard :: forall a . EStmt -> (EStmt -> T a) -> T a
 tcGuard (SBind p e) ta = do
   (ee, tt) <- tInferExpr e
-  tCheckPatC tt p $ \ pp -> ta (SBind pp ee)
+  -- tCheckPatC dicts used in solving in tcAlt
+  tCheckPatC tt p $ \ p' -> ta (SBind p' ee)
 tcGuard (SThen e) ta = do
-  ee <- tCheckExpr (tBool (getSLoc e)) e
-  ta (SThen ee)
-tcGuard (SLet bs) ta = tcBinds bs $ \ bbs -> ta (SLet bbs)
+  e' <- tCheckExprAndSolve (tBool (getSLoc e)) e
+  ta (SThen e')
+-- XXX do we have solves
+tcGuard (SLet bs) ta = tcBinds bs $ \ bs' -> ta (SLet bs')
 
 tcArm :: EType -> EType -> ECaseArm -> T ECaseArm
 tcArm t tpat arm =
   case arm of
+    -- The dicts introduced by tCheckPatC are
+    -- used in the tCheckExprAndSolve in tcAlt.
     (p, alts) -> tCheckPatC tpat p $ \ pp -> do
       alts' <- tcAlts t alts
       return (pp, alts')
+
+tCheckExprAndSolve :: EType -> Expr -> T Expr
+tCheckExprAndSolve t e = do
+  (e', bs) <- solveLocalConstraints $ tCheckExpr t e
+  if null bs then
+    return e'
+   else
+    return $ ELet (eBinds bs) e'
 
 eBinds :: [(Ident, Expr)] -> [EBind]
 eBinds ds = [BFcn i [Eqn [] (EAlts [([], e)] [])] | (i, e) <- ds]
@@ -1731,6 +1737,7 @@ tCheckPatC t ap ta = do
     (_sks, ds, pp) <- tCheckPat t ap
     () <- checkArity 0 pp
 --    traceM ("tCheckPatC " ++ show ds)
+    -- XXX must check for leaking skolems
     withDicts ds $
       ta pp
 
@@ -1899,7 +1906,7 @@ tcBind abind =
       ((sk, _, ep), tp) <- tInferPat p  -- pattern variables already bound
       when (not (null sk)) $
         tcError (getSLoc p) "existentials not allowed in pattern binding"
-      ea       <- tCheckExpr tp a
+      ea <- tCheckExprAndSolve tp a
       return $ BPat ep ea
     BSign _ _ -> return abind
 
