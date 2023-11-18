@@ -181,7 +181,7 @@ ltW axs ays = lxs < lys || lxs == lys && cmp (reverse axs) (reverse ays)
     lys = length ays
     cmp (x:xs) (y:ys) = x < y || x == y && cmp xs ys
     cmp []     []     = False
-    cmp _      _      = error "cmp"
+    cmp _      _      = error "ltW.cmp"
     
 mulI :: Integer -> Integer -> Integer
 mulI (I _ []) _ = I Plus []         -- 0 * x = 0
