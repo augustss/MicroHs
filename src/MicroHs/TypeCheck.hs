@@ -48,6 +48,15 @@ nameChar = "Primitives.Char"
 nameInteger :: String
 nameInteger = "Data.Integer_Type.Integer"
 
+nameTypeEq :: String
+nameTypeEq = "Primitives.~"
+
+nameImplies :: String
+nameImplies = "Primitives.=>"
+
+nameArrow :: String
+nameArrow = "Primitives.->"
+
 ----------------------
 
 data TModule a = TModule
@@ -571,8 +580,8 @@ primKindTable =
        (mkIdentB "Type",                  [entry "Primitives.Type" kTypeS]),
        (mkIdentB "Constraint",            [entry "Primitives.Constraint" kTypeS]),
        (mkIdentB "Primitives.Constraint", [entry "Primitives.Constraint" kTypeS]),
-       (mkIdentB "Primitives.->",         [entry "Primitives.->"   kTypeTypeTypeS]),
-       (mkIdentB "->",                    [entry "Primitives.->"   kTypeTypeTypeS])
+       (mkIdentB nameArrow,               [entry nameArrow   kTypeTypeTypeS]),
+       (mkIdentB "->",                    [entry nameArrow   kTypeTypeTypeS])
        ]
 
 primTypes :: [(Ident, [Entry])]
@@ -590,9 +599,9 @@ primTypes =
       [
        -- The function arrow et al are bothersome to define in Primitives, so keep them here.
        -- But the fixity is defined in Primitives.
-       (mkIdentB "->",           [entry "Primitives.->"       kTypeTypeTypeS]),
-       (mkIdentB "=>",           [entry "Primitives.=>"       kConstraintTypeTypeS]),
-       (mkIdentB "~",            [entry "Primitives.~"        kTypeTypeConstraintS]),
+       (mkIdentB "->",           [entry nameArrow    kTypeTypeTypeS]),
+       (mkIdentB "=>",           [entry nameImplies  kConstraintTypeTypeS]),
+       (mkIdentB "~",            [entry nameTypeEq   kTypeTypeConstraintS]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        -- XXX should not be needed
        (mkIdentB (listPrefix ++ "[]"), [entry (listPrefix ++ "[]")        kTypeTypeS])
@@ -738,8 +747,8 @@ unifyR loc (EApp f1 a1) (EApp f2 a2)               = do { unifyR loc f1 f2; unif
 unifyR _   (EUVar r1)   (EUVar r2) | r1 == r2      = return ()
 unifyR loc (EUVar r1)   t2                         = unifyVar loc r1 t2
 unifyR loc t1           (EUVar r2)                 = unifyVar loc r2 t1
-unifyR loc t1           t2                         =
-  tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
+unifyR loc t1           t2                         = addEqConstraint loc t1 t2
+  --tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
 
 unifyVar :: --XHasCallStack =>
             SLoc -> TRef -> EType -> T ()
@@ -810,9 +819,7 @@ tLookupV i = do
 tInst :: (Expr, EType) -> T (Expr, EType)
 tInst (ae, EForall vks t) = tInstForall ae vks t >>= tInst
 tInst (ae, at) | Just (ctx, t) <- getImplies at = do
-  u <- newUniq
-  let d = mkIdentSLoc loc ("dict$" ++ show u)
-      loc = getSLoc ae
+  d <- newIdent (getSLoc ae) "dict"
   --traceM $ "tInst: addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx ++ " " ++ showSLoc loc
   addConstraint d ctx
   tInst (EApp ae (EVar d), t)
@@ -2249,15 +2256,16 @@ solveConstraints = do
                     [EVar i] -> do
 --                      traceM ("solveSimple " ++ showIdent i ++ " -> " ++ showMaybe showExpr (M.lookup i atomMap))
                       case M.lookup i atomMap of
-                        Just e -> solveSimple e cns cnss uns sol
+                        Just e                     -> solveSimple e cns cnss uns sol
                         -- Not found, but there might be a generic instance
-                        Nothing -> solveGen loc insts cns cnss uns sol
-                    _        -> solveGen loc insts cns cnss uns sol
+                        Nothing                    -> solveGen loc insts cns cnss uns sol
+                    _ | iCls == mkIdent nameTypeEq -> solveTypeEq loc insts cts cns cnss uns sol
+                      | otherwise                  -> solveGen loc insts cns cnss uns sol
 
         -- An instance of the form (C T)
---        solveSimple Nothing  cns     cnss uns sol = solve cnss (cns : uns)            sol   -- no instance
-        solveSimple e (di, _) cnss uns sol = solve cnss        uns  ((di, e) : sol)  -- e is the dictionary expression
+        solveSimple e (di, _) cnss uns sol = solve cnss uns ((di, e) : sol)  -- e is the dictionary expression
 
+        -- XXX pass ts instead of cns
         solveGen loc insts cns@(di, ct) cnss uns sol = do
 --          traceM ("solveGen " ++ showEType ct)
           let (_, ts) = getApp ct
@@ -2275,6 +2283,12 @@ solveConstraints = do
 --                        showIdent di ++ " = " ++ showExpr (EApp de (EVar d)))
                 solve ((d, tupleConstraints ctx) : cnss) uns ((di, EApp de (EVar d)) : sol)
             _           -> tcError loc $ "Multiple constraint solutions for: " ++ showEType ct
+
+        solveTypeEq _loc insts [t1, t2] cns@(di,_) cnss uns sol =
+          case solveEq insts t1 t2 of
+            Nothing -> solve cnss (cns : uns) sol
+            Just (de, ncs) -> solve (ncs ++ cnss) uns ((di, de) : sol)
+        solveTypeEq _ _ _ _ _ _ _ = impossible
 
     (unsolved, solved) <- solve cs' [] []
     putConstraints unsolved
@@ -2346,6 +2360,20 @@ checkConstraints = do
       --is <- gets instTable
       --traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> showIdent i ++ ":\n" ++ showInstInfo ii) (M.toList is))
       tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ showExpr t'
+
+-- Add a type equality constraint.
+addEqConstraint :: SLoc -> EType -> EType -> T ()
+addEqConstraint loc t1 t2 = do
+  d <- newIdent loc "dict"
+  addConstraint d (EApp (EApp (EVar (mkIdentSLoc loc nameTypeEq)) t1) t2)
+
+-- A quick hack for testing
+solveEq :: [InstDict] -> EType -> EType -> Maybe (Expr, [(Ident, EType)])
+solveEq eqs t1 t2 | t1 `eqEType` t2 = Just (ETuple [], [])
+                  | otherwise =
+  case [ e | (e, _, [u1, u2]) <- eqs, t1 `eqEType` u1 && t2 `eqEType` u2 || t1 `eqEType` u2 && t2 `eqEType` u1 ] of
+    e : _ -> Just (e, [])
+    _ -> Nothing
 
 ---------------------
 

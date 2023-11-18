@@ -162,7 +162,7 @@ compileModule flags nm = do
     dmdl = desugar tmdl
   () <- return $ rnf $ bindingsOf dmdl
   t4 <- liftIO getTimeMilli
-  when (verbose flags > 2) $
+  when (verbose flags > 3) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   return (dmdl, t2-t1, t4-t3, sum ts)
 
