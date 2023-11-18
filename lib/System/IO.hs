@@ -133,7 +133,10 @@ getChar :: IO Char
 getChar = hGetChar stdin
 
 cprint :: forall a . a -> IO ()
-cprint = primHPrint stdout
+cprint a = primRnf a `seq` primHPrint stdout a
+
+cuprint :: forall a . a -> IO ()
+cuprint = primHPrint stdout
 
 print :: forall a . (Show a) => a -> IO ()
 print a = putStrLn (show a)
