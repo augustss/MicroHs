@@ -1685,6 +1685,9 @@ rnf_rec(NODEPTR n)
   }
 }
 
+/* This is a yucky hack */
+int doing_rnf = 0;
+
 void
 rnf(NODEPTR n)
 {
@@ -1692,7 +1695,9 @@ rnf(NODEPTR n)
   marked_bits = calloc(free_map_nwords, sizeof(bits_t));
   if (!marked_bits)
     memerr();
+  doing_rnf++;
   rnf_rec(n);
+  doing_rnf--;
   free(marked_bits);
 }
 
@@ -1876,6 +1881,7 @@ eval(NODEPTR n)
     case T_UGE:  CMPU(>=);
 
     case T_NOMATCH:
+      if (doing_rnf) RET;
       {
       CHECK(3);
       msg = evalstring(ARG(TOP(0)));
@@ -1896,6 +1902,7 @@ eval(NODEPTR n)
       goto err;                 /* XXX not right message if the error is caught */
       }
     case T_NODEFAULT:
+      if (doing_rnf) RET;
       {
       CHECK(1);
       msg = evalstring(ARG(TOP(0)));
@@ -1914,6 +1921,7 @@ eval(NODEPTR n)
       goto err;                 /* XXX not right message if the error is caught */
       }
     case T_ERROR:
+      if (doing_rnf) RET;
     err:
       if (cur_handler) {
         /* Pass the string to the handler */
@@ -1938,7 +1946,9 @@ eval(NODEPTR n)
 
     case T_RNF: rnf(ARG(TOP(0))); POP(1); n = TOP(-1); GOIND(combUnit);
 
-    case T_IO_PERFORMIO:    CHKARGEV1(x = evalio(x)); GOIND(x);
+    case T_IO_PERFORMIO:
+      if (doing_rnf) RET;
+      CHKARGEV1(x = evalio(x)); GOIND(x);
 
     case T_IO_BIND:
     case T_IO_THEN:

@@ -48,6 +48,5 @@
 * Fix polymorphic pattern literals
   - Probably by implementing view patterns
 * Make float support work for 32 and 64 bit words
-* Make rnf work on graphs
 
 Bugs
