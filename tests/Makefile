@@ -30,6 +30,7 @@ test:
 	$(MHS) Default    && $(EVAL) > Default.out    && diff Default.ref Default.out
 	$(MHS) Multi      && $(EVAL) > Multi.out      && diff Multi.ref Multi.out
 	$(MHS) Exists     && $(EVAL) > Exists.out     && diff Exists.ref Exists.out
+	$(MHS) TypeEq     && $(EVAL) > TypeEq.out     && diff TypeEq.ref TypeEq.out
 
 errtest:
 	sh errtester.sh < errmsg.test
