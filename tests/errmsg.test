@@ -131,7 +131,7 @@ import Prelude
 a :: Int
 a = 'a'
 -----
-mhs: "../tmp/E.hs": line 5, col 5: type error: cannot unify Char and Int
+mhs: "../tmp/E.hs": line 5, col 5: Cannot satisfy constraint: (Char ~ Int)
 
 =====
 module E() where

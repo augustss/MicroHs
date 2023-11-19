@@ -48,5 +48,9 @@
 * Fix polymorphic pattern literals
   - Probably by implementing view patterns
 * Make float support work for 32 and 64 bit words
+* Cache compiled modules:
+  - Save the compilation cache at the end of each compilation.
+  - On startup, read the cache.  Validate each module by checking a checksum.
+  - Keep a dependency graph with the cache for invalidation.
 
 Bugs

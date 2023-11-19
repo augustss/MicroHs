@@ -111,7 +111,7 @@ type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
 type ClassTable = M.Map ClassInfo  -- maps a class identifier to its associated information
-type InstTable  = M.Map InstInfo   -- indexed by class name
+type InstTable  = M.Map InstInfo  -- indexed by class name
 type Constraints= [(Ident, EConstraint)]
 type Defaults   = [EType]          -- Current defaults
 
@@ -137,6 +137,9 @@ type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint)
 -- An instance (C T1 ... Tn) has the type list [T1,...,Tn]
 -- The types and constraint have their type variables normalized to EUVar (-1), EUVar (-2), etc
 type InstDict   = (Expr, [EConstraint], [EType])
+
+-- All known type equalities, contains the transitive&commutative closure.
+type TypeEqTable = [(EType, EType)]
 
 type Sigma = EType
 --type Tau   = EType
@@ -382,7 +385,8 @@ data TCState = TC
   (IM.IntMap EType)     -- mapping from unique id to type
   TCMode                -- pattern, value, or type
   ClassTable            -- class info, indexed by QIdent
-  InstTable             -- instances
+  (InstTable,           -- instances
+   TypeEqTable)         -- type equalities
   Constraints           -- constraints that have to be solved
   Defaults              -- current defaults
   --Xderiving (Show)
@@ -418,7 +422,10 @@ tcMode :: TCState -> TCMode
 tcMode (TC _ _ _ _ _ _ _ _ m _ _ _ _) = m
 
 instTable :: TCState -> InstTable
-instTable (TC _ _ _ _ _ _ _ _ _ _ is _ _) = is
+instTable (TC _ _ _ _ _ _ _ _ _ _ (is, _) _ _) = is
+
+typeEqTable :: TCState -> TypeEqTable
+typeEqTable (TC _ _ _ _ _ _ _ _ _ _ (_, es) _ _) = es
 
 constraints :: TCState -> Constraints
 constraints (TC _ _ _ _ _ _ _ _ _ _ _ e _) = e
@@ -453,8 +460,13 @@ putTCMode m = do
 
 putInstTable :: InstTable -> T ()
 putInstTable is = do
-  TC mn n fx tenv senv venv ast sub m cs _ es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
+  TC mn n fx tenv senv venv ast sub m cs (_,eqs) es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs (is,eqs) es ds)
+
+putTypeEqTable :: TypeEqTable -> T ()
+putTypeEqTable eqs = do
+  TC mn n fx tenv senv venv ast sub m cs (is,_) es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs (is,eqs) es ds)
 
 putConstraints :: Constraints -> T ()
 putConstraints es = do
@@ -532,11 +544,27 @@ withDicts ((i, c):ds) ta = withDict i c $ withDicts ds ta
 
 withDict :: forall a . Ident -> EConstraint -> T a -> T a
 withDict i c ta = do
+  c' <- expandSyn c >>= derefUVar
+  when (not (null (metaTvs [c']))) $ impossible
+  case c' of
+    (EApp (EApp (EVar eq) t1) t2) | eq == mkIdent nameTypeEq -> withEqDict i t1 t2 ta
+    _ -> withInstDict i c' ta
+
+withInstDict :: forall a . Ident -> EConstraint -> T a -> T a
+withInstDict i c ta = do
   is <- gets instTable
   ics <- expandDict (EVar i) c
   addInstTable ics
   a <- ta
   putInstTable is
+  return a
+
+withEqDict :: forall a . Ident -> EType -> EType -> T a -> T a
+withEqDict _i t1 t2 ta = do
+  is <- gets typeEqTable
+  putTypeEqTable (addTypeEq t1 t2 is)
+  a <- ta
+  putTypeEqTable is
   return a
 
 initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ClassTable -> InstTable -> ValueTable -> AssocTable -> TCState
@@ -545,7 +573,7 @@ initTC mn fs ts ss cs is vs as =
   let
     xts = foldr (uncurry stInsertGlb) ts primTypes
     xvs = foldr (uncurry stInsertGlb) vs primValues
-  in TC mn 1 fs xts ss xvs as IM.empty TCExpr cs is [] []
+  in TC mn 1 fs xts ss xvs as IM.empty TCExpr cs (is,[]) [] []
 
 kTypeS :: EType
 kTypeS = kType
@@ -747,8 +775,13 @@ unifyR loc (EApp f1 a1) (EApp f2 a2)               = do { unifyR loc f1 f2; unif
 unifyR _   (EUVar r1)   (EUVar r2) | r1 == r2      = return ()
 unifyR loc (EUVar r1)   t2                         = unifyVar loc r1 t2
 unifyR loc t1           (EUVar r2)                 = unifyVar loc r2 t1
-unifyR loc t1           t2                         = addEqConstraint loc t1 t2
-  --tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
+unifyR loc t1           t2                         = do
+  tcm <- gets tcMode
+  case tcm of
+    TCType -> tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
+    -- Defer to constraint solver.
+    -- XXX needs changing if we have kind equalities.
+    _      -> addEqConstraint loc t1 t2
 
 unifyVar :: --XHasCallStack =>
             SLoc -> TRef -> EType -> T ()
@@ -2246,7 +2279,8 @@ solveConstraints = do
               goals <- mapM (\ c -> do { d <- newIdent loc "dict"; return (d, c) }) cts
 --              traceM ("split tuple " ++ showListS showConstraint goals)
               solve (goals ++ cnss) uns ((di, ETuple (map (EVar . fst) goals)) : sol)
-            Nothing ->
+            Nothing | iCls == mkIdent nameTypeEq -> solveTypeEq loc cts cns cnss uns sol
+                    | otherwise ->
               case M.lookup iCls it of
                 Nothing -> do
 --                  traceM ("class missing " ++ showIdent iCls)
@@ -2256,11 +2290,10 @@ solveConstraints = do
                     [EVar i] -> do
 --                      traceM ("solveSimple " ++ showIdent i ++ " -> " ++ showMaybe showExpr (M.lookup i atomMap))
                       case M.lookup i atomMap of
-                        Just e                     -> solveSimple e cns cnss uns sol
+                        Just e  -> solveSimple e cns cnss uns sol
                         -- Not found, but there might be a generic instance
-                        Nothing                    -> solveGen loc insts cns cnss uns sol
-                    _ | iCls == mkIdent nameTypeEq -> solveTypeEq loc insts cts cns cnss uns sol
-                      | otherwise                  -> solveGen loc insts cns cnss uns sol
+                        Nothing -> solveGen loc insts cns cnss uns sol
+                    _           -> solveGen loc insts cns cnss uns sol
 
         -- An instance of the form (C T)
         solveSimple e (di, _) cnss uns sol = solve cnss uns ((di, e) : sol)  -- e is the dictionary expression
@@ -2284,11 +2317,17 @@ solveConstraints = do
                 solve ((d, tupleConstraints ctx) : cnss) uns ((di, EApp de (EVar d)) : sol)
             _           -> tcError loc $ "Multiple constraint solutions for: " ++ showEType ct
 
-        solveTypeEq _loc insts [t1, t2] cns@(di,_) cnss uns sol =
-          case solveEq insts t1 t2 of
+        solveTypeEq loc [t1, t2] cns@(di,_) cnss uns sol = do
+          eqs <- gets typeEqTable
+          case solveEq eqs t1 t2 of
             Nothing -> solve cnss (cns : uns) sol
-            Just (de, ncs) -> solve (ncs ++ cnss) uns ((di, de) : sol)
-        solveTypeEq _ _ _ _ _ _ _ = impossible
+            Just (de, tts) -> do
+              let mkEq (u1, u2) = do
+                    i <- newIdent loc "dict"
+                    return (i, mkEqType loc u1 u2)
+              ncs <- mapM mkEq tts
+              solve (ncs ++ cnss) uns ((di, de) : sol)
+        solveTypeEq _ _ _ _ _ _ = impossible
 
     (unsolved, solved) <- solve cs' [] []
     putConstraints unsolved
@@ -2365,15 +2404,33 @@ checkConstraints = do
 addEqConstraint :: SLoc -> EType -> EType -> T ()
 addEqConstraint loc t1 t2 = do
   d <- newIdent loc "dict"
-  addConstraint d (EApp (EApp (EVar (mkIdentSLoc loc nameTypeEq)) t1) t2)
+  addConstraint d (mkEqType loc t1 t2)
+
+mkEqType :: SLoc -> EType -> EType -> EConstraint
+mkEqType loc t1 t2 = EApp (EApp (EVar (mkIdentSLoc loc nameTypeEq)) t1) t2
 
 -- A quick hack for testing
-solveEq :: [InstDict] -> EType -> EType -> Maybe (Expr, [(Ident, EType)])
-solveEq eqs t1 t2 | t1 `eqEType` t2 = Just (ETuple [], [])
+solveEq :: TypeEqTable -> EType -> EType -> Maybe (Expr, [(EType, EType)])
+--solveEq eqs t1 t2 | trace ("solveEq: " ++ show (t1,t2) ++ show eqs) False = undefined
+solveEq eqs t1 t2 | t1 `eqEType` t2             = Just (ETuple [], [])
+                  | elemBy eqTyTy (t1, t2) eqs = Just (ETuple [], [])
                   | otherwise =
-  case [ e | (e, _, [u1, u2]) <- eqs, t1 `eqEType` u1 && t2 `eqEType` u2 || t1 `eqEType` u2 && t2 `eqEType` u1 ] of
-    e : _ -> Just (e, [])
-    _ -> Nothing
+  case (t1, t2) of
+    (EApp f1 a1, EApp f2 a2) -> Just (ETuple [], [(f1, f2), (a1, a2)])
+    _                         -> Nothing
+
+-- Add the equality t1~t2.
+-- The type table is always the symmetric&transitive closure of all equalities.
+-- This isn't very efficient, but it's simple.
+addTypeEq :: EType -> EType -> TypeEqTable -> TypeEqTable
+addTypeEq t1 t2 aeqs | t1 `eqEType` t2 || elemBy eqTyTy (t1, t2) aeqs || elemBy eqTyTy (t2, t1) aeqs = aeqs
+                     | otherwise = (t1, t2) : (t2, t1) :                   -- symmetry
+                                  trans t1 t2 aeqs ++ trans t2 t1 aeqs ++  -- transitivity
+                                  aeqs
+  where trans a1 a2 eqs = [ (a1, b2) | (b1, b2) <- eqs, eqEType a2 b1 ]
+
+eqTyTy :: (EType, EType) -> (EType, EType) -> Bool
+eqTyTy (t1, t2) (u1, u2) = eqEType t1 u1 && eqEType t2 u2
 
 ---------------------
 
