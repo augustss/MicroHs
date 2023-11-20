@@ -105,6 +105,27 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_
                 T_STR,
                 T_LAST_TAG,
 };
+const char* tag_names[] = {
+  "FREE", "IND", "AP", "INT", "DBL", "PTR", "BADDYN", "S", "K", "I", "B", "C",
+  "A", "Y", "SS", "BB", "CC", "P", "R", "O", "U", "BK",
+  "ADD", "SUB", "MUL", "QUOT", "REM", "SUBR", "UQUOT", "UREM", "NEG",
+  "AND", "OR", "XOR", "INV", "SHL", "SHR", "ASHR",
+  "EQ", "NE", "LT", "LE", "GT", "GE", "ULT", "ULE", "UGT", "UGE",
+  "TOPTR", "TOINT", "TODBL",
+#if WANT_FLOAT
+  "FADD", "FSUB", "FMUL", "FDIV", "FNEG", "ITOF",
+  "FEQ", "FNE", "FLT", "FLE", "FGT", "FGE", "FSHOW", "FREAD",
+#endif
+  "ERROR", "NODEFAULT", "NOMATCH", "SEQ", "EQUAL", "COMPARE", "RNF",
+  "IO_BIND", "IO_THEN", "IO_RETURN",
+  "IO_SERIALIZE", "IO_DESERIALIZE",
+  "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGS", "IO_DROPARGS",
+  "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "IO_CATCH",
+  "IO_CCALL", "DYNSYM",
+  "NEWCASTRING", "PEEKCASTRING",
+  "STR",
+  "LAST_TAG",
+};
 
 typedef struct node {
   union {
