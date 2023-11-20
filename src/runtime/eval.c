@@ -1946,9 +1946,10 @@ eval(NODEPTR n)
       }
     case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
-    case T_EQUAL: r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
-    case T_COMPARE: //r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, r); RET;
-      r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
+    case T_EQUAL:
+      CHECK(2); r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
+    case T_COMPARE:
+      CHECK(2); r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
 
     case T_RNF:
       if (doing_rnf) RET;
