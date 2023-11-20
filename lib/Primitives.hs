@@ -187,8 +187,11 @@ primWithDropArgs i ioa = primThen (primDropArgs i) ioa
 primCatch        :: forall a . IO a -> ([Char] -> IO a) -> IO a
 primCatch         = primitive "IO.catch"
 
-primRnf          :: forall a . a -> ()
-primRnf           = primitive "rnf"
+primRnfErr       :: forall a . a -> ()
+primRnfErr        = primitive "rnf" (0::Int)
+
+primRnfNoErr     :: forall a . a -> ()
+primRnfNoErr      = primitive "rnf" (1::Int)
 
 primNewCAString :: [Char] -> IO (Ptr Char)
 primNewCAString = primitive "newCAString"

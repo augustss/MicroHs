@@ -133,7 +133,7 @@ getChar :: IO Char
 getChar = hGetChar stdin
 
 cprint :: forall a . a -> IO ()
-cprint a = primRnf a `seq` primHPrint stdout a
+cprint a = primRnfNoErr a `seq` primHPrint stdout a
 
 cuprint :: forall a . a -> IO ()
 cuprint = primHPrint stdout

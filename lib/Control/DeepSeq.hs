@@ -3,7 +3,7 @@ import Primitives
 import Prelude
 
 rnf :: forall a . a -> ()
-rnf = primRnf
+rnf = primRnfErr
 
 deepseq :: forall a b . a -> b -> b
 deepseq a b = rnf a `seq` b

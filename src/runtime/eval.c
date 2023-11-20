@@ -1689,15 +1689,17 @@ rnf_rec(NODEPTR n)
 int doing_rnf = 0;
 
 void
-rnf(NODEPTR n)
+rnf(value_t noerr, NODEPTR n)
 {
   /* Mark visited nodes to avoid getting stuck in loops. */
   marked_bits = calloc(free_map_nwords, sizeof(bits_t));
   if (!marked_bits)
     memerr();
-  doing_rnf++;
+  if (doing_rnf)
+    ERR("recursive rnf()");
+  doing_rnf = (int)noerr;
   rnf_rec(n);
-  doing_rnf--;
+  doing_rnf = 0;
   free(marked_bits);
 }
 
@@ -1862,7 +1864,7 @@ eval(NODEPTR n)
       GOIND(s);
 #endif  /* WANT_FLOAT */
 
-    /* Retag a word sized value, keeping the bits */
+    /* Retag a word sized value, keeping the value bits */
 #define CONV(t) do { CHECK(1); x = evali(ARG(TOP(0))); GCCHECK(1); y = alloc_node(t); SETVALUE(y, GETVALUE(x)); POP(1); n = TOP(-1); GOIND(y); } while(0)
     case T_TODBL: CONV(T_DBL);
     case T_TOINT: CONV(T_INT);
@@ -1944,7 +1946,11 @@ eval(NODEPTR n)
     case T_COMPARE: //r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, r); RET;
       r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
 
-    case T_RNF: rnf(ARG(TOP(0))); POP(1); n = TOP(-1); GOIND(combUnit);
+    case T_RNF:
+      if (doing_rnf) RET;
+      CHECK(2);
+      xi = evalint(ARG(TOP(0)));
+      rnf(xi, ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(combUnit);
 
     case T_IO_PERFORMIO:
       if (doing_rnf) RET;
