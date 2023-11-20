@@ -85,6 +85,8 @@ compileCacheTop flags mn ch = do
   t2 <- getTimeMilli
   when (verbose flags > 0) $
     putStrLn $ "combinator conversion " ++ padLeft 6 (show (t2-t1)) ++ "ms"
+  when (verbose flags > 3) $
+    putStrLn $ "combinators:\n" ++ showLDefs dsn
   return (dsn, ch')
 
 --compileTop :: Flags -> IdentModule -> IO [LDef]
