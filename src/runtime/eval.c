@@ -1670,17 +1670,21 @@ compare(NODEPTR p, NODEPTR q)
   }
 }
 
+bits_t *rnf_bits;
+
 void
 rnf_rec(NODEPTR n)
 {
  top:
-  if (test_bit(marked_bits, n))
+  if (test_bit(rnf_bits, n))
     return;
-  set_bit(marked_bits, n);
+  set_bit(rnf_bits, n);
   n = evali(n);
   if (GETTAG(n) == T_AP) {
+    PUSH(ARG(n));               /* protect from GC */
     rnf_rec(FUN(n));
-    n = ARG(n);
+    n = TOP(0);
+    POP(1);
     goto top;
   }
 }
@@ -1692,15 +1696,15 @@ void
 rnf(value_t noerr, NODEPTR n)
 {
   /* Mark visited nodes to avoid getting stuck in loops. */
-  marked_bits = calloc(free_map_nwords, sizeof(bits_t));
-  if (!marked_bits)
+  rnf_bits = calloc(free_map_nwords, sizeof(bits_t));
+  if (!rnf_bits)
     memerr();
   if (doing_rnf)
     ERR("recursive rnf()");
   doing_rnf = (int)noerr;
   rnf_rec(n);
   doing_rnf = 0;
-  free(marked_bits);
+  free(rnf_bits);
 }
 
 NODEPTR evalio(NODEPTR n);
