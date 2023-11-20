@@ -118,13 +118,21 @@ oneline line = do
   (ls, _, _) <- get
   -- Try adding the line as a definition
   let lls = ls ++ line ++ "\n"
-  defTest <- tryCompile lls
-  case defTest of
-    Right _ -> updateLines (const lls)
-    Left  _ ->
-      -- Try parsing it as an expression expressions, make it a definition
+  case parse pTop "" lls of
+    Right _ -> do
+--      liftIO $ putStrLn "pTop succeeded"
+      -- Can parse as a definition, so compile it and report any errors.
+      defTest <- tryCompile lls
+      case defTest of
+        Right _ -> updateLines (const lls)
+        Left  e -> liftIO $ err e
+    Left  _ -> do
+--      liftIO $ putStrLn "pTop failed"
+      -- Cannot parse as a definition.
+      -- Try parsing it as an expression, and make it a definition
       case parse pExprTop "" line of
         Right _ -> do
+--          liftIO $  putStrLn "pExprTop succeeded"
           exprTest <- tryCompile (ls ++ "\n" ++ mkIt line)
           case exprTest of
             Right m -> evalExpr m
