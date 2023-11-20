@@ -18,9 +18,13 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
-.PHONY:	clean bootstrap install ghcgen
+.PHONY:	clean bootstrap install ghcgen newmhs
 
 all:	bin/gmhs
+
+newmhs:	ghcgen
+	$(CCEVAL) generated/mhs.c -o bin/mhs
+	$(CC) $(CCWARNS) -g src/runtime/eval.c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
 
 # Compile mhs from distribution, with C compiler
 bin/mhs:	src/runtime/eval.c src/runtime/config*.h #generated/mhs.c
