@@ -87,7 +87,16 @@ partitionM p (x:xs) = do
   b <- p x
   (ts,fs) <- partitionM p xs
   return $ if b then (x:ts, fs) else (ts, x:fs)
-  
+
+instance forall a . Functor ((->) a) where
+  fmap = (.)
+
+instance forall a . Applicative ((->) a) where
+  pure = const
+  f <*> g = \ a -> f a (g a)
+
+instance forall a . Monad ((->) a) where
+  (>>=) x y z = y (x z) z
 
 {-
 -- Same for Maybe
