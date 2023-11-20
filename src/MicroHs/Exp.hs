@@ -357,7 +357,7 @@ improveT ae =
         else if isB ff && isK aa then
           Lit (LPrim "BK")
         else if isC ff && isI aa then
-          Lit (LPrim "T")
+          Lit (LPrim "U")
         else if isB ff && isB aa then
           Lit (LPrim "B'")
         else if isC ff && isC aa then
@@ -536,8 +536,8 @@ optEta = convertBool (#) where
   (#) ([], d1)           {- # -} (True:[],  Lit (LPrim "I")) = d1
   (#) ([], d1)           {- # -} (True:g2,  d2)      = ([], com "B" @@ d1) # (g2, d2)
   (#) ([], d1)           {- # -} (False:g2, d2)      = ([], d1) # (g2, d2)
-  (#) (True:[], Lit (LPrim "I")) {- # -} ([],       d2)      = com "T" @@ d2
-  (#) (True:[], Lit (LPrim "I")) {- # -} (False:g2, d2)      = ([], com "T") # (g2, d2)
+  (#) (True:[], Lit (LPrim "I")) {- # -} ([],       d2)      = com "U" @@ d2
+  (#) (True:[], Lit (LPrim "I")) {- # -} (False:g2, d2)      = ([], com "U") # (g2, d2)
   (#) (True:g1, d1)      {- # -} ([],       d2)      = ([], com "R" @@ d2) # (g1, d1)
   (#) (True:g1, d1)      {- # -} (True:g2,  d2)      = (g1, ([], com "S") # (g1, d1)) # (g2, d2)
   (#) (True:g1, d1)      {- # -} (False:g2, d2)      = (g1, ([], com "C") # (g1, d1)) # (g2, d2)

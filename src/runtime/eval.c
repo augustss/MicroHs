@@ -18,7 +18,7 @@
 #include <math.h>
 #endif  /* WANT_MATH */
 
-#define VERSION "v5.0\n"
+#define VERSION "v5.1\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -86,7 +86,7 @@ char* TMPNAME(const char* pre, const char* post) {
 #endif  /* !define(ERR) */
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_I, T_B, T_C,
-                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_T, T_BK,
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_BK,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
@@ -525,7 +525,7 @@ struct {
   { "R", T_R },
   { "I", T_I },
   { "S", T_S },
-  { "T", T_T },
+  { "U", T_U },
   { "Y", T_Y },
   { "B'", T_BB },
   { "BK", T_BK },
@@ -1337,7 +1337,7 @@ printrec(FILE *f, NODEPTR n)
   case T_C: fprintf(f, "C"); break;
   case T_B: fprintf(f, "B"); break;
   case T_A: fprintf(f, "A"); break;
-  case T_T: fprintf(f, "T"); break;
+  case T_U: fprintf(f, "U"); break;
   case T_Y: fprintf(f, "Y"); break;
   case T_P: fprintf(f, "P"); break;
   case T_R: fprintf(f, "R"); break;
@@ -1784,7 +1784,7 @@ eval(NODEPTR n)
     case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
     case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
     case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
-    case T_T:                CHKARG2; GOAP(y, x);                                           /* T x y = y x */
+    case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
     case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
     case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
     case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
