@@ -96,7 +96,7 @@ instance forall a . Applicative ((->) a) where
   f <*> g = \ a -> f a (g a)
 
 instance forall a . Monad ((->) a) where
-  (>>=) x y z = y (x z) z
+  x >>= y = \ z -> y (x z) z
 
 {-
 -- Same for Maybe
