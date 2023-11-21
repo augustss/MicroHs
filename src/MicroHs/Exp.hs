@@ -323,22 +323,6 @@ cSS e1 e2 e3 = app3 (Lit (LPrim "S'")) e1 e2 e3
 cCC :: Exp -> Exp -> Exp -> Exp
 cCC e1 e2 e3 = app3 (Lit (LPrim "C'")) e1 e2 e3
 
-{-
--- This is a hack, it assumes things about the Prelude
-flipOps :: [(Ident, Ident)]
-flipOps =
-  [(mkIdent "Data.Int.+",  mkIdent "Data.Int.+")
-  ,(mkIdent "Data.Int.-",  mkIdent "Data.Int.subtract")
-  ,(mkIdent "Data.Int.*",  mkIdent "Data.Int.*")
-  ,(mkIdent "Data.Int.==", mkIdent "Data.Int.==")
-  ,(mkIdent "Data.Int./=", mkIdent "Data.Int./=")
-  ,(mkIdent "Data.Int.<",  mkIdent "Data.Int.>")
-  ,(mkIdent "Data.Int.<=", mkIdent "Data.Int.>=")
-  ,(mkIdent "Data.Int.>",  mkIdent "Data.Int.<")
-  ,(mkIdent "Data.Int.>=", mkIdent "Data.Int.<=")
-  ]
--}
-
 improveT :: Exp -> Exp
 improveT ae =
   case getApp ae of
@@ -489,6 +473,8 @@ allVarsExp ae =
 ---------------------------------------------------------------
 
 {-
+-- Oleg's abstraction algorithm
+
 data Peano = S Peano | Z
   --Xderiving (Show)
 data DB = N Peano | L DB | A DB DB | Free Ident | K Lit
@@ -555,13 +541,3 @@ compileOptX :: Exp -> Exp
 compileOptX = snd . optEta . deBruijn
 -}
 
----------
---
--- C C x y z = C y x z = y z x
--- C C == R
--- R x y z = y z x
---
--- R True False x = False x True = K x A = x A 
--- not x = R True False x = 
--- False = K
--- True = A
