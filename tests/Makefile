@@ -5,6 +5,7 @@ EVAL=../bin/mhseval
 alltest:	test errtest
 
 test:
+	$(MHS) Hello      && $(EVAL) > Hello.out      && diff Hello.ref Hello.out
 	$(MHS) IOTest && (echo q | $(EVAL) a bb ccc | sed 's/^.ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
 	$(MHS) StringTest && $(EVAL) > StringTest.out && diff StringTest.ref StringTest.out
 	$(MHS) ListTest   && $(EVAL) > ListTest.out   && diff ListTest.ref ListTest.out
@@ -31,6 +32,7 @@ test:
 	$(MHS) Multi      && $(EVAL) > Multi.out      && diff Multi.ref Multi.out
 	$(MHS) Exists     && $(EVAL) > Exists.out     && diff Exists.ref Exists.out
 	$(MHS) TypeEq     && $(EVAL) > TypeEq.out     && diff TypeEq.ref TypeEq.out
+	$(MHS) Sieve      && $(EVAL) > Sieve.out      && diff Sieve.ref Sieve.out
 
 errtest:
 	sh errtester.sh < errmsg.test
