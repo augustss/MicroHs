@@ -52,5 +52,8 @@
   - Save the compilation cache at the end of each compilation.
   - On startup, read the cache.  Validate each module by checking a checksum.
   - Keep a dependency graph with the cache for invalidation.
+* Unicode, i.e., UTF-8 IO
+* Use pointer reversal instead of an evaluation stack.
+  - This saves memory, but might be slower.
 
 Bugs
