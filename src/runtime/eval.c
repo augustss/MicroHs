@@ -86,7 +86,7 @@ char* TMPNAME(const char* pre, const char* post) {
 #endif  /* !define(ERR) */
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_I, T_B, T_C,
-                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_BK,
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
@@ -107,7 +107,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_
 };
 const char* tag_names[] = {
   "FREE", "IND", "AP", "INT", "DBL", "PTR", "BADDYN", "S", "K", "I", "B", "C",
-  "A", "Y", "SS", "BB", "CC", "P", "R", "O", "U", "BK",
+  "A", "Y", "SS", "BB", "CC", "P", "R", "O", "U", "Z",
   "ADD", "SUB", "MUL", "QUOT", "REM", "SUBR", "UQUOT", "UREM", "NEG",
   "AND", "OR", "XOR", "INV", "SHL", "SHR", "ASHR",
   "EQ", "NE", "LT", "LE", "GT", "GE", "ULT", "ULE", "UGT", "UGE",
@@ -521,7 +521,7 @@ new_ap(NODEPTR f, NODEPTR a)
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combFalse, combTrue, combUnit, combCons;
-NODEPTR combCC, combBK, combIOBIND;
+NODEPTR combCC, combZ, combIOBIND;
 NODEPTR combLT, combEQ, combGT;
 
 /* One node of each kind for primitives, these are never GCd. */
@@ -549,7 +549,7 @@ struct {
   { "U", T_U },
   { "Y", T_Y },
   { "B'", T_BB },
-  { "BK", T_BK },
+  { "Z", T_Z },
   /* primops */
   { "+", T_ADD },
   { "-", T_SUB },
@@ -646,7 +646,7 @@ init_nodes(void)
     case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
     case T_CC: combCC = n; break;
-    case T_BK: combBK = n; break;
+    case T_Z: combZ = n; break;
     case T_IO_BIND: combIOBIND = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
@@ -667,7 +667,7 @@ init_nodes(void)
     case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
     case T_CC: combCC = n; break;
-    case T_BK: combBK = n; break;
+    case T_Z: combZ = n; break;
     case T_IO_BIND: combIOBIND = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
@@ -691,7 +691,7 @@ init_nodes(void)
    * But we can make compound one, since they are irreducible.
    */
 #define NEWAP(c, f, a) do { NODEPTR n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
-  NEWAP(combLT, combBK,    combFalse);  /* BK B */
+  NEWAP(combLT, combZ,     combFalse);  /* Z B */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
 #undef NEWAP
@@ -1365,7 +1365,7 @@ printrec(FILE *f, NODEPTR n)
   case T_O: fprintf(f, "O"); break;
   case T_SS: fprintf(f, "S'"); break;
   case T_BB: fprintf(f, "B'"); break;
-  case T_BK: fprintf(f, "BK"); break;
+  case T_Z: fprintf(f, "Z"); break;
   case T_CC: fprintf(f, "C'"); break;
   case T_ADD: fprintf(f, "+"); break;
   case T_SUB: fprintf(f, "-"); break;
@@ -1814,7 +1814,7 @@ eval(NODEPTR n)
     case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
     case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
     case T_BB:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
-    case T_BK:               CHKARG3; GOAP(x, y);                                           /* BK x y z = x y */
+    case T_Z:                CHKARG3; GOAP(x, y);                                           /* Z x y z = x y */
     case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
     case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
     case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */

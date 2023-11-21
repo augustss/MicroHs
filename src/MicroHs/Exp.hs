@@ -40,7 +40,7 @@ type PrimOp = String
 -- A  x y     = y                     *
 -- T  x y     = y x
 -- n@(Y x)    = x n
--- BK x y z   = x y
+-- Z x y z   = x y
 -- P  x y z   = z x y                 A
 -- R  x y z   = y z x                 A
 -- O  x y z w = w x y                 A
@@ -355,7 +355,7 @@ improveT ae =
           aa
 -}
         else if isB ff && isK aa then
-          Lit (LPrim "BK")
+          Lit (LPrim "Z")
         else if isC ff && isI aa then
           Lit (LPrim "U")
         else if isB ff && isB aa then
@@ -458,11 +458,11 @@ allVarsExp ae =
 --  Q x y z = (C I x y) z = I y x z = y x z
 --
 -- Added:
---  BK = B K
---  BK x y z = B K x y z = K (x y) z = x y
+--  Z = B K
+--  Z x y z = B K x y z = K (x y) z = x y
 --
---  BKK = BK K
---  BKK x y z = BK K x y z = (K x) z = x
+--  ZK = Z K
+--  ZK x y z = Z K x y z = (K x) z = x
 --
 --  C'B = C' B
 --  C'B x y z w = C' B x y z w = B (x z) y w = x z (y w)
@@ -474,13 +474,13 @@ allVarsExp ae =
 --
 -- Common:
 --  817: C' B
---  616: B BK
+--  616: B Z
 --  531: C' C
---  352: BK K
+--  352: Z K
 --  305: C' S
 --
---  BBK = B BK
---  BBK x y z w = B BK x y z w = BK (x y) z w = x y z
+--  BZ = B Z
+--  BZ x y z w = B Z x y z w = Z (x y) z w = x y z
 --
 --  C'C = C' C
 --  C'C x y z w = C' C x y z w = C (x z) y w = x z w y
