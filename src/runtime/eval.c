@@ -1728,7 +1728,7 @@ rnf(value_t noerr, NODEPTR n)
   free(rnf_bits);
 }
 
-NODEPTR evalio(NODEPTR n);
+NODEPTR execio(NODEPTR n);
 
 /* Evaluate a node, returns when the node is in WHNF. */
 void
@@ -1980,7 +1980,7 @@ eval(NODEPTR n)
 
     case T_IO_PERFORMIO:
       if (doing_rnf) RET;
-      CHKARGEV1(x = evalio(x)); GOIND(x);
+      CHKARGEV1(x = execio(x)); GOIND(x);
 
     case T_IO_BIND:
     case T_IO_THEN:
@@ -2033,7 +2033,7 @@ eval(NODEPTR n)
 /* This is the interpreter for the IO monad operations. */
 /* It takes a monadic expression and returns the unwrapped expression (unevaluated). */
 NODEPTR
-evalio(NODEPTR n)
+execio(NODEPTR n)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR f, x;
@@ -2066,7 +2066,7 @@ evalio(NODEPTR n)
     case T_IO_BIND:
       CHECKIO(2);
       {
-        /* Use associativity to avoid deep evalio recursion. */
+        /* Use associativity to avoid deep execio recursion. */
         /* (m >>= g) >>= h      ===  m >>= (\ x -> g x >>= h) */
         /* BIND ((BIND m) g) h  ===  BIND m (\ x -> BIND (g x) h) == (BIND m) (((C' BIND) g) h)*/
         NODEPTR bm;
@@ -2081,7 +2081,7 @@ evalio(NODEPTR n)
         }
       }
 
-      x = evalio(ARG(TOP(1)));  /* first argument, unwrapped */
+      x = execio(ARG(TOP(1)));  /* first argument, unwrapped */
 
       /* Do a GC check, make sure we keep the x live */
       GCCHECKSAVE(x, 1);
@@ -2092,7 +2092,7 @@ evalio(NODEPTR n)
       goto top;
     case T_IO_THEN:
       CHECKIO(2);
-      (void)evalio(ARG(TOP(1))); /* first argument, unwrapped, ignored */
+      (void)execio(ARG(TOP(1))); /* first argument, unwrapped, ignored */
       n = ARG(TOP(2));          /* second argument, the continuation */
       POP(3);
       goto top;
@@ -2209,7 +2209,7 @@ evalio(NODEPTR n)
           goto top;
         } else {
           /* Normal execution: */
-          n = evalio(ARG(TOP(1))); /* execute first argument */
+          n = execio(ARG(TOP(1))); /* execute first argument */
           cur_handler = h->hdl_old; /* restore old handler */
           free(h);
           RETIO(n);             /* return result */
@@ -2231,7 +2231,7 @@ evalio(NODEPTR n)
       RETIO(mkStringC(name));
 
     default:
-      ERR1("evalio tag %d", GETTAG(n));
+      ERR1("execio tag %d", GETTAG(n));
     }
   }
 }
@@ -2354,7 +2354,7 @@ main(int argc, char **argv)
   }
 #endif
   run_time -= GETTIMEMILLI();
-  NODEPTR res = evalio(prog);
+  NODEPTR res = execio(prog);
   res = evali(res);
   run_time += GETTIMEMILLI();
 #if WANT_STDIO
