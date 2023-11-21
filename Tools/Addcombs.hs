@@ -23,8 +23,8 @@ main = do
   file <- hGetContents stdin
   let size = length file
       chunks = chunkify 20 file
-  putStrLn $ "uint8_t combexprdata[] = {"
+  putStrLn $ "unsigned char combexprdata[] = {"
   mapM_ (putStrLn . showChunk) chunks
   putStrLn "0 };"
-  putStrLn "uint8_t *combexpr = combexprdata;"
+  putStrLn "unsigned char *combexpr = combexprdata;"
   putStrLn $ "int combexprlen = " ++ show size ++ ";"
