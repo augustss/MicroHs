@@ -89,7 +89,8 @@ type SynDef = (Ident, EType)
 type ClsDef = (Ident, ClassInfo)
 type InstDef= (Ident, InstInfo)
 
-type ClassInfo = ([IdKind], [EConstraint], EType, [Ident])  -- class tyvars, superclasses, methods
+type ClassInfo = ([IdKind], [EConstraint], EType, [Ident], [IFunDep])  -- class tyvars, superclasses, class kind, methods, fundeps
+type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables
 
 -- Symbol table entry for symbol i.
 data Entry = Entry
@@ -111,7 +112,7 @@ type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
 type ClassTable = M.Map ClassInfo  -- maps a class identifier to its associated information
-type InstTable  = M.Map InstInfo  -- indexed by class name
+type InstTable  = M.Map InstInfo   -- indexed by class name
 type Constraints= [(Ident, EConstraint)]
 type Defaults   = [EType]          -- Current defaults
 
@@ -128,11 +129,12 @@ type Defaults   = [EType]          -- Current defaults
 data InstInfo = InstInfo
        (M.Map Expr)               -- map for direct lookup of atomic types
        [InstDict]                 -- slow path
+       [IFunDep]
   --Xderiving (Show)
 
 -- This is the dictionary expression, instance variables, instance context,
 -- and instance.
-type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint)
+type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint, [IFunDep])
 -- This is the dictionary expression, instance context, and types.
 -- An instance (C T1 ... Tn) has the type list [T1,...,Tn]
 -- The types and constraint have their type variables normalized to EUVar (-1), EUVar (-2), etc
@@ -314,7 +316,7 @@ mkTables mdls =
         syms (is, TModule mn _ tes _ cls _ ves _) =
           [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ] ++
-          [ (v, [Entry (EVar v) t]) | (i, (_, _, t, _)) <- cls, let { v = mkClassConstructor i } ]
+          [ (v, [Entry (EVar v) t]) | (i, (_, _, t, _, _)) <- cls, let { v = mkClassConstructor i } ]
       in  stFromListWith union $ concatMap syms mdls
     allSyns =
       let
@@ -351,12 +353,12 @@ mkTables mdls =
   in  (allFixes, allTypes, allSyns, allClasses, allInsts, allValues, allAssocs)
 
 mergeInstInfo :: InstInfo -> InstInfo -> InstInfo
-mergeInstInfo (InstInfo m1 l1) (InstInfo m2 l2) =
+mergeInstInfo (InstInfo m1 l1 fds) (InstInfo m2 l2 _) =
   let
     m = foldr (uncurry $ M.insertWith mrg) m2 (M.toList m1)
     mrg e1 _e2 = e1 -- XXX improve this if eqExpr e1 e2 then e1 else errorMessage (getSLoc e1) $ "Multiple instances: " ++ showSLoc (getSLoc e2)
     l = unionBy eqInstDict l1 l2
-  in  InstInfo m l
+  in  InstInfo m l fds
 
 getIdent :: Expr -> Ident
 getIdent ae =
@@ -519,11 +521,11 @@ addInstTable ics = do
       zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [-1, -2 ..]
 
     mkInstInfo :: InstDictC -> T (Ident, InstInfo)
-    mkInstInfo (e, iks, ctx, ct) = do
+    mkInstInfo (e, iks, ctx, ct, fds) = do
       ct' <- expandSyn ct
       case (iks, ctx, getApp ct') of
-        ([], [], (c, [EVar i])) -> return $ (c, InstInfo (M.singleton i e) [])
-        (_,  _,  (c, ts      )) -> return $ (c, InstInfo M.empty [(e, ctx', ts')])
+        ([], [], (c, [EVar i])) -> return $ (c, InstInfo (M.singleton i e) [] fds)
+        (_,  _,  (c, ts      )) -> return $ (c, InstInfo M.empty [(e, ctx', ts')] fds)
           where ctx' = map (subst s) ctx
                 ts'  = map (subst s) ts
                 s    = freshSubst iks
@@ -1148,7 +1150,7 @@ tcConstr (Constr iks ct c ets) =
 -- The constructor and methods are added to the symbol table in addValueType.
 -- XXX FunDep
 expandClass :: EDef -> T [EDef]
-expandClass dcls@(Class ctx (iCls, vks) _fds ms) = do
+expandClass dcls@(Class ctx (iCls, vks) fds ms) = do
   mn <- gets moduleName
   let
       meths = [ b | b@(BSign _ _) <- ms ]
@@ -1163,9 +1165,13 @@ expandClass dcls@(Class ctx (iCls, vks) _fds ms) = do
               noDflt = EApp noDefaultE (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent methId)))
       mkDflt _ = impossible
       dDflts = concatMap mkDflt meths
-  addClassTable (qualIdent mn iCls) (vks, ctx, EUVar 0, methIds)   -- Initial entry, no type needed.
+  addClassTable (qualIdent mn iCls) (vks, ctx, EUVar 0, methIds, mkIFunDeps (map idKindIdent vks) fds)   -- Initial entry, no type needed.
   return $ dcls : dDflts
 expandClass d = return [d]
+
+mkIFunDeps :: [Ident] -> [FunDep] -> [IFunDep]
+mkIFunDeps vs [] = [(map (const True) vs, map (const False) vs)]
+mkIFunDeps vs fds = map (\ (is, os) -> (map (`elem` is) vs, map (`elem` os) vs)) fds
 
 noDefaultE :: Expr
 noDefaultE = ELit noSLoc $ LPrim "noDefault"
@@ -1202,7 +1208,7 @@ expandInst dinst@(Instance vks ctx cc bs) = do
 --  (e, _) <- tLookupV iCls
   ct <- gets classTable
 --  let qiCls = getAppCon e
-  (_, supers, _, mis) <-
+  (_, supers, _, mis, fds) <-
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> return x
@@ -1215,7 +1221,7 @@ expandInst dinst@(Instance vks ctx cc bs) = do
       args = sups ++ meths
   let bind = Fcn iInst $ eEqns [] $ foldl EApp (EVar $ mkClassConstructor qiCls) args
   mn <- gets moduleName
-  addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc)]
+  addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc, fds)]
   return [dinst, sign, bind]
 expandInst d = return [d]
 
@@ -1255,7 +1261,7 @@ addValueType adef = do
 
 -- XXX FunDep
 addValueClass :: [EConstraint] -> Ident -> [IdKind] -> [FunDep] -> [EBind] -> T ()
-addValueClass ctx iCls vks _fds ms = do
+addValueClass ctx iCls vks fds ms = do
   mn <- gets moduleName
   let
       meths = [ b | b@(BSign _ _) <- ms ]
@@ -1274,7 +1280,7 @@ addValueClass ctx iCls vks _fds ms = do
 --  traceM ("addValueClass " ++ showEType (ETuple ctx))
   mapM_ addMethod meths
   -- Update class table, now with actual constructor type.
-  addClassTable qiCls (vks, ctx, iConTy, methIds)
+  addClassTable qiCls (vks, ctx, iConTy, methIds, mkIFunDeps (map idKindIdent vks) fds)
 
 {-
 bundleConstraints :: [EConstraint] -> EType -> EType
@@ -2172,12 +2178,13 @@ expandDict edict acn = do
     Just _ -> concat <$> mapM (\ (i, a) -> expandDict (mkTupleSel i (length args) `EApp` edict) a) (zip [0..] args)
     Nothing -> do
       ct <- gets classTable
-      let (iks, sups, _, _) = fromMaybe impossible $ M.lookup iCls ct
-          sub = zip (map idKindIdent iks) args
+      let (iks, sups, _, _, fds) = fromMaybe impossible $ M.lookup iCls ct
+          vs = map idKindIdent iks
+          sub = zip vs args
           sups' = map (subst sub) sups
 --      mn <- gets moduleName
       insts <- concat <$> mapM (\ (i, sup) -> expandDict (EVar (expectQualified $ mkSuperSel iCls i) `EApp` edict) sup) (zip [1 ..] sups')
-      return $ (edict, [], [], cn) : insts
+      return $ (edict, [], [], cn, fds) : insts
 
 mkSuperSel :: --XHasCallStack =>
               Ident -> Int -> Ident
@@ -2237,7 +2244,7 @@ defaultOneTyVar tv = do
 
 {-
 showInstInfo :: InstInfo -> String
-showInstInfo (InstInfo m ds) = "InstInfo " ++ show (M.toList m) ++ " " ++ showListS showInstDict ds
+showInstInfo (InstInfo m ds fds) = "InstInfo " ++ show (M.toList m) ++ " " ++ showListS showInstDict ds ++ show fds
 
 showInstDict :: InstDict -> String
 showInstDict (e, ctx, ts) = showExpr e ++ " :: " ++ show (addConstraints ctx (tApps (mkIdent "CCC") ts))
@@ -2285,21 +2292,21 @@ solveConstraints = do
                 Nothing -> do
 --                  traceM ("class missing " ++ showIdent iCls)
                   solve cnss (cns : uns) sol   -- no instances, so no chance
-                Just (InstInfo atomMap insts) ->
+                Just (InstInfo atomMap insts fds) ->
                   case cts of
                     [EVar i] -> do
 --                      traceM ("solveSimple " ++ showIdent i ++ " -> " ++ showMaybe showExpr (M.lookup i atomMap))
                       case M.lookup i atomMap of
                         Just e  -> solveSimple e cns cnss uns sol
                         -- Not found, but there might be a generic instance
-                        Nothing -> solveGen loc insts cns cnss uns sol
-                    _           -> solveGen loc insts cns cnss uns sol
+                        Nothing -> solveGen loc fds insts cns cnss uns sol
+                    _           -> solveGen loc fds insts cns cnss uns sol
 
         -- An instance of the form (C T)
         solveSimple e (di, _) cnss uns sol = solve cnss uns ((di, e) : sol)  -- e is the dictionary expression
 
         -- XXX pass ts instead of cns
-        solveGen loc insts cns@(di, ct) cnss uns sol = do
+        solveGen loc _fds insts cns@(di, ct) cnss uns sol = do
 --          traceM ("solveGen " ++ showEType ct)
           let (_, ts) = getApp ct
               matches = getBestMatches $ findMatches insts ts
