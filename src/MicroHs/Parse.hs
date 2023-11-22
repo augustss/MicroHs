@@ -269,7 +269,7 @@ pDef =
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
 
-    pFunDeps = (pSpec '|' *> esome pFunDep) <|< pure []
+    pFunDeps = (pSymbol "|" *> esepBy1 pFunDep (pSpec ',')) <|< pure []
     pFunDep = (,) <$> esome pLIdent <*> (pSymbol "->" *> esome pLIdent)
     pField = do
       fs <- pFields
