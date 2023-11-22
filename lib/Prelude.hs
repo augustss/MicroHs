@@ -29,6 +29,7 @@ module Prelude(
   module System.IO,
   module Text.Show,
   module Text.String,
+  usingMhs,
   ) where
 import Control.Applicative
 import Control.Error
@@ -58,3 +59,7 @@ import Data.Tuple
 import System.IO
 import Text.Show
 import Text.String
+
+-- So we can detect mhs vs ghc
+usingMhs :: Bool
+usingMhs = True

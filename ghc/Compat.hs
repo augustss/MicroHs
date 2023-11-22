@@ -148,3 +148,6 @@ hSerialize _ _ = error "ghc: hSerialize"
 
 hDeserialize :: Handle -> IO a
 hDeserialize _ = error "ghc: hDeserialize"
+
+usingMhs :: Bool
+usingMhs = False

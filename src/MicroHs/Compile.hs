@@ -3,7 +3,7 @@
 module MicroHs.Compile(
   compileTop,
   Flags(..), verbose, runIt, output, compileOnly,
-  compileCacheTop,
+  compileCacheTop, getCachedPrelude,
   Cache, emptyCache, deleteFromCache,
   ) where
 import Prelude
@@ -89,19 +89,24 @@ compileCacheTop flags mn ch = do
     putStrLn $ "combinators:\n" ++ showLDefs dsn
   return (dsn, ch')
 
+getCachedPrelude :: Flags -> IO Cache
+getCachedPrelude _ | not usingMhs = return emptyCache
+getCachedPrelude flags = do
+  mhin <- openFileM "cache/Prelude.comb" ReadMode
+  case mhin of
+    Nothing -> return emptyCache
+    Just hin -> do
+--      putStrLn "deserialize cache"
+      cach <- hDeserialize hin
+      hClose hin
+      when (loading flags) $
+        putStrLn "loaded cached Prelude"
+      return cach
+
 --compileTop :: Flags -> IdentModule -> IO [LDef]
 compileTop :: Flags -> Ident -> IO [(Ident, Exp)]
 compileTop flags mn = do
-  mhin <- openFileM "cache/Prelude.comb" ReadMode
-  cach <-
-    case mhin of
-      Nothing -> return emptyCache
-      Just hin -> do
-        putStrLn "deserialize cache"
-        c <- hDeserialize hin
-        hClose hin
-        putStrLn "deserialize done"
-        return c
+  cach <- getCachedPrelude flags
   fst <$> compileCacheTop flags mn cach
 
 compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)

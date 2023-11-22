@@ -18,7 +18,7 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
-.PHONY:	clean bootstrap install ghcgen newmhs
+.PHONY:	clean bootstrap install ghcgen newmhs cacheprelude
 
 all:	bin/gmhs
 
@@ -79,9 +79,15 @@ runtest:	bin/mhseval bin/gmhs tests/*.hs
 bin/umhs: bin/mhs
 	rm -f bin/umhs
 	upx -q -q -obin/umhs bin/mhs
+
+#
+cacheprelude:
+	@mkdir -p cache
+	bin/mhs -c Prelude -ocache/Prelude.comb
+
 #
 clean:
-	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage*
+	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* cache
 	cd tests; make clean
 
 install:
