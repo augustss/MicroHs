@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.8
+version:             0.8.1.0
 synopsis:            A compiler for a subset of Haskell
 license:             Apache-2.0
 license-file:        LICENSE
@@ -36,17 +36,19 @@ source-repository head
 
 executable mhs
   default-language:    Haskell98
-  hs-source-dirs:      src ghc
-  ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -F -pgmF ./Tools/convertX.sh -main-is MicroHs.Main
+  hs-source-dirs:      ghc src
+  ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
   default-extensions:  ScopedTypeVariables PatternGuards TupleSections TypeSynonymInstances FlexibleInstances
   other-modules:       MicroHs.Compile
+                       MicroHs.CompileCache
                        MicroHs.Desugar
                        MicroHs.Exp
                        MicroHs.Expr
                        MicroHs.Graph
                        MicroHs.Ident
                        MicroHs.IdentMap
+                       MicroHs.Instances
                        MicroHs.Interactive
                        MicroHs.Lex
                        MicroHs.MakeCArray
