@@ -1,9 +1,5 @@
-* Put on hackage
 * Have compile return a Stats record of timing etc
 * Implement deriving
-* Add the possibility to save a compiler cache in a file
-  - Add SHA checksumming to the C code
-  - Use filename as the cache lookup key and SHA for validation
 * make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
 * whith dictionaries we need two optimizations to get rid of them
@@ -27,6 +23,8 @@
 * Try Oleg's abstraction algorithm
 * Implement IORef
   - The IORef will need GC support
+  - Implement IOArray
+  - Use IORef for STRef
 * Redo type synonym expansion
   - Only non-injective synonyms necessitate expansion(?)
   - Do expansion during unification
@@ -53,7 +51,7 @@
   - On startup, read the cache.  Validate each module by checking a checksum.
   - Keep a dependency graph with the cache for invalidation.
 * Unicode, i.e., UTF-8 IO
-* Use pointer reversal instead of an evaluation stack.
-  - This saves memory, but might be slower.
-
-Bugs
+* Use pointer reversal, might be slower
+  - In GC mark pass
+  - In evaluator
+* Make nullary type classes work.
