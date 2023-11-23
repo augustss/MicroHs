@@ -99,7 +99,7 @@ getCachedPrelude flags = do
 --      putStrLn "deserialize cache"
       cach <- hDeserialize hin
       hClose hin
-      when (loading flags) $
+      when (loading flags || verbose flags > 0) $
         putStrLn "loaded cached Prelude"
       return cach
 

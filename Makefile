@@ -20,7 +20,7 @@ GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(G
 #
 .PHONY:	clean bootstrap install ghcgen newmhs cacheprelude
 
-all:	bin/gmhs
+all:	bin/mhs
 
 newmhs:	ghcgen
 	$(CCEVAL) generated/mhs.c -o bin/mhs
