@@ -2320,6 +2320,7 @@ solveConstraints = do
 --                        showIdent di ++ " = " ++ showExpr (EApp de (EVar d)))
                 solve ((d, tupleConstraints ctx) : cnss) uns ((di, EApp de (EVar d)) : sol)
             _           -> tcError loc $ "Multiple constraint solutions for: " ++ showEType ct
+--                                       ++ show (map fst matches)
 
         solveTypeEq loc [t1, t2] cns@(di,_) cnss uns sol = do
           eqs <- gets typeEqTable
@@ -2388,9 +2389,12 @@ findMatches ds its =
 -- Get the best matches.  These are the matches with the smallest substitution.
 getBestMatches :: [(Int, (Expr, [EConstraint]))] -> [(Expr, [EConstraint])]
 getBestMatches [] = []
-getBestMatches ms =
-  let b = minimum (map fst ms)         -- minimum substitution size
-  in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest
+getBestMatches ams =
+  let (args, insts) = partition (\ (_, (EVar i, _)) -> "adict$" `isPrefixOf` unIdent i) ams
+      pick ms =
+        let b = minimum (map fst ms)         -- minimum substitution size
+        in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest
+  in  if null args then pick insts else pick args
 
 -- Check that there are no unsolved constraints.
 checkConstraints :: T ()
