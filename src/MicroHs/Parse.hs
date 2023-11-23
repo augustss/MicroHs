@@ -119,7 +119,7 @@ pTypeIdentSym = pUIdent <|< pParens pSymOper
 
 keywords :: [String]
 keywords =
-  ["case", "class", "data", "default", "do", "else", "forall", "foreign", "if",
+  ["case", "class", "data", "default", "deriving", "do", "else", "forall", "foreign", "if",
    "import", "in", "infix", "infixl", "infixr", "instance",
    "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
@@ -252,8 +252,8 @@ pBlock p = do
 pDef :: P EDef
 pDef =
       Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 pConstr (pSymbol "|"))
-                                                        <|< pure [])
-  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField))
+                                                        <|< pure []) <* pDeriving
+  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField)) <* pDeriving
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
   <|< uncurry Fcn <$> pEqns
   <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pType
@@ -275,6 +275,10 @@ pDef =
       fs <- pFields
       guard $ either length length fs == 1
       pure fs
+
+-- deriving is parsed, but ignored
+pDeriving :: P [EType]
+pDeriving = pKeyword "deriving" *> pParens (esepBy pType (pSpec ',')) <|< pure []
 
 pContext :: P [EConstraint]
 pContext = (pCtx <* pSymbol "=>") <|< pure []
