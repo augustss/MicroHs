@@ -536,7 +536,7 @@ addInstTable ics = do
 
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
---  traceM $ "addConstraint: " ++ msg ++ " " ++ showIdent d ++ " :: " ++ showEType ctx
+--  traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
   ctx' <- expandSyn ctx
   TC mn n fx tt st vt ast sub m cs is es ds <- get
   put $ TC mn n fx tt st vt ast sub m cs is ((d, ctx') : es) ds
@@ -2134,6 +2134,9 @@ subsCheckRho :: --XHasCallStack =>
 --subsCheckRho _ e1 t1 t2 | trace ("subsCheckRho: " ++ {-showExpr e1 ++ " :: " ++ -} showEType t1 ++ " = " ++ showEType t2) False = undefined
 subsCheckRho loc exp1 sigma1@(EForall _ _) rho2 = do -- Rule SPEC
   (exp1', rho1) <- tInst (exp1, sigma1)
+  subsCheckRho loc exp1' rho1 rho2
+subsCheckRho loc exp1 arho1 rho2 | Just _ <- getImplies arho1 = do
+  (exp1', rho1) <- tInst (exp1, arho1)
   subsCheckRho loc exp1' rho1 rho2
 subsCheckRho loc exp1 rho1 rho2 | Just (a2, r2) <- getArrow rho2 = do -- Rule FUN
   (a1, r1) <- unArrow loc rho1
