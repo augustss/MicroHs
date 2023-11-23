@@ -1,3 +1,6 @@
+#
+# Use with nmake
+#
 all:    bin/mhs.exe bin/mhseval.exe
 
 # Compile mhs from distribution, with C compiler
