@@ -19,6 +19,7 @@ import System.Directory
 import System.IO
 import System.Process
 import Compat
+import MicroHs.Instances() -- for GHC
 
 -- Version number of combinator file.
 -- Must match version in eval.c.

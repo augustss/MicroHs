@@ -52,8 +52,6 @@ data Exp
   | Lam Ident Exp
   | Lit Lit
 
---Xinstance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a; rnf (Lam i e) = rnf i `seq` rnf e; rnf (Lit l) = rnf l
-
 instance Eq Exp where
   (==) (Var i1)    (Var i2)    = i1 == i2
   (==) (App f1 a1) (App f2 a2) = f1 == f2 && a1 == a2

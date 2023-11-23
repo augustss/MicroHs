@@ -40,7 +40,6 @@ import Data.Maybe
 import MicroHs.Ident
 import Text.PrettyPrint.HughesPJ
 import GHC.Stack
-import Control.DeepSeq
 
 type IdentModule = Ident
 
@@ -151,7 +150,6 @@ data Lit
   | LPrim String
   | LForImp String
   deriving (Show)
---Xinstance NFData Lit where rnf (LInt i) = rnf i; rnf (LInteger i) = rnf i; rnf (LDouble d) = rnf d; rnf (LRat r) = rnf r; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
 
 instance Eq Lit where
   (==) (LInt x)     (LInt  y) = x == y

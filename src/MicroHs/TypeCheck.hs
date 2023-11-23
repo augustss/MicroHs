@@ -14,6 +14,7 @@ module MicroHs.TypeCheck(
   ) where
 import Data.Eq -- XXX why needed?
 import Prelude
+import Control.Monad
 import Data.Char
 import Data.Function
 import Data.List
@@ -1773,13 +1774,13 @@ subsCheck loc exp1 sigma1 sigma2 = do -- Rule DEEP-SKOL
 tCheckPatC :: forall a . EType -> EPat -> (EPat -> T a) -> T a
 tCheckPatC t p@(EVar v) ta | not (isConIdent v) = do  -- simple special case
   withExtVals [(v, t)] $ ta p
-tCheckPatC t ap ta = do
---  traceM $ "tCheckPat: " ++ show ap
-  let vs = patVars ap
+tCheckPatC t app ta = do
+--  traceM $ "tCheckPat: " ++ show app
+  let vs = patVars app
   multCheck vs
   env <- mapM (\ v -> (v,) <$> newUVar) vs
   withExtVals env $ do
-    (_sks, ds, pp) <- tCheckPat t ap
+    (_sks, ds, pp) <- tCheckPat t app
     () <- checkArity 0 pp
 --    traceM ("tCheckPatC " ++ show ds)
     -- XXX must check for leaking skolems
@@ -1810,14 +1811,14 @@ tcPat mt ae =
                   -- Sanity check
                   (_, EForall _ (EForall _ _)) -> return ()
                   _ -> undefined
-               (ap, EForall avs apt) <- tInst' ipt
+               (app, EForall avs apt) <- tInst' ipt
                (sks, spt) <- shallowSkolemise avs apt
                (d, p, pt) <-
                  case getImplies spt of
-                   Nothing -> return ([], ap, apt)
+                   Nothing -> return ([], app, apt)
                    Just (ctx, pt') -> do
                      di <- newDictIdent loc
-                     return ([(di, ctx)], EApp ap (EVar di), pt')
+                     return ([(di, ctx)], EApp app (EVar di), pt')
                    
                -- We will only have an expected type for a non-nullary constructor
                pp <- case mt of
@@ -1913,9 +1914,7 @@ checkArity n p =
     EListish (LList _) -> check0
     EVar _             -> check0
     ELit _ _           -> check0
-    _ ->
-         --Xerror (show p)
-         impossible
+    _ -> impossible
   where
     check0 = if n /= 0 then tcError (getSLoc p) "Bad pattern" else return ()
 
@@ -2442,8 +2441,7 @@ eqTyTy (t1, t2) (u1, u2) = eqEType t1 u1 && eqEType t2 u2
 data SymTab a = SymTab (M.Map [a]) [(Ident, a)]
   deriving(Show)
   
-stLookup :: --forall a . --XShow a =>
-            String -> Ident -> SymTab Entry -> Either String Entry
+stLookup :: String -> Ident -> SymTab Entry -> Either String Entry
 stLookup msg i (SymTab genv lenv) =
   case lookup i lenv of
     Just e -> Right e

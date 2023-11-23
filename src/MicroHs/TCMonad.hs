@@ -6,13 +6,11 @@ module MicroHs.TCMonad(
   get, put, gets,
   mapM, mapM_,
   sequence,
-  when,
   tcError
   ) where
-import Control.Monad
+import Prelude
 import Data.Functor.Identity
 import GHC.Stack
-import Data.Char  -- for String
 import Control.Applicative
 import Control.Monad.State.Strict
 import Data.Functor
@@ -28,4 +26,4 @@ tcError :: --XHasCallStack =>
            forall s a . SLoc -> String -> TC s a
 tcError = errorMessage
 
---Xinstance MonadFail Identity where fail = error
+instance MonadFail Identity where fail = error

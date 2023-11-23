@@ -37,7 +37,7 @@ bin/mhseval:	src/runtime/eval.c src/runtime/config*.h src/runtime/comb.c
 	$(CCEVAL) src/runtime/comb.c -o bin/mhseval
 
 # Compile mhs with ghc
-bin/gmhs:	src/*/*.hs Tools/convertX.sh
+bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs Tools/convertX.sh
 	@mkdir -p bin
 	$(GHC) $(GHCFLAGS) src/MicroHs/Main.hs -main-is MicroHs.Main -o bin/gmhs
 

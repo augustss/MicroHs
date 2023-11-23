@@ -19,7 +19,6 @@ import Data.Eq
 import Prelude
 import Data.Char
 import Text.PrettyPrint.HughesPJ
-import Control.DeepSeq
 import GHC.Stack
 
 type Line = Int
@@ -34,7 +33,6 @@ instance Show SLoc where
 
 data Ident = Ident !SLoc String
   --deriving (Show)
---Xinstance NFData Ident where rnf (Ident _ s) = rnf s
 
 instance Eq Ident where
   Ident _ i == Ident _ j  =  i == j

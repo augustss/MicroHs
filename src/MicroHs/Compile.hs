@@ -9,15 +9,17 @@ module MicroHs.Compile(
 import Prelude
 import System.IO
 import Control.DeepSeq
-import qualified MicroHs.IdentMap as M
-import MicroHs.StateIO
+import MicroHs.CompileCache
 import MicroHs.Desugar
 import MicroHs.Exp
 import MicroHs.Expr
 import MicroHs.Ident
+import qualified MicroHs.IdentMap as M
 import MicroHs.Parse
+import MicroHs.StateIO
 import MicroHs.TypeCheck
 import Compat
+import MicroHs.Instances() -- for ghc
 
 data Flags = Flags
   Int        -- verbosity level
@@ -49,27 +51,6 @@ compileOnly :: Flags -> Bool
 compileOnly (Flags _ _ _ _ _ x) = x
 
 -----------------
-
-type CModule = TModule [LDef]
-data Cache = Cache [IdentModule] (M.Map CModule)
-  deriving (Show)
-
---Xinstance NFData Cache where rnf _ = ()  -- dummy instance
-
-working :: Cache -> [IdentModule]
-working (Cache x _) = x
-
-updWorking :: [IdentModule] -> Cache -> Cache
-updWorking w (Cache _ m) = Cache w m
-
-cache :: Cache -> M.Map CModule
-cache (Cache _ x) = x
-
-emptyCache :: Cache
-emptyCache = Cache [] M.empty
-
-deleteFromCache :: Ident -> Cache -> Cache
-deleteFromCache mn (Cache is m) = Cache is (M.delete mn m)
 
 -----------------
 
