@@ -14,7 +14,6 @@ module MicroHs.Ident(
   addIdentSuffix,
   SLoc(..), noSLoc, isNoSLoc,
   showSLoc,
-  expectQualified,
   ) where
 import Data.Eq
 import Prelude
@@ -83,18 +82,7 @@ isIdent s (Ident _ i) = s == i
 
 qualIdent :: --XHasCallStack =>
              Ident -> Ident -> Ident
---XqualIdent _ (Ident _ i) | isQual i = error $ "already qualified " ++ i
 qualIdent (Ident _ qi) (Ident loc i) = Ident loc (qi ++ "." ++ i)
-
-expectQualified :: --XHasCallStack =>
-                   Ident -> Ident
---XexpectQualified (Ident _ s) | not (isQual s) = error $ "not qualified " ++ s
-expectQualified i = i
-
---XisQual :: String -> Bool
---XisQual (c:'.':_:_) | isAlphaNum c = True
---XisQual (_:cs) = isQual cs
---XisQual "" = False
 
 addIdentSuffix :: Ident -> String -> Ident
 addIdentSuffix (Ident loc i) s = Ident loc (i ++ s)

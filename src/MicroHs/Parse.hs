@@ -16,14 +16,14 @@ type P a = Prsr FilePath Token a
 getFileName :: P FilePath
 getFileName = get
 
-parseDie :: forall a . --X (Show a) =>
+parseDie :: forall a . (Show a) =>
             P a -> FilePath -> String -> a
 parseDie p fn file =
   case parse p fn file of
     Left msg -> error msg
     Right a -> a
 
-parse :: forall a . --X (Show a) =>
+parse :: forall a . (Show a) =>
          P a -> FilePath -> String -> Either String a
 parse p fn file =
   let { ts = lexTop file } in
@@ -31,7 +31,7 @@ parse p fn file =
     Left lf -> Left $ formatFailed fn ts lf
     Right [(a, _)] -> Right a
     Right as -> Left $ "Ambiguous:"
---X                     ++ unlines (map (show . fst) as)
+                       ++ unlines (map (show . fst) as)
 
 getLoc :: P Loc
 getLoc = do

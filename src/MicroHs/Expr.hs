@@ -47,7 +47,6 @@ type IdentModule = Ident
 ----------------------
 
 data EModule = EModule IdentModule [ExportItem] [EDef]
-  deriving (Show)
 
 data ExportItem
   = ExpModule IdentModule
@@ -452,6 +451,9 @@ errorMessage :: --XHasCallStack =>
 errorMessage loc msg = error $ showSLoc loc ++ ": " ++ msg
 
 ----------------
+
+instance Show EModule where
+  show (EModule nm _ ds) = "module " ++ showIdent nm ++ "(...) where\n" ++ showEDefs ds
 
 instance Show Expr where
   show = showExpr

@@ -724,7 +724,6 @@ expandSyn at =
             Nothing -> return $ foldl tApp t ts
             Just (EForall vks tt) ->
               if length vks /= length ts then tcError (getSLoc i) $ "bad synonym use"
-                                                                         --X ++ "\nXX " ++ show (i, vks, ts)
               else expandSyn $ subst (zip (map idKindIdent vks) ts) tt
             Just _ -> impossible
         EUVar _ -> return $ foldl tApp t ts
@@ -2182,8 +2181,7 @@ expandDict edict acn = do
           vs = map idKindIdent iks
           sub = zip vs args
           sups' = map (subst sub) sups
---      mn <- gets moduleName
-      insts <- concat <$> mapM (\ (i, sup) -> expandDict (EVar (expectQualified $ mkSuperSel iCls i) `EApp` edict) sup) (zip [1 ..] sups')
+      insts <- concat <$> mapM (\ (i, sup) -> expandDict (EVar (mkSuperSel iCls i) `EApp` edict) sup) (zip [1 ..] sups')
       return $ (edict, [], [], cn, fds) : insts
 
 mkSuperSel :: --XHasCallStack =>
