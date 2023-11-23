@@ -244,7 +244,7 @@ mkTupleSelE m n tup =
   in App tup (foldr Lam (Var (xs !! m)) xs)
 
 -- Handle special syntax for lists and tuples
-dsPat :: --XHasCallStack =>
+dsPat :: HasCallStack =>
          EPat -> EPat
 dsPat ap =
   case ap of
@@ -346,7 +346,7 @@ data SPat = SPat Con [Ident]    -- simple pattern
 --                     p21, ..., p2n
 --                     pm1, ..., pmn   -> em
 -- Note that the RHSs are of type Exp.
-dsMatrix :: --XHasCallStack =>
+dsMatrix :: HasCallStack =>
             Exp -> [Exp] -> Matrix -> M Exp
 dsMatrix dflt iis aarms =
  if null aarms then
@@ -487,7 +487,7 @@ eLet i e b =
           [_] -> substExp i e b   -- single occurrence, substitute  XXX could be worse if under lambda
           _   -> App (Lam i b) e  -- just use a beta redex
 
-pConOf :: --XHasCallStack =>
+pConOf :: HasCallStack =>
           EPat -> Con
 pConOf ap =
   case ap of

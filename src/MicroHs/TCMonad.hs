@@ -22,8 +22,9 @@ type TC s a = State s a
 tcRun :: forall s a . TC s a -> s -> (a, s)
 tcRun = runState
 
-tcError :: --XHasCallStack =>
-           forall s a . SLoc -> String -> TC s a
+tcError :: forall s a .
+           HasCallStack =>
+           SLoc -> String -> TC s a
 tcError = errorMessage
 
 instance MonadFail Identity where fail = error

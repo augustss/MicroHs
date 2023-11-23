@@ -78,14 +78,14 @@ ppIdent (Ident _ i) = text i
 isIdent :: String -> Ident -> Bool
 isIdent s (Ident _ i) = s == i
 
-qualIdent :: --XHasCallStack =>
+qualIdent :: HasCallStack =>
              Ident -> Ident -> Ident
 qualIdent (Ident _ qi) (Ident loc i) = Ident loc (qi ++ "." ++ i)
 
 addIdentSuffix :: Ident -> String -> Ident
 addIdentSuffix (Ident loc i) s = Ident loc (i ++ s)
 
-unQualString :: --XHasCallStack =>
+unQualString :: HasCallStack =>
                 String -> String
 unQualString [] = ""
 unQualString s@(c:_) =

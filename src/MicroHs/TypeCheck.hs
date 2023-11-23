@@ -705,12 +705,12 @@ setUVar i t = do
 getUVar :: Int -> T (Maybe EType)
 getUVar i = gets (IM.lookup i . uvarSubst)
 
-munify :: --XHasCallStack =>
+munify :: HasCallStack =>
           SLoc -> Expected -> EType -> T ()
 munify loc (Infer r) b = tSetRefType loc r b
 munify loc (Check a) b = unify loc a b
 
-expandSyn :: --XHasCallStack =>
+expandSyn :: HasCallStack =>
              EType -> T EType
 expandSyn at =
   let
@@ -753,7 +753,7 @@ derefUVar at =
     EForall iks t -> EForall iks <$> derefUVar t
     _ -> impossible
 
-tcErrorTK :: --XHasCallStack =>
+tcErrorTK :: HasCallStack =>
              SLoc -> String -> T ()
 tcErrorTK loc msg = do
   tcm <- gets tcMode
@@ -762,7 +762,7 @@ tcErrorTK loc msg = do
             _      -> "type"
   tcError loc $ s ++ " error: " ++ msg
 
-unify :: --XHasCallStack =>
+unify :: HasCallStack =>
          SLoc -> EType -> EType -> T ()
 unify loc a b = do
   aa <- expandSyn a
@@ -770,7 +770,7 @@ unify loc a b = do
   unifyR loc aa bb
 
 -- XXX should do occur check
-unifyR :: --XHasCallStack =>
+unifyR :: HasCallStack =>
           SLoc -> EType -> EType -> T ()
 unifyR _   (EVar x1)    (EVar x2)  | x1 == x2      = return ()
 unifyR loc (EApp f1 a1) (EApp f2 a2)               = do { unifyR loc f1 f2; unifyR loc a1 a2 }
@@ -785,7 +785,7 @@ unifyR loc t1           t2                         = do
     -- XXX needs changing if we have kind equalities.
     _      -> addEqConstraint loc t1 t2
 
-unifyVar :: --XHasCallStack =>
+unifyVar :: HasCallStack =>
             SLoc -> TRef -> EType -> T ()
 unifyVar loc r t = do
   mt <- getUVar r
@@ -793,7 +793,7 @@ unifyVar loc r t = do
     Nothing -> unifyUnboundVar loc r t
     Just t' -> unify loc t' t
 
-unifyUnboundVar :: --XHasCallStack =>
+unifyUnboundVar :: HasCallStack =>
                    SLoc -> TRef -> EType -> T ()
 unifyUnboundVar loc r1 at2@(EUVar r2) = do
   -- We know r1 /= r2
@@ -831,7 +831,7 @@ newIdent loc s = do
   u <- newUniq
   return $ mkIdentSLoc loc $ s ++ "$" ++ show u
 
-tLookup :: --XHasCallStack =>
+tLookup :: HasCallStack =>
            String -> Ident -> T (Expr, EType)
 tLookup msg i = do
   env <- gets valueTable
@@ -842,7 +842,7 @@ tLookup msg i = do
 --      traceM (showListS showIdent (map fst (M.toList m)))
       tcError (getSLoc i) e
 
-tLookupV :: --XHasCallStack =>
+tLookupV :: HasCallStack =>
            Ident -> T (Expr, EType)
 tLookupV i = do
   tcm <- gets tcMode
@@ -873,7 +873,7 @@ tInst' :: (Expr, EType) -> T (Expr, EType)
 tInst' (ae, EForall vks t) = tInstForall ae vks t
 tInst' et = return et
 
-extValE :: --XHasCallStack =>
+extValE :: HasCallStack =>
            Ident -> EType -> Expr -> T ()
 extValE i t e = do
   venv <- gets valueTable
@@ -881,7 +881,7 @@ extValE i t e = do
 
 -- Extend the global symbol table with i = e :: t
 -- Add both qualified and unqualified versions of i.
-extValETop :: --XHasCallStack =>
+extValETop :: HasCallStack =>
               Ident -> EType -> Expr -> T ()
 extValETop i t e = do
   mn <- gets moduleName
@@ -894,17 +894,17 @@ extValETop i t e = do
 -- Extend symbol table with i::t.
 -- The translation for i will be the qualified name.
 -- Add both qualified and unqualified versions of i.
-extValQTop :: --XHasCallStack =>
+extValQTop :: HasCallStack =>
               Ident -> EType -> T ()
 extValQTop i t = do
   mn <- gets moduleName
   extValETop i t (EVar (qualIdent mn i))
 
-extVal :: --XHasCallStack =>
+extVal :: HasCallStack =>
           Ident -> EType -> T ()
 extVal i t = extValE i t $ EVar i
 
-extVals :: --XHasCallStack =>
+extVals :: HasCallStack =>
            [(Ident, EType)] -> T ()
 extVals = mapM_ (uncurry extVal)
 
@@ -927,7 +927,7 @@ extFix i fx = do
   put $ TC mn n (M.insert i fx fenv) tenv senv venv ast sub m cs is es ds
   return ()
 
-withExtVal :: forall a . --XHasCallStack =>
+withExtVal :: forall a . HasCallStack =>
               Ident -> EType -> T a -> T a
 withExtVal i t ta = do
   venv <- gets valueTable
@@ -936,7 +936,7 @@ withExtVal i t ta = do
   putValueTable venv
   return a
 
-withExtVals :: forall a . --XHasCallStack =>
+withExtVals :: forall a . HasCallStack =>
                [(Ident, EType)] -> T a -> T a
 withExtVals env ta = do
   venv <- gets valueTable
@@ -1298,7 +1298,7 @@ unForall (EForall iks t) = (iks, t)
 unForall t = ([], t)
 -}
 
-tcDefValue :: --XHasCallStack =>
+tcDefValue :: HasCallStack =>
               EDef -> T EDef
 tcDefValue adef =
   case adef of
@@ -1323,18 +1323,18 @@ tInferTypeT :: EType -> T EType
 tInferTypeT t = fst <$> tInfer tcTypeT t
 
 -- Kind check a type while already in type checking mode
-tcTypeT :: --XHasCallStack =>
+tcTypeT :: HasCallStack =>
            Expected -> EType -> T EType
 tcTypeT mk t = withTCMode TCType (tcExpr mk (dsType t))
 
 -- Kind check a type while in value checking mode
-tcType :: --XHasCallStack =>
+tcType :: HasCallStack =>
           Expected -> EType -> T EType
 tcType mk = withTypeTable . tcTypeT mk
 
 {-
 -- Sort check a kind while already in type cheking mode
-tcKind :: --XHasCallStack =>
+tcKind :: HasCallStack =>
           EKind -> T EKind
 tcKind e = fst <$> withTypeTable (tcType (Just kType) e)
 -}
@@ -1346,7 +1346,7 @@ tcKind e = fst <$> withTypeTable (tcType (Just kType) e)
 data Expected = Infer TRef | Check EType
   deriving(Show)
 
-tInfer :: forall a b . --XHasCallStack =>
+tInfer :: forall a b . HasCallStack =>
           (Expected -> a -> T b) -> a -> T (Typed b)
 tInfer tc a = do
   ref <- newUniq
@@ -1357,11 +1357,11 @@ tInfer tc a = do
 tCheck :: forall a b . (Expected -> a -> T b) -> EType -> a -> T b
 tCheck tc t = tc (Check t)
 
-tInferExpr :: --XHasCallStack =>
+tInferExpr :: HasCallStack =>
               Expr -> T (Typed Expr)
 tInferExpr = tInfer tcExpr
 
-tCheckExpr :: --XHasCallStack =>
+tCheckExpr :: HasCallStack =>
               EType -> Expr -> T Expr
 tCheckExpr t _e | Just (_ctx, _t') <- getImplies t = do
   undefined
@@ -1374,7 +1374,7 @@ tCheckExpr t _e | Just (_ctx, _t') <- getImplies t = do
 -}
 tCheckExpr t e = tCheck tcExpr t e
 
-tGetRefType :: --XHasCallStack =>
+tGetRefType :: HasCallStack =>
                TRef -> T EType
 tGetRefType ref = do
   m <- gets uvarSubst
@@ -1383,7 +1383,7 @@ tGetRefType ref = do
     Just t  -> return t
 
 -- Set the type for an Infer
-tSetRefType :: --XHasCallStack =>
+tSetRefType :: HasCallStack =>
                SLoc -> TRef -> EType -> T ()
 tSetRefType loc ref t = do
   m <- gets uvarSubst
@@ -1406,14 +1406,14 @@ tGetExpTypeSet loc (Infer r) = tGetRefType r {-do
   return t-}
 -}
 
-tcExpr :: --XHasCallStack =>
+tcExpr :: HasCallStack =>
           Expected -> Expr -> T Expr
 tcExpr mt ae = do
 --  traceM ("tcExpr enter: " ++ showExpr ae)
   r <- tcExprR mt ae
 --  traceM ("tcExpr exit: " ++ showExpr r)
   return r
-tcExprR :: --XHasCallStack =>
+tcExprR :: HasCallStack =>
            Expected -> Expr -> T Expr
 tcExprR mt ae =
   let { loc = getSLoc ae } in
@@ -1605,7 +1605,7 @@ tcLit' mt loc l t = instSigma loc (ELit loc l) t mt
 
 -- tcOper is in T because it has to look up identifiers, and get the fixity table.
 -- But there is no type checking happening here.
-tcOper :: --XHasCallStack =>
+tcOper :: HasCallStack =>
           Expr -> [(Ident, Expr)] -> T Expr
 tcOper ae aies = do
   let
@@ -1640,7 +1640,7 @@ tcOper ae aies = do
   ites <- mapM (opfix fixs) aies
   return $ calc [ae] [] ites
 
-unArrow :: --XHasCallStack =>
+unArrow :: HasCallStack =>
            SLoc -> EType -> T (EType, EType)
 unArrow loc t = do
   case getArrow t of
@@ -1753,12 +1753,12 @@ tCheckExprAndSolve t e = do
 eBinds :: [(Ident, Expr)] -> [EBind]
 eBinds ds = [BFcn i [Eqn [] (EAlts [([], e)] [])] | (i, e) <- ds]
 
-instPatSigma :: --XHasCallStack =>
+instPatSigma :: HasCallStack =>
                  SLoc -> Sigma -> Expected -> T ()
 instPatSigma loc pt (Infer r) = tSetRefType loc r pt
 instPatSigma loc pt (Check t) = do { _ <- subsCheck loc undefined t pt; return () } -- XXX really?
 
-subsCheck :: --XHasCallStack =>
+subsCheck :: HasCallStack =>
               SLoc -> Expr -> Sigma -> Sigma -> T Expr
 -- (subsCheck args off exp) checks that
 -- 'off' is at least as polymorphic as 'args -> exp'
@@ -1980,12 +1980,14 @@ tList = tCon . tListI
 tBool :: SLoc -> EType
 tBool loc = tConI loc $ boolPrefix ++ "Bool"
 
-impossible :: --XHasCallStack =>
-              forall a . a
+impossible :: forall a .
+              HasCallStack =>
+              a
 impossible = error "impossible"
 
-impossibleShow :: --XHasCallStack =>
-              forall a b . (Show a, HasLoc a) => a -> b
+impossibleShow :: forall a b .
+                  HasCallStack =>
+                  (Show a, HasLoc a) => a -> b
 impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ show a
 
 showTModule :: forall a . (a -> String) -> TModule a -> String
@@ -2038,7 +2040,7 @@ shallowSkolemise tvs ty = do
   sks <- mapM (newSkolemTyVar . idKindIdent) tvs
   return (sks, subst (zip (map idKindIdent tvs) (map EVar sks)) ty)
 
-skolemise :: --XHasCallStack =>
+skolemise :: HasCallStack =>
              Sigma -> T ([TyVar], Rho)
 -- Performs deep skolemisation, returning the
 -- skolem constants and the skolemised type.
@@ -2113,7 +2115,7 @@ inferSigma e = do
   (e',) <$> quantify forall_tvs exp_ty
 -}
 
-checkSigma :: --XHasCallStack =>
+checkSigma :: HasCallStack =>
               Expr -> Sigma -> T Expr
 checkSigma expr sigma = do
   (skol_tvs, rho) <- skolemise sigma
@@ -2129,7 +2131,7 @@ checkSigma expr sigma = do
       tcErrorTK (getSLoc expr) $ "not polymorphic enough: " ++ unwords (map showIdent bad_tvs)
     return expr'
 
-subsCheckRho :: --XHasCallStack =>
+subsCheckRho :: HasCallStack =>
                 SLoc -> Expr -> Sigma -> Rho -> T Expr
 --subsCheckRho _ e1 t1 t2 | trace ("subsCheckRho: " ++ {-showExpr e1 ++ " :: " ++ -} showEType t1 ++ " = " ++ showEType t2) False = undefined
 subsCheckRho loc exp1 sigma1@(EForall _ _) rho2 = do -- Rule SPEC
@@ -2148,13 +2150,13 @@ subsCheckRho loc exp1 tau1 tau2 = do  -- Rule MONO
   unify loc tau1 tau2 -- Revert to ordinary unification
   return exp1
 
-subsCheckFun :: --XHasCallStack =>
+subsCheckFun :: HasCallStack =>
                 SLoc -> Expr -> Sigma -> Rho -> Sigma -> Rho -> T Expr
 subsCheckFun loc e1 a1 r1 a2 r2 = do
   _ <- subsCheck loc undefined a2 a1   -- XXX
   subsCheckRho loc e1 r1 r2
 
-instSigma :: --XHasCallStack =>
+instSigma :: HasCallStack =>
              SLoc -> Expr -> Sigma -> Expected -> T Expr
 instSigma loc e1 t1 (Check t2) = do
 --  traceM ("instSigma: Check " ++ showEType t1 ++ " = " ++ showEType t2)
@@ -2186,7 +2188,7 @@ expandDict edict acn = do
       insts <- concat <$> mapM (\ (i, sup) -> expandDict (EVar (mkSuperSel iCls i) `EApp` edict) sup) (zip [1 ..] sups')
       return $ (edict, [], [], cn, fds) : insts
 
-mkSuperSel :: --XHasCallStack =>
+mkSuperSel :: HasCallStack =>
               Ident -> Int -> Ident
 mkSuperSel c i = addIdentSuffix c ("$super" ++ show i)
 

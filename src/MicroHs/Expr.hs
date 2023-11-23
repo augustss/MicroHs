@@ -123,7 +123,7 @@ data Listish
   | LFromThenTo Expr Expr Expr
   --deriving(Show, Eq)
 
-conIdent :: --XHasCallStack =>
+conIdent :: HasCallStack =>
             Con -> Ident
 conIdent (ConData _ i) = i
 conIdent (ConNew i) = i
@@ -358,7 +358,7 @@ eqEType = eqExpr
 
 -- Very partial implementation of Expr equality.
 -- It is only used to compare instances, so this suffices.
-eqExpr :: --XHasCallStack =>
+eqExpr :: HasCallStack =>
           Expr -> Expr -> Bool
 eqExpr (EVar i) (EVar i') = i == i'
 eqExpr (EVar _) (EApp _ _) = False
@@ -444,8 +444,9 @@ setSLocCon l (ConData ti i) = ConData ti (setSLocIdent l i)
 setSLocCon l (ConNew i) = ConNew (setSLocIdent l i)
 setSLocCon _ c = c
 
-errorMessage :: --XHasCallStack =>
-                forall a . SLoc -> String -> a
+errorMessage :: forall a .
+                HasCallStack =>
+                SLoc -> String -> a
 errorMessage loc msg = error $ showSLoc loc ++ ": " ++ msg
 
 ----------------
