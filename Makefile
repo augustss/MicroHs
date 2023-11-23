@@ -1,7 +1,7 @@
 # installation prefix
 PREFIX=/usr/local
 #
-CCWARNS= -Wall -Wno-deprecated-declarations
+CCWARNS= -Wall
 CCOPTS= -O3
 CCLIBS= -lm
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) src/runtime/eval.c $(CCLIBS)

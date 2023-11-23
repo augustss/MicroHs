@@ -1,4 +1,4 @@
-module Example(main) where
+module Example(fac, main) where
 import Prelude
 
 fac :: Int -> Int
