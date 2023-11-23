@@ -11,7 +11,7 @@ module MicroHs.StateIO(
 import Prelude
 import Control.Applicative
 import Control.Monad
-import Data.Functor --Xhiding(unzip)
+import Data.Functor hiding(unzip)
 
 data StateIO s a = S (s -> IO (a,s))
 

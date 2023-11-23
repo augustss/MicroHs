@@ -34,7 +34,8 @@ module MicroHs.Expr(
   getBindsVars,
   HasLoc(..),
   ) where
-import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..), (<$>), (<>))
+import Prelude hiding ((<>))
+import Data.List
 import Data.Maybe
 import MicroHs.Ident
 import Text.PrettyPrint.HughesPJ
@@ -549,8 +550,9 @@ ppExpr :: Expr -> Doc
 ppExpr ae =
   case ae of
     EVar i | isOperChar cop -> parens (text op)
-           | otherwise      -> text op
+           | otherwise      -> text s
              where op = unIdent (unQualIdent i)
+                   s = if "inst$" `isPrefixOf` op then unIdent i else op
                    cop = head op
     EApp _ _ -> ppApp [] ae
     EOper e ies -> ppExpr (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)

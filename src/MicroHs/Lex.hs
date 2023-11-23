@@ -2,7 +2,7 @@ module MicroHs.Lex(
   lexTop,
   Token(..), showToken,
   tokensLoc) where
-import Prelude --Xhiding(lex)
+import Prelude hiding(lex)
 import Data.Char
 import Data.List
 import Compat

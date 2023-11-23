@@ -13,7 +13,7 @@ module MicroHs.Exp(
   allVarsExp, freeVars,
   encodeList,
   ) where
-import Prelude --Xhiding((<>))
+import Prelude hiding((<>))
 import Data.Char
 import Data.List
 import MicroHs.Ident
