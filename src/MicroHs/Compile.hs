@@ -26,7 +26,7 @@ data Flags = Flags
   String     -- output file
   Bool       -- show loading message
   Bool       -- separate compilation
-  --Xderiving (Show)
+  deriving (Show)
 
 type Time = Int
 
@@ -52,7 +52,7 @@ compileOnly (Flags _ _ _ _ _ x) = x
 
 type CModule = TModule [LDef]
 data Cache = Cache [IdentModule] (M.Map CModule)
-  --Xderiving (Show)
+  deriving (Show)
 
 --Xinstance NFData Cache where rnf _ = ()  -- dummy instance
 

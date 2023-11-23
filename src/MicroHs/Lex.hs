@@ -18,7 +18,7 @@ data Token
   | TError  Loc String
   | TBrace  Loc
   | TIndent Loc
-  --Xderiving (Show)
+  deriving (Show)
 
 showToken :: Token -> String
 showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])

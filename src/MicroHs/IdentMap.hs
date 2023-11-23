@@ -26,7 +26,7 @@ data Map a
     Ident          -- key stored in the node
     a              -- element stored in the node
     (Map a)        -- right subtree
-  --Xderiving(Show)
+  deriving(Show)
 
 empty :: forall a . Map a
 empty = Nil

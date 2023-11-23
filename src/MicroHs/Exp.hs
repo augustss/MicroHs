@@ -476,9 +476,9 @@ allVarsExp ae =
 -- Oleg's abstraction algorithm
 
 data Peano = S Peano | Z
-  --Xderiving (Show)
+  deriving (Show)
 data DB = N Peano | L DB | A DB DB | Free Ident | K Lit
-  --Xderiving (Show)
+  deriving (Show)
 
 index :: Ident -> [Ident] -> Maybe Peano
 index x xs = lookupBy eqIdent x $ zip xs $ iterate S Z

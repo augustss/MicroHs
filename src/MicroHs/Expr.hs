@@ -47,14 +47,14 @@ type IdentModule = Ident
 ----------------------
 
 data EModule = EModule IdentModule [ExportItem] [EDef]
-  --Xderiving (Show)
+  deriving (Show)
 
 data ExportItem
   = ExpModule IdentModule
   | ExpTypeCon Ident
   | ExpType Ident
   | ExpValue Ident
-  --Xderiving (Show)
+  deriving (Show)
 
 data EDef
   = Data LHS [Constr]
@@ -68,16 +68,16 @@ data EDef
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance [IdKind] [EConstraint] EConstraint [EBind]  -- no deriving yet
   | Default [EType]
-  --Xderiving (Show)
+  deriving (Show)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
-  --Xderiving (Show)
+  deriving (Show)
 
 data ImportItem
   = ImpTypeCon Ident
   | ImpType Ident
   | ImpValue Ident
-  --Xderiving (Show)
+  deriving (Show)
 
 data Expr
   = EVar Ident
@@ -114,7 +114,7 @@ data Con
   = ConData ConTyInfo Ident
   | ConNew Ident
   | ConLit SLoc Lit
-  --Xderiving(Show)
+  deriving(Show)
 
 data Listish
   = LList [Expr]
@@ -151,7 +151,7 @@ data Lit
   | LStr String
   | LPrim String
   | LForImp String
-  --Xderiving (Show)
+  deriving (Show)
 --Xinstance NFData Lit where rnf (LInt i) = rnf i; rnf (LInteger i) = rnf i; rnf (LDouble d) = rnf d; rnf (LRat r) = rnf r; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LForImp s) = rnf s
 
 instance Eq Lit where
@@ -168,17 +168,17 @@ instance Eq Lit where
 type ECaseArm = (EPat, EAlts)
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
-  --Xderiving (Show)
+  deriving (Show)
 
 data EBind = BFcn Ident [Eqn] | BPat EPat Expr | BSign Ident EType
-  --Xderiving (Show)
+  deriving (Show)
 
 -- A single equation for a function
 data Eqn = Eqn [EPat] EAlts
-  --Xderiving (Show)
+  deriving (Show)
 
 data EAlts = EAlts [EAlt] [EBind]
-  --Xderiving (Show)
+  deriving (Show)
 
 type EAlt = ([EStmt], Expr)
 
@@ -205,7 +205,7 @@ data Constr = Constr
   [IdKind] [EConstraint]          -- existentials: forall vs . ctx =>
   Ident                           -- constructor name
   (Either [SType] [ConstrField])  -- types or named fields
-  --Xderiving(Show)
+  deriving(Show)
 
 type ConstrField = (Ident, SType)              -- record label and type
 type SType = (Bool, EType)                     -- the Bool indicates strict
@@ -325,7 +325,7 @@ instance HasLoc EAlt where
 ---------------------------------
 
 data Assoc = AssocLeft | AssocRight | AssocNone
-  --Xderiving (Show)
+  deriving (Show)
 
 instance Eq Assoc where
   AssocLeft  == AssocLeft  = True

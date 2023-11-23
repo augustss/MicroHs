@@ -338,7 +338,7 @@ runS loc used ss mtrx =
   in evalState (ds [] ss) supply
 
 data SPat = SPat Con [Ident]    -- simple pattern
-  --Xderiving(Show, Eq)
+  deriving(Show, Eq)
 
 -- Desugar a pattern matrix.
 -- The input is a (usually identifier) vector e1, ..., en

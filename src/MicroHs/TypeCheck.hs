@@ -68,7 +68,7 @@ data TModule a = TModule
   [InstDef]       -- all instances
   [ValueExport]   -- exported values (including from T(..))
   a               -- bindings
-  --Xderiving (Show)
+  deriving (Show)
 
 bindingsOf :: forall a . TModule a -> a
 bindingsOf (TModule _ _ _ _ _ _ _ a) = a
@@ -77,12 +77,12 @@ data TypeExport = TypeExport
   Ident           -- unqualified name
   Entry           -- symbol table entry
   [ValueExport]   -- associated values, i.e., constructors, selectors, methods
-  --Xderiving (Show)
+  deriving (Show)
 
 data ValueExport = ValueExport
   Ident           -- unqualified name
   Entry           -- symbol table entry
-  --Xderiving (Show)
+  deriving (Show)
 
 type FixDef = (Ident, Fixity)
 type SynDef = (Ident, EType)
@@ -96,7 +96,7 @@ type IFunDep = ([Bool], [Bool])           -- the length of the lists is the numb
 data Entry = Entry
   Expr             -- convert (EVar i) to this expression; sometimes just (EVar i)
   EType            -- type/kind of identifier
-  --Xderiving(Show)
+  deriving(Show)
 
 instance Eq Entry where
   Entry x _ == Entry y _  =  getIdent x == getIdent y
@@ -130,7 +130,7 @@ data InstInfo = InstInfo
        (M.Map Expr)               -- map for direct lookup of atomic types
        [InstDict]                 -- slow path
        [IFunDep]
-  --Xderiving (Show)
+  deriving (Show)
 
 -- This is the dictionary expression, instance variables, instance context,
 -- and instance.
@@ -391,10 +391,10 @@ data TCState = TC
    TypeEqTable)         -- type equalities
   Constraints           -- constraints that have to be solved
   Defaults              -- current defaults
-  --Xderiving (Show)
+  deriving (Show)
 
 data TCMode = TCExpr | TCType
-  --Xderiving (Show)
+  deriving (Show)
 
 typeTable :: TCState -> TypeTable
 typeTable (TC _ _ _ tt _ _ _ _ _ _ _ _ _) = tt
@@ -1344,7 +1344,7 @@ tcKind e = fst <$> withTypeTable (tcType (Just kType) e)
 -- and can then be read of (using tGetRefType).
 -- When checking, the expected type is simple given.
 data Expected = Infer TRef | Check EType
-  --Xderiving(Show)
+  deriving(Show)
 
 tInfer :: forall a b . --XHasCallStack =>
           (Expected -> a -> T b) -> a -> T (Typed b)
@@ -2442,7 +2442,7 @@ eqTyTy (t1, t2) (u1, u2) = eqEType t1 u1 && eqEType t2 u2
 ---------------------
 
 data SymTab a = SymTab (M.Map [a]) [(Ident, a)]
-  --Xderiving(Show)
+  deriving(Show)
   
 stLookup :: --forall a . --XShow a =>
             String -> Ident -> SymTab Entry -> Either String Entry
