@@ -17,7 +17,7 @@ import MicroHs.Expr
 import MicroHs.Ident
 import MicroHs.Parse
 import MicroHs.TypeCheck
---Ximport Compat
+import Compat
 
 data Flags = Flags
   Int        -- verbosity level

@@ -9,7 +9,7 @@ import Text.ParserComb as P
 import MicroHs.Lex
 import MicroHs.Expr
 import MicroHs.Ident
---Ximport Compat
+import Compat
 
 type P a = Prsr FilePath Token a
 

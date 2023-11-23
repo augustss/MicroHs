@@ -23,9 +23,9 @@ import MicroHs.TCMonad as T
 import qualified MicroHs.IdentMap as M
 import MicroHs.Ident
 import MicroHs.Expr
---Ximport Compat
---Ximport GHC.Stack
---Ximport Debug.Trace
+import Compat
+import GHC.Stack
+import Debug.Trace
 
 boolPrefix :: String
 boolPrefix = "Data.Bool_Type."

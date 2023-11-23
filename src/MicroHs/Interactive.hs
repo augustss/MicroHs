@@ -1,7 +1,6 @@
 module MicroHs.Interactive(module MicroHs.Interactive) where
 import Prelude
---Ximport Data.List
---import Control.DeepSeq
+import Data.List
 import Control.Exception
 import MicroHs.StateIO
 import MicroHs.Compile
@@ -11,7 +10,7 @@ import MicroHs.Parse
 import MicroHs.Translate
 import Unsafe.Coerce
 import System.Console.SimpleReadline
---Ximport Compat
+import Compat
 
 type IState = (String, Flags, Cache)
 

@@ -8,9 +8,9 @@ import Data.Maybe
 import qualified MicroHs.IdentMap as M
 import System.Environment
 import Unsafe.Coerce
---Ximport GHC.Types
---Ximport Compat
---Ximport PrimTable
+import GHC.Types
+import Compat
+import PrimTable
 
 import MicroHs.Desugar(LDef, encodeInteger)
 import MicroHs.Expr

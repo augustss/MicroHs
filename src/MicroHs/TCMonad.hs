@@ -9,12 +9,12 @@ module MicroHs.TCMonad(
   when,
   tcError
   ) where
---Ximport Control.Monad hiding(ap)
---Ximport Data.Functor.Identity
---Ximport GHC.Stack
+import Control.Monad
+import Data.Functor.Identity
+import GHC.Stack
 import Data.Char  -- for String
 import Control.Applicative
-import Control.Monad.State.Strict --Xhiding(ap)
+import Control.Monad.State.Strict
 import Data.Functor
 import MicroHs.Ident
 import MicroHs.Expr

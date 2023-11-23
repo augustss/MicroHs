@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 module MicroHs.Main(main) where
 import Prelude
---Ximport Data.List
+import Data.List
 import Control.DeepSeq
 import Control.Monad
 import Data.Maybe
@@ -18,7 +18,7 @@ import MicroHs.MakeCArray
 import System.Directory
 import System.IO
 import System.Process
---Ximport Compat
+import Compat
 
 -- Version number of combinator file.
 -- Must match version in eval.c.

@@ -13,7 +13,7 @@ module MicroHs.Graph (
   SCC(..)
   ) where
 import Prelude
---Ximport Compat
+import Compat
 
 import qualified Data.IntSet as IS
 import qualified Data.IntMap as IM

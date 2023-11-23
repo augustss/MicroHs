@@ -20,8 +20,8 @@ import Data.Eq
 import Prelude
 import Data.Char
 import Text.PrettyPrint.HughesPJ
---Ximport Control.DeepSeq
---Ximport GHC.Stack
+import Control.DeepSeq
+import GHC.Stack
 
 type Line = Int
 type Col  = Int

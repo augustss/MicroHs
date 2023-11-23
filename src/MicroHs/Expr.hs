@@ -38,8 +38,8 @@ import Prelude --Xhiding (Monad(..), Applicative(..), MonadFail(..), Functor(..)
 import Data.Maybe
 import MicroHs.Ident
 import Text.PrettyPrint.HughesPJ
---Ximport GHC.Stack
---Ximport Control.DeepSeq
+import GHC.Stack
+import Control.DeepSeq
 
 type IdentModule = Ident
 

@@ -5,7 +5,7 @@ module MicroHs.Lex(
 import Prelude --Xhiding(lex)
 import Data.Char
 import Data.List
---Ximport Compat
+import Compat
 import MicroHs.Ident
 
 data Token
