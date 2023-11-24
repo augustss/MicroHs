@@ -42,7 +42,7 @@ main = do
                   ("." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args))
                   (head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"])
                   (elem "-l" args)
-                  (elem "-c" args)
+                  (elem "-c" args && usingMhs)
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
    else
@@ -52,9 +52,20 @@ main = do
       _   -> error "Usage: mhs [-v] [-l] [-r] [-c] [-iPATH] [-oFILE] [ModuleName]"
 
 mainCompile :: FilePath -> Flags -> Ident -> IO ()
-mainCompile mhsdir flags mn | compileOnly flags = compileAndSave flags mn
-                            | otherwise = do
-  ds <- compileTop flags mn
+mainCompile mhsdir flags mn = do
+  ds <- if useCache flags then do
+          cash <- getCached flags
+          (ds, cash') <- compileCacheTop flags mn cash
+          when (verbose flags > 0) $
+            putStrLn "Saving cache"
+          () <- seq (rnf cash') (return ())
+          hout <- openFile (output flags) WriteMode
+          hSerialize hout cash'
+          hClose hout
+          return ds
+        else
+          fst <$> compileCacheTop flags mn emptyCache
+
   t1 <- getTimeMilli
   let
     mainName = qualIdent mn (mkIdent "main")
@@ -91,7 +102,7 @@ mainCompile mhsdir flags mn | compileOnly flags = compileAndSave flags mn
     t2 <- getTimeMilli
     when (verbose flags > 0) $
       putStrLn $ "final pass            " ++ padLeft 6 (show (t2-t1)) ++ "ms"
-    
+
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
     --  * file ends in .c: write C version of combinator
@@ -117,6 +128,7 @@ mainCompile mhsdir flags mn | compileOnly flags = compileAndSave flags mn
        when (verbose flags > 0) $
          putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"
 
+{-
 compileAndSave :: Flags -> Ident -> IO ()
 compileAndSave flags mn = do
 --  putStrLn "Start"
@@ -128,3 +140,4 @@ compileAndSave flags mn = do
   hSerialize hout cache
 --  putStrLn "write done"
   hClose hout
+-}

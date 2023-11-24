@@ -20,13 +20,11 @@ runStateIO sa =
   case sa of
     S x -> x
 
-{-
 execStateIO :: forall s a . StateIO s a -> s -> IO s
 execStateIO sa s = do
   as <- runStateIO sa s
   case as of
     (_, ss) -> return ss
--}
 
 instance forall s . Functor (StateIO s) where
   fmap f sa = S $ \ s -> do

@@ -1,9 +1,9 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.Compile(
-  compileTop,
-  Flags(..), verbose, runIt, output, compileOnly,
-  compileCacheTop, getCachedPrelude,
+  compileCacheTop,
+  Flags(..), verbose, runIt, output, useCache,
+  getCached,
   Cache, emptyCache, deleteFromCache,
   ) where
 import Prelude
@@ -29,7 +29,7 @@ data Flags = Flags
   [String]   -- module search path
   String     -- output file
   Bool       -- show loading message
-  Bool       -- separate compilation
+  Bool       -- use caching
   deriving (Show)
 
 type Time = Int
@@ -49,10 +49,8 @@ output (Flags _ _ _ x _ _) = x
 loading :: Flags -> Bool
 loading (Flags _ _ _ _ x _) = x
 
-compileOnly :: Flags -> Bool
-compileOnly (Flags _ _ _ _ _ x) = x
-
------------------
+useCache :: Flags -> Bool
+useCache (Flags _ _ _ _ _ x) = x
 
 -----------------
 
@@ -72,25 +70,19 @@ compileCacheTop flags mn ch = do
     putStrLn $ "combinators:\n" ++ showLDefs dsn
   return (dsn, ch')
 
-getCachedPrelude :: Flags -> IO Cache
-getCachedPrelude _ | not usingMhs = return emptyCache
-getCachedPrelude flags = do
-  mhin <- openFileM "cache/Prelude.comb" ReadMode
+getCached :: Flags -> IO Cache
+getCached flags | not (useCache flags) = return emptyCache
+getCached flags = do
+  mhin <- openFileM ".mhscache" ReadMode
   case mhin of
     Nothing -> return emptyCache
     Just hin -> do
 --      putStrLn "deserialize cache"
-      cach <- hDeserialize hin
+      cash <- hDeserialize hin
       hClose hin
       when (loading flags || verbose flags > 0) $
-        putStrLn "loaded cached Prelude"
-      return cach
-
---compileTop :: Flags -> IdentModule -> IO [LDef]
-compileTop :: Flags -> Ident -> IO [(Ident, Exp)]
-compileTop flags mn = do
-  cach <- getCachedPrelude flags
-  fst <$> compileCacheTop flags mn cach
+        putStrLn "loaded saved cache"
+      validateCache cash
 
 compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)
 compile flags nm ach = do
@@ -160,6 +152,12 @@ compileModule flags nm = do
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   let cmdl = CModule dmdl imported chksum
   return (cmdl, t2-t1, t4-t3, sum ts)
+
+validateCache :: Cache -> IO Cache
+validateCache cash = execStateIO (mapM_ validate (M.elems (cache cash))) cash
+  where
+    validate :: CModule -> StateIO Cache ()
+    validate _ = return ()
 
 ------------------
 

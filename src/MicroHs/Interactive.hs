@@ -22,8 +22,8 @@ mainInteractive (Flags a b c d _ f) = do
     error "Interactive mhs not available when compiled with ghc"
   putStrLn "Welcome to interactive MicroHs!"
   let flags' = Flags a b c d True f
-  cach <- getCachedPrelude flags'
-  _ <- runStateIO start (preamble, flags', cach)
+  cash <- getCached flags'
+  _ <- runStateIO start (preamble, flags', cash)
   return ()
 
 preamble :: String
