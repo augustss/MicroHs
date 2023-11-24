@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 module System.IO.MD5(md5file) where
 import Primitives(primUnsafeCoerce)
 import Prelude
