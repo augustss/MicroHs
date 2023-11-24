@@ -129,6 +129,7 @@ primTable = [
   ("dynsym", primitive "dynsym"),
   ("newCAString", primitive "newCAString"),
   ("peekCAString", primitive "peekCAString"),
+  ("peekCAStringLen", primitive "peekCAStringLen"),
   ("toInt", primitive "toInt"),
   ("toPtr", primitive "toPtr"),
   ("toDbl", primitive "toDbl")

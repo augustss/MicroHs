@@ -18,6 +18,10 @@
 #include <math.h>
 #endif  /* WANT_MATH */
 
+#if WANT_MD5
+#include "md5.h"
+#endif
+
 #define VERSION "v5.1\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
@@ -101,7 +105,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
                 T_IO_CCALL, T_DYNSYM,
-                T_NEWCASTRING, T_PEEKCASTRING,
+                T_NEWCASTRING, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_STR,
                 T_LAST_TAG,
 };
@@ -122,7 +126,7 @@ const char* tag_names[] = {
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGS", "IO_DROPARGS",
   "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "IO_CATCH",
   "IO_CCALL", "DYNSYM",
-  "NEWCASTRING", "PEEKCASTRING",
+  "NEWCASTRING", "PEEKCASTRING", "PEEKCASTRINGLEN",
   "STR",
   "LAST_TAG",
 };
@@ -618,6 +622,7 @@ struct {
   { "dynsym", T_DYNSYM },
   { "newCAString", T_NEWCASTRING },
   { "peekCAString", T_PEEKCASTRING },
+  { "peekCAStringLen", T_PEEKCASTRINGLEN },
   { "toPtr", T_TOPTR },
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
@@ -887,7 +892,7 @@ struct {
   const funptr_t ffi_fun;
   enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI,
     FFI_i, FFI_Pi, FFI_iPi,
-    FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP
+    FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP, FFI_PPV,
   } ffi_how;
 } ffi_table[] = {
   { "llabs",    (funptr_t)llabs,   FFI_II },
@@ -918,6 +923,11 @@ struct {
   { "unlink",   (funptr_t)unlink,  FFI_Pi },
   { "system",   (funptr_t)system,  FFI_Pi },
 #endif  /* WANT_STDIO */
+
+#if WANT_MD5
+  { "md5File",  (funptr_t)md5File, FFI_PPV },
+#endif
+
   //  { "getArgs",   (funptr_t)getArgs,  FFI_A },
   { "getTimeMilli",(funptr_t)GETTIMEMILLI,  FFI_I },
   { "free",     (funptr_t)free,    FFI_PV },
@@ -1431,6 +1441,7 @@ printrec(FILE *f, NODEPTR n)
   case T_DYNSYM: fprintf(f, "dynsym"); break;
   case T_NEWCASTRING: fprintf(f, "newCAString"); break;
   case T_PEEKCASTRING: fprintf(f, "peekCAString"); break;
+  case T_PEEKCASTRINGLEN: fprintf(f, "peekCAStringLen"); break;
   case T_TOINT: fprintf(f, "toInt"); break;
   case T_TOPTR: fprintf(f, "toPtr"); break;
   case T_TODBL: fprintf(f, "toDbl"); break;
@@ -1523,9 +1534,10 @@ strNodes(size_t len)
 
 /* Turn a C string into a combinator string */
 NODEPTR
-mkString(const char *str, size_t len)
+mkString(const char *astr, size_t len)
 {
   NODEPTR n, nc;
+  const unsigned char *str = (unsigned char*)astr; /* no sign bits, please */
 
   n = mkNil();
   for(size_t i = len; i > 0; i--) {
@@ -1995,6 +2007,7 @@ eval(NODEPTR n)
     case T_IO_CATCH:
     case T_NEWCASTRING:
     case T_PEEKCASTRING:
+    case T_PEEKCASTRINGLEN:
       RET;
 
     case T_DYNSYM:
@@ -2180,6 +2193,7 @@ execio(NODEPTR n)
         case FFI_PP:  FFI (1); xp = PTRARG(1);                 rp = (*(void*   (*)(void*           ))f)(xp);    n = mkPtr(rp); RETIO(n);
         case FFI_PV:  FFI (1); xp = PTRARG(1);                      (*(void    (*)(void*           ))f)(xp);                   RETIO(combUnit);
         case FFI_PPI: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(void*, void*    ))f)(xp,yp); n = mkInt(ri); RETIO(n);
+        case FFI_PPV: FFI (2); xp = PTRARG(1);yp = PTRARG(2);       (*(void    (*)(void*, void*    ))f)(xp,yp);                RETIO(combUnit);
         case FFI_PPP: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  rp = (*(void*   (*)(void*, void*    ))f)(xp,yp); n = mkPtr(rp); RETIO(n);
         case FFI_IPI: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(value_t, void*  ))f)(xi,yp); n = mkInt(ri); RETIO(n);
         case FFI_iPi: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(int     (*)(int,   void*    ))f)(xi,yp); n = mkInt(ri); RETIO(n);
@@ -2225,10 +2239,22 @@ execio(NODEPTR n)
       RETIO(n);
 
     case T_PEEKCASTRING:
+      {
       CHECKIO(1);
       name = evalptr(ARG(TOP(1)));
-      GCCHECK(strNodes(strlen(name)));
-      RETIO(mkStringC(name));
+      size_t size = strlen(name);
+      GCCHECK(strNodes(size));
+      RETIO(mkString(name, size));
+      }
+
+    case T_PEEKCASTRINGLEN:
+      {
+      CHECKIO(2);
+      size_t size = evalint(ARG(TOP(2)));
+      name = evalptr(ARG(TOP(1)));
+      GCCHECK(strNodes(size));
+      RETIO(mkString(name, size));
+      }
 
     default:
       ERR1("execio tag %d", GETTAG(n));

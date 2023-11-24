@@ -4,7 +4,7 @@ PREFIX=/usr/local
 CCWARNS= -Wall
 CCOPTS= -O3
 CCLIBS= -lm
-CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) src/runtime/eval.c $(CCLIBS)
+CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) src/runtime/eval.c src/runtime/md5.c $(CCLIBS)
 #
 GHC= ghc
 GHCINCS= -ighc -isrc
@@ -24,7 +24,7 @@ all:	bin/mhs
 
 newmhs:	ghcgen
 	$(CCEVAL) generated/mhs.c -o bin/mhs
-	$(CC) $(CCWARNS) -g src/runtime/eval.c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
+	$(CC) $(CCWARNS) -g src/runtime/eval.c src/runtime/md5.c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
 
 # Compile mhs from distribution, with C compiler
 bin/mhs:	src/runtime/eval.c src/runtime/config*.h #generated/mhs.c

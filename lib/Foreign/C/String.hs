@@ -1,7 +1,7 @@
 module Foreign.C.String(
   CChar, CString,
   newCAString, withCAString,
-  peekCAString,
+  peekCAString, peekCAStringLen,
   ) where
 import Primitives
 import Data.Char_Type
@@ -9,6 +9,7 @@ import Foreign.Marshal.Alloc
 
 type CChar = Char
 type CString = Ptr CChar
+type CStringLen = (Ptr CChar, Int)
 
 newCAString :: String -> IO CString
 newCAString = primNewCAString
@@ -22,3 +23,6 @@ withCAString s io =
 
 peekCAString :: CString -> IO String
 peekCAString = primPeekCAString
+
+peekCAStringLen :: CStringLen -> IO String
+peekCAStringLen (p, i) = primPeekCAStringLen p i

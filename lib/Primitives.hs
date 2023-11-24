@@ -199,6 +199,9 @@ primNewCAString = primitive "newCAString"
 primPeekCAString :: Ptr Char -> IO [Char]
 primPeekCAString = primitive "peekCAString"
 
+primPeekCAStringLen :: Ptr Char -> Int -> IO [Char]
+primPeekCAStringLen = primitive "peekCAStringLen"
+
 primWordToPtr :: forall a . Word -> Ptr a
 primWordToPtr = primitive "toPtr"
 
