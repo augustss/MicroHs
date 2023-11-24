@@ -7,7 +7,9 @@ module MicroHs.Compile(
   Cache, emptyCache, deleteFromCache,
   ) where
 import Prelude
+import Data.Maybe
 import System.IO
+import System.IO.MD5
 import Control.DeepSeq
 import MicroHs.CompileCache
 import MicroHs.Desugar
@@ -95,7 +97,7 @@ compile flags nm ach = do
   ((_, t), ch) <- runStateIO (compileModuleCached flags nm) ach
   when (verbose flags > 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (show t) ++ "ms"
-  return (concatMap bindingsOf $ M.elems $ cache ch, ch)
+  return (concatMap bindingsOf $ map tModuleOf $ M.elems $ cache ch, ch)
 
 -- Compile a module with the given name.
 -- If the module has already been compiled, return the cached result.
@@ -116,8 +118,8 @@ compileModuleCached flags mn = do
                  "ms (" ++ show tp ++ " + " ++ show tt ++ ")"
       when (loading flags && mn /= mkIdent "Interactive") $
         liftIO $ putStrLn $ "loaded " ++ showIdent mn
-      c <- get
-      put $ Cache (tail (working c)) (M.insert mn cm (cache c))
+      cash <- get
+      put $ workToDone cm cash
       return (cm, tp + tt + ts)
     Just cm -> do
       when (verbose flags > 0) $
@@ -132,6 +134,9 @@ compileModule flags nm = do
   let
     fn = map (\ c -> if c == '.' then '/' else c) (unIdent nm) ++ ".hs"
   (pathfn, file) <- liftIO (readFilePath (getSLoc nm) (paths flags) fn)
+  mchksum <- liftIO (md5file pathfn)  -- XXX there is a small gap between reading and computing the checksum.
+  let chksum :: CheckSum
+      chksum = fromMaybe undefined mchksum
   let mdl@(EModule nmn _ defs) = parseDie pTop pathfn file
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
@@ -139,11 +144,12 @@ compileModule flags nm = do
     error $ "module name does not agree with file name: " ++ showIdent nm ++ " " ++ showIdent nmn
   let
     specs = [ s | Import s <- defs ]
+    imported = [ m | ImportSpec _ m _ _ <- specs ]
   t2 <- liftIO getTimeMilli
-  (impMdls, ts) <- fmap unzip $ mapM (compileModuleCached flags) [ m | ImportSpec _ m _ _ <- specs ]
+  (impMdls, ts) <- fmap unzip $ mapM (compileModuleCached flags) imported
   t3 <- liftIO getTimeMilli
   let
-    tmdl = typeCheck (zip specs impMdls) mdl
+    tmdl = typeCheck (zip specs (map tModuleOf impMdls)) mdl
   when (verbose flags > 2) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   let
@@ -152,7 +158,8 @@ compileModule flags nm = do
   t4 <- liftIO getTimeMilli
   when (verbose flags > 3) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
-  return (dmdl, t2-t1, t4-t3, sum ts)
+  let cmdl = CModule dmdl imported chksum
+  return (cmdl, t2-t1, t4-t3, sum ts)
 
 ------------------
 

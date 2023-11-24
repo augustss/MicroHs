@@ -4,5 +4,5 @@ module System.IO.MD5(md5file) where
 import Data.Word
 import System.IO
 
-md5file :: Handle -> IO (Maybe [Word])
-md5file _ = error "no MD with GHC"
+md5file :: FilePath -> IO (Maybe [Word])
+md5file _ = return (Just [])          -- dummy MD5
