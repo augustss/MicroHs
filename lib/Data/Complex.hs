@@ -29,15 +29,15 @@ cis theta        =  cos theta :+ sin theta
 polar            :: forall a . (RealFloat a) => Complex a -> (a,a)
 polar z          =  (magnitude z, phase z)
 
-magnitude :: forall a . (RealFloat a) => Complex a -> a
-magnitude (x:+y) = sqrt (x*x + y*y)
-{-
-                   scaleFloat k
-                     (sqrt (sqr (scaleFloat mk x) + sqr (scaleFloat mk y)))
-                    where k  = max (exponent x) (exponent y)
-                          mk = negate k
-                          sqr z = z * z
--}
+magnitude :: forall a . (Ord a, Floating a) => Complex a -> a
+magnitude (x:+y) =
+  -- slightly contorted to avoid overflow
+  let ax = abs x
+      ay = abs y
+      mx = max ax ay
+      mn = min ax ay
+      r = mn / mx
+  in  mx * sqrt(1 + r*r)
 
 phase :: forall a . (RealFloat a) => Complex a -> a
 -- XXX phase (0 :+ 0)   = 0
