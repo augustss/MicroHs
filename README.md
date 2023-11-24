@@ -176,8 +176,8 @@ There is a number of subdirectories:
 * `bin/` executables are put here
 * `generated/` this contains the (machine generated) combinator file for the compiler.
 * `lib/` this contains the `Prelude` and other base library file.
-* `src/MicroHs` the compiler source
-* `src/runtime` the runtime source
+* `src/MicroHs/` the compiler source
+* `src/runtime/` the runtime source
 * `tests/` some tests
 
 ## Runtime
