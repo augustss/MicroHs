@@ -10,9 +10,7 @@ There are two different ways to compile MicroHs
 * Using the included combinator file and runtime.  `Makefile` target `bin/mhs`
 
 These different ways of compiling need slightly different imports etc.
-To accomodate this each source file is preprocessed for the first target.
-When compiling with GHC the string `--X` is removed from the source file.
-This way anything special needed with GHC is just treated as comments by mhs.
+This happens by GHC looking in the `ghc/` subdirectory first for any extras/overrides.
 
 Compiling MicroHs is really best done using `make`, but there is also a `MicroHs.cabal` file
 for use with `cabal`.  This only builds what corresponds to the first target.
@@ -21,6 +19,8 @@ Also note that there is no need to have a Haskell compiler to run MicroHs.
 All you need is a C compiler, and MicroHs can bootstrap, given the included combinator file.
 
 To install `mhs` use `make install`.  You also need to set the environment variable `MHSDIR`.
+
+To compile on Windows make sure `cl` is in the path, and then use `nmake` with `Makefile.windows`.
 
 ## Language
 The language is an extended subset of Haskell-98.
@@ -169,6 +169,16 @@ Available commands:
 If the file changes and you import it again it will not reload.
 You can use `:clear` (or `:reload`) to get back to an empty cache.
 This is a bug.
+
+## Files
+There is a number of subdirectories:
+* `Tools/` a few useful tools for compressions etc.
+* `bin/` executables are put here
+* `generated/` this contains the (machine generated) combinator file for the compiler.
+* `lib/` this contains the `Prelude` and other base library file.
+* `src/MicroHs` the compiler source
+* `src/runtime` the runtime source
+* `tests/` some tests
 
 ## Runtime
 The runtime system is written in C and is in `src/runtime/eval.c`.
