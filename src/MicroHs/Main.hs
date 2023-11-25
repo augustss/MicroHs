@@ -57,9 +57,9 @@ mainCompile mhsdir flags mn = do
           cash <- getCached flags
           (ds, cash') <- compileCacheTop flags mn cash
           when (verbose flags > 0) $
-            putStrLn "Saving cache"
+            putStrLn $ "Saving cache " ++ show mhsCacheName
           () <- seq (rnf cash') (return ())
-          hout <- openFile (output flags) WriteMode
+          hout <- openFile mhsCacheName WriteMode
           hSerialize hout cash'
           hClose hout
           return ds

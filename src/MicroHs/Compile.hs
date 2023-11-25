@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module MicroHs.Compile(
   compileCacheTop,
+  mhsCacheName,
   Flags(..), verbose, runIt, output, useCache,
   getCached,
   Cache, emptyCache, deleteFromCache,
@@ -22,6 +23,9 @@ import MicroHs.StateIO
 import MicroHs.TypeCheck
 import Compat
 import MicroHs.Instances() -- for ghc
+
+mhsCacheName :: FilePath
+mhsCacheName = ".mhscache"
 
 data Flags = Flags
   Int        -- verbosity level
@@ -73,15 +77,15 @@ compileCacheTop flags mn ch = do
 getCached :: Flags -> IO Cache
 getCached flags | not (useCache flags) = return emptyCache
 getCached flags = do
-  mhin <- openFileM ".mhscache" ReadMode
+  mhin <- openFileM mhsCacheName ReadMode
   case mhin of
     Nothing -> return emptyCache
     Just hin -> do
+      when (loading flags || verbose flags > 0) $
+        putStrLn $ "Loading saved cache " ++ show mhsCacheName
 --      putStrLn "deserialize cache"
       cash <- hDeserialize hin
       hClose hin
-      when (loading flags || verbose flags > 0) $
-        putStrLn "loaded saved cache"
       validateCache flags cash
 
 compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)
@@ -161,7 +165,7 @@ validateCache flags cash = execStateIO (mapM_ validate (M.keys (cache cash))) ca
       when b $ do
         -- It's still in the cache, so invalidate it, and all modules that import it
         when (verbose flags > 0) $
-          liftIO $ putStrLn $ "invalidate " ++ show mn
+          liftIO $ putStrLn $ "invalidate cached " ++ show mn
         modify (deleteFromCache mn)
         mapM_ invalidate $ fromMaybe [] $ M.lookup mn deps
     validate :: IdentModule -> StateIO Cache ()
