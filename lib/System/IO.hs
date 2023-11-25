@@ -46,6 +46,7 @@ foreign import ccall "fclose"       c_fclose       :: Handle             -> IO I
 foreign import ccall "fflush"       c_fflush       :: Handle             -> IO Int
 foreign import ccall "fgetc"        c_fgetc        :: Handle             -> IO Int
 foreign import ccall "fputc"        c_fputc        :: Int ->     Handle  -> IO Int
+foreign import ccall "fwrite"       c_fwrite       :: CString -> Int -> Int -> Handle -> IO Int
 foreign import ccall "getTimeMilli" c_getTimeMilli ::                       IO Int
 
 ----------------------------------------------------------
@@ -158,6 +159,19 @@ writeFile p s = do
   h <- openFile p WriteMode
   hPutStr h s
   hClose h
+
+-- Faster, but uses a lot more C memory.
+-- It also holds not GC friendly.
+writeFileFast :: FilePath -> String -> IO ()
+writeFileFast p s = do
+  h <- openFile p WriteMode
+  cs <- newCAString s
+  let l = length s
+  n <- c_fwrite cs 1 l h
+  free cs
+  hClose h
+  when (l /= n) $
+    error "writeFileFast failed"
 
 -- Lazy readFile
 readFile :: FilePath -> IO String
