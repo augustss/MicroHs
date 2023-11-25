@@ -12,7 +12,7 @@ module MicroHs.IdentMap(
   delete,
   lookup,
   size,
-  toList, elems,
+  toList, elems, keys,
   ) where
 import Prelude hiding(lookup)
 import MicroHs.Ident
@@ -36,6 +36,9 @@ singleton i a = One i a
 
 elems :: forall v . Map v -> [v]
 elems = map snd . toList
+
+keys :: forall v . Map v -> [Ident]
+keys = map fst . toList
 
 toList :: forall v . Map v -> [(Ident, v)]
 toList t = to t []

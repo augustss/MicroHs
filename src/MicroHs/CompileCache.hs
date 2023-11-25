@@ -1,22 +1,19 @@
 module MicroHs.CompileCache(
   CModule(..), tModuleOf,
-  CheckSum,
   Cache, cache, working, updWorking, emptyCache, deleteFromCache, workToDone,
   ) where
-import Data.Word(Word)
 import Prelude
 import MicroHs.Desugar(LDef)
 import MicroHs.Expr(IdentModule)
 --import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.TypeCheck(TModule)
-
-type CheckSum = [Word]                -- MD5 checksum, 16 bytes
+import System.IO.MD5(MD5CheckSum)
 
 data CModule = CModule
     (TModule [LDef])                    -- the cached module
     [IdentModule]                       -- imported module names
-    CheckSum                            -- checksum of the source file
+    MD5CheckSum                         -- checksum of the source file
   deriving (Show)
 
 tModuleOf :: CModule -> TModule [LDef]

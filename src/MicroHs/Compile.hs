@@ -82,7 +82,7 @@ getCached flags = do
       hClose hin
       when (loading flags || verbose flags > 0) $
         putStrLn "loaded saved cache"
-      validateCache cash
+      validateCache flags cash
 
 compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)
 compile flags nm ach = do
@@ -123,11 +123,9 @@ compileModuleCached flags mn = do
 compileModule :: Flags -> IdentModule -> StateIO Cache (CModule, Time, Time, Time)
 compileModule flags nm = do
   t1 <- liftIO getTimeMilli
-  let
-    fn = map (\ c -> if c == '.' then '/' else c) (unIdent nm) ++ ".hs"
-  (pathfn, file) <- liftIO (readFilePath (getSLoc nm) (paths flags) fn)
-  mchksum <- liftIO (md5file pathfn)  -- XXX there is a small gap between reading and computing the checksum.
-  let chksum :: CheckSum
+  (pathfn, file) <- liftIO (readModulePath flags nm)
+  mchksum <- liftIO (md5File pathfn)  -- XXX there is a small gap between reading and computing the checksum.
+  let chksum :: MD5CheckSum
       chksum = fromMaybe undefined mchksum
   let mdl@(EModule nmn _ defs) = parseDie pTop pathfn file
   -- liftIO $ putStrLn $ showEModule mdl
@@ -153,22 +151,61 @@ compileModule flags nm = do
   let cmdl = CModule dmdl imported chksum
   return (cmdl, t2-t1, t4-t3, sum ts)
 
-validateCache :: Cache -> IO Cache
-validateCache cash = execStateIO (mapM_ validate (M.elems (cache cash))) cash
+validateCache :: Flags -> Cache -> IO Cache
+validateCache flags cash = execStateIO (mapM_ validate (M.keys (cache cash))) cash
   where
-    validate :: CModule -> StateIO Cache ()
-    validate _ = return ()
+    deps = invertGraph [ (tModuleName tm, imps) | CModule tm imps _ <- M.elems (cache cash) ]
+    invalidate :: IdentModule -> StateIO Cache ()
+    invalidate mn = do
+      b <- gets $ isJust . M.lookup mn . cache
+      when b $ do
+        -- It's still in the cache, so invalidate it, and all modules that import it
+        when (verbose flags > 0) $
+          liftIO $ putStrLn $ "invalidate " ++ show mn
+        modify (deleteFromCache mn)
+        mapM_ invalidate $ fromMaybe [] $ M.lookup mn deps
+    validate :: IdentModule -> StateIO Cache ()
+    validate mn = do
+      ch <- get
+      case M.lookup mn (cache ch) of
+        Nothing -> return () -- no longer in the cache, so just ignore.
+        Just (CModule _ _ chksum) -> do
+          mhdl <- liftIO $ findModulePath flags mn
+          case mhdl of
+            Nothing ->
+              -- Cannot find module, so invalidate it
+              invalidate mn
+            Just (_, h) -> do
+              cs <- liftIO $ md5Handle h
+              liftIO $ hClose h
+              when (cs /= chksum) $
+                -- bad checksum, invalidate module
+                invalidate mn
+
+-- Take a graph in adjencency list form and reverse all the arrow.
+-- Used to invert the import graph.
+invertGraph :: [(IdentModule, [IdentModule])] -> M.Map [IdentModule]
+invertGraph = foldr ins M.empty
+  where
+    ins :: (IdentModule, [IdentModule]) -> M.Map [IdentModule] -> M.Map [IdentModule]
+    ins (m, ms) g = foldr (\ n -> M.insertWith (++) n [m]) g ms
 
 ------------------
 
-readFilePath :: SLoc -> [FilePath] -> FilePath -> IO (FilePath, String)
-readFilePath loc path name = do
-  mh <- openFilePath path name
+readModulePath :: Flags -> IdentModule -> IO (FilePath, String)
+readModulePath flags mn = do
+  mh <- findModulePath flags mn
   case mh of
-    Nothing -> errorMessage loc $ "File not found: " ++ show name ++ "\npath=" ++ show path
+    Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show mn ++ "\npath=" ++ show (paths flags)
     Just (fn, h) -> do
       file <- hGetContents h
       return (fn, file)
+
+findModulePath :: Flags -> IdentModule -> IO (Maybe (FilePath, Handle))
+findModulePath flags mn = do
+  let
+    fn = map (\ c -> if c == '.' then '/' else c) (unIdent mn) ++ ".hs"
+  openFilePath (paths flags) fn
 
 openFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
 openFilePath adirs fileName =

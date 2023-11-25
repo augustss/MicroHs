@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module MicroHs.TypeCheck(
   typeCheck,
-  TModule(..), showTModule,
+  TModule(..), showTModule, tModuleName,
   impossible, impossibleShow,
   mkClassConstructor,
   mkSuperSel,
@@ -70,6 +70,9 @@ data TModule a = TModule
   [ValueExport]   -- exported values (including from T(..))
   a               -- bindings
   deriving (Show)
+
+tModuleName :: forall a . TModule a -> IdentModule
+tModuleName (TModule a _ _ _ _ _ _ _) = a
 
 bindingsOf :: forall a . TModule a -> a
 bindingsOf (TModule _ _ _ _ _ _ _ a) = a
