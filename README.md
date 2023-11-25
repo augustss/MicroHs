@@ -127,11 +127,11 @@ which means that processing the module `MicroHs.Exp` took 284ms,
 with parsing taking 91ms and typecheck&desugar taking 193ms.
 
 With the `-c` flag the compiler writes out its internal cache of compiled modules to the file `.mhscache`
-at the end of compilation.  And a startup it reads this file if it exists, and then validates that contents
-by an MD5 chacksum for all the files in the cache.
+at the end of compilation.  And a startup it reads this file if it exists, and then validates the contents
+by an MD5 checksum for all the files in the cache.
 This can make compilation much faster since the compiler will not parse and typecheck a module if it is in
-the change.
-Do *NOT* use `-c` when you are changing the compiler itself; if the cahced data types change the compiler will probably just crash.
+the cache.
+Do **NOT** use `-c` when you are changing the compiler itself; if the cached data types change the compiler will probably just crash.
 
 
 ### Environment variables
