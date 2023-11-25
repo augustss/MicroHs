@@ -891,8 +891,8 @@ struct {
   const char *ffi_name;
   const funptr_t ffi_fun;
   enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI,
-    FFI_i, FFI_Pi, FFI_iPi,
-    FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP, FFI_PPV,
+         FFI_i, FFI_Pi, FFI_iPi, FFI_PIIPI,
+         FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP, FFI_PPV,
   } ffi_how;
 } ffi_table[] = {
   { "llabs",    (funptr_t)llabs,   FFI_II },
@@ -919,6 +919,8 @@ struct {
   { "fclose",   (funptr_t)fclose,  FFI_Pi },
   { "fflush",   (funptr_t)fflush,  FFI_Pi },
   { "fopen",    (funptr_t)fopen,   FFI_PPP },
+  { "fread",    (funptr_t)fread,   FFI_PIIPI },
+  { "fwrite",   (funptr_t)fwrite,  FFI_PIIPI },
   { "tmpname",  (funptr_t)TMPNAME, FFI_PPP },
   { "unlink",   (funptr_t)unlink,  FFI_Pi },
   { "system",   (funptr_t)system,  FFI_Pi },
@@ -2169,9 +2171,9 @@ execio(NODEPTR n)
       {
         int a = (int)GETVALUE(n);
         funptr_t f = ffi_table[a].ffi_fun;
-        value_t ri, xi, yi;
+        value_t ri, xi, yi, zi;
         double rd, xd;
-        void *xp, *yp, *rp;
+        void *xp, *yp, *wp, *rp;
 #define INTARG(n) evalint(ARG(TOP(n)))
 #define PTRARG(n) evalptr(ARG(TOP(n)))
 #define DBLARG(n) evaldbl(ARG(TOP(n)))
@@ -2197,6 +2199,8 @@ execio(NODEPTR n)
         case FFI_PPP: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  rp = (*(void*   (*)(void*, void*    ))f)(xp,yp); n = mkPtr(rp); RETIO(n);
         case FFI_IPI: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(value_t, void*  ))f)(xi,yp); n = mkInt(ri); RETIO(n);
         case FFI_iPi: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(int     (*)(int,   void*    ))f)(xi,yp); n = mkInt(ri); RETIO(n);
+        case FFI_PIIPI:FFI (4);xp = PTRARG(1);yi = INTARG(2); zi = INTARG(3); wp = PTRARG(4);
+          ri = (*(int     (*)(void*, int, int, void*    ))f)(xp,yi,zi,wp); n = mkInt(ri); RETIO(n);
         default: ERR("T_IO_CCALL");
         }
       }
