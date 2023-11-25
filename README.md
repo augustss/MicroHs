@@ -32,6 +32,7 @@ Differences:
  * There is no prefix negation.
  * There is no `Read` class.
  * There is no deriving.
+ * There is no record syntax.
  * The `Prelude` has to be imported explicitly.
  * Polymorphic types are never inferred; use a type signature if you need it.
  * A module must have an export list.
