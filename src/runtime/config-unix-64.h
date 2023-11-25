@@ -51,6 +51,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <fcntl.h>
+#include <errno.h>
+#if WANT_STDIO
+#include <stdio.h>
+#endif  /* WANT_STDIO */
 
 /*
  * Set the terminal in raw mode and read a single character.
@@ -63,17 +68,34 @@ getraw(void)
   char c;
   int r;
   
-  if (tcgetattr(0, &old))
+  if (tcgetattr(0, &old)) {
+#if WANT_STDIO
+    fprintf(stderr, "tcgetattr failed: errno=%d\n", errno);
+#endif  /* WANT_STDIO */
     return -1;
+  }
   cfmakeraw(&new);
-  if (tcsetattr(0, TCSANOW, &new))
+  if (tcsetattr(0, TCSANOW, &new)) {
+#if WANT_STDIO
+    fprintf(stderr, "tcsetattr 1 failed: errno=%d\n", errno);
+#endif  /* WANT_STDIO */
     return -1;
+  }
   r = read(0, &c, 1);
-  (void)tcsetattr(0, TCSANOW, &old);
+  if (tcsetattr(0, TCSANOW, &old)) {
+#if WANT_STDIO
+    fprintf(stderr, "tcsetattr 2 failed: errno=%d\n", errno);
+#endif  /* WANT_STDIO */
+    return -1;
+  }
   if (r == 1)
     return c;
-  else
+  else {
+#if WANT_STDIO
+    fprintf(stderr, "read failed: errno=%d\n", errno);
+#endif  /* WANT_STDIO */
     return -1;
+  }
 }
 /*
  * Get a raw input character.
