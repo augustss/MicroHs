@@ -1624,16 +1624,21 @@ evalptr(NODEPTR n)
 char *
 evalstring(NODEPTR n)
 {
-  size_t sz = 10000;
-  char *p, *name = malloc(sz);
+  size_t sz = 1000;
+  size_t offs;
+  char *name = malloc(sz);
   value_t c;
   NODEPTR x;
 
   if (!name)
     memerr();
-  for (p = name;;) {
-    if (p >= name + sz)
-      ERR("evalstring too long");
+  for (offs = 0;;) {
+    if (offs >= sz - 1) {
+      sz *= 2;
+      name = realloc(name, sz);
+      if (!name)
+        memerr();
+    }
     n = evali(n);
     if (GETTAG(n) == T_K)            /* Nil */
       break;
@@ -1641,13 +1646,13 @@ evalstring(NODEPTR n)
       c = evalint(ARG(x));
       if (c < 0 || c > 127)
 	ERR("invalid char");    /* Only allow ASCII */
-      *p++ = (char)c;
+      name[offs++] = (char)c;
       n = ARG(n);
     } else {
       ERR("evalstring not Nil/Cons");
     }
   }
-  *p = 0;
+  name[offs] = 0;
   return name;
 }
 
