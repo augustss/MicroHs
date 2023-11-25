@@ -173,11 +173,12 @@ NODEPTR *stack;
 stackptr_t stack_ptr = -1;
 #if STACKOVL
 #define PUSH(x) do { if (stack_ptr >= stack_size-1) ERR("stack overflow"); stack[++stack_ptr] = (x); } while(0)
-#else  /* SANITY */
+#else  /* STACKOVL */
 #define PUSH(x) do {                                                        stack[++stack_ptr] = (x); } while(0)
-#endif  /* SANITY */
+#endif  /* STACKOVL */
 #define TOP(n) stack[stack_ptr - (n)]
 #define POP(n) stack_ptr -= (n)
+#define POPTOP() stack[stack_ptr--]
 #define GCCHECK(n) gc_check((n))
 
 heapoffs_t heap_size = HEAP_CELLS; /* number of heap cells */
@@ -1564,8 +1565,7 @@ evali(NODEPTR n)
   /* Need to push and pop in case GC happens */
   PUSH(n);
   eval(n);
-  n = TOP(0);
-  POP(1);
+  n = POPTOP();
   while (GETTAG(n) == T_IND)
     n = INDIR(n);
   return n;
@@ -1643,7 +1643,9 @@ evalstring(NODEPTR n)
     if (GETTAG(n) == T_K)            /* Nil */
       break;
     else if (GETTAG(n) == T_AP && GETTAG(x = indir(FUN(n))) == T_AP && GETTAG(indir(FUN(x))) == T_O) { /* Cons */
+      PUSH(n);                  /* protect from GC */
       c = evalint(ARG(x));
+      n = POPTOP();
       if (c < 0 || c > 127)
 	ERR("invalid char");    /* Only allow ASCII */
       name[offs++] = (char)c;
@@ -1723,8 +1725,7 @@ rnf_rec(NODEPTR n)
   if (GETTAG(n) == T_AP) {
     PUSH(ARG(n));               /* protect from GC */
     rnf_rec(FUN(n));
-    n = TOP(0);
-    POP(1);
+    n = POPTOP();
     goto top;
   }
 }
@@ -2371,7 +2372,7 @@ main(int argc, char **argv)
 #endif
   }
 
-  PUSH(prog); gc(); prog = TOP(0); POP(1);
+  PUSH(prog); gc(); prog = POPTOP();
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
   if (outname) {
