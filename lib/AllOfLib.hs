@@ -45,6 +45,7 @@ import Data.Real
 import Data.RealFloat
 import Data.Semigroup
 import Data.Tuple
+import Data.Void
 import Data.Word
 import Debug.Trace
 import Foreign.C.String
