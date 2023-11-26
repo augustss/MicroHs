@@ -18,7 +18,7 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
-.PHONY:	clean bootstrap install ghcgen newmhs cacheprelude timecompile
+.PHONY:	clean bootstrap install ghcgen newmhs cacheprelude timecompile exampletest
 
 all:	bin/mhs
 
@@ -105,9 +105,14 @@ install:
 	@echo "*** Set environment variable MHSDIR to $(PREFIX)/lib/mhs"
 	@echo "***"
 
-everytest:	runtest bootcombtest
+everytest:	runtest bootcombtest exampletest
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs -ilib -isrc -ogmhs.comb  MicroHs.Main
 	bin/mhseval +RTS -v -rgmhs.comb -RTS -ilib -isrc -omhs.comb MicroHs.Main
 	cmp gmhs.comb mhs.comb
+
+exampletest:	bin/mhs bin/mhseval Example.hs
+	bin/mhs -r Example
+	bin/mhs Example && bin/mhseval
+	bin/mhs Example -oEx && ./Ex && rm Ex
