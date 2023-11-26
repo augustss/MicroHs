@@ -33,6 +33,7 @@ test:
 	$(MHS) Exists     && $(EVAL) > Exists.out     && diff Exists.ref Exists.out
 	$(MHS) TypeEq     && $(EVAL) > TypeEq.out     && diff TypeEq.ref TypeEq.out
 	$(MHS) Sieve      && $(EVAL) > Sieve.out      && diff Sieve.ref Sieve.out
+	$(MHS) Dict       && $(EVAL) > Dict.out       && diff Dict.ref Dict.out
 
 errtest:
 	sh errtester.sh < errmsg.test

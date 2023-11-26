@@ -15,6 +15,7 @@ import Data.Bounded
 import Data.Char
 import Data.Char_Type
 import Data.Complex
+import Data.Constraint
 import Data.Double
 import Data.Either
 import Data.Enum
