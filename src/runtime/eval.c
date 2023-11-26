@@ -105,7 +105,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
                 T_IO_CCALL, T_DYNSYM,
-                T_NEWCASTRING, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
+                T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_STR,
                 T_LAST_TAG,
 };
@@ -126,7 +126,7 @@ const char* tag_names[] = {
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGS", "IO_DROPARGS",
   "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "IO_CATCH",
   "IO_CCALL", "DYNSYM",
-  "NEWCASTRING", "PEEKCASTRING", "PEEKCASTRINGLEN",
+  "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
   "STR",
   "LAST_TAG",
 };
@@ -525,7 +525,7 @@ new_ap(NODEPTR f, NODEPTR a)
 
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combFalse, combTrue, combUnit, combCons;
+NODEPTR combFalse, combTrue, combUnit, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND;
 NODEPTR combLT, combEQ, combGT;
 
@@ -621,7 +621,7 @@ struct {
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.catch", T_IO_CATCH },
   { "dynsym", T_DYNSYM },
-  { "newCAString", T_NEWCASTRING },
+  { "newCAStringLen", T_NEWCASTRINGLEN },
   { "peekCAString", T_PEEKCASTRING },
   { "peekCAStringLen", T_PEEKCASTRINGLEN },
   { "toPtr", T_TOPTR },
@@ -651,6 +651,7 @@ init_nodes(void)
     case T_A: combTrue = n; break;
     case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
+    case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
     case T_Z: combZ = n; break;
     case T_IO_BIND: combIOBIND = n; break;
@@ -672,6 +673,7 @@ init_nodes(void)
     case T_A: combTrue = n; break;
     case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
+    case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
     case T_Z: combZ = n; break;
     case T_IO_BIND: combIOBIND = n; break;
@@ -862,6 +864,30 @@ gc_check(size_t k)
   gc();
 }
 
+value_t
+peekWord(value_t *p)
+{
+  return *p;
+}
+
+void
+pokeWord(value_t *p, value_t w)
+{
+  *p = w;
+}
+
+value_t
+peekByte(uint8_t *p)
+{
+  return *p;
+}
+
+void
+pokeByte(uint8_t *p, value_t w)
+{
+  *p = (uint8_t)w;
+}
+
 /*
  * Table of FFI callable functions.
  * (For a more flexible solution use dlopen()/dlsym()/dlclose())
@@ -892,7 +918,7 @@ struct {
   const char *ffi_name;
   const funptr_t ffi_fun;
   enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI,
-         FFI_i, FFI_Pi, FFI_iPi, FFI_PIIPI,
+         FFI_i, FFI_Pi, FFI_iPi, FFI_PIIPI, FFI_PIV, FFI_IIP,
          FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP, FFI_PPV,
   } ffi_how;
 } ffi_table[] = {
@@ -935,6 +961,11 @@ struct {
   { "getTimeMilli",(funptr_t)GETTIMEMILLI,  FFI_I },
   { "free",     (funptr_t)free,    FFI_PV },
   { "malloc",   (funptr_t)malloc,  FFI_IP }, /* The I is really a size_t */
+  { "calloc",   (funptr_t)malloc,  FFI_IIP },
+  { "peekWord", (funptr_t)peekWord,FFI_PI },
+  { "pokeWord", (funptr_t)pokeWord,FFI_PIV },
+  { "peekByte", (funptr_t)peekByte,FFI_PI },
+  { "pokeByte", (funptr_t)pokeByte,FFI_PIV },
 };
 
 /* Look up an FFI function by name */
@@ -1442,7 +1473,7 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_CCALL: fprintf(f, "^%s", ffi_table[GETVALUE(n)].ffi_name); break;
   case T_IO_CATCH: fprintf(f, "IO.catch"); break;
   case T_DYNSYM: fprintf(f, "dynsym"); break;
-  case T_NEWCASTRING: fprintf(f, "newCAString"); break;
+  case T_NEWCASTRINGLEN: fprintf(f, "newCAStringLen"); break;
   case T_PEEKCASTRING: fprintf(f, "peekCAString"); break;
   case T_PEEKCASTRINGLEN: fprintf(f, "peekCAStringLen"); break;
   case T_TOINT: fprintf(f, "toInt"); break;
@@ -1622,7 +1653,7 @@ evalptr(NODEPTR n)
 /* Evaluate a string, returns a newly allocated buffer. */
 /* XXX this is cheating, should use continuations */
 char *
-evalstring(NODEPTR n)
+evalstring(NODEPTR n, value_t *lenp)
 {
   size_t sz = 1000;
   size_t offs;
@@ -1655,6 +1686,8 @@ evalstring(NODEPTR n)
     }
   }
   name[offs] = 0;
+  if (lenp)
+    *lenp = (value_t)offs;
   return name;
 }
 
@@ -1873,7 +1906,7 @@ eval(NODEPTR n)
     case T_FGE: CMPF(>=);
     case T_FREAD:
       CHECK(1);
-      msg = evalstring(ARG(TOP(0)));
+      msg = evalstring(ARG(TOP(0)), 0);
       xd = strtod(msg, NULL);
       free(msg);
 
@@ -1931,7 +1964,7 @@ eval(NODEPTR n)
       if (doing_rnf) RET;
       {
       CHECK(3);
-      msg = evalstring(ARG(TOP(0)));
+      msg = evalstring(ARG(TOP(0)), 0);
       xi = evalint(ARG(TOP(1)));
       yi = evalint(ARG(TOP(2)));
       int sz = strlen(msg) + 100;
@@ -1952,7 +1985,7 @@ eval(NODEPTR n)
       if (doing_rnf) RET;
       {
       CHECK(1);
-      msg = evalstring(ARG(TOP(0)));
+      msg = evalstring(ARG(TOP(0)), 0);
       int sz = strlen(msg) + 100;
       char *res = malloc(sz);
 
@@ -1977,7 +2010,7 @@ eval(NODEPTR n)
         longjmp(cur_handler->hdl_buf, 1);
       } else {
         /* No handler, so just die. */
-        CHKARGEV1(msg = evalstring(x));
+        CHKARGEV1(msg = evalstring(x, 0));
 #if WANT_STDIO
         fprintf(stderr, "mhs: %s\n", msg);
         exit(1);
@@ -2013,7 +2046,7 @@ eval(NODEPTR n)
     case T_IO_GETTIMEMILLI:
     case T_IO_CCALL:
     case T_IO_CATCH:
-    case T_NEWCASTRING:
+    case T_NEWCASTRINGLEN:
     case T_PEEKCASTRING:
     case T_PEEKCASTRINGLEN:
       RET;
@@ -2021,7 +2054,7 @@ eval(NODEPTR n)
     case T_DYNSYM:
       /* A dynamic FFI lookup */
       CHECK(1);
-      msg = evalstring(ARG(TOP(0)));
+      msg = evalstring(ARG(TOP(0)), 0);
       GCCHECK(1);
       x = ffiNode(msg);
       free(msg);
@@ -2060,6 +2093,7 @@ execio(NODEPTR n)
   NODEPTR f, x;
   int c;
   char *name;
+  value_t len;
 #if WANT_STDIO
   void *ptr;
   int hdr;
@@ -2201,7 +2235,9 @@ execio(NODEPTR n)
         case FFI_PP:  FFI (1); xp = PTRARG(1);                 rp = (*(void*   (*)(void*           ))f)(xp);    n = mkPtr(rp); RETIO(n);
         case FFI_PV:  FFI (1); xp = PTRARG(1);                      (*(void    (*)(void*           ))f)(xp);                   RETIO(combUnit);
         case FFI_PPI: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(void*, void*    ))f)(xp,yp); n = mkInt(ri); RETIO(n);
+        case FFI_PIV: FFI (2); xp = PTRARG(1);yi = INTARG(2);       (*(void    (*)(void*, value_t  ))f)(xp,yi);                RETIO(combUnit);
         case FFI_PPV: FFI (2); xp = PTRARG(1);yp = PTRARG(2);       (*(void    (*)(void*, void*    ))f)(xp,yp);                RETIO(combUnit);
+        case FFI_IIP: FFI (2); xi = INTARG(1);yi = INTARG(2);  rp = (*(void*   (*)(value_t,value_t ))f)(xi,yi); n = mkPtr(rp); RETIO(n);
         case FFI_PPP: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  rp = (*(void*   (*)(void*, void*    ))f)(xp,yp); n = mkPtr(rp); RETIO(n);
         case FFI_IPI: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(value_t, void*  ))f)(xi,yp); n = mkInt(ri); RETIO(n);
         case FFI_iPi: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(int     (*)(int,   void*    ))f)(xi,yp); n = mkInt(ri); RETIO(n);
@@ -2240,12 +2276,12 @@ execio(NODEPTR n)
         }
       }
 
-    case T_NEWCASTRING:
+    case T_NEWCASTRINGLEN:
       CHECKIO(1);
-      name = evalstring(ARG(TOP(1)));
-      GCCHECK(1);
-      n = alloc_node(T_PTR);
-      PTR(n) = name;
+      name = evalstring(ARG(TOP(1)), &len);
+      GCCHECK(4);
+      n = new_ap(new_ap(combPair, x = alloc_node(T_PTR)), mkInt(len));
+      PTR(x) = name;
       RETIO(n);
 
     case T_PEEKCASTRING:

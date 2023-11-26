@@ -127,7 +127,7 @@ primTable = [
   ("IO.performIO", primitive "IO.performIO"),
   ("IO.catch", primitive "IO.catch"),
   ("dynsym", primitive "dynsym"),
-  ("newCAString", primitive "newCAString"),
+  ("newCAStringLen", primitive "newCAStringLen"),
   ("peekCAString", primitive "peekCAString"),
   ("peekCAStringLen", primitive "peekCAStringLen"),
   ("toInt", primitive "toInt"),

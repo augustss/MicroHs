@@ -12,6 +12,7 @@ import Data.Int()  -- instances only
 import Data.Integer
 import Data.Integral
 import Data.List
+import Data.Maybe_Type
 import Data.Num
 import Data.Ord
 import Data.Real
@@ -80,8 +81,8 @@ instance Bits Word where
   complement = primWordInv
   shiftL = primWordShl
   shiftR = primWordShr
---  bitSizeMaybe _ = Just 64   -- XXX
-  bitSize _ = 64
+  bitSizeMaybe _ = Just _wordSize
+  bitSize _ = _wordSize
   bit n = primWordShl 1 n
   zeroBits = 0
 

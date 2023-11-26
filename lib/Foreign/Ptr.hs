@@ -1,4 +1,4 @@
-module Foreign.Ptr(Ptr, nullPtr) where
+module Foreign.Ptr(module Foreign.Ptr, Ptr) where
 import Primitives
 import Data.Word
 import Data.Eq
@@ -13,3 +13,12 @@ instance forall a . Show (Ptr a) where
 
 nullPtr :: forall a . Ptr a
 nullPtr = primWordToPtr 0
+
+castPtr :: forall a b . Ptr a -> Ptr b
+castPtr = primUnsafeCoerce
+
+plusPtr :: forall a b . Ptr a -> Int -> Ptr b
+plusPtr p i = primIntToPtr (primPtrToInt p `primIntAdd` i)
+
+minusPtr :: forall a b . Ptr a -> Ptr b -> Int
+minusPtr p q = primPtrToInt p `primIntSub` primPtrToInt q

@@ -12,7 +12,10 @@ type CString = Ptr CChar
 type CStringLen = (Ptr CChar, Int)
 
 newCAString :: String -> IO CString
-newCAString = primNewCAString
+newCAString s = primNewCAStringLen s `primBind` \ (s, _) -> primReturn s
+
+newCAStringLen :: String -> IO CStringLen
+newCAStringLen = primNewCAStringLen
 
 withCAString :: forall a . String -> (CString -> IO a) -> IO a
 withCAString s io =

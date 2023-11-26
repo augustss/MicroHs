@@ -193,8 +193,8 @@ primRnfErr        = primitive "rnf" (0::Int)
 primRnfNoErr     :: forall a . a -> ()
 primRnfNoErr      = primitive "rnf" (1::Int)
 
-primNewCAString :: [Char] -> IO (Ptr Char)
-primNewCAString = primitive "newCAString"
+primNewCAStringLen :: [Char] -> IO (Ptr Char, Int)
+primNewCAStringLen = primitive "newCAStringLen"
 
 primPeekCAString :: Ptr Char -> IO [Char]
 primPeekCAString = primitive "peekCAString"
@@ -207,3 +207,16 @@ primWordToPtr = primitive "toPtr"
 
 primPtrToWord :: forall a . Ptr a -> Word
 primPtrToWord = primitive "toInt"
+
+primIntToPtr :: forall a . Int -> Ptr a
+primIntToPtr = primitive "toPtr"
+
+primPtrToInt :: forall a . Ptr a -> Int
+primPtrToInt = primitive "toInt"
+
+-- Will get constant folded on first use
+_wordSize :: Int
+_wordSize = loop (primWordInv (0::Word)) (0::Int)
+  where
+    loop :: Word -> Int -> Int
+    loop w n = if w `primWordEQ` (0::Word) then n else loop (primWordShr w (1::Int)) (n `primIntAdd` (1::Int))
