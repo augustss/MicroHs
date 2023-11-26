@@ -1,7 +1,8 @@
 module Foreign.C.String(
   CChar, CString,
-  newCAString, withCAString,
+  newCAString, newCAStringLen,
   peekCAString, peekCAStringLen,
+  withCAString,
   ) where
 import Primitives
 import Data.Char_Type

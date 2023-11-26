@@ -161,12 +161,10 @@ writeFile p s = do
   hClose h
 
 -- Faster, but uses a lot more C memory.
--- It also holds not GC friendly.
 writeFileFast :: FilePath -> String -> IO ()
 writeFileFast p s = do
   h <- openFile p WriteMode
-  cs <- newCAString s
-  let l = length s
+  (cs, l) <- newCAStringLen s
   n <- c_fwrite cs 1 l h
   free cs
   hClose h
