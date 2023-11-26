@@ -12,5 +12,5 @@ a.out
 dist-newstyle/
 .mhsi
 Interactive.hs
-lib/mhs
 generated/*
+.mhscache
