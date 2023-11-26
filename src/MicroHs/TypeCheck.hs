@@ -544,11 +544,11 @@ addConstraint d ctx = do
   TC mn n fx tt st vt ast sub m cs is es ds <- get
   put $ TC mn n fx tt st vt ast sub m cs is ((d, ctx') : es) ds
 
-withDicts :: forall a . [(Ident, EConstraint)] -> T a -> T a
+withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
 withDicts [] ta = ta
 withDicts ((i, c):ds) ta = withDict i c $ withDicts ds ta
 
-withDict :: forall a . Ident -> EConstraint -> T a -> T a
+withDict :: forall a . HasCallStack => Ident -> EConstraint -> T a -> T a
 withDict i c ta = do
   c' <- expandSyn c >>= derefUVar
   when (not (null (metaTvs [c']))) $ impossible
@@ -568,6 +568,7 @@ withInstDict i c ta = do
 withEqDict :: forall a . Ident -> EType -> EType -> T a -> T a
 withEqDict _i t1 t2 ta = do
   is <- gets typeEqTable
+--  traceM ("withEqDict: " ++ show (is, (t1,t2), (addTypeEq t1 t2 is)))
   putTypeEqTable (addTypeEq t1 t2 is)
   a <- ta
   putTypeEqTable is
@@ -2441,9 +2442,9 @@ solveEq eqs t1 t2 | t1 `eqEType` t2             = Just (ETuple [], [])
 addTypeEq :: EType -> EType -> TypeEqTable -> TypeEqTable
 addTypeEq t1 t2 aeqs | t1 `eqEType` t2 || elemBy eqTyTy (t1, t2) aeqs || elemBy eqTyTy (t2, t1) aeqs = aeqs
                      | otherwise = (t1, t2) : (t2, t1) :                   -- symmetry
-                                  trans t1 t2 aeqs ++ trans t2 t1 aeqs ++  -- transitivity
-                                  aeqs
-  where trans a1 a2 eqs = [ (a1, b2) | (b1, b2) <- eqs, eqEType a2 b1 ]
+                                   trans t1 t2 aeqs ++ trans t2 t1 aeqs ++  -- transitivity
+                                   aeqs
+  where trans a1 a2 eqs = [ ab | (b1, b2) <- eqs, eqEType a2 b1, ab <- [(a1, b2), (b2, a1)] ]
 
 eqTyTy :: (EType, EType) -> (EType, EType) -> Bool
 eqTyTy (t1, t2) (u1, u2) = eqEType t1 u1 && eqEType t2 u2
