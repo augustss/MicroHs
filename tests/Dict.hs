@@ -12,4 +12,6 @@ dictInt :: Dict (Num Int, Eq Int)
 dictInt = Dict
 
 main :: IO ()
-main = print $ facD dictInt 10
+main = do
+  print $ facD dictInt 10
+  print $ withDict dictInt (fac (11::Int))

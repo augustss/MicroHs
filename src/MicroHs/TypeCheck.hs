@@ -551,12 +551,13 @@ withDicts ((i, c):ds) ta = withDict i c $ withDicts ds ta
 withDict :: forall a . HasCallStack => Ident -> EConstraint -> T a -> T a
 withDict i c ta = do
   c' <- expandSyn c >>= derefUVar
-  when (not (null (metaTvs [c']))) $ impossible
+  when (not (null (metaTvs [c']))) $
+    error (show c)
   case c' of
     (EApp (EApp (EVar eq) t1) t2) | eq == mkIdent nameTypeEq -> withEqDict i t1 t2 ta
     _ -> withInstDict i c' ta
 
-withInstDict :: forall a . Ident -> EConstraint -> T a -> T a
+withInstDict :: forall a . HasCallStack => Ident -> EConstraint -> T a -> T a
 withInstDict i c ta = do
   is <- gets instTable
   ics <- expandDict (EVar i) c
@@ -829,6 +830,9 @@ newUniq = do
   let n' = n+1
   put (seq n' $ TC mn n' fx tenv senv venv ast sub m cs is es ds)
   return n
+
+uniqIdentSep :: String
+uniqIdentSep = "$"
 
 newIdent :: SLoc -> String -> T Ident
 newIdent loc s = do
@@ -1367,15 +1371,12 @@ tInferExpr = tInfer tcExpr
 
 tCheckExpr :: HasCallStack =>
               EType -> Expr -> T Expr
-tCheckExpr t _e | Just (_ctx, _t') <- getImplies t = do
-  undefined
-{-
-  _ <- undefined -- XXX
-  u <- newUniq
-  let d = mkIdentSLoc (getSLoc e) ("adict$" ++ show u)
+tCheckExpr t e | Just (ctx, t') <- getImplies t = do
+--  error $ "tCheckExpr: " ++ show (e, ctx, t')
+  d <- newDictIdent (getSLoc e)
   e' <- withDict d ctx $ tCheckExpr t' e
   return $ eLam [EVar d] e'
--}
+
 tCheckExpr t e = tCheck tcExpr t e
 
 tGetRefType :: HasCallStack =>
@@ -1447,9 +1448,9 @@ tcExprR mt ae =
 
     EApp f a -> do
       (f', ft) <- tInferExpr f
---      traceM $ "EApp f=" ++ showExpr f ++ "; e'=" ++ showExpr f' ++ " :: " ++ showEType ft
+--      traceM $ "EApp f=" ++ show f ++ "; f'=" ++ show f' ++ " :: " ++ show ft
       (at, rt) <- unArrow loc ft
---      traceM ("tcExpr EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
+--      traceM ("tcExpr EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", a=" ++ show a ++ " :: " ++ show at ++ " rt=" ++ show rt)
       a' <- checkSigma a at
       instSigma loc (EApp f' a') rt mt
 
@@ -1658,8 +1659,11 @@ unArrow loc t = do
 getFixity :: FixTable -> Ident -> Fixity
 getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
 
+dictPrefix :: String
+dictPrefix = "adict"
+
 newDictIdent :: SLoc -> T Ident
-newDictIdent loc = newIdent loc "adict"
+newDictIdent loc = newIdent loc dictPrefix
 
 tcExprLam :: Expected -> [Eqn] -> T Expr
 tcExprLam mt qs = do
@@ -2176,7 +2180,7 @@ instSigma loc e1 t1 (Infer r) = do
 -- Given a dictionary of a (constraint type), split it up
 --  * name components of a tupled constraint
 --  * name superclasses of a constraint
-expandDict :: Expr -> EConstraint -> T [InstDictC]
+expandDict :: HasCallStack => Expr -> EConstraint -> T [InstDictC]
 expandDict edict acn = do
   cn <- expandSyn acn
   let
@@ -2185,12 +2189,19 @@ expandDict edict acn = do
     Just _ -> concat <$> mapM (\ (i, a) -> expandDict (mkTupleSel i (length args) `EApp` edict) a) (zip [0..] args)
     Nothing -> do
       ct <- gets classTable
-      let (iks, sups, _, _, fds) = fromMaybe impossible $ M.lookup iCls ct
-          vs = map idKindIdent iks
-          sub = zip vs args
-          sups' = map (subst sub) sups
-      insts <- concat <$> mapM (\ (i, sup) -> expandDict (EVar (mkSuperSel iCls i) `EApp` edict) sup) (zip [1 ..] sups')
-      return $ (edict, [], [], cn, fds) : insts
+      case M.lookup iCls ct of
+        Nothing -> do
+          -- if iCls a variable it's not in the class table, otherwise it's an error
+          when (isConIdent iCls) $
+            impossible
+          return [(edict, [], [], cn, [])]
+        Just (iks, sups, _, _, fds) -> do
+          let 
+            vs = map idKindIdent iks
+            sub = zip vs args
+            sups' = map (subst sub) sups
+          insts <- concat <$> mapM (\ (i, sup) -> expandDict (EVar (mkSuperSel iCls i) `EApp` edict) sup) (zip [1 ..] sups')
+          return $ (edict, [], [], cn, fds) : insts
 
 mkSuperSel :: HasCallStack =>
               Ident -> Int -> Ident
@@ -2399,7 +2410,7 @@ findMatches ds its =
 getBestMatches :: [(Int, (Expr, [EConstraint]))] -> [(Expr, [EConstraint])]
 getBestMatches [] = []
 getBestMatches ams =
-  let (args, insts) = partition (\ (_, (EVar i, _)) -> "adict$" `isPrefixOf` unIdent i) ams
+  let (args, insts) = partition (\ (_, (EVar i, _)) -> (dictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i) ams
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest

@@ -4,3 +4,6 @@ module Data.Constraint(module Data.Constraint) where
 -- A very, very minimal version of the constraints package
 
 data Dict (c :: Constraint) = c => Dict
+
+withDict :: forall (c :: Constraint) r . Dict c -> (c => r) -> r
+withDict Dict r = r
