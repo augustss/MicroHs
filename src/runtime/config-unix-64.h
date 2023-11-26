@@ -81,14 +81,14 @@ getraw(void)
   new.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
   new.c_cflag &= ~(CSIZE | PARENB);
   new.c_cflag |= CS8;
-  if (tcsetattr(0, TCSAFLUSH, &new)) {
+  if (tcsetattr(0, TCSANOW, &new)) {
 #if WANT_STDIO
     fprintf(stderr, "tcsetattr 1 failed: errno=%d\n", errno);
 #endif  /* WANT_STDIO */
     return -1;
   }
   r = read(0, &c, 1);
-  if (tcsetattr(0, TCSAFLUSH, &old)) {
+  if (tcsetattr(0, TCSANOW, &old)) {
 #if WANT_STDIO
     fprintf(stderr, "tcsetattr 2 failed: errno=%d\n", errno);
 #endif  /* WANT_STDIO */
