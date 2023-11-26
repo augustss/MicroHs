@@ -74,15 +74,21 @@ getraw(void)
 #endif  /* WANT_STDIO */
     return -1;
   }
-  cfmakeraw(&new);
-  if (tcsetattr(0, TCSANOW, &new)) {
+  new = old;
+  new.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
+                   | INLCR | IGNCR | ICRNL | IXON);
+  new.c_oflag &= ~OPOST;
+  new.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+  new.c_cflag &= ~(CSIZE | PARENB);
+  new.c_cflag |= CS8;
+  if (tcsetattr(0, TCSAFLUSH, &new)) {
 #if WANT_STDIO
     fprintf(stderr, "tcsetattr 1 failed: errno=%d\n", errno);
 #endif  /* WANT_STDIO */
     return -1;
   }
   r = read(0, &c, 1);
-  if (tcsetattr(0, TCSANOW, &old)) {
+  if (tcsetattr(0, TCSAFLUSH, &old)) {
 #if WANT_STDIO
     fprintf(stderr, "tcsetattr 2 failed: errno=%d\n", errno);
 #endif  /* WANT_STDIO */
