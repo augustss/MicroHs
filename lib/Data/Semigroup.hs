@@ -1,5 +1,5 @@
-module Data.Semigroup(Data.Semigroup) where
-import Primitive
+module Data.Semigroup(module Data.Semigroup) where
+import Primitives
 
 infixr 6 <>
 class Semigroup a where

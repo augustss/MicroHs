@@ -18,7 +18,7 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
-.PHONY:	clean bootstrap install ghcgen newmhs cacheprelude timecompile exampletest
+.PHONY:	clean bootstrap install ghcgen newmhs cachelib timecompile exampletest
 
 all:	bin/mhs
 
@@ -85,9 +85,9 @@ timecompile: bin/mhs
 	time bin/mhs +RTS -v -RTS -isrc MicroHs.Main
 
 #
-cacheprelude:
-	@mkdir -p cache
-	bin/mhs -c Prelude -ocache/Prelude.comb
+cachelib:
+	@-rm .mhscache
+	bin/mhs -c AllOfLib
 
 #
 clean:
