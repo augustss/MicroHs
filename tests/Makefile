@@ -1,9 +1,9 @@
 MHS=../bin/gmhs
 TMHS=$(MHS) -i../lib
 EVAL=../bin/mhseval
-.PHONY: test time clean errtest alltest cache
+.PHONY: test nfib clean errtest alltest cache
 
-alltest:	test errtest
+alltest:	test errtest nfib
 
 cache:
 	rm -f .mhscache
@@ -44,9 +44,8 @@ test:
 errtest:
 	sh errtester.sh < errmsg.test
 
-time:
-	@echo Expect about 10s runtime
-	$(TMHS) Nfib && time -p $(EVAL)
+nfib:
+	$(TMHS) Nfib && $(EVAL)
 
 clean:
 	rm -f *.out *.tmp
