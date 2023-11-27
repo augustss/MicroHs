@@ -28,10 +28,10 @@ typedef uintptr_t heapoffs_t;   /* Heap offsets */
 #define PRIheap PRIuPTR
 typedef uintptr_t tag_t;        /* Room for tag, low order bit indicates AP/not-AP */
 typedef intptr_t stackptr_t;    /* Index into stack */
-/* These types can be changed for 32 bit platforms. */
-typedef uint64_t counter_t;     /* Statistics counter, can be smaller since overflow doesn't matter */
-#define PRIcounter PRIu64
-typedef uint64_t bits_t;        /* One word of bits */
+
+typedef uintptr_t counter_t;    /* Statistics counter, can be smaller since overflow doesn't matter */
+#define PRIcounter PRIuPTR
+typedef uintptr_t bits_t;       /* One word of bits */
 #if WORD_SIZE == 64
 typedef double flt_t;
 #else
@@ -510,8 +510,11 @@ alloc_node(enum node_tag t)
       break;
     i++;
 #if SANITY
-    if (i >= free_map_nwords)
-      ERR("alloc_node free_map");
+    if (i >= free_map_nwords) {
+      fprintf(stderr, "wordsize=%d, num_free=%u next_scan_index=%u i=%u free_map_nwords=%u\n", (int)BITS_PER_WORD,
+              (unsigned int)num_free, (unsigned int)next_scan_index, (unsigned int)i, (unsigned int)free_map_nwords);
+      ERR("alloc_node: free_map");
+    }
 #endif
   }
   heapoffs_t pos = i * BITS_PER_WORD + k - 1; /* first free node */
