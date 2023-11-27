@@ -25,6 +25,8 @@
  */
 #define WORD_SIZE 64
 
+#include <inttypes.h>
+
 /*
  * Find First Set
  * This macro must be defined.
