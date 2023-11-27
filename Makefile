@@ -127,3 +127,4 @@ cachetest:	bin/mhs bin/mhseval Example.hs
 	bin/mhs -c AllOfLib
 	bin/mhs -c Example && bin/mhseval
 	rm -f .mhscache
+
