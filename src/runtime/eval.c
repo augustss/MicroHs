@@ -547,6 +547,7 @@ NODEPTR combLT, combEQ, combGT;
 struct {
   char *name;
   enum node_tag tag;
+  enum node_tag flipped;        /* What should (C op) reduce to? defaults to T_FREE */
   NODEPTR node;
 } primops[] = {
   /* combinators */
@@ -567,31 +568,31 @@ struct {
   { "B'", T_BB },
   { "Z", T_Z },
   /* primops */
-  { "+", T_ADD },
-  { "-", T_SUB },
-  { "*", T_MUL },
+  { "+", T_ADD, T_ADD },
+  { "-", T_SUB, T_SUBR },
+  { "*", T_MUL, T_MUL },
   { "quot", T_QUOT },
   { "rem", T_REM },
   { "uquot", T_UQUOT },
   { "urem", T_UREM },
-  { "subtract", T_SUBR },
+  { "subtract", T_SUBR, T_SUB },
   { "neg", T_NEG },
-  { "and", T_AND },
-  { "or", T_OR },
-  { "xor", T_XOR },
+  { "and", T_AND, T_AND },
+  { "or", T_OR, T_OR },
+  { "xor", T_XOR, T_XOR },
   { "inv", T_INV },
   { "shl", T_SHL },
   { "shr", T_SHR },
   { "ashr", T_ASHR },
 #if WANT_FLOAT
-  { "fadd" , T_FADD},
-  { "fsub" , T_FSUB},
-  { "fmul" , T_FMUL},
+  { "fadd" , T_FADD, T_FADD},
+  { "fsub" , T_FSUB, T_FSUB},
+  { "fmul" , T_FMUL, T_FMUL},
   { "fdiv", T_FDIV},
   { "fneg", T_FNEG},
   { "itof", T_ITOF},
-  { "feq", T_FEQ},
-  { "fne", T_FNE},
+  { "feq", T_FEQ, T_FEQ},
+  { "fne", T_FNE, T_FNE},
   { "flt", T_FLT},
   { "fle", T_FLE},
   { "fgt", T_FGT},
@@ -599,21 +600,21 @@ struct {
   { "fshow", T_FSHOW},
   { "fread", T_FREAD},
 #endif  /* WANT_FLOAT */
-  { "==", T_EQ },
-  { "/=", T_NE },
-  { "<", T_LT },
-  { "u<", T_ULT },
-  { "u<=", T_ULE },
-  { "u>", T_UGT },
-  { "u>=", T_UGE },
-  { "<=", T_LE },
-  { ">", T_GT },
-  { ">=", T_GE },
+  { "==", T_EQ, T_EQ },
+  { "/=", T_NE, T_NE },
+  { "<", T_LT, T_GT },
+  { "u<", T_ULT, T_UGT },
+  { "u<=", T_ULE, T_UGE },
+  { "u>", T_UGT, T_ULT },
+  { "u>=", T_UGE, T_ULE },
+  { "<=", T_LE, T_GE },
+  { ">", T_GT, T_LT },
+  { ">=", T_GE, T_LE },
   { "seq", T_SEQ },
   { "error", T_ERROR },
   { "noDefault", T_NODEFAULT },
   { "noMatch", T_NOMATCH },
-  { "equal", T_EQUAL },
+  { "equal", T_EQUAL, T_EQUAL },
   { "compare", T_COMPARE },
   { "rnf", T_RNF },
   /* IO primops */
@@ -640,6 +641,8 @@ struct {
   { "toDbl", T_TODBL },
 };
 
+enum node_tag flip_ops[T_LAST_TAG];
+
 void
 init_nodes(void)
 {
@@ -652,7 +655,7 @@ init_nodes(void)
   /* Set up permanent nodes */
   heap_start = 0;
 #if !FASTTAGS
-  for (int j = 0; j < sizeof primops / sizeof primops[0];j++) {
+  for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
     NODEPTR n = HEAPREF(heap_start++);
     primops[j].node = n;
     //MARK(n) = MARKED;
@@ -703,6 +706,9 @@ init_nodes(void)
     }
   }
 #endif
+  for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
+    flip_ops[primops[j].tag] = primops[j].flipped;
+  }
 
   /* The representation of the constructors of
    *  data Ordering = LT | EQ | GT
@@ -734,7 +740,7 @@ init_nodes(void)
 }
 
 #if GCRED
-int red_a, red_k, red_i, red_int;
+int red_a, red_k, red_i, red_int, red_flip;
 #endif
 
 //counter_t mark_depth;
@@ -800,7 +806,7 @@ mark(NODEPTR *np)
     red_k++;
     goto top;
   }
-#endif
+#endif  /* 0 */
   if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_I) {
     /* Do the I x --> x reduction */
     NODEPTR x = ARG(n);
@@ -808,6 +814,20 @@ mark(NODEPTR *np)
     INDIR(n) = x;
     red_i++;
     goto top;
+  }
+  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_C) {
+    NODEPTR q = ARG(n);
+    enum node_tag tt, tf;
+    while ((tt = GETTAG(q)) == T_IND)
+      q = INDIR(q);
+    if ((tf = flip_ops[tt])) {
+      /* Do the C op --> flip_op reduction */
+      //printf("%s -> %s\n", tag_names[tt], tag_names[tf]);
+      SETTAG(n, T_IND);
+      INDIR(n) = HEAPREF(tf);
+      red_flip++;
+      goto top;
+    }
   }
 #if INTTABLE
   if (GETTAG(n) == T_INT && LOW_INT <= (i = GETVALUE(n)) && i < HIGH_INT) {
@@ -857,8 +877,10 @@ gc(void)
   if (num_free < heap_size / 50)
     ERR("heap exhausted");
 #if WANT_STDIO
-  if (verbose > 1)
+  if (verbose > 1) {
     fprintf(stderr, "gc done, %"PRIcounter" free\n", num_free);
+    //printf(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
+  }
 #endif  /* !WANT_STDIO */
 }
 
@@ -2180,6 +2202,7 @@ execio(NODEPTR n)
       hdr = 1;
     ser:
       CHECKIO(2);
+      gc();                     /* DUBIOUS: do a GC to get possible GC reductions */
       ptr = evalptr(ARG(TOP(1)));
       x = evali(ARG(TOP(2)));
       //x = ARG(TOP(1));
@@ -2473,8 +2496,8 @@ main(int argc, char **argv)
     printf("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
     printf("%15.2fs total expired time\n", (double)run_time / 1000);
     printf("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
-#if GCRED && 0
-    printf(" GC reductions A=%d, K=%d, I=%d, int=%d\n", red_a, red_k, red_i, red_int);
+#if GCRED
+    printf(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
 #endif
   }
 #endif  /* WANT_STDIO */
