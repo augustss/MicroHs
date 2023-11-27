@@ -78,6 +78,7 @@ foreign import ccall "tan"  ctan  :: Double -> IO Double
 foreign import ccall "asin" casin :: Double -> IO Double
 foreign import ccall "acos" cacos :: Double -> IO Double
 foreign import ccall "atan" catan :: Double -> IO Double
+foreign import ccall "atan2" catan2 :: Double -> Double -> IO Double
 
 -- Assumes 64 bit floats
 instance RealFloat Double where
@@ -91,6 +92,7 @@ instance RealFloat Double where
   isDenormalized   = isDenDouble
   isNegativeZero   = isNegZeroDouble
   isIEEE         _ = True
+  atan2 x y        = primPerformIO (catan2 x y)
 
 decodeDouble :: Double -> (Integer, Int)
 decodeDouble x =

@@ -32,6 +32,11 @@ typedef intptr_t stackptr_t;    /* Index into stack */
 typedef uint64_t counter_t;     /* Statistics counter, can be smaller since overflow doesn't matter */
 #define PRIcounter PRIu64
 typedef uint64_t bits_t;        /* One word of bits */
+#if WORD_SIZE == 64
+typedef double flt_t;
+#else
+typedef float flt_t;
+#endif
 
 /* We cast all FFI functions to this type.  It's reasonably portable */
 typedef void (*funptr_t)(void);
@@ -145,7 +150,7 @@ typedef struct node {
   union {
     struct node *uuarg;
     value_t      uuvalue;
-    double       uudoublevalue;
+    flt_t        uufloatvalue;
     const char  *uustring;
     void        *uuptr;
   } uarg;
@@ -156,9 +161,9 @@ typedef struct node* NODEPTR;
 #define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) : T_AP)
 #define SETTAG(p,t) do { if (t != T_AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
-#define GETDBLVALUE(p) (p)->uarg.uudoublevalue
+#define GETDBLVALUE(p) (p)->uarg.uufloatvalue
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
-#define SETDBLVALUE(p,v) (p)->uarg.uudoublevalue = v
+#define SETDBLVALUE(p,v) (p)->uarg.uufloatvalue = v
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
 #define STR(p) (p)->uarg.uustring
@@ -901,7 +906,7 @@ pokeByte(uint8_t *p, value_t w)
  *   V    void
  *   I    value_t
  *   i    int
- *   D    double
+ *   D    flt_t
  *   P    void*
  * The types are
  *   V    void    name(void)
@@ -911,7 +916,7 @@ pokeByte(uint8_t *p, value_t w)
  *   II   value_t name(value_t)
  *   IIV  void    name(value_t, value_t)
  *   III  value_t name(value_t, value_t)
- *   DD   double  name(double)
+ *   DD   flt_t  name(flt_t)
  *   Pi   int     name(void*)
  *   PI   value_t name(void*)
  *   PP   void*   name(void*)
@@ -923,13 +928,14 @@ pokeByte(uint8_t *p, value_t w)
 struct {
   const char *ffi_name;
   const funptr_t ffi_fun;
-  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_PI,
+  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_DDD, FFI_PI,
          FFI_i, FFI_Pi, FFI_iPi, FFI_PIIPI, FFI_PIV, FFI_IIP,
          FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP, FFI_PPV,
   } ffi_how;
 } ffi_table[] = {
   { "llabs",    (funptr_t)llabs,   FFI_II },
 #if WANT_MATH
+  // This is wrong(ish) for 32 bit floats.
   { "log",      (funptr_t)log,     FFI_DD },
   { "exp",      (funptr_t)exp,     FFI_DD },
   { "sqrt",     (funptr_t)sqrt,    FFI_DD },
@@ -939,6 +945,7 @@ struct {
   { "asin",     (funptr_t)asin,    FFI_DD },
   { "acos",     (funptr_t)acos,    FFI_DD },
   { "atan",     (funptr_t)atan,    FFI_DD },
+  { "atan2",    (funptr_t)atan2,   FFI_DDD },
 #endif  /* WANT_MATH */
   { "getenv",   (funptr_t)getenv,  FFI_PP },
 
@@ -1053,7 +1060,8 @@ parse_int(BFILE *f)
   return neg * i;
 }
 
-double
+#if WANT_FLOAT
+flt_t
 parse_double(BFILE *f)
 {
   // apparently longest float, when rendered, takes up 24 characters. We add one more for a potential
@@ -1065,6 +1073,7 @@ parse_double(BFILE *f)
 
   return strtod(buf, NULL);;
 }
+#endif
 
 NODEPTR
 mkStrNode(const char *str)
@@ -1075,7 +1084,7 @@ mkStrNode(const char *str)
 }
 
 NODEPTR mkInt(value_t i);
-NODEPTR mkDbl(double d);
+NODEPTR mkFlt(flt_t d);
 NODEPTR mkPtr(void* p);
 
 /* Table of labelled nodes for sharing during parsing. */
@@ -1113,7 +1122,7 @@ parse(BFILE *f)
   NODEPTR *nodep;
   heapoffs_t l;
   value_t i;
-  double d;
+  flt_t d;
   int c;
   char buf[80];                 /* store names of primitives. */
 
@@ -1130,7 +1139,7 @@ parse(BFILE *f)
     return r;
   case '&':
     d = parse_double(f);
-    r = mkDbl(d);
+    r = mkFlt(d);
     return r;
   case '#':
     i = parse_int(f);
@@ -1535,7 +1544,7 @@ mkInt(value_t i)
 }
 
 NODEPTR
-mkDbl(double d)
+mkFlt(flt_t d)
 {
   NODEPTR n;
   n = alloc_node(T_DBL);
@@ -1632,8 +1641,8 @@ evalint(NODEPTR n)
   return GETVALUE(n);
 }
 
-/* Evaluate to a Double */
-static INLINE double
+/* Evaluate to a Flt_T */
+static INLINE flt_t
 evaldbl(NODEPTR n)
 {
   n = evali(n);
@@ -1799,7 +1808,7 @@ eval(NODEPTR n)
   NODEPTR x, y, z, w;
   value_t xi, yi, r;
 #if WANT_FLOAT
-  double xd, yd, rd;
+  flt_t xd, yd, rd;
 #endif  /* WANT_FLOAT */
   char *msg;
   heapoffs_t l;
@@ -1905,7 +1914,7 @@ eval(NODEPTR n)
     case T_FMUL: FARITHBIN(*);
     case T_FDIV: FARITHBIN(/);
     case T_FNEG: FARITHUN(-);
-    case T_ITOF: OPINT1(rd = (double)xi); SETDBL(n, rd); RET;
+    case T_ITOF: OPINT1(rd = (flt_t)xi); SETDBL(n, rd); RET;
     case T_FEQ: CMPF(==);
     case T_FNE: CMPF(!=);
     case T_FLT: CMPF(<);
@@ -1921,7 +1930,7 @@ eval(NODEPTR n)
       POP(1);
       n = TOP(-1);
       
-      GOIND(mkDbl(xd));
+      GOIND(mkFlt(xd));
 
     case T_FSHOW:
       // check that the double exists
@@ -2220,7 +2229,9 @@ execio(NODEPTR n)
         int a = (int)GETVALUE(n);
         funptr_t f = ffi_table[a].ffi_fun;
         value_t ri, xi, yi, zi;
-        double rd, xd;
+#if WANT_FLOAT
+        flt_t rd, xd, yd;
+#endif  /* WANT_FLOAT */
         void *xp, *yp, *wp, *rp;
 #define INTARG(n) evalint(ARG(TOP(n)))
 #define PTRARG(n) evalptr(ARG(TOP(n)))
@@ -2236,7 +2247,10 @@ execio(NODEPTR n)
         case FFI_II:  FFI (1); xi = INTARG(1);                 ri = (*(value_t (*)(value_t         ))f)(xi);    n = mkInt(ri); RETIO(n);
         case FFI_IIV: FFIV(2); xi = INTARG(1); yi = INTARG(2);      (*(void    (*)(value_t, value_t))f)(xi,yi);                RETIO(combUnit);
         case FFI_III: FFI (2); xi = INTARG(1); yi = INTARG(2); ri = (*(value_t (*)(value_t, value_t))f)(xi,yi); n = mkInt(ri); RETIO(n);
-        case FFI_DD:  FFI (1); xd = DBLARG(1);                 rd = (*(double  (*)(double          ))f)(xd);    n = mkDbl(rd); RETIO(n);
+#if WANT_FLOAT
+        case FFI_DD:  FFI (1); xd = DBLARG(1);                 rd = (*(flt_t   (*)(flt_t           ))f)(xd);    n = mkFlt(rd); RETIO(n);
+        case FFI_DDD: FFI (2); xd = DBLARG(1); yd = DBLARG(2); rd = (*(flt_t   (*)(flt_t,   flt_t  ))f)(xd,yd); n = mkFlt(rd); RETIO(n);
+#endif  /* WANT_FLOAT */
         case FFI_PI:  FFI (1); xp = PTRARG(1);                 ri = (*(value_t (*)(void*           ))f)(xp);    n = mkInt(ri); RETIO(n);
         case FFI_Pi:  FFI (1); xp = PTRARG(1);                 ri = (*(int     (*)(void*           ))f)(xp);    n = mkInt(ri); RETIO(n);
         case FFI_IP:  FFI (1); xi = INTARG(1);                 rp = (*(void*   (*)(value_t         ))f)(xi);    n = mkPtr(rp); RETIO(n);
