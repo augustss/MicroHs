@@ -17,3 +17,4 @@ exampletest:	bin/mhs.exe bin/mhseval.exe Example.hs
 	bin\mhs -r Example
 	bin\mhs Example && bin\mhseval
 #	bin\mhs Example -oEx.exe && Ex && rm Ex.exe
+        bin\mhs -i tests Nfib && bin\mhseval
