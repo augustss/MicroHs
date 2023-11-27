@@ -7,7 +7,7 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build-linux:
+  build-linux-x86_64:
     runs-on: ubuntu-latest
     steps:
     - name: checkout repo
@@ -42,6 +42,26 @@ jobs:
       run: nmake -f Makefile.windows
     - name: nmake exampletest
       run: nmake -f Makefile.windows exampletest
+
+  build-linux-aarch64:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: jirutka/setup-alpine@v1
+      with:
+        arch: aarch64
+        branch: v3.15
+        packages: >
+          build-base
+          gcc
+          make
+    - name: checkout repo
+      uses: actions/checkout@v3
+    - name: make
+      run: make
+    - name: make everytestmhs
+      run: make everytestmhs
+#    - name: cabal build
+#      run: cabal build
 
   build-linux-x86:
     runs-on: ubuntu-latest
