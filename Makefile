@@ -18,7 +18,7 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
-.PHONY:	clean bootstrap install ghcgen newmhs cachelib timecompile exampletest
+.PHONY:	clean bootstrap install ghcgen newmhs cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs
 
 all:	bin/mhs
 
@@ -106,6 +106,11 @@ install:
 	@echo "***"
 
 everytest:	runtest bootcombtest exampletest cachetest
+
+everytestmhs:	runtestmhs bootcombtest exampletest cachetest
+
+runtestmhs:
+	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs -c" alltest
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs -ilib -isrc -ogmhs.comb  MicroHs.Main
