@@ -40,5 +40,5 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1
     - name: nmake
       run: nmake -f Makefile.windows
-    - name: name exampletest
+    - name: nmake exampletest
       run: nmake -f Makefile.windows exampletest
