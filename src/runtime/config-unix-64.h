@@ -123,7 +123,7 @@ gettimemilli(void)
 {
   struct timeval tv;
   (void)gettimeofday(&tv, NULL);
-  return (int)(tv.tv_sec * 1000 + tv.tv_usec / 1000);
+  return (uintptr_t)(tv.tv_sec * 1000 + tv.tv_usec / 1000);
 }
 #define GETTIMEMILLI gettimemilli
 

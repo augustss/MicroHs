@@ -65,6 +65,9 @@ jobs:
     - name: simple test
       run: bin/mhseval +RTS -v -v -v -v -rcomb/simple.comb
       shell: alpine.sh {0}
+    - name: mhs test
+      run: bin/mhs +RTS -v -v -v -v -RTS Bad
+      shell: alpine.sh {0}
 #    - name: make everytestmhs
 #      run: make CONF=unix-32 everytestmhs
 #      shell: alpine.sh {0}

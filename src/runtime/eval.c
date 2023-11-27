@@ -177,8 +177,8 @@ node *cells;                 /* All cells */
 counter_t num_reductions = 0;
 counter_t num_alloc;
 counter_t num_gc = 0;
-uint64_t gc_mark_time = 0;
-uint64_t run_time = 0;
+uintptr_t gc_mark_time = 0;
+uintptr_t run_time = 0;
 
 NODEPTR *stack;
 stackptr_t stack_ptr = -1;
