@@ -154,3 +154,6 @@ usingMhs = False
 
 _wordSize :: Int
 _wordSize = 64
+
+_isWindows :: Bool
+_isWindows = False

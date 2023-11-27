@@ -66,6 +66,16 @@ char* TMPNAME(const char* pre, const char* post) {
 #define NORETURN __attribute__ ((noreturn))
 #endif /* !defined(NORETURN) */
 
+value_t
+iswindows(void)
+{
+#if defined(ISWINDOWS)
+  return 1;
+#else
+  return 0;
+#endif
+}
+
 /***************************************/
 
 /* Keep permanent nodes for LOW_INT <= i < HIGH_INT */
@@ -952,6 +962,8 @@ struct {
 #if WANT_MD5
   { "md5File",  (funptr_t)md5File, FFI_PPV },
 #endif
+
+  { "iswindows",(funptr_t)iswindows, FFI_I },
 
   //  { "getArgs",   (funptr_t)getArgs,  FFI_A },
   { "getTimeMilli",(funptr_t)GETTIMEMILLI,  FFI_I },

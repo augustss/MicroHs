@@ -214,9 +214,15 @@ primIntToPtr = primitive "toPtr"
 primPtrToInt :: forall a . Ptr a -> Int
 primPtrToInt = primitive "toInt"
 
--- Will get constant folded on first use
+-- Size in bits of Word/Int.
+-- Will get constant folded on first use.
 _wordSize :: Int
 _wordSize = loop (primWordInv (0::Word)) (0::Int)
   where
     loop :: Word -> Int -> Int
     loop w n = if w `primWordEQ` (0::Word) then n else loop (primWordShr w (1::Int)) (n `primIntAdd` (1::Int))
+
+-- Is this Windows?
+foreign import ccall "iswindows" c_iswindows :: IO Int
+_isWindows :: Bool
+_isWindows = primPerformIO c_iswindows `primIntEQ` 1

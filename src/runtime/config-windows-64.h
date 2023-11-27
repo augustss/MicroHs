@@ -30,6 +30,11 @@
  */
 #define WORD_SIZE 64
 
+/*
+ * This is Windows
+ */
+#define ISWINDOWS 1
+
 #include <inttypes.h>
 
 /*
