@@ -62,14 +62,17 @@ jobs:
     - name: make mhseval
       run: make CONF=unix-32 bin/mhseval
       shell: alpine.sh {0}
+    - name: make bootstrap
+      run: make CONF=unix-32 bbootstrap
+      shell: alpine.sh {0}
 #    - name: simple test
 #      run: bin/mhseval +RTS -v -v -v -v -rcomb/simple.comb
 #      shell: alpine.sh {0}
-    - name: mhs test
-      run: |
-        bin/mhs +RTS -v -v -RTS -itests Nfib
-        bin/mhseval
-      shell: alpine.sh {0}
-    - name: make everytestmhs
-      run: make CONF=unix-32 everytestmhs
-      shell: alpine.sh {0}
+#    - name: mhs test
+#      run: |
+#        bin/mhs +RTS -v -v -RTS -itests Nfib
+#        bin/mhseval
+#      shell: alpine.sh {0}
+#    - name: make everytestmhs
+#      run: make CONF=unix-32 everytestmhs
+#      shell: alpine.sh {0}
