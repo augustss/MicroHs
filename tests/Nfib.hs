@@ -1,4 +1,4 @@
-module Nfib(main) where
+module Nfib(main, nfib) where
 import Prelude
 
 nfib :: Int -> Int
@@ -8,7 +8,12 @@ nfib n =
     True  -> 1
 
 main :: IO ()
-main = print (nfib 44)
+main = do
+  t1 <- getTimeMilli
+  let r = nfib 39
+  print r
+  t2 <- getTimeMilli
+  putStrLn $ "nfib/s = " ++ show (r `quot` (t2 - t1)) ++ "k"
 
 -- Typical nfib/s is 10M
 -- mhs
