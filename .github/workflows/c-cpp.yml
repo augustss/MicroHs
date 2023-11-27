@@ -63,7 +63,7 @@ jobs:
       run: make CONF=unix-32 bin/mhseval
       shell: alpine.sh {0}
     - name: simple test
-      run: bin/mhseval +RTS -v -v -v -v -rcomb/simple.comb"
+      run: bin/mhseval +RTS -v -v -v -v -rcomb/simple.comb
       shell: alpine.sh {0}
 #    - name: make everytestmhs
 #      run: make CONF=unix-32 everytestmhs
