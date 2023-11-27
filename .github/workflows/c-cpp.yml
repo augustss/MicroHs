@@ -42,3 +42,18 @@ jobs:
       run: nmake -f Makefile.windows
     - name: nmake exampletest
       run: nmake -f Makefile.windows exampletest
+
+  build-linux-32:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: jirutka/setup-alpine@v1
+      with:
+        branch: v3.15
+    - name: checkout repo
+      uses: actions/checkout@v3
+    - name: make
+      run: make CONF=unix-32
+      shell: alpine.sh {0}
+    - name: make everytestmhs
+      run: make CONF=unix-32 everytestmhs
+      shell: alpine.sh {0}

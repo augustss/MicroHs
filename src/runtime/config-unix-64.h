@@ -118,12 +118,12 @@ getraw(void)
  * Get time since some epoch in milliseconds.
  */
 #include <sys/time.h>
-uint64_t
+uintptr_t
 gettimemilli(void)
 {
   struct timeval tv;
   (void)gettimeofday(&tv, NULL);
-  return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+  return (int)(tv.tv_sec * 1000 + tv.tv_usec / 1000);
 }
 #define GETTIMEMILLI gettimemilli
 
