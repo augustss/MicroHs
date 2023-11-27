@@ -118,7 +118,8 @@ mainCompile mhsdir flags mn = do
        hClose h
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
-       let cc = fromMaybe ("cc -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval.c " ++ mhsdir ++ "/src/runtime/md5.c $IN -lm -o $OUT") mcc
+       let conf = "unix-" ++ show _wordSize
+           cc = fromMaybe ("cc -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbose flags > 0) $
          putStrLn $ "Execute: " ++ show cmd
@@ -127,17 +128,3 @@ mainCompile mhsdir flags mn = do
        ct2 <- getTimeMilli
        when (verbose flags > 0) $
          putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"
-
-{-
-compileAndSave :: Flags -> Ident -> IO ()
-compileAndSave flags mn = do
---  putStrLn "Start"
-  (_, cache) <- compileCacheTop flags mn emptyCache
---  putStrLn "compile done"
-  () <- seq (rnf cache) (return ())
---  putStrLn "rnf done"
-  hout <- openFile (output flags) WriteMode
-  hSerialize hout cache
---  putStrLn "write done"
-  hClose hout
--}

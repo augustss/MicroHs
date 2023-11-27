@@ -2,10 +2,6 @@
  * See LICENSE file for full license.
  */
 #include <inttypes.h>
-
-#include "config-unix-64.h"
-//#include "config-micro-64.h"
-
 #if WANT_STDIO
 #include <stdio.h>
 #include <locale.h>
@@ -2458,3 +2454,7 @@ main(int argc, char **argv)
 #endif  /* WANT_STDIO */
   exit(0);
 }
+
+#if WANT_MD5
+#include "md5.c"
+#endif  /* WANT_MD5 */

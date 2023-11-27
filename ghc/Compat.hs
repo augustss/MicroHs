@@ -151,3 +151,6 @@ hDeserialize _ = error "ghc: hDeserialize"
 
 usingMhs :: Bool
 usingMhs = False
+
+_wordSize :: Int
+_wordSize = 64

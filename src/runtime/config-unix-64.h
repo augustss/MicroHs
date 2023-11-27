@@ -1,3 +1,7 @@
+/* Copyright 2023 Lennart Augustsson
+ * See LICENSE file for full license.
+ */
+
 /*
  * Various platform specific configuration.
  */
@@ -16,7 +20,7 @@
 
 /*
  * Include <math.h>
- * Without this, exp,sin, etc are not available.
+ * Without this exp,sin,sqrt etc will not be available.
  */
 #define WANT_MATH 1
 
@@ -45,6 +49,7 @@
 /* #define PCOMMA "'" */
 
 
+#include <inttypes.h>
 #include <termios.h>
 #include <sys/types.h>
 #include <unistd.h>

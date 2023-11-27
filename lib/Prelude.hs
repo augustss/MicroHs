@@ -29,7 +29,7 @@ module Prelude(
   module System.IO,
   module Text.Show,
   module Text.String,
-  usingMhs,
+  usingMhs, _wordSize,
   ) where
 import Control.Applicative
 import Control.Error
@@ -59,6 +59,7 @@ import Data.Tuple
 import System.IO
 import Text.Show
 import Text.String
+import Primitives(_wordSize)
 
 -- So we can detect mhs vs ghc
 usingMhs :: Bool
