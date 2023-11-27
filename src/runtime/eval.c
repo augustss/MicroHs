@@ -511,8 +511,10 @@ alloc_node(enum node_tag t)
     i++;
 #if SANITY
     if (i >= free_map_nwords) {
+#if 0
       fprintf(stderr, "wordsize=%d, num_free=%u next_scan_index=%u i=%u free_map_nwords=%u\n", (int)BITS_PER_WORD,
               (unsigned int)num_free, (unsigned int)next_scan_index, (unsigned int)i, (unsigned int)free_map_nwords);
+#endif
       ERR("alloc_node: free_map");
     }
 #endif
@@ -958,7 +960,11 @@ struct {
          FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP, FFI_PPV,
   } ffi_how;
 } ffi_table[] = {
+#if WORD_SIZE == 64
   { "llabs",    (funptr_t)llabs,   FFI_II },
+#else  /* WORD_SIZE */
+  { "llabs",    (funptr_t)labs,    FFI_II },
+#endif  /* WORD_SIZE */
 #if WANT_MATH
   // This is wrong(ish) for 32 bit floats.
   { "log",      (funptr_t)log,     FFI_DD },
