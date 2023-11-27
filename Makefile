@@ -107,10 +107,10 @@ install:
 
 everytest:	runtest bootcombtest exampletest cachetest
 
-everytestmhs:	runtestmhs bootcombtest exampletest cachetest
+everytestmhs:	bin/mhs bin/mhseval runtestmhs bootcombtest exampletest cachetest
 
 runtestmhs:
-	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs -c" alltest
+	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs -c" test
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs -ilib -isrc -ogmhs.comb  MicroHs.Main
