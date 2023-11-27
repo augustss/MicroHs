@@ -859,11 +859,11 @@ tLookupV i = do
             _      -> "value"
   tLookup s i
 
-tInst :: (Expr, EType) -> T (Expr, EType)
+tInst :: HasCallStack => (Expr, EType) -> T (Expr, EType)
 tInst (ae, EForall vks t) = tInstForall ae vks t >>= tInst
 tInst (ae, at) | Just (ctx, t) <- getImplies at = do
   d <- newIdent (getSLoc ae) "dict"
-  --traceM $ "tInst: addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx ++ " " ++ showSLoc loc
+  --traceM $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
   addConstraint d ctx
   tInst (EApp ae (EVar d), t)
 tInst at = return at
@@ -1373,7 +1373,7 @@ tCheckExpr :: HasCallStack =>
               EType -> Expr -> T Expr
 tCheckExpr t e | Just (ctx, t') <- getImplies t = do
 --  error $ "tCheckExpr: " ++ show (e, ctx, t')
-  d <- newDictIdent (getSLoc e)
+  d <- newADictIdent (getSLoc e)
   e' <- withDict d ctx $ tCheckExpr t' e
   return $ eLam [EVar d] e'
 
@@ -1659,11 +1659,12 @@ unArrow loc t = do
 getFixity :: FixTable -> Ident -> Fixity
 getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
 
-dictPrefix :: String
-dictPrefix = "adict"
+-- Dictionary argument names
+adictPrefix :: String
+adictPrefix = "adict"
 
-newDictIdent :: SLoc -> T Ident
-newDictIdent loc = newIdent loc dictPrefix
+newADictIdent :: SLoc -> T Ident
+newADictIdent loc = newIdent loc adictPrefix
 
 tcExprLam :: Expected -> [Eqn] -> T Expr
 tcExprLam mt qs = do
@@ -1675,7 +1676,7 @@ tcEqns :: Bool -> EType -> [Eqn] -> T [Eqn]
 tcEqns top (EForall iks t) eqns = withExtTyps iks $ tcEqns top t eqns
 tcEqns top t eqns | Just (ctx, t') <- getImplies t = do
   let loc = getSLoc eqns
-  d <- newDictIdent loc
+  d <- newADictIdent loc
   f <- newIdent loc "fcnD"
   withDict d ctx $ do
     eqns' <- tcEqns top t' eqns
@@ -1789,6 +1790,7 @@ tCheckPatC t app ta = do
   env <- mapM (\ v -> (v,) <$> newUVar) vs
   withExtVals env $ do
     (_sks, ds, pp) <- tCheckPat t app
+--    traceM ("tCheckPatC: " ++ show pp)
     () <- checkArity 0 pp
 --    traceM ("tCheckPatC " ++ show ds)
     -- XXX must check for leaking skolems
@@ -1825,7 +1827,7 @@ tcPat mt ae =
                  case getImplies spt of
                    Nothing -> return ([], app, apt)
                    Just (ctx, pt') -> do
-                     di <- newDictIdent loc
+                     di <- newADictIdent loc
                      return ([(di, ctx)], EApp app (EVar di), pt')
                    
                -- We will only have an expected type for a non-nullary constructor
@@ -1911,7 +1913,7 @@ checkArity n (ECon c) =
   in  if n < a then
         tcError (getSLoc c) "too few arguments"
       else if n > a then
-        tcError (getSLoc c) "too many arguments"
+        tcError (getSLoc c) $ "too many arguments"
       else
         return ()
 checkArity n (EAt _ p) = checkArity n p
@@ -2141,7 +2143,7 @@ checkSigma expr sigma = do
 
 subsCheckRho :: HasCallStack =>
                 SLoc -> Expr -> Sigma -> Rho -> T Expr
---subsCheckRho _ e1 t1 t2 | trace ("subsCheckRho: " ++ {-showExpr e1 ++ " :: " ++ -} showEType t1 ++ " = " ++ showEType t2) False = undefined
+--subsCheckRho _ e1 t1 t2 | trace ("subsCheckRho: " ++ show e1 ++ " :: " ++ show t1 ++ " = " ++ show t2) False = undefined
 subsCheckRho loc exp1 sigma1@(EForall _ _) rho2 = do -- Rule SPEC
   (exp1', rho1) <- tInst (exp1, sigma1)
   subsCheckRho loc exp1' rho1 rho2
@@ -2410,7 +2412,7 @@ findMatches ds its =
 getBestMatches :: [(Int, (Expr, [EConstraint]))] -> [(Expr, [EConstraint])]
 getBestMatches [] = []
 getBestMatches ams =
-  let (args, insts) = partition (\ (_, (EVar i, _)) -> (dictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i) ams
+  let (args, insts) = partition (\ (_, (EVar i, _)) -> (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i) ams
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest
