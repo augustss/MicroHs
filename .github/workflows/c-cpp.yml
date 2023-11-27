@@ -31,3 +31,14 @@ jobs:
     - name: cabal build
       run: cabal build
 
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v3
+    - name: set up MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+    - name: nmake
+      run: nmake -f Makefile.windows
+    - name: name exampletest
+      run: nmake -f Makefile.windows exampletest

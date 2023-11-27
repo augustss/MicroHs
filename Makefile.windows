@@ -12,3 +12,8 @@ bin/mhs.exe:	src/runtime/*.c src/runtime/config*.h #generated/mhs.c
 bin/mhseval.exe:	src/runtime/*.c src/runtime/config*.h src/runtime/comb.c
 	@-mkdir bin
 	cl /O2 src/runtime/eval-windows-64.c src/runtime/comb.c /Febin/mhseval.exe
+
+exampletest:	bin/mhs bin/mhseval Example.hs
+	bin/mhs -r Example
+	bin/mhs Example && bin/mhseval
+#	bin/mhs Example -oEx && ./Ex && rm Ex
