@@ -70,6 +70,6 @@ jobs:
         bin/mhs +RTS -v -v -RTS -itests Nfib
         bin/mhseval
       shell: alpine.sh {0}
-#    - name: make everytestmhs
-#      run: make CONF=unix-32 everytestmhs
-#      shell: alpine.sh {0}
+    - name: make everytestmhs
+      run: make CONF=unix-32 everytestmhs
+      shell: alpine.sh {0}
