@@ -105,7 +105,7 @@ install:
 	@echo "*** Set environment variable MHSDIR to $(PREFIX)/lib/mhs"
 	@echo "***"
 
-everytest:	runtest bootcombtest exampletest
+everytest:	runtest bootcombtest exampletest cachetest
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs -ilib -isrc -ogmhs.comb  MicroHs.Main
@@ -116,3 +116,9 @@ exampletest:	bin/mhs bin/mhseval Example.hs
 	bin/mhs -r Example
 	bin/mhs Example && bin/mhseval
 	bin/mhs Example -oEx && ./Ex && rm Ex
+
+cachetest:	bin/mhs bin/mhseval Example.hs
+	rm -f .mhscache
+	bin/mhs -c AllOfLib
+	bin/mhs -c Example && bin/mhseval
+	rm -f .mhscache
