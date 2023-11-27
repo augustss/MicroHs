@@ -75,7 +75,9 @@ commands =
       return True
     )
   , ("reload", const $ do
-      modify $ \ (ls, flgs, _) -> (ls, flgs, emptyCache)
+      (ls, flgs, cash) <- get
+      cash' <- liftIO $ validateCache flgs cash
+      put (ls, flgs, cash')
       reload
       return True
     )

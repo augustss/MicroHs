@@ -5,6 +5,7 @@ module MicroHs.Compile(
   mhsCacheName,
   Flags(..), verbose, runIt, output, useCache,
   getCached,
+  validateCache,
   Cache, emptyCache, deleteFromCache,
   ) where
 import Prelude
