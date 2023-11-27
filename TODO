@@ -51,4 +51,5 @@
   - In GC mark pass
   - In evaluator
 * Fix bug uncovered by Data.Type.Equality
-* Maybe allow implicit forall for kind variables?
+* Stratify types/kinds/sorts
+  - Do kind variables this way 'data forall (k:Kind) . T (a::k) = C'

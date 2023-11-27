@@ -12,7 +12,6 @@ module MicroHs.TypeCheck(
   boolPrefix,
   listPrefix,
   ) where
-import Data.Eq -- XXX why needed?
 import Prelude
 import Control.Monad
 import Data.Char
@@ -117,6 +116,7 @@ type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
 type ClassTable = M.Map ClassInfo  -- maps a class identifier to its associated information
 type InstTable  = M.Map InstInfo   -- indexed by class name
+type MetaTable  = [(Ident, EConstraint)]  -- instances with unification variables
 type Constraints= [(Ident, EConstraint)]
 type Defaults   = [EType]          -- Current defaults
 
@@ -392,6 +392,7 @@ data TCState = TC
   TCMode                -- pattern, value, or type
   ClassTable            -- class info, indexed by QIdent
   (InstTable,           -- instances
+   MetaTable,           -- instances with unification variables
    TypeEqTable)         -- type equalities
   Constraints           -- constraints that have to be solved
   Defaults              -- current defaults
@@ -428,10 +429,16 @@ tcMode :: TCState -> TCMode
 tcMode (TC _ _ _ _ _ _ _ _ m _ _ _ _) = m
 
 instTable :: TCState -> InstTable
-instTable (TC _ _ _ _ _ _ _ _ _ _ (is, _) _ _) = is
+instTable (TC _ _ _ _ _ _ _ _ _ _ (is, _, _) _ _) = is
+
+metaTable :: TCState -> MetaTable
+metaTable (TC _ _ _ _ _ _ _ _ _ _ (_, ms, _) _ _) = ms
 
 typeEqTable :: TCState -> TypeEqTable
-typeEqTable (TC _ _ _ _ _ _ _ _ _ _ (_, es) _ _) = es
+typeEqTable (TC _ _ _ _ _ _ _ _ _ _ (_, _, es) _ _) = es
+
+ctxTables :: TCState -> (InstTable, MetaTable, TypeEqTable)
+ctxTables (TC _ _ _ _ _ _ _ _ _ _ ct _ _) = ct
 
 constraints :: TCState -> Constraints
 constraints (TC _ _ _ _ _ _ _ _ _ _ _ e _) = e
@@ -466,13 +473,23 @@ putTCMode m = do
 
 putInstTable :: InstTable -> T ()
 putInstTable is = do
-  TC mn n fx tenv senv venv ast sub m cs (_,eqs) es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs (is,eqs) es ds)
+  TC mn n fx tenv senv venv ast sub m cs (_,ms,eqs) es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs (is,ms,eqs) es ds)
+
+putMetaTable :: MetaTable -> T ()
+putMetaTable ms = do
+  TC mn n fx tenv senv venv ast sub m cs (is,_,eqs) es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs (is,ms,eqs) es ds)
 
 putTypeEqTable :: TypeEqTable -> T ()
 putTypeEqTable eqs = do
-  TC mn n fx tenv senv venv ast sub m cs (is,_) es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs (is,eqs) es ds)
+  TC mn n fx tenv senv venv ast sub m cs (is,ms,_) es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs (is,ms,eqs) es ds)
+
+putCtxTables :: (InstTable, MetaTable, TypeEqTable) -> T ()
+putCtxTables ct = do
+  TC mn n fx tenv senv venv ast sub m cs _ es ds <- get
+  put (TC mn n fx tenv senv venv ast sub m cs ct es ds)
 
 putConstraints :: Constraints -> T ()
 putConstraints es = do
@@ -545,35 +562,48 @@ addConstraint d ctx = do
   put $ TC mn n fx tt st vt ast sub m cs is ((d, ctx') : es) ds
 
 withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
-withDicts [] ta = ta
-withDicts ((i, c):ds) ta = withDict i c $ withDicts ds ta
+withDicts ds ta = do
+  ct <- gets ctxTables
+  mapM_ addDict ds
+  a <- ta
+  putCtxTables ct
+  return a
 
 withDict :: forall a . HasCallStack => Ident -> EConstraint -> T a -> T a
 withDict i c ta = do
-  c' <- expandSyn c >>= derefUVar
-  when (not (null (metaTvs [c']))) $
-    error (show c)
-  case c' of
-    (EApp (EApp (EVar eq) t1) t2) | eq == mkIdent nameTypeEq -> withEqDict i t1 t2 ta
-    _ -> withInstDict i c' ta
-
-withInstDict :: forall a . HasCallStack => Ident -> EConstraint -> T a -> T a
-withInstDict i c ta = do
-  is <- gets instTable
-  ics <- expandDict (EVar i) c
-  addInstTable ics
+  ct <- gets ctxTables
+  addDict (i, c)
   a <- ta
-  putInstTable is
+  putCtxTables ct
   return a
 
-withEqDict :: forall a . Ident -> EType -> EType -> T a -> T a
-withEqDict _i t1 t2 ta = do
+addDict :: (Ident, EConstraint) -> T ()
+addDict (i, c) = do
+  c' <- expandSyn c >>= derefUVar
+  if null (metaTvs [c']) then
+    case c' of
+      (EApp (EApp (EVar eq) t1) t2) | eq == mkIdent nameTypeEq -> addEqDict i t1 t2
+      _ -> addInstDict i c'
+   else
+    -- With constraint variables we might get unification variables.
+    -- We stash them away in how that we will learn more later.
+    addMetaDict i c'
+
+addInstDict :: HasCallStack => Ident -> EConstraint -> T ()
+addInstDict i c = do
+  ics <- expandDict (EVar i) c
+  addInstTable ics
+
+addEqDict :: Ident -> EType -> EType -> T ()
+addEqDict _i t1 t2 = do
   is <- gets typeEqTable
 --  traceM ("withEqDict: " ++ show (is, (t1,t2), (addTypeEq t1 t2 is)))
   putTypeEqTable (addTypeEq t1 t2 is)
-  a <- ta
-  putTypeEqTable is
-  return a
+
+addMetaDict :: HasCallStack => Ident -> EConstraint -> T ()
+addMetaDict i c = do
+  ms <- gets metaTable
+  putMetaTable ((i,c) : ms)
 
 initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ClassTable -> InstTable -> ValueTable -> AssocTable -> TCState
 initTC mn fs ts ss cs is vs as =
@@ -581,7 +611,7 @@ initTC mn fs ts ss cs is vs as =
   let
     xts = foldr (uncurry stInsertGlb) ts primTypes
     xvs = foldr (uncurry stInsertGlb) vs primValues
-  in TC mn 1 fs xts ss xvs as IM.empty TCExpr cs (is,[]) [] []
+  in TC mn 1 fs xts ss xvs as IM.empty TCExpr cs (is,[],[]) [] []
 
 kTypeS :: EType
 kTypeS = kType
@@ -1313,7 +1343,7 @@ tcDefValue adef =
     Fcn i eqns -> do
       (_, tt) <- tLookup "type signature" i
 --      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr tt
---      traceM $ "tcDefValue: def=" ++ showEDefs [adef]
+--      traceM $ "tcDefValue:      " ++ showEDefs [adef]
       mn <- gets moduleName
       teqns <- tcEqns True tt eqns
 --      traceM ("tcDefValue: after " ++ showEDefs [adef, Fcn i teqns])
@@ -1682,7 +1712,7 @@ tcExprLam mt qs = do
   ELam <$> tcEqns False t qs
 
 tcEqns :: Bool -> EType -> [Eqn] -> T [Eqn]
---tcEqns t eqns | trace ("tcEqns: " ++ showEBind (BFcn dummyIdent eqns) ++ " :: " ++ showEType t) False = undefined
+--tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (BFcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
 tcEqns top (EForall iks t) eqns = withExtTyps iks $ tcEqns top t eqns
 tcEqns top t eqns | Just (ctx, t') <- getImplies t = do
   let loc = getSLoc eqns
@@ -1708,7 +1738,7 @@ tcEqns top t eqns = do
       return [eqn]
 
 tcEqn :: EType -> Eqn -> T Eqn
---tcEqn t _eqn | trace ("tcEqn: " ++ showEType t) False = undefined
+--tcEqn t eqn | trace ("tcEqn: " ++ show eqn ++ " :: " ++ show t) False = undefined
 tcEqn t eqn =
   case eqn of
     Eqn ps alts -> tcPats t ps $ \ t' ps' -> do
@@ -1794,7 +1824,7 @@ tCheckPatC :: forall a . EType -> EPat -> (EPat -> T a) -> T a
 tCheckPatC t p@(EVar v) ta | not (isConIdent v) = do  -- simple special case
   withExtVals [(v, t)] $ ta p
 tCheckPatC t app ta = do
---  traceM $ "tCheckPat: " ++ show app
+--  traceM $ "tCheckPatC: " ++ show app ++ " :: " ++ show t
   let vs = patVars app
   multCheck vs
   env <- mapM (\ v -> (v,) <$> newUVar) vs
@@ -1802,7 +1832,8 @@ tCheckPatC t app ta = do
     (_sks, ds, pp) <- tCheckPat t app
 --    traceM ("tCheckPatC: " ++ show pp)
     () <- checkArity 0 pp
---    traceM ("tCheckPatC " ++ show ds)
+--    xt <- derefUVar t
+--    traceM ("tCheckPatC ds=" ++ show ds ++ "t=" ++ show xt)
     -- XXX must check for leaking skolems
     withDicts ds $
       ta pp
@@ -2295,6 +2326,7 @@ showMatch (e, ts) = show e ++ " " ++ show ts
 --  instances with a context
 solveConstraints :: T [(Ident, Expr)]
 solveConstraints = do
+  addMetaDicts
   cs <- gets constraints
   if null cs then
     return []
@@ -2503,6 +2535,13 @@ stInsertLcl i a (SymTab genv lenv) = SymTab genv ((i,a) : lenv)
 -- XXX Use insertWith to follow Haskell semantics.
 stInsertGlb :: forall a . Ident -> [a] -> SymTab a -> SymTab a
 stInsertGlb i as (SymTab genv lenv) = SymTab (M.insert i as genv) lenv
+
+-- Try adding all dictionaries that used to have meta variables.
+addMetaDicts :: T ()
+addMetaDicts = do
+  ms <- gets metaTable
+  putMetaTable []
+  mapM_ addDict ms  -- Try adding them
 
 -----------------------------
 {-

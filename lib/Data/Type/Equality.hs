@@ -3,13 +3,11 @@ import Prelude
 
 data a :~: b = (a ~ b) => Refl
 
--- BUG
---instance forall a b . Eq (a :~: b) where
---  Refl == Refl  =  True
+instance forall a b . Eq (a :~: b) where
+  Refl == Refl  =  True
 
--- BUG
---instance forall a b . Show (a :~: b) where
---  show Refl = "Refl"
+instance forall a b . Show (a :~: b) where
+  show Refl = "Refl"
 
 sym :: forall a b . (a :~: b) -> (b :~: a)
 sym Refl = Refl

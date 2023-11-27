@@ -107,7 +107,7 @@ install:
 	@echo "*** Set environment variable MHSDIR to $(PREFIX)/lib/mhs"
 	@echo "***"
 
-everytest:	runtest bootcombtest exampletest cachetest
+everytest:	runtest exampletest cachetest bootcombtest
 
 everytestmhs:	bin/mhs bin/mhseval exampletest cachetest bootstrap runtestmhs
 
@@ -129,4 +129,3 @@ cachetest:	bin/mhs bin/mhseval Example.hs
 	bin/mhs -c AllOfLib
 	bin/mhs -c Example && bin/mhseval
 	rm -f .mhscache
-

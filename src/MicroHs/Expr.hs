@@ -172,7 +172,6 @@ data EBind = BFcn Ident [Eqn] | BPat EPat Expr | BSign Ident EType
 
 -- A single equation for a function
 data Eqn = Eqn [EPat] EAlts
-  deriving (Show)
 
 data EAlts = EAlts [EAlt] [EBind]
   deriving (Show)
@@ -456,6 +455,9 @@ instance Show EModule where
 
 instance Show Expr where
   show = showExpr
+
+instance Show Eqn where
+  show eqn = render $ ppEqns (text "_") (text "=") [eqn]
 
 showExpr :: Expr -> String
 showExpr = render . ppExpr
