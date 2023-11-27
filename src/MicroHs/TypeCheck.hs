@@ -862,7 +862,7 @@ tLookupV i = do
 tInst :: HasCallStack => (Expr, EType) -> T (Expr, EType)
 tInst (ae, EForall vks t) = tInstForall ae vks t >>= tInst
 tInst (ae, at) | Just (ctx, t) <- getImplies at = do
-  d <- newIdent (getSLoc ae) "dict"
+  d <- newDictIdent (getSLoc ae)
   --traceM $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
   addConstraint d ctx
   tInst (EApp ae (EVar d), t)
@@ -1225,7 +1225,7 @@ expandInst dinst@(Instance vks ctx cc bs) = do
   let ies = [(i, ELam qs) | BFcn i qs <- bs]
       meth i = fromMaybe (EVar $ setSLocIdent loc $ mkDefaultMethodId i) $ lookup i ies
       meths = map meth mis
-      sups = map (const (EVar $ mkIdentSLoc loc "dict$")) supers
+      sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
   let bind = Fcn iInst $ eEqns [] $ foldl EApp (EVar $ mkClassConstructor qiCls) args
   mn <- gets moduleName
@@ -1424,9 +1424,9 @@ tcExprR mt ae =
   let { loc = getSLoc ae } in
 --  trace ("tcExprR " ++ show ae) $
   case ae of
-    EVar i | isIdent "dict$" i -> do
+    EVar i | isIdent dictPrefixDollar i -> do
              -- Magic variable that just becomes the dictionary
-             d <- newIdent (getSLoc i) "dict$"
+             d <- newIdent (getSLoc i) dictPrefixDollar
              case mt of
                Infer _ -> impossible
                Check t -> addConstraint d t
@@ -1665,6 +1665,16 @@ adictPrefix = "adict"
 
 newADictIdent :: SLoc -> T Ident
 newADictIdent loc = newIdent loc adictPrefix
+
+-- Needed dictionaries
+dictPrefix :: String
+dictPrefix = "dict"
+
+dictPrefixDollar :: String
+dictPrefixDollar = dictPrefix ++ uniqIdentSep
+
+newDictIdent :: SLoc -> T Ident
+newDictIdent loc = newIdent loc dictPrefix
 
 tcExprLam :: Expected -> [Eqn] -> T Expr
 tcExprLam mt qs = do
@@ -2302,7 +2312,7 @@ solveConstraints = do
               (iCls, cts) = getApp ct
           case getTupleConstr iCls of
             Just _ -> do
-              goals <- mapM (\ c -> do { d <- newIdent loc "dict"; return (d, c) }) cts
+              goals <- mapM (\ c -> do { d <- newDictIdent loc; return (d, c) }) cts
 --              traceM ("split tuple " ++ showListS showConstraint goals)
               solve (goals ++ cnss) uns ((di, ETuple (map (EVar . fst) goals)) : sol)
             Nothing | iCls == mkIdent nameTypeEq -> solveTypeEq loc cts cns cnss uns sol
@@ -2336,7 +2346,7 @@ solveConstraints = do
               if null ctx then
                 solve cnss uns ((di, de) : sol)
               else do
-                d <- newIdent loc "dict"
+                d <- newDictIdent loc
 --                traceM ("constraint " ++ showIdent di ++ " :: " ++ showEType ct ++ "\n" ++
 --                        "   turns into " ++ showIdent d ++ " :: " ++ showEType (tupleConstraints ctx) ++ ", " ++
 --                        showIdent di ++ " = " ++ showExpr (EApp de (EVar d)))
@@ -2350,7 +2360,7 @@ solveConstraints = do
             Nothing -> solve cnss (cns : uns) sol
             Just (de, tts) -> do
               let mkEq (u1, u2) = do
-                    i <- newIdent loc "dict"
+                    i <- newDictIdent loc
                     return (i, mkEqType loc u1 u2)
               ncs <- mapM mkEq tts
               solve (ncs ++ cnss) uns ((di, de) : sol)
@@ -2433,7 +2443,7 @@ checkConstraints = do
 -- Add a type equality constraint.
 addEqConstraint :: SLoc -> EType -> EType -> T ()
 addEqConstraint loc t1 t2 = do
-  d <- newIdent loc "dict"
+  d <- newDictIdent loc
   addConstraint d (mkEqType loc t1 t2)
 
 mkEqType :: SLoc -> EType -> EType -> EConstraint
