@@ -3,7 +3,7 @@ TMHS=$(MHS) -i../lib
 EVAL=../bin/mhseval
 .PHONY: test nfib clean errtest alltest cache
 
-alltest:	test errtest nfib
+alltest:	test errtest
 
 cache:
 	rm -f .mhscache
