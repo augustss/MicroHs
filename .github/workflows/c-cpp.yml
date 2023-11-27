@@ -48,7 +48,12 @@ jobs:
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
+        arch: x86
         branch: v3.15
+        packages: >
+          build-base
+          gcc
+          make
     - name: checkout repo
       uses: actions/checkout@v3
     - name: make
