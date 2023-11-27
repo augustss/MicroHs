@@ -107,7 +107,7 @@ install:
 
 everytest:	runtest bootcombtest exampletest cachetest
 
-everytestmhs:	bin/mhs bin/mhseval runtestmhs bootcombtest exampletest cachetest
+everytestmhs:	bin/mhs bin/mhseval runtestmhs exampletest cachetest bootstrap
 
 runtestmhs:
 	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs -c" test
