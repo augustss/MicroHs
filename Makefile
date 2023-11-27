@@ -48,14 +48,14 @@ generated/mhs.c:	bin/mhs src/*/*.hs
 	@mkdir -p generated
 	bin/mhs -ilib -isrc MicroHs.Main -ogenerated/mhs.c
 
+ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
+	bin/gmhs -ilib -isrc MicroHs.Main -ogenerated/mhs.c
+
 # Make sure boottrapping works
 bootstrap:	bin/mhs-stage2
 	@echo "*** copy stage2 to bin/mhs"
 	cp bin/mhs-stage2 bin/mhs
 	cp generated/mhs-stage2.c generated/mhs.c 
-
-ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
-	bin/gmhs -ilib -isrc MicroHs.Main -ogenerated/mhs.c
 
 # Build stage1 compiler with existing compiler
 bin/mhs-stage1:	bin/mhs src/*/*.hs
