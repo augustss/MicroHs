@@ -118,8 +118,9 @@ mainCompile mhsdir flags mn = do
        hClose h
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
+       compiler <- fromMaybe "cc" <$> lookupEnv "CC"
        let conf = "unix-" ++ show _wordSize
-           cc = fromMaybe ("cc -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
+           cc = fromMaybe (compiler ++ " -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbose flags > 0) $
          putStrLn $ "Execute: " ++ show cmd
