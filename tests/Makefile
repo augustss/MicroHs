@@ -39,6 +39,7 @@ test:
 	$(TMHS) TypeEq     && $(EVAL) > TypeEq.out     && diff TypeEq.ref TypeEq.out
 	$(TMHS) Sieve      && $(EVAL) > Sieve.out      && diff Sieve.ref Sieve.out
 	$(TMHS) Dict       && $(EVAL) > Dict.out       && diff Dict.ref Dict.out
+	$(TMHS) Symbol     && $(EVAL) > Symbol.out     && diff Symbol.ref Symbol.out
 
 errtest:
 	sh errtester.sh < errmsg.test

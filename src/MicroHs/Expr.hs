@@ -346,6 +346,7 @@ subst s =
         EUVar _ -> ae
         EForall iks t -> EForall iks $ subst [ x | x@(i, _) <- s, not (elem i is) ] t
           where is = map idKindIdent iks
+        ELit _ _ -> ae
         _ -> error "subst unimplemented"
   in sub
 
@@ -360,6 +361,7 @@ eqEType = eqExpr
 eqExpr :: HasCallStack =>
           Expr -> Expr -> Bool
 eqExpr (EVar i) (EVar i') = i == i'
+eqExpr (ELit _ l) (ELit _ l') = l == l'
 eqExpr (EVar _) (EApp _ _) = False
 eqExpr (EApp f a) (EApp f' a') = eqExpr f f' && eqExpr a a'
 eqExpr (EApp _ _) (EVar _) = False

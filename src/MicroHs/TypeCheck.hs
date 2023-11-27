@@ -57,6 +57,9 @@ nameImplies = "Primitives.=>"
 nameArrow :: String
 nameArrow = "Primitives.->"
 
+nameSymbol :: String
+nameSymbol = "Primitives.Symbol"
+
 ----------------------
 
 data TModule a = TModule
@@ -646,6 +649,8 @@ primKindTable =
        (mkIdentB "Type",                  [entry "Primitives.Type" kTypeS]),
        (mkIdentB "Constraint",            [entry "Primitives.Constraint" kTypeS]),
        (mkIdentB "Primitives.Constraint", [entry "Primitives.Constraint" kTypeS]),
+       (mkIdentB "Primitives.Symbol",     [entry "Primitives.Symbol" kTypeS]),
+       (mkIdentB "Symbol",                [entry "Primitives.Symbol" kTypeS]),
        (mkIdentB nameArrow,               [entry nameArrow   kTypeTypeTypeS]),
        (mkIdentB "->",                    [entry nameArrow   kTypeTypeTypeS])
        ]
@@ -765,6 +770,7 @@ expandSyn at =
         EUVar _ -> return $ foldl tApp t ts
         ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
         EForall iks tt | null ts -> EForall iks <$> expandSyn tt
+        ELit _ (LStr _) -> return t
         _ -> impossible
   in syn [] at
 
@@ -786,6 +792,7 @@ derefUVar at =
     EVar _ -> return at
     ESign t k -> flip ESign k <$> derefUVar t
     EForall iks t -> EForall iks <$> derefUVar t
+    ELit _ (LStr _) -> return at
     _ -> impossible
 
 tcErrorTK :: HasCallStack =>
@@ -1487,38 +1494,45 @@ tcExprR mt ae =
     EOper e ies -> do e' <- tcOper e ies; tcExpr mt e'
     ELam qs -> tcExprLam mt qs
     ELit loc' l -> do
-      let getExpected (Infer _) = pure Nothing
-          getExpected (Check t) = do
-            t' <- derefUVar t >>= expandSyn
-            case t' of
-              EVar v -> pure (Just v)
-              _      -> pure Nothing
-      case l of
-        LInteger i -> do
-          mex <- getExpected mt
-          case mex of
-            -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
-            -- (which is not always in scope).
-            Just v | v == mkIdent nameInt     -> tcLit  mt loc' (LInt (_integerToInt i))
-                   | v == mkIdent nameWord    -> tcLit' mt loc' (LInt (_integerToInt i)) (tConI loc' nameWord)
-                   | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (_integerToDouble i))
-                   | v == mkIdent nameInteger -> tcLit  mt loc' l
-            _ -> do
-              (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow
-              (_at, rt) <- unArrow loc ft
-              -- We don't need to check that _at is Integer, it's part of the fromInteger type.
-              instSigma loc (EApp f ae) rt mt
-        LRat r -> do
-          mex <- getExpected mt
-          case mex of
-            Just v | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (fromRational r))
-            _ -> do
-              (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromRational"))  -- XXX should have this qualified somehow
-              (_at, rt) <- unArrow loc ft
-              -- We don't need to check that _at is Rational, it's part of the fromRational type.
-              instSigma loc (EApp f ae) rt mt
-        -- Not LInteger, LRat
-        _ -> tcLit mt loc' l
+      tcm <- gets tcMode
+      case tcm of
+        TCType ->
+          case l of
+            LStr _ -> instSigma loc' (ELit loc' l) (tConI loc' nameSymbol) mt
+            _      -> impossible
+        TCExpr -> do
+          let getExpected (Infer _) = pure Nothing
+              getExpected (Check t) = do
+                t' <- derefUVar t >>= expandSyn
+                case t' of
+                  EVar v -> pure (Just v)
+                  _      -> pure Nothing
+          case l of
+            LInteger i -> do
+              mex <- getExpected mt
+              case mex of
+                -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
+                -- (which is not always in scope).
+                Just v | v == mkIdent nameInt     -> tcLit  mt loc' (LInt (_integerToInt i))
+                       | v == mkIdent nameWord    -> tcLit' mt loc' (LInt (_integerToInt i)) (tConI loc' nameWord)
+                       | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (_integerToDouble i))
+                       | v == mkIdent nameInteger -> tcLit  mt loc' l
+                _ -> do
+                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow
+                  (_at, rt) <- unArrow loc ft
+                  -- We don't need to check that _at is Integer, it's part of the fromInteger type.
+                  instSigma loc (EApp f ae) rt mt
+            LRat r -> do
+              mex <- getExpected mt
+              case mex of
+                Just v | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (fromRational r))
+                _ -> do
+                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromRational"))  -- XXX should have this qualified somehow
+                  (_at, rt) <- unArrow loc ft
+                  -- We don't need to check that _at is Rational, it's part of the fromRational type.
+                  instSigma loc (EApp f ae) rt mt
+            -- Not LInteger, LRat
+            _ -> tcLit mt loc' l
     ECase a arms -> do
       (ea, ta) <- tInferExpr a
       tt <- tGetExpType mt
@@ -2017,6 +2031,7 @@ dsType at =
     ETuple ts -> tApps (tupleConstr (getSLoc at) (length ts)) (map dsType ts)
     ESign t k -> ESign (dsType t) k
     EForall iks t -> EForall iks (dsType t)
+    ELit _ (LStr _) -> at
     _ -> impossible
 
 tConI :: SLoc -> String -> EType
@@ -2143,7 +2158,8 @@ metaTvs tys = foldr go [] tys
     go (EVar _) acc = acc
     go (EForall _ ty) acc = go ty acc
     go (EApp fun arg) acc = go fun (go arg acc)
-    go _ _ = undefined
+    go (ELit _ _) acc = acc
+    go _ _ = impossible
 
 {-
 tyVarBndrs :: Rho -> [TyVar]
@@ -2307,10 +2323,10 @@ showInstInfo :: InstInfo -> String
 showInstInfo (InstInfo m ds fds) = "InstInfo " ++ show (M.toList m) ++ " " ++ showListS showInstDict ds ++ show fds
 
 showInstDict :: InstDict -> String
-showInstDict (e, ctx, ts) = showExpr e ++ " :: " ++ show (addConstraints ctx (tApps (mkIdent "CCC") ts))
+showInstDict (e, ctx, ts) = showExpr e ++ " :: " ++ show (addConstraints ctx (tApps (mkIdent "_") ts))
 
 showInstDef :: InstDef -> String
-showInstDef (cls, InstInfo m ds) = "instDef " ++ show cls ++ ": "
+showInstDef (cls, InstInfo m ds _) = "instDef " ++ show cls ++ ": "
             ++ show (M.toList m) ++ ", " ++ showListS showInstDict ds
 
 showConstraint :: (Ident, EConstraint) -> String
@@ -2429,6 +2445,7 @@ findMatches ds its =
 
     -- Match two types, instantiate variables in the first type.
     matchType r (EVar i) (EVar i') | i == i' = Just r
+    matchType r (ELit _ l) (ELit _ l') | l == l' = Just r
     matchType r (EApp f a) (EApp f' a') = -- XXX should use Maybe monad
       case matchType r f f' of
         Nothing -> Nothing
@@ -2468,8 +2485,8 @@ checkConstraints = do
     [] -> return ()
     (i, t) : _ -> do
       t' <- derefUVar t
-      --is <- gets instTable
-      --traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> showIdent i ++ ":\n" ++ showInstInfo ii) (M.toList is))
+--      is <- gets instTable
+--      traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> show i ++ ":\n" ++ showInstInfo ii) (M.toList is))
       tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ showExpr t'
 
 -- Add a type equality constraint.
