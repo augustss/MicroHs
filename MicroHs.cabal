@@ -40,7 +40,8 @@ executable mhs
   ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
   default-extensions:  ScopedTypeVariables PatternGuards TupleSections TypeSynonymInstances FlexibleInstances
-  other-modules:       MicroHs.Compile
+  other-modules:       MicroHs.Abstract
+                       MicroHs.Compile
                        MicroHs.CompileCache
                        MicroHs.Desugar
                        MicroHs.Exp
