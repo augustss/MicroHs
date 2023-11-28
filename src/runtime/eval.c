@@ -966,7 +966,7 @@ struct {
   { "llabs",    (funptr_t)labs,    FFI_II },
 #endif  /* WORD_SIZE */
 #if WANT_MATH
-  // This is wrong(ish) for 32 bit floats.
+#if WORD_SIZE == 64
   { "log",      (funptr_t)log,     FFI_DD },
   { "exp",      (funptr_t)exp,     FFI_DD },
   { "sqrt",     (funptr_t)sqrt,    FFI_DD },
@@ -977,6 +977,18 @@ struct {
   { "acos",     (funptr_t)acos,    FFI_DD },
   { "atan",     (funptr_t)atan,    FFI_DD },
   { "atan2",    (funptr_t)atan2,   FFI_DDD },
+#else  /* WORD_SIZE == 64 */
+  { "log",      (funptr_t)logf,    FFI_DD },
+  { "exp",      (funptr_t)expf,    FFI_DD },
+  { "sqrt",     (funptr_t)sqrtf,   FFI_DD },
+  { "sin",      (funptr_t)sinf,    FFI_DD },
+  { "cos",      (funptr_t)cosf,    FFI_DD },
+  { "tan",      (funptr_t)tanf,    FFI_DD },
+  { "asin",     (funptr_t)asinf,   FFI_DD },
+  { "acos",     (funptr_t)acosf,   FFI_DD },
+  { "atan",     (funptr_t)atanf,   FFI_DD },
+  { "atan2",    (funptr_t)atan2f,  FFI_DDD },  
+#endif  /* WORD_SIZE == 64 */
 #endif  /* WANT_MATH */
   { "getenv",   (funptr_t)getenv,  FFI_PP },
 
@@ -1955,7 +1967,11 @@ eval(NODEPTR n)
     case T_FREAD:
       CHECK(1);
       msg = evalstring(ARG(TOP(0)), 0);
+#if WORD_SIZE == 64
       xd = strtod(msg, NULL);
+#else
+      xd = strtof(msg, NULL);
+#endif
       free(msg);
 
       POP(1);
@@ -1976,6 +1992,7 @@ eval(NODEPTR n)
       (void)snprintf(str, 25, "%.16g", xd);
       if (!strchr(str, '.') && !strchr(str, 'e') && !strchr(str, 'E')) {
         /* There is no decimal point and no exponent, so add a decimal point */
+        /* XXX wrong for inf and NaN */
         strcat(str, ".0");
       }
 
