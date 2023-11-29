@@ -94,7 +94,8 @@ cachelib:
 #
 clean:
 	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* cache
-	cd tests; make clean
+	make clean -f Makefile.emscripten;
+	cd tests; make clean;
 
 install:
 	mkdir -p $(PREFIX)/bin
@@ -132,3 +133,6 @@ cachetest:	bin/mhs bin/mhseval Example.hs
 
 nfibtest: bin/mhs bin/mhseval
 	bin/mhs -itests Nfib && bin/mhseval
+
+emscripten: bin/mhs
+	make test -f Makefile.emscripten;

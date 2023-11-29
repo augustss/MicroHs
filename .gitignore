@@ -10,7 +10,11 @@ tmp/*
 a.out
 *.prof
 dist-newstyle/
+dist/
 .mhsi
 Interactive.hs
 generated/*
 .mhscache
+*.js
+*.wasm
+/tags
