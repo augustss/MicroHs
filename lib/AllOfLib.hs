@@ -40,6 +40,7 @@ import Data.Monoid
 import Data.Num
 import Data.Ord
 import Data.Ordering_Type
+import Data.Proxy
 import Data.Ratio
 import Data.Ratio_Type
 import Data.Real
