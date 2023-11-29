@@ -108,7 +108,7 @@ install:
 	@echo "*** Set environment variable MHSDIR to $(PREFIX)/lib/mhs"
 	@echo "***"
 
-everytest:	runtest exampletest exampletestexe cachetest bootcombtest nfibtest
+everytest:	runtest exampletest cachetest bootcombtest nfibtest
 
 everytestmhs:	bin/mhs bin/mhseval exampletest cachetest bootstrap runtestmhs nfibtest
 
@@ -123,9 +123,6 @@ bootcombtest:	bin/gmhs bin/mhseval
 exampletest:	bin/mhs bin/mhseval Example.hs
 	bin/mhs -r Example
 	bin/mhs Example && bin/mhseval
-
-# This test fail with CI on 32 bit platforms
-exampletestexe: bin/mhs Example.hs
 	bin/mhs Example -oEx && ./Ex && rm Ex
 
 cachetest:	bin/mhs bin/mhseval Example.hs
@@ -138,4 +135,4 @@ nfibtest: bin/mhs bin/mhseval
 	bin/mhs -itests Nfib && bin/mhseval
 
 emscripten: bin/mhs
-	make test -f Makefile.emscripten
+	make test -f Makefile.emscripten;
