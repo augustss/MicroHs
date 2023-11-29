@@ -12,7 +12,11 @@ data Sign = Plus | Minus
 type Digit = Int
 
 maxD :: Digit
-maxD = 2147483648  -- 2^31, this is used so multiplication of two digit doesn't overflow a 64 bit Int
+maxD =
+  if _wordSize `primIntEQ` 64 then
+    (2147483648::Int)  -- 2^31, this is used so multiplication of two digits doesn't overflow a 64 bit Int
+  else
+    (32768::Int)       -- 2^15, this is used so multiplication of two digits doesn't overflow a 32 bit Int
 
 _intToInteger :: Int -> Integer
 _intToInteger i | i `primIntGE` 0  = I Plus  (f i)

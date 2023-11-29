@@ -1,6 +1,6 @@
 MHS=../bin/gmhs
 TMHS=$(MHS) -i../lib
-EVAL=../bin/mhseval
+EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache
 
 alltest:	test errtest
@@ -22,6 +22,7 @@ test:
 	$(TMHS) Newtype    && $(EVAL) > Newtype.out    && diff Newtype.ref Newtype.out
 	$(TMHS) LitMatch   && $(EVAL) > LitMatch.out   && diff LitMatch.ref LitMatch.out
 	$(TMHS) Word       && $(EVAL) > Word.out       && diff Word.ref Word.out
+	$(TMHS) Integer    && $(EVAL) > Integer.out    && diff Integer.ref Integer.out
 	$(TMHS) Enum       && $(EVAL) > Enum.out       && diff Enum.ref Enum.out
 	$(TMHS) Foreign    && $(EVAL) > Foreign.out    && diff Foreign.ref Foreign.out
 	$(TMHS) MutRec     && $(EVAL) > MutRec.out     && diff MutRec.ref MutRec.out
