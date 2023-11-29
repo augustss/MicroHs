@@ -18,6 +18,8 @@ maxD =
   else
     (32768::Int)       -- 2^15, this is used so multiplication of two digits doesn't overflow a 32 bit Int
 
+-- Sadly, we also need a bunch of functions.
+
 _intToInteger :: Int -> Integer
 _intToInteger i | i `primIntGE` 0  = I Plus  (f i)
                 | i `primIntEQ` ni = I Minus [0::Int,0::Int,2::Int]  -- we are at minBound::Int.
