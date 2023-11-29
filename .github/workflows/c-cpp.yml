@@ -82,16 +82,9 @@ jobs:
     - name: make mhseval
       run: make CONF=unix-32 bin/mhseval
       shell: alpine.sh {0}
-    - name: make bootstrap
-      run: make CONF=unix-32 bootstrap
+    - name: make everytestmhs
+      run: make CONF=unix-32 everytestmhs
       shell: alpine.sh {0}
-    - name: make nfib
-      run: make CONF=unix-32 nfibtest
-      shell: alpine.sh {0}
-# segfaults :(
-#    - name: make everytestmhs
-#      run: make CONF=unix-32 everytestmhs
-#      shell: alpine.sh {0}
 
   build-linux-armv7:
     runs-on: ubuntu-latest
@@ -112,11 +105,8 @@ jobs:
     - name: make mhseval
       run: make CONF=unix-32 bin/mhseval
       shell: alpine.sh {0}
-    - name: make bootstrap
-      run: make CONF=unix-32 bootstrap
-      shell: alpine.sh {0}
-    - name: make nfib
-      run: make CONF=unix-32 nfibtest
+    - name: make everytestmhs
+      run: make CONF=unix-32 everytestmhs
       shell: alpine.sh {0}
 
   build-linux-emscripten:
