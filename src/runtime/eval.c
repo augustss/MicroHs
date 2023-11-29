@@ -711,7 +711,7 @@ init_nodes(void)
     }
   }
 #endif
-  for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
+  for (unsigned int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
     flip_ops[primops[j].tag] = primops[j].flipped;
   }
 
@@ -821,6 +821,9 @@ mark(NODEPTR *np)
     goto top;
   }
 #if 0
+  /* This is broken (I don't understand why),
+   * but it also doesn't seem to work as well as intended.  Maybe IND nodes?
+   */
   if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_C) {
     NODEPTR q = ARG(n);
     enum node_tag tt, tf;
@@ -828,7 +831,7 @@ mark(NODEPTR *np)
       q = INDIR(q);
     if ((tf = flip_ops[tt])) {
       /* Do the C op --> flip_op reduction */
-      //printf("%s -> %s\n", tag_names[tt], tag_names[tf]);
+      // printf("%s -> %s\n", tag_names[tt], tag_names[tf]);
       SETTAG(n, T_IND);
       INDIR(n) = HEAPREF(tf);
       red_flip++;
