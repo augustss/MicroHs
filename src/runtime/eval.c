@@ -820,6 +820,7 @@ mark(NODEPTR *np)
     red_i++;
     goto top;
   }
+#if 0
   if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_C) {
     NODEPTR q = ARG(n);
     enum node_tag tt, tf;
@@ -834,6 +835,7 @@ mark(NODEPTR *np)
       goto top;
     }
   }
+#endif
 #if INTTABLE
   if (GETTAG(n) == T_INT && LOW_INT <= (i = GETVALUE(n)) && i < HIGH_INT) {
     SETTAG(n, T_IND);
