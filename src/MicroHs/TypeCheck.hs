@@ -2336,94 +2336,102 @@ showMatch :: (Expr, [EConstraint]) -> String
 showMatch (e, ts) = show e ++ " " ++ show ts
 -}
 
+type Goal = (Ident, EType)     -- What we want to solve
+type UGoal = Goal              -- Unsolved goal
+type Soln = (Ident, Expr)      -- Solution, i.e., binding of a dictionary
+
 -- Solve as many constraints as possible.
 -- Return bindings for the dictionary witnesses.
--- Unimplemented:
---  instances with a context
-solveConstraints :: T [(Ident, Expr)]
+solveConstraints :: T [Soln]
 solveConstraints = do
-  addMetaDicts
   cs <- gets constraints
   if null cs then
     return []
    else do
+    addMetaDicts
 --    traceM "------------------------------------------\nsolveConstraints"
     cs' <- mapM (\ (i,t) -> do { t' <- derefUVar t; return (i,t') }) cs
 --    traceM ("constraints:\n" ++ unlines (map showConstraint cs'))
-
     (unsolved, solved) <- solveMany cs' [] []
     putConstraints unsolved
 --    traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
 --    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
     return solved
 
-type Goal = (Ident, EType)     -- What we want to solve
-type UGoal = Goal              -- Unsolved goal
-type Soln = (Ident, Expr)      -- Solution, i.e., binding of a dictionary
+type SolveOne = SLoc -> Ident -> [EType] -> T (Maybe (Expr, [Goal]))
 
+solvers :: [(Ident -> Bool, SolveOne)]
+solvers =
+  [ (isJust . getTupleConstr, solveTuple)     -- handle tuple constraints, i.e. (C1 t1, C2 t2, ...)
+  , ((== mkIdent nameTypeEq), solveTypeEq)    -- handle equality constraints, i.e. (t1 ~ t2)
+  , (const True,              solveInst)      -- handle constraints with instances
+  ]
+
+-- Examine each goal, either solve it (possibly producing new goals) or let it remain unsolved.
 solveMany :: [Goal] -> [UGoal] -> [Soln] -> T ([UGoal], [Soln])
 solveMany [] uns sol = return (uns, sol)
 solveMany (cns@(di, ct) : cnss) uns sol = do
 --  traceM ("trying " ++ showEType ct)
   let loc = getSLoc di
       (iCls, cts) = getApp ct
-  case getTupleConstr iCls of
-    Just _ -> do
-      goals <- mapM (\ c -> do { d <- newDictIdent loc; return (d, c) }) cts
---      traceM ("split tuple " ++ showListS showConstraint goals)
-      solveMany (goals ++ cnss) uns ((di, ETuple (map (EVar . fst) goals)) : sol)
-    Nothing | iCls == mkIdent nameTypeEq -> solveTypeEq loc cts cns cnss uns sol
-            | otherwise -> do
-      it <- gets instTable
---      traceM ("instances:\n" ++ unlines (map showInstDef (M.toList it)))
-      case M.lookup iCls it of
-        Nothing -> do
---          traceM ("class missing " ++ showIdent iCls)
-          solveMany cnss (cns : uns) sol   -- no instances, so no chance
-        Just (InstInfo atomMap insts fds) ->
-          case cts of
-            [EVar i] -> do
---              traceM ("solveSimple " ++ showIdent i ++ " -> " ++ showMaybe showExpr (M.lookup i atomMap))
-              case M.lookup i atomMap of
-                -- if the goal is just (C T) and there is an instance, the solution is simple
-                Just e  -> solveMany cnss uns ((di, e) : sol)
-                -- Not found, but there might be a generic instance
-                Nothing -> solveGen loc fds insts cns cnss uns sol
-            _           -> solveGen loc fds insts cns cnss uns sol
+      solver = head [ s | (p, s) <- solvers, p iCls ]
+  msol <- solver loc iCls cts
+  case msol of
+    Nothing -> solveMany cnss (cns : uns) sol
+    Just (de, gs) -> solveMany (gs ++ cnss) uns ((di, de) : sol)
 
+solveInst :: SolveOne
+solveInst loc iCls cts = do
+  it <- gets instTable
+--  traceM ("instances:\n" ++ unlines (map showInstDef (M.toList it)))
+  case M.lookup iCls it of
+    Nothing -> return Nothing   -- no instances, so no chance
+    Just (InstInfo atomMap insts fds) ->
+      case cts of
+        [EVar i] -> do
+          case M.lookup i atomMap of
+            -- If the goal is just (C T) and there is an instance, the solution is simple
+            Just e  -> return $ Just (e, [])
+            -- Not found, but there might be a generic instance
+            Nothing -> solveGen fds insts loc iCls cts
+        _           -> solveGen fds insts loc iCls cts
 
-solveGen :: SLoc -> [IFunDep] -> [InstDict] -> Goal -> [Goal] -> [UGoal] -> [Soln] -> T ([UGoal], [Soln])
-solveGen loc _fds insts cns@(di, ct) cnss uns sol = do
+solveGen :: [IFunDep] -> [InstDict] -> SolveOne
+solveGen _fds insts loc iCls cts = do
 --  traceM ("solveGen " ++ showEType ct)
-  let (_, ts) = getApp ct
-      matches = getBestMatches $ findMatches insts ts
+  let matches = getBestMatches $ findMatches insts cts
 --  traceM ("matches " ++ showListS showMatch matches)
   case matches of
-    []          -> solveMany cnss (cns : uns) sol
+    []          -> return Nothing
     [(de, ctx)] ->
       if null ctx then
-        solveMany cnss uns ((di, de) : sol)
+        return $ Just (de, [])
       else do
         d <- newDictIdent loc
 --        traceM ("constraint " ++ showIdent di ++ " :: " ++ showEType ct ++ "\n" ++
 --                "   turns into " ++ showIdent d ++ " :: " ++ showEType (tupleConstraints ctx) ++ ", " ++
 --                showIdent di ++ " = " ++ showExpr (EApp de (EVar d)))
-        solveMany ((d, tupleConstraints ctx) : cnss) uns ((di, EApp de (EVar d)) : sol)
-    _           -> tcError loc $ "Multiple constraint solutions for: " ++ showEType ct
---                                       ++ show (map fst matches)
+        return $ Just (EApp de (EVar d), [(d, tupleConstraints ctx)])
+    _           -> tcError loc $ "Multiple constraint solutions for: " ++ showEType (tApps iCls cts)
+--                               ++ show (map fst matches)
 
-solveTypeEq :: SLoc -> [EType] -> Goal -> [Goal] -> [UGoal] -> [Soln] -> T ([UGoal], [Soln])
-solveTypeEq loc [t1, t2] cns@(di,_) cnss uns sol = do
+solveTuple :: SolveOne
+solveTuple loc _iCls cts = do
+  goals <- mapM (\ c -> do { d <- newDictIdent loc; return (d, c) }) cts
+  return $ Just (ETuple (map (EVar . fst) goals), goals)
+
+solveTypeEq :: SolveOne
+solveTypeEq loc _iCls [t1, t2] = do
   eqs <- gets typeEqTable
   case solveEq eqs t1 t2 of
-    Nothing -> solveMany cnss (cns : uns) sol
+    Nothing -> return Nothing
     Just (de, tts) -> do
       let mkEq (u1, u2) = do
             i <- newDictIdent loc
             return (i, mkEqType loc u1 u2)
       ncs <- mapM mkEq tts
-      solveMany (ncs ++ cnss) uns ((di, de) : sol)
-solveTypeEq _ _ _ _ _ _ = impossible
+      return $ Just (de, ncs)
+solveTypeEq _ _ _ = impossible
 
 type TySubst = [(TRef, EType)]
 
