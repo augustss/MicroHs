@@ -13,6 +13,7 @@ module MicroHs.TypeCheck(
   listPrefix,
   ) where
 import Prelude
+import Control.Alternative
 import Control.Monad
 import Data.Char
 import Data.Function
@@ -1214,8 +1215,9 @@ expandClass dcls@(Class ctx (iCls, vks) fds ms) = do
   return $ dcls : dDflts
 expandClass d = return [d]
 
+-- Keep the list empty if there are no fundeps
 mkIFunDeps :: [Ident] -> [FunDep] -> [IFunDep]
-mkIFunDeps vs [] = [(map (const True) vs, map (const False) vs)]
+--mkIFunDeps vs [] = [(map (const True) vs, map (const False) vs)]
 mkIFunDeps vs fds = map (\ (is, os) -> (map (`elem` is) vs, map (`elem` os) vs)) fds
 
 noDefaultE :: Expr
@@ -2339,6 +2341,7 @@ showMatch (e, ts) = show e ++ " " ++ show ts
 type Goal = (Ident, EType)     -- What we want to solve
 type UGoal = Goal              -- Unsolved goal
 type Soln = (Ident, Expr)      -- Solution, i.e., binding of a dictionary
+type Improve = (SLoc, EType, EType)  -- Unify to get an improvement substitution
 
 -- Solve as many constraints as possible.
 -- Return bindings for the dictionary witnesses.
@@ -2352,14 +2355,25 @@ solveConstraints = do
 --    traceM "------------------------------------------\nsolveConstraints"
     cs' <- mapM (\ (i,t) -> do { t' <- derefUVar t; return (i,t') }) cs
 --    traceM ("constraints:\n" ++ unlines (map showConstraint cs'))
-    (unsolved, solved) <- solveMany cs' [] []
+    (unsolved, solved, improves) <- solveMany cs' [] [] []
     putConstraints unsolved
 --    traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
 --    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
-    return solved
+    if null improves then
+      return solved
+     else do
+      -- We have improving substitutions.
+      -- Do the unifications, and try to solve more.
+      mapM_ (\ (l, a, b) -> unify l a b) improves
+      (++ solved) <$> solveConstraints
 
-type SolveOne = SLoc -> Ident -> [EType] -> T (Maybe (Expr, [Goal]))
+-- A solver get a location, class&types (i.e. (C t1 ... tn)),
+-- and, if successful, returns a dictionary expression and new goals.
+type SolveOne = SLoc -> Ident -> [EType] -> T (Maybe (Expr, [Goal], [Improve]))
 
+-- Table of constraint solvers.
+-- The predicate gets the class name and picks a solver.
+-- There must always by at least one solver that matches
 solvers :: [(Ident -> Bool, SolveOne)]
 solvers =
   [ (isJust . getTupleConstr, solveTuple)     -- handle tuple constraints, i.e. (C1 t1, C2 t2, ...)
@@ -2368,17 +2382,17 @@ solvers =
   ]
 
 -- Examine each goal, either solve it (possibly producing new goals) or let it remain unsolved.
-solveMany :: [Goal] -> [UGoal] -> [Soln] -> T ([UGoal], [Soln])
-solveMany [] uns sol = return (uns, sol)
-solveMany (cns@(di, ct) : cnss) uns sol = do
+solveMany :: [Goal] -> [UGoal] -> [Soln] -> [Improve] -> T ([UGoal], [Soln], [Improve])
+solveMany [] uns sol imp = return (uns, sol, imp)
+solveMany (cns@(di, ct) : cnss) uns sol imp = do
 --  traceM ("trying " ++ showEType ct)
   let loc = getSLoc di
       (iCls, cts) = getApp ct
       solver = head [ s | (p, s) <- solvers, p iCls ]
   msol <- solver loc iCls cts
   case msol of
-    Nothing -> solveMany cnss (cns : uns) sol
-    Just (de, gs) -> solveMany (gs ++ cnss) uns ((di, de) : sol)
+    Nothing           -> solveMany        cnss  (cns : uns)            sol         imp
+    Just (de, gs, is) -> solveMany (gs ++ cnss)        uns ((di, de) : sol) (is ++ imp)
 
 solveInst :: SolveOne
 solveInst loc iCls cts = do
@@ -2391,34 +2405,36 @@ solveInst loc iCls cts = do
         [EVar i] -> do
           case M.lookup i atomMap of
             -- If the goal is just (C T) and there is an instance, the solution is simple
-            Just e  -> return $ Just (e, [])
+            Just e  -> return $ Just (e, [], [])
             -- Not found, but there might be a generic instance
             Nothing -> solveGen fds insts loc iCls cts
         _           -> solveGen fds insts loc iCls cts
 
 solveGen :: [IFunDep] -> [InstDict] -> SolveOne
-solveGen _fds insts loc iCls cts = do
+solveGen fds insts loc iCls cts = do
 --  traceM ("solveGen " ++ showEType ct)
-  let matches = getBestMatches $ findMatches insts cts
+  let matches = getBestMatches $ findMatches loc fds insts cts
 --  traceM ("matches " ++ showListS showMatch matches)
   case matches of
-    []          -> return Nothing
-    [(de, ctx)] ->
+    []              -> return Nothing
+    [(de, ctx, is)] ->
       if null ctx then
-        return $ Just (de, [])
+        return $ Just (de, [], is)
       else do
         d <- newDictIdent loc
 --        traceM ("constraint " ++ showIdent di ++ " :: " ++ showEType ct ++ "\n" ++
 --                "   turns into " ++ showIdent d ++ " :: " ++ showEType (tupleConstraints ctx) ++ ", " ++
 --                showIdent di ++ " = " ++ showExpr (EApp de (EVar d)))
-        return $ Just (EApp de (EVar d), [(d, tupleConstraints ctx)])
-    _           -> tcError loc $ "Multiple constraint solutions for: " ++ showEType (tApps iCls cts)
---                               ++ show (map fst matches)
+        return $ Just (EApp de (EVar d), [(d, tupleConstraints ctx)], is)
+    _ -> tcError loc $ "Multiple constraint solutions for: " ++ showEType (tApps iCls cts)
+--                     ++ show (map fst matches)
 
+-- Split a tupled contraint into its parts.
+-- XXX should look for a direct (tupled) dictionary
 solveTuple :: SolveOne
 solveTuple loc _iCls cts = do
   goals <- mapM (\ c -> do { d <- newDictIdent loc; return (d, c) }) cts
-  return $ Just (ETuple (map (EVar . fst) goals), goals)
+  return $ Just (ETuple (map (EVar . fst) goals), goals, [])
 
 solveTypeEq :: SolveOne
 solveTypeEq loc _iCls [t1, t2] = do
@@ -2430,7 +2446,7 @@ solveTypeEq loc _iCls [t1, t2] = do
             i <- newDictIdent loc
             return (i, mkEqType loc u1 u2)
       ncs <- mapM mkEq tts
-      return $ Just (de, ncs)
+      return $ Just (de, ncs, [])
 solveTypeEq _ _ _ = impossible
 
 type TySubst = [(TRef, EType)]
@@ -2439,52 +2455,86 @@ type TySubst = [(TRef, EType)]
 -- For each matching instance return: (subst-size, (dict-expression, new-constraints))
 -- The subst-size is the size of the substitution that made the input instance match.
 -- It is a measure of how exact the match is.
-findMatches :: [InstDict] -> [EType] -> [(Int, (Expr, [EConstraint]))]
-findMatches ds its =
+findMatches :: SLoc -> [IFunDep] -> [InstDict] -> [EType] -> [(Int, (Expr, [EConstraint], [Improve]))]
+findMatches loc fds ds its =
  let rrr =
-       [ (length s, (de, map (substEUVar s) ctx))
-       | (de, ctx, ts) <- ds, Just s <- [matchTypes [] ts its] ]
- in --trace ("findMatches: " ++ showListS showInstDict ds ++ "; " ++ showListS showEType its ++ "; " ++ show rrr)
+       [ (length s, (de, map (substEUVar s) ctx, imp))
+       | (de, ctx, ts) <- ds, Just (s, imp) <- [matchTypes loc ts its fds] ]
+ in --trace ("findMatches: " ++ showListS showInstDict ds ++ "; " ++ show its ++ "; " ++ show fds ++ "; " ++ show rrr)
     rrr
+
+-- Do substitution for EUVar.
+-- XXX similar to derefUVar
+substEUVar :: TySubst -> EType -> EType
+substEUVar [] t = t
+substEUVar _ t@(EVar _) = t
+substEUVar _ t@(ELit _ _) = t
+substEUVar s (EApp f a) = EApp (substEUVar s f) (substEUVar s a)
+substEUVar s t@(EUVar i) = fromMaybe t $ lookup i s
+substEUVar s (EForall iks t) = EForall iks (substEUVar s t)
+substEUVar _ _ = impossible
+
+-- Length of lists match, because of kind correctness.
+-- fds is a non-empty list.
+matchTypes :: SLoc -> [EType] -> [EType] -> [IFunDep] -> Maybe (TySubst, [Improve])
+matchTypes _ ats ats' [] = do
+  -- Simple special case when there are no fundeps.
+  let loop r (t:ts) (t':ts') = matchType r t t' >>= \ r' -> loop r' ts ts'
+      loop r _ _ = pure r
+  s <- loop [] ats ats'
+  pure (s, [])
+matchTypes loc ts ts' fds = asum $ map (matchTypesFD loc ts ts') fds
+
+matchTypesFD :: SLoc -> [EType] -> [EType] -> IFunDep -> Maybe (TySubst, [Improve])
+matchTypesFD loc ts ts' (ins, outs) = do
+  let matchFD :: Bool -> EType -> EType -> Maybe TySubst
+      matchFD True  = \ _ _ -> Just []     -- if it's an output, don't match
+      matchFD False = matchType []          -- match types for non-outputs
+  tms <- sequence $ zipWith3 matchFD outs ts ts'
+  tm  <- combineTySubsts tms               -- combine all substitutions
+  is  <- combineTySubsts [ s | (True, s) <- zip ins tms]  -- subst from input FDs
+  let imp = [ (loc, substEUVar is t, t') | (True, t, t') <- zip3 outs ts ts' ]  -- improvements
+  -- We don't allow output FDs to have tyvars that are not instantiated
+--  traceM $ "matchTypesFD: " ++ show (ts, ts') ++ show (ins, outs) ++ show (tm, imp)
+  when (not (null (metaTvs [ t | (_,t,_) <- imp ]))) $
+    errorMessage loc $ "free type variable in output fundep"
+  pure (tm, imp)
+
+-- Match two types, instantiate variables in the first type.
+matchType :: TySubst -> EType -> EType -> Maybe TySubst
+matchType = match
   where
-
-    -- Length of lists match, because of kind correctness
-    matchTypes :: TySubst -> [EType] -> [EType] -> Maybe TySubst
-    matchTypes r (t:ts) (t':ts') =
-      case matchType r t t' of
-        Nothing -> Nothing
-        Just r' -> matchTypes r' ts ts'
-    matchTypes r _ _ = Just r
-
-    -- Match two types, instantiate variables in the first type.
-    matchType r (EVar i) (EVar i') | i == i' = Just r
-    matchType r (ELit _ l) (ELit _ l') | l == l' = Just r
-    matchType r (EApp f a) (EApp f' a') = -- XXX should use Maybe monad
-      case matchType r f f' of
-        Nothing -> Nothing
-        Just r' -> matchType r' a a'
-    matchType r (EUVar i) t =
+    match r (EVar i)   (EVar i')   | i == i' = pure r
+    match r (ELit _ l) (ELit _ l') | l == l' = pure r
+    match r (EApp f a) (EApp f' a') = do
+      r' <- match r f f'
+      match r' a a'
+    match r (EUVar i) t' =
       -- For a variable, check that any previous match is the same.
       case lookup i r of
-        Just t' -> if eqEType t t' then Just r else Nothing
-        Nothing -> Just ((i, t) : r)
-    matchType _ _ _ = Nothing
+        Just t  -> match r t t'
+        Nothing -> pure ((i, t') : r)
+    match _ _ _ = Nothing
 
-    -- Do substitution for EUVar.
-    -- XXX similar to derefUVar
-    substEUVar [] t = t
-    substEUVar _ t@(EVar _) = t
-    substEUVar s (EApp f a) = EApp (substEUVar s f) (substEUVar s a)
-    substEUVar s t@(EUVar i) = fromMaybe t $ lookup i s
-    substEUVar s (EForall iks t) = EForall iks (substEUVar s t)
-    substEUVar _ _ = impossible
-
+-- XXX This shouldn't be this complicated.
+combineTySubsts :: [TySubst] -> Maybe TySubst
+combineTySubsts = combs []
+  where
+    combs r [] = Just r
+    combs r (s:ss) = do { r' <- comb r s; combs r' ss }
+    comb :: TySubst -> TySubst -> Maybe TySubst
+    comb r [] = Just r
+    comb r ((v, t):s) = do { r' <- comb1 v t r; comb r' s }
+    comb1 v t r =
+      case lookup v r of
+        Nothing -> Just ((v, t) : r)
+        Just t' -> matchType [] t' t
 
 -- Get the best matches.  These are the matches with the smallest substitution.
-getBestMatches :: [(Int, (Expr, [EConstraint]))] -> [(Expr, [EConstraint])]
+getBestMatches :: [(Int, (Expr, [EConstraint], [Improve]))] -> [(Expr, [EConstraint], [Improve])]
 getBestMatches [] = []
 getBestMatches ams =
-  let (args, insts) = partition (\ (_, (EVar i, _)) -> (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i) ams
+  let (args, insts) = partition (\ (_, (EVar i, _, _)) -> (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i) ams
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest
@@ -2511,22 +2561,22 @@ addEqConstraint loc t1 t2 = do
 mkEqType :: SLoc -> EType -> EType -> EConstraint
 mkEqType loc t1 t2 = EApp (EApp (EVar (mkIdentSLoc loc nameTypeEq)) t1) t2
 
--- A quick hack for testing
+-- Possibly solve a type equality.
 solveEq :: TypeEqTable -> EType -> EType -> Maybe (Expr, [(EType, EType)])
 --solveEq eqs t1 t2 | trace ("solveEq: " ++ show (t1,t2) ++ show eqs) False = undefined
-solveEq eqs t1 t2 | t1 `eqEType` t2             = Just (ETuple [], [])
+solveEq eqs t1 t2 | t1 `eqEType` t2            = Just (ETuple [], [])
                   | elemBy eqTyTy (t1, t2) eqs = Just (ETuple [], [])
                   | otherwise =
   case (t1, t2) of
     (EApp f1 a1, EApp f2 a2) -> Just (ETuple [], [(f1, f2), (a1, a2)])
-    _                         -> Nothing
+    _                        -> Nothing
 
 -- Add the equality t1~t2.
 -- The type table is always the symmetric&transitive closure of all equalities.
 -- This isn't very efficient, but it's simple.
 addTypeEq :: EType -> EType -> TypeEqTable -> TypeEqTable
 addTypeEq t1 t2 aeqs | t1 `eqEType` t2 || elemBy eqTyTy (t1, t2) aeqs || elemBy eqTyTy (t2, t1) aeqs = aeqs
-                     | otherwise = (t1, t2) : (t2, t1) :                   -- symmetry
+                     | otherwise = (t1, t2) : (t2, t1) :                    -- symmetry
                                    trans t1 t2 aeqs ++ trans t2 t1 aeqs ++  -- transitivity
                                    aeqs
   where trans a1 a2 eqs = [ ab | (b1, b2) <- eqs, eqEType a2 b1, ab <- [(a1, b2), (b2, a1)] ]

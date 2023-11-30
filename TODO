@@ -33,7 +33,6 @@
     and only grow
 * Implement two level tables for instances even in the tricky cases
 * Handle tupled dictionaries better for recursive calls
-* Implement fundeps
 * Split eval.c
   - Partially done
   - Complete 32 bit support

@@ -43,6 +43,7 @@ test:
 	$(TMHS) Sieve      && $(EVAL) > Sieve.out      && diff Sieve.ref Sieve.out
 	$(TMHS) Dict       && $(EVAL) > Dict.out       && diff Dict.ref Dict.out
 	$(TMHS) Symbol     && $(EVAL) > Symbol.out     && diff Symbol.ref Symbol.out
+	$(TMHS) FunDep     && $(EVAL) > FunDep.out     && diff FunDep.ref FunDep.out
 
 errtest:
 	sh errtester.sh < errmsg.test

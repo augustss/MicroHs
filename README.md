@@ -39,10 +39,12 @@ Differences:
  * Always enabled extension:
    * ConstraintKinds
    * EmptyDataDecls
+   * ExistentialQuantification
    * ExtendedDefaultRules
    * FlexibleContexts
    * FlexibleInstance
    * ForeignFunctionInterface
+   * FunctionalDependencies
    * IncoherentInstances
    * KindSignatures
    * MonoLocalBinds
@@ -58,9 +60,6 @@ Differences:
    * TypeSynonymInstances
    * UndecidableInstances
    * UndecidableSuperClasses
- * In the works
-   * FunctionalDependencies
-   * ExistentialQuantification
  * `main` in the top module given to `mhs` serves at the program entry point.
  * Many things that should be an error (but which are mostly harmless) are not reported.
  * More differences that I don't remember right now.
