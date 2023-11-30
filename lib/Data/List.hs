@@ -155,9 +155,16 @@ length =
 zip :: forall a b . [a] -> [b] -> [(a, b)]
 zip = zipWith (\ x y -> (x, y))
 
+zip3 :: forall a b c . [a] -> [b] -> [c] -> [(a, b, c)]
+zip3 = zipWith3 (\ x y z -> (x, y, z))
+
 zipWith :: forall a b c . (a -> b -> c) -> [a] -> [b] -> [c]
 zipWith f (x:xs) (y:ys) = f x y : zipWith f xs ys
 zipWith _ _ _ = []
+
+zipWith3 :: forall a b c d . (a -> b -> c -> d) -> [a] -> [b] -> [c] -> [d]
+zipWith3 f (x:xs) (y:ys) (z:zs) = f x y z : zipWith3 f xs ys zs
+zipWith3 _ _ _ _ = []
 
 -- XXX not as lazy as it could be
 unzip :: forall a b . [(a, b)] -> ([a], [b])
