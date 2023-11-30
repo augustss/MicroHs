@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module Data.Maybe(module Data.Maybe, module Data.Maybe_Type) where
 import Primitives
+import Control.Alternative
 import Control.Applicative
 import Control.Monad
 import Data.Bool
@@ -12,7 +13,9 @@ import Data.Functor
 import Data.Int
 import Data.List
 import Data.Maybe_Type
+import Data.Monoid
 import Data.Ord
+import Data.Semigroup
 import Text.Show
 
 instance forall a . Eq a => Eq (Maybe a) where
@@ -40,6 +43,19 @@ instance Monad Maybe where
 
 instance MonadFail Maybe where
   fail _ = Nothing
+
+instance Alternative Maybe where
+  empty = Nothing
+  Nothing <|> y = y
+  x       <|> _ = x
+
+instance forall a . Semigroup a => Semigroup (Maybe a) where
+    Nothing <> b       = b
+    a       <> Nothing = a
+    Just a  <> Just b  = Just (a <> b)
+
+instance forall a . Semigroup a => Monoid (Maybe a) where
+  mempty = Nothing
 
 maybe :: forall a r . r -> (a -> r) -> Maybe a -> r
 maybe r _ Nothing = r

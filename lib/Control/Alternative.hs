@@ -3,7 +3,7 @@ import Primitives
 import Control.Applicative
 import Data.Bool_Type
 import Data.Functor
-import Data.List
+import Data.List_Type
 
 infixl 3 <|>
 
@@ -19,3 +19,7 @@ class Applicative f => Alternative (f :: Type -> Type) where
 
 guard :: forall (f :: Type -> Type) a . Alternative f => Bool -> f ()
 guard b = if b then pure () else empty
+
+asum :: forall (f :: Type -> Type) a . Alternative f => [f a] -> f a
+asum [] = empty
+asum (a:as) = a <|> asum as

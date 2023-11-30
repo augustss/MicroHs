@@ -5,6 +5,7 @@ module Data.List(
   module Data.List_Type
   ) where
 import Primitives
+import Control.Alternative
 import Control.Applicative
 import Control.Error
 import Control.Monad
@@ -14,9 +15,11 @@ import Data.Function
 import Data.Functor
 import Data.Int
 import Data.List_Type
+import Data.Maybe_Type
+import Data.Monoid
 import Data.Num
 import Data.Ord
-import Data.Maybe_Type
+import Data.Semigroup
 import Data.Tuple
 import Text.Show
 
@@ -40,6 +43,17 @@ instance MonadFail [] where
 
 instance forall a . Show a => Show [a] where
   showsPrec _ = showList
+
+instance Alternative [] where
+  empty = []
+  (<|>) = (++)
+
+instance forall a . Semigroup [a] where
+  (<>) = (++)
+
+instance forall a . Monoid [a] where
+  mempty = []
+  mconcat = concat
 
 null :: forall a . [a] -> Bool
 null [] = True
