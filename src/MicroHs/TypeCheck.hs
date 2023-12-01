@@ -645,8 +645,8 @@ kTypeTypeTypeS :: EType
 kTypeTypeTypeS = kArrow kType $ kArrow kType kType
 
 -- (=>) :: Constraint -> Type -> Type
-kConstraintTypeTypeS :: EType
-kConstraintTypeTypeS = kArrow kConstraint $ kArrow kType kType
+--kConstraintTypeTypeS :: EType
+--kConstraintTypeTypeS = kArrow kConstraint $ kArrow kType kType
 
 -- (~) :: Type -> Type -> Constraint
 kTypeTypeConstraintS :: EType
@@ -687,12 +687,13 @@ primTypes =
       let
         i = tupleConstr builtinLoc n
       in  (i, [entry (unIdent i) $ EForall [kk] $ foldr kArrow kv (replicate n kv)])
+    kImplies = EForall [kk] $ kConstraint `kArrow`(kv `kArrow` kv)
   in
       [
        -- The function arrow et al are bothersome to define in Primitives, so keep them here.
        -- But the fixity is defined in Primitives.
        (mkIdentB "->",           [entry nameArrow    kTypeTypeTypeS]),
-       (mkIdentB "=>",           [entry nameImplies  kConstraintTypeTypeS]),
+       (mkIdentB "=>",           [entry nameImplies  kImplies]),
        (mkIdentB "~",            [entry nameTypeEq   kTypeTypeConstraintS]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        -- XXX should not be needed
