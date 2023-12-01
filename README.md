@@ -57,6 +57,7 @@ Differences:
    * ScopedTypeVariables
    * StarIsType
    * TupleSections
+   * TypeLits
    * TypeSynonymInstances
    * UndecidableInstances
    * UndecidableSuperClasses

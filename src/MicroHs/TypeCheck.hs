@@ -815,6 +815,7 @@ derefUVar at =
     ESign t k -> flip ESign k <$> derefUVar t
     EForall iks t -> EForall iks <$> derefUVar t
     ELit _ (LStr _) -> return at
+    ELit _ (LInteger _) -> return at
     _ -> impossible
 
 tcErrorTK :: HasCallStack =>
@@ -2476,11 +2477,11 @@ solveTypeEq _ _ _ = impossible
 
 solveKnownNat :: SolveOne
 solveKnownNat loc iCls [e@(ELit _ (LInteger _))] = mkConstDict loc iCls e
-solveKnownNat _ _ _ = return Nothing
+solveKnownNat loc iCls ts = solveInst loc iCls ts  -- look for a dict argument
 
 solveKnownSymbol :: SolveOne
 solveKnownSymbol loc iCls [e@(ELit _ (LStr _))] = mkConstDict loc iCls e
-solveKnownSymbol _ _ _ = return Nothing
+solveKnownSymbol loc iCls ts = solveInst loc iCls ts  -- look for a dict argument
 
 mkConstDict :: SLoc -> Ident -> Expr -> T (Maybe (Expr, [Goal], [Improve]))
 mkConstDict loc iCls e = do
