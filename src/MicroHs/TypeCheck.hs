@@ -61,6 +61,24 @@ nameArrow = "Primitives.->"
 nameSymbol :: String
 nameSymbol = "Primitives.Symbol"
 
+nameNat :: String
+nameNat = "Primitives.Nat"
+
+nameType :: String
+nameType = "Primitives.Type"
+
+nameConstraint :: String
+nameConstraint = "Primitives.Constraint"
+
+nameKnownNat :: String
+nameKnownNat = "Data.TypeLits.KnownNat"
+
+nameKnownSymbol :: String
+nameKnownSymbol = "Data.TypeLits.KnownSymbol"
+
+--primitiveKinds :: [String]
+--primitiveKinds = [nameType, nameConstraint, nameSymbol, nameNat]
+
 ----------------------
 
 data TModule a = TModule
@@ -646,14 +664,16 @@ primKindTable =
     entry i = Entry (EVar (mkIdentB i))
   in stFromList [
        -- The kinds are wired in (for now)
-       (mkIdentB "Primitives.Type",       [entry "Primitives.Type" kTypeS]),
-       (mkIdentB "Type",                  [entry "Primitives.Type" kTypeS]),
-       (mkIdentB "Constraint",            [entry "Primitives.Constraint" kTypeS]),
-       (mkIdentB "Primitives.Constraint", [entry "Primitives.Constraint" kTypeS]),
-       (mkIdentB "Primitives.Symbol",     [entry "Primitives.Symbol" kTypeS]),
-       (mkIdentB "Symbol",                [entry "Primitives.Symbol" kTypeS]),
-       (mkIdentB nameArrow,               [entry nameArrow   kTypeTypeTypeS]),
-       (mkIdentB "->",                    [entry nameArrow   kTypeTypeTypeS])
+       (mkIdentB nameType,       [entry nameType kTypeS]),
+       (mkIdentB "Type",         [entry nameType kTypeS]),
+       (mkIdentB nameConstraint, [entry nameConstraint kTypeS]),
+       (mkIdentB "Constraint",   [entry nameConstraint kTypeS]),
+       (mkIdentB nameSymbol,     [entry nameSymbol kTypeS]),
+       (mkIdentB "Symbol",       [entry nameSymbol kTypeS]),
+       (mkIdentB nameNat,        [entry nameNat kTypeS]),
+       (mkIdentB "Nat",          [entry nameNat kTypeS]),
+       (mkIdentB nameArrow,      [entry nameArrow kTypeTypeTypeS]),
+       (mkIdentB "->",           [entry nameArrow kTypeTypeTypeS])
        ]
 
 primTypes :: [(Ident, [Entry])]
@@ -772,6 +792,7 @@ expandSyn at =
         ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
         EForall iks tt | null ts -> EForall iks <$> expandSyn tt
         ELit _ (LStr _) -> return t
+        ELit _ (LInteger _) -> return t
         _ -> impossible
   in syn [] at
 
@@ -1501,6 +1522,7 @@ tcExprR mt ae =
         TCType ->
           case l of
             LStr _ -> instSigma loc' (ELit loc' l) (tConI loc' nameSymbol) mt
+            LInteger _ -> instSigma loc' (ELit loc' l) (tConI loc' nameNat) mt
             _      -> impossible
         TCExpr -> do
           let getExpected (Infer _) = pure Nothing
@@ -2034,6 +2056,7 @@ dsType at =
     ESign t k -> ESign (dsType t) k
     EForall iks t -> EForall iks (dsType t)
     ELit _ (LStr _) -> at
+    ELit _ (LInteger _) -> at
     _ -> impossible
 
 tConI :: SLoc -> String -> EType
@@ -2252,7 +2275,7 @@ expandDict edict acn = do
       ct <- gets classTable
       case M.lookup iCls ct of
         Nothing -> do
-          -- if iCls a variable it's not in the class table, otherwise it's an error
+          -- if iCls is a variable it's not in the class table, otherwise it's an error
           when (isConIdent iCls) $
             impossible
           return [(edict, [], [], cn, [])]
@@ -2376,9 +2399,11 @@ type SolveOne = SLoc -> Ident -> [EType] -> T (Maybe (Expr, [Goal], [Improve]))
 -- There must always by at least one solver that matches
 solvers :: [(Ident -> Bool, SolveOne)]
 solvers =
-  [ (isJust . getTupleConstr, solveTuple)     -- handle tuple constraints, i.e. (C1 t1, C2 t2, ...)
-  , ((== mkIdent nameTypeEq), solveTypeEq)    -- handle equality constraints, i.e. (t1 ~ t2)
-  , (const True,              solveInst)      -- handle constraints with instances
+  [ (isJust . getTupleConstr,      solveTuple)        -- handle tuple constraints, i.e. (C1 t1, C2 t2, ...)
+  , ((== mkIdent nameTypeEq),      solveTypeEq)       -- handle equality constraints, i.e. (t1 ~ t2)
+  , ((== mkIdent nameKnownNat),    solveKnownNat)     -- KnownNat 999 constraints
+  , ((== mkIdent nameKnownSymbol), solveKnownSymbol)  -- KnownNat 999 constraints
+  , (const True,                   solveInst)         -- handle constraints with instances
   ]
 
 -- Examine each goal, either solve it (possibly producing new goals) or let it remain unsolved.
@@ -2448,6 +2473,20 @@ solveTypeEq loc _iCls [t1, t2] = do
       ncs <- mapM mkEq tts
       return $ Just (de, ncs, [])
 solveTypeEq _ _ _ = impossible
+
+solveKnownNat :: SolveOne
+solveKnownNat loc iCls [e@(ELit _ (LInteger _))] = mkConstDict loc iCls e
+solveKnownNat _ _ _ = return Nothing
+
+solveKnownSymbol :: SolveOne
+solveKnownSymbol loc iCls [e@(ELit _ (LStr _))] = mkConstDict loc iCls e
+solveKnownSymbol _ _ _ = return Nothing
+
+mkConstDict :: SLoc -> Ident -> Expr -> T (Maybe (Expr, [Goal], [Improve]))
+mkConstDict loc iCls e = do
+  let res = EApp (EVar $ mkClassConstructor iCls) fcn
+      fcn = EApp (ELit loc (LPrim "K")) e                -- constant function
+  return $ Just (res, [], [])
 
 type TySubst = [(TRef, EType)]
 

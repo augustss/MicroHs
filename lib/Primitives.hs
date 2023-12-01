@@ -9,6 +9,19 @@ infixr -1 ->
 infixr -2 =>
 infix   4 ~
 
+-- Kinds
+data Constraint
+data Nat
+data Symbol
+data Type
+
+-- Classes
+-- Type equality as a constraint.
+class a ~ b | a -> b, b -> a
+-- class KnownNat in Data.TypeLits
+-- class KnownSymbol in Data.TypeLits
+
+-- Types
 data Any
 data Char
 data Handle
@@ -17,9 +30,6 @@ data Double
 data IO a
 data Word
 data Ptr a
-
--- Type equality as a constraint.
-class a ~ b {-x | a -> b, b -> a-}
 
 data () = ()   -- Parser hacks allows () to be used
 
