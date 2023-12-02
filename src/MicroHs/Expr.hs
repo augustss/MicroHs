@@ -64,7 +64,7 @@ data EDef
   | ForImp String Ident EType
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
-  | Instance [IdKind] [EConstraint] EConstraint [EBind]  -- no deriving yet
+  | Instance EConstraint [EBind]  -- no deriving yet
   | Default [EType]
   deriving (Show)
 
@@ -500,7 +500,7 @@ ppEDef def =
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
-    Instance vs ct ty bs -> ppWhere (text "instance" <+> ppForall vs <+> ppCtx ct <+> ppEType ty) bs
+    Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default ts -> text "default" <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
 
 ppCtx :: [EConstraint] -> Doc

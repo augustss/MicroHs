@@ -64,7 +64,7 @@ dsDef mn adef =
           xs = [ mkIdent ("$x" ++ show j) | j <- [ 1 .. length ctx + length meths ] ]
       in  (qualIdent mn $ mkClassConstructor c, lams xs $ Lam f $ apps (Var f) (map Var xs)) :
           zipWith (\ i x -> (i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
-    Instance _ _ _ _ -> []
+    Instance _ _ -> []
     Default _ -> []
 
 oneAlt :: Expr -> EAlts
