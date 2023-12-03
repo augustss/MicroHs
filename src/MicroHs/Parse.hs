@@ -555,7 +555,11 @@ pListish = do
    <|< pure (LList [e1])
 
 pExprOp :: P Expr
-pExprOp = pOperators pOper pExprArg
+pExprOp = pOperators pOper pExprArgNeg
+
+pExprArgNeg :: P Expr
+pExprArgNeg = (ESectR <$> pMinus <*> pExprArg) <|< pExprArg
+  where pMinus = do { i <- pSymOper; guard (i == mkIdent "-"); pure i }
 
 pOperators :: P Ident -> P Expr -> P Expr
 pOperators oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
