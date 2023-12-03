@@ -1,1 +1,2 @@
 *.comb binary
+generated/mhs.c binary
