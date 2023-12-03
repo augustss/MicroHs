@@ -517,6 +517,13 @@ pOperComma = pOper <|< pComma
   where
     pComma = mkIdentLoc <$> getFileName <*> getLoc <*> ("," <$ pSpec ',')
 
+-- No right section for '-'.
+pOperCommaNoMinus :: P Ident
+pOperCommaNoMinus = do
+  i <- pOperComma
+  guard (i /= mkIdent "-")
+  pure i
+
 pAExpr :: P Expr
 pAExpr = (
       (EVar   <$> pLQIdentSym)
@@ -525,7 +532,7 @@ pAExpr = (
   <|< (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
   <|< EListish <$> (pSpec '[' *> pListish <* pSpec ']')
   <|< (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOperComma <* pSpec ')'))
-  <|< (ESectR <$> (pSpec '(' *> pOperComma) <*> (pExprArg <* pSpec ')'))
+  <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprArg <* pSpec ')'))
   <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
   )
   -- This weirdly slows down parsing

@@ -89,6 +89,7 @@ data Expr
   | EListish Listish
   | EDo (Maybe Ident) [EStmt]
   | ESectL Expr Ident
+  -- NOTE: (- e) is not a section, it's a negation.  So we reuse ESect to mean negation in this case.
   | ESectR Ident Expr
   | EIf Expr Expr Expr
   | ESign Expr EType
