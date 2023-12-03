@@ -102,6 +102,10 @@ iswindows(void)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
+                T_K2, T_K3, T_K4, T_K5,
+                T_B2, T_C2, T_S2, T_Z2,
+                T_B3, T_C3, T_S3, T_Z3,
+                T_BZ,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
@@ -572,6 +576,19 @@ struct {
   { "Y", T_Y },
   { "B'", T_BB },
   { "Z", T_Z },
+  { "B2", T_B2 },
+  { "C2", T_C2 },
+  { "S2", T_S2 },
+  { "Z2", T_Z2 },
+  { "BZ", T_BZ },
+  { "B3", T_B3 },
+  { "C3", T_C3 },
+  { "S3", T_S3 },
+  { "Z3", T_Z3 },
+  { "K2", T_K2 },
+  { "K3", T_K3 },
+  { "K4", T_K4 },
+  { "K5", T_K5 },
   /* primops */
   { "+", T_ADD, T_ADD },
   { "-", T_SUB, T_SUBR },
@@ -820,7 +837,7 @@ mark(NODEPTR *np)
     red_i++;
     goto top;
   }
-#if 0
+#if 1
   /* This is broken (I don't understand why),
    * but it also doesn't seem to work as well as intended.  Maybe IND nodes?
    */
@@ -1476,6 +1493,19 @@ printrec(FILE *f, NODEPTR n)
   case T_BB: fprintf(f, "B'"); break;
   case T_Z: fprintf(f, "Z"); break;
   case T_CC: fprintf(f, "C'"); break;
+  case T_B2: fprintf(f, "B2"); break;
+  case T_C2: fprintf(f, "C2"); break;
+  case T_S2: fprintf(f, "S2"); break;
+  case T_Z2: fprintf(f, "Z2"); break;
+  case T_BZ: fprintf(f, "BZ"); break;
+  case T_B3: fprintf(f, "B3"); break;
+  case T_C3: fprintf(f, "C3"); break;
+  case T_S3: fprintf(f, "S3"); break;
+  case T_Z3: fprintf(f, "Z3"); break;
+  case T_K2: fprintf(f, "K2"); break;
+  case T_K3: fprintf(f, "K3"); break;
+  case T_K4: fprintf(f, "K4"); break;
+  case T_K5: fprintf(f, "K5"); break;
   case T_ADD: fprintf(f, "+"); break;
   case T_SUB: fprintf(f, "-"); break;
   case T_MUL: fprintf(f, "*"); break;
@@ -1747,6 +1777,7 @@ evalstring(NODEPTR n, value_t *lenp)
       name[offs++] = (char)c;
       n = ARG(n);
     } else {
+      pp(stdout, n);
       ERR("evalstring not Nil/Cons");
     }
   }
@@ -1853,7 +1884,7 @@ void
 eval(NODEPTR n)
 {
   stackptr_t stk = stack_ptr;
-  NODEPTR x, y, z, w;
+  NODEPTR x, y, z, w, v;
   value_t xi, yi, r;
 #if WANT_FLOAT
   flt_t xd, yd, rd;
@@ -1881,6 +1912,7 @@ eval(NODEPTR n)
 #define CHKARG2 do { CHECK(2); POP(2); n = TOP(-1); y = ARG(n); x = ARG(TOP(-2)); } while(0)
 #define CHKARG3 do { CHECK(3); POP(3); n = TOP(-1); z = ARG(n); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
+#define CHKARG5 do { CHECK(5); POP(5); n = TOP(-1); v = ARG(n); w = ARG(TOP(-2)); z = ARG(TOP(-3)); y = ARG(TOP(-4)); x = ARG(TOP(-5)); } while(0)
 
 /* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e)  do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
@@ -1938,6 +1970,19 @@ eval(NODEPTR n)
     case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
     case T_R:    GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
     case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
+    case T_B2:   GCCHECK(2); CHKARG4; GOAP(x, new_ap(new_ap(y, z),w));                      /* B2 x y z w = x (y z w) */
+    case T_C2:   GCCHECK(2); CHKARG4; GOAP(new_ap(new_ap(x, z), w), y);                     /* C2 x y z w = x z w y */
+    case T_S2:   GCCHECK(4); CHKARG4; GOAP(new_ap(new_ap(x,z),w), new_ap(new_ap(y,z),w));   /* S2 x y z w = x z w (y z w) */
+    case T_Z2:               CHKARG4; GOAP(x, y);                                           /* Z2 x y z w = x y */
+    case T_BZ:   GCCHECK(1); CHKARG4; GOAP(new_ap(x, y), z);                                /* BZ x y z w = x y z */
+    case T_B3:   GCCHECK(3); CHKARG5; GOAP(x, new_ap(new_ap(new_ap(y, z),w),v));            /* B3 x y z w v = x (y z w v) */
+    case T_C3:   GCCHECK(3); CHKARG5; GOAP(new_ap(new_ap(new_ap(x, z), w), v), y);          /* C3 x y z w v = x z w y v */
+    case T_S3:   GCCHECK(6); CHKARG5; GOAP(new_ap(new_ap(new_ap(x,z),w),v), new_ap(new_ap(new_ap(y,z),w),v));   /* S3 x y z w v = x z w (y z w v) */
+    case T_Z3:               CHKARG5; GOAP(x, y);                                           /* Z3 x y z w v = x y */
+    case T_K2:               CHKARG3; GOIND(x);                                             /* K2 x y z = *x */
+    case T_K3:               CHKARG4; GOIND(x);                                             /* K3 x y z w = *x */
+    case T_K4:               CHKARG5; GOIND(x);                                             /* K4 x y z w v = *x */
+    case T_K5:               CHECK(6); POP(6); n = TOP(-1); x = ARG(TOP(-6)); GOIND(x);     /* K5 x y z w v u = *x */
 
     case T_ADD:  ARITHBIN(+);
     case T_SUB:  ARITHBIN(-);

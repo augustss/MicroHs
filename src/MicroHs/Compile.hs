@@ -14,6 +14,7 @@ import System.IO
 import System.IO.MD5
 import Control.DeepSeq
 import MicroHs.Abstract
+--import MicroHs.AbstractOleg()
 import MicroHs.CompileCache
 import MicroHs.Desugar
 import MicroHs.Exp

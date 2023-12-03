@@ -246,16 +246,16 @@ mkTupleSelE m n tup =
 -- Handle special syntax for lists and tuples
 dsPat :: HasCallStack =>
          EPat -> EPat
-dsPat ap =
-  case ap of
-    EVar _ -> ap
-    ECon _ -> ap
+dsPat apat =
+  case apat of
+    EVar _ -> apat
+    ECon _ -> apat
     EApp f a -> EApp (dsPat f) (dsPat a)
     EListish (LList ps) -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
-    ETuple ps -> dsPat $ foldl EApp (tupleCon (getSLoc ap) (length ps)) ps
+    ETuple ps -> dsPat $ foldl EApp (tupleCon (getSLoc apat) (length ps)) ps
     EAt i p -> EAt i (dsPat p)
     ELit loc (LStr cs) | length cs < 2 -> dsPat (EListish (LList (map (ELit loc . LChar) cs)))
-    ELit _ _ -> ap
+    ELit _ _ -> apat
     _ -> impossible
 
 iNil :: Ident
@@ -489,18 +489,17 @@ eLet i e b =
 
 pConOf :: HasCallStack =>
           EPat -> Con
-pConOf ap =
-  case ap of
+pConOf apat =
+  case apat of
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
     ELit loc l -> ConLit loc l
-    EVar _ -> undefined
-    _ -> impossibleShow ap
+    _ -> impossibleShow apat
 
 pArgs :: EPat -> [EPat]
-pArgs ap =
-  case ap of
+pArgs apat =
+  case apat of
     ECon _ -> []
     EApp f a -> pArgs f ++ [a]
     ELit _ _ -> []

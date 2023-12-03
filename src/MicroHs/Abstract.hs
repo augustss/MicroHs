@@ -50,6 +50,9 @@ isI = isPrim "I"
 isB :: Exp -> Bool
 isB = isPrim "B"
 
+isZ :: Exp -> Bool
+isZ = isPrim "Z"
+
 isC :: Exp -> Bool
 isC = isPrim "C"
 
@@ -256,6 +259,10 @@ improveT ae =
 -}
         else if isB ff && isK aa then
           Lit (LPrim "Z")
+{- slowdown
+        else if isB ff && isZ aa then
+          Lit (LPrim "BZ")
+-}
         else if isC ff && isI aa then
           Lit (LPrim "U")
         else if isB ff && isB aa then
@@ -270,8 +277,8 @@ improveT ae =
                   if isY ff && isK ck then
                     e
                   else
-                    App ff aa
-                NotApp -> App ff aa
+                    kApp ff aa
+                NotApp -> kApp ff aa
           in
             def
 {-
@@ -283,7 +290,26 @@ improveT ae =
                   def
               NotApp -> def
 -}
-            
+
+kApp :: Exp -> Exp -> Exp
+kApp (Lit (LPrim "K")) (App (Lit (LPrim ('K':s))) x)
+  | s == ""  = App (Lit (LPrim "K2")) x
+  | s == "2" = App (Lit (LPrim "K3")) x
+  | s == "3" = App (Lit (LPrim "K4")) x
+{- slowdown
+  | s == "4" = App (Lit (LPrim "K5")) x
+-}
+{- slowdown
+kApp (Lit (LPrim "B")) (App (Lit (LPrim ('B':s))) x)
+  | s == ""  = App (Lit (LPrim "B2")) x
+  | s == "2" = App (Lit (LPrim "B3")) x
+-}
+kApp (Lit (LPrim "Z")) (App (Lit (LPrim ('Z':s))) x)
+  | s == ""  = App (Lit (LPrim "Z2")) x
+  | s == "2" = App (Lit (LPrim "Z3")) x
+kApp f a = App f a
+
+
 {-
 -- K I      -->  A
 -- C I      -->  T
