@@ -32,12 +32,18 @@ encConstr i n ss | n /= n = undefined  -- XXX without this, everything slows dow
 encIf :: Exp -> Exp -> Exp -> Exp
 encIf = encIfScott
 
+-- Lowest value that works is 3.
+-- The runtime system knows the encoding of some types:
+-- Bool, [], Ordering
 scottLimit :: Int
-scottLimit = 1000
+scottLimit = 5
 
 -------------------------------------------
 
 -- Scott encoding
+--   C_i e1 ... en
+-- encodes as, assuming k constructors
+--   \ x1 ... xn -> \ f1 ... fi ... fk -> fi x1 ... xn
 
 -- Encode a case expression:
 --  case var of p1->e1; p2->e2; ...; _->dflt
@@ -90,6 +96,11 @@ cNil = Lit (LPrim "K")
 --   (i, (e1, e2, ..., en))
 -- with the tuples being Scott encoded.
 
+-- Could be improved by a new node type holding
+-- both the constructor number and a pointer to the tuple.
+-- Also, could use a "jump table" case combinator instead
+-- of a decision tree.
+
 encConstrNo :: Int -> Int -> [Bool] -> Exp
 encConstrNo i _n ss =
   let
@@ -101,24 +112,21 @@ encConstrNo i _n ss =
 
 tuple :: [Exp] -> Exp
 tuple es = Lam f $ apps (Var f) es
-  where f = newIdent "$t" es --mkIdent "$t"
+  where f = -- newIdent "$t" es --
+            mkIdent "$t"
   
 encCaseNo :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCaseNo var pes dflt =
---  error $ show (
---  (var, pes, dflt),
   App var (Lam n $ Lam t $ caseTree (Var n) (Var t) 0 (numConstr pes) pes' dflt)
---  )
-  where n = newIdent "$n" es -- mkIdent "$n"
-        t = newIdent "$tt" es -- mkIdent "$tt"
-        es = var : dflt : map snd pes
+  where n = -- newIdent "$n" es --
+            mkIdent "$n"
+        t = -- newIdent "$tt" es --
+            mkIdent "$tt"
+        --es = var : dflt : map snd pes
         pes' = sortLE (\ (x, _, _) (y, _, _) -> x <= y)
                       [(conNo c, xs, e) | (SPat c xs, e) <- pes]
 
---encIf' c t e = App (App (App (Var (mkIdent "if")) c) t) e
-
 caseTree :: Exp -> Exp -> Int -> Int -> [(Int, [Ident], Exp)] -> Exp -> Exp
-caseTree _ _ lo hi _ _ | lo >= hi = undefined
 caseTree n tup lo hi pes dflt =
   case pes of
     [] -> dflt
@@ -126,9 +134,7 @@ caseTree n tup lo hi pes dflt =
                  | otherwise    -> encIf (eqInt n i) (match tup xs e) dflt
     _ ->
       let (pesl, pesh@((i, _, _):_)) = splitAt (length pes `quot` 2) pes
-      in  if i <= lo then error "AAA" else
-          if i >= hi then error "BBB" else
-          encIf (ltInt n i) (caseTree n tup lo i pesl dflt) (caseTree n tup i hi pesh dflt)
+      in  encIf (ltInt n i) (caseTree n tup lo i pesl dflt) (caseTree n tup i hi pesh dflt)
  where
    eqInt :: Exp -> Int -> Exp
    eqInt x i = app2 (Lit (LPrim "==")) x (Lit (LInt i))
@@ -141,11 +147,13 @@ conNo :: Con -> Int
 conNo (ConData cks i) = length $ takeWhile ((/= i) . fst) cks
 conNo _ = undefined
 
+{-
 newIdent :: String -> [Exp] -> Ident
 newIdent a es =
   let is = concatMap allVarsExp es
   in  head $ [ i | s <- "" : map show [1::Int ..], let { i = mkIdent (a ++ s) }, i `notElem` is ]
-  
+-}
+
 numConstr :: [(SPat, Exp)] -> Int
 numConstr ((SPat (ConData cs _) _, _):_) = length cs
 numConstr _ = undefined
