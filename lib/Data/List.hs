@@ -351,6 +351,9 @@ partition p xs = (filter p xs, filter (not . p) xs)
 sort :: forall a . Ord a => [a] -> [a]
 sort = sortLE (<=)
 
+sortBy :: forall a . (a -> a -> Ordering) -> [a] -> [a]
+sortBy f = sortLE (\ x y -> f x y /= GT)
+
 -- A simple "quicksort" for now.
 sortLE :: forall a . (a -> a -> Bool) -> [a] -> [a]
 sortLE _  [] = []
