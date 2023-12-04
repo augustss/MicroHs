@@ -205,6 +205,8 @@ bits_t *free_map;             /* 1 bit per node, 0=free, 1=used */
 heapoffs_t free_map_nwords;
 heapoffs_t next_scan_index;
 
+int want_gc_red = 0;
+
 NORETURN
 void
 memerr(void)
@@ -792,50 +794,53 @@ mark(NODEPTR *np)
   num_marked++;
   mark_used(n);
 #if GCRED
-  /* This is really only fruitful just after parsing.  It can be removed. */
-  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
-    /* Do the A x y --> y reduction */
-    NODEPTR y = ARG(n);
-    SETTAG(n, T_IND);
-    INDIR(n) = y;
-    red_a++;
-    goto top;
-  }
-#if 0
-  /* This never seems to happen */
-  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
-    /* Do the K x y --> x reduction */
-    NODEPTR x = ARG(FUN(n));
-    SETTAG(n, T_IND);
-    INDIR(n) = x;
-    red_k++;
-    goto top;
-  }
-#endif  /* 0 */
-  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_I) {
-    /* Do the I x --> x reduction */
-    NODEPTR x = ARG(n);
-    SETTAG(n, T_IND);
-    INDIR(n) = x;
-    red_i++;
-    goto top;
-  }
-#if 0
-  /* This is broken (I don't understand why),
-   * but it also doesn't seem to work as well as intended.  Maybe IND nodes?
-   */
-  if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_C) {
-    NODEPTR q = ARG(n);
-    enum node_tag tt, tf;
-    while ((tt = GETTAG(q)) == T_IND)
-      q = INDIR(q);
-    if ((tf = flip_ops[tt])) {
-      /* Do the C op --> flip_op reduction */
-      // printf("%s -> %s\n", tag_names[tt], tag_names[tf]);
+  if (want_gc_red) {
+    /* This is really only fruitful just after parsing.  It can be removed. */
+    if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
+      /* Do the A x y --> y reduction */
+      NODEPTR y = ARG(n);
       SETTAG(n, T_IND);
-      INDIR(n) = HEAPREF(tf);
-      red_flip++;
+      INDIR(n) = y;
+      red_a++;
       goto top;
+    }
+#if 0
+    /* This never seems to happen */
+    if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
+      /* Do the K x y --> x reduction */
+      NODEPTR x = ARG(FUN(n));
+      SETTAG(n, T_IND);
+      INDIR(n) = x;
+      red_k++;
+      goto top;
+    }
+#endif  /* 0 */
+    if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_I) {
+      /* Do the I x --> x reduction */
+      NODEPTR x = ARG(n);
+      SETTAG(n, T_IND);
+      INDIR(n) = x;
+      red_i++;
+      goto top;
+    }
+#if 1
+    /* This is broken.
+     * Probably because it can happen in the middle of the C node.
+     */
+    if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_C) {
+      NODEPTR q = ARG(n);
+      enum node_tag tt, tf;
+      while ((tt = GETTAG(q)) == T_IND)
+        q = INDIR(q);
+      if ((tf = flip_ops[tt])) {
+        /* Do the C op --> flip_op reduction */
+        // printf("%s -> %s\n", tag_names[tt], tag_names[tf]);
+        SETTAG(n, T_IND);
+        INDIR(n) = HEAPREF(tf);
+        red_flip++;
+        return;
+        goto top;
+      }
     }
   }
 #endif
@@ -1850,8 +1855,9 @@ NODEPTR execio(NODEPTR n);
 
 /* Evaluate a node, returns when the node is in WHNF. */
 void
-eval(NODEPTR n)
+eval(NODEPTR an)
 {
+  NODEPTR n = an;
   stackptr_t stk = stack_ptr;
   NODEPTR x, y, z, w;
   value_t xi, yi, r;
@@ -2484,7 +2490,13 @@ main(int argc, char **argv)
 #endif
   }
 
-  PUSH(prog); gc(); prog = POPTOP();
+  /* GC unused stuff, nice for -o */
+  PUSH(prog);
+  want_gc_red = 1;
+  gc();
+  want_gc_red = 0;
+  prog = POPTOP();
+
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
   if (outname) {
