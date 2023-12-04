@@ -33,7 +33,10 @@ import MicroHs.Ident
 --    [e2, e1, ...] [py, ...] [px,  ...]
 --         ->  [   e2, e1, ...] [px, py, ...] [    ...], otherwise
 
-data FixInput = Rator Bool Expr Fixity | Rand Expr   -- True=infix, False=prefix
+data Fix = FixIn | FixPre
+  deriving (Show)
+
+data FixInput = Rator Fix Expr Fixity | Rand Expr
   deriving (Show)
 
 eNeg :: SLoc -> Expr
@@ -42,15 +45,15 @@ eNeg loc = EVar (mkIdentSLoc loc "negate")
 negFixity :: Fixity
 negFixity = (AssocLeft, 6)
 
-resolveFixity :: Expr -> [((Expr, Fixity), Expr)] -> Expr
+resolveFixity :: Expr -> [((Expr, Fixity), Expr)] -> Either (SLoc, String) Expr
 resolveFixity ae oes =
   let inps = expr ae ++ concatMap opexpr oes
-      expr (ESectR i e) | i == mkIdent "-" = Rator False (eNeg (getSLoc i)) negFixity : expr e
+      expr (ESectR i e) | i == mkIdent "-" = Rator FixPre (eNeg (getSLoc i)) negFixity : expr e
       expr e = [Rand e]
-      opexpr ((f, fx), e) = Rator True f fx : expr e
+      opexpr ((f, fx), e) = Rator FixIn f fx : expr e
 
-      oper (Rator False f _) (e:es) = EApp f e : es
-      oper (Rator True  f _) (e2:e1:es) = EApp (EApp f e1) e2 : es
+      oper (Rator FixPre f _) (e:es) = EApp f e : es
+      oper (Rator FixIn  f _) (e2:e1:es) = EApp (EApp f e1) e2 : es
       oper _ _ = undefined
 
       prec (Rator _ _ (_, p)) = p
@@ -58,21 +61,21 @@ resolveFixity ae oes =
       assoc (Rator _ _ (a, _)) = a
       assoc _ = undefined
 
-      resolve [e] []             [] = e
+      resolve [e] []             [] = Right e
       resolve _   []             [] = undefined
       resolve es  []             (ox@(Rator _    _    _) : is) = resolve          es  [ox] is
       resolve es     (oy:os)     []                            = resolve (oper oy es)  os  []
       resolve es aos             (    Rand e             : is) = resolve       (e:es) aos  is
-      resolve es aos@(oy:os) ais@(ox@(Rator True func _) : is)
+      resolve es aos@(oy:os) ais@(ox@(Rator FixIn func _) : is)
         | prec ox == prec oy && (assoc ox /= assoc oy || assoc ox == AssocNone) =
-          errorMessage (getSLoc func) "ambiguous operator expression"
+          Left (getSLoc func, "ambiguous operator expression")
         | prec ox <  prec oy || prec ox == prec oy && assoc oy == AssocLeft =
           resolve (oper oy es) os ais
         | otherwise =
           resolve es (ox:aos) is
-      resolve es aos@(oy:_)      (ox@(Rator False func _) : is)
+      resolve es aos@(oy:_)      (ox@(Rator FixPre func _) : is)
         | prec ox <= prec oy =
-          errorMessage (getSLoc func) "bad prefix expression"
+          Left (getSLoc func, "bad prefix expression")
         | otherwise =
           resolve es (ox:aos) is
   in  resolve [] [] inps

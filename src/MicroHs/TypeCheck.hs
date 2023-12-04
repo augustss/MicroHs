@@ -1706,32 +1706,7 @@ tcLit' mt loc l t = instSigma loc (ELit loc l) t mt
 tcOper :: HasCallStack =>
           Expr -> [(Ident, Expr)] -> T Expr
 tcOper ae aies = do
-{-
-  let
-    doOp (e1:e2:es) o os ies =
-      let e = EApp (EApp o e2) e1
-      in  calc (e:es) os ies
-    doOp _ _ _ _ = impossible
-
-    calc :: [Expr] -> [(Expr, Fixity)] -> [((Expr, Fixity), Expr)] -> Expr
---    calc es oos iies |
---      trace ("es=" ++ show es ++ ", oos=" ++ show oos ++ ", iies=" ++ show iies) False = undefined
-    calc [et] [] [] = et
-    calc es ((o, _):os) [] = doOp es o os []
-    calc es oos@((oy, (ay, py)):os) iies@((oo@(ox, (ax, px)), e) : ies) =
---      traceM (show ((unIdent (getIdent (fst o)), ay, py), (unIdent i, ax, px)))
-      if px == py && (ax /= ay || ax == AssocNone) then
-        errorMessage (getSLoc ox) "ambiguous operator expression"
-       else if px < py || ax == AssocLeft && px == py then
-        doOp es oy os iies
-       else
-        calc (e:es) (oo : oos) ies
-    calc es [] ((o, e) : ies) =
-      calc (e:es) [o] ies
-    calc _ _ _ = impossible
--}
   fixs <- gets fixTable
---  traceM (show fixs)
   let
     opfix :: (Ident, Expr) -> T ((Expr, Fixity), Expr)
     opfix (i, e) = do
@@ -1739,12 +1714,10 @@ tcOper ae aies = do
       let fx = getFixity fixs (getIdent ei)
       return ((EVar i, fx), e)
 
---  traceM $ unlines $ map show [(unIdent i, fx) | (i, fx) <- M.toList fixs]
   ites <- mapM opfix aies
---  traceM $ "tcOper in=" ++ show (ae, ites)
---  traceM $ "tcOper out=" ++ show (resolveFixity ae ites)
---  return $ calc [ae] [] ites
-  return $ resolveFixity ae ites
+  case resolveFixity ae ites of
+    Left (loc, err) -> tcError loc err
+    Right e -> return e
 
 unArrow :: HasCallStack =>
            SLoc -> EType -> T (EType, EType)
