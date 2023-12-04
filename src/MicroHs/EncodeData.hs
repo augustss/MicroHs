@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module MicroHs.EncodeData(
   SPat(..),
   encConstr,
@@ -9,6 +10,7 @@ import Prelude
 import MicroHs.Exp
 import MicroHs.Expr(Con(..), Lit(..))
 import MicroHs.Ident
+import Compat
 
 --
 -- Encoding of constructors and case
@@ -18,15 +20,27 @@ data SPat = SPat Con [Ident]    -- simple pattern
   deriving(Show, Eq)
 
 encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
-encCase = encCaseScott
+encCase var pes dflt | n <= scottLimit = encCaseScott var pes dflt
+                     | otherwise = encCaseNo var pes dflt
+  where n = numConstr pes
+
 encConstr :: Int -> Int -> [Bool] -> Exp
-encConstr = encConstrScott
+encConstr i n ss | n /= n = undefined  -- XXX without this, everything slows down.  Why?
+                 | n <= scottLimit = encConstrScott i n ss
+                 | otherwise       = encConstrNo i n ss
+
 encIf :: Exp -> Exp -> Exp -> Exp
 encIf = encIfScott
 
+scottLimit :: Int
+scottLimit = 1000
+
+-------------------------------------------
+
+-- Scott encoding
+
 -- Encode a case expression:
 --  case var of p1->e1; p2->e2; ...; _->dflt
--- Assumes Scott encoding of data types.
 encCaseScott :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCaseScott var pes dflt =
   --trace ("mkCase " ++ show pes) $
@@ -43,7 +57,6 @@ encCaseScott var pes dflt =
 
 -- Encode a constructor with strictness flags ss.
 -- The constructor arity is given by ss, and the constructor number is i out of n.
--- Assumes Scott encoding of data types.
 encConstrScott :: Int -> Int -> [Bool] -> Exp
 encConstrScott i n ss =
   let
@@ -68,4 +81,72 @@ cCons = Lit (LPrim "O")
 -- XXX could use encConstr
 cNil :: Exp
 cNil = Lit (LPrim "K")
+
+-------------------------------------------
+
+-- Explicit constructor number encoding
+--   C_i e1 e2 ... en
+-- encodes as
+--   (i, (e1, e2, ..., en))
+-- with the tuples being Scott encoded.
+
+encConstrNo :: Int -> Int -> [Bool] -> Exp
+encConstrNo i _n ss =
+  let
+    xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip [0::Int ..] ss]
+    strict (False:ys) (_:is) e = strict ys is e
+    strict (True:ys)  (x:is) e = App (App (Lit (LPrim "seq")) (Var x)) (strict ys is e)
+    strict _ _ e = e
+  in lams xs $ strict ss xs $ tuple [Lit (LInt i), tuple (map Var xs)]
+
+tuple :: [Exp] -> Exp
+tuple es = Lam f $ apps (Var f) es
+  where f = newIdent "$t" es --mkIdent "$t"
+  
+encCaseNo :: Exp -> [(SPat, Exp)] -> Exp -> Exp
+encCaseNo var pes dflt =
+--  error $ show (
+--  (var, pes, dflt),
+  App var (Lam n $ Lam t $ caseTree (Var n) (Var t) 0 (numConstr pes) pes' dflt)
+--  )
+  where n = newIdent "$n" es -- mkIdent "$n"
+        t = newIdent "$tt" es -- mkIdent "$tt"
+        es = var : dflt : map snd pes
+        pes' = sortLE (\ (x, _, _) (y, _, _) -> x <= y)
+                      [(conNo c, xs, e) | (SPat c xs, e) <- pes]
+
+--encIf' c t e = App (App (App (Var (mkIdent "if")) c) t) e
+
+caseTree :: Exp -> Exp -> Int -> Int -> [(Int, [Ident], Exp)] -> Exp -> Exp
+caseTree _ _ lo hi _ _ | lo >= hi = undefined
+caseTree n tup lo hi pes dflt =
+  case pes of
+    [] -> dflt
+    [(i, xs, e)] | hi - lo == 1 -> match tup xs e
+                 | otherwise    -> encIf (eqInt n i) (match tup xs e) dflt
+    _ ->
+      let (pesl, pesh@((i, _, _):_)) = splitAt (length pes `quot` 2) pes
+      in  if i <= lo then error "AAA" else
+          if i >= hi then error "BBB" else
+          encIf (ltInt n i) (caseTree n tup lo i pesl dflt) (caseTree n tup i hi pesh dflt)
+ where
+   eqInt :: Exp -> Int -> Exp
+   eqInt x i = app2 (Lit (LPrim "==")) x (Lit (LInt i))
+   ltInt :: Exp -> Int -> Exp
+   ltInt x i = app2 (Lit (LPrim "<")) x (Lit (LInt i))
+   match :: Exp -> [Ident] -> Exp -> Exp
+   match e is rhs = App e $ lams is rhs
+
+conNo :: Con -> Int
+conNo (ConData cks i) = length $ takeWhile ((/= i) . fst) cks
+conNo _ = undefined
+
+newIdent :: String -> [Exp] -> Ident
+newIdent a es =
+  let is = concatMap allVarsExp es
+  in  head $ [ i | s <- "" : map show [1::Int ..], let { i = mkIdent (a ++ s) }, i `notElem` is ]
+  
+numConstr :: [(SPat, Exp)] -> Int
+numConstr ((SPat (ConData cs _) _, _):_) = length cs
+numConstr _ = undefined
 
