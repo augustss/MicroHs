@@ -10,6 +10,7 @@ import MicroHs.Lex
 import MicroHs.Expr
 import MicroHs.Ident
 import Compat
+--import Debug.Trace
 
 type P a = Prsr FilePath Token a
 
@@ -137,6 +138,9 @@ pSymbol sym = () <$ satisfy sym is
 
 pOper :: P Ident
 pOper = pQSymOper <|< (pSpec '`' *> pQIdent <* pSpec '`')
+
+pUOper :: P Ident
+pUOper = pUQSymOper <|< (pSpec '`' *> pUQIdent <* pSpec '`')
 
 pQSymOper :: P Ident
 pQSymOper = do
@@ -391,7 +395,7 @@ pPat :: P EPat
 pPat = pPatOp
 
 pPatOp :: P EPat
-pPatOp = pOperators pOper pPatArg
+pPatOp = pOperators pUOper pPatArg
 
 pPatArg :: P EPat
 pPatArg = pPatApp
@@ -406,7 +410,7 @@ pPatApp = do
 pPatNotVar :: P EPat
 pPatNotVar = do
   p <- pPat
-  guard (not (isPVar p))
+  guard (isPConApp p)
   pure p
 
 -------------
