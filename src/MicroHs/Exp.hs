@@ -10,6 +10,7 @@ module MicroHs.Exp(
   app2, app3, cCons, cNil, cFlip,
   allVarsExp, freeVars,
   encodeList,
+  lams, apps,
   ) where
 import Prelude hiding((<>))
 import Data.Char
@@ -135,113 +136,9 @@ allVarsExp ae =
     Lam i e -> i : allVarsExp e
     Lit _ -> []
 
---------
--- Possible additions
---
--- Added:
---  R = C C
---  R x y z = (C C x y) z = C y x z = y z x
---
---  Q = C I
---  Q x y z = (C I x y) z = I y x z = y x z
---
--- Added:
---  Z = B K
---  Z x y z = B K x y z = K (x y) z = x y
---
---  ZK = Z K
---  ZK x y z = Z K x y z = (K x) z = x
---
---  C'B = C' B
---  C'B x y z w = C' B x y z w = B (x z) y w = x z (y w)
+lams :: [Ident] -> Exp -> Exp
+lams xs e = foldr Lam e xs
 
---  B (B e) x y z = B e (x y) z = e (x y z)
---
---  B' :: (a -> b -> c) -> a -> (d -> b) -> d -> c
---  B' k f g x = k f (g x)
---
--- Common:
---  817: C' B
---  616: B Z
---  531: C' C
---  352: Z K
---  305: C' S
---
---  BZ = B Z
---  BZ x y z w = B Z x y z w = Z (x y) z w = x y z
---
---  C'C = C' C
---  C'C x y z w = C' C x y z w = C (x z) y w = x z w y
-
-
----------------------------------------------------------------
-
-{-
--- Oleg's abstraction algorithm
-
-data Peano = S Peano | Z
-  deriving (Show)
-data DB = N Peano | L DB | A DB DB | Free Ident | K Lit
-  deriving (Show)
-
-index :: Ident -> [Ident] -> Maybe Peano
-index x xs = lookupBy eqIdent x $ zip xs $ iterate S Z
-
-deBruijn :: Exp -> DB
-deBruijn = go [] where
-  go binds e =
-    case e of
-      Var x -> maybe (Free x) N $ index x binds
-      App t u -> A (go binds t) (go binds u)
-      Lam x t -> L $ go (x:binds) t
-      Lit l -> K l
-
-type CL = Exp
-type BCL = ([Bool], CL)
-
-com :: String -> Exp
-com s = Lit (LPrim s)
-(@@) :: Exp -> Exp -> Exp
-(@@) f a = App f a
-
-convertBool :: (BCL -> BCL -> CL) -> DB -> BCL
-convertBool (#) ee =
-  case ee of
-    N Z -> (True:[], com "I")
-    N (S e) -> (False:g, d) where (g, d) = rec $ N e
-    L e -> case rec e of
-             ([], d) -> ([], com "K" @@ d)
-             (False:g, d) -> (g, ([], com "K") # (g, d))
-             (True:g, d) -> (g, d)
-    A e1 e2 -> (zipWithDefault False (||) g1 g2, t1 # t2) where
-      t1@(g1, _) = rec e1
-      t2@(g2, _) = rec e2
-    Free s -> ([], Var s)
-    K l -> ([], Lit l)
-  where rec = convertBool (#)
-
-optEta :: DB -> BCL
-optEta = convertBool (#) where
-  (#) ([], d1)           {- # -} ([],       d2)      = d1 @@ d2
-  (#) ([], d1)           {- # -} (True:[],  Lit (LPrim "I")) = d1
-  (#) ([], d1)           {- # -} (True:g2,  d2)      = ([], com "B" @@ d1) # (g2, d2)
-  (#) ([], d1)           {- # -} (False:g2, d2)      = ([], d1) # (g2, d2)
-  (#) (True:[], Lit (LPrim "I")) {- # -} ([],       d2)      = com "U" @@ d2
-  (#) (True:[], Lit (LPrim "I")) {- # -} (False:g2, d2)      = ([], com "U") # (g2, d2)
-  (#) (True:g1, d1)      {- # -} ([],       d2)      = ([], com "R" @@ d2) # (g1, d1)
-  (#) (True:g1, d1)      {- # -} (True:g2,  d2)      = (g1, ([], com "S") # (g1, d1)) # (g2, d2)
-  (#) (True:g1, d1)      {- # -} (False:g2, d2)      = (g1, ([], com "C") # (g1, d1)) # (g2, d2)
-  (#) (False:g1, d1)     {- # -} ([],       d2)      = (g1, d1) # ([], d2)
-  (#) (False:_g1, d1)    {- # -} (True:[],  Lit (LPrim "I")) = d1
-  (#) (False:g1, d1)     {- # -} (True:g2,  d2)      = (g1, ([], com "B") # (g1, d1)) # (g2, d2)
-  (#) (False:g1, d1)     {- # -} (False:g2, d2)      = (g1, d1) # (g2, d2)
-
-zipWithDefault :: forall a b . a -> (a -> a -> b) -> [a] -> [a] -> [b]
-zipWithDefault d f     []     ys = map (f d) ys
-zipWithDefault d f     xs     [] = map (flip f d) xs
-zipWithDefault d f (x:xt) (y:yt) = f x y : zipWithDefault d f xt yt
-
-compileOptX :: Exp -> Exp
-compileOptX = snd . optEta . deBruijn
--}
+apps :: Exp -> [Exp] -> Exp
+apps f = foldl App f
 
