@@ -46,6 +46,7 @@ executable mhs
                        MicroHs.Desugar
                        MicroHs.Exp
                        MicroHs.Expr
+                       MicroHs.Fixity
                        MicroHs.Graph
                        MicroHs.Ident
                        MicroHs.IdentMap
