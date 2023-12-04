@@ -56,7 +56,7 @@ encConstrScott i n ss =
   in lams xs $ strict ss xs $ lams fs $ apps (Var f) (map Var xs)  
 
 encIfScott :: Exp -> Exp -> Exp -> Exp
-encIfScott = app2
+encIfScott c t e = app2 c e t
 
 encList :: [Exp] -> Exp
 encList = foldr (app2 cCons) cNil

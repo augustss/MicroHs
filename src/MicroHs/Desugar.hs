@@ -198,7 +198,7 @@ dsExpr aexpr =
     ECase e as -> dsCase (getSLoc aexpr) e as
     ELet ads e -> dsBinds ads (dsExpr e)
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
-    EIf e1 e2 e3 -> encIf (dsExpr e1) (dsExpr e3) (dsExpr e2)
+    EIf e1 e2 e3 -> encIf (dsExpr e1) (dsExpr e2) (dsExpr e3)
     EListish (LList es) -> encList $ map dsExpr es
     EListish (LCompr e astmts) ->
       case astmts of
