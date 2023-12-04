@@ -29,7 +29,6 @@ Differences:
  * Top level definitions must have a type signature.
  * Type variables need an explicit `forall`.
  * Type variables without a kind annotation are assumed to have kind `Type`.
- * There is no prefix negation.
  * There is no `Read` class.
  * There is no deriving.
  * There is no record syntax.

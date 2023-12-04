@@ -40,7 +40,6 @@
 * Parser cannot handle
     x :+ y == x' :+ y'
     probably needs total merge of pattern&expression with validation in type checker
-* Parse prefix negation
 * Faster compression
 * Fix polymorphic pattern literals
   - Probably by implementing view patterns
