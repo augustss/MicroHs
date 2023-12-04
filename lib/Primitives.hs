@@ -5,8 +5,9 @@ import Data.Bool_Type
 --import Data.List_Type
 import Data.Ordering_Type
 
-infixr -1 ->
-infixr -2 =>
+-- These fixities are hardwired
+-- infixr -1 ->
+-- infixr -2 =>
 infix   4 ~
 
 -- Kinds

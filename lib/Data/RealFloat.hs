@@ -30,7 +30,7 @@ class (Fractional a, Ord a, Floating a) => RealFloat a  where
   exponent x          =  if m == 0 then 0 else n + floatDigits x
                          where (m,n) = decodeFloat x
 
-  significand x       =  encodeFloat m (negate (floatDigits x))
+  significand x       =  encodeFloat m (- (floatDigits x))
                          where (m,_) = decodeFloat x
 
   scaleFloat 0 x      =  x
@@ -58,11 +58,11 @@ class (Fractional a, Ord a, Floating a) => RealFloat a  where
     |(x <= 0 && y < 0)            ||
      (x <  0 && isNegativeZero y) ||
      (isNegativeZero x && isNegativeZero y)
-                       = negate (atan2 (negate y) x)
+                       = - (atan2 (- y) x)
     | y == 0 && (x < 0 || isNegativeZero x)
                         =  pi    -- must be after the previous test on zero y
     | x==0 && y==0      =  y     -- must be after the other double zero tests
     | otherwise         =  x + y -- x or y is a NaN, return a NaN (via +)
 
 clamp :: Int -> Int -> Int
-clamp bd k = max (negate bd) (min bd k)
+clamp bd k = max (- bd) (min bd k)

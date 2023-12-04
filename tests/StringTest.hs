@@ -7,7 +7,7 @@ main = do
   putStrLn $ if (==) "abc" "adc" then "yes" else "no"
   putStrLn $ show (1234::Int)
   putStrLn $ show (0::Int)
-  putStrLn $ show (negate (567::Int))
+  putStrLn $ show (- (567::Int))
   putStrLn $ show 'x'
   putStrLn $ show '\n'
   putStrLn $ show False

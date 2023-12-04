@@ -36,12 +36,12 @@ class Eq a => Bits a where
   bitSizeMaybe      :: a -> Maybe Int
   bitSize           :: a -> Int
 
-  x `shift`   i | i<0       = x `shiftR` (negate i)
+  x `shift`   i | i<0       = x `shiftR` (- i)
                 | i>0       = x `shiftL` i
                 | otherwise = x
 
 
-  x `rotate`  i | i<0       = x `rotateR` (negate i)
+  x `rotate`  i | i<0       = x `rotateR` (- i)
                 | i>0       = x `rotateL` i
                 | otherwise = x
 
@@ -63,12 +63,12 @@ class Eq a => Bits a where
 
   x `shiftL`  i       = x `shift`  i
   x `unsafeShiftL` i  = x `shiftL` i
-  x `shiftR`  i       = x `shift`  (negate i)
+  x `shiftR`  i       = x `shift`  (- i)
   x `unsafeShiftR` i  = x `shiftR` i
 
   x `rotateL` i       = x `rotate` i
 
-  x `rotateR` i       = x `rotate` (negate i)
+  x `rotateR` i       = x `rotate` (- i)
 
 
 class Bits b => FiniteBits b where

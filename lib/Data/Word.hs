@@ -33,7 +33,7 @@ instance Integral Word where
 
 instance Bounded Word where
   minBound = 0::Word
-  maxBound = (-1::Word)
+  maxBound = primWordInv (0::Word)
 
 instance Real Word where
   toRational i = _integerToRational (_wordToInteger i)

@@ -44,8 +44,11 @@ executable mhs
                        MicroHs.Compile
                        MicroHs.CompileCache
                        MicroHs.Desugar
+                       MicroHs.EncodeData
                        MicroHs.Exp
+                       MicroHs.ExpPrint
                        MicroHs.Expr
+                       MicroHs.Fixity
                        MicroHs.Graph
                        MicroHs.Ident
                        MicroHs.IdentMap

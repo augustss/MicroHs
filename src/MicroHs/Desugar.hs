@@ -17,6 +17,7 @@ import Debug.Trace
 import Compat
 import GHC.Stack
 
+import MicroHs.EncodeData
 import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.Graph
@@ -36,17 +37,12 @@ dsDef mn adef =
   case adef of
     Data _ cs ->
       let
-        f i = mkIdent ("$f" ++ show i)
-        fs = [f i | (i, _) <- zip [0::Int ..] cs]
+        n = length cs
         dsConstr i (Constr _ ctx c ets) =
           let
             ss = (if null ctx then [] else [False]) ++
                  map fst (either id (map snd) ets)   -- strict flags
-            xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip [0::Int ..] ss]
-            strict (False:ys) (_:is) e = strict ys is e
-            strict (True:ys)  (x:is) e = App (App (Lit (LPrim "seq")) (Var x)) (strict ys is e)
-            strict _ _ e = e
-          in (qualIdent mn c, lams xs $ strict ss xs $ lams fs $ apps (Var (f i)) (map Var xs))
+          in (qualIdent mn c, encConstr i n ss)
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _) -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
@@ -183,7 +179,7 @@ encodeInteger i | toInteger (minBound::Int) <= i && i < toInteger (maxBound::Int
   App (Var (mkIdent "Data.Integer_Type._intToInteger")) (Lit (LInt (_integerToInt i)))
                 | otherwise =
 --  trace ("*** large integer " ++ show i) $
-  App (Var (mkIdent "Data.Integer._intListToInteger")) (encodeList (map (Lit . LInt) (_integerToIntList i)))
+  App (Var (mkIdent "Data.Integer._intListToInteger")) (encList (map (Lit . LInt) (_integerToIntList i)))
 
 encodeRational :: Rational -> Exp
 encodeRational r =
@@ -202,9 +198,8 @@ dsExpr aexpr =
     ECase e as -> dsCase (getSLoc aexpr) e as
     ELet ads e -> dsBinds ads (dsExpr e)
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
-    EIf e1 e2 e3 ->
-      app2 (dsExpr e1) (dsExpr e3) (dsExpr e2)
-    EListish (LList es) -> encodeList $ map dsExpr es
+    EIf e1 e2 e3 -> encIf (dsExpr e1) (dsExpr e2) (dsExpr e3)
+    EListish (LList es) -> encList $ map dsExpr es
     EListish (LCompr e astmts) ->
       case astmts of
         [] -> dsExpr (EListish (LList [e]))
@@ -276,12 +271,6 @@ tupleCon loc n =
     c = tupleConstr loc n
   in ECon $ ConData [(c, n)] c
 
-lams :: [Ident] -> Exp -> Exp
-lams xs e = foldr Lam e xs
-
-apps :: Exp -> [Exp] -> Exp
-apps f = foldl App f
-
 newVars :: String -> [Ident] -> [Ident]
 newVars s is = deleteAllsBy (==) [ mkIdent (s ++ show i) | i <- [1::Int ..] ] is
 
@@ -337,9 +326,6 @@ runS loc used ss mtrx =
         e:es -> letBind (return e) $ \ x -> ds (x:xs) es
   in evalState (ds [] ss) supply
 
-data SPat = SPat Con [Ident]    -- simple pattern
-  deriving(Show, Eq)
-
 -- Desugar a pattern matrix.
 -- The input is a (usually identifier) vector e1, ..., en
 -- and patterns matrix p11, ..., p1n   -> e1
@@ -387,6 +373,32 @@ dsMatrix dflt iis aarms =
       narms <- mapM oneGroup grps
       return $ mkCase i narms ndflt
 
+mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
+mkCase var pes dflt =
+  --trace ("mkCase " ++ show pes) $
+  case pes of
+    [] -> dflt
+    [(SPat (ConNew _) [x], arhs)] -> eLet x var arhs
+    (SPat (ConLit _ l) _,   arhs) : rpes -> 
+      let
+        cond =
+          case l of
+            LInt  _ -> app2 eEqInt  var (Lit l)
+            LChar c -> app2 eEqChar var (Lit (LInt (ord c)))
+            LStr  _ -> app2 eEqStr  var (Lit l)
+            _ -> undefined
+      in app2 cond (mkCase var rpes dflt) arhs
+    _ -> encCase var pes dflt
+
+eEqInt :: Exp
+eEqInt = Lit (LPrim "==")
+
+eEqChar :: Exp
+eEqChar = Lit (LPrim "==")
+
+eEqStr :: Exp
+eEqStr = Lit (LPrim "equal")
+
 eMatchErr :: SLoc -> Exp
 eMatchErr (SLoc fn l c) =
   App (App (App (Lit (LPrim "noMatch")) (Lit (LStr fn))) (Lit (LInt l))) (Lit (LInt c))
@@ -410,46 +422,19 @@ cheap ae =
     Lit _ -> True
     _ -> False
 
-eEqInt :: Exp
-eEqInt = Lit (LPrim "==")
-
-eEqChar :: Exp
-eEqChar = Lit (LPrim "==")
-
-eEqStr :: Exp
-eEqStr = Lit (LPrim "equal")
-
-mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
-mkCase var pes dflt =
-  --trace ("mkCase " ++ show pes) $
-  case pes of
-    [] -> dflt
-    [(SPat (ConNew _) [x], arhs)] -> eLet x var arhs
-    (SPat (ConLit _ l) _,   arhs) : rpes -> 
-      let
-        cond =
-          case l of
-            LInt  _ -> app2 eEqInt  var (Lit l)
-            LChar c -> app2 eEqChar var (Lit (LInt (ord c)))
-            LStr  _ -> app2 eEqStr  var (Lit l)
-            _ -> impossible
-      in app2 cond (mkCase var rpes dflt) arhs
-    (SPat (ConData cs _) _, _) : _ ->
-      let
-        arm ck =
-          let
-            (c, k) = ck
-            (vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i) xs, e) <- pes, c == i ] ++
-                               [ (replicate k dummyIdent, dflt) ]
-          in (SPat (ConData cs c) vs, rhs)
-      in  eCase var (map arm cs)
-    _ -> impossible
-
-eCase :: Exp -> [(SPat, Exp)] -> Exp
-eCase e as =
---  trace ("eCase " ++ show e ++ "\n" ++
---         unlines [ unwords (map showIdent (conIdent c : xs)) ++ " -> " ++ show r | (SPat c xs, r) <- as ]) $
-  apps e [lams xs r | (SPat _ xs, r) <- as ]
+eLet :: Ident -> Exp -> Exp -> Exp
+eLet i e b =
+  if i == dummyIdent then
+    b
+  else
+    case b of
+      Var j | i == j -> e
+      _ ->
+        case filter (== i) (freeVars b) of
+          []  -> b                -- no occurences, no need to bind
+          -- The single use substitution is essential for performance.
+          [_] -> substExp i e b   -- single occurrence, substitute  XXX could be worse if under lambda
+          _   -> App (Lam i b) e  -- just use a beta redex
 
 -- Split the matrix into segments so each first column has initially patterns -- followed by variables, followed by the rest.
 splitArms :: Matrix -> (Matrix, Matrix, Matrix)
@@ -473,19 +458,6 @@ substAlpha x y e =
     e
   else
     substExp x y e
-
-eLet :: Ident -> Exp -> Exp -> Exp
-eLet i e b =
-  if i == dummyIdent then
-    b
-  else
-    case b of
-      Var j | i == j -> e
-      _ ->
-        case filter (== i) (freeVars b) of
-          []  -> b                -- no occurences, no need to bind
-          [_] -> substExp i e b   -- single occurrence, substitute  XXX could be worse if under lambda
-          _   -> App (Lam i b) e  -- just use a beta redex
 
 pConOf :: HasCallStack =>
           EPat -> Con

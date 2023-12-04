@@ -15,6 +15,7 @@ import PrimTable
 import MicroHs.Desugar(LDef, encodeInteger)
 import MicroHs.Expr
 import MicroHs.Exp
+import MicroHs.ExpPrint(encodeString)
 import MicroHs.Ident
 
 translateAndRun :: (Ident, [LDef]) -> IO ()

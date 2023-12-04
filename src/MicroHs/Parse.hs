@@ -10,6 +10,7 @@ import MicroHs.Lex
 import MicroHs.Expr
 import MicroHs.Ident
 import Compat
+--import Debug.Trace
 
 type P a = Prsr FilePath Token a
 
@@ -138,6 +139,9 @@ pSymbol sym = () <$ satisfy sym is
 pOper :: P Ident
 pOper = pQSymOper <|< (pSpec '`' *> pQIdent <* pSpec '`')
 
+pUOper :: P Ident
+pUOper = pUQSymOper <|< (pSpec '`' *> pUQIdent <* pSpec '`')
+
 pQSymOper :: P Ident
 pQSymOper = do
   fn <- getFileName
@@ -265,7 +269,7 @@ pDef =
   <|< Default     <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
-    dig (TInt _ ii) | -2 <= i && i <= 9 = Just i  where i = _integerToInt ii
+    dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = _integerToInt ii
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
 
@@ -391,7 +395,7 @@ pPat :: P EPat
 pPat = pPatOp
 
 pPatOp :: P EPat
-pPatOp = pOperators pOper pPatArg
+pPatOp = pOperators pUOper pPatArg
 
 pPatArg :: P EPat
 pPatArg = pPatApp
@@ -406,7 +410,7 @@ pPatApp = do
 pPatNotVar :: P EPat
 pPatNotVar = do
   p <- pPat
-  guard (not (isPVar p))
+  guard (isPConApp p)
   pure p
 
 -------------
@@ -517,6 +521,13 @@ pOperComma = pOper <|< pComma
   where
     pComma = mkIdentLoc <$> getFileName <*> getLoc <*> ("," <$ pSpec ',')
 
+-- No right section for '-'.
+pOperCommaNoMinus :: P Ident
+pOperCommaNoMinus = do
+  i <- pOperComma
+  guard (i /= mkIdent "-")
+  pure i
+
 pAExpr :: P Expr
 pAExpr = (
       (EVar   <$> pLQIdentSym)
@@ -525,7 +536,7 @@ pAExpr = (
   <|< (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
   <|< EListish <$> (pSpec '[' *> pListish <* pSpec ']')
   <|< (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOperComma <* pSpec ')'))
-  <|< (ESectR <$> (pSpec '(' *> pOperComma) <*> (pExprArg <* pSpec ')'))
+  <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprArg <* pSpec ')'))
   <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
   )
   -- This weirdly slows down parsing
@@ -548,12 +559,18 @@ pListish = do
    <|< pure (LList [e1])
 
 pExprOp :: P Expr
-pExprOp = pOperators pOper pExprArg
+pExprOp = pOperators pOper pExprArgNeg
+
+pExprArgNeg :: P Expr
+pExprArgNeg = (ESectR <$> pMinus <*> pExprArg) <|< pExprArg
+  where pMinus = do { i <- pSymOper; guard (i == mkIdent "-"); pure i }
 
 pOperators :: P Ident -> P Expr -> P Expr
 pOperators oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
-  where eOper e [] = e
+  where eOper e [] | notNeg e = e
         eOper e ies = EOper e ies
+        notNeg (ESectR i _) = i /= mkIdent "-"
+        notNeg _ = True
 
 -------------
 -- Bindings

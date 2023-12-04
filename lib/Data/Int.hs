@@ -20,7 +20,7 @@ instance Num Int where
   (-)  = primIntSub
   (*)  = primIntMul
   negate x = primIntNeg x
-  abs x = if x < 0 then negate x else x
+  abs x = if x < 0 then - x else x
   signum x =
     case compare x 0 of
       LT -> -1
@@ -34,8 +34,8 @@ instance Integral Int where
   toInteger = _intToInteger
 
 instance Bounded Int where
-  minBound = primWordToInt ((-1::Word) `primWordQuot` 2) + 1
-  maxBound = primWordToInt ((-1::Word) `primWordQuot` 2)
+  minBound = primWordToInt (primWordInv (0::Word) `primWordQuot` 2) + 1
+  maxBound = primWordToInt (primWordInv (0::Word) `primWordQuot` 2)
 
 instance Real Int where
   toRational i = _integerToRational (_intToInteger i)
@@ -64,7 +64,7 @@ showInt_ n =
   if n < 0 then
     '-' : _showUnsignedNegInt n
   else
-    _showUnsignedNegInt (negate n)
+    _showUnsignedNegInt (- n)
 
 -- Some trickery to show minBound correctly.
 -- To print the number n, pass -n.

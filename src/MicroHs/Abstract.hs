@@ -326,3 +326,40 @@ improveT (App f a) =
 improveT e = e
 -}
 
+--------
+-- Possible additions
+--
+-- Added:
+--  R = C C
+--  R x y z = (C C x y) z = C y x z = y z x
+--
+--  Q = C I
+--  Q x y z = (C I x y) z = I y x z = y x z
+--
+-- Added:
+--  Z = B K
+--  Z x y z = B K x y z = K (x y) z = x y
+--
+--  ZK = Z K
+--  ZK x y z = Z K x y z = (K x) z = x
+--
+--  C'B = C' B
+--  C'B x y z w = C' B x y z w = B (x z) y w = x z (y w)
+
+--  B (B e) x y z = B e (x y) z = e (x y z)
+--
+--  B' :: (a -> b -> c) -> a -> (d -> b) -> d -> c
+--  B' k f g x = k f (g x)
+--
+-- Common:
+--  817: C' B
+--  616: B Z
+--  531: C' C
+--  352: Z K
+--  305: C' S
+--
+--  BZ = B Z
+--  BZ x y z w = B Z x y z w = Z (x y) z w = x y z
+--
+--  C'C = C' C
+--  C'C x y z w = C' C x y z w = C (x z) y w = x z w y

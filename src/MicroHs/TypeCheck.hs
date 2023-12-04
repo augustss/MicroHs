@@ -24,6 +24,7 @@ import MicroHs.TCMonad as T
 import qualified MicroHs.IdentMap as M
 import MicroHs.Ident
 import MicroHs.Expr
+import MicroHs.Fixity
 import Compat
 import GHC.Stack
 import Debug.Trace
@@ -633,7 +634,12 @@ initTC mn fs ts ss cs is vs as =
   let
     xts = foldr (uncurry stInsertGlb) ts primTypes
     xvs = foldr (uncurry stInsertGlb) vs primValues
-  in TC mn 1 fs xts ss xvs as IM.empty TCExpr cs (is,[],[]) [] []
+  in TC mn 1 (addPrimFixs fs) xts ss xvs as IM.empty TCExpr cs (is,[],[]) [] []
+
+addPrimFixs :: FixTable -> FixTable
+addPrimFixs =
+  M.insert (mkIdent "Primitives.->") (AssocRight, -1) .
+  M.insert (mkIdent "Primitives.=>") (AssocRight, -2)
 
 kTypeS :: EType
 kTypeS = kType
@@ -1614,8 +1620,8 @@ tcExprR mt ae =
 
     ESectL e i -> tcExpr mt (EApp (EVar i) e)
     ESectR i e -> do
-      let x = eVarI loc "$x"
-      tcExpr mt (eLam [x] (EApp (EApp (EVar i) x) e))
+        let x = eVarI loc "$x"
+        tcExpr mt (eLam [x] (EApp (EApp (EVar i) x) e))
     EIf e1 e2 e3 -> do
       e1' <- tCheckExpr (tBool (getSLoc e1)) e1
       case mt of
@@ -1700,37 +1706,18 @@ tcLit' mt loc l t = instSigma loc (ELit loc l) t mt
 tcOper :: HasCallStack =>
           Expr -> [(Ident, Expr)] -> T Expr
 tcOper ae aies = do
+  fixs <- gets fixTable
   let
-    doOp (e1:e2:es) o os ies =
-      let e = EApp (EApp o e2) e1
-      in  calc (e:es) os ies
-    doOp _ _ _ _ = impossible
-
-    calc :: [Expr] -> [(Expr, Fixity)] -> [((Expr, Fixity), Expr)] -> Expr
-    calc [et] [] [] = et
-    calc es ((o, _):os) [] = doOp es o os []
-    calc es oos@((oy, (ay, py)):os) iies@((oo@(ox, (ax, px)), e) : ies) =
---      traceM (show ((unIdent (getIdent (fst o)), ay, py), (unIdent i, ax, px)))
-      if px == py && (ax /= ay || ax == AssocNone) then
-        errorMessage (getSLoc ox) "ambiguous operator expression"
-       else if px < py || ax == AssocLeft && px == py then
-        doOp es oy os iies
-       else
-        calc (e:es) (oo : oos) ies
-    calc es [] ((o, e) : ies) =
-      calc (e:es) [o] ies
-    calc _ _ _ = impossible
-
-    opfix :: FixTable -> (Ident, Expr) -> T ((Expr, Fixity), Expr)
-    opfix fixs (i, e) = do
+    opfix :: (Ident, Expr) -> T ((Expr, Fixity), Expr)
+    opfix (i, e) = do
       (ei, _) <- tLookupV i
       let fx = getFixity fixs (getIdent ei)
       return ((EVar i, fx), e)
 
-  fixs <- gets fixTable
---  traceM $ unlines $ map show [(unIdent i, fx) | (i, fx) <- M.toList fixs]
-  ites <- mapM (opfix fixs) aies
-  return $ calc [ae] [] ites
+  ites <- mapM opfix aies
+  case resolveFixity ae ites of
+    Left (loc, err) -> tcError loc err
+    Right e -> return e
 
 unArrow :: HasCallStack =>
            SLoc -> EType -> T (EType, EType)
@@ -2713,3 +2700,4 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
   showIdent i ++ " :: " ++ showEType cc ++
     " has " ++ showListS showIdent ms
 -}
+

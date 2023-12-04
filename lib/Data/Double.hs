@@ -27,7 +27,7 @@ instance Num Double where
   (-)  = primDoubleSub
   (*)  = primDoubleMul
   negate = primDoubleNeg
-  abs x = if x < 0.0 then negate x else x
+  abs x = if x < 0.0 then - x else x
   signum x =
     case compare x 0.0 of
       LT -> -1.0
