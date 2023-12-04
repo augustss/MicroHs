@@ -179,7 +179,7 @@ encodeInteger i | toInteger (minBound::Int) <= i && i < toInteger (maxBound::Int
   App (Var (mkIdent "Data.Integer_Type._intToInteger")) (Lit (LInt (_integerToInt i)))
                 | otherwise =
 --  trace ("*** large integer " ++ show i) $
-  App (Var (mkIdent "Data.Integer._intListToInteger")) (encodeList (map (Lit . LInt) (_integerToIntList i)))
+  App (Var (mkIdent "Data.Integer._intListToInteger")) (encList (map (Lit . LInt) (_integerToIntList i)))
 
 encodeRational :: Rational -> Exp
 encodeRational r =
@@ -198,9 +198,8 @@ dsExpr aexpr =
     ECase e as -> dsCase (getSLoc aexpr) e as
     ELet ads e -> dsBinds ads (dsExpr e)
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
-    EIf e1 e2 e3 ->
-      app2 (dsExpr e1) (dsExpr e3) (dsExpr e2)
-    EListish (LList es) -> encodeList $ map dsExpr es
+    EIf e1 e2 e3 -> encIf (dsExpr e1) (dsExpr e3) (dsExpr e2)
+    EListish (LList es) -> encList $ map dsExpr es
     EListish (LCompr e astmts) ->
       case astmts of
         [] -> dsExpr (EListish (LList [e]))

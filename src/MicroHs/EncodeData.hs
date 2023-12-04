@@ -2,6 +2,8 @@ module MicroHs.EncodeData(
   SPat(..),
   encConstr,
   encCase,
+  encIf,
+  encList,
   ) where
 import Prelude
 import MicroHs.Exp
@@ -19,6 +21,8 @@ encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCase = encCaseScott
 encConstr :: Int -> Int -> [Bool] -> Exp
 encConstr = encConstrScott
+encIf :: Exp -> Exp -> Exp -> Exp
+encIf = encIfScott
 
 -- Encode a case expression:
 --  case var of p1->e1; p2->e2; ...; _->dflt
@@ -50,3 +54,18 @@ encConstrScott i n ss =
     strict (True:ys)  (x:is) e = App (App (Lit (LPrim "seq")) (Var x)) (strict ys is e)
     strict _ _ e = e
   in lams xs $ strict ss xs $ lams fs $ apps (Var f) (map Var xs)  
+
+encIfScott :: Exp -> Exp -> Exp -> Exp
+encIfScott = app2
+
+encList :: [Exp] -> Exp
+encList = foldr (app2 cCons) cNil
+
+-- XXX could use encConstr
+cCons :: Exp
+cCons = Lit (LPrim "O")
+
+-- XXX could use encConstr
+cNil :: Exp
+cNil = Lit (LPrim "K")
+

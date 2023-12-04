@@ -10,6 +10,7 @@ import Data.Maybe
 import System.Environment
 import MicroHs.Compile
 import MicroHs.Exp
+import MicroHs.ExpPrint
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.Translate
