@@ -16,4 +16,4 @@ class Num a => Fractional a where
 
 infixr 8 ^^
 (^^) :: forall a b . (Fractional a, Integral b, Ord b) => a -> b -> a
-x ^^ n = if n >= 0 then x^n else recip (x^(negate n))
+x ^^ n = if n >= 0 then x^n else recip (x^(- n))

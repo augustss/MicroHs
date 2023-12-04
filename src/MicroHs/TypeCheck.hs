@@ -633,7 +633,12 @@ initTC mn fs ts ss cs is vs as =
   let
     xts = foldr (uncurry stInsertGlb) ts primTypes
     xvs = foldr (uncurry stInsertGlb) vs primValues
-  in TC mn 1 fs xts ss xvs as IM.empty TCExpr cs (is,[],[]) [] []
+  in TC mn 1 (addPrimFixs fs) xts ss xvs as IM.empty TCExpr cs (is,[],[]) [] []
+
+addPrimFixs :: FixTable -> FixTable
+addPrimFixs =
+  M.insert (mkIdent "Primitives.->") (AssocRight, -1) .
+  M.insert (mkIdent "Primitives.=>") (AssocRight, -2)
 
 kTypeS :: EType
 kTypeS = kType
@@ -1614,8 +1619,8 @@ tcExprR mt ae =
 
     ESectL e i -> tcExpr mt (EApp (EVar i) e)
     ESectR i e -> do
-      let x = eVarI loc "$x"
-      tcExpr mt (eLam [x] (EApp (EApp (EVar i) x) e))
+        let x = eVarI loc "$x"
+        tcExpr mt (eLam [x] (EApp (EApp (EVar i) x) e))
     EIf e1 e2 e3 -> do
       e1' <- tCheckExpr (tBool (getSLoc e1)) e1
       case mt of
@@ -1725,6 +1730,7 @@ tcOper ae aies = do
     calc _ _ _ = impossible
 -}
   fixs <- gets fixTable
+--  traceM (show fixs)
   let
     opfix :: (Ident, Expr) -> T ((Expr, Fixity), Expr)
     opfix (i, e) = do
@@ -1734,7 +1740,8 @@ tcOper ae aies = do
 
 --  traceM $ unlines $ map show [(unIdent i, fx) | (i, fx) <- M.toList fixs]
   ites <- mapM opfix aies
---  traceM $ show $ resolveFixity ae ites
+--  traceM $ "tcOper in=" ++ show (ae, ites)
+--  traceM $ "tcOper out=" ++ show (resolveFixity ae ites)
 --  return $ calc [ae] [] ites
   return $ resolveFixity ae ites
 

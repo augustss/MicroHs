@@ -265,7 +265,7 @@ pDef =
   <|< Default     <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
-    dig (TInt _ ii) | -2 <= i && i <= 9 = Just i  where i = _integerToInt ii
+    dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = _integerToInt ii
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
 
@@ -563,8 +563,10 @@ pExprArgNeg = (ESectR <$> pMinus <*> pExprArg) <|< pExprArg
 
 pOperators :: P Ident -> P Expr -> P Expr
 pOperators oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
-  where eOper e [] = e
+  where eOper e [] | notNeg e = e
         eOper e ies = EOper e ies
+        notNeg (ESectR i _) = i /= mkIdent "-"
+        notNeg _ = True
 
 -------------
 -- Bindings

@@ -18,7 +18,7 @@ imagPart :: forall a . Complex a -> a
 imagPart (_ :+ y) =  y
 
 conjugate        :: forall a . Num a => Complex a -> Complex a
-conjugate (x:+y) =  x :+ (negate y)
+conjugate (x:+y) =  x :+ (- y)
 
 mkPolar          :: forall a . Floating a => a -> a -> Complex a
 mkPolar r theta  =  r * cos theta :+ r * sin theta
@@ -60,7 +60,7 @@ instance forall a . (RealFloat a) => Fractional (Complex a)  where
     (x:+y) / (x':+y')   =  (x*x''+y*y'') / d :+ (y*x''-x*y'') / d
                            where x'' = scaleFloat k x'
                                  y'' = scaleFloat k y'
-                                 k   = negate $ max (exponent x') (exponent y')
+                                 k   = - max (exponent x') (exponent y')
                                  d   = x'*x'' + y'*y''
 
     fromRational a      =  fromRational a :+ 0
@@ -90,14 +90,14 @@ instance forall a . (RealFloat a) => Floating (Complex a) where
         nan = 0/0
 -}
     sqrt z@(x:+y) | x==0 && y==0 = 0
-                  | otherwise    =  u :+ (if y < 0 then negate v else v)
+                  | otherwise    =  u :+ (if y < 0 then - v else v)
                       where (u,v) = if x < 0 then (v',u') else (u',v')
                             v'    = abs y / (u'*2)
                             u'    = sqrt ((magnitude z + abs x) / 2)
 
     sin (x:+y)     =  sin x * cosh y :+ cos x * sinh y
-    cos (x:+y)     =  cos x * cosh y :+ (negate (sin x) * sinh y)
-    tan (x:+y)     =  (sinx*coshy:+cosx*sinhy)/(cosx*coshy:+(negate sinx*sinhy))
+    cos (x:+y)     =  cos x * cosh y :+ (- (sin x) * sinh y)
+    tan (x:+y)     =  (sinx*coshy:+cosx*sinhy)/(cosx*coshy:+(- sinx*sinhy))
                       where sinx  = sin x
                             cosx  = cos x
                             sinhy = sinh y
@@ -111,12 +111,12 @@ instance forall a . (RealFloat a) => Floating (Complex a) where
                             sinhx = sinh x
                             coshx = cosh x
 
-    asin z@(x:+y)  =  y':+(negate x')
-                      where  (x':+y') = log (((negate y):+x) + sqrt (1 - z*z))
-    acos z         =  y'':+(negate x'')
-                      where (x'':+y'') = log (z + ((negate y'):+x'))
+    asin z@(x:+y)  =  y':+(- x')
+                      where  (x':+y') = log (((- y):+x) + sqrt (1 - z*z))
+    acos z         =  y'':+(- x'')
+                      where (x'':+y'') = log (z + ((- y'):+x'))
                             (x':+y')   = sqrt (1 - z*z)
-    atan z@(x:+y)  =  y':+(negate x')
+    atan z@(x:+y)  =  y':+(- x')
                       where (x':+y') = log (((1 - y):+x) / sqrt (1+z*z))
 
     asinh z        =  log (z + sqrt (1+z*z))

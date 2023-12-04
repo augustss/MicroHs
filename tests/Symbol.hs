@@ -9,7 +9,7 @@ class C a where
 instance C (T "id") where
   m (A i) = i
 instance C (T "neg") where
-  m (A i) = negate i
+  m (A i) = - i
 instance C (T "inc") where
   m (A i) = succ i
 

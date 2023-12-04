@@ -339,8 +339,7 @@ _integerToIntList (I Plus  ds) = ds
 _integerToIntList (I Minus ds) = (-1::Int) : ds
 
 _intListToInteger :: [Int] -> Integer
-_intListToInteger (-1 : ds) = I Minus ds
-_intListToInteger ds        = I Plus  ds
+_intListToInteger ads@(x : ds) = if x == -1 then I Minus ds else I Plus ads
 
 ---------------------------------
 {-

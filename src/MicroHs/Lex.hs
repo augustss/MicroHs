@@ -88,8 +88,7 @@ lex loc (d:cs) | isLower_ d =
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('0':x:cs) | toLower x == 'x' = hexNumber loc cs
-lex loc ('-':cs@(d:_)) | isDigit d = number loc "-" cs
-lex loc      cs@(d:_)  | isDigit d = number loc ""  cs
+lex loc cs@(d:_) | isDigit d = number loc cs
 lex loc (d:cs) | isOperChar d  =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
@@ -110,17 +109,16 @@ hexNumber loc cs =
   case span isHexDigit cs of
     (ds, rs) -> TInt loc (readHex ds) : lex (addCol loc $ length ds + 2) rs
 
-number :: Loc -> String -> String -> [Token]   -- neg="-" means negative, neg=0 means positive
-number loc sign cs =
+number :: Loc -> String -> [Token]
+number loc cs =
   case span isDigit cs of
     (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
-               let s = sign ++ ds
-                   i = readInteger s
-               in  TInt loc i : lex (addCol loc $ length s) rs
+               let i = readInteger ds
+               in  TInt loc i : lex (addCol loc $ length ds) rs
              | otherwise ->
                case span isDigit (tail rs) of
                  (ns, rs') ->
-                   let s = sign ++ ds ++ '.':ns
+                   let s = ds ++ '.':ns
                        mkD x r = TRat loc (readRational x) : lex (addCol loc $ length x) r
                    in  case expo rs' of
                          Nothing -> mkD s rs'
