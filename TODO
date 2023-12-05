@@ -21,6 +21,7 @@
     # works partially, but not constraint solving doesn't happen in all the right places
   - don't require kind signatures in forall
 * Try Oleg's abstraction algorithm
+  - Seems to be slower
 * Implement IORef
   - The IORef will need GC support
   - Implement IOArray
@@ -35,7 +36,7 @@
 * Handle tupled dictionaries better for recursive calls
 * Split eval.c
   - Partially done
-  - Complete 32 bit support
+  - debug 32 bit
 * Removing [] from prim table
 * Parser cannot handle
     x :+ y == x' :+ y'
