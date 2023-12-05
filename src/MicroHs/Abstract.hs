@@ -270,8 +270,8 @@ improveT ae =
                   if isY ff && isK ck then
                     e
                   else
-                    App ff aa
-                NotApp -> App ff aa
+                    kApp ff aa
+                NotApp -> kApp ff aa
           in
             def
 {-
@@ -284,6 +284,14 @@ improveT ae =
               NotApp -> def
 -}
             
+
+kApp :: Exp -> Exp -> Exp
+kApp (Lit (LPrim "K")) (App (Lit (LPrim ('K':s))) x)
+  | s == ""  = App (Lit (LPrim "K2")) x
+  | s == "2" = App (Lit (LPrim "K3")) x
+  | s == "3" = App (Lit (LPrim "K4")) x
+kApp f a = App f a
+
 {-
 -- K I      -->  A
 -- C I      -->  T
