@@ -6,7 +6,7 @@ infix 6 :+
 data Complex a = !a :+ !a
 
 instance forall a . Eq a => Eq (Complex a) where
-  (:+) x y == (:+) x' y'  =  x == x' && y == y'   -- parser bug
+  (x :+ y) == (x' :+ y')  =  x == x' && y == y'   -- parser bug
 
 instance forall a . Show a => Show (Complex a) where
   show (x :+ y) = show x ++ " :+ " ++ show y
