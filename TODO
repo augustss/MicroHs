@@ -2,6 +2,7 @@
 * Implement deriving
 * make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
+  - Somewhat improved now
 * whith dictionaries we need two optimizations to get rid of them
   -   case d of (d1,d2) -> ... (d1,d2) ...
     transforms to
@@ -38,9 +39,6 @@
   - Partially done
   - debug 32 bit
 * Removing [] from prim table
-* Parser cannot handle
-    x :+ y == x' :+ y'
-    probably needs total merge of pattern&expression with validation in type checker
 * Faster compression
 * Fix polymorphic pattern literals
   - Probably by implementing view patterns
@@ -51,3 +49,7 @@
 * Fix bug uncovered by Data.Type.Equality
 * Stratify types/kinds/sorts
   - Do kind variables this way 'data forall (k:Kind) . T (a::k) = C'
+* Implement polykinds
+* Implement
+  - Typeable
+  - Generic
