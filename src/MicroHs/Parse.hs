@@ -224,6 +224,12 @@ pLit = do
     is _ = Nothing
   satisfyM "literal" is
 
+pNumLit :: P Expr
+pNumLit = do
+  e <- pLit
+  guard $ case e of { ELit _ (LInteger _) -> True; ELit _ (LRat _) -> True; _ -> False }
+  return e
+
 pString :: P String
 pString = satisfyM "string" is
   where
@@ -390,6 +396,7 @@ pAPat =
   <|< pLit
   <|< (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
+  <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSymbol "->" *> pAPat <* pSpec ')'))
 
 pPat :: P EPat
 pPat = pPatOp
@@ -398,7 +405,7 @@ pPatOp :: P EPat
 pPatOp = pOperators pUOper pPatArg
 
 pPatArg :: P EPat
-pPatArg = pPatApp
+pPatArg = (pSymbol "-" *> (ENegApp <$> pNumLit)) <|< pPatApp
 
 pPatApp :: P EPat
 pPatApp = do

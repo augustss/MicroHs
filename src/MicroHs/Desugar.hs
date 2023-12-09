@@ -101,6 +101,8 @@ hasLit (EVar _) = False
 hasLit (ECon _) = False
 hasLit (EApp f a) = hasLit f || hasLit a
 hasLit (EAt _ p) = hasLit p
+hasLit (EViewPat _ _) = True
+hasLit (ENegApp _) = True
 hasLit _ = impossible
 
 dsAlts :: EAlts -> (Exp -> Exp)
@@ -251,6 +253,8 @@ dsPat apat =
     EAt i p -> EAt i (dsPat p)
     ELit loc (LStr cs) | length cs < 2 -> dsPat (EListish (LList (map (ELit loc . LChar) cs)))
     ELit _ _ -> apat
+    ENegApp _ -> apat
+    EViewPat _ _ -> apat
     _ -> impossible
 
 iNil :: Ident

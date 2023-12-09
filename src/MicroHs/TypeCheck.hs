@@ -1971,14 +1971,21 @@ tcPat mt ae =
       instPatSigma loc t' mt
       tCheckPat t' e
 
-    EAt i e -> do
+    EAt i p -> do
       (_, ti) <- tLookupV i
-      (sk, d, e') <- tcPat mt e
+      (sk, d, p') <- tcPat mt p
       tt <- tGetExpType mt
       case ti of
         EUVar r -> tSetRefType loc r tt
         _ -> impossible
-      return (sk, d, EAt i e')
+      return (sk, d, EAt i p')
+
+    EViewPat e p -> do
+      (e', te) <- tInferExpr e
+      (tea, ter) <- unArrow loc te
+      munify loc mt tea
+      (sk, d, p') <- tcPat (Check ter) p
+      return (sk, d, EViewPat e' p')
 
     _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ show ae
          --impossible
@@ -2009,6 +2016,8 @@ checkArity n p =
     EListish (LList _) -> check0
     EVar _             -> check0
     ELit _ _           -> check0
+    ENegApp _          -> check0
+    EViewPat _ _       -> check0
     _ -> impossible
   where
     check0 = if n /= 0 then tcError (getSLoc p) "Bad pattern" else return ()

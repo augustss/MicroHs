@@ -96,6 +96,7 @@ data Expr
   | ENegApp Expr
   -- only in patterns
   | EAt Ident Expr
+  | EViewPat Expr EPat
   -- Only while type checking
   | EUVar Int
   -- Constructors after type checking
@@ -276,6 +277,7 @@ instance HasLoc Expr where
   getSLoc (ESign e _) = getSLoc e
   getSLoc (ENegApp e) = getSLoc e
   getSLoc (EAt i _) = getSLoc i
+  getSLoc (EViewPat e _) = getSLoc e
   getSLoc (EUVar _) = error "getSLoc EUVar"
   getSLoc (ECon c) = getSLoc c
   getSLoc (EForall [] e) = getSLoc e
@@ -415,6 +417,7 @@ allVarsExpr aexpr =
     ESign e _ -> allVarsExpr e
     ENegApp e -> allVarsExpr e
     EAt i e -> i : allVarsExpr e
+    EViewPat e p -> allVarsExpr e ++ allVarsExpr p
     EUVar _ -> []
     ECon c -> [conIdent c]
     EForall iks e -> map (\ (IdKind i _) -> i) iks ++ allVarsExpr e
@@ -580,6 +583,7 @@ ppExpr ae =
     ESign e t -> ppExpr e <+> text "::" <+> ppEType t
     ENegApp e -> text "-" <+> ppExpr e
     EAt i e -> ppIdent i <> text "@" <> ppExpr e
+    EViewPat e p -> parens $ ppExpr e <+> text "->" <+> ppExpr p
     EUVar i -> text ("a" ++ show i)
     ECon c -> ppCon c
     EForall iks e -> ppForall iks <+> ppEType e
