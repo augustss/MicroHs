@@ -115,7 +115,7 @@ it will be the entry point to the program.
 * `-oFILE` output file.  If the `FILE` ends in `.comb` it will produce a textual combinator file.  If `FILE` ends in `.c` it will produce a C file with the combinators.  For all other `FILE` it will compiler the combinators together with the runtime system to produce a regular executable.
 * `-r` run directly (does not work if compiled with GHC)
 * `-v` be more verbose, flag can be repeated
-* `-c` use a compilation cache
+* `-C` use a compilation cache
 
 With the `-v` flag the processing time for each module is reported.
 E.g.
@@ -125,12 +125,12 @@ E.g.
 which means that processing the module `MicroHs.Exp` took 284ms,
 with parsing taking 91ms and typecheck&desugar taking 193ms.
 
-With the `-c` flag the compiler writes out its internal cache of compiled modules to the file `.mhscache`
+With the `-C` flag the compiler writes out its internal cache of compiled modules to the file `.mhscache`
 at the end of compilation.  And a startup it reads this file if it exists, and then validates the contents
 by an MD5 checksum for all the files in the cache.
 This can make compilation much faster since the compiler will not parse and typecheck a module if it is in
 the cache.
-Do **NOT** use `-c` when you are changing the compiler itself; if the cached data types change the compiler will probably just crash.
+Do **NOT** use `-C` when you are changing the compiler itself; if the cached data types change the compiler will probably just crash.
 
 
 ### Environment variables

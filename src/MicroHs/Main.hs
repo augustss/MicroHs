@@ -43,14 +43,14 @@ main = do
                   ("." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args))
                   (head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"])
                   (elem "-l" args)
-                  (elem "-c" args && usingMhs)
+                  (elem "-C" args && usingMhs)
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
    else
     case ss of
       []  -> mainInteractive flags
       [s] -> mainCompile dir flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-      _   -> error "Usage: mhs [-v] [-l] [-r] [-c] [-iPATH] [-oFILE] [ModuleName]"
+      _   -> error "Usage: mhs [-v] [-l] [-r] [-C] [-iPATH] [-oFILE] [ModuleName]"
 
 mainCompile :: FilePath -> Flags -> Ident -> IO ()
 mainCompile mhsdir flags mn = do
