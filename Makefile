@@ -46,10 +46,10 @@ bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs Tools/convertX.sh
 # Generate distribution C file
 generated/mhs.c:	bin/mhs src/*/*.hs
 	@mkdir -p generated
-	bin/mhs -ilib -isrc MicroHs.Main -ogenerated/mhs.c
+	bin/mhs -isrc MicroHs.Main -ogenerated/mhs.c
 
 ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
-	bin/gmhs -ilib -isrc MicroHs.Main -ogenerated/mhs.c
+	bin/gmhs -isrc MicroHs.Main -ogenerated/mhs.c
 
 # Make sure boottrapping works
 bootstrap:	bin/mhs-stage2
@@ -61,14 +61,14 @@ bootstrap:	bin/mhs-stage2
 bin/mhs-stage1:	bin/mhs src/*/*.hs
 	@mkdir -p generated
 	@echo "*** Build stage1 compiler, using bin/mhs"
-	bin/mhs -ilib -isrc MicroHs.Main -ogenerated/mhs-stage1.c
+	bin/mhs -isrc MicroHs.Main -ogenerated/mhs-stage1.c
 	$(CCEVAL) generated/mhs-stage1.c -o bin/mhs-stage1
 
 # Build stage2 compiler with stage1 compiler, and compare
 bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 	@mkdir -p generated
 	@echo "*** Build stage2 compiler, with stage1 compiler"
-	bin/mhs-stage1 -ilib -isrc MicroHs.Main -ogenerated/mhs-stage2.c
+	bin/mhs-stage1 -isrc MicroHs.Main -ogenerated/mhs-stage2.c
 	cmp generated/mhs-stage1.c generated/mhs-stage2.c
 	@echo "*** stage2 equal to stage1"
 	$(CCEVAL) generated/mhs-stage2.c -o bin/mhs-stage2
@@ -89,7 +89,7 @@ timecompile: bin/mhs
 #
 cachelib:
 	@-rm .mhscache
-	bin/mhs -c AllOfLib
+	bin/mhs -C AllOfLib
 
 #
 clean:
@@ -113,11 +113,11 @@ everytest:	newmhs runtest exampletest cachetest bootcombtest nfibtest
 everytestmhs:	bin/mhs bin/mhseval exampletest cachetest bootstrap runtestmhs nfibtest
 
 runtestmhs:
-	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H2M -RTS -c" test
+	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H2M -RTS -C" test
 
 bootcombtest:	bin/gmhs bin/mhseval
-	bin/gmhs -ilib -isrc -ogmhs.comb  MicroHs.Main
-	bin/mhseval +RTS -v -rgmhs.comb -RTS -ilib -isrc -omhs.comb MicroHs.Main
+	bin/gmhs -isrc -ogmhs.comb  MicroHs.Main
+	bin/mhseval +RTS -v -rgmhs.comb -RTS -isrc -omhs.comb MicroHs.Main
 	cmp gmhs.comb mhs.comb
 
 exampletest:	bin/mhs bin/mhseval Example.hs
@@ -127,8 +127,8 @@ exampletest:	bin/mhs bin/mhseval Example.hs
 
 cachetest:	bin/mhs bin/mhseval Example.hs
 	rm -f .mhscache
-	bin/mhs -c AllOfLib
-	bin/mhs -c Example && bin/mhseval
+	bin/mhs -C AllOfLib
+	bin/mhs -C Example && bin/mhseval
 	rm -f .mhscache
 
 nfibtest: bin/mhs bin/mhseval

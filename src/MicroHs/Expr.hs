@@ -93,7 +93,9 @@ data Expr
   | ESectR Ident Expr
   | EIf Expr Expr Expr
   | ESign Expr EType
-  | EAt Ident Expr  -- only in patterns
+  | ENegApp Expr
+  -- only in patterns
+  | EAt Ident Expr
   -- Only while type checking
   | EUVar Int
   -- Constructors after type checking
@@ -272,6 +274,7 @@ instance HasLoc Expr where
   getSLoc (ESectR i _) = getSLoc i
   getSLoc (EIf e _ _) = getSLoc e
   getSLoc (ESign e _) = getSLoc e
+  getSLoc (ENegApp e) = getSLoc e
   getSLoc (EAt i _) = getSLoc i
   getSLoc (EUVar _) = error "getSLoc EUVar"
   getSLoc (ECon c) = getSLoc c
@@ -410,6 +413,7 @@ allVarsExpr aexpr =
     EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
     EListish l -> allVarsListish l
     ESign e _ -> allVarsExpr e
+    ENegApp e -> allVarsExpr e
     EAt i e -> i : allVarsExpr e
     EUVar _ -> []
     ECon c -> [conIdent c]
@@ -574,6 +578,7 @@ ppExpr ae =
     EIf e1 e2 e3 -> parens $ sep [text "if" <+> ppExpr e1, text "then" <+> ppExpr e2, text "else" <+> ppExpr e3]
     EListish l -> ppListish l
     ESign e t -> ppExpr e <+> text "::" <+> ppEType t
+    ENegApp e -> text "-" <+> ppExpr e
     EAt i e -> ppIdent i <> text "@" <> ppExpr e
     EUVar i -> text ("a" ++ show i)
     ECon c -> ppCon c

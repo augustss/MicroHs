@@ -48,7 +48,7 @@ negFixity = (AssocLeft, 6)
 resolveFixity :: Expr -> [((Expr, Fixity), Expr)] -> Either (SLoc, String) Expr
 resolveFixity ae oes =
   let inps = expr ae ++ concatMap opexpr oes
-      expr (ESectR i e) | i == mkIdent "-" = Rator FixPre (eNeg (getSLoc i)) negFixity : expr e
+      expr (ENegApp e) = Rator FixPre (eNeg (getSLoc e)) negFixity : expr e
       expr e = [Rand e]
       opexpr ((f, fx), e) = Rator FixIn f fx : expr e
 

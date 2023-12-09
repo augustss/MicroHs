@@ -562,14 +562,13 @@ pExprOp :: P Expr
 pExprOp = pOperators pOper pExprArgNeg
 
 pExprArgNeg :: P Expr
-pExprArgNeg = (ESectR <$> pMinus <*> pExprArg) <|< pExprArg
-  where pMinus = do { i <- pSymOper; guard (i == mkIdent "-"); pure i }
+pExprArgNeg = (pSymbol "-" *> (ENegApp <$> pExprArg)) <|< pExprArg
 
 pOperators :: P Ident -> P Expr -> P Expr
 pOperators oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
   where eOper e [] | notNeg e = e
         eOper e ies = EOper e ies
-        notNeg (ESectR i _) = i /= mkIdent "-"
+        notNeg (ENegApp _) = False
         notNeg _ = True
 
 -------------
