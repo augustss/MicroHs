@@ -3,7 +3,7 @@
 * make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
   - Somewhat improved now
-* whith dictionaries we need two optimizations to get rid of them
+* with dictionaries we need two optimizations to get rid of them
   -   case d of (d1,d2) -> ... (d1,d2) ...
     transforms to
       case d of (d1,d2) -> ... d ...

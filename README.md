@@ -102,7 +102,10 @@ These are known by the runtime system and various primitive operations work on t
 The function type, `->`, is (of course) also built in.
 
 All other types are defined with the language.  They are converted to lambda terms using
-the Scott encoding.   The runtime system knows how lists and booleans are encoded.
+an encoding.
+For types with few constructors (< 5) it uses Scott encoding, otherwise it is a pair with
+an integer tag and a tuple (Scott encoded) with all arguments.
+The runtime system knows how lists and booleans are encoded.
 
 
 ## Compiler
@@ -140,10 +143,15 @@ Do **NOT** use `-C` when you are changing the compiler itself; if the cached dat
 
 ### Compiler modules
 
+* `Abstract`, combinator bracket abstraction and optimization.
 * `Compile`, top level compiler.  Maintains a cache of already compiled modules.
+* `CompileCache`, cache for compiled modules.
 * `Desugar`, desugar full expressions to simple expressions.
+* `EncodeData`, data type encoding.
 * `Exp`, simple expression type, combinator abstraction and optimization.
+* `ExpPrint`, serialize `Exp` for the runtime system.
 * `Expr`, parsed expression type.
+* `Fixity`, resolve operator fixities.
 * `Graph`, strongly connected component algorithm.
 * `Ident`, identifiers and related types.
 * `IdentMap`, map from identifiers to something.
