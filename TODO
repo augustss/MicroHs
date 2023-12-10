@@ -40,8 +40,6 @@
   - debug 32 bit
 * Removing [] from prim table
 * Faster compression
-* Fix polymorphic pattern literals
-  - Probably by implementing view patterns
 * Unicode, i.e., UTF-8 IO
 * Use pointer reversal, might be slower
   - In GC mark pass

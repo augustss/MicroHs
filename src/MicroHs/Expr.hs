@@ -27,7 +27,7 @@ module MicroHs.Expr(
   tupleConstr, getTupleConstr,
   mkTupleSel,
   subst,
-  allVarsExpr, allVarsBind, allVarsEqn,
+  allVarsExpr, allVarsBind,
   setSLocExpr,
   errorMessage,
   Assoc(..), Fixity,
@@ -189,6 +189,7 @@ isPConApp (EAt _ p) = isPConApp p
 isPConApp _ = True
 
 -- Variables bound in a pattern.
+-- Could use difference lists, but it seems a little slower.
 patVars :: EPat -> [Ident]
 patVars apat =
   case apat of
@@ -382,69 +383,81 @@ eqExpr _ _ = False -- XXX good enough for instances
 
 ---------------------------------
 
-allVarsBind :: EBind -> [Ident]
-allVarsBind abind =
-  case abind of
-    BFcn i eqns -> i : concatMap allVarsEqn eqns
-    BPat p e -> allVarsPat p ++ allVarsExpr e
-    BSign i _ -> [i]
+type DList a = [a] -> [a]
 
-allVarsEqn :: Eqn -> [Ident]
+composeMap :: forall a b . (a -> DList b) -> [a] -> DList b
+composeMap _ [] = id
+composeMap f (x:xs) = f x . composeMap f xs
+
+allVarsBind :: EBind -> [Ident]
+allVarsBind b = allVarsBind' b []
+
+allVarsBind' :: EBind -> DList Ident
+allVarsBind' abind =
+  case abind of
+    BFcn i eqns -> (i:) . composeMap allVarsEqn eqns
+    BPat p e -> allVarsPat p . allVarsExpr' e
+    BSign i _ -> (i:)
+
+allVarsEqn :: Eqn -> DList Ident
 allVarsEqn eqn =
   case eqn of
-    Eqn ps alts -> concatMap allVarsPat ps ++ allVarsAlts alts
+    Eqn ps alts -> composeMap allVarsPat ps . allVarsAlts alts
 
-allVarsAlts :: EAlts -> [Ident]
-allVarsAlts (EAlts alts bs) = concatMap allVarsAlt alts ++ concatMap allVarsBind bs
+allVarsAlts :: EAlts -> DList Ident
+allVarsAlts (EAlts alts bs) = composeMap allVarsAlt alts . composeMap allVarsBind' bs
 
-allVarsAlt :: EAlt -> [Ident]
-allVarsAlt (ss, e) = concatMap allVarsStmt ss ++ allVarsExpr e
+allVarsAlt :: EAlt -> DList Ident
+allVarsAlt (ss, e) = composeMap allVarsStmt ss . allVarsExpr' e
 
-allVarsPat :: EPat -> [Ident]
-allVarsPat = allVarsExpr
+allVarsPat :: EPat -> DList Ident
+allVarsPat = allVarsExpr'
 
 allVarsExpr :: Expr -> [Ident]
-allVarsExpr aexpr =
+allVarsExpr e = allVarsExpr' e []
+
+allVarsExpr' :: Expr -> DList Ident
+allVarsExpr' aexpr =
   case aexpr of
-    EVar i -> [i]
-    EApp e1 e2 -> allVarsExpr e1 ++ allVarsExpr e2
-    EOper e1 ies -> allVarsExpr e1 ++ concatMap (\ (i,e2) -> i : allVarsExpr e2) ies
-    ELam qs -> concatMap allVarsEqn qs
-    ELit _ _ -> []
-    ECase e as -> allVarsExpr e ++ concatMap allVarsCaseArm as
-    ELet bs e -> concatMap allVarsBind bs ++ allVarsExpr e
-    ETuple es -> concatMap allVarsExpr es
-    EListish (LList es) -> concatMap allVarsExpr es
-    EDo mi ss -> maybe [] (:[]) mi ++ concatMap allVarsStmt ss
-    ESectL e i -> i : allVarsExpr e
-    ESectR i e -> i : allVarsExpr e
-    EIf e1 e2 e3 -> allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
+    EVar i -> (i:)
+    EApp e1 e2 -> allVarsExpr' e1 . allVarsExpr' e2
+    EOper e1 ies -> allVarsExpr' e1 . composeMap (\ (i,e2) -> (i :) . allVarsExpr' e2) ies
+    ELam qs -> composeMap allVarsEqn qs
+    ELit _ _ -> id
+    ECase e as -> allVarsExpr' e . composeMap allVarsCaseArm as
+    ELet bs e -> composeMap allVarsBind' bs . allVarsExpr' e
+    ETuple es -> composeMap allVarsExpr' es
+    EListish (LList es) -> composeMap allVarsExpr' es
+    EDo mi ss -> maybe id (:) mi . composeMap allVarsStmt ss
+    ESectL e i -> (i :) . allVarsExpr' e
+    ESectR i e -> (i :) . allVarsExpr' e
+    EIf e1 e2 e3 -> allVarsExpr' e1 . allVarsExpr' e2 . allVarsExpr' e3
     EListish l -> allVarsListish l
-    ESign e _ -> allVarsExpr e
-    ENegApp e -> allVarsExpr e
-    EAt i e -> i : allVarsExpr e
-    EViewPat e p -> allVarsExpr e ++ allVarsExpr p
-    EUVar _ -> []
-    ECon c -> [conIdent c]
-    EForall iks e -> map (\ (IdKind i _) -> i) iks ++ allVarsExpr e
+    ESign e _ -> allVarsExpr' e
+    ENegApp e -> allVarsExpr' e
+    EAt i e -> (i :) . allVarsExpr' e
+    EViewPat e p -> allVarsExpr' e . allVarsExpr' p
+    EUVar _ -> id
+    ECon c -> (conIdent c :)
+    EForall iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
 
-allVarsListish :: Listish -> [Ident]
-allVarsListish (LList es) = concatMap allVarsExpr es
-allVarsListish (LCompr e ss) = allVarsExpr e ++ concatMap allVarsStmt ss
-allVarsListish (LFrom e) = allVarsExpr e
-allVarsListish (LFromTo e1 e2) = allVarsExpr e1 ++ allVarsExpr e2
-allVarsListish (LFromThen e1 e2) = allVarsExpr e1 ++ allVarsExpr e2
-allVarsListish (LFromThenTo e1 e2 e3) = allVarsExpr e1 ++ allVarsExpr e2 ++ allVarsExpr e3
+allVarsListish :: Listish -> DList Ident
+allVarsListish (LList es) = composeMap allVarsExpr' es
+allVarsListish (LCompr e ss) = allVarsExpr' e . composeMap allVarsStmt ss
+allVarsListish (LFrom e) = allVarsExpr' e
+allVarsListish (LFromTo e1 e2) = allVarsExpr' e1 . allVarsExpr' e2
+allVarsListish (LFromThen e1 e2) = allVarsExpr' e1 . allVarsExpr' e2
+allVarsListish (LFromThenTo e1 e2 e3) = allVarsExpr' e1 . allVarsExpr' e2 . allVarsExpr' e3
 
-allVarsCaseArm :: ECaseArm -> [Ident]
-allVarsCaseArm (p, alts) = allVarsPat p ++ allVarsAlts alts
+allVarsCaseArm :: ECaseArm -> DList Ident
+allVarsCaseArm (p, alts) = allVarsPat p . allVarsAlts alts
 
-allVarsStmt :: EStmt -> [Ident]
+allVarsStmt :: EStmt -> DList Ident
 allVarsStmt astmt =
   case astmt of
-    SBind p e -> allVarsPat p ++ allVarsExpr e
-    SThen e -> allVarsExpr e
-    SLet bs -> concatMap allVarsBind bs
+    SBind p e -> allVarsPat p . allVarsExpr' e
+    SThen e -> allVarsExpr' e
+    SLet bs -> composeMap allVarsBind' bs
 
 -----------------------------
 

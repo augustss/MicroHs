@@ -60,6 +60,7 @@ Differences:
    * TypeSynonymInstances
    * UndecidableInstances
    * UndecidableSuperClasses
+   * ViewPatterns
  * `main` in the top module given to `mhs` serves at the program entry point.
  * Many things that should be an error (but which are mostly harmless) are not reported.
  * More differences that I don't remember right now.
