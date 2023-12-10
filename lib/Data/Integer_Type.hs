@@ -27,8 +27,7 @@ _intToInteger i | i `primIntGE` 0  = I Plus  (f i)
   where
     ni = (0::Int) `primIntSub` i
     f :: Int -> [Int]
-    f 0 = []
-    f x = primIntRem x maxD : f (primIntQuot x maxD)
+    f x = if primIntEQ x (0::Int) then [] else primIntRem x maxD : f (primIntQuot x maxD)
 
 _integerToInt :: Integer -> Int
 _integerToInt (I sign ds) = s `primIntMul` i

@@ -86,24 +86,10 @@ dsEqns loc eqns =
         xs = take (length aps) $ newVars "$q" vs
         mkArm (Eqn ps alts) =
           let ps' = map dsPat ps
-          in  (ps', dsAlts alts, hasGuards alts || any hasLit ps')
+          in  (ps', dsAlts alts)
         ex = runS loc (vs ++ xs) (map Var xs) (map mkArm eqns)
       in foldr Lam ex xs
     _ -> impossible
-
-hasGuards :: EAlts -> Bool
-hasGuards (EAlts [([], _)] _) = False
-hasGuards _ = True
-
-hasLit :: EPat -> Bool
-hasLit (ELit _ _) = True
-hasLit (EVar _) = False
-hasLit (ECon _) = False
-hasLit (EApp f a) = hasLit f || hasLit a
-hasLit (EAt _ p) = hasLit p
-hasLit (EViewPat _ _) = True
-hasLit (ENegApp _) = True
-hasLit _ = impossible
 
 dsAlts :: EAlts -> (Exp -> Exp)
 dsAlts (EAlts alts bs) = dsBinds bs . dsAltsL alts
@@ -297,12 +283,12 @@ dsCase loc ae as =
   where
     mkArm (p, alts) =
       let p' = dsPat p
-      in  ([p'], dsAlts alts, hasGuards alts || hasLit p')
+      in  ([p'], dsAlts alts)
 
 type MState = [Ident]  -- supply of unused variables.
 
 type M a = State MState a
-type Arm = ([EPat], Exp -> Exp, Bool)  -- boolean indicates that the arm has guards
+type Arm = ([EPat], Exp -> Exp)  -- boolean indicates that the arm has guards, i.e., it uses the default
 type Matrix = [Arm]
 
 --showArm :: Arm -> String
@@ -338,52 +324,74 @@ runS loc used ss mtrx =
 -- Note that the RHSs are of type Exp.
 dsMatrix :: HasCallStack =>
             Exp -> [Exp] -> Matrix -> M Exp
-dsMatrix dflt iis aarms =
- if null aarms then
-   return dflt
- else
- case iis of
- [] -> let { (_, f, _) : _ = aarms } in return $ f dflt
- i:is -> do
-  let
-    (arms, darms, rarms) = splitArms aarms
-    ndarms = map (\ (EVar x : ps, ed, g) -> (ps, substAlpha x i . ed, g) ) darms
---  traceM ("split " ++ show (arms, darms, rarms))
-  letBind (dsMatrix dflt iis rarms) $ \ drest ->
-    letBind (dsMatrix drest is ndarms) $ \ ndflt ->
-     if null arms then
-       return ndflt
-     else do
+--dsMatrix dflt is aarms | trace (show (dflt, is)) False = undefined
+dsMatrix dflt _ [] = return dflt
+dsMatrix dflt []         aarms =
+  -- We can have several arms of there are guards.
+  -- Combind them in order.
+  return $ foldr (\ (_, rhs) -> rhs) dflt aarms
+dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
+  case leftMost aarm of
+    EVar _ -> do
+      -- Find all variables, substitute with i, and proceed
+      let (vars, nvars) = span (isPVar . leftMost) aarms
+          vars' = map (sub . unAt i) vars
+          sub (EVar x : ps, rhs) = (ps, substAlpha x i . rhs)
+          sub _ = impossible
+      letBind (dsMatrix dflt iis nvars) $ \ drest ->
+        dsMatrix drest is vars'
+    -- Collect identical transformations, do the transformation and proceed.
+    EViewPat e _ -> do
+      let (views, nviews) = span (isPView e . leftMost) aarms'
+      letBind (dsMatrix dflt iis nviews) $ \ drest ->
+        letBind (return $ App (dsExpr e) i) $ \ vi -> do
+        let views' = map (unview . unAt i) (aarm : views)
+            unview (EViewPat _ p:ps, rhs) = (p:ps, rhs)
+            unview _ = impossible
+        dsMatrix drest (vi:is) views'
+    -- Collect all constructors, group identical ones.
+    _ -> do             -- must be ECon/EApp
       let
-        idOf (p:_, _, _) = pConOf p
-        idOf _ = impossible
-        grps = groupEq (on (==) idOf) arms
-        oneGroup grp = do
-          let
-            (pat:_, _, _) : _ = grp
-            con = pConOf pat
-          xs <- newIdents (conArity con)
-          let
-            one arg =
-              case arg of
-                (p : ps, e, g) ->
-                  case p of
-                    EAt a pp -> one (pp:ps, substAlpha a i . e, g)
-                    _        -> (pArgs p ++ ps, e, g)
-                _ -> impossible
-          cexp <- dsMatrix ndflt (map Var xs ++ is) (map one grp)
-          return (SPat con xs, cexp)
---      traceM $ "grps " ++ show grps
-      narms <- mapM oneGroup grps
-      return $ mkCase i narms ndflt
-
+        (cons, ncons) = span (isPCon . leftMost) aarms
+      letBind (dsMatrix dflt iis ncons) $ \ drest -> do
+        let
+          idOf (p:_, _) = pConOf p
+          idOf _ = impossible
+          grps = groupEq (on (==) idOf) $ map (unAt i) cons
+          oneGroup grp = do
+            let
+              con = pConOf $ leftMost $ head grp
+            xs <- newIdents (conArity con)
+            let
+              one (p : ps, e) = (pArgs p ++ ps, e)
+              one _ = impossible
+            cexp <- dsMatrix drest (map Var xs ++ is) (map one grp)
+            return (SPat con xs, cexp)
+        narms <- mapM oneGroup grps
+        return $ mkCase i narms drest
+  where
+    leftMost (p:_, _) = skipEAt p  -- pattern in first column
+    leftMost _ = impossible
+    skipEAt (EAt _ p) = skipEAt p
+    skipEAt p = p
+    isPCon (EVar _) = False
+    isPCon (EViewPat _ _) = False
+    isPCon _ = True
+    isPVar (EVar _) = True
+    isPVar _ = False
+    isPView e (EViewPat e' _) = eqExpr e e'
+    isPView _ _ = False
+    unAt ii (EAt x p : ps, rhs) = unAt i (p:ps, substAlpha x ii . rhs)
+    unAt _ arm = arm
+  
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
   --trace ("mkCase " ++ show pes) $
   case pes of
     [] -> dflt
     [(SPat (ConNew _) [x], arhs)] -> eLet x var arhs
-    (SPat (ConLit _ l) _,   arhs) : rpes -> 
+{-
+     (SPat (ConView e p) _, arhs) : rpes -> 
       let
         cond =
           case l of
@@ -392,8 +400,11 @@ mkCase var pes dflt =
             LStr  _ -> app2 eEqStr  var (Lit l)
             _ -> undefined
       in app2 cond (mkCase var rpes dflt) arhs
+         dsCase (app (dsExpr e) var) [(p, arhs), (_, mkCase var rpes dflt)]
+-}
     _ -> encCase var pes dflt
 
+{-
 eEqInt :: Exp
 eEqInt = Lit (LPrim "==")
 
@@ -402,6 +413,7 @@ eEqChar = Lit (LPrim "==")
 
 eEqStr :: Exp
 eEqStr = Lit (LPrim "equal")
+-}
 
 eMatchErr :: SLoc -> Exp
 eMatchErr (SLoc fn l c) =
@@ -440,20 +452,22 @@ eLet i e b =
           [_] -> substExp i e b   -- single occurrence, substitute  XXX could be worse if under lambda
           _   -> App (Lam i b) e  -- just use a beta redex
 
+{-
 -- Split the matrix into segments so each first column has initially patterns -- followed by variables, followed by the rest.
 splitArms :: Matrix -> (Matrix, Matrix, Matrix)
 splitArms am =
   let
-    isConPat (p:_, _, _) = not (isPVar p)
+    isConPat (p:_, _, _) = isPCon p
     isConPat _ = impossible
     (ps, nps) = span isConPat am
-    loop xs [] = (reverse xs, [])
-    loop xs pps@(pg@(p:_, _, g) : rps) | not (isPVar p) = (reverse xs, pps)
-                                       | otherwise = if g then (reverse (pg:xs), rps)
+    loop xs [] = (xs, [])
+    loop xs pps@(pg@(p:_, _, g) : rps) | not (isPVar p) = (xs, pps)
+                                       | otherwise = if g then (pg:xs, rps)
                                                           else loop (pg:xs) rps
     loop _ _ = impossible
     (ds, rs)  = loop [] nps
-  in (ps, ds, rs)
+  in (ps, reverse ds, rs)
+-}
 
 -- Change from x to y inside e.
 substAlpha :: Ident -> Exp -> Exp -> Exp
@@ -470,7 +484,6 @@ pConOf apat =
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
-    ELit loc l -> ConLit loc l
     _ -> impossibleShow apat
 
 pArgs :: EPat -> [EPat]

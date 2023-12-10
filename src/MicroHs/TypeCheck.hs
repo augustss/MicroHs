@@ -1773,6 +1773,7 @@ tcEqns top t eqns = do
   let loc = getSLoc eqns
   f <- newIdent loc "fcnS"
   (eqns', ds) <- solveAndDefault top $ mapM (tcEqn t) eqns
+--  traceM $ "tcEqns done: " ++ showEBind (BFcn dummyIdent eqns')
   case ds of
     [] -> return eqns'
     _  -> do
@@ -1786,6 +1787,7 @@ tcEqn :: EType -> Eqn -> T Eqn
 tcEqn t eqn =
   case eqn of
     Eqn ps alts -> tcPats t ps $ \ t' ps' -> do
+--      traceM $ "tcEqn " ++ show ps ++ " ---> " ++ show ps'
       alts' <- tcAlts t' alts
       return (Eqn ps' alts')
 
@@ -1959,12 +1961,8 @@ tcPat mt ae =
       let (sks, ds, es') = unzip3 xs
       return (concat sks, concat ds, EListish (LList es'))
 
-    ELit loc' l -> do
-      -- XXX wrong
-      ee <- case l of
-              LInteger i -> tcLit mt loc' (LInt (_integerToInt i))
-              _          -> tcLit mt loc' l
-      return ([], [], ee)
+    ELit _ _ ->
+      tcPat mt (EViewPat (EApp (EVar (mkIdentSLoc loc "==")) ae) (EVar (mkIdentSLoc loc "True")))
 
     ESign e t -> do
       t' <- tcType (Check kType) t
@@ -1988,7 +1986,6 @@ tcPat mt ae =
       return (sk, d, EViewPat e' p')
 
     _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ show ae
-         --impossible
 
 multCheck :: [Ident] -> T ()
 multCheck vs =
@@ -2335,7 +2332,7 @@ solveAndDefault True  ta = do
   ds <- solveConstraints
   cs <- gets constraints
   vs <- getMetaTyVars (map snd cs)    -- These are the type variables that need defaulting
---  traceM $ "solveAndDefault" ++ show vs
+--  traceM $ "solveAndDefault: meta=" ++ show vs
   -- XXX may have to iterate this with fundeps
   ds' <- concat <$> mapM defaultOneTyVar vs
   return (a, ds ++ ds')
@@ -2603,7 +2600,7 @@ getBestMatches ams =
   in  if null args then pick insts else pick args
 
 -- Check that there are no unsolved constraints.
-checkConstraints :: T ()
+checkConstraints :: HasCallStack => T ()
 checkConstraints = do
   cs <- gets constraints
   case cs of

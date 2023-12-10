@@ -17,7 +17,7 @@ module MicroHs.Expr(
   FunDep,
   EType, showEType, eqEType,
   EConstraint,
-  EPat, patVars, isPVar, isPConApp,
+  EPat, patVars, isPConApp,
   EKind, kType, kConstraint,
   IdKind(..), idKindIdent,
   LHS,
@@ -115,7 +115,6 @@ eEqns ps e = [Eqn ps (EAlts [([], e)] [])]
 data Con
   = ConData ConTyInfo Ident
   | ConNew Ident
-  | ConLit SLoc Lit
   deriving(Show)
 
 data Listish
@@ -131,17 +130,14 @@ conIdent :: HasCallStack =>
             Con -> Ident
 conIdent (ConData _ i) = i
 conIdent (ConNew i) = i
-conIdent _ = error "conIdent"
 
 conArity :: Con -> Int
 conArity (ConData cs i) = fromMaybe (error "conArity") $ lookup i cs
 conArity (ConNew _) = 1
-conArity (ConLit _ _) = 0
 
 instance Eq Con where
   (==) (ConData _ i) (ConData _ j) = i == j
   (==) (ConNew    i) (ConNew    j) = i == j
-  (==) (ConLit _  l) (ConLit _  k) = l == k
   (==) _             _             = False
 
 data Lit
@@ -186,18 +182,29 @@ type ConTyInfo = [(Ident, Int)]    -- All constructors with their arities
 
 type EPat = Expr
 
-isPVar :: EPat -> Bool
-isPVar (EVar i) = not (isConIdent i)
-isPVar _ = False    
-
 isPConApp :: EPat -> Bool
 isPConApp (EVar i) = isConIdent i
 isPConApp (EApp f _) = isPConApp f
+isPConApp (EAt _ p) = isPConApp p
 isPConApp _ = True
 
+-- Variables bound in a pattern.
 patVars :: EPat -> [Ident]
-patVars = filter isVar . allVarsExpr
-  where isVar v = not (isConIdent v) && not (isDummyIdent v)
+patVars apat =
+  case apat of
+    EVar i -> add i []
+    EApp p1 p2 -> patVars p1 ++ patVars p2
+    EOper p1 ips -> patVars p1 ++ concatMap (\ (i, p2) -> i `add` patVars p2) ips
+    ELit _ _ -> []
+    ETuple ps -> concatMap patVars ps
+    EListish (LList ps) -> concatMap patVars ps
+    ESign p _ -> patVars p
+    EAt i p -> i `add` patVars p
+    EViewPat _ p -> patVars p
+    ECon _ -> []
+    _ -> error $ "patVars " ++ showExpr apat
+  where add i is | isConIdent i || isDummyIdent i = is
+                 | otherwise = i : is
 
 type LHS = (Ident, [IdKind])
 
@@ -293,7 +300,6 @@ instance HasLoc IdKind where
 instance HasLoc Con where
   getSLoc (ConData _ i) = getSLoc i
   getSLoc (ConNew i) = getSLoc i
-  getSLoc (ConLit l _) = l
 
 instance HasLoc Listish where
   getSLoc (LList es) = getSLoc es
@@ -451,7 +457,6 @@ setSLocExpr _ _ = error "setSLocExpr"  -- what other cases do we need?
 setSLocCon :: SLoc -> Con -> Con
 setSLocCon l (ConData ti i) = ConData ti (setSLocIdent l i)
 setSLocCon l (ConNew i) = ConNew (setSLocIdent l i)
-setSLocCon _ c = c
 
 errorMessage :: forall a .
                 HasCallStack =>
@@ -608,7 +613,6 @@ ppListish _ = text "<<Listish>>"
 ppCon :: Con -> Doc
 ppCon (ConData _ s) = ppIdent s
 ppCon (ConNew s) = ppIdent s
-ppCon (ConLit _ l) = text (showLit l)
 
 -- Literals are tagged the way they appear in the combinator file:
 --  #   Int

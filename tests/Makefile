@@ -45,6 +45,7 @@ test:
 	$(TMHS) Symbol     && $(EVAL) > Symbol.out     && diff Symbol.ref Symbol.out
 	$(TMHS) FunDep     && $(EVAL) > FunDep.out     && diff FunDep.ref FunDep.out
 	$(TMHS) TypeLits   && $(EVAL) > TypeLits.out   && diff TypeLits.ref TypeLits.out
+	$(TMHS) View       && $(EVAL) > View.out       && diff View.ref View.out
 
 errtest:
 	sh errtester.sh < errmsg.test

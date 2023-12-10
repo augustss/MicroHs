@@ -61,9 +61,9 @@ instance Enum Int where
 instance Enum Bool where
   fromEnum False = 0
   fromEnum True  = 1
-  toEnum 0 = False
-  toEnum 1 = True
-  toEnum _ = error "Enum.Bool.toEnum: bad arg"
+  toEnum i = if primIntEQ i (0::Int) then False else
+             if primIntEQ i (1::Int) then True  else
+             error "Enum.Bool.toEnum: bad arg"
 
 instance Enum Char where
   fromEnum = primOrd
