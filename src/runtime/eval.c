@@ -611,6 +611,8 @@ struct {
   { "fshow", T_FSHOW},
   { "fread", T_FREAD},
 #endif  /* WANT_FLOAT */
+  { "ord", T_I },
+  { "chr", T_I },
   { "==", T_EQ, T_EQ },
   { "/=", T_NE, T_NE },
   { "<", T_LT, T_GT },

@@ -171,9 +171,9 @@ primStringEQ  :: [Char] -> [Char] -> Bool
 primStringEQ  = primitive "equal"
 
 primChr :: Int -> Char
-primChr = primitive "I"
+primChr = primitive "chr"
 primOrd :: Char -> Int
-primOrd = primitive "I"
+primOrd = primitive "ord"
 
 primUnsafeCoerce :: forall a b . a -> b
 primUnsafeCoerce = primitive "I"
