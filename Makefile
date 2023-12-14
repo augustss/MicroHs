@@ -43,6 +43,11 @@ bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs Tools/convertX.sh
 	@mkdir -p bin
 	$(GHC) $(GHCFLAGS) src/MicroHs/Main.hs -main-is MicroHs.Main -o bin/gmhs
 
+# Compile mhs with ghc, with code coverage
+bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs Tools/convertX.sh
+	@mkdir -p bin
+	$(GHC) $(GHCFLAGS) -fhpc src/MicroHs/Main.hs -main-is MicroHs.Main -o bin/cmhs
+
 # Generate distribution C file
 generated/mhs.c:	bin/mhs src/*/*.hs
 	@mkdir -p generated
