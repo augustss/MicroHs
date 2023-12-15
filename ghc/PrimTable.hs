@@ -16,7 +16,7 @@ import Debug.Trace
 import Compat
 
 primitive :: String -> Any
-primitive s | trace ("primitive " ++ show s) False = undefined
+--primitive s | trace ("primitive " ++ show s) False = undefined
 primitive "dynsym" = unsafeCoerce dynsym
 primitive s = fromMaybe (error $ "primitive: " ++ s) $ lookup s primOps
 
@@ -65,8 +65,8 @@ primOps =
   , cmp ">=" (>=)
   , comb "icmp" (\ x y -> fromOrdering (compare (x::Int) y))
 
-  , comb "scmp" (\ x y -> fromOrdering (compare (x::String) y))
-  , comb "sequal" (\ x y -> if (x :: String) == y then cTrue else cFalse)
+  , comb "scmp" (\ x y -> fromOrdering (compare (toString x) (toString y)))
+  , comb "sequal" (\ x y -> if toString x == toString y then cTrue else cFalse)
 
   , farith "fadd" (+)
   , farith "fsub" (-)
@@ -102,7 +102,8 @@ primOps =
   ]
   where
     comb0 n f = (n, unsafeCoerce f)
-    comb n f = (n, unsafeCoerce (\ x -> trace (seq x n) (f x)))
+    comb n f = (n, unsafeCoerce f)
+--    comb n f = (n, unsafeCoerce (\ x -> trace (seq x n) (f x)))
     arith :: String -> (Int -> Int -> Int) -> (String, Any)
     arith = comb
     arithw :: String -> (Word -> Word -> Word) -> (String, Any)
@@ -161,7 +162,7 @@ dynsym :: Any -> Any
 dynsym acfun =
   let s = toString acfun
   in
-      trace ("dynsym: " ++ show s) $
+--      trace ("dynsym: " ++ show s) $
       fromMaybe (error $ "cops: " ++ s) $ lookup s cops
 
 cops :: [(String, Any)]

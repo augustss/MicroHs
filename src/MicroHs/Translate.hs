@@ -114,6 +114,7 @@ primTable = [
   ("itof", primitive "itof"),
   ("seq", primitive "seq"),
   ("error", primitive "error"),
+  ("sequal", primitive "sequal"),
   ("equal", primitive "equal"),
   ("scmp", primitive "scmp"),
   ("icmp", primitive "icmp"),
