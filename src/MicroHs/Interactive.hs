@@ -18,8 +18,8 @@ type I a = StateIO IState a
 
 mainInteractive :: Flags -> IO ()
 mainInteractive (Flags a b c d _ f) = do
-  when (not usingMhs) $
-    error "Interactive mhs not available when compiled with ghc"
+--  when (not usingMhs) $
+--    error "Interactive mhs not available when compiled with ghc"
   putStrLn "Welcome to interactive MicroHs!"
   let flags' = Flags a b c d True f
   cash <- getCached flags'

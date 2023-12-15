@@ -18,7 +18,7 @@
 #include "md5.h"
 #endif
 
-#define VERSION "v5.1\n"
+#define VERSION "v5.2\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -628,7 +628,10 @@ struct {
   { "noDefault", T_NODEFAULT },
   { "noMatch", T_NOMATCH },
   { "equal", T_EQUAL, T_EQUAL },
+  { "sequal", T_EQUAL, T_EQUAL },
   { "compare", T_COMPARE },
+  { "scmp", T_COMPARE },
+  { "icmp", T_COMPARE },
   { "rnf", T_RNF },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },

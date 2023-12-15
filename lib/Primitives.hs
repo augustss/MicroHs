@@ -164,11 +164,15 @@ primSeq    = primitive "seq"
 --primEqual  = primitive "equal"
 
 -- Works for Int, Char, String
-primCompare :: forall a . a -> a -> Ordering
-primCompare  = primitive "compare"
+primStringCompare :: forall a . [Char] -> [Char] -> Ordering
+primStringCompare  = primitive "scmp"
+primIntCompare :: forall a . Int -> Int -> Ordering
+primIntCompare  = primitive "icmp"
+primCharCompare :: forall a . Char -> Char -> Ordering
+primCharCompare  = primitive "icmp"
 
 primStringEQ  :: [Char] -> [Char] -> Bool
-primStringEQ  = primitive "equal"
+primStringEQ  = primitive "sequal"
 
 primChr :: Int -> Char
 primChr = primitive "chr"
