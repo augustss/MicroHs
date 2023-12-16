@@ -49,28 +49,42 @@ primIntSubR = primitive "subtract"
 primIntNeg :: Int -> Int
 primIntNeg = primitive "neg"
 
+primIntEQ   :: Int -> Int -> Bool
+primIntEQ   = primitive "=="
+primIntNE   :: Int -> Int -> Bool
+primIntNE   = primitive "/="
+primIntLT   :: Int -> Int -> Bool
+primIntLT   = primitive "<"
+primIntLE   :: Int -> Int -> Bool
+primIntLE   = primitive "<="
+primIntGT   :: Int -> Int -> Bool
+primIntGT   = primitive ">"
+primIntGE   :: Int -> Int -> Bool
+primIntGE   = primitive ">="
+
 primDoubleAdd :: Double -> Double -> Double
-primDoubleAdd  = primitive "fadd"
+primDoubleAdd  = primitive "f+"
 primDoubleSub :: Double -> Double -> Double
-primDoubleSub  = primitive "fsub"
+primDoubleSub  = primitive "f-"
 primDoubleMul :: Double -> Double -> Double
-primDoubleMul  = primitive "fmul"
+primDoubleMul  = primitive "f*"
 primDoubleDiv :: Double -> Double -> Double
-primDoubleDiv = primitive "fdiv"
+primDoubleDiv = primitive "f/"
 primDoubleNeg :: Double -> Double
 primDoubleNeg = primitive "fneg"
+
 primDoubleEQ :: Double -> Double -> Bool
-primDoubleEQ = primitive "feq"
+primDoubleEQ = primitive "f=="
 primDoubleNE :: Double -> Double -> Bool
-primDoubleNE = primitive "fne"
+primDoubleNE = primitive "f/="
 primDoubleLT :: Double -> Double -> Bool
-primDoubleLT = primitive "flt"
+primDoubleLT = primitive "f<"
 primDoubleLE :: Double -> Double -> Bool
-primDoubleLE = primitive "fle"
+primDoubleLE = primitive "f<="
 primDoubleGT :: Double -> Double -> Bool
-primDoubleGT = primitive "fgt"
+primDoubleGT = primitive "f>"
 primDoubleGE :: Double -> Double -> Bool
-primDoubleGE = primitive "fge"
+primDoubleGE = primitive "f>="
 primDoubleShow :: Double -> [Char]
 primDoubleShow = primitive "fshow"
 primDoubleRead :: [Char] -> Double
@@ -107,19 +121,6 @@ primWordToDoubleRaw = primitive "toDbl"
 primWordFromDoubleRaw :: Double -> Word
 primWordFromDoubleRaw = primitive "toInt"
 
-primIntEQ   :: Int -> Int -> Bool
-primIntEQ   = primitive "=="
-primIntNE   :: Int -> Int -> Bool
-primIntNE   = primitive "/="
-primIntLT   :: Int -> Int -> Bool
-primIntLT   = primitive "<"
-primIntLE   :: Int -> Int -> Bool
-primIntLE   = primitive "<="
-primIntGT   :: Int -> Int -> Bool
-primIntGT   = primitive ">"
-primIntGE   :: Int -> Int -> Bool
-primIntGE   = primitive ">="
-
 primWordEQ  :: Word -> Word -> Bool
 primWordEQ  = primitive "=="
 primWordNE  :: Word -> Word -> Bool
@@ -127,17 +128,18 @@ primWordNE  = primitive "/="
 primWordLT  :: Word -> Word -> Bool
 primWordLT  = primitive "u<"
 primWordLE   :: Word -> Word -> Bool
-primWordLE   = primitive "<="
+primWordLE   = primitive "u<="
 primWordGT   :: Word -> Word -> Bool
-primWordGT   = primitive ">"
+primWordGT   = primitive "u>"
 primWordGE   :: Word -> Word -> Bool
-primWordGE   = primitive ">="
+primWordGE   = primitive "u>="
 
 primWordToInt :: Word -> Int
 primWordToInt = primitive "I"
 primIntToWord :: Int -> Word
 primIntToWord = primitive "I"
 
+-- Char is represented by Int
 primCharEQ :: Char -> Char -> Bool
 primCharEQ  = primitive "=="
 primCharNE :: Char -> Char -> Bool

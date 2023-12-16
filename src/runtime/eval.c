@@ -18,7 +18,7 @@
 #include "md5.h"
 #endif
 
-#define VERSION "v5.2\n"
+#define VERSION "v5.3\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -597,18 +597,18 @@ struct {
   { "shr", T_SHR },
   { "ashr", T_ASHR },
 #if WANT_FLOAT
-  { "fadd" , T_FADD, T_FADD},
-  { "fsub" , T_FSUB, T_FSUB},
-  { "fmul" , T_FMUL, T_FMUL},
-  { "fdiv", T_FDIV},
+  { "f+" , T_FADD, T_FADD},
+  { "f-" , T_FSUB, T_FSUB},
+  { "f*" , T_FMUL, T_FMUL},
+  { "f/", T_FDIV},
   { "fneg", T_FNEG},
   { "itof", T_ITOF},
-  { "feq", T_FEQ, T_FEQ},
-  { "fne", T_FNE, T_FNE},
-  { "flt", T_FLT},
-  { "fle", T_FLE},
-  { "fgt", T_FGT},
-  { "fge", T_FGE},
+  { "f==", T_FEQ, T_FEQ},
+  { "f/=", T_FNE, T_FNE},
+  { "f<", T_FLT},
+  { "f<=", T_FLE},
+  { "f>", T_FGT},
+  { "f>=", T_FGE},
   { "fshow", T_FSHOW},
   { "fread", T_FREAD},
 #endif  /* WANT_FLOAT */
