@@ -3,7 +3,7 @@ import Control.Exception
 import Data.Bits
 import Data.Char
 import Data.Maybe
---import Data.Word
+import Data.Word()
 import System.IO
 import Unsafe.Coerce
 import GHC.Types(Any)
@@ -11,8 +11,9 @@ import Foreign.C.String
 import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
+import System.Environment
 import System.IO.Unsafe
-import Debug.Trace
+--import Debug.Trace
 import Compat
 
 primitive :: String -> Any
@@ -63,11 +64,20 @@ primOps =
   , cmp "<=" (<=)
   , cmp ">"  (>)
   , cmp ">=" (>=)
+  , cmpw "u<"  (<)
+  , cmpw "u<=" (<=)
+  , cmpw "u>"  (>)
+  , cmpw "u>=" (>=)
   , comb "icmp" (\ x y -> fromOrdering (compare (x::Int) y))
-  , comb "p==" (\ x y -> fromBool ((x :: Ptr ()) == y))
 
   , comb "scmp" (\ x y -> fromOrdering (compare (toString x) (toString y)))
   , comb "sequal" (\ x y -> fromBool (toString x == toString y))
+
+  , comb "p==" (\ x y -> fromBool ((x :: Ptr ()) == y))
+  , comb "pnull" nullPtr
+  , comb "pcast" castPtr
+  , comb "p+" plusPtr
+  , comb "p-" minusPtr
 
   , farith "fadd" (+)
   , farith "fsub" (-)
@@ -81,6 +91,7 @@ primOps =
   , fcmp "fgt" (>)
   , fcmp "fge" (>=)
   , comb "fshow" (fromString . (show :: Double -> String))
+  , comb "fread" ((read :: String -> Double) . toString)
   , comb "itof" (fromIntegral :: Int -> Double)
 
   , comb "seq" seq
@@ -88,6 +99,9 @@ primOps =
   , comb "error" err
   , comb "ord" ord
   , comb "chr" chr
+
+  , comb "IO.performIO" unsafePerformIO
+  , comb "IO.catch" (\ io hdl -> catch (io :: IO Any) (\ (exn :: SomeException) -> hdl (fromString $ takeWhile (/= '\n') $ show exn) :: IO Any))
   , comb "IO.>>=" iobind
   , comb "IO.>>" iothen
   , comb "IO.return" ioret
@@ -96,10 +110,15 @@ primOps =
   , comb "IO.serialize" ioserialize
   , comb "IO.deserialize" iodeserialize
   , comb "newCAStringLen" (fmap fromPair . newCAStringLen . toString)
+  , comb "IO.getArgs" iogetargs
 
   , comb0 "IO.stdin" stdin
   , comb0 "IO.stdout" stdout
   , comb0 "IO.stderr" stderr
+
+  , comb "noMatch" (\ (s::Any) (l::Int) (c::Int) -> error ("no match at " ++ toString s ++ " line " ++ show l ++ ", col " ++ show c))
+  , comb "noDefault" (\ (s::Any) -> error ("no default for " ++ toString s))
+
   ]
   where
     comb0 n f = (n, unsafeCoerce f)
@@ -119,6 +138,8 @@ primOps =
     farithu = comb
     cmp :: String -> (Int -> Int -> Bool) -> (String, Any)
     cmp n f = comb n (\ x y -> fromBool (f x y))
+    cmpw :: String -> (Word -> Word -> Bool) -> (String, Any)
+    cmpw n f = comb n (\ x y -> fromBool (f x y))
     fcmp :: String -> (Double -> Double -> Bool) -> (String, Any)
     fcmp n f = comb n (\ x y -> fromBool (f x y))
 
@@ -138,6 +159,11 @@ primOps =
     iodeserialize :: Handle -> IO a
     iodeserialize _ = error "iodeserialize"
 
+    iogetargs :: IO Any
+    iogetargs = do
+      args <- getArgs
+      return $ fromList $ map fromString args
+
     -- Can't implement this
     rnf :: a -> ()
     rnf x = seq x ()
@@ -155,9 +181,9 @@ fromPair :: (a, b) -> Any
 fromPair (x, y) = unsafeCoerce $ \ pair -> pair x y
 
 fromString :: String -> Any
-fromString = fromList . map ord
+fromString = fromList . map (unsafeCoerce . ord)
 
-fromList :: [Int] -> Any
+fromList :: [Any] -> Any
 fromList [] = unsafeCoerce $ \ nil _cons -> nil
 fromList (x:xs) = unsafeCoerce $ \ _nil cons -> cons (unsafeCoerce x) (fromList xs)
 
@@ -180,10 +206,33 @@ cops =
   , comb "getTimeMilli" getTimeMilli
   , comb "fgetc" fgetc
   , comb "fopen" fopen
+  , comb "fclose" fclose
   , comb "free"  free
+  , comb "exp"   (fio exp)
+  , comb "log"   (fio log)
+  , comb "sqrt"   (fio sqrt)
+  , comb "sin"   (fio sin)
+  , comb "cos"   (fio cos)
+  , comb "tan"   (fio tan)
+  , comb "asin"   (fio asin)
+  , comb "acos"   (fio acos)
+  , comb "atan"   (fio atan)
+  , comb "sinh"   (fio sinh)
+  , comb "cosh"   (fio cosh)
+  , comb "tanh"   (fio tanh)
+  , comb "asinh"   (fio asinh)
+  , comb "acosh"   (fio acosh)
+  , comb "atanh"   (fio atanh)
+  , comb "atan2"   (fio2 atan2)
   ]
   where
     comb n f = (n, unsafeCoerce f)
+
+    fio :: (Double -> Double) -> (Double -> IO Double)
+    fio f = return . f
+
+    fio2 :: (Double -> Double -> Double) -> (Double -> Double -> IO Double)
+    fio2 f = \ x y -> return (f x y)
 
     fputc :: Int -> Handle -> IO Int
     fputc c h = hPutChar h (chr c) >> return 0
@@ -203,3 +252,6 @@ cops =
               "w+" -> ReadWriteMode
               _ -> error "fopen"
       openFile sname hmode
+
+    fclose :: Handle -> IO Int
+    fclose h = do hClose h; return 0

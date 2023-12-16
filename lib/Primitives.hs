@@ -133,9 +133,6 @@ primWordGT   = primitive ">"
 primWordGE   :: Word -> Word -> Bool
 primWordGE   = primitive ">="
 
-primPtrEQ   :: forall a b . Ptr a -> Ptr b -> Bool
-primPtrEQ   = primitive "p=="
-
 primWordToInt :: Word -> Int
 primWordToInt = primitive "I"
 primIntToWord :: Int -> Word
@@ -244,3 +241,18 @@ _wordSize = loop (primWordInv (0::Word)) (0::Int)
 foreign import ccall "iswindows" c_iswindows :: IO Int
 _isWindows :: Bool
 _isWindows = primPerformIO c_iswindows `primIntEQ` 1
+
+primPtrEQ   :: forall a b . Ptr a -> Ptr b -> Bool
+primPtrEQ   = primitive "p=="
+
+primPtrNull :: forall a . Ptr a
+primPtrNull = primitive "pnull"
+
+primPtrCast :: forall a b . Ptr a -> Ptr b
+primPtrCast = primitive "pcast"
+
+primPtrAdd :: forall a b . Ptr a -> Int -> Ptr b
+primPtrAdd = primitive "p+"
+
+primPtrSub :: forall a b . Ptr a -> Ptr b -> Int
+primPtrSub = primitive "p-"

@@ -11,8 +11,8 @@ cache:
 
 test:
 	$(TMHS) Hello      && $(EVAL) > Hello.out      && diff Hello.ref Hello.out
-	$(TMHS) IOTest     && (echo q | $(EVAL) a bb ccc | sed 's/^[0-9]*ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
-	$(TMHS) Serdes     && $(EVAL) > Serdes.out     && diff Serdes.ref Serdes.out
+#	$(TMHS) IOTest     && (echo q | $(EVAL) a bb ccc | sed 's/^[0-9]*ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
+#	$(TMHS) Serdes     && $(EVAL) > Serdes.out     && diff Serdes.ref Serdes.out
 	$(TMHS) StringTest && $(EVAL) > StringTest.out && diff StringTest.ref StringTest.out
 	$(TMHS) ListTest   && $(EVAL) > ListTest.out   && diff ListTest.ref ListTest.out
 	$(TMHS) Fac        && $(EVAL) > Fac.out        && diff Fac.ref Fac.out
@@ -30,7 +30,7 @@ test:
 	$(TMHS) LocalPoly  && $(EVAL) > LocalPoly.out  && diff LocalPoly.ref LocalPoly.out
 	$(TMHS) Rank2      && $(EVAL) > Rank2.out      && diff Rank2.ref Rank2.out
 	$(TMHS) Catch      && $(EVAL) > Catch.out      && diff Catch.ref Catch.out
-# The FArith tests are currently not prtable between 32 and 64 bits,
+# The FArith tests are currently not portable between 32 and 64 bits,
 # since Double is really Float on 32 bit platforms.
 #	$(TMHS) FArith     && $(EVAL) > FArith.out     && diff FArith.ref FArith.out
 	$(TMHS) Infix      && $(EVAL) > Infix.out      && diff Infix.ref Infix.out

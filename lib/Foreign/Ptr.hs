@@ -12,13 +12,13 @@ instance forall a . Show (Ptr a) where
   showsPrec _ p = showString "PTR#" . showsPrec 0 (primPtrToWord p)
 
 nullPtr :: forall a . Ptr a
-nullPtr = primWordToPtr 0
+nullPtr = primPtrNull
 
 castPtr :: forall a b . Ptr a -> Ptr b
-castPtr = primUnsafeCoerce
+castPtr = primPtrCast
 
 plusPtr :: forall a b . Ptr a -> Int -> Ptr b
-plusPtr p i = primIntToPtr (primPtrToInt p `primIntAdd` i)
+plusPtr = primPtrAdd
 
 minusPtr :: forall a b . Ptr a -> Ptr b -> Int
-minusPtr p q = primPtrToInt p `primIntSub` primPtrToInt q
+minusPtr = primPtrSub

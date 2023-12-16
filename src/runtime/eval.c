@@ -106,7 +106,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
-                T_PEQ,
+                T_PEQ, T_PNULL, T_PADD, T_PSUB,
                 T_TOPTR, T_TOINT, T_TODBL,
 #if WANT_FLOAT
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
@@ -625,6 +625,10 @@ struct {
   { ">", T_GT, T_LT },
   { ">=", T_GE, T_LE },
   { "p==", T_PEQ, T_PEQ },
+  { "pnull", T_PNULL },
+  { "pcast", T_I },
+  { "p+", T_PADD },
+  { "p-", T_PSUB },
   { "seq", T_SEQ },
   { "error", T_ERROR },
   { "noDefault", T_NODEFAULT },
@@ -1538,6 +1542,9 @@ printrec(FILE *f, NODEPTR n)
   case T_UGT: fprintf(f, "u>"); break;
   case T_UGE: fprintf(f, "u>="); break;
   case T_PEQ: fprintf(f, "p=="); break;
+  case T_PNULL: fprintf(f, "pnull"); break;
+  case T_PADD: fprintf(f, "p+"); break;
+  case T_PSUB: fprintf(f, "p-"); break;
   case T_ERROR: fprintf(f, "error"); break;
   case T_NODEFAULT: fprintf(f, "noDefault"); break;
   case T_NOMATCH: fprintf(f, "noMatch"); break;
@@ -1909,6 +1916,7 @@ eval(NODEPTR an)
 
 #define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define SETDBL(n,d)    do { SETTAG((n), T_DBL); SETDBLVALUE((n), (d)); } while(0)
+#define SETPTR(n,r)    do { SETTAG((n), T_PTR); PTR(n) = (r); } while(0)
 #define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPINT2(e)      do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define OPDBL1(e)      do { CHECK(1); xd = evaldbl(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
@@ -2056,7 +2064,11 @@ eval(NODEPTR an)
     case T_ULE:  CMPU(<=);
     case T_UGT:  CMPU(>);
     case T_UGE:  CMPU(>=);
+
     case T_PEQ:  CMPP(==);
+    case T_PNULL: SETTAG(n, T_PTR); PTR(n) = 0; RET;
+    case T_PADD: CHECK(2); xp = evalptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETPTR(n, (char*)xp + yi); RET;
+    case T_PSUB: CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, (char*)xp - (char*)yp); RET;
 
     case T_NOMATCH:
       if (doing_rnf) RET;
