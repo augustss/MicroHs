@@ -20,7 +20,6 @@ main = do
   p
   p
   p
-  cprint ((+) :: Int->Int->Int)
   hout <- openFile "test.tmp" WriteMode
   hPutChar hout 'a'
   hPutChar hout 'z'

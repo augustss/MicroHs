@@ -96,6 +96,7 @@ primTable = [
   ("u<=", primitive "u<="),
   ("u>", primitive "u>"),
   ("u>=", primitive "u>="),
+  ("p==", primitive "p=="),
   ("ord", primitive "ord"),
   ("chr", primitive "chr"),
   ("fadd", primitive "fadd"),

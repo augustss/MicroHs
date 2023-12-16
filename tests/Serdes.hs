@@ -9,6 +9,7 @@ f x = x*2+1
 
 main :: IO ()
 main = do
+  cprint ((+) :: Int->Int->Int)
   writeSerialized "f.tmp" f
   g <- readSerialized "f.tmp"
   putStrLn $ show $ (g (5::Int) :: Int)

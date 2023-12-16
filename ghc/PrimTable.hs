@@ -18,7 +18,7 @@ import Compat
 primitive :: String -> Any
 --primitive s | trace ("primitive " ++ show s) False = undefined
 primitive "dynsym" = unsafeCoerce dynsym
-primitive s = fromMaybe (error $ "primitive: " ++ s) $ lookup s primOps
+primitive s = fromMaybe (error $ "PrimTable.primitive: " ++ s) $ lookup s primOps
 
 primOps :: [(String, Any)]
 primOps =
@@ -64,9 +64,10 @@ primOps =
   , cmp ">"  (>)
   , cmp ">=" (>=)
   , comb "icmp" (\ x y -> fromOrdering (compare (x::Int) y))
+  , comb "p==" (\ x y -> fromBool ((x :: Ptr ()) == y))
 
   , comb "scmp" (\ x y -> fromOrdering (compare (toString x) (toString y)))
-  , comb "sequal" (\ x y -> if toString x == toString y then cTrue else cFalse)
+  , comb "sequal" (\ x y -> fromBool (toString x == toString y))
 
   , farith "fadd" (+)
   , farith "fsub" (-)
@@ -79,7 +80,7 @@ primOps =
   , fcmp "fle" (<=)
   , fcmp "fgt" (>)
   , fcmp "fge" (>=)
-  , comb "fshow" (show :: Double -> String)
+  , comb "fshow" (fromString . (show :: Double -> String))
   , comb "itof" (fromIntegral :: Int -> Double)
 
   , comb "seq" seq
@@ -117,9 +118,9 @@ primOps =
     farithu :: String -> (Double -> Double) -> (String, Any)
     farithu = comb
     cmp :: String -> (Int -> Int -> Bool) -> (String, Any)
-    cmp n f = comb n (\ x y -> if f x y then cTrue else cFalse)
+    cmp n f = comb n (\ x y -> fromBool (f x y))
     fcmp :: String -> (Double -> Double -> Bool) -> (String, Any)
-    fcmp n f = comb n (\ x y -> if f x y then cTrue else cFalse)
+    fcmp n f = comb n (\ x y -> fromBool (f x y))
 
     err s = error $ "error: " ++ toString s
 
@@ -141,8 +142,9 @@ primOps =
     rnf :: a -> ()
     rnf x = seq x ()
 
-    cTrue _x y = y
-    cFalse x _y = x
+fromBool :: Bool -> Any
+fromBool False = unsafeCoerce $ \ x _y -> x
+fromBool True  = unsafeCoerce $ \ _x y -> y
 
 fromOrdering :: Ordering -> (Any -> Any -> Any -> Any)
 fromOrdering LT = \ x _y _z -> x
@@ -150,7 +152,14 @@ fromOrdering EQ = \ _x y _z -> y
 fromOrdering GT = \ _x _y z -> z
 
 fromPair :: (a, b) -> Any
-fromPair (x, y) = unsafeCoerce $ \ f -> f x y
+fromPair (x, y) = unsafeCoerce $ \ pair -> pair x y
+
+fromString :: String -> Any
+fromString = fromList . map ord
+
+fromList :: [Int] -> Any
+fromList [] = unsafeCoerce $ \ nil _cons -> nil
+fromList (x:xs) = unsafeCoerce $ \ _nil cons -> cons (unsafeCoerce x) (fromList xs)
 
 toList :: Any -> [Int]
 toList a = (unsafeCoerce a) [] (\ i is -> i : toList is)
@@ -171,7 +180,7 @@ cops =
   , comb "getTimeMilli" getTimeMilli
   , comb "fgetc" fgetc
   , comb "fopen" fopen
-  , comb "free" free
+  , comb "free"  free
   ]
   where
     comb n f = (n, unsafeCoerce f)
