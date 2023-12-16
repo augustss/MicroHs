@@ -72,6 +72,7 @@ executable mhs
                        containers   >= 0.5 && < 0.8,
                        deepseq      >= 1.1 && < 1.6,
                        ghc-prim     >= 0.5 && < 0.12,
+                       haskeline    >= 0.8 && < 0.9,
                        mtl          >= 2.0 && < 2.4,
                        time         >= 1.1 && < 1.15,
                        pretty       >= 1.0 && < 1.2,
