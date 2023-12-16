@@ -106,6 +106,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
+                T_PEQ,
                 T_TOPTR, T_TOINT, T_TODBL,
 #if WANT_FLOAT
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
@@ -623,6 +624,7 @@ struct {
   { "<=", T_LE, T_GE },
   { ">", T_GT, T_LT },
   { ">=", T_GE, T_LE },
+  { "p==", T_PEQ, T_PEQ },
   { "seq", T_SEQ },
   { "error", T_ERROR },
   { "noDefault", T_NODEFAULT },
@@ -1535,6 +1537,7 @@ printrec(FILE *f, NODEPTR n)
   case T_ULE: fprintf(f, "u<="); break;
   case T_UGT: fprintf(f, "u>"); break;
   case T_UGE: fprintf(f, "u>="); break;
+  case T_PEQ: fprintf(f, "p=="); break;
   case T_ERROR: fprintf(f, "error"); break;
   case T_NODEFAULT: fprintf(f, "noDefault"); break;
   case T_NOMATCH: fprintf(f, "noMatch"); break;
@@ -1873,6 +1876,7 @@ eval(NODEPTR an)
   stackptr_t stk = stack_ptr;
   NODEPTR x, y, z, w;
   value_t xi, yi, r;
+  void *xp, *yp;
 #if WANT_FLOAT
   flt_t xd, yd, rd;
 #endif  /* WANT_FLOAT */
@@ -1901,7 +1905,7 @@ eval(NODEPTR an)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
 
 /* Alloc a possible GC action, e, between setting x and popping */
-#define CHKARGEV1(e)  do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
+#define CHKARGEV1(e)   do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
 
 #define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define SETDBL(n,d)    do { SETTAG((n), T_DBL); SETDBLVALUE((n), (d)); } while(0)
@@ -1909,6 +1913,7 @@ eval(NODEPTR an)
 #define OPINT2(e)      do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define OPDBL1(e)      do { CHECK(1); xd = evaldbl(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPDBL2(e)      do { CHECK(2); xd = evaldbl(ARG(TOP(0))); yd = evaldbl(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
+#define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define ARITHUN(op)    do { OPINT1(r = op xi); SETINT(n, r); RET; } while(0)
 #define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
@@ -1917,6 +1922,7 @@ eval(NODEPTR an)
 #define CMP(op)        do { OPINT2(r = xi op yi); GOIND(r ? combTrue : combFalse); } while(0)
 #define CMPF(op)       do { OPDBL2(r = xd op yd); GOIND(r ? combTrue : combFalse); } while(0)
 #define CMPU(op)       do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? combTrue : combFalse); } while(0)
+#define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
   for(;;) {
     num_reductions++;
@@ -2050,6 +2056,7 @@ eval(NODEPTR an)
     case T_ULE:  CMPU(<=);
     case T_UGT:  CMPU(>);
     case T_UGE:  CMPU(>=);
+    case T_PEQ:  CMPP(==);
 
     case T_NOMATCH:
       if (doing_rnf) RET;

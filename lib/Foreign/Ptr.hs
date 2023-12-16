@@ -6,7 +6,7 @@ import Data.Function
 import Text.Show
 
 instance forall a . Eq (Ptr a) where
-  p == q  =  primPtrToWord p == primPtrToWord q
+  p == q  =  primPtrEQ p q
 
 instance forall a . Show (Ptr a) where
   showsPrec _ p = showString "PTR#" . showsPrec 0 (primPtrToWord p)

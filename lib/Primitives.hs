@@ -133,6 +133,9 @@ primWordGT   = primitive ">"
 primWordGE   :: Word -> Word -> Bool
 primWordGE   = primitive ">="
 
+primPtrEQ   :: forall a b . Ptr a -> Ptr b -> Bool
+primPtrEQ   = primitive "p=="
+
 primWordToInt :: Word -> Int
 primWordToInt = primitive "I"
 primIntToWord :: Int -> Word
