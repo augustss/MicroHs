@@ -11,7 +11,8 @@ cache:
 
 test:
 	$(TMHS) Hello      && $(EVAL) > Hello.out      && diff Hello.ref Hello.out
-	$(TMHS) IOTest && (echo q | $(EVAL) a bb ccc | sed 's/^[0-9]*ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
+	$(TMHS) IOTest     && (echo q | $(EVAL) a bb ccc | sed 's/^[0-9]*ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
+	$(TMHS) Serdes     && $(EVAL) > Serdes.out     && diff Serdes.ref Serdes.out
 	$(TMHS) StringTest && $(EVAL) > StringTest.out && diff StringTest.ref StringTest.out
 	$(TMHS) ListTest   && $(EVAL) > ListTest.out   && diff ListTest.ref ListTest.out
 	$(TMHS) Fac        && $(EVAL) > Fac.out        && diff Fac.ref Fac.out

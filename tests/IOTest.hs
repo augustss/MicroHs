@@ -4,9 +4,6 @@ import System.IO as IO
 import System.Environment
 import Debug.Trace
 
-f :: Int -> Int
-f x = x*2+1
-
 foo :: IO ()
 foo = do
   putStrLn "foo 1"
@@ -35,9 +32,6 @@ main = do
   writeFile "test2.tmp" "more\n"
   s <- readFile "test2.tmp"
   putStrLn (show s)
-  writeSerialized "f.tmp" f
-  g <- readSerialized "f.tmp"
-  putStrLn $ show $ (g (5::Int) :: Int)
   foo
   putStrLn $ show $ trace "tracing" (5::Int)
   as <- getArgs
