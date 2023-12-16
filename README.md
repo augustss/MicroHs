@@ -117,7 +117,7 @@ it will be the entry point to the program.
 ### Compiler flags
 * `-iDIR` add `DIR` to search path for modules
 * `-oFILE` output file.  If the `FILE` ends in `.comb` it will produce a textual combinator file.  If `FILE` ends in `.c` it will produce a C file with the combinators.  For all other `FILE` it will compiler the combinators together with the runtime system to produce a regular executable.
-* `-r` run directly (does not work if compiled with GHC)
+* `-r` run directly
 * `-v` be more verbose, flag can be repeated
 * `-C` use a compilation cache
 
@@ -182,11 +182,6 @@ Available commands:
 * `:reload` Reload all modules
 * `expr` Evaluate expression.
 * `defn` Add definition (can also be an `import`)
-
-***NOTE*** When you `import` a module it is cached.
-If the file changes and you import it again it will not reload.
-You can use `:clear` (or `:reload`) to get back to an empty cache.
-This is a bug.
 
 ## Files
 There is a number of subdirectories:
