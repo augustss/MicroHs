@@ -39,12 +39,12 @@ bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 	$(CCEVAL) src/runtime/comb.c -o bin/mhseval
 
 # Compile mhs with ghc
-bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs Tools/convertX.sh
+bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
 	@mkdir -p bin
 	$(GHC) $(GHCFLAGS) src/MicroHs/Main.hs -main-is MicroHs.Main -o bin/gmhs
 
 # Compile mhs with ghc, with code coverage
-bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs Tools/convertX.sh
+bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs
 	@mkdir -p bin
 	$(GHC) $(GHCFLAGS) -fhpc src/MicroHs/Main.hs -main-is MicroHs.Main -o bin/cmhs
 

@@ -2,9 +2,13 @@ module System.Console.SimpleReadline(
   getInputLine,
   getInputLineHist
   ) where
+import qualified System.Console.Haskeline as H
 
 getInputLine :: String -> IO (Maybe String)
-getInputLine _ = error "No getInputLine for ghc"
+getInputLine prompt =
+  H.runInputT H.defaultSettings (H.getInputLine prompt)
 
 getInputLineHist :: FilePath -> String -> IO (Maybe String)
-getInputLineHist _ _ = error "No getInputLineHist for ghc"
+getInputLineHist hist prompt =
+  H.runInputT settings (H.getInputLine prompt)
+  where settings = H.defaultSettings { H.historyFile = Just hist }
