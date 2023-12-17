@@ -1,13 +1,16 @@
 MHS=../bin/gmhs
 TMHS=$(MHS) -i../lib
 EVAL=../bin/mhseval +RTS -H1M -RTS
-.PHONY: test nfib clean errtest alltest cache
+.PHONY: test nfib clean errtest alltest cache info
 
-alltest:	test errtest
+alltest:	info test errtest
 
 cache:
 	rm -f .mhscache
 	$(TMHS) -c AllOfLib
+
+info:
+	$(TMHS) Info       && $(EVAL)
 
 test:
 	$(TMHS) Hello      && $(EVAL) > Hello.out      && diff Hello.ref Hello.out
