@@ -22,11 +22,22 @@ class Storable a where
    peek ptr = peekElemOff ptr 0
    poke ptr = pokeElemOff ptr 0
 
-foreign import ccall "wordPeek" c_wordPeek :: Ptr Word -> IO Word
-foreign import ccall "wordPoke" c_wordPoke :: Ptr Word -> Word -> IO ()
+foreign import ccall "peekWord" c_peekWord :: Ptr Word -> IO Word
+foreign import ccall "pokeWord" c_pokeWord :: Ptr Word -> Word -> IO ()
 
 instance Storable Word where
   sizeOf    _ = _wordSize
   alignment _ = _wordSize
-  peek p      = c_wordPeek p
-  poke p w    = c_wordPoke p w
+  peek p      = c_peekWord p
+  poke p w    = c_pokeWord p w
+
+foreign import ccall "peekPtr" c_peekPtr :: forall a . Ptr (Ptr a) -> IO (Ptr a)
+foreign import ccall "pokePtr" c_pokePtr :: forall a . Ptr (Ptr a) -> Ptr a -> IO ()
+
+instance forall a . Storable (Ptr a) where
+  sizeOf    _ = _wordSize
+  alignment _ = _wordSize
+  peek p      = c_peekPtr p
+  poke p w    = c_pokePtr p w
+
+  
