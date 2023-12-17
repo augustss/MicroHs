@@ -63,6 +63,26 @@ jobs:
 #    - name: cabal build
 #      run: cabal build
 
+  build-linux-riscv64:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: jirutka/setup-alpine@v1
+      with:
+        arch: riscv64
+        branch: v3.15
+        packages: >
+          build-base
+          gcc
+          make
+    - name: checkout repo
+      uses: actions/checkout@v3
+    - name: make
+      run: make
+    - name: make everytestmhs
+      run: make everytestmhs
+#    - name: cabal build
+#      run: cabal build
+
   build-linux-x86:
     runs-on: ubuntu-latest
     steps:
