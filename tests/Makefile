@@ -47,6 +47,7 @@ test:
 	$(TMHS) FunDep     && $(EVAL) > FunDep.out     && diff FunDep.ref FunDep.out
 	$(TMHS) TypeLits   && $(EVAL) > TypeLits.out   && diff TypeLits.ref TypeLits.out
 	$(TMHS) View       && $(EVAL) > View.out       && diff View.ref View.out
+	$(TMHS) IOArray    && $(EVAL) > IOArray.out    && diff IOArray.ref IOArray.out
 
 errtest:
 	sh errtester.sh < errmsg.test

@@ -145,5 +145,10 @@ primTable = [
   ("pnull", primitive "pnull"),
   ("pcast", primitive "pcast"),
   ("p+", primitive "p+"),
-  ("p-", primitive "p-")
+  ("p-", primitive "p-"),
+  ("A.alloc", primitive "A.alloc"),
+  ("A.size", primitive "A.size"),
+  ("A.read", primitive "A.read"),
+  ("A.write", primitive "A.write"),
+  ("A.==", primitive "A.==")
   ]

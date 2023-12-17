@@ -271,3 +271,6 @@ primArrRead = primitive "A.read"
 
 primArrWrite :: forall a . IOArray a -> Int -> a -> IO ()
 primArrWrite = primitive "A.write"
+
+primArrEQ :: forall a . IOArray a -> IOArray a -> Bool
+primArrEQ = primitive "A.=="

@@ -18,7 +18,7 @@
 #include "md5.h"
 #endif
 
-#define VERSION "v5.3\n"
+#define VERSION "v6.0\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -113,7 +113,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
 #endif
-                T_ARR_ALLOC, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE,
+                T_ARR_ALLOC, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
                 T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
@@ -222,6 +222,8 @@ stackptr_t stack_size = STACK_SIZE;
 counter_t num_marked;
 counter_t max_num_marked = 0;
 counter_t num_free;
+counter_t num_arr_alloc;
+counter_t num_arr_free;
 
 #define BITS_PER_WORD (sizeof(bits_t) * 8)
 bits_t *free_map;             /* 1 bit per node, 0=free, 1=used */
@@ -250,6 +252,8 @@ arr_alloc(size_t sz, NODEPTR e)
   arr->size = sz;
   for(size_t i = 0; i < sz; i++)
     arr->array[i] = e;
+  //printf("arr_alloc(%d, %p) = %p\n", (int)sz, e, arr);
+  num_arr_alloc++;
   return arr;
 }
 
@@ -694,6 +698,7 @@ struct {
   { "A.size", T_ARR_SIZE },
   { "A.read", T_ARR_READ },
   { "A.write", T_ARR_WRITE },
+  { "A.==", T_ARR_EQ },
   { "dynsym", T_DYNSYM },
   { "newCAStringLen", T_NEWCASTRINGLEN },
   { "peekCAString", T_PEEKCASTRING },
@@ -966,6 +971,7 @@ gc(void)
       arrp = &arr->next;
     } else {
       *arrp = arr->next;        /* unlink */
+      num_arr_free++;
       free(arr);                /* and free */
     }
   }
@@ -1279,24 +1285,19 @@ parse(BFILE *f)
     i = parse_int(f);
     r = mkInt(i);
     return r;
-#if 0
-  case '-':
-    c = f->getb(f);
-    neg = -1;
-    if ('0' <= c && c <= '9') {
-      goto number;
-    } else {
-      ERR("got -");
+  case '[':
+    {
+      size_t sz = (size_t)parse_int(f);
+      if (!gobble(f, ']')) ERR("parse arr 1");
+      struct ioarray *arr = arr_alloc(sz, NIL);
+      for (size_t i = 0; i < sz; i++) {
+        if (!gobble(f, ' ')) ERR("parse arr 2");
+        arr->array[i] = parse(f);
+      }
+      r = alloc_node(T_ARR);
+      ARR(r) = arr;
+      return r;
     }
-  case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9':
-    /* integer [0-9]+*/
-    neg = 1;
-  number:
-    f->ungetb(c, f);
-    i = neg * parse_int(f);
-    r = mkInt(i);
-    return r;
-#endif
   case '_' :
     /* Reference to a shared value: _label */
     l = parse_int(f);  /* The label */
@@ -1521,6 +1522,14 @@ printrec(FILE *f, NODEPTR n)
     break;
   case T_INT: fprintf(f, "#%"PRIvalue, GETVALUE(n)); break;
   case T_DBL: fprintf(f, "&%.16g", GETDBLVALUE(n)); break;
+  case T_ARR:
+    /* Arrays serialize as '[sz] e_1 ... e_sz' */
+    fprintf(f, "[%u]", (unsigned)ARR(n)->size);
+    for(size_t i = 0; i < ARR(n)->size; i++) {
+      fputc(' ', f);
+      printrec(f, ARR(n)->array[i]);
+    }
+    break;
   case T_PTR:
     if (PTR(n) == stdin)
       fprintf(f, "IO.stdin");
@@ -1531,8 +1540,6 @@ printrec(FILE *f, NODEPTR n)
     else
       ERR("Cannot serialize pointers");
     break;
-  case T_ARR:
-    abort();
   case T_STR:
     {
       const char *p = STR(n);
@@ -1636,6 +1643,7 @@ printrec(FILE *f, NODEPTR n)
   case T_ARR_SIZE: fprintf(f, "A.size");
   case T_ARR_READ: fprintf(f, "A.read");
   case T_ARR_WRITE: fprintf(f, "A.write");
+  case T_ARR_EQ: fprintf(f, "A.==");
   case T_DYNSYM: fprintf(f, "dynsym"); break;
   case T_NEWCASTRINGLEN: fprintf(f, "newCAStringLen"); break;
   case T_PEEKCASTRING: fprintf(f, "peekCAString"); break;
@@ -1905,7 +1913,7 @@ compare(NODEPTR p, NODEPTR q)
     g = PTR(q);
     return f < g ? -1 : f > g ? 1 : 0;
   case T_ARR:
-    abort();
+    return ARR(p) < ARR(q) ? -1 : ARR(p) > ARR(q) ? 1 : 0;
   default:
     return 0;
   }
@@ -2144,6 +2152,17 @@ eval(NODEPTR an)
     case T_PNULL: SETTAG(n, T_PTR); PTR(n) = 0; RET;
     case T_PADD: CHECK(2); xp = evalptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETPTR(n, (char*)xp + yi); RET;
     case T_PSUB: CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, (char*)xp - (char*)yp); RET;
+
+    case T_ARR_EQ:
+      {
+        CHECK(2);
+        x = evali(ARG(TOP(0)));
+        struct ioarray *arr = ARR(x);
+        y = evali(ARG(TOP(1)));
+        POP(2);
+        n = TOP(-1);
+        GOIND(arr == ARR(y) ? combTrue : combFalse);
+      }
 
     case T_NOMATCH:
       if (doing_rnf) RET;
@@ -2486,8 +2505,8 @@ execio(NODEPTR n)
     case T_ARR_ALLOC:
       {
       CHECKIO(2);
-      size_t size = evalint(ARG(TOP(2)));
-      NODEPTR elem = ARG(TOP(1));
+      size_t size = evalint(ARG(TOP(1)));
+      NODEPTR elem = ARG(TOP(2));
       struct ioarray *arr = arr_alloc(size, elem);
       n = alloc_node(T_ARR);
       ARR(n) = arr;
@@ -2517,8 +2536,10 @@ execio(NODEPTR n)
       n = evali(ARG(TOP(1)));
       if (GETTAG(n) != T_ARR)
         ERR("bad ARR tag");
-      if (i >= ARR(n)->size)
+      if (i >= ARR(n)->size) {
+        //printf("%d %p %d\n", (int)i, ARR(n), (int)ARR(n)->size);
         ERR("ARR_WRITE");
+      }
       ARR(n)->array[i] = ARG(TOP(3));
       RETIO(combUnit);
       }
@@ -2676,6 +2697,8 @@ main(int argc, char **argv)
     printf("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
     printf("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
     printf("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
+    printf("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
+    printf("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
     printf("%15.2fs total expired time\n", (double)run_time / 1000);
     printf("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
 #if GCRED
