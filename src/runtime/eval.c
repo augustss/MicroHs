@@ -100,7 +100,8 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_S, T_K, T_I, T_B, T_C,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_IOARR,
+                T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
@@ -144,17 +145,20 @@ const char* tag_names[] = {
   "LAST_TAG",
 };
 
+struct ioarray;
+
 typedef struct node {
   union {
     struct node *uufun;
     tag_t        uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
   } ufun;
   union {
-    struct node *uuarg;
-    value_t      uuvalue;
-    flt_t        uufloatvalue;
-    const char  *uustring;
-    void        *uuptr;
+    struct node    *uuarg;
+    value_t         uuvalue;
+    flt_t           uufloatvalue;
+    const char     *uustring;
+    void           *uuptr;
+    struct ioarray *uuarray;
   } uarg;
 } node;
 typedef struct node* NODEPTR;
@@ -170,11 +174,20 @@ typedef struct node* NODEPTR;
 #define ARG(p) (p)->uarg.uuarg
 #define STR(p) (p)->uarg.uustring
 #define PTR(p) (p)->uarg.uuptr
+#define ARR(p) (p)->uarg.uuarray
 #define INDIR(p) ARG(p)
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
+
+struct ioarray {
+  struct ioarray *next;         /* all ioarrays are linked together */
+  int marked;                   /* marked during GC */
+  size_t size;                  /* number of elements in the array */
+  NODEPTR array[1];             /* actual size may be bigger */
+};
+struct ioarray *array_root = 0;
 
 counter_t num_reductions = 0;
 counter_t num_alloc;
@@ -775,17 +788,19 @@ mark(NODEPTR *np)
 #if GCRED
   value_t i;
 #endif
+  enum node_tag tag;
 
   //  mark_depth++;
   //  if (mark_depth % 10000 == 0)
   //    printf("mark depth %"PRIcounter"\n", mark_depth);
   top:
   n = *np;
-  if (GETTAG(n) == T_IND) {
+  tag = GETTAG(n);
+  if (tag == T_IND) {
 #if SANITY
     int loop = 0;
     /* Skip indirections, and redirect start pointer */
-    while (GETTAG(n) == T_IND) {
+    while ((tag = GETTAG(n)) == T_IND) {
       //      printf("*"); fflush(stdout);
       n = INDIR(n);
       if (loop++ > 10000000) {
@@ -796,7 +811,7 @@ mark(NODEPTR *np)
     //    if (loop)
     //      printf("\n");
 #else  /* SANITY */
-    while (GETTAG(n) == T_IND) {
+    while ((tag = GETTAG(n)) == T_IND) {
       n = INDIR(n);
     }
 #endif  /* SANITY */
@@ -811,7 +826,7 @@ mark(NODEPTR *np)
 #if GCRED
   if (want_gc_red) {
     /* This is really only fruitful just after parsing.  It can be removed. */
-    if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
+    if (tag == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
       /* Do the A x y --> y reduction */
       NODEPTR y = ARG(n);
       SETTAG(n, T_IND);
@@ -821,7 +836,7 @@ mark(NODEPTR *np)
     }
 #if 0
     /* This never seems to happen */
-    if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
+    if (tag == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
       /* Do the K x y --> x reduction */
       NODEPTR x = ARG(FUN(n));
       SETTAG(n, T_IND);
@@ -830,7 +845,7 @@ mark(NODEPTR *np)
       goto top;
     }
 #endif  /* 0 */
-    if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_I) {
+    if (tag == T_AP && GETTAG(FUN(n)) == T_I) {
       /* Do the I x --> x reduction */
       NODEPTR x = ARG(n);
       SETTAG(n, T_IND);
@@ -842,7 +857,7 @@ mark(NODEPTR *np)
     /* This is broken.
      * Probably because it can happen in the middle of the C node.
      */
-    if (GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_C) {
+    if (tag == T_AP && GETTAG(FUN(n)) == T_C) {
       NODEPTR q = ARG(n);
       enum node_tag tt, tf;
       while ((tt = GETTAG(q)) == T_IND)
@@ -860,7 +875,7 @@ mark(NODEPTR *np)
   }
 #endif
 #if INTTABLE
-  if (GETTAG(n) == T_INT && LOW_INT <= (i = GETVALUE(n)) && i < HIGH_INT) {
+  if (tag == T_INT && LOW_INT <= (i = GETVALUE(n)) && i < HIGH_INT) {
     SETTAG(n, T_IND);
     INDIR(n) = intTable[i - LOW_INT];
     red_int++;
@@ -868,7 +883,7 @@ mark(NODEPTR *np)
   }
 #endif  /* INTTABLE */
 #endif  /* GCRED */
-  if (GETTAG(n) == T_AP) {
+  if (tag == T_AP) {
 #if 1
     mark(&FUN(n));
     //mark(&ARG(n));
@@ -879,6 +894,10 @@ mark(NODEPTR *np)
     np = &FUN(n);
     goto top;                   /* Avoid tail recursion */
 #endif
+  } else if (tag == T_IOARR) {
+    struct ioarray *arr = ARR(n);
+    for(size_t i = 0; i < arr->size; i++)
+      mark(&arr->array[i]);
   }
 }
 
@@ -906,6 +925,12 @@ gc(void)
   num_free = heap_size - heap_start - num_marked;
   if (num_free < heap_size / 50)
     ERR("heap exhausted");
+
+  struct ioarray **arrp;
+  for (arrp = &array_root; *arrp; arrp = &(*arrp)->next) {
+    
+  }
+
 #if WANT_STDIO
   if (verbose > 1) {
     fprintf(stderr, "gc done, %"PRIcounter" free\n", num_free);
