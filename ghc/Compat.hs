@@ -86,12 +86,6 @@ openFileM path m = do
 getTimeMilli :: IO Int
 getTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds <$> getCurrentTime
 
--- A hack until we have a real withArgs
-withDropArgs :: Int -> IO a -> IO a
-withDropArgs i ioa = do
-  as <- getArgs
-  withArgs (drop i as) ioa
-
 ------- Read --------
 
 readInteger :: String -> Integer

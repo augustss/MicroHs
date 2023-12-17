@@ -1,16 +1,31 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module System.Environment(module System.Environment) where
+module System.Environment(
+  getArgs,
+  withArgs,
+  lookupEnv,
+  ) where
 import Prelude
-import Primitives
+import Primitives(primPerformIO, primGetArgs)
+import Data.IORef
 import Foreign.C.String
 import Foreign.Ptr
 
-getArgs :: IO [String]
-getArgs = primGetArgs
+progArgs :: IORef [String]
+progArgs = primPerformIO $ do
+  args <- primGetArgs
+  newIORef args
 
-withDropArgs :: forall a . Int -> IO a -> IO a
-withDropArgs = primWithDropArgs
+getArgs :: IO [String]
+getArgs = readIORef progArgs
+
+withArgs :: forall a . [String] -> IO a -> IO a
+withArgs as ioa = do
+  old <- readIORef progArgs
+  writeIORef progArgs as
+  a <- ioa
+  writeIORef progArgs old
+  return a
 
 foreign import ccall "getenv" c_getenv :: CString -> IO CString
 

@@ -9,7 +9,6 @@ import qualified MicroHs.IdentMap as M
 import System.Environment
 import Unsafe.Coerce
 import GHC.Types
-import Compat
 import PrimTable
 
 import MicroHs.Desugar(LDef, encodeInteger)
@@ -24,7 +23,8 @@ translateAndRun defs = do
   -- Drop all argument up to '--'
   args <- getArgs
   let prog = unsafeCoerce $ translate defs
-  withDropArgs (length (takeWhile (/= "--") args) + 1)
+      nargs = drop 1 $ dropWhile (/= "--") args
+  withArgs nargs $
     prog
 
 translate :: (Ident, [LDef]) -> Any
@@ -131,7 +131,6 @@ primTable = [
   ("IO.stdout", primitive "IO.stdout"),
   ("IO.stderr", primitive "IO.stderr"),
   ("IO.getArgs", primitive "IO.getArgs"),
-  ("IO.dropArgs", primitive "IO.dropArgs"),
   ("IO.performIO", primitive "IO.performIO"),
   ("IO.catch", primitive "IO.catch"),
   ("dynsym", primitive "dynsym"),

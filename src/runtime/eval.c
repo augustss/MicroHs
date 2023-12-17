@@ -117,7 +117,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
-                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS, T_IO_DROPARGS,
+                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS,
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
                 T_IO_CCALL, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
@@ -125,7 +125,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_LAST_TAG,
 };
 const char* tag_names[] = {
-  "FREE", "IND", "AP", "INT", "DBL", "PTR", "BADDYN", "S", "K", "I", "B", "C",
+  "FREE", "IND", "AP", "INT", "DBL", "PTR", "BADDYN", "ARR",
+  "S", "K", "I", "B", "C",
   "A", "Y", "SS", "BB", "CC", "P", "R", "O", "U", "Z",
   "ADD", "SUB", "MUL", "QUOT", "REM", "SUBR", "UQUOT", "UREM", "NEG",
   "AND", "OR", "XOR", "INV", "SHL", "SHR", "ASHR",
@@ -135,10 +136,11 @@ const char* tag_names[] = {
   "FADD", "FSUB", "FMUL", "FDIV", "FNEG", "ITOF",
   "FEQ", "FNE", "FLT", "FLE", "FGT", "FGE", "FSHOW", "FREAD",
 #endif
+  "ARR_ALLOC", "ARR_SIZE", "ARR_READ", "ARR_WRITE", "ARR_EQ",
   "ERROR", "NODEFAULT", "NOMATCH", "SEQ", "EQUAL", "COMPARE", "RNF",
   "IO_BIND", "IO_THEN", "IO_RETURN",
   "IO_SERIALIZE", "IO_DESERIALIZE",
-  "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGS", "IO_DROPARGS",
+  "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGS",
   "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "IO_CATCH",
   "IO_CCALL", "DYNSYM",
   "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
@@ -690,7 +692,6 @@ struct {
   { "IO.stdout", T_IO_STDOUT },
   { "IO.stderr", T_IO_STDERR },
   { "IO.getArgs", T_IO_GETARGS },
-  { "IO.dropArgs", T_IO_DROPARGS },
   { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.catch", T_IO_CATCH },
@@ -1634,7 +1635,6 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_PRINT: fprintf(f, "IO.print"); break;
   case T_IO_DESERIALIZE: fprintf(f, "IO.deserialize"); break;
   case T_IO_GETARGS: fprintf(f, "IO.getArgs"); break;
-  case T_IO_DROPARGS: fprintf(f, "IO.dropArgs"); break;
   case T_IO_GETTIMEMILLI: fprintf(f, "IO.getTimeMilli"); break;
   case T_IO_PERFORMIO: fprintf(f, "IO.performIO"); break;
   case T_IO_CCALL: fprintf(f, "^%s", ffi_table[GETVALUE(n)].ffi_name); break;
@@ -2246,7 +2246,6 @@ eval(NODEPTR an)
     case T_IO_PRINT:
     case T_IO_DESERIALIZE:
     case T_IO_GETARGS:
-    case T_IO_DROPARGS:
     case T_IO_GETTIMEMILLI:
     case T_IO_CCALL:
     case T_IO_CATCH:
@@ -2283,7 +2282,6 @@ execio(NODEPTR n)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR f, x;
-  int c;
   char *name;
   value_t len;
 #if WANT_STDIO
@@ -2392,14 +2390,6 @@ execio(NODEPTR n)
         }
       }
       RETIO(n);
-    case T_IO_DROPARGS:
-      CHECKIO(1);
-      c = (int)evalint(ARG(TOP(1)));
-      if (c > glob_argc)
-        c = glob_argc;
-      glob_argc -= c;
-      glob_argv += c;
-      RETIO(combUnit);
 
     case T_IO_CCALL:
       {

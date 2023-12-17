@@ -193,13 +193,8 @@ primReturn       :: forall a . a -> IO a
 primReturn        = primitive "IO.return"
 primGetArgs      :: IO [[Char]]
 primGetArgs       = primitive "IO.getArgs"
-primDropArgs     :: Int -> IO ()
-primDropArgs      = primitive "IO.dropArgs"
 primPerformIO    :: forall a . IO a -> a
 primPerformIO     = primitive "IO.performIO"
-
-primWithDropArgs :: forall a . Int -> IO a -> IO a
-primWithDropArgs i ioa = primThen (primDropArgs i) ioa
 
 -- Use string for the exception until we can do better.
 primCatch        :: forall a . IO a -> ([Char] -> IO a) -> IO a
