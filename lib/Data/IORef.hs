@@ -16,3 +16,6 @@ readIORef (R p) = primArrRead p 0
 
 writeIORef :: forall a . IORef a -> a -> IO ()
 writeIORef (R p) a = primArrWrite p 0 a
+
+modifyIORef :: forall a . IORef a -> (a -> a) -> IO ()
+modifyIORef (R p) f = primArrRead p 0 `primBind` \ a -> primArrWrite p 0 (f a)

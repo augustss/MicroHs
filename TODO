@@ -23,7 +23,6 @@
   - don't require kind signatures in forall
 * Try Oleg's abstraction algorithm
   - Seems to be slower
-* Use IORef for STRef
 * Redo type synonym expansion
   - Only non-injective synonyms necessitate expansion(?)
   - Do expansion during unification
