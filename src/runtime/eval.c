@@ -100,7 +100,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_IOARR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4,
@@ -113,6 +113,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_IOARR,
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
 #endif
+                T_ARR_ALLOC, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE,
                 T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
@@ -181,6 +182,13 @@ typedef struct node* NODEPTR;
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
+/*
+ * Arrays are allocated with malloc()/free().
+ * During GC they are marked, and all elements in the array are
+ * recursively marked.
+ * At the end of the the mark phase there is a scan of all
+ * arrays, and the unmarked ones are freed.
+ */
 struct ioarray {
   struct ioarray *next;         /* all ioarrays are linked together */
   int marked;                   /* marked during GC */
@@ -228,6 +236,21 @@ memerr(void)
 {
   ERR("Out of memory");
   exit(1);
+}
+
+struct ioarray*
+arr_alloc(size_t sz, NODEPTR e)
+{
+  struct ioarray *arr = malloc(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
+  if (!arr)
+    memerr();
+  arr->next = array_root;
+  array_root = arr;
+  arr->marked = 0;
+  arr->size = sz;
+  for(size_t i = 0; i < sz; i++)
+    arr->array[i] = e;
+  return arr;
 }
 
 /***************** BFILE *******************/
@@ -667,6 +690,10 @@ struct {
   { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.catch", T_IO_CATCH },
+  { "A.alloc", T_ARR_ALLOC },
+  { "A.size", T_ARR_SIZE },
+  { "A.read", T_ARR_READ },
+  { "A.write", T_ARR_WRITE },
   { "dynsym", T_DYNSYM },
   { "newCAStringLen", T_NEWCASTRINGLEN },
   { "peekCAString", T_PEEKCASTRING },
@@ -894,10 +921,16 @@ mark(NODEPTR *np)
     np = &FUN(n);
     goto top;                   /* Avoid tail recursion */
 #endif
-  } else if (tag == T_IOARR) {
+  } else if (tag == T_ARR) {
     struct ioarray *arr = ARR(n);
-    for(size_t i = 0; i < arr->size; i++)
-      mark(&arr->array[i]);
+    /* It really should never happen that we encounter a marked
+     * array, since the parent is marked.
+     */
+    if (!arr->marked) {
+      arr->marked = 1;
+      for(size_t i = 0; i < arr->size; i++)
+        mark(&arr->array[i]);
+    }
   }
 }
 
@@ -926,9 +959,15 @@ gc(void)
   if (num_free < heap_size / 50)
     ERR("heap exhausted");
 
-  struct ioarray **arrp;
-  for (arrp = &array_root; *arrp; arrp = &(*arrp)->next) {
-    
+  for (struct ioarray **arrp = &array_root; *arrp; ) {
+    struct ioarray *arr = *arrp;
+    if (arr->marked) {
+      arr->marked = 0;
+      arrp = &arr->next;
+    } else {
+      *arrp = arr->next;        /* unlink */
+      free(arr);                /* and free */
+    }
   }
 
 #if WANT_STDIO
@@ -1492,6 +1531,8 @@ printrec(FILE *f, NODEPTR n)
     else
       ERR("Cannot serialize pointers");
     break;
+  case T_ARR:
+    abort();
   case T_STR:
     {
       const char *p = STR(n);
@@ -1591,6 +1632,10 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_PERFORMIO: fprintf(f, "IO.performIO"); break;
   case T_IO_CCALL: fprintf(f, "^%s", ffi_table[GETVALUE(n)].ffi_name); break;
   case T_IO_CATCH: fprintf(f, "IO.catch"); break;
+  case T_ARR_ALLOC: fprintf(f, "A.alloc");
+  case T_ARR_SIZE: fprintf(f, "A.size");
+  case T_ARR_READ: fprintf(f, "A.read");
+  case T_ARR_WRITE: fprintf(f, "A.write");
   case T_DYNSYM: fprintf(f, "dynsym"); break;
   case T_NEWCASTRINGLEN: fprintf(f, "newCAStringLen"); break;
   case T_PEEKCASTRING: fprintf(f, "peekCAString"); break;
@@ -1859,6 +1904,8 @@ compare(NODEPTR p, NODEPTR q)
     f = PTR(p);
     g = PTR(q);
     return f < g ? -1 : f > g ? 1 : 0;
+  case T_ARR:
+    abort();
   default:
     return 0;
   }
@@ -1980,6 +2027,7 @@ eval(NODEPTR an)
     case T_INT:  RET;
     case T_DBL:  RET;
     case T_PTR:  RET;
+    case T_ARR:  RET;
     case T_BADDYN: ERR1("FFI unknown %s", STR(n));
 
     case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
@@ -2186,6 +2234,10 @@ eval(NODEPTR an)
     case T_NEWCASTRINGLEN:
     case T_PEEKCASTRING:
     case T_PEEKCASTRINGLEN:
+    case T_ARR_ALLOC:
+    case T_ARR_SIZE:
+    case T_ARR_READ:
+    case T_ARR_WRITE:
       RET;
 
     case T_DYNSYM:
@@ -2199,22 +2251,6 @@ eval(NODEPTR an)
       n = TOP(-1);
       GOIND(x);
 
-#if 0
-    case T_ISINT:
-      CHECK(1);
-      x = evali(ARG(TOP(0)));
-      n = TOP(0);
-      POP(1);
-      GOIND(GETTAG(x) == T_INT ? combTrue : combFalse);
-
-    case T_ISIO:
-      CHECK(1);
-      x = evali(ARG(TOP(0)));
-      n = TOP(0);
-      POP(1);
-      l = GETTAG(x);
-      GOIND(T_IO_BIND <= l && l <= T_IO_FLUSH ? combTrue : combFalse);
-#endif
     default:
       ERR1("eval tag %d", GETTAG(n));
     }
@@ -2345,6 +2381,7 @@ execio(NODEPTR n)
       glob_argc -= c;
       glob_argv += c;
       RETIO(combUnit);
+
     case T_IO_CCALL:
       {
         int a = (int)GETVALUE(n);
@@ -2444,6 +2481,46 @@ execio(NODEPTR n)
       name = evalptr(ARG(TOP(1)));
       GCCHECK(strNodes(size));
       RETIO(mkString(name, size));
+      }
+
+    case T_ARR_ALLOC:
+      {
+      CHECKIO(2);
+      size_t size = evalint(ARG(TOP(2)));
+      NODEPTR elem = ARG(TOP(1));
+      struct ioarray *arr = arr_alloc(size, elem);
+      n = alloc_node(T_ARR);
+      ARR(n) = arr;
+      RETIO(n);
+      }
+    case T_ARR_SIZE:
+      CHECKIO(1);
+      n = evali(ARG(TOP(1)));
+      if (GETTAG(n) != T_ARR)
+        ERR("bad ARR tag");
+      RETIO(mkInt(ARR(n)->size));
+    case T_ARR_READ:
+      {
+      CHECKIO(2);
+      size_t i = evalint(ARG(TOP(2)));
+      n = evali(ARG(TOP(1)));
+      if (GETTAG(n) != T_ARR)
+        ERR("bad ARR tag");
+      if (i >= ARR(n)->size)
+        ERR("ARR_READ");
+      RETIO(ARR(n)->array[i]);
+      }
+    case T_ARR_WRITE:
+      {
+      CHECKIO(3);
+      size_t i = evalint(ARG(TOP(2)));
+      n = evali(ARG(TOP(1)));
+      if (GETTAG(n) != T_ARR)
+        ERR("bad ARR tag");
+      if (i >= ARR(n)->size)
+        ERR("ARR_WRITE");
+      ARR(n)->array[i] = ARG(TOP(3));
+      RETIO(combUnit);
       }
 
     default:

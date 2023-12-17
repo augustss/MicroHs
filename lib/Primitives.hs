@@ -31,6 +31,7 @@ data Double
 data IO a
 data Word
 data Ptr a
+data IOArray a
 
 data () = ()   -- Parser hacks allows () to be used
 
@@ -258,3 +259,15 @@ primPtrAdd = primitive "p+"
 
 primPtrSub :: forall a b . Ptr a -> Ptr b -> Int
 primPtrSub = primitive "p-"
+
+primArrAlloc :: forall a . Int -> a -> IO (IOArray a)
+primArrAlloc = primitive "A.alloc"
+
+primArrSize :: forall a . IOArray a -> IO Int
+primArrSize = primitive "A.size"
+
+primArrRead :: forall a . IOArray a -> Int -> IO a
+primArrRead = primitive "A.read"
+
+primArrWrite :: forall a . IOArray a -> Int -> a -> IO ()
+primArrWrite = primitive "A.write"
