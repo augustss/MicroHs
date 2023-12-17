@@ -39,5 +39,3 @@ instance forall a . Storable (Ptr a) where
   alignment _ = _wordSize
   peek p      = c_peekPtr p
   poke p w    = c_pokePtr p w
-
-  
