@@ -1,5 +1,5 @@
 module Foreign.Marshal.Alloc(
-  malloc, calloc,
+  malloc, calloc, alloca,
   free,
   mallocBytes, callocBytes,
   ) where
