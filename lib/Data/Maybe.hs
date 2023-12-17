@@ -23,6 +23,12 @@ instance forall a . Eq a => Eq (Maybe a) where
   Just x  == Just x'  =  x == x'
   _       == _        =  False
 
+instance forall a . Ord a => Ord (Maybe a) where
+  Nothing `compare` Nothing = EQ
+  Nothing `compare` Just _  = LT
+  Just _  `compare` Nothing = GT
+  Just x  `compare` Just y  = x `compare` y
+
 instance forall a . (Show a) => Show (Maybe a) where
   showsPrec _ Nothing  = showString "Nothing"
   showsPrec p (Just a) = showParen (p >= 11) (showString "Just " . showsPrec 11 a)

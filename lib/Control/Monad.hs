@@ -115,3 +115,7 @@ instance Monad Maybe where
   Nothing >>= _ = Nothing
   Just a  >>= f = f a
 -}
+
+class (Monad m) => MonadPlus (m :: Type -> Type) where
+  mzero :: forall a . m a
+  mplus :: forall a . m a -> m a -> m a
