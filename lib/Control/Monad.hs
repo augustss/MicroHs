@@ -61,6 +61,9 @@ when True ma = ma
 sequence :: forall (m :: Type -> Type) a . Monad m => [m a] -> m [a]
 sequence = mapM id
 
+sequence_ :: forall (m :: Type -> Type) a . Monad m => [m a] -> m ()
+sequence_ = mapM_ id
+
 (=<<) :: forall (m :: Type -> Type) a b . Monad m => (a -> m b) -> m a -> m b
 (=<<) = flip (>>=)
 
