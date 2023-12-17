@@ -2,6 +2,7 @@ module Foreign.Storable(Storable(..)) where
 import Primitives
 import Control.Error(undefined)
 import Foreign.Ptr
+import Data.Word8
 
 class Storable a where
    sizeOf      :: a -> Int
@@ -39,3 +40,12 @@ instance forall a . Storable (Ptr a) where
   alignment _ = _wordSize
   peek p      = c_peekPtr p
   poke p w    = c_pokePtr p w
+
+foreign import ccall "peekByte" c_peekByte :: Ptr Word8 -> IO Word8
+foreign import ccall "pokeByte" c_pokeByte :: Ptr Word8 -> Word8 -> IO ()
+
+instance Storable Word8 where
+  sizeOf    _ = 8
+  alignment _ = 8
+  peek p      = c_peekByte p
+  poke p w    = c_pokeByte p w

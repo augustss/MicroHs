@@ -1,6 +1,7 @@
 module Storable(main) where
 import Prelude
 import Data.Word
+import Data.Word8
 import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
 import Foreign.Ptr
@@ -22,3 +23,10 @@ main = do
   poke p2 w1
   wp3 <- peekArray0 0 p2
   print $ wp3 == [w1,1,2,3,4]
+
+{- Relies on endianess
+  let p3 = castPtr p1 :: Ptr Word8
+  b1 <- peek p3
+  b2 <- peek (p3 `plusPtr` 1)
+  print [b1, b2]
+-}

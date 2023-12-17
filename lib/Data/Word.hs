@@ -68,10 +68,6 @@ instance Ord Word where
   (>)  = primWordGT
   (>=) = primWordGE
 
-instance Enum Word where
-  toEnum = primIntToWord
-  fromEnum = primWordToInt
-
 --------------------------------
 
 instance Bits Word where
