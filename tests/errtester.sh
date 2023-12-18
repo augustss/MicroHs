@@ -7,6 +7,12 @@ terr=$tmp/terr
 cerr=$tmp/cerr
 comp=../bin/gmhs
 read -r line
+
+if [ ! -d $tmp ]; then
+    echo "$tmp does not exist, creating..."
+    mkdir $tmp
+fi
+
 while [ "$line" != "END" ]; do
     echo > $out
     while true; do
