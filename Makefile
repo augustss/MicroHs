@@ -93,7 +93,7 @@ timecompile: bin/mhs
 
 #
 cachelib:
-	@-rm .mhscache
+	@-rm -f .mhscache
 	bin/mhs -C AllOfLib
 
 #
