@@ -96,11 +96,11 @@ iswindows(void)
 
 #if !defined(ERR)
 #if WANT_STDIO
-#define ERR(s)    do { fprintf(stderr,"ERR: "s"\n");   exit(1); } while(0)
-#define ERR1(s,a) do { fprintf(stderr,"ERR: "s"\n",a); exit(1); } while(0)
+#define ERR(s)    do { fprintf(stderr,"ERR: "s"\n");   EXIT(1); } while(0)
+#define ERR1(s,a) do { fprintf(stderr,"ERR: "s"\n",a); EXIT(1); } while(0)
 #else  /* WANT_STDIO */
-#define ERR(s) exit(1)
-#define ERR1(s,a) exit(1)
+#define ERR(s) EXIT(1)
+#define ERR1(s,a) EXIT(1)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
@@ -243,7 +243,7 @@ void
 memerr(void)
 {
   ERR("Out of memory");
-  exit(1);
+  EXIT(1);
 }
 
 struct ioarray*
@@ -2221,7 +2221,7 @@ eval(NODEPTR an)
         CHKARGEV1(msg = evalstring(x, 0));
 #if WANT_STDIO
         fprintf(stderr, "mhs: %s\n", msg);
-        exit(1);
+        EXIT(1);
 #else  /* WANT_STDIO */
         ERR1("error: %s", msg);
 #endif  /* WANT_STDIO */
@@ -2660,7 +2660,7 @@ main(int argc, char **argv)
       ERR1("cannot open output file %s", outname);
     print(out, prog, 1);
     fclose(out);
-    exit(0);
+    EXIT(0);
   }
   if (verbose > 2) {
     //pp(stdout, prog);
@@ -2700,7 +2700,7 @@ main(int argc, char **argv)
 #endif
   }
 #endif  /* WANT_STDIO */
-  exit(0);
+  EXIT(0);
 }
 
 #if WANT_MD5

@@ -175,9 +175,14 @@ tmpname(const char* pre, const char* suf)
 #define MALLOC malloc
 
 /*
- * Free heap memory, void free(void *p)
+ * Free heap memory, void FREE(void *p)
  */
 #define FREE free
+
+/*
+ * exit execution, void EXIT(int code)
+ */
+#define EXIT exit
 
 #define GCRED    1              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */
