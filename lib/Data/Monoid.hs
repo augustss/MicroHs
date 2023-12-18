@@ -7,6 +7,7 @@ import Data.Function
 import Data.Functor
 import Data.List_Type
 import Data.Ord
+import Data.Num
 import Data.Semigroup
 
 class Semigroup a => Monoid a where
@@ -74,3 +75,27 @@ instance forall a . Ord a => Semigroup (Min a) where
 
 instance forall a . (Ord a, Bounded a) => Monoid (Min a) where
   mempty = Min maxBound
+
+---------------------
+
+newtype Sum a = Sum a
+getSum :: forall a . Sum a -> a
+getSum (Sum a) = a
+
+instance forall a . Num a => Semigroup (Sum a) where
+  Sum a <> Sum b = Sum (a + b)
+
+instance forall a . (Num a) => Monoid (Sum a) where
+  mempty = Sum 0
+
+---------------------
+
+newtype Product a = Product a
+getProduct :: forall a . Product a -> a
+getProduct (Product a) = a
+
+instance forall a . Num a => Semigroup (Product a) where
+  Product a <> Product b = Product (a * b)
+
+instance forall a . (Num a) => Monoid (Product a) where
+  mempty = Product 1
