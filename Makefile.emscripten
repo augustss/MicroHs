@@ -35,7 +35,12 @@ test:
 	CC='$(CC)' $(TMHS) Sieve -otests/Sieve.js && $(NODE) tests/Sieve.js > tests/Sieve.out && diff tests/Sieve.ref tests/Sieve.out
 	CC='$(CC)' $(TMHS) Dict -otests/Dict.js && $(NODE) tests/Dict.js > tests/Dict.out && diff tests/Dict.ref tests/Dict.out
 	CC='$(CC)' $(TMHS) Symbol -otests/Symbol.js && $(NODE) tests/Symbol.js > tests/Symbol.out && diff tests/Symbol.ref tests/Symbol.out
-
+	CC='$(CC)' $(TMHS) FunDep -otests/FunDep.js && $(NODE) tests/FunDep.js > tests/FunDep.out && diff tests/FunDep.ref tests/FunDep.out
+	CC='$(CC)' $(TMHS) TypeLits -otests/TypeLits.js && $(NODE) tests/TypeLits.js > tests/TypeLits.out && diff tests/TypeLits.ref tests/TypeLits.out
+	CC='$(CC)' $(TMHS) View -otests/View.js && $(NODE) tests/View.js > tests/View.out && diff tests/View.ref tests/View.out
+	CC='$(CC)' $(TMHS) IOArray -otests/IOArray.js && $(NODE) tests/IOArray.js > tests/IOArray.out && diff tests/IOArray.ref tests/IOArray.out
+	CC='$(CC)' $(TMHS) ST -otests/ST.js && $(NODE) tests/ST.js > tests/ST.out && diff tests/ST.ref tests/ST.out
+	CC='$(CC)' $(TMHS) Info -otests/Info.js && $(NODE) tests/Info.js
 
 clean:
 	rm -f tests/*.out tests/*.tmp tests/*.js

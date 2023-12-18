@@ -129,6 +129,9 @@ jobs:
     - name: make nfib
       run: make CONF=unix-32 nfibtest
       shell: alpine.sh {0}
+    - name: make info
+      run: make CONF=unix-32 info
+      shell: alpine.sh {0}
 # segfaults :(
 #    - name: make everytestmhs
 #      run: make CONF=unix-32 everytestmhs
@@ -158,6 +161,9 @@ jobs:
       shell: alpine.sh {0}
     - name: make nfib
       run: make CONF=unix-32 nfibtest
+      shell: alpine.sh {0}
+    - name: make info
+      run: make CONF=unix-32 info
       shell: alpine.sh {0}
 
   build-linux-emscripten:

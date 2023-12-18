@@ -20,7 +20,7 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
-.PHONY:	clean bootstrap install ghcgen newmhs cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest
+.PHONY:	clean bootstrap install ghcgen newmhs cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info
 
 all:	bin/mhs
 
@@ -113,12 +113,12 @@ install:
 	@echo "*** Set environment variable MHSDIR to $(PREFIX)/lib/mhs"
 	@echo "***"
 
-everytest:	newmhs runtest exampletest cachetest bootcombtest nfibtest
+everytest:	newmhs runtest exampletest cachetest bootcombtest nfibtest info
 
-everytestmhs:	bin/mhs bin/mhseval exampletest cachetest bootstrap runtestmhs nfibtest
+everytestmhs:	bin/mhs bin/mhseval exampletest cachetest bootstrap runtestmhs nfibtest info
 
 runtestmhs:
-	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H2M -RTS -C" test
+	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H2M -RTS -C" info test
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs -isrc -ogmhs.comb  MicroHs.Main
@@ -130,6 +130,9 @@ exampletest:	bin/mhs bin/mhseval Example.hs
 	bin/mhs Example && bin/mhseval
 	bin/mhs Example -oEx && ./Ex && rm Ex
 
+info:	bin/mhs
+	bin/mhs -r -itests Info
+
 cachetest:	bin/mhs bin/mhseval Example.hs
 	rm -f .mhscache
 	bin/mhs -C AllOfLib
@@ -140,4 +143,4 @@ nfibtest: bin/mhs bin/mhseval
 	bin/mhs -itests Nfib && bin/mhseval
 
 emscripten: bin/mhs
-	make test -f Makefile.emscripten;
+	make test -f Makefile.emscripten
