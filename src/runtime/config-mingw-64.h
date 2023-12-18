@@ -51,6 +51,11 @@
  */
 #define MALLOC malloc
 
+/*
+ * Free heap memory, void free(void *p)
+ */
+#define FREE free
+
 #define GCRED    1              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */
 #define INTTABLE 1              /* use fixed table of small INT nodes */

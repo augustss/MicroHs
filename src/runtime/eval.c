@@ -189,7 +189,7 @@ typedef struct node* NODEPTR;
 node *cells;                 /* All cells */
 
 /*
- * Arrays are allocated with MALLOC()/free().
+ * Arrays are allocated with MALLOC()/FREE().
  * During GC they are marked, and all elements in the array are
  * recursively marked.
  * At the end of the the mark phase there is a scan of all
@@ -329,7 +329,7 @@ void
 closeb_file(BFILE *bp)
 {
   struct BFILE_file *p = (struct BFILE_file *)bp;
-  free(p);
+  FREE(p);
 }
 
 BFILE *
@@ -464,10 +464,10 @@ closeb_lzw(BFILE *bp)
 
   for (int i = 0; i < DICTSIZE; i++) {
     if (p->table[i])
-      free(p->table[i]);
+      FREE(p->table[i]);
   }
   p->bfile->closeb(p->bfile);
-  free(p);
+  FREE(p);
 }
 
 BFILE *
@@ -977,7 +977,7 @@ gc(void)
     } else {
       *arrp = arr->next;        /* unlink */
       num_arr_free++;
-      free(arr);                /* and free */
+      FREE(arr);                /* and FREE */
     }
   }
 
@@ -1117,7 +1117,7 @@ struct {
 
   //  { "getArgs",   (funptr_t)getArgs,  FFI_A },
   { "getTimeMilli",(funptr_t)GETTIMEMILLI,  FFI_I },
-  { "free",     (funptr_t)free,    FFI_PV },
+  { "free",     (funptr_t)FREE,    FFI_PV },
   { "malloc",   (funptr_t)MALLOC,  FFI_IP }, /* The I is really a size_t */
   { "calloc",   (funptr_t)MALLOC,  FFI_IIP },
   { "peekWord", (funptr_t)peekWord,FFI_PI },
@@ -1404,7 +1404,7 @@ parse_top(BFILE *f)
   for(heapoffs_t i = 0; i < shared_table_size; i++)
     shared_table[i].node = NIL;
   NODEPTR n = parse(f);
-  free(shared_table);
+  FREE(shared_table);
   return n;
 }
 
@@ -1674,8 +1674,8 @@ print(FILE *f, NODEPTR n, int header)
   if (header)
     fprintf(f, "%s%"PRIcounter"\n", VERSION, num_shared);
   printrec(f, n);
-  free(marked_bits);
-  free(shared_bits);
+  FREE(marked_bits);
+  FREE(shared_bits);
 }
 
 /* Show a graph. */
@@ -1956,7 +1956,7 @@ rnf(value_t noerr, NODEPTR n)
   doing_rnf = (int)noerr;
   rnf_rec(n);
   doing_rnf = 0;
-  free(rnf_bits);
+  FREE(rnf_bits);
 }
 
 NODEPTR execio(NODEPTR n);
@@ -2099,7 +2099,7 @@ eval(NODEPTR an)
 #else
       xd = strtof(msg, NULL);
 #endif
-      free(msg);
+      FREE(msg);
 
       POP(1);
       n = TOP(-1);
@@ -2185,8 +2185,8 @@ eval(NODEPTR an)
       POP(2);
       GCCHECK(strNodes(strlen(res)));
       ARG(TOP(0)) = mkStringC(res);
-      free(res);
-      free(msg);
+      FREE(res);
+      FREE(msg);
       goto err;                 /* XXX not right message if the error is caught */
       }
     case T_NODEFAULT:
@@ -2204,8 +2204,8 @@ eval(NODEPTR an)
 #endif  /* WANT_STDIO */
       GCCHECK(strNodes(strlen(res)));
       ARG(TOP(0)) = mkStringC(res);
-      free(res);
-      free(msg);
+      FREE(res);
+      FREE(msg);
       goto err;                 /* XXX not right message if the error is caught */
       }
     case T_ERROR:
@@ -2268,7 +2268,7 @@ eval(NODEPTR an)
       msg = evalstring(ARG(TOP(0)), 0);
       GCCHECK(1);
       x = ffiNode(msg);
-      free(msg);
+      FREE(msg);
       POP(1);
       n = TOP(-1);
       GOIND(x);
@@ -2458,14 +2458,14 @@ execio(NODEPTR n)
           f = ARG(TOP(2));      /* second argument, handler */
           n = new_ap(f, x);
           cur_handler = h->hdl_old;
-          free(h);
+          FREE(h);
           POP(3);
           goto top;
         } else {
           /* Normal execution: */
           n = execio(ARG(TOP(1))); /* execute first argument */
           cur_handler = h->hdl_old; /* restore old handler */
-          free(h);
+          FREE(h);
           RETIO(n);             /* return result */
         }
       }
