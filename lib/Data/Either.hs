@@ -5,6 +5,7 @@ import Primitives
 import Data.Bool
 import Data.Eq
 import Data.Function
+import Data.Functor
 import Data.Int
 import Data.Ord
 import Text.Show
@@ -20,6 +21,18 @@ either :: forall a b r . (a -> r) -> (b -> r) -> Either a b -> r
 either f _ (Left  a) = f a
 either _ f (Right b) = f b
 
+isLeft :: forall a b . Either a b -> Bool
+isLeft (Left  _) = True
+isLeft (Right _) = False
+
+isRight :: forall a b . Either a b -> Bool
+isRight (Left  _) = False
+isRight (Right _) = True
+
 instance forall a b . (Show a, Show b) => Show (Either a b) where
   showsPrec p (Left  a) = showParen (p>=appPrec1) (showString "Left "  . showsPrec appPrec1 a)
   showsPrec p (Right b) = showParen (p>=appPrec1) (showString "Right " . showsPrec appPrec1 b)
+
+instance forall a . Functor (Either a) where
+  fmap _ (Left a) = Left a
+  fmap f (Right b) = Right (f b)

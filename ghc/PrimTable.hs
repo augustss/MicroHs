@@ -79,17 +79,17 @@ primOps =
   , comb "p+" plusPtr
   , comb "p-" minusPtr
 
-  , farith "fadd" (+)
-  , farith "fsub" (-)
-  , farith "fmul" (*)
-  , farith "fdiv" (/)
+  , farith "f+" (+)
+  , farith "f-" (-)
+  , farith "f*" (*)
+  , farith "f/" (/)
   , farithu "fneg" negate
-  , fcmp "feq" (==)
-  , fcmp "fne" (/=)
-  , fcmp "flt" (<)
-  , fcmp "fle" (<=)
-  , fcmp "fgt" (>)
-  , fcmp "fge" (>=)
+  , fcmp "f==" (==)
+  , fcmp "f/=" (/=)
+  , fcmp "f<" (<)
+  , fcmp "f<=" (<=)
+  , fcmp "f>" (>)
+  , fcmp "f>=" (>=)
   , comb "fshow" (fromString . (show :: Double -> String))
   , comb "fread" ((read :: String -> Double) . toString)
   , comb "itof" (fromIntegral :: Int -> Double)

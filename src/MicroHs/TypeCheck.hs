@@ -1031,11 +1031,13 @@ withExtTyps iks ta = do
 
 tcDefs :: [EDef] -> T [EDef]
 tcDefs ds = do
+--  traceM ("tcDefs 1:\n" ++ showEDefs ds)
   mapM_ tcAddInfix ds
   dst <- tcDefsType ds
+--  traceM ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeSyn dst
   dst' <- tcExpand dst
---  traceM (showEDefs dst')
+--  traceM ("tcDefs 3:\n" ++ showEDefs dst')
   setDefault dst'
   tcDefsValue dst'
 
@@ -1232,7 +1234,7 @@ expandClass dcls@(Class ctx (iCls, vks) fds ms) = do
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
       mkDflt (BSign methId t) = [ Sign iDflt $ EForall vks $ tCtx `tImplies` t, def $ lookup methId mdflts ]
-        where def Nothing = Fcn iDflt [Eqn [] $ EAlts [([], noDflt)] []]
+        where def Nothing = Fcn iDflt $ simpleEqn noDflt
               def (Just eqns) = Fcn iDflt eqns
               iDflt = mkDefaultMethodId methId
               -- XXX This isn't right, "Prelude._nodefault" might not be in scope
@@ -1242,6 +1244,9 @@ expandClass dcls@(Class ctx (iCls, vks) fds ms) = do
   addClassTable (qualIdent mn iCls) (vks, ctx, EUVar 0, methIds, mkIFunDeps (map idKindIdent vks) fds)   -- Initial entry, no type needed.
   return $ dcls : dDflts
 expandClass d = return [d]
+
+simpleEqn :: Expr -> [Eqn]
+simpleEqn e = [Eqn [] $ EAlts [([], e)] []]
 
 -- Keep the list empty if there are no fundeps
 mkIFunDeps :: [Ident] -> [FunDep] -> [IFunDep]
@@ -1300,7 +1305,7 @@ expandInst dinst@(Instance act bs) = do
   -- XXX this ignores type signatures and other bindings
   -- XXX should tack on signatures with ESign
   let ies = [(i, ELam qs) | BFcn i qs <- bs]
-      meth i = fromMaybe (EVar $ setSLocIdent loc $ mkDefaultMethodId i) $ lookup i ies
+      meth i = fromMaybe (ELam $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId i) $ lookup i ies
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
@@ -1846,7 +1851,7 @@ tCheckExprAndSolve t e = do
     return $ ELet (eBinds bs) e'
 
 eBinds :: [(Ident, Expr)] -> [EBind]
-eBinds ds = [BFcn i [Eqn [] (EAlts [([], e)] [])] | (i, e) <- ds]
+eBinds ds = [BFcn i $ simpleEqn e | (i, e) <- ds]
 
 instPatSigma :: HasCallStack =>
                  SLoc -> Sigma -> Expected -> T ()

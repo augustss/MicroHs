@@ -86,6 +86,12 @@ foldr f z =
     rec (x : xs) = f x (rec xs)
   in rec
 
+foldr' :: forall a b . (a -> b -> b) -> b -> [a] -> b
+foldr' f z [] = z
+foldr' f z (x:xs) =
+  let y = foldr f z xs
+  in  y `seq` f x y
+
 foldr1 :: forall a . (a -> a -> a) -> [a] -> a
 foldr1 _ [] = error "foldr1"
 foldr1 f (x : xs) = foldr f x xs
@@ -93,6 +99,12 @@ foldr1 f (x : xs) = foldr f x xs
 foldl :: forall a b . (b -> a -> b) -> b -> [a] -> b
 foldl _ z [] = z
 foldl f z (x : xs) = foldl f (f z x) xs
+
+foldl' :: forall a b . (b -> a -> b) -> b -> [a] -> b
+foldl' _ z [] = z
+foldl' f z (x : xs) =
+  let y = f z x
+  in  y `seq` foldl f y xs
 
 foldl1 :: forall a . (a -> a -> a) -> [a] -> a
 foldl1 _ [] = error "foldl1"
