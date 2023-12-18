@@ -46,26 +46,6 @@
 /* #define ERR(s,a) */
 /* #define ERR1(s,a) */
 
-/*
- * Allocate memory on heap, void *MALLOC(size_t size)
- */
-#define MALLOC malloc
-
-/*
- * Free heap memory, void FREE(void *p)
- */
-#define FREE free
-
-/*
- * exit execution, void EXIT(int code)
- */
-#define EXIT exit
-
-/*
- * print output to some standard stream, int PRINT(const char *format, ... )
- */
-#define PRINT printf
-
 #define GCRED    1              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */
 #define INTTABLE 1              /* use fixed table of small INT nodes */

@@ -101,6 +101,22 @@ iswindows(void)
 #define STACK_SIZE 100000
 #endif
 
+#if !defined(MALLOC)
+#define MALLOC malloc
+#endif
+
+#if !defined(FREE)
+#define FREE free
+#endif
+
+#if !defined(EXIT)
+#define EXIT exit
+#endif
+
+#if !defined(PRINT)
+#define PRINT printf
+#endif
+
 #if !defined(ERR)
 #if WANT_STDIO
 #define ERR(s)    do { fprintf(stderr,"ERR: "s"\n");   EXIT(1); } while(0)
