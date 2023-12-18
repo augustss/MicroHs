@@ -2587,6 +2587,12 @@ main(int argc, char **argv)
   setvbuf(stderr, NULL, _IONBF, BUFSIZ);
 #endif
 
+#ifdef INITIALIZATION
+  main_setup(); // void main_setup(void); will perform extra initialization
+                // that is unique to a specific platform, e.g. initialization
+                // a HAL
+#endif
+
   argc--, argv++;
   glob_argv = argv;
   for (av = argv, inrts = 0; argc--; argv++) {
@@ -2707,6 +2713,9 @@ main(int argc, char **argv)
 #endif
   }
 #endif  /* WANT_STDIO */
+#ifdef TEARDOWN
+  main_teardown(); // do some platform specific teardown
+#endif
   EXIT(0);
 }
 
