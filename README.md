@@ -7,7 +7,7 @@ The runtime system has minimal dependencies, and can be compiled even for micro-
 The compiler can compile itself.
 
 ## Compiling MicroHs
-There are two different ways to compile MicroHs
+There are two different ways to compile MicroHs:
 * Using GHC with standard `Prelude` and libraries. `Makefile` target `bin/gmhs`
 * Using the included combinator file and runtime.  `Makefile` target `bin/mhs`
 
@@ -23,6 +23,8 @@ All you need is a C compiler, and MicroHs can bootstrap, given the included comb
 To install `mhs` use `make install`.  You also need to set the environment variable `MHSDIR`.
 
 To compile on Windows make sure `cl` is in the path, and then use `nmake` with `Makefile.windows`.
+
+The compiler can also be used with emscripten to produce JavaScript, see `Makefile.emscripten`.
 
 ## Language
 The language is an extended subset of Haskell-98.
@@ -126,7 +128,7 @@ it will be the entry point to the program.
 ### Compiler flags
 * `--version` show version number
 * `-iDIR` add `DIR` to search path for modules
-* `-oFILE` output file.  If the `FILE` ends in `.comb` it will produce a textual combinator file.  If `FILE` ends in `.c` it will produce a C file with the combinators.  For all other `FILE` it will compiler the combinators together with the runtime system to produce a regular executable.
+* `-oFILE` output file.  If the `FILE` ends in `.comb` it will produce a textual combinator file.  If `FILE` ends in `.c` it will produce a C file with the combinators.  For all other `FILE` it will compile the combinators together with the runtime system to produce a regular executable.
 * `-r` run directly
 * `-v` be more verbose, flag can be repeated
 * `-CW` write compilation cache to `.mhscache` at the end of compilation
@@ -142,7 +144,7 @@ which means that processing the module `MicroHs.Exp` took 284ms,
 with parsing taking 91ms and typecheck&desugar taking 193ms.
 
 With the `-C` flag the compiler writes out its internal cache of compiled modules to the file `.mhscache`
-at the end of compilation.  And a startup it reads this file if it exists, and then validates the contents
+at the end of compilation.  At startup it reads this file if it exists, and then validates the contents
 by an MD5 checksum for all the files in the cache.
 This can make compilation much faster since the compiler will not parse and typecheck a module if it is in
 the cache.
@@ -267,14 +269,14 @@ This has a performance penalty, though.
 
 ### Portability
 The C code for the evaluator does not use any special features, and should be
-portable to many platforms.  It has mostly been test with MacOS and Linux,
+portable to many platforms.  It has mostly been tested with MacOS and Linux,
 and somewhat with Windows.
 
-The code has only been tested on 64 bit platforms, so again, there are lurking problems
+The code has mostly been tested on 64 bit platforms, so again, there are lurking problems
 with other word sizes, but they should be easy to fix.
 
 The `src/runtime/` directory contains configuration files for different platform.
-Edit `src/runtime/eval.c` to `#include` the right one.
+Use the appropriate `src/runtime/eval-`*platform*`.c.
 
 ## Bootstrapping
 The compiler can compile itself.  To replace `bin/mhs` with a new version,
