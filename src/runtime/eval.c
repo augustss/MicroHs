@@ -41,6 +41,22 @@ typedef float flt_t;
 /* We cast all FFI functions to this type.  It's reasonably portable */
 typedef void (*funptr_t)(void);
 
+#if !defined(MALLOC)
+#define MALLOC malloc
+#endif
+
+#if !defined(FREE)
+#define FREE free
+#endif
+
+#if !defined(EXIT)
+#define EXIT exit
+#endif
+
+#if !defined(PRINT)
+#define PRINT printf
+#endif
+
 #if !defined(PCOMMA)
 #define PCOMMA "'"
 #endif  /* !defined(PCOMMA) */
@@ -99,22 +115,6 @@ iswindows(void)
 
 #if !defined(STACK_SIZE)
 #define STACK_SIZE 100000
-#endif
-
-#if !defined(MALLOC)
-#define MALLOC malloc
-#endif
-
-#if !defined(FREE)
-#define FREE free
-#endif
-
-#if !defined(EXIT)
-#define EXIT exit
-#endif
-
-#if !defined(PRINT)
-#define PRINT printf
 #endif
 
 #if !defined(ERR)
