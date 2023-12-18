@@ -961,7 +961,7 @@ gc(void)
   num_marked = 0;
 #if WANT_STDIO
   if (verbose > 1)
-    ERR(stderr, "gc mark\n");
+    ERR("gc mark\n");
 #endif
   gc_mark_time -= GETTIMEMILLI();
   mark_all_free();
@@ -990,7 +990,7 @@ gc(void)
 
 #if WANT_STDIO
   if (verbose > 1) {
-    ERR1(stderr, "gc done, %"PRIcounter" free\n", num_free);
+    ERR1("gc done, %"PRIcounter" free\n", num_free);
     //PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
   }
 #endif  /* !WANT_STDIO */
@@ -1004,7 +1004,7 @@ gc_check(size_t k)
     return;
 #if WANT_STDIO
   if (verbose > 1)
-    ERR1(stderr, "gc_check: %d\n", (int)k);
+    ERR1("gc_check: %d\n", (int)k);
 #endif
   gc();
 }
@@ -2227,7 +2227,7 @@ eval(NODEPTR an)
         /* No handler, so just die. */
         CHKARGEV1(msg = evalstring(x, 0));
 #if WANT_STDIO
-        ERR1(stderr, "mhs: %s\n", msg);
+        ERR1("mhs: %s\n", msg);
         EXIT(1);
 #else  /* WANT_STDIO */
         ERR1("error: %s", msg);
