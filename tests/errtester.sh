@@ -7,6 +7,9 @@ terr=$tmp/terr
 cerr=$tmp/cerr
 comp=../bin/gmhs
 read -r line
+
+mkdir -p $tmp
+
 while [ "$line" != "END" ]; do
     echo > $out
     while true; do

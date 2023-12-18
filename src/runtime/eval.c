@@ -41,6 +41,22 @@ typedef float flt_t;
 /* We cast all FFI functions to this type.  It's reasonably portable */
 typedef void (*funptr_t)(void);
 
+#if !defined(MALLOC)
+#define MALLOC malloc
+#endif
+
+#if !defined(FREE)
+#define FREE free
+#endif
+
+#if !defined(EXIT)
+#define EXIT exit
+#endif
+
+#if !defined(PRINT)
+#define PRINT printf
+#endif
+
 #if !defined(PCOMMA)
 #define PCOMMA "'"
 #endif  /* !defined(PCOMMA) */
@@ -55,13 +71,17 @@ uint64_t GETTIMEMILLI(void) { return 0; }
 
 #if !defined(TMPNAME)
 char* TMPNAME(const char* pre, const char* post) {
-  char *s = malloc(strlen(pre) + 3 + strlen(post) + 1);
+  char *s = MALLOC(strlen(pre) + 3 + strlen(post) + 1);
   strcpy(s, pre);
   strcat(s, "TMP");
   strcat(s, post);
   return s;
 }
 #endif
+
+// #if !defined(MALLOC)
+// #define MALLOC malloc
+// #endif
 
 #if !defined(INLINE)
 #define INLINE inline
@@ -87,16 +107,23 @@ iswindows(void)
 #define LOW_INT (-10)
 #define HIGH_INT 256
 
+#include "config.h"
+
+#if !defined(HEAP_CELLS)
 #define HEAP_CELLS 50000000
+#endif
+
+#if !defined(STACK_SIZE)
 #define STACK_SIZE 100000
+#endif
 
 #if !defined(ERR)
 #if WANT_STDIO
-#define ERR(s)    do { fprintf(stderr,"ERR: "s"\n");   exit(1); } while(0)
-#define ERR1(s,a) do { fprintf(stderr,"ERR: "s"\n",a); exit(1); } while(0)
+#define ERR(s)    do { fprintf(stderr,"ERR: "s"\n");   EXIT(1); } while(0)
+#define ERR1(s,a) do { fprintf(stderr,"ERR: "s"\n",a); EXIT(1); } while(0)
 #else  /* WANT_STDIO */
-#define ERR(s) exit(1)
-#define ERR1(s,a) exit(1)
+#define ERR(s) EXIT(1)
+#define ERR1(s,a) EXIT(1)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
@@ -180,12 +207,12 @@ typedef struct node* NODEPTR;
 #define ARR(p) (p)->uarg.uuarray
 #define INDIR(p) ARG(p)
 #define NODE_SIZE sizeof(node)
-#define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
+#define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
 /*
- * Arrays are allocated with malloc()/free().
+ * Arrays are allocated with MALLOC()/FREE().
  * During GC they are marked, and all elements in the array are
  * recursively marked.
  * At the end of the the mark phase there is a scan of all
@@ -239,13 +266,13 @@ void
 memerr(void)
 {
   ERR("Out of memory");
-  exit(1);
+  EXIT(1);
 }
 
 struct ioarray*
 arr_alloc(size_t sz, NODEPTR e)
 {
-  struct ioarray *arr = malloc(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
+  struct ioarray *arr = MALLOC(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
   if (!arr)
     memerr();
   arr->next = array_root;
@@ -254,7 +281,7 @@ arr_alloc(size_t sz, NODEPTR e)
   arr->size = sz;
   for(size_t i = 0; i < sz; i++)
     arr->array[i] = e;
-  //printf("arr_alloc(%d, %p) = %p\n", (int)sz, e, arr);
+  //PRINT("arr_alloc(%d, %p) = %p\n", (int)sz, e, arr);
   num_arr_alloc++;
   return arr;
 }
@@ -325,13 +352,13 @@ void
 closeb_file(BFILE *bp)
 {
   struct BFILE_file *p = (struct BFILE_file *)bp;
-  free(p);
+  FREE(p);
 }
 
 BFILE *
 openb_FILE(FILE *f)
 {
-  struct BFILE_file *p = malloc(sizeof (struct BFILE_file));
+  struct BFILE_file *p = MALLOC(sizeof (struct BFILE_file));
   if (!p)
     memerr();
   p->mets.getb   = getb_file;
@@ -389,7 +416,7 @@ char *
 str_lzw(const char *s, int c)
 {
   int l = strlen(s);
-  char *p = malloc(l + 1 + 1);
+  char *p = MALLOC(l + 1 + 1);
   if (!p)
     memerr();
   strcpy(p, s);
@@ -415,7 +442,7 @@ getb_lzw(BFILE *bp)
   if (p->ptr) {
     c = *p->ptr++;
     if (c) {
-      //printf("c='%c'\n", c);
+      //PRINT("c='%c'\n", c);
       return c;
     }
     p->ptr = 0;
@@ -460,10 +487,10 @@ closeb_lzw(BFILE *bp)
 
   for (int i = 0; i < DICTSIZE; i++) {
     if (p->table[i])
-      free(p->table[i]);
+      FREE(p->table[i]);
   }
   p->bfile->closeb(p->bfile);
-  free(p);
+  FREE(p);
 }
 
 BFILE *
@@ -716,7 +743,7 @@ init_nodes(void)
 {
   ALLOC_HEAP(heap_size);
   free_map_nwords = (heap_size + BITS_PER_WORD - 1) / BITS_PER_WORD; /* bytes needed for free map */
-  free_map = malloc(free_map_nwords * sizeof(bits_t));
+  free_map = MALLOC(free_map_nwords * sizeof(bits_t));
   if (!free_map)
     memerr();
 
@@ -825,7 +852,7 @@ mark(NODEPTR *np)
 
   //  mark_depth++;
   //  if (mark_depth % 10000 == 0)
-  //    printf("mark depth %"PRIcounter"\n", mark_depth);
+  //    PRINT("mark depth %"PRIcounter"\n", mark_depth);
   top:
   n = *np;
   tag = GETTAG(n);
@@ -834,15 +861,15 @@ mark(NODEPTR *np)
     int loop = 0;
     /* Skip indirections, and redirect start pointer */
     while ((tag = GETTAG(n)) == T_IND) {
-      //      printf("*"); fflush(stdout);
+      //      PRINT("*"); fflush(stdout);
       n = INDIR(n);
       if (loop++ > 10000000) {
-        //printf("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
+        //PRINT("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
         ERR("IND loop");
       }
     }
     //    if (loop)
-    //      printf("\n");
+    //      PRINT("\n");
 #else  /* SANITY */
     while ((tag = GETTAG(n)) == T_IND) {
       n = INDIR(n);
@@ -897,7 +924,7 @@ mark(NODEPTR *np)
         q = INDIR(q);
       if ((tf = flip_ops[tt])) {
         /* Do the C op --> flip_op reduction */
-        // printf("%s -> %s\n", tag_names[tt], tag_names[tf]);
+        // PRINT("%s -> %s\n", tag_names[tt], tag_names[tf]);
         SETTAG(n, T_IND);
         INDIR(n) = HEAPREF(tf);
         red_flip++;
@@ -950,7 +977,7 @@ gc(void)
   num_marked = 0;
 #if WANT_STDIO
   if (verbose > 1)
-    fprintf(stderr, "gc mark\n");
+    ERR("gc mark\n");
 #endif
   gc_mark_time -= GETTIMEMILLI();
   mark_all_free();
@@ -973,14 +1000,14 @@ gc(void)
     } else {
       *arrp = arr->next;        /* unlink */
       num_arr_free++;
-      free(arr);                /* and free */
+      FREE(arr);                /* and FREE */
     }
   }
 
 #if WANT_STDIO
   if (verbose > 1) {
-    fprintf(stderr, "gc done, %"PRIcounter" free\n", num_free);
-    //printf(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
+    ERR1("gc done, %"PRIcounter" free\n", num_free);
+    //PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
   }
 #endif  /* !WANT_STDIO */
 }
@@ -993,7 +1020,7 @@ gc_check(size_t k)
     return;
 #if WANT_STDIO
   if (verbose > 1)
-    fprintf(stderr, "gc_check: %d\n", (int)k);
+    ERR1("gc_check: %d\n", (int)k);
 #endif
   gc();
 }
@@ -1113,9 +1140,9 @@ struct {
 
   //  { "getArgs",   (funptr_t)getArgs,  FFI_A },
   { "getTimeMilli",(funptr_t)GETTIMEMILLI,  FFI_I },
-  { "free",     (funptr_t)free,    FFI_PV },
-  { "malloc",   (funptr_t)malloc,  FFI_IP }, /* The I is really a size_t */
-  { "calloc",   (funptr_t)malloc,  FFI_IIP },
+  { "free",     (funptr_t)FREE,    FFI_PV },
+  { "malloc",   (funptr_t)MALLOC,  FFI_IP }, /* The I is really a size_t */
+  { "calloc",   (funptr_t)MALLOC,  FFI_IIP },
   { "peekWord", (funptr_t)peekWord,FFI_PI },
   { "pokeWord", (funptr_t)pokeWord,FFI_PIV },
   { "peekByte", (funptr_t)peekByte,FFI_PI },
@@ -1142,7 +1169,7 @@ ffiNode(const char *buf)
   if (i < 0) {
     /* lookup failed, generate a node that will dynamically generate an error */
     r = alloc_node(T_BADDYN);
-    char *fun = malloc(strlen(buf) + 1);
+    char *fun = MALLOC(strlen(buf) + 1);
     strcpy(fun, buf);
     STR(r) = fun;
   } else {
@@ -1332,7 +1359,7 @@ parse(BFILE *f)
     /* XXX assume there are no NULs in the string, and all fit in a char */
     /* XXX allocation is a hack */
     {
-      char *buffer = malloc(10000);
+      char *buffer = MALLOC(10000);
       char *p = buffer;
       for(;;) {
         c = f->getb(f);
@@ -1394,13 +1421,13 @@ parse_top(BFILE *f)
     ERR("size parse");
   gobble(f, '\r');                 /* allow extra CR */
   shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
-  shared_table = malloc(shared_table_size * sizeof(struct shared_entry));
+  shared_table = MALLOC(shared_table_size * sizeof(struct shared_entry));
   if (!shared_table)
     memerr();
   for(heapoffs_t i = 0; i < shared_table_size; i++)
     shared_table[i].node = NIL;
   NODEPTR n = parse(f);
-  free(shared_table);
+  FREE(shared_table);
   return n;
 }
 
@@ -1467,20 +1494,20 @@ find_sharing(NODEPTR n)
  top:
   while (GETTAG(n) == T_IND)
     n = INDIR(n);
-  //printf("find_sharing %p %llu ", n, LABEL(n));
+  //PRINT("find_sharing %p %llu ", n, LABEL(n));
   if (GETTAG(n) == T_AP) {
     if (test_bit(shared_bits, n)) {
       /* Alread marked as shared */
-      //printf("shared\n");
+      //PRINT("shared\n");
       ;
     } else if (test_bit(marked_bits, n)) {
       /* Already marked, so now mark as shared */
-      //printf("marked\n");
+      //PRINT("marked\n");
       set_bit(shared_bits, n);
       num_shared++;
     } else {
       /* Mark as visited, and recurse */
-      //printf("unmarked\n");
+      //PRINT("unmarked\n");
       set_bit(marked_bits, n);
       find_sharing(FUN(n));
       n = ARG(n);
@@ -1488,7 +1515,7 @@ find_sharing(NODEPTR n)
     }
   } else {
     /* Not an application, so do nothing */
-    //printf("not T_AP\n");
+    //PRINT("not T_AP\n");
     ;
   }
 }
@@ -1670,8 +1697,8 @@ print(FILE *f, NODEPTR n, int header)
   if (header)
     fprintf(f, "%s%"PRIcounter"\n", VERSION, num_shared);
   printrec(f, n);
-  free(marked_bits);
-  free(shared_bits);
+  FREE(marked_bits);
+  FREE(shared_bits);
 }
 
 /* Show a graph. */
@@ -1829,7 +1856,7 @@ evalstring(NODEPTR n, value_t *lenp)
 {
   size_t sz = 1000;
   size_t offs;
-  char *name = malloc(sz);
+  char *name = MALLOC(sz);
   value_t c;
   NODEPTR x;
 
@@ -1952,7 +1979,7 @@ rnf(value_t noerr, NODEPTR n)
   doing_rnf = (int)noerr;
   rnf_rec(n);
   doing_rnf = 0;
-  free(rnf_bits);
+  FREE(rnf_bits);
 }
 
 NODEPTR execio(NODEPTR n);
@@ -2095,7 +2122,7 @@ eval(NODEPTR an)
 #else
       xd = strtof(msg, NULL);
 #endif
-      free(msg);
+      FREE(msg);
 
       POP(1);
       n = TOP(-1);
@@ -2172,7 +2199,7 @@ eval(NODEPTR an)
       xi = evalint(ARG(TOP(1)));
       yi = evalint(ARG(TOP(2)));
       int sz = strlen(msg) + 100;
-      char *res = malloc(sz);
+      char *res = MALLOC(sz);
 #if WANT_STDIO
       snprintf(res, sz, "no match at %s, line %"PRIvalue", col %"PRIvalue, msg, xi, yi);
 #else  /* WANT_STDIO */
@@ -2181,8 +2208,8 @@ eval(NODEPTR an)
       POP(2);
       GCCHECK(strNodes(strlen(res)));
       ARG(TOP(0)) = mkStringC(res);
-      free(res);
-      free(msg);
+      FREE(res);
+      FREE(msg);
       goto err;                 /* XXX not right message if the error is caught */
       }
     case T_NODEFAULT:
@@ -2191,7 +2218,7 @@ eval(NODEPTR an)
       CHECK(1);
       msg = evalstring(ARG(TOP(0)), 0);
       int sz = strlen(msg) + 100;
-      char *res = malloc(sz);
+      char *res = MALLOC(sz);
 
 #if WANT_STDIO
       snprintf(res, sz, "no default for %s", msg);
@@ -2200,8 +2227,8 @@ eval(NODEPTR an)
 #endif  /* WANT_STDIO */
       GCCHECK(strNodes(strlen(res)));
       ARG(TOP(0)) = mkStringC(res);
-      free(res);
-      free(msg);
+      FREE(res);
+      FREE(msg);
       goto err;                 /* XXX not right message if the error is caught */
       }
     case T_ERROR:
@@ -2216,8 +2243,8 @@ eval(NODEPTR an)
         /* No handler, so just die. */
         CHKARGEV1(msg = evalstring(x, 0));
 #if WANT_STDIO
-        fprintf(stderr, "mhs: %s\n", msg);
-        exit(1);
+        ERR1("mhs: %s\n", msg);
+        EXIT(1);
 #else  /* WANT_STDIO */
         ERR1("error: %s", msg);
 #endif  /* WANT_STDIO */
@@ -2264,7 +2291,7 @@ eval(NODEPTR an)
       msg = evalstring(ARG(TOP(0)), 0);
       GCCHECK(1);
       x = ffiNode(msg);
-      free(msg);
+      FREE(msg);
       POP(1);
       n = TOP(-1);
       GOIND(x);
@@ -2379,10 +2406,10 @@ execio(NODEPTR n)
         size += glob_argc * 2 + 1;
         GCCHECK(size);
         /*
-        printf("total size %d:", size);
+        PRINT("total size %d:", size);
         for(int i = 0; i < glob_argc; i++)
-          printf(" %s", glob_argv[i]);
-        printf("\n");
+          PRINT(" %s", glob_argv[i]);
+        PRINT("\n");
         */
         n = mkNil();
         for(int i = glob_argc-1; i >= 0; i--) {
@@ -2439,7 +2466,7 @@ execio(NODEPTR n)
 
     case T_IO_CATCH:
       {
-        struct handler *h = malloc(sizeof *h);
+        struct handler *h = MALLOC(sizeof *h);
         if (!h)
           memerr();
         CHECKIO(2);
@@ -2454,14 +2481,14 @@ execio(NODEPTR n)
           f = ARG(TOP(2));      /* second argument, handler */
           n = new_ap(f, x);
           cur_handler = h->hdl_old;
-          free(h);
+          FREE(h);
           POP(3);
           goto top;
         } else {
           /* Normal execution: */
           n = execio(ARG(TOP(1))); /* execute first argument */
           cur_handler = h->hdl_old; /* restore old handler */
-          free(h);
+          FREE(h);
           RETIO(n);             /* return result */
         }
       }
@@ -2527,7 +2554,7 @@ execio(NODEPTR n)
       if (GETTAG(n) != T_ARR)
         ERR("bad ARR tag");
       if (i >= ARR(n)->size) {
-        //printf("%d %p %d\n", (int)i, ARR(n), (int)ARR(n)->size);
+        //PRINT("%d %p %d\n", (int)i, ARR(n), (int)ARR(n)->size);
         ERR("ARR_WRITE");
       }
       ARR(n)->array[i] = ARG(TOP(3));
@@ -2576,6 +2603,12 @@ main(int argc, char **argv)
   setvbuf(stderr, NULL, _IONBF, BUFSIZ);
 #endif
 
+#ifdef INITIALIZATION
+  main_setup(); // void main_setup(void); will perform extra initialization
+                // that is unique to a specific platform, e.g. initialization
+                // a HAL
+#endif
+
   argc--, argv++;
   glob_argv = argv;
   for (av = argv, inrts = 0; argc--; argv++) {
@@ -2613,7 +2646,7 @@ main(int argc, char **argv)
     inname = "out.comb";
 
   init_nodes();
-  stack = malloc(sizeof(NODEPTR) * stack_size);
+  stack = MALLOC(sizeof(NODEPTR) * stack_size);
   if (!stack)
     memerr();
 
@@ -2656,7 +2689,7 @@ main(int argc, char **argv)
       ERR1("cannot open output file %s", outname);
     print(out, prog, 1);
     fclose(out);
-    exit(0);
+    EXIT(0);
   }
   if (verbose > 2) {
     //pp(stdout, prog);
@@ -2675,28 +2708,31 @@ main(int argc, char **argv)
   }
   if (verbose) {
     if (verbose > 1) {
-      printf("\nmain returns ");
+      PRINT("\nmain returns ");
       pp(stdout, res);
-      printf("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
+      PRINT("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
     setlocale(LC_NUMERIC, "");  /* Make %' work on platforms that support it */
-    printf("%"PCOMMA"15"PRIheap" combinator file size\n", (heapoffs_t)file_size);
-    printf("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
-    printf("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
-    printf("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / ((double)run_time / 1000) / 1000000);
-    printf("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
-    printf("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
-    printf("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
-    printf("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
-    printf("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
-    printf("%15.2fs total expired time\n", (double)run_time / 1000);
-    printf("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
+    PRINT("%"PCOMMA"15"PRIheap" combinator file size\n", (heapoffs_t)file_size);
+    PRINT("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
+    PRINT("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
+    PRINT("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / ((double)run_time / 1000) / 1000000);
+    PRINT("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
+    PRINT("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
+    PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
+    PRINT("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
+    PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
+    PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
+    PRINT("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
 #if GCRED
-    printf(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
+    PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
 #endif
   }
 #endif  /* WANT_STDIO */
-  exit(0);
+#ifdef TEARDOWN
+  main_teardown(); // do some platform specific teardown
+#endif
+  EXIT(0);
 }
 
 #if WANT_MD5

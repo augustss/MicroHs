@@ -5,7 +5,6 @@
 /*
  * Various platform specific configuration.
  */
-
 /*
  * Include stdio functions.
  * Without this none of the file I/O in System.IO is available.
@@ -47,7 +46,6 @@
  * Defaults to "'".
  */
 /* #define PCOMMA "'" */
-
 
 #include <inttypes.h>
 #include <termios.h>
