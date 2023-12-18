@@ -55,13 +55,17 @@ uint64_t GETTIMEMILLI(void) { return 0; }
 
 #if !defined(TMPNAME)
 char* TMPNAME(const char* pre, const char* post) {
-  char *s = malloc(strlen(pre) + 3 + strlen(post) + 1);
+  char *s = MALLOC(strlen(pre) + 3 + strlen(post) + 1);
   strcpy(s, pre);
   strcat(s, "TMP");
   strcat(s, post);
   return s;
 }
 #endif
+
+// #if !defined(MALLOC)
+// #define MALLOC malloc
+// #endif
 
 #if !defined(INLINE)
 #define INLINE inline
@@ -180,12 +184,12 @@ typedef struct node* NODEPTR;
 #define ARR(p) (p)->uarg.uuarray
 #define INDIR(p) ARG(p)
 #define NODE_SIZE sizeof(node)
-#define ALLOC_HEAP(n) do { cells = malloc(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
+#define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
 /*
- * Arrays are allocated with malloc()/free().
+ * Arrays are allocated with MALLOC()/free().
  * During GC they are marked, and all elements in the array are
  * recursively marked.
  * At the end of the the mark phase there is a scan of all
@@ -245,7 +249,7 @@ memerr(void)
 struct ioarray*
 arr_alloc(size_t sz, NODEPTR e)
 {
-  struct ioarray *arr = malloc(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
+  struct ioarray *arr = MALLOC(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
   if (!arr)
     memerr();
   arr->next = array_root;
@@ -331,7 +335,7 @@ closeb_file(BFILE *bp)
 BFILE *
 openb_FILE(FILE *f)
 {
-  struct BFILE_file *p = malloc(sizeof (struct BFILE_file));
+  struct BFILE_file *p = MALLOC(sizeof (struct BFILE_file));
   if (!p)
     memerr();
   p->mets.getb   = getb_file;
@@ -389,7 +393,7 @@ char *
 str_lzw(const char *s, int c)
 {
   int l = strlen(s);
-  char *p = malloc(l + 1 + 1);
+  char *p = MALLOC(l + 1 + 1);
   if (!p)
     memerr();
   strcpy(p, s);
@@ -716,7 +720,7 @@ init_nodes(void)
 {
   ALLOC_HEAP(heap_size);
   free_map_nwords = (heap_size + BITS_PER_WORD - 1) / BITS_PER_WORD; /* bytes needed for free map */
-  free_map = malloc(free_map_nwords * sizeof(bits_t));
+  free_map = MALLOC(free_map_nwords * sizeof(bits_t));
   if (!free_map)
     memerr();
 
@@ -1114,8 +1118,8 @@ struct {
   //  { "getArgs",   (funptr_t)getArgs,  FFI_A },
   { "getTimeMilli",(funptr_t)GETTIMEMILLI,  FFI_I },
   { "free",     (funptr_t)free,    FFI_PV },
-  { "malloc",   (funptr_t)malloc,  FFI_IP }, /* The I is really a size_t */
-  { "calloc",   (funptr_t)malloc,  FFI_IIP },
+  { "malloc",   (funptr_t)MALLOC,  FFI_IP }, /* The I is really a size_t */
+  { "calloc",   (funptr_t)MALLOC,  FFI_IIP },
   { "peekWord", (funptr_t)peekWord,FFI_PI },
   { "pokeWord", (funptr_t)pokeWord,FFI_PIV },
   { "peekByte", (funptr_t)peekByte,FFI_PI },
@@ -1142,7 +1146,7 @@ ffiNode(const char *buf)
   if (i < 0) {
     /* lookup failed, generate a node that will dynamically generate an error */
     r = alloc_node(T_BADDYN);
-    char *fun = malloc(strlen(buf) + 1);
+    char *fun = MALLOC(strlen(buf) + 1);
     strcpy(fun, buf);
     STR(r) = fun;
   } else {
@@ -1332,7 +1336,7 @@ parse(BFILE *f)
     /* XXX assume there are no NULs in the string, and all fit in a char */
     /* XXX allocation is a hack */
     {
-      char *buffer = malloc(10000);
+      char *buffer = MALLOC(10000);
       char *p = buffer;
       for(;;) {
         c = f->getb(f);
@@ -1394,7 +1398,7 @@ parse_top(BFILE *f)
     ERR("size parse");
   gobble(f, '\r');                 /* allow extra CR */
   shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
-  shared_table = malloc(shared_table_size * sizeof(struct shared_entry));
+  shared_table = MALLOC(shared_table_size * sizeof(struct shared_entry));
   if (!shared_table)
     memerr();
   for(heapoffs_t i = 0; i < shared_table_size; i++)
@@ -1829,7 +1833,7 @@ evalstring(NODEPTR n, value_t *lenp)
 {
   size_t sz = 1000;
   size_t offs;
-  char *name = malloc(sz);
+  char *name = MALLOC(sz);
   value_t c;
   NODEPTR x;
 
@@ -2172,7 +2176,7 @@ eval(NODEPTR an)
       xi = evalint(ARG(TOP(1)));
       yi = evalint(ARG(TOP(2)));
       int sz = strlen(msg) + 100;
-      char *res = malloc(sz);
+      char *res = MALLOC(sz);
 #if WANT_STDIO
       snprintf(res, sz, "no match at %s, line %"PRIvalue", col %"PRIvalue, msg, xi, yi);
 #else  /* WANT_STDIO */
@@ -2191,7 +2195,7 @@ eval(NODEPTR an)
       CHECK(1);
       msg = evalstring(ARG(TOP(0)), 0);
       int sz = strlen(msg) + 100;
-      char *res = malloc(sz);
+      char *res = MALLOC(sz);
 
 #if WANT_STDIO
       snprintf(res, sz, "no default for %s", msg);
@@ -2439,7 +2443,7 @@ execio(NODEPTR n)
 
     case T_IO_CATCH:
       {
-        struct handler *h = malloc(sizeof *h);
+        struct handler *h = MALLOC(sizeof *h);
         if (!h)
           memerr();
         CHECKIO(2);
@@ -2613,7 +2617,7 @@ main(int argc, char **argv)
     inname = "out.comb";
 
   init_nodes();
-  stack = malloc(sizeof(NODEPTR) * stack_size);
+  stack = MALLOC(sizeof(NODEPTR) * stack_size);
   if (!stack)
     memerr();
 

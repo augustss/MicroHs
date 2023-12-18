@@ -5,7 +5,6 @@
 /*
  * Various platform specific configuration.
  */
-
 /*
  * Include stdio functions.
  * Without this none of the file I/O in System.IO is available.
@@ -47,7 +46,6 @@
  * Defaults to "'".
  */
 /* #define PCOMMA "'" */
-
 
 #include <inttypes.h>
 #include <termios.h>
@@ -170,6 +168,11 @@ tmpname(const char* pre, const char* suf)
  */
 /* #define ERR(s) */
 /* #define ERR1(s,a) */
+
+/*
+ * Allocate memory on heap, void *MALLOC(size_t size)
+ */
+#define MALLOC malloc
 
 #define GCRED    1              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */

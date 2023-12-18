@@ -60,6 +60,13 @@
 /* #define ERR(s) */
 /* #define ERR1(s,a) */
 
+#include <stdlib.h>
+
+/*
+ * Allocate memory on heap, void *MALLOC(size_t size)
+ */
+#define MALLOC malloc
+
 #define GCRED    0              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */
 #define INTTABLE 1              /* use fixed table of small INT nodes */
