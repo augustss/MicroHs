@@ -7,6 +7,7 @@ import Control.DeepSeq
 import Control.Error
 import Control.Exception
 import Control.Monad
+import Control.Monad.ST
 import Control.Monad.State.Strict
 import Data.Bits
 import Data.Bool
@@ -25,6 +26,8 @@ import Data.Fractional
 import Data.Function
 import Data.Functor
 import Data.Functor.Identity
+import Data.IOArray
+import Data.IORef
 import Data.Int
 import Data.IntMap
 import Data.IntSet
@@ -46,12 +49,17 @@ import Data.Ratio_Type
 import Data.Real
 import Data.RealFloat
 import Data.Semigroup
+import Data.STRef
 import Data.Tuple
+import Data.TypeLits
 import Data.Void
 import Data.Word
+import Data.Word8
 import Debug.Trace
 import Foreign.C.String
 import Foreign.Marshal.Alloc
+import Foreign.Marshal.Array
+import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
 import GHC.Stack
