@@ -91,8 +91,15 @@ iswindows(void)
 #define LOW_INT (-10)
 #define HIGH_INT 256
 
+#include "config.h"
+
+#if !defined(HEAP_CELLS)
 #define HEAP_CELLS 50000000
+#endif
+
+#if !defined(STACK_SIZE)
 #define STACK_SIZE 100000
+#endif
 
 #if !defined(ERR)
 #if WANT_STDIO
