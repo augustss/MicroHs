@@ -258,7 +258,7 @@ arr_alloc(size_t sz, NODEPTR e)
   arr->size = sz;
   for(size_t i = 0; i < sz; i++)
     arr->array[i] = e;
-  //printf("arr_alloc(%d, %p) = %p\n", (int)sz, e, arr);
+  //PRINT("arr_alloc(%d, %p) = %p\n", (int)sz, e, arr);
   num_arr_alloc++;
   return arr;
 }
@@ -419,7 +419,7 @@ getb_lzw(BFILE *bp)
   if (p->ptr) {
     c = *p->ptr++;
     if (c) {
-      //printf("c='%c'\n", c);
+      //PRINT("c='%c'\n", c);
       return c;
     }
     p->ptr = 0;
@@ -829,7 +829,7 @@ mark(NODEPTR *np)
 
   //  mark_depth++;
   //  if (mark_depth % 10000 == 0)
-  //    printf("mark depth %"PRIcounter"\n", mark_depth);
+  //    PRINT("mark depth %"PRIcounter"\n", mark_depth);
   top:
   n = *np;
   tag = GETTAG(n);
@@ -838,15 +838,15 @@ mark(NODEPTR *np)
     int loop = 0;
     /* Skip indirections, and redirect start pointer */
     while ((tag = GETTAG(n)) == T_IND) {
-      //      printf("*"); fflush(stdout);
+      //      PRINT("*"); fflush(stdout);
       n = INDIR(n);
       if (loop++ > 10000000) {
-        //printf("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
+        //PRINT("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
         ERR("IND loop");
       }
     }
     //    if (loop)
-    //      printf("\n");
+    //      PRINT("\n");
 #else  /* SANITY */
     while ((tag = GETTAG(n)) == T_IND) {
       n = INDIR(n);
@@ -901,7 +901,7 @@ mark(NODEPTR *np)
         q = INDIR(q);
       if ((tf = flip_ops[tt])) {
         /* Do the C op --> flip_op reduction */
-        // printf("%s -> %s\n", tag_names[tt], tag_names[tf]);
+        // PRINT("%s -> %s\n", tag_names[tt], tag_names[tf]);
         SETTAG(n, T_IND);
         INDIR(n) = HEAPREF(tf);
         red_flip++;
@@ -984,7 +984,7 @@ gc(void)
 #if WANT_STDIO
   if (verbose > 1) {
     fprintf(stderr, "gc done, %"PRIcounter" free\n", num_free);
-    //printf(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
+    //PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
   }
 #endif  /* !WANT_STDIO */
 }
@@ -1471,20 +1471,20 @@ find_sharing(NODEPTR n)
  top:
   while (GETTAG(n) == T_IND)
     n = INDIR(n);
-  //printf("find_sharing %p %llu ", n, LABEL(n));
+  //PRINT("find_sharing %p %llu ", n, LABEL(n));
   if (GETTAG(n) == T_AP) {
     if (test_bit(shared_bits, n)) {
       /* Alread marked as shared */
-      //printf("shared\n");
+      //PRINT("shared\n");
       ;
     } else if (test_bit(marked_bits, n)) {
       /* Already marked, so now mark as shared */
-      //printf("marked\n");
+      //PRINT("marked\n");
       set_bit(shared_bits, n);
       num_shared++;
     } else {
       /* Mark as visited, and recurse */
-      //printf("unmarked\n");
+      //PRINT("unmarked\n");
       set_bit(marked_bits, n);
       find_sharing(FUN(n));
       n = ARG(n);
@@ -1492,7 +1492,7 @@ find_sharing(NODEPTR n)
     }
   } else {
     /* Not an application, so do nothing */
-    //printf("not T_AP\n");
+    //PRINT("not T_AP\n");
     ;
   }
 }
@@ -2383,10 +2383,10 @@ execio(NODEPTR n)
         size += glob_argc * 2 + 1;
         GCCHECK(size);
         /*
-        printf("total size %d:", size);
+        PRINT("total size %d:", size);
         for(int i = 0; i < glob_argc; i++)
-          printf(" %s", glob_argv[i]);
-        printf("\n");
+          PRINT(" %s", glob_argv[i]);
+        PRINT("\n");
         */
         n = mkNil();
         for(int i = glob_argc-1; i >= 0; i--) {
@@ -2531,7 +2531,7 @@ execio(NODEPTR n)
       if (GETTAG(n) != T_ARR)
         ERR("bad ARR tag");
       if (i >= ARR(n)->size) {
-        //printf("%d %p %d\n", (int)i, ARR(n), (int)ARR(n)->size);
+        //PRINT("%d %p %d\n", (int)i, ARR(n), (int)ARR(n)->size);
         ERR("ARR_WRITE");
       }
       ARR(n)->array[i] = ARG(TOP(3));
@@ -2679,24 +2679,24 @@ main(int argc, char **argv)
   }
   if (verbose) {
     if (verbose > 1) {
-      printf("\nmain returns ");
+      PRINT("\nmain returns ");
       pp(stdout, res);
-      printf("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
+      PRINT("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
     setlocale(LC_NUMERIC, "");  /* Make %' work on platforms that support it */
-    printf("%"PCOMMA"15"PRIheap" combinator file size\n", (heapoffs_t)file_size);
-    printf("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
-    printf("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
-    printf("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / ((double)run_time / 1000) / 1000000);
-    printf("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
-    printf("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
-    printf("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
-    printf("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
-    printf("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
-    printf("%15.2fs total expired time\n", (double)run_time / 1000);
-    printf("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
+    PRINT("%"PCOMMA"15"PRIheap" combinator file size\n", (heapoffs_t)file_size);
+    PRINT("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
+    PRINT("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
+    PRINT("%"PCOMMA"15"PRIcounter" cells allocated (%"PCOMMA".1f Mbyte/s)\n", num_alloc, num_alloc * NODE_SIZE / ((double)run_time / 1000) / 1000000);
+    PRINT("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
+    PRINT("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
+    PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
+    PRINT("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
+    PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
+    PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
+    PRINT("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
 #if GCRED
-    printf(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
+    PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
 #endif
   }
 #endif  /* WANT_STDIO */

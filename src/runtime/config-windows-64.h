@@ -121,6 +121,11 @@ gettimemilli(void)
  */
 #define EXIT exit
 
+/*
+ * print output to some standard stream, int PRINT(const char *format, ... )
+ */
+#define PRINT printf
+
 #define GCRED    1              /* do some reductions during GC */
 #define FASTTAGS 1              /* compute tag by pointer subtraction */
 #define INTTABLE 1              /* use fixed table of small INT nodes */
