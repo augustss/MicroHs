@@ -28,6 +28,11 @@ instance {-# OVERLAPPABLE #-} forall a . Eq a => Eq [a] where
   (x:xs) == (y:ys)  =  x == y && xs == ys
   _      == _       =  False
 
+instance forall a . Ord a => Ord [a] where
+  []     <= _       =  True
+  (_:_)  <= []      =  False
+  (x:xs) <= (y:ys)  =  x < y || x == y && xs <= ys
+
 instance Functor [] where
   fmap = map
 
