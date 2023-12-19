@@ -7,7 +7,7 @@ alltest:	info test errtest
 
 cache:
 	rm -f .mhscache
-	$(TMHS) -c AllOfLib
+	$(TMHS) -C AllOfLib
 
 info:
 	$(TMHS) Info       && $(EVAL)
