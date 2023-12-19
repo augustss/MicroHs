@@ -1619,18 +1619,18 @@ printrec(FILE *f, NODEPTR n)
   case T_SHR: fprintf(f, "shr"); break;
   case T_ASHR: fprintf(f, "ashr"); break;
 #if WANT_FLOAT
-  case T_FADD: fprintf(f, "fadd"); break;
-  case T_FSUB: fprintf(f, "fsub"); break;
-  case T_FMUL: fprintf(f, "fmul"); break;
-  case T_FDIV: fprintf(f, "fdiv"); break;
+  case T_FADD: fprintf(f, "f+"); break;
+  case T_FSUB: fprintf(f, "f-"); break;
+  case T_FMUL: fprintf(f, "f*"); break;
+  case T_FDIV: fprintf(f, "f/"); break;
   case T_FNEG: fprintf(f, "fneg"); break;
   case T_ITOF: fprintf(f, "itof"); break;
-  case T_FEQ: fprintf(f, "feq"); break;
-  case T_FNE: fprintf(f, "fne"); break;
-  case T_FLT: fprintf(f, "flt"); break;
-  case T_FLE: fprintf(f, "fle"); break;
-  case T_FGT: fprintf(f, "fgt"); break;
-  case T_FGE: fprintf(f, "fge"); break;
+  case T_FEQ: fprintf(f, "f=="); break;
+  case T_FNE: fprintf(f, "f/="); break;
+  case T_FLT: fprintf(f, "f<"); break;
+  case T_FLE: fprintf(f, "f<="); break;
+  case T_FGT: fprintf(f, "f>"); break;
+  case T_FGE: fprintf(f, "f>="); break;
   case T_FSHOW: fprintf(f, "fshow"); break;
   case T_FREAD: fprintf(f, "fread"); break;
 #endif
