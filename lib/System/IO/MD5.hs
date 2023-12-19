@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module System.IO.MD5(MD5CheckSum, md5File, md5Handle, md5String) where
-import Primitives(primUnsafeCoerce)
+import Primitives(primPerformIO)
 import Prelude
 import Data.Word
 import Foreign.C.String
@@ -16,6 +16,9 @@ newtype MD5CheckSum = MD5 [Word]  -- either 2*64 bits or 4*32 bits
 
 instance Eq MD5CheckSum where
   MD5 a == MD5 b  =  a == b
+
+instance Ord MD5CheckSum where
+  MD5 a <= MD5 b  =  a <= b
 
 instance Show MD5CheckSum where
   show (MD5 ws) = "MD5" ++ show ws
@@ -34,8 +37,8 @@ chksum fn = do
   free buf
   return (MD5 wmd5)
 
-md5String :: String -> IO MD5CheckSum
-md5String s = withCAString s $ chksum . c_md5String
+md5String :: String -> MD5CheckSum
+md5String s = primPerformIO $ withCAString s $ chksum . c_md5String
 
 md5Handle :: Handle -> IO MD5CheckSum
 md5Handle h = chksum $ c_md5File h
