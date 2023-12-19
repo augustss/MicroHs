@@ -1,5 +1,5 @@
 #ifndef CONFIG_H
-#define CONFIG_h
+#define CONFIG_H
 
 /*
  * In here are items that can be configured, but that does not depend on the platform.
