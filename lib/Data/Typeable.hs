@@ -146,6 +146,9 @@ instance Typeable Integer where typeRep = nullary "Data.Integer_Type" "Integer"
 instance Typeable Double where typeRep = prim "Double"
 instance Typeable Word   where typeRep = prim "Word"
 
+instance Typeable TypeRep where typeRep = nullary "Data.Typeable" "TypeRep"
+instance Typeable TyCon  where typeRep = nullary "Data.Typeable" "TyCon"
+
 instance forall a . Typeable a => Typeable (IO a) where
   typeRep _ = mkTyConApp (mkTyCon "Primitives" "IO") [typeRep (Proxy :: Proxy a)]
 instance forall a . Typeable a => Typeable (Ptr a) where
@@ -163,3 +166,4 @@ instance forall a . Typeable a => Typeable (Proxy a) where
   typeRep _ = mkTyConApp (mkTyCon "Data.Proxy" "Proxy") [typeRep (Proxy :: Proxy a)]
 instance forall a b . (Typeable a, Typeable b) => Typeable (a, b) where
   typeRep _ = mkTyConApp (mkTyCon "Data.Tuple" ",") [typeRep (Proxy :: Proxy a), typeRep (Proxy :: Proxy b)]
+
