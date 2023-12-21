@@ -3,6 +3,8 @@ module Data.Typeable (
   TypeRep,
   typeOf,
   cast,
+  eqT,
+  gcast,
   TyCon,
   tyConModule,
   tyConName,
@@ -14,22 +16,9 @@ module Data.Typeable (
   funResultTy,
   typeRepTyCon,
   typeRepArgs,
-
 {-
-        -- * For backwards compatibility
-        typeOf1, typeOf2, typeOf3, typeOf4, typeOf5, typeOf6, typeOf7,
-        Typeable1, Typeable2, Typeable3, Typeable4, Typeable5, Typeable6,
-        Typeable7,
-        -- * Type-safe cast
-        eqT,
-        gcast,                  -- a generalisation of cast
-
-        -- * Type representations
-        showsTypeRep,
-
-
-        -- * Construction of type representations
-        -- mkTyCon,        -- :: String  -> TyCon
+  typeOf1, typeOf2, typeOf3, typeOf4, typeOf5, typeOf6, typeOf7,
+  Typeable1, Typeable2, Typeable3, Typeable4, Typeable5, Typeable6, Typeable7,
 -}
   ) where
 import Primitives
@@ -42,6 +31,7 @@ import Data.Map
 import Data.Proxy
 import Data.Ratio
 import Data.STRef
+import Data.Type.Equality
 import Data.Void
 import Data.Word8
 import System.IO.MD5
@@ -128,15 +118,17 @@ cast x = if typeRep (Proxy :: Proxy a) == typeRep (Proxy :: Proxy b)
            then Just $ unsafeCoerce x
            else Nothing
 
-{-
 eqT :: forall a b. (Typeable a, Typeable b) => Maybe (a :~: b)
 eqT = if typeRep (Proxy :: Proxy a) == typeRep (Proxy :: Proxy b)
-      then Just $ unsafeCoerce Refl
+      then Just $ unsafeCoerce (Refl :: () :~: ())
       else Nothing
 
-gcast :: forall a b c. (Typeable a, Typeable b) => c a -> Maybe (c b)
-gcast x = fmap (\Refl -> x) (eqT :: Maybe (a :~: b))
--}
+gcast :: forall a b (c :: Type -> Type) .
+         (Typeable a, Typeable b) => c a -> Maybe (c b)
+gcast x =
+  case eqT :: Maybe (a :~: b) of
+    Just Refl -> Just x
+    Nothing -> Nothing
 
 -----------------
 
