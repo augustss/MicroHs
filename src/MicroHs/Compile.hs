@@ -122,7 +122,7 @@ compileModule flags nm = do
   when (verbose flags > 2) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   let
-    dmdl = desugar tmdl
+    dmdl = desugar flags tmdl
   () <- return $ rnf $ bindingsOf dmdl
   t4 <- liftIO getTimeMilli
   when (verbose flags > 3) $

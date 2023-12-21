@@ -142,6 +142,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
 #endif
                 T_ARR_ALLOC, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
                 T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
+                T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS,
@@ -151,7 +152,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_STR,
                 T_LAST_TAG,
 };
-const char* tag_names[] = {
+#if 0
+static const char* tag_names[] = {
   "FREE", "IND", "AP", "INT", "DBL", "PTR", "BADDYN", "ARR",
   "S", "K", "I", "B", "C",
   "A", "Y", "SS", "BB", "CC", "P", "R", "O", "U", "Z",
@@ -165,6 +167,7 @@ const char* tag_names[] = {
 #endif
   "ARR_ALLOC", "ARR_SIZE", "ARR_READ", "ARR_WRITE", "ARR_EQ",
   "ERROR", "NODEFAULT", "NOMATCH", "SEQ", "EQUAL", "COMPARE", "RNF",
+  "TICK",
   "IO_BIND", "IO_THEN", "IO_RETURN",
   "IO_SERIALIZE", "IO_DESERIALIZE",
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGS",
@@ -174,6 +177,7 @@ const char* tag_names[] = {
   "STR",
   "LAST_TAG",
 };
+#endif
 
 struct ioarray;
 
@@ -734,6 +738,7 @@ struct {
   { "toPtr", T_TOPTR },
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
+  { "tick", T_TICK },
 };
 
 enum node_tag flip_ops[T_LAST_TAG];
@@ -1023,6 +1028,14 @@ gc_check(size_t k)
     PRINT("gc_check: %d\n", (int)k);
 #endif
   gc();
+}
+
+/* Called with a function name when ticks are emitted. */
+void
+dotick(const char* name)
+{
+  /* do nothing for now */
+  (void)name;
 }
 
 value_t
@@ -1680,6 +1693,7 @@ printrec(FILE *f, NODEPTR n)
   case T_TOINT: fprintf(f, "toInt"); break;
   case T_TOPTR: fprintf(f, "toPtr"); break;
   case T_TODBL: fprintf(f, "toDbl"); break;
+  case T_TICK: fprintf(f, "tick"); break;
   default: ERR("print tag");
   }
 }
@@ -2298,6 +2312,14 @@ eval(NODEPTR an)
       n = TOP(-1);
       GOIND(x);
 
+    case T_TICK:
+      CHKARG2;
+      if (GETTAG(x) == T_STR)
+        dotick(STR(x));
+      else
+        ERR("bad tick");
+      GOIND(y);
+
     default:
       ERR1("eval tag %d", GETTAG(n));
     }
@@ -2329,6 +2351,17 @@ execio(NODEPTR n)
   for(;;) {
     num_reductions++;
     switch (GETTAG(n)) {
+
+#if 0
+    case T_TICK:
+      CHECKIO(2);
+      if (GETTAG(ARG(TOP(1))) == T_STR)
+        printf("tick: %s\n", STR(ARG(TOP(1))));
+      POP(2);
+      TOP(0) = ARG(TOP(0));
+      break;
+#endif
+
     case T_IND:
       n = INDIR(n);
       TOP(0) = n;
@@ -2564,6 +2597,7 @@ execio(NODEPTR n)
       }
 
     default:
+      //printf("bad tag %s\n", tag_names[GETTAG(n)]);
       ERR1("execio tag %d", GETTAG(n));
     }
   }

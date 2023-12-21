@@ -20,20 +20,21 @@ import GHC.Stack
 import MicroHs.EncodeData
 import MicroHs.Expr
 import MicroHs.Exp
+import MicroHs.Flags
 import MicroHs.Graph
 import MicroHs.Ident
 import MicroHs.TypeCheck
 
 type LDef = (Ident, Exp)
 
-desugar :: TModule [EDef] -> TModule [LDef]
-desugar atm =
+desugar :: Flags -> TModule [EDef] -> TModule [LDef]
+desugar flags atm =
   case atm of
     TModule mn fxs tys syns clss insts vals ds ->
-      TModule mn fxs tys syns clss insts vals $ map lazier $ checkDup $ concatMap (dsDef mn) ds
+      TModule mn fxs tys syns clss insts vals $ map lazier $ checkDup $ concatMap (dsDef flags mn) ds
 
-dsDef :: IdentModule -> EDef -> [LDef]
-dsDef mn adef =
+dsDef :: Flags -> IdentModule -> EDef -> [LDef]
+dsDef flags mn adef =
   case adef of
     Data _ cs ->
       let
@@ -46,7 +47,7 @@ dsDef mn adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _) -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
-    Fcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
+    Fcn f eqns -> [(f, dsEqns (wrapTick (useTicks flags) f) (getSLoc f) eqns)]
     Sign _ _ -> []
     KindSign _ _ -> []
     Import _ -> []
@@ -64,13 +65,18 @@ dsDef mn adef =
     Instance _ _ -> []
     Default _ -> []
 
+
+wrapTick :: Bool -> Ident -> Exp -> Exp
+wrapTick True  i e = App (App (Lit (LPrim "tick")) (Lit (LStr (unIdent i)))) e
+wrapTick False _ e = e
+
 oneAlt :: Expr -> EAlts
 oneAlt e = EAlts [([], e)] []
 
 dsBind :: Ident -> EBind -> [LDef]
 dsBind v abind =
   case abind of
-    BFcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
+    BFcn f eqns -> [(f, dsEqns id (getSLoc f) eqns)]
     BPat p e ->
       let
         de = (v, dsExpr e)
@@ -78,8 +84,8 @@ dsBind v abind =
       in  de : ds
     BSign _ _ -> []
 
-dsEqns :: SLoc -> [Eqn] -> Exp
-dsEqns loc eqns =
+dsEqns :: (Exp -> Exp) -> SLoc -> [Eqn] -> Exp
+dsEqns wrap loc eqns =
   case eqns of
     Eqn aps _ : _ ->
       let
@@ -89,7 +95,7 @@ dsEqns loc eqns =
           let ps' = map dsPat ps
           in  (ps', dsAlts alts)
         ex = runS loc (vs ++ xs) (map Var xs) (map mkArm eqns)
-      in foldr Lam ex xs
+      in foldr Lam (wrap ex) xs
     _ -> impossible
 
 dsAlts :: EAlts -> (Exp -> Exp)
@@ -179,7 +185,7 @@ dsExpr aexpr =
   case aexpr of
     EVar i -> Var i
     EApp f a -> App (dsExpr f) (dsExpr a)
-    ELam qs -> dsEqns (getSLoc aexpr) qs
+    ELam qs -> dsEqns id (getSLoc aexpr) qs
     ELit _ (LChar c) -> Lit (LInt (ord c))
     ELit _ (LInteger i) -> encodeInteger i
     ELit _ (LRat i) -> encodeRational i

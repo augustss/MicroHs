@@ -45,6 +45,7 @@ main = do
                   (head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"])
                   (elem "-l" args)
                   (elem "-C" args && usingMhs)
+                  (elem "-T" args)
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
    else
