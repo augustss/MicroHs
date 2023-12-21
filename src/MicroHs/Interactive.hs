@@ -2,11 +2,12 @@ module MicroHs.Interactive(module MicroHs.Interactive) where
 import Prelude
 import Data.List
 import Control.Exception
-import MicroHs.StateIO
 import MicroHs.Compile
 import MicroHs.Desugar(LDef)
+import MicroHs.Flags
 import MicroHs.Ident(mkIdent)
 import MicroHs.Parse
+import MicroHs.StateIO
 import MicroHs.Translate
 import Unsafe.Coerce
 import System.Console.SimpleReadline

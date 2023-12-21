@@ -3,7 +3,6 @@
 module MicroHs.Compile(
   compileCacheTop,
   mhsCacheName,
-  Flags(..), verbose, runIt, output, useCache,
   getCached,
   validateCache,
   Cache, emptyCache, deleteFromCache,
@@ -18,6 +17,7 @@ import MicroHs.CompileCache
 import MicroHs.Desugar
 import MicroHs.Exp
 import MicroHs.Expr
+import MicroHs.Flags
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.Parse
@@ -29,34 +29,7 @@ import MicroHs.Instances() -- for ghc
 mhsCacheName :: FilePath
 mhsCacheName = ".mhscache"
 
-data Flags = Flags
-  Int        -- verbosity level
-  Bool       -- run instead of compile
-  [String]   -- module search path
-  String     -- output file
-  Bool       -- show loading message
-  Bool       -- use caching
-  deriving (Show)
-
 type Time = Int
-
-verbose :: Flags -> Int
-verbose (Flags x _ _ _ _ _) = x
-
-runIt :: Flags -> Bool
-runIt (Flags _ x _ _ _ _) = x
-
-paths :: Flags -> [String]
-paths (Flags _ _ x _ _ _) = x
-
-output :: Flags -> String
-output (Flags _ _ _ x _ _) = x
-
-loading :: Flags -> Bool
-loading (Flags _ _ _ _ x _) = x
-
-useCache :: Flags -> Bool
-useCache (Flags _ _ _ _ _ x) = x
 
 -----------------
 
