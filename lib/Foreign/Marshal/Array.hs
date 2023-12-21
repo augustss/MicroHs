@@ -38,6 +38,12 @@ pokeArray0 marker ptr vals0 = go vals0 0
   where go []         n = pokeElemOff ptr n marker
         go (val:vals) n = do { pokeElemOff ptr n val; go vals (n + 1) }
 
+newArray :: forall a . Storable a => [a] -> IO (Ptr a)
+newArray vals  = do
+  ptr <- mallocArray (length vals)
+  pokeArray ptr vals
+  return ptr
+
 newArray0 :: forall a . Storable a => a -> [a] -> IO (Ptr a)
 newArray0 marker vals  = do
   ptr <- mallocArray0 (length vals)
@@ -50,3 +56,10 @@ lengthArray0 marker ptr = loop 0
     loop i = do
         val <- peekElemOff ptr i
         if val == marker then return i else loop (i+1)
+
+withArrray :: forall a b . Storable a => [a] -> (Ptr a -> IO b) -> IO b
+withArrray vals iob = do
+  ptr <- newArray vals
+  b <- iob ptr
+  free ptr
+  return b
