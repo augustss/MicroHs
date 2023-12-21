@@ -18,6 +18,7 @@ import Data.Char_Type
 import Data.Complex
 import Data.Constraint
 import Data.Double
+import Data.Dynamic
 import Data.Either
 import Data.Enum
 import Data.Eq
@@ -51,6 +52,7 @@ import Data.RealFloat
 import Data.Semigroup
 import Data.STRef
 import Data.Tuple
+import Data.Typeable
 import Data.TypeLits
 import Data.Void
 import Data.Word
