@@ -273,6 +273,7 @@ pDef =
   <|< Class       <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance    <$> (pKeyword "instance" *> pType) <*> pWhere pClsBind
   <|< Default     <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
+  <|< KindSign    <$> (pKeyword "type"    *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = _integerToInt ii

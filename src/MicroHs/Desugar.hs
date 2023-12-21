@@ -48,6 +48,7 @@ dsDef mn adef =
     Type _ _ -> []
     Fcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
     Sign _ _ -> []
+    KindSign _ _ -> []
     Import _ -> []
     ForImp ie i _ -> [(i, Lit $ LForImp ie)]
     Infix _ _ -> []

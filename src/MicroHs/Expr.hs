@@ -60,6 +60,7 @@ data EDef
   | Type LHS EType
   | Fcn Ident [Eqn]
   | Sign Ident EType
+  | KindSign Ident EKind
   | Import ImportSpec
   | ForImp String Ident EType
   | Infix Fixity [Ident]
@@ -518,6 +519,7 @@ ppEDef def =
     Type lhs t -> text "type" <+> ppLHS lhs <+> text "=" <+> ppEType t
     Fcn i eqns -> ppEqns (ppIdent i) (text "=") eqns
     Sign i t -> ppIdent i <+> text "::" <+> ppEType t
+    KindSign i t -> text "type" <+> ppIdent i <+> text "::" <+> ppEKind t
     Import (ImportSpec q m mm mis) -> text "import" <+> (if q then text "qualified" else empty) <+> ppIdent m <> text (maybe "" ((" as " ++) . unIdent) mm) <>
       case mis of
         Nothing -> empty
