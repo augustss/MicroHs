@@ -4,6 +4,7 @@ module Data.Dynamic(
   toDyn,
   fromDyn, fromDynamic,
   dynApply, dynApp,
+  dynTypeRep,
   ) where
 import Prelude
 import Data.Proxy
@@ -26,5 +27,8 @@ dynApp :: Dynamic -> Dynamic -> Dynamic
 dynApp f a = fromMaybe (error "Dynamic.dynApp") $ dynApply f a
 
 dynApply :: Dynamic -> Dynamic -> Maybe Dynamic
-dynApply (D ftr f) (D atr a) = fmap f $ funResultTy ftr atr
-  where f rtr = D rtr ((unsafeCoerce f) a)
+dynApply (D ftr f) (D atr a) = fmap g $ funResultTy ftr atr
+  where g rtr = D rtr ((unsafeCoerce f) a)
+
+dynTypeRep :: Dynamic -> TypeRep
+dynTypeRep (D tr _) = tr

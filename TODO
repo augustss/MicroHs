@@ -44,6 +44,3 @@
 * Stratify types/kinds/sorts
   - Do kind variables this way 'data forall (k:Kind) . T (a::k) = C'
 * Implement polykinds
-* Implement
-  - Typeable
-  - Generic
