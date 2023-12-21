@@ -34,7 +34,16 @@ module Data.Typeable (
   ) where
 import Primitives
 import Prelude
+import Control.Monad.ST
+import Data.Complex
+import Data.IntMap
+import Data.IORef
+import Data.Map
 import Data.Proxy
+import Data.Ratio
+import Data.STRef
+import Data.Void
+import Data.Word8
 import System.IO.MD5
 import Unsafe.Coerce
 
@@ -131,39 +140,51 @@ gcast x = fmap (\Refl -> x) (eqT :: Maybe (a :~: b))
 
 -----------------
 
+-- I really need to implement deriving...
+
 nullary :: forall a . String -> String -> a -> TypeRep
 nullary m n _ = mkTyConApp (mkTyCon m n) []
+
+unary :: forall (proxy :: Type -> Type) (t :: Type -> Type) a .
+         Typeable a => String -> String -> proxy (t a) -> TypeRep
+unary m n _ = mkTyConApp (mkTyCon m n) [typeRep (Proxy :: Proxy a)]
+
+binary :: forall (proxy :: Type -> Type) (t :: Type -> Type -> Type) a b .
+         (Typeable a, Typeable b) => String -> String -> proxy (t a b) -> TypeRep
+binary m n _ = mkTyConApp (mkTyCon m n) [typeRep (Proxy :: Proxy a), typeRep (Proxy :: Proxy b)]
 
 prim :: forall a . String -> a -> TypeRep
 prim n = nullary "Primitives" n
 
-instance Typeable ()     where typeRep = nullary "Data.Tuple" "()"
-instance Typeable Any    where typeRep = prim "Any"
-instance Typeable Bool   where typeRep = nullary "Data.Bool_Type" "Char"
-instance Typeable Char   where typeRep = prim "Char"
-instance Typeable Int    where typeRep = prim "Int"
+instance Typeable ()      where typeRep = nullary "Data.Tuple" "()"
+instance Typeable Any     where typeRep = prim "Any"
+instance Typeable Bool    where typeRep = nullary "Data.Bool_Type" "Char"
+instance Typeable Char    where typeRep = prim "Char"
+instance Typeable Int     where typeRep = prim "Int"
 instance Typeable Integer where typeRep = nullary "Data.Integer_Type" "Integer"
-instance Typeable Double where typeRep = prim "Double"
-instance Typeable Word   where typeRep = prim "Word"
+instance Typeable Double  where typeRep = prim "Double"
+instance Typeable Void    where typeRep = nullary "Data.Void" "Void"
+instance Typeable Word    where typeRep = prim "Word"
+instance Typeable Word8   where typeRep = nullary "Data.Word8" "Word8"
 
 instance Typeable TypeRep where typeRep = nullary "Data.Typeable" "TypeRep"
-instance Typeable TyCon  where typeRep = nullary "Data.Typeable" "TyCon"
+instance Typeable TyCon   where typeRep = nullary "Data.Typeable" "TyCon"
 
-instance forall a . Typeable a => Typeable (IO a) where
-  typeRep _ = mkTyConApp (mkTyCon "Primitives" "IO") [typeRep (Proxy :: Proxy a)]
-instance forall a . Typeable a => Typeable (Ptr a) where
-  typeRep _ = mkTyConApp (mkTyCon "Primitives" "Ptr") [typeRep (Proxy :: Proxy a)]
-instance forall a . Typeable a => Typeable (IOArray a) where
-  typeRep _ = mkTyConApp (mkTyCon "Primitives" "IOArray") [typeRep (Proxy :: Proxy a)]
+instance forall a . Typeable a => Typeable (IO a)      where typerep = unary "Primitives" "IO"
+instance forall a . Typeable a => Typeable (Ptr a)     where typeRep = unary "Primitives" "Ptr"
+instance forall a . Typeable a => Typeable (IOArray a) where typeRep = unary "Primitives" "IOArray"
+instance forall a . Typeable a => Typeable (IORef a)   where typeRep = unary "Data.IORef" "IORef"
+instance forall a . Typeable a => Typeable (IntMap a)  where typeRep = unary "Data.IntMap" "IntMap"
 
-instance forall a b . (Typeable a, Typeable b) => Typeable (Either a b) where
-  typeRep _ = mkTyConApp (mkTyCon "Data.Either" "Either") [typeRep (Proxy :: Proxy a), typeRep (Proxy :: Proxy b)]
-instance forall a . Typeable a => Typeable [a] where
-  typeRep _ = mkTyConApp (mkTyCon "Data.List_Type" "[]") [typeRep (Proxy :: Proxy a)]
-instance forall a . Typeable a => Typeable (Maybe a) where
-  typeRep _ = mkTyConApp (mkTyCon "Data.Maybe_Type" "Maybe") [typeRep (Proxy :: Proxy a)]
-instance forall a . Typeable a => Typeable (Proxy a) where
-  typeRep _ = mkTyConApp (mkTyCon "Data.Proxy" "Proxy") [typeRep (Proxy :: Proxy a)]
-instance forall a b . (Typeable a, Typeable b) => Typeable (a, b) where
-  typeRep _ = mkTyConApp (mkTyCon "Data.Tuple" ",") [typeRep (Proxy :: Proxy a), typeRep (Proxy :: Proxy b)]
+instance forall a . Typeable a => Typeable [a]         where typeRep = unary "Data.List_Type" "[]"
+instance forall a . Typeable a => Typeable (Complex a) where typeRep = unary "Data.Complex" "Complex"
+instance forall a . Typeable a => Typeable (Maybe a)   where typeRep = unary "Data.Maybe_Type" "Maybe"
+instance forall a . Typeable a => Typeable (Proxy a)   where typeRep = unary "Data.Proxy" "Proxy"
+instance forall a . Typeable a => Typeable (Ratio a)   where typeRep = unary "Data.Ratio" "Ratio"
 
+instance forall a b . (Typeable a, Typeable b) => Typeable (a, b)       where typeRep = binary "Data.Tuple" ","
+instance forall a b . (Typeable a, Typeable b) => Typeable (a -> b)     where typeRep = binary "Primitives" "->"
+instance forall a b . (Typeable a, Typeable b) => Typeable (Either a b) where typeRep = binary "Data.Either" "Either"
+instance forall a b . (Typeable a, Typeable b) => Typeable (Map a b)    where typeRep = binary "Data.Map" "Map"
+instance forall a b . (Typeable a, Typeable b) => Typeable (ST a b)     where typeRep = binary "Control.Monad.ST" "ST"
+instance forall a b . (Typeable a, Typeable b) => Typeable (STRef a b)  where typeRep = binary "Data.STRef" "STRef"
