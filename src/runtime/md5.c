@@ -222,6 +222,15 @@ void md5String(char *input, uint8_t *result){
     memcpy(result, ctx.digest, 16);
 }
 
+void md5Array(uint8_t *input, uint8_t *result, size_t inputlen){
+    MD5Context ctx;
+    md5Init(&ctx);
+    md5Update(&ctx, input, inputlen);
+    md5Finalize(&ctx);
+
+    memcpy(result, ctx.digest, 16);
+}
+
 void md5File(FILE *file, uint8_t *result){
     char *input_buffer = malloc(1024);
     size_t input_size = 0;

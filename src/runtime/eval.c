@@ -1134,6 +1134,8 @@ struct {
 
 #if WANT_MD5
   { "md5File",  (funptr_t)md5File, FFI_PPV },
+  { "md5String",(funptr_t)md5String, FFI_PPV },
+  { "md5Array", (funptr_t)md5Array, FFI_PPzV },
 #endif
 
   { "iswindows",(funptr_t)iswindows, FFI_I },
@@ -2457,7 +2459,7 @@ execio(NODEPTR n)
         case FFI_PPP: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  rp = (*(void*   (*)(void*, void*    ))f)(xp,yp); n = mkPtr(rp); RETIO(n);
         case FFI_IPI: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(value_t, void*  ))f)(xi,yp); n = mkInt(ri); RETIO(n);
         case FFI_iPi: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(int     (*)(int,   void*    ))f)(xi,yp); n = mkInt(ri); RETIO(n);
-        case FFI_PPzV:FFI (3); xp = PTRARG(1);yp = PTRARG(2); zi = INTARG(3); (*(void    (*)(void*, void*, size_t))f)(xp,yp,zi);  RETIO(combUnit);
+        case FFI_PPzV:FFI (3); xp = PTRARG(1);yp = PTRARG(2); zi = INTARG(3); (*(void    (*)(void*, void*, size_t))f)(xp,yp,zi); RETIO(combUnit);
         case FFI_PIIPI:FFI (4);xp = PTRARG(1);yi = INTARG(2); zi = INTARG(3); wp = PTRARG(4);
           ri = (*(int     (*)(void*, int, int, void*    ))f)(xp,yi,zi,wp); n = mkInt(ri); RETIO(n);
         default: ERR("T_IO_CCALL");

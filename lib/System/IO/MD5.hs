@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module System.IO.MD5(MD5CheckSum, md5File, md5Handle, md5String) where
+module System.IO.MD5(MD5CheckSum, md5File, md5Handle, md5String, md5Combine) where
 import Primitives(primPerformIO)
 import Prelude
 import Data.Word
@@ -9,8 +9,9 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
 
-foreign import ccall "md5File"   c_md5File   :: Handle  -> Ptr Word -> IO ()
-foreign import ccall "md5String" c_md5String :: CString -> Ptr Word -> IO ()
+foreign import ccall "md5File"   c_md5File   :: Handle    -> Ptr Word -> IO ()
+foreign import ccall "md5String" c_md5String :: CString   -> Ptr Word -> IO ()
+foreign import ccall "md5Array"  c_md5Array  :: Ptr Word  -> Ptr Word -> Int -> IO ()
 
 newtype MD5CheckSum = MD5 [Word]  -- either 2*64 bits or 4*32 bits
 
@@ -52,3 +53,10 @@ md5File fn = do
       cs <- md5Handle h
       hClose h
       return (Just cs)
+
+md5Combine :: [MD5CheckSum] -> MD5CheckSum
+md5Combine [] = error "md5Combine: empty"
+md5Combine [m] = m
+md5Combine ms = primPerformIO $
+  withArrray [ w | MD5 ws <- ms, w <- ws ] $ \ a -> 
+    chksum $ \ w -> c_md5Array a w (length ms * md5Len)
