@@ -72,12 +72,13 @@ substExp si se ae =
                    ase = allVarsExp se
                    j = head [ v | n <- enumFrom (0::Int), let { v = mkIdent ("a" ++ show n) }, not (elem v ase), not (elem v fe) ]
                  in
-                   --trace ("substExp " ++ unwords [si, i, j]) $
+                   --trace ("substExp " ++ show [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))
                else
                    Lam i (substExp si se e)
     Lit _ -> ae
 
+-- This naive freeVars seems to be the fastest.
 freeVars :: Exp -> [Ident]
 freeVars ae =
   case ae of
