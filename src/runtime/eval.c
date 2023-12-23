@@ -1298,6 +1298,38 @@ find_label(heapoffs_t label)
   }
 }
 
+char *
+parse_string(BFILE *f)
+{
+  size_t sz = 20;
+  char *buffer = MALLOC(sz);
+  size_t i;
+  int c;
+
+  if (!buffer)
+    memerr();
+  for(i = 0;;) {
+    c = f->getb(f);
+    if (c == '"')
+      break;
+    if (i >= sz) {
+      sz *= 2;
+      buffer = realloc(buffer, sz);
+      if (!buffer)
+        memerr();
+    }
+    if (c == '\\') {
+      buffer[i++] = (char)parse_int(f);
+      if (!gobble(f, '&'))
+        ERR("parse string");
+    } else {
+      buffer[i++] = c;
+    }
+  }
+  buffer[i++] = 0;
+  return realloc(buffer, i);
+}
+
 NODEPTR
 parse(BFILE *f)
 {
@@ -1372,26 +1404,7 @@ parse(BFILE *f)
      * Special characters are encoded as \NNN&,
      * where NNN is the decimal value of the character */
     /* XXX assume there are no NULs in the string, and all fit in a char */
-    /* XXX allocation is a hack */
-    {
-      char *buffer = MALLOC(10000);
-      char *p = buffer;
-      for(;;) {
-        c = f->getb(f);
-        if (c == '"')
-          break;
-        if (c == '\\') {
-          *p++ = (char)parse_int(f);
-          if (!gobble(f, '&'))
-            ERR("parse string");
-        } else {
-          *p++ = c;
-        }
-      }
-      *p++ = 0;
-      r = mkStrNode(realloc(buffer, p - buffer));
-      return r;
-    }
+    return mkStrNode(parse_string(f));
   case '^':
     /* An FFI name */
     for (int j = 0; (buf[j] = getNT(f)); j++)
