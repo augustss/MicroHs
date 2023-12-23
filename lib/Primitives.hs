@@ -18,7 +18,7 @@ data Type
 
 -- Classes
 -- Type equality as a constraint.
-class a ~ b | a -> b, b -> a
+-- class a ~ b | a -> b, b -> a
 -- class KnownNat in Data.TypeLits
 -- class KnownSymbol in Data.TypeLits
 

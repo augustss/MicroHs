@@ -20,7 +20,6 @@
   - instead of skolemization, use regular variables, making sure they are unique
   - allow existential quantification
     # works partially, but not constraint solving doesn't happen in all the right places
-  - don't require kind signatures in forall
 * Try Oleg's abstraction algorithm
   - Seems to be slower
 * Redo type synonym expansion

@@ -12,7 +12,7 @@ import Data.List_Type
 infixl 1 >>
 infixl 1 >>=
 
-class (Applicative m) => Monad (m :: Type -> Type) where
+class (Applicative m) => Monad m where
   (>>=)  :: forall a b . m a -> (a -> m b) -> m b
   (>>)   :: forall a b . m a -> m b -> m b
   ma >> mb = ma >>= \ _ -> mb
@@ -21,17 +21,17 @@ class (Applicative m) => Monad (m :: Type -> Type) where
   return :: forall a . a -> m a
   return = pure
 
-ap :: forall (m :: Type -> Type) a b . Monad m => m (a -> b) -> m a -> m b
+ap :: forall m a b . Monad m => m (a -> b) -> m a -> m b
 ap f a = do
   f' <- f
   a' <- a
   return (f' a')
 
-class Monad m => MonadFail (m :: Type -> Type) where
+class Monad m => MonadFail m where
   fail :: forall a . String -> m a
   fail = error
 
-mapM :: forall (m :: Type -> Type) a b . Monad m => (a -> m b) -> [a] -> m [b]
+mapM :: forall m a b . Monad m => (a -> m b) -> [a] -> m [b]
 mapM f =
   let
     rec arg =
@@ -43,7 +43,7 @@ mapM f =
           return (b : bs)
   in rec
 
-mapM_ :: forall (m :: Type -> Type) a b . Monad m => (a -> m b) -> [a] -> m ()
+mapM_ :: forall m a b . Monad m => (a -> m b) -> [a] -> m ()
 mapM_ f =
   let
     rec arg =
@@ -54,37 +54,37 @@ mapM_ f =
           rec as
   in rec
 
-when :: forall (m :: Type -> Type) . Monad m => Bool -> m () -> m ()
+when :: forall m . Monad m => Bool -> m () -> m ()
 when False _ = return ()
 when True ma = ma
 
-sequence :: forall (m :: Type -> Type) a . Monad m => [m a] -> m [a]
+sequence :: forall m a . Monad m => [m a] -> m [a]
 sequence = mapM id
 
-sequence_ :: forall (m :: Type -> Type) a . Monad m => [m a] -> m ()
+sequence_ :: forall m a . Monad m => [m a] -> m ()
 sequence_ = mapM_ id
 
-(=<<) :: forall (m :: Type -> Type) a b . Monad m => (a -> m b) -> m a -> m b
+(=<<) :: forall m a b . Monad m => (a -> m b) -> m a -> m b
 (=<<) = flip (>>=)
 
 infixr 1 <=<
-(<=<) :: forall (m :: Type -> Type) a b c . Monad m => (b -> m c) -> (a -> m b) -> (a -> m c)
+(<=<) :: forall m a b c . Monad m => (b -> m c) -> (a -> m b) -> (a -> m c)
 f <=< g = \ a -> do
   b <- g a
   f b
 
 infixr 1 >=>
-(>=>) :: forall (m :: Type -> Type) a b c . Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
+(>=>) :: forall m a b c . Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
 (>=>) = flip (<=<)
 
-filterM :: forall (m :: Type -> Type) a . Monad m => (a -> m Bool) -> [a] -> m [a]
+filterM :: forall m a . Monad m => (a -> m Bool) -> [a] -> m [a]
 filterM _ [] = return []
 filterM p (x:xs) = do
   b <- p x
   ts <- filterM p xs
   return $ if b then x : ts else ts
 
-partitionM :: forall (m :: Type -> Type) a . Monad m => (a -> m Bool) -> [a] -> m ([a], [a])
+partitionM :: forall m a . Monad m => (a -> m Bool) -> [a] -> m ([a], [a])
 partitionM _ [] = return ([], [])
 partitionM p (x:xs) = do
   b <- p x
@@ -116,6 +116,6 @@ instance Monad Maybe where
   Just a  >>= f = f a
 -}
 
-class (Monad m) => MonadPlus (m :: Type -> Type) where
+class (Monad m) => MonadPlus m where
   mzero :: forall a . m a
   mplus :: forall a . m a -> m a -> m a

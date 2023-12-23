@@ -334,7 +334,7 @@ pImportItem =
 
 pIdKind :: P IdKind
 pIdKind =
-      ((\ i -> IdKind i kType) <$> pLIdentSym)
+      ((\ i -> IdKind i (EVar dummyIdent)) <$> pLIdentSym)          -- dummyIdent indicates that we have no kind info
   <|< pParens (IdKind <$> pLIdentSym <*> (pSymbol "::" *> pKind))
 
 pKind :: P EKind

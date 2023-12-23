@@ -13,8 +13,9 @@ module MicroHs.IdentMap(
   lookup,
   size,
   toList, elems, keys,
+  mapM,
   ) where
-import Prelude hiding(lookup)
+import Prelude hiding(lookup, mapM)
 import MicroHs.Ident
 
 data Map a
@@ -52,6 +53,11 @@ fromList = fromListWith const
 
 fromListWith :: forall v . (v -> v -> v) -> [(Ident, v)] -> Map v
 fromListWith comb = foldr (uncurry (insertWith comb)) empty
+
+mapM :: forall m a b . Monad m => (a -> m b) -> Map a -> m (Map b)
+mapM _ Nil = return Nil
+mapM f (One k v) = One k <$> f v
+mapM f (Node l s k v r) = Node <$> mapM f l <*> return s <*> return k <*> f v <*> mapM f r
 
 size :: forall a . Map a -> Int
 size Nil = 0
