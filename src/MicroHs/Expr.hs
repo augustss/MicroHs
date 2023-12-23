@@ -19,6 +19,7 @@ module MicroHs.Expr(
   EConstraint,
   EPat, patVars, isPConApp,
   EKind, kType, kConstraint,
+  ESort, sKind,
   IdKind(..), idKindIdent,
   LHS,
   Constr(..), ConstrField, SType,
@@ -238,6 +239,10 @@ idKindIdent :: IdKind -> Ident
 idKindIdent (IdKind i _) = i
 
 type EKind = EType
+type ESort = EType
+
+sKind :: ESort
+sKind = EVar (Ident noSLoc "Primitives.Kind")
 
 kType :: EKind
 kType = EVar (Ident noSLoc "Primitives.Type")

@@ -68,6 +68,9 @@ nameNat = "Primitives.Nat"
 nameType :: String
 nameType = "Primitives.Type"
 
+nameKind :: String
+nameKind = "Primitives.Kind"
+
 nameConstraint :: String
 nameConstraint = "Primitives.Constraint"
 
@@ -426,7 +429,12 @@ data TCMode
   = TCExpr          -- doing type checking
   | TCType          -- doing kind checking
   | TCKind          -- doing sort checking
-  deriving (Show)
+  --deriving (Show)
+
+instance Show TCMode where
+  show TCExpr = "TCExpr"
+  show TCType = "TCType"
+  show TCKind = "TCKind"
 
 instance Enum TCMode where
   succ TCExpr = TCType
@@ -434,6 +442,22 @@ instance Enum TCMode where
   succ TCKind = error "succ TCKind"
   toEnum = undefined
   fromEnum = undefined
+
+instance Eq TCMode where
+  TCExpr == TCExpr  =  True
+  TCType == TCType  =  True
+  TCKind == TCKind  =  True
+  _      == _       =  False
+
+assertTCMode :: forall a . HasCallStack => TCMode -> T a -> T a
+assertTCMode _ ta = ta
+{-
+assertTCMode tcm ta = do
+  tcm' <- gets tcMode
+  if tcm == tcm' then ta else error $ "assertTCMode: " ++ show (tcm, tcm')
+-}
+
+------------
 
 typeTable :: TCState -> TypeTable
 typeTable (TC _ _ _ tt _ _ _ _ _ _ _ _ _) = tt
@@ -552,7 +576,8 @@ withTypeTable ta = do
   vt <- gets valueTable
   tt <- gets typeTable
   putValueTable tt            -- use type table as value table
-  putTypeTable primKindTable  -- use kind table as type table
+  let next = case om of { TCExpr -> primKindTable; TCType -> primSortTable; TCKind -> undefined }
+  putTypeTable next           -- use kind/sort table as type table
   putTCMode (succ om)
   a <- ta
   tt' <- gets valueTable
@@ -669,6 +694,13 @@ addPrimFixs =
   M.insert (mkIdent "Primitives.->") (AssocRight, -1) .
   M.insert (mkIdent "Primitives.=>") (AssocRight, -2)
 
+-- r for 'realm', suggested by ChatGPT
+rSort :: ESort
+rSort = EVar (Ident noSLoc "Primitives.Sort")
+
+sKindKindKind :: EKind
+sKindKindKind = sArrow sKind (sArrow sKind sKind)
+
 kTypeS :: EType
 kTypeS = kType
 
@@ -692,22 +724,32 @@ builtinLoc = SLoc "builtin" 0 0
 mkIdentB :: String -> Ident
 mkIdentB = mkIdentSLoc builtinLoc
 
+primSortTable :: KindTable
+primSortTable =
+  let
+    entry i = Entry (EVar (mkIdentB i))
+  in stFromList [
+       -- The kinds are wired in (for now)
+       (mkIdentB nameKind,       [entry nameType rSort]),
+       (mkIdentB "Kind",         [entry nameType rSort])
+     ]
+
 primKindTable :: KindTable
 primKindTable =
   let
     entry i = Entry (EVar (mkIdentB i))
   in stFromList [
        -- The kinds are wired in (for now)
-       (mkIdentB nameType,       [entry nameType kTypeS]),
-       (mkIdentB "Type",         [entry nameType kTypeS]),
-       (mkIdentB nameConstraint, [entry nameConstraint kTypeS]),
-       (mkIdentB "Constraint",   [entry nameConstraint kTypeS]),
-       (mkIdentB nameSymbol,     [entry nameSymbol kTypeS]),
-       (mkIdentB "Symbol",       [entry nameSymbol kTypeS]),
-       (mkIdentB nameNat,        [entry nameNat kTypeS]),
-       (mkIdentB "Nat",          [entry nameNat kTypeS]),
-       (mkIdentB nameArrow,      [entry nameArrow kTypeTypeTypeS]),
-       (mkIdentB "->",           [entry nameArrow kTypeTypeTypeS])
+       (mkIdentB nameType,       [entry nameType sKind]),
+       (mkIdentB "Type",         [entry nameType sKind]),
+       (mkIdentB nameConstraint, [entry nameConstraint sKind]),
+       (mkIdentB "Constraint",   [entry nameConstraint sKind]),
+       (mkIdentB nameSymbol,     [entry nameSymbol sKind]),
+       (mkIdentB "Symbol",       [entry nameSymbol sKind]),
+       (mkIdentB nameNat,        [entry nameNat sKind]),
+       (mkIdentB "Nat",          [entry nameNat sKind]),
+       (mkIdentB nameArrow,      [entry nameArrow sKindKindKind]),
+       (mkIdentB "->",           [entry nameArrow sKindKindKind])
        ]
 
 primTypes :: [(Ident, [Entry])]
@@ -717,6 +759,7 @@ primTypes =
     k = mkIdent "k"
     kv = EVar k
     kk = IdKind k kTypeS
+    -- Tuples are polykinded since they need to handle both Type and Constraint
     tuple n =
       let
         i = tupleConstr builtinLoc n
@@ -769,6 +812,9 @@ tImplies a r = tApp (tApp (tConI builtinLoc "Primitives.=>") a) r
 
 kArrow :: EKind -> EKind -> EKind
 kArrow = tArrow
+
+sArrow :: ESort -> ESort -> ESort
+sArrow = tArrow
 
 {-
 isArrow :: EType -> Bool
@@ -857,13 +903,18 @@ tcErrorTK :: HasCallStack =>
              SLoc -> String -> T ()
 tcErrorTK loc msg = do
   tcm <- gets tcMode
-  tcError loc $ msgTCMode (succ tcm) ++ " error: " ++ msg
+  tcError loc $ msgTCMode' tcm ++ " error: " ++ msg
 
 -- For error messages
 msgTCMode :: TCMode -> String
 msgTCMode TCExpr = "value"
 msgTCMode TCType = "type"
 msgTCMode TCKind = "kind"
+
+msgTCMode' :: TCMode -> String
+msgTCMode' TCExpr = "type"
+msgTCMode' TCType = "kind"
+msgTCMode' TCKind = "sort"
 
 unify :: HasCallStack =>
          SLoc -> EType -> EType -> T ()
@@ -883,10 +934,10 @@ unifyR loc t1           (EUVar r2)                 = unifyVar loc r2 t1
 unifyR loc t1           t2                         = do
   tcm <- gets tcMode
   case tcm of
-    TCType -> tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
     -- Defer to constraint solver.
     -- XXX needs changing if we have kind equalities.
-    _      -> addEqConstraint loc t1 t2
+    TCExpr -> addEqConstraint loc t1 t2
+    _      -> tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
 
 unifyVar :: HasCallStack =>
             SLoc -> TRef -> EType -> T ()
@@ -1094,8 +1145,8 @@ tcExpand dst = withTypeTable $ do
   return (concat dsi)
 
 -- Make sure that the kind expressions are well formed.
-tcDefKind :: EDef -> T EDef
-tcDefKind adef = do
+tcDefKind :: HasCallStack => EDef -> T EDef
+tcDefKind adef = assertTCMode TCType $ do
   tcReset
   case adef of
     Data    (i, vks) cs  -> withVks vks kType $ \ vvks _  -> return $ Data    (i, vvks) cs
@@ -1108,16 +1159,16 @@ tcDefKind adef = do
     _                    -> return adef
 
 -- Check&rename the given kinds, apply reconstruction at the end
-withVks :: forall a . [IdKind] -> EKind -> ([IdKind] -> EKind -> T a) -> T a
+withVks :: forall a . HasCallStack => [IdKind] -> EKind -> ([IdKind] -> EKind -> T a) -> T a
 withVks vks kr fun = do
   (nvks, nkr) <-
-    withTypeTable $ do
+    withTypeTable $ do  -- switch from type to kind table
       let
         loop r [] = do
-          kkr <- tInferTypeT kr
+          kkr <- tInferKindT kr
           return (reverse r, kkr)
         loop r (IdKind i k : iks) = do
-          kk <- tInferTypeT k
+          kk <- tInferKindT k
           withExtVal i kk $ loop (IdKind i kk : r) iks
       loop [] vks
   fun nvks nkr
@@ -1168,7 +1219,7 @@ addTypeSyn adef =
     _ -> return ()
 
 -- Do kind checking of all typeish definitions.
-tcDefType :: EDef -> T EDef
+tcDefType :: HasCallStack => EDef -> T EDef
 tcDefType d = do
   tcReset
   case d of
@@ -1421,6 +1472,7 @@ unForall t = ([], t)
 tcDefValue :: HasCallStack =>
               EDef -> T EDef
 tcDefValue adef =
+  assertTCMode TCExpr $
   case adef of
     Fcn i eqns -> do
       (_, tt) <- tLookup "type signature" i
@@ -1436,21 +1488,35 @@ tcDefValue adef =
       return (ForImp ie (qualIdent mn i) t)
     _ -> return adef
 
-tCheckTypeT :: EType -> EType -> T EType
+tCheckTypeT :: HasCallStack => EType -> EType -> T EType
 tCheckTypeT = tCheck tcTypeT
 
-tInferTypeT :: EType -> T EType
+tInferTypeT :: HasCallStack => EType -> T EType
 tInferTypeT t = fst <$> tInfer tcTypeT t
 
 -- Kind check a type while already in type checking mode
 tcTypeT :: HasCallStack =>
            Expected -> EType -> T EType
-tcTypeT mk t = tcExpr mk (dsType t)
+tcTypeT mk t = assertTCMode TCType $ tcExpr mk (dsType t)
+
+tInferKindT :: HasCallStack => EKind -> T EKind
+--tInferKindT t | trace ("tInferKindT: " ++ show t) False = undefined
+tInferKindT t = fst <$> tInfer tcKindT t
 
 -- Kind check a type while in value checking mode
 tcType :: HasCallStack =>
           Expected -> EType -> T EType
-tcType mk = withTypeTable . tcTypeT mk
+tcType mk = assertTCMode TCExpr . withTypeTable . tcTypeT mk
+
+-- Sort check a kind while already in sort checking mode
+tcKindT :: HasCallStack =>
+           Expected -> EType -> T EType
+tcKindT mk t = assertTCMode TCKind $ tcExpr mk t
+
+-- Sort check a kind while in type checking mode
+--tcKind :: HasCallStack =>
+--          Expected -> EType -> T EType
+--tcKind mk = assertTCMode TCType . withTypeTable . tcKindT mk
 
 {-
 -- Sort check a kind while already in type cheking mode
@@ -1560,9 +1626,9 @@ tcExprR mt ae =
 
     EApp f a -> do
       (f', ft) <- tInferExpr f
---      traceM $ "EApp f=" ++ show f ++ "; f'=" ++ show f' ++ " :: " ++ show ft
+--      traceM $ "tcExpr(1) EApp f=" ++ show f ++ "; f'=" ++ show f' ++ " :: " ++ show ft
       (at, rt) <- unArrow loc ft
---      traceM ("tcExpr EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", a=" ++ show a ++ " :: " ++ show at ++ " rt=" ++ show rt)
+--      traceM $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", a=" ++ show a ++ " :: " ++ show at ++ " rt=" ++ show rt
       a' <- checkSigma a at
       instSigma loc (EApp f' a') rt mt
 
