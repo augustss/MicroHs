@@ -26,7 +26,7 @@ import MicroHs.Instances() -- for GHC
 -- Version number of combinator file.
 -- Must match version in eval.c.
 combVersion :: String
-combVersion = "v6.0\n"
+combVersion = "v6.1\n"
 
 mhsVersion :: String
 mhsVersion = "0.9.1.0"

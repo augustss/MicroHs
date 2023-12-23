@@ -53,6 +53,9 @@ isB = isPrim "B"
 isC :: Exp -> Bool
 isC = isPrim "C"
 
+isCC :: Exp -> Bool
+isCC = isPrim "C'"
+
 isY :: Exp -> Bool
 isY = isPrim "Y"
 
@@ -262,6 +265,8 @@ improveT ae =
           Lit (LPrim "B'")
         else if isC ff && isC aa then
           Lit (LPrim "R")
+        else if isCC ff && isB aa then
+          Lit (LPrim "C'B")
         else
           let
             def =
@@ -345,3 +350,5 @@ improveT e = e
 --
 --  C'C = C' C
 --  C'C x y z w = C' C x y z w = C (x z) y w = x z w y
+--
+--  C'B P x y z w = P y (x z) w = w y (x z)

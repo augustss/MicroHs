@@ -18,7 +18,7 @@
 #include "md5.h"
 #endif
 
-#define VERSION "v6.0\n"
+#define VERSION "v6.1\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -130,7 +130,7 @@ iswindows(void)
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
-                T_K2, T_K3, T_K4,
+                T_K2, T_K3, T_K4, T_CCB,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
@@ -705,6 +705,7 @@ struct {
   { "K2", T_K2 },
   { "K3", T_K3 },
   { "K4", T_K4 },
+  { "C'B", T_CCB },
 /* primops */
   { "+", T_ADD, T_ADD },
   { "-", T_SUB, T_SUBR },
@@ -1685,6 +1686,7 @@ printrec(FILE *f, NODEPTR n)
   case T_K3: fprintf(f, "K3"); break;
   case T_K4: fprintf(f, "K4"); break;
   case T_CC: fprintf(f, "C'"); break;
+  case T_CCB: fprintf(f, "C'B"); break;
   case T_ADD: fprintf(f, "+"); break;
   case T_SUB: fprintf(f, "-"); break;
   case T_MUL: fprintf(f, "*"); break;
@@ -2170,6 +2172,7 @@ eval(NODEPTR an)
     case T_K2:               CHKARG3; GOIND(x);                                             /* K2 x y z = *x */
     case T_K3:               CHKARG4; GOIND(x);                                             /* K3 x y z w = *x */
     case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
+    case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
 
     case T_ADD:  ARITHBIN(+);
     case T_SUB:  ARITHBIN(-);
