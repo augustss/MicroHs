@@ -47,7 +47,7 @@ dsDef flags mn adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _) -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
-    Fcn f eqns -> [(f, dsEqns (wrapTick (useTicks flags) f) (getSLoc f) eqns)]
+    Fcn f eqns -> [(f,  wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
     Sign _ _ -> []
     KindSign _ _ -> []
     Import _ -> []
@@ -67,8 +67,11 @@ dsDef flags mn adef =
 
 
 wrapTick :: Bool -> Ident -> Exp -> Exp
-wrapTick True  i e = App (App (Lit (LPrim "tick")) (Lit (LStr (unIdent i)))) e
-wrapTick False _ e = e
+wrapTick False _ ee = ee
+wrapTick True  i ee = wrap ee
+  where tick = Lit (LTick (unIdent i))
+        wrap (Lam x e) = Lam x (wrap e)
+        wrap e = App tick e
 
 oneAlt :: Expr -> EAlts
 oneAlt e = EAlts [([], e)] []
@@ -76,7 +79,7 @@ oneAlt e = EAlts [([], e)] []
 dsBind :: Ident -> EBind -> [LDef]
 dsBind v abind =
   case abind of
-    BFcn f eqns -> [(f, dsEqns id (getSLoc f) eqns)]
+    BFcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
     BPat p e ->
       let
         de = (v, dsExpr e)
@@ -84,8 +87,8 @@ dsBind v abind =
       in  de : ds
     BSign _ _ -> []
 
-dsEqns :: (Exp -> Exp) -> SLoc -> [Eqn] -> Exp
-dsEqns wrap loc eqns =
+dsEqns :: SLoc -> [Eqn] -> Exp
+dsEqns loc eqns =
   case eqns of
     Eqn aps _ : _ ->
       let
@@ -95,7 +98,7 @@ dsEqns wrap loc eqns =
           let ps' = map dsPat ps
           in  (ps', dsAlts alts)
         ex = runS loc (vs ++ xs) (map Var xs) (map mkArm eqns)
-      in foldr Lam (wrap ex) xs
+      in foldr Lam ex xs
     _ -> impossible
 
 dsAlts :: EAlts -> (Exp -> Exp)
@@ -185,7 +188,7 @@ dsExpr aexpr =
   case aexpr of
     EVar i -> Var i
     EApp f a -> App (dsExpr f) (dsExpr a)
-    ELam qs -> dsEqns id (getSLoc aexpr) qs
+    ELam qs -> dsEqns (getSLoc aexpr) qs
     ELit _ (LChar c) -> Lit (LInt (ord c))
     ELit _ (LInteger i) -> encodeInteger i
     ELit _ (LRat i) -> encodeRational i

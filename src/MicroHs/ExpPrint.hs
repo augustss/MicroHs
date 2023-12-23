@@ -20,8 +20,9 @@ toStringP ae =
         toStringP (encodeString s)
     Lit (LInteger _) -> undefined
     Lit (LRat _) -> undefined
+    Lit (LTick s) -> ('!':) . (quoteString s ++)
     Lit l   -> (showLit l ++)
-    Lam x e -> (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
+    Lam _x _e -> undefined -- (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
 
 quoteString :: String -> String

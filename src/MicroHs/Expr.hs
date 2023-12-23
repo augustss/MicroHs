@@ -150,6 +150,7 @@ data Lit
   | LStr String
   | LPrim String
   | LForImp String
+  | LTick String
   deriving (Show)
 
 instance Eq Lit where
@@ -161,7 +162,8 @@ instance Eq Lit where
   (==) (LStr  x)    (LStr  y) = x == y
   (==) (LPrim x)    (LPrim y) = x == y
   (==) (LForImp x)  (LForImp y) = x == y
-  (==) _         _         = False
+  (==) (LTick x)    (LTick y) = x == y
+  (==) _            _         = False
 
 type ECaseArm = (EPat, EAlts)
 
@@ -647,6 +649,7 @@ showLit l =
     LStr s     -> show s
     LPrim s    -> s
     LForImp s  -> '^' : s
+    LTick s    -> '!' : s
 
 ppEStmt :: EStmt -> Doc
 ppEStmt as =

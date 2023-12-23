@@ -528,6 +528,59 @@ add_lzw_decompressor(BFILE *file)
 
 /*****************************************************************************/
 
+struct tick_entry {
+  const char *tick_name;
+  counter_t tick_count;
+} *tick_table = 0;
+size_t tick_table_size;
+size_t tick_index;
+
+/* Allocate a new tick table entry and return the index. */
+size_t
+add_tick_table(const char *name)
+{
+  if (!tick_table) {
+    tick_table_size = 100;
+    tick_table = malloc(tick_table_size * sizeof(struct tick_entry));
+    if (!tick_table)
+      memerr();
+    tick_index = 0;
+  }
+  if (tick_index >= tick_table_size) {
+    tick_table_size *= 2;
+    tick_table = realloc(tick_table, tick_table_size * sizeof(struct tick_entry));
+    if (!tick_table)
+      memerr();
+  }
+  tick_table[tick_index].tick_name = name;
+  tick_table[tick_index].tick_count = 0;
+  return tick_index++;
+}
+
+
+/* Called with the tick index. */
+static inline void
+dotick(value_t i)
+{
+  tick_table[i].tick_count++;
+}
+
+void
+dump_tick_table(FILE *f)
+{
+  if (!tick_table) {
+    fprintf(f, "Tick table empty\n");
+    return;
+  }
+  for (size_t i = 0; i < tick_index; i++) {
+    counter_t n = tick_table[i].tick_count;
+    if (n)
+      fprintf(f, "%-60s %10"PRIcounter"\n", tick_table[i].tick_name, n);
+  }
+}
+
+/*****************************************************************************/
+
 struct handler {
   jmp_buf         hdl_buf;      /* env storage */
   struct handler *hdl_old;      /* old handler */
@@ -738,7 +791,6 @@ struct {
   { "toPtr", T_TOPTR },
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
-  { "tick", T_TICK },
 };
 
 enum node_tag flip_ops[T_LAST_TAG];
@@ -1028,14 +1080,6 @@ gc_check(size_t k)
     PRINT("gc_check: %d\n", (int)k);
 #endif
   gc();
-}
-
-/* Called with a function name when ticks are emitted. */
-void
-dotick(const char* name)
-{
-  /* do nothing for now */
-  (void)name;
 }
 
 value_t
@@ -1405,6 +1449,13 @@ parse(BFILE *f)
      * where NNN is the decimal value of the character */
     /* XXX assume there are no NULs in the string, and all fit in a char */
     return mkStrNode(parse_string(f));
+  case '!':
+    if (!gobble(f, '"'))
+      ERR("parse !");
+    i = add_tick_table(parse_string(f));
+    r = alloc_node(T_TICK);
+    SETVALUE(r, (value_t)i);
+    return r;
   case '^':
     /* An FFI name */
     for (int j = 0; (buf[j] = getNT(f)); j++)
@@ -1548,6 +1599,22 @@ find_sharing(NODEPTR n)
   }
 }
 
+void
+print_string(FILE *f, const char *p)
+{
+  int c;
+
+  fputc('"', f);
+  while ((c = *p++)) {
+    if (c == '"' || c == '\\' || c < ' ' || c > '~') {
+      fprintf(f, "\\%d&", c);
+    } else {
+      fputc(c, f);
+    }
+  }
+  fputc('"', f);
+}
+
 /* Recursively print an expression.
    This assumes that the shared nodes has been marked as such.
 */
@@ -1597,20 +1664,8 @@ printrec(FILE *f, NODEPTR n)
       ERR("Cannot serialize pointers");
     break;
   case T_STR:
-    {
-      const char *p = STR(n);
-      int c;
-      fputc('"', f);
-      while ((c = *p++)) {
-        if (c == '"' || c == '\\' || c < ' ' || c > '~') {
-          fprintf(f, "\\%d&", c);
-        } else {
-          fputc(c, f);
-        }
-      }
-      fputc('"', f);
-      break;
-    }
+    print_string(f, STR(n));
+    break;
   case T_BADDYN: fprintf(f, "^%s", STR(n)); break;
   case T_S: fprintf(f, "S"); break;
   case T_K: fprintf(f, "K"); break;
@@ -1706,7 +1761,10 @@ printrec(FILE *f, NODEPTR n)
   case T_TOINT: fprintf(f, "toInt"); break;
   case T_TOPTR: fprintf(f, "toPtr"); break;
   case T_TODBL: fprintf(f, "toDbl"); break;
-  case T_TICK: fprintf(f, "tick"); break;
+  case T_TICK:
+    fprintf(f, "!");
+    print_string(f, tick_table[GETVALUE(n)].tick_name);
+    break;
   default: ERR("print tag");
   }
 }
@@ -2326,12 +2384,10 @@ eval(NODEPTR an)
       GOIND(x);
 
     case T_TICK:
-      CHKARG2;
-      if (GETTAG(x) == T_STR)
-        dotick(STR(x));
-      else
-        ERR("bad tick");
-      GOIND(y);
+      xi = GETVALUE(n);
+      CHKARG1;
+      dotick(xi);
+      GOIND(x);
 
     default:
       ERR1("eval tag %d", GETTAG(n));
@@ -2645,6 +2701,7 @@ main(int argc, char **argv)
   char *outname = 0;
   size_t file_size;
 #endif
+  int dump_ticks = 0;
   
 #if 0
   /* MINGW doesn't do buffering right */
@@ -2668,6 +2725,8 @@ main(int argc, char **argv)
       } else {
         if (strcmp(p, "-v") == 0)
           verbose++;
+        else if (strcmp(p, "-T") == 0)
+          dump_ticks = 1;
         else if (strncmp(p, "-H", 2) == 0)
           heap_size = memsize(&p[2]);
         else if (strncmp(p, "-K", 2) == 0)
@@ -2778,6 +2837,11 @@ main(int argc, char **argv)
 #endif
   }
 #endif  /* WANT_STDIO */
+
+  if (dump_ticks) {
+    dump_tick_table(stdout);
+  }
+
 #ifdef TEARDOWN
   main_teardown(); // do some platform specific teardown
 #endif
