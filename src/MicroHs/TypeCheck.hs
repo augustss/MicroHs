@@ -421,8 +421,19 @@ data TCState = TC
   Defaults              -- current defaults
   deriving (Show)
 
-data TCMode = TCExpr | TCType
+-- What are we checking
+data TCMode
+  = TCExpr          -- doing type checking
+  | TCType          -- doing kind checking
+  | TCKind          -- doing sort checking
   deriving (Show)
+
+instance Enum TCMode where
+  succ TCExpr = TCType
+  succ TCType = TCKind
+  succ TCKind = error "succ TCKind"
+  toEnum = undefined
+  fromEnum = undefined
 
 typeTable :: TCState -> TypeTable
 typeTable (TC _ _ _ tt _ _ _ _ _ _ _ _ _) = tt
@@ -524,6 +535,7 @@ putDefaults ds = do
   TC mn n fx tenv senv venv ast sub m cs is es _ <- get
   put (TC mn n fx tenv senv venv ast sub m cs is es ds)
 
+{-
 withTCMode :: forall a . TCMode -> T a -> T a
 withTCMode m ta = do
   om <- gets tcMode
@@ -531,10 +543,25 @@ withTCMode m ta = do
   a <- ta
   putTCMode om
   return a
+-}
 
 -- Use the type table as the value table, and the primKind table as the type table.
 withTypeTable :: forall a . T a -> T a
 withTypeTable ta = do
+  om <- gets tcMode
+  vt <- gets valueTable
+  tt <- gets typeTable
+  putValueTable tt            -- use type table as value table
+  putTypeTable primKindTable  -- use kind table as type table
+  putTCMode (succ om)
+  a <- ta
+  tt' <- gets valueTable
+  putValueTable vt
+  putTypeTable tt'
+  putTCMode om
+  return a
+  
+{-
   TC mn n fx tt st vt ast sub m cs is es ds <- get
   put (TC mn n fx primKindTable st tt ast sub m cs is es ds)
   a <- ta
@@ -544,6 +571,7 @@ withTypeTable ta = do
   -- becomes the type tables, and the old type table is restored.
   put (TC mnr nr fxr ttr str vt astr subr mr csr isr esr dsr)
   return a
+-}
 
 addAssocTable :: Ident -> [Ident] -> T ()
 addAssocTable i ids = do
@@ -829,10 +857,13 @@ tcErrorTK :: HasCallStack =>
              SLoc -> String -> T ()
 tcErrorTK loc msg = do
   tcm <- gets tcMode
-  let s = case tcm of
-            TCType -> "kind"
-            _      -> "type"
-  tcError loc $ s ++ " error: " ++ msg
+  tcError loc $ msgTCMode (succ tcm) ++ " error: " ++ msg
+
+-- For error messages
+msgTCMode :: TCMode -> String
+msgTCMode TCExpr = "value"
+msgTCMode TCType = "type"
+msgTCMode TCKind = "kind"
 
 unify :: HasCallStack =>
          SLoc -> EType -> EType -> T ()
@@ -921,10 +952,7 @@ tLookupV :: HasCallStack =>
            Ident -> T (Expr, EType)
 tLookupV i = do
   tcm <- gets tcMode
-  let s = case tcm of
-            TCType -> "type"
-            _      -> "value"
-  tLookup s i
+  tLookup (msgTCMode tcm) i
 
 tInst :: HasCallStack => (Expr, EType) -> T (Expr, EType)
 tInst (ae, EForall vks t) = tInstForall ae vks t >>= tInst
@@ -1417,7 +1445,7 @@ tInferTypeT t = fst <$> tInfer tcTypeT t
 -- Kind check a type while already in type checking mode
 tcTypeT :: HasCallStack =>
            Expected -> EType -> T EType
-tcTypeT mk t = withTCMode TCType (tcExpr mk (dsType t))
+tcTypeT mk t = tcExpr mk (dsType t)
 
 -- Kind check a type while in value checking mode
 tcType :: HasCallStack =>
@@ -1543,6 +1571,7 @@ tcExprR mt ae =
     ELit loc' l -> do
       tcm <- gets tcMode
       case tcm of
+        TCKind -> impossible
         TCType ->
           case l of
             LStr _ -> instSigma loc' (ELit loc' l) (tConI loc' nameSymbol) mt
