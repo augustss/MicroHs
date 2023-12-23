@@ -185,12 +185,21 @@ zipWith3 _ _ _ _ = []
 
 -- XXX not as lazy as it could be
 unzip :: forall a b . [(a, b)] -> ([a], [b])
+unzip xys = (map fst xys, map snd xys)  -- this version is slightly faster than the other two
+{-
 unzip axys =
   case axys of
     [] -> ([], [])
     (x,y) : xys ->
       case unzip xys of
         (xs, ys) -> (x:xs, y:ys)
+-}
+{-
+unzip [] = ([], [])
+unzip ((x,y) : xys) =
+  let (xs, ys) = unzip xys
+  in  (x:xs, y:ys)
+-}
 
 -- XXX not as lazy as it could be
 unzip3 :: forall a b c . [(a, b, c)] -> ([a], [b], [c])
