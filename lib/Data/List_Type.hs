@@ -8,5 +8,7 @@ data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable
 -- much simpler.
 infixr 5 ++
 (++) :: forall a . [a] -> [a] -> [a]
-(++) [] ys = ys
-(++) (x : xs) ys = x : xs ++ ys 
+axs ++ ys =
+  let rec [] = ys
+      rec (x:xs) = x : rec xs
+  in  rec axs
