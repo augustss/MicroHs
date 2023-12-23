@@ -275,7 +275,7 @@ newVars :: String -> [Ident] -> [Ident]
 newVars s is = deleteAllsBy (==) [ mkIdent (s ++ show i) | i <- [1::Int ..] ] is
 
 newVar :: [Ident] -> Ident
-newVar = head . newVars "$q"
+newVar = head . newVars "$v"
 
 showLDefs :: [LDef] -> String
 showLDefs = unlines . map showLDef
