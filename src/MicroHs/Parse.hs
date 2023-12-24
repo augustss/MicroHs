@@ -302,8 +302,8 @@ pConstr = (Constr <$> pForall <*> pContext <*> pUIdentSym <*> pFields)
             pForall <*> pContext <*> pSAType <*> pUSymOper <*> pSAType)
 
 pFields :: P (Either [SType] [(Ident, SType)])
-pFields = Left  <$> emany pSAType <|<
-          Right <$> (pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "::") <*> pSType) (pSpec ',') <* pSpec '}')
+pFields = Left  <$> emany pSAType
+      <|> Right <$> (pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "::") <*> pSType) (pSpec ',') <* pSpec '}')
 
 pSAType :: P (Bool, EType)
 pSAType = (,) <$> pStrict <*> pAType

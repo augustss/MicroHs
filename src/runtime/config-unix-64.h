@@ -36,7 +36,7 @@
 /*
  * Find First Set
  * This macro must be defined.
- * It return the number of the least significant bit that is set.
+ * It returns the number of the least significant bit that is set.
  * Numberings starts from 1.  If no bit is set, it should return 0.
  */
 #define FFS ffsl
@@ -53,7 +53,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
-#include <fcntl.h>
 #include <fcntl.h>
 #include <errno.h>
 #if WANT_STDIO
