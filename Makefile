@@ -92,6 +92,12 @@ timecompile: bin/mhs
 	time bin/mhs +RTS -v -RTS -isrc MicroHs.Main
 
 #
+timecachecompile: bin/mhs
+	@-rm -f .mhscache
+	bin/mhs -C AllOfLib
+	bin/mhs +RTS -v -RTS -C -isrc MicroHs.Main
+
+#
 cachelib:
 	@-rm -f .mhscache
 	bin/mhs -C AllOfLib

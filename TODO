@@ -20,14 +20,14 @@
   - instead of skolemization, use regular variables, making sure they are unique
   - allow existential quantification
     # works partially, but not constraint solving doesn't happen in all the right places
+    # check for escaping skolemized variables
 * Try Oleg's abstraction algorithm
   - Seems to be slower
 * Redo type synonym expansion
   - Only non-injective synonyms necessitate expansion(?)
   - Do expansion during unification
 * Redo handling of synonym and instance tables.
-  - These tables can persist during the compilation
-    and only grow
+  - These tables can persist during the compilation and only grow
 * Implement two level tables for instances even in the tricky cases
 * Handle tupled dictionaries better for recursive calls
 * Split eval.c
@@ -40,6 +40,3 @@
   - In GC mark pass
   - In evaluator
 * Fix bug uncovered by Data.Type.Equality
-* Stratify types/kinds/sorts
-  - Do kind variables this way 'data forall (k:Kind) . T (a::k) = C'
-* Implement polykinds

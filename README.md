@@ -51,6 +51,7 @@ Differences:
    * NegativeLiterals
    * NoMonomorphismRestriction
    * OverlappingInstances
+   * PolyKinds
    * RankNTypes
    * QualifiedDo
    * ScopedTypeVariables
