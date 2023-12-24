@@ -23,7 +23,7 @@ class Eq a => Ord a where
   compare x y = if x <= y then (if y <= x then EQ else LT) else GT
   x < y   = if y <= x then False else True
   x > y   = if x <= y then False else True
-  x >= y  = x <= y
+  x >= y  = y <= x
   min x y = if x <= y then x else y
   max x y = if x <= y then y else x
 
