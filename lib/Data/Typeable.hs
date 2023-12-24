@@ -38,7 +38,7 @@ import System.IO.MD5
 import Unsafe.Coerce
 
 class Typeable a where
-  typeRep :: forall (proxy :: Type -> Type) . proxy a -> TypeRep
+  typeRep :: forall proxy . proxy a -> TypeRep
 
 typeOf :: forall a . Typeable a => a -> TypeRep
 typeOf _ = typeRep (Proxy :: Proxy a)
@@ -123,7 +123,7 @@ eqT = if typeRep (Proxy :: Proxy a) == typeRep (Proxy :: Proxy b)
       then Just $ unsafeCoerce (Refl :: () :~: ())
       else Nothing
 
-gcast :: forall a b (c :: Type -> Type) .
+gcast :: forall a b c .
          (Typeable a, Typeable b) => c a -> Maybe (c b)
 gcast x =
   case eqT :: Maybe (a :~: b) of
@@ -137,11 +137,11 @@ gcast x =
 nullary :: forall a . String -> String -> a -> TypeRep
 nullary m n _ = mkTyConApp (mkTyCon m n) []
 
-unary :: forall (proxy :: Type -> Type) (t :: Type -> Type) a .
+unary :: forall proxy t a .
          Typeable a => String -> String -> proxy (t a) -> TypeRep
 unary m n _ = mkTyConApp (mkTyCon m n) [typeRep (Proxy :: Proxy a)]
 
-binary :: forall (proxy :: Type -> Type) (t :: Type -> Type -> Type) a b .
+binary :: forall proxy t a b .
          (Typeable a, Typeable b) => String -> String -> proxy (t a b) -> TypeRep
 binary m n _ = mkTyConApp (mkTyCon m n) [typeRep (Proxy :: Proxy a), typeRep (Proxy :: Proxy b)]
 

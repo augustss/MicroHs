@@ -6,5 +6,5 @@ data Void
 absurd :: forall a . Void -> a
 absurd v = seq v (error "absurd")
 
-vacuous :: forall (f :: Type -> Type) a . Functor f => f Void -> f a
+vacuous :: forall f a . Functor f => f Void -> f a
 vacuous = fmap absurd
