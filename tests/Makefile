@@ -53,6 +53,7 @@ test:
 	$(TMHS) IOArray    && $(EVAL) > IOArray.out    && diff IOArray.ref IOArray.out
 	$(TMHS) ST         && $(EVAL) > ST.out         && diff ST.ref ST.out
 	$(TMHS) HigherKind && $(EVAL) > HigherKind.out && diff HigherKind.ref HigherKind.out
+	$(TMHS) PolyKind   && $(EVAL) > PolyKind.out   && diff PolyKind.ref PolyKind.out
 
 errtest:
 	sh errtester.sh < errmsg.test
