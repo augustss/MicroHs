@@ -35,6 +35,7 @@ Differences:
  * The `Prelude` has to be imported explicitly.
  * Polymorphic types are never inferred; use a type signature if you need it.
  * A module must have an export list.
+ * The `default` list is empty, except in the interactive system.
  * Always enabled extension:
    * ConstraintKinds
    * EmptyDataDecls

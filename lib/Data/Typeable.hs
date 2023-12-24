@@ -37,6 +37,7 @@ import Data.Word8
 import System.IO.MD5
 import Unsafe.Coerce
 
+--type  Typeable :: forall k . k -> Constraint
 class Typeable a where
   typeRep :: forall proxy . proxy a -> TypeRep
 
