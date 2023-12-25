@@ -43,6 +43,7 @@ executable mhs
   other-modules:       MicroHs.Abstract
                        MicroHs.Compile
                        MicroHs.CompileCache
+                       MicroHs.Deriving
                        MicroHs.Desugar
                        MicroHs.EncodeData
                        MicroHs.Exp
