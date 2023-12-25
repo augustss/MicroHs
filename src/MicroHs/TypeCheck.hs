@@ -119,64 +119,6 @@ type SynDef = (Ident, EType)
 type ClsDef = (Ident, ClassInfo)
 type InstDef= (Ident, InstInfo)
 
-type ClassInfo = ([IdKind], [EConstraint], EType, [Ident], [IFunDep])  -- class tyvars, superclasses, class kind, methods, fundeps
-type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables
-
--- Symbol table entry for symbol i.
-data Entry = Entry
-  Expr             -- convert (EVar i) to this expression; sometimes just (EVar i)
-  EType            -- type/kind of identifier
---  deriving(Show)
-
-instance Show Entry where
-  showsPrec _ (Entry e t) = showsPrec 0 e . showString " :: " . showsPrec 0 t
-
-instance Eq Entry where
-  Entry x _ == Entry y _  =  getIdent x == getIdent y
-
-
-entryType :: Entry -> EType
-entryType (Entry _ t) = t
-
-type ValueTable = SymTab Entry     -- type of value identifiers, used during type checking values
-type TypeTable  = SymTab Entry     -- kind of type  identifiers, used during kind checking types
-type KindTable  = SymTab Entry     -- sort of kind  identifiers, used during sort checking kinds
-type SynTable   = M.Map EType      -- body of type synonyms
-type FixTable   = M.Map Fixity     -- precedence and associativity of operators
-type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated construcors/selectors/methods
-type ClassTable = M.Map ClassInfo  -- maps a class identifier to its associated information
-type InstTable  = M.Map InstInfo   -- indexed by class name
-type MetaTable  = [(Ident, EConstraint)]  -- instances with unification variables
-type Constraints= [(Ident, EConstraint)]
-type Defaults   = [EType]          -- Current defaults
-
--- To make type checking fast it is essential to solve constraints fast.
--- The naive implementation of InstInfo would be [InstDict], but
--- that is slow.
--- Instead, the data structure is specialized
---  * For single parameter type classes for atomic types, e.g., Eq Int
---    we use the type name (i.e., Int) to index into a map that gives
---    the dictionary directly.  This map is also used for dictionary arguments
---    of type, e.g., Eq a.
---  * NOT IMPLEMENTED: look up by type name of the left-most type
---  * As a last resort, just look through dictionaries.
-data InstInfo = InstInfo
-       (M.Map Expr)               -- map for direct lookup of atomic types
-       [InstDict]                 -- slow path
-       [IFunDep]
-  deriving (Show)
-
--- This is the dictionary expression, instance variables, instance context,
--- and instance.
-type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint, [IFunDep])
--- This is the dictionary expression, instance context, and types.
--- An instance (C T1 ... Tn) has the type list [T1,...,Tn]
--- The types and constraint have their type variables normalized to EUVar (-1), EUVar (-2), etc
-type InstDict   = (Expr, [EConstraint], [EType])
-
--- All known type equalities, contains the transitive&commutative closure.
-type TypeEqTable = [(EType, EType)]
-
 type Sigma = EType
 --type Tau   = EType
 type Rho   = EType
@@ -270,11 +212,6 @@ tyQIdent _ = error "tyQIdent"
 
 eVarI :: SLoc -> String -> Expr
 eVarI loc = EVar . mkIdentSLoc loc
-
-getAppCon :: EType -> Ident
-getAppCon (EVar i) = i
-getAppCon (EApp f _) = getAppCon f
-getAppCon _ = error "getAppCon"
 
 getApp :: HasCallStack => EType -> (Ident, [EType])
 getApp = loop []
@@ -396,185 +333,12 @@ mergeInstInfo (InstInfo m1 l1 fds) (InstInfo m2 l2 _) =
     l = unionBy eqInstDict l1 l2
   in  InstInfo m l fds
 
-getIdent :: Expr -> Ident
-getIdent ae =
-  case ae of
-    EVar i -> i
-    ECon c -> conIdent c
-    _ -> impossible
-
 -- Approximate equality for dictionaries.
 -- The important thing is to avoid exact duplicates in the instance table.
 eqInstDict :: InstDict -> InstDict -> Bool
 eqInstDict (e, _, _) (e', _, _) = eqExpr e e'
 
 --------------------------
-
-type Typed a = (a, EType)
-
-data TCState = TC
-  IdentModule           -- current module name
-  Int                   -- unique number
-  FixTable              -- fixities, indexed by QIdent
-  TypeTable             -- type symbol table
-  SynTable              -- synonyms, indexed by QIdent
-  ValueTable            -- value symbol table
-  AssocTable            -- values associated with a type, indexed by QIdent
-  (IM.IntMap EType)     -- mapping from unique id to type
-  TCMode                -- pattern, value, or type
-  ClassTable            -- class info, indexed by QIdent
-  (InstTable,           -- instances
-   MetaTable,           -- instances with unification variables
-   TypeEqTable)         -- type equalities
-  Constraints           -- constraints that have to be solved
-  Defaults              -- current defaults
-  deriving (Show)
-
--- What are we checking
-data TCMode
-  = TCExpr          -- doing type checking
-  | TCType          -- doing kind checking
-  | TCKind          -- doing sort checking
-  | TCSort
-  --deriving (Show)
-
-instance Show TCMode where
-  show TCExpr = "TCExpr"
-  show TCType = "TCType"
-  show TCKind = "TCKind"
-  show TCSort = "TCSort"
-
-instance Enum TCMode where
-  succ TCExpr = TCType
-  succ TCType = TCKind
-  succ TCKind = TCSort
-  succ TCSort = error "succ TCSort"
-  toEnum = undefined
-  fromEnum = undefined
-
-instance Ord TCMode where
-  TCExpr <= _       =  True
-
-  TCType <= TCExpr  =  False
-  TCType <= _       =  True
-
-  TCKind <= TCExpr  =  False
-  TCKind <= TCType  =  False
-  TCKind <= _       =  True
-
-  TCSort <= TCSort  =  True
-  TCSort <= _       =  False
-
-instance Eq TCMode where
-  x == y  =  x <= y && y <= x
-
-assertTCMode :: forall a . HasCallStack => (TCMode -> Bool) -> T a -> T a
---assertTCMode _ ta | usingMhs = ta
-assertTCMode p ta = do
-  tcm <- gets tcMode
-  if p tcm then ta else error $ "assertTCMode: expected=" ++ show (filter p [TCExpr,TCType,TCKind]) ++ ", got=" ++ show tcm
-
-------------
-
-typeTable :: TCState -> TypeTable
-typeTable (TC _ _ _ tt _ _ _ _ _ _ _ _ _) = tt
-
-valueTable :: TCState -> ValueTable
-valueTable (TC _ _ _ _ _ vt _ _ _ _ _ _ _) = vt
-
-synTable :: TCState -> SynTable
-synTable (TC _ _ _ _ st _ _ _ _ _ _ _ _) = st
-
-fixTable :: TCState -> FixTable
-fixTable (TC _ _ ft _ _ _ _ _ _ _ _ _ _) = ft
-
-assocTable :: TCState -> AssocTable
-assocTable (TC _ _ _ _ _ _ ast _ _ _ _ _ _) = ast
-
-uvarSubst :: TCState -> IM.IntMap EType
-uvarSubst (TC _ _ _ _ _ _ _ sub _ _ _ _ _) = sub
-
-moduleName :: TCState -> IdentModule
-moduleName (TC mn _ _ _ _ _ _ _ _ _ _ _ _) = mn
-
-classTable :: TCState -> ClassTable
-classTable (TC _ _ _ _ _ _ _ _ _ ct _ _ _) = ct
-
-tcMode :: TCState -> TCMode
-tcMode (TC _ _ _ _ _ _ _ _ m _ _ _ _) = m
-
-instTable :: TCState -> InstTable
-instTable (TC _ _ _ _ _ _ _ _ _ _ (is, _, _) _ _) = is
-
-metaTable :: TCState -> MetaTable
-metaTable (TC _ _ _ _ _ _ _ _ _ _ (_, ms, _) _ _) = ms
-
-typeEqTable :: TCState -> TypeEqTable
-typeEqTable (TC _ _ _ _ _ _ _ _ _ _ (_, _, es) _ _) = es
-
-ctxTables :: TCState -> (InstTable, MetaTable, TypeEqTable)
-ctxTables (TC _ _ _ _ _ _ _ _ _ _ ct _ _) = ct
-
-constraints :: TCState -> Constraints
-constraints (TC _ _ _ _ _ _ _ _ _ _ _ e _) = e
-
-defaults :: TCState -> Defaults
-defaults (TC _ _ _ _ _ _ _ _ _ _ _ _ ds) = ds
-
-putValueTable :: ValueTable -> T ()
-putValueTable venv = do
-  TC mn n fx tenv senv _ ast sub m cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
-
-putTypeTable :: TypeTable -> T ()
-putTypeTable tenv = do
-  TC mn n fx _ senv venv ast sub m cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
-
-putSynTable :: SynTable -> T ()
-putSynTable senv = do
-  TC mn n fx tenv _ venv ast sub m cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
-
-putUvarSubst :: IM.IntMap EType -> T ()
-putUvarSubst sub = do
-  TC mn n fx tenv senv venv ast _ m cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
-
-putTCMode :: TCMode -> T ()
-putTCMode m = do
-  TC mn n fx tenv senv venv ast sub _ cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
-
-putInstTable :: InstTable -> T ()
-putInstTable is = do
-  TC mn n fx tenv senv venv ast sub m cs (_,ms,eqs) es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs (is,ms,eqs) es ds)
-
-putMetaTable :: MetaTable -> T ()
-putMetaTable ms = do
-  TC mn n fx tenv senv venv ast sub m cs (is,_,eqs) es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs (is,ms,eqs) es ds)
-
-putTypeEqTable :: TypeEqTable -> T ()
-putTypeEqTable eqs = do
-  TC mn n fx tenv senv venv ast sub m cs (is,ms,_) es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs (is,ms,eqs) es ds)
-
-putCtxTables :: (InstTable, MetaTable, TypeEqTable) -> T ()
-putCtxTables ct = do
-  TC mn n fx tenv senv venv ast sub m cs _ es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs ct es ds)
-
-putConstraints :: Constraints -> T ()
-putConstraints es = do
-  TC mn n fx tenv senv venv ast sub m cs is _ ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
-
-putDefaults :: Defaults -> T ()
-putDefaults ds = do
-  TC mn n fx tenv senv venv ast sub m cs is es _ <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
 
 -- Use the type table as the value table, and the primKind table as the type table.
 withTypeTable :: forall a . T a -> T a
@@ -800,8 +564,6 @@ primValues =
         r = tApps c ts
       in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall vks $ foldr tArrow r ts ])
   in  map tuple (enumFromTo 2 10)
-
-type T a = TC TCState a
 
 tCon :: Ident -> EType
 tCon = EVar
@@ -1193,9 +955,10 @@ getKindSigns ds = do
 -- Expand class and instance definitions (must be done after type synonym processing)
 tcExpand :: [EDef] -> T [EDef]
 tcExpand dst = withTypeTable $ do
-  dsc <- mapM expandClass dst                  -- Expand all class definitions
-  dsi <- mapM expandInst (concat dsc)          -- Expand all instance definitions
-  return (concat dsi)
+  dsc <- concat <$> mapM expandClass dst       -- Expand all class definitions
+--  dsf <- concat <$> mapM expandField dsc       -- Add HasField instances
+  dsi <- concat <$> mapM expandInst dsc        -- Expand all instance definitions
+  return dsi
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
 withVks :: forall a . HasCallStack => [IdKind] -> ([IdKind] -> T a) -> T a
@@ -2810,47 +2573,6 @@ eqTyTy :: (EType, EType) -> (EType, EType) -> Bool
 eqTyTy (t1, t2) (u1, u2) = eqEType t1 u1 && eqEType t2 u2
 
 ---------------------
-
-data SymTab a = SymTab (M.Map [a]) [(Ident, a)]
---  deriving(Show)
-
-instance forall a . Show a => Show (SymTab a) where
-  show (SymTab g l) = unlines $
-    ("Locals:"  : map (("  " ++) . show) l) ++
-    ("Globals:" : map (("  " ++) . show) (M.toList g))
-  
-mapMSymTab :: forall a . (a -> T a) -> SymTab a -> T (SymTab a)
-mapMSymTab f (SymTab g l) = do
-  g' <- M.mapM (mapM f) g
-  l' <- mapM (\ (i, a) -> (i,) <$> f a) l
-  return $ SymTab g' l'
-
-stLookup :: String -> Ident -> SymTab Entry -> Either String Entry
-stLookup msg i (SymTab genv lenv) =
-  case lookup i lenv of
-    Just e -> Right e
-    Nothing ->
-      case M.lookup i genv of
-        Just [e] -> Right e
-        Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++ showListS (showIdent . getAppCon) [ e | Entry e _ <- es ]
-        Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
-                           -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
-
-stFromListWith :: forall a . ([a] -> [a] -> [a]) -> [(Ident, [a])] -> SymTab a
-stFromListWith comb ias = SymTab (M.fromListWith comb ias) []
-
-stFromList :: forall a . [(Ident, [a])] -> SymTab a
-stFromList ias = SymTab (M.fromList ias) []
-
-stElemsLcl :: forall a . SymTab a -> [a]
-stElemsLcl (SymTab _genv lenv) = map snd lenv
-
-stInsertLcl :: forall a . Ident -> a -> SymTab a -> SymTab a
-stInsertLcl i a (SymTab genv lenv) = SymTab genv ((i,a) : lenv)
-
--- XXX Use insertWith to follow Haskell semantics.
-stInsertGlb :: forall a . Ident -> [a] -> SymTab a -> SymTab a
-stInsertGlb i as (SymTab genv lenv) = SymTab (M.insert i as genv) lenv
 
 -- Try adding all dictionaries that used to have meta variables.
 addMetaDicts :: T ()
