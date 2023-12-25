@@ -248,10 +248,10 @@ mkTModule tds tcs =
 
     -- All top level types possible to export.
     tes =
-      [ TypeExport i (tentry i) (assoc i) | Data    (i, _) _ <- tds ] ++
-      [ TypeExport i (tentry i) (assoc i) | Newtype (i, _) _ <- tds ] ++
+      [ TypeExport i (tentry i) (assoc i) | Data    (i, _) _ _ <- tds ] ++
+      [ TypeExport i (tentry i) (assoc i) | Newtype (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) (assoc i) | Class _ (i, _) _ _ <- tds ] ++
-      [ TypeExport i (tentry i) []        | Type    (i, _) _ <- tds ]
+      [ TypeExport i (tentry i) []        | Type    (i, _) _   <- tds ]
 
     -- All type synonym definitions.
     ses = [ (qualIdent mn i, EForall vs t) | Type (i, vs) t  <- tds ]
@@ -958,8 +958,9 @@ tcExpand :: [EDef] -> T [EDef]
 tcExpand dst = withTypeTable $ do
   dsc <- concat <$> mapM expandClass dst       -- Expand all class definitions
   dsf <- concat <$> mapM expandField dsc       -- Add HasField instances
---  traceM $ showEDefs dsf
-  dsi <- concat <$> mapM expandInst  dsf       -- Expand all instance definitions
+  dsd <- concat <$> mapM doDeriving  dsf       -- Add derived instances
+--  traceM $ showEDefs dsd
+  dsi <- concat <$> mapM expandInst  dsd       -- Expand all instance definitions
   return dsi
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
@@ -995,10 +996,10 @@ addTypeKind kdefs adef = do
       extValQTop i k
       
   case adef of
-    Data    lhs@(i, _) cs   -> do
+    Data    lhs@(i, _) cs _ -> do
       addDef lhs
       addAssoc i (nub $ concatMap assocData cs)
-    Newtype lhs@(i, _) c    -> do
+    Newtype lhs@(i, _) c  _ -> do
       addDef lhs
       addAssoc i (assocData c)
     Type    lhs _           ->
@@ -1024,8 +1025,8 @@ tcDefType :: HasCallStack => EDef -> T EDef
 tcDefType def = do
   --tcReset
   case def of
-    Data    lhs cs         -> withLHS lhs $ \ lhs' -> (,kType)       <$> (Data    lhs'  <$> mapM tcConstr cs)
-    Newtype lhs c          -> withLHS lhs $ \ lhs' -> (,kType)       <$> (Newtype lhs'  <$> tcConstr c)
+    Data    lhs cs ds      -> withLHS lhs $ \ lhs' -> (,kType)       <$> (Data    lhs'  <$> mapM tcConstr cs <*> mapM tcDerive ds)
+    Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> (,kType)       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDerive ds)
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first              (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> (,kConstraint) <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
     Sign      i t          ->                                             Sign      i   <$> tCheckTypeT kType t
@@ -1038,6 +1039,7 @@ tcDefType def = do
    tcMethod m = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
+   tcDerive = tCheckTypeT (kType `kArrow` kConstraint)
 
 withLHS :: forall a . HasCallStack => LHS -> (LHS -> T (a, EKind)) -> T a
 withLHS (i, vks) ta = do
@@ -1211,7 +1213,7 @@ addValueType adef = do
   mn <- gets moduleName
   case adef of
     Sign i t -> extValQTop i t
-    Data (i, vks) cs -> do
+    Data (i, vks) cs _ -> do
       let
         cti = [ (qualIdent mn c, either length length ets + if null ctx then 0 else 1) | Constr _ ctx c ets <- cs ]
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
@@ -1221,7 +1223,7 @@ addValueType adef = do
               fs = either (const []) (map fst) ets
           extValETop c cty (ECon $ ConData cti (qualIdent mn c) fs)
       mapM_ addCon cs
-    Newtype (i, vks) (Constr _ _ c ets) -> do
+    Newtype (i, vks) (Constr _ _ c ets) _ -> do
       let
         t = snd $ head $ either id (map snd) ets
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)

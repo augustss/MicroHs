@@ -262,8 +262,8 @@ pBlock p = do
 pDef :: P EDef
 pDef =
       Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 pConstr (pSymbol "|"))
-                                                        <|< pure []) <* pDeriving
-  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField)) <* pDeriving
+                                                        <|< pure []) <*> pDeriving
+  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
   <|< uncurry Fcn <$> pEqns
   <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pType
@@ -287,9 +287,10 @@ pDef =
       guard $ either length length fs == 1
       pure fs
 
--- deriving is parsed, but ignored
-pDeriving :: P [EType]
-pDeriving = pKeyword "deriving" *> pParens (esepBy pType (pSpec ',')) <|< pure []
+pDeriving :: P [EConstraint]
+pDeriving = pKeyword "deriving" *> pDer <|< pure []
+  where pDer =     pParens (esepBy pType (pSpec ','))
+               <|< ((:[]) <$> pType)
 
 pContext :: P [EConstraint]
 pContext = (pCtx <* pSymbol "=>") <|< pure []

@@ -1,4 +1,4 @@
-module MicroHs.Deriving(expandField) where
+module MicroHs.Deriving(expandField, doDeriving) where
 import Prelude
 import Data.Function
 import Data.List
@@ -7,8 +7,9 @@ import MicroHs.Ident
 import MicroHs.TCMonad
 
 expandField :: EDef -> T [EDef]
-expandField def@(Data lhs cs) = (def:) <$> genHasFields lhs cs
-expandField def = return [def]
+expandField def@(Data    lhs cs _) = (def:) <$> genHasFields lhs cs
+expandField def@(Newtype lhs  c _) = (def:) <$> genHasFields lhs [c]
+expandField def                    = return [def]
 
 genHasFields :: LHS -> [Constr] -> T [EDef]
 genHasFields lhs cs = do
@@ -55,3 +56,13 @@ nameHasField = "Data.Record.HasField"
 
 namehasField :: String
 namehasField = "hasField"
+
+--------------------------------------------
+
+doDeriving :: EDef -> T [EDef]
+doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (derive lhs  cs) ds
+doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (derive lhs [c]) ds
+doDeriving def                     = return [def]
+
+derive :: LHS -> [Constr] -> EConstraint -> T [EDef]
+derive _lhs _cs _con = return []

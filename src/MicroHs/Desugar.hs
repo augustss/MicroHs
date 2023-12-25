@@ -36,7 +36,7 @@ desugar flags atm =
 dsDef :: Flags -> IdentModule -> EDef -> [LDef]
 dsDef flags mn adef =
   case adef of
-    Data _ cs ->
+    Data _ cs _ ->
       let
         n = length cs
         dsConstr i (Constr _ ctx c ets) =
@@ -45,7 +45,7 @@ dsDef flags mn adef =
                  map fst (either id (map snd) ets)   -- strict flags
           in (qualIdent mn c, encConstr i n ss)
       in  zipWith dsConstr [0::Int ..] cs
-    Newtype _ (Constr _ _ c _) -> [ (qualIdent mn c, Lit (LPrim "I")) ]
+    Newtype _ (Constr _ _ c _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
     Fcn f eqns -> [(f,  wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
     Sign _ _ -> []

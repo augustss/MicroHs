@@ -56,8 +56,8 @@ data ExportItem
   deriving (Show)
 
 data EDef
-  = Data LHS [Constr]
-  | Newtype LHS Constr
+  = Data LHS [Constr] Deriving
+  | Newtype LHS Constr Deriving
   | Type LHS EType
   | Fcn Ident [Eqn]
   | Sign Ident EType
@@ -78,6 +78,8 @@ data ImportItem
   | ImpType Ident
   | ImpValue Ident
   deriving (Show)
+
+type Deriving = [EConstraint]
 
 data Expr
   = EVar Ident
@@ -535,9 +537,9 @@ ppImportItem ae =
 ppEDef :: EDef -> Doc
 ppEDef def =
   case def of
-    Data lhs [] -> text "data" <+> ppLHS lhs
-    Data lhs cs -> text "data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs))
-    Newtype lhs c -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c
+    Data lhs [] ds -> text "data" <+> ppLHS lhs <+> ppDeriving ds
+    Data lhs cs ds -> text "data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDeriving ds
+    Newtype lhs c ds -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c <+> ppDeriving ds
     Type lhs t -> text "type" <+> ppLHS lhs <+> text "=" <+> ppEType t
     Fcn i eqns -> ppEqns (ppIdent i) (text "=") eqns
     Sign i t -> ppIdent i <+> text "::" <+> ppEType t
@@ -545,13 +547,17 @@ ppEDef def =
     Import (ImportSpec q m mm mis) -> text "import" <+> (if q then text "qualified" else empty) <+> ppIdent m <> text (maybe "" ((" as " ++) . unIdent) mm) <>
       case mis of
         Nothing -> empty
-        Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ", ") (map ppImportItem is))
+        Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ",") (map ppImportItem is))
     ForImp ie i t -> text ("foreign import ccall " ++ show ie) <+> ppIdent i <+> text "::" <+> ppEType t
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
     Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default ts -> text "default" <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
+
+ppDeriving :: Deriving -> Doc
+ppDeriving [] = empty
+ppDeriving ds = text "deriving" <+> parens (hsep $ punctuate (text ",") (map ppExpr ds))
 
 ppCtx :: [EConstraint] -> Doc
 ppCtx [] = empty
