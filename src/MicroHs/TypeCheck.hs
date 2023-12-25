@@ -24,6 +24,7 @@ import qualified Data.IntMap as IM
 import MicroHs.TCMonad as T
 import qualified MicroHs.IdentMap as M
 import MicroHs.Ident
+import MicroHs.Deriving
 import MicroHs.Expr
 import MicroHs.Fixity
 import Compat
@@ -956,8 +957,9 @@ getKindSigns ds = do
 tcExpand :: [EDef] -> T [EDef]
 tcExpand dst = withTypeTable $ do
   dsc <- concat <$> mapM expandClass dst       -- Expand all class definitions
---  dsf <- concat <$> mapM expandField dsc       -- Add HasField instances
-  dsi <- concat <$> mapM expandInst dsc        -- Expand all instance definitions
+  dsf <- concat <$> mapM expandField dsc       -- Add HasField instances
+--  traceM $ showEDefs dsf
+  dsi <- concat <$> mapM expandInst  dsf       -- Expand all instance definitions
   return dsi
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
@@ -1196,12 +1198,6 @@ expandInst dinst@(Instance act bs) = do
   addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc, fds)]
   return [dinst, sign, bind]
 expandInst d = return [d]
-
-{-
-eForall :: [IdKind] -> EType -> EType
-eForall [] t = t
-eForall vs t = EForall vs t
--}
 
 ---------------------
 
@@ -2538,7 +2534,7 @@ checkConstraints = do
       t' <- derefUVar t
 --      is <- gets instTable
 --      traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> show i ++ ":\n" ++ showInstInfo ii) (M.toList is))
-      tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ showExpr t'
+      tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ show t'
 
 -- Add a type equality constraint.
 addEqConstraint :: SLoc -> EType -> EType -> T ()

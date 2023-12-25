@@ -38,6 +38,7 @@ Differences:
  * The `default` list is empty, except in the interactive system.
  * Always enabled extension:
    * ConstraintKinds
+   * DuplicateRecordFields
    * EmptyDataDecls
    * ExistentialQuantification
    * ExtendedDefaultRules
@@ -50,8 +51,11 @@ Differences:
    * MonoLocalBinds
    * MultiParamTypeClasses
    * NegativeLiterals
+   * NoFieldSelectors
    * NoMonomorphismRestriction
    * OverlappingInstances
+   * OverloadedRecordDot
+   * OverloadedRecordUpdate
    * PolyKinds
    * RankNTypes
    * QualifiedDo

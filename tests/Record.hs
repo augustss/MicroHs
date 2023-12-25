@@ -1,35 +1,23 @@
 module Record(main) where
 import Prelude
 
-data R = R { a :: Int, b :: Bool }
+-- HasField instances are derived automatically
 
-instance HasField "a" R Int where
-  hasField _ = has_a
-instance HasField "b" R Bool where
-  hasField _ = has_b
-
-has_a :: R -> (Int, Int -> R)
-has_a (R a b) = (a, \ a' -> R a' b)
-
-has_b :: R -> (Bool, Bool -> R)
-has_b (R a b) = (b, \ b' -> R a b')
+data R = CR { a :: Int, b :: Bool }
 
 instance Show R where
-  show (R a b) = "R{a=" ++ show a ++ ",b=" ++ show b ++ "}"
+  show (CR a b) = "R{a=" ++ show a ++ ",b=" ++ show b ++ "}"
 
-data RR = RR { r :: R }
-instance HasField "r" RR R where
-  hasField _ (RR r) = (r, RR)
-
+data RR = CRR { r :: R, a :: Bool }
 
 r1 :: R
-r1 = R { a=1, b=True }
+r1 = CR { a=1, b=True }
 
 r2 :: R
-r2 = R { b=True, a=2 }
+r2 = CR { b=True, a=2 }
 
 r3 :: R
-r3 = R { b=True }
+r3 = CR { b=True }
 
 --r4 :: R
 --r4 = R { c=True }
@@ -41,7 +29,22 @@ r6 :: R
 r6 = r1 { a = (10::Int), b=False }
 
 rr1 :: RR
-rr1 = RR { r = r1 }
+rr1 = CRR { r = r1, a = True }
+
+sel_a :: forall r t . HasField "a" r t => r -> t
+sel_a = (.a)
+
+data S a = S1 { x :: Int } | S2 { x :: Int, y :: a }
+
+instance forall a . Show a => Show (S a) where
+  show (S1 x) = "S1 " ++ show x
+  show (S2 x y) = "S2 " ++ show x ++ " " ++ show y
+
+s1 :: S Bool
+s1 = S1 10
+
+s2 :: S String
+s2 = S2 { x = 20, y = "foo" }
 
 main :: IO ()
 main = do
@@ -53,18 +56,13 @@ main = do
   print $ r2.a
   print $ r2.b
   print $ rr1.r.a
+  print $ rr1.a
   print $ (.a) r1
-
-{-
-data Person = Person { name :: String }
-
-instance HasField "name" Person String where
-  getField _ (Person n) = n
-
-pers :: Person
-pers = Person "foo"
-
-main :: IO ()
-main = do
-  print $ getField (Proxy :: Proxy "name") pers
--}
+  print $ sel_a r1
+  print $ sel_a rr1
+  print s1
+  print s2
+  print s1{x=99}
+  print s2{x=88}
+  print s2{y="bar"}
+  

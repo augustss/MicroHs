@@ -5,7 +5,7 @@ module MicroHs.Expr(
   ImportSpec(..),
   ImportItem(..),
   EDef(..), showEDefs,
-  Expr(..), eLam, eEqns, showExpr, eqExpr,
+  Expr(..), eLam, eEqn, eEqns, showExpr, eqExpr,
   Listish(..),
   Lit(..), showLit,
   EBind(..), showEBind, showEBinds,
@@ -106,7 +106,7 @@ data Expr
   -- Constructors after type checking
   | ECon Con
   | EForall [IdKind] Expr -- only in types
-  --deriving (Show, Eq)
+--  deriving (Show)
 
 type FunDep = ([Ident], [Ident])
 
@@ -114,7 +114,10 @@ eLam :: [EPat] -> Expr -> Expr
 eLam ps e = ELam $ eEqns ps e
 
 eEqns :: [EPat] -> Expr -> [Eqn]
-eEqns ps e = [Eqn ps (EAlts [([], e)] [])]
+eEqns ps e = [eEqn ps e]
+
+eEqn :: [EPat] -> Expr -> Eqn
+eEqn ps e = Eqn ps (EAlts [([], e)] [])
 
 type FieldName = Ident
 
@@ -130,7 +133,7 @@ data Listish
   | LFromTo Expr Expr
   | LFromThen Expr Expr
   | LFromThenTo Expr Expr Expr
-  --deriving(Show, Eq)
+--  deriving(Show)
 
 conIdent :: HasCallStack =>
             Con -> Ident

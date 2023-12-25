@@ -5,4 +5,12 @@ R{a=10,b=False}
 2
 True
 1
+True
 1
+1
+True
+S1 10
+S2 20 "foo"
+S1 99
+S2 88 "foo"
+S2 20 "bar"
