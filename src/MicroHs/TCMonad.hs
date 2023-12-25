@@ -269,7 +269,7 @@ data TCMode
   = TCExpr          -- doing type checking
   | TCType          -- doing kind checking
   | TCKind          -- doing sort checking
-  | TCSort
+  | TCSort          -- doing realm checking
   --deriving (Show)
 
 instance Show TCMode where
