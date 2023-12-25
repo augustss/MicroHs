@@ -1,0 +1,8 @@
+R{a=1,b=True}
+R{a=2,b=True}
+R{a=10,b=True}
+R{a=10,b=False}
+2
+True
+1
+1

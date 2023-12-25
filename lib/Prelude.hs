@@ -22,9 +22,11 @@ module Prelude(
   module Data.Maybe,
   module Data.Num,
   module Data.Ord,
+  module Data.Proxy,
   module Data.Ratio,
   module Data.Real,
   module Data.RealFloat,
+  module Data.Record,
   module Data.Tuple,
   module System.IO,
   module Text.Show,
@@ -52,9 +54,11 @@ import Data.List
 import Data.Maybe
 import Data.Num
 import Data.Ord
+import Data.Proxy
 import Data.Ratio(Rational)
 import Data.Real
 import Data.RealFloat
+import Data.Record
 import Data.Tuple
 import System.IO
 import Text.Show

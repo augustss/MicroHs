@@ -1,7 +1,10 @@
 module Data.Proxy(module Data.Proxy) where
-import Prelude
+import Primitives
+import Data.Bool_Type
+import Data.Eq
+import Text.Show
 
--- NOTE: not polykinded yet
+type Proxy :: forall (k::Kind) . k -> Type
 data Proxy a = Proxy
 
 instance forall a . Show (Proxy a) where

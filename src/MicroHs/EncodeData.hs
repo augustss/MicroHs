@@ -51,11 +51,11 @@ encCaseScott :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCaseScott var pes dflt =
   --trace ("mkCase " ++ show pes) $
   case pes of
-    (SPat (ConData cs _) _, _) : _ ->
+    (SPat (ConData cs _ _) _, _) : _ ->
       let
         arm (c, k) =
           let
-            (vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i) xs, e) <- pes, c == i ] ++
+            (vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
                                [ (replicate k dummyIdent, dflt) ]
           in lams vs rhs
       in  apps var (map arm cs)
@@ -144,7 +144,7 @@ caseTree n tup lo hi pes dflt =
    match e is rhs = App e $ lams is rhs
 
 conNo :: Con -> Int
-conNo (ConData cks i) = length $ takeWhile ((/= i) . fst) cks
+conNo (ConData cks i _) = length $ takeWhile ((/= i) . fst) cks
 conNo _ = undefined
 
 {-
@@ -155,6 +155,6 @@ newIdent a es =
 -}
 
 numConstr :: [(SPat, Exp)] -> Int
-numConstr ((SPat (ConData cs _) _, _):_) = length cs
+numConstr ((SPat (ConData cs _ _) _, _):_) = length cs
 numConstr _ = undefined
 

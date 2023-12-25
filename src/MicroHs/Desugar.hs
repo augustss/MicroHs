@@ -260,16 +260,16 @@ iCons :: Ident
 iCons = mkIdent $ listPrefix ++ ":"
 
 consCon :: EPat
-consCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iCons
+consCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iCons []
 
 nilCon :: EPat
-nilCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iNil
+nilCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iNil []
 
 tupleCon :: SLoc -> Int -> EPat
 tupleCon loc n =
   let
     c = tupleConstr loc n
-  in ECon $ ConData [(c, n)] c
+  in ECon $ ConData [(c, n)] c []
 
 newVars :: String -> [Ident] -> [Ident]
 newVars s is = deleteAllsBy (==) [ mkIdent (s ++ show i) | i <- [1::Int ..] ] is
@@ -399,31 +399,8 @@ mkCase var pes dflt =
   --trace ("mkCase " ++ show pes) $
   case pes of
     [] -> dflt
-    [(SPat (ConNew _) [x], arhs)] -> eLet x var arhs
-{-
-     (SPat (ConView e p) _, arhs) : rpes -> 
-      let
-        cond =
-          case l of
-            LInt  _ -> app2 eEqInt  var (Lit l)
-            LChar c -> app2 eEqChar var (Lit (LInt (ord c)))
-            LStr  _ -> app2 eEqStr  var (Lit l)
-            _ -> undefined
-      in app2 cond (mkCase var rpes dflt) arhs
-         dsCase (app (dsExpr e) var) [(p, arhs), (_, mkCase var rpes dflt)]
--}
+    [(SPat (ConNew _ _) [x], arhs)] -> eLet x var arhs
     _ -> encCase var pes dflt
-
-{-
-eEqInt :: Exp
-eEqInt = Lit (LPrim "==")
-
-eEqChar :: Exp
-eEqChar = Lit (LPrim "==")
-
-eEqStr :: Exp
-eEqStr = Lit (LPrim "equal")
--}
 
 eMatchErr :: SLoc -> Exp
 eMatchErr (SLoc fn l c) =

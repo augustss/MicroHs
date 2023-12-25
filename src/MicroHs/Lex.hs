@@ -18,6 +18,7 @@ data Token
   | TError  Loc String
   | TBrace  Loc
   | TIndent Loc
+  | TSelect Loc String
   deriving (Show)
 
 showToken :: Token -> String
@@ -30,6 +31,7 @@ showToken (TSpec _ c) = [c]
 showToken (TError _ s) = "ERROR " ++ s
 showToken (TBrace _) = "TBrace"
 showToken (TIndent _) = "TIndent"
+showToken (TSelect _ s) = "." ++ s
 
 incrLine :: Loc -> Loc
 incrLine (l, _) = (l+1, 1)
@@ -89,6 +91,9 @@ lex loc (d:cs) | isLower_ d =
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('0':x:cs) | toLower x == 'x' = hexNumber loc cs
 lex loc cs@(d:_) | isDigit d = number loc cs
+lex loc ('.':d:cs) | isLower_ d =
+  case span isIdentChar cs of
+    (ds, rs) -> TSelect loc (d:ds) : lex (addCol loc $ 1 + length ds) rs
 lex loc (d:cs) | isOperChar d  =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
@@ -210,6 +215,7 @@ tokensLoc (TSpec   loc _  :_) = loc
 tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
+tokensLoc (TSelect loc _  :_) = loc
 tokensLoc []                  = mkLoc 0 1
 
 -- | This is the magical layout resolver, straight from the Haskell report.

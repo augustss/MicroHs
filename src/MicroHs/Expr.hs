@@ -24,7 +24,7 @@ module MicroHs.Expr(
   LHS,
   Constr(..), ConstrField, SType,
   ConTyInfo,
-  Con(..), conIdent, conArity,
+  Con(..), conIdent, conArity, conFields,
   tupleConstr, getTupleConstr,
   mkTupleSel,
   subst,
@@ -96,6 +96,8 @@ data Expr
   | EIf Expr Expr Expr
   | ESign Expr EType
   | ENegApp Expr
+  | EUpdate Expr [(Ident, Expr)]
+  | ESelect Ident
   -- only in patterns
   | EAt Ident Expr
   | EViewPat Expr EPat
@@ -114,9 +116,11 @@ eLam ps e = ELam $ eEqns ps e
 eEqns :: [EPat] -> Expr -> [Eqn]
 eEqns ps e = [Eqn ps (EAlts [([], e)] [])]
 
+type FieldName = Ident
+
 data Con
-  = ConData ConTyInfo Ident
-  | ConNew Ident
+  = ConData ConTyInfo Ident [FieldName]
+  | ConNew Ident [FieldName]
   deriving(Show)
 
 data Listish
@@ -130,17 +134,21 @@ data Listish
 
 conIdent :: HasCallStack =>
             Con -> Ident
-conIdent (ConData _ i) = i
-conIdent (ConNew i) = i
+conIdent (ConData _ i _) = i
+conIdent (ConNew i _) = i
 
 conArity :: Con -> Int
-conArity (ConData cs i) = fromMaybe (error "conArity") $ lookup i cs
-conArity (ConNew _) = 1
+conArity (ConData cs i _) = fromMaybe (error "conArity") $ lookup i cs
+conArity (ConNew _ _) = 1
+
+conFields :: Con -> [FieldName]
+conFields (ConData _ _ fs) = fs
+conFields (ConNew _ fs) = fs
 
 instance Eq Con where
-  (==) (ConData _ i) (ConData _ j) = i == j
-  (==) (ConNew    i) (ConNew    j) = i == j
-  (==) _             _             = False
+  (==) (ConData _ i _) (ConData _ j _) = i == j
+  (==) (ConNew    i _) (ConNew    j _) = i == j
+  (==) _               _               = False
 
 data Lit
   = LInt Int
@@ -292,6 +300,8 @@ instance HasLoc Expr where
   getSLoc (EIf e _ _) = getSLoc e
   getSLoc (ESign e _) = getSLoc e
   getSLoc (ENegApp e) = getSLoc e
+  getSLoc (EUpdate e _) = getSLoc e
+  getSLoc (ESelect i) = getSLoc i
   getSLoc (EAt i _) = getSLoc i
   getSLoc (EViewPat e _) = getSLoc e
   getSLoc (EUVar _) = error "getSLoc EUVar"
@@ -307,8 +317,8 @@ instance HasLoc IdKind where
   getSLoc (IdKind i _) = getSLoc i
 
 instance HasLoc Con where
-  getSLoc (ConData _ i) = getSLoc i
-  getSLoc (ConNew i) = getSLoc i
+  getSLoc (ConData _ i _) = getSLoc i
+  getSLoc (ConNew i _) = getSLoc i
 
 instance HasLoc Listish where
   getSLoc (LList es) = getSLoc es
@@ -443,6 +453,8 @@ allVarsExpr' aexpr =
     EListish l -> allVarsListish l
     ESign e _ -> allVarsExpr' e
     ENegApp e -> allVarsExpr' e
+    EUpdate e ies -> allVarsExpr' e . composeMap allVarsExpr' (map snd ies)
+    ESelect _ -> id
     EAt i e -> (i :) . allVarsExpr' e
     EViewPat e p -> allVarsExpr' e . allVarsExpr' p
     EUVar _ -> id
@@ -476,8 +488,8 @@ setSLocExpr l (ELit _ k) = ELit l k
 setSLocExpr _ _ = error "setSLocExpr"  -- what other cases do we need?
 
 setSLocCon :: SLoc -> Con -> Con
-setSLocCon l (ConData ti i) = ConData ti (setSLocIdent l i)
-setSLocCon l (ConNew i) = ConNew (setSLocIdent l i)
+setSLocCon l (ConData ti i fs) = ConData ti (setSLocIdent l i) fs
+setSLocCon l (ConNew i fs) = ConNew (setSLocIdent l i) fs
 
 errorMessage :: forall a .
                 HasCallStack =>
@@ -607,8 +619,10 @@ ppExpr ae =
     ESectR i e -> parens $ ppIdent i <+> ppExpr e
     EIf e1 e2 e3 -> parens $ sep [text "if" <+> ppExpr e1, text "then" <+> ppExpr e2, text "else" <+> ppExpr e3]
     EListish l -> ppListish l
-    ESign e t -> ppExpr e <+> text "::" <+> ppEType t
+    ESign e t -> parens $ ppExpr e <+> text "::" <+> ppEType t
     ENegApp e -> text "-" <+> ppExpr e
+    EUpdate ee ies -> ppExpr ee <> text "{" <+> hsep (punctuate (text ",") (map (\ (i, e) -> ppIdent i <+> text "=" <+> ppExpr e) ies)) <+> text "}"
+    ESelect i -> parens $ text "." <> ppIdent i
     EAt i e -> ppIdent i <> text "@" <> ppExpr e
     EViewPat e p -> parens $ ppExpr e <+> text "->" <+> ppExpr p
     EUVar i -> text ("a" ++ show i)
@@ -633,8 +647,8 @@ ppListish :: Listish -> Doc
 ppListish _ = text "<<Listish>>"
 
 ppCon :: Con -> Doc
-ppCon (ConData _ s) = ppIdent s
-ppCon (ConNew s) = ppIdent s
+ppCon (ConData _ s _) = ppIdent s
+ppCon (ConNew s _) = ppIdent s
 
 -- Literals are tagged the way they appear in the combinator file:
 --  #   Int
@@ -686,6 +700,7 @@ ppEKind = ppEType
 
 ppList :: forall a . (a -> Doc) -> [a] -> Doc
 ppList pp xs = brackets $ hsep $ punctuate (text ",") (map pp xs)
+
 getBindVars :: EBind -> [Ident]
 getBindVars abind =
   case abind of

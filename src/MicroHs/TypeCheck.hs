@@ -787,7 +787,8 @@ primTypes =
 -- E.g.
 --  True :: Bool
 --  (&&) :: Bool -> Bool
---  Just :: forall . a -> Maybe a
+--  Just :: forall a . a -> Maybe a
+--  ,    :: forall a b . a -> b -> (a,b)
 primValues :: [(Ident, [Entry])]
 primValues =
   let
@@ -797,7 +798,7 @@ primValues =
         vks = [IdKind (mkIdent ("a" ++ show i)) kType | i <- enumFromTo 1 n]
         ts = map tVarK vks
         r = tApps c ts
-      in  (c, [Entry (ECon $ ConData [(c, n)] c) $ EForall vks $ foldr tArrow r ts ])
+      in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall vks $ foldr tArrow r ts ])
   in  map tuple (enumFromTo 2 10)
 
 type T a = TC TCState a
@@ -1458,13 +1459,15 @@ addValueType adef = do
         addCon (Constr evks ectx c ets) = do
           let ts = either id (map snd) ets
               cty = EForall vks $ EForall evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
-          extValETop c cty (ECon $ ConData cti (qualIdent mn c))
+              fs = either (const []) (map fst) ets
+          extValETop c cty (ECon $ ConData cti (qualIdent mn c) fs)
       mapM_ addCon cs
-    Newtype (i, vks) (Constr _ _ c fs) -> do
+    Newtype (i, vks) (Constr _ _ c ets) -> do
       let
-        t = snd $ head $ either id (map snd) fs
+        t = snd $ head $ either id (map snd) ets
         tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
-      extValETop c (EForall vks $ EForall [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c))
+        fs = either (const []) (map fst) ets
+      extValETop c (EForall vks $ EForall [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
     ForImp _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     _ -> return ()
@@ -1484,7 +1487,7 @@ addValueClass ctx iCls vks fds ms = do
       cti = [ (qualIdent mn iCon, length targs) ]
       iCon = mkClassConstructor iCls
       iConTy = EForall vks $ foldr tArrow tret targs
-  extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon))
+  extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon) [])
   let addMethod (BSign i t) = extValETop i (EForall vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
       addMethod _ = impossible
 --  traceM ("addValueClass " ++ showEType (ETuple ctx))
@@ -1815,8 +1818,41 @@ tcExprR mt ae =
       withVks vks $ \ vks' -> do
         tt <- tcExpr mt t
         return (EForall vks' tt)
-    _ -> error $ "tcExpr: " ++ show (getSLoc ae) ++ " " ++ show ae
+    EUpdate e ies -> do
+      (e', _) <- tInferExpr e
+      case e' of
+        ECon c -> do
+          let fs = conFields c
+              is = map fst ies
+              as = map field fs
+              field i = fromMaybe (unsetField i) $ lookup i ies
+          case is \\ fs of
+            vs@(v:_) -> tcError (getSLoc v) $ "extra field(s) " ++ unwords (map unIdent vs)
+            _ -> return ()
+          tcExpr mt (foldl EApp e as)
+        _ -> do
+          let set = foldr eSetField e ies
+          tcExpr mt set
+    ESelect i -> tcExpr mt $ eGetField i
+    _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
+
+eSetField :: (Ident, Expr) -> Expr -> Expr
+eSetField (i, e) r = EApp (EApp (EApp (EVar iset) (eProxy i)) r) e
+  where iset = mkIdentSLoc (getSLoc i) "setField"
+
+eGetField :: Ident -> Expr
+eGetField i = EApp (EVar iget) (eProxy i)
+  where iget = mkIdentSLoc (getSLoc i) "getField"
+
+eProxy :: Ident -> Expr
+eProxy i = ESign proxy (EApp proxy (ELit loc (LStr (unIdent i))))
+  where proxy = EVar $ mkIdentSLoc loc "Proxy"
+        loc = getSLoc i
+
+-- XXX could be better
+unsetField :: Ident -> Expr
+unsetField i = EVar $ mkIdentSLoc (getSLoc i) "undefined"
 
 enum :: SLoc -> String -> [Expr] -> Expr
 enum loc f = foldl EApp (EVar (mkIdentSLoc loc ("enum" ++ f)))

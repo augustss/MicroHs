@@ -537,7 +537,25 @@ pOperCommaNoMinus = do
   pure i
 
 pAExpr :: P Expr
-pAExpr = (
+pAExpr = do
+  ee <- pAExpr'
+  us <- many pUpdate
+  ss <- many pSelect
+  let esel e i = EApp (ESelect i) e
+  pure $ foldl esel (foldl EUpdate ee us) ss
+
+pUpdate :: P [(Ident, Expr)]
+pUpdate = pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "=") <*> pExpr) (pSpec ',') <* pSpec '}'
+
+pSelect :: P Ident
+pSelect = do
+  fn <- getFileName
+  let is (TSelect loc s) = Just (mkIdentLoc fn loc s)
+      is _ = Nothing
+  satisfyM "select" is
+
+pAExpr' :: P Expr
+pAExpr' = (
       (EVar   <$> pLQIdentSym)
   <|< (EVar   <$> pUQIdentSym)
   <|< pLit
@@ -545,6 +563,7 @@ pAExpr = (
   <|< EListish <$> (pSpec '[' *> pListish <* pSpec ']')
   <|< (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOperComma <* pSpec ')'))
   <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprArg <* pSpec ')'))
+  <|< (ESelect <$> (pSpec '(' *> pSelect <* pSpec ')'))
   <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
   )
   -- This weirdly slows down parsing
