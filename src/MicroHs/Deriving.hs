@@ -1,10 +1,12 @@
 module MicroHs.Deriving(expandField, doDeriving) where
 import Prelude
+import Control.Monad
 import Data.Function
 import Data.List
 import MicroHs.Expr
 import MicroHs.Ident
 import MicroHs.TCMonad
+import Debug.Trace
 
 expandField :: EDef -> T [EDef]
 expandField def@(Data    lhs cs _) = (def:) <$> genHasFields lhs cs
@@ -22,7 +24,6 @@ genHasField (tycon, iks) cs (fld, fldty) = do
   mn <- gets moduleName
   let loc = getSLoc tycon
       qtycon = qualIdent mn tycon
-      dum = EVar dummyIdent
       eFld = EVar fld
       undef = EVar $ mkIdentSLoc loc "undefined"  -- XXX could be nicer
       iHasField = mkIdentSLoc loc nameHasField
@@ -31,12 +32,15 @@ genHasField (tycon, iks) cs (fld, fldty) = do
                                   (ELit loc (LStr (unIdent fld)))
                                   (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
                                   fldty
-      conEqn (Constr _ _ c (Left ts))   = eEqn [dum, eApps (EVar c) (map (const dum) ts)] $ undef
-      conEqn (Constr _ _ c (Right fts)) = eEqn [dum, conApp] $ if fld `elem` fs then rhs else undef
+      conEqn (Constr _ _ c (Left ts))   = eEqn [dummy, eApps (EVar c) (map (const dummy) ts)] $ undef
+      conEqn (Constr _ _ c (Right fts)) = eEqn [dummy, conApp] $ if fld `elem` fs then rhs else undef
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = ETuple [eFld, eLam [eFld] conApp]
   pure $ Instance hdr [BFcn ihasField $ map conEqn cs]
+
+dummy :: Expr
+dummy = EVar dummyIdent
 
 eApp2 :: Expr -> Expr -> Expr -> Expr
 eApp2 a b c = EApp (EApp a b) c
@@ -64,5 +68,40 @@ doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (derive lhs  cs) d
 doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (derive lhs [c]) ds
 doDeriving def                     = return [def]
 
-derive :: LHS -> [Constr] -> EConstraint -> T [EDef]
-derive _lhs _cs _con = return []
+type Deriver = LHS -> [Constr] -> EConstraint -> T [EDef]
+
+derivers :: [(String, Deriver)]
+derivers =
+  [("Data.Typeable.Typeable", derTypeable)
+  ,("Data.Eq.Eq",             derNotYet)
+  ,("Data.Ord.Ord",           derNotYet)
+  ,("Text.Show.Show",         derNotYet)
+  ]
+
+derive :: Deriver
+derive lhs cs d = do
+  let c = getAppCon d
+  case lookup (unIdent c) derivers of
+    Nothing -> tcError (getSLoc c) $ "Cannot derive " ++ show c
+    Just f  -> f lhs cs d
+
+derNotYet :: Deriver
+derNotYet _ _ d = do
+  when False $ traceM ("Warning: cannot derive " ++ show d ++ " yet")
+  return []
+
+derTypeable :: Deriver
+derTypeable (i, _) _ _ = do
+  mn <- gets moduleName
+  let
+    loc = getSLoc i
+    iTypeable = mkIdentSLoc loc "Data.Typeable.Typeable"   -- XXX
+    itypeRep  = mkIdentSLoc loc "typeRep"
+    imkTyConApp = mkIdentSLoc loc "mkTyConApp"
+    imkTyCon = mkIdentSLoc loc "mkTyCon"
+    hdr = EApp (EVar iTypeable) (EVar $ qualIdent mn i)
+    mdl = ELit loc $ LStr $ unIdent mn
+    nam = ELit loc $ LStr $ unIdent i
+    eqns = eEqns [dummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkIdent "[]"))
+    inst = Instance hdr [BFcn itypeRep eqns]
+  return [inst]
