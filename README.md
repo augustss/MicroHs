@@ -222,6 +222,12 @@ whereas the runtime system sets the heap to 1M cells and is verbose.
 ### FFI
 MicroHs supports calling C functions, but all such functions must be in a table in the runtime system.
 
+### Records
+MicroHs implements the record dot extensions.
+So accessing a field `a` in record `r` is written `r.a`.
+Updating a field has the usual Haskell syntax `r{ a = e }`, but the type is overloaded so this can update the `a` field in any record.
+The typeclass `HasField` captures this.  `HasField "name" rec ty` expresses that the record type `rec` has a field `name` with type `ty`.
+
 ### Features
 The runtime system can serialize and deserialize any expression
 and keep its graph structure (sharing and cycles).
