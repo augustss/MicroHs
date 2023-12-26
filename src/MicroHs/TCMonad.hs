@@ -191,7 +191,7 @@ ctxTables :: TCState -> (InstTable, MetaTable, TypeEqTable)
 ctxTables = (.ctxTables)
 
 instTable :: TCState -> InstTable
-instTable ts = case ts.ctxTables of { (is,_,_) -> is }
+instTable ts = ts.ctxTables._1
 
 metaTable :: TCState -> MetaTable
 metaTable ts = case ts.ctxTables of { (_, ms, _) -> ms }

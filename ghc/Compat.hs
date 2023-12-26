@@ -1,5 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE DataKinds #-}
 -- Functions for GHC that are defined in the UHS libs.
 module Compat(module Compat) where
 --import Control.Exception
@@ -10,6 +12,7 @@ import Data.Time.Clock.POSIX
 --import qualified Control.Monad as M
 import Control.Exception
 import Data.List
+import GHC.Records
 import System.Environment
 import System.IO
 
@@ -151,3 +154,27 @@ _wordSize = 64
 
 _isWindows :: Bool
 _isWindows = False
+
+-----------------------------------
+-- Virtual fields for tuples.
+
+instance forall a b . HasField "_1" (a, b) a where
+  getField (a, _) = a
+instance forall a b . HasField "_2" (a, b) b where
+  getField (_, b) = b
+
+instance forall a b c . HasField "_1" (a, b, c) a where
+  getField (a, _, _) = a
+instance forall a b c . HasField "_2" (a, b, c) b where
+  getField (_, b, _) = b
+instance forall a b c . HasField "_3" (a, b, c) c where
+  getField (_, _, c) = c
+
+instance forall a b c d . HasField "_1" (a, b, c, d) a where
+  getField (a, _, _, _) = a
+instance forall a b c d . HasField "_2" (a, b, c, d) b where
+  getField (_, b, _, _) = b
+instance forall a b c d . HasField "_3" (a, b, c, d) c where
+  getField (_, _, c, _) = c
+instance forall a b c d . HasField "_4" (a, b, c, d) d where
+  getField (_, _, _, d) = d
