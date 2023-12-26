@@ -43,20 +43,20 @@ compileCacheTop flags mn ch = do
     dsn = [ (n, compileOpt e) | (n, e) <- ds ]
   () <- return (rnf dsn)
   t2 <- getTimeMilli
-  when (verbose flags > 0) $
+  when (verbosityGT flags 0) $
     putStrLn $ "combinator conversion " ++ padLeft 6 (show (t2-t1)) ++ "ms"
-  when (verbose flags > 3) $
+  when (verbosityGT flags 3) $
     putStrLn $ "combinators:\n" ++ showLDefs dsn
   return (dsn, ch')
 
 getCached :: Flags -> IO Cache
-getCached flags | not (useCache flags) = return emptyCache
+getCached flags | not flags.useCache = return emptyCache
 getCached flags = do
   mhin <- openFileM mhsCacheName ReadMode
   case mhin of
     Nothing -> return emptyCache
     Just hin -> do
-      when (loading flags || verbose flags > 0) $
+      when (flags.loading || verbosityGT flags 0) $
         putStrLn $ "Loading saved cache " ++ show mhsCacheName
 --      putStrLn "deserialize cache"
       cash <- hDeserialize hin
@@ -66,7 +66,7 @@ getCached flags = do
 compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)
 compile flags nm ach = do
   ((_, t), ch) <- runStateIO (compileModuleCached flags nm) ach
-  when (verbose flags > 0) $
+  when (verbosityGT flags 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (show t) ++ "ms"
   return (concatMap bindingsOf $ map tModuleOf $ M.elems $ cache ch, ch)
 
@@ -81,19 +81,19 @@ compileModuleCached flags mn = do
       when (elem mn ws) $
         error $ "recursive module: " ++ showIdent mn ++ ", import chain: " ++ unwords (map showIdent ws)
       modify $ \ c -> updWorking (mn : working c) c
-      when (verbose flags > 0) $
+      when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing " ++ showIdent mn
       (cm, tp, tt, ts) <- compileModule flags mn
-      when (verbose flags > 0) $
+      when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tp + tt) ++
                  "ms (" ++ show tp ++ " + " ++ show tt ++ ")"
-      when (loading flags && mn /= mkIdent "Interactive") $
+      when (flags.loading && mn /= mkIdent "Interactive") $
         liftIO $ putStrLn $ "loaded " ++ showIdent mn
       cash <- get
       put $ workToDone cm cash
       return (cm, tp + tt + ts)
     Just cm -> do
-      when (verbose flags > 0) $
+      when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing cached " ++ showIdent mn
       return (cm, 0)
 
@@ -119,13 +119,13 @@ compileModule flags nm = do
   t3 <- liftIO getTimeMilli
   let
     tmdl = typeCheck (zip specs (map tModuleOf impMdls)) mdl
-  when (verbose flags > 2) $
+  when (verbosityGT flags 2) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   let
     dmdl = desugar flags tmdl
   () <- return $ rnf $ bindingsOf dmdl
   t4 <- liftIO getTimeMilli
-  when (verbose flags > 3) $
+  when (verbosityGT flags 3) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   let cmdl = CModule dmdl imported chksum
   return (cmdl, t2-t1, t4-t3, sum ts)
@@ -139,7 +139,7 @@ validateCache flags cash = execStateIO (mapM_ validate (M.keys (cache cash))) ca
       b <- gets $ isJust . M.lookup mn . cache
       when b $ do
         -- It's still in the cache, so invalidate it, and all modules that import it
-        when (verbose flags > 0) $
+        when (verbosityGT flags 0) $
           liftIO $ putStrLn $ "invalidate cached " ++ show mn
         modify (deleteFromCache mn)
         mapM_ invalidate $ fromMaybe [] $ M.lookup mn deps
@@ -175,7 +175,7 @@ readModulePath :: Flags -> IdentModule -> IO (FilePath, String)
 readModulePath flags mn = do
   mh <- findModulePath flags mn
   case mh of
-    Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show mn ++ "\npath=" ++ show (paths flags)
+    Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show mn ++ "\npath=" ++ show flags.paths
     Just (fn, h) -> do
       file <- hGetContents h
       return (fn, file)
@@ -184,7 +184,7 @@ findModulePath :: Flags -> IdentModule -> IO (Maybe (FilePath, Handle))
 findModulePath flags mn = do
   let
     fn = map (\ c -> if c == '.' then '/' else c) (unIdent mn) ++ ".hs"
-  openFilePath (paths flags) fn
+  openFilePath flags.paths fn
 
 openFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
 openFilePath adirs fileName =

@@ -1,33 +1,16 @@
-module MicroHs.Flags(module MicroHs.Flags) where
+module MicroHs.Flags(Flags(..), verbosityGT) where
 import Prelude
 
-data Flags = Flags
-  Int        -- verbosity level
-  Bool       -- run instead of compile
-  [String]   -- module search path
-  String     -- output file
-  Bool       -- show loading message
-  Bool       -- use caching
-  Bool       -- emit ticks
-  deriving (Show)
+data Flags = Flags {
+  verbose  :: Int,        -- verbosity level
+  runIt    :: Bool,       -- run instead of compile
+  paths    :: [String],   -- module search path
+  output   :: String,     -- output file
+  loading  :: Bool,       -- show loading message
+  useCache :: Bool,       -- use caching
+  useTicks :: Bool        -- emit ticks
+  }
+  --deriving (Show)
 
-verbose :: Flags -> Int
-verbose (Flags x _ _ _ _ _ _) = x
-
-runIt :: Flags -> Bool
-runIt (Flags _ x _ _ _ _ _) = x
-
-paths :: Flags -> [String]
-paths (Flags _ _ x _ _ _ _) = x
-
-output :: Flags -> String
-output (Flags _ _ _ x _ _ _) = x
-
-loading :: Flags -> Bool
-loading (Flags _ _ _ _ x _ _) = x
-
-useCache :: Flags -> Bool
-useCache (Flags _ _ _ _ _ x _) = x
-
-useTicks :: Flags -> Bool
-useTicks (Flags _ _ _ _ _ _ x) = x
+verbosityGT :: Flags -> Int -> Bool
+verbosityGT flags v = flags.verbose > v

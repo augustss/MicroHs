@@ -39,27 +39,29 @@ main = do
   let
     args = takeWhile (/= "--") aargs
     ss = filter ((/= "-") . take 1) args
-    flags = Flags (length (filter (== "-v") args))
-                  (elem "-r" args)
-                  ("." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args))
-                  (head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"])
-                  (elem "-l" args)
-                  (elem "-C" args && usingMhs)
-                  (elem "-T" args)
+    flags = Flags {
+      verbose  = length (filter (== "-v") args),
+      runIt    = elem "-r" args,
+      paths    = "." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args),
+      output   = head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"],
+      loading  = elem "-l" args,
+      useCache = elem "-C" args && usingMhs,
+      useTicks = elem "-T" args
+      }
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
    else
     case ss of
       []  -> mainInteractive flags
       [s] -> mainCompile dir flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-      _   -> error "Usage: mhs [-v] [-l] [-r] [-C] [-iPATH] [-oFILE] [ModuleName]"
+      _   -> error "Usage: mhs [-v] [-l] [-r] [-C] [-T] [-iPATH] [-oFILE] [ModuleName]"
 
 mainCompile :: FilePath -> Flags -> Ident -> IO ()
 mainCompile mhsdir flags mn = do
-  ds <- if useCache flags then do
+  ds <- if flags.useCache then do
           cash <- getCached flags
           (ds, cash') <- compileCacheTop flags mn cash
-          when (verbose flags > 0) $
+          when (verbosityGT flags 0) $
             putStrLn $ "Saving cache " ++ show mhsCacheName
           () <- seq (rnf cash') (return ())
           hout <- openFile mhsCacheName WriteMode
@@ -88,11 +90,11 @@ mainCompile mhsdir flags mn = do
       (("((A :" ++ show i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
     res = foldr def (toStringP emain) (zip ds (enumFrom 0)) ""
     numDefs = M.size defs
-  when (verbose flags > 0) $
+  when (verbosityGT flags 0) $
     putStrLn $ "top level defns: " ++ show numDefs
-  when (verbose flags > 1) $
+  when (verbosityGT flags 1) $
     mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") ds
-  if runIt flags then do
+  if flags.runIt then do
     let
       prg = translateAndRun cmdl
 --    putStrLn "Run:"
@@ -103,14 +105,14 @@ mainCompile mhsdir flags mn = do
     let outData = combVersion ++ show numDefs ++ "\n" ++ res
     seq (length outData) (return ())
     t2 <- getTimeMilli
-    when (verbose flags > 0) $
+    when (verbosityGT flags 0) $
       putStrLn $ "final pass            " ++ padLeft 6 (show (t2-t1)) ++ "ms"
 
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
     --  * file ends in .c: write C version of combinator
     --  * otherwise, write C file and compile to a binary with cc
-    let outFile = output flags
+    let outFile = flags.output
     if ".comb" `isSuffixOf` outFile then
       writeFile outFile outData
      else if ".c" `isSuffixOf` outFile then
@@ -125,10 +127,10 @@ mainCompile mhsdir flags mn = do
        let conf = "unix-" ++ show _wordSize
            cc = fromMaybe (compiler ++ " -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
-       when (verbose flags > 0) $
+       when (verbosityGT flags 0) $
          putStrLn $ "Execute: " ++ show cmd
        callCommand cmd
        removeFile fn
        ct2 <- getTimeMilli
-       when (verbose flags > 0) $
+       when (verbosityGT flags 0) $
          putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"

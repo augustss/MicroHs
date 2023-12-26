@@ -47,7 +47,7 @@ dsDef flags mn adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
-    Fcn f eqns -> [(f,  wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
+    Fcn f eqns -> [(f,  wrapTick flags.useTicks f $ dsEqns (getSLoc f) eqns)]
     Sign _ _ -> []
     KindSign _ _ -> []
     Import _ -> []
