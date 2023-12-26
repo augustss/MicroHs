@@ -1,0 +1,8 @@
+Char
+IO Char
+(Char,Char)
+Monad
+T
+P (P T)
+[Int]
+Int -> Int -> Int

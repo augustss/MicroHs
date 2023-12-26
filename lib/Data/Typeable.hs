@@ -52,7 +52,14 @@ instance Ord TypeRep where
   TypeRep k1 _ _ <= TypeRep k2 _ _  =  k1 <= k2
 
 instance Show TypeRep where
-  showsPrec p (TypeRep _ c ts) = showParen (p > 11) $ showsPrec 11 c . foldr (\ t s -> showChar ' ' . showsPrec 11 t . s) id ts
+  showsPrec p (TypeRep _ c []) = showsPrec 11 c
+  showsPrec p (TypeRep _ c [a,b]) | c == funTc = showParen (p > 5) $ showsPrec 6 a . showString " -> " . showsPrec 5 b
+  showsPrec p (TypeRep _ c [a]) | tyConName c == "[]" = showString "[" . showsPrec 0 a . showString "]"
+  showsPrec p (TypeRep _ c ts) | head (tyConName c) == ',' = showParen True $ comma (map (showsPrec 0) ts)
+                               | otherwise = showParen (p > 11) $ showsPrec 11 c . foldr (\ t s -> showChar ' ' . showsPrec 12 t . s) id ts
+    where comma [] = undefined
+          comma [s] = s
+          comma (s:ss) = s . showString "," . comma ss
 
 typeRepTyCon :: TypeRep -> TyCon
 typeRepTyCon (TypeRep _ tc _) = tc
