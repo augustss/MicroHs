@@ -2,6 +2,8 @@
 This directory contains an implementation of a small subset of Haskell.
 It uses combinators for the runtime execution.
 
+The runtime system has minimal dependencies, and can be compiled even for micro-controllers.
+
 The compiler can compile itself.
 
 ## Compiling MicroHs
@@ -28,12 +30,11 @@ The language is an extended subset of Haskell-98.
 Differences:
  * Top level definitions must have a type signature.
  * Type variables need an explicit `forall`.
- * Type variables without a kind annotation are assumed to have kind `Type`.
  * There is no `Read` class.
  * There is no deriving.
- * There is no record syntax.
+ * Indentation is handled a little differently.
  * The `Prelude` has to be imported explicitly.
- * Polymorphic types are never inferred; use a type signature if you need it.
+ * Polymorphic types/kinds are never inferred; use a type/kind signature if you need it.
  * A module must have an export list.
  * The `default` list is empty, except in the interactive system.
  * Always enabled extension:

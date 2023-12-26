@@ -157,4 +157,12 @@ x = let { C a = C (1::Int) } in a
 mhs: "../tmp/E.hs": line 6, col 11: existentials not allowed in pattern binding
 
 =====
+module E() where
+import Prelude
+class C a where { m :: a }
+instance C Int where { x = 1 }
+-----
+mhs: "../tmp/E.hs": line 5, col 24: superflous binding x
+
+=====
 END

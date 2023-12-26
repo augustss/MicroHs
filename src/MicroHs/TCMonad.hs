@@ -150,11 +150,11 @@ data TCState = TC {
   uvarSubst   :: (IM.IntMap EType),     -- mapping from unique id to type
   tcMode      :: TCMode,                -- pattern, value, or type
   classTable  :: ClassTable,            -- class info, indexed by QIdent
-  ctxTables   :: (InstTable,           -- instances
-                  MetaTable,           -- instances with unification variables
+  ctxTables   :: (InstTable,            -- instances
+                  MetaTable,            -- instances with unification variables
                   TypeEqTable),         -- type equalities
   constraints :: Constraints,           -- constraints that have to be solved
-  defaults    :: Defaults              -- current defaults
+  defaults    :: Defaults               -- current defaults
   }
 
 typeTable :: TCState -> TypeTable
