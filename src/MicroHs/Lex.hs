@@ -19,7 +19,7 @@ data Token
   | TBrace  Loc
   | TIndent Loc
   | TSelect Loc String
-  deriving (Show)
+--  deriving (Show)
 
 showToken :: Token -> String
 showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])

@@ -17,7 +17,7 @@ import Compat
 --
 
 data SPat = SPat Con [Ident]    -- simple pattern
-  deriving(Show, Eq)
+--  deriving(Show, Eq)
 
 encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCase var pes dflt | n <= scottLimit = encCaseScott var pes dflt

@@ -34,10 +34,10 @@ import MicroHs.Ident
 --         ->  [   e2, e1, ...] [px, py, ...] [    ...], otherwise
 
 data Fix = FixIn | FixPre
-  deriving (Show)
+--  deriving (Show)
 
 data FixInput = Rator Fix Expr Fixity | Rand Expr
-  deriving (Show)
+--  deriving (Show)
 
 eNeg :: SLoc -> Expr
 eNeg loc = EVar (mkIdentSLoc loc "negate")

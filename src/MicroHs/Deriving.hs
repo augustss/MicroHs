@@ -1,6 +1,6 @@
 module MicroHs.Deriving(expandField, doDeriving) where
 import Prelude
-import Control.Monad
+--import Control.Monad
 import Data.Function
 import Data.List
 import MicroHs.Expr
@@ -87,7 +87,7 @@ derive lhs cs d = do
 
 derNotYet :: Deriver
 derNotYet _ _ d = do
-  when False $ traceM ("Warning: cannot derive " ++ show d ++ " yet")
+  traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
   return []
 
 derTypeable :: Deriver

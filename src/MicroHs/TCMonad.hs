@@ -124,7 +124,7 @@ data InstInfo = InstInfo
        (M.Map Expr)               -- map for direct lookup of atomic types
        [InstDict]                 -- slow path
        [IFunDep]
-  deriving (Show)
+--  deriving (Show)
 
 -- This is the dictionary expression, instance variables, instance context,
 -- and instance.

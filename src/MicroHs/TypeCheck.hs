@@ -96,7 +96,7 @@ data TModule a = TModule
   [InstDef]       -- all instances
   [ValueExport]   -- exported values (including from T(..))
   a               -- bindings
-  deriving (Show)
+--  deriving (Show)
 
 tModuleName :: forall a . TModule a -> IdentModule
 tModuleName (TModule a _ _ _ _ _ _ _) = a
@@ -108,12 +108,12 @@ data TypeExport = TypeExport
   Ident           -- unqualified name
   Entry           -- symbol table entry
   [ValueExport]   -- associated values, i.e., constructors, selectors, methods
-  deriving (Show)
+--  deriving (Show)
 
 data ValueExport = ValueExport
   Ident           -- unqualified name
   Entry           -- symbol table entry
-  deriving (Show)
+--  deriving (Show)
 
 type FixDef = (Ident, Fixity)
 type SynDef = (Ident, EType)

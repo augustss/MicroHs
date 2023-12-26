@@ -14,13 +14,13 @@ data CModule = CModule
     (TModule [LDef])                    -- the cached module
     [IdentModule]                       -- imported module names
     MD5CheckSum                         -- checksum of the source file
-  deriving (Show)
+--  deriving (Show)
 
 tModuleOf :: CModule -> TModule [LDef]
 tModuleOf (CModule t _ _) = t
 
 data Cache = Cache [IdentModule] (M.Map CModule)
-  deriving (Show)
+--  deriving (Show)
 
 working :: Cache -> [IdentModule]
 working (Cache x _) = x

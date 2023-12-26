@@ -26,7 +26,7 @@ type Col  = Int
 type Loc  = (Line, Col)
 
 data SLoc = SLoc !FilePath !Line !Col
-  deriving (Eq)
+--  deriving (Eq)
 
 instance Show SLoc where
   show (SLoc f l c) = show f ++ "," ++ show l ++ ":" ++ show c

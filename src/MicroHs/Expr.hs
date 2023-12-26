@@ -53,7 +53,7 @@ data ExportItem
   | ExpTypeCon Ident
   | ExpType Ident
   | ExpValue Ident
-  deriving (Show)
+--  deriving (Show)
 
 data EDef
   = Data LHS [Constr] Deriving
@@ -68,16 +68,16 @@ data EDef
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance EConstraint [EBind]  -- no deriving yet
   | Default [EType]
-  deriving (Show)
+--  deriving (Show)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
-  deriving (Show)
+--  deriving (Show)
 
 data ImportItem
   = ImpTypeCon Ident
   | ImpType Ident
   | ImpValue Ident
-  deriving (Show)
+--  deriving (Show)
 
 type Deriving = [EConstraint]
 
@@ -126,7 +126,7 @@ type FieldName = Ident
 data Con
   = ConData ConTyInfo Ident [FieldName]
   | ConNew Ident [FieldName]
-  deriving(Show)
+--  deriving(Show)
 
 data Listish
   = LList [Expr]
@@ -165,7 +165,7 @@ data Lit
   | LPrim String
   | LForImp String
   | LTick String
-  deriving (Show)
+--  deriving (Show)
 
 instance Eq Lit where
   (==) (LInt x)     (LInt  y) = x == y
@@ -182,16 +182,16 @@ instance Eq Lit where
 type ECaseArm = (EPat, EAlts)
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
-  deriving (Show)
+--  deriving (Show)
 
 data EBind = BFcn Ident [Eqn] | BPat EPat Expr | BSign Ident EType
-  deriving (Show)
+--  deriving (Show)
 
 -- A single equation for a function
 data Eqn = Eqn [EPat] EAlts
 
 data EAlts = EAlts [EAlt] [EBind]
-  deriving (Show)
+--  deriving (Show)
 
 type EAlt = ([EStmt], Expr)
 
@@ -230,7 +230,7 @@ data Constr = Constr
   [IdKind] [EConstraint]          -- existentials: forall vs . ctx =>
   Ident                           -- constructor name
   (Either [SType] [ConstrField])  -- types or named fields
-  deriving(Show)
+--  deriving(Show)
 
 type ConstrField = (Ident, SType)              -- record label and type
 type SType = (Bool, EType)                     -- the Bool indicates strict
@@ -357,7 +357,7 @@ instance HasLoc EAlt where
 ---------------------------------
 
 data Assoc = AssocLeft | AssocRight | AssocNone
-  deriving (Show)
+--  deriving (Show)
 
 instance Eq Assoc where
   AssocLeft  == AssocLeft  = True
