@@ -10,7 +10,7 @@ import Data.Bounded
 import Data.Eq
 import Data.Function
 import Data.Monoid
-import Data.Record
+import Data.Records
 import Data.Semigroup
 import Text.Show
 

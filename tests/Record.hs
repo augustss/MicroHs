@@ -56,6 +56,7 @@ main = do
   print $ r2.a
   print $ r2.b
   print $ rr1.r.a
+  print $ (.r.a) rr1
   print $ rr1.a
   print $ (.a) r1
   print $ sel_a r1

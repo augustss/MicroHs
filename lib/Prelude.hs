@@ -26,7 +26,7 @@ module Prelude(
   module Data.Ratio,
   module Data.Real,
   module Data.RealFloat,
-  module Data.Record,
+  module Data.Records,
   module Data.Tuple,
   module System.IO,
   module Text.Show,
@@ -58,7 +58,7 @@ import Data.Proxy
 import Data.Ratio(Rational)
 import Data.Real
 import Data.RealFloat
-import Data.Record
+import Data.Records
 import Data.Tuple
 import System.IO
 import Text.Show

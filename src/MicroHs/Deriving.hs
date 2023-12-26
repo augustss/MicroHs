@@ -56,7 +56,7 @@ eForall [] t = t
 eForall vs t = EForall vs t
 
 nameHasField :: String
-nameHasField = "Data.Record.HasField"
+nameHasField = "Data.Records.HasField"
 
 namehasField :: String
 namehasField = "hasField"
