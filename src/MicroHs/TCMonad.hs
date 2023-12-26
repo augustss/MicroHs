@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans -Wno-dodgy-imports -Wno-unused-imports #-}
 module MicroHs.TCMonad(
   module MicroHs.TCMonad,
-  get, put, gets,
+  get, put, gets, modify,
   ) where
 import Prelude
 import Data.Functor.Identity
@@ -137,6 +137,9 @@ type InstDict   = (Expr, [EConstraint], [EType])
 -- All known type equalities, contains the transitive&commutative closure.
 type TypeEqTable = [(EType, EType)]
 
+type ClassInfo = ([IdKind], [EConstraint], EType, [Ident], [IFunDep])  -- class tyvars, superclasses, class kind, methods, fundeps
+type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables
+
 -----------------------------------------------
 -- TCState
 data TCState = TC {
@@ -252,12 +255,6 @@ newUniq = do
       n = ts.unique
   put $ seq n' $ ts{ unique = n' }
   return n
-{-
-  TC mn n fx tenv senv venv ast sub m cs is es ds <- get
-  let n' = n+1
-  put (seq n' $ TC mn n' fx tenv senv venv ast sub m cs is es ds)
-  return n
--}
 
 -----------------------------------------------
 -- TCMode
@@ -307,9 +304,6 @@ assertTCMode p ta = do
   if p tcm then ta else error $ "assertTCMode: expected=" ++ show (filter p [TCExpr,TCType,TCKind]) ++ ", got=" ++ show tcm
 
 -----------------------------------------------
-
-type ClassInfo = ([IdKind], [EConstraint], EType, [Ident], [IFunDep])  -- class tyvars, superclasses, class kind, methods, fundeps
-type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables
 
 type T a = TC TCState a
 

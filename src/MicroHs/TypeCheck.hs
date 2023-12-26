@@ -361,14 +361,10 @@ withTypeTable ta = do
   return a
   
 addAssocTable :: Ident -> [Ident] -> T ()
-addAssocTable i ids = do
-  TC mn n fx tt st vt ast sub m cs is es ds <- get
-  put $ TC mn n fx tt st vt (M.insert i ids ast) sub m cs is es ds
+addAssocTable i ids = modify $ \ ts -> ts { assocTable = M.insert i ids ts.assocTable }
 
 addClassTable :: Ident -> ClassInfo -> T ()
-addClassTable i x = do
-  TC mn n fx tt st vt ast sub m cs is es ds <- get
-  put $ TC mn n fx tt st vt ast sub m (M.insert i x cs) is es ds
+addClassTable i x = modify $ \ ts -> ts { classTable = M.insert i x ts.classTable }
 
 addInstTable :: [InstDictC] -> T ()
 addInstTable ics = do
@@ -395,8 +391,7 @@ addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
   ctx' <- expandSyn ctx
-  TC mn n fx tt st vt ast sub m cs is es ds <- get
-  put $ TC mn n fx tt st vt ast sub m cs is ((d, ctx') : es) ds
+  modify $ \ ts -> ts{ constraints = (d, ctx') : ts.constraints }
 
 withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
 withDicts ds ta = do
@@ -449,7 +444,9 @@ initTC mn fs ts ss cs is vs as =
   let
     xts = foldr (uncurry stInsertGlb) ts primTypes
     xvs = foldr (uncurry stInsertGlb) vs primValues
-  in TC mn 1 (addPrimFixs fs) xts ss xvs as IM.empty TCExpr cs (is,[],[]) [] []
+  in TC { moduleName = mn, unique = 1, fixTable = addPrimFixs fs, typeTable = xts,
+          synTable = ss, valueTable = xvs, assocTable = as, uvarSubst = IM.empty,
+          tcMode = TCExpr, classTable = cs, ctxTables = (is,[],[]), constraints = [], defaults = [] }
 
 addPrimFixs :: FixTable -> FixTable
 addPrimFixs =
@@ -614,9 +611,7 @@ getTuple n t = loop t []
 -}
 
 setUVar :: TRef -> EType -> T ()
-setUVar i t = do
-  TC mn n fx tenv senv venv ast sub m cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast (IM.insert i t sub) m cs is es ds)
+setUVar i t = modify $ \ ts -> ts{ uvarSubst = IM.insert i t ts.uvarSubst }
 
 getUVar :: Int -> T (Maybe EType)
 getUVar i = gets (IM.lookup i . uvarSubst)
@@ -756,9 +751,7 @@ unifyUnboundVar loc r1 t2 = do
 
 -- Reset unification map
 tcReset :: T ()
-tcReset = do
-  TC mn u fx tenv senv venv ast _ m cs is es ds <- get
-  put (TC mn u fx tenv senv venv ast IM.empty m cs is es ds)
+tcReset = modify $ \ ts -> ts{ uvarSubst = IM.empty }
 
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
@@ -864,10 +857,7 @@ extSyn i t = do
   putSynTable (M.insert i t senv)
 
 extFix :: Ident -> Fixity -> T ()
-extFix i fx = do
-  TC mn n fenv tenv senv venv ast sub m cs is es ds <- get
-  put $ TC mn n (M.insert i fx fenv) tenv senv venv ast sub m cs is es ds
-  return ()
+extFix i fx = modify $ \ ts -> ts{ fixTable = M.insert i fx ts.fixTable }
 
 withExtVal :: forall a . HasCallStack =>
               Ident -> EType -> T a -> T a
