@@ -191,13 +191,13 @@ ctxTables :: TCState -> (InstTable, MetaTable, TypeEqTable)
 ctxTables = (.ctxTables)
 
 instTable :: TCState -> InstTable
-instTable ts = ts.ctxTables._1
+instTable = (.ctxTables._1)
 
 metaTable :: TCState -> MetaTable
-metaTable ts = case ts.ctxTables of { (_, ms, _) -> ms }
+metaTable = (.ctxTables._2)
 
 typeEqTable :: TCState -> TypeEqTable
-typeEqTable ts = case ts.ctxTables of { (_, _, es) -> es }
+typeEqTable = (.ctxTables._3)
 
 constraints :: TCState -> Constraints
 constraints = (.constraints)

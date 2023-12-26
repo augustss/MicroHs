@@ -1578,7 +1578,9 @@ tcExprR mt ae =
         _ -> do
           let set = foldr eSetField e ies
           tcExpr mt set
-    ESelect i -> tcExpr mt $ eGetField i
+    ESelect is -> do
+        let x = eVarI loc "$x"
+        tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
     _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
 

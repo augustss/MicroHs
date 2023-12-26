@@ -99,7 +99,7 @@ data Expr
   | ESign Expr EType
   | ENegApp Expr
   | EUpdate Expr [(Ident, Expr)]
-  | ESelect Ident
+  | ESelect [Ident]
   -- only in patterns
   | EAt Ident Expr
   | EViewPat Expr EPat
@@ -306,7 +306,7 @@ instance HasLoc Expr where
   getSLoc (ESign e _) = getSLoc e
   getSLoc (ENegApp e) = getSLoc e
   getSLoc (EUpdate e _) = getSLoc e
-  getSLoc (ESelect i) = getSLoc i
+  getSLoc (ESelect is) = getSLoc (head is)
   getSLoc (EAt i _) = getSLoc i
   getSLoc (EViewPat e _) = getSLoc e
   getSLoc (EUVar _) = error "getSLoc EUVar"
@@ -631,7 +631,7 @@ ppExpr ae =
     ESign e t -> parens $ ppExpr e <+> text "::" <+> ppEType t
     ENegApp e -> text "-" <+> ppExpr e
     EUpdate ee ies -> ppExpr ee <> text "{" <+> hsep (punctuate (text ",") (map (\ (i, e) -> ppIdent i <+> text "=" <+> ppExpr e) ies)) <+> text "}"
-    ESelect i -> parens $ text "." <> ppIdent i
+    ESelect is -> parens $ hcat $ map (\ i -> text "." <> ppIdent i) is
     EAt i e -> ppIdent i <> text "@" <> ppExpr e
     EViewPat e p -> parens $ ppExpr e <+> text "->" <+> ppExpr p
     EUVar i -> text ("a" ++ show i)

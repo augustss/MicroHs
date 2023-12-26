@@ -542,8 +542,9 @@ pAExpr = do
   ee <- pAExpr'
   us <- many pUpdate
   ss <- many pSelect
-  let esel e i = EApp (ESelect i) e
-  pure $ foldl esel (foldl EUpdate ee us) ss
+  let sel e | null ss = e
+            | otherwise = EApp (ESelect ss) e
+  pure $ sel (foldl EUpdate ee us)
 
 pUpdate :: P [(Ident, Expr)]
 pUpdate = pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "=") <*> pExpr) (pSpec ',') <* pSpec '}'
@@ -564,7 +565,7 @@ pAExpr' = (
   <|< EListish <$> (pSpec '[' *> pListish <* pSpec ']')
   <|< (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOperComma <* pSpec ')'))
   <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprArg <* pSpec ')'))
-  <|< (ESelect <$> (pSpec '(' *> pSelect <* pSpec ')'))
+  <|< (ESelect <$> (pSpec '(' *> esome pSelect <* pSpec ')'))
   <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
   )
   -- This weirdly slows down parsing
