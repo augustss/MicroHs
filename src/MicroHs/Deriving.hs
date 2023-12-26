@@ -91,15 +91,14 @@ derNotYet _ _ d = do
   return []
 
 derTypeable :: Deriver
-derTypeable (i, _) _ _ = do
+derTypeable (i, _) _ etyp = do
   mn <- gets moduleName
   let
     loc = getSLoc i
-    iTypeable = mkIdentSLoc loc "Data.Typeable.Typeable"   -- XXX
     itypeRep  = mkIdentSLoc loc "typeRep"
     imkTyConApp = mkIdentSLoc loc "mkTyConApp"
     imkTyCon = mkIdentSLoc loc "mkTyCon"
-    hdr = EApp (EVar iTypeable) (EVar $ qualIdent mn i)
+    hdr = EApp etyp (EVar $ qualIdent mn i)
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
     eqns = eEqns [dummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkIdent "[]"))

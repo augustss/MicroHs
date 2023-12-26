@@ -763,15 +763,6 @@ tcReset = do
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
 
-type TRef = Int
-
-newUniq :: T TRef
-newUniq = do
-  TC mn n fx tenv senv venv ast sub m cs is es ds <- get
-  let n' = n+1
-  put (seq n' $ TC mn n' fx tenv senv venv ast sub m cs is es ds)
-  return n
-
 uniqIdentSep :: String
 uniqIdentSep = "$"
 

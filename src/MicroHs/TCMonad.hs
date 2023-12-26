@@ -139,127 +139,125 @@ type TypeEqTable = [(EType, EType)]
 
 -----------------------------------------------
 -- TCState
-
-data TCState = TC
-  IdentModule           -- current module name
-  Int                   -- unique number
-  FixTable              -- fixities, indexed by QIdent
-  TypeTable             -- type symbol table
-  SynTable              -- synonyms, indexed by QIdent
-  ValueTable            -- value symbol table
-  AssocTable            -- values associated with a type, indexed by QIdent
-  (IM.IntMap EType)     -- mapping from unique id to type
-  TCMode                -- pattern, value, or type
-  ClassTable            -- class info, indexed by QIdent
-  (InstTable,           -- instances
-   MetaTable,           -- instances with unification variables
-   TypeEqTable)         -- type equalities
-  Constraints           -- constraints that have to be solved
-  Defaults              -- current defaults
-  deriving (Show)
-
------------------------------------------------
--- TCState access
+data TCState = TC {
+  moduleName  :: IdentModule,           -- current module name
+  unique      :: Int,                   -- unique number
+  fixTable    :: FixTable,              -- fixities, indexed by QIdent
+  typeTable   :: TypeTable,             -- type symbol table
+  synTable    :: SynTable,              -- synonyms, indexed by QIdent
+  valueTable  :: ValueTable,            -- value symbol table
+  assocTable  :: AssocTable,            -- values associated with a type, indexed by QIdent
+  uvarSubst   :: (IM.IntMap EType),     -- mapping from unique id to type
+  tcMode      :: TCMode,                -- pattern, value, or type
+  classTable  :: ClassTable,            -- class info, indexed by QIdent
+  ctxTables   :: (InstTable,           -- instances
+                  MetaTable,           -- instances with unification variables
+                  TypeEqTable),         -- type equalities
+  constraints :: Constraints,           -- constraints that have to be solved
+  defaults    :: Defaults              -- current defaults
+  }
 
 typeTable :: TCState -> TypeTable
-typeTable (TC _ _ _ tt _ _ _ _ _ _ _ _ _) = tt
+typeTable = (.typeTable)
 
 valueTable :: TCState -> ValueTable
-valueTable (TC _ _ _ _ _ vt _ _ _ _ _ _ _) = vt
+valueTable = (.valueTable)
 
 synTable :: TCState -> SynTable
-synTable (TC _ _ _ _ st _ _ _ _ _ _ _ _) = st
+synTable = (.synTable)
 
 fixTable :: TCState -> FixTable
-fixTable (TC _ _ ft _ _ _ _ _ _ _ _ _ _) = ft
+fixTable = (.fixTable)
 
 assocTable :: TCState -> AssocTable
-assocTable (TC _ _ _ _ _ _ ast _ _ _ _ _ _) = ast
+assocTable = (.assocTable)
 
 uvarSubst :: TCState -> IM.IntMap EType
-uvarSubst (TC _ _ _ _ _ _ _ sub _ _ _ _ _) = sub
+uvarSubst = (.uvarSubst)
 
 moduleName :: TCState -> IdentModule
-moduleName (TC mn _ _ _ _ _ _ _ _ _ _ _ _) = mn
+moduleName = (.moduleName)
 
 classTable :: TCState -> ClassTable
-classTable (TC _ _ _ _ _ _ _ _ _ ct _ _ _) = ct
+classTable = (.classTable)
 
 tcMode :: TCState -> TCMode
-tcMode (TC _ _ _ _ _ _ _ _ m _ _ _ _) = m
-
-instTable :: TCState -> InstTable
-instTable (TC _ _ _ _ _ _ _ _ _ _ (is, _, _) _ _) = is
-
-metaTable :: TCState -> MetaTable
-metaTable (TC _ _ _ _ _ _ _ _ _ _ (_, ms, _) _ _) = ms
-
-typeEqTable :: TCState -> TypeEqTable
-typeEqTable (TC _ _ _ _ _ _ _ _ _ _ (_, _, es) _ _) = es
+tcMode = (.tcMode)
 
 ctxTables :: TCState -> (InstTable, MetaTable, TypeEqTable)
-ctxTables (TC _ _ _ _ _ _ _ _ _ _ ct _ _) = ct
+ctxTables = (.ctxTables)
+
+instTable :: TCState -> InstTable
+instTable ts = case ts.ctxTables of { (is,_,_) -> is }
+
+metaTable :: TCState -> MetaTable
+metaTable ts = case ts.ctxTables of { (_, ms, _) -> ms }
+
+typeEqTable :: TCState -> TypeEqTable
+typeEqTable ts = case ts.ctxTables of { (_, _, es) -> es }
 
 constraints :: TCState -> Constraints
-constraints (TC _ _ _ _ _ _ _ _ _ _ _ e _) = e
+constraints = (.constraints)
 
 defaults :: TCState -> Defaults
-defaults (TC _ _ _ _ _ _ _ _ _ _ _ _ ds) = ds
+defaults = (.defaults)
+
 
 putValueTable :: ValueTable -> T ()
-putValueTable venv = do
-  TC mn n fx tenv senv _ ast sub m cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
+putValueTable venv = modify $ \ ts -> ts{ valueTable = venv }
 
 putTypeTable :: TypeTable -> T ()
-putTypeTable tenv = do
-  TC mn n fx _ senv venv ast sub m cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
+putTypeTable tenv = modify $ \ ts -> ts{ typeTable = tenv }
 
 putSynTable :: SynTable -> T ()
-putSynTable senv = do
-  TC mn n fx tenv _ venv ast sub m cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
+putSynTable senv = modify $ \ ts -> ts{ synTable = senv }
 
 putUvarSubst :: IM.IntMap EType -> T ()
-putUvarSubst sub = do
-  TC mn n fx tenv senv venv ast _ m cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
+putUvarSubst sub = modify $ \ ts -> ts{ uvarSubst = sub }
 
 putTCMode :: TCMode -> T ()
-putTCMode m = do
-  TC mn n fx tenv senv venv ast sub _ cs is es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
+putTCMode m = modify $ \ ts -> ts{ tcMode = m }
 
 putInstTable :: InstTable -> T ()
 putInstTable is = do
-  TC mn n fx tenv senv venv ast sub m cs (_,ms,eqs) es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs (is,ms,eqs) es ds)
+  (_,ms,eqs) <- gets (.ctxTables)
+  modify $ \ ts -> ts{ ctxTables = (is,ms,eqs) }
 
 putMetaTable :: MetaTable -> T ()
 putMetaTable ms = do
-  TC mn n fx tenv senv venv ast sub m cs (is,_,eqs) es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs (is,ms,eqs) es ds)
+  (is,_,eqs) <- gets (.ctxTables)
+  modify $ \ ts -> ts{ ctxTables = (is,ms,eqs) }
 
 putTypeEqTable :: TypeEqTable -> T ()
 putTypeEqTable eqs = do
-  TC mn n fx tenv senv venv ast sub m cs (is,ms,_) es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs (is,ms,eqs) es ds)
+  (is,ms,_) <- gets (.ctxTables)
+  modify $ \ ts -> ts{ ctxTables = (is,ms,eqs) }
 
 putCtxTables :: (InstTable, MetaTable, TypeEqTable) -> T ()
-putCtxTables ct = do
-  TC mn n fx tenv senv venv ast sub m cs _ es ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs ct es ds)
+putCtxTables ct = modify $ \ ts -> ts{ ctxTables = ct }
 
 putConstraints :: Constraints -> T ()
-putConstraints es = do
-  TC mn n fx tenv senv venv ast sub m cs is _ ds <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
+putConstraints es = modify $ \ ts -> ts{ constraints = es }
 
 putDefaults :: Defaults -> T ()
-putDefaults ds = do
-  TC mn n fx tenv senv venv ast sub m cs is es _ <- get
-  put (TC mn n fx tenv senv venv ast sub m cs is es ds)
+putDefaults ds = modify $ \ ts -> ts{ defaults = ds }
+
+
+type TRef = Int
+
+newUniq :: T TRef
+newUniq = do
+  ts <- get
+  let n' = n + 1
+      n = ts.unique
+  put $ seq n' $ ts{ unique = n' }
+  return n
+{-
+  TC mn n fx tenv senv venv ast sub m cs is es ds <- get
+  let n' = n+1
+  put (seq n' $ TC mn n' fx tenv senv venv ast sub m cs is es ds)
+  return n
+-}
 
 -----------------------------------------------
 -- TCMode
