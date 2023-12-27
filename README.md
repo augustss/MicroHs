@@ -31,7 +31,7 @@ Differences:
  * Top level definitions must have a type signature.
  * Type variables need an explicit `forall`.
  * There is no `Read` class.
- * There is no deriving.
+ * There is only deriving for Typeable and Eq.
  * Indentation is handled a little differently.
  * The `Prelude` has to be imported explicitly.
  * Polymorphic types/kinds are never inferred; use a type/kind signature if you need it.

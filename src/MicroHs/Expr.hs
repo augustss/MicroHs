@@ -166,7 +166,9 @@ data Lit
   | LForImp String
   | LTick String
 --  deriving (Show)
+  deriving (Eq)
 
+{-
 instance Eq Lit where
   (==) (LInt x)     (LInt  y) = x == y
   (==) (LInteger x) (LInteger  y) = x == y
@@ -178,6 +180,7 @@ instance Eq Lit where
   (==) (LForImp x)  (LForImp y) = x == y
   (==) (LTick x)    (LTick y) = x == y
   (==) _            _         = False
+-}
 
 type ECaseArm = (EPat, EAlts)
 
@@ -358,12 +361,15 @@ instance HasLoc EAlt where
 
 data Assoc = AssocLeft | AssocRight | AssocNone
 --  deriving (Show)
+  deriving (Eq)
 
+{-
 instance Eq Assoc where
   AssocLeft  == AssocLeft  = True
   AssocRight == AssocRight = True
   AssocNone  == AssocNone  = True
   _          == _          = False
+-}
 
 type Fixity = (Assoc, Int)
 

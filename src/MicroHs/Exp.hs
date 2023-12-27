@@ -27,13 +27,16 @@ data Exp
   | App Exp Exp
   | Lam Ident Exp
   | Lit Lit
+  deriving (Eq)
 
+{-
 instance Eq Exp where
   (==) (Var i1)    (Var i2)    = i1 == i2
   (==) (App f1 a1) (App f2 a2) = f1 == f2 && a1 == a2
   (==) (Lam i1 e1) (Lam i2 e2) = i1 == i2 && e1 == e2
   (==) (Lit l1)    (Lit l2)    = l1 == l2
   (==) _           _           = False
+-}
 
 app2 :: Exp -> Exp -> Exp -> Exp
 app2 f a1 a2 = App (App f a1) a2

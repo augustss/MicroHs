@@ -1069,7 +1069,6 @@ tcConstr (Constr iks ct c ets) =
 -- in the desugaring pass.
 -- Default methods are added as actual definitions.
 -- The constructor and methods are added to the symbol table in addValueType.
--- XXX FunDep
 expandClass :: EDef -> T [EDef]
 expandClass dcls@(Class ctx (iCls, vks) fds ms) = do
   mn <- gets moduleName
