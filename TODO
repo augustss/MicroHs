@@ -1,5 +1,6 @@
 * Have compile return a Stats record of timing etc
 * Implement deriving
+  - started, Typeable so far
 * make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
   - Somewhat improved now
@@ -36,6 +37,7 @@
 * Removing [] from prim table
 * Faster compression
 * Unicode, i.e., UTF-8 IO
+  - use BFILE for file I/O
 * Use pointer reversal, might be slower
   - In GC mark pass
   - In evaluator
