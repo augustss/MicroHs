@@ -73,7 +73,7 @@ type Deriver = LHS -> [Constr] -> EConstraint -> T [EDef]
 derivers :: [(String, Deriver)]
 derivers =
   [("Data.Typeable.Typeable", derTypeable)
-  ,("Data.Eq.Eq",             derNotYet)
+  ,("Data.Eq.Eq",             derEq)
   ,("Data.Ord.Ord",           derNotYet)
   ,("Text.Show.Show",         derNotYet)
   ]
@@ -90,6 +90,8 @@ derNotYet _ _ d = do
   traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
   return []
 
+--------------------------------------------
+
 derTypeable :: Deriver
 derTypeable (i, _) _ etyp = do
   mn <- gets moduleName
@@ -103,4 +105,47 @@ derTypeable (i, _) _ etyp = do
     nam = ELit loc $ LStr $ unIdent i
     eqns = eEqns [dummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkIdent "[]"))
     inst = Instance hdr [BFcn itypeRep eqns]
+  return [inst]
+
+--------------------------------------------
+
+getConstrTyVars :: Constr -> [Ident]
+getConstrTyVars (Constr evs ctx _ flds) =
+  let vs = freeTyVars $ ctx ++ either (map snd) (map (snd . snd)) flds
+  in  vs \\ map idKindIdent evs
+
+mkHdr :: LHS -> [Constr] -> EConstraint -> T EConstraint
+mkHdr (t, iks) cs cls = do
+  mn <- gets moduleName
+  let used = foldr (union . getConstrTyVars) [] cs  -- Used type variables
+      iks' = filter ((`elem` used) . idKindIdent) iks
+      vs = map tVarK iks'
+      ty = tApps (qualIdent mn t) $ map tVarK iks
+  pure $ eForall iks $ addConstraints (map (tApp cls) vs) $ tApp cls ty
+
+mkPat :: Constr -> String -> (EPat, [Expr])
+mkPat (Constr _ _ c flds) s =
+  let n = either length length flds
+      loc = getSLoc c
+      vs = map (EVar . mkIdentSLoc loc . (s ++) . show) [1..n]
+  in  (tApps c vs, vs)
+
+--------------------------------------------
+
+derEq :: Deriver
+derEq lhs cs eeq = do
+  hdr <- mkHdr lhs cs eeq
+  let loc = getSLoc eeq
+      mkEqn c =
+        let (xp, xs) = mkPat c "x"
+            (yp, ys) = mkPat c "y"
+        in  eEqn [xp, yp] $ if null xs then eTrue else foldr1 eAnd $ zipWith eEq xs ys
+      eqns = map mkEqn cs ++ [eEqn [dummy, dummy] eFalse]
+      iEq = mkIdentSLoc loc "=="
+      eEq = EApp . EApp (EVar iEq)
+      eAnd = EApp . EApp (EVar $ mkIdentSLoc loc "&&")
+      eTrue = EVar $ mkIdentSLoc loc "True"
+      eFalse = EVar $ mkIdentSLoc loc "False"
+      inst = Instance hdr [BFcn iEq eqns]
+--  traceM $ showEDefs [inst]
   return [inst]

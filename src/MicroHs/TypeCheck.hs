@@ -123,7 +123,6 @@ type InstDef= (Ident, InstInfo)
 type Sigma = EType
 --type Tau   = EType
 type Rho   = EType
-type TyVar = Ident
 
 typeCheck :: forall a . [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
 typeCheck aimps (EModule mn exps defs) =
@@ -474,9 +473,6 @@ kTypeTypeTypeS = kArrow kType $ kArrow kType kType
 kTypeTypeConstraintS :: EType
 kTypeTypeConstraintS = kArrow kType (kArrow kType kConstraint)
 
-builtinLoc :: SLoc
-builtinLoc = SLoc "builtin" 0 0
-
 mkIdentB :: String -> Ident
 mkIdentB = mkIdentSLoc builtinLoc
 
@@ -562,24 +558,6 @@ primValues =
         r = tApps c ts
       in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall vks $ foldr tArrow r ts ])
   in  map tuple (enumFromTo 2 10)
-
-tCon :: Ident -> EType
-tCon = EVar
-
-tVarK :: IdKind -> EType
-tVarK (IdKind i _) = EVar i
-
-tApp :: EType -> EType -> EType
-tApp = EApp
-
-tApps :: Ident -> [EType] -> EType
-tApps i ts = foldl tApp (tCon i) ts
-
-tArrow :: EType -> EType -> EType
-tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
-
-tImplies :: EType -> EType -> EType
-tImplies a r = tApp (tApp (tConI builtinLoc "Primitives.=>") a) r
 
 kArrow :: EKind -> EKind -> EKind
 kArrow = tArrow
@@ -1136,15 +1114,6 @@ clsToDict = do
       usup _ t = tcError (getSLoc t) ("bad context " ++ showEType t)
   usup []
 -}
-
-addConstraints :: [EConstraint] -> EType -> EType
-addConstraints []  t = t
-addConstraints cs  t = tupleConstraints cs `tImplies` t
-
-tupleConstraints :: [EConstraint] -> EConstraint
-tupleConstraints []  = error "tupleConstraints"
-tupleConstraints [c] = c
-tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
 
 splitInst :: EConstraint -> ([IdKind], [EConstraint], EConstraint)
 splitInst (EForall iks t) =
@@ -2008,9 +1977,6 @@ dsType at =
     ELit _ (LInteger _) -> at
     _ -> impossible
 
-tConI :: SLoc -> String -> EType
-tConI loc = tCon . mkIdentSLoc loc
-
 tListI :: SLoc -> Ident
 tListI loc = mkIdentSLoc loc $ listPrefix ++ "[]"
 
@@ -2097,24 +2063,6 @@ newSkolemTyVar :: Ident -> T Ident
 newSkolemTyVar tv = do
   uniq <- newUniq
   return (mkIdentSLoc (getSLoc tv) (unIdent tv ++ "#" ++ show uniq))
-
-freeTyVars :: [EType] -> [TyVar]
--- Get the free TyVars from a type; no duplicates in result
-freeTyVars = foldr (go []) []
-  where
-    go :: [TyVar] -- Ignore occurrences of bound type variables
-       -> EType   -- Type to look at
-       -> [TyVar] -- Accumulates result
-       -> [TyVar]
-    go bound (EVar tv) acc
-      | elem tv bound = acc
-      | elem tv acc = acc
-      | isConIdent tv = acc
-      | otherwise = tv : acc
-    go bound (EForall tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
-    go bound (EApp fun arg) acc = go bound fun (go bound arg acc)
-    go _bound (EUVar _) acc = acc
-    go _ _ _ = undefined
 
 metaTvs :: [EType] -> [TRef]
 -- Get the MetaTvs from a type; no duplicates in result

@@ -321,3 +321,60 @@ getAppCon (EVar i) = i
 getAppCon (EApp f _) = getAppCon f
 getAppCon _ = error "getAppCon"
 
+-----------------------------------------------
+
+type TyVar = Ident
+
+freeTyVars :: [EType] -> [TyVar]
+-- Get the free TyVars from a type; no duplicates in result
+freeTyVars = foldr (go []) []
+  where
+    go :: [TyVar] -- Ignore occurrences of bound type variables
+       -> EType   -- Type to look at
+       -> [TyVar] -- Accumulates result
+       -> [TyVar]
+    go bound (EVar tv) acc
+      | elem tv bound = acc
+      | elem tv acc = acc
+      | isConIdent tv = acc
+      | otherwise = tv : acc
+    go bound (EForall tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
+    go bound (EApp fun arg) acc = go bound fun (go bound arg acc)
+    go _bound (EUVar _) acc = acc
+    go _ _ _ = undefined
+
+addConstraints :: [EConstraint] -> EType -> EType
+addConstraints []  t = t
+addConstraints cs  t = tupleConstraints cs `tImplies` t
+
+tupleConstraints :: [EConstraint] -> EConstraint
+tupleConstraints []  = error "tupleConstraints"
+tupleConstraints [c] = c
+tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
+
+-----------------------------------------------
+
+builtinLoc :: SLoc
+builtinLoc = SLoc "builtin" 0 0
+
+tConI :: SLoc -> String -> EType
+tConI loc = tCon . mkIdentSLoc loc
+
+tCon :: Ident -> EType
+tCon = EVar
+
+tVarK :: IdKind -> EType
+tVarK (IdKind i _) = EVar i
+
+tApp :: EType -> EType -> EType
+tApp = EApp
+
+tApps :: Ident -> [EType] -> EType
+tApps i ts = foldl tApp (tCon i) ts
+
+tArrow :: EType -> EType -> EType
+tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
+
+tImplies :: EType -> EType -> EType
+tImplies a r = tApp (tApp (tConI builtinLoc "Primitives.=>") a) r
+

@@ -55,6 +55,7 @@ test:
 	$(TMHS) HigherKind && $(EVAL) > HigherKind.out && diff HigherKind.ref HigherKind.out
 	$(TMHS) PolyKind   && $(EVAL) > PolyKind.out   && diff PolyKind.ref PolyKind.out
 	$(TMHS) Record     && $(EVAL) > Record.out     && diff Record.ref Record.out
+	$(TMHS) Deriving   && $(EVAL) > Deriving.out   && diff Deriving.ref Deriving.out
 
 errtest:
 	sh errtester.sh < errmsg.test
