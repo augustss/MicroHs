@@ -10,7 +10,6 @@ import Data.Bounded
 import Data.Eq
 import Data.Function
 import Data.Monoid
-import Data.Records
 import Data.Semigroup
 import Text.Show
 
@@ -98,27 +97,3 @@ instance forall a b c . (Monoid a, Monoid b, Monoid c) => Monoid (a, b, c) where
 
 instance forall a b c d . (Monoid a, Monoid b, Monoid c, Monoid d) => Monoid (a, b, c, d) where
   mempty = (mempty, mempty, mempty, mempty)
-
------------------------------------
--- Virtual fields for tuples.
-
-instance forall a b . HasField "_1" (a, b) a where
-  hasField _ (a, b) = (a, \ a -> (a, b))
-instance forall a b . HasField "_2" (a, b) b where
-  hasField _ (a, b) = (b, \ b -> (a, b))
-
-instance forall a b c . HasField "_1" (a, b, c) a where
-  hasField _ (a, b, c) = (a, \ a -> (a, b, c))
-instance forall a b c . HasField "_2" (a, b, c) b where
-  hasField _ (a, b, c) = (b, \ b -> (a, b, c))
-instance forall a b c . HasField "_3" (a, b, c) c where
-  hasField _ (a, b, c) = (c, \ c -> (a, b, c))
-
-instance forall a b c d . HasField "_1" (a, b, c, d) a where
-  hasField _ (a, b, c, d) = (a, \ a -> (a, b, c, d))
-instance forall a b c d . HasField "_2" (a, b, c, d) b where
-  hasField _ (a, b, c, d) = (b, \ b -> (a, b, c, d))
-instance forall a b c d . HasField "_3" (a, b, c, d) c where
-  hasField _ (a, b, c, d) = (c, \ c -> (a, b, c, d))
-instance forall a b c d . HasField "_4" (a, b, c, d) d where
-  hasField _ (a, b, c, d) = (d, \ d -> (a, b, c, d))

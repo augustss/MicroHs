@@ -2,6 +2,7 @@ module Data.Records(module Data.Records) where
 import Primitives
 import Data.Function
 import Data.Proxy
+import Data.Tuple
 
 type GetSet r a = r -> (a, a -> r)
 
@@ -21,3 +22,27 @@ composeGetSet gs1 gs2 a =
     (b, b_to_a) ->
       case gs2 b of
         (c, c_to_b) -> (c, b_to_a . c_to_b)
+
+-----------------------------------
+-- Virtual fields for tuples.
+
+instance forall a b . HasField "_1" (a, b) a where
+  hasField _ (a, b) = (a, \ a -> (a, b))
+instance forall a b . HasField "_2" (a, b) b where
+  hasField _ (a, b) = (b, \ b -> (a, b))
+
+instance forall a b c . HasField "_1" (a, b, c) a where
+  hasField _ (a, b, c) = (a, \ a -> (a, b, c))
+instance forall a b c . HasField "_2" (a, b, c) b where
+  hasField _ (a, b, c) = (b, \ b -> (a, b, c))
+instance forall a b c . HasField "_3" (a, b, c) c where
+  hasField _ (a, b, c) = (c, \ c -> (a, b, c))
+
+instance forall a b c d . HasField "_1" (a, b, c, d) a where
+  hasField _ (a, b, c, d) = (a, \ a -> (a, b, c, d))
+instance forall a b c d . HasField "_2" (a, b, c, d) b where
+  hasField _ (a, b, c, d) = (b, \ b -> (a, b, c, d))
+instance forall a b c d . HasField "_3" (a, b, c, d) c where
+  hasField _ (a, b, c, d) = (c, \ c -> (a, b, c, d))
+instance forall a b c d . HasField "_4" (a, b, c, d) d where
+  hasField _ (a, b, c, d) = (d, \ d -> (a, b, c, d))
