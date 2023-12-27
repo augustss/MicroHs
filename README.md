@@ -228,6 +228,8 @@ MicroHs implements the record dot extensions.
 So accessing a field `a` in record `r` is written `r.a`.
 Updating a field has the usual Haskell syntax `r{ a = e }`, but the type is overloaded so this can update the `a` field in any record.
 The typeclass `HasField` captures this.  `HasField "name" rec ty` expresses that the record type `rec` has a field `name` with type `ty`.
+Record updates can also update nested fields, e.g., `r{ a.b.c = e }`.  Note that this will not work in GHC, since GHC does not
+fully implement `OverloadedRecordUpdate` has not been fully implemented in GHC.
 
 ### Features
 The runtime system can serialize and deserialize any expression

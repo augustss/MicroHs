@@ -1,7 +1,8 @@
-R{a=1,b=True}
-R{a=2,b=True}
-R{a=10,b=True}
-R{a=10,b=False}
+CR{a=1,b=True}
+CR{a=2,b=True}
+CR{a=10,b=True}
+CR{a=10,b=False}
+CRR{r=CR{a=999,b=True},a=True}
 2
 True
 1

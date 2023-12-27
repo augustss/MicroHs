@@ -546,8 +546,8 @@ pAExpr = do
             | otherwise = EApp (ESelect ss) e
   pure $ sel (foldl EUpdate ee us)
 
-pUpdate :: P [(Ident, Expr)]
-pUpdate = pSpec '{' *> esepBy ((,) <$> (pLIdentSym <* pSymbol "=") <*> pExpr) (pSpec ',') <* pSpec '}'
+pUpdate :: P [([Ident], Expr)]
+pUpdate = pSpec '{' *> esepBy ((,) <$> (((:) <$> pLIdentSym <*> many pSelect) <* pSymbol "=") <*> pExpr) (pSpec ',') <* pSpec '}'
 
 pSelect :: P Ident
 pSelect = do

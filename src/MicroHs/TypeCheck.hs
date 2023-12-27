@@ -1563,20 +1563,24 @@ tcExprR mt ae =
       withVks vks $ \ vks' -> do
         tt <- tcExpr mt t
         return (EForall vks' tt)
-    EUpdate e ies -> do
+    EUpdate e ises -> do
       (e', _) <- tInferExpr e
       case e' of
         ECon c -> do
           let fs = conFields c
+              ies = map (first head) ises
               is = map fst ies
               as = map field fs
               field i = fromMaybe (unsetField i) $ lookup i ies
+          case filter ((> 1) . length . fst) ises of
+            (i:_, _):_ -> tcError (getSLoc i) "Nested construction not allowed"
+            _ -> return ()
           case is \\ fs of
             vs@(v:_) -> tcError (getSLoc v) $ "extra field(s) " ++ unwords (map unIdent vs)
             _ -> return ()
           tcExpr mt (foldl EApp e as)
         _ -> do
-          let set = foldr eSetField e ies
+          let set = foldr eSetFields e ises
           tcExpr mt set
     ESelect is -> do
         let x = eVarI loc "$x"
@@ -1584,8 +1588,22 @@ tcExprR mt ae =
     _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
 
-eSetField :: (Ident, Expr) -> Expr -> Expr
-eSetField (i, e) r = EApp (EApp (EApp (EVar iset) (eProxy i)) r) e
+eSetFields :: ([Ident], Expr) -> Expr -> Expr
+--eSetFields ([i], e) r = eSetField (i, e) r
+eSetFields (is, e) r =
+  let loc = getSLoc is
+      eCompose = EVar $ mkIdentSLoc loc "composeSet"
+      has = map eHasField $ init is
+      set1 = eSetField (last is)
+      set = foldr (EApp . EApp eCompose) set1 has
+  in  EApp (EApp set r) e
+
+eHasField :: Ident -> Expr
+eHasField i = EApp (EVar ihas) (eProxy i)
+  where ihas = mkIdentSLoc (getSLoc i) "hasField"
+
+eSetField :: Ident -> Expr
+eSetField i = EApp (EVar iset) (eProxy i)
   where iset = mkIdentSLoc (getSLoc i) "setField"
 
 eGetField :: Ident -> Expr

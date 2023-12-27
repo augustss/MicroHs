@@ -23,6 +23,11 @@ composeGetSet gs1 gs2 a =
       case gs2 b of
         (c, c_to_b) -> (c, b_to_a . c_to_b)
 
+composeSet :: forall a b c . GetSet a b -> (b -> c -> b) -> (a -> c -> a)
+composeSet gs1 b_to_c_to_b a c =
+  case gs1 a of
+    (b, b_to_a) -> b_to_a (b_to_c_to_b b c)
+
 -----------------------------------
 -- Virtual fields for tuples.
 

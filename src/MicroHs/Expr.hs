@@ -98,7 +98,7 @@ data Expr
   | EIf Expr Expr Expr
   | ESign Expr EType
   | ENegApp Expr
-  | EUpdate Expr [(Ident, Expr)]
+  | EUpdate Expr [([Ident], Expr)]
   | ESelect [Ident]
   -- only in patterns
   | EAt Ident Expr
@@ -630,7 +630,7 @@ ppExpr ae =
     EListish l -> ppListish l
     ESign e t -> parens $ ppExpr e <+> text "::" <+> ppEType t
     ENegApp e -> text "-" <+> ppExpr e
-    EUpdate ee ies -> ppExpr ee <> text "{" <+> hsep (punctuate (text ",") (map (\ (i, e) -> ppIdent i <+> text "=" <+> ppExpr e) ies)) <+> text "}"
+    EUpdate ee ies -> ppExpr ee <> text "{" <+> hsep (punctuate (text ",") (map (\ (is, e) -> hcat (punctuate (text ".") (map ppIdent is)) <+> text "=" <+> ppExpr e) ies)) <+> text "}"
     ESelect is -> parens $ hcat $ map (\ i -> text "." <> ppIdent i) is
     EAt i e -> ppIdent i <> text "@" <> ppExpr e
     EViewPat e p -> parens $ ppExpr e <+> text "->" <+> ppExpr p

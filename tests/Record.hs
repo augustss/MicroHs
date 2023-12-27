@@ -6,9 +6,12 @@ import Prelude
 data R = CR { a :: Int, b :: Bool }
 
 instance Show R where
-  show (CR a b) = "R{a=" ++ show a ++ ",b=" ++ show b ++ "}"
+  show (CR a b) = "CR{a=" ++ show a ++ ",b=" ++ show b ++ "}"
 
 data RR = CRR { r :: R, a :: Bool }
+
+instance Show RR where
+  show (CRR r a) = "CRR{r=" ++ show r ++ ",a=" ++ show a ++ "}"
 
 r1 :: R
 r1 = CR { a=1, b=True }
@@ -30,6 +33,9 @@ r6 = r1 { a = (10::Int), b=False }
 
 rr1 :: RR
 rr1 = CRR { r = r1, a = True }
+
+r7 :: RR
+r7 = rr1{ r.a = 999 }
 
 sel_a :: forall r t . HasField "a" r t => r -> t
 sel_a = (.a)
@@ -53,6 +59,7 @@ main = do
 --  print r3
   print r5
   print r6
+  print r7
   print $ r2.a
   print $ r2.b
   print $ rr1.r.a
