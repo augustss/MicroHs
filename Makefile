@@ -95,13 +95,13 @@ timecompile: bin/mhs
 #
 timecachecompile: bin/mhs
 	@-rm -f .mhscache
-	bin/mhs -C AllOfLib
-	bin/mhs +RTS -v -RTS -C -isrc MicroHs.Main
+	bin/mhs -CW AllOfLib
+	bin/mhs +RTS -v -RTS -CR -isrc MicroHs.Main
 
 #
 cachelib:
 	@-rm -f .mhscache
-	bin/mhs -C AllOfLib
+	bin/mhs -CW AllOfLib
 
 #
 clean:
@@ -125,7 +125,7 @@ everytest:	newmhs runtest exampletest cachetest bootcombtest nfibtest info
 everytestmhs:	bin/mhs bin/mhseval exampletest cachetest bootstrap runtestmhs nfibtest info
 
 runtestmhs:
-	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H2M -RTS -C" info test
+	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H2M -RTS -CR" info test
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs -isrc -ogmhs.comb  MicroHs.Main
@@ -142,9 +142,9 @@ info:	bin/mhs
 
 cachetest:	bin/mhs bin/mhseval Example.hs
 	rm -f .mhscache
-	bin/mhs -C AllOfLib
-	bin/mhs -C Example && bin/mhseval
-	bin/mhs +RTS -v -RTS -isrc -C MicroHs.Main
+	bin/mhs -CW AllOfLib
+	bin/mhs -CR Example && bin/mhseval
+	bin/mhs +RTS -v -RTS -isrc -CR MicroHs.Main
 	rm -f .mhscache
 
 nfibtest: bin/mhs bin/mhseval

@@ -50,7 +50,7 @@ compileCacheTop flags mn ch = do
   return (dsn, ch')
 
 getCached :: Flags -> IO Cache
-getCached flags | not flags.useCache = return emptyCache
+getCached flags | not flags.readCache = return emptyCache
 getCached flags = do
   mhin <- openFileM mhsCacheName ReadMode
   case mhin of

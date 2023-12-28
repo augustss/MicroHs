@@ -40,13 +40,14 @@ main = do
     args = takeWhile (/= "--") aargs
     ss = filter ((/= "-") . take 1) args
     flags = Flags {
-      verbose  = length (filter (== "-v") args),
-      runIt    = elem "-r" args,
-      paths    = "." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args),
-      output   = head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"],
-      loading  = elem "-l" args,
-      useCache = elem "-C" args && usingMhs,
-      useTicks = elem "-T" args
+      verbose    = length (filter (== "-v") args),
+      runIt      = elem "-r" args,
+      paths      = "." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args),
+      output     = head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"],
+      loading    = elem "-l" args,
+      readCache  = usingMhs && (elem "-C" args || elem "-CR" args),
+      writeCache = usingMhs && (elem "-C" args || elem "-CW" args),
+      useTicks   = elem "-T" args
       }
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
@@ -58,7 +59,7 @@ main = do
 
 mainCompile :: FilePath -> Flags -> Ident -> IO ()
 mainCompile mhsdir flags mn = do
-  ds <- if flags.useCache then do
+  ds <- if flags.writeCache then do
           cash <- getCached flags
           (ds, cash') <- compileCacheTop flags mn cash
           when (verbosityGT flags 0) $
@@ -68,8 +69,9 @@ mainCompile mhsdir flags mn = do
           hSerialize hout cash'
           hClose hout
           return ds
-        else
-          fst <$> compileCacheTop flags mn emptyCache
+        else do
+          cash <- getCached flags
+          fst <$> compileCacheTop flags mn cash
 
   t1 <- getTimeMilli
   let
