@@ -8,7 +8,6 @@ import Data.Maybe
 import qualified MicroHs.IdentMap as M
 import System.Environment
 import Unsafe.Coerce
-import GHC.Types
 import PrimTable
 
 import MicroHs.Desugar(LDef, encodeInteger)
@@ -27,15 +26,15 @@ translateAndRun defs = do
   withArgs nargs $
     prog
 
-translate :: (Ident, [LDef]) -> Any
---translate :: (Ident, [(Ident, Exp)]) -> Any
+translate :: (Ident, [LDef]) -> AnyType
+--translate :: (Ident, [(Ident, Exp)]) -> AnyType
 translate (mainName, ds) =
   let
     look m n = fromMaybe (error $ "translate: not found " ++ showIdent n) $ M.lookup n m
     mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
   in look mp mainName
 
-trans :: (Ident -> Any) -> Exp -> Any
+trans :: (Ident -> AnyType) -> Exp -> AnyType
 trans r ae =
   case ae of
     Var n -> r n
@@ -50,7 +49,7 @@ trans r ae =
 
 -- Use linear search in this table.
 -- 99% of the hits are among the combinators.
-primTable :: [(String, Any)]
+primTable :: [(String, AnyType)]
 primTable = [
   ("B", primitive "B"),
   ("O", primitive "O"),

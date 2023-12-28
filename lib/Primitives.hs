@@ -23,7 +23,7 @@ data Type
 -- class KnownSymbol in Data.TypeLits
 
 -- Types
-data Any
+data AnyType
 data Char
 data Handle
 data Int

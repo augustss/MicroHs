@@ -16,6 +16,8 @@ import System.IO.Unsafe
 --import Debug.Trace
 import Compat
 
+type AnyType = Any
+
 primitive :: String -> Any
 --primitive s | trace ("primitive " ++ show s) False = undefined
 primitive "dynsym" = unsafeCoerce dynsym

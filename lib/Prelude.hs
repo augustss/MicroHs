@@ -20,6 +20,7 @@ module Prelude(
   module Data.Integral,
   module Data.List,
   module Data.Maybe,
+  module Data.Monoid,
   module Data.Num,
   module Data.Ord,
   module Data.Proxy,
@@ -52,6 +53,7 @@ import Data.Integer
 import Data.Integral
 import Data.List
 import Data.Maybe
+import Data.Monoid
 import Data.Num
 import Data.Ord
 import Data.Proxy

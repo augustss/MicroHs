@@ -165,7 +165,8 @@ filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs 
     vs' = filter (\ (ValueExport i _) -> keep i ivs) vs
     cts = [ i | ImpTypeCon i <- is ]
     its = [ i | ImpType i <- is ] ++ cts
-    ts' = map (\ te@(TypeExport i e _) -> if keep i cts then te else TypeExport i e []) $
+    ts' = map (\ (TypeExport i e xvs) -> TypeExport i e $ filter (\ (ValueExport ii _) -> not hide || keep ii ivs) xvs) $
+          map (\ te@(TypeExport i e _) -> if keep i cts then te else TypeExport i e []) $
           filter (\ (TypeExport i _ _) -> keep i its) ts
   in
     --trace (show (ts, vs)) $

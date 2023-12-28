@@ -153,3 +153,7 @@ doubleR :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
 doubleR (Node ll _ lk lv (Node lrl _ lrk lrv lrr)) k v r = node (node ll lk lv lrl) lrk lrv (node lrr k v r)
 doubleR (Node ll _ lk lv (One        lrk lrv    )) k v r = node (node ll lk lv Nil) lrk lrv (node Nil k v r)
 doubleR _ _ _ _ = undefined
+
+isEQ :: Ordering -> Bool
+isEQ EQ = True
+isEQ _  = False
