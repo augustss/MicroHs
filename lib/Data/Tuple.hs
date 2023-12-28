@@ -9,13 +9,18 @@ import Data.Bool
 import Data.Bounded
 import Data.Eq
 import Data.Function
+import Data.Int
 import Data.Monoid
+import Data.Ord
 import Data.Semigroup
 import Text.Show
 
 --data (a,b) = (a,b)  -- all tuples are built in
 --data (a,b,c) = (a,b,c)
 -- etc
+
+data Solo a = Solo a
+  deriving (Eq)
 
 fst :: forall a b . (a, b) -> a
 fst (a, _) = a
@@ -42,6 +47,9 @@ instance forall a b c d . (Eq a, Eq b, Eq c, Eq d) => Eq (a, b, c, d) where
 instance Show () where
   showsPrec _ () = showString "()"
 
+instance forall a . Show a => Show (Solo a) where
+  showsPrec p (Solo a) = showParen (p > 10) (showString "Solo " . showsPrec 11 a)
+
 instance forall a b . (Show a, Show b) => Show (a, b) where
   showsPrec _ (a, b) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b)
 
@@ -57,6 +65,10 @@ instance forall a b c d . (Show a, Show b, Show c, Show d) => Show (a, b, c, d) 
 instance Bounded () where
   minBound = ()
   maxBound = ()
+
+instance forall a . (Bounded a) => Bounded (Solo a) where
+  minBound = Solo minBound
+  maxBound = Solo maxBound
 
 instance forall a b . (Bounded a, Bounded b) => Bounded (a, b) where
   minBound = (minBound, minBound)
@@ -75,6 +87,9 @@ instance forall a b c d . (Bounded a, Bounded b, Bounded c, Bounded d) => Bounde
 instance Semigroup () where
   _ <> _ = ()
 
+instance forall a . Semigroup a => Semigroup (Solo a) where
+  Solo a <> Solo b = Solo (a <> b)
+
 instance forall a b . (Semigroup a, Semigroup b) => Semigroup (a, b) where
   (a, b) <> (a', b') = (a <> a', b <> b')
 
@@ -88,6 +103,9 @@ instance forall a b c d . (Semigroup a, Semigroup b, Semigroup c, Semigroup d) =
 
 instance Monoid () where
   mempty = ()
+
+instance forall a . Monoid a => Monoid (Solo a) where
+  mempty = Solo mempty
 
 instance forall a b . (Monoid a, Monoid b) => Monoid (a, b) where
   mempty = (mempty, mempty)
