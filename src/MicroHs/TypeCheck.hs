@@ -946,8 +946,11 @@ addTypeKind kdefs adef = do
     addAssoc i is = do
       mn <- gets moduleName
       addAssocTable (qualIdent mn i) (map (qualIdent mn) is)
+    assocData (Constr _ _ c _) = [c]
+{-
     assocData (Constr _ _ c (Left _)) = [c]
     assocData (Constr _ _ c (Right its)) = c : map fst its
+-}
     addDef (i, _) = do
       k <-
         case M.lookup i kdefs of
