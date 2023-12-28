@@ -144,6 +144,7 @@ cachetest:	bin/mhs bin/mhseval Example.hs
 	rm -f .mhscache
 	bin/mhs -C AllOfLib
 	bin/mhs -C Example && bin/mhseval
+	bin/mhs +RTS -v -RTS -isrc -C MicroHs.Main
 	rm -f .mhscache
 
 nfibtest: bin/mhs bin/mhseval
