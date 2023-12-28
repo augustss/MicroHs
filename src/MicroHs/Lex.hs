@@ -39,6 +39,9 @@ incrLine (l, _) = (l+1, 1)
 addCol :: Loc -> Int -> Loc
 addCol (l, c) i = (l, c + i)
 
+tabCol :: Loc -> Loc
+tabCol (l, c) = (l, ((c + 7) `quot` 8) * 8)
+
 mkLoc :: Line -> Col -> Loc
 mkLoc l c = (l, c)
 
@@ -79,6 +82,7 @@ lex :: Loc -> String -> [Token]
 lex loc (' ':cs)  = lex (addCol loc 1) cs
 lex loc ('\n':cs) = tIndent (lex (incrLine loc) cs)
 lex loc ('\r':cs) = lex loc cs
+lex loc ('\t':cs) = lex (tabCol loc) cs  -- TABs are a dubious feature, but easy to support
 lex loc ('{':'-':cs) = skipNest (addCol loc 2) 1 cs
 lex loc ('-':'-':cs) | isComm rs = skipLine (addCol loc $ 2+length ds) cs
   where
