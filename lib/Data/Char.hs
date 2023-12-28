@@ -32,11 +32,11 @@ instance Eq String where
   (==) = primStringEQ
 
 instance Ord String where
-  compare = primStringCompare
-  x <  y  =  primStringCompare x y == LT
-  x <= y  =  primStringCompare x y /= GT
-  x >  y  =  primStringCompare x y == GT
-  x >= y  =  primStringCompare x y /= LT
+  compare =  primStringCompare
+  x <  y  =  case primStringCompare x y of { LT -> True; _ -> False }
+  x <= y  =  case primStringCompare x y of { GT -> False; _ -> True }
+  x >  y  =  case primStringCompare x y of { GT -> True; _ -> False }
+  x >= y  =  case primStringCompare x y of { LT -> False; _ -> True }
 
 -- ASCII only for now
 instance Bounded Char where

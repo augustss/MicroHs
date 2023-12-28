@@ -264,8 +264,9 @@ data TCMode
   = TCExpr          -- doing type checking
   | TCType          -- doing kind checking
   | TCKind          -- doing sort checking
-  | TCSort          -- doing realm checking
+  | TCSort          -- doing tier checking
   --deriving (Show)
+  deriving (Eq, Ord)
 
 instance Show TCMode where
   show TCExpr = "TCExpr"
@@ -280,22 +281,6 @@ instance Enum TCMode where
   succ TCSort = error "succ TCSort"
   toEnum = undefined
   fromEnum = undefined
-
-instance Ord TCMode where
-  TCExpr <= _       =  True
-
-  TCType <= TCExpr  =  False
-  TCType <= _       =  True
-
-  TCKind <= TCExpr  =  False
-  TCKind <= TCType  =  False
-  TCKind <= _       =  True
-
-  TCSort <= TCSort  =  True
-  TCSort <= _       =  False
-
-instance Eq TCMode where
-  x == y  =  x <= y && y <= x
 
 assertTCMode :: forall a . HasCallStack => (TCMode -> Bool) -> T a -> T a
 --assertTCMode _ ta | usingMhs = ta
