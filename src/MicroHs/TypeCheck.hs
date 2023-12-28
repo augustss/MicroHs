@@ -1234,17 +1234,19 @@ tcDefValue adef =
   assertTCMode (==TCExpr) $
   case adef of
     Fcn i eqns -> do
-      (_, tt) <- tLookup "type signature" i
---      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr tt
+      (_, t) <- tLookup "type signature" i
+      t' <- expandSyn t
+--      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t'
 --      traceM $ "tcDefValue:      " ++ showEDefs [adef]
-      mn <- gets moduleName
-      teqns <- tcEqns True tt eqns
+      teqns <- tcEqns True t' eqns
 --      traceM ("tcDefValue: after " ++ showEDefs [adef, Fcn i teqns])
       checkConstraints
+      mn <- gets moduleName
       return $ Fcn (qualIdent mn i) teqns
     ForImp ie i t -> do
       mn <- gets moduleName
-      return (ForImp ie (qualIdent mn i) t)
+      t' <- expandSyn t
+      return (ForImp ie (qualIdent mn i) t')
     _ -> return adef
 
 tCheckTypeT :: HasCallStack => EType -> EType -> T EType
