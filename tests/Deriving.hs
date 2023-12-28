@@ -2,7 +2,10 @@ module Deriving(main) where
 import Prelude
 
 data T a b c = A a | B b | C a Int | D
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
+
+data Rec a = R { x :: a, y :: Int }
+  deriving Show
 
 main :: IO ()
 main = do
@@ -18,3 +21,11 @@ main = do
   print $ A 'b' <= (A 'a' :: T Char () ())
   print $ A 'a' <= B False
   print $ C 'a' 1 <= B False
+
+  print (A 'a' :: T Char () ())
+  print (B False :: T () Bool ())
+  print (C 'a' 1 :: T Char () ())
+  print (D :: T () () ())
+  print (A (A 'a') :: T (T Char () ()) () ())
+  print $ R{ x='a', y=10 }
+  print $ R{ x=R{x='b',y=11}, y=10 }

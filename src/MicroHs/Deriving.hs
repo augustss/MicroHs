@@ -1,12 +1,13 @@
 module MicroHs.Deriving(expandField, doDeriving) where
 import Prelude
 --import Control.Monad
+import Data.Char
 import Data.Function
 import Data.List
 import MicroHs.Expr
 import MicroHs.Ident
 import MicroHs.TCMonad
-import Debug.Trace
+--import Debug.Trace
 
 expandField :: EDef -> T [EDef]
 expandField def@(Data    lhs cs _) = (def:) <$> genHasFields lhs cs
@@ -75,7 +76,7 @@ derivers =
   [("Data.Typeable.Typeable", derTypeable)
   ,("Data.Eq.Eq",             derEq)
   ,("Data.Ord.Ord",           derOrd)
-  ,("Text.Show.Show",         derNotYet)
+  ,("Text.Show.Show",         derShow)
   ]
 
 derive :: Deriver
@@ -85,10 +86,12 @@ derive lhs cs d = do
     Nothing -> tcError (getSLoc c) $ "Cannot derive " ++ show c
     Just f  -> f lhs cs d
 
+{-
 derNotYet :: Deriver
 derNotYet _ _ d = do
   traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
   return []
+-}
 
 --------------------------------------------
 
@@ -173,3 +176,49 @@ derOrd lhs cs eord = do
       inst = Instance hdr [BFcn iCompare eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
+
+--------------------------------------------
+
+derShow :: Deriver
+--derShow = undefined
+derShow lhs cs eord = do
+  hdr <- mkHdr lhs cs eord
+  let loc = getSLoc eord
+      mkEqn c@(Constr _ _ nm flds) =
+        let (xp, xs) = mkPat c "x"
+        in  eEqn [varp, xp] $ showRHS nm xs flds
+
+      ident = mkIdentSLoc loc
+      var = EVar . ident
+      varp = var "p"
+      lit = ELit loc
+
+      iShowsPrec = ident "showsPrec"
+      eShowsPrec n = eApp2 (EVar iShowsPrec) (lit (LInt n))
+      eShowString s = EApp (var "showString") (lit (LStr s))
+      eParen n = eApp2 (var "showParen") (eApp2 (var ">") varp (lit (LInt n)))
+      eShowL s = foldr1 ejoin . intersperse (eShowString s)
+      ejoin = eApp2 (var ".")
+
+      showRHS nm [] _ = eShowString (unIdentPar nm)
+      showRHS nm xs (Left   _) = showRHSN nm xs
+      showRHS nm xs (Right fs) = showRHSR nm $ zip (map fst fs) xs
+
+      showRHSN nm xs = eParen 10 $ eShowL " " $ eShowString (unIdentPar nm) : map (eShowsPrec 11) xs
+
+      showRHSR nm fxs =
+        eShowString (unIdentPar nm ++ "{") `ejoin`
+        (eShowL "," $ map fld fxs) `ejoin`
+        eShowString "}"
+          where fld (f, x) = eShowString (unIdentPar f ++ "=") `ejoin` eShowsPrec 0 x
+
+      eqns = map mkEqn cs
+      inst = Instance hdr [BFcn iShowsPrec eqns]
+--  traceM $ showEDefs [inst]
+  return [inst]
+
+unIdentPar :: Ident -> String
+unIdentPar i =
+  let s = unIdent i
+  in  if isAlpha (head s) then s else "(" ++ s ++ ")"
+
