@@ -74,7 +74,7 @@ derivers :: [(String, Deriver)]
 derivers =
   [("Data.Typeable.Typeable", derTypeable)
   ,("Data.Eq.Eq",             derEq)
-  ,("Data.Ord.Ord",           derNotYet)
+  ,("Data.Ord.Ord",           derOrd)
   ,("Text.Show.Show",         derNotYet)
   ]
 
@@ -147,5 +147,29 @@ derEq lhs cs eeq = do
       eTrue = EVar $ mkIdentSLoc loc "True"
       eFalse = EVar $ mkIdentSLoc loc "False"
       inst = Instance hdr [BFcn iEq eqns]
+--  traceM $ showEDefs [inst]
+  return [inst]
+
+
+--------------------------------------------
+
+derOrd :: Deriver
+derOrd lhs cs eord = do
+  hdr <- mkHdr lhs cs eord
+  let loc = getSLoc eord
+      mkEqn c =
+        let (xp, xs) = mkPat c "x"
+            (yp, ys) = mkPat c "y"
+        in  [eEqn [xp, yp] $ if null xs then eEQ else foldr1 eComb $ zipWith eCompare xs ys
+            ,eEqn [xp, dummy] $ eLT
+            ,eEqn [dummy, yp] $ eGT]
+      eqns = concatMap mkEqn cs
+      iCompare = mkIdentSLoc loc "compare"
+      eCompare = EApp . EApp (EVar iCompare)
+      eComb = EApp . EApp (EVar $ mkIdentSLoc loc "<>")
+      eEQ = EVar $ mkIdentSLoc loc "EQ"
+      eLT = EVar $ mkIdentSLoc loc "LT"
+      eGT = EVar $ mkIdentSLoc loc "GT"
+      inst = Instance hdr [BFcn iCompare eqns]
 --  traceM $ showEDefs [inst]
   return [inst]

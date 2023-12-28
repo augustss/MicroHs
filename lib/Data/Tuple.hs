@@ -44,6 +44,20 @@ instance forall a b c d . (Eq a, Eq b, Eq c, Eq d) => Eq (a, b, c, d) where
 
 -----------------------------------
 
+instance Ord () where
+  () `compare` ()  =  EQ
+
+instance forall a b . (Ord a, Ord b) => Ord (a, b) where
+  (a1, b1) `compare` (a2, b2)  =  a1 `compare` a2 <> b1 `compare` b2
+
+instance forall a b c . (Ord a, Ord b, Ord c) => Ord (a, b, c) where
+  (a1, b1, c1) `compare` (a2, b2, c2)  =  a1 `compare` a2 <> b1 `compare` b2 <> c1 `compare` c2
+
+instance forall a b c d . (Ord a, Ord b, Ord c, Ord d) => Ord (a, b, c, d) where
+  (a1, b1, c1, d1) `compare` (a2, b2, c2, d2)  =  a1 `compare` a2 <> b1 `compare` b2 <> c1 `compare` c2 <> d1 `compare` d2
+
+-----------------------------------
+
 instance Show () where
   showsPrec _ () = showString "()"
 

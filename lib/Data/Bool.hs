@@ -8,11 +8,16 @@ import Primitives
 import Data.Bool_Type
 import Data.Bounded
 import Data.Eq
+import Data.Ord
 import Text.Show
 
 instance Eq Bool where
   False == x  =  not x
   True  == x  =  x
+
+instance Ord Bool where
+  False <= _ = True
+  True  <= x = x
 
 instance Show Bool where
   showsPrec _ False = showString "False"
