@@ -151,3 +151,13 @@ instance forall a . Semigroup (Last a) where
 
 instance forall a . Monoid (Last a) where
   mempty = Last Nothing
+
+---------------------
+
+instance Semigroup Ordering where
+  LT <> _ = LT
+  EQ <> o = o
+  GT <> _ = GT
+
+instance Monoid Ordering where
+  mempty = EQ
