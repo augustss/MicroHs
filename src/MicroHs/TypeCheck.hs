@@ -1538,13 +1538,10 @@ tcExprR mt ae =
         tt <- tcExpr mt t
         return (EForall vks' tt)
     EUpdate e ises -> do
-      (e', _) <- tInferExpr e
-      case e' of
-        ECon c ->
-          tcExpr mt =<< dsUpdate unsetField e c ises
-        _ -> do
-          let set = foldr eSetFields e ises
-          tcExpr mt set
+      me <- dsUpdate unsetField e ises
+      case me of
+        Just e' -> tcExpr mt e'
+        Nothing -> tcExpr mt $ foldr eSetFields e ises
     ESelect is -> do
         let x = eVarI loc "$x"
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
@@ -1582,20 +1579,24 @@ eProxy i = ESign proxy (EApp proxy (ELit loc (LStr (unIdent i))))
 unsetField :: Ident -> Expr
 unsetField i = EVar $ mkIdentSLoc (getSLoc i) "undefined"
 
-dsUpdate :: (Ident -> Expr) -> Expr -> Con -> [EField] -> T Expr
-dsUpdate unset e c ises = do
-  let fs = conFields c
-      ies = map (first head) ises
-      is = map fst ies
-      as = map field fs
-      field i = fromMaybe (unset i) $ lookup i ies
-  case filter ((> 1) . length . fst) ises of
-    (i:_, _):_ -> tcError (getSLoc i) "Nested fields not allowed"
-    _ -> return ()
-  case is \\ fs of
-    vs@(v:_) -> tcError (getSLoc v) $ "extra field(s) " ++ unwords (map unIdent vs)
-    _ -> return ()
-  return $ eApps e as
+dsUpdate :: (Ident -> Expr) -> Expr -> [EField] -> T (Maybe Expr)
+dsUpdate unset e ises = do
+  (e', _) <- tInferExpr e
+  case e' of
+    ECon c -> do
+      let fs = conFields c
+          ies = map (first head) ises
+          is = map fst ies
+          as = map field fs
+          field i = fromMaybe (unset i) $ lookup i ies
+      case filter ((> 1) . length . fst) ises of
+        (i:_, _):_ -> tcError (getSLoc i) "Nested fields not allowed"
+        _ -> return ()
+      case is \\ fs of
+        vs@(v:_) -> tcError (getSLoc v) $ "extra field(s) " ++ unwords (map unIdent vs)
+        _ -> return ()
+      return $ Just $ eApps e as
+    _ -> return Nothing
 
 enum :: SLoc -> String -> [Expr] -> Expr
 enum loc f = eApps (EVar (mkIdentSLoc loc ("enum" ++ f)))
