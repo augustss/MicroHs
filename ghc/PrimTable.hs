@@ -43,6 +43,7 @@ primOps =
   , comb "K2" (\ x _y _z -> x)
   , comb "K3" (\ x _y _z _w -> x)
   , comb "K4" (\ x _y _z _w _v -> x)
+  , comb "C'B" (\ x y z w -> x z (y w))
 
   , arith "+" (+)
   , arith "-" (-)

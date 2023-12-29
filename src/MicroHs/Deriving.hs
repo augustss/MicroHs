@@ -26,9 +26,9 @@ genHasField (tycon, iks) cs (fld, fldty) = do
   let loc = getSLoc tycon
       qtycon = qualIdent mn tycon
       eFld = EVar fld
-      undef = EVar $ mkIdentSLoc loc "undefined"  -- XXX could be nicer
+      undef = EVar $ mkQIdent loc nameControlError "undefined"  -- XXX could be nicer
       iHasField = mkIdentSLoc loc nameHasField
-      ihasField = mkIdentSLoc loc namehasField
+      ihasField = mkQIdent loc nameDataRecords namehasField
       hdr = eForall iks $ eApp3 (EVar iHasField)
                                   (ELit loc (LStr (unIdent fld)))
                                   (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
@@ -39,6 +39,20 @@ genHasField (tycon, iks) cs (fld, fldty) = do
               conApp = eApps (EVar c) (map EVar fs)
               rhs = ETuple [eFld, eLam [eFld] conApp]
   pure $ Instance hdr [BFcn ihasField $ map conEqn cs]
+
+nameHasField :: String
+nameHasField = nameDataRecords ++ ".HasField"
+
+namehasField :: String
+namehasField = "hasField"
+
+nameDataRecords :: String
+nameDataRecords = "Data.Records"
+
+nameControlError :: String
+nameControlError = "Control.Error"
+
+--------------------------------------------
 
 dummy :: Expr
 dummy = EVar dummyIdent
@@ -53,11 +67,10 @@ eForall :: [IdKind] -> EType -> EType
 eForall [] t = t
 eForall vs t = EForall vs t
 
-nameHasField :: String
-nameHasField = "Data.Records.HasField"
-
-namehasField :: String
-namehasField = "hasField"
+-- MicroHs currently has no way of using the original name,
+-- so we just ignore the qualification part for now.
+mkQIdent :: SLoc -> String -> String -> Ident
+mkQIdent loc _qual name = mkIdentSLoc loc name
 
 --------------------------------------------
 
@@ -97,15 +110,21 @@ derTypeable (i, _) _ etyp = do
   mn <- gets moduleName
   let
     loc = getSLoc i
-    itypeRep  = mkIdentSLoc loc "typeRep"
-    imkTyConApp = mkIdentSLoc loc "mkTyConApp"
-    imkTyCon = mkIdentSLoc loc "mkTyCon"
+    itypeRep  = mkQIdent loc nameDataTypeable "typeRep"
+    imkTyConApp = mkQIdent loc nameDataTypeable "mkTyConApp"
+    imkTyCon = mkQIdent loc nameDataTypeable "mkTyCon"
     hdr = EApp etyp (EVar $ qualIdent mn i)
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
-    eqns = eEqns [dummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkIdent "[]"))
+    eqns = eEqns [dummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkQIdent loc nameDataListType "[]"))
     inst = Instance hdr [BFcn itypeRep eqns]
   return [inst]
+
+nameDataTypeable :: String
+nameDataTypeable = "Data.Tyeable"
+
+nameDataListType :: String
+nameDataListType = "Data.List_Type"
 
 --------------------------------------------
 
@@ -141,15 +160,24 @@ derEq lhs cs eeq = do
             (yp, ys) = mkPat c "y"
         in  eEqn [xp, yp] $ if null xs then eTrue else foldr1 eAnd $ zipWith eEq xs ys
       eqns = map mkEqn cs ++ [eEqn [dummy, dummy] eFalse]
-      iEq = mkIdentSLoc loc "=="
+      iEq = mkQIdent loc nameDataEq "=="
       eEq = EApp . EApp (EVar iEq)
-      eAnd = EApp . EApp (EVar $ mkIdentSLoc loc "&&")
-      eTrue = EVar $ mkIdentSLoc loc "True"
-      eFalse = EVar $ mkIdentSLoc loc "False"
+      eAnd = EApp . EApp (EVar $ mkQIdent loc nameDataBool "&&")
+      eTrue = EVar $ mkQIdent loc nameDataBoolType "True"
+      eFalse = EVar $ mkQIdent loc nameDataBoolType "False"
       inst = Instance hdr [BFcn iEq eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
 
+
+nameDataBoolType :: String
+nameDataBoolType = nameDataBool ++ "_Type"
+
+nameDataBool :: String
+nameDataBool = "Data.Bool"
+
+nameDataEq :: String
+nameDataEq = "Data.Eq"
 
 --------------------------------------------
 
@@ -164,20 +192,26 @@ derOrd lhs cs eord = do
             ,eEqn [xp, dummy] $ eLT
             ,eEqn [dummy, yp] $ eGT]
       eqns = concatMap mkEqn cs
-      iCompare = mkIdentSLoc loc "compare"
+      iCompare = mkQIdent loc nameDataOrd "compare"
       eCompare = EApp . EApp (EVar iCompare)
       eComb = EApp . EApp (EVar $ mkIdentSLoc loc "<>")
-      eEQ = EVar $ mkIdentSLoc loc "EQ"
-      eLT = EVar $ mkIdentSLoc loc "LT"
-      eGT = EVar $ mkIdentSLoc loc "GT"
+      eEQ = EVar $ mkQIdent loc nameDataOrderingType "EQ"
+      eLT = EVar $ mkQIdent loc nameDataOrderingType "LT"
+      eGT = EVar $ mkQIdent loc nameDataOrderingType "GT"
       inst = Instance hdr [BFcn iCompare eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
 
+nameDataOrd :: String
+nameDataOrd = "Data.Ord"
+
+nameDataOrderingType :: String
+nameDataOrderingType = "Data.Ordering_Type"
+
 --------------------------------------------
 
+-- XXX should use mkQIdent
 derShow :: Deriver
---derShow = undefined
 derShow lhs cs eord = do
   hdr <- mkHdr lhs cs eord
   let loc = getSLoc eord
