@@ -394,11 +394,13 @@ pAPat =
          i <- pLIdentSym
          (EAt i <$> (pSymbol "@" *> pAPat)) <|< pure (EVar i)
       )
-  <|< (EVar <$> pUQIdentSym)
+  <|< (evar <$> pUQIdentSym <*> optional pUpdate)
   <|< pLit
   <|< (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
   <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSymbol "->" *> pAPat <* pSpec ')'))
+  where evar v Nothing = EVar v
+        evar v (Just upd) = EUpdate (EVar v) upd
 
 pPat :: P EPat
 pPat = pPatOp

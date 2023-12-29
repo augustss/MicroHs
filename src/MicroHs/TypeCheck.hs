@@ -1901,7 +1901,17 @@ tcPat mt ae =
       (sk, d, p') <- tcPat (Check ter) p
       return (sk, d, EViewPat e' p')
 
-    EUpdate (EVar _c) _fs -> undefined
+    -- Allow C{} syntax even for non-records
+    EUpdate p [] -> do
+      (p', _) <- tInferExpr p
+      case p' of
+        ECon c -> tcPat mt $ eApps p (replicate (conArity c) (EVar dummyIdent))          
+        _      -> impossible
+    EUpdate p isps -> do
+      me <- dsUpdate (const $ EVar dummyIdent) p isps
+      case me of
+        Just p' -> tcPat mt p'
+        Nothing -> impossible
 
     _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ show ae
 

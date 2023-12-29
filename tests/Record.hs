@@ -13,11 +13,17 @@ data RR = CRR { r :: R, a :: Bool }
 instance Show RR where
   show (CRR r a) = "CRR{r=" ++ show r ++ ",a=" ++ show a ++ "}"
 
+foo :: R -> Int
+foo CR{a=aa,b=bb} = if bb then 999 else aa
+
+bar :: R -> Int
+bar CR{a=aa} = aa
+
 r1 :: R
 r1 = CR { a=1, b=True }
 
 r2 :: R
-r2 = CR { b=True, a=2 }
+r2 = CR { b=False, a=2 }
 
 r3 :: R
 r3 = CR { b=True }
@@ -73,4 +79,6 @@ main = do
   print s1{x=99}
   print s2{x=88}
   print s2{y="bar"}
-  
+  print $ foo r1
+  print $ foo r2
+  print $ bar r1
