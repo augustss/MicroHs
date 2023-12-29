@@ -29,7 +29,7 @@ combVersion :: String
 combVersion = "v6.1\n"
 
 mhsVersion :: String
-mhsVersion = "0.9.2.0"
+mhsVersion = "0.9.3.0"
 
 main :: IO ()
 main = do

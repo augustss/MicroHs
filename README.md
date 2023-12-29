@@ -1,5 +1,5 @@
 # Micro Haskell
-This directory contains an implementation of a small subset of Haskell.
+This directory contains an implementation of an extended subset of Haskell.
 It uses combinators for the runtime execution.
 
 The runtime system has minimal dependencies, and can be compiled even for micro-controllers.
@@ -124,6 +124,7 @@ This module should contain the function `main` of type `IO ()` and
 it will be the entry point to the program.
 
 ### Compiler flags
+* `--version` show version number
 * `-iDIR` add `DIR` to search path for modules
 * `-oFILE` output file.  If the `FILE` ends in `.comb` it will produce a textual combinator file.  If `FILE` ends in `.c` it will produce a C file with the combinators.  For all other `FILE` it will compiler the combinators together with the runtime system to produce a regular executable.
 * `-r` run directly
@@ -236,6 +237,9 @@ Updating a field has the usual Haskell syntax `r{ a = e }`, but the type is over
 The typeclass `HasField` captures this.  `HasField "name" rec ty` expresses that the record type `rec` has a field `name` with type `ty`.
 Record updates can also update nested fields, e.g., `r{ a.b.c = e }`.  Note that this will not easily work in GHC, since GHC does not
 fully implement `OverloadedRecordUpdate`.  When GHC decides how to do it, MicroHs will follow suit.
+
+Haskell2010 code using records cannot be compiled directly with MicroHs, since the field names are not automatically selector functions.
+Given a field `foo` in a record you can use `foo` as a functions, in MicroHs you have to say `(.foo)` to get the selector function.
 
 Note that record updates cannot change the type of polymorphic fields.
 

@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.9.2.0
+version:             0.9.3.0
 synopsis:            A compiler for a subset of Haskell
 license:             Apache-2.0
 license-file:        LICENSE
