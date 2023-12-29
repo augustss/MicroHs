@@ -355,7 +355,7 @@ tApp :: EType -> EType -> EType
 tApp = EApp
 
 tApps :: Ident -> [EType] -> EType
-tApps i ts = foldl tApp (tCon i) ts
+tApps i ts = eApps (tCon i) ts
 
 tArrow :: EType -> EType -> EType
 tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r

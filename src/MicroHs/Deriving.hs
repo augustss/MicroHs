@@ -49,9 +49,6 @@ eApp2 a b c = EApp (EApp a b) c
 eApp3 :: Expr -> Expr -> Expr -> Expr -> Expr
 eApp3 a b c d = EApp (eApp2 a b c) d
 
-eApps :: Expr -> [Expr] -> Expr
-eApps = foldl EApp
-
 eForall :: [IdKind] -> EType -> EType
 eForall [] t = t
 eForall vs t = EForall vs t

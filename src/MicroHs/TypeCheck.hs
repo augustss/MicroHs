@@ -612,7 +612,7 @@ expandSyn at =
         EVar i -> do
           syns <- gets synTable
           case M.lookup i syns of
-            Nothing -> return $ foldl tApp t ts
+            Nothing -> return $ eApps t ts
             Just (EForall vks tt) ->
 --              if length vks /= length ts then tcError (getSLoc i) $ "bad synonym use"
 --              else expandSyn $ subst (zip (map idKindIdent vks) ts) tt
@@ -620,12 +620,12 @@ expandSyn at =
                   lvks = length vks
                   lts = length ts
               in  case compare lvks lts of
-                    LT -> expandSyn $ foldl EApp (subst s tt) (drop lvks ts)
+                    LT -> expandSyn $ eApps (subst s tt) (drop lvks ts)
                     EQ -> expandSyn $ subst s tt
                     GT -> tcError (getSLoc i) $ "bad synonym use"
                           --EForall (drop lts vks) (subst s tt)
             Just _ -> impossible
-        EUVar _ -> return $ foldl tApp t ts
+        EUVar _ -> return $ eApps t ts
         ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
         EForall iks tt | null ts -> EForall iks <$> expandSyn tt
         ELit _ (LStr _) -> return t
@@ -1151,7 +1151,7 @@ expandInst dinst@(Instance act bs) = do
   case map fst ies \\ mis of
     [] -> return ()
     i:_ -> tcError (getSLoc i) $ "superflous binding " ++ show i
-  let bind = Fcn iInst $ eEqns [] $ foldl EApp (EVar $ mkClassConstructor qiCls) args
+  let bind = Fcn iInst $ eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
   mn <- gets moduleName
   addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc, fds)]
   return [dinst, sign, bind]
@@ -1172,7 +1172,7 @@ addValueType adef = do
     Data (i, vks) cs _ -> do
       let
         cti = [ (qualIdent mn c, either length length ets + if null ctx then 0 else 1) | Constr _ ctx c ets <- cs ]
-        tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
+        tret = tApps (qualIdent mn i) (map tVarK vks)
         addCon (Constr evks ectx c ets) = do
           let ts = either id (map snd) ets
               cty = EForall vks $ EForall evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
@@ -1182,7 +1182,7 @@ addValueType adef = do
     Newtype (i, vks) (Constr _ _ c ets) _ -> do
       let
         t = snd $ head $ either id (map snd) ets
-        tret = foldl tApp (tCon (qualIdent mn i)) (map tVarK vks)
+        tret = tApps (qualIdent mn i) (map tVarK vks)
         fs = either (const []) (map fst) ets
       extValETop c (EForall vks $ EForall [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
     ForImp _ i t -> extValQTop i t
@@ -1540,19 +1540,8 @@ tcExprR mt ae =
     EUpdate e ises -> do
       (e', _) <- tInferExpr e
       case e' of
-        ECon c -> do
-          let fs = conFields c
-              ies = map (first head) ises
-              is = map fst ies
-              as = map field fs
-              field i = fromMaybe (unsetField i) $ lookup i ies
-          case filter ((> 1) . length . fst) ises of
-            (i:_, _):_ -> tcError (getSLoc i) "Nested construction not allowed"
-            _ -> return ()
-          case is \\ fs of
-            vs@(v:_) -> tcError (getSLoc v) $ "extra field(s) " ++ unwords (map unIdent vs)
-            _ -> return ()
-          tcExpr mt (foldl EApp e as)
+        ECon c ->
+          tcExpr mt =<< dsUpdate unsetField e c ises
         _ -> do
           let set = foldr eSetFields e ises
           tcExpr mt set
@@ -1593,8 +1582,23 @@ eProxy i = ESign proxy (EApp proxy (ELit loc (LStr (unIdent i))))
 unsetField :: Ident -> Expr
 unsetField i = EVar $ mkIdentSLoc (getSLoc i) "undefined"
 
+dsUpdate :: (Ident -> Expr) -> Expr -> Con -> [EField] -> T Expr
+dsUpdate unset e c ises = do
+  let fs = conFields c
+      ies = map (first head) ises
+      is = map fst ies
+      as = map field fs
+      field i = fromMaybe (unset i) $ lookup i ies
+  case filter ((> 1) . length . fst) ises of
+    (i:_, _):_ -> tcError (getSLoc i) "Nested fields not allowed"
+    _ -> return ()
+  case is \\ fs of
+    vs@(v:_) -> tcError (getSLoc v) $ "extra field(s) " ++ unwords (map unIdent vs)
+    _ -> return ()
+  return $ eApps e as
+
 enum :: SLoc -> String -> [Expr] -> Expr
-enum loc f = foldl EApp (EVar (mkIdentSLoc loc ("enum" ++ f)))
+enum loc f = eApps (EVar (mkIdentSLoc loc ("enum" ++ f)))
 
 tcLit :: Expected -> SLoc -> Lit -> T Expr
 tcLit mt loc l@(LPrim _) = newUVar >>= tcLit' mt loc l
@@ -1895,6 +1899,8 @@ tcPat mt ae =
       munify loc mt tea
       (sk, d, p') <- tcPat (Check ter) p
       return (sk, d, EViewPat e' p')
+
+    EUpdate (EVar _c) _fs -> undefined
 
     _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ show ae
 

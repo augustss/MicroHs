@@ -12,6 +12,7 @@ module MicroHs.Expr(
   Eqn(..),
   EStmt(..),
   EAlts(..),
+  EField,
   EAlt,
   ECaseArm,
   FunDep,
@@ -27,6 +28,7 @@ module MicroHs.Expr(
   Con(..), conIdent, conArity, conFields,
   tupleConstr, getTupleConstr,
   mkTupleSel,
+  eApps,
   subst,
   allVarsExpr, allVarsBind,
   setSLocExpr,
@@ -98,7 +100,7 @@ data Expr
   | EIf Expr Expr Expr
   | ESign Expr EType
   | ENegApp Expr
-  | EUpdate Expr [([Ident], Expr)]
+  | EUpdate Expr [EField]
   | ESelect [Ident]
   -- only in patterns
   | EAt Ident Expr
@@ -109,6 +111,8 @@ data Expr
   | ECon Con
   | EForall [IdKind] Expr -- only in types
 --  deriving (Show)
+
+type EField = ([Ident], Expr)
 
 type FunDep = ([Ident], [Ident])
 
@@ -210,7 +214,7 @@ isPConApp _ = True
 
 -- Variables bound in a pattern.
 -- Could use difference lists, but it seems a little slower.
-patVars :: EPat -> [Ident]
+patVars :: HasCallStack => EPat -> [Ident]
 patVars apat =
   case apat of
     EVar i -> add i []
@@ -223,6 +227,7 @@ patVars apat =
     EAt i p -> i `add` patVars p
     EViewPat _ p -> patVars p
     ECon _ -> []
+    EUpdate _ fs -> concatMap (patVars . snd) fs
     _ -> error $ "patVars " ++ showExpr apat
   where add i is | isConIdent i || isDummyIdent i = is
                  | otherwise = i : is
@@ -280,6 +285,9 @@ getTupleConstr i =
 mkTupleSel :: Int -> Int -> Expr
 mkTupleSel i n = eLam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [0 .. n - 1] ]] (EVar x)
   where x = mkIdent "$x"
+
+eApps :: Expr -> [Expr] -> Expr
+eApps = foldl EApp
 
 ---------------------------------
 
