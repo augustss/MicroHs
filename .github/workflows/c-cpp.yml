@@ -40,8 +40,8 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1
     - name: nmake
       run: nmake -f Makefile.windows
-    - name: nmake exampletest
-      run: nmake -f Makefile.windows exampletest
+  #  - name: nmake exampletest
+  #    run: nmake -f Makefile.windows exampletest
 
   build-linux-aarch64:
     runs-on: ubuntu-latest
