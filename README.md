@@ -126,7 +126,9 @@ it will be the entry point to the program.
 * `-oFILE` output file.  If the `FILE` ends in `.comb` it will produce a textual combinator file.  If `FILE` ends in `.c` it will produce a C file with the combinators.  For all other `FILE` it will compiler the combinators together with the runtime system to produce a regular executable.
 * `-r` run directly
 * `-v` be more verbose, flag can be repeated
-* `-C` use a compilation cache
+* `-CW` write compilation cache to `.mhscache` at the end of compilation
+* `-CR` read compilation cache from `.mhscache` at the start of compilation
+* `-C` short for `-CW` and `-CR`
 
 With the `-v` flag the processing time for each module is reported.
 E.g.
@@ -153,12 +155,14 @@ Do **NOT** use `-C` when you are changing the compiler itself; if the cached dat
 * `Abstract`, combinator bracket abstraction and optimization.
 * `Compile`, top level compiler.  Maintains a cache of already compiled modules.
 * `CompileCache`, cache for compiled modules.
+* `Deriving`, do deriving for various type classes.
 * `Desugar`, desugar full expressions to simple expressions.
 * `EncodeData`, data type encoding.
-* `Exp`, simple expression type, combinator abstraction and optimization.
+* `Exp`, simple expression type.
 * `ExpPrint`, serialize `Exp` for the runtime system.
 * `Expr`, parsed expression type.
 * `Fixity`, resolve operator fixities.
+* `Flags`, compiler flags.
 * `Graph`, strongly connected component algorithm.
 * `Ident`, identifiers and related types.
 * `IdentMap`, map from identifiers to something.

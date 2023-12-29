@@ -43,4 +43,3 @@
   - In evaluator
 * Fix bug uncovered by Data.Type.Equality
 * mkQIdent
-* Record pattern matching
