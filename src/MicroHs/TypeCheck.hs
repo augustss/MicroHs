@@ -1537,7 +1537,8 @@ tcExprR mt ae =
       withVks vks $ \ vks' -> do
         tt <- tcExpr mt t
         return (EForall vks' tt)
-    EUpdate e ises -> do
+    EUpdate e flds -> do
+      ises <- concat <$> mapM (dsEField e) flds
       me <- dsUpdate unsetField e ises
       case me of
         Just e' -> tcExpr mt e'
@@ -1548,15 +1549,16 @@ tcExprR mt ae =
     _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
 
-eSetFields :: ([Ident], Expr) -> Expr -> Expr
+eSetFields :: EField -> Expr -> Expr
 --eSetFields ([i], e) r = eSetField (i, e) r
-eSetFields (is, e) r =
+eSetFields (EField is e) r =
   let loc = getSLoc is
       eCompose = EVar $ mkIdentSLoc loc "composeSet"
       has = map eHasField $ init is
       set1 = eSetField (last is)
       set = foldr (EApp . EApp eCompose) set1 has
   in  EApp (EApp set r) e
+eSetFields _ _ = impossible
 
 eHasField :: Ident -> Expr
 eHasField i = EApp (EVar ihas) (eProxy i)
@@ -1575,16 +1577,43 @@ eProxy i = ESign proxy (EApp proxy (ELit loc (LStr (unIdent i))))
   where proxy = EVar $ mkIdentSLoc loc "Proxy"
         loc = getSLoc i
 
+dsEField :: Expr -> EField -> T [EField]
+dsEField _ e@(EField _ _) = return [e]
+dsEField _ (EFieldPun is) = return [EField is $ EVar (last is)]
+dsEField e EFieldWild = do
+  (e', _) <- tInferExpr e
+  case e' of
+    ECon c -> return [ EField [f] (EVar f) | f <- conFields c ]
+    _ -> tcError (getSLoc e) "record wildcard not allowed"
+
+-- Patterns need to expand EFieldWild before type checking
+dsEFields :: EPat -> T EPat
+dsEFields apat =
+  case apat of
+    EVar _ -> return apat
+    EApp p1 p2 -> EApp <$> dsEFields p1 <*> dsEFields p2
+    EOper p1 ips -> EOper <$> dsEFields p1 <*> mapM (\ (i, p2) -> (i,) <$> dsEFields p2) ips
+    ELit _ _ -> return apat
+    ETuple ps -> ETuple <$> mapM dsEFields ps
+    EListish (LList ps) -> EListish . LList <$> mapM dsEFields ps
+    ESign p t -> ESign <$> dsEFields p <*> pure t
+    EAt i p -> EAt i <$> dsEFields p
+    EViewPat e p -> EViewPat e <$> dsEFields p
+    ECon _ -> return apat
+    EUpdate c fs -> EUpdate c . concat <$> mapM (dsEField c) fs
+    _ -> error $ "dsEFields " ++ show apat
+
 -- XXX could be better
 unsetField :: Ident -> Expr
 unsetField i = EVar $ mkIdentSLoc (getSLoc i) "undefined"
 
 dsUpdate :: (Ident -> Expr) -> Expr -> [EField] -> T (Maybe Expr)
-dsUpdate unset e ises = do
+dsUpdate unset e flds = do
   (e', _) <- tInferExpr e
   case e' of
     ECon c -> do
-      let fs = conFields c
+      let ises = map unEField flds
+          fs = conFields c
           ies = map (first head) ises
           is = map fst ies
           as = map field fs
@@ -1787,11 +1816,12 @@ tCheckPatC t p@(EVar v) ta | not (isConIdent v) = do  -- simple special case
   withExtVals [(v, t)] $ ta p
 tCheckPatC t app ta = do
 --  traceM $ "tCheckPatC: " ++ show app ++ " :: " ++ show t
-  let vs = patVars app
+  app' <- dsEFields app
+  let vs = patVars app'
   multCheck vs
   env <- mapM (\ v -> (v,) <$> newUVar) vs
   withExtVals env $ do
-    (_sks, ds, pp) <- tCheckPat t app
+    (_sks, ds, pp) <- tCheckPat t app'
 --    traceM ("tCheckPatC: " ++ show pp)
     () <- checkArity 0 pp
 --    xt <- derefUVar t
@@ -2007,16 +2037,6 @@ tList = tCon . tListI
 
 tBool :: SLoc -> EType
 tBool loc = tConI loc $ boolPrefix ++ "Bool"
-
-impossible :: forall a .
-              HasCallStack =>
-              a
-impossible = error "impossible"
-
-impossibleShow :: forall a b .
-                  HasCallStack =>
-                  (Show a, HasLoc a) => a -> b
-impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ show a
 
 showTModule :: forall a . (a -> String) -> TModule a -> String
 showTModule sh amdl =

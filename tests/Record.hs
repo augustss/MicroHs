@@ -16,6 +16,12 @@ instance Show RR where
 foo :: R -> Int
 foo CR{a=aa,b=bb} = if bb then 999 else aa
 
+foop :: R -> Int
+foop CR{a,b} = if b then 888 else a
+
+foow :: R -> Int
+foow CR{..} = if b then 777 else a
+
 bar :: R -> Int
 bar CR{a=aa} = aa
 
@@ -43,8 +49,19 @@ rr1 = CRR { r = r1, a = True }
 r7 :: RR
 r7 = rr1{ r.a = 999 }
 
+r8 :: R
+r8 =
+  let a = 333
+      b = True
+  in  CR{..}
+
 sel_a :: forall r t . HasField "a" r t => r -> t
 sel_a = (.a)
+
+{- does not work yet
+sel_ra :: RR -> Int
+sel_ra CRR{r.a} = a
+-}
 
 data S a = S1 { x :: Int } | S2 { x :: Int, y :: a }
 
@@ -82,3 +99,9 @@ main = do
   print $ foo r1
   print $ foo r2
   print $ bar r1
+  print $ foop r1
+  print $ foop r2
+  print $ foow r1
+  print $ foow r2
+--  print $ sel_ra r7
+  print r8

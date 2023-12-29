@@ -12,7 +12,7 @@ module MicroHs.Expr(
   Eqn(..),
   EStmt(..),
   EAlts(..),
-  EField,
+  EField(..), unEField,
   EAlt,
   ECaseArm,
   FunDep,
@@ -36,6 +36,7 @@ module MicroHs.Expr(
   Assoc(..), Fixity,
   getBindsVars,
   HasLoc(..),
+  impossible, impossibleShow,
   ) where
 import Prelude hiding ((<>))
 import Data.List
@@ -112,7 +113,14 @@ data Expr
   | EForall [IdKind] Expr -- only in types
 --  deriving (Show)
 
-type EField = ([Ident], Expr)
+data EField
+  = EField [Ident] Expr     -- a.b = e
+  | EFieldPun [Ident]       -- a.b
+  | EFieldWild              -- ..
+
+unEField :: EField -> ([Ident], Expr)
+unEField (EField is e) = (is, e)
+unEField _ = impossible
 
 type FunDep = ([Ident], [Ident])
 
@@ -227,10 +235,13 @@ patVars apat =
     EAt i p -> i `add` patVars p
     EViewPat _ p -> patVars p
     ECon _ -> []
-    EUpdate _ fs -> concatMap (patVars . snd) fs
+    EUpdate _ fs -> concatMap field fs
     _ -> error $ "patVars " ++ showExpr apat
   where add i is | isConIdent i || isDummyIdent i = is
                  | otherwise = i : is
+        field (EField _ p) = patVars p
+        field (EFieldPun is) = [last is]
+        field EFieldWild = impossible
 
 type LHS = (Ident, [IdKind])
 
@@ -472,13 +483,16 @@ allVarsExpr' aexpr =
     EListish l -> allVarsListish l
     ESign e _ -> allVarsExpr' e
     ENegApp e -> allVarsExpr' e
-    EUpdate e ies -> allVarsExpr' e . composeMap allVarsExpr' (map snd ies)
+    EUpdate e ies -> allVarsExpr' e . composeMap field ies
     ESelect _ -> id
     EAt i e -> (i :) . allVarsExpr' e
     EViewPat e p -> allVarsExpr' e . allVarsExpr' p
     EUVar _ -> id
     ECon c -> (conIdent c :)
     EForall iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
+  where field (EField _ e) = allVarsExpr' e
+        field (EFieldPun is) = (last is :)
+        field EFieldWild = impossible
 
 allVarsListish :: Listish -> DList Ident
 allVarsListish (LList es) = composeMap allVarsExpr' es
@@ -644,7 +658,7 @@ ppExpr ae =
     EListish l -> ppListish l
     ESign e t -> parens $ ppExpr e <+> text "::" <+> ppEType t
     ENegApp e -> text "-" <+> ppExpr e
-    EUpdate ee ies -> ppExpr ee <> text "{" <+> hsep (punctuate (text ",") (map (\ (is, e) -> hcat (punctuate (text ".") (map ppIdent is)) <+> text "=" <+> ppExpr e) ies)) <+> text "}"
+    EUpdate ee ies -> ppExpr ee <> text "{" <+> hsep (punctuate (text ",") (map ppField ies)) <+> text "}"
     ESelect is -> parens $ hcat $ map (\ i -> text "." <> ppIdent i) is
     EAt i e -> ppIdent i <> text "@" <> ppExpr e
     EViewPat e p -> parens $ ppExpr e <+> text "->" <+> ppExpr p
@@ -661,6 +675,11 @@ ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppExpr a <+> text op
                     where op = unIdent (unQualIdent i)
                           cop = head op
 ppApp as f = parens $ hsep (map ppExpr (f:as))
+
+ppField :: EField -> Doc
+ppField (EField is e) = hcat (punctuate (text ".") (map ppIdent is)) <+> text "=" <+> ppExpr e
+ppField (EFieldPun is) = hcat (punctuate (text ".") (map ppIdent is))
+ppField EFieldWild = text ".."
 
 ppForall :: [IdKind] -> Doc
 --ppForall [] = empty
@@ -733,3 +752,13 @@ getBindVars abind =
 
 getBindsVars :: [EBind] -> [Ident]
 getBindsVars = concatMap getBindVars
+
+impossible :: forall a .
+              HasCallStack =>
+              a
+impossible = error "impossible"
+
+impossibleShow :: forall a b .
+                  HasCallStack =>
+                  (Show a, HasLoc a) => a -> b
+impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ show a

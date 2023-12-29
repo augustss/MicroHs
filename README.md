@@ -51,6 +51,7 @@ Differences:
    * KindSignatures
    * MonoLocalBinds
    * MultiParamTypeClasses
+   * NamedFieldPuns
    * NegativeLiterals
    * NoFieldSelectors
    * NoMonomorphismRestriction
@@ -59,6 +60,7 @@ Differences:
    * OverloadedRecordUpdate
    * PolyKinds
    * RankNTypes
+   * RecordWildCards
    * QualifiedDo
    * ScopedTypeVariables
    * StarIsType

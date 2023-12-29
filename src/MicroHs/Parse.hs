@@ -539,6 +539,7 @@ pOperCommaNoMinus = do
   guard (i /= mkIdent "-")
   pure i
 
+-- XXX combine pUpdate and pSelects
 pAExpr :: P Expr
 pAExpr = do
   ee <- pAExpr'
@@ -548,8 +549,14 @@ pAExpr = do
             | otherwise = EApp (ESelect ss) e
   pure $ sel (foldl EUpdate ee us)
 
-pUpdate :: P [([Ident], Expr)]
-pUpdate = pSpec '{' *> esepBy ((,) <$> (((:) <$> pLIdentSym <*> many pSelect) <* pSymbol "=") <*> pExpr) (pSpec ',') <* pSpec '}'
+pUpdate :: P [EField]
+pUpdate = pSpec '{' *> esepBy pEField (pSpec ',') <* pSpec '}'
+  where
+    pEField = do
+      fs <- (:) <$> pLIdentSym <*> many pSelect
+      EField fs <$> (pSymbol "=" *> pExpr) <|< pure (EFieldPun fs)
+     <|<
+      (EFieldWild <$ pSymbol "..")
 
 pSelect :: P Ident
 pSelect = do
