@@ -236,7 +236,7 @@ Note that record updates cannot change the type of polymorphic fields.
 ### Features
 The runtime system can serialize and deserialize any expression
 and keep its graph structure (sharing and cycles).
-The only exceptions to this are C pointers file handles, which cannot be serialized (except for `stdin`, `stdout`, and `stderr`).
+The only exceptions to this are C pointers (e.g., file handles), which cannot be serialized (except for `stdin`, `stdout`, and `stderr`).
 
 ### Memory layout
 Memory allocation is based on cells.  Each cell has room for two pointers (i.e., two words, typically 16 bytes),
