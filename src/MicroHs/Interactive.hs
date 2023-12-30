@@ -116,7 +116,10 @@ mkIt :: String -> String
 mkIt l = itName ++ " :: IO ()\n" ++ itName ++ " = printOrRun (" ++ l ++ ")\n"
 
 err :: Exn -> IO ()
-err (Exn s) = putStrLn $ "Error: " ++ s
+err e = err' $ exnToString e
+
+err' :: String -> IO ()
+err' s = putStrLn $ "Error: " ++ s
 
 oneline :: String -> I ()
 oneline line = do
@@ -142,7 +145,7 @@ oneline line = do
           case exprTest of
             Right m -> evalExpr m
             Left  e -> liftIO $ err e
-        Left  e -> liftIO $ err (Exn e)
+        Left  e -> liftIO $ err' e
 
 tryCompile :: String -> I (Either Exn [LDef])
 tryCompile file = do

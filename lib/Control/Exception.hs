@@ -1,12 +1,16 @@
 module Control.Exception(
   catch, try,
   throwIO,
-  Exn(..)
+  Exn(..),
+  exnToString,
   ) where
 import Primitives
 import Prelude
 
 newtype Exn = Exn String
+
+exnToString :: Exn -> String
+exnToString (Exn s) = s
 
 catch :: forall a . IO a -> (Exn -> IO a) -> IO a
 catch ioa hdl = primCatch ioa (hdl . Exn)

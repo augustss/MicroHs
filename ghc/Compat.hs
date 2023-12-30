@@ -73,9 +73,15 @@ padLeft n s = replicate (n - length s) ' ' ++ s
 
 ------- Exception --------
 
-newtype Exn = Exn String
-  deriving (Show)
-instance Exception Exn
+--newtype Exn = Exn String
+--  deriving (Show)
+--instance Exception Exn
+
+type Exn = SomeException
+
+exnToString :: Exn -> String
+exnToString = trunc . show
+  where trunc = head . lines
 
 ------- IO --------
 
