@@ -1,6 +1,4 @@
 * Have compile return a Stats record of timing etc
-* Implement deriving
-  - started, Typeable so far
 * make the runtime system catch ^C and stop execution
 * use pointer stack during GC instead of recursion.
   - Somewhat improved now
@@ -25,7 +23,6 @@
 * Try Oleg's abstraction algorithm
   - Seems to be slower
 * Redo type synonym expansion
-  - Only non-injective synonyms necessitate expansion(?)
   - Do expansion during unification
 * Redo handling of synonym and instance tables.
   - These tables can persist during the compilation and only grow
@@ -43,3 +40,4 @@
   - In evaluator
 * Fix bug uncovered by Data.Type.Equality
 * mkQIdent
+* Do not use the C stack during evaluation
