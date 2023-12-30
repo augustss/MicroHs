@@ -6,10 +6,11 @@ import Text.Show
 
 -- A very, very minimal version of the constraints package
 
-data Dict (c :: Constraint) = c => Dict
+type Dict :: Constraint -> Type
+data Dict c = c => Dict
 
-instance forall (c :: Constraint) . Show (Dict c) where
+instance forall c . Show (Dict c) where
   showsPrec _ Dict = showString "Dict"
 
-withDict :: forall (c :: Constraint) r . Dict c -> (c => r) -> r
+withDict :: forall c r . Dict c -> (c => r) -> r
 withDict Dict r = r
