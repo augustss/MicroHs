@@ -298,3 +298,5 @@ the outputs to make sure the new compiler still works.
   * A: The combinator file is rather verbose.  The combinator file
        for the compiler shrinks from 350kB to 75kB when compressed with upx.
        The evaluator alone is about 70kB (26kB compressed with upx).
+
+
