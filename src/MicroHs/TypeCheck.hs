@@ -403,10 +403,12 @@ withDicts ds ta = do
 
 withDict :: forall a . HasCallStack => Ident -> EConstraint -> T a -> T a
 withDict i c ta = do
+--  traceM $ "+++ withDict enter " ++ show (i, c)
   ct <- gets ctxTables
   addDict (i, c)
   a <- ta
   putCtxTables ct
+--  traceM $ "--- withDict leave " ++ show (i, c)
   return a
 
 addDict :: (Ident, EConstraint) -> T ()
@@ -602,7 +604,7 @@ munify loc (Check a) b = unify loc a b
 
 expandSyn :: HasCallStack =>
              EType -> T EType
-expandSyn at =
+expandSyn at = do
   let
     syn ts t =
       case t of
@@ -631,7 +633,7 @@ expandSyn at =
         ELit _ (LStr _) -> return t
         ELit _ (LInteger _) -> return t
         _ -> impossible
-  in syn [] at
+  syn [] at
 
 mapEType :: (EType -> EType) -> EType -> EType
 mapEType fn = rec
@@ -709,6 +711,7 @@ unifyVar :: HasCallStack =>
             SLoc -> TRef -> EType -> T ()
 unifyVar loc r t = do
   mt <- getUVar r
+--  traceM $ "unifyVar: " ++ show (r,t)
   case mt of
     Nothing -> unifyUnboundVar loc r t
     Just t' -> unify loc t' t
@@ -1011,7 +1014,7 @@ withLHS (i, vks) ta = do
     (a, kr) <- ta (i, vks')
     let kapp = foldr kArrow kr (map (\ (IdKind _ k) -> k) vks')
     --unify (getSLoc i) ki kapp
-    _ <- subsCheckRho (getSLoc i) undefined ki kapp
+    _ <- subsCheckRho (getSLoc i) eCannotHappen ki kapp
     return a
 
 tcCtx :: HasCallStack => [EConstraint] -> T [EConstraint]
@@ -1306,9 +1309,9 @@ tInferExpr = tInfer tcExpr
 tCheckExpr :: HasCallStack =>
               EType -> Expr -> T Expr
 tCheckExpr t e | Just (ctx, t') <- getImplies t = do
---  error $ "tCheckExpr: " ++ show (e, ctx, t')
+--  traceM $ "tCheckExpr: " ++ show (e, ctx, t')
   d <- newADictIdent (getSLoc e)
-  e' <- withDict d ctx $ tCheckExpr t' e
+  e' <- withDict d ctx $ tCheckExprAndSolve t' e
   return $ eLam [EVar d] e'
 
 tCheckExpr t e = tCheck tcExpr t e
@@ -1377,14 +1380,15 @@ tcExprR mt ae =
                case t of
                  EUVar r -> fmap (fromMaybe t) (getUVar r)
                  _ -> return t
---             traceM ("EVar " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t')
+--             traceM $ "EVar: " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t' ++ " mt=" ++ show mt
              instSigma loc e t' mt
 
     EApp f a -> do
+--      traceM $ "txExpr(0) EApp: expr=" ++ show ae ++ ":: " ++ show mt
       (f', ft) <- tInferExpr f
---      traceM $ "tcExpr(1) EApp f=" ++ show f ++ "; f'=" ++ show f' ++ " :: " ++ show ft
+--      traceM $ "tcExpr(1) EApp: f=" ++ show f ++ "; f'=" ++ show f' ++ " :: " ++ show ft
       (at, rt) <- unArrow loc ft
---      traceM $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", a=" ++ show a ++ " :: " ++ show at ++ " rt=" ++ show rt
+--      traceM $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a ++ " :: " ++ show at ++ " retty=" ++ show rt
       a' <- checkSigma a at
       instSigma loc (EApp f' a') rt mt
 
@@ -2144,6 +2148,8 @@ checkSigma :: HasCallStack =>
               Expr -> Sigma -> T Expr
 checkSigma expr sigma = do
   (skol_tvs, rho) <- skolemise sigma
+--  sigma' <- derefUVar sigma
+--  traceM $ "**** checkSigma: " ++ show expr ++ " :: " ++ show sigma ++ " = " ++ show sigma' ++ " " ++ show skol_tvs
   expr' <- tCheckExpr rho expr
   if null skol_tvs then
     -- Fast special case
@@ -2172,13 +2178,14 @@ subsCheckRho loc exp1 rho1 rho2 | Just (a1, r1) <- getArrow rho1 = do -- Rule FU
   (a2,r2) <- unArrow loc rho2
   subsCheckFun loc exp1 a1 r1 a2 r2
 subsCheckRho loc exp1 tau1 tau2 = do  -- Rule MONO
+--  traceM $ "subsCheckRho: MONO " ++ show (tau1, tau2)
   unify loc tau1 tau2 -- Revert to ordinary unification
   return exp1
 
 subsCheckFun :: HasCallStack =>
                 SLoc -> Expr -> Sigma -> Rho -> Sigma -> Rho -> T Expr
 subsCheckFun loc e1 a1 r1 a2 r2 = do
-  _ <- subsCheck loc undefined a2 a1   -- XXX
+  _ <- subsCheck loc eCannotHappen a2 a1   -- XXX
   subsCheckRho loc e1 r1 r2
 
 instSigma :: HasCallStack =>
@@ -2191,6 +2198,10 @@ instSigma loc e1 t1 (Infer r) = do
 --  traceM ("instSigma: Infer " ++ showEType t1 ++ " ==> " ++ showEType t1')
   tSetRefType loc r t1'
   return e1'
+
+eCannotHappen :: Expr
+eCannotHappen = --undefined
+                EVar $ mkIdent "cannot-happen"
 
 -----
 
