@@ -41,5 +41,3 @@
 * Fix bug uncovered by Data.Type.Equality
 * mkQIdent
 * Do not use the C stack during evaluation
-* Fix bug:
-  foo :: forall e . Dict (Exception e) -> e -> String; foo d e = withDict d (displayException e)
