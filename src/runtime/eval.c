@@ -973,7 +973,7 @@ mark(NODEPTR *np)
     }
 #if 1
     /* This is broken.
-     * Probably because it can happen in the middle of the C node.
+     * Probably because it can happen in the middle of the C reduction code.
      */
     if (tag == T_AP && GETTAG(FUN(n)) == T_C) {
       NODEPTR q = ARG(n);
@@ -1002,16 +1002,9 @@ mark(NODEPTR *np)
 #endif  /* INTTABLE */
 #endif  /* GCRED */
   if (tag == T_AP) {
-#if 1
     mark(&FUN(n));
-    //mark(&ARG(n));
     np = &ARG(n);
     goto top;                   /* Avoid tail recursion */
-#else
-    mark(&ARG(n));
-    np = &FUN(n);
-    goto top;                   /* Avoid tail recursion */
-#endif
   } else if (tag == T_ARR) {
     struct ioarray *arr = ARR(n);
     /* It really should never happen that we encounter a marked
