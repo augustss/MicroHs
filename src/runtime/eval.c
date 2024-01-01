@@ -157,9 +157,11 @@ static const char* tag_names[] = {
   "FREE", "IND", "AP", "INT", "DBL", "PTR", "BADDYN", "ARR",
   "S", "K", "I", "B", "C",
   "A", "Y", "SS", "BB", "CC", "P", "R", "O", "U", "Z",
+  "K2", "K3", "K4", "CCB",
   "ADD", "SUB", "MUL", "QUOT", "REM", "SUBR", "UQUOT", "UREM", "NEG",
   "AND", "OR", "XOR", "INV", "SHL", "SHR", "ASHR",
   "EQ", "NE", "LT", "LE", "GT", "GE", "ULT", "ULE", "UGT", "UGE",
+  "PEQ", "PNULL", "PADD", "PSUB",
   "TOPTR", "TOINT", "TODBL",
 #if WANT_FLOAT
   "FADD", "FSUB", "FMUL", "FDIV", "FNEG", "ITOF",
