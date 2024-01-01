@@ -674,7 +674,7 @@ new_ap(NODEPTR f, NODEPTR a)
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combFalse, combTrue, combUnit, combCons, combPair;
-NODEPTR combCC, combZ, combIOBIND;
+NODEPTR combCC, combZ, combIOBIND, combIORETURN;
 NODEPTR combLT, combEQ, combGT;
 
 /* One node of each kind for primitives, these are never GCd. */
@@ -824,6 +824,7 @@ init_nodes(void)
     case T_CC: combCC = n; break;
     case T_Z: combZ = n; break;
     case T_IO_BIND: combIOBIND = n; break;
+    case T_IO_RETURN: combIORETURN = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
@@ -846,6 +847,7 @@ init_nodes(void)
     case T_CC: combCC = n; break;
     case T_Z: combZ = n; break;
     case T_IO_BIND: combIOBIND = n; break;
+    case T_IO_RETURN: combIORETURN = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
@@ -2066,7 +2068,7 @@ rnf(value_t noerr, NODEPTR n)
   FREE(rnf_bits);
 }
 
-NODEPTR execio(NODEPTR n);
+void execio(NODEPTR *);
 
 /* Evaluate a node, returns when the node is in WHNF. */
 void
@@ -2348,8 +2350,15 @@ eval(NODEPTR an)
       rnf(xi, ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(combUnit);
 
     case T_IO_PERFORMIO:
+      CHECK(1);
       if (doing_rnf) RET;
-      CHKARGEV1(x = execio(x)); GOIND(x);
+      execio(&ARG(TOP(0)));       /* run IO action */
+      x = ARG(TOP(0));           /* should be RETURN e */
+      if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
+        ERR("PERFORMIO");
+      POP(1);
+      n = TOP(-1);
+      GOIND(ARG(x));
 
     case T_IO_BIND:
     case T_IO_THEN:
@@ -2396,7 +2405,7 @@ eval(NODEPTR an)
 /* This is the interpreter for the IO monad operations. */
 /* It takes a monadic expression and returns the unwrapped expression (unevaluated). */
 NODEPTR
-execio(NODEPTR n)
+execio1(NODEPTR n)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR f, x;
@@ -2455,7 +2464,7 @@ execio(NODEPTR n)
         }
       }
 
-      x = execio(ARG(TOP(1)));  /* first argument, unwrapped */
+      x = execio1(ARG(TOP(1)));  /* first argument, unwrapped */
 
       /* Do a GC check, make sure we keep the x live */
       GCCHECKSAVE(x, 1);
@@ -2466,7 +2475,7 @@ execio(NODEPTR n)
       goto top;
     case T_IO_THEN:
       CHECKIO(2);
-      (void)execio(ARG(TOP(1))); /* first argument, unwrapped, ignored */
+      (void)execio1(ARG(TOP(1))); /* first argument, unwrapped, ignored */
       n = ARG(TOP(2));          /* second argument, the continuation */
       POP(3);
       goto top;
@@ -2588,7 +2597,7 @@ execio(NODEPTR n)
           goto top;
         } else {
           /* Normal execution: */
-          n = execio(ARG(TOP(1))); /* execute first argument */
+          n = execio1(ARG(TOP(1))); /* execute first argument */
           cur_handler = h->hdl_old; /* restore old handler */
           FREE(h);
           RETIO(n);             /* return result */
@@ -2668,6 +2677,16 @@ execio(NODEPTR n)
       ERR1("execio tag %d", GETTAG(n));
     }
   }
+}
+
+void
+execio(NODEPTR *np)
+{
+  NODEPTR n = execio1(*np);
+  GCCHECKSAVE(n, 1);
+  *np = alloc_node(T_AP);
+  FUN(*np) = combIORETURN;
+  ARG(*np) = n;
 }
 
 heapoffs_t
@@ -2803,15 +2822,12 @@ main(int argc, char **argv)
   }
 #endif
   run_time -= GETTIMEMILLI();
-  NODEPTR res = execio(prog);
-  res = evali(res);
+  execio(&prog);
+  if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
+    ERR("main execio");
+  NODEPTR res = evali(ARG(prog));
   run_time += GETTIMEMILLI();
 #if WANT_STDIO
-  if (0) {
-    FILE *out = fopen("prog.comb", "w");
-    print(out, prog, 1);
-    fclose(out);
-  }
   if (verbose) {
     if (verbose > 1) {
       PRINT("\nmain returns ");
