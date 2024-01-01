@@ -276,7 +276,7 @@ The code has mostly been tested on 64 bit platforms, so again, there are lurking
 with other word sizes, but they should be easy to fix.
 
 The `src/runtime/` directory contains configuration files for different platform.
-Use the appropriate `src/runtime/eval-`*platform*`.c.
+Use the appropriate `src/runtime/eval-`*platform*`.c`.
 
 ## Bootstrapping
 The compiler can compile itself.  To replace `bin/mhs` with a new version,
