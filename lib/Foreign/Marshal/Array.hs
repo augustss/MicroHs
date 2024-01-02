@@ -20,7 +20,7 @@ peekArray :: forall a . Storable a => Int -> Ptr a -> IO [a]
 peekArray size ptr | size <= 0 = return []
                    | otherwise = f (size-1) []
   where
-    f 0 acc = do e <- peekElemOff ptr 0; return (e:acc)
+    f n acc | n < 0 = return acc
     f n acc = do e <- peekElemOff ptr n; f (n-1) (e:acc)
 
 peekArray0 :: forall a . (Storable a, Eq a) => a -> Ptr a -> IO [a]
