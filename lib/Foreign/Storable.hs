@@ -26,9 +26,12 @@ class Storable a where
 foreign import ccall "peekWord" c_peekWord :: Ptr Word -> IO Word
 foreign import ccall "pokeWord" c_pokeWord :: Ptr Word -> Word -> IO ()
 
+wordSizeInBytes :: Int
+wordSizeInBytes = _wordSize `primIntQuot` 8
+
 instance Storable Word where
-  sizeOf    _ = _wordSize
-  alignment _ = _wordSize
+  sizeOf    _ = wordSizeInBytes
+  alignment _ = wordSizeInBytes
   peek p      = c_peekWord p
   poke p w    = c_pokeWord p w
 
@@ -36,8 +39,8 @@ foreign import ccall "peekPtr" c_peekPtr :: forall a . Ptr (Ptr a) -> IO (Ptr a)
 foreign import ccall "pokePtr" c_pokePtr :: forall a . Ptr (Ptr a) -> Ptr a -> IO ()
 
 instance forall a . Storable (Ptr a) where
-  sizeOf    _ = _wordSize
-  alignment _ = _wordSize
+  sizeOf    _ = wordSizeInBytes
+  alignment _ = wordSizeInBytes
   peek p      = c_peekPtr p
   poke p w    = c_pokePtr p w
 
@@ -45,7 +48,7 @@ foreign import ccall "peekByte" c_peekByte :: Ptr Word8 -> IO Word8
 foreign import ccall "pokeByte" c_pokeByte :: Ptr Word8 -> Word8 -> IO ()
 
 instance Storable Word8 where
-  sizeOf    _ = 8
-  alignment _ = 8
+  sizeOf    _ = 1
+  alignment _ = 1
   peek p      = c_peekByte p
   poke p w    = c_pokeByte p w
