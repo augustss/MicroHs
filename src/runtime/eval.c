@@ -144,6 +144,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
+                T_IO_CCBIND,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS,
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
@@ -171,6 +172,7 @@ static const char* tag_names[] = {
   "ERROR", "NODEFAULT", "NOMATCH", "SEQ", "EQUAL", "COMPARE", "RNF",
   "TICK",
   "IO_BIND", "IO_THEN", "IO_RETURN",
+  "C'BIND",
   "IO_SERIALIZE", "IO_DESERIALIZE",
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGS",
   "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "IO_CATCH",
@@ -237,6 +239,9 @@ counter_t num_alloc;
 counter_t num_gc = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t run_time = 0;
+
+NODEPTR *topnode;
+NODEPTR atptr;
 
 NODEPTR *stack;
 stackptr_t stack_ptr = -1;
@@ -674,7 +679,7 @@ new_ap(NODEPTR f, NODEPTR a)
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combFalse, combTrue, combUnit, combCons, combPair;
-NODEPTR combCC, combZ, combIOBIND, combIORETURN;
+NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND;
 NODEPTR combLT, combEQ, combGT;
 
 /* One node of each kind for primitives, these are never GCd. */
@@ -772,6 +777,7 @@ struct {
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
   { "IO.return", T_IO_RETURN },
+  { "IO.C'BIND", T_IO_CCBIND },
   { "IO.serialize", T_IO_SERIALIZE },
   { "IO.print", T_IO_PRINT },
   { "IO.deserialize", T_IO_DESERIALIZE },
@@ -825,6 +831,7 @@ init_nodes(void)
     case T_Z: combZ = n; break;
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
+    case T_IO_CCBIND: combIOCCBIND = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
@@ -848,6 +855,7 @@ init_nodes(void)
     case T_Z: combZ = n; break;
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
+    case T_IO_CCBIND: combIOCCBIND = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
@@ -1632,8 +1640,9 @@ printrec(FILE *f, NODEPTR n)
     }
   }
 
+  if (n == atptr) putc('@', f);
   switch (GETTAG(n)) {
-  case T_IND: /*putc('*', f);*/ printrec(f, INDIR(n)); break;
+  case T_IND: putc('*', f); printrec(f, INDIR(n)); break;
   case T_AP:
     fputc('(', f);
     printrec(f, FUN(n));
@@ -1740,6 +1749,7 @@ printrec(FILE *f, NODEPTR n)
   case T_IO_BIND: fprintf(f, "IO.>>="); break;
   case T_IO_THEN: fprintf(f, "IO.>>"); break;
   case T_IO_RETURN: fprintf(f, "IO.return"); break;
+  case T_IO_CCBIND: fprintf(f, "IO.C'BIND"); break;
   case T_IO_SERIALIZE: fprintf(f, "IO.serialize"); break;
   case T_IO_PRINT: fprintf(f, "IO.print"); break;
   case T_IO_DESERIALIZE: fprintf(f, "IO.deserialize"); break;
@@ -1793,6 +1803,26 @@ pp(FILE *f, NODEPTR n)
 {
   print(f, n, 0);
   fprintf(f, "\n");
+}
+
+void
+ppmsg(FILE *f, const char *msg, NODEPTR n)
+{
+#if 0
+  fprintf(f, "%s", msg);
+  print(f, n, 0);
+  fprintf(f, "\n");
+#endif
+}
+
+void
+dump(const char *msg, NODEPTR at)
+{
+#if 0
+  atptr = at;
+  printf("dump: %s\n", msg);
+  pp(stdout, *topnode);
+#endif
 }
 #endif  /* WANT_STDIO */
 
@@ -2360,6 +2390,7 @@ eval(NODEPTR an)
       n = TOP(-1);
       GOIND(ARG(x));
 
+    case T_IO_CCBIND:           /* We should never have to reduce this */
     case T_IO_BIND:
     case T_IO_THEN:
     case T_IO_RETURN:
@@ -2402,13 +2433,37 @@ eval(NODEPTR an)
   }
 }
 
-/* This is the interpreter for the IO monad operations. */
-/* It takes a monadic expression and returns the unwrapped expression (unevaluated). */
-NODEPTR
-execio1(NODEPTR n)
+/* This is the interpreter for the IO monad operations.
+ * 
+ * Assuming every graph rewrite is atomic we want the graph
+ * to always represent the rest of the program to run.
+ * To this end, we need to mutate the graph every time
+ * an IO operation has been performed to make sure we don't
+ * execute it again.
+ * To have a cell that is safe to mutate, we allocate a new
+ * application on entry to execio().
+ * Given the call execio(np) we allocate this graph, top,:
+ *   BIND (*np) RETURN
+ * and make np point to it.
+ * This graph will be updated continuously as we execite IO action.
+ * Invariant: the second argument to this BIND is always either RETURN
+ * or another C'BIND.
+ * This is the cycle:
+ *   given top = BIND n q
+ *   eval(n)
+ *   case n
+ *     BIND r s:  rewrite to top := BIND r (C'BIND s q)  -- (r >>= s) >>= q  -->  r >>= (\ x -> s x >>= q)
+ *     THEN r s:  ... K s ...
+ *     otherwise: res = execute n
+ *       case q
+ *         RETURN:     rewrite to  top := RETURN res;  return to caller
+ *         C'BIND r s: rewrite to  top := BIND (r res) s; goto top
+ */
+void
+execio(NODEPTR *np)
 {
   stackptr_t stk = stack_ptr;
-  NODEPTR f, x;
+  NODEPTR f, x, n, q, r, s, res, top1;
   char *name;
   value_t len;
 #if WANT_STDIO
@@ -2418,26 +2473,68 @@ execio1(NODEPTR n)
 
 /* IO operations need all arguments, anything else should not happen. */
 #define CHECKIO(n) do { if (stack_ptr - stk != (n+1)) {ERR("CHECKIO");}; } while(0)
-#define RETIO(p) do { stack_ptr = stk; return (p); } while(0)
+  /* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
 #define GCCHECKSAVE(p, n) do { PUSH(p); GCCHECK(n); (p) = TOP(0); POP(1); } while(0)
+#define RETIO(p) do { stack_ptr = stk; res = p; goto rest; } while(0)
+#define IOASSERT(p,s) do { if (!(p)) ERR("IOASSERT " s); } while(0)
 
- top:
-  n = evali(n);
+  GCCHECK(2);
+  NODEPTR top = new_ap(new_ap(combIOBIND, *np), combIORETURN);
+  *np = top;
+
+ start:
+  dump("start", top);
+  IOASSERT(stack_ptr == stk, "start");
+  ppmsg(stdout, "n before = ", ARG(FUN(top)));
+  n = evali(ARG(FUN(top)));     /* eval(n) */
+  ppmsg(stdout, "n after  = ", n);
+  if (GETTAG(n) == T_AP && GETTAG(top1 = indir(FUN(n))) == T_AP) {
+    switch (GETTAG(indir(FUN(top1)))) {
+    case T_IO_BIND:
+      GCCHECKSAVE(n, 2);
+      s = ARG(n);
+    bind:
+      q = ARG(top);
+      r = ARG(top1);
+      ARG(FUN(top)) = r;
+      ARG(top) = x = new_ap(new_ap(combIOCCBIND, s), q);
+      goto start;
+    case T_IO_THEN:
+      GCCHECKSAVE(n, 3);
+      s = new_ap(combFalse, ARG(n));
+      goto bind;
+    default:
+      break;
+    }
+  }
+  goto execute;
+
+ rest:                          /* result is in res */
+  ppmsg(stdout, "res=", res);
+  q = ARG(top);
+  ppmsg(stdout, "q=", q);
+  if (GETTAG(q) == T_IO_RETURN) {
+    /* execio is done */
+    FUN(top) = combIORETURN;
+    ARG(top) = res;
+    IOASSERT(stack_ptr == stk, "stk");
+    return;
+  }
+  /* not done, it must be a C'BIND */
+  GCCHECK(1);
+  IOASSERT(GETTAG(q) == T_AP && GETTAG(FUN(q)) == T_AP && GETTAG(FUN(FUN(q))) == T_IO_CCBIND, "rest-AP");
+  r = ARG(FUN(q));
+  s = ARG(q);
+  ARG(FUN(top)) = new_ap(r, res);
+  ARG(top) = s;
+  goto start;
+
+ execute:
   PUSH(n);
   for(;;) {
     num_reductions++;
+    //printf("execute switch %s\n", tag_names[GETTAG(n)]);
     switch (GETTAG(n)) {
-
-#if 0
-    case T_TICK:
-      CHECKIO(2);
-      if (GETTAG(ARG(TOP(1))) == T_STR)
-        printf("tick: %s\n", STR(ARG(TOP(1))));
-      POP(2);
-      TOP(0) = ARG(TOP(0));
-      break;
-#endif
-
     case T_IND:
       n = INDIR(n);
       TOP(0) = n;
@@ -2447,38 +2544,11 @@ execio1(NODEPTR n)
       PUSH(n);
       break;
     case T_IO_BIND:
-      CHECKIO(2);
-      {
-        /* Use associativity to avoid deep execio recursion. */
-        /* (m >>= g) >>= h      ===  m >>= (\ x -> g x >>= h) */
-        /* BIND ((BIND m) g) h  ===  BIND m (\ x -> BIND (g x) h) == (BIND m) (((C' BIND) g) h)*/
-        NODEPTR bm;
-        NODEPTR bmg = evali(ARG(TOP(1)));
-        GCCHECKSAVE(bmg, 4);
-        if (GETTAG(bmg) == T_AP && GETTAG(bm = indir(FUN(bmg))) == T_AP && GETTAG(indir(FUN(bm))) == T_IO_BIND) {
-          NODEPTR g = ARG(bmg);
-          NODEPTR h = ARG(TOP(2));
-          n = new_ap(bm, new_ap(new_ap(new_ap(combCC, combIOBIND), g), h));
-          POP(3);
-          goto top;
-        }
-      }
-
-      x = execio1(ARG(TOP(1)));  /* first argument, unwrapped */
-
-      /* Do a GC check, make sure we keep the x live */
-      GCCHECKSAVE(x, 1);
-
-      f = ARG(TOP(2));          /* second argument, the continuation */
-      n = new_ap(f, x);
-      POP(3);
-      goto top;
+      ERR("T_IO_BIND");
     case T_IO_THEN:
-      CHECKIO(2);
-      (void)execio1(ARG(TOP(1))); /* first argument, unwrapped, ignored */
-      n = ARG(TOP(2));          /* second argument, the continuation */
-      POP(3);
-      goto top;
+      ERR("T_IO_THEN");
+    case T_IO_CCBIND:
+      ERR("T_IO_CCBIND");
     case T_IO_RETURN:
       CHECKIO(1);
       n = ARG(TOP(1));
@@ -2594,13 +2664,16 @@ execio1(NODEPTR n)
           cur_handler = h->hdl_old;
           FREE(h);
           POP(3);
-          goto top;
+          ARG(FUN(top)) = n;
+          goto start;
         } else {
           /* Normal execution: */
-          n = execio1(ARG(TOP(1))); /* execute first argument */
+          execio(&ARG(TOP(1))); /* execute first argument */
           cur_handler = h->hdl_old; /* restore old handler */
           FREE(h);
-          RETIO(n);             /* return result */
+          n = ARG(TOP(1));
+          IOASSERT(GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_IO_RETURN, "CATCH");
+          RETIO(ARG(n));             /* return result */
         }
       }
 
@@ -2677,16 +2750,6 @@ execio1(NODEPTR n)
       ERR1("execio tag %d", GETTAG(n));
     }
   }
-}
-
-void
-execio(NODEPTR *np)
-{
-  NODEPTR n = execio1(*np);
-  GCCHECKSAVE(n, 1);
-  *np = alloc_node(T_AP);
-  FUN(*np) = combIORETURN;
-  ARG(*np) = n;
 }
 
 heapoffs_t
@@ -2822,7 +2885,11 @@ main(int argc, char **argv)
   }
 #endif
   run_time -= GETTIMEMILLI();
-  execio(&prog);
+  PUSH(prog);
+  topnode = &TOP(0);
+  execio(&TOP(0));
+  prog = TOP(0);
+  POP(1);
   if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
     ERR("main execio");
   NODEPTR res = evali(ARG(prog));
