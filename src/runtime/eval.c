@@ -1806,12 +1806,12 @@ pp(FILE *f, NODEPTR n)
 }
 
 void
-ppmsg(FILE *f, const char *msg, NODEPTR n)
+ppmsg(const char *msg, NODEPTR n)
 {
 #if 0
-  fprintf(f, "%s", msg);
-  print(f, n, 0);
-  fprintf(f, "\n");
+  printf("%s", msg);
+  print(stdout, n, 0);
+  printf("\n");
 #endif
 }
 
@@ -1967,12 +1967,13 @@ evalptr(NODEPTR n)
 
 /* Evaluate a string, returns a newly allocated buffer. */
 /* XXX this is cheating, should use continuations */
+/* XXX the malloc()ed string is leaked if we yield in here. */
 char *
 evalstring(NODEPTR n, value_t *lenp)
 {
-  size_t sz = 1000;
-  size_t offs;
+  size_t sz = 100;
   char *name = MALLOC(sz);
+  size_t offs;
   value_t c;
   NODEPTR x;
 
@@ -2485,9 +2486,9 @@ execio(NODEPTR *np)
  start:
   dump("start", top);
   IOASSERT(stack_ptr == stk, "start");
-  ppmsg(stdout, "n before = ", ARG(FUN(top)));
+  ppmsg("n before = ", ARG(FUN(top)));
   n = evali(ARG(FUN(top)));     /* eval(n) */
-  ppmsg(stdout, "n after  = ", n);
+  ppmsg("n after  = ", n);
   if (GETTAG(n) == T_AP && GETTAG(top1 = indir(FUN(n))) == T_AP) {
     switch (GETTAG(indir(FUN(top1)))) {
     case T_IO_BIND:
@@ -2510,9 +2511,9 @@ execio(NODEPTR *np)
   goto execute;
 
  rest:                          /* result is in res */
-  ppmsg(stdout, "res=", res);
+  ppmsg("res=", res);
   q = ARG(top);
-  ppmsg(stdout, "q=", q);
+  ppmsg("q=", q);
   if (GETTAG(q) == T_IO_RETURN) {
     /* execio is done */
     FUN(top) = combIORETURN;
