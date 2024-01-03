@@ -2017,6 +2017,7 @@ compare(NODEPTR p, NODEPTR q)
 {
   int r;
   value_t x, y;
+  flt_t xd, yd;
   void *f, *g;
   
  top:
@@ -2052,6 +2053,10 @@ compare(NODEPTR p, NODEPTR q)
     x = GETVALUE(p);
     y = GETVALUE(q);
     return x < y ? -1 : x > y ? 1 : 0;
+  case T_DBL:
+    xd = GETDBLVALUE(p);
+    yd = GETDBLVALUE(q);
+    return xd < yd ? -1 : xd > yd ? 1 : 0;
   case T_PTR:
     f = PTR(p);
     g = PTR(q);
