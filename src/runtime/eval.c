@@ -2013,59 +2013,77 @@ evalstring(NODEPTR n, value_t *lenp)
  * if p == q return 0
  */
 int
-compare(NODEPTR p, NODEPTR q)
+compare(NODEPTR ap, NODEPTR aq)
 {
-  int r;
+  stackptr_t stk = stack_ptr;
+#define CRET(x) do { stack_ptr = stk; return (x); } while(0)
   value_t x, y;
   flt_t xd, yd;
   void *f, *g;
-  
- top:
-  PUSH(q);                      /* save for GC */
-  p = evali(p);
-  q = evali(TOP(0));
-  POP(1);
-  enum node_tag ptag = GETTAG(p);
-  enum node_tag qtag = GETTAG(q);
-  if (ptag != qtag) {
-    /* Hack to make Nil < Cons */
-    if (ptag == T_K && qtag == T_AP)
-      return -1;
-    if (ptag == T_AP && qtag == T_K)
-      return 1;
-    return ptag < qtag ? -1 : 1;
-  }
-  switch (ptag) {
-  case T_AP:
-    PUSH(ARG(p));
-    PUSH(ARG(q));
-    r = compare(FUN(p), FUN(q));
-    if (r != 0) {
-      POP(2);
-      return r;
-    }
-    q = TOP(0);
-    p = TOP(1);
+  NODEPTR p, q;
+
+  PUSH(ap);
+  PUSH(aq);
+  for(;;) {
+    if (stk == stack_ptr)
+      return 0;
+    q = evali(TOP(0));
+    p = evali(TOP(1));
     POP(2);
-    goto top;
-  case T_INT:
-  case T_IO_CCALL:
-    x = GETVALUE(p);
-    y = GETVALUE(q);
-    return x < y ? -1 : x > y ? 1 : 0;
-  case T_DBL:
-    xd = GETDBLVALUE(p);
-    yd = GETDBLVALUE(q);
-    return xd < yd ? -1 : xd > yd ? 1 : 0;
-  case T_PTR:
-    f = PTR(p);
-    g = PTR(q);
-    return f < g ? -1 : f > g ? 1 : 0;
-  case T_ARR:
-    return ARR(p) < ARR(q) ? -1 : ARR(p) > ARR(q) ? 1 : 0;
-  default:
-    return 0;
+    
+    enum node_tag ptag = GETTAG(p);
+    enum node_tag qtag = GETTAG(q);
+    if (ptag != qtag) {
+      /* Hack to make Nil < Cons */
+      if (ptag == T_K && qtag == T_AP)
+        CRET(-1);
+      if (ptag == T_AP && qtag == T_K)
+        CRET(1);
+      CRET(ptag < qtag ? -1 : 1);
+    }
+    switch (ptag) {
+    case T_AP:
+      PUSH(ARG(p));             /* compare arg part later */
+      PUSH(ARG(q));
+      PUSH(FUN(p));             /* compare fun part now */
+      PUSH(FUN(q));
+      break;
+    case T_INT:
+    case T_IO_CCALL:
+      x = GETVALUE(p);
+      y = GETVALUE(q);
+      if (x < y)
+        CRET(-1);
+      if (x > y)
+        CRET(1);
+      break;
+    case T_DBL:
+      xd = GETDBLVALUE(p);
+      yd = GETDBLVALUE(q);
+      if (xd < yd)
+        CRET(-1);
+      if (xd > yd)
+        CRET(1);
+      break;
+    case T_PTR:
+      f = PTR(p);
+      g = PTR(q);
+      if (f < g)
+        CRET(-1);
+      if (f > g)
+        CRET(1);
+      break;
+    case T_ARR:
+      if (ARR(p) < ARR(q))
+        CRET(-1);
+      if (ARR(p) > ARR(q))
+        CRET(1);
+      break;
+    default:
+      break;
+    }
   }
+#undef CRET
 }
 
 bits_t *rnf_bits;
