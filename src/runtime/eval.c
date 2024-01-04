@@ -607,18 +607,22 @@ struct handler {
 
 /***************** THREAD ******************/
 
+enum th_state { ts_run, ts_wait, ts_zombie };
+enum th_sched { mt_main = 0, mt_yield = 1 };
+
 struct mthread {
+  enum th_state   mt_state;
   struct mthread *mt_next;      /* all threads linked together */
   struct mthread *mt_queue;     /* runq/waitq link */
   counter_t       mt_slice;     /* reduction steps until yielding */
   NODEPTR         mt_root;      /* root of the graph to reduce */
+  int             mt_mark;      /* marked as accessible */
 };
 struct mthread  *all_threads = 0;   /* all threads */
 struct mthread  *runq = 0;          /* ready to run */
 struct mthread  *runq_tail = 0;     /* tail of runq, 0 if empty */
 jmp_buf          sched;             /* jump here to yield */
 counter_t        slice = 1000000;     /* normal time slice */
-enum mthread_sched { mt_main = 0, mt_yield = 1 };
 counter_t        glob_slice;
 
 void execio(NODEPTR*);
@@ -629,8 +633,10 @@ new_thread(NODEPTR root)
   struct mthread *mt = MALLOC(sizeof(struct mthread));
   if (!mt)
     memerr();
+  mt->mt_state = ts_run;
   mt->mt_root = root;
   mt->mt_slice = 0;
+  mt->mt_mark = 0;
 
   /* add to all_threads */
   mt->mt_next = all_threads;
@@ -679,18 +685,16 @@ start_exec(NODEPTR root)
     /* when execio() returns the thread is done */
     runq = mt->mt_queue;          /* skip this thread */
 
-    /* unlink it from all_threads */
-    for (struct mthread **p = &all_threads; *p; p = &(*p)->mt_next) {
-      if (*p == mt) {
-        *p = mt->mt_next;
-        break;
+    mt->mt_state = ts_zombie;
+    mt->mt_root = 0;
+
+    if (!runq) {
+      for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
+        if (mt->mt_state != ts_zombie)
+          ERR("runq empty");          /* XXX should wait for something to happen */
       }
+      return;                     /* no more runnable threads, so exit */
     }
-    free(mt);
-    if (!all_threads)
-      return;                     /* no more threads, so exit */
-    if (!runq)
-      ERR("runq empty");          /* XXX should wait for something to happen */
   }
 }
 
@@ -1168,15 +1172,12 @@ gc(void)
   gc_mark_time -= GETTIMEMILLI();
   mark_all_free();
   //  mark_depth = 0;
-#if 1
   for (stackptr_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
-  for (struct mthread *mt = all_threads; mt; mt = mt->mt_next)
-    mark(&mt->mt_root);
-#else
-  // This doesn't quite work
-  mark(topnode);
-#endif
+  for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
+    if (mt->mt_root)
+      mark(&mt->mt_root);
+  }
   gc_mark_time += GETTIMEMILLI();
 
   if (num_marked > max_num_marked)
@@ -1197,6 +1198,17 @@ gc(void)
     }
   }
 
+  /* remove dead threads */
+  for (struct mthread **mtp = &all_threads; *mtp; ) {
+    struct mthread *mt = *mtp;
+    if (mt->mt_state == ts_zombie && !mt->mt_mark) {
+      *mtp = mt->mt_next;
+      free(mt);
+    } else {
+      mt->mt_mark = 0;
+      mtp = &(*mtp)->mt_next;
+    }
+  }
 #if WANT_STDIO
   if (verbose > 1) {
     PRINT("gc done, %"PRIcounter" free\n", num_free);
