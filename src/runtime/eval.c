@@ -235,8 +235,10 @@ struct ioarray {
 struct ioarray *array_root = 0;
 
 counter_t num_reductions = 0;
-counter_t num_alloc;
+counter_t num_alloc = 0;
 counter_t num_gc = 0;
+counter_t num_yield = 0;
+counter_t num_resched = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t run_time = 0;
 
@@ -271,6 +273,14 @@ heapoffs_t free_map_nwords;
 heapoffs_t next_scan_index;
 
 int want_gc_red = 0;
+
+int glob_argc;
+char **glob_argv;
+
+int verbose = 0;
+
+/* This is a yucky hack */
+int doing_rnf = 0;
 
 NORETURN
 void
@@ -586,7 +596,7 @@ dump_tick_table(FILE *f)
   }
 }
 
-/*****************************************************************************/
+/***************** HANDLER *****************/
 
 struct handler {
   jmp_buf         hdl_buf;      /* env storage */
@@ -594,6 +604,124 @@ struct handler {
   stackptr_t      hdl_stack;    /* old stack pointer */
   NODEPTR         hdl_exn;      /* used temporarily to pass the exception value */
 } *cur_handler = 0;
+
+/***************** THREAD ******************/
+
+struct mthread {
+  struct mthread *mt_next;      /* all threads linked together */
+  struct mthread *mt_queue;     /* runq/waitq link */
+  counter_t       mt_slice;     /* reduction steps until yielding */
+  NODEPTR         mt_root;      /* root of the graph to reduce */
+};
+struct mthread  *all_threads = 0;   /* all threads */
+struct mthread  *runq = 0;          /* ready to run */
+struct mthread  *runq_tail = 0;     /* tail of runq, 0 if empty */
+jmp_buf          sched;             /* jump here to yield */
+counter_t        slice = 1000000;     /* normal time slice */
+enum mthread_sched { mt_main = 0, mt_yield = 1 };
+counter_t        glob_slice;
+
+void execio(NODEPTR*);
+
+void
+new_thread(NODEPTR root)
+{
+  struct mthread *mt = MALLOC(sizeof(struct mthread));
+  if (!mt)
+    memerr();
+  mt->mt_root = root;
+  mt->mt_slice = 0;
+
+  /* add to all_threads */
+  mt->mt_next = all_threads;
+  all_threads = mt;
+
+  /* add to runq */
+  mt->mt_queue = runq;
+  runq = mt;
+  if (!runq_tail)               /* runq was empty */
+    runq_tail = mt;
+}
+
+void
+start_exec(NODEPTR root)
+{
+  struct mthread *mt;
+
+  new_thread(root);
+  switch(setjmp(sched)) {
+  case mt_main:
+    break;
+  case mt_yield:
+    num_resched++;
+    /* Unlink from runq */
+    mt = runq;                  /* front thread */
+    runq = mt->mt_queue;        /* skip to next thread */
+    if (!runq)
+      runq_tail = 0;            /* runq is now empty */
+
+    /* link into back of runq */
+    runq_tail = mt;             /* mt is last */
+    mt->mt_queue = 0;           /* mt is last, so no next */
+    if (!runq) {
+      runq = mt;
+    } else {
+      runq_tail->mt_queue = mt;
+    }
+    break;
+  }
+  for(;;) {
+    mt = runq;                    /* front thread */
+    //mt->mt_slice = slice;         /* give it a time slice */
+    glob_slice = mt->mt_slice + slice;
+    //printf("slice=%d\n", (int)glob_slice);
+    execio(&mt->mt_root);         /* run it */
+    /* when execio() returns the thread is done */
+    runq = mt->mt_queue;          /* skip this thread */
+
+    /* unlink it from all_threads */
+    for (struct mthread **p = &all_threads; *p; p = &(*p)->mt_next) {
+      if (*p == mt) {
+        *p = mt->mt_next;
+        break;
+      }
+    }
+    free(mt);
+    if (!all_threads)
+      return;                     /* no more threads, so exit */
+    if (!runq)
+      ERR("runq empty");          /* XXX should wait for something to happen */
+  }
+}
+
+void
+yield(void)
+{
+  num_yield++;
+  //printf("yield %d\n", (int)stack_ptr);
+  /* if there is nothing after in the runq then there is no need to reschedule */
+  if (!runq->mt_queue) {
+    glob_slice = slice;
+    return;
+  }
+
+  /* We are going to reschedule, so clean up thread state:
+   *  stack pointer
+   *  error handlers
+   */
+  runq->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
+  stack_ptr = -1;               /* reset stack */
+  doing_rnf = 0;
+  /* free all error handlers */
+  for (struct handler *h = cur_handler; h; ) {
+    struct handler *n = h;
+    h = h->hdl_old;
+    free(n);
+  }
+  longjmp(sched, mt_yield);
+}
+
+/***************** GC ******************/
 
 /* Set FREE bit to 0 */
 static INLINE void mark_used(NODEPTR n)
@@ -624,11 +752,6 @@ static INLINE void mark_all_free(void)
   memset(free_map, ~0, free_map_nwords * sizeof(bits_t));
   next_scan_index = heap_start;
 }
-
-int glob_argc;
-char **glob_argv;
-
-int verbose = 0;
 
 static INLINE NODEPTR
 alloc_node(enum node_tag t)
@@ -1045,8 +1168,15 @@ gc(void)
   gc_mark_time -= GETTIMEMILLI();
   mark_all_free();
   //  mark_depth = 0;
+#if 1
   for (stackptr_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
+  for (struct mthread *mt = all_threads; mt; mt = mt->mt_next)
+    mark(&mt->mt_root);
+#else
+  // This doesn't quite work
+  mark(topnode);
+#endif
   gc_mark_time += GETTIMEMILLI();
 
   if (num_marked > max_num_marked)
@@ -2124,9 +2254,6 @@ rnf_rec(NODEPTR n)
   }
 }
 
-/* This is a yucky hack */
-int doing_rnf = 0;
-
 void
 rnf(value_t noerr, NODEPTR n)
 {
@@ -2141,8 +2268,6 @@ rnf(value_t noerr, NODEPTR n)
   doing_rnf = 0;
   FREE(rnf_bits);
 }
-
-void execio(NODEPTR *);
 
 /* Evaluate a node, returns when the node is in WHNF. */
 void
@@ -2202,6 +2327,8 @@ eval(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
   for(;;) {
+    if (glob_slice-- == 0)
+      yield();
     num_reductions++;
 #if FASTTAGS
     l = LABEL(n);
@@ -2210,13 +2337,17 @@ eval(NODEPTR an)
     enum node_tag tag = GETTAG(n);
 #endif  /* FASTTAGS */
     switch (tag) {
+    case T_IND:
+      glob_slice++;
+      num_reductions--;         /* not really a reduction */
     ind:
-      num_reductions++;
-    case T_IND:  n = INDIR(n); break;
+      n = INDIR(n); break;
 
+    case T_AP:
+      glob_slice++;
+      num_reductions--;         /* not really a reduction */
     ap:
-      num_reductions++;
-    case T_AP:   PUSH(n); n = FUN(n); break;
+      PUSH(n); n = FUN(n); break;
 
     case T_STR:  GCCHECK(strNodes(strlen(STR(n)))); GOIND(mkStringC(STR(n)));
     case T_INT:  RET;
@@ -2427,14 +2558,20 @@ eval(NODEPTR an)
       CHECK(1);
       if (doing_rnf) RET;
       execio(&ARG(TOP(0)));       /* run IO action */
-      x = ARG(TOP(0));           /* should be RETURN e */
+      x = ARG(TOP(0));            /* should be RETURN e */
       if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
         ERR("PERFORMIO");
       POP(1);
       n = TOP(-1);
       GOIND(ARG(x));
 
-    case T_IO_CCBIND:           /* We should never have to reduce this */
+    case T_IO_CCBIND:
+      /* Under normal circumstances we will never encounter C'BIND, since it's
+       * local to the top level of execio().  But when a thread yield()s, it will
+       * be left in the graph and encountered later.
+       */
+      GCCHECK(2); CHKARG3; GOAP(new_ap(combIOBIND, new_ap(x, z)), y);                     /* C'BIND x y z = BIND (x z) y */
+
     case T_IO_BIND:
     case T_IO_THEN:
     case T_IO_RETURN:
@@ -2576,6 +2713,8 @@ execio(NODEPTR *np)
  execute:
   PUSH(n);
   for(;;) {
+    if (glob_slice-- == 0)
+      yield();
     num_reductions++;
     //printf("execute switch %s\n", tag_names[GETTAG(n)]);
     switch (GETTAG(n)) {
@@ -2929,6 +3068,7 @@ main(int argc, char **argv)
   }
 #endif
   run_time -= GETTIMEMILLI();
+#if 0
   PUSH(prog);
   topnode = &TOP(0);
   execio(&TOP(0));
@@ -2937,12 +3077,18 @@ main(int argc, char **argv)
   if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
     ERR("main execio");
   NODEPTR res = evali(ARG(prog));
+  if (verbose > 1) {
+    PRINT("\nmain returns ");
+    pp(stdout, res);
+  }
+#else
+  topnode = &prog;
+  start_exec(prog);
+#endif
   run_time += GETTIMEMILLI();
 #if WANT_STDIO
   if (verbose) {
     if (verbose > 1) {
-      PRINT("\nmain returns ");
-      pp(stdout, res);
       PRINT("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
     setlocale(LC_NUMERIC, "");  /* Make %' work on platforms that support it */
@@ -2955,6 +3101,8 @@ main(int argc, char **argv)
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
     PRINT("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
+    PRINT("%"PCOMMA"15"PRIcounter" yield\n", num_yield);
+    PRINT("%"PCOMMA"15"PRIcounter" reschedule\n", num_resched);
     PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
     PRINT("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
 #if GCRED
