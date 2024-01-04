@@ -2011,9 +2011,17 @@ evalstring(NODEPTR n, value_t *lenp)
  * if p < q  return -1
  * if p > q  return 1
  * if p == q return 0
+ *
+ * As we compare we update the argument pointers with any
+ * progress we make, in case we are interruped and resume from the top.
+ *
+ * XXX This is a rather dodgy comparison, since we are comparing
+ * functions, and the same data type could plausibly get different
+ * functions in the Scott encoding.
+ * But we only use it for lists, and it seems to work fine.
  */
 int
-compare(NODEPTR ap, NODEPTR aq)
+compare(NODEPTR cmp)
 {
   stackptr_t stk = stack_ptr;
 #define CRET(x) do { stack_ptr = stk; return (x); } while(0)
@@ -2021,15 +2029,27 @@ compare(NODEPTR ap, NODEPTR aq)
   flt_t xd, yd;
   void *f, *g;
   NODEPTR p, q;
+  NODEPTR *ap, *aq;
 
-  PUSH(ap);
-  PUSH(aq);
+  /* Since FUN(cmp) can be shared, allocate a copy for it. */
+  GCCHECK(1);
+  FUN(cmp) = new_ap(FUN(FUN(cmp)), ARG(FUN(cmp)));
+  aq = &ARG(cmp);
+  ap = &ARG(FUN(cmp));
+
+  PUSH(*ap);
+  PUSH(*aq);
   for(;;) {
     if (stk == stack_ptr)
       return 0;
     q = evali(TOP(0));
     p = evali(TOP(1));
     POP(2);
+    if (stk == stack_ptr) {
+      /* We have made some progress, save this in the compare node. */
+      *ap = p;
+      *aq = q;
+    }
     
     enum node_tag ptag = GETTAG(p);
     enum node_tag qtag = GETTAG(q);
@@ -2393,9 +2413,9 @@ eval(NODEPTR an)
     case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
     case T_EQUAL:
-      CHECK(2); r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
+      CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
     case T_COMPARE:
-      CHECK(2); r = compare(ARG(TOP(0)), ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
+      CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
 
     case T_RNF:
       if (doing_rnf) RET;
