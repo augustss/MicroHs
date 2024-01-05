@@ -128,6 +128,7 @@ iswindows(void)
 #endif  /* !define(ERR) */
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
+                T_THID, T_MVAR_FULL, T_MVAR_EMPTY,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -149,6 +150,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS,
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
                 T_IO_CCALL, T_DYNSYM,
+                T_IO_FORK, T_IO_NEWMVAR, T_IO_TAKEMVAR, T_IO_PUTMVAR,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_STR,
                 T_LAST_TAG,
@@ -156,6 +158,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
 #if 0
 static const char* tag_names[] = {
   "FREE", "IND", "AP", "INT", "DBL", "PTR", "BADDYN", "ARR",
+  "THID", "MVAR_FULL", "MVAR_EMPTY",
   "S", "K", "I", "B", "C",
   "A", "Y", "SS", "BB", "CC", "P", "R", "O", "U", "Z",
   "K2", "K3", "K4", "CCB",
@@ -184,6 +187,7 @@ static const char* tag_names[] = {
 #endif
 
 struct ioarray;
+struct mthread;
 
 typedef struct node {
   union {
@@ -197,6 +201,7 @@ typedef struct node {
     const char     *uustring;
     void           *uuptr;
     struct ioarray *uuarray;
+    struct mthread *uuthread;
   } uarg;
 } node;
 typedef struct node* NODEPTR;
@@ -213,6 +218,7 @@ typedef struct node* NODEPTR;
 #define STR(p) (p)->uarg.uustring
 #define PTR(p) (p)->uarg.uuptr
 #define ARR(p) (p)->uarg.uuarray
+#define THR(p) (p)->uarg.uuthread
 #define INDIR(p) ARG(p)
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
@@ -622,12 +628,37 @@ struct mthread  *all_threads = 0;   /* all threads */
 struct mthread  *runq = 0;          /* ready to run */
 struct mthread  *runq_tail = 0;     /* tail of runq, 0 if empty */
 jmp_buf          sched;             /* jump here to yield */
-counter_t        slice = 1000000;     /* normal time slice */
+counter_t        slice = 10000;     /* normal time slice */
 counter_t        glob_slice;
 
 void execio(NODEPTR*);
 
+/* Add the thread to the tail of runq */
 void
+add_runq_tail(struct mthread *mt)
+{
+  if (!runq) {
+    /* runq is empty, so mt goes first */
+    runq = mt;
+  } else {
+    /* link mt to the end of the runq */
+    runq_tail->mt_queue = mt;
+  }
+  runq_tail = mt;             /* mt is now last */
+  mt->mt_queue = 0;           /* mt is last, so no next */
+}
+
+struct mthread*
+remove_runq_head(void)
+{
+  struct mthread *mt= runq;     /* front thread */
+  runq = mt->mt_queue;          /* skip to next thread */
+  if (!runq)
+    runq_tail = 0;              /* runq is now empty */
+  return mt;
+}
+
+struct mthread*
 new_thread(NODEPTR root)
 {
   struct mthread *mt = MALLOC(sizeof(struct mthread));
@@ -642,11 +673,9 @@ new_thread(NODEPTR root)
   mt->mt_next = all_threads;
   all_threads = mt;
 
-  /* add to runq */
-  mt->mt_queue = runq;
-  runq = mt;
-  if (!runq_tail)               /* runq was empty */
-    runq_tail = mt;
+  /* add to tail of runq */
+  add_runq_tail(mt);
+  return mt;
 }
 
 void
@@ -661,19 +690,9 @@ start_exec(NODEPTR root)
   case mt_yield:
     num_resched++;
     /* Unlink from runq */
-    mt = runq;                  /* front thread */
-    runq = mt->mt_queue;        /* skip to next thread */
-    if (!runq)
-      runq_tail = 0;            /* runq is now empty */
-
+    mt = remove_runq_head();
     /* link into back of runq */
-    runq_tail = mt;             /* mt is last */
-    mt->mt_queue = 0;           /* mt is last, so no next */
-    if (!runq) {
-      runq = mt;
-    } else {
-      runq_tail->mt_queue = mt;
-    }
+    add_runq_tail(mt);
     break;
   }
   for(;;) {
@@ -899,6 +918,7 @@ struct {
   { "compare", T_COMPARE },
   { "scmp", T_COMPARE },
   { "icmp", T_COMPARE },
+  { "pcmp", T_COMPARE },
   { "rnf", T_RNF },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
@@ -921,6 +941,10 @@ struct {
   { "A.write", T_ARR_WRITE },
   { "A.==", T_ARR_EQ },
   { "dynsym", T_DYNSYM },
+  { "IO.fork", T_IO_FORK },
+  { "IO.newmvar", T_IO_NEWMVAR },
+  { "IO.takemvar", T_IO_TAKEMVAR },
+  { "IO.putvar", T_IO_PUTMVAR },
   { "newCAStringLen", T_NEWCASTRINGLEN },
   { "peekCAString", T_PEEKCASTRING },
   { "peekCAStringLen", T_PEEKCASTRINGLEN },
@@ -1140,11 +1164,14 @@ mark(NODEPTR *np)
   }
 #endif  /* INTTABLE */
 #endif  /* GCRED */
-  if (tag == T_AP) {
+
+  switch (tag) {
+  case T_AP:
     mark(&FUN(n));
     np = &ARG(n);
     goto top;                   /* Avoid tail recursion */
-  } else if (tag == T_ARR) {
+  case T_ARR:
+    {
     struct ioarray *arr = ARR(n);
     /* It really should never happen that we encounter a marked
      * array, since the parent is marked.
@@ -1154,6 +1181,20 @@ mark(NODEPTR *np)
       for(size_t i = 0; i < arr->size; i++)
         mark(&arr->array[i]);
     }
+    break;
+    }
+  case T_THID:
+    {
+    struct mthread *mt = THR(n);
+    if (!mt->mt_mark) {
+      mt->mt_mark = 1;
+      if (mt->mt_root)
+        mark(&mt->mt_root);
+    }
+    break;
+    }
+  default:
+    break;
   }
 }
 
@@ -1175,8 +1216,10 @@ gc(void)
   for (stackptr_t i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
   for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
-    if (mt->mt_root)
+    if (mt->mt_root && !mt->mt_mark) {
+      mt->mt_mark = 1;
       mark(&mt->mt_root);
+    }
   }
   gc_mark_time += GETTIMEMILLI();
 
@@ -1812,6 +1855,8 @@ printrec(FILE *f, NODEPTR n)
     else
       ERR("Cannot serialize pointers");
     break;
+  case T_THID:
+    ERR("cannot serialize ThreadId yet");
   case T_STR:
     print_string(f, STR(n));
     break;
@@ -1906,6 +1951,10 @@ printrec(FILE *f, NODEPTR n)
   case T_ARR_WRITE: fprintf(f, "A.write");
   case T_ARR_EQ: fprintf(f, "A.==");
   case T_DYNSYM: fprintf(f, "dynsym"); break;
+  case T_IO_FORK: fprintf(f, "IO.fork"); break;
+  case T_IO_NEWMVAR: fprintf(f, "IO.newmvar"); break;
+  case T_IO_TAKEMVAR: fprintf(f, "IO.takemvar"); break;
+  case T_IO_PUTMVAR: fprintf(f, "IO.putmvar"); break;
   case T_NEWCASTRINGLEN: fprintf(f, "newCAStringLen"); break;
   case T_PEEKCASTRING: fprintf(f, "peekCAString"); break;
   case T_PEEKCASTRINGLEN: fprintf(f, "peekCAStringLen"); break;
@@ -2212,6 +2261,7 @@ compare(NODEPTR cmp)
       break;
     case T_INT:
     case T_IO_CCALL:
+    case T_THID:
       x = GETVALUE(p);
       y = GETVALUE(q);
       if (x < y)
@@ -2366,6 +2416,7 @@ eval(NODEPTR an)
     case T_DBL:  RET;
     case T_PTR:  RET;
     case T_ARR:  RET;
+    case T_THID: RET;
     case T_BADDYN: ERR1("FFI unknown %s", STR(n));
 
     case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
@@ -2601,6 +2652,10 @@ eval(NODEPTR an)
     case T_ARR_SIZE:
     case T_ARR_READ:
     case T_ARR_WRITE:
+    case T_IO_FORK:
+    case T_IO_NEWMVAR:
+    case T_IO_TAKEMVAR:
+    case T_IO_PUTMVAR:
       RET;
 
     case T_DYNSYM:
@@ -2870,6 +2925,16 @@ execio(NODEPTR *np)
           IOASSERT(GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_IO_RETURN, "CATCH");
           RETIO(ARG(n));             /* return result */
         }
+      }
+
+    case T_IO_FORK:
+      {
+        GCCHECK(1);
+        struct mthread *mt = new_thread(ARG(TOP(1)));
+        POP(1);
+        n = alloc_node(T_PTR);
+        PTR(n) = (void*)mt;
+        RETIO(n);
       }
 
     case T_NEWCASTRINGLEN:

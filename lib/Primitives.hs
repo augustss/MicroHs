@@ -167,11 +167,11 @@ primSeq    = primitive "seq"
 --primEqual  = primitive "equal"
 
 -- Works for Int, Char, String
-primStringCompare :: forall a . [Char] -> [Char] -> Ordering
+primStringCompare :: [Char] -> [Char] -> Ordering
 primStringCompare  = primitive "scmp"
-primIntCompare :: forall a . Int -> Int -> Ordering
+primIntCompare :: Int -> Int -> Ordering
 primIntCompare  = primitive "icmp"
-primCharCompare :: forall a . Char -> Char -> Ordering
+primCharCompare :: Char -> Char -> Ordering
 primCharCompare  = primitive "icmp"
 
 primStringEQ  :: [Char] -> [Char] -> Bool
@@ -242,6 +242,9 @@ _isWindows = primPerformIO c_iswindows `primIntEQ` 1
 
 primPtrEQ   :: forall a b . Ptr a -> Ptr b -> Bool
 primPtrEQ   = primitive "p=="
+
+primPtrCompare :: forall a . Ptr a -> Ptr a -> Ordering
+primPtrCompare  = primitive "pcmp"
 
 primPtrNull :: forall a . Ptr a
 primPtrNull = primitive "pnull"
