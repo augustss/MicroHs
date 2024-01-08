@@ -9,9 +9,35 @@
 /* BFILE will have different implementations, they all have these methods */
 typedef struct BFILE {
   int (*getb)(struct BFILE*);
-  void (*ungetb)(int c, struct BFILE*);
+  void (*ungetb)(int, struct BFILE*);
+  void (*putb)(int, struct BFILE*);
   void (*closeb)(struct BFILE*);
 } BFILE;
+
+static inline int
+getb(struct BFILE *p)
+{
+  return p->getb(p);
+}
+
+static inline void
+ungetb(int c, struct BFILE *p)
+{
+  p->ungetb(c, p);
+}
+
+static inline void
+putb(int c, struct BFILE *p)
+{
+  p->putb(c, p);
+}
+
+static inline void
+closeb(struct BFILE *p)
+{
+  p->closeb(p);
+}
+
 
 /***************** BFILE from static buffer *******************/
 struct BFILE_buffer {
@@ -45,6 +71,8 @@ closeb_buf(BFILE *bp)
   (void)bp;                     /* shut up warning */
 }
 
+/* There is no open().  Only used with statically allocated buffers. */
+
 #if WANT_STDIO
 /***************** BFILE via FILE *******************/
 struct BFILE_file {
@@ -67,6 +95,13 @@ ungetb_file(int c, BFILE *bp)
 }
 
 void
+putb_file(int c, BFILE *bp)
+{
+  struct BFILE_file *p = (struct BFILE_file *)bp;
+  (void)fputc(c, p->file);
+}
+
+void
 closeb_file(BFILE *bp)
 {
   struct BFILE_file *p = (struct BFILE_file *)bp;
@@ -81,6 +116,7 @@ openb_FILE(FILE *f)
     memerr();
   p->mets.getb   = getb_file;
   p->mets.ungetb = ungetb_file;
+  p->mets.putb   = putb_file;
   p->mets.closeb = closeb_file;
   p->file = f;
   return (BFILE*)p;
@@ -151,9 +187,9 @@ getb_lzw(BFILE *bp)
   int c, n;
 
   /* Do we have an ungetb character? */
-  if (p->unget) {
+  if (p->unget >= 0) {
     c = p->unget;
-    p->unget = 0;
+    p->unget = -1;
     return c;
   }
   /* Are we in the middle of emitting a string? */
@@ -193,7 +229,7 @@ void
 ungetb_lzw(int c, BFILE *bp)
 {
   struct BFILE_lzw *p = (struct BFILE_lzw*)bp;
-  if (p->unget)
+  if (p->unget >= 0)
     ERR("ungetb_lzw");
   p->unget = c;
 }
@@ -214,15 +250,18 @@ closeb_lzw(BFILE *bp)
 BFILE *
 add_lzw_decompressor(BFILE *file)
 {
-  struct BFILE_lzw *p = calloc(1, sizeof(struct BFILE_lzw));
+  struct BFILE_lzw *p = MALLOC(sizeof(struct BFILE_lzw));
   int i;
   
   if (!p)
     memerr();
+  memset(p, 0, sizeof(struct BFILE_lzw));
   p->mets.getb = getb_lzw;
   p->mets.ungetb = ungetb_lzw;
+  p->mets.putb = 0;             /* no compressor yet. */
   p->mets.closeb = closeb_lzw;
   p->bfile = file;
+  p->unget = -1;
 
   /* initialize dictionary with printable ASCII */
   for(i = 0; i < ASCIISIZE-1; i++) {
@@ -240,3 +279,111 @@ add_lzw_decompressor(BFILE *file)
   return (BFILE *)p;
 }
 
+/***************** BFILE with UTF8 encode/decode *******************/
+
+struct BFILE_utf8 {
+  BFILE    mets;
+  BFILE    *bfile;
+  int      unget;
+};
+
+int
+getb_utf8(BFILE *bp)
+{
+  struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
+  int c1, c2, c3, c4;
+
+  /* Do we have an ungetb character? */
+  if (p->unget >= 0) {
+    c1 = p->unget;
+    p->unget = -1;
+    return c1;
+  }
+  c1 = p->bfile->getb(p->bfile);
+  if (c1 < 0)
+    return -1;
+  if ((c1 & 0x80) == 0)
+    return c1;
+  c2 = p->bfile->getb(p->bfile);
+  if (c2 < 0)
+    return -1;
+  if ((c1 & 0xe0) == 0xc0)
+    return ((c1 & 0x1f) << 6) | (c2 & 0x3f);
+  c3 = p->bfile->getb(p->bfile);
+  if (c3 < 0)
+    return -1;
+  if ((c1 & 0xf0) == 0xe0)
+    return ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
+  c4 = p->bfile->getb(p->bfile);
+  if (c4 < 0)
+    return -1;
+  if ((c1 & 0xf8) == 0xf0)
+    return ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+  ERR("getb_utf8");
+}
+
+void
+ungetb_utf8(int c, BFILE *bp)
+{
+  struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
+  if (p->unget >= 0)
+    ERR("ungetb_utf8");
+  p->unget = c;
+}
+
+void
+putb_utf8(int c, BFILE *bp)
+{
+  struct BFILE_utf8 *p = (struct BFILE_utf8 *)bp;
+  if (c < 0)
+    ERR("putb_utf8: < 0");
+  if (c < 0x80) {
+    p->bfile->putb(c, p->bfile);
+    return;
+  }
+  if (c < 0x800) {
+    p->bfile->putb(((c >> 6 )       ) | 0xc0, p->bfile);
+    p->bfile->putb(((c      ) & 0x3f) | 0x80, p->bfile);
+    return;
+  }
+  if (c < 0x10000) {
+    p->bfile->putb(((c >> 12)       ) | 0xe0, p->bfile);
+    p->bfile->putb(((c >> 6 ) & 0x3f) | 0x80, p->bfile);
+    p->bfile->putb(((c      ) & 0x3f) | 0x80, p->bfile);
+    return;
+  }
+  if (c < 0x110000) {
+    p->bfile->putb(((c >> 18)       ) | 0xf0, p->bfile);
+    p->bfile->putb(((c >> 12) & 0x3f) | 0x80, p->bfile);
+    p->bfile->putb(((c >> 6 ) & 0x3f) | 0x80, p->bfile);
+    p->bfile->putb(((c      ) & 0x3f) | 0x80, p->bfile);
+    return;
+  }
+  ERR("putb_utf8");
+}
+
+void
+closeb_utf8(BFILE *bp)
+{
+  struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
+
+  p->bfile->closeb(p->bfile);
+  FREE(p);
+}
+
+BFILE *
+add_utf8(BFILE *file)
+{
+  struct BFILE_utf8 *p = MALLOC(sizeof(struct BFILE_utf8));
+  
+  if (!p)
+    memerr();
+  p->mets.getb = getb_utf8;
+  p->mets.ungetb = ungetb_utf8;
+  p->mets.putb = putb_utf8;
+  p->mets.closeb = closeb_utf8;
+  p->bfile = file;
+  p->unget = -1;
+
+  return (BFILE*)p;
+}

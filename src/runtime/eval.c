@@ -1018,11 +1018,11 @@ ffiNode(const char *buf)
 int
 gobble(BFILE *f, int c)
 {
-  int d = f->getb(f);
+  int d = getb(f);
   if (c == d) {
     return 1;
   } else {
-    f->ungetb(d, f);
+    ungetb(d, f);
     return 0;
   }
 }
@@ -1033,9 +1033,9 @@ getNT(BFILE *f)
 {
   int c;
   
-  c = f->getb(f);
+  c = getb(f);
   if (c == ' ' || c == ')') {
-    f->ungetb(c, f);
+    ungetb(c, f);
     return 0;
   } else {
     return c;
@@ -1047,16 +1047,16 @@ parse_int(BFILE *f)
 {
   value_t i = 0;
   value_t neg = 1;
-  int c = f->getb(f);
+  int c = getb(f);
   if (c == '-') {
     neg = -1;
-    c = f->getb(f);
+    c = getb(f);
   }
   for(;;) {
     i = i * 10 + c - '0';
-    c = f->getb(f);
+    c = getb(f);
     if (c < '0' || c > '9') {
-      f->ungetb(c, f);
+      ungetb(c, f);
       break;
     }
   }
@@ -1129,7 +1129,7 @@ parse_string(BFILE *f)
   if (!buffer)
     memerr();
   for(i = 0;;) {
-    c = f->getb(f);
+    c = getb(f);
     if (c == '"')
       break;
     if (i >= sz) {
@@ -1161,7 +1161,7 @@ parse(BFILE *f)
   int c;
   char buf[80];                 /* store names of primitives. */
 
-  c = f->getb(f);
+  c = getb(f);
   if (c < 0) ERR("parse EOF");
   switch (c) {
   case '(' :
@@ -1260,7 +1260,7 @@ checkversion(BFILE *f)
   int c;
 
   while ((c = *p++)) {
-    if (c != f->getb(f))
+    if (c != getb(f))
       ERR("version mismatch");
   }
   gobble(f, '\r');                 /* allow extra CR */
@@ -1293,7 +1293,7 @@ parse_FILE(FILE *f)
   BFILE *p = openb_FILE(f);
   /* And parse it */
   NODEPTR n = parse_top(p);
-  p->closeb(p);
+  closeb(p);
   return n;
 }
 
@@ -2654,19 +2654,19 @@ main(int argc, char **argv)
 
   if (combexpr) {
     int c;
-    struct BFILE_buffer ibf = { { getb_buf, ungetb_buf, closeb_buf }, combexprlen, 0, combexpr };
+    struct BFILE_buffer ibf = { { getb_buf, ungetb_buf, 0, closeb_buf }, combexprlen, 0, combexpr };
     BFILE *bf = (BFILE*)&ibf;
-    c = bf->getb(bf);
+    c = getb(bf);
     /* Compressed combinators start with a 'Z', otherwise 'v' (for version) */
     if (c == 'Z') {
       /* add compressor transducer */
       bf = add_lzw_decompressor(bf);
     } else {
       /* put it back, we need it */
-      bf->ungetb(c, bf);
+      ungetb(c, bf);
     }
     prog = parse_top(bf);
-    bf->closeb(bf);
+    closeb(bf);
   } else {
 #if WANT_STDIO
     prog = parse_file(inname, &file_size);
