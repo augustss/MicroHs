@@ -46,7 +46,7 @@ foreign import ccall "fclose"       c_fclose       :: Handle             -> IO I
 foreign import ccall "fflush"       c_fflush       :: Handle             -> IO Int
 foreign import ccall "fgetc"        c_fgetc        :: Handle             -> IO Int
 foreign import ccall "fputc"        c_fputc        :: Int ->     Handle  -> IO Int
-foreign import ccall "fwrite"       c_fwrite       :: CString -> Int -> Int -> Handle -> IO Int
+-- foreign import ccall "fwrite"       c_fwrite       :: CString -> Int -> Int -> Handle -> IO Int
 foreign import ccall "getTimeMilli" c_getTimeMilli ::                       IO Int
 
 ----------------------------------------------------------
@@ -160,6 +160,7 @@ writeFile p s = do
   hPutStr h s
   hClose h
 
+{-
 -- Faster, but uses a lot more C memory.
 writeFileFast :: FilePath -> String -> IO ()
 writeFileFast p s = do
@@ -170,6 +171,7 @@ writeFileFast p s = do
   hClose h
   when (l /= n) $
     error "writeFileFast failed"
+-}
 
 -- Lazy readFile
 readFile :: FilePath -> IO String

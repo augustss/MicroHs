@@ -11,6 +11,7 @@ typedef struct BFILE {
   int (*getb)(struct BFILE*);
   void (*ungetb)(int, struct BFILE*);
   void (*putb)(int, struct BFILE*);
+  void (*flushb)(struct BFILE*);
   void (*closeb)(struct BFILE*);
 } BFILE;
 
@@ -38,6 +39,11 @@ closeb(struct BFILE *p)
   p->closeb(p);
 }
 
+static INLINE void
+flushb(struct BFILE *p)
+{
+  p->flushb(p);
+}
 
 /***************** BFILE from static buffer *******************/
 struct BFILE_buffer {
@@ -81,6 +87,7 @@ openb_buf(uint8_t *buf, size_t len)
   p->mets.getb = getb_buf;
   p->mets.ungetb = ungetb_buf;
   p->mets.putb = 0;
+  p->mets.flushb = 0;
   p->mets.closeb = closeb_buf;
   p->b_size = len;
   p->b_pos = 0;
@@ -117,9 +124,18 @@ putb_file(int c, BFILE *bp)
 }
 
 void
+flushb_file(BFILE *bp)
+{
+  struct BFILE_file *p = (struct BFILE_file *)bp;
+  fflush(p->file);
+  FREE(p);
+}
+
+void
 closeb_file(BFILE *bp)
 {
   struct BFILE_file *p = (struct BFILE_file *)bp;
+  /* Don't close the FILE, it is owned by the caller. */
   FREE(p);
 }
 
@@ -132,6 +148,7 @@ openb_FILE(FILE *f)
   p->mets.getb   = getb_file;
   p->mets.ungetb = ungetb_file;
   p->mets.putb   = putb_file;
+  p->mets.flushb = flushb_file;
   p->mets.closeb = closeb_file;
   p->file = f;
   return (BFILE*)p;
@@ -274,6 +291,7 @@ add_lzw_decompressor(BFILE *file)
   p->mets.getb = getb_lzw;
   p->mets.ungetb = ungetb_lzw;
   p->mets.putb = 0;             /* no compressor yet. */
+  p->mets.flushb = 0;
   p->mets.closeb = closeb_lzw;
   p->bfile = file;
   p->unget = -1;
@@ -378,6 +396,15 @@ putb_utf8(int c, BFILE *bp)
 }
 
 void
+flushb_utf8(BFILE *bp)
+{
+  struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
+
+  p->bfile->flushb(p->bfile);
+  FREE(p);
+}
+
+void
 closeb_utf8(BFILE *bp)
 {
   struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
@@ -396,6 +423,7 @@ add_utf8(BFILE *file)
   p->mets.getb = getb_utf8;
   p->mets.ungetb = ungetb_utf8;
   p->mets.putb = putb_utf8;
+  p->mets.flushb = flushb_utf8;
   p->mets.closeb = closeb_utf8;
   p->bfile = file;
   p->unget = -1;
