@@ -184,6 +184,7 @@ static const char* tag_names[] = {
 #endif
 
 struct ioarray;
+struct ustring;
 
 typedef struct node {
   union {
@@ -194,7 +195,8 @@ typedef struct node {
     struct node    *uuarg;
     value_t         uuvalue;
     flt_t           uufloatvalue;
-    const char     *uustring;
+    struct ustring *uustring;
+    const char     *uucstring;
     void           *uuptr;
     struct ioarray *uuarray;
   } uarg;
@@ -211,6 +213,7 @@ typedef struct node* NODEPTR;
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
 #define STR(p) (p)->uarg.uustring
+#define CSTR(p) (p)->uarg.uucstring
 #define PTR(p) (p)->uarg.uuptr
 #define ARR(p) (p)->uarg.uuarray
 #define INDIR(p) ARG(p)
@@ -218,6 +221,14 @@ typedef struct node* NODEPTR;
 #define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
+
+/*
+ * UTF-8 encoded strings
+ */
+struct ustring {
+  size_t        size;
+  unsigned char string[1];
+};
 
 /*
  * Arrays are allocated with MALLOC()/FREE().
@@ -306,7 +317,7 @@ arr_alloc(size_t sz, NODEPTR e)
 /*****************************************************************************/
 
 struct tick_entry {
-  const char *tick_name;
+  struct ustring *tick_name;
   counter_t tick_count;
 } *tick_table = 0;
 size_t tick_table_size;
@@ -314,7 +325,7 @@ size_t tick_index;
 
 /* Allocate a new tick table entry and return the index. */
 size_t
-add_tick_table(const char *name)
+add_tick_table(struct ustring *name)
 {
   if (!tick_table) {
     tick_table_size = 100;
@@ -352,7 +363,7 @@ dump_tick_table(FILE *f)
   for (size_t i = 0; i < tick_index; i++) {
     counter_t n = tick_table[i].tick_count;
     if (n)
-      fprintf(f, "%-60s %10"PRIcounter"\n", tick_table[i].tick_name, n);
+      fprintf(f, "%-60s %10"PRIcounter"\n", tick_table[i].tick_name->string, n);
   }
 }
 
@@ -1006,7 +1017,7 @@ ffiNode(const char *buf)
     r = alloc_node(T_BADDYN);
     char *fun = MALLOC(strlen(buf) + 1);
     strcpy(fun, buf);
-    STR(r) = fun;
+    CSTR(r) = fun;
   } else {
     r = alloc_node(T_IO_CCALL);
     SETVALUE(r, i);
@@ -1079,7 +1090,7 @@ parse_double(BFILE *f)
 #endif
 
 NODEPTR
-mkStrNode(const char *str)
+mkStrNode(struct ustring *str)
 {
   NODEPTR n = alloc_node(T_STR);
   STR(n) = str;
@@ -1118,11 +1129,11 @@ find_label(heapoffs_t label)
   }
 }
 
-char *
+struct ustring *
 parse_string(BFILE *f)
 {
   size_t sz = 20;
-  char *buffer = MALLOC(sz);
+  struct ustring *buffer = MALLOC(sizeof(struct ustring) + sz);
   size_t i;
   int c;
 
@@ -1134,20 +1145,21 @@ parse_string(BFILE *f)
       break;
     if (i >= sz) {
       sz *= 2;
-      buffer = realloc(buffer, sz);
+      buffer = realloc(buffer, sizeof(struct ustring) + sz);
       if (!buffer)
         memerr();
     }
     if (c == '\\') {
-      buffer[i++] = (char)parse_int(f);
+      buffer->string[i++] = (char)parse_int(f);
       if (!gobble(f, '&'))
         ERR("parse string");
     } else {
-      buffer[i++] = c;
+      buffer->string[i++] = c;
     }
   }
-  buffer[i++] = 0;
-  return realloc(buffer, i);
+  buffer->size = i;
+  buffer->string[i++] = 0;
+  return realloc(buffer, sizeof(struct ustring) + i);
 }
 
 NODEPTR
@@ -1376,12 +1388,11 @@ find_sharing(NODEPTR n)
 }
 
 void
-print_string(FILE *f, const char *p)
+print_string(FILE *f, struct ustring *p)
 {
-  int c;
-
   fputc('"', f);
-  while ((c = *p++)) {
+  for (size_t i = 0; i < p->size; i++) {
+    int c = p->string[i];
     if (c == '"' || c == '\\' || c < ' ' || c > '~') {
       fprintf(f, "\\%d&", c);
     } else {
@@ -1443,7 +1454,7 @@ printrec(FILE *f, NODEPTR n)
   case T_STR:
     print_string(f, STR(n));
     break;
-  case T_BADDYN: fprintf(f, "^%s", STR(n)); break;
+  case T_BADDYN: fprintf(f, "^%s", CSTR(n)); break;
   case T_S: fprintf(f, "S"); break;
   case T_K: fprintf(f, "K"); break;
   case T_I: fprintf(f, "I"); break;
@@ -1670,6 +1681,12 @@ NODEPTR
 mkStringC(const char *str)
 {
   return mkString(str, strlen(str));
+}
+
+NODEPTR
+mkStringU(struct ustring *str)
+{
+  return mkString((const char *)str->string, str->size);
 }
 
 void eval(NODEPTR n);
@@ -1988,12 +2005,12 @@ eval(NODEPTR an)
       num_reductions++;
     case T_AP:   PUSH(n); n = FUN(n); break;
 
-    case T_STR:  GCCHECK(strNodes(strlen(STR(n)))); GOIND(mkStringC(STR(n)));
+    case T_STR:  GCCHECK(strNodes(STR(n)->size)); GOIND(mkStringU(STR(n)));
     case T_INT:  RET;
     case T_DBL:  RET;
     case T_PTR:  RET;
     case T_ARR:  RET;
-    case T_BADDYN: ERR1("FFI unknown %s", STR(n));
+    case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
 
     case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
     case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
