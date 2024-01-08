@@ -1690,7 +1690,21 @@ mkStringC(const char *str)
 NODEPTR
 mkStringU(struct ustring *str)
 {
-  return mkString((const char *)str->string, str->size);
+  BFILE *ubuf = add_utf8(openb_buf(str->string, str->size));
+  NODEPTR n, *np;
+  
+  n = mkNil();
+  np = &n;
+  for(;;) {
+    int c = getb(ubuf);
+    if (c < 0)
+      break;
+    NODEPTR nc = mkInt(c);
+    *np = mkCons(nc, *np);
+    np = &ARG(*np);
+  }
+  closeb(ubuf);
+  return n;
 }
 
 void eval(NODEPTR n);
