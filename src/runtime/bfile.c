@@ -14,25 +14,25 @@ typedef struct BFILE {
   void (*closeb)(struct BFILE*);
 } BFILE;
 
-static inline int
+static INLINE int
 getb(struct BFILE *p)
 {
   return p->getb(p);
 }
 
-static inline void
+static INLINE void
 ungetb(int c, struct BFILE *p)
 {
   p->ungetb(c, p);
 }
 
-static inline void
+static INLINE void
 putb(int c, struct BFILE *p)
 {
   p->putb(c, p);
 }
 
-static inline void
+static INLINE void
 closeb(struct BFILE *p)
 {
   p->closeb(p);
@@ -68,10 +68,25 @@ ungetb_buf(int c, BFILE *bp)
 void
 closeb_buf(BFILE *bp)
 {
-  (void)bp;                     /* shut up warning */
+  FREE(bp);
 }
 
 /* There is no open().  Only used with statically allocated buffers. */
+struct BFILE*
+openb_buf(uint8_t *buf, size_t len)
+{
+  struct BFILE_buffer *p = MALLOC(sizeof(struct BFILE_buffer));;
+  if (!p)
+    memerr();
+  p->mets.getb = getb_buf;
+  p->mets.ungetb = ungetb_buf;
+  p->mets.putb = 0;
+  p->mets.closeb = closeb_buf;
+  p->b_size = len;
+  p->b_pos = 0;
+  p->b_buffer = buf;
+  return (struct BFILE*)p;
+}
 
 #if WANT_STDIO
 /***************** BFILE via FILE *******************/

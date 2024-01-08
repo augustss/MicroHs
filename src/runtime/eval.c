@@ -2654,8 +2654,7 @@ main(int argc, char **argv)
 
   if (combexpr) {
     int c;
-    struct BFILE_buffer ibf = { { getb_buf, ungetb_buf, 0, closeb_buf }, combexprlen, 0, combexpr };
-    BFILE *bf = (BFILE*)&ibf;
+    BFILE *bf = openb_buf(combexpr, combexprlen);
     c = getb(bf);
     /* Compressed combinators start with a 'Z', otherwise 'v' (for version) */
     if (c == 'Z') {
