@@ -174,8 +174,15 @@ decodeChar n ('n':cs) = ('\n', n+1, cs)
 decodeChar n ('r':cs) = ('\r', n+1, cs)
 decodeChar n ('t':cs) = ('\t', n+1, cs)
 decodeChar n ('b':cs) = ('\b', n+1, cs)
+decodeChar n ('x':cs) = conv 16 (n+1) 0 cs
+decodeChar n ('o':cs) = conv 8 (n+1) 0 cs
+decodeChar n (cs@(c:_)) | isDigit c = conv 10 n 0 cs
 decodeChar n (c  :cs) = (c,    n+1, cs)
 decodeChar n []       = ('X',  n,   [])
+
+conv :: Int -> Int -> Int -> String -> (Char, Int, String)
+conv b k r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (k+1) (r * b + n) ds
+conv _ k r ds = (chr r, k, ds)
 
 isSpec :: Char -> Bool
 isSpec c = elem c "()[],{}`;"
