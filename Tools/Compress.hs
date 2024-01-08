@@ -2,6 +2,7 @@ module Compress(main) where
 import Prelude
 import Data.Map as M
 import Data.Char
+import System.Environment
 import System.IO
 --import Debug.Trace
 
@@ -63,9 +64,14 @@ bad c = not (isPrint c || c == '\n')
 
 main :: IO ()
 main = do
-  f <- hGetContents stdin
+  args <- getArgs
+  let (ifn, ofn) = case args of { [a,b] -> (a,b); _ -> error "Usage: Compress in-file out-file" }
+  ifile <- openFile ifn ReadMode
+  f <- hGetContents ifile
   when (any bad f) $
     error "Non-printable ASCII in input"
   let bs = compress initTable f []
-  hSetBinaryMode stdout True
-  putStr $ 'Z' : (map chr $ toBytes bs)
+  ofile <- openBinaryFile ofn WriteMode
+  hPutStr ofile $ 'Z' : (map chr $ toBytes bs)
+  hClose ifile
+  hClose ofile

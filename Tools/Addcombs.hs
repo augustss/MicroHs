@@ -2,6 +2,7 @@ module Addcombs(main) where
 import Prelude
 import Data.Char
 import System.Environment
+import System.IO
 
 chunkify :: Int -> [Char] -> [[Char]]
 chunkify n [] = []
@@ -14,17 +15,19 @@ showChunk = concatMap (\ c -> show (ord c) ++ ",")
 
 main :: IO ()
 main = do
-{-
   args <- getArgs
-  let fn = case args of { [a] -> a; _ -> error "Usage: Addcombs file" }
-  file <- readFile fn
--}
-  hSetBinaryMode stdin True
-  file <- hGetContents stdin
+  let (ifn, ofn) = case args of { [a,b] -> (a,b); _ -> error "Usage: Addcombs in-file out-file" }
+  ifile <- openBinaryFile ifn ReadMode
+  ofile <- openFile ofn WriteMode
+
+  file <- hGetContents ifile
   let size = length file
       chunks = chunkify 20 file
-  putStrLn $ "unsigned char combexprdata[] = {"
-  mapM_ (putStrLn . showChunk) chunks
-  putStrLn "0 };"
-  putStrLn "unsigned char *combexpr = combexprdata;"
-  putStrLn $ "int combexprlen = " ++ show size ++ ";"
+  hPutStrLn ofile $ "unsigned char combexprdata[] = {"
+  mapM_ (hPutStrLn ofile . showChunk) chunks
+  hPutStrLn ofile "0 };"
+  hPutStrLn ofile "unsigned char *combexpr = combexprdata;"
+  hPutStrLn ofile $ "int combexprlen = " ++ show size ++ ";"
+  hClose ifile
+  hClose ofile
+

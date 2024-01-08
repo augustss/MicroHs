@@ -211,9 +211,9 @@ getTimeMilli = c_getTimeMilli
 unsafeInterleaveIO :: forall a . IO a -> IO a
 unsafeInterleaveIO ioa = return (primPerformIO ioa)
 
--- MicroHs is always in binary mode
-hSetBinaryMode :: Handle -> Bool -> IO ()
-hSetBinaryMode _ _ = return ()
+-- MicroHs is currently always in binary mode.
+openBinaryFile :: FilePath -> IOMode -> IO Handle
+openBinaryFile = openFile
 
 --------
 
