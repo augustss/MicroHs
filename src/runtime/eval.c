@@ -150,6 +150,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
                 T_IO_CCALL, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
+                T_FROMUTF8,
                 T_STR,
                 T_LAST_TAG,
 };
@@ -178,6 +179,7 @@ static const char* tag_names[] = {
   "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "IO_CATCH",
   "IO_CCALL", "DYNSYM",
   "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
+  "FROMUTF8",
   "STR",
   "LAST_TAG",
 };
@@ -554,6 +556,7 @@ struct {
   { "scmp", T_COMPARE },
   { "icmp", T_COMPARE },
   { "rnf", T_RNF },
+  { "fromUTF8", T_FROMUTF8 },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
@@ -1551,6 +1554,7 @@ printrec(FILE *f, NODEPTR n)
   case T_TOINT: fprintf(f, "toInt"); break;
   case T_TOPTR: fprintf(f, "toPtr"); break;
   case T_TODBL: fprintf(f, "toDbl"); break;
+  case T_FROMUTF8: fprintf(f, "fromUTF8"); break;
   case T_TICK:
     fprintf(f, "!");
     print_string(f, tick_table[GETVALUE(n)].tick_name);
@@ -2005,7 +2009,7 @@ eval(NODEPTR an)
       num_reductions++;
     case T_AP:   PUSH(n); n = FUN(n); break;
 
-    case T_STR:  GCCHECK(strNodes(STR(n)->size)); GOIND(mkStringU(STR(n)));
+    case T_STR:  RET;
     case T_INT:  RET;
     case T_DBL:  RET;
     case T_PTR:  RET;
@@ -2138,6 +2142,15 @@ eval(NODEPTR an)
         n = TOP(-1);
         GOIND(arr == ARR(y) ? combTrue : combFalse);
       }
+
+    case T_FROMUTF8:
+      CHECK(1);
+      x = evali(ARG(TOP(0)));
+      if (GETTAG(x) != T_STR) ERR("FROMUTF8");
+      POP(1);
+      n = TOP(-1);
+      GCCHECK(strNodes(STR(x)->size));
+      GOIND(mkStringU(STR(x)));
 
     case T_NOMATCH:
       if (doing_rnf) RET;

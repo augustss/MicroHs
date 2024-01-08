@@ -1,6 +1,6 @@
 module MicroHs.ExpPrint(toStringP, encodeString) where
 import Prelude
-import Data.Char(ord)
+import Data.Char(ord, chr)
 import MicroHs.EncodeData(encList)
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..), showLit)
@@ -15,9 +15,11 @@ toStringP ae =
     Lit (LStr s) ->
       -- Encode very short string directly as combinators.
       if length s > 1 then
-        (quoteString s ++)
+        toStringP (App (Lit (LPrim "fromUTF8")) (Lit (LUStr (utf8encode s))))
       else
         toStringP (encodeString s)
+    Lit (LUStr s) ->
+      (quoteString s ++)      
     Lit (LInteger _) -> undefined
     Lit (LRat _) -> undefined
     Lit (LTick s) -> ('!':) . (quoteString s ++)
@@ -38,3 +40,24 @@ quoteString s =
 encodeString :: String -> Exp
 encodeString = encList . map (Lit . LInt . ord)
 
+utf8encode :: String -> String
+utf8encode = concatMap utf8Char
+
+utf8Char :: Char -> [Char]
+utf8Char c | c <= chr 0x7f = [c]
+           | otherwise =
+  let i = ord c
+  in  if i < 0x800 then
+        let (i1, i2) = quotRem i 0x40
+        in  [chr (i1 + 0xc0), chr (i2 + 0x80)]
+      else if i < 0x10000 then
+        let (i12, i3) = quotRem i   0x40
+            (i1,  i2) = quotRem i12 0x40
+        in  [chr (i1 + 0xe0), chr (i2 + 0x80), chr (i3 + 0x80)]
+      else if i < 0x110000 then
+        let (i123, i4) = quotRem i    0x40
+            (i12,  i3) = quotRem i123 0x40
+            (i1,   i2) = quotRem i12  0x40
+        in  [chr (i1 + 0xf0), chr (i2 + 0x80), chr (i3 + 0x80), chr (i4 + 0x80)]
+      else
+        error "utf8Char: bad Char"

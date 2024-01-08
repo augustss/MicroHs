@@ -174,6 +174,7 @@ data Lit
   | LRat Rational
   | LChar Char
   | LStr String
+  | LUStr String            -- UTF-8 encoded string
   | LPrim String
   | LForImp String
   | LTick String
@@ -708,6 +709,7 @@ showLit l =
     LRat r     -> '%' : show r
     LChar c    -> show c
     LStr s     -> show s
+    LUStr s    -> show s
     LPrim s    -> s
     LForImp s  -> '^' : s
     LTick s    -> '!' : s
