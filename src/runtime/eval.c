@@ -1354,11 +1354,13 @@ static INLINE int test_bit(bits_t *bits, NODEPTR n)
   return (bits[i / BITS_PER_WORD] & (1ULL << (i % BITS_PER_WORD))) != 0;
 }
 
+size_t strNodes(size_t len);
+NODEPTR mkStringC(const char *str);
+
 #if WANT_STDIO
 void
-putdblb(flt_t x, BFILE *p)
+convdbl(char *str, flt_t x)
 {
-  char str[30];
   /* Using 16 decimals will lose some precision.
    * 17 would keep the precision, but it frequently looks very ugly.
    */
@@ -1368,6 +1370,23 @@ putdblb(flt_t x, BFILE *p)
     /* XXX wrong for inf and NaN */
     strcat(str, ".0");
   }
+}
+
+NODEPTR
+dblToString(flt_t x)
+{
+  char str[30];
+  convdbl(str, x);
+  // turn it into a mhs string
+  GCCHECK(strNodes(strlen(str)));
+  return mkStringC(str);
+}
+
+void
+putdblb(flt_t x, BFILE *p)
+{
+  char str[30];
+  convdbl(str, x);
   putsb(str, p);
 }
 
@@ -2115,38 +2134,16 @@ eval(NODEPTR an)
       xd = strtof(msg, NULL);
 #endif
       FREE(msg);
-
       POP(1);
       n = TOP(-1);
-      
       GOIND(mkFlt(xd));
 
     case T_FSHOW:
-      // check that the double exists
       CHECK(1);
-      // evaluate it
       xd = evaldbl(ARG(TOP(0)));
-      // turn it into a string
-      char str[30];
-      /* Using 16 decimals will lose some precision.
-       * 17 would keep the precision, but it frequently looks very ugly.
-       */
-      (void)snprintf(str, 25, "%.16g", xd);
-      if (!strchr(str, '.') && !strchr(str, 'e') && !strchr(str, 'E')) {
-        /* There is no decimal point and no exponent, so add a decimal point */
-        /* XXX wrong for inf and NaN */
-        strcat(str, ".0");
-      }
-
-      // turn it into a mhs string
-      GCCHECK(strNodes(strlen(str)));
-      NODEPTR s = mkStringC(str);
-
-      // remove the double from the stack
       POP(1);
       n = TOP(-1);
-      // update n to be s
-      GOIND(s);
+      GOIND(dblToString(xd));
 #endif  /* WANT_FLOAT */
 
     /* Retag a word sized value, keeping the value bits */
@@ -2663,7 +2660,7 @@ main(int argc, char **argv)
   int inrts;
 #if WANT_STDIO
   char *outname = 0;
-  size_t file_size;
+  size_t file_size = 0;
 #endif
   int dump_ticks = 0;
   
