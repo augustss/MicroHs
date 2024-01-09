@@ -45,6 +45,36 @@ flushb(struct BFILE *p)
   p->flushb(p);
 }
 
+void
+putsb(const char *str, struct BFILE *p)
+{
+  char c;
+  while ((c = *str++))
+    putb(c, p);
+}
+
+/* convert -n to a string, handles MINBOUND correctly */
+void
+putnegb(value_t n, struct BFILE *p)
+{
+  int c = '0' - n % 10;
+  if (n <= -10) {
+    putnegb(n / 10, p);
+  }
+  putb(c, p);
+}
+
+void
+putdecb(value_t n, struct BFILE *p)
+{
+  if (n < 0) {
+    putb('-', p);
+    putnegb(n, p);
+  } else {
+    putnegb(-n, p);
+  }
+}
+
 /***************** BFILE from static buffer *******************/
 struct BFILE_buffer {
   BFILE    mets;

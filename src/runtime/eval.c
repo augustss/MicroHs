@@ -1426,7 +1426,10 @@ printrec(FILE *f, NODEPTR n)
 
   if (n == atptr) putc('@', f);
   switch (GETTAG(n)) {
-  case T_IND: putc('*', f); printrec(f, INDIR(n)); break;
+  case T_IND:
+    //putc('*', f);
+    printrec(f, INDIR(n));
+    break;
   case T_AP:
     fputc('(', f);
     printrec(f, FUN(n));
@@ -2305,7 +2308,7 @@ eval(NODEPTR an)
  * and make np point to it.
  * This graph will be updated continuously as we execite IO action.
  * Invariant: the second argument to this BIND is always either RETURN
- * or another C'BIND.
+ * or a C'BIND.  The second argument to C'BIND has the same invariant.
  * This is the cycle:
  *   given top = BIND n q
  *   eval(n)
