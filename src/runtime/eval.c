@@ -1355,7 +1355,23 @@ static INLINE int test_bit(bits_t *bits, NODEPTR n)
 }
 
 #if WANT_STDIO
-void printrec(FILE *f, NODEPTR n);
+void
+putdblb(flt_t x, BFILE *p)
+{
+  char str[30];
+  /* Using 16 decimals will lose some precision.
+   * 17 would keep the precision, but it frequently looks very ugly.
+   */
+  (void)snprintf(str, 25, "%.16g", x);
+  if (!strchr(str, '.') && !strchr(str, 'e') && !strchr(str, 'E')) {
+    /* There is no decimal point and no exponent, so add a decimal point */
+    /* XXX wrong for inf and NaN */
+    strcat(str, ".0");
+  }
+  putsb(str, p);
+}
+
+void printrec(BFILE *f, NODEPTR n);
 
 /* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
 void
@@ -1391,175 +1407,177 @@ find_sharing(NODEPTR n)
 }
 
 void
-print_string(FILE *f, struct ustring *p)
+print_string(BFILE *f, struct ustring *p)
 {
-  fputc('"', f);
+  putb('"', f);
   for (size_t i = 0; i < p->size; i++) {
     int c = p->string[i];
     if (c == '"' || c == '\\' || c < ' ' || c > '~') {
-      fprintf(f, "\\%d&", c);
+      putb('\\', f);
+      putdecb(c, f);
+      putb('&', f);
     } else {
-      fputc(c, f);
+      putb(c, f);
     }
   }
-  fputc('"', f);
+  putb('"', f);
 }
 
 /* Recursively print an expression.
    This assumes that the shared nodes has been marked as such.
 */
 void
-printrec(FILE *f, NODEPTR n)
+printrec(BFILE *f, NODEPTR n)
 {
   if (test_bit(shared_bits, n)) {
     /* The node is shared */
     if (test_bit(marked_bits, n)) {
       /* Not yet printed, so emit a label */
-      fprintf(f, ":%"PRIheap" ", LABEL(n));
+      putb(':', f); putdecb((value_t)LABEL(n), f); putb(' ', f);
       clear_bit(marked_bits, n);  /* mark as printed */
     } else {
       /* This node has already been printed, so just use a reference. */
-      fprintf(f, "_%"PRIheap, LABEL(n));
+      putb('_', f); putdecb((value_t)LABEL(n), f);
       return;
     }
   }
 
-  if (n == atptr) putc('@', f);
+  //if (n == atptr) putb('@', f);
   switch (GETTAG(n)) {
   case T_IND:
     //putc('*', f);
     printrec(f, INDIR(n));
     break;
   case T_AP:
-    fputc('(', f);
+    putb('(', f);
     printrec(f, FUN(n));
-    fputc(' ', f);
+    putb(' ', f);
     printrec(f, ARG(n));
-    fputc(')', f);
+    putb(')', f);
     break;
-  case T_INT: fprintf(f, "#%"PRIvalue, GETVALUE(n)); break;
-  case T_DBL: fprintf(f, "&%.16g", GETDBLVALUE(n)); break;
+  case T_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
+  case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
   case T_ARR:
     /* Arrays serialize as '[sz] e_1 ... e_sz' */
-    fprintf(f, "[%u]", (unsigned)ARR(n)->size);
+    putb('[', f); putdecb((value_t)ARR(n)->size, f); putb(']', f);
     for(size_t i = 0; i < ARR(n)->size; i++) {
-      fputc(' ', f);
+      putb(' ', f);
       printrec(f, ARR(n)->array[i]);
     }
     break;
   case T_PTR:
     if (PTR(n) == stdin)
-      fprintf(f, "IO.stdin");
+      putsb("IO.stdin", f);
     else if (PTR(n) == stdout)
-      fprintf(f, "IO.stdout");
+      putsb("IO.stdout", f);
     else if (PTR(n) == stderr)
-      fprintf(f, "IO.stderr");
+      putsb("IO.stderr", f);
     else
       ERR("Cannot serialize pointers");
     break;
   case T_STR:
     print_string(f, STR(n));
     break;
-  case T_BADDYN: fprintf(f, "^%s", CSTR(n)); break;
-  case T_S: fprintf(f, "S"); break;
-  case T_K: fprintf(f, "K"); break;
-  case T_I: fprintf(f, "I"); break;
-  case T_C: fprintf(f, "C"); break;
-  case T_B: fprintf(f, "B"); break;
-  case T_A: fprintf(f, "A"); break;
-  case T_U: fprintf(f, "U"); break;
-  case T_Y: fprintf(f, "Y"); break;
-  case T_P: fprintf(f, "P"); break;
-  case T_R: fprintf(f, "R"); break;
-  case T_O: fprintf(f, "O"); break;
-  case T_SS: fprintf(f, "S'"); break;
-  case T_BB: fprintf(f, "B'"); break;
-  case T_Z: fprintf(f, "Z"); break;
-  case T_K2: fprintf(f, "K2"); break;
-  case T_K3: fprintf(f, "K3"); break;
-  case T_K4: fprintf(f, "K4"); break;
-  case T_CC: fprintf(f, "C'"); break;
-  case T_CCB: fprintf(f, "C'B"); break;
-  case T_ADD: fprintf(f, "+"); break;
-  case T_SUB: fprintf(f, "-"); break;
-  case T_MUL: fprintf(f, "*"); break;
-  case T_QUOT: fprintf(f, "quot"); break;
-  case T_REM: fprintf(f, "rem"); break;
-  case T_UQUOT: fprintf(f, "uquot"); break;
-  case T_UREM: fprintf(f, "urem"); break;
-  case T_SUBR: fprintf(f, "subtract"); break;
-  case T_NEG: fprintf(f, "neg"); break;
-  case T_AND: fprintf(f, "and"); break;
-  case T_OR: fprintf(f, "or"); break;
-  case T_XOR: fprintf(f, "xor"); break;
-  case T_INV: fprintf(f, "inv"); break;
-  case T_SHL: fprintf(f, "shl"); break;
-  case T_SHR: fprintf(f, "shr"); break;
-  case T_ASHR: fprintf(f, "ashr"); break;
+  case T_IO_CCALL: putb('^', f); putsb(ffi_table[GETVALUE(n)].ffi_name, f); break;
+  case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
+  case T_S: putsb("S", f); break;
+  case T_K: putsb("K", f); break;
+  case T_I: putsb("I", f); break;
+  case T_C: putsb("C", f); break;
+  case T_B: putsb("B", f); break;
+  case T_A: putsb("A", f); break;
+  case T_U: putsb("U", f); break;
+  case T_Y: putsb("Y", f); break;
+  case T_P: putsb("P", f); break;
+  case T_R: putsb("R", f); break;
+  case T_O: putsb("O", f); break;
+  case T_SS: putsb("S'", f); break;
+  case T_BB: putsb("B'", f); break;
+  case T_Z: putsb("Z", f); break;
+  case T_K2: putsb("K2", f); break;
+  case T_K3: putsb("K3", f); break;
+  case T_K4: putsb("K4", f); break;
+  case T_CC: putsb("C'", f); break;
+  case T_CCB: putsb("C'B", f); break;
+  case T_ADD: putsb("+", f); break;
+  case T_SUB: putsb("-", f); break;
+  case T_MUL: putsb("*", f); break;
+  case T_QUOT: putsb("quot", f); break;
+  case T_REM: putsb("rem", f); break;
+  case T_UQUOT: putsb("uquot", f); break;
+  case T_UREM: putsb("urem", f); break;
+  case T_SUBR: putsb("subtract", f); break;
+  case T_NEG: putsb("neg", f); break;
+  case T_AND: putsb("and", f); break;
+  case T_OR: putsb("or", f); break;
+  case T_XOR: putsb("xor", f); break;
+  case T_INV: putsb("inv", f); break;
+  case T_SHL: putsb("shl", f); break;
+  case T_SHR: putsb("shr", f); break;
+  case T_ASHR: putsb("ashr", f); break;
 #if WANT_FLOAT
-  case T_FADD: fprintf(f, "f+"); break;
-  case T_FSUB: fprintf(f, "f-"); break;
-  case T_FMUL: fprintf(f, "f*"); break;
-  case T_FDIV: fprintf(f, "f/"); break;
-  case T_FNEG: fprintf(f, "fneg"); break;
-  case T_ITOF: fprintf(f, "itof"); break;
-  case T_FEQ: fprintf(f, "f=="); break;
-  case T_FNE: fprintf(f, "f/="); break;
-  case T_FLT: fprintf(f, "f<"); break;
-  case T_FLE: fprintf(f, "f<="); break;
-  case T_FGT: fprintf(f, "f>"); break;
-  case T_FGE: fprintf(f, "f>="); break;
-  case T_FSHOW: fprintf(f, "fshow"); break;
-  case T_FREAD: fprintf(f, "fread"); break;
+  case T_FADD: putsb("f+", f); break;
+  case T_FSUB: putsb("f-", f); break;
+  case T_FMUL: putsb("f*", f); break;
+  case T_FDIV: putsb("f/", f); break;
+  case T_FNEG: putsb("fneg", f); break;
+  case T_ITOF: putsb("itof", f); break;
+  case T_FEQ: putsb("f==", f); break;
+  case T_FNE: putsb("f/=", f); break;
+  case T_FLT: putsb("f<", f); break;
+  case T_FLE: putsb("f<=", f); break;
+  case T_FGT: putsb("f>", f); break;
+  case T_FGE: putsb("f>=", f); break;
+  case T_FSHOW: putsb("fshow", f); break;
+  case T_FREAD: putsb("fread", f); break;
 #endif
-  case T_EQ: fprintf(f, "=="); break;
-  case T_NE: fprintf(f, "/="); break;
-  case T_LT: fprintf(f, "<"); break;
-  case T_LE: fprintf(f, "<="); break;
-  case T_GT: fprintf(f, ">"); break;
-  case T_GE: fprintf(f, ">="); break;
-  case T_ULT: fprintf(f, "u<"); break;
-  case T_ULE: fprintf(f, "u<="); break;
-  case T_UGT: fprintf(f, "u>"); break;
-  case T_UGE: fprintf(f, "u>="); break;
-  case T_PEQ: fprintf(f, "p=="); break;
-  case T_PNULL: fprintf(f, "pnull"); break;
-  case T_PADD: fprintf(f, "p+"); break;
-  case T_PSUB: fprintf(f, "p-"); break;
-  case T_ERROR: fprintf(f, "error"); break;
-  case T_NODEFAULT: fprintf(f, "noDefault"); break;
-  case T_NOMATCH: fprintf(f, "noMatch"); break;
-  case T_EQUAL: fprintf(f, "equal"); break;
-  case T_COMPARE: fprintf(f, "compare"); break;
-  case T_RNF: fprintf(f, "rnf"); break;
-  case T_SEQ: fprintf(f, "seq"); break;
-  case T_IO_BIND: fprintf(f, "IO.>>="); break;
-  case T_IO_THEN: fprintf(f, "IO.>>"); break;
-  case T_IO_RETURN: fprintf(f, "IO.return"); break;
-  case T_IO_CCBIND: fprintf(f, "IO.C'BIND"); break;
-  case T_IO_SERIALIZE: fprintf(f, "IO.serialize"); break;
-  case T_IO_PRINT: fprintf(f, "IO.print"); break;
-  case T_IO_DESERIALIZE: fprintf(f, "IO.deserialize"); break;
-  case T_IO_GETARGS: fprintf(f, "IO.getArgs"); break;
-  case T_IO_GETTIMEMILLI: fprintf(f, "IO.getTimeMilli"); break;
-  case T_IO_PERFORMIO: fprintf(f, "IO.performIO"); break;
-  case T_IO_CCALL: fprintf(f, "^%s", ffi_table[GETVALUE(n)].ffi_name); break;
-  case T_IO_CATCH: fprintf(f, "IO.catch"); break;
-  case T_ARR_ALLOC: fprintf(f, "A.alloc");
-  case T_ARR_SIZE: fprintf(f, "A.size");
-  case T_ARR_READ: fprintf(f, "A.read");
-  case T_ARR_WRITE: fprintf(f, "A.write");
-  case T_ARR_EQ: fprintf(f, "A.==");
-  case T_DYNSYM: fprintf(f, "dynsym"); break;
-  case T_NEWCASTRINGLEN: fprintf(f, "newCAStringLen"); break;
-  case T_PEEKCASTRING: fprintf(f, "peekCAString"); break;
-  case T_PEEKCASTRINGLEN: fprintf(f, "peekCAStringLen"); break;
-  case T_TOINT: fprintf(f, "toInt"); break;
-  case T_TOPTR: fprintf(f, "toPtr"); break;
-  case T_TODBL: fprintf(f, "toDbl"); break;
-  case T_FROMUTF8: fprintf(f, "fromUTF8"); break;
+  case T_EQ: putsb("==", f); break;
+  case T_NE: putsb("/=", f); break;
+  case T_LT: putsb("<", f); break;
+  case T_LE: putsb("<=", f); break;
+  case T_GT: putsb(">", f); break;
+  case T_GE: putsb(">=", f); break;
+  case T_ULT: putsb("u<", f); break;
+  case T_ULE: putsb("u<=", f); break;
+  case T_UGT: putsb("u>", f); break;
+  case T_UGE: putsb("u>=", f); break;
+  case T_PEQ: putsb("p==", f); break;
+  case T_PNULL: putsb("pnull", f); break;
+  case T_PADD: putsb("p+", f); break;
+  case T_PSUB: putsb("p-", f); break;
+  case T_ERROR: putsb("error", f); break;
+  case T_NODEFAULT: putsb("noDefault", f); break;
+  case T_NOMATCH: putsb("noMatch", f); break;
+  case T_EQUAL: putsb("equal", f); break;
+  case T_COMPARE: putsb("compare", f); break;
+  case T_RNF: putsb("rnf", f); break;
+  case T_SEQ: putsb("seq", f); break;
+  case T_IO_BIND: putsb("IO.>>=", f); break;
+  case T_IO_THEN: putsb("IO.>>", f); break;
+  case T_IO_RETURN: putsb("IO.return", f); break;
+  case T_IO_CCBIND: putsb("IO.C'BIND", f); break;
+  case T_IO_SERIALIZE: putsb("IO.serialize", f); break;
+  case T_IO_PRINT: putsb("IO.print", f); break;
+  case T_IO_DESERIALIZE: putsb("IO.deserialize", f); break;
+  case T_IO_GETARGS: putsb("IO.getArgs", f); break;
+  case T_IO_GETTIMEMILLI: putsb("IO.getTimeMilli", f); break;
+  case T_IO_PERFORMIO: putsb("IO.performIO", f); break;
+  case T_IO_CATCH: putsb("IO.catch", f); break;
+  case T_ARR_ALLOC: putsb("A.alloc", f);
+  case T_ARR_SIZE: putsb("A.size", f);
+  case T_ARR_READ: putsb("A.read", f);
+  case T_ARR_WRITE: putsb("A.write", f);
+  case T_ARR_EQ: putsb("A.==", f);
+  case T_DYNSYM: putsb("dynsym", f); break;
+  case T_NEWCASTRINGLEN: putsb("newCAStringLen", f); break;
+  case T_PEEKCASTRING: putsb("peekCAString", f); break;
+  case T_PEEKCASTRINGLEN: putsb("peekCAStringLen", f); break;
+  case T_TOINT: putsb("toInt", f); break;
+  case T_TOPTR: putsb("toPtr", f); break;
+  case T_TODBL: putsb("toDbl", f); break;
+  case T_FROMUTF8: putsb("fromUTF8", f); break;
   case T_TICK:
-    fprintf(f, "!");
+    putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
   default: ERR("print tag");
@@ -1568,7 +1586,7 @@ printrec(FILE *f, NODEPTR n)
 
 /* Serialize a graph to file. */
 void
-print(FILE *f, NODEPTR n, int header)
+print(FILE *fi, NODEPTR n, int header)
 {
   num_shared = 0;
   marked_bits = calloc(free_map_nwords, sizeof(bits_t));
@@ -1578,9 +1596,14 @@ print(FILE *f, NODEPTR n, int header)
   if (!shared_bits)
     memerr();
   find_sharing(n);
-  if (header)
-    fprintf(f, "%s%"PRIcounter"\n", VERSION, num_shared);
+  BFILE *f = openb_FILE(fi);
+  if (header) {
+    putsb(VERSION, f);
+    putdecb(num_shared, f);
+    putb('\n', f);
+  }
   printrec(f, n);
+  closeb(f);
   FREE(marked_bits);
   FREE(shared_bits);
 }
