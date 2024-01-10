@@ -2,6 +2,7 @@ module Data.Proxy(module Data.Proxy) where
 import Primitives
 import Data.Bool_Type
 import Data.Eq
+import Data.Functor
 import Text.Show
 
 type Proxy :: forall (k::Kind) . k -> Type
@@ -12,3 +13,6 @@ instance forall a . Show (Proxy a) where
 
 instance forall a . Eq (Proxy a) where
   _ == _  =  True
+
+instance Functor Proxy where
+  fmap _ Proxy = Proxy
