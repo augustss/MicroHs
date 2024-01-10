@@ -23,9 +23,11 @@ import Data.Either
 import Data.Enum
 import Data.Eq
 import Data.Floating
+import Data.Foldable
 import Data.Fractional
 import Data.Function
 import Data.Functor
+import Data.Functor.Const
 import Data.Functor.Identity
 import Data.IOArray
 import Data.IORef
@@ -52,6 +54,7 @@ import Data.RealFloat
 import Data.Records
 import Data.Semigroup
 import Data.STRef
+import Data.Traversable
 import Data.Tuple
 import Data.Typeable
 import Data.TypeLits
