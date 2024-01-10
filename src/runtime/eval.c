@@ -1088,7 +1088,7 @@ parse_double(BFILE *f)
   for(int j = 0; (buf[j] = getNT(f)); j++)
     ;
 
-  return strtod(buf, NULL);;
+  return strtod(buf, NULL);
 }
 #endif
 
