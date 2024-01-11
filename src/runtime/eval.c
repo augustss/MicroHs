@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#define VERSION "v6.1\n"
+#define VERSION "v7.0\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -1168,7 +1168,8 @@ parse_string(BFILE *f)
 NODEPTR
 parse(BFILE *f)
 {
-  NODEPTR r;
+  stackptr_t stk = stack_ptr;
+  NODEPTR r, x, y;
   NODEPTR *nodep;
   heapoffs_t l;
   value_t i;
@@ -1176,95 +1177,115 @@ parse(BFILE *f)
   int c;
   char buf[80];                 /* store names of primitives. */
 
-  c = getb(f);
-  if (c < 0) ERR("parse EOF");
-  switch (c) {
-  case '(' :
-    /* application: (f a) */
-    r = alloc_node(T_AP);
-    FUN(r) = parse(f);
-    if (!gobble(f, ' ')) ERR("parse ' '");
-    ARG(r) = parse(f);
-    if (!gobble(f, ')')) ERR("parse ')'");
-    return r;
-  case '&':
-    d = parse_double(f);
-    r = mkFlt(d);
-    return r;
-  case '#':
-    i = parse_int(f);
-    r = mkInt(i);
-    return r;
-  case '[':
-    {
-      size_t sz = (size_t)parse_int(f);
-      if (!gobble(f, ']')) ERR("parse arr 1");
-      struct ioarray *arr = arr_alloc(sz, NIL);
-      for (size_t i = 0; i < sz; i++) {
-        if (!gobble(f, ' ')) ERR("parse arr 2");
-        arr->array[i] = parse(f);
+  for(;;) {
+    c = getb(f);
+    if (c < 0) ERR("parse EOF");
+    switch (c) {
+    case ' ':
+      break;
+    case '@':
+      x = TOP(0);
+      y = TOP(1);
+      POP(2);
+      PUSH(new_ap(y, x));
+      break;
+    case '}':
+      x = TOP(0);
+      POP(1);
+      if (stack_ptr != stk)
+        ERR("parse: stack");
+      return x;
+    case '&':
+      d = parse_double(f);
+      r = mkFlt(d);
+      PUSH(r);
+      break;
+    case '#':
+      i = parse_int(f);
+      r = mkInt(i);
+      PUSH(r);
+      break;
+    case '[':
+      {
+        size_t sz = (size_t)parse_int(f);
+        if (!gobble(f, ']')) ERR("parse arr 1");
+        struct ioarray *arr = arr_alloc(sz, NIL);
+        for (size_t i = 0; i < sz; i++) {
+          arr->array[i] = TOP(sz - i - 1);
+        }
+        r = alloc_node(T_ARR);
+        ARR(r) = arr;
+        POP(sz);
+        PUSH(r);
+        break;
       }
-      r = alloc_node(T_ARR);
-      ARR(r) = arr;
-      return r;
-    }
-  case '_' :
-    /* Reference to a shared value: _label */
-    l = parse_int(f);  /* The label */
-    nodep = find_label(l);
-    if (*nodep == NIL) {
-      /* Not yet defined, so make it an indirection */
-      *nodep = alloc_node(T_IND);
-      INDIR(*nodep) = NIL;
-    }
-    return *nodep;
-  case ':' :
-    /* Define a shared expression: :label e */
-    l = parse_int(f);  /* The label */
-    if (!gobble(f, ' ')) ERR("parse ' '");
-    nodep = find_label(l);
-    if (*nodep == NIL) {
-      /* not referenced yet, so create a node */
-      *nodep = alloc_node(T_IND);
-      INDIR(*nodep) = NIL;
-    } else {
-      /* Sanity check */
-      if (INDIR(*nodep) != NIL) ERR("shared != NIL");
-    }
-    r = parse(f);
-    INDIR(*nodep) = r;
-    return r;
-  case '"' :
-    /* Everything up to the next " is a string.
-     * Special characters are encoded as \NNN&,
-     * where NNN is the decimal value of the character */
-    /* XXX assume there are no NULs in the string, and all fit in a char */
-    return mkStrNode(parse_string(f));
-  case '!':
-    if (!gobble(f, '"'))
-      ERR("parse !");
-    i = add_tick_table(parse_string(f));
-    r = alloc_node(T_TICK);
-    SETVALUE(r, (value_t)i);
-    return r;
-  case '^':
-    /* An FFI name */
-    for (int j = 0; (buf[j] = getNT(f)); j++)
-      ;
-    r = ffiNode(buf);
-    return r;
-  default:
-    buf[0] = c;
-    /* A primitive, keep getting char's until end */
-    for (int j = 1; (buf[j] = getNT(f)); j++)
-      ;
-    /* Look up the primop and use the preallocated node. */
-    for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
-      if (strcmp(primops[j].name, buf) == 0) {
-        return primops[j].node;
+    case '_' :
+      /* Reference to a shared value: _label */
+      l = parse_int(f);  /* The label */
+      nodep = find_label(l);
+      if (*nodep == NIL) {
+        /* Not yet defined, so make it an indirection */
+        *nodep = alloc_node(T_IND);
+        INDIR(*nodep) = NIL;
       }
+      PUSH(*nodep);
+      break;
+    case ':' :
+      /* Define a shared expression: :label e */
+      l = parse_int(f);  /* The label */
+      if (!gobble(f, ' ')) ERR("parse ' '");
+      nodep = find_label(l);
+      if (*nodep == NIL) {
+        /* not referenced yet, so create a node */
+        *nodep = alloc_node(T_IND);
+        INDIR(*nodep) = NIL;
+      } else {
+        /* Sanity check */
+        if (INDIR(*nodep) != NIL) ERR("shared != NIL");
+      }
+      x = TOP(0);
+      INDIR(*nodep) = x;
+      break;
+    case '"' :
+      /* Everything up to the next " is a string.
+       * Special characters are encoded as \NNN&,
+       * where NNN is the decimal value of the character */
+      /* XXX assume there are no NULs in the string, and all fit in a char */
+      PUSH(mkStrNode(parse_string(f)));
+      break;
+    case '!':
+      if (!gobble(f, '"'))
+        ERR("parse !");
+      i = add_tick_table(parse_string(f));
+      r = alloc_node(T_TICK);
+      SETVALUE(r, (value_t)i);
+      PUSH(r);
+      break;
+    case '^':
+      /* An FFI name */
+      for (int j = 0; (buf[j] = getNT(f)); j++)
+        ;
+      r = ffiNode(buf);
+      PUSH(r);
+      break;
+    default:
+      buf[0] = c;
+      /* A primitive, keep getting char's until end */
+      for (int j = 1; (buf[j] = getNT(f)); j++)
+        ;
+      //if (!gobble(f, ' ')) ERR("parse(2) ' '");
+      /* Look up the primop and use the preallocated node. */
+      for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
+        if (strcmp(primops[j].name, buf) == 0) {
+          r = primops[j].node;
+          goto found;
+        }
+      }
+      ERR1("no primop %s", buf);
+    found:
+      PUSH(r);
+      break;
     }
-    ERR1("no primop %s", buf);
   }
 }
 
@@ -1390,15 +1411,16 @@ putdblb(flt_t x, BFILE *p)
   putsb(str, p);
 }
 
-void printrec(BFILE *f, NODEPTR n);
+void printrec(BFILE *f, NODEPTR n, int prefix);
 
 /* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
 void
 find_sharing(NODEPTR n)
 {
  top:
-  while (GETTAG(n) == T_IND)
+  while (GETTAG(n) == T_IND) {
     n = INDIR(n);
+  }
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   if (GETTAG(n) == T_AP) {
     if (test_bit(shared_bits, n)) {
@@ -1446,42 +1468,71 @@ print_string(BFILE *f, struct ustring *p)
    This assumes that the shared nodes has been marked as such.
 */
 void
-printrec(BFILE *f, NODEPTR n)
+printrec(BFILE *f, NODEPTR n, int prefix)
 {
+  while (GETTAG(n) == T_IND) {
+    //putb('*', f);
+    n = INDIR(n);
+  }
+
+  int share = 0;
   if (test_bit(shared_bits, n)) {
     /* The node is shared */
     if (test_bit(marked_bits, n)) {
       /* Not yet printed, so emit a label */
-      putb(':', f); putdecb((value_t)LABEL(n), f); putb(' ', f);
+      if (prefix) {
+        putb(':', f);
+        putdecb((value_t)LABEL(n), f);
+        putb(' ', f);
+      } else {
+        share = 1;
+      }
       clear_bit(marked_bits, n);  /* mark as printed */
     } else {
       /* This node has already been printed, so just use a reference. */
-      putb('_', f); putdecb((value_t)LABEL(n), f);
+      putb('_', f);
+      putdecb((value_t)LABEL(n), f);
+      if (!prefix)
+        putb(' ', f);
       return;
     }
   }
 
   //if (n == atptr) putb('@', f);
   switch (GETTAG(n)) {
-  case T_IND:
-    //putc('*', f);
-    printrec(f, INDIR(n));
-    break;
   case T_AP:
-    putb('(', f);
-    printrec(f, FUN(n));
-    putb(' ', f);
-    printrec(f, ARG(n));
-    putb(')', f);
+    if (prefix) {
+      putb('(', f);
+      printrec(f, FUN(n), prefix);
+      putb(' ', f);
+      printrec(f, ARG(n), prefix);
+      putb(')', f);
+    } else {
+      printrec(f, FUN(n), prefix);
+      printrec(f, ARG(n), prefix);
+      putb('@', f);
+    }
     break;
   case T_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
   case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
   case T_ARR:
-    /* Arrays serialize as '[sz] e_1 ... e_sz' */
-    putb('[', f); putdecb((value_t)ARR(n)->size, f); putb(']', f);
-    for(size_t i = 0; i < ARR(n)->size; i++) {
-      putb(' ', f);
-      printrec(f, ARR(n)->array[i]);
+    if (prefix) {
+      /* Arrays serialize as '[sz] e_1 ... e_sz' */
+      putb('[', f);
+      putdecb((value_t)ARR(n)->size, f);
+      putb(']', f);
+      for(size_t i = 0; i < ARR(n)->size; i++) {
+        putb(' ', f);
+        printrec(f, ARR(n)->array[i], prefix);
+      }
+    } else {
+      /* Arrays serialize as 'e_1 ... e_sz [sz]' */
+      for(size_t i = 0; i < ARR(n)->size; i++) {
+        printrec(f, ARR(n)->array[i], prefix);
+      }
+      putb('[', f);
+      putdecb((value_t)ARR(n)->size, f);
+      putb(']', f);
     }
     break;
   case T_PTR:
@@ -1582,11 +1633,11 @@ printrec(BFILE *f, NODEPTR n)
   case T_IO_GETTIMEMILLI: putsb("IO.getTimeMilli", f); break;
   case T_IO_PERFORMIO: putsb("IO.performIO", f); break;
   case T_IO_CATCH: putsb("IO.catch", f); break;
-  case T_ARR_ALLOC: putsb("A.alloc", f);
-  case T_ARR_SIZE: putsb("A.size", f);
-  case T_ARR_READ: putsb("A.read", f);
-  case T_ARR_WRITE: putsb("A.write", f);
-  case T_ARR_EQ: putsb("A.==", f);
+  case T_ARR_ALLOC: putsb("A.alloc", f); break;
+  case T_ARR_SIZE: putsb("A.size", f); break;
+  case T_ARR_READ: putsb("A.read", f); break;
+  case T_ARR_WRITE: putsb("A.write", f); break;
+  case T_ARR_EQ: putsb("A.==", f); break;
   case T_DYNSYM: putsb("dynsym", f); break;
   case T_NEWCASTRINGLEN: putsb("newCAStringLen", f); break;
   case T_PEEKCASTRING: putsb("peekCAString", f); break;
@@ -1601,12 +1652,22 @@ printrec(BFILE *f, NODEPTR n)
     break;
   default: ERR("print tag");
   }
+  if (!prefix) {
+    putb(' ', f);
+    if (share) {
+      putb(':', f);
+      putdecb((value_t)LABEL(n), f);
+      putb(' ', f);
+    }
+  }
 }
 
 /* Serialize a graph to file. */
 void
 print(FILE *fi, NODEPTR n, int header)
 {
+  BFILE *f = openb_FILE(fi);
+
   num_shared = 0;
   marked_bits = calloc(free_map_nwords, sizeof(bits_t));
   if (!marked_bits)
@@ -1615,13 +1676,15 @@ print(FILE *fi, NODEPTR n, int header)
   if (!shared_bits)
     memerr();
   find_sharing(n);
-  BFILE *f = openb_FILE(fi);
   if (header) {
     putsb(VERSION, f);
     putdecb(num_shared, f);
     putb('\n', f);
   }
-  printrec(f, n);
+  printrec(f, n, !header);
+  if (header) {
+    putb('}', f);
+  }
   closeb(f);
   FREE(marked_bits);
   FREE(shared_bits);

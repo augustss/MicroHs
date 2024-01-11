@@ -1,17 +1,45 @@
-module MicroHs.ExpPrint(toStringP, encodeString) where
+module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion) where
 import Prelude
 import Data.Char(ord, chr)
+import qualified MicroHs.IdentMap as M
+import Data.Maybe
+import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..), showLit)
-import MicroHs.Ident(showIdent)
+import MicroHs.Ident(Ident, showIdent, mkIdent)
+
+-- Version number of combinator file.
+-- Must match version in eval.c.
+combVersion :: String
+combVersion = "v7.0\n"
+
+toStringCMdl :: (Ident, [LDef]) -> String
+toStringCMdl (mainName, ds) =
+  let
+    ref i = Var $ mkIdent $ "_" ++ show i
+    defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds (enumFrom (0::Int)) ]
+    findIdent n = fromMaybe (error $ "main: findIdent: " ++ showIdent n) $
+                  M.lookup n defs
+    emain = findIdent mainName
+    substv aexp =
+      case aexp of
+        Var n -> findIdent n
+        App f a -> App (substv f) (substv a)
+        e -> e
+    def :: ((Ident, Exp), Int) -> (String -> String) -> (String -> String)
+    def ((_, e), i) r =
+      --(("((A :" ++ show i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
+      ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @ ") ++) . r . (" @" ++)
+    res = foldr def (toStringP emain) (zip ds (enumFrom 0)) " }"
+  in combVersion ++ show (M.size defs) ++ "\n" ++ res
 
 -- Avoid quadratic concatenation by using difference lists,
 -- turning concatenation into function composition.
 toStringP :: Exp -> (String -> String)
 toStringP ae =
   case ae of
-    Var x   -> (showIdent x ++)
+    Var x   -> (showIdent x ++) . (' ' :)
     Lit (LStr s) ->
       -- Encode very short string directly as combinators.
       if length s > 1 then
@@ -19,13 +47,14 @@ toStringP ae =
       else
         toStringP (encodeString s)
     Lit (LUStr s) ->
-      (quoteString s ++)      
+      (quoteString s ++) . (' ' :)
     Lit (LInteger _) -> undefined
     Lit (LRat _) -> undefined
-    Lit (LTick s) -> ('!':) . (quoteString s ++)
-    Lit l   -> (showLit l ++)
+    Lit (LTick s) -> ('!':) . (quoteString s ++) . (' ' :)
+    Lit l   -> (showLit l ++) . (' ' :)
     Lam _x _e -> undefined -- (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
-    App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
+    --App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
+    App f a -> toStringP f . toStringP a . ("@ " ++)
 
 quoteString :: String -> String
 quoteString s =

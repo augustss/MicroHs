@@ -40,6 +40,10 @@ bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 	$(CCEVAL) src/runtime/comb.c -o bin/mhseval
 	size bin/mhseval
 
+bin/mhsevalgdb:	src/runtime/*.c src/runtime/config*.h
+	@mkdir -p bin
+	$(CC) $(CCWARNS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c -o bin/mhsevalgdb
+
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
 	@mkdir -p bin

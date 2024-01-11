@@ -9,11 +9,9 @@ import Control.Monad
 import Data.Maybe
 import System.Environment
 import MicroHs.Compile
-import MicroHs.Exp
 import MicroHs.ExpPrint
 import MicroHs.Flags
 import MicroHs.Ident
-import qualified MicroHs.IdentMap as M
 import MicroHs.Translate
 import MicroHs.Interactive
 import MicroHs.MakeCArray
@@ -22,11 +20,6 @@ import System.IO
 import System.Process
 import Compat
 import MicroHs.Instances() -- for GHC
-
--- Version number of combinator file.
--- Must match version in eval.c.
-combVersion :: String
-combVersion = "v6.1\n"
 
 mhsVersion :: String
 mhsVersion = "0.9.3.0"
@@ -77,21 +70,8 @@ mainCompile mhsdir flags mn = do
   let
     mainName = qualIdent mn (mkIdent "main")
     cmdl = (mainName, ds)
-    ref i = Var $ mkIdent $ "_" ++ show i
-    defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds (enumFrom (0::Int)) ]
-    findIdent n = fromMaybe (error $ "main: findIdent: " ++ showIdent n) $
-                  M.lookup n defs
-    emain = findIdent mainName
-    substv aexp =
-      case aexp of
-        Var n -> findIdent n
-        App f a -> App (substv f) (substv a)
-        e -> e
-    def :: ((Ident, Exp), Int) -> (String -> String) -> (String -> String)
-    def ((_, e), i) r =
-      (("((A :" ++ show i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
-    res = foldr def (toStringP emain) (zip ds (enumFrom 0)) ""
-    numDefs = M.size defs
+    outData = toStringCMdl cmdl
+    numDefs = length ds
   when (verbosityGT flags 0) $
     putStrLn $ "top level defns: " ++ show numDefs
   when (verbosityGT flags 1) $
@@ -104,7 +84,6 @@ mainCompile mhsdir flags mn = do
     prg
 --    putStrLn "done"
    else do
-    let outData = combVersion ++ show numDefs ++ "\n" ++ res
     seq (length outData) (return ())
     t2 <- getTimeMilli
     when (verbosityGT flags 0) $
