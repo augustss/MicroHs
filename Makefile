@@ -38,6 +38,7 @@ bin/mhs:	src/runtime/*.c src/runtime/config*.h #generated/mhs.c
 bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
 	$(CCEVAL) src/runtime/comb.c -o bin/mhseval
+	size bin/mhseval
 
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
