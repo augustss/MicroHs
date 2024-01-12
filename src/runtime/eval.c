@@ -1118,8 +1118,8 @@ heapoffs_t shared_table_size;
 NODEPTR *
 find_label(heapoffs_t label)
 {
-  int hash = (int)(label % shared_table_size);
-  for(int i = hash; ; i++) {
+  for(int i = (int)label; ; i++) {
+    i %= shared_table_size;
     if (shared_table[i].node == NIL) {
       /* The slot is empty, so claim and return it */
       shared_table[i].label = label;
