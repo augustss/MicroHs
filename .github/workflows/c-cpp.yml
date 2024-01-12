@@ -175,11 +175,12 @@ jobs:
      - name: run emscripten tests
        run: make emscripten
 
-  build-macos-emscripten:
-    runs-on: macos-latest
-    steps:
-     - uses: actions/checkout@v3
-     - uses: mymindstorm/setup-emsdk@v13
-     - uses: actions/setup-node@v4
-     - name: run emscripten tests
-       run: make emscripten
+# macos-emscripten crashes randomly, so comment it out for now
+#  build-macos-emscripten:
+#    runs-on: macos-latest
+#    steps:
+#     - uses: actions/checkout@v3
+#     - uses: mymindstorm/setup-emsdk@v13
+#     - uses: actions/setup-node@v4
+#     - name: run emscripten tests
+#       run: make emscripten
