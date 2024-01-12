@@ -18,7 +18,15 @@
 #include "md5.h"
 #endif
 
-#include "config.h"
+//#include "config.h"
+
+#if WANT_MD5                    /* XXX */
+void
+set_led(int led, int on)
+{
+  printf("set_led %d %d\n", led, on);
+}
+#endif
 
 #define VERSION "v7.0\n"
 
@@ -81,9 +89,23 @@ char* TMPNAME(const char* pre, const char* post) {
 }
 #endif
 
-// #if !defined(MALLOC)
-// #define MALLOC malloc
-// #endif
+#if !defined(FFS)
+/* This is pretty bad, could use deBruijn multiplication instead. */
+int
+FFS(bits_t x)
+{
+  if (!x)
+    return 0;
+  int i;
+  for(i = 1; !(x & 1); x >>= 1, i++)
+    ;
+  return i;
+}
+#endif  /* !defined(FFS) */
+
+#if !defined(WANT_ARGS)
+#define WANT_ARGS 1
+#endif
 
 #if !defined(INLINE)
 #define INLINE inline
@@ -261,7 +283,7 @@ stackptr_t stack_ptr = -1;
 #if STACKOVL
 #define PUSH(x) do { if (stack_ptr >= stack_size-1) ERR("stack overflow"); stack[++stack_ptr] = (x); } while(0)
 #else  /* STACKOVL */
-#define PUSH(x) do {                                                        stack[++stack_ptr] = (x); } while(0)
+#define PUSH(x) do {                                                       stack[++stack_ptr] = (x); } while(0)
 #endif  /* STACKOVL */
 #define TOP(n) stack[stack_ptr - (n)]
 #define POP(n) stack_ptr -= (n)
@@ -318,6 +340,7 @@ arr_alloc(size_t sz, NODEPTR e)
 
 /*****************************************************************************/
 
+#if WANT_TICK
 struct tick_entry {
   struct ustring *tick_name;
   counter_t tick_count;
@@ -347,7 +370,6 @@ add_tick_table(struct ustring *name)
   return tick_index++;
 }
 
-
 /* Called with the tick index. */
 static inline void
 dotick(value_t i)
@@ -368,6 +390,7 @@ dump_tick_table(FILE *f)
       fprintf(f, "%-60s %10"PRIcounter"\n", tick_table[i].tick_name->string, n);
   }
 }
+#endif
 
 /*****************************************************************************/
 
@@ -397,7 +420,8 @@ static INLINE int is_marked_used(NODEPTR n)
   if (i < heap_start)
     return 1;
 #if SANITY
-  if (i >= free_map_nwords * BITS_PER_WORD) ERR("is_marked_used");;
+  if (i >= free_map_nwords * BITS_PER_WORD)
+    ERR("is_marked_used");
 #endif
   return (free_map[i / BITS_PER_WORD] & (1ULL << (i % BITS_PER_WORD))) == 0;
 }
@@ -408,8 +432,10 @@ static INLINE void mark_all_free(void)
   next_scan_index = heap_start;
 }
 
+#if WANT_ARGS
 int glob_argc;
 char **glob_argv;
+#endif
 
 int verbose = 0;
 
@@ -731,6 +757,8 @@ mark(NODEPTR *np)
 #endif  /* SANITY */
     *np = n;
   }
+  if (n < cells || n > cells + heap_size)
+    ERR("bad n");
   if (is_marked_used(n)) {
     //    mark_depth--;
     return;
@@ -998,6 +1026,7 @@ struct {
   { "pokeByte", (funptr_t)pokeByte,FFI_PIV },
   { "memcpy",   (funptr_t)memcpy,  FFI_PPzV },
   { "memmove",  (funptr_t)memmove, FFI_PPzV },
+  { "set_led",  (funptr_t)set_led, FFI_IIV },
 };
 
 /* Look up an FFI function by name */
@@ -1253,6 +1282,7 @@ parse(BFILE *f)
       /* XXX assume there are no NULs in the string, and all fit in a char */
       PUSH(mkStrNode(parse_string(f)));
       break;
+#if WANT_TICK
     case '!':
       if (!gobble(f, '"'))
         ERR("parse !");
@@ -1261,6 +1291,7 @@ parse(BFILE *f)
       SETVALUE(r, (value_t)i);
       PUSH(r);
       break;
+#endif
     case '^':
       /* An FFI name */
       for (int j = 0; (buf[j] = getNT(f)); j++)
@@ -1421,6 +1452,7 @@ find_sharing(NODEPTR n)
   while (GETTAG(n) == T_IND) {
     n = INDIR(n);
   }
+  if (n < cells || n >= cells + heap_size) abort();
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   if (GETTAG(n) == T_AP) {
     if (test_bit(shared_bits, n)) {
@@ -1717,6 +1749,14 @@ dump(const char *msg, NODEPTR at)
   pp(stdout, *topnode);
 #endif
 }
+
+#else  /* WANT_STDIO */
+NODEPTR
+dblToString(flt_t x)
+{
+  return mkStringC("no dblToString");
+}
+
 #endif  /* WANT_STDIO */
 
 NODEPTR
@@ -2365,11 +2405,13 @@ eval(NODEPTR an)
       n = TOP(-1);
       GOIND(x);
 
+#if WANT_TICK
     case T_TICK:
       xi = GETVALUE(n);
       CHKARG1;
       dotick(xi);
       GOIND(x);
+#endif
 
     default:
       ERR1("eval tag %d", GETTAG(n));
@@ -2427,11 +2469,11 @@ execio(NODEPTR *np)
   *np = top;
 
  start:
-  dump("start", top);
+  //dump("start", top);
   IOASSERT(stack_ptr == stk, "start");
-  ppmsg("n before = ", ARG(FUN(top)));
+  //ppmsg("n before = ", ARG(FUN(top)));
   n = evali(ARG(FUN(top)));     /* eval(n) */
-  ppmsg("n after  = ", n);
+  //ppmsg("n after  = ", n);
   if (GETTAG(n) == T_AP && GETTAG(top1 = indir(FUN(n))) == T_AP) {
     switch (GETTAG(indir(FUN(top1)))) {
     case T_IO_BIND:
@@ -2454,9 +2496,9 @@ execio(NODEPTR *np)
   goto execute;
 
  rest:                          /* result is in res */
-  ppmsg("res=", res);
+  //ppmsg("res=", res);
   q = ARG(top);
-  ppmsg("q=", q);
+  //ppmsg("q=", q);
   if (GETTAG(q) == T_IO_RETURN) {
     /* execio is done */
     FUN(top) = combIORETURN;
@@ -2519,6 +2561,7 @@ execio(NODEPTR *np)
       n = parse_FILE(ptr);
       RETIO(n);
 #endif
+#if WANT_ARGS
     case T_IO_GETARGS:
       CHECKIO(0);
       {
@@ -2542,6 +2585,7 @@ execio(NODEPTR *np)
         }
       }
       RETIO(n);
+#endif
 
     case T_IO_CCALL:
       {
@@ -2739,6 +2783,7 @@ main(int argc, char **argv)
                 // a HAL
 #endif
 
+#if WANT_ARGS
   argc--, argv++;
   glob_argv = argv;
   for (av = argv, inrts = 0; argc--; argv++) {
@@ -2776,6 +2821,7 @@ main(int argc, char **argv)
 
   if (inname == 0)
     inname = "out.comb";
+#endif
 
   init_nodes();
   stack = MALLOC(sizeof(NODEPTR) * stack_size);
@@ -2862,9 +2908,11 @@ main(int argc, char **argv)
   }
 #endif  /* WANT_STDIO */
 
+#if WANT_TICK
   if (dump_ticks) {
     dump_tick_table(stdout);
   }
+#endif
 
 #ifdef TEARDOWN
   main_teardown(); // do some platform specific teardown
