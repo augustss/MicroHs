@@ -52,7 +52,7 @@
 //#pragma warning(disable : 4996)
 #pragma intrinsic(_BitScanForward64)
 static inline int
-FFS(int64_t arg)
+ffs(int64_t arg)
 {
   unsigned long r;
   if (_BitScanForward64(&r, arg))
@@ -60,6 +60,7 @@ FFS(int64_t arg)
   else
     return 0;
 }
+#define FFS ffs
 
 /*
  * This is the character used for comma-separation in printf.
