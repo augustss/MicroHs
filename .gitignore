@@ -18,3 +18,4 @@ generated/*
 *.js
 *.wasm
 /tags
+.hpc/*
