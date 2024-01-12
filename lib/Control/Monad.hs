@@ -43,6 +43,9 @@ mapM f =
           return (b : bs)
   in rec
 
+forM :: forall m a b . Monad m => [a] -> (a -> m b) -> m [b]
+forM = flip mapM
+
 mapM_ :: forall m a b . Monad m => (a -> m b) -> [a] -> m ()
 mapM_ f =
   let
@@ -53,6 +56,9 @@ mapM_ f =
           _ <- f a
           rec as
   in rec
+
+forM_ :: forall m a b . Monad m => [a] -> (a -> m b) -> m ()
+forM_ = flip mapM_
 
 when :: forall m . Monad m => Bool -> m () -> m ()
 when False _ = return ()
