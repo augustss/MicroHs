@@ -26,6 +26,11 @@
 #define WANT_MD5 1
 
 /*
+ * Include profiling code
+ */
+#define WANT_TICK 1
+
+/*
  * Number of bits in a word.  Only 32 and 64 are supported.
  */
 #define WORD_SIZE 64

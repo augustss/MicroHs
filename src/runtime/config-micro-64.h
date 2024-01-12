@@ -21,6 +21,16 @@
 #define WANT_MATH 0
 
 /*
+ * Include MD5 checksumming code
+ */
+#define WANT_MD5 0
+
+/*
+ * Include profiling code
+ */
+#define WANT_TICK 0
+
+/*
  * Number of bits in a word.  Only 32 and 64 are supported.
  */
 #define WORD_SIZE 64
