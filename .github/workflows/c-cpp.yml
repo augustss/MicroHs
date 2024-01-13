@@ -19,6 +19,14 @@ jobs:
     - name: cabal build
       run: cabal build
 
+  build-linux-micro-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v3
+    - name: make
+      run: make CONF=micro-64
+
   build-macos:
     runs-on: macos-latest
     steps:
