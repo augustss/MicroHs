@@ -2804,8 +2804,10 @@ main(int argc, char **argv)
       } else {
         if (strcmp(p, "-v") == 0)
           verbose++;
+#if WANT_TICKS
         else if (strcmp(p, "-T") == 0)
           dump_ticks = 1;
+#endif
         else if (strncmp(p, "-H", 2) == 0)
           heap_size = memsize(&p[2]);
         else if (strncmp(p, "-K", 2) == 0)
