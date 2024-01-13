@@ -2114,7 +2114,9 @@ eval(NODEPTR an)
   flt_t xd, yd, rd;
 #endif  /* WANT_FLOAT */
   char *msg;
+#if FASTTAGS
   heapoffs_t l;
+#endif
 
 /* Reset stack pointer and return. */
 #define RET do { stack_ptr = stk; return; } while(0)
@@ -2772,7 +2774,9 @@ main(int argc, char **argv)
   char *inname = 0;
   char **av;
   int inrts;
+#if WANT_TICK
   int dump_ticks = 0;
+#endif
 #endif
 #if WANT_STDIO
   char *outname = 0;
@@ -2786,9 +2790,7 @@ main(int argc, char **argv)
 #endif
 
 #ifdef INITIALIZATION
-  main_setup(); // void main_setup(void); will perform extra initialization
-                // that is unique to a specific platform, e.g. initialization
-                // a HAL
+  main_setup(); /* Do platform specific start-up. */
 #endif
 
 #if WANT_ARGS
@@ -2887,9 +2889,15 @@ main(int argc, char **argv)
   execio(&TOP(0));
   prog = TOP(0);
   POP(1);
+#if SANITY
   if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
     ERR("main execio");
+#endif
+#if WANT_STDIO
   NODEPTR res = evali(ARG(prog));
+#else
+  (void)evali(ARG(prog));
+#endif
   run_time += GETTIMEMILLI();
 #if WANT_STDIO
   if (verbose) {
@@ -2923,7 +2931,7 @@ main(int argc, char **argv)
 #endif
 
 #ifdef TEARDOWN
-  main_teardown(); // do some platform specific teardown
+  main_teardown(); /* do some platform specific teardown */
 #endif
   EXIT(0);
 }

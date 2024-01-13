@@ -31,6 +31,11 @@
 #define WANT_TICK 0
 
 /*
+ * Process argc, argv
+ */
+#define WANT_ARGS 0
+
+/*
  * Number of bits in a word.  Only 32 and 64 are supported.
  */
 #define WORD_SIZE 64
@@ -41,7 +46,7 @@
  * It return the number of the least significant bit that is set.
  * Numberings starts from 1.  If no bit is set, it should return 0.
  */
-#define FFS ffsl
+/* #define FFS ffsl */
 
 /*
  * This is the character used for comma-separation in printf.
@@ -71,8 +76,7 @@
 /* #define ERR1(s,a) */
 
 #define GCRED    0              /* do some reductions during GC */
-#define FASTTAGS 1              /* compute tag by pointer subtraction */
-#define INTTABLE 1              /* use fixed table of small INT nodes */
+#define FASTTAGS 0              /* compute tag by pointer subtraction */
+#define INTTABLE 0              /* use fixed table of small INT nodes */
 #define SANITY   0              /* do some sanity checks */
 #define STACKOVL 0              /* check for stack overflow */
-
