@@ -1201,7 +1201,6 @@ parse(BFILE *f)
   NODEPTR *nodep;
   heapoffs_t l;
   value_t i;
-  flt_t d;
   int c;
   char buf[80];                 /* store names of primitives. */
 
@@ -1224,8 +1223,14 @@ parse(BFILE *f)
         ERR("parse: stack");
       return x;
     case '&':
-      d = parse_double(f);
-      r = mkFlt(d);
+#if WANT_FLOAT
+      r = mkFlt(parse_double(f));
+#else
+      while (getNT(f))          /* skip the float constant */
+        ;
+      r = alloc_node(T_DBL);
+      SETVALUE(r, 0);
+#endif
       PUSH(r);
       break;
     case '#':
