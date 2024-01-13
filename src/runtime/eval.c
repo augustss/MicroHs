@@ -20,14 +20,6 @@
 
 //#include "config.h"
 
-#if WANT_MD5                    /* XXX */
-void
-set_led(int led, int on)
-{
-  printf("set_led %d %d\n", led, on);
-}
-#endif
-
 #define VERSION "v7.0\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
@@ -496,9 +488,9 @@ NODEPTR combLT, combEQ, combGT;
  * are among the combinators.
  */
 struct {
-  char *name;
-  enum node_tag tag;
-  enum node_tag flipped;        /* What should (C op) reduce to? defaults to T_FREE */
+  const char *name;
+  const enum node_tag tag;
+  const enum node_tag flipped;        /* What should (C op) reduce to? defaults to T_FREE */
   NODEPTR node;
 } primops[] = {
   /* combinators */
@@ -612,7 +604,9 @@ struct {
   { "toDbl", T_TODBL },
 };
 
+#if GCRED
 enum node_tag flip_ops[T_LAST_TAG];
+#endif
 
 void
 init_nodes(void)
@@ -681,9 +675,11 @@ init_nodes(void)
     }
   }
 #endif
+#if GCRED
   for (unsigned int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
     flip_ops[primops[j].tag] = primops[j].flipped;
   }
+#endif
 
   /* The representation of the constructors of
    *  data Ordering = LT | EQ | GT
@@ -950,14 +946,15 @@ pokeByte(uint8_t *p, value_t w)
  *   PPP  void*   name(void*, void*)
  * more can easily be added.
  */
-struct {
+struct ffi_info {
   const char *ffi_name;
   const funptr_t ffi_fun;
-  enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_DDD, FFI_PI,
-         FFI_i, FFI_Pi, FFI_iPi, FFI_PIIPI, FFI_PIV, FFI_IIP,
-         FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP, FFI_PPV, FFI_PPzV,
+  const enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_DDD, FFI_PI,
+               FFI_i, FFI_Pi, FFI_iPi, FFI_PIIPI, FFI_PIV, FFI_IIP,
+               FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP, FFI_PPV, FFI_PPzV,
   } ffi_how;
-} ffi_table[] = {
+};
+const struct ffi_info ffi_table[] = {
 #if WORD_SIZE == 64
   { "llabs",    (funptr_t)llabs,   FFI_II },
 #else  /* WORD_SIZE */
@@ -1026,7 +1023,9 @@ struct {
   { "pokeByte", (funptr_t)pokeByte,FFI_PIV },
   { "memcpy",   (funptr_t)memcpy,  FFI_PPzV },
   { "memmove",  (funptr_t)memmove, FFI_PPzV },
-  { "set_led",  (funptr_t)set_led, FFI_IIV },
+#if defined(FFI_EXTRA)
+FFI_EXTRA
+#endif  /* defined(FFI_EXTRA) */
 };
 
 /* Look up an FFI function by name */
@@ -2740,6 +2739,7 @@ execio(NODEPTR *np)
   }
 }
 
+#if WANT_ARGS
 heapoffs_t
 memsize(const char *p)
 {
@@ -2754,6 +2754,7 @@ memsize(const char *p)
   }
   return n;
 }
+#endif
 
 extern uint8_t *combexpr;
 extern int combexprlen;
@@ -2761,15 +2762,17 @@ extern int combexprlen;
 int
 main(int argc, char **argv)
 {
+  NODEPTR prog;
+#if WANT_ARGS
   char *inname = 0;
   char **av;
-  NODEPTR prog;
   int inrts;
+  int dump_ticks = 0;
+#endif
 #if WANT_STDIO
   char *outname = 0;
   size_t file_size = 0;
 #endif
-  int dump_ticks = 0;
   
 #if 0
   /* MINGW doesn't do buffering right */

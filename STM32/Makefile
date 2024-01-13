@@ -6,7 +6,7 @@ TOOLS=../Tools
 blinky.c:	Blinky.hs $(BIN)/Addcombs $(BIN)/mhseval $(BIN)/mhs
 	MHSDIR=$(MHSDIR) $(BIN)/mhs -i$(LIB) Blinky -oBlinky.comb
 	$(BIN)/mhseval +RTS -rBlinky.comb -oBlinky-opt.comb
-	$(BIN)/Addcombs Blinky-opt.comb Blinky.c
+	$(BIN)/Addcombs Blinky-opt.comb blinky.c
 
 $(BIN)/Addcombs:	$(TOOLS)/Addcombs.hs $(BIN)/mhs
 	MHSDIR=$(MHSDIR) $(BIN)/mhs -i$(TOOLS) Addcombs -o$(BIN)/Addcombs

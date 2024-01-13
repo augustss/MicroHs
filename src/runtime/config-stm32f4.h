@@ -104,6 +104,15 @@ set_led(int led, int on)
   GPIOD->BSRR = 1 << (12 + led + (on ? 0 : 16));
 }
 
+#pragma push
+#pragma O0
+void
+busy_wait(volatile uint32_t cnt) {
+  while(cnt--)
+    _nop_();
+}
+#pragma pop
+
 /* Instead of exit()ing, flash the green LED on exit code 0 else the red */
 void
 myexit(int n)
@@ -115,11 +124,9 @@ myexit(int n)
   int led = n ? 2 : 0;
   for(;;) {
     set_led(led, 1);
-    for(int i = 0; i < 100000; i++)
-      ;
+    busy_wait(1000000);
     set_led(led, 0);
-    for(int i = 0; i < 100000; i++)
-      ;
+    busy_wait(1000000);
   }
 }
 #define EXIT myexit
@@ -134,3 +141,7 @@ ffs(uintptr_t x)
   return 32 - i;                /* 31 leading zeros should return 1 */
 }
 #define FFS ffs
+
+#define FFI_EXTRA \
+  { "set_led",   (funptr_t)set_led,   FFI_IIV }, \
+  { "busy_wait", (funptr_t)busy_wait, FFI_IV },
