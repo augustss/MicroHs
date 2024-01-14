@@ -36,8 +36,12 @@ typedef uintptr_t counter_t;    /* Statistics counter, can be smaller since over
 typedef uintptr_t bits_t;       /* One word of bits */
 #if WORD_SIZE == 64
 typedef double flt_t;
-#else
+#elif WORD_SIZE == 32
 typedef float flt_t;
+#elif WORD_SIZE == 16
+typedef uint16_t flt_t;         /* No floats, but we need something */
+#else
+#error Unknown WORD_SIZE
 #endif
 
 /* We cast all FFI functions to this type.  It's reasonably portable */
@@ -68,7 +72,7 @@ int GETRAW(void) { return -1; }
 #endif  /* !defined(getraw) */
 
 #if !defined(GETTIMEMILLI)
-uint64_t GETTIMEMILLI(void) { return 0; }
+value_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(GETTIMEMILLI) */
 
 #if !defined(TMPNAME)
@@ -242,8 +246,8 @@ node *cells;                 /* All cells */
  * UTF-8 encoded strings
  */
 struct ustring {
-  size_t        size;
-  unsigned char string[1];
+  size_t size;
+  u_char string[1];
 };
 
 /*
@@ -450,8 +454,8 @@ alloc_node(enum node_tag t)
 #if SANITY
     if (i >= free_map_nwords) {
 #if 0
-      fprintf(stderr, "wordsize=%d, num_free=%u next_scan_index=%u i=%u free_map_nwords=%u\n", (int)BITS_PER_WORD,
-              (unsigned int)num_free, (unsigned int)next_scan_index, (unsigned int)i, (unsigned int)free_map_nwords);
+      fprintf(stderr, "wordsize=%u, num_free=%u next_scan_index=%u i=%u free_map_nwords=%u\n", (uint)BITS_PER_WORD,
+              (uint)num_free, (uint)next_scan_index, (uint)i, (uint)free_map_nwords);
 #endif
       ERR("alloc_node: free_map");
     }
@@ -676,7 +680,7 @@ init_nodes(void)
   }
 #endif
 #if GCRED
-  for (unsigned int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
+  for (uint j = 0; j < sizeof primops / sizeof primops[0]; j++) {
     flip_ops[primops[j].tag] = primops[j].flipped;
   }
 #endif
@@ -957,8 +961,12 @@ struct ffi_info {
 const struct ffi_info ffi_table[] = {
 #if WORD_SIZE == 64
   { "llabs",    (funptr_t)llabs,   FFI_II },
-#else  /* WORD_SIZE */
+#elif WORD_SIZE == 32  /* WORD_SIZE */
   { "llabs",    (funptr_t)labs,    FFI_II },
+#elif WORD_SIZE == 32  /* WORD_SIZE */
+  { "llabs",    (funptr_t)abs,    FFI_II },
+#else
+#error Unknown WORD_SIZE
 #endif  /* WORD_SIZE */
 #if WANT_MATH
 #if WORD_SIZE == 64
@@ -972,7 +980,7 @@ const struct ffi_info ffi_table[] = {
   { "acos",     (funptr_t)acos,    FFI_DD },
   { "atan",     (funptr_t)atan,    FFI_DD },
   { "atan2",    (funptr_t)atan2,   FFI_DDD },
-#else  /* WORD_SIZE == 64 */
+#elif WORD_SIZE == 32  /* WORD_SIZE */
   { "log",      (funptr_t)logf,    FFI_DD },
   { "exp",      (funptr_t)expf,    FFI_DD },
   { "sqrt",     (funptr_t)sqrtf,   FFI_DD },
@@ -983,7 +991,9 @@ const struct ffi_info ffi_table[] = {
   { "acos",     (funptr_t)acosf,   FFI_DD },
   { "atan",     (funptr_t)atanf,   FFI_DD },
   { "atan2",    (funptr_t)atan2f,  FFI_DDD },  
-#endif  /* WORD_SIZE == 64 */
+#else
+#error Unknown WORD_SIZE
+#endif  /* WORD_SIZE */
 #endif  /* WANT_MATH */
   { "getenv",   (funptr_t)getenv,  FFI_PP },
 
@@ -1823,7 +1833,7 @@ NODEPTR
 mkString(const char *astr, size_t len)
 {
   NODEPTR n, nc;
-  const unsigned char *str = (unsigned char*)astr; /* no sign bits, please */
+  const u_char *str = (u_char*)astr; /* no sign bits, please */
 
   n = mkNil();
   for(size_t i = len; i > 0; i--) {
@@ -2239,8 +2249,10 @@ eval(NODEPTR an)
       msg = evalstring(ARG(TOP(0)), 0);
 #if WORD_SIZE == 64
       xd = strtod(msg, NULL);
-#else
+#elif WORD_SIZE == 32
       xd = strtof(msg, NULL);
+#else
+#error Unknown WORD_SIZE
 #endif
       FREE(msg);
       POP(1);
