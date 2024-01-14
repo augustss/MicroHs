@@ -90,9 +90,9 @@ char* TMPNAME(const char* pre, const char* post) {
 int
 FFS(bits_t x)
 {
+  int i;
   if (!x)
     return 0;
-  int i;
   for(i = 1; !(x & 1); x >>= 1, i++)
     ;
   return i;
@@ -321,13 +321,15 @@ struct ioarray*
 arr_alloc(size_t sz, NODEPTR e)
 {
   struct ioarray *arr = MALLOC(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
+  size_t i;
+
   if (!arr)
     memerr();
   arr->next = array_root;
   array_root = arr;
   arr->marked = 0;
   arr->size = sz;
-  for(size_t i = 0; i < sz; i++)
+  for(i = 0; i < sz; i++)
     arr->array[i] = e;
   //PRINT("arr_alloc(%d, %p) = %p\n", (int)sz, e, arr);
   num_arr_alloc++;
@@ -438,13 +440,16 @@ int verbose = 0;
 static INLINE NODEPTR
 alloc_node(enum node_tag t)
 {
+  heapoffs_t i = next_scan_index / BITS_PER_WORD;
+  int k;                        /* will contain bit pos + 1 */
+  heapoffs_t pos;
+  NODEPTR n;
+
 #if SANITY
   if (num_free <= 0)
     ERR("alloc_node");
 #endif
 
-  heapoffs_t i = next_scan_index / BITS_PER_WORD;
-  int k;                        /* will contain bit pos + 1 */
   for(;;) {
     heapoffs_t word = free_map[i];
     k = FFS(word);
@@ -461,8 +466,8 @@ alloc_node(enum node_tag t)
     }
 #endif
   }
-  heapoffs_t pos = i * BITS_PER_WORD + k - 1; /* first free node */
-  NODEPTR n = HEAPREF(pos);
+  pos = i * BITS_PER_WORD + k - 1; /* first free node */
+  n = HEAPREF(pos);
   mark_used(n);
   next_scan_index = pos;
 
@@ -615,6 +620,10 @@ enum node_tag flip_ops[T_LAST_TAG];
 void
 init_nodes(void)
 {
+  enum node_tag t;
+  size_t j;
+  NODEPTR n;
+
   ALLOC_HEAP(heap_size);
   free_map_nwords = (heap_size + BITS_PER_WORD - 1) / BITS_PER_WORD; /* bytes needed for free map */
   free_map = MALLOC(free_map_nwords * sizeof(bits_t));
@@ -650,7 +659,7 @@ init_nodes(void)
     }
   }
 #else
-  for(enum node_tag t = T_FREE; t < T_LAST_TAG; t++) {
+  for(t = T_FREE; t < T_LAST_TAG; t++) {
     NODEPTR n = HEAPREF(heap_start++);
     SETTAG(n, t);
     switch (t) {
@@ -672,7 +681,7 @@ init_nodes(void)
     default:
       break;
     }
-    for (int j = 0; j < sizeof primops / sizeof primops[0];j++) {
+    for (j = 0; j < sizeof primops / sizeof primops[0];j++) {
       if (primops[j].tag == t) {
         primops[j].node = n;
       }
@@ -680,7 +689,7 @@ init_nodes(void)
   }
 #endif
 #if GCRED
-  for (uint j = 0; j < sizeof primops / sizeof primops[0]; j++) {
+  for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
     flip_ops[primops[j].tag] = primops[j].flipped;
   }
 #endif
@@ -690,7 +699,7 @@ init_nodes(void)
    * do not have single constructors.
    * But we can make compound one, since they are irreducible.
    */
-#define NEWAP(c, f, a) do { NODEPTR n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
+#define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
   NEWAP(combLT, combZ,     combFalse);  /* Z B */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
@@ -726,8 +735,9 @@ mark(NODEPTR *np)
 {
   NODEPTR n;
 #if GCRED
-  value_t i;
+  value_t val;
 #endif
+  size_t i;
   enum node_tag tag;
 
   //  mark_depth++;
@@ -817,9 +827,9 @@ mark(NODEPTR *np)
   }
 #endif
 #if INTTABLE
-  if (tag == T_INT && LOW_INT <= (i = GETVALUE(n)) && i < HIGH_INT) {
+  if (tag == T_INT && LOW_INT <= (val = GETVALUE(n)) && val < HIGH_INT) {
     SETTAG(n, T_IND);
-    INDIR(n) = intTable[i - LOW_INT];
+    INDIR(n) = intTable[val - LOW_INT];
     red_int++;
     goto top;
   }
@@ -836,7 +846,7 @@ mark(NODEPTR *np)
      */
     if (!arr->marked) {
       arr->marked = 1;
-      for(size_t i = 0; i < arr->size; i++)
+      for(i = 0; i < arr->size; i++)
         mark(&arr->array[i]);
     }
   }
@@ -848,6 +858,9 @@ mark(NODEPTR *np)
 void
 gc(void)
 {
+  stackptr_t i;
+  struct ioarray **arrp, *arr;
+
   num_gc++;
   num_marked = 0;
 #if WANT_STDIO
@@ -857,7 +870,7 @@ gc(void)
   gc_mark_time -= GETTIMEMILLI();
   mark_all_free();
   //  mark_depth = 0;
-  for (stackptr_t i = 0; i <= stack_ptr; i++)
+  for (i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
   gc_mark_time += GETTIMEMILLI();
 
@@ -867,8 +880,8 @@ gc(void)
   if (num_free < heap_size / 50)
     ERR("heap exhausted");
 
-  for (struct ioarray **arrp = &array_root; *arrp; ) {
-    struct ioarray *arr = *arrp;
+  for (arrp = &array_root; *arrp; ) {
+    arr = *arrp;
     if (arr->marked) {
       arr->marked = 0;
       arrp = &arr->next;
@@ -963,7 +976,7 @@ const struct ffi_info ffi_table[] = {
   { "llabs",    (funptr_t)llabs,   FFI_II },
 #elif WORD_SIZE == 32  /* WORD_SIZE */
   { "llabs",    (funptr_t)labs,    FFI_II },
-#elif WORD_SIZE == 32  /* WORD_SIZE */
+#elif WORD_SIZE == 16  /* WORD_SIZE */
   { "llabs",    (funptr_t)abs,    FFI_II },
 #else
 #error Unknown WORD_SIZE
@@ -1042,7 +1055,9 @@ FFI_EXTRA
 value_t
 lookupFFIname(const char *name)
 {
-  for(int i = 0; i < sizeof(ffi_table) / sizeof(ffi_table[0]); i++)
+  size_t i;
+
+  for(i = 0; i < sizeof(ffi_table) / sizeof(ffi_table[0]); i++)
     if (strcmp(ffi_table[i].ffi_name, name) == 0)
       return (value_t)i;
   return -1;
@@ -1053,10 +1068,12 @@ ffiNode(const char *buf)
 {
   NODEPTR r;
   value_t i = lookupFFIname(buf);
+  char *fun;
+
   if (i < 0) {
     /* lookup failed, generate a node that will dynamically generate an error */
     r = alloc_node(T_BADDYN);
-    char *fun = MALLOC(strlen(buf) + 1);
+    fun = MALLOC(strlen(buf) + 1);
     strcpy(fun, buf);
     CSTR(r) = fun;
   } else {
@@ -1156,7 +1173,9 @@ heapoffs_t shared_table_size;
 NODEPTR *
 find_label(heapoffs_t label)
 {
-  for(int i = (int)label; ; i++) {
+  int i;
+
+  for(i = (int)label; ; i++) {
     i %= shared_table_size;
     if (shared_table[i].node == NIL) {
       /* The slot is empty, so claim and return it */

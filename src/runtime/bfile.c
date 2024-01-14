@@ -246,7 +246,7 @@ getb_lzw(BFILE *bp)
 {
   struct BFILE_lzw *p = (struct BFILE_lzw*)bp;
   char *s;
-  int c, n;
+  int c, n, l;
 
   /* Do we have an ungetb character? */
   if (p->unget >= 0) {
@@ -272,7 +272,7 @@ getb_lzw(BFILE *bp)
   if (!s) {
     char *os = p->table[p->old];
     strcpy(p->buf, os);
-    int l = strlen(os);
+    l = strlen(os);
     p->buf[l++] = p->ch;
     p->buf[l] = '\0';
   } else {
@@ -300,8 +300,9 @@ void
 closeb_lzw(BFILE *bp)
 {
   struct BFILE_lzw *p = (struct BFILE_lzw*)bp;
+  int i;
 
-  for (int i = 0; i < DICTSIZE; i++) {
+  for (i = 0; i < DICTSIZE; i++) {
     if (p->table[i])
       FREE(p->table[i]);
   }
@@ -350,6 +351,7 @@ struct BFILE_utf8 {
   int      unget;
 };
 
+/* This is not right with WORD_SIZE==16 */
 int
 getb_utf8(BFILE *bp)
 {
