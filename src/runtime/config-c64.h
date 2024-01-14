@@ -83,5 +83,3 @@
 
 #define INLINE
 #define NORETURN
-
-typedef unsigned char u_char;

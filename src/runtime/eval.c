@@ -247,7 +247,7 @@ node *cells;                 /* All cells */
  */
 struct ustring {
   size_t size;
-  u_char string[1];
+  unsigned char string[1];
 };
 
 /*
@@ -1852,7 +1852,7 @@ NODEPTR
 mkString(const char *astr, size_t len)
 {
   NODEPTR n, nc;
-  const u_char *str = (u_char*)astr; /* no sign bits, please */
+  const unsigned char *str = (u_char*)astr; /* no sign bits, please */
 
   n = mkNil();
   for(size_t i = len; i > 0; i--) {
