@@ -1230,7 +1230,7 @@ parse(BFILE *f)
   NODEPTR *nodep;
   heapoffs_t l;
   value_t i;
-  int c;
+  int c, j;
   char buf[80];                 /* store names of primitives. */
 
   for(;;) {
@@ -1269,10 +1269,13 @@ parse(BFILE *f)
       break;
     case '[':
       {
-        size_t sz = (size_t)parse_int(f);
+        size_t sz;
+        struct ioarray *arr;
+        size_t i;
+        sz = (size_t)parse_int(f);
         if (!gobble(f, ']')) ERR("parse arr 1");
-        struct ioarray *arr = arr_alloc(sz, NIL);
-        for (size_t i = 0; i < sz; i++) {
+        arr = arr_alloc(sz, NIL);
+        for (i = 0; i < sz; i++) {
           arr->array[i] = TOP(sz - i - 1);
         }
         r = alloc_node(T_ARR);
@@ -1327,7 +1330,7 @@ parse(BFILE *f)
 #endif
     case '^':
       /* An FFI name */
-      for (int j = 0; (buf[j] = getNT(f)); j++)
+      for (j = 0; (buf[j] = getNT(f)); j++)
         ;
       r = ffiNode(buf);
       PUSH(r);
@@ -1335,11 +1338,11 @@ parse(BFILE *f)
     default:
       buf[0] = c;
       /* A primitive, keep getting char's until end */
-      for (int j = 1; (buf[j] = getNT(f)); j++)
+      for (j = 1; (buf[j] = getNT(f)); j++)
         ;
       //if (!gobble(f, ' ')) ERR("parse(2) ' '");
       /* Look up the primop and use the preallocated node. */
-      for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
+      for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
         if (strcmp(primops[j].name, buf) == 0) {
           r = primops[j].node;
           goto found;
@@ -1370,8 +1373,10 @@ checkversion(BFILE *f)
 NODEPTR
 parse_top(BFILE *f)
 {
+  heapoffs_t numLabels , i;
+  NODEPTR n;
   checkversion(f);
-  heapoffs_t numLabels = parse_int(f);
+  numLabels = parse_int(f);
   if (!gobble(f, '\n'))
     ERR("size parse");
   gobble(f, '\r');                 /* allow extra CR */
@@ -1379,9 +1384,9 @@ parse_top(BFILE *f)
   shared_table = MALLOC(shared_table_size * sizeof(struct shared_entry));
   if (!shared_table)
     memerr();
-  for(heapoffs_t i = 0; i < shared_table_size; i++)
+  for(i = 0; i < shared_table_size; i++)
     shared_table[i].node = NIL;
-  NODEPTR n = parse(f);
+  n = parse(f);
   FREE(shared_table);
   return n;
 }
@@ -1852,10 +1857,11 @@ NODEPTR
 mkString(const char *astr, size_t len)
 {
   NODEPTR n, nc;
+  size_t i;
   const unsigned char *str = (unsigned char*)astr; /* no sign bits, please */
 
   n = mkNil();
-  for(size_t i = len; i > 0; i--) {
+  for(i = len; i > 0; i--) {
     nc = mkInt(str[i-1]);
     n = mkCons(nc, n);
   }
@@ -1872,15 +1878,15 @@ NODEPTR
 mkStringU(struct ustring *str)
 {
   BFILE *ubuf = add_utf8(openb_buf(str->string, str->size));
-  NODEPTR n, *np;
-  
+  NODEPTR n, *np, nc;
+
   n = mkNil();
   np = &n;
   for(;;) {
     int c = getb(ubuf);
     if (c < 0)
       break;
-    NODEPTR nc = mkInt(c);
+    nc = mkInt(c);
     *np = mkCons(nc, *np);
     np = &ARG(*np);
   }
@@ -2016,6 +2022,7 @@ compare(NODEPTR cmp)
   void *f, *g;
   NODEPTR p, q;
   NODEPTR *ap, *aq;
+  enum node_tag ptag, qtag;
 
   /* Since FUN(cmp) can be shared, allocate a copy for it. */
   GCCHECK(1);
@@ -2036,9 +2043,9 @@ compare(NODEPTR cmp)
       *ap = p;
       *aq = q;
     }
-    
-    enum node_tag ptag = GETTAG(p);
-    enum node_tag qtag = GETTAG(q);
+
+    ptag = GETTAG(p);
+    qtag = GETTAG(q);
     if (ptag != qtag) {
       /* Hack to make Nil < Cons */
       if (ptag == T_K && qtag == T_AP)
@@ -2190,12 +2197,17 @@ eval(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
   for(;;) {
+    enum node_tag tag;
+    struct ioarray *arr;
+    int sz;
+    char *res;
+
     num_reductions++;
 #if FASTTAGS
     l = LABEL(n);
-    enum node_tag tag = l < T_IO_BIND ? l : GETTAG(n);
+    tag = l < T_IO_BIND ? l : GETTAG(n);
 #else   /* FASTTAGS */
-    enum node_tag tag = GETTAG(n);
+    tag = GETTAG(n);
 #endif  /* FASTTAGS */
     switch (tag) {
     ind:
@@ -2313,7 +2325,7 @@ eval(NODEPTR an)
       {
         CHECK(2);
         x = evali(ARG(TOP(0)));
-        struct ioarray *arr = ARR(x);
+        arr = ARR(x);
         y = evali(ARG(TOP(1)));
         POP(2);
         n = TOP(-1);
@@ -2336,8 +2348,8 @@ eval(NODEPTR an)
       msg = evalstring(ARG(TOP(0)), 0);
       xi = evalint(ARG(TOP(1)));
       yi = evalint(ARG(TOP(2)));
-      int sz = strlen(msg) + 100;
-      char *res = MALLOC(sz);
+      sz = strlen(msg) + 100;
+      res = MALLOC(sz);
 #if WANT_STDIO
       snprintf(res, sz, "no match at %s, line %"PRIvalue", col %"PRIvalue, msg, xi, yi);
 #else  /* WANT_STDIO */
@@ -2355,8 +2367,8 @@ eval(NODEPTR an)
       {
       CHECK(1);
       msg = evalstring(ARG(TOP(0)), 0);
-      int sz = strlen(msg) + 100;
-      char *res = MALLOC(sz);
+      sz = strlen(msg) + 100;
+      res = MALLOC(sz);
 
 #if WANT_STDIO
       snprintf(res, sz, "no default for %s", msg);
@@ -2489,10 +2501,12 @@ execio(NODEPTR *np)
   NODEPTR f, x, n, q, r, s, res, top1;
   char *name;
   value_t len;
+  struct handler *h;
 #if WANT_STDIO
   void *ptr;
   int hdr;
 #endif  /* WANT_STDIO */
+  NODEPTR top;
 
 /* IO operations need all arguments, anything else should not happen. */
 #define CHECKIO(n) do { if (stack_ptr - stk != (n+1)) {ERR("CHECKIO");}; } while(0)
@@ -2502,7 +2516,7 @@ execio(NODEPTR *np)
 #define IOASSERT(p,s) do { if (!(p)) ERR("IOASSERT " s); } while(0)
 
   GCCHECK(2);
-  NODEPTR top = new_ap(new_ap(combIOBIND, *np), combIORETURN);
+  top = new_ap(new_ap(combIOBIND, *np), combIORETURN);
   *np = top;
 
  start:
@@ -2672,7 +2686,7 @@ execio(NODEPTR *np)
 
     case T_IO_CATCH:
       {
-        struct handler *h = MALLOC(sizeof *h);
+        h = MALLOC(sizeof *h);
         if (!h)
           memerr();
         CHECKIO(2);
@@ -2712,17 +2726,19 @@ execio(NODEPTR *np)
 
     case T_PEEKCASTRING:
       {
+      size_t size;
       CHECKIO(1);
       name = evalptr(ARG(TOP(1)));
-      size_t size = strlen(name);
+      size = strlen(name);
       GCCHECK(strNodes(size));
       RETIO(mkString(name, size));
       }
 
     case T_PEEKCASTRINGLEN:
       {
+      size_t size;
       CHECKIO(2);
-      size_t size = evalint(ARG(TOP(2)));
+      size = evalint(ARG(TOP(2)));
       name = evalptr(ARG(TOP(1)));
       GCCHECK(strNodes(size));
       RETIO(mkString(name, size));
@@ -2730,10 +2746,13 @@ execio(NODEPTR *np)
 
     case T_ARR_ALLOC:
       {
+      size_t size;
+      NODEPTR elem;
+      struct ioarray *arr;
       CHECKIO(2);
-      size_t size = evalint(ARG(TOP(1)));
-      NODEPTR elem = ARG(TOP(2));
-      struct ioarray *arr = arr_alloc(size, elem);
+      size = evalint(ARG(TOP(1)));
+      elem = ARG(TOP(2));
+      arr = arr_alloc(size, elem);
       n = alloc_node(T_ARR);
       ARR(n) = arr;
       RETIO(n);
@@ -2746,8 +2765,9 @@ execio(NODEPTR *np)
       RETIO(mkInt(ARR(n)->size));
     case T_ARR_READ:
       {
+      size_t i;
       CHECKIO(2);
-      size_t i = evalint(ARG(TOP(2)));
+      i = evalint(ARG(TOP(2)));
       n = evali(ARG(TOP(1)));
       if (GETTAG(n) != T_ARR)
         ERR("bad ARR tag");
@@ -2757,8 +2777,9 @@ execio(NODEPTR *np)
       }
     case T_ARR_WRITE:
       {
+      size_t i;
       CHECKIO(3);
-      size_t i = evalint(ARG(TOP(2)));
+      i = evalint(ARG(TOP(2)));
       n = evali(ARG(TOP(1)));
       if (GETTAG(n) != T_ARR)
         ERR("bad ARR tag");
