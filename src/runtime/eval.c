@@ -1852,7 +1852,7 @@ NODEPTR
 mkString(const char *astr, size_t len)
 {
   NODEPTR n, nc;
-  const unsigned char *str = (u_char*)astr; /* no sign bits, please */
+  const unsigned char *str = (unsigned char*)astr; /* no sign bits, please */
 
   n = mkNil();
   for(size_t i = len; i > 0; i--) {
