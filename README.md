@@ -58,6 +58,7 @@ Differences:
    * NegativeLiterals
    * NoFieldSelectors
    * NoMonomorphismRestriction
+   * NoStarIsType
    * OverlappingInstances
    * OverloadedRecordDot
    * OverloadedRecordUpdate
@@ -66,7 +67,7 @@ Differences:
    * RecordWildCards
    * QualifiedDo
    * ScopedTypeVariables
-   * StarIsType
+   * StandaloneKindSignatures
    * TupleSections
    * TypeLits
    * TypeSynonymInstances
