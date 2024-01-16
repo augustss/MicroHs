@@ -32,10 +32,10 @@ The language is an extended subset of Haskell-98.
 
 Differences:
  * Top level definitions must have a type signature.
- * Type variables need an explicit `forall`.
+ * Type/kind variables need an explicit `forall`.
  * There is no `Read` class.
  * There is only deriving for `Eq`, `Ord`, `Show`, and `Typeable`.
- * Indentation is handled a little differently.
+ * Indentation is handled a little differently; one-line `let`, `case`, and `do` must use explicit braces.
  * The `Prelude` has to be imported explicitly.
  * Polymorphic types/kinds are never inferred; use a type/kind signature if you need it.
  * A module must have an export list.
@@ -68,7 +68,7 @@ Differences:
    * QualifiedDo
    * ScopedTypeVariables
    * StandaloneKindSignatures
-   * TupleSections
+   * TupleSections (only pairs right now)
    * TypeLits
    * TypeSynonymInstances
    * UndecidableInstances
@@ -243,7 +243,7 @@ Record updates can also update nested fields, e.g., `r{ a.b.c = e }`.  Note that
 fully implement `OverloadedRecordUpdate`.  When GHC decides how to do it, MicroHs will follow suit.
 
 Haskell2010 code using records cannot be compiled directly with MicroHs, since the field names are not automatically selector functions.
-Given a field `foo` in a record you can use `foo` as a functions, in MicroHs you have to say `(.foo)` to get the selector function.
+Given a field `foo` in a record in Haskell2010 you can use `foo` as a function, whereas in MicroHs you have to say `(.foo)` to get the selector function.
 
 Note that record updates cannot change the type of polymorphic fields.
 
