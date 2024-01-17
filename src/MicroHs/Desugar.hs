@@ -135,7 +135,10 @@ dsBinds ads ret =
     loop vs (AcyclicSCC (i, e) : sccs) =
       letE i e $ loop vs sccs
     loop vs (CyclicSCC [(i, e)] : sccs) =
-      letRecE i e $ loop vs sccs
+      case lazier (i, e) of
+        (i', e')
+          | i' `elem` freeVars e' -> letRecE i' e' $ loop vs sccs
+          | otherwise -> letE i' e' $ loop vs sccs
     loop vvs (CyclicSCC ies : sccs) =
       let (v:vs) = vvs
       in mutualRec v ies (loop vs sccs)
@@ -393,7 +396,7 @@ dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
     isPView _ _ = False
     unAt ii (EAt x p : ps, rhs) = unAt i (p:ps, substAlpha x ii . rhs)
     unAt _ arm = arm
-  
+
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
   --trace ("mkCase " ++ show pes) $
@@ -509,22 +512,51 @@ checkDup ds =
 -- we turn this into
 --  f x = letrec f' y = ... f' ... in f'
 -- thus avoiding the extra argument passing.
--- XXX should generalize for an arbitrary length prefix of variables.
 -- This gives a small speedup with overloading.
 lazier :: LDef -> LDef
-lazier def@(fcn, Lam x (Lam y body)) =
+lazier def@(fcn, l@(Lam _ (Lam _ _))) =
   let fcn' = addIdentSuffix fcn "@"
       vfcn' = Var fcn'
-      repl :: Exp -> State Bool Exp
-      repl (Lam i e) = Lam i <$> repl e
-      repl (App (Var af) (Var ax)) | af == fcn && ax == x = do
-        put True
-        return vfcn'
-      repl (App f a) = App <$> repl f <*> repl a
-      repl e@(Var _) = return e
-      repl e@(Lit _) = return e
-  in  case runState (repl body) False of
-        (_, False) -> def
-        (e', True) -> (fcn, Lam x $ letRecE fcn' (Lam y e') vfcn')
-
+      args :: Exp -> (Exp, [Ident])
+      args (Lam x b) = -- (x:) <$> args b
+        let (e, xs) = args b
+        in  (e, x:xs)
+      args e = (e, [])
+      (body, as) = args l
+      -- Find min # of args that are unchanged in a recursive call.
+      -- Here 0 == no recursive calls seen (or only 0-matched calls seen).
+      -- We ignore recursive calls with 0 matched args.
+      minn :: Int -> Int -> Int
+      minn 0 b = b
+      minn a 0 = a
+      minn a b = min a b
+      minMatch :: [Ident] -> Exp -> Int
+      minMatch _ (Lam _ e) = minMatch [] e
+      minMatch vs (App f (Var v)) = minMatch (v:vs) f
+      minMatch _ (App f a) = minMatch [] f `minn` minMatch [] a
+      minMatch [] (Var _) = 0
+      minMatch vs (Var v) | v == fcn = length (takeWhile id (zipWith (==) vs as))
+      minMatch _ _ = 0
+      arity = minMatch [] body
+      (drops, keeps) = splitAt arity as
+      -- reverse n-ary apply
+      app :: [Ident] -> Exp -> Exp
+      app [] e = e
+      app (v:vs) e = app vs $ App e (Var v)
+      -- Replace n recursive args with call to vfcn'
+      repl :: [Ident] -> Exp -> Exp
+      repl vs (Lam i e) = app vs $ Lam i $ repl [] e
+      repl vs (App f (Var v)) = repl (v:vs) f
+      repl vs (App f a) = app vs $ App (repl [] f) (repl [] a)
+      repl [] (Var v) = Var v
+      repl vs (Var v)
+        | v == fcn && take arity vs == drops = app (drop arity vs) $ vfcn'
+      repl vs e = app vs e
+      -- n-ary lambda
+      lam :: [Ident] -> Exp -> Exp
+      lam [] e = e
+      lam (v:vs) e = Lam v $ lam vs e
+  in  if arity > 0
+      then (fcn, lam drops $ letRecE fcn' (lam keeps (repl [] body)) vfcn')
+      else def
 lazier def = def
