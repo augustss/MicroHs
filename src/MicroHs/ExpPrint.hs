@@ -30,7 +30,7 @@ toStringCMdl (mainName, ds) =
     def :: ((Ident, Exp), Int) -> (String -> String) -> (String -> String)
     def ((_, e), i) r =
       --(("((A :" ++ show i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
-      ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @ ") ++) . r . (" @" ++)
+      ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @\n") ++) . r . (" @" ++)
     res = foldr def (toStringP emain) (zip ds (enumFrom 0)) " }"
   in combVersion ++ show (M.size defs) ++ "\n" ++ res
 

@@ -1003,7 +1003,7 @@ const struct ffi_info ffi_table[] = {
   { "asin",     (funptr_t)asinf,   FFI_DD },
   { "acos",     (funptr_t)acosf,   FFI_DD },
   { "atan",     (funptr_t)atanf,   FFI_DD },
-  { "atan2",    (funptr_t)atan2f,  FFI_DDD },  
+  { "atan2",    (funptr_t)atan2f,  FFI_DDD },
 #else
 #error Unknown WORD_SIZE
 #endif  /* WORD_SIZE */
@@ -1101,7 +1101,7 @@ int
 getNT(BFILE *f)
 {
   int c;
-  
+
   c = getb(f);
   if (c == ' ' || c == ')') {
     ungetb(c, f);
@@ -1237,7 +1237,7 @@ parse(BFILE *f)
     c = getb(f);
     if (c < 0) ERR("parse EOF");
     switch (c) {
-    case ' ':
+    case ' ': case '\n':
       break;
     case '@':
       x = TOP(0);
@@ -1986,7 +1986,7 @@ evalstring(NODEPTR n, value_t *lenp)
       c = evalint(ARG(x));
       n = POPTOP();
       if (c < 0 || c > 127)
-	ERR("invalid char");    /* Only allow ASCII */
+        ERR("invalid char");    /* Only allow ASCII */
       name[offs++] = (char)c;
       n = ARG(n);
     } else {
@@ -2469,7 +2469,7 @@ eval(NODEPTR an)
 }
 
 /* This is the interpreter for the IO monad operations.
- * 
+ *
  * Assuming every graph rewrite is atomic we want the graph
  * to always represent the rest of the program to run.
  * To this end, we need to mutate the graph every time
@@ -2834,7 +2834,7 @@ main(int argc, char **argv)
   char *outname = 0;
   size_t file_size = 0;
 #endif
-  
+
 #if 0
   /* MINGW doesn't do buffering right */
   setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
