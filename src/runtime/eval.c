@@ -1300,16 +1300,15 @@ parse(BFILE *f)
       l = parse_int(f);  /* The label */
       if (!gobble(f, ' ')) ERR("parse ' '");
       nodep = find_label(l);
+      x = TOP(0);
       if (*nodep == NIL) {
-        /* not referenced yet, so create a node */
-        *nodep = alloc_node(T_IND);
-        INDIR(*nodep) = NIL;
+        /* not referenced yet, so add a direct reference */
+        *nodep = x;
       } else {
         /* Sanity check */
         if (INDIR(*nodep) != NIL) ERR("shared != NIL");
+        INDIR(*nodep) = x;
       }
-      x = TOP(0);
-      INDIR(*nodep) = x;
       break;
     case '"' :
       /* Everything up to the next " is a string.
