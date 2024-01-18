@@ -1096,15 +1096,14 @@ gobble(BFILE *f, int c)
   }
 }
 
-/* Get a non-terminating character.  ' ' and ')' terminate a token. */
+/* Get a non-terminating character.  ' ' and '\n' terminates a token. */
 int
 getNT(BFILE *f)
 {
   int c;
   
   c = getb(f);
-  if (c == ' ' || c == ')') {
-    ungetb(c, f);
+  if (c == ' ' || c == '\n') {
     return 0;
   } else {
     return c;
@@ -1238,6 +1237,7 @@ parse(BFILE *f)
     if (c < 0) ERR("parse EOF");
     switch (c) {
     case ' ':
+    case '\n':
       break;
     case '@':
       x = TOP(0);
