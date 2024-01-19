@@ -1,5 +1,6 @@
 module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion) where
 import Prelude
+import Control.Monad.State.Strict
 import Data.Char(ord, chr)
 import qualified MicroHs.IdentMap as M
 import Data.Maybe
@@ -17,8 +18,25 @@ combVersion = "v7.0\n"
 toStringCMdl :: (Ident, [LDef]) -> String
 toStringCMdl (mainName, ds) =
   let
+    dMap = M.fromList ds
+    -- Shake the tree bottom-up, serializing nodes as we see them.
+    -- This is much faster than (say) computing the sccs and walking that.
+    dfs :: Ident -> State (Int, M.Map Exp, String -> String) ()
+    dfs n = do
+      (i, seen, r) <- get
+      case M.lookup n seen of
+        Just _ -> return ()
+        Nothing -> do
+          -- Put placeholder for n in seen.
+          put (i, M.insert n (Var n) seen, r)
+          -- Walk n's children
+          let e = fromMaybe (Var n) $ M.lookup n dMap
+          mapM_ dfs $ freeVars e
+          -- Now that n's children are done, compute its actual entry.
+          (i', seen', r') <- get
+          put (i'+1, M.insert n (ref i') seen', def r' (i', e))
+    (_,(ndefs, defs, res)) = runState (dfs mainName) (0, M.empty, toStringP emain)
     ref i = Var $ mkIdent $ "_" ++ show i
-    defs = M.fromList [ (n, ref i) | ((n, _), i) <- zip ds (enumFrom (0::Int)) ]
     findIdent n = fromMaybe (error $ "main: findIdent: " ++ showIdent n) $
                   M.lookup n defs
     emain = findIdent mainName
@@ -27,12 +45,11 @@ toStringCMdl (mainName, ds) =
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-    def :: ((Ident, Exp), Int) -> (String -> String) -> (String -> String)
-    def ((_, e), i) r =
+    def :: (String -> String) -> (Int, Exp) -> (String -> String)
+    def r (i, e) =
       --(("((A :" ++ show i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
       ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @\n") ++) . r . (" @" ++)
-    res = foldr def (toStringP emain) (zip ds (enumFrom 0)) " }"
-  in combVersion ++ show (M.size defs) ++ "\n" ++ res
+  in combVersion ++ show ndefs ++ "\n" ++ res " }"
 
 -- Avoid quadratic concatenation by using difference lists,
 -- turning concatenation into function composition.
