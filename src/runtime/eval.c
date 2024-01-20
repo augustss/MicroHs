@@ -63,6 +63,10 @@ typedef void (*funptr_t)(void);
 #define PRINT printf
 #endif
 
+#if !defined(MAIN)
+#define MAIN int main(int argc, char **argv)
+#endif
+
 #if !defined(PCOMMA)
 #define PCOMMA "'"
 #endif  /* !defined(PCOMMA) */
@@ -2817,8 +2821,7 @@ memsize(const char *p)
 extern uint8_t *combexpr;
 extern int combexprlen;
 
-int
-main(int argc, char **argv)
+MAIN
 {
   NODEPTR prog;
 #if WANT_ARGS
