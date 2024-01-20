@@ -17,11 +17,15 @@ This happens by GHC looking in the `ghc/` subdirectory first for any extras/over
 
 Compiling MicroHs is really best done using `make`, but there is also a `MicroHs.cabal` file
 for use with `cabal`.  This only builds what corresponds to the first target.
+Doing `cabal install` will install the compiler.
+Note that `mhs` built with ghc does not have all the functionality.
 
 Also note that there is no need to have a Haskell compiler to run MicroHs.
 All you need is a C compiler, and MicroHs can bootstrap, given the included combinator file.
 
-To install `mhs` use `make install`.  You also need to set the environment variable `MHSDIR`.
+To install `mhs` use `make install`.  By default this copies the files to `/usr/local`,
+but this can be overridden by `make PREFIX=dir install`.
+You also need to set the environment variable `MHSDIR`.
 
 To compile on Windows make sure `cl` is in the path, and then use `nmake` with `Makefile.windows`.
 
