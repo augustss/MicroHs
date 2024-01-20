@@ -19,7 +19,7 @@ import System.Directory
 import System.IO
 import System.Process
 import Compat
-import MicroHs.Instances() -- for GHC
+import MicroHs.Instances(getMhsDir) -- for GHC
 
 mhsVersion :: String
 mhsVersion = "0.9.3.0"
@@ -27,7 +27,7 @@ mhsVersion = "0.9.3.0"
 main :: IO ()
 main = do
   aargs <- getArgs
-  mdir <- lookupEnv "MHSDIR"
+  mdir <- getMhsDir
   let dir = fromMaybe "." mdir
   let
     args = takeWhile (/= "--") aargs

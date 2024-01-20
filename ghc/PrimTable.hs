@@ -156,11 +156,11 @@ primOps =
     ioret = return
     -- Can't implement this
     ioprint :: Handle -> a -> IO ()
-    ioprint h _ = hPutStrLn h "no IO.print"
+    ioprint h _ = hPutStrLn h "ghc does not support cprint"
     ioserialize :: Handle -> a -> IO ()
-    ioserialize h _ = hPutStrLn h "no IO.serialize"
+    ioserialize h _ = hPutStrLn h "ghc does not support serialize"
     iodeserialize :: Handle -> IO a
-    iodeserialize _ = error "iodeserialize"
+    iodeserialize _ = error "ghc does not support deserialize"
 
     iogetargs :: IO Any
     iogetargs = do
@@ -201,7 +201,7 @@ dynsym acfun =
   let s = toString acfun
   in
 --      trace ("dynsym: " ++ show s) $
-      fromMaybe (error $ "cops: " ++ s) $ lookup s cops
+      fromMaybe (error $ "ghc: unimplemented FFI: " ++ s) $ lookup s cops
 
 cops :: [(String, Any)]
 cops =

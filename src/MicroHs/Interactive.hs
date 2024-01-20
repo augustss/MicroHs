@@ -12,6 +12,7 @@ import MicroHs.Translate
 import Unsafe.Coerce
 import System.Console.SimpleReadline
 import Compat
+import MicroHs.Instances(compiledWithGHC)
 
 type IState = (String, Flags, Cache)
 
@@ -35,6 +36,8 @@ start :: I ()
 start = do
   reload
   liftIO $ putStrLn "Type ':quit' to quit, ':help' for help"
+  when compiledWithGHC $
+    liftIO $ putStrLn "WARNING: Compiled with GHC, so limited functionality."
   repl
 
 repl :: I ()

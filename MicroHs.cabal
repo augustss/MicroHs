@@ -30,6 +30,9 @@ extra-source-files:
       tests/*.hs
       tests/*.ref
 
+data-files:
+      lib/**/*.hs
+
 source-repository head
     type:     git
     location: https://github.com/augustss/MicroHs
@@ -70,6 +73,7 @@ executable mhs
                        Compat
                        PrimTable
                        System.IO.MD5
+                       Paths_MicroHs
   build-depends:       base         >= 4.10 && < 4.20,
                        containers   >= 0.5 && < 0.8,
                        deepseq      >= 1.1 && < 1.6,
