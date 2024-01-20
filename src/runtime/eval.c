@@ -2177,6 +2177,10 @@ eval(NODEPTR an)
 #define CHKARG2 do { CHECK(2); POP(2); n = TOP(-1); y = ARG(n); x = ARG(TOP(-2)); } while(0)
 #define CHKARG3 do { CHECK(3); POP(3); n = TOP(-1); z = ARG(n); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
+#define GCCHKARG1(i) do { CHECK(1); GCCHECK(i); POP(1); n = TOP(-1); x = ARG(n); } while(0)
+#define GCCHKARG2(i) do { CHECK(2); GCCHECK(i); POP(2); n = TOP(-1); y = ARG(n); x = ARG(TOP(-2)); } while(0)
+#define GCCHKARG3(i) do { CHECK(3); GCCHECK(i); POP(3); n = TOP(-1); z = ARG(n); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
+#define GCCHKARG4(i) do { CHECK(4); GCCHECK(i); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
 
 /* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e)   do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
@@ -2228,25 +2232,25 @@ eval(NODEPTR an)
     case T_ARR:  RET;
     case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
 
-    case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
-    case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
-    case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
-    case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
-    case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
-    case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
-    case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
-    case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
-    case T_BB:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
-    case T_Z:                CHKARG3; GOAP(x, y);                                           /* Z x y z = x y */
-    case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
-    case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
-    case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
-    case T_R:    GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
-    case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
-    case T_K2:               CHKARG3; GOIND(x);                                             /* K2 x y z = *x */
-    case T_K3:               CHKARG4; GOIND(x);                                             /* K3 x y z w = *x */
-    case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
-    case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
+    case T_S:    GCCHKARG3(2); GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
+    case T_SS:   GCCHKARG4(3); GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
+    case T_K:         CHKARG2; GOIND(x);                                             /* K x y = *x */
+    case T_A:         CHKARG2; GOIND(y);                                             /* A x y = *y */
+    case T_U:         CHKARG2; GOAP(y, x);                                           /* U x y = y x */
+    case T_I:         CHKARG1; GOIND(x);                                             /* I x = *x */
+    case T_Y:         CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
+    case T_B:    GCCHKARG3(1); GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
+    case T_BB:   GCCHKARG4(2); GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
+    case T_Z:         CHKARG3; GOAP(x, y);                                           /* Z x y z = x y */
+    case T_C:    GCCHKARG3(1); GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
+    case T_CC:   GCCHKARG4(2); GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
+    case T_P:    GCCHKARG3(1); GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
+    case T_R:    GCCHKARG3(1); GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
+    case T_O:    GCCHKARG4(1); GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
+    case T_K2:        CHKARG3; GOIND(x);                                             /* K2 x y z = *x */
+    case T_K3:        CHKARG4; GOIND(x);                                             /* K3 x y z w = *x */
+    case T_K4:        CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
+    case T_CCB:  GCCHKARG4(2); GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
 
     case T_ADD:  ARITHBIN(+);
     case T_SUB:  ARITHBIN(-);
