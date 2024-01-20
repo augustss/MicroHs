@@ -541,8 +541,7 @@ lazier def@(fcn, l@(Lam _ (Lam _ _))) =
       (drops, keeps) = splitAt arity as
       -- reverse n-ary apply
       app :: [Ident] -> Exp -> Exp
-      app [] e = e
-      app (v:vs) e = app vs $ App e (Var v)
+      app vs e = apps e (map Var vs)
       -- Replace n recursive args with call to vfcn'
       repl :: [Ident] -> Exp -> Exp
       repl vs (Lam i e) = app vs $ Lam i $ repl [] e
@@ -552,11 +551,7 @@ lazier def@(fcn, l@(Lam _ (Lam _ _))) =
       repl vs (Var v)
         | v == fcn && take arity vs == drops = app (drop arity vs) $ vfcn'
       repl vs e = app vs e
-      -- n-ary lambda
-      lam :: [Ident] -> Exp -> Exp
-      lam [] e = e
-      lam (v:vs) e = Lam v $ lam vs e
   in  if arity > 0
-      then (fcn, lam drops $ letRecE fcn' (lam keeps (repl [] body)) vfcn')
+      then (fcn, lams drops $ letRecE fcn' (lams keeps (repl [] body)) vfcn')
       else def
 lazier def = def
