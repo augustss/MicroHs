@@ -1897,20 +1897,7 @@ mkStringU(struct ustring *str)
   return n;
 }
 
-void eval(NODEPTR n);
-
-/* Evaluate and skip indirections. */
-static INLINE NODEPTR
-evali(NODEPTR n)
-{
-  /* Need to push and pop in case GC happens */
-  PUSH(n);
-  eval(n);
-  n = POPTOP();
-  while (GETTAG(n) == T_IND)
-    n = INDIR(n);
-  return n;
-}
+NODEPTR evali(NODEPTR n);
 
 /* Follow indirections */
 static INLINE NODEPTR
@@ -2141,8 +2128,8 @@ rnf(value_t noerr, NODEPTR n)
 void execio(NODEPTR *);
 
 /* Evaluate a node, returns when the node is in WHNF. */
-void
-eval(NODEPTR an)
+NODEPTR
+evali(NODEPTR an)
 {
   NODEPTR n = an;
   stackptr_t stk = stack_ptr;
@@ -2158,7 +2145,7 @@ eval(NODEPTR an)
 #endif
 
 /* Reset stack pointer and return. */
-#define RET do { stack_ptr = stk; return; } while(0)
+#define RET do { goto ret; } while(0)
 /* Check that there are at least n arguments, return if not. */
 #define CHECK(n) do { if (stack_ptr - stk < (n)) RET; } while(0)
 
@@ -2402,7 +2389,7 @@ eval(NODEPTR an)
         ERR1("error: %s", msg);
 #endif  /* WANT_STDIO */
       }
-    case T_SEQ:  CHECK(2); eval(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
+    case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
     case T_EQUAL:
       CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
@@ -2469,6 +2456,14 @@ eval(NODEPTR an)
       ERR1("eval tag %d", GETTAG(n));
     }
   }
+ ret:
+  if (stack_ptr != stk) {
+    // In this case, n was an AP that got pushed and potentially
+    // updated.
+    stack_ptr = stk;
+    n = TOP(-1);
+  }
+  return n;
 }
 
 /* This is the interpreter for the IO monad operations.
