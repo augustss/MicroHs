@@ -15,8 +15,10 @@ maxD :: Digit
 maxD =
   if _wordSize `primIntEQ` 64 then
     (2147483648::Int)  -- 2^31, this is used so multiplication of two digits doesn't overflow a 64 bit Int
-  else
+  else if _wordSize `primIntEQ` 32 then
     (32768::Int)       -- 2^15, this is used so multiplication of two digits doesn't overflow a 32 bit Int
+  else
+    primError "Integer: unsupported word size"
 
 -- Sadly, we also need a bunch of functions.
 
