@@ -472,8 +472,7 @@ flushb_utf8(BFILE *bp)
   struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
   CHECKBFILE(bp, getb_utf8);
 
-  p->bfile->flushb(p->bfile);
-  FREE(p);
+  flushb(p->bfile);
 }
 
 void
