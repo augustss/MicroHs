@@ -1,10 +1,27 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module System.IO(
-  module System.IO, Handle, IO,
-  module Data.Functor,
-  module Control.Applicative,
-  module Control.Monad,
+  IO, Handle, FilePath,
+  IOMode(..),
+  stdin, stdout, stderr,
+  hGetChar, hPutChar,
+  putChar, getChar,
+  hClose, hFlush,
+  openFile, openFileM, openBinaryFile,
+  hPutStr, hPutStrLn,
+  putStr, putStrLn,
+  print,
+  hGetContents,
+  writeFile, readFile,
+
+  hSerialize, hDeserialize, cprint,
+  writeSerialized, readSerialized,
+
+  unsafeInterleaveIO,
+  getTimeMilli,
+  openTmpFile,
+
+  PrintOrRun(..),
   ) where
 import Primitives
 import Control.Applicative
