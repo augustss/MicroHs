@@ -115,6 +115,10 @@ FFS(bits_t x)
 #define NORETURN __attribute__ ((noreturn))
 #endif /* !defined(NORETURN) */
 
+#if !defined(COUNT)
+#define COUNT(n) ++(n)
+#endif
+
 value_t
 iswindows(void)
 {
@@ -270,7 +274,7 @@ struct ioarray {
 struct ioarray *array_root = 0;
 
 counter_t num_reductions = 0;
-counter_t num_alloc;
+counter_t num_alloc = 0;
 counter_t num_gc = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t run_time = 0;
@@ -476,7 +480,7 @@ alloc_node(enum node_tag t)
   next_scan_index = pos;
 
   SETTAG(n, t);
-  num_alloc++;
+  COUNT(num_alloc);
   num_free--;
   return n;
 }
@@ -2192,7 +2196,7 @@ evali(NODEPTR an)
     int sz;
     char *res;
 
-    num_reductions++;
+    COUNT(num_reductions);
 #if FASTTAGS
     l = LABEL(n);
     tag = l < T_IO_BIND ? l : GETTAG(n);
@@ -2201,11 +2205,9 @@ evali(NODEPTR an)
 #endif  /* FASTTAGS */
     switch (tag) {
     ind:
-      num_reductions++;
     case T_IND:  n = INDIR(n); break;
 
     ap:
-      num_reductions++;
     case T_AP:   PUSH(n); n = FUN(n); break;
 
     case T_STR:  RET;
@@ -2567,7 +2569,7 @@ execio(NODEPTR *np)
  execute:
   PUSH(n);
   for(;;) {
-    num_reductions++;
+    COUNT(num_reductions);
     //printf("execute switch %s\n", tag_names[GETTAG(n)]);
     switch (GETTAG(n)) {
     case T_IND:
