@@ -9,7 +9,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
 
-foreign import ccall "md5File"   c_md5File   :: Handle    -> Ptr Word -> IO ()
+foreign import ccall "md5BFILE"  c_md5BFILE  :: Handle    -> Ptr Word -> IO ()
 foreign import ccall "md5String" c_md5String :: CString   -> Ptr Word -> IO ()
 foreign import ccall "md5Array"  c_md5Array  :: Ptr Word  -> Ptr Word -> Int -> IO ()
 
@@ -42,7 +42,7 @@ md5String :: String -> MD5CheckSum
 md5String s = primPerformIO $ withCAString s $ chksum . c_md5String
 
 md5Handle :: Handle -> IO MD5CheckSum
-md5Handle h = chksum $ c_md5File h
+md5Handle h = chksum $ c_md5BFILE h
 
 md5File :: FilePath -> IO (Maybe MD5CheckSum)
 md5File fn = do

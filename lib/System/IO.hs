@@ -43,28 +43,38 @@ import Foreign.Marshal.Alloc
 import Foreign.Ptr
 
 data FILE
-newtype Handle = Handle (Ptr FILE)
+data BFILE
+newtype Handle = Handle (Ptr BFILE)
 
-primHSerialize   :: forall a . Handle -> a -> IO ()
+primHSerialize   :: forall a . Ptr BFILE -> a -> IO ()
 primHSerialize    = primitive "IO.serialize"
-primHPrint       :: forall a . Handle -> a -> IO ()
+primHPrint       :: forall a . Ptr BFILE -> a -> IO ()
 primHPrint        = primitive "IO.print"
-primHDeserialize :: forall a . Handle -> IO a
+primHDeserialize :: forall a . Ptr BFILE -> IO a
 primHDeserialize  = primitive "IO.deserialize"
-primStdin        :: Handle
+primStdin        :: Ptr FILE
 primStdin         = primitive "IO.stdin"
-primStdout       :: Handle
+primStdout       :: Ptr FILE
 primStdout        = primitive "IO.stdout"
-primStderr       :: Handle
+primStderr       :: Ptr FILE
 primStderr        = primitive "IO.stderr"
 
-foreign import ccall "fopen"        c_fopen        :: CString -> CString -> IO Handle
+foreign import ccall "fopen"        c_fopen        :: CString -> CString -> IO (Ptr FILE)
+{-
 foreign import ccall "fclose"       c_fclose       :: Handle             -> IO Int
 foreign import ccall "fflush"       c_fflush       :: Handle             -> IO Int
 foreign import ccall "fgetc"        c_fgetc        :: Handle             -> IO Int
 foreign import ccall "fputc"        c_fputc        :: Int ->     Handle  -> IO Int
 -- foreign import ccall "fwrite"       c_fwrite       :: CString -> Int -> Int -> Handle -> IO Int
+-}
 foreign import ccall "getTimeMilli" c_getTimeMilli ::                       IO Int
+
+foreign import ccall "closeb"       c_closeb       :: Ptr BFILE          -> IO ()
+foreign import ccall "flushb"       c_flushb       :: Ptr BFILE          -> IO ()
+foreign import ccall "getb"         c_getb         :: Ptr BFILE          -> IO Int
+foreign import ccall "putb"         c_putb         :: Int ->  Ptr BFILE  -> IO ()
+foreign import ccall "add_FILE"     c_add_FILE     :: Ptr FILE           -> IO (Ptr BFILE)
+foreign import ccall "add_utf8"     c_add_utf8     :: Ptr BFILE          -> IO (Ptr BFILE)
 
 ----------------------------------------------------------
 
@@ -73,9 +83,6 @@ instance Eq Handle where
 
 instance Show Handle where
   show (Handle p) = "Handle-" ++ show p
-
-nullHandle :: Handle
-nullHandle = Handle nullPtr
 
 type FilePath = String
 
@@ -94,37 +101,40 @@ instance MonadFail IO where
   fail         = error
 
 hSerialize   :: forall a . Handle -> a -> IO ()
-hSerialize   = primHSerialize
+hSerialize (Handle p) = primHSerialize p
 
 hDeserialize :: forall a . Handle -> IO a
-hDeserialize = primHDeserialize
+hDeserialize (Handle p) = primHDeserialize p
 
 stdin        :: Handle
-stdin        = primStdin
+stdin        = bFILE primStdin
 stdout       :: Handle
-stdout       = primStdout
+stdout       = bFILE primStdout
 stderr       :: Handle
-stderr       = primStderr
+stderr       = bFILE primStderr
+
+bFILE :: Ptr FILE -> Handle
+bFILE = Handle . primPerformIO . c_add_FILE
 
 hClose       :: Handle -> IO ()
-hClose h     = do { c_fclose h; return () }  -- ignore error code
+hClose (Handle p) = c_closeb p
 
 hFlush       :: Handle -> IO ()
-hFlush h     = do { c_fflush h; return () }  -- ignore error code
+hFlush (Handle p) = c_flushb p
 
 hGetChar :: Handle -> IO Char
-hGetChar h = do
-  c <- c_fgetc h
+hGetChar (Handle p) = do
+  c <- c_getb p
   if c == (-1::Int) then
     error "hGetChar: EOF"
    else
     return (chr c)
 
 hPutChar :: Handle -> Char -> IO ()
-hPutChar h c = do { c_fputc (ord c) h; return () }  -- ignore error code
+hPutChar (Handle p) c = c_putb (ord c) p
 
-openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
-openFileM p m = do
+openFILEM :: FilePath -> IOMode -> IO (Maybe (Ptr FILE))
+openFILEM p m = do
   let
     ms = case m of
           ReadMode -> "r"
@@ -132,10 +142,17 @@ openFileM p m = do
           AppendMode -> "a"
           ReadWriteMode -> "w+"
   h <- withCAString p $ \cp -> withCAString ms $ \ cm -> c_fopen cp cm
-  if h == nullHandle then
+  if h == nullPtr then
     return Nothing
    else
     return (Just h)
+
+openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
+openFileM p m = do
+  mf <- openFILEM p m
+  case mf of
+    Nothing -> return Nothing
+    Just p -> do { q <- c_add_FILE p; return (Just (Handle q)) }
 
 openFile :: String -> IOMode -> IO Handle
 openFile p m = do
@@ -151,10 +168,12 @@ getChar :: IO Char
 getChar = hGetChar stdin
 
 cprint :: forall a . a -> IO ()
-cprint a = primRnfNoErr a `seq` primHPrint stdout a
+cprint a = primRnfNoErr a `seq` primHPrint p a
+  where Handle p = stdout
 
 cuprint :: forall a . a -> IO ()
-cuprint = primHPrint stdout
+cuprint = primHPrint p
+  where Handle p = stdout
 
 print :: forall a . (Show a) => a -> IO ()
 print a = putStrLn (show a)
@@ -200,8 +219,8 @@ readFile p = do
 
 -- Lazy hGetContents
 hGetContents :: Handle -> IO String
-hGetContents h = do
-  c <- c_fgetc h
+hGetContents h@(Handle p) = do
+  c <- c_getb p
   if c == (-1::Int) then do
     hClose h   -- EOF, so close the handle
     return ""
@@ -228,9 +247,12 @@ getTimeMilli = c_getTimeMilli
 unsafeInterleaveIO :: forall a . IO a -> IO a
 unsafeInterleaveIO ioa = return (primPerformIO ioa)
 
--- MicroHs is currently always in binary mode.
-openBinaryFile :: FilePath -> IOMode -> IO Handle
-openBinaryFile = openFile
+openBinaryFile :: String -> IOMode -> IO Handle
+openBinaryFile p m = do
+  mf <- openFILEM p m
+  case mf of
+    Nothing -> error $ "openBinaryFile: cannot open " ++ show p
+    Just p -> do { q <- c_add_FILE p; return (Handle q) }
 
 --------
 

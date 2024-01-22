@@ -231,15 +231,20 @@ void md5Array(uint8_t *input, uint8_t *result, size_t inputlen){
     memcpy(result, ctx.digest, 16);
 }
 
-void md5File(FILE *file, uint8_t *result){
-    char *input_buffer = malloc(1024);
+#define MD5BUFSIZE 1024
+void
+md5BFILE(BFILE *file, uint8_t *result){
+    uint8_t *input_buffer = malloc(MD5BUFSIZE);
     size_t input_size = 0;
 
     MD5Context ctx;
     md5Init(&ctx);
 
-    while((input_size = fread(input_buffer, 1, 1024, file)) > 0){
-        md5Update(&ctx, (uint8_t *)input_buffer, input_size);
+    if (!input_buffer)
+      memerr();
+
+    while((input_size = readb(input_buffer, MD5BUFSIZE, file)) > 0){
+        md5Update(&ctx, input_buffer, input_size);
     }
 
     md5Finalize(&ctx);

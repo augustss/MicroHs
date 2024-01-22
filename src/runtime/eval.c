@@ -977,6 +977,7 @@ struct ffi_info {
   const enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_DDD, FFI_PI,
                FFI_i, FFI_Pi, FFI_iPi, FFI_PIIPI, FFI_PIV, FFI_IIP,
                FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP, FFI_PPV, FFI_PPzV,
+               FFI_iPV,
   } ffi_how;
 };
 const struct ffi_info ffi_table[] = {
@@ -1033,10 +1034,19 @@ const struct ffi_info ffi_table[] = {
   { "tmpname",  (funptr_t)TMPNAME, FFI_PPP },
   { "unlink",   (funptr_t)unlink,  FFI_Pi },
   { "system",   (funptr_t)system,  FFI_Pi },
+
+  /* BFILE stuff */
+  { "add_FILE", (funptr_t)add_FILE,FFI_PP },
+  { "getb",     (funptr_t)getb,    FFI_Pi },
+  { "putb",     (funptr_t)putb,    FFI_iPV },
+  { "closeb",   (funptr_t)closeb,  FFI_PV },
+  { "flushb",   (funptr_t)flushb,  FFI_PV },
+  { "putsb",    (funptr_t)putsb,   FFI_PPV },
+  { "add_utf8", (funptr_t)add_utf8,FFI_PP },
 #endif  /* WANT_STDIO */
 
 #if WANT_MD5
-  { "md5File",  (funptr_t)md5File, FFI_PPV },
+  { "md5BFILE", (funptr_t)md5BFILE, FFI_PPV },
   { "md5String",(funptr_t)md5String, FFI_PPV },
   { "md5Array", (funptr_t)md5Array, FFI_PPzV },
 #endif
@@ -1400,16 +1410,6 @@ parse_top(BFILE *f)
 
 #if WANT_STDIO
 NODEPTR
-parse_FILE(FILE *f)
-{
-  BFILE *p = openb_FILE(f);
-  /* And parse it */
-  NODEPTR n = parse_top(p);
-  closeb(p);
-  return n;
-}
-
-NODEPTR
 parse_file(const char *fn, size_t *psize)
 {
   FILE *f = fopen(fn, "r");
@@ -1417,8 +1417,10 @@ parse_file(const char *fn, size_t *psize)
     ERR1("file not found %s", fn);
 
   /* And parse it */
-  NODEPTR n = parse_FILE(f);
+  BFILE *p = add_FILE(f);
+  NODEPTR n = parse_top(p);
   *psize = ftell(f);
+  closeb(p);
   return n;
 }
 #endif  /* WANT_STDIO */
@@ -1741,10 +1743,8 @@ printrec(BFILE *f, NODEPTR n, int prefix)
 
 /* Serialize a graph to file. */
 void
-print(FILE *fi, NODEPTR n, int header)
+printb(BFILE *f, NODEPTR n, int header)
 {
-  BFILE *f = openb_FILE(fi);
-
   num_shared = 0;
   marked_bits = calloc(free_map_nwords, sizeof(bits_t));
   if (!marked_bits)
@@ -1762,7 +1762,6 @@ print(FILE *fi, NODEPTR n, int header)
   if (header) {
     putb('}', f);
   }
-  closeb(f);
   FREE(marked_bits);
   FREE(shared_bits);
 }
@@ -1771,8 +1770,10 @@ print(FILE *fi, NODEPTR n, int header)
 void
 pp(FILE *f, NODEPTR n)
 {
-  print(f, n, 0);
-  fprintf(f, "\n");
+  BFILE *bf = add_FILE(f);
+  printb(bf, n, 0);
+  putb('\n', bf);
+  freeb_file(bf);
 }
 
 void
@@ -1780,7 +1781,7 @@ ppmsg(const char *msg, NODEPTR n)
 {
 #if 0
   printf("%s", msg);
-  print(stdout, n, 0);
+  pp(stdout, n);
   printf("\n");
 #endif
 }
@@ -2599,17 +2600,17 @@ execio(NODEPTR *np)
     ser:
       CHECKIO(2);
       gc();                     /* DUBIOUS: do a GC to get possible GC reductions */
-      ptr = evalptr(ARG(TOP(1)));
+      ptr = (struct BFILE*)evalptr(ARG(TOP(1)));
       x = evali(ARG(TOP(2)));
       //x = ARG(TOP(1));
-      print(ptr, x, hdr);
-      fprintf(ptr, "\n");
+      printb(ptr, x, hdr);
+      putb('\n', ptr);
       RETIO(combUnit);
     case T_IO_DESERIALIZE:
       CHECKIO(1);
-      ptr = evalptr(ARG(TOP(1)));
+      ptr = (struct BFILE*)evalptr(ARG(TOP(1)));
       gc();                     /* parser runs without GC */
-      n = parse_FILE(ptr);
+      n = parse_top(ptr);
       RETIO(n);
 #endif
 #if WANT_ARGS
@@ -2677,6 +2678,7 @@ execio(NODEPTR *np)
         case FFI_PPP: FFI (2); xp = PTRARG(1);yp = PTRARG(2);  rp = (*(void*   (*)(void*, void*    ))f)(xp,yp); n = mkPtr(rp); RETIO(n);
         case FFI_IPI: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(value_t (*)(value_t, void*  ))f)(xi,yp); n = mkInt(ri); RETIO(n);
         case FFI_iPi: FFI (2); xi = INTARG(1);yp = PTRARG(2);  ri = (*(int     (*)(int,   void*    ))f)(xi,yp); n = mkInt(ri); RETIO(n);
+        case FFI_iPV: FFI (2); xi = INTARG(1);yp = PTRARG(2);       (*(void    (*)(int,   void*    ))f)(xi,yp);                RETIO(combUnit);
         case FFI_PPzV:FFI (3); xp = PTRARG(1);yp = PTRARG(2); zi = INTARG(3); (*(void    (*)(void*, void*, size_t))f)(xp,yp,zi); RETIO(combUnit);
         case FFI_PIIPI:FFI (4);xp = PTRARG(1);yi = INTARG(2); zi = INTARG(3); wp = PTRARG(4);
           ri = (*(int     (*)(void*, int, int, void*    ))f)(xp,yi,zi,wp); n = mkInt(ri); RETIO(n);
@@ -2927,13 +2929,13 @@ MAIN
     FILE *out = fopen(outname, "w");
     if (!out)
       ERR1("cannot open output file %s", outname);
-    print(out, prog, 1);
-    fclose(out);
+    struct BFILE *bf = add_FILE(out);
+    printb(bf, prog, 1);
+    closeb(bf);
     EXIT(0);
   }
   if (verbose > 2) {
-    //pp(stdout, prog);
-    print(stdout, prog, 1);
+    pp(stdout, prog);
   }
 #endif
   run_time -= GETTIMEMILLI();

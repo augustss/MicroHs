@@ -6,6 +6,9 @@
  * to the processing.
  */
 
+/* Sanity checking */
+#define CHECKBFILE(p, f) do { if (p->getb != f) ERR("CHECKBFILE"); } while(0)
+
 /* BFILE will have different implementations, they all have these methods */
 typedef struct BFILE {
   int (*getb)(struct BFILE*);
@@ -16,31 +19,31 @@ typedef struct BFILE {
 } BFILE;
 
 static INLINE int
-getb(struct BFILE *p)
+getb(BFILE *p)
 {
   return p->getb(p);
 }
 
 static INLINE void
-ungetb(int c, struct BFILE *p)
+ungetb(int c, BFILE *p)
 {
   p->ungetb(c, p);
 }
 
 static INLINE void
-putb(int c, struct BFILE *p)
+putb(int c, BFILE *p)
 {
   p->putb(c, p);
 }
 
 static INLINE void
-closeb(struct BFILE *p)
+closeb(BFILE *p)
 {
   p->closeb(p);
 }
 
 static INLINE void
-flushb(struct BFILE *p)
+flushb(BFILE *p)
 {
   p->flushb(p);
 }
@@ -53,9 +56,23 @@ putsb(const char *str, struct BFILE *p)
     putb(c, p);
 }
 
+size_t
+readb(void *abuf, size_t size, BFILE *p)
+{
+  uint8_t *buf = abuf;
+  size_t s;
+  for (s = 0; s < size; s++) {
+    int c = getb(p);
+    if (c < 0)
+      break;
+    buf[s] = c;
+  }
+  return s;
+}
+
 /* convert -n to a string, handles MINBOUND correctly */
 void
-putnegb(value_t n, struct BFILE *p)
+putnegb(value_t n, BFILE *p)
 {
   int c = '0' - n % 10;
   if (n <= -10) {
@@ -65,7 +82,7 @@ putnegb(value_t n, struct BFILE *p)
 }
 
 void
-putdecb(value_t n, struct BFILE *p)
+putdecb(value_t n, BFILE *p)
 {
   if (n < 0) {
     putb('-', p);
@@ -87,6 +104,7 @@ int
 getb_buf(BFILE *bp)
 {
   struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
+  CHECKBFILE(bp, getb_buf);
   if (p->b_pos >= p->b_size)
     return -1;
   return p->b_buffer[p->b_pos++];
@@ -96,6 +114,7 @@ void
 ungetb_buf(int c, BFILE *bp)
 {
   struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
+  CHECKBFILE(bp, getb_buf);
   if (p->b_pos == 0)
     ERR("ungetb");
   p->b_buffer[--p->b_pos] = (uint8_t)c;
@@ -104,6 +123,7 @@ ungetb_buf(int c, BFILE *bp)
 void
 closeb_buf(BFILE *bp)
 {
+  CHECKBFILE(bp, getb_buf);
   FREE(bp);
 }
 
@@ -136,6 +156,7 @@ int
 getb_file(BFILE *bp)
 {
   struct BFILE_file *p = (struct BFILE_file *)bp;
+  CHECKBFILE(bp, getb_file);
   return fgetc(p->file);
 }
 
@@ -143,6 +164,7 @@ void
 ungetb_file(int c, BFILE *bp)
 {
   struct BFILE_file *p = (struct BFILE_file *)bp;
+  CHECKBFILE(bp, getb_file);
   ungetc(c, p->file);
 }
 
@@ -150,6 +172,7 @@ void
 putb_file(int c, BFILE *bp)
 {
   struct BFILE_file *p = (struct BFILE_file *)bp;
+  CHECKBFILE(bp, getb_file);
   (void)fputc(c, p->file);
 }
 
@@ -157,6 +180,7 @@ void
 flushb_file(BFILE *bp)
 {
   struct BFILE_file *p = (struct BFILE_file *)bp;
+  CHECKBFILE(bp, getb_file);
   fflush(p->file);
   FREE(p);
 }
@@ -165,12 +189,21 @@ void
 closeb_file(BFILE *bp)
 {
   struct BFILE_file *p = (struct BFILE_file *)bp;
-  /* Don't close the FILE, it is owned by the caller. */
+  CHECKBFILE(bp, getb_file);
+  fclose(p->file);
+  FREE(p);
+}
+
+void
+freeb_file(BFILE *bp)
+{
+  struct BFILE_file *p = (struct BFILE_file *)bp;
+  CHECKBFILE(bp, getb_file);
   FREE(p);
 }
 
 BFILE *
-openb_FILE(FILE *f)
+add_FILE(FILE *f)
 {
   struct BFILE_file *p = MALLOC(sizeof (struct BFILE_file));
   if (!p)
@@ -213,16 +246,16 @@ getcode_lzw(struct BFILE_lzw *p)
   int r;
 
   if (p->rdstate == 0) {
-    r = p->bfile->getb(p->bfile);
+    r = getb(p->bfile);
     if (r < 0)
       return -1;
-    r |= p->bfile->getb(p->bfile) << 8;
+    r |= getb(p->bfile) << 8;
     p->rdres = r >> 12;         /* save 4 bits */
     p->rdstate = 1;
     return r & 0xfff;
   } else {
     r = p->rdres;
-    r |= p->bfile->getb(p->bfile) << 4;
+    r |= getb(p->bfile) << 4;
     p->rdstate = 0;
     return r;
   }
@@ -245,6 +278,7 @@ int
 getb_lzw(BFILE *bp)
 {
   struct BFILE_lzw *p = (struct BFILE_lzw*)bp;
+  CHECKBFILE(bp, getb_lzw);
   char *s;
   int c, n, l;
 
@@ -291,6 +325,7 @@ void
 ungetb_lzw(int c, BFILE *bp)
 {
   struct BFILE_lzw *p = (struct BFILE_lzw*)bp;
+  CHECKBFILE(bp, getb_lzw);
   if (p->unget >= 0)
     ERR("ungetb_lzw");
   p->unget = c;
@@ -300,13 +335,14 @@ void
 closeb_lzw(BFILE *bp)
 {
   struct BFILE_lzw *p = (struct BFILE_lzw*)bp;
+  CHECKBFILE(bp, getb_lzw);
   int i;
 
   for (i = 0; i < DICTSIZE; i++) {
     if (p->table[i])
       FREE(p->table[i]);
   }
-  p->bfile->closeb(p->bfile);
+  closeb(p->bfile);
   FREE(p);
 }
 
@@ -356,6 +392,7 @@ int
 getb_utf8(BFILE *bp)
 {
   struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
+  CHECKBFILE(bp, getb_utf8);
   int c1, c2, c3, c4;
 
   /* Do we have an ungetb character? */
@@ -391,6 +428,7 @@ void
 ungetb_utf8(int c, BFILE *bp)
 {
   struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
+  CHECKBFILE(bp, getb_utf8);
   if (p->unget >= 0)
     ERR("ungetb_utf8");
   p->unget = c;
@@ -400,6 +438,7 @@ void
 putb_utf8(int c, BFILE *bp)
 {
   struct BFILE_utf8 *p = (struct BFILE_utf8 *)bp;
+  CHECKBFILE(bp, getb_utf8);
   if (c < 0)
     ERR("putb_utf8: < 0");
   if (c < 0x80) {
@@ -431,6 +470,7 @@ void
 flushb_utf8(BFILE *bp)
 {
   struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
+  CHECKBFILE(bp, getb_utf8);
 
   p->bfile->flushb(p->bfile);
   FREE(p);
@@ -440,6 +480,7 @@ void
 closeb_utf8(BFILE *bp)
 {
   struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
+  CHECKBFILE(bp, getb_utf8);
 
   p->bfile->closeb(p->bfile);
   FREE(p);
