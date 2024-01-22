@@ -182,7 +182,6 @@ flushb_file(BFILE *bp)
   struct BFILE_file *p = (struct BFILE_file *)bp;
   CHECKBFILE(bp, getb_file);
   fflush(p->file);
-  FREE(p);
 }
 
 void
