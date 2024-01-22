@@ -164,8 +164,11 @@ tIndent ts = TIndent (tokensLoc ts) : ts
 takeChars :: Loc -> (String -> Token) -> Char -> Int -> String -> String -> (Token, Int, String)
 takeChars loc _ c n _ [] = (TError loc ("Unmatched " ++ [c]), n, [])
 takeChars loc fn c n str ('\\':cs) =
-  case decodeChar (n+1) cs of
-    (d, m, rs) -> takeChars loc fn c m (d:str) rs
+  case cs of
+    '&':rs -> takeChars loc fn c (n+2) str rs
+    _ ->
+      case decodeChar (n+1) cs of
+        (d, m, rs) -> takeChars loc fn c m (d:str) rs
 takeChars   _ fn c n str (d:cs) | c == d = (fn (reverse str), n, cs)
 takeChars loc fn c n str (d:cs) = takeChars loc fn c (n+1) (d:str) cs
 

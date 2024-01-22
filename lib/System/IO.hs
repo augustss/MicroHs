@@ -114,7 +114,7 @@ stderr       :: Handle
 stderr       = bFILE primStderr
 
 bFILE :: Ptr FILE -> Handle
-bFILE = Handle . primPerformIO . c_add_FILE
+bFILE = Handle . primPerformIO . (c_add_utf8 <=< c_add_FILE)
 
 hClose       :: Handle -> IO ()
 hClose (Handle p) = c_closeb p
@@ -152,7 +152,7 @@ openFileM p m = do
   mf <- openFILEM p m
   case mf of
     Nothing -> return Nothing
-    Just p -> do { q <- c_add_FILE p; return (Just (Handle q)) }
+    Just p -> do { q <- c_add_utf8 =<< c_add_FILE p; return (Just (Handle q)) }
 
 openFile :: String -> IOMode -> IO Handle
 openFile p m = do
