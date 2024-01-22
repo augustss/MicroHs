@@ -33,8 +33,6 @@
   - debug 32 bit
 * Removing [] from prim table
 * Faster compression
-* Unicode, i.e., UTF-8 IO
-  - use BFILE for file I/O
 * Use pointer reversal, might be slower
   - In GC mark pass
   - In evaluator

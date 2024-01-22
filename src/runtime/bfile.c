@@ -401,22 +401,22 @@ getb_utf8(BFILE *bp)
     p->unget = -1;
     return c1;
   }
-  c1 = p->bfile->getb(p->bfile);
+  c1 = getb(p->bfile);
   if (c1 < 0)
     return -1;
   if ((c1 & 0x80) == 0)
     return c1;
-  c2 = p->bfile->getb(p->bfile);
+  c2 = getb(p->bfile);
   if (c2 < 0)
     return -1;
   if ((c1 & 0xe0) == 0xc0)
     return ((c1 & 0x1f) << 6) | (c2 & 0x3f);
-  c3 = p->bfile->getb(p->bfile);
+  c3 = getb(p->bfile);
   if (c3 < 0)
     return -1;
   if ((c1 & 0xf0) == 0xe0)
     return ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
-  c4 = p->bfile->getb(p->bfile);
+  c4 = getb(p->bfile);
   if (c4 < 0)
     return -1;
   if ((c1 & 0xf8) == 0xf0)
@@ -442,25 +442,25 @@ putb_utf8(int c, BFILE *bp)
   if (c < 0)
     ERR("putb_utf8: < 0");
   if (c < 0x80) {
-    p->bfile->putb(c, p->bfile);
+    putb(c, p->bfile);
     return;
   }
   if (c < 0x800) {
-    p->bfile->putb(((c >> 6 )       ) | 0xc0, p->bfile);
-    p->bfile->putb(((c      ) & 0x3f) | 0x80, p->bfile);
+    putb(((c >> 6 )       ) | 0xc0, p->bfile);
+    putb(((c      ) & 0x3f) | 0x80, p->bfile);
     return;
   }
   if (c < 0x10000) {
-    p->bfile->putb(((c >> 12)       ) | 0xe0, p->bfile);
-    p->bfile->putb(((c >> 6 ) & 0x3f) | 0x80, p->bfile);
-    p->bfile->putb(((c      ) & 0x3f) | 0x80, p->bfile);
+    putb(((c >> 12)       ) | 0xe0, p->bfile);
+    putb(((c >> 6 ) & 0x3f) | 0x80, p->bfile);
+    putb(((c      ) & 0x3f) | 0x80, p->bfile);
     return;
   }
   if (c < 0x110000) {
-    p->bfile->putb(((c >> 18)       ) | 0xf0, p->bfile);
-    p->bfile->putb(((c >> 12) & 0x3f) | 0x80, p->bfile);
-    p->bfile->putb(((c >> 6 ) & 0x3f) | 0x80, p->bfile);
-    p->bfile->putb(((c      ) & 0x3f) | 0x80, p->bfile);
+    putb(((c >> 18)       ) | 0xf0, p->bfile);
+    putb(((c >> 12) & 0x3f) | 0x80, p->bfile);
+    putb(((c >> 6 ) & 0x3f) | 0x80, p->bfile);
+    putb(((c      ) & 0x3f) | 0x80, p->bfile);
     return;
   }
   ERR("putb_utf8");
@@ -481,7 +481,7 @@ closeb_utf8(BFILE *bp)
   struct BFILE_utf8 *p = (struct BFILE_utf8*)bp;
   CHECKBFILE(bp, getb_utf8);
 
-  p->bfile->closeb(p->bfile);
+  closeb(p->bfile);
   FREE(p);
 }
 
