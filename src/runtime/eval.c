@@ -1961,13 +1961,13 @@ evalstring(NODEPTR n, value_t *lenp)
   size_t sz = 100;
   char *name = MALLOC(sz);
   size_t offs;
-  value_t c;
+  uvalue_t c;
   NODEPTR x;
 
   if (!name)
     memerr();
   for (offs = 0;;) {
-    if (offs >= sz - 1) {
+    if (offs >= sz - 4) {
       sz *= 2;
       name = realloc(name, sz);
       if (!name)
@@ -1978,11 +1978,26 @@ evalstring(NODEPTR n, value_t *lenp)
       break;
     else if (GETTAG(n) == T_AP && GETTAG(x = indir(FUN(n))) == T_AP && GETTAG(indir(FUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
-      c = evalint(ARG(x));
+      c = (uvalue_t)evalint(ARG(x));
       n = POPTOP();
-      if (c < 0 || c > 127)
-	ERR("invalid char");    /* Only allow ASCII */
-      name[offs++] = (char)c;
+      /* XXX Encode as UTF8 */
+      if (c < 0x80) {
+        name[offs++] = (char)c;
+      } else if (c < 0x800) {
+        name[offs++] = ((c >> 6 )       ) | 0xc0;
+        name[offs++] = ((c      ) & 0x3f) | 0x80;
+      } else if (c < 0x10000) {
+        name[offs++] = ((c >> 12)       ) | 0xe0;
+        name[offs++] = ((c >> 6 ) & 0x3f) | 0x80;
+        name[offs++] = ((c      ) & 0x3f) | 0x80;
+      } else if (c < 0x110000) {
+        name[offs++] = ((c >> 18)       ) | 0xf0;
+        name[offs++] = ((c >> 12) & 0x3f) | 0x80;
+        name[offs++] = ((c >> 6 ) & 0x3f) | 0x80;
+        name[offs++] = ((c      ) & 0x3f) | 0x80;
+      } else {
+	ERR("invalid char");
+      }
       n = ARG(n);
     } else {
       ERR("evalstring not Nil/Cons");

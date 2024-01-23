@@ -39,3 +39,8 @@
 * Fix bug uncovered by Data.Type.Equality
 * mkQIdent
 * Do not use the C stack during evaluation
+* Fix bug, line 629, TypeCheck.c
+* Get rid of evalstring()
+  - do everything in Haskell
+  - make a low level primError that takes a utf8 string
+  - get rid of noMatch and noDefault primitives

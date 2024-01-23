@@ -107,7 +107,8 @@ isConIdent (Ident _ i) =
   in isUpper c || c == ':' || c == ',' || i == "[]"  || i == "()"
 
 isOperChar :: Char -> Bool
-isOperChar c = elem c "@\\=+-:<>.!#$%^&*/|~?"
+isOperChar c = elem c "@\\=+-:<>.!#$%^&*/|~?\x2237\x21d2\x2192\x2190\x2200"
+--                                             ::    =>    ->    <- forall
 
 isIdentChar :: Char -> Bool
 isIdentChar c = isLower_ c || isUpper c || isDigit c || c == '\''

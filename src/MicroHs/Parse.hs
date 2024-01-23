@@ -189,6 +189,7 @@ pQArrow = do
   fn <- getFileName
   let
     is (TIdent loc qs s@"->") = Just (qualName fn loc qs s)
+    is (TIdent loc qs s@"\x2192") = Just (qualName fn loc qs s)
     is _ = Nothing
   satisfyM "->" is
 
@@ -199,7 +200,8 @@ pLSymOper = do
   pure s
 
 reservedOps :: [String]
-reservedOps = ["=", "|", "::", "<-", "@", "..", "->"]
+reservedOps = ["=", "|", "::", "<-", "@", "..", "->",
+               "\x2237", "\x2192"] -- :: and ->
 
 pUQIdentSym :: P Ident
 pUQIdentSym = pUQIdent <|< pParens pUQSymOper
@@ -266,7 +268,7 @@ pDef =
   <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
   <|< uncurry Fcn <$> pEqns
-  <|< Sign        <$> (pLIdentSym <* pSymbol "::") <*> pType
+  <|< Sign        <$> (pLIdentSym <* dcolon) <*> pType
   <|< Import      <$> (pKeyword "import"  *> pImportSpec)
   <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
@@ -281,11 +283,12 @@ pDef =
     pPrec = satisfyM "digit" dig
 
     pFunDeps = (pSymbol "|" *> esepBy1 pFunDep (pSpec ',')) <|< pure []
-    pFunDep = (,) <$> esome pLIdent <*> (pSymbol "->" *> esome pLIdent)
+    pFunDep = (,) <$> esome pLIdent <*> (pSRArrow *> esome pLIdent)
     pField = do
       fs <- pFields
       guard $ either length length fs == 1
       pure fs
+    dcolon = pSymbol "::" <|< pSymbol "\x2237"
 
 pDeriving :: P [EConstraint]
 pDeriving = pKeyword "deriving" *> pDer <|< pure []
@@ -293,9 +296,18 @@ pDeriving = pKeyword "deriving" *> pDer <|< pure []
                <|< ((:[]) <$> pType)
 
 pContext :: P [EConstraint]
-pContext = (pCtx <* pSymbol "=>") <|< pure []
+pContext = (pCtx <* pDRArrow) <|< pure []
   where
     pCtx = pParens (emany pType) <|< ((:[]) <$> pTypeApp)
+
+pDRArrow :: P ()
+pDRArrow = pSymbol "=>" <|< pSymbol "\x21d2"
+
+pSRArrow :: P ()
+pSRArrow = pSymbol "->" <|< pSymbol "\x2192"
+
+pSLArrow :: P ()
+pSLArrow = pSymbol "<-" <|< pSymbol "\x2190"
 
 pConstr :: P Constr
 pConstr = (Constr <$> pForall <*> pContext <*> pUIdentSym <*> pFields)
@@ -352,13 +364,14 @@ pType = do
   pure $ if null vs then t else EForall vs t
 
 pForall :: P [IdKind]
-pForall = (pKeyword "forall" *> esome pIdKind <* pSymbol ".") <|< pure []
+pForall = (forallKW *> esome pIdKind <* pSymbol ".") <|< pure []
+  where forallKW = pKeyword "forall" <|< pSymbol "\x2200"
 
 pTypeOp :: P EType
 pTypeOp = pOperators pTypeOper pTypeArg
 
 pTypeOper :: P Ident
-pTypeOper = pOper <|< (mkIdent "->" <$ pSymbol "->") <|< (mkIdent "=>" <$ pSymbol "=>")
+pTypeOper = pOper <|< (mkIdent "->" <$ pSRArrow) <|< (mkIdent "=>" <$ pDRArrow)
 
 pTypeArg :: P EType
 pTypeArg = pTypeApp
@@ -398,7 +411,7 @@ pAPat =
   <|< pLit
   <|< (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
-  <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSymbol "->" *> pAPat <* pSpec ')'))
+  <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSRArrow *> pAPat <* pSpec ')'))
   where evar v Nothing = EVar v
         evar v (Just upd) = EUpdate (EVar v) upd
 
@@ -479,7 +492,7 @@ pWhere pb =
 
 pStmt :: P EStmt
 pStmt =
-      (SBind <$> (pPat <* pSymbol "<-") <*> pExpr)
+      (SBind <$> (pPat <* pSLArrow) <*> pExpr)
   <|< (SLet  <$> (pKeyword "let" *> pBlock pBind))
   <|< (SThen <$> pExpr)
 
@@ -502,13 +515,13 @@ pExprApp = do
   pure $ maybe r (ESign r) mt
 
 pLam :: P Expr
-pLam = eLam <$> (pSymbol "\\" *> esome pAPat) <*> (pSymbol "->" *> pExpr)
+pLam = eLam <$> (pSymbol "\\" *> esome pAPat) <*> (pSRArrow *> pExpr)
 
 pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword "of" *> pBlock pCaseArm)
 
 pCaseArm :: P ECaseArm
-pCaseArm = (,) <$> pPat <*> pAlts (pSymbol "->")
+pCaseArm = (,) <$> pPat <*> pAlts pSRArrow
 
 pLet :: P Expr
 pLet = ELet <$> (pKeyword "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)

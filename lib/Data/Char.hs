@@ -38,10 +38,9 @@ instance Ord String where
   x >  y  =  case primStringCompare x y of { GT -> True; _ -> False }
   x >= y  =  case primStringCompare x y of { LT -> False; _ -> True }
 
--- ASCII only for now
 instance Bounded Char where
   minBound = chr 0
-  maxBound = chr 127
+  maxBound = chr 0x10ffff
 
 chr :: Int -> Char
 chr = primChr
@@ -102,6 +101,6 @@ encodeChar c =
   let
     spec = [('\n', "\\n"), ('\r', "\\r"), ('\t', "\\t"), ('\b', "\\b"),
             ('\\', "\\\\")]
-    look [] = if isPrint c then [c] else "'\\" ++ show (ord c) ++ "'"
+    look [] = if isPrint c then [c] else "\\" ++ show (ord c)
     look ((d,s):xs) = if d == c then s else look xs
   in look spec

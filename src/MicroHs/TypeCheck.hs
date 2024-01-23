@@ -541,7 +541,9 @@ primTypes =
        (mkIdentB "~",            [entry nameTypeEq   kTypeTypeConstraintS]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        -- XXX should not be needed
-       (mkIdentB (listPrefix ++ "[]"), [entry (listPrefix ++ "[]")        kTypeTypeS])
+       (mkIdentB (listPrefix ++ "[]"), [entry (listPrefix ++ "[]") kTypeTypeS]),
+       (mkIdentB "\x2192",       [entry nameArrow    kTypeTypeTypeS]),  -- ->
+       (mkIdentB "\x21d2",       [entry nameImplies  kImplies])         -- =>
       ] ++
       map tuple (enumFromTo 2 10)
 
@@ -624,7 +626,7 @@ expandSyn at = do
               in  case compare lvks lts of
                     LT -> expandSyn $ eApps (subst s tt) (drop lvks ts)
                     EQ -> expandSyn $ subst s tt
-                    GT -> tcError (getSLoc i) $ "bad synonym use"
+                    GT -> tcError (getSLoc i) $ "bad synonym use" -- XXX bug without this comment
                           --EForall (drop lts vks) (subst s tt)
             Just _ -> impossible
         EUVar _ -> return $ eApps t ts
