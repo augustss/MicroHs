@@ -139,18 +139,19 @@ tmpname(const char* pre, const char* suf)
 {
   int pid = (int)getpid();
   char *tmp = getenv("TMPDIR");
+  const size_t PID_DIGITS = 10;
   if (!tmp)
     tmp = "/tmp";
-  char *s = malloc(strlen(tmp) + 1 + strlen(pre) + 5 + strlen(suf) + 1);
+  char *s = malloc(strlen(tmp) + 1 + strlen(pre) + PID_DIGITS + strlen(suf) + 1);
   /* This might loop forever.  See if I care. :) */
   for(;;) {
     strcpy(s, tmp);
     strcat(s, "/");
     strcat(s, pre);
-    /* Insert 8 digits of the PID */
-    char *p = s + strlen(s) + 10;
+    /* Insert PID_DIGITS digits of the PID */
+    char *p = s + strlen(s) + PID_DIGITS;
     *p-- = 0;
-    for(int i = 0; i < 10; i++) {
+    for(int i = 0; i < PID_DIGITS; i++) {
       *p-- = pid % 10 + '0';
       pid /= 10;
     }
