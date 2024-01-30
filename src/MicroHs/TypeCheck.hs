@@ -626,7 +626,7 @@ expandSyn at = do
               in  case compare lvks lts of
                     LT -> expandSyn $ eApps (subst s tt) (drop lvks ts)
                     EQ -> expandSyn $ subst s tt
-                    GT -> tcError (getSLoc i) $ "bad synonym use" -- XXX bug without this comment
+                    GT -> tcError (getSLoc i) $ "bad synonym use"
                           --EForall (drop lts vks) (subst s tt)
             Just _ -> impossible
         EUVar _ -> return $ eApps t ts
@@ -693,7 +693,6 @@ unify loc a b = do
   bb <- expandSyn b
   unifyR loc aa bb
 
--- XXX should do occur check
 unifyR :: HasCallStack =>
           SLoc -> EType -> EType -> T ()
 unifyR _   (EVar x1)    (EVar x2)  | x1 == x2      = return ()
