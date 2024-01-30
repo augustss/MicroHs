@@ -1131,22 +1131,24 @@ getNT(BFILE *f)
 value_t
 parse_int(BFILE *f)
 {
-  value_t i = 0;
-  value_t neg = 1;
+  // Parse using uvalue_t, which wraps on overflow.
+  uvalue_t i = 0;
+  int neg = 1;
   int c = getb(f);
   if (c == '-') {
     neg = -1;
     c = getb(f);
   }
   for(;;) {
-    i = i * 10 + c - '0';
+    i = i * 10 + (c - '0');
     c = getb(f);
     if (c < '0' || c > '9') {
       ungetb(c, f);
       break;
     }
   }
-  return neg * i;
+  // Multiply by neg without triggering undefined behavior.
+  return (value_t)(((uvalue_t)neg) * i);
 }
 
 #if WANT_FLOAT
@@ -2253,9 +2255,9 @@ evali(NODEPTR an)
     case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
     case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
 
-    case T_ADD:  ARITHBIN(+);
-    case T_SUB:  ARITHBIN(-);
-    case T_MUL:  ARITHBIN(*);
+    case T_ADD:  ARITHBINU(+);
+    case T_SUB:  ARITHBINU(-);
+    case T_MUL:  ARITHBINU(*);
     case T_QUOT: ARITHBIN(/);
     case T_REM:  ARITHBIN(%);
     case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
