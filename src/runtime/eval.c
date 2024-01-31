@@ -1908,10 +1908,12 @@ NODEPTR evali(NODEPTR n);
 
 /* Follow indirections */
 static INLINE NODEPTR
-indir(NODEPTR n)
+indir(NODEPTR *np)
 {
+  NODEPTR n = *np;
   while (GETTAG(n) == T_IND)
     n = INDIR(n);
+  *np = n;
   return n;
 }
 
@@ -1978,7 +1980,7 @@ evalstring(NODEPTR n, value_t *lenp)
     n = evali(n);
     if (GETTAG(n) == T_K)            /* Nil */
       break;
-    else if (GETTAG(n) == T_AP && GETTAG(x = indir(FUN(n))) == T_AP && GETTAG(indir(FUN(x))) == T_O) { /* Cons */
+    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
       c = (uvalue_t)evalint(ARG(x));
       n = POPTOP();
@@ -2298,7 +2300,8 @@ evali(NODEPTR an)
       FREE(msg);
       POP(1);
       n = TOP(-1);
-      GOIND(mkFlt(xd));
+      SETDBL(n, xd);
+      RET;
 
     case T_FSHOW:
       CHECK(1);
@@ -2309,7 +2312,7 @@ evali(NODEPTR an)
 #endif  /* WANT_FLOAT */
 
     /* Retag a word sized value, keeping the value bits */
-#define CONV(t) do { CHECK(1); x = evali(ARG(TOP(0))); GCCHECK(1); y = alloc_node(t); SETVALUE(y, GETVALUE(x)); POP(1); n = TOP(-1); GOIND(y); } while(0)
+#define CONV(t) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, t); SETVALUE(n, GETVALUE(x)); RET; } while(0)
     case T_TODBL: CONV(T_DBL);
     case T_TOINT: CONV(T_INT);
     case T_TOPTR: CONV(T_PTR);
@@ -2543,8 +2546,8 @@ execio(NODEPTR *np)
   //ppmsg("n before = ", ARG(FUN(top)));
   n = evali(ARG(FUN(top)));     /* eval(n) */
   //ppmsg("n after  = ", n);
-  if (GETTAG(n) == T_AP && GETTAG(top1 = indir(FUN(n))) == T_AP) {
-    switch (GETTAG(indir(FUN(top1)))) {
+  if (GETTAG(n) == T_AP && GETTAG(top1 = indir(&FUN(n))) == T_AP) {
+    switch (GETTAG(indir(&FUN(top1)))) {
     case T_IO_BIND:
       GCCHECKSAVE(n, 2);
       s = ARG(n);
