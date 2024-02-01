@@ -267,7 +267,7 @@ struct ustring {
  */
 struct ioarray {
   struct ioarray *next;         /* all ioarrays are linked together */
-  int marked;                   /* marked during GC */
+  size_t marked;               /* marked during GC */
   size_t size;                  /* number of elements in the array */
   NODEPTR array[1];             /* actual size may be bigger */
 };
@@ -417,6 +417,18 @@ static INLINE void mark_used(NODEPTR n)
   if (i >= free_map_nwords * BITS_PER_WORD) ERR("mark_used");
 #endif
   free_map[i / BITS_PER_WORD] &= ~(1ULL << (i % BITS_PER_WORD));
+}
+
+/* Set FREE bit to 1, used to undo marking in GC */
+static INLINE void mark_unused(NODEPTR n)
+{
+  heapoffs_t i = LABEL(n);
+#if SANITY
+  if (i < heap_start)
+    ERR("Unmarking invalid heap address.");
+  if (i >= free_map_nwords * BITS_PER_WORD) ERR("mark_used");
+#endif
+  free_map[i / BITS_PER_WORD] |= 1ULL << (i % BITS_PER_WORD);
 }
 
 /* Test if FREE bit is 0 */
@@ -736,16 +748,18 @@ int red_a, red_k, red_i, red_int, red_flip;
 #endif
 
 //counter_t mark_depth;
+//counter_t max_mark_depth = 0;
 
 /* Mark all used nodes reachable from *np */
 void
 mark(NODEPTR *np)
 {
+  stackptr_t stk = stack_ptr;
   NODEPTR n;
+  NODEPTR *to_push;
 #if GCRED
   value_t val;
 #endif
-  size_t i;
   enum node_tag tag;
 
   //  mark_depth++;
@@ -778,86 +792,111 @@ mark(NODEPTR *np)
   if (n < cells || n > cells + heap_size)
     ERR("bad n");
   if (is_marked_used(n)) {
-    //    mark_depth--;
-    return;
+    goto fin;
   }
   num_marked++;
   mark_used(n);
+  switch (tag) {
 #if GCRED
-  if (want_gc_red) {
-    /* This is really only fruitful just after parsing.  It can be removed. */
-    if (tag == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
-      /* Do the A x y --> y reduction */
-      NODEPTR y = ARG(n);
-      SETTAG(n, T_IND);
-      INDIR(n) = y;
-      red_a++;
-      goto top;
-    }
-#if 0
-    /* This never seems to happen */
-    if (tag == T_AP && GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
-      /* Do the K x y --> x reduction */
-      NODEPTR x = ARG(FUN(n));
-      SETTAG(n, T_IND);
-      INDIR(n) = x;
-      red_k++;
-      goto top;
-    }
-#endif  /* 0 */
-    if (tag == T_AP && GETTAG(FUN(n)) == T_I) {
-      /* Do the I x --> x reduction */
-      NODEPTR x = ARG(n);
-      SETTAG(n, T_IND);
-      INDIR(n) = x;
-      red_i++;
-      goto top;
-    }
-#if 1
-    /* This is broken.
-     * Probably because it can happen in the middle of the C reduction code.
-     */
-    if (tag == T_AP && GETTAG(FUN(n)) == T_C) {
-      NODEPTR q = ARG(n);
-      enum node_tag tt, tf;
-      while ((tt = GETTAG(q)) == T_IND)
-        q = INDIR(q);
-      if ((tf = flip_ops[tt])) {
-        /* Do the C op --> flip_op reduction */
-        // PRINT("%s -> %s\n", tag_names[tt], tag_names[tf]);
-        SETTAG(n, T_IND);
-        INDIR(n) = HEAPREF(tf);
-        red_flip++;
-        return;
-        goto top;
-      }
-    }
-  }
-#endif
+   case T_INT:
 #if INTTABLE
-  if (tag == T_INT && LOW_INT <= (val = GETVALUE(n)) && val < HIGH_INT) {
-    SETTAG(n, T_IND);
-    INDIR(n) = intTable[val - LOW_INT];
-    red_int++;
+    if (LOW_INT <= (val = GETVALUE(n)) && val < HIGH_INT) {
+      SETTAG(n, T_IND);
+      INDIR(n) = intTable[val - LOW_INT];
+      red_int++;
+      goto top;
+    }
+    break;
+#endif  /* INTTABLE */
+   case T_AP:
+      if (want_gc_red) {
+        /* This is really only fruitful just after parsing.  It can be removed. */
+        if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
+          /* Do the A x y --> y reduction */
+          NODEPTR y = ARG(n);
+          SETTAG(n, T_IND);
+          INDIR(n) = y;
+          red_a++;
+          goto top;
+        }
+#if 0
+        /* This never seems to happen */
+        if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
+          /* Do the K x y --> x reduction */
+          NODEPTR x = ARG(FUN(n));
+          SETTAG(n, T_IND);
+          INDIR(n) = x;
+          red_k++;
+          goto top;
+        }
+#endif  /* 0 */
+        if (GETTAG(FUN(n)) == T_I) {
+          /* Do the I x --> x reduction */
+          NODEPTR x = ARG(n);
+          SETTAG(n, T_IND);
+          INDIR(n) = x;
+          red_i++;
+          goto top;
+        }
+#if 1
+        /* This is broken.
+         * Probably because it can happen in the middle of the C reduction code.
+         */
+        if (GETTAG(FUN(n)) == T_C) {
+          NODEPTR q = ARG(n);
+          enum node_tag tt, tf;
+          while ((tt = GETTAG(q)) == T_IND)
+            q = INDIR(q);
+          if ((tf = flip_ops[tt])) {
+            /* Do the C op --> flip_op reduction */
+            // PRINT("%s -> %s\n", tag_names[tt], tag_names[tf]);
+            SETTAG(n, T_IND);
+            INDIR(n) = HEAPREF(tf);
+            red_flip++;
+            goto fin;
+          }
+        }
+      }
+#endif
+#else   /* GCRED */
+   case T_AP:
+#endif  /* GCRED */
+    /* Avoid tail recursion */
+    np = &FUN(n);
+    to_push = &ARG(n);
+    break;
+   case T_ARR:
+    {
+      struct ioarray *arr = ARR(n);
+
+      // arr->marked records marking progress through arr.
+      if (arr->marked >= arr->size) {
+        goto fin;
+      }
+      // We unmark the array as a whole and push it as long
+      // as there's more entries to scan.
+      mark_unused(n);
+      to_push = np;
+      np = &arr->array[arr->marked++];
+      break;
+    }
+   default: goto fin;
+  }
+  if (!is_marked_used(*to_push)) {
+    //  mark_depth++;
+    PUSH((NODEPTR)to_push);
+  }
+  goto top;
+ fin:
+  //  if (mark_depth > max_mark_depth) {
+  //    max_mark_depth = mark_depth;
+  //  }
+  //  mark_depth--;
+  if (stack_ptr > stk) {
+    np = (NODEPTR *)POPTOP();
     goto top;
   }
-#endif  /* INTTABLE */
-#endif  /* GCRED */
-  if (tag == T_AP) {
-    mark(&FUN(n));
-    np = &ARG(n);
-    goto top;                   /* Avoid tail recursion */
-  } else if (tag == T_ARR) {
-    struct ioarray *arr = ARR(n);
-    /* It really should never happen that we encounter a marked
-     * array, since the parent is marked.
-     */
-    if (!arr->marked) {
-      arr->marked = 1;
-      for(i = 0; i < arr->size; i++)
-        mark(&arr->array[i]);
-    }
-  }
+  return;
 }
 
 /* Perform a garbage collection:
@@ -2991,6 +3030,7 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
     PRINT("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
+    // PRINT("%"PCOMMA"15"PRIcounter" max mark depth\n", max_mark_depth);
     PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
     PRINT("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
 #if GCRED

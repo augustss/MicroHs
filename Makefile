@@ -100,7 +100,7 @@ timecompile: bin/mhs
 #
 timecachecompile: bin/mhs
 	@-rm -f .mhscache
-	bin/mhs -CW AllOfLib
+	time bin/mhs +RTS -v -RTS -CW AllOfLib
 	time bin/mhs +RTS -v -RTS -CR -isrc MicroHs.Main
 
 #
