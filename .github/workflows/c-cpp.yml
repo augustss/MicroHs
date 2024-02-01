@@ -141,9 +141,9 @@ jobs:
       run: make CONF=unix-32 info
       shell: alpine.sh {0}
 # segfaults :(
-#    - name: make everytestmhs
-#      run: make CONF=unix-32 everytestmhs
-#      shell: alpine.sh {0}
+    - name: make everytestmhs
+      run: make CONF=unix-32 everytestmhs
+      shell: alpine.sh {0}
 
   build-linux-armv7:
     runs-on: ubuntu-latest
