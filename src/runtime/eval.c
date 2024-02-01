@@ -756,7 +756,7 @@ mark(NODEPTR *np)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR n;
-  NODEPTR *to_push;
+  NODEPTR *to_push = 0;         /* silence warning by initializing */
 #if GCRED
   value_t val;
 #endif
