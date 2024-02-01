@@ -1288,7 +1288,8 @@ parse(BFILE *f)
   NODEPTR *nodep;
   heapoffs_t l;
   value_t i;
-  int c, j;
+  int c;
+  size_t j;
   char buf[80];                 /* store names of primitives. */
 
   for(;;) {
@@ -1373,7 +1374,6 @@ parse(BFILE *f)
       /* Everything up to the next " is a string.
        * Special characters are encoded as \NNN&,
        * where NNN is the decimal value of the character */
-      /* XXX assume there are no NULs in the string, and all fit in a char */
       PUSH(mkStrNode(parse_string(f)));
       break;
 #if WANT_TICK
@@ -1398,7 +1398,6 @@ parse(BFILE *f)
       /* A primitive, keep getting char's until end */
       for (j = 1; (buf[j] = getNT(f)); j++)
         ;
-      //if (!gobble(f, ' ')) ERR("parse(2) ' '");
       /* Look up the primop and use the preallocated node. */
       for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
         if (strcmp(primops[j].name, buf) == 0) {
@@ -1424,14 +1423,14 @@ checkversion(BFILE *f)
     if (c != getb(f))
       ERR("version mismatch");
   }
-  gobble(f, '\r');                 /* allow extra CR */
+  (void)gobble(f, '\r');                 /* allow extra CR */
 }
 
 /* Parse a file */
 NODEPTR
 parse_top(BFILE *f)
 {
-  heapoffs_t numLabels , i;
+  heapoffs_t numLabels, i;
   NODEPTR n;
   checkversion(f);
   numLabels = parse_int(f);
@@ -1590,12 +1589,13 @@ print_string(BFILE *f, struct ustring *p)
 void
 printrec(BFILE *f, NODEPTR n, int prefix)
 {
+  int share = 0;
+
   while (GETTAG(n) == T_IND) {
     //putb('*', f);
     n = INDIR(n);
   }
 
-  int share = 0;
   if (test_bit(shared_bits, n)) {
     /* The node is shared */
     if (test_bit(marked_bits, n)) {
