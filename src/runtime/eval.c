@@ -750,7 +750,7 @@ int red_a, red_k, red_i, red_int, red_flip;
 //counter_t mark_depth;
 //counter_t max_mark_depth = 0;
 
-/* Mark all used nodes reachable from *np */
+/* Mark all used nodes reachable from *np, updating *np. */
 void
 mark(NODEPTR *np)
 {
@@ -1298,7 +1298,10 @@ parse(BFILE *f)
     switch (c) {
     case ' ':
     case '\n':
-      break;
+      continue;
+    }
+    GCCHECK(1);
+    switch(c) {
     case '@':
       x = TOP(0);
       y = TOP(1);
