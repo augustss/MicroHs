@@ -2671,7 +2671,6 @@ execio(NODEPTR *np)
     case T_IO_DESERIALIZE:
       CHECKIO(1);
       ptr = (struct BFILE*)evalptr(ARG(TOP(1)));
-      gc();                     /* parser runs without GC */
       n = parse_top(ptr);
       RETIO(n);
 #endif
