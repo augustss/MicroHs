@@ -9,8 +9,8 @@ import Data.Functor
 import Data.List_Type
 --import Data.Maybe
 
-infixl 1 >>
-infixl 1 >>=
+infixl 1 >>, >>=
+infixr 1 <=<, >=>
 
 class (Applicative m) => Monad m where
   (>>=)  :: forall a b . m a -> (a -> m b) -> m b
@@ -73,13 +73,11 @@ sequence_ = mapM_ id
 (=<<) :: forall m a b . Monad m => (a -> m b) -> m a -> m b
 (=<<) = flip (>>=)
 
-infixr 1 <=<
 (<=<) :: forall m a b c . Monad m => (b -> m c) -> (a -> m b) -> (a -> m c)
 f <=< g = \ a -> do
   b <- g a
   f b
 
-infixr 1 >=>
 (>=>) :: forall m a b c . Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
 (>=>) = flip (<=<)
 

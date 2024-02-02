@@ -7,10 +7,7 @@ import Primitives  -- for fixity
 import Data.Functor
 import Data.Function
 
-infixl 4 <*>
-infixl 4 *>
-infixl 4 <*
-infixl 4 <**>
+infixl 4 <*>, *>, <*, <**>
 
 class Functor f => Applicative f where
   pure        :: forall a . a -> f a
