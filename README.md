@@ -111,8 +111,9 @@ Some factorials
 ```
 
 ## Libraries
-There are a number of libraries that have some of the standard Haskell functions.
-But in general, the `Prelude` contains less.
+The `Prelude` contains the functions from the Haskell Report and a few extensions,
+with the notable exception that `Foldable` and `Traversable` are not part of the `Prelude`.
+They can be imported separately, though.
 
 ## Types
 There are some primitive data types, e.g `Int`, `IO`, `Ptr`, and `Double`.

@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module System.Environment(
   getArgs,
+  getProgName,
   withArgs,
   lookupEnv,
   ) where
@@ -36,3 +37,7 @@ lookupEnv var = do
     return Nothing
    else
     Just <$> peekCAString cptr
+
+-- XXX implement this
+getProgName :: IO String
+getProgName = return "???"
