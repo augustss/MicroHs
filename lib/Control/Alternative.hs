@@ -4,6 +4,7 @@ import Control.Applicative
 import Data.Bool_Type
 import Data.Functor
 import Data.List_Type
+import Data.Maybe_Type
 
 infixl 3 <|>
 
@@ -23,3 +24,6 @@ guard b = if b then pure () else empty
 asum :: forall f a . Alternative f => [f a] -> f a
 asum [] = empty
 asum (a:as) = a <|> asum as
+
+optional :: forall f a . Alternative f => f a -> f (Maybe a)
+optional a = Just <$> a <|> pure Nothing
