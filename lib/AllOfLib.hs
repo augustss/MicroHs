@@ -61,6 +61,7 @@ import Data.TypeLits
 import Data.Void
 import Data.Word
 import Data.Word8
+import Data.ZipList
 import Debug.Trace
 import Foreign.C.String
 import Foreign.Marshal.Alloc
