@@ -145,8 +145,8 @@ prim :: forall a . String -> a -> TypeRep
 prim n = nullary "Primitives" n
 
 instance Typeable ()          where typeRep = nullary "Data.Tuple"          "()"
-instance Typeable Any         where typeRep = prim                          "Any"
-instance Typeable Bool        where typeRep = nullary "Data.Bool_Type"      "Char"
+instance Typeable AnyType     where typeRep = prim                          "AnyType"
+instance Typeable Bool        where typeRep = nullary "Data.Bool_Type"      "Bool"
 instance Typeable Char        where typeRep = prim                          "Char"
 instance Typeable Int         where typeRep = prim                          "Int"
 instance Typeable Integer     where typeRep = nullary "Data.Integer_Type"   "Integer"
@@ -174,7 +174,7 @@ instance Typeable Applicative where typeRep = nullary "Control.Applicative" "App
 instance Typeable Monad       where typeRep = nullary "Control.Monad"       "Monad"
 
 instance Typeable (,)         where typeRep = nullary "Data.Tuple"          ","
-instance Typeable (->)        where typeRep = nullary "Primitives"          "->"
+instance Typeable (->)        where typeRep = prim                          "->"
 instance Typeable Either      where typeRep = nullary "Data.Either"         "Either"
 instance Typeable Map         where typeRep = nullary "Data.Map"            "Map"
 instance Typeable ST          where typeRep = nullary "Control.Monad.ST"    "ST"

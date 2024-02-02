@@ -18,6 +18,7 @@ import Control.Arrow(first)
 import Control.Monad
 import Data.Char
 import Data.Function
+import Data.Integer(readInteger)
 import Data.List
 import Data.Maybe
 import qualified Data.IntMap as IM
@@ -177,12 +178,15 @@ filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs 
             concatMap (\ (TypeExport _ _ xvs) -> map (\ (ValueExport i _) -> i) xvs) ts
     allTs = map (\ (TypeExport i _ _) -> i) ts
   in
-    checkBad msg (ivs \\ allVs) $
-    checkBad msg (its \\ allTs) $
+    (if hide then
+       id -- don't complain about missing hidden identifiers; we use it for compatibility
+     else
+       checkBad msg (ivs \\ allVs) .
+       checkBad msg (its \\ allTs))
     --trace (show (ts, vs)) $
     (imp, TModule mn fx ts' ss cs ins vs' a)
 
-checkBad :: String -> [Ident] -> a -> a
+checkBad :: forall a . String -> [Ident] -> a -> a
 checkBad _ [] a = a
 checkBad msg (i:_) _ =
   errorMessage (getSLoc i) $ msg ++ ": " ++ showIdent i
@@ -1431,9 +1435,9 @@ tcExprR mt ae =
               case mex of
                 -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
                 -- (which is not always in scope).
-                Just v | v == mkIdent nameInt     -> tcLit  mt loc' (LInt (_integerToInt i))
-                       | v == mkIdent nameWord    -> tcLit' mt loc' (LInt (_integerToInt i)) (tConI loc' nameWord)
-                       | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (_integerToDouble i))
+                Just v | v == mkIdent nameInt     -> tcLit  mt loc' (LInt (fromInteger i))
+                       | v == mkIdent nameWord    -> tcLit' mt loc' (LInt (fromInteger i)) (tConI loc' nameWord)
+                       | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (fromInteger i))
                        | v == mkIdent nameInteger -> tcLit  mt loc' l
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow

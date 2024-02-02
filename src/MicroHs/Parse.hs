@@ -9,7 +9,6 @@ import Text.ParserComb as P
 import MicroHs.Lex
 import MicroHs.Expr
 import MicroHs.Ident
-import Compat
 --import Debug.Trace
 
 type P a = Prsr FilePath Token a
@@ -278,7 +277,7 @@ pDef =
   <|< KindSign    <$> (pKeyword "type"    *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
-    dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = _integerToInt ii
+    dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
 

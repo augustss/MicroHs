@@ -12,7 +12,7 @@ import Data.Proxy
 import Data.Typeable
 import Unsafe.Coerce
 
-data Dynamic = D TypeRep Any
+data Dynamic = D TypeRep AnyType
 
 toDyn :: forall a . Typeable a => a -> Dynamic
 toDyn a = D (typeOf a) (unsafeCoerce a)

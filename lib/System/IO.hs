@@ -11,8 +11,10 @@ module System.IO(
   hPutStr, hPutStrLn,
   putStr, putStrLn,
   print,
-  hGetContents,
-  writeFile, readFile,
+  hGetContents, getContents,
+  hGetLine, getLine,
+  interact,
+  writeFile, readFile, appendFile,
 
   hSerialize, hDeserialize, cprint,
   writeSerialized, readSerialized,
@@ -190,9 +192,27 @@ putStrLn = hPutStrLn stdout
 hPutStrLn :: Handle -> String -> IO ()
 hPutStrLn h s = hPutStr h s >> hPutChar h '\n'
 
+hGetLine :: Handle -> IO String
+hGetLine h = loop ""
+  where loop s = do
+          c <- hGetChar h
+          if c == '\n' then
+            return (reverse s)
+           else
+            loop (c:s)
+
+getLine :: IO String
+getLine = hGetLine stdin
+
 writeFile :: FilePath -> String -> IO ()
 writeFile p s = do
   h <- openFile p WriteMode
+  hPutStr h s
+  hClose h
+
+appendFile :: FilePath -> String -> IO ()
+appendFile p s = do
+  h <- openFile p AppendMode
   hPutStr h s
   hClose h
 
@@ -228,6 +248,12 @@ hGetContents h@(Handle p) = do
     cs <- unsafeInterleaveIO (hGetContents h)
     return (chr c : cs)
   
+getContents :: IO String
+getContents = hGetContents stdin
+
+interact :: (String -> String) -> IO ()
+interact f = getContents >>= putStr . f
+
 writeSerialized :: forall a . FilePath -> a -> IO ()
 writeSerialized p s = do
   h <- openFile p WriteMode

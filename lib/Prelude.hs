@@ -23,11 +23,11 @@ module Prelude(
   module Data.Monoid,
   module Data.Num,
   module Data.Ord,
-  module Data.Proxy,
   module Data.Ratio,
   module Data.Real,
   module Data.RealFloat,
   module Data.Records,
+  module Data.Semigroup,
   module Data.Tuple,
   module System.IO,
   module Text.Show,
@@ -45,26 +45,27 @@ import Data.Either(Either(..), either)
 import Data.Enum(Enum(..))
 import Data.Eq(Eq(..))
 import Data.Floating(Floating(..))
-import Data.Fractional(Fractional(..))
+import Data.Fractional(Fractional(..), (^^))
 import Data.Function(id, const, (.), flip, ($), seq, ($!), until, curry, uncurry)
-import Data.Functor
-import Data.Int
-import Data.Integer
-import Data.Integral
+import Data.Functor(Functor(..), (<$>))
+import Data.Int(Int)
+import Data.Integer(Integer)
+import Data.Integral(Integral(..), fromIntegral, gcd, lcm, even, odd, (^))
 import Data.List
 import Data.Maybe(Maybe(..), maybe)
-import Data.Monoid
-import Data.Num
+import Data.Monoid(Monoid(..))
+import Data.Num(Num(..), subtract)
 import Data.Ord(Ord(..), Ordering(..))
-import Data.Proxy
 import Data.Ratio(Rational)
-import Data.Real(Real(..))
-import Data.RealFloat
-import Data.Records
+import Data.Real(Real(..), realToFrac)
+import Data.RealFloat(RealFloat(..))
+import Data.Records  -- XXX redo this somehow
 import Data.Semigroup(Semigroup(..))
 import Data.Tuple(()(..), fst, snd)
-import System.IO
-import Text.Show
+import Data.Word(Word)
+import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
+                 FilePath, readFile, writeFile, appendFile)
+import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Text.String
 import Primitives(_wordSize, _isWindows)
 

@@ -8,6 +8,7 @@ import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
+import System.IO
 
 foreign import ccall "md5BFILE"  c_md5BFILE  :: Handle    -> Ptr Word -> IO ()
 foreign import ccall "md5String" c_md5String :: CString   -> Ptr Word -> IO ()

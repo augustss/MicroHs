@@ -60,7 +60,6 @@ import Data.Num
 import Data.Ord
 import Data.Proxy
 import Data.Semigroup
-import System.IO(seq)
 
 newtype MMax a = MMax (Maybe a)
 getMMax :: forall a . MMax a -> Maybe a

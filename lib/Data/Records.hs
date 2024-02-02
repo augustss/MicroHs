@@ -1,4 +1,7 @@
-module Data.Records(module Data.Records) where
+module Data.Records(
+  module Data.Proxy,
+  module Data.Records,
+  ) where
 import Primitives
 import Data.Function
 import Data.Proxy

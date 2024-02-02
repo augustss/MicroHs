@@ -9,6 +9,7 @@ module MicroHs.Desugar(
 import Prelude
 import Data.Char
 import Data.Function
+import Data.Integer(_integerToIntList)
 import Data.List
 import Data.Maybe
 import Data.Ratio
@@ -177,7 +178,7 @@ mutualRec v ies body =
 encodeInteger :: Integer -> Exp
 encodeInteger i | toInteger (minBound::Int) <= i && i < toInteger (maxBound::Int) =
 --  trace ("*** small integer " ++ show i) $
-  App (Var (mkIdent "Data.Integer_Type._intToInteger")) (Lit (LInt (_integerToInt i)))
+  App (Var (mkIdent "Data.Integer_Type._intToInteger")) (Lit (LInt (fromInteger i)))
                 | otherwise =
 --  trace ("*** large integer " ++ show i) $
   App (Var (mkIdent "Data.Integer._intListToInteger")) (encList (map (Lit . LInt) (_integerToIntList i)))

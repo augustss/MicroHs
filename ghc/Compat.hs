@@ -16,21 +16,6 @@ import GHC.Records
 import System.Environment
 import System.IO
 
-------- Int --------
-
-_integerToInt :: Integer -> Int
-_integerToInt = fromInteger
-
-_integerToDouble :: Integer -> Double
-_integerToDouble = fromIntegral
-
--- Same as in Data.Integer
-_integerToIntList :: Integer -> [Int]
-_integerToIntList i | i < 0 = -1 : to (-i)
-                    | otherwise =  to i
-  where to 0 = []
-        to n = fromInteger r : to q  where (q, r) = quotRem n 2147483648
-
 ------- List --------
 
 elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
@@ -97,9 +82,6 @@ getTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeco
 
 ------- Read --------
 
-readInteger :: String -> Integer
-readInteger = read
-
 -- Convert string in scientific notation to a rational number.
 readRational :: String -> Rational
 readRational "" = undefined
@@ -111,19 +93,19 @@ readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
         (ds1, cr1) | ('.':r1) <- cr1                   -> rat2 f1 r1
                    | (c:r1)   <- cr1, toLower c == 'e' -> rat3 f1 r1
                    | otherwise                         -> f1
-          where f1 = toRational (readInteger ds1)
+          where f1 = toRational (read ds1 :: Integer)
 
     rat2 f1 s2 =
       case span isDigit s2 of
         (ds2, cr2) | (c:r2) <- cr2, toLower c == 'e' -> rat3 f2 r2
                    | otherwise                       -> f2
-          where f2 = f1 + toRational (readInteger ds2) * 10 ^^ (negate $ length ds2)
+          where f2 = f1 + toRational (read ds2 :: Integer) * 10 ^^ (negate $ length ds2)
 
     rat3 f2 ('+':s) = f2 * expo s
     rat3 f2 ('-':s) = f2 / expo s
     rat3 f2      s  = f2 * expo s
 
-    expo s = 10 ^ readInteger s
+    expo s = 10 ^ (read s :: Int)
 
 partitionM :: Monad m => (a -> m Bool) -> [a] -> m ([a], [a])
 partitionM _ [] = return ([], [])

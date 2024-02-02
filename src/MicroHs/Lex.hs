@@ -4,9 +4,10 @@ module MicroHs.Lex(
   tokensLoc) where
 import Prelude hiding(lex)
 import Data.Char
+import Data.Integer(readInteger)
 import Data.List
-import Compat
 import MicroHs.Ident
+import Compat
 
 data Token
   = TIdent  Loc [String] String
