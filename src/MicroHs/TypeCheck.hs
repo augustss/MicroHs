@@ -244,7 +244,7 @@ mkTModule tds tcs =
     assoc i = getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
-    ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign i ts <- tds ]
+    ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign is ts <- tds, i <- is ]
 
     -- All top level types possible to export.
     tes =
@@ -996,7 +996,7 @@ tcDefType def = do
     Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> (,kType)       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDerive ds)
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first              (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> (,kConstraint) <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
-    Sign      i t          ->                                             Sign      i   <$> tCheckTypeT kType t
+    Sign      is t         ->                                             Sign      is  <$> tCheckTypeT kType t
     ForImp ie i t          ->                                             ForImp ie i   <$> tCheckTypeT kType t
     Instance ct m          ->                                             Instance      <$> tCheckTypeT kConstraint ct <*> return m
     Default ts             ->                                             Default       <$> mapM (tCheckTypeT kType) ts
@@ -1085,7 +1085,7 @@ expandClass dcls@(Class ctx (iCls, vks) fds ms) = do
       methIds = map (\ (BSign i _) -> i) meths
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
-      mkDflt (BSign methId t) = [ Sign iDflt $ EForall vks $ tCtx `tImplies` t, def $ lookup methId mdflts ]
+      mkDflt (BSign methId t) = [ Sign [iDflt] $ EForall vks $ tCtx `tImplies` t, def $ lookup methId mdflts ]
         where def Nothing = Fcn iDflt $ simpleEqn noDflt
               def (Just eqns) = Fcn iDflt eqns
               iDflt = mkDefaultMethodId methId
@@ -1137,7 +1137,7 @@ expandInst dinst@(Instance act bs) = do
   let loc = getSLoc act
       qiCls = getAppCon cc
   iInst <- newIdent loc "inst"
-  let sign = Sign iInst act
+  let sign = Sign [iInst] act
 --  (e, _) <- tLookupV iCls
   ct <- gets classTable
 --  let qiCls = getAppCon e
@@ -1172,7 +1172,7 @@ addValueType :: EDef -> T ()
 addValueType adef = do
   mn <- gets moduleName
   case adef of
-    Sign i t -> extValQTop i t
+    Sign is t -> mapM_ (\ i -> extValQTop i t) is
     Data (i, vks) cs _ -> do
       let
         cti = [ (qualIdent mn c, either length length ets + if null ctx then 0 else 1) | Constr _ ctx c ets <- cs ]

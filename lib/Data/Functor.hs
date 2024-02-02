@@ -11,5 +11,5 @@ infixl 4 <$>
 (<$>) :: forall f a b . Functor f => (a -> b) -> f a -> f b
 (<$>) = fmap
 
---void :: forall f a . Functor f => f a -> f ()
---void = fmap (const ())
+void :: forall f a . Functor f => f a -> f ()
+void = fmap (const ())

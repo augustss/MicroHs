@@ -268,7 +268,7 @@ pDef =
   <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
   <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
   <|< uncurry Fcn <$> pEqns
-  <|< Sign        <$> (pLIdentSym <* dcolon) <*> pType
+  <|< Sign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Import      <$> (pKeyword "import"  *> pImportSpec)
   <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')

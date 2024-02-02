@@ -63,7 +63,7 @@ data EDef
   | Newtype LHS Constr Deriving
   | Type LHS EType
   | Fcn Ident [Eqn]
-  | Sign Ident EType
+  | Sign [Ident] EType
   | KindSign Ident EKind
   | Import ImportSpec
   | ForImp String Ident EType
@@ -571,7 +571,7 @@ ppEDef def =
     Newtype lhs c ds -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c <+> ppDeriving ds
     Type lhs t -> text "type" <+> ppLHS lhs <+> text "=" <+> ppEType t
     Fcn i eqns -> ppEqns (ppIdent i) (text "=") eqns
-    Sign i t -> ppIdent i <+> text "::" <+> ppEType t
+    Sign is t -> hsep (punctuate (text ",") (map ppIdent is)) <+> text "::" <+> ppEType t
     KindSign i t -> text "type" <+> ppIdent i <+> text "::" <+> ppEKind t
     Import (ImportSpec q m mm mis) -> text "import" <+> (if q then text "qualified" else empty) <+> ppIdent m <> text (maybe "" ((" as " ++) . unIdent) mm) <>
       case mis of

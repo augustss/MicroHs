@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module Data.Function(module Data.Function) where
 import Primitives
+import Data.Bool_Type
 --import Data.Tuple
 
 infixr 0 $
@@ -28,7 +29,10 @@ flip f a b = f b a
 fix :: forall a . (a -> a) -> a
 fix = primFix
 
-uncurry :: forall a b c . (a -> b -> c) -> (a, b) -> c
+curry :: forall a b c . ((a, b) -> c) -> (a -> b -> c)
+curry f a b = f (a, b)
+
+uncurry :: forall a b c . (a -> b -> c) -> ((a, b) -> c)
 uncurry f (a, b) = f a b  -- XXX not lazy
 
 infixl 0 `on`
@@ -40,3 +44,8 @@ asTypeOf = const
 
 seq :: forall a b . a -> b -> b
 seq = primSeq
+
+until :: forall a . (a -> Bool) -> (a -> a) -> a -> a
+until p f = rec
+  where
+    rec x = if p x then x else rec (f x)

@@ -1,5 +1,6 @@
 module System.Directory(removeFile) where
 import Prelude
+import Control.Monad(when)
 import Foreign.C.String
 import Foreign.Ptr
 

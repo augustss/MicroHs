@@ -1,7 +1,6 @@
 module Data.Monoid(module Data.Monoid, module Data.Semigroup) where
 import Primitives
 import Control.Applicative
-import Control.Monad
 import Data.Bool
 import Data.Bounded
 import Data.Function
@@ -50,9 +49,6 @@ instance Functor Dual where
 instance Applicative Dual where
   pure = Dual
   Dual f <*> Dual b = Dual (f b)
-
-instance Monad Dual where
-  m >>= k = k (getDual m)
 
 ---------------------
 

@@ -34,34 +34,35 @@ module Prelude(
   module Text.String,
   usingMhs, _wordSize, _isWindows,
   ) where
-import Control.Applicative
-import Control.Error
-import Control.Monad
-import Data.Bool
-import Data.Bounded
-import Data.Char
-import Data.Double
-import Data.Either
-import Data.Enum
-import Data.Eq
-import Data.Floating
-import Data.Fractional
-import Data.Function
+import Control.Applicative(Applicative(..))
+import Control.Error(error, undefined)
+import Control.Monad(Monad(..), MonadFail(..), mapM, mapM_, sequence, sequence_, (=<<))
+import Data.Bool(Bool(..), (&&), (||), not, otherwise)
+import Data.Bounded(Bounded(..))
+import Data.Char(Char, String)
+import Data.Double(Double)
+import Data.Either(Either(..), either)
+import Data.Enum(Enum(..))
+import Data.Eq(Eq(..))
+import Data.Floating(Floating(..))
+import Data.Fractional(Fractional(..))
+import Data.Function(id, const, (.), flip, ($), seq, ($!), until, curry, uncurry)
 import Data.Functor
 import Data.Int
 import Data.Integer
 import Data.Integral
 import Data.List
-import Data.Maybe
+import Data.Maybe(Maybe(..), maybe)
 import Data.Monoid
 import Data.Num
-import Data.Ord
+import Data.Ord(Ord(..), Ordering(..))
 import Data.Proxy
 import Data.Ratio(Rational)
-import Data.Real
+import Data.Real(Real(..))
 import Data.RealFloat
 import Data.Records
-import Data.Tuple
+import Data.Semigroup((<>))
+import Data.Tuple(()(..), fst, snd)
 import System.IO
 import Text.Show
 import Text.String

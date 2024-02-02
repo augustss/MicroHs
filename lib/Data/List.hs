@@ -8,7 +8,6 @@ import Primitives
 import Control.Alternative
 import Control.Applicative
 import Control.Error
-import Control.Monad
 import Data.Bool
 import Data.Eq
 import Data.Function
@@ -38,13 +37,7 @@ instance Functor [] where
 
 instance Applicative [] where
   pure a = [a]
-  (<*>) = ap
-
-instance Monad [] where
-  (>>=) = flip concatMap
-
-instance MonadFail [] where
-  fail _ = []
+  fs <*> xs = concatMap (\ f -> map (\ x -> f x) xs) fs
 
 instance forall a . Show a => Show [a] where
   showsPrec _ = showList

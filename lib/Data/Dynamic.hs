@@ -7,6 +7,7 @@ module Data.Dynamic(
   dynTypeRep,
   ) where
 import Prelude
+import Data.Maybe
 import Data.Proxy
 import Data.Typeable
 import Unsafe.Coerce
