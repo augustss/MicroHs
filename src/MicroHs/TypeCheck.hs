@@ -110,10 +110,14 @@ data TypeExport = TypeExport
   [ValueExport]   -- associated values, i.e., constructors, selectors, methods
 --  deriving (Show)
 
+--instance Show TypeExport where show (TypeExport i _ vs) = showIdent i ++ show vs
+
 data ValueExport = ValueExport
   Ident           -- unqualified name
   Entry           -- symbol table entry
 --  deriving (Show)
+
+--instance Show ValueExport where show (ValueExport i _) = showIdent i
 
 type FixDef = (Ident, Fixity)
 type SynDef = (Ident, EType)
@@ -169,9 +173,12 @@ filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs 
           map (\ te@(TypeExport i e _) -> if keep i cts then te else TypeExport i e []) $
           filter (\ (TypeExport i _ _) -> keep i its) ts
     msg = "not exported"
+    allVs = map (\ (ValueExport i _) -> i) vs ++
+            concatMap (\ (TypeExport _ _ xvs) -> map (\ (ValueExport i _) -> i) xvs) ts
+    allTs = map (\ (TypeExport i _ _) -> i) ts
   in
-    checkBad msg (ivs \\ map (\ (ValueExport i _) -> i) vs) $
-    checkBad msg (its \\ map (\ (TypeExport i _ _) -> i) ts) $
+    checkBad msg (ivs \\ allVs) $
+    checkBad msg (its \\ allTs) $
     --trace (show (ts, vs)) $
     (imp, TModule mn fx ts' ss cs ins vs' a)
 
