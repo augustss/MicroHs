@@ -49,7 +49,9 @@ toStringCMdl (mainName, ds) =
     def r (i, e) =
       --(("((A :" ++ show i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
       ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @\n") ++) . r . (" @" ++)
-  in combVersion ++ show ndefs ++ "\n" ++ res " }"
+  in case M.lookup mainName dMap of
+       Nothing -> error "No 'main' function"
+       Just _  -> combVersion ++ show ndefs ++ "\n" ++ res " }"
 
 -- Avoid quadratic concatenation by using difference lists,
 -- turning concatenation into function composition.
