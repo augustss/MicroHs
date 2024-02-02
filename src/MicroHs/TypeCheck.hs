@@ -168,9 +168,17 @@ filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs 
     ts' = map (\ (TypeExport i e xvs) -> TypeExport i e $ filter (\ (ValueExport ii _) -> not hide || keep ii ivs) xvs) $
           map (\ te@(TypeExport i e _) -> if keep i cts then te else TypeExport i e []) $
           filter (\ (TypeExport i _ _) -> keep i its) ts
+    msg = "not exported"
   in
+    checkBad msg (ivs \\ map (\ (ValueExport i _) -> i) vs) $
+    checkBad msg (its \\ map (\ (TypeExport i _ _) -> i) ts) $
     --trace (show (ts, vs)) $
     (imp, TModule mn fx ts' ss cs ins vs' a)
+
+checkBad :: String -> [Ident] -> a -> a
+checkBad _ [] a = a
+checkBad msg (i:_) _ =
+  errorMessage (getSLoc i) $ msg ++ ": " ++ showIdent i
 
 -- Type and value exports
 getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ClassTable -> ExportItem ->

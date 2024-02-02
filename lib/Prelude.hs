@@ -61,7 +61,7 @@ import Data.Ratio(Rational)
 import Data.Real(Real(..))
 import Data.RealFloat
 import Data.Records
-import Data.Semigroup((<>))
+import Data.Semigroup(Semigroup(..))
 import Data.Tuple(()(..), fst, snd)
 import System.IO
 import Text.Show
