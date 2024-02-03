@@ -247,6 +247,8 @@ layout mms@(m : ms) tts@(TIndent x       : ts) | n == m = TSpec (tokensLoc ts) '
 layout          ms      (TIndent _       : ts)          =                            layout     ms  ts
 layout mms@(m :  _)     (TBrace x        : ts) | n > m  = TSpec (tokensLoc ts) '<' : layout (n:mms) ts where {n = getCol x}
 layout          []      (TBrace x        : ts) | n > 0  = TSpec (tokensLoc ts) '<' : layout     [n] ts where {n = getCol x}
+layout          ms      (TBrace x        : ts)          = TSpec (tokensLoc ts) '<' : TSpec (tokensLoc ts) '>' :
+                                                                                     layout     ms  (TIndent x : ts)
 layout     (0 : ms)     (t@(TSpec _ '}') : ts)          =                        t : layout     ms  ts 
 layout           _      (  (TSpec l '}') :  _)          = TError l "layout error }": []
 layout          ms      (t@(TSpec _ '{') : ts)          =                        t : layout  (0:ms) ts
