@@ -10,16 +10,16 @@ import MicroHs.Ident
 import Compat
 
 data Token
-  = TIdent  Loc [String] String
-  | TString Loc String
-  | TChar   Loc Char
-  | TInt    Loc Integer
-  | TRat    Loc Rational
-  | TSpec   Loc Char
-  | TError  Loc String
-  | TBrace  Loc
-  | TIndent Loc
-  | TSelect Loc String
+  = TIdent  Loc [String] String  -- identifier
+  | TString Loc String           -- String literal
+  | TChar   Loc Char             -- Char literal
+  | TInt    Loc Integer          -- Integer literal
+  | TRat    Loc Rational         -- Rational literal (i.e., decimal number)
+  | TSpec   Loc Char             -- one of ()[]{},`;
+  | TError  Loc String           -- lexical error
+  | TBrace  Loc                  -- {n} in the Haskell report
+  | TIndent Loc                  -- <n> in the Haskell report
+  | TSelect Loc String           -- special '.foo' token
 --  deriving (Show)
 
 showToken :: Token -> String
@@ -211,21 +211,20 @@ tIdent :: Loc -> [String] -> String -> [Token] -> [Token]
 tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
                                  = ti : tBrace ats
                      | otherwise = ti : ats
-  where {
-    ti = TIdent loc qs kw;
+  where
+    ti = TIdent loc qs kw
 
-    tBrace ts@(TSpec _ '{' : _) = ts;
-    tBrace ts@(TIndent _ : TSpec _ '{' : _) = ts;
-    tBrace (TIndent _ : ts) = TBrace (tokensLoc ts) : ts;
+    tBrace ts@(TSpec _ '{' : _) = ts
+    tBrace ts@(TIndent _ : TSpec _ '{' : _) = ts
+    tBrace (TIndent _ : ts) = TBrace (tokensLoc ts) : ts
     tBrace ts = TBrace (tokensLoc ts) : ts
-    }
 
 tokensLoc :: [Token] -> Loc
 tokensLoc (TIdent  loc _ _:_) = loc
 tokensLoc (TString loc _  :_) = loc
 tokensLoc (TChar   loc _  :_) = loc
 tokensLoc (TInt    loc _  :_) = loc
-tokensLoc (TRat    loc _ : _) = loc
+tokensLoc (TRat    loc _  :_) = loc
 tokensLoc (TSpec   loc _  :_) = loc
 tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
@@ -234,6 +233,9 @@ tokensLoc (TSelect loc _  :_) = loc
 tokensLoc []                  = mkLoc 0 1
 
 -- | This is the magical layout resolver, straight from the Haskell report.
+-- https://www.haskell.org/onlinereport/haskell2010/haskellch10.html#x17-17800010.3
+-- The first argument is a stack of "layout contexts" (indentations) where a synthetic '{' has been inserted.
+-- The second argument is the input token stream.
 layout :: [Int] -> [Token] -> [Token]
 layout mms@(m : ms) tts@(TIndent x       : ts) | n == m = TSpec (tokensLoc ts) ';' : layout    mms  ts
                                                | n <  m = TSpec (tokensLoc ts) '}' : layout     ms tts where {n = getCol x}
