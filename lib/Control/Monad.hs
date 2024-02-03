@@ -36,7 +36,6 @@ module Control.Monad(
   ) where
 import Primitives  -- for fixity
 import Control.Applicative
-import Control.Alternative(guard)
 import Control.Error
 import Data.Bool
 import Data.Char_Type

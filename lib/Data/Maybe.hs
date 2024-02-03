@@ -2,7 +2,6 @@
 -- See LICENSE file for full license.
 module Data.Maybe(module Data.Maybe, module Data.Maybe_Type) where
 import Primitives
-import Control.Alternative
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Fail

@@ -5,7 +5,6 @@ module Data.List(
   module Data.List_Type
   ) where
 import Primitives
-import Control.Alternative
 import Control.Applicative
 import Control.Error
 import Data.Bool

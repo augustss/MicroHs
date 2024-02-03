@@ -13,7 +13,7 @@ module MicroHs.TypeCheck(
   listPrefix,
   ) where
 import Prelude
-import Control.Alternative
+import Control.Applicative
 import Control.Arrow(first)
 import Control.Monad
 import Data.Char

@@ -1,7 +1,6 @@
 module AllOfLib(main) where
 -- Only used to save the compilation cache.
 import Compat
-import Control.Alternative
 import Control.Applicative
 import Control.DeepSeq
 import Control.Error

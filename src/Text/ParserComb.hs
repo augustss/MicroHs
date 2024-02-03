@@ -22,8 +22,8 @@ module Text.ParserComb(
   ) where
 --Ximport Prelude()
 import Prelude
-import Control.Alternative
-import Control.Monad --Xhiding(guard)
+import Control.Applicative
+import Control.Monad
 
 data LastFail t
   = LastFail Int [t] [String]
@@ -172,8 +172,10 @@ some :: forall s t a . Prsr s t a -> Prsr s t [a]
 some p = (:) <$> p <*> many p
 -}
 
+{-
 optional :: forall s t a . Prsr s t a -> Prsr s t (Maybe a)
 optional p = (Just <$> p) <|> pure Nothing
+-}
 
 emany :: forall s t a . Prsr s t a -> Prsr s t [a]
 emany p = esome p <|< pure []

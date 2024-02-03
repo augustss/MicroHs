@@ -42,7 +42,6 @@ module Data.Foldable (
     find
     ) where
 import Primitives
-import Control.Alternative
 import Control.Applicative
 import Control.Error
 import Control.Monad
