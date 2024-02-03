@@ -81,6 +81,10 @@ digitToInt c | (primCharLE '0' c) && (primCharLE c '9') = ord c - ord '0'
              | (primCharLE 'A' c) && (primCharLE c 'F') = ord c - (ord 'A' - 10)
              | otherwise                                = error "digitToInt"
 
+intToDigit :: Int -> Char
+intToDigit i | i < 10 = chr (ord '0' + i)
+             | otherwise = chr (ord 'A' - 10 + i)
+
 toLower :: Char -> Char
 toLower c | primCharLE 'A' c && primCharLE c 'Z' = chr (ord c - ord 'A' + ord 'a')
           | True = c
