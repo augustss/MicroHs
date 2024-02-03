@@ -4,6 +4,7 @@ module Prelude(
   module Control.Applicative,
   module Control.Error,
   module Control.Monad,
+  module Control.Monad.Fail,
   module Data.Bool,
   module Data.Bounded,
   module Data.Char,
@@ -36,7 +37,8 @@ module Prelude(
   ) where
 import Control.Applicative(Applicative(..))
 import Control.Error(error, undefined)
-import Control.Monad(Monad(..), MonadFail(..), mapM, mapM_, sequence, sequence_, (=<<))
+import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
+import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)
 import Data.Bounded(Bounded(..))
 import Data.Char(Char, String)

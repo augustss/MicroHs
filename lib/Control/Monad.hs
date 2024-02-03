@@ -1,7 +1,6 @@
 module Control.Monad(
   Functor(..),
   Monad(..),
-  MonadFail(..),
   MonadPlus(..),
   mapM,
   mapM_,
@@ -218,13 +217,6 @@ instance Monad Maybe where
   Nothing >>= _ = Nothing
   Just a  >>= f = f a
 -}
-
-class Monad m => MonadFail m where
-  fail :: forall a . String -> m a
-  fail = error
-
-instance MonadFail [] where
-  fail _ = []
 
 class (Monad m) => MonadPlus m where
   mzero :: forall a . m a

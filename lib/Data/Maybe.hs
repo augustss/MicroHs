@@ -5,6 +5,7 @@ import Primitives
 import Control.Alternative
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Fail
 import Data.Bool
 import Data.Char
 import Data.Eq

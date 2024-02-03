@@ -19,6 +19,8 @@ module System.IO(
   hSerialize, hDeserialize, cprint,
   writeSerialized, readSerialized,
 
+  hSetEncoding, utf8,
+
   unsafeInterleaveIO,
   getTimeMilli,
   openTmpFile,
@@ -29,6 +31,7 @@ import Primitives
 import Control.Applicative
 import Control.Error
 import Control.Monad
+import Control.Monad.Fail
 import Data.Bool
 import Data.Char
 import Data.Eq
@@ -279,6 +282,18 @@ openBinaryFile p m = do
   case mf of
     Nothing -> error $ "openBinaryFile: cannot open " ++ show p
     Just p -> do { q <- c_add_FILE p; return (Handle q) }
+
+--------
+-- For compatibility
+
+data TextEncoding = UTF8
+
+utf8 :: TextEncoding
+utf8 = UTF8
+
+-- Always in UTF8 mode
+hSetEncoding :: Handle -> TextEncoding -> IO ()
+hSetEncoding _ _ = return ()
 
 --------
 

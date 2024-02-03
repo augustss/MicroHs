@@ -7,6 +7,7 @@ import Control.DeepSeq
 import Control.Error
 import Control.Exception
 import Control.Monad
+import Control.Monad.Fail
 import Control.Monad.ST
 import Control.Monad.State.Strict
 import Data.Bits

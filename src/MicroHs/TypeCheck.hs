@@ -2247,7 +2247,9 @@ expandDict' avks actx edict acc = do
         Nothing -> do
           -- if iCls is a variable it's not in the class table, otherwise it's an error
           when (isConIdent iCls) $
-            impossible
+            --impossible
+            -- XXX it seems we can get here, e.g., Control.Monad.Fail without Applicative import
+            error ("expandDict: " ++ show iCls)
           return [(edict, vks, ctx, cc, [])]
         Just (iks, sups, _, _, fds) -> do
           let 
