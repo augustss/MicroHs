@@ -50,7 +50,6 @@ longests xs = foldl1 longest xs
 data Res s t a = Many [(a, ([t], s))] (LastFail t)
   --deriving (Show)
 
--- | 
 data Prsr s t a = P (([t], s) -> Res s t a)
 --instance Show (Prsr s t a) where show _ = "<<Prsr>>"
 
@@ -87,63 +86,6 @@ instance forall s t . Alternative (Prsr s t) where
       Many a lfa ->
         case runP q t of
           Many b lfb -> Many (a ++ b) (longest lfa lfb)
-
-{-
-pure :: forall s t a . a -> Prsr s t a
-pure a = P $ \ t -> Many [(a, t)] noFail
-
-infixl 1 >>=
-(>>=) :: forall s t a b . Prsr s t a -> (a -> Prsr s t b) -> Prsr s t b
-(>>=) p k = P $ \ t ->
-    case runP p t of
-      Many aus plf ->
-        let { xss = [ runP (k a) u | au <- aus, let { (a, u) = au } ] }
-        in  case unzip [ (rs, lf) | xs <- xss, let { Many rs lf = xs } ] of
-              (rss, lfs) -> Many (concat rss) (longests (plf : lfs))
-
-infixl 1 >>
-(>>) :: forall s t a b . Prsr s t a -> Prsr s t b -> Prsr s t b
-(>>) p k = p >>= \ _ -> k
-
-infixl 4 <*>
-(<*>) :: forall s t a b . Prsr s t (a -> b) -> Prsr s t a -> Prsr s t b
-(<*>) m1 m2 = m1 >>= \ x1 -> m2 >>= \ x2 -> pure (x1 x2)
-
-infixl 4 <*
-(<*) :: forall s t a b . Prsr s t a -> Prsr s t b -> Prsr s t a
-(<*) m1 m2 = m1 >>= \ x1 -> m2 >> pure x1
-
-infixl 4 *>
-(*>) :: forall s t a b . Prsr s t a -> Prsr s t b -> Prsr s t b
-(*>) m1 m2 = m1 >> m2 >>= \ x2 -> pure x2
-
-infixl 4 <$>
-(<$>) :: forall s t a b . (a -> b) -> Prsr s t a -> Prsr s t b
-(<$>) f p = P $ \ t ->
-    case runP p t of
-      Many aus lf -> Many [ (f a, u) | (a, u) <- aus ] lf
-
-infixl 4 <$
-(<$) :: forall s t a b . a -> Prsr s t b -> Prsr s t a
-(<$) a p = p >> pure a
-
-guard :: forall s t . Bool -> Prsr s t ()
-guard b = if b then pure () else empty
-
-empty :: forall s t a . Prsr s t a
-empty = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [])
-
-infixl 3 <|>
-(<|>) :: forall s t a . Prsr s t a -> Prsr s t a -> Prsr s t a
-(<|>) p q = P $ \ t ->
-    case runP p t of
-      Many a lfa ->
-        case runP q t of
-          Many b lfb -> Many (a ++ b) (longest lfa lfb)
-
-fail :: forall s t a . String -> Prsr s t a
-fail m = P $ \ (ts, _) -> Many [] (LastFail (length ts) (take 1 ts) [m])
--}
 
 get :: forall s t . Prsr s t s
 get = P $ \ t@(_, s) -> Many [(s, t)] noFail
