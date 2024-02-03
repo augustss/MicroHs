@@ -253,12 +253,20 @@ pKeyword kw = () <$ satisfy kw is
     is _ = False
 
 pBlock :: forall a . P a -> P [a]
-pBlock p = do
-  pSpec '{'
-  as <- esepBy p (pSpec ';')
-  eoptional (pSpec ';')
-  pSpec '}'
-  pure as
+pBlock p =
+  do
+    pSpec '{'
+    as <- body
+    pSpec '}'
+    pure as
+ <|>
+  do
+    pSpec '<'
+    as <- body
+    pSpec '>'
+    pure as
+  where body = esepBy p (pSpec ';') <* eoptional (pSpec ';')
+
 
 pDef :: P EDef
 pDef =

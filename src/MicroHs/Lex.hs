@@ -16,6 +16,7 @@ data Token
   | TInt    Loc Integer          -- Integer literal
   | TRat    Loc Rational         -- Rational literal (i.e., decimal number)
   | TSpec   Loc Char             -- one of ()[]{},`;
+                                 -- for synthetic {} we use <>
   | TError  Loc String           -- lexical error
   | TBrace  Loc                  -- {n} in the Haskell report
   | TIndent Loc                  -- <n> in the Haskell report
@@ -28,7 +29,7 @@ showToken (TString _ s) = show s
 showToken (TChar _ c) = show c
 showToken (TInt _ i) = show i
 showToken (TRat _ d) = show d
-showToken (TSpec _ c) = [c]
+showToken (TSpec _ c) = [c] ++ if c == '<' || c == '>' then " (layout)" else ""
 showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
 showToken (TIndent _) = "TIndent"
@@ -238,15 +239,15 @@ tokensLoc []                  = mkLoc 0 1
 -- The second argument is the input token stream.
 layout :: [Int] -> [Token] -> [Token]
 layout mms@(m : ms) tts@(TIndent x       : ts) | n == m = TSpec (tokensLoc ts) ';' : layout    mms  ts
-                                               | n <  m = TSpec (tokensLoc ts) '}' : layout     ms tts where {n = getCol x}
+                                               | n <  m = TSpec (tokensLoc ts) '>' : layout     ms tts where {n = getCol x}
 layout          ms      (TIndent _       : ts)          =                            layout     ms  ts
-layout mms@(m :  _)     (TBrace x        : ts) | n > m  = TSpec (tokensLoc ts) '{' : layout (n:mms) ts where {n = getCol x}
-layout          []      (TBrace x        : ts) | n > 0  = TSpec (tokensLoc ts) '{' : layout     [n] ts where {n = getCol x}
+layout mms@(m :  _)     (TBrace x        : ts) | n > m  = TSpec (tokensLoc ts) '<' : layout (n:mms) ts where {n = getCol x}
+layout          []      (TBrace x        : ts) | n > 0  = TSpec (tokensLoc ts) '<' : layout     [n] ts where {n = getCol x}
 layout     (0 : ms)     (t@(TSpec _ '}') : ts)          =                        t : layout     ms  ts 
 layout           _      (  (TSpec l '}') :  _)          = TError l "layout error }": []
 layout          ms      (t@(TSpec _ '{') : ts)          =                        t : layout  (0:ms) ts
 layout          ms      (t               : ts)          =                        t : layout     ms  ts
-layout     (_ : ms)     []                              = TSpec (mkLoc 0 0) '}'    : layout     ms  []
+layout     (_ : ms)     []                              = TSpec (mkLoc 0 0) '>'    : layout     ms  []
 layout          []      []                              =                            []
 
 readHex :: String -> Integer
