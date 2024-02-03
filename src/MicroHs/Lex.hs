@@ -21,7 +21,7 @@ data Token
   | TBrace  Loc                  -- {n} in the Haskell report
   | TIndent Loc                  -- <n> in the Haskell report
   | TSelect Loc String           -- special '.foo' token
---  deriving (Show)
+  deriving (Show)
 
 showToken :: Token -> String
 showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])
@@ -176,11 +176,15 @@ takeChars loc fn c n str (d:cs) = takeChars loc fn c (n+1) (d:str) cs
 
 decodeChar :: Int -> String -> (Char, Int, String)
 decodeChar n ('n':cs) = ('\n', n+1, cs)
+decodeChar n ('a':cs) = ('\a', n+1, cs)
+decodeChar n ('b':cs) = ('\b', n+1, cs)
+decodeChar n ('f':cs) = ('\f', n+1, cs)
 decodeChar n ('r':cs) = ('\r', n+1, cs)
 decodeChar n ('t':cs) = ('\t', n+1, cs)
-decodeChar n ('b':cs) = ('\b', n+1, cs)
+decodeChar n ('v':cs) = ('\v', n+1, cs)
 decodeChar n ('x':cs) = conv 16 (n+1) 0 cs
 decodeChar n ('o':cs) = conv 8 (n+1) 0 cs
+decodeChar n ('^':c:cs) | '@' <= c && c <= '_' = (chr (ord c - ord '@'), n+2, cs)
 decodeChar n (cs@(c:_)) | isDigit c = conv 10 n 0 cs
 decodeChar n (c  :cs) = (c,    n+1, cs)
 decodeChar n []       = ('X',  n,   [])
