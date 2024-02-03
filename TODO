@@ -44,3 +44,5 @@
   - do everything in Haskell
   - make a low level primError that takes a utf8 string
   - get rid of noMatch and noDefault primitives
+* Add test for interactive system
+* Use separate import for PrintOrRun
