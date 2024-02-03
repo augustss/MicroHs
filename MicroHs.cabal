@@ -68,7 +68,6 @@ executable mhs
                        MicroHs.TypeCheck
                        Text.ParserComb
                        System.Console.SimpleReadline
-                       Control.Alternative
                        Data.Double
                        Compat
                        PrimTable
