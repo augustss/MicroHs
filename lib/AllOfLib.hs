@@ -71,6 +71,7 @@ import Foreign.Ptr
 import Foreign.Storable
 import GHC.Stack
 import GHC.Types
+import Numeric
 import Prelude
 import Primitives
 import System.Console.SimpleReadline
@@ -80,6 +81,7 @@ import System.IO
 import System.IO.MD5
 import System.Process
 import Text.PrettyPrint.HughesPJ
+import Text.Read
 import Text.Show
 import Text.String
 import Unsafe.Coerce

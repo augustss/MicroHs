@@ -31,6 +31,7 @@ module Prelude(
   module Data.Semigroup,
   module Data.Tuple,
   module System.IO,
+  module Text.Read,
   module Text.Show,
   module Text.String,
   usingMhs, _wordSize, _isWindows,
@@ -68,6 +69,7 @@ import Data.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                  FilePath, readFile, writeFile, appendFile,
                  PrintOrRun(..), cprint)
+import Text.Read(ReadS, Read(..), read)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Text.String
 import Primitives(_wordSize, _isWindows)
