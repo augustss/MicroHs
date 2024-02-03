@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE DataKinds #-}
 -- Functions for GHC that are defined in the UHS libs.
-module Compat(module Compat) where
+module Compat(module Compat, Type) where
 --import Control.Exception
 import Data.Char
 import Data.Maybe
@@ -13,6 +13,7 @@ import Data.Time.Clock.POSIX
 import Control.Exception
 import Data.List
 import GHC.Records
+import GHC.Types
 import System.Environment
 import System.IO
 
