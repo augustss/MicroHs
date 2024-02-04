@@ -5,6 +5,7 @@ module Numeric(
     showBin,
     showHex,
     showOct,
+    showIntegral,
     
     readSigned,
     readInt,
@@ -12,6 +13,7 @@ module Numeric(
     readDec,
     readOct,
     readHex,
+    readIntegral,
     ) where
 import Primitives
 import Control.Error
@@ -19,6 +21,7 @@ import Control.Monad
 import Data.Bool
 import Data.Char
 import Data.Eq
+import Data.Function
 import Data.Integral
 import Data.List
 import Data.Num
@@ -32,7 +35,7 @@ readInt base isDig valDig s = do
   guard (isDig c)
   let loop r (c:cs) | isDig c = loop (r * base + fromIntegral (valDig c)) cs
       loop r ds = return (r, ds)
-  loop (fromIntegral (valDig c)) cs
+  loop 0 (c:cs)
 
 readBin :: forall a . (Num a) => ReadS a
 readBin = readInt 2 isBinDigit digitToInt
@@ -61,6 +64,12 @@ readSigned readPos = readParen False read'
                   (x, t) <- readPos s
                   return (- x, t)
 
+readIntegral :: forall a . (Integral a) => Int -> ReadS a
+readIntegral _ = readSigned readAny
+  where readAny ('0':'x':cs) = readHex cs            -- XXX not quite right, allows space after 'x'
+        readAny ('0':'o':cs) = readOct cs            -- XXX not quite right, allows space after 'x'
+        readAny ('0':'b':cs) = readBin cs            -- XXX not quite right, allows space after 'x'
+        readAny cs = readDec cs
 
 -- Really bad lexer
 lex :: ReadS Char
@@ -74,29 +83,34 @@ showSigned :: forall a . (Ord a, Integral a) => (a -> ShowS) -> Int -> a -> Show
 showSigned showPos p n r
     | n < 0 =
       if p > (6::Int) then
-        '(' : '-' : showPos n (')' : r)
+        '(' : '-' : showPos (-n) (')' : r)
       else
-        '-' : showPos n r
+        '-' : showPos (-n) r
     | otherwise = showPos n r
 
 -- | Shows a /non-negative/ 'Integral' number using the base specified by the
 -- first argument, and the character representation specified by the second.
+-- If the argument, n, is <0 and -n == n (i.e., n == minBound) it will
+-- return the string for (abs n).
 showIntAtBase :: forall a . (Ord a, Integral a) => a -> (Int -> Char) -> a -> ShowS
 showIntAtBase base toChr an
   | base <= 1 = error "Numeric.showIntAtBase: unsupported base"
-  | otherwise = showNeg (- an)
+  | an < 0 =
+    if -an < 0 then
+      -- We are at minBound
+      showPos (- quot an base) . showPos (- rem an base)
+    else
+      error "Numeric.showIntAtBase: negative argument"
+  | otherwise = showPos an
    where
-    showNeg n | (n > 0) = error "Numeric.showIntAtBase: negative argument"
-              | otherwise = showNeg' n
-    -- Some trickery to show minBound correctly.
-    -- To print the number n, pass -n.
-    showNeg' n r =
+    showPos n r =
       let
-        c = toChr (fromIntegral (- rem n base))
-      in  if n > - base then
+        c = toChr (fromIntegral (rem n base))
+      in  c `seq`
+          if n < base then
             c : r
           else
-            showNeg' (quot n base) (c : r)
+            showPos (quot n base) (c : r)
 
 showInt :: forall a . (Ord a, Integral a) => a -> ShowS
 showInt = showIntAtBase 10 intToDigit
@@ -109,3 +123,6 @@ showOct = showIntAtBase 8  intToDigit
 
 showBin :: forall a . (Ord a, Integral a) => a -> ShowS
 showBin = showIntAtBase 2  intToDigit
+
+showIntegral :: forall a . (Ord a, Integral a) => Int -> a -> ShowS
+showIntegral = showSigned showInt

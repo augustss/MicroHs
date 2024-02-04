@@ -18,7 +18,6 @@ import Control.Arrow(first)
 import Control.Monad
 import Data.Char
 import Data.Function
-import Data.Integer(readInteger)
 import Data.List
 import Data.Maybe
 import qualified Data.IntMap as IM

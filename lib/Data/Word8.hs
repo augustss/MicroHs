@@ -1,6 +1,6 @@
--- Copyright 2023 Lennart Augustsson
+-- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Word8(module Data.Word8) where
+module Data.Word8(Word8) where
 import Primitives
 import Data.Bits
 import Data.Bool_Type
@@ -18,6 +18,8 @@ import Data.Num
 import Data.Ord
 import Data.Real
 import Data.Word
+import Numeric
+import Text.Read
 import Text.Show
 
 newtype Word8 = W8 Word
@@ -58,6 +60,12 @@ instance Bounded Word8 where
 
 instance Real Word8 where
   toRational = _integerToRational . _wordToInteger . unW8
+
+instance Show Word where
+  showsPrec = showIntegral
+
+instance Read Word where
+  readsPrec = readIntegral
 
 --------------------------------
 
@@ -102,8 +110,3 @@ instance Bits Word8 where
   bitSize _ = 8
   bit n = w8 (primWordShl 1 n)
   zeroBits = 0
-
---------------------------------
-
-instance Show Word8 where
-  show = show . unW8

@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Int(module Data.Int, Int) where
+module Data.Int(Int) where
 import Primitives
 import Data.Bool_Type
 import Data.Bounded
@@ -13,6 +13,7 @@ import Data.Num
 import Data.Ord
 import Data.Ratio_Type
 import Data.Real
+import Text.Read_Class
 import Text.Show
 
 instance Num Int where
@@ -76,3 +77,7 @@ _showUnsignedNegInt n =
         [c]
       else
         _showUnsignedNegInt (quot n 10) ++ [c]
+
+--------------------------------
+
+-- In Text.Read: instance Read Int

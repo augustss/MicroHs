@@ -2,7 +2,6 @@
 -- See LICENSE file for full license.
 module Data.Integer(
   Integer,
-  readInteger,
   _intToInteger,
   _integerToInt,
   _wordToInteger,
@@ -27,6 +26,8 @@ import Data.Num
 import Data.Ord
 import Data.Ratio_Type
 import Data.Real
+import Numeric
+import Text.Read
 import Text.Show
 
 --
@@ -60,7 +61,10 @@ instance Ord Integer where
   (>=) = geI
 
 instance Show Integer where
-  show i = showInteger i
+  showsPrec = showIntegral
+
+instance Read Integer where
+  readsPrec = readIntegral
 
 instance Num Integer where
   (+) = addI
@@ -289,24 +293,6 @@ negOneI :: Integer
 negOneI = I Minus [1]
 
 --------------
-
-showInteger :: Integer -> String
-showInteger (I _     []) = "0"
-showInteger (I Minus xs) = '-' : showInteger' xs
-showInteger (I Plus  xs) =       showInteger' xs
-
-showInteger' :: [Digit] -> String
-showInteger' [] = ""
-showInteger' xs = showInteger' (trim0 xs') ++ [chr (ord '0' + d)]
-  where
-    (xs', [d]) = quotRemD xs 10
-
-readInteger :: String -> Integer
-readInteger ('-':ds) = negate (readUnsignedInteger ds)
-readInteger ds       =         readUnsignedInteger ds
-
-readUnsignedInteger :: String -> Integer
-readUnsignedInteger = foldl (\ r c -> r * tenI + _intToInteger (ord c - ord '0')) zeroI
 
 eqI :: Integer -> Integer -> Bool
 eqI (I sx xs) (I sy ys) = sx == sy && xs == ys

@@ -1,7 +1,11 @@
+-- Copyright 2023,2024 Lennart Augustsson
+-- See LICENSE file for full license.
+-- Temporary Read class
 module Text.Read(
   ReadS,
   Read(..),
   read,
+  reads,
   readMaybe,
   readParen,
   ) where
@@ -13,20 +17,18 @@ import Data.Bool_Type
 import Data.Eq
 import Data.List_Type
 import Data.Maybe_Type
-
-type String = [Char]
-
-type ReadS a = String -> [(a, String)]
-
-class Read a where
-  readsPrec    :: Int -> ReadS a
-  readList     :: ReadS [a]
+import Data.Num
+import Data.Int
+import Text.Read_Class
 
 read :: forall a . Read a => String -> a
 read s =
   case readsPrec 0 s of
     [(a, [])] -> a
     _         -> error "read: failed"
+
+reads :: forall a . Read a => ReadS a
+reads = readsPrec 0
 
 readMaybe :: forall a . Read a => String -> Maybe a
 readMaybe s =
@@ -56,3 +58,14 @@ lex :: ReadS Char
 lex "" = []
 lex (c:cs) | isSpace c = lex cs
            | True = [(c, cs)]
+
+-------------------------------------------------------
+-- To avoid circular imports, some instances go here.
+
+-- XXX make this better
+instance Read Int where
+  readsPrec _ ccs@(c:cs) | isDigit c = loop False 0 ccs
+    where
+      loop neg res (c:cs) | isDigit c = loop neg (res * (10::Int) + ord c - ord '0') cs
+      loop neg res s = [(if neg then -res else res, s)]
+  readsPrec _ _ = []

@@ -4,7 +4,6 @@ module MicroHs.Lex(
   tokensLoc) where
 import Prelude hiding(lex)
 import Data.Char
-import Data.Integer(readInteger)
 import Data.List
 import MicroHs.Ident
 import Compat
@@ -124,7 +123,7 @@ number :: Loc -> String -> [Token]
 number loc cs =
   case span isDigit cs of
     (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
-               let i = readInteger ds
+               let i = read ds
                in  TInt loc i : lex (addCol loc $ length ds) rs
              | otherwise ->
                case span isDigit (tail rs) of

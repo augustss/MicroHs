@@ -18,13 +18,8 @@ import Data.Ord
 import Data.Ratio
 import Data.Real
 import Data.Tuple
+import Text.Read
 import Text.Show
-
-readInt :: String -> Int
-readInt cs =
-  let
-    rd = foldl (\ a c -> a * (10::Int) + ord c - ord '0') (0::Int)
-  in if head cs == '-' then (0::Int) - rd (tail cs) else rd cs
 
 readDouble :: String -> Double
 readDouble = primDoubleRead
@@ -71,16 +66,16 @@ readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
         (ds1, cr1) | ('.':r1) <- cr1                   -> rat2 f1 r1
                    | (c:r1)   <- cr1, toLower c == 'e' -> rat3 f1 r1
                    | otherwise                         -> f1
-          where f1 = toRational (readInteger ds1)
+          where f1 = toRational (read ds1 :: Integer)
 
     rat2 f1 s2 =
       case span isDigit s2 of
         (ds2, cr2) | (c:r2) <- cr2, toLower c == 'e' -> rat3 f2 r2
                    | otherwise                       -> f2
-          where f2 = f1 + toRational (readInteger ds2) * 10 ^^ (negate $ length ds2)
+          where f2 = f1 + toRational (read ds2 :: Integer) * 10 ^^ (negate $ length ds2)
 
     rat3 f2 ('+':s) = f2 * expo s
     rat3 f2 ('-':s) = f2 / expo s
     rat3 f2      s  = f2 * expo s
 
-    expo s = 10 ^ readInteger s
+    expo s = 10 ^ (read s :: Integer)

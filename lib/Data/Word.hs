@@ -1,6 +1,6 @@
--- Copyright 2023 Lennart Augustsson
+-- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Word(module Data.Word, Word) where
+module Data.Word(Word) where
 import Primitives
 import Data.Bits
 import Data.Bool_Type
@@ -16,6 +16,8 @@ import Data.Maybe_Type
 import Data.Num
 import Data.Ord
 import Data.Real
+import Numeric
+import Text.Read
 import Text.Show
 
 instance Num Word where
@@ -37,6 +39,12 @@ instance Bounded Word where
 
 instance Real Word where
   toRational i = _integerToRational (_wordToInteger i)
+
+instance Show Word where
+  showsPrec = showIntegral
+
+instance Read Word where
+  readsPrec = readIntegral
 
 --------------------------------
 
@@ -81,16 +89,3 @@ instance Bits Word where
   bitSize _ = _wordSize
   bit n = primWordShl 1 n
   zeroBits = 0
-
---------------------------------
-
-instance Show Word where
-  show = showWord
-    where
-      showWord :: Word -> String
-      showWord n =
-        let
-          c = chr (ord '0' + primWordToInt (rem n (10::Word)))
-        in  case n < (10::Word) of
-              False -> showWord (quot n (10::Word)) ++ [c]
-              True  -> [c]

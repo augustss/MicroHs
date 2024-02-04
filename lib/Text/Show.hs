@@ -1,3 +1,5 @@
+-- Copyright 2023,2024 Lennart Augustsson
+-- See LICENSE file for full license.
 module Text.Show(module Text.Show) where
 import Primitives
 import Data.Bool_Type

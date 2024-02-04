@@ -30,6 +30,7 @@ module Prelude(
   module Data.Records,
   module Data.Semigroup,
   module Data.Tuple,
+  module Data.Word,
   module System.IO,
   module Text.Read,
   module Text.Show,
