@@ -69,7 +69,7 @@ import Data.Tuple(()(..), fst, snd)
 import Data.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                  FilePath, readFile, writeFile, appendFile,
-                 PrintOrRun(..), cprint)
+                 cprint)
 import Text.Read(ReadS, Read(..), read)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Text.String

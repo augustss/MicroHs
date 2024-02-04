@@ -1,3 +1,5 @@
+-- Copyright 2023,2024 Lennart Augustsson
+-- See LICENSE file for full license.
 module AllOfLib(main) where
 -- Only used to save the compilation cache.
 import Compat
@@ -77,8 +79,10 @@ import Primitives
 import System.Console.SimpleReadline
 import System.Directory
 import System.Environment
+import System.Exit
 import System.IO
 import System.IO.MD5
+import System.IO.PrintOrRun
 import System.Process
 import Text.PrettyPrint.HughesPJ
 import Text.Read
