@@ -205,11 +205,14 @@ dynsym acfun =
 
 cops :: [(String, Any)]
 cops =
-  [ comb "fputc" fputc
-  , comb "getTimeMilli" getTimeMilli
+  [ comb "getTimeMilli" getTimeMilli
+  , comb "fputc" fputc
   , comb "fgetc" fgetc
   , comb "fopen" fopen
   , comb "fclose" fclose
+  , comb "putb"  putb
+  , comb "add_FILE" add_FILE
+  , comb "add_utf8" add_utf8
   , comb "free"  free
   , comb "exp"   (fio exp)
   , comb "log"   (fio log)
@@ -236,6 +239,15 @@ cops =
 
     fio2 :: (Double -> Double -> Double) -> (Double -> Double -> IO Double)
     fio2 f = \ x y -> return (f x y)
+
+    add_FILE :: Handle -> IO Handle
+    add_FILE h = return h
+
+    add_utf8 :: Handle -> IO Handle
+    add_utf8 h = do hSetEncoding h utf8; return h
+
+    putb :: Int -> Handle -> IO ()
+    putb c h = hPutChar h (chr c)
 
     fputc :: Int -> Handle -> IO Int
     fputc c h = hPutChar h (chr c) >> return 0
