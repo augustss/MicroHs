@@ -11,8 +11,6 @@ module Text.Read(
   ) where
 import Primitives
 import Control.Error
-import Control.Monad
-import Control.Monad.Fail
 import Data.Char
 import Data.Bool_Type
 import Data.Eq
@@ -24,45 +22,37 @@ import Text.Read_Class
 
 read :: forall a . Read a => String -> a
 read s =
-  case readsPrec 0 s of
-    [(a, [])] -> a
-    _         -> error "read: failed"
-
-reads :: forall a . Read a => ReadS a
-reads = readsPrec 0
+  case readMaybe s of
+    Just a  -> a
+    Nothing -> error "read: failed"
 
 readMaybe :: forall a . Read a => String -> Maybe a
 readMaybe s =
   case readsPrec 0 s of
-    [(a, [])] -> Just a
-    _         -> Nothing
-
-readParen :: forall a . Bool -> ReadS a -> ReadS a
-readParen b g =
-  if b then mandatory else optional
-  where
-    optional :: ReadS a
-    optional r = g r ++ mandatory r
-    mandatory :: ReadS a
-    mandatory r = do
-      ('(',s) <- lex r
-      (x,t) <- optional s
-      (')',u) <- lex t
-      return (x,u)
+    [(a, ss)] | [] <- skipSpace ss -> Just a
+    _ -> Nothing
 
 -- Really bad lexer
 lex :: ReadS Char
-lex "" = []
-lex (c:cs) | isSpace c = lex cs
-           | True = [(c, cs)]
+lex cs =
+  case skipSpace cs of
+    [] -> []
+    c:cs -> [(c, cs)]
+
+skipSpace :: String -> String
+skipSpace [] = []
+skipSpace ccs@(c:cs) | isSpace c = skipSpace cs
+                     | True      = ccs
 
 -------------------------------------------------------
 -- To avoid circular imports, some instances go here.
 
--- XXX make this better
 instance Read Int where
-  readsPrec _ ccs@(c:cs) | isDigit c = loop False 0 ccs
-    where
+  readsPrec _ ccs =
+    case lex ccs of
+      [('-',cs)]             -> loop True  0 cs
+      [(c,  cs)] | isDigit c -> loop False 0 (c:cs)
+      _                      -> []
+   where
       loop neg res (c:cs) | isDigit c = loop neg (res * (10::Int) + ord c - ord '0') cs
       loop neg res s = [(if neg then -res else res, s)]
-  readsPrec _ _ = []

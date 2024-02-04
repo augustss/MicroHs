@@ -19,6 +19,7 @@ import Data.Num
 import Data.Ord
 import Data.Semigroup
 import Data.Tuple
+import Text.Read
 import Text.Show
 
 instance {-# OVERLAPPABLE #-} forall a . Eq a => Eq [a] where
@@ -40,6 +41,9 @@ instance Applicative [] where
 
 instance forall a . Show a => Show [a] where
   showsPrec _ = showList
+
+instance forall a . Read a => Read [a] where
+  readsPrec _ = readList
 
 instance Alternative [] where
   empty = []
