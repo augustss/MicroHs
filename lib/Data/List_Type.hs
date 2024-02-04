@@ -12,3 +12,11 @@ axs ++ ys =
   let rec [] = ys
       rec (x:xs) = x : rec xs
   in  rec axs
+
+-- Put concatMap here so list comprehensions can be desugared
+-- using only List_Type
+concatMap :: forall a b . (a -> [b]) -> [a] -> [b]
+concatMap f = rec
+  where
+    rec [] = []
+    rec (x:xs) = f x ++ rec xs

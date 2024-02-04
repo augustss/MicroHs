@@ -59,9 +59,6 @@ null _  = False
 concat :: forall a . [[a]] -> [a]
 concat = foldr (++) []
 
-concatMap :: forall a b . (a -> [b]) -> [a] -> [b]
-concatMap f = concat . map f
-
 map :: forall a b . (a -> b) -> [a] -> [b]
 map f =
   let

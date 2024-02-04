@@ -211,7 +211,7 @@ dsExpr aexpr =
               let
                 nv = newVar (allVarsExpr aexpr)
                 body = ECase (EVar nv) [(p, oneAlt $ EListish (LCompr e stmts)), (EVar dummyIdent, oneAlt $ EListish (LList []))]
-              in app2 (Var (mkIdent "Data.List.concatMap")) (dsExpr (eLam [EVar nv] body)) (dsExpr b)
+              in app2 (Var (mkIdent "Data.List_Type.concatMap")) (dsExpr (eLam [EVar nv] body)) (dsExpr b)
             SThen c ->
               dsExpr (EIf c (EListish (LCompr e stmts)) (EListish (LList [])))
             SLet ds ->
