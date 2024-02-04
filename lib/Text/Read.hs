@@ -12,6 +12,7 @@ module Text.Read(
 import Primitives
 import Control.Error
 import Control.Monad
+import Control.Monad.Fail
 import Data.Char
 import Data.Bool_Type
 import Data.Eq
@@ -44,13 +45,9 @@ readParen b g =
     optional r = g r ++ mandatory r
     mandatory :: ReadS a
     mandatory r = do
-      -- XXX compiler broken ('(',s) <- lex r
-      (lp,s) <- lex r
-      guard (lp == '(')
+      ('(',s) <- lex r
       (x,t) <- optional s
-      -- (')',u) <- lex t
-      (rp,u) <- lex t
-      guard (rp == ')')
+      (')',u) <- lex t
       return (x,u)
 
 -- Really bad lexer

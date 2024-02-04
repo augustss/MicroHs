@@ -57,6 +57,7 @@ test:
 	$(TMHS) Record     && $(EVAL) > Record.out     && diff Record.ref Record.out
 	$(TMHS) Deriving   && $(EVAL) > Deriving.out   && diff Deriving.ref Deriving.out
 	$(TMHS) Unicode    && $(EVAL) > Unicode.out    && diff Unicode.ref Unicode.out
+	$(TMHS) BindPat    && $(EVAL) > BindPat.out    && diff BindPat.ref BindPat.out
 
 errtest:
 	sh errtester.sh < errmsg.test

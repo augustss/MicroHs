@@ -18,6 +18,7 @@ module Numeric(
 import Primitives
 import Control.Error
 import Control.Monad
+import Control.Monad.Fail
 import Data.Bool
 import Data.Char
 import Data.Eq
@@ -58,9 +59,7 @@ readSigned readPos = readParen False read'
     read' :: ReadS a
     read' r  = readPos r ++
                 do
-                  -- XXX compiler broken ('-',s) <- lex r
-                  (c,s) <- lex r
-                  guard (c == '-')
+                  ('-',s) <- lex r
                   (x, t) <- readPos s
                   return (- x, t)
 

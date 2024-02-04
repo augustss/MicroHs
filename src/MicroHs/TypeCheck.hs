@@ -1116,7 +1116,10 @@ expandClass dcls@(Class ctx (iCls, vks) fds ms) = do
 expandClass d = return [d]
 
 simpleEqn :: Expr -> [Eqn]
-simpleEqn e = [Eqn [] $ EAlts [([], e)] []]
+simpleEqn e = [Eqn [] $ simpleAlts e]
+
+simpleAlts :: Expr -> EAlts
+simpleAlts e = EAlts [([], e)] []
 
 -- Keep the list empty if there are no fundeps
 mkIFunDeps :: [Ident] -> [FunDep] -> [IFunDep]
@@ -1486,8 +1489,13 @@ tcExprR mt ae =
                 ibind = mkIdentSLoc loc ">>="
                 sbind = maybe ibind (\ mn -> qualIdent mn ibind) mmn
                 x = eVarI loc "$b"
+                patAlt = [(p, simpleAlts $ EDo mmn ss)]
+                failMsg s = EApp (EVar (mkIdentSLoc loc "fail")) (ELit loc (LStr s))
+                failAlt =
+                  if failureFree p then []
+                  else [(EVar dummyIdent, simpleAlts $ failMsg "bind")]
               tcExpr mt (EApp (EApp (EVar sbind) a)
-                              (eLam [x] (ECase x [(p, EAlts [([], EDo mmn ss)] [])])))
+                              (eLam [x] (ECase x (patAlt ++ failAlt))))
             SThen a -> do
               let
                 ithen = mkIdentSLoc loc ">>"
@@ -1571,6 +1579,13 @@ tcExprR mt ae =
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
     _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
+
+-- Approximation if failure free
+failureFree :: EPat -> Bool
+failureFree (EVar _) = True
+failureFree (ETuple ps) = all failureFree ps
+failureFree (ESign p _) = failureFree p
+failureFree _ = False
 
 eSetFields :: EField -> Expr -> Expr
 --eSetFields ([i], e) r = eSetField (i, e) r
