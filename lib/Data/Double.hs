@@ -44,7 +44,11 @@ instance Fractional Double where
   -- This version of fromRational can go horribly wrong
   -- if the integers are bigger than can be represented in a Double.
   -- It'll do for now.
-  fromRational x = fromInteger (numerator x) `primDoubleDiv` fromInteger (denominator x)
+  fromRational x | x == rationalNaN = 0/0
+                 | x == rationalInfinity = 1/0
+                 | x == -rationalInfinity = (-1)/0
+                 | otherwise =
+    fromInteger (numerator x) / fromInteger (denominator x)
 
 instance Eq Double where
   (==) = primDoubleEQ
@@ -64,9 +68,11 @@ instance Read Double where
   readsPrec _ = readSigned $ \ r -> [ (primDoubleRead s, t) | (s@(c:_), t) <- lex r, isDigit c ]
 
 instance Real Double where
-  toRational x =
-    let (m, e) = decodeFloat x
-    in  toRational m * 2^^e
+  toRational x | isNaN x = rationalNaN
+               | isInfinite x = if x < 0 then -rationalInfinity else rationalInfinity
+               | otherwise =
+    case decodeFloat x of
+      (m, e) -> toRational m * 2^^e
 
 instance Floating Double where
   pi     = 3.141592653589793
