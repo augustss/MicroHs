@@ -1,7 +1,8 @@
 module FArith(module FArith) where
-
 import Prelude
-import Text.String
+
+readDouble :: String -> Double
+readDouble = read
 
 list1 :: [Double]
 list1 = [-100.343241, -53.3248973, 0.0, 1.0, 1.23453523, 3243534.34534, 999.999]
