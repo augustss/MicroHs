@@ -82,3 +82,14 @@ instance forall a b . (Read a, Read b) => Read (Either a b) where
   readsPrec p = readParen (p > 10) $ \ r ->
                 [ (Left  a, t) | ("Left",  s) <- lex r, (a, t) <- readsPrec 11 s ] ++
                 [ (Right b, t) | ("Right", s) <- lex r, (b, t) <- readsPrec 11 s ]
+
+instance Read () where  
+  readsPrec p  = readParen False $
+                   \ r -> [((),t) | ("(",s) <- lex r,
+                                    (")",t) <- lex s ]
+
+instance forall a b . (Read a, Read b) => Read (a,b)  where
+  readsPrec p = readParen True $
+                  \ r -> [((a, b), u) | (a, s)   <- reads r,
+                                        (",", t) <- lex s,
+                                        (b, u)   <- reads t ]

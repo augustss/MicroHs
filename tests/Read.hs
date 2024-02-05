@@ -45,3 +45,5 @@ main = do
   print (readMaybe "Just Just 123" :: Maybe (Maybe (Maybe Int)))
   print (read "Left True" :: Either Bool Int)
   print (read "Right 123" :: Either Bool Int)
+  print (read "()" :: ())
+  print (read "(True,123)" :: (Bool, Int))
