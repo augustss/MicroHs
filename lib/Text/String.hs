@@ -21,9 +21,6 @@ import Data.Tuple
 import Text.Read
 import Text.Show
 
-readDouble :: String -> Double
-readDouble = primDoubleRead
-
 showListS :: forall a . (a -> String) -> [a] -> String
 showListS sa as = showListWith (\ a s -> sa a ++ s) as ""
 

@@ -5,17 +5,21 @@ import Primitives
 import Control.Error
 import Data.Bits
 import Data.Bool
+import Data.Char
 import Data.Eq
 import Data.Floating
 import Data.Fractional
 import Data.Function
 import Data.Integer
+import Data.List
 import Data.Ord
 import Data.Ratio
 import Data.Real
 import Data.RealFloat
 import Data.Num
 import Data.Word
+import Text.Read
+import Text.Read.Numeric
 import Text.Show
 
 --
@@ -55,6 +59,9 @@ instance Ord Double where
 -- For now, cheat and call C
 instance Show Double where
   show = primDoubleShow
+
+instance Read Double where
+  readsPrec _ = readSigned $ \ r -> [ (primDoubleRead s, t) | (s@(c:_), t) <- lex r, isDigit c ]
 
 instance Real Double where
   toRational x =

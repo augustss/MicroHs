@@ -9,6 +9,9 @@ main = do
   print (read "123 "  :: Int)
   print (read "-123"  :: Int)
   print (read "(123)" :: Int)
+  print (read "0x7b"  :: Int)
+  print (read "0o173" :: Int)
+  print (read "0b01111011" :: Int)
   print (read "2147483647" :: Int)
   print (read "-2147483648" :: Int)
   if _wordSize == 64 then do
@@ -29,3 +32,8 @@ main = do
   print (reads "123 4" :: [(Int, String)])
   print (readMaybe "123" :: Maybe Int)
   print (readMaybe "apa" :: Maybe Int)
+  print (read "1.25" :: Double)
+  print (read "-1e20" :: Double)
+  print (read "-1e+5" :: Double)
+  print (read "1.5e+5" :: Double)
+  print (read "5e-1" :: Double)
