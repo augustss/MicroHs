@@ -13,7 +13,6 @@ import Data.Num
 import Data.Ord
 import Data.Ratio_Type
 import Data.Real
-import Text.Read_Class
 import Text.Show
 
 instance Num Int where

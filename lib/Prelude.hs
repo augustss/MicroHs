@@ -70,7 +70,7 @@ import Data.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                  FilePath, readFile, writeFile, appendFile,
                  cprint)
-import Text.Read(ReadS, Read(..), read)
+import Text.Read(ReadS, Read(..), read, reads, readParen, lex)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Text.String
 import Primitives(_wordSize, _isWindows)
