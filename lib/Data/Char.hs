@@ -75,6 +75,9 @@ isPrint c = primCharLE ' ' c && primCharLE c '~'
 isSpace :: Char -> Bool
 isSpace c = c == ' ' || c == '\t' || c == '\n'
 
+isAscii :: Char -> Bool
+isAscii c = c <= '\127'
+
 digitToInt :: Char -> Int
 digitToInt c | (primCharLE '0' c) && (primCharLE c '9') = ord c - ord '0'
              | (primCharLE 'a' c) && (primCharLE c 'f') = ord c - (ord 'a' - 10)
@@ -95,19 +98,23 @@ toUpper c | primCharLE 'a' c && primCharLE c 'a' = chr (ord c - ord 'a' + ord 'A
 
 instance Show Char where
   showsPrec _ '\'' = showString "'\\''"
-  showsPrec _ c = showChar '\'' . showString (encodeChar c) . showChar '\''
+  showsPrec _ c = showChar '\'' . showString (encodeChar c "") . showChar '\''
   showList    s = showChar '"'  . f s
     where f [] = showChar '"'
           f (c:cs) =
             if c == '"' then showString "\\\"" . f cs
-            else showString (encodeChar c) . f cs
+            else showString (encodeChar c cs) . f cs
 
 -- XXX should not export this
-encodeChar :: Char -> String
-encodeChar c =
+encodeChar :: Char -> String -> String
+encodeChar c rest =
   let
-    spec = [('\n', "\\n"), ('\r', "\\r"), ('\t', "\\t"), ('\b', "\\b"),
-            ('\\', "\\\\")]
-    look [] = if isPrint c then [c] else "\\" ++ show (ord c)
+    needProtect =
+      case rest of
+        [] -> False
+        c : _ -> isDigit c
+    spec = [('\a',"\\a"), ('\b', "\\b"), ('\f', "\\f"), ('\n', "\\n"),
+            ('\r', "\\r"), ('\t', "\\t"), ('\v', "\\v"), ('\\', "\\\\")]
+    look [] = if isPrint c then [c] else "\\" ++ show (ord c) ++ if needProtect then "\\&" else ""
     look ((d,s):xs) = if d == c then s else look xs
   in look spec

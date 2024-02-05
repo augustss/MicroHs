@@ -55,4 +55,4 @@ main = do
   print (read "'\x4'" :: Char)
   print (read "\"abc\"" :: String)
   print (read "\"a\nc\"" :: String)
-  print (read "\"a\1\&c\"" :: String)
+  print (read "\"a\1\&1c\"" :: String)
