@@ -1507,9 +1507,10 @@ convdbl(char *str, flt_t x)
    * 17 would keep the precision, but it frequently looks very ugly.
    */
   (void)snprintf(str, 25, "%.16g", x);
-  if (!strchr(str, '.') && !strchr(str, 'e') && !strchr(str, 'E')) {
+  if (strcmp(str, "nan") != 0 && strcmp(str, "-nan") != 0 &&
+      strcmp(str, "inf") != 0 && strcmp(str, "-inf") != 0 &&
+      !strchr(str, '.') && !strchr(str, 'e') && !strchr(str, 'E')) {
     /* There is no decimal point and no exponent, so add a decimal point */
-    /* XXX wrong for inf and NaN */
     strcat(str, ".0");
   }
 }
