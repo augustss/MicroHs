@@ -2388,6 +2388,7 @@ evali(NODEPTR an)
       }
 
     case T_FROMUTF8:
+      if (doing_rnf) RET;
       CHECK(1);
       x = evali(ARG(TOP(0)));
       if (GETTAG(x) != T_STR) ERR("FROMUTF8");

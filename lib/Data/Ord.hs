@@ -46,4 +46,3 @@ instance Show Ordering where
 instance Bounded Ordering where
   minBound = LT
   maxBound = GT
-

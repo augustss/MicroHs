@@ -27,3 +27,11 @@ Nothing
 -100000.0
 150000.0
 0.5
+[EQ,GT,LT]
+Nothing
+Just 123
+Just (Just 123)
+Just Nothing
+Nothing
+Left True
+Right 123

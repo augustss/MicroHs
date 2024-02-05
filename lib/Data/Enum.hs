@@ -68,3 +68,13 @@ instance Enum Bool where
 instance Enum Char where
   fromEnum = primOrd
   toEnum   = primChr
+
+
+instance Enum Ordering where
+  fromEnum LT = (0::Int)
+  fromEnum EQ = (1::Int)
+  fromEnum GT = (2::Int)
+  toEnum i =      if i `primIntEQ` 0 then LT
+             else if i `primIntEQ` 1 then EQ
+             else if i `primIntEQ` 2 then GT
+             else error "Ord.toEnum: out of range"

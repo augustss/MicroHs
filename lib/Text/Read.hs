@@ -14,11 +14,13 @@ import Primitives
 import Control.Error
 import Data.Char
 import Data.Bool
+import Data.Either
 import Data.Eq
 import Data.Function
 import Data.List
 import Data.Maybe_Type
 import Data.Num
+import Data.Ord
 import Data.Int
 import Text.Read.Numeric
 import Text.Read.Lex
@@ -65,5 +67,18 @@ instance forall a . Read a => Read [a] where
   readsPrec _ = readList
 
 instance Read Bool where
-  readsPrec _ s = [ (False, r) | ("False", r) <- lex s ] ++
-                  [ (True,  r) | ("True",  r) <- lex s ]
+  readsPrec _ = readBoundedEnum
+
+instance Read Ordering where
+  readsPrec _ = readBoundedEnum
+
+instance forall a . Read a => Read (Maybe a) where
+  readsPrec p u = [ (Nothing :: Maybe a, t) | ("Nothing", t) <- lex u ] ++
+                  readParen (p > 10) ( \ r ->
+                    [ (Just a,  t) | ("Just",    s) <- lex r, (a, t) <- readsPrec 11 s ]
+                    ) u
+
+instance forall a b . (Read a, Read b) => Read (Either a b) where
+  readsPrec p = readParen (p > 10) $ \ r ->
+                [ (Left  a, t) | ("Left",  s) <- lex r, (a, t) <- readsPrec 11 s ] ++
+                [ (Right b, t) | ("Right", s) <- lex r, (b, t) <- readsPrec 11 s ]
