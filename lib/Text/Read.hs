@@ -83,7 +83,7 @@ instance forall a b . (Read a, Read b) => Read (Either a b) where
                 [ (Left  a, t) | ("Left",  s) <- lex r, (a, t) <- readsPrec 11 s ] ++
                 [ (Right b, t) | ("Right", s) <- lex r, (b, t) <- readsPrec 11 s ]
 
-instance Read () where  
+instance Read () where
   readsPrec p  = readParen False $
                    \ r -> [((),t) | ("(",s) <- lex r,
                                     (")",t) <- lex s ]
@@ -93,3 +93,38 @@ instance forall a b . (Read a, Read b) => Read (a,b)  where
                   \ r -> [((a, b), u) | (a, s)   <- reads r,
                                         (",", t) <- lex s,
                                         (b, u)   <- reads t ]
+
+instance Read Char where
+    readsPrec p = readParen False $
+                    \ r -> [(c,t) | ('\'':s,t)<- lex r,
+                                    (c,"\'")  <- readLitChar s]
+ 
+    readList = readParen False $ \ r -> [(l,t) | ('"':s, t) <- lex r,
+                                                 (l,_)      <- readl s ]
+        where readl ('"':s)      = [("",s)]
+              readl ('\\':'&':s) = readl s
+              readl s            = [(c:cs,u) | (c ,t) <- readLitChar s,
+                                               (cs,u) <- readl t ]
+
+readLitChar :: ReadS Char
+readLitChar ('\\':s) = readEsc s
+readLitChar (c:s)    = [(c, s)]
+
+readEsc :: ReadS Char
+readEsc ('a':s)  = [('\a',s)]
+readEsc ('b':s)  = [('\b',s)]
+readEsc ('f':s)  = [('\f',s)]
+readEsc ('n':s)  = [('\n',s)]
+readEsc ('r':s)  = [('\r',s)]
+readEsc ('t':s)  = [('\t',s)]
+readEsc ('v':s)  = [('\v',s)]
+readEsc ('\\':s) = [('\\',s)]
+readEsc ('"':s)  = [('"',s)]
+readEsc ('\'':s) = [('\'',s)]
+readEsc ('^':c:s) | c >= '@' && c <= '_'
+                 = [(chr (ord c - ord '@'), s)]
+readEsc s@(d:_) | isDigit d
+                 = [(chr n, t) | (n,t) <- readDec s]
+readEsc ('o':s)  = [(chr n, t) | (n,t) <- readOct s]
+readEsc ('x':s)  = [(chr n, t) | (n,t) <- readHex s]
+readEsc _        = []

@@ -61,6 +61,8 @@ lexLitChar ('\\':s) = [ prefix '\\' c | c <- lexEsc s ]
     lexEsc _                     = []
 
     prefix c (t,s) = (c:t, s)
+lexLitChar (c:cs) = [([c], cs)]
+lexLitChar [] = []
 
 dropSpace :: String -> String
 dropSpace [] = []
