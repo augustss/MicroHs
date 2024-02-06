@@ -1,7 +1,5 @@
 * Have compile return a Stats record of timing etc
 * make the runtime system catch ^C and stop execution
-* use pointer stack during GC instead of recursion.
-  - Somewhat improved now
 * with dictionaries we need two optimizations to get rid of them
   -   case d of (d1,d2) -> ... (d1,d2) ...
     transforms to
