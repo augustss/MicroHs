@@ -651,7 +651,6 @@ ppExpr ae =
     ECase e as -> text "case" <+> ppExpr e <+> text "of" $$ nest 2 (vcat (map ppCaseArm as))
     ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppExpr e
     ETuple es -> parens $ hsep $ punctuate (text ",") (map ppExpr es)
-    EListish (LList es) -> ppList ppExpr es
     EDo mn ss -> maybe (text "do") (\ n -> ppIdent n <> text ".do") mn $$ nest 2 (vcat (map ppEStmt ss))
     ESectL e i -> parens $ ppExpr e <+> ppIdent i
     ESectR i e -> parens $ ppIdent i <+> ppExpr e
@@ -687,7 +686,12 @@ ppForall :: [IdKind] -> Doc
 ppForall iks = text "forall" <+> hsep (map ppIdKind iks) <+> text "."
 
 ppListish :: Listish -> Doc
-ppListish _ = text "<<Listish>>"
+ppListish (LList es) = ppList ppExpr es
+ppListish (LCompr e ss) = brackets $ ppExpr e <+> text "|" <+> hsep (punctuate (text ",") (map ppEStmt ss))
+ppListish (LFrom e1) = brackets $ ppExpr e1 <> text ".."
+ppListish (LFromTo e1 e2) = brackets $ ppExpr e1 <> text ".." <> ppExpr e2
+ppListish (LFromThen e1 e2) = brackets $ ppExpr e1 <> text "," <> ppExpr e2 <> text ".."
+ppListish (LFromThenTo e1 e2 e3) = brackets $ ppExpr e1 <> text "," <> ppExpr e2 <> text ".." <> ppExpr e3
 
 ppCon :: Con -> Doc
 ppCon (ConData _ s _) = ppIdent s

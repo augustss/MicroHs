@@ -191,6 +191,8 @@ dsExpr :: Expr -> Exp
 dsExpr aexpr =
   case aexpr of
     EVar i -> Var i
+    EApp (EApp (EVar app) (EListish (LCompr e stmts))) l | app == mkIdent "Data.List_Type.++" ->
+      dsExpr $ dsCompr' e stmts l
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam qs -> dsEqns (getSLoc aexpr) qs
     ELit _ (LChar c) -> Lit (LInt (ord c))
@@ -202,7 +204,8 @@ dsExpr aexpr =
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
     EIf e1 e2 e3 -> encIf (dsExpr e1) (dsExpr e2) (dsExpr e3)
     EListish (LList es) -> encList $ map dsExpr es
-    EListish (LCompr e astmts) ->
+    EListish (LCompr e stmts) -> dsExpr $ dsCompr' e stmts (EListish (LList []))
+{-
       case astmts of
         [] -> dsExpr (EListish (LList [e]))
         stmt : stmts ->
@@ -216,6 +219,7 @@ dsExpr aexpr =
               dsExpr (EIf c (EListish (LCompr e stmts)) (EListish (LList [])))
             SLet ds ->
               dsExpr (ELet ds (EListish (LCompr e stmts)))
+-}
     ECon c ->
       let
         ci = conIdent c
@@ -228,6 +232,28 @@ dsExpr aexpr =
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
     _ -> impossible
+
+dsCompr' :: Expr -> [EStmt] -> Expr -> Expr
+dsCompr' e ss l =
+  let r = dsCompr e ss l
+  in  -- trace ("dsCompr:\n" ++ show (EApp (EApp (EVar (mkIdent "Data.List_Type.++")) (EListish (LCompr e ss))) l) ++ "\n" ++ show r)
+      r
+
+dsCompr :: Expr -> [EStmt] -> Expr -> Expr
+dsCompr e [] l = EApp (EApp consCon e) l
+dsCompr e (SThen c : ss) l = EIf c (dsCompr e ss l) l
+dsCompr e (SLet ds : ss) l = ELet ds (dsCompr e ss l)
+dsCompr e xss@(SBind p g : ss) l = ELet [hdef] (EApp eh g)
+  where
+    hdef = BFcn h [eqn1, eqn2, eqn3]
+    eqn1 = eEqn [nilCon] l
+    eqn2 = eEqn [EApp (EApp consCon p) vs] (dsCompr e ss (EApp eh vs))
+    eqn3 = eEqn [EApp (EApp consCon u) vs]               (EApp eh vs)
+    u = EVar dummyIdent
+    h = head $ newVars "$h" allVs
+    eh = EVar h
+    vs = EVar $ head $ newVars "$vs" allVs
+    allVs = allVarsExpr (EListish (LCompr (ETuple [e,l]) xss))  -- all used identifiers
 
 -- Use tuple encoding to make a tuple
 mkTupleE :: [Exp] -> Exp
