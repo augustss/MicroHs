@@ -181,20 +181,6 @@ data Lit
 --  deriving (Show)
   deriving (Eq)
 
-{-
-instance Eq Lit where
-  (==) (LInt x)     (LInt  y) = x == y
-  (==) (LInteger x) (LInteger  y) = x == y
-  (==) (LDouble x)  (LDouble y) = x == y
-  (==) (LRat x)     (LRat y) = x == y
-  (==) (LChar x)    (LChar y) = x == y
-  (==) (LStr  x)    (LStr  y) = x == y
-  (==) (LPrim x)    (LPrim y) = x == y
-  (==) (LForImp x)  (LForImp y) = x == y
-  (==) (LTick x)    (LTick y) = x == y
-  (==) _            _         = False
--}
-
 type ECaseArm = (EPat, EAlts)
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]

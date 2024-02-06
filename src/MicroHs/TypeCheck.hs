@@ -217,11 +217,6 @@ getTVExps _ tys _ _ cls (ExpType i) =
 getTVExps _ _ vals _ _ (ExpValue i) =
     ([], [], [ValueExport i (expLookup i vals)])
 
--- Export all fixities and synonyms.
--- The synonyms might be needed, and the fixities are harmless
---getFSExps :: forall a . M.Map (TModule a) -> [([FixDef], [SynDef])]
---getFSExps impMap = [ (fe, se) | TModule _ fe _ se _ _ <- M.elems impMap ]
-
 expLookup :: Ident -> SymTab Entry -> Entry
 expLookup i m = either (errorMessage (getSLoc i)) id $ stLookup "export" i m
 
@@ -587,11 +582,6 @@ kArrow = tArrow
 
 sArrow :: ESort -> ESort -> ESort
 sArrow = tArrow
-
-{-
-isArrow :: EType -> Bool
-isArrow = isJust . getArrow
--}
 
 getArrow :: EType -> Maybe (EType, EType)
 getArrow (EApp (EApp (EVar n) a) b) =
@@ -1133,16 +1123,6 @@ noDefaultE = ELit noSLoc $ LPrim "noDefault"
 mkDefaultMethodId :: Ident -> Ident
 mkDefaultMethodId meth = addIdentSuffix meth "$dflt"
 
-{-
-clsToDict :: EType -> T EType
-clsToDict = do
-  -- XXX for now, only allow contexts of the form (C t1 ... tn)
-  let usup as (EVar c) | isConIdent c = return (tApps c as)
-      usup as (EApp f a) = usup (a:as) f
-      usup _ t = tcError (getSLoc t) ("bad context " ++ showEType t)
-  usup []
--}
-
 splitInst :: EConstraint -> ([IdKind], [EConstraint], EConstraint)
 splitInst (EForall iks t) =
   case splitInst t of
@@ -1237,21 +1217,8 @@ addValueClass ctx iCls vks fds ms = do
   -- Update class table, now with actual constructor type.
   addClassTable qiCls (vks, ctx, iConTy, methIds, mkIFunDeps (map idKindIdent vks) fds)
 
-{-
-bundleConstraints :: [EConstraint] -> EType -> EType
-bundleConstraints []  t = t
-bundleConstraints [c] t = tImplies c t
-bundleConstraints cs  t = tImplies (ETuple cs) t
--}
-
 mkClassConstructor :: Ident -> Ident
 mkClassConstructor i = addIdentSuffix i "$C"
-
-{-
-unForall :: EType -> ([IdKind], EType)
-unForall (EForall iks t) = (iks, t)
-unForall t = ([], t)
--}
 
 tcDefValue :: HasCallStack =>
               EDef -> T EDef
@@ -1359,16 +1326,6 @@ tSetRefType loc ref t = do
 tGetExpType :: Expected -> T EType
 tGetExpType (Check t) = return t
 tGetExpType (Infer r) = tGetRefType r
-
-{-
--- Get the type of a possibly unset Expected
-tGetExpTypeSet :: SLoc -> Expected -> T EType
-tGetExpTypeSet _   (Check t) = return t
-tGetExpTypeSet loc (Infer r) = tGetRefType r {-do
-  t <- newUVar
-  tSetRefType loc r t
-  return t-}
--}
 
 tcExpr :: HasCallStack =>
           Expected -> Expr -> T Expr

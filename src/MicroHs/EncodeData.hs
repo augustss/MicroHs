@@ -147,13 +147,6 @@ conNo :: Con -> Int
 conNo (ConData cks i _) = length $ takeWhile ((/= i) . fst) cks
 conNo _ = undefined
 
-{-
-newIdent :: String -> [Exp] -> Ident
-newIdent a es =
-  let is = concatMap allVarsExp es
-  in  head $ [ i | s <- "" : map show [1::Int ..], let { i = mkIdent (a ++ s) }, i `notElem` is ]
--}
-
 numConstr :: [(SPat, Exp)] -> Int
 numConstr ((SPat (ConData cs _ _) _, _):_) = length cs
 numConstr _ = undefined

@@ -192,7 +192,7 @@ dsExpr aexpr =
   case aexpr of
     EVar i -> Var i
     EApp (EApp (EVar app) (EListish (LCompr e stmts))) l | app == mkIdent "Data.List_Type.++" ->
-      dsExpr $ dsCompr' e stmts l
+      dsExpr $ dsCompr e stmts l
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam qs -> dsEqns (getSLoc aexpr) qs
     ELit _ (LChar c) -> Lit (LInt (ord c))
@@ -204,22 +204,7 @@ dsExpr aexpr =
     ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
     EIf e1 e2 e3 -> encIf (dsExpr e1) (dsExpr e2) (dsExpr e3)
     EListish (LList es) -> encList $ map dsExpr es
-    EListish (LCompr e stmts) -> dsExpr $ dsCompr' e stmts (EListish (LList []))
-{-
-      case astmts of
-        [] -> dsExpr (EListish (LList [e]))
-        stmt : stmts ->
-          case stmt of
-            SBind p b ->
-              let
-                nv = newVar (allVarsExpr aexpr)
-                body = ECase (EVar nv) [(p, oneAlt $ EListish (LCompr e stmts)), (EVar dummyIdent, oneAlt $ EListish (LList []))]
-              in app2 (Var (mkIdent "Data.List_Type.concatMap")) (dsExpr (eLam [EVar nv] body)) (dsExpr b)
-            SThen c ->
-              dsExpr (EIf c (EListish (LCompr e stmts)) (EListish (LList [])))
-            SLet ds ->
-              dsExpr (ELet ds (EListish (LCompr e stmts)))
--}
+    EListish (LCompr e stmts) -> dsExpr $ dsCompr e stmts (EListish (LList []))
     ECon c ->
       let
         ci = conIdent c
@@ -232,12 +217,6 @@ dsExpr aexpr =
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
     _ -> impossible
-
-dsCompr' :: Expr -> [EStmt] -> Expr -> Expr
-dsCompr' e ss l =
-  let r = dsCompr e ss l
-  in  -- trace ("dsCompr:\n" ++ show (EApp (EApp (EVar (mkIdent "Data.List_Type.++")) (EListish (LCompr e ss))) l) ++ "\n" ++ show r)
-      r
 
 dsCompr :: Expr -> [EStmt] -> Expr -> Expr
 dsCompr e [] l = EApp (EApp consCon e) l
@@ -331,9 +310,6 @@ type M a = State MState a
 type Arm = ([EPat], Exp -> Exp)  -- boolean indicates that the arm has guards, i.e., it uses the default
 type Matrix = [Arm]
 
---showArm :: Arm -> String
---showArm (ps, _, b) = showListS showExpr ps ++ "," ++ show b
-
 newIdents :: Int -> M [Ident]
 newIdents n = do
   is <- get
@@ -367,8 +343,8 @@ dsMatrix :: HasCallStack =>
 --dsMatrix dflt is aarms | trace (show (dflt, is)) False = undefined
 dsMatrix dflt _ [] = return dflt
 dsMatrix dflt []         aarms =
-  -- We can have several arms of there are guards.
-  -- Combind them in order.
+  -- We can have several arms if there are guards.
+  -- Combine them in order.
   return $ foldr (\ (_, rhs) -> rhs) dflt aarms
 dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
   case leftMost aarm of
@@ -468,23 +444,6 @@ eLet i e b =
           -- The single use substitution is essential for performance.
           [_] -> substExp i e b   -- single occurrence, substitute  XXX could be worse if under lambda
           _   -> App (Lam i b) e  -- just use a beta redex
-
-{-
--- Split the matrix into segments so each first column has initially patterns -- followed by variables, followed by the rest.
-splitArms :: Matrix -> (Matrix, Matrix, Matrix)
-splitArms am =
-  let
-    isConPat (p:_, _, _) = isPCon p
-    isConPat _ = impossible
-    (ps, nps) = span isConPat am
-    loop xs [] = (xs, [])
-    loop xs pps@(pg@(p:_, _, g) : rps) | not (isPVar p) = (xs, pps)
-                                       | otherwise = if g then (pg:xs, rps)
-                                                          else loop (pg:xs) rps
-    loop _ _ = impossible
-    (ds, rs)  = loop [] nps
-  in (ps, reverse ds, rs)
--}
 
 -- Change from x to y inside e.
 substAlpha :: Ident -> Exp -> Exp -> Exp
