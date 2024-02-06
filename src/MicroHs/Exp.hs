@@ -73,7 +73,9 @@ substExp si se ae =
                  let
                    fe = allVarsExp e
                    ase = allVarsExp se
-                   j = head [ v | n <- enumFrom (0::Int), let { v = mkIdent ("a" ++ show n) }, not (elem v ase), not (elem v fe) ]
+                   j = head [ v | n <- enumFrom (0::Int),
+                              let { v = mkIdent ("a" ++ show n) },
+                              not (elem v ase), not (elem v fe), v /= si ]
                  in
                    --trace ("substExp " ++ show [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))
