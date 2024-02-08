@@ -1,4 +1,10 @@
-module Data.IORef(module Data.IORef) where
+module Data.IORef(
+  IORef,
+  newIORef,
+  readIORef,
+  writeIORef,
+  modifyIORef,
+  ) where
 import Primitives
 import Data.Eq
 
