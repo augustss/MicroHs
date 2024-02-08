@@ -39,13 +39,13 @@ genHasField (tycon, iks) cs (fld, fldty) = do
                                    (ELit loc (LStr (unIdent fld)))
                                    (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
                                    fldty
-      conEqnGet (Constr _ _ c (Left ts))   = eEqn [eApps (EVar c) (map (const dummy) ts)] $ undef
+      conEqnGet (Constr _ _ c (Left ts))   = eEqn [eApps (EVar c) (map (const eDummy) ts)] $ undef
       conEqnGet (Constr _ _ c (Right fts)) = eEqn [conApp] $ if fld `elem` fs then rhs else undef
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = eFld
-      conEqnSet (Constr _ _ c (Left ts))   = eEqn [dummy, eApps (EVar c) (map (const dummy) ts)] $ undef
-      conEqnSet (Constr _ _ c (Right fts)) = eEqn [dummy, conApp] $ if fld `elem` fs then rhs else undef
+      conEqnSet (Constr _ _ c (Left ts))   = eEqn [eDummy, eApps (EVar c) (map (const eDummy) ts)] $ undef
+      conEqnSet (Constr _ _ c (Right fts)) = eEqn [eDummy, conApp] $ if fld `elem` fs then rhs else undef
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = eLam [eFld] conApp
@@ -53,7 +53,7 @@ genHasField (tycon, iks) cs (fld, fldty) = do
 
   pure [ Sign [getName] $ eForall iks $ lhsToType (qtycon, iks) `tArrow` fldty
        , Fcn getName $ map conEqnGet cs
-       , Instance hdrGet [BFcn igetField [eEqn [dummy] $ EVar getName] ]
+       , Instance hdrGet [BFcn igetField [eEqn [eDummy] $ EVar getName] ]
        , Instance hdrSet [BFcn isetField $ map conEqnSet cs]
        ]
 
@@ -80,18 +80,11 @@ mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld
 
 --------------------------------------------
 
-dummy :: Expr
-dummy = EVar dummyIdent
-
 eApp2 :: Expr -> Expr -> Expr -> Expr
 eApp2 a b c = EApp (EApp a b) c
 
 eApp3 :: Expr -> Expr -> Expr -> Expr -> Expr
 eApp3 a b c d = EApp (eApp2 a b c) d
-
-eForall :: [IdKind] -> EType -> EType
-eForall [] t = t
-eForall vs t = EForall vs t
 
 -- MicroHs currently has no way of using the original name,
 -- so we just ignore the qualification part for now.
@@ -142,7 +135,7 @@ derTypeable (i, _) _ etyp = do
     hdr = EApp etyp (EVar $ qualIdent mn i)
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
-    eqns = eEqns [dummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkQIdent loc nameDataListType "[]"))
+    eqns = eEqns [eDummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkQIdent loc nameDataListType "[]"))
     inst = Instance hdr [BFcn itypeRep eqns]
   return [inst]
 
@@ -185,7 +178,7 @@ derEq lhs cs eeq = do
         let (xp, xs) = mkPat c "x"
             (yp, ys) = mkPat c "y"
         in  eEqn [xp, yp] $ if null xs then eTrue else foldr1 eAnd $ zipWith eEq xs ys
-      eqns = map mkEqn cs ++ [eEqn [dummy, dummy] eFalse]
+      eqns = map mkEqn cs ++ [eEqn [eDummy, eDummy] eFalse]
       iEq = mkQIdent loc nameDataEq "=="
       eEq = EApp . EApp (EVar iEq)
       eAnd = EApp . EApp (EVar $ mkQIdent loc nameDataBool "&&")
@@ -215,8 +208,8 @@ derOrd lhs cs eord = do
         let (xp, xs) = mkPat c "x"
             (yp, ys) = mkPat c "y"
         in  [eEqn [xp, yp] $ if null xs then eEQ else foldr1 eComb $ zipWith eCompare xs ys
-            ,eEqn [xp, dummy] $ eLT
-            ,eEqn [dummy, yp] $ eGT]
+            ,eEqn [xp, eDummy] $ eLT
+            ,eEqn [eDummy, yp] $ eGT]
       eqns = concatMap mkEqn cs
       iCompare = mkQIdent loc nameDataOrd "compare"
       eCompare = EApp . EApp (EVar iCompare)

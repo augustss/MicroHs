@@ -37,6 +37,8 @@ module MicroHs.Expr(
   Assoc(..), Fixity,
   getBindsVars,
   HasLoc(..),
+  eForall,
+  eDummy,
   impossible, impossibleShow,
   ) where
 import Prelude hiding ((<>))
@@ -51,13 +53,14 @@ type IdentModule = Ident
 ----------------------
 
 data EModule = EModule IdentModule [ExportItem] [EDef]
+--DEBUG  deriving (Show)
 
 data ExportItem
   = ExpModule IdentModule
   | ExpTypeCon Ident
   | ExpType Ident
   | ExpValue Ident
---  deriving (Show)
+--DEBUG  deriving (Show)
 
 data EDef
   = Data LHS [Constr] Deriving
@@ -72,16 +75,16 @@ data EDef
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance EConstraint [EBind]  -- no deriving yet
   | Default [EType]
---  deriving (Show)
+--DEBUG  deriving (Show)
 
 data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
---  deriving (Show)
+--DEBUG  deriving (Show)
 
 data ImportItem
   = ImpTypeCon Ident
   | ImpType Ident
   | ImpValue Ident
---  deriving (Show)
+--DEBUG  deriving (Show)
 
 type Deriving = [EConstraint]
 
@@ -112,12 +115,13 @@ data Expr
   -- Constructors after type checking
   | ECon Con
   | EForall [IdKind] Expr -- only in types
---  deriving (Show)
+--DEBUG  deriving (Show)
 
 data EField
   = EField [Ident] Expr     -- a.b = e
   | EFieldPun [Ident]       -- a.b
   | EFieldWild              -- ..
+--DEBUG  deriving (Show)
 
 unEField :: EField -> ([Ident], Expr)
 unEField (EField is e) = (is, e)
@@ -139,7 +143,7 @@ type FieldName = Ident
 data Con
   = ConData ConTyInfo Ident [FieldName]
   | ConNew Ident [FieldName]
---  deriving(Show)
+--DEBUG  deriving(Show)
 
 data Listish
   = LList [Expr]
@@ -148,7 +152,7 @@ data Listish
   | LFromTo Expr Expr
   | LFromThen Expr Expr
   | LFromThenTo Expr Expr Expr
---  deriving(Show)
+--DEBUG  deriving(Show)
 
 conIdent :: HasCallStack =>
             Con -> Ident
@@ -179,22 +183,23 @@ data Lit
   | LPrim String
   | LForImp String
   | LTick String
---  deriving (Show)
+--DEBUG  deriving (Show)
   deriving (Eq)
 
 type ECaseArm = (EPat, EAlts)
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
---  deriving (Show)
+--DEBUG  deriving (Show)
 
 data EBind = BFcn Ident [Eqn] | BPat EPat Expr | BSign Ident EType
---  deriving (Show)
+--DEBUG  deriving (Show)
 
 -- A single equation for a function
 data Eqn = Eqn [EPat] EAlts
+--DEBUG  deriving (Show)
 
 data EAlts = EAlts [EAlt] [EBind]
---  deriving (Show)
+--DEBUG  deriving (Show)
 
 type EAlt = ([EStmt], Expr)
 
@@ -237,7 +242,7 @@ data Constr = Constr
   [IdKind] [EConstraint]          -- existentials: forall vs . ctx =>
   Ident                           -- constructor name
   (Either [SType] [ConstrField])  -- types or named fields
---  deriving(Show)
+--DEBUG  deriving(Show)
 
 type ConstrField = (Ident, SType)              -- record label and type
 type SType = (Bool, EType)                     -- the Bool indicates strict
@@ -250,7 +255,7 @@ type EType = Expr
 type EConstraint = EType
 
 data IdKind = IdKind Ident EKind
-  --deriving (Show, Eq)
+--DEBUG  deriving (Show)
 
 instance Show IdKind where
   show (IdKind i k) = "(" ++ show i ++ "::" ++ show k ++ ")"
@@ -328,7 +333,7 @@ instance HasLoc Expr where
   getSLoc (EForall iks _) = getSLoc iks
 
 instance forall a . HasLoc a => HasLoc [a] where
-  getSLoc [] = error "getSLoc []"
+  getSLoc [] = noSLoc  -- XXX shouldn't happen
   getSLoc (a:_) = getSLoc a
 
 instance HasLoc IdKind where
@@ -370,16 +375,8 @@ instance HasLoc EAlt where
 ---------------------------------
 
 data Assoc = AssocLeft | AssocRight | AssocNone
---  deriving (Show)
+--DEBUG  deriving (Show)
   deriving (Eq)
-
-{-
-instance Eq Assoc where
-  AssocLeft  == AssocLeft  = True
-  AssocRight == AssocRight = True
-  AssocNone  == AssocNone  = True
-  _          == _          = False
--}
 
 type Fixity = (Assoc, Int)
 
@@ -748,6 +745,13 @@ getBindVars abind =
 
 getBindsVars :: [EBind] -> [Ident]
 getBindsVars = concatMap getBindVars
+
+eForall :: [IdKind] -> EType -> EType
+eForall [] t = t
+eForall vs t = EForall vs t
+
+eDummy :: Expr
+eDummy = EVar dummyIdent
 
 impossible :: forall a .
               HasCallStack =>
