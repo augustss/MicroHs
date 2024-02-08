@@ -233,14 +233,7 @@ data TCMode
   | TCType          -- doing kind checking
   | TCKind          -- doing sort checking
   | TCSort          -- doing tier checking
-  --deriving (Show)
-  deriving (Eq, Ord)
-
-instance Show TCMode where
-  show TCExpr = "TCExpr"
-  show TCType = "TCType"
-  show TCKind = "TCKind"
-  show TCSort = "TCSort"
+  deriving (Show, Eq, Ord)
 
 instance Enum TCMode where
   succ TCExpr = TCType
