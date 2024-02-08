@@ -43,6 +43,7 @@ Differences:
  * Polymorphic types/kinds are never inferred; use a type/kind signature if you need it.
  * A module must have an export list.
  * The `default` list is empty, except in the interactive system.
+ * No lazy patterns (`~pat`)
  * Always enabled extension:
    * ConstraintKinds
    * DuplicateRecordFields

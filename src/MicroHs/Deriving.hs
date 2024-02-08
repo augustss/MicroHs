@@ -18,9 +18,9 @@ genHasFields :: LHS -> [Constr] -> T [EDef]
 genHasFields lhs cs = do
   let fldtys = nubBy ((==) `on` fst) [ (fld, ty) | Constr _ _ _ (Right fs) <- cs, (fld, (_, ty)) <- fs ]
 --      flds = map fst fldtys
-  mapM (genHasField lhs cs) fldtys
+  concat <$> mapM (genHasField lhs cs) fldtys
 
-genHasField :: LHS -> [Constr] -> (Ident, EType) -> T EDef
+genHasField :: LHS -> [Constr] -> (Ident, EType) -> T [EDef]
 genHasField (tycon, iks) cs (fld, fldty) = do
   mn <- gets moduleName
   let loc = getSLoc tycon
@@ -28,23 +28,41 @@ genHasField (tycon, iks) cs (fld, fldty) = do
       eFld = EVar fld
       undef = EVar $ mkQIdent loc nameControlError "undefined"  -- XXX could be nicer
       iHasField = mkIdentSLoc loc nameHasField
-      ihasField = mkQIdent loc nameDataRecords namehasField
-      hdr = eForall iks $ eApp3 (EVar iHasField)
-                                  (ELit loc (LStr (unIdent fld)))
-                                  (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
-                                  fldty
-      conEqn (Constr _ _ c (Left ts))   = eEqn [dummy, eApps (EVar c) (map (const dummy) ts)] $ undef
-      conEqn (Constr _ _ c (Right fts)) = eEqn [dummy, conApp] $ if fld `elem` fs then rhs else undef
+      iSetField = mkIdentSLoc loc nameSetField
+      igetField = mkQIdent loc nameDataRecords namegetField
+      isetField = mkQIdent loc nameDataRecords namesetField
+      hdrGet = eForall iks $ eApp3 (EVar iHasField)
+                                   (ELit loc (LStr (unIdent fld)))
+                                   (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
+                                   fldty
+      hdrSet = eForall iks $ eApp3 (EVar iSetField)
+                                   (ELit loc (LStr (unIdent fld)))
+                                   (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
+                                   fldty
+      conEqnGet (Constr _ _ c (Left ts))   = eEqn [dummy, eApps (EVar c) (map (const dummy) ts)] $ undef
+      conEqnGet (Constr _ _ c (Right fts)) = eEqn [dummy, conApp] $ if fld `elem` fs then rhs else undef
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
-              rhs = ETuple [eFld, eLam [eFld] conApp]
-  pure $ Instance hdr [BFcn ihasField $ map conEqn cs]
+              rhs = eFld
+      conEqnSet (Constr _ _ c (Left ts))   = eEqn [dummy, eApps (EVar c) (map (const dummy) ts)] $ undef
+      conEqnSet (Constr _ _ c (Right fts)) = eEqn [dummy, conApp] $ if fld `elem` fs then rhs else undef
+        where fs = map fst fts
+              conApp = eApps (EVar c) (map EVar fs)
+              rhs = eLam [eFld] conApp
+  pure [ Instance hdrGet [BFcn igetField $ map conEqnGet cs]
+       , Instance hdrSet [BFcn isetField $ map conEqnSet cs] ]
 
 nameHasField :: String
 nameHasField = nameDataRecords ++ ".HasField"
 
-namehasField :: String
-namehasField = "hasField"
+nameSetField :: String
+nameSetField = nameDataRecords ++ ".SetField"
+
+namegetField :: String
+namegetField = "getField"
+
+namesetField :: String
+namesetField = "setField"
 
 nameDataRecords :: String
 nameDataRecords = "Data.Records"
