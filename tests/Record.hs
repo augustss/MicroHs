@@ -105,3 +105,7 @@ main = do
   print $ foow r2
 --  print $ sel_ra r7
   print r8
+  print s1.x
+  print s2.x
+  print (x s1)
+  print (x s2)

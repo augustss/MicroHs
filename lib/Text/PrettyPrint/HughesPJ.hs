@@ -16,7 +16,7 @@ module Text.PrettyPrint.HughesPJ(
   Style,
   render, renderStyle,
   ) where
-import Prelude
+import Prelude hiding ((<>))
 
 infixl 6 <>, <+>
 infixl 5 $$, $+$

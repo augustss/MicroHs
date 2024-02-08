@@ -25,7 +25,6 @@ data Type
 -- Types
 data AnyType
 data Char
-data Handle
 data Int
 data Double
 data IO a

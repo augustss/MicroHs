@@ -31,7 +31,7 @@ module Data.Traversable (
     ) where
 import Primitives
 import Control.Applicative
-import Control.Monad
+import Control.Monad(Monad(..), MonadPlus(..))
 --import Data.Coerce
 import Data.Either
 import Data.Foldable

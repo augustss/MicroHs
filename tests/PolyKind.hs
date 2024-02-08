@@ -1,8 +1,8 @@
 module PolyKind(main) where
 import Prelude
 
-type Proxy :: forall (k::Kind) . k -> Type
-data Proxy a = Proxy
+type XProxy :: forall (k::Kind) . k -> Type
+data XProxy a = XProxy
 
 data TypeRep = TypeRep String [TypeRep]
 
@@ -18,7 +18,7 @@ class Typeable a where
   typeRep :: forall proxy . proxy a -> TypeRep
 
 typeOf :: forall a . Typeable a => a -> TypeRep
-typeOf _ = typeRep (Proxy :: Proxy a)
+typeOf _ = typeRep (XProxy :: XProxy a)
 
 instance Typeable Int where
   typeRep _ = TypeRep "Int" []
@@ -27,10 +27,10 @@ instance Typeable IO where
   typeRep _ = TypeRep "IO" []
 
 instance forall f a . (Typeable f, Typeable a) => Typeable (f a) where
-  typeRep _ = mkAppTy (typeRep (Proxy :: Proxy f)) (typeRep (Proxy :: Proxy a))
+  typeRep _ = mkAppTy (typeRep (XProxy :: XProxy f)) (typeRep (XProxy :: XProxy a))
 
 main :: IO ()
 main = do
-  print $ typeRep (Proxy :: Proxy Int)
-  print $ typeRep (Proxy :: Proxy IO)
-  print $ typeRep (Proxy :: Proxy (IO Int))
+  print $ typeRep (XProxy :: XProxy Int)
+  print $ typeRep (XProxy :: XProxy IO)
+  print $ typeRep (XProxy :: XProxy (IO Int))

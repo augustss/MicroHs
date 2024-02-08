@@ -42,16 +42,16 @@ module Data.Foldable (
     find
     ) where
 import Primitives
-import Control.Applicative
+import Control.Applicative(Applicative(..), Alternative(..))
 import Control.Error
-import Control.Monad
+import Control.Monad(Monad(..), MonadPlus(..))
 import Data.Bool
 import Data.Either
 import Data.Eq
 import Data.Function
 import Data.Functor.Const
 import Data.Functor.Identity
-import Data.List_Type
+import Data.List_Type hiding (concatMap)
 import qualified Data.List as List
 import Data.Maybe
 import Data.Monoid
