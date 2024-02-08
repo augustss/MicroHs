@@ -30,7 +30,7 @@ toStringCMdl (mainName, ds) =
           -- Put placeholder for n in seen.
           put (i, M.insert n (Var n) seen, r)
           -- Walk n's children
-          let e = fromMaybe (Var n) $ M.lookup n dMap
+          let e = fromMaybe (error $ "No definition found for: "++showIdent n) $ M.lookup n dMap
           mapM_ dfs $ freeVars e
           -- Now that n's children are done, compute its actual entry.
           (i', seen', r') <- get
