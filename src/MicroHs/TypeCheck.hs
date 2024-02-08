@@ -930,6 +930,7 @@ tcExpand :: [EDef] -> T [EDef]
 tcExpand dst = withTypeTable $ do
   dsc <- concat <$> mapM expandClass dst       -- Expand all class definitions
   dsf <- concat <$> mapM expandField dsc       -- Add HasField instances
+--  traceM $ showEDefs dsf
   dsd <- concat <$> mapM doDeriving  dsf       -- Add derived instances
 --  traceM $ showEDefs dsd
   dsi <- concat <$> mapM expandInst  dsd       -- Expand all instance definitions
@@ -1545,7 +1546,6 @@ failureFree (ESign p _) = failureFree p
 failureFree _ = False
 
 eSetFields :: EField -> Expr -> Expr
---eSetFields ([i], e) r = eSetField (i, e) r
 eSetFields (EField is e) r =
   let loc = getSLoc is
       eCompose = EVar $ mkIdentSLoc loc "composeSet"
@@ -2382,6 +2382,7 @@ solveGen :: [IFunDep] -> [InstDict] -> SolveOne
 solveGen fds insts loc iCls cts = do
 --  traceM ("solveGen " ++ showEType ct)
   let matches = getBestMatches $ findMatches loc fds insts cts
+--  traceM ("matches " ++ showListS show (findMatches loc fds insts cts))
 --  traceM ("matches " ++ showListS showMatch matches)
   case matches of
     []              -> return Nothing
@@ -2513,12 +2514,13 @@ combineTySubsts = combs []
         Just t' -> matchType [] t' t
 
 -- Get the best matches.  These are the matches with the smallest substitution.
+-- Always prefer arguments rather than global instances.
 getBestMatches :: [(Int, (Expr, [EConstraint], [Improve]))] -> [(Expr, [EConstraint], [Improve])]
 getBestMatches [] = []
 getBestMatches ams =
-  let (args, insts) = partition (\ (_, (ei, _, _)) -> (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent (unvar ei)) ams
-      unvar (EVar i) = i
-      unvar e = impossibleShow e
+  let (args, insts) = partition (\ (_, (ei, _, _)) -> isDictArg ei) ams
+      isDictArg (EVar i) = (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i
+      isDictArg _ = True
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest
