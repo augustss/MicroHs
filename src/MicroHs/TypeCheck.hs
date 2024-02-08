@@ -296,7 +296,7 @@ mkTables mdls =
     qns (ImportSpec q _ mas _) mn i =
       let
         m = fromMaybe mn mas
-      in  if q then [qualIdent m i] else [i, qualIdent m i]
+      in  if q || isInternalId i then [qualIdent m i] else [i, qualIdent m i]
     allValues :: ValueTable
     allValues =
       let
@@ -351,6 +351,13 @@ mergeInstInfo (InstInfo m1 l1 fds) (InstInfo m2 l2 _) =
 -- The important thing is to avoid exact duplicates in the instance table.
 eqInstDict :: InstDict -> InstDict -> Bool
 eqInstDict (e, _, _) (e', _, _) = eqExpr e e'
+
+-- Identifier should only be seen with it's qualified name.
+isInternalId :: Ident -> Bool
+isInternalId i = (instPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i
+
+instPrefix :: String
+instPrefix = "inst"
 
 --------------------------
 
@@ -959,11 +966,10 @@ addTypeKind kdefs adef = do
     addAssoc i is = do
       mn <- gets moduleName
       addAssocTable (qualIdent mn i) (map (qualIdent mn) is)
-    assocData (Constr _ _ c _) = [c]
-{-
+--    assocData (Constr _ _ c _) = [c]
     assocData (Constr _ _ c (Left _)) = [c]
     assocData (Constr _ _ c (Right its)) = c : map fst its
--}
+
     addDef (i, _) = do
       k <-
         case M.lookup i kdefs of
@@ -1138,7 +1144,7 @@ expandInst dinst@(Instance act bs) = do
   (vks, ctx, cc) <- splitInst <$> expandSyn act
   let loc = getSLoc act
       qiCls = getAppCon cc
-  iInst <- newIdent loc "inst"
+  iInst <- newIdent loc instPrefix
   let sign = Sign [iInst] act
 --  (e, _) <- tLookupV iCls
   ct <- gets classTable
@@ -1173,18 +1179,25 @@ tcDefsValue ds = do
 addValueType :: EDef -> T ()
 addValueType adef = do
   mn <- gets moduleName
+  -- traceM ("addValueType: " ++ showEDefs [adef])
   case adef of
     Sign is t -> mapM_ (\ i -> extValQTop i t) is
-    Data (i, vks) cs _ -> do
+    Data (tycon, vks) cs _ -> do
       let
         cti = [ (qualIdent mn c, either length length ets + if null ctx then 0 else 1) | Constr _ ctx c ets <- cs ]
-        tret = tApps (qualIdent mn i) (map tVarK vks)
+        tret = tApps (qualIdent mn tycon) (map tVarK vks)
         addCon (Constr evks ectx c ets) = do
           let ts = either id (map snd) ets
               cty = EForall vks $ EForall evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
               fs = either (const []) (map fst) ets
           extValETop c cty (ECon $ ConData cti (qualIdent mn c) fs)
+        addConFields (Constr _ _ _ (Left _)) = return ()
+        addConFields (Constr _ _ _ (Right fs)) = mapM_ addField fs
+          where addField (fld, _) = do
+                  (fe, fty) <- tLookup "???" $ mkGetName tycon fld
+                  extValETop fld fty fe
       mapM_ addCon cs
+      mapM_ addConFields cs
     Newtype (i, vks) (Constr _ _ c ets) _ -> do
       let
         t = snd $ head $ either id (map snd) ets

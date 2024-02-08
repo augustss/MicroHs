@@ -1,4 +1,4 @@
-module MicroHs.Deriving(expandField, doDeriving) where
+module MicroHs.Deriving(expandField, doDeriving, mkGetName) where
 import Prelude
 --import Control.Monad
 import Data.Char
@@ -10,8 +10,8 @@ import MicroHs.TCMonad
 --import Debug.Trace
 
 expandField :: EDef -> T [EDef]
-expandField def@(Data    lhs cs _) = (def:) <$> genHasFields lhs cs
-expandField def@(Newtype lhs  c _) = (def:) <$> genHasFields lhs [c]
+expandField def@(Data    lhs cs _) = (++ [def]) <$> genHasFields lhs cs
+expandField def@(Newtype lhs  c _) = (++ [def]) <$> genHasFields lhs [c]
 expandField def                    = return [def]
 
 genHasFields :: LHS -> [Constr] -> T [EDef]
@@ -49,7 +49,7 @@ genHasField (tycon, iks) cs (fld, fldty) = do
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = eLam [eFld] conApp
-      getName = mkGetName qtycon fld
+      getName = mkGetName tycon fld
 
   pure [ Sign [getName] $ eForall iks $ lhsToType (qtycon, iks) `tArrow` fldty
        , Fcn getName $ map conEqnGet cs
@@ -76,7 +76,7 @@ nameControlError :: String
 nameControlError = "Control.Error"
 
 mkGetName :: Ident -> Ident -> Ident
-mkGetName qtycon fld = qualIdent (mkIdent "get$") $ qualIdent qtycon fld
+mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld
 
 --------------------------------------------
 

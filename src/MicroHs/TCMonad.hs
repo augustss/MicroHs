@@ -10,6 +10,7 @@ import Control.Applicative
 import Control.Monad.State.Strict
 import Data.Functor
 import qualified Data.IntMap as IM
+import Data.List(nub)
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.Expr
@@ -52,7 +53,7 @@ stLookup msg i (SymTab genv lenv) =
   case lookup i lenv of
     Just e -> Right e
     Nothing ->
-      case M.lookup i genv of
+      case nub <$> M.lookup i genv of
         Just [e] -> Right e
         Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++ showListS (showIdent . getAppCon) [ e | Entry e _ <- es ]
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
@@ -71,8 +72,8 @@ stInsertLcl :: forall a . Ident -> a -> SymTab a -> SymTab a
 stInsertLcl i a (SymTab genv lenv) = SymTab genv ((i,a) : lenv)
 
 -- XXX Use insertWith to follow Haskell semantics.
-stInsertGlb :: forall a . Ident -> [a] -> SymTab a -> SymTab a
-stInsertGlb i as (SymTab genv lenv) = SymTab (M.insert i as genv) lenv
+stInsertGlb :: forall a . Eq a => Ident -> [a] -> SymTab a -> SymTab a
+stInsertGlb i as (SymTab genv lenv) = SymTab (M.insertWith (++) i as genv) lenv
 
 -----------------------------------------------
 -- Entry
@@ -160,36 +161,6 @@ data TCState = TC {
   defaults    :: Defaults               -- current defaults
   }
 
-typeTable :: TCState -> TypeTable
-typeTable = (.typeTable)
-
-valueTable :: TCState -> ValueTable
-valueTable = (.valueTable)
-
-synTable :: TCState -> SynTable
-synTable = (.synTable)
-
-fixTable :: TCState -> FixTable
-fixTable = (.fixTable)
-
-assocTable :: TCState -> AssocTable
-assocTable = (.assocTable)
-
-uvarSubst :: TCState -> IM.IntMap EType
-uvarSubst = (.uvarSubst)
-
-moduleName :: TCState -> IdentModule
-moduleName = (.moduleName)
-
-classTable :: TCState -> ClassTable
-classTable = (.classTable)
-
-tcMode :: TCState -> TCMode
-tcMode = (.tcMode)
-
-ctxTables :: TCState -> (InstTable, MetaTable, TypeEqTable)
-ctxTables = (.ctxTables)
-
 instTable :: TCState -> InstTable
 instTable = (.ctxTables._1)
 
@@ -198,12 +169,6 @@ metaTable = (.ctxTables._2)
 
 typeEqTable :: TCState -> TypeEqTable
 typeEqTable = (.ctxTables._3)
-
-constraints :: TCState -> Constraints
-constraints = (.constraints)
-
-defaults :: TCState -> Defaults
-defaults = (.defaults)
 
 
 putValueTable :: ValueTable -> T ()
@@ -301,10 +266,11 @@ getIdent ae =
     ECon c -> conIdent c
     _ -> error "getIdent"
 
-getAppCon :: EType -> Ident
+getAppCon :: HasCallStack => EType -> Ident
 getAppCon (EVar i) = i
+getAppCon (ECon i) = conIdent i
 getAppCon (EApp f _) = getAppCon f
-getAppCon _ = error "getAppCon"
+getAppCon e = error $ "getAppCon: " ++ show e
 
 -----------------------------------------------
 

@@ -12,7 +12,7 @@ GHC= ghc
 GHCINCS= -ighc -isrc
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial
 GHCOPTS= -O
-GHCEXTS= -DNOTCABAL -XScopedTypeVariables -XPatternGuards -XTupleSections -XTypeSynonymInstances -XFlexibleInstances -XNoFieldSelectors -XOverloadedRecordDot -XDisambiguateRecordFields
+GHCEXTS= -DNOTCABAL -XScopedTypeVariables -XPatternGuards -XTupleSections -XTypeSynonymInstances -XFlexibleInstances -XOverloadedRecordDot -XDisambiguateRecordFields
 # -XOverloadedRecordUpdate
 GHCPKGS= #-package mtl -package pretty -package temporary -package process
 GHCTOOL= # -F -pgmF Tools/convertX.sh

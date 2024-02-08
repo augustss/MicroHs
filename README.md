@@ -60,7 +60,6 @@ Differences:
    * MultiParamTypeClasses
    * NamedFieldPuns
    * NegativeLiterals
-   * NoFieldSelectors
    * NoMonomorphismRestriction
    * NoStarIsType
    * OverlappingInstances
@@ -242,14 +241,15 @@ MicroHs supports calling C functions, but all such functions must be in a table 
 
 ### Records
 MicroHs implements the record dot extensions.
-So accessing a field `a` in record `r` is written `r.a`.
+So accessing a field `a` in record `r` is written `r.a`, as well as the usual `a r`.
+The former is overloaded and can access any `a` field, whereas the latter is the usual monomorphic field selector.
 Updating a field has the usual Haskell syntax `r{ a = e }`, but the type is overloaded so this can update the `a` field in any record.
-The typeclass `HasField` captures this.  `HasField "name" rec ty` expresses that the record type `rec` has a field `name` with type `ty`.
+The typeclasses `HasField` and `SetField` capture this.
+`HasField "name" rec ty` expresses that the record type `rec` has a field `name` with type `ty` that can be extracted with `getField`.
+`SetField "name" rec ty` expresses that the record type `rec` has a field `name` with type `ty` that can be set `setField`.
+
 Record updates can also update nested fields, e.g., `r{ a.b.c = e }`.  Note that this will not easily work in GHC, since GHC does not
 fully implement `OverloadedRecordUpdate`.  When GHC decides how to do it, MicroHs will follow suit.
-
-Haskell2010 code using records cannot be compiled directly with MicroHs, since the field names are not automatically selector functions.
-Given a field `foo` in a record in Haskell2010 you can use `foo` as a function, whereas in MicroHs you have to say `(.foo)` to get the selector function.
 
 Note that record updates cannot change the type of polymorphic fields.
 
