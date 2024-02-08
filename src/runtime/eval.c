@@ -2243,7 +2243,7 @@ evali(NODEPTR an)
 #define OPDBL1(e)      do { CHECK(1); xd = evaldbl(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPDBL2(e)      do { CHECK(2); xd = evaldbl(ARG(TOP(0))); yd = evaldbl(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
-#define ARITHUN(op)    do { OPINT1(r = op xi); SETINT(n, r); RET; } while(0)
+#define ARITHUNU(op)    do { OPINT1(r = (value_t)(op (uvalue_t)xi)); SETINT(n, r); RET; } while(0)
 #define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
 #define FARITHUN(op)   do { OPDBL1(rd = op xd); SETDBL(n, rd); RET; } while(0)
@@ -2308,11 +2308,11 @@ evali(NODEPTR an)
     case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
     case T_UQUOT: ARITHBINU(/);
     case T_UREM:  ARITHBINU(%);
-    case T_NEG:  ARITHUN(-);
+    case T_NEG:  ARITHUNU(-);
     case T_AND:  ARITHBIN(&);
     case T_OR:   ARITHBIN(|);
     case T_XOR:  ARITHBIN(^);
-    case T_INV:  ARITHUN(~);
+    case T_INV:  ARITHUNU(~);
     case T_SHL:  ARITHBIN(<<);
     case T_SHR:  ARITHBINU(>>);
     case T_ASHR: ARITHBIN(>>);
