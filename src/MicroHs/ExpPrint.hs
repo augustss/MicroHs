@@ -7,7 +7,7 @@ import Data.Maybe
 import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
 import MicroHs.Exp
-import MicroHs.Expr(Lit(..), showLit)
+import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..))
 import MicroHs.Ident(Ident, showIdent, mkIdent)
 
 -- Version number of combinator file.
@@ -30,15 +30,16 @@ toStringCMdl (mainName, ds) =
           -- Put placeholder for n in seen.
           put (i, M.insert n (Var n) seen, r)
           -- Walk n's children
-          let e = fromMaybe (error $ "No definition found for: "++showIdent n) $ M.lookup n dMap
+          let e = findIdentIn n dMap
           mapM_ dfs $ freeVars e
           -- Now that n's children are done, compute its actual entry.
           (i', seen', r') <- get
           put (i'+1, M.insert n (ref i') seen', def r' (i', e))
     (_,(ndefs, defs, res)) = runState (dfs mainName) (0, M.empty, toStringP emain)
     ref i = Var $ mkIdent $ "_" ++ show i
-    findIdent n = fromMaybe (error $ "main: findIdent: " ++ showIdent n) $
-                  M.lookup n defs
+    findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
+                      M.lookup n m
+    findIdent n = findIdentIn n defs
     emain = findIdent mainName
     substv aexp =
       case aexp of
@@ -49,9 +50,7 @@ toStringCMdl (mainName, ds) =
     def r (i, e) =
       --(("((A :" ++ show i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
       ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @\n") ++) . r . (" @" ++)
-  in case M.lookup mainName dMap of
-       Nothing -> error "No 'main' function"
-       Just _  -> combVersion ++ show ndefs ++ "\n" ++ res " }"
+  in combVersion ++ show ndefs ++ "\n" ++ res " }"
 
 -- Avoid quadratic concatenation by using difference lists,
 -- turning concatenation into function composition.
