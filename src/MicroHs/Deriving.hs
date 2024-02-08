@@ -39,8 +39,8 @@ genHasField (tycon, iks) cs (fld, fldty) = do
                                    (ELit loc (LStr (unIdent fld)))
                                    (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
                                    fldty
-      conEqnGet (Constr _ _ c (Left ts))   = eEqn [dummy, eApps (EVar c) (map (const dummy) ts)] $ undef
-      conEqnGet (Constr _ _ c (Right fts)) = eEqn [dummy, conApp] $ if fld `elem` fs then rhs else undef
+      conEqnGet (Constr _ _ c (Left ts))   = eEqn [eApps (EVar c) (map (const dummy) ts)] $ undef
+      conEqnGet (Constr _ _ c (Right fts)) = eEqn [conApp] $ if fld `elem` fs then rhs else undef
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = eFld
@@ -49,8 +49,13 @@ genHasField (tycon, iks) cs (fld, fldty) = do
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = eLam [eFld] conApp
-  pure [ Instance hdrGet [BFcn igetField $ map conEqnGet cs]
-       , Instance hdrSet [BFcn isetField $ map conEqnSet cs] ]
+      getName = mkGetName qtycon fld
+
+  pure [ Sign [getName] $ eForall iks $ lhsToType (qtycon, iks) `tArrow` fldty
+       , Fcn getName $ map conEqnGet cs
+       , Instance hdrGet [BFcn igetField [eEqn [dummy] $ EVar getName] ]
+       , Instance hdrSet [BFcn isetField $ map conEqnSet cs]
+       ]
 
 nameHasField :: String
 nameHasField = nameDataRecords ++ ".HasField"
@@ -69,6 +74,9 @@ nameDataRecords = "Data.Records"
 
 nameControlError :: String
 nameControlError = "Control.Error"
+
+mkGetName :: Ident -> Ident -> Ident
+mkGetName qtycon fld = qualIdent (mkIdent "get$") $ qualIdent qtycon fld
 
 --------------------------------------------
 

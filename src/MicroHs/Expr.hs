@@ -29,6 +29,7 @@ module MicroHs.Expr(
   tupleConstr, getTupleConstr,
   mkTupleSel,
   eApps,
+  lhsToType,
   subst,
   allVarsExpr, allVarsBind,
   setSLocExpr,
@@ -286,6 +287,9 @@ mkTupleSel i n = eLam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [
 
 eApps :: Expr -> [Expr] -> Expr
 eApps = foldl EApp
+
+lhsToType :: LHS -> EType
+lhsToType (i, iks) = eApps (EVar i) $ map (EVar . idKindIdent) iks
 
 ---------------------------------
 
