@@ -68,6 +68,9 @@ stFromList ias = SymTab (M.fromList ias) []
 stElemsLcl :: forall a . SymTab a -> [a]
 stElemsLcl (SymTab _genv lenv) = map snd lenv
 
+stKeysLcl :: forall a . SymTab a -> [Ident]
+stKeysLcl (SymTab _genv lenv) = map fst lenv
+
 stInsertLcl :: forall a . Ident -> a -> SymTab a -> SymTab a
 stInsertLcl i a (SymTab genv lenv) = SymTab genv ((i,a) : lenv)
 
