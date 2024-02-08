@@ -69,6 +69,7 @@ executable mhs
                        Text.ParserComb
                        System.Console.SimpleReadline
                        Data.Double
+                       Data.Integer
                        Compat
                        PrimTable
                        System.IO.MD5
