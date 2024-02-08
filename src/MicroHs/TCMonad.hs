@@ -288,7 +288,9 @@ freeTyVars = foldr (go []) []
     go bound (EForall tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
     go bound (EApp fun arg) acc = go bound fun (go bound arg acc)
     go _bound (EUVar _) acc = acc
-    go _ _ _ = undefined
+    go _bound (ECon _) acc = acc
+    go bound (EOper e ies) acc = go bound e (foldr (\ (_, ee) -> go bound ee) acc ies)
+    go _ x _ = error ("freeTyVars: " ++ show x) --  impossibleShow x
 
 addConstraints :: [EConstraint] -> EType -> EType
 addConstraints []  t = t
@@ -324,4 +326,3 @@ tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
 
 tImplies :: EType -> EType -> EType
 tImplies a r = tApp (tApp (tConI builtinLoc "Primitives.=>") a) r
-
