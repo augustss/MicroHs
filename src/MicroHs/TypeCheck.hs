@@ -1011,13 +1011,13 @@ tcDefType def = do
     Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> (,kType)       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDerive ds)
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first              (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> (,kConstraint) <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
-    Sign      is t         ->                                             Sign      is  <$> tCheckTypeT kType t
-    ForImp ie i t          ->                                             ForImp ie i   <$> tCheckTypeT kType t
-    Instance ct m          ->                                             Instance      <$> tCheckTypeT kConstraint ct <*> return m
+    Sign      is t         ->                                             Sign      is  <$> tCheckTypeTImpl kType t
+    ForImp ie i t          ->                                             ForImp ie i   <$> tCheckTypeTImpl kType t
+    Instance ct m          ->                                             Instance      <$> tCheckTypeTImpl kConstraint ct <*> return m
     Default ts             ->                                             Default       <$> mapM (tCheckTypeT kType) ts
     _                      -> return def
  where
-   tcMethod (BSign i t) = BSign i <$> tcTypeT (Check kType) t
+   tcMethod (BSign i t) = BSign i <$> tCheckTypeTImpl kType t
    tcMethod m = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
@@ -1254,6 +1254,17 @@ tcDefValue adef =
       t' <- expandSyn t
       return (ForImp ie (qualIdent mn i) t')
     _ -> return adef
+
+-- Add implicit forall and type check.
+tCheckTypeTImpl :: HasCallStack => EType -> EType -> T EType
+tCheckTypeTImpl tchk t@(EForall _ _) = tCheckTypeT tchk t
+tCheckTypeTImpl tchk t = do
+  bvs <- stKeysLcl <$> gets valueTable         -- bound outside
+  let fvs = freeTyVars [t]                     -- free variables in t
+      -- these are free, and need quantification.  eDummy indicates missing kind
+      iks = map (\ i -> IdKind i eDummy) (fvs \\ bvs)
+  --when (not (null iks)) $ traceM ("tCheckTypeTImpl: " ++ show (t, eForall iks t))
+  tCheckTypeT tchk (eForall iks t)
 
 tCheckTypeT :: HasCallStack => EType -> EType -> T EType
 tCheckTypeT = tCheck tcTypeT
@@ -1996,14 +2007,14 @@ tcBinds xbs ta = do
     nbs <- mapM tcBind xbs
     ta nbs
 
-tcBindVarT :: M.Map EType -> Ident -> T (Ident, EType)
+tcBindVarT :: HasCallStack => M.Map EType -> Ident -> T (Ident, EType)
 tcBindVarT tmap x = do
   case M.lookup x tmap of
     Nothing -> do
       t <- newUVar
       return (x, t)
     Just t -> do
-      tt <- withTypeTable $ tcTypeT (Check kType) t
+      tt <- withTypeTable $ tCheckTypeTImpl kType t
       return (x, tt)
 
 tcBind :: EBind -> T EBind

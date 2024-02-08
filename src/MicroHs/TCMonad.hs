@@ -289,8 +289,13 @@ freeTyVars = foldr (go []) []
     go bound (EApp fun arg) acc = go bound fun (go bound arg acc)
     go _bound (EUVar _) acc = acc
     go _bound (ECon _) acc = acc
-    go bound (EOper e ies) acc = go bound e (foldr (\ (_, ee) -> go bound ee) acc ies)
+    go _bound (ELit _ _) acc = acc
+    go bound (EOper e ies) acc = go bound e (goList bound (map snd ies) acc)
+    go bound (ESign e _) acc = go bound e acc
+    go bound (EListish (LList [e])) acc = go bound e acc
+    go bound (ETuple es) acc = goList bound es acc
     go _ x _ = error ("freeTyVars: " ++ show x) --  impossibleShow x
+    goList bound es acc = foldr (go bound) acc es
 
 addConstraints :: [EConstraint] -> EType -> EType
 addConstraints []  t = t

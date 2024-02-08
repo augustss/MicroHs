@@ -48,14 +48,6 @@ mhs: "../tmp/E.hs": line 4, col 6: undefined type: T
 =====
 module E() where
 import Prelude
-x :: a
-x = 1
------
-mhs: "../tmp/E.hs": line 4, col 6: undefined type: a
-
-=====
-module E() where
-import Prelude
 x :: Int
 x = 1
 y :: Int

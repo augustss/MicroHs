@@ -36,7 +36,7 @@ The language is an extended subset of Haskell-98.
 
 Differences:
  * Top level definitions must have a type signature.
- * Type/kind variables need an explicit `forall`.
+ * Kind variables need an explicit `forall`.
  * There is only deriving for `Eq`, `Ord`, `Show`, and `Typeable`.
  * Indentation is handled a little differently; one-line `let`, `case`, and `do` must use explicit braces.
  * The `Prelude` has to be imported explicitly.
