@@ -42,7 +42,7 @@ executable mhs
   hs-source-dirs:      ghc src
   ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
-  default-extensions:  ScopedTypeVariables PatternGuards TupleSections TypeSynonymInstances FlexibleInstances NoFieldSelectors OverloadedRecordDot DisambiguateRecordFields
+  default-extensions:  ScopedTypeVariables PatternGuards TupleSections TypeSynonymInstances FlexibleInstances OverloadedRecordDot DisambiguateRecordFields
   other-modules:       MicroHs.Abstract
                        MicroHs.Compile
                        MicroHs.CompileCache
