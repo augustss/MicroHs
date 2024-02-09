@@ -270,7 +270,15 @@ pBlock p =
   do
     pSpec '<'
     as <- body
-    pSpec '>'
+    -- If we are at a '>' token (i.e., synthetic '}') then
+    -- all is well, if not then there is a parse error and we try
+    -- recovering by popping they layout stack.
+    -- This implements the Note 5 rule from Section 10.3 in
+    -- the Haskell report.
+    t <- nextToken
+    case t of
+      TSpec _ '>' -> pSpec '>'
+      _           -> mapTokenState popLayout
     pure as
   where body = esepBy p (pSpec ';') <* eoptional (pSpec ';')
 

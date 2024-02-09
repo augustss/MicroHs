@@ -21,6 +21,7 @@ module Text.ParserComb(
   nextToken,
   LastFail(..),
   TokenMachine(..),
+  mapTokenState,
   ) where
 --Ximport Prelude()
 import Prelude
@@ -73,6 +74,9 @@ data Prsr s tm t a = P ((tm, s) -> Res s tm t a)
 runP :: forall s tm t a . Prsr s tm t a -> ((tm, s) -> Res s tm t a)
 runP (P p) = p
 
+mapTokenState :: forall s tm t . (tm -> tm) -> Prsr s tm t ()
+mapTokenState f = P (\ (tm, s) -> Many [((), (f tm, s))] noFail)
+
 instance forall s tm t . Functor (Prsr s tm t) where
   fmap f p = P $ \ t ->
     case runP p t of
@@ -87,8 +91,8 @@ instance forall s tm t . Monad (Prsr s tm t) where
   (>>=) p k = P $ \ t ->
     case runP p t of
       Many aus plf ->
-        let { xss = [ runP (k a) u | au <- aus, let { (a, u) = au } ] }
-        in  case unzip [ (rs, lf) | xs <- xss, let { Many rs lf = xs } ] of
+        let { xss = [ runP (k a) u | (a, u) <- aus ] }
+        in  case unzip [ (rs, lf) | Many rs lf <- xss ] of
               (rss, lfs) -> Many (concat rss) (longests (plf : lfs))
   return = pure
 

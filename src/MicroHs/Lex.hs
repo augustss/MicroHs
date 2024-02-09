@@ -2,6 +2,7 @@ module MicroHs.Lex(
   Token(..), showToken,
   tokensLoc,
   LexState, lexTopLS,
+  popLayout,
   ) where
 import Prelude hiding(lex)
 import Data.Char
@@ -254,7 +255,7 @@ layoutLS ::                [Token] ->    [Int] -> Cmd      -> (Token,           
 layoutLS                        ts           ms  Raw        = (TRaw ts,                  LS $ layoutLS  ts     ms )
 layoutLS                        ts          mms  Pop        =                                                    
                                                    case (mms, ts) of                                              
-                                                     (m:ms,_:_) | m/=0 ->                     layoutLS  ts     ms  Next
+                                                     (m:ms,_:_) | m/=0 -> (       TEnd,  LS $ layoutLS  ts     ms )
                                                      _ ->     (TError l "syntax error",  LS $ layoutLS  []     [] ) where l = tokensLoc ts
 layoutLS tts@(TIndent x       : ts) mms@(m : ms) _ | n == m = (TSpec (tokensLoc ts) ';', LS $ layoutLS  ts    mms )
                                                    | n <  m = (TSpec (tokensLoc ts) '>', LS $ layoutLS tts     ms ) where {n = getCol x}
@@ -275,6 +276,10 @@ instance TokenMachine LexState Token where
     case f Raw of
       (TRaw ts, _) -> ts
       _            -> undefined
+
+-- Used for Note 5.
+popLayout :: LexState -> LexState
+popLayout (LS f) = snd (f Pop)
 
 lexTopLS :: String -> LexState
 lexTopLS s = LS $ layoutLS (lex (mkLoc 1 1) s) []
