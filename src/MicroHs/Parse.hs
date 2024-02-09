@@ -11,7 +11,7 @@ import MicroHs.Expr
 import MicroHs.Ident
 --import Debug.Trace
 
-type P a = Prsr FilePath Token a
+type P a = Prsr FilePath [] Token a
 
 getFileName :: P FilePath
 getFileName = get
