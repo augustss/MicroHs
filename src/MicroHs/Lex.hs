@@ -1,5 +1,4 @@
 module MicroHs.Lex(
-  lexTop,
   Token(..), showToken,
   tokensLoc,
   LexState, lexTopLS,
@@ -23,6 +22,8 @@ data Token
   | TBrace  Loc                  -- {n} in the Haskell report
   | TIndent Loc                  -- <n> in the Haskell report
   | TSelect Loc String           -- special '.foo' token
+  | TEnd
+  | TRaw [Token]
   deriving (Show)
 
 showToken :: Token -> String
@@ -36,6 +37,8 @@ showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
 showToken (TIndent _) = "TIndent"
 showToken (TSelect _ s) = "." ++ s
+showToken TEnd = "EOF"
+showToken (TRaw _) = "TRaw"
 
 incrLine :: Loc -> Loc
 incrLine (l, _) = (l+1, 1)
@@ -76,10 +79,6 @@ getLin loc = quot loc 1000000
 -}
 
 ---------
-
-lexTop :: String -> [Token]
-lexTop = layout [] .
-         lex (mkLoc 1 1)
 
 -- | Take a location and string and produce a list of tokens
 lex :: Loc -> String -> [Token]
@@ -237,52 +236,45 @@ tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
 tokensLoc (TSelect loc _  :_) = loc
-tokensLoc []                  = mkLoc 0 1
-
--- | This is the magical layout resolver, straight from the Haskell report.
--- https://www.haskell.org/onlinereport/haskell2010/haskellch10.html#x17-17800010.3
--- The first argument is a stack of "layout contexts" (indentations) where a synthetic '{' has been inserted.
--- The second argument is the input token stream.
-layout :: [Int] -> [Token] -> [Token]
-layout mms@(m : ms) tts@(TIndent x       : ts) | n == m = TSpec (tokensLoc ts) ';' : layout    mms  ts
-                                               | n <  m = TSpec (tokensLoc ts) '>' : layout     ms tts where {n = getCol x}
-layout          ms      (TIndent _       : ts)          =                            layout     ms  ts
-layout mms@(m :  _)     (TBrace x        : ts) | n > m  = TSpec (tokensLoc ts) '<' : layout (n:mms) ts where {n = getCol x}
-layout          []      (TBrace x        : ts) | n > 0  = TSpec (tokensLoc ts) '<' : layout     [n] ts where {n = getCol x}
-layout          ms      (TBrace x        : ts)          = TSpec (tokensLoc ts) '<' : TSpec (tokensLoc ts) '>' :
-                                                                                     layout     ms  (TIndent x : ts)
-layout     (0 : ms)     (t@(TSpec _ '}') : ts)          =                        t : layout     ms  ts 
-layout           _      (  (TSpec l '}') :  _)          = TError l "layout error }": []
-layout          ms      (t@(TSpec _ '{') : ts)          =                        t : layout  (0:ms) ts
-layout          ms      (t               : ts)          =                        t : layout     ms  ts
-layout     (_ : ms)     []                              = TSpec (mkLoc 0 0) '>'    : layout     ms  []
-layout          []      []                              =                            []
+tokensLoc _                   = mkLoc 0 1
 
 readHex :: String -> Integer
 readHex = foldl (\ r c -> r * 16 + toInteger (digitToInt c)) 0
 
-data LexState = LS [Int] [Token] [Token]
+-- | This is the magical layout resolver, straight from the Haskell report.
+-- https://www.haskell.org/onlinereport/haskell2010/haskellch10.html#x17-17800010.3
+-- The first argument is the input token stream.
+-- The second argument is a stack of "layout contexts" (indentations) where a synthetic '{' has been inserted.
 
-layoutLS :: LexState -> Maybe (Token, LexState)
-layoutLS (LS          ms  ts                    (x:xs))          = Just (x, LS ms ts xs)
-layoutLS (LS mms@(m : ms) tts@(TIndent x       : ts) _) | n == m = Just (TSpec (tokensLoc ts) ';', LS    mms  ts [])
-                                                        | n <  m = Just (TSpec (tokensLoc ts) '>', LS     ms tts []) where {n = getCol x}
-layoutLS (LS          ms      (TIndent _       : ts) _)          =                       layoutLS (LS     ms  ts [])
-layoutLS (LS mms@(m :  _)     (TBrace x        : ts) _) | n > m  = Just (TSpec (tokensLoc ts) '<', LS (n:mms) ts []) where {n = getCol x}
-layoutLS (LS          []      (TBrace x        : ts) _) | n > 0  = Just (TSpec (tokensLoc ts) '<', LS     [n] ts []) where {n = getCol x}
-layoutLS (LS          ms      (TBrace x        : ts) _)          = Just (TSpec (tokensLoc ts) '<', LS ms  (TIndent x : ts) [TSpec (tokensLoc ts) '>'])
-layoutLS (LS     (0 : ms)     (t@(TSpec _ '}') : ts) _)          = Just (                       t, LS     ms  ts [])
-layoutLS (LS           _      (  (TSpec l '}') :  _) _)          = Just (TError l "layout error }",LS     []  [] [])
-layoutLS (LS          ms      (t@(TSpec _ '{') : ts) _)          = Just (                       t, LS  (0:ms) ts [])
-layoutLS (LS          ms      (t               : ts) _)          = Just (                       t, LS     ms  ts [])
-layoutLS (LS     (_ : ms)     []                     _)          = Just (TSpec (mkLoc 0 0) '>'   , LS     ms  [] [])
-layoutLS (LS          []      []                     _)          = Nothing
+newtype LexState = LS (Cmd -> (Token, LexState))
+
+data Cmd = Next | Raw | Pop
+
+layoutLS ::                [Token] ->    [Int] -> Cmd      -> (Token,                    LexState)
+layoutLS                        ts           ms  Raw        = (TRaw ts,                  LS $ layoutLS  ts     ms )
+layoutLS                        ts          mms  Pop        =                                                    
+                                                   case (mms, ts) of                                              
+                                                     (m:ms,_:_) | m/=0 ->                     layoutLS  ts     ms  Next
+                                                     _ ->     (TError l "syntax error",  LS $ layoutLS  []     [] ) where l = tokensLoc ts
+layoutLS tts@(TIndent x       : ts) mms@(m : ms) _ | n == m = (TSpec (tokensLoc ts) ';', LS $ layoutLS  ts    mms )
+                                                   | n <  m = (TSpec (tokensLoc ts) '>', LS $ layoutLS tts     ms ) where {n = getCol x}
+layoutLS     (TIndent _       : ts)          ms  _          =                                 layoutLS  ts     ms  Next
+layoutLS     (TBrace x        : ts) mms@(m :  _) _ | n > m  = (TSpec (tokensLoc ts) '<', LS $ layoutLS  ts (n:mms)) where {n = getCol x}
+layoutLS     (TBrace x        : ts)          []  _ | n > 0  = (TSpec (tokensLoc ts) '<', LS $ layoutLS  ts     [n]) where {n = getCol x}
+layoutLS     (TBrace x        : ts)          ms  _          = (TSpec (tokensLoc ts) '<', LS $ layoutLS  (TSpec (tokensLoc ts) '>' : TIndent x : ts) ms)
+layoutLS     (t@(TSpec _ '}') : ts)     (0 : ms) _          = (                       t, LS $ layoutLS  ts     ms )
+layoutLS     (  (TSpec l '}') :  _)           _  _          = (TError l "layout error }",LS $ layoutLS  []     [] )
+layoutLS     (t@(TSpec _ '{') : ts)          ms  _          = (                       t, LS $ layoutLS  ts  (0:ms))
+layoutLS     (t               : ts)          ms  _          = (                       t, LS $ layoutLS  ts     ms )
+layoutLS     []                         (_ : ms) _          = (TSpec (mkLoc 0 0) '>'   , LS $ layoutLS  []     ms )
+layoutLS     []                              []  _          = (TEnd                    , LS $ layoutLS  []     [] )
 
 instance TokenMachine LexState Token where
-  tmNextToken = layoutLS
-  tmLeft (LS _ ts _) = length ts
-  tmInject is (LS ms ts xs) = LS ms ts (is ++ xs)
-  tmRawTokens (LS _ ts _) = ts
+  tmNextToken (LS f) = f Next
+  tmRawTokens (LS f) =
+    case f Raw of
+      (TRaw ts, _) -> ts
+      _            -> undefined
 
 lexTopLS :: String -> LexState
-lexTopLS s = LS [] (lex (mkLoc 1 1) s) []
+lexTopLS s = LS $ layoutLS (lex (mkLoc 1 1) s) []

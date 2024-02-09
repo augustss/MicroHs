@@ -38,6 +38,13 @@ getLoc = do
   t <- nextToken
   pure (tokensLoc [t])
 
+eof :: P ()
+eof = do
+  t <- nextToken
+  case t of
+    TEnd -> pure ()
+    _    -> fail "eof"
+
 pTop :: P EModule
 pTop = pModule <* eof
 

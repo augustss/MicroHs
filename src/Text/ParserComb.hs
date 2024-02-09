@@ -9,7 +9,7 @@ module Text.ParserComb(
   fail, guard,
   get, put, modify,
   Prsr, runPrsr,
-  satisfy, satisfyM, eof,
+  satisfy, satisfyM,
   choice,
   many, emany, optional, eoptional,
   some, esome,
@@ -18,7 +18,7 @@ module Text.ParserComb(
   (<?>), (<|<),
   --notFollowedBy,
   lookAhead,
-  inject, nextToken,
+  nextToken,
   LastFail(..),
   TokenMachine(..),
   ) where
@@ -51,23 +51,16 @@ longests :: forall t . [LastFail t] -> LastFail t
 longests xs = foldl1 longest xs
 
 class TokenMachine tm t | tm -> t where
-  tmNextToken :: tm -> Maybe (t, tm)
-  tmLeft :: tm -> Int
-  tmInject :: [t] -> tm -> tm
+  tmNextToken :: tm -> (t, tm)
   tmRawTokens :: tm -> [t]
 
-instance TokenMachine [t] t where
-  tmNextToken [] = Nothing
-  tmNextToken (t:ts) = Just (t, ts)
-  tmLeft ts = length ts
-  tmInject = (++)
-  tmRawTokens = id
+tmLeft :: forall tm t . TokenMachine tm t => tm -> Int
+tmLeft = length . tmRawTokens
 
 firstToken :: forall tm t . TokenMachine tm t => tm -> [t]
 firstToken tm =
   case tmNextToken tm of
-    Nothing -> []
-    Just (t, _) -> [t]
+    (t, _) -> [t]
 
 type Res :: Type -> Type -> Type -> Type -> Type
 data Res s tm t a = Many [(a, (tm, s))] (LastFail t)
@@ -153,20 +146,22 @@ choice ps = foldr1 (<|>) ps
 satisfy :: forall s tm t . TokenMachine tm t => String -> (t -> Bool) -> Prsr s tm t t
 satisfy msg f = P $ \ (acs, s) ->
   case tmNextToken acs of
-    Just (c, cs) | f c -> Many [(c, (cs, s))] noFail
+    (c, cs) | f c -> Many [(c, (cs, s))] noFail
     _ -> Many [] (LastFail (tmLeft acs) (firstToken acs) [msg])
 
 satisfyM :: forall s tm t a . TokenMachine tm t => String -> (t -> Maybe a) -> Prsr s tm t a
 satisfyM msg f = P $ \ (acs, s) ->
   case tmNextToken acs of
-    Just (c, cs) | Just a <- f c -> Many [(a, (cs, s))] noFail
+    (c, cs) | Just a <- f c -> Many [(a, (cs, s))] noFail
     _ -> Many [] (LastFail (tmLeft acs) (firstToken acs) [msg])
 
+{-
 eof :: forall s tm t . TokenMachine tm t => Prsr s tm t ()
 eof = P $ \ t@(cs, _) ->
   case tmNextToken cs of
     Nothing -> Many [((), t)] noFail
     Just _  -> Many [] (LastFail (tmLeft cs) (firstToken cs) ["eof"])
+-}
 
 infixl 9 <?>
 (<?>) :: forall s tm t a . Prsr s tm t a -> String -> Prsr s tm t a
@@ -192,11 +187,7 @@ lookAhead p = P $ \ t ->
 nextToken :: forall s tm t . TokenMachine tm t => Prsr s tm t t
 nextToken = P $ \ t@(cs, _) ->
   case tmNextToken cs of
-    Nothing     -> Many [] (LastFail 0 [] ["!eof"])
-    Just (c, _) -> Many [(c, t)] noFail
-
-inject :: forall s tm t . TokenMachine tm t => [t] -> Prsr s tm t ()
-inject s = P $ \ (cs, st) -> Many [((), (tmInject s cs, st))] noFail
+    (c, _) -> Many [(c, t)] noFail
 
 sepBy1 :: forall s tm t a sep . TokenMachine tm t => Prsr s tm t a -> Prsr s tm t sep -> Prsr s tm t [a]
 sepBy1 p sep = (:) <$> p <*> many (sep *> p)
