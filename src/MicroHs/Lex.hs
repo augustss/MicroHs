@@ -1,11 +1,14 @@
 module MicroHs.Lex(
   lexTop,
   Token(..), showToken,
-  tokensLoc) where
+  tokensLoc,
+  LexState, lexTopLS,
+  ) where
 import Prelude hiding(lex)
 import Data.Char
 import Data.List
 import MicroHs.Ident
+import Text.ParserComb(TokenMachine(..))
 import Compat
 
 data Token
@@ -257,3 +260,29 @@ layout          []      []                              =                       
 
 readHex :: String -> Integer
 readHex = foldl (\ r c -> r * 16 + toInteger (digitToInt c)) 0
+
+data LexState = LS [Int] [Token] [Token]
+
+layoutLS :: LexState -> Maybe (Token, LexState)
+layoutLS (LS          ms  ts                    (x:xs))          = Just (x, LS ms ts xs)
+layoutLS (LS mms@(m : ms) tts@(TIndent x       : ts) _) | n == m = Just (TSpec (tokensLoc ts) ';', LS    mms  ts [])
+                                                        | n <  m = Just (TSpec (tokensLoc ts) '>', LS     ms tts []) where {n = getCol x}
+layoutLS (LS          ms      (TIndent _       : ts) _)          =                       layoutLS (LS     ms  ts [])
+layoutLS (LS mms@(m :  _)     (TBrace x        : ts) _) | n > m  = Just (TSpec (tokensLoc ts) '<', LS (n:mms) ts []) where {n = getCol x}
+layoutLS (LS          []      (TBrace x        : ts) _) | n > 0  = Just (TSpec (tokensLoc ts) '<', LS     [n] ts []) where {n = getCol x}
+layoutLS (LS          ms      (TBrace x        : ts) _)          = Just (TSpec (tokensLoc ts) '<', LS ms  (TIndent x : ts) [TSpec (tokensLoc ts) '>'])
+layoutLS (LS     (0 : ms)     (t@(TSpec _ '}') : ts) _)          = Just (                       t, LS     ms  ts [])
+layoutLS (LS           _      (  (TSpec l '}') :  _) _)          = Just (TError l "layout error }",LS     []  [] [])
+layoutLS (LS          ms      (t@(TSpec _ '{') : ts) _)          = Just (                       t, LS  (0:ms) ts [])
+layoutLS (LS          ms      (t               : ts) _)          = Just (                       t, LS     ms  ts [])
+layoutLS (LS     (_ : ms)     []                     _)          = Just (TSpec (mkLoc 0 0) '>'   , LS     ms  [] [])
+layoutLS (LS          []      []                     _)          = Nothing
+
+instance TokenMachine LexState Token where
+  tmNextToken = layoutLS
+  tmLeft (LS _ ts _) = length ts
+  tmInject is (LS ms ts xs) = LS ms ts (is ++ xs)
+  tmRawTokens (LS _ ts _) = ts
+
+lexTopLS :: String -> LexState
+lexTopLS s = LS [] (lex (mkLoc 1 1) s) []

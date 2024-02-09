@@ -11,7 +11,7 @@ import MicroHs.Expr
 import MicroHs.Ident
 --import Debug.Trace
 
-type P a = Prsr FilePath [] Token a
+type P a = Prsr FilePath LexState Token a
 
 getFileName :: P FilePath
 getFileName = get
@@ -26,9 +26,9 @@ parseDie p fn file =
 parse :: forall a . (Show a) =>
          P a -> FilePath -> String -> Either String a
 parse p fn file =
-  let { ts = lexTop file } in
+  let { ts = lexTopLS file } in
   case runPrsr fn p ts of
-    Left lf -> Left $ formatFailed fn ts lf
+    Left lf -> Left $ formatFailed fn (tmRawTokens ts) lf
     Right [(a, _)] -> Right a
     Right as -> Left $ "Ambiguous:"
                        ++ unlines (map (show . fst) as)
