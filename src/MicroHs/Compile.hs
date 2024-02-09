@@ -52,15 +52,13 @@ compileCacheTop flags mn ch = do
 getCached :: Flags -> IO Cache
 getCached flags | not flags.readCache = return emptyCache
 getCached flags = do
-  mhin <- openFileM mhsCacheName ReadMode
-  case mhin of
-    Nothing -> return emptyCache
-    Just hin -> do
+  mcash <- loadCached mhsCacheName
+  case mcash of
+    Nothing ->
+      return emptyCache
+    Just cash -> do
       when (flags.loading || verbosityGT flags 0) $
         putStrLn $ "Loading saved cache " ++ show mhsCacheName
---      putStrLn "deserialize cache"
-      cash <- hDeserialize hin
-      hClose hin
       validateCache flags cash
 
 compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)

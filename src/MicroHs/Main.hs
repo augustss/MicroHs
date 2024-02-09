@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
 module MicroHs.Main(main) where
 import Prelude
 import Data.List
@@ -9,6 +9,7 @@ import Control.Monad
 import Data.Maybe
 import System.Environment
 import MicroHs.Compile
+import MicroHs.CompileCache
 import MicroHs.ExpPrint
 import MicroHs.Flags
 import MicroHs.Ident
@@ -57,10 +58,8 @@ mainCompile mhsdir flags mn = do
           (ds, cash') <- compileCacheTop flags mn cash
           when (verbosityGT flags 0) $
             putStrLn $ "Saving cache " ++ show mhsCacheName
-          () <- seq (rnf cash') (return ())
-          hout <- openFile mhsCacheName WriteMode
-          hSerialize hout cash'
-          hClose hout
+          () <- seq (rnfNoErr cash) (return ())
+          saveCache mhsCacheName cash'
           return ds
         else do
           cash <- getCached flags

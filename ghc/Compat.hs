@@ -144,6 +144,10 @@ _wordSize = 64
 _isWindows :: Bool
 _isWindows = False
 
+-- This cannot be implemented with GHC.
+rnfNoErr :: forall a . a -> ()
+rnfNoErr _ = ()
+
 -----------------------------------
 -- Virtual fields for tuples.
 

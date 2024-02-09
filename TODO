@@ -42,4 +42,3 @@
   - do everything in Haskell
   - make a low level primError that takes a utf8 string
   - get rid of noMatch and noDefault primitives
-* Don't force utf8tostring in cache save

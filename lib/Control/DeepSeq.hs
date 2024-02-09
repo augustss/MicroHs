@@ -10,3 +10,6 @@ deepseq a b = rnf a `seq` b
 
 force :: forall a . a -> a
 force x = rnf x `seq` x
+
+rnfNoErr :: forall a . a -> ()
+rnfNoErr = primRnfNoErr
