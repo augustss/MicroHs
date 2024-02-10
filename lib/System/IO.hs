@@ -21,7 +21,6 @@ module System.IO(
 
   mkTextEncoding, hSetEncoding, utf8,
 
-  unsafeInterleaveIO,
   getTimeMilli,
   openTmpFile,
 
@@ -47,6 +46,7 @@ import Text.Show
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
+import System.IO.Unsafe
 
 data FILE
 data BFILE
@@ -273,9 +273,6 @@ readSerialized p = do
 
 getTimeMilli :: IO Int
 getTimeMilli = c_getTimeMilli
-
-unsafeInterleaveIO :: forall a . IO a -> IO a
-unsafeInterleaveIO ioa = return (primPerformIO ioa)
 
 openBinaryFile :: String -> IOMode -> IO Handle
 openBinaryFile p m = do
