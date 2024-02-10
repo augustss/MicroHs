@@ -3,6 +3,7 @@ module Control.Exception(
   throwIO,
   Exn(..),
   exnToString,
+  onException,
   ) where
 import Primitives
 import Prelude
@@ -22,3 +23,7 @@ throwIO :: forall a . Exn -> IO a
 throwIO (Exn s) =
   let e = error s
   in  seq e (return e)
+
+onException :: IO a -> IO b -> IO a
+onException io what = io `catch` \e -> do _ <- what
+                                          throwIO e
