@@ -47,7 +47,7 @@ import Data.Monoid
 import Data.Ord
 --import Data.Maybe
 
-infixl 1 >>, >>=
+infixl 1 >>, >>=, =<<
 infixr 1 <=<, >=>
 
 class (Applicative m) => Monad m where
