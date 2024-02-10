@@ -56,6 +56,7 @@ pModule = EModule <$> (pKeyword "module" *> pUQIdentA) <*>
                       (pSpec '(' *> esepEndBy pExportItem (pSpec ',') <* pSpec ')') <*>
                       (pKeyword "where" *> pBlock pDef)
 
+-- Possibly qualified alphanumeric identifier
 pQIdent :: P Ident
 pQIdent = do
   fn <- getFileName
@@ -64,6 +65,7 @@ pQIdent = do
     is _ = Nothing
   satisfyM "QIdent" is
 
+-- Upper case, unqualified, alphanumeric identifier
 pUIdentA :: P Ident
 pUIdentA = do
   fn <- getFileName
@@ -72,14 +74,17 @@ pUIdentA = do
     is _ = Nothing
   satisfyM "UIdent" is
 
+-- Upper case, unqualified, identifier
 pUIdent :: P Ident
 pUIdent =
       pUIdentA
   <|< pUIdentSpecial
 
+-- Upper case, unqualified, identifier or symbol
 pUIdentSym :: P Ident
 pUIdentSym = pUIdent <|< pParens pUSymOper
 
+-- Special "identifiers": () [] (,) ...
 pUIdentSpecial :: P Ident
 pUIdentSpecial = do
   fn <- getFileName
@@ -91,6 +96,7 @@ pUIdentSpecial = do
     <|< (mk "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
     <|< (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
 
+-- Upper case, possibly qualified, alphanumeric identifier
 pUQIdentA :: P Ident
 pUQIdentA = do
   fn <- getFileName
@@ -99,11 +105,13 @@ pUQIdentA = do
     is _ = Nothing
   satisfyM "UQIdent" is
 
+-- Upper case, possibly qualified, identifier
 pUQIdent :: P Ident
 pUQIdent =
       pUQIdentA
   <|< pUIdentSpecial
 
+-- Lower case, unqualified identifier
 pLIdent :: P Ident
 pLIdent = do
   fn <- getFileName
@@ -112,6 +120,7 @@ pLIdent = do
     is _ = Nothing
   satisfyM "LIdent" is
 
+-- Lower case, possibly qualified identifier
 pLQIdent :: P Ident
 pLQIdent = do
   fn <- getFileName
@@ -249,7 +258,7 @@ pString = satisfyM "string" is
 pExportItem :: P ExportItem
 pExportItem =
       ExpModule <$> (pKeyword "module" *> pUQIdent)
-  <|< ExpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pSymbol ".." <* pSpec ')')
+  <|< ExpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pConList <* pSpec ')')
   <|< ExpType <$> pUQIdentSym
   <|< ExpValue <$> pLQIdentSym
 
@@ -280,7 +289,7 @@ pBlock p =
       TSpec _ '>' -> pSpec '>'
       _           -> mapTokenState popLayout
     pure as
-  where body = esepBy p (pSpec ';') <* eoptional (pSpec ';')
+  where body = esepBy p (esome (pSpec ';')) <* eoptional (pSpec ';')
 
 
 pDef :: P EDef
@@ -361,9 +370,12 @@ pImportSpec =
 
 pImportItem :: P ImportItem
 pImportItem =
-      ImpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pSymbol ".." <* pSpec ')')
+      ImpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pConList <* pSpec ')')
   <|< ImpType <$> pUQIdentSym
   <|< ImpValue <$> pLQIdentSym
+
+pConList :: P ()
+pConList = pSymbol ".." <|< (() <$ esepBy1 pQIdent (pSpec ','))   -- XXX treat list as ..
 
 --------
 -- Types
