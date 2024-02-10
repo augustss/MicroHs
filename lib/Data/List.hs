@@ -261,6 +261,9 @@ span p =
     rec r (x:xs) = if p x then rec (x:r) xs else (reverse r, x:xs)
   in rec []
 
+break :: forall a . (a -> Bool) -> [a] -> ([a],[a])
+break p = span (not . p)
+
 spanUntil :: forall a . (a -> Bool) -> [a] -> ([a], [a])
 spanUntil p =
   let
