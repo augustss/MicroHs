@@ -19,12 +19,13 @@ module System.IO(
   hSerialize, hDeserialize, cprint,
   writeSerialized, readSerialized,
 
-  hSetEncoding, utf8,
+  mkTextEncoding, hSetEncoding, utf8,
 
   unsafeInterleaveIO,
   getTimeMilli,
   openTmpFile,
 
+  withFile,
   ) where
 import Prelude()              -- do not import Prelude
 import Primitives
@@ -291,6 +292,10 @@ data TextEncoding = UTF8
 utf8 :: TextEncoding
 utf8 = UTF8
 
+mkTextEncoding :: String -> IO TextEncoding
+mkTextEncoding "UTF-8//ROUNDTRIP" = return UTF8
+mkTextEncoding _ = error "unknown text encoding"
+
 -- Always in UTF8 mode
 hSetEncoding :: Handle -> TextEncoding -> IO ()
 hSetEncoding _ _ = return ()
@@ -313,3 +318,11 @@ openTmpFile tmpl = do
   free ctmp
   h <- openFile tmp WriteMode
   return (tmp, h)
+
+-- XXX needs bracket
+withFile :: forall r . FilePath -> IOMode -> (Handle -> IO r) -> IO r
+withFile fn md io = do
+  h <- openFile fn md
+  r <- io h
+  hClose h
+  return r
