@@ -229,6 +229,7 @@ patVars apat =
     EViewPat _ p -> patVars p
     ECon _ -> []
     EUpdate _ fs -> concatMap field fs
+    ENegApp _ -> []
     _ -> error $ "patVars " ++ showExpr apat
   where add i is | isConIdent i || isDummyIdent i = is
                  | otherwise = i : is

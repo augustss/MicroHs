@@ -1620,6 +1620,7 @@ dsEFields apat =
     EViewPat e p -> EViewPat e <$> dsEFields p
     ECon _ -> return apat
     EUpdate c fs -> EUpdate c . concat <$> mapM (dsEField c) fs
+    ENegApp _ -> return apat
     _ -> error $ "dsEFields " ++ show apat
 
 -- XXX could be better
@@ -1895,7 +1896,7 @@ tcPat mt ae =
                (p, t) <- tLookupV i
                case t of
                  EUVar r -> tSetRefType loc r ext
-                 _ -> impossible
+                 _ -> impossibleShow t
                return ([], [], p)
 
     EOper e ies -> do e' <- tcOper e ies; tcPat mt e'

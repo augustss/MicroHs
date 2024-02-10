@@ -27,6 +27,7 @@ module Prelude(
   module Data.Ratio,
   module Data.Real,
   module Data.RealFloat,
+  module Data.RealFrac,
   module Data.Records,
   module Data.Semigroup,
   module Data.Tuple,
@@ -35,6 +36,7 @@ module Prelude(
   module Text.Read,
   module Text.Show,
   module Text.String,
+  Float,
   usingMhs, _wordSize, _isWindows,
   ) where
 import Prelude()              -- do not import Prelude
@@ -64,6 +66,7 @@ import Data.Ord(Ord(..), Ordering(..))
 import Data.Ratio(Rational)
 import Data.Real(Real(..), realToFrac)
 import Data.RealFloat(RealFloat(..))
+import Data.RealFrac(RealFrac(..))
 import Data.Records  -- XXX redo this somehow
 import Data.Semigroup(Semigroup(..))
 import Data.Tuple(()(..), fst, snd)
@@ -79,3 +82,5 @@ import Primitives(_wordSize, _isWindows)
 -- So we can detect mhs vs ghc
 usingMhs :: Bool
 usingMhs = True
+
+type Float = Double

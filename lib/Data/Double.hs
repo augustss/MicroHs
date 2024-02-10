@@ -17,6 +17,7 @@ import Data.Ord
 import Data.Ratio
 import Data.Real
 import Data.RealFloat
+import Data.RealFrac
 import Data.Num
 import Data.Word
 import Text.Read
@@ -74,6 +75,9 @@ instance Real Double where
                | otherwise =
     case decodeFloat x of
       (m, e) -> toRational m * 2^^e
+
+instance RealFrac Double where
+  properFraction _ = error "Double.properFraction not implemented"
 
 instance Floating Double where
   pi     = 3.141592653589793

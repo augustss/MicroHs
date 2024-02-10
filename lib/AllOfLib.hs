@@ -53,6 +53,7 @@ import Data.Ratio
 import Data.Ratio_Type
 import Data.Real
 import Data.RealFloat
+import Data.RealFrac
 import Data.Records
 import Data.Semigroup
 import Data.STRef
