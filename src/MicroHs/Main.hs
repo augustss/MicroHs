@@ -23,7 +23,7 @@ import Compat
 import MicroHs.Instances(getMhsDir) -- for GHC
 
 mhsVersion :: String
-mhsVersion = "0.9.3.0"
+mhsVersion = "0.9.5.0"
 
 main :: IO ()
 main = do

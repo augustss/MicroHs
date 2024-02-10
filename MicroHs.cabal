@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.9.3.0
+version:             0.9.5.0
 synopsis:            A compiler for a subset of Haskell
 license:             Apache-2.0
 license-file:        LICENSE
@@ -42,7 +42,8 @@ executable mhs
   hs-source-dirs:      ghc src
   ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
-  default-extensions:  ScopedTypeVariables PatternGuards TupleSections TypeSynonymInstances FlexibleInstances OverloadedRecordDot DisambiguateRecordFields
+  default-extensions:  ScopedTypeVariables PatternGuards TupleSections TypeSynonymInstances MultiParamTypeClasses
+                       FlexibleInstances OverloadedRecordDot DisambiguateRecordFields StandaloneKindSignatures
   other-modules:       MicroHs.Abstract
                        MicroHs.Compile
                        MicroHs.CompileCache
