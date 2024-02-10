@@ -90,3 +90,6 @@ maybeToList :: forall a . Maybe a -> [a]
 maybeToList Nothing = []
 maybeToList (Just a) = [a]
 
+listToMaybe :: forall a . [a] -> Maybe a
+listToMaybe [] = Nothing
+listToMaybe (a:_) = Just a
