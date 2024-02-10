@@ -130,7 +130,7 @@ everytest:	newmhs runtest exampletest cachetest bootcombtest nfibtest info
 everytestmhs:	bin/mhs bin/mhseval exampletest cachetest bootstrap runtestmhs nfibtest info
 
 runtestmhs:
-	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H2M -RTS -CR" info test
+	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H4M -RTS -CR" info test
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs -isrc -ogmhs.comb  MicroHs.Main
