@@ -126,6 +126,7 @@ isDummyIdent _ = False
 showSLoc :: SLoc -> String
 showSLoc (SLoc fn l c) =
   if null fn then "no location" else
-  show fn ++ 
-    if l == 0 && c == 0 then ""
-    else ": line " ++ show l ++ ", col " ++ show c
+  show fn ++ ": " ++
+    if l == 0  then "no location" else
+    if l == -1 then "end-of-file" else
+    "line " ++ show l ++ ", col " ++ show c

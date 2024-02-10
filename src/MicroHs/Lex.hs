@@ -33,7 +33,9 @@ showToken (TString _ s) = show s
 showToken (TChar _ c) = show c
 showToken (TInt _ i) = show i
 showToken (TRat _ d) = show d
-showToken (TSpec _ c) = [c] ++ if c == '<' || c == '>' then " (layout)" else ""
+showToken (TSpec _ c) | c == '<' = "{ layout"
+                      | c == '>' = "} layout"
+                      | otherwise = [c]
 showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
 showToken (TIndent _) = "TIndent"
@@ -52,6 +54,9 @@ tabCol (l, c) = (l, ((c + 7) `quot` 8) * 8)
 
 mkLoc :: Line -> Col -> Loc
 mkLoc l c = (l, c)
+
+mkLocEOF :: Loc
+mkLocEOF = (-1,0)
 
 getCol :: Loc -> Col
 getCol (_, c) = c
@@ -237,15 +242,23 @@ tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
 tokensLoc (TSelect loc _  :_) = loc
-tokensLoc _                   = mkLoc 0 1
+tokensLoc _                   = mkLocEOF
 
 readHex :: String -> Integer
 readHex = foldl (\ r c -> r * 16 + toInteger (digitToInt c)) 0
 
 -- | This is the magical layout resolver, straight from the Haskell report.
 -- https://www.haskell.org/onlinereport/haskell2010/haskellch10.html#x17-17800010.3
--- The first argument is the input token stream.
+-- The first argument to layoutLS is the input token stream.
 -- The second argument is a stack of "layout contexts" (indentations) where a synthetic '{' has been inserted.
+-- In the report this is a list-to-list function, but it's encoded differently here.
+-- The function returns a the next token, and the state of the layout conversion.
+-- The reason is that to implement the Note 5 rule we need to manipulate the state,
+-- namely to pop the context stack.  And this has to be initiated from the parser.
+-- There are 3 commands that the state can be given:
+--   Next  generate the next token (and new state)
+--   Pop   pop the context stack
+--   Raw   return the rest of the tokens, unprocessed
 
 newtype LexState = LS (Cmd -> (Token, LexState))
 
@@ -267,7 +280,7 @@ layoutLS     (t@(TSpec _ '}') : ts)     (0 : ms) _          = (                 
 layoutLS     (  (TSpec l '}') :  _)           _  _          = (TError l "layout error }",LS $ layoutLS  []     [] )
 layoutLS     (t@(TSpec _ '{') : ts)          ms  _          = (                       t, LS $ layoutLS  ts  (0:ms))
 layoutLS     (t               : ts)          ms  _          = (                       t, LS $ layoutLS  ts     ms )
-layoutLS     []                         (_ : ms) _          = (TSpec (mkLoc 0 0) '>'   , LS $ layoutLS  []     ms )
+layoutLS     []                         (_ : ms) _          = (TSpec mkLocEOF '>'      , LS $ layoutLS  []     ms )
 layoutLS     []                              []  _          = (TEnd                    , LS $ layoutLS  []     [] )
 
 instance TokenMachine LexState Token where

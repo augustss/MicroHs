@@ -60,6 +60,7 @@ test:
 	$(TMHS) BindPat    && $(EVAL) > BindPat.out    && diff BindPat.ref BindPat.out
 	$(TMHS) Read       && $(EVAL) > Read.out       && diff Read.ref Read.out
 	$(TMHS) ListCompr  && $(EVAL) > ListCompr.out  && diff ListCompr.ref ListCompr.out
+	$(TMHS) ParseInd   && $(EVAL) > ParseInd.out   && diff ParseInd.ref ParseInd.out
 
 errtest:
 	sh errtester.sh < errmsg.test

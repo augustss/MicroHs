@@ -38,7 +38,6 @@ Differences:
  * Top level definitions must have a type signature.
  * Kind variables need an explicit `forall`.
  * There is only deriving for `Eq`, `Ord`, `Show`, and `Typeable`.
- * Indentation is handled a little differently; one-line `let`, `case`, and `do` must use explicit braces.
  * The `Prelude` has to be imported explicitly.
  * Polymorphic types/kinds are never inferred; use a type/kind signature if you need it.
  * A module must have an export list.
