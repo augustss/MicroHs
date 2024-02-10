@@ -75,6 +75,7 @@ executable mhs
                        PrimTable
                        System.IO.MD5
                        Paths_MicroHs
+  autogen-modules:     Paths_MicroHs
   build-depends:       base         >= 4.10 && < 4.20,
                        containers   >= 0.5 && < 0.8,
                        deepseq      >= 1.1 && < 1.6,
