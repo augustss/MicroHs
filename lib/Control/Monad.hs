@@ -34,6 +34,7 @@ module Control.Monad(
   -- XXX move
   partitionM,
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives  -- for fixity
 import Control.Applicative
 import Control.Error

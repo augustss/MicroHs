@@ -1,4 +1,5 @@
 module Data.IOArray(module Data.IOArray, IOArray) where
+import Prelude()              -- do not import Prelude
 import Primitives
 
 -- data IOArray

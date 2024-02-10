@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Double(Double) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bits

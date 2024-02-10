@@ -1,4 +1,5 @@
 module Text.Read.Lex(lex, dropSpace) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool
 import Data.Char

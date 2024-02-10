@@ -1,4 +1,5 @@
 module Foreign.Storable(Storable(..)) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error(undefined)
 import Foreign.Ptr

@@ -1,6 +1,7 @@
 -- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
 module System.IO.PrintOrRun(PrintOrRun(..)) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import System.IO
 import Text.Show

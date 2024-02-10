@@ -1,6 +1,7 @@
 -- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
 module Text.Show(module Text.Show) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool_Type
 import Data.Char_Type

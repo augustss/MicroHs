@@ -1,4 +1,5 @@
 module Data.Proxy(module Data.Proxy) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool_Type
 import Data.Eq

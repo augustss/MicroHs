@@ -1,4 +1,5 @@
 module Data.Monoid(module Data.Monoid, module Data.Semigroup) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
 import Data.Bool

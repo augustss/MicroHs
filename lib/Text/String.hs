@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Text.String(module Text.String) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool
 import Data.Char

@@ -1,4 +1,5 @@
 module Data.Real(module Data.Real) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Fractional
 import Data.Ratio_Type

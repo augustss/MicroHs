@@ -1,4 +1,5 @@
 module Data.Semigroup(module Data.Semigroup) where
+import Prelude()              -- do not import Prelude
 import Primitives
 
 infixr 6 <>

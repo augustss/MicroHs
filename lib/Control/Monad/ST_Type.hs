@@ -2,6 +2,7 @@
 module Control.Monad.ST_Type(
   ST(..), unST,
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives(IO)
 
 -- The ST monad is implemented with the IO monad.

@@ -3,6 +3,7 @@ module Foreign.Marshal.Alloc(
   free,
   mallocBytes, callocBytes,
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error(undefined)
 import Foreign.Storable

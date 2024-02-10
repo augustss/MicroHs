@@ -10,6 +10,7 @@ module Text.Read(
   readParen,
   lex,
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Char

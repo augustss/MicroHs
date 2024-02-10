@@ -4,6 +4,7 @@ module Data.Tuple(
   module Data.Tuple,
   ()(..)
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives  -- for ()
 import Data.Bool
 import Data.Bounded

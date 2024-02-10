@@ -1,6 +1,7 @@
 module Data.Eq(
   module Data.Eq
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool_Type
 

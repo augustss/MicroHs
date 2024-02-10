@@ -1,4 +1,5 @@
 module Data.Functor(module Data.Functor) where
+import Prelude()              -- do not import Prelude
 import Primitives  -- for fixity
 import Data.Function
 

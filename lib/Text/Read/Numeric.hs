@@ -10,6 +10,7 @@ module Text.Read.Numeric(
   readIntegral,
   readBoundedEnum,
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool
 import Data.Bounded

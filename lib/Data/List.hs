@@ -4,6 +4,7 @@ module Data.List(
   module Data.List,
   module Data.List_Type
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
 import Control.Error

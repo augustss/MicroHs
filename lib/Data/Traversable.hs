@@ -29,6 +29,7 @@ module Data.Traversable (
     foldMapDefault,
 -}
     ) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
 import Control.Monad(Monad(..), MonadPlus(..))

@@ -1,4 +1,5 @@
 module Foreign.Ptr(module Foreign.Ptr, Ptr) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Word
 import Data.Eq

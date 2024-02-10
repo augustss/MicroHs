@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Num(module Data.Num) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Integer_Type
 

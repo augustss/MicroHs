@@ -26,6 +26,7 @@ module System.IO(
   openTmpFile,
 
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
 import Control.Error

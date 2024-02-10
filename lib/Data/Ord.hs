@@ -2,6 +2,7 @@ module Data.Ord(
   module Data.Ord,
   module Data.Ordering_Type,
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool_Type
 import Data.Bounded

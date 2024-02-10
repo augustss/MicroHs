@@ -1,6 +1,7 @@
 -- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Word(Word) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bits
 import Data.Bool_Type

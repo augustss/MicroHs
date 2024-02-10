@@ -8,6 +8,7 @@ module MicroHs.Compile(
   Cache, emptyCache, deleteFromCache,
   ) where
 import Prelude
+import Data.List
 import Data.Maybe
 import System.IO
 import System.IO.MD5
@@ -104,7 +105,9 @@ compileModule flags nm = do
   mchksum <- liftIO (md5File pathfn)  -- XXX there is a small gap between reading and computing the checksum.
   let chksum :: MD5CheckSum
       chksum = fromMaybe undefined mchksum
-  let mdl@(EModule nmn _ defs) = parseDie pTop pathfn file
+  let pmdl = parseDie pTop pathfn file
+      mdl@(EModule nmn _ defs) = addPreludeImport pmdl
+  
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
   when (nm /= nmn) $
@@ -127,6 +130,22 @@ compileModule flags nm = do
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   let cmdl = CModule dmdl imported chksum
   return (cmdl, t2-t1, t4-t3, sum ts)
+
+addPreludeImport :: EModule -> EModule
+addPreludeImport (EModule mn es ds) =
+  EModule mn es ds'
+  where ds' = ps' ++ nps
+        (ps, nps) = partition isImportPrelude ds
+        isImportPrelude (Import (ImportSpec _ i _ _)) = i == idPrelude
+        isImportPrelude _ = False
+        idPrelude = mkIdent "Prelude"
+        ps' =
+          case ps of
+            [] -> [Import $ ImportSpec False idPrelude Nothing Nothing]     -- no Prelude imports, so add 'import Prelude'
+            [Import (ImportSpec False _ Nothing (Just (False, [])))] -> []  -- exactly 'import Prelude()', so import nothing
+            _ -> ps                                                         -- keep the given Prelude imports
+
+-------------------------------------------
 
 validateCache :: Flags -> Cache -> IO Cache
 validateCache flags cash = execStateIO (mapM_ validate (M.keys (cache cash))) cash

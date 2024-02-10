@@ -7,6 +7,7 @@ module Data.Map(
   Map,
   insertBy, insertByWith, fromListByWith, fromListBy, lookupBy, empty, elems, size, toList, deleteBy,
   ) where
+import Prelude()              -- do not import Prelude
 import Prelude hiding (lookupBy, deleteBy)
 
 data Map k a

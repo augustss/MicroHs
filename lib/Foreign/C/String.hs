@@ -4,6 +4,7 @@ module Foreign.C.String(
   peekCAString, peekCAStringLen,
   withCAString,
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Char_Type
 import Foreign.Marshal.Alloc

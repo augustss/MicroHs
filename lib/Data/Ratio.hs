@@ -6,6 +6,7 @@ module Data.Ratio(
   rationalNaN,
   Rational,
   ) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bool

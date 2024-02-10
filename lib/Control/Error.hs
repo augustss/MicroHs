@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Control.Error(module Control.Error) where
+import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Char_Type
 
