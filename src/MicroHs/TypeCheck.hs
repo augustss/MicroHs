@@ -1174,6 +1174,13 @@ expandInst d = return [d]
 tcDefsValue :: [EDef] -> T [EDef]
 tcDefsValue ds = do
   mapM_ addValueType ds
+  -- TODO:
+  --  * split Fcn into those without and with type signatures
+  --  * for those without, generate a type variable and add to the environment
+  --  * typecheck those without as a group, with no tcReset
+  --  * generalise types in the group
+  --  * add those to the (old) symbol table
+  --  * run the map below on the rest of them
   mapM (\ d -> do { tcReset; tcDefValue d}) ds
 
 addValueType :: EDef -> T ()

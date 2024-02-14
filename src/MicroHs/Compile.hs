@@ -110,6 +110,7 @@ compileModule flags nm = do
   
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
+  -- TODO: skip test when nm is a file name
   when (nm /= nmn) $
     error $ "module name does not agree with file name: " ++ showIdent nm ++ " " ++ showIdent nmn
   let
@@ -188,6 +189,9 @@ invertGraph = foldr ins M.empty
 
 ------------------
 
+-- TODO:
+--  * if the IdentModule has suffix ".hs" then treat it as a file name.
+--  * with the CPP flag, run the prepocessor on the file
 readModulePath :: Flags -> IdentModule -> IO (FilePath, String)
 readModulePath flags mn = do
   mh <- findModulePath flags mn
