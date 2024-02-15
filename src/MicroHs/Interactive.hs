@@ -5,7 +5,7 @@ import Control.Exception
 import MicroHs.Compile
 import MicroHs.Desugar(LDef)
 import MicroHs.Flags
-import MicroHs.Ident(mkIdent)
+import MicroHs.Ident(mkIdent, Ident)
 import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.Translate
@@ -109,14 +109,25 @@ helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n 
 updateLines :: (String -> String) -> I ()
 updateLines f = modify $ \ (ls, flgs, cache) -> (f ls, flgs, cache)
 
+updateCache :: (Cache -> Cache) -> I ()
+updateCache f = modify $ \ (ls, flgs, cache) -> (ls, flgs, f cache)
+
 interactiveName :: String
 interactiveName = "Interactive"
+
+interactiveId :: Ident
+interactiveId = mkIdent interactiveName
 
 itName :: String
 itName = "_it"
 
+itIOName :: String
+itIOName = "_itIO"
+
 mkIt :: String -> String
-mkIt l = itName ++ " :: IO ()\n" ++ itName ++ " = printOrRun (" ++ l ++ ")\n"
+mkIt l =
+  itName   ++ " = (" ++ l ++ ")\n" ++
+  itIOName ++ " = printOrRun " ++ itName ++ "\n"
 
 err :: Exn -> IO ()
 err e = err' $ exnToString e
@@ -127,45 +138,49 @@ err' s = putStrLn $ "Error: " ++ s
 oneline :: String -> I ()
 oneline line = do
   (ls, _, _) <- get
-  -- Try adding the line as a definition
   let lls = ls ++ line ++ "\n"
-  case parse pTop "" lls of
-    Right _ -> do
---      liftIO $ putStrLn "pTop succeeded"
-      -- Can parse as a definition, so compile it and report any errors.
-      defTest <- tryCompile lls
-      case defTest of
-        Right _ -> updateLines (const lls)
-        Left  e -> liftIO $ err e
-    Left  _ -> do
---      liftIO $ putStrLn "pTop failed"
-      -- Cannot parse as a definition.
-      -- Try parsing it as an expression, and make it a definition
-      case parse pExprTop "" line of
-        Right _ -> do
---          liftIO $  putStrLn "pExprTop succeeded"
-          exprTest <- tryCompile (ls ++ "\n" ++ mkIt line)
-          case exprTest of
-            Right m -> evalExpr m
-            Left  e -> liftIO $ err e
-        Left  e -> liftIO $ err' e
+      def = do
+        defTest <- tryCompile lls
+        case defTest of
+          Right _ -> updateLines (const lls)
+          Left  e -> liftIO $ err e
+      expr = do
+        exprTest <- tryCompile (ls ++ "\n" ++ mkIt line)
+        case exprTest of
+          Right m -> evalExpr m
+          Left  e -> liftIO $ err e
+  -- First try to parse as a definition,
+  tryParse pTop lls def $ \ _ ->
+    -- if that fails, parse as an expression.
+    tryParse pExprTop line expr $
+      liftIO . err'
+
+tryParse :: forall a . Show a => P a -> String -> I () -> (String -> I ()) -> I ()
+tryParse p s ok bad =
+  case parse p "" s of
+    Right _ -> ok
+    Left  e -> bad e
 
 tryCompile :: String -> I (Either Exn [LDef])
 tryCompile file = do
-  (ls, flgs, cache) <- get
-  let
-    iid = mkIdent interactiveName
+  r <- tryCompile' file
+  updateCache (deleteFromCache interactiveId)
+  return r
+
+tryCompile' :: String -> I (Either Exn [LDef])
+tryCompile' file = do
+  (_, flgs, cache) <- get
   liftIO $ writeFile (interactiveName ++ ".hs") file
-  res <- liftIO $ try $ compileCacheTop flgs iid cache
+  res <- liftIO $ try $ compileCacheTop flgs interactiveId cache
   case res of
     Left e -> return (Left e)
     Right (m, cache') -> do
-      put (ls, flgs, deleteFromCache iid cache')
+      updateCache (const cache')
       return (Right m)
 
 evalExpr :: [LDef] -> I ()
 evalExpr cmdl = do
-  let ares = translate (mkIdent (interactiveName ++ "." ++ itName), cmdl)
+  let ares = translate (mkIdent (interactiveName ++ "." ++ itIOName), cmdl)
       res = unsafeCoerce ares :: IO ()
   mval <- liftIO $ try (seq res (return res))
   liftIO $
