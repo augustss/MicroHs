@@ -321,7 +321,7 @@ intersect :: forall a . Eq a => [a] -> [a] -> [a]
 intersect = intersectBy (==)
 
 intersectBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
-intersectBy eq xs ys = filter (\ x -> not (elemBy eq x ys)) xs
+intersectBy eq xs ys = filter (\ x -> elemBy eq x ys) xs
 
 deleteBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
 deleteBy _ _ [] = []
