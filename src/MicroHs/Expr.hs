@@ -531,6 +531,9 @@ instance Show Expr where
 instance Show Eqn where
   show eqn = render $ ppEqns (text "_") (text "=") [eqn]
 
+instance Show EDef where
+  show d = showEDefs [d]
+
 showExpr :: Expr -> String
 showExpr = render . ppExpr
 
