@@ -31,7 +31,7 @@ module MicroHs.Expr(
   eApps,
   lhsToType,
   subst,
-  allVarsExpr, allVarsBind,
+  allVarsExpr, allVarsBind, allVarsEqns,
   setSLocExpr,
   errorMessage,
   Assoc(..), Fixity,
@@ -412,9 +412,8 @@ eqExpr :: HasCallStack =>
           Expr -> Expr -> Bool
 eqExpr (EVar i) (EVar i') = i == i'
 eqExpr (ELit _ l) (ELit _ l') = l == l'
-eqExpr (EVar _) (EApp _ _) = False
 eqExpr (EApp f a) (EApp f' a') = eqExpr f f' && eqExpr a a'
-eqExpr (EApp _ _) (EVar _) = False
+eqExpr (EUVar r) (EUVar r') = r == r'
 eqExpr _ _ = False -- XXX good enough for instances
 --eqExpr e1 e2 = error $ "eqExpr: unimplemented " ++ showExpr e1 ++ " == " ++ showExpr e2
 
@@ -435,6 +434,9 @@ allVarsBind' abind =
     BFcn i eqns -> (i:) . composeMap allVarsEqn eqns
     BPat p e -> allVarsPat p . allVarsExpr' e
     BSign i _ -> (i:)
+
+allVarsEqns :: [Eqn] -> [Ident]
+allVarsEqns eqns = composeMap allVarsEqn eqns []
 
 allVarsEqn :: Eqn -> DList Ident
 allVarsEqn eqn =
@@ -650,7 +652,7 @@ ppExpr ae =
     ESelect is -> parens $ hcat $ map (\ i -> text "." <> ppIdent i) is
     EAt i e -> ppIdent i <> text "@" <> ppExpr e
     EViewPat e p -> parens $ ppExpr e <+> text "->" <+> ppExpr p
-    EUVar i -> text ("a" ++ show i)
+    EUVar i -> text ("_a" ++ show i)
     ECon c -> ppCon c
     EForall iks e -> ppForall iks <+> ppEType e
 --  where

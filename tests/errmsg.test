@@ -130,7 +130,7 @@ module E() where
 import Prelude
 data T = C Maybe
 -----
-mhs: "../tmp/E.hs": line 4, col 12: kind error: cannot unify Type and (a2 -> a3)
+mhs: "../tmp/E.hs": line 4, col 12: kind error: cannot unify Type and (_a2 -> _a3)
 
 =====
 module E() where
