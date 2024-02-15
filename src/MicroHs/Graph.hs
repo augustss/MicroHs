@@ -35,15 +35,15 @@ data SCC vertex = AcyclicSCC vertex     -- ^ A single vertex that is not
 
 stronglyConnComp
         :: forall key node .
-           (key -> key -> Bool)
-        -> [(node, key, [key])]
+           Ord key
+        => [(node, key, [key])]
                 -- ^ The graph: a list of nodes uniquely identified by keys,
                 -- with a list of keys of nodes this node has edges to.
                 -- The out-list may contain keys that don't correspond to
                 -- nodes of the graph; such edges are ignored.
         -> [SCC node]
-stronglyConnComp le edges0
-  = map get_node (stronglyConnCompR le edges0)
+stronglyConnComp edges0
+  = map get_node (stronglyConnCompR (<=) edges0)
   where
     get_node (AcyclicSCC (n, _, _)) = AcyclicSCC n
     get_node (CyclicSCC triples)    = CyclicSCC [n | (n,_,_) <- triples]

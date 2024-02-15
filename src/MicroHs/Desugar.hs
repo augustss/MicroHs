@@ -131,7 +131,7 @@ dsBinds ads ret =
     ds = concat $ zipWith dsBind pvs ads
     node ie@(i, e) = (ie, i, freeVars e)
     gr = map node $ checkDup ds
-    asccs = stronglyConnComp (<=) gr
+    asccs = stronglyConnComp gr
     loop _ [] = ret
     loop vs (AcyclicSCC (i, e) : sccs) =
       letE i e $ loop vs sccs
