@@ -29,6 +29,11 @@ data Map a
     (Map a)        -- right subtree
 --  deriving(Show)
 
+{-
+instance Show a => Show (Map a) where
+  show m = show (toList m)
+-}
+
 empty :: forall a . Map a
 empty = Nil
 
