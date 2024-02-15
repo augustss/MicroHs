@@ -3,12 +3,17 @@ import Prelude
 import Data.List
 import Control.Exception
 import MicroHs.Compile
+import MicroHs.CompileCache(cache, tModuleOf)
 import MicroHs.Desugar(LDef)
+import MicroHs.Expr(EType, showEType)
 import MicroHs.Flags
 import MicroHs.Ident(mkIdent, Ident)
+import qualified MicroHs.IdentMap as M
 import MicroHs.Parse
 import MicroHs.StateIO
+import MicroHs.TCMonad(Entry(..))
 import MicroHs.Translate
+import MicroHs.TypeCheck(ValueExport(..), TModule(..))
 import Unsafe.Coerce
 import System.Console.SimpleReadline
 import Compat
@@ -89,6 +94,10 @@ commands =
       updateLines (unlines . filter (not . isPrefixOf del) . lines)
       return True
     )
+  , ("type", \ line -> do
+      showType line
+      return True
+    )
   , ("help", \ _ -> do
       liftIO $ putStrLn helpText
       return True
@@ -104,13 +113,13 @@ reload = do
     Right _  -> return ()
 
 helpText :: String
-helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n  :clear     clear all definitions\n  :delete d  delete definition(s) d\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
+helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n  :clear     clear all definitions\n  :delete d  delete definition(s) d\n  :type e    show type of e\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
 
 updateLines :: (String -> String) -> I ()
-updateLines f = modify $ \ (ls, flgs, cache) -> (f ls, flgs, cache)
+updateLines f = modify $ \ (ls, flgs, cash) -> (f ls, flgs, cash)
 
 updateCache :: (Cache -> Cache) -> I ()
-updateCache f = modify $ \ (ls, flgs, cache) -> (ls, flgs, f cache)
+updateCache f = modify $ \ (ls, flgs, cash) -> (ls, flgs, f cash)
 
 interactiveName :: String
 interactiveName = "Interactive"
@@ -126,7 +135,11 @@ itIOName = "_itIO"
 
 mkIt :: String -> String
 mkIt l =
-  itName   ++ " = (" ++ l ++ ")\n" ++
+  itName ++ " = (" ++ l ++ ")\n"
+
+mkItIO :: String -> String
+mkItIO l =
+  mkIt l ++
   itIOName ++ " = printOrRun " ++ itName ++ "\n"
 
 err :: Exn -> IO ()
@@ -145,7 +158,7 @@ oneline line = do
           Right _ -> updateLines (const lls)
           Left  e -> liftIO $ err e
       expr = do
-        exprTest <- tryCompile (ls ++ "\n" ++ mkIt line)
+        exprTest <- tryCompile (ls ++ "\n" ++ mkItIO line)
         case exprTest of
           Right m -> evalExpr m
           Left  e -> liftIO $ err e
@@ -163,19 +176,14 @@ tryParse p s ok bad =
 
 tryCompile :: String -> I (Either Exn [LDef])
 tryCompile file = do
-  r <- tryCompile' file
   updateCache (deleteFromCache interactiveId)
-  return r
-
-tryCompile' :: String -> I (Either Exn [LDef])
-tryCompile' file = do
-  (_, flgs, cache) <- get
+  (_, flgs, cash) <- get
   liftIO $ writeFile (interactiveName ++ ".hs") file
-  res <- liftIO $ try $ compileCacheTop flgs interactiveId cache
+  res <- liftIO $ try $ compileCacheTop flgs interactiveId cash
   case res of
     Left e -> return (Left e)
-    Right (m, cache') -> do
-      updateCache (const cache')
+    Right (m, cash') -> do
+      updateCache (const cash')
       return (Right m)
 
 evalExpr :: [LDef] -> I ()
@@ -191,3 +199,27 @@ evalExpr cmdl = do
         case mio of
           Left  e -> err e
           Right _ -> return ()
+
+showType :: String -> I ()
+showType line = do
+  (ls, _, _) <- get
+  let expr = do
+        exprTest <- tryCompile (ls ++ "\n" ++ mkIt line)
+        case exprTest of
+          Right _ -> do
+            (_, _, cash) <- get
+            let t = findTypeInCache cash (mkIdent itName)
+            liftIO $ putStrLn $ showEType t
+          Left  e ->
+            liftIO $ err e
+  tryParse pExprTop line expr $ liftIO . err'
+
+findTypeInCache :: Cache -> Ident -> EType
+findTypeInCache cash i =
+  case M.lookup interactiveId (cache cash) of
+    Nothing -> undefined   -- this cannot happen
+    Just cm ->
+      case tModuleOf cm of
+        TModule _ _ _ _ _ _ vals _ ->
+          head $ [ t | ValueExport i' (Entry _ t) <- vals, i == i' ] ++ [undefined]
+          

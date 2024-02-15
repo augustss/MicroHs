@@ -11,6 +11,7 @@ module MicroHs.TypeCheck(
   bindingsOf,
   boolPrefix,
   listPrefix,
+  ValueExport(..),
   ) where
 import Prelude
 import Control.Applicative
