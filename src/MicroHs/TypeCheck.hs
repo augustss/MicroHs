@@ -1189,13 +1189,15 @@ tcDefsValue defs = do
       tcSCC (AcyclicSCC d) = tInferDefs [d]
       tcSCC (CyclicSCC ds) = tInferDefs ds
   -- type infer and enter each SCC in the symbol table
-  mapM_ tcSCC sccs
+  -- return inferred Sign
+  signDefs <- mapM tcSCC sccs
   --  type check all definitions (the inferred ones will be rechecked)
 --  traceM $ "tcDefsValue: ------------ check"
-  mapM (\ d -> do { tcReset; tcDefValue d}) defs
+  defs' <- mapM (\ d -> do { tcReset; tcDefValue d}) defs
+  return $ concat signDefs ++ defs'
 
 -- Infer a type for a definition
-tInferDefs :: [EDef] -> T ()
+tInferDefs :: [EDef] -> T [EDef]
 tInferDefs fcns = do
   tcReset
   -- Invent type variables for the definitions
@@ -1210,7 +1212,7 @@ tInferDefs fcns = do
   ctx <- getUnsolved
   -- For each definition, quantify over the free meta variables, and include
   -- context mentioning them.
-  let genTop :: (Ident, EType) -> T ()
+  let genTop :: (Ident, EType) -> T EDef
       genTop (i, t) = do
         t' <- derefUVar t
         let vs = metaTvs [t']
@@ -1220,7 +1222,8 @@ tInferDefs fcns = do
         t''' <- quantify vs' t''
         --traceM $ "tInferDefs: " ++ showIdent i ++ " :: " ++ showEType t'''
         extValQTop i t'''
-  mapM_ genTop xts
+        return $ Sign [i] t'''
+  mapM genTop xts
 
 getUnsolved :: T [EConstraint]
 getUnsolved = do
