@@ -21,12 +21,13 @@ import Data.Function
 import Data.List
 import Data.Maybe
 import qualified Data.IntMap as IM
-import MicroHs.TCMonad as T
-import qualified MicroHs.IdentMap as M
-import MicroHs.Ident
 import MicroHs.Deriving
 import MicroHs.Expr
+import MicroHs.Graph
+import MicroHs.Ident
+import qualified MicroHs.IdentMap as M
 import MicroHs.Fixity
+import MicroHs.TCMonad as T
 import Compat
 import GHC.Stack
 import Debug.Trace
@@ -1172,16 +1173,62 @@ expandInst d = return [d]
 ---------------------
 
 tcDefsValue :: [EDef] -> T [EDef]
-tcDefsValue ds = do
-  mapM_ addValueType ds
-  -- TODO:
-  --  * split Fcn into those without and with type signatures
-  --  * for those without, generate a type variable and add to the environment
-  --  * typecheck those without as a group, with no tcReset
-  --  * generalise types in the group
-  --  * add those to the (old) symbol table
-  --  * run the map below on the rest of them
-  mapM (\ d -> do { tcReset; tcDefValue d}) ds
+tcDefsValue defs = do
+--  traceM $ "tcDefsValue: ------------ start"
+  -- Gather up all type signatures, and put them in the environment.
+  mapM_ addValueType defs
+  let smap = M.fromList [ (i, ()) | Sign is _ <- defs, i <- is ]
+      -- Split Fcn into those without and with type signatures
+      unsigned = filter noSign defs
+        where noSign (Fcn i _) = isNothing $ M.lookup i smap
+              noSign _ = False
+      -- split the unsigned defs into strongly connected components
+      sccs = stronglyConnComp $ map node unsigned
+        where node d@(Fcn i e) = (d, i, allVarsEqns e)
+              node _ = undefined
+      tcSCC (AcyclicSCC d) = tInferDefs [d]
+      tcSCC (CyclicSCC ds) = tInferDefs ds
+  -- type infer and enter each SCC in the symbol table
+  mapM_ tcSCC sccs
+  --  type check all definitions (the inferred ones will be rechecked)
+--  traceM $ "tcDefsValue: ------------ check"
+  mapM (\ d -> do { tcReset; tcDefValue d}) defs
+
+-- Infer a type for a definition
+tInferDefs :: [EDef] -> T ()
+tInferDefs fcns = do
+  tcReset
+  -- Invent type variables for the definitions
+  xts <- mapM (\ (Fcn i _) -> (i,) <$> newUVar) fcns
+  --traceM $ "tInferDefs: " ++ show (map fst xts)
+  -- Temporarily extend the local environment with the type variables
+  withExtVals xts $ do
+    -- Infer types for all the Fcns, ignore the new bodies.
+    -- The bodies will be re-typecked in tcDefsValues.
+    zipWithM_ (\ (Fcn _ eqns) (_, t) -> tcEqns False t eqns) fcns xts
+  -- Get the unsolved constraints
+  ctx <- getUnsolved
+  -- For each definition, quantify over the free meta variables, and include
+  -- context mentioning them.
+  let genTop :: (Ident, EType) -> T ()
+      genTop (i, t) = do
+        t' <- derefUVar t
+        let vs = metaTvs [t']
+            ctx' = filter (\ c -> not (null (intersect vs (metaTvs [c])))) ctx
+            t'' = addConstraints ctx' t'
+            vs' = metaTvs [t'']
+        t''' <- quantify vs' t''
+        --traceM $ "tInferDefs: " ++ showIdent i ++ " :: " ++ showEType t'''
+        extValQTop i t'''
+  mapM_ genTop xts
+
+getUnsolved :: T [EConstraint]
+getUnsolved = do
+  _ <- solveConstraints
+  ctx <- gets (map snd . constraints)
+  ctx' <- mapM derefUVar ctx
+  putConstraints []
+  return $ nubBy eqEType ctx'
 
 addValueType :: EDef -> T ()
 addValueType adef = do
@@ -1252,9 +1299,12 @@ tcDefValue adef =
 --      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t'
 --      traceM $ "tcDefValue:      " ++ showEDefs [adef]
       teqns <- tcEqns True t' eqns
---      traceM ("tcDefValue: after " ++ showEDefs [adef, Fcn i teqns])
+--      traceM ("tcDefValue: after\n" ++ showEDefs [adef, Fcn i teqns])
+--      cs <- gets constraints
+--      traceM $ "tcDefValue: constraints: " ++ show cs
       checkConstraints
       mn <- gets moduleName
+--      traceM $ "tcDefValue: " ++ showIdent i ++ " done"
       return $ Fcn (qualIdent mn i) teqns
     ForImp ie i t -> do
       mn <- gets moduleName
@@ -1391,7 +1441,7 @@ tcExprR mt ae =
                case t of
                  EUVar r -> fmap (fromMaybe t) (getUVar r)
                  _ -> return t
---             traceM $ "EVar: " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t' ++ " mt=" ++ show mt
+             --traceM $ "EVar: " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t' ++ " mt=" ++ show mt
              instSigma loc e t' mt
 
     EApp f a -> do
@@ -2085,23 +2135,24 @@ getMetaTyVars tys = do
 getEnvTypes :: T [EType]
 getEnvTypes = gets (map entryType . stElemsLcl . valueTable)
 
-{-
-quantify :: [MetaTv] -> Rho -> T Sigma
--- Quantify over the specified type variables (all flexible)
+-- Quantify over the specified type variables.
+-- The type should be zonked.
+quantify :: [TRef] -> Rho -> T Sigma
+quantify [] ty = return ty
 quantify tvs ty = do
-   mapM_ bind (tvs `zip` new_bndrs) -- 'bind' is just a cunning way
-   ty' <- zonkType ty               -- of doing the substitution
-   return (EForall new_bndrs_kind ty')
-  where
-    used_bndrs = tyVarBndrs ty -- Avoid quantified type variables in use
-    new_bndrs = allBinders \\ used_bndrs
-    bind (tv, name) = writeTcRef tv (EVar name)
-    new_bndrs_kind = map (\ i -> IdKind i undefined) new_bndrs
+  let usedVars = allVarsExpr ty -- Avoid used type variables
+      newVars = take (length tvs) (allBinders \\ usedVars)
+      newVarsK = map (\ i -> IdKind i noKind) newVars
+      noKind = EVar dummyIdent
+  osubst <- gets uvarSubst
+  zipWithM_ (\ tv n -> setUVar tv (EVar n)) tvs newVars
+  ty' <- derefUVar ty
+  putUvarSubst osubst  -- reset the setUVar we did above
+  return (EForall newVarsK ty')
 
 allBinders :: [Ident] -- a,b,..z, a1, b1,... z1, a2, b2,...
-allBinders = [ mkIdent [chr x] | x <- [ord 'a' .. ord 'z'] ] ++
-             [ mkIdent (chr x : show i) | i <- [1 ..], x <- [ord 'a' .. ord 'z']]
--}
+allBinders = [ mkIdent [x] | x <- ['a' .. 'z'] ] ++
+             [ mkIdent (x : show i) | i <- [1::Int ..], x <- ['a' .. 'z']]
 
 -- Skolemize the given variables
 shallowSkolemise :: [IdKind] -> EType -> T ([TyVar], EType)
@@ -2147,16 +2198,6 @@ metaTvs tys = foldr go [] tys
     go _ _ = impossible
 
 {-
-tyVarBndrs :: Rho -> [TyVar]
--- Get all the binders used in ForAlls in the type, so that
--- when quantifying an outer for-all we can avoid these inner ones
-tyVarBndrs ty = nub (bndrs ty)
-  where
-    bndrs (EForall tvs body) = map idKindIdent tvs ++ bndrs body
-    bndrs (EApp arg res) = bndrs arg ++ bndrs res
-    bndrs (EVar _) = []
-    bndrs _ = undefined
-
 inferSigma :: Expr -> T (Expr, Sigma)
 inferSigma e = do
   (e', exp_ty) <- inferRho e
@@ -2218,7 +2259,7 @@ instSigma loc e1 t1 (Check t2) = do
   subsCheckRho loc e1 t1 t2
 instSigma loc e1 t1 (Infer r) = do
   (e1', t1') <- tInst (e1, t1)
---  traceM ("instSigma: Infer " ++ showEType t1 ++ " ==> " ++ showEType t1')
+  --traceM ("instSigma: Infer " ++ showEType t1 ++ " ==> " ++ showEType t1')
   tSetRefType loc r t1'
   return e1'
 
@@ -2350,13 +2391,13 @@ solveConstraints = do
     return []
    else do
     addMetaDicts
---    traceM "------------------------------------------\nsolveConstraints"
+    --traceM "------------------------------------------\nsolveConstraints"
     cs' <- mapM (\ (i,t) -> do { t' <- derefUVar t; return (i,t') }) cs
---    traceM ("constraints:\n" ++ unlines (map showConstraint cs'))
+    --traceM ("constraints:\n" ++ unlines (map showConstraint cs'))
     (unsolved, solved, improves) <- solveMany cs' [] [] []
     putConstraints unsolved
---    traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
---    traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
+    --traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
+    --traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
     if null improves then
       return solved
      else do
