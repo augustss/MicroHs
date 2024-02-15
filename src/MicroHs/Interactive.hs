@@ -3,7 +3,7 @@ import Prelude
 import Data.List
 import Control.Exception
 import MicroHs.Compile
-import MicroHs.CompileCache(cache, tModuleOf)
+import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
 import MicroHs.Expr(EType, showEType)
 import MicroHs.Flags
@@ -13,7 +13,7 @@ import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.TCMonad(Entry(..))
 import MicroHs.Translate
-import MicroHs.TypeCheck(ValueExport(..), TModule(..))
+import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..))
 import Unsafe.Coerce
 import System.Console.SimpleReadline
 import Compat
@@ -98,6 +98,10 @@ commands =
       showType line
       return True
     )
+  , ("kind", \ line -> do
+      showKind line
+      return True
+    )
   , ("help", \ _ -> do
       liftIO $ putStrLn helpText
       return True
@@ -113,7 +117,7 @@ reload = do
     Right _  -> return ()
 
 helpText :: String
-helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n  :clear     clear all definitions\n  :delete d  delete definition(s) d\n  :type e    show type of e\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
+helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n  :clear     clear all definitions\n  :delete d  delete definition(s) d\n  :type e    show type of e\n  :kind t    show type of t\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
 
 updateLines :: (String -> String) -> I ()
 updateLines f = modify $ \ (ls, flgs, cash) -> (f ls, flgs, cash)
@@ -130,17 +134,24 @@ interactiveId = mkIdent interactiveName
 itName :: String
 itName = "_it"
 
+itTypeName :: String
+itTypeName = "Type_it"
+
 itIOName :: String
 itIOName = "_itIO"
 
 mkIt :: String -> String
 mkIt l =
-  itName ++ " = (" ++ l ++ ")\n"
+  itName ++ " = " ++ l ++ "\n"
 
 mkItIO :: String -> String
 mkItIO l =
   mkIt l ++
   itIOName ++ " = printOrRun " ++ itName ++ "\n"
+
+mkTypeIt :: String -> String
+mkTypeIt l =
+  "type " ++ itTypeName ++ " = " ++ l ++ "\n"
 
 err :: Exn -> IO ()
 err e = err' $ exnToString e
@@ -203,23 +214,41 @@ evalExpr cmdl = do
 showType :: String -> I ()
 showType line = do
   (ls, _, _) <- get
-  let expr = do
-        exprTest <- tryCompile (ls ++ "\n" ++ mkIt line)
-        case exprTest of
-          Right _ -> do
-            (_, _, cash) <- get
-            let t = findTypeInCache cash (mkIdent itName)
-            liftIO $ putStrLn $ showEType t
-          Left  e ->
-            liftIO $ err e
-  tryParse pExprTop line expr $ liftIO . err'
+  res <- tryCompile (ls ++ "\n" ++ mkIt line)
+  case res of
+    Right _ -> do
+      (_, _, cash) <- get
+      let t = getTypeInCache cash (mkIdent itName)
+      liftIO $ putStrLn $ showEType t
+    Left  e ->
+      liftIO $ err e
 
-findTypeInCache :: Cache -> Ident -> EType
-findTypeInCache cash i =
+showKind :: String -> I ()
+showKind line = do
+  (ls, _, _) <- get
+  res <- tryCompile (ls ++ "\n" ++ mkTypeIt line)
+  case res of
+    Right _ -> do
+      (_, _, cash) <- get
+      let t = getKindInCache cash (mkIdent itTypeName)
+      liftIO $ putStrLn $ showEType t
+    Left  e ->
+      liftIO $ err e
+
+getCModule :: Cache -> CModule
+getCModule cash =
   case M.lookup interactiveId (cache cash) of
     Nothing -> undefined   -- this cannot happen
-    Just cm ->
-      case tModuleOf cm of
-        TModule _ _ _ _ _ _ vals _ ->
-          head $ [ t | ValueExport i' (Entry _ t) <- vals, i == i' ] ++ [undefined]
-          
+    Just cm -> cm
+
+getTypeInCache :: Cache -> Ident -> EType
+getTypeInCache cash i =
+  case tModuleOf (getCModule cash) of
+    TModule _ _ _ _ _ _ vals _ ->
+      head $ [ t | ValueExport i' (Entry _ t) <- vals, i == i' ] ++ [undefined]
+
+getKindInCache :: Cache -> Ident -> EType
+getKindInCache cash i =
+  case tModuleOf (getCModule cash) of
+    TModule _ _ tys _ _ _ _ _ ->
+      head $ [ k | TypeExport i' (Entry _ k) _ <- tys, i == i' ] ++ [undefined]

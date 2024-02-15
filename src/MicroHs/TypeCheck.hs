@@ -11,7 +11,7 @@ module MicroHs.TypeCheck(
   bindingsOf,
   boolPrefix,
   listPrefix,
-  ValueExport(..),
+  ValueExport(..), TypeExport(..),
   ) where
 import Prelude
 import Control.Applicative
@@ -2680,4 +2680,3 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
   showIdent i ++ " :: " ++ showEType cc ++
     " has " ++ showListS showIdent ms
 -}
-

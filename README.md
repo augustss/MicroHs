@@ -199,6 +199,8 @@ Available commands:
 * `:clear` Get back to start state
 * `:del STR` Delete all definitions that begin with `STR`
 * `:reload` Reload all modules
+* `:type EXPR` Show type of `EXPR`
+* `:kind TYPE` Show kind of `TYPE`
 * `expr` Evaluate expression.
 * `defn` Add definition (can also be an `import`)
 
