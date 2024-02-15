@@ -17,13 +17,6 @@ mhs: "../tmp/E.hs": line 5, col 1:
 =====
 module E() where
 import Prelude
-x = y
------
-mhs: "../tmp/E.hs": line 4, col 1: undefined type signature: x
-
-=====
-module E() where
-import Prelude
 x :: Int
 x = y
 -----
