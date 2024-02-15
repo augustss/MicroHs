@@ -196,6 +196,14 @@ decodeChar n (cs@(c:_)) | isDigit c = conv 10 n 0 cs
 decodeChar n (c  :cs) = (c,    n+1, cs)
 decodeChar n []       = ('X',  n,   [])
 
+{-
+           ["NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL",
+            "BS",  "HT",  "LF",  "VT",  "FF",  "CR",  "SO",  "SI", 
+            "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB",
+            "CAN", "EM",  "SUB", "ESC", "FS",  "GS",  "RS",  "US", 
+            "SP"]
+-}
+
 conv :: Int -> Int -> Int -> String -> (Char, Int, String)
 conv b k r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (k+1) (r * b + n) ds
 conv _ k r ds = (chr r, k, ds)
