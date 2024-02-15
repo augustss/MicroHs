@@ -79,6 +79,10 @@ isJust :: forall a . Maybe a -> Bool
 isJust Nothing = False
 isJust (Just _) = True
 
+isNothing :: forall a . Maybe a -> Bool
+isNothing Nothing = True
+isNothing (Just _) = False
+
 mapMaybe :: forall a b . (a -> Maybe b) -> [a] -> [b]
 mapMaybe _ [] = []
 mapMaybe f (a:as) =
