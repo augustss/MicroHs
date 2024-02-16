@@ -193,16 +193,23 @@ decodeChar n ('x':cs) = conv 16 (n+1) 0 cs
 decodeChar n ('o':cs) = conv 8 (n+1) 0 cs
 decodeChar n ('^':c:cs) | '@' <= c && c <= '_' = (chr (ord c - ord '@'), n+2, cs)
 decodeChar n (cs@(c:_)) | isDigit c = conv 10 n 0 cs
+decodeChar n (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = (c, n+3, cs)
+decodeChar n (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = (c, n+2, cs)
 decodeChar n (c  :cs) = (c,    n+1, cs)
 decodeChar n []       = ('X',  n,   [])
 
-{-
-           ["NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL",
-            "BS",  "HT",  "LF",  "VT",  "FF",  "CR",  "SO",  "SI", 
-            "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB",
-            "CAN", "EM",  "SUB", "ESC", "FS",  "GS",  "RS",  "US", 
-            "SP"]
--}
+-- Nobody uses these, but it's part of the Haskell Report so...
+ctlCodes :: [(String, Char)]
+ctlCodes =
+  [("NUL", '\NUL'), ("SOH", '\SOH'), ("STX", '\STX'), ("ETX", '\ETX'),
+   ("EOT", '\EOT'), ("ENQ", '\ENQ'), ("ACK", '\ACK'), ("BEL", '\BEL'),
+   ("BS",  '\BS'),  ("HT",  '\HT'),  ("LF",  '\LF'),  ("VT", '\VT'),
+   ("FF",  '\FF'),  ("CR",  '\CR'),  ("SO",  '\SO'),  ("SI", '\SI'), 
+   ("DLE", '\DLE'), ("DC1", '\DC1'), ("DC2", '\DC2'), ("DC3", '\DC3'),
+   ("DC4", '\DC4'), ("NAK", '\NAK'), ("SYN", '\SYN'), ("ETB", '\ETB'),
+   ("CAN", '\CAN'), ("EM",  '\EM'),  ("SUB", '\SUB'), ("ESC", '\ESC'),
+   ("FS",  '\FS'),  ("GS",  '\GS'),  ("RS",  '\RS'),  ("US",  '\US'), 
+   ("SP",  '\SP')]
 
 conv :: Int -> Int -> Int -> String -> (Char, Int, String)
 conv b k r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (k+1) (r * b + n) ds
