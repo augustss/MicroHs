@@ -35,11 +35,10 @@ The compiler can also be used with emscripten to produce JavaScript, see `Makefi
 The language is an extended subset of Haskell-98.
 
 Differences:
- * Kind variables need an explicit `forall`.
  * There is only deriving for `Eq`, `Ord`, `Show`, and `Typeable`.
- * A module must have an export list.
  * The `default` list is empty, except in the interactive system.
  * No lazy patterns (`~pat`)
+ * Kind variables need an explicit `forall`.
  * Always enabled extension:
    * ConstraintKinds
    * DuplicateRecordFields
@@ -82,7 +81,6 @@ Differences:
 The file `Example.hs` contains the following:
 ```Haskell
 module Example(main) where
-import Prelude
 
 fac :: Int -> Int
 fac 0 = 1
@@ -90,8 +88,7 @@ fac n = n * fac(n-1)
 
 main :: IO ()
 main = do
-  let
-    rs = map fac [1,2,3,10]
+  let rs = map fac [1,2,3,10]
   putStrLn "Some factorials"
   print rs
 ```

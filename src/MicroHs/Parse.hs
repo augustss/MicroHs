@@ -52,9 +52,14 @@ pExprTop :: P Expr
 pExprTop = pExpr <* eof
 
 pModule :: P EModule
-pModule = EModule <$> (pKeyword "module" *> pUQIdentA) <*>
-                      (pSpec '(' *> esepEndBy pExportItem (pSpec ',') <* pSpec ')') <*>
-                      (pKeyword "where" *> pBlock pDef)
+pModule = do
+  pKeyword "module"
+  mn <- pUQIdentA
+  exps <- (pSpec '(' *> esepEndBy pExportItem (pSpec ',') <* pSpec ')')
+      <|< pure [ExpModule mn]
+  pKeyword "where"
+  defs <-  pBlock pDef
+  pure $ EModule mn exps defs
 
 -- Possibly qualified alphanumeric identifier
 pQIdent :: P Ident
