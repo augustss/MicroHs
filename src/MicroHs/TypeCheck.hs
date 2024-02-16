@@ -1921,7 +1921,11 @@ tInferPat = tInfer tcPat
 -- XXX Has some duplication with tcExpr
 tcPat :: Expected -> EPat -> T EPatRet
 tcPat mt ae =
-  let { loc = getSLoc ae } in
+  let loc = getSLoc ae
+      lit = tcPat mt (EViewPat (EApp (EVar (mkIdentSLoc loc "==")) ae) (EVar (mkIdentSLoc loc "True")))
+      isNeg (EVar i) = i == mkIdent "negate"
+      isNeg _ = False
+  in
   case ae of
     EVar i | isDummyIdent i -> do
                -- _ can be anything, so just ignore it
@@ -1962,7 +1966,9 @@ tcPat mt ae =
 
     EOper e ies -> do e' <- tcOper e ies; tcPat mt e'
 
-    EApp f a -> do
+    EApp f a
+      | isNeg f -> lit       -- if it's (negate e) it must have been a negative literal
+      | otherwise -> do
       ((skf, df, f'), ft) <- tInferPat f
 --      traceM $ "tcPat: EApp f=" ++ showExpr f ++ "; e'=" ++ showExpr f' ++ " :: " ++ showEType ft
       (at, rt) <- unArrow loc ft
@@ -1988,8 +1994,7 @@ tcPat mt ae =
       let (sks, ds, es') = unzip3 xs
       return (concat sks, concat ds, EListish (LList es'))
 
-    ELit _ _ ->
-      tcPat mt (EViewPat (EApp (EVar (mkIdentSLoc loc "==")) ae) (EVar (mkIdentSLoc loc "True")))
+    ELit _ _ -> lit
 
     ESign e t -> do
       t' <- tcType (Check kType) t
