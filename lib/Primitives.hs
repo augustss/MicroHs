@@ -191,8 +191,8 @@ primThen         :: forall a b . IO a -> IO b -> IO b
 primThen          = primitive "IO.>>"
 primReturn       :: forall a . a -> IO a
 primReturn        = primitive "IO.return"
-primGetArgs      :: IO [[Char]]
-primGetArgs       = primitive "IO.getArgs"
+primGetArgRef    :: IO (IOArray [[Char]])
+primGetArgRef     = primitive "IO.getArgRef"
 primPerformIO    :: forall a . IO a -> a
 primPerformIO     = primitive "IO.performIO"
 

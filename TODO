@@ -43,8 +43,6 @@
   - make a low level primError that takes a utf8 string
   - get rid of noMatch and noDefault primitives
 * Fix bug with negative literal patterns
-* Test setArgs and --
-  - make sure nested mhs works
 * Implement more Char/String literals
 * Implement lazy matching
 * Implement strict matching

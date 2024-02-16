@@ -7,25 +7,31 @@ module System.Environment(
   lookupEnv,
   ) where
 import Prelude
-import Primitives(primPerformIO, primGetArgs)
-import Data.IORef
+import Primitives
 import Foreign.C.String
 import Foreign.Ptr
 
-progArgs :: IORef [String]
-progArgs = primPerformIO $ do
-  args <- primGetArgs
-  newIORef args
-
+-- primArgRef returns an array containing a list of strings.
+-- The first element is the program name, the rest are the arguments.
 getArgs :: IO [String]
-getArgs = readIORef progArgs
+getArgs = do
+  aa <- primGetArgRef
+  as <- primArrRead aa 0
+  return $ tail as                          -- drop program name
+
+getProgName :: IO String
+getProgName = do
+  aa <- primGetArgRef
+  as <- primArrRead aa 0
+  return $ head as                          -- get program name
 
 withArgs :: forall a . [String] -> IO a -> IO a
 withArgs as ioa = do
-  old <- readIORef progArgs
-  writeIORef progArgs as
+  aa <- primGetArgRef
+  old <- primArrRead aa 0
+  primArrWrite aa 0 $ head old : as         -- keep program name
   a <- ioa
-  writeIORef progArgs old
+  primArrWrite aa 0 old
   return a
 
 foreign import ccall "getenv" c_getenv :: CString -> IO CString
@@ -37,7 +43,3 @@ lookupEnv var = do
     return Nothing
    else
     Just <$> peekCAString cptr
-
--- XXX implement this
-getProgName :: IO String
-getProgName = return "???"

@@ -11,7 +11,7 @@ import Foreign.C.String
 import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
-import System.Environment
+--import System.Environment
 import System.IO.Unsafe
 --import Debug.Trace
 import Compat
@@ -113,7 +113,7 @@ primOps =
   , comb "IO.serialize" ioserialize
   , comb "IO.deserialize" iodeserialize
   , comb "newCAStringLen" (fmap fromPair . newCAStringLen . toString)
-  , comb "IO.getArgs" iogetargs
+  , comb "IO.getArgRef" iogetargref
 
   , comb0 "IO.stdin" stdin
   , comb0 "IO.stdout" stdout
@@ -162,10 +162,13 @@ primOps =
     iodeserialize :: Handle -> IO a
     iodeserialize _ = error "ghc does not support deserialize"
 
+{-
     iogetargs :: IO Any
     iogetargs = do
       args <- getArgs
       return $ fromList $ map fromString args
+-}
+    iogetargref = error "ghc: no IO.getArgRef"
 
     -- Can't implement this
     rnf :: a -> ()

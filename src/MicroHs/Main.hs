@@ -31,8 +31,8 @@ main = do
   mdir <- getMhsDir
   let dir = fromMaybe "." mdir
   let
-    args = takeWhile (/= "--") aargs
-    ss = filter ((/= "-") . take 1) args
+    (args, rargs) = span (/= "--") aargs
+    mdls = filter ((/= "-") . take 1) args
     flags = Flags {
       verbose    = length (filter (== "-v") args),
       runIt      = elem "-r" args,
@@ -46,10 +46,11 @@ main = do
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
    else
-    case ss of
-      []  -> mainInteractive flags
-      [s] -> mainCompile dir flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-      _   -> error "Usage: mhs [-v] [-l] [-r] [-C] [-T] [-iPATH] [-oFILE] [ModuleName]"
+    withArgs (drop 1 rargs) $              -- leave arguments after -- for any program we run
+      case mdls of
+        []  -> mainInteractive flags
+        [s] -> mainCompile dir flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+        _   -> error "Usage: mhs [-v] [-l] [-r] [-C] [-T] [-iPATH] [-oFILE] [ModuleName]"
 
 mainCompile :: FilePath -> Flags -> Ident -> IO ()
 mainCompile mhsdir flags mn = do

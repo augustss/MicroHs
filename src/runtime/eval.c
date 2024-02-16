@@ -172,7 +172,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_CCBIND,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
-                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGS,
+                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
                 T_IO_CCALL, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
@@ -201,7 +201,7 @@ static const char* tag_names[] = {
   "IO_BIND", "IO_THEN", "IO_RETURN",
   "C'BIND",
   "IO_SERIALIZE", "IO_DESERIALIZE",
-  "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGS",
+  "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
   "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "IO_CATCH",
   "IO_CCALL", "DYNSYM",
   "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
@@ -267,7 +267,8 @@ struct ustring {
  */
 struct ioarray {
   struct ioarray *next;         /* all ioarrays are linked together */
-  size_t marked;               /* marked during GC */
+  int permanent;                /* this array should never be GC-ed */
+  size_t marked;                /* marked during GC */
   size_t size;                  /* number of elements in the array */
   NODEPTR array[1];             /* actual size may be bigger */
 };
@@ -336,6 +337,7 @@ arr_alloc(size_t sz, NODEPTR e)
   arr->next = array_root;
   array_root = arr;
   arr->marked = 0;
+  arr->permanent = 0;
   arr->size = sz;
   for(i = 0; i < sz; i++)
     arr->array[i] = e;
@@ -451,9 +453,9 @@ static INLINE void mark_all_free(void)
 }
 
 #if WANT_ARGS
-int glob_argc;
-char **glob_argv;
-#endif
+/* This single element array hold a list of the program arguments. */
+struct ioarray *argarray;
+#endif  /* WANT_ARGS */
 
 int verbose = 0;
 
@@ -615,7 +617,7 @@ struct {
   { "IO.stdin", T_IO_STDIN },
   { "IO.stdout", T_IO_STDOUT },
   { "IO.stderr", T_IO_STDERR },
-  { "IO.getArgs", T_IO_GETARGS },
+  { "IO.getArgRef", T_IO_GETARGREF },
   { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.catch", T_IO_CATCH },
@@ -916,9 +918,16 @@ gc(void)
 #endif
   gc_mark_time -= GETTIMEMILLI();
   mark_all_free();
-  //  mark_depth = 0;
+  // mark everything reachable from the stack
   for (i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
+  // mark everything reachable from permanent array nodes
+  for (arr = array_root; arr; arr = arr->next) {
+    if (arr->permanent) {
+      for (i = 0; i < arr->size; i++)
+        mark(&arr->array[i]);
+    }
+  }
   gc_mark_time += GETTIMEMILLI();
 
   if (num_marked > max_num_marked)
@@ -929,7 +938,7 @@ gc(void)
 
   for (arrp = &array_root; *arrp; ) {
     arr = *arrp;
-    if (arr->marked) {
+    if (arr->marked || arr->permanent) {
       arr->marked = 0;
       arrp = &arr->next;
     } else {
@@ -1753,7 +1762,7 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_IO_SERIALIZE: putsb("IO.serialize", f); break;
   case T_IO_PRINT: putsb("IO.print", f); break;
   case T_IO_DESERIALIZE: putsb("IO.deserialize", f); break;
-  case T_IO_GETARGS: putsb("IO.getArgs", f); break;
+  case T_IO_GETARGREF: putsb("IO.getArgRef", f); break;
   case T_IO_GETTIMEMILLI: putsb("IO.getTimeMilli", f); break;
   case T_IO_PERFORMIO: putsb("IO.performIO", f); break;
   case T_IO_CATCH: putsb("IO.catch", f); break;
@@ -2487,7 +2496,7 @@ evali(NODEPTR an)
     case T_IO_SERIALIZE:
     case T_IO_PRINT:
     case T_IO_DESERIALIZE:
-    case T_IO_GETARGS:
+    case T_IO_GETARGREF:
     case T_IO_GETTIMEMILLI:
     case T_IO_CCALL:
     case T_IO_CATCH:
@@ -2677,28 +2686,10 @@ execio(NODEPTR *np)
       RETIO(n);
 #endif
 #if WANT_ARGS
-    case T_IO_GETARGS:
+    case T_IO_GETARGREF:
       CHECKIO(0);
-      {
-      /* compute total number of characters */
-        size_t size = 0;
-        for(int i = 0; i < glob_argc; i++) {
-          size += strNodes(strlen(glob_argv[i]));
-        }
-        /* The returned list will need a CONS for each string, and a NIL */
-        size += glob_argc * 2 + 1;
-        GCCHECK(size);
-        /*
-        PRINT("total size %d:", size);
-        for(int i = 0; i < glob_argc; i++)
-          PRINT(" %s", glob_argv[i]);
-        PRINT("\n");
-        */
-        n = mkNil();
-        for(int i = glob_argc-1; i >= 0; i--) {
-          n = mkCons(mkString(glob_argv[i], strlen(glob_argv[i])), n);
-        }
-      }
+      n = alloc_node(T_ARR);
+      ARR(n) = argarray;
       RETIO(n);
 #endif
 
@@ -2889,6 +2880,9 @@ MAIN
 #if WANT_ARGS
   char *inname = 0;
   char **av;
+  char *progname;
+  char **gargv;
+  int gargc;
   int inrts;
 #if WANT_TICK
   int dump_ticks = 0;
@@ -2910,8 +2904,9 @@ MAIN
 #endif
 
 #if WANT_ARGS
+  progname = argv[0];
   argc--, argv++;
-  glob_argv = argv;
+  gargv = argv;
   for (av = argv, inrts = 0; argc--; argv++) {
     char *p = *argv;
     if (inrts) {
@@ -2945,7 +2940,7 @@ MAIN
       }
     }
   }
-  glob_argc = av - glob_argv;
+  gargc = av - gargv;
 
   if (inname == 0)
     inname = "out.comb";
@@ -2955,6 +2950,25 @@ MAIN
   stack = MALLOC(sizeof(NODEPTR) * stack_size);
   if (!stack)
     memerr();
+
+#if WANT_ARGS
+  /* Initialize an IORef (i.e., single element IOArray
+   * to contain the list of program arguments.
+   * The 0th element is the program name, and the rest
+   * are the non RTS arguments.
+   */
+  {
+    NODEPTR n;
+    /* No GC checks, the heap is empty. */
+    n = mkNil();
+    for(int i = gargc-1; i >= 0; i--) {
+      n = mkCons(mkString(gargv[i], strlen(gargv[i])), n);
+    }
+    n = mkCons(mkString(progname, strlen(progname)), n);
+    argarray = arr_alloc(1, n);      /* An IORef contains a single element array */
+    argarray->permanent = 1;         /* never GC the arguments, because a T_IO_GETARGREF can reach argarray */
+  }
+#endif  /* WANT_ARGS */
 
   if (combexpr) {
     int c;
