@@ -57,6 +57,7 @@ import Data.RealFrac
 import Data.Records
 import Data.Semigroup
 import Data.STRef
+import Data.String
 import Data.Traversable
 import Data.Tuple
 import Data.Typeable

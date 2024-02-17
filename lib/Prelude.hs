@@ -30,6 +30,7 @@ module Prelude(
   module Data.RealFrac,
   module Data.Records,
   module Data.Semigroup,
+  module Data.String,
   module Data.Tuple,
   module Data.Word,
   module System.IO,
@@ -58,7 +59,7 @@ import Data.Functor(Functor(..), (<$>))
 import Data.Int(Int)
 import Data.Integer(Integer)
 import Data.Integral(Integral(..), fromIntegral, gcd, lcm, even, odd, (^))
-import Data.List
+import Data.List  -- XXX
 import Data.Maybe(Maybe(..), maybe)
 import Data.Monoid(Monoid(..))
 import Data.Num(Num(..), subtract)
@@ -69,6 +70,7 @@ import Data.RealFloat(RealFloat(..))
 import Data.RealFrac(RealFrac(..))
 import Data.Records  -- XXX redo this somehow
 import Data.Semigroup(Semigroup(..))
+import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(()(..), fst, snd)
 import Data.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,

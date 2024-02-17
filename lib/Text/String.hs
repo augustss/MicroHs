@@ -28,25 +28,6 @@ showListS sa as = showListWith (\ a s -> sa a ++ s) as ""
 showPairS :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
 showPairS sa sb (a, b) = "(" ++ sa a ++ "," ++ sb b ++ ")"
 
-lines :: String -> [String]
-lines "" = []
-lines s =
-  case span (not . (== '\n')) s of
-    (l, s') -> case s' of { [] -> [l]; _:s'' -> l : lines s'' }
-
-unlines :: [String] -> String
-unlines = concatMap (++ "\n")
-
-words :: String -> [String]
-words s =
-  case dropWhile isSpace s of
-    "" -> []
-    s' -> w : words s''
-      where (w, s'') = span (not . isSpace) s'
-
-unwords :: [String] -> String
-unwords ss = intercalate " " ss
-
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s
 
