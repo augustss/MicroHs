@@ -40,6 +40,9 @@ boolPrefix = "Data.Bool_Type."
 listPrefix :: String
 listPrefix = "Data.List_Type."
 
+nameList :: String
+nameList = listPrefix ++ "[]"
+
 nameInt :: String
 nameInt = "Primitives.Int"
 
@@ -565,7 +568,7 @@ primTypes =
        (mkIdentB "~",            [entry nameTypeEq   kTypeTypeConstraintS]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        -- XXX should not be needed
-       (mkIdentB (listPrefix ++ "[]"), [entry (listPrefix ++ "[]") kTypeTypeS]),
+       (mkIdentB nameList,       [entry nameList     kTypeTypeS]),
        (mkIdentB "\x2192",       [entry nameArrow    kTypeTypeTypeS]),  -- ->
        (mkIdentB "\x21d2",       [entry nameImplies  kImplies])         -- =>
       ] ++
@@ -1109,12 +1112,15 @@ expandClass dcls@(Class ctx (iCls, vks) fds ms) = do
               def (Just eqns) = Fcn iDflt eqns
               iDflt = mkDefaultMethodId methId
               -- XXX This isn't right, "Prelude._nodefault" might not be in scope
-              noDflt = EApp noDefaultE (ELit noSLoc (LStr (unIdent iCls ++ "." ++ unIdent methId)))
+              noDflt = EApp noDefaultE (mkEStr (getSLoc iCls) (unIdent iCls ++ "." ++ unIdent methId))
       mkDflt _ = impossible
       dDflts = concatMap mkDflt meths
   addClassTable (qualIdent mn iCls) (vks, ctx, EUVar 0, methIds, mkIFunDeps (map idKindIdent vks) fds)   -- Initial entry, no type needed.
   return $ dcls : dDflts
 expandClass d = return [d]
+
+mkEStr :: SLoc -> String -> Expr
+mkEStr loc str = ESign (ELit loc (LStr str)) $ EListish $ LList [tConI loc "Char"]
 
 simpleEqn :: Expr -> [Eqn]
 simpleEqn e = [Eqn [] $ simpleAlts e]
@@ -1461,47 +1467,56 @@ tcExprR mt ae =
 
     EOper e ies -> do e' <- tcOper e ies; tcExpr mt e'
     ELam qs -> tcExprLam mt qs
-    ELit loc' l -> do
+    ELit _ l -> do
       tcm <- gets tcMode
       case tcm of
         TCType ->
           case l of
-            LStr _ -> instSigma loc' (ELit loc' l) (tConI loc' nameSymbol) mt
-            LInteger _ -> instSigma loc' (ELit loc' l) (tConI loc' nameNat) mt
+            LStr _ -> instSigma loc (ELit loc l) (tConI loc nameSymbol) mt
+            LInteger _ -> instSigma loc (ELit loc l) (tConI loc nameNat) mt
             _      -> impossible
         TCExpr -> do
           let getExpected (Infer _) = pure Nothing
-              getExpected (Check t) = do
-                t' <- derefUVar t >>= expandSyn
-                case t' of
-                  EVar v -> pure (Just v)
-                  _      -> pure Nothing
+              getExpected (Check t) = Just <$> (derefUVar t >>= expandSyn)
           case l of
             LInteger i -> do
               mex <- getExpected mt
               case mex of
                 -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
                 -- (which is not always in scope).
-                Just v | v == mkIdent nameInt     -> tcLit  mt loc' (LInt (fromInteger i))
-                       | v == mkIdent nameWord    -> tcLit' mt loc' (LInt (fromInteger i)) (tConI loc' nameWord)
-                       | v == mkIdent nameDouble  -> tcLit  mt loc' (LDouble (fromInteger i))
-                       | v == mkIdent nameInteger -> tcLit  mt loc' l
+                Just (EVar v) | v == mkIdent nameInt     -> tcLit  mt loc (LInt (fromInteger i))
+                              | v == mkIdent nameWord    -> tcLit' mt loc (LInt (fromInteger i)) (tConI loc nameWord)
+                              | v == mkIdent nameDouble  -> tcLit  mt loc (LDouble (fromInteger i))
+                              | v == mkIdent nameInteger -> tcLit  mt loc l
                 _ -> do
-                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromInteger"))  -- XXX should have this qualified somehow
+                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc "fromInteger"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
                   -- We don't need to check that _at is Integer, it's part of the fromInteger type.
                   instSigma loc (EApp f ae) rt mt
             LRat r -> do
               mex <- getExpected mt
               case mex of
-                Just v | v == mkIdent nameDouble -> tcLit  mt loc' (LDouble (fromRational r))
+                Just (EVar v) | v == mkIdent nameDouble -> tcLit mt loc (LDouble (fromRational r))
                 _ -> do
-                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc' "fromRational"))  -- XXX should have this qualified somehow
+                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc "fromRational"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
                   -- We don't need to check that _at is Rational, it's part of the fromRational type.
                   instSigma loc (EApp f ae) rt mt
-            -- Not LInteger, LRat
-            _ -> tcLit mt loc' l
+{- This implements OverloadedStrings, but it needs work since it add 3% to the compile time.
+            LStr r -> do
+              mex <- getExpected mt
+              case mex of
+                Just (EApp (EVar lst) (EVar c))
+                  | lst == mkIdent nameList, c == mkIdent nameChar -> tcLit mt loc (LStr r)
+                _ -> do
+                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc $ "fromString"))  -- XXX should have this qualified somehow
+                  (_at, rt) <- unArrow loc ft
+                  -- We don't need to check that _at is String, it's part of the fromString type.
+                  --traceM ("LStr " ++ show (loc, r))
+                  instSigma loc (EApp f ae) rt mt
+-}
+            -- Not LInteger, LRat, LStr
+            _ -> tcLit mt loc l
         _ -> impossible
     ECase a arms -> do
       -- XXX should look more like EIf
@@ -1713,7 +1728,7 @@ dsUpdate unset e flds = do
 enum :: SLoc -> String -> [Expr] -> Expr
 enum loc f = eApps (EVar (mkIdentSLoc loc ("enum" ++ f)))
 
-tcLit :: Expected -> SLoc -> Lit -> T Expr
+tcLit :: HasCallStack => Expected -> SLoc -> Lit -> T Expr
 tcLit mt loc l@(LPrim _) = newUVar >>= tcLit' mt loc l
 tcLit mt loc l = do
   let t =
@@ -2118,7 +2133,7 @@ dsType at =
     _ -> impossible
 
 tListI :: SLoc -> Ident
-tListI loc = mkIdentSLoc loc $ listPrefix ++ "[]"
+tListI loc = mkIdentSLoc loc nameList
 
 tList :: SLoc -> EType
 tList = tCon . tListI

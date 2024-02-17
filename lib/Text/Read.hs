@@ -18,11 +18,12 @@ import Data.Bool
 import Data.Either
 import Data.Eq
 import Data.Function
+import Data.Int
 import Data.List
 import Data.Maybe_Type
 import Data.Num
 import Data.Ord
-import Data.Int
+import Data.String
 import Text.Read.Numeric
 import Text.Read.Lex
 

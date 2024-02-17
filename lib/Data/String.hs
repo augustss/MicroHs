@@ -14,6 +14,9 @@ import Data.List
 class IsString a where
   fromString :: String -> a
 
+instance IsString String where
+  fromString s = s
+
 lines :: String -> [String]
 lines "" = []
 lines s =

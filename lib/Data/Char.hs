@@ -114,8 +114,8 @@ encodeChar c rest =
       case rest of
         [] -> False
         c : _ -> isDigit c
-    spec = [('\a',"\\a"), ('\b', "\\b"), ('\f', "\\f"), ('\n', "\\n"),
-            ('\r', "\\r"), ('\t', "\\t"), ('\v', "\\v"), ('\\', "\\\\")]
-    look [] = if isPrint c then [c] else "\\" ++ show (ord c) ++ if needProtect then "\\&" else ""
+    spec = [('\a',"\\a"::String), ('\b', "\\b"::String), ('\f', "\\f"::String), ('\n', "\\n"::String),
+            ('\r', "\\r"::String), ('\t', "\\t"::String), ('\v', "\\v"::String), ('\\', "\\\\"::String)]
+    look [] = if isPrint c then [c] else ("\\"::String) ++ show (ord c) ++ if needProtect then "\\&"::String else []
     look ((d,s):xs) = if d == c then s else look xs
   in look spec

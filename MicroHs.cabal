@@ -44,6 +44,7 @@ executable mhs
   main-is:             MicroHs/Main.hs
   default-extensions:  ScopedTypeVariables PatternGuards TupleSections TypeSynonymInstances MultiParamTypeClasses
                        FlexibleInstances OverloadedRecordDot DisambiguateRecordFields StandaloneKindSignatures
+                       OverloadedStrings
   other-modules:       MicroHs.Abstract
                        MicroHs.Compile
                        MicroHs.CompileCache

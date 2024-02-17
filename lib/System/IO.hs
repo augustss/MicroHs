@@ -41,6 +41,7 @@ import Data.Int
 import Data.List
 import Data.Maybe
 import Data.Num
+import Data.String
 import Data.Tuple
 import Text.Show
 import Foreign.C.String

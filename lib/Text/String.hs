@@ -18,6 +18,7 @@ import Data.Num
 import Data.Ord
 import Data.Ratio
 import Data.Real
+import Data.String
 import Data.Tuple
 import Text.Read
 import Text.Show

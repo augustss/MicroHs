@@ -216,7 +216,9 @@ conv b k r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (k+1)
 conv _ k r ds = (chr r, k, ds)
 
 isSpec :: Char -> Bool
-isSpec c = elem c "()[],{}`;"
+isSpec c = elem c specChars
+  where specChars :: String
+        specChars = "()[],{}`;"
 
 upperIdent :: Loc -> Loc -> [String] -> String -> [Token]
 --upperIdent l c qs acs | trace (show (l, c, qs, acs)) False = undefined
