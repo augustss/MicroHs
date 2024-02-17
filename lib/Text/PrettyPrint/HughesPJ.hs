@@ -9,6 +9,7 @@ module Text.PrettyPrint.HughesPJ(
   hcat, hsep,
   vcat,
   sep, cat,
+  fsep, fcat,
   nest, hang,
   punctuate,
   parens, brackets, braces,
@@ -79,7 +80,6 @@ brackets p = text "[" <> p <> text "]"
 
 -- mkNest checks for Nest's invariant that it doesn't have an Empty inside it
 mkNest :: Int -> Doc -> Doc
-mkNest k _ | k `seq` False = undefined
 mkNest k (Nest k1 p)       = mkNest (k + k1) p
 mkNest _ NoDoc             = NoDoc
 mkNest _ Empty             = Empty
@@ -366,3 +366,64 @@ fits _ Empty               = True
 fits _ (NilAbove _)        = True
 fits n (TextBeside s p)    = fits (n - length s) p
 fits _ _                   = error "fits"
+
+---------
+
+fcat :: [Doc] -> Doc
+fcat = fill False
+
+fsep :: [Doc] -> Doc
+fsep = fill True
+
+-- Specification:
+--
+-- fill g docs = fillIndent 0 docs
+--
+-- fillIndent k [] = []
+-- fillIndent k [p] = p
+-- fillIndent k (p1:p2:ps) =
+--    oneLiner p1 <g> fillIndent (k + length p1 + g ? 1 : 0)
+--                               (remove_nests (oneLiner p2) : ps)
+--     `Union`
+--    (p1 $*$ nest (-k) (fillIndent 0 ps))
+--
+-- $*$ is defined for layouts (not Docs) as
+-- layout1 $*$ layout2 | hasMoreThanOneLine layout1 = layout1 $$ layout2
+--                     | otherwise                  = layout1 $+$ layout2
+
+fill :: Bool -> [Doc] -> RDoc
+fill _ []     = empty
+fill g (p:ps) = fill1 g (reduceDoc p) 0 ps
+
+fill1 :: Bool -> RDoc -> Int -> [Doc] -> Doc
+fill1 _ _                   k _  | k `seq` False = undefined
+fill1 _ NoDoc               _ _  = NoDoc
+fill1 g (p `Union` q)       k ys = fill1 g p k ys `union_`
+                                   aboveNest q False k (fill g ys)
+fill1 g Empty               k ys = mkNest k (fill g ys)
+fill1 g (Nest n p)          k ys = nest_ n (fill1 g p (k - n) ys)
+fill1 g (NilAbove p)        k ys = nilAbove_ (aboveNest p False k (fill g ys))
+fill1 g (TextBeside s p)    k ys = textBeside_ s (fillNB g p k ys)
+fill1 _ (Above _ _ _)       _ _  = error "fill1 Above"
+fill1 _ (Beside _ _ _)      _ _  = error "fill1 Beside"
+
+fillNB :: Bool -> Doc -> Int -> [Doc] -> Doc
+fillNB _ _           k _  | k `seq` False = undefined
+fillNB g (Nest _ p)  k ys   = fillNB g p k ys
+                              -- Never triggered, because of invariant (2)
+fillNB _ Empty _ []         = Empty
+fillNB g Empty k (Empty:ys) = fillNB g Empty k ys
+fillNB g Empty k (y:ys)     = fillNBE g k y ys
+fillNB g p k ys             = fill1 g p k ys
+
+
+fillNBE :: Bool -> Int -> Doc -> [Doc] -> Doc
+fillNBE g k y ys
+  = nilBeside g (fill1 g ((elideNest . oneLiner . reduceDoc) y) k' ys)
+    -- XXX: TODO: PRETTY: Used to use True here (but GHC used False...)
+    `mkUnion` nilAboveNest False k (fill g (y:ys))
+  where k' = if g then k - 1 else k
+
+elideNest :: Doc -> Doc
+elideNest (Nest _ d) = d
+elideNest d          = d
