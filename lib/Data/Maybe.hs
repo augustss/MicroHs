@@ -51,15 +51,20 @@ instance Monad Maybe where
 instance MonadFail Maybe where
   fail _ = Nothing
 
+instance MonadPlus Maybe where
+  mzero = Nothing
+  Nothing `mplus` y = y
+  x       `mplus` _ = x
+
 instance Alternative Maybe where
   empty = Nothing
   Nothing <|> y = y
   x       <|> _ = x
 
 instance forall a . Semigroup a => Semigroup (Maybe a) where
-    Nothing <> b       = b
-    a       <> Nothing = a
-    Just a  <> Just b  = Just (a <> b)
+  Nothing <> b       = b
+  a       <> Nothing = a
+  Just a  <> Just b  = Just (a <> b)
 
 instance forall a . Semigroup a => Monoid (Maybe a) where
   mempty = Nothing

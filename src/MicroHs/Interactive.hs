@@ -11,7 +11,7 @@ import MicroHs.Ident(mkIdent, Ident)
 import qualified MicroHs.IdentMap as M
 import MicroHs.Parse
 import MicroHs.StateIO
-import MicroHs.TCMonad(Entry(..))
+import MicroHs.SymTab(Entry(..))
 import MicroHs.Translate
 import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..))
 import Unsafe.Coerce

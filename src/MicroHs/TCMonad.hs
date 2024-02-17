@@ -11,9 +11,10 @@ import Control.Monad.State.Strict
 import Data.Functor
 import qualified Data.IntMap as IM
 import Data.List(nub)
+import MicroHs.Expr
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
-import MicroHs.Expr
+import MicroHs.SymTab
 import Compat
 
 -----------------------------------------------
@@ -32,79 +33,11 @@ tcError = errorMessage
 instance MonadFail Identity where fail = error
 
 -----------------------------------------------
--- Symtab
-
-data SymTab a = SymTab (M.Map [a]) [(Ident, a)]
---  deriving(Show)
-
-instance forall a . Show a => Show (SymTab a) where
-  show (SymTab g l) = unlines $
-    ("Locals:"  : map (("  " ++) . show) l) ++
-    ("Globals:" : map (("  " ++) . show) (M.toList g))
-  
-mapMSymTab :: forall a . (a -> T a) -> SymTab a -> T (SymTab a)
-mapMSymTab f (SymTab g l) = do
-  g' <- M.mapM (mapM f) g
-  l' <- mapM (\ (i, a) -> (i,) <$> f a) l
-  return $ SymTab g' l'
-
-stLookup :: String -> Ident -> SymTab Entry -> Either String Entry
-stLookup msg i (SymTab genv lenv) =
-  case lookup i lenv of
-    Just e -> Right e
-    Nothing ->
-      case nub <$> M.lookup i genv of
-        Just [e] -> Right e
-        Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++ showListS (showIdent . getAppCon) [ e | Entry e _ <- es ]
-        Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
-                           -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
-
-stFromListWith :: forall a . ([a] -> [a] -> [a]) -> [(Ident, [a])] -> SymTab a
-stFromListWith comb ias = SymTab (M.fromListWith comb ias) []
-
-stFromList :: forall a . [(Ident, [a])] -> SymTab a
-stFromList ias = SymTab (M.fromList ias) []
-
-stElemsLcl :: forall a . SymTab a -> [a]
-stElemsLcl (SymTab _genv lenv) = map snd lenv
-
-stKeysLcl :: forall a . SymTab a -> [Ident]
-stKeysLcl (SymTab _genv lenv) = map fst lenv
-
-stInsertLcl :: forall a . Ident -> a -> SymTab a -> SymTab a
-stInsertLcl i a (SymTab genv lenv) = SymTab genv ((i,a) : lenv)
-
--- XXX Use insertWith to follow Haskell semantics.
-stInsertGlb :: forall a . Eq a => Ident -> [a] -> SymTab a -> SymTab a
-stInsertGlb i as (SymTab genv lenv) = SymTab (M.insertWith (++) i as genv) lenv
-
------------------------------------------------
--- Entry
-
--- Symbol table entry for symbol i.
-data Entry = Entry
-  Expr             -- convert (EVar i) to this expression; sometimes just (EVar i)
-  EType            -- type/kind of identifier
---  deriving(Show)
-
-instance Show Entry where
-  showsPrec _ (Entry e t) = showsPrec 0 e . showString " :: " . showsPrec 0 t
-
-instance Eq Entry where
-  Entry x _ == Entry y _  =  getIdent x == getIdent y
-
-
-entryType :: Entry -> EType
-entryType (Entry _ t) = t
-
------------------------------------------------
-
------------------------------------------------
 -- Tables
 
-type ValueTable = SymTab Entry     -- type of value identifiers, used during type checking values
-type TypeTable  = SymTab Entry     -- kind of type  identifiers, used during kind checking types
-type KindTable  = SymTab Entry     -- sort of kind  identifiers, used during sort checking kinds
+type ValueTable = SymTab           -- type of value identifiers, used during type checking values
+type TypeTable  = SymTab           -- kind of type  identifiers, used during kind checking types
+type KindTable  = SymTab           -- sort of kind  identifiers, used during sort checking kinds
 type SynTable   = M.Map EType      -- body of type synonyms
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated constructors/selectors/methods
@@ -254,13 +187,6 @@ assertTCMode p ta = do
 type T a = TC TCState a
 
 type Typed a = (a, EType)
-
-getIdent :: Expr -> Ident
-getIdent ae =
-  case ae of
-    EVar i -> i
-    ECon c -> conIdent c
-    _ -> error "getIdent"
 
 getAppCon :: HasCallStack => EType -> Ident
 getAppCon (EVar i) = i

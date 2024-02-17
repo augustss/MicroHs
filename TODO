@@ -37,7 +37,7 @@
 * Fix bug uncovered by Data.Type.Equality
 * mkQIdent
 * Do not use the C stack during evaluation
-* Fix bug, line 629, TypeCheck.c
+* Fix bug, line 629, TypeCheck.hs
 * Get rid of evalstring()
   - do everything in Haskell
   - make a low level primError that takes a utf8 string
@@ -46,4 +46,5 @@
 * Implement lazy matching
 * Implement strict matching
 * Change default 'default'?
-
+* Implement TAB completion
+* Better pretty print of Expr

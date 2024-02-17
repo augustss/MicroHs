@@ -24,11 +24,12 @@ import Data.Maybe
 import qualified Data.IntMap as IM
 import MicroHs.Deriving
 import MicroHs.Expr
+import MicroHs.Fixity
 import MicroHs.Graph
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
-import MicroHs.Fixity
-import MicroHs.TCMonad as T
+import MicroHs.SymTab
+import MicroHs.TCMonad
 import Compat
 import GHC.Stack
 import Debug.Trace
@@ -219,7 +220,7 @@ getTVExps _ tys _ _ cls (ExpType i) =
 getTVExps _ _ vals _ _ (ExpValue i) =
     ([], [], [ValueExport i (expLookup i vals)])
 
-expLookup :: Ident -> SymTab Entry -> Entry
+expLookup :: Ident -> SymTab -> Entry
 expLookup i m = either (errorMessage (getSLoc i)) id $ stLookup "export" i m
 
 tyQIdent :: Entry -> Ident
@@ -295,18 +296,19 @@ mkTables :: forall a . [(ImportSpec, TModule a)] ->
             (FixTable, TypeTable, SynTable, ClassTable, InstTable, ValueTable, AssocTable)
 mkTables mdls =
   let
-    qns (ImportSpec q _ mas _) mn i =
-      let
-        m = fromMaybe mn mas
-      in  if q || isInternalId i then [qualIdent m i] else [i, qualIdent m i]
     allValues :: ValueTable
     allValues =
       let
-        syms (is, TModule mn _ tes _ cls _ ves _) =
-          [ (v, [e]) | ValueExport i e    <- ves,                        v <- qns is mn i ] ++
-          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, v <- qns is mn i ] ++
+        usyms (ImportSpec qual _ _ _, TModule _ _ tes _ _ _ ves _) =
+          if qual then [] else
+          [ (i, [e]) | ValueExport i e    <- ves, not (isInternalId i)  ] ++
+          [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs ]
+        qsyms (ImportSpec _ _ mas _, TModule mn _ tes _ cls _ ves _) =
+          let m = fromMaybe mn mas in
+          [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent m i } ] ++
+          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdent m i } ] ++
           [ (v, [Entry (EVar v) t]) | (i, (_, _, t, _, _)) <- cls, let { v = mkClassConstructor i } ]
-      in  stFromListWith union $ concatMap syms mdls
+      in  stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
     allSyns =
       let
         syns (_, TModule _ _ _ ses _ _ _ _) = ses
@@ -314,8 +316,12 @@ mkTables mdls =
     allTypes :: TypeTable
     allTypes =
       let
-        types (is, TModule mn _ tes _ _ _ _ _) = [ (v, [e]) | TypeExport i e _ <- tes, v <- qns is mn i ]
-      in stFromListWith union $ concatMap types mdls
+        usyms (ImportSpec qual _ _ _, TModule _ _ tes _ _ _ _ _) =
+          if qual then [] else [ (i, [e]) | TypeExport i e _ <- tes ]
+        qsyms (ImportSpec _ _ mas _, TModule mn _ tes _ _ _ _ _) =
+          let m = fromMaybe mn mas in
+          [ (qualIdent m i, [e]) | TypeExport i e _ <- tes ]
+      in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
     allFixes =
       let
         fixes (_, TModule _ fes _ _ _ _ _ _) = fes
@@ -466,8 +472,8 @@ initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ClassTable -> Inst
 initTC mn fs ts ss cs is vs as =
 --  trace ("**** initTC " ++ showIdent mn ++ ": " ++ showListS (showPairS showIdent showEType) (M.toList ss)) $
   let
-    xts = foldr (uncurry stInsertGlb) ts primTypes
-    xvs = foldr (uncurry stInsertGlb) vs primValues
+    xts = foldr (uncurry stInsertGlbU) ts primTypes
+    xvs = foldr (uncurry stInsertGlbU) vs primValues
   in TC { moduleName = mn, unique = 1, fixTable = addPrimFixs fs, typeTable = xts,
           synTable = ss, valueTable = xvs, assocTable = as, uvarSubst = IM.empty,
           tcMode = TCExpr, classTable = cs, ctxTables = (is,[],[]), constraints = [], defaults = [] }
@@ -506,12 +512,12 @@ mkIdentB = mkIdentSLoc builtinLoc
 primSortTable :: KindTable
 primSortTable =
   let
-    entry i = Entry (EVar (mkIdentB i))
-  in stFromList [
+    entry i s = Entry (EVar (mkIdentB i)) s
+    qsorts = [
        -- The kinds are wired in (for now)
-       (mkIdentB nameKind,       [entry nameKind rSort]),
-       (mkIdentB "Kind",         [entry nameKind rSort])
-     ]
+       (mkIdentB nameKind,       [entry nameKind rSort])
+       ]
+  in stFromList (map (first unQualIdent) qsorts) qsorts
 
 -- E.g.
 --  Type       :: Kind
@@ -520,20 +526,16 @@ primSortTable =
 primKindTable :: KindTable
 primKindTable =
   let
-    entry i = Entry (EVar (mkIdentB i))
-  in stFromList [
+    entry i k = Entry (EVar (mkIdentB i)) k
+    qkinds = [
        -- The kinds are wired in (for now)
        (mkIdentB nameType,       [entry nameType sKind]),
-       (mkIdentB "Type",         [entry nameType sKind]),
        (mkIdentB nameConstraint, [entry nameConstraint sKind]),
-       (mkIdentB "Constraint",   [entry nameConstraint sKind]),
        (mkIdentB nameSymbol,     [entry nameSymbol sKind]),
-       (mkIdentB "Symbol",       [entry nameSymbol sKind]),
        (mkIdentB nameNat,        [entry nameNat sKind]),
-       (mkIdentB "Nat",          [entry nameNat sKind]),
-       (mkIdentB nameArrow,      [entry nameArrow sKindKindKind]),
-       (mkIdentB "->",           [entry nameArrow sKindKindKind])
+       (mkIdentB nameArrow,      [entry nameArrow sKindKindKind])
        ]
+  in stFromList (map (first unQualIdent) qkinds) qkinds
 
 -- E.g.
 --  Bool  :: Type
@@ -822,8 +824,8 @@ extValETop i t e = do
   mn <- gets moduleName
   venv <- gets valueTable
   let qi = qualIdent mn i
-      venv'  = stInsertGlb qi [Entry e t] venv
-      venv'' = stInsertGlb  i [Entry e t] venv'
+      venv'  = stInsertGlbQ qi [Entry e t] venv
+      venv'' = stInsertGlbU  i [Entry e t] venv'
   putValueTable venv''
 
 -- Extend symbol table with i::t.
@@ -1737,7 +1739,7 @@ tcOper ae aies = do
     opfix :: (Ident, Expr) -> T ((Expr, Fixity), Expr)
     opfix (i, e) = do
       (ei, _) <- tLookupV i
-      let fx = getFixity fixs (getIdent ei)
+      let fx = getFixity fixs (getAppCon ei)
       return ((EVar i, fx), e)
 
   ites <- mapM opfix aies
@@ -2663,7 +2665,7 @@ addMetaDicts = do
 
 -----------------------------
 {-
-showSymTab :: SymTab Entry -> String
+showSymTab :: SymTab -> String
 showSymTab (SymTab im ies) = showListS showIdent (map fst (M.toList im) ++ map fst ies)
 
 showTModuleExps :: TModule a -> String

@@ -64,6 +64,7 @@ executable mhs
                        MicroHs.MakeCArray
                        MicroHs.Parse
                        MicroHs.StateIO
+                       MicroHs.SymTab
                        MicroHs.TCMonad
                        MicroHs.Translate
                        MicroHs.TypeCheck
