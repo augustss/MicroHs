@@ -91,9 +91,10 @@ instance forall s tm t . Monad (Prsr s tm t) where
   (>>=) p k = P $ \ t ->
     case runP p t of
       Many aus plf ->
-        let { xss = [ runP (k a) u | (a, u) <- aus ] }
-        in  case unzip [ (rs, lf) | Many rs lf <- xss ] of
-              (rss, lfs) -> Many (concat rss) (longests (plf : lfs))
+        let ms = map (\ (a, u) -> runP (k a) u) aus
+            rss = map (\ (Many rs _) -> rs) ms
+            lfs = map (\ (Many _ lf) -> lf) ms
+        in  Many (concat rss) (longests (plf : lfs))
   return = pure
 
 instance forall s t tm . TokenMachine tm t => MonadFail (Prsr s tm t) where
