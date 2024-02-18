@@ -1467,18 +1467,18 @@ tcExprR mt ae =
 
     EOper e ies -> do e' <- tcOper e ies; tcExpr mt e'
     ELam qs -> tcExprLam mt qs
-    ELit _ l -> do
+    ELit _ lit -> do
       tcm <- gets tcMode
       case tcm of
         TCType ->
-          case l of
-            LStr _ -> instSigma loc (ELit loc l) (tConI loc nameSymbol) mt
-            LInteger _ -> instSigma loc (ELit loc l) (tConI loc nameNat) mt
+          case lit of
+            LStr _ -> instSigma loc (ELit loc lit) (tConI loc nameSymbol) mt
+            LInteger _ -> instSigma loc (ELit loc lit) (tConI loc nameNat) mt
             _      -> impossible
         TCExpr -> do
           let getExpected (Infer _) = pure Nothing
               getExpected (Check t) = Just <$> (derefUVar t >>= expandSyn)
-          case l of
+          case lit of
             LInteger i -> do
               mex <- getExpected mt
               case mex of
@@ -1487,7 +1487,7 @@ tcExprR mt ae =
                 Just (EVar v) | v == mkIdent nameInt     -> tcLit  mt loc (LInt (fromInteger i))
                               | v == mkIdent nameWord    -> tcLit' mt loc (LInt (fromInteger i)) (tConI loc nameWord)
                               | v == mkIdent nameDouble  -> tcLit  mt loc (LDouble (fromInteger i))
-                              | v == mkIdent nameInteger -> tcLit  mt loc l
+                              | v == mkIdent nameInteger -> tcLit  mt loc lit
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc "fromInteger"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
@@ -1503,20 +1503,20 @@ tcExprR mt ae =
                   -- We don't need to check that _at is Rational, it's part of the fromRational type.
                   instSigma loc (EApp f ae) rt mt
 {- This implements OverloadedStrings, but it needs work since it add 3% to the compile time.
-            LStr r -> do
+            LStr _ -> do
               mex <- getExpected mt
               case mex of
                 Just (EApp (EVar lst) (EVar c))
-                  | lst == mkIdent nameList, c == mkIdent nameChar -> tcLit mt loc (LStr r)
-                _ -> do
+                  | lst == mkIdent nameList, c == mkIdent nameChar -> tcLit mt loc lit
+                _ -> tcLit mt loc lit {-do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc $ "fromString"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
                   -- We don't need to check that _at is String, it's part of the fromString type.
                   --traceM ("LStr " ++ show (loc, r))
-                  instSigma loc (EApp f ae) rt mt
+                  instSigma loc (EApp f ae) rt mt-}
 -}
             -- Not LInteger, LRat, LStr
-            _ -> tcLit mt loc l
+            _ -> tcLit mt loc lit
         _ -> impossible
     ECase a arms -> do
       -- XXX should look more like EIf
@@ -2479,7 +2479,7 @@ solveInst loc iCls cts = do
 
 solveGen :: [IFunDep] -> [InstDict] -> SolveOne
 solveGen fds insts loc iCls cts = do
---  traceM ("solveGen " ++ showEType ct)
+--  traceM ("solveGen " ++ show (iCls, cts))
   let matches = getBestMatches $ findMatches loc fds insts cts
 --  traceM ("matches " ++ showListS show (findMatches loc fds insts cts))
 --  traceM ("matches " ++ showListS showMatch matches)
