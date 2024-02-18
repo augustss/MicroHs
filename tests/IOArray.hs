@@ -3,6 +3,7 @@ import Prelude
 import Data.IOArray
 import Data.IORef
 import System.IO
+default (String)
 
 main :: IO ()
 main = do

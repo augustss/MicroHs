@@ -1,10 +1,11 @@
 module StringTest(module StringTest) where
 import Prelude
+default (String)
 
 main :: IO ()
 main = do
-  putStrLn $ if (==) "abc" "abc" then "yes" else "no"
-  putStrLn $ if (==) "abc" "adc" then "yes" else "no"
+  putStrLn $ if "abc" == "abc" then "yes" else "no"
+  putStrLn $ if "abc" == "adc" then "yes" else "no"
   putStrLn $ show (1234::Int)
   putStrLn $ show (0::Int)
   putStrLn $ show (- (567::Int))

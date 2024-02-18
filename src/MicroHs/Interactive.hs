@@ -35,7 +35,7 @@ mainInteractive flags = do
 
 preamble :: String
 preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++
-           ") where\nimport Prelude\nimport System.IO.PrintOrRun\ndefault (Integer, Double)\n"
+           ") where\nimport Prelude\nimport System.IO.PrintOrRun\ndefault (Integer, Double, String)\n"
 
 start :: I ()
 start = do

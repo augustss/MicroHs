@@ -791,14 +791,14 @@ tLookupV i = do
   tcm <- gets tcMode
   tLookup (msgTCMode tcm) i
 
-tInst :: HasCallStack => (Expr, EType) -> T (Expr, EType)
-tInst (ae, EForall vks t) = tInstForall ae vks t >>= tInst
-tInst (ae, at) | Just (ctx, t) <- getImplies at = do
+tInst :: HasCallStack => Expr -> EType -> T (Expr, EType)
+tInst ae (EForall vks t) = tInstForall ae vks t >>= uncurry tInst
+tInst ae at | Just (ctx, t) <- getImplies at = do
   d <- newDictIdent (getSLoc ae)
   --traceM $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
   addConstraint d ctx
-  tInst (EApp ae (EVar d), t)
-tInst at = return at
+  tInst (EApp ae (EVar d)) t
+tInst ae at = return (ae, at)
 
 tInstForall :: Expr -> [IdKind] -> EType -> T (Expr, EType)
 tInstForall ae vks t =
@@ -904,8 +904,10 @@ tcDefs ds = do
   tcDefsValue dst'
 
 setDefault :: [EDef] -> T ()
-setDefault defs =
-  putDefaults $ last $ [] : [ ts | Default ts <- defs ]
+setDefault defs = do
+  let ds = last $ [] : [ ts | Default ts <- defs ]
+  ds' <- mapM expandSyn ds
+  putDefaults ds'
 
 tcAddInfix :: EDef -> T ()
 tcAddInfix (Infix fx is) = do
@@ -1502,19 +1504,18 @@ tcExprR mt ae =
                   (_at, rt) <- unArrow loc ft
                   -- We don't need to check that _at is Rational, it's part of the fromRational type.
                   instSigma loc (EApp f ae) rt mt
-{- This implements OverloadedStrings, but it needs work since it add 3% to the compile time.
+            -- This implements OverloadedStrings.  It causes a small slowdown (2%)
             LStr _ -> do
               mex <- getExpected mt
               case mex of
                 Just (EApp (EVar lst) (EVar c))
-                  | lst == mkIdent nameList, c == mkIdent nameChar -> tcLit mt loc lit
-                _ -> tcLit mt loc lit {-do
+                 | lst == mkIdent nameList, c == mkIdent nameChar -> tcLit mt loc lit
+                _ -> do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc $ "fromString"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
                   -- We don't need to check that _at is String, it's part of the fromString type.
                   --traceM ("LStr " ++ show (loc, r))
-                  instSigma loc (EApp f ae) rt mt-}
--}
+                  instSigma loc (EApp f ae) rt mt
             -- Not LInteger, LRat, LStr
             _ -> tcLit mt loc lit
         _ -> impossible
@@ -2256,10 +2257,10 @@ subsCheckRho :: HasCallStack =>
                 SLoc -> Expr -> Sigma -> Rho -> T Expr
 --subsCheckRho _ e1 t1 t2 | trace ("subsCheckRho: " ++ show e1 ++ " :: " ++ show t1 ++ " = " ++ show t2) False = undefined
 subsCheckRho loc exp1 sigma1@(EForall _ _) rho2 = do -- Rule SPEC
-  (exp1', rho1) <- tInst (exp1, sigma1)
+  (exp1', rho1) <- tInst exp1 sigma1
   subsCheckRho loc exp1' rho1 rho2
 subsCheckRho loc exp1 arho1 rho2 | Just _ <- getImplies arho1 = do
-  (exp1', rho1) <- tInst (exp1, arho1)
+  (exp1', rho1) <- tInst exp1 arho1
   subsCheckRho loc exp1' rho1 rho2
 subsCheckRho loc exp1 rho1 rho2 | Just (a2, r2) <- getArrow rho2 = do -- Rule FUN
   (a1, r1) <- unArrow loc rho1
@@ -2284,7 +2285,7 @@ instSigma loc e1 t1 (Check t2) = do
 --  traceM ("instSigma: Check " ++ showEType t1 ++ " = " ++ showEType t2)
   subsCheckRho loc e1 t1 t2
 instSigma loc e1 t1 (Infer r) = do
-  (e1', t1') <- tInst (e1, t1)
+  (e1', t1') <- tInst e1 t1
   --traceM ("instSigma: Infer " ++ showEType t1 ++ " ==> " ++ showEType t1')
   tSetRefType loc r t1'
   return e1'
