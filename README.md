@@ -60,6 +60,7 @@ Differences:
    * OverlappingInstances
    * OverloadedRecordDot
    * OverloadedRecordUpdate
+   * OverloadedStrings
    * PolyKinds
    * RankNTypes
    * RecordWildCards
@@ -177,6 +178,7 @@ Do **NOT** use `-C` when you are changing the compiler itself; if the cached dat
 * `MakeCArray`, generate a C version of the combinator file.
 * `Parse`, parse and build and abstract syntax tree.
 * `StateIO`, state + IO monad.
+* `SymTab`, symbol table manipulation.
 * `TCMonad`, type checking monad.
 * `Translate`, convert an expression tree to its value.
 * `TypeCheck`, type checker.
