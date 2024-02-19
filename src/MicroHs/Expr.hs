@@ -40,12 +40,13 @@ module MicroHs.Expr(
   eForall,
   eDummy,
   impossible, impossibleShow,
+  pp, pshow,
   ) where
 import Prelude hiding ((<>))
 import Data.List
 import Data.Maybe
 import MicroHs.Ident
-import Text.PrettyPrint.HughesPJ
+import Text.PrettyPrint.HughesPJClass
 import GHC.Stack
 
 type IdentModule = Ident
@@ -258,8 +259,13 @@ type EConstraint = EType
 data IdKind = IdKind Ident EKind
 --DEBUG  deriving (Show)
 
+{-
 instance Show IdKind where
   show (IdKind i k) = "(" ++ show i ++ "::" ++ show k ++ ")"
+-}
+instance Pretty IdKind where
+  pPrintPrec l _p (IdKind i (EVar d)) | d == dummyIdent && l == prettyNormal = pp l i
+  pPrintPrec l p (IdKind i k) = maybeParens (p > 0) $ pp l i <+> "::" <+> pPrintPrec l 1 k
 
 idKindIdent :: IdKind -> Ident
 idKindIdent (IdKind i _) = i
@@ -522,6 +528,7 @@ errorMessage loc msg = error $ showSLoc loc ++ ": " ++ msg
 
 ----------------
 
+{-
 instance Show EModule where
   show (EModule nm _ ds) = "module " ++ showIdent nm ++ "(...) where\n" ++ showEDefs ds
 
@@ -533,162 +540,174 @@ instance Show Eqn where
 
 instance Show EDef where
   show d = showEDefs [d]
+-}
 
 showExpr :: Expr -> String
-showExpr = render . ppExpr
+showExpr = prettyShow
 
 showEDefs :: [EDef] -> String
-showEDefs = render . ppEDefs
+showEDefs = render . vcat . map pPrint
 
 showEBind :: EBind -> String
-showEBind = render . ppEBind
+showEBind = prettyShow
 
 showEBinds :: [EBind] -> String
-showEBinds = render . vcat . map ppEBind
+showEBinds = render . vcat . map pPrint
 
 showEType :: EType -> String
-showEType = render . ppEType
+showEType = prettyShow
 
-ppImportItem :: ImportItem -> Doc
-ppImportItem ae =
-  case ae of
-    ImpTypeCon i -> ppIdent i <> text "(..)"
-    ImpType i -> ppIdent i
-    ImpValue i -> ppIdent i
+-- These two are to satisfy the parser
+instance Show EModule where show = pshow
+instance Show Expr where show = pshow
 
-ppEDef :: EDef -> Doc
-ppEDef def =
-  case def of
-    Data lhs [] ds -> text "data" <+> ppLHS lhs <+> ppDeriving ds
-    Data lhs cs ds -> text "data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDeriving ds
-    Newtype lhs c ds -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c <+> ppDeriving ds
-    Type lhs t -> text "type" <+> ppLHS lhs <+> text "=" <+> ppEType t
-    Fcn i eqns -> ppEqns (ppIdent i) (text "=") eqns
-    Sign is t -> hsep (punctuate (text ",") (map ppIdent is)) <+> text "::" <+> ppEType t
-    KindSign i t -> text "type" <+> ppIdent i <+> text "::" <+> ppEKind t
-    Import (ImportSpec q m mm mis) -> text "import" <+> (if q then text "qualified" else empty) <+> ppIdent m <> text (maybe "" ((" as " ++) . unIdent) mm) <>
-      case mis of
-        Nothing -> empty
-        Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ",") (map ppImportItem is))
-    ForImp ie i t -> text ("foreign import ccall " ++ show ie) <+> ppIdent i <+> text "::" <+> ppEType t
-    Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
-      where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
-    Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
-    Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
-    Default ts -> text "default" <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
+instance Pretty EModule where
+  pPrintPrec l _ (EModule mn es ds) =
+    "module" <+> pp l mn <> parens (sep $ punctuate comma $ map (pp l) es) <+> "where" $$
+    vcat (map (pp l) ds)
+  
+instance Pretty ExportItem where
+  pPrintPrec l _ (ExpModule mn) = "module" <+> pp l mn
+  pPrintPrec l _ (ExpTypeCon i) = pp l i <> "(..)"
+  pPrintPrec l _ (ExpType    i) = pp l i
+  pPrintPrec l _ (ExpValue   i) = pp l i
 
-ppDeriving :: Deriving -> Doc
-ppDeriving [] = empty
-ppDeriving ds = text "deriving" <+> parens (hsep $ punctuate (text ",") (map ppExpr ds))
+instance Pretty ImportItem where
+  pPrintPrec l _ ae =
+    case ae of
+      ImpTypeCon i -> pp l i <> "(..)"
+      ImpType i -> pp l i
+      ImpValue i -> pp l i
 
-ppCtx :: [EConstraint] -> Doc
-ppCtx [] = empty
-ppCtx ts = ppEType (ETuple ts) <+> text "=>"
+instance Pretty EDef where
+  pPrintPrec l _ def =
+    case def of
+      Data lhs [] ds -> "data" <+> ppLHS l lhs <+> ppDeriving l ds
+      Data lhs cs ds -> "data" <+> ppLHS l lhs <+> "=" <+> hsep (punctuate (text " |") (map (pp l) cs)) <+> ppDeriving l ds
+      Newtype lhs c ds -> text "newtype" <+> ppLHS l lhs <+> "=" <+> pp l c <+> ppDeriving l ds
+      Type lhs t -> text "type" <+> ppLHS l lhs <+> text "=" <+> pp l t
+      Fcn i eqns -> ppEqns l (pp l i) (text "=") eqns
+      Sign is t -> hsep (punctuate comma (map (pp l) is)) <+> "::" <+> pp l t
+      KindSign i t -> "type" <+> pp l i <+> "::" <+> pp l t
+      Import (ImportSpec q m mm mis) -> "import" <+> (if q then "qualified" else empty) <+> pp l m <>
+        maybe empty (\ i -> "as" <+> pp l i) mm <>
+        case mis of
+          Nothing -> empty
+          Just (h, is) -> (if h then " hiding" else empty) <> parens (hsep $ punctuate comma (map (pp l) is))
+      ForImp ie i t -> "foreign import ccall" <+> text (show ie) <+> pp l i <+> text "::" <+> pp l t
+      Infix (a, p) is -> "infix" <> f a <+> text (show p) <+> hsep (punctuate comma (map (pp l) is))
+        where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
+      Class sup lhs fds bs -> ppWhere l ("class" <+> ppCtx l sup <+> ppLHS l lhs <+> ppFunDeps l fds) bs
+      Instance ct bs -> ppWhere l ("instance" <+> pp l ct) bs
+      Default ts -> "default" <+> parens (hsep (punctuate comma (map (pp l) ts)))
 
-ppFunDeps :: [FunDep] -> Doc
-ppFunDeps [] = empty
-ppFunDeps fds =
-  text "|" <+> hsep (punctuate (text ",") (map (\ (is, os) -> hsep (map ppIdent is) <+> text "-" <+> hsep (map ppIdent os)) fds))
+ppDeriving :: PrettyLevel -> Deriving -> Doc
+ppDeriving _ [] = empty
+ppDeriving l ds = "deriving" <+> parens (hsep $ punctuate comma (map (pp l) ds))
 
-ppEqns :: Doc -> Doc -> [Eqn] -> Doc
-ppEqns name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map ppEPat ps), ppAlts sepr alts])
+ppCtx :: PrettyLevel -> [EConstraint] -> Doc
+ppCtx _ [] = empty
+ppCtx l ts = pp l (ETuple ts) <+> "=>"
 
-ppConstr :: Constr -> Doc
-ppConstr (Constr iks ct c cs) = ppForall iks <+> ppCtx ct <+> ppIdent c <+> ppCs cs
-  where ppCs (Left  ts) = hsep (map ppSType ts)
-        ppCs (Right fs) = braces (hsep $ map f fs)
-          where f (i, t) = ppIdent i <+> text "::" <+> ppSType t <> text ","
+ppFunDeps :: PrettyLevel -> [FunDep] -> Doc
+ppFunDeps _ [] = empty
+ppFunDeps l fds =
+  "|" <+> hsep (punctuate comma (map (\ (is, os) -> hsep (map (pp l) is) <+> "->" <+> hsep (map (pp l) os)) fds))
 
-ppSType :: SType -> Doc
-ppSType (False, t) = ppEType t
-ppSType (True, t) = text "!" <> ppEType t
+ppEqns :: PrettyLevel -> Doc -> Doc -> [Eqn] -> Doc
+ppEqns l name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map (pp l) ps), ppAlts l sepr alts])
 
-ppLHS :: LHS -> Doc
-ppLHS (f, vs) = hsep (ppIdent f : map ppIdKind vs)
+instance Pretty Constr where
+  pPrintPrec l _ (Constr iks ct c cs) = ppForall l iks <+> ppCtx l ct <+> pp l c <+> ppCs cs
+    where ppCs (Left  ts) = hsep (map (ppSType l) ts)
+          ppCs (Right fs) = braces (hsep $ map f fs)
+            where f (i, t) = pp l i <+> text "::" <+> ppSType l t <> comma
 
-ppIdKind :: IdKind -> Doc
-ppIdKind (IdKind i k) = parens $ ppIdent i <> text "::" <> ppEKind k
+ppSType :: PrettyLevel -> SType -> Doc
+ppSType l (False, t) =        pp l t
+ppSType l (True,  t) = "!" <> pp l t
 
-ppEDefs :: [EDef] -> Doc
-ppEDefs ds = vcat (map pp ds)
-  where pp d@(Sign _ _) = ppEDef d
-        pp d@(Import _) = ppEDef d
-        pp d            = ppEDef d $+$ text ""
+ppLHS :: PrettyLevel -> LHS -> Doc
+ppLHS l (f, vs) = hsep (pp l f : map (pp l) vs)
 
-ppAlts :: Doc -> EAlts -> Doc
-ppAlts asep (EAlts alts bs) = ppWhere (ppAltsL asep alts) bs
+{-
+ppEDefs :: PrettyLevel -> [EDef] -> Doc
+ppEDefs l ds = vcat (map f ds)
+  where f d@(Sign _ _) = pp l d
+        f d@(Import _) = pp l d
+        f d            = pp l d $+$ text ""
+-}
 
-ppWhere :: Doc -> [EBind] -> Doc
-ppWhere d [] = d
-ppWhere d bs = (d <+> text "where") $+$ nest 2 (vcat (map ppEBind bs))
+ppAlts :: PrettyLevel -> Doc -> EAlts -> Doc
+ppAlts l asep (EAlts alts bs) = ppWhere l (ppAltsL l asep alts) bs
 
-ppAltsL :: Doc -> [EAlt] -> Doc
-ppAltsL asep [([], e)] = text "" <+> asep <+> ppExpr e
-ppAltsL asep alts = vcat (map (ppAlt asep) alts)
+ppWhere :: PrettyLevel -> Doc -> [EBind] -> Doc
+ppWhere _ d [] = d
+ppWhere l d bs = (d <+> "where") $+$ nest 2 (vcat (map (pp l) bs))
 
-ppAlt :: Doc -> EAlt -> Doc
-ppAlt asep (ss, e) = text " |" <+> hsep (punctuate (text ",") (map ppEStmt ss)) <+> asep <+> ppExpr e
+ppAltsL :: PrettyLevel -> Doc -> [EAlt] -> Doc
+ppAltsL l asep [([], e)] = text "" <+> asep <+> pp l e
+ppAltsL l asep alts = vcat (map (ppAlt l asep) alts)
 
-ppExpr :: Expr -> Doc
-ppExpr ae =
+ppAlt :: PrettyLevel -> Doc -> EAlt -> Doc
+ppAlt l asep (ss, e) = " |" <+> hsep (punctuate comma (map (pp l) ss)) <+> asep <+> pp l e
+
+instance Pretty Expr where
+ pPrintPrec l _p ae =
   case ae of
     EVar i | isOperChar cop -> parens (text op)
            | otherwise      -> text s
              where op = unIdent (unQualIdent i)
                    s = if "inst$" `isPrefixOf` op then unIdent i else op
                    cop = head op
-    EApp _ _ -> ppApp [] ae
-    EOper e ies -> ppExpr (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
-    ELam qs -> parens $ text "\\" <> ppEqns empty (text "->") qs
-    ELit _ i -> text (showLit i)
-    ECase e as -> text "case" <+> ppExpr e <+> text "of" $$ nest 2 (vcat (map ppCaseArm as))
-    ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppExpr e
-    ETuple es -> parens $ hsep $ punctuate (text ",") (map ppExpr es)
-    EDo mn ss -> maybe (text "do") (\ n -> ppIdent n <> text ".do") mn $$ nest 2 (vcat (map ppEStmt ss))
-    ESectL e i -> parens $ ppExpr e <+> ppIdent i
-    ESectR i e -> parens $ ppIdent i <+> ppExpr e
-    EIf e1 e2 e3 -> parens $ sep [text "if" <+> ppExpr e1, text "then" <+> ppExpr e2, text "else" <+> ppExpr e3]
-    EListish l -> ppListish l
-    ESign e t -> parens $ ppExpr e <+> text "::" <+> ppEType t
-    ENegApp e -> text "-" <+> ppExpr e
-    EUpdate ee ies -> ppExpr ee <> text "{" <+> hsep (punctuate (text ",") (map ppField ies)) <+> text "}"
-    ESelect is -> parens $ hcat $ map (\ i -> text "." <> ppIdent i) is
-    EAt i e -> ppIdent i <> text "@" <> ppExpr e
-    EViewPat e p -> parens $ ppExpr e <+> text "->" <+> ppExpr p
+    EApp _ _ -> ppApp l [] ae
+    EOper e ies -> pp l (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
+    ELam qs -> parens $ text "\\" <> ppEqns l empty "->" qs
+    ELit _ i -> pp l i
+    ECase e as -> text "case" <+> pp l e <+> text "of" $$ nest 2 (vcat (map (ppCaseArm l) as))
+    ELet bs e -> text "let" $$ nest 2 (vcat (map (pp l) bs)) $$ text "in" <+> pp l e
+    ETuple es -> parens $ hsep $ punctuate (text ",") (map (pp l) es)
+    EDo mn ss -> maybe (text "do") (\ n -> pp l n <> text ".do") mn $$ nest 2 (vcat (map (pp l) ss))
+    ESectL e i -> parens $ pp l e <+> pp l i
+    ESectR i e -> parens $ pp l i <+> pp l e
+    EIf e1 e2 e3 -> parens $ sep [text "if" <+> pp l e1, text "then" <+> pp l e2, text "else" <+> pp l e3]
+    EListish lst -> pp l lst
+    ESign e t -> parens $ pp l e <+> text "::" <+> pp l t
+    ENegApp e -> text "-" <+> pp l e
+    EUpdate ee ies -> pp l ee <> braces (hsep (punctuate comma (map (pp l) ies)))
+    ESelect is -> parens $ hcat $ map (\ i -> text "." <> pp l i) is
+    EAt i e -> pp l i <> text "@" <> pp l e
+    EViewPat e pat -> parens $ pp l e <+> text "->" <+> pp l pat
     EUVar i -> text ("_a" ++ show i)
-    ECon c -> ppCon c
-    EForall iks e -> ppForall iks <+> ppEType e
---  where
-ppApp :: [Expr] -> Expr -> Doc
-ppApp as (EApp f a) = ppApp (a:as) f
-ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppExpr a <+> text op <+> ppExpr b
-                  | isOperChar cop, [a] <- as    = parens $ ppExpr a <+> text op
-                  | cop == ','                   = ppExpr (ETuple as)
-                  | op == "[]", length as == 1   = ppExpr (EListish (LList as))
-                    where op = unIdent (unQualIdent i)
-                          cop = head op
-ppApp as f = parens $ hsep (map ppExpr (f:as))
+    ECon (ConData _ s _) -> pp l s
+    ECon (ConNew s _) -> pp l s
+    EForall iks e -> ppForall l iks <+> pp l e
 
-ppField :: EField -> Doc
-ppField (EField is e) = hcat (punctuate (text ".") (map ppIdent is)) <+> text "=" <+> ppExpr e
-ppField (EFieldPun is) = hcat (punctuate (text ".") (map ppIdent is))
-ppField EFieldWild = text ".."
+ppApp :: PrettyLevel -> [Expr] -> Expr -> Doc
+ppApp l as (EApp f a) = ppApp l (a:as) f
+ppApp l as (EVar i) | isOperChar cop, [a, b] <- as = parens $ pp l a <+> text op <+> pp l b
+                    | isOperChar cop, [a] <- as    = parens $ pp l a <+> text op
+                    | cop == ','                   = pp l (ETuple as)
+                    | op == "[]", length as == 1   = pp l (EListish (LList as))
+  where op = unIdent (unQualIdent i)
+        cop = head op
+ppApp l as f = parens $ hsep (map (pp l) (f:as))
 
-ppForall :: [IdKind] -> Doc
---ppForall [] = empty
-ppForall iks = text "forall" <+> hsep (map ppIdKind iks) <+> text "."
+instance Pretty EField where
+  pPrintPrec l _ (EField is e) = hcat (punctuate "." (map (pp l) is)) <+> "=" <+> pp l e
+  pPrintPrec l _ (EFieldPun is) = hcat (punctuate "." (map (pp l) is))
+  pPrintPrec _ _  EFieldWild = ".."
 
-ppListish :: Listish -> Doc
-ppListish (LList es) = ppList ppExpr es
-ppListish (LCompr e ss) = brackets $ ppExpr e <+> text "|" <+> hsep (punctuate (text ",") (map ppEStmt ss))
-ppListish (LFrom e1) = brackets $ ppExpr e1 <> text ".."
-ppListish (LFromTo e1 e2) = brackets $ ppExpr e1 <> text ".." <> ppExpr e2
-ppListish (LFromThen e1 e2) = brackets $ ppExpr e1 <> text "," <> ppExpr e2 <> text ".."
-ppListish (LFromThenTo e1 e2 e3) = brackets $ ppExpr e1 <> text "," <> ppExpr e2 <> text ".." <> ppExpr e3
+ppForall :: PrettyLevel -> [IdKind] -> Doc
+ppForall l iks = "forall" <+> hsep (map (pp l) iks) <+> "."
 
-ppCon :: Con -> Doc
-ppCon (ConData _ s _) = ppIdent s
-ppCon (ConNew s _) = ppIdent s
+instance Pretty Listish where
+  pPrintPrec l _ (LList es) = ppList (pp l) es
+  pPrintPrec l _ (LCompr e ss) = brackets $ pp l e <+> "|" <+> hsep (punctuate comma (map (pp l) ss))
+  pPrintPrec l _ (LFrom e1) = brackets $ pp l e1 <> ".."
+  pPrintPrec l _ (LFromTo e1 e2) = brackets $ pp l e1 <> ".." <> pp l e2
+  pPrintPrec l _ (LFromThen e1 e2) = brackets $ pp l e1 <> comma <> pp l e2 <> ".."
+  pPrintPrec l _ (LFromThenTo e1 e2 e3) = brackets $ pp l e1 <> comma <> pp l e2 <> ".." <> pp l e3
 
 -- Literals are tagged the way they appear in the combinator file:
 --  #   Int
@@ -697,9 +716,12 @@ ppCon (ConNew s _) = ppIdent s
 --  "   String
 --  ^   FFI function
 --      primitive
+instance Pretty Lit where
+  pPrintPrec _ _ = text . showLit
+
 showLit :: Lit -> String
-showLit l =
-  case l of
+showLit lit =
+  case lit of
     LInt i     -> '#' : show i
     LInteger i -> '#' : '#' : show i
     LDouble d  -> '&' : show d
@@ -711,36 +733,25 @@ showLit l =
     LForImp s  -> '^' : s
     LTick s    -> '!' : s
 
-ppEStmt :: EStmt -> Doc
-ppEStmt as =
-  case as of
-    SBind p e -> ppEPat p <+> text "<-" <+> ppExpr e
-    SThen e -> ppExpr e
-    SLet bs -> text "let" $$ nest 2 (vcat (map ppEBind bs))
+instance Pretty EStmt where
+  pPrintPrec l _ as =
+    case as of
+    SBind p e -> pp l p <+> "<-" <+> pp l e
+    SThen e -> pp l e
+    SLet bs -> "let" $$ nest 2 (vcat (map (pp l) bs))
 
-ppEBind :: EBind -> Doc
-ppEBind ab =
-  case ab of
-    BFcn i eqns -> ppEDef (Fcn i eqns)
-    BPat p e -> ppEPat p <+> text "=" <+> ppExpr e
-    BSign i t -> ppIdent i <+> text "::" <+> ppEType t
+instance Pretty EBind where
+  pPrintPrec l _ ab =
+    case ab of
+      BFcn i eqns -> pp l (Fcn i eqns)
+      BPat p e -> pp l p <+> "=" <+> pp l e
+      BSign i t -> pp l i <+> "::" <+> pp l t
 
-ppCaseArm :: ECaseArm -> Doc
-ppCaseArm arm =
-  case arm of
-    (p, alts) -> ppEPat p <> ppAlts (text "->") alts
-
-ppEPat :: EPat -> Doc
-ppEPat = ppExpr
-
-ppEType :: EType -> Doc
-ppEType = ppExpr
-
-ppEKind :: EKind -> Doc
-ppEKind = ppEType
+ppCaseArm :: PrettyLevel -> ECaseArm -> Doc
+ppCaseArm l (p, alts) = pp l p <> ppAlts l "->" alts
 
 ppList :: forall a . (a -> Doc) -> [a] -> Doc
-ppList pp xs = brackets $ hsep $ punctuate (text ",") (map pp xs)
+ppList pr xs = brackets $ hsep $ punctuate comma (map pr xs)
 
 getBindVars :: EBind -> [Ident]
 getBindVars abind =
@@ -766,5 +777,11 @@ impossible = error "impossible"
 
 impossibleShow :: forall a b .
                   HasCallStack =>
-                  (Show a, HasLoc a) => a -> b
-impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ show a
+                  (Pretty a, HasLoc a) => a -> b
+impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ pshow a
+
+pp :: forall a . Pretty a => PrettyLevel -> a -> Doc
+pp l = pPrintPrec l 0
+
+pshow :: forall a . Pretty a => a -> String
+pshow = prettyShow

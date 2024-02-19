@@ -18,7 +18,7 @@ module MicroHs.Ident(
 import Data.Eq
 import Prelude
 import Data.Char
-import Text.PrettyPrint.HughesPJ
+import Text.PrettyPrint.HughesPJClass
 import GHC.Stack
 
 type Line = Int
@@ -46,6 +46,9 @@ instance Ord Ident where
 
 instance Show Ident where
   show = showIdent
+
+instance Pretty Ident where
+  pPrintPrec _ _ = text . showIdent
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0

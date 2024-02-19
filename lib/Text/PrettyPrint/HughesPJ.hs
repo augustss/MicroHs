@@ -16,8 +16,12 @@ module Text.PrettyPrint.HughesPJ(
   maybeParens,
   Style,
   render, renderStyle,
+  comma,
   ) where
 import Prelude hiding ((<>))
+import Data.Monoid hiding ((<>))
+import Data.Semigroup hiding ((<>))
+import Data.String
 
 infixl 6 <>, <+>
 infixl 5 $$, $+$
@@ -32,7 +36,19 @@ data Doc
   | Beside Doc Bool Doc                              -- ^ True <=> space between.
   | Above Doc Bool Doc                               -- ^ True <=> never overlap.
 
+instance IsString Doc where
+  fromString = text
+
+instance Semigroup Doc where
+  (<>) = (<>)
+
+instance Monoid Doc where
+  mempty = empty
+
 type RDoc = Doc
+
+comma :: Doc
+comma = text ","
 
 text :: String -> Doc
 text s = TextBeside s Empty

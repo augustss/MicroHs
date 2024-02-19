@@ -192,7 +192,7 @@ getAppCon :: HasCallStack => EType -> Ident
 getAppCon (EVar i) = i
 getAppCon (ECon i) = conIdent i
 getAppCon (EApp f _) = getAppCon f
-getAppCon e = error $ "getAppCon: " ++ show e
+getAppCon e = error $ "getAppCon: " ++ pshow e
 
 -----------------------------------------------
 
@@ -220,7 +220,7 @@ freeTyVars = foldr (go []) []
     go bound (ESign e _) acc = go bound e acc
     go bound (EListish (LList [e])) acc = go bound e acc
     go bound (ETuple es) acc = goList bound es acc
-    go _ x _ = error ("freeTyVars: " ++ show x) --  impossibleShow x
+    go _ x _ = error ("freeTyVars: " ++ pshow x) --  impossibleShow x
     goList bound es acc = foldr (go bound) acc es
 
 addConstraints :: [EConstraint] -> EType -> EType

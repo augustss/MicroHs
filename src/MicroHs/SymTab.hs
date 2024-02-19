@@ -15,6 +15,7 @@ import Data.List
 import MicroHs.Expr(Expr(..), EType, conIdent)
 import MicroHs.Ident(Ident, showIdent)
 import qualified MicroHs.IdentMap as M
+import Text.PrettyPrint.HughesPJClass
 import Compat
 
 -- Symbol table
@@ -26,8 +27,8 @@ data Entry = Entry
   EType            -- type/kind of identifier
 --  deriving(Show)
 
-instance Show Entry where
-  showsPrec _ (Entry e t) = showsPrec 0 e . showString " :: " . showsPrec 0 t
+instance Pretty Entry where
+  pPrintPrec l _ (Entry e t) = pPrintPrec l 0 e <+> "::" <+> pPrintPrec l 0 t
 
 instance Eq Entry where
   Entry x _ == Entry y _  =  getIdent x == getIdent y
@@ -59,12 +60,15 @@ data SymTab = SymTab {
   }
 --  deriving(Show)
 
-instance Show SymTab where
-  show (SymTab l ug qg) = unlines $
-    ("Locals:"  : map (("  " ++) . show) l) ++
-    ("UGlobals:" : map (("  " ++) . show) (M.toList ug)) ++
-    ("QGlobals:" : map (("  " ++) . show) (M.toList qg))
-  
+instance Pretty SymTab where
+  pPrintPrec l _ (SymTab lcl ug qg) = vcat $
+    ("Locals:"   : map f lcl) ++
+    ("UGlobals:" : map f (M.toList ug)) ++
+    ("QGlobals:" : map f (M.toList qg))
+    where
+      f :: forall a . Pretty a => a -> Doc
+      f = nest 2 . pPrintPrec l 0
+
 mapMSymTab :: forall m . Monad m => (Entry -> m Entry) -> SymTab -> m SymTab
 mapMSymTab f (SymTab l ug qg) = do
   l' <- mapM (\ (i, a) -> (i,) <$> f a) l

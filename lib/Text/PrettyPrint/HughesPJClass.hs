@@ -25,7 +25,6 @@ module Text.PrettyPrint.HughesPJClass (
     -- re-export HughesPJ
     module Text.PrettyPrint.HughesPJ
   ) where
-
 import Text.PrettyPrint.HughesPJ
 
 -- | Level of detail in the pretty printed output. Level 0 is the least
@@ -59,9 +58,6 @@ pPrint0 l = pPrintPrec l 0
 
 appPrec :: Rational
 appPrec = 10
-
-comma :: Doc
-comma = text ","
 
 -- Various Pretty instances
 instance Pretty Int where pPrint = text . show

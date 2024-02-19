@@ -30,9 +30,10 @@ import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.SymTab
 import MicroHs.TCMonad
+import Text.PrettyPrint.HughesPJClass(Pretty(..), (<+>), parens)
 import Compat
 import GHC.Stack
-import Debug.Trace
+import Debug.TraceD
 
 boolPrefix :: String
 boolPrefix = "Data.Bool_Type."
@@ -1372,9 +1373,9 @@ tcKind mk = assertTCMode (==TCType) . withTypeTable . tcKindT mk
 data Expected = Infer TRef | Check EType
 --  deriving(Show)
 
-instance Show Expected where
-  show (Infer r) = "(Infer " ++ show r ++ ")"
-  show (Check t) = "(Check " ++ show t ++ ")"
+instance Pretty Expected where
+  pPrintPrec l _ (Infer r) = parens $ "Infer " <+> pp l r
+  pPrintPrec l _ (Check t) = parens $ "Check " <+> pp l t
 
 tInfer :: forall a b . HasCallStack =>
           (Expected -> a -> T b) -> a -> T (Typed b)
@@ -1638,7 +1639,7 @@ tcExprR mt ae =
     ESelect is -> do
         let x = eVarI loc "$x"
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
-    _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
+    _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ pshow ae
       -- impossible
 
 -- Approximation if failure free
@@ -1700,7 +1701,7 @@ dsEFields apat =
     ECon _ -> return apat
     EUpdate c fs -> EUpdate c . concat <$> mapM (dsEField c) fs
     ENegApp _ -> return apat
-    _ -> error $ "dsEFields " ++ show apat
+    _ -> error $ "dsEFields " ++ pshow apat
 
 -- XXX could be better
 unsetField :: Ident -> Expr
@@ -1877,9 +1878,9 @@ tcArm t tpat arm =
   case arm of
     -- The dicts introduced by tCheckPatC are
     -- used in the tCheckExprAndSolve in tcAlt.
-    (p, alts) -> tCheckPatC tpat p $ \ pp -> do
+    (p, alts) -> tCheckPatC tpat p $ \ p' -> do
       alts' <- tcAlts t alts
-      return (pp, alts')
+      return (p', alts')
 
 tCheckExprAndSolve :: EType -> Expr -> T Expr
 tCheckExprAndSolve t e = do
@@ -1920,14 +1921,14 @@ tCheckPatC t app ta = do
   multCheck vs
   env <- mapM (\ v -> (v,) <$> newUVar) vs
   withExtVals env $ do
-    (_sks, ds, pp) <- tCheckPat t app'
+    (_sks, ds, p') <- tCheckPat t app'
 --    traceM ("tCheckPatC: " ++ show pp)
-    () <- checkArity 0 pp
+    () <- checkArity 0 p'
 --    xt <- derefUVar t
 --    traceM ("tCheckPatC ds=" ++ show ds ++ "t=" ++ show xt)
     -- XXX must check for leaking skolems
     withDicts ds $
-      ta pp
+      ta p'
 
 type EPatRet = ([TyVar], [(Ident, EConstraint)], EPat)  -- skolems, dictionaries, pattern
 
@@ -1967,10 +1968,10 @@ tcPat mt ae =
                      return ([(di, ctx)], EApp app (EVar di), pt')
                    
                -- We will only have an expected type for a non-nullary constructor
-               pp <- case mt of
+               p' <- case mt of
                        Check ext -> subsCheck loc p ext pt
                        Infer r   -> do { tSetRefType loc r pt; return p }
-               return (sks, d, pp)
+               return (sks, d, p')
 
            | otherwise -> do
                -- All pattern variables are in the environment as
@@ -2047,7 +2048,7 @@ tcPat mt ae =
         Just p' -> tcPat mt p'
         Nothing -> impossible
 
-    _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ show ae
+    _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ pshow ae
 
 multCheck :: [Ident] -> T ()
 multCheck vs =
@@ -2636,7 +2637,7 @@ checkConstraints = do
       t' <- derefUVar t
 --      is <- gets instTable
 --      traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> show i ++ ":\n" ++ showInstInfo ii) (M.toList is))
-      tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ show t'
+      tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ pshow t'
 
 -- Add a type equality constraint.
 addEqConstraint :: SLoc -> EType -> EType -> T ()
