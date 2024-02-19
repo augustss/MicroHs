@@ -112,13 +112,13 @@ lex loc (d:cs) | isOperChar d  =
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
 lex loc (d:cs) | isSpec d  = TSpec loc d : lex (addCol loc 1) cs
 lex loc ('"':cs) =
-  case takeChars loc (TString loc) '"' 0 [] cs of
-    (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
+  case takeChars loc (TString loc) '"' (addCol loc 1) [] cs of
+    (t, loc', rs) -> t : lex loc' rs
 lex loc ('\'':cs) =
   let tchar [c] = TChar loc c
       tchar _ = TError loc "Illegal Char literal"
-  in  case takeChars loc tchar '\'' 0 [] cs of  -- XXX head of
-        (t, n, rs) -> t : lex (addCol loc $ 2 + n) rs
+  in  case takeChars loc tchar '\'' (addCol loc 1) [] cs of  -- XXX head of
+        (t, loc', rs) -> t : lex loc' rs
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ show d]
 lex _ [] = []
 
@@ -153,6 +153,7 @@ skipNest loc 0 cs           = lex loc cs
 skipNest loc n ('{':'-':cs) = skipNest (addCol loc 2) (n + 1) cs
 skipNest loc n ('-':'}':cs) = skipNest (addCol loc 2) (n - 1) cs
 skipNest loc n ('\n':cs)    = skipNest (incrLine loc)  n      cs
+skipNest loc n ('\t':cs)    = skipNest (tabCol loc)    n      cs
 skipNest loc n ('\r':cs)    = skipNest loc             n      cs
 skipNest loc n (_:cs)       = skipNest (addCol loc 1)  n      cs
 skipNest loc _ []           = [TError loc "Unclosed {- comment"]
@@ -170,33 +171,41 @@ tIndent :: [Token] -> [Token]
 tIndent ts@(TIndent _ : _) = ts
 tIndent ts = TIndent (tokensLoc ts) : ts
 
-takeChars :: Loc -> (String -> Token) -> Char -> Int -> String -> String -> (Token, Int, String)
-takeChars loc _ c n _ [] = (TError loc ("Unmatched " ++ [c]), n, [])
-takeChars loc fn c n str ('\\':cs) =
+takeChars :: Loc -> (String -> Token) -> Char -> Loc -> String -> String -> (Token, Loc, String)
+takeChars oloc  _ c loc _ [] = (TError oloc ("Unmatched " ++ [c]), loc, [])
+takeChars oloc fn c loc str ('\\':cs) =
+  let skipGap l (' ' :rs) = skipGap (addCol l 1) rs
+      skipGap l ('\n':rs) = skipGap (incrLine l) rs
+      skipGap l ('\r':rs) = skipGap l rs
+      skipGap l ('\t':rs) = skipGap (tabCol l) rs
+      skipGap l ('\\':rs) = takeChars oloc fn c (addCol l 1) str rs
+      skipGap l       rs  = (TError oloc "Bad string gap", l, rs)
+  in
   case cs of
-    '&':rs -> takeChars loc fn c (n+2) str rs
+    '&':rs -> takeChars oloc fn c (addCol loc 2) str rs
+    d:_ | isSpace d -> skipGap loc cs
     _ ->
-      case decodeChar (n+1) cs of
-        (d, m, rs) -> takeChars loc fn c m (d:str) rs
-takeChars   _ fn c n str (d:cs) | c == d = (fn (reverse str), n, cs)
-takeChars loc fn c n str (d:cs) = takeChars loc fn c (n+1) (d:str) cs
+      case decodeChar cs of
+        (d, m, rs) -> takeChars oloc fn c (addCol loc m) (d:str) rs
+takeChars   _  fn c loc str (d:cs) | c == d = (fn (reverse str), addCol loc 1, cs)
+takeChars oloc fn c loc str (d:cs) = takeChars oloc fn c (addCol loc 1) (d:str) cs
 
-decodeChar :: Int -> String -> (Char, Int, String)
-decodeChar n ('n':cs) = ('\n', n+1, cs)
-decodeChar n ('a':cs) = ('\a', n+1, cs)
-decodeChar n ('b':cs) = ('\b', n+1, cs)
-decodeChar n ('f':cs) = ('\f', n+1, cs)
-decodeChar n ('r':cs) = ('\r', n+1, cs)
-decodeChar n ('t':cs) = ('\t', n+1, cs)
-decodeChar n ('v':cs) = ('\v', n+1, cs)
-decodeChar n ('x':cs) = conv 16 (n+1) 0 cs
-decodeChar n ('o':cs) = conv 8 (n+1) 0 cs
-decodeChar n ('^':c:cs) | '@' <= c && c <= '_' = (chr (ord c - ord '@'), n+2, cs)
-decodeChar n (cs@(c:_)) | isDigit c = conv 10 n 0 cs
-decodeChar n (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = (c, n+3, cs)
-decodeChar n (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = (c, n+2, cs)
-decodeChar n (c  :cs) = (c,    n+1, cs)
-decodeChar n []       = ('X',  n,   [])
+decodeChar :: String -> (Char, Int, String)
+decodeChar ('n':cs) = ('\n', 1, cs)
+decodeChar ('a':cs) = ('\a', 1, cs)
+decodeChar ('b':cs) = ('\b', 1, cs)
+decodeChar ('f':cs) = ('\f', 1, cs)
+decodeChar ('r':cs) = ('\r', 1, cs)
+decodeChar ('t':cs) = ('\t', 1, cs)
+decodeChar ('v':cs) = ('\v', 1, cs)
+decodeChar ('x':cs) = conv 16 1 0 cs
+decodeChar ('o':cs) = conv 8 1 0 cs
+decodeChar ('^':c:cs) | '@' <= c && c <= '_' = (chr (ord c - ord '@'), 2, cs)
+decodeChar (cs@(c:_)) | isDigit c = conv 10 0 0 cs
+decodeChar (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = (c, 3, cs)
+decodeChar (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = (c, 2, cs)
+decodeChar (c  :cs) = (c,    1, cs)
+decodeChar []       = ('X',  0,   [])
 
 -- Nobody uses these, but it's part of the Haskell Report so...
 ctlCodes :: [(String, Char)]
