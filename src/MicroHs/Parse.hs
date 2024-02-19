@@ -612,11 +612,7 @@ pUpdate = pSpec '{' *> esepBy pEField (pSpec ',') <* pSpec '}'
       (EFieldWild <$ pSymbol "..")
 
 pSelect :: P Ident
-pSelect = do
-  fn <- getFileName
-  let is (TSelect loc s) = Just (mkIdentLoc fn loc s)
-      is _ = Nothing
-  satisfyM "select" is
+pSelect = pSpec '.' *> pLIdent
 
 pAExpr' :: P Expr
 pAExpr' = (

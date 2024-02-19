@@ -19,13 +19,13 @@ data Token
   | TRat    Loc Rational         -- Rational literal (i.e., decimal number)
   | TSpec   Loc Char             -- one of ()[]{},`;
                                  -- for synthetic {} we use <>, also
+                                 --  .  for record selection
                                  --  ~  for lazy
                                  --  !  for strict
                                  --  NOT YET  @  for type app
   | TError  Loc String           -- lexical error
   | TBrace  Loc                  -- {n} in the Haskell report
   | TIndent Loc                  -- <n> in the Haskell report
-  | TSelect Loc String           -- special '.foo' token
   | TEnd
   | TRaw [Token]
   deriving (Show)
@@ -42,7 +42,6 @@ showToken (TSpec _ c) | c == '<' = "{ layout"
 showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
 showToken (TIndent _) = "TIndent"
-showToken (TSelect _ s) = "." ++ s
 showToken TEnd = "EOF"
 showToken (TRaw _) = "TRaw"
 
@@ -107,9 +106,8 @@ lex loc (d:cs) | isLower_ d =
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('0':x:cs) | toLower x == 'x' = hexNumber loc cs
 lex loc cs@(d:_) | isDigit d = number loc cs
-lex loc ('.':d:cs) | isLower_ d =
-  case span isIdentChar cs of
-    (ds, rs) -> TSelect loc (d:ds) : lex (addCol loc $ 1 + length ds) rs
+lex loc ('.':cs@(d:_)) | isLower_ d =
+  TSpec loc '.' : lex (addCol loc 1) cs
 lex loc (c:cs@(d:_)) | (c == '!' || c == '~') && (d == '(' || isIdentChar d) =
   TSpec loc c : lex (addCol loc 1) cs
 lex loc (d:cs) | isOperChar d =
@@ -272,7 +270,6 @@ tokensLoc (TSpec   loc _  :_) = loc
 tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
-tokensLoc (TSelect loc _  :_) = loc
 tokensLoc _                   = mkLocEOF
 
 readHex :: String -> Integer
