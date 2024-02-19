@@ -452,6 +452,8 @@ pAPat =
   <|< (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
   <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSRArrow *> pAPat <* pSpec ')'))
+  <|< (ELazy True  <$> (pSpec '~' *> pAPat))
+  <|< (ELazy False <$> (pSpec '!' *> pAPat))
   where evar v Nothing = EVar v
         evar v (Just upd) = EUpdate (EVar v) upd
 
