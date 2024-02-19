@@ -1697,6 +1697,7 @@ dsEFields apat =
     ESign p t -> ESign <$> dsEFields p <*> pure t
     EAt i p -> EAt i <$> dsEFields p
     EViewPat e p -> EViewPat e <$> dsEFields p
+    ELazy z p -> ELazy z <$> dsEFields p
     ECon _ -> return apat
     EUpdate c fs -> EUpdate c . concat <$> mapM (dsEField c) fs
     ENegApp _ -> return apat
@@ -2035,6 +2036,10 @@ tcPat mt ae =
       (sk, d, p') <- tcPat (Check ter) p
       return (sk, d, EViewPat e' p')
 
+    ELazy z p -> do
+      (sk, d, p') <- tcPat mt p
+      return (sk, d, ELazy z p')
+
     -- Allow C{} syntax even for non-records
     EUpdate p [] -> do
       (p', _) <- tInferExpr p
@@ -2068,6 +2073,7 @@ checkArity n (ECon c) =
       else
         return ()
 checkArity n (EAt _ p) = checkArity n p
+checkArity n (ELazy _ p) = checkArity n p
 checkArity n (ESign p _) = checkArity n p
 checkArity n p =
   case p of

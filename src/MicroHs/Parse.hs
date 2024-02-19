@@ -360,7 +360,7 @@ pSAType = (,) <$> pStrict <*> pAType
 pSType :: P (Bool, EType)
 pSType  = (,) <$> pStrict <*> pType
 pStrict :: P Bool
-pStrict = (True <$ pSymbol "!") <|< pure False
+pStrict = (True <$ pSpec '!') <|< pure False
 
 pLHS :: P LHS
 pLHS = (,) <$> pTypeIdentSym <*> emany pIdKind

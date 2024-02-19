@@ -18,7 +18,10 @@ data Token
   | TInt    Loc Integer          -- Integer literal
   | TRat    Loc Rational         -- Rational literal (i.e., decimal number)
   | TSpec   Loc Char             -- one of ()[]{},`;
-                                 -- for synthetic {} we use <>
+                                 -- for synthetic {} we use <>, also
+                                 --  ~  for lazy
+                                 --  !  for strict
+                                 --  NOT YET  @  for type app
   | TError  Loc String           -- lexical error
   | TBrace  Loc                  -- {n} in the Haskell report
   | TIndent Loc                  -- <n> in the Haskell report
@@ -107,7 +110,9 @@ lex loc cs@(d:_) | isDigit d = number loc cs
 lex loc ('.':d:cs) | isLower_ d =
   case span isIdentChar cs of
     (ds, rs) -> TSelect loc (d:ds) : lex (addCol loc $ 1 + length ds) rs
-lex loc (d:cs) | isOperChar d  =
+lex loc (c:cs@(d:_)) | (c == '!' || c == '~') && (d == '(' || isIdentChar d) =
+  TSpec loc c : lex (addCol loc 1) cs
+lex loc (d:cs) | isOperChar d =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
 lex loc (d:cs) | isSpec d  = TSpec loc d : lex (addCol loc 1) cs
