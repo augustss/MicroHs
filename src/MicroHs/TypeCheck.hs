@@ -2010,7 +2010,7 @@ tcPat mt ae =
       te <- newUVar
       munify loc mt (tApp (tList loc) te)
       xs <- mapM (tCheckPat te) es
-      let (sks, ds, es') = unzip3 xs
+      let !(sks, ds, es') = unzip3 xs
       return (concat sks, concat ds, EListish (LList es'))
 
     ELit _ _ -> lit
@@ -2461,7 +2461,7 @@ solveMany [] uns sol imp = return (uns, sol, imp)
 solveMany (cns@(di, ct) : cnss) uns sol imp = do
 --  traceM ("trying " ++ showEType ct)
   let loc = getSLoc di
-      (iCls, cts) = getApp ct
+      !(iCls, cts) = getApp ct
       solver = head [ s | (p, s) <- solvers, p iCls ]
   msol <- solver loc iCls cts
   case msol of
@@ -2624,9 +2624,9 @@ combineTySubsts = combs []
 getBestMatches :: [(Int, (Expr, [EConstraint], [Improve]))] -> [(Expr, [EConstraint], [Improve])]
 getBestMatches [] = []
 getBestMatches ams =
-  let (args, insts) = partition (\ (_, (ei, _, _)) -> isDictArg ei) ams
-      isDictArg (EVar i) = (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i
+  let isDictArg (EVar i) = (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i
       isDictArg _ = True
+      !(args, insts) = partition (\ (_, (ei, _, _)) -> isDictArg ei) ams
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest

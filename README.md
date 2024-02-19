@@ -40,6 +40,7 @@ Differences:
  * No lazy patterns (`~pat`)
  * Kind variables need an explicit `forall`.
  * Always enabled extension:
+   * BangPatterns
    * ConstraintKinds
    * DuplicateRecordFields
    * EmptyDataDecls
@@ -76,6 +77,7 @@ Differences:
  * `main` in the top module given to `mhs` serves at the program entry point.
  * Many things that should be an error (but which are mostly harmless) are not reported.
  * Text file I/O uses UTF8, but the source code does not allow Unicode.
+ * The `BangPatterns` extension is parsed, but only effective at the a top level `let`/`where`.
  * More differences that I don't remember right now.
 
 ## Example
