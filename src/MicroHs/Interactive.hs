@@ -117,7 +117,18 @@ reload = do
     Right _  -> return ()
 
 helpText :: String
-helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n  :clear     clear all definitions\n  :delete d  delete definition(s) d\n  :type e    show type of e\n  :kind t    show type of t\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
+helpText = "\
+  \Commands:\n\
+  \:quit      quit MicroHs\n\
+  \:reload    reload modules\n\
+  \:clear     clear all definitions\n\
+  \:delete d  delete definition(s) d\n\
+  \:type e    show type of e\n\
+  \:kind t    show type of t\n\
+  \:help      this text\n\
+  \expr       evaluate expression\n\
+  \defn       add top level definition\n\
+  \"
 
 updateLines :: (String -> String) -> I ()
 updateLines f = modify $ \ (ls, flgs, cash) -> (f ls, flgs, cash)
