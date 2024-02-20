@@ -247,11 +247,18 @@ runCPPTmp flags infile = do
   removeFile fn
   return file
 
+mhsDefines :: [String]
+mhsDefines =
+  [ "'-DMIN_VERSION_base(x,y,z)=(x<=4||y<=14)'" -- Pretend we have base version 4.14
+  , "-D__MHS__"                                 -- We are MHS
+  ]
+
 runCPP :: Flags -> FilePath -> FilePath -> IO ()
 runCPP flags infile outfile = do
   mcpphs <- lookupEnv "MHSCPPHS"
   let cpphs = fromMaybe "cpphs" mcpphs
-      cmd = cpphs ++ " --noline -D__MHS__ " ++ infile ++ " -O" ++ outfile
+      args = mhsDefines ++ flags.cppArgs
+      cmd = cpphs ++ " --noline " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
   when (verbosityGT flags 0) $
     putStrLn $ "Execute: " ++ show cmd
   callCommand cmd

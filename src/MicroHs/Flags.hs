@@ -11,7 +11,8 @@ data Flags = Flags {
   readCache  :: Bool,       -- read and use cache
   writeCache :: Bool,       -- generate cache
   useTicks   :: Bool,       -- emit ticks
-  doCPP      :: Bool        -- run ccphs on input files
+  doCPP      :: Bool,       -- run ccphs on input files
+  cppArgs    :: [String]    -- flags for CPP
   }
   --deriving (Show)
 

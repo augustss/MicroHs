@@ -221,7 +221,7 @@ ctlCodes =
    ("DC4", '\DC4'), ("NAK", '\NAK'), ("SYN", '\SYN'), ("ETB", '\ETB'),
    ("CAN", '\CAN'), ("EM",  '\EM'),  ("SUB", '\SUB'), ("ESC", '\ESC'),
    ("FS",  '\FS'),  ("GS",  '\GS'),  ("RS",  '\RS'),  ("US",  '\US'), 
-   ("SP",  '\SP')]
+   ("SP",  '\SP'),  ("DEL", '\DEL')]
 
 conv :: Int -> Int -> Int -> String -> (Char, Int, String)
 conv b k r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (k+1) (r * b + n) ds

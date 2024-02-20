@@ -43,7 +43,8 @@ main = do
       readCache  = usingMhs && (elem "-C" args || elem "-CR" args),
       writeCache = usingMhs && (elem "-C" args || elem "-CW" args),
       useTicks   = elem "-T" args,
-      doCPP      = elem "-XCPP" args
+      doCPP      = elem "-XCPP" args,
+      cppArgs    = filter (\ s -> "-D" `isPrefixOf` s) args
       }
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
