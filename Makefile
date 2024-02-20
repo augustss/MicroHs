@@ -23,7 +23,7 @@ GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(G
 #
 .PHONY:	clean bootstrap install ghcgen newmhs cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info
 
-all:	bin/mhs
+all:	bin/mhs bin/cpphs
 
 newmhs:	ghcgen
 	$(CCEVAL) generated/mhs.c -o bin/mhs
@@ -34,8 +34,8 @@ bin/mhs:	src/runtime/*.c src/runtime/config*.h #generated/mhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/mhs.c -o bin/mhs
 
-# Compile mhs from distribution, with C compiler
-bin/cpphs:	src/runtime/*.c src/runtime/config*.h #generated/mhs.c
+# Compile cpphs from distribution, with C compiler
+bin/cpphs:	src/runtime/*.c src/runtime/config*.h generated/cpphs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/cpphs.c -o bin/cpphs
 
@@ -122,6 +122,7 @@ clean:
 install:
 	mkdir -p $(PREFIX)/bin
 	cp bin/mhs $(PREFIX)/bin
+	-cp bin/cpphs $(PREFIX)/bin
 	mkdir -p $(PREFIX)/lib/mhs/src/runtime
 	cp -r lib $(PREFIX)/lib/mhs
 	cp src/runtime/* $(PREFIX)/lib/mhs/src/runtime
