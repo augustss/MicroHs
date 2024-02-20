@@ -204,7 +204,7 @@ tryCompile file = do
   res <- liftIO $ try $ compileCacheTop flgs interactiveId cash
   case res of
     Left e -> return (Left e)
-    Right (m, cash') -> do
+    Right ((_, m), cash') -> do
       updateCache (const cash')
       return (Right m)
 

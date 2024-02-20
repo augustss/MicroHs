@@ -55,21 +55,22 @@ main = do
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
-  ds <- if flags.writeCache then do
-          cash <- getCached flags
-          (ds, cash') <- compileCacheTop flags mn cash
-          when (verbosityGT flags 0) $
-            putStrLn $ "Saving cache " ++ show mhsCacheName
-          () <- seq (rnfNoErr cash) (return ())
-          saveCache mhsCacheName cash'
-          return ds
-        else do
-          cash <- getCached flags
-          fst <$> compileCacheTop flags mn cash
+  (rmn, ds) <-
+    if flags.writeCache then do
+      cash <- getCached flags
+      (ds, cash') <- compileCacheTop flags mn cash
+      when (verbosityGT flags 0) $
+        putStrLn $ "Saving cache " ++ show mhsCacheName
+      () <- seq (rnfNoErr cash) (return ())
+      saveCache mhsCacheName cash'
+      return ds
+    else do
+      cash <- getCached flags
+      fst <$> compileCacheTop flags mn cash
 
   t1 <- getTimeMilli
   let
-    mainName = qualIdent mn (mkIdent "main")
+    mainName = qualIdent rmn (mkIdent "main")
     cmdl = (mainName, ds)
     outData = toStringCMdl cmdl
     numDefs = length ds
