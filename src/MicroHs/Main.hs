@@ -23,7 +23,7 @@ import Compat
 import MicroHs.Instances(getMhsDir) -- for GHC
 
 mhsVersion :: String
-mhsVersion = "0.9.5.0"
+mhsVersion = "0.9.6.0"
 
 main :: IO ()
 main = do
@@ -42,7 +42,8 @@ main = do
       loading    = elem "-l" args,
       readCache  = usingMhs && (elem "-C" args || elem "-CR" args),
       writeCache = usingMhs && (elem "-C" args || elem "-CW" args),
-      useTicks   = elem "-T" args
+      useTicks   = elem "-T" args,
+      doCPP      = elem "-XCPP" args
       }
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion

@@ -10,8 +10,11 @@ module MicroHs.Compile(
 import Prelude
 import Data.List
 import Data.Maybe
+import System.Directory
+import System.Environment
 import System.IO
 import System.IO.MD5
+import System.Process
 import Control.DeepSeq
 import MicroHs.Abstract
 import MicroHs.CompileCache
@@ -209,7 +212,12 @@ readModulePath flags mn | Just fn <- getFileName mn = do
     Nothing -> errorMessage (getSLoc mn) $ "Module not found: " ++ show mn ++ "\nsearch path=" ++ show flags.paths
     Just (fn, h) -> readRest fn h
   where readRest fn h = do
-          file <- hGetContents h
+          file <-
+            if flags.doCPP then do
+              hClose h
+              runCPPTmp flags fn
+            else
+              hGetContents h
           return (fn, file)
 
 
@@ -230,3 +238,20 @@ openFilePath adirs fileName =
       case mh of
         Nothing -> openFilePath dirs fileName -- If opening failed, try the next directory
         Just hdl -> return (Just (path, hdl))
+
+runCPPTmp :: Flags -> FilePath -> IO String
+runCPPTmp flags infile = do
+  (fn, h) <- openTmpFile "mhscpp.hs"
+  runCPP flags infile fn
+  file <- hGetContents h
+  removeFile fn
+  return file
+
+runCPP :: Flags -> FilePath -> FilePath -> IO ()
+runCPP flags infile outfile = do
+  mcpphs <- lookupEnv "MHSCPPHS"
+  let cpphs = fromMaybe "cpphs" mcpphs
+      cmd = cpphs ++ " --noline -D__MHS__ " ++ infile ++ " -O" ++ outfile
+  when (verbosityGT flags 0) $
+    putStrLn $ "Execute: " ++ show cmd
+  callCommand cmd

@@ -314,7 +314,7 @@ openTmpFile tmpl = do
   ctmp <- withCAString pre $ withCAString suf . c_tmpname
   tmp <- peekCAString ctmp
   free ctmp
-  h <- openFile tmp WriteMode
+  h <- openFile tmp ReadWriteMode
   return (tmp, h)
 
 -- XXX needs bracket

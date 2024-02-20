@@ -10,7 +10,8 @@ data Flags = Flags {
   loading    :: Bool,       -- show loading message
   readCache  :: Bool,       -- read and use cache
   writeCache :: Bool,       -- generate cache
-  useTicks   :: Bool        -- emit ticks
+  useTicks   :: Bool,       -- emit ticks
+  doCPP      :: Bool        -- run ccphs on input files
   }
   --deriving (Show)
 

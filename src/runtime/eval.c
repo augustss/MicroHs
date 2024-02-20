@@ -80,6 +80,7 @@ value_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(GETTIMEMILLI) */
 
 #if !defined(TMPNAME)
+/* This is a really bad implementation, since it doesn't check for anything. */
 char* TMPNAME(const char* pre, const char* post) {
   char *s = MALLOC(strlen(pre) + 3 + strlen(post) + 1);
   strcpy(s, pre);
