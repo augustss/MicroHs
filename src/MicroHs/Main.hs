@@ -36,6 +36,7 @@ main = do
     flags = Flags {
       verbose    = length (filter (== "-v") args),
       runIt      = elem "-r" args,
+      mhsdir     = dir,
       paths      = "." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args),
       output     = head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"],
       loading    = elem "-l" args,
@@ -49,11 +50,11 @@ main = do
     withArgs (drop 1 rargs) $              -- leave arguments after -- for any program we run
       case mdls of
         []  -> mainInteractive flags
-        [s] -> mainCompile dir flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+        [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
         _   -> error "Usage: mhs [-v] [-l] [-r] [-C] [-T] [-iPATH] [-oFILE] [ModuleName]"
 
-mainCompile :: FilePath -> Flags -> Ident -> IO ()
-mainCompile mhsdir flags mn = do
+mainCompile :: Flags -> Ident -> IO ()
+mainCompile flags mn = do
   ds <- if flags.writeCache then do
           cash <- getCached flags
           (ds, cash') <- compileCacheTop flags mn cash
@@ -106,7 +107,7 @@ mainCompile mhsdir flags mn = do
        mcc <- lookupEnv "MHSCC"
        compiler <- fromMaybe "cc" <$> lookupEnv "CC"
        let conf = "unix-" ++ show _wordSize
-           cc = fromMaybe (compiler ++ " -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
+           cc = fromMaybe (compiler ++ " -w -Wall -O3 " ++ flags.mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbosityGT flags 0) $
          putStrLn $ "Execute: " ++ show cmd

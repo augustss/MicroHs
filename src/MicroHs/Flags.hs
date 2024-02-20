@@ -4,7 +4,8 @@ import Prelude
 data Flags = Flags {
   verbose    :: Int,        -- verbosity level
   runIt      :: Bool,       -- run instead of compile
-  paths      :: [String],   -- module search path
+  mhsdir     :: FilePath,   -- where MHS files live
+  paths      :: [FilePath], -- module search path
   output     :: String,     -- output file
   loading    :: Bool,       -- show loading message
   readCache  :: Bool,       -- read and use cache
