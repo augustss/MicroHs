@@ -471,7 +471,10 @@ pPatApp = do
   f <- pAPat
   as <- emany pAPat
   guard (null as || isPConApp f)
-  pure $ foldl EApp f as
+  mt <- eoptional (pSymbol "::" *> pType)
+  let
+    r = foldl EApp f as
+  pure $ maybe r (ESign r) mt
 
 pPatNotVar :: P EPat
 pPatNotVar = do
