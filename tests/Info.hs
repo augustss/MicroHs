@@ -4,7 +4,6 @@ import Foreign.Storable
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Data.Word
-import Data.Word8
 
 main :: IO ()
 main = do
