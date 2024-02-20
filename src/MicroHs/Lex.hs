@@ -322,5 +322,15 @@ instance TokenMachine LexState Token where
 popLayout :: LexState -> LexState
 popLayout (LS f) = snd (f Pop)
 
+-- Insert TBrace if no 'module'/'{'
+lexStart :: [Token] -> [Token]
+lexStart ts =
+  case skip ts of
+    TIdent _ [] "module" : _ -> ts
+    TSpec _ '{'          : _ -> ts
+    rs                       -> TBrace (tokensLoc ts) : rs
+  where skip (TIndent _ : rs) = rs
+        skip rs = rs
+
 lexTopLS :: String -> LexState
-lexTopLS s = LS $ layoutLS (lex (mkLoc 1 1) s) []
+lexTopLS s = LS $ layoutLS (lexStart $ lex (mkLoc 1 1) s) []

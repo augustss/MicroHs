@@ -58,8 +58,12 @@ pModule = do
   exps <- (pSpec '(' *> esepEndBy pExportItem (pSpec ',') <* pSpec ')')
       <|< pure [ExpModule mn]
   pKeyword "where"
-  defs <-  pBlock pDef
+  defs <- pBlock pDef
   pure $ EModule mn exps defs
+ <|< do
+  defs <- pBlock pDef
+  --let loc = getSLoc defs
+  pure $ EModule (mkIdent "Main") [ExpValue $ mkIdent "main"] defs
 
 -- Possibly qualified alphanumeric identifier
 pQIdent :: P Ident
@@ -145,7 +149,7 @@ keywords =
    "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
-pSpec c = () <$ satisfy [c] is
+pSpec c = () <$ satisfy (showToken $ TSpec (0,0) c) is
   where
     is (TSpec _ d) = c == d
     is _ = False
