@@ -32,7 +32,7 @@ To compile on Windows make sure `cl` is in the path, and then use `nmake` with `
 The compiler can also be used with emscripten to produce JavaScript, see `Makefile.emscripten`.
 
 ## Language
-The language is an extended subset of Haskell-98.
+The language is an extended subset of Haskell-2010.
 
 Differences:
  * There is only deriving for `Eq`, `Ord`, `Show`, and `Typeable`.
@@ -124,7 +124,7 @@ The runtime system knows how lists and booleans are encoded.
 
 ## Compiler
 The compiler is written in Micro Haskell.
-It takes a name of a module and compiles to a target (see below).
+It takes a name of a module (or a file name) and compiles to a target (see below).
 This module should contain the function `main` of type `IO ()` and
 it will be the entry point to the program.
 

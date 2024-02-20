@@ -34,6 +34,11 @@ bin/mhs:	src/runtime/*.c src/runtime/config*.h #generated/mhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/mhs.c -o bin/mhs
 
+# Compile mhs from distribution, with C compiler
+bin/cpphs:	src/runtime/*.c src/runtime/config*.h #generated/mhs.c
+	@mkdir -p bin
+	$(CCEVAL) generated/cpphs.c -o bin/cpphs
+
 # Compile combinator evaluator
 bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
