@@ -64,7 +64,6 @@ import Data.Typeable
 import Data.TypeLits
 import Data.Void
 import Data.Word
-import Data.Word8
 import Data.ZipList
 import Debug.Trace
 import Foreign.C.String
@@ -87,6 +86,7 @@ import System.IO.MD5
 import System.IO.PrintOrRun
 import System.Process
 import Text.PrettyPrint.HughesPJ
+import Text.PrettyPrint.HughesPJClass
 import Text.Read
 import Text.Show
 import Text.String
