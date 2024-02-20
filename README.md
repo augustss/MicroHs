@@ -294,6 +294,15 @@ The compiler can compile itself.  To replace `bin/mhs` with a new version,
 do `make bootstrap`.  This will recompile the compiler twice and compare
 the outputs to make sure the new compiler still works.
 
+# Preprocessor
+Sadly, compiling a lot of Haskell packages needs the C preprocessor.
+To this end, the distribution contains the combinator code for `cpphs`.
+Doing `make bin/cpphs` will create the binary for the preprocessor.
+
+To bootstrap `cpphs` you can do `make bootstrapcpphs`.
+This assumes that you have `git` to download the needed packages.
+At the moment, the downloaded packages are forks of the original to
+make it compile with `mhs`.
 
 # FAQ
 * 

@@ -89,6 +89,13 @@ bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 	@echo "*** stage2 equal to stage1"
 	$(CCEVAL) generated/mhs-stage2.c -o bin/mhs-stage2
 
+cpphssrc/malcolm-wallace-universe:
+	mkdir -p cpphssrc
+	cd cpphssrc; git clone --branch dot-spaces git@github.com:augustss/malcolm-wallace-universe.git
+
+bootstrapcpphs: cpphssrc/malcolm-wallace-universe bin/cpphs
+	MHSCPPHS=bin/cpphs bin/mhs -XCPP -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
+
 # Run test examples with ghc-compiled compiler
 runtest:	bin/mhseval bin/gmhs tests/*.hs
 	cd tests; make alltest
