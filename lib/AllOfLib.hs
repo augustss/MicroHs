@@ -39,6 +39,7 @@ import Data.IntSet
 import Data.Integer
 import Data.Integer_Type
 import Data.Integral
+import Data.Ix
 import Data.List
 import Data.List_Type
 import Data.Map
