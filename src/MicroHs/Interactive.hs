@@ -185,7 +185,7 @@ oneline line = do
           Right m -> evalExpr m
           Left  e -> liftIO $ err e
   -- First try to parse as a definition,
-  tryParse pTop lls def $ \ _ ->
+  tryParse pTopModule lls def $ \ _ ->
     -- if that fails, parse as an expression.
     tryParse pExprTop line expr $
       liftIO . err'
