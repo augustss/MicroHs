@@ -7,7 +7,40 @@ import Data.List
 import MicroHs.Expr
 import MicroHs.Ident
 import MicroHs.TCMonad
---import Debug.Trace
+import Debug.Trace
+
+doDeriving :: EDef -> T [EDef]
+doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (derive lhs  cs) ds
+doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (derive lhs [c]) ds
+doDeriving def                     = return [def]
+
+type Deriver = LHS -> [Constr] -> EConstraint -> T [EDef]
+
+derivers :: [(String, Deriver)]
+derivers =
+  [("Data.Bounded.Bounded",   derNotYet)
+  ,("Data.Enum.Enum",         derNotYet)
+  ,("Data.Eq.Eq",             derEq)
+  ,("Data.Ix.Ix",             derNotYet)
+  ,("Data.Ord.Ord",           derOrd)
+  ,("Data.Typeable.Typeable", derTypeable)
+  ,("Text.Read.Read",         derShow)
+  ,("Text.Show.Show",         derShow)
+  ]
+
+derive :: Deriver
+derive lhs cs d = do
+  let c = getAppCon d
+  case lookup (unIdent c) derivers of
+    Nothing -> tcError (getSLoc c) $ "Cannot derive " ++ show c
+    Just f  -> f lhs cs d
+
+derNotYet :: Deriver
+derNotYet _ _ d = do
+  traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
+  return []
+
+--------------------------------------------
 
 expandField :: EDef -> T [EDef]
 expandField def@(Data    lhs cs _) = (++ [def]) <$> genHasFields lhs cs
@@ -90,37 +123,6 @@ eApp3 a b c d = EApp (eApp2 a b c) d
 -- so we just ignore the qualification part for now.
 mkQIdent :: SLoc -> String -> String -> Ident
 mkQIdent loc _qual name = mkIdentSLoc loc name
-
---------------------------------------------
-
-doDeriving :: EDef -> T [EDef]
-doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (derive lhs  cs) ds
-doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (derive lhs [c]) ds
-doDeriving def                     = return [def]
-
-type Deriver = LHS -> [Constr] -> EConstraint -> T [EDef]
-
-derivers :: [(String, Deriver)]
-derivers =
-  [("Data.Typeable.Typeable", derTypeable)
-  ,("Data.Eq.Eq",             derEq)
-  ,("Data.Ord.Ord",           derOrd)
-  ,("Text.Show.Show",         derShow)
-  ]
-
-derive :: Deriver
-derive lhs cs d = do
-  let c = getAppCon d
-  case lookup (unIdent c) derivers of
-    Nothing -> tcError (getSLoc c) $ "Cannot derive " ++ show c
-    Just f  -> f lhs cs d
-
-{-
-derNotYet :: Deriver
-derNotYet _ _ d = do
-  traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
-  return []
--}
 
 --------------------------------------------
 
