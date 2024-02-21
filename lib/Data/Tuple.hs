@@ -20,8 +20,8 @@ import Text.Show
 --data (a,b,c) = (a,b,c)
 -- etc
 
-data Solo a = Solo a
-  deriving (Eq)
+data Solo a = MkSolo a
+  deriving (Eq, Ord)
 
 fst :: forall a b . (a, b) -> a
 fst (a, _) = a
@@ -63,7 +63,7 @@ instance Show () where
   showsPrec _ () = showString "()"
 
 instance forall a . Show a => Show (Solo a) where
-  showsPrec p (Solo a) = showParen (p > 10) (showString "Solo " . showsPrec 11 a)
+  showsPrec p (MkSolo a) = showParen (p > 10) (showString "MkSolo " . showsPrec 11 a)
 
 instance forall a b . (Show a, Show b) => Show (a, b) where
   showsPrec _ (a, b) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b)
@@ -82,8 +82,8 @@ instance Bounded () where
   maxBound = ()
 
 instance forall a . (Bounded a) => Bounded (Solo a) where
-  minBound = Solo minBound
-  maxBound = Solo maxBound
+  minBound = MkSolo minBound
+  maxBound = MkSolo maxBound
 
 instance forall a b . (Bounded a, Bounded b) => Bounded (a, b) where
   minBound = (minBound, minBound)
@@ -103,7 +103,7 @@ instance Semigroup () where
   _ <> _ = ()
 
 instance forall a . Semigroup a => Semigroup (Solo a) where
-  Solo a <> Solo b = Solo (a <> b)
+  MkSolo a <> MkSolo b = MkSolo (a <> b)
 
 instance forall a b . (Semigroup a, Semigroup b) => Semigroup (a, b) where
   (a, b) <> (a', b') = (a <> a', b <> b')
@@ -120,7 +120,7 @@ instance Monoid () where
   mempty = ()
 
 instance forall a . Monoid a => Monoid (Solo a) where
-  mempty = Solo mempty
+  mempty = MkSolo mempty
 
 instance forall a b . (Monoid a, Monoid b) => Monoid (a, b) where
   mempty = (mempty, mempty)
