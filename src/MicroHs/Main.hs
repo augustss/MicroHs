@@ -44,7 +44,8 @@ main = do
       writeCache = usingMhs && (elem "-C" args || elem "-CW" args),
       useTicks   = elem "-T" args,
       doCPP      = elem "-XCPP" args,
-      cppArgs    = filter (\ s -> "-D" `isPrefixOf` s) args
+      cppArgs    = filter (\ s -> "-D" `isPrefixOf` s) args,
+      compress   = elem "-z" args
       }
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
@@ -53,7 +54,7 @@ main = do
       case mdls of
         []  -> mainInteractive flags
         [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-        _   -> error "Usage: mhs [-v] [-l] [-r] [-C] [-T] [-iPATH] [-oFILE] [ModuleName]"
+        _   -> error "Usage: mhs [--version] [-v] [-l] [-r] [-C[R|W]] [-XCPP] [-T] [-z] [-iPATH] [-oFILE] [ModuleName]"
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
@@ -101,16 +102,16 @@ mainCompile flags mn = do
     if ".comb" `isSuffixOf` outFile then
       writeFile outFile outData
      else if ".c" `isSuffixOf` outFile then
-      writeFile outFile $ makeCArray outData
+      writeFile outFile $ makeCArray flags outData
      else do
        (fn, h) <- openTmpFile "mhsc.c"
-       hPutStr h $ makeCArray outData
+       hPutStr h $ makeCArray flags outData
        hClose h
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
        compiler <- fromMaybe "cc" <$> lookupEnv "CC"
        let conf = "unix-" ++ show _wordSize
-           cc = fromMaybe (compiler ++ " -w -Wall -O3 " ++ flags.mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
+           cc = fromMaybe (compiler ++ " -w -Wall -g " ++ flags.mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbosityGT flags 0) $
          putStrLn $ "Execute: " ++ show cmd

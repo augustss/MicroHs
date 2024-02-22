@@ -18,6 +18,15 @@
 #include "md5.h"
 #endif
 
+#if !defined(WANT_LZ77)
+#define WANT_LZ77 1
+#endif
+
+#if WANT_LZ77
+size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
+size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
+#endif
+
 //#include "config.h"
 
 #define VERSION "v7.0\n"
@@ -982,6 +991,18 @@ pokeWord(value_t *p, value_t w)
   *p = w;
 }
 
+void *
+peekPtr(void **p)
+{
+  return *p;
+}
+
+void
+pokePtr(void **p, void *w)
+{
+  *p = w;
+}
+
 value_t
 peekByte(uint8_t *p)
 {
@@ -1026,7 +1047,7 @@ struct ffi_info {
   const enum { FFI_V, FFI_I, FFI_IV, FFI_II, FFI_IIV, FFI_III, FFI_DD, FFI_DDD, FFI_PI,
                FFI_i, FFI_Pi, FFI_iPi, FFI_PIIPI, FFI_PIV, FFI_IIP,
                FFI_PPI, FFI_PP, FFI_PPP, FFI_IPI, FFI_PV, FFI_IP, FFI_PPV, FFI_PPzV,
-               FFI_iPV,
+               FFI_iPV, FFI_PIPI,
   } ffi_how;
 };
 const struct ffi_info ffi_table[] = {
@@ -1100,6 +1121,11 @@ const struct ffi_info ffi_table[] = {
   { "md5Array", (funptr_t)md5Array, FFI_PPzV },
 #endif
 
+#if WANT_LZ77
+  { "lz77c",    (funptr_t)lz77c,     FFI_PIPI },
+  { "lz77d",    (funptr_t)lz77d,     FFI_PIPI },
+#endif
+
   { "iswindows",(funptr_t)iswindows, FFI_I },
 
   //  { "getArgs",   (funptr_t)getArgs,  FFI_A },
@@ -1109,6 +1135,8 @@ const struct ffi_info ffi_table[] = {
   { "calloc",   (funptr_t)MALLOC,  FFI_IIP },
   { "peekWord", (funptr_t)peekWord,FFI_PI },
   { "pokeWord", (funptr_t)pokeWord,FFI_PIV },
+  { "peekPtr",  (funptr_t)peekPtr, FFI_PP },
+  { "pokePtr",  (funptr_t)pokePtr, FFI_PPV },
   { "peekByte", (funptr_t)peekByte,FFI_PI },
   { "pokeByte", (funptr_t)pokeByte,FFI_PIV },
   { "memcpy",   (funptr_t)memcpy,  FFI_PPzV },
@@ -2702,7 +2730,7 @@ execio(NODEPTR *np)
 #if WANT_FLOAT
         flt_t rd, xd, yd;
 #endif  /* WANT_FLOAT */
-        void *xp, *yp, *wp, *rp;
+        void *xp, *yp, *zp, *wp, *rp;
 #define INTARG(n) evalint(ARG(TOP(n)))
 #define PTRARG(n) evalptr(ARG(TOP(n)))
 #define DBLARG(n) evaldbl(ARG(TOP(n)))
@@ -2736,7 +2764,9 @@ execio(NODEPTR *np)
         case FFI_iPV: FFI (2); xi = INTARG(1);yp = PTRARG(2);       (*(void    (*)(int,   void*    ))f)(xi,yp);                RETIO(combUnit);
         case FFI_PPzV:FFI (3); xp = PTRARG(1);yp = PTRARG(2); zi = INTARG(3); (*(void    (*)(void*, void*, size_t))f)(xp,yp,zi); RETIO(combUnit);
         case FFI_PIIPI:FFI (4);xp = PTRARG(1);yi = INTARG(2); zi = INTARG(3); wp = PTRARG(4);
-          ri = (*(int     (*)(void*, int, int, void*    ))f)(xp,yi,zi,wp); n = mkInt(ri); RETIO(n);
+                               ri = (*(int     (*)(void*, int, int, void*    ))f)(xp,yi,zi,wp); n = mkInt(ri); RETIO(n);
+        case FFI_PIPI:FFI (3);xp = PTRARG(1);yi = INTARG(2); zp = PTRARG(3);
+                              ri = (*(int     (*)(void*, int, void*    ))f)(xp,yi,zp); n = mkInt(ri); RETIO(n);
         default: ERR("T_IO_CCALL");
         }
       }
@@ -2975,10 +3005,13 @@ MAIN
     int c;
     BFILE *bf = openb_buf(combexpr, combexprlen);
     c = getb(bf);
-    /* Compressed combinators start with a 'Z', otherwise 'v' (for version) */
+    /* Compressed combinators start with a 'Z' or 'z', otherwise 'v' (for version) */
     if (c == 'Z') {
       /* add compressor transducer */
       bf = add_lzw_decompressor(bf);
+    } else if (c == 'z') {
+      /* add compressor transducer */
+      bf = add_lz77_decompressor(bf);
     } else {
       /* put it back, we need it */
       ungetb(c, bf);
@@ -3073,3 +3106,7 @@ MAIN
 #if WANT_MD5
 #include "md5.c"
 #endif  /* WANT_MD5 */
+
+#if WANT_LZ77
+#include "lz77.c"
+#endif

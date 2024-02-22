@@ -77,14 +77,14 @@ bootstrap:	bin/mhs-stage2
 bin/mhs-stage1:	bin/mhs src/*/*.hs
 	@mkdir -p generated
 	@echo "*** Build stage1 compiler, using bin/mhs"
-	bin/mhs -isrc MicroHs.Main -ogenerated/mhs-stage1.c
+	bin/mhs -z -isrc MicroHs.Main -ogenerated/mhs-stage1.c
 	$(CCEVAL) generated/mhs-stage1.c -o bin/mhs-stage1
 
 # Build stage2 compiler with stage1 compiler, and compare
 bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 	@mkdir -p generated
 	@echo "*** Build stage2 compiler, with stage1 compiler"
-	bin/mhs-stage1 -isrc MicroHs.Main -ogenerated/mhs-stage2.c
+	bin/mhs-stage1 -z -isrc MicroHs.Main -ogenerated/mhs-stage2.c
 	cmp generated/mhs-stage1.c generated/mhs-stage2.c
 	@echo "*** stage2 equal to stage1"
 	$(CCEVAL) generated/mhs-stage2.c -o bin/mhs-stage2
@@ -94,7 +94,7 @@ cpphssrc/malcolm-wallace-universe:
 	cd cpphssrc; git clone --branch dot-spaces git@github.com:augustss/malcolm-wallace-universe.git
 
 bootstrapcpphs: cpphssrc/malcolm-wallace-universe bin/cpphs
-	MHSCPPHS=bin/cpphs bin/mhs -XCPP -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
+	MHSCPPHS=bin/cpphs bin/mhs -z -XCPP -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
 # Run test examples with ghc-compiled compiler
 runtest:	bin/mhseval bin/gmhs tests/*.hs

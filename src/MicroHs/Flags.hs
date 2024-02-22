@@ -12,7 +12,8 @@ data Flags = Flags {
   writeCache :: Bool,       -- generate cache
   useTicks   :: Bool,       -- emit ticks
   doCPP      :: Bool,       -- run ccphs on input files
-  cppArgs    :: [String]    -- flags for CPP
+  cppArgs    :: [String],   -- flags for CPP
+  compress   :: Bool        -- compress generated combinators
   }
   --deriving (Show)
 
