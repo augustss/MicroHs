@@ -76,6 +76,7 @@ executable mhs
                        Compat
                        PrimTable
                        System.IO.MD5
+                       System.Compress
                        Paths_MicroHs
   autogen-modules:     Paths_MicroHs
   build-depends:       base         >= 4.10 && < 4.20,
