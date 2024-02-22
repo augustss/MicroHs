@@ -2458,6 +2458,7 @@ solvers =
 -- Examine each goal, either solve it (possibly producing new goals) or let it remain unsolved.
 solveMany :: [Goal] -> [UGoal] -> [Soln] -> [Improve] -> T ([UGoal], [Soln], [Improve])
 solveMany [] uns sol imp = return (uns, sol, imp)
+-- Need to handle ct of the form C => T, and forall a . T
 solveMany (cns@(di, ct) : cnss) uns sol imp = do
 --  traceM ("trying " ++ showEType ct)
   let loc = getSLoc di
