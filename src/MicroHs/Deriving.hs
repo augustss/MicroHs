@@ -19,7 +19,7 @@ type Deriver = LHS -> [Constr] -> EConstraint -> T [EDef]
 derivers :: [(String, Deriver)]
 derivers =
   [("Data.Bounded.Bounded",   derBounded)
-  ,("Data.Enum.Enum",         derNotYet)
+  ,("Data.Enum.Enum",         derEnum)
   ,("Data.Eq.Eq",             derEq)
   ,("Data.Ix.Ix",             derNotYet)
   ,("Data.Ord.Ord",           derOrd)
@@ -247,9 +247,35 @@ derBounded lhs cs@(c0:_) ebnd = do
       minEqn = mkEqn iMinBound c0
       maxEqn = mkEqn iMaxBound (last cs)
       inst = Instance hdr [BFcn iMinBound [minEqn], BFcn iMaxBound [maxEqn]]
-  traceM $ showEDefs [inst]
+  -- traceM $ showEDefs [inst]
   return [inst]
 derBounded (c, _) _ e = tcError (getSLoc e) $ "Cannot derive Bounded " ++ show c
+
+--------------------------------------------
+
+-- XXX should use mkQIdent
+derEnum :: Deriver
+derEnum lhs cs@(_:_) enm | all isNullary cs = do
+  hdr <- mkHdr lhs cs enm
+  let loc = getSLoc enm
+
+      mkFrom (Constr _ _ c _) i =
+        eEqn [EVar c] $ ELit loc (LInt i)
+      mkTo (Constr _ _ c _) i =
+        eEqn [ELit loc (LInt i)] $ EVar c
+
+      ident = mkIdentSLoc loc
+      iFromEnum = ident "fromEnum"
+      iToEnum = ident "toEnum"
+      fromEqns = zipWith mkFrom cs [0..]
+      toEqns   = zipWith mkTo   cs [0..]
+      inst = Instance hdr [BFcn iFromEnum fromEqns, BFcn iToEnum toEqns]
+  --traceM $ showEDefs [inst]
+  return [inst]
+derEnum (c, _) _ e = tcError (getSLoc e) $ "Cannot derive Enum " ++ show c
+
+isNullary :: Constr -> Bool
+isNullary (Constr _ _ _ flds) = either null null flds
 
 --------------------------------------------
 

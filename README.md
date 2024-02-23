@@ -35,7 +35,7 @@ The compiler can also be used with emscripten to produce JavaScript, see `Makefi
 The language is an extended subset of Haskell-2010.
 
 Differences:
- * There is only deriving for `Bounded`, `Eq`, `Ord`, `Show`, and `Typeable`.
+ * There is only deriving for `Bounded`, `Enum`, `Eq`, `Ord`, `Show`, and `Typeable`.
  * The `default` list is empty, except in the interactive system.
  * Kind variables need an explicit `forall`.
  * Always enabled extension:
