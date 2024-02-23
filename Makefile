@@ -62,7 +62,7 @@ bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs
 # Generate distribution C file
 generated/mhs.c:	bin/mhs src/*/*.hs
 	@mkdir -p generated
-	bin/mhs -isrc MicroHs.Main -ogenerated/mhs.c
+	bin/mhs -z -isrc MicroHs.Main -ogenerated/mhs.c
 
 ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/gmhs -isrc MicroHs.Main -ogenerated/mhs.c
