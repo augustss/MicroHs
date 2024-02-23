@@ -1,5 +1,5 @@
 TMHS=./bin/mhs -itests
-CC=emcc -sALLOW_MEMORY_GROWTH -sSTACK_SIZE=5MB
+CC=emcc -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB
 NODE=node
 CONF=unix-64
 .PHONY: test
@@ -43,4 +43,4 @@ test:
 	CC='$(CC)' $(TMHS) Info -otests/Info.js && $(NODE) tests/Info.js
 
 clean:
-	rm -f tests/*.out tests/*.tmp tests/*.js
+	rm -f tests/*.out tests/*.tmp tests/*.js tests/*.wasm
