@@ -18,7 +18,7 @@ type Deriver = LHS -> [Constr] -> EConstraint -> T [EDef]
 
 derivers :: [(String, Deriver)]
 derivers =
-  [("Data.Bounded.Bounded",   derNotYet)
+  [("Data.Bounded.Bounded",   derBounded)
   ,("Data.Enum.Enum",         derNotYet)
   ,("Data.Eq.Eq",             derEq)
   ,("Data.Ix.Ix",             derNotYet)
@@ -232,10 +232,32 @@ nameDataOrderingType = "Data.Ordering_Type"
 --------------------------------------------
 
 -- XXX should use mkQIdent
+derBounded :: Deriver
+derBounded lhs cs@(c0:_) ebnd = do
+  hdr <- mkHdr lhs cs ebnd
+  let loc = getSLoc ebnd
+
+      mkEqn bnd (Constr _ _ c flds) =
+        let n = either length length flds
+        in  eEqn [] $ tApps c (replicate n (EVar bnd))
+
+      ident = mkIdentSLoc loc
+      iMinBound = ident "minBound"
+      iMaxBound = ident "maxBound"
+      minEqn = mkEqn iMinBound c0
+      maxEqn = mkEqn iMaxBound (last cs)
+      inst = Instance hdr [BFcn iMinBound [minEqn], BFcn iMaxBound [maxEqn]]
+  traceM $ showEDefs [inst]
+  return [inst]
+derBounded (c, _) _ e = tcError (getSLoc e) $ "Cannot derive Bounded " ++ show c
+
+--------------------------------------------
+
+-- XXX should use mkQIdent
 derShow :: Deriver
-derShow lhs cs eord = do
-  hdr <- mkHdr lhs cs eord
-  let loc = getSLoc eord
+derShow lhs cs eshow = do
+  hdr <- mkHdr lhs cs eshow
+  let loc = getSLoc eshow
       mkEqn c@(Constr _ _ nm flds) =
         let (xp, xs) = mkPat c "x"
         in  eEqn [varp, xp] $ showRHS nm xs flds
