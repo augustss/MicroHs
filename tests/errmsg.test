@@ -1,8 +1,8 @@
-amodule M() where
+module M() awhere
 -----
-mhs: "../tmp/E.hs": line 2, col 1:
-  found:    amodule
-  expected: module
+mhs: "../tmp/E.hs": line 2, col 12:
+  found:    awhere
+  expected: where
 
 =====
 module M() where

@@ -32,14 +32,14 @@ To compile on Windows make sure `cl` is in the path, and then use `nmake` with `
 The compiler can also be used with emscripten to produce JavaScript, see `Makefile.emscripten`.
 
 ## Language
-The language is an extended subset of Haskell-98.
+The language is an extended subset of Haskell-2010.
 
 Differences:
- * There is only deriving for `Eq`, `Ord`, `Show`, and `Typeable`.
+ * There is only deriving for `Bounded`, `Enum`, `Eq`, `Ord`, `Show`, and `Typeable`.
  * The `default` list is empty, except in the interactive system.
- * No lazy patterns (`~pat`)
  * Kind variables need an explicit `forall`.
  * Always enabled extension:
+   * BangPatterns
    * ConstraintKinds
    * DuplicateRecordFields
    * EmptyDataDecls
@@ -76,6 +76,8 @@ Differences:
  * `main` in the top module given to `mhs` serves at the program entry point.
  * Many things that should be an error (but which are mostly harmless) are not reported.
  * Text file I/O uses UTF8, but the source code does not allow Unicode.
+ * The `BangPatterns` extension is parsed, but only effective at the a top level `let`/`where`.
+ * Lazy patterns (`~pat`) are ignored.
  * More differences that I don't remember right now.
 
 ## Example
@@ -122,7 +124,7 @@ The runtime system knows how lists and booleans are encoded.
 
 ## Compiler
 The compiler is written in Micro Haskell.
-It takes a name of a module and compiles to a target (see below).
+It takes a name of a module (or a file name) and compiles to a target (see below).
 This module should contain the function `main` of type `IO ()` and
 it will be the entry point to the program.
 
@@ -135,6 +137,9 @@ it will be the entry point to the program.
 * `-CW` write compilation cache to `.mhscache` at the end of compilation
 * `-CR` read compilation cache from `.mhscache` at the start of compilation
 * `-C` short for `-CW` and `-CR`
+* `-T` generate dynamic function usage statistics
+* `-XCPP` run `cpphs` on source files
+* `-Dxxx` passed to `cpphs`
 
 With the `-v` flag the processing time for each module is reported.
 E.g.
@@ -155,6 +160,7 @@ Do **NOT** use `-C` when you are changing the compiler itself; if the cached dat
 ### Environment variables
 * `MHSDIR` the directory where `lib/` and `src/` are expected to be.  Defaults to `./`.
 * `MHSCC` command use to compile C file to produce binaries.  Look at the source for more information.
+* `MHSCPPHS` command to use with `-XCPP` flag.  Defaults to `cpphs`.
 
 ### Compiler modules
 
@@ -288,6 +294,15 @@ The compiler can compile itself.  To replace `bin/mhs` with a new version,
 do `make bootstrap`.  This will recompile the compiler twice and compare
 the outputs to make sure the new compiler still works.
 
+# Preprocessor
+Sadly, compiling a lot of Haskell packages needs the C preprocessor.
+To this end, the distribution contains the combinator code for `cpphs`.
+Doing `make bin/cpphs` will create the binary for the preprocessor.
+
+To bootstrap `cpphs` you can do `make bootstrapcpphs`.
+This assumes that you have `git` to download the needed packages.
+At the moment, the downloaded packages are forks of the original to
+make it compile with `mhs`.
 
 # FAQ
 * 

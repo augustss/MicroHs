@@ -101,7 +101,6 @@ data Expr
   | EListish Listish
   | EDo (Maybe Ident) [EStmt]
   | ESectL Expr Ident
-  -- NOTE: (- e) is not a section, it's a negation.  So we reuse ESect to mean negation in this case.
   | ESectR Ident Expr
   | EIf Expr Expr Expr
   | ESign Expr EType
@@ -109,13 +108,15 @@ data Expr
   | EUpdate Expr [EField]
   | ESelect [Ident]
   -- only in patterns
-  | EAt Ident Expr
+  | EAt Ident EPat
   | EViewPat Expr EPat
-  -- Only while type checking
+  | ELazy Bool EPat           -- True indicates ~p, False indicates !p
+  -- only in types
+  | EForall [IdKind] EType
+  -- only while type checking
   | EUVar Int
-  -- Constructors after type checking
+  -- only after type checking
   | ECon Con
-  | EForall [IdKind] Expr -- only in types
 --DEBUG  deriving (Show)
 
 data EField
@@ -228,6 +229,7 @@ patVars apat =
     ESign p _ -> patVars p
     EAt i p -> i `add` patVars p
     EViewPat _ p -> patVars p
+    ELazy _ p -> patVars p
     ECon _ -> []
     EUpdate _ fs -> concatMap field fs
     ENegApp _ -> []
@@ -334,6 +336,7 @@ instance HasLoc Expr where
   getSLoc (ESelect is) = getSLoc (head is)
   getSLoc (EAt i _) = getSLoc i
   getSLoc (EViewPat e _) = getSLoc e
+  getSLoc (ELazy _ e) = getSLoc e
   getSLoc (EUVar _) = error "getSLoc EUVar"
   getSLoc (ECon c) = getSLoc c
   getSLoc (EForall [] e) = getSLoc e
@@ -484,6 +487,7 @@ allVarsExpr' aexpr =
     ESelect _ -> id
     EAt i e -> (i :) . allVarsExpr' e
     EViewPat e p -> allVarsExpr' e . allVarsExpr' p
+    ELazy _ p -> allVarsExpr' p
     EUVar _ -> id
     ECon c -> (conIdent c :)
     EForall iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
@@ -678,6 +682,8 @@ instance Pretty Expr where
     ESelect is -> parens $ hcat $ map (\ i -> text "." <> pp l i) is
     EAt i e -> pp l i <> text "@" <> pp l e
     EViewPat e pat -> parens $ pp l e <+> text "->" <+> pp l pat
+    ELazy True p -> text "~" <> pp l p
+    ELazy False p -> text "!" <> pp l p
     EUVar i -> text ("_a" ++ show i)
     ECon (ConData _ s _) -> pp l s
     ECon (ConNew s _) -> pp l s

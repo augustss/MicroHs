@@ -3,6 +3,8 @@
 module MicroHs.MakeCArray(makeCArray) where
 import Prelude
 import Data.Char
+import MicroHs.Flags
+import qualified System.Compress as C
 
 chunkify :: Int -> String -> [String]
 chunkify _ [] = []
@@ -13,8 +15,15 @@ chunkify n xs =
 showChunk :: [Char] -> String
 showChunk = concatMap (\ c -> show (ord c) ++ ",")
 
-makeCArray :: String -> String
-makeCArray file =
+makeCArray :: Flags -> String -> String
+makeCArray flags file =
+  if flags.compress then
+    makeCArray' ('z' : C.compress file)  -- stick a 'z' in front to indicate compressed
+  else
+    makeCArray' file
+
+makeCArray' :: String -> String
+makeCArray' file =
   let chunks = chunkify 20 file
   in  unlines $ ["static unsigned char data[] = {"] ++
                 map showChunk chunks ++

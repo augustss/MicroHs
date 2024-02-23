@@ -98,7 +98,7 @@ dsEqns loc eqns =
         mkArm (Eqn ps alts) =
           let ps' = map dsPat ps
           in  (ps', dsAlts alts)
-        ex = runS loc (vs ++ xs) (map Var xs) (map mkArm eqns)
+        ex = dsCaseExp loc (vs ++ xs) (map Var xs) (map mkArm eqns)
       in foldr Lam ex xs
     _ -> impossible
 
@@ -123,6 +123,12 @@ dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
 dsBinds :: [EBind] -> Exp -> Exp
 dsBinds [] ret = ret
+dsBinds ads@(BPat (ELazy False p) e : ds) ret =
+  -- Turn a strict let/where into a case.
+  -- XXX This does no reordering of bindings.
+  let rest = dsBinds ds ret
+      used = allVarsExp ret ++ allVarsExpr (ELet ads (ETuple []))
+  in  dsCaseExp (getSLoc p) used [dsExpr e] [([dsPat p], const rest)]
 dsBinds ads ret =
   let
     avs = concatMap allVarsBind ads
@@ -141,8 +147,8 @@ dsBinds ads ret =
           | i' `elem` freeVars e' -> letRecE i' e' $ loop vs sccs
           | otherwise -> letE i' e' $ loop vs sccs
     loop vvs (CyclicSCC ies : sccs) =
-      let (v:vs) = vvs
-      in mutualRec v ies (loop vs sccs)
+      let (v:vs) = vvs in
+      mutualRec v ies (loop vs sccs)
   in loop mvs asccs
 
 letE :: Ident -> Exp -> Exp -> Exp
@@ -167,7 +173,7 @@ letRecE i e b = letE i (App (Lit (LPrim "Y")) (Lam i e)) b
 --    in  body
 mutualRec :: Ident -> [LDef] -> Exp -> Exp
 mutualRec v ies body =
-  let (is, es) = unzip ies
+  let !(is, es) = unzip ies
       n = length is
       ev = Var v
       one m i = letE i (mkTupleSelE m n ev)
@@ -245,7 +251,7 @@ mkTupleSelE m n tup =
     xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
   in App tup (foldr Lam (Var (xs !! m)) xs)
 
--- Handle special syntax for lists and tuples
+-- Handle special syntax for lists and tuples.
 dsPat :: HasCallStack =>
          EPat -> EPat
 dsPat apat =
@@ -260,6 +266,7 @@ dsPat apat =
     ELit _ _ -> apat
     ENegApp _ -> apat
     EViewPat _ _ -> apat
+    ELazy _ pat -> dsPat pat   -- XXX for now, just ignore ~ and !
     _ -> impossible
 
 iNil :: Ident
@@ -296,10 +303,12 @@ showLDef a =
 
 ----------------
 
-dsCase :: SLoc -> Expr -> [ECaseArm] -> Exp
+dsCase :: HasCallStack => SLoc -> Expr -> [ECaseArm] -> Exp
 dsCase loc ae as =
-  runS loc (allVarsExpr (ECase ae as)) [dsExpr ae] (map mkArm as)
+  dsCaseExp loc usedVars [dsExpr ae] (map mkArm as)
   where
+    usedVars = allVarsExpr (ECase ae as)
+    mkArm :: ECaseArm -> Arm
     mkArm (p, alts) =
       let p' = dsPat p
       in  ([p'], dsAlts alts)
@@ -307,7 +316,7 @@ dsCase loc ae as =
 type MState = [Ident]  -- supply of unused variables.
 
 type M a = State MState a
-type Arm = ([EPat], Exp -> Exp)  -- boolean indicates that the arm has guards, i.e., it uses the default
+type Arm = ([EPat], Exp -> Exp)  -- Patterns, and a function that expects the default (which might be ignored).
 type Matrix = [Arm]
 
 newIdents :: Int -> M [Ident]
@@ -322,8 +331,8 @@ newIdent = do
   put (tail is)
   return (head is)
 
-runS :: SLoc -> [Ident] -> [Exp] -> Matrix -> Exp
-runS loc used ss mtrx =
+dsCaseExp :: HasCallStack => SLoc -> [Ident] -> [Exp] -> Matrix -> Exp
+dsCaseExp loc used ss mtrx =
   let
     supply = newVars "$x" used
     ds xs aes =
@@ -350,7 +359,7 @@ dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
   case leftMost aarm of
     EVar _ -> do
       -- Find all variables, substitute with i, and proceed
-      let (vars, nvars) = span (isPVar . leftMost) aarms
+      let !(vars, nvars) = span (isPVar . leftMost) aarms
           vars' = map (sub . unAt i) vars
           sub (EVar x : ps, rhs) = (ps, substAlpha x i . rhs)
           sub _ = impossible

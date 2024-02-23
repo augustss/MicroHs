@@ -117,7 +117,18 @@ reload = do
     Right _  -> return ()
 
 helpText :: String
-helpText = "Commands:\n  :quit      quit MicroHs\n  :reload    reload modules\n  :clear     clear all definitions\n  :delete d  delete definition(s) d\n  :type e    show type of e\n  :kind t    show type of t\n  :help      this text\n  expr       evaluate expression\n  defn       add top level definition\n"
+helpText = "\
+  \Commands:\n\
+  \:quit      quit MicroHs\n\
+  \:reload    reload modules\n\
+  \:clear     clear all definitions\n\
+  \:delete d  delete definition(s) d\n\
+  \:type e    show type of e\n\
+  \:kind t    show type of t\n\
+  \:help      this text\n\
+  \expr       evaluate expression\n\
+  \defn       add top level definition\n\
+  \"
 
 updateLines :: (String -> String) -> I ()
 updateLines f = modify $ \ (ls, flgs, cash) -> (f ls, flgs, cash)
@@ -174,7 +185,7 @@ oneline line = do
           Right m -> evalExpr m
           Left  e -> liftIO $ err e
   -- First try to parse as a definition,
-  tryParse pTop lls def $ \ _ ->
+  tryParse pTopModule lls def $ \ _ ->
     -- if that fails, parse as an expression.
     tryParse pExprTop line expr $
       liftIO . err'
@@ -193,7 +204,7 @@ tryCompile file = do
   res <- liftIO $ try $ compileCacheTop flgs interactiveId cash
   case res of
     Left e -> return (Left e)
-    Right (m, cash') -> do
+    Right ((_, m), cash') -> do
       updateCache (const cash')
       return (Right m)
 

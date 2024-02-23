@@ -62,6 +62,7 @@ test:
 	$(TMHS) ListCompr  && $(EVAL) > ListCompr.out  && diff ListCompr.ref ListCompr.out
 	$(TMHS) ParseInd   && $(EVAL) > ParseInd.out   && diff ParseInd.ref ParseInd.out
 	$(TMHS) Infer      && $(EVAL) > Infer.out      && diff Infer.ref Infer.out
+	$(TMHS) Enum       && $(EVAL) > Enum.out       && diff Enum.ref Enum.out
 
 errtest:
 	sh errtester.sh < errmsg.test

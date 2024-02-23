@@ -3,7 +3,7 @@ import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error(undefined)
 import Foreign.Ptr
-import Data.Word8
+import Data.Word
 
 class Storable a where
    sizeOf      :: a -> Int

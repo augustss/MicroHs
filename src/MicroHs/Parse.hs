@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
-module MicroHs.Parse(P, pTop, parseDie, parse, pExprTop) where
+module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop) where
 import Prelude
 import Data.Char
 import Data.List
@@ -46,10 +46,13 @@ eof = do
     _    -> fail "eof"
 
 pTop :: P EModule
-pTop = pModule <* eof
+pTop = (pModule <|< pModuleEmpty) <* eof
+
+pTopModule :: P EModule
+pTopModule = pModule <* eof
 
 pExprTop :: P Expr
-pExprTop = pExpr <* eof
+pExprTop = pBraces pExpr <* eof
 
 pModule :: P EModule
 pModule = do
@@ -58,8 +61,14 @@ pModule = do
   exps <- (pSpec '(' *> esepEndBy pExportItem (pSpec ',') <* pSpec ')')
       <|< pure [ExpModule mn]
   pKeyword "where"
-  defs <-  pBlock pDef
+  defs <- pBlock pDef
   pure $ EModule mn exps defs
+
+pModuleEmpty :: P EModule
+pModuleEmpty = do
+  defs <- pBlock pDef
+  --let loc = getSLoc defs
+  pure $ EModule (mkIdent "Main") [ExpValue $ mkIdent "main"] defs
 
 -- Possibly qualified alphanumeric identifier
 pQIdent :: P Ident
@@ -145,7 +154,7 @@ keywords =
    "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
-pSpec c = () <$ satisfy [c] is
+pSpec c = () <$ satisfy (showToken $ TSpec (0,0) c) is
   where
     is (TSpec _ d) = c == d
     is _ = False
@@ -273,17 +282,17 @@ pKeyword kw = () <$ satisfy kw is
     is (TIdent _ [] s) = kw == s
     is _ = False
 
-pBlock :: forall a . P a -> P [a]
-pBlock p =
+pBraces :: forall a . P a -> P a
+pBraces p =
   do
     pSpec '{'
-    as <- body
+    as <- p
     pSpec '}'
     pure as
  <|>
   do
     pSpec '<'
-    as <- body
+    as <- p
     -- If we are at a '>' token (i.e., synthetic '}') then
     -- all is well, if not then there is a parse error and we try
     -- recovering by popping they layout stack.
@@ -294,6 +303,9 @@ pBlock p =
       TSpec _ '>' -> pSpec '>'
       _           -> mapTokenState popLayout
     pure as
+
+pBlock :: forall a . P a -> P [a]
+pBlock p = pBraces body
   where body = esepBy p (esome (pSpec ';')) <* eoptional (pSpec ';')
 
 
@@ -360,7 +372,7 @@ pSAType = (,) <$> pStrict <*> pAType
 pSType :: P (Bool, EType)
 pSType  = (,) <$> pStrict <*> pType
 pStrict :: P Bool
-pStrict = (True <$ pSymbol "!") <|< pure False
+pStrict = (True <$ pSpec '!') <|< pure False
 
 pLHS :: P LHS
 pLHS = (,) <$> pTypeIdentSym <*> emany pIdKind
@@ -452,6 +464,8 @@ pAPat =
   <|< (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
   <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSRArrow *> pAPat <* pSpec ')'))
+  <|< (ELazy True  <$> (pSpec '~' *> pAPat))
+  <|< (ELazy False <$> (pSpec '!' *> pAPat))
   where evar v Nothing = EVar v
         evar v (Just upd) = EUpdate (EVar v) upd
 
@@ -469,7 +483,10 @@ pPatApp = do
   f <- pAPat
   as <- emany pAPat
   guard (null as || isPConApp f)
-  pure $ foldl EApp f as
+  mt <- eoptional (pSymbol "::" *> pType)
+  let
+    r = foldl EApp f as
+  pure $ maybe r (ESign r) mt
 
 pPatNotVar :: P EPat
 pPatNotVar = do
@@ -612,11 +629,7 @@ pUpdate = pSpec '{' *> esepBy pEField (pSpec ',') <* pSpec '}'
       (EFieldWild <$ pSymbol "..")
 
 pSelect :: P Ident
-pSelect = do
-  fn <- getFileName
-  let is (TSelect loc s) = Just (mkIdentLoc fn loc s)
-      is _ = Nothing
-  satisfyM "select" is
+pSelect = pSpec '.' *> pLIdent
 
 pAExpr' :: P Expr
 pAExpr' = (

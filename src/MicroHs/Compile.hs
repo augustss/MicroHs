@@ -10,8 +10,11 @@ module MicroHs.Compile(
 import Prelude
 import Data.List
 import Data.Maybe
+import System.Directory
+import System.Environment
 import System.IO
 import System.IO.MD5
+import System.Process
 import Control.DeepSeq
 import MicroHs.Abstract
 import MicroHs.CompileCache
@@ -36,9 +39,9 @@ type Time = Int
 
 -- Compile the module with the given name, starting with the given cache.
 -- Return the "compiled module" and the resulting cache.
-compileCacheTop :: Flags -> IdentModule -> Cache -> IO ([(Ident, Exp)], Cache)
+compileCacheTop :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [(Ident, Exp)]), Cache)
 compileCacheTop flags mn ch = do
-  (ds, ch') <- compile flags mn ch
+  ((rmn, ds), ch') <- compile flags mn ch
   t1 <- getTimeMilli
   let
     dsn = [ (n, compileOpt e) | (n, e) <- ds ]
@@ -48,7 +51,7 @@ compileCacheTop flags mn ch = do
     putStrLn $ "combinator conversion " ++ padLeft 6 (show (t2-t1)) ++ "ms"
   when (verbosityGT flags 3) $
     putStrLn $ "combinators:\n" ++ showLDefs dsn
-  return (dsn, ch')
+  return ((rmn, dsn), ch')
 
 getCached :: Flags -> IO Cache
 getCached flags | not flags.readCache = return emptyCache
@@ -62,12 +65,12 @@ getCached flags = do
         putStrLn $ "Loading saved cache " ++ show mhsCacheName
       validateCache flags cash
 
-compile :: Flags -> IdentModule -> Cache -> IO ([LDef], Cache)
+compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Cache)
 compile flags nm ach = do
-  ((_, t), ch) <- runStateIO (compileModuleCached flags nm) ach
+  ((cm, t), ch) <- runStateIO (compileModuleCached flags nm) ach
   when (verbosityGT flags 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (show t) ++ "ms"
-  return (concatMap bindingsOf $ map tModuleOf $ M.elems $ cache ch, ch)
+  return ((tModuleName $ tModuleOf cm, concatMap bindingsOf $ map tModuleOf $ M.elems $ cache ch), ch)
 
 -- Compile a module with the given name.
 -- If the module has already been compiled, return the cached result.
@@ -111,7 +114,7 @@ compileModule flags nm = do
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
   -- TODO: skip test when nm is a file name
-  when (nm /= nmn) $
+  when (isNothing (getFileName nm) && nm /= nmn) $
     error $ "module name does not agree with file name: " ++ showIdent nm ++ " " ++ showIdent nmn
   let
     specs = [ s | Import s <- defs ]
@@ -189,17 +192,34 @@ invertGraph = foldr ins M.empty
 
 ------------------
 
+-- Is the module name actually a file name?
+getFileName :: IdentModule -> Maybe String
+getFileName m | ".hs" `isSuffixOf` s = Just s
+             | otherwise = Nothing
+  where s = unIdent m
+
 -- TODO:
---  * if the IdentModule has suffix ".hs" then treat it as a file name.
 --  * with the CPP flag, run the prepocessor on the file
 readModulePath :: Flags -> IdentModule -> IO (FilePath, String)
-readModulePath flags mn = do
+readModulePath flags mn | Just fn <- getFileName mn = do
+  mh <- openFileM fn ReadMode
+  case mh of
+    Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show fn
+    Just h -> readRest fn h
+                        | otherwise = do
   mh <- findModulePath flags mn
   case mh of
-    Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show mn ++ "\npath=" ++ show flags.paths
-    Just (fn, h) -> do
-      file <- hGetContents h
-      return (fn, file)
+    Nothing -> errorMessage (getSLoc mn) $ "Module not found: " ++ show mn ++ "\nsearch path=" ++ show flags.paths
+    Just (fn, h) -> readRest fn h
+  where readRest fn h = do
+          file <-
+            if flags.doCPP then do
+              hClose h
+              runCPPTmp flags fn
+            else
+              hGetContents h
+          return (fn, file)
+
 
 findModulePath :: Flags -> IdentModule -> IO (Maybe (FilePath, Handle))
 findModulePath flags mn = do
@@ -218,3 +238,27 @@ openFilePath adirs fileName =
       case mh of
         Nothing -> openFilePath dirs fileName -- If opening failed, try the next directory
         Just hdl -> return (Just (path, hdl))
+
+runCPPTmp :: Flags -> FilePath -> IO String
+runCPPTmp flags infile = do
+  (fn, h) <- openTmpFile "mhscpp.hs"
+  runCPP flags infile fn
+  file <- hGetContents h
+  removeFile fn
+  return file
+
+mhsDefines :: [String]
+mhsDefines =
+  [ "'-DMIN_VERSION_base(x,y,z)=(x<=4||y<=14)'" -- Pretend we have base version 4.14
+  , "-D__MHS__"                                 -- We are MHS
+  ]
+
+runCPP :: Flags -> FilePath -> FilePath -> IO ()
+runCPP flags infile outfile = do
+  mcpphs <- lookupEnv "MHSCPPHS"
+  let cpphs = fromMaybe "cpphs" mcpphs
+      args = mhsDefines ++ flags.cppArgs
+      cmd = cpphs ++ " --noline " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
+  when (verbosityGT flags 0) $
+    putStrLn $ "Execute: " ++ show cmd
+  callCommand cmd

@@ -1698,6 +1698,7 @@ dsEFields apat =
     ESign p t -> ESign <$> dsEFields p <*> pure t
     EAt i p -> EAt i <$> dsEFields p
     EViewPat e p -> EViewPat e <$> dsEFields p
+    ELazy z p -> ELazy z <$> dsEFields p
     ECon _ -> return apat
     EUpdate c fs -> EUpdate c . concat <$> mapM (dsEField c) fs
     ENegApp _ -> return apat
@@ -2010,7 +2011,7 @@ tcPat mt ae =
       te <- newUVar
       munify loc mt (tApp (tList loc) te)
       xs <- mapM (tCheckPat te) es
-      let (sks, ds, es') = unzip3 xs
+      let !(sks, ds, es') = unzip3 xs
       return (concat sks, concat ds, EListish (LList es'))
 
     ELit _ _ -> lit
@@ -2035,6 +2036,10 @@ tcPat mt ae =
       munify loc mt tea
       (sk, d, p') <- tcPat (Check ter) p
       return (sk, d, EViewPat e' p')
+
+    ELazy z p -> do
+      (sk, d, p') <- tcPat mt p
+      return (sk, d, ELazy z p')
 
     -- Allow C{} syntax even for non-records
     EUpdate p [] -> do
@@ -2069,6 +2074,7 @@ checkArity n (ECon c) =
       else
         return ()
 checkArity n (EAt _ p) = checkArity n p
+checkArity n (ELazy _ p) = checkArity n p
 checkArity n (ESign p _) = checkArity n p
 checkArity n p =
   case p of
@@ -2453,10 +2459,11 @@ solvers =
 -- Examine each goal, either solve it (possibly producing new goals) or let it remain unsolved.
 solveMany :: [Goal] -> [UGoal] -> [Soln] -> [Improve] -> T ([UGoal], [Soln], [Improve])
 solveMany [] uns sol imp = return (uns, sol, imp)
+-- Need to handle ct of the form C => T, and forall a . T
 solveMany (cns@(di, ct) : cnss) uns sol imp = do
 --  traceM ("trying " ++ showEType ct)
   let loc = getSLoc di
-      (iCls, cts) = getApp ct
+      !(iCls, cts) = getApp ct
       solver = head [ s | (p, s) <- solvers, p iCls ]
   msol <- solver loc iCls cts
   case msol of
@@ -2619,9 +2626,9 @@ combineTySubsts = combs []
 getBestMatches :: [(Int, (Expr, [EConstraint], [Improve]))] -> [(Expr, [EConstraint], [Improve])]
 getBestMatches [] = []
 getBestMatches ams =
-  let (args, insts) = partition (\ (_, (ei, _, _)) -> isDictArg ei) ams
-      isDictArg (EVar i) = (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i
+  let isDictArg (EVar i) = (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i
       isDictArg _ = True
+      !(args, insts) = partition (\ (_, (ei, _, _)) -> isDictArg ei) ams
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest

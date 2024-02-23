@@ -49,3 +49,8 @@
 * Implement TAB completion
 * Better pretty print of Expr
 * Move extra stuff from Data.List into its own module
+* Allow top level pattern bindings
+  - Merge EBind and EDef
+* Implement pattern synonyms
+* Implement qualified constraints
+* Add some package concept with a saved cache

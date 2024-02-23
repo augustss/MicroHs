@@ -378,6 +378,83 @@ add_lzw_decompressor(BFILE *file)
   return (BFILE *)p;
 }
 
+#if WANT_LZ77
+/***************** BFILE via simple LZ77 decompression *******************/
+struct BFILE_lz77 {
+  BFILE    mets;
+  BFILE    *bfile;              /* underlying BFILE */
+  uint8_t  *buf;
+  size_t   len;
+  size_t   pos;
+};
+
+int
+getb_lz77(BFILE *bp)
+{
+  struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
+  CHECKBFILE(bp, getb_lz77);
+  if (p->pos >= p->len)
+    return -1;
+  return p->buf[p->pos++];
+}
+
+void
+ungetb_lz77(int c, BFILE *bp)
+{
+  struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
+  CHECKBFILE(bp, getb_lz77);
+  p->pos--;
+}
+
+void
+closeb_lz77(BFILE *bp)
+{
+  struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
+  CHECKBFILE(bp, getb_lz77);
+
+  closeb(p->bfile);
+  FREE(p);
+}
+
+BFILE *
+add_lz77_decompressor(BFILE *file)
+{
+  struct BFILE_lz77 *p = MALLOC(sizeof(struct BFILE_lz77));
+
+  if (!p)
+    memerr();
+  memset(p, 0, sizeof(struct BFILE_lz77));
+  p->mets.getb = getb_lz77;
+  p->mets.ungetb = ungetb_lz77;
+  p->mets.putb = 0;             /* no compressor yet. */
+  p->mets.flushb = 0;
+  p->mets.closeb = closeb_lz77;
+  p->bfile = file;
+
+  size_t size = 25000;
+  uint8_t *buf = MALLOC(size);
+  size_t i;
+  if (!buf)
+    memerr();
+  for(i = 0;;) {
+    int b = getb(file);
+    if (b < 0)
+      break;
+    if (i >= size) {
+      size *= 2;
+      buf = realloc(buf, size);
+      if (!buf)
+        memerr();
+    }
+    buf[i++] = b;
+  }
+  p->len = lz77d(buf, i, &p->buf);
+  FREE(buf);
+  p->pos = 0;
+  return (BFILE*)p;
+}
+
+#endif  /* WANT_LZ77 */
 /***************** BFILE with UTF8 encode/decode *******************/
 
 struct BFILE_utf8 {

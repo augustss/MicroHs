@@ -7,7 +7,40 @@ import Data.List
 import MicroHs.Expr
 import MicroHs.Ident
 import MicroHs.TCMonad
---import Debug.Trace
+import Debug.Trace
+
+doDeriving :: EDef -> T [EDef]
+doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (derive lhs  cs) ds
+doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (derive lhs [c]) ds
+doDeriving def                     = return [def]
+
+type Deriver = LHS -> [Constr] -> EConstraint -> T [EDef]
+
+derivers :: [(String, Deriver)]
+derivers =
+  [("Data.Bounded.Bounded",   derBounded)
+  ,("Data.Enum.Enum",         derEnum)
+  ,("Data.Eq.Eq",             derEq)
+  ,("Data.Ix.Ix",             derNotYet)
+  ,("Data.Ord.Ord",           derOrd)
+  ,("Data.Typeable.Typeable", derTypeable)
+  ,("Text.Read.Read",         derShow)
+  ,("Text.Show.Show",         derShow)
+  ]
+
+derive :: Deriver
+derive lhs cs d = do
+  let c = getAppCon d
+  case lookup (unIdent c) derivers of
+    Nothing -> tcError (getSLoc c) $ "Cannot derive " ++ show c
+    Just f  -> f lhs cs d
+
+derNotYet :: Deriver
+derNotYet _ _ d = do
+  traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
+  return []
+
+--------------------------------------------
 
 expandField :: EDef -> T [EDef]
 expandField def@(Data    lhs cs _) = (++ [def]) <$> genHasFields lhs cs
@@ -90,37 +123,6 @@ eApp3 a b c d = EApp (eApp2 a b c) d
 -- so we just ignore the qualification part for now.
 mkQIdent :: SLoc -> String -> String -> Ident
 mkQIdent loc _qual name = mkIdentSLoc loc name
-
---------------------------------------------
-
-doDeriving :: EDef -> T [EDef]
-doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (derive lhs  cs) ds
-doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (derive lhs [c]) ds
-doDeriving def                     = return [def]
-
-type Deriver = LHS -> [Constr] -> EConstraint -> T [EDef]
-
-derivers :: [(String, Deriver)]
-derivers =
-  [("Data.Typeable.Typeable", derTypeable)
-  ,("Data.Eq.Eq",             derEq)
-  ,("Data.Ord.Ord",           derOrd)
-  ,("Text.Show.Show",         derShow)
-  ]
-
-derive :: Deriver
-derive lhs cs d = do
-  let c = getAppCon d
-  case lookup (unIdent c) derivers of
-    Nothing -> tcError (getSLoc c) $ "Cannot derive " ++ show c
-    Just f  -> f lhs cs d
-
-{-
-derNotYet :: Deriver
-derNotYet _ _ d = do
-  traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
-  return []
--}
 
 --------------------------------------------
 
@@ -230,10 +232,58 @@ nameDataOrderingType = "Data.Ordering_Type"
 --------------------------------------------
 
 -- XXX should use mkQIdent
+derBounded :: Deriver
+derBounded lhs cs@(c0:_) ebnd = do
+  hdr <- mkHdr lhs cs ebnd
+  let loc = getSLoc ebnd
+
+      mkEqn bnd (Constr _ _ c flds) =
+        let n = either length length flds
+        in  eEqn [] $ tApps c (replicate n (EVar bnd))
+
+      ident = mkIdentSLoc loc
+      iMinBound = ident "minBound"
+      iMaxBound = ident "maxBound"
+      minEqn = mkEqn iMinBound c0
+      maxEqn = mkEqn iMaxBound (last cs)
+      inst = Instance hdr [BFcn iMinBound [minEqn], BFcn iMaxBound [maxEqn]]
+  -- traceM $ showEDefs [inst]
+  return [inst]
+derBounded (c, _) _ e = tcError (getSLoc e) $ "Cannot derive Bounded " ++ show c
+
+--------------------------------------------
+
+-- XXX should use mkQIdent
+derEnum :: Deriver
+derEnum lhs cs@(_:_) enm | all isNullary cs = do
+  hdr <- mkHdr lhs cs enm
+  let loc = getSLoc enm
+
+      mkFrom (Constr _ _ c _) i =
+        eEqn [EVar c] $ ELit loc (LInt i)
+      mkTo (Constr _ _ c _) i =
+        eEqn [ELit loc (LInt i)] $ EVar c
+
+      ident = mkIdentSLoc loc
+      iFromEnum = ident "fromEnum"
+      iToEnum = ident "toEnum"
+      fromEqns = zipWith mkFrom cs [0..]
+      toEqns   = zipWith mkTo   cs [0..]
+      inst = Instance hdr [BFcn iFromEnum fromEqns, BFcn iToEnum toEqns]
+  --traceM $ showEDefs [inst]
+  return [inst]
+derEnum (c, _) _ e = tcError (getSLoc e) $ "Cannot derive Enum " ++ show c
+
+isNullary :: Constr -> Bool
+isNullary (Constr _ _ _ flds) = either null null flds
+
+--------------------------------------------
+
+-- XXX should use mkQIdent
 derShow :: Deriver
-derShow lhs cs eord = do
-  hdr <- mkHdr lhs cs eord
-  let loc = getSLoc eord
+derShow lhs cs eshow = do
+  hdr <- mkHdr lhs cs eshow
+  let loc = getSLoc eshow
       mkEqn c@(Constr _ _ nm flds) =
         let (xp, xs) = mkPat c "x"
         in  eEqn [varp, xp] $ showRHS nm xs flds

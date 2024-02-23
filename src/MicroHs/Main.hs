@@ -23,7 +23,7 @@ import Compat
 import MicroHs.Instances(getMhsDir) -- for GHC
 
 mhsVersion :: String
-mhsVersion = "0.9.5.0"
+mhsVersion = "0.9.6.0"
 
 main :: IO ()
 main = do
@@ -36,12 +36,16 @@ main = do
     flags = Flags {
       verbose    = length (filter (== "-v") args),
       runIt      = elem "-r" args,
+      mhsdir     = dir,
       paths      = "." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args),
       output     = head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"],
       loading    = elem "-l" args,
       readCache  = usingMhs && (elem "-C" args || elem "-CR" args),
       writeCache = usingMhs && (elem "-C" args || elem "-CW" args),
-      useTicks   = elem "-T" args
+      useTicks   = elem "-T" args,
+      doCPP      = elem "-XCPP" args,
+      cppArgs    = filter (\ s -> "-D" `isPrefixOf` s) args,
+      compress   = elem "-z" args
       }
   if "--version" `elem` args then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
@@ -49,26 +53,27 @@ main = do
     withArgs (drop 1 rargs) $              -- leave arguments after -- for any program we run
       case mdls of
         []  -> mainInteractive flags
-        [s] -> mainCompile dir flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-        _   -> error "Usage: mhs [-v] [-l] [-r] [-C] [-T] [-iPATH] [-oFILE] [ModuleName]"
+        [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+        _   -> error "Usage: mhs [--version] [-v] [-l] [-r] [-C[R|W]] [-XCPP] [-T] [-z] [-iPATH] [-oFILE] [ModuleName]"
 
-mainCompile :: FilePath -> Flags -> Ident -> IO ()
-mainCompile mhsdir flags mn = do
-  ds <- if flags.writeCache then do
-          cash <- getCached flags
-          (ds, cash') <- compileCacheTop flags mn cash
-          when (verbosityGT flags 0) $
-            putStrLn $ "Saving cache " ++ show mhsCacheName
-          () <- seq (rnfNoErr cash) (return ())
-          saveCache mhsCacheName cash'
-          return ds
-        else do
-          cash <- getCached flags
-          fst <$> compileCacheTop flags mn cash
+mainCompile :: Flags -> Ident -> IO ()
+mainCompile flags mn = do
+  (rmn, ds) <-
+    if flags.writeCache then do
+      cash <- getCached flags
+      (ds, cash') <- compileCacheTop flags mn cash
+      when (verbosityGT flags 0) $
+        putStrLn $ "Saving cache " ++ show mhsCacheName
+      () <- seq (rnfNoErr cash) (return ())
+      saveCache mhsCacheName cash'
+      return ds
+    else do
+      cash <- getCached flags
+      fst <$> compileCacheTop flags mn cash
 
   t1 <- getTimeMilli
   let
-    mainName = qualIdent mn (mkIdent "main")
+    mainName = qualIdent rmn (mkIdent "main")
     cmdl = (mainName, ds)
     outData = toStringCMdl cmdl
     numDefs = length ds
@@ -97,16 +102,16 @@ mainCompile mhsdir flags mn = do
     if ".comb" `isSuffixOf` outFile then
       writeFile outFile outData
      else if ".c" `isSuffixOf` outFile then
-      writeFile outFile $ makeCArray outData
+      writeFile outFile $ makeCArray flags outData
      else do
        (fn, h) <- openTmpFile "mhsc.c"
-       hPutStr h $ makeCArray outData
+       hPutStr h $ makeCArray flags outData
        hClose h
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
        compiler <- fromMaybe "cc" <$> lookupEnv "CC"
        let conf = "unix-" ++ show _wordSize
-           cc = fromMaybe (compiler ++ " -w -Wall -O3 " ++ mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
+           cc = fromMaybe (compiler ++ " -w -Wall -O3 " ++ flags.mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbosityGT flags 0) $
          putStrLn $ "Execute: " ++ show cmd

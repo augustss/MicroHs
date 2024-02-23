@@ -29,7 +29,7 @@ import Data.Ratio
 import Data.STRef
 import Data.Type.Equality
 import Data.Void
-import Data.Word8
+import Data.Word
 import System.IO.MD5
 import Unsafe.Coerce
 

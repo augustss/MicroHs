@@ -55,8 +55,8 @@ encCaseScott var pes dflt =
       let
         arm (c, k) =
           let
-            (vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
-                               [ (replicate k dummyIdent, dflt) ]
+            !(vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
+                                [ (replicate k dummyIdent, dflt) ]
           in lams vs rhs
       in  apps var (map arm cs)
     _ -> undefined
@@ -133,7 +133,7 @@ caseTree n tup lo hi pes dflt =
     [(i, xs, e)] | hi - lo == 1 -> match tup xs e
                  | otherwise    -> encIf (eqInt n i) (match tup xs e) dflt
     _ ->
-      let (pesl, pesh@((i, _, _):_)) = splitAt (length pes `quot` 2) pes
+      let !(pesl, pesh@((i, _, _):_)) = splitAt (length pes `quot` 2) pes
       in  encIf (ltInt n i) (caseTree n tup lo i pesl dflt) (caseTree n tup i hi pesh dflt)
  where
    eqInt :: Exp -> Int -> Exp
