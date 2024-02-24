@@ -1,15 +1,15 @@
 # Micro Haskell
-This directory contains an implementation of an extended subset of Haskell.
+This repository contains an implementation of an extended subset of Haskell.
 It uses combinators for the runtime execution.
 
 The runtime system has minimal dependencies, and can be compiled even for micro-controllers.
-The `boards/` directory contains some sample, e.g., some sample code for an STM32F407G-DISC1 board.
+The `boards/` directory contains some samples, e.g., some sample code for an STM32F407G-DISC1 board.
 
 The compiler can compile itself.
 
 ## Compiling MicroHs
 There are two different ways to compile MicroHs:
-* Using GHC with standard `Prelude` and libraries. `Makefile` target `bin/gmhs`
+* Using GHC. `Makefile` target `bin/gmhs`
 * Using the included combinator file and runtime.  `Makefile` target `bin/mhs`
 
 These different ways of compiling need slightly different imports etc.
@@ -29,7 +29,7 @@ You also need to set the environment variable `MHSDIR`.
 
 To compile on Windows make sure `cl` is in the path, and then use `nmake` with `Makefile.windows`.
 
-The compiler can also be used with emscripten to produce JavaScript, see `Makefile.emscripten`.
+The compiler can also be used with emscripten to produce JavaScript/WASM, see `Makefile.emscripten`.
 
 ## Language
 The language is an extended subset of Haskell-2010.
