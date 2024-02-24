@@ -36,9 +36,9 @@ data IOArray a
 data () = ()   -- Parser hacks allows () to be used
 
 primIntAdd :: Int -> Int -> Int
-primIntAdd  = primitive "+"
+primIntAdd = (primitive "F") (primitive "+")
 primIntSub :: Int -> Int -> Int
-primIntSub  = primitive "-"
+primIntSub  = (primitive "F") (primitive "-")
 primIntMul :: Int -> Int -> Int
 primIntMul  = primitive "*"
 primIntQuot :: Int -> Int -> Int

@@ -165,7 +165,7 @@ iswindows(void)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_S, T_K, T_I, T_B, T_C,
-                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_F,
                 T_K2, T_K3, T_K4, T_CCB,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
@@ -551,6 +551,7 @@ struct {
   { "Y", T_Y },
   { "B'", T_BB },
   { "Z", T_Z },
+  { "F", T_F },
   { "K2", T_K2 },
   { "K3", T_K3 },
   { "K4", T_K4 },
@@ -1705,7 +1706,8 @@ printrec(BFILE *f, NODEPTR n, int prefix)
     else if (PTR(n) == stderr)
       putsb("IO.stderr", f);
     else
-      ERR("Cannot serialize pointers");
+      //ERR("Cannot serialize pointers");
+      putsb("<<PTR>>", f);
     break;
   case T_STR:
     print_string(f, STR(n));
@@ -1726,6 +1728,7 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_SS: putsb("S'", f); break;
   case T_BB: putsb("B'", f); break;
   case T_Z: putsb("Z", f); break;
+  case T_F: putsb("F", f); break;
   case T_K2: putsb("K2", f); break;
   case T_K3: putsb("K3", f); break;
   case T_K4: putsb("K4", f); break;
@@ -2000,11 +2003,13 @@ indir(NODEPTR *np)
 
 /* Evaluate to an INT */
 static INLINE value_t
-evalint(NODEPTR n)
+evalint(NODEPTR xn)
 {
-  n = evali(n);
+  //printf("******************** evalint n=%p\n", xn);
+  NODEPTR n = evali(xn);
 #if SANITY
   if (GETTAG(n) != T_INT) {
+    printf("xn=%p n=%p\n", xn, n);
     ERR1("evalint, bad tag %d", GETTAG(n));
   }
 #endif
@@ -2281,7 +2286,7 @@ evali(NODEPTR an)
 #define OPDBL1(e)      do { CHECK(1); xd = evaldbl(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPDBL2(e)      do { CHECK(2); xd = evaldbl(ARG(TOP(0))); yd = evaldbl(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
-#define ARITHUNU(op)    do { OPINT1(r = (value_t)(op (uvalue_t)xi)); SETINT(n, r); RET; } while(0)
+#define ARITHUNU(op)   do { OPINT1(r = (value_t)(op (uvalue_t)xi)); SETINT(n, r); RET; } while(0)
 #define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
 #define FARITHUN(op)   do { OPDBL1(rd = op xd); SETDBL(n, rd); RET; } while(0)
@@ -2297,6 +2302,7 @@ evali(NODEPTR an)
     int sz;
     char *res;
 
+    //printf("evali n=%p ", n); pp(stdout, n); printf("\n");
     COUNT(num_reductions);
 #if FASTTAGS
     l = LABEL(n);
@@ -2312,6 +2318,7 @@ evali(NODEPTR an)
     case T_AP:   PUSH(n); n = FUN(n); break;
 
     case T_STR:  RET;
+      /*    case T_INT:  RET; */
     case T_INT:  RET;
     case T_DBL:  RET;
     case T_PTR:  RET;
@@ -2328,6 +2335,7 @@ evali(NODEPTR an)
     case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
     case T_BB:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
     case T_Z:                CHKARG3; GOAP(x, y);                                           /* Z x y z = x y */
+    case T_F:    GCCHECK(1); CHKARG3; GOAP(z, new_ap(y, x));                                /* F x y z = z (y x) */
     case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
     case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
     case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
@@ -2338,8 +2346,46 @@ evali(NODEPTR an)
     case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
     case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
 
-    case T_ADD:  ARITHBINU(+);
-    case T_SUB:  ARITHBINU(-);
+    // case T_ADD:  ARITHBINU(+);
+    // case T_SUB:  ARITHBINU(-);
+    case T_ADD:
+      CHECK(2);
+      x = indir(&ARG(TOP(0)));
+      y = indir(&ARG(TOP(1)));
+      POP(2);
+      n = TOP(-1);
+      if (GETTAG(x) != T_INT) {
+        fprintf(stderr, "tag = %d\n", (int)GETTAG(x));
+        ERR("+ tag x");
+      }
+      if (GETTAG(y) != T_INT) {
+        fprintf(stderr, "tag = %d\n", (int)GETTAG(y));
+        ERR("+ tag y");
+      }
+      xi = GETVALUE(x);
+      yi = GETVALUE(y);
+      SETINT(n, xi + yi);
+      //printf("T_ADD n=%p r=%d\n", n, (int)(xi+yi));
+      RET;
+    case T_SUB:
+      CHECK(2);
+      x = indir(&ARG(TOP(0)));
+      y = indir(&ARG(TOP(1)));
+      POP(2);
+      n = TOP(-1);
+      if (GETTAG(x) != T_INT) {
+        fprintf(stderr, "tag = %d\n", (int)GETTAG(x));
+        ERR("- tag x");
+      }
+      if (GETTAG(y) != T_INT) {
+        fprintf(stderr, "tag = %d\n", (int)GETTAG(y));
+        ERR("- tag y");
+      }
+      xi = GETVALUE(x);
+      yi = GETVALUE(y);
+      SETINT(n, xi - yi);
+      //printf("T_SUB n=%p r=%d\n", n, (int)(xi-yi));
+      RET;
     case T_MUL:  ARITHBINU(*);
     case T_QUOT: ARITHBIN(/);
     case T_REM:  ARITHBIN(%);
@@ -2563,10 +2609,19 @@ evali(NODEPTR an)
   }
  ret:
   if (stack_ptr != stk) {
+    if(GETTAG(n) == T_INT) {
+      POP(1);
+      n = TOP(-1);
+      x = FUN(n);
+      y = ARG(n);
+      GOAP(y, x);
+    }
+
     // In this case, n was an AP that got pushed and potentially
     // updated.
     stack_ptr = stk;
     n = TOP(-1);
+    // printf("set n=%p ", n); pp(stdout, n);
   }
   return n;
 }
