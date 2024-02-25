@@ -172,7 +172,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
                 T_PEQ, T_PNULL, T_PADD, T_PSUB,
                 T_TOPTR, T_TOINT, T_TODBL,
-                T_EVAL2, T_EVAL1,
+                T_BININT2, T_BININT1, T_UNINT1,
+                T_BINDBL2, T_BINDBL1, T_UNDBL1,
 #if WANT_FLOAT
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
@@ -534,7 +535,8 @@ NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combFalse, combTrue, combUnit, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND;
 NODEPTR combLT, combEQ, combGT;
-NODEPTR combEVAL1, combEVAL2;
+NODEPTR combBININT1, combBININT2, combUNINT1;
+NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
 
 /* One node of each kind for primitives, these are never GCd. */
 /* We use linear search in this, because almost all lookups
@@ -693,8 +695,12 @@ init_nodes(void)
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_CCBIND: combIOCCBIND = n; break;
-    case T_EVAL1: combEVAL1 = n; break;
-    case T_EVAL2: combEVAL2 = n; break;
+    case T_BININT1: combBININT1 = n; break;
+    case T_BININT2: combBININT2 = n; break;
+    case T_UNINT1: combUNINT1 = n; break;
+    case T_BINDBL1: combBINDBL1 = n; break;
+    case T_BINDBL2: combBINDBL2 = n; break;
+    case T_UNDBL1: combUNDBL1 = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
@@ -719,8 +725,12 @@ init_nodes(void)
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_CCBIND: combIOCCBIND = n; break;
-    case T_EVAL1: combEVAL1 = n; break;
-    case T_EVAL2: combEVAL2 = n; break;
+    case T_BININT1: combBININT1 = n; break;
+    case T_BININT2: combBININT2 = n; break;
+    case T_UNINT1: combUNINT1 = n; break;
+    case T_BINDBL1: combBINDBL1 = n; break;
+    case T_BINDBL2: combBINDBL2 = n; break;
+    case T_UNDBL1: combUNDBL1 = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
@@ -2387,10 +2397,13 @@ evali(NODEPTR an)
     case T_UGT:
     case T_UGE:
       n = ARG(TOP(1));
-      PUSH(combEVAL2);
+      PUSH(combBININT2);
       break;
-      //case T_QUOT: ARITHBIN(/);
-      //case T_REM:  ARITHBIN(%);
+    case T_NEG:
+    case T_INV:
+      n = ARG(TOP(0));
+      PUSH(combUNINT1);
+      break;
 #else
     case T_ADD:  ARITHBINU(+);
     case T_SUB:  ARITHBINU(-);
@@ -2400,9 +2413,9 @@ evali(NODEPTR an)
     case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
     case T_UQUOT: ARITHBINU(/);
     case T_UREM:  ARITHBINU(%);
-#endif
     case T_NEG:  ARITHUNU(-);
     case T_INV:  ARITHUNU(~);
+#endif
 
 #if WANT_FLOAT
     case T_FADD: FARITHBIN(+);
@@ -2620,35 +2633,36 @@ evali(NODEPTR an)
     x = TOP(0);
     enum node_tag tag = GETTAG(x);
     uvalue_t xu, yu, ru;
+    NODEPTR p;
     
     switch (tag) {
-    case T_EVAL2:
+    case T_BININT2:
       n = ARG(TOP(1));
-      TOP(0) = combEVAL1;
+      TOP(0) = combBININT1;
       goto top;
 
-    case T_EVAL1:
+    case T_BININT1:
       /* First argument */
-#if 1
+#if SANITY
       if (GETTAG(n) != T_INT)
-        ERR("EVAL1 0");
+        ERR("BININT 0");
 #endif
       xu = (uvalue_t)GETVALUE(n);
       /* Second argument */
       y = ARG(TOP(2));
       while (GETTAG(y) == T_IND)
         y = INDIR(y);
-#if 1
+#if SANITY
       if (GETTAG(y) != T_INT)
-        ERR("EVAL1 1");
+        ERR("BININT 1");
 #endif
       yu = (uvalue_t)GETVALUE(y);
-      NODEPTR p = FUN(TOP(1));
+      p = FUN(TOP(1));
       POP(3);
       n = TOP(-1);
-    again:
+    binint:
       switch (GETTAG(p)) {
-      case T_IND:   p = INDIR(p); goto again;
+      case T_IND:   p = INDIR(p); goto binint;
       case T_ADD:   ru = xu + yu; break;
       case T_SUB:   ru = xu - yu; break;
       case T_MUL:   ru = xu * yu; break;
@@ -2677,7 +2691,29 @@ evali(NODEPTR an)
 
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
-        ERR("EVAL1");
+        ERR("BININT");
+      }
+      SETINT(n, (value_t)ru);
+      goto ret;
+
+    case T_UNINT1:
+      /* The argument */
+#if SANITY
+      if (GETTAG(n) != T_INT)
+        ERR("UNINT 0");
+#endif
+      xu = (uvalue_t)GETVALUE(n);
+      p = FUN(TOP(1));
+      POP(2);
+      n = TOP(-1);
+    unint:
+      switch (GETTAG(p)) {
+      case T_IND:   p = INDIR(p); goto unint;
+      case T_NEG:   ru = -xu; break;
+      case T_INV:   ru = ~xu; break;
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("UNINT");
       }
       SETINT(n, (value_t)ru);
       goto ret;
