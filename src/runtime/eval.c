@@ -2418,18 +2418,39 @@ evali(NODEPTR an)
 #endif
 
 #if WANT_FLOAT
+#if 1
     case T_FADD: FARITHBIN(+);
     case T_FSUB: FARITHBIN(-);
     case T_FMUL: FARITHBIN(*);
     case T_FDIV: FARITHBIN(/);
     case T_FNEG: FARITHUN(-);
-    case T_ITOF: OPINT1(rd = (flt_t)xi); SETDBL(n, rd); RET;
     case T_FEQ: CMPF(==);
     case T_FNE: CMPF(!=);
     case T_FLT: CMPF(<);
     case T_FLE: CMPF(<=);
     case T_FGT: CMPF(>);
     case T_FGE: CMPF(>=);
+#else
+    case T_FADD:
+    case T_FSUB:
+    case T_FMUL:
+    case T_FDIV:
+    case T_FEQ:
+    case T_FNE:
+    case T_FLT:
+    case T_FLE:
+    case T_FGT:
+    case T_FGE:
+      n = ARG(TOP(1));
+      PUSH(combBINDBL2);
+      break;
+    case T_FNEG:
+      n = ARG(TOP(0));
+      PUSH(combUNDBL1);
+      break;
+
+#endif
+    case T_ITOF: OPINT1(rd = (flt_t)xi); SETDBL(n, rd); RET;
     case T_FREAD:
       CHECK(1);
       msg = evalstring(ARG(TOP(0)), 0);
@@ -2437,9 +2458,9 @@ evali(NODEPTR an)
       xd = strtod(msg, NULL);
 #elif WORD_SIZE == 32
       xd = strtof(msg, NULL);
-#else
+#else  /* WORD_SIZE */
 #error Unknown WORD_SIZE
-#endif
+#endif  /* WORD_SIZE */
       FREE(msg);
       POP(1);
       n = TOP(-1);
@@ -2633,6 +2654,7 @@ evali(NODEPTR an)
     x = TOP(0);
     enum node_tag tag = GETTAG(x);
     uvalue_t xu, yu, ru;
+    flt_t xd, yd, rd;
     NODEPTR p;
     
     switch (tag) {
@@ -2716,6 +2738,73 @@ evali(NODEPTR an)
         ERR("UNINT");
       }
       SETINT(n, (value_t)ru);
+      goto ret;
+
+    case T_BINDBL2:
+      n = ARG(TOP(1));
+      TOP(0) = combBINDBL1;
+      goto top;
+
+    case T_BINDBL1:
+      /* First argument */
+#if SANITY
+      if (GETTAG(n) != T_DBL)
+        ERR("BINDBL 0");
+#endif
+      xd = GETDBLVALUE(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (GETTAG(y) == T_IND)
+        y = INDIR(y);
+#if SANITY
+      if (GETTAG(y) != T_DBL)
+        ERR("BINDBL 1");
+#endif
+      yd = GETDBLVALUE(y);
+      p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
+    bindbl:
+      switch (GETTAG(p)) {
+      case T_IND:   p = INDIR(p); goto bindbl;
+      case T_FADD:  rd = xd + yd; break;
+      case T_FSUB:  rd = xd - yd; break;
+      case T_FMUL:  rd = xd * yd; break;
+      case T_FDIV:  rd = xd * yd; break;
+
+      case T_FEQ:   GOIND(xd == yd ? combTrue : combFalse);
+      case T_FNE:   GOIND(xd != yd ? combTrue : combFalse);
+      case T_FLT:   GOIND(xd <  yd ? combTrue : combFalse);
+      case T_FLE:   GOIND(xd <= yd ? combTrue : combFalse);
+      case T_FGT:   GOIND(xd >  yd ? combTrue : combFalse);
+      case T_FGE:   GOIND(xd >= yd ? combTrue : combFalse);
+
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("BINDBL");
+      }
+      SETDBLVALUE(n, rd);
+      goto ret;
+
+    case T_UNDBL1:
+      /* The argument */
+#if SANITY
+      if (GETTAG(n) != T_DBL)
+        ERR("UNDBL 0");
+#endif
+      xd = GETDBLVALUE(n);
+      p = FUN(TOP(1));
+      POP(2);
+      n = TOP(-1);
+    undbl:
+      switch (GETTAG(p)) {
+      case T_IND:   p = INDIR(p); goto undbl;
+      case T_FNEG:  rd = -xd; break;
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("UNDBL");
+      }
+      SETDBLVALUE(n, rd);
       goto ret;
 
     default:
