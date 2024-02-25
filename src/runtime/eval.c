@@ -2268,7 +2268,7 @@ evali(NODEPTR an)
   value_t xi, yi, r;
   void *xp, *yp;
 #if WANT_FLOAT
-  flt_t xd, yd, rd;
+  flt_t xd, rd;
 #endif  /* WANT_FLOAT */
   char *msg;
 #if FASTTAGS
@@ -2317,7 +2317,7 @@ evali(NODEPTR an)
 #define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
 #define FARITHUN(op)   do { OPDBL1(rd = op xd); SETDBL(n, rd); RET; } while(0)
-#define FARITHBIN(op)  do { OPDBL2(rd = xd op yd); SETDBL(n, rd); RET; } while(0)
+#define FARITHBIN(op)  do { OPDBL2(rd = xd op yd); SETDBL(n, rd); printf("### %g %g %g ###\n", xd, yd, rd); RET; } while(0)
 #define CMP(op)        do { OPINT2(r = xi op yi); GOIND(r ? combTrue : combFalse); } while(0)
 #define CMPF(op)       do { OPDBL2(r = xd op yd); GOIND(r ? combTrue : combFalse); } while(0)
 #define CMPU(op)       do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? combTrue : combFalse); } while(0)
@@ -2371,7 +2371,6 @@ evali(NODEPTR an)
     case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
     case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
 
-#if 1
     case T_ADD:
     case T_SUB:
     case T_MUL:
@@ -2404,21 +2403,9 @@ evali(NODEPTR an)
       n = ARG(TOP(0));
       PUSH(combUNINT1);
       break;
-#else
-    case T_ADD:  ARITHBINU(+);
-    case T_SUB:  ARITHBINU(-);
-    case T_MUL:  ARITHBINU(*);
-    case T_QUOT: ARITHBIN(/);
-    case T_REM:  ARITHBIN(%);
-    case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
-    case T_UQUOT: ARITHBINU(/);
-    case T_UREM:  ARITHBINU(%);
-    case T_NEG:  ARITHUNU(-);
-    case T_INV:  ARITHUNU(~);
-#endif
 
 #if WANT_FLOAT
-#if 1
+#if 0
     case T_FADD: FARITHBIN(+);
     case T_FSUB: FARITHBIN(-);
     case T_FMUL: FARITHBIN(*);
@@ -2654,7 +2641,9 @@ evali(NODEPTR an)
     x = TOP(0);
     enum node_tag tag = GETTAG(x);
     uvalue_t xu, yu, ru;
+#if WANT_FLOAT
     flt_t xd, yd, rd;
+#endif  /* WANT_FLOAT */
     NODEPTR p;
     
     switch (tag) {
@@ -2668,7 +2657,7 @@ evali(NODEPTR an)
 #if SANITY
       if (GETTAG(n) != T_INT)
         ERR("BININT 0");
-#endif
+#endif  /* SANITY */
       xu = (uvalue_t)GETVALUE(n);
       /* Second argument */
       y = ARG(TOP(2));
@@ -2677,7 +2666,7 @@ evali(NODEPTR an)
 #if SANITY
       if (GETTAG(y) != T_INT)
         ERR("BININT 1");
-#endif
+#endif  /* SANITY */
       yu = (uvalue_t)GETVALUE(y);
       p = FUN(TOP(1));
       POP(3);
@@ -2740,6 +2729,7 @@ evali(NODEPTR an)
       SETINT(n, (value_t)ru);
       goto ret;
 
+#if WANT_FLOAT
     case T_BINDBL2:
       n = ARG(TOP(1));
       TOP(0) = combBINDBL1;
@@ -2750,7 +2740,7 @@ evali(NODEPTR an)
 #if SANITY
       if (GETTAG(n) != T_DBL)
         ERR("BINDBL 0");
-#endif
+#endif  /* SANITY */
       xd = GETDBLVALUE(n);
       /* Second argument */
       y = ARG(TOP(2));
@@ -2759,7 +2749,7 @@ evali(NODEPTR an)
 #if SANITY
       if (GETTAG(y) != T_DBL)
         ERR("BINDBL 1");
-#endif
+#endif  /* SANITY */
       yd = GETDBLVALUE(y);
       p = FUN(TOP(1));
       POP(3);
@@ -2770,7 +2760,7 @@ evali(NODEPTR an)
       case T_FADD:  rd = xd + yd; break;
       case T_FSUB:  rd = xd - yd; break;
       case T_FMUL:  rd = xd * yd; break;
-      case T_FDIV:  rd = xd * yd; break;
+      case T_FDIV:  rd = xd / yd; break;
 
       case T_FEQ:   GOIND(xd == yd ? combTrue : combFalse);
       case T_FNE:   GOIND(xd != yd ? combTrue : combFalse);
@@ -2783,7 +2773,7 @@ evali(NODEPTR an)
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
         ERR("BINDBL");
       }
-      SETDBLVALUE(n, rd);
+      SETDBL(n, rd);
       goto ret;
 
     case T_UNDBL1:
@@ -2804,8 +2794,9 @@ evali(NODEPTR an)
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
         ERR("UNDBL");
       }
-      SETDBLVALUE(n, rd);
+      SETDBL(n, rd);
       goto ret;
+#endif  /* WANT_FLOAT */
 
     default:
       stack_ptr = stk;
