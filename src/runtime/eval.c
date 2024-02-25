@@ -2371,6 +2371,24 @@ evali(NODEPTR an)
     case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
     case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
 
+    /*
+     * Strict primitives require evaluating the arguments before we can proceed.
+     * The easiest way to do this is to just recursively call evali() for each argument.
+     * The drawback of this is that it uses a lot of C stack.  (E.g., recompiling MicroHs
+     * uses a stack depth of 1800).
+     * Instead we use the following scheme:
+     *  When we find a strict binary (int) primitive we push T_BININT2,
+     *  set n=second argument.
+     *  Continue evaluation of n.
+     *  When n is finally evaluated and we are about to return we check if the stack top is T_BININT2.
+     *  If so, change the stack top to T_BININT1,
+     *  set n=first argument.
+     *  Continue evaluation of n.
+     *  When n is finally evaluated and we are about to return we check if the stack top is T_BININT1.
+     *  If so, we know that both arguments are now evaluated, and we perform the strict operation.
+     *
+     * On my desktop machine this is about 3% slower, on my laptop (Apple M1) it is about 3% faster.
+     */
     case T_ADD:
     case T_SUB:
     case T_MUL:
