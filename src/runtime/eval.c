@@ -524,6 +524,7 @@ NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combFalse, combTrue, combUnit, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND;
 NODEPTR combLT, combEQ, combGT;
+NODEPTR combEVAL1, combEVAL2;
 
 /* One node of each kind for primitives, these are never GCd. */
 /* We use linear search in this, because almost all lookups
@@ -682,6 +683,8 @@ init_nodes(void)
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_CCBIND: combIOCCBIND = n; break;
+    case T_EVAL1: combEVAL1 = n; break;
+    case T_EVAL2: combEVAL2 = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
@@ -706,6 +709,8 @@ init_nodes(void)
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_CCBIND: combIOCCBIND = n; break;
+    case T_EVAL1: combEVAL1 = n; break;
+    case T_EVAL2: combEVAL2 = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
@@ -2345,7 +2350,7 @@ evali(NODEPTR an)
     case T_ADD:
     case T_SUB:
       n = ARG(TOP(1));
-      PUSH(cells + T_EVAL2);
+      PUSH(combEVAL2);
       break;
     case T_MUL:  ARITHBINU(*);
     case T_QUOT: ARITHBIN(/);
@@ -2583,7 +2588,7 @@ evali(NODEPTR an)
     
     if (tag == T_EVAL2) {
       n = ARG(TOP(1));
-      TOP(0) = cells + T_EVAL1;
+      TOP(0) = combEVAL1;
       goto top;
     } else if (tag == T_EVAL1) {
       /* First argument */
