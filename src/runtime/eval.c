@@ -2275,6 +2275,10 @@ evali(NODEPTR an)
 #if FASTTAGS
   heapoffs_t l;
 #endif
+  enum node_tag tag;
+  struct ioarray *arr;
+  int sz;
+  char *res;
 
 #if MAXSTACKDEPTH
   counter_t old_cur_c_stack = cur_c_stack;
@@ -2314,52 +2318,46 @@ evali(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
  top:
-  for(;;) {
-    enum node_tag tag;
-    struct ioarray *arr;
-    int sz;
-    char *res;
-
-    COUNT(num_reductions);
+  COUNT(num_reductions);
 #if FASTTAGS
-    l = LABEL(n);
-    tag = l < T_IO_BIND ? l : GETTAG(n);
+  l = LABEL(n);
+  tag = l < T_IO_BIND ? l : GETTAG(n);
 #else   /* FASTTAGS */
-    tag = GETTAG(n);
+  tag = GETTAG(n);
 #endif  /* FASTTAGS */
-    switch (tag) {
-    ind:
-    case T_IND:  n = INDIR(n); break;
+  switch (tag) {
+  ind:
+  case T_IND:  n = INDIR(n); goto top;
 
-    ap:
-    case T_AP:   PUSH(n); n = FUN(n); break;
+  ap:
+  case T_AP:   PUSH(n); n = FUN(n); goto top;
 
-    case T_STR:  RET;
-    case T_INT:  RET;
-    case T_DBL:  RET;
-    case T_PTR:  RET;
-    case T_ARR:  RET;
-    case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
-
-    case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
-    case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
-    case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
-    case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
-    case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
-    case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
-    case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
-    case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
-    case T_BB:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
-    case T_Z:                CHKARG3; GOAP(x, y);                                           /* Z x y z = x y */
-    case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
-    case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
-    case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
-    case T_R:    GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
-    case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
-    case T_K2:               CHKARG3; GOIND(x);                                             /* K2 x y z = *x */
-    case T_K3:               CHKARG4; GOIND(x);                                             /* K3 x y z w = *x */
-    case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
-    case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
+  case T_STR:  RET;
+  case T_INT:  RET;
+  case T_DBL:  RET;
+  case T_PTR:  RET;
+  case T_ARR:  RET;
+  case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
+    
+  case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
+  case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
+  case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
+  case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
+  case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
+  case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
+  case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
+  case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
+  case T_BB:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
+  case T_Z:                CHKARG3; GOAP(x, y);                                           /* Z x y z = x y */
+  case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
+  case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
+  case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
+  case T_R:    GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
+  case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
+  case T_K2:               CHKARG3; GOIND(x);                                             /* K2 x y z = *x */
+  case T_K3:               CHKARG4; GOIND(x);                                             /* K3 x y z w = *x */
+  case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
+  case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
 
     /*
      * Strict primitives require evaluating the arguments before we can proceed.
@@ -2379,119 +2377,119 @@ evali(NODEPTR an)
      *
      * On my desktop machine this is about 3% slower, on my laptop (Apple M1) it is about 3% faster.
      */
-    case T_ADD:
-    case T_SUB:
-    case T_MUL:
-    case T_QUOT:
-    case T_REM:
-    case T_SUBR:
-    case T_UQUOT:
-    case T_UREM:
-    case T_AND:
-    case T_OR:
-    case T_XOR:
-    case T_SHL:
-    case T_SHR:
-    case T_ASHR:
-    case T_EQ:
-    case T_NE:
-    case T_LT:
-    case T_LE:
-    case T_GT:
-    case T_GE:
-    case T_ULT:
-    case T_ULE:
-    case T_UGT:
-    case T_UGE:
-      n = ARG(TOP(1));
-      PUSH(combBININT2);
-      break;
-    case T_NEG:
-    case T_INV:
-      n = ARG(TOP(0));
-      PUSH(combUNINT1);
-      break;
+  case T_ADD:
+  case T_SUB:
+  case T_MUL:
+  case T_QUOT:
+  case T_REM:
+  case T_SUBR:
+  case T_UQUOT:
+  case T_UREM:
+  case T_AND:
+  case T_OR:
+  case T_XOR:
+  case T_SHL:
+  case T_SHR:
+  case T_ASHR:
+  case T_EQ:
+  case T_NE:
+  case T_LT:
+  case T_LE:
+  case T_GT:
+  case T_GE:
+  case T_ULT:
+  case T_ULE:
+  case T_UGT:
+  case T_UGE:
+    n = ARG(TOP(1));
+    PUSH(combBININT2);
+    goto top;
+  case T_NEG:
+  case T_INV:
+    n = ARG(TOP(0));
+    PUSH(combUNINT1);
+    goto top;
 
 #if WANT_FLOAT
-    case T_FADD:
-    case T_FSUB:
-    case T_FMUL:
-    case T_FDIV:
-    case T_FEQ:
-    case T_FNE:
-    case T_FLT:
-    case T_FLE:
-    case T_FGT:
-    case T_FGE:
-      n = ARG(TOP(1));
-      PUSH(combBINDBL2);
-      break;
-    case T_FNEG:
-      n = ARG(TOP(0));
-      PUSH(combUNDBL1);
-      break;
+  case T_FADD:
+  case T_FSUB:
+  case T_FMUL:
+  case T_FDIV:
+  case T_FEQ:
+  case T_FNE:
+  case T_FLT:
+  case T_FLE:
+  case T_FGT:
+  case T_FGE:
+    n = ARG(TOP(1));
+    PUSH(combBINDBL2);
+    goto top;
+  case T_FNEG:
+    n = ARG(TOP(0));
+    PUSH(combUNDBL1);
+    goto top;
 
-    case T_ITOF: OPINT1(rd = (flt_t)xi); SETDBL(n, rd); RET;
-    case T_FREAD:
-      CHECK(1);
-      msg = evalstring(ARG(TOP(0)), 0);
+  case T_ITOF: OPINT1(rd = (flt_t)xi); SETDBL(n, rd); RET;
+  case T_FREAD:
+    CHECK(1);
+    msg = evalstring(ARG(TOP(0)), 0);
 #if WORD_SIZE == 64
-      xd = strtod(msg, NULL);
+    xd = strtod(msg, NULL);
 #elif WORD_SIZE == 32
-      xd = strtof(msg, NULL);
+    xd = strtof(msg, NULL);
 #else  /* WORD_SIZE */
 #error Unknown WORD_SIZE
 #endif  /* WORD_SIZE */
-      FREE(msg);
-      POP(1);
-      n = TOP(-1);
-      SETDBL(n, xd);
-      RET;
+    FREE(msg);
+    POP(1);
+    n = TOP(-1);
+    SETDBL(n, xd);
+    RET;
 
-    case T_FSHOW:
-      CHECK(1);
-      xd = evaldbl(ARG(TOP(0)));
-      POP(1);
-      n = TOP(-1);
-      GOIND(dblToString(xd));
+  case T_FSHOW:
+    CHECK(1);
+    xd = evaldbl(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    GOIND(dblToString(xd));
 #endif  /* WANT_FLOAT */
 
-    /* Retag a word sized value, keeping the value bits */
+  /* Retag a word sized value, keeping the value bits */
 #define CONV(t) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, t); SETVALUE(n, GETVALUE(x)); RET; } while(0)
-    case T_TODBL: CONV(T_DBL);
-    case T_TOINT: CONV(T_INT);
-    case T_TOPTR: CONV(T_PTR);
+  case T_TODBL: CONV(T_DBL);
+  case T_TOINT: CONV(T_INT);
+  case T_TOPTR: CONV(T_PTR);
 #undef CONV
 
-    case T_PEQ:  CMPP(==);
-    case T_PNULL: SETTAG(n, T_PTR); PTR(n) = 0; RET;
-    case T_PADD: CHECK(2); xp = evalptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETPTR(n, (char*)xp + yi); RET;
-    case T_PSUB: CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, (char*)xp - (char*)yp); RET;
+  case T_PEQ:  CMPP(==);
+  case T_PNULL: SETTAG(n, T_PTR); PTR(n) = 0; RET;
+  case T_PADD: CHECK(2); xp = evalptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETPTR(n, (char*)xp + yi); RET;
+  case T_PSUB: CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, (char*)xp - (char*)yp); RET;
 
-    case T_ARR_EQ:
-      {
-        CHECK(2);
-        x = evali(ARG(TOP(0)));
-        arr = ARR(x);
-        y = evali(ARG(TOP(1)));
-        POP(2);
-        n = TOP(-1);
-        GOIND(arr == ARR(y) ? combTrue : combFalse);
-      }
-
-    case T_FROMUTF8:
-      if (doing_rnf) RET;
-      CHECK(1);
+  case T_ARR_EQ:
+    {
+      CHECK(2);
       x = evali(ARG(TOP(0)));
-      if (GETTAG(x) != T_STR) ERR("FROMUTF8");
-      POP(1);
+      arr = ARR(x);
+      y = evali(ARG(TOP(1)));
+      POP(2);
       n = TOP(-1);
-      GCCHECK(strNodes(STR(x)->size));
-      GOIND(mkStringU(STR(x)));
+      GOIND(arr == ARR(y) ? combTrue : combFalse);
+    }
 
-    case T_NOMATCH:
-      if (doing_rnf) RET;
-      {
+  case T_FROMUTF8:
+    if (doing_rnf) RET;
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+    if (GETTAG(x) != T_STR) ERR("FROMUTF8");
+    POP(1);
+    n = TOP(-1);
+    GCCHECK(strNodes(STR(x)->size));
+    GOIND(mkStringU(STR(x)));
+
+  case T_NOMATCH:
+    if (doing_rnf) RET;
+    {
       CHECK(3);
       msg = evalstring(ARG(TOP(0)), 0);
       xi = evalint(ARG(TOP(1)));
@@ -2509,15 +2507,15 @@ evali(NODEPTR an)
       FREE(res);
       FREE(msg);
       goto err;                 /* XXX not right message if the error is caught */
-      }
-    case T_NODEFAULT:
-      if (doing_rnf) RET;
-      {
+    }
+  case T_NODEFAULT:
+    if (doing_rnf) RET;
+    {
       CHECK(1);
       msg = evalstring(ARG(TOP(0)), 0);
       sz = strlen(msg) + 100;
       res = MALLOC(sz);
-
+      
 #if WANT_STDIO
       snprintf(res, sz, "no default for %s", msg);
 #else  /* WANT_STDIO */
@@ -2528,104 +2526,104 @@ evali(NODEPTR an)
       FREE(res);
       FREE(msg);
       goto err;                 /* XXX not right message if the error is caught */
-      }
-    case T_ERROR:
-      if (doing_rnf) RET;
-    err:
-      if (cur_handler) {
-        /* Pass the string to the handler */
-        CHKARG1;
-        cur_handler->hdl_exn = x;
-        longjmp(cur_handler->hdl_buf, 1);
-      } else {
-        /* No handler, so just die. */
-        CHKARGEV1(msg = evalstring(x, 0));
-#if WANT_STDIO
-        ERR1("mhs: %s\n", msg);
-        EXIT(1);
-#else  /* WANT_STDIO */
-        ERR1("error: %s", msg);
-#endif  /* WANT_STDIO */
-      }
-    case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
-
-    case T_EQUAL:
-      CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
-    case T_COMPARE:
-      CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
-
-    case T_RNF:
-      if (doing_rnf) RET;
-      CHECK(2);
-      xi = evalint(ARG(TOP(0)));
-      rnf(xi, ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(combUnit);
-
-    case T_IO_PERFORMIO:
-      CHECK(1);
-      if (doing_rnf) RET;
-      execio(&ARG(TOP(0)));       /* run IO action */
-      x = ARG(TOP(0));           /* should be RETURN e */
-      if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
-        ERR("PERFORMIO");
-      POP(1);
-      n = TOP(-1);
-      GOIND(ARG(x));
-
-    case T_IO_CCBIND:           /* We should never have to reduce this */
-    case T_IO_BIND:
-    case T_IO_THEN:
-    case T_IO_RETURN:
-    case T_IO_SERIALIZE:
-    case T_IO_PRINT:
-    case T_IO_DESERIALIZE:
-    case T_IO_GETARGREF:
-    case T_IO_GETTIMEMILLI:
-    case T_IO_CCALL:
-    case T_IO_CATCH:
-    case T_NEWCASTRINGLEN:
-    case T_PEEKCASTRING:
-    case T_PEEKCASTRINGLEN:
-    case T_ARR_ALLOC:
-    case T_ARR_SIZE:
-    case T_ARR_READ:
-    case T_ARR_WRITE:
-      RET;
-
-    case T_DYNSYM:
-      /* A dynamic FFI lookup */
-      CHECK(1);
-      msg = evalstring(ARG(TOP(0)), 0);
-      GCCHECK(1);
-      x = ffiNode(msg);
-      FREE(msg);
-      POP(1);
-      n = TOP(-1);
-      GOIND(x);
-
-#if WANT_TICK
-    case T_TICK:
-      xi = GETVALUE(n);
+    }
+  case T_ERROR:
+    if (doing_rnf) RET;
+  err:
+    if (cur_handler) {
+      /* Pass the string to the handler */
       CHKARG1;
-      dotick(xi);
-      GOIND(x);
+      cur_handler->hdl_exn = x;
+      longjmp(cur_handler->hdl_buf, 1);
+    } else {
+      /* No handler, so just die. */
+      CHKARGEV1(msg = evalstring(x, 0));
+#if WANT_STDIO
+      ERR1("mhs: %s\n", msg);
+      EXIT(1);
+#else  /* WANT_STDIO */
+      ERR1("error: %s", msg);
+#endif  /* WANT_STDIO */
+    }
+  case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
+    
+  case T_EQUAL:
+    CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
+  case T_COMPARE:
+    CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
+
+  case T_RNF:
+    if (doing_rnf) RET;
+    CHECK(2);
+    xi = evalint(ARG(TOP(0)));
+    rnf(xi, ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(combUnit);
+
+  case T_IO_PERFORMIO:
+    CHECK(1);
+    if (doing_rnf) RET;
+    execio(&ARG(TOP(0)));       /* run IO action */
+    x = ARG(TOP(0));           /* should be RETURN e */
+    if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
+      ERR("PERFORMIO");
+    POP(1);
+    n = TOP(-1);
+    GOIND(ARG(x));
+
+  case T_IO_CCBIND:           /* We should never have to reduce this */
+  case T_IO_BIND:
+  case T_IO_THEN:
+  case T_IO_RETURN:
+  case T_IO_SERIALIZE:
+  case T_IO_PRINT:
+  case T_IO_DESERIALIZE:
+  case T_IO_GETARGREF:
+  case T_IO_GETTIMEMILLI:
+  case T_IO_CCALL:
+  case T_IO_CATCH:
+  case T_NEWCASTRINGLEN:
+  case T_PEEKCASTRING:
+  case T_PEEKCASTRINGLEN:
+  case T_ARR_ALLOC:
+  case T_ARR_SIZE:
+  case T_ARR_READ:
+  case T_ARR_WRITE:
+    RET;
+
+  case T_DYNSYM:
+    /* A dynamic FFI lookup */
+    CHECK(1);
+    msg = evalstring(ARG(TOP(0)), 0);
+    GCCHECK(1);
+    x = ffiNode(msg);
+    FREE(msg);
+    POP(1);
+    n = TOP(-1);
+    GOIND(x);
+    
+#if WANT_TICK
+  case T_TICK:
+    xi = GETVALUE(n);
+    CHKARG1;
+    dotick(xi);
+    GOIND(x);
 #endif
 
-    default:
-      ERR1("eval tag %d", GETTAG(n));
-    }
+  default:
+    ERR1("eval tag %d", GETTAG(n));
   }
+
+
  ret:
   if (stack_ptr != stk) {
     // In this case, n was an AP that got pushed and potentially
     // updated.
-    x = TOP(0);
-    enum node_tag tag = GETTAG(x);
     uvalue_t xu, yu, ru;
 #if WANT_FLOAT
     flt_t xd, yd, rd;
 #endif  /* WANT_FLOAT */
     NODEPTR p;
     
+    tag = GETTAG(TOP(0));
     switch (tag) {
     case T_BININT2:
       n = ARG(TOP(1));
@@ -2805,6 +2803,7 @@ evali(NODEPTR an)
  * Invariant: the second argument to this BIND is always either RETURN
  * or a C'BIND.  The second argument to C'BIND has the same invariant.
  * This is the cycle:
+ *  again:
  *   given top = BIND n q
  *   eval(n)
  *   case n
@@ -2813,7 +2812,7 @@ evali(NODEPTR an)
  *     otherwise: res = execute n
  *       case q
  *         RETURN:     rewrite to  top := RETURN res;  return to caller
- *         C'BIND r s: rewrite to  top := BIND (r res) s; goto top
+ *         C'BIND r s: rewrite to  top := BIND (r res) s; goto again
  */
 void
 execio(NODEPTR *np)
