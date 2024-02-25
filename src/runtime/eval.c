@@ -291,15 +291,25 @@ counter_t num_gc = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t run_time = 0;
 
+#define MAXSTACKDEPTH 0
+#if MAXSTACKDEPTH
+stackptr_t max_stack_depth = 0;
+counter_t max_c_stack = 0;
+counter_t cur_c_stack = 0;
+#define MAXSTACK if (stack_ptr > max_stack_depth) max_stack_depth = stack_ptr
+#else
+#define MAXSTACK
+#endif
+
 NODEPTR *topnode;
 NODEPTR atptr;
 
 NODEPTR *stack;
 stackptr_t stack_ptr = -1;
 #if STACKOVL
-#define PUSH(x) do { if (stack_ptr >= stack_size-1) ERR("stack overflow"); stack[++stack_ptr] = (x); } while(0)
+#define PUSH(x) do { if (stack_ptr >= stack_size-1) ERR("stack overflow"); stack[++stack_ptr] = (x); MAXSTACK; } while(0)
 #else  /* STACKOVL */
-#define PUSH(x) do {                                                       stack[++stack_ptr] = (x); } while(0)
+#define PUSH(x) do {                                                       stack[++stack_ptr] = (x); MAXSTACK; } while(0)
 #endif  /* STACKOVL */
 #define TOP(n) stack[stack_ptr - (n)]
 #define POP(n) stack_ptr -= (n)
@@ -2255,6 +2265,12 @@ evali(NODEPTR an)
   heapoffs_t l;
 #endif
 
+#if MAXSTACKDEPTH
+  counter_t old_cur_c_stack = cur_c_stack;
+  if (++cur_c_stack > max_c_stack)
+    max_c_stack = cur_c_stack;
+#endif
+
 /* Reset stack pointer and return. */
 #define RET do { goto ret; } while(0)
 /* Check that there are at least n arguments, return if not. */
@@ -2671,6 +2687,9 @@ evali(NODEPTR an)
       n = TOP(-1);
     }
   }
+#if MAXSTACKDEPTH
+  cur_c_stack = old_cur_c_stack; /* reset rather than counting down, in case of longjump */
+#endif
   return n;
 }
 
@@ -3185,6 +3204,10 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
     PRINT("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
+#if MAXSTACKDEPTH
+    PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
+    PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
+#endif
     // PRINT("%"PCOMMA"15"PRIcounter" max mark depth\n", max_mark_depth);
     PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
     PRINT("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
