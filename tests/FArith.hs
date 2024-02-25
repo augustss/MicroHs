@@ -4,22 +4,17 @@ import Prelude
 readDouble :: String -> Double
 readDouble = read
 
+-- Be careful about what constants we use here, so it works with both 32 and 64 bit floats.
+-- We only use values that can be represented exactly.
+
 list1 :: [Double]
-list1 = [-100.343241, -53.3248973, 0.0, 1.0, 1.23453523, 3243534.34534, 999.999]
-
-list2 :: [Double]
-list2 = [-100.343241, -53.3248973, 0.0, 1.0, 1.23453523, 3243534.34534, 999.999, 1.2e13]
-
-divide :: Double -> Double -> Double
-divide x y = if y == 0.0 then 0.0 else x / y
+list1 = [-100.25::Double, -53.25::Double, 0.0::Double, 1.0::Double, 1.125::Double, 1.0e4::Double]
 
 main :: IO ()
 main = do
-  putStrLn $ show [ op x y | x <- list1, y <- list2, op <- [(+), (-), (*), divide] ]
-  putStrLn $ show [ op x y | x <- list1, y <- list2, op <- [(==), (/=), (<), (<=), (>), (>=)] ]
-  putStrLn $ show [ x / y | x <- [2.234983, 1.232, 23.0::Double], y <- [1.0, 5.0, 10.0, 100.0]]
-  putStrLn $ show [ x / y | x <- [-2.234983, -1.232, -23.0::Double], y <- [1.0, -5.0, 10.0, -100.0]]
-  let str = readDouble "1.576"
-  putStrLn $ show str
+  putStrLn $ show [ op x y | x <- list1, y <- list1, op <- [(+), (-), (*)] ]
+  putStrLn $ show [ op x y | x <- list1, y <- list1, op <- [(==), (/=), (<), (<=), (>), (>=)] ]
+  putStrLn $ show [ x / y  | x <- list1, y <- [1.0::Double, -16.0::Double, 0.0625::Double]]
+  putStrLn $ show $ readDouble "1.625"
   putStrLn $ show $ 1.0 + readDouble "2.5"
-  putStrLn $ show $ map readDouble ["1.5e32", "1.25e-33"]
+  putStrLn $ show $ map readDouble ["1.5e4", "1.25e-5"]
