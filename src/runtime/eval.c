@@ -2310,18 +2310,7 @@ evali(NODEPTR an)
 #define SETDBL(n,d)    do { SETTAG((n), T_DBL); SETDBLVALUE((n), (d)); } while(0)
 #define SETPTR(n,r)    do { SETTAG((n), T_PTR); PTR(n) = (r); } while(0)
 #define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
-#define OPINT2(e)      do { CHECK(2); xi = evalint(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
-#define OPDBL1(e)      do { CHECK(1); xd = evaldbl(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
-#define OPDBL2(e)      do { CHECK(2); xd = evaldbl(ARG(TOP(0))); yd = evaldbl(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
-#define ARITHUNU(op)    do { OPINT1(r = (value_t)(op (uvalue_t)xi)); SETINT(n, r); RET; } while(0)
-#define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
-#define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
-#define FARITHUN(op)   do { OPDBL1(rd = op xd); SETDBL(n, rd); RET; } while(0)
-#define FARITHBIN(op)  do { OPDBL2(rd = xd op yd); SETDBL(n, rd); printf("### %g %g %g ###\n", xd, yd, rd); RET; } while(0)
-#define CMP(op)        do { OPINT2(r = xi op yi); GOIND(r ? combTrue : combFalse); } while(0)
-#define CMPF(op)       do { OPDBL2(r = xd op yd); GOIND(r ? combTrue : combFalse); } while(0)
-#define CMPU(op)       do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? combTrue : combFalse); } while(0)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
  top:
@@ -2424,19 +2413,6 @@ evali(NODEPTR an)
       break;
 
 #if WANT_FLOAT
-#if 0
-    case T_FADD: FARITHBIN(+);
-    case T_FSUB: FARITHBIN(-);
-    case T_FMUL: FARITHBIN(*);
-    case T_FDIV: FARITHBIN(/);
-    case T_FNEG: FARITHUN(-);
-    case T_FEQ: CMPF(==);
-    case T_FNE: CMPF(!=);
-    case T_FLT: CMPF(<);
-    case T_FLE: CMPF(<=);
-    case T_FGT: CMPF(>);
-    case T_FGE: CMPF(>=);
-#else
     case T_FADD:
     case T_FSUB:
     case T_FMUL:
@@ -2455,7 +2431,6 @@ evali(NODEPTR an)
       PUSH(combUNDBL1);
       break;
 
-#endif
     case T_ITOF: OPINT1(rd = (flt_t)xi); SETDBL(n, rd); RET;
     case T_FREAD:
       CHECK(1);
@@ -2487,20 +2462,6 @@ evali(NODEPTR an)
     case T_TOINT: CONV(T_INT);
     case T_TOPTR: CONV(T_PTR);
 #undef CONV
-
-#if 1
-#else
-    case T_EQ:   CMP(==);
-    case T_NE:   CMP(!=);
-    case T_LT:   CMP(<);
-    case T_LE:   CMP(<=);
-    case T_GT:   CMP(>);
-    case T_GE:   CMP(>=);
-    case T_ULT:  CMPU(<);
-    case T_ULE:  CMPU(<=);
-    case T_UGT:  CMPU(>);
-    case T_UGE:  CMPU(>=);
-#endif
 
     case T_PEQ:  CMPP(==);
     case T_PNULL: SETTAG(n, T_PTR); PTR(n) = 0; RET;
