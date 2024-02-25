@@ -172,6 +172,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
                 T_PEQ, T_PNULL, T_PADD, T_PSUB,
                 T_TOPTR, T_TOINT, T_TODBL,
+                T_BININT2, T_BININT1, T_UNINT1,
+                T_BINDBL2, T_BINDBL1, T_UNDBL1,
 #if WANT_FLOAT
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
@@ -534,6 +536,8 @@ NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combFalse, combTrue, combUnit, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND;
 NODEPTR combLT, combEQ, combGT;
+NODEPTR combBININT1, combBININT2, combUNINT1;
+NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
 
 /* One node of each kind for primitives, these are never GCd. */
 /* We use linear search in this, because almost all lookups
@@ -692,6 +696,12 @@ init_nodes(void)
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_CCBIND: combIOCCBIND = n; break;
+    case T_BININT1: combBININT1 = n; break;
+    case T_BININT2: combBININT2 = n; break;
+    case T_UNINT1: combUNINT1 = n; break;
+    case T_BINDBL1: combBINDBL1 = n; break;
+    case T_BINDBL2: combBINDBL2 = n; break;
+    case T_UNDBL1: combUNDBL1 = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
@@ -716,6 +726,12 @@ init_nodes(void)
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_CCBIND: combIOCCBIND = n; break;
+    case T_BININT1: combBININT1 = n; break;
+    case T_BININT2: combBININT2 = n; break;
+    case T_UNINT1: combUNINT1 = n; break;
+    case T_BINDBL1: combBINDBL1 = n; break;
+    case T_BINDBL2: combBINDBL2 = n; break;
+    case T_UNDBL1: combUNDBL1 = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
     case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
@@ -2253,7 +2269,7 @@ evali(NODEPTR an)
   value_t xi, yi, r;
   void *xp, *yp;
 #if WANT_FLOAT
-  flt_t xd, yd, rd;
+  flt_t xd, rd;
 #endif  /* WANT_FLOAT */
   char *msg;
 #if FASTTAGS
@@ -2302,12 +2318,13 @@ evali(NODEPTR an)
 #define ARITHBIN(op)   do { OPINT2(r = xi op yi); SETINT(n, r); RET; } while(0)
 #define ARITHBINU(op)  do { OPINT2(r = (value_t)((uvalue_t)xi op (uvalue_t)yi)); SETINT(n, r); RET; } while(0)
 #define FARITHUN(op)   do { OPDBL1(rd = op xd); SETDBL(n, rd); RET; } while(0)
-#define FARITHBIN(op)  do { OPDBL2(rd = xd op yd); SETDBL(n, rd); RET; } while(0)
+#define FARITHBIN(op)  do { OPDBL2(rd = xd op yd); SETDBL(n, rd); printf("### %g %g %g ###\n", xd, yd, rd); RET; } while(0)
 #define CMP(op)        do { OPINT2(r = xi op yi); GOIND(r ? combTrue : combFalse); } while(0)
 #define CMPF(op)       do { OPDBL2(r = xd op yd); GOIND(r ? combTrue : combFalse); } while(0)
 #define CMPU(op)       do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? combTrue : combFalse); } while(0)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
+ top:
   for(;;) {
     enum node_tag tag;
     struct ioarray *arr;
@@ -2355,36 +2372,91 @@ evali(NODEPTR an)
     case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
     case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
 
-    case T_ADD:  ARITHBINU(+);
-    case T_SUB:  ARITHBINU(-);
-    case T_MUL:  ARITHBINU(*);
-    case T_QUOT: ARITHBIN(/);
-    case T_REM:  ARITHBIN(%);
-    case T_SUBR: OPINT2(r = yi - xi); SETINT(n, r); RET;
-    case T_UQUOT: ARITHBINU(/);
-    case T_UREM:  ARITHBINU(%);
-    case T_NEG:  ARITHUNU(-);
-    case T_AND:  ARITHBIN(&);
-    case T_OR:   ARITHBIN(|);
-    case T_XOR:  ARITHBIN(^);
-    case T_INV:  ARITHUNU(~);
-    case T_SHL:  ARITHBIN(<<);
-    case T_SHR:  ARITHBINU(>>);
-    case T_ASHR: ARITHBIN(>>);
+    /*
+     * Strict primitives require evaluating the arguments before we can proceed.
+     * The easiest way to do this is to just recursively call evali() for each argument.
+     * The drawback of this is that it uses a lot of C stack.  (E.g., recompiling MicroHs
+     * uses a stack depth of 1800).
+     * Instead we use the following scheme:
+     *  When we find a strict binary (int) primitive we push T_BININT2,
+     *  set n=second argument.
+     *  Continue evaluation of n.
+     *  When n is finally evaluated and we are about to return we check if the stack top is T_BININT2.
+     *  If so, change the stack top to T_BININT1,
+     *  set n=first argument.
+     *  Continue evaluation of n.
+     *  When n is finally evaluated and we are about to return we check if the stack top is T_BININT1.
+     *  If so, we know that both arguments are now evaluated, and we perform the strict operation.
+     *
+     * On my desktop machine this is about 3% slower, on my laptop (Apple M1) it is about 3% faster.
+     */
+    case T_ADD:
+    case T_SUB:
+    case T_MUL:
+    case T_QUOT:
+    case T_REM:
+    case T_SUBR:
+    case T_UQUOT:
+    case T_UREM:
+    case T_AND:
+    case T_OR:
+    case T_XOR:
+    case T_SHL:
+    case T_SHR:
+    case T_ASHR:
+    case T_EQ:
+    case T_NE:
+    case T_LT:
+    case T_LE:
+    case T_GT:
+    case T_GE:
+    case T_ULT:
+    case T_ULE:
+    case T_UGT:
+    case T_UGE:
+      n = ARG(TOP(1));
+      PUSH(combBININT2);
+      break;
+    case T_NEG:
+    case T_INV:
+      n = ARG(TOP(0));
+      PUSH(combUNINT1);
+      break;
 
 #if WANT_FLOAT
+#if 0
     case T_FADD: FARITHBIN(+);
     case T_FSUB: FARITHBIN(-);
     case T_FMUL: FARITHBIN(*);
     case T_FDIV: FARITHBIN(/);
     case T_FNEG: FARITHUN(-);
-    case T_ITOF: OPINT1(rd = (flt_t)xi); SETDBL(n, rd); RET;
     case T_FEQ: CMPF(==);
     case T_FNE: CMPF(!=);
     case T_FLT: CMPF(<);
     case T_FLE: CMPF(<=);
     case T_FGT: CMPF(>);
     case T_FGE: CMPF(>=);
+#else
+    case T_FADD:
+    case T_FSUB:
+    case T_FMUL:
+    case T_FDIV:
+    case T_FEQ:
+    case T_FNE:
+    case T_FLT:
+    case T_FLE:
+    case T_FGT:
+    case T_FGE:
+      n = ARG(TOP(1));
+      PUSH(combBINDBL2);
+      break;
+    case T_FNEG:
+      n = ARG(TOP(0));
+      PUSH(combUNDBL1);
+      break;
+
+#endif
+    case T_ITOF: OPINT1(rd = (flt_t)xi); SETDBL(n, rd); RET;
     case T_FREAD:
       CHECK(1);
       msg = evalstring(ARG(TOP(0)), 0);
@@ -2392,9 +2464,9 @@ evali(NODEPTR an)
       xd = strtod(msg, NULL);
 #elif WORD_SIZE == 32
       xd = strtof(msg, NULL);
-#else
+#else  /* WORD_SIZE */
 #error Unknown WORD_SIZE
-#endif
+#endif  /* WORD_SIZE */
       FREE(msg);
       POP(1);
       n = TOP(-1);
@@ -2416,6 +2488,8 @@ evali(NODEPTR an)
     case T_TOPTR: CONV(T_PTR);
 #undef CONV
 
+#if 1
+#else
     case T_EQ:   CMP(==);
     case T_NE:   CMP(!=);
     case T_LT:   CMP(<);
@@ -2426,6 +2500,7 @@ evali(NODEPTR an)
     case T_ULE:  CMPU(<=);
     case T_UGT:  CMPU(>);
     case T_UGE:  CMPU(>=);
+#endif
 
     case T_PEQ:  CMPP(==);
     case T_PNULL: SETTAG(n, T_PTR); PTR(n) = 0; RET;
@@ -2582,8 +2657,170 @@ evali(NODEPTR an)
   if (stack_ptr != stk) {
     // In this case, n was an AP that got pushed and potentially
     // updated.
-    stack_ptr = stk;
-    n = TOP(-1);
+    x = TOP(0);
+    enum node_tag tag = GETTAG(x);
+    uvalue_t xu, yu, ru;
+#if WANT_FLOAT
+    flt_t xd, yd, rd;
+#endif  /* WANT_FLOAT */
+    NODEPTR p;
+    
+    switch (tag) {
+    case T_BININT2:
+      n = ARG(TOP(1));
+      TOP(0) = combBININT1;
+      goto top;
+
+    case T_BININT1:
+      /* First argument */
+#if SANITY
+      if (GETTAG(n) != T_INT)
+        ERR("BININT 0");
+#endif  /* SANITY */
+      xu = (uvalue_t)GETVALUE(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (GETTAG(y) == T_IND)
+        y = INDIR(y);
+#if SANITY
+      if (GETTAG(y) != T_INT)
+        ERR("BININT 1");
+#endif  /* SANITY */
+      yu = (uvalue_t)GETVALUE(y);
+      p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
+    binint:
+      switch (GETTAG(p)) {
+      case T_IND:   p = INDIR(p); goto binint;
+      case T_ADD:   ru = xu + yu; break;
+      case T_SUB:   ru = xu - yu; break;
+      case T_MUL:   ru = xu * yu; break;
+      case T_QUOT:  ru = (uvalue_t)((value_t)xu / (value_t)yu); break;
+      case T_REM:   ru = (uvalue_t)((value_t)xu % (value_t)yu); break;
+      case T_SUBR:  ru = yu - xu; break;
+      case T_UQUOT: ru = xu / yu; break;
+      case T_UREM:  ru = xu % yu; break;
+      case T_AND:   ru = xu & yu; break;
+      case T_OR:    ru = xu | yu; break;
+      case T_XOR:   ru = xu ^ yu; break;
+      case T_SHL:   ru = xu << yu; break;
+      case T_SHR:   ru = xu >> yu; break;
+      case T_ASHR:  ru = (uvalue_t)((value_t)xu >> yu); break;
+
+      case T_EQ:    GOIND(xu == yu ? combTrue : combFalse);
+      case T_NE:    GOIND(xu != yu ? combTrue : combFalse);
+      case T_ULT:   GOIND(xu <  yu ? combTrue : combFalse);
+      case T_ULE:   GOIND(xu <= yu ? combTrue : combFalse);
+      case T_UGT:   GOIND(xu >  yu ? combTrue : combFalse);
+      case T_UGE:   GOIND(xu >= yu ? combTrue : combFalse);
+      case T_LT:    GOIND((value_t)xu <  (value_t)yu ? combTrue : combFalse);
+      case T_LE:    GOIND((value_t)xu <= (value_t)yu ? combTrue : combFalse);
+      case T_GT:    GOIND((value_t)xu >  (value_t)yu ? combTrue : combFalse);
+      case T_GE:    GOIND((value_t)xu >= (value_t)yu ? combTrue : combFalse);
+
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("BININT");
+      }
+      SETINT(n, (value_t)ru);
+      goto ret;
+
+    case T_UNINT1:
+      /* The argument */
+#if SANITY
+      if (GETTAG(n) != T_INT)
+        ERR("UNINT 0");
+#endif
+      xu = (uvalue_t)GETVALUE(n);
+      p = FUN(TOP(1));
+      POP(2);
+      n = TOP(-1);
+    unint:
+      switch (GETTAG(p)) {
+      case T_IND:   p = INDIR(p); goto unint;
+      case T_NEG:   ru = -xu; break;
+      case T_INV:   ru = ~xu; break;
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("UNINT");
+      }
+      SETINT(n, (value_t)ru);
+      goto ret;
+
+#if WANT_FLOAT
+    case T_BINDBL2:
+      n = ARG(TOP(1));
+      TOP(0) = combBINDBL1;
+      goto top;
+
+    case T_BINDBL1:
+      /* First argument */
+#if SANITY
+      if (GETTAG(n) != T_DBL)
+        ERR("BINDBL 0");
+#endif  /* SANITY */
+      xd = GETDBLVALUE(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (GETTAG(y) == T_IND)
+        y = INDIR(y);
+#if SANITY
+      if (GETTAG(y) != T_DBL)
+        ERR("BINDBL 1");
+#endif  /* SANITY */
+      yd = GETDBLVALUE(y);
+      p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
+    bindbl:
+      switch (GETTAG(p)) {
+      case T_IND:   p = INDIR(p); goto bindbl;
+      case T_FADD:  rd = xd + yd; break;
+      case T_FSUB:  rd = xd - yd; break;
+      case T_FMUL:  rd = xd * yd; break;
+      case T_FDIV:  rd = xd / yd; break;
+
+      case T_FEQ:   GOIND(xd == yd ? combTrue : combFalse);
+      case T_FNE:   GOIND(xd != yd ? combTrue : combFalse);
+      case T_FLT:   GOIND(xd <  yd ? combTrue : combFalse);
+      case T_FLE:   GOIND(xd <= yd ? combTrue : combFalse);
+      case T_FGT:   GOIND(xd >  yd ? combTrue : combFalse);
+      case T_FGE:   GOIND(xd >= yd ? combTrue : combFalse);
+
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("BINDBL");
+      }
+      SETDBL(n, rd);
+      goto ret;
+
+    case T_UNDBL1:
+      /* The argument */
+#if SANITY
+      if (GETTAG(n) != T_DBL)
+        ERR("UNDBL 0");
+#endif
+      xd = GETDBLVALUE(n);
+      p = FUN(TOP(1));
+      POP(2);
+      n = TOP(-1);
+    undbl:
+      switch (GETTAG(p)) {
+      case T_IND:   p = INDIR(p); goto undbl;
+      case T_FNEG:  rd = -xd; break;
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("UNDBL");
+      }
+      SETDBL(n, rd);
+      goto ret;
+#endif  /* WANT_FLOAT */
+
+    default:
+      stack_ptr = stk;
+      n = TOP(-1);
+    }
   }
 #if MAXSTACKDEPTH
   cur_c_stack = old_cur_c_stack; /* reset rather than counting down, in case of longjump */
