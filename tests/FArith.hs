@@ -17,4 +17,4 @@ main = do
   putStrLn $ show [ x / y  | x <- list1, y <- [1.0::Double, -16.0::Double, 0.0625::Double]]
   putStrLn $ show $ readDouble "1.625"
   putStrLn $ show $ 1.0 + readDouble "2.5"
-  putStrLn $ show $ map readDouble ["1.5e4", "1.25e-5"]
+  putStrLn $ show $ map readDouble ["1.5e4", "125.0e-4"]
