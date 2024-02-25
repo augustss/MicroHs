@@ -2360,6 +2360,16 @@ evali(NODEPTR an)
     case T_SHL:
     case T_SHR:
     case T_ASHR:
+    case T_EQ:
+    case T_NE:
+    case T_LT:
+    case T_LE:
+    case T_GT:
+    case T_GE:
+    case T_ULT:
+    case T_ULE:
+    case T_UGT:
+    case T_UGE:
       n = ARG(TOP(1));
       PUSH(combEVAL2);
       break;
@@ -2422,6 +2432,8 @@ evali(NODEPTR an)
     case T_TOPTR: CONV(T_PTR);
 #undef CONV
 
+#if 1
+#else
     case T_EQ:   CMP(==);
     case T_NE:   CMP(!=);
     case T_LT:   CMP(<);
@@ -2432,6 +2444,7 @@ evali(NODEPTR an)
     case T_ULE:  CMPU(<=);
     case T_UGT:  CMPU(>);
     case T_UGE:  CMPU(>=);
+#endif
 
     case T_PEQ:  CMPP(==);
     case T_PNULL: SETTAG(n, T_PTR); PTR(n) = 0; RET;
@@ -2615,6 +2628,8 @@ evali(NODEPTR an)
 #endif
       yu = (uvalue_t)GETVALUE(y);
       NODEPTR p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
     again:
       switch (GETTAG(p)) {
       case T_IND:   p = INDIR(p); goto again;
@@ -2632,12 +2647,22 @@ evali(NODEPTR an)
       case T_SHL:   ru = xu << yu; break;
       case T_SHR:   ru = xu >> yu; break;
       case T_ASHR:  ru = (uvalue_t)((value_t)xu >> yu); break;
+
+      case T_EQ:    GOIND(xu == yu ? combTrue : combFalse);
+      case T_NE:    GOIND(xu != yu ? combTrue : combFalse);
+      case T_ULT:   GOIND(xu <  yu ? combTrue : combFalse);
+      case T_ULE:   GOIND(xu <= yu ? combTrue : combFalse);
+      case T_UGT:   GOIND(xu >  yu ? combTrue : combFalse);
+      case T_UGE:   GOIND(xu >= yu ? combTrue : combFalse);
+      case T_LT:    GOIND((value_t)xu <  (value_t)yu ? combTrue : combFalse);
+      case T_LE:    GOIND((value_t)xu <= (value_t)yu ? combTrue : combFalse);
+      case T_GT:    GOIND((value_t)xu >  (value_t)yu ? combTrue : combFalse);
+      case T_GE:    GOIND((value_t)xu >= (value_t)yu ? combTrue : combFalse);
+
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
         ERR("EVAL1");
       }
-      POP(3);
-      n = TOP(-1);
       SETINT(n, (value_t)ru);
       goto ret;
 
