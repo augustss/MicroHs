@@ -487,7 +487,8 @@ alloc_node(enum node_tag t)
   heapoffs_t pos;
   NODEPTR n;
 
-#if SANITY
+#if 1
+  /* This can happen if we run out of memory when parsing. */
   if (num_free <= 0)
     ERR("alloc_node");
 #endif
