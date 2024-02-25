@@ -172,6 +172,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
                 T_PEQ, T_PNULL, T_PADD, T_PSUB,
                 T_TOPTR, T_TOINT, T_TODBL,
+                T_EVAL2, T_EVAL1,
 #if WANT_FLOAT
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
@@ -2291,6 +2292,7 @@ evali(NODEPTR an)
 #define CMPU(op)       do { OPINT2(r = (uvalue_t)xi op (uvalue_t)yi); GOIND(r ? combTrue : combFalse); } while(0)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
+ top:
   for(;;) {
     enum node_tag tag;
     struct ioarray *arr;
@@ -2338,8 +2340,13 @@ evali(NODEPTR an)
     case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
     case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
 
-    case T_ADD:  ARITHBINU(+);
-    case T_SUB:  ARITHBINU(-);
+      //case T_ADD:  ARITHBINU(+);
+      //case T_SUB:  ARITHBINU(-);
+    case T_ADD:
+    case T_SUB:
+      n = ARG(TOP(1));
+      PUSH(cells + T_EVAL2);
+      break;
     case T_MUL:  ARITHBINU(*);
     case T_QUOT: ARITHBIN(/);
     case T_REM:  ARITHBIN(%);
@@ -2565,6 +2572,53 @@ evali(NODEPTR an)
   if (stack_ptr != stk) {
     // In this case, n was an AP that got pushed and potentially
     // updated.
+    enum node_tag tag;
+    x = TOP(0);
+#if FASTTAGS
+    l = LABEL(x);
+    tag = l < T_IO_BIND ? l : GETTAG(x);
+#else   /* FASTTAGS */
+    tag = GETTAG(x);
+#endif  /* FASTTAGS */
+    
+    if (tag == T_EVAL2) {
+      n = ARG(TOP(1));
+      TOP(0) = cells + T_EVAL1;
+      goto top;
+    } else if (tag == T_EVAL1) {
+      /* First argument */
+#if 1
+      if (GETTAG(n) != T_INT)
+        ERR("EVAL1 0");
+#endif
+      xi = GETVALUE(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (GETTAG(y) == T_IND)
+        y = INDIR(y);
+#if 1
+      if (GETTAG(y) != T_INT)
+        ERR("EVAL1 1");
+#endif
+      yi = GETVALUE(y);
+      NODEPTR p = FUN(TOP(1));
+    again:
+      switch (GETTAG(p)) {
+      case T_IND:
+        p = INDIR(p); goto again;
+      case T_ADD:
+        r = xi + yi; break;
+      case T_SUB:
+        r = xi - yi; break;
+      default:
+        fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("EVAL1");
+      }
+      POP(3);
+      n = TOP(-1);
+      SETINT(n, r);
+      goto ret;
+    }
     stack_ptr = stk;
     n = TOP(-1);
   }
