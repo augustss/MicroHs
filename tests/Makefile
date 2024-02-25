@@ -33,9 +33,7 @@ test:
 	$(TMHS) LocalPoly  && $(EVAL) > LocalPoly.out  && diff LocalPoly.ref LocalPoly.out
 	$(TMHS) Rank2      && $(EVAL) > Rank2.out      && diff Rank2.ref Rank2.out
 	$(TMHS) Catch      && $(EVAL) > Catch.out      && diff Catch.ref Catch.out
-# The FArith tests are currently not portable between 32 and 64 bits,
-# since Double is really Float on 32 bit platforms.
-#	$(TMHS) FArith     && $(EVAL) > FArith.out     && diff FArith.ref FArith.out
+	$(TMHS) FArith     && $(EVAL) > FArith.out     && diff FArith.ref FArith.out
 	$(TMHS) Infix      && $(EVAL) > Infix.out      && diff Infix.ref Infix.out
 	$(TMHS) Class      && $(EVAL) > Class.out      && diff Class.ref Class.out
 	$(TMHS) Eq         && $(EVAL) > Eq.out         && diff Eq.ref Eq.out
