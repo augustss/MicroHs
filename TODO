@@ -5,18 +5,11 @@
     transforms to
       case d of (d1,d2) -> ... d ...
     this takes care of dictionary reconstruction
-  -   f x y = ... f x e ...
-    transforms to
-      f x = let f' y = ... f' e ...
-    this will specialize recursive functions
-    (and make more efficient 'map' etc)
 * Type checker improvements:
   - allow generalization for local bindings
   - use subsumption (like if) in the arms of alternatives
-  - allow missing top level signatures (and generalize)
   - instead of skolemization, use regular variables, making sure they are unique
   - allow existential quantification
-    # works partially, but not constraint solving doesn't happen in all the right places
     # check for escaping skolemized variables
 * Try Oleg's abstraction algorithm
   - Seems to be slower
@@ -26,23 +19,16 @@
   - These tables can persist during the compilation and only grow
 * Implement two level tables for instances even in the tricky cases
 * Handle tupled dictionaries better for recursive calls
-* Split eval.c
-  - Partially done
-  - debug 32 bit
 * Removing [] from prim table
 * Faster compression
-* Use pointer reversal, might be slower
-  - In GC mark pass
-  - In evaluator
+* Use pointer reversal during marking, will be slower
 * Fix bug uncovered by Data.Type.Equality
 * mkQIdent
-* Do not use the C stack during evaluation
 * Fix bug, line 629, TypeCheck.hs
 * Get rid of evalstring()
   - do everything in Haskell
   - make a low level primError that takes a utf8 string
   - get rid of noMatch and noDefault primitives
-* Implement more Char/String literals
 * Implement lazy matching
 * Implement strict matching
 * Change default 'default'?
