@@ -40,3 +40,6 @@
 * Implement pattern synonyms
 * Implement qualified constraints
 * Add some package concept with a saved cache
+* Export the right list functions
+* Improve defaulting
+
