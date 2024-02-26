@@ -138,6 +138,7 @@ it will be the entry point to the program.
 * `-CR` read compilation cache from `.mhscache` at the start of compilation
 * `-C` short for `-CW` and `-CR`
 * `-T` generate dynamic function usage statistics
+* `-z` compress combinator code generated in the `.c` file
 * `-XCPP` run `cpphs` on source files
 * `-Dxxx` passed to `cpphs`
 

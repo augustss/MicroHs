@@ -2402,7 +2402,14 @@ evali(NODEPTR an)
   case T_UGT:
   case T_UGE:
     n = ARG(TOP(1));
-    PUSH(combBININT2);
+    if (GETTAG(n) == T_INT) {
+      n = ARG(TOP(0));
+      PUSH(combBININT1);
+      if (GETTAG(n) == T_INT)
+        goto binint1;
+    } else {
+      PUSH(combBININT2);
+    }
     goto top;
   case T_NEG:
   case T_INV:
@@ -2636,6 +2643,7 @@ evali(NODEPTR an)
       if (GETTAG(n) != T_INT)
         ERR("BININT 0");
 #endif  /* SANITY */
+    binint1:
       xu = (uvalue_t)GETVALUE(n);
       /* Second argument */
       y = ARG(TOP(2));
