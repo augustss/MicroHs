@@ -124,26 +124,6 @@ infixl 3 <|<
          Many b lfb -> Many b (longest lfa lfb)
     r -> r
 
-emany :: forall s tm t a . Prsr s tm t a -> Prsr s tm t [a]
-emany p = esome p <|< pure []
-
-esome :: forall s tm t a . Prsr s tm t a -> Prsr s tm t [a]
-esome p = (:) <$> p <*> emany p
-
-eoptional :: forall s tm t a . Prsr s tm t a -> Prsr s tm t (Maybe a)
-eoptional p = (Just <$> p) <|< pure Nothing
-
-runPrsr :: forall s tm t a . --X(Show a, Show s) =>
-           s -> Prsr s tm t a -> tm -> Either (LastFail t) [(a, s)]
-runPrsr s (P p) f =
-  case p (f, s) of
-    Many [] lf -> Left lf
-    Many xs _  -> Right [(a, snd x) | (a, x) <- xs ]
-
-choice :: forall s tm t a . TokenMachine tm t => [Prsr s tm t a] -> Prsr s tm t a
-choice [] = empty
-choice ps = foldr1 (<|>) ps
-
 satisfy :: forall s tm t . TokenMachine tm t => String -> (t -> Bool) -> Prsr s tm t t
 satisfy msg f = P $ \ (acs, s) ->
   case tmNextToken acs of
@@ -156,28 +136,12 @@ satisfyM msg f = P $ \ (acs, s) ->
     (c, cs) | Just a <- f c -> Many [(a, (cs, s))] noFail
     _ -> Many [] (LastFail (tmLeft acs) (firstToken acs) [msg])
 
-{-
-eof :: forall s tm t . TokenMachine tm t => Prsr s tm t ()
-eof = P $ \ t@(cs, _) ->
-  case tmNextToken cs of
-    Nothing -> Many [((), t)] noFail
-    Just _  -> Many [] (LastFail (tmLeft cs) (firstToken cs) ["eof"])
--}
-
 infixl 9 <?>
 (<?>) :: forall s tm t a . Prsr s tm t a -> String -> Prsr s tm t a
 (<?>) p e = P $ \ t ->
 --  trace ("<?> " ++ show e) $
   case runP p t of
     Many rs (LastFail l ts _) -> Many rs (LastFail l ts [e])
-
-{-
-notFollowedBy :: forall s t a . Prsr s t a -> Prsr s t ()
-notFollowedBy p = P $ \ t@(ts,_) ->
-  case runP p t of
-    Many [] _ -> Many [((), t)] noFail
-    _         -> Many [] (LastFail (length ts) (take 1 ts) ["!"])
--}
 
 lookAhead :: forall s tm t a . TokenMachine tm t => Prsr s tm t a -> Prsr s tm t ()
 lookAhead p = P $ \ t ->
@@ -189,6 +153,44 @@ nextToken :: forall s tm t . TokenMachine tm t => Prsr s tm t t
 nextToken = P $ \ t@(cs, _) ->
   case tmNextToken cs of
     (c, _) -> Many [(c, t)] noFail
+
+{-
+eof :: forall s tm t . TokenMachine tm t => Prsr s tm t ()
+eof = P $ \ t@(cs, _) ->
+  case tmNextToken cs of
+    Nothing -> Many [((), t)] noFail
+    Just _  -> Many [] (LastFail (tmLeft cs) (firstToken cs) ["eof"])
+-}
+
+{-
+notFollowedBy :: forall s t a . Prsr s t a -> Prsr s t ()
+notFollowedBy p = P $ \ t@(ts,_) ->
+  case runP p t of
+    Many [] _ -> Many [((), t)] noFail
+    _         -> Many [] (LastFail (length ts) (take 1 ts) ["!"])
+-}
+
+runPrsr :: forall s tm t a . --X(Show a, Show s) =>
+           s -> Prsr s tm t a -> tm -> Either (LastFail t) [(a, s)]
+runPrsr s (P p) f =
+  case p (f, s) of
+    Many [] lf -> Left lf
+    Many xs _  -> Right [(a, snd x) | (a, x) <- xs ]
+
+-------------------------------
+
+emany :: forall s tm t a . Prsr s tm t a -> Prsr s tm t [a]
+emany p = esome p <|< pure []
+
+esome :: forall s tm t a . Prsr s tm t a -> Prsr s tm t [a]
+esome p = (:) <$> p <*> emany p
+
+eoptional :: forall s tm t a . Prsr s tm t a -> Prsr s tm t (Maybe a)
+eoptional p = (Just <$> p) <|< pure Nothing
+
+choice :: forall s tm t a . TokenMachine tm t => [Prsr s tm t a] -> Prsr s tm t a
+choice [] = empty
+choice ps = foldr1 (<|>) ps
 
 sepBy1 :: forall s tm t a sep . TokenMachine tm t => Prsr s tm t a -> Prsr s tm t sep -> Prsr s tm t [a]
 sepBy1 p sep = (:) <$> p <*> many (sep *> p)
