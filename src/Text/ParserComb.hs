@@ -92,9 +92,9 @@ instance forall s tm t . Monad (Prsr s tm t) where
     case runP p t of
       Many aus plf ->
         let ms = map (\ (a, u) -> runP (k a) u) aus
-            rss = map (\ (Many rs _) -> rs) ms
             lfs = map (\ (Many _ lf) -> lf) ms
-        in  Many (concat rss) (longests (plf : lfs))
+            rrs = [ r | Many rs _ <- ms, r <- rs ]
+        in  Many rrs (longests (plf : lfs))
   return = pure
 
 instance forall s t tm . TokenMachine tm t => MonadFail (Prsr s tm t) where
