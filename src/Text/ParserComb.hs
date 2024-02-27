@@ -3,10 +3,6 @@
 {-# OPTIONS_GHC -Wno-type-defaults #-}
 {-# LANGUAGE FunctionalDependencies #-}
 module Text.ParserComb(
-  (>>=), (>>), pure,
-  (<*), (*>), (<*>), (<$), (<$>),
-  (<|>),
-  fail, guard,
   get, put, modify,
   Prsr, runPrsr,
   satisfy, satisfyM,

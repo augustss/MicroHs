@@ -3,6 +3,8 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
 module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop) where
 import Prelude
+import Control.Applicative
+import Control.Monad
 import Data.Char
 import Data.List
 import Text.ParserComb as P
