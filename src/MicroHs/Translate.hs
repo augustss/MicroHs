@@ -37,7 +37,7 @@ trans r ae =
     Lit (LStr s) -> trans r (encodeString s)
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
-    Lit (LForImp s) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
+    Lit (LForImp s _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
     _ -> error $ "trans: impossible: " ++ show ae
 
 -- Use linear search in this table.

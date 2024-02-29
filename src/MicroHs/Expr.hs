@@ -8,6 +8,7 @@ module MicroHs.Expr(
   Expr(..), eLam, eEqn, eEqns, showExpr, eqExpr,
   Listish(..),
   Lit(..), showLit,
+  CType(..),
   EBind(..), showEBind, showEBinds,
   Eqn(..),
   EStmt(..),
@@ -182,10 +183,15 @@ data Lit
   | LStr String
   | LUStr String            -- UTF-8 encoded string
   | LPrim String
-  | LForImp String
+  | LForImp String CType
   | LTick String
 --DEBUG  deriving (Show)
   deriving (Eq)
+
+-- A type of a C FFI function
+newtype CType = CType EType
+instance Eq CType where
+  _ == _  =  True    -- Just ignore the CType
 
 type ECaseArm = (EPat, EAlts)
 
@@ -714,7 +720,7 @@ showLit l =
     LStr s     -> show s
     LUStr s    -> show s
     LPrim s    -> s
-    LForImp s  -> '^' : s
+    LForImp s _-> '^' : s
     LTick s    -> '!' : s
 
 ppEStmt :: EStmt -> Doc
