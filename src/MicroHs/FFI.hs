@@ -12,8 +12,7 @@ makeFFI _ ds =
   let fs = [ (f, t) | (_, Lit (LForImp f (CType t))) <- ds, f `notElem` runtimeFFI ]
       fs' = map head $ groupBy ((==) `on` fst) $ sortBy (compare `on` fst) fs
   in
-    -- "#include \"xffi.h\"\n" ++
-    preamble ++
+    "#include \"mhsffi.h\"\n" ++
     unlines (map (uncurry mkWrapper) fs') ++
     "static struct ffi_entry table[] = {\n" ++
     unlines (map (mkEntry . fst) fs') ++
@@ -83,13 +82,3 @@ runtimeFFI = [
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", "peekByte", "peekPtr", "peekWord", "pokeByte",
   "pokePtr", "pokeWord", "putb", "sin", "sqrt", "system", "tan", "tmpname", "unlink"
   ]
-
--- Avoid includes for now
-preamble :: String
-preamble = "\
-\typedef void (*funptr_t)(int);\n\
-\struct ffi_entry {\n\
-\  const char *ffi_name;\n\
-\  funptr_t ffi_fun;\n\
-\};\n\
-\"

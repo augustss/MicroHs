@@ -7,6 +7,7 @@ module Foreign.C.Types(
  CPtrdiff(..),
  CSize(..),  CSSize(..),
  CLLong(..), CULLong(..),
+ CIntPtr(..), CUIntPtr(..),
  CFloat(..), CDouble(..),
  intToCSize, cSizeToInt,
  ) where
@@ -31,6 +32,8 @@ newtype CSize    = CSize    Word
 newtype CSSize   = CSSize   Int
 newtype CLLong   = CLLong   Int
 newtype CULLong  = CULLong  Word
+newtype CIntPtr  = CIntPtr  Int
+newtype CUIntPtr = CUIntPtr Word
 
 newtype CFloat   = CFloat   Double
 newtype CDouble  = CDouble  Double

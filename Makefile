@@ -6,7 +6,7 @@ CONF=unix-64
 CCWARNS= -Wall
 CCOPTS= -O3
 CCLIBS= -lm
-CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) src/runtime/eval-$(CONF).c $(CCLIBS)
+CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS)
 #
 GHC= ghc
 GHCINCS= -ighc -isrc
@@ -27,10 +27,10 @@ all:	bin/mhs bin/cpphs
 
 newmhs:	ghcgen
 	$(CCEVAL) generated/mhs.c -o bin/mhs
-	$(CC) $(CCWARNS) -g src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
+	$(CC) $(CCWARNS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
 
 # Compile mhs from distribution, with C compiler
-bin/mhs:	src/runtime/*.c src/runtime/config*.h #generated/mhs.c
+bin/mhs:	src/runtime/*.c src/runtime/*.h #generated/mhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/mhs.c -o bin/mhs
 
