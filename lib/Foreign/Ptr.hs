@@ -1,4 +1,8 @@
-module Foreign.Ptr(module Foreign.Ptr, Ptr) where
+module Foreign.Ptr(
+  module Foreign.Ptr,
+  Ptr,
+  FunPtr,
+  ) where
 import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Word
@@ -23,3 +27,7 @@ plusPtr = primPtrAdd
 
 minusPtr :: forall a b . Ptr a -> Ptr b -> Int
 minusPtr = primPtrSub
+
+--instance forall a . Show (FunPtr a) where
+--  showsPrec _ p = showString "FUNPTR#" . showsPrec 0 (primPtrToWord p)
+

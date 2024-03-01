@@ -31,6 +31,7 @@ data Double
 data IO a
 data Word
 data Ptr a
+data FunPtr a
 data IOArray a
 
 data () = ()   -- Parser hacks allows () to be used

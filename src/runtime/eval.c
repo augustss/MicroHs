@@ -156,7 +156,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_BADDYN, T_ARR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_BADDYN, T_ARR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -219,6 +219,8 @@ static const char* tag_names[] = {
 struct ioarray;
 struct ustring;
 
+typedef void (*HsFunPtr)(void);
+
 typedef struct node {
   union {
     struct node *uufun;
@@ -231,6 +233,7 @@ typedef struct node {
     struct ustring *uustring;
     const char     *uucstring;
     void           *uuptr;
+    HsFunPtr        uufunptr;
     struct ioarray *uuarray;
   } uarg;
 } node;
@@ -248,6 +251,7 @@ typedef struct node* NODEPTR;
 #define STR(p) (p)->uarg.uustring
 #define CSTR(p) (p)->uarg.uucstring
 #define PTR(p) (p)->uarg.uuptr
+#define FUNPTR(p) (p)->uarg.uufunptr
 #define ARR(p) (p)->uarg.uuarray
 #define INDIR(p) ARG(p)
 #define NODE_SIZE sizeof(node)
@@ -1601,6 +1605,9 @@ printrec(BFILE *f, NODEPTR n, int prefix)
     else
       ERR("Cannot serialize pointers");
     break;
+  case T_FUNPTR:
+      ERR("Cannot serialize function pointers");
+    break;
   case T_STR:
     print_string(f, STR(n));
     break;
@@ -1815,6 +1822,15 @@ mkPtr(void* p)
   return n;
 }
 
+NODEPTR
+mkFunPtr(void (*p)(void))
+{
+  NODEPTR n;
+  n = alloc_node(T_FUNPTR);
+  FUNPTR(n) = p;
+  return n;
+}
+
 static INLINE NODEPTR
 mkNil(void)
 {
@@ -1931,6 +1947,19 @@ evalptr(NODEPTR n)
   return PTR(n);
 }
 
+/* Evaluate to a T_PTR */
+void *
+evalfunptr(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_FUNPTR) {
+    ERR1("evalfunptr, bad tag %d", GETTAG(n));
+  }
+#endif
+  return FUNPTR(n);
+}
+
 /* Evaluate a string, returns a newly allocated buffer. */
 /* XXX this is cheating, should use continuations */
 /* XXX the malloc()ed string is leaked if we yield in here. */
@@ -2009,6 +2038,7 @@ compare(NODEPTR cmp)
   value_t x, y;
   flt_t xd, yd;
   void *f, *g;
+  void (*ff)(void), (*fg)(void);
   NODEPTR p, q;
   NODEPTR *ap, *aq;
   enum node_tag ptag, qtag;
@@ -2073,6 +2103,14 @@ compare(NODEPTR cmp)
       if (f < g)
         CRET(-1);
       if (f > g)
+        CRET(1);
+      break;
+    case T_FUNPTR:
+      ff = FUNPTR(p);
+      fg = FUNPTR(q);
+      if ((intptr_t)ff < (intptr_t)fg)
+        CRET(-1);
+      if ((intptr_t)ff > (intptr_t)fg)
         CRET(1);
       break;
     case T_ARR:
@@ -2180,6 +2218,7 @@ evali(NODEPTR an)
 #define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
 #define SETDBL(n,d)    do { SETTAG((n), T_DBL); SETDBLVALUE((n), (d)); } while(0)
 #define SETPTR(n,r)    do { SETTAG((n), T_PTR); PTR(n) = (r); } while(0)
+#define SETFUNPTR(n,r) do { SETTAG((n), T_FUNPTR); FUNPTR(n) = (r); } while(0)
 #define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
@@ -2203,6 +2242,7 @@ evali(NODEPTR an)
   case T_INT:  RET;
   case T_DBL:  RET;
   case T_PTR:  RET;
+  case T_FUNPTR: RET;
   case T_ARR:  RET;
   case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
     
@@ -3185,6 +3225,7 @@ MHS_FROM(mhs_from_Int, SETINT, value_t);
 MHS_FROM(mhs_from_Word, SETINT, uvalue_t);
 MHS_FROM(mhs_from_Word8, SETINT, uvalue_t);
 MHS_FROM(mhs_from_Ptr, SETPTR, void*);
+MHS_FROM(mhs_from_FunPtr, SETFUNPTR, HsFunPtr);
 MHS_FROM(mhs_from_CChar, SETINT, char);
 MHS_FROM(mhs_from_CSChar, SETINT, signed char);
 MHS_FROM(mhs_from_CUChar, SETINT, unsigned char);
@@ -3217,6 +3258,7 @@ MHS_TO(mhs_to_Int, evalint, value_t);
 MHS_TO(mhs_to_Word, evalint, uvalue_t);
 MHS_TO(mhs_to_Word8, evalint, uint8_t);
 MHS_TO(mhs_to_Ptr, evalptr, void*);
+MHS_TO(mhs_to_FunPtr, evalfunptr, HsFunPtr);
 MHS_TO(mhs_to_CChar, evalint, char);
 MHS_TO(mhs_to_CSChar, evalint, signed char);
 MHS_TO(mhs_to_CUChar, evalint, unsigned char);
