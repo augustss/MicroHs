@@ -52,7 +52,7 @@ dsDef flags mn adef =
     Sign _ _ -> []
     KindSign _ _ -> []
     Import _ -> []
-    ForImp ie i t -> [(i, Lit $ LForImp ie (CType t))]
+    ForImp ie i t -> [(i, Lit $ LForImp (fromMaybe (unIdent (unQualIdent i)) ie)  (CType t))]
     Infix _ _ -> []
     Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"

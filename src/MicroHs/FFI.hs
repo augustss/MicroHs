@@ -1,6 +1,7 @@
 module MicroHs.FFI(makeFFI) where
 import Data.Function
 import Data.List
+import Data.Maybe
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp
 import MicroHs.Expr
@@ -9,16 +10,42 @@ import MicroHs.Flags
 
 makeFFI :: Flags -> [LDef] -> String
 makeFFI _ ds =
-  let fs = [ (f, t) | (_, Lit (LForImp f (CType t))) <- ds, f `notElem` runtimeFFI ]
-      fs' = map head $ groupBy ((==) `on` fst) $ sortBy (compare `on` fst) fs
+  let ffiImports = [ (parseImpEnt (getSLoc t) f, t) | (_, Lit (LForImp f (CType t))) <- ds ]
+      wrappers = [ t | (ImpWrapper, t) <- ffiImports]
+      dynamics = [ t | (ImpDynamic, t) <- ffiImports]
+      includes = "mhsffi.h" : catMaybes [ inc | (ImpStatic inc _addr _name, _) <- ffiImports ]
+      addrs    = [ (name, t) | (ImpStatic _inc True  name, t) <- ffiImports ]
+      funcs    = [ (name, t) | (ImpStatic _inc False name, t) <- ffiImports, name `notElem` runtimeFFI ]
+      funcs' = map head $ groupBy ((==) `on` fst) $ sortBy (compare `on` fst) funcs
   in
-    "#include \"mhsffi.h\"\n" ++
-    unlines (map (uncurry mkWrapper) fs') ++
+    if not (null wrappers) || not (null dynamics) || not (null addrs) then error "Unimplemented FFI feature" else
+    unlines (map (\ fn -> "#include \"" ++ fn ++ "\"") includes) ++
+    unlines (map (uncurry mkWrapper) funcs') ++
     "static struct ffi_entry table[] = {\n" ++
-    unlines (map (mkEntry . fst) fs') ++
+    unlines (map (mkEntry . fst) funcs') ++
     "{ 0,0 }\n};\n" ++
     "struct ffi_entry *xffi_table = table;\n" ++
     "\n"
+
+data ImpEnt = ImpStatic (Maybe String) Bool String | ImpDynamic | ImpWrapper
+
+-- "[static] [name.h] [&] [name]"
+-- "dynamic"
+-- "wrapper"
+parseImpEnt :: SLoc -> String -> ImpEnt
+parseImpEnt loc s =
+  case words s of
+    ["dynamic"] -> ImpDynamic
+    ["wrapper"] -> ImpWrapper
+    "static" : r -> rest r
+    r            -> rest r
+ where rest (inc : r) | isSuffixOf ".h" inc = rest' (ImpStatic (Just inc)) r
+       rest r                               = rest' (ImpStatic Nothing)    r
+       rest' c ("&" : r) = rest'' (c  True) r
+       rest' c ['&' : r] = rest'' (c  True) [r]
+       rest' c r         = rest'' (c False) r
+       rest'' c [n] = c n
+       rest'' _ _ = errorMessage loc $ "bad foreign import " ++ show s
 
 mkEntry :: String -> String
 mkEntry f = "{ \"" ++ f ++ "\", mhs_" ++ f ++ "},"

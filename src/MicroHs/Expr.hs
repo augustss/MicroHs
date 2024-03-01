@@ -73,7 +73,7 @@ data EDef
   | Sign [Ident] EType
   | KindSign Ident EKind
   | Import ImportSpec
-  | ForImp String Ident EType
+  | ForImp (Maybe String) Ident EType
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance EConstraint [EBind]  -- no deriving yet
@@ -582,7 +582,7 @@ ppEDef def =
       case mis of
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ",") (map ppImportItem is))
-    ForImp ie i t -> text ("foreign import ccall " ++ show ie) <+> ppIdent i <+> text "::" <+> ppEType t
+    ForImp ie i t -> text "foreign import ccall" <+> maybe empty (text . show) ie <+> ppIdent i <+> text "::" <+> ppEType t
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
