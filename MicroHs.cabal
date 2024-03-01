@@ -54,6 +54,7 @@ executable mhs
                        MicroHs.Exp
                        MicroHs.ExpPrint
                        MicroHs.Expr
+                       MicroHs.FFI
                        MicroHs.Flags
                        MicroHs.Fixity
                        MicroHs.Graph

@@ -174,6 +174,7 @@ Do **NOT** use `-C` when you are changing the compiler itself; if the cached dat
 * `Exp`, simple expression type.
 * `ExpPrint`, serialize `Exp` for the runtime system.
 * `Expr`, parsed expression type.
+* `FFI`, generate C wrappers for FFI.
 * `Fixity`, resolve operator fixities.
 * `Flags`, compiler flags.
 * `Graph`, strongly connected component algorithm.
