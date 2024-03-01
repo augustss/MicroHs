@@ -33,7 +33,7 @@
 /*
  * Number of bits in a word.  Only 32 and 64 are supported.
  */
-#define WORD_SIZE 64
+//#define WORD_SIZE 64
 
 /*
  * Find First Set

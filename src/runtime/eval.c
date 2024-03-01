@@ -48,15 +48,6 @@ typedef intptr_t stackptr_t;    /* Index into stack */
 typedef uintptr_t counter_t;    /* Statistics counter, can be smaller since overflow doesn't matter */
 #define PRIcounter PRIuPTR
 typedef uintptr_t bits_t;       /* One word of bits */
-#if WORD_SIZE == 64
-typedef double flt_t;
-#elif WORD_SIZE == 32
-typedef float flt_t;
-#elif WORD_SIZE == 16
-typedef uint16_t flt_t;         /* No floats, but we need something */
-#else
-#error Unknown WORD_SIZE
-#endif
 
 #if !defined(MALLOC)
 #define MALLOC malloc
