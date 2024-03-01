@@ -3197,7 +3197,7 @@ MHS_FROM(mhs_from_CULONG, SETINT, unsigned long);
 MHS_FROM(mhs_from_CLLONG, SETINT, long long);
 MHS_FROM(mhs_from_CULLONG, SETINT, unsigned long long);
 MHS_FROM(mhs_from_CSize, SETINT, size_t);
-MHS_FROM(mhs_from_CSSize, SETINT, ssize_t);
+// MHS_FROM(mhs_from_CSSize, SETINT, ssize_t);
 MHS_FROM(mhs_from_CIntPtr, SETINT, intptr_t);
 MHS_FROM(mhs_from_CUIntPtr, SETINT, uintptr_t);
 void
@@ -3229,7 +3229,7 @@ MHS_TO(mhs_to_CULONG, evalint, unsigned long);
 MHS_TO(mhs_to_CLLONG, evalint, long long);
 MHS_TO(mhs_to_CULLONG, evalint, unsigned long long);
 MHS_TO(mhs_to_CSize, evalint, size_t);
-MHS_TO(mhs_to_CSSize, evalint, ssize_t);
+// MHS_TO(mhs_to_CSSize, evalint, ssize_t);
 MHS_TO(mhs_to_CIntPtr, evalint, intptr_t);
 MHS_TO(mhs_to_CUIntPtr, evalint, uintptr_t);
 
