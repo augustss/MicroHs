@@ -11,6 +11,7 @@ import System.Environment
 import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.ExpPrint
+import MicroHs.FFI
 import MicroHs.Flags
 import MicroHs.Ident
 import MicroHs.Translate
