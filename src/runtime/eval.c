@@ -54,7 +54,17 @@ typedef uint16_t flt_t;         /* No floats, but we need something */
 #endif
 
 /* We cast all FFI functions to this type.  It's reasonably portable */
+#if 0
 typedef void (*funptr_t)(void);
+#else
+typedef void (*funptr_t)(int);
+#endif
+
+struct ffi_entry {
+  const char *ffi_name;
+  funptr_t ffi_fun;
+};
+struct ffi_entry ffi_table[];
 
 #if !defined(MALLOC)
 #define MALLOC malloc
@@ -1042,6 +1052,7 @@ pokeByte(uint8_t *p, value_t w)
   *p = (uint8_t)w;
 }
 
+#if 0
 /*
  * Table of FFI callable functions.
  * (For a more flexible solution use dlopen()/dlsym()/dlclose())
@@ -1180,6 +1191,19 @@ lookupFFIname(const char *name)
   size_t i;
 
   for(i = 0; i < sizeof(ffi_table) / sizeof(ffi_table[0]); i++)
+    if (strcmp(ffi_table[i].ffi_name, name) == 0)
+      return (value_t)i;
+  return -1;
+}
+#endif
+
+/* Look up an FFI function by name */
+value_t
+lookupFFIname(const char *name)
+{
+  size_t i;
+
+  for(i = 0; ffi_table[i].ffi_name; i++)
     if (strcmp(ffi_table[i].ffi_name, name) == 0)
       return (value_t)i;
   return -1;
@@ -2837,10 +2861,10 @@ execio(NODEPTR *np)
   NODEPTR top;
 
 /* IO operations need all arguments, anything else should not happen. */
-#define CHECKIO(n) do { if (stack_ptr - stk != (n+1)) {ERR("CHECKIO");}; } while(0)
+#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {printf("\nLINE=%d\n", __LINE__); ERR("CHECKIO");}; } while(0)
   /* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
 #define GCCHECKSAVE(p, n) do { PUSH(p); GCCHECK(n); (p) = TOP(0); POP(1); } while(0)
-#define RETIO(p) do { stack_ptr = stk; res = p; goto rest; } while(0)
+#define RETIO(p) do { stack_ptr = stk; res = (p); goto rest; } while(0)
 #define IOASSERT(p,s) do { if (!(p)) ERR("IOASSERT " s); } while(0)
 
   GCCHECK(2);
@@ -2951,6 +2975,8 @@ execio(NODEPTR *np)
       {
         int a = (int)GETVALUE(n);
         funptr_t f = ffi_table[a].ffi_fun;
+        //printf("ffi=%s start %d %d\n", ffi_table[a].ffi_name, (int)stack_ptr, (int)stk);
+#if 0
         value_t ri, xi, yi, zi;
 #if WANT_FLOAT
         flt_t rd, xd, yd;
@@ -2994,6 +3020,16 @@ execio(NODEPTR *np)
                               ri = (*(int     (*)(void*, int, void*    ))f)(xp,yi,zp); n = mkInt(ri); RETIO(n);
         default: ERR("T_IO_CCALL");
         }
+#else
+        GCCHECK(1);
+        PUSH(mkFlt(0.0));       /* placeholder for result, protected from GC */
+        f(stk);                 /* call FFI function */
+        n = TOP(0);             /* pop actual result */
+        while (GETTAG(n) == T_IND) /* might be indirection */
+          n = INDIR(n);
+        //printf("ffi=%s done  %d %d\n", ffi_table[a].ffi_name, (int)stack_ptr, (int)stk);
+        RETIO(n);               /* and this is the result */
+#endif
       }
 
     case T_IO_CATCH:
@@ -3338,4 +3374,142 @@ MAIN
 
 #if WANT_LZ77
 #include "lz77.c"
+#endif
+
+/*********************/
+
+#if 1
+#define MHS_FROM(name, set, type)                    \
+void \
+name(stackptr_t stk, int n, type x) \
+{ \
+  NODEPTR r = TOP(0);           /* The pre-allocated cell for the result, */ \
+  /* printf("from n+1=%d, stk=%d, stack_ptr=%d\n", n+1, (int)stk, (int)stack_ptr);*/ \
+  CHECKIO(n+1);                 /* Check that we actually had the right number of arguments. */ \
+  set(r, x);                    /* Put result in pre-allocated cell. */ \
+}
+MHS_FROM(mhs_from_Double, SETDBL, flt_t);
+MHS_FROM(mhs_from_Int, SETINT, value_t);
+MHS_FROM(mhs_from_Word, SETINT, uvalue_t);
+MHS_FROM(mhs_from_Word8, SETINT, uvalue_t);
+MHS_FROM(mhs_from_Ptr, SETPTR, void*);
+MHS_FROM(mhs_from_CSize, SETINT, uvalue_t);
+void
+mhs_from_Unit(stackptr_t stk, int n)
+{
+  NODEPTR r = TOP(0);           /* A pre-allocated cell for the result, */
+  //  printf("fromUnit n+1=%d, stk=%d, stack_ptr=%d\n", n+1, (int)stk, (int)stack_ptr);
+  CHECKIO(n+1);                 /* Check that we actually had the right number of arguments. */
+  SETIND(r, combUnit);          /* Put result in pre-allocated cell. */
+}
+
+#define MHS_TO(name, eval, type) \
+type name(stackptr_t stk, int n) \
+{ \
+  return eval(ARG(TOP(n+2)));                /* The stack has a reserved cell, and the FFI node on top of the arguments */ \
+}
+MHS_TO(mhs_to_Double, evaldbl, flt_t);
+MHS_TO(mhs_to_Int, evalint, value_t);
+MHS_TO(mhs_to_Word, evalint, uvalue_t);
+MHS_TO(mhs_to_Word8, evalint, uint8_t);
+MHS_TO(mhs_to_Ptr, evalptr, void*);
+MHS_TO(mhs_to_CSize, evalint, size_t);
+
+
+void mhs_from_Double(stackptr_t, int, flt_t);
+void mhs_from_Int(stackptr_t, int, value_t);
+void mhs_from_Word(stackptr_t, int, uvalue_t);
+void mhs_from_Word8(stackptr_t, int, uvalue_t);
+void mhs_from_Ptr(stackptr_t, int, void *);
+void mhs_from_Unit(stackptr_t, int);
+
+flt_t    mhs_to_Double(stackptr_t, int);
+value_t  mhs_to_Int(stackptr_t, int);
+uvalue_t mhs_to_Word(stackptr_t, int);
+uint8_t  mhs_to_Word8(stackptr_t, int);
+void*    mhs_to_Ptr(stackptr_t, int);
+size_t   mhs_to_CSize(stackptr_t, int);
+
+/* The rest of this file was generated by the compiler, with some minor edits of function names. */
+void mhs_GETRAW(int s) { mhs_from_Int(s, 0, GETRAW()); }
+void mhs_GETTIMEMILLI(int s) { mhs_from_Int(s, 0, GETTIMEMILLI()); }
+void mhs_acos(int s) { mhs_from_Double(s, 1, acos(mhs_to_Double(s, 0))); }
+void mhs_add_FILE(int s) { mhs_from_Ptr(s, 1, add_FILE(mhs_to_Ptr(s, 0))); }
+void mhs_add_utf8(int s) { mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
+void mhs_asin(int s) { mhs_from_Double(s, 1, asin(mhs_to_Double(s, 0))); }
+void mhs_atan(int s) { mhs_from_Double(s, 1, atan(mhs_to_Double(s, 0))); }
+void mhs_atan2(int s) { mhs_from_Double(s, 2, atan2(mhs_to_Double(s, 0), mhs_to_Double(s, 1))); }
+void mhs_calloc(int s) { mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
+void mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
+void mhs_cos(int s) { mhs_from_Double(s, 1, cos(mhs_to_Double(s, 0))); }
+void mhs_exp(int s) { mhs_from_Double(s, 1, exp(mhs_to_Double(s, 0))); }
+void mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
+void mhs_fopen(int s) { mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+void mhs_free(int s) { free(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
+void mhs_getb(int s) { mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
+void mhs_getenv(int s) { mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
+void mhs_iswindows(int s) { mhs_from_Int(s, 0, iswindows()); }
+void mhs_log(int s) { mhs_from_Double(s, 1, log(mhs_to_Double(s, 0))); }
+void mhs_lz77c(int s) { mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1), mhs_to_Ptr(s, 2))); }
+void mhs_malloc(int s) { mhs_from_Ptr(s, 1, malloc(mhs_to_CSize(s, 0))); }
+void mhs_md5Array(int s) { md5Array(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_md5BFILE(int s) { md5BFILE(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_md5String(int s) { md5String(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_memcpy(int s) { memcpy(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_memmove(int s) { memmove(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_peekByte(int s) { mhs_from_Word8(s, 1, peekByte(mhs_to_Ptr(s, 0))); }
+void mhs_peekPtr(int s) { mhs_from_Ptr(s, 1, peekPtr(mhs_to_Ptr(s, 0))); }
+void mhs_peekWord(int s) { mhs_from_Word(s, 1, peekWord(mhs_to_Ptr(s, 0))); }
+void mhs_pokeByte(int s) { pokeByte(mhs_to_Ptr(s, 0), mhs_to_Word8(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_pokePtr(int s) { pokePtr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_pokeWord(int s) { pokeWord(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_sin(int s) { mhs_from_Double(s, 1, sin(mhs_to_Double(s, 0))); }
+void mhs_sqrt(int s) { mhs_from_Double(s, 1, sqrt(mhs_to_Double(s, 0))); }
+void mhs_system(int s) { mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
+void mhs_tan(int s) { mhs_from_Double(s, 1, tan(mhs_to_Double(s, 0))); }
+void mhs_tmpname(int s) { mhs_from_Ptr(s, 2, tmpname(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+void mhs_unlink(int s) { mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
+struct ffi_entry ffi_table[] = {
+{ "GETRAW", mhs_GETRAW},
+{ "GETTIMEMILLI", mhs_GETTIMEMILLI},
+{ "acos", mhs_acos},
+{ "add_FILE", mhs_add_FILE},
+{ "add_utf8", mhs_add_utf8},
+{ "asin", mhs_asin},
+{ "atan", mhs_atan},
+{ "atan2", mhs_atan2},
+{ "calloc", mhs_calloc},
+{ "closeb", mhs_closeb},
+{ "cos", mhs_cos},
+{ "exp", mhs_exp},
+{ "flushb", mhs_flushb},
+{ "fopen", mhs_fopen},
+{ "free", mhs_free},
+{ "getb", mhs_getb},
+{ "getenv", mhs_getenv},
+{ "iswindows", mhs_iswindows},
+{ "log", mhs_log},
+{ "lz77c", mhs_lz77c},
+{ "malloc", mhs_malloc},
+{ "md5Array", mhs_md5Array},
+{ "md5BFILE", mhs_md5BFILE},
+{ "md5String", mhs_md5String},
+{ "memcpy", mhs_memcpy},
+{ "memmove", mhs_memmove},
+{ "peekByte", mhs_peekByte},
+{ "peekPtr", mhs_peekPtr},
+{ "peekWord", mhs_peekWord},
+{ "pokeByte", mhs_pokeByte},
+{ "pokePtr", mhs_pokePtr},
+{ "pokeWord", mhs_pokeWord},
+{ "putb", mhs_putb},
+{ "sin", mhs_sin},
+{ "sqrt", mhs_sqrt},
+{ "system", mhs_system},
+{ "tan", mhs_tan},
+{ "tmpname", mhs_tmpname},
+{ "unlink", mhs_unlink},
+{ 0,0 }
+};
 #endif

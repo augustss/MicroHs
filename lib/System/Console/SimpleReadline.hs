@@ -13,7 +13,7 @@ import Data.Char
 import System.IO
 --Ximport Compat
 
-foreign import ccall "getRaw" c_getRaw :: IO Int
+foreign import ccall "GETRAW" c_getRaw :: IO Int
 
 
 -- Get an input line with editing.

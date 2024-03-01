@@ -58,15 +58,15 @@ main = do
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
-  (rmn, ds) <-
+  (rmn, allDefs) <-
     if flags.writeCache then do
       cash <- getCached flags
-      (ds, cash') <- compileCacheTop flags mn cash
+      (rds, cash') <- compileCacheTop flags mn cash
       when (verbosityGT flags 0) $
         putStrLn $ "Saving cache " ++ show mhsCacheName
       () <- seq (rnfNoErr cash) (return ())
       saveCache mhsCacheName cash'
-      return ds
+      return rds
     else do
       cash <- getCached flags
       fst <$> compileCacheTop flags mn cash
@@ -74,13 +74,13 @@ mainCompile flags mn = do
   t1 <- getTimeMilli
   let
     mainName = qualIdent rmn (mkIdent "main")
-    cmdl = (mainName, ds)
+    cmdl = (mainName, allDefs)
     outData = toStringCMdl cmdl
-    numDefs = length ds
+    numDefs = length allDefs
   when (verbosityGT flags 0) $
     putStrLn $ "top level defns: " ++ show numDefs
   when (verbosityGT flags 1) $
-    mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") ds
+    mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") allDefs
   if flags.runIt then do
     let
       prg = translateAndRun cmdl
@@ -94,6 +94,8 @@ mainCompile flags mn = do
     when (verbosityGT flags 0) $
       putStrLn $ "final pass            " ++ padLeft 6 (show (t2-t1)) ++ "ms"
 
+    let cCode = makeCArray flags outData ++ makeFFI flags allDefs
+
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
     --  * file ends in .c: write C version of combinator
@@ -102,10 +104,10 @@ mainCompile flags mn = do
     if ".comb" `isSuffixOf` outFile then
       writeFile outFile outData
      else if ".c" `isSuffixOf` outFile then
-      writeFile outFile $ makeCArray flags outData
+      writeFile outFile cCode
      else do
        (fn, h) <- openTmpFile "mhsc.c"
-       hPutStr h $ makeCArray flags outData
+       hPutStr h cCode
        hClose h
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"

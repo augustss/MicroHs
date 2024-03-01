@@ -597,11 +597,6 @@ kArrow = tArrow
 sArrow :: ESort -> ESort -> ESort
 sArrow = tArrow
 
-getArrow :: EType -> Maybe (EType, EType)
-getArrow (EApp (EApp (EVar n) a) b) =
-  if isIdent "->" n || isIdent "Primitives.->" n then Just (a, b) else Nothing
-getArrow _ = Nothing
-
 getImplies :: EType -> Maybe (EType, EType)
 getImplies (EApp (EApp (EVar n) a) b) =
   if isIdent "=>" n || isIdent "Primitives.=>" n then Just (a, b) else Nothing

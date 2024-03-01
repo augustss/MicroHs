@@ -74,7 +74,7 @@ foreign import ccall "fgetc"        c_fgetc        :: Handle             -> IO I
 foreign import ccall "fputc"        c_fputc        :: Int ->     Handle  -> IO Int
 -- foreign import ccall "fwrite"       c_fwrite       :: CString -> Int -> Int -> Handle -> IO Int
 -}
-foreign import ccall "getTimeMilli" c_getTimeMilli ::                       IO Int
+foreign import ccall "GETTIMEMILLI" c_getTimeMilli ::                       IO Int
 
 foreign import ccall "closeb"       c_closeb       :: Ptr BFILE          -> IO ()
 foreign import ccall "flushb"       c_flushb       :: Ptr BFILE          -> IO ()

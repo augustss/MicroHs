@@ -41,12 +41,14 @@ module MicroHs.Expr(
   eForall,
   eDummy,
   impossible, impossibleShow,
+  getArrow, getArrows,
   ) where
 import Prelude hiding ((<>))
+import Control.Arrow(first)
 import Data.List
 import Data.Maybe
 import MicroHs.Ident
-import Text.PrettyPrint.HughesPJ
+import Text.PrettyPrint.HughesPJ hiding(first)
 import GHC.Stack
 
 type IdentModule = Ident
@@ -780,3 +782,17 @@ impossibleShow :: forall a b .
                   HasCallStack =>
                   (Show a, HasLoc a) => a -> b
 impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ show a
+
+-----------
+
+-- Probably belongs somewhere else
+getArrow :: EType -> Maybe (EType, EType)
+getArrow (EApp (EApp (EVar n) a) b) =
+  if isIdent "->" n || isIdent "Primitives.->" n then Just (a, b) else Nothing
+getArrow _ = Nothing
+
+getArrows :: EType -> ([EType], EType)
+getArrows at = 
+  case getArrow at of
+    Nothing -> ([], at)
+    Just (t, r) -> first (t:) (getArrows r)

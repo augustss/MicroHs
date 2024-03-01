@@ -36,14 +36,14 @@ instance Storable Word where
   peek p      = c_peekWord p
   poke p w    = c_pokeWord p w
 
-foreign import ccall "peekPtr" c_peekPtr :: forall a . Ptr (Ptr a) -> IO (Ptr a)
-foreign import ccall "pokePtr" c_pokePtr :: forall a . Ptr (Ptr a) -> Ptr a -> IO ()
+foreign import ccall "peekPtr" c_peekPtr :: Ptr (Ptr ()) -> IO (Ptr ())
+foreign import ccall "pokePtr" c_pokePtr :: Ptr (Ptr ()) -> Ptr () -> IO ()
 
 instance forall a . Storable (Ptr a) where
   sizeOf    _ = wordSizeInBytes
   alignment _ = wordSizeInBytes
-  peek p      = c_peekPtr p
-  poke p w    = c_pokePtr p w
+  peek p      = c_peekPtr (castPtr p) `primBind` \ q -> primReturn (castPtr q)
+  poke p w    = c_pokePtr (castPtr p) (castPtr w)
 
 foreign import ccall "peekByte" c_peekByte :: Ptr Word8 -> IO Word8
 foreign import ccall "pokeByte" c_pokeByte :: Ptr Word8 -> Word8 -> IO ()

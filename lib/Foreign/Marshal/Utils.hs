@@ -1,6 +1,7 @@
 module Foreign.Marshal.Utils(module Foreign.Marshal.Utils) where
 import Prelude
 import Foreign.Marshal.Alloc
+import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.Storable
 
@@ -47,11 +48,11 @@ withMany wth (x : xs) f =
   wth x $ \ x' ->
     withMany wth xs (\ xs' -> f (x' : xs'))
 
-foreign import ccall "memcpy"  c_memcpy  :: forall a b . Ptr a -> Ptr a -> Int -> IO ()
-foreign import ccall "memmove" c_memmove :: forall a b . Ptr a -> Ptr a -> Int -> IO ()
+foreign import ccall "memcpy"  c_memcpy  :: Ptr () -> Ptr () -> CSize -> IO ()
+foreign import ccall "memmove" c_memmove :: Ptr () -> Ptr () -> CSize -> IO ()
 
 copyBytes :: forall a b . Ptr a -> Ptr a -> Int -> IO ()
-copyBytes = c_memcpy
+copyBytes p q i = c_memcpy (castPtr p) (castPtr q) (intToCSize i)
 
 moveBytes :: forall a b . Ptr a -> Ptr a -> Int -> IO ()
-moveBytes = c_memmove
+moveBytes p q i = c_memmove (castPtr p) (castPtr q) (intToCSize i)

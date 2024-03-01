@@ -408,3 +408,11 @@ substString :: forall a . Eq a => [a] -> [a] -> [a] -> [a]
 substString _ _ [] = []
 substString from to xs@(c:cs) | Just rs <- stripPrefix from xs = to ++ substString from to rs
                               | otherwise = c : substString from to cs
+
+group :: Eq a => [a] -> [[a]]
+group = groupBy (==)
+
+groupBy :: (a -> a -> Bool) -> [a] -> [[a]]
+groupBy _  []     =  []
+groupBy eq (x:xs) =  (x:ys) : groupBy eq zs
+  where (ys,zs) = span (eq x) xs

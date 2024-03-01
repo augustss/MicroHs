@@ -68,6 +68,7 @@ import Data.Word
 import Data.ZipList
 import Debug.Trace
 import Foreign.C.String
+import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Marshal.Utils

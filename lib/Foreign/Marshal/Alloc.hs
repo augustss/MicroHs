@@ -6,22 +6,24 @@ module Foreign.Marshal.Alloc(
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error(undefined)
+import Foreign.C.Types
+import Foreign.Ptr
 import Foreign.Storable
 
-foreign import ccall "free" c_free :: forall a . Ptr a -> IO ()
+foreign import ccall "free" c_free :: Ptr () -> IO ()
 
 free :: forall a . Ptr a -> IO ()
-free = c_free
+free p = c_free (castPtr p)
 
-foreign import ccall "malloc" c_malloc :: forall a . Int -> IO (Ptr a)
+foreign import ccall "malloc" c_malloc :: CSize -> IO (Ptr ())
 
 mallocBytes :: forall a . Int -> IO (Ptr a)
-mallocBytes = c_malloc
+mallocBytes n = c_malloc (intToCSize n) `primBind` \ p -> primReturn (castPtr p)
 
-foreign import ccall "calloc" c_calloc :: forall a . Int -> Int -> IO (Ptr a)
+foreign import ccall "calloc" c_calloc :: CSize -> CSize -> IO (Ptr ())
 
 callocBytes :: forall a . Int -> IO (Ptr a)
-callocBytes = c_calloc (1::Int)
+callocBytes n = c_calloc (intToCSize (1::Int)) (intToCSize n) `primBind` \ p -> primReturn (castPtr p)
 
 malloc :: forall a . Storable a => IO (Ptr a)
 malloc  = mallocBytes (sizeOf (undefined :: a))
