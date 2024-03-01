@@ -93,7 +93,7 @@ cpphssrc/malcolm-wallace-universe:
 	mkdir -p cpphssrc
 	cd cpphssrc; git clone --branch dot-spaces git@github.com:augustss/malcolm-wallace-universe.git
 
-bootstrapcpphs: cpphssrc/malcolm-wallace-universe bin/cpphs
+bootstrapcpphs: cpphssrc/malcolm-wallace-universe #bin/cpphs
 	MHSCPPHS=bin/cpphs bin/mhs -z -XCPP -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
 # Run test examples with ghc-compiled compiler

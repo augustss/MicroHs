@@ -241,7 +241,9 @@ For example, `bin/mhseval +RTS -H1M -v -RTS hello` runs `out.comb` and the progr
 whereas the runtime system sets the heap to 1M cells and is verbose.
 
 ### FFI
-MicroHs supports calling C functions, but all such functions must be in a table in the runtime system.
+MicroHs supports calling C functions.
+When running the program directly (using `-r`) or when generating a `.comb` file only the functions in the table built
+into `src/runtime/eval.c` can be used.  When generating a `.c` file or an executable any C function can be called.
 
 ### Records
 MicroHs implements the record dot extensions.
