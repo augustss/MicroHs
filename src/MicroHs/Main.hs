@@ -28,34 +28,40 @@ mhsVersion = "0.9.7.0"
 
 main :: IO ()
 main = do
-  aargs <- getArgs
-  mdir <- getMhsDir
-  let dir = fromMaybe "." mdir
-  let
-    (args, rargs) = span (/= "--") aargs
-    mdls = filter ((/= "-") . take 1) args
-    flags = Flags {
-      verbose    = length (filter (== "-v") args),
-      runIt      = elem "-r" args,
-      mhsdir     = dir,
-      paths      = "." : (dir ++ "/lib") : catMaybes (map (stripPrefix "-i") args),
-      output     = head $ catMaybes (map (stripPrefix "-o") args) ++ ["out.comb"],
-      loading    = elem "-l" args,
-      readCache  = usingMhs && (elem "-C" args || elem "-CR" args),
-      writeCache = usingMhs && (elem "-C" args || elem "-CW" args),
-      useTicks   = elem "-T" args,
-      doCPP      = elem "-XCPP" args,
-      cppArgs    = filter (\ s -> "-D" `isPrefixOf` s) args,
-      compress   = elem "-z" args
-      }
-  if "--version" `elem` args then
+  args <- getArgs
+  dir <- fromMaybe "." <$> getMhsDir
+  if take 1 args == ["--version"] then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
-   else
-    withArgs (drop 1 rargs) $              -- leave arguments after -- for any program we run
+   else do
+    let (flags, mdls, rargs) = decodeArgs (defaultFlags dir) [] args
+    withArgs rargs $              -- leave arguments after -- for any program we run
       case mdls of
         []  -> mainInteractive flags
         [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-        _   -> error "Usage: mhs [--version] [-v] [-l] [-r] [-C[R|W]] [-XCPP] [-T] [-z] [-iPATH] [-oFILE] [ModuleName]"
+        _   -> error usage
+
+usage :: String
+usage = "Usage: mhs [--version] [-v] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [ModuleName]"
+
+decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
+decodeArgs f mdls [] = (f, mdls, [])
+decodeArgs f mdls (arg:args) =
+  case arg of
+    "--"        -> (f, mdls, args)
+    "-v"        -> decodeArgs f{verbose = f.verbose + 1} mdls args
+    "-r"        -> decodeArgs f{runIt = True} mdls args
+    "-l"        -> decodeArgs f{loading = True} mdls args
+    "-CR"       -> decodeArgs f{readCache = True} mdls args
+    "-CW"       -> decodeArgs f{writeCache = True} mdls args
+    "-C"        -> decodeArgs f{readCache=True, writeCache = True} mdls args
+    "-T"        -> decodeArgs f{useTicks = True} mdls args
+    "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
+    "-z"        -> decodeArgs f{compress = True} mdls args
+    '-':'i':s   -> decodeArgs f{paths = f.paths ++ [s]} mdls args
+    '-':'o':s   -> decodeArgs f{output = s} mdls args
+    '-':'D':s   -> decodeArgs f{cppArgs = f.cppArgs ++ [s]} mdls args
+    '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
+    _           -> decodeArgs f (mdls ++ [arg]) args
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do

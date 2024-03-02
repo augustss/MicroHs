@@ -1,5 +1,4 @@
-module MicroHs.Flags(Flags(..), verbosityGT) where
-import Prelude
+module MicroHs.Flags(Flags(..), verbosityGT, defaultFlags) where
 
 data Flags = Flags {
   verbose    :: Int,        -- verbosity level
@@ -19,3 +18,19 @@ data Flags = Flags {
 
 verbosityGT :: Flags -> Int -> Bool
 verbosityGT flags v = flags.verbose > v
+
+defaultFlags :: FilePath -> Flags
+defaultFlags dir = Flags {
+  verbose    = 0,
+  runIt      = False,
+  mhsdir     = dir,
+  paths      = [".", dir ++ "/lib"],
+  output     = "out.comb",
+  loading    = False,
+  readCache  = False,
+  writeCache = False,
+  useTicks   = False,
+  doCPP      = False,
+  cppArgs    = [],
+  compress   = False
+  }
