@@ -2567,8 +2567,13 @@ evali(NODEPTR an)
       /* No handler, so just die. */
       CHKARGEV1(msg = evalstring(x, 0));
 #if WANT_STDIO
-      ERR1("mhs: %s\n", msg);
-      EXIT(1);
+      /* A horrible hack until we get proper exceptions */
+      if (strcmp(msg, "ExitSuccess") == 0) {
+        EXIT(0);
+      } else {
+        fprintf(stderr, "mhs: %s\n", msg);
+        EXIT(1);
+      }
 #else  /* WANT_STDIO */
       ERR1("error: %s", msg);
 #endif  /* WANT_STDIO */
