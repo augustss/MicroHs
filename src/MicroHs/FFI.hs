@@ -20,7 +20,7 @@ makeFFI _ ds =
   in
     if not (null wrappers) || not (null dynamics) || not (null addrs) then error "Unimplemented FFI feature" else
     unlines (map (\ fn -> "#include \"" ++ fn ++ "\"") includes) ++
-    unlines (map (uncurry mkWrapper) funcs') ++
+    unlines (map (uncurry mkStatic) funcs') ++
     "static struct ffi_entry table[] = {\n" ++
     unlines (map (mkEntry . fst) funcs') ++
     "{ 0,0 }\n};\n" ++
@@ -50,22 +50,38 @@ parseImpEnt loc s =
 mkEntry :: String -> String
 mkEntry f = "{ \"" ++ f ++ "\", mhs_" ++ f ++ "},"
 
-mkWrapper :: String -> EType -> String
-mkWrapper fn t =
-  let (as, r) = getArrows t
-      n = length as
-      call = fn ++ "(" ++ intercalate ", " (zipWith mkArg as [0..]) ++ ")"
-      vcall = mkRet r ++ "(s, " ++ show n ++ ", " ++ call ++ ")"
-      fcall = if isIOUnit r then call ++ "; mhs_from_Unit(s, " ++ show n ++ ")" else vcall
-  in  "void mhs_" ++ fn ++ "(int s) { " ++ fcall ++ "; }"
+iIO :: Ident
+iIO = mkIdent "Primitives.IO"
 
-isIOUnit :: EType -> Bool
-isIOUnit (EApp (EVar io) (EVar unit)) = io == mkIdent "Primitives.IO" && unit == mkIdent "Primitives.()"
-isIOUnit _ = False
+iUnit :: Ident
+iUnit = mkIdent "Primitives.()"
+
+mkStatic :: String -> EType -> String
+mkStatic fn t =
+  let !(as, ior) = getArrows t in
+  case getApp iIO ior of
+    Nothing -> errorMessage (getSLoc t) $ "foreign return type must be IO"
+    Just r ->
+      let
+          n = length as
+          call = fn ++ "(" ++ intercalate ", " (zipWith mkArg as [0..]) ++ ")"
+          fcall =
+            if isUnit r then
+              call ++ "; mhs_from_Unit(s, " ++ show n ++ ")"
+            else
+              mkRet r ++ "(s, " ++ show n ++ ", " ++ call ++ ")"
+      in  "void mhs_" ++ fn ++ "(int s) { " ++ fcall ++ "; }"
+
+getApp :: Ident -> EType -> Maybe EType
+getApp i (EApp (EVar i') t) | i == i' = Just t
+getApp _ _ = Nothing
+
+isUnit :: EType -> Bool
+isUnit (EVar unit) = unit == iUnit
+isUnit _ = False
 
 mkRet :: EType -> String
-mkRet (EApp (EVar io) t) | io == mkIdent "Primitives.IO" = "mhs_from_" ++ cTypeName t
-mkRet t = errorMessage (getSLoc t) $ "C return type is not IO: " ++ showEType t
+mkRet t = "mhs_from_" ++ cTypeName t
 
 mkArg :: EType -> Int -> String
 mkArg t i = "mhs_to_" ++ cTypeName t ++ "(s, " ++ show i ++ ")"
