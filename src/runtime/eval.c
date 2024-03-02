@@ -219,8 +219,6 @@ static const char* tag_names[] = {
 struct ioarray;
 struct ustring;
 
-typedef void (*HsFunPtr)(void);
-
 typedef struct node {
   union {
     struct node *uufun;
@@ -1027,16 +1025,132 @@ pokePtr(void **p, void *w)
   *p = w;
 }
 
-value_t
-peekByte(uint8_t *p)
+uvalue_t
+peek_uint8(uint8_t *p)
 {
   return *p;
 }
 
 void
-pokeByte(uint8_t *p, value_t w)
+poke_uint8(uint8_t *p, value_t w)
 {
   *p = (uint8_t)w;
+}
+
+uvalue_t
+peek_uint16(uint16_t *p)
+{
+  return *p;
+}
+
+void
+poke_uint16(uint16_t *p, value_t w)
+{
+  *p = (uint16_t)w;
+}
+
+#if WORD_SIZE >= 32
+uvalue_t
+peek_uint32(uint32_t *p)
+{
+  return *p;
+}
+
+void
+poke_uint32(uint32_t *p, value_t w)
+{
+  *p = (uint32_t)w;
+}
+#endif  /* WORD_SIZE >= 32 */
+
+#if WORD_SIZE >= 64
+uvalue_t
+peek_uint64(uint64_t *p)
+{
+  return *p;
+}
+
+void
+poke_uint64(uint64_t *p, value_t w)
+{
+  *p = (uint64_t)w;
+}
+#endif  /* WORD_SIZE >= 64 */
+
+value_t
+peek_int8(int8_t *p)
+{
+  return *p;
+}
+
+void
+poke_int8(int8_t *p, value_t w)
+{
+  *p = (int8_t)w;
+}
+
+value_t
+peek_int16(int16_t *p)
+{
+  return *p;
+}
+
+void
+poke_int16(int16_t *p, value_t w)
+{
+  *p = (int16_t)w;
+}
+
+#if WORD_SIZE >= 32
+value_t
+peek_int32(int32_t *p)
+{
+  return *p;
+}
+
+void
+poke_int32(int32_t *p, value_t w)
+{
+  *p = (int32_t)w;
+}
+#endif  /* WORD_SIZE >= 32 */
+
+#if WORD_SIZE >= 64
+value_t
+peek_int64(int64_t *p)
+{
+  return *p;
+}
+
+void
+poke_int64(int64_t *p, value_t w)
+{
+  *p = (int64_t)w;
+}
+#endif  /* WORD_SIZE >= 64 */
+
+value_t
+peek_int(int *p)
+{
+  return *p;
+}
+
+void
+poke_int(int *p, value_t w)
+{
+  *p = (int)w;
+}
+
+value_t
+peek_uint(unsigned int *p)
+{
+  return *p;
+}
+
+void
+poke_uint(unsigned int *p, value_t w)
+{
+  *p = (unsigned int)w;
 }
 
 /* Look up an FFI function by name */
@@ -3337,12 +3451,42 @@ void mhs_iswindows(int s) { mhs_from_Int(s, 0, iswindows()); }
 void mhs_malloc(int s) { mhs_from_Ptr(s, 1, malloc(mhs_to_CSize(s, 0))); }
 void mhs_memcpy(int s) { memcpy(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); mhs_from_Unit(s, 3); }
 void mhs_memmove(int s) { memmove(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_peekByte(int s) { mhs_from_Word8(s, 1, peekByte(mhs_to_Ptr(s, 0))); }
 void mhs_peekPtr(int s) { mhs_from_Ptr(s, 1, peekPtr(mhs_to_Ptr(s, 0))); }
 void mhs_peekWord(int s) { mhs_from_Word(s, 1, peekWord(mhs_to_Ptr(s, 0))); }
-void mhs_pokeByte(int s) { pokeByte(mhs_to_Ptr(s, 0), mhs_to_Word8(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_pokePtr(int s) { pokePtr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_pokeWord(int s) { pokeWord(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+
+void mhs_peek_uint8(int s) { mhs_from_Word(s, 1, peek_uint8(mhs_to_Ptr(s, 0))); }
+void mhs_poke_uint8(int s) { poke_uint8(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_peek_uint16(int s) { mhs_from_Word(s, 1, peek_uint16(mhs_to_Ptr(s, 0))); }
+void mhs_poke_uint16(int s) { poke_uint16(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+#if WORD_SIZE >= 32
+void mhs_peek_uint32(int s) { mhs_from_Word(s, 1, peek_uint32(mhs_to_Ptr(s, 0))); }
+void mhs_poke_uint32(int s) { poke_uint32(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+#endif  /* WORD_SIZE */
+#if WORD_SIZE >= 64
+void mhs_peek_uint64(int s) { mhs_from_Word(s, 1, peek_uint64(mhs_to_Ptr(s, 0))); }
+void mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+#endif  /* WORD_SIZE */
+void mhs_peek_uint(int s) { mhs_from_Word(s, 1, peek_uint(mhs_to_Ptr(s, 0))); }
+void mhs_poke_uint(int s) { poke_uint(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+
+void mhs_peek_int8(int s) { mhs_from_Int(s, 1, peek_int8(mhs_to_Ptr(s, 0))); }
+void mhs_poke_int8(int s) { poke_int8(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_peek_int16(int s) { mhs_from_Int(s, 1, peek_int16(mhs_to_Ptr(s, 0))); }
+void mhs_poke_int16(int s) { poke_int16(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+#if WORD_SIZE >= 32
+void mhs_peek_int32(int s) { mhs_from_Int(s, 1, peek_int32(mhs_to_Ptr(s, 0))); }
+void mhs_poke_int32(int s) { poke_int32(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+#endif  /* WORD_SIZE */
+#if WORD_SIZE >= 64
+void mhs_peek_int64(int s) { mhs_from_Int(s, 1, peek_int64(mhs_to_Ptr(s, 0))); }
+void mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+#endif  /* WORD_SIZE */
+void mhs_peek_int(int s) { mhs_from_Int(s, 1, peek_int(mhs_to_Ptr(s, 0))); }
+void mhs_poke_int(int s) { poke_int(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+
+
 struct ffi_entry ffi_table[] = {
 { "GETRAW", mhs_GETRAW},
 { "GETTIMEMILLI", mhs_GETTIMEMILLI},
@@ -3389,12 +3533,40 @@ struct ffi_entry ffi_table[] = {
 { "malloc", mhs_malloc},
 { "memcpy", mhs_memcpy},
 { "memmove", mhs_memmove},
-{ "peekByte", mhs_peekByte},
 { "peekPtr", mhs_peekPtr},
 { "peekWord", mhs_peekWord},
-{ "pokeByte", mhs_pokeByte},
 { "pokePtr", mhs_pokePtr},
 { "pokeWord", mhs_pokeWord},
+
+{ "peek_uint8", mhs_peek_uint8},
+{ "poke_uint8", mhs_poke_uint8},
+{ "peek_uint16", mhs_peek_uint16},
+{ "poke_uint16", mhs_poke_uint16},
+#if WORD_SIZE >= 32
+{ "peek_uint32", mhs_peek_uint32},
+{ "poke_uint32", mhs_poke_uint32},
+#endif  /* WORD_SIZE >= 32 */
+#if WORD_SIZE >= 64
+{ "peek_uint64", mhs_peek_uint64},
+{ "poke_uint64", mhs_poke_uint64},
+#endif  /* WORD_SIZE >= 64 */
+{ "peek_uint", mhs_peek_uint},
+{ "poke_uint", mhs_poke_uint},
+
+{ "peek_int8", mhs_peek_int8},
+{ "poke_int8", mhs_poke_int8},
+{ "peek_int16", mhs_peek_int16},
+{ "poke_int16", mhs_poke_int16},
+#if WORD_SIZE >= 32
+{ "peek_int32", mhs_peek_int32},
+{ "poke_int32", mhs_poke_int32},
+#endif  /* WORD_SIZE >= 32 */
+#if WORD_SIZE >= 64
+{ "peek_int64", mhs_peek_int64},
+{ "poke_int64", mhs_poke_int64},
+#endif  /* WORD_SIZE >= 64 */
+{ "peek_int", mhs_peek_int},
+{ "poke_int", mhs_poke_int},
 { 0,0 }
 };
 

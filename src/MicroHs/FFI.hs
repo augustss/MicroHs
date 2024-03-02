@@ -18,7 +18,6 @@ makeFFI _ ds =
       funcs    = [ (name, t) | (ImpStatic _inc False name, t) <- ffiImports, name `notElem` runtimeFFI ]
       funcs'   = uniqFst funcs
       addrs'   = uniqFst addrs
-      entries  = funcs' ++ addrs'
   in
     if not (null wrappers) || not (null dynamics) then error "Unimplemented FFI feature" else
     unlines $
@@ -26,7 +25,8 @@ makeFFI _ ds =
       map mkStatic funcs' ++
       map mkAddr   addrs' ++
       ["static struct ffi_entry table[] = {"] ++
-      map (mkEntry . fst) entries ++
+      map (mkFuncEntry . fst) funcs' ++
+      map (mkAddrEntry . fst) addrs' ++
       ["{ 0,0 }",
        "};",
        "struct ffi_entry *xffi_table = table;"
@@ -55,8 +55,11 @@ parseImpEnt loc s =
        rest'' c [n] = c n
        rest'' _ _ = errorMessage loc $ "bad foreign import " ++ show s
 
-mkEntry :: String -> String
-mkEntry f = "{ \"" ++ f ++ "\", mhs_" ++ f ++ "},"
+mkFuncEntry :: String -> String
+mkFuncEntry f = "{ \"" ++ f ++ "\", mhs_" ++ f ++ "},"
+
+mkAddrEntry :: String -> String
+mkAddrEntry f = "{ \"&" ++ f ++ "\", mhs_addr_" ++ f ++ "},"
 
 iIO :: Ident
 iIO = mkIdent "Primitives.IO"
@@ -64,21 +67,33 @@ iIO = mkIdent "Primitives.IO"
 iUnit :: Ident
 iUnit = mkIdent "Primitives.()"
 
+iPtr :: Ident
+iPtr = mkIdent "Primitives.Ptr"
+
+iFunPtr :: Ident
+iFunPtr = mkIdent "Primitives.FunPtr"
+
 mkStatic :: (String, EType) -> String
 mkStatic (fn, t) =
-  let !(as, ior) = getArrows t in
-  case getApp iIO ior of
-    Nothing -> errorMessage (getSLoc t) $ "foreign return type must be IO"
-    Just r ->
-      let
-          n = length as
-          call = fn ++ "(" ++ intercalate ", " (zipWith mkArg as [0..]) ++ ")"
-          fcall =
-            if isUnit r then
-              call ++ "; mhs_from_Unit(s, " ++ show n ++ ")"
-            else
-              mkRet r ++ "(s, " ++ show n ++ ", " ++ call ++ ")"
-      in  "void mhs_" ++ fn ++ "(int s) { " ++ fcall ++ "; }"
+  let !(as, ior) = getArrows t
+      r = checkIO ior
+      n = length as
+      call = fn ++ "(" ++ intercalate ", " (zipWith mkArg as [0..]) ++ ")"
+      fcall =
+        if isUnit r then
+          call ++ "; mhs_from_Unit(s, " ++ show n ++ ")"
+        else
+          mkRet r n call
+  in  mkMhsFun fn fcall
+
+mkMhsFun :: String -> String -> String
+mkMhsFun fn body = "void mhs_" ++ fn ++ "(int s) { " ++ body ++ "; }"
+
+checkIO :: EType -> EType
+checkIO iot =
+  case getApp iIO iot of
+    Nothing -> errorMessage (getSLoc iot) $ "foreign return type must be IO"
+    Just t  -> t
 
 getApp :: Ident -> EType -> Maybe EType
 getApp i (EApp (EVar i') t) | i == i' = Just t
@@ -88,17 +103,28 @@ isUnit :: EType -> Bool
 isUnit (EVar unit) = unit == iUnit
 isUnit _ = False
 
-mkRet :: EType -> String
-mkRet t = "mhs_from_" ++ cTypeName t
+mkRet :: EType -> Int -> String -> String
+mkRet t n call = "mhs_from_" ++ cTypeName t ++ "(s, " ++ show n ++ ", " ++ call ++ ")"
 
 mkArg :: EType -> Int -> String
 mkArg t i = "mhs_to_" ++ cTypeName t ++ "(s, " ++ show i ++ ")"
 
 mkAddr :: (String, EType) -> String
-mkAddr (fn, t) = undefined
+mkAddr (fn, iot) =
+  let r = checkIO iot
+      (s, _) =
+        case getApp iPtr r of
+          Just t  -> ("", t)
+          Nothing ->
+            case getApp iFunPtr r of
+              Just t  -> ("(HsFunPtr)", t)
+              Nothing -> errorMessage (getSLoc r) $ "foreign & must be Ptr/FunPtr"
+      body = mkRet r 0 (s ++ "&" ++ fn)
+  in  mkMhsFun ("addr_" ++ fn) body
 
 cTypeName :: EType -> String
-cTypeName (EApp (EVar ptr) _t) | ptr == mkIdent "Primitives.Ptr" = "Ptr"
+cTypeName (EApp (EVar ptr) _t) | ptr == iPtr = "Ptr"
+                               | ptr == iFunPtr = "FunPtr"
 cTypeName (EVar i) | Just c <- lookup (unIdent i) cTypes = c
 cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
@@ -133,6 +159,10 @@ runtimeFFI :: [String]
 runtimeFFI = [
   "GETRAW", "GETTIMEMILLI", "acos", "add_FILE", "add_utf8", "asin", "atan", "atan2", "calloc", "closeb",
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "iswindows", "log", "lz77c", "malloc",
-  "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", "peekByte", "peekPtr", "peekWord", "pokeByte",
-  "pokePtr", "pokeWord", "putb", "sin", "sqrt", "system", "tan", "tmpname", "unlink"
+  "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", 
+  "putb", "sin", "sqrt", "system", "tan", "tmpname", "unlink",
+  "peekPtr", "pokePtr", "pokeWord", "peekWord",
+  "peek_uint8", "poke_uint8", "peek_uint16", "poke_uint16", "peek_uint32", "poke_uint32", "peek_uint64", "poke_uint64",
+  "peek_int8", "poke_int8", "peek_int16", "poke_int16", "peek_int32", "poke_int32", "peek_int64", "poke_int64",
+  "peek_uint", "poke_uint", "peek_int", "poke_int"
   ]

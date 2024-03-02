@@ -722,7 +722,7 @@ showLit l =
     LStr s     -> show s
     LUStr s    -> show s
     LPrim s    -> s
-    LForImp s _-> '^' : s
+    LForImp s _-> '^' : last (words s)  -- XXX needs improvement
     LTick s    -> '!' : s
 
 ppEStmt :: EStmt -> Doc

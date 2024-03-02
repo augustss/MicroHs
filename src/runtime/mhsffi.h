@@ -21,10 +21,12 @@ typedef uint16_t flt_t;         /* No floats, but we need something */
 #error Unknown WORD_SIZE
 #endif
 
+typedef void (*HsFunPtr)(void);
+
 typedef void (*funptr_t)(int);
 struct ffi_entry {
   const char *ffi_name;
-  funptr_t ffi_fun;
+  funptr_t    ffi_fun;
 };
 extern struct ffi_entry *xffi_table;
 
@@ -33,6 +35,7 @@ void mhs_from_Int(intptr_t, int, intptr_t);
 void mhs_from_Word(intptr_t, int, uintptr_t);
 void mhs_from_Word8(intptr_t, int, uintptr_t);
 void mhs_from_Ptr(intptr_t, int, void *);
+void mhs_from_FunPtr(intptr_t, int, HsFunPtr);
 void mhs_from_CChar(intptr_t, int, char);
 void mhs_from_CSChar(intptr_t, int, signed char);
 void mhs_from_CUChar(intptr_t, int, unsigned char);
@@ -55,6 +58,7 @@ intptr_t           mhs_to_Int(intptr_t, int);
 uintptr_t          mhs_to_Word(intptr_t, int);
 uint8_t            mhs_to_Word8(intptr_t, int);
 void*              mhs_to_Ptr(intptr_t, int);
+HsFunPtr           mhs_to_FunPtr(intptr_t, int);
 char               mhs_to_CChar(intptr_t, int);
 signed char        mhs_to_CSChar(intptr_t, int);
 unsigned char      mhs_to_CUChar(intptr_t, int);
