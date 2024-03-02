@@ -16,16 +16,24 @@ makeFFI _ ds =
       includes = "mhsffi.h" : catMaybes [ inc | (ImpStatic inc _addr _name, _) <- ffiImports ]
       addrs    = [ (name, t) | (ImpStatic _inc True  name, t) <- ffiImports ]
       funcs    = [ (name, t) | (ImpStatic _inc False name, t) <- ffiImports, name `notElem` runtimeFFI ]
-      funcs' = map head $ groupBy ((==) `on` fst) $ sortBy (compare `on` fst) funcs
+      funcs'   = uniqFst funcs
+      addrs'   = uniqFst addrs
+      entries  = funcs' ++ addrs'
   in
-    if not (null wrappers) || not (null dynamics) || not (null addrs) then error "Unimplemented FFI feature" else
-    unlines (map (\ fn -> "#include \"" ++ fn ++ "\"") includes) ++
-    unlines (map (uncurry mkStatic) funcs') ++
-    "static struct ffi_entry table[] = {\n" ++
-    unlines (map (mkEntry . fst) funcs') ++
-    "{ 0,0 }\n};\n" ++
-    "struct ffi_entry *xffi_table = table;\n" ++
-    "\n"
+    if not (null wrappers) || not (null dynamics) then error "Unimplemented FFI feature" else
+    unlines $
+      map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
+      map mkStatic funcs' ++
+      map mkAddr   addrs' ++
+      ["static struct ffi_entry table[] = {"] ++
+      map (mkEntry . fst) entries ++
+      ["{ 0,0 }",
+       "};",
+       "struct ffi_entry *xffi_table = table;"
+      ]
+
+uniqFst :: [(String, EType)] -> [(String, EType)]
+uniqFst = map head . groupBy ((==) `on` fst) . sortBy (compare `on` fst)
 
 data ImpEnt = ImpStatic (Maybe String) Bool String | ImpDynamic | ImpWrapper
 
@@ -56,8 +64,8 @@ iIO = mkIdent "Primitives.IO"
 iUnit :: Ident
 iUnit = mkIdent "Primitives.()"
 
-mkStatic :: String -> EType -> String
-mkStatic fn t =
+mkStatic :: (String, EType) -> String
+mkStatic (fn, t) =
   let !(as, ior) = getArrows t in
   case getApp iIO ior of
     Nothing -> errorMessage (getSLoc t) $ "foreign return type must be IO"
@@ -85,6 +93,9 @@ mkRet t = "mhs_from_" ++ cTypeName t
 
 mkArg :: EType -> Int -> String
 mkArg t i = "mhs_to_" ++ cTypeName t ++ "(s, " ++ show i ++ ")"
+
+mkAddr :: (String, EType) -> String
+mkAddr (fn, t) = undefined
 
 cTypeName :: EType -> String
 cTypeName (EApp (EVar ptr) _t) | ptr == mkIdent "Primitives.Ptr" = "Ptr"
