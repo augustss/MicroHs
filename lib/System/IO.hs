@@ -66,6 +66,13 @@ primStdout        = primitive "IO.stdout"
 primStderr       :: Ptr FILE
 primStderr        = primitive "IO.stderr"
 
+{- This works, but assumes we have stdio
+foreign import ccall "stdio.h &stdout" c_stdout :: IO (Ptr (Ptr FILE))
+foreign import ccall "peekPtr" c_peekPtr :: Ptr (Ptr FILE) -> IO (Ptr FILE)
+primStdout :: Ptr FILE
+primStdout = primPerformIO (c_stdout `primBind` c_peekPtr)
+-}
+
 foreign import ccall "fopen"        c_fopen        :: CString -> CString -> IO (Ptr FILE)
 {-
 foreign import ccall "fclose"       c_fclose       :: Handle             -> IO Int
