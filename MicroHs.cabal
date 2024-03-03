@@ -77,6 +77,7 @@ executable mhs
                        Compat
                        PrimTable
                        System.IO.MD5
+                       System.IO.Serialize
                        System.Compress
                        Paths_MicroHs
   autogen-modules:     Paths_MicroHs

@@ -129,12 +129,6 @@ openTmpFile tmplt = do
     Right x -> return x
     Left (_::SomeException) -> openTempFile "" tmplt
 
-hSerialize :: Handle -> a -> IO ()
-hSerialize _ _ = error "ghc: hSerialize"
-
-hDeserialize :: Handle -> IO a
-hDeserialize _ = error "ghc: hDeserialize"
-
 usingMhs :: Bool
 usingMhs = False
 

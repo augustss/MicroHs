@@ -3,6 +3,7 @@ import Prelude
 import Data.IOArray
 import Data.IORef
 import System.IO
+import System.IO.Serialize
 default (String)
 
 main :: IO ()

@@ -3431,6 +3431,7 @@ void mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
 void mhs_fopen(int s) { mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 void mhs_getb(int s) { mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
 void mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_system(int s) { mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
 void mhs_tmpname(int s) { mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 void mhs_unlink(int s) { mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
@@ -3443,6 +3444,8 @@ void mhs_md5String(int s) { md5String(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_f
 #endif  /* WANT_MD5 */
 
 #if WANT_LZ77
+void mhs_add_lz77_compressor(int s) { mhs_from_Ptr(s, 1, add_lz77_compressor(mhs_to_Ptr(s, 0))); }
+void mhs_add_lz77_decompressor(int s) { mhs_from_Ptr(s, 1, add_lz77_decompressor(mhs_to_Ptr(s, 0))); }
 void mhs_lz77c(int s) { mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1), mhs_to_Ptr(s, 2))); }
 #endif  /* WANT_LZ77 */
 
@@ -3513,6 +3516,7 @@ struct ffi_entry ffi_table[] = {
 { "fopen", mhs_fopen},
 { "getb", mhs_getb},
 { "putb", mhs_putb},
+{ "ungetb", mhs_ungetb},
 { "system", mhs_system},
 { "tmpname", mhs_tmpname},
 { "unlink", mhs_unlink},
@@ -3525,6 +3529,8 @@ struct ffi_entry ffi_table[] = {
 #endif  /* WANT_MD5 */
 
 #if WANT_LZ77
+{ "add_lz77_compressor", mhs_add_lz77_compressor},
+{ "add_lz77_decompressor", mhs_add_lz77_decompressor},
 { "lz77c", mhs_lz77c},
 #endif  /* WANT_LZ77 */
 

@@ -226,6 +226,7 @@ struct BFILE_lz77 {
   uint8_t  *buf;
   size_t   len;
   size_t   pos;
+  int      read;
 };
 
 int
@@ -247,13 +248,45 @@ ungetb_lz77(int c, BFILE *bp)
 }
 
 void
+putb_lz77(int b, BFILE *bp)
+{
+  struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
+  CHECKBFILE(bp, getb_lz77);
+
+  if (p->pos >= p->len) {
+    p->len *= 2;
+    p->buf = realloc(p->buf, p->len);
+    if (!p->buf)
+      memerr();
+  }
+  p->buf[p->pos++] = b;
+}
+
+void
 closeb_lz77(BFILE *bp)
 {
   struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
   CHECKBFILE(bp, getb_lz77);
 
+  if (!p->read) {
+    /* We are in write mode, so compress and push it down */
+    uint8_t *obuf;
+    size_t olen = lz77c(p->buf, p->pos, &obuf);
+    FREE(p->buf);
+    for (size_t i = 0; i < olen; i++) {
+      putb(obuf[i], p->bfile);
+    }
+    FREE(obuf);
+  }
+
   closeb(p->bfile);
   FREE(p);
+}
+
+void
+flushb_lz77(BFILE *bp)
+{
+  /* There is nothing we can do */
 }
 
 BFILE *
@@ -266,9 +299,10 @@ add_lz77_decompressor(BFILE *file)
   memset(p, 0, sizeof(struct BFILE_lz77));
   p->mets.getb = getb_lz77;
   p->mets.ungetb = ungetb_lz77;
-  p->mets.putb = 0;             /* no compressor yet. */
+  p->mets.putb = 0;
   p->mets.flushb = 0;
   p->mets.closeb = closeb_lz77;
+  p->read = 1;
   p->bfile = file;
 
   size_t size = 25000;
@@ -290,6 +324,30 @@ add_lz77_decompressor(BFILE *file)
   }
   p->len = lz77d(buf, i, &p->buf);
   FREE(buf);
+  p->pos = 0;
+  return (BFILE*)p;
+}
+
+BFILE *
+add_lz77_compressor(BFILE *file)
+{
+  struct BFILE_lz77 *p = MALLOC(sizeof(struct BFILE_lz77));
+
+  if (!p)
+    memerr();
+  memset(p, 0, sizeof(struct BFILE_lz77));
+  p->mets.getb = getb_lz77;
+  p->mets.ungetb = 0;
+  p->mets.putb = putb_lz77;
+  p->mets.flushb = flushb_lz77;
+  p->mets.closeb = closeb_lz77;
+  p->read = 0;
+  p->bfile = file;
+
+  p->len = 25000;
+  p->buf = MALLOC(p->len);
+  if (!p->buf)
+    memerr();
   p->pos = 0;
   return (BFILE*)p;
 }

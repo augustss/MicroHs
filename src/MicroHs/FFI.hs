@@ -160,8 +160,9 @@ runtimeFFI = [
   "GETRAW", "GETTIMEMILLI", "acos", "add_FILE", "add_utf8", "asin", "atan", "atan2", "calloc", "closeb",
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "iswindows", "log", "lz77c", "malloc",
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", 
-  "putb", "sin", "sqrt", "system", "tan", "tmpname", "unlink",
+  "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "unlink",
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
+  "add_lz77_compressor", "add_lz77_decompressor",
   "peek_uint8", "poke_uint8", "peek_uint16", "poke_uint16", "peek_uint32", "poke_uint32", "peek_uint64", "poke_uint64",
   "peek_int8", "poke_int8", "peek_int16", "poke_int16", "peek_int32", "poke_int32", "peek_int64", "poke_int64",
   "peek_uint", "poke_uint", "peek_int", "poke_int"

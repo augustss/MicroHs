@@ -10,6 +10,7 @@ import MicroHs.Expr(IdentModule)
 import qualified MicroHs.IdentMap as M
 import MicroHs.TypeCheck(TModule)
 import System.IO
+import System.IO.Serialize
 import System.IO.MD5(MD5CheckSum)
 import Compat
 
@@ -45,10 +46,7 @@ workToDone cm (Cache (mn:ws) m) = Cache ws (M.insert mn cm m)
 workToDone _ _ = undefined
 
 saveCache :: FilePath -> Cache -> IO ()
-saveCache fn cash = do
-  hout <- openFile fn WriteMode
-  hSerialize hout cash
-  hClose hout
+saveCache fn cash = writeSerialized fn cash
 
 loadCached :: FilePath -> IO (Maybe Cache)
 loadCached fn = do
@@ -57,6 +55,5 @@ loadCached fn = do
     Nothing ->
       return Nothing
     Just hin -> do
-      cash <- hDeserialize hin
       hClose hin
-      return (Just cash)
+      Just <$> readSerialized fn

@@ -84,8 +84,10 @@ import System.Directory
 import System.Environment
 import System.Exit
 import System.IO
+import System.IO_Handle
 import System.IO.MD5
 import System.IO.PrintOrRun
+import System.IO.Serialize
 import System.Process
 import Text.PrettyPrint.HughesPJ
 import Text.PrettyPrint.HughesPJClass

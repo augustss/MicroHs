@@ -5,6 +5,7 @@ module System.IO(
   IOMode(..),
   stdin, stdout, stderr,
   hGetChar, hPutChar,
+  hLookAhead,
   putChar, getChar,
   hClose, hFlush,
   openFile, openFileM, openBinaryFile,
@@ -16,8 +17,7 @@ module System.IO(
   interact,
   writeFile, readFile, appendFile,
 
-  hSerialize, hDeserialize, cprint,
-  writeSerialized, readSerialized,
+  cprint,
 
   mkTextEncoding, hSetEncoding, utf8,
 
@@ -48,17 +48,12 @@ import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import System.IO.Unsafe
+import System.IO_Handle
 
 data FILE
-data BFILE
-newtype Handle = Handle (Ptr BFILE)
 
-primHSerialize   :: forall a . Ptr BFILE -> a -> IO ()
-primHSerialize    = primitive "IO.serialize"
 primHPrint       :: forall a . Ptr BFILE -> a -> IO ()
 primHPrint        = primitive "IO.print"
-primHDeserialize :: forall a . Ptr BFILE -> IO a
-primHDeserialize  = primitive "IO.deserialize"
 primStdin        :: Ptr FILE
 primStdin         = primitive "IO.stdin"
 primStdout       :: Ptr FILE
@@ -86,7 +81,8 @@ foreign import ccall "GETTIMEMILLI" c_getTimeMilli ::                       IO I
 foreign import ccall "closeb"       c_closeb       :: Ptr BFILE          -> IO ()
 foreign import ccall "flushb"       c_flushb       :: Ptr BFILE          -> IO ()
 foreign import ccall "getb"         c_getb         :: Ptr BFILE          -> IO Int
-foreign import ccall "putb"         c_putb         :: Int ->  Ptr BFILE  -> IO ()
+foreign import ccall "ungetb"       c_ungetb       :: Int -> Ptr BFILE   -> IO ()
+foreign import ccall "putb"         c_putb         :: Int -> Ptr BFILE   -> IO ()
 foreign import ccall "add_FILE"     c_add_FILE     :: Ptr FILE           -> IO (Ptr BFILE)
 foreign import ccall "add_utf8"     c_add_utf8     :: Ptr BFILE          -> IO (Ptr BFILE)
 
@@ -114,12 +110,6 @@ instance Monad IO where
 instance MonadFail IO where
   fail         = error
 
-hSerialize   :: forall a . Handle -> a -> IO ()
-hSerialize (Handle p) = primHSerialize p
-
-hDeserialize :: forall a . Handle -> IO a
-hDeserialize (Handle p) = primHDeserialize p
-
 stdin        :: Handle
 stdin        = bFILE primStdin
 stdout       :: Handle
@@ -143,6 +133,12 @@ hGetChar (Handle p) = do
     error "hGetChar: EOF"
    else
     return (chr c)
+
+hLookAhead :: Handle -> IO Char
+hLookAhead h@(Handle p) = do
+  c <- hGetChar h
+  c_ungetb (ord c) p
+  return c
 
 hPutChar :: Handle -> Char -> IO ()
 hPutChar (Handle p) c = c_putb (ord c) p
@@ -265,19 +261,6 @@ getContents = hGetContents stdin
 
 interact :: (String -> String) -> IO ()
 interact f = getContents >>= putStr . f
-
-writeSerialized :: forall a . FilePath -> a -> IO ()
-writeSerialized p s = do
-  h <- openFile p WriteMode
-  hSerialize h s
-  hClose h
-
-readSerialized :: forall a . FilePath -> IO a
-readSerialized p = do
-  h <- openFile p ReadMode
-  a <- hDeserialize h
-  hClose h
-  return a
 
 getTimeMilli :: IO Int
 getTimeMilli = c_getTimeMilli
