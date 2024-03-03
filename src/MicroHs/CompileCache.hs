@@ -46,7 +46,7 @@ workToDone cm (Cache (mn:ws) m) = Cache ws (M.insert mn cm m)
 workToDone _ _ = undefined
 
 saveCache :: FilePath -> Cache -> IO ()
-saveCache fn cash = writeSerialized fn cash
+saveCache fn cash = writeSerializedCompressed fn cash
 
 loadCached :: FilePath -> IO (Maybe Cache)
 loadCached fn = do
