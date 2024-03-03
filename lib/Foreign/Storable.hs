@@ -61,7 +61,6 @@ instance Storable Word8 where
   peek p      = c_peek_uint8 p
   poke p w    = c_poke_uint8 p w
 
-{-
 foreign import ccall "peek_uint16" c_peek_uint16 :: Ptr Word16 -> IO Word16
 foreign import ccall "poke_uint16" c_poke_uint16 :: Ptr Word16 -> Word16 -> IO ()
 
@@ -88,7 +87,6 @@ instance Storable Word64 where
   alignment _ = 1
   peek p      = c_peek_uint64 p
   poke p w    = c_poke_uint64 p w
--}
 
 {-
 foreign import ccall "peek_int8" c_peek_int8 :: Ptr Int8 -> IO Int8
