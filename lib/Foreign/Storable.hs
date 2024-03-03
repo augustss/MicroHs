@@ -67,8 +67,8 @@ foreign import ccall "peek_uint16" c_peek_uint16 :: Ptr Word16 -> IO Word16
 foreign import ccall "poke_uint16" c_poke_uint16 :: Ptr Word16 -> Word16 -> IO ()
 
 instance Storable Word16 where
-  sizeOf    _ = 1
-  alignment _ = 1
+  sizeOf    _ = 2
+  alignment _ = 2
   peek p      = c_peek_uint16 p
   poke p w    = c_poke_uint16 p w
 
@@ -76,8 +76,8 @@ foreign import ccall "peek_uint32" c_peek_uint32 :: Ptr Word32 -> IO Word32
 foreign import ccall "poke_uint32" c_poke_uint32 :: Ptr Word32 -> Word32 -> IO ()
 
 instance Storable Word32 where
-  sizeOf    _ = 1
-  alignment _ = 1
+  sizeOf    _ = 4
+  alignment _ = 4
   peek p      = c_peek_uint32 p
   poke p w    = c_poke_uint32 p w
 
@@ -85,8 +85,8 @@ foreign import ccall "peek_uint64" c_peek_uint64 :: Ptr Word64 -> IO Word64
 foreign import ccall "poke_uint64" c_poke_uint64 :: Ptr Word64 -> Word64 -> IO ()
 
 instance Storable Word64 where
-  sizeOf    _ = 1
-  alignment _ = 1
+  sizeOf    _ = 8
+  alignment _ = 8
   peek p      = c_peek_uint64 p
   poke p w    = c_poke_uint64 p w
 
@@ -103,8 +103,8 @@ foreign import ccall "peek_int16" c_peek_int16 :: Ptr Int16 -> IO Int16
 foreign import ccall "poke_int16" c_poke_int16 :: Ptr Int16 -> Int16 -> IO ()
 
 instance Storable Int16 where
-  sizeOf    _ = 1
-  alignment _ = 1
+  sizeOf    _ = 2
+  alignment _ = 2
   peek p      = c_peek_int16 p
   poke p w    = c_poke_int16 p w
 
@@ -112,8 +112,8 @@ foreign import ccall "peek_int32" c_peek_int32 :: Ptr Int32 -> IO Int32
 foreign import ccall "poke_int32" c_poke_int32 :: Ptr Int32 -> Int32 -> IO ()
 
 instance Storable Int32 where
-  sizeOf    _ = 1
-  alignment _ = 1
+  sizeOf    _ = 4
+  alignment _ = 4
   peek p      = c_peek_int32 p
   poke p w    = c_poke_int32 p w
 
@@ -121,8 +121,8 @@ foreign import ccall "peek_int64" c_peek_int64 :: Ptr Int64 -> IO Int64
 foreign import ccall "poke_int64" c_poke_int64 :: Ptr Int64 -> Int64 -> IO ()
 
 instance Storable Int64 where
-  sizeOf    _ = 1
-  alignment _ = 1
+  sizeOf    _ = 8
+  alignment _ = 8
   peek p      = c_peek_int64 p
   poke p w    = c_poke_int64 p w
 
@@ -130,8 +130,8 @@ foreign import ccall "peek_int" c_peek_int :: Ptr CInt -> IO CInt
 foreign import ccall "poke_int" c_poke_int :: Ptr CInt -> CInt -> IO ()
 
 instance Storable CInt where
-  sizeOf    _ = 1
-  alignment _ = 1
+  sizeOf    _ = intSize
+  alignment _ = intSize
   peek p      = c_peek_int p
   poke p w    = c_poke_int p w
 
@@ -139,7 +139,16 @@ foreign import ccall "peek_uint" c_peek_uint :: Ptr CUInt -> IO CUInt
 foreign import ccall "poke_uint" c_poke_uint :: Ptr CUInt -> CUInt -> IO ()
 
 instance Storable CUInt where
-  sizeOf    _ = 1
-  alignment _ = 1
+  sizeOf    _ = intSize
+  alignment _ = intSize
   peek p      = c_peek_uint p
   poke p w    = c_poke_uint p w
+
+{-
+-- Try to figure out how big a C int is.
+-- Do this by writing a 0 to a Word, and then a -1 CInt, and looking at the Word again.
+foreign import ccall "malloc" c_malloc :: CSize -> IO (Ptr ())
+foreign import ccall "free" c_free :: Ptr () -> IO ()
+-}
+intSize :: Int
+intSize = undefined
