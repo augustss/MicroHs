@@ -3219,11 +3219,8 @@ MAIN
     BFILE *bf = openb_buf(combexpr, combexprlen);
     c = getb(bf);
     /* Compressed combinators start with a 'Z' or 'z', otherwise 'v' (for version) */
-    if (c == 'Z') {
-      /* add compressor transducer */
-      bf = add_lzw_decompressor(bf);
-    } else if (c == 'z') {
-      /* add compressor transducer */
+    if (c == 'z') {
+      /* add LZ77 compressor transducer */
       bf = add_lz77_decompressor(bf);
     } else {
       /* put it back, we need it */
