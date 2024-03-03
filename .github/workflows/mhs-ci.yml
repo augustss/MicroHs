@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: make
       run: make
     - name: make everytestmhs
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: make
       run: make CONF=micro-64
 
@@ -31,7 +31,7 @@ jobs:
     runs-on: macos-latest
     steps:
     - name: checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: make
       run: make
     - name: make everytestmhs
@@ -43,7 +43,7 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: set up MSVC
       uses: ilammy/msvc-dev-cmd@v1
     - name: nmake
@@ -63,7 +63,7 @@ jobs:
           gcc
           make
     - name: checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: make
       run: make
     - name: make everytestmhs
@@ -83,7 +83,7 @@ jobs:
           gcc
           make
     - name: checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: make
       run: make
     - name: make everytestmhs
@@ -104,7 +104,7 @@ jobs:
 #          gcc
 #          make
 #    - name: checkout repo
-#      uses: actions/checkout@v3
+#      uses: actions/checkout@v4
 #    - name: make
 #      run: make
 #    - name: make everytestmhs
@@ -124,7 +124,7 @@ jobs:
           gcc
           make
     - name: checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: make
       run: make CONF=unix-32
       shell: alpine.sh {0}
@@ -144,7 +144,7 @@ jobs:
           gcc
           make
     - name: checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: make
       run: make CONF=unix-32
       shell: alpine.sh {0}
@@ -155,7 +155,7 @@ jobs:
   build-linux-emscripten:
     runs-on: ubuntu-latest
     steps:
-     - uses: actions/checkout@v3
+     - uses: actions/checkout@v4
      - uses: mymindstorm/setup-emsdk@v13
      - uses: actions/setup-node@v4
        with:
@@ -166,7 +166,7 @@ jobs:
   build-macos-emscripten:
     runs-on: macos-latest
     steps:
-     - uses: actions/checkout@v3
+     - uses: actions/checkout@v4
      - uses: mymindstorm/setup-emsdk@v13
      - uses: actions/setup-node@v4
        with:
