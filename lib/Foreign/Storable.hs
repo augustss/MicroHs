@@ -4,6 +4,8 @@ import Primitives
 import Control.Error(undefined)
 import Foreign.C.Types
 import Foreign.Ptr
+import Data.Int
+import Data.Int.Instances
 import Data.Word
 
 class Storable a where
@@ -88,7 +90,6 @@ instance Storable Word64 where
   peek p      = c_peek_uint64 p
   poke p w    = c_poke_uint64 p w
 
-{-
 foreign import ccall "peek_int8" c_peek_int8 :: Ptr Int8 -> IO Int8
 foreign import ccall "poke_int8" c_poke_int8 :: Ptr Int8 -> Int8 -> IO ()
 
@@ -124,7 +125,6 @@ instance Storable Int64 where
   alignment _ = 1
   peek p      = c_peek_int64 p
   poke p w    = c_poke_int64 p w
--}
 
 foreign import ccall "peek_int" c_peek_int :: Ptr CInt -> IO CInt
 foreign import ccall "poke_int" c_poke_int :: Ptr CInt -> CInt -> IO ()

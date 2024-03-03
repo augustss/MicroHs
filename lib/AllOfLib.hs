@@ -34,6 +34,8 @@ import Data.Functor.Identity
 import Data.IOArray
 import Data.IORef
 import Data.Int
+import Data.Int.IntN
+import Data.Int.Instances
 import Data.IntMap
 import Data.IntSet
 import Data.Integer

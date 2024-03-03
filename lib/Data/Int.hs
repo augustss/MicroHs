@@ -1,12 +1,13 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Int(Int) where
+module Data.Int(Int, Int8, Int16, Int32, Int64) where
 import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool_Type
 import Data.Bounded
 import Data.Char_Type
 import Data.Eq
+import Data.Int.IntN
 import Data.Integer_Type
 import Data.Integral
 import Data.List_Type
@@ -41,8 +42,6 @@ instance Bounded Int where
 instance Real Int where
   toRational i = _integerToRational (_intToInteger i)
 
---------------------------------
-
 instance Eq Int where
   (==) = primIntEQ
   (/=) = primIntNE
@@ -53,8 +52,6 @@ instance Ord Int where
   (<=) = primIntLE
   (>)  = primIntGT
   (>=) = primIntGE
-
---------------------------------
 
 instance Show Int where
   show = showInt_

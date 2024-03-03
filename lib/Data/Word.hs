@@ -135,10 +135,10 @@ instance Bounded Word8 where
 instance Real Word8 where
   toRational = _integerToRational . _wordToInteger . unW8
 
-instance Show Word where
+instance Show Word8 where
   showsPrec = showIntegral
 
-instance Read Word where
+instance Read Word8 where
   readsPrec = readIntegral
 
 instance Enum Word8 where
@@ -221,10 +221,10 @@ instance Bounded Word16 where
 instance Real Word16 where
   toRational = _integerToRational . _wordToInteger . unW16
 
-instance Show Word where
+instance Show Word16 where
   showsPrec = showIntegral
 
-instance Read Word where
+instance Read Word16 where
   readsPrec = readIntegral
 
 instance Enum Word16 where
@@ -307,10 +307,10 @@ instance Bounded Word32 where
 instance Real Word32 where
   toRational = _integerToRational . _wordToInteger . unW32
 
-instance Show Word where
+instance Show Word32 where
   showsPrec = showIntegral
 
-instance Read Word where
+instance Read Word32 where
   readsPrec = readIntegral
 
 instance Enum Word32 where
@@ -393,10 +393,10 @@ instance Bounded Word64 where
 instance Real Word64 where
   toRational = _integerToRational . _wordToInteger . unW64
 
-instance Show Word where
+instance Show Word64 where
   showsPrec = showIntegral
 
-instance Read Word where
+instance Read Word64 where
   readsPrec = readIntegral
 
 instance Enum Word64 where

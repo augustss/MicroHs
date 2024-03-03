@@ -122,6 +122,10 @@ primWordToDoubleRaw :: Word -> Double
 primWordToDoubleRaw = primitive "toDbl"
 primWordFromDoubleRaw :: Double -> Word
 primWordFromDoubleRaw = primitive "toInt"
+primIntShl :: Int -> Int -> Int
+primIntShl  = primitive "shl"
+primIntShr :: Int -> Int -> Int
+primIntShr  = primitive "ashr"
 
 primWordEQ  :: Word -> Word -> Bool
 primWordEQ  = primitive "=="

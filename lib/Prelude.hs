@@ -57,6 +57,7 @@ import Data.Fractional(Fractional(..), (^^))
 import Data.Function(id, const, (.), flip, ($), seq, ($!), until, curry, uncurry)
 import Data.Functor(Functor(..), (<$>))
 import Data.Int(Int)
+import Data.Int.Instances
 import Data.Integer(Integer)
 import Data.Integral(Integral(..), fromIntegral, gcd, lcm, even, odd, (^))
 import Data.List  -- XXX
