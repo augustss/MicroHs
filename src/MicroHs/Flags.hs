@@ -17,7 +17,7 @@ data Flags = Flags {
   --deriving (Show)
 
 verbosityGT :: Flags -> Int -> Bool
-verbosityGT flags v = flags.verbose > v
+verbosityGT flags v = verbose flags > v
 
 defaultFlags :: FilePath -> Flags
 defaultFlags dir = Flags {

@@ -54,14 +54,14 @@ compileCacheTop flags mn ch = do
   return ((rmn, dsn), ch')
 
 getCached :: Flags -> IO Cache
-getCached flags | not flags.readCache = return emptyCache
+getCached flags | not (readCache flags) = return emptyCache
 getCached flags = do
   mcash <- loadCached mhsCacheName
   case mcash of
     Nothing ->
       return emptyCache
     Just cash -> do
-      when (flags.loading || verbosityGT flags 0) $
+      when (loading flags || verbosityGT flags 0) $
         putStrLn $ "Loading saved cache " ++ show mhsCacheName
       validateCache flags cash
 
@@ -89,7 +89,7 @@ compileModuleCached flags mn = do
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tp + tt) ++
                  "ms (" ++ show tp ++ " + " ++ show tt ++ ")"
-      when (flags.loading && mn /= mkIdent "Interactive") $
+      when (loading flags && mn /= mkIdent "Interactive") $
         liftIO $ putStrLn $ "loaded " ++ showIdent mn
       cash <- get
       put $ workToDone cm cash
@@ -209,11 +209,11 @@ readModulePath flags mn | Just fn <- getFileName mn = do
                         | otherwise = do
   mh <- findModulePath flags mn
   case mh of
-    Nothing -> errorMessage (getSLoc mn) $ "Module not found: " ++ show mn ++ "\nsearch path=" ++ show flags.paths
+    Nothing -> errorMessage (getSLoc mn) $ "Module not found: " ++ show mn ++ "\nsearch path=" ++ show (paths flags)
     Just (fn, h) -> readRest fn h
   where readRest fn h = do
           file <-
-            if flags.doCPP then do
+            if doCPP flags then do
               hClose h
               runCPPTmp flags fn
             else
@@ -225,7 +225,7 @@ findModulePath :: Flags -> IdentModule -> IO (Maybe (FilePath, Handle))
 findModulePath flags mn = do
   let
     fn = map (\ c -> if c == '.' then '/' else c) (unIdent mn) ++ ".hs"
-  openFilePath flags.paths fn
+  openFilePath (paths flags) fn
 
 openFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
 openFilePath adirs fileName =
@@ -257,7 +257,7 @@ runCPP :: Flags -> FilePath -> FilePath -> IO ()
 runCPP flags infile outfile = do
   mcpphs <- lookupEnv "MHSCPPHS"
   let cpphs = fromMaybe "cpphs" mcpphs
-      args = mhsDefines ++ flags.cppArgs
+      args = mhsDefines ++ cppArgs flags
       cmd = cpphs ++ " --noline " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
   when (verbosityGT flags 0) $
     putStrLn $ "Execute: " ++ show cmd

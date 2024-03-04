@@ -17,7 +17,7 @@ showChunk = concatMap (\ c -> show (ord c) ++ ",")
 
 makeCArray :: Flags -> String -> String
 makeCArray flags file =
-  if flags.compress then
+  if compress flags then
     makeCArray' ('z' : C.compress file)  -- stick a 'z' in front to indicate compressed
   else
     makeCArray' file

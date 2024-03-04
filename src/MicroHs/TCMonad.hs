@@ -153,7 +153,7 @@ newUniq :: T TRef
 newUniq = do
   ts <- get
   let n' = n + 1
-      n = ts.unique
+      n = unique ts
   put $ seq n' $ ts{ unique = n' }
   return n
 

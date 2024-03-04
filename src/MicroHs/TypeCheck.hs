@@ -392,10 +392,10 @@ withTypeTable ta = do
   return a
   
 addAssocTable :: Ident -> [Ident] -> T ()
-addAssocTable i ids = modify $ \ ts -> ts { assocTable = M.insert i ids ts.assocTable }
+addAssocTable i ids = modify $ \ ts -> ts { assocTable = M.insert i ids (assocTable ts) }
 
 addClassTable :: Ident -> ClassInfo -> T ()
-addClassTable i x = modify $ \ ts -> ts { classTable = M.insert i x ts.classTable }
+addClassTable i x = modify $ \ ts -> ts { classTable = M.insert i x (classTable ts) }
 
 addInstTable :: [InstDictC] -> T ()
 addInstTable ics = do
@@ -422,7 +422,7 @@ addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
   ctx' <- expandSyn ctx
-  modify $ \ ts -> ts{ constraints = (d, ctx') : ts.constraints }
+  modify $ \ ts -> ts{ constraints = (d, ctx') : constraints ts }
 
 withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
 withDicts ds ta = do
@@ -611,7 +611,7 @@ getTuple n t = loop t []
 -}
 
 setUVar :: TRef -> EType -> T ()
-setUVar i t = modify $ \ ts -> ts{ uvarSubst = IM.insert i t ts.uvarSubst }
+setUVar i t = modify $ \ ts -> ts{ uvarSubst = IM.insert i t (uvarSubst ts) }
 
 getUVar :: Int -> T (Maybe EType)
 getUVar i = gets (IM.lookup i . uvarSubst)
@@ -857,7 +857,7 @@ extSyn i t = do
   putSynTable (M.insert i t senv)
 
 extFix :: Ident -> Fixity -> T ()
-extFix i fx = modify $ \ ts -> ts{ fixTable = M.insert i fx ts.fixTable }
+extFix i fx = modify $ \ ts -> ts{ fixTable = M.insert i fx (fixTable ts) }
 
 withExtVal :: forall a . HasCallStack =>
               Ident -> EType -> T a -> T a

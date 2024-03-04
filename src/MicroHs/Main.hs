@@ -57,9 +57,9 @@ decodeArgs f mdls (arg:args) =
     "-T"        -> decodeArgs f{useTicks = True} mdls args
     "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
     "-z"        -> decodeArgs f{compress = True} mdls args
-    '-':'i':s   -> decodeArgs f{paths = f.paths ++ [s]} mdls args
+    '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
-    '-':'D':s   -> decodeArgs f{cppArgs = f.cppArgs ++ [s]} mdls args
+    '-':'D':s   -> decodeArgs f{cppArgs = cppArgs f ++ [s]} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _           -> decodeArgs f (mdls ++ [arg]) args
 
@@ -88,7 +88,7 @@ mainCompile flags mn = do
     putStrLn $ "top level defns: " ++ show numDefs
   when (verbosityGT flags 1) $
     mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") allDefs
-  if flags.runIt then do
+  if runIt flags then do
     let
       prg = translateAndRun cmdl
 --    putStrLn "Run:"
@@ -107,7 +107,7 @@ mainCompile flags mn = do
     --  * file ends in .comb: write combinator file
     --  * file ends in .c: write C version of combinator
     --  * otherwise, write C file and compile to a binary with cc
-    let outFile = flags.output
+    let outFile = output flags
     if ".comb" `isSuffixOf` outFile then
       writeFile outFile outData
      else if ".c" `isSuffixOf` outFile then
@@ -120,7 +120,7 @@ mainCompile flags mn = do
        mcc <- lookupEnv "MHSCC"
        compiler <- fromMaybe "cc" <$> lookupEnv "CC"
        let conf = "unix-" ++ show _wordSize
-           cc = fromMaybe (compiler ++ " -w -Wall -O3 -I" ++ flags.mhsdir ++ "/src/runtime " ++ flags.mhsdir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
+           cc = fromMaybe (compiler ++ " -w -Wall -O3 -I" ++ mhsdir flags ++ "/src/runtime " ++ mhsdir flags ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbosityGT flags 0) $
          putStrLn $ "Execute: " ++ show cmd
