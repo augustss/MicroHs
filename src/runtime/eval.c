@@ -1001,48 +1001,56 @@ gc_check(size_t k)
   gc();
 }
 
+static INLINE
 value_t
 peekWord(value_t *p)
 {
   return *p;
 }
 
+static INLINE
 void
 pokeWord(value_t *p, value_t w)
 {
   *p = w;
 }
 
+static INLINE
 void *
 peekPtr(void **p)
 {
   return *p;
 }
 
+static INLINE
 void
 pokePtr(void **p, void *w)
 {
   *p = w;
 }
 
+static INLINE
 uvalue_t
 peek_uint8(uint8_t *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_uint8(uint8_t *p, value_t w)
 {
   *p = (uint8_t)w;
 }
 
+static INLINE
 uvalue_t
 peek_uint16(uint16_t *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_uint16(uint16_t *p, value_t w)
 {
@@ -1050,12 +1058,14 @@ poke_uint16(uint16_t *p, value_t w)
 }
 
 #if WORD_SIZE >= 32
+static INLINE
 uvalue_t
 peek_uint32(uint32_t *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_uint32(uint32_t *p, value_t w)
 {
@@ -1064,12 +1074,14 @@ poke_uint32(uint32_t *p, value_t w)
 #endif  /* WORD_SIZE >= 32 */
 
 #if WORD_SIZE >= 64
+static INLINE
 uvalue_t
 peek_uint64(uint64_t *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_uint64(uint64_t *p, value_t w)
 {
@@ -1077,24 +1089,28 @@ poke_uint64(uint64_t *p, value_t w)
 }
 #endif  /* WORD_SIZE >= 64 */
 
+static INLINE
 value_t
 peek_int8(int8_t *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_int8(int8_t *p, value_t w)
 {
   *p = (int8_t)w;
 }
 
+static INLINE
 value_t
 peek_int16(int16_t *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_int16(int16_t *p, value_t w)
 {
@@ -1102,12 +1118,14 @@ poke_int16(int16_t *p, value_t w)
 }
 
 #if WORD_SIZE >= 32
+static INLINE
 value_t
 peek_int32(int32_t *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_int32(int32_t *p, value_t w)
 {
@@ -1116,12 +1134,14 @@ poke_int32(int32_t *p, value_t w)
 #endif  /* WORD_SIZE >= 32 */
 
 #if WORD_SIZE >= 64
+static INLINE
 value_t
 peek_int64(int64_t *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_int64(int64_t *p, value_t w)
 {
@@ -1129,101 +1149,133 @@ poke_int64(int64_t *p, value_t w)
 }
 #endif  /* WORD_SIZE >= 64 */
 
+static INLINE
 value_t
 peek_int(int *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_int(int *p, value_t w)
 {
   *p = (int)w;
 }
 
+static INLINE
 value_t
 peek_uint(unsigned int *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_uint(unsigned int *p, value_t w)
 {
   *p = (unsigned int)w;
 }
 
+static INLINE
 value_t
 peek_short(short *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_short(short *p, value_t w)
 {
   *p = (short)w;
 }
 
+static INLINE
 value_t
 peek_ushort(unsigned short *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_ushort(unsigned short *p, value_t w)
 {
   *p = (unsigned short)w;
 }
 
+static INLINE
 value_t
 peek_long(long *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_long(long *p, value_t w)
 {
   *p = (long)w;
 }
 
+static INLINE
 value_t
 peek_ulong(unsigned long *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_ulong(unsigned long *p, value_t w)
 {
   *p = (unsigned long)w;
 }
 
+static INLINE
 value_t
 peek_llong(long long *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_llong(long long *p, value_t w)
 {
   *p = (long long)w;
 }
 
+static INLINE
 value_t
 peek_ullong(unsigned long long *p)
 {
   return *p;
 }
 
+static INLINE
 void
 poke_ullong(unsigned long long *p, value_t w)
 {
   *p = (unsigned long long)w;
 }
+
+#if WANT_FLOAT
+static INLINE
+flt_t
+peek_flt(flt_t *p)
+{
+  return *p;
+}
+
+static INLINE
+void
+poke_flt(flt_t *p, flt_t w)
+{
+  *p = w;
+}
+#endif  /* WANT_FLOAT */
 
 /* Look up an FFI function by name */
 value_t
@@ -3408,7 +3460,7 @@ name(stackptr_t stk, int n, type x) \
   CHECKIO(n+1);                 /* Check that we actually had the right number of arguments. */ \
   set(r, x);                    /* Put result in pre-allocated cell. */ \
 }
-MHS_FROM(mhs_from_Double, SETDBL, flt_t);
+MHS_FROM(mhs_from_FloatW, SETDBL, flt_t);
 MHS_FROM(mhs_from_Int, SETINT, value_t);
 MHS_FROM(mhs_from_Word, SETINT, uvalue_t);
 MHS_FROM(mhs_from_Word8, SETINT, uvalue_t);
@@ -3441,7 +3493,7 @@ type name(stackptr_t stk, int n) \
 { \
   return eval(ARG(TOP(n+2)));                /* The stack has a reserved cell, and the FFI node on top of the arguments */ \
 }
-MHS_TO(mhs_to_Double, evaldbl, flt_t);
+MHS_TO(mhs_to_FloatW, evaldbl, flt_t);
 MHS_TO(mhs_to_Int, evalint, value_t);
 MHS_TO(mhs_to_Word, evalint, uvalue_t);
 MHS_TO(mhs_to_Word8, evalint, uint8_t);
@@ -3469,27 +3521,27 @@ void mhs_GETRAW(int s) { mhs_from_Int(s, 0, GETRAW()); }
 void mhs_GETTIMEMILLI(int s) { mhs_from_Int(s, 0, GETTIMEMILLI()); }
 #if WANT_MATH
 #if WORD_SIZE == 64
-void mhs_acos(int s) { mhs_from_Double(s, 1, acos(mhs_to_Double(s, 0))); }
-void mhs_asin(int s) { mhs_from_Double(s, 1, asin(mhs_to_Double(s, 0))); }
-void mhs_atan(int s) { mhs_from_Double(s, 1, atan(mhs_to_Double(s, 0))); }
-void mhs_atan2(int s) { mhs_from_Double(s, 2, atan2(mhs_to_Double(s, 0), mhs_to_Double(s, 1))); }
-void mhs_cos(int s) { mhs_from_Double(s, 1, cos(mhs_to_Double(s, 0))); }
-void mhs_exp(int s) { mhs_from_Double(s, 1, exp(mhs_to_Double(s, 0))); }
-void mhs_log(int s) { mhs_from_Double(s, 1, log(mhs_to_Double(s, 0))); }
-void mhs_sin(int s) { mhs_from_Double(s, 1, sin(mhs_to_Double(s, 0))); }
-void mhs_sqrt(int s) { mhs_from_Double(s, 1, sqrt(mhs_to_Double(s, 0))); }
-void mhs_tan(int s) { mhs_from_Double(s, 1, tan(mhs_to_Double(s, 0))); }
+void mhs_acos(int s) { mhs_from_FloatW(s, 1, acos(mhs_to_FloatW(s, 0))); }
+void mhs_asin(int s) { mhs_from_FloatW(s, 1, asin(mhs_to_FloatW(s, 0))); }
+void mhs_atan(int s) { mhs_from_FloatW(s, 1, atan(mhs_to_FloatW(s, 0))); }
+void mhs_atan2(int s) { mhs_from_FloatW(s, 2, atan2(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
+void mhs_cos(int s) { mhs_from_FloatW(s, 1, cos(mhs_to_FloatW(s, 0))); }
+void mhs_exp(int s) { mhs_from_FloatW(s, 1, exp(mhs_to_FloatW(s, 0))); }
+void mhs_log(int s) { mhs_from_FloatW(s, 1, log(mhs_to_FloatW(s, 0))); }
+void mhs_sin(int s) { mhs_from_FloatW(s, 1, sin(mhs_to_FloatW(s, 0))); }
+void mhs_sqrt(int s) { mhs_from_FloatW(s, 1, sqrt(mhs_to_FloatW(s, 0))); }
+void mhs_tan(int s) { mhs_from_FloatW(s, 1, tan(mhs_to_FloatW(s, 0))); }
 #elif WORD_SIZE == 32  /* WORD_SIZE */
-void mhs_acos(int s) { mhs_from_Double(s, 1, acosf(mhs_to_Double(s, 0))); }
-void mhs_asin(int s) { mhs_from_Double(s, 1, asinf(mhs_to_Double(s, 0))); }
-void mhs_atan(int s) { mhs_from_Double(s, 1, atanf(mhs_to_Double(s, 0))); }
-void mhs_atan2(int s) { mhs_from_Double(s, 2, atan2f(mhs_to_Double(s, 0), mhs_to_Double(s, 1))); }
-void mhs_cos(int s) { mhs_from_Double(s, 1, cosf(mhs_to_Double(s, 0))); }
-void mhs_exp(int s) { mhs_from_Double(s, 1, expf(mhs_to_Double(s, 0))); }
-void mhs_log(int s) { mhs_from_Double(s, 1, logf(mhs_to_Double(s, 0))); }
-void mhs_sin(int s) { mhs_from_Double(s, 1, sinf(mhs_to_Double(s, 0))); }
-void mhs_sqrt(int s) { mhs_from_Double(s, 1, sqrtf(mhs_to_Double(s, 0))); }
-void mhs_tan(int s) { mhs_from_Double(s, 1, tanf(mhs_to_Double(s, 0))); }
+void mhs_acos(int s) { mhs_from_FloatW(s, 1, acosf(mhs_to_FloatW(s, 0))); }
+void mhs_asin(int s) { mhs_from_FloatW(s, 1, asinf(mhs_to_FloatW(s, 0))); }
+void mhs_atan(int s) { mhs_from_FloatW(s, 1, atanf(mhs_to_FloatW(s, 0))); }
+void mhs_atan2(int s) { mhs_from_FloatW(s, 2, atan2f(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
+void mhs_cos(int s) { mhs_from_FloatW(s, 1, cosf(mhs_to_FloatW(s, 0))); }
+void mhs_exp(int s) { mhs_from_FloatW(s, 1, expf(mhs_to_FloatW(s, 0))); }
+void mhs_log(int s) { mhs_from_FloatW(s, 1, logf(mhs_to_FloatW(s, 0))); }
+void mhs_sin(int s) { mhs_from_FloatW(s, 1, sinf(mhs_to_FloatW(s, 0))); }
+void mhs_sqrt(int s) { mhs_from_FloatW(s, 1, sqrtf(mhs_to_FloatW(s, 0))); }
+void mhs_tan(int s) { mhs_from_FloatW(s, 1, tanf(mhs_to_FloatW(s, 0))); }
 #else
 #error Unknown WORD_SIZE
 #endif  /* WORD_SIZE */
@@ -3566,10 +3618,12 @@ void mhs_peek_llong(int s) { mhs_from_CLLong(s, 1, peek_llong(mhs_to_Ptr(s, 0)))
 void mhs_peek_long(int s) { mhs_from_CLong(s, 1, peek_long(mhs_to_Ptr(s, 0))); }
 void mhs_peek_ullong(int s) { mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
 void mhs_peek_ulong(int s) { mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
+void mhs_peek_flt(int s) { mhs_from_FloatW(s, 1, peek_flt(mhs_to_Ptr(s, 0))); }
 void mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_sizeof_int(int s) { mhs_from_Int(s, 0, sizeof(int)); }
 void mhs_sizeof_llong(int s) { mhs_from_Int(s, 0, sizeof(long long)); }
 void mhs_sizeof_long(int s) { mhs_from_Int(s, 0, sizeof(long)); }
@@ -3666,6 +3720,8 @@ struct ffi_entry ffi_table[] = {
 { "poke_long", mhs_poke_long},
 { "poke_ullong", mhs_poke_ullong},
 { "poke_ulong", mhs_poke_ulong},
+{ "poke_flt", mhs_poke_flt},
+{ "poke_flt", mhs_poke_flt},
 { "sizeof_int", mhs_sizeof_int},
 { "sizeof_llong", mhs_sizeof_llong},
 { "sizeof_long", mhs_sizeof_long},

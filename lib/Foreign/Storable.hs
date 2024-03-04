@@ -180,6 +180,15 @@ instance Storable CULLong where
   peek p      = c_peek_ullong p
   poke p w    = c_poke_ullong p w
 
+foreign import ccall "peek_flt" c_peek_flt :: Ptr FloatW -> IO FloatW
+foreign import ccall "poke_flt" c_poke_flt :: Ptr FloatW -> FloatW -> IO ()
+
+instance Storable FloatW where
+  sizeOf    _ = _wordSize
+  alignment _ = _wordSize
+  peek p      = c_peek_flt p
+  poke p w    = c_poke_flt p w
+
 foreign import ccall "sizeof_int" c_sizeof_int :: IO Int
 foreign import ccall "sizeof_long" c_sizeof_long :: IO Int
 foreign import ccall "sizeof_llong" c_sizeof_llong :: IO Int

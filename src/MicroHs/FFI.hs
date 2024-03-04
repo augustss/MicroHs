@@ -169,5 +169,6 @@ runtimeFFI = [
   "peek_uint", "poke_uint", "peek_int", "poke_int",
   "peek_ulong", "poke_ulong", "peek_long", "poke_long",
   "peek_ullong", "poke_ullong", "peek_llong", "poke_llong",
+  "peek_flt", "poke_flt",
   "sizeof_int", "sizeof_long", "sizeof_llong"
   ]

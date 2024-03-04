@@ -1,6 +1,5 @@
 module Eq(main) where
 import Prelude
-import Data.Double()
 
 main :: IO ()
 main = do
