@@ -13,7 +13,7 @@ import MicroHs.Expr hiding (getSLoc)
 import MicroHs.Ident
 --import Debug.Trace
 
-type P a = Prsr () LexState Token a
+type P a = Prsr LexState Token a
 
 parseDie :: forall a . (Show a) =>
             P a -> FilePath -> String -> a
@@ -26,11 +26,11 @@ parse :: forall a . (Show a) =>
          P a -> FilePath -> String -> Either String a
 parse p fn file =
   let { ts = lexTopLS fn file } in
-  case runPrsr () p ts of
+  case runPrsr p ts of
     Left lf -> Left $ formatFailed fn (tmRawTokens ts) lf
-    Right [(a, _)] -> Right a
+    Right [a] -> Right a
     Right as -> Left $ "Ambiguous:"
-                       ++ unlines (map (show . fst) as)
+                       ++ unlines (map show  as)
 
 getSLoc :: P SLoc
 getSLoc = do
