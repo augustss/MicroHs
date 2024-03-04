@@ -1,9 +1,9 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.Ident(
-  Line, Col, Loc,
+  Line, Col,
   Ident(..),
-  mkIdent, mkIdentLoc, unIdent, isIdent,
+  mkIdent, unIdent, isIdent,
   qualIdent, showIdent, setSLocIdent,
   ppIdent,
   mkIdentSLoc,
@@ -23,7 +23,6 @@ import GHC.Stack
 
 type Line = Int
 type Col  = Int
-type Loc  = (Line, Col)
 
 data SLoc = SLoc !FilePath !Line !Col
 --  deriving (Eq)
@@ -59,9 +58,6 @@ mkIdent = Ident noSLoc
 
 mkIdentSLoc :: SLoc -> String -> Ident
 mkIdentSLoc = Ident
-
-mkIdentLoc :: FilePath -> Loc -> String -> Ident
-mkIdentLoc fn (l, c) s = Ident (SLoc fn l c) s
 
 unIdent :: Ident -> String
 unIdent (Ident _ s) = s

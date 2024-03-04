@@ -59,11 +59,9 @@ firstToken tm =
   case tmNextToken tm of
     (t, _) -> [t]
 
-type Res :: Type -> Type -> Type -> Type -> Type
 data Res s tm t a = Many [(a, (tm, s))] (LastFail t)
   --deriving (Show)
 
-type Prsr :: Type -> Type -> Type -> Type -> Type
 data Prsr s tm t a = P ((tm, s) -> Res s tm t a)
 --instance Show (Prsr s t a) where show _ = "<<Prsr>>"
 

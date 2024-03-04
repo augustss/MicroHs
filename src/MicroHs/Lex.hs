@@ -12,20 +12,20 @@ import Text.ParserComb(TokenMachine(..))
 import Compat
 
 data Token
-  = TIdent  Loc [String] String  -- identifier
-  | TString Loc String           -- String literal
-  | TChar   Loc Char             -- Char literal
-  | TInt    Loc Integer          -- Integer literal
-  | TRat    Loc Rational         -- Rational literal (i.e., decimal number)
-  | TSpec   Loc Char             -- one of ()[]{},`;
-                                 -- for synthetic {} we use <>, also
-                                 --  .  for record selection
-                                 --  ~  for lazy
-                                 --  !  for strict
-                                 --  NOT YET  @  for type app
-  | TError  Loc String           -- lexical error
-  | TBrace  Loc                  -- {n} in the Haskell report
-  | TIndent Loc                  -- <n> in the Haskell report
+  = TIdent  SLoc [String] String  -- identifier
+  | TString SLoc String           -- String literal
+  | TChar   SLoc Char             -- Char literal
+  | TInt    SLoc Integer          -- Integer literal
+  | TRat    SLoc Rational         -- Rational literal (i.e., decimal number)
+  | TSpec   SLoc Char             -- one of ()[]{},`;
+                                  -- for synthetic {} we use <>, also
+                                  --  .  for record selection
+                                  --  ~  for lazy
+                                  --  !  for strict
+                                  --  NOT YET  @  for type app
+  | TError  SLoc String           -- lexical error
+  | TBrace  SLoc                  -- {n} in the Haskell report
+  | TIndent SLoc                  -- <n> in the Haskell report
   | TEnd
   | TRaw [Token]
   deriving (Show)
@@ -45,51 +45,25 @@ showToken (TIndent _) = "TIndent"
 showToken TEnd = "EOF"
 showToken (TRaw _) = "TRaw"
 
-incrLine :: Loc -> Loc
-incrLine (l, _) = (l+1, 1)
+incrLine :: SLoc -> SLoc
+incrLine (SLoc f l _) = SLoc f (l+1) 1
 
-addCol :: Loc -> Int -> Loc
-addCol (l, c) i = (l, c + i)
+addCol :: SLoc -> Int -> SLoc
+addCol (SLoc f l c) i = SLoc f l (c + i)
 
-tabCol :: Loc -> Loc
-tabCol (l, c) = (l, ((c + 7) `quot` 8) * 8)
+tabCol :: SLoc -> SLoc
+tabCol (SLoc f l c) = SLoc f l (((c + 7) `quot` 8) * 8)
 
-mkLoc :: Line -> Col -> Loc
-mkLoc l c = (l, c)
+mkLocEOF :: SLoc
+mkLocEOF = SLoc "" (-1) 0
 
-mkLocEOF :: Loc
-mkLocEOF = (-1,0)
-
-getCol :: Loc -> Col
-getCol (_, c) = c
-
---getLin :: Loc -> Col
---getLin (l, _) = l
-
-{-  This is slower and allocates more.
-    It needs some strictness, probably
-type Loc = Int
-
-incrLine :: Loc -> Loc
-incrLine l = (quot l 1000000 + 1) * 1000000 + 1
-
-addCol :: Loc -> Int -> Loc
-addCol loc i = loc + i
-
-mkLoc :: Line -> Col -> Loc
-mkLoc l c = l * 1000000 + c
-
-getCol :: Loc -> Col
-getCol loc = rem loc 1000000
-
-getLin :: Loc -> Line
-getLin loc = quot loc 1000000
--}
+getCol :: SLoc -> Col
+getCol (SLoc _ _ c) = c
 
 ---------
 
 -- | Take a location and string and produce a list of tokens
-lex :: Loc -> String -> [Token]
+lex :: SLoc -> String -> [Token]
 lex loc (' ':cs)  = lex (addCol loc 1) cs
 lex loc ('\n':cs) = tIndent (lex (incrLine loc) cs)
 lex loc ('\r':cs) = lex loc cs
@@ -125,12 +99,12 @@ lex loc ('\'':cs) =
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ show d]
 lex _ [] = []
 
-hexNumber :: Loc -> String -> [Token]
+hexNumber :: SLoc -> String -> [Token]
 hexNumber loc cs =
   case span isHexDigit cs of
     (ds, rs) -> TInt loc (readHex ds) : lex (addCol loc $ length ds + 2) rs
 
-number :: Loc -> String -> [Token]
+number :: SLoc -> String -> [Token]
 number loc cs =
   case span isDigit cs of
     (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
@@ -151,7 +125,7 @@ number loc cs =
     expo _ = Nothing
 
 -- Skip a {- -} style comment
-skipNest :: Loc -> Int -> String -> [Token]
+skipNest :: SLoc -> Int -> String -> [Token]
 skipNest loc 0 cs           = lex loc cs
 skipNest loc n ('{':'-':cs) = skipNest (addCol loc 2) (n + 1) cs
 skipNest loc n ('-':'}':cs) = skipNest (addCol loc 2) (n - 1) cs
@@ -162,7 +136,7 @@ skipNest loc n (_:cs)       = skipNest (addCol loc 1)  n      cs
 skipNest loc _ []           = [TError loc "Unclosed {- comment"]
 
 -- Skip a -- style comment
-skipLine :: Loc -> String -> [Token]
+skipLine :: SLoc -> String -> [Token]
 skipLine loc cs@('\n':_) = lex loc cs
 skipLine loc (_:cs)      = skipLine loc cs
 skipLine   _ []          = []
@@ -174,7 +148,7 @@ tIndent :: [Token] -> [Token]
 tIndent ts@(TIndent _ : _) = ts
 tIndent ts = TIndent (tokensLoc ts) : ts
 
-takeChars :: Loc -> (String -> Token) -> Char -> Loc -> String -> String -> (Token, Loc, String)
+takeChars :: SLoc -> (String -> Token) -> Char -> SLoc -> String -> String -> (Token, SLoc, String)
 takeChars oloc  _ c loc _ [] = (TError oloc ("Unmatched " ++ [c]), loc, [])
 takeChars oloc fn c loc str ('\\':cs) =
   let skipGap l (' ' :rs) = skipGap (addCol l 1) rs
@@ -232,7 +206,7 @@ isSpec c = elem c specChars
   where specChars :: String
         specChars = "()[],{}`;"
 
-upperIdent :: Loc -> Loc -> [String] -> String -> [Token]
+upperIdent :: SLoc -> SLoc -> [String] -> String -> [Token]
 --upperIdent l c qs acs | trace (show (l, c, qs, acs)) False = undefined
 upperIdent loc sloc qs acs =
   case span isIdentChar acs of
@@ -248,7 +222,7 @@ upperIdent loc sloc qs acs =
            }
       _ -> TIdent sloc (reverse qs) ds : lex (addCol loc $ length ds) rs
 
-tIdent :: Loc -> [String] -> String -> [Token] -> [Token]
+tIdent :: SLoc -> [String] -> String -> [Token] -> [Token]
 tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
                                  = ti : tBrace ats
                      | otherwise = ti : ats
@@ -260,7 +234,7 @@ tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
     tBrace (TIndent _ : ts) = TBrace (tokensLoc ts) : ts
     tBrace ts = TBrace (tokensLoc ts) : ts
 
-tokensLoc :: [Token] -> Loc
+tokensLoc :: [Token] -> SLoc
 tokensLoc (TIdent  loc _ _:_) = loc
 tokensLoc (TString loc _  :_) = loc
 tokensLoc (TChar   loc _  :_) = loc
@@ -332,5 +306,5 @@ lexStart ts =
   where skip (TIndent _ : rs) = rs
         skip rs = rs
 
-lexTopLS :: String -> LexState
-lexTopLS s = LS $ layoutLS (lexStart $ lex (mkLoc 1 1) s) []
+lexTopLS :: FilePath -> String -> LexState
+lexTopLS f s = LS $ layoutLS (lexStart $ lex (SLoc f 1 1) s) []

@@ -9,14 +9,11 @@ import Data.Char
 import Data.List
 import Text.ParserComb as P
 import MicroHs.Lex
-import MicroHs.Expr
+import MicroHs.Expr hiding (getSLoc)
 import MicroHs.Ident
 --import Debug.Trace
 
-type P a = Prsr FilePath LexState Token a
-
-getFileName :: P FilePath
-getFileName = get
+type P a = Prsr () LexState Token a
 
 parseDie :: forall a . (Show a) =>
             P a -> FilePath -> String -> a
@@ -28,15 +25,15 @@ parseDie p fn file =
 parse :: forall a . (Show a) =>
          P a -> FilePath -> String -> Either String a
 parse p fn file =
-  let { ts = lexTopLS file } in
-  case runPrsr fn p ts of
+  let { ts = lexTopLS fn file } in
+  case runPrsr () p ts of
     Left lf -> Left $ formatFailed fn (tmRawTokens ts) lf
     Right [(a, _)] -> Right a
     Right as -> Left $ "Ambiguous:"
                        ++ unlines (map (show . fst) as)
 
-getLoc :: P Loc
-getLoc = do
+getSLoc :: P SLoc
+getSLoc = do
   t <- nextToken
   pure (tokensLoc [t])
 
@@ -75,18 +72,16 @@ pModuleEmpty = do
 -- Possibly qualified alphanumeric identifier
 pQIdent :: P Ident
 pQIdent = do
-  fn <- getFileName
   let
-    is (TIdent loc qs s) | isAlpha_ (head s) = Just (qualName fn loc qs s)
+    is (TIdent loc qs s) | isAlpha_ (head s) = Just (qualName loc qs s)
     is _ = Nothing
   satisfyM "QIdent" is
 
 -- Upper case, unqualified, alphanumeric identifier
 pUIdentA :: P Ident
 pUIdentA = do
-  fn <- getFileName
   let
-    is (TIdent loc [] s) | isUpper (head s) = Just (mkIdentLoc fn loc s)
+    is (TIdent loc [] s) | isUpper (head s) = Just (mkIdentSLoc loc s)
     is _ = Nothing
   satisfyM "UIdent" is
 
@@ -103,10 +98,9 @@ pUIdentSym = pUIdent <|< pParens pUSymOper
 -- Special "identifiers": () [] (,) ...
 pUIdentSpecial :: P Ident
 pUIdentSpecial = do
-  fn <- getFileName
-  loc <- getLoc
+  loc <- getSLoc
   let
-    mk = mkIdentLoc fn loc
+    mk = mkIdentSLoc loc
   
   (mk . map (const ',') <$> (pSpec '(' *> esome (pSpec ',') <* pSpec ')'))
     <|< (mk "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
@@ -115,9 +109,8 @@ pUIdentSpecial = do
 -- Upper case, possibly qualified, alphanumeric identifier
 pUQIdentA :: P Ident
 pUQIdentA = do
-  fn <- getFileName
   let
-    is (TIdent loc qs s) | isUpper (head s) = Just (qualName fn loc qs s)
+    is (TIdent loc qs s) | isUpper (head s) = Just (qualName loc qs s)
     is _ = Nothing
   satisfyM "UQIdent" is
 
@@ -130,18 +123,16 @@ pUQIdent =
 -- Lower case, unqualified identifier
 pLIdent :: P Ident
 pLIdent = do
-  fn <- getFileName
   let
-    is (TIdent loc [] s) | isLower_ (head s) && not (elem s keywords) = Just (mkIdentLoc fn loc s)
+    is (TIdent loc [] s) | isLower_ (head s) && not (elem s keywords) = Just (mkIdentSLoc loc s)
     is _ = Nothing
   satisfyM "LIdent" is
 
 -- Lower case, possibly qualified identifier
 pLQIdent :: P Ident
 pLQIdent = do
-  fn <- getFileName
   let
-    is (TIdent loc qs s) | isLower_ (head s) && not (elem s keywords) = Just (qualName fn loc qs s)
+    is (TIdent loc qs s) | isLower_ (head s) && not (elem s keywords) = Just (qualName loc qs s)
     is _ = Nothing
   satisfyM "LQIdent" is
 
@@ -156,7 +147,7 @@ keywords =
    "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
-pSpec c = () <$ satisfy (showToken $ TSpec (0,0) c) is
+pSpec c = () <$ satisfy (showToken $ TSpec (SLoc "" 0 0) c) is
   where
     is (TSpec _ d) = c == d
     is _ = False
@@ -175,17 +166,15 @@ pUOper = pUQSymOper <|< (pSpec '`' *> pUQIdent <* pSpec '`')
 
 pQSymOper :: P Ident
 pQSymOper = do
-  fn <- getFileName
   let
-    is (TIdent loc qs s) | not (isAlpha_ (head s)) && not (elem s reservedOps) = Just (qualName fn loc qs s)
+    is (TIdent loc qs s) | not (isAlpha_ (head s)) && not (elem s reservedOps) = Just (qualName loc qs s)
     is _ = Nothing
   satisfyM "QSymOper" is
 
 pSymOper :: P Ident
 pSymOper = do
-  fn <- getFileName
   let
-    is (TIdent loc [] s) | not (isAlpha_ (head s)) && not (elem s reservedOps) = Just (mkIdentLoc fn loc s)
+    is (TIdent loc [] s) | not (isAlpha_ (head s)) && not (elem s reservedOps) = Just (mkIdentSLoc loc s)
     is _ = Nothing
   satisfyM "SymOper" is
 
@@ -217,10 +206,9 @@ pLQSymOperArr = pLQSymOper <|< pQArrow
 -- Parse ->, possibly qualified
 pQArrow :: P Ident
 pQArrow = do
-  fn <- getFileName
   let
-    is (TIdent loc qs s@"->") = Just (qualName fn loc qs s)
-    is (TIdent loc qs s@"\x2192") = Just (qualName fn loc qs s)
+    is (TIdent loc qs s@"->") = Just (qualName loc qs s)
+    is (TIdent loc qs s@"\x2192") = Just (qualName loc qs s)
     is _ = Nothing
   satisfyM "->" is
 
@@ -248,12 +236,11 @@ pParens p = pSpec '(' *> p <* pSpec ')'
 
 pLit :: P Expr
 pLit = do
-  fn <- getFileName
   let
-    is (TString (l, c) s) = Just (ELit (SLoc fn l c) (LStr s))
-    is (TChar   (l, c) a) = Just (ELit (SLoc fn l c) (LChar a))
-    is (TInt    (l, c) i) = Just (ELit (SLoc fn l c) (LInteger i))
-    is (TRat    (l, c) d) = Just (ELit (SLoc fn l c) (LRat d))
+    is (TString loc s) = Just (ELit loc (LStr s))
+    is (TChar   loc a) = Just (ELit loc (LChar a))
+    is (TInt    loc i) = Just (ELit loc (LInteger i))
+    is (TRat    loc d) = Just (ELit loc (LRat d))
     is _ = Nothing
   satisfyM "literal" is
 
@@ -593,16 +580,15 @@ pIf = EIf <$> (pKeyword "if" *> pExpr) <*> (pKeyword "then" *> pExpr) <*> (pKeyw
 
 pQualDo :: P Ident
 pQualDo = do
-  fn <- getFileName
   let
-    is (TIdent loc qs@(_:_) "do") = Just (mkIdentLoc fn loc (intercalate "." qs))
+    is (TIdent loc qs@(_:_) "do") = Just (mkIdentSLoc loc (intercalate "." qs))
     is _ = Nothing
   satisfyM "QualDo" is
 
 pOperComma :: P Ident
 pOperComma = pOper <|< pComma
   where
-    pComma = mkIdentLoc <$> getFileName <*> getLoc <*> ("," <$ pSpec ',')
+    pComma = mkIdentSLoc <$> getSLoc <*> ("," <$ pSpec ',')
 
 -- No right section for '-'.
 pOperCommaNoMinus :: P Ident
@@ -700,16 +686,15 @@ eTuple es = ETuple es
 isAlpha_ :: Char -> Bool
 isAlpha_ c = isLower_ c || isUpper c
 
-qualName :: FilePath -> Loc -> [String] -> String -> Ident
-qualName fn loc qs s = mkIdentLoc fn loc (intercalate "." (qs ++ [s]))
+qualName :: SLoc -> [String] -> String -> Ident
+qualName loc qs s = mkIdentSLoc loc (intercalate "." (qs ++ [s]))
 
 -------------
 
 formatFailed :: String -> [Token] -> LastFail Token -> String
-formatFailed fn _fs (LastFail _ ts msgs) =
+formatFailed _fn _fs (LastFail _ ts msgs) =
   let
-    (line, col) = tokensLoc ts
-    sloc = SLoc fn line col
+    sloc = tokensLoc ts
   in
     showSLoc sloc ++ ":\n"
       ++ "  found:    " ++ head (map showToken ts ++ ["EOF"]) ++ "\n"
