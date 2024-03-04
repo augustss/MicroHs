@@ -35,8 +35,8 @@ newtype CULLong  = CULLong  Word
 newtype CIntPtr  = CIntPtr  Int
 newtype CUIntPtr = CUIntPtr Word
 
-newtype CFloat   = CFloat   Double
-newtype CDouble  = CDouble  Double
+newtype CFloat   = CFloat   FloatW
+newtype CDouble  = CDouble  FloatW
 
 -- Temporary conversion functions.
 intToCSize :: Int -> CSize

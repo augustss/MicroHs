@@ -131,7 +131,7 @@ cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 cTypes :: [(String, String)]
 cTypes =
   -- These are temporary
-  [ ("Primitives.Double", "Double")
+  [ ("Primitives.FloatW", "FloatW")
   , ("Primitives.Int",    "Int")
   , ("Primitives.Word",   "Word")
   , ("Data.Word.Word8",   "Word8")

@@ -6,7 +6,7 @@ module Data.Integer(
   _integerToInt,
   _wordToInteger,
   _integerToWord,
-  _integerToDouble,
+  _integerToFloatW,
   _integerToRational,
   _integerToIntList,
   _intListToInteger,

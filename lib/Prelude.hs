@@ -8,7 +8,6 @@ module Prelude(
   module Data.Bool,
   module Data.Bounded,
   module Data.Char,
-  module Data.Double,
   module Data.Either,
   module Data.Enum,
   module Data.Eq,
@@ -37,7 +36,7 @@ module Prelude(
   module Text.Read,
   module Text.Show,
   module Text.String,
-  Float,
+  Float, Double,
   usingMhs, _wordSize, _isWindows,
   ) where
 import Prelude()              -- do not import Prelude
@@ -48,7 +47,7 @@ import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)
 import Data.Bounded(Bounded(..))
 import Data.Char(Char, String)
-import Data.Double(Double)
+import Data.FloatW(FloatW)
 import Data.Either(Either(..), either)
 import Data.Enum(Enum(..))
 import Data.Eq(Eq(..))
@@ -86,4 +85,5 @@ import Primitives(_wordSize, _isWindows)
 usingMhs :: Bool
 usingMhs = True
 
-type Float = Double
+type Float  = FloatW
+type Double = FloatW

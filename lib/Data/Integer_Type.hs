@@ -55,12 +55,12 @@ _wordToInteger i = I Plus  (f i)
 _integerToWord :: Integer -> Word
 _integerToWord x = primIntToWord (_integerToInt x)
 
-_integerToDouble :: Integer -> Double
-_integerToDouble (I sign ds) = s `primDoubleMul` loop ds
+_integerToFloatW :: Integer -> FloatW
+_integerToFloatW (I sign ds) = s `primFloatWMul` loop ds
   where
-    loop [] = 0.0::Double
-    loop (i : is) = primDoubleFromInt i `primDoubleAdd` (primDoubleFromInt maxD `primDoubleMul` loop is)
+    loop [] = 0.0::FloatW
+    loop (i : is) = primFloatWFromInt i `primFloatWAdd` (primFloatWFromInt maxD `primFloatWMul` loop is)
     s =
       case sign of
-        Plus  -> 1.0::Double
-        Minus -> 0.0 `primDoubleSub` 1.0
+        Plus  -> 1.0::FloatW
+        Minus -> 0.0 `primFloatWSub` 1.0

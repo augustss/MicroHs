@@ -49,8 +49,8 @@ nameInt = "Primitives.Int"
 nameWord :: String
 nameWord = "Primitives.Word"
 
-nameDouble :: String
-nameDouble = "Primitives.Double"
+nameFloatW :: String
+nameFloatW = "Primitives.FloatW"
 
 nameChar :: String
 nameChar = "Primitives.Char"
@@ -1483,7 +1483,7 @@ tcExprR mt ae =
                 -- (which is not always in scope).
                 Just (EVar v) | v == mkIdent nameInt     -> tcLit  mt loc (LInt (fromInteger i))
                               | v == mkIdent nameWord    -> tcLit' mt loc (LInt (fromInteger i)) (tConI loc nameWord)
-                              | v == mkIdent nameDouble  -> tcLit  mt loc (LDouble (fromInteger i))
+                              | v == mkIdent nameFloatW  -> tcLit  mt loc (LDouble (fromInteger i))
                               | v == mkIdent nameInteger -> tcLit  mt loc lit
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc "fromInteger"))  -- XXX should have this qualified somehow
@@ -1493,7 +1493,7 @@ tcExprR mt ae =
             LRat r -> do
               mex <- getExpected mt
               case mex of
-                Just (EVar v) | v == mkIdent nameDouble -> tcLit mt loc (LDouble (fromRational r))
+                Just (EVar v) | v == mkIdent nameFloatW -> tcLit mt loc (LDouble (fromRational r))
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc "fromRational"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
@@ -1732,7 +1732,7 @@ tcLit mt loc l = do
         case l of
           LInt _     -> tConI loc nameInt
           LInteger _ -> tConI loc nameInteger
-          LDouble _  -> tConI loc nameDouble
+          LDouble _  -> tConI loc nameFloatW
           LChar _    -> tConI loc nameChar
           LStr _     -> tApp (tList loc) (tConI loc nameChar)
           _          -> impossible

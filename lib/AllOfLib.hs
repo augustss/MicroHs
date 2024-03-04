@@ -19,11 +19,11 @@ import Data.Char
 import Data.Char_Type
 import Data.Complex
 import Data.Constraint
-import Data.Double
 import Data.Dynamic
 import Data.Either
 import Data.Enum
 import Data.Eq
+import Data.FloatW
 import Data.Floating
 import Data.Foldable
 import Data.Fractional

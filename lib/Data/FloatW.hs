@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Double(Double) where
+module Data.FloatW(FloatW) where
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
@@ -25,26 +25,26 @@ import Text.Read.Numeric
 import Text.Show
 
 --
--- NOTE: On 32 bit platforms the MicroHs Double type is actually 32 bit floats.
+-- This is a floating point type that is a wide as the word width of the machine.
 --
 
-instance Num Double where
-  (+)  = primDoubleAdd
-  (-)  = primDoubleSub
-  (*)  = primDoubleMul
-  negate = primDoubleNeg
+instance Num FloatW where
+  (+)  = primFloatWAdd
+  (-)  = primFloatWSub
+  (*)  = primFloatWMul
+  negate = primFloatWNeg
   abs x = if x < 0.0 then - x else x
   signum x =
     case compare x 0.0 of
       LT -> -1.0
       EQ ->  0.0
       GT ->  1.0
-  fromInteger = _integerToDouble
+  fromInteger = _integerToFloatW
 
-instance Fractional Double where
-  (/) = primDoubleDiv
+instance Fractional FloatW where
+  (/) = primFloatWDiv
   -- This version of fromRational can go horribly wrong
-  -- if the integers are bigger than can be represented in a Double.
+  -- if the integers are bigger than can be represented in a FloatW.
   -- It'll do for now.
   fromRational x | x == rationalNaN = 0/0
                  | x == rationalInfinity = 1/0
@@ -52,34 +52,34 @@ instance Fractional Double where
                  | otherwise =
     fromInteger (numerator x) / fromInteger (denominator x)
 
-instance Eq Double where
-  (==) = primDoubleEQ
-  (/=) = primDoubleNE
+instance Eq FloatW where
+  (==) = primFloatWEQ
+  (/=) = primFloatWNE
 
-instance Ord Double where
-  (<)  = primDoubleLT
-  (<=) = primDoubleLE
-  (>)  = primDoubleGT
-  (>=) = primDoubleGE
+instance Ord FloatW where
+  (<)  = primFloatWLT
+  (<=) = primFloatWLE
+  (>)  = primFloatWGT
+  (>=) = primFloatWGE
   
 -- For now, cheat and call C
-instance Show Double where
-  show = primDoubleShow
+instance Show FloatW where
+  show = primFloatWShow
 
-instance Read Double where
-  readsPrec _ = readSigned $ \ r -> [ (primDoubleRead s, t) | (s@(c:_), t) <- lex r, isDigit c ]
+instance Read FloatW where
+  readsPrec _ = readSigned $ \ r -> [ (primFloatWRead s, t) | (s@(c:_), t) <- lex r, isDigit c ]
 
-instance Real Double where
+instance Real FloatW where
   toRational x | isNaN x = rationalNaN
                | isInfinite x = if x < 0 then -rationalInfinity else rationalInfinity
                | otherwise =
     case decodeFloat x of
       (m, e) -> toRational m * 2^^e
 
-instance RealFrac Double where
-  properFraction _ = error "Double.properFraction not implemented"
+instance RealFrac FloatW where
+  properFraction _ = error "FloatW.properFraction not implemented"
 
-instance Floating Double where
+instance Floating FloatW where
   pi     = 3.141592653589793
   log  x = primPerformIO (clog x)
   exp  x = primPerformIO (cexp x)
@@ -91,19 +91,19 @@ instance Floating Double where
   acos x = primPerformIO (cacos x)
   atan x = primPerformIO (catan x)
 
-foreign import ccall "log"  clog  :: Double -> IO Double
-foreign import ccall "exp"  cexp  :: Double -> IO Double
-foreign import ccall "sqrt" csqrt :: Double -> IO Double
-foreign import ccall "sin"  csin  :: Double -> IO Double
-foreign import ccall "cos"  ccos  :: Double -> IO Double
-foreign import ccall "tan"  ctan  :: Double -> IO Double
-foreign import ccall "asin" casin :: Double -> IO Double
-foreign import ccall "acos" cacos :: Double -> IO Double
-foreign import ccall "atan" catan :: Double -> IO Double
-foreign import ccall "atan2" catan2 :: Double -> Double -> IO Double
+foreign import ccall "log"  clog  :: FloatW -> IO FloatW
+foreign import ccall "exp"  cexp  :: FloatW -> IO FloatW
+foreign import ccall "sqrt" csqrt :: FloatW -> IO FloatW
+foreign import ccall "sin"  csin  :: FloatW -> IO FloatW
+foreign import ccall "cos"  ccos  :: FloatW -> IO FloatW
+foreign import ccall "tan"  ctan  :: FloatW -> IO FloatW
+foreign import ccall "asin" casin :: FloatW -> IO FloatW
+foreign import ccall "acos" cacos :: FloatW -> IO FloatW
+foreign import ccall "atan" catan :: FloatW -> IO FloatW
+foreign import ccall "atan2" catan2 :: FloatW -> FloatW -> IO FloatW
 
 -- Assumes 64 bit floats
-instance RealFloat Double where
+instance RealFloat FloatW where
   floatRadix     _ = 2
   floatDigits    _ = flt 24 53
   floatRange     _ = flt (-125,128) (-1021,1024)
@@ -120,9 +120,9 @@ flt :: forall a . a -> a -> a
 flt f d | _wordSize == 32 = f
         | otherwise       = d
 
-decodeFloat64 :: Double -> (Integer, Int)
+decodeFloat64 :: FloatW -> (Integer, Int)
 decodeFloat64 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWordFromFloatWRaw x
       sign =  xw .&. 0x8000000000000000
       expn = (xw .&. 0x7fffffffffffffff) `shiftR` 52
       mant =  xw .&. 0x000fffffffffffff
@@ -139,41 +139,41 @@ decodeFloat64 x =
         (neg (_wordToInteger (mant .|. 0x0010000000000000)),
          primWordToInt expn - 1023 - 52)
 
-isNaNFloat64 :: Double -> Bool
+isNaNFloat64 :: FloatW -> Bool
 isNaNFloat64 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWordFromFloatWRaw x
       expn = (xw .&. 0x7fffffffffffffff) `shiftR` 52
       mant =  xw .&. 0x000fffffffffffff
   in  expn == 0x7ff && mant /= 0
 
-isInfFloat64 :: Double -> Bool
+isInfFloat64 :: FloatW -> Bool
 isInfFloat64 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWordFromFloatWRaw x
       expn = (xw .&. 0x7fffffffffffffff) `shiftR` 52
       mant =  xw .&. 0x000fffffffffffff
   in  expn == 0x7ff && mant == 0
 
-isDenFloat64 :: Double -> Bool
+isDenFloat64 :: FloatW -> Bool
 isDenFloat64 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWordFromFloatWRaw x
       expn = (xw .&. 0x7fffffffffffffff) `shiftR` 52
       mant =  xw .&. 0x000fffffffffffff
   in  expn == 0 && mant /= 0
 
-isNegZeroFloat64 :: Double -> Bool
+isNegZeroFloat64 :: FloatW -> Bool
 isNegZeroFloat64 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWordFromFloatWRaw x
       sign = xw .&. 0x8000000000000000
       rest = xw .&. 0x7fffffffffffffff
   in  sign /= 0 && rest == 0
 
 -- Simple (and sometimes wrong) encoder
-encodeFloat64 :: Integer -> Int -> Double
+encodeFloat64 :: Integer -> Int -> FloatW
 encodeFloat64 mant expn = fromInteger mant * 2^^expn
 
-decodeFloat32 :: Double -> (Integer, Int)
+decodeFloat32 :: FloatW -> (Integer, Int)
 decodeFloat32 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWordFromFloatWRaw x
       sign =  xw .&. 0x80000000
       expn = (xw .&. 0x7fffffff) `shiftR` 23
       mant =  xw .&. 0x007fffff
@@ -190,34 +190,34 @@ decodeFloat32 x =
         (neg (_wordToInteger (mant .|. 0x00400000)),
          primWordToInt expn - 127 - 22)
 
-isNaNFloat32 :: Double -> Bool
+isNaNFloat32 :: FloatW -> Bool
 isNaNFloat32 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWordFromFloatWRaw x
       expn = (xw .&. 0x7fffffff) `shiftR` 23
       mant =  xw .&. 0x007fffff
   in  expn == 0xff && mant /= 0
 
-isInfFloat32 :: Double -> Bool
+isInfFloat32 :: FloatW -> Bool
 isInfFloat32 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWordFromFloatWRaw x
       expn = (xw .&. 0x7fffffff) `shiftR` 23
       mant =  xw .&. 0x007fffff
   in  expn == 0x7ff && mant == 0
 
-isDenFloat32 :: Double -> Bool
+isDenFloat32 :: FloatW -> Bool
 isDenFloat32 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWordFromFloatWRaw x
       expn = (xw .&. 0x7fffffff) `shiftR` 23
       mant =  xw .&. 0x007fffff
   in  expn == 0 && mant /= 0
 
-isNegZeroFloat32 :: Double -> Bool
+isNegZeroFloat32 :: FloatW -> Bool
 isNegZeroFloat32 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWordFromFloatWRaw x
       sign = xw .&. 0x80000000
       rest = xw .&. 0x7fffffff
   in  sign /= 0 && rest == 0
 
 -- Simple (and sometimes wrong) encoder
-encodeFloat32 :: Integer -> Int -> Double
+encodeFloat32 :: Integer -> Int -> FloatW
 encodeFloat32 mant expn = fromInteger mant * 2^^expn
