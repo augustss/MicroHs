@@ -12,7 +12,7 @@ module MicroHs.Ident(
   unQualIdent,
   unQualString,
   addIdentSuffix,
-  SLoc(..), noSLoc, isNoSLoc,
+  SLoc(..), noSLoc,
   showSLoc,
   ) where
 import Data.Eq
@@ -48,10 +48,6 @@ instance Show Ident where
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
-
-isNoSLoc :: SLoc -> Bool
-isNoSLoc (SLoc _ 0 0) = True
-isNoSLoc _ = False
 
 mkIdent :: String -> Ident
 mkIdent = Ident noSLoc

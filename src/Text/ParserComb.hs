@@ -5,14 +5,14 @@
 module Text.ParserComb(
   Prsr, runPrsr,
   satisfy, satisfyM,
-  choice,
+  --choice,
   many, emany, optional, eoptional,
   some, esome,
   esepBy, sepBy1, esepBy1,
   esepEndBy, esepEndBy1,
   (<?>), (<|<),
   --notFollowedBy,
-  lookAhead,
+  --lookAhead,
   nextToken,
   LastFail(..),
   TokenMachine(..),
@@ -93,7 +93,7 @@ instance forall t tm . TokenMachine tm t => MonadFail (Prsr tm t) where
   fail m = P $ \ ts -> Many [] (LastFail (tmLeft ts) (firstToken ts) [m])
 
 instance forall t tm . TokenMachine tm t => Alternative (Prsr tm t) where
-  empty = P $ \ ts -> Many [] (LastFail (tmLeft ts) (firstToken ts) [])
+  empty = P $ \ ts -> Many [] (LastFail (tmLeft ts) (firstToken ts) ["empty"])
 
   (<|>) p q = P $ \ t ->
     case runP p t of
@@ -130,11 +130,13 @@ infixl 9 <?>
   case runP p t of
     Many rs (LastFail l ts _) -> Many rs (LastFail l ts [e])
 
+{-
 lookAhead :: forall tm t a . TokenMachine tm t => Prsr tm t a -> Prsr tm t ()
 lookAhead p = P $ \ t ->
   case runP p t of
     Many [] (LastFail l ts xs) -> Many [] (LastFail l (take 1 ts) xs)
     _                          -> Many [((), t)] noFail
+-}
 
 nextToken :: forall tm t . TokenMachine tm t => Prsr tm t t
 nextToken = P $ \ cs ->
@@ -175,9 +177,11 @@ esome p = (:) <$> p <*> emany p
 eoptional :: forall tm t a . Prsr tm t a -> Prsr tm t (Maybe a)
 eoptional p = (Just <$> p) <|< pure Nothing
 
+{-
 choice :: forall tm t a . TokenMachine tm t => [Prsr tm t a] -> Prsr tm t a
 choice [] = empty
 choice ps = foldr1 (<|>) ps
+-}
 
 sepBy1 :: forall tm t a sep . TokenMachine tm t => Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
 sepBy1 p sep = (:) <$> p <*> many (sep *> p)

@@ -44,8 +44,10 @@ instance forall s . Monad (StateIO s) where
     runStateIO (k a) ss
   (>>) = (*>)
 
+{-
 instance forall s . MonadFail (StateIO s) where
   fail = error
+-}
 
 gets :: forall s a . (s -> a) -> StateIO s a
 gets f = S $ \ s -> return (f s, s)

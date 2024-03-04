@@ -27,7 +27,7 @@ parse :: forall a . (Show a) =>
 parse p fn file =
   let { ts = lexTopLS fn file } in
   case runPrsr p ts of
-    Left lf -> Left $ formatFailed fn (tmRawTokens ts) lf
+    Left lf -> Left $ formatFailed lf
     Right [a] -> Right a
     Right as -> Left $ "Ambiguous:"
                        ++ unlines (map show  as)
@@ -691,8 +691,8 @@ qualName loc qs s = mkIdentSLoc loc (intercalate "." (qs ++ [s]))
 
 -------------
 
-formatFailed :: String -> [Token] -> LastFail Token -> String
-formatFailed _fn _fs (LastFail _ ts msgs) =
+formatFailed :: LastFail Token -> String
+formatFailed (LastFail _ ts msgs) =
   let
     sloc = tokensLoc ts
   in

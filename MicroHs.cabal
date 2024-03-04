@@ -41,6 +41,7 @@ executable mhs
   default-language:    Haskell98
   hs-source-dirs:      ghc src
   ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -main-is MicroHs.Main
+                       -fwrite-ide-info
   main-is:             MicroHs/Main.hs
   default-extensions:  ScopedTypeVariables PatternGuards TupleSections TypeSynonymInstances MultiParamTypeClasses
                        FlexibleInstances OverloadedRecordDot DisambiguateRecordFields StandaloneKindSignatures
