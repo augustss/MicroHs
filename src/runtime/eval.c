@@ -3618,12 +3618,14 @@ void mhs_peek_llong(int s) { mhs_from_CLLong(s, 1, peek_llong(mhs_to_Ptr(s, 0)))
 void mhs_peek_long(int s) { mhs_from_CLong(s, 1, peek_long(mhs_to_Ptr(s, 0))); }
 void mhs_peek_ullong(int s) { mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
 void mhs_peek_ulong(int s) { mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
-void mhs_peek_flt(int s) { mhs_from_FloatW(s, 1, peek_flt(mhs_to_Ptr(s, 0))); }
 void mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); mhs_from_Unit(s, 2); }
+#if WANT_FLOAT
+void mhs_peek_flt(int s) { mhs_from_FloatW(s, 1, peek_flt(mhs_to_Ptr(s, 0))); }
 void mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); mhs_from_Unit(s, 2); }
+#endif  /* WANT_FLOAT */
 void mhs_sizeof_int(int s) { mhs_from_Int(s, 0, sizeof(int)); }
 void mhs_sizeof_llong(int s) { mhs_from_Int(s, 0, sizeof(long long)); }
 void mhs_sizeof_long(int s) { mhs_from_Int(s, 0, sizeof(long)); }
@@ -3720,8 +3722,10 @@ struct ffi_entry ffi_table[] = {
 { "poke_long", mhs_poke_long},
 { "poke_ullong", mhs_poke_ullong},
 { "poke_ulong", mhs_poke_ulong},
+#if WANT_FLOAT
 { "poke_flt", mhs_poke_flt},
 { "poke_flt", mhs_poke_flt},
+#endif  /* WANT_FLOAT */
 { "sizeof_int", mhs_sizeof_int},
 { "sizeof_llong", mhs_sizeof_llong},
 { "sizeof_long", mhs_sizeof_long},
