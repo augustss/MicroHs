@@ -1153,6 +1153,78 @@ poke_uint(unsigned int *p, value_t w)
   *p = (unsigned int)w;
 }
 
+value_t
+peek_short(short *p)
+{
+  return *p;
+}
+
+void
+poke_short(short *p, value_t w)
+{
+  *p = (short)w;
+}
+
+value_t
+peek_ushort(unsigned short *p)
+{
+  return *p;
+}
+
+void
+poke_ushort(unsigned short *p, value_t w)
+{
+  *p = (unsigned short)w;
+}
+
+value_t
+peek_long(long *p)
+{
+  return *p;
+}
+
+void
+poke_long(long *p, value_t w)
+{
+  *p = (long)w;
+}
+
+value_t
+peek_ulong(unsigned long *p)
+{
+  return *p;
+}
+
+void
+poke_ulong(unsigned long *p, value_t w)
+{
+  *p = (unsigned long)w;
+}
+
+value_t
+peek_llong(long long *p)
+{
+  return *p;
+}
+
+void
+poke_llong(long long *p, value_t w)
+{
+  *p = (long long)w;
+}
+
+value_t
+peek_ullong(unsigned long long *p)
+{
+  return *p;
+}
+
+void
+poke_ullong(unsigned long long *p, value_t w)
+{
+  *p = (unsigned long long)w;
+}
+
 /* Look up an FFI function by name */
 value_t
 lookupFFIname(const char *name)
@@ -3345,14 +3417,14 @@ MHS_FROM(mhs_from_FunPtr, SETFUNPTR, HsFunPtr);
 MHS_FROM(mhs_from_CChar, SETINT, char);
 MHS_FROM(mhs_from_CSChar, SETINT, signed char);
 MHS_FROM(mhs_from_CUChar, SETINT, unsigned char);
-MHS_FROM(mhs_from_CSHORT, SETINT, short);
-MHS_FROM(mhs_from_CUSHORT, SETINT, unsigned short);
-MHS_FROM(mhs_from_CINT, SETINT, int);
-MHS_FROM(mhs_from_CUINT, SETINT, unsigned int);
-MHS_FROM(mhs_from_CLONG, SETINT, long);
-MHS_FROM(mhs_from_CULONG, SETINT, unsigned long);
-MHS_FROM(mhs_from_CLLONG, SETINT, long long);
-MHS_FROM(mhs_from_CULLONG, SETINT, unsigned long long);
+MHS_FROM(mhs_from_CShort, SETINT, short);
+MHS_FROM(mhs_from_CUShort, SETINT, unsigned short);
+MHS_FROM(mhs_from_CInt, SETINT, int);
+MHS_FROM(mhs_from_CUInt, SETINT, unsigned int);
+MHS_FROM(mhs_from_CLong, SETINT, long);
+MHS_FROM(mhs_from_CULong, SETINT, unsigned long);
+MHS_FROM(mhs_from_CLLong, SETINT, long long);
+MHS_FROM(mhs_from_CULLong, SETINT, unsigned long long);
 MHS_FROM(mhs_from_CSize, SETINT, size_t);
 // MHS_FROM(mhs_from_CSSize, SETINT, ssize_t);
 MHS_FROM(mhs_from_CIntPtr, SETINT, intptr_t);
@@ -3378,14 +3450,14 @@ MHS_TO(mhs_to_FunPtr, evalfunptr, HsFunPtr);
 MHS_TO(mhs_to_CChar, evalint, char);
 MHS_TO(mhs_to_CSChar, evalint, signed char);
 MHS_TO(mhs_to_CUChar, evalint, unsigned char);
-MHS_TO(mhs_to_CSHORT, evalint, short);
-MHS_TO(mhs_to_CUSHORT, evalint, unsigned short);
-MHS_TO(mhs_to_CINT, evalint, int);
-MHS_TO(mhs_to_CUINT, evalint, unsigned int);
-MHS_TO(mhs_to_CLONG, evalint, long);
-MHS_TO(mhs_to_CULONG, evalint, unsigned long);
-MHS_TO(mhs_to_CLLONG, evalint, long long);
-MHS_TO(mhs_to_CULLONG, evalint, unsigned long long);
+MHS_TO(mhs_to_CShort, evalint, short);
+MHS_TO(mhs_to_CUShort, evalint, unsigned short);
+MHS_TO(mhs_to_CInt, evalint, int);
+MHS_TO(mhs_to_CUInt, evalint, unsigned int);
+MHS_TO(mhs_to_CLong, evalint, long);
+MHS_TO(mhs_to_CULong, evalint, unsigned long);
+MHS_TO(mhs_to_CLLong, evalint, long long);
+MHS_TO(mhs_to_CULLong, evalint, unsigned long long);
 MHS_TO(mhs_to_CSize, evalint, size_t);
 // MHS_TO(mhs_to_CSSize, evalint, ssize_t);
 MHS_TO(mhs_to_CIntPtr, evalint, intptr_t);
@@ -3490,6 +3562,17 @@ void mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs
 #endif  /* WORD_SIZE */
 void mhs_peek_int(int s) { mhs_from_Int(s, 1, peek_int(mhs_to_Ptr(s, 0))); }
 void mhs_poke_int(int s) { poke_int(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_peek_llong(int s) { mhs_from_CLLong(s, 1, peek_llong(mhs_to_Ptr(s, 0))); }
+void mhs_peek_long(int s) { mhs_from_CLong(s, 1, peek_long(mhs_to_Ptr(s, 0))); }
+void mhs_peek_ullong(int s) { mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
+void mhs_peek_ulong(int s) { mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
+void mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_sizeof_int(int s) { mhs_from_Int(s, 0, sizeof(int)); }
+void mhs_sizeof_llong(int s) { mhs_from_Int(s, 0, sizeof(long long)); }
+void mhs_sizeof_long(int s) { mhs_from_Int(s, 0, sizeof(long)); }
 
 
 struct ffi_entry ffi_table[] = {
@@ -3575,6 +3658,17 @@ struct ffi_entry ffi_table[] = {
 #endif  /* WORD_SIZE >= 64 */
 { "peek_int", mhs_peek_int},
 { "poke_int", mhs_poke_int},
+{ "peek_llong", mhs_peek_llong},
+{ "peek_long", mhs_peek_long},
+{ "peek_ullong", mhs_peek_ullong},
+{ "peek_ulong", mhs_peek_ulong},
+{ "poke_llong", mhs_poke_llong},
+{ "poke_long", mhs_poke_long},
+{ "poke_ullong", mhs_poke_ullong},
+{ "poke_ulong", mhs_poke_ulong},
+{ "sizeof_int", mhs_sizeof_int},
+{ "sizeof_llong", mhs_sizeof_llong},
+{ "sizeof_long", mhs_sizeof_long},
 { 0,0 }
 };
 

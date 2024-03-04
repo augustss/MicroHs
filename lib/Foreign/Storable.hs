@@ -144,11 +144,48 @@ instance Storable CUInt where
   peek p      = c_peek_uint p
   poke p w    = c_poke_uint p w
 
-{-
--- Try to figure out how big a C int is.
--- Do this by writing a 0 to a Word, and then a -1 CInt, and looking at the Word again.
-foreign import ccall "malloc" c_malloc :: CSize -> IO (Ptr ())
-foreign import ccall "free" c_free :: Ptr () -> IO ()
--}
+foreign import ccall "peek_long" c_peek_long :: Ptr CLong -> IO CLong
+foreign import ccall "poke_long" c_poke_long :: Ptr CLong -> CLong -> IO ()
+
+instance Storable CLong where
+  sizeOf    _ = longSize
+  alignment _ = longSize
+  peek p      = c_peek_long p
+  poke p w    = c_poke_long p w
+
+foreign import ccall "peek_ulong" c_peek_ulong :: Ptr CULong -> IO CULong
+foreign import ccall "poke_ulong" c_poke_ulong :: Ptr CULong -> CULong -> IO ()
+
+instance Storable CULong where
+  sizeOf    _ = longSize
+  alignment _ = longSize
+  peek p      = c_peek_ulong p
+  poke p w    = c_poke_ulong p w
+
+foreign import ccall "peek_llong" c_peek_llong :: Ptr CLLong -> IO CLLong
+foreign import ccall "poke_llong" c_poke_llong :: Ptr CLLong -> CLLong -> IO ()
+
+instance Storable CLLong where
+  sizeOf    _ = llongSize
+  alignment _ = llongSize
+  peek p      = c_peek_llong p
+  poke p w    = c_poke_llong p w
+
+foreign import ccall "peek_ullong" c_peek_ullong :: Ptr CULLong -> IO CULLong
+foreign import ccall "poke_ullong" c_poke_ullong :: Ptr CULLong -> CULLong -> IO ()
+
+instance Storable CULLong where
+  sizeOf    _ = llongSize
+  alignment _ = llongSize
+  peek p      = c_peek_ullong p
+  poke p w    = c_poke_ullong p w
+
+foreign import ccall "sizeof_int" c_sizeof_int :: IO Int
+foreign import ccall "sizeof_long" c_sizeof_long :: IO Int
+foreign import ccall "sizeof_llong" c_sizeof_llong :: IO Int
 intSize :: Int
-intSize = undefined
+intSize = primPerformIO c_sizeof_int
+longSize :: Int
+longSize = primPerformIO c_sizeof_long
+llongSize :: Int
+llongSize = primPerformIO c_sizeof_llong

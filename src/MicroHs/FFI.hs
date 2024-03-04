@@ -165,5 +165,9 @@ runtimeFFI = [
   "add_lz77_compressor", "add_lz77_decompressor",
   "peek_uint8", "poke_uint8", "peek_uint16", "poke_uint16", "peek_uint32", "poke_uint32", "peek_uint64", "poke_uint64",
   "peek_int8", "poke_int8", "peek_int16", "poke_int16", "peek_int32", "poke_int32", "peek_int64", "poke_int64",
-  "peek_uint", "poke_uint", "peek_int", "poke_int"
+  "peek_ushort", "poke_ushort", "peek_short", "poke_short",
+  "peek_uint", "poke_uint", "peek_int", "poke_int",
+  "peek_ulong", "poke_ulong", "peek_long", "poke_long",
+  "peek_ullong", "poke_ullong", "peek_llong", "poke_llong",
+  "sizeof_int", "sizeof_long", "sizeof_llong"
   ]
