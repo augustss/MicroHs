@@ -98,13 +98,13 @@ data TCState = TC {
   }
 
 instTable :: TCState -> InstTable
-instTable = (.ctxTables._1)
+instTable tc = case ctxTables tc of (x,_,_) -> x
 
 metaTable :: TCState -> MetaTable
-metaTable = (.ctxTables._2)
+metaTable tc = case ctxTables tc of (_,x,_) -> x
 
 typeEqTable :: TCState -> TypeEqTable
-typeEqTable = (.ctxTables._3)
+typeEqTable tc = case ctxTables tc of (_,_,x) -> x
 
 
 putValueTable :: ValueTable -> T ()
@@ -124,17 +124,17 @@ putTCMode m = modify $ \ ts -> ts{ tcMode = m }
 
 putInstTable :: InstTable -> T ()
 putInstTable is = do
-  (_,ms,eqs) <- gets (.ctxTables)
+  (_,ms,eqs) <- gets ctxTables
   modify $ \ ts -> ts{ ctxTables = (is,ms,eqs) }
 
 putMetaTable :: MetaTable -> T ()
 putMetaTable ms = do
-  (is,_,eqs) <- gets (.ctxTables)
+  (is,_,eqs) <- gets ctxTables
   modify $ \ ts -> ts{ ctxTables = (is,ms,eqs) }
 
 putTypeEqTable :: TypeEqTable -> T ()
 putTypeEqTable eqs = do
-  (is,ms,_) <- gets (.ctxTables)
+  (is,ms,_) <- gets ctxTables
   modify $ \ ts -> ts{ ctxTables = (is,ms,eqs) }
 
 putCtxTables :: (InstTable, MetaTable, TypeEqTable) -> T ()

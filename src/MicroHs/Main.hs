@@ -48,7 +48,7 @@ decodeArgs f mdls [] = (f, mdls, [])
 decodeArgs f mdls (arg:args) =
   case arg of
     "--"        -> (f, mdls, args)
-    "-v"        -> decodeArgs f{verbose = f.verbose + 1} mdls args
+    "-v"        -> decodeArgs f{verbose = verbose f + 1} mdls args
     "-r"        -> decodeArgs f{runIt = True} mdls args
     "-l"        -> decodeArgs f{loading = True} mdls args
     "-CR"       -> decodeArgs f{readCache = True} mdls args
@@ -66,7 +66,7 @@ decodeArgs f mdls (arg:args) =
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
   (rmn, allDefs) <-
-    if flags.writeCache then do
+    if writeCache flags then do
       cash <- getCached flags
       (rds, cash') <- compileCacheTop flags mn cash
       when (verbosityGT flags 0) $
@@ -119,8 +119,9 @@ mainCompile flags mn = do
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
        compiler <- fromMaybe "cc" <$> lookupEnv "CC"
-       let conf = "unix-" ++ show _wordSize
-           cc = fromMaybe (compiler ++ " -w -Wall -O3 -I" ++ mhsdir flags ++ "/src/runtime " ++ mhsdir flags ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
+       let dir = mhsdir flags
+           conf = "unix-" ++ show _wordSize
+           cc = fromMaybe (compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbosityGT flags 0) $
          putStrLn $ "Execute: " ++ show cmd

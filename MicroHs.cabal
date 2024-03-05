@@ -44,8 +44,8 @@ executable mhs
                        -fwrite-ide-info
   main-is:             MicroHs/Main.hs
   default-extensions:  ScopedTypeVariables PatternGuards TupleSections TypeSynonymInstances MultiParamTypeClasses
-                       FlexibleInstances OverloadedRecordDot DisambiguateRecordFields StandaloneKindSignatures
-                       OverloadedStrings BangPatterns
+                       FlexibleInstances
+                       BangPatterns
   other-modules:       MicroHs.Abstract
                        MicroHs.Compile
                        MicroHs.CompileCache
