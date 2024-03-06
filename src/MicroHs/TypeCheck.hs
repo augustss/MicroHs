@@ -931,7 +931,7 @@ tcDefsType ds = withTypeTable $ do
 getKindSigns :: HasCallStack => [EDef] -> T (M.Map EKind)
 getKindSigns ds = do
   let iks = [ (i, k) | KindSign i k <- ds ]
-      kind (i, k) = (i,) <$> tcKind (Check sKind) k
+      kind (i, k) = (,) i <$> tcKind (Check sKind) k
   multCheck (map fst iks)
   iks' <- mapM kind iks
   return $ M.fromList iks'
@@ -1011,14 +1011,14 @@ tcDefType :: HasCallStack => EDef -> T EDef
 tcDefType def = do
   --tcReset
   case def of
-    Data    lhs cs ds      -> withLHS lhs $ \ lhs' -> (,kType)       <$> (Data    lhs'  <$> mapM tcConstr cs <*> mapM tcDerive ds)
-    Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> (,kType)       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDerive ds)
-    Type    lhs t          -> withLHS lhs $ \ lhs' -> first              (Type    lhs') <$> tInferTypeT t
-    Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> (,kConstraint) <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
-    Sign      is t         ->                                             Sign      is  <$> tCheckTypeTImpl kType t
-    ForImp ie i t          ->                                             ForImp ie i   <$> tCheckTypeTImpl kType t
-    Instance ct m          ->                                             Instance      <$> tCheckTypeTImpl kConstraint ct <*> return m
-    Default ts             ->                                             Default       <$> mapM (tCheckTypeT kType) ts
+    Data    lhs cs ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Data    lhs'  <$> mapM tcConstr cs <*> mapM tcDerive ds)
+    Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDerive ds)
+    Type    lhs t          -> withLHS lhs $ \ lhs' -> first                    (Type    lhs') <$> tInferTypeT t
+    Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> flip (,) kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
+    Sign      is t         ->                                                  Sign      is  <$> tCheckTypeTImpl kType t
+    ForImp ie i t          ->                                                  ForImp ie i   <$> tCheckTypeTImpl kType t
+    Instance ct m          ->                                                  Instance      <$> tCheckTypeTImpl kConstraint ct <*> return m
+    Default ts             ->                                                  Default       <$> mapM (tCheckTypeT kType) ts
     _                      -> return def
  where
    tcMethod (BSign i t) = BSign i <$> tCheckTypeTImpl kType t
@@ -1045,8 +1045,8 @@ tcConstr (Constr iks ct c ets) =
   assertTCMode (==TCType) $
   withVks iks $ \ iks' ->
     Constr iks' <$> tcCtx ct <*> pure c <*>
-      either (\ x -> Left  <$> mapM (\ (s,t)     ->         (s,)  <$> tcTypeT (Check kType) t) x)
-             (\ x -> Right <$> mapM (\ (i,(s,t)) -> ((i,) . (s,)) <$> tcTypeT (Check kType) t) x) ets
+      either (\ x -> Left  <$> mapM (\ (s,t)     ->         (,)s  <$> tcTypeT (Check kType) t) x)
+             (\ x -> Right <$> mapM (\ (i,(s,t)) -> ((,)i . (,)s) <$> tcTypeT (Check kType) t) x) ets
 
 -- Expand a class defintion to
 --  * a "data" type for the dictionary, with kind Constraint
@@ -1207,7 +1207,7 @@ tInferDefs :: [EDef] -> T [EDef]
 tInferDefs fcns = do
   tcReset
   -- Invent type variables for the definitions
-  xts <- mapM (\ (Fcn i _) -> (i,) <$> newUVar) fcns
+  xts <- mapM (\ (Fcn i _) -> (,) i <$> newUVar) fcns
   --traceM $ "tInferDefs: " ++ show (map fst xts)
   -- Temporarily extend the local environment with the type variables
   withExtVals xts $ do
@@ -1685,7 +1685,7 @@ dsEFields apat =
   case apat of
     EVar _ -> return apat
     EApp p1 p2 -> EApp <$> dsEFields p1 <*> dsEFields p2
-    EOper p1 ips -> EOper <$> dsEFields p1 <*> mapM (\ (i, p2) -> (i,) <$> dsEFields p2) ips
+    EOper p1 ips -> EOper <$> dsEFields p1 <*> mapM (\ (i, p2) -> (,) i <$> dsEFields p2) ips
     ELit _ _ -> return apat
     ETuple ps -> ETuple <$> mapM dsEFields ps
     EListish (LList ps) -> EListish . LList <$> mapM dsEFields ps
@@ -1914,7 +1914,7 @@ tCheckPatC t app ta = do
   app' <- dsEFields app
   let vs = patVars app'
   multCheck vs
-  env <- mapM (\ v -> (v,) <$> newUVar) vs
+  env <- mapM (\ v -> (,) v <$> newUVar) vs
   withExtVals env $ do
     (_sks, ds, pp) <- tCheckPat t app'
 --    traceM ("tCheckPatC: " ++ show pp)
