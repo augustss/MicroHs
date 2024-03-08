@@ -5,6 +5,7 @@
 module Text.ParserComb(
   Prsr, runPrsr,
   satisfy, satisfyM,
+  satisfyMany,
   --choice,
   many, emany, optional, eoptional,
   some, esome,
@@ -25,7 +26,7 @@ import Control.Monad
 
 data LastFail t
   = LastFail Int [t] [String]
-  --Xderiving (Show)
+  deriving (Show)
 
 maxInt :: Int
 maxInt = 1000000000
@@ -122,6 +123,13 @@ satisfyM msg f = P $ \ acs ->
   case tmNextToken acs of
     (c, cs) | Just a <- f c -> Many [(a, cs)] noFail
     _ -> Many [] (LastFail (tmLeft acs) (firstToken acs) [msg])
+
+satisfyMany :: forall tm t . TokenMachine tm t => (t -> Bool) -> Prsr tm t [t]
+satisfyMany f = P $ loop []
+  where loop res acs =
+          case tmNextToken acs of
+            (c, cs) | f c -> loop (c:res) cs
+                    | otherwise -> Many [(reverse res, acs)] noFail
 
 infixl 9 <?>
 (<?>) :: forall tm t a . Prsr tm t a -> String -> Prsr tm t a
