@@ -459,6 +459,7 @@ addInstDict i c = do
   c' <- expandSyn c
   ics <- expandDict (EVar i) c'
   addInstTable ics
+  addArgDict i c
 
 addEqDict :: Ident -> EType -> EType -> T ()
 addEqDict _i t1 t2 = do
@@ -471,6 +472,11 @@ addMetaDict i c = do
   ms <- gets metaTable
   putMetaTable ((i,c) : ms)
 
+addArgDict :: HasCallStack => Ident -> EConstraint -> T ()
+addArgDict i c = do
+  ads <- gets argDicts
+  putArgDicts ((i,c) : ads)
+
 initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ClassTable -> InstTable -> ValueTable -> AssocTable -> TCState
 initTC mn fs ts ss cs is vs as =
 --  trace ("**** initTC " ++ showIdent mn ++ ": " ++ showListS (showPairS showIdent showEType) (M.toList ss)) $
@@ -479,7 +485,7 @@ initTC mn fs ts ss cs is vs as =
     xvs = foldr (uncurry stInsertGlbU) vs primValues
   in TC { moduleName = mn, unique = 1, fixTable = addPrimFixs fs, typeTable = xts,
           synTable = ss, valueTable = xvs, assocTable = as, uvarSubst = IM.empty,
-          tcMode = TCExpr, classTable = cs, ctxTables = (is,[],[]), constraints = [], defaults = [] }
+          tcMode = TCExpr, classTable = cs, ctxTables = (is,[],[],[]), constraints = [], defaults = [] }
 
 addPrimFixs :: FixTable -> FixTable
 addPrimFixs =
@@ -2459,10 +2465,18 @@ solveMany (cns@(di, ct) : cnss) uns sol imp = do
   let loc = getSLoc di
       !(iCls, cts) = getApp ct
       solver = head [ s | (p, s) <- solvers, p iCls ]
-  msol <- solver loc iCls cts
-  case msol of
-    Nothing           -> solveMany        cnss  (cns : uns)            sol         imp
-    Just (de, gs, is) -> solveMany (gs ++ cnss)        uns ((di, de) : sol) (is ++ imp)
+  ads <- gets argDicts
+  -- Check if we have an exact match among the arguments dictionaries.
+  -- This is importand to find tupled dictionaries in recursive calls.
+  case [ ai | (ai, act) <- ads, ct `eqEType` act ] of
+    ai : _ -> do
+      --traceM $ "solve with arg " ++ show ct
+      solveMany cnss uns ((di, EVar ai) : sol) imp
+    [] -> do
+      msol <- solver loc iCls cts
+      case msol of
+        Nothing           -> solveMany        cnss  (cns : uns)            sol         imp
+        Just (de, gs, is) -> solveMany (gs ++ cnss)        uns ((di, de) : sol) (is ++ imp)
 
 solveInst :: SolveOne
 solveInst loc iCls cts = do

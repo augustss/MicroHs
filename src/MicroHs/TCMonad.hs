@@ -45,6 +45,7 @@ type ClassTable = M.Map ClassInfo  -- maps a class identifier to its associated 
 type InstTable  = M.Map InstInfo   -- indexed by class name
 type MetaTable  = [(Ident, EConstraint)]  -- instances with unification variables
 type Constraints= [(Ident, EConstraint)]
+type ArgDicts   = [(Ident, EConstraint)]  -- dictionary arguments
 type Defaults   = [EType]          -- Current defaults
 
 -- To make type checking fast it is essential to solve constraints fast.
@@ -92,19 +93,24 @@ data TCState = TC {
   classTable  :: ClassTable,            -- class info, indexed by QIdent
   ctxTables   :: (InstTable,            -- instances
                   MetaTable,            -- instances with unification variables
-                  TypeEqTable),         -- type equalities
+                  TypeEqTable,          -- type equalities
+                  ArgDicts              -- dictionary arguments
+                 ),             
   constraints :: Constraints,           -- constraints that have to be solved
   defaults    :: Defaults               -- current defaults
   }
 
 instTable :: TCState -> InstTable
-instTable tc = case ctxTables tc of (x,_,_) -> x
+instTable tc = case ctxTables tc of (x,_,_,_) -> x
 
 metaTable :: TCState -> MetaTable
-metaTable tc = case ctxTables tc of (_,x,_) -> x
+metaTable tc = case ctxTables tc of (_,x,_,_) -> x
 
 typeEqTable :: TCState -> TypeEqTable
-typeEqTable tc = case ctxTables tc of (_,_,x) -> x
+typeEqTable tc = case ctxTables tc of (_,_,x,_) -> x
+
+argDicts :: TCState -> ArgDicts
+argDicts tc = case ctxTables tc of (_,_,_,x) -> x
 
 
 putValueTable :: ValueTable -> T ()
@@ -124,20 +130,25 @@ putTCMode m = modify $ \ ts -> ts{ tcMode = m }
 
 putInstTable :: InstTable -> T ()
 putInstTable is = do
-  (_,ms,eqs) <- gets ctxTables
-  modify $ \ ts -> ts{ ctxTables = (is,ms,eqs) }
+  (_,ms,eqs,ads) <- gets ctxTables
+  modify $ \ ts -> ts{ ctxTables = (is,ms,eqs,ads) }
 
 putMetaTable :: MetaTable -> T ()
 putMetaTable ms = do
-  (is,_,eqs) <- gets ctxTables
-  modify $ \ ts -> ts{ ctxTables = (is,ms,eqs) }
+  (is,_,eqs,ads) <- gets ctxTables
+  modify $ \ ts -> ts{ ctxTables = (is,ms,eqs,ads) }
 
 putTypeEqTable :: TypeEqTable -> T ()
 putTypeEqTable eqs = do
-  (is,ms,_) <- gets ctxTables
-  modify $ \ ts -> ts{ ctxTables = (is,ms,eqs) }
+  (is,ms,_,ads) <- gets ctxTables
+  modify $ \ ts -> ts{ ctxTables = (is,ms,eqs,ads) }
 
-putCtxTables :: (InstTable, MetaTable, TypeEqTable) -> T ()
+putArgDicts :: ArgDicts -> T ()
+putArgDicts ads = do
+  (is,ms,eqs,_) <- gets ctxTables
+  modify $ \ ts -> ts{ ctxTables = (is,ms,eqs,ads) }
+
+putCtxTables :: (InstTable, MetaTable, TypeEqTable, ArgDicts) -> T ()
 putCtxTables ct = modify $ \ ts -> ts{ ctxTables = ct }
 
 putConstraints :: Constraints -> T ()
