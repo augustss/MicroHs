@@ -65,6 +65,7 @@ import Data.Traversable
 import Data.Tuple
 import Data.Typeable
 import Data.TypeLits
+import Data.Version
 import Data.Void
 import Data.Word
 import Data.ZipList
@@ -90,6 +91,7 @@ import System.IO_Handle
 import System.IO.MD5
 import System.IO.PrintOrRun
 import System.IO.Serialize
+import System.Info
 import System.Process
 import Text.PrettyPrint.HughesPJ
 import Text.PrettyPrint.HughesPJClass
