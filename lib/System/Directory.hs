@@ -2,6 +2,8 @@ module System.Directory(
   removeFile,
   doesFileExist,
   doesDirectoryExist,
+  getDirectoryContents,
+  listDirectory,
   ) where
 import Prelude
 import Control.Monad(when)
@@ -56,3 +58,6 @@ getDirectoryContents fn = withCAString fn $ \ cfn -> do
           s <- peekCAString sp
           loop (s:r)
   loop []
+
+listDirectory :: FilePath -> IO [String]
+listDirectory d = filter (\ n -> n /= "." && n /= "..") <$> getDirectoryContents d
