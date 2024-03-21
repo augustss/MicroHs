@@ -13,6 +13,9 @@
 #if WANT_MATH
 #include <math.h>
 #endif  /* WANT_MATH */
+#if WANT_DIR
+#include <dirent.h>
+#endif  /* WANT_DIR */
 
 #if WANT_MD5
 #include "md5.h"
@@ -3629,7 +3632,12 @@ void mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); mhs_
 void mhs_sizeof_int(int s) { mhs_from_Int(s, 0, sizeof(int)); }
 void mhs_sizeof_llong(int s) { mhs_from_Int(s, 0, sizeof(long long)); }
 void mhs_sizeof_long(int s) { mhs_from_Int(s, 0, sizeof(long)); }
-
+#if WANT_DIR
+void mhs_closedir(int s) { mhs_from_Int(s, 1, closedir(mhs_to_Ptr(s, 0))); }
+void mhs_opendir(int s) { mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0))); }
+void mhs_readdir(int s) { mhs_from_Ptr(s, 1, readdir(mhs_to_Ptr(s, 0))); }
+void mhs_c_d_name(int s) { mhs_from_Ptr(s, 1, ((struct dirent *)(mhs_to_Ptr(s, 0)))->d_name); }
+#endif  /* WANT_DIR */
 
 struct ffi_entry ffi_table[] = {
 { "GETRAW", mhs_GETRAW},
@@ -3729,6 +3737,12 @@ struct ffi_entry ffi_table[] = {
 { "sizeof_int", mhs_sizeof_int},
 { "sizeof_llong", mhs_sizeof_llong},
 { "sizeof_long", mhs_sizeof_long},
+#if WANT_DIR
+{ "c_d_name", mhs_c_d_name},
+{ "closedir", mhs_closedir},
+{ "opendir", mhs_opendir},
+{ "readdir", mhs_readdir},
+#endif  /* WANT_DIR */
 { 0,0 }
 };
 

@@ -34,6 +34,11 @@
 #define WANT_TICK 1
 
 /*
+ * Include directory manipulation
+ */
+#define WANT_DIR 1
+
+/*
  * Number of bits in a word.  Only 32 and 64 are supported.
  */
 //#define WORD_SIZE 64
