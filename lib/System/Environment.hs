@@ -5,6 +5,7 @@ module System.Environment(
   getProgName,
   withArgs,
   lookupEnv,
+  getEnv,
   ) where
 import Prelude
 import Primitives
@@ -43,3 +44,10 @@ lookupEnv var = do
     return Nothing
    else
     Just <$> peekCAString cptr
+
+getEnv :: String -> IO String
+getEnv var = do
+  mval <- lookupEnv var
+  case mval of
+    Nothing  -> error $ "getEnv: not found " ++ var
+    Just val -> return val

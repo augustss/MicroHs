@@ -4,9 +4,12 @@ module Control.Exception(
   Exn(..),
   exnToString,
   onException,
+  SomeException,
   ) where
 import Primitives
 import Prelude
+
+type SomeException = Exn
 
 newtype Exn = Exn String
 

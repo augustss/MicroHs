@@ -4,6 +4,7 @@ module System.Directory(
   doesDirectoryExist,
   getDirectoryContents,
   listDirectory,
+  setCurrentDirectory,
   ) where
 import Prelude
 import Control.Monad(when)
@@ -19,6 +20,7 @@ foreign import ccall "opendir"  c_opendir  :: CString -> IO (Ptr DIR)
 foreign import ccall "closedir" c_closedir :: Ptr DIR -> IO Int
 foreign import ccall "readdir"  c_readdir  :: Ptr DIR -> IO (Ptr Dirent)
 foreign import ccall "c_d_name" c_d_name   :: Ptr Dirent -> IO CString
+foreign import ccall "chdir"    c_chdir    :: CString -> IO Int
 
 removeFile :: FilePath -> IO ()
 removeFile fn = do
@@ -61,3 +63,9 @@ getDirectoryContents fn = withCAString fn $ \ cfn -> do
 
 listDirectory :: FilePath -> IO [String]
 listDirectory d = filter (\ n -> n /= "." && n /= "..") <$> getDirectoryContents d
+
+setCurrentDirectory :: FilePath -> IO ()
+setCurrentDirectory d = do
+  r <- withCAString d c_chdir
+  when (r /= 0) $
+    error $ "setCurrentDirectory failed: " ++ d
