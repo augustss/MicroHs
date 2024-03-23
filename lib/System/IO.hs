@@ -22,7 +22,7 @@ module System.IO(
   mkTextEncoding, hSetEncoding, utf8,
 
   getTimeMilli,
-  openTmpFile,
+  openTmpFile, openTempFile,
 
   withFile,
   ) where
@@ -290,23 +290,6 @@ hSetEncoding _ _ = return ()
 
 --------
 
--- Create a temporary file, take a prefix and a suffix
--- and returns a malloc()ed string.
-foreign import ccall "tmpname" c_tmpname :: CString -> CString -> IO CString
-
--- Create and open a temporary file.
-openTmpFile :: String -> IO (String, Handle)
-openTmpFile tmpl = do
-  let (pre, suf) =
-        case span (/= '.') (reverse tmpl) of
-          (rsuf, "") -> (tmpl, "")
-          (rsuf, _:rpre) -> (reverse rpre, '.':reverse rsuf)
-  ctmp <- withCAString pre $ withCAString suf . c_tmpname
-  tmp <- peekCAString ctmp
-  free ctmp
-  h <- openFile tmp ReadWriteMode
-  return (tmp, h)
-
 -- XXX needs bracket
 withFile :: forall r . FilePath -> IOMode -> (Handle -> IO r) -> IO r
 withFile fn md io = do
@@ -314,3 +297,41 @@ withFile fn md io = do
   r <- io h
   hClose h
   return r
+
+--------
+
+splitTmp :: String -> (String, String)
+splitTmp tmpl = 
+  case span (/= '.') (reverse tmpl) of
+    (rsuf, "") -> (tmpl, "")
+    (rsuf, _:rpre) -> (reverse rpre, '.':reverse rsuf)
+
+-- Create a temporary file, take a prefix and a suffix
+-- and returns a malloc()ed string.
+foreign import ccall "tmpname" c_tmpname :: CString -> CString -> IO CString
+
+-- Create and open a temporary file.
+openTmpFile :: String -> IO (String, Handle)
+openTmpFile tmpl = do
+  let (pre, suf) = splitTmp tmpl
+  ctmp <- withCAString pre $ withCAString suf . c_tmpname
+  tmp <- peekCAString ctmp
+  free ctmp
+  h <- openFile tmp ReadWriteMode
+  return (tmp, h)
+
+-- Sloppy implementation of openTempFile
+openTempFile :: FilePath -> String -> IO (String, Handle)
+openTempFile tmp tmplt = do
+  let (pre, suf) = splitTmp tmplt
+      loop n = do
+        let fn = tmp ++ "/" ++ pre ++ show n ++ suf
+        mh <- openFileM fn ReadMode
+        case mh of
+          Just h -> do
+            hClose h
+            loop (n+1 :: Int)
+          Nothing -> do
+            h <- openFile fn ReadWriteMode
+            return (fn, h)
+  loop 0

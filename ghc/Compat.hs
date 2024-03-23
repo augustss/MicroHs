@@ -127,7 +127,7 @@ openTmpFile tmplt = do
   res <- try $ openTempFile tmp tmplt
   case res of
     Right x -> return x
-    Left (_::SomeException) -> openTempFile "" tmplt
+    Left (_::SomeException) -> openTempFile "." tmplt
 
 usingMhs :: Bool
 usingMhs = False
