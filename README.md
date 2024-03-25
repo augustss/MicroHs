@@ -41,6 +41,7 @@ Differences:
  * Always enabled extension:
    * BangPatterns
    * ConstraintKinds
+   * DoAndIfThenElse
    * DuplicateRecordFields
    * EmptyDataDecls
    * ExistentialQuantification
