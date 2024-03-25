@@ -32,6 +32,8 @@ main = do
   dir <- fromMaybe "." <$> getMhsDir
   if take 1 args == ["--version"] then
     putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
+  else if take 1 args == ["--numeric-version"] then
+    putStrLn mhsVersion
    else do
     let (flags, mdls, rargs) = decodeArgs (defaultFlags dir) [] args
     withArgs rargs $              -- leave arguments after -- for any program we run
