@@ -30,11 +30,12 @@ main :: IO ()
 main = do
   args <- getArgs
   dir <- fromMaybe "." <$> getMhsDir
-  if take 1 args == ["--version"] then
-    putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
-   else do
+  case take 1 args of
+   ["--version"] -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
+   ["--numeric-version"] -> putStrLn mhsVersion
+   _ -> do
     let (flags, mdls, rargs) = decodeArgs (defaultFlags dir) [] args
-    withArgs rargs $              -- leave arguments after -- for any program we run
+    withArgs rargs $
       case mdls of
         []  -> mainInteractive flags
         [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
@@ -47,7 +48,7 @@ decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
 decodeArgs f mdls (arg:args) =
   case arg of
-    "--"        -> (f, mdls, args)
+    "--"        -> (f, mdls, args)              -- leave arguments after -- for any program we run
     "-v"        -> decodeArgs f{verbose = verbose f + 1} mdls args
     "-r"        -> decodeArgs f{runIt = True} mdls args
     "-l"        -> decodeArgs f{loading = True} mdls args
