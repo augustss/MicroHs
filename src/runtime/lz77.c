@@ -71,7 +71,7 @@ lz77d(uint8_t *src, size_t srclen, uint8_t **bufp)
   return outoffs;
 }
 
-static size_t
+static INLINE size_t
 match(uint8_t *src, uint8_t *win, uint8_t *end)
 {
   size_t n;
@@ -81,6 +81,7 @@ match(uint8_t *src, uint8_t *win, uint8_t *end)
   return n;
 }
 
+/* XXX finding the match really needs some clever speedup */
 size_t
 lz77c(uint8_t *src, size_t srclen, uint8_t **bufp)
 {
