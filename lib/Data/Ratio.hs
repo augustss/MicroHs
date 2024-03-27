@@ -4,16 +4,13 @@ module Data.Ratio(
   numerator, denominator,
   rationalInfinity,
   rationalNaN,
-  Rational,
+  rationalMinusZero,
   ) where
 import Prelude()              -- do not import Prelude
-import Primitives
-import Control.Error
 import Data.Bool
 import Data.Eq
 import Data.Fractional
 import Data.Function
---import Data.Int
 import Data.Integer
 import Data.Integral
 import Data.Num
@@ -22,10 +19,26 @@ import Data.Ratio_Type
 import Text.Show
 
 {- in Data.Ratio_Type
-data Ratio a = (:%) a a   -- XXX should be strict
-
-type Rational = Ratio Integer
+data Ratio a = !a :% !a
 -}
+-- The value x :% y represents the rational number x/y.
+-- The y is always >= 0, and the number is in reduced for,
+-- i.e., there are no common factor > 1 for x and y.
+-- In addition to the ordinary rationals, we use the "wheel"
+-- extension of the rationals.
+-- This means that the / operation is total.  In particular
+--  x/0 == 1/0 == rationalInfinity, when x/=0
+--  0/0 == rationalNaN (often called perp for wheels).
+-- Wheels obey most of the usual algebraic laws for rationals,
+-- but the distributive law has to be augmented to work for all
+-- numbers.
+--  (x + y) * z + 0*z == x*z + y*z
+-- When z is a normal rational number the is clearly the same
+-- as the usual distributive law.
+-- 
+-- NOTE. Experimentally, we extend this with:
+--  x/0 ==  1/0 when x > 0
+--  x/0 == -1/0 when x < 0
 
 instance forall a . Eq a => Eq (Ratio a) where
   (x :% y) == (x' :% y')  =  x == x' && y == y'
@@ -36,7 +49,7 @@ instance forall a . (Integral a, Ord a) => Ord (Ratio a) where
   (x :% y) >= (x' :% y')  =  x * y' >= x' * y
   (x :% y) >  (x' :% y')  =  x * y' >  x' * y
 
-instance forall a . (Integral a) => Num (Ratio a) where
+instance forall a . (Integral a, Ord a) => Num (Ratio a) where
   (x:%y) + (x':%y')   =  reduce (x*y' + x'*y) (y*y')
   (x:%y) - (x':%y')   =  reduce (x*y' - x'*y) (y*y')
   (x:%y) * (x':%y')   =  reduce (x * x') (y * y')
@@ -46,11 +59,10 @@ instance forall a . (Integral a) => Num (Ratio a) where
   fromInteger x       =  fromInteger x :% 1
 
 instance forall a . (Integral a, Ord a) => Fractional (Ratio a) where
-  (x:%y) / (x':%y')   = (x*y') % (y*x')
+  (x:%y) / (x':%y')   = reduce (x*y') (y*x')
   recip (x:%y)
-    | y == 0        = error "Data.Ratio.recip: division by 0"
-    | x < 0         = negate y :% negate x
-    | otherwise     = y :% x
+    | x < 0           = (-y) :% (-x)
+    | otherwise       =  y :%  x
   fromRational (x:%y) =  fromInteger x % fromInteger y
 
 instance forall a . (Show a) => Show (Ratio a)  where
@@ -65,17 +77,17 @@ rationalInfinity = 1 :% 0
 rationalNaN :: Rational
 rationalNaN = 0 :% 0
 
-infixl 7 %
-(%) :: forall a . (Integral a) => a -> a -> Ratio a
-x % y = reduce (x * signum y) (abs y)
+rationalMinusZero :: Rational
+rationalMinusZero = 0 :% (-1)
 
-reduce :: forall a . (Integral a) => a -> a -> Ratio a
-reduce x y =
-  if y == 0 then
-    error "Data.Ratio.%: 0 denominator"
-  else
-    let d = gcd x y
-    in  (x `quot` d) :% (y `quot` d)
+infixl 7 %
+(%) :: forall a . (Integral a, Ord a) => a -> a -> Ratio a
+x % y = reduce x y
+
+reduce :: forall a . (Ord a, Integral a) => a -> a -> Ratio a
+reduce x y | y > 0 = let d = gcd x y in (x `quot` d) :% (y `quot` d)
+           | y < 0 = reduce (- x) (- y)
+           | otherwise = signum x :% 0
 
 numerator :: forall a . Ratio a -> a
 numerator (x :% _) = x
