@@ -1647,6 +1647,7 @@ failureFree :: EPat -> Bool
 failureFree (EVar _) = True
 failureFree (ETuple ps) = all failureFree ps
 failureFree (ESign p _) = failureFree p
+failureFree (EAt _ p) = failureFree p
 failureFree _ = False
 
 eSetFields :: EField -> Expr -> Expr
