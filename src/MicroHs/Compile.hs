@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module MicroHs.Compile(
   compileCacheTop,
+  compileMany,
   mhsCacheName,
   getCached,
   validateCache,
@@ -14,6 +15,7 @@ import System.Directory
 import System.Environment
 import System.IO
 import System.IO.MD5
+import System.IO.Serialize
 import System.Process
 import Control.DeepSeq
 import MicroHs.Abstract
@@ -42,6 +44,9 @@ type Time = Int
 compileCacheTop :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [(Ident, Exp)]), Cache)
 compileCacheTop flags mn ch = do
   ((rmn, ds), ch') <- compile flags mn ch
+  -- get loaded packages
+  -- recursively load all dependencies
+  -- add everything to ds
   t1 <- getTimeMilli
   let
     dsn = [ (n, compileOpt e) | (n, e) <- ds ]
@@ -52,6 +57,9 @@ compileCacheTop flags mn ch = do
   when (verbosityGT flags 3) $
     putStrLn $ "combinators:\n" ++ showLDefs dsn
   return ((rmn, dsn), ch')
+
+compileMany :: Flags -> [IdentModule] -> Cache -> IO Cache
+compileMany flags mns ach = snd <$> runStateIO (mapM_ (compileModuleCached flags) mns) ach
 
 getCached :: Flags -> IO Cache
 getCached flags | not (readCache flags) = return emptyCache
@@ -74,6 +82,8 @@ compile flags nm ach = do
 
 -- Compile a module with the given name.
 -- If the module has already been compiled, return the cached result.
+-- If the module has not been compiled, first try to find a source file.
+-- If there is no source file, try loading a package.
 compileModuleCached :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Time)
 compileModuleCached flags mn = do
   cash <- get
@@ -82,41 +92,34 @@ compileModuleCached flags mn = do
       modify $ addWorking mn
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing " ++ showIdent mn
-      (cm@(tm,_,_), tp, tt, ts) <- compileModule flags mn
-      when (verbosityGT flags 0) $
-        liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tp + tt) ++
-                 "ms (" ++ show tp ++ " + " ++ show tt ++ ")"
-      when (loading flags && mn /= mkIdent "Interactive") $
-        liftIO $ putStrLn $ "loaded " ++ showIdent mn
-      modify $ workToDone cm
-      return (tm, tp + tt + ts)
+      mres <- liftIO (readModulePath flags mn)
+      case mres of
+        Nothing -> findPkgModule flags mn
+        Just (pathfn, file) -> compileModule flags mn pathfn file
     Just tm -> do
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing cached " ++ showIdent mn
       return (tm, 0)
 
--- Find and compile a module with the given name.
--- The times are (parsing, typecheck+desugar, imported modules)
-compileModule :: Flags -> IdentModule -> StateIO Cache (CModule, Time, Time, Time)
-compileModule flags nm = do
+compileModule :: Flags -> IdentModule -> FilePath -> String -> StateIO Cache (TModule [LDef], Time)
+compileModule flags mn pathfn file = do
   t1 <- liftIO getTimeMilli
-  (pathfn, file) <- liftIO (readModulePath flags nm)
   mchksum <- liftIO (md5File pathfn)  -- XXX there is a small gap between reading and computing the checksum.
   let chksum :: MD5CheckSum
       chksum = fromMaybe undefined mchksum
   let pmdl = parseDie pTop pathfn file
-      mdl@(EModule nmn _ defs) = addPreludeImport pmdl
+      mdl@(EModule mnn _ defs) = addPreludeImport pmdl
   
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
-  -- TODO: skip test when nm is a file name
-  when (isNothing (getFileName nm) && nm /= nmn) $
-    error $ "module name does not agree with file name: " ++ showIdent nm ++ " " ++ showIdent nmn
+  -- TODO: skip test when mn is a file name
+  when (isNothing (getFileName mn) && mn /= mnn) $
+    error $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
   let
     specs = [ s | Import s <- defs ]
     imported = [ m | ImportSpec _ m _ _ <- specs ]
   t2 <- liftIO getTimeMilli
-  (impMdls, ts) <- fmap unzip $ mapM (compileModuleCached flags) imported
+  (impMdls, its) <- fmap unzip $ mapM (compileModuleCached flags) imported
   t3 <- liftIO getTimeMilli
   let
     tmdl = typeCheck (zip specs impMdls) mdl
@@ -126,10 +129,18 @@ compileModule flags nm = do
     dmdl = desugar flags tmdl
   () <- return $ rnf $ bindingsOf dmdl
   t4 <- liftIO getTimeMilli
+  let tp = t2 - t1
+      tt = t4 - t3
+      ts = sum its
   when (verbosityGT flags 3) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
-  let cmdl = (dmdl, imported, chksum)
-  return (cmdl, t2-t1, t4-t3, sum ts)
+  when (verbosityGT flags 0) $
+    liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tp + tt) ++
+            "ms (" ++ show tp ++ " + " ++ show tt ++ ")"
+  when (loading flags && mn /= mkIdent "Interactive") $
+    liftIO $ putStrLn $ "loaded " ++ showIdent mn
+  modify $ workToDone (dmdl, imported, chksum)
+  return (dmdl, tp + tt + ts)
 
 addPreludeImport :: EModule -> EModule
 addPreludeImport (EModule mn es ds) =
@@ -195,9 +206,7 @@ getFileName m | ".hs" `isSuffixOf` s = Just s
              | otherwise = Nothing
   where s = unIdent m
 
--- TODO:
---  * with the CPP flag, run the prepocessor on the file
-readModulePath :: Flags -> IdentModule -> IO (FilePath, String)
+readModulePath :: Flags -> IdentModule -> IO (Maybe (FilePath, String))
 readModulePath flags mn | Just fn <- getFileName mn = do
   mh <- openFileM fn ReadMode
   case mh of
@@ -206,7 +215,7 @@ readModulePath flags mn | Just fn <- getFileName mn = do
                         | otherwise = do
   mh <- findModulePath flags mn
   case mh of
-    Nothing -> errorMessage (getSLoc mn) $ "Module not found: " ++ show mn ++ "\nsearch path=" ++ show (paths flags)
+    Nothing -> return Nothing
     Just (fn, h) -> readRest fn h
   where readRest fn h = do
           file <-
@@ -215,13 +224,16 @@ readModulePath flags mn | Just fn <- getFileName mn = do
               runCPPTmp flags fn
             else
               hGetContents h
-          return (fn, file)
+          return (Just (fn, file))
 
+
+moduleToFile :: IdentModule -> FilePath
+moduleToFile mn = map (\ c -> if c == '.' then '/' else c) (unIdent mn)
 
 findModulePath :: Flags -> IdentModule -> IO (Maybe (FilePath, Handle))
 findModulePath flags mn = do
   let
-    fn = map (\ c -> if c == '.' then '/' else c) (unIdent mn) ++ ".hs"
+    fn = moduleToFile mn ++ ".hs"
   openFilePath (paths flags) fn
 
 openFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
@@ -259,3 +271,30 @@ runCPP flags infile outfile = do
   when (verbosityGT flags 0) $
     putStrLn $ "Execute: " ++ show cmd
   callCommand cmd
+
+findPkgModule :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Time)
+findPkgModule flags mn = do
+  let fn = moduleToFile mn
+  mres <- liftIO $ openFilePath (pkgPath flags) fn
+  case mres of
+    Just (pfn, hdl) -> do
+      pkg <- liftIO $ hGetContents hdl
+      liftIO $ hClose hdl
+      let dir = take (length pfn - length fn) pfn  -- directory where the file was found
+      loadPkg flags dir pkg
+      cash <- get
+      case lookupCache mn cash of
+        Nothing -> error $ "package does not contain module " ++ pkg ++ " " ++ showIdent mn
+        Just t -> return (t, 0)
+    Nothing ->
+      errorMessage (getSLoc mn) $
+        "Module not found: " ++ show mn ++
+        "\nsearch path=" ++ show (paths flags) ++
+        "\npackage path=" ++ show (pkgPath flags)
+
+loadPkg :: Flags -> FilePath -> FilePath -> StateIO Cache ()
+loadPkg _flags dir fn = do
+  pkg <- liftIO $ readSerialized (dir ++ "/packages/" ++ fn)
+  modify $ addPackage pkg
+
+-- XXX add function to find&load package from package name

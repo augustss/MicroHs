@@ -2,7 +2,7 @@ module MicroHs.CompileCache(
   CModule,
   Cache, addWorking, emptyCache, deleteFromCache, workToDone,
   cachedModules, lookupCache, lookupCacheChksum, getImportDeps,
-  addPackage,
+  addPackage, getCompMdls, getPkgs,
   saveCache, loadCached,
   ) where
 import Prelude
@@ -72,6 +72,12 @@ lookupCacheChksum mn c = chksumOf <$> M.lookup mn (cache c)
 
 getImportDeps :: Cache -> [(IdentModule, [IdentModule])]
 getImportDeps cash = [ (tModuleName tm, imps) | CompMdl tm imps _ <- M.elems (cache cash) ]
+
+getCompMdls :: Cache -> [TModule [LDef]]
+getCompMdls cash = [ tm | CompMdl tm _ _ <- M.elems (cache cash) ]
+
+getPkgs :: Cache -> [Package]
+getPkgs = pkgs
 
 addPackage :: Package -> Cache -> Cache
 addPackage p c = c{ pkgs = p : pkgs c, cache = foldr ins (cache c) (pkgExported p) }

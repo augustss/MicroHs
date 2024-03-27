@@ -12,7 +12,9 @@ data Flags = Flags {
   useTicks   :: Bool,       -- emit ticks
   doCPP      :: Bool,       -- run ccphs on input files
   cppArgs    :: [String],   -- flags for CPP
-  compress   :: Bool        -- compress generated combinators
+  compress   :: Bool,       -- compress generated combinators
+  buildPkg   :: Maybe FilePath, -- build a package
+  pkgPath    :: [FilePath]  -- package search path
   }
   --deriving (Show)
 
@@ -32,5 +34,7 @@ defaultFlags dir = Flags {
   useTicks   = False,
   doCPP      = False,
   cppArgs    = [],
-  compress   = False
+  compress   = False,
+  buildPkg   = Nothing,
+  pkgPath    = []
   }

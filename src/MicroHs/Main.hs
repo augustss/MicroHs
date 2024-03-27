@@ -7,6 +7,7 @@ import Data.List
 import Control.DeepSeq
 import Control.Monad
 import Data.Maybe
+import Data.Version
 import System.Environment
 import MicroHs.Compile
 import MicroHs.CompileCache
@@ -14,11 +15,14 @@ import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
 import MicroHs.Ident
+import MicroHs.Package
 import MicroHs.Translate
+import MicroHs.TypeCheck(tModuleName)
 import MicroHs.Interactive
 import MicroHs.MakeCArray
 import System.Directory
 import System.IO
+import System.IO.Serialize
 import System.Process
 import Compat
 import MicroHs.Instances(getMhsDir) -- for GHC
@@ -35,11 +39,14 @@ main = do
    ["--numeric-version"] -> putStrLn mhsVersion
    _ -> do
     let (flags, mdls, rargs) = decodeArgs (defaultFlags dir) [] args
-    withArgs rargs $
-      case mdls of
-        []  -> mainInteractive flags
-        [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-        _   -> error usage
+    case buildPkg flags of
+      Just p -> mainBuildPkg flags p mdls
+      Nothing ->
+        withArgs rargs $
+          case mdls of
+            []  -> mainInteractive flags
+            [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+            _   -> error usage
 
 usage :: String
 usage = "Usage: mhs [--version] [-v] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [ModuleName]"
@@ -61,8 +68,26 @@ decodeArgs f mdls (arg:args) =
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
     '-':'D':s   -> decodeArgs f{cppArgs = cppArgs f ++ [s]} mdls args
+    '-':'P':s   -> decodeArgs f{buildPkg = Just s} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _           -> decodeArgs f (mdls ++ [arg]) args
+
+mainBuildPkg :: Flags -> String -> [String] -> IO ()
+mainBuildPkg flags pkgn amns = do
+  when (verbose flags > 0) $
+    putStrLn $ "Building package " ++ pkgn
+  let mns = map mkIdent amns
+  cash <- compileMany flags mns emptyCache
+  let mdls = getCompMdls cash
+      (exported, other) = partition ((`elem` mns) . tModuleName) mdls
+      pkgDeps = map pkgName $ getPkgs cash
+      pkg = Package { pkgName = mkIdent pkgn, pkgVersion = makeVersion [0]
+                    , pkgExported = exported, pkgOther = other
+                    , pkgDepends = map (,makeVersion [0]) pkgDeps }
+  print (map tModuleName $ pkgOther pkg)
+  when (verbose flags > 0) $
+    putStrLn $ "Writing package " ++ pkgn ++ " to " ++ output flags
+  writeSerializedCompressed (output flags) pkg
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
