@@ -79,10 +79,7 @@ compileModuleCached flags mn = do
   ch <- gets cache
   case M.lookup mn ch of
     Nothing -> do
-      ws <- gets working
-      when (elem mn ws) $
-        error $ "recursive module: " ++ showIdent mn ++ ", import chain: " ++ unwords (map showIdent ws)
-      modify $ \ c -> updWorking (mn : working c) c
+      modify $ addWorking mn
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing " ++ showIdent mn
       (cm, tp, tt, ts) <- compileModule flags mn
