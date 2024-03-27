@@ -8,7 +8,6 @@ import MicroHs.Desugar(LDef)
 import MicroHs.Expr(EType, showEType)
 import MicroHs.Flags
 import MicroHs.Ident(mkIdent, Ident)
-import qualified MicroHs.IdentMap as M
 import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.SymTab(Entry(..))
@@ -246,20 +245,20 @@ showKind line = do
     Left  e ->
       liftIO $ err e
 
-getCModule :: Cache -> CModule
+getCModule :: Cache -> TModule [LDef]
 getCModule cash =
-  case M.lookup interactiveId (cache cash) of
+  case lookupCache interactiveId cash of
     Nothing -> undefined   -- this cannot happen
     Just cm -> cm
 
 getTypeInCache :: Cache -> Ident -> EType
 getTypeInCache cash i =
-  case tModuleOf (getCModule cash) of
+  case getCModule cash of
     TModule _ _ _ _ _ _ vals _ ->
       head $ [ t | ValueExport i' (Entry _ t) <- vals, i == i' ] ++ [undefined]
 
 getKindInCache :: Cache -> Ident -> EType
 getKindInCache cash i =
-  case tModuleOf (getCModule cash) of
+  case getCModule cash of
     TModule _ _ tys _ _ _ _ _ ->
       head $ [ k | TypeExport i' (Entry _ k) _ <- tys, i == i' ] ++ [undefined]

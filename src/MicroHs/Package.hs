@@ -1,31 +1,34 @@
 module MicroHs.Package(
-  PackageName, PackageVersion,
+  IdentPackage,
   Package(..),
   ) where
+import Data.Version
 import MicroHs.Desugar(LDef)
+import MicroHs.Ident(Ident)
 import MicroHs.TypeCheck(TModule)
 
 --
--- Packages are organized as follows.
--- The environment variable $PKGDIR determines the location,
--- with the default $HOME/.mcabal/packages
--- The file $PKGDIR/toc.txt the the table of contents.
--- Each line is the name of a package followed by the exported modules.
--- For each package 'foo' there is a serialized package
--- in $PKGDIR/foo.pkg
--- On startup the table of contents is read.
--- From this we get a map from module names to package file names.
--- On first use of a package module, we load the corresponding package file.
--- There is also a map from package names to loaded packages.
+-- Packages are organized as follows:
+-- There is a package search path (default is ~/.mcabal/mhs-VERSION/)
+-- In this directory there is a subdirectory, packages, that contains a
+-- serialized Package for each installed package.
+-- There is also a file for each exported module that contains just
+-- the package name.
+-- So if we have a package foo, exporting modules Foo.Bar and Foo.baz
+-- we would have the following directory structure
+--   packages/foo.pkg
+--   Foo/Bar
+--   Foo/Baz
+-- The files Foo/Bar and Foo/Baz will contain simply "foo".
 -- 
 
-
-type PackageName = String
-type PackageVersion = String
+type IdentPackage = Ident
 
 data Package = Package {
-  pkgName      :: PackageName,                     -- package name
-  pkgVersion   :: PackageVersion,                  -- package version
-  pkgExported  :: [TModule [LDef]]                 -- exported modules
-  pkgOther     :: [TModule [LDef]]                 -- non-exported modules
-  pkgDepends   :: [(PackageName, PackageVersion)]  -- used packages
+  pkgName      :: IdentPackage,                    -- package name
+  pkgVersion   :: Version,                         -- package version
+  pkgExported  :: [TModule [LDef]],                -- exported modules
+  pkgOther     :: [TModule [LDef]],                -- non-exported modules
+  pkgDepends   :: [(IdentPackage, Version)]        -- used packages
+  }
+  -- deriving (Show)

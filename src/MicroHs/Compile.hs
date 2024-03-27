@@ -70,31 +70,30 @@ compile flags nm ach = do
   ((cm, t), ch) <- runStateIO (compileModuleCached flags nm) ach
   when (verbosityGT flags 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (show t) ++ "ms"
-  return ((tModuleName $ tModuleOf cm, concatMap bindingsOf $ map tModuleOf $ M.elems $ cache ch), ch)
+  return ((tModuleName cm, concatMap bindingsOf $ cachedModules ch), ch)
 
 -- Compile a module with the given name.
 -- If the module has already been compiled, return the cached result.
-compileModuleCached :: Flags -> IdentModule -> StateIO Cache (CModule, Time)
+compileModuleCached :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Time)
 compileModuleCached flags mn = do
-  ch <- gets cache
-  case M.lookup mn ch of
+  cash <- get
+  case lookupCache mn cash of
     Nothing -> do
       modify $ addWorking mn
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing " ++ showIdent mn
-      (cm, tp, tt, ts) <- compileModule flags mn
+      (cm@(tm,_,_), tp, tt, ts) <- compileModule flags mn
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tp + tt) ++
                  "ms (" ++ show tp ++ " + " ++ show tt ++ ")"
       when (loading flags && mn /= mkIdent "Interactive") $
         liftIO $ putStrLn $ "loaded " ++ showIdent mn
-      cash <- get
-      put $ workToDone cm cash
-      return (cm, tp + tt + ts)
-    Just cm -> do
+      modify $ workToDone cm
+      return (tm, tp + tt + ts)
+    Just tm -> do
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing cached " ++ showIdent mn
-      return (cm, 0)
+      return (tm, 0)
 
 -- Find and compile a module with the given name.
 -- The times are (parsing, typecheck+desugar, imported modules)
@@ -120,7 +119,7 @@ compileModule flags nm = do
   (impMdls, ts) <- fmap unzip $ mapM (compileModuleCached flags) imported
   t3 <- liftIO getTimeMilli
   let
-    tmdl = typeCheck (zip specs (map tModuleOf impMdls)) mdl
+    tmdl = typeCheck (zip specs impMdls) mdl
   when (verbosityGT flags 2) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   let
@@ -129,7 +128,7 @@ compileModule flags nm = do
   t4 <- liftIO getTimeMilli
   when (verbosityGT flags 3) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
-  let cmdl = CModule dmdl imported chksum
+  let cmdl = (dmdl, imported, chksum)
   return (cmdl, t2-t1, t4-t3, sum ts)
 
 addPreludeImport :: EModule -> EModule
@@ -149,12 +148,13 @@ addPreludeImport (EModule mn es ds) =
 -------------------------------------------
 
 validateCache :: Flags -> Cache -> IO Cache
-validateCache flags cash = execStateIO (mapM_ validate (M.keys (cache cash))) cash
+validateCache flags acash = execStateIO (mapM_ (validate . fst) fdeps) acash
   where
-    deps = invertGraph [ (tModuleName tm, imps) | CModule tm imps _ <- M.elems (cache cash) ]
+    fdeps = getImportDeps acash                           -- forwards dependencies
+    deps = invertGraph fdeps                              -- backwards dependencies
     invalidate :: IdentModule -> StateIO Cache ()
     invalidate mn = do
-      b <- gets $ isJust . M.lookup mn . cache
+      b <- gets $ isJust . lookupCache mn
       when b $ do
         -- It's still in the cache, so invalidate it, and all modules that import it
         when (verbosityGT flags 0) $
@@ -163,10 +163,10 @@ validateCache flags cash = execStateIO (mapM_ validate (M.keys (cache cash))) ca
         mapM_ invalidate $ fromMaybe [] $ M.lookup mn deps
     validate :: IdentModule -> StateIO Cache ()
     validate mn = do
-      ch <- get
-      case M.lookup mn (cache ch) of
+      cash <- get
+      case lookupCacheChksum mn cash of
         Nothing -> return () -- no longer in the cache, so just ignore.
-        Just (CModule _ _ chksum) -> do
+        Just chksum -> do
           mhdl <- liftIO $ findModulePath flags mn
           case mhdl of
             Nothing ->
