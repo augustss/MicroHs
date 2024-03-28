@@ -16,6 +16,8 @@
 #if WANT_DIR
 #include <dirent.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #endif  /* WANT_DIR */
 
 #if WANT_MD5
@@ -3639,6 +3641,7 @@ void mhs_opendir(int s) { mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0))); }
 void mhs_readdir(int s) { mhs_from_Ptr(s, 1, readdir(mhs_to_Ptr(s, 0))); }
 void mhs_c_d_name(int s) { mhs_from_Ptr(s, 1, ((struct dirent *)(mhs_to_Ptr(s, 0)))->d_name); }
 void mhs_chdir(int s) { mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
+void mhs_mkdir(int s) { mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
 
 struct ffi_entry ffi_table[] = {
@@ -3745,6 +3748,7 @@ struct ffi_entry ffi_table[] = {
 { "opendir", mhs_opendir},
 { "readdir", mhs_readdir},
 { "chdir", mhs_chdir},
+{ "mkdir", mhs_mkdir},
 #endif  /* WANT_DIR */
 { 0,0 }
 };
