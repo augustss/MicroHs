@@ -14,9 +14,10 @@ data Flags = Flags {
   cppArgs    :: [String],   -- flags for CPP
   compress   :: Bool,       -- compress generated combinators
   buildPkg   :: Maybe FilePath, -- build a package
-  pkgPath    :: [FilePath]  -- package search path
+  pkgPath    :: [FilePath], -- package search path
+  installPkg :: Bool        -- install a package
   }
-  --deriving (Show)
+  -- deriving (Show)
 
 verbosityGT :: Flags -> Int -> Bool
 verbosityGT flags v = verbose flags > v
@@ -36,5 +37,6 @@ defaultFlags dir = Flags {
   cppArgs    = [],
   compress   = False,
   buildPkg   = Nothing,
-  pkgPath    = []
+  pkgPath    = [],
+  installPkg = False
   }

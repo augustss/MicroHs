@@ -79,6 +79,8 @@ lex loc (d:cs) | isLower_ d =
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('0':x:cs) | toLower x == 'x' = hexNumber loc cs
+                   | toLower x == 'o' = octNumber loc cs
+                   | toLower x == 'b' = binNumber loc cs
 lex loc cs@(d:_) | isDigit d = number loc cs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
@@ -102,7 +104,18 @@ lex _ [] = []
 hexNumber :: SLoc -> String -> [Token]
 hexNumber loc cs =
   case span isHexDigit cs of
-    (ds, rs) -> TInt loc (readHex ds) : lex (addCol loc $ length ds + 2) rs
+    (ds, rs) -> TInt loc (readBase 16 ds) : lex (addCol loc $ length ds + 2) rs
+
+octNumber :: SLoc -> String -> [Token]
+octNumber loc cs =
+  case span isOctDigit cs of
+    (ds, rs) -> TInt loc (readBase 8 ds) : lex (addCol loc $ length ds + 2) rs
+
+binNumber :: SLoc -> String -> [Token]
+binNumber loc cs =
+  case span isBinDigit cs of
+    (ds, rs) -> TInt loc (readBase 2 ds) : lex (addCol loc $ length ds + 2) rs
+  where isBinDigit c = c == '0' || c == '1'
 
 number :: SLoc -> String -> [Token]
 number loc cs =
@@ -246,8 +259,8 @@ tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
 tokensLoc _                   = mkLocEOF
 
-readHex :: String -> Integer
-readHex = foldl (\ r c -> r * 16 + toInteger (digitToInt c)) 0
+readBase :: Integer -> String -> Integer
+readBase b = foldl (\ r c -> r * b + toInteger (digitToInt c)) 0
 
 -- | This is the magical layout resolver, straight from the Haskell report.
 -- https://www.haskell.org/onlinereport/haskell2010/haskellch10.html#x17-17800010.3

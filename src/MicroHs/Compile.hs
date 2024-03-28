@@ -7,6 +7,7 @@ module MicroHs.Compile(
   getCached,
   validateCache,
   Cache, emptyCache, deleteFromCache,
+  moduleToFile,
   ) where
 import Prelude
 import Data.List

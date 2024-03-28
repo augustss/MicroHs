@@ -28,20 +28,23 @@ import Compat
 import MicroHs.Instances(getMhsDir) -- for GHC
 
 mhsVersion :: String
-mhsVersion = "0.9.8.0"
+mhsVersion = "0.9.9.0"
 
 main :: IO ()
 main = do
   args <- getArgs
   dir <- fromMaybe "." <$> getMhsDir
-  case take 1 args of
+  home <- getEnv "HOME"
+  case args of
    ["--version"] -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
    ["--numeric-version"] -> putStrLn mhsVersion
    _ -> do
-    let (flags, mdls, rargs) = decodeArgs (defaultFlags dir) [] args
+    let dflags = (defaultFlags dir){ pkgPath = [home ++ "/.mcabal/mhs-" ++ mhsVersion] }
+        (flags, mdls, rargs) = decodeArgs dflags [] args
     case buildPkg flags of
       Just p -> mainBuildPkg flags p mdls
       Nothing ->
+        if installPkg flags then mainInstallPackage flags mdls else
         withArgs rargs $
           case mdls of
             []  -> mainInteractive flags
@@ -49,7 +52,7 @@ main = do
             _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [-v] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [ModuleName]"
+usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [-PPKG] [-Q PKG] [ModuleName...]"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
@@ -57,6 +60,7 @@ decodeArgs f mdls (arg:args) =
   case arg of
     "--"        -> (f, mdls, args)              -- leave arguments after -- for any program we run
     "-v"        -> decodeArgs f{verbose = verbose f + 1} mdls args
+    "-q"        -> decodeArgs f{verbose = -1} mdls args
     "-r"        -> decodeArgs f{runIt = True} mdls args
     "-l"        -> decodeArgs f{loading = True} mdls args
     "-CR"       -> decodeArgs f{readCache = True} mdls args
@@ -65,6 +69,7 @@ decodeArgs f mdls (arg:args) =
     "-T"        -> decodeArgs f{useTicks = True} mdls args
     "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
     "-z"        -> decodeArgs f{compress = True} mdls args
+    "-Q"        -> decodeArgs f{installPkg = True} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
     '-':'D':s   -> decodeArgs f{cppArgs = cppArgs f ++ [s]} mdls args
@@ -156,3 +161,22 @@ mainCompile flags mn = do
        ct2 <- getTimeMilli
        when (verbosityGT flags 0) $
          putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"
+
+mainInstallPackage :: Flags -> [FilePath] -> IO ()
+mainInstallPackage flags [pkgfn, dir] = do
+  when (verbosityGT flags 0) $
+    putStrLn $ "Installing package " ++ pkgfn ++ " in " ++ dir
+  pkg <- readSerialized pkgfn
+  let pdir = dir ++ "/packages"
+  createDirectoryIfMissing True pdir
+  copyFile pkgfn (pdir ++ "/" ++ pkgfn)
+  let mk tm = do
+        let fn = dir ++ "/" ++ moduleToFile (tModuleName tm)
+            d = dropWhileEnd (/= '/') fn
+        when (verbosityGT flags 1) $
+          putStrLn $ "create " ++ fn
+        createDirectoryIfMissing True d
+        writeFile fn pkgfn
+  mapM_ mk (pkgExported pkg)
+mainInstallPackage flags [pkgfn] = mainInstallPackage flags [pkgfn, head (pkgPath flags)]
+mainInstallPackage _ _ = error usage
