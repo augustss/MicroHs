@@ -173,11 +173,20 @@ filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs 
     keep x xs = elem x xs /= hide
     ivs = [ i | ImpValue i <- is ]
     vs' = filter (\ (ValueExport i _) -> keep i ivs) vs
-    cts = [ i | ImpTypeAll i <- is ] ++ [ i | ImpTypeSome i (_:_) <- is ]  -- XXX
-    its = [ i | ImpTypeSome i [] <- is ] ++ cts
-    ts' = map (\ (TypeExport i e xvs) -> TypeExport i e $ filter (\ (ValueExport ii _) -> not hide || keep ii ivs) xvs) $
-          map (\ te@(TypeExport i e _) -> if keep i cts then te else TypeExport i e []) $
-          filter (\ (TypeExport i _ _) -> keep i its) ts
+--    cts = [ i | ImpTypeAll i <- is ] ++ [ i | ImpTypeSome i (_:_) <- is ]  -- XXX
+--    its = [ i | ImpTypeSome i [] <- is ] ++ cts
+    aits = [ i | ImpTypeAll i <- is ]         -- all T(..) imports
+    its = [ i | ImpTypeSome i _ <- is ] ++ aits
+    -- XXX This isn't quite right, hiding T() should hide T, but not the constructors
+    ts' =
+      if hide then
+        let ok xs (ValueExport i _) = i `notElem` ivs && i `notElem` xs in
+        [ TypeExport i e (filter (ok []) ves) | TypeExport i e ves <- ts, i `notElem` its ] ++
+        [ TypeExport i e (filter (ok xs) ves) | TypeExport i e ves <- ts, ImpTypeSome i' xs <- is, i == i' ]
+      else
+        let ok xs (ValueExport i _) = i `elem` ivs || i `elem` xs in
+        [ TypeExport i e                 ves  | TypeExport i e ves <- ts, i `elem` aits ] ++
+        [ TypeExport i e (filter (ok xs) ves) | TypeExport i e ves <- ts, ImpTypeSome i' xs <- is, i == i' ]
     msg = "not exported"
     allVs = map (\ (ValueExport i _) -> i) vs ++
             concatMap (\ (TypeExport _ _ xvs) -> map (\ (ValueExport i _) -> i) xvs) ts
