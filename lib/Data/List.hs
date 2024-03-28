@@ -254,6 +254,9 @@ dropWhile p (x:xs) =
   else
     x : xs
 
+dropWhileEnd :: (a -> Bool) -> [a] -> [a]
+dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x : xs) []
+
 span :: forall a . (a -> Bool) -> [a] -> ([a], [a])
 span p =
   let
@@ -416,3 +419,26 @@ groupBy :: (a -> a -> Bool) -> [a] -> [[a]]
 groupBy _  []     =  []
 groupBy eq (x:xs) =  (x:ys) : groupBy eq zs
   where (ys,zs) = span (eq x) xs
+
+scanl                   :: (b -> a -> b) -> b -> [a] -> [b]
+scanl f = rec
+  where rec q ls = q : case ls of
+                         []   -> []
+                         x:xs -> rec (f q x) xs
+
+scanl1 :: (a -> a -> a) -> [a] -> [a]
+scanl1 f (x:xs) = scanl f x xs
+scanl1 _ []     = []
+
+scanr :: (a -> b -> b) -> b -> [a] -> [b]
+scanr f z = rec
+  where rec []     =  [z]
+        rec (x:xs) =  f x q : qs
+              where qs@(q:_) = rec xs
+
+scanr1 :: (a -> a -> a) -> [a] -> [a]
+scanr1 f = rec
+  where rec []     = []
+        rec [x]    = [x]
+        rec (x:xs) = f x q : qs
+              where qs@(q:_) = rec xs
