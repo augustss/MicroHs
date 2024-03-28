@@ -72,7 +72,8 @@ decodeArgs f mdls (arg:args) =
     "-Q"        -> decodeArgs f{installPkg = True} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
-    '-':'D':s   -> decodeArgs f{cppArgs = cppArgs f ++ [s]} mdls args
+    '-':'D':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
+    '-':'I':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'P':s   -> decodeArgs f{buildPkg = Just s} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _           -> decodeArgs f (mdls ++ [arg]) args
