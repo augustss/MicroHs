@@ -7,6 +7,7 @@ module System.Directory(
   setCurrentDirectory,
   createDirectory,
   createDirectoryIfMissing,
+  copyFile,
   ) where
 import Prelude
 import Control.Monad(when)
@@ -89,3 +90,12 @@ createDirectoryIfMissing True d = do
       split r ('/':cs) = r : split [] cs
       split r (c:cs) = split (r ++ [c]) cs
   mapM_ (createDirectoryIfMissing False) ds
+
+-- XXX does not copy flags
+copyFile :: FilePath -> FilePath -> IO ()
+copyFile src dst = do
+  hsrc <- openBinaryFile src ReadMode
+  hdst <- openBinaryFile dst WriteMode
+  file <- hGetContents hsrc  -- this also closes the file
+  hPutStr hdst file
+  hClose hdst
