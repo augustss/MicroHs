@@ -5,6 +5,8 @@ module System.Directory(
   getDirectoryContents,
   listDirectory,
   setCurrentDirectory,
+  createDirectory,
+  createDirectoryIfMissing,
   ) where
 import Prelude
 import Control.Monad(when)
@@ -21,6 +23,7 @@ foreign import ccall "closedir" c_closedir :: Ptr DIR -> IO Int
 foreign import ccall "readdir"  c_readdir  :: Ptr DIR -> IO (Ptr Dirent)
 foreign import ccall "c_d_name" c_d_name   :: Ptr Dirent -> IO CString
 foreign import ccall "chdir"    c_chdir    :: CString -> IO Int
+foreign import ccall "mkdir"    c_mkdir    :: CString -> Int -> IO Int
 
 removeFile :: FilePath -> IO ()
 removeFile fn = do
@@ -69,3 +72,20 @@ setCurrentDirectory d = do
   r <- withCAString d c_chdir
   when (r /= 0) $
     error $ "setCurrentDirectory failed: " ++ d
+
+createDirectory :: FilePath -> IO ()
+createDirectory d = do
+  r <- withCAString d $ \ s -> c_mkdir s 0o775       -- rwxrwxr-x
+  when (r /= 0) $
+    error $ "Cannot create directory " ++ show d
+
+createDirectoryIfMissing :: Bool -> FilePath -> IO ()
+createDirectoryIfMissing False d = do
+  _ <- withCAString d $ \ s -> c_mkdir s 0o775       -- rwxrwxr-x
+  return ()
+createDirectoryIfMissing True d = do
+  let ds = scanl1 (\ x y -> x ++ "/" ++ y) . split [] $ d
+      split r [] = [r]
+      split r ('/':cs) = r : split [] cs
+      split r (c:cs) = split (r ++ [c]) cs
+  mapM_ (createDirectoryIfMissing False) ds
