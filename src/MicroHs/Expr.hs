@@ -60,8 +60,8 @@ data EModule = EModule IdentModule [ExportItem] [EDef]
 
 data ExportItem
   = ExpModule IdentModule
-  | ExpTypeCon Ident
-  | ExpType Ident
+  | ExpTypeSome Ident [Ident]
+  | ExpTypeAll Ident
   | ExpValue Ident
 --DEBUG  deriving (Show)
 
@@ -84,8 +84,8 @@ data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]
 --DEBUG  deriving (Show)
 
 data ImportItem
-  = ImpTypeCon Ident
-  | ImpType Ident
+  = ImpTypeSome Ident [Ident]
+  | ImpTypeAll Ident
   | ImpValue Ident
 --DEBUG  deriving (Show)
 
@@ -564,9 +564,13 @@ showEType = render . ppEType
 ppImportItem :: ImportItem -> Doc
 ppImportItem ae =
   case ae of
-    ImpTypeCon i -> ppIdent i <> text "(..)"
-    ImpType i -> ppIdent i
+    ImpTypeSome i [] -> ppIdent i
+    ImpTypeSome i is -> ppIdent i <> parens (ppCommaSep $ map ppIdent is)
+    ImpTypeAll i -> ppIdent i <> text "(..)"
     ImpValue i -> ppIdent i
+
+ppCommaSep :: [Doc] -> Doc
+ppCommaSep = hsep . punctuate (text ",")
 
 ppEDef :: EDef -> Doc
 ppEDef def =

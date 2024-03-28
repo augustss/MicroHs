@@ -260,10 +260,12 @@ pString = satisfyM "string" is
 
 pExportItem :: P ExportItem
 pExportItem =
-      ExpModule <$> (pKeyword "module" *> pUQIdent)
-  <|< ExpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pConList <* pSpec ')')
-  <|< ExpType <$> pUQIdentSym
-  <|< ExpValue <$> pLQIdentSym
+      ExpModule   <$> (pKeyword "module" *> pUQIdent)
+  <|< expType     <$> pUQIdentSym <*> (pSpec '(' *> pConList <* pSpec ')')
+  <|< ExpTypeSome <$> pUQIdentSym <*> pure []
+  <|< ExpValue    <$> pLQIdentSym
+  where expType i Nothing   = ExpTypeAll  i
+        expType i (Just is) = ExpTypeSome i is
 
 pKeyword :: String -> P ()
 pKeyword kw = () <$ satisfy kw is
@@ -376,12 +378,16 @@ pImportSpec =
 
 pImportItem :: P ImportItem
 pImportItem =
-      ImpTypeCon <$> (pUQIdentSym <* pSpec '(' <* pConList <* pSpec ')')
-  <|< ImpType <$> pUQIdentSym
-  <|< ImpValue <$> pLQIdentSym
+      impType     <$> pUQIdentSym <*> (pSpec '(' *> pConList <* pSpec ')')
+  <|< ImpTypeSome <$> pUQIdentSym <*> pure []
+  <|< ImpValue    <$> pLQIdentSym
+  where impType i Nothing   = ImpTypeAll  i
+        impType i (Just is) = ImpTypeSome i is
 
-pConList :: P ()
-pConList = pSymbol ".." <|< (() <$ esepBy1 pQIdent (pSpec ','))   -- XXX treat list as ..
+pConList :: P (Maybe [Ident])
+pConList =
+      (Nothing <$ pSymbol "..")
+  <|< (Just <$> esepBy1 (pQIdent <|> pParens pSymOper) (pSpec ','))
 
 --------
 -- Types

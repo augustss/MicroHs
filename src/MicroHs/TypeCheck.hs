@@ -173,8 +173,8 @@ filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs 
     keep x xs = elem x xs /= hide
     ivs = [ i | ImpValue i <- is ]
     vs' = filter (\ (ValueExport i _) -> keep i ivs) vs
-    cts = [ i | ImpTypeCon i <- is ]
-    its = [ i | ImpType i <- is ] ++ cts
+    cts = [ i | ImpTypeAll i <- is ] ++ [ i | ImpTypeSome i (_:_) <- is ]  -- XXX
+    its = [ i | ImpTypeSome i [] <- is ] ++ cts
     ts' = map (\ (TypeExport i e xvs) -> TypeExport i e $ filter (\ (ValueExport ii _) -> not hide || keep ii ivs) xvs) $
           map (\ te@(TypeExport i e _) -> if keep i cts then te else TypeExport i e []) $
           filter (\ (TypeExport i _ _) -> keep i its) ts
@@ -198,30 +198,28 @@ checkBad msg (i:_) _ =
 
 -- Type and value exports
 getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ClassTable -> ExportItem ->
-           ([TypeExport], [ClsDef], [ValueExport])
+             ([TypeExport], [ClsDef], [ValueExport])
 getTVExps impMap _ _ _ _ (ExpModule m) =
   case M.lookup m impMap of
     Just (TModule _ _ te _ ce _ ve _) -> (te, ce, ve)
     _ -> errorMessage (getSLoc m) $ "undefined module: " ++ showIdent m
-getTVExps _ tys vals ast cls (ExpTypeCon i) =
-  let
-    e = expLookup i tys
-    qi = tyQIdent e
-    ves = getAssocs vals ast qi
-    cl = case M.lookup qi cls of
-           Just ci -> [(qi, ci)]
-           Nothing -> []
-  in ([TypeExport i e ves], cl, [])
-getTVExps _ tys _ _ cls (ExpType i) =
-  let
-    e = expLookup i tys
-    qi = tyQIdent e
-    cl = case M.lookup qi cls of
-           Just ci -> [(qi, ci)]
-           Nothing -> []
-  in ([TypeExport i e []], cl, [])
+getTVExps _ tys vals ast cls (ExpTypeSome i is) = getTypeExp tys vals ast cls i (`elem` is)
+getTVExps _ tys vals ast cls (ExpTypeAll  i   ) = getTypeExp tys vals ast cls i (const True)
 getTVExps _ _ vals _ _ (ExpValue i) =
     ([], [], [ValueExport i (expLookup i vals)])
+
+-- Export a type, filter exported values by p.
+getTypeExp :: TypeTable -> ValueTable -> AssocTable -> ClassTable -> Ident -> (Ident -> Bool) ->
+              ([TypeExport], [ClsDef], [ValueExport])
+getTypeExp tys vals ast cls ti p =
+  let
+    e = expLookup ti tys
+    qi = tyQIdent e
+    ves = filter (\ (ValueExport i _) -> p i) $ getAssocs vals ast qi
+    cl = case M.lookup qi cls of
+           Just ci -> [(qi, ci)]
+           Nothing -> []
+  in ([TypeExport ti e ves], cl, [])
 
 expLookup :: Ident -> SymTab -> Entry
 expLookup i m = either (errorMessage (getSLoc i)) id $ stLookup "export" i m
