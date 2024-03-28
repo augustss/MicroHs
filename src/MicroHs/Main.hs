@@ -164,12 +164,13 @@ mainCompile flags mn = do
 
 mainInstallPackage :: Flags -> [FilePath] -> IO ()
 mainInstallPackage flags [pkgfn, dir] = do
-  when (verbosityGT flags 0) $
+  when (verbosityGT flags (-1)) $
     putStrLn $ "Installing package " ++ pkgfn ++ " in " ++ dir
   pkg <- readSerialized pkgfn
-  let pdir = dir ++ "/packages"
+  let pdir = dir ++ "/" ++ packageDir
+      pkgfn' = dropSuffix pkgfn ++ packageSuffix
   createDirectoryIfMissing True pdir
-  copyFile pkgfn (pdir ++ "/" ++ pkgfn)
+  copyFile pkgfn (pdir ++ "/" ++ pkgfn')
   let mk tm = do
         let fn = dir ++ "/" ++ moduleToFile (tModuleName tm)
             d = dropWhileEnd (/= '/') fn
@@ -180,3 +181,9 @@ mainInstallPackage flags [pkgfn, dir] = do
   mapM_ mk (pkgExported pkg)
 mainInstallPackage flags [pkgfn] = mainInstallPackage flags [pkgfn, head (pkgPath flags)]
 mainInstallPackage _ _ = error usage
+
+dropSuffix :: FilePath -> FilePath
+dropSuffix s =
+  case dropWhileEnd (/= '.') s of
+    [] -> s
+    r  -> r

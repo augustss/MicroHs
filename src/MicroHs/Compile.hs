@@ -8,6 +8,7 @@ module MicroHs.Compile(
   validateCache,
   Cache, emptyCache, deleteFromCache,
   moduleToFile,
+  packageDir, packageSuffix,
   ) where
 import Prelude
 import Data.List
@@ -27,6 +28,7 @@ import MicroHs.Expr
 import MicroHs.Flags
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
+import MicroHs.Package
 import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.TypeCheck
@@ -45,9 +47,6 @@ type Time = Int
 compileCacheTop :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [(Ident, Exp)]), Cache)
 compileCacheTop flags mn ch = do
   ((rmn, ds), ch') <- compile flags mn ch
-  -- get loaded packages
-  -- recursively load all dependencies
-  -- add everything to ds
   t1 <- getTimeMilli
   let
     dsn = [ (n, compileOpt e) | (n, e) <- ds ]
@@ -76,7 +75,11 @@ getCached flags = do
 
 compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Cache)
 compile flags nm ach = do
-  ((cm, t), ch) <- runStateIO (compileModuleCached flags nm) ach
+  let comp = do
+        r <- compileModuleCached flags nm
+        loadDependencies flags
+        return r
+  ((cm, t), ch) <- runStateIO comp ach
   when (verbosityGT flags 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (show t) ++ "ms"
   return ((tModuleName cm, concatMap bindingsOf $ cachedModules ch), ch)
@@ -273,6 +276,11 @@ runCPP flags infile outfile = do
     putStrLn $ "Execute: " ++ show cmd
   callCommand cmd
 
+packageDir :: String
+packageDir = "packages"
+packageSuffix :: String
+packageSuffix = ".pkg"
+
 findPkgModule :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Time)
 findPkgModule flags mn = do
   let fn = moduleToFile mn
@@ -282,7 +290,7 @@ findPkgModule flags mn = do
       pkg <- liftIO $ hGetContents hdl
       liftIO $ hClose hdl
       let dir = take (length pfn - length fn) pfn  -- directory where the file was found
-      loadPkg flags dir pkg
+      loadPkg flags (dir ++ "/" ++ packageDir ++ "/" ++ fn)
       cash <- get
       case lookupCache mn cash of
         Nothing -> error $ "package does not contain module " ++ pkg ++ " " ++ showIdent mn
@@ -293,9 +301,33 @@ findPkgModule flags mn = do
         "\nsearch path=" ++ show (paths flags) ++
         "\npackage path=" ++ show (pkgPath flags)
 
-loadPkg :: Flags -> FilePath -> FilePath -> StateIO Cache ()
-loadPkg _flags dir fn = do
-  pkg <- liftIO $ readSerialized (dir ++ "/packages/" ++ fn)
+loadPkg :: Flags -> FilePath -> StateIO Cache ()
+loadPkg flags fn = do
+  when (loading flags || verbosityGT flags 0) $
+    liftIO $ putStrLn $ "loading package " ++ fn
+  pkg <- liftIO $ readSerialized fn
   modify $ addPackage pkg
 
 -- XXX add function to find&load package from package name
+
+-- Load all packages that we depend on, but that are not already loaded.
+loadDependencies :: Flags -> StateIO Cache ()
+loadDependencies flags = do
+  loadedPkgs <- gets getPkgs
+  let deps = concatMap pkgDepends loadedPkgs
+      loaded = map pkgName loadedPkgs
+      deps' = [ p | (p, _v) <- deps, p `notElem` loaded ]
+  if null deps' then
+    return ()
+   else do
+    mapM_ (loadDeps flags) deps'
+    loadDependencies flags  -- loadDeps can add new dependencies
+
+loadDeps :: Flags -> IdentPackage -> StateIO Cache ()
+loadDeps flags pid = do
+  mres <- liftIO $ openFilePath (pkgPath flags) (packageDir ++ "/" ++ unIdent pid ++ packageSuffix)
+  case mres of
+    Nothing -> error $ "Cannot find package " ++ showIdent pid
+    Just (pfn, hdl) -> do
+      liftIO $ hClose hdl
+      loadPkg flags pfn
