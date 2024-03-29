@@ -4,8 +4,6 @@
   - allow generalization for local bindings
   - use subsumption (like if) in the arms of alternatives
   - instead of skolemization, use regular variables, making sure they are unique
-  - allow existential quantification
-    # check for escaping skolemized variables
 * Try Oleg's abstraction algorithm
   - Seems to be slower
 * Redo type synonym expansion
@@ -13,13 +11,11 @@
 * Redo handling of synonym and instance tables.
   - These tables can persist during the compilation and only grow
 * Implement two level tables for instances even in the tricky cases
-* Handle tupled dictionaries better for recursive calls
 * Removing [] from prim table
 * Faster compression
 * Use pointer reversal during marking, will be slower
 * Fix bug uncovered by Data.Type.Equality
 * mkQIdent
-* Fix bug, line 629, TypeCheck.hs
 * Get rid of evalstring()
   - do everything in Haskell
   - make a low level primError that takes a utf8 string
@@ -34,8 +30,14 @@
   - Merge EBind and EDef
 * Implement pattern synonyms
 * Implement qualified constraints
-* Add some package concept with a saved cache
 * Export the right list functions
-* Improve defaulting
+* Improve defaulting (only default to Integer/Double if Num)
+* Use capi, add value and field modifiers
+* Ad hoc fix for f.g: check if g is a field
+* Divide lib into different packages
+* Sync lib with GHC base
 
+Bugs:
 * Missing IO in ccall show wrong location
+* Limited class imports hide default methods
+* Check for escaping skolemized variables
