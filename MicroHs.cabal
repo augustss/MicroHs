@@ -64,6 +64,7 @@ executable mhs
                        MicroHs.Interactive
                        MicroHs.Lex
                        MicroHs.MakeCArray
+                       MicroHs.Package
                        MicroHs.Parse
                        MicroHs.StateIO
                        MicroHs.SymTab
