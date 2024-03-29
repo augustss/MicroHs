@@ -34,7 +34,7 @@ main :: IO ()
 main = do
   args <- getArgs
   dir <- fromMaybe "." <$> getMhsDir
-  home <- fromMaybe "No home" <$> lookupEnv "HOME"
+  home <- getHomeDirectory
   case args of
    ["--version"] -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
    ["--numeric-version"] -> putStrLn mhsVersion
