@@ -3,6 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
 module MicroHs.Main(main) where
 import Prelude
+import Data.Char
 import Data.List
 import Control.DeepSeq
 import Control.Monad
@@ -79,21 +80,29 @@ decodeArgs f mdls (arg:args) =
     _           -> decodeArgs f (mdls ++ [arg]) args
 
 mainBuildPkg :: Flags -> String -> [String] -> IO ()
-mainBuildPkg flags pkgn amns = do
+mainBuildPkg flags namever amns = do
   when (verbose flags > 0) $
-    putStrLn $ "Building package " ++ pkgn
+    putStrLn $ "Building package " ++ namever
   let mns = map mkIdent amns
   cash <- compileMany flags mns emptyCache
   let mdls = getCompMdls cash
+      (name, ver) = splitNameVer namever
       (exported, other) = partition ((`elem` mns) . tModuleName) mdls
-      pkgDeps = map pkgName $ getPkgs cash
-      pkg = Package { pkgName = mkIdent pkgn, pkgVersion = makeVersion [0]
+      pkgDeps = map (\ p -> (pkgName p, pkgVersion p)) $ getPkgs cash
+      pkg = Package { pkgName = mkIdent name, pkgVersion = ver
                     , pkgExported = exported, pkgOther = other
-                    , pkgDepends = map (,makeVersion [0]) pkgDeps }
+                    , pkgDepends = pkgDeps }
   print (map tModuleName $ pkgOther pkg)
   when (verbose flags > 0) $
-    putStrLn $ "Writing package " ++ pkgn ++ " to " ++ output flags
+    putStrLn $ "Writing package " ++ namever ++ " to " ++ output flags
   writeSerializedCompressed (output flags) pkg
+
+splitNameVer :: String -> (String, Version)
+splitNameVer s =
+  case span (\ c -> isDigit c || c == '.') (reverse s) of
+    (rver, '-':rname) | is@(_:_) <- readVersion (reverse rver) -> (reverse rname, makeVersion is)
+    _ -> error $ "package name not of the form name-version:" ++ show s
+  where readVersion = map read . words . map (\ c -> if c == '.' then ' ' else c)
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
@@ -169,22 +178,16 @@ mainInstallPackage flags [pkgfn, dir] = do
     putStrLn $ "Installing package " ++ pkgfn ++ " in " ++ dir
   pkg <- readSerialized pkgfn
   let pdir = dir ++ "/" ++ packageDir
-      pkgfn' = dropSuffix pkgfn ++ packageSuffix
+      pkgout = unIdent (pkgName pkg) ++ "-" ++ showVersion (pkgVersion pkg) ++ packageSuffix
   createDirectoryIfMissing True pdir
-  copyFile pkgfn (pdir ++ "/" ++ pkgfn')
+  copyFile pkgfn (pdir ++ "/" ++ pkgout)
   let mk tm = do
         let fn = dir ++ "/" ++ moduleToFile (tModuleName tm)
             d = dropWhileEnd (/= '/') fn
         when (verbosityGT flags 1) $
           putStrLn $ "create " ++ fn
         createDirectoryIfMissing True d
-        writeFile fn pkgfn
+        writeFile fn pkgout
   mapM_ mk (pkgExported pkg)
 mainInstallPackage flags [pkgfn] = mainInstallPackage flags [pkgfn, head (pkgPath flags)]
 mainInstallPackage _ _ = error usage
-
-dropSuffix :: FilePath -> FilePath
-dropSuffix s =
-  case dropWhileEnd (/= '.') s of
-    [] -> s
-    r  -> r
