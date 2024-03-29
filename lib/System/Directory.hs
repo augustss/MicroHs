@@ -8,12 +8,14 @@ module System.Directory(
   createDirectory,
   createDirectoryIfMissing,
   copyFile,
+  getHomeDirectory,
   ) where
 import Prelude
 import Control.Monad(when)
 import Foreign.C.String
 import Foreign.Ptr
 import System.IO
+import System.Environment
 
 data DIR
 data Dirent
@@ -99,3 +101,11 @@ copyFile src dst = do
   file <- hGetContents hsrc  -- this also closes the file
   hPutStr hdst file
   hClose hdst
+
+getHomeDirectory :: IO FilePath
+getHomeDirectory =
+  if _isWindows then do
+    user <- getEnv "USERNAME"
+    return $ "C:/Users/" ++ user    -- it's a guess
+  else
+    getEnv "HOME"
