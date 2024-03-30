@@ -228,6 +228,12 @@ isSuffixOf = isSuffixOfBy (==)
 isSuffixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
 isSuffixOfBy eq n h = isPrefixOfBy eq (reverse n) (reverse h)
 
+isInfixOf :: forall a . Eq a => [a] -> [a] -> Bool
+isInfixOf = isInfixOfBy (==)
+
+isInfixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
+isInfixOfBy eq cs ds = any (isPrefixOfBy eq cs) (inits ds)
+
 splitAt :: forall a . Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
 
@@ -281,6 +287,13 @@ head (x:_) = x
 tail :: forall a . [a] -> [a]
 tail [] = error "tail"
 tail (_:ys) = ys
+
+tails :: forall a . [a] -> [[a]]
+tails [] = [[]]
+tails xxs@(_:xs) = xxs : tails xs
+
+inits :: forall a . [a] -> [[a]]
+inits = map reverse . reverse . tails . reverse
 
 intersperse :: forall a . a -> [a] -> [a]
 intersperse _ [] = []
