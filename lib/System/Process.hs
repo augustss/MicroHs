@@ -9,4 +9,4 @@ callCommand :: String -> IO ()
 callCommand cmd = do
   r <- withCAString cmd systemc
   when (r /= 0) $
-    error $ "callCommand: failed " ++ show r
+    error $ "callCommand: failed " ++ show r ++ ", " ++ show cmd
