@@ -92,7 +92,7 @@ mainBuildPkg flags namever amns = do
       pkg = Package { pkgName = mkIdent name, pkgVersion = ver
                     , pkgExported = exported, pkgOther = other
                     , pkgDepends = pkgDeps }
-  print (map tModuleName $ pkgOther pkg)
+  --print (map tModuleName $ pkgOther pkg)
   when (verbose flags > 0) $
     putStrLn $ "Writing package " ++ namever ++ " to " ++ output flags
   writeSerializedCompressed (output flags) pkg
@@ -182,7 +182,7 @@ mainInstallPackage flags [pkgfn, dir] = do
   createDirectoryIfMissing True pdir
   copyFile pkgfn (pdir ++ "/" ++ pkgout)
   let mk tm = do
-        let fn = dir ++ "/" ++ moduleToFile (tModuleName tm)
+        let fn = dir ++ "/" ++ moduleToFile (tModuleName tm) ++ packageTxtSuffix
             d = dropWhileEnd (/= '/') fn
         when (verbosityGT flags 1) $
           putStrLn $ "create " ++ fn

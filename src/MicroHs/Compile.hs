@@ -8,7 +8,7 @@ module MicroHs.Compile(
   validateCache,
   Cache, emptyCache, deleteFromCache,
   moduleToFile,
-  packageDir, packageSuffix,
+  packageDir, packageSuffix, packageTxtSuffix,
   ) where
 import Prelude
 import Data.List
@@ -93,13 +93,14 @@ compileModuleCached flags mn = do
   cash <- get
   case lookupCache mn cash of
     Nothing -> do
-      modify $ addWorking mn
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing " ++ showIdent mn
       mres <- liftIO (readModulePath flags mn)
       case mres of
         Nothing -> findPkgModule flags mn
-        Just (pathfn, file) -> compileModule flags mn pathfn file
+        Just (pathfn, file) -> do
+          modify $ addWorking mn
+          compileModule flags mn pathfn file
     Just tm -> do
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing cached " ++ showIdent mn
@@ -280,17 +281,19 @@ packageDir :: String
 packageDir = "packages"
 packageSuffix :: String
 packageSuffix = ".pkg"
+packageTxtSuffix :: String
+packageTxtSuffix = ".txt"
 
 findPkgModule :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Time)
 findPkgModule flags mn = do
-  let fn = moduleToFile mn
+  let fn = moduleToFile mn ++ packageTxtSuffix
   mres <- liftIO $ openFilePath (pkgPath flags) fn
   case mres of
     Just (pfn, hdl) -> do
-      pkg <- liftIO $ hGetContents hdl
-      liftIO $ hClose hdl
+      -- liftIO $ putStrLn $ "findPkgModule " ++ pfn
+      pkg <- liftIO $ hGetContents hdl  -- this closes the handle
       let dir = take (length pfn - length fn) pfn  -- directory where the file was found
-      loadPkg flags (dir ++ "/" ++ packageDir ++ "/" ++ fn)
+      loadPkg flags (dir ++ "/" ++ packageDir ++ "/" ++ pkg)
       cash <- get
       case lookupCache mn cash of
         Nothing -> error $ "package does not contain module " ++ pkg ++ " " ++ showIdent mn

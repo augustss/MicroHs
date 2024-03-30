@@ -17,9 +17,9 @@ import MicroHs.TypeCheck(TModule)
 -- So if we have a package foo, exporting modules Foo.Bar and Foo.baz
 -- we would have the following directory structure
 --   packages/foo.pkg
---   Foo/Bar
---   Foo/Baz
--- The files Foo/Bar and Foo/Baz will contain simply "foo".
+--   Foo/Bar.txt
+--   Foo/Baz.txt
+-- The files Foo/Bar.txt and Foo/Baz.txt will contain simply "foo".
 -- 
 
 type IdentPackage = Ident
