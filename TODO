@@ -36,8 +36,11 @@
 * Ad hoc fix for f.g: check if g is a field
 * Divide lib into different packages
 * Sync lib with GHC base
+* Handle closing of Handle properly (don't crash on multiple close)
+  - implement ForeignPtr with finalizers for this.
+* Use finalizers for alloca?
+* Better naming of internal identifiers
 
 Bugs:
 * Missing IO in ccall show wrong location
-* Limited class imports hide default methods
 * Check for escaping skolemized variables
