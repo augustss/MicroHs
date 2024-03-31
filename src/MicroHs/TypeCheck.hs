@@ -2380,6 +2380,9 @@ solveAndDefault True  ta = do
 constraintHasTyVar :: TRef -> (Ident, EConstraint) -> T Bool
 constraintHasTyVar tv (_, t) = elem tv <$> getMetaTyVars [t]
 
+-- When defaulting to a type that has a Num instance,
+-- only do the defaulting if at least one of the classes is numeric.
+-- Similarely for IsString.
 defaultOneTyVar :: TRef -> T [Solved]
 defaultOneTyVar tv = do
   old <- get             -- get entire old state
@@ -2387,19 +2390,65 @@ defaultOneTyVar tv = do
   (ourcs, othercs) <- partitionM (constraintHasTyVar tv) (constraints old)
   let tryDefaults [] = return []
       tryDefaults (ty:tys) = do
-        setUVar tv ty
-        putConstraints ourcs
-        ds <- solveConstraints
-        rcs <- gets constraints
-        if null rcs then do
-          -- Success, the type variable is gone
-          putConstraints othercs   -- put back the other constraints
-          return ds
+        ok <- checkDefaultTypes ty ourcs
+        --traceM ("checkDefaultTypes: " ++ show (tv, ty, ourcs, ok))
+        if not ok then
+          tryDefaults tys   -- don't default
          else do
-          -- Not solved, try with the nest type
-          put old            -- restore solver state
-          tryDefaults tys    -- and try with next type
+          setUVar tv ty
+          putConstraints ourcs
+          ds <- solveConstraints
+          rcs <- gets constraints
+          if null rcs then do
+            -- Success, the type variable is gone
+            putConstraints othercs   -- put back the other constraints
+            return ds
+           else do
+            -- Not solved, try with the nest type
+            put old            -- restore solver state
+            tryDefaults tys    -- and try with next type
   tryDefaults (defaults old)
+
+identNum :: Ident
+identNum = mkIdent "Data.Num.Num"
+
+identIsString :: Ident
+identIsString = mkIdent "Data.String.IsString"
+
+getSuperClasses :: Ident -> T (Maybe [Ident])
+getSuperClasses i = do
+  ct <- gets classTable
+  case M.lookup i ct of
+    Nothing -> return Nothing
+    Just (_, supers, _, _, _) -> return $ Just $ map (fst . getApp) supers
+
+checkDefaultTypes :: EType -> Constraints -> T Bool
+checkDefaultTypes ty cs = do
+  let -- Is there an instance (c t)?
+      hasInstance :: Ident -> EType -> T Bool
+      hasInstance c t = do
+        it <- gets instTable
+        case M.lookup c it of
+          Nothing -> return False
+          Just (InstInfo atomMap _ _) -> return $ isJust $ M.lookup (fst $ getApp t) atomMap
+
+      -- Is i among the super-classes (or identical) of ci.
+      hasSuper :: Ident -> Ident -> T Bool
+      hasSuper i ci | i == ci = return True
+                    | otherwise = do
+          msup <- getSuperClasses ci
+          return $ i `elem` fromMaybe [] msup
+
+  let clss = map (fst . getApp . snd) cs
+  num <- hasInstance identNum ty                  -- If it's a numeric type
+  if num then
+    or <$> mapM (hasSuper identNum) clss          -- then make sure one of the classes is numeric.
+   else do
+     str <- hasInstance identIsString ty          -- If it's a stringy type
+     if str then
+       or <$> mapM (hasSuper identIsString) clss  -- then make sure one of the classes is stringy.
+      else
+       return True                                -- Otherwise, just allow the defaulting.
 
 {-
 showInstInfo :: InstInfo -> String
