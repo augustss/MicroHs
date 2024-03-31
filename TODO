@@ -1,11 +1,9 @@
 * Have compile return a Stats record of timing etc
-* make the runtime system catch ^C and stop execution
+* Make the runtime system catch ^C and stop execution
 * Type checker improvements:
   - allow generalization for local bindings
   - use subsumption (like if) in the arms of alternatives
   - instead of skolemization, use regular variables, making sure they are unique
-* Try Oleg's abstraction algorithm
-  - Seems to be slower
 * Redo type synonym expansion
   - Do expansion during unification
 * Redo handling of synonym and instance tables.
@@ -22,7 +20,6 @@
   - get rid of noMatch and noDefault primitives
 * Implement lazy matching
 * Implement strict matching
-* Change default 'default'?
 * Implement TAB completion
 * Better pretty print of Expr
 * Move extra stuff from Data.List into its own module
@@ -31,7 +28,6 @@
 * Implement pattern synonyms
 * Implement qualified constraints
 * Export the right list functions
-* Improve defaulting (only default to Integer/Double if Num)
 * Use capi, add value and field modifiers
 * Ad hoc fix for f.g: check if g is a field
 * Divide lib into different packages

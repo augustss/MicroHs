@@ -42,30 +42,48 @@ listPrefix = "Data.List_Type."
 
 nameList :: String
 nameList = listPrefix ++ "[]"
+identList :: Ident
+identList = mkIdentB nameList
 
 nameInt :: String
 nameInt = "Primitives.Int"
+identInt :: Ident
+identInt = mkIdentB nameInt
 
 nameWord :: String
 nameWord = "Primitives.Word"
+identWord :: Ident
+identWord = mkIdentB nameWord
 
 nameFloatW :: String
 nameFloatW = "Primitives.FloatW"
+identFloatW :: Ident
+identFloatW = mkIdentB nameFloatW
 
 nameChar :: String
 nameChar = "Primitives.Char"
+identChar :: Ident
+identChar = mkIdentB nameChar
 
 nameInteger :: String
 nameInteger = "Data.Integer_Type.Integer"
+identInteger :: Ident
+identInteger = mkIdentB nameInteger
 
 nameTypeEq :: String
 nameTypeEq = "Primitives.~"
+identTypeEq :: Ident
+identTypeEq = mkIdentB nameTypeEq
 
 nameImplies :: String
 nameImplies = "Primitives.=>"
+identImplies :: Ident
+identImplies = mkIdentB nameImplies
 
 nameArrow :: String
 nameArrow = "Primitives.->"
+identArrow :: Ident
+identArrow = mkIdentB nameArrow
 
 nameSymbol :: String
 nameSymbol = "Primitives.Symbol"
@@ -492,7 +510,8 @@ initTC mn fs ts ss cs is vs as =
     xvs = foldr (uncurry stInsertGlbU) vs primValues
   in TC { moduleName = mn, unique = 1, fixTable = addPrimFixs fs, typeTable = xts,
           synTable = ss, valueTable = xvs, assocTable = as, uvarSubst = IM.empty,
-          tcMode = TCExpr, classTable = cs, ctxTables = (is,[],[],[]), constraints = [], defaults = [] }
+          tcMode = TCExpr, classTable = cs, ctxTables = (is,[],[],[]), constraints = [],
+          defaults = [EVar identInteger, EVar identFloatW, EApp (EVar identList) (EVar identChar)] }
 
 addPrimFixs :: FixTable -> FixTable
 addPrimFixs =
@@ -549,7 +568,7 @@ primKindTable =
        (mkIdentB nameConstraint, [entry nameConstraint sKind]),
        (mkIdentB nameSymbol,     [entry nameSymbol sKind]),
        (mkIdentB nameNat,        [entry nameNat sKind]),
-       (mkIdentB nameArrow,      [entry nameArrow sKindKindKind])
+       (identArrow,              [entry nameArrow sKindKindKind])
        ]
   in stFromList (map (first unQualIdent) qkinds) qkinds
 
@@ -562,7 +581,7 @@ primKindTable =
 primTypes :: [(Ident, [Entry])]
 primTypes =
   let
-    entry i = Entry (EVar (mkIdentB i))
+    entry i = Entry (EVar i)
     k = mkIdent "k"
     kv = EVar k
     kk = IdKind k sKind
@@ -570,20 +589,20 @@ primTypes =
     tuple n =
       let
         i = tupleConstr builtinLoc n
-      in  (i, [entry (unIdent i) $ EForall [kk] $ foldr kArrow kv (replicate n kv)])
+      in  (i, [entry i $ EForall [kk] $ foldr kArrow kv (replicate n kv)])
     kImplies = EForall [kk] $ kConstraint `kArrow` (kv `kArrow` kv)
   in
       [
        -- The function arrow et al are bothersome to define in Primitives, so keep them here.
        -- But the fixity is defined in Primitives.
-       (mkIdentB "->",           [entry nameArrow    kTypeTypeTypeS]),
-       (mkIdentB "=>",           [entry nameImplies  kImplies]),
-       (mkIdentB "~",            [entry nameTypeEq   kTypeTypeConstraintS]),
+       (mkIdentB "->",           [entry identArrow    kTypeTypeTypeS]),
+       (mkIdentB "=>",           [entry identImplies  kImplies]),
+       (mkIdentB "~",            [entry identTypeEq   kTypeTypeConstraintS]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        -- XXX should not be needed
-       (mkIdentB nameList,       [entry nameList     kTypeTypeS]),
-       (mkIdentB "\x2192",       [entry nameArrow    kTypeTypeTypeS]),  -- ->
-       (mkIdentB "\x21d2",       [entry nameImplies  kImplies])         -- =>
+       (identList,               [entry identList     kTypeTypeS]),
+       (mkIdentB "\x2192",       [entry identArrow    kTypeTypeTypeS]),  -- ->
+       (mkIdentB "\x21d2",       [entry identImplies  kImplies])         -- =>
       ] ++
       map tuple (enumFromTo 2 10)
 
@@ -1494,10 +1513,10 @@ tcExprR mt ae =
               case mex of
                 -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
                 -- (which is not always in scope).
-                Just (EVar v) | v == mkIdent nameInt     -> tcLit  mt loc (LInt (fromInteger i))
-                              | v == mkIdent nameWord    -> tcLit' mt loc (LInt (fromInteger i)) (tConI loc nameWord)
-                              | v == mkIdent nameFloatW  -> tcLit  mt loc (LDouble (fromInteger i))
-                              | v == mkIdent nameInteger -> tcLit  mt loc lit
+                Just (EVar v) | v == identInt     -> tcLit  mt loc (LInt (fromInteger i))
+                              | v == identWord    -> tcLit' mt loc (LInt (fromInteger i)) (tConI loc nameWord)
+                              | v == identFloatW  -> tcLit  mt loc (LDouble (fromInteger i))
+                              | v == identInteger -> tcLit  mt loc lit
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc "fromInteger"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
@@ -1517,7 +1536,7 @@ tcExprR mt ae =
               mex <- getExpected mt
               case mex of
                 Just (EApp (EVar lst) (EVar c))
-                 | lst == mkIdent nameList, c == mkIdent nameChar -> tcLit mt loc lit
+                 | lst == identList, c == identChar -> tcLit mt loc lit
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc $ "fromString"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
