@@ -4,7 +4,6 @@
 {-# LANGUAGE DataKinds #-}
 -- Functions for GHC that are defined in the UHS libs.
 module Compat(module Compat, Type) where
---import Control.Exception
 import Data.Char
 import Data.Maybe
 --import qualified Control.Monad as M
@@ -54,18 +53,6 @@ deleteAllsBy eq = foldl (flip (deleteAllBy eq))
 
 padLeft :: Int -> String -> String
 padLeft n s = replicate (n - length s) ' ' ++ s
-
-------- Exception --------
-
---newtype Exn = Exn String
---  deriving (Show)
---instance Exception Exn
-
-type Exn = SomeException
-
-exnToString :: Exn -> String
-exnToString = trunc . show
-  where trunc = head . lines
 
 ------- IO --------
 

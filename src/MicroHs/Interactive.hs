@@ -1,7 +1,7 @@
 module MicroHs.Interactive(module MicroHs.Interactive) where
-import Prelude
 import Data.List
 import Control.Exception
+import Control.Exn
 import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
@@ -15,7 +15,6 @@ import MicroHs.Translate
 import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..))
 import Unsafe.Coerce
 import System.Console.SimpleReadline
-import Compat
 import MicroHs.Instances(compiledWithGHC)
 
 type IState = (String, Flags, Cache)

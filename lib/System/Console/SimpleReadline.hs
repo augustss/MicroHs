@@ -11,7 +11,6 @@ import Prelude
 import Control.Monad
 import Data.Char
 import System.IO
---Ximport Compat
 
 foreign import ccall "GETRAW" c_getRaw :: IO Int
 

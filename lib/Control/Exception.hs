@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 module Control.Exception(
   catch, try,
   throwIO,
@@ -7,14 +9,9 @@ module Control.Exception(
   SomeException,
   ) where
 import Primitives
-import Prelude
+import Control.Exn
 
 type SomeException = Exn
-
-newtype Exn = Exn String
-
-exnToString :: Exn -> String
-exnToString (Exn s) = s
 
 catch :: forall a . IO a -> (Exn -> IO a) -> IO a
 catch ioa hdl = primCatch ioa (hdl . Exn)

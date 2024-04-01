@@ -2,11 +2,11 @@
 -- See LICENSE file for full license.
 module AllOfLib(main) where
 -- Only used to save the compilation cache.
-import Compat
 import Control.Applicative
 import Control.DeepSeq
 import Control.Error
 import Control.Exception
+import Control.Exception.Exn
 import Control.Monad
 import Control.Monad.Fail
 import Control.Monad.ST
@@ -91,6 +91,7 @@ import System.IO_Handle
 import System.IO.MD5
 import System.IO.PrintOrRun
 import System.IO.Serialize
+import System.IO.TimeMilli
 import System.Info
 import System.Process
 import Text.PrettyPrint.HughesPJ

@@ -36,6 +36,8 @@
   - implement ForeignPtr with finalizers for this.
 * Use finalizers for alloca?
 * Better naming of internal identifiers
+* Implement Exception properly
+* GADT syntax
 
 Bugs:
 * Missing IO in ccall show wrong location
