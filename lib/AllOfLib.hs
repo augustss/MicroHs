@@ -98,7 +98,6 @@ import Text.PrettyPrint.HughesPJ
 import Text.PrettyPrint.HughesPJClass
 import Text.Read
 import Text.Show
-import Text.String
 import Unsafe.Coerce
 
 main :: IO ()

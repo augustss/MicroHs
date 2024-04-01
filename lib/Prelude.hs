@@ -35,7 +35,6 @@ module Prelude(
   module System.IO,
   module Text.Read,
   module Text.Show,
-  module Text.String,
   Float, Double,
   usingMhs, _wordSize, _isWindows,
   ) where
@@ -84,7 +83,6 @@ import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, int
                  cprint)
 import Text.Read(ReadS, Read(..), read, reads, readParen, lex)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
-import Text.String
 import Primitives(_wordSize, _isWindows)
 
 -- So we can detect mhs vs ghc

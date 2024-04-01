@@ -58,3 +58,5 @@ substString _ _ [] = []
 substString from to xs@(c:cs) | Just rs <- stripPrefix from xs = to ++ substString from to rs
                               | otherwise = c : substString from to cs
 
+showPairS :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
+showPairS sa sb (a, b) = "(" ++ sa a ++ "," ++ sb b ++ ")"
