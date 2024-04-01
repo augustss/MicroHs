@@ -42,6 +42,7 @@ module MicroHs.Expr(
   eDummy,
   impossible, impossibleShow,
   getArrow, getArrows,
+  showExprRaw,
   ) where
 import Prelude hiding ((<>))
 import Control.Arrow(first)
@@ -549,6 +550,9 @@ instance Show EDef where
 showExpr :: Expr -> String
 showExpr = render . ppExpr
 
+showExprRaw :: Expr -> String
+showExprRaw = render . ppExprRaw
+
 showEDefs :: [EDef] -> String
 showEDefs = render . ppEDefs
 
@@ -645,47 +649,59 @@ ppAltsL asep alts = vcat (map (ppAlt asep) alts)
 ppAlt :: Doc -> EAlt -> Doc
 ppAlt asep (ss, e) = text " |" <+> hsep (punctuate (text ",") (map ppEStmt ss)) <+> asep <+> ppExpr e
 
+ppExprRaw :: Expr -> Doc
+ppExprRaw = ppExprR True
+
 ppExpr :: Expr -> Doc
-ppExpr ae =
-  case ae of
-    EVar i | isOperChar cop -> parens (text op)
-           | otherwise      -> text s
-             where op = unIdent (unQualIdent i)
-                   s = if "inst$" `isPrefixOf` op then unIdent i else op
-                   cop = head op
-    EApp _ _ -> ppApp [] ae
-    EOper e ies -> ppExpr (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
-    ELam qs -> parens $ text "\\" <> ppEqns empty (text "->") qs
-    ELit _ i -> text (showLit i)
-    ECase e as -> text "case" <+> ppExpr e <+> text "of" $$ nest 2 (vcat (map ppCaseArm as))
-    ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppExpr e
-    ETuple es -> parens $ hsep $ punctuate (text ",") (map ppExpr es)
-    EDo mn ss -> maybe (text "do") (\ n -> ppIdent n <> text ".do") mn $$ nest 2 (vcat (map ppEStmt ss))
-    ESectL e i -> parens $ ppExpr e <+> ppIdent i
-    ESectR i e -> parens $ ppIdent i <+> ppExpr e
-    EIf e1 e2 e3 -> parens $ sep [text "if" <+> ppExpr e1, text "then" <+> ppExpr e2, text "else" <+> ppExpr e3]
-    EListish l -> ppListish l
-    ESign e t -> parens $ ppExpr e <+> text "::" <+> ppEType t
-    ENegApp e -> text "-" <+> ppExpr e
-    EUpdate ee ies -> ppExpr ee <> text "{" <+> hsep (punctuate (text ",") (map ppField ies)) <+> text "}"
-    ESelect is -> parens $ hcat $ map (\ i -> text "." <> ppIdent i) is
-    EAt i e -> ppIdent i <> text "@" <> ppExpr e
-    EViewPat e p -> parens $ ppExpr e <+> text "->" <+> ppExpr p
-    ELazy True p -> text "~" <> ppExpr p
-    ELazy False p -> text "!" <> ppExpr p
-    EUVar i -> text ("_a" ++ show i)
-    ECon c -> ppCon c
-    EForall iks e -> ppForall iks <+> ppEType e
---  where
-ppApp :: [Expr] -> Expr -> Doc
-ppApp as (EApp f a) = ppApp (a:as) f
-ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppExpr a <+> text op <+> ppExpr b
-                  | isOperChar cop, [a] <- as    = parens $ ppExpr a <+> text op
-                  | cop == ','                   = ppExpr (ETuple as)
-                  | op == "[]", length as == 1   = ppExpr (EListish (LList as))
-                    where op = unIdent (unQualIdent i)
-                          cop = head op
-ppApp as f = parens $ hsep (map ppExpr (f:as))
+ppExpr = ppExprR False
+
+ppExprR :: Bool -> Expr -> Doc
+ppExprR raw = ppE
+  where
+    ppE :: Expr -> Doc
+    ppE ae =
+      case ae of
+        EVar i | raw            -> text (unIdent i)
+               | isOperChar cop -> parens (text op)
+               | otherwise      -> text s
+                 where op = unIdent (unQualIdent i)
+                       s = if "inst$" `isPrefixOf` op then unIdent i else op
+                       cop = head op
+        EApp _ _ -> ppApp [] ae
+        EOper e ies -> ppE (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
+        ELam qs -> parens $ text "\\" <> ppEqns empty (text "->") qs
+        ELit _ i -> text (showLit i)
+        ECase e as -> text "case" <+> ppE e <+> text "of" $$ nest 2 (vcat (map ppCaseArm as))
+        ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppE e
+        ETuple es -> parens $ hsep $ punctuate (text ",") (map ppE es)
+        EDo mn ss -> maybe (text "do") (\ n -> ppIdent n <> text ".do") mn $$ nest 2 (vcat (map ppEStmt ss))
+        ESectL e i -> parens $ ppE e <+> ppIdent i
+        ESectR i e -> parens $ ppIdent i <+> ppE e
+        EIf e1 e2 e3 -> parens $ sep [text "if" <+> ppE e1, text "then" <+> ppE e2, text "else" <+> ppE e3]
+        EListish l -> ppListish l
+        ESign e t -> parens $ ppE e <+> text "::" <+> ppEType t
+        ENegApp e -> text "-" <+> ppE e
+        EUpdate ee ies -> ppE ee <> text "{" <+> hsep (punctuate (text ",") (map ppField ies)) <+> text "}"
+        ESelect is -> parens $ hcat $ map (\ i -> text "." <> ppIdent i) is
+        EAt i e -> ppIdent i <> text "@" <> ppE e
+        EViewPat e p -> parens $ ppE e <+> text "->" <+> ppE p
+        ELazy True p -> text "~" <> ppE p
+        ELazy False p -> text "!" <> ppE p
+        EUVar i -> text ("_a" ++ show i)
+        ECon c -> ppCon c
+        EForall iks e -> ppForall iks <+> ppEType e
+
+    ppApp :: [Expr] -> Expr -> Doc
+    ppApp as (EApp f a) = ppApp (a:as) f
+    ppApp as f | raw = ppApply f as
+    ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppE a <+> text op <+> ppExpr b
+                      | isOperChar cop, [a] <- as    = parens $ ppE a <+> text op
+                      | cop == ','                   = ppE (ETuple as)
+                      | op == "[]", length as == 1   = ppE (EListish (LList as))
+                        where op = unIdent (unQualIdent i)
+                              cop = head op
+    ppApp as f = ppApply f as
+    ppApply f as = parens $ hsep (map ppE (f:as))
 
 ppField :: EField -> Doc
 ppField (EField is e) = hcat (punctuate (text ".") (map ppIdent is)) <+> text "=" <+> ppExpr e

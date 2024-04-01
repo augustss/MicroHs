@@ -329,7 +329,7 @@ mkTables mdls =
       let
         usyms (ImportSpec qual _ _ _, TModule _ _ tes _ _ _ ves _) =
           if qual then [] else
-          [ (i, [e]) | ValueExport i e    <- ves, not (isInternalId i)  ] ++
+          [ (i, [e]) | ValueExport i e    <- ves, not (isInstId i)  ] ++
           [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs ]
         qsyms (ImportSpec _ _ mas _, TModule mn _ tes _ cls _ ves _) =
           let m = fromMaybe mn mas in
@@ -389,8 +389,12 @@ eqInstDict :: InstDict -> InstDict -> Bool
 eqInstDict (e, _, _) (e', _, _) = eqExpr e e'
 
 -- Identifier should only be seen with it's qualified name.
-isInternalId :: Ident -> Bool
-isInternalId i = (instPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i
+isInstId :: Ident -> Bool
+isInstId i = (instPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i
+
+mkInstId :: SLoc -> EType -> Ident
+mkInstId loc ct = mkIdentSLoc loc $ instPrefix ++ uniqIdentSep ++ clsTy
+  where clsTy = map (\ c -> if isSpace c then '@' else c) $ showExprRaw ct
 
 instPrefix :: String
 instPrefix = "inst"
@@ -1183,8 +1187,9 @@ expandInst dinst@(Instance act bs) = do
   (vks, ctx, cc) <- splitInst <$> expandSyn act
   let loc = getSLoc act
       qiCls = getAppCon cc
-  iInst <- newIdent loc instPrefix
-  let sign = Sign [iInst] act
+  let iInst = mkInstId loc cc
+      sign = Sign [iInst] act
+--  traceM ("expandInst " ++ show iInst)
 --  (e, _) <- tLookupV iCls
   ct <- gets classTable
 --  let qiCls = getAppCon e
