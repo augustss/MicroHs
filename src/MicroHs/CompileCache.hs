@@ -1,6 +1,6 @@
 module MicroHs.CompileCache(
   CModule,
-  Cache, addWorking, emptyCache, deleteFromCache, workToDone,
+  Cache, addWorking, emptyCache, deleteFromCache, workToDone, workPop,
   cachedModules, lookupCache, lookupCacheChksum, getImportDeps,
   addPackage, getCompMdls, getPkgs,
   saveCache, loadCached,
@@ -60,6 +60,9 @@ addWorking mn c =
 workToDone :: CModule -> Cache -> Cache
 workToDone (t, i, k) c@(Cache{ working = mn:ws, cache = m }) = c{ working = ws, cache = M.insert mn (CompMdl t i k) m }
 workToDone _ _ = undefined
+
+workPop :: Cache -> Cache
+workPop c = c{ working = drop 1 (working c) }
 
 cachedModules :: Cache -> [TModule [LDef]]
 cachedModules = map tModuleOf . M.elems . cache

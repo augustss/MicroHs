@@ -4,6 +4,7 @@ module MicroHs.Expr(
   ExportItem(..),
   ImportSpec(..),
   ImportItem(..),
+  ImpType(..),
   EDef(..), showEDefs,
   Expr(..), eLam, eEqn, eEqns, showExpr, eqExpr,
   Listish(..),
@@ -81,7 +82,10 @@ data EDef
   | Default [EType]
 --DEBUG  deriving (Show)
 
-data ImportSpec = ImportSpec Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
+data ImpType = ImpNormal | ImpBoot
+  deriving (Eq)
+
+data ImportSpec = ImportSpec ImpType Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
 --DEBUG  deriving (Show)
 
 data ImportItem
@@ -586,7 +590,9 @@ ppEDef def =
     Fcn i eqns -> ppEqns (ppIdent i) (text "=") eqns
     Sign is t -> hsep (punctuate (text ",") (map ppIdent is)) <+> text "::" <+> ppEType t
     KindSign i t -> text "type" <+> ppIdent i <+> text "::" <+> ppEKind t
-    Import (ImportSpec q m mm mis) -> text "import" <+> (if q then text "qualified" else empty) <+> ppIdent m <> text (maybe "" ((" as " ++) . unIdent) mm) <>
+    Import (ImportSpec b q m mm mis) -> text "import" <+>
+      (if b == ImpBoot then text "{-# SOURCE #-}" else empty) <+>
+      (if q then text "qualified" else empty) <+> ppIdent m <> text (maybe "" ((" as " ++) . unIdent) mm) <>
       case mis of
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ",") (map ppImportItem is))

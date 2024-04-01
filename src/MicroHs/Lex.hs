@@ -25,6 +25,7 @@ data Token
   | TError  SLoc String           -- lexical error
   | TBrace  SLoc                  -- {n} in the Haskell report
   | TIndent SLoc                  -- <n> in the Haskell report
+  | TPragma SLoc String           -- a {-# PRAGMA #-}
   | TEnd
   | TRaw [Token]
   deriving (Show)
@@ -41,6 +42,7 @@ showToken (TSpec _ c) | c == '<' = "{ layout"
 showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
 showToken (TIndent _) = "TIndent"
+showToken (TPragma _ s) = "{-# " ++ s ++ " #-}"
 showToken TEnd = "EOF"
 showToken (TRaw _) = "TRaw"
 
@@ -67,7 +69,7 @@ lex loc (' ':cs)  = lex (addCol loc 1) cs
 lex loc ('\n':cs) = tIndent (lex (incrLine loc) cs)
 lex loc ('\r':cs) = lex loc cs
 lex loc ('\t':cs) = lex (tabCol loc) cs  -- TABs are a dubious feature, but easy to support
-lex loc ('{':'-':cs) = skipNest (addCol loc 2) 1 cs
+lex loc ('{':'-':cs) = nested (addCol loc 2) cs
 lex loc ('-':'-':cs) | isComm rs = skipLine (addCol loc $ 2+length ds) cs
   where
     (ds, rs) = span (== '-') cs
@@ -99,6 +101,10 @@ lex loc ('\'':cs) =
         (t, loc', rs) -> t : lex loc' rs
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ show d]
 lex _ [] = []
+
+nested :: SLoc -> [Char] -> [Token]
+nested loc ('#':cs) = pragma loc cs
+nested loc cs = skipNest loc 1 cs
 
 hexNumber :: SLoc -> String -> [Token]
 hexNumber loc cs =
@@ -256,10 +262,20 @@ tokensLoc (TSpec   loc _  :_) = loc
 tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
+tokensLoc (TPragma loc _  :_) = loc
 tokensLoc _                   = mkLocEOF
 
 readBase :: Integer -> String -> Integer
 readBase b = foldl (\ r c -> r * b + toInteger (digitToInt c)) 0
+
+-- XXX This is a pretty hacky recognition of pragmas.
+pragma :: SLoc -> [Char] -> [Token]
+pragma loc cs =
+  let as = map toUpper $ takeWhile isAlpha $ dropWhile isSpace cs
+      skip = skipNest loc 1 ('#':cs)
+  in  case as of
+        "SOURCE" -> TPragma loc as : skip
+        _ -> skip
 
 -- | This is the magical layout resolver, straight from the Haskell report.
 -- https://www.haskell.org/onlinereport/haskell2010/haskellch10.html#x17-17800010.3

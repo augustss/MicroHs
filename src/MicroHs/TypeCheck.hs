@@ -152,17 +152,17 @@ type Sigma = EType
 --type Tau   = EType
 type Rho   = EType
 
-typeCheck :: forall a . [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
-typeCheck aimps (EModule mn exps defs) =
+typeCheck :: forall a . ImpType -> [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
+typeCheck impt aimps (EModule mn exps defs) =
 --  trace (unlines $ map (showTModuleExps . snd) aimps) $
   let
     imps = map filterImports aimps
     (fs, ts, ss, cs, is, vs, as) = mkTables imps
-  in case tcRun (tcDefs defs) (initTC mn fs ts ss cs is vs as) of
+  in case tcRun (tcDefs impt defs) (initTC mn fs ts ss cs is vs as) of
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule tds tcs)
-           impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ m mm _, tm) <- imps]
+           impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ _ m mm _, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
            (texps, cexps, vexps) =
              unzip3 $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs) (classTable tcs)) exps
@@ -185,8 +185,8 @@ tModule mn fs ts ss cs is vs ds =
     vseq (ValueExport _ e:xs) = e `seq` vseq xs
 
 filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
-filterImports it@(ImportSpec _ _ _ Nothing, _) = it
-filterImports (imp@(ImportSpec _ _ _ (Just (hide, is))), TModule mn fx ts ss cs ins vs a) =
+filterImports it@(ImportSpec _ _ _ _ Nothing, _) = it
+filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts ss cs ins vs a) =
   let
     keep x xs = elem x xs /= hide
     ivs = [ i | ImpValue i <- is ]
@@ -327,11 +327,11 @@ mkTables mdls =
     allValues :: ValueTable
     allValues =
       let
-        usyms (ImportSpec qual _ _ _, TModule _ _ tes _ _ _ ves _) =
+        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _ ves _) =
           if qual then [] else
           [ (i, [e]) | ValueExport i e    <- ves, not (isInstId i)  ] ++
           [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs ]
-        qsyms (ImportSpec _ _ mas _, TModule mn _ tes _ cls _ ves _) =
+        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ cls _ ves _) =
           let m = fromMaybe mn mas in
           [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent m i } ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdent m i } ] ++
@@ -344,9 +344,9 @@ mkTables mdls =
     allTypes :: TypeTable
     allTypes =
       let
-        usyms (ImportSpec qual _ _ _, TModule _ _ tes _ _ _ _ _) =
+        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _ _ _) =
           if qual then [] else [ (i, [e]) | TypeExport i e _ <- tes ]
-        qsyms (ImportSpec _ _ mas _, TModule mn _ tes _ _ _ _ _) =
+        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _ _ _) =
           let m = fromMaybe mn mas in
           [ (qualIdent m i, [e]) | TypeExport i e _ <- tes ]
       in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
@@ -357,7 +357,7 @@ mkTables mdls =
     allAssocs :: AssocTable
     allAssocs =
       let
-        assocs (ImportSpec _ _ mas _, TModule mn _ tes _ _ _ _ _) =
+        assocs (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _ _ _) =
           let
             m = fromMaybe mn mas
           in  [ (qualIdent m i, [qualIdent m a | ValueExport a _ <- cs]) | TypeExport i _ cs <- tes ]
@@ -922,8 +922,8 @@ withExtTyps iks ta = do
   putTypeTable venv
   return a
 
-tcDefs :: [EDef] -> T [EDef]
-tcDefs ds = do
+tcDefs :: ImpType -> [EDef] -> T [EDef]
+tcDefs impt ds = do
 --  traceM ("tcDefs 1:\n" ++ showEDefs ds)
   mapM_ tcAddInfix ds
   dst <- tcDefsType ds
@@ -931,8 +931,12 @@ tcDefs ds = do
   mapM_ addTypeSyn dst
   dst' <- tcExpand dst
 --  traceM ("tcDefs 3:\n" ++ showEDefs dst')
-  setDefault dst'
-  tcDefsValue dst'
+  case impt of
+    ImpNormal -> do
+      setDefault dst'
+      tcDefsValue dst'
+    ImpBoot ->
+      return dst'
 
 setDefault :: [EDef] -> T ()
 setDefault defs = do

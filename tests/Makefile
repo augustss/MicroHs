@@ -61,6 +61,7 @@ test:
 	$(TMHS) ParseInd   && $(EVAL) > ParseInd.out   && diff ParseInd.ref ParseInd.out
 	$(TMHS) Infer      && $(EVAL) > Infer.out      && diff Infer.ref Infer.out
 	$(TMHS) Enum       && $(EVAL) > Enum.out       && diff Enum.ref Enum.out
+	$(TMHS) RecMdl     && $(EVAL) > RecMdl.out     && diff RecMdl.ref RecMdl.out
 
 errtest:
 	sh errtester.sh < errmsg.test

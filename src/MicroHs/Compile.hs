@@ -97,25 +97,37 @@ compileModuleCached flags mn = do
     Nothing -> do
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing " ++ showIdent mn
-      mres <- liftIO (readModulePath flags mn)
+      mres <- liftIO (readModulePath flags ".hs" mn)
       case mres of
         Nothing -> findPkgModule flags mn
         Just (pathfn, file) -> do
           modify $ addWorking mn
-          compileModule flags mn pathfn file
+          compileModule flags ImpNormal mn pathfn file
     Just tm -> do
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing cached " ++ showIdent mn
       return (tm, 0)
 
-compileModule :: Flags -> IdentModule -> FilePath -> String -> StateIO Cache (TModule [LDef], Time)
-compileModule flags mn pathfn file = do
+compileBootModule :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Time)
+compileBootModule flags mn = do
+  when (verbosityGT flags 0) $
+    liftIO $ putStrLn $ "importing boot " ++ showIdent mn
+  mres <- liftIO (readModulePath flags ".hs-boot" mn)
+  case mres of
+    Nothing -> error $ "boot module not found: " ++ showIdent mn
+    Just (pathfn, file) -> do
+      compileModule flags ImpBoot mn pathfn file
+
+compileModule :: Flags -> ImpType -> IdentModule -> FilePath -> String -> StateIO Cache (TModule [LDef], Time)
+compileModule flags impt mn pathfn file = do
   t1 <- liftIO getTimeMilli
   mchksum <- liftIO (md5File pathfn)  -- XXX there is a small gap between reading and computing the checksum.
   let chksum :: MD5CheckSum
       chksum = fromMaybe undefined mchksum
   let pmdl = parseDie pTop pathfn file
       mdl@(EModule mnn _ defs) = addPreludeImport pmdl
+  when (verbosityGT flags 3) $
+    liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
   
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
@@ -124,12 +136,14 @@ compileModule flags mn pathfn file = do
     error $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
   let
     specs = [ s | Import s <- defs ]
-    imported = [ m | ImportSpec _ m _ _ <- specs ]
+    imported = [ (boot, m) | ImportSpec boot _ m _ _ <- specs ]
+    compileImp (ImpNormal, m) = compileModuleCached flags m
+    compileImp (ImpBoot,   m) = compileBootModule   flags m
   t2 <- liftIO getTimeMilli
-  (impMdls, its) <- fmap unzip $ mapM (compileModuleCached flags) imported
+  (impMdls, its) <- fmap unzip $ mapM compileImp imported
   t3 <- liftIO getTimeMilli
   let
-    tmdl = typeCheck (zip specs impMdls) mdl
+    tmdl = typeCheck impt (zip specs impMdls) mdl
   when (verbosityGT flags 2) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   let
@@ -146,7 +160,9 @@ compileModule flags mn pathfn file = do
             "ms (" ++ show tp ++ " + " ++ show tt ++ ")"
   when (loading flags && mn /= mkIdent "Interactive") $
     liftIO $ putStrLn $ "loaded " ++ showIdent mn
-  modify $ workToDone (dmdl, imported, chksum)
+  case impt of
+    ImpNormal -> modify $ workToDone (dmdl, map snd imported, chksum)
+    ImpBoot   -> return ()
   return (dmdl, tp + tt + ts)
 
 addPreludeImport :: EModule -> EModule
@@ -154,13 +170,13 @@ addPreludeImport (EModule mn es ds) =
   EModule mn es ds'
   where ds' = ps' ++ nps
         (ps, nps) = partition isImportPrelude ds
-        isImportPrelude (Import (ImportSpec _ i _ _)) = i == idPrelude
+        isImportPrelude (Import (ImportSpec _ _ i _ _)) = i == idPrelude
         isImportPrelude _ = False
         idPrelude = mkIdent "Prelude"
         ps' =
           case ps of
-            [] -> [Import $ ImportSpec False idPrelude Nothing Nothing]     -- no Prelude imports, so add 'import Prelude'
-            [Import (ImportSpec False _ Nothing (Just (False, [])))] -> []  -- exactly 'import Prelude()', so import nothing
+            [] -> [Import $ ImportSpec ImpNormal False idPrelude Nothing Nothing]     -- no Prelude imports, so add 'import Prelude'
+            [Import (ImportSpec ImpNormal False _ Nothing (Just (False, [])))] -> []  -- exactly 'import Prelude()', so import nothing
             _ -> ps                                                         -- keep the given Prelude imports
 
 -------------------------------------------
@@ -185,7 +201,7 @@ validateCache flags acash = execStateIO (mapM_ (validate . fst) fdeps) acash
       case lookupCacheChksum mn cash of
         Nothing -> return () -- no longer in the cache, so just ignore.
         Just chksum -> do
-          mhdl <- liftIO $ findModulePath flags mn
+          mhdl <- liftIO $ findModulePath flags ".hs" mn
           case mhdl of
             Nothing ->
               -- Cannot find module, so invalidate it
@@ -213,14 +229,15 @@ getFileName m | ".hs" `isSuffixOf` s = Just s
              | otherwise = Nothing
   where s = unIdent m
 
-readModulePath :: Flags -> IdentModule -> IO (Maybe (FilePath, String))
-readModulePath flags mn | Just fn <- getFileName mn = do
+readModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, String))
+readModulePath flags suf mn | Just fn <- getFileName mn = do
   mh <- openFileM fn ReadMode
   case mh of
     Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show fn
     Just h -> readRest fn h
+
                         | otherwise = do
-  mh <- findModulePath flags mn
+  mh <- findModulePath flags suf mn
   case mh of
     Nothing -> return Nothing
     Just (fn, h) -> readRest fn h
@@ -237,10 +254,10 @@ readModulePath flags mn | Just fn <- getFileName mn = do
 moduleToFile :: IdentModule -> FilePath
 moduleToFile mn = map (\ c -> if c == '.' then '/' else c) (unIdent mn)
 
-findModulePath :: Flags -> IdentModule -> IO (Maybe (FilePath, Handle))
-findModulePath flags mn = do
+findModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, Handle))
+findModulePath flags suf mn = do
   let
-    fn = moduleToFile mn ++ ".hs"
+    fn = moduleToFile mn ++ suf
   openFilePath (paths flags) fn
 
 openFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))

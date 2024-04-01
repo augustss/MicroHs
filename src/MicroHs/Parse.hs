@@ -273,6 +273,12 @@ pKeyword kw = () <$ satisfy kw is
     is (TIdent _ [] s) = kw == s
     is _ = False
 
+pPragma :: String -> P ()
+pPragma kw = () <$ satisfy kw is
+  where
+    is (TPragma _ s) = kw == s
+    is _ = False
+
 pBraces :: forall a . P a -> P a
 pBraces p =
   do
@@ -373,7 +379,8 @@ pImportSpec :: P ImportSpec
 pImportSpec =
   let
     pQua = (True <$ pKeyword "qualified") <|< pure False
-  in  ImportSpec <$> pQua <*> pUQIdentA <*> eoptional (pKeyword "as" *> pUQIdent) <*>
+    pSource = (ImpBoot <$ pPragma "SOURCE") <|< pure ImpNormal
+  in  ImportSpec <$> pSource <*> pQua <*> pUQIdentA <*> eoptional (pKeyword "as" *> pUQIdent) <*>
         eoptional ((,) <$> ((True <$ pKeyword "hiding") <|> pure False) <*> pParens (esepEndBy pImportItem (pSpec ',')))
 
 pImportItem :: P ImportItem
