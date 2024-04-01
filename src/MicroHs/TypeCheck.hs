@@ -28,6 +28,7 @@ import MicroHs.Fixity
 import MicroHs.Graph
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
+import MicroHs.List
 import MicroHs.SymTab
 import MicroHs.TCMonad
 import Compat
@@ -776,7 +777,7 @@ unifyUnboundVar loc r1 at2@(EUVar r2) = do
     Just t2 -> unify loc (EUVar r1) t2
 unifyUnboundVar loc r1 t2 = do
   vs <- getMetaTyVars [t2]
-  if elemBy (==) r1 vs then
+  if elem r1 vs then
     tcErrorTK loc $ "cyclic " ++ showExpr (EUVar r1) ++ " = " ++ showExpr t2
    else
     setUVar r1 t2

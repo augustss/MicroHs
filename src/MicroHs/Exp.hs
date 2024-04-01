@@ -15,6 +15,7 @@ import Data.Char
 import Data.List
 import MicroHs.Ident
 import MicroHs.Expr(Lit(..), showLit)
+import MicroHs.List
 import Text.PrettyPrint.HughesPJ
 import Control.DeepSeq
 import Compat

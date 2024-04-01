@@ -3,6 +3,7 @@ module Data.Version(
   showVersion,
   makeVersion
   ) where
+import Data.List(intercalate)
 
 data Version = Version { versionBranch :: [Int] }
   deriving (Show, Eq, Ord)

@@ -29,6 +29,7 @@ import MicroHs.Expr
 import MicroHs.Flags
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
+import MicroHs.List
 import MicroHs.Package
 import MicroHs.Parse
 import MicroHs.StateIO

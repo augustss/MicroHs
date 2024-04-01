@@ -47,3 +47,6 @@ instance Show Ordering where
 instance Bounded Ordering where
   minBound = LT
   maxBound = GT
+
+comparing :: (Ord b) => (a -> b) -> a -> a -> Ordering
+comparing f x y = compare (f x) (f y)

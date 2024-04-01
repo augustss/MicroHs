@@ -16,25 +16,3 @@ class IsString a where
 
 instance IsString String where
   fromString s = s
-
-lines :: String -> [String]
-lines "" = []
-lines s =
-  case span (not . (== '\n')) s of
-    (l, s') ->
-      case s' of
-        [] -> [l]
-        _:s'' -> l : lines s''
-
-unlines :: [String] -> String
-unlines = concatMap (++ "\n")
-
-words :: String -> [String]
-words s =
-  case dropWhile isSpace s of
-    "" -> []
-    s' -> w : words s''
-      where (w, s'') = span (not . isSpace) s'
-
-unwords :: [String] -> String
-unwords ss = intercalate " " ss

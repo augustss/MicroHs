@@ -59,7 +59,13 @@ import Data.Int(Int)
 import Data.Int.Instances
 import Data.Integer(Integer)
 import Data.Integral(Integral(..), fromIntegral, gcd, lcm, even, odd, (^))
-import Data.List  -- XXX
+import Data.List([](..), map, (++), filter, head, last, tail, init, null, length, (!!),
+                 reverse, foldl, foldl1, foldr, foldr1, and, or, any, all,
+                 sum, product, concat, concatMap, maximum, minimum,
+                 scanl, scanl1, scanr, scanr1, iterate, repeat, replicate, cycle,
+                 take, drop, splitAt, takeWhile, dropWhile, span, break,
+                 elem, notElem, lookup, zip, zip3, zipWith, zipWith3, unzip, unzip3,
+                 lines, words, unlines, unwords)
 import Data.Maybe(Maybe(..), maybe)
 import Data.Monoid(Monoid(..))
 import Data.Num(Num(..), subtract)

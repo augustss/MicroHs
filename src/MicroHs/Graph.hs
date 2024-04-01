@@ -12,14 +12,11 @@ module MicroHs.Graph (
   stronglyConnComp,
   SCC(..)
   ) where
-import Prelude
-import Compat
-
-import qualified Data.IntSet as IS
-import qualified Data.IntMap as IM
-
 import Data.List
 import Data.Maybe
+import qualified Data.IntSet as IS
+import qualified Data.IntMap as IM
+import MicroHs.List
 
 data Tree a = Node a [Tree a]
   --deriving (Eq, Ord, Show)
@@ -63,7 +60,7 @@ stronglyConnCompR le edges0
   where
     (graph, vertex_fn) = graphFromEdges le edges0
     forest             = scc graph
-    mentions_itself v = elemBy (==) v (graph IM.! v)
+    mentions_itself v = elem v (graph IM.! v)
     decode (Node v []) | mentions_itself v = CyclicSCC [vertex_fn v]
                        | otherwise         = AcyclicSCC (vertex_fn v)
     decode other = CyclicSCC (dec other [])

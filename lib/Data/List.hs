@@ -1,18 +1,42 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.List(
-  module Data.List,
-  module Data.List_Type
+  module Data.List_Type,
+  (++), head, last, tail, init, uncons, unsnoc, singleton, null, length,
+  map, reverse, intersperse, intercalate, transpose, subsequences, permutations,
+  foldl, foldl', foldl1, foldl1', foldr, foldr1,
+  concat, concatMap, and, or, any, all, sum, product, maximum, minimum,
+  scanl, scanl', scanl1, scanr, scanr1,
+  mapAccumL, mapAccumR,
+  iterate, iterate', repeat, replicate, cycle,
+  unfoldr,
+  take, drop, splitAt, takeWhile, dropWhile, dropWhileEnd, span, break,
+  stripPrefix, group, inits, tails,
+  isPrefixOf, isSuffixOf, isInfixOf, isSubsequenceOf,
+  elem, notElem, lookup,
+  find, filter, partition,
+  (!?), (!!), elemIndex, elemIndices, findIndex, findIndices,
+  zip, zip3, zip4, zip5, zip6, zip7,
+  zipWith, zipWith3, zipWith4, zipWith5, zipWith6, zipWith7,
+  unzip, unzip3, unzip4, unzip5, unzip6, unzip7,
+  lines, words, unlines, unwords,
+  nub, delete, (\\), union, intersect,
+  sort, sortOn, insert,
+  nubBy, deleteBy, deleteFirstsBy, unionBy, intersectBy, groupBy,
+  sortBy, insertBy, maximumBy, minimumBy,
+  genericLength, genericTake, genericDrop, genericSplitAt, genericIndex, genericReplicate,
   ) where
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
 import Control.Error
 import Data.Bool
+import Data.Char
 import Data.Eq
 import Data.Function
 import Data.Functor
 import Data.Int
+import Data.Integral
 import Data.List_Type
 import Data.Maybe_Type
 import Data.Monoid
@@ -110,6 +134,10 @@ foldl1 :: forall a . (a -> a -> a) -> [a] -> a
 foldl1 _ [] = error "foldl1"
 foldl1 f (x : xs) = foldl f x xs
 
+foldl1' :: forall a . (a -> a -> a) -> [a] -> a
+foldl1' _ [] = error "foldl1'"
+foldl1' f (x : xs) = foldl' f x xs
+
 minimum :: forall a . Ord a => [a] -> a
 minimum [] = error "minimum"
 minimum (x:ys) = foldr (\ y m -> if y < m then y else m) x ys
@@ -170,13 +198,41 @@ zip = zipWith (\ x y -> (x, y))
 zip3 :: forall a b c . [a] -> [b] -> [c] -> [(a, b, c)]
 zip3 = zipWith3 (\ x y z -> (x, y, z))
 
-zipWith :: forall a b c . (a -> b -> c) -> [a] -> [b] -> [c]
+zip4 :: forall a b c d . [a] -> [b] -> [c] -> [d] -> [(a, b, c, d)]
+zip4 = zipWith4 (\ x y z w -> (x, y, z, w))
+
+zip5 :: forall a b c d e . [a] -> [b] -> [c] -> [d] -> [e] -> [(a, b, c, d, e)]
+zip5 = zipWith5 (\ x y z w u -> (x, y, z, w, u))
+
+zip6 :: forall a b c d e f . [a] -> [b] -> [c] -> [d] -> [e] -> [f] -> [(a, b, c, d, e, f)]
+zip6 = zipWith6 (\ x y z w u v -> (x, y, z, w, u, v))
+
+zip7 :: forall a b c d e f g . [a] -> [b] -> [c] -> [d] -> [e] -> [f] -> [g] -> [(a, b, c, d, e, f, g)]
+zip7 = zipWith7 (\ x y z w u v t -> (x, y, z, w, u, v, t))
+
+zipWith :: forall a b r . (a -> b -> r) -> [a] -> [b] -> [r]
 zipWith f (x:xs) (y:ys) = f x y : zipWith f xs ys
 zipWith _ _ _ = []
 
-zipWith3 :: forall a b c d . (a -> b -> c -> d) -> [a] -> [b] -> [c] -> [d]
+zipWith3 :: forall a b c r . (a -> b -> c -> r) -> [a] -> [b] -> [c] -> [r]
 zipWith3 f (x:xs) (y:ys) (z:zs) = f x y z : zipWith3 f xs ys zs
 zipWith3 _ _ _ _ = []
+
+zipWith4 :: forall a b c d r . (a -> b -> c -> d -> r) -> [a] -> [b] -> [c] -> [d] -> [r]
+zipWith4 f (x:xs) (y:ys) (z:zs) (w:ws) = f x y z w : zipWith4 f xs ys zs ws
+zipWith4 _ _ _ _ _ = []
+
+zipWith5 :: forall a b c d e r . (a -> b -> c -> d -> e -> r) -> [a] -> [b] -> [c] -> [d] -> [e] -> [r]
+zipWith5 f (x:xs) (y:ys) (z:zs) (w:ws) (u:us) = f x y z w u : zipWith5 f xs ys zs ws us
+zipWith5 _ _ _ _ _ _ = []
+
+zipWith6 :: forall a b c d e f r . (a -> b -> c -> d -> e -> f -> r) -> [a] -> [b] -> [c] -> [d] -> [e] -> [f] -> [r]
+zipWith6 f (x:xs) (y:ys) (z:zs) (w:ws) (u:us) (v:vs) = f x y z w u v : zipWith6 f xs ys zs ws us vs
+zipWith6 _ _ _ _ _ _ _ = []
+
+zipWith7 :: forall a b c d e f g r . (a -> b -> c -> d -> e -> f -> g -> r) -> [a] -> [b] -> [c] -> [d] -> [e] -> [f] -> [g] -> [r]
+zipWith7 f (x:xs) (y:ys) (z:zs) (w:ws) (u:us) (v:vs) (t:ts) = f x y z w u v t : zipWith7 f xs ys zs ws us vs ts
+zipWith7 _ _ _ _ _ _ _ _ = []
 
 -- XXX not as lazy as it could be
 unzip :: forall a b . [(a, b)] -> ([a], [b])
@@ -204,6 +260,38 @@ unzip3 axyzs =
     (x, y, z) : xyzs ->
       case unzip3 xyzs of
         (xs, ys, zs) -> (x:xs, y:ys, z:zs)
+
+unzip4 :: forall a b c d . [(a, b, c, d)] -> ([a], [b], [c], [d])
+unzip4 axyzs =
+  case axyzs of
+    [] -> ([], [], [], [])
+    (x, y, z, w) : xyzs ->
+      case unzip4 xyzs of
+        (xs, ys, zs, ws) -> (x:xs, y:ys, z:zs, w:ws)
+
+unzip5 :: forall a b c d e . [(a, b, c, d, e)] -> ([a], [b], [c], [d], [e])
+unzip5 axyzs =
+  case axyzs of
+    [] -> ([], [], [], [], [])
+    (x, y, z, w, v) : xyzs ->
+      case unzip5 xyzs of
+        (xs, ys, zs, ws, vs) -> (x:xs, y:ys, z:zs, w:ws, v:vs)
+
+unzip6 :: forall a b c d e f . [(a, b, c, d, e, f)] -> ([a], [b], [c], [d], [e], [f])
+unzip6 axyzs =
+  case axyzs of
+    [] -> ([], [], [], [], [], [])
+    (x, y, z, w, v, u) : xyzs ->
+      case unzip6 xyzs of
+        (xs, ys, zs, ws, vs, us) -> (x:xs, y:ys, z:zs, w:ws, v:vs, u:us)
+
+unzip7 :: forall a b c d e f g . [(a, b, c, d, e, f, g)] -> ([a], [b], [c], [d], [e], [f], [g])
+unzip7 axyzs =
+  case axyzs of
+    [] -> ([], [], [], [], [], [], [])
+    (x, y, z, w, v, u, t) : xyzs ->
+      case unzip7 xyzs of
+        (xs, ys, zs, ws, vs, us, ts) -> (x:xs, y:ys, z:zs, w:ws, v:vs, u:us, t:ts)
 
 stripPrefix :: forall a . Eq a => [a] -> [a] -> Maybe [a]
 stripPrefix = stripPrefixBy (==)
@@ -308,11 +396,11 @@ intercalate xs xss = concat (intersperse xs xss)
 elem :: forall a . (Eq a) => a -> [a] -> Bool
 elem = elemBy (==)
 
+elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
+elemBy eq a = any (eq a)
+
 notElem :: forall a . (Eq a) => a -> [a] -> Bool
 notElem a as = not (elem a as)
-
-elemBy :: forall a . (a -> a -> Bool) -> a -> [a] -> Bool
-elemBy eq a = any (eq a)
 
 find :: forall a . (a -> Bool) -> [a] -> Maybe a
 find p [] = Nothing
@@ -339,12 +427,17 @@ intersect = intersectBy (==)
 intersectBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 intersectBy eq xs ys = filter (\ x -> elemBy eq x ys) xs
 
+delete :: (Eq a) => a -> [a] -> [a]
+delete = deleteBy (==)
+
 deleteBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
 deleteBy _ _ [] = []
 deleteBy eq x (y:ys) = if eq x y then ys else y : deleteBy eq x ys
 
+{-
 deleteAllBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
 deleteAllBy eq x = filter (not . eq x)
+-}
 
 nub :: forall a . Eq a => [a] -> [a]
 nub = nubBy (==)
@@ -357,10 +450,11 @@ replicate :: forall a . Int -> a -> [a]
 replicate n x = take n (repeat x)
 
 repeat :: forall a . a -> [a]
-repeat x =
-  let
-    xs = x:xs
-  in xs
+repeat x = let xs = x:xs in xs
+
+cycle :: [a] -> [a]
+cycle [] = error "cycle: []"
+cycle xs = let xs' = xs ++ xs' in xs'
 
 infix 5 \\
 (\\) :: forall a . Eq a => [a] -> [a] -> [a]
@@ -369,9 +463,11 @@ infix 5 \\
 deleteFirstsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteFirstsBy eq = foldl (flip (deleteBy eq))
 
+{-
 -- Delete all from the second argument from the first argument
 deleteAllsBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
 deleteAllsBy eq = foldl (flip (deleteAllBy eq))
+-}
 
 infixl 9 !!
 (!!) :: forall a . [a] -> Int -> a
@@ -382,6 +478,17 @@ infixl 9 !!
     let
       nth _ [] = error "!!: empty"
       nth n (x:xs) = if n == (0::Int) then x else nth (n - (1::Int)) xs
+    in nth i axs
+
+infixl 9 !?
+(!?) :: forall a . [a] -> Int -> Maybe a
+(!?) axs i =
+  if i < (0::Int) then
+    Nothing
+  else
+    let
+      nth _ [] = Nothing
+      nth n (x:xs) = if n == (0::Int) then Just x else nth (n - (1::Int)) xs
     in nth i axs
 
 partition :: forall a . (a -> Bool) -> [a] -> ([a], [a])
@@ -420,6 +527,11 @@ anySameBy eq (x:xs) = elemBy eq x xs || anySameBy eq xs
 iterate :: forall a . (a -> a) -> a -> [a]
 iterate f x = x : iterate f (f x)
 
+iterate' :: (a -> a) -> a -> [a]
+iterate' f x =
+  let x' = f x
+  in x' `seq` (x : iterate' f x')
+
 substString :: forall a . Eq a => [a] -> [a] -> [a] -> [a]
 substString _ _ [] = []
 substString from to xs@(c:cs) | Just rs <- stripPrefix from xs = to ++ substString from to rs
@@ -433,11 +545,17 @@ groupBy _  []     =  []
 groupBy eq (x:xs) =  (x:ys) : groupBy eq zs
   where (ys,zs) = span (eq x) xs
 
-scanl                   :: (b -> a -> b) -> b -> [a] -> [b]
+scanl :: (b -> a -> b) -> b -> [a] -> [b]
 scanl f = rec
   where rec q ls = q : case ls of
                          []   -> []
                          x:xs -> rec (f q x) xs
+
+scanl' :: (b -> a -> b) -> b -> [a] -> [b]
+scanl' f = rec
+  where rec q ls = q : case ls of
+                         []   -> []
+                         x:xs -> let y = f q x in seq y (rec y xs)
 
 scanl1 :: (a -> a -> a) -> [a] -> [a]
 scanl1 f (x:xs) = scanl f x xs
@@ -455,3 +573,158 @@ scanr1 f = rec
         rec [x]    = [x]
         rec (x:xs) = f x q : qs
               where qs@(q:_) = rec xs
+
+isSubsequenceOf :: (Eq a) => [a] -> [a] -> Bool
+isSubsequenceOf []       _                 = True
+isSubsequenceOf _        []                = False
+isSubsequenceOf a@(x:a') (y:b) | x == y    = isSubsequenceOf a' b
+                               | otherwise = isSubsequenceOf a b
+
+uncons :: [a] -> Maybe (a, [a])
+uncons []     = Nothing
+uncons (x:xs) = Just (x, xs)
+
+unsnoc :: [a] -> Maybe ([a], a)
+unsnoc [] = Nothing
+unsnoc xs = Just (init xs, last xs)
+
+singleton :: a -> [a]
+singleton x = [x]
+
+transpose :: [[a]] -> [[a]]
+transpose [] = []
+transpose ([] : xss) = transpose xss
+transpose ((x : xs) : xss) = combine x hds xs tls
+  where
+    (hds, tls) = unzip [(hd, tl) | hd : tl <- xss]
+    combine y h ys t = (y:h) : transpose (ys:t)
+
+subsequences :: [a] -> [[a]]
+subsequences xs = [] : sub xs
+  where sub []     = []
+        sub (x:xs) = [x] : foldr f [] (sub xs)
+          where f ys r = ys : (x : ys) : r
+
+permutations :: [a] -> [[a]]
+permutations axs = axs : perms axs []
+  where
+    perms []     _  = []
+    perms (t:ts) is = foldr interleave (perms ts (t:is)) (permutations is)
+      where
+        interleave xs r = snd $ interleave' id xs r
+        interleave' _ []     r = (ts, r)
+        interleave' f (y:ys) r = let (us, zs) = interleave' (f . (y:)) ys r
+                                 in  (y:us, f (t:y:us) : zs)
+
+mapAccumL :: (acc -> x -> (acc, y)) -> acc -> [x] -> (acc, [y])
+mapAccumL _ s []     = (s, [])
+mapAccumL f s (x:xs) = (s'',y:ys)
+  where (s', y ) = f s x
+        (s'',ys) = mapAccumL f s' xs
+
+mapAccumR :: (acc -> x -> (acc, y)) -> acc -> [x] -> (acc, [y])
+mapAccumR _ s []     = (s, [])
+mapAccumR f s (x:xs) = (s'', y:ys)
+  where (s'',y ) = f s' x
+        (s', ys) = mapAccumR f s xs
+
+unfoldr :: (b -> Maybe (a, b)) -> b -> [a]
+unfoldr gen b =
+  case gen b of
+    Nothing -> []
+    Just (a, b') -> a : unfoldr gen b'
+
+elemIndex :: Eq a => a -> [a] -> Maybe Int
+elemIndex x xs = findIndex (x ==) xs
+
+elemIndices :: Eq a => a -> [a] -> [Int]
+elemIndices x xs = findIndices (x ==) xs
+
+findIndices :: (a -> Bool) -> [a] -> [Int]
+findIndices p = rec 0
+  where rec _ [] = []
+        rec i (x:xs) | p x = i : rec (i+1) xs
+                     | otherwise = rec (i+1) xs
+
+findIndex :: (a -> Bool) -> [a] -> Maybe Int
+findIndex p xs =
+  case findIndices p xs of
+    [] -> Nothing
+    i : _ -> Just i
+
+lines :: String -> [String]
+lines [] = []
+lines s =
+  case span (not . (== '\n')) s of
+    (l, s') ->
+      case s' of
+        [] -> [l]
+        _:s'' -> l : lines s''
+
+unlines :: [String] -> String
+unlines = concatMap (++ ['\n'])
+
+words :: String -> [String]
+words s =
+  case dropWhile isSpace s of
+    [] -> []
+    s' -> w : words s''
+      where (w, s'') = span (not . isSpace) s'
+
+unwords :: [String] -> String
+unwords ss = intercalate [' '] ss
+
+sortOn :: Ord b => (a -> b) -> [a] -> [a]
+sortOn f = map snd . sortBy (comparing fst) . map (\x -> let y = f x in y `seq` (y, x))
+
+insert :: Ord a => a -> [a] -> [a]
+insert e ls = insertBy (compare) e ls
+
+insertBy :: (a -> a -> Ordering) -> a -> [a] -> [a]
+insertBy _   x [] = [x]
+insertBy cmp x ys@(y:ys') =
+  case cmp x y of
+    GT -> y : insertBy cmp x ys'
+    _  -> x : ys
+
+maximumBy :: (a -> a -> Ordering) -> [a] -> a
+maximumBy _ []   =  error "List.maximumBy: []"
+maximumBy cmp xs =  foldl1 maxBy xs
+  where
+    maxBy x y = case cmp x y of
+                  GT -> x
+                  _  -> y
+
+minimumBy :: (a -> a -> Ordering) -> [a] -> a
+minimumBy _ []   =  error "List.minimumBy: []"
+minimumBy cmp xs =  foldl1 minBy xs
+  where
+    minBy x y = case cmp x y of
+                  GT -> y
+                  _  -> x
+
+genericLength :: (Num i) => [a] -> i
+genericLength []    = 0
+genericLength (_:l) = 1 + genericLength l
+
+genericTake :: (Integral i, Ord i) => i -> [a] -> [a]
+genericTake n _ | n <= 0 = []
+genericTake _ []         = []
+genericTake n (x:xs)     = x : genericTake (n-1) xs
+
+genericDrop :: (Integral i, Ord i) => i -> [a] -> [a]
+genericDrop n xs | n <= 0 = xs
+genericDrop _ []          = []
+genericDrop n (_:xs)      = genericDrop (n-1) xs
+
+genericSplitAt :: (Integral i, Ord i) => i -> [a] -> ([a], [a])
+genericSplitAt n xs = (genericTake n xs, genericDrop n xs)
+
+genericIndex :: (Integral i, Ord i) => [a] -> i -> a
+genericIndex (x:_)  0 = x
+genericIndex (_:xs) n | n > 0     = genericIndex xs (n-1)
+                      | otherwise = error "List.genericIndex: < 0"
+genericIndex _ _                  = error "List.genericIndex: index too large."
+
+genericReplicate :: (Integral i, Ord i) => i -> a -> [a]
+genericReplicate n x = genericTake n (repeat x)

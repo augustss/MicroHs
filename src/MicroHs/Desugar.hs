@@ -24,6 +24,7 @@ import MicroHs.Exp
 import MicroHs.Flags
 import MicroHs.Graph
 import MicroHs.Ident
+import MicroHs.List
 import MicroHs.TypeCheck
 
 type LDef = (Ident, Exp)

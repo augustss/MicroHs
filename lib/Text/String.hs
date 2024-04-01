@@ -23,14 +23,11 @@ import Data.Tuple
 import Text.Read
 import Text.Show
 
-showListS :: forall a . (a -> String) -> [a] -> String
-showListS sa as = showListWith (\ a s -> sa a ++ s) as ""
-
 showPairS :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
 showPairS sa sb (a, b) = "(" ++ sa a ++ "," ++ sb b ++ ")"
 
-padLeft :: Int -> String -> String
-padLeft n s = replicate (n - length s) ' ' ++ s
+--padLeft :: Int -> String -> String
+--padLeft n s = replicate (n - length s) ' ' ++ s
 
 forceString :: String -> ()
 forceString [] = ()

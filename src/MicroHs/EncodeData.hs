@@ -6,11 +6,10 @@ module MicroHs.EncodeData(
   encIf,
   encList,
   ) where
-import Prelude
+import Data.List
 import MicroHs.Exp
 import MicroHs.Expr(Con(..), Lit(..))
 import MicroHs.Ident
-import Compat
 
 --
 -- Encoding of constructors and case
@@ -123,7 +122,7 @@ encCaseNo var pes dflt =
         t = -- newIdent "$tt" es --
             mkIdent "$tt"
         --es = var : dflt : map snd pes
-        pes' = sortLE (\ (x, _, _) (y, _, _) -> x <= y)
+        pes' = sortBy (\ (x, _, _) (y, _, _) -> compare x y)
                       [(conNo c, xs, e) | (SPat c xs, e) <- pes]
 
 caseTree :: Exp -> Exp -> Int -> Int -> [(Int, [Ident], Exp)] -> Exp -> Exp

@@ -33,8 +33,6 @@ module Control.Monad(
   liftM2,
   liftM3,
   ap,
-  -- XXX move
-  partitionM,
   ) where
 import Prelude()              -- do not import Prelude
 import Primitives  -- for fixity
@@ -181,13 +179,6 @@ ap f a = do
   return (f' a')
 
 -----
-
-partitionM :: forall m a . Monad m => (a -> m Bool) -> [a] -> m ([a], [a])
-partitionM _ [] = return ([], [])
-partitionM p (x:xs) = do
-  b <- p x
-  (ts,fs) <- partitionM p xs
-  return $ if b then (x:ts, fs) else (ts, x:fs)
 
 instance forall a . Functor ((->) a) where
   fmap = (.)

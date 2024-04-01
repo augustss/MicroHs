@@ -16,6 +16,7 @@ import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
 import MicroHs.Ident
+import MicroHs.List
 import MicroHs.Package
 import MicroHs.Translate
 import MicroHs.TypeCheck(tModuleName)

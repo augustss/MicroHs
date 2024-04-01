@@ -5,10 +5,10 @@
 --
 module Data.Map(
   Map,
+  insert, insertWith, fromListWith, fromList, lookup, delete,
   insertBy, insertByWith, fromListByWith, fromListBy, lookupBy, empty, elems, size, toList, deleteBy,
   ) where
-import Prelude()              -- do not import Prelude
-import Prelude hiding (lookupBy, deleteBy)
+import Prelude hiding (lookup)
 
 data Map k a
   = Nil           -- empty tree
@@ -158,3 +158,21 @@ doubleR _ _ _ _ = undefined
 isEQ :: Ordering -> Bool
 isEQ EQ = True
 isEQ _  = False
+
+insert :: (Ord k) => k -> a -> Map k a -> Map k a
+insert = insertBy compare
+
+insertWith :: (Ord k) => (a -> a -> a) -> k -> a -> Map k a -> Map k a
+insertWith = insertByWith compare
+
+fromListWith :: (Ord k) => (v -> v -> v) -> [(k, v)] -> Map k v
+fromListWith = fromListByWith compare
+
+fromList :: (Ord k) => [(k, v)] -> Map k v
+fromList = fromListBy compare
+
+lookup :: (Ord k) => k -> Map k a -> Maybe a
+lookup = lookupBy compare
+
+delete ::  (Ord k) => k -> Map k a -> Map k a
+delete = deleteBy compare

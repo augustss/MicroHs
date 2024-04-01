@@ -14,8 +14,8 @@ import Control.Applicative
 import Data.List
 import MicroHs.Expr(Expr(..), EType, conIdent)
 import MicroHs.Ident(Ident, showIdent)
+import MicroHs.List
 import qualified MicroHs.IdentMap as M
-import Compat
 
 -- Symbol table
 -- 

@@ -81,20 +81,20 @@ module E(x) where
 mhs: "../tmp/E.hs": line 2, col 10: undefined export: x
 
 =====
-module E(lookupBy) where
+module E(lookup) where
 import Prelude
 import Data.Map
 -----
-mhs: "../tmp/E.hs": line 2, col 10: ambiguous export: lookupBy [Data.List.lookupBy,Data.Map.lookupBy]
+mhs: "../tmp/E.hs": line 2, col 10: ambiguous export: lookup [Data.List.lookup,Data.Map.lookup]
 
 =====
 module E() where
 import Prelude
 import Data.Map
 a :: ()
-a = lookupBy
+a = lookup
 -----
-mhs: "../tmp/E.hs": line 6, col 5: ambiguous value: lookupBy [Data.List.lookupBy,Data.Map.lookupBy]
+mhs: "../tmp/E.hs": line 6, col 5: ambiguous value: lookup [Data.List.lookup,Data.Map.lookup]
 
 =====
 module E() where

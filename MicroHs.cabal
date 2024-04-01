@@ -77,6 +77,7 @@ executable mhs
                        Data.Integer
                        Compat
                        PrimTable
+                       Control.Exn
                        System.IO.MD5
                        System.IO.Serialize
                        System.IO.TimeMilli
