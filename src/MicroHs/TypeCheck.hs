@@ -31,7 +31,6 @@ import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.SymTab
 import MicroHs.TCMonad
-import Compat
 import GHC.Stack
 import Debug.Trace
 

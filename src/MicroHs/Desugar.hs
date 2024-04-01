@@ -15,7 +15,6 @@ import Data.Maybe
 import Data.Ratio
 import Control.Monad.State.Strict as S
 import Debug.Trace
-import Compat
 import GHC.Stack
 
 import MicroHs.EncodeData

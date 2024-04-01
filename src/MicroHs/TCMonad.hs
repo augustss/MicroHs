@@ -15,7 +15,6 @@ import MicroHs.Expr
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.SymTab
-import Compat
 
 -----------------------------------------------
 -- TC
