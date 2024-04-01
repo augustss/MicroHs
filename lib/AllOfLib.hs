@@ -6,7 +6,7 @@ import Control.Applicative
 import Control.DeepSeq
 import Control.Error
 import Control.Exception
-import Control.Exception.Exn
+import Control.Exn
 import Control.Monad
 import Control.Monad.Fail
 import Control.Monad.ST

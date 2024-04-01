@@ -106,11 +106,13 @@ foldr f z =
     rec (x : xs) = f x (rec xs)
   in rec
 
+{-
 foldr' :: forall a b . (a -> b -> b) -> b -> [a] -> b
 foldr' f z [] = z
 foldr' f z (x:xs) =
   let y = foldr f z xs
   in  y `seq` f x y
+-}
 
 foldr1 :: forall a . (a -> a -> a) -> [a] -> a
 foldr1 f =

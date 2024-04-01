@@ -1,6 +1,5 @@
 module Nfib(main, nfib) where
-import Prelude
-import System.IO(getTimeMilli)
+import System.IO.TimeMilli(getTimeMilli)
 
 nfib :: Int -> Int
 nfib n =

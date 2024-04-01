@@ -182,7 +182,7 @@ instance Foldable [] where
     foldl'  = List.foldl'
     foldl1  = List.foldl1
     foldr   = List.foldr
-    foldr'  = List.foldr'
+    --foldr'  = List.foldr'
     foldr1  = List.foldr1
     foldMap = (mconcat .) . List.map
     fold    = mconcat
