@@ -5,6 +5,7 @@ import Data.Char
 import Data.Maybe
 import Data.Word()
 import System.IO
+import System.IO.TimeMilli
 import Unsafe.Coerce
 import GHC.Types(Any)
 import Foreign.C.String
@@ -14,7 +15,7 @@ import Foreign.Ptr
 --import System.Environment
 import System.IO.Unsafe
 --import Debug.Trace
-import Compat
+
 
 type AnyType = Any
 

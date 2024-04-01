@@ -79,6 +79,7 @@ executable mhs
                        PrimTable
                        System.IO.MD5
                        System.IO.Serialize
+                       System.IO.TimeMilli
                        System.Compress
                        Paths_MicroHs
   autogen-modules:     Paths_MicroHs

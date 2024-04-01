@@ -7,8 +7,6 @@ module Compat(module Compat, Type) where
 --import Control.Exception
 import Data.Char
 import Data.Maybe
-import Data.Time
-import Data.Time.Clock.POSIX
 --import qualified Control.Monad as M
 import Control.Exception
 import Data.List
@@ -77,9 +75,6 @@ openFileM path m = do
   case r of
     Left _ -> return Nothing
     Right h -> return (Just h)
-
-getTimeMilli :: IO Int
-getTimeMilli  = floor . (1000 *) . nominalDiffTimeToSeconds . utcTimeToPOSIXSeconds <$> getCurrentTime
 
 ------- Read --------
 

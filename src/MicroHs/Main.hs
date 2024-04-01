@@ -24,6 +24,7 @@ import MicroHs.MakeCArray
 import System.Directory
 import System.IO
 import System.IO.Serialize
+import System.IO.TimeMilli
 import System.Process
 import Compat
 import MicroHs.Instances(getMhsDir) -- for GHC

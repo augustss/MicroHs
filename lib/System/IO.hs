@@ -21,7 +21,6 @@ module System.IO(
 
   mkTextEncoding, hSetEncoding, utf8,
 
-  getTimeMilli,
   openTmpFile, openTempFile,
 
   withFile,
@@ -76,7 +75,6 @@ foreign import ccall "fgetc"        c_fgetc        :: Handle             -> IO I
 foreign import ccall "fputc"        c_fputc        :: Int ->     Handle  -> IO Int
 -- foreign import ccall "fwrite"       c_fwrite       :: CString -> Int -> Int -> Handle -> IO Int
 -}
-foreign import ccall "GETTIMEMILLI" c_getTimeMilli ::                       IO Int
 
 foreign import ccall "closeb"       c_closeb       :: Ptr BFILE          -> IO ()
 foreign import ccall "flushb"       c_flushb       :: Ptr BFILE          -> IO ()
@@ -261,9 +259,6 @@ getContents = hGetContents stdin
 
 interact :: (String -> String) -> IO ()
 interact f = getContents >>= putStr . f
-
-getTimeMilli :: IO Int
-getTimeMilli = c_getTimeMilli
 
 openBinaryFile :: String -> IOMode -> IO Handle
 openBinaryFile p m = do

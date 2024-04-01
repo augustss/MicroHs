@@ -18,6 +18,7 @@ import System.Environment
 import System.IO
 import System.IO.MD5
 import System.IO.Serialize
+import System.IO.TimeMilli
 import System.Process
 import Control.DeepSeq
 import MicroHs.Abstract
