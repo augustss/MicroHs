@@ -16,7 +16,7 @@ These different ways of compiling need slightly different imports etc.
 This happens by GHC looking in the `ghc/` subdirectory first for any extras/overrides.
 
 Compiling MicroHs is really best done using `make`, but there is also a `MicroHs.cabal` file
-for use with `cabal`.  This only builds what corresponds to the first target.
+for use with `cabal`/`mcabal`.  This only builds what corresponds to the first target.
 Doing `cabal install` will install the compiler.
 Note that `mhs` built with ghc does not have all the functionality.
 
@@ -79,6 +79,8 @@ Differences:
  * The `BangPatterns` extension is parsed, but only effective at the a top level `let`/`where`.
  * Lazy patterns (`~pat`) are ignored.
  * More differences that I don't remember right now.
+
+Mutually recursive modules are allowed the same way as with GHC, using `.hs-boot` files. 
 
 ## Example
 The file `Example.hs` contains the following:
