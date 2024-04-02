@@ -48,8 +48,7 @@ toStringCMdl (mainName, ds) =
         e -> e
     def :: (String -> String) -> (Int, Exp) -> (String -> String)
     def r (i, e) =
-      --(("((A :" ++ show i ++ " ") ++) . toStringP (substv e) . (") " ++) . r . (")" ++)
-      ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @\n") ++) . r . (" @" ++)
+      ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @\n") ++) . r . ("@" ++)
   in combVersion ++ show ndefs ++ "\n" ++ res " }"
 
 -- Avoid quadratic concatenation by using difference lists,
@@ -72,7 +71,7 @@ toStringP ae =
     Lit l   -> (showLit l ++) . (' ' :)
     Lam _x _e -> undefined -- (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     --App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
-    App f a -> toStringP f . toStringP a . ("@ " ++)
+    App f a -> toStringP f . toStringP a . ("@" ++)
 
 quoteString :: String -> String
 quoteString s =
