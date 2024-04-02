@@ -159,9 +159,6 @@ primCharGT  = primitive ">"
 primCharGE :: Char -> Char -> Bool
 primCharGE  = primitive ">="
 
-primError  :: forall a . [Char] -> a
-primError  = primitive "error"
-
 primFix    :: forall a . (a -> a) -> a
 primFix    = primitive "Y"
 
@@ -200,10 +197,6 @@ primGetArgRef    :: IO (IOArray [[Char]])
 primGetArgRef     = primitive "IO.getArgRef"
 primPerformIO    :: forall a . IO a -> a
 primPerformIO     = primitive "IO.performIO"
-
--- Use string for the exception until we can do better.
-primCatch        :: forall a . IO a -> ([Char] -> IO a) -> IO a
-primCatch         = primitive "IO.catch"
 
 primRnfErr       :: forall a . a -> ()
 primRnfErr        = primitive "rnf" (0::Int)
@@ -274,3 +267,4 @@ primArrWrite = primitive "A.write"
 
 primArrEQ :: forall a . IOArray a -> IOArray a -> Bool
 primArrEQ = primitive "A.=="
+

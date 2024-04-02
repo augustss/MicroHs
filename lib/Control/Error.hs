@@ -1,12 +1,23 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Control.Error(module Control.Error) where
+module Control.Error(error, undefined, ErrorCall(..)) where
 import Prelude()              -- do not import Prelude
-import Primitives
 import Data.Char_Type
+import Data.List_Type
+import Control.Exception.Internal
+import {-# SOURCE #-} Data.Typeable
+import Text.Show
+
+newtype ErrorCall = ErrorCall String
+  deriving (Typeable)
+
+instance Show ErrorCall where
+  show (ErrorCall s) = ("error: "::String) ++ s
+
+instance Exception ErrorCall
 
 error :: forall a . String -> a
-error = primError
+error s = throw (ErrorCall s)
 
 undefined :: forall a . a
 undefined = error "undefined"

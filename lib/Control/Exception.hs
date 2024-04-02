@@ -1,29 +1,42 @@
--- Copyright 2023 Lennart Augustsson
+-- Copyright 2023, 2024 Lennart Augustsson
 -- See LICENSE file for full license.
 module Control.Exception(
-  catch, try,
-  throwIO,
-  Exn(..),
-  exnToString,
-  onException,
+  -- re-exports
+  catch, throw,
   SomeException,
+  Exception(..),
+  -- defined here
+  try,
+  throwIO,
+--  onException,
   ) where
-import Primitives
-import Control.Exn
+import Control.Exception.Internal
+import {-# SOURCE #-} Data.Typeable
 
-type SomeException = Exn
+instance Show SomeException where
+  showsPrec p (SomeException e) = showsPrec p e
 
-catch :: forall a . IO a -> (Exn -> IO a) -> IO a
-catch ioa hdl = primCatch ioa (hdl . Exn)
+instance Exception SomeException where
+  toException se = se
+  fromException = Just
+  displayException (SomeException e) = displayException e
 
-try :: forall a . IO a -> IO (Either Exn a)
+-- This is the function called by the runtime.
+-- It compiles to
+--    (U (U (K2 A)))
+-- displaySomeException :: SomeException -> String
+-- displaySomeException = displayException
+
+--------------------------
+
+try :: forall a e . Exception e => IO a -> IO (Either e a)
 try ioa = catch (fmap Right ioa) (return . Left)
 
-throwIO :: forall a . Exn -> IO a
-throwIO (Exn s) =
-  let e = error s
-  in  seq e (return e)
+throwIO :: forall a e . Exception e => e -> IO a
+throwIO e = throw e
 
+{-
 onException :: IO a -> IO b -> IO a
-onException io what = io `catch` \e -> do _ <- what
-                                          throwIO e
+onException io what =
+  io `catch` \ e -> do { _ <- what; throwIO e }
+-}

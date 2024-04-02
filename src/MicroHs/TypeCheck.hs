@@ -929,7 +929,7 @@ tcDefs impt ds = do
   dst <- tcDefsType ds
 --  traceM ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeSyn dst
-  dst' <- tcExpand dst
+  dst' <- tcExpand impt dst
 --  traceM ("tcDefs 3:\n" ++ showEDefs dst')
   case impt of
     ImpNormal -> do
@@ -977,14 +977,14 @@ getKindSigns ds = do
   return $ M.fromList iks'
 
 -- Expand class and instance definitions (must be done after type synonym processing)
-tcExpand :: [EDef] -> T [EDef]
-tcExpand dst = withTypeTable $ do
-  dsc <- concat <$> mapM expandClass dst       -- Expand all class definitions
-  dsf <- concat <$> mapM expandField dsc       -- Add HasField instances
+tcExpand :: ImpType -> [EDef] -> T [EDef]
+tcExpand impt dst = withTypeTable $ do
+  dsc <- concat <$> mapM (expandClass impt) dst       -- Expand all class definitions
+  dsf <- concat <$> mapM expandField dsc              -- Add HasField instances
 --  traceM $ showEDefs dsf
-  dsd <- concat <$> mapM doDeriving  dsf       -- Add derived instances
+  dsd <- concat <$> mapM doDeriving  dsf              -- Add derived instances
 --  traceM $ showEDefs dsd
-  dsi <- concat <$> mapM expandInst  dsd       -- Expand all instance definitions
+  dsi <- concat <$> mapM expandInst  dsd              -- Expand all instance definitions
   return dsi
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
@@ -1136,8 +1136,8 @@ tcConstr (Constr iks ct c ets) =
 -- in the desugaring pass.
 -- Default methods are added as actual definitions.
 -- The constructor and methods are added to the symbol table in addValueType.
-expandClass :: EDef -> T [EDef]
-expandClass dcls@(Class ctx (iCls, vks) fds ms) = do
+expandClass :: ImpType -> EDef -> T [EDef]
+expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
   mn <- gets moduleName
   let
       meths = [ b | b@(BSign _ _) <- ms ]
@@ -1151,10 +1151,12 @@ expandClass dcls@(Class ctx (iCls, vks) fds ms) = do
               -- XXX This isn't right, "Prelude._nodefault" might not be in scope
               noDflt = EApp noDefaultE (mkEStr (getSLoc iCls) (unIdent iCls ++ "." ++ unIdent methId))
       mkDflt _ = impossible
-      dDflts = concatMap mkDflt meths
+      dDflts = case impt of
+                 ImpNormal -> concatMap mkDflt meths
+                 ImpBoot   -> []
   addClassTable (qualIdent mn iCls) (vks, ctx, EUVar 0, methIds, mkIFunDeps (map idKindIdent vks) fds)   -- Initial entry, no type needed.
   return $ dcls : dDflts
-expandClass d = return [d]
+expandClass _ d = return [d]
 
 mkEStr :: SLoc -> String -> Expr
 mkEStr loc str = ESign (ELit loc (LStr str)) $ EListish $ LList [tConI loc "Char"]

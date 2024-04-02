@@ -14,11 +14,13 @@ main :: IO ()
 main = do
   let sshow :: String -> String
       sshow = show
-  x <- catch (return ("o" ++ "k")) (\ _ -> return "what?")
+      exn :: SomeException -> IO String
+      exn e = return (displayException e)
+  x <- catch (return ("o" ++ "k")) (\ (_ :: SomeException) -> return "what?")
   putStrLn $ sshow x
-  y <- catch (do { error "bang!"; return "yyy" }) (\ (Exn s) -> return s)
+  y <- catch (do { error "bang!"; return "yyy" }) exn
   putStrLn $ sshow y
-  z <- catch (do { print (f []); return "zzz" })  (\ (Exn s) -> return s)
+  z <- catch (do { print (f []); return "zzz" })  exn
   putStrLn $ sshow z
-  w <- catch (do { print (m ()); return "www" })  (\ (Exn s) -> return s)
+  w <- catch (do { print (m ()); return "www" })  exn
   putStrLn $ sshow w

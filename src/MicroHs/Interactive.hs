@@ -1,7 +1,6 @@
 module MicroHs.Interactive(module MicroHs.Interactive) where
 import Data.List
 import Control.Exception
-import Control.Exn
 import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
@@ -162,8 +161,8 @@ mkTypeIt :: String -> String
 mkTypeIt l =
   "type " ++ itTypeName ++ " = " ++ l ++ "\n"
 
-err :: Exn -> IO ()
-err e = err' $ exnToString e
+err :: SomeException -> IO ()
+err e = err' $ displayException e
 
 err' :: String -> IO ()
 err' s = putStrLn $ "Error: " ++ s
@@ -194,7 +193,7 @@ tryParse p s ok bad =
     Right _ -> ok
     Left  e -> bad e
 
-tryCompile :: String -> I (Either Exn [LDef])
+tryCompile :: String -> I (Either SomeException [LDef])
 tryCompile file = do
   updateCache (deleteFromCache interactiveId)
   (_, flgs, cash) <- get

@@ -5,16 +5,17 @@ module System.Exit(
   exitSuccess,
   die,
   ) where
-import Prelude
 import Control.Exception
+import Data.Typeable
 import System.IO
 
 data ExitCode = ExitSuccess | ExitFailure Int
-  deriving (Show)
+  deriving (Typeable, Show)
 
--- XXX This needs work
+instance Exception ExitCode
+
 exitWith :: forall a . ExitCode -> IO a
-exitWith e = throwIO (Exn (show e))
+exitWith = throwIO
 
 exitFailure :: forall a . IO a
 exitFailure = exitWith (ExitFailure 1)

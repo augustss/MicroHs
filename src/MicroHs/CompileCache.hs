@@ -1,6 +1,6 @@
 module MicroHs.CompileCache(
   CModule,
-  Cache, addWorking, emptyCache, deleteFromCache, workToDone, workPop,
+  Cache, addWorking, emptyCache, deleteFromCache, workToDone, addBoot, getBoots,
   cachedModules, lookupCache, lookupCacheChksum, getImportDeps,
   addPackage, getCompMdls, getPkgs,
   saveCache, loadCached,
@@ -38,16 +38,23 @@ chksumOf _ = undefined
 
 data Cache = Cache {
   working :: [IdentModule],             -- modules currently being processed (used to detected circular imports)
+  boots   :: [IdentModule],             -- modules where only the boot version has been compiled
   cache   :: M.Map CacheEntry,          -- cached compiled modules
   pkgs    :: [Package]                  -- loaded packages
   }
 --  deriving (Show)
 
 emptyCache :: Cache
-emptyCache = Cache { working = [], cache = M.empty, pkgs = [] }
+emptyCache = Cache { working = [], boots = [], cache = M.empty, pkgs = [] }
 
 deleteFromCache :: IdentModule -> Cache -> Cache
 deleteFromCache mn c = c{ cache = M.delete mn (cache c) }
+
+addBoot :: IdentModule -> Cache -> Cache
+addBoot mn c = c{ boots = mn : boots c }
+
+getBoots :: Cache -> [IdentModule]
+getBoots = boots
 
 addWorking :: IdentModule -> Cache -> Cache
 addWorking mn c =
@@ -58,11 +65,9 @@ addWorking mn c =
         c{ working = mn : ws }
 
 workToDone :: CModule -> Cache -> Cache
-workToDone (t, i, k) c@(Cache{ working = mn:ws, cache = m }) = c{ working = ws, cache = M.insert mn (CompMdl t i k) m }
+workToDone (t, i, k) c@(Cache{ working = mn:ws, boots = bs, cache = m }) =
+  c{ working = ws, boots = filter (/= mn) bs, cache = M.insert mn (CompMdl t i k) m }
 workToDone _ _ = undefined
-
-workPop :: Cache -> Cache
-workPop c = c{ working = drop 1 (working c) }
 
 cachedModules :: Cache -> [TModule [LDef]]
 cachedModules = map tModuleOf . M.elems . cache

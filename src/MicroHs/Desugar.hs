@@ -222,7 +222,7 @@ dsExpr aexpr =
               body = mkTupleE $ map Var xs
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
-    _ -> impossible
+    _ -> impossibleShow aexpr
 
 dsCompr :: Expr -> [EStmt] -> Expr -> Expr
 dsCompr e [] l = EApp (EApp consCon e) l

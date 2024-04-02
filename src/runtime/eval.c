@@ -178,13 +178,13 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_BADDYN, T_
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
 #endif
                 T_ARR_ALLOC, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
-                T_ERROR, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
+                T_RAISE, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_CCBIND,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGREF,
-                T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_IO_CATCH,
+                T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_FROMUTF8,
@@ -213,7 +213,7 @@ static const char* tag_names[] = {
   "C'BIND",
   "IO_SERIALIZE", "IO_DESERIALIZE",
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
-  "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "IO_CATCH",
+  "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "CATCH",
   "IO_CCALL", "DYNSYM",
   "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
   "FROMUTF8",
@@ -537,6 +537,7 @@ NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combFalse, combTrue, combUnit, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND;
 NODEPTR combLT, combEQ, combGT;
+NODEPTR combShowExn, combU, combK2;
 NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
 
@@ -622,7 +623,6 @@ struct {
   { "p+", T_PADD },
   { "p-", T_PSUB },
   { "seq", T_SEQ },
-  { "error", T_ERROR },
   { "noDefault", T_NODEFAULT },
   { "noMatch", T_NOMATCH },
   { "equal", T_EQUAL, T_EQUAL },
@@ -646,7 +646,8 @@ struct {
   { "IO.getArgRef", T_IO_GETARGREF },
   { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
-  { "IO.catch", T_IO_CATCH },
+  { "raise", T_RAISE },
+  { "catch", T_CATCH },
   { "A.alloc", T_ARR_ALLOC },
   { "A.size", T_ARR_SIZE },
   { "A.read", T_ARR_READ },
@@ -694,6 +695,8 @@ init_nodes(void)
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
     case T_Z: combZ = n; break;
+    case T_U: combU = n; break;
+    case T_K2: combK2 = n; break;
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_CCBIND: combIOCCBIND = n; break;
@@ -724,6 +727,8 @@ init_nodes(void)
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
     case T_Z: combZ = n; break;
+    case T_U: combU = n; break;
+    case T_K2: combK2 = n; break;
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_CCBIND: combIOCCBIND = n; break;
@@ -763,6 +768,13 @@ init_nodes(void)
   NEWAP(combLT, combZ,     combFalse);  /* Z B */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
+  {
+    /* The displaySomeException compiles to (U (U (K2 A))) */
+    NODEPTR x;
+    NEWAP(x, combK2, combTrue);        /* (K2 A) */
+    NEWAP(x, combU, x);                /* (U (K2 A)) */
+    NEWAP(combShowExn, combU, x);      /* (U (U (K2 A))) */
+  }
 #undef NEWAP
 
 #if INTTABLE
@@ -1922,7 +1934,6 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_PNULL: putsb("pnull", f); break;
   case T_PADD: putsb("p+", f); break;
   case T_PSUB: putsb("p-", f); break;
-  case T_ERROR: putsb("error", f); break;
   case T_NODEFAULT: putsb("noDefault", f); break;
   case T_NOMATCH: putsb("noMatch", f); break;
   case T_EQUAL: putsb("equal", f); break;
@@ -1939,7 +1950,8 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_IO_GETARGREF: putsb("IO.getArgRef", f); break;
   case T_IO_GETTIMEMILLI: putsb("IO.getTimeMilli", f); break;
   case T_IO_PERFORMIO: putsb("IO.performIO", f); break;
-  case T_IO_CATCH: putsb("IO.catch", f); break;
+  case T_RAISE: putsb("raise", f); break;
+  case T_CATCH: putsb("catch", f); break;
   case T_ARR_ALLOC: putsb("A.alloc", f); break;
   case T_ARR_SIZE: putsb("A.size", f); break;
   case T_ARR_READ: putsb("A.read", f); break;
@@ -2685,12 +2697,11 @@ evali(NODEPTR an)
       FREE(msg);
       goto err;                 /* XXX not right message if the error is caught */
     }
-  case T_ERROR:
-    if (doing_rnf) RET;
+
   err:
     if (cur_handler) {
       /* Pass the string to the handler */
-      CHKARG1;
+      CHKARG1;                  /* argument in x */
       cur_handler->hdl_exn = x;
       longjmp(cur_handler->hdl_buf, 1);
     } else {
@@ -2708,6 +2719,40 @@ evali(NODEPTR an)
       ERR1("error: %s", msg);
 #endif  /* WANT_STDIO */
     }
+
+  case T_RAISE:
+    if (doing_rnf) RET;
+    if (cur_handler) {
+      /* Pass the string to the handler */
+      CHKARG1;
+      cur_handler->hdl_exn = x;
+      longjmp(cur_handler->hdl_buf, 1);
+    } else {
+      /* No handler:
+       * First convert the exception to a string by calling displaySomeException.
+       * The display function compiles to combShowExn, so we need to build
+       * (combShowExn x) and evaluate it.
+       */
+      CHECK(1);
+      GCCHECK(1);
+      TOP(0) = new_ap(combShowExn, TOP(0)); /* (combShowExn x) */
+      x = evali(TOP(0));
+      msg = evalstring(x, 0);
+      POP(1);
+#if WANT_STDIO
+      /* A horrible hack until we get proper exceptions */
+      if (strcmp(msg, "ExitSuccess") == 0) {
+        EXIT(0);
+      } else {
+        fprintf(stderr, "mhs: %s\n", msg);
+        EXIT(1);
+      }
+#else  /* WANT_STDIO */
+      ERR1("mhs error: %s", msg);
+#endif  /* WANT_STDIO */
+    }
+    
+
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
     
   case T_EQUAL:
@@ -2742,7 +2787,7 @@ evali(NODEPTR an)
   case T_IO_GETARGREF:
   case T_IO_GETTIMEMILLI:
   case T_IO_CCALL:
-  case T_IO_CATCH:
+  case T_CATCH:
   case T_NEWCASTRINGLEN:
   case T_PEEKCASTRING:
   case T_PEEKCASTRINGLEN:
@@ -3114,7 +3159,7 @@ execio(NODEPTR *np)
         RETIO(n);               /* and this is the result */
       }
 
-    case T_IO_CATCH:
+    case T_CATCH:
       {
         h = MALLOC(sizeof *h);
         if (!h)

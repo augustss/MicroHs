@@ -61,7 +61,7 @@ compileCacheTop flags mn ch = do
   return ((rmn, dsn), ch')
 
 compileMany :: Flags -> [IdentModule] -> Cache -> IO Cache
-compileMany flags mns ach = snd <$> runStateIO (mapM_ (compileModuleCached flags) mns) ach
+compileMany flags mns ach = snd <$> runStateIO (mapM_ (compileModuleCached flags ImpNormal) mns) ach
 
 getCached :: Flags -> IO Cache
 getCached flags | not (readCache flags) = return emptyCache
@@ -78,7 +78,17 @@ getCached flags = do
 compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Cache)
 compile flags nm ach = do
   let comp = do
-        r <- compileModuleCached flags nm
+        r <- compileModuleCached flags ImpNormal nm
+        let loadBoots = do
+              bs <- gets getBoots
+              case bs of
+                [] -> return ()
+                bmn:_ -> do
+                  when (verbosityGT flags 1) $
+                    liftIO $ putStrLn $ "compiling used boot module " ++ showIdent bmn
+                  _ <- compileModuleCached flags ImpNormal bmn
+                  loadBoots
+        loadBoots
         loadDependencies flags
         return r
   ((cm, t), ch) <- runStateIO comp ach
@@ -90,19 +100,22 @@ compile flags nm ach = do
 -- If the module has already been compiled, return the cached result.
 -- If the module has not been compiled, first try to find a source file.
 -- If there is no source file, try loading a package.
-compileModuleCached :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Time)
-compileModuleCached flags mn = do
+compileModuleCached :: Flags -> ImpType -> IdentModule -> StateIO Cache (TModule [LDef], Time)
+compileModuleCached flags impt mn = do
   cash <- get
   case lookupCache mn cash of
-    Nothing -> do
-      when (verbosityGT flags 0) $
-        liftIO $ putStrLn $ "importing " ++ showIdent mn
-      mres <- liftIO (readModulePath flags ".hs" mn)
-      case mres of
-        Nothing -> findPkgModule flags mn
-        Just (pathfn, file) -> do
-          modify $ addWorking mn
-          compileModule flags ImpNormal mn pathfn file
+    Nothing ->
+      case impt of
+        ImpBoot -> compileBootModule flags mn
+        ImpNormal -> do
+          when (verbosityGT flags 0) $
+            liftIO $ putStrLn $ "importing " ++ showIdent mn
+          mres <- liftIO (readModulePath flags ".hs" mn)
+          case mres of
+            Nothing -> findPkgModule flags mn
+            Just (pathfn, file) -> do
+              modify $ addWorking mn
+              compileModule flags ImpNormal mn pathfn file
     Just tm -> do
       when (verbosityGT flags 0) $
         liftIO $ putStrLn $ "importing cached " ++ showIdent mn
@@ -116,6 +129,7 @@ compileBootModule flags mn = do
   case mres of
     Nothing -> error $ "boot module not found: " ++ showIdent mn
     Just (pathfn, file) -> do
+      modify $ addBoot mn
       compileModule flags ImpBoot mn pathfn file
 
 compileModule :: Flags -> ImpType -> IdentModule -> FilePath -> String -> StateIO Cache (TModule [LDef], Time)
@@ -137,10 +151,8 @@ compileModule flags impt mn pathfn file = do
   let
     specs = [ s | Import s <- defs ]
     imported = [ (boot, m) | ImportSpec boot _ m _ _ <- specs ]
-    compileImp (ImpNormal, m) = compileModuleCached flags m
-    compileImp (ImpBoot,   m) = compileBootModule   flags m
   t2 <- liftIO getTimeMilli
-  (impMdls, its) <- fmap unzip $ mapM compileImp imported
+  (impMdls, its) <- fmap unzip $ mapM (uncurry $ compileModuleCached flags) imported
   t3 <- liftIO getTimeMilli
   let
     tmdl = typeCheck impt (zip specs impMdls) mdl

@@ -3,6 +3,7 @@
 module Data.Integer_Type(module Data.Integer_Type) where
 import Prelude()              -- do not import Prelude
 import Primitives
+import {-# SOURCE #-} Control.Error
 import Data.Bool_Type
 import Data.List_Type
 
@@ -19,7 +20,7 @@ maxD =
   else if _wordSize `primIntEQ` 32 then
     (32768::Int)       -- 2^15, this is used so multiplication of two digits doesn't overflow a 32 bit Int
   else
-    primError "Integer: unsupported word size"
+    error "Integer: unsupported word size"
 
 -- Sadly, we also need a bunch of functions.
 
