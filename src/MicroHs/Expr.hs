@@ -190,6 +190,7 @@ data Lit
   | LStr String
   | LUStr String            -- UTF-8 encoded string
   | LPrim String
+  | LExn String             -- exception to raise
   | LForImp String CType
   | LTick String
 --DEBUG  deriving (Show)
@@ -748,6 +749,7 @@ showLit l =
     LStr s     -> show s
     LUStr s    -> show s
     LPrim s    -> s
+    LExn s     -> s
     LForImp s _-> '^' : last (words s)  -- XXX needs improvement
     LTick s    -> '!' : s
 

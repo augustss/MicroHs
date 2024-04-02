@@ -201,6 +201,7 @@ dsExpr aexpr =
       dsExpr $ dsCompr e stmts l
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam qs -> dsEqns (getSLoc aexpr) qs
+    ELit l (LExn s) -> Var (mkIdentSLoc l s)
     ELit _ (LChar c) -> Lit (LInt (ord c))
     ELit _ (LInteger i) -> encodeInteger i
     ELit _ (LRat i) -> encodeRational i
@@ -418,8 +419,10 @@ mkCase var pes dflt =
     _ -> encCase var pes dflt
 
 eMatchErr :: SLoc -> Exp
-eMatchErr (SLoc fn l c) =
-  App (App (App (Lit (LPrim "noMatch")) (Lit (LStr fn))) (Lit (LInt l))) (Lit (LInt c))
+eMatchErr loc@(SLoc fn l c) =
+  let exn = mkIdentSLoc loc "Control.Exception.Internal.patternMatchFail"
+      msg = LStr $ fn ++ ", line " ++ show l ++ ", col " ++ show c
+  in  App (Var exn) (Lit msg)
 
 -- If the first expression isn't a variable/literal, then use
 -- a let binding and pass variable to f.

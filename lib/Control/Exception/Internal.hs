@@ -57,8 +57,8 @@ class (Typeable e, Show e) => Exception e where
 newtype PatternMatchFail = PatternMatchFail String deriving (Typeable)
 newtype NoMethodError    = NoMethodError    String deriving (Typeable)
 
-instance Show PatternMatchFail where showsPrec _ (PatternMatchFail s) = showString s
-instance Show NoMethodError    where showsPrec _ (NoMethodError    s) = showString s
+instance Show PatternMatchFail where showsPrec _ (PatternMatchFail s) r = showString "no match at " (showString s r)
+instance Show NoMethodError    where showsPrec _ (NoMethodError    s) r = showString "no default for "  (showString s r)
 
 instance Exception PatternMatchFail
 instance Exception NoMethodError

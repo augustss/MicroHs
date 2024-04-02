@@ -111,8 +111,6 @@ primTable = [
   ("scmp", primitive "scmp"),
   ("icmp", primitive "icmp"),
   ("rnf", primitive "rnf"),
-  ("noMatch", primitive "noMatch"),
-  ("noDefault", primitive "noDefault"),
   ("IO.>>=", primitive "IO.>>="),
   ("IO.>>", primitive "IO.>>"),
   ("IO.return", primitive "IO.return"),

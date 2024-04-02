@@ -120,9 +120,6 @@ primOps =
   , comb0 "IO.stdout" stdout
   , comb0 "IO.stderr" stderr
 
-  , comb "noMatch" (\ (s::Any) (l::Int) (c::Int) -> error ("no match at " ++ toString s ++ " line " ++ show l ++ ", col " ++ show c))
-  , comb "noDefault" (\ (s::Any) -> error ("no default for " ++ toString s))
-
   ]
   where
     comb0 n f = (n, unsafeCoerce f)

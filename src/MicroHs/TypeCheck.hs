@@ -1173,7 +1173,7 @@ mkIFunDeps :: [Ident] -> [FunDep] -> [IFunDep]
 mkIFunDeps vs fds = map (\ (is, os) -> (map (`elem` is) vs, map (`elem` os) vs)) fds
 
 noDefaultE :: Expr
-noDefaultE = ELit noSLoc $ LPrim "noDefault"
+noDefaultE = ELit noSLoc $ LExn "Control.Exception.Internal.noMethodError"
 
 -- Turn (unqualified) class and method names into a default method name
 mkDefaultMethodId :: Ident -> Ident
@@ -1771,6 +1771,7 @@ enum loc f = eApps (EVar (mkIdentSLoc loc ("enum" ++ f)))
 
 tcLit :: HasCallStack => Expected -> SLoc -> Lit -> T Expr
 tcLit mt loc l@(LPrim _) = newUVar >>= tcLit' mt loc l
+tcLit mt loc l@(LExn  _) = newUVar >>= tcLit' mt loc l
 tcLit mt loc l = do
   let t =
         case l of

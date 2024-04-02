@@ -178,7 +178,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_BADDYN, T_
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
 #endif
                 T_ARR_ALLOC, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
-                T_RAISE, T_NODEFAULT, T_NOMATCH, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
+                T_RAISE, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_CCBIND,
@@ -623,8 +623,6 @@ struct {
   { "p+", T_PADD },
   { "p-", T_PSUB },
   { "seq", T_SEQ },
-  { "noDefault", T_NODEFAULT },
-  { "noMatch", T_NOMATCH },
   { "equal", T_EQUAL, T_EQUAL },
   { "sequal", T_EQUAL, T_EQUAL },
   { "compare", T_COMPARE },
@@ -1934,8 +1932,6 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_PNULL: putsb("pnull", f); break;
   case T_PADD: putsb("p+", f); break;
   case T_PSUB: putsb("p-", f); break;
-  case T_NODEFAULT: putsb("noDefault", f); break;
-  case T_NOMATCH: putsb("noMatch", f); break;
   case T_EQUAL: putsb("equal", f); break;
   case T_COMPARE: putsb("compare", f); break;
   case T_RNF: putsb("rnf", f); break;
@@ -2400,6 +2396,9 @@ rnf_rec(NODEPTR n)
   }
 }
 
+/* Used to detect calls to error while we are already in a call to error. */
+int in_raise = 0;
+
 /* This is a yucky hack */
 int doing_rnf = 0;
 
@@ -2438,8 +2437,6 @@ evali(NODEPTR an)
 #endif
   enum node_tag tag;
   struct ioarray *arr;
-  int sz;
-  char *res;
 
 #if MAXSTACKDEPTH
   counter_t old_cur_c_stack = cur_c_stack;
@@ -2657,73 +2654,10 @@ evali(NODEPTR an)
     GCCHECK(strNodes(STR(x)->size));
     GOIND(mkStringU(STR(x)));
 
-  case T_NOMATCH:
-    if (doing_rnf) RET;
-    {
-      CHECK(3);
-      msg = evalstring(ARG(TOP(0)), 0);
-      xi = evalint(ARG(TOP(1)));
-      yi = evalint(ARG(TOP(2)));
-      sz = strlen(msg) + 100;
-      res = MALLOC(sz);
-#if WANT_STDIO
-      snprintf(res, sz, "no match at %s, line %"PRIvalue", col %"PRIvalue, msg, xi, yi);
-#else  /* WANT_STDIO */
-      strcpy(res, "no match");
-#endif  /* WANT_STDIO */
-      POP(2);
-      GCCHECK(strNodes(strlen(res)));
-      ARG(TOP(0)) = mkStringC(res);
-      FREE(res);
-      FREE(msg);
-      goto err;                 /* XXX not right message if the error is caught */
-    }
-  case T_NODEFAULT:
-    if (doing_rnf) RET;
-    {
-      CHECK(1);
-      msg = evalstring(ARG(TOP(0)), 0);
-      sz = strlen(msg) + 100;
-      res = MALLOC(sz);
-      
-#if WANT_STDIO
-      snprintf(res, sz, "no default for %s", msg);
-#else  /* WANT_STDIO */
-      strcpy(res, "no default");
-#endif  /* WANT_STDIO */
-      GCCHECK(strNodes(strlen(res)));
-      ARG(TOP(0)) = mkStringC(res);
-      FREE(res);
-      FREE(msg);
-      goto err;                 /* XXX not right message if the error is caught */
-    }
-
-  err:
-    if (cur_handler) {
-      /* Pass the string to the handler */
-      CHKARG1;                  /* argument in x */
-      cur_handler->hdl_exn = x;
-      longjmp(cur_handler->hdl_buf, 1);
-    } else {
-      /* No handler, so just die. */
-      CHKARGEV1(msg = evalstring(x, 0));
-#if WANT_STDIO
-      /* A horrible hack until we get proper exceptions */
-      if (strcmp(msg, "ExitSuccess") == 0) {
-        EXIT(0);
-      } else {
-        fprintf(stderr, "mhs: %s\n", msg);
-        EXIT(1);
-      }
-#else  /* WANT_STDIO */
-      ERR1("error: %s", msg);
-#endif  /* WANT_STDIO */
-    }
-
   case T_RAISE:
     if (doing_rnf) RET;
     if (cur_handler) {
-      /* Pass the string to the handler */
+      /* Pass the exception to the handler */
       CHKARG1;
       cur_handler->hdl_exn = x;
       longjmp(cur_handler->hdl_buf, 1);
@@ -2733,11 +2667,17 @@ evali(NODEPTR an)
        * The display function compiles to combShowExn, so we need to build
        * (combShowExn x) and evaluate it.
        */
+      if (in_raise) {
+        ERR("recursive error");
+        EXIT(1);
+      }
+      in_raise = 1;
       CHECK(1);
       GCCHECK(1);
-      TOP(0) = new_ap(combShowExn, TOP(0)); /* (combShowExn x) */
-      x = evali(TOP(0));
-      msg = evalstring(x, 0);
+      //TOP(0) = new_ap(combShowExn, TOP(0));
+      FUN(TOP(0)) = combShowExn; /* TOP(0) = (combShowExn exn) */
+      x = evali(TOP(0));        /* evaluate it */
+      msg = evalstring(x, 0);   /* and convert to a C string */
       POP(1);
 #if WANT_STDIO
       /* A horrible hack until we get proper exceptions */

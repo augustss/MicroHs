@@ -9,6 +9,7 @@ module Control.Exception(
   try,
   throwIO,
 --  onException,
+  displaySomeException,
   ) where
 import Control.Exception.Internal
 import {-# SOURCE #-} Data.Typeable
@@ -24,8 +25,8 @@ instance Exception SomeException where
 -- This is the function called by the runtime.
 -- It compiles to
 --    (U (U (K2 A)))
--- displaySomeException :: SomeException -> String
--- displaySomeException = displayException
+displaySomeException :: SomeException -> String
+displaySomeException = displayException
 
 --------------------------
 
