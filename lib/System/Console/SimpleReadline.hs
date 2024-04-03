@@ -54,10 +54,11 @@ type Hist = ([String], [String])
 loop :: Hist -> String -> String -> IO ([String], Maybe String)
 loop hist before after = do
   hFlush stdout
-  i <- getRaw
+  i <- chr <$> getRaw
   let
     cur = reverse before ++ after
     back n = putStr (replicate n '\b')
+    bsSpBs n = concat $ replicate n "\b \b"
 
     add c = do
       putChar c
@@ -78,10 +79,10 @@ loop hist before after = do
           loop hist (c:before) cs
     bol = do
       back (length before)
-      loop hist "" (reverse before ++ after)
+      loop hist [] cur
     eol = do
       putStr after
-      loop hist (reverse after ++ before) ""
+      loop hist (reverse after ++ before) []
     bs = do
       case before of
         [] -> noop
@@ -109,19 +110,19 @@ loop hist before after = do
         l =
           case ms of
             Nothing -> []
-            Just "" -> []
+            Just [] -> []
             Just s  | not (null o) && s == last o -> []
                     | otherwise -> [s]
         h = o ++ l
       return (h, ms)
     erase = do
       eraseLine
-      loop hist "" ""
+      loop hist [] []
     noop = loop hist before after
     kill = do
       putStr after
-      putStr $ concat $ replicate (length after) "\b \b"
-      loop hist before ""
+      putStr $ bsSpBs $ length after
+      loop hist before []
 
     next =
       case hist of
@@ -138,36 +139,36 @@ loop hist before after = do
 
     eraseLine = do
       putStr after
-      putStr $ concat $ replicate (length before + length after) "\b \b"
+      putStr $ bsSpBs $ length before + length after
 
   case i of
-    4 ->                     -- CTL-D, EOF
+    '\^D' ->                     -- CTL-D, EOF
       if null before && null after then
         ret Nothing
       else
         del
-    2  -> backward           -- CTL-B, backwards
-    6  -> forward            -- CTL-F, forwards
-    1  -> bol                -- CTL-A, beginning of line
-    5  -> eol                -- CTL-E, end of line
-    8  -> bs                 -- BS, backspace
-    127 -> bs                -- DEL, backspace
-    13 -> send               -- CR, return
-    10 -> send               -- LF, return
-    14 -> next               -- CTL-N, next line
-    15 -> previous           -- CTL-P, previous line
-    21 -> erase              -- CTL-U, erase line
-    11 -> kill               -- CTL-K, kill to eol
-    27 -> do                 -- ESC
-      b <- getRaw
-      if b /= ord '[' then
+    '\^B'  -> backward           -- CTL-B, backwards
+    '\^F'  -> forward            -- CTL-F, forwards
+    '\^A'  -> bol                -- CTL-A, beginning of line
+    '\^E'  -> eol                -- CTL-E, end of line
+    '\^H'  -> bs                 -- BS, backspace
+    '\DEL' -> bs                 -- DEL, backspace
+    '\^M'  -> send               -- CR, return
+    '\^J'  -> send               -- LF, return
+    '\^N'  -> next               -- CTL-N, next line
+    '\^P'  -> previous           -- CTL-P, previous line
+    '\^U'  -> erase              -- CTL-U, erase line
+    '\^K'  -> kill               -- CTL-K, kill to eol
+    '\ESC' -> do                 -- ESC
+      b <- chr <$> getRaw
+      if b /= '[' then
         noop
        else do
-        c <- getRaw
-        case chr c of
+        c <- chr <$> getRaw
+        case c of
           'A' -> previous
           'B' -> next
           'C' -> forward
           'D' -> backward
-          _ -> noop
-    _ -> if i >= 32 && i < 127 then add (chr i) else noop
+          _   -> noop
+    _ -> if i >= ' ' && i < '\DEL' then add i else noop
