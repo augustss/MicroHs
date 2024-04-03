@@ -98,6 +98,7 @@ import System.Info
 import System.Process
 import Text.PrettyPrint.HughesPJ
 import Text.PrettyPrint.HughesPJClass
+import Text.Printf
 import Text.Read
 import Text.Show
 import Unsafe.Coerce
