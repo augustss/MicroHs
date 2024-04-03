@@ -78,13 +78,14 @@ getCached flags = do
 compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Cache)
 compile flags nm ach = do
   let comp = do
+--XXX        modify $ addBoot $ mkIdent "Control.Exception.Internal"      -- the compiler generates references to this module
         r <- compileModuleCached flags ImpNormal nm
         let loadBoots = do
               bs <- gets getBoots
               case bs of
                 [] -> return ()
                 bmn:_ -> do
-                  when (verbosityGT flags 1) $
+                  when (verbosityGT flags 0) $
                     liftIO $ putStrLn $ "compiling used boot module " ++ showIdent bmn
                   _ <- compileModuleCached flags ImpNormal bmn
                   loadBoots

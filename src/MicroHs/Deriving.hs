@@ -59,7 +59,7 @@ genHasField (tycon, iks) cs (fld, fldty) = do
   let loc = getSLoc tycon
       qtycon = qualIdent mn tycon
       eFld = EVar fld
-      undef = EVar $ mkQIdent loc nameControlError "undefined"  -- XXX could be nicer
+      undef = mkExn loc (unIdent fld) "recSelError"
       iHasField = mkIdentSLoc loc nameHasField
       iSetField = mkIdentSLoc loc nameSetField
       igetField = mkQIdent loc nameDataRecords namegetField
@@ -104,9 +104,6 @@ namesetField = "setField"
 
 nameDataRecords :: String
 nameDataRecords = "Data.Records"
-
-nameControlError :: String
-nameControlError = "Control.Error"
 
 mkGetName :: Ident -> Ident -> Ident
 mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld

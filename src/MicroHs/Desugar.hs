@@ -419,9 +419,9 @@ mkCase var pes dflt =
     _ -> encCase var pes dflt
 
 eMatchErr :: SLoc -> Exp
-eMatchErr loc@(SLoc fn l c) =
+eMatchErr loc =
   let exn = mkIdentSLoc loc "Control.Exception.Internal.patternMatchFail"
-      msg = LStr $ fn ++ ", line " ++ show l ++ ", col " ++ show c
+      msg = LStr $ show loc
   in  App (Var exn) (Lit msg)
 
 -- If the first expression isn't a variable/literal, then use

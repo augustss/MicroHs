@@ -4,7 +4,8 @@ module Control.Exception.Internal(
   throw, catch,
   Exception(..),
   SomeException(..),
-  PatternMatchFail, NoMethodError,
+  PatternMatchFail, NoMethodError, RecSelError, RecConError,
+  patternMatchFail, NoMethodError, RecSelError, RecConError,
   ) where
 import Prelude()
 import Primitives(IO)
@@ -56,15 +57,25 @@ class (Typeable e, Show e) => Exception e where
 
 newtype PatternMatchFail = PatternMatchFail String deriving (Typeable)
 newtype NoMethodError    = NoMethodError    String deriving (Typeable)
+newtype RecSelError      = RecSelError      String deriving (Typeable)
+newtype RecConError      = RecConError      String deriving (Typeable)
 
-instance Show PatternMatchFail where showsPrec _ (PatternMatchFail s) r = showString "no match at " (showString s r)
+instance Show PatternMatchFail where showsPrec _ (PatternMatchFail s) r = showString "no match at "     (showString s r)
 instance Show NoMethodError    where showsPrec _ (NoMethodError    s) r = showString "no default for "  (showString s r)
+instance Show RecSelError      where showsPrec _ (RecSelError      s) r = showString "no field "        (showString s r)
+instance Show RecConError      where showsPrec _ (RecConError      s) r = showString "uninit field "    (showString s r)
 
 instance Exception PatternMatchFail
 instance Exception NoMethodError
+instance Exception RecSelError
+instance Exception RecConError
 
 patternMatchFail :: forall a . String -> a
-patternMatchFail s = throw (PatternMatchFail s)
-
 noMethodError    :: forall a . String -> a
+recSelError      :: forall a . String -> a
+recConError      :: forall a . String -> a
+
 noMethodError    s = throw (NoMethodError    s)
+patternMatchFail s = throw (PatternMatchFail s)
+recSelError      s = throw (RecSelError      s)
+recConError      s = throw (RecConError      s)

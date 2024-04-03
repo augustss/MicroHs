@@ -1149,7 +1149,10 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
               def (Just eqns) = Fcn iDflt eqns
               iDflt = mkDefaultMethodId methId
               -- XXX This isn't right, "Prelude._nodefault" might not be in scope
-              noDflt = EApp noDefaultE (mkEStr (getSLoc iCls) (unIdent iCls ++ "." ++ unIdent methId))
+              noDflt = mkExn (getSLoc methId) (unIdent methId) "noMethodError"
+-- EApp noDefaultE (mkEStr (getSLoc iCls) (unIdent iCls ++ "." ++ unIdent methId))
+--noDefaultE :: Expr
+--noDefaultE = ELit noSLoc $ LExn "Control.Exception.Internal.noMethodError"
       mkDflt _ = impossible
       dDflts = case impt of
                  ImpNormal -> concatMap mkDflt meths
@@ -1157,9 +1160,6 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
   addClassTable (qualIdent mn iCls) (vks, ctx, EUVar 0, methIds, mkIFunDeps (map idKindIdent vks) fds)   -- Initial entry, no type needed.
   return $ dcls : dDflts
 expandClass _ d = return [d]
-
-mkEStr :: SLoc -> String -> Expr
-mkEStr loc str = ESign (ELit loc (LStr str)) $ EListish $ LList [tConI loc "Char"]
 
 simpleEqn :: Expr -> [Eqn]
 simpleEqn e = [Eqn [] $ simpleAlts e]
@@ -1171,9 +1171,6 @@ simpleAlts e = EAlts [([], e)] []
 mkIFunDeps :: [Ident] -> [FunDep] -> [IFunDep]
 --mkIFunDeps vs [] = [(map (const True) vs, map (const False) vs)]
 mkIFunDeps vs fds = map (\ (is, os) -> (map (`elem` is) vs, map (`elem` os) vs)) fds
-
-noDefaultE :: Expr
-noDefaultE = ELit noSLoc $ LExn "Control.Exception.Internal.noMethodError"
 
 -- Turn (unqualified) class and method names into a default method name
 mkDefaultMethodId :: Ident -> Ident
@@ -1742,9 +1739,8 @@ dsEFields apat =
     ENegApp _ -> return apat
     _ -> error $ "dsEFields " ++ show apat
 
--- XXX could be better
 unsetField :: Ident -> Expr
-unsetField i = EVar $ mkIdentSLoc (getSLoc i) "undefined"
+unsetField i = mkExn (getSLoc i) (unIdent i) "recConError"
 
 dsUpdate :: (Ident -> Expr) -> Expr -> [EField] -> T (Maybe Expr)
 dsUpdate unset e flds = do

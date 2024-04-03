@@ -44,6 +44,7 @@ module MicroHs.Expr(
   impossible, impossibleShow,
   getArrow, getArrows,
   showExprRaw,
+  mkEStr, mkExn,
   ) where
 import Prelude hiding ((<>))
 import Control.Arrow(first)
@@ -824,3 +825,13 @@ getArrows at =
   case getArrow at of
     Nothing -> ([], at)
     Just (t, r) -> first (t:) (getArrows r)
+
+mkEStr :: SLoc -> String -> Expr
+mkEStr loc str = ESign (ELit loc (LStr str)) $ EListish $ LList [EVar $ mkIdentSLoc loc "Char"]
+
+-- Make a call to generate an exception with location info
+mkExn :: SLoc -> String -> String -> Expr
+mkExn loc msg exn =
+  let str = mkEStr loc $ msg ++ ", at " ++ show loc
+      fn  = ELit loc $ LExn $ "Control.Exception.Internal." ++ exn
+  in  EApp fn str
