@@ -9,6 +9,7 @@ module MicroHs.TypeCheck(
   mkClassConstructor,
   mkSuperSel,
   bindingsOf,
+  setBindings,
   boolPrefix,
   listPrefix,
   ValueExport(..), TypeExport(..),
@@ -127,6 +128,9 @@ tModuleName (TModule a _ _ _ _ _ _ _) = a
 
 bindingsOf :: forall a . TModule a -> a
 bindingsOf (TModule _ _ _ _ _ _ _ a) = a
+
+setBindings :: forall a . a -> TModule a -> TModule a
+setBindings a (TModule x1 x2 x3 x4 x5 x6 x7 _) = TModule x1 x2 x3 x4 x5 x6 x7 a
 
 data TypeExport = TypeExport
   Ident           -- unqualified name

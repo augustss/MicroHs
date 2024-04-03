@@ -48,17 +48,10 @@ type Time = Int
 -- Return the "compiled module" and the resulting cache.
 compileCacheTop :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [(Ident, Exp)]), Cache)
 compileCacheTop flags mn ch = do
-  ((rmn, ds), ch') <- compile flags mn ch
-  t1 <- getTimeMilli
-  let
-    dsn = [ (n, compileOpt e) | (n, e) <- ds ]
-  () <- return (rnf dsn)
-  t2 <- getTimeMilli
-  when (verbosityGT flags 0) $
-    putStrLn $ "combinator conversion " ++ padLeft 6 (show (t2-t1)) ++ "ms"
+  res@((_, ds), _) <- compile flags mn ch
   when (verbosityGT flags 3) $
-    putStrLn $ "combinators:\n" ++ showLDefs dsn
-  return ((rmn, dsn), ch')
+    putStrLn $ "combinators:\n" ++ showLDefs ds
+  return res
 
 compileMany :: Flags -> [IdentModule] -> Cache -> IO Cache
 compileMany flags mns ach = snd <$> runStateIO (mapM_ (compileModuleCached flags ImpNormal) mns) ach
@@ -163,20 +156,25 @@ compileModule flags impt mn pathfn file = do
     dmdl = desugar flags tmdl
   () <- return $ rnf $ bindingsOf dmdl
   t4 <- liftIO getTimeMilli
+  let
+    cmdl = setBindings [ (i, compileOpt e) | (i, e) <- bindingsOf dmdl ] dmdl
+  () <- return $ rnf $ bindingsOf cmdl
+  t5 <- liftIO getTimeMilli
   let tp = t2 - t1
       tt = t4 - t3
+      tc = t5 - t4
       ts = sum its
   when (verbosityGT flags 3) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   when (verbosityGT flags 0) $
     liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tp + tt) ++
-            "ms (" ++ show tp ++ " + " ++ show tt ++ ")"
+            "ms (" ++ show tp ++ " + " ++ show tt ++ " + " ++ show tc ++ ")"
   when (loading flags && mn /= mkIdent "Interactive") $
     liftIO $ putStrLn $ "loaded " ++ showIdent mn
   case impt of
-    ImpNormal -> modify $ workToDone (dmdl, map snd imported, chksum)
+    ImpNormal -> modify $ workToDone (cmdl, map snd imported, chksum)
     ImpBoot   -> return ()
-  return (dmdl, tp + tt + ts)
+  return (cmdl, tp + tt + ts + tc)
 
 addPreludeImport :: EModule -> EModule
 addPreludeImport (EModule mn es ds) =
