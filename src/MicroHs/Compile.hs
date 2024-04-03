@@ -49,7 +49,7 @@ type Time = Int
 compileCacheTop :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [(Ident, Exp)]), Cache)
 compileCacheTop flags mn ch = do
   res@((_, ds), _) <- compile flags mn ch
-  when (verbosityGT flags 3) $
+  when (verbosityGT flags 4) $
     putStrLn $ "combinators:\n" ++ showLDefs ds
   return res
 
@@ -102,7 +102,7 @@ compileModuleCached flags impt mn = do
       case impt of
         ImpBoot -> compileBootModule flags mn
         ImpNormal -> do
-          when (verbosityGT flags 0) $
+          when (verbosityGT flags 1) $
             liftIO $ putStrLn $ "importing " ++ showIdent mn
           mres <- liftIO (readModulePath flags ".hs" mn)
           case mres of
@@ -111,7 +111,7 @@ compileModuleCached flags impt mn = do
               modify $ addWorking mn
               compileModule flags ImpNormal mn pathfn file
     Just tm -> do
-      when (verbosityGT flags 0) $
+      when (verbosityGT flags 1) $
         liftIO $ putStrLn $ "importing cached " ++ showIdent mn
       return (tm, 0)
 
@@ -134,7 +134,7 @@ compileModule flags impt mn pathfn file = do
       chksum = fromMaybe undefined mchksum
   let pmdl = parseDie pTop pathfn file
       mdl@(EModule mnn _ defs) = addPreludeImport pmdl
-  when (verbosityGT flags 3) $
+  when (verbosityGT flags 4) $
     liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
   
   -- liftIO $ putStrLn $ showEModule mdl
@@ -146,35 +146,42 @@ compileModule flags impt mn pathfn file = do
     specs = [ s | Import s <- defs ]
     imported = [ (boot, m) | ImportSpec boot _ m _ _ <- specs ]
   t2 <- liftIO getTimeMilli
-  (impMdls, its) <- fmap unzip $ mapM (uncurry $ compileModuleCached flags) imported
+  (impMdls, tImps) <- fmap unzip $ mapM (uncurry $ compileModuleCached flags) imported
+
   t3 <- liftIO getTimeMilli
   let
     tmdl = typeCheck impt (zip specs impMdls) mdl
-  when (verbosityGT flags 2) $
+  when (verbosityGT flags 3) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   let
     dmdl = desugar flags tmdl
   () <- return $ rnf $ bindingsOf dmdl
   t4 <- liftIO getTimeMilli
+
   let
     cmdl = setBindings [ (i, compileOpt e) | (i, e) <- bindingsOf dmdl ] dmdl
   () <- return $ rnf $ bindingsOf cmdl
   t5 <- liftIO getTimeMilli
-  let tp = t2 - t1
-      tt = t4 - t3
-      tc = t5 - t4
-      ts = sum its
-  when (verbosityGT flags 3) $
+
+  let tParse = t2 - t1
+      tTCDesug = t4 - t3
+      tAbstract = t5 - t4
+      tImp = sum tImps
+      tTot = t5 - t1
+
+  when (verbosityGT flags 4) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   when (verbosityGT flags 0) $
-    liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tp + tt) ++
-            "ms (" ++ show tp ++ " + " ++ show tt ++ " + " ++ show tc ++ ")"
-  when (loading flags && mn /= mkIdent "Interactive") $
+    liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tParse + tTCDesug + tAbstract) ++
+            "ms (" ++ show tParse ++ " + " ++ show tTCDesug ++ " + " ++ show tAbstract ++ ")"
+  when (loading flags && mn /= mkIdent "Interactive" && not (verbosityGT flags 0)) $
     liftIO $ putStrLn $ "loaded " ++ showIdent mn
+
   case impt of
     ImpNormal -> modify $ workToDone (cmdl, map snd imported, chksum)
     ImpBoot   -> return ()
-  return (cmdl, tp + tt + ts + tc)
+
+  return (cmdl, tTot + tImp)
 
 addPreludeImport :: EModule -> EModule
 addPreludeImport (EModule mn es ds) =
@@ -202,7 +209,7 @@ validateCache flags acash = execStateIO (mapM_ (validate . fst) fdeps) acash
       b <- gets $ isJust . lookupCache mn
       when b $ do
         -- It's still in the cache, so invalidate it, and all modules that import it
-        when (verbosityGT flags 0) $
+        when (verbosityGT flags 1) $
           liftIO $ putStrLn $ "invalidate cached " ++ show mn
         modify (deleteFromCache mn)
         mapM_ invalidate $ fromMaybe [] $ M.lookup mn deps

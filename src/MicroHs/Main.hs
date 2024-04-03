@@ -129,7 +129,7 @@ mainCompile flags mn = do
     numDefs = length allDefs
   when (verbosityGT flags 0) $
     putStrLn $ "top level defns: " ++ show numDefs
-  when (verbosityGT flags 1) $
+  when (verbosityGT flags 2) $
     mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") allDefs
   if runIt flags then do
     let
@@ -186,7 +186,7 @@ mainInstallPackage flags [pkgfn, dir] = do
   let mk tm = do
         let fn = dir ++ "/" ++ moduleToFile (tModuleName tm) ++ packageTxtSuffix
             d = dropWhileEnd (/= '/') fn
-        when (verbosityGT flags 1) $
+        when (verbosityGT flags 2) $
           putStrLn $ "create " ++ fn
         createDirectoryIfMissing True d
         writeFile fn pkgout
