@@ -80,6 +80,7 @@ import Foreign.Storable
 import GHC.Stack
 import GHC.Types
 import Numeric
+import Numeric.Natural
 import Prelude
 import Primitives
 import System.Console.SimpleReadline
