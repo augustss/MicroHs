@@ -1,12 +1,14 @@
 module MicroHs.SymTab(
   Entry(..), entryType,
   SymTab,
+  stEmpty,
   stLookup,
   stFromList,
   stInsertGlbU,
   stInsertGlbQ,
   stElemsLcl,
   stKeysLcl,
+  stKeysGlbU,
   stInsertLcl,
   mapMSymTab,
   ) where
@@ -72,6 +74,9 @@ mapMSymTab f (SymTab l ug qg) = do
   qg' <- M.mapM (mapM f) qg
   return $ SymTab l' ug' qg'
 
+stEmpty :: SymTab
+stEmpty = SymTab [] M.empty M.empty
+
 stLookup :: String -> Ident -> SymTab -> Either String Entry
 stLookup msg i (SymTab l ug qg) =
   case lookup i l of
@@ -92,6 +97,9 @@ stElemsLcl (SymTab l _ _) = map snd l
 
 stKeysLcl :: SymTab -> [Ident]
 stKeysLcl (SymTab l _ _) = map fst l
+
+stKeysGlbU :: SymTab -> [Ident]
+stKeysGlbU (SymTab _ m _) = M.keys m
 
 stInsertLcl :: Ident -> Entry -> SymTab -> SymTab
 stInsertLcl i a (SymTab l ug qg) = SymTab ((i, a) : l) ug qg

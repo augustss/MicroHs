@@ -13,6 +13,7 @@ module MicroHs.TypeCheck(
   boolPrefix,
   listPrefix,
   ValueExport(..), TypeExport(..),
+  Symbols,
   ) where
 import Prelude
 import Control.Applicative
@@ -112,6 +113,8 @@ nameKnownSymbol = "Data.TypeLits.KnownSymbol"
 
 ----------------------
 
+type Symbols = (SymTab, SymTab)
+
 data TModule a = TModule
   IdentModule     -- module names
   [FixDef]        -- all fixities, exported or not
@@ -156,7 +159,7 @@ type Sigma = EType
 --type Tau   = EType
 type Rho   = EType
 
-typeCheck :: forall a . ImpType -> [(ImportSpec, TModule a)] -> EModule -> TModule [EDef]
+typeCheck :: forall a . ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], Symbols)
 typeCheck impt aimps (EModule mn exps defs) =
 --  trace (unlines $ map (showTModuleExps . snd) aimps) $
   let
@@ -173,7 +176,9 @@ typeCheck impt aimps (EModule mn exps defs) =
            fexps = [ fe | TModule _ fe _ _ _ _ _ _ <- M.elems impMap ]
            sexps = M.toList (synTable tcs)
            iexps = M.toList (instTable tcs)
-         in  tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) sexps (concat cexps) iexps (concat vexps) tds
+         in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) sexps (concat cexps) iexps (concat vexps) tds
+             , (typeTable tcs, valueTable tcs)
+             )
 
 -- A hack to force evaluation of errors.
 -- This should be redone to all happen in the T monad.

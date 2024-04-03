@@ -9,14 +9,19 @@ import MicroHs.Flags
 import MicroHs.Ident(mkIdent, Ident)
 import MicroHs.Parse
 import MicroHs.StateIO
-import MicroHs.SymTab(Entry(..))
+import MicroHs.SymTab(Entry(..), stEmpty)
 import MicroHs.Translate
-import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..))
+import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..), Symbols)
 import Unsafe.Coerce
 import System.Console.SimpleReadline
 import MicroHs.Instances(compiledWithGHC)
 
-type IState = (String, Flags, Cache)
+data IState = IState {
+  isLines   :: String,
+  isFlags   :: Flags,
+  isCache   :: Cache,
+  isSymbols :: Symbols
+  }
 
 type I a = StateIO IState a
 
@@ -27,8 +32,11 @@ mainInteractive flags = do
   putStrLn "Welcome to interactive MicroHs!"
   let flags' = flags{ loading = True }
   cash <- getCached flags'
-  _ <- runStateIO start (preamble, flags', cash)
+  _ <- runStateIO start $ IState preamble flags' cash noSymbols
   return ()
+
+noSymbols :: Symbols
+noSymbols = (stEmpty, stEmpty)
 
 preamble :: String
 preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++
@@ -77,13 +85,14 @@ commands =
   [ ("quit", const $ return False)
   , ("clear", const $ do
       updateLines (const preamble)
-      modify $ \ (ls, flgs, _) -> (ls, flgs, emptyCache)
+      modify $ \ is -> is{ isCache = emptyCache, isSymbols = noSymbols }
       return True
     )
   , ("reload", const $ do
-      (ls, flgs, cash) <- get
+      flgs <- gets isFlags
+      cash <- gets isCache
       cash' <- liftIO $ validateCache flgs cash
-      put (ls, flgs, cash')
+      modify $ \ is -> is{ isCache = cash' }
       reload
       return True
     )
@@ -107,7 +116,7 @@ commands =
 
 reload :: I ()
 reload = do
-  (ls, _, _) <- get
+  ls <- gets isLines
   rld <- tryCompile ls   -- reload modules right away
   case rld of
     Left msg -> liftIO $ err msg
@@ -128,10 +137,13 @@ helpText = "\
   \"
 
 updateLines :: (String -> String) -> I ()
-updateLines f = modify $ \ (ls, flgs, cash) -> (f ls, flgs, cash)
+updateLines f = modify $ \ is -> is{ isLines = f (isLines is) }
 
 updateCache :: (Cache -> Cache) -> I ()
-updateCache f = modify $ \ (ls, flgs, cash) -> (ls, flgs, f cash)
+updateCache f = modify $ \ is -> is{ isCache = f (isCache is) }
+
+setSyms :: Symbols -> I ()
+setSyms syms = modify $ \ is -> is{ isSymbols = syms }
 
 interactiveName :: String
 interactiveName = "Interactive"
@@ -169,7 +181,7 @@ err' s = putStrLn $ "Error: " ++ s
 
 oneline :: String -> I ()
 oneline line = do
-  (ls, _, _) <- get
+  ls <- gets isLines
   let lls = ls ++ line ++ "\n"
       def = do
         defTest <- tryCompile lls
@@ -196,13 +208,15 @@ tryParse p s ok bad =
 tryCompile :: String -> I (Either SomeException [LDef])
 tryCompile file = do
   updateCache (deleteFromCache interactiveId)
-  (_, flgs, cash) <- get
+  flgs <- gets isFlags
+  cash <- gets isCache
   liftIO $ writeFile (interactiveName ++ ".hs") file
   res <- liftIO $ try $ compileCacheTop flgs interactiveId cash
   case res of
     Left e -> return (Left e)
-    Right ((_, m), cash') -> do
+    Right ((_, m), syms, cash') -> do
       updateCache (const cash')
+      setSyms syms
       return (Right m)
 
 evalExpr :: [LDef] -> I ()
@@ -221,11 +235,11 @@ evalExpr cmdl = do
 
 showType :: String -> I ()
 showType line = do
-  (ls, _, _) <- get
+  ls <- gets isLines
   res <- tryCompile (ls ++ "\n" ++ mkIt line)
   case res of
     Right _ -> do
-      (_, _, cash) <- get
+      cash <- gets isCache
       let t = getTypeInCache cash (mkIdent itName)
       liftIO $ putStrLn $ showEType t
     Left  e ->
@@ -233,11 +247,11 @@ showType line = do
 
 showKind :: String -> I ()
 showKind line = do
-  (ls, _, _) <- get
+  ls <- gets isLines
   res <- tryCompile (ls ++ "\n" ++ mkTypeIt line)
   case res of
     Right _ -> do
-      (_, _, cash) <- get
+      cash <- gets isCache
       let t = getKindInCache cash (mkIdent itTypeName)
       liftIO $ putStrLn $ showEType t
     Left  e ->

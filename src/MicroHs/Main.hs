@@ -108,18 +108,15 @@ splitNameVer s =
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
-  (rmn, allDefs) <-
-    if writeCache flags then do
-      cash <- getCached flags
-      (rds, cash') <- compileCacheTop flags mn cash
+  (rmn, allDefs) <- do
+    cash <- getCached flags
+    (rds, _, cash') <- compileCacheTop flags mn cash
+    when (writeCache flags) $ do
       when (verbosityGT flags 0) $
         putStrLn $ "Saving cache " ++ show mhsCacheName
       () <- seq (rnfNoErr cash) (return ())
       saveCache mhsCacheName cash'
-      return rds
-    else do
-      cash <- getCached flags
-      fst <$> compileCacheTop flags mn cash
+    return rds
 
   t1 <- getTimeMilli
   let
