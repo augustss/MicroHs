@@ -20,14 +20,11 @@
   - get rid of noMatch and noDefault primitives
 * Implement lazy matching
 * Implement strict matching
-* Implement TAB completion
 * Better pretty print of Expr
-* Move extra stuff from Data.List into its own module
 * Allow top level pattern bindings
   - Merge EBind and EDef
 * Implement pattern synonyms
 * Implement qualified constraints
-* Export the right list functions
 * Use capi, add value and field modifiers
 * Ad hoc fix for f.g: check if g is a field
 * Divide lib into different packages

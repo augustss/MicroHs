@@ -1,15 +1,16 @@
 module MicroHs.Interactive(module MicroHs.Interactive) where
 import Data.List
+import Data.Maybe
 import Control.Exception
 import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
 import MicroHs.Expr(EType, showEType)
 import MicroHs.Flags
-import MicroHs.Ident(mkIdent, Ident)
+import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar)
 import MicroHs.Parse
 import MicroHs.StateIO
-import MicroHs.SymTab(Entry(..), stEmpty)
+import MicroHs.SymTab(Entry(..), stEmpty, stKeysGlbU)
 import MicroHs.Translate
 import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..), Symbols)
 import Unsafe.Coerce
@@ -52,7 +53,8 @@ start = do
 
 repl :: I ()
 repl = do
-  ms <- liftIO $ getInputLineHist ".mhsi" "> "
+  syms <- gets isSymbols
+  ms <- liftIO $ getInputLineHistComp (return . complete syms) ".mhsi" "> "
   case ms of
     Nothing -> repl
     Just s ->
@@ -274,3 +276,25 @@ getKindInCache cash i =
   case getCModule cash of
     TModule _ _ tys _ _ _ _ _ ->
       head $ [ k | TypeExport i' (Entry _ k) _ <- tys, i == i' ] ++ [undefined]
+
+complete :: Symbols -> (String, String) -> [String]
+complete (tys, vals) (rpre, _post) =
+  let pre = reverse $ takeWhile isIdentChar rpre
+      allSyms = map unIdent $ stKeysGlbU tys ++ stKeysGlbU vals
+      allStrs = allSyms ++ keywords
+      real = notElem '$'
+  in  case filter real $ catMaybes $ map (stripPrefix pre) allStrs of
+        []  -> []
+        [s] -> [s ++ " "]
+        ss  ->
+          case findCommonPrefix ss of
+            [] -> ss
+            p  -> [p]
+
+findCommonPrefix :: Eq a => [[a]] -> [a]
+findCommonPrefix [] = []
+findCommonPrefix ([] : _) = []
+findCommonPrefix ((x:xs) : ys) | Just ys' <- mapM (f x) ys = x : findCommonPrefix (xs:ys')
+                               | otherwise = []
+  where f a (b:bs) | a == b = Just bs
+        f _ _ = Nothing
