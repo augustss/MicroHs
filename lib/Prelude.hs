@@ -52,7 +52,7 @@ import Data.Enum(Enum(..))
 import Data.Eq(Eq(..))
 import Data.Floating(Floating(..))
 import Data.Fractional(Fractional(..), (^^))
-import Data.Function(id, const, (.), flip, ($), seq, ($!), until, curry, uncurry)
+import Data.Function(id, const, (.), flip, ($), seq, ($!), until, curry, uncurry, asTypeOf)
 import Data.Functor(Functor(..), (<$>))
 import Data.Int(Int)
 import Data.Int.Instances
