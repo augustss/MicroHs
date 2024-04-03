@@ -15,6 +15,8 @@ module Control.Exception(
   throwIO,
 --  onException,
   displaySomeException,
+  --
+  ArithException(..),
   ) where
 import Control.Exception.Internal
 import {-# SOURCE #-} Data.Typeable
@@ -119,3 +121,15 @@ bracketOnError before after thing =
 -- XXX we don't have masks yet
 mask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
 mask io = io id
+
+-------------------
+
+data ArithException
+  = Overflow
+  | Underflow
+  | LossOfPrecision
+  | DivideByZero
+  | Denormal
+  | RatioZeroDenominator
+  deriving (Eq, Ord, Show, Typeable)
+instance Exception ArithException
