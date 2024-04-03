@@ -164,6 +164,7 @@ Do **NOT** use `-C` when you are changing the compiler itself; if the cached dat
 * `MHSDIR` the directory where `lib/` and `src/` are expected to be.  Defaults to `./`.
 * `MHSCC` command use to compile C file to produce binaries.  Look at the source for more information.
 * `MHSCPPHS` command to use with `-XCPP` flag.  Defaults to `cpphs`.
+* `MHSCONF` which runtime to use, defaults to `unix-32/64` depending on your host's word size
 
 ### Compiler modules
 

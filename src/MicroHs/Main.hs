@@ -159,8 +159,8 @@ mainCompile flags mn = do
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
        compiler <- fromMaybe "cc" <$> lookupEnv "CC"
+       conf <- fromMaybe ("unix-" ++ show _wordSize) <$> lookupEnv "MHSCONF"
        let dir = mhsdir flags
-           conf = "unix-" ++ show _wordSize
            cc = fromMaybe (compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbosityGT flags 0) $
