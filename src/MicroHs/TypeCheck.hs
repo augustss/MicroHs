@@ -524,7 +524,10 @@ initTC mn fs ts ss cs is vs as =
   in TC { moduleName = mn, unique = 1, fixTable = addPrimFixs fs, typeTable = xts,
           synTable = ss, valueTable = xvs, assocTable = as, uvarSubst = IM.empty,
           tcMode = TCExpr, classTable = cs, ctxTables = (is,[],[],[]), constraints = [],
-          defaults = [EVar identInteger, EVar identFloatW, EApp (EVar identList) (EVar identChar)] }
+          defaults = stdDefaults }
+
+stdDefaults :: [EType]
+stdDefaults = [EVar identInteger, EVar identFloatW, EApp (EVar identList) (EVar identChar)]
 
 addPrimFixs :: FixTable -> FixTable
 addPrimFixs =
@@ -949,7 +952,7 @@ tcDefs impt ds = do
 
 setDefault :: [EDef] -> T ()
 setDefault defs = do
-  let ds = last $ [] : [ ts | Default ts <- defs ]
+  let ds = last $ stdDefaults : [ ts | Default ts <- defs ]
   ds' <- mapM expandSyn ds
   putDefaults ds'
 
