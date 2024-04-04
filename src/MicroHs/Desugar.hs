@@ -213,10 +213,7 @@ dsExpr aexpr =
     EListish (LList es) -> encList $ map dsExpr es
     EListish (LCompr e stmts) -> dsExpr $ dsCompr e stmts (EListish (LList []))
     ECon c ->
-      let
-        ci = conIdent c
-      in
-        case getTupleConstr ci of
+        case getTupleConstr (conIdent c) of
           Just n ->
             let
               xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
@@ -267,7 +264,7 @@ dsPat apat =
     ELit _ _ -> apat
     ENegApp _ -> apat
     EViewPat _ _ -> apat
-    ELazy _ pat -> dsPat pat   -- XXX for now, just ignore ~ and !
+    ELazy b pat -> ELazy b (dsPat pat)
     _ -> impossible
 
 iNil :: Ident
@@ -338,9 +335,36 @@ dsCaseExp loc used ss mtrx =
     supply = newVars "$x" used
     ds xs aes =
       case aes of
-        []   -> dsMatrix (eMatchErr loc) (reverse xs) mtrx
+        []   -> dsMatrixL (eMatchErr loc) (reverse xs) mtrx
         e:es -> letBind (return e) $ \ x -> ds (x:xs) es
   in evalState (ds [] ss) supply
+
+-- Handle lazy and strict bindings
+dsMatrixL :: HasCallStack =>
+             Exp -> [Exp] -> Matrix -> M Exp
+dsMatrixL dflt is arms = dsMatrix dflt is (map dsLazy arms)
+
+dsLazy :: Arm -> Arm
+dsLazy (ps, rhs) =
+  let ((_, rbs, ris), ps') = mapAccumL lazy (1, [], []) ps
+      lazy :: (Int, [EBind], [Exp]) -> EPat -> ((Int, [EBind], [Exp]), EPat)
+      lazy s@(n, bs, is) ap =
+        case ap of
+          ELazy False p'@(EVar i) -> ((n, bs, Var i : is), p')
+          ELazy False p'          -> lazy (n, bs, is) p'
+          ELazy True  p'          -> ((n+1, b:bs, is), EVar v)
+            where v = mkIdent ("~" ++ show n)
+                  b = BPat p' (EVar v)
+          EVar _                  -> (s, ap)
+          EViewPat e p            -> (s', EViewPat e p') where (s', p')  = lazy s p
+          ECon _                  -> (s, ap)
+          EApp p1 p2              -> (s'', EApp p1' p2') where (s', p1') = lazy s p1; (s'', p2') = lazy s' p2
+          EAt i p                 -> (s', EAt i p')      where (s', p')  = lazy s p
+          _                       -> impossible
+  in  (ps', \ d -> dsBinds (reverse rbs) $ foldr eSeq (rhs d) (reverse ris))
+
+eSeq :: Exp -> Exp -> Exp
+eSeq e1 e2 = App (App (Lit (LPrim "seq")) e1) e2
 
 -- Desugar a pattern matrix.
 -- The input is a (usually identifier) vector e1, ..., en
