@@ -8,6 +8,7 @@ import MicroHs.Desugar(LDef)
 import MicroHs.Expr(EType, showEType)
 import MicroHs.Flags
 import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar)
+import MicroHs.List
 import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.SymTab(Entry(..), stEmpty, stKeysGlbU)
@@ -28,8 +29,6 @@ type I a = StateIO IState a
 
 mainInteractive :: Flags -> IO ()
 mainInteractive flags = do
---  when (not usingMhs) $
---    error "Interactive mhs not available when compiled with ghc"
   putStrLn "Welcome to interactive MicroHs!"
   let flags' = flags{ loading = True }
   cash <- getCached flags'
@@ -179,7 +178,7 @@ err :: SomeException -> IO ()
 err e = err' $ displayException e
 
 err' :: String -> IO ()
-err' s = putStrLn $ "Error: " ++ s
+err' s = putStrLn $ "Exception: " ++ s
 
 oneline :: String -> I ()
 oneline line = do
@@ -277,6 +276,12 @@ getKindInCache cash i =
     TModule _ _ tys _ _ _ _ _ ->
       head $ [ k | TypeExport i' (Entry _ k) _ <- tys, i == i' ] ++ [undefined]
 
+-- This could be smarter:
+--  ":a"        should complete with commands
+--  "import A"  should complete with modules
+--  operator completion
+--  completion with qualified names
+
 complete :: Symbols -> (String, String) -> [String]
 complete (tys, vals) (rpre, _post) =
   let pre = reverse $ takeWhile isIdentChar rpre
@@ -290,11 +295,3 @@ complete (tys, vals) (rpre, _post) =
           case findCommonPrefix ss of
             [] -> ss
             p  -> [p]
-
-findCommonPrefix :: Eq a => [[a]] -> [a]
-findCommonPrefix [] = []
-findCommonPrefix ([] : _) = []
-findCommonPrefix ((x:xs) : ys) | Just ys' <- mapM (f x) ys = x : findCommonPrefix (xs:ys')
-                               | otherwise = []
-  where f a (b:bs) | a == b = Just bs
-        f _ _ = Nothing

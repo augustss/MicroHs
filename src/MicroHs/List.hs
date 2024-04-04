@@ -60,3 +60,11 @@ substString from to xs@(c:cs) | Just rs <- stripPrefix from xs = to ++ substStri
 
 showPairS :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
 showPairS sa sb (a, b) = "(" ++ sa a ++ "," ++ sb b ++ ")"
+
+findCommonPrefix :: Eq a => [[a]] -> [a]
+findCommonPrefix [] = []
+findCommonPrefix ([] : _) = []
+findCommonPrefix ((x:xs) : ys) | Just ys' <- mapM (f x) ys = x : findCommonPrefix (xs:ys')
+                               | otherwise = []
+  where f a (b:bs) | a == b = Just bs
+        f _ _ = Nothing
