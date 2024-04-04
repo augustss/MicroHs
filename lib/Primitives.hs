@@ -31,6 +31,7 @@ data FloatW
 data IO a
 data Word
 data Ptr a
+data ForeignPtr a
 data FunPtr a
 data IOArray a
 
