@@ -18,8 +18,6 @@
   - do everything in Haskell
   - make a low level primError that takes a utf8 string
   - get rid of noMatch and noDefault primitives
-* Implement lazy matching
-* Implement strict matching
 * Better pretty print of Expr
 * Allow top level pattern bindings
   - Merge EBind and EDef
