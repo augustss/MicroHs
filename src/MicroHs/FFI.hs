@@ -92,7 +92,7 @@ mkMhsFun fn body = "void mhs_" ++ fn ++ "(int s) { " ++ body ++ "; }"
 checkIO :: EType -> EType
 checkIO iot =
   case getApp iIO iot of
-    Nothing -> errorMessage (getSLoc iot) $ "foreign return type must be IO"
+    Nothing -> errorMessage (getSLoc iot) $ "foreign return type must be IO: " ++ showEType iot
     Just t  -> t
 
 getApp :: Ident -> EType -> Maybe EType

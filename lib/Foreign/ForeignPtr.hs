@@ -36,7 +36,10 @@ unsafeForeignPtrToPtr = primitive "fp2p"
 
 type FinalizerPtr a = FunPtr (Ptr a -> IO ())
 
-foreign import ccall "&free" c_freefun :: FinalizerPtr a
+foreign import ccall "&free" c_freefun_io :: IO (FinalizerPtr ())
+
+c_freefun :: forall a . FinalizerPtr a
+c_freefun = primUnsafeCoerce (primPerformIO c_freefun_io)
 
 mallocForeignPtr :: Storable a => IO (ForeignPtr a)
 mallocForeignPtr = do

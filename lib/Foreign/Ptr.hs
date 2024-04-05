@@ -20,7 +20,7 @@ nullPtr :: forall a . Ptr a
 nullPtr = primPtrNull
 
 castPtr :: forall a b . Ptr a -> Ptr b
-castPtr = primPtrCast
+castPtr = primUnsafeCoerce
 
 plusPtr :: forall a b . Ptr a -> Int -> Ptr b
 plusPtr = primPtrAdd

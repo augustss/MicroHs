@@ -269,3 +269,5 @@ primArrWrite = primitive "A.write"
 primArrEQ :: forall a . IOArray a -> IOArray a -> Bool
 primArrEQ = primitive "A.=="
 
+primGC :: IO ()
+primGC = primitive "IO.gc"

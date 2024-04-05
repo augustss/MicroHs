@@ -186,7 +186,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_CATCH,
-                T_IO_CCALL, T_DYNSYM,
+                T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_FROMUTF8,
                 T_STR,
@@ -204,23 +204,26 @@ static const char* tag_names[] = {
   "PEQ", "PNULL", "PADD", "PSUB",
   "FPADD", "FP2P", "FPNEW", "FPFIN",
   "TOPTR", "TOINT", "TODBL",
+  "BININT2", "BININT1", "UNINT1",
+  "BINDBL2", "BINDBL1", "UNDBL1",
 #if WANT_FLOAT
   "FADD", "FSUB", "FMUL", "FDIV", "FNEG", "ITOF",
   "FEQ", "FNE", "FLT", "FLE", "FGT", "FGE", "FSHOW", "FREAD",
 #endif
   "ARR_ALLOC", "ARR_SIZE", "ARR_READ", "ARR_WRITE", "ARR_EQ",
-  "ERROR", "NODEFAULT", "NOMATCH", "SEQ", "EQUAL", "COMPARE", "RNF",
+  "RAISE", "SEQ", "EQUAL", "COMPARE", "RNF",
   "TICK",
   "IO_BIND", "IO_THEN", "IO_RETURN",
   "C'BIND",
   "IO_SERIALIZE", "IO_DESERIALIZE",
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
   "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "CATCH",
-  "IO_CCALL", "DYNSYM",
+  "IO_CCALL", "IO_GC", "DYNSYM",
   "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
   "FROMUTF8",
   "STR",
   "LAST_TAG",
+  "?1", "?2", "?3", "?4", "?5", "?6", "?7",
 };
 #endif
 
@@ -310,7 +313,7 @@ struct final {
   HsFunPtr       final;     /* function to call to release resource */
   void          *arg;       /* argument to final when called */
   struct forptr *back;      /* back pointer to the first forptr */
-  int            used;      /* mark bit for GC */
+  int            marked;    /* mark bit for GC */
 };
 
 struct forptr {
@@ -360,6 +363,7 @@ counter_t max_num_marked = 0;
 counter_t num_free;
 counter_t num_arr_alloc;
 counter_t num_arr_free;
+counter_t num_fin_free;
 
 #define BITS_PER_WORD (sizeof(bits_t) * 8)
 bits_t *free_map;             /* 1 bit per node, 0=free, 1=used */
@@ -652,10 +656,8 @@ struct {
   { ">=", T_GE, T_LE },
   { "p==", T_PEQ, T_PEQ },
   { "pnull", T_PNULL },
-  { "pcast", T_I },
   { "p+", T_PADD },
   { "p-", T_PSUB },
-  { "fpcast", T_I },
   { "fp+", T_FPADD },
   { "fp2p", T_FP2P },
   { "fpnew", T_FPNEW },
@@ -682,6 +684,7 @@ struct {
   { "IO.getArgRef", T_IO_GETARGREF },
   { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
+  { "IO.gc", T_IO_GC },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
   { "A.alloc", T_ARR_ALLOC },
@@ -968,8 +971,14 @@ mark(NODEPTR *np)
       np = &arr->array[arr->marked++];
       break;
     }
-   default: goto fin;
+   case T_FORPTR:
+     FORPTR(n)->finalizer->marked = 1;
+     goto fin;
+
+   default:
+     goto fin;
   }
+      
   if (!is_marked_used(*to_push)) {
     //  mark_depth++;
     PUSH((NODEPTR)to_push);
@@ -994,7 +1003,6 @@ void
 gc(void)
 {
   stackptr_t i;
-  struct ioarray **arrp, *arr;
 
   num_gc++;
   num_marked = 0;
@@ -1008,7 +1016,7 @@ gc(void)
   for (i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
   // mark everything reachable from permanent array nodes
-  for (arr = array_root; arr; arr = arr->next) {
+  for (struct ioarray *arr = array_root; arr; arr = arr->next) {
     if (arr->permanent) {
       for (i = 0; i < arr->size; i++)
         mark(&arr->array[i]);
@@ -1022,8 +1030,8 @@ gc(void)
   if (num_free < heap_size / 50)
     ERR("heap exhausted");
 
-  for (arrp = &array_root; *arrp; ) {
-    arr = *arrp;
+  for (struct ioarray **arrp = &array_root; *arrp; ) {
+    struct ioarray *arr = *arrp;
     if (arr->marked || arr->permanent) {
       arr->marked = 0;
       arrp = &arr->next;
@@ -1031,6 +1039,31 @@ gc(void)
       *arrp = arr->next;        /* unlink */
       num_arr_free++;
       FREE(arr);                /* and FREE */
+    }
+  }
+
+  for (struct final **finp = &final_root; *finp; ) {
+    struct final *fin = *finp;
+    if (fin->marked) {
+      fin->marked = 0;
+      finp = &fin->next;
+    } else {
+      /* Unused, run finalizer and free all associated memory */
+      void (*f)(void *) = (void (*)(void *))fin->final;
+      if (f) {
+        //printf("finalizer fin=%p final=%p\n", fin, f);
+        (*f)(fin->arg);
+      }
+      for (struct forptr *p = fin->back; p; ) {
+        struct forptr *q = p->next;
+        //printf("free fp=%p\n", p);
+        FREE(p);
+        p = q;
+      }
+      *finp = fin->next;
+      num_fin_free++;
+      //printf("free fin=%p\n", fin);
+      FREE(fin);
     }
   }
 
@@ -1990,6 +2023,7 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_IO_GETARGREF: putsb("IO.getArgRef", f); break;
   case T_IO_GETTIMEMILLI: putsb("IO.getTimeMilli", f); break;
   case T_IO_PERFORMIO: putsb("IO.performIO", f); break;
+  case T_IO_GC: putsb("IO.gc", f); break;
   case T_RAISE: putsb("raise", f); break;
   case T_CATCH: putsb("catch", f); break;
   case T_ARR_ALLOC: putsb("A.alloc", f); break;
@@ -2134,12 +2168,13 @@ mkForPtr(void *p)
   struct forptr *fp = malloc(sizeof(struct forptr));
   if (!fin || !fp)
     memerr();
+  //printf("mkForPtr p=%p fin=%p fp=%p\n", p, fin, fp);
   fin->next = final_root;
   final_root = fin;
   fin->final = 0;
   fin->arg = p;
   fin->back = fp;
-  fin->used = 0;
+  fin->marked = 0;
   fp->next = 0;
   fp->payload = p;
   fp->finalizer = fin;
@@ -2588,6 +2623,7 @@ evali(NODEPTR an)
   case T_DBL:  RET;
   case T_PTR:  RET;
   case T_FUNPTR: RET;
+  case T_FORPTR: RET;
   case T_ARR:  RET;
   case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
     
@@ -2725,8 +2761,12 @@ evali(NODEPTR an)
   case T_PADD: CHECK(2); xp = evalptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETPTR(n, (char*)xp + yi); RET;
   case T_PSUB: CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, (char*)xp - (char*)yp); RET;
 
-  case T_FPADD: CHECK(2); xp = evalptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETFORPTR(n, addForPtr(xp, yi)); RET;
-  case T_FP2P:  CHECK(1); xfp = evalforptr(ARG(TOP(0))); POP(1); n = TOP(-1); SETPTR(n, xfp->payload); RET;
+  case T_FPADD: CHECK(2); xfp = evalforptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETFORPTR(n, addForPtr(xfp, yi)); RET;
+  case T_FP2P:  CHECK(1);
+    //printf("T_FP2P\n");
+    xfp = evalforptr(ARG(TOP(0))); POP(1); n = TOP(-1);
+    //printf("T_FP2P xfp=%p, payload=%p\n", xfp, xfp->payload);
+    SETPTR(n, xfp->payload); RET;
 
   case T_ARR_EQ:
     {
@@ -2832,6 +2872,7 @@ evali(NODEPTR an)
   case T_ARR_WRITE:
   case T_FPNEW:
   case T_FPFIN:
+  case T_IO_GC:
     RET;
 
   case T_DYNSYM:
@@ -3307,19 +3348,30 @@ execio(NODEPTR *np)
     case T_FPNEW:
       {
         CHECKIO(1);
+        //printf("T_FPNEW\n");
         void *xp = evalptr(ARG(TOP(1)));
+        //printf("T_FPNEW xp=%p\n", xp);
         n = alloc_node(T_FORPTR);
         SETFORPTR(n, mkForPtr(xp));
         RETIO(n);
       }
     case T_FPFIN:
       {
-        CHECKIO(1);
+        CHECKIO(2);
+        //printf("T_FPFIN\n");
         struct forptr *xfp = evalforptr(ARG(TOP(2)));
+        //printf("T_FPFIN xfp=%p\n", xfp);
         HsFunPtr yp = evalfunptr(ARG(TOP(1)));
+        //printf("T_FPFIN yp=%p\n", yp);
         xfp->finalizer->final = yp;
         RETIO(combUnit);
       }
+
+    case T_IO_GC:
+      CHECKIO(0);
+      //printf("gc()\n");
+      gc();
+      RETIO(combUnit);
 
     default:
       //printf("bad tag %s\n", tag_names[GETTAG(n)]);
@@ -3522,6 +3574,7 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
     PRINT("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
+    PRINT("%"PCOMMA"15"PRIcounter" foreign free\n", num_fin_free);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
@@ -3681,9 +3734,10 @@ void mhs_lz77c(int s) { mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSiz
 
 void mhs_calloc(int s) { mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
 void mhs_free(int s) { free(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
+void mhs_addr_free(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
 void mhs_getenv(int s) { mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
 void mhs_iswindows(int s) { mhs_from_Int(s, 0, iswindows()); }
-void mhs_malloc(int s) { mhs_from_Ptr(s, 1, malloc(mhs_to_CSize(s, 0))); }
+void mhs_malloc(int s) { mhs_from_Ptr(s, 1, MALLOC(mhs_to_CSize(s, 0))); }
 void mhs_memcpy(int s) { memcpy(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); mhs_from_Unit(s, 3); }
 void mhs_memmove(int s) { memmove(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); mhs_from_Unit(s, 3); }
 void mhs_peekPtr(int s) { mhs_from_Ptr(s, 1, peekPtr(mhs_to_Ptr(s, 0))); }
@@ -3788,6 +3842,7 @@ struct ffi_entry ffi_table[] = {
 
 { "calloc", mhs_calloc},
 { "free", mhs_free},
+{ "&free", mhs_addr_free},
 { "getenv", mhs_getenv},
 { "iswindows", mhs_iswindows},
 { "malloc", mhs_malloc},
