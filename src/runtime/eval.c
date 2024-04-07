@@ -2303,8 +2303,10 @@ evaldbl(NODEPTR n)
 void *
 evalptr(NODEPTR n)
 {
+  printf("evalptr 1 n=%p\n", n);
   n = evali(n);
-#if SANITY
+  printf("evalptr 2 n=%p\n", n);
+#if 1
   if (GETTAG(n) != T_PTR) {
     ERR1("evalptr, bad tag %d", GETTAG(n));
   }
