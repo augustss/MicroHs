@@ -17,7 +17,7 @@ module System.IO(
   interact,
   writeFile, readFile, appendFile,
 
-  cprint,
+  cprint, cuprint,
 
   mkTextEncoding, hSetEncoding, utf8,
 
