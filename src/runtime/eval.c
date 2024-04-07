@@ -3422,6 +3422,7 @@ MAIN
   size_t file_size = 0;
 #endif
   
+  setvbuf(stdout, NULL, _IONBF, BUFSIZ);
 #if 0
   /* MINGW doesn't do buffering right */
   setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
