@@ -1051,7 +1051,7 @@ gc(void)
       /* Unused, run finalizer and free all associated memory */
       void (*f)(void *) = (void (*)(void *))fin->final;
       if (f) {
-        printf("finalizer fin=%p final=%p\n", fin, f);
+        printf("finalizer fin=%p final=%p free=%p arg=%p\n", fin, f, FREE, fin->arg);
         (*f)(fin->arg);
         printf("finalizer done fin=%p final=%p\n", fin, f);
       }
@@ -3738,7 +3738,7 @@ void mhs_lz77c(int s) { mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSiz
 
 void mhs_calloc(int s) { mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
 void mhs_free(int s) { free(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
-void mhs_addr_free(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
+void mhs_addr_free(int s) { printf("&free=%p\n", &FREE); mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
 void mhs_getenv(int s) { mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
 void mhs_iswindows(int s) { mhs_from_Int(s, 0, iswindows()); }
 void mhs_malloc(int s) { mhs_from_Ptr(s, 1, MALLOC(mhs_to_CSize(s, 0))); }
