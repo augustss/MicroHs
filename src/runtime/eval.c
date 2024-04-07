@@ -169,9 +169,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
-                T_PEQ, T_PNULL, T_PADD, T_PSUB,
                 T_FPADD, T_FP2P, T_FPNEW, T_FPFIN,
-                T_TOPTR, T_TOINT, T_TODBL,
+                T_TOPTR, T_TOINT, T_TODBL, T_TOFUNPTR,
                 T_BININT2, T_BININT1, T_UNINT1,
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
 #if WANT_FLOAT
@@ -201,9 +200,8 @@ static const char* tag_names[] = {
   "ADD", "SUB", "MUL", "QUOT", "REM", "SUBR", "UQUOT", "UREM", "NEG",
   "AND", "OR", "XOR", "INV", "SHL", "SHR", "ASHR",
   "EQ", "NE", "LT", "LE", "GT", "GE", "ULT", "ULE", "UGT", "UGE",
-  "PEQ", "PNULL", "PADD", "PSUB",
   "FPADD", "FP2P", "FPNEW", "FPFIN",
-  "TOPTR", "TOINT", "TODBL",
+  "TOPTR", "TOINT", "TODBL", "TOFUNPTR",
   "BININT2", "BININT1", "UNINT1",
   "BINDBL2", "BINDBL1", "UNDBL1",
 #if WANT_FLOAT
@@ -223,7 +221,6 @@ static const char* tag_names[] = {
   "FROMUTF8",
   "STR",
   "LAST_TAG",
-  "?1", "?2", "?3", "?4", "?5", "?6", "?7",
 };
 #endif
 
@@ -654,10 +651,6 @@ struct {
   { "<=", T_LE, T_GE },
   { ">", T_GT, T_LT },
   { ">=", T_GE, T_LE },
-  { "p==", T_PEQ, T_PEQ },
-  { "pnull", T_PNULL },
-  { "p+", T_PADD },
-  { "p-", T_PSUB },
   { "fp+", T_FPADD },
   { "fp2p", T_FP2P },
   { "fpnew", T_FPNEW },
@@ -699,6 +692,7 @@ struct {
   { "toPtr", T_TOPTR },
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
+  { "toFunPtr", T_TOFUNPTR },
 };
 
 #if GCRED
@@ -2001,10 +1995,6 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_ULE: putsb("u<=", f); break;
   case T_UGT: putsb("u>", f); break;
   case T_UGE: putsb("u>=", f); break;
-  case T_PEQ: putsb("p==", f); break;
-  case T_PNULL: putsb("pnull", f); break;
-  case T_PADD: putsb("p+", f); break;
-  case T_PSUB: putsb("p-", f); break;
   case T_FPADD: putsb("fp+", f); break;
   case T_FP2P: putsb("fp2p", f); break;
   case T_FPNEW: putsb("fpnew", f); break;
@@ -2038,6 +2028,7 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_TOINT: putsb("toInt", f); break;
   case T_TOPTR: putsb("toPtr", f); break;
   case T_TODBL: putsb("toDbl", f); break;
+  case T_TOFUNPTR: putsb("toFunPtr", f); break;
   case T_FROMUTF8: putsb("fromUTF8", f); break;
   case T_TICK:
     putb('!', f);
@@ -2552,7 +2543,6 @@ evali(NODEPTR an)
   stackptr_t stk = stack_ptr;
   NODEPTR x, y, z, w;
   value_t xi, yi, r;
-  void *xp, *yp;
   struct forptr *xfp;
 #if WANT_FLOAT
   flt_t xd, rd;
@@ -2754,12 +2744,8 @@ evali(NODEPTR an)
   case T_TODBL: CONV(T_DBL);
   case T_TOINT: CONV(T_INT);
   case T_TOPTR: CONV(T_PTR);
+  case T_TOFUNPTR: CONV(T_FUNPTR);
 #undef CONV
-
-  case T_PEQ:  CMPP(==);
-  case T_PNULL: SETTAG(n, T_PTR); PTR(n) = 0; RET;
-  case T_PADD: CHECK(2); xp = evalptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETPTR(n, (char*)xp + yi); RET;
-  case T_PSUB: CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); POP(2); n = TOP(-1); SETINT(n, (char*)xp - (char*)yp); RET;
 
   case T_FPADD: CHECK(2); xfp = evalforptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETFORPTR(n, addForPtr(xfp, yi)); RET;
   case T_FP2P:  CHECK(1);

@@ -23,10 +23,8 @@ import Foreign.Marshal.Array
 instance Eq (ForeignPtr a) where
     p == q  =  unsafeForeignPtrToPtr p == unsafeForeignPtrToPtr q
 
-{-
 instance Ord (ForeignPtr a) where
     compare p q  =  compare (unsafeForeignPtrToPtr p) (unsafeForeignPtrToPtr q)
--}
 
 instance Show (ForeignPtr a) where
     showsPrec p f = showsPrec p (unsafeForeignPtrToPtr f)

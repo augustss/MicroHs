@@ -226,6 +226,18 @@ primIntToPtr = primitive "toPtr"
 primPtrToInt :: forall a . Ptr a -> Int
 primPtrToInt = primitive "toInt"
 
+primFunPtrToWord :: forall a . FunPtr a -> Word
+primFunPtrToWord = primitive "toInt"
+
+primIntToFunPtr :: forall a . Int -> FunPtr a
+primIntToFunPtr = primitive "toFunPtr"
+
+primFunPtrToPtr :: forall a b . FunPtr a -> Ptr b
+primFunPtrToPtr = primitive "toPtr"
+
+primPtrToFunPtr :: forall a b . Ptr a -> FunPtr b
+primPtrToFunPtr = primitive "toFunPtr"
+
 -- Size in bits of Word/Int.
 -- Will get constant folded on first use.
 _wordSize :: Int
@@ -238,21 +250,6 @@ _wordSize = loop (primWordInv (0::Word)) (0::Int)
 foreign import ccall "iswindows" c_iswindows :: IO Int
 _isWindows :: Bool
 _isWindows = primPerformIO c_iswindows `primIntEQ` 1
-
-primPtrEQ   :: forall a b . Ptr a -> Ptr b -> Bool
-primPtrEQ   = primitive "p=="
-
-primPtrNull :: forall a . Ptr a
-primPtrNull = primitive "pnull"
-
-primPtrCast :: forall a b . Ptr a -> Ptr b
-primPtrCast = primitive "pcast"
-
-primPtrAdd :: forall a b . Ptr a -> Int -> Ptr b
-primPtrAdd = primitive "p+"
-
-primPtrSub :: forall a b . Ptr a -> Ptr b -> Int
-primPtrSub = primitive "p-"
 
 primArrAlloc :: forall a . Int -> a -> IO (IOArray a)
 primArrAlloc = primitive "A.alloc"
