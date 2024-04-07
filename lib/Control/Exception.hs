@@ -77,17 +77,17 @@ mapException f v =
   unsafePerformIO (catch (evaluate v)
                          (\x -> throwIO (f x)))
 
--- XXX This isn't right.  It should return an IO action.
+-- Evaluate a when executed, not when evaluated
 evaluate :: a -> IO a
-evaluate a = seq a (return a)
-
+evaluate a = seq a (return ()) >> return a
 
 try :: forall a e . Exception e => IO a -> IO (Either e a)
 try ioa = catch (fmap Right ioa) (return . Left)
 
--- XXX This isn't right.  It should return an IO action.
+-- Throw an exception when executed, not when evaluated
 throwIO :: forall a e . Exception e => e -> IO a
-throwIO e = throw e
+throwIO e = bad >> bad   -- we never reacj the second 'bad'
+  where bad = throw e
 
 onException :: IO a -> IO b -> IO a
 onException io what =
