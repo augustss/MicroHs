@@ -8,7 +8,6 @@ module MicroHs.TargetConfig
 import Text.ParserComb
 import MicroHs.Ident
 import MicroHs.Lex
-import Data.Char
 import Data.List
 import Control.Applicative
 import Prelude hiding(lex)
