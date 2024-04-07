@@ -1052,7 +1052,8 @@ gc(void)
       void (*f)(void *) = (void (*)(void *))fin->final;
       if (f) {
         printf("finalizer fin=%p final=%p free=%p arg=%p\n", fin, f, FREE, fin->arg);
-        (*f)(fin->arg);
+        //(*f)(fin->arg);
+        FREE(fin->arg);
         printf("finalizer done fin=%p final=%p\n", fin, f);
       }
       for (struct forptr *p = fin->back; p; ) {
