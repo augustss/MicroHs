@@ -72,6 +72,7 @@ executable mhs
                        MicroHs.TCMonad
                        MicroHs.Translate
                        MicroHs.TypeCheck
+                       MicroHs.TargetConfig
                        Text.ParserComb
                        System.Console.SimpleReadline
                        Data.Double

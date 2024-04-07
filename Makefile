@@ -25,12 +25,17 @@ GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(G
 
 all:	bin/mhs bin/cpphs
 
-newmhs:	ghcgen
+targets.conf:
+	echo [default]           > targets.conf
+	echo cc = \"$(CC)\"     >> targets.conf
+	echo conf = \"$(CONF)\" >> targets.conf
+
+newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c -o bin/mhs
 	$(CC) $(CCWARNS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
 
 # Compile mhs from distribution, with C compiler
-bin/mhs:	src/runtime/*.c src/runtime/*.h #generated/mhs.c
+bin/mhs:	src/runtime/*.c src/runtime/*.h targets.conf #generated/mhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/mhs.c -o bin/mhs
 
@@ -133,6 +138,7 @@ install:
 	mkdir -p $(PREFIX)/lib/mhs/src/runtime
 	cp -r lib $(PREFIX)/lib/mhs
 	cp src/runtime/* $(PREFIX)/lib/mhs/src/runtime
+	cp targets.conf $(PREFIX)/lib/mhs/targets.conf
 	@echo "***"
 	@echo "*** Installation complete"
 	@echo "*** Set environment variable MHSDIR to $(PREFIX)/lib/mhs"

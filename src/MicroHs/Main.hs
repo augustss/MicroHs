@@ -29,6 +29,7 @@ import System.IO.TimeMilli
 import System.Process
 import Compat
 import MicroHs.Instances(getMhsDir) -- for GHC
+import MicroHs.TargetConfig
 
 mhsVersion :: String
 mhsVersion = "0.9.9.0"
@@ -75,11 +76,56 @@ decodeArgs f mdls (arg:args) =
     "-Q"        -> decodeArgs f{installPkg = True} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
+    '-':'t':s   -> decodeArgs f{target = s} mdls args
     '-':'D':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'I':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'P':s   -> decodeArgs f{buildPkg = Just s} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _           -> decodeArgs f (mdls ++ [arg]) args
+
+
+readTargets :: Flags -> FilePath -> IO [Target]
+readTargets flags dir = do
+  let tgFilePath = dir ++ "/targets.conf"
+  exists <- doesFileExist tgFilePath
+  if not exists 
+     then return []
+     else do
+       tgFile <- readFile tgFilePath
+       case parseTargets tgFilePath tgFile of
+         Left e -> do
+           putStrLn $ "Can't read " ++ tgFilePath
+           when (verbose flags > 0) $
+             putStrLn e
+           return []
+         Right tgs -> do
+           when (verbose flags > 0) $
+             putStrLn $ "Read targets file. Possible targets: " ++ show 
+               [tg | Target tg _ <- tgs]
+           return tgs
+
+readTarget :: Flags -> FilePath -> IO TTarget
+readTarget flags dir = do
+  targets <- readTargets flags dir
+  compiler <- lookupEnv "CC"
+  conf <- lookupEnv "MHSCONF"
+  let dConf = "unix-" ++ show _wordSize
+  case findTarget (target flags) targets of
+    Nothing -> do
+      when (verbose flags > 0) $
+        putStrLn $ unwords ["Could not find", target flags, "in file"]
+      return TTarget { tName = "default"
+                              , tCC   = fromMaybe "cc" compiler 
+                              , tConf = fromMaybe dConf conf
+                              }
+    Just (Target n cs) -> do
+      when (verbose flags > 0) $
+        putStrLn $ "Found target: " ++ show cs
+      return TTarget { tName = n
+                     , tCC   = fromMaybe "cc" $ fromMaybe compiler $ Just $ lookup "cc" cs
+                     , tConf = fromMaybe dConf $ fromMaybe conf $ Just $ lookup "conf" cs
+                     }
+
 
 mainBuildPkg :: Flags -> String -> [String] -> IO ()
 mainBuildPkg flags namever amns = do
@@ -158,10 +204,9 @@ mainCompile flags mn = do
        hClose h
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
-       compiler <- fromMaybe "cc" <$> lookupEnv "CC"
-       conf <- fromMaybe ("unix-" ++ show _wordSize) <$> lookupEnv "MHSCONF"
        let dir = mhsdir flags
-           cc = fromMaybe (compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
+       TTarget _ compiler conf <- readTarget flags dir
+       let cc = fromMaybe (compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbosityGT flags 0) $
          putStrLn $ "Execute: " ++ show cmd
