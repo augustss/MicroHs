@@ -13,7 +13,7 @@ info:
 	$(TMHS) Info       && $(EVAL)
 
 test:
-	$(TMHS) ForeignPtr && $(EVAL)
+	$(EVAL)
 
 errtest:
 	sh errtester.sh < errmsg.test
