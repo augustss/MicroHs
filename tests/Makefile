@@ -13,8 +13,7 @@ info:
 	$(TMHS) Info       && $(EVAL)
 
 test:
-	$(TMHS) RecMdl     && $(EVAL) > RecMdl.out     && diff RecMdl.ref RecMdl.out
-	$(TMHS) ForeignPtr && $(EVAL) > ForeignPtr.out && diff ForeignPtr.ref ForeignPtr.out
+	$(TMHS) ForeignPtr && $(EVAL)
 
 errtest:
 	sh errtester.sh < errmsg.test

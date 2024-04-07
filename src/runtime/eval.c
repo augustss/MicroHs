@@ -1051,18 +1051,19 @@ gc(void)
       /* Unused, run finalizer and free all associated memory */
       void (*f)(void *) = (void (*)(void *))fin->final;
       if (f) {
-        //printf("finalizer fin=%p final=%p\n", fin, f);
+        printf("finalizer fin=%p final=%p\n", fin, f);
         (*f)(fin->arg);
+        printf("finalizer done fin=%p final=%p\n", fin, f);
       }
       for (struct forptr *p = fin->back; p; ) {
         struct forptr *q = p->next;
-        //printf("free fp=%p\n", p);
+        printf("free fp=%p\n", p);
         FREE(p);
         p = q;
       }
       *finp = fin->next;
       num_fin_free++;
-      //printf("free fin=%p\n", fin);
+      printf("free fin=%p\n", fin);
       FREE(fin);
     }
   }
@@ -2168,7 +2169,7 @@ mkForPtr(void *p)
   struct forptr *fp = malloc(sizeof(struct forptr));
   if (!fin || !fp)
     memerr();
-  //printf("mkForPtr p=%p fin=%p fp=%p\n", p, fin, fp);
+  printf("mkForPtr p=%p fin=%p fp=%p\n", p, fin, fp);
   fin->next = final_root;
   final_root = fin;
   fin->final = 0;
@@ -2763,9 +2764,9 @@ evali(NODEPTR an)
 
   case T_FPADD: CHECK(2); xfp = evalforptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETFORPTR(n, addForPtr(xfp, yi)); RET;
   case T_FP2P:  CHECK(1);
-    //printf("T_FP2P\n");
+    printf("T_FP2P\n");
     xfp = evalforptr(ARG(TOP(0))); POP(1); n = TOP(-1);
-    //printf("T_FP2P xfp=%p, payload=%p\n", xfp, xfp->payload);
+    printf("T_FP2P xfp=%p, payload=%p\n", xfp, xfp->payload);
     SETPTR(n, xfp->payload); RET;
 
   case T_ARR_EQ:
@@ -3348,9 +3349,9 @@ execio(NODEPTR *np)
     case T_FPNEW:
       {
         CHECKIO(1);
-        //printf("T_FPNEW\n");
+        printf("T_FPNEW\n");
         void *xp = evalptr(ARG(TOP(1)));
-        //printf("T_FPNEW xp=%p\n", xp);
+        printf("T_FPNEW xp=%p\n", xp);
         n = alloc_node(T_FORPTR);
         SETFORPTR(n, mkForPtr(xp));
         RETIO(n);
@@ -3358,18 +3359,18 @@ execio(NODEPTR *np)
     case T_FPFIN:
       {
         CHECKIO(2);
-        //printf("T_FPFIN\n");
+        printf("T_FPFIN\n");
         struct forptr *xfp = evalforptr(ARG(TOP(2)));
-        //printf("T_FPFIN xfp=%p\n", xfp);
+        printf("T_FPFIN xfp=%p\n", xfp);
         HsFunPtr yp = evalfunptr(ARG(TOP(1)));
-        //printf("T_FPFIN yp=%p\n", yp);
+        printf("T_FPFIN yp=%p\n", yp);
         xfp->finalizer->final = yp;
         RETIO(combUnit);
       }
 
     case T_IO_GC:
       CHECKIO(0);
-      //printf("gc()\n");
+      printf("gc()\n");
       gc();
       RETIO(combUnit);
 
