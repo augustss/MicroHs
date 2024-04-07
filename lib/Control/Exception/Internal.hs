@@ -4,8 +4,8 @@ module Control.Exception.Internal(
   throw, catch,
   Exception(..),
   SomeException(..),
-  PatternMatchFail, NoMethodError, RecSelError, RecConError,
-  patternMatchFail, NoMethodError, RecSelError, RecConError,
+  PatternMatchFail, NoMethodError, RecSelError, RecConError(..),
+  patternMatchFail, noMethodError, recSelError, recConError,
   ) where
 import Prelude()
 import Primitives(IO)
