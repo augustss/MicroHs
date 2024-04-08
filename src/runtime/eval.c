@@ -1800,7 +1800,8 @@ find_sharing(NODEPTR n)
   }
   if (n < cells || n >= cells + heap_size) abort();
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
-  if (GETTAG(n) == T_AP) {
+  tag_t tag = GETTAG(n);
+  if (tag == T_AP || tag == T_ARR) {
     if (test_bit(shared_bits, n)) {
       /* Alread marked as shared */
       //PRINT("shared\n");
@@ -1814,9 +1815,15 @@ find_sharing(NODEPTR n)
       /* Mark as visited, and recurse */
       //PRINT("unmarked\n");
       set_bit(marked_bits, n);
-      find_sharing(FUN(n));
-      n = ARG(n);
-      goto top;
+      if (tag == T_AP) {
+        find_sharing(FUN(n));
+        n = ARG(n);
+        goto top;
+      } else {
+        for(size_t i = 0; i < ARR(n)->size; i++) {
+          find_sharing(ARR(n)->array[i]);
+        }
+      }
     }
   } else {
     /* Not an application, so do nothing */
