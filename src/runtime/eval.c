@@ -2679,6 +2679,7 @@ evali(NODEPTR an)
   case T_ULE:
   case T_UGT:
   case T_UGE:
+    CHECK(2);
     n = ARG(TOP(1));
     if (GETTAG(n) == T_INT) {
       n = ARG(TOP(0));
@@ -2691,6 +2692,7 @@ evali(NODEPTR an)
     goto top;
   case T_NEG:
   case T_INV:
+    CHECK(1);
     n = ARG(TOP(0));
     PUSH(combUNINT1);
     goto top;
@@ -2706,10 +2708,12 @@ evali(NODEPTR an)
   case T_FLE:
   case T_FGT:
   case T_FGE:
+    CHECK(2);
     n = ARG(TOP(1));
     PUSH(combBINDBL2);
     goto top;
   case T_FNEG:
+    CHECK(1);
     n = ARG(TOP(0));
     PUSH(combUNDBL1);
     goto top;
