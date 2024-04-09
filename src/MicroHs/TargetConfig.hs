@@ -1,16 +1,17 @@
-module MicroHs.TargetConfig
-( Target(..)
-, TTarget(..)
-, parseTargets
-, findTarget
-) where
+{-# OPTIONS_GHC -Wno-orphans #-}
+module MicroHs.TargetConfig(
+    Target(..)
+  , TTarget(..)
+  , parseTargets
+  , findTarget
+  ) where
 
+import Prelude hiding(lex)
+import Control.Applicative
+import Data.List
 import Text.ParserComb
 import MicroHs.Ident
 import MicroHs.Lex
-import Data.List
-import Control.Applicative
-import Prelude hiding(lex)
 
 {- File Format
 [target_name]
