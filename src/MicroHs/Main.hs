@@ -7,6 +7,7 @@ import Data.Char
 import Data.List
 import Control.DeepSeq
 import Control.Monad
+import Control.Applicative
 import Data.Maybe
 import Data.Version
 import System.Environment
@@ -122,8 +123,8 @@ readTarget flags dir = do
       when (verbose flags > 0) $
         putStrLn $ "Found target: " ++ show cs
       return TTarget { tName = n
-                     , tCC   = fromMaybe "cc" $ fromMaybe compiler $ Just $ lookup "cc" cs
-                     , tConf = fromMaybe dConf $ fromMaybe conf $ Just $ lookup "conf" cs
+                     , tCC   = fromMaybe "cc"  $ compiler <|> lookup "cc"   cs
+                     , tConf = fromMaybe dConf $ conf     <|> lookup "conf" cs
                      }
 
 
