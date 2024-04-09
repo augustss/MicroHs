@@ -4,14 +4,14 @@ NODE=node
 CONF=unix-64
 .PHONY: test
 
-emtarget : targets.conf
+tests/emtarget : targets.conf
 	echo '' >> targets.conf
 	echo [emscripten] >> targets.conf
-	echo cc = "$(CC)" >> targets.conf
-	echo conf = "$(CONF)" >> targets.conf
-	touch emtarget
+	echo cc = \"$(CC)\" >> targets.conf
+	echo conf = \"$(CONF)\" >> targets.conf
+	touch tests/emtarget
 
-test: emtarget
+test: tests/emtarget
 	$(TMHS) -temscripten Hello -otests/Hello.js && $(NODE) tests/Hello.js > tests/Hello.out && diff tests/Hello.ref tests/Hello.out
 	$(TMHS) -temscripten IOTest -otests/IOTest.js && (echo q | $(NODE) tests/IOTest.js a bb ccc | sed 's/^[0-9]*ms/1ms/' > tests/IOTest.out) && diff tests/IOTest.ref tests/IOTest.out
 	$(TMHS) -temscripten StringTest -otests/StringTest.js && $(NODE) tests/StringTest.js > tests/StringTest.out && diff tests/StringTest.ref tests/StringTest.out
@@ -50,4 +50,4 @@ test: emtarget
 	$(TMHS) -temscripten Info -otests/Info.js && $(NODE) tests/Info.js
 
 clean:
-	rm -f tests/*.out tests/*.tmp tests/*.js tests/*.wasm
+	rm -f tests/*.out tests/*.tmp tests/*.js tests/*.wasm tests/emtarget
