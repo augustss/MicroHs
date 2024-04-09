@@ -15,7 +15,8 @@ data Flags = Flags {
   compress   :: Bool,       -- compress generated combinators
   buildPkg   :: Maybe FilePath, -- build a package
   pkgPath    :: [FilePath], -- package search path
-  installPkg :: Bool        -- install a package
+  installPkg :: Bool,       -- install a package
+  target     :: String      -- Compile target defined in target.conf
   }
   -- deriving (Show)
 
@@ -38,5 +39,6 @@ defaultFlags dir = Flags {
   compress   = False,
   buildPkg   = Nothing,
   pkgPath    = [],
-  installPkg = False
+  installPkg = False,
+  target     = "default"
   }

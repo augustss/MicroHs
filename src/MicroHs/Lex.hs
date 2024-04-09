@@ -2,7 +2,7 @@ module MicroHs.Lex(
   Token(..), showToken,
   tokensLoc,
   LexState, lexTopLS,
-  popLayout,
+  popLayout, lex
   ) where
 import Prelude hiding(lex)
 import Data.Char
