@@ -143,6 +143,7 @@ it will be the entry point to the program.
 * `-z` compress combinator code generated in the `.c` file
 * `-XCPP` run `cpphs` on source files
 * `-Dxxx` passed to `cpphs`
+* `-tTARGET` select target
 
 With the `-v` flag the processing time for each module is reported.
 E.g.
@@ -213,6 +214,17 @@ Available commands:
 * `:kind TYPE` Show kind of `TYPE`
 * `expr` Evaluate expression.
 * `defn` Add definition (can also be an `import`)
+
+## MHS as a cross compiler
+When `mhs` is built, targets.conf is generated. It will look something like this:
+```ini
+[default]
+cc = "cc"
+conf = "unix-64"
+```
+
+You can add other targets to this file, changing which compiler command is used and which runtime is
+selected and then use the `-t` argument to select which target you would like.
 
 ## Files
 There is a number of subdirectories:
