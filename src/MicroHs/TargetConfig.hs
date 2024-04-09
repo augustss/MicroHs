@@ -39,7 +39,6 @@ findTarget name ((Target n conf):ts) | n == name = Just $ Target n conf
 
 -- Parser
 
-
 type Parser = Prsr [Token] Token
 
 instance TokenMachine [Token] Token where
@@ -61,20 +60,11 @@ nl = many $ satisfy "\\n" isWhite
   where isWhite (TIndent _) = True
         isWhite _           = False
 
-obrac :: Parser Token
-obrac = satisfy "[" isOBrac
-  where isOBrac (TSpec _ '[') = True
-        isOBrac _             = False
-
-cbrac :: Parser Token
-cbrac = satisfy "]" isCBrac
-  where isCBrac (TSpec _ ']') = True
-        isCBrac _             = False
-
-eq :: Parser Token
-eq = satisfy "=" isEq
-  where isEq (TIdent _ _ "=") = True
-        isEq _             = False
+spec :: Char -> Parser Token
+spec c = satisfy (showToken $ TSpec (SLoc "" 0 0) c) is
+  where
+    is (TSpec _ d) = c == d
+    is _ = False
 
 key :: Parser String
 key = satisfyM "key" isKey
@@ -87,18 +77,17 @@ value = satisfyM "value" isValue
         isValue _             = Nothing
 
 targetName :: Parser String
-targetName = obrac *> key <* cbrac
+targetName = spec '[' *> key <* spec ']'
 
 keyValue :: Parser (String,String)
 keyValue = do
   k <- key
-  _ <- eq
+  _ <- spec '='
   v <- value
   return (k,v)
 
 keyValues :: Parser [(String,String)]
 keyValues = keyValue `esepBy` nl
-
 
 target :: Parser Target
 target = liftA2 Target (targetName <* nl) keyValues
@@ -107,14 +96,16 @@ targets :: Parser [Target]
 targets = (target `sepBy1` nl) <* nl <* eof
 
 formatFailed :: LastFail Token -> String
-formatFailed (LastFail _ ts msgs) = unlines [ showSLoc sloc ++ ":\n"
-                                            , "  found: " ++ head (map showToken ts)
-                                            , "  expected: " ++ unwords (nub msgs)
-                                            ]
+formatFailed (LastFail _ ts msgs) =
+  unlines [ showSLoc sloc ++ ":\n"
+          , "  found: " ++ head (map showToken ts)
+          , "  expected: " ++ unwords (nub msgs)
+          ]
   where sloc = tokensLoc ts
 
 parseTargets :: FilePath -> String -> Either String [Target]
-parseTargets fp file = case runPrsr targets $ lex (SLoc fp 1 1) file of
-                         Left lf -> Left $ formatFailed lf
-                         Right [a] -> Right a
-                         Right as  -> Left $ "Ambiguous:" ++ unlines (map show as)
+parseTargets fp file =
+  case runPrsr targets $ lex (SLoc fp 1 1) file of
+    Left lf -> Left $ formatFailed lf
+    Right [a] -> Right a
+    Right as  -> Left $ "Ambiguous:" ++ unlines (map show as)

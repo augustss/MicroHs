@@ -33,7 +33,7 @@ import MicroHs.Instances(getMhsDir) -- for GHC
 import MicroHs.TargetConfig
 
 mhsVersion :: String
-mhsVersion = "0.9.9.0"
+mhsVersion = "0.9.10.0"
 
 main :: IO ()
 main = do
@@ -57,7 +57,7 @@ main = do
             _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [-PPKG] [-Q PKG] [ModuleName...]"
+usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [-PPKG] [-Q PKG] [-tTARGET] [ModuleName...]"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
@@ -116,9 +116,9 @@ readTarget flags dir = do
       when (verbose flags > 0) $
         putStrLn $ unwords ["Could not find", target flags, "in file"]
       return TTarget { tName = "default"
-                              , tCC   = fromMaybe "cc" compiler 
-                              , tConf = fromMaybe dConf conf
-                              }
+                     , tCC   = fromMaybe "cc" compiler 
+                     , tConf = fromMaybe dConf conf
+                     }
     Just (Target n cs) -> do
       when (verbose flags > 0) $
         putStrLn $ "Found target: " ++ show cs
