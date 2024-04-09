@@ -177,7 +177,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
 #endif
-                T_ARR_ALLOC, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
+                T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
                 T_RAISE, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
@@ -208,7 +208,7 @@ static const char* tag_names[] = {
   "FADD", "FSUB", "FMUL", "FDIV", "FNEG", "ITOF",
   "FEQ", "FNE", "FLT", "FLE", "FGT", "FGE", "FSHOW", "FREAD",
 #endif
-  "ARR_ALLOC", "ARR_SIZE", "ARR_READ", "ARR_WRITE", "ARR_EQ",
+  "ARR_ALLOC", "ARR_COPY", "ARR_SIZE", "ARR_READ", "ARR_WRITE", "ARR_EQ",
   "RAISE", "SEQ", "EQUAL", "COMPARE", "RNF",
   "TICK",
   "IO_BIND", "IO_THEN", "IO_RETURN",
@@ -399,6 +399,24 @@ arr_alloc(size_t sz, NODEPTR e)
   for(i = 0; i < sz; i++)
     arr->array[i] = e;
   //PRINT("arr_alloc(%d, %p) = %p\n", (int)sz, e, arr);
+  num_arr_alloc++;
+  return arr;
+}
+
+struct ioarray*
+arr_copy(struct ioarray *oarr)
+{
+  size_t sz = oarr->size;
+  struct ioarray *arr = MALLOC(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
+
+  if (!arr)
+    memerr();
+  arr->next = array_root;
+  array_root = arr;
+  arr->marked = 0;
+  arr->permanent = 0;
+  arr->size = sz;
+  memcpy(arr->array, oarr->array, sz * sizeof(NODEPTR));
   num_arr_alloc++;
   return arr;
 }
@@ -681,6 +699,7 @@ struct {
   { "raise", T_RAISE },
   { "catch", T_CATCH },
   { "A.alloc", T_ARR_ALLOC },
+  { "A.copy", T_ARR_COPY },
   { "A.size", T_ARR_SIZE },
   { "A.read", T_ARR_READ },
   { "A.write", T_ARR_WRITE },
@@ -2024,6 +2043,7 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_RAISE: putsb("raise", f); break;
   case T_CATCH: putsb("catch", f); break;
   case T_ARR_ALLOC: putsb("A.alloc", f); break;
+  case T_ARR_COPY: putsb("A.copy", f); break;
   case T_ARR_SIZE: putsb("A.size", f); break;
   case T_ARR_READ: putsb("A.read", f); break;
   case T_ARR_WRITE: putsb("A.write", f); break;
@@ -2864,6 +2884,7 @@ evali(NODEPTR an)
   case T_PEEKCASTRING:
   case T_PEEKCASTRINGLEN:
   case T_ARR_ALLOC:
+  case T_ARR_COPY:
   case T_ARR_SIZE:
   case T_ARR_READ:
   case T_ARR_WRITE:
@@ -3304,6 +3325,19 @@ execio(NODEPTR *np)
       size = evalint(ARG(TOP(1)));
       elem = ARG(TOP(2));
       arr = arr_alloc(size, elem);
+      n = alloc_node(T_ARR);
+      ARR(n) = arr;
+      RETIO(n);
+      }
+    case T_ARR_COPY:
+      {
+      struct ioarray *arr;
+      CHECKIO(1);
+      GCCHECK(1);
+      n = evali(ARG(TOP(1)));
+      if (GETTAG(n) != T_ARR)
+        ERR("T_ARR_COPY tag");
+      arr = arr_copy(ARR(n));
       n = alloc_node(T_ARR);
       ARR(n) = arr;
       RETIO(n);

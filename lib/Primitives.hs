@@ -254,6 +254,9 @@ _isWindows = primPerformIO c_iswindows `primIntEQ` 1
 primArrAlloc :: forall a . Int -> a -> IO (IOArray a)
 primArrAlloc = primitive "A.alloc"
 
+primArrCopy :: forall a . IOArray a -> IO (IOArray a)
+primArrCopy = primitive "A.copy"
+
 primArrSize :: forall a . IOArray a -> IO Int
 primArrSize = primitive "A.size"
 
@@ -263,6 +266,7 @@ primArrRead = primitive "A.read"
 primArrWrite :: forall a . IOArray a -> Int -> a -> IO ()
 primArrWrite = primitive "A.write"
 
+-- Not referentially transparent
 primArrEQ :: forall a . IOArray a -> IOArray a -> Bool
 primArrEQ = primitive "A.=="
 

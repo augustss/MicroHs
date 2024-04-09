@@ -63,6 +63,7 @@ test:
 	$(TMHS) Enum       && $(EVAL) > Enum.out       && diff Enum.ref Enum.out
 	$(TMHS) RecMdl     && $(EVAL) > RecMdl.out     && diff RecMdl.ref RecMdl.out
 	$(TMHS) ForeignPtr && $(EVAL) > ForeignPtr.out && diff ForeignPtr.ref ForeignPtr.out
+	$(TMHS) Array      && $(EVAL) > Array.out      && diff Array.ref Array.out
 
 errtest:
 	sh errtester.sh < errmsg.test
