@@ -8,6 +8,7 @@ module MicroHs.TargetConfig(
 
 import Prelude hiding(lex)
 import Control.Applicative
+import Control.Monad
 import Data.List
 import Text.ParserComb
 import MicroHs.Ident
@@ -62,14 +63,22 @@ nl = many $ satisfy "\\n" isWhite
 
 spec :: Char -> Parser Token
 spec c = satisfy (showToken $ TSpec (SLoc "" 0 0) c) is
-  where
-    is (TSpec _ d) = c == d
-    is _ = False
+  where is (TSpec _ d) = c == d
+        is _ = False
+
+ident :: Parser String
+ident = satisfyM "key" is
+  where is (TIdent _ _ x) = Just x
+        is _              = Nothing
+
+keyword :: String -> Parser ()
+keyword s = do
+  s' <- ident
+  guard (s == s')
+  pure ()
 
 key :: Parser String
-key = satisfyM "key" isKey
-  where isKey (TIdent _ _ x) = Just x
-        isKey _              = Nothing
+key = ident
 
 value :: Parser String
 value = satisfyM "value" isValue
@@ -79,18 +88,14 @@ value = satisfyM "value" isValue
 targetName :: Parser String
 targetName = spec '[' *> key <* spec ']'
 
-keyValue :: Parser (String,String)
-keyValue = do
-  k <- key
-  _ <- spec '='
-  v <- value
-  return (k,v)
+keyValue :: Parser (String, String)
+keyValue = (,) <$> key <*> (keyword "=" *> value)
 
 keyValues :: Parser [(String,String)]
 keyValues = keyValue `esepBy` nl
 
 target :: Parser Target
-target = liftA2 Target (targetName <* nl) keyValues
+target = Target <$> (targetName <* nl) <*> keyValues
 
 targets :: Parser [Target]
 targets = (target `sepBy1` nl) <* nl <* eof
