@@ -4,43 +4,50 @@ NODE=node
 CONF=unix-64
 .PHONY: test
 
-test:
-	CC='$(CC)' $(TMHS) Hello -otests/Hello.js && $(NODE) tests/Hello.js > tests/Hello.out && diff tests/Hello.ref tests/Hello.out
-	CC='$(CC)' $(TMHS) IOTest -otests/IOTest.js && (echo q | $(NODE) tests/IOTest.js a bb ccc | sed 's/^[0-9]*ms/1ms/' > tests/IOTest.out) && diff tests/IOTest.ref tests/IOTest.out
-	CC='$(CC)' $(TMHS) StringTest -otests/StringTest.js && $(NODE) tests/StringTest.js > tests/StringTest.out && diff tests/StringTest.ref tests/StringTest.out
-	CC='$(CC)' $(TMHS) ListTest -otests/ListTest.js && $(NODE) tests/ListTest.js > tests/ListTest.out && diff tests/ListTest.ref tests/ListTest.out
-	CC='$(CC)' $(TMHS) Fac -otests/Fac.js && $(NODE) tests/Fac.js > tests/Fac.out && diff tests/Fac.ref tests/Fac.out
-	CC='$(CC)' $(TMHS) Misc -otests/Misc.js && $(NODE) tests/Misc.js > tests/Misc.out && diff tests/Misc.ref tests/Misc.out
-	CC='$(CC)' $(TMHS) Case -otests/Case.js && $(NODE) tests/Case.js > tests/Case.out && diff tests/Case.ref tests/Case.out
-	CC='$(CC)' $(TMHS) Arith -otests/Arith.js && $(NODE) tests/Arith.js > tests/Arith.out && diff tests/Arith.ref tests/Arith.out
-	CC='$(CC)' $(TMHS) Guard -otests/Guard.js && $(NODE) tests/Guard.js > tests/Guard.out && diff tests/Guard.ref tests/Guard.out
-	CC='$(CC)' $(TMHS) Newtype -otests/Newtype.js && $(NODE) tests/Newtype.js > tests/Newtype.out && diff tests/Newtype.ref tests/Newtype.out
-	CC='$(CC)' $(TMHS) LitMatch -otests/LitMatch.js && $(NODE) tests/LitMatch.js > tests/LitMatch.out && diff tests/LitMatch.ref tests/LitMatch.out
-	CC='$(CC)' $(TMHS) Word -otests/Word.js && $(NODE) tests/Word.js > tests/Word.out && diff tests/Word.ref tests/Word.out
-	CC='$(CC)' $(TMHS) Enum -otests/Enum.js && $(NODE) tests/Enum.js > tests/Enum.out && diff tests/Enum.ref tests/Enum.out
-	# CC='$(CC)' $(TMHS) Foreign -otests/Foreign.js && $(NODE) tests/Foreign.js > tests/Foreign.out && diff tests/Foreign.ref tests/Foreign.out
-	CC='$(CC)' $(TMHS) MutRec -otests/MutRec.js && $(NODE) tests/MutRec.js > tests/MutRec.out && diff tests/MutRec.ref tests/MutRec.out
-	CC='$(CC)' $(TMHS) LocalPoly -otests/LocalPoly.js && $(NODE) tests/LocalPoly.js > tests/LocalPoly.out && diff tests/LocalPoly.ref tests/LocalPoly.out
-	CC='$(CC)' $(TMHS) Rank2 -otests/Rank2.js && $(NODE) tests/Rank2.js > tests/Rank2.out && diff tests/Rank2.ref tests/Rank2.out
-	CC='$(CC)' $(TMHS) Catch -otests/Catch.js && $(NODE) tests/Catch.js | sed 's/tests\/Catch.hs/.\/Catch.hs/' > tests/Catch.out && diff tests/Catch.ref tests/Catch.out
-	CC='$(CC)' $(TMHS) FArith -otests/FArith.js && $(NODE) tests/FArith.js > tests/FArith.out && diff tests/FArith.ref tests/FArith.out
-	CC='$(CC)' $(TMHS) Infix -otests/Infix.js && $(NODE) tests/Infix.js > tests/Infix.out && diff tests/Infix.ref tests/Infix.out
-	CC='$(CC)' $(TMHS) Class -otests/Class.js && $(NODE) tests/Class.js > tests/Class.out && diff tests/Class.ref tests/Class.out
-	CC='$(CC)' $(TMHS) Eq -otests/Eq.js && $(NODE) tests/Eq.js > tests/Eq.out && diff tests/Eq.ref tests/Eq.out
-	# CC='$(CC)' $(TMHS) Floating -otests/Floating.js && $(NODE) tests/Floating.js > tests/Floating.out && diff tests/Floating.ref tests/Floating.out
-	CC='$(CC)' $(TMHS) Default -otests/Default.js && $(NODE) tests/Default.js > tests/Default.out && diff tests/Default.ref tests/Default.out
-	CC='$(CC)' $(TMHS) Multi -otests/Multi.js && $(NODE) tests/Multi.js > tests/Multi.out && diff tests/Multi.ref tests/Multi.out
-	CC='$(CC)' $(TMHS) Exists -otests/Exists.js && $(NODE) tests/Exists.js > tests/Exists.out && diff tests/Exists.ref tests/Exists.out
-	CC='$(CC)' $(TMHS) TypeEq -otests/TypeEq.js && $(NODE) tests/TypeEq.js > tests/TypeEq.out && diff tests/TypeEq.ref tests/TypeEq.out
-	CC='$(CC)' $(TMHS) Sieve -otests/Sieve.js && $(NODE) tests/Sieve.js > tests/Sieve.out && diff tests/Sieve.ref tests/Sieve.out
-	CC='$(CC)' $(TMHS) Dict -otests/Dict.js && $(NODE) tests/Dict.js > tests/Dict.out && diff tests/Dict.ref tests/Dict.out
-	CC='$(CC)' $(TMHS) Symbol -otests/Symbol.js && $(NODE) tests/Symbol.js > tests/Symbol.out && diff tests/Symbol.ref tests/Symbol.out
-	CC='$(CC)' $(TMHS) FunDep -otests/FunDep.js && $(NODE) tests/FunDep.js > tests/FunDep.out && diff tests/FunDep.ref tests/FunDep.out
-	CC='$(CC)' $(TMHS) TypeLits -otests/TypeLits.js && $(NODE) tests/TypeLits.js > tests/TypeLits.out && diff tests/TypeLits.ref tests/TypeLits.out
-	CC='$(CC)' $(TMHS) View -otests/View.js && $(NODE) tests/View.js > tests/View.out && diff tests/View.ref tests/View.out
-	CC='$(CC)' $(TMHS) IOArray -otests/IOArray.js && $(NODE) tests/IOArray.js > tests/IOArray.out && diff tests/IOArray.ref tests/IOArray.out
-	CC='$(CC)' $(TMHS) ST -otests/ST.js && $(NODE) tests/ST.js > tests/ST.out && diff tests/ST.ref tests/ST.out
-	CC='$(CC)' $(TMHS) Info -otests/Info.js && $(NODE) tests/Info.js
+emtarget : targets.conf
+	echo '' >> targets.conf
+	echo [emscripten] >> targets.conf
+	echo cc = "$(CC)" >> targets.conf
+	echo conf = "$(CONF)" >> targets.conf
+	touch emtarget
+
+test: emtarget
+	$(TMHS) -temscripten Hello -otests/Hello.js && $(NODE) tests/Hello.js > tests/Hello.out && diff tests/Hello.ref tests/Hello.out
+	$(TMHS) -temscripten IOTest -otests/IOTest.js && (echo q | $(NODE) tests/IOTest.js a bb ccc | sed 's/^[0-9]*ms/1ms/' > tests/IOTest.out) && diff tests/IOTest.ref tests/IOTest.out
+	$(TMHS) -temscripten StringTest -otests/StringTest.js && $(NODE) tests/StringTest.js > tests/StringTest.out && diff tests/StringTest.ref tests/StringTest.out
+	$(TMHS) -temscripten ListTest -otests/ListTest.js && $(NODE) tests/ListTest.js > tests/ListTest.out && diff tests/ListTest.ref tests/ListTest.out
+	$(TMHS) -temscripten Fac -otests/Fac.js && $(NODE) tests/Fac.js > tests/Fac.out && diff tests/Fac.ref tests/Fac.out
+	$(TMHS) -temscripten Misc -otests/Misc.js && $(NODE) tests/Misc.js > tests/Misc.out && diff tests/Misc.ref tests/Misc.out
+	$(TMHS) -temscripten Case -otests/Case.js && $(NODE) tests/Case.js > tests/Case.out && diff tests/Case.ref tests/Case.out
+	$(TMHS) -temscripten Arith -otests/Arith.js && $(NODE) tests/Arith.js > tests/Arith.out && diff tests/Arith.ref tests/Arith.out
+	$(TMHS) -temscripten Guard -otests/Guard.js && $(NODE) tests/Guard.js > tests/Guard.out && diff tests/Guard.ref tests/Guard.out
+	$(TMHS) -temscripten Newtype -otests/Newtype.js && $(NODE) tests/Newtype.js > tests/Newtype.out && diff tests/Newtype.ref tests/Newtype.out
+	$(TMHS) -temscripten LitMatch -otests/LitMatch.js && $(NODE) tests/LitMatch.js > tests/LitMatch.out && diff tests/LitMatch.ref tests/LitMatch.out
+	$(TMHS) -temscripten Word -otests/Word.js && $(NODE) tests/Word.js > tests/Word.out && diff tests/Word.ref tests/Word.out
+	$(TMHS) -temscripten Enum -otests/Enum.js && $(NODE) tests/Enum.js > tests/Enum.out && diff tests/Enum.ref tests/Enum.out
+	# $(TMHS) Foreign -otests/Foreign.js && $(NODE) tests/Foreign.js > tests/Foreign.out && diff tests/Foreign.ref tests/Foreign.out
+	$(TMHS) -temscripten MutRec -otests/MutRec.js && $(NODE) tests/MutRec.js > tests/MutRec.out && diff tests/MutRec.ref tests/MutRec.out
+	$(TMHS) -temscripten LocalPoly -otests/LocalPoly.js && $(NODE) tests/LocalPoly.js > tests/LocalPoly.out && diff tests/LocalPoly.ref tests/LocalPoly.out
+	$(TMHS) -temscripten Rank2 -otests/Rank2.js && $(NODE) tests/Rank2.js > tests/Rank2.out && diff tests/Rank2.ref tests/Rank2.out
+	$(TMHS) -temscripten Catch -otests/Catch.js && $(NODE) tests/Catch.js | sed 's/tests\/Catch.hs/.\/Catch.hs/' > tests/Catch.out && diff tests/Catch.ref tests/Catch.out
+	$(TMHS) -temscripten FArith -otests/FArith.js && $(NODE) tests/FArith.js > tests/FArith.out && diff tests/FArith.ref tests/FArith.out
+	$(TMHS) -temscripten Infix -otests/Infix.js && $(NODE) tests/Infix.js > tests/Infix.out && diff tests/Infix.ref tests/Infix.out
+	$(TMHS) -temscripten Class -otests/Class.js && $(NODE) tests/Class.js > tests/Class.out && diff tests/Class.ref tests/Class.out
+	$(TMHS) -temscripten Eq -otests/Eq.js && $(NODE) tests/Eq.js > tests/Eq.out && diff tests/Eq.ref tests/Eq.out
+	# $(TMHS) Floating -otests/Floating.js && $(NODE) tests/Floating.js > tests/Floating.out && diff tests/Floating.ref tests/Floating.out
+	$(TMHS) -temscripten Default -otests/Default.js && $(NODE) tests/Default.js > tests/Default.out && diff tests/Default.ref tests/Default.out
+	$(TMHS) -temscripten Multi -otests/Multi.js && $(NODE) tests/Multi.js > tests/Multi.out && diff tests/Multi.ref tests/Multi.out
+	$(TMHS) -temscripten Exists -otests/Exists.js && $(NODE) tests/Exists.js > tests/Exists.out && diff tests/Exists.ref tests/Exists.out
+	$(TMHS) -temscripten TypeEq -otests/TypeEq.js && $(NODE) tests/TypeEq.js > tests/TypeEq.out && diff tests/TypeEq.ref tests/TypeEq.out
+	$(TMHS) -temscripten Sieve -otests/Sieve.js && $(NODE) tests/Sieve.js > tests/Sieve.out && diff tests/Sieve.ref tests/Sieve.out
+	$(TMHS) -temscripten Dict -otests/Dict.js && $(NODE) tests/Dict.js > tests/Dict.out && diff tests/Dict.ref tests/Dict.out
+	$(TMHS) -temscripten Symbol -otests/Symbol.js && $(NODE) tests/Symbol.js > tests/Symbol.out && diff tests/Symbol.ref tests/Symbol.out
+	$(TMHS) -temscripten FunDep -otests/FunDep.js && $(NODE) tests/FunDep.js > tests/FunDep.out && diff tests/FunDep.ref tests/FunDep.out
+	$(TMHS) -temscripten TypeLits -otests/TypeLits.js && $(NODE) tests/TypeLits.js > tests/TypeLits.out && diff tests/TypeLits.ref tests/TypeLits.out
+	$(TMHS) -temscripten View -otests/View.js && $(NODE) tests/View.js > tests/View.out && diff tests/View.ref tests/View.out
+	$(TMHS) -temscripten IOArray -otests/IOArray.js && $(NODE) tests/IOArray.js > tests/IOArray.out && diff tests/IOArray.ref tests/IOArray.out
+	$(TMHS) -temscripten ST -otests/ST.js && $(NODE) tests/ST.js > tests/ST.out && diff tests/ST.ref tests/ST.out
+	$(TMHS) -temscripten Info -otests/Info.js && $(NODE) tests/Info.js
 
 clean:
 	rm -f tests/*.out tests/*.tmp tests/*.js tests/*.wasm
