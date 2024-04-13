@@ -5,12 +5,14 @@ module Data.IntMap(
   empty, lookup, insert, fromList, toList, insertWith, (!), keys
   ) where
 import Prelude hiding(lookup)
+import {-# SOURCE #-} Data.Typeable
 
 data IntMap a
   = Empty
   | Leaf Int a
   | Node (IntMap a) (IntMap a) (IntMap a) (IntMap a)
   --Xderiving (Show)
+  deriving (Typeable)
 
 -- This works for y>0
 divModX :: Int -> Int -> (Int, Int)

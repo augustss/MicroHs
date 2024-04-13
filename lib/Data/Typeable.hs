@@ -21,9 +21,7 @@ import Primitives
 import Prelude
 import Control.Monad.ST
 import Data.Complex
-import Data.IntMap
 import Data.IORef
-import Data.Map
 import Data.Proxy
 import Data.Ratio
 import Data.STRef
@@ -162,7 +160,6 @@ instance Typeable IO          where typeRep = prim                          "IO"
 instance Typeable Ptr         where typeRep = prim                          "Ptr"
 instance Typeable IOArray     where typeRep = prim                          "IOArray"
 instance Typeable IORef       where typeRep = nullary "Data.IORef"          "IORef"
-instance Typeable IntMap      where typeRep = nullary "Data.IntMap"         "IntMap"
 
 instance Typeable []          where typeRep = nullary "Data.List_Type"      "[]"
 instance Typeable Complex     where typeRep = nullary "Data.Complex"        "Complex"
@@ -176,7 +173,6 @@ instance Typeable Monad       where typeRep = nullary "Control.Monad"       "Mon
 instance Typeable (,)         where typeRep = nullary "Data.Tuple"          ","
 instance Typeable (->)        where typeRep = prim                          "->"
 instance Typeable Either      where typeRep = nullary "Data.Either"         "Either"
-instance Typeable Map         where typeRep = nullary "Data.Map"            "Map"
 instance Typeable ST          where typeRep = nullary "Control.Monad.ST"    "ST"
 instance Typeable STRef       where typeRep = nullary "Data.STRef"          "STRef"
 

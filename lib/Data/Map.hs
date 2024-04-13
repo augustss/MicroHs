@@ -9,6 +9,7 @@ module Data.Map(
   insertBy, insertByWith, fromListByWith, fromListBy, lookupBy, empty, elems, size, toList, deleteBy,
   ) where
 import Prelude hiding (lookup)
+import {-# SOURCE #-} Data.Typeable
 
 data Map k a
   = Nil           -- empty tree
@@ -20,6 +21,7 @@ data Map k a
     a              -- element stored in the node
     (Map k a)      -- right subtree
   --Xderiving(Show)
+  deriving (Typeable)
 
 empty :: forall k a . Map k a
 empty = Nil
