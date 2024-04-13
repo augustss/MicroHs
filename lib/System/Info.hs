@@ -1,9 +1,10 @@
 module System.Info(os, arch, compilerName, compilerVersion, fullCompilerVersion) where
 import Data.Char
 import Data.Version(Version(..))
+import System.Cmd
 import System.Directory
+import System.Exit
 import System.IO
-import System.Process
 import System.IO.Unsafe
 
 os :: String
@@ -26,7 +27,9 @@ uname :: String -> String
 uname flag = unsafePerformIO $ do
   (fn, h) <- openTmpFile "uname"
   hClose h
-  callCommand $ "uname " ++ flag ++ " >" ++ fn
+  rc <- cmd $ "uname " ++ flag ++ " >" ++ fn
   res <- readFile fn
   removeFile fn
+  when (rc /= ExitSuccess)
+    error $ "System.Into: uname failed"
   return $ map toLower $ filter (not . isSpace) res

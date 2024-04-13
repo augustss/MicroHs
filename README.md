@@ -134,7 +134,8 @@ it will be the entry point to the program.
 
 ### Compiler flags
 * `--version` show version number
-* `-iDIR` add `DIR` to search path for modules
+* `-i` set module search path to empty
+* `-iDIR` append `DIR` to module search path
 * `-oFILE` output file.  If the `FILE` ends in `.comb` it will produce a textual combinator file.  If `FILE` ends in `.c` it will produce a C file with the combinators.  For all other `FILE` it will compile the combinators together with the runtime system to produce a regular executable.
 * `-r` run directly
 * `-v` be more verbose, flag can be repeated
@@ -146,6 +147,11 @@ it will be the entry point to the program.
 * `-XCPP` run `cpphs` on source files
 * `-Dxxx` passed to `cpphs`
 * `-tTARGET` select target
+* `-a` set package to empty
+* `-aDIR` prepend `DIR` to package search path
+* `-PPKG` create package `PKG`
+* `-LFILE` list all modules in a package
+* `-Q FILE DIR` install package
 
 With the `-v` flag the processing time for each module is reported.
 E.g.

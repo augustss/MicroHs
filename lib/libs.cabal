@@ -64,6 +64,7 @@ library base
         Data.String
         Data.Traversable
         Data.Tuple
+        Data.Type.Equality
         Data.Typeable
         Data.TypeLits
         Data.Version
@@ -85,18 +86,25 @@ library base
         Numeric.FormatFloat
         Numeric.Natural
         Prelude
+        System.Cmd
+        System.Directory
         System.Environment
         System.Exit
         System.IO
+        System.IO.MD5
+        System.IO.Unsafe
         System.Info
         System.Process
         Text.Printf
         Text.Read
+        Text.Read.Lex
+        Text.Read.Numeric
         Text.Show
         Unsafe.Coerce
 
     other-modules:
         Control.Exception.Internal
+        Control.Monad.ST_Type
         Data.Bool_Type
         Data.Char_Type
         Data.Integer_Type
@@ -107,28 +115,41 @@ library base
         Primitives
         System.IO_Handle
 
-library directory
-    exposed-modules:
-        System.Directory
+    build-depends:
+
+--library directory
+--    exposed-modules:
+--        System.Directory
+--    build-depends:
+--        base
 
 library simple-readline
+    hs-source-dirs: simple-readline
     exposed-modules:
         System.Console.SimpleReadline
+    build-depends:
+        base
 
-library pretty
-    exposed-modules:
-        Text.PrettyPrint.HughesPJ
-        Text.PrettyPrint.HughesPJClass
-
-library mhs
-    exposed-modules:
-        System.IO.MD5
-        System.IO.PrintOrRun
-        System.IO.Serialize
-        System.IO.TimeMilli
-
-library containers
-    exposed-modules:
-        Data.IntMap
-        Data.IntSet
-        Data.Map
+--library pretty
+--    exposed-modules:
+--        Text.PrettyPrint.HughesPJ
+--        Text.PrettyPrint.HughesPJClass
+--    build-depends:
+--        base
+--
+--library mhs
+--    exposed-modules:
+--        System.IO.PrintOrRun
+--        System.IO.Serialize
+--        System.IO.TimeMilli
+--    build-depends:
+--        base
+--
+--library containers
+--    exposed-modules:
+--        Data.IntMap
+--        Data.IntSet
+--        Data.Map
+--    build-depends:
+--        base
+--

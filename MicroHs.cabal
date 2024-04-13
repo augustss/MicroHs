@@ -39,9 +39,8 @@ source-repository head
 
 executable mhs
   default-language:    Haskell98
-  hs-source-dirs:      ghc src
   ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -main-is MicroHs.Main
-                       -fwrite-ide-info
+                       -fwrite-ide-info -Wno-deprecated
   main-is:             MicroHs/Main.hs
   default-extensions:  ScopedTypeVariables PatternGuards TypeSynonymInstances MultiParamTypeClasses
                        FlexibleInstances BangPatterns
@@ -86,6 +85,7 @@ executable mhs
                        Paths_MicroHs
   autogen-modules:     Paths_MicroHs
   if impl(ghc)
+    hs-source-dirs:    ghc src
     build-depends:     base         >= 4.10 && < 4.20,
                        containers   >= 0.5 && < 0.8,
                        deepseq      >= 1.1 && < 1.6,
@@ -95,4 +95,6 @@ executable mhs
                        time         >= 1.1 && < 1.15,
                        pretty       >= 1.0 && < 1.2,
                        process      >= 1.6 && < 1.8,
-                       directory    >= 1.2 && < 1.5
+                       directory    >= 1.2 && < 1.5,
+  if impl(mhs)
+    hs-source-dirs:    src lib lib/simple-readline

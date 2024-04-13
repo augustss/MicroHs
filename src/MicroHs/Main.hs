@@ -23,11 +23,12 @@ import MicroHs.Translate
 import MicroHs.TypeCheck(tModuleName)
 import MicroHs.Interactive
 import MicroHs.MakeCArray
+import System.Cmd
+import System.Exit
 import System.Directory
 import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
-import System.Process
 import Compat
 import MicroHs.Instances(getMhsDir) -- for GHC
 import MicroHs.TargetConfig
@@ -46,18 +47,21 @@ main = do
    _ -> do
     let dflags = (defaultFlags dir){ pkgPath = [home ++ "/.mcabal/mhs-" ++ mhsVersion] }
         (flags, mdls, rargs) = decodeArgs dflags [] args
-    case buildPkg flags of
-      Just p -> mainBuildPkg flags p mdls
+    case listPkg flags of
+      Just p -> mainListPkg flags p
       Nothing ->
-        if installPkg flags then mainInstallPackage flags mdls else
-        withArgs rargs $
-          case mdls of
-            []  -> mainInteractive flags
-            [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-            _   -> error usage
+        case buildPkg flags of
+          Just p -> mainBuildPkg flags p mdls
+          Nothing ->
+            if installPkg flags then mainInstallPackage flags mdls else
+            withArgs rargs $
+              case mdls of
+                []  -> mainInteractive flags
+                [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+                _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [-PPKG] [-Q PKG] [-tTARGET] [ModuleName...]"
+usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-LPATH] [-PPKG] [-Q PKG] [-tTARGET] [ModuleName...]"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
@@ -75,12 +79,16 @@ decodeArgs f mdls (arg:args) =
     "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
     "-z"        -> decodeArgs f{compress = True} mdls args
     "-Q"        -> decodeArgs f{installPkg = True} mdls args
+    '-':'i':[]  -> decodeArgs f{paths = []} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
     '-':'t':s   -> decodeArgs f{target = s} mdls args
     '-':'D':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'I':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'P':s   -> decodeArgs f{buildPkg = Just s} mdls args
+    '-':'a':[]  -> decodeArgs f{pkgPath = []} mdls args
+    '-':'a':s   -> decodeArgs f{pkgPath = s : pkgPath f} mdls args
+    '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _           -> decodeArgs f (mdls ++ [arg]) args
 
@@ -153,6 +161,13 @@ splitNameVer s =
     _ -> error $ "package name not of the form name-version:" ++ show s
   where readVersion = map read . words . map (\ c -> if c == '.' then ' ' else c)
 
+mainListPkg :: Flags -> FilePath -> IO ()
+mainListPkg _flags pkgfn = do
+  pkg <- readSerialized pkgfn
+  let list = mapM_ (putStrLn . showIdent . tModuleName)
+  list (pkgExported pkg)
+  list (pkgOther pkg)
+
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
   (rmn, allDefs) <- do
@@ -207,8 +222,10 @@ mainCompile flags mn = do
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbosityGT flags 0) $
          putStrLn $ "Execute: " ++ show cmd
-       callCommand cmd
+       ec <- system cmd
        removeFile fn
+       when (ec /= ExitSuccess) $
+         error $ "command failed: " ++ cmd
        ct2 <- getTimeMilli
        when (verbosityGT flags 0) $
          putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"

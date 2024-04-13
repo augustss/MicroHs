@@ -14,6 +14,7 @@ data Flags = Flags {
   cppArgs    :: [String],   -- flags for CPP
   compress   :: Bool,       -- compress generated combinators
   buildPkg   :: Maybe FilePath, -- build a package
+  listPkg    :: Maybe FilePath, -- list package contents
   pkgPath    :: [FilePath], -- package search path
   installPkg :: Bool,       -- install a package
   target     :: String      -- Compile target defined in target.conf
@@ -38,6 +39,7 @@ defaultFlags dir = Flags {
   cppArgs    = [],
   compress   = False,
   buildPkg   = Nothing,
+  listPkg    = Nothing,
   pkgPath    = [],
   installPkg = False,
   target     = "default"
