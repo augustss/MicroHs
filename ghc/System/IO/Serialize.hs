@@ -9,6 +9,7 @@ module System.IO.Serialize(
   readSerialized,
   ) where
 --import System.IO
+import GHC.Stack
 
 {-
 hSerialize   :: forall a . Handle -> a -> IO ()
@@ -19,10 +20,10 @@ writeSerialized :: forall a . FilePath -> a -> IO ()
 writeSerialized = errghc
 -}
 
-writeSerializedCompressed :: forall a . FilePath -> a -> IO ()
+writeSerializedCompressed :: forall a . HasCallStack => FilePath -> a -> IO ()
 writeSerializedCompressed = errghc
-readSerialized :: forall a . FilePath -> IO a
+readSerialized :: forall a . HasCallStack => FilePath -> IO a
 readSerialized = errghc
 
-errghc :: a
+errghc :: HasCallStack => a
 errghc = error "System.IO.System: serialization not available with ghc"
