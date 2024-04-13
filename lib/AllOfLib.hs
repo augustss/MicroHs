@@ -10,6 +10,7 @@ import Control.Exception.Internal
 import Control.Monad
 import Control.Monad.Fail
 import Control.Monad.ST
+import Control.Monad.ST_Type
 import Control.Monad.State.Strict
 import Data.Bits
 import Data.Bool
@@ -85,7 +86,7 @@ import Numeric.FormatFloat
 import Numeric.Natural
 import Prelude
 import Primitives
-import System.Console.SimpleReadline
+--import System.Console.SimpleReadline
 import System.Directory
 import System.Environment
 import System.Exit
