@@ -158,11 +158,7 @@ mainCompile flags mn = do
   (rmn, allDefs) <- do
     cash <- getCached flags
     (rds, _, cash') <- compileCacheTop flags mn cash
-    when (writeCache flags) $ do
-      when (verbosityGT flags 0) $
-        putStrLn $ "Saving cache " ++ show mhsCacheName
-      () <- seq (rnfNoErr cash) (return ())
-      saveCache mhsCacheName cash'
+    maybeSaveCache flags cash'
     return rds
 
   t1 <- getTimeMilli

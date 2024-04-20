@@ -3,7 +3,7 @@
 module MicroHs.Compile(
   compileCacheTop,
   compileMany,
-  mhsCacheName,
+  maybeSaveCache,
   getCached,
   validateCache,
   Cache, emptyCache, deleteFromCache,
@@ -68,6 +68,14 @@ getCached flags = do
       when (loading flags || verbosityGT flags 0) $
         putStrLn $ "Loading saved cache " ++ show mhsCacheName
       validateCache flags cash
+
+maybeSaveCache :: Flags -> Cache -> IO ()
+maybeSaveCache flags cash =
+  when (writeCache flags) $ do
+    when (verbosityGT flags 0) $
+      putStrLn $ "Saving cache " ++ show mhsCacheName
+    () <- seq (rnfNoErr cash) (return ())
+    saveCache mhsCacheName cash
 
 compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Symbols, Cache)
 compile flags nm ach = do

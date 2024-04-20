@@ -45,6 +45,8 @@ preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++
 start :: I ()
 start = do
   reload
+  is <- get
+  liftIO $ maybeSaveCache (isFlags is) (isCache is)
   liftIO $ putStrLn "Type ':quit' to quit, ':help' for help"
   when compiledWithGHC $
     liftIO $ putStrLn "WARNING: Compiled with GHC, so limited functionality."
