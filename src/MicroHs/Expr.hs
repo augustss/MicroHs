@@ -635,6 +635,7 @@ ppLHS :: LHS -> Doc
 ppLHS (f, vs) = hsep (ppIdent f : map ppIdKind vs)
 
 ppIdKind :: IdKind -> Doc
+ppIdKind (IdKind i (EVar d)) | isDummyIdent d = ppIdent i
 ppIdKind (IdKind i k) = parens $ ppIdent i <> text "::" <> ppEKind k
 
 ppEDefs :: [EDef] -> Doc
