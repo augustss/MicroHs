@@ -45,6 +45,7 @@ module MicroHs.Expr(
   getArrow, getArrows,
   showExprRaw,
   mkEStr, mkExn,
+  getAppM,
   ) where
 import Prelude hiding ((<>))
 import Control.Arrow(first)
@@ -836,3 +837,9 @@ mkExn loc msg exn =
   let str = mkEStr loc $ msg ++ ", at " ++ show loc
       fn  = ELit loc $ LExn $ "Control.Exception.Internal." ++ exn
   in  EApp fn str
+
+getAppM :: HasCallStack => EType -> Maybe (Ident, [EType])
+getAppM = loop []
+  where loop as (EVar i) = Just (i, as)
+        loop as (EApp f a) = loop (a:as) f
+        loop _ t = Nothing

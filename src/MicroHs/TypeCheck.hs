@@ -268,10 +268,7 @@ eVarI :: SLoc -> String -> Expr
 eVarI loc = EVar . mkIdentSLoc loc
 
 getApp :: HasCallStack => EType -> (Ident, [EType])
-getApp = loop []
-  where loop as (EVar i) = (i, as)
-        loop as (EApp f a) = loop (a:as) f
-        loop _ t = impossibleShow t
+getApp t = fromMaybe (impossibleShow t) $ getAppM t
 
 -- Construct a dummy TModule for the currently compiled module.
 -- It has all the relevant export tables.
