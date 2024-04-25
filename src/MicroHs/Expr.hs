@@ -46,6 +46,7 @@ module MicroHs.Expr(
   showExprRaw,
   mkEStr, mkExn,
   getAppM,
+  TyVar, freeTyVars,
   ) where
 import Prelude hiding ((<>))
 import Control.Arrow(first)
@@ -697,7 +698,7 @@ ppExprR raw = ppE
         EViewPat e p -> parens $ ppE e <+> text "->" <+> ppE p
         ELazy True p -> text "~" <> ppE p
         ELazy False p -> text "!" <> ppE p
-        EUVar i -> text ("_a" ++ show i)
+        EUVar i -> text ("__a" ++ show i)
         ECon c -> ppCon c
         EForall iks e -> ppForall iks <+> ppEType e
 
@@ -842,4 +843,32 @@ getAppM :: HasCallStack => EType -> Maybe (Ident, [EType])
 getAppM = loop []
   where loop as (EVar i) = Just (i, as)
         loop as (EApp f a) = loop (a:as) f
-        loop _ t = Nothing
+        loop _ _ = Nothing
+
+type TyVar = Ident
+
+freeTyVars :: [EType] -> [TyVar]
+-- Get the free TyVars from a type; no duplicates in result
+freeTyVars = foldr (go []) []
+  where
+    go :: [TyVar] -- Ignore occurrences of bound type variables
+       -> EType   -- Type to look at
+       -> [TyVar] -- Accumulates result
+       -> [TyVar]
+    go bound (EVar tv) acc
+      | elem tv bound = acc
+      | elem tv acc = acc
+      | isConIdent tv = acc
+      | otherwise = tv : acc
+    go bound (EForall tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
+    go bound (EApp fun arg) acc = go bound fun (go bound arg acc)
+    go _bound (EUVar _) acc = acc
+    go _bound (ECon _) acc = acc
+    go _bound (ELit _ _) acc = acc
+    go bound (EOper e ies) acc = go bound e (goList bound (map snd ies) acc)
+    go bound (ESign e _) acc = go bound e acc
+    go bound (EListish (LList [e])) acc = go bound e acc
+    go bound (ETuple es) acc = goList bound es acc
+    go _ x _ = error ("freeTyVars: " ++ show x) --  impossibleShow x
+    goList bound es acc = foldr (go bound) acc es
+
