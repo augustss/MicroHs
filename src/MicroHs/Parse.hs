@@ -10,6 +10,7 @@ import Data.List
 import Text.ParserComb as P
 import MicroHs.Lex
 import MicroHs.Expr hiding (getSLoc)
+import qualified MicroHs.Expr as E
 import MicroHs.Ident
 --import Debug.Trace
 
@@ -308,19 +309,18 @@ pBlock p = pBraces body
 
 pDef :: P EDef
 pDef =
-      Data        <$> (pKeyword "data"    *> pLHS) <*> ((pSymbol "=" *> esepBy1 pConstr (pSymbol "|"))
-                                                        <|< pure []) <*> pDeriving
-  <|< Newtype     <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
-  <|< Type        <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
-  <|< uncurry Fcn <$> pEqns
-  <|< Sign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
-  <|< Import      <$> (pKeyword "import"  *> pImportSpec)
-  <|< ForImp      <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> eoptional pString) <*> pLIdent <*> (pSymbol "::" *> pType)
-  <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
-  <|< Class       <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
-  <|< Instance    <$> (pKeyword "instance" *> pType) <*> pWhere pClsBind
-  <|< Default     <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
-  <|< KindSign    <$> (pKeyword "type"    *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
+      uncurry Data <$> (pKeyword "data"    *> pData) <*> pDeriving
+  <|< Newtype      <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
+  <|< Type         <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
+  <|< uncurry Fcn  <$> pEqns
+  <|< Sign         <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|< Import       <$> (pKeyword "import"  *> pImportSpec)
+  <|< ForImp       <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> eoptional pString) <*> pLIdent <*> (pSymbol "::" *> pType)
+  <|< Infix        <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
+  <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
+  <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pClsBind
+  <|< Default      <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
+  <|< KindSign     <$> (pKeyword "type"    *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
@@ -334,6 +334,41 @@ pDef =
       guard $ either length length fs == 1
       pure fs
     dcolon = pSymbol "::" <|< pSymbol "\x2237"
+
+pData :: P (LHS, [Constr])
+pData = do
+  lhs <- pLHS
+  let pConstrs = pSymbol "=" *> esepBy1 pConstr (pSymbol "|")
+  ((,) lhs <$> pConstrs)
+   <|< pGADT lhs
+   <|< pure (lhs, [])
+
+pGADT :: LHS -> P (LHS, [Constr])
+pGADT (n, vks) = do
+  let f (IdKind i k) = IdKind (addIdentSuffix i "$") k
+      lhs = (n, map f vks)
+  pKeyword "where"
+  gs <- pBlock pGADTconstr
+  pure (lhs, map (dsGADT lhs) gs)
+
+pGADTconstr :: P (Ident, [IdKind], [EConstraint], [SType], EType)
+pGADTconstr = do
+  cn <- pUIdentSym
+  pSymbol "::"
+  es <- pForall
+  ctx <- pContext
+  args <- emany (pSTypeApp <* pSymbol "->")
+  res <- pType
+  pure (cn, es, ctx, args, res)
+
+dsGADT :: LHS -> (Ident, [IdKind], [EConstraint], [SType], EType) -> Constr
+dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
+  case getAppM rty of
+    Just (tnm', ts) | tnm == tnm' && length vks == length ts -> Constr es' ctx' cnm (Left stys)
+      where es' = if null es then map (\ i -> IdKind i (EVar dummyIdent)) (freeTyVars (rty : map snd stys)) else es
+            ctx' = zipWith (\ (IdKind i _) t -> eq (EVar i) t) vks ts ++ ctx
+            eq t1 t2 = EApp (EApp (EVar (mkIdentSLoc (E.getSLoc t1) "~")) t1) t2
+    _ -> errorMessage (E.getSLoc rty) $ "Bad GADT result type" ++ show (rty, tnm, vks)
 
 pDeriving :: P [EConstraint]
 pDeriving = pKeyword "deriving" *> pDer <|< pure []
@@ -368,6 +403,8 @@ pSAType :: P (Bool, EType)
 pSAType = (,) <$> pStrict <*> pAType
 pSType :: P (Bool, EType)
 pSType  = (,) <$> pStrict <*> pType
+pSTypeApp :: P (Bool, EType)
+pSTypeApp  = (,) <$> pStrict <*> pTypeApp
 pStrict :: P Bool
 pStrict = (True <$ pSpec '!') <|< pure False
 

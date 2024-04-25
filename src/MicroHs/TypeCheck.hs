@@ -2619,7 +2619,7 @@ solveTypeEq :: SolveOne
 solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETuple [], [], [(loc, t1, t2)])
                                | otherwise = do
   eqs <- gets typeEqTable
-  traceM ("solveTypeEq eqs=" ++ show eqs)
+  --traceM ("solveTypeEq eqs=" ++ show eqs)
   case solveEq eqs t1 t2 of
     Nothing -> return Nothing
     Just (de, tts) -> do
