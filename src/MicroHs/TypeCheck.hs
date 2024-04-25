@@ -2615,8 +2615,11 @@ solveTuple loc _iCls cts = do
   return $ Just (ETuple (map (EVar . fst) goals), goals, [])
 
 solveTypeEq :: SolveOne
-solveTypeEq loc _iCls [t1, t2] = do
+-- If either type is a unification variable, just do the unification.
+solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETuple [], [], [(loc, t1, t2)])
+                               | otherwise = do
   eqs <- gets typeEqTable
+  traceM ("solveTypeEq eqs=" ++ show eqs)
   case solveEq eqs t1 t2 of
     Nothing -> return Nothing
     Just (de, tts) -> do
@@ -2626,6 +2629,10 @@ solveTypeEq loc _iCls [t1, t2] = do
       ncs <- mapM mkEq tts
       return $ Just (de, ncs, [])
 solveTypeEq _ _ _ = impossible
+
+isEUVar :: EType -> Bool
+isEUVar (EUVar _) = True
+isEUVar _ = False
 
 solveKnownNat :: SolveOne
 solveKnownNat loc iCls [e@(ELit _ (LInteger _))] = mkConstDict loc iCls e
