@@ -49,6 +49,8 @@ Differences:
    * FlexibleInstance
    * ForeignFunctionInterface
    * FunctionalDependencies
+   * GADTs
+   * GADTsyntax
    * IncoherentInstances
    * KindSignatures
    * MonoLocalBinds
