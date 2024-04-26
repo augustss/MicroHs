@@ -13,7 +13,7 @@ module Control.Exception(
   
   try,
   throwIO,
---  onException,
+  onException,
   displaySomeException,
   --
   ArithException(..),
