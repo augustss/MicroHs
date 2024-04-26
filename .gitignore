@@ -19,3 +19,4 @@ generated/*
 *.wasm
 /tags
 .hpc/*
+*.pkg
