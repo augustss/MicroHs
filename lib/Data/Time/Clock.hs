@@ -5,7 +5,7 @@ module Data.Time.Clock(
   getCurrentTime,
   ) where
 import Prelude
-import System.IO
+import System.IO.TimeMilli
 
 -- Second since 1970, probably
 newtype UTCTime = UTCTime Int
