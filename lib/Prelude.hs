@@ -46,10 +46,12 @@ import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)
 import Data.Bounded(Bounded(..))
 import Data.Char(Char, String)
+import Data.Double(Double)
 import Data.FloatW(FloatW)
 import Data.Either(Either(..), either)
 import Data.Enum(Enum(..))
 import Data.Eq(Eq(..))
+import Data.Float(Float)
 import Data.Floating(Floating(..))
 import Data.Fractional(Fractional(..), (^^))
 import Data.Function(id, const, (.), flip, ($), seq, ($!), until, curry, uncurry, asTypeOf)
@@ -88,6 +90,3 @@ import Primitives(_wordSize, _isWindows)
 -- So we can detect mhs vs ghc
 usingMhs :: Bool
 usingMhs = True
-
-type Float  = FloatW
-type Double = FloatW
