@@ -40,7 +40,7 @@ source-repository head
 executable mhs
   default-language:    Haskell98
   ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -main-is MicroHs.Main
-                       -fwrite-ide-info -Wno-deprecated -Wno-deprecations
+                       -fwrite-ide-info -Wno-deprecations
   main-is:             MicroHs/Main.hs
   default-extensions:  ScopedTypeVariables PatternGuards TypeSynonymInstances MultiParamTypeClasses
                        FlexibleInstances BangPatterns
