@@ -698,7 +698,7 @@ ppExprR raw = ppE
         EViewPat e p -> parens $ ppE e <+> text "->" <+> ppE p
         ELazy True p -> text "~" <> ppE p
         ELazy False p -> text "!" <> ppE p
-        EUVar i -> text ("__a" ++ show i)
+        EUVar i -> text ("_a" ++ show i)
         ECon c -> ppCon c
         EForall iks e -> ppForall iks <+> ppEType e
 
