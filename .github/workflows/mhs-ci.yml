@@ -36,8 +36,9 @@ jobs:
       run: make
     - name: make everytestmhs
       run: make everytestmhs
-    - name: cabal build
-      run: cabal build
+# cabal is missing
+#    - name: cabal build
+#      run: cabal build
 
   build-windows:
     runs-on: windows-latest
