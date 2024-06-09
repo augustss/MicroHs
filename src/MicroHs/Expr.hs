@@ -676,7 +676,8 @@ ppExprR raw = ppE
                | isOperChar cop -> parens (text op)
                | otherwise      -> text s
                  where op = unIdent (unQualIdent i)
-                       s = if "inst$" `isPrefixOf` op then unIdent i else op
+                       si = unIdent i
+                       s = if "inst$" `isInfixOf` si then si else op
                        cop = head op
         EApp _ _ -> ppApp [] ae
         EOper e ies -> ppE (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
