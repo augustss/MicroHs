@@ -9,5 +9,5 @@ trace msg a = primitive "IO.performIO" (
     return a
   )
 
-traceM :: forall m a . Monad m => String -> m ()
+traceM :: forall m . Monad m => String -> m ()
 traceM s = trace s (return ())
