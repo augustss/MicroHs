@@ -64,6 +64,7 @@ test:
 	$(TMHS) RecMdl     && $(EVAL) > RecMdl.out     && diff RecMdl.ref RecMdl.out
 	$(TMHS) ForeignPtr && $(EVAL) > ForeignPtr.out && diff ForeignPtr.ref ForeignPtr.out
 	$(TMHS) Array      && $(EVAL) > Array.out      && diff Array.ref Array.out
+	$(TMHS) Eq1        && $(EVAL) > Eq1.out        && diff Eq1.ref Eq1.out
 
 errtest:
 	sh errtester.sh < errmsg.test

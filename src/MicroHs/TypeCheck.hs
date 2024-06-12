@@ -1510,8 +1510,18 @@ tcExprR mt ae =
 --      traceM $ "tcExpr(1) EApp: f=" ++ show f ++ "; f'=" ++ show f' ++ " :: " ++ show ft
       (at, rt) <- unArrow loc ft
 --      traceM $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a ++ " :: " ++ show at ++ " retty=" ++ show rt
+      -- We want to do the unification of rt ant mt before checking the argument to
+      -- have more type information.  See tests/Eq1.hs.
+      -- But instSigma may transform the input expression, so we have to be careful.
+      let etmp = EUVar ugly
+          ugly = -1::Int
+      etmp' <- instSigma loc etmp rt mt
       a' <- checkSigma a at
-      instSigma loc (EApp f' a') rt mt
+--      traceM $ "tcExpr(3) EApp: f = " ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a' ++ " :: " ++ show at ++ " retty=" ++ show rt ++ " mt = " ++ show mt
+      let res = EApp f' a'
+      case etmp' of
+        EUVar _ -> return res   -- instSigma did nothing, this is the common case
+        _ -> return $ substEUVar [(ugly, res)] etmp'
 
     EOper e ies -> do e' <- tcOper e ies; tcExpr mt e'
     ELam qs -> tcExprLam mt qs
