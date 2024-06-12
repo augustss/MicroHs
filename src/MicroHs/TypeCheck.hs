@@ -832,7 +832,9 @@ tLookupV i = do
   tLookup (msgTCMode tcm) i
 
 tInst :: HasCallStack => Expr -> EType -> T (Expr, EType)
-tInst ae (EForall vks t) = tInstForall ae vks t >>= uncurry tInst
+tInst ae (EForall vks t) = do
+  t' <- tInstForall vks t
+  tInst ae t'
 tInst ae at | Just (ctx, t) <- getImplies at = do
   d <- newDictIdent (getSLoc ae)
   --traceM $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
@@ -840,18 +842,18 @@ tInst ae at | Just (ctx, t) <- getImplies at = do
   tInst (EApp ae (EVar d)) t
 tInst ae at = return (ae, at)
 
-tInstForall :: Expr -> [IdKind] -> EType -> T (Expr, EType)
-tInstForall ae vks t =
+tInstForall :: [IdKind] -> EType -> T EType
+tInstForall vks t =
   if null vks then
-    return (ae, t)
+    return t
   else do
     let vs = map idKindIdent vks
     us <- mapM (const newUVar) vks
-    return (ae, subst (zip vs us) t)
+    return (subst (zip vs us) t)
 
-tInst' :: (Expr, EType) -> T (Expr, EType)
-tInst' (ae, EForall vks t) = tInstForall ae vks t
-tInst' et = return et
+tInst' :: EType -> T EType
+tInst' (EForall vks t) = tInstForall vks t
+tInst' t = return t
 
 extValE :: HasCallStack =>
            Ident -> EType -> Expr -> T ()
@@ -1997,20 +1999,20 @@ tcPat mt ae =
                return ([], [], ae)
 
            | isConIdent i -> do
-               ipt <- tLookupV i
+               (con, xpt) <- tLookupV i
 --               traceM (show ipt)
-               case ipt of
+               case xpt of
                   -- Sanity check
-                  (_, EForall _ (EForall _ _)) -> return ()
+                  EForall _ (EForall _ _) -> return ()
                   _ -> undefined
-               (app, EForall avs apt) <- tInst' ipt
+               EForall avs apt <- tInst' xpt
                (sks, spt) <- shallowSkolemise avs apt
                (d, p, pt) <-
                  case getImplies spt of
-                   Nothing -> return ([], app, apt)
+                   Nothing -> return ([], con, apt)
                    Just (ctx, pt') -> do
                      di <- newADictIdent loc
-                     return ([(di, ctx)], EApp app (EVar di), pt')
+                     return ([(di, ctx)], EApp con (EVar di), pt')
                    
                -- We will only have an expected type for a non-nullary constructor
                pp <- case mt of
