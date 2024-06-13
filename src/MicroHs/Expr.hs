@@ -53,7 +53,7 @@ import Control.Arrow(first)
 import Data.List
 import Data.Maybe
 import MicroHs.Ident
-import Text.PrettyPrint.HughesPJ hiding(first)
+import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 
 type IdentModule = Ident

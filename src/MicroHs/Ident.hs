@@ -18,7 +18,7 @@ module MicroHs.Ident(
 import Data.Eq
 import Prelude
 import Data.Char
-import Text.PrettyPrint.HughesPJ
+import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 
 type Line = Int

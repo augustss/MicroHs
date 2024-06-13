@@ -59,6 +59,8 @@ executable mhs
                        MicroHs.Graph
                        MicroHs.Ident
                        MicroHs.IdentMap
+                       MicroHs.IntMap
+                       MicroHs.IntSet
                        MicroHs.Instances
                        MicroHs.Interactive
                        MicroHs.Lex
@@ -73,6 +75,7 @@ executable mhs
                        MicroHs.TypeCheck
                        MicroHs.TargetConfig
                        Text.ParserComb
+                       Text.PrettyPrint.HughesPJLite
                        System.Console.SimpleReadline
                        Data.Double
                        Data.Integer
@@ -87,13 +90,11 @@ executable mhs
   if impl(ghc)
     hs-source-dirs:    ghc src
     build-depends:     base         >= 4.10 && < 4.22,
-                       containers   >= 0.5 && < 0.8,
                        deepseq      >= 1.1 && < 1.6,
                        ghc-prim     >= 0.5 && < 0.12,
                        haskeline    >= 0.8 && < 0.9,
                        mtl          >= 2.0 && < 2.4,
                        time         >= 1.1 && < 1.15,
-                       pretty       >= 1.0 && < 1.2,
                        process      >= 1.6 && < 1.8,
                        directory    >= 1.2 && < 1.5,
   if impl(mhs)
