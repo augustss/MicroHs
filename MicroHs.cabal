@@ -86,7 +86,7 @@ executable mhs
   autogen-modules:     Paths_MicroHs
   if impl(ghc)
     hs-source-dirs:    ghc src
-    build-depends:     base         >= 4.10 && < 4.20,
+    build-depends:     base         >= 4.10 && < 4.22,
                        containers   >= 0.5 && < 0.8,
                        deepseq      >= 1.1 && < 1.6,
                        ghc-prim     >= 0.5 && < 0.12,
