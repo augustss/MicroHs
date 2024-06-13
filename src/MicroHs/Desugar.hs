@@ -13,7 +13,6 @@ import Data.Integer(_integerToIntList)
 import Data.List
 import Data.Maybe
 import Data.Ratio
-import Control.Monad.State.Strict as S
 import Debug.Trace
 import GHC.Stack
 
@@ -24,6 +23,7 @@ import MicroHs.Flags
 import MicroHs.Graph
 import MicroHs.Ident
 import MicroHs.List
+import MicroHs.State as S
 import MicroHs.TypeCheck
 
 type LDef = (Ident, Exp)

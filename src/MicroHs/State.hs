@@ -1,11 +1,8 @@
-{-# LANGUAGE QualifiedDo #-}
-module Control.Monad.State.Strict(
-  module Control.Monad.State.Strict,
-  module Control.Monad,
+module MicroHs.State(
+  module MicroHs.State,
   ) where
-import Prelude
 import Control.Monad
-import Control.Monad.Fail
+--import Control.Monad.Fail
 
 data State s a = S (s -> (a, s))
 
@@ -28,7 +25,8 @@ instance forall s . Monad (State s) where
   (>>) = (*>)
   return = pure
 
-instance forall s . MonadFail (State s)
+instance forall s . MonadFail (State s) where
+  fail = error
 
 runState :: forall s a . State s a -> (s -> (a,s))
 runState (S x) = x

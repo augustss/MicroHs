@@ -1,6 +1,5 @@
 module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion) where
 import Prelude
-import Control.Monad.State.Strict
 import Data.Char(ord, chr)
 import qualified MicroHs.IdentMap as M
 import Data.Maybe
@@ -9,6 +8,7 @@ import MicroHs.EncodeData(encList)
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..))
 import MicroHs.Ident(Ident, showIdent, mkIdent)
+import MicroHs.State
 
 -- Version number of combinator file.
 -- Must match version in eval.c.

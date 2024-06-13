@@ -68,6 +68,7 @@ executable mhs
                        MicroHs.MakeCArray
                        MicroHs.Package
                        MicroHs.Parse
+                       MicroHs.State
                        MicroHs.StateIO
                        MicroHs.SymTab
                        MicroHs.TCMonad
@@ -93,7 +94,6 @@ executable mhs
                        deepseq      >= 1.1 && < 1.6,
                        ghc-prim     >= 0.5 && < 0.12,
                        haskeline    >= 0.8 && < 0.9,
-                       mtl          >= 2.0 && < 2.4,
                        time         >= 1.1 && < 1.15,
                        process      >= 1.6 && < 1.8,
                        directory    >= 1.2 && < 1.5,

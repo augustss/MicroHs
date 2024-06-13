@@ -7,13 +7,13 @@ import Prelude
 import Data.Functor.Identity
 import GHC.Stack
 import Control.Applicative
-import Control.Monad.State.Strict
 import Data.Functor
 import Data.List(nub)
 import MicroHs.Expr
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
+import MicroHs.State
 import MicroHs.SymTab
 
 -----------------------------------------------
