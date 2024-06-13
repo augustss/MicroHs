@@ -1,9 +1,10 @@
 module Data.Complex(module Data.Complex) where
-import Prelude
+import Data.Typeable
 
 infix 6 :+
 
 data Complex a = !a :+ !a
+  deriving(Typeable)
 
 instance forall a . Eq a => Eq (Complex a) where
   (x :+ y) == (x' :+ y')  =  x == x' && y == y'   -- parser bug

@@ -20,7 +20,6 @@ module Data.Typeable (
 import Primitives
 import Prelude
 import Control.Monad.ST
-import Data.Complex
 import Data.IORef
 import Data.Proxy
 import Data.Ratio
@@ -162,7 +161,6 @@ instance Typeable IOArray     where typeRep = prim                          "IOA
 instance Typeable IORef       where typeRep = nullary "Data.IORef"          "IORef"
 
 instance Typeable []          where typeRep = nullary "Data.List_Type"      "[]"
-instance Typeable Complex     where typeRep = nullary "Data.Complex"        "Complex"
 instance Typeable Maybe       where typeRep = nullary "Data.Maybe_Type"     "Maybe"
 instance Typeable Proxy       where typeRep = nullary "Data.Proxy"          "Proxy"
 instance Typeable Ratio       where typeRep = nullary "Data.Ratio"          "Ratio"
