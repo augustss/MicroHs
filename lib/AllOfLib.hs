@@ -37,8 +37,6 @@ import Data.IORef
 import Data.Int
 import Data.Int.IntN
 import Data.Int.Instances
-import Data.IntMap
-import Data.IntSet
 import Data.Integer
 import Data.Integer_Type
 import Data.Integral

@@ -1,11 +1,10 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.IntSet(
+module MicroHs.IntSet(
   IntSet,
   empty, member, insert, fromList, toList
   ) where
-import Prelude
-import qualified Data.IntMap as M
+import qualified MicroHs.IntMap as M
 
 newtype IntSet = I (M.IntMap ())
 

@@ -23,13 +23,13 @@ import Data.Char
 import Data.Function
 import Data.List
 import Data.Maybe
-import qualified Data.IntMap as IM
 import MicroHs.Deriving
 import MicroHs.Expr
 import MicroHs.Fixity
 import MicroHs.Graph
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
+import qualified MicroHs.IntMap as IM
 import MicroHs.List
 import MicroHs.SymTab
 import MicroHs.TCMonad

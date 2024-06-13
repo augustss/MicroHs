@@ -14,8 +14,8 @@ module MicroHs.Graph (
   ) where
 import Data.List
 import Data.Maybe
-import qualified Data.IntSet as IS
-import qualified Data.IntMap as IM
+import qualified MicroHs.IntSet as IS
+import qualified MicroHs.IntMap as IM
 import MicroHs.List
 
 data Tree a = Node a [Tree a]

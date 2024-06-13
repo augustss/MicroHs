@@ -9,11 +9,11 @@ import GHC.Stack
 import Control.Applicative
 import Control.Monad.State.Strict
 import Data.Functor
-import qualified Data.IntMap as IM
 import Data.List(nub)
 import MicroHs.Expr
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
+import qualified MicroHs.IntMap as IM
 import MicroHs.SymTab
 
 -----------------------------------------------

@@ -1,18 +1,16 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.IntMap(
+module MicroHs.IntMap(
   IntMap,
   empty, lookup, insert, fromList, toList, insertWith, (!), keys
   ) where
 import Prelude hiding(lookup)
-import {-# SOURCE #-} Data.Typeable
 
 data IntMap a
   = Empty
   | Leaf Int a
   | Node (IntMap a) (IntMap a) (IntMap a) (IntMap a)
   --Xderiving (Show)
-  deriving (Typeable)
 
 -- This works for y>0
 divModX :: Int -> Int -> (Int, Int)
@@ -66,7 +64,7 @@ toList am =
 merge :: forall a . [(Int, a)] -> [(Int, a)] -> [(Int, a)]
 merge [] ys = ys
 merge xs [] = xs
-merge xxs@(xa@(x,_):xs) yys@(yb@(y,b):ys) = if x < y then xa : merge xs yys else yb : merge xxs ys
+merge xxs@(xa@(x,_):xs) yys@(yb@(y,_):ys) = if x < y then xa : merge xs yys else yb : merge xxs ys
 
 keys :: forall a . IntMap a -> [Int]
 keys = map fst . toList
