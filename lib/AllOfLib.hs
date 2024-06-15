@@ -42,7 +42,6 @@ import Data.Integral
 import Data.Ix
 import Data.List
 import Data.List_Type
-import Data.Map
 import Data.Maybe
 import Data.Maybe_Type
 import Data.Monoid
