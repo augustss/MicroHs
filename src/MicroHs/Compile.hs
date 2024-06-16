@@ -321,7 +321,7 @@ runCPP flags infile outfile = do
   mcpphs <- lookupEnv "MHSCPPHS"
   let cpphs = fromMaybe "cpphs" mcpphs
       args = mhsDefines ++ cppArgs flags
-      cmd = cpphs ++ " --noline " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
+      cmd = cpphs ++ " --noline --strip " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
   when (verbosityGT flags 0) $
     putStrLn $ "Execute: " ++ show cmd
   callCommand cmd
