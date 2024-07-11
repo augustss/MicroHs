@@ -109,7 +109,7 @@ unqual s@(c:_) n =
       (m, '.':r) -> unqual r (n + m)
       _ -> undefined -- This cannot happen, but GHC doesn't know that
   else
-    (0, s)
+    (n, s)
   where
     -- | Like dropWhile, but also counts how many times it sees a specific character
     -- example, dropping characters until a dot, while counting how many open aprentheses are observed:
