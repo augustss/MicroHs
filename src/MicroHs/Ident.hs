@@ -79,15 +79,51 @@ addIdentSuffix (Ident loc i) s = Ident loc (i ++ s)
 
 unQualString :: HasCallStack =>
                 String -> String
-unQualString [] = ""
-unQualString s@(c:_) =
+unQualString str = let (n, res) = unqual str 0
+                   in dropFromEnd n res
+  where
+    -- | Drop n closing parentheses from the end of a string
+    dropFromEnd :: Int -> String -> String
+    dropFromEnd k [] | k > 0 =
+      error $ "unmatched parenthesis in Ident, expecting " ++ show k ++ " more closing parentheses"
+    dropFromEnd 0 str = str
+    dropFromEnd k str =
+      let (x,xs) = last' str []
+      in if x == ')'
+        then dropFromEnd (k-1) xs
+        else error $ "expected closing parentheses at end of ident, instead found " ++ show x
+      where
+        -- | Removes the last element of a list, but also returns it
+        last' :: [a] -> [a] -> (a, [a])
+        last' [] _ = error "empty string"
+        last' [x] xs = (x, reverse xs)
+        last' (x:xs) ys = last' xs (x : ys)
+
+-- | Unqualified a string, keeping track of how many opening parentheses are opened
+unqual :: HasCallStack => String -> Int -> (Int, String)
+unqual [] _ = (0, "")
+unqual s@(c:_) n =
   if isIdentChar c then
-    case dropWhile (/= '.') s of
-      "" -> s
-      '.':r -> unQualString r
+    case dropWhileCount (/= '.') '(' 0 s of
+      (_, "") -> (n, s) -- string is not qualified, do not modify it
+      (m, '.':r) -> unqual r (n + m)
       _ -> undefined -- This cannot happen, but GHC doesn't know that
   else
-    s
+    (0, s)
+  where
+    -- | Like dropWhile, but also counts how many times it sees a specific character
+    -- example, dropping characters until a dot, while counting how many open aprentheses are observed:
+    --
+    -- > dropWhileCount ((/=) '.') '(' 0 "(123.45)"
+    -- (1,".45)")
+    dropWhileCount :: (Char -> Bool) -> Char -> Int -> String -> (Int, String)
+    dropWhileCount _ _ n [] = (n, [])
+    dropWhileCount test toCount n (x:xs) =
+      if test x
+        then let (n', res) = dropWhileCount test toCount n xs
+                 n'' = if x == toCount then n' + 1 else n'
+             in (n'', res)
+        else (n, (x:xs))
 
 unQualIdent :: Ident -> Ident
 unQualIdent (Ident l s) = Ident l (unQualString s)
