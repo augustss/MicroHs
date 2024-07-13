@@ -12,11 +12,7 @@ import Data.Ord
 import Text.Show
 
 data Either a b = Left a | Right b
-
-instance forall a b . (Eq a, Eq b) => Eq (Either a b) where
-  Left  a == Left  a'  =  a == a'
-  Right b == Right b'  =  b == b'
-  _       == _         =  False
+  deriving (Eq, Ord)
 
 either :: forall a b r . (a -> r) -> (b -> r) -> Either a b -> r
 either f _ (Left  a) = f a
