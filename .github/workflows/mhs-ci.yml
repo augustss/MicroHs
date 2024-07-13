@@ -16,7 +16,23 @@ jobs:
       run: make
     - name: make everytestmhs
       run: make everytestmhs
-    - name: cabal build
+
+    - name: Cabal cache
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-cabal
+      with:
+        path: ~/.cabal
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
+    - name: Install dependencies
+      run: |
+        cabal update
+        cabal build --only-dependencies
+    - name: Build
       run: cabal build
 
   build-linux-micro-x86_64:
