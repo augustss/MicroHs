@@ -83,18 +83,18 @@ mhs: "../tmp/E.hs": line 2, col 10: undefined export: x
 =====
 module E(lookup) where
 import Prelude
-import Data.Map
+import TestMap
 -----
-mhs: "../tmp/E.hs": line 2, col 10: ambiguous export: lookup [Data.List.lookup,Data.Map.lookup]
+mhs: "../tmp/E.hs": line 2, col 10: ambiguous export: lookup [Data.List.lookup,TestMap.lookup]
 
 =====
 module E() where
 import Prelude
-import Data.Map
+import TestMap
 a :: ()
 a = lookup
 -----
-mhs: "../tmp/E.hs": line 6, col 5: ambiguous value: lookup [Data.List.lookup,Data.Map.lookup]
+mhs: "../tmp/E.hs": line 6, col 5: ambiguous value: lookup [Data.List.lookup,TestMap.lookup]
 
 =====
 module E() where
