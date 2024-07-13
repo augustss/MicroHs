@@ -170,7 +170,7 @@ mkPat (Constr _ _ c flds) s =
 --------------------------------------------
 
 derEq :: Deriver
-derEq lhs cs eeq = do
+derEq lhs cs@(_:_) eeq = do
   hdr <- mkHdr lhs cs eeq
   let loc = getSLoc eeq
       mkEqn c =
@@ -186,7 +186,7 @@ derEq lhs cs eeq = do
       inst = Instance hdr [BFcn iEq eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
-
+derEq (c, _) _ e = cannotDerive "Eq" c e
 
 nameDataBoolType :: String
 nameDataBoolType = nameDataBool ++ "_Type"
@@ -200,7 +200,7 @@ nameDataEq = "Data.Eq"
 --------------------------------------------
 
 derOrd :: Deriver
-derOrd lhs cs eord = do
+derOrd lhs cs@(_:_) eord = do
   hdr <- mkHdr lhs cs eord
   let loc = getSLoc eord
       mkEqn c =
@@ -219,6 +219,7 @@ derOrd lhs cs eord = do
       inst = Instance hdr [BFcn iCompare eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
+derOrd (c, _) _ e = cannotDerive "Ord" c e
 
 nameDataOrd :: String
 nameDataOrd = "Data.Ord"
@@ -246,7 +247,10 @@ derBounded lhs cs@(c0:_) ebnd = do
       inst = Instance hdr [BFcn iMinBound [minEqn], BFcn iMaxBound [maxEqn]]
   -- traceM $ showEDefs [inst]
   return [inst]
-derBounded (c, _) _ e = tcError (getSLoc e) $ "Cannot derive Bounded " ++ show c
+derBounded (c, _) _ e = cannotDerive "Bounded" c e
+
+cannotDerive :: String -> Ident -> EConstraint -> T [EDef]
+cannotDerive cls ty e = tcError (getSLoc e) $ "Cannot derive " ++ cls ++ " " ++ show ty
 
 --------------------------------------------
 
@@ -269,7 +273,7 @@ derEnum lhs cs@(_:_) enm | all isNullary cs = do
       inst = Instance hdr [BFcn iFromEnum fromEqns, BFcn iToEnum toEqns]
   --traceM $ showEDefs [inst]
   return [inst]
-derEnum (c, _) _ e = tcError (getSLoc e) $ "Cannot derive Enum " ++ show c
+derEnum (c, _) _ e = cannotDerive "Enum" c e
 
 isNullary :: Constr -> Bool
 isNullary (Constr _ _ _ flds) = either null null flds
@@ -278,7 +282,7 @@ isNullary (Constr _ _ _ flds) = either null null flds
 
 -- XXX should use mkQIdent
 derShow :: Deriver
-derShow lhs cs eshow = do
+derShow lhs cs@(_:_) eshow = do
   hdr <- mkHdr lhs cs eshow
   let loc = getSLoc eshow
       mkEqn c@(Constr _ _ nm flds) =
@@ -313,6 +317,7 @@ derShow lhs cs eshow = do
       inst = Instance hdr [BFcn iShowsPrec eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
+derShow (c, _) _ e = cannotDerive "Show" c e
 
 unIdentPar :: Ident -> String
 unIdentPar i =
