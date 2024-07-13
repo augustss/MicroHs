@@ -81,7 +81,7 @@ unQualString :: HasCallStack =>
                 String -> String
 unQualString [] = ""
 unQualString s@(c:_) =
-  if isIdentChar c then
+  if isUpper c then
     case dropWhile (/= '.') s of
       "" -> s
       '.':r -> unQualString r
