@@ -36,6 +36,12 @@ encIf = encIfScott
 -- Bool, [], Ordering
 scottLimit :: Int
 scottLimit = 5
+-- Some timing for different limits
+--   3  27.9s
+--   5  26.5s
+--  10  26.4s
+--  20  27.3s
+-- 100  32.0s
 
 -------------------------------------------
 
