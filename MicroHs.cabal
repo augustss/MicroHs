@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.9.11.0
+version:             0.9.13.0
 synopsis:            A compiler for Haskell
 license:             Apache-2.0
 license-file:        LICENSE
@@ -24,6 +24,7 @@ extra-source-files:
       generated/mhs.c
       ghc/**/*.hs
       lib/**/*.hs
+      lib/**/*.hs-boot
       src/runtime/*.c
       src/runtime/*.h
       tests/Makefile
@@ -97,5 +98,5 @@ executable mhs
                        time         >= 1.1 && < 1.15,
                        process      >= 1.6 && < 1.8,
                        directory    >= 1.2 && < 1.5,
-  if impl(mhs)
-    hs-source-dirs:    src lib lib/simple-readline
+--  if impl(mhs)
+--    hs-source-dirs:    src lib lib/simple-readline
