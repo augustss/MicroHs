@@ -29,6 +29,7 @@ extra-source-files:
       src/runtime/*.h
       tests/Makefile
       tests/*.hs
+      tests/*.hs-boot
       tests/*.ref
 
 data-files:

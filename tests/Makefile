@@ -67,7 +67,7 @@ test:
 	$(TMHS) Eq1        && $(EVAL) > Eq1.out        && diff Eq1.ref Eq1.out
 
 errtest:
-	sh errtester.sh < errmsg.test
+	sh errtester.sh $(MHS) < errmsg.test
 
 interactivetest:
 	$(TMHS) < itest.in | sed -e '1,/^>/d' > itest.out && diff itest.ref itest.out

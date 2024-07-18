@@ -5,7 +5,7 @@ out=$tmp/E.hs
 err=$tmp/err
 terr=$tmp/terr
 cerr=$tmp/cerr
-comp=../bin/gmhs
+comp=$1; shift
 read -r line
 
 mkdir -p $tmp
@@ -37,6 +37,6 @@ while [ "$line" != "END" ]; do
     #echo "==="
     #echo "next: $line"
     sed -e '/^ *$/d' $terr > $err
-    $comp -i../lib -i../tmp E 2>&1 | sed -e 's/^gmhs/mhs/' -e '/CallStack/,$d' -e '/^XX/d' > $cerr
+    $comp $* -i../lib -i../tmp E 2>&1 | sed -e 's/^gmhs/mhs/' -e '/CallStack/,$d' -e '/^XX/d' -e 's/^mhs: error:/mhs:/' > $cerr
     diff $err $cerr || exit 1
 done
