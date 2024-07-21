@@ -1224,9 +1224,11 @@ expandInst dinst@(Instance act bs) = do
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
-  case map fst ies \\ mis of
+      instBind (BFcn i _) = i `elem` mis
+      instBind _ = False
+  case filter (not . instBind) bs of
     [] -> return ()
-    i:_ -> tcError (getSLoc i) $ "superflous binding " ++ show i
+    b:_ -> tcError (getSLoc b) $ "superflous instance binding"
   let bind = Fcn iInst $ eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
   mn <- gets moduleName
   addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc, fds)]
