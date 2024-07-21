@@ -2703,6 +2703,7 @@ matchTypes _ ats ats' [] = do
 matchTypes loc ts ts' fds = asum $ map (matchTypesFD loc ts ts') fds
 
 matchTypesFD :: SLoc -> [EType] -> [EType] -> IFunDep -> Maybe (TySubst, [Improve])
+--matchTypesFD _ ts ts' io | trace ("matchTypesFD: " ++ show (ts, ts', io)) False = undefined
 matchTypesFD loc ts ts' (ins, outs) = do
   let matchFD :: Bool -> EType -> EType -> Maybe TySubst
       matchFD True  = \ _ _ -> Just []     -- if it's an output, don't match
@@ -2712,8 +2713,10 @@ matchTypesFD loc ts ts' (ins, outs) = do
   is  <- combineTySubsts [ s | (True, s) <- zip ins tms]  -- subst from input FDs
   let imp = [ (loc, substEUVar is t, t') | (True, t, t') <- zip3 outs ts ts' ]  -- improvements
   -- We don't allow output FDs to have tyvars that are not instantiated
---  traceM $ "matchTypesFD: " ++ show (ts, ts') ++ show (ins, outs) ++ show (tm, imp)
-  when (not (null (metaTvs [ t | (_,t,_) <- imp ]))) $
+  let outImpTvs = metaTvs [ t | (_,t,_) <- imp ]
+      outTvs = metaTvs [ t | (True, t) <- zip ins ts' ]   -- these tyvars were present in input positions in ts
+--  traceM $ "matchTypesFD: " ++ show (ts, ts') ++ show (ins, outs) ++ show (tm, imp) ++ show (outTvs, outImpTvs)
+  when (not (null (outImpTvs \\ outTvs))) $
     errorMessage loc $ "free type variable in output fundep"
   pure (tm, imp)
 
