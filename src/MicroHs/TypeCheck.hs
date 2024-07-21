@@ -211,7 +211,7 @@ filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts ss c
         [ TypeExport i e (filter (ok []) ves) | TypeExport i e ves <- ts, i `notElem` its ] ++
         [ TypeExport i e (filter (ok xs) ves) | TypeExport i e ves <- ts, ImpTypeSome i' xs <- is, i == i' ]
       else
-        let ok xs (ValueExport i _) = i `elem` ivs || i `elem` xs in
+        let ok xs (ValueExport i _) = i `elem` ivs || i `elem` xs || isDefaultMethodId i in
         [ TypeExport i e                 ves  | TypeExport i e ves <- ts, i `elem` aits ] ++
         [ TypeExport i e (filter (ok xs) ves) | TypeExport i e ves <- ts, ImpTypeSome i' xs <- is, i == i' ]
     msg = "not exported"
@@ -1185,7 +1185,13 @@ mkIFunDeps vs fds = map (\ (is, os) -> (map (`elem` is) vs, map (`elem` os) vs))
 
 -- Turn (unqualified) class and method names into a default method name
 mkDefaultMethodId :: Ident -> Ident
-mkDefaultMethodId meth = addIdentSuffix meth "$dflt"
+mkDefaultMethodId meth = addIdentSuffix meth defaultSuffix
+
+isDefaultMethodId :: Ident -> Bool
+isDefaultMethodId i = defaultSuffix `isSuffixOf` unIdent i
+
+defaultSuffix :: String
+defaultSuffix = uniqIdentSep ++ "dflt"
 
 splitInst :: EConstraint -> ([IdKind], [EConstraint], EConstraint)
 splitInst (EForall iks t) =
