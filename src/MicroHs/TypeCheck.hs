@@ -1609,6 +1609,7 @@ tcExprR mt ae =
         as : ss -> do
           case as of
             SBind p a -> do
+              nofail <- failureFree p
               let
                 -- XXX this wrong, it should be >>= from Monad
                 ibind = mkIdentSLoc loc ">>="
@@ -1617,7 +1618,7 @@ tcExprR mt ae =
                 patAlt = [(p, simpleAlts $ EDo mmn ss)]
                 failMsg s = EApp (EVar (mkIdentSLoc loc "fail")) (ELit loc (LStr s))
                 failAlt =
-                  if failureFree p then []
+                  if nofail then []
                   else [(EVar dummyIdent, simpleAlts $ failMsg "bind")]
               tcExpr mt (EApp (EApp (EVar sbind) a)
                               (eLam [x] (ECase x (patAlt ++ failAlt))))
@@ -1705,14 +1706,33 @@ tcExprR mt ae =
     _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
 
--- Approximation if failure free
-failureFree :: EPat -> Bool
-failureFree (EVar _) = True
-failureFree (ETuple ps) = all failureFree ps
+-- Approximation of failure free.
+-- XXX single constructor types should be transparent
+failureFree :: EPat -> T Bool
+failureFree p@(EVar _) = failureFreeAp [] p
+failureFree p@(EApp _ _) = failureFreeAp [] p
+failureFree (ETuple ps) = and <$> mapM failureFree ps
 failureFree (ESign p _) = failureFree p
 failureFree (EAt _ p) = failureFree p
-failureFree _ = False
+failureFree (ELazy True _) = return True
+failureFree (ELazy False p) = failureFree p
+failureFree (EViewPat _ p) = failureFree p
+failureFree _ = return False
 
+failureFreeAp :: [Bool] -> EPat -> T Bool
+failureFreeAp bs (EApp f a) = do
+  b <- failureFree a
+  failureFreeAp (b:bs) f
+failureFreeAp bs (EVar v) | not (isConIdent v) = return True
+                          | otherwise = do
+                              (con, _) <- tLookupV v
+                              return $ case con of
+                                ECon (ConNew _ _) -> and bs
+                                ECon (ConData [_] _ _) -> and bs  -- single constructor
+                                _ -> False
+failureFreeAp bs (ESign p _) = failureFreeAp bs p
+failureFreeAp _ _ = return False  -- bad pattern, just ignore
+                           
 eSetFields :: EField -> Expr -> Expr
 eSetFields (EField is e) r =
   let loc = getSLoc is

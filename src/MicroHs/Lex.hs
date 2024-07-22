@@ -85,7 +85,7 @@ lex loc ('0':x:cs) | toLower x == 'x' = hexNumber loc cs
 lex loc cs@(d:_) | isDigit d = number loc cs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
-lex loc (c:cs@(d:_)) | (c == '!' || c == '~') && (d == '(' || isIdentChar d) =
+lex loc (c:cs@(d:_)) | (c == '!' || c == '~') && (d == '(' || d == '[' || isIdentChar d) =  -- XXX hacky way to make ~ a TSpec
   TSpec loc c : lex (addCol loc 1) cs
 lex loc (d:cs) | isOperChar d =
   case span isOperChar cs of
