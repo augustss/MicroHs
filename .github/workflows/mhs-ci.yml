@@ -154,7 +154,7 @@ jobs:
     - uses: jirutka/setup-alpine@v1
       with:
         arch: riscv64
-        branch: v3.15
+        branch: v3.20
         packages: >
           build-base
           gcc
