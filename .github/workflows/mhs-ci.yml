@@ -108,27 +108,6 @@ jobs:
 #    - name: cabal build
 #      run: cabal build
 
-# Not supported by alpine
-#  build-linux-riscv64:
-#    runs-on: ubuntu-latest
-#    steps:
-#    - uses: jirutka/setup-alpine@v1
-#      with:
-#        arch: riscv64
-#        branch: v3.15
-#        packages: >
-#          build-base
-#          gcc
-#          make
-#    - name: checkout repo
-#      uses: actions/checkout@v4
-#    - name: make
-#      run: make
-#    - name: make everytestmhs
-#      run: make everytestmhs
-#    - name: cabal build
-#      run: cabal build
-
   build-linux-x86:
     runs-on: ubuntu-latest
     steps:
@@ -188,26 +167,6 @@ jobs:
     - name: make everytestmhs
       run: make CONF=unix-64 everytestmhs
       shell: alpine.sh {0}
-
-#  build-linux-aarch64:
-#    runs-on: ubuntu-latest
-#    steps:
-#    - uses: jirutka/setup-alpine@v1
-#      with:
-#        arch: aarch64
-#        branch: v3.15
-#        packages: >
-#          build-base
-#          gcc
-#          make
-#    - name: checkout repo
-#      uses: actions/checkout@v4
-#    - name: make
-#      run: make CONF=unix-64
-#      shell: alpine.sh {0}
-#    - name: make everytestmhs
-#      run: make CONF=unix-64 everytestmhs
-#      shell: alpine.sh {0}
 
   build-linux-ppc64le:
     runs-on: ubuntu-latest
