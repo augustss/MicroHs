@@ -10,6 +10,8 @@ module Control.Exception(
   --
   catch, catchJust,
   handle, handleJust,
+
+  bracket, finally, bracket_, bracketOnError,
   
   try,
   throwIO,
