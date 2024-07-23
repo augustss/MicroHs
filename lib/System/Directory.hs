@@ -5,6 +5,7 @@ module System.Directory(
   getDirectoryContents,
   listDirectory,
   setCurrentDirectory,
+  getCurrentDirectory,
   createDirectory,
   createDirectoryIfMissing,
   copyFile,
@@ -13,6 +14,7 @@ module System.Directory(
 import Prelude
 import Control.Monad(when)
 import Foreign.C.String
+import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import System.IO
 import System.Environment
@@ -27,6 +29,7 @@ foreign import ccall "readdir"  c_readdir  :: Ptr DIR -> IO (Ptr Dirent)
 foreign import ccall "c_d_name" c_d_name   :: Ptr Dirent -> IO CString
 foreign import ccall "chdir"    c_chdir    :: CString -> IO Int
 foreign import ccall "mkdir"    c_mkdir    :: CString -> Int -> IO Int
+foreign import ccall "getcwd"   c_getcwd   :: CString -> Int -> IO CString
 
 removeFile :: FilePath -> IO ()
 removeFile fn = do
@@ -75,6 +78,15 @@ setCurrentDirectory d = do
   r <- withCAString d c_chdir
   when (r /= 0) $
     error $ "setCurrentDirectory failed: " ++ d
+
+getCurrentDirectory :: IO FilePath
+getCurrentDirectory = do
+  let len = 10000
+  allocaBytes len $ \ p -> do
+    cwd <- c_getcwd p len -- can return NULL if buffer to small
+    when (cwd == nullPtr) $
+      error "getCurrentDirectory"
+    peekCAString cwd
 
 createDirectory :: FilePath -> IO ()
 createDirectory d = do

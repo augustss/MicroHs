@@ -171,5 +171,5 @@ runtimeFFI = [
   "peek_ullong", "poke_ullong", "peek_llong", "poke_llong",
   "peek_flt", "poke_flt",
   "sizeof_int", "sizeof_long", "sizeof_llong",
-  "opendir", "closedir", "readdir", "c_d_name", "chdir", "mkdir"
+  "opendir", "closedir", "readdir", "c_d_name", "chdir", "mkdir", "getcwd"
   ]
