@@ -6,12 +6,14 @@ module System.Directory(
   listDirectory,
   setCurrentDirectory,
   getCurrentDirectory,
+  withCurrentDirectory,
   createDirectory,
   createDirectoryIfMissing,
   copyFile,
   getHomeDirectory,
   ) where
 import Prelude
+import Control.Exception(bracket)
 import Control.Monad(when)
 import Foreign.C.String
 import Foreign.Marshal.Alloc
@@ -87,6 +89,12 @@ getCurrentDirectory = do
     when (cwd == nullPtr) $
       error "getCurrentDirectory"
     peekCAString cwd
+
+withCurrentDirectory :: FilePath -> IO a -> IO a
+withCurrentDirectory dir io =
+  bracket getCurrentDirectory setCurrentDirectory $ \ _ -> do
+    setCurrentDirectory dir
+    io
 
 createDirectory :: FilePath -> IO ()
 createDirectory d = do
