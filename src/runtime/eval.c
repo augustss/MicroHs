@@ -290,7 +290,7 @@ struct ioarray {
   size_t size;                  /* number of elements in the array */
   NODEPTR array[1];             /* actual size may be bigger */
 };
-struct ioarray *array_root = 0;
+struct ioarray *array_root = 0; /* root of all allocated arrays, linked by next */
 
 /*
  * A Haskell ForeignPtr has a normal pointer, and a finalizer
@@ -315,10 +315,10 @@ struct final {
 
 struct forptr {
   struct forptr *next;      /* the next ForeignPtr that shares the same finilizer */
-  void          *payload;   /* the actual pointer */
+  void          *payload;   /* the actual pointer to allocated data */
   struct final  *finalizer; /* the finalizer for this ForeignPtr */
 };
-struct final *final_root = 0;
+struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
 
 counter_t num_reductions = 0;
 counter_t num_alloc = 0;
@@ -1043,6 +1043,7 @@ gc(void)
   if (num_free < heap_size / 50)
     ERR("heap exhausted");
 
+  /* Free unused arrays */
   for (struct ioarray **arrp = &array_root; *arrp; ) {
     struct ioarray *arr = *arrp;
     if (arr->marked || arr->permanent) {
@@ -1055,6 +1056,7 @@ gc(void)
     }
   }
 
+  /* Run finalizers on unused foreign pointers. */
   for (struct final **finp = &final_root; *finp; ) {
     struct final *fin = *finp;
     if (fin->marked) {
