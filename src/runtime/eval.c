@@ -1523,6 +1523,11 @@ find_label(heapoffs_t label)
   }
 }
 
+/* The memory allocated here is never freed.
+ * This could be fixed by using a forptr and a
+ * finalizer for read UTF-8 strings.
+ * Fix this if there is a lot of deserialization.
+ */
 struct ustring *
 parse_string(BFILE *f)
 {

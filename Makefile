@@ -36,6 +36,9 @@ newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c -o bin/mhs
 	$(CC) $(CCWARNS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
 
+sanitizemhs:	ghcgen targets.conf
+	$(CCEVAL) -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract generated/mhs.c -o bin/mhssane
+
 # Compile mhs from distribution, with C compiler
 bin/mhs:	src/runtime/*.c src/runtime/*.h targets.conf #generated/mhs.c
 	@mkdir -p bin
