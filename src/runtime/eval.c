@@ -228,13 +228,29 @@ struct ioarray;
 struct ustring;
 struct forptr;
 
+/*
+ * For debugging tricky memory issues we do the following:
+ *  - tag each cell with the generation (= number gcs)
+ *    it was created in.  We use the top 8 bits of uufun for this.
+ *  - tag each pointer with the same tag as the cell it points to.
+ *    We use the next to top 8 bits for that.
+ *  - on each pointer dereference, check that the tags match.
+ * If memory is getting recycled to early (i.e., a GC mark bug)
+ * there will be a generation mismatch when using an old pointer.
+ */
+typedef struct taggedptr  { uintptr_t taggedptr;  } NODEPTR;
+typedef struct taggednode { NODEPTR   taggednode; } TAGNODEPTR;
+#define P(n) ((struct node *)(MASKP((n).taggedptr)))
+#define MASKN(x)  ( (x) & 0x00ffffffffffffff )
+#define MASKP(x)  ( (x) & 0xff00ffffffffffff )
+#define MASKNP(x) ( (x) & 0x0000ffffffffffff )
 typedef struct node {
   union {
-    struct node *uufun;
-    tag_t        uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
+    TAGNODEPTR      uufunx;
+    tag_t           uutagx;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
   } ufun;
   union {
-    struct node    *uuarg;
+    NODEPTR         uuargx;
     value_t         uuvalue;
     flt_t           uufloatvalue;
     struct ustring *uustring;
@@ -245,28 +261,38 @@ typedef struct node {
     struct forptr  *uuforptr;
   } uarg;
 } node;
-typedef struct node* NODEPTR;
+#define UUFUN(p) ( (NODEPTR){ MASKN(P(p)->ufun.uufunx.taggednode.taggedptr ) } )
+#define UUARG(p) ( P(p)->uarg.uuargx )
+#define UUTAG(p) ( MASKNP(P(p)->ufun.uutagx) )
+//#define MKTAG(p,t) ( (p)->ufun.uutagx.taggednode.taggedptr = (generation << 56) | ((t) << 1) | 1 )
+#define MKFUN(n,p) ( P(n)->ufun.uufunx.taggednode.taggedptr = (generation << 56) | (p).taggedptr )
+#define MKPTR(p) ( (NODEPTR){ (uintptr_t)(p) | (generation << 48) } )
+uint64_t generation = 0;
+
+int badtag(uint64_t tag) { fprintf(stderr, "tag=%lx\n", tag>>1); ERR("badtag"); return 0; }
+
 #define NIL 0
-#define HEAPREF(i) &cells[(i)]
-#define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) : T_AP)
-#define SETTAG(p,t) do { if (t != T_AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
-#define GETVALUE(p) (p)->uarg.uuvalue
-#define GETDBLVALUE(p) (p)->uarg.uufloatvalue
-#define SETVALUE(p,v) (p)->uarg.uuvalue = v
-#define SETDBLVALUE(p,v) (p)->uarg.uufloatvalue = v
-#define FUN(p) (p)->ufun.uufun
-#define ARG(p) (p)->uarg.uuarg
-#define STR(p) (p)->uarg.uustring
-#define CSTR(p) (p)->uarg.uucstring
-#define PTR(p) (p)->uarg.uuptr
-#define FUNPTR(p) (p)->uarg.uufunptr
-#define FORPTR(p) (p)->uarg.uuforptr
-#define ARR(p) (p)->uarg.uuarray
+#define NODEPTRNIL ((NODEPTR){ NIL })
+#define HEAPREF(i) MKPTR(&cells[(i)])
+#define GETTAG(p) (UUTAG(p) & 1 ? (UUTAG(p) < 0 || UUTAG(p) >= T_LAST_TAG*2 ? badtag(UUTAG(p)) : (int)(UUTAG(p) >> 1)) : T_AP)
+#define SETTAG(p,t) do { if (t != T_AP) { P(p)->ufun.uutagx = (generation << 56) | ((t) << 1) | 1; } } while(0)
+#define GETVALUE(p) P(p)->uarg.uuvalue
+#define GETDBLVALUE(p) P(p)->uarg.uufloatvalue
+#define SETVALUE(p,v) P(p)->uarg.uuvalue = v
+#define SETDBLVALUE(p,v) P(p)->uarg.uufloatvalue = v
+#define GFUN(p) UUFUN(p)
+#define ARG(p) UUARG(p)
+#define STR(p) P(p)->uarg.uustring
+#define CSTR(p) P(p)->uarg.uucstring
+#define PTR(p) P(p)->uarg.uuptr
+#define FUNPTR(p) P(p)->uarg.uufunptr
+#define FORPTR(p) P(p)->uarg.uuforptr
+#define ARR(p) P(p)->uarg.uuarray
 #define INDIR(p) ARG(p)
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
-#define LABEL(n) ((heapoffs_t)((n) - cells))
-node *cells;                 /* All cells */
+#define LABEL(n) ((heapoffs_t)(P(n) - cells))
+struct node *cells;                 /* All cells */
 
 /*
  * UTF-8 encoded strings
@@ -579,7 +605,8 @@ static INLINE NODEPTR
 new_ap(NODEPTR f, NODEPTR a)
 {
   NODEPTR n = alloc_node(T_AP);
-  FUN(n) = f;
+  //FUN(n) = f;
+  MKFUN(n, f);
   ARG(n) = a;
   return n;
 }
@@ -816,7 +843,7 @@ init_nodes(void)
    * do not have single constructors.
    * But we can make compound one, since they are irreducible.
    */
-#define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
+#define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); MKFUN(n, f); ARG(n) = (a); (c) = n;} while(0)
   NEWAP(combLT, combZ,     combFalse);  /* Z B */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
@@ -893,7 +920,7 @@ mark(NODEPTR *np)
 #endif  /* SANITY */
     *np = n;
   }
-  if (n < cells || n > cells + heap_size)
+  if (P(n) < cells || P(n) > cells + heap_size)
     ERR("bad n");
   if (is_marked_used(n)) {
     goto fin;
@@ -915,7 +942,7 @@ mark(NODEPTR *np)
    case T_AP:
       if (want_gc_red) {
         /* This is really only fruitful just after parsing.  It can be removed. */
-        if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
+        if (GETTAG(GFUN(n)) == T_AP && GETTAG(GFUN(GFUN(n))) == T_A) {
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
           SETTAG(n, T_IND);
@@ -925,16 +952,16 @@ mark(NODEPTR *np)
         }
 #if 0
         /* This never seems to happen */
-        if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
+        if (GETTAG(GFUN(n)) == T_AP && GETTAG(GFUN(GFUN(n))) == T_K) {
           /* Do the K x y --> x reduction */
-          NODEPTR x = ARG(FUN(n));
+          NODEPTR x = ARG(GFUN(n));
           SETTAG(n, T_IND);
           INDIR(n) = x;
           red_k++;
           goto top;
         }
 #endif  /* 0 */
-        if (GETTAG(FUN(n)) == T_I) {
+        if (GETTAG(GFUN(n)) == T_I) {
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
           SETTAG(n, T_IND);
@@ -946,7 +973,7 @@ mark(NODEPTR *np)
         /* This is broken.
          * Probably because it can happen in the middle of the C reduction code.
          */
-        if (GETTAG(FUN(n)) == T_C) {
+        if (GETTAG(GFUN(n)) == T_C) {
           NODEPTR q = ARG(n);
           enum node_tag tt, tf;
           while ((tt = GETTAG(q)) == T_IND)
@@ -966,7 +993,7 @@ mark(NODEPTR *np)
    case T_AP:
 #endif  /* GCRED */
     /* Avoid tail recursion */
-    np = &FUN(n);
+    np = &GFUN(n);
     to_push = &ARG(n);
     break;
    case T_ARR:
@@ -994,7 +1021,8 @@ mark(NODEPTR *np)
       
   if (!is_marked_used(*to_push)) {
     //  mark_depth++;
-    PUSH((NODEPTR)to_push);
+    //PUSH((NODEPTR)to_push);
+    PUSH((NODEPTR){(uintptr_t)to_push}); /* XXX */
   }
   goto top;
  fin:
@@ -1003,7 +1031,8 @@ mark(NODEPTR *np)
   //  }
   //  mark_depth--;
   if (stack_ptr > stk) {
-    np = (NODEPTR *)POPTOP();
+    // np = (NODEPTR *)POPTOP();
+    np = (NODEPTR *)(POPTOP().taggedptr); /* XXX */
     goto top;
   }
   return;
@@ -1511,7 +1540,7 @@ find_label(heapoffs_t label)
 
   for(i = (int)label; ; i++) {
     i %= shared_table_size;
-    if (shared_table[i].node == NIL) {
+    if (P(shared_table[i].node) == NIL) {
       /* The slot is empty, so claim and return it */
       shared_table[i].label = label;
       return &shared_table[i].node;
@@ -1613,7 +1642,7 @@ parse(BFILE *f)
         size_t i;
         sz = (size_t)parse_int(f);
         if (!gobble(f, ']')) ERR("parse arr 1");
-        arr = arr_alloc(sz, NIL);
+        arr = arr_alloc(sz, NODEPTRNIL);
         for (i = 0; i < sz; i++) {
           arr->array[i] = TOP(sz - i - 1);
         }
@@ -1627,10 +1656,10 @@ parse(BFILE *f)
       /* Reference to a shared value: _label */
       l = parse_int(f);  /* The label */
       nodep = find_label(l);
-      if (*nodep == NIL) {
+      if (P(*nodep) == NIL) {
         /* Not yet defined, so make it an indirection */
         *nodep = alloc_node(T_IND);
-        INDIR(*nodep) = NIL;
+        INDIR(*nodep) = NODEPTRNIL;
       }
       PUSH(*nodep);
       break;
@@ -1640,12 +1669,12 @@ parse(BFILE *f)
       if (!gobble(f, ' ')) ERR("parse ' '");
       nodep = find_label(l);
       x = TOP(0);
-      if (*nodep == NIL) {
+      if (P(*nodep) == NIL) {
         /* not referenced yet, so add a direct reference */
         *nodep = x;
       } else {
         /* Sanity check */
-        if (INDIR(*nodep) != NIL) ERR("shared != NIL");
+        if (P(INDIR(*nodep)) != NIL) ERR("shared != NIL");
         INDIR(*nodep) = x;
       }
       break;
@@ -1721,7 +1750,7 @@ parse_top(BFILE *f)
   if (!shared_table)
     memerr();
   for(i = 0; i < shared_table_size; i++)
-    shared_table[i].node = NIL;
+    shared_table[i].node = NODEPTRNIL;
   n = parse(f);
   FREE(shared_table);
   return n;
@@ -1819,7 +1848,7 @@ find_sharing(NODEPTR n)
   while (GETTAG(n) == T_IND) {
     n = INDIR(n);
   }
-  if (n < cells || n >= cells + heap_size) abort();
+  if (P(n) < cells || P(n) >= cells + heap_size) abort();
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   tag_t tag = GETTAG(n);
   if (tag == T_AP || tag == T_ARR) {
@@ -1837,7 +1866,7 @@ find_sharing(NODEPTR n)
       //PRINT("unmarked\n");
       set_bit(marked_bits, n);
       if (tag == T_AP) {
-        find_sharing(FUN(n));
+        find_sharing(GFUN(n));
         n = ARG(n);
         goto top;
       } else {
@@ -1910,12 +1939,12 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_AP:
     if (prefix) {
       putb('(', f);
-      printrec(f, FUN(n), prefix);
+      printrec(f, GFUN(n), prefix);
       putb(' ', f);
       printrec(f, ARG(n), prefix);
       putb(')', f);
     } else {
-      printrec(f, FUN(n), prefix);
+      printrec(f, GFUN(n), prefix);
       printrec(f, ARG(n), prefix);
       putb('@', f);
     }
@@ -2063,7 +2092,9 @@ printrec(BFILE *f, NODEPTR n, int prefix)
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
-  default: ERR("print tag");
+  default:
+    fprintf(stderr, "tag=%x\n", GETTAG(n));
+    ERR("print tag");
   }
   if (!prefix) {
     putb(' ', f);
@@ -2381,7 +2412,7 @@ evalstring(NODEPTR n, value_t *lenp)
     n = evali(n);
     if (GETTAG(n) == T_K)            /* Nil */
       break;
-    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
+    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&GFUN(n))) == T_AP && GETTAG(indir(&GFUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
       c = (uvalue_t)evalint(ARG(x));
       n = POPTOP();
@@ -2442,9 +2473,9 @@ compare(NODEPTR cmp)
 
   /* Since FUN(cmp) can be shared, allocate a copy for it. */
   GCCHECK(1);
-  FUN(cmp) = new_ap(FUN(FUN(cmp)), ARG(FUN(cmp)));
+  MKFUN(cmp, new_ap(GFUN(GFUN(cmp)), ARG(GFUN(cmp))));
   aq = &ARG(cmp);
-  ap = &ARG(FUN(cmp));
+  ap = &ARG(GFUN(cmp));
 
   PUSH(*ap);
   PUSH(*aq);
@@ -2474,8 +2505,8 @@ compare(NODEPTR cmp)
     case T_AP:
       PUSH(ARG(p));             /* compare arg part later */
       PUSH(ARG(q));
-      PUSH(FUN(p));             /* compare fun part now */
-      PUSH(FUN(q));
+      PUSH(GFUN(p));             /* compare fun part now */
+      PUSH(GFUN(q));
       break;
     case T_INT:
     case T_IO_CCALL:
@@ -2535,7 +2566,7 @@ rnf_rec(NODEPTR n)
   n = evali(n);
   if (GETTAG(n) == T_AP) {
     PUSH(ARG(n));               /* protect from GC */
-    rnf_rec(FUN(n));
+    rnf_rec(GFUN(n));
     n = POPTOP();
     goto top;
   }
@@ -2596,7 +2627,7 @@ evali(NODEPTR an)
 
 #define SETIND(n, x) do { SETTAG((n), T_IND); INDIR((n)) = (x); } while(0)
 #define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
-#define GOAP(f,a) do { FUN((n)) = (f); ARG((n)) = (a); goto ap; } while(0)
+#define GOAP(f,a) do { MKFUN(n, f); ARG((n)) = (a); goto ap; } while(0)
 /* CHKARGN checks that there are at least N arguments.
  * It also
  *  - sets n to the "top" node
@@ -2635,7 +2666,7 @@ evali(NODEPTR an)
   case T_IND:  n = INDIR(n); goto top;
 
   ap:
-  case T_AP:   PUSH(n); n = FUN(n); goto top;
+  case T_AP:   PUSH(n); n = GFUN(n); goto top;
 
   case T_STR:  RET;
   case T_INT:  RET;
@@ -2829,7 +2860,7 @@ evali(NODEPTR an)
       CHECK(1);
       GCCHECK(1);
       //TOP(0) = new_ap(combShowExn, TOP(0));
-      FUN(TOP(0)) = combShowExn; /* TOP(0) = (combShowExn exn) */
+      MKFUN(TOP(0), combShowExn); /* TOP(0) = (combShowExn exn) */
       x = evali(TOP(0));        /* evaluate it */
       msg = evalstring(x, 0);   /* and convert to a C string */
       POP(1);
@@ -2865,7 +2896,7 @@ evali(NODEPTR an)
     if (doing_rnf) RET;
     execio(&ARG(TOP(0)));       /* run IO action */
     x = ARG(TOP(0));           /* should be RETURN e */
-    if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
+    if (GETTAG(x) != T_AP || GETTAG(GFUN(x)) != T_IO_RETURN)
       ERR("PERFORMIO");
     POP(1);
     n = TOP(-1);
@@ -2953,7 +2984,7 @@ evali(NODEPTR an)
         ERR("BININT 1");
 #endif  /* SANITY */
       yu = (uvalue_t)GETVALUE(y);
-      p = FUN(TOP(1));
+      p = GFUN(TOP(1));
       POP(3);
       n = TOP(-1);
     binint:
@@ -2999,7 +3030,7 @@ evali(NODEPTR an)
         ERR("UNINT 0");
 #endif
       xu = (uvalue_t)GETVALUE(n);
-      p = FUN(TOP(1));
+      p = GFUN(TOP(1));
       POP(2);
       n = TOP(-1);
     unint:
@@ -3036,7 +3067,7 @@ evali(NODEPTR an)
         ERR("BINDBL 1");
 #endif  /* SANITY */
       yd = GETDBLVALUE(y);
-      p = FUN(TOP(1));
+      p = GFUN(TOP(1));
       POP(3);
       n = TOP(-1);
     bindbl:
@@ -3068,7 +3099,7 @@ evali(NODEPTR an)
         ERR("UNDBL 0");
 #endif
       xd = GETDBLVALUE(n);
-      p = FUN(TOP(1));
+      p = GFUN(TOP(1));
       POP(2);
       n = TOP(-1);
     undbl:
@@ -3149,18 +3180,19 @@ execio(NODEPTR *np)
  start:
   //dump("start", top);
   IOASSERT(stack_ptr == stk, "start");
-  //ppmsg("n before = ", ARG(FUN(top)));
-  n = evali(ARG(FUN(top)));     /* eval(n) */
+  //ppmsg("n before = ", ARG(GFUN(top)));
+  n = evali(ARG(GFUN(top)));     /* eval(n) */
   //ppmsg("n after  = ", n);
-  if (GETTAG(n) == T_AP && GETTAG(top1 = indir(&FUN(n))) == T_AP) {
-    switch (GETTAG(indir(&FUN(top1)))) {
+  if (GETTAG(n) == T_AP && GETTAG(top1 = indir(&GFUN(n))) == T_AP) {
+    tag_t t = GETTAG(indir(&GFUN(top1)));
+    switch (t) {
     case T_IO_BIND:
       GCCHECKSAVE(n, 2);
       s = ARG(n);
     bind:
       q = ARG(top);
       r = ARG(top1);
-      ARG(FUN(top)) = r;
+      ARG(GFUN(top)) = r;
       ARG(top) = x = new_ap(new_ap(combIOCCBIND, s), q);
       goto start;
     case T_IO_THEN:
@@ -3179,17 +3211,17 @@ execio(NODEPTR *np)
   //ppmsg("q=", q);
   if (GETTAG(q) == T_IO_RETURN) {
     /* execio is done */
-    FUN(top) = combIORETURN;
+    MKFUN(top, combIORETURN);
     ARG(top) = res;
     IOASSERT(stack_ptr == stk, "stk");
     return;
   }
   /* not done, it must be a C'BIND */
   GCCHECK(1);
-  IOASSERT(GETTAG(q) == T_AP && GETTAG(FUN(q)) == T_AP && GETTAG(FUN(FUN(q))) == T_IO_CCBIND, "rest-AP");
-  r = ARG(FUN(q));
+  IOASSERT(GETTAG(q) == T_AP && GETTAG(GFUN(q)) == T_AP && GETTAG(GFUN(GFUN(q))) == T_IO_CCBIND, "rest-AP");
+  r = ARG(GFUN(q));
   s = ARG(q);
-  ARG(FUN(top)) = new_ap(r, res);
+  ARG(GFUN(top)) = new_ap(r, res);
   ARG(top) = s;
   goto start;
 
@@ -3204,7 +3236,7 @@ execio(NODEPTR *np)
       TOP(0) = n;
       break;
     case T_AP:
-      n = FUN(n);
+      n = GFUN(n);
       PUSH(n);
       break;
     case T_IO_BIND:
@@ -3276,7 +3308,7 @@ execio(NODEPTR *np)
           cur_handler = h->hdl_old;
           FREE(h);
           POP(3);
-          ARG(FUN(top)) = n;
+          ARG(GFUN(top)) = n;
           goto start;
         } else {
           /* Normal execution: */
@@ -3284,7 +3316,7 @@ execio(NODEPTR *np)
           cur_handler = h->hdl_old; /* restore old handler */
           FREE(h);
           n = ARG(TOP(1));
-          IOASSERT(GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_IO_RETURN, "CATCH");
+          IOASSERT(GETTAG(n) == T_AP && GETTAG(GFUN(n)) == T_IO_RETURN, "CATCH");
           RETIO(ARG(n));             /* return result */
         }
       }
@@ -3533,9 +3565,9 @@ MAIN
     int c;
     BFILE *bf = openb_buf(combexpr, combexprlen);
     c = getb(bf);
-    /* Compressed combinators start with a 'Z' or 'z', otherwise 'v' (for version) */
+    /* Compressed combinators start with a 'z', otherwise 'v' (for version) */
     if (c == 'z') {
-      /* add LZ77 compressor transducer */
+      /* add LZ77 decompressor transducer */
       bf = add_lz77_decompressor(bf);
     } else {
       /* put it back, we need it */
@@ -3581,7 +3613,7 @@ MAIN
   prog = TOP(0);
   POP(1);
 #if SANITY
-  if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
+  if (GETTAG(prog) != T_AP || GETTAG(GFUN(prog)) != T_IO_RETURN)
     ERR("main execio");
 #endif
 #if WANT_STDIO
