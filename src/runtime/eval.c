@@ -254,7 +254,8 @@ typedef struct node* NODEPTR;
 #define GETDBLVALUE(p) (p)->uarg.uufloatvalue
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
 #define SETDBLVALUE(p,v) (p)->uarg.uufloatvalue = v
-#define FUN(p) (p)->ufun.uufun
+#define GETFUN(p) (p)->ufun.uufun
+#define SETFUN(p, q) ((p)->ufun.uufun = (q))
 #define ARG(p) (p)->uarg.uuarg
 #define STR(p) (p)->uarg.uustring
 #define CSTR(p) (p)->uarg.uucstring
@@ -579,7 +580,7 @@ static INLINE NODEPTR
 new_ap(NODEPTR f, NODEPTR a)
 {
   NODEPTR n = alloc_node(T_AP);
-  FUN(n) = f;
+  SETFUN(n, f);
   ARG(n) = a;
   return n;
 }
@@ -816,7 +817,7 @@ init_nodes(void)
    * do not have single constructors.
    * But we can make compound one, since they are irreducible.
    */
-#define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
+#define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); SETFUN(n, f); ARG(n) = (a); (c) = n;} while(0)
   NEWAP(combLT, combZ,     combFalse);  /* Z B */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
@@ -915,7 +916,7 @@ mark(NODEPTR *np)
    case T_AP:
       if (want_gc_red) {
         /* This is really only fruitful just after parsing.  It can be removed. */
-        if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
+        if (GETTAG(GETFUN(n)) == T_AP && GETTAG(GETFUN(GETFUN(n))) == T_A) {
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
           SETTAG(n, T_IND);
@@ -925,16 +926,16 @@ mark(NODEPTR *np)
         }
 #if 0
         /* This never seems to happen */
-        if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
+        if (GETTAG(GETFUN(n)) == T_AP && GETTAG(GETFUN(GETFUN(n))) == T_K) {
           /* Do the K x y --> x reduction */
-          NODEPTR x = ARG(FUN(n));
+          NODEPTR x = ARG(GETFUN(n));
           SETTAG(n, T_IND);
           INDIR(n) = x;
           red_k++;
           goto top;
         }
 #endif  /* 0 */
-        if (GETTAG(FUN(n)) == T_I) {
+        if (GETTAG(GETFUN(n)) == T_I) {
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
           SETTAG(n, T_IND);
@@ -946,7 +947,7 @@ mark(NODEPTR *np)
         /* This is broken.
          * Probably because it can happen in the middle of the C reduction code.
          */
-        if (GETTAG(FUN(n)) == T_C) {
+        if (GETTAG(GETFUN(n)) == T_C) {
           NODEPTR q = ARG(n);
           enum node_tag tt, tf;
           while ((tt = GETTAG(q)) == T_IND)
@@ -966,7 +967,7 @@ mark(NODEPTR *np)
    case T_AP:
 #endif  /* GCRED */
     /* Avoid tail recursion */
-    np = &FUN(n);
+    np = &GETFUN(n);
     to_push = &ARG(n);
     break;
    case T_ARR:
@@ -1842,7 +1843,7 @@ find_sharing(NODEPTR n)
       //PRINT("unmarked\n");
       set_bit(marked_bits, n);
       if (tag == T_AP) {
-        find_sharing(FUN(n));
+        find_sharing(GETFUN(n));
         n = ARG(n);
         goto top;
       } else {
@@ -1915,12 +1916,12 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_AP:
     if (prefix) {
       putb('(', f);
-      printrec(f, FUN(n), prefix);
+      printrec(f, GETFUN(n), prefix);
       putb(' ', f);
       printrec(f, ARG(n), prefix);
       putb(')', f);
     } else {
-      printrec(f, FUN(n), prefix);
+      printrec(f, GETFUN(n), prefix);
       printrec(f, ARG(n), prefix);
       putb('@', f);
     }
@@ -2386,7 +2387,7 @@ evalstring(NODEPTR n, value_t *lenp)
     n = evali(n);
     if (GETTAG(n) == T_K)            /* Nil */
       break;
-    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
+    else if (GETTAG(n) == T_AP && GETTAG(x = indir(&GETFUN(n))) == T_AP && GETTAG(indir(&GETFUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
       c = (uvalue_t)evalint(ARG(x));
       n = POPTOP();
@@ -2447,9 +2448,9 @@ compare(NODEPTR cmp)
 
   /* Since FUN(cmp) can be shared, allocate a copy for it. */
   GCCHECK(1);
-  FUN(cmp) = new_ap(FUN(FUN(cmp)), ARG(FUN(cmp)));
+  SETFUN(cmp, new_ap(GETFUN(GETFUN(cmp)), ARG(GETFUN(cmp))));
   aq = &ARG(cmp);
-  ap = &ARG(FUN(cmp));
+  ap = &ARG(GETFUN(cmp));
 
   PUSH(*ap);
   PUSH(*aq);
@@ -2479,8 +2480,8 @@ compare(NODEPTR cmp)
     case T_AP:
       PUSH(ARG(p));             /* compare arg part later */
       PUSH(ARG(q));
-      PUSH(FUN(p));             /* compare fun part now */
-      PUSH(FUN(q));
+      PUSH(GETFUN(p));             /* compare fun part now */
+      PUSH(GETFUN(q));
       break;
     case T_INT:
     case T_IO_CCALL:
@@ -2540,7 +2541,7 @@ rnf_rec(NODEPTR n)
   n = evali(n);
   if (GETTAG(n) == T_AP) {
     PUSH(ARG(n));               /* protect from GC */
-    rnf_rec(FUN(n));
+    rnf_rec(GETFUN(n));
     n = POPTOP();
     goto top;
   }
@@ -2601,7 +2602,7 @@ evali(NODEPTR an)
 
 #define SETIND(n, x) do { SETTAG((n), T_IND); INDIR((n)) = (x); } while(0)
 #define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
-#define GOAP(f,a) do { FUN((n)) = (f); ARG((n)) = (a); goto ap; } while(0)
+#define GOAP(f,a) do { SETFUN((n), (f)); ARG((n)) = (a); goto ap; } while(0)
 /* CHKARGN checks that there are at least N arguments.
  * It also
  *  - sets n to the "top" node
@@ -2640,7 +2641,7 @@ evali(NODEPTR an)
   case T_IND:  n = INDIR(n); goto top;
 
   ap:
-  case T_AP:   PUSH(n); n = FUN(n); goto top;
+  case T_AP:   PUSH(n); n = GETFUN(n); goto top;
 
   case T_STR:  RET;
   case T_INT:  RET;
@@ -2834,7 +2835,7 @@ evali(NODEPTR an)
       CHECK(1);
       GCCHECK(1);
       //TOP(0) = new_ap(combShowExn, TOP(0));
-      FUN(TOP(0)) = combShowExn; /* TOP(0) = (combShowExn exn) */
+      SETFUN(TOP(0), combShowExn); /* TOP(0) = (combShowExn exn) */
       x = evali(TOP(0));        /* evaluate it */
       msg = evalstring(x, 0);   /* and convert to a C string */
       POP(1);
@@ -2870,7 +2871,7 @@ evali(NODEPTR an)
     if (doing_rnf) RET;
     execio(&ARG(TOP(0)));       /* run IO action */
     x = ARG(TOP(0));           /* should be RETURN e */
-    if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
+    if (GETTAG(x) != T_AP || GETTAG(GETFUN(x)) != T_IO_RETURN)
       ERR("PERFORMIO");
     POP(1);
     n = TOP(-1);
@@ -2958,7 +2959,7 @@ evali(NODEPTR an)
         ERR("BININT 1");
 #endif  /* SANITY */
       yu = (uvalue_t)GETVALUE(y);
-      p = FUN(TOP(1));
+      p = GETFUN(TOP(1));
       POP(3);
       n = TOP(-1);
     binint:
@@ -2991,7 +2992,7 @@ evali(NODEPTR an)
       case T_GE:    GOIND((value_t)xu >= (value_t)yu ? combTrue : combFalse);
 
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", GETTAG(GETFUN(TOP(0))));
         ERR("BININT");
       }
       SETINT(n, (value_t)ru);
@@ -3004,7 +3005,7 @@ evali(NODEPTR an)
         ERR("UNINT 0");
 #endif
       xu = (uvalue_t)GETVALUE(n);
-      p = FUN(TOP(1));
+      p = GETFUN(TOP(1));
       POP(2);
       n = TOP(-1);
     unint:
@@ -3013,7 +3014,7 @@ evali(NODEPTR an)
       case T_NEG:   ru = -xu; break;
       case T_INV:   ru = ~xu; break;
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", GETTAG(GETFUN(TOP(0))));
         ERR("UNINT");
       }
       SETINT(n, (value_t)ru);
@@ -3041,7 +3042,7 @@ evali(NODEPTR an)
         ERR("BINDBL 1");
 #endif  /* SANITY */
       yd = GETDBLVALUE(y);
-      p = FUN(TOP(1));
+      p = GETFUN(TOP(1));
       POP(3);
       n = TOP(-1);
     bindbl:
@@ -3060,7 +3061,7 @@ evali(NODEPTR an)
       case T_FGE:   GOIND(xd >= yd ? combTrue : combFalse);
 
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", GETTAG(GETFUN(TOP(0))));
         ERR("BINDBL");
       }
       SETDBL(n, rd);
@@ -3073,7 +3074,7 @@ evali(NODEPTR an)
         ERR("UNDBL 0");
 #endif
       xd = GETDBLVALUE(n);
-      p = FUN(TOP(1));
+      p = GETFUN(TOP(1));
       POP(2);
       n = TOP(-1);
     undbl:
@@ -3081,7 +3082,7 @@ evali(NODEPTR an)
       case T_IND:   p = INDIR(p); goto undbl;
       case T_FNEG:  rd = -xd; break;
       default:
-        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        //fprintf(stderr, "tag=%d\n", GETTAG(GETFUN(TOP(0))));
         ERR("UNDBL");
       }
       SETDBL(n, rd);
@@ -3154,18 +3155,18 @@ execio(NODEPTR *np)
  start:
   //dump("start", top);
   IOASSERT(stack_ptr == stk, "start");
-  //ppmsg("n before = ", ARG(FUN(top)));
-  n = evali(ARG(FUN(top)));     /* eval(n) */
+  //ppmsg("n before = ", ARG(GETFUN(top)));
+  n = evali(ARG(GETFUN(top)));     /* eval(n) */
   //ppmsg("n after  = ", n);
-  if (GETTAG(n) == T_AP && GETTAG(top1 = indir(&FUN(n))) == T_AP) {
-    switch (GETTAG(indir(&FUN(top1)))) {
+  if (GETTAG(n) == T_AP && GETTAG(top1 = indir(&GETFUN(n))) == T_AP) {
+    switch (GETTAG(indir(&GETFUN(top1)))) {
     case T_IO_BIND:
       GCCHECKSAVE(n, 2);
       s = ARG(n);
     bind:
       q = ARG(top);
       r = ARG(top1);
-      ARG(FUN(top)) = r;
+      ARG(GETFUN(top)) = r;
       ARG(top) = x = new_ap(new_ap(combIOCCBIND, s), q);
       goto start;
     case T_IO_THEN:
@@ -3184,17 +3185,17 @@ execio(NODEPTR *np)
   //ppmsg("q=", q);
   if (GETTAG(q) == T_IO_RETURN) {
     /* execio is done */
-    FUN(top) = combIORETURN;
+    SETFUN(top, combIORETURN);
     ARG(top) = res;
     IOASSERT(stack_ptr == stk, "stk");
     return;
   }
   /* not done, it must be a C'BIND */
   GCCHECK(1);
-  IOASSERT(GETTAG(q) == T_AP && GETTAG(FUN(q)) == T_AP && GETTAG(FUN(FUN(q))) == T_IO_CCBIND, "rest-AP");
-  r = ARG(FUN(q));
+  IOASSERT(GETTAG(q) == T_AP && GETTAG(GETFUN(q)) == T_AP && GETTAG(GETFUN(GETFUN(q))) == T_IO_CCBIND, "rest-AP");
+  r = ARG(GETFUN(q));
   s = ARG(q);
-  ARG(FUN(top)) = new_ap(r, res);
+  ARG(GETFUN(top)) = new_ap(r, res);
   ARG(top) = s;
   goto start;
 
@@ -3209,7 +3210,7 @@ execio(NODEPTR *np)
       TOP(0) = n;
       break;
     case T_AP:
-      n = FUN(n);
+      n = GETFUN(n);
       PUSH(n);
       break;
     case T_IO_BIND:
@@ -3281,7 +3282,7 @@ execio(NODEPTR *np)
           cur_handler = h->hdl_old;
           FREE(h);
           POP(3);
-          ARG(FUN(top)) = n;
+          ARG(GETFUN(top)) = n;
           goto start;
         } else {
           /* Normal execution: */
@@ -3289,7 +3290,7 @@ execio(NODEPTR *np)
           cur_handler = h->hdl_old; /* restore old handler */
           FREE(h);
           n = ARG(TOP(1));
-          IOASSERT(GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_IO_RETURN, "CATCH");
+          IOASSERT(GETTAG(n) == T_AP && GETTAG(GETFUN(n)) == T_IO_RETURN, "CATCH");
           RETIO(ARG(n));             /* return result */
         }
       }
@@ -3586,7 +3587,7 @@ MAIN
   prog = TOP(0);
   POP(1);
 #if SANITY
-  if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
+  if (GETTAG(prog) != T_AP || GETTAG(GETFUN(prog)) != T_IO_RETURN)
     ERR("main execio");
 #endif
 #if WANT_STDIO
