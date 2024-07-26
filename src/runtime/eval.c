@@ -228,10 +228,21 @@ struct ioarray;
 struct ustring;
 struct forptr;
 
-#define CHKPTR(p) ((struct node *)(p))
-#define CASTPTR(p) ((struct node *)(p))
+#define PTRMASK     0x0000ffffffffffff
+#define PTRTAGMASK  0x00ffffffffffffff
+#define CELLGENMASK 0xff00000000000000
+#define PTRGENMASK  0x00ff000000000000
+#define CHKPTR(p) (checkptr((p)))
+#define CASTPTR(p) ((struct node *)(p & PTRMASK))
 //typedef struct node* NODEPTR;
 typedef uintptr_t NODEPTR;
+
+#define CELLGEN 0xaa00000000000000
+#define XXX     0x0055000000000000
+
+struct node *checkptr(NODEPTR p) {
+  return (struct node *)(p & PTRMASK);
+}
 
 typedef struct node {
   union {
@@ -252,15 +263,16 @@ typedef struct node {
 } node;
 struct node *cells;                 /* All cells */
 #define NIL 0
-#define HEAPREF(i) ((NODEPTR)&cells[(i)])
-#define GETTAG(p) (CHKPTR(p)->ufun.uutag & 1 ? (int)(CHKPTR(p)->ufun.uutag >> 1) : T_AP)
-#define SETTAG(p,t) do { if (t != T_AP) CHKPTR(p)->ufun.uutag = ((t) << 1) + 1; } while(0)
+#define HEAPREF(i) ((NODEPTR)&cells[(i)] | XXX)
+#define GETTAG(p) (CHKPTR(p)->ufun.uutag & 1 ? (int)(CASTPTR(p)->ufun.uutag >> 1) : T_AP)
+#define INITTAG(p,t) do { if (t != T_AP) { CASTPTR(p)->ufun.uutag = CELLGEN | ((t) << 1) | 1; } else { CASTPTR(p)->ufun.uutag = CELLGEN; } } while(0)
+#define SETTAG(p,t) do { struct node *s = CASTPTR(p); s->ufun.uufun &= CELLGENMASK; if (t != T_AP) { s->ufun.uutag |= ((t) << 1) | 1; } } while(0)
 #define GETVALUE(p) CHKPTR(p)->uarg.uuvalue
 #define GETDBLVALUE(p) CHKPTR(p)->uarg.uufloatvalue
 #define SETVALUE(p,v) CHKPTR(p)->uarg.uuvalue = v
 #define SETDBLVALUE(p,v) CHKPTR(p)->uarg.uufloatvalue = v
 #define GETFUN(p) CHKPTR(p)->ufun.uufun
-#define SETFUN(p, q) (CHKPTR(p)->ufun.uufun = (q))
+#define SETFUN(p, q) do { struct node *s = CASTPTR(p); NODEPTR old = s->ufun.uufun; s->ufun.uufun = (old & CELLGENMASK) | (PTRTAGMASK & (q)); } while(0)
 #define ARG(p) CHKPTR(p)->uarg.uuarg
 #define STR(p) CHKPTR(p)->uarg.uustring
 #define CSTR(p) CHKPTR(p)->uarg.uucstring
@@ -574,7 +586,7 @@ alloc_node(enum node_tag t)
   mark_used(n);
   next_scan_index = pos;
 
-  SETTAG(n, t);
+  INITTAG(n, t);
   COUNT(num_alloc);
   num_free--;
   return n;
