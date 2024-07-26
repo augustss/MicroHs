@@ -228,13 +228,18 @@ struct ioarray;
 struct ustring;
 struct forptr;
 
+#define CHKPTR(p) ((struct node *)(p))
+#define CASTPTR(p) ((struct node *)(p))
+//typedef struct node* NODEPTR;
+typedef uintptr_t NODEPTR;
+
 typedef struct node {
   union {
-    struct node *uufun;
-    tag_t        uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
+    NODEPTR         uufun;
+    tag_t           uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
   } ufun;
   union {
-    struct node    *uuarg;
+    NODEPTR         uuarg;
     value_t         uuvalue;
     flt_t           uufloatvalue;
     struct ustring *uustring;
@@ -245,29 +250,28 @@ typedef struct node {
     struct forptr  *uuforptr;
   } uarg;
 } node;
-typedef struct node* NODEPTR;
+struct node *cells;                 /* All cells */
 #define NIL 0
-#define HEAPREF(i) &cells[(i)]
-#define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) : T_AP)
-#define SETTAG(p,t) do { if (t != T_AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
-#define GETVALUE(p) (p)->uarg.uuvalue
-#define GETDBLVALUE(p) (p)->uarg.uufloatvalue
-#define SETVALUE(p,v) (p)->uarg.uuvalue = v
-#define SETDBLVALUE(p,v) (p)->uarg.uufloatvalue = v
-#define GETFUN(p) (p)->ufun.uufun
-#define SETFUN(p, q) ((p)->ufun.uufun = (q))
-#define ARG(p) (p)->uarg.uuarg
-#define STR(p) (p)->uarg.uustring
-#define CSTR(p) (p)->uarg.uucstring
-#define PTR(p) (p)->uarg.uuptr
-#define FUNPTR(p) (p)->uarg.uufunptr
-#define FORPTR(p) (p)->uarg.uuforptr
-#define ARR(p) (p)->uarg.uuarray
+#define HEAPREF(i) ((NODEPTR)&cells[(i)])
+#define GETTAG(p) (CHKPTR(p)->ufun.uutag & 1 ? (int)(CHKPTR(p)->ufun.uutag >> 1) : T_AP)
+#define SETTAG(p,t) do { if (t != T_AP) CHKPTR(p)->ufun.uutag = ((t) << 1) + 1; } while(0)
+#define GETVALUE(p) CHKPTR(p)->uarg.uuvalue
+#define GETDBLVALUE(p) CHKPTR(p)->uarg.uufloatvalue
+#define SETVALUE(p,v) CHKPTR(p)->uarg.uuvalue = v
+#define SETDBLVALUE(p,v) CHKPTR(p)->uarg.uufloatvalue = v
+#define GETFUN(p) CHKPTR(p)->ufun.uufun
+#define SETFUN(p, q) (CHKPTR(p)->ufun.uufun = (q))
+#define ARG(p) CHKPTR(p)->uarg.uuarg
+#define STR(p) CHKPTR(p)->uarg.uustring
+#define CSTR(p) CHKPTR(p)->uarg.uucstring
+#define PTR(p) CHKPTR(p)->uarg.uuptr
+#define FUNPTR(p) CHKPTR(p)->uarg.uufunptr
+#define FORPTR(p) CHKPTR(p)->uarg.uuforptr
+#define ARR(p) CHKPTR(p)->uarg.uuarray
 #define INDIR(p) ARG(p)
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
-#define LABEL(n) ((heapoffs_t)((n) - cells))
-node *cells;                 /* All cells */
+#define LABEL(n) ((heapoffs_t)(CASTPTR(n) - cells))
 
 /*
  * UTF-8 encoded strings
@@ -894,7 +898,7 @@ mark(NODEPTR *np)
 #endif  /* SANITY */
     *np = n;
   }
-  if (n < cells || n > cells + heap_size)
+  if (CASTPTR(n) < cells || CASTPTR(n) > cells + heap_size)
     ERR("bad n");
   if (is_marked_used(n)) {
     goto fin;
@@ -1825,7 +1829,7 @@ find_sharing(NODEPTR n)
   while (GETTAG(n) == T_IND) {
     n = INDIR(n);
   }
-  if (n < cells || n >= cells + heap_size) abort();
+  if (CASTPTR(n) < cells || CASTPTR(n) >= cells + heap_size) abort();
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   tag_t tag = GETTAG(n);
   if (tag == T_AP || tag == T_ARR) {
