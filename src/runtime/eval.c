@@ -247,7 +247,7 @@ struct node *checkptr(NODEPTR p) {
 typedef struct node {
   union {
     NODEPTR         uufun;
-    tag_t           uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
+    //    tag_t           uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
   } ufun;
   union {
     NODEPTR         uuarg;
@@ -264,9 +264,9 @@ typedef struct node {
 struct node *cells;                 /* All cells */
 #define NIL 0
 #define HEAPREF(i) ((NODEPTR)&cells[(i)] | XXX)
-#define GETTAG(p) (CHKPTR(p)->ufun.uutag & 1 ? (int)(CASTPTR(p)->ufun.uutag >> 1) : T_AP)
-#define INITTAG(p,t) do { if (t != T_AP) { CASTPTR(p)->ufun.uutag = CELLGEN | ((t) << 1) | 1; } else { CASTPTR(p)->ufun.uutag = CELLGEN; } } while(0)
-#define SETTAG(p,t) do { struct node *s = CASTPTR(p); s->ufun.uufun &= CELLGENMASK; if (t != T_AP) { s->ufun.uutag |= ((t) << 1) | 1; } } while(0)
+#define GETTAG(p) (CHKPTR(p)->ufun.uufun & 1 ? (int)(CASTPTR(p)->ufun.uufun >> 1) : T_AP)
+#define INITTAG(p,t) do { if (t != T_AP) { CASTPTR(p)->ufun.uufun = CELLGEN | ((t) << 1) | 1; } else { CASTPTR(p)->ufun.uufun = CELLGEN; } } while(0)
+#define SETTAG(p,t) do { struct node *s = CASTPTR(p); s->ufun.uufun &= CELLGENMASK; if (t != T_AP) { s->ufun.uufun |= ((t) << 1) | 1; } } while(0)
 #define GETVALUE(p) CHKPTR(p)->uarg.uuvalue
 #define GETDBLVALUE(p) CHKPTR(p)->uarg.uufloatvalue
 #define SETVALUE(p,v) CHKPTR(p)->uarg.uuvalue = v
