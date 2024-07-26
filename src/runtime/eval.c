@@ -240,10 +240,6 @@ typedef uintptr_t NODEPTR;
 #define CELLGEN 0xaa00000000000000
 #define XXX     0x0055000000000000
 
-struct node *checkptr(NODEPTR p) {
-  return (struct node *)(p & PTRMASK);
-}
-
 typedef struct node {
   union {
     NODEPTR         uufun;
@@ -262,6 +258,27 @@ typedef struct node {
   } uarg;
 } node;
 struct node *cells;                 /* All cells */
+
+struct node *checkptr(NODEPTR p) {
+  if (0 && (p & PTRGENMASK) != XXX) {
+    fprintf(stderr, "bad pointer tag %016lx\n", p);
+    ERR("checkptr 1");
+  }
+  struct node *n = (struct node *)(p & PTRMASK);;
+  if (0 && (n->ufun.uufun & CELLGENMASK) != CELLGEN) {
+    fprintf(stderr, "bad node tag %016lx, cell=%d\n", n->ufun.uufun, (int)(n - cells));
+    ERR("checkptr 2");
+  }
+  return n;
+}
+
+void chk(struct node *s) {
+  if (0 && (s->ufun.uufun & CELLGENMASK) != CELLGEN) {
+    fprintf(stderr, "bad node tag %016lx, cell=%d\n", s->ufun.uufun, (int)(s - cells));
+    ERR("chk 2");
+  }
+}
+
 #define NIL 0
 #define HEAPREF(i) ((NODEPTR)&cells[(i)] | XXX)
 #define GETTAG(p) (CHKPTR(p)->ufun.uufun & 1 ? (int)(CASTPTR(p)->ufun.uufun >> 1) : T_AP)
@@ -272,7 +289,7 @@ struct node *cells;                 /* All cells */
 #define SETVALUE(p,v) CHKPTR(p)->uarg.uuvalue = v
 #define SETDBLVALUE(p,v) CHKPTR(p)->uarg.uufloatvalue = v
 #define GETFUN(p) CHKPTR(p)->ufun.uufun
-#define SETFUN(p, q) do { struct node *s = CASTPTR(p); NODEPTR old = s->ufun.uufun; s->ufun.uufun = (old & CELLGENMASK) | (PTRTAGMASK & (q)); } while(0)
+#define SETFUN(p, q) do { struct node *s = CASTPTR(p); chk(s); NODEPTR old = s->ufun.uufun; s->ufun.uufun = (old & CELLGENMASK) | (PTRTAGMASK & (q)); } while(0)
 #define ARG(p) CHKPTR(p)->uarg.uuarg
 #define STR(p) CHKPTR(p)->uarg.uustring
 #define CSTR(p) CHKPTR(p)->uarg.uucstring
@@ -587,6 +604,7 @@ alloc_node(enum node_tag t)
   next_scan_index = pos;
 
   INITTAG(n, t);
+  chk(CASTPTR(n));
   COUNT(num_alloc);
   num_free--;
   return n;
@@ -755,7 +773,7 @@ init_nodes(void)
     NODEPTR n = HEAPREF(heap_start++);
     primops[j].node = n;
     //MARK(n) = MARKED;
-    SETTAG(n, primops[j].tag);
+    INITTAG(n, primops[j].tag);
     switch (primops[j].tag) {
     case T_K: combFalse = n; break;
     case T_A: combTrue = n; break;
@@ -787,7 +805,7 @@ init_nodes(void)
 #else
   for(t = T_FREE; t < T_LAST_TAG; t++) {
     NODEPTR n = HEAPREF(heap_start++);
-    SETTAG(n, t);
+    INITTAG(n, t);
     switch (t) {
     case T_K: combFalse = n; break;
     case T_A: combTrue = n; break;
@@ -833,7 +851,7 @@ init_nodes(void)
    * do not have single constructors.
    * But we can make compound one, since they are irreducible.
    */
-#define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); SETFUN(n, f); ARG(n) = (a); (c) = n;} while(0)
+#define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); INITTAG(n, T_AP); SETFUN(n, f); ARG(n) = (a); (c) = n;} while(0)
   NEWAP(combLT, combZ,     combFalse);  /* Z B */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
@@ -851,7 +869,7 @@ init_nodes(void)
   for (int i = LOW_INT; i < HIGH_INT; i++) {
     NODEPTR n = HEAPREF(heap_start++);
     intTable[i - LOW_INT] = n;
-    SETTAG(n, T_INT);
+    INITTAG(n, T_INT);
     SETVALUE(n, i);
   }
 #endif
@@ -908,7 +926,9 @@ mark(NODEPTR *np)
       n = INDIRM(n);
     }
 #endif  /* SANITY */
+    // printf("%016lx:=%016lx\n", *np, n);
     *np = n;
+    //*np = (*np & CELLGENMASK) | (n & PTRTAGMASK);
   }
   if (CASTPTR(n) < cells || CASTPTR(n) > cells + heap_size)
     ERR("bad n");
@@ -959,11 +979,11 @@ mark(NODEPTR *np)
           red_i++;
           goto top;
         }
-#if 1
+#if 0
         /* This is broken.
          * Probably because it can happen in the middle of the C reduction code.
          */
-        if (GETTAG(GETFUN(n)) == T_C) {
+        if (0 && GETTAG(GETFUN(n)) == T_C) {
           NODEPTR q = ARG(n);
           enum node_tag tt, tf;
           while ((tt = GETTAG(q)) == T_IND)
@@ -977,8 +997,8 @@ mark(NODEPTR *np)
             goto fin;
           }
         }
-      }
 #endif
+      }
 #else   /* GCRED */
    case T_AP:
 #endif  /* GCRED */
@@ -2311,6 +2331,7 @@ indir(NODEPTR *np)
   while (GETTAG(n) == T_IND)
     n = INDIRM(n);
   *np = n;
+  // *np = (*np & CELLGENMASK) | (n & PTRTAGMASK);
   return n;
 }
 
