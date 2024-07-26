@@ -942,10 +942,11 @@ mark(NODEPTR *np)
           red_i++;
           goto top;
         }
-#if 1
+#if 0
         /* This is broken.
          * Probably because it can happen in the middle of the C reduction code.
          */
+        DO NOT ENABLE
         if (GETTAG(FUN(n)) == T_C) {
           NODEPTR q = ARG(n);
           enum node_tag tt, tf;
@@ -960,8 +961,8 @@ mark(NODEPTR *np)
             goto fin;
           }
         }
-      }
 #endif
+      }
 #else   /* GCRED */
    case T_AP:
 #endif  /* GCRED */
