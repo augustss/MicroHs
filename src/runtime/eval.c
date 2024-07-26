@@ -280,7 +280,7 @@ struct node *cells;                 /* All cells */
 #define FUNPTR(p) CHKPTR(p)->uarg.uufunptr
 #define FORPTR(p) CHKPTR(p)->uarg.uuforptr
 #define ARR(p) CHKPTR(p)->uarg.uuarray
-#define INDIR(p) ARG(p)
+#define INDIRM(p) ARG(p)
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)(CASTPTR(n) - cells))
@@ -895,9 +895,9 @@ mark(NODEPTR *np)
     /* Skip indirections, and redirect start pointer */
     while ((tag = GETTAG(n)) == T_IND) {
       //      PRINT("*"); fflush(stdout);
-      n = INDIR(n);
+      n = INDIRM(n);
       if (loop++ > 10000000) {
-        //PRINT("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
+        //PRINT("%p %p %p\n", n, INDIRM(n), INDIRM(INDIRM(n)));
         ERR("IND loop");
       }
     }
@@ -905,7 +905,7 @@ mark(NODEPTR *np)
     //      PRINT("\n");
 #else  /* SANITY */
     while ((tag = GETTAG(n)) == T_IND) {
-      n = INDIR(n);
+      n = INDIRM(n);
     }
 #endif  /* SANITY */
     *np = n;
@@ -923,7 +923,7 @@ mark(NODEPTR *np)
 #if INTTABLE
     if (LOW_INT <= (val = GETVALUE(n)) && val < HIGH_INT) {
       SETTAG(n, T_IND);
-      INDIR(n) = intTable[val - LOW_INT];
+      INDIRM(n) = intTable[val - LOW_INT];
       red_int++;
       goto top;
     }
@@ -936,7 +936,7 @@ mark(NODEPTR *np)
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
           SETTAG(n, T_IND);
-          INDIR(n) = y;
+          INDIRM(n) = y;
           red_a++;
           goto top;
         }
@@ -946,7 +946,7 @@ mark(NODEPTR *np)
           /* Do the K x y --> x reduction */
           NODEPTR x = ARG(GETFUN(n));
           SETTAG(n, T_IND);
-          INDIR(n) = x;
+          INDIRM(n) = x;
           red_k++;
           goto top;
         }
@@ -955,7 +955,7 @@ mark(NODEPTR *np)
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
           SETTAG(n, T_IND);
-          INDIR(n) = x;
+          INDIRM(n) = x;
           red_i++;
           goto top;
         }
@@ -967,12 +967,12 @@ mark(NODEPTR *np)
           NODEPTR q = ARG(n);
           enum node_tag tt, tf;
           while ((tt = GETTAG(q)) == T_IND)
-            q = INDIR(q);
+            q = INDIRM(q);
           if ((tf = flip_ops[tt])) {
             /* Do the C op --> flip_op reduction */
             // PRINT("%s -> %s\n", tag_names[tt], tag_names[tf]);
             SETTAG(n, T_IND);
-            INDIR(n) = HEAPREF(tf);
+            INDIRM(n) = HEAPREF(tf);
             red_flip++;
             goto fin;
           }
@@ -1652,7 +1652,7 @@ parse(BFILE *f)
       if (*nodep == NIL) {
         /* Not yet defined, so make it an indirection */
         *nodep = alloc_node(T_IND);
-        INDIR(*nodep) = NIL;
+        INDIRM(*nodep) = NIL;
       }
       PUSH(*nodep);
       break;
@@ -1667,8 +1667,8 @@ parse(BFILE *f)
         *nodep = x;
       } else {
         /* Sanity check */
-        if (INDIR(*nodep) != NIL) ERR("shared != NIL");
-        INDIR(*nodep) = x;
+        if (INDIRM(*nodep) != NIL) ERR("shared != NIL");
+        INDIRM(*nodep) = x;
       }
       break;
     case '"' :
@@ -1839,7 +1839,7 @@ find_sharing(NODEPTR n)
 {
  top:
   while (GETTAG(n) == T_IND) {
-    n = INDIR(n);
+    n = INDIRM(n);
   }
   if (CASTPTR(n) < cells || CASTPTR(n) >= cells + heap_size) abort();
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
@@ -1902,7 +1902,7 @@ printrec(BFILE *f, NODEPTR n, int prefix)
 
   while (GETTAG(n) == T_IND) {
     //putb('*', f);
-    n = INDIR(n);
+    n = INDIRM(n);
   }
 
   if (test_bit(shared_bits, n)) {
@@ -2309,7 +2309,7 @@ indir(NODEPTR *np)
 {
   NODEPTR n = *np;
   while (GETTAG(n) == T_IND)
-    n = INDIR(n);
+    n = INDIRM(n);
   *np = n;
   return n;
 }
@@ -2616,7 +2616,7 @@ evali(NODEPTR an)
 /* Check that there are at least n arguments, return if not. */
 #define CHECK(n) do { if (stack_ptr - stk < (n)) RET; } while(0)
 
-#define SETIND(n, x) do { SETTAG((n), T_IND); INDIR((n)) = (x); } while(0)
+#define SETIND(n, x) do { SETTAG((n), T_IND); INDIRM((n)) = (x); } while(0)
 #define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
 #define GOAP(f,a) do { SETFUN((n), (f)); ARG((n)) = (a); goto ap; } while(0)
 /* CHKARGN checks that there are at least N arguments.
@@ -2654,7 +2654,7 @@ evali(NODEPTR an)
 #endif  /* FASTTAGS */
   switch (tag) {
   ind:
-  case T_IND:  n = INDIR(n); goto top;
+  case T_IND:  n = INDIRM(n); goto top;
 
   ap:
   case T_AP:   PUSH(n); n = GETFUN(n); goto top;
@@ -2969,7 +2969,7 @@ evali(NODEPTR an)
       /* Second argument */
       y = ARG(TOP(2));
       while (GETTAG(y) == T_IND)
-        y = INDIR(y);
+        y = INDIRM(y);
 #if SANITY
       if (GETTAG(y) != T_INT)
         ERR("BININT 1");
@@ -2980,7 +2980,7 @@ evali(NODEPTR an)
       n = TOP(-1);
     binint:
       switch (GETTAG(p)) {
-      case T_IND:   p = INDIR(p); goto binint;
+      case T_IND:   p = INDIRM(p); goto binint;
       case T_ADD:   ru = xu + yu; break;
       case T_SUB:   ru = xu - yu; break;
       case T_MUL:   ru = xu * yu; break;
@@ -3026,7 +3026,7 @@ evali(NODEPTR an)
       n = TOP(-1);
     unint:
       switch (GETTAG(p)) {
-      case T_IND:   p = INDIR(p); goto unint;
+      case T_IND:   p = INDIRM(p); goto unint;
       case T_NEG:   ru = -xu; break;
       case T_INV:   ru = ~xu; break;
       default:
@@ -3052,7 +3052,7 @@ evali(NODEPTR an)
       /* Second argument */
       y = ARG(TOP(2));
       while (GETTAG(y) == T_IND)
-        y = INDIR(y);
+        y = INDIRM(y);
 #if SANITY
       if (GETTAG(y) != T_DBL)
         ERR("BINDBL 1");
@@ -3063,7 +3063,7 @@ evali(NODEPTR an)
       n = TOP(-1);
     bindbl:
       switch (GETTAG(p)) {
-      case T_IND:   p = INDIR(p); goto bindbl;
+      case T_IND:   p = INDIRM(p); goto bindbl;
       case T_FADD:  rd = xd + yd; break;
       case T_FSUB:  rd = xd - yd; break;
       case T_FMUL:  rd = xd * yd; break;
@@ -3095,7 +3095,7 @@ evali(NODEPTR an)
       n = TOP(-1);
     undbl:
       switch (GETTAG(p)) {
-      case T_IND:   p = INDIR(p); goto undbl;
+      case T_IND:   p = INDIRM(p); goto undbl;
       case T_FNEG:  rd = -xd; break;
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(GETFUN(TOP(0))));
@@ -3222,7 +3222,7 @@ execio(NODEPTR *np)
     //printf("execute switch %s\n", tag_names[GETTAG(n)]);
     switch (GETTAG(n)) {
     case T_IND:
-      n = INDIR(n);
+      n = INDIRM(n);
       TOP(0) = n;
       break;
     case T_AP:
