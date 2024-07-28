@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.9.14.0
+version:             0.9.15.0
 synopsis:            A compiler for Haskell
 license:             Apache-2.0
 license-file:        LICENSE
@@ -25,6 +25,7 @@ extra-source-files:
       ghc/**/*.hs
       lib/**/*.hs
       lib/**/*.hs-boot
+      paths/Paths_MicroHs.hs
       src/runtime/*.c
       src/runtime/*.h
       tests/Makefile
@@ -35,6 +36,8 @@ extra-source-files:
 data-files:
       lib/**/*.hs
       lib/**/*.hs-boot
+      src/runtime/*.c
+      src/runtime/*.h
 
 source-repository head
     type:     git
@@ -90,7 +93,6 @@ executable mhs
                        System.IO.TimeMilli
                        System.Compress
                        Paths_MicroHs
-  autogen-modules:     Paths_MicroHs
   if impl(ghc)
     hs-source-dirs:    ghc src
     build-depends:     base         >= 4.10 && < 4.22,

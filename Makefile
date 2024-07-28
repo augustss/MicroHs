@@ -9,7 +9,7 @@ CCLIBS= -lm
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS)
 #
 GHC= ghc
-GHCINCS= -ighc -isrc
+GHCINCS= -ighc -isrc -ipaths
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -Wno-deprecations
 GHCOPTS= -O
 GHCEXTS= -DNOTCABAL -XScopedTypeVariables -XPatternGuards -XTupleSections -XTypeSynonymInstances -XFlexibleInstances -XOverloadedRecordDot -XDisambiguateRecordFields -XOverloadedStrings
@@ -21,7 +21,7 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
-MHSINC= -i -isrc -ilib -ilib/simple-readline
+MHSINC= -i -isrc -ilib -ipaths -ilib/simple-readline
 #
 .PHONY:	clean bootstrap install ghcgen newmhs cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info
 
@@ -135,6 +135,7 @@ clean:
 	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache
 	make clean -f Makefile.emscripten
 	cd tests; make clean
+	-cabal clean
 
 install:
 	mkdir -p $(PREFIX)/bin

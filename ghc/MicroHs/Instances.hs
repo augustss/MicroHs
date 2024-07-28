@@ -1,27 +1,11 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE CPP #-}
-module MicroHs.Instances(getMhsDir, compiledWithGHC) where
+module MicroHs.Instances(compiledWithGHC) where
 import Control.DeepSeq
-import System.Environment
 import MicroHs.CompileCache
 import MicroHs.Ident
 import MicroHs.Exp
 import MicroHs.Expr
-#if !defined(NOTCABAL)
-import Paths_MicroHs
-
-getMhsDir :: IO (Maybe FilePath)
-getMhsDir = do
-  md <- lookupEnv "MHSDIR"
-  case md of
-    Just _ -> return md
-    Nothing -> Just <$> getDataDir
-#else
-
-getMhsDir :: IO (Maybe FilePath)
-getMhsDir = lookupEnv "MHSDIR"
-
-#endif
 
 instance NFData Cache where rnf _ = ()
 

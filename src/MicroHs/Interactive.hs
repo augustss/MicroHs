@@ -1,6 +1,7 @@
 module MicroHs.Interactive(module MicroHs.Interactive) where
 import Data.List
 import Data.Maybe
+import Data.Version
 import Control.Exception
 import MicroHs.Compile
 import MicroHs.CompileCache
@@ -17,6 +18,7 @@ import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..), Symbols)
 import Unsafe.Coerce
 import System.Console.SimpleReadline
 import MicroHs.Instances(compiledWithGHC)
+import Paths_MicroHs(version)
 
 data IState = IState {
   isLines   :: String,
@@ -29,7 +31,7 @@ type I a = StateIO IState a
 
 mainInteractive :: Flags -> IO ()
 mainInteractive flags = do
-  putStrLn "Welcome to interactive MicroHs!"
+  putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
   let flags' = flags{ loading = True }
   cash <- getCached flags'
   _ <- runStateIO start $ IState preamble flags' cash noSymbols

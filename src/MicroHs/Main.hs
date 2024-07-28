@@ -30,16 +30,17 @@ import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
 import Compat
-import MicroHs.Instances(getMhsDir) -- for GHC
+import MicroHs.Instances() -- for GHC
 import MicroHs.TargetConfig
+import Paths_MicroHs(version, getDataDir)
 
 mhsVersion :: String
-mhsVersion = "0.9.14.0"
+mhsVersion = showVersion version
 
 main :: IO ()
 main = do
   args <- getArgs
-  dir <- fromMaybe "." <$> getMhsDir
+  dir <- getMhsDir
   home <- getHomeDirectory
   case args of
    ["--version"] -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
@@ -249,3 +250,12 @@ mainInstallPackage flags [pkgfn, dir] = do
   mapM_ mk (pkgExported pkg)
 mainInstallPackage flags [pkgfn] = mainInstallPackage flags [pkgfn, head (pkgPath flags)]
 mainInstallPackage _ _ = error usage
+
+-----------------
+
+getMhsDir :: IO FilePath
+getMhsDir = do
+  md <- lookupEnv "MHSDIR"
+  case md of
+    Just d -> return d
+    Nothing -> getDataDir
