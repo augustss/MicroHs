@@ -21,7 +21,8 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
-MHSINC= -i -isrc -ilib -ipaths -ilib/simple-readline
+MHSINCNP= -i -imhs -isrc -ilib -ilib/simple-readline
+MHSINC=$(MHSINCNP) -ipaths 
 #
 .PHONY:	clean bootstrap install ghcgen newmhs cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info
 
@@ -132,7 +133,7 @@ cachelib:
 
 #
 clean:
-	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache
+	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache mdist dist-mcabal
 	make clean -f Makefile.emscripten
 	cd tests; make clean
 	-cabal clean
@@ -182,3 +183,32 @@ nfibtest: bin/mhs bin/mhseval
 
 emscripten: bin/mhs targets.conf
 	make test -f Makefile.emscripten
+
+######
+
+VERSION=0.9.15.0
+MCABAL=$(HOME)/.mcabal
+MCABALMHS=$(MCABAL)/mhs-$(VERSION)
+MCABALMHSMHS=$(MCABALMHS)/mhs-$(VERSION)
+MDATA=$(MCABALMHSMHS)/data
+MRUNTIME=$(MDATA)/src/runtime
+MCABALBIN=$(MCABAL)/bin
+MDIST=mdist
+BASE=base-$(VERSION)
+BASEMODULES=Control.Applicative Control.Arrow Control.DeepSeq Control.Error Control.Exception Control.Exception.Internal Control.Monad Control.Monad.Fail Control.Monad.ST Control.Monad.ST_Type Data.Array Data.Bits Data.Bool Data.Bool_Type Data.Bounded Data.Char Data.Char_Type Data.Complex Data.Constraint Data.Double Data.Dynamic Data.Either Data.Enum Data.Eq Data.Float Data.FloatW Data.Floating Data.Foldable Data.Fractional Data.Function Data.Functor Data.Functor.Const Data.Functor.Identity Data.IOArray Data.IORef Data.Int Data.Int.Instances Data.Int.IntN Data.Integer Data.Integer_Type Data.Integral Data.Ix Data.List Data.List.NonEmpty Data.List_Type Data.Maybe Data.Maybe_Type Data.Monoid Data.Num Data.Ord Data.Ordering_Type Data.Proxy Data.Ratio Data.Ratio_Type Data.Real Data.RealFloat Data.RealFrac Data.Records Data.STRef Data.Semigroup Data.String Data.Time.Clock Data.Time.Format Data.Traversable Data.Tuple Data.Type.Equality Data.TypeLits Data.Typeable Data.Version Data.Void Data.Word Data.ZipList Debug.Trace Foreign.C.String Foreign.C.Types Foreign.ForeignPtr Foreign.Marshal.Alloc Foreign.Marshal.Array Foreign.Marshal.Utils Foreign.Ptr Foreign.Storable GHC.Stack GHC.Types Numeric Numeric.FormatFloat Numeric.Natural Prelude Primitives System.Cmd System.Compress System.Directory System.Environment System.Exit System.IO System.IO.MD5 System.IO.PrintOrRun System.IO.Serialize System.IO.TimeMilli System.IO.Unsafe System.IO_Handle System.Info System.Process Text.Printf Text.Read Text.Read.Lex Text.Read.Numeric Text.Show TimeCompat Unsafe.Coerce
+
+$(MCABALBIN)/mhs: bin/mhs
+	@mkdir -p $(MCABALBIN)
+	@mkdir -p $(MDIST)
+	@echo 'module Paths_MicroHs where {import Data.Version; version :: Version; version = makeVersion [0,9,15,0]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
+	bin/mhs -z $(MHSINCNP) -i$(MDIST) MicroHs.Main -o$(MCABALBIN)/mhs
+
+$(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs
+	@mkdir -p $(MRUNTIME)
+	cp src/runtime/*.[ch] $(MRUNTIME)
+	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
+	bin/mhs -P$(BASE) -o$(BASE).pkg -ilib $(BASEMODULES)
+	bin/mhs -Q -a -a$(MCABALMHS) $(BASE).pkg
+	@rm $(BASE).pkg
+
+installmcabal: bin/mhs $(MCABAL)/bin/mhs $(MCABALMHS)/packages/$(BASE).pkg

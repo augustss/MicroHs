@@ -41,13 +41,15 @@ main :: IO ()
 main = do
   args <- getArgs
   dir <- getMhsDir
-  home <- getHomeDirectory
+  dataDir <- getDataDir
   case args of
    ["--version"] -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
    ["--numeric-version"] -> putStrLn mhsVersion
    _ -> do
-    let dflags = (defaultFlags dir){ pkgPath = [home ++ "/.mcabal/mhs-" ++ mhsVersion] }
+    let dflags = (defaultFlags dir){ pkgPath = pkgPaths }
         (flags, mdls, rargs) = decodeArgs dflags [] args
+        pkgPaths | dir == dataDir && dir /= "." = [dataDir ++ "/../.."]  -- This is a bit ugly
+                 | otherwise                    = []                     -- No package search path
     case listPkg flags of
       Just p -> mainListPkg flags p
       Nothing ->
@@ -55,7 +57,9 @@ main = do
           Just p -> mainBuildPkg flags p mdls
           Nothing ->
             if installPkg flags then mainInstallPackage flags mdls else
-            withArgs rargs $
+            withArgs rargs $ do
+              when (verbosityGT flags 0) $
+                putStrLn $ "flags = " ++ show flags
               case mdls of
                 []  -> mainInteractive flags
                 [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)

@@ -19,7 +19,7 @@ data Flags = Flags {
   installPkg :: Bool,       -- install a package
   target     :: String      -- Compile target defined in target.conf
   }
-  -- deriving (Show)
+  deriving (Show)
 
 verbosityGT :: Flags -> Int -> Bool
 verbosityGT flags v = verbose flags > v

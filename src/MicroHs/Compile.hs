@@ -356,7 +356,7 @@ findPkgModule flags mn = do
 loadPkg :: Flags -> FilePath -> StateIO Cache ()
 loadPkg flags fn = do
   when (loading flags || verbosityGT flags 0) $
-    liftIO $ putStrLn $ "loading package " ++ fn
+    liftIO $ putStrLn $ "Loading package " ++ fn
   pkg <- liftIO $ readSerialized fn
   modify $ addPackage pkg
 

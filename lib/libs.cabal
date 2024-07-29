@@ -21,7 +21,6 @@ library base
         Control.Monad
         Control.Monad.Fail
         Control.Monad.ST
-        Control.Monad.State.Strict
         Data.Bits
         Data.Bool
         Data.Bounded

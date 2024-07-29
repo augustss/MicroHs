@@ -25,6 +25,7 @@ extra-source-files:
       ghc/**/*.hs
       lib/**/*.hs
       lib/**/*.hs-boot
+      mhs/*.hs
       paths/Paths_MicroHs.hs
       src/runtime/*.c
       src/runtime/*.h
