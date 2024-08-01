@@ -122,12 +122,12 @@ library base
 --    build-depends:
 --        base
 
-library simple-readline
-    hs-source-dirs: simple-readline
-    exposed-modules:
-        System.Console.SimpleReadline
-    build-depends:
-        base
+--library simple-readline
+--    hs-source-dirs: simple-readline
+--    exposed-modules:
+--        System.Console.SimpleReadline
+--    build-depends:
+--        base
 
 --library pretty
 --    exposed-modules:

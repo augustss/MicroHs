@@ -21,7 +21,7 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
-MHSINCNP= -i -imhs -isrc -ilib -ilib/simple-readline
+MHSINCNP= -i -imhs -isrc -ilib
 MHSINC=$(MHSINCNP) -ipaths 
 #
 .PHONY:	clean bootstrap install ghcgen newmhs cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info
