@@ -1,6 +1,9 @@
 cabal-version:       3.0
 name:                MicroHs
 version:             0.9.15.0
+                     -- *** When changing the version number, also change
+                     -- *** paths/Paths_MicroHs.hs and Makefile.
+                     -- *** Yeah, it stinks.
 synopsis:            A compiler for Haskell
 license:             Apache-2.0
 license-file:        LICENSE
@@ -104,4 +107,5 @@ executable mhs
                        process      >= 1.6 && < 1.8,
                        directory    >= 1.2 && < 1.5,
 --  if impl(mhs)
---    hs-source-dirs:    src lib lib/simple-readline
+--    hs-source-dirs:    mhs src
+--    build-depends:     base
