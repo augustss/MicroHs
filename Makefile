@@ -102,14 +102,21 @@ bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 
 cpphssrc/malcolm-wallace-universe:
 	mkdir -p cpphssrc
-	cd cpphssrc; git clone --branch dot-spaces git@github.com:augustss/malcolm-wallace-universe.git
+	cd cpphssrc; git clone git@github.com:hackage-trustees/malcolm-wallace-universe.git
 
-bootstrapcpphs: cpphssrc/malcolm-wallace-universe #bin/cpphs
-	MHSCPPHS=bin/cpphs bin/mhs -z -XCPP -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
+# Use this cpphs for bootstrapping
+USECPPHS=bin/cpphs
+
+bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe #bin/cpphs
+	MHSCPPHS=$(USECPPHS) bin/mhs -z -XCPP -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
 # Run test examples with ghc-compiled compiler
 runtest:	bin/mhseval bin/gmhs tests/*.hs
 	cd tests; make alltest
+
+# Run test examples with mhs-compiled compiler
+runtestmhs:
+	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H4M -RTS -CR" info test errtest
 
 # Compress the binary (broken on MacOS)
 bin/umhs: bin/mhs
@@ -133,7 +140,7 @@ cachelib:
 
 #
 clean:
-	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache mdist dist-mcabal
+	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal cpphssrc
 	make clean -f Makefile.emscripten
 	cd tests; make clean
 	-cabal clean
@@ -154,9 +161,6 @@ install:
 everytest:	newmhs runtest exampletest cachetest bootcombtest nfibtest info
 
 everytestmhs:	bin/mhs bin/mhseval exampletest cachetest bootstrap runtestmhs nfibtest info
-
-runtestmhs:
-	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H4M -RTS -CR" info test errtest
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs $(MHSINC) -ogmhs.comb  MicroHs.Main
@@ -189,11 +193,10 @@ emscripten: bin/mhs targets.conf
 VERSION=0.9.15.0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
-MCABALMHSMHS=$(MCABALMHS)/mhs-$(VERSION)
-MDATA=$(MCABALMHSMHS)/data
+MDATA=$(MCABALMHS)/data/mhs-$(VERSION)/data
 MRUNTIME=$(MDATA)/src/runtime
 MCABALBIN=$(MCABAL)/bin
-MDIST=mdist
+MDIST=dist-mcabal
 BASE=base-$(VERSION)
 BASEMODULES=Control.Applicative Control.Arrow Control.DeepSeq Control.Error Control.Exception Control.Exception.Internal Control.Monad Control.Monad.Fail Control.Monad.ST Control.Monad.ST_Type Data.Array Data.Bits Data.Bool Data.Bool_Type Data.Bounded Data.Char Data.Char_Type Data.Complex Data.Constraint Data.Double Data.Dynamic Data.Either Data.Enum Data.Eq Data.Float Data.FloatW Data.Floating Data.Foldable Data.Fractional Data.Function Data.Functor Data.Functor.Const Data.Functor.Identity Data.IOArray Data.IORef Data.Int Data.Int.Instances Data.Int.IntN Data.Integer Data.Integer_Type Data.Integral Data.Ix Data.List Data.List.NonEmpty Data.List_Type Data.Maybe Data.Maybe_Type Data.Monoid Data.Num Data.Ord Data.Ordering_Type Data.Proxy Data.Ratio Data.Ratio_Type Data.Real Data.RealFloat Data.RealFrac Data.Records Data.STRef Data.Semigroup Data.String Data.Time.Clock Data.Time.Format Data.Traversable Data.Tuple Data.Type.Equality Data.TypeLits Data.Typeable Data.Version Data.Void Data.Word Data.ZipList Debug.Trace Foreign.C.String Foreign.C.Types Foreign.ForeignPtr Foreign.Marshal.Alloc Foreign.Marshal.Array Foreign.Marshal.Utils Foreign.Ptr Foreign.Storable GHC.Stack GHC.Types Numeric Numeric.FormatFloat Numeric.Natural Prelude Primitives System.Cmd System.Compress System.Directory System.Environment System.Exit System.IO System.IO.MD5 System.IO.PrintOrRun System.IO.Serialize System.IO.TimeMilli System.IO.Unsafe System.IO_Handle System.Info System.Process Text.Printf Text.Read Text.Read.Lex Text.Read.Numeric Text.Show TimeCompat Unsafe.Coerce
 
