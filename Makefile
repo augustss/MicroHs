@@ -206,6 +206,10 @@ $(MCABALBIN)/mhs: bin/mhs
 	@echo 'module Paths_MicroHs where {import Data.Version; version :: Version; version = makeVersion [0,9,15,0]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
 	bin/mhs -z $(MHSINCNP) -i$(MDIST) MicroHs.Main -o$(MCABALBIN)/mhs
 
+$(MCABALBIN)/cpphs: bin/cpphs
+	@mkdir -p $(MCABALBIN)
+	cp bin/cpphs $(MCABALBIN)
+
 $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs
 	@mkdir -p $(MRUNTIME)
 	cp src/runtime/*.[ch] $(MRUNTIME)
@@ -214,4 +218,4 @@ $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs
 	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
 	@rm $(BASE).pkg
 
-installmcabal: bin/mhs $(MCABAL)/bin/mhs $(MCABALMHS)/packages/$(BASE).pkg
+installmcabal: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg

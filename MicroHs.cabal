@@ -25,10 +25,11 @@ extra-source-files:
       Tools/Addcombs.hs
       Tools/Compress.hs
       generated/mhs.c
+      generated/cpphs.c
       ghc/**/*.hs
       lib/**/*.hs
       lib/**/*.hs-boot
-      mhs/*.hs
+      mhs/**/*.hs
       paths/Paths_MicroHs.hs
       src/runtime/*.c
       src/runtime/*.h
@@ -97,6 +98,7 @@ executable mhs
                        System.IO.TimeMilli
                        System.Compress
                        Paths_MicroHs
+  autogen-modules:     Paths_MicroHs
   if impl(ghc)
     hs-source-dirs:    ghc src
     build-depends:     base         >= 4.10 && < 4.22,
