@@ -144,14 +144,17 @@ it will be the entry point to the program.
 * `-C` short for `-CW` and `-CR`
 * `-T` generate dynamic function usage statistics
 * `-z` compress combinator code generated in the `.c` file
+* `-l` show every time a module is loaded
 * `-XCPP` run `cpphs` on source files
 * `-Dxxx` passed to `cpphs`
+* `-Ixxx` passed to `cpphs`
 * `-tTARGET` select target
-* `-a` set package to empty
+* `-a` set package search path to empty
 * `-aDIR` prepend `DIR` to package search path
 * `-PPKG` create package `PKG`
 * `-LFILE` list all modules in a package
-* `-Q FILE DIR` install package
+* `-Q FILE [DIR]` install package
+*  `--` marks end of compiler arguments
 
 With the `-v` flag the processing time for each module is reported.
 E.g.
@@ -233,6 +236,30 @@ conf = "unix-64"
 
 You can add other targets to this file, changing which compiler command is used and which runtime is
 selected and then use the `-t` argument to select which target you would like.
+
+## Packages
+To avoid compiling everything from source all the time there is a notion of a precompiled package.
+A package is simply a set of modules that are compiled together and that can then be installed in
+a known place (typically `~/.mcabal/mhs-VERSION/packages/`).
+Packages can depend on already installed packages.
+
+There is a search path for installed packages, controlled by the `-a` flag.
+
+To compile a package use the command `mhs -Ppackage-name.pkg modules...` where `modules...`
+are all the modules you wish to expose from the package.  If other modules are needed they will
+automatically be included in the package.
+You typically also want to use the `-o` flag to give the package a sensible name.
+
+To install a package use the command `mhs -Q package-name.pkg [install-dir]`.
+If the `install-dir` is left out the package is installed in the default place.
+
+There is no need for any extra flags to `mhs` to use installed packages, they are all visible at all times.
+When compiling to a binary only the used parts of a package will be included in the binary.
+
+A (maybe) short-coming of the package system is that there can only be one version of a
+package installed at a time.  If you need multiple version, you have to use different directories for them
+and use `-a` to control it.  There is absolutely no checks for consistency among packages.
+There is also no compatibility between packages compiled with different versions of the compiler.
 
 ## Files
 There is a number of subdirectories:
