@@ -45,7 +45,7 @@ main = do
    _ -> do
     let dflags = (defaultFlags dir){ pkgPath = pkgPaths }
         (flags, mdls, rargs) = decodeArgs dflags [] args
-        pkgPaths | dir == dataDir && dir /= "." = [dataDir ++ "/../../.."]  -- This is a bit ugly
+        pkgPaths | dir == dataDir && dir /= "." = [dropTrailing 3 dataDir]  -- This is a bit ugly
                  | otherwise                    = []                        -- No package search path
     case listPkg flags of
       Just p -> mainListPkg flags p
@@ -63,7 +63,12 @@ main = do
                 _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-LPATH] [-PPKG] [-Q PKG] [-tTARGET] [ModuleName...]"
+usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-LPATH] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [ModuleName...]"
+
+-- Drop trailing '/foo'
+dropTrailing :: Int -> FilePath -> FilePath
+dropTrailing 0 s = s
+dropTrailing n s = dropTrailing (n-1) . reverse . drop 1 . dropWhile (/= '/') . reverse $ s
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
@@ -185,10 +190,10 @@ mainCompile flags mn = do
   let
     mainName = qualIdent rmn (mkIdent "main")
     cmdl = (mainName, allDefs)
-    outData = toStringCMdl cmdl
+    (numOutDefs, outData) = toStringCMdl cmdl
     numDefs = length allDefs
   when (verbosityGT flags 0) $
-    putStrLn $ "top level defns: " ++ show numDefs
+    putStrLn $ "top level defns:      " ++ padLeft 6 (show numOutDefs) ++ " (unpruned " ++ show numDefs ++ ")"
   when (verbosityGT flags 2) $
     mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") allDefs
   if runIt flags then do

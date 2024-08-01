@@ -15,7 +15,7 @@ import MicroHs.State
 combVersion :: String
 combVersion = "v7.0\n"
 
-toStringCMdl :: (Ident, [LDef]) -> String
+toStringCMdl :: (Ident, [LDef]) -> (Int, String)
 toStringCMdl (mainName, ds) =
   let
     dMap = M.fromList ds
@@ -49,7 +49,7 @@ toStringCMdl (mainName, ds) =
     def :: (String -> String) -> (Int, Exp) -> (String -> String)
     def r (i, e) =
       ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @\n") ++) . r . ("@" ++)
-  in combVersion ++ show ndefs ++ "\n" ++ res " }"
+  in (ndefs, combVersion ++ show ndefs ++ "\n" ++ res " }")
 
 -- Avoid quadratic concatenation by using difference lists,
 -- turning concatenation into function composition.

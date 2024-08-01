@@ -184,13 +184,13 @@ compileModule flags impt mn pathfn file = do
   let tParse = t2 - t1
       tTCDesug = t4 - t3
       tAbstract = t5 - t4
+      tThis = tParse + tTCDesug + tAbstract
       tImp = sum tImps
-      tTot = t5 - t1
 
   when (verbosityGT flags 4) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   when (verbosityGT flags 0) $
-    liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show (tParse + tTCDesug + tAbstract) ++
+    liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++
             "ms (" ++ show tParse ++ " + " ++ show tTCDesug ++ " + " ++ show tAbstract ++ ")"
   when (loading flags && mn /= mkIdent "Interactive" && not (verbosityGT flags 0)) $
     liftIO $ putStrLn $ "loaded " ++ showIdent mn
@@ -199,7 +199,7 @@ compileModule flags impt mn pathfn file = do
     ImpNormal -> modify $ workToDone (cmdl, map snd imported, chksum)
     ImpBoot   -> return ()
 
-  return (cmdl, syms, tTot + tImp)
+  return (cmdl, syms, tThis + tImp)
 
 addPreludeImport :: EModule -> EModule
 addPreludeImport (EModule mn es ds) =
@@ -339,8 +339,10 @@ packageSuffix = ".pkg"
 packageTxtSuffix :: String
 packageTxtSuffix = ".txt"
 
+-- Find the module mn in the package path, and return it's contents.
 findPkgModule :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Symbols, Time)
 findPkgModule flags mn = do
+  t0 <- liftIO getTimeMilli
   let fn = moduleToFile mn ++ packageTxtSuffix
   mres <- liftIO $ openFilePath (pkgPath flags) fn
   case mres of
@@ -348,11 +350,13 @@ findPkgModule flags mn = do
       -- liftIO $ putStrLn $ "findPkgModule " ++ pfn
       pkg <- liftIO $ hGetContents hdl  -- this closes the handle
       let dir = take (length pfn - length fn) pfn  -- directory where the file was found
-      loadPkg flags (dir ++ "/" ++ packageDir ++ "/" ++ pkg)
+      loadPkg flags (dir ++ packageDir ++ "/" ++ pkg)
       cash <- get
       case lookupCache mn cash of
         Nothing -> error $ "package does not contain module " ++ pkg ++ " " ++ showIdent mn
-        Just t -> return (t, noSymbols, 0)
+        Just t -> do
+          t1 <- liftIO getTimeMilli
+          return (t, noSymbols, t1 - t0)
     Nothing ->
       errorMessage (getSLoc mn) $
         "Module not found: " ++ show mn ++
