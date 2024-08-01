@@ -27,6 +27,7 @@ type IdentPackage = Ident
 data Package = Package {
   pkgName      :: IdentPackage,                    -- package name
   pkgVersion   :: Version,                         -- package version
+  pkgCompiler  :: String,                          -- compiler version that created the package
   pkgExported  :: [TModule [LDef]],                -- exported modules
   pkgOther     :: [TModule [LDef]],                -- non-exported modules
   pkgDepends   :: [(IdentPackage, Version)]        -- used packages

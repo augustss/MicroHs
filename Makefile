@@ -211,7 +211,7 @@ $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs
 	cp src/runtime/*.[ch] $(MRUNTIME)
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 	bin/mhs -P$(BASE) -o$(BASE).pkg -ilib $(BASEMODULES)
-	bin/mhs -Q -a -a$(MCABALMHS) $(BASE).pkg
+	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
 	@rm $(BASE).pkg
 
 installmcabal: bin/mhs $(MCABAL)/bin/mhs $(MCABALMHS)/packages/$(BASE).pkg

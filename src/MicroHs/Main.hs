@@ -5,11 +5,11 @@ module MicroHs.Main(main) where
 import Prelude
 import Data.Char
 import Data.List
+import Data.Version
 import Control.DeepSeq
 import Control.Monad
 import Control.Applicative
 import Data.Maybe
-import Data.Version
 import System.Environment
 import MicroHs.Compile
 import MicroHs.CompileCache
@@ -32,10 +32,7 @@ import System.IO.TimeMilli
 import Compat
 import MicroHs.Instances() -- for GHC
 import MicroHs.TargetConfig
-import Paths_MicroHs(version, getDataDir)
-
-mhsVersion :: String
-mhsVersion = showVersion version
+import Paths_MicroHs(getDataDir)
 
 main :: IO ()
 main = do
@@ -152,6 +149,7 @@ mainBuildPkg flags namever amns = do
       (exported, other) = partition ((`elem` mns) . tModuleName) mdls
       pkgDeps = map (\ p -> (pkgName p, pkgVersion p)) $ getPkgs cash
       pkg = Package { pkgName = mkIdent name, pkgVersion = ver
+                    , pkgCompiler = mhsVersion
                     , pkgExported = exported, pkgOther = other
                     , pkgDepends = pkgDeps }
   --print (map tModuleName $ pkgOther pkg)

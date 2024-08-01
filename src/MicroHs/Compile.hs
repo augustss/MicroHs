@@ -9,10 +9,12 @@ module MicroHs.Compile(
   Cache, emptyCache, deleteFromCache,
   moduleToFile,
   packageDir, packageSuffix, packageTxtSuffix,
+  mhsVersion,
   ) where
 import Prelude
 import Data.List
 import Data.Maybe
+import Data.Version
 import System.Directory
 import System.Environment
 import System.IO
@@ -37,6 +39,10 @@ import MicroHs.SymTab
 import MicroHs.TypeCheck
 import Compat
 import MicroHs.Instances() -- for ghc
+import Paths_MicroHs(version)
+
+mhsVersion :: String
+mhsVersion = showVersion version
 
 mhsCacheName :: FilePath
 mhsCacheName = ".mhscache"
@@ -358,6 +364,8 @@ loadPkg flags fn = do
   when (loading flags || verbosityGT flags 0) $
     liftIO $ putStrLn $ "Loading package " ++ fn
   pkg <- liftIO $ readSerialized fn
+  when (pkgCompiler pkg /= mhsVersion) $
+    error $ "Package compile version mismatch: package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
   modify $ addPackage pkg
 
 -- XXX add function to find&load package from package name
