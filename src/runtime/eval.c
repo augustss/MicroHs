@@ -3142,8 +3142,8 @@ execio(NODEPTR *np)
   NODEPTR top;
 
 /* IO operations need all arguments, anything else should not happen. */
-#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {printf("\nLINE=%d\n", __LINE__); ERR("CHECKIO");}; } while(0)
-  /* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
+#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*printf("\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
+/* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
 #define GCCHECKSAVE(p, n) do { PUSH(p); GCCHECK(n); (p) = TOP(0); POP(1); } while(0)
 #define RETIO(p) do { stack_ptr = stk; res = (p); goto rest; } while(0)
 #define IOASSERT(p,s) do { if (!(p)) ERR("IOASSERT " s); } while(0)
