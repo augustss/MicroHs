@@ -48,8 +48,8 @@ main = do
    _ -> do
     let dflags = (defaultFlags dir){ pkgPath = pkgPaths }
         (flags, mdls, rargs) = decodeArgs dflags [] args
-        pkgPaths | dir == dataDir && dir /= "." = [dataDir ++ "/../.."]  -- This is a bit ugly
-                 | otherwise                    = []                     -- No package search path
+        pkgPaths | dir == dataDir && dir /= "." = [dataDir ++ "/../../.."]  -- This is a bit ugly
+                 | otherwise                    = []                        -- No package search path
     case listPkg flags of
       Just p -> mainListPkg flags p
       Nothing ->
