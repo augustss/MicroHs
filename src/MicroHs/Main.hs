@@ -169,8 +169,10 @@ splitNameVer s =
 mainListPkg :: Flags -> FilePath -> IO ()
 mainListPkg _flags pkgfn = do
   pkg <- readSerialized pkgfn
-  let list = mapM_ (putStrLn . showIdent . tModuleName)
+  let list = mapM_ (putStrLn . ("  " ++) . showIdent . tModuleName)
+  putStrLn "exposed-modules:"
   list (pkgExported pkg)
+  putStrLn "other-modules:"
   list (pkgOther pkg)
 
 mainCompile :: Flags -> Ident -> IO ()

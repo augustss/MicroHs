@@ -1,6 +1,6 @@
 cabal-version:  3.0
 name:           libs
-version:        0.9.10.0
+version:        0.9.15.0
 license:        Apache
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net
@@ -8,29 +8,31 @@ synopsis:       Basic libraries
 category:       Prelude
 build-type:     Simple
 description:
-    This package contains the Standard Haskell "Prelude" and its support libraries,
-    and a large collection of useful libraries ranging from data
-    structures to parsing combinators and debugging utilities.
+    This package contains the Standard Haskell "Prelude" and its support libraries.
 
 library base
     exposed-modules:
         Control.Applicative
+        Control.Arrow
         Control.DeepSeq
         Control.Error
         Control.Exception
         Control.Monad
         Control.Monad.Fail
         Control.Monad.ST
+        Data.Array
         Data.Bits
         Data.Bool
         Data.Bounded
         Data.Char
         Data.Complex
         Data.Constraint
+        Data.Double
         Data.Dynamic
         Data.Either
         Data.Enum
         Data.Eq
+        Data.Float
         Data.FloatW
         Data.Floating
         Data.Foldable
@@ -42,12 +44,11 @@ library base
         Data.IOArray
         Data.IORef
         Data.Int
-        Data.Int.IntN
-        Data.Int.Instances
         Data.Integer
         Data.Integral
         Data.Ix
         Data.List
+        Data.List.NonEmpty
         Data.Maybe
         Data.Monoid
         Data.Num
@@ -58,14 +59,16 @@ library base
         Data.RealFloat
         Data.RealFrac
         Data.Records
-        Data.Semigroup
         Data.STRef
+        Data.Semigroup
         Data.String
+        Data.Time.Clock    -- XXX remove
+        Data.Time.Format   -- XXX remove
         Data.Traversable
         Data.Tuple
         Data.Type.Equality
-        Data.Typeable
         Data.TypeLits
+        Data.Typeable
         Data.Version
         Data.Void
         Data.Word
@@ -86,11 +89,15 @@ library base
         Numeric.Natural
         Prelude
         System.Cmd
+        System.Compress
         System.Directory
         System.Environment
         System.Exit
         System.IO
         System.IO.MD5
+        System.IO.PrintOrRun
+        System.IO.Serialize
+        System.IO.TimeMilli
         System.IO.Unsafe
         System.Info
         System.Process
@@ -99,6 +106,7 @@ library base
         Text.Read.Lex
         Text.Read.Numeric
         Text.Show
+        TimeCompat        -- XXX remove
         Unsafe.Coerce
 
     other-modules:
@@ -106,6 +114,8 @@ library base
         Control.Monad.ST_Type
         Data.Bool_Type
         Data.Char_Type
+        Data.Int.IntN
+        Data.Int.Instances
         Data.Integer_Type
         Data.Ordering_Type
         Data.List_Type
@@ -122,20 +132,6 @@ library base
 --    build-depends:
 --        base
 
---library simple-readline
---    hs-source-dirs: simple-readline
---    exposed-modules:
---        System.Console.SimpleReadline
---    build-depends:
---        base
-
---library pretty
---    exposed-modules:
---        Text.PrettyPrint.HughesPJ
---        Text.PrettyPrint.HughesPJClass
---    build-depends:
---        base
---
 --library mhs
 --    exposed-modules:
 --        System.IO.PrintOrRun
@@ -143,12 +139,3 @@ library base
 --        System.IO.TimeMilli
 --    build-depends:
 --        base
---
---library containers
---    exposed-modules:
---        Data.IntMap
---        Data.IntSet
---        Data.Map
---    build-depends:
---        base
---

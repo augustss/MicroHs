@@ -88,7 +88,7 @@ getPkgs :: Cache -> [Package]
 getPkgs = pkgs
 
 addPackage :: Package -> Cache -> Cache
-addPackage p c = c{ pkgs = p : pkgs c, cache = foldr ins (cache c) (pkgExported p) }
+addPackage p c = c{ pkgs = p : pkgs c, cache = foldr ins (cache c) (pkgExported p ++ pkgOther p) }
   where ins t = M.insert (tModuleName t) (PkgMdl t)
 
 saveCache :: FilePath -> Cache -> IO ()

@@ -14,12 +14,12 @@ import MicroHs.TypeCheck(TModule)
 -- serialized Package for each installed package.
 -- There is also a file for each exported module that contains just
 -- the package name.
--- So if we have a package foo, exporting modules Foo.Bar and Foo.baz
+-- So if we have a package foo.pkg, exporting modules Foo.Bar and Foo.Baz
 -- we would have the following directory structure
 --   packages/foo.pkg
 --   Foo/Bar.txt
 --   Foo/Baz.txt
--- The files Foo/Bar.txt and Foo/Baz.txt will contain simply "foo".
+-- The files Foo/Bar.txt and Foo/Baz.txt will contain simply "foo.pkg".
 -- 
 
 type IdentPackage = Ident
