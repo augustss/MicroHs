@@ -12,6 +12,7 @@ module MicroHs.Compile(
   mhsVersion,
   ) where
 import Prelude
+import Data.Char
 import Data.List
 import Data.Maybe
 import Data.Version
@@ -278,14 +279,28 @@ readModulePath flags suf mn | Just fn <- getFileName mn = do
     Nothing -> return Nothing
     Just (fn, h) -> readRest fn h
   where readRest fn h = do
+          hasCPP <- hasLangCPP fn
           file <-
-            if doCPP flags then do
+            if hasCPP || doCPP flags then do
               hClose h
               runCPPTmp flags fn
             else
               hGetContents h
           return (Just (fn, file))
 
+-- Check if the file contains {-# LANGUAGE ... CPP ... #-}
+-- XXX This is pretty hacky and not really correct.
+hasLangCPP :: FilePath -> IO Bool
+hasLangCPP fn = do
+  let scanFor _ [] = False
+      scanFor s ('{':'-':'#':cs) = scanFor' s cs
+      scanFor _ ('m':'o':'d':'u':'l':'e':_) = False
+      scanFor s (_:cs) = scanFor s cs
+      scanFor' _ [] = False
+      scanFor' s ('#':'-':'}':cs) = scanFor s cs
+      scanFor' s (' ':cs) | s `isPrefixOf` cs = True
+      scanFor' s (_:cs) = scanFor' s cs
+  scanFor "cpp" . map toLower <$> readFile fn
 
 moduleToFile :: IdentModule -> FilePath
 moduleToFile mn = map (\ c -> if c == '.' then '/' else c) (unIdent mn)
@@ -328,8 +343,8 @@ runCPP flags infile outfile = do
   let cpphs = fromMaybe "cpphs" mcpphs
       args = mhsDefines ++ cppArgs flags
       cmd = cpphs ++ " --noline --strip " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
-  when (verbosityGT flags 0) $
-    putStrLn $ "Execute: " ++ show cmd
+  when (verbosityGT flags 1) $
+    putStrLn $ "Run cpphs: " ++ show cmd
   callCommand cmd
 
 packageDir :: String

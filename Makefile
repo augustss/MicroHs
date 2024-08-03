@@ -107,7 +107,7 @@ cpphssrc/malcolm-wallace-universe:
 # Use this cpphs for bootstrapping
 USECPPHS=bin/cpphs
 
-bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe #bin/cpphs
+bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe $(USECPPHS)
 	MHSCPPHS=$(USECPPHS) bin/mhs -z -XCPP -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
 # Run test examples with ghc-compiled compiler
@@ -219,3 +219,5 @@ $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs
 	@rm $(BASE).pkg
 
 installmcabal: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
+
+# mkdir ~/.mcabal/packages/array-0.5.6.0
