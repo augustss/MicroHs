@@ -68,3 +68,6 @@ findCommonPrefix ((x:xs) : ys) | Just ys' <- mapM (f x) ys = x : findCommonPrefi
                                | otherwise = []
   where f a (b:bs) | a == b = Just bs
         f _ _ = Nothing
+
+dropEnd :: Int -> [a] -> [a]
+dropEnd n = reverse . drop n . reverse
