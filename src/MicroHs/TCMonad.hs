@@ -74,7 +74,7 @@ type InstDict   = (Expr, [EConstraint], [EType])
 -- All known type equalities, contains the transitive&commutative closure.
 type TypeEqTable = [(EType, EType)]
 
-type ClassInfo = ([IdKind], [EConstraint], EType, [Ident], [IFunDep])  -- class tyvars, superclasses, class kind, methods, fundeps
+type ClassInfo = ([IdKind], [EConstraint], EKind, [Ident], [IFunDep])  -- class tyvars, superclasses, class kind, methods, fundeps
 type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables
 
 -----------------------------------------------
