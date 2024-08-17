@@ -82,7 +82,7 @@ import Data.Tuple(()(..), fst, snd)
 import Data.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                  FilePath, readFile, writeFile, appendFile,
-                 cprint)
+                 cprint, cuprint)
 import Text.Read(ReadS, Read(..), read, reads, readParen, lex)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Primitives(_wordSize, _isWindows)
