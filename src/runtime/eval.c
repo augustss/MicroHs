@@ -1876,9 +1876,11 @@ print_string(BFILE *f, struct ustring *p)
   putb('"', f);
 }
 
-/* Recursively print an expression.
-   This assumes that the shared nodes has been marked as such.
-*/
+/*
+ * Recursively print an expression.
+ * This assumes that the shared nodes has been marked as such.
+ * The prefix flag is used to get a readable dump.
+ */
 void
 printrec(BFILE *f, NODEPTR n, int prefix)
 {
@@ -1949,14 +1951,21 @@ printrec(BFILE *f, NODEPTR n, int prefix)
     }
     break;
   case T_PTR:
-    if (PTR(n) == stdin)
-      putsb("IO.stdin", f);
-    else if (PTR(n) == stdout)
-      putsb("IO.stdout", f);
-    else if (PTR(n) == stderr)
-      putsb("IO.stderr", f);
-    else
-      ERR("Cannot serialize pointers");
+    if (prefix) {
+      putsb("PTR", f);
+    } else {
+#if 0
+      /* This doesn't work very well, since handles are allocated with malloc. */
+      if (PTR(n) == stdin)
+        putsb("IO.stdin", f);
+      else if (PTR(n) == stdout)
+        putsb("IO.stdout", f);
+      else if (PTR(n) == stderr)
+        putsb("IO.stderr", f);
+      else
+#endif
+        ERR("Cannot serialize pointers");
+    }
     break;
   case T_FUNPTR:
       ERR("Cannot serialize function pointers");
