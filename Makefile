@@ -190,7 +190,7 @@ emscripten: bin/mhs targets.conf
 
 ######
 
-VERSION=0.9.15.0
+VERSION=0.9.16.0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/data/mhs-$(VERSION)/data
