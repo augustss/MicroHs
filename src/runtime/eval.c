@@ -1758,8 +1758,10 @@ counter_t num_shared;
  * 1, 1   -- visited more than once
  * 0, 1   -- printed
  */
-bits_t *marked_bits;
-bits_t *shared_bits;
+struct print_bits {
+  bits_t *marked_bits;
+  bits_t *shared_bits;
+};
 static INLINE void set_bit(bits_t *bits, NODEPTR n)
 {
   heapoffs_t i = LABEL(n);
@@ -1815,11 +1817,11 @@ putdblb(flt_t x, BFILE *p)
   putsb(str, p);
 }
 
-void printrec(BFILE *f, NODEPTR n, int prefix);
+void printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix);
 
 /* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
 void
-find_sharing(NODEPTR n)
+find_sharing(struct print_bits *pb, NODEPTR n)
 {
  top:
   while (GETTAG(n) == T_IND) {
@@ -1829,26 +1831,26 @@ find_sharing(NODEPTR n)
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   tag_t tag = GETTAG(n);
   if (tag == T_AP || tag == T_ARR) {
-    if (test_bit(shared_bits, n)) {
+    if (test_bit(pb->shared_bits, n)) {
       /* Alread marked as shared */
       //PRINT("shared\n");
       ;
-    } else if (test_bit(marked_bits, n)) {
+    } else if (test_bit(pb->marked_bits, n)) {
       /* Already marked, so now mark as shared */
       //PRINT("marked\n");
-      set_bit(shared_bits, n);
+      set_bit(pb->shared_bits, n);
       num_shared++;
     } else {
       /* Mark as visited, and recurse */
       //PRINT("unmarked\n");
-      set_bit(marked_bits, n);
+      set_bit(pb->marked_bits, n);
       if (tag == T_AP) {
-        find_sharing(FUN(n));
+        find_sharing(pb, FUN(n));
         n = ARG(n);
         goto top;
       } else {
         for(size_t i = 0; i < ARR(n)->size; i++) {
-          find_sharing(ARR(n)->array[i]);
+          find_sharing(pb, ARR(n)->array[i]);
         }
       }
     }
@@ -1882,7 +1884,7 @@ print_string(BFILE *f, struct ustring *p)
  * The prefix flag is used to get a readable dump.
  */
 void
-printrec(BFILE *f, NODEPTR n, int prefix)
+printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 {
   int share = 0;
 
@@ -1891,9 +1893,9 @@ printrec(BFILE *f, NODEPTR n, int prefix)
     n = INDIR(n);
   }
 
-  if (test_bit(shared_bits, n)) {
+  if (test_bit(pb->shared_bits, n)) {
     /* The node is shared */
-    if (test_bit(marked_bits, n)) {
+    if (test_bit(pb->marked_bits, n)) {
       /* Not yet printed, so emit a label */
       if (prefix) {
         putb(':', f);
@@ -1902,7 +1904,7 @@ printrec(BFILE *f, NODEPTR n, int prefix)
       } else {
         share = 1;
       }
-      clear_bit(marked_bits, n);  /* mark as printed */
+      clear_bit(pb->marked_bits, n);  /* mark as printed */
     } else {
       /* This node has already been printed, so just use a reference. */
       putb('_', f);
@@ -1918,13 +1920,13 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_AP:
     if (prefix) {
       putb('(', f);
-      printrec(f, FUN(n), prefix);
+      printrec(f, pb, FUN(n), prefix);
       putb(' ', f);
-      printrec(f, ARG(n), prefix);
+      printrec(f, pb, ARG(n), prefix);
       putb(')', f);
     } else {
-      printrec(f, FUN(n), prefix);
-      printrec(f, ARG(n), prefix);
+      printrec(f, pb, FUN(n), prefix);
+      printrec(f, pb, ARG(n), prefix);
       putb('@', f);
     }
     break;
@@ -1938,12 +1940,12 @@ printrec(BFILE *f, NODEPTR n, int prefix)
       putb(']', f);
       for(size_t i = 0; i < ARR(n)->size; i++) {
         putb(' ', f);
-        printrec(f, ARR(n)->array[i], prefix);
+        printrec(f, pb, ARR(n)->array[i], prefix);
       }
     } else {
       /* Arrays serialize as 'e_1 ... e_sz [sz]' */
       for(size_t i = 0; i < ARR(n)->size; i++) {
-        printrec(f, ARR(n)->array[i], prefix);
+        printrec(f, pb, ARR(n)->array[i], prefix);
       }
       putb('[', f);
       putdecb((value_t)ARR(n)->size, f);
@@ -2094,25 +2096,26 @@ printrec(BFILE *f, NODEPTR n, int prefix)
 void
 printb(BFILE *f, NODEPTR n, int header)
 {
+  struct print_bits pb;
   num_shared = 0;
-  marked_bits = calloc(free_map_nwords, sizeof(bits_t));
-  if (!marked_bits)
+  pb.marked_bits = calloc(free_map_nwords, sizeof(bits_t));
+  if (!pb.marked_bits)
     memerr();
-  shared_bits = calloc(free_map_nwords, sizeof(bits_t));
-  if (!shared_bits)
+  pb.shared_bits = calloc(free_map_nwords, sizeof(bits_t));
+  if (!pb.shared_bits)
     memerr();
-  find_sharing(n);
+  find_sharing(&pb, n);
   if (header) {
     putsb(VERSION, f);
     putdecb(num_shared, f);
     putb('\n', f);
   }
-  printrec(f, n, !header);
+  printrec(f, &pb, n, !header);
   if (header) {
     putb('}', f);
   }
-  FREE(marked_bits);
-  FREE(shared_bits);
+  FREE(pb.marked_bits);
+  FREE(pb.shared_bits);
 }
 
 /* Show a graph. */
