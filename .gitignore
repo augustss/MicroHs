@@ -13,7 +13,6 @@ dist-newstyle/
 dist/
 .mhsi
 Interactive.hs
-generated/*
 .mhscache
 *.js
 *.wasm

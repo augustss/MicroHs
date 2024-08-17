@@ -168,7 +168,7 @@ typeCheck impt aimps (EModule mn exps defs) =
   in case tcRun (tcDefs impt defs) (initTC mn fs ts ss cs is vs as) of
        (tds, tcs) ->
          let
-           thisMdl = (mn, mkTModule tds tcs)
+           thisMdl = (mn, mkTModule impt tds tcs)
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ _ m mm _, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
            (texps, cexps, vexps) =
@@ -273,8 +273,8 @@ getApp t = fromMaybe (impossibleShow t) $ getAppM t
 -- Construct a dummy TModule for the currently compiled module.
 -- It has all the relevant export tables.
 -- The value&type export tables will later be filtered through the export list.
-mkTModule :: forall a . [EDef] -> TCState -> TModule a
-mkTModule tds tcs =
+mkTModule :: forall a . HasCallStack => ImpType -> [EDef] -> TCState -> TModule a
+mkTModule impt tds tcs =
   let
     mn = moduleName tcs
     tt = typeTable  tcs
@@ -291,7 +291,9 @@ mkTModule tds tcs =
           -- error $ show (qualIdent mn i, M.toList tt)
           
     -- Find all value Entry for names associated with a type.
-    assoc i = getAssocs vt at (qualIdent mn i)
+    assoc i = case impt of
+                ImpBoot -> []  -- XXX For boot files the tables are not set up correctly.
+                _ -> getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
     ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign is ts <- tds, i <- is ]
@@ -318,7 +320,7 @@ mkTModule tds tcs =
   in  TModule mn fes tes ses ces ies ves impossible
 
 -- Find all value Entry for names associated with a type.
-getAssocs :: ValueTable -> AssocTable -> Ident -> [ValueExport]
+getAssocs :: (HasCallStack) => ValueTable -> AssocTable -> Ident -> [ValueExport]
 getAssocs vt at ai =
   let qis = fromMaybe [] $ M.lookup ai at
       val qi = case stLookup "" qi vt of
@@ -336,12 +338,18 @@ mkTables mdls =
         usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _ ves _) =
           if qual then [] else
           [ (i, [e]) | ValueExport i e    <- ves, not (isInstId i)  ] ++
-          [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs ]
+          [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, not (isDefaultMethodId i) ]
         qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ cls _ ves _) =
           let m = fromMaybe mn mas in
-          [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent m i } ] ++
-          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdent m i } ] ++
+          [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent    m i } ] ++
+          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdentD e m i } ] ++
           [ (v, [Entry (EVar v) t]) | (i, (_, _, t, _, _)) <- cls, let { v = mkClassConstructor i } ]
+        -- Default methods are always entered with their qualified original name.
+        qualIdentD (Entry e _) m i | not (isDefaultMethodId i) = qualIdent m i
+                                   | otherwise = 
+                                     case e of
+                                       EVar qi -> qi
+                                       _ -> undefined
       in  stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
     allSyns =
       let
@@ -1219,8 +1227,9 @@ expandInst dinst@(Instance act bs) = do
       Just x -> return x
   -- XXX this ignores type signatures and other bindings
   -- XXX should tack on signatures with ESign
-  let ies = [(i, ELam qs) | BFcn i qs <- bs]
-      meth i = fromMaybe (ELam $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId i) $ lookup i ies
+  let clsMdl = qualOf qiCls                   -- get class's module name
+      ies = [(i, ELam qs) | BFcn i qs <- bs]
+      meth i = fromMaybe (ELam $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
