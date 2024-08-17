@@ -30,12 +30,6 @@ flip f a b = f b a
 fix :: forall a . (a -> a) -> a
 fix = primFix
 
-curry :: forall a b c . ((a, b) -> c) -> (a -> b -> c)
-curry f a b = f (a, b)
-
-uncurry :: forall a b c . (a -> b -> c) -> ((a, b) -> c)
-uncurry f (a, b) = f a b  -- XXX not lazy
-
 infixl 0 `on`
 on :: forall a b c . (a -> a -> b) -> (c -> a) -> (c -> c -> b)
 on op sel x y = op (sel x) (sel y)
@@ -50,3 +44,11 @@ until :: forall a . (a -> Bool) -> (a -> a) -> a -> a
 until p f = rec
   where
     rec x = if p x then x else rec (f x)
+
+infixl 1 &
+(&) :: forall a b . a -> (a -> b) -> b
+(&) x f = f x
+
+applyWhen :: forall a . Bool -> (a -> a) -> a -> a
+applyWhen True  f x = f x
+applyWhen False _ x = x

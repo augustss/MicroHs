@@ -23,11 +23,23 @@ import Text.Show
 data Solo a = MkSolo a
   deriving (Eq, Ord)
 
+getSolo :: Solo a -> a
+getSolo (MkSolo a) = a
+
 fst :: forall a b . (a, b) -> a
 fst (a, _) = a
 
 snd :: forall a b . (a, b) -> b
 snd (_, b) = b
+
+curry :: forall a b c . ((a, b) -> c) -> (a -> b -> c)
+curry f a b = f (a, b)
+
+uncurry :: forall a b c . (a -> b -> c) -> ((a, b) -> c)
+uncurry f (a, b) = f a b  -- XXX not lazy
+
+swap :: forall a b . (a, b) -> (b, a)
+swap (a, b) = (b, a)
 
 -----------------------------------
 
