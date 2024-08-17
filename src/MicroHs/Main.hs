@@ -257,7 +257,10 @@ mainInstallPackage flags [pkgfn, dir] = do
         createDirectoryIfMissing True d
         writeFile fn pkgout
   mapM_ mk (pkgExported pkg)
-mainInstallPackage flags [pkgfn] = mainInstallPackage flags [pkgfn, head (pkgPath flags)]
+mainInstallPackage flags [pkgfn] =
+  case pkgPath flags of
+    [] -> error $ "pkgPath is empty"
+    first:_ -> mainInstallPackage flags [pkgfn, first]
 mainInstallPackage _ _ = error usage
 
 -----------------
