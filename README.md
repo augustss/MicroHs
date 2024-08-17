@@ -55,6 +55,7 @@ Differences:
    * FunctionalDependencies
    * GADTs
    * GADTsyntax
+   * ImportQualifiedPost
    * IncoherentInstances
    * KindSignatures
    * MonoLocalBinds
