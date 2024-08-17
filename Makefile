@@ -213,11 +213,11 @@ $(MCABALBIN)/cpphs: bin/cpphs
 $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs
 	@mkdir -p $(MRUNTIME)
 	cp src/runtime/*.[ch] $(MRUNTIME)
-	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 	bin/mhs -P$(BASE) -o$(BASE).pkg -ilib $(BASEMODULES)
 	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
 	@rm $(BASE).pkg
 
 installmcabal: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
+	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 # mkdir ~/.mcabal/packages/array-0.5.6.0

@@ -21,3 +21,4 @@ generated/*
 .hpc/*
 *.pkg
 targets.conf
+*.bak

@@ -5,8 +5,8 @@ module Paths_MicroHs(
   ) where
 import Data.Version
 
-version :: Version
-version = makeVersion [0,9,15,0]
-
 getDataDir :: IO FilePath
 getDataDir = return "."
+
+version :: Version
+version = makeVersion [0,9,15,0]
