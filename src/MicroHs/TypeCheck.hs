@@ -844,10 +844,15 @@ tInst ae (EForall vks t) = do
   t' <- tInstForall vks t
   tInst ae t'
 tInst ae at | Just (ctx, t) <- getImplies at = do
-  d <- newDictIdent (getSLoc ae)
   --traceM $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
-  addConstraint d ctx
-  tInst (EApp ae (EVar d)) t
+  if eqExpr ae eCannotHappen then
+    -- XXX Gruesome hack.  This avoid adding constraints in cases like
+    --  (C a => a) -> T `subsCheck` b
+    tInst ae t
+   else do
+    d <- newDictIdent (getSLoc ae)
+    addConstraint d ctx
+    tInst (EApp ae (EVar d)) t
 tInst ae at = return (ae, at)
 
 tInstForall :: [IdKind] -> EType -> T EType
