@@ -318,7 +318,7 @@ pDef =
   <|< ForImp       <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> eoptional pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix        <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
-  <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pClsBind
+  <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
   <|< Default      <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
   <|< KindSign     <$> (pKeyword "type"    *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
   where
@@ -729,6 +729,12 @@ pClsBind :: P EBind
 pClsBind = 
       uncurry BFcn <$> pEqns
   <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pType
+  <|< BDfltSign    <$> (pKeyword "default" *> pLIdentSym <* pSymbol "::") <*> pType
+
+pInstBind :: P EBind
+pInstBind = 
+      uncurry BFcn <$> pEqns
+-- no InstanceSig yet  <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pType
 
 -------------
 

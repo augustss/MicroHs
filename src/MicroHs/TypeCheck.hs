@@ -1081,6 +1081,7 @@ tcDefType def = do
     _                      -> return def
  where
    tcMethod (BSign i t) = BSign i <$> tCheckTypeTImpl kType t
+   tcMethod (BDfltSign i t) = BDfltSign i <$> tCheckTypeTImpl kType t
    tcMethod m = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
@@ -1162,9 +1163,11 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
       meths = [ b | b@(BSign _ _) <- ms ]
       methIds = map (\ (BSign i _) -> i) meths
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
+      dflttys = [ (i, t) | BDfltSign i t <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
-      mkDflt (BSign methId t) = [ Sign [iDflt] $ EForall vks $ tCtx `tImplies` t, def $ lookup methId mdflts ]
-        where def Nothing = Fcn iDflt $ simpleEqn noDflt
+      mkDflt (BSign methId t) = [ Sign [iDflt] $ EForall vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
+        where ty = fromMaybe t $ lookup methId dflttys
+              def Nothing = Fcn iDflt $ simpleEqn noDflt
               def (Just eqns) = Fcn iDflt eqns
               iDflt = mkDefaultMethodId methId
               -- XXX This isn't right, "Prelude._nodefault" might not be in scope
@@ -2217,6 +2220,7 @@ tcBind abind =
       ea <- tCheckExprAndSolve tp a
       return $ BPat ep ea
     BSign _ _ -> return abind
+    BDfltSign _ _ -> return abind
 
 -- Desugar [T] and (T,T,...)
 dsType :: EType -> EType
