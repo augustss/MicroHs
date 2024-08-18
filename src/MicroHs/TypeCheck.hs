@@ -1319,6 +1319,11 @@ addValueType :: EDef -> T ()
 addValueType adef = do
   mn <- gets moduleName
   -- traceM ("addValueType: " ++ showEDefs [adef])
+  let addConFields _     (Constr _ _ _ (Left _)) = return ()
+      addConFields tycon (Constr _ _ _ (Right fs)) = mapM_ addField fs
+        where addField (fld, _) = do
+                (fe, fty) <- tLookup "???" $ mkGetName tycon fld
+                extValETop fld fty fe
   case adef of
     Sign is t -> mapM_ (\ i -> extValQTop i t) is
     Data (tycon, vks) cs _ -> do
@@ -1330,19 +1335,15 @@ addValueType adef = do
               cty = EForall vks $ EForall evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
               fs = either (const []) (map fst) ets
           extValETop c cty (ECon $ ConData cti (qualIdent mn c) fs)
-        addConFields (Constr _ _ _ (Left _)) = return ()
-        addConFields (Constr _ _ _ (Right fs)) = mapM_ addField fs
-          where addField (fld, _) = do
-                  (fe, fty) <- tLookup "???" $ mkGetName tycon fld
-                  extValETop fld fty fe
       mapM_ addCon cs
-      mapM_ addConFields cs
-    Newtype (i, vks) (Constr _ _ c ets) _ -> do
+      mapM_ (addConFields tycon) cs
+    Newtype (tycon, vks) con@(Constr _ _ c ets) _ -> do
       let
         t = snd $ head $ either id (map snd) ets
-        tret = tApps (qualIdent mn i) (map tVarK vks)
+        tret = tApps (qualIdent mn tycon) (map tVarK vks)
         fs = either (const []) (map fst) ets
       extValETop c (EForall vks $ EForall [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
+      addConFields tycon con
     ForImp _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     _ -> return ()
