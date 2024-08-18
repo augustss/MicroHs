@@ -4,6 +4,7 @@ module Data.Maybe(module Data.Maybe, module Data.Maybe_Type) where
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
+import Control.Error
 import Control.Monad
 import Control.Monad.Fail
 import Data.Bool
@@ -76,6 +77,10 @@ maybe _ f (Just a) = f a
 fromMaybe :: forall a . a -> Maybe a -> a
 fromMaybe a Nothing = a
 fromMaybe _ (Just a) = a
+
+fromJust :: forall a . Maybe a -> a
+fromJust Nothing = error "fromJust: Nothing"
+fromJust (Just a) = a
 
 catMaybes :: forall a . [Maybe a] -> [a]
 catMaybes mxs = [ x | Just x <- mxs ]
