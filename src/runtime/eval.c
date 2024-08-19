@@ -3492,7 +3492,7 @@ MAIN
       } else {
         if (strcmp(p, "-v") == 0)
           verbose++;
-#if WANT_TICKS
+#if WANT_TICK
         else if (strcmp(p, "-T") == 0)
           dump_ticks = 1;
 #endif
@@ -3507,7 +3507,7 @@ MAIN
           outname = &p[2];
 #endif  /* WANT_STDIO */
         else
-          ERR("Usage: eval [+RTS [-v] [-Hheap-size] [-Kstack-size] [-rFILE] [-oFILE] -RTS] arg ...");
+          ERR("Usage: eval [+RTS [-v] [-T] [-Hheap-size] [-Kstack-size] [-rFILE] [-oFILE] -RTS] arg ...");
       }
     } else {
       if (strcmp(p, "+RTS") == 0) {
