@@ -592,6 +592,7 @@ NODEPTR combLT, combEQ, combGT;
 NODEPTR combShowExn, combU, combK2;
 NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
+NODEPTR comb_stdin, comb_stdout, comb_stderr;
 
 /* One node of each kind for primitives, these are never GCd. */
 /* We use linear search in this, because almost all lookups
@@ -759,9 +760,9 @@ init_nodes(void)
     case T_BINDBL2: combBINDBL2 = n; break;
     case T_UNDBL1: combUNDBL1 = n; break;
 #if WANT_STDIO
-    case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
-    case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
-    case T_IO_STDERR: SETTAG(n, T_PTR); PTR(n) = stderr; break;
+    case T_IO_STDIN:  comb_stdin  = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdin));  break;
+    case T_IO_STDOUT: comb_stdout = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdout)); break;
+    case T_IO_STDERR: comb_stderr = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stderr)); break;
 #endif  /* WANT_STDIO */
     default:
       break;
@@ -791,9 +792,9 @@ init_nodes(void)
     case T_BINDBL2: combBINDBL2 = n; break;
     case T_UNDBL1: combUNDBL1 = n; break;
 #if WANT_STDIO
-    case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
-    case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
-    case T_IO_STDERR: SETTAG(n, T_PTR); PTR(n) = stderr; break;
+    case T_IO_STDIN:  comb_stdin  = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdin));  break;
+    case T_IO_STDOUT: comb_stdout = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdout)); break;
+    case T_IO_STDERR: comb_stderr = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stderr)); break;
 #endif
     default:
       break;
@@ -1953,20 +1954,19 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     }
     break;
   case T_PTR:
-    if (prefix) {
-      putsb("PTR", f);
-    } else {
-#if 0
-      /* This doesn't work very well, since handles are allocated with malloc. */
-      if (PTR(n) == stdin)
-        putsb("IO.stdin", f);
-      else if (PTR(n) == stdout)
-        putsb("IO.stdout", f);
-      else if (PTR(n) == stderr)
-        putsb("IO.stderr", f);
-      else
-#endif
+    if (n == comb_stdin)
+      putsb("IO.stdin", f);
+    else if (n == comb_stdout)
+      putsb("IO.stdout", f);
+    else if (n == comb_stderr)
+      putsb("IO.stderr", f);
+    else {
+      if (prefix) {
+        char b[200]; sprintf(b,"PTR<%p>",PTR(n));
+        putsb(b, f);
+      } else {
         ERR("Cannot serialize pointers");
+      }
     }
     break;
   case T_FUNPTR:
