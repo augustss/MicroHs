@@ -44,6 +44,7 @@ Differences:
  * Always enabled extension:
    * BangPatterns
    * ConstraintKinds
+   * DefaultSignatures
    * DoAndIfThenElse
    * DuplicateRecordFields
    * EmptyDataDecls
@@ -55,6 +56,7 @@ Differences:
    * FunctionalDependencies
    * GADTs
    * GADTsyntax
+   * ImportQualifiedPost
    * IncoherentInstances
    * KindSignatures
    * MonoLocalBinds

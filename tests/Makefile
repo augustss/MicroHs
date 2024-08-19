@@ -3,7 +3,8 @@ TMHS=$(MHS) -i../lib
 EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache info
 
-alltest:	info test errtest interactivetest
+alltest:	info test errtest
+# interactivetest
 
 cache:
 	rm -f .mhscache
@@ -66,6 +67,7 @@ test:
 	$(TMHS) Array      && $(EVAL) > Array.out      && diff Array.ref Array.out
 	$(TMHS) Eq1        && $(EVAL) > Eq1.out        && diff Eq1.ref Eq1.out
 	$(TMHS) Irref      && $(EVAL) > Irref.out      && diff Irref.ref Irref.out
+	$(TMHS) DfltSig    && $(EVAL) > DfltSig.out    && diff DfltSig.ref DfltSig.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

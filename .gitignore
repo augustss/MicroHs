@@ -13,7 +13,6 @@ dist-newstyle/
 dist/
 .mhsi
 Interactive.hs
-generated/*
 .mhscache
 *.js
 *.wasm
@@ -21,3 +20,4 @@ generated/*
 .hpc/*
 *.pkg
 targets.conf
+*.bak

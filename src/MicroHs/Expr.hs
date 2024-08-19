@@ -81,7 +81,7 @@ data EDef
   | ForImp (Maybe String) Ident EType
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
-  | Instance EConstraint [EBind]  -- no deriving yet
+  | Instance EConstraint [EBind]
   | Default [EType]
 --DEBUG  deriving (Show)
 
@@ -209,7 +209,11 @@ type ECaseArm = (EPat, EAlts)
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
 --DEBUG  deriving (Show)
 
-data EBind = BFcn Ident [Eqn] | BPat EPat Expr | BSign Ident EType
+data EBind
+  = BFcn Ident [Eqn]
+  | BPat EPat Expr
+  | BSign Ident EType
+  | BDfltSign Ident EType     -- only in class declarations
 --DEBUG  deriving (Show)
 
 -- A single equation for a function
@@ -381,6 +385,7 @@ instance HasLoc EBind where
   getSLoc (BFcn i _) = getSLoc i
   getSLoc (BPat p _) = getSLoc p
   getSLoc (BSign i _) = getSLoc i
+  getSLoc (BDfltSign i _) = getSLoc i
 
 instance HasLoc Eqn where
   getSLoc (Eqn [] a) = getSLoc a
@@ -454,6 +459,7 @@ allVarsBind' abind =
     BFcn i eqns -> (i:) . composeMap allVarsEqn eqns
     BPat p e -> allVarsPat p . allVarsExpr' e
     BSign i _ -> (i:)
+    BDfltSign i _ -> (i:)
 
 allVarsEqns :: [Eqn] -> [Ident]
 allVarsEqns eqns = composeMap allVarsEqn eqns []
@@ -771,6 +777,7 @@ ppEBind ab =
     BFcn i eqns -> ppEDef (Fcn i eqns)
     BPat p e -> ppEPat p <+> text "=" <+> ppExpr e
     BSign i t -> ppIdent i <+> text "::" <+> ppEType t
+    BDfltSign i t -> text "default" <+> ppEBind (BSign i t)
 
 ppCaseArm :: ECaseArm -> Doc
 ppCaseArm arm =
@@ -795,6 +802,7 @@ getBindVars abind =
     BFcn i _  -> [i]
     BPat p _  -> patVars p
     BSign _ _ -> []
+    BDfltSign _ _ -> []
 
 getBindsVars :: [EBind] -> [Ident]
 getBindsVars = concatMap getBindVars

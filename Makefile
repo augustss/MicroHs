@@ -107,7 +107,7 @@ cpphssrc/malcolm-wallace-universe:
 # Use this cpphs for bootstrapping
 USECPPHS=bin/cpphs
 
-bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe #bin/cpphs
+bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe $(USECPPHS)
 	MHSCPPHS=$(USECPPHS) bin/mhs -z -XCPP -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
 # Run test examples with ghc-compiled compiler
@@ -190,7 +190,7 @@ emscripten: bin/mhs targets.conf
 
 ######
 
-VERSION=0.9.15.0
+VERSION=0.9.16.0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/data/mhs-$(VERSION)/data
@@ -213,9 +213,11 @@ $(MCABALBIN)/cpphs: bin/cpphs
 $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs
 	@mkdir -p $(MRUNTIME)
 	cp src/runtime/*.[ch] $(MRUNTIME)
-	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 	bin/mhs -P$(BASE) -o$(BASE).pkg -ilib $(BASEMODULES)
 	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
 	@rm $(BASE).pkg
 
 installmcabal: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
+	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
+
+# mkdir ~/.mcabal/packages/array-0.5.6.0

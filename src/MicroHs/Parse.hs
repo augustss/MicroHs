@@ -318,7 +318,7 @@ pDef =
   <|< ForImp       <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> eoptional pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix        <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
-  <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pClsBind
+  <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
   <|< Default      <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
   <|< KindSign     <$> (pKeyword "type"    *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
   where
@@ -415,10 +415,14 @@ pLHS = (,) <$> pTypeIdentSym <*> emany pIdKind
 pImportSpec :: P ImportSpec
 pImportSpec =
   let
-    pQua = (True <$ pKeyword "qualified") <|< pure False
     pSource = (ImpBoot <$ pPragma "SOURCE") <|< pure ImpNormal
-  in  ImportSpec <$> pSource <*> pQua <*> pUQIdentA <*> eoptional (pKeyword "as" *> pUQIdent) <*>
-        eoptional ((,) <$> ((True <$ pKeyword "hiding") <|> pure False) <*> pParens (esepEndBy pImportItem (pSpec ',')))
+    pQual = True <$ pKeyword "qualified"
+    -- the 'qualified' can occur before or after the module name
+    pQId =      ((,) <$> pQual <*> pUQIdentA)
+            <|< ((\ a b -> (b,a)) <$> pUQIdentA <*> (pQual <|> pure False))
+    imp a (b, c) = ImportSpec a b c
+  in  imp <$> pSource <*> pQId <*> eoptional (pKeyword "as" *> pUQIdent) <*>
+              eoptional ((,) <$> ((True <$ pKeyword "hiding") <|< pure False) <*> pParens (esepEndBy pImportItem (pSpec ',')))
 
 pImportItem :: P ImportItem
 pImportItem =
@@ -725,6 +729,12 @@ pClsBind :: P EBind
 pClsBind = 
       uncurry BFcn <$> pEqns
   <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pType
+  <|< BDfltSign    <$> (pKeyword "default" *> pLIdentSym <* pSymbol "::") <*> pType
+
+pInstBind :: P EBind
+pInstBind = 
+      uncurry BFcn <$> pEqns
+-- no InstanceSig yet  <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pType
 
 -------------
 

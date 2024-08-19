@@ -53,29 +53,14 @@ data FILE
 
 primHPrint       :: forall a . Ptr BFILE -> a -> IO ()
 primHPrint        = primitive "IO.print"
-primStdin        :: Ptr FILE
+primStdin        :: Ptr BFILE
 primStdin         = primitive "IO.stdin"
-primStdout       :: Ptr FILE
+primStdout       :: Ptr BFILE
 primStdout        = primitive "IO.stdout"
-primStderr       :: Ptr FILE
+primStderr       :: Ptr BFILE
 primStderr        = primitive "IO.stderr"
 
-{- This works, but assumes we have stdio
-foreign import ccall "stdio.h &stdout" c_stdout :: IO (Ptr (Ptr FILE))
-foreign import ccall "peekPtr" c_peekPtr :: Ptr (Ptr FILE) -> IO (Ptr FILE)
-primStdout :: Ptr FILE
-primStdout = primPerformIO (c_stdout `primBind` c_peekPtr)
--}
-
 foreign import ccall "fopen"        c_fopen        :: CString -> CString -> IO (Ptr FILE)
-{-
-foreign import ccall "fclose"       c_fclose       :: Handle             -> IO Int
-foreign import ccall "fflush"       c_fflush       :: Handle             -> IO Int
-foreign import ccall "fgetc"        c_fgetc        :: Handle             -> IO Int
-foreign import ccall "fputc"        c_fputc        :: Int ->     Handle  -> IO Int
--- foreign import ccall "fwrite"       c_fwrite       :: CString -> Int -> Int -> Handle -> IO Int
--}
-
 foreign import ccall "closeb"       c_closeb       :: Ptr BFILE          -> IO ()
 foreign import ccall "flushb"       c_flushb       :: Ptr BFILE          -> IO ()
 foreign import ccall "getb"         c_getb         :: Ptr BFILE          -> IO Int
@@ -108,20 +93,20 @@ instance Monad IO where
 instance MonadFail IO where
   fail         = error
 
-stdin        :: Handle
-stdin        = bFILE primStdin
-stdout       :: Handle
-stdout       = bFILE primStdout
-stderr       :: Handle
-stderr       = bFILE primStderr
+stdin  :: Handle
+stdin  = Handle primStdin
+stdout :: Handle
+stdout = Handle primStdout
+stderr :: Handle
+stderr = Handle primStderr
 
-bFILE :: Ptr FILE -> Handle
-bFILE = Handle . primPerformIO . (c_add_utf8 <=< c_add_FILE)
+--bFILE :: Ptr FILE -> Handle
+--bFILE = Handle . primPerformIO . (c_add_utf8 <=< c_add_FILE)
 
-hClose       :: Handle -> IO ()
+hClose :: Handle -> IO ()
 hClose (Handle p) = c_closeb p
 
-hFlush       :: Handle -> IO ()
+hFlush :: Handle -> IO ()
 hFlush (Handle p) = c_flushb p
 
 hGetChar :: Handle -> IO Char

@@ -44,3 +44,7 @@ not True  = False
 
 otherwise :: Bool
 otherwise = True
+
+bool :: forall a . a -> a -> Bool -> a
+bool f _ False = f
+bool _ t True  = t

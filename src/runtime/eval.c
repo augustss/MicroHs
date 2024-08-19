@@ -592,6 +592,7 @@ NODEPTR combLT, combEQ, combGT;
 NODEPTR combShowExn, combU, combK2;
 NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
+NODEPTR comb_stdin, comb_stdout, comb_stderr;
 
 /* One node of each kind for primitives, these are never GCd. */
 /* We use linear search in this, because almost all lookups
@@ -759,9 +760,9 @@ init_nodes(void)
     case T_BINDBL2: combBINDBL2 = n; break;
     case T_UNDBL1: combUNDBL1 = n; break;
 #if WANT_STDIO
-    case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
-    case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
-    case T_IO_STDERR: SETTAG(n, T_PTR); PTR(n) = stderr; break;
+    case T_IO_STDIN:  comb_stdin  = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdin));  break;
+    case T_IO_STDOUT: comb_stdout = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdout)); break;
+    case T_IO_STDERR: comb_stderr = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stderr)); break;
 #endif  /* WANT_STDIO */
     default:
       break;
@@ -791,9 +792,9 @@ init_nodes(void)
     case T_BINDBL2: combBINDBL2 = n; break;
     case T_UNDBL1: combUNDBL1 = n; break;
 #if WANT_STDIO
-    case T_IO_STDIN:  SETTAG(n, T_PTR); PTR(n) = stdin;  break;
-    case T_IO_STDOUT: SETTAG(n, T_PTR); PTR(n) = stdout; break;
-    case T_IO_STDERR: SETTAG(n, T_PTR); PTR(n) = stderr; break;
+    case T_IO_STDIN:  comb_stdin  = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdin));  break;
+    case T_IO_STDOUT: comb_stdout = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdout)); break;
+    case T_IO_STDERR: comb_stderr = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stderr)); break;
 #endif
     default:
       break;
@@ -1758,8 +1759,10 @@ counter_t num_shared;
  * 1, 1   -- visited more than once
  * 0, 1   -- printed
  */
-bits_t *marked_bits;
-bits_t *shared_bits;
+struct print_bits {
+  bits_t *marked_bits;
+  bits_t *shared_bits;
+};
 static INLINE void set_bit(bits_t *bits, NODEPTR n)
 {
   heapoffs_t i = LABEL(n);
@@ -1815,11 +1818,11 @@ putdblb(flt_t x, BFILE *p)
   putsb(str, p);
 }
 
-void printrec(BFILE *f, NODEPTR n, int prefix);
+void printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix);
 
 /* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
 void
-find_sharing(NODEPTR n)
+find_sharing(struct print_bits *pb, NODEPTR n)
 {
  top:
   while (GETTAG(n) == T_IND) {
@@ -1829,26 +1832,26 @@ find_sharing(NODEPTR n)
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   tag_t tag = GETTAG(n);
   if (tag == T_AP || tag == T_ARR) {
-    if (test_bit(shared_bits, n)) {
+    if (test_bit(pb->shared_bits, n)) {
       /* Alread marked as shared */
       //PRINT("shared\n");
       ;
-    } else if (test_bit(marked_bits, n)) {
+    } else if (test_bit(pb->marked_bits, n)) {
       /* Already marked, so now mark as shared */
       //PRINT("marked\n");
-      set_bit(shared_bits, n);
+      set_bit(pb->shared_bits, n);
       num_shared++;
     } else {
       /* Mark as visited, and recurse */
       //PRINT("unmarked\n");
-      set_bit(marked_bits, n);
+      set_bit(pb->marked_bits, n);
       if (tag == T_AP) {
-        find_sharing(FUN(n));
+        find_sharing(pb, FUN(n));
         n = ARG(n);
         goto top;
       } else {
         for(size_t i = 0; i < ARR(n)->size; i++) {
-          find_sharing(ARR(n)->array[i]);
+          find_sharing(pb, ARR(n)->array[i]);
         }
       }
     }
@@ -1876,11 +1879,13 @@ print_string(BFILE *f, struct ustring *p)
   putb('"', f);
 }
 
-/* Recursively print an expression.
-   This assumes that the shared nodes has been marked as such.
-*/
+/*
+ * Recursively print an expression.
+ * This assumes that the shared nodes has been marked as such.
+ * The prefix flag is used to get a readable dump.
+ */
 void
-printrec(BFILE *f, NODEPTR n, int prefix)
+printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 {
   int share = 0;
 
@@ -1889,9 +1894,9 @@ printrec(BFILE *f, NODEPTR n, int prefix)
     n = INDIR(n);
   }
 
-  if (test_bit(shared_bits, n)) {
+  if (test_bit(pb->shared_bits, n)) {
     /* The node is shared */
-    if (test_bit(marked_bits, n)) {
+    if (test_bit(pb->marked_bits, n)) {
       /* Not yet printed, so emit a label */
       if (prefix) {
         putb(':', f);
@@ -1900,7 +1905,7 @@ printrec(BFILE *f, NODEPTR n, int prefix)
       } else {
         share = 1;
       }
-      clear_bit(marked_bits, n);  /* mark as printed */
+      clear_bit(pb->marked_bits, n);  /* mark as printed */
     } else {
       /* This node has already been printed, so just use a reference. */
       putb('_', f);
@@ -1916,13 +1921,13 @@ printrec(BFILE *f, NODEPTR n, int prefix)
   case T_AP:
     if (prefix) {
       putb('(', f);
-      printrec(f, FUN(n), prefix);
+      printrec(f, pb, FUN(n), prefix);
       putb(' ', f);
-      printrec(f, ARG(n), prefix);
+      printrec(f, pb, ARG(n), prefix);
       putb(')', f);
     } else {
-      printrec(f, FUN(n), prefix);
-      printrec(f, ARG(n), prefix);
+      printrec(f, pb, FUN(n), prefix);
+      printrec(f, pb, ARG(n), prefix);
       putb('@', f);
     }
     break;
@@ -1936,12 +1941,12 @@ printrec(BFILE *f, NODEPTR n, int prefix)
       putb(']', f);
       for(size_t i = 0; i < ARR(n)->size; i++) {
         putb(' ', f);
-        printrec(f, ARR(n)->array[i], prefix);
+        printrec(f, pb, ARR(n)->array[i], prefix);
       }
     } else {
       /* Arrays serialize as 'e_1 ... e_sz [sz]' */
       for(size_t i = 0; i < ARR(n)->size; i++) {
-        printrec(f, ARR(n)->array[i], prefix);
+        printrec(f, pb, ARR(n)->array[i], prefix);
       }
       putb('[', f);
       putdecb((value_t)ARR(n)->size, f);
@@ -1949,14 +1954,20 @@ printrec(BFILE *f, NODEPTR n, int prefix)
     }
     break;
   case T_PTR:
-    if (PTR(n) == stdin)
+    if (n == comb_stdin)
       putsb("IO.stdin", f);
-    else if (PTR(n) == stdout)
+    else if (n == comb_stdout)
       putsb("IO.stdout", f);
-    else if (PTR(n) == stderr)
+    else if (n == comb_stderr)
       putsb("IO.stderr", f);
-    else
-      ERR("Cannot serialize pointers");
+    else {
+      if (prefix) {
+        char b[200]; sprintf(b,"PTR<%p>",PTR(n));
+        putsb(b, f);
+      } else {
+        ERR("Cannot serialize pointers");
+      }
+    }
     break;
   case T_FUNPTR:
       ERR("Cannot serialize function pointers");
@@ -2085,25 +2096,26 @@ printrec(BFILE *f, NODEPTR n, int prefix)
 void
 printb(BFILE *f, NODEPTR n, int header)
 {
+  struct print_bits pb;
   num_shared = 0;
-  marked_bits = calloc(free_map_nwords, sizeof(bits_t));
-  if (!marked_bits)
+  pb.marked_bits = calloc(free_map_nwords, sizeof(bits_t));
+  if (!pb.marked_bits)
     memerr();
-  shared_bits = calloc(free_map_nwords, sizeof(bits_t));
-  if (!shared_bits)
+  pb.shared_bits = calloc(free_map_nwords, sizeof(bits_t));
+  if (!pb.shared_bits)
     memerr();
-  find_sharing(n);
+  find_sharing(&pb, n);
   if (header) {
     putsb(VERSION, f);
     putdecb(num_shared, f);
     putb('\n', f);
   }
-  printrec(f, n, !header);
+  printrec(f, &pb, n, !header);
   if (header) {
     putb('}', f);
   }
-  FREE(marked_bits);
-  FREE(shared_bits);
+  FREE(pb.marked_bits);
+  FREE(pb.shared_bits);
 }
 
 /* Show a graph. */
@@ -3142,8 +3154,8 @@ execio(NODEPTR *np)
   NODEPTR top;
 
 /* IO operations need all arguments, anything else should not happen. */
-#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {printf("\nLINE=%d\n", __LINE__); ERR("CHECKIO");}; } while(0)
-  /* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
+#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*printf("\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
+/* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
 #define GCCHECKSAVE(p, n) do { PUSH(p); GCCHECK(n); (p) = TOP(0); POP(1); } while(0)
 #define RETIO(p) do { stack_ptr = stk; res = (p); goto rest; } while(0)
 #define IOASSERT(p,s) do { if (!(p)) ERR("IOASSERT " s); } while(0)
@@ -3480,7 +3492,7 @@ MAIN
       } else {
         if (strcmp(p, "-v") == 0)
           verbose++;
-#if WANT_TICKS
+#if WANT_TICK
         else if (strcmp(p, "-T") == 0)
           dump_ticks = 1;
 #endif
@@ -3495,7 +3507,7 @@ MAIN
           outname = &p[2];
 #endif  /* WANT_STDIO */
         else
-          ERR("Usage: eval [+RTS [-v] [-Hheap-size] [-Kstack-size] [-rFILE] [-oFILE] -RTS] arg ...");
+          ERR("Usage: eval [+RTS [-v] [-T] [-Hheap-size] [-Kstack-size] [-rFILE] [-oFILE] -RTS] arg ...");
       }
     } else {
       if (strcmp(p, "+RTS") == 0) {

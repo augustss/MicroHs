@@ -11,6 +11,7 @@ module MicroHs.Ident(
   dummyIdent, isDummyIdent,
   unQualIdent,
   unQualString,
+  qualOf,
   addIdentSuffix,
   SLoc(..), noSLoc,
   showSLoc,
@@ -20,6 +21,7 @@ import Prelude
 import Data.Char
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
+import MicroHs.List(dropEnd)
 
 type Line = Int
 type Col  = Int
@@ -91,6 +93,9 @@ unQualString s@(c:_) =
 
 unQualIdent :: Ident -> Ident
 unQualIdent (Ident l s) = Ident l (unQualString s)
+
+qualOf :: Ident -> Ident
+qualOf (Ident loc s) = Ident loc (dropEnd (length (unQualString s) + 1) s)
 
 isConIdent :: Ident -> Bool
 isConIdent (Ident _ i) =

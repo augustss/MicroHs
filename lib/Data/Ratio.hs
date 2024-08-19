@@ -16,6 +16,7 @@ import Data.Integral
 import Data.Num
 import Data.Ord
 import Data.Ratio_Type
+import Data.Real
 import Text.Show
 
 {- in Data.Ratio_Type
@@ -70,6 +71,9 @@ instance forall a . (Show a) => Show (Ratio a)  where
                        showsPrec 8 x .
                        showString " % " .
                        showsPrec 8 y
+
+instance forall a . (Integral a, Ord a) => Real (Ratio a) where
+  toRational (x :% y) = toInteger x :% toInteger y
 
 rationalInfinity :: Rational
 rationalInfinity = 1 :% 0

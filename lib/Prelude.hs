@@ -54,7 +54,7 @@ import Data.Eq(Eq(..))
 import Data.Float(Float)
 import Data.Floating(Floating(..))
 import Data.Fractional(Fractional(..), (^^))
-import Data.Function(id, const, (.), flip, ($), seq, ($!), until, curry, uncurry, asTypeOf)
+import Data.Function(id, const, (.), flip, ($), seq, ($!), until, asTypeOf)
 import Data.Functor(Functor(..), (<$>))
 import Data.Int(Int)
 import Data.Int.Instances
@@ -78,11 +78,11 @@ import Data.RealFrac(RealFrac(..))
 import Data.Records  -- XXX redo this somehow
 import Data.Semigroup(Semigroup(..))
 import Data.String(IsString(..), lines, unlines, words, unwords)
-import Data.Tuple(()(..), fst, snd)
+import Data.Tuple(()(..), fst, snd, curry, uncurry)
 import Data.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                  FilePath, readFile, writeFile, appendFile,
-                 cprint)
+                 cprint, cuprint)
 import Text.Read(ReadS, Read(..), read, reads, readParen, lex)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Primitives(_wordSize, _isWindows)

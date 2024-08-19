@@ -168,7 +168,7 @@ typeCheck impt aimps (EModule mn exps defs) =
   in case tcRun (tcDefs impt defs) (initTC mn fs ts ss cs is vs as) of
        (tds, tcs) ->
          let
-           thisMdl = (mn, mkTModule tds tcs)
+           thisMdl = (mn, mkTModule impt tds tcs)
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ _ m mm _, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
            (texps, cexps, vexps) =
@@ -273,8 +273,8 @@ getApp t = fromMaybe (impossibleShow t) $ getAppM t
 -- Construct a dummy TModule for the currently compiled module.
 -- It has all the relevant export tables.
 -- The value&type export tables will later be filtered through the export list.
-mkTModule :: forall a . [EDef] -> TCState -> TModule a
-mkTModule tds tcs =
+mkTModule :: forall a . HasCallStack => ImpType -> [EDef] -> TCState -> TModule a
+mkTModule impt tds tcs =
   let
     mn = moduleName tcs
     tt = typeTable  tcs
@@ -291,7 +291,9 @@ mkTModule tds tcs =
           -- error $ show (qualIdent mn i, M.toList tt)
           
     -- Find all value Entry for names associated with a type.
-    assoc i = getAssocs vt at (qualIdent mn i)
+    assoc i = case impt of
+                ImpBoot -> []  -- XXX For boot files the tables are not set up correctly.
+                _ -> getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
     ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign is ts <- tds, i <- is ]
@@ -318,7 +320,7 @@ mkTModule tds tcs =
   in  TModule mn fes tes ses ces ies ves impossible
 
 -- Find all value Entry for names associated with a type.
-getAssocs :: ValueTable -> AssocTable -> Ident -> [ValueExport]
+getAssocs :: (HasCallStack) => ValueTable -> AssocTable -> Ident -> [ValueExport]
 getAssocs vt at ai =
   let qis = fromMaybe [] $ M.lookup ai at
       val qi = case stLookup "" qi vt of
@@ -336,12 +338,18 @@ mkTables mdls =
         usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _ ves _) =
           if qual then [] else
           [ (i, [e]) | ValueExport i e    <- ves, not (isInstId i)  ] ++
-          [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs ]
+          [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, not (isDefaultMethodId i) ]
         qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ cls _ ves _) =
           let m = fromMaybe mn mas in
-          [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent m i } ] ++
-          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdent m i } ] ++
+          [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent    m i } ] ++
+          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdentD e m i } ] ++
           [ (v, [Entry (EVar v) t]) | (i, (_, _, t, _, _)) <- cls, let { v = mkClassConstructor i } ]
+        -- Default methods are always entered with their qualified original name.
+        qualIdentD (Entry e _) m i | not (isDefaultMethodId i) = qualIdent m i
+                                   | otherwise = 
+                                     case e of
+                                       EVar qi -> qi
+                                       _ -> undefined
       in  stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
     allSyns =
       let
@@ -836,10 +844,15 @@ tInst ae (EForall vks t) = do
   t' <- tInstForall vks t
   tInst ae t'
 tInst ae at | Just (ctx, t) <- getImplies at = do
-  d <- newDictIdent (getSLoc ae)
   --traceM $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
-  addConstraint d ctx
-  tInst (EApp ae (EVar d)) t
+  if eqExpr ae eCannotHappen then
+    -- XXX Gruesome hack.  This avoid adding constraints in cases like
+    --  (C a => a) -> T `subsCheck` b
+    tInst ae t
+   else do
+    d <- newDictIdent (getSLoc ae)
+    addConstraint d ctx
+    tInst (EApp ae (EVar d)) t
 tInst ae at = return (ae, at)
 
 tInstForall :: [IdKind] -> EType -> T EType
@@ -1073,6 +1086,7 @@ tcDefType def = do
     _                      -> return def
  where
    tcMethod (BSign i t) = BSign i <$> tCheckTypeTImpl kType t
+   tcMethod (BDfltSign i t) = BDfltSign i <$> tCheckTypeTImpl kType t
    tcMethod m = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
@@ -1154,9 +1168,11 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
       meths = [ b | b@(BSign _ _) <- ms ]
       methIds = map (\ (BSign i _) -> i) meths
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
+      dflttys = [ (i, t) | BDfltSign i t <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
-      mkDflt (BSign methId t) = [ Sign [iDflt] $ EForall vks $ tCtx `tImplies` t, def $ lookup methId mdflts ]
-        where def Nothing = Fcn iDflt $ simpleEqn noDflt
+      mkDflt (BSign methId t) = [ Sign [iDflt] $ EForall vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
+        where ty = fromMaybe t $ lookup methId dflttys
+              def Nothing = Fcn iDflt $ simpleEqn noDflt
               def (Just eqns) = Fcn iDflt eqns
               iDflt = mkDefaultMethodId methId
               -- XXX This isn't right, "Prelude._nodefault" might not be in scope
@@ -1219,8 +1235,9 @@ expandInst dinst@(Instance act bs) = do
       Just x -> return x
   -- XXX this ignores type signatures and other bindings
   -- XXX should tack on signatures with ESign
-  let ies = [(i, ELam qs) | BFcn i qs <- bs]
-      meth i = fromMaybe (ELam $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId i) $ lookup i ies
+  let clsMdl = qualOf qiCls                   -- get class's module name
+      ies = [(i, ELam qs) | BFcn i qs <- bs]
+      meth i = fromMaybe (ELam $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
@@ -1302,6 +1319,11 @@ addValueType :: EDef -> T ()
 addValueType adef = do
   mn <- gets moduleName
   -- traceM ("addValueType: " ++ showEDefs [adef])
+  let addConFields _     (Constr _ _ _ (Left _)) = return ()
+      addConFields tycon (Constr _ _ _ (Right fs)) = mapM_ addField fs
+        where addField (fld, _) = do
+                (fe, fty) <- tLookup "???" $ mkGetName tycon fld
+                extValETop fld fty fe
   case adef of
     Sign is t -> mapM_ (\ i -> extValQTop i t) is
     Data (tycon, vks) cs _ -> do
@@ -1313,19 +1335,15 @@ addValueType adef = do
               cty = EForall vks $ EForall evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
               fs = either (const []) (map fst) ets
           extValETop c cty (ECon $ ConData cti (qualIdent mn c) fs)
-        addConFields (Constr _ _ _ (Left _)) = return ()
-        addConFields (Constr _ _ _ (Right fs)) = mapM_ addField fs
-          where addField (fld, _) = do
-                  (fe, fty) <- tLookup "???" $ mkGetName tycon fld
-                  extValETop fld fty fe
       mapM_ addCon cs
-      mapM_ addConFields cs
-    Newtype (i, vks) (Constr _ _ c ets) _ -> do
+      mapM_ (addConFields tycon) cs
+    Newtype (tycon, vks) con@(Constr _ _ c ets) _ -> do
       let
         t = snd $ head $ either id (map snd) ets
-        tret = tApps (qualIdent mn i) (map tVarK vks)
+        tret = tApps (qualIdent mn tycon) (map tVarK vks)
         fs = either (const []) (map fst) ets
       extValETop c (EForall vks $ EForall [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
+      addConFields tycon con
     ForImp _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     _ -> return ()
@@ -2208,6 +2226,7 @@ tcBind abind =
       ea <- tCheckExprAndSolve tp a
       return $ BPat ep ea
     BSign _ _ -> return abind
+    BDfltSign _ _ -> return abind
 
 -- Desugar [T] and (T,T,...)
 dsType :: EType -> EType
