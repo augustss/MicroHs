@@ -48,7 +48,7 @@ dsDef flags mn adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Type _ _ -> []
-    Fcn f eqns -> [(f,  wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
+    Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
     Sign _ _ -> []
     KindSign _ _ -> []
     Import _ -> []
@@ -73,6 +73,13 @@ wrapTick True  i ee = wrap ee
   where tick = Lit (LTick (unIdent i))
         wrap (Lam x e) = Lam x (wrap e)
         wrap e = App tick e
+{- This kills the automagic specialization.
+wrapTick True  i ee = wrap 0 ee
+  where wrap n e = App (Lit (LTick (unIdent i ++ "-" ++ show (n::Int)))) e'
+          where e' = case e of
+                       Lam x a -> Lam x (wrap (n+1) a)
+                       _ -> e
+-}
 
 oneAlt :: Expr -> EAlts
 oneAlt e = EAlts [([], e)] []
