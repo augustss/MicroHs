@@ -20,6 +20,7 @@ derivers :: [(String, Deriver)]
 derivers =
   [("Data.Bounded.Bounded",   derBounded)
   ,("Data.Enum.Enum",         derEnum)
+  ,("Data.Data.Data",         derData)
   ,("Data.Eq.Eq",             derEq)
   ,("Data.Ix.Ix",             derNotYet)
   ,("Data.Ord.Ord",           derOrd)
@@ -324,3 +325,12 @@ unIdentPar i =
   let s = unIdent i
   in  if isAlpha (head s) then s else "(" ++ s ++ ")"
 
+--------------------------------------------
+
+-- Deriving for the fake Data class.
+derData :: Deriver
+derData lhs cs edata = do
+  hdr <- mkHdr lhs cs edata
+  let
+    inst = Instance hdr []
+  return [inst]
