@@ -2,8 +2,16 @@
 -- See LICENSE file for full license.
 module MicroHs.Instances(compiledWithGHC) where
 -- For GHC compatibility
-import Prelude
-import System.Environment
+import Control.DeepSeq
+import MicroHs.CompileCache
+import MicroHs.Ident
+import MicroHs.Exp
+import MicroHs.Expr
 
 compiledWithGHC :: Bool
 compiledWithGHC = False
+
+instance NFData Cache
+instance NFData Exp
+instance NFData Lit
+instance NFData Ident
