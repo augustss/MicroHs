@@ -1,5 +1,5 @@
 * Have compile return a Stats record of timing etc
-* Make the runtime system catch ^C and stop execution
+* In interactive mode, make the runtime system catch ^C and stop execution
 * Type checker improvements:
   - allow generalization for local bindings
   - use subsumption (like if) in the arms of alternatives
@@ -17,7 +17,6 @@
 * Get rid of evalstring()
   - do everything in Haskell
   - make a low level primError that takes a utf8 string
-  - get rid of noMatch and noDefault primitives
 * Better pretty print of Expr
 * Allow top level pattern bindings
   - Merge EBind and EDef
@@ -31,9 +30,11 @@
   - implement ForeignPtr with finalizers for this.
 * Use finalizers for alloca?
 * Better naming of internal identifiers
-* Implement Exception properly
-* GADT syntax
+* Add mask&co to exceptions
+* Make deriving refer to identifiers that don't need to be in scope
 
 Bugs:
 * Missing IO in ccall show wrong location
 * Check for escaping skolemized variables
+* Type checking Data.Data
+

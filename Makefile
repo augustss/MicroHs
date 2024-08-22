@@ -191,6 +191,7 @@ emscripten: bin/mhs targets.conf
 ######
 
 VERSION=0.9.16.0
+HVERSION=0,9,16,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/data/mhs-$(VERSION)/data
@@ -203,7 +204,7 @@ BASEMODULES=Control.Applicative Control.Arrow Control.DeepSeq Control.Error Cont
 $(MCABALBIN)/mhs: bin/mhs
 	@mkdir -p $(MCABALBIN)
 	@mkdir -p $(MDIST)
-	@echo 'module Paths_MicroHs where {import Data.Version; version :: Version; version = makeVersion [0,9,15,0]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
+	@echo 'module Paths_MicroHs where {import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
 	bin/mhs -z $(MHSINCNP) -i$(MDIST) MicroHs.Main -o$(MCABALBIN)/mhs
 
 $(MCABALBIN)/cpphs: bin/cpphs
