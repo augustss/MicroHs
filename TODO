@@ -37,4 +37,4 @@ Bugs:
 * Missing IO in ccall show wrong location
 * Check for escaping skolemized variables
 * Type checking Data.Data
-
+* Class export with list does nt export $dflt
