@@ -1,5 +1,6 @@
 module MicroHs.Abstract(
   compileOpt,
+  -- reduce,
   ) where
 import Prelude
 import MicroHs.Ident
@@ -25,6 +26,10 @@ import MicroHs.Expr(Lit(..))
 -- P  x y z   = z x y                 A
 -- R  x y z   = y z x                 A
 -- O  x y z w = w x y                 A
+-- K2 x y z   = x                     *
+-- K3 x y z w = x                     *
+-- K4 x y z w v = x                     *
+-- C'B x y z w = x z (y w)
 --
 
 data MaybeApp = NotApp | IsApp Exp Exp
@@ -352,3 +357,32 @@ improveT e = e
 --  C'C x y z w = C' C x y z w = C (x z) y w = x z w y
 --
 --  C'B P x y z w = P y (x z) w = w y (x z)
+
+{- This makes very little difference.
+   There are only 2 reductions in the entire compiler.
+reduce :: Exp -> Exp
+reduce e = red e []
+  where
+    -- No duplication, nor cycles, so no S, S', Y
+    red (App f a) as                      = red f (reduce a : as)
+    red f (x:as)         | isI          f && xxx "I" = red x as
+    red f (x:y:as)       | isPrim "A"   f && xxx "A" = red y as
+                         | isPrim "U"   f && xxx "U" = red y (x : as)
+                         | isK          f && xxx "K" = red x as
+    red f (x:y:z:as)     | isB          f && xxx "B" = red x (App y z : as)
+                         | isC          f && xxx "C" = red x (z : y : as)
+                         | isPrim "Z"   f && xxx "Z" = red x (y : as)
+                         | isP          f && xxx "P" = red z (x : y : as)
+                         | isPrim "R"   f && xxx "R" = red y (z : x : as)
+                         | isPrim "K2"  f && xxx "K2" = red x as
+    red f (x:y:z:w:as)   | isPrim "B'"  f && xxx "B'" = red x (y : App z w : as)
+                         | isPrim "C'"  f && xxx "C'" = red x (App y w : z : as)
+                         | isPrim "O"   f && xxx "O" = red w (x : y : as)
+                         | isPrim "K3"  f && xxx "K3" = red x as
+                         | isPrim "C'B" f && xxx "C'B" = red x (z : App y w : as)
+    red f (x:_:_:_:_:as) | isPrim "K4"  f && xxx "K4" = red x as
+
+    red f as                              = foldl App f as
+
+    xxx s = trace s True
+-}
