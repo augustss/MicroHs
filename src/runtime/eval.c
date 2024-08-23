@@ -2541,19 +2541,17 @@ compare(NODEPTR cmp)
 #undef CRET
 }
 
-bits_t *rnf_bits;
-
 void
-rnf_rec(NODEPTR n)
+rnf_rec(bits_t *done, NODEPTR n)
 {
  top:
-  if (test_bit(rnf_bits, n))
+  if (test_bit(done, n))
     return;
-  set_bit(rnf_bits, n);
+  set_bit(done, n);
   n = evali(n);
   if (GETTAG(n) == T_AP) {
     PUSH(ARG(n));               /* protect from GC */
-    rnf_rec(FUN(n));
+    rnf_rec(done, FUN(n));
     n = POPTOP();
     goto top;
   }
@@ -2569,15 +2567,15 @@ void
 rnf(value_t noerr, NODEPTR n)
 {
   /* Mark visited nodes to avoid getting stuck in loops. */
-  rnf_bits = calloc(free_map_nwords, sizeof(bits_t));
-  if (!rnf_bits)
+  bits_t *done = calloc(free_map_nwords, sizeof(bits_t));
+  if (!done)
     memerr();
   if (doing_rnf)
     ERR("recursive rnf()");
   doing_rnf = (int)noerr;
-  rnf_rec(n);
+  rnf_rec(done, n);
   doing_rnf = 0;
-  FREE(rnf_bits);
+  FREE(done);
 }
 
 void execio(NODEPTR *);
