@@ -145,7 +145,7 @@ keywords :: [String]
 keywords =
   ["case", "class", "data", "default", "deriving", "do", "else", "forall", "foreign", "if",
    "import", "in", "infix", "infixl", "infixr", "instance",
-   "let", "module", "newtype", "of", "primitive", "then", "type", "where"]
+   "let", "module", "newtype", "of", "pattern", "primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
 pSpec c = () <$ satisfy (showToken $ TSpec (SLoc "" 0 0) c) is
@@ -265,6 +265,8 @@ pExportItem =
   <|< expType     <$> pUQIdentSym <*> (pSpec '(' *> pConList <* pSpec ')')
   <|< ExpTypeSome <$> pUQIdentSym <*> pure []
   <|< ExpValue    <$> pLQIdentSym
+  <|< ExpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
+  <|< ExpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
   where expType i Nothing   = ExpTypeAll  i
         expType i (Just is) = ExpTypeSome i is
 
@@ -309,18 +311,20 @@ pBlock p = pBraces body
 
 pDef :: P EDef
 pDef =
-      uncurry Data <$> (pKeyword "data"    *> pData) <*> pDeriving
-  <|< Newtype      <$> (pKeyword "newtype" *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
-  <|< Type         <$> (pKeyword "type"    *> pLHS) <*> (pSymbol "=" *> pType)
+      uncurry Data <$> (pKeyword "data"     *> pData) <*> pDeriving
+  <|< Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
+  <|< Type         <$> (pKeyword "type"     *> pLHS) <*> (pSymbol "=" *> pType)
   <|< uncurry Fcn  <$> pEqns
   <|< Sign         <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
-  <|< Import       <$> (pKeyword "import"  *> pImportSpec)
-  <|< ForImp       <$> (pKeyword "foreign" *> pKeyword "import" *> pKeyword "ccall" *> eoptional pString) <*> pLIdent <*> (pSymbol "::" *> pType)
+  <|< Import       <$> (pKeyword "import"   *> pImportSpec)
+  <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> pKeyword "ccall" *> eoptional pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix        <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
   <|< Default      <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
-  <|< KindSign     <$> (pKeyword "type"    *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
+  <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
+  <|< Pattern      <$> (pKeyword "pattern"  *> pLHS) <*> pPatternDef
+  <|< Sign         <$> (pKeyword "pattern" *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
@@ -334,6 +338,18 @@ pDef =
       guard $ either length length fs == 1
       pure fs
     dcolon = pSymbol "::" <|< pSymbol "\x2237"
+
+    pPatternDef = (pSymbol "=" *> pPatAndExp) <|< (pSymbol "<-" *> pPat)
+    pPatAndExp = do p <- pPat; guard (isExp p); pure p
+
+-- Is a pattern also an expression?
+isExp :: Expr -> Bool
+isExp (EVar _) = True
+isExp (EListish (LList es)) = all isExp es
+isExp (ETuple es) = all isExp es
+isExp (EApp e1 e2) = isExp e1 && isExp e2
+isExp (ELit _ _) = True
+isExp _ = False
 
 pData :: P (LHS, [Constr])
 pData = do

@@ -83,6 +83,7 @@ data EDef
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance EConstraint [EBind]
   | Default [EType]
+  | Pattern LHS EPat
 --DEBUG  deriving (Show)
 
 data ImpType = ImpNormal | ImpBoot
@@ -612,6 +613,7 @@ ppEDef def =
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
     Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default ts -> text "default" <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
+    Pattern lhs p -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p
 
 ppDeriving :: Deriving -> Doc
 ppDeriving [] = empty
