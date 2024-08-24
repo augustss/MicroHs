@@ -31,7 +31,9 @@ parse p fn file =
     Left lf -> Left $ formatFailed lf
     Right [a] -> Right a
     Right as -> Left $ "Ambiguous:"
-                       ++ unlines (map show  as)
+                       ++ unlines (map show as)
+guardM :: P a -> (a -> Bool) -> P a
+guardM ma p = do a <- ma; guard (p a); pure a
 
 getSLoc :: P SLoc
 getSLoc = do
@@ -180,25 +182,16 @@ pSymOper = do
   satisfyM "SymOper" is
 
 pUQSymOper :: P Ident
-pUQSymOper = do
-  s <- pQSymOper
-  guard (isUOper s)
-  pure s
+pUQSymOper = guardM pQSymOper isUOper
 
 isUOper :: Ident -> Bool
 isUOper = (== ':') . head . unIdent
 
 pUSymOper :: P Ident
-pUSymOper = do
-  s <- pSymOper
-  guard (isUOper s)
-  pure s
+pUSymOper = guardM pSymOper isUOper
 
 pLQSymOper :: P Ident
-pLQSymOper = do
-  s <- pQSymOper
-  guard (not (isUOper s))
-  pure s
+pLQSymOper = guardM pQSymOper (not . isUOper)
 
 -- Allow -> as well
 pLQSymOperArr :: P Ident
@@ -214,10 +207,7 @@ pQArrow = do
   satisfyM "->" is
 
 pLSymOper :: P Ident
-pLSymOper = do
-  s <- pSymOper
-  guard (not (isUOper s))
-  pure s
+pLSymOper = guardM pSymOper (not . isUOper)
 
 reservedOps :: [String]
 reservedOps = ["=", "|", "::", "<-", "@", "..", "->",
@@ -246,10 +236,10 @@ pLit = do
   satisfyM "literal" is
 
 pNumLit :: P Expr
-pNumLit = do
-  e <- pLit
-  guard $ case e of { ELit _ (LInteger _) -> True; ELit _ (LRat _) -> True; _ -> False }
-  return e
+pNumLit = guardM pLit isNum
+  where isNum (ELit _ (LInteger _)) = True
+        isNum (ELit _ (LRat _)) = True
+        isNum _ = False
 
 pString :: P String
 pString = satisfyM "string" is
@@ -333,10 +323,7 @@ pDef =
 
     pFunDeps = (pSymbol "|" *> esepBy1 pFunDep (pSpec ',')) <|< pure []
     pFunDep = (,) <$> esome pLIdent <*> (pSRArrow *> esome pLIdent)
-    pField = do
-      fs <- pFields
-      guard $ either length length fs == 1
-      pure fs
+    pField = guardM pFields ((== 1) . either length length)
     dcolon = pSymbol "::" <|< pSymbol "\x2237"
 
     pPatternDef = (pSymbol "=" *> pPatAndExp) <|< (pSymbol "<-" *> pPat)
@@ -548,10 +535,7 @@ pPatApp = do
   pure $ maybe r (ESign r) mt
 
 pPatNotVar :: P EPat
-pPatNotVar = do
-  p <- pPat
-  guard (isPConApp p)
-  pure p
+pPatNotVar = guardM pPat isPConApp
 
 -------------
 
@@ -582,10 +566,7 @@ pEqnLHS =
   ((\ (i, ps1) ps2 -> (i, ps1 ++ ps2)) <$> pParens pOpLHS <*> emany pAPat)
   where
     pOpLHS = (\ p1 i p2 -> (i, [p1,p2])) <$> pPatApp <*> pLOper <*> pPatApp
-    pLOper = do
-      i <- pOper
-      guard (not (isConIdent i))
-      pure i
+    pLOper = guardM pOper (not . isConIdent)
 
 pAlts :: P () -> P EAlts
 pAlts sep = do
@@ -662,10 +643,7 @@ pOperComma = pOper <|< pComma
 
 -- No right section for '-'.
 pOperCommaNoMinus :: P Ident
-pOperCommaNoMinus = do
-  i <- pOperComma
-  guard (i /= mkIdent "-")
-  pure i
+pOperCommaNoMinus = guardM pOperComma (/= mkIdent "-")
 
 -- XXX combine pUpdate and pSelects
 pAExpr :: P Expr
