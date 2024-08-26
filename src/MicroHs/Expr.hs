@@ -33,7 +33,7 @@ module MicroHs.Expr(
   eApps,
   lhsToType,
   subst,
-  allVarsExpr, allVarsBind, allVarsEqns,
+  allVarsExpr, allVarsBind, allVarsEqns, allVarsPat,
   setSLocExpr,
   errorMessage,
   Assoc(..), Fixity,
@@ -83,7 +83,7 @@ data EDef
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance EConstraint [EBind]
   | Default [EType]
-  | Pattern LHS EPat
+  | Pattern LHS EPat [Eqn]  -- empty equations indicate a unidirectional pattern synonym
 --DEBUG  deriving (Show)
 
 data ImpType = ImpNormal | ImpBoot
@@ -122,6 +122,7 @@ data Expr
   | EAt Ident EPat
   | EViewPat Expr EPat
   | ELazy Bool EPat           -- True indicates ~p, False indicates !p
+  | EPatSyn Ident Int Bool    -- name, arity, bidirectional
   -- only in types
   | EForall [IdKind] EType
   -- only while type checking
@@ -353,7 +354,8 @@ instance HasLoc Expr where
   getSLoc (EAt i _) = getSLoc i
   getSLoc (EViewPat e _) = getSLoc e
   getSLoc (ELazy _ e) = getSLoc e
-  getSLoc (EUVar _) = error "getSLoc EUVar"
+  getSLoc (EPatSyn i _ _) = getSLoc i
+  getSLoc (EUVar _) = noSLoc -- error "getSLoc EUVar"
   getSLoc (ECon c) = getSLoc c
   getSLoc (EForall [] e) = getSLoc e
   getSLoc (EForall iks _) = getSLoc iks
@@ -458,7 +460,7 @@ allVarsBind' :: EBind -> DList Ident
 allVarsBind' abind =
   case abind of
     BFcn i eqns -> (i:) . composeMap allVarsEqn eqns
-    BPat p e -> allVarsPat p . allVarsExpr' e
+    BPat p e -> allVarsPat' p . allVarsExpr' e
     BSign i _ -> (i:)
     BDfltSign i _ -> (i:)
 
@@ -468,7 +470,7 @@ allVarsEqns eqns = composeMap allVarsEqn eqns []
 allVarsEqn :: Eqn -> DList Ident
 allVarsEqn eqn =
   case eqn of
-    Eqn ps alts -> composeMap allVarsPat ps . allVarsAlts alts
+    Eqn ps alts -> composeMap allVarsPat' ps . allVarsAlts alts
 
 allVarsAlts :: EAlts -> DList Ident
 allVarsAlts (EAlts alts bs) = composeMap allVarsAlt alts . composeMap allVarsBind' bs
@@ -476,8 +478,11 @@ allVarsAlts (EAlts alts bs) = composeMap allVarsAlt alts . composeMap allVarsBin
 allVarsAlt :: EAlt -> DList Ident
 allVarsAlt (ss, e) = composeMap allVarsStmt ss . allVarsExpr' e
 
-allVarsPat :: EPat -> DList Ident
-allVarsPat = allVarsExpr'
+allVarsPat' :: EPat -> DList Ident
+allVarsPat' = allVarsExpr'
+
+allVarsPat :: EPat -> [Ident]
+allVarsPat p = allVarsPat' p []
 
 allVarsExpr :: Expr -> [Ident]
 allVarsExpr e = allVarsExpr' e []
@@ -506,6 +511,7 @@ allVarsExpr' aexpr =
     EAt i e -> (i :) . allVarsExpr' e
     EViewPat e p -> allVarsExpr' e . allVarsExpr' p
     ELazy _ p -> allVarsExpr' p
+    EPatSyn i _ _ -> (i:)
     EUVar _ -> id
     ECon c -> (conIdent c :)
     EForall iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
@@ -522,12 +528,12 @@ allVarsListish (LFromThen e1 e2) = allVarsExpr' e1 . allVarsExpr' e2
 allVarsListish (LFromThenTo e1 e2 e3) = allVarsExpr' e1 . allVarsExpr' e2 . allVarsExpr' e3
 
 allVarsCaseArm :: ECaseArm -> DList Ident
-allVarsCaseArm (p, alts) = allVarsPat p . allVarsAlts alts
+allVarsCaseArm (p, alts) = allVarsPat' p . allVarsAlts alts
 
 allVarsStmt :: EStmt -> DList Ident
 allVarsStmt astmt =
   case astmt of
-    SBind p e -> allVarsPat p . allVarsExpr' e
+    SBind p e -> allVarsPat' p . allVarsExpr' e
     SThen e -> allVarsExpr' e
     SLet bs -> composeMap allVarsBind' bs
 
@@ -613,7 +619,10 @@ ppEDef def =
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
     Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default ts -> text "default" <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
-    Pattern lhs p -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p
+    Pattern lhs p eqns -> text "pattern" <+> ppLHS lhs <+> text "<-" <+> ppExpr p <+>
+      case eqns of
+        [] -> empty
+        _  -> ppWhere empty [BFcn (fst lhs) eqns]
 
 ppDeriving :: Deriving -> Doc
 ppDeriving [] = empty
@@ -680,13 +689,7 @@ ppExprR raw = ppE
     ppE :: Expr -> Doc
     ppE ae =
       case ae of
-        EVar i | raw            -> text (unIdent i)
-               | isOperChar cop -> parens (text op)
-               | otherwise      -> text s
-                 where op = unIdent (unQualIdent i)
-                       si = unIdent i
-                       s = if "inst$" `isInfixOf` si then si else op
-                       cop = head op
+        EVar i -> ppVar i
         EApp _ _ -> ppApp [] ae
         EOper e ies -> ppE (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
         ELam qs -> parens $ text "\\" <> ppEqns empty (text "->") qs
@@ -707,6 +710,7 @@ ppExprR raw = ppE
         EViewPat e p -> parens $ ppE e <+> text "->" <+> ppE p
         ELazy True p -> text "~" <> ppE p
         ELazy False p -> text "!" <> ppE p
+        EPatSyn i _ _ -> ppVar i
         EUVar i -> text ("_a" ++ show i)
         ECon c -> ppCon c
         EForall iks e -> ppForall iks <+> ppEType e
@@ -722,6 +726,14 @@ ppExprR raw = ppE
                               cop = head op
     ppApp as f = ppApply f as
     ppApply f as = parens $ hsep (map ppE (f:as))
+
+    ppVar i | raw            = text (unIdent i)
+            | isOperChar cop = parens (text op)
+            | otherwise      = text s
+                 where op = unIdent (unQualIdent i)
+                       si = unIdent i
+                       s = if "inst$" `isInfixOf` si then si else op
+                       cop = head op
 
 ppField :: EField -> Doc
 ppField (EField is e) = hcat (punctuate (text ".") (map ppIdent is)) <+> text "=" <+> ppExpr e

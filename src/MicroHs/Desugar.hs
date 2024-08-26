@@ -65,7 +65,7 @@ dsDef flags mn adef =
           zipWith (\ i x -> (i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
     Instance _ _ -> []
     Default _ -> []
-    Pattern _ _ -> []
+    Pattern _ _ _ -> []
 
 wrapTick :: Bool -> Ident -> Exp -> Exp
 wrapTick False _ ee = ee

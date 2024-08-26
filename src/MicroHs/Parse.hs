@@ -139,6 +139,14 @@ pLQIdent = do
     is _ = Nothing
   satisfyM "LQIdent" is
 
+-- Any case case, unqualified identifier
+pIdent :: P Ident
+pIdent = do
+  let
+    is (TIdent loc [] s) | not (elem s keywords) = Just (mkIdentSLoc loc s)
+    is _ = Nothing
+  satisfyM "LIdent" is
+
 -- Type names can be any operator
 pTypeIdentSym :: P Ident
 pTypeIdentSym = pUIdent <|< pParens pSymOper
@@ -221,6 +229,9 @@ pLQIdentSym = pLQIdent <|< pParens pLQSymOperArr
 
 pLIdentSym :: P Ident
 pLIdentSym = pLIdent <|< pParens pLSymOper
+
+pIdentSym :: P Ident
+pIdentSym = pIdent <|< pParens pSymOper
 
 pParens :: forall a . P a -> P a
 pParens p = pSpec '(' *> p <* pSpec ')'
@@ -313,8 +324,8 @@ pDef =
   <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
   <|< Default      <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
   <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
-  <|< Pattern      <$> (pKeyword "pattern"  *> pLHS) <*> pPatternDef
   <|< Sign         <$> (pKeyword "pattern" *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|< pPattern
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
@@ -326,8 +337,23 @@ pDef =
     pField = guardM pFields ((== 1) . either length length)
     dcolon = pSymbol "::" <|< pSymbol "\x2237"
 
-    pPatternDef = (pSymbol "=" *> pPatAndExp) <|< (pSymbol "<-" *> pPat)
-    pPatAndExp = do p <- pPat; guard (isExp p); pure p
+    pPattern = do
+      pKeyword "pattern"
+      lhs <- pLHS
+      (pSymbol "=" *> pBiPattern lhs) <|< (pSymbol "<-" *> pUniPattern lhs)
+    pBiPattern lhs@(_, vs) = do
+      p <- pPat
+      guard (isExp p)
+      pure $ Pattern lhs p [Eqn (map (EVar . idKindIdent) vs) (EAlts [([], p)] [])]
+    pUniPattern lhs@(name, _) = do
+      p <- pPat
+      eqnss <- pWhere (pEqnsA (== name))
+      let eqns =
+            case eqnss of
+              [] -> []
+              [(_, x)] -> x
+              _ -> fail "pattern-def"
+      pure $ Pattern lhs p eqns
 
 -- Is a pattern also an expression?
 isExp :: Expr -> Bool
@@ -540,8 +566,11 @@ pPatNotVar = guardM pPat isPConApp
 -------------
 
 pEqns :: P (Ident, [Eqn])
-pEqns = do
-  (name, eqn@(Eqn ps alts)) <- pEqn (\ _ _ -> True)
+pEqns = pEqnsA (not . isConIdent)
+
+pEqnsA :: (Ident -> Bool) -> P (Ident, [Eqn])
+pEqnsA ok = do
+  (name, eqn@(Eqn ps alts)) <- pEqn (\ i _ -> ok i)
   case (ps, alts) of
     ([], EAlts [_] []) ->
       -- don't collect equations when of the form 'i = e'
@@ -559,14 +588,13 @@ pEqn test = do
 
 pEqnLHS :: P (Ident, [EPat])
 pEqnLHS =
-  ((,) <$> pLIdentSym <*> emany pAPat)
+  ((,) <$> pIdentSym <*> emany pAPat)
   <|>   -- XXX this <|> causes a slowdown, but is necessary
   pOpLHS
   <|<
   ((\ (i, ps1) ps2 -> (i, ps1 ++ ps2)) <$> pParens pOpLHS <*> emany pAPat)
   where
-    pOpLHS = (\ p1 i p2 -> (i, [p1,p2])) <$> pPatApp <*> pLOper <*> pPatApp
-    pLOper = guardM pOper (not . isConIdent)
+    pOpLHS = (\ p1 i p2 -> (i, [p1,p2])) <$> pPatApp <*> pOper <*> pPatApp
 
 pAlts :: P () -> P EAlts
 pAlts sep = do
@@ -579,7 +607,7 @@ pAltsL sep =
       esome ((,) <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr))
   <|< ((\ e -> [([], e)]) <$> (sep *> pExpr))
 
-pWhere :: P EBind -> P [EBind]
+pWhere :: P a -> P [a]
 pWhere pb =
       (pKeyword "where" *> pBlock pb)
   <|< pure []

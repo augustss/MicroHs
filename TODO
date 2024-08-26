@@ -32,6 +32,7 @@
 * Better naming of internal identifiers
 * Add mask&co to exceptions
 * Make deriving refer to identifiers that don't need to be in scope
+* Expand types in symbol table so expandSyns not needed after tLookup
 
 Bugs:
 * Missing IO in ccall show wrong location

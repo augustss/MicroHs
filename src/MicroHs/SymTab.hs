@@ -10,6 +10,7 @@ module MicroHs.SymTab(
   stKeysLcl,
   stKeysGlbU,
   stInsertLcl,
+  stOnlyLocals,
   mapMSymTab,
   ) where
 import Control.Applicative
@@ -109,3 +110,6 @@ stInsertGlbU i as (SymTab l ug qg) = SymTab l (M.insertWith union i as ug) qg
 
 stInsertGlbQ :: Ident -> [Entry] -> SymTab -> SymTab
 stInsertGlbQ i as (SymTab l ug qg) = SymTab l ug (M.insertWith union i as qg)
+
+stOnlyLocals :: SymTab -> SymTab
+stOnlyLocals (SymTab l _ _) = SymTab l M.empty M.empty
