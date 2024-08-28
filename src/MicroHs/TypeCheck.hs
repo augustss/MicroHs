@@ -434,6 +434,14 @@ withTypeTable ta = do
   putTCMode otcm
   return a
   
+withEmptyGlobalValues :: T a -> T a
+withEmptyGlobalValues ta = do
+  vt <- gets valueTable
+  putValueTable (stOnlyLocals vt)
+  a <- ta
+  putValueTable vt
+  return a
+
 addAssocTable :: Ident -> [Ident] -> T ()
 addAssocTable i ids = modify $ \ ts -> ts { assocTable = M.insert i ids (assocTable ts) }
 
@@ -1263,10 +1271,12 @@ tcDefsValue defs = do
       -- Split Fcn into those without and with type signatures
       unsigned = filter noSign defs
         where noSign (Fcn i _) = isNothing $ M.lookup i smap
+              noSign (Pattern (i, _) _ _) = isNothing $ M.lookup i smap
               noSign _ = False
       -- split the unsigned defs into strongly connected components
       sccs = stronglyConnComp $ map node unsigned
         where node d@(Fcn i e) = (d, i, allVarsEqns e)
+              node d@(Pattern (i, _) p e) = (d, i, allVarsPat p `union` allVarsEqns e)
               node _ = undefined
       tcSCC (AcyclicSCC d) = tInferDefs [d]
       tcSCC (CyclicSCC ds) = tInferDefs ds
@@ -1283,13 +1293,19 @@ tInferDefs :: [EDef] -> T [EDef]
 tInferDefs fcns = do
   tcReset
   -- Invent type variables for the definitions
-  xts <- mapM (\ (Fcn i _) -> (,) i <$> newUVar) fcns
+  xts <- do
+    let f (Fcn i _) = (,) i <$> newUVar
+        f (Pattern (i, _) _ _) = (,) i <$> newUVar
+        f _ = impossible
+    mapM f fcns
   --traceM $ "tInferDefs: " ++ show (map fst xts)
   -- Temporarily extend the local environment with the type variables
   withExtVals xts $ do
     -- Infer types for all the Fcns, ignore the new bodies.
-    -- The bodies will be re-typecked in tcDefsValues.
-    zipWithM_ (\ (Fcn _ eqns) (_, t) -> tcEqns False t eqns) fcns xts
+    -- The bodies will be re-typecked in tcDefValue.
+    let f (Fcn _ eqns) (_, t) = do _ <- tcEqns False t eqns; return ()
+        f d _ = do _ <- tcDefValue d; return ()
+    zipWithM_ f fcns xts
   -- Get the unsolved constraints
   ctx <- getUnsolved
   -- For each definition, quantify over the free meta variables, and include
@@ -1346,6 +1362,7 @@ addValueType adef = do
       addConFields tycon con
     ForImp _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
+    Pattern (i, vs) _ _ ->
     _ -> return ()
 
 -- XXX FunDep
@@ -1396,6 +1413,23 @@ tcDefValue adef =
       mn <- gets moduleName
       t' <- expandSyn t
       return (ForImp ie (qualIdent mn i) t')
+    Pattern (i, avs) p eqns -> do
+      (_, t) <- tLookup "type signature" i
+      t' <- expandSyn t
+      teqns <- tcEqns True t' eqns
+      (_, t'') <- tInst eCannotHappen t'  -- XXX wrong for =>
+      let step targs (v:vs) ty = do
+            (at, rt) <- unArrow (getSLoc v) ty
+            step (targs ++ [at]) vs rt
+          step targs [] ty = do
+            tCheckPatC ty p $ \ p' -> do
+              -- Must ensure that all of vs are now locally bound
+              _ <- withEmptyGlobalValues $ tCheckExpr (tTuple (getSLoc i) targs) (ETuple (map (EVar . idKindIdent) avs))
+              return p'
+      tp <- step [] avs t''
+      checkConstraints
+      mn <- gets moduleName
+      return $ Pattern (qualIdent mn i, avs) tp teqns
     _ -> return adef
 
 -- Add implicit forall and type check.
@@ -1610,11 +1644,8 @@ tcExprR mt ae =
     ELet bs a -> tcBinds bs $ \ ebs -> do { ea <- tcExpr mt a; return (ELet ebs ea) }
     ETuple es -> do
       -- XXX checking if mt is a tuple would give better inference
-      let
-        n = length es
       (ees, tes) <- fmap unzip (mapM tInferExpr es)
-      let
-        ttup = tApps (tupleConstr loc n) tes
+      let ttup = tTuple loc tes
       munify loc mt ttup
       return (ETuple ees)
     EDo mmn ass -> do
@@ -2100,12 +2131,10 @@ tcPat mt ae =
       return (skf ++ ska, df ++ da, EApp f' a')
            
     ETuple es -> do
-      let
-        n = length es
       (xs, tes) <- fmap unzip (mapM tInferPat es)
       let
         (sks, ds, ees) = unzip3 xs
-        ttup = tApps (tupleConstr loc n) tes
+        ttup = tTuple loc tes
       munify loc mt ttup
       return (concat sks, concat ds, ETuple ees)
 
@@ -2229,19 +2258,22 @@ tcBind abind =
     BDfltSign _ _ -> return abind
 
 -- Desugar [T] and (T,T,...)
-dsType :: EType -> EType
+dsType :: HasCallStack => EType -> EType
 dsType at =
   case at of
     EVar _ -> at
     EApp f a -> EApp (dsType f) (dsType a)
     EOper t ies -> EOper (dsType t) [(i, dsType e) | (i, e) <- ies]
     EListish (LList [t]) -> tApp (tList (getSLoc at)) (dsType t)
-    ETuple ts -> tApps (tupleConstr (getSLoc at) (length ts)) (map dsType ts)
+    ETuple ts -> tTuple (getSLoc at) (map dsType ts)
     ESign t k -> ESign (dsType t) k
     EForall iks t -> EForall iks (dsType t)
     ELit _ (LStr _) -> at
     ELit _ (LInteger _) -> at
-    _ -> impossible
+    _ -> impossibleShow at
+
+tTuple :: SLoc -> [EType] -> EType
+tTuple l ts = tApps (tupleConstr l (length ts)) ts
 
 tListI :: SLoc -> Ident
 tListI loc = mkIdentSLoc loc nameList
