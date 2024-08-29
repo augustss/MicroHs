@@ -47,10 +47,10 @@ showToken TEnd = "EOF"
 showToken (TRaw _) = "TRaw"
 
 incrLine :: SLoc -> SLoc
-incrLine (SLoc f l _) = SLoc f (l+1) 1
+incrLine (SLoc f l _) = let l' = l+1 in seq l' (SLoc f l' 1)
 
 addCol :: SLoc -> Int -> SLoc
-addCol (SLoc f l c) i = SLoc f l (c + i)
+addCol (SLoc f l c) i = let c' = c+i in seq c' (SLoc f l c')
 
 tabCol :: SLoc -> SLoc
 tabCol (SLoc f l c) = SLoc f l (((c + 7) `quot` 8) * 8)

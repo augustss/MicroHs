@@ -24,13 +24,13 @@ import MicroHs.List(dropEnd)
 type Line = Int
 type Col  = Int
 
-data SLoc = SLoc !FilePath !Line !Col
+data SLoc = SLoc FilePath Line Col
 --  deriving (Eq)
 
 instance Show SLoc where
   show (SLoc f l c) = show f ++ "," ++ show l ++ ":" ++ show c
 
-data Ident = Ident !SLoc String
+data Ident = Ident SLoc String
   --deriving (Show)
 
 instance Eq Ident where
