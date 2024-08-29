@@ -9,6 +9,15 @@ import MicroHs.Ident
 import MicroHs.TCMonad
 import Debug.Trace
 
+-- Deriving runs when types level names are resolved, but not value level names.
+-- To get access to names that might not be in scope, the module Mhs.Builtin
+-- re-exports all names needed here.  This module is automagically imported as B@
+-- Generated names should be like
+--   type/class names fully qualified
+--   method names (on lhs) unqualified
+--   constructor names in the derived type unqualified
+--   all other names should be qualified with B@
+
 doDeriving :: EDef -> T [EDef]
 doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (derive lhs  cs) ds
 doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (derive lhs [c]) ds
@@ -61,8 +70,8 @@ genHasField (tycon, iks) cs (fld, fldty) = do
       qtycon = qualIdent mn tycon
       eFld = EVar fld
       undef = mkExn loc (unIdent fld) "recSelError"
-      iHasField = mkBuiltin loc nameHasField
-      iSetField = mkBuiltin loc nameSetField
+      iHasField = mkIdentSLoc loc nameHasField
+      iSetField = mkIdentSLoc loc nameSetField
       igetField = mkIdentSLoc loc namegetField
       isetField = mkIdentSLoc loc namesetField
       hdrGet = eForall iks $ eApp3 (EVar iHasField)
@@ -92,10 +101,10 @@ genHasField (tycon, iks) cs (fld, fldty) = do
        ]
 
 nameHasField :: String
-nameHasField = "HasField"
+nameHasField = "Data.Records.HasField"
 
 nameSetField :: String
-nameSetField = "SetField"
+nameSetField = "Data.Records.SetField"
 
 namegetField :: String
 namegetField = "getField"
@@ -105,19 +114,6 @@ namesetField = "setField"
 
 mkGetName :: Ident -> Ident -> Ident
 mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld
-
---------------------------------------------
-
-eApp2 :: Expr -> Expr -> Expr -> Expr
-eApp2 a b c = EApp (EApp a b) c
-
-eApp3 :: Expr -> Expr -> Expr -> Expr -> Expr
-eApp3 a b c d = EApp (eApp2 a b c) d
-
--- MicroHs currently has no way of using the original name,
--- so we just ignore the qualification part for now.
-mkQIdent :: SLoc -> String -> String -> Ident
-mkQIdent loc _qual name = mkIdentSLoc loc name
 
 --------------------------------------------
 
@@ -132,12 +128,9 @@ derTypeable (i, _) _ etyp = do
     hdr = EApp etyp (EVar $ qualIdent mn i)
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
-    eqns = eEqns [eDummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkQIdent loc nameDataListType "[]"))
+    eqns = eEqns [eDummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EListish (LList []))
     inst = Instance hdr [BFcn itypeRep eqns]
   return [inst]
-
-nameDataListType :: String
-nameDataListType = "Data.List_Type"
 
 --------------------------------------------
 
@@ -196,26 +189,19 @@ derOrd lhs cs@(_:_) eord = do
             ,eEqn [xp, eDummy] $ eLT
             ,eEqn [eDummy, yp] $ eGT]
       eqns = concatMap mkEqn cs
-      iCompare = mkQIdent loc nameDataOrd "compare"
-      eCompare = EApp . EApp (EVar iCompare)
-      eComb = EApp . EApp (EVar $ mkIdentSLoc loc "<>")
-      eEQ = EVar $ mkQIdent loc nameDataOrderingType "EQ"
-      eLT = EVar $ mkQIdent loc nameDataOrderingType "LT"
-      eGT = EVar $ mkQIdent loc nameDataOrderingType "GT"
+      iCompare = mkIdentSLoc loc "compare"
+      eCompare = EApp . EApp (EVar $ mkBuiltin loc "compare")
+      eComb = EApp . EApp (EVar $ mkBuiltin loc "<>")
+      eEQ = EVar $ mkBuiltin loc "EQ"
+      eLT = EVar $ mkBuiltin loc "LT"
+      eGT = EVar $ mkBuiltin loc "GT"
       inst = Instance hdr [BFcn iCompare eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
 derOrd (c, _) _ e = cannotDerive "Ord" c e
 
-nameDataOrd :: String
-nameDataOrd = "Data.Ord"
-
-nameDataOrderingType :: String
-nameDataOrderingType = "Data.Ordering_Type"
-
 --------------------------------------------
 
--- XXX should use mkQIdent
 derBounded :: Deriver
 derBounded lhs cs@(c0:_) ebnd = do
   hdr <- mkHdr lhs cs ebnd
@@ -225,9 +211,8 @@ derBounded lhs cs@(c0:_) ebnd = do
         let n = either length length flds
         in  eEqn [] $ tApps c (replicate n (EVar bnd))
 
-      ident = mkIdentSLoc loc
-      iMinBound = ident "minBound"
-      iMaxBound = ident "maxBound"
+      iMinBound = mkIdentSLoc loc "minBound"
+      iMaxBound = mkIdentSLoc loc "maxBound"
       minEqn = mkEqn iMinBound c0
       maxEqn = mkEqn iMaxBound (last cs)
       inst = Instance hdr [BFcn iMinBound [minEqn], BFcn iMaxBound [maxEqn]]
@@ -240,7 +225,6 @@ cannotDerive cls ty e = tcError (getSLoc e) $ "Cannot derive " ++ cls ++ " " ++ 
 
 --------------------------------------------
 
--- XXX should use mkQIdent
 derEnum :: Deriver
 derEnum lhs cs@(_:_) enm | all isNullary cs = do
   hdr <- mkHdr lhs cs enm
@@ -251,9 +235,8 @@ derEnum lhs cs@(_:_) enm | all isNullary cs = do
       mkTo (Constr _ _ c _) i =
         eEqn [ELit loc (LInt i)] $ EVar c
 
-      ident = mkIdentSLoc loc
-      iFromEnum = ident "fromEnum"
-      iToEnum = ident "toEnum"
+      iFromEnum = mkIdentSLoc loc "fromEnum"
+      iToEnum = mkIdentSLoc loc "toEnum"
       fromEqns = zipWith mkFrom cs [0..]
       toEqns   = zipWith mkTo   cs [0..]
       inst = Instance hdr [BFcn iFromEnum fromEqns, BFcn iToEnum toEqns]
@@ -266,7 +249,6 @@ isNullary (Constr _ _ _ flds) = either null null flds
 
 --------------------------------------------
 
--- XXX should use mkQIdent
 derShow :: Deriver
 derShow lhs cs@(_:_) eshow = do
   hdr <- mkHdr lhs cs eshow
@@ -275,13 +257,12 @@ derShow lhs cs@(_:_) eshow = do
         let (xp, xs) = mkPat c "x"
         in  eEqn [varp, xp] $ showRHS nm xs flds
 
-      ident = mkIdentSLoc loc
-      var = EVar . ident
-      varp = var "p"
+      var = EVar . mkBuiltin loc
+      varp = EVar $ mkIdent "p"
       lit = ELit loc
 
-      iShowsPrec = ident "showsPrec"
-      eShowsPrec n = eApp2 (EVar iShowsPrec) (lit (LInt n))
+      iShowsPrec = mkIdentSLoc loc "showsPrec"
+      eShowsPrec n = eApp2 (var "showsPrec") (lit (LInt n))
       eShowString s = EApp (var "showString") (lit (LStr s))
       eParen n = eApp2 (var "showParen") (eApp2 (var ">") varp (lit (LInt n)))
       eShowL s = foldr1 ejoin . intersperse (eShowString s)

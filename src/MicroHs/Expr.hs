@@ -30,7 +30,7 @@ module MicroHs.Expr(
   Con(..), conIdent, conArity, conFields,
   tupleConstr, getTupleConstr,
   mkTupleSel,
-  eApps,
+  eApp2, eApp3, eApps,
   lhsToType,
   subst,
   allVarsExpr, allVarsBind, allVarsEqns,
@@ -314,6 +314,12 @@ getTupleConstr i =
 mkTupleSel :: Int -> Int -> Expr
 mkTupleSel i n = eLam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [0 .. n - 1] ]] (EVar x)
   where x = mkIdent "$x"
+
+eApp2 :: Expr -> Expr -> Expr -> Expr
+eApp2 a b c = EApp (EApp a b) c
+
+eApp3 :: Expr -> Expr -> Expr -> Expr -> Expr
+eApp3 a b c d = EApp (eApp2 a b c) d
 
 eApps :: Expr -> [Expr] -> Expr
 eApps = foldl EApp
