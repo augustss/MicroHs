@@ -1,5 +1,4 @@
 module MicroHs.Deriving(expandField, doDeriving, mkGetName) where
-import Prelude
 --import Control.Monad
 import Data.Char
 import Data.Function
@@ -61,10 +60,10 @@ genHasField (tycon, iks) cs (fld, fldty) = do
       qtycon = qualIdent mn tycon
       eFld = EVar fld
       undef = mkExn loc (unIdent fld) "recSelError"
-      iHasField = mkIdentSLoc loc nameHasField
-      iSetField = mkIdentSLoc loc nameSetField
-      igetField = mkQIdent loc nameDataRecords namegetField
-      isetField = mkQIdent loc nameDataRecords namesetField
+      iHasField = mkBuiltin loc nameHasField
+      iSetField = mkBuiltin loc nameSetField
+      igetField = mkBuiltin loc namegetField
+      isetField = mkBuiltin loc namesetField
       hdrGet = eForall iks $ eApp3 (EVar iHasField)
                                    (ELit loc (LStr (unIdent fld)))
                                    (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
@@ -92,19 +91,16 @@ genHasField (tycon, iks) cs (fld, fldty) = do
        ]
 
 nameHasField :: String
-nameHasField = nameDataRecords ++ ".HasField"
+nameHasField = "HasField"
 
 nameSetField :: String
-nameSetField = nameDataRecords ++ ".SetField"
+nameSetField = "SetField"
 
 namegetField :: String
 namegetField = "getField"
 
 namesetField :: String
 namesetField = "setField"
-
-nameDataRecords :: String
-nameDataRecords = "Data.Records"
 
 mkGetName :: Ident -> Ident -> Ident
 mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld
@@ -129,18 +125,15 @@ derTypeable (i, _) _ etyp = do
   mn <- gets moduleName
   let
     loc = getSLoc i
-    itypeRep  = mkQIdent loc nameDataTypeable "typeRep"
-    imkTyConApp = mkQIdent loc nameDataTypeable "mkTyConApp"
-    imkTyCon = mkQIdent loc nameDataTypeable "mkTyCon"
+    itypeRep  = mkBuiltin loc "typeRep"
+    imkTyConApp = mkBuiltin loc "mkTyConApp"
+    imkTyCon = mkTyConApp loc "mkTyCon"
     hdr = EApp etyp (EVar $ qualIdent mn i)
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
     eqns = eEqns [eDummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkQIdent loc nameDataListType "[]"))
     inst = Instance hdr [BFcn itypeRep eqns]
   return [inst]
-
-nameDataTypeable :: String
-nameDataTypeable = "Data.Tyeable"
 
 nameDataListType :: String
 nameDataListType = "Data.List_Type"
@@ -179,21 +172,15 @@ derEq lhs cs@(_:_) eeq = do
             (yp, ys) = mkPat c "y"
         in  eEqn [xp, yp] $ if null xs then eTrue else foldr1 eAnd $ zipWith eEq xs ys
       eqns = map mkEqn cs ++ [eEqn [eDummy, eDummy] eFalse]
-      iEq = mkQIdent loc nameDataEq "=="
+      iEq = mkBuiltin loc "=="
       eEq = EApp . EApp (EVar iEq)
-      eAnd = EApp . EApp (EVar $ mkQIdent loc nameDataBool "&&")
-      eTrue = EVar $ mkQIdent loc nameDataBoolType "True"
-      eFalse = EVar $ mkQIdent loc nameDataBoolType "False"
+      eAnd = EApp . EApp (EVar $ mkBuiltin loc "&&")
+      eTrue = EVar $ mkBuiltin loc "True"
+      eFalse = EVar $ mkBuiltin loc "False"
       inst = Instance hdr [BFcn iEq eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
 derEq (c, _) _ e = cannotDerive "Eq" c e
-
-nameDataBoolType :: String
-nameDataBoolType = nameDataBool ++ "_Type"
-
-nameDataBool :: String
-nameDataBool = "Data.Bool"
 
 nameDataEq :: String
 nameDataEq = "Data.Eq"
