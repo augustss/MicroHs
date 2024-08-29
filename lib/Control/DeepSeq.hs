@@ -6,6 +6,7 @@ module Control.DeepSeq (
   (<$!!>),
   rwhnf,
   rnfNoErr,
+  rnfErr,
 ) where
 import Primitives(primRnfErr, primRnfNoErr)
 import Data.Complex
@@ -16,6 +17,9 @@ import Data.Tuple
 
 rnfNoErr :: forall a . a -> ()
 rnfNoErr = primRnfNoErr
+
+rnfErr :: forall a . a -> ()
+rnfErr = primRnfErr
 
 infixr 0 $!!
 

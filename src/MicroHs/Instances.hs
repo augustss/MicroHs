@@ -2,11 +2,11 @@
 -- See LICENSE file for full license.
 module MicroHs.Instances(compiledWithGHC) where
 -- For GHC compatibility
-import Control.DeepSeq
 import MicroHs.CompileCache
 import MicroHs.Ident
 import MicroHs.Exp
 import MicroHs.Expr
+import Compat
 
 compiledWithGHC :: Bool
 compiledWithGHC = False

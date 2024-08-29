@@ -17,7 +17,6 @@ import MicroHs.Ident
 import MicroHs.Expr(Lit(..), showLit)
 import MicroHs.List
 import Text.PrettyPrint.HughesPJLite
-import Control.DeepSeq
 import Debug.Trace
 
 type PrimOp = String

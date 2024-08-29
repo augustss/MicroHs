@@ -22,7 +22,6 @@ import System.IO.MD5
 import System.IO.Serialize
 import System.IO.TimeMilli
 import System.Process
-import Control.DeepSeq
 import MicroHs.Abstract
 import MicroHs.CompileCache
 import MicroHs.Desugar
@@ -173,12 +172,12 @@ compileModule flags impt mn pathfn file = do
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   let
     dmdl = desugar flags tmdl
-  () <- return $ rnf $ bindingsOf dmdl
+  () <- return $ rnfErr $ bindingsOf dmdl
   t4 <- liftIO getTimeMilli
 
   let
     cmdl = setBindings [ (i, compileOpt e) | (i, e) <- bindingsOf dmdl ] dmdl
-  () <- return $ rnf $ bindingsOf cmdl
+  () <- return $ rnfErr $ bindingsOf cmdl
   t5 <- liftIO getTimeMilli
 
   let tParse = t2 - t1

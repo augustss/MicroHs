@@ -43,3 +43,6 @@ _isWindows = False
 rnfNoErr :: forall a . a -> ()
 rnfNoErr _ = ()
 
+-- This cannot be implemented with GHC.
+rnfErr :: forall a . a -> ()
+rnfErr _ = ()
