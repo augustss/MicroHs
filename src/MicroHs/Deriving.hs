@@ -3,6 +3,7 @@ module MicroHs.Deriving(expandField, doDeriving, mkGetName) where
 import Data.Char
 import Data.Function
 import Data.List
+import MicroHs.Builtin
 import MicroHs.Expr
 import MicroHs.Ident
 import MicroHs.TCMonad
@@ -62,8 +63,8 @@ genHasField (tycon, iks) cs (fld, fldty) = do
       undef = mkExn loc (unIdent fld) "recSelError"
       iHasField = mkBuiltin loc nameHasField
       iSetField = mkBuiltin loc nameSetField
-      igetField = mkBuiltin loc namegetField
-      isetField = mkBuiltin loc namesetField
+      igetField = mkIdentSLoc loc namegetField
+      isetField = mkIdentSLoc loc namesetField
       hdrGet = eForall iks $ eApp3 (EVar iHasField)
                                    (ELit loc (LStr (unIdent fld)))
                                    (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
@@ -125,9 +126,9 @@ derTypeable (i, _) _ etyp = do
   mn <- gets moduleName
   let
     loc = getSLoc i
-    itypeRep  = mkBuiltin loc "typeRep"
+    itypeRep  = mkIdentSLoc loc "typeRep"
     imkTyConApp = mkBuiltin loc "mkTyConApp"
-    imkTyCon = mkTyConApp loc "mkTyCon"
+    imkTyCon = mkBuiltin loc "mkTyCon"
     hdr = EApp etyp (EVar $ qualIdent mn i)
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
@@ -172,8 +173,8 @@ derEq lhs cs@(_:_) eeq = do
             (yp, ys) = mkPat c "y"
         in  eEqn [xp, yp] $ if null xs then eTrue else foldr1 eAnd $ zipWith eEq xs ys
       eqns = map mkEqn cs ++ [eEqn [eDummy, eDummy] eFalse]
-      iEq = mkBuiltin loc "=="
-      eEq = EApp . EApp (EVar iEq)
+      iEq = mkIdentSLoc loc "=="
+      eEq = EApp . EApp (EVar $ mkBuiltin loc "==")
       eAnd = EApp . EApp (EVar $ mkBuiltin loc "&&")
       eTrue = EVar $ mkBuiltin loc "True"
       eFalse = EVar $ mkBuiltin loc "False"
@@ -181,9 +182,6 @@ derEq lhs cs@(_:_) eeq = do
 --  traceM $ showEDefs [inst]
   return [inst]
 derEq (c, _) _ e = cannotDerive "Eq" c e
-
-nameDataEq :: String
-nameDataEq = "Data.Eq"
 
 --------------------------------------------
 

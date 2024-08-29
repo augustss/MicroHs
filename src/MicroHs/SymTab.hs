@@ -14,8 +14,9 @@ module MicroHs.SymTab(
   ) where
 import Control.Applicative
 import Data.List
+import MicroHs.Builtin(builtinMdl)
 import MicroHs.Expr(Expr(..), EType, conIdent)
-import MicroHs.Ident(Ident, showIdent)
+import MicroHs.Ident(Ident(..), showIdent)
 import MicroHs.List
 import qualified MicroHs.IdentMap as M
 
@@ -82,12 +83,16 @@ stLookup msg i (SymTab l ug qg) =
   case lookup i l of
     Just e -> Right e
     Nothing ->
-      case M.lookup i ug <|> M.lookup i qg of
+      case M.lookup i ug <|> M.lookup i qg <|> M.lookup (hackBuiltin i) ug of
         Just [e] -> Right e
         Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++
                            showListS showIdent [ getIdent e | Entry e _ <- es ]
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
+
+hackBuiltin :: Ident -> Ident
+hackBuiltin (Ident l qs) | Just ('.':s) <- stripPrefix builtinMdl qs = Ident l s
+hackBuiltin i = i
 
 stFromList :: [(Ident, [Entry])] -> [(Ident, [Entry])] -> SymTab
 stFromList us qs = SymTab [] (M.fromListWith union us) (M.fromListWith union qs)

@@ -16,7 +16,6 @@ module MicroHs.Ident(
   SLoc(..), noSLoc,
   showSLoc,
   ) where
-import Data.Eq
 import Data.Char
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack

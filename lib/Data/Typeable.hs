@@ -18,7 +18,6 @@ module Data.Typeable (
   typeRepArgs,
   ) where
 import Primitives
-import Prelude
 import Control.Monad.ST
 import Data.IORef
 import Data.Proxy

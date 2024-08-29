@@ -24,6 +24,7 @@ import System.IO.TimeMilli
 import System.Process
 import Control.DeepSeq
 import MicroHs.Abstract
+import MicroHs.Builtin
 import MicroHs.CompileCache
 import MicroHs.Desugar
 import MicroHs.Exp
@@ -209,11 +210,15 @@ addPreludeImport (EModule mn es ds) =
         isImportPrelude (Import (ImportSpec _ _ i _ _)) = i == idPrelude
         isImportPrelude _ = False
         idPrelude = mkIdent "Prelude"
+        idBuiltin = mkIdent "Mhs.Builtin"
+        idB = mkIdent builtinMdl
+        iblt = Import $ ImportSpec ImpNormal True idBuiltin (Just idB) Nothing
         ps' =
           case ps of
-            [] -> [Import $ ImportSpec ImpNormal False idPrelude Nothing Nothing]     -- no Prelude imports, so add 'import Prelude'
-            [Import (ImportSpec ImpNormal False _ Nothing (Just (False, [])))] -> []  -- exactly 'import Prelude()', so import nothing
-            _ -> ps                                                         -- keep the given Prelude imports
+            [] -> [Import $ ImportSpec ImpNormal False idPrelude Nothing Nothing,      -- no Prelude imports, so add 'import Prelude'
+                   iblt]                                                               -- and 'import Mhs.Builtin as @B'
+            [Import (ImportSpec ImpNormal False _ Nothing (Just (False, [])))] -> []   -- exactly 'import Prelude()', so import nothing
+            _ -> iblt : ps                                                             -- keep the given Prelude imports, add Builtin
 
 -------------------------------------------
 

@@ -1006,7 +1006,7 @@ tcExpand impt dst = withTypeTable $ do
   dsf <- concat <$> mapM expandField dsc              -- Add HasField instances
 --  traceM $ showEDefs dsf
   dsd <- concat <$> mapM doDeriving  dsf              -- Add derived instances
---  traceM $ showEDefs dsd
+  traceM $ showEDefs dsd
   dsi <- concat <$> mapM expandInst  dsd              -- Expand all instance definitions
   return dsi
 
