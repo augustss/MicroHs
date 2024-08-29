@@ -15,7 +15,6 @@ module MicroHs.TypeCheck(
   ValueExport(..), TypeExport(..),
   Symbols,
   ) where
-import Prelude
 import Control.Applicative
 import Control.Arrow(first)
 import Control.Monad

@@ -3,7 +3,6 @@
 module MicroHs.Translate(
   translate, translateAndRun
   ) where
-import Prelude
 import Data.Maybe
 import qualified MicroHs.IdentMap as M
 import Unsafe.Coerce

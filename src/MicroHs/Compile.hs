@@ -11,7 +11,6 @@ module MicroHs.Compile(
   packageDir, packageSuffix, packageTxtSuffix,
   mhsVersion,
   ) where
-import Prelude
 import Data.Char
 import Data.List
 import Data.Maybe
