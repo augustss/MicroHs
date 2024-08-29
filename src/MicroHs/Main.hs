@@ -5,7 +5,6 @@ module MicroHs.Main(main) where
 import Data.Char
 import Data.List
 import Data.Version
-import Control.DeepSeq
 import Control.Monad
 import Control.Applicative
 import Data.Maybe
