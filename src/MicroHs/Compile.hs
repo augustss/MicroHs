@@ -177,7 +177,8 @@ compileModule flags impt mn pathfn file = do
 
   let
     cmdl = setBindings [ (i, compileOpt e) | (i, e) <- bindingsOf dmdl ] dmdl
-  () <- return $ rnfErr $ bindingsOf cmdl
+  () <- return $ rnfErr $ bindingsOf cmdl  -- This makes execution slower, but speeds up GC
+--  () <- return $ rnfErr syms same for this, but worse total time
   t5 <- liftIO getTimeMilli
 
   let tParse = t2 - t1
@@ -212,7 +213,7 @@ addPreludeImport (EModule mn es ds) =
           case ps of
             [] -> [Import $ ImportSpec ImpNormal False idPrelude Nothing Nothing]     -- no Prelude imports, so add 'import Prelude'
             [Import (ImportSpec ImpNormal False _ Nothing (Just (False, [])))] -> []  -- exactly 'import Prelude()', so import nothing
-            _ -> ps                                                         -- keep the given Prelude imports
+            _ -> ps                                                                   -- keep the given Prelude imports
 
 -------------------------------------------
 
