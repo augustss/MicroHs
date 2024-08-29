@@ -22,6 +22,7 @@ import Data.Char
 import Data.Function
 import Data.List
 import Data.Maybe
+import MicroHs.Builtin
 import MicroHs.Deriving
 import MicroHs.Expr
 import MicroHs.Fixity
@@ -1572,7 +1573,7 @@ tcExprR mt ae =
                               | v == identFloatW  -> tcLit  mt loc (LDouble (fromInteger i))
                               | v == identInteger -> tcLit  mt loc lit
                 _ -> do
-                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc "fromInteger"))  -- XXX should have this qualified somehow
+                  (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromInteger"))
                   (_at, rt) <- unArrow loc ft
                   -- We don't need to check that _at is Integer, it's part of the fromInteger type.
                   instSigma loc (EApp f ae) rt mt
@@ -1581,7 +1582,7 @@ tcExprR mt ae =
               case mex of
                 Just (EVar v) | v == mkIdent nameFloatW -> tcLit mt loc (LDouble (fromRational r))
                 _ -> do
-                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc "fromRational"))  -- XXX should have this qualified somehow
+                  (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromRational"))
                   (_at, rt) <- unArrow loc ft
                   -- We don't need to check that _at is Rational, it's part of the fromRational type.
                   instSigma loc (EApp f ae) rt mt
@@ -1592,7 +1593,7 @@ tcExprR mt ae =
                 Just (EApp (EVar lst) (EVar c))
                  | lst == identList, c == identChar -> tcLit mt loc lit
                 _ -> do
-                  (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc $ "fromString"))  -- XXX should have this qualified somehow
+                  (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromString"))
                   (_at, rt) <- unArrow loc ft
                   -- We don't need to check that _at is String, it's part of the fromString type.
                   --traceM ("LStr " ++ show (loc, r))
@@ -1628,12 +1629,11 @@ tcExprR mt ae =
             SBind p a -> do
               nofail <- failureFree p
               let
-                -- XXX this wrong, it should be >>= from Monad
-                ibind = mkIdentSLoc loc ">>="
+                ibind = mkBuiltin loc ">>="
                 sbind = maybe ibind (\ mn -> qualIdent mn ibind) mmn
                 x = eVarI loc "$b"
                 patAlt = [(p, simpleAlts $ EDo mmn ss)]
-                failMsg s = EApp (EVar (mkIdentSLoc loc "fail")) (ELit loc (LStr s))
+                failMsg s = EApp (EVar (mkBuiltin loc "fail")) (ELit loc (LStr s))
                 failAlt =
                   if nofail then []
                   else [(EVar dummyIdent, simpleAlts $ failMsg "bind")]
@@ -1641,7 +1641,7 @@ tcExprR mt ae =
                               (eLam [x] (ECase x (patAlt ++ failAlt))))
             SThen a -> do
               let
-                ithen = mkIdentSLoc loc ">>"
+                ithen = mkBuiltin loc ">>"
                 sthen = maybe ithen (\ mn -> qualIdent mn ithen) mmn
               tcExpr mt (EApp (EApp (EVar sthen) a) (EDo mmn ss))
                 
@@ -1829,7 +1829,7 @@ dsUpdate unset e flds = do
     _ -> return Nothing
 
 enum :: SLoc -> String -> [Expr] -> Expr
-enum loc f = eApps (EVar (mkIdentSLoc loc ("enum" ++ f)))
+enum loc f = eApps (EVar (mkBuiltin loc ("enum" ++ f)))
 
 tcLit :: HasCallStack => Expected -> SLoc -> Lit -> T Expr
 tcLit mt loc l@(LPrim _) = newUVar >>= tcLit' mt loc l
@@ -2602,8 +2602,8 @@ solvers :: [(Ident -> Bool, SolveOne)]
 solvers =
   [ (isJust . getTupleConstr,      solveTuple)        -- handle tuple constraints, i.e. (C1 t1, C2 t2, ...)
   , ((== mkIdent nameTypeEq),      solveTypeEq)       -- handle equality constraints, i.e. (t1 ~ t2)
-  , ((== mkIdent nameKnownNat),    solveKnownNat)     -- KnownNat 999 constraints
-  , ((== mkIdent nameKnownSymbol), solveKnownSymbol)  -- KnownNat 999 constraints
+  , ((== mkIdent nameKnownNat),    solveKnownNat)     -- KnownNat 123 constraints
+  , ((== mkIdent nameKnownSymbol), solveKnownSymbol)  -- KnownSymbol "abc" constraints
   , (const True,                   solveInst)         -- handle constraints with instances
   ]
 
