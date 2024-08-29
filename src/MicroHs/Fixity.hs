@@ -1,5 +1,4 @@
 module MicroHs.Fixity(resolveFixity) where
-import Prelude
 import MicroHs.Expr
 import MicroHs.Ident
 
