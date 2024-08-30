@@ -59,6 +59,10 @@ typedef uintptr_t bits_t;       /* One word of bits */
 #define MALLOC malloc
 #endif
 
+#if !defined(REALLOC)
+#define REALLOC realloc
+#endif
+
 #if !defined(FREE)
 #define FREE free
 #endif
@@ -188,7 +192,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_FROMUTF8,
-                T_STR,
+                T_BSTR,
                 T_LAST_TAG,
 };
 #if 0
@@ -225,7 +229,7 @@ static const char* tag_names[] = {
 #endif
 
 struct ioarray;
-struct ustring;
+struct bytestring;
 struct forptr;
 
 typedef struct node {
@@ -237,7 +241,6 @@ typedef struct node {
     struct node    *uuarg;
     value_t         uuvalue;
     flt_t           uufloatvalue;
-    struct ustring *uustring;
     const char     *uucstring;
     void           *uuptr;
     HsFunPtr        uufunptr;
@@ -256,11 +259,11 @@ typedef struct node* NODEPTR;
 #define SETDBLVALUE(p,v) (p)->uarg.uufloatvalue = v
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
-#define STR(p) (p)->uarg.uustring
 #define CSTR(p) (p)->uarg.uucstring
 #define PTR(p) (p)->uarg.uuptr
 #define FUNPTR(p) (p)->uarg.uufunptr
 #define FORPTR(p) (p)->uarg.uuforptr
+#define BSTR(p) (p)->uarg.uuforptr->payload
 #define ARR(p) (p)->uarg.uuarray
 #define INDIR(p) ARG(p)
 #define NODE_SIZE sizeof(node)
@@ -269,11 +272,11 @@ typedef struct node* NODEPTR;
 node *cells;                 /* All cells */
 
 /*
- * UTF-8 encoded strings
+ * byte arrays
  */
-struct ustring {
+struct bytestring {
   size_t size;
-  unsigned char string[1];
+  void *string;
 };
 
 /*
@@ -313,10 +316,16 @@ struct final {
   int            marked;    /* mark bit for GC */
 };
 
+/*
+ * Foreign pointers are also used to represent bytestrings.
+ * The difference between a foreign pointer and a bytestring
+ * is that we can serialize the latter.
+ * The size field is non-zero only for bytestrings.
+ */
 struct forptr {
   struct forptr *next;      /* the next ForeignPtr that shares the same finilizer */
-  void          *payload;   /* the actual pointer to allocated data */
   struct final  *finalizer; /* the finalizer for this ForeignPtr */
+  struct bytestring payload; /* the actual pointer to allocated data, and maybe a size */
 };
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
 
@@ -360,6 +369,7 @@ counter_t max_num_marked = 0;
 counter_t num_free;
 counter_t num_arr_alloc;
 counter_t num_arr_free;
+counter_t num_fin_alloc;
 counter_t num_fin_free;
 
 #define BITS_PER_WORD (sizeof(bits_t) * 8)
@@ -425,7 +435,7 @@ arr_copy(struct ioarray *oarr)
 
 #if WANT_TICK
 struct tick_entry {
-  struct ustring *tick_name;
+  struct bytestring tick_name;
   counter_t tick_count;
 } *tick_table = 0;
 size_t tick_table_size;
@@ -433,7 +443,7 @@ size_t tick_index;
 
 /* Allocate a new tick table entry and return the index. */
 size_t
-add_tick_table(struct ustring *name)
+add_tick_table(struct bytestring name)
 {
   if (!tick_table) {
     tick_table_size = 100;
@@ -444,7 +454,7 @@ add_tick_table(struct ustring *name)
   }
   if (tick_index >= tick_table_size) {
     tick_table_size *= 2;
-    tick_table = realloc(tick_table, tick_table_size * sizeof(struct tick_entry));
+    tick_table = REALLOC(tick_table, tick_table_size * sizeof(struct tick_entry));
     if (!tick_table)
       memerr();
   }
@@ -470,7 +480,7 @@ dump_tick_table(FILE *f)
   for (size_t i = 0; i < tick_index; i++) {
     counter_t n = tick_table[i].tick_count;
     if (n)
-      fprintf(f, "%-60s %10"PRIcounter"\n", tick_table[i].tick_name->string, n);
+      fprintf(f, "%-60s %10"PRIcounter"\n", (char *)tick_table[i].tick_name.string, n);
   }
 }
 #endif
@@ -987,6 +997,7 @@ mark(NODEPTR *np)
       break;
     }
    case T_FORPTR:
+   case T_BSTR:
      FORPTR(n)->finalizer->marked = 1;
      goto fin;
 
@@ -1483,11 +1494,16 @@ parse_double(BFILE *f)
 }
 #endif
 
+struct forptr *mkForPtr(struct bytestring bs);
+
 NODEPTR
-mkStrNode(struct ustring *str)
+mkStrNode(struct bytestring str)
 {
-  NODEPTR n = alloc_node(T_STR);
-  STR(n) = str;
+  NODEPTR n = alloc_node(T_BSTR);
+  struct forptr *fp = mkForPtr(str);         /* Create a foreign pointer */
+  fp->finalizer->final = (HsFunPtr)FREE;     /* and set the finalizer to just free it */
+  FORPTR(n) = fp;
+  //printf("mkForPtr n=%p fp=%p %d %s payload.string=%p\n", n, fp, (int)FORPTR(n)->payload.size, (char*)FORPTR(n)->payload.string, FORPTR(n)->payload.string);
   return n;
 }
 
@@ -1530,11 +1546,12 @@ find_label(heapoffs_t label)
  * finalizer for read UTF-8 strings.
  * Fix this if there is a lot of deserialization.
  */
-struct ustring *
+struct bytestring
 parse_string(BFILE *f)
 {
+  struct bytestring bs;
   size_t sz = 20;
-  struct ustring *buffer = MALLOC(sizeof(struct ustring) + sz);
+  uint8_t *buffer = MALLOC(sz);
   size_t i;
   int c;
 
@@ -1546,21 +1563,25 @@ parse_string(BFILE *f)
       break;
     if (i >= sz) {
       sz *= 2;
-      buffer = realloc(buffer, sizeof(struct ustring) + sz);
+      buffer = REALLOC(buffer, sz);
       if (!buffer)
         memerr();
     }
     if (c == '\\') {
-      buffer->string[i++] = (char)parse_int(f);
+      buffer[i++] = (uint8_t)parse_int(f);
       if (!gobble(f, '&'))
         ERR("parse string");
     } else {
-      buffer->string[i++] = c;
+      buffer[i++] = c;
     }
   }
-  buffer->size = i;
-  buffer->string[i++] = 0;
-  return realloc(buffer, sizeof(struct ustring) + i);
+  buffer[i] = 0;                /* add a trailing 0 in case we need a C string */
+  buffer = REALLOC(buffer, i + 1);
+
+  bs.size = i;
+  bs.string = buffer;
+  //printf("parse_string %d %s\n", (int)bs.size, (char*)bs.string);
+  return bs;
 }
 
 NODEPTR
@@ -1863,11 +1884,12 @@ find_sharing(struct print_bits *pb, NODEPTR n)
 }
 
 void
-print_string(BFILE *f, struct ustring *p)
+print_string(BFILE *f, struct bytestring bs)
 {
+  uint8_t *str = bs.string;
   putb('"', f);
-  for (size_t i = 0; i < p->size; i++) {
-    int c = p->string[i];
+  for (size_t i = 0; i < bs.size; i++) {
+    int c = str[i];
     if (c == '"' || c == '\\' || c < ' ' || c > '~') {
       putb('\\', f);
       putdecb(c, f);
@@ -1974,8 +1996,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_FORPTR:
       ERR("Cannot serialize foreign pointers");
     break;
-  case T_STR:
-    print_string(f, STR(n));
+  case T_BSTR:
+    print_string(f, FORPTR(n)->payload);
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
@@ -2200,23 +2222,31 @@ mkFunPtr(void (*p)(void))
 }
 
 struct forptr*
-mkForPtr(void *p)
+mkForPtr(struct bytestring bs)
 {
   struct final *fin = malloc(sizeof(struct final));
   struct forptr *fp = malloc(sizeof(struct forptr));
   if (!fin || !fp)
     memerr();
+  num_fin_alloc++;
   //printf("mkForPtr p=%p fin=%p fp=%p\n", p, fin, fp);
   fin->next = final_root;
   final_root = fin;
   fin->final = 0;
-  fin->arg = p;
+  fin->arg = bs.string;
   fin->back = fp;
   fin->marked = 0;
   fp->next = 0;
-  fp->payload = p;
+  fp->payload = bs;
   fp->finalizer = fin;
   return fp;
+}
+
+struct forptr*
+mkForPtrP(void *p)
+{
+  struct bytestring bs = { 0, p };
+  return mkForPtr(bs);
 }
 
 struct forptr*
@@ -2228,7 +2258,8 @@ addForPtr(struct forptr *ofp, int s)
     memerr();
   fp->next = ofp;
   fin->back = fp;
-  fp->payload = (char*)ofp->payload + s;
+  fp->payload.size = ofp->payload.size - s;
+  fp->payload.string = ofp->payload.string + s;
   fp->finalizer = fin;
   return fp;
 }
@@ -2278,10 +2309,12 @@ mkStringC(const char *str)
 }
 
 NODEPTR
-mkStringU(struct ustring *str)
+mkStringU(struct bytestring bs)
 {
-  BFILE *ubuf = add_utf8(openb_buf(str->string, str->size));
+  BFILE *ubuf = add_utf8(openb_buf(bs.string, bs.size));
   NODEPTR n, *np, nc;
+
+  //printf("mkStringU %d %s\n", (int)bs.size, (char*)bs.string);
 
   n = mkNil();
   np = &n;
@@ -2392,7 +2425,7 @@ evalstring(NODEPTR n, value_t *lenp)
   for (offs = 0;;) {
     if (offs >= sz - 4) {
       sz *= 2;
-      name = realloc(name, sz);
+      name = REALLOC(name, sz);
       if (!name)
         memerr();
     }
@@ -2653,7 +2686,7 @@ evali(NODEPTR an)
   ap:
   case T_AP:   PUSH(n); n = FUN(n); goto top;
 
-  case T_STR:  RET;
+  case T_BSTR: RET;
   case T_INT:  RET;
   case T_DBL:  RET;
   case T_PTR:  RET;
@@ -2801,7 +2834,7 @@ evali(NODEPTR an)
     //printf("T_FP2P\n");
     xfp = evalforptr(ARG(TOP(0))); POP(1); n = TOP(-1);
     //printf("T_FP2P xfp=%p, payload=%p\n", xfp, xfp->payload);
-    SETPTR(n, xfp->payload); RET;
+    SETPTR(n, xfp->payload.string); RET;
 
   case T_ARR_EQ:
     {
@@ -2818,11 +2851,12 @@ evali(NODEPTR an)
     if (doing_rnf) RET;
     CHECK(1);
     x = evali(ARG(TOP(0)));
-    if (GETTAG(x) != T_STR) ERR("FROMUTF8");
+    if (GETTAG(x) != T_BSTR) ERR("FROMUTF8");
     POP(1);
     n = TOP(-1);
-    GCCHECK(strNodes(STR(x)->size));
-    GOIND(mkStringU(STR(x)));
+    GCCHECK(strNodes(BSTR(x).size));
+    //printf("T_FROMUTF8 x = %p fp=%p payload.string=%p\n", x, x->uarg.uuforptr, x->uarg.uuforptr->payload.string);
+    GOIND(mkStringU(BSTR(x)));
 
   case T_RAISE:
     if (doing_rnf) RET;
@@ -3401,7 +3435,7 @@ execio(NODEPTR *np)
         void *xp = evalptr(ARG(TOP(1)));
         //printf("T_FPNEW xp=%p\n", xp);
         n = alloc_node(T_FORPTR);
-        SETFORPTR(n, mkForPtr(xp));
+        SETFORPTR(n, mkForPtrP(xp));
         RETIO(n);
       }
     case T_FPFIN:
@@ -3596,6 +3630,7 @@ MAIN
   execio(&TOP(0));
   prog = TOP(0);
   POP(1);
+  gc();                      /* Run finalizers */
 #if SANITY
   if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
     ERR("main execio");
@@ -3623,7 +3658,8 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
     PRINT("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
-    PRINT("%"PCOMMA"15"PRIcounter" foreign free\n", num_fin_free);
+    PRINT("%"PCOMMA"15"PRIcounter" foreign/bytestring alloc\n", num_fin_alloc);
+    PRINT("%"PCOMMA"15"PRIcounter" foreign/bytestring free\n", num_fin_free);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
