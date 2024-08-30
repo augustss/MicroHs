@@ -1581,7 +1581,7 @@ parse_string(BFILE *f)
     c = getb(f);
     if (c == '"')
       break;
-    if (i >= sz) {
+    if (i >= sz - 1) {
       sz *= 2;
       buffer = REALLOC(buffer, sz);
       if (!buffer)
