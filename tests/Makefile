@@ -68,6 +68,7 @@ test:
 	$(TMHS) Eq1        && $(EVAL) > Eq1.out        && diff Eq1.ref Eq1.out
 	$(TMHS) Irref      && $(EVAL) > Irref.out      && diff Irref.ref Irref.out
 	$(TMHS) DfltSig    && $(EVAL) > DfltSig.out    && diff DfltSig.ref DfltSig.out
+	$(TMHS) Bytestring && $(EVAL) > Bytestring.out && diff Bytestring.ref Bytestring.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
