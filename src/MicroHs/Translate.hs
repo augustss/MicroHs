@@ -136,5 +136,15 @@ primTable = [
   ("A.size", primitive "A.size"),
   ("A.read", primitive "A.read"),
   ("A.write", primitive "A.write"),
-  ("A.==", primitive "A.==")
+  ("A.==", primitive "A.=="),
+  ("bs==", primitive "bs=="),
+  ("bs/=", primitive "bs/="),
+  ("bs<", primitive "bs<"),
+  ("bs<=", primitive "bs<="),
+  ("bs>", primitive "bs>"),
+  ("bs>=", primitive "bs>="),
+  ("bspack", primitive "bspack"),
+  ("bsunpack", primitive "bsunpack"),
+  ("fromUTF8", primitive "fromUTF8"),
+  ("toUTF8", primitive "toUTF8")
   ]

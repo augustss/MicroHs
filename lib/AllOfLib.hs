@@ -15,6 +15,7 @@ import Data.Bits
 import Data.Bool
 import Data.Bool_Type
 import Data.Bounded
+import Data.ByteString
 import Data.Char
 import Data.Char_Type
 import Data.Complex
@@ -58,6 +59,7 @@ import Data.Records
 import Data.Semigroup
 import Data.STRef
 import Data.String
+import Data.Text
 import Data.Traversable
 import Data.Tuple
 import Data.Typeable

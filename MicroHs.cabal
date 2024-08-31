@@ -108,6 +108,7 @@ executable mhs
                        time         >= 1.1 && < 1.15,
                        process      >= 1.6 && < 1.8,
                        directory    >= 1.2 && < 1.5,
+                       text         >= 2.0 && < 2.3,
 --  if impl(mhs)
 --    hs-source-dirs:    mhs src
 --    build-depends:     base
