@@ -338,6 +338,7 @@ counter_t num_reductions = 0;
 counter_t num_alloc = 0;
 counter_t num_gc = 0;
 uintptr_t gc_mark_time = 0;
+uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
 
 #define MAXSTACKDEPTH 0
@@ -1086,6 +1087,7 @@ gc(void)
   if (num_free < heap_size / 50)
     ERR("heap exhausted");
 
+  gc_scan_time -= GETTIMEMILLI();
   /* Free unused arrays */
   for (struct ioarray **arrp = &array_root; *arrp; ) {
     struct ioarray *arr = *arrp;
@@ -1129,6 +1131,7 @@ gc(void)
       FREE(fin);
     }
   }
+  gc_scan_time += GETTIMEMILLI();
 
 #if WANT_STDIO
   if (verbose > 1) {
@@ -3929,7 +3932,10 @@ MAIN
 #endif
     // PRINT("%"PCOMMA"15"PRIcounter" max mark depth\n", max_mark_depth);
     PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
-    PRINT("%15.2fs total gc time\n", (double)gc_mark_time / 1000);
+    PRINT("%15.2fs total gc time (%.2f + %.2f)\n",
+          (double)(gc_mark_time + gc_scan_time) / 1000,
+          (double)gc_mark_time / 1000,
+          (double)gc_scan_time / 1000);
 #if GCRED
     PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
 #endif
