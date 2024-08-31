@@ -3849,7 +3849,7 @@ MAIN
   execio(&TOP(0));
   prog = TOP(0);
   POP(1);
-  //gc();                      /* Run finalizers */
+  gc();                      /* Run finalizers */
 #if SANITY
   if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
     ERR("main execio");
