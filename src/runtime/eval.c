@@ -1892,7 +1892,7 @@ find_sharing(struct print_bits *pb, NODEPTR n)
   if (n < cells || n >= cells + heap_size) abort();
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   tag_t tag = GETTAG(n);
-  if (tag == T_AP || tag == T_ARR) {
+  if (tag == T_AP || tag == T_ARR || tag == T_BSTR) {
     if (test_bit(pb->shared_bits, n)) {
       /* Alread marked as shared */
       //PRINT("shared\n");
@@ -1906,18 +1906,22 @@ find_sharing(struct print_bits *pb, NODEPTR n)
       /* Mark as visited, and recurse */
       //PRINT("unmarked\n");
       set_bit(pb->marked_bits, n);
-      if (tag == T_AP) {
+      switch(tag) {
+      case T_AP:
         find_sharing(pb, FUN(n));
         n = ARG(n);
         goto top;
-      } else {
+      case T_ARR:
         for(size_t i = 0; i < ARR(n)->size; i++) {
           find_sharing(pb, ARR(n)->array[i]);
         }
+        break;
+      default:
+        break;
       }
     }
   } else {
-    /* Not an application, so do nothing */
+    /* Not an sharable node, so do nothing */
     //PRINT("not T_AP\n");
     ;
   }

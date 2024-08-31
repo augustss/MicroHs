@@ -5,6 +5,7 @@ module System.IO.Serialize(
   hSerialize, hDeserialize,
   writeSerialized,
 -}
+  writeSerialized,
   writeSerializedCompressed,
   readSerialized,
   ) where
@@ -22,6 +23,10 @@ writeSerialized = errghc
 
 writeSerializedCompressed :: forall a . HasCallStack => FilePath -> a -> IO ()
 writeSerializedCompressed = errghc
+
+writeSerialized :: forall a . HasCallStack => FilePath -> a -> IO ()
+writeSerialized = errghc
+
 readSerialized :: forall a . HasCallStack => FilePath -> IO a
 readSerialized = errghc
 
