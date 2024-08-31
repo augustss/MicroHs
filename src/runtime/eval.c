@@ -192,9 +192,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
-                T_FROMUTF8,
                 T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE,
-                T_BSPACK, T_BSUNPACK,
+                T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR,
+                T_BSFROMUTF8, T_BSTOUTF8,
                 T_BSTR,
                 T_LAST_TAG,
 };
@@ -225,7 +225,7 @@ static const char* tag_names[] = {
   "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "CATCH",
   "IO_CCALL", "IO_GC", "DYNSYM",
   "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
-  "FROMUTF8",
+  "BSFROMUTF8",
   "STR",
   "LAST_TAG",
 };
@@ -683,6 +683,8 @@ struct {
   { "bscmp", T_COMPARE},
   { "bspack", T_BSPACK},
   { "bsunpack", T_BSUNPACK},
+  { "bslength", T_BSLENGTH},
+  { "bssubstr", T_BSSUBSTR},
 
   { "ord", T_I },
   { "chr", T_I },
@@ -707,7 +709,7 @@ struct {
   { "scmp", T_COMPARE },
   { "icmp", T_COMPARE },
   { "rnf", T_RNF },
-  { "fromUTF8", T_FROMUTF8 },
+  { "fromUTF8", T_BSFROMUTF8 },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
@@ -2082,6 +2084,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_BSGE: putsb("bs>=", f); break;
   case T_BSPACK: putsb("bspack", f); break;
   case T_BSUNPACK: putsb("bsunpack", f); break;
+  case T_BSLENGTH: putsb("bslength", f); break;
+  case T_BSSUBSTR: putsb("bssubstr", f); break;
   case T_EQ: putsb("==", f); break;
   case T_NE: putsb("/=", f); break;
   case T_LT: putsb("<", f); break;
@@ -2127,7 +2131,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_TOPTR: putsb("toPtr", f); break;
   case T_TODBL: putsb("toDbl", f); break;
   case T_TOFUNPTR: putsb("toFunPtr", f); break;
-  case T_FROMUTF8: putsb("fromUTF8", f); break;
+  case T_BSFROMUTF8: putsb("fromUTF8", f); break;
   case T_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
@@ -3002,7 +3006,7 @@ evali(NODEPTR an)
       GOIND(arr == ARR(y) ? combTrue : combFalse);
     }
 
-  case T_FROMUTF8:
+  case T_BSFROMUTF8:
     if (doing_rnf) RET;
     CHECK(1);
     x = evali(ARG(TOP(0)));
