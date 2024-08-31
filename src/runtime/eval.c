@@ -2582,6 +2582,10 @@ evalbstr(NODEPTR n)
 struct bytestring
 bsappend(struct bytestring p, struct bytestring q)
 {
+  if (p.size == 0)
+    return q;
+  if (q.size == 0)
+    return p;
   struct bytestring r;
   r.size = p.size + q.size;
   r.string = MALLOC(r.size);
