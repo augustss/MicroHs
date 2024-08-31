@@ -2289,7 +2289,7 @@ addForPtr(struct forptr *ofp, int s)
   fp->next = ofp;
   fin->back = fp;
   fp->payload.size = ofp->payload.size - s;
-  fp->payload.string = ofp->payload.string + s;
+  fp->payload.string = (uint8_t*)ofp->payload.string + s;
   fp->finalizer = fin;
   return fp;
 }
