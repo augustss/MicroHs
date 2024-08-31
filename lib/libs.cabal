@@ -65,6 +65,7 @@ library base
         Data.String
         Data.Time.Clock    -- XXX remove
         Data.Time.Format   -- XXX remove
+        Data.Text
         Data.Traversable
         Data.Tuple
         Data.Type.Equality

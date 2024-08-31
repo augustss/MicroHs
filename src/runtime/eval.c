@@ -710,6 +710,7 @@ struct {
   { "icmp", T_COMPARE },
   { "rnf", T_RNF },
   { "fromUTF8", T_BSFROMUTF8 },
+  { "toUTF8", T_BSTOUTF8 },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
@@ -2461,14 +2462,15 @@ evalforptr(NODEPTR n)
 /* Evaluate a string, returns a newly allocated buffer. */
 /* XXX this is cheating, should use continuations */
 /* XXX the malloc()ed string is leaked if we yield in here. */
-char *
-evalstring(NODEPTR n, value_t *lenp)
+struct bytestring
+evalstring(NODEPTR n)
 {
   size_t sz = 100;
   char *name = MALLOC(sz);
   size_t offs;
   uvalue_t c;
   NODEPTR x;
+  struct bytestring bs;
 
   if (!name)
     memerr();
@@ -2510,9 +2512,9 @@ evalstring(NODEPTR n, value_t *lenp)
     }
   }
   name[offs] = 0;
-  if (lenp)
-    *lenp = (value_t)offs;
-  return name;
+  bs.size = offs;
+  bs.string = name;
+  return bs;
 }
 
 struct bytestring
@@ -2946,7 +2948,7 @@ evali(NODEPTR an)
   case T_ITOF: OPINT1(rd = (flt_t)xi); SETDBL(n, rd); RET;
   case T_FREAD:
     CHECK(1);
-    msg = evalstring(ARG(TOP(0)), 0);
+    msg = evalstring(ARG(TOP(0))).string;
 #if WORD_SIZE == 64
     xd = strtod(msg, NULL);
 #elif WORD_SIZE == 32
@@ -3006,6 +3008,17 @@ evali(NODEPTR an)
       GOIND(arr == ARR(y) ? combTrue : combFalse);
     }
 
+  case T_BSTOUTF8:
+    {
+      CHECK(1);
+      struct bytestring bs = evalstring(ARG(TOP(0)));
+      POP(1);
+      n = TOP(-1);
+      SETTAG(n, T_BSTR);
+      FORPTR(n) = mkForPtr(bs);
+      RET;
+    }
+
   case T_BSFROMUTF8:
     if (doing_rnf) RET;
     CHECK(1);
@@ -3029,6 +3042,7 @@ evali(NODEPTR an)
 
   case T_BSPACK:
     {
+      CHECK(1);
       struct bytestring bs = evalbstr(ARG(TOP(0)));
       POP(1);
       n = TOP(-1);
@@ -3060,7 +3074,7 @@ evali(NODEPTR an)
       //TOP(0) = new_ap(combShowExn, TOP(0));
       FUN(TOP(0)) = combShowExn; /* TOP(0) = (combShowExn exn) */
       x = evali(TOP(0));        /* evaluate it */
-      msg = evalstring(x, 0);   /* and convert to a C string */
+      msg = evalstring(x).string;   /* and convert to a C string */
       POP(1);
 #if WANT_STDIO
       /* A horrible hack until we get proper exceptions */
@@ -3127,7 +3141,7 @@ evali(NODEPTR an)
   case T_DYNSYM:
     /* A dynamic FFI lookup */
     CHECK(1);
-    msg = evalstring(ARG(TOP(0)), 0);
+    msg = evalstring(ARG(TOP(0))).string;
     GCCHECK(1);
     x = ffiNode(msg);
     FREE(msg);
@@ -3400,7 +3414,6 @@ execio(NODEPTR *np)
   stackptr_t stk = stack_ptr;
   NODEPTR f, x, n, q, r, s, res, top1;
   char *name;
-  value_t len;
   struct handler *h;
 #if WANT_STDIO
   void *ptr;
@@ -3563,12 +3576,14 @@ execio(NODEPTR *np)
       }
 
     case T_NEWCASTRINGLEN:
+      {
       CHECKIO(1);
-      name = evalstring(ARG(TOP(1)), &len);
+      struct bytestring bs = evalstring(ARG(TOP(1)));
       GCCHECK(4);
-      n = new_ap(new_ap(combPair, x = alloc_node(T_PTR)), mkInt(len));
-      PTR(x) = name;
+      n = new_ap(new_ap(combPair, x = alloc_node(T_PTR)), mkInt(bs.size));
+      PTR(x) = bs.string;
       RETIO(n);
+      }
 
     case T_PEEKCASTRING:
       {

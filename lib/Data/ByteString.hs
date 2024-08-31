@@ -1,9 +1,12 @@
 module Data.ByteString(
   ByteString,
-  append, append3,
   pack, unpack,
+  empty,
+  append, append3,
   ) where
 import Prelude hiding ((++))
+import Data.Monoid
+import Data.Semigroup
 import Data.String
 import Data.Word(Word8)
 
@@ -48,6 +51,15 @@ instance Show ByteString where
 
 instance IsString ByteString where
   fromString = pack . map (toEnum . fromEnum)
+
+instance Semigroup ByteString where
+  (<>) = append
+
+instance Monoid ByteString where
+  mempty = empty
+
+empty :: ByteString
+empty = pack []
 
 append :: ByteString -> ByteString -> ByteString
 append = primBSappend
