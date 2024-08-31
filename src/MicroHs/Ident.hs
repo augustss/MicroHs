@@ -21,6 +21,7 @@ import Data.Text(Text, pack, unpack, append)
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 import MicroHs.List(dropEnd)
+import Compat
 
 type Line = Int
 type Col  = Int
@@ -73,7 +74,9 @@ isIdent s (Ident _ i) = pack s == i
 
 qualIdent :: HasCallStack =>
              Ident -> Ident -> Ident
-qualIdent (Ident _ qi) (Ident loc i) = Ident loc (qi `append` "." `append` i)
+qualIdent (Ident _ qi) (Ident loc i) =
+  -- Ident loc (qi `append` "." `append` i)
+  Ident loc (qi `appendDot` i)
 
 addIdentSuffix :: Ident -> String -> Ident
 addIdentSuffix (Ident loc i) s = Ident loc (i `append` pack s)

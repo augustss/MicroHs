@@ -195,6 +195,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE,
                 T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR,
                 T_BSFROMUTF8, T_BSTOUTF8,
+                T_BSAPPENDDOT,
                 T_BSTR,
                 T_LAST_TAG,
 };
@@ -681,6 +682,7 @@ struct {
   { "fread", T_FREAD},
 #endif  /* WANT_FLOAT */
   { "bs++", T_BSAPPEND},
+  { "bs++.", T_BSAPPENDDOT},
   { "bs+++", T_BSAPPEND3},
   { "bs==", T_BSEQ, T_BSEQ},
   { "bs/=", T_BSNE, T_BSNE},
@@ -2091,6 +2093,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_FREAD: putsb("fread", f); break;
 #endif
   case T_BSAPPEND: putsb("bs++", f); break;
+  case T_BSAPPENDDOT: putsb("bs++.", f); break;
   case T_BSAPPEND3: putsb("bs+++", f); break;
   case T_BSEQ: putsb("bs==", f); break;
   case T_BSNE: putsb("bs/=", f); break;
@@ -2596,6 +2599,20 @@ bsappend(struct bytestring p, struct bytestring q)
   return r;
 }
 
+struct bytestring
+bsappenddot(struct bytestring p, struct bytestring q)
+{
+  struct bytestring r;
+  r.size = p.size + q.size + 1;
+  r.string = MALLOC(r.size);
+  if (!r.string)
+    memerr();
+  memcpy(r.string, p.string, p.size);
+  memcpy((uint8_t *)r.string + p.size, ".", 1);
+  memcpy((uint8_t *)r.string + p.size + 1, q.string, q.size);
+  return r;
+}
+
 /* 
  * Compare bytestrings.
  * We can't use memcmp() directly for two reasons:
@@ -3000,6 +3017,7 @@ evali(NODEPTR an)
 #endif  /* WANT_FLOAT */
 
   case T_BSAPPEND:
+  case T_BSAPPENDDOT:
   case T_BSEQ:
   case T_BSNE:
   case T_BSLT:
@@ -3384,6 +3402,7 @@ evali(NODEPTR an)
       case T_IND:    p = INDIR(p); goto binbs;
 
       case T_BSAPPEND: rbs = bsappend(xbs, ybs); break;
+      case T_BSAPPENDDOT: rbs = bsappenddot(xbs, ybs); break;
       case T_BSEQ:   GOIND(bscompare(xbs, ybs) == 0 ? combTrue : combFalse);
       case T_BSNE:   GOIND(bscompare(xbs, ybs) != 0 ? combTrue : combFalse);
       case T_BSLT:   GOIND(bscompare(xbs, ybs) <  0 ? combTrue : combFalse);
