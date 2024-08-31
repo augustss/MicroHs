@@ -315,6 +315,8 @@ struct final {
   struct final  *next;      /* the next finalizer */
   HsFunPtr       final;     /* function to call to release resource */
   void          *arg;       /* argument to final when called */
+  size_t         size;      /* size of memory, if known, otherwise NOSIZE */
+#define NOSIZE ~0           /* used as the size in payload for actual foreign pointers */
   struct forptr *back;      /* back pointer to the first forptr */
   int            marked;    /* mark bit for GC */
 };
@@ -326,8 +328,8 @@ struct final {
  * The size field is non-zero only for bytestrings.
  */
 struct forptr {
-  struct forptr *next;      /* the next ForeignPtr that shares the same finilizer */
-  struct final  *finalizer; /* the finalizer for this ForeignPtr */
+  struct forptr *next;       /* the next ForeignPtr that shares the same finilizer */
+  struct final  *finalizer;  /* the finalizer for this ForeignPtr */
   struct bytestring payload; /* the actual pointer to allocated data, and maybe a size */
 };
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
@@ -374,6 +376,11 @@ counter_t num_arr_alloc;
 counter_t num_arr_free;
 counter_t num_fin_alloc;
 counter_t num_fin_free;
+counter_t num_bs_alloc;
+counter_t num_bs_free;
+counter_t num_bs_bytes;
+counter_t num_bs_inuse;
+counter_t num_bs_inuse_max;
 
 #define BITS_PER_WORD (sizeof(bits_t) * 8)
 bits_t *free_map;             /* 1 bit per node, 0=free, 1=used */
@@ -1100,6 +1107,12 @@ gc(void)
       finp = &fin->next;
     } else {
       /* Unused, run finalizer and free all associated memory */
+      if (fin->size == NOSIZE) {
+        num_fin_free++;
+      } else {
+        num_bs_free++;
+        num_bs_inuse -= fin->size;
+      }
       void (*f)(void *) = (void (*)(void *))fin->final;
       if (f) {
         //printf("finalizer fin=%p final=%p\n", fin, f);
@@ -1112,7 +1125,6 @@ gc(void)
         p = q;
       }
       *finp = fin->next;
-      num_fin_free++;
       //printf("free fin=%p\n", fin);
       FREE(fin);
     }
@@ -2263,12 +2275,21 @@ mkForPtr(struct bytestring bs)
   struct forptr *fp = malloc(sizeof(struct forptr));
   if (!fin || !fp)
     memerr();
-  num_fin_alloc++;
+  if (bs.size == NOSIZE) {
+    num_fin_alloc++;
+  } else {
+    num_bs_alloc++;
+    num_bs_inuse += bs.size;
+    num_bs_bytes += bs.size;
+    if (num_bs_inuse > num_bs_inuse_max)
+      num_bs_inuse_max = num_bs_inuse;
+  }
   //printf("mkForPtr p=%p fin=%p fp=%p\n", p, fin, fp);
   fin->next = final_root;
   final_root = fin;
   fin->final = 0;
   fin->arg = bs.string;
+  fin->size = bs.size;
   fin->back = fp;
   fin->marked = 0;
   fp->next = 0;
@@ -2280,7 +2301,7 @@ mkForPtr(struct bytestring bs)
 struct forptr*
 mkForPtrP(void *p)
 {
-  struct bytestring bs = { 0, p };
+  struct bytestring bs = { NOSIZE, p };
   return mkForPtr(bs);
 }
 
@@ -2293,7 +2314,8 @@ addForPtr(struct forptr *ofp, int s)
     memerr();
   fp->next = ofp;
   fin->back = fp;
-  fp->payload.size = ofp->payload.size - s;
+  if (fp->payload.size != NOSIZE)
+    fp->payload.size = ofp->payload.size - s;
   fp->payload.string = (uint8_t*)ofp->payload.string + s;
   fp->finalizer = fin;
   return fp;
@@ -3896,8 +3918,11 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
     PRINT("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
-    PRINT("%"PCOMMA"15"PRIcounter" foreign/bytestring alloc\n", num_fin_alloc);
-    PRINT("%"PCOMMA"15"PRIcounter" foreign/bytestring free\n", num_fin_free);
+    PRINT("%"PCOMMA"15"PRIcounter" foreign alloc\n", num_fin_alloc);
+    PRINT("%"PCOMMA"15"PRIcounter" foreign free\n", num_fin_free);
+    PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc\n", num_bs_alloc);
+    PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc'd bytes (max %"PCOMMA""PRIcounter")\n", num_bs_bytes, num_bs_inuse_max);
+    PRINT("%"PCOMMA"15"PRIcounter" bytestring free\n", num_bs_free);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
