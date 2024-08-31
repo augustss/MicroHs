@@ -145,7 +145,7 @@ clean:
 	cd tests; make clean
 	-cabal clean
 
-install:
+oldinstall:
 	mkdir -p $(PREFIX)/bin
 	cp bin/mhs $(PREFIX)/bin
 	-cp bin/cpphs $(PREFIX)/bin
@@ -218,7 +218,7 @@ $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs
 	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
 	@rm $(BASE).pkg
 
-installmcabal: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
+install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 # mkdir ~/.mcabal/packages/array-0.5.6.0
