@@ -4,6 +4,7 @@ module Data.ByteString(
   pack, unpack,
   ) where
 import Prelude hiding ((++))
+import Data.String
 import Data.Word(Word8)
 
 data ByteString  -- primitive type
@@ -43,7 +44,10 @@ instance Ord ByteString where
   (>=)    = primBSGE
 
 instance Show ByteString where
-  showsPrec _ bs = showString "pack" . showsPrec 0 (unpack bs)
+  showsPrec p bs = showsPrec p (map (toEnum . fromEnum) (unpack bs) :: [Char])
+
+instance IsString ByteString where
+  fromString = pack . map (toEnum . fromEnum)
 
 append :: ByteString -> ByteString -> ByteString
 append = primBSappend

@@ -24,6 +24,7 @@ library base
         Data.Bits
         Data.Bool
         Data.Bounded
+        Data.ByteString
         Data.Char
         Data.Complex
         Data.Constraint
