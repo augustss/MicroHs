@@ -292,13 +292,13 @@ type EKind = EType
 type ESort = EType
 
 sKind :: ESort
-sKind = EVar (mkIdent "Primitives.Kind")
+sKind = EVar (mkQIdent "Primitives" "Kind")
 
 kType :: EKind
-kType = EVar (mkIdent "Primitives.Type")
+kType = EVar (mkQIdent "Primitives" "Type")
 
 kConstraint :: EKind
-kConstraint = EVar (mkIdent "Primitives.Constraint")
+kConstraint = EVar (mkQIdent "Primitives" "Constraint")
 
 tupleConstr :: SLoc -> Int -> Ident
 tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
@@ -534,14 +534,14 @@ allVarsStmt astmt =
 -----------------------------
 
 setSLocExpr :: SLoc -> Expr -> Expr
-setSLocExpr l (EVar i) = EVar (setSLocIdent l i)
+setSLocExpr l (EVar i) = EVar (setIdentSLoc l i)
 setSLocExpr l (ECon c) = ECon (setSLocCon l c)
 setSLocExpr l (ELit _ k) = ELit l k
 setSLocExpr _ _ = error "setSLocExpr"  -- what other cases do we need?
 
 setSLocCon :: SLoc -> Con -> Con
-setSLocCon l (ConData ti i fs) = ConData ti (setSLocIdent l i) fs
-setSLocCon l (ConNew i fs) = ConNew (setSLocIdent l i) fs
+setSLocCon l (ConData ti i fs) = ConData ti (setIdentSLoc l i) fs
+setSLocCon l (ConNew i fs) = ConNew (setIdentSLoc l i) fs
 
 errorMessage :: forall a .
                 HasCallStack =>
@@ -831,7 +831,7 @@ impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ show a
 -- Probably belongs somewhere else
 getArrow :: EType -> Maybe (EType, EType)
 getArrow (EApp (EApp (EVar n) a) b) =
-  if isIdent "->" n || isIdent "Primitives.->" n then Just (a, b) else Nothing
+  if n == mkIdent "->" || n == mkQIdent "Primitives" "->" then Just (a, b) else Nothing
 getArrow _ = Nothing
 
 getArrows :: EType -> ([EType], EType)

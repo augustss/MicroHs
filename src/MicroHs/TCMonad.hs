@@ -219,8 +219,8 @@ tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
 builtinLoc :: SLoc
 builtinLoc = SLoc "builtin" 0 0
 
-tConI :: SLoc -> String -> EType
-tConI loc = tCon . mkIdentSLoc loc
+tConI :: SLoc -> Ident -> EType
+tConI loc = tCon . setIdentSLoc loc
 
 tCon :: Ident -> EType
 tCon = EVar
@@ -235,7 +235,7 @@ tApps :: Ident -> [EType] -> EType
 tApps i ts = eApps (tCon i) ts
 
 tArrow :: EType -> EType -> EType
-tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
+tArrow a r = tApp (tApp (tConI builtinLoc $ mkQIdent "Primitives" "->") a) r
 
 tImplies :: EType -> EType -> EType
-tImplies a r = tApp (tApp (tConI builtinLoc "Primitives.=>") a) r
+tImplies a r = tApp (tApp (tConI builtinLoc $ mkQIdent "Primitives" "=>") a) r

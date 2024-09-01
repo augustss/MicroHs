@@ -62,16 +62,16 @@ mkAddrEntry :: String -> String
 mkAddrEntry f = "{ \"&" ++ f ++ "\", mhs_addr_" ++ f ++ "},"
 
 iIO :: Ident
-iIO = mkIdent "Primitives.IO"
+iIO = mkQIdent "Primitives" "IO"
 
 iUnit :: Ident
-iUnit = mkIdent "Primitives.()"
+iUnit = mkQIdent "Primitives" "()"
 
 iPtr :: Ident
-iPtr = mkIdent "Primitives.Ptr"
+iPtr = mkQIdent "Primitives" "Ptr"
 
 iFunPtr :: Ident
-iFunPtr = mkIdent "Primitives.FunPtr"
+iFunPtr = mkQIdent "Primitives" "FunPtr"
 
 mkStatic :: (String, EType) -> String
 mkStatic (fn, t) =

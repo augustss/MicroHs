@@ -64,8 +64,8 @@ genHasField (tycon, iks) cs (fld, fldty) = do
       undef = mkExn loc ufld "recSelError"
       iHasField = mkIdentSLoc loc nameHasField
       iSetField = mkIdentSLoc loc nameSetField
-      igetField = mkQIdent loc nameDataRecords namegetField
-      isetField = mkQIdent loc nameDataRecords namesetField
+      igetField = xmkQIdent loc nameDataRecords namegetField
+      isetField = xmkQIdent loc nameDataRecords namesetField
       hdrGet = eForall iks $ eApp3 (EVar iHasField)
                                    (ELit loc (LStr ufld))
                                    (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
@@ -120,8 +120,8 @@ eApp3 a b c d = EApp (eApp2 a b c) d
 
 -- MicroHs currently has no way of using the original name,
 -- so we just ignore the qualification part for now.
-mkQIdent :: SLoc -> String -> String -> Ident
-mkQIdent loc _qual name = mkIdentSLoc loc name
+xmkQIdent :: SLoc -> String -> String -> Ident
+xmkQIdent loc _qual name = mkIdentSLoc loc name
 
 --------------------------------------------
 
@@ -130,13 +130,13 @@ derTypeable (i, _) _ etyp = do
   mn <- gets moduleName
   let
     loc = getSLoc i
-    itypeRep  = mkQIdent loc nameDataTypeable "typeRep"
-    imkTyConApp = mkQIdent loc nameDataTypeable "mkTyConApp"
-    imkTyCon = mkQIdent loc nameDataTypeable "mkTyCon"
+    itypeRep  = xmkQIdent loc nameDataTypeable "typeRep"
+    imkTyConApp = xmkQIdent loc nameDataTypeable "mkTyConApp"
+    imkTyCon = xmkQIdent loc nameDataTypeable "mkTyCon"
     hdr = EApp etyp (EVar $ qualIdent mn i)
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
-    eqns = eEqns [eDummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkQIdent loc nameDataListType "[]"))
+    eqns = eEqns [eDummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (xmkQIdent loc nameDataListType "[]"))
     inst = Instance hdr [BFcn itypeRep eqns]
   return [inst]
 
@@ -180,11 +180,11 @@ derEq lhs cs@(_:_) eeq = do
             (yp, ys) = mkPat c "y"
         in  eEqn [xp, yp] $ if null xs then eTrue else foldr1 eAnd $ zipWith eEq xs ys
       eqns = map mkEqn cs ++ [eEqn [eDummy, eDummy] eFalse]
-      iEq = mkQIdent loc nameDataEq "=="
+      iEq = xmkQIdent loc nameDataEq "=="
       eEq = EApp . EApp (EVar iEq)
-      eAnd = EApp . EApp (EVar $ mkQIdent loc nameDataBool "&&")
-      eTrue = EVar $ mkQIdent loc nameDataBoolType "True"
-      eFalse = EVar $ mkQIdent loc nameDataBoolType "False"
+      eAnd = EApp . EApp (EVar $ xmkQIdent loc nameDataBool "&&")
+      eTrue = EVar $ xmkQIdent loc nameDataBoolType "True"
+      eFalse = EVar $ xmkQIdent loc nameDataBoolType "False"
       inst = Instance hdr [BFcn iEq eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
@@ -212,12 +212,12 @@ derOrd lhs cs@(_:_) eord = do
             ,eEqn [xp, eDummy] $ eLT
             ,eEqn [eDummy, yp] $ eGT]
       eqns = concatMap mkEqn cs
-      iCompare = mkQIdent loc nameDataOrd "compare"
+      iCompare = xmkQIdent loc nameDataOrd "compare"
       eCompare = EApp . EApp (EVar iCompare)
       eComb = EApp . EApp (EVar $ mkIdentSLoc loc "<>")
-      eEQ = EVar $ mkQIdent loc nameDataOrderingType "EQ"
-      eLT = EVar $ mkQIdent loc nameDataOrderingType "LT"
-      eGT = EVar $ mkQIdent loc nameDataOrderingType "GT"
+      eEQ = EVar $ xmkQIdent loc nameDataOrderingType "EQ"
+      eLT = EVar $ xmkQIdent loc nameDataOrderingType "LT"
+      eGT = EVar $ xmkQIdent loc nameDataOrderingType "GT"
       inst = Instance hdr [BFcn iCompare eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
@@ -231,7 +231,7 @@ nameDataOrderingType = "Data.Ordering_Type"
 
 --------------------------------------------
 
--- XXX should use mkQIdent
+-- XXX should use xmkQIdent
 derBounded :: Deriver
 derBounded lhs cs@(c0:_) ebnd = do
   hdr <- mkHdr lhs cs ebnd
@@ -256,7 +256,7 @@ cannotDerive cls ty e = tcError (getSLoc e) $ "Cannot derive " ++ cls ++ " " ++ 
 
 --------------------------------------------
 
--- XXX should use mkQIdent
+-- XXX should use xmkQIdent
 derEnum :: Deriver
 derEnum lhs cs@(_:_) enm | all isNullary cs = do
   hdr <- mkHdr lhs cs enm
@@ -282,7 +282,7 @@ isNullary (Constr _ _ _ flds) = either null null flds
 
 --------------------------------------------
 
--- XXX should use mkQIdent
+-- XXX should use xmkQIdent
 derShow :: Deriver
 derShow lhs cs@(_:_) eshow = do
   hdr <- mkHdr lhs cs eshow

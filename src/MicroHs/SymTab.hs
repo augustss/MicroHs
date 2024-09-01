@@ -51,7 +51,7 @@ entryType (Entry _ t) = t
 --  * locals        there is usually only a few of these,
 --                  so linear search is faster than a tree map
 --  * unqualified   most identifiers are used unqualified, so
---        globals   it's better not to keep a globals in one table
+--        globals   it's better not to keep all globals in one table
 --  * qualified     as a last resort, look among the qualified globals
 --      globals
 data SymTab = SymTab {

@@ -124,7 +124,8 @@ dsAltsL ((ss, rhs) : alts) dflt =
 dsAlt :: Expr -> [EStmt] -> Expr -> Expr
 dsAlt _ [] rhs = rhs
 dsAlt dflt (SBind p e : ss) rhs = ECase e [(p, EAlts [(ss, rhs)] []), (EVar dummyIdent, oneAlt dflt)]
-dsAlt dflt (SThen (EVar i) : ss) rhs | isIdent "Data.Bool.otherwise" i = dsAlt dflt ss rhs
+dsAlt dflt (SThen (EVar i) : ss) rhs | i == ow = dsAlt dflt ss rhs
+  where ow = mkQIdent "Data.Bool" "otherwise"
 dsAlt dflt (SThen e   : ss) rhs = EIf e (dsAlt dflt ss rhs) dflt
 dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
@@ -191,20 +192,20 @@ mutualRec v ies body =
 encodeInteger :: Integer -> Exp
 encodeInteger i | toInteger (minBound::Int) <= i && i < toInteger (maxBound::Int) =
 --  trace ("*** small integer " ++ show i) $
-  App (Var (mkIdent "Data.Integer_Type._intToInteger")) (Lit (LInt (fromInteger i)))
+  App (Var (mkQIdent "Data.Integer_Type" "_intToInteger")) (Lit (LInt (fromInteger i)))
                 | otherwise =
 --  trace ("*** large integer " ++ show i) $
-  App (Var (mkIdent "Data.Integer._intListToInteger")) (encList (map (Lit . LInt) (_integerToIntList i)))
+  App (Var (mkQIdent "Data.Integer" "_intListToInteger")) (encList (map (Lit . LInt) (_integerToIntList i)))
 
 encodeRational :: Rational -> Exp
 encodeRational r =
-  App (App (Var (mkIdent "Data.Ratio_Type._mkRational")) (encodeInteger (numerator r))) (encodeInteger (denominator r))
+  App (App (Var (mkQIdent "Data.Ratio_Type" "_mkRational")) (encodeInteger (numerator r))) (encodeInteger (denominator r))
 
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
   case aexpr of
     EVar i -> Var i
-    EApp (EApp (EVar app) (EListish (LCompr e stmts))) l | app == mkIdent "Data.List_Type.++" ->
+    EApp (EApp (EVar app) (EListish (LCompr e stmts))) l | app == mkQIdent "Data.List_Type" "++" ->
       dsExpr $ dsCompr e stmts l
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam qs -> dsEqns (getSLoc aexpr) qs
@@ -275,10 +276,10 @@ dsPat apat =
     _ -> impossible
 
 iNil :: Ident
-iNil = mkIdent $ listPrefix ++ "[]"
+iNil = mkQIdent listPrefix "[]"
 
 iCons :: Ident
-iCons = mkIdent $ listPrefix ++ ":"
+iCons = mkQIdent listPrefix ":"
 
 consCon :: EPat
 consCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iCons []
@@ -451,7 +452,7 @@ mkCase var pes dflt =
 
 eMatchErr :: SLoc -> Exp
 eMatchErr loc =
-  let exn = mkIdentSLoc loc "Control.Exception.Internal.patternMatchFail"
+  let exn = mkQIdentSLoc loc "Control.Exception.Internal" "patternMatchFail"
       msg = LStr $ show loc
   in  App (Var exn) (Lit msg)
 

@@ -8,7 +8,7 @@ import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
 import MicroHs.Expr(EType, showEType)
 import MicroHs.Flags
-import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar)
+import MicroHs.Ident(mkIdent, mkQIdent, Ident, unIdent, isIdentChar)
 import MicroHs.List
 import MicroHs.Parse
 import MicroHs.StateIO
@@ -226,7 +226,7 @@ tryCompile file = do
 
 evalExpr :: [LDef] -> I ()
 evalExpr cmdl = do
-  let ares = translate (mkIdent (interactiveName ++ "." ++ itIOName), cmdl)
+  let ares = translate (mkQIdent interactiveName itIOName, cmdl)
       res = unsafeCoerce ares :: IO ()
   mval <- liftIO $ try (seq res (return res))
   liftIO $

@@ -740,7 +740,8 @@ isAlpha_ :: Char -> Bool
 isAlpha_ c = isLower_ c || isUpper c
 
 qualName :: SLoc -> [String] -> String -> Ident
-qualName loc qs s = mkIdentSLoc loc (intercalate "." (qs ++ [s]))
+qualName loc [] s = mkIdentSLoc loc s
+qualName loc qs s = mkQIdentSLoc loc (intercalate "." qs) s
 
 -------------
 

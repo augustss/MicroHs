@@ -3,10 +3,10 @@
 module MicroHs.Ident(
   Line, Col,
   Ident,
-  mkIdent, unIdent, isIdent,
-  qualIdent, showIdent, setSLocIdent,
+  mkIdent, mkQIdent, unIdent,
+  qualIdent, showIdent, setIdentSLoc,
   ppIdent,
-  mkIdentSLoc,
+  mkIdentSLoc, mkQIdentSLoc,
   isLower_, isIdentChar, isOperChar, isConIdent,
   dummyIdent, isDummyIdent,
   slocIdent,
@@ -35,24 +35,32 @@ data SLoc = SLoc FilePath Line Col
 instance Show SLoc where
   show (SLoc f l c) = show f ++ "," ++ show l ++ ":" ++ show c
 
-data Ident = Ident SLoc Text
+data Ident = Ident SLoc Text | QIdent SLoc Text Text
   --deriving (Show)
 
 instance Eq Ident where
-  Ident _ i == Ident _ j  =  i == j
+  Ident  _    i == Ident  _    j  =  i == j
+  QIdent _ qi i == QIdent _ qj j  =  qi == qj && i == j
+  _             == _              =  False
 
 instance Ord Ident where
-  compare (Ident _ i) (Ident _ j) = compare i j
+  compare (Ident _ i)     (Ident _ j)     = compare i j
+  compare (Ident _ _)     (QIdent _ _ _)  = LT
+  compare (QIdent _ _ _)  (Ident _ _)     = GT
+  compare (QIdent _ qi i) (QIdent _ qj j) = compare qi qj Prelude.<> compare i j
+{-
   Ident _ i <  Ident _ j  =  i <  j
   Ident _ i <= Ident _ j  =  i <= j
   Ident _ i >  Ident _ j  =  i >  j
   Ident _ i >= Ident _ j  =  i >= j
+-}
 
 instance Show Ident where
   show = showIdent
 
 slocIdent :: Ident -> SLoc
 slocIdent (Ident l _) = l
+slocIdent (QIdent l _ _) = l
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
@@ -60,23 +68,29 @@ noSLoc = SLoc "" 0 0
 mkIdent :: String -> Ident
 mkIdent = mkIdentSLoc noSLoc
 
+mkQIdent :: String -> String -> Ident
+mkQIdent = mkQIdentSLoc noSLoc
+
 mkIdentSLoc :: SLoc -> String -> Ident
 mkIdentSLoc l = Ident l . pack
 
+mkQIdentSLoc :: SLoc -> String -> String -> Ident
+mkQIdentSLoc l q s = Ident l $ pack $ q ++ "." ++ s
+
 unIdent :: Ident -> String
 unIdent (Ident _ s) = unpack s
+unIdent (QIdent _ q i) = unpack q ++ "." ++ unpack i
 
-setSLocIdent :: SLoc -> Ident -> Ident
-setSLocIdent l (Ident _ s) = Ident l s
+setIdentSLoc :: SLoc -> Ident -> Ident
+setIdentSLoc l (Ident _ s) = Ident l s
+setIdentSLoc l (QIdent _ q s) = QIdent l q s
 
 showIdent :: Ident -> String
 showIdent (Ident _ i) = unpack i
+showIdent (QIdent _ q i) = unpack q ++ "." ++ unpack i
 
 ppIdent :: Ident -> Doc
-ppIdent (Ident _ i) = text $ unpack i
-
-isIdent :: String -> Ident -> Bool
-isIdent s (Ident _ i) = pack s == i
+ppIdent i = text $ showIdent i
 
 qualIdent :: HasCallStack =>
              Ident -> Ident -> Ident

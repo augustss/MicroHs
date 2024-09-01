@@ -10,7 +10,6 @@ module MicroHs.TypeCheck(
   mkSuperSel,
   bindingsOf,
   setBindings,
-  boolPrefix,
   listPrefix,
   ValueExport(..), TypeExport(..),
   Symbols,
@@ -35,80 +34,59 @@ import MicroHs.TCMonad
 import GHC.Stack
 import Debug.Trace
 
-boolPrefix :: String
-boolPrefix = "Data.Bool_Type."
-
 listPrefix :: String
-listPrefix = "Data.List_Type."
+listPrefix = "Data.List_Type"
 
-nameList :: String
-nameList = listPrefix ++ "[]"
 identList :: Ident
-identList = mkIdentB nameList
+identList = mkIdentB listPrefix "[]"
 
-nameInt :: String
-nameInt = "Primitives.Int"
+identBool :: Ident
+identBool = mkIdentB "Data.Bool_Type" "Bool"
+
 identInt :: Ident
-identInt = mkIdentB nameInt
+identInt = mkIdentB "Primitives" "Int"
 
-nameWord :: String
-nameWord = "Primitives.Word"
 identWord :: Ident
-identWord = mkIdentB nameWord
+identWord = mkIdentB "Primitives" "Word"
 
-nameFloatW :: String
-nameFloatW = "Primitives.FloatW"
 identFloatW :: Ident
-identFloatW = mkIdentB nameFloatW
+identFloatW = mkIdentB "Primitives" "FloatW"
 
-nameChar :: String
-nameChar = "Primitives.Char"
 identChar :: Ident
-identChar = mkIdentB nameChar
+identChar = mkIdentB "Primitives" "Char"
 
-nameInteger :: String
-nameInteger = "Data.Integer_Type.Integer"
 identInteger :: Ident
-identInteger = mkIdentB nameInteger
+identInteger = mkIdentB "Data.Integer_Type" "Integer"
 
-nameTypeEq :: String
-nameTypeEq = "Primitives.~"
 identTypeEq :: Ident
-identTypeEq = mkIdentB nameTypeEq
+identTypeEq = mkIdentB "Primitives" "~"
 
-nameImplies :: String
-nameImplies = "Primitives.=>"
 identImplies :: Ident
-identImplies = mkIdentB nameImplies
+identImplies = mkIdentB "Primitives" "=>"
 
-nameArrow :: String
-nameArrow = "Primitives.->"
 identArrow :: Ident
-identArrow = mkIdentB nameArrow
+identArrow = mkIdentB "Primitives" "->"
 
-nameSymbol :: String
-nameSymbol = "Primitives.Symbol"
+identSymbol :: Ident
+identSymbol = mkIdentB "Primitives" "Symbol"
 
-nameNat :: String
-nameNat = "Primitives.Nat"
+identNat :: Ident
+identNat = mkIdentB "Primitives" "Nat"
 
-nameType :: String
-nameType = "Primitives.Type"
+identType :: Ident
+identType = mkIdentB "Primitives" "Type"
 
-nameKind :: String
-nameKind = "Primitives.Kind"
+identKind :: Ident
+identKind = mkIdentB "Primitives" "Kind"
 
-nameConstraint :: String
-nameConstraint = "Primitives.Constraint"
+identConstraint :: Ident
+identConstraint = mkIdentB "Primitives" "Constraint"
 
-nameKnownNat :: String
-nameKnownNat = "Data.TypeLits.KnownNat"
+identKnownNat :: Ident
+identKnownNat = mkIdentB "Data.TypeLits" "KnownNat"
 
-nameKnownSymbol :: String
-nameKnownSymbol = "Data.TypeLits.KnownSymbol"
-
---primitiveKinds :: [String]
---primitiveKinds = [nameType, nameConstraint, nameSymbol, nameNat]
+identKnownSymbol :: Ident
+identKnownSymbol = mkIdentB "Data.TypeLits" "KnownSymbol"
 
 ----------------------
 
@@ -489,7 +467,7 @@ addDict (i, c) = do
   c' <- expandSyn c >>= derefUVar
   if null (metaTvs [c']) then
     case c' of
-      (EApp (EApp (EVar eq) t1) t2) | eq == mkIdent nameTypeEq -> addEqDict i t1 t2
+      (EApp (EApp (EVar eq) t1) t2) | eq == identTypeEq -> addEqDict i t1 t2
       _ -> addInstDict i c'
    else
     -- With constraint variables we might get unification variables.
@@ -535,12 +513,12 @@ stdDefaults = [EVar identInteger, EVar identFloatW, EApp (EVar identList) (EVar 
 
 addPrimFixs :: FixTable -> FixTable
 addPrimFixs =
-  M.insert (mkIdent "Primitives.->") (AssocRight, -1) .
-  M.insert (mkIdent "Primitives.=>") (AssocRight, -2)
+  M.insert (mkQIdent "Primitives" "->") (AssocRight, -1) .
+  M.insert (mkQIdent "Primitives" "=>") (AssocRight, -2)
 
 -- r for 'realm', suggested by ChatGPT
 rSort :: ESort
-rSort = EVar (mkIdent "Primitives.Sort")
+rSort = EVar (mkQIdent "Primitives" "Sort")
 
 sKindKindKind :: EKind
 sKindKindKind = sArrow sKind (sArrow sKind sKind)
@@ -559,18 +537,18 @@ kTypeTypeTypeS = kArrow kType $ kArrow kType kType
 kTypeTypeConstraintS :: EType
 kTypeTypeConstraintS = kArrow kType (kArrow kType kConstraint)
 
-mkIdentB :: String -> Ident
-mkIdentB = mkIdentSLoc builtinLoc
+mkIdentB :: String -> String -> Ident
+mkIdentB = mkQIdentSLoc builtinLoc
 
 -- E.g.
 --  Kind :: Sort
 primSortTable :: KindTable
 primSortTable =
   let
-    entry i s = Entry (EVar (mkIdentB i)) s
+    entry i s = Entry (EVar i) s
     qsorts = [
        -- The kinds are wired in (for now)
-       (mkIdentB nameKind,       [entry nameKind rSort])
+       (identKind,       [entry identKind rSort])
        ]
   in stFromList (map (first unQualIdent) qsorts) qsorts
 
@@ -581,14 +559,14 @@ primSortTable =
 primKindTable :: KindTable
 primKindTable =
   let
-    entry i k = Entry (EVar (mkIdentB i)) k
+    entry i k = Entry (EVar i) k
     qkinds = [
        -- The kinds are wired in (for now)
-       (mkIdentB nameType,       [entry nameType sKind]),
-       (mkIdentB nameConstraint, [entry nameConstraint sKind]),
-       (mkIdentB nameSymbol,     [entry nameSymbol sKind]),
-       (mkIdentB nameNat,        [entry nameNat sKind]),
-       (identArrow,              [entry nameArrow sKindKindKind])
+       (identType,       [entry identType sKind]),
+       (identConstraint, [entry identConstraint sKind]),
+       (identSymbol,     [entry identSymbol sKind]),
+       (identNat,        [entry identNat sKind]),
+       (identArrow,      [entry identArrow sKindKindKind])
        ]
   in stFromList (map (first unQualIdent) qkinds) qkinds
 
@@ -615,14 +593,14 @@ primTypes =
       [
        -- The function arrow et al are bothersome to define in Primitives, so keep them here.
        -- But the fixity is defined in Primitives.
-       (mkIdentB "->",           [entry identArrow    kTypeTypeTypeS]),
-       (mkIdentB "=>",           [entry identImplies  kImplies]),
-       (mkIdentB "~",            [entry identTypeEq   kTypeTypeConstraintS]),
+       (mkIdent "->",           [entry identArrow    kTypeTypeTypeS]),
+       (mkIdent "=>",           [entry identImplies  kImplies]),
+       (mkIdent "~",            [entry identTypeEq   kTypeTypeConstraintS]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        -- XXX should not be needed
-       (identList,               [entry identList     kTypeTypeS]),
-       (mkIdentB "\x2192",       [entry identArrow    kTypeTypeTypeS]),  -- ->
-       (mkIdentB "\x21d2",       [entry identImplies  kImplies])         -- =>
+       (identList,              [entry identList     kTypeTypeS]),
+       (mkIdent "\x2192",       [entry identArrow    kTypeTypeTypeS]),  -- ->
+       (mkIdent "\x21d2",       [entry identImplies  kImplies])         -- =>
       ] ++
       map tuple (enumFromTo 2 10)
 
@@ -651,7 +629,7 @@ sArrow = tArrow
 
 getImplies :: EType -> Maybe (EType, EType)
 getImplies (EApp (EApp (EVar n) a) b) =
-  if isIdent "=>" n || isIdent "Primitives.=>" n then Just (a, b) else Nothing
+  if n == mkIdent "=>" || n == mkQIdent "Primitives" "=>" then Just (a, b) else Nothing
 getImplies _ = Nothing
 
 {-
@@ -1236,7 +1214,7 @@ expandInst dinst@(Instance act bs) = do
   -- XXX should tack on signatures with ESign
   let clsMdl = qualOf qiCls                   -- get class's module name
       ies = [(i, ELam qs) | BFcn i qs <- bs]
-      meth i = fromMaybe (ELam $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
+      meth i = fromMaybe (ELam $ simpleEqn $ EVar $ setIdentSLoc loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
@@ -1507,7 +1485,7 @@ tcExprR mt ae =
   let { loc = getSLoc ae } in
 --  trace ("tcExprR " ++ show ae) $
   case ae of
-    EVar i | isIdent dictPrefixDollar i -> do
+    EVar i | i == mkIdent dictPrefixDollar -> do
              -- Magic variable that just becomes the dictionary
              d <- newIdent (getSLoc i) dictPrefixDollar
              case mt of
@@ -1555,8 +1533,8 @@ tcExprR mt ae =
       case tcm of
         TCType ->
           case lit of
-            LStr _ -> instSigma loc (ELit loc lit) (tConI loc nameSymbol) mt
-            LInteger _ -> instSigma loc (ELit loc lit) (tConI loc nameNat) mt
+            LStr _ -> instSigma loc (ELit loc lit) (tConI loc identSymbol) mt
+            LInteger _ -> instSigma loc (ELit loc lit) (tConI loc identNat) mt
             _      -> impossible
         TCExpr -> do
           let getExpected (Infer _) = pure Nothing
@@ -1568,7 +1546,7 @@ tcExprR mt ae =
                 -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
                 -- (which is not always in scope).
                 Just (EVar v) | v == identInt     -> tcLit  mt loc (LInt (fromInteger i))
-                              | v == identWord    -> tcLit' mt loc (LInt (fromInteger i)) (tConI loc nameWord)
+                              | v == identWord    -> tcLit' mt loc (LInt (fromInteger i)) (tConI loc identWord)
                               | v == identFloatW  -> tcLit  mt loc (LDouble (fromInteger i))
                               | v == identInteger -> tcLit  mt loc lit
                 _ -> do
@@ -1579,7 +1557,7 @@ tcExprR mt ae =
             LRat r -> do
               mex <- getExpected mt
               case mex of
-                Just (EVar v) | v == mkIdent nameFloatW -> tcLit mt loc (LDouble (fromRational r))
+                Just (EVar v) | v == identFloatW -> tcLit mt loc (LDouble (fromRational r))
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc "fromRational"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
@@ -1837,11 +1815,11 @@ tcLit mt loc l@(LExn  _) = newUVar >>= tcLit' mt loc l
 tcLit mt loc l = do
   let t =
         case l of
-          LInt _     -> tConI loc nameInt
-          LInteger _ -> tConI loc nameInteger
-          LDouble _  -> tConI loc nameFloatW
-          LChar _    -> tConI loc nameChar
-          LStr _     -> tApp (tList loc) (tConI loc nameChar)
+          LInt _     -> tConI loc identInt
+          LInteger _ -> tConI loc identInteger
+          LDouble _  -> tConI loc identFloatW
+          LChar _    -> tConI loc identChar
+          LStr _     -> tApp (tList loc) (tConI loc identChar)
           _          -> impossible
   tcLit' mt loc l t
 
@@ -2243,13 +2221,13 @@ dsType at =
     _ -> impossible
 
 tListI :: SLoc -> Ident
-tListI loc = mkIdentSLoc loc nameList
+tListI loc = setIdentSLoc loc identList
 
 tList :: SLoc -> EType
 tList = tCon . tListI
 
 tBool :: SLoc -> EType
-tBool loc = tConI loc $ boolPrefix ++ "Bool"
+tBool loc = tConI loc identBool
 
 showTModule :: forall a . (a -> String) -> TModule a -> String
 showTModule sh amdl =
@@ -2601,9 +2579,9 @@ type SolveOne = SLoc -> Ident -> [EType] -> T (Maybe (Expr, [Goal], [Improve]))
 solvers :: [(Ident -> Bool, SolveOne)]
 solvers =
   [ (isJust . getTupleConstr,      solveTuple)        -- handle tuple constraints, i.e. (C1 t1, C2 t2, ...)
-  , ((== mkIdent nameTypeEq),      solveTypeEq)       -- handle equality constraints, i.e. (t1 ~ t2)
-  , ((== mkIdent nameKnownNat),    solveKnownNat)     -- KnownNat 999 constraints
-  , ((== mkIdent nameKnownSymbol), solveKnownSymbol)  -- KnownNat 999 constraints
+  , ((== identTypeEq),             solveTypeEq)       -- handle equality constraints, i.e. (t1 ~ t2)
+  , ((== identKnownNat),           solveKnownNat)     -- KnownNat 999 constraints
+  , ((== identKnownSymbol),        solveKnownSymbol)  -- KnownNat 999 constraints
   , (const True,                   solveInst)         -- handle constraints with instances
   ]
 
@@ -2822,7 +2800,7 @@ addEqConstraint loc t1 t2 = do
   addConstraint d (mkEqType loc t1 t2)
 
 mkEqType :: SLoc -> EType -> EType -> EConstraint
-mkEqType loc t1 t2 = EApp (EApp (EVar (mkIdentSLoc loc nameTypeEq)) t1) t2
+mkEqType loc t1 t2 = EApp (EApp (EVar (setIdentSLoc loc identTypeEq)) t1) t2
 
 -- Possibly solve a type equality.
 solveEq :: TypeEqTable -> EType -> EType -> Maybe (Expr, [(EType, EType)])
