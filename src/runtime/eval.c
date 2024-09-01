@@ -194,7 +194,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR,
-                T_BSFROMUTF8, T_BSTOUTF8,
+                T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8,
                 T_BSAPPENDDOT,
                 T_LAST_TAG,
 };
@@ -721,6 +721,7 @@ struct {
   { "rnf", T_RNF },
   { "fromUTF8", T_BSFROMUTF8 },
   { "toUTF8", T_BSTOUTF8 },
+  { "headUTF8", T_BSHEADUTF8 },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
@@ -2159,6 +2160,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_TOFUNPTR: putsb("toFunPtr", f); break;
   case T_BSFROMUTF8: putsb("fromUTF8", f); break;
   case T_BSTOUTF8: putsb("toUTF8", f); break;
+  case T_BSHEADUTF8: putsb("headUTF8", f); break;
   case T_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
@@ -2415,6 +2417,46 @@ bsunpack(struct bytestring bs)
     np = &ARG(*np);
   }
   return n;
+}
+
+/* XXX This should somehow be merged with other utf8 decoders */
+value_t
+headutf8(struct bytestring bs, void **ret)
+{
+  uint8_t *p = bs.string;
+  if (bs.size == 0)
+    ERR("headUTF8 0");
+  int c1 = *p++;
+  if ((c1 & 0x80) == 0) {
+    if (ret)
+      *ret = p;
+    return c1;
+  }
+  if (bs.size == 1)
+    ERR("headUTF8 1");
+  int c2 = *p++;
+  if ((c1 & 0xe0) == 0xc0) {
+    if (ret)
+      *ret = p;
+    return ((c1 & 0x1f) << 6) | (c2 & 0x3f);
+  }
+  if (bs.size == 2)
+    ERR("headUTF8 2");
+  int c3 = *p++;
+  if ((c1 & 0xf0) == 0xe0) {
+    if (ret)
+      *ret = p;
+    return ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
+  }
+  if (bs.size == 3)
+    ERR("headUTF8 3");
+  int c4 = *p++;
+  if ((c1 & 0xf8) == 0xf0) {
+    if (ret)
+      *ret = p;
+    return ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+  }
+  ERR("headUTF8 4");
 }
 
 NODEPTR evali(NODEPTR n);
@@ -3074,6 +3116,15 @@ evali(NODEPTR an)
       FORPTR(n) = mkForPtr(bs);
       RET;
     }
+
+  case T_BSHEADUTF8:
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+    if (GETTAG(x) != T_BSTR) ERR("HEADUTF8");
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, headutf8(BSTR(x), (void**)0));
+    RET;
 
   case T_BSFROMUTF8:
     if (doing_rnf) RET;

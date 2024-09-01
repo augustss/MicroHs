@@ -17,8 +17,9 @@ module MicroHs.Ident(
   SLoc(..), noSLoc,
   showSLoc,
   ) where
+import Prelude hiding(head)
 import Data.Char
-import Data.Text(Text, pack, unpack, append)
+import Data.Text(Text, pack, unpack, append, head)
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 import MicroHs.List(dropEnd)
@@ -102,7 +103,7 @@ qualOf (Ident loc s) = Ident loc (pack $ dropEnd (length (unQualString s') + 1) 
   where s' = unpack s
 
 headIdent :: Ident -> Char
-headIdent = head . unIdent
+headIdent (Ident _ i) = head i
 
 isConIdent :: Ident -> Bool
 isConIdent i@(Ident _ t) =
