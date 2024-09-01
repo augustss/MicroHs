@@ -2,13 +2,14 @@
 -- See LICENSE file for full license.
 module MicroHs.Ident(
   Line, Col,
-  Ident(..),
+  Ident,
   mkIdent, unIdent, isIdent,
   qualIdent, showIdent, setSLocIdent,
   ppIdent,
   mkIdentSLoc,
   isLower_, isIdentChar, isOperChar, isConIdent,
   dummyIdent, isDummyIdent,
+  slocIdent,
   headIdent,
   unQualIdent,
   unQualString,
@@ -49,6 +50,9 @@ instance Ord Ident where
 
 instance Show Ident where
   show = showIdent
+
+slocIdent :: Ident -> SLoc
+slocIdent (Ident l _) = l
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0

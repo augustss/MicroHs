@@ -328,7 +328,7 @@ class HasLoc a where
   getSLoc :: a -> SLoc
 
 instance HasLoc Ident where
-  getSLoc (Ident l _) = l
+  getSLoc = slocIdent
 
 -- Approximate location; only identifiers and literals carry a location
 instance HasLoc Expr where
