@@ -9,6 +9,7 @@ module MicroHs.Ident(
   mkIdentSLoc,
   isLower_, isIdentChar, isOperChar, isConIdent,
   dummyIdent, isDummyIdent,
+  headIdent,
   unQualIdent,
   unQualString,
   qualOf,
@@ -100,11 +101,13 @@ qualOf :: Ident -> Ident
 qualOf (Ident loc s) = Ident loc (pack $ dropEnd (length (unQualString s') + 1) s')
   where s' = unpack s
 
+headIdent :: Ident -> Char
+headIdent = head . unIdent
+
 isConIdent :: Ident -> Bool
-isConIdent (Ident _ i) =
-  let
-    c = head (unpack i)
-  in isUpper c || c == ':' || c == ',' || i == "[]"  || i == "()"
+isConIdent i@(Ident _ t) =
+  let c = headIdent i
+  in  isUpper c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()"
 
 isOperChar :: Char -> Bool
 isOperChar c = elem c operChars

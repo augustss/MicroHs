@@ -60,17 +60,18 @@ genHasField (tycon, iks) cs (fld, fldty) = do
   let loc = getSLoc tycon
       qtycon = qualIdent mn tycon
       eFld = EVar fld
-      undef = mkExn loc (unIdent fld) "recSelError"
+      ufld = unIdent fld
+      undef = mkExn loc ufld "recSelError"
       iHasField = mkIdentSLoc loc nameHasField
       iSetField = mkIdentSLoc loc nameSetField
       igetField = mkQIdent loc nameDataRecords namegetField
       isetField = mkQIdent loc nameDataRecords namesetField
       hdrGet = eForall iks $ eApp3 (EVar iHasField)
-                                   (ELit loc (LStr (unIdent fld)))
+                                   (ELit loc (LStr ufld))
                                    (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
                                    fldty
       hdrSet = eForall iks $ eApp3 (EVar iSetField)
-                                   (ELit loc (LStr (unIdent fld)))
+                                   (ELit loc (LStr ufld))
                                    (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
                                    fldty
       conEqnGet (Constr _ _ c (Left ts))   = eEqn [eApps (EVar c) (map (const eDummy) ts)] $ undef

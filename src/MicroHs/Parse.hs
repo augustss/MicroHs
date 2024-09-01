@@ -184,7 +184,7 @@ pUQSymOper :: P Ident
 pUQSymOper = guardM pQSymOper isUOper
 
 isUOper :: Ident -> Bool
-isUOper = (== ':') . head . unIdent
+isUOper = (== ':') . headIdent
 
 pUSymOper :: P Ident
 pUSymOper = guardM pSymOper isUOper

@@ -166,7 +166,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_BSTR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -192,11 +192,10 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
-                T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE,
+                T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR,
                 T_BSFROMUTF8, T_BSTOUTF8,
                 T_BSAPPENDDOT,
-                T_BSTR,
                 T_LAST_TAG,
 };
 #if 0
@@ -691,7 +690,7 @@ struct {
   { "bs<=", T_BSLE},
   { "bs>", T_BSGT},
   { "bs>=", T_BSGE},
-  { "bscmp", T_COMPARE},
+  { "bscmp", T_BSCMP},
   { "bspack", T_BSPACK},
   { "bsunpack", T_BSUNPACK},
   { "bslength", T_BSLENGTH},
@@ -2108,6 +2107,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_BSLE: putsb("bs<=", f); break;
   case T_BSGT: putsb("bs>", f); break;
   case T_BSGE: putsb("bs>=", f); break;
+  case T_BSCMP: putsb("bscmp", f); break;
   case T_BSPACK: putsb("bspack", f); break;
   case T_BSUNPACK: putsb("bsunpack", f); break;
   case T_BSLENGTH: putsb("bslength", f); break;
@@ -3032,6 +3032,7 @@ evali(NODEPTR an)
   case T_BSLE:
   case T_BSGT:
   case T_BSGE:
+  case T_BSCMP:
     CHECK(2);
     n = ARG(TOP(1));
     PUSH(combBINBS2);
@@ -3417,6 +3418,7 @@ evali(NODEPTR an)
       case T_BSLE:   GOIND(bscompare(xbs, ybs) <= 0 ? combTrue : combFalse);
       case T_BSGT:   GOIND(bscompare(xbs, ybs) >  0 ? combTrue : combFalse);
       case T_BSGE:   GOIND(bscompare(xbs, ybs) >= 0 ? combTrue : combFalse);
+      case T_BSCMP:  r = bscompare(xbs, ybs); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
 
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));

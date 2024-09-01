@@ -303,7 +303,7 @@ kConstraint = EVar (Ident noSLoc "Primitives.Constraint")
 tupleConstr :: SLoc -> Int -> Ident
 tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
 
--- Check if it is a suple constructor
+-- Check if it is a tuple constructor
 getTupleConstr :: Ident -> Maybe Int
 getTupleConstr i =
   case unIdent i of
@@ -680,7 +680,7 @@ ppExprR raw = ppE
     ppE :: Expr -> Doc
     ppE ae =
       case ae of
-        EVar i | raw            -> text (unIdent i)
+        EVar i | raw            -> text si
                | isOperChar cop -> parens (text op)
                | otherwise      -> text s
                  where op = unIdent (unQualIdent i)
