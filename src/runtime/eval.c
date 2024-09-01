@@ -2155,6 +2155,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_TODBL: putsb("toDbl", f); break;
   case T_TOFUNPTR: putsb("toFunPtr", f); break;
   case T_BSFROMUTF8: putsb("fromUTF8", f); break;
+  case T_BSTOUTF8: putsb("toUTF8", f); break;
   case T_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
@@ -2324,7 +2325,7 @@ addForPtr(struct forptr *ofp, int s)
     memerr();
   fp->next = ofp;
   fin->back = fp;
-  if (fp->payload.size != NOSIZE)
+  if (ofp->payload.size != NOSIZE)
     fp->payload.size = ofp->payload.size - s;
   fp->payload.string = (uint8_t*)ofp->payload.string + s;
   fp->finalizer = fin;
