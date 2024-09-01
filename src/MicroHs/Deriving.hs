@@ -62,8 +62,8 @@ genHasField (tycon, iks) cs (fld, fldty) = do
       eFld = EVar fld
       ufld = unIdent fld
       undef = mkExn loc ufld "recSelError"
-      iHasField = mkIdentSLoc loc nameHasField
-      iSetField = mkIdentSLoc loc nameSetField
+      iHasField = mkQIdentSLoc loc nameDataRecords nameHasField
+      iSetField = mkQIdentSLoc loc nameDataRecords nameSetField
       igetField = xmkQIdent loc nameDataRecords namegetField
       isetField = xmkQIdent loc nameDataRecords namesetField
       hdrGet = eForall iks $ eApp3 (EVar iHasField)
@@ -93,10 +93,10 @@ genHasField (tycon, iks) cs (fld, fldty) = do
        ]
 
 nameHasField :: String
-nameHasField = nameDataRecords ++ ".HasField"
+nameHasField = "HasField"
 
 nameSetField :: String
-nameSetField = nameDataRecords ++ ".SetField"
+nameSetField = "SetField"
 
 namegetField :: String
 namegetField = "getField"

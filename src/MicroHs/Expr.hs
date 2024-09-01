@@ -194,7 +194,7 @@ data Lit
   | LStr String
   | LUStr String            -- UTF-8 encoded string
   | LPrim String
-  | LExn String             -- exception to raise
+  | LExn Ident              -- exception to raise
   | LForImp String CType
   | LTick String
 --DEBUG  deriving (Show)
@@ -762,7 +762,7 @@ showLit l =
     LStr s     -> show s
     LUStr s    -> show s
     LPrim s    -> s
-    LExn s     -> s
+    LExn s     -> showIdent s
     LForImp s _-> '^' : last (words s)  -- XXX needs improvement
     LTick s    -> '!' : s
 
@@ -847,7 +847,7 @@ mkEStr loc str = ESign (ELit loc (LStr str)) $ EListish $ LList [EVar $ mkIdentS
 mkExn :: SLoc -> String -> String -> Expr
 mkExn loc msg exn =
   let str = mkEStr loc $ msg ++ ", at " ++ show loc
-      fn  = ELit loc $ LExn $ "Control.Exception.Internal." ++ exn
+      fn  = ELit loc $ LExn $ mkQIdentSLoc loc "Control.Exception.Internal" exn
   in  EApp fn str
 
 getAppM :: HasCallStack => EType -> Maybe (Ident, [EType])

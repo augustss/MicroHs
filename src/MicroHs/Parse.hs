@@ -58,7 +58,7 @@ pExprTop = pBraces pExpr <* eof
 pModule :: P EModule
 pModule = do
   pKeyword "module"
-  mn <- pUQIdentA
+  mn <- pModuleIdent
   exps <- (pSpec '(' *> esepEndBy pExportItem (pSpec ',') <* pSpec ')')
       <|< pure [ExpModule mn]
   pKeyword "where"
@@ -86,6 +86,13 @@ pUIdentA = do
     is (TIdent loc [] s) | isUpper (head s) = Just (mkIdentSLoc loc s)
     is _ = Nothing
   satisfyM "UIdent" is
+
+pModuleIdent :: P IdentModule
+pModuleIdent = do
+  let
+    is (TIdent loc qs s) | isUpper (head s) = Just (mkIdentSLoc loc $ intercalate "." $ qs ++ [s])
+    is _ = Nothing
+  satisfyM "ModuleIdent" is
 
 -- Upper case, unqualified, identifier
 pUIdent :: P Ident
@@ -250,7 +257,7 @@ pString = satisfyM "string" is
 
 pExportItem :: P ExportItem
 pExportItem =
-      ExpModule   <$> (pKeyword "module" *> pUQIdent)
+      ExpModule   <$> (pKeyword "module" *> pModuleIdent)
   <|< expType     <$> pUQIdentSym <*> (pSpec '(' *> pConList <* pSpec ')')
   <|< ExpTypeSome <$> pUQIdentSym <*> pure []
   <|< ExpValue    <$> pLQIdentSym
@@ -420,8 +427,8 @@ pImportSpec =
     pSource = (ImpBoot <$ pPragma "SOURCE") <|< pure ImpNormal
     pQual = True <$ pKeyword "qualified"
     -- the 'qualified' can occur before or after the module name
-    pQId =      ((,) <$> pQual <*> pUQIdentA)
-            <|< ((\ a b -> (b,a)) <$> pUQIdentA <*> (pQual <|> pure False))
+    pQId =      ((,) <$> pQual <*> pModuleIdent)
+            <|< ((\ a b -> (b,a)) <$> pModuleIdent <*> (pQual <|> pure False))
     imp a (b, c) = ImportSpec a b c
   in  imp <$> pSource <*> pQId <*> eoptional (pKeyword "as" *> pUQIdent) <*>
               eoptional ((,) <$> ((True <$ pKeyword "hiding") <|< pure False) <*> pParens (esepEndBy pImportItem (pSpec ',')))

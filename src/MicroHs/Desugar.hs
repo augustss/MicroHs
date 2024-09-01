@@ -209,7 +209,7 @@ dsExpr aexpr =
       dsExpr $ dsCompr e stmts l
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam qs -> dsEqns (getSLoc aexpr) qs
-    ELit l (LExn s) -> Var (mkIdentSLoc l s)
+    ELit _ (LExn i) -> Var i
     ELit _ (LChar c) -> Lit (LInt (ord c))
     ELit _ (LInteger i) -> encodeInteger i
     ELit _ (LRat i) -> encodeRational i

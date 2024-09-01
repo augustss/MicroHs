@@ -3,8 +3,10 @@
 module MicroHs.Ident(
   Line, Col,
   Ident,
+  IdentString,
   mkIdent, mkQIdent, unIdent,
   qualIdent, showIdent, setIdentSLoc,
+  qualOfIdent, baseOfIdent,
   ppIdent,
   mkIdentSLoc, mkQIdentSLoc,
   isLower_, isIdentChar, isOperChar, isConIdent,
@@ -12,7 +14,6 @@ module MicroHs.Ident(
   slocIdent,
   headIdent,
   unQualIdent,
-  unQualString,
   qualOf,
   addIdentSuffix,
   SLoc(..), noSLoc,
@@ -23,7 +24,6 @@ import Data.Char
 import Data.Text(Text, pack, unpack, append, head)
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
-import MicroHs.List(dropEnd)
 import Compat
 
 type Line = Int
@@ -35,8 +35,10 @@ data SLoc = SLoc FilePath Line Col
 instance Show SLoc where
   show (SLoc f l c) = show f ++ "," ++ show l ++ ":" ++ show c
 
-data Ident = Ident SLoc Text | QIdent SLoc Text Text
-  --deriving (Show)
+type IdentString = Text
+
+data Ident = Ident SLoc IdentString | QIdent SLoc IdentString IdentString
+--  deriving (Show)
 
 instance Eq Ident where
   Ident  _    i == Ident  _    j  =  i == j
@@ -62,6 +64,14 @@ slocIdent :: Ident -> SLoc
 slocIdent (Ident l _) = l
 slocIdent (QIdent l _ _) = l
 
+baseOfIdent :: Ident -> IdentString
+baseOfIdent (Ident _ t) = t
+baseOfIdent (QIdent _ _ t) = t
+
+qualOfIdent :: Ident -> Maybe IdentString
+qualOfIdent (Ident _ _) = Nothing
+qualOfIdent (QIdent _ q _) = Just q
+
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
 
@@ -72,10 +82,10 @@ mkQIdent :: String -> String -> Ident
 mkQIdent = mkQIdentSLoc noSLoc
 
 mkIdentSLoc :: SLoc -> String -> Ident
-mkIdentSLoc l = Ident l . pack
+mkIdentSLoc l s = Ident l (pack s)
 
 mkQIdentSLoc :: SLoc -> String -> String -> Ident
-mkQIdentSLoc l q s = Ident l $ pack $ q ++ "." ++ s
+mkQIdentSLoc l q s = QIdent l (pack q) (pack s)
 
 unIdent :: Ident -> String
 unIdent (Ident _ s) = unpack s
@@ -94,13 +104,17 @@ ppIdent i = text $ showIdent i
 
 qualIdent :: HasCallStack =>
              Ident -> Ident -> Ident
-qualIdent (Ident _ qi) (Ident loc i) =
+qualIdent (Ident _ qi) (Ident loc i) = QIdent loc qi i
+qualIdent (Ident _ qi) (QIdent loc qi' i) = QIdent loc (qi `appendDot` qi') i
+qualIdent (QIdent _ _ _) _ = error "qualIdent"
   -- Ident loc (qi `append` "." `append` i)
-  Ident loc (qi `appendDot` i)
+  -- Ident loc (qi `appendDot` i)
 
 addIdentSuffix :: Ident -> String -> Ident
 addIdentSuffix (Ident loc i) s = Ident loc (i `append` pack s)
+addIdentSuffix (QIdent loc qi i) s = QIdent loc qi (i `append` pack s)
 
+{-
 unQualString :: HasCallStack =>
                 String -> String
 unQualString [] = ""
@@ -112,20 +126,23 @@ unQualString s@(c:_) =
       _ -> undefined -- This cannot happen, but GHC doesn't know that
   else
     s
-
+-}
 unQualIdent :: Ident -> Ident
-unQualIdent (Ident l s) = Ident l (pack $ unQualString $ unpack s)
+unQualIdent (QIdent l _ s) = Ident l s
+unQualIdent _ = error "unQualIdent"
 
 qualOf :: Ident -> Ident
-qualOf (Ident loc s) = Ident loc (pack $ dropEnd (length (unQualString s') + 1) s')
-  where s' = unpack s
+qualOf (QIdent loc qi _) = Ident loc qi
+qualOf _ = error "qualOf"
 
 headIdent :: Ident -> Char
 headIdent (Ident _ i) = head i
+headIdent (QIdent _ _ _) = error "headIdent"
 
-isConIdent :: Ident -> Bool
-isConIdent i@(Ident _ t) =
-  let c = headIdent i
+isConIdent :: HasCallStack => Ident -> Bool
+isConIdent i =
+  let t = baseOfIdent i
+      c = head t
   in  isUpper c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()"
 
 isOperChar :: Char -> Bool
@@ -145,6 +162,7 @@ dummyIdent = mkIdent "_"
 
 isDummyIdent :: Ident -> Bool
 isDummyIdent (Ident _ s) = s == pack "_"
+isDummyIdent _ = False
 
 showSLoc :: SLoc -> String
 showSLoc (SLoc fn l c) =
