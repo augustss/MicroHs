@@ -292,13 +292,13 @@ type EKind = EType
 type ESort = EType
 
 sKind :: ESort
-sKind = EVar (Ident noSLoc "Primitives.Kind")
+sKind = EVar (mkIdent "Primitives.Kind")
 
 kType :: EKind
-kType = EVar (Ident noSLoc "Primitives.Type")
+kType = EVar (mkIdent "Primitives.Type")
 
 kConstraint :: EKind
-kConstraint = EVar (Ident noSLoc "Primitives.Constraint")
+kConstraint = EVar (mkIdent "Primitives.Constraint")
 
 tupleConstr :: SLoc -> Int -> Ident
 tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
