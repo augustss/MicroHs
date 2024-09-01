@@ -379,6 +379,7 @@ counter_t num_arr_free;
 counter_t num_fin_alloc;
 counter_t num_fin_free;
 counter_t num_bs_alloc;
+counter_t num_bs_alloc_max;
 counter_t num_bs_free;
 counter_t num_bs_bytes;
 counter_t num_bs_inuse;
@@ -1116,6 +1117,8 @@ gc(void)
       } else {
         num_bs_free++;
         num_bs_inuse -= fin->size;
+        if (num_bs_alloc - num_bs_free > num_bs_alloc_max)
+          num_bs_alloc_max = num_bs_alloc - num_bs_free;
       }
       void (*f)(void *) = (void (*)(void *))fin->final;
       if (f) {
@@ -3951,8 +3954,8 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
     PRINT("%"PCOMMA"15"PRIcounter" foreign alloc\n", num_fin_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" foreign free\n", num_fin_free);
-    PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc\n", num_bs_alloc);
-    PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc'd bytes (max %"PCOMMA""PRIcounter")\n", num_bs_bytes, num_bs_inuse_max);
+    PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc (max %"PCOMMA""PRIcounter")\n", num_bs_alloc, num_bs_alloc_max);
+    PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc bytes (max %"PCOMMA""PRIcounter")\n", num_bs_bytes, num_bs_inuse_max);
     PRINT("%"PCOMMA"15"PRIcounter" bytestring free\n", num_bs_free);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);

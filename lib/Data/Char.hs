@@ -29,6 +29,7 @@ instance Ord Char where
   (>)  = primCharGT
   (>=) = primCharGE
 
+-- Using primitive comparison is still a small speedup, even using mostly bytestrings
 instance Eq String where
   (==) = primStringEQ
 
@@ -38,6 +39,7 @@ instance Ord String where
   x <= y  =  case primStringCompare x y of { GT -> False; _ -> True }
   x >  y  =  case primStringCompare x y of { GT -> True; _ -> False }
   x >= y  =  case primStringCompare x y of { LT -> False; _ -> True }
+
 
 instance Bounded Char where
   minBound = chr 0
