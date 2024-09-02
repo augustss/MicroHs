@@ -16,7 +16,6 @@ module MicroHs.IdentMap(
   mapM,
   ) where
 import Prelude hiding(lookup, mapM)
-import MicroHs.Ident
 
 data Map k a
   = Nil           -- empty tree

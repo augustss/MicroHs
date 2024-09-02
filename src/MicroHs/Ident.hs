@@ -4,7 +4,7 @@ module MicroHs.Ident(
   Line, Col,
   Ident,
   IdentString,
-  mkIdent, mkQIdent, unIdent,
+  mkIdent, mkQIdent, unIdent, mkIdentS,
   qualIdent, showIdent, setIdentSLoc,
   qualOfIdent, baseOfIdent,
   ppIdent,
@@ -38,7 +38,7 @@ instance Show SLoc where
 type IdentString = Text
 
 data Ident = Ident SLoc IdentString | QIdent SLoc IdentString IdentString
---  deriving (Show)
+  deriving (Show)
 
 instance Eq Ident where
   Ident  _    i == Ident  _    j  =  i == j
@@ -57,8 +57,8 @@ instance Ord Ident where
   Ident _ i >= Ident _ j  =  i >= j
 -}
 
-instance Show Ident where
-  show = showIdent
+--instance Show Ident where
+--  show = showIdent
 
 slocIdent :: Ident -> SLoc
 slocIdent (Ident l _) = l
@@ -74,6 +74,9 @@ qualOfIdent (QIdent _ q _) = Just q
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
+
+mkIdentS :: IdentString -> Ident
+mkIdentS s = Ident noSLoc s
 
 mkIdent :: String -> Ident
 mkIdent = mkIdentSLoc noSLoc
