@@ -253,10 +253,10 @@ validateCache flags acash = execStateIO (mapM_ (validate . fst) fdeps) acash
 
 -- Take a graph in adjencency list form and reverse all the arrow.
 -- Used to invert the import graph.
-invertGraph :: [(IdentModule, [IdentModule])] -> M.Map [IdentModule]
+invertGraph :: [(IdentModule, [IdentModule])] -> M.Map Ident [IdentModule]
 invertGraph = foldr ins M.empty
   where
-    ins :: (IdentModule, [IdentModule]) -> M.Map [IdentModule] -> M.Map [IdentModule]
+    ins :: (IdentModule, [IdentModule]) -> M.Map Ident [IdentModule] -> M.Map Ident [IdentModule]
     ins (m, ms) g = foldr (\ n -> M.insertWith (++) n [m]) g ms
 
 ------------------

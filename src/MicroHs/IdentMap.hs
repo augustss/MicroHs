@@ -18,15 +18,15 @@ module MicroHs.IdentMap(
 import Prelude hiding(lookup, mapM)
 import MicroHs.Ident
 
-data Map a
+data Map k a
   = Nil           -- empty tree
-  | One Ident a   -- singleton
+  | One k a       -- singleton
   | Node          -- tree node
-    (Map a)        -- left subtree
-    Int            -- size of this tree
-    Ident          -- key stored in the node
-    a              -- element stored in the node
-    (Map a)        -- right subtree
+    (Map k a)     -- left subtree
+    Int           -- size of this tree
+    k             -- key stored in the node
+    a             -- element stored in the node
+    (Map k a)     -- right subtree
 --  deriving(Show)
 
 {-
@@ -34,46 +34,46 @@ instance Show a => Show (Map a) where
   show m = show (toList m)
 -}
 
-empty :: forall a . Map a
+empty :: forall k a . Map k a
 empty = Nil
 
-singleton :: forall a . Ident -> a -> Map a
+singleton :: forall k a . k -> a -> Map k a
 singleton i a = One i a
 
-elems :: forall v . Map v -> [v]
+elems :: forall k v . Map k v -> [v]
 elems = map snd . toList
 
-keys :: forall v . Map v -> [Ident]
+keys :: forall k v . Map k v -> [k]
 keys = map fst . toList
 
-toList :: forall v . Map v -> [(Ident, v)]
+toList :: forall k v . Map k v -> [(k, v)]
 toList t = to t []
   where
     to Nil q = q
     to (One k v) q = (k, v):q
     to (Node l _ k v r) q = to l ((k, v) : to r q)
 
-fromList :: forall v . [(Ident, v)] -> Map v
+fromList :: forall k v . Ord k => [(k, v)] -> Map k v
 fromList = fromListWith const
 
-fromListWith :: forall v . (v -> v -> v) -> [(Ident, v)] -> Map v
+fromListWith :: forall k v . Ord k => (v -> v -> v) -> [(k, v)] -> Map k v
 fromListWith comb = foldr (uncurry (insertWith comb)) empty
 
-mapM :: forall m a b . Monad m => (a -> m b) -> Map a -> m (Map b)
+mapM :: forall k m a b . Monad m => (a -> m b) -> Map k a -> m (Map k b)
 mapM _ Nil = return Nil
 mapM f (One k v) = One k <$> f v
 mapM f (Node l s k v r) = Node <$> mapM f l <*> return s <*> return k <*> f v <*> mapM f r
 
-size :: forall a . Map a -> Int
+size :: forall k a . Map k a -> Int
 size Nil = 0
 size (One _ _) = 1
 size (Node _ s _ _ _) = s
 
-node :: forall a . Map a -> Ident -> a -> Map a -> Map a
+node :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
 node Nil  key val Nil   = One key val
 node left key val right = Node left (size left + 1 + size right) key val right
 
-lookup :: forall a . Ident -> Map a -> Maybe a
+lookup :: forall k a . Ord k => k -> Map k a -> Maybe a
 lookup k = look
   where
     look Nil = Nothing
@@ -87,10 +87,10 @@ lookup k = look
         EQ -> Just val
         GT -> look right
 
-insert :: forall a . Ident -> a -> Map a -> Map a
+insert :: forall k a . Ord k => k -> a -> Map k a -> Map k a
 insert = insertWith const
 
-insertWith :: forall a . (a -> a -> a) -> Ident -> a -> Map a -> Map a
+insertWith :: forall k a . Ord k => (a -> a -> a) -> k -> a -> Map k a -> Map k a
 insertWith comb k v = ins
   where
     ins Nil = One k v
@@ -101,7 +101,7 @@ insertWith comb k v = ins
         EQ -> node left k (comb v val) right
         GT -> balance left key val (ins right)
 
-delete :: forall a . Ident -> Map a -> Map a
+delete :: forall k a . Ord k => k -> Map k a -> Map k a
 delete k = del
   where
     del Nil = Nil
@@ -123,7 +123,7 @@ delete k = del
             let (key', val', right') = extractMin right
             in node left key' val' right'
 
-extractMin :: forall a . Map a -> (Ident, a, Map a)
+extractMin :: forall k a . Map k a -> (k, a, Map k a)
 extractMin Nil = undefined
 extractMin (One key val) = (key, val, Nil)
 extractMin (Node Nil _ key val right) = (key, val, right)
@@ -131,7 +131,7 @@ extractMin (Node left _ key val right) =
   case extractMin left of
     (min, vmin, left') -> (min, vmin, balance left' key val right)
 
-extractMax :: forall a . Map a -> (Ident, a, Map a)
+extractMax :: forall k a . Map k a -> (k, a, Map k a)
 extractMax Nil = undefined
 extractMax (One key val) = (key, val, Nil)
 extractMax (Node left _ key val Nil) = (key, val, left)
@@ -146,7 +146,7 @@ alpha = 2
 delta :: Int
 delta = 0
 
-balance :: forall a . Map a -> Ident -> a -> Map a -> Map a
+balance :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
 balance left key val right
   | size left + size right <= 1 = node left key val right
 balance (One k v) key val right = balance (Node Nil 1 k v Nil) key val right
@@ -164,20 +164,20 @@ balance left key val right
         _ -> undefined
   | otherwise = node left key val right
 
-singleL :: forall a . Map a -> Ident -> a -> Map a -> Map a
+singleL :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
 singleL l k v (Node rl _ rk rv rr) = node (node l k v rl) rk rv rr
 singleL _ _ _ _ = undefined
 
-singleR :: forall a . Map a -> Ident -> a -> Map a -> Map a
+singleR :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
 singleR (Node ll _ lk lv lr) k v r = node ll lk lv (node lr k v r)
 singleR _ _ _ _ = undefined
 
-doubleL :: forall a . Map a -> Ident -> a -> Map a -> Map a
+doubleL :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
 doubleL l k v (Node (Node rll _ rlk rlv rlr) _ rk rv rr) = node (node l k v rll) rlk rlv (node rlr rk rv rr)
 doubleL l k v (Node (One        rlk rlv    ) _ rk rv rr) = node (node l k v Nil) rlk rlv (node Nil rk rv rr)
 doubleL _ _ _ _ = undefined
 
-doubleR :: forall a . Map a -> Ident -> a -> Map a -> Map a
+doubleR :: forall k a . Map k a -> k -> a -> Map k a -> Map k a
 doubleR (Node ll _ lk lv (Node lrl _ lrk lrv lrr)) k v r = node (node ll lk lv lrl) lrk lrv (node lrr k v r)
 doubleR (Node ll _ lk lv (One        lrk lrv    )) k v r = node (node ll lk lv Nil) lrk lrv (node Nil k v r)
 doubleR _ _ _ _ = undefined

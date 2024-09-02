@@ -232,7 +232,7 @@ checkBad msg (i:_) _ =
   errorMessage (getSLoc i) $ msg ++ ": " ++ showIdent i
 
 -- Type and value exports
-getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ClassTable -> ExportItem ->
+getTVExps :: forall a . M.Map Ident (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ClassTable -> ExportItem ->
              ([TypeExport], [ClsDef], [ValueExport])
 getTVExps impMap _ _ _ _ (ExpModule m) =
   case M.lookup m impMap of
@@ -991,7 +991,7 @@ tcDefsType ds = withTypeTable $ do
   return dst
 
 -- Get all kind signatures, and do sort checking of them.
-getKindSigns :: HasCallStack => [EDef] -> T (M.Map EKind)
+getKindSigns :: HasCallStack => [EDef] -> T (M.Map Ident EKind)
 getKindSigns ds = do
   let iks = [ (i, k) | KindSign i k <- ds ]
       kind (i, k) = (,) i <$> tcKind (Check sKind) k
@@ -1027,7 +1027,7 @@ withVks vks fun = assertTCMode (>=TCType) $ do
 
 -- Add symbol a table entry (with kind) for each top level typeish definition.
 -- If there is a kind signature, use it.  If not, use a kind variable.
-addTypeKind :: M.Map EKind -> EDef -> T ()
+addTypeKind :: M.Map Ident EKind -> EDef -> T ()
 addTypeKind kdefs adef = do
   let
     addAssoc i is = do
@@ -2200,7 +2200,7 @@ tcBinds xbs ta = do
     nbs <- mapM tcBind xbs
     ta nbs
 
-tcBindVarT :: HasCallStack => M.Map EType -> Ident -> T (Ident, EType)
+tcBindVarT :: HasCallStack => M.Map Ident EType -> Ident -> T (Ident, EType)
 tcBindVarT tmap x = do
   case M.lookup x tmap of
     Nothing -> do
