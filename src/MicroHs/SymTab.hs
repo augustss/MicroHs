@@ -56,8 +56,8 @@ entryType (Entry _ t) = t
 --      globals
 data SymTab = SymTab {
   _lcl  :: [(Ident, Entry)],     -- locals
-  _uglb :: M.Map [Entry],        -- unqualified globals
-  _qglb :: M.Map [Entry]         -- qualified globals
+  _uglb :: M.Map Ident [Entry],  -- unqualified globals
+  _qglb :: M.Map Ident [Entry]   -- qualified globals
   }
 --  deriving(Show)
 

@@ -20,7 +20,7 @@ toStringCMdl (mainName, ds) =
     dMap = M.fromList ds
     -- Shake the tree bottom-up, serializing nodes as we see them.
     -- This is much faster than (say) computing the sccs and walking that.
-    dfs :: Ident -> State (Int, M.Map Exp, String -> String) ()
+    dfs :: Ident -> State (Int, M.Map Ident Exp, String -> String) ()
     dfs n = do
       (i, seen, r) <- get
       case M.lookup n seen of

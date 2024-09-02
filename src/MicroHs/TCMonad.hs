@@ -36,11 +36,11 @@ instance MonadFail Identity where fail = error
 type ValueTable = SymTab           -- type of value identifiers, used during type checking values
 type TypeTable  = SymTab           -- kind of type  identifiers, used during kind checking types
 type KindTable  = SymTab           -- sort of kind  identifiers, used during sort checking kinds
-type SynTable   = M.Map EType      -- body of type synonyms
-type FixTable   = M.Map Fixity     -- precedence and associativity of operators
-type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated constructors/selectors/methods
-type ClassTable = M.Map ClassInfo  -- maps a class identifier to its associated information
-type InstTable  = M.Map InstInfo   -- indexed by class name
+type SynTable   = M.Map Ident EType      -- body of type synonyms
+type FixTable   = M.Map Ident Fixity     -- precedence and associativity of operators
+type AssocTable = M.Map Ident [Ident]    -- maps a type identifier to its associated constructors/selectors/methods
+type ClassTable = M.Map Ident ClassInfo  -- maps a class identifier to its associated information
+type InstTable  = M.Map Ident InstInfo   -- indexed by class name
 type MetaTable  = [(Ident, EConstraint)]  -- instances with unification variables
 type Constraints= [(Ident, EConstraint)]
 type ArgDicts   = [(Ident, EConstraint)]  -- dictionary arguments
@@ -57,7 +57,7 @@ type Defaults   = [EType]          -- Current defaults
 --  * NOT IMPLEMENTED: look up by type name of the left-most type
 --  * As a last resort, just look through dictionaries.
 data InstInfo = InstInfo
-       (M.Map Expr)               -- map for direct lookup of atomic types
+       (M.Map Ident Expr)         -- map for direct lookup of atomic types
        [InstDict]                 -- slow path
        [IFunDep]
 --  deriving (Show)
