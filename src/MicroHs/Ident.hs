@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 module MicroHs.Ident(
   Line, Col,
-  Ident(..),
+  Ident,
   mkIdent, unIdent, isIdent,
   qualIdent, showIdent,
   setSLocIdent, getSLocIdent,
@@ -13,6 +13,7 @@ module MicroHs.Ident(
   getSLocIdentModule,
   isLower_, isIdentChar, isOperChar, isConIdent,
   dummyIdent, isDummyIdent,
+  headIdent,
   unQualIdent,
   unQualString,
   qualOf,
@@ -20,10 +21,31 @@ module MicroHs.Ident(
   SLoc(..), noSLoc,
   showSLoc,
   ) where
+import Prelude hiding(head)
 import Data.Char
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 import MicroHs.List(dropEnd)
+
+import Data.Text(Text, pack, unpack, append, head)
+import Compat
+
+{-
+-- Uncomment this section, and comment out the two lines above
+-- to use String instead of Text.
+type Text = String
+pack :: String -> Text
+pack x = x
+unpack :: Text -> String
+unpack x = x
+append :: Text -> Text -> Text
+append = (++)
+head :: Text -> Char
+head (c:_) = c
+head _ = undefined
+appendDot :: Text -> Text -> Text
+appendDot x y = x ++ ('.':y)
+-}
 
 type Line = Int
 type Col  = Int
@@ -34,7 +56,7 @@ data SLoc = SLoc FilePath Line Col
 instance Show SLoc where
   show (SLoc f l c) = show f ++ "," ++ show l ++ ":" ++ show c
 
-data Ident = Ident SLoc String
+data Ident = Ident SLoc Text
   --deriving (Show)
 
 instance Eq Ident where
@@ -78,35 +100,35 @@ noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
 
 mkIdent :: String -> Ident
-mkIdent = Ident noSLoc
+mkIdent = mkIdentSLoc noSLoc
 
 mkIdentSLoc :: SLoc -> String -> Ident
-mkIdentSLoc = Ident
+mkIdentSLoc l = Ident l . pack
 
 unIdent :: Ident -> String
-unIdent (Ident _ s) = s
+unIdent (Ident _ s) = unpack s
 
 setSLocIdent :: SLoc -> Ident -> Ident
 setSLocIdent l (Ident _ s) = Ident l s
 
 showIdent :: Ident -> String
-showIdent (Ident _ i) = i
+showIdent (Ident _ i) = unpack i
 
 ppIdent :: Ident -> Doc
-ppIdent (Ident _ i) = text i
+ppIdent (Ident _ i) = text $ unpack i
 
 ppIdentModule :: IdentModule -> Doc
 ppIdentModule = ppIdent . unIM
 
 isIdent :: String -> Ident -> Bool
-isIdent s (Ident _ i) = s == i
+isIdent s (Ident _ i) = pack s == i
 
 qualIdent :: HasCallStack =>
              IdentModule -> Ident -> Ident
-qualIdent (IM (Ident _ qi)) (Ident loc i) = Ident loc (qi ++ "." ++ i)
+qualIdent (IM (Ident _ qi)) (Ident loc i) = Ident loc (appendDot qi i)
 
 addIdentSuffix :: Ident -> String -> Ident
-addIdentSuffix (Ident loc i) s = Ident loc (i ++ s)
+addIdentSuffix (Ident loc i) s = Ident loc (i `append` pack s)
 
 unQualString :: HasCallStack =>
                 String -> String
@@ -121,16 +143,19 @@ unQualString s@(c:_) =
     s
 
 unQualIdent :: Ident -> Ident
-unQualIdent (Ident l s) = Ident l (unQualString s)
+unQualIdent (Ident l s) = Ident l (pack $ unQualString $ unpack s)
 
 qualOf :: Ident -> IdentModule
-qualOf (Ident loc s) = IM $ Ident loc (dropEnd (length (unQualString s) + 1) s)
+qualOf (Ident loc s) = IM $ Ident loc (pack $ dropEnd (length (unQualString s') + 1) s')
+  where s' = unpack s
+
+headIdent :: Ident -> Char
+headIdent (Ident _ i) = head i
 
 isConIdent :: Ident -> Bool
-isConIdent (Ident _ i) =
-  let
-    c = head i
-  in isUpper c || c == ':' || c == ',' || i == "[]"  || i == "()"
+isConIdent i@(Ident _ t) =
+  let c = headIdent i
+  in  isUpper c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()"
 
 isOperChar :: Char -> Bool
 isOperChar c = elem c operChars
@@ -148,8 +173,7 @@ dummyIdent :: Ident
 dummyIdent = mkIdent "_"
 
 isDummyIdent :: Ident -> Bool
-isDummyIdent (Ident _ "_") = True
-isDummyIdent _ = False
+isDummyIdent (Ident _ s) = s == pack "_"
 
 showSLoc :: SLoc -> String
 showSLoc (SLoc fn l c) =

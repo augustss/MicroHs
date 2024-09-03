@@ -3,7 +3,9 @@ module Data.Text(
   pack, unpack,
   empty,
   append,
+  head,
   ) where
+import Prelude hiding(head)
 import Data.Monoid
 import Data.Semigroup
 import Data.String
@@ -40,10 +42,13 @@ empty :: Text
 empty = pack []
 
 pack :: String -> Text
-pack = primitive "toUTF8"
+pack s = T (primitive "toUTF8" s)
 
 unpack :: Text -> String
-unpack = primitive "fromUTF8"
+unpack (T t) = primitive "fromUTF8" t
 
 append :: Text -> Text -> Text
 append (T x) (T y) = T (BS.append x y)
+
+head :: Text -> Char
+head (T t) = primitive "headUTF8" t

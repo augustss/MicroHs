@@ -288,18 +288,18 @@ type EKind = EType
 type ESort = EType
 
 sKind :: ESort
-sKind = EVar (Ident noSLoc "Primitives.Kind")
+sKind = EVar (mkIdent "Primitives.Kind")
 
 kType :: EKind
-kType = EVar (Ident noSLoc "Primitives.Type")
+kType = EVar (mkIdent "Primitives.Type")
 
 kConstraint :: EKind
-kConstraint = EVar (Ident noSLoc "Primitives.Constraint")
+kConstraint = EVar (mkIdent "Primitives.Constraint")
 
 tupleConstr :: SLoc -> Int -> Ident
 tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
 
--- Check if it is a suple constructor
+-- Check if it is a tuple constructor
 getTupleConstr :: Ident -> Maybe Int
 getTupleConstr i =
   case unIdent i of
@@ -679,7 +679,7 @@ ppExprR raw = ppE
     ppE :: Expr -> Doc
     ppE ae =
       case ae of
-        EVar i | raw            -> text (unIdent i)
+        EVar i | raw            -> text si
                | isOperChar cop -> parens (text op)
                | otherwise      -> text s
                  where op = unIdent (unQualIdent i)

@@ -13,7 +13,9 @@ instance NFData Exp where rnf (Var i) = rnf i; rnf (App f a) = rnf f `seq` rnf a
 
 instance NFData Lit where rnf (LInt i) = rnf i; rnf (LInteger i) = rnf i; rnf (LDouble d) = rnf d; rnf (LRat r) = rnf r; rnf (LChar c) = rnf c; rnf (LStr s) = rnf s; rnf (LPrim s) = rnf s; rnf (LExn s) = rnf s; rnf (LForImp s _) = rnf s; rnf (LTick s) = rnf s; rnf (LUStr s) = rnf s
 
-instance NFData Ident where rnf (Ident _ s) = rnf s
+instance NFData SLoc where rnf (SLoc f l c) = rnf f `seq` rnf l `seq` rnf c
+
+instance NFData Ident where rnf i = rnf (getSLocIdent i)
 
 compiledWithGHC :: Bool
 compiledWithGHC = True

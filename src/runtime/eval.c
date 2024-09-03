@@ -166,7 +166,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_BSTR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -192,10 +192,10 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
-                T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE,
+                T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR,
-                T_BSFROMUTF8, T_BSTOUTF8,
-                T_BSTR,
+                T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8,
+                T_BSAPPENDDOT,
                 T_LAST_TAG,
 };
 #if 0
@@ -378,6 +378,7 @@ counter_t num_arr_free;
 counter_t num_fin_alloc;
 counter_t num_fin_free;
 counter_t num_bs_alloc;
+counter_t num_bs_alloc_max;
 counter_t num_bs_free;
 counter_t num_bs_bytes;
 counter_t num_bs_inuse;
@@ -681,6 +682,7 @@ struct {
   { "fread", T_FREAD},
 #endif  /* WANT_FLOAT */
   { "bs++", T_BSAPPEND},
+  { "bs++.", T_BSAPPENDDOT},
   { "bs+++", T_BSAPPEND3},
   { "bs==", T_BSEQ, T_BSEQ},
   { "bs/=", T_BSNE, T_BSNE},
@@ -688,7 +690,7 @@ struct {
   { "bs<=", T_BSLE},
   { "bs>", T_BSGT},
   { "bs>=", T_BSGE},
-  { "bscmp", T_COMPARE},
+  { "bscmp", T_BSCMP},
   { "bspack", T_BSPACK},
   { "bsunpack", T_BSUNPACK},
   { "bslength", T_BSLENGTH},
@@ -719,6 +721,7 @@ struct {
   { "rnf", T_RNF },
   { "fromUTF8", T_BSFROMUTF8 },
   { "toUTF8", T_BSTOUTF8 },
+  { "headUTF8", T_BSHEADUTF8 },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
@@ -1114,6 +1117,8 @@ gc(void)
       } else {
         num_bs_free++;
         num_bs_inuse -= fin->size;
+        if (num_bs_alloc - num_bs_free > num_bs_alloc_max)
+          num_bs_alloc_max = num_bs_alloc - num_bs_free;
       }
       void (*f)(void *) = (void (*)(void *))fin->final;
       if (f) {
@@ -2095,6 +2100,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_FREAD: putsb("fread", f); break;
 #endif
   case T_BSAPPEND: putsb("bs++", f); break;
+  case T_BSAPPENDDOT: putsb("bs++.", f); break;
   case T_BSAPPEND3: putsb("bs+++", f); break;
   case T_BSEQ: putsb("bs==", f); break;
   case T_BSNE: putsb("bs/=", f); break;
@@ -2102,6 +2108,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_BSLE: putsb("bs<=", f); break;
   case T_BSGT: putsb("bs>", f); break;
   case T_BSGE: putsb("bs>=", f); break;
+  case T_BSCMP: putsb("bscmp", f); break;
   case T_BSPACK: putsb("bspack", f); break;
   case T_BSUNPACK: putsb("bsunpack", f); break;
   case T_BSLENGTH: putsb("bslength", f); break;
@@ -2153,6 +2160,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_TOFUNPTR: putsb("toFunPtr", f); break;
   case T_BSFROMUTF8: putsb("fromUTF8", f); break;
   case T_BSTOUTF8: putsb("toUTF8", f); break;
+  case T_BSHEADUTF8: putsb("headUTF8", f); break;
   case T_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
@@ -2411,6 +2419,46 @@ bsunpack(struct bytestring bs)
   return n;
 }
 
+/* XXX This should somehow be merged with other utf8 decoders */
+value_t
+headutf8(struct bytestring bs, void **ret)
+{
+  uint8_t *p = bs.string;
+  if (bs.size == 0)
+    ERR("headUTF8 0");
+  int c1 = *p++;
+  if ((c1 & 0x80) == 0) {
+    if (ret)
+      *ret = p;
+    return c1;
+  }
+  if (bs.size == 1)
+    ERR("headUTF8 1");
+  int c2 = *p++;
+  if ((c1 & 0xe0) == 0xc0) {
+    if (ret)
+      *ret = p;
+    return ((c1 & 0x1f) << 6) | (c2 & 0x3f);
+  }
+  if (bs.size == 2)
+    ERR("headUTF8 2");
+  int c3 = *p++;
+  if ((c1 & 0xf0) == 0xe0) {
+    if (ret)
+      *ret = p;
+    return ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
+  }
+  if (bs.size == 3)
+    ERR("headUTF8 3");
+  int c4 = *p++;
+  if ((c1 & 0xf8) == 0xf0) {
+    if (ret)
+      *ret = p;
+    return ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+  }
+  ERR("headUTF8 4");
+}
+
 NODEPTR evali(NODEPTR n);
 
 /* Follow indirections */
@@ -2598,6 +2646,20 @@ bsappend(struct bytestring p, struct bytestring q)
     memerr();
   memcpy(r.string, p.string, p.size);
   memcpy((uint8_t *)r.string + p.size, q.string, q.size);
+  return r;
+}
+
+struct bytestring
+bsappenddot(struct bytestring p, struct bytestring q)
+{
+  struct bytestring r;
+  r.size = p.size + q.size + 1;
+  r.string = MALLOC(r.size);
+  if (!r.string)
+    memerr();
+  memcpy(r.string, p.string, p.size);
+  memcpy((uint8_t *)r.string + p.size, ".", 1);
+  memcpy((uint8_t *)r.string + p.size + 1, q.string, q.size);
   return r;
 }
 
@@ -3005,12 +3067,14 @@ evali(NODEPTR an)
 #endif  /* WANT_FLOAT */
 
   case T_BSAPPEND:
+  case T_BSAPPENDDOT:
   case T_BSEQ:
   case T_BSNE:
   case T_BSLT:
   case T_BSLE:
   case T_BSGT:
   case T_BSGE:
+  case T_BSCMP:
     CHECK(2);
     n = ARG(TOP(1));
     PUSH(combBINBS2);
@@ -3052,6 +3116,15 @@ evali(NODEPTR an)
       FORPTR(n) = mkForPtr(bs);
       RET;
     }
+
+  case T_BSHEADUTF8:
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+    if (GETTAG(x) != T_BSTR) ERR("HEADUTF8");
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, headutf8(BSTR(x), (void**)0));
+    RET;
 
   case T_BSFROMUTF8:
     if (doing_rnf) RET;
@@ -3389,12 +3462,14 @@ evali(NODEPTR an)
       case T_IND:    p = INDIR(p); goto binbs;
 
       case T_BSAPPEND: rbs = bsappend(xbs, ybs); break;
+      case T_BSAPPENDDOT: rbs = bsappenddot(xbs, ybs); break;
       case T_BSEQ:   GOIND(bscompare(xbs, ybs) == 0 ? combTrue : combFalse);
       case T_BSNE:   GOIND(bscompare(xbs, ybs) != 0 ? combTrue : combFalse);
       case T_BSLT:   GOIND(bscompare(xbs, ybs) <  0 ? combTrue : combFalse);
       case T_BSLE:   GOIND(bscompare(xbs, ybs) <= 0 ? combTrue : combFalse);
       case T_BSGT:   GOIND(bscompare(xbs, ybs) >  0 ? combTrue : combFalse);
       case T_BSGE:   GOIND(bscompare(xbs, ybs) >= 0 ? combTrue : combFalse);
+      case T_BSCMP:  r = bscompare(xbs, ybs); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
 
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
@@ -3932,8 +4007,8 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
     PRINT("%"PCOMMA"15"PRIcounter" foreign alloc\n", num_fin_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" foreign free\n", num_fin_free);
-    PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc\n", num_bs_alloc);
-    PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc'd bytes (max %"PCOMMA""PRIcounter")\n", num_bs_bytes, num_bs_inuse_max);
+    PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc (max %"PCOMMA""PRIcounter")\n", num_bs_alloc, num_bs_alloc_max);
+    PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc bytes (max %"PCOMMA""PRIcounter")\n", num_bs_bytes, num_bs_inuse_max);
     PRINT("%"PCOMMA"15"PRIcounter" bytestring free\n", num_bs_free);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
