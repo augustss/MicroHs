@@ -20,11 +20,29 @@ module MicroHs.Ident(
   ) where
 import Prelude hiding(head)
 import Data.Char
-import Data.Text(Text, pack, unpack, append, head)
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 import MicroHs.List(dropEnd)
+
+import Data.Text(Text, pack, unpack, append, head)
 import Compat
+
+{-
+-- Uncomment this section, and comment out the two lines above
+-- to use String instead of Text.
+type Text = String
+pack :: String -> Text
+pack x = x
+unpack :: Text -> String
+unpack x = x
+append :: Text -> Text -> Text
+append = (++)
+head :: Text -> Char
+head (c:_) = c
+head _ = undefined
+appendDot :: Text -> Text -> Text
+appendDot x y = x ++ ('.':y)
+-}
 
 type Line = Int
 type Col  = Int
