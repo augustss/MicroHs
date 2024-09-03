@@ -540,7 +540,7 @@ addPrimFixs =
 
 -- r for 'realm', suggested by ChatGPT
 rSort :: ESort
-rSort = EVar (Ident noSLoc "Primitives.Sort")
+rSort = EVar (mkIdent "Primitives.Sort")
 
 sKindKindKind :: EKind
 sKindKindKind = sArrow sKind (sArrow sKind sKind)
