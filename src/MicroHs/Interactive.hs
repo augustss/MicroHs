@@ -8,7 +8,7 @@ import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
 import MicroHs.Expr(EType, showEType)
 import MicroHs.Flags
-import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar)
+import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar, IdentModule, mkIdentModule)
 import MicroHs.List
 import MicroHs.Parse
 import MicroHs.StateIO
@@ -153,8 +153,8 @@ setSyms syms = modify $ \ is -> is{ isSymbols = syms }
 interactiveName :: String
 interactiveName = "Interactive"
 
-interactiveId :: Ident
-interactiveId = mkIdent interactiveName
+interactiveId :: IdentModule
+interactiveId = mkIdentModule interactiveName
 
 itName :: String
 itName = "_it"

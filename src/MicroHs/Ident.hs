@@ -4,9 +4,13 @@ module MicroHs.Ident(
   Line, Col,
   Ident(..),
   mkIdent, unIdent, isIdent,
-  qualIdent, showIdent, setSLocIdent,
+  qualIdent, showIdent,
+  setSLocIdent, getSLocIdent,
   ppIdent,
   mkIdentSLoc,
+  IdentModule,
+  mkIdentModuleSLoc, mkIdentModule, unIdentModule, identModuleOf, ppIdentModule,
+  getSLocIdentModule,
   isLower_, isIdentChar, isOperChar, isConIdent,
   dummyIdent, isDummyIdent,
   unQualIdent,
@@ -46,6 +50,30 @@ instance Ord Ident where
 instance Show Ident where
   show = showIdent
 
+getSLocIdent :: Ident -> SLoc
+getSLocIdent (Ident l _) = l
+
+newtype IdentModule = IM { unIM :: Ident }
+  deriving (Eq, Ord)
+
+instance Show IdentModule where
+  show = show . unIM
+
+identModuleOf :: Ident -> IdentModule
+identModuleOf = IM
+
+mkIdentModuleSLoc :: SLoc -> String -> IdentModule
+mkIdentModuleSLoc l s = IM (mkIdentSLoc l s)
+
+mkIdentModule :: String -> IdentModule
+mkIdentModule s = IM (mkIdent s)
+
+unIdentModule :: IdentModule -> String
+unIdentModule = unIdent . unIM
+
+getSLocIdentModule :: IdentModule -> SLoc
+getSLocIdentModule = getSLocIdent . unIM
+
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
 
@@ -67,12 +95,15 @@ showIdent (Ident _ i) = i
 ppIdent :: Ident -> Doc
 ppIdent (Ident _ i) = text i
 
+ppIdentModule :: IdentModule -> Doc
+ppIdentModule = ppIdent . unIM
+
 isIdent :: String -> Ident -> Bool
 isIdent s (Ident _ i) = s == i
 
 qualIdent :: HasCallStack =>
-             Ident -> Ident -> Ident
-qualIdent (Ident _ qi) (Ident loc i) = Ident loc (qi ++ "." ++ i)
+             IdentModule -> Ident -> Ident
+qualIdent (IM (Ident _ qi)) (Ident loc i) = Ident loc (qi ++ "." ++ i)
 
 addIdentSuffix :: Ident -> String -> Ident
 addIdentSuffix (Ident loc i) s = Ident loc (i ++ s)
@@ -92,8 +123,8 @@ unQualString s@(c:_) =
 unQualIdent :: Ident -> Ident
 unQualIdent (Ident l s) = Ident l (unQualString s)
 
-qualOf :: Ident -> Ident
-qualOf (Ident loc s) = Ident loc (dropEnd (length (unQualString s) + 1) s)
+qualOf :: Ident -> IdentModule
+qualOf (Ident loc s) = IM $ Ident loc (dropEnd (length (unQualString s) + 1) s)
 
 isConIdent :: Ident -> Bool
 isConIdent (Ident _ i) =

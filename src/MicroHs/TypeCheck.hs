@@ -232,12 +232,12 @@ checkBad msg (i:_) _ =
   errorMessage (getSLoc i) $ msg ++ ": " ++ showIdent i
 
 -- Type and value exports
-getTVExps :: forall a . M.Map Ident (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ClassTable -> ExportItem ->
+getTVExps :: forall a . M.Map IdentModule (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ClassTable -> ExportItem ->
              ([TypeExport], [ClsDef], [ValueExport])
 getTVExps impMap _ _ _ _ (ExpModule m) =
   case M.lookup m impMap of
     Just (TModule _ _ te _ ce _ ve _) -> (te, ce, ve)
-    _ -> errorMessage (getSLoc m) $ "undefined module: " ++ showIdent m
+    _ -> errorMessage (getSLoc m) $ "undefined module: " ++ show m
 getTVExps _ tys vals ast cls (ExpTypeSome i is) = getTypeExp tys vals ast cls i (`elem` is)
 getTVExps _ tys vals ast cls (ExpTypeAll  i   ) = getTypeExp tys vals ast cls i (const True)
 getTVExps _ _ vals _ _ (ExpValue i) =
@@ -2254,7 +2254,7 @@ tBool loc = tConI loc $ boolPrefix ++ "Bool"
 showTModule :: forall a . (a -> String) -> TModule a -> String
 showTModule sh amdl =
   case amdl of
-    TModule mn _ _ _ _ _ _ a -> "Tmodule " ++ showIdent mn ++ "\n" ++ sh a ++ "\n"
+    TModule mn _ _ _ _ _ _ a -> "Tmodule " ++ show mn ++ "\n" ++ sh a ++ "\n"
 
 -----------------------------------------------------
 

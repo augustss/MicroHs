@@ -56,10 +56,6 @@ import MicroHs.Ident
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 
-type IdentModule = Ident
-
-----------------------
-
 data EModule = EModule IdentModule [ExportItem] [EDef]
 --DEBUG  deriving (Show)
 
@@ -89,7 +85,7 @@ data EDef
 data ImpType = ImpNormal | ImpBoot
   deriving (Eq)
 
-data ImportSpec = ImportSpec ImpType Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
+data ImportSpec = ImportSpec ImpType Bool IdentModule (Maybe IdentModule) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
 --DEBUG  deriving (Show)
 
 data ImportItem
@@ -110,7 +106,7 @@ data Expr
   | ELet [EBind] Expr
   | ETuple [Expr]
   | EListish Listish
-  | EDo (Maybe Ident) [EStmt]
+  | EDo (Maybe IdentModule) [EStmt]
   | ESectL Expr Ident
   | ESectR Ident Expr
   | EIf Expr Expr Expr
@@ -328,7 +324,10 @@ class HasLoc a where
   getSLoc :: a -> SLoc
 
 instance HasLoc Ident where
-  getSLoc (Ident l _) = l
+  getSLoc = getSLocIdent
+
+instance HasLoc IdentModule where
+  getSLoc = getSLocIdentModule
 
 -- Approximate location; only identifiers and literals carry a location
 instance HasLoc Expr where
@@ -494,7 +493,7 @@ allVarsExpr' aexpr =
     ELet bs e -> composeMap allVarsBind' bs . allVarsExpr' e
     ETuple es -> composeMap allVarsExpr' es
     EListish (LList es) -> composeMap allVarsExpr' es
-    EDo mi ss -> maybe id (:) mi . composeMap allVarsStmt ss
+    EDo _ ss -> composeMap allVarsStmt ss
     ESectL e i -> (i :) . allVarsExpr' e
     ESectR i e -> (i :) . allVarsExpr' e
     EIf e1 e2 e3 -> allVarsExpr' e1 . allVarsExpr' e2 . allVarsExpr' e3
@@ -551,7 +550,7 @@ errorMessage loc msg = error $ showSLoc loc ++ ": " ++ msg
 ----------------
 
 instance Show EModule where
-  show (EModule nm _ ds) = "module " ++ showIdent nm ++ "(...) where\n" ++ showEDefs ds
+  show (EModule nm _ ds) = "module " ++ show nm ++ "(...) where\n" ++ showEDefs ds
 
 instance Show Expr where
   show = showExpr
@@ -603,7 +602,7 @@ ppEDef def =
     KindSign i t -> text "type" <+> ppIdent i <+> text "::" <+> ppEKind t
     Import (ImportSpec b q m mm mis) -> text "import" <+>
       (if b == ImpBoot then text "{-# SOURCE #-}" else empty) <+>
-      (if q then text "qualified" else empty) <+> ppIdent m <> text (maybe "" ((" as " ++) . unIdent) mm) <>
+      (if q then text "qualified" else empty) <+> ppIdentModule m <> text (maybe "" ((" as " ++) . unIdentModule) mm) <>
       case mis of
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ",") (map ppImportItem is))
@@ -694,7 +693,7 @@ ppExprR raw = ppE
         ECase e as -> text "case" <+> ppE e <+> text "of" $$ nest 2 (vcat (map ppCaseArm as))
         ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppE e
         ETuple es -> parens $ hsep $ punctuate (text ",") (map ppE es)
-        EDo mn ss -> maybe (text "do") (\ n -> ppIdent n <> text ".do") mn $$ nest 2 (vcat (map ppEStmt ss))
+        EDo mn ss -> maybe (text "do") (\ n -> ppIdentModule n <> text ".do") mn $$ nest 2 (vcat (map ppEStmt ss))
         ESectL e i -> parens $ ppE e <+> ppIdent i
         ESectR i e -> parens $ ppIdent i <+> ppE e
         EIf e1 e2 e3 -> parens $ sep [text "if" <+> ppE e1, text "then" <+> ppE e2, text "else" <+> ppE e3]

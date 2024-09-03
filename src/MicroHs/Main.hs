@@ -57,7 +57,7 @@ main = do
                 putStrLn $ "flags = " ++ show flags
               case mdls of
                 []  -> mainInteractive flags
-                [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+                [s] -> mainCompile flags (mkIdentModuleSLoc (SLoc "command-line" 0 0) s)
                 _   -> error usage
 
 usage :: String
@@ -145,7 +145,7 @@ mainBuildPkg :: Flags -> String -> [String] -> IO ()
 mainBuildPkg flags namever amns = do
   when (verbose flags > 0) $
     putStrLn $ "Building package " ++ namever
-  let mns = map mkIdent amns
+  let mns = map mkIdentModule amns
   cash <- compileMany flags mns emptyCache
   let mdls = getCompMdls cash
       (name, ver) = splitNameVer namever
@@ -170,13 +170,13 @@ splitNameVer s =
 mainListPkg :: Flags -> FilePath -> IO ()
 mainListPkg _flags pkgfn = do
   pkg <- readSerialized pkgfn
-  let list = mapM_ (putStrLn . ("  " ++) . showIdent . tModuleName)
+  let list = mapM_ (putStrLn . ("  " ++) . show . tModuleName)
   putStrLn "exposed-modules:"
   list (pkgExported pkg)
   putStrLn "other-modules:"
   list (pkgOther pkg)
 
-mainCompile :: Flags -> Ident -> IO ()
+mainCompile :: Flags -> IdentModule -> IO ()
 mainCompile flags mn = do
   (rmn, allDefs) <- do
     cash <- getCached flags

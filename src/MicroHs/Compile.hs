@@ -95,7 +95,7 @@ compile flags nm ach = do
                 [] -> return ()
                 bmn:_ -> do
                   when (verbosityGT flags 0) $
-                    liftIO $ putStrLn $ "compiling used boot module " ++ showIdent bmn
+                    liftIO $ putStrLn $ "compiling used boot module " ++ show bmn
                   _ <- compileModuleCached flags ImpNormal bmn
                   loadBoots
         loadBoots
@@ -119,7 +119,7 @@ compileModuleCached flags impt mn = do
         ImpBoot -> compileBootModule flags mn
         ImpNormal -> do
           when (verbosityGT flags 1) $
-            liftIO $ putStrLn $ "importing " ++ showIdent mn
+            liftIO $ putStrLn $ "importing " ++ show mn
           mres <- liftIO (readModulePath flags ".hs" mn)
           case mres of
             Nothing -> findPkgModule flags mn
@@ -128,7 +128,7 @@ compileModuleCached flags impt mn = do
               compileModule flags ImpNormal mn pathfn file
     Just tm -> do
       when (verbosityGT flags 1) $
-        liftIO $ putStrLn $ "importing cached " ++ showIdent mn
+        liftIO $ putStrLn $ "importing cached " ++ show mn
       return (tm, noSymbols, 0)
 
 noSymbols :: Symbols
@@ -137,10 +137,10 @@ noSymbols = (stEmpty, stEmpty)
 compileBootModule :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Symbols, Time)
 compileBootModule flags mn = do
   when (verbosityGT flags 0) $
-    liftIO $ putStrLn $ "importing boot " ++ showIdent mn
+    liftIO $ putStrLn $ "importing boot " ++ show mn
   mres <- liftIO (readModulePath flags ".hs-boot" mn)
   case mres of
-    Nothing -> error $ "boot module not found: " ++ showIdent mn
+    Nothing -> error $ "boot module not found: " ++ show mn
     Just (pathfn, file) -> do
       modify $ addBoot mn
       compileModule flags ImpBoot mn pathfn file
@@ -160,7 +160,7 @@ compileModule flags impt mn pathfn file = do
   -- liftIO $ putStrLn $ showEDefs defs
   -- TODO: skip test when mn is a file name
   when (isNothing (getFileName mn) && mn /= mnn) $
-    error $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
+    error $ "module name does not agree with file name: " ++ show mn ++ " " ++ show mnn
   let
     specs = [ s | Import s <- defs ]
     imported = [ (boot, m) | ImportSpec boot _ m _ _ <- specs ]
@@ -192,10 +192,10 @@ compileModule flags impt mn pathfn file = do
   when (verbosityGT flags 4) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   when (verbosityGT flags 0) $
-    liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++
+    liftIO $ putStrLn $ "importing done " ++ show mn ++ ", " ++ show tThis ++
             "ms (" ++ show tParse ++ " + " ++ show tTCDesug ++ " + " ++ show tAbstract ++ ")"
-  when (loading flags && mn /= mkIdent "Interactive" && not (verbosityGT flags 0)) $
-    liftIO $ putStrLn $ "loaded " ++ showIdent mn
+  when (loading flags && mn /= mkIdentModule "Interactive" && not (verbosityGT flags 0)) $
+    liftIO $ putStrLn $ "loaded " ++ show mn
 
   case impt of
     ImpNormal -> modify $ workToDone (cmdl, map snd imported, chksum)
@@ -210,7 +210,7 @@ addPreludeImport (EModule mn es ds) =
         (ps, nps) = partition isImportPrelude ds
         isImportPrelude (Import (ImportSpec _ _ i _ _)) = i == idPrelude
         isImportPrelude _ = False
-        idPrelude = mkIdent "Prelude"
+        idPrelude = mkIdentModule "Prelude"
         ps' =
           case ps of
             [] -> [Import $ ImportSpec ImpNormal False idPrelude Nothing Nothing]     -- no Prelude imports, so add 'import Prelude'
@@ -253,10 +253,10 @@ validateCache flags acash = execStateIO (mapM_ (validate . fst) fdeps) acash
 
 -- Take a graph in adjencency list form and reverse all the arrow.
 -- Used to invert the import graph.
-invertGraph :: [(IdentModule, [IdentModule])] -> M.Map Ident [IdentModule]
+invertGraph :: [(IdentModule, [IdentModule])] -> M.Map IdentModule [IdentModule]
 invertGraph = foldr ins M.empty
   where
-    ins :: (IdentModule, [IdentModule]) -> M.Map Ident [IdentModule] -> M.Map Ident [IdentModule]
+    ins :: (IdentModule, [IdentModule]) -> M.Map IdentModule [IdentModule] -> M.Map IdentModule [IdentModule]
     ins (m, ms) g = foldr (\ n -> M.insertWith (++) n [m]) g ms
 
 ------------------
@@ -265,7 +265,7 @@ invertGraph = foldr ins M.empty
 getFileName :: IdentModule -> Maybe String
 getFileName m | ".hs" `isSuffixOf` s = Just s
              | otherwise = Nothing
-  where s = unIdent m
+  where s = unIdentModule m
 
 readModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, String))
 readModulePath flags suf mn | Just fn <- getFileName mn = do
@@ -304,7 +304,7 @@ hasLangCPP fn = do
   scanFor "cpp" . map toLower <$> readFile fn
 
 moduleToFile :: IdentModule -> FilePath
-moduleToFile mn = map (\ c -> if c == '.' then '/' else c) (unIdent mn)
+moduleToFile mn = map (\ c -> if c == '.' then '/' else c) (unIdentModule mn)
 
 findModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, Handle))
 findModulePath flags suf mn = do
@@ -369,7 +369,7 @@ findPkgModule flags mn = do
       loadPkg flags (dir ++ packageDir ++ "/" ++ pkg)
       cash <- get
       case lookupCache mn cash of
-        Nothing -> error $ "package does not contain module " ++ pkg ++ " " ++ showIdent mn
+        Nothing -> error $ "package does not contain module " ++ pkg ++ " " ++ show mn
         Just t -> do
           t1 <- liftIO getTimeMilli
           return (t, noSymbols, t1 - t0)

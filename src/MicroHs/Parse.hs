@@ -58,7 +58,7 @@ pExprTop = pBraces pExpr <* eof
 pModule :: P EModule
 pModule = do
   pKeyword "module"
-  mn <- pUQIdentA
+  mn <- pIdentModule
   exps <- (pSpec '(' *> esepEndBy pExportItem (pSpec ',') <* pSpec ')')
       <|< pure [ExpModule mn]
   pKeyword "where"
@@ -69,7 +69,7 @@ pModuleEmpty :: P EModule
 pModuleEmpty = do
   defs <- pBlock pDef
   --let loc = getSLoc defs
-  pure $ EModule (mkIdent "Main") [ExpValue $ mkIdent "main"] defs
+  pure $ EModule (mkIdentModule "Main") [ExpValue $ mkIdent "main"] defs
 
 -- Possibly qualified alphanumeric identifier
 pQIdent :: P Ident
@@ -107,6 +107,14 @@ pUIdentSpecial = do
   (mk . map (const ',') <$> (pSpec '(' *> esome (pSpec ',') <* pSpec ')'))
     <|< (mk "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
     <|< (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
+
+-- Upper case, possibly qualified, alphanumeric identifier
+pIdentModule :: P IdentModule
+pIdentModule = do
+  let
+    is (TIdent loc qs s) | isUpper (head s) = Just (mkIdentModuleSLoc loc (intercalate "." (qs ++ [s])))
+    is _ = Nothing
+  satisfyM "IdentModule" is
 
 -- Upper case, possibly qualified, alphanumeric identifier
 pUQIdentA :: P Ident
@@ -250,7 +258,7 @@ pString = satisfyM "string" is
 
 pExportItem :: P ExportItem
 pExportItem =
-      ExpModule   <$> (pKeyword "module" *> pUQIdent)
+      ExpModule   <$> (pKeyword "module" *> pIdentModule)
   <|< expType     <$> pUQIdentSym <*> (pSpec '(' *> pConList <* pSpec ')')
   <|< ExpTypeSome <$> pUQIdentSym <*> pure []
   <|< ExpValue    <$> pLQIdentSym
@@ -420,10 +428,10 @@ pImportSpec =
     pSource = (ImpBoot <$ pPragma "SOURCE") <|< pure ImpNormal
     pQual = True <$ pKeyword "qualified"
     -- the 'qualified' can occur before or after the module name
-    pQId =      ((,) <$> pQual <*> pUQIdentA)
-            <|< ((\ a b -> (b,a)) <$> pUQIdentA <*> (pQual <|> pure False))
+    pQId =      ((,) <$> pQual <*> pIdentModule)
+            <|< ((\ a b -> (b,a)) <$> pIdentModule <*> (pQual <|> pure False))
     imp a (b, c) = ImportSpec a b c
-  in  imp <$> pSource <*> pQId <*> eoptional (pKeyword "as" *> pUQIdent) <*>
+  in  imp <$> pSource <*> pQId <*> eoptional (pKeyword "as" *> pIdentModule) <*>
               eoptional ((,) <$> ((True <$ pKeyword "hiding") <|< pure False) <*> pParens (esepEndBy pImportItem (pSpec ',')))
 
 pImportItem :: P ImportItem
@@ -628,10 +636,10 @@ pDo = EDo <$> ((Just <$> pQualDo) <|< (Nothing <$ pKeyword "do")) <*> pBlock pSt
 pIf :: P Expr
 pIf = EIf <$> (pKeyword "if" *> pExpr) <*> (pKeyword "then" *> pExpr) <*> (eoptional (pSpec ';') *> pKeyword "else" *> pExpr)
 
-pQualDo :: P Ident
+pQualDo :: P IdentModule
 pQualDo = do
   let
-    is (TIdent loc qs@(_:_) "do") = Just (mkIdentSLoc loc (intercalate "." qs))
+    is (TIdent loc qs@(_:_) "do") = Just (mkIdentModuleSLoc loc (intercalate "." qs))
     is _ = Nothing
   satisfyM "QualDo" is
 

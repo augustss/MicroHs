@@ -6,9 +6,7 @@ module MicroHs.CompileCache(
   saveCache, loadCached,
   ) where
 import MicroHs.Desugar(LDef)
-import MicroHs.Expr(IdentModule)
-import MicroHs.Ident(showIdent)
-import MicroHs.Ident(Ident)
+import MicroHs.Ident(IdentModule)
 import qualified MicroHs.IdentMap as M
 import MicroHs.Package
 import MicroHs.TypeCheck(TModule, tModuleName)
@@ -39,7 +37,7 @@ chksumOf _ = undefined
 data Cache = Cache {
   working :: [IdentModule],             -- modules currently being processed (used to detected circular imports)
   boots   :: [IdentModule],             -- modules where only the boot version has been compiled
-  cache   :: M.Map Ident CacheEntry,    -- cached compiled modules
+  cache   :: M.Map IdentModule CacheEntry,    -- cached compiled modules
   pkgs    :: [Package]                  -- loaded packages
   }
 --  deriving (Show)
@@ -60,7 +58,7 @@ addWorking :: IdentModule -> Cache -> Cache
 addWorking mn c =
   let ws = working c
   in  if elem mn ws then
-        error $ "recursive module: " ++ showIdent mn ++ ", import chain: " ++ unwords (map showIdent ws)
+        error $ "recursive module: " ++ show mn ++ ", import chain: " ++ unwords (map show ws)
       else
         c{ working = mn : ws }
 

@@ -107,7 +107,7 @@ nameDataRecords :: String
 nameDataRecords = "Data.Records"
 
 mkGetName :: Ident -> Ident -> Ident
-mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld
+mkGetName tycon fld = qualIdent (mkIdentModule "get") $ qualIdent (identModuleOf tycon) fld
 
 --------------------------------------------
 
@@ -133,7 +133,7 @@ derTypeable (i, _) _ etyp = do
     imkTyConApp = mkQIdent loc nameDataTypeable "mkTyConApp"
     imkTyCon = mkQIdent loc nameDataTypeable "mkTyCon"
     hdr = EApp etyp (EVar $ qualIdent mn i)
-    mdl = ELit loc $ LStr $ unIdent mn
+    mdl = ELit loc $ LStr $ unIdentModule mn
     nam = ELit loc $ LStr $ unIdent i
     eqns = eEqns [eDummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EVar (mkQIdent loc nameDataListType "[]"))
     inst = Instance hdr [BFcn itypeRep eqns]
