@@ -3830,6 +3830,8 @@ memsize(const char *p)
 extern uint8_t *combexpr;
 extern int combexprlen;
 
+void dumpspine(NODEPTR);
+
 MAIN
 {
   NODEPTR prog;
@@ -3954,6 +3956,7 @@ MAIN
   gc();
   want_gc_red = 0;
   prog = POPTOP();
+  //  dumpspine(prog);
 
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
@@ -4349,3 +4352,83 @@ struct ffi_entry ffi_table[] = {
 };
 
 int num_ffi = sizeof(ffi_table) / sizeof(ffi_table[0]);
+
+void
+dumpcomb(tag_t tag, FILE *f)
+{
+  switch(tag) {
+  case T_S: fputs("S", f); break;
+  case T_K: fputs("K", f); break;
+  case T_I: fputs("I", f); break;
+  case T_C: fputs("C", f); break;
+  case T_B: fputs("B", f); break;
+  case T_A: fputs("A", f); break;
+  case T_U: fputs("U", f); break;
+  case T_Y: fputs("Y", f); break;
+  case T_P: fputs("P", f); break;
+  case T_R: fputs("R", f); break;
+  case T_O: fputs("O", f); break;
+  case T_SS: fputs("S'", f); break;
+  case T_BB: fputs("B'", f); break;
+  case T_Z: fputs("Z", f); break;
+  case T_K2: fputs("K2", f); break;
+  case T_K3: fputs("K3", f); break;
+  case T_K4: fputs("K4", f); break;
+  case T_CC: fputs("C'", f); break;
+  case T_CCB: fputs("C'B", f); break;
+  default: fputs("_", f); break;  
+  }
+}
+
+void
+dumprec(NODEPTR p, FILE *o, int n)
+{
+  stackptr_t stk = stack_ptr;
+  tag_t tag;
+  //printf("enter\n");
+  if (n <= 0)
+    ERR("dumprec n<0");
+ top:
+  tag = GETTAG(p);
+  switch(tag) {
+  case T_AP:
+    if (is_marked_used(p)) {
+      //printf("exit marked\n");
+      return;
+    }
+    mark_used(p);
+    dumprec(ARG(p), o, n-1);
+    PUSH(p);
+    p = FUN(p);
+    goto top;
+  case T_IND:
+    ERR("dumprec INDIR");
+  default:
+    if (tag < T_S || tag > T_CCB) {
+      //printf("exit not comb\n");
+      return;
+    }
+    //printf("%ld %ld\n", stk, stack_ptr);
+    if (stk == stack_ptr)
+      return;
+    dumpcomb(tag, o);
+    do {
+      fputs(" ", o);
+      p = POPTOP();
+      tag = GETTAG((ARG(p)));
+      dumpcomb(tag, o);
+    } while (stk != stack_ptr);
+    fputs("\n", o);
+    //    printf("exit done\n");
+    return;
+  }
+}
+
+void
+dumpspine(NODEPTR p)
+{
+  mark_all_free();
+
+  dumprec(p, stdout, 100000);
+  exit(0);
+}
