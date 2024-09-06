@@ -59,6 +59,10 @@ typedef uintptr_t bits_t;       /* One word of bits */
 #define MALLOC malloc
 #endif
 
+#if !defined(CALLOC)
+#define CALLOC calloc
+#endif
+
 #if !defined(REALLOC)
 #define REALLOC realloc
 #endif
@@ -170,6 +174,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4, T_CCB,
+                T_LOOP,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
@@ -198,12 +203,13 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_BSAPPENDDOT,
                 T_LAST_TAG,
 };
-#if 0
-static const char* tag_names[] = {
-  "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR",
+#if 1
+static const char* tag_names[T_LAST_TAG+1] = {
+  "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "BSTR",
   "S", "K", "I", "B", "C",
   "A", "Y", "SS", "BB", "CC", "P", "R", "O", "U", "Z",
   "K2", "K3", "K4", "CCB",
+  "LOOP",
   "ADD", "SUB", "MUL", "QUOT", "REM", "SUBR", "UQUOT", "UREM", "NEG",
   "AND", "OR", "XOR", "INV", "SHL", "SHR", "ASHR",
   "EQ", "NE", "LT", "LE", "GT", "GE", "ULT", "ULE", "UGT", "UGE",
@@ -211,6 +217,7 @@ static const char* tag_names[] = {
   "TOPTR", "TOINT", "TODBL", "TOFUNPTR",
   "BININT2", "BININT1", "UNINT1",
   "BINDBL2", "BINDBL1", "UNDBL1",
+  "BINBS2", "BINBS1",
 #if WANT_FLOAT
   "FADD", "FSUB", "FMUL", "FDIV", "FNEG", "ITOF",
   "FEQ", "FNE", "FLT", "FLE", "FGT", "FGE", "FSHOW", "FREAD",
@@ -219,14 +226,16 @@ static const char* tag_names[] = {
   "RAISE", "SEQ", "EQUAL", "COMPARE", "RNF",
   "TICK",
   "IO_BIND", "IO_THEN", "IO_RETURN",
-  "C'BIND",
+  "IO_C'BIND",
   "IO_SERIALIZE", "IO_DESERIALIZE",
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
   "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "CATCH",
   "IO_CCALL", "IO_GC", "DYNSYM",
   "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
-  "BSFROMUTF8",
-  "STR",
+  "BSAPPEND", "BSAPPEND3", "BSEQ", "BSNE", "BSLT", "BSLE", "BSGT", "BSGE", "BSCMP",
+  "BSPACK", "BSUNPACK", "BSLENGTH", "BSSUBSTR",
+  "BSFROMUTF8", "BSTOUTF8", "BSHEADUTF8",
+  "BSAPPENDDOT",
   "LAST_TAG",
 };
 #endif
@@ -648,6 +657,7 @@ struct {
   { "K3", T_K3 },
   { "K4", T_K4 },
   { "C'B", T_CCB },
+  { "LOOP", T_LOOP },
 /* primops */
   { "+", T_ADD, T_ADD },
   { "-", T_SUB, T_SUBR },
@@ -926,7 +936,9 @@ mark(NODEPTR *np)
       n = INDIR(n);
       if (loop++ > 10000000) {
         //PRINT("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
-        ERR("IND loop");
+        //ERR("IND loop");
+        SETTAG(n, T_LOOP);      /* seems like an indirection loop, just mark it as such. */
+        goto fin;
       }
     }
     //    if (loop)
@@ -2067,6 +2079,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_K4: putsb("K4", f); break;
   case T_CC: putsb("C'", f); break;
   case T_CCB: putsb("C'B", f); break;
+  case T_LOOP: putsb("LOOP", f); break;
   case T_ADD: putsb("+", f); break;
   case T_SUB: putsb("-", f); break;
   case T_MUL: putsb("*", f); break;
@@ -2183,10 +2196,10 @@ printb(BFILE *f, NODEPTR n, int header)
 {
   struct print_bits pb;
   num_shared = 0;
-  pb.marked_bits = calloc(free_map_nwords, sizeof(bits_t));
+  pb.marked_bits = CALLOC(free_map_nwords, sizeof(bits_t));
   if (!pb.marked_bits)
     memerr();
-  pb.shared_bits = calloc(free_map_nwords, sizeof(bits_t));
+  pb.shared_bits = CALLOC(free_map_nwords, sizeof(bits_t));
   if (!pb.shared_bits)
     memerr();
   find_sharing(&pb, n);
@@ -2844,7 +2857,7 @@ void
 rnf(value_t noerr, NODEPTR n)
 {
   /* Mark visited nodes to avoid getting stuck in loops. */
-  bits_t *done = calloc(free_map_nwords, sizeof(bits_t));
+  bits_t *done = CALLOC(free_map_nwords, sizeof(bits_t));
   if (!done)
     memerr();
   if (doing_rnf)
@@ -2959,6 +2972,7 @@ evali(NODEPTR an)
   case T_K3:               CHKARG4; GOIND(x);                                             /* K3 x y z w = *x */
   case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
   case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
+  case T_LOOP: ERR("LOOP");
 
     /*
      * Strict primitives require evaluating the arguments before we can proceed.
@@ -3830,7 +3844,12 @@ memsize(const char *p)
 extern uint8_t *combexpr;
 extern int combexprlen;
 
-void dumpspine(NODEPTR);
+void dumpspine(FILE*, NODEPTR);
+NODEPTR rewrite(int, NODEPTR);
+counter_t *rewrite_reds = 0;
+counter_t *rewrite_rreds = 0;
+typedef enum { R_NONE, R_BI, R_BIx, R_BxI, R_LAST_TAG } rtag_t;
+char *rtag_names[R_LAST_TAG] = { "NONE", "BI", "BIx", "BxI" };
 
 MAIN
 {
@@ -3952,11 +3971,17 @@ MAIN
 
   /* GC unused stuff, nice for -o */
   PUSH(prog);
-  want_gc_red = 1;
+  //want_gc_red = 1;
   gc();
-  want_gc_red = 0;
+  //want_gc_red = 0;
   prog = POPTOP();
-  //  dumpspine(prog);
+  //dumpspine(stdout, prog);
+  prog = rewrite(verbose, prog);
+  prog = rewrite(verbose, prog);
+  //prog = rewrite(prog);
+  //prog = rewrite(prog);
+  //dumpspine(stdout, prog);
+  //exit(0);
 
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
@@ -4173,7 +4198,7 @@ void mhs_add_lz77_decompressor(int s) { mhs_from_Ptr(s, 1, add_lz77_decompressor
 void mhs_lz77c(int s) { mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1), mhs_to_Ptr(s, 2))); }
 #endif  /* WANT_LZ77 */
 
-void mhs_calloc(int s) { mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
+void mhs_calloc(int s) { mhs_from_Ptr(s, 2, CALLOC(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
 void mhs_free(int s) { free(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
 void mhs_addr_free(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
 void mhs_getenv(int s) { mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
@@ -4381,7 +4406,7 @@ dumpcomb(tag_t tag, FILE *f)
 }
 
 void
-dumprec(NODEPTR p, FILE *o, int n)
+dumprec(NODEPTR p, FILE *o, bits_t *done, int n)
 {
   stackptr_t stk = stack_ptr;
   tag_t tag;
@@ -4392,12 +4417,12 @@ dumprec(NODEPTR p, FILE *o, int n)
   tag = GETTAG(p);
   switch(tag) {
   case T_AP:
-    if (is_marked_used(p)) {
+    if (test_bit(done, p)) {
       //printf("exit marked\n");
       return;
     }
-    mark_used(p);
-    dumprec(ARG(p), o, n-1);
+    set_bit(done, p);
+    dumprec(ARG(p), o, done, n-1);
     PUSH(p);
     p = FUN(p);
     goto top;
@@ -4425,10 +4450,120 @@ dumprec(NODEPTR p, FILE *o, int n)
 }
 
 void
-dumpspine(NODEPTR p)
+dumpspine(FILE *o, NODEPTR p)
 {
-  mark_all_free();
+  bits_t *done = CALLOC(free_map_nwords, sizeof(bits_t));
+  if (!done)
+    memerr();
 
-  dumprec(p, stdout, 100000);
-  exit(0);
+  dumprec(p, o, done, 100000);
+  FREE(done);
+}
+
+#define REW(t) rewrite_reds[t]++
+#define RREW(t) rewrite_rreds[t]++
+
+#define RCHECK(n) (stack_ptr - stk >= (n))
+//#define NCHECK(n) (stack_ptr - stk < (n))
+//#define RCHKARG1  (NCHECK(1) ? 0 : (POP(1), n = TOP(-1), x = ARG(n), 1))
+//#define RCHKARG2  (NCHECK(2) ? 0 : (POP(2), n = TOP(-1), y = ARG(n), x = ARG(TOP(-2)), 1))
+
+void
+rewriterec(bits_t *done, NODEPTR n)
+{
+  NODEPTR x, y, z = 0, w = 0;
+  stackptr_t stk = stack_ptr;
+  tag_t tag;
+ top:
+#if 0
+  printf("stack:\n");
+  for (stackptr_t s = stack_ptr; s > stk; s--)
+    printf(" %p(%p,%p)", stack[s], FUN(stack[s]), ARG(stack[s]));
+  printf("\n");
+#endif
+  tag = GETTAG(n);
+  switch(tag) {
+  case T_AP:
+    if (test_bit(done, n))
+      RET;
+    set_bit(done, n);
+  ap:
+    rewriterec(done, ARG(n));
+    PUSH(n);
+    n = FUN(n);
+    goto top;
+    
+  ind:
+  case T_IND:
+    n = INDIR(n); goto top;
+
+  case T_K:                CHKARG2; REW(T_K);   GOIND(x);                                             /* K x y = *x */
+  case T_A:                CHKARG2; REW(T_A);   GOIND(y);                                             /* A x y = *y */
+  case T_U:                CHKARG2; REW(T_U);   GOAP(y, x);                                           /* U x y = y x */
+  case T_I:                CHKARG1; REW(T_I);   GOIND(x);                                             /* I x = *x */
+  case T_Y:                CHKARG1; REW(T_Y);   GOAP(x, n);                                           /* n@(Y x) = x n */
+  case T_B:
+    if (RCHECK(2)) {
+      x = ARG(TOP(0));
+      y = ARG(TOP(1));
+      if (GETTAG(x) == T_I) { RREW(R_BIx); POP(2); n = TOP(-1); GOIND(y); }                           /* B I y = y */
+      if (GETTAG(y) == T_I) { RREW(R_BxI); POP(2); n = TOP(-1); GOIND(x); }                           /* B x I = x */
+    }
+    if (RCHECK(1)) {
+      x = ARG(TOP(0));
+      if (GETTAG(x) == T_I) { RREW(R_BI);  POP(1); n = TOP(-1); GOIND(combUnit); }                    /* B I = I */
+    }
+               GCCHECK(1); CHKARG3; REW(T_B);   GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
+  case T_BB:   GCCHECK(2); CHKARG4; REW(T_BB);  GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
+  case T_Z:                CHKARG3; REW(T_Z);   GOAP(x, y);                                           /* Z x y z = x y */
+  case T_C:    GCCHECK(1); CHKARG3; REW(T_C);   GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
+  case T_CC:   GCCHECK(2); CHKARG4; REW(T_CC);  GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
+  case T_P:    GCCHECK(1); CHKARG3; REW(T_P);   GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
+  case T_R:    GCCHECK(1); CHKARG3; REW(T_R);   GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
+  case T_O:    GCCHECK(1); CHKARG4; REW(T_O);   GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
+  case T_K2:               CHKARG3; REW(T_K2);  GOIND(x);                                             /* K2 x y z = *x */
+  case T_K3:               CHKARG4; REW(T_K3);  GOIND(x);                                             /* K3 x y z w = *x */
+  case T_K4:               CHECK(5); REW(T_K4); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);      /* K4 x y z w v = *x */
+  case T_CCB:  GCCHECK(2); CHKARG4; REW(T_CCB); GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
+
+  default:
+    RET;
+  }
+ ret:
+  z=w; w=z;                     /* silence compiler warnings */
+
+  stack_ptr = stk;
+  return;
+}
+
+NODEPTR
+rewrite(int verbose, NODEPTR p)
+{
+  rewrite_reds  = CALLOC(T_LAST_TAG, sizeof(counter_t));
+  rewrite_rreds = CALLOC(R_LAST_TAG, sizeof(counter_t));
+  if (!rewrite_reds)
+    memerr();
+  bits_t *done = CALLOC(free_map_nwords, sizeof(bits_t));
+  if (!done)
+    memerr();
+  rewriterec(done, p);
+  free(done);
+
+  PUSH(p);
+  gc();
+  p = POPTOP();
+
+  if (verbose) {
+    printf("static rewrites:\n");
+    for (int t = T_FREE; t < T_LAST_TAG; t++) {
+      if (rewrite_reds[t])
+        printf("%5s %5"PRIcounter"\n", tag_names[t], rewrite_reds[t]);
+    }
+    for (int t = R_NONE; t < T_LAST_TAG; t++) {
+      if (rewrite_rreds[t])
+        printf("%5s %5"PRIcounter"\n", rtag_names[t], rewrite_rreds[t]);
+    }
+  }
+
+  return p;
 }
