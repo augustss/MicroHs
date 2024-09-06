@@ -53,7 +53,7 @@ vars = map Var $ ["x","y","z","w","v","u"] ++ ["x" ++ show i | i <- [1::Int ..] 
 rand :: Int -> [[Exp]]
 rand n = do
   k <- combs
-  guard (k `notElem` [I, K, A, K2, K3, K4])   -- uninteresting
+--  guard (k `notElem` [I, K, A, K2, K3, K4])   -- uninteresting
   xs <- rand' n vars
   return (k:xs)
 

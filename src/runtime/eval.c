@@ -3869,6 +3869,7 @@ MAIN
   char *outname = 0;
   size_t file_size = 0;
 #endif
+  int do_rewrite = 0;
   
 #if 0
   /* MINGW doesn't do buffering right */
@@ -3896,6 +3897,8 @@ MAIN
         else if (strcmp(p, "-T") == 0)
           dump_ticks = 1;
 #endif
+        else if (strcmp(p, "-R") == 0)
+          do_rewrite = 1;
         else if (strncmp(p, "-H", 2) == 0)
           heap_size = memsize(&p[2]);
         else if (strncmp(p, "-K", 2) == 0)
@@ -3976,8 +3979,14 @@ MAIN
   //want_gc_red = 0;
   prog = POPTOP();
   //dumpspine(stdout, prog);
-  prog = rewrite(verbose, prog);
-  prog = rewrite(verbose, prog);
+  if (do_rewrite) {
+    prog = rewrite(verbose, prog);
+    prog = rewrite(verbose, prog);
+    prog = rewrite(verbose, prog);
+    prog = rewrite(verbose, prog);
+    prog = rewrite(verbose, prog);
+  }
+  num_gc = 0;
   //prog = rewrite(prog);
   //prog = rewrite(prog);
   //dumpspine(stdout, prog);
@@ -4502,6 +4511,10 @@ rewriterec(bits_t *done, NODEPTR n)
   case T_U:                CHKARG2; REW(T_U);   GOAP(y, x);                                           /* U x y = y x */
   case T_I:                CHKARG1; REW(T_I);   GOIND(x);                                             /* I x = *x */
   case T_Y:                CHKARG1; REW(T_Y);   GOAP(x, n);                                           /* n@(Y x) = x n */
+  case T_Z:                CHKARG3; REW(T_Z);   GOAP(x, y);                                           /* Z x y z = x y */
+  case T_K2:               CHKARG3; REW(T_K2);  GOIND(x);                                             /* K2 x y z = *x */
+  case T_K3:               CHKARG4; REW(T_K3);  GOIND(x);                                             /* K3 x y z w = *x */
+  case T_K4:               CHECK(5); REW(T_K4); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);      /* K4 x y z w v = *x */
   case T_B:
     if (RCHECK(2)) {
       x = ARG(TOP(0));
@@ -4513,18 +4526,19 @@ rewriterec(bits_t *done, NODEPTR n)
       x = ARG(TOP(0));
       if (GETTAG(x) == T_I) { RREW(R_BI);  POP(1); n = TOP(-1); GOIND(combUnit); }                    /* B I = I */
     }
+#if 0
                GCCHECK(1); CHKARG3; REW(T_B);   GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
-  case T_BB:   GCCHECK(2); CHKARG4; REW(T_BB);  GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
-  case T_Z:                CHKARG3; REW(T_Z);   GOAP(x, y);                                           /* Z x y z = x y */
   case T_C:    GCCHECK(1); CHKARG3; REW(T_C);   GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
-  case T_CC:   GCCHECK(2); CHKARG4; REW(T_CC);  GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
   case T_P:    GCCHECK(1); CHKARG3; REW(T_P);   GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
   case T_R:    GCCHECK(1); CHKARG3; REW(T_R);   GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
   case T_O:    GCCHECK(1); CHKARG4; REW(T_O);   GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
-  case T_K2:               CHKARG3; REW(T_K2);  GOIND(x);                                             /* K2 x y z = *x */
-  case T_K3:               CHKARG4; REW(T_K3);  GOIND(x);                                             /* K3 x y z w = *x */
-  case T_K4:               CHECK(5); REW(T_K4); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);      /* K4 x y z w v = *x */
+
+  case T_BB:   GCCHECK(2); CHKARG4; REW(T_BB);  GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
+  case T_CC:   GCCHECK(2); CHKARG4; REW(T_CC);  GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
   case T_CCB:  GCCHECK(2); CHKARG4; REW(T_CCB); GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
+#else
+    RET;
+#endif
 
   default:
     RET;
