@@ -1,3 +1,4 @@
 *.comb binary
 generated/mhs.c binary
 generated/cpphs.c binary
+doc/hs2024.pdf binary
