@@ -8,7 +8,7 @@ The `boards/` directory contains some samples, e.g., some sample code for an STM
 The compiler can compile itself.
 
 ## Presentation
-You can find my [presentation from the Haskell Symposium 2024](https://docs.google.com/presentation/d/1WsSiSwypNVTm0oZ3spRYF8gA59wyteOsIkPRjCUAZec/edit?usp=sharing).
+You can find my [presentation from the Haskell Symposium 2024](https://docs.google.com/presentation/d/1WsSiSwypNVTm0oZ3spRYF8gA59wyteOsIkPRjCUAZec/edit?usp=sharing), [video](https://m.youtube.com/watch?v=uMurx1a6Zck&t=36m).
 There is also a short paper in `doc/hs2024.pdf`.
 
 ## Compiling MicroHs
