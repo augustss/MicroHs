@@ -3,8 +3,10 @@ module Data.ByteString(
   pack, unpack,
   empty,
   append, append3,
+  length,
+  substr,
   ) where
-import Prelude hiding ((++))
+import Prelude hiding ((++), length)
 import Data.Monoid
 import Data.Semigroup
 import Data.String
@@ -34,6 +36,10 @@ primBSpack    :: [Word8] -> ByteString
 primBSpack    = primitive "bspack"
 primBSunpack  :: ByteString -> [Word8]
 primBSunpack  = primitive "bsunpack"
+primBSlength  :: ByteString -> Int
+primBSlength  = primitive "bslength"
+primBSsubstr  :: ByteString -> Int -> Int -> ByteString
+primBSsubstr  = primitive "bssubstr"
 
 instance Eq ByteString where
   (==) = primBSEQ
@@ -72,3 +78,13 @@ pack = primBSpack
 
 unpack :: ByteString -> [Word8]
 unpack = primBSunpack
+
+length :: ByteString -> Int
+length = primBSlength
+
+substr :: ByteString -> Int -> Int -> ByteString
+substr bs offs len
+  | offs < 0 || offs > sz     = error "Data.ByteString.substr bad offset"
+  | len < 0  || len > sz-offs = error "Data.ByteString.substr bad length"
+  | otherwise = primBSsubstr bs offs len
+  where sz = length bs

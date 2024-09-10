@@ -681,6 +681,7 @@ struct {
   { "fshow", T_FSHOW},
   { "fread", T_FREAD},
 #endif  /* WANT_FLOAT */
+
   { "bs++", T_BSAPPEND},
   { "bs++.", T_BSAPPENDDOT},
   { "bs+++", T_BSAPPEND3},
@@ -2337,6 +2338,14 @@ addForPtr(struct forptr *ofp, int s)
   return fp;
 }
 
+struct forptr*
+bssubstr(struct forptr *fp, value_t offs, value_t len)
+{
+  struct forptr *res = addForPtr(fp, offs);
+  res->payload.size = len;
+  return res;
+}
+
 static INLINE NODEPTR
 mkNil(void)
 {
@@ -2537,6 +2546,19 @@ evalforptr(NODEPTR n)
   return FORPTR(n);
 }
 
+/* Evaluate to a T_BSTR */
+struct forptr *
+evalbstr(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_BSTR) {
+    ERR1("evalbstr, bad tag %d", GETTAG(n));
+  }
+#endif
+  return FORPTR(n);
+}
+
 /* Evaluate a string, returns a newly allocated buffer. */
 /* XXX this is cheating, should use continuations */
 /* XXX the malloc()ed string is leaked if we yield in here. */
@@ -2596,7 +2618,7 @@ evalstring(NODEPTR n)
 }
 
 struct bytestring
-evalbstr(NODEPTR n)
+evalbytestring(NODEPTR n)
 {
   size_t sz = 100;
   uint8_t *buf = MALLOC(sz);
@@ -2624,7 +2646,7 @@ evalbstr(NODEPTR n)
       buf[offs++] = (char)c;
       n = ARG(n);
     } else {
-      ERR("evalbstr not Nil/Cons");
+      ERR("evalbytestring not Nil/Cons");
     }
   }
   bs.size = offs;
@@ -3150,13 +3172,32 @@ evali(NODEPTR an)
   case T_BSPACK:
     {
       CHECK(1);
-      struct bytestring bs = evalbstr(ARG(TOP(0)));
+      struct bytestring bs = evalbytestring(ARG(TOP(0)));
       POP(1);
       n = TOP(-1);
       SETTAG(n, T_BSTR);
       FORPTR(n) = mkForPtr(bs);
       RET;
     }
+
+  case T_BSSUBSTR:
+    CHECK(3);
+    xfp = evalbstr(ARG(TOP(0)));
+    xi = evalint(ARG(TOP(1)));
+    yi = evalint(ARG(TOP(2)));
+    POP(3);
+    n = TOP(-1);
+    SETTAG(n, T_BSTR);
+    FORPTR(n) = bssubstr(xfp, xi, yi);
+    RET;
+
+  case T_BSLENGTH:
+    CHECK(1);
+    xfp = evalbstr(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, xfp->payload.size);
+    RET;
 
   case T_RAISE:
     if (doing_rnf) RET;
