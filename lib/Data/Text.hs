@@ -9,7 +9,7 @@ import Prelude hiding(head)
 import Data.Monoid
 import Data.Semigroup
 import Data.String
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Internal as BS
 
 newtype Text = T BS.ByteString
 

@@ -167,93 +167,17 @@ import Foreign.C.String(CString, CStringLen)
 import System.IO(Handle, IOMode(..), stdin, stdout)
 import qualified System.IO as P
 import Foreign.ForeignPtr
+import Data.ByteString.Internal
 
-data ByteString  -- primitive type
 type StrictByteString = ByteString
 
-primBSappend  :: ByteString -> ByteString -> ByteString
-primBSappend  = primitive "bs++"
-primBSappend3 :: ByteString -> ByteString -> ByteString -> ByteString
-primBSappend3 = primitive "bs+++"
-primBSEQ      :: ByteString -> ByteString -> Bool
-primBSEQ      = primitive "bs=="
-primBSNE      :: ByteString -> ByteString -> Bool
-primBSNE      = primitive "bs/="
-primBSLT      :: ByteString -> ByteString -> Bool
-primBSLT      = primitive "bs<"
-primBSLE      :: ByteString -> ByteString -> Bool
-primBSLE      = primitive "bs<="
-primBSGT      :: ByteString -> ByteString -> Bool
-primBSGT      = primitive "bs>"
-primBSGE      :: ByteString -> ByteString -> Bool
-primBSGE      = primitive "bs>="
-primBScmp     :: ByteString -> ByteString -> Ordering
-primBScmp     = primitive "bscmp"
-primBSpack    :: [Word8] -> ByteString
-primBSpack    = primitive "bspack"
-primBSunpack  :: ByteString -> [Word8]
-primBSunpack  = primitive "bsunpack"
-primBSlength  :: ByteString -> Int
-primBSlength  = primitive "bslength"
-primBSsubstr  :: ByteString -> Int -> Int -> ByteString
-primBSsubstr  = primitive "bssubstr"
 primBS2FPtr   :: ByteString -> ForeignPtr Char
 primBS2FPtr   = primitive "I"  -- same representation
-
------------------------------------------
-
-instance Eq ByteString where
-  (==) = primBSEQ
-  (/=) = primBSNE
-
-instance Ord ByteString where
-  compare = primBScmp
-  (<)     = primBSLT
-  (<=)    = primBSLE
-  (>)     = primBSGT
-  (>=)    = primBSGE
-
-instance Show ByteString where
-  showsPrec p bs = showsPrec p (toString bs)
-
-instance IsString ByteString where
-  fromString = pack . P.map (toEnum . fromEnum)
-
-instance Semigroup ByteString where
-  (<>) = append
-
-instance Monoid ByteString where
-  mempty = empty
-
-substr :: ByteString -> Int -> Int -> ByteString
-substr bs offs len
-  | offs < 0 || offs > sz     = bsError "substr bad offset"
-  | len < 0  || len > sz-offs = bsError "substr bad length"
-  | otherwise = primBSsubstr bs offs len
-  where sz = length bs
-
-bsError :: String -> a
-bsError s = P.error $ "Data.ByteString." P.++ s
 
 bsUnimp :: String -> a
 bsUnimp s = P.error $ "Data.ByteString." P.++ s P.++ " unimplemented"
 
-toString :: ByteString -> String
-toString = P.map (toEnum . fromEnum) . unpack
-
 -----------------------------------------
-
-empty :: ByteString
-empty = pack []
-
-singleton :: Word8 -> ByteString
-singleton c = pack [c]
-
-pack :: [Word8] -> ByteString
-pack = primBSpack
-
-unpack :: ByteString -> [Word8]
-unpack = primBSunpack
 
 fromStrict = bsUnimp "fromStrict"
 toStrict = bsUnimp "toStrict"
@@ -299,12 +223,6 @@ unsnoc bs | null bs = Nothing
 
 null :: ByteString -> Bool
 null bs = length bs == 0
-
-length :: ByteString -> Int
-length = primBSlength
-
-append :: ByteString -> ByteString -> ByteString
-append = primBSappend
 
 map :: (Word8 -> Word8) -> ByteString -> ByteString
 map f = pack . P.map f . unpack
