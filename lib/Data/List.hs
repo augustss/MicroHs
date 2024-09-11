@@ -10,7 +10,7 @@ module Data.List(
   mapAccumL, mapAccumR,
   iterate, iterate', repeat, replicate, cycle,
   unfoldr,
-  take, drop, splitAt, takeWhile, takeWhileEnd, dropWhile, dropWhileEnd, span, break, splitWith,
+  take, drop, splitAt, takeWhile, takeWhileEnd, dropWhile, dropWhileEnd, span, spanUntil, break, splitWith,
   stripPrefix, stripSuffix, group, inits, tails,
   isPrefixOf, isSuffixOf, isInfixOf, isSubsequenceOf,
   elem, notElem, lookup,
