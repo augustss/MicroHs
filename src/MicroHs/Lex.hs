@@ -85,6 +85,14 @@ lex loc ('0':x:cs) | toLower x == 'x' = hexNumber loc cs
 lex loc cs@(d:_) | isDigit d = number loc cs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
+-- Recognize #line 123 "file/name.hs"
+lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
+  case span (/= '\n') cs of
+    (line, rs) ->        -- rs will contain the '\n', so subtract 1 below
+      let ws = words line
+          file = tail $ init $ ws!!1   -- strip the initial and final '"' 
+          loc' = SLoc file (read (ws!!0) - 1) 1
+      in  lex loc' rs
 lex loc (c:cs@(d:_)) | (c == '!' || c == '~') && (d == '(' || d == '[' || isIdentChar d) =  -- XXX hacky way to make ~ a TSpec
   TSpec loc c : lex (addCol loc 1) cs
 lex loc (d:cs) | isOperChar d =
