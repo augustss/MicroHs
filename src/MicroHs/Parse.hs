@@ -280,7 +280,7 @@ pBraces p =
     pure as
  <|>
   do
-    pSpec '<'
+    pSpec '<'          -- synthetic '{' (i.e., layout)
     as <- p
     -- If we are at a '>' token (i.e., synthetic '}') then
     -- all is well, if not then there is a parse error and we try
