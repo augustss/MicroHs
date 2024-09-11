@@ -211,7 +211,7 @@ $(MCABALBIN)/cpphs: bin/cpphs
 	@mkdir -p $(MCABALBIN)
 	cp bin/cpphs $(MCABALBIN)
 
-$(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs
+$(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	@mkdir -p $(MRUNTIME)
 	cp src/runtime/*.[ch] $(MRUNTIME)
 	bin/mhs -P$(BASE) -o$(BASE).pkg -ilib $(BASEMODULES)
