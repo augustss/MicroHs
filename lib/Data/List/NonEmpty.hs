@@ -125,11 +125,20 @@ import Data.Ord(comparing)
 import Data.Function(on)
 import qualified Data.List as List
 import GHC.Stack(HasCallStack)
+import Data.List.NonEmpty_Type
 
+{- In Data.List.NonEmpty_Type
 infixr 5 :|
 
 data NonEmpty a = a :| [a]
   deriving (Eq, Ord)
+-}
+
+instance (Eq a) => Eq (NonEmpty a) where
+  (x :| xs) == (y :| ys)  =  x == y && xs == ys
+
+instance (Ord a) => Ord (NonEmpty a) where
+  compare (x :| xs) (y :| ys) = compare x y <> compare xs ys
 
 instance Semigroup (NonEmpty a) where
   (a :| as) <> ~(b :| bs) = a :| (as ++ b : bs)
