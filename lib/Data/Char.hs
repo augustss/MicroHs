@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 module Data.Char(
   module Data.Char,
-  module Data.Char_Type   -- exports Char and String
+  module Data.Char_Type       -- exports Char and String
   ) where
 import Prelude()              -- do not import Prelude
 import Primitives
@@ -54,8 +54,14 @@ ord = primOrd
 isLower :: Char -> Bool
 isLower c = (primCharLE 'a' c) && (primCharLE c 'z')
 
+isAsciiLower :: Char -> Bool
+isAsciiLower = isLower
+
 isUpper :: Char -> Bool
 isUpper c = (primCharLE 'A' c) && (primCharLE c 'Z')
+
+isAsciiUpper :: Char -> Bool
+isAsciiUpper = isUpper
 
 isAlpha :: Char -> Bool
 isAlpha c = isLower c || isUpper c
