@@ -4,7 +4,7 @@ module Data.List(
   module Data.List_Type,
   (++), head, last, tail, init, uncons, unsnoc, singleton, null, length,
   map, reverse, intersperse, intercalate, transpose, subsequences, permutations,
-  foldl, foldl', foldl1, foldl1', foldr, foldr1,
+  foldl, foldl', foldl1, foldl1', foldr, foldr', foldr1, foldr1',
   concat, concatMap, and, or, any, all, sum, product, maximum, minimum,
   scanl, scanl', scanl1, scanr, scanr1,
   mapAccumL, mapAccumR,
@@ -106,13 +106,11 @@ foldr f z =
     rec (x : xs) = f x (rec xs)
   in rec
 
-{-
 foldr' :: forall a b . (a -> b -> b) -> b -> [a] -> b
 foldr' f z [] = z
 foldr' f z (x:xs) =
   let y = foldr f z xs
   in  y `seq` f x y
--}
 
 foldr1 :: forall a . (a -> a -> a) -> [a] -> a
 foldr1 f =
@@ -120,6 +118,16 @@ foldr1 f =
     rec [] = error "foldr1"
     rec [x] = x
     rec (x : xs) = f x (rec xs)
+  in rec
+
+foldr1' :: forall a . (a -> a -> a) -> [a] -> a
+foldr1' f =
+  let
+    rec [] = error "foldr1"
+    rec [x] = x
+    rec (x : xs) =
+          let y = rec xs
+          in  y `seq` f x y
   in rec
 
 foldl :: forall a b . (b -> a -> b) -> b -> [a] -> b
