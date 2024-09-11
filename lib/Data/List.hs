@@ -10,7 +10,7 @@ module Data.List(
   mapAccumL, mapAccumR,
   iterate, iterate', repeat, replicate, cycle,
   unfoldr,
-  take, drop, splitAt, takeWhile, dropWhile, dropWhileEnd, span, break,
+  take, drop, splitAt, takeWhile, dropWhile, dropWhileEnd, span, break, splitWith,
   stripPrefix, group, inits, tails,
   isPrefixOf, isSuffixOf, isInfixOf, isSubsequenceOf,
   elem, notElem, lookup,
@@ -369,6 +369,14 @@ spanUntil p =
     rec r [] = (reverse r, [])
     rec r (x:xs) = if p x then rec (x:r) xs else (reverse (x:r), xs)
   in rec []
+
+splitWith :: forall a . (a -> Bool) -> [a] -> [[a]]
+splitWith p =
+  let
+    rec r s  []                = reverse (reverse s : r)
+    rec r s (x:xs) | p x       = rec (reverse s : r) []      xs
+                   | otherwise = rec              r  (x : s) xs
+  in rec [] []
 
 head :: forall a . [a] -> a
 head [] = error "head"
