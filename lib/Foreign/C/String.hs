@@ -1,5 +1,5 @@
 module Foreign.C.String(
-  CChar, CString,
+  CChar, CString, CStringLen,
   newCAString, newCAStringLen,
   peekCAString, peekCAStringLen,
   withCAString,
