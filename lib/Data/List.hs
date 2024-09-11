@@ -10,8 +10,8 @@ module Data.List(
   mapAccumL, mapAccumR,
   iterate, iterate', repeat, replicate, cycle,
   unfoldr,
-  take, drop, splitAt, takeWhile, dropWhile, dropWhileEnd, span, break, splitWith,
-  stripPrefix, group, inits, tails,
+  take, drop, splitAt, takeWhile, takeWhileEnd, dropWhile, dropWhileEnd, span, break, splitWith,
+  stripPrefix, stripSuffix, group, inits, tails,
   isPrefixOf, isSuffixOf, isInfixOf, isSubsequenceOf,
   elem, notElem, lookup,
   find, filter, partition,
@@ -312,6 +312,12 @@ stripPrefixBy eq (c:cs) [] = Nothing
 stripPrefixBy eq (c:cs) (d:ds) | eq c d = stripPrefixBy eq cs ds
                                | otherwise = Nothing
 
+stripSuffix :: forall a . Eq a => [a] -> [a] -> Maybe [a]
+stripSuffix s t =
+  case stripPrefix (reverse s) (reverse t) of
+    Nothing -> Nothing
+    Just x -> Just (reverse x)
+
 isPrefixOf :: forall a . Eq a => [a] -> [a] -> Bool
 isPrefixOf = isPrefixOfBy (==)
 
@@ -349,6 +355,9 @@ takeWhile p (x:xs) =
     x : takeWhile p xs
   else
     []
+
+takeWhileEnd :: forall a . (a -> Bool) -> [a] -> [a]
+takeWhileEnd p = reverse . takeWhile p . reverse
 
 dropWhile :: forall a . (a -> Bool) -> [a] -> [a]
 dropWhile _ [] = []
