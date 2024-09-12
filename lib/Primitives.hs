@@ -123,10 +123,19 @@ primWordToFloatWRaw :: Word -> FloatW
 primWordToFloatWRaw = primitive "toDbl"
 primWordFromFloatWRaw :: FloatW -> Word
 primWordFromFloatWRaw = primitive "toInt"
+
+primIntAnd :: Int -> Int -> Int
+primIntAnd  = primitive "and"
+primIntOr :: Int -> Int -> Int
+primIntOr  = primitive "or"
+primIntXor :: Int -> Int -> Int
+primIntXor  = primitive "xor"
 primIntShl :: Int -> Int -> Int
 primIntShl  = primitive "shl"
 primIntShr :: Int -> Int -> Int
 primIntShr  = primitive "ashr"
+primIntInv :: Int -> Int
+primIntInv  = primitive "inv"
 
 primWordEQ  :: Word -> Word -> Bool
 primWordEQ  = primitive "=="

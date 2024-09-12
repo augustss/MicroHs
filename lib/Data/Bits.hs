@@ -4,7 +4,7 @@ import Primitives
 import Control.Error
 import Data.Bool
 import Data.Eq
-import Data.Int()
+import Data.Int
 import Data.Maybe
 import Data.Ord
 import Data.Num
@@ -92,3 +92,18 @@ class Bits b => FiniteBits b where
            | otherwise   = go (i + 1)
 
       w = finiteBitSize x
+
+instance Bits Int where
+  (.&.) = primIntAnd
+  (.|.) = primIntOr
+  xor   = primIntXor
+  complement = primIntInv
+  shiftL = primIntShl
+  shiftR = primIntShr
+  bitSizeMaybe _ = Just _wordSize
+  bitSize _ = _wordSize
+  bit n = primIntShl 1 n
+  zeroBits = 0
+
+instance FiniteBits Int where
+  finiteBitSize _ = _wordSize

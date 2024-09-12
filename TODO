@@ -38,3 +38,4 @@ Bugs:
 * Check for escaping skolemized variables
 * Type checking Data.Data
 * Class export with list does nt export $dflt
+* import M(method) doesn't work

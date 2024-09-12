@@ -93,6 +93,10 @@ instance Bits Word where
   bit n = primWordShl 1 n
   zeroBits = 0
 
+
+instance FiniteBits Word where
+  finiteBitSize _ = _wordSize
+
 --------------------------------------------------------------------------------
 ----    Word8
 
@@ -178,6 +182,9 @@ instance Bits Word8 where
   bitSize _ = 8
   bit n = w8 (primWordShl 1 n)
   zeroBits = 0
+
+instance FiniteBits Word8 where
+  finiteBitSize _ = 8
 
 --------------------------------------------------------------------------------
 ----    Word16
@@ -265,6 +272,9 @@ instance Bits Word16 where
   bit n = w16 (primWordShl 1 n)
   zeroBits = 0
 
+instance FiniteBits Word16 where
+  finiteBitSize _ = 16
+
 --------------------------------------------------------------------------------
 ----    Word32
 
@@ -351,6 +361,9 @@ instance Bits Word32 where
   bit n = w32 (primWordShl 1 n)
   zeroBits = 0
 
+instance FiniteBits Word32 where
+  finiteBitSize _ = 32
+
 --------------------------------------------------------------------------------
 ----    Word64
 
@@ -436,3 +449,6 @@ instance Bits Word64 where
   bitSize _ = 64
   bit n = w64 (primWordShl 1 n)
   zeroBits = 0
+
+instance FiniteBits Word64 where
+  finiteBitSize _ = 64
