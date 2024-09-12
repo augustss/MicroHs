@@ -1,10 +1,10 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.9.17.0
+version:             0.9.18.1
                      -- *** When changing the version number, also
                      -- *** run updateversion.sh.
                      -- *** Yeah, it stinks.
-synopsis:            A compiler for Haskell
+synopsis:            A small compiler for Haskell
 license:             Apache-2.0
 license-file:        LICENSE
 copyright:           2023,2024 Lennart Augustsson
@@ -109,6 +109,7 @@ executable mhs
                        process      >= 1.6 && < 1.8,
                        directory    >= 1.2 && < 1.5,
                        text         >= 2.0 && < 2.3,
---  if impl(mhs)
---    hs-source-dirs:    mhs src
---    build-depends:     base
+--
+--MHS  if impl(mhs)
+--MHS    hs-source-dirs:    mhs src paths
+--MHS    build-depends:     base         >= 0.1 && < 10.0,
