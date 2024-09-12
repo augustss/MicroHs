@@ -73,7 +73,7 @@ isOctDigit :: Char -> Bool
 isOctDigit c = (primCharLE '0' c) && (primCharLE c '7')
 
 isHexDigit :: Char -> Bool
-isHexDigit c = isDigit c || (primCharLE 'a' c && primCharLE c 'f') || (primCharLE 'F' c && primCharLE c 'F') 
+isHexDigit c = isDigit c || (primCharLE 'a' c && primCharLE c 'f') || (primCharLE 'A' c && primCharLE c 'F') 
 
 isAlphaNum :: Char -> Bool
 isAlphaNum c = isAlpha c || isDigit c
