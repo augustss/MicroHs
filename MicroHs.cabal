@@ -111,5 +111,5 @@ executable mhs
                        text         >= 2.0 && < 2.3,
 --
 --MHS  if impl(mhs)
---MHS    hs-source-dirs:    mhs src
+--MHS    hs-source-dirs:    mhs src paths
 --MHS    build-depends:     base         >= 0.1 && < 10.0,
