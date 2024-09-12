@@ -2,10 +2,13 @@ module Data.Monoid(module Data.Monoid, module Data.Semigroup) where
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
+import Control.Error
 import Data.Bool
 import Data.Bounded
+import Data.Eq
 import Data.Function
 import Data.Functor
+import Data.Integral
 import Data.List_Type
 import Data.Ord
 import Data.Maybe_Type
@@ -158,3 +161,26 @@ instance Semigroup Ordering where
 
 instance Monoid Ordering where
   mempty = EQ
+
+----------------------
+
+stimesIdempotentMonoid :: (Ord b, Integral b, Monoid a) => b -> a -> a
+stimesIdempotentMonoid n x = case compare n 0 of
+  LT -> error "stimesIdempotentMonoid: negative multiplier"
+  EQ -> mempty
+  GT -> x
+
+stimesMonoid :: (Ord b, Integral b, Monoid a) => b -> a -> a
+stimesMonoid n x0 = case compare n 0 of
+  LT -> error "stimesMonoid: negative multiplier"
+  EQ -> mempty
+  GT -> f x0 n
+    where
+      f x y
+        | even y = f (x `mappend` x) (y `quot` 2)
+        | y == 1 = x
+        | otherwise = g (x `mappend` x) (y `quot` 2) x
+      g x y z
+        | even y = g (x `mappend` x) (y `quot` 2) z
+        | y == 1 = x `mappend` z
+        | otherwise = g (x `mappend` x) (y `quot` 2) (x `mappend` z)
