@@ -278,7 +278,7 @@ pBraces p =
     as <- p
     pSpec '}'
     pure as
- <|>
+ <|<
   do
     pSpec '<'          -- synthetic '{' (i.e., layout)
     as <- p
@@ -393,12 +393,13 @@ pSLArrow = pSymbol "<-" <|< pSymbol "\x2190"
 
 pConstr :: P Constr
 pConstr = (Constr <$> pForall <*> pContext <*> pUIdentSym <*> pFields)
-      <|> ((\ vs ct t1 c t2 -> Constr vs ct c (Left [t1, t2])) <$>
+      <|> ((\ vs ct t1 c t2 -> Constr vs ct c (Left [t1, t2])) <$>        -- <|> needed
             pForall <*> pContext <*> pSTypeApp <*> pUSymOper <*> pSTypeApp)
 
 
 pFields :: P (Either [SType] [(Ident, SType)])
 pFields = Left  <$> emany pSAType
+      -- The <|> is needed because 'emany' can be empty.
       <|> Right <$> (pSpec '{' *> (concatMap flat <$> esepBy ((,) <$> (esepBy1 pLIdentSym (pSpec ',') <* pSymbol "::") <*> pSType) (pSpec ',') <* pSpec '}'))
   where flat (is, t) = [ (i, t) | i <- is ]
 
@@ -426,7 +427,7 @@ pImportSpec =
     pQual = True <$ pKeyword "qualified"
     -- the 'qualified' can occur before or after the module name
     pQId =      ((,) <$> pQual <*> pUQIdentA)
-            <|< ((\ a b -> (b,a)) <$> pUQIdentA <*> (pQual <|> pure False))
+            <|< ((\ a b -> (b,a)) <$> pUQIdentA <*> (pQual <|< pure False))
     imp a (b, c) = ImportSpec a b c
   in  imp <$> pSource <*> pQId <*> eoptional (pKeyword "as" *> pUQIdent) <*>
               eoptional ((,) <$> ((True <$ pKeyword "hiding") <|< pure False) <*> pParens (esepEndBy pImportItem (pSpec ',')))
@@ -442,7 +443,7 @@ pImportItem =
 pConList :: P (Maybe [Ident])
 pConList =
       (Nothing <$ pSymbol "..")
-  <|< (Just <$> esepBy1 (pQIdent <|> pParens pSymOper) (pSpec ','))
+  <|< (Just <$> esepBy1 (pQIdent <|< pParens pSymOper) (pSpec ','))
 
 --------
 -- Types
