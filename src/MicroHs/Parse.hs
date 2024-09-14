@@ -393,20 +393,25 @@ pSLArrow = pSymbol "<-" <|< pSymbol "\x2190"
 
 pConstr :: P Constr
 pConstr = (Constr <$> pForall <*> pContext <*> pUIdentSym <*> pFields)
-      <|< ((\ vs ct t1 c t2 -> Constr vs ct c (Left [t1, t2])) <$>
-            pForall <*> pContext <*> pSAType <*> pUSymOper <*> pSAType)
+      <|> ((\ vs ct t1 c t2 -> Constr vs ct c (Left [t1, t2])) <$>
+            pForall <*> pContext <*> pSTypeApp <*> pUSymOper <*> pSTypeApp)
+
 
 pFields :: P (Either [SType] [(Ident, SType)])
 pFields = Left  <$> emany pSAType
       <|> Right <$> (pSpec '{' *> (concatMap flat <$> esepBy ((,) <$> (esepBy1 pLIdentSym (pSpec ',') <* pSymbol "::") <*> pSType) (pSpec ',') <* pSpec '}'))
   where flat (is, t) = [ (i, t) | i <- is ]
 
+-- XXX This is a mess.
 pSAType :: P (Bool, EType)
 pSAType = (,) <$> pStrict <*> pAType
 pSType :: P (Bool, EType)
 pSType  = (,) <$> pStrict <*> pType
 pSTypeApp :: P (Bool, EType)
-pSTypeApp  = (,) <$> pStrict <*> pTypeApp
+pSTypeApp  = do
+  s <- pStrict
+  t <- if s then pAType else pTypeApp
+  pure (s, t)
 pStrict :: P Bool
 pStrict = (True <$ pSpec '!') <|< pure False
 
