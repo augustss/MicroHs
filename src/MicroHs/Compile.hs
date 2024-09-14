@@ -154,6 +154,8 @@ compileModule flags impt mn pathfn file = do
   let pmdl = parseDie pTop pathfn file
       mdl@(EModule mnn _ defs) = addPreludeImport pmdl
   when (verbosityGT flags 4) $
+    liftIO $ putStrLn $ "parsing: " ++ pathfn
+  when (verbosityGT flags 4) $
     liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
   
   -- liftIO $ putStrLn $ showEModule mdl
