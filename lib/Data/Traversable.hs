@@ -19,7 +19,6 @@ module Data.Traversable (
     -- * Utility functions
     for,
     forM,
-{-
     forAccumM,
     mapAccumL,
     mapAccumR,
@@ -27,12 +26,12 @@ module Data.Traversable (
     -- * General definitions for superclass methods
     fmapDefault,
     foldMapDefault,
--}
     ) where
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
-import Control.Monad(Monad(..), MonadPlus(..))
+import Control.Error
+import Control.Monad(Monad(..), MonadPlus(..), liftM)
 --import Data.Coerce
 import Data.Either
 import Data.Foldable
@@ -212,27 +211,30 @@ for = flip traverse
 forM :: forall (t :: Type -> Type) (m :: Type -> Type) a b . (Traversable t, Monad m) => t a -> (a -> m b) -> m (t b)
 forM = flip mapM
 
-{-
 mapAccumL :: forall t s a b. Traversable t
           => (s -> a -> (s, b)) -> s -> t a -> (s, t b)
-mapAccumL f s t = coerce (traverse @t @(StateL s) @a @b) (flip f) t s
+mapAccumL f s t =
+  runStateL (traverse (StateL . flip f) t) s
+  --coerce (traverse @t @(StateL s) @a @b) (flip f) t s
 
 mapAccumR :: forall t s a b. Traversable t
           => (s -> a -> (s, b)) -> s -> t a -> (s, t b)
-mapAccumR f s t = coerce (traverse @t @(StateR s) @a @b) (flip f) t s
+mapAccumR f s t =
+  runStateR (traverse (StateR . flip f) t) s
+  --coerce (traverse @t @(StateR s) @a @b) (flip f) t s
 
 mapAccumM
   :: forall m t s a b. (Monad m, Traversable t)
   => (s -> a -> m (s, b))
   -> s -> t a -> m (s, t b)
-mapAccumM f s t = coerce (mapM @t @(StateT s m) @a @b) (StateT #. flip f) t s
+mapAccumM f s t =
+  runStateT (traverse (StateT . flip f) t) s
+  -- coerce (mapM @t @(StateT s m) @a @b) (StateT #. flip f) t s
 
 forAccumM
   :: (Monad m, Traversable t)
   => s -> t a -> (s -> a -> m (s, b)) -> m (s, t b)
 forAccumM s t f = mapAccumM f s t
-
--}
 
 fmapDefault :: forall t a b . Traversable t
             => (a -> b) -> t a -> t b
@@ -241,3 +243,52 @@ fmapDefault f = runIdentity . traverse (Identity . f)
 foldMapDefault :: forall t m a . (Traversable t, Monoid m)
                => (a -> m) -> t a -> m
 foldMapDefault f = getConst . traverse (Const . f)
+
+-----------------------
+
+newtype StateL s a = StateL (s -> (s, a))
+runStateL :: StateL s a -> s -> (s, a)
+runStateL (StateL f) = f
+
+instance Functor (StateL s) where
+    fmap f (StateL k) = StateL $ \ s -> let (s', v) = k s in (s', f v)
+
+instance Applicative (StateL s) where
+    pure x = StateL (\ s -> (s, x))
+    StateL kf <*> StateL kv = StateL $ \ s ->
+        let (s', f) = kf s
+            (s'', v) = kv s'
+        in (s'', f v)
+
+newtype StateR s a = StateR (s -> (s, a))
+runStateR :: StateR s a -> s -> (s, a)
+runStateR (StateR f) = f
+
+instance Functor (StateR s) where
+    fmap f (StateR k) = StateR $ \ s -> let (s', v) = k s in (s', f v)
+
+instance Applicative (StateR s) where
+    pure x = StateR (\ s -> (s, x))
+    StateR kf <*> StateR kv = StateR $ \ s ->
+        let (s', v) = kv s
+            (s'', f) = kf s'
+        in (s'', f v)
+
+newtype StateT s m a = StateT (s -> m (s, a))
+runStateT :: StateT s m a -> s -> m (s, a)
+runStateT (StateT f) = f
+
+instance Monad m => Functor (StateT s m) where
+    fmap = liftM
+
+instance Monad m => Applicative (StateT s m) where
+    pure a = StateT $ \ s -> return (s, a)
+    StateT mf <*> StateT mx = StateT $ \ s -> do
+        (s', f) <- mf s
+        (s'', x) <- mx s'
+        return (s'', f x)
+
+instance (Monad m) => Monad (StateT s m) where
+    m >>= k  = StateT $ \ s -> do
+        (s', a) <- runStateT m s
+        runStateT (k a) s'
