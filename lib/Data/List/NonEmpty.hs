@@ -126,6 +126,10 @@ import Data.Function(on)
 import qualified Data.List as List
 import GHC.Stack(HasCallStack)
 import Data.List.NonEmpty_Type
+import Data.Foldable hiding (length, toList)
+import qualified Data.Foldable as Foldable
+import Data.Traversable
+import Control.DeepSeq
 
 {- In Data.List.NonEmpty_Type
 infixr 5 :|
@@ -161,6 +165,16 @@ instance Monad NonEmpty where
 --instance Traversable NonEmpty -- Defined in Data.Traversable
 --instance Read a => Read (NonEmpty a) -- Defined in GHC.Read
 --instance Show a => Show (NonEmpty a) -- Defined in GHC.Show
+
+instance Show a => Show (NonEmpty a) where
+  showsPrec p = showsPrec p . toList
+instance Foldable NonEmpty where
+  foldr f z = foldr f z . toList
+--instance Traversable NonEmpty where
+--  traverse f = fromList . traverse f . toList
+instance NFData a => NFData (NonEmpty a) where
+  rnf = rnf . toList
+  
 ----- End MHS replacement
 
 infixr 5 <|
@@ -292,10 +306,10 @@ toList ~(a :| as) = a : as
 -- /Beware/: If the provided function returns an empty list,
 -- this will raise an error.
 -- XXX not yet
---lift :: Foldable f => ([a] -> [b]) -> f a -> NonEmpty b
---lift f = fromList . f . Foldable.toList
-lift :: ([a] -> [b]) -> [a] -> NonEmpty b
-lift f = fromList . f
+lift :: Foldable f => ([a] -> [b]) -> f a -> NonEmpty b
+lift f = fromList . f . Foldable.toList
+--lift :: ([a] -> [b]) -> [a] -> NonEmpty b
+--lift f = fromList . f
 
 -- | Map a function over a 'NonEmpty' stream.
 map :: (a -> b) -> NonEmpty a -> NonEmpty b
@@ -310,10 +324,10 @@ map f ~(a :| as) = f a :| fmap f as
 -- > inits [1] == [] :| [[1]]
 -- > inits [] == [] :| []
 -- XXX
---inits :: Foldable f => f a -> NonEmpty [a]
---inits = fromList . List.inits . Foldable.toList
-inits :: [a] -> NonEmpty [a]
-inits = fromList . List.inits
+inits :: Foldable f => f a -> NonEmpty [a]
+inits = fromList . List.inits . Foldable.toList
+--inits :: [a] -> NonEmpty [a]
+--inits = fromList . List.inits
 
 -- | The 'inits1' function takes a 'NonEmpty' stream @xs@ and returns all the
 -- 'NonEmpty' finite prefixes of @xs@, starting with the shortest.
@@ -331,8 +345,8 @@ inits1 =
   -- * The only empty element of `inits xs` is the first one (by the definition of `inits`)
   -- * Therefore, if we take all but the first element of `inits xs` i.e.
   --   `tail (inits xs)`, we have a nonempty list of nonempty lists
---  fromList . Prelude.map fromList . List.drop 1 . List.inits . Foldable.toList
-  fromList . Prelude.map fromList . List.drop 1 . List.inits . toList
+  fromList . Prelude.map fromList . List.drop 1 . List.inits . Foldable.toList
+--  fromList . Prelude.map fromList . List.drop 1 . List.inits . toList
 
 -- | The 'tails' function takes a stream @xs@ and returns all the
 -- suffixes of @xs@, starting with the longest. The result is 'NonEmpty'
@@ -342,10 +356,10 @@ inits1 =
 -- > tails [1] == [1] :| [[]]
 -- > tails [] == [] :| []
 -- XXX
---tails   :: Foldable f => f a -> NonEmpty [a]
---tails = fromList . List.tails . Foldable.toList
-tails   :: [a] -> NonEmpty [a]
-tails = fromList . List.tails
+tails   :: Foldable f => f a -> NonEmpty [a]
+tails = fromList . List.tails . Foldable.toList
+--tails   :: [a] -> NonEmpty [a]
+--tails = fromList . List.tails
 
 -- | The 'tails1' function takes a 'NonEmpty' stream @xs@ and returns all the
 -- non-empty suffixes of @xs@, starting with the longest.
@@ -369,10 +383,10 @@ tails1 =
 -- | @'insert' x xs@ inserts @x@ into the last position in @xs@ where it
 -- is still less than or equal to the next element. In particular, if the
 -- list is sorted beforehand, the result will also be sorted.
---insert  :: (Foldable f, Ord a) => a -> f a -> NonEmpty a
---insert a = fromList . List.insert a . Foldable.toList
-insert  :: (Ord a) => a -> [a] -> NonEmpty a
-insert a = fromList . List.insert a
+insert  :: (Foldable f, Ord a) => a -> f a -> NonEmpty a
+insert a = fromList . List.insert a . Foldable.toList
+--insert  :: (Ord a) => a -> [a] -> NonEmpty a
+--insert a = fromList . List.insert a
 
 -- | @'some1' x@ sequences @x@ one or more times.
 some1 :: Alternative f => f a -> f (NonEmpty a)
@@ -386,19 +400,19 @@ some1 x = liftA2 (:|) x (many x)
 -- Note that
 --
 -- > last (scanl f z xs) == foldl f z xs.
---scanl   :: Foldable f => (b -> a -> b) -> b -> f a -> NonEmpty b
---scanl f z = fromList . List.scanl f z . Foldable.toList
-scanl   :: (b -> a -> b) -> b -> [a] -> NonEmpty b
-scanl f z = fromList . List.scanl f z
+scanl   :: Foldable f => (b -> a -> b) -> b -> f a -> NonEmpty b
+scanl f z = fromList . List.scanl f z . Foldable.toList
+--scanl   :: (b -> a -> b) -> b -> [a] -> NonEmpty b
+--scanl f z = fromList . List.scanl f z
 
 -- | 'scanr' is the right-to-left dual of 'scanl'.
 -- Note that
 --
 -- > head (scanr f z xs) == foldr f z xs.
---scanr   :: Foldable f => (a -> b -> b) -> b -> f a -> NonEmpty b
---scanr f z = fromList . List.scanr f z . Foldable.toList
-scanr   :: (a -> b -> b) -> b -> [a] -> NonEmpty b
-scanr f z = fromList . List.scanr f z
+scanr   :: Foldable f => (a -> b -> b) -> b -> f a -> NonEmpty b
+scanr f z = fromList . List.scanr f z . Foldable.toList
+--scanr   :: (a -> b -> b) -> b -> [a] -> NonEmpty b
+--scanr f z = fromList . List.scanr f z
 
 -- | 'scanl1' is a variant of 'scanl' that has no starting value argument:
 --
@@ -501,16 +515,16 @@ partition p = List.partition p . toList
 --
 -- >>> group "Mississippi"
 -- ["M", "i", "ss", "i", "ss", "i", "pp", "i"]
---group :: (Foldable f, Eq a) => f a -> [NonEmpty a]
-group :: (Eq a) => [a] -> [NonEmpty a]
+group :: (Foldable f, Eq a) => f a -> [NonEmpty a]
+--group :: (Eq a) => [a] -> [NonEmpty a]
 group = groupBy (==)
 
 -- | 'groupBy' operates like 'group', but uses the provided equality
 -- predicate instead of `==`.
---groupBy :: Foldable f => (a -> a -> Bool) -> f a -> [NonEmpty a]
---groupBy eq0 = go eq0 . Foldable.toList
-groupBy :: (a -> a -> Bool) -> [a] -> [NonEmpty a]
-groupBy eq0 = go eq0
+groupBy :: Foldable f => (a -> a -> Bool) -> f a -> [NonEmpty a]
+groupBy eq0 = go eq0 . Foldable.toList
+--groupBy :: (a -> a -> Bool) -> [a] -> [NonEmpty a]
+--groupBy eq0 = go eq0
   where
     go _  [] = []
     go eq (x : xs) = (x :| ys) : groupBy eq zs
@@ -518,8 +532,8 @@ groupBy eq0 = go eq0
 
 -- | 'groupWith' operates like 'group', but uses the provided projection when
 -- comparing for equality
---groupWith :: (Foldable f, Eq b) => (a -> b) -> f a -> [NonEmpty a]
-groupWith :: (Eq b) => (a -> b) -> [a] -> [NonEmpty a]
+groupWith :: (Foldable f, Eq b) => (a -> b) -> f a -> [NonEmpty a]
+--groupWith :: (Eq b) => (a -> b) -> [a] -> [NonEmpty a]
 groupWith f = groupBy ((==) `on` f)
 
 -- | 'groupAllWith' operates like 'groupWith', but sorts the list
