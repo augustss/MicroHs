@@ -640,7 +640,7 @@ primValues =
         vks = [IdKind (mkIdent ("a" ++ show i)) kType | i <- enumFromTo 1 n]
         ts = map tVarK vks
         r = tApps c ts
-      in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall vks $ foldr tArrow r ts ])
+      in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall vks $ EForall [] $ foldr tArrow r ts ])
   in  map tuple (enumFromTo 2 10)
 
 kArrow :: EKind -> EKind -> EKind
@@ -2059,7 +2059,7 @@ tcPat mt ae =
                case xpt of
                   -- Sanity check
                   EForall _ (EForall _ _) -> return ()
-                  _ -> undefined
+                  _ -> impossibleShow i
                EForall avs apt <- tInst' xpt
                (sks, spt) <- shallowSkolemise avs apt
                (d, p, pt) <-
