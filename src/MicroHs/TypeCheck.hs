@@ -197,12 +197,12 @@ filterImports it@(ImportSpec _ _ _ _ Nothing, _) = it
 filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts ss cs ins vs a) =
   let
     keep x xs = elem x xs /= hide
-    ivs = [ i | ImpValue i <- is ]
-    vs' = filter (\ (ValueExport i _) -> keep i ivs) vs
---    cts = [ i | ImpTypeAll i <- is ] ++ [ i | ImpTypeSome i (_:_) <- is ]  -- XXX
---    its = [ i | ImpTypeSome i [] <- is ] ++ cts
+    ivs  = [ i | ImpValue i <- is ]
+    vs'  = filter (\ (ValueExport i _) -> keep i ivs) vs ++
+           if hide then []
+           else [ ve | TypeExport _ _ ves <- ts, ve@(ValueExport i _) <- ves, i `elem` ivs ]
     aits = [ i | ImpTypeAll i <- is ]         -- all T(..) imports
-    its = [ i | ImpTypeSome i _ <- is ] ++ aits
+    its  = [ i | ImpTypeSome i _ <- is ] ++ aits
     -- XXX This isn't quite right, hiding T() should hide T, but not the constructors
     ts' =
       if hide then

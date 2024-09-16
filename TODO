@@ -34,9 +34,8 @@
 * Make deriving refer to identifiers that don't need to be in scope
 
 Bugs:
-* Missing IO in ccall show wrong location
+* Missing IO in ccall shows wrong location
 * Check for escaping skolemized variables
 * Type checking Data.Data
-* Class export with list does nt export $dflt
-* import M(method) doesn't work
 * MonadFix (->)
+* No ambig test on export

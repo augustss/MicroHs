@@ -70,6 +70,7 @@ test:
 	$(TMHS) DfltSig    && $(EVAL) > DfltSig.out    && diff DfltSig.ref DfltSig.out
 	$(TMHS) Bytestring && $(EVAL) > Bytestring.out && diff Bytestring.ref Bytestring.out
 	$(TMHS) Text       && $(EVAL) > Text.out       && diff Text.ref Text.out
+	$(TMHS) ImpMet     && $(EVAL) > ImpMet.out     && diff ImpMet.ref ImpMet.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
