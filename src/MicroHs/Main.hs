@@ -261,11 +261,3 @@ mainInstallPackage flags [pkgfn] =
     first:_ -> mainInstallPackage flags [pkgfn, first]
 mainInstallPackage _ _ = error usage
 
------------------
-
-getMhsDir :: IO FilePath
-getMhsDir = do
-  md <- lookupEnv "MHSDIR"
-  case md of
-    Just d -> return d
-    Nothing -> getDataDir

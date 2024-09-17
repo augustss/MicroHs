@@ -10,6 +10,7 @@ module MicroHs.Compile(
   moduleToFile,
   packageDir, packageSuffix, packageTxtSuffix,
   mhsVersion,
+  getMhsDir,
   ) where
 import Data.Char
 import Data.List
@@ -38,7 +39,7 @@ import MicroHs.SymTab
 import MicroHs.TypeCheck
 import Compat
 import MicroHs.Instances() -- for ghc
-import Paths_MicroHs(version)
+import Paths_MicroHs(version, getDataDir)
 
 mhsVersion :: String
 mhsVersion = showVersion version
@@ -343,8 +344,10 @@ mhsDefines =
 runCPP :: Flags -> FilePath -> FilePath -> IO ()
 runCPP flags infile outfile = do
   mcpphs <- lookupEnv "MHSCPPHS"
+  datadir <- getMhsDir
   let cpphs = fromMaybe "cpphs" mcpphs
-      args = mhsDefines ++ cppArgs flags
+      mhsIncludes = ["-I" ++ datadir ++ "/src/runtime"]
+      args = mhsDefines ++ mhsIncludes ++ cppArgs flags
       cmd = cpphs ++ " --strip " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
   when (verbosityGT flags 1) $
     putStrLn $ "Run cpphs: " ++ show cmd
@@ -413,3 +416,10 @@ loadDeps flags pid = do
     Just (pfn, hdl) -> do
       liftIO $ hClose hdl
       loadPkg flags pfn
+
+getMhsDir :: IO FilePath
+getMhsDir = do
+  md <- lookupEnv "MHSDIR"
+  case md of
+    Just d -> return d
+    Nothing -> getDataDir
