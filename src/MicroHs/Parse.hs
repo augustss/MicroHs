@@ -634,7 +634,9 @@ pDo :: P Expr
 pDo = EDo <$> ((Just <$> pQualDo) <|< (Nothing <$ pKeyword "do")) <*> pBlock pStmt
 
 pIf :: P Expr
-pIf = EIf <$> (pKeyword "if" *> pExpr) <*> (pKeyword "then" *> pExpr) <*> (eoptional (pSpec ';') *> pKeyword "else" *> pExpr)
+pIf = EIf <$> (pKeyword "if" *> pExpr) <*>
+              (eoptional (pSpec ';') *> pKeyword "then" *> pExpr) <*>
+              (eoptional (pSpec ';') *> pKeyword "else" *> pExpr)
 
 pQualDo :: P Ident
 pQualDo = do
