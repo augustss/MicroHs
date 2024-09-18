@@ -142,6 +142,8 @@ instance (Traversable f) => Traversable (Ap f) where
 instance Traversable ZipList where
     traverse f (ZipList x) = ZipList <$> traverse f x
 
+instance Traversable (Arg a) where
+  traverse f (Arg x a) = Arg x `fmap` f a
 
 -- Instances for GHC.Generics
 -- | @since 4.9.0.0

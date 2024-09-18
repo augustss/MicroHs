@@ -1,4 +1,4 @@
-module Data.Monoid(module Data.Monoid, module Data.Semigroup) where
+module Data.Monoid(module Data.Monoid) where
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
@@ -8,12 +8,14 @@ import Data.Bounded
 import Data.Eq
 import Data.Function
 import Data.Functor
+import Data.Int
 import Data.Integral
 import Data.List_Type
+import Data.List.NonEmpty_Type
 import Data.Ord
 import Data.Maybe_Type
 import Data.Num
-import Data.Semigroup
+import Text.Show
 
 class Semigroup a => Monoid a where
   mempty :: a
@@ -164,6 +166,61 @@ instance Monoid Ordering where
 
 ----------------------
 
+data Arg a b = Arg a b
+  deriving(Show)
+
+type ArgMin a b = Min (Arg a b)
+
+type ArgMax a b = Max (Arg a b)
+
+instance Functor (Arg a) where
+  fmap f (Arg x a) = Arg x (f a)
+
+instance Eq a => Eq (Arg a b) where
+  Arg a _ == Arg b _ = a == b
+
+instance Ord a => Ord (Arg a b) where
+  Arg a _ `compare` Arg b _ = compare a b
+  min x@(Arg a _) y@(Arg b _)
+    | a <= b    = x
+    | otherwise = y
+  max x@(Arg a _) y@(Arg b _)
+    | a >= b    = x
+    | otherwise = y
+
+----------------------
+
+-- This really belongs in Data.Semigroup,
+-- but some functions have Monoid as in the context.
+
+infixr 6 <>
+class Semigroup a where
+  (<>)    :: a -> a -> a
+  sconcat :: NonEmpty a -> a
+  stimes  :: (Integral b, Ord b) => b -> a -> a
+
+  sconcat (a :| as) = go a as
+    where go b (c:cs) = b <> go c cs
+          go b []     = b
+
+  stimes y0 x0
+    | y0 <= 0   = error "stimes: positive multiplier expected"
+    | otherwise = f x0 y0
+    where
+      f x y
+        | y `rem` 2 == 0 = f (x <> x) (y `quot` 2)
+        | y == 1 = x
+        | otherwise = g (x <> x) (y `quot` 2) x
+      g x y z
+        | y `rem` 2 == 0 = g (x <> x) (y `quot` 2) z
+        | y == 1 = x <> z
+        | otherwise = g (x <> x) (y `quot` 2) (x <> z)
+
+stimesIdempotent :: (Integral b, Ord b) => b -> a -> a
+stimesIdempotent n x =
+  if n <= 0 then error "stimesIdempotent: positive multiplier expected"
+  else x
+
 stimesIdempotentMonoid :: (Ord b, Integral b, Monoid a) => b -> a -> a
 stimesIdempotentMonoid n x = case compare n 0 of
   LT -> error "stimesIdempotentMonoid: negative multiplier"
@@ -184,3 +241,4 @@ stimesMonoid n x0 = case compare n 0 of
         | even y = g (x `mappend` x) (y `quot` 2) z
         | y == 1 = x `mappend` z
         | otherwise = g (x `mappend` x) (y `quot` 2) (x `mappend` z)
+

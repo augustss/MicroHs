@@ -330,6 +330,9 @@ instance (Foldable f) => Foldable (Alt f) where
 instance (Foldable f) => Foldable (Ap f) where
     foldMap f = foldMap f . getAp
 
+instance Foldable (Arg a) where
+  foldMap f (Arg _ a) = f a
+
 -- Instances for GHC.Generics
 -- | @since 4.9.0.0
 instance Foldable U1 where
