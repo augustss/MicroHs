@@ -89,7 +89,6 @@ Differences:
  * Many things that should be an error (but which are mostly harmless) are not reported.
  * Text file I/O uses UTF8, but the source code does not allow Unicode.
  * The `BangPatterns` extension is parsed, but only effective at the a top level `let`/`where`.
- * Lazy patterns (`~pat`) are ignored.
  * More differences that I don't remember right now.
 
 Mutually recursive modules are allowed the same way as with GHC, using `.hs-boot` files. 
