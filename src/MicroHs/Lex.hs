@@ -94,7 +94,9 @@ lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
           loc' = SLoc file (read (ws!!0) - 1) 1
       in  lex loc' rs
 lex loc (c:cs@(d:_)) | isSpecSing c && not (isOperChar d) = -- handle reserved
-  TSpec loc c : lex (addCol loc 1) cs
+  TSpec loc c :
+    let ts = lex (addCol loc 1) cs
+    in  if c == '\\' then tLam ts else ts
 lex loc (d:cs) | isOperChar d =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
@@ -267,6 +269,11 @@ upperIdent loc sloc qs acs =
            }
       _ -> TIdent sloc (reverse qs) ds : lex (addCol loc $ length ds) rs
 
+-- For LambdaCase
+tLam :: [Token] -> [Token]
+tLam (t@(TIdent _ [] "case") : ts) = t : tBrace ts
+tLam ts = ts
+
 tIdent :: SLoc -> [String] -> String -> [Token] -> [Token]
 tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
                        || kw == "if" && isBar ats                -- For MultiWayIf
@@ -278,10 +285,11 @@ tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
 
     ti = TIdent loc qs kw
 
-    tBrace ts@(TSpec _ '{' : _) = ts
-    tBrace ts@(TIndent _ : TSpec _ '{' : _) = ts
-    tBrace (TIndent _ : ts) = TBrace (tokensLoc ts) : ts
-    tBrace ts = TBrace (tokensLoc ts) : ts
+tBrace :: [Token] -> [Token]
+tBrace ts@(TSpec _ '{' : _) = ts
+tBrace ts@(TIndent _ : TSpec _ '{' : _) = ts
+tBrace (TIndent _ : ts) = TBrace (tokensLoc ts) : ts
+tBrace ts = TBrace (tokensLoc ts) : ts
 
 tokensLoc :: [Token] -> SLoc
 tokensLoc (TIdent  loc _ _:_) = loc

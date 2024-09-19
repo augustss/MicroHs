@@ -72,6 +72,7 @@ test:
 	$(TMHS) Text       && $(EVAL) > Text.out       && diff Text.ref Text.out
 	$(TMHS) ImpMet     && $(EVAL) > ImpMet.out     && diff ImpMet.ref ImpMet.out
 	$(TMHS) MultiIf    && $(EVAL) > MultiIf.out    && diff MultiIf.ref MultiIf.out
+	$(TMHS) LameCase   && $(EVAL) > LameCase.out   && diff LameCase.ref LameCase.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

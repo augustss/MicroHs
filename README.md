@@ -63,6 +63,7 @@ Differences:
    * ImportQualifiedPost
    * IncoherentInstances
    * KindSignatures
+   * LambdaCase
    * MonoLocalBinds
    * MultiWayIf
    * MultiParamTypeClasses
