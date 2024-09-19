@@ -211,7 +211,7 @@ pLSymOper :: P Ident
 pLSymOper = guardM pSymOper (not . isUOper)
 
 reservedOps :: [String]
-reservedOps = ["=", "|", "::", "<-", "@", "..", "->",
+reservedOps = ["::", "<-", "..", "->",
                "\x2237", "\x2192"] -- :: and ->
 
 pUQIdentSym :: P Ident
@@ -303,8 +303,8 @@ pBlock p = pBraces body
 pDef :: P EDef
 pDef =
       uncurry Data <$> (pKeyword "data"     *> pData) <*> pDeriving
-  <|< Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSymbol "=" *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
-  <|< Type         <$> (pKeyword "type"     *> pLHS) <*> (pSymbol "=" *> pType)
+  <|< Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSpec '=' *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
+  <|< Type         <$> (pKeyword "type"     *> pLHS) <*> (pSpec '=' *> pType)
   <|< uncurry Fcn  <$> pEqns
   <|< Sign         <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Import       <$> (pKeyword "import"   *> pImportSpec)
@@ -322,12 +322,12 @@ pDef =
     dig _ = Nothing
     pPrec = satisfyM "digit" dig
 
-    pFunDeps = (pSymbol "|" *> esepBy1 pFunDep (pSpec ',')) <|< pure []
+    pFunDeps = (pSpec '|' *> esepBy1 pFunDep (pSpec ',')) <|< pure []
     pFunDep = (,) <$> esome pLIdent <*> (pSRArrow *> esome pLIdent)
     pField = guardM pFields ((== 1) . either length length)
     dcolon = pSymbol "::" <|< pSymbol "\x2237"
 
-    pPatternDef = (pSymbol "=" *> pPatAndExp) <|< (pSymbol "<-" *> pPat)
+    pPatternDef = (pSpec '=' *> pPatAndExp) <|< (pSymbol "<-" *> pPat)
     pPatAndExp = do p <- pPat; guard (isExp p); pure p
 
 -- Is a pattern also an expression?
@@ -342,7 +342,7 @@ isExp _ = False
 pData :: P (LHS, [Constr])
 pData = do
   lhs <- pLHS
-  let pConstrs = pSymbol "=" *> esepBy1 pConstr (pSymbol "|")
+  let pConstrs = pSpec '=' *> esepBy1 pConstr (pSpec '|')
   ((,) lhs <$> pConstrs)
    <|< pGADT lhs
    <|< pure (lhs, [])
@@ -510,7 +510,7 @@ pAPat :: P EPat
 pAPat =
       (do
          i <- pLIdentSym
-         (EAt i <$> (pSymbol "@" *> pAPat)) <|< pure (EVar i)
+         (EAt i <$> (pSpec '@' *> pAPat)) <|< pure (EVar i)
       )
   <|< (evar <$> pUQIdentSym <*> optional pUpdate)
   <|< pLit
@@ -560,7 +560,7 @@ pEqns = do
 pEqn :: (Ident -> Int -> Bool) -> P (Ident, Eqn)
 pEqn test = do
   (name, pats) <- pEqnLHS
-  alts <- pAlts (pSymbol "=")
+  alts <- pAlts (pSpec '=')
   guard (test name (length pats))
   pure (name, Eqn pats alts)
 
@@ -587,7 +587,7 @@ pAltsL sep =
   <|< ((\ e -> [([], e)]) <$> (sep *> pExpr))
 
 pAlt :: P () -> P EAlt
-pAlt sep = (,) <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr)
+pAlt sep = (,) <$> (pSpec '|' *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr)
 
 pWhere :: P EBind -> P [EBind]
 pWhere pb =
@@ -673,7 +673,7 @@ pUpdate = pSpec '{' *> esepBy pEField (pSpec ',') <* pSpec '}'
   where
     pEField = do
       fs <- (:) <$> pLIdentSym <*> many pSelect
-      EField fs <$> (pSymbol "=" *> pExpr) <|< pure (EFieldPun fs)
+      EField fs <$> (pSpec '=' *> pExpr) <|< pure (EFieldPun fs)
      <|<
       (EFieldWild <$ pSymbol "..")
 
@@ -706,7 +706,7 @@ pListish = do
        <|< (LFromThen e1 e2 <$ pSymbol "..")
        <|< pure (LList [e1,e2])
   (pSpec ',' *> pMore)
-   <|< (LCompr e1 <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')))
+   <|< (LCompr e1 <$> (pSpec '|' *> esepBy1 pStmt (pSpec ',')))
    <|< (LFromTo e1 <$> (pSymbol ".." *> pExpr))
    <|< (LFrom e1 <$ pSymbol "..")
    <|< pure (LList [e1])
@@ -729,8 +729,8 @@ pOperators oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
 
 pBind :: P EBind
 pBind = 
-      BPat <$> pPatNotVar <*> ((pSymbol "=" *> pExpr)
-                           <|< (EMultiIf <$> pAlts (pSymbol "=")))
+      BPat <$> pPatNotVar <*> ((pSpec '=' *> pExpr)
+                           <|< (EMultiIf <$> pAlts (pSpec '=')))
   <|< pClsBind
 
 pClsBind :: P EBind

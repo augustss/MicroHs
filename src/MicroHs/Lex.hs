@@ -93,7 +93,8 @@ lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
           file = tail $ init $ ws!!1   -- strip the initial and final '"' 
           loc' = SLoc file (read (ws!!0) - 1) 1
       in  lex loc' rs
-lex loc (c:cs@(d:_)) | (c == '!' || c == '~') && (d == '(' || d == '[' || isIdentChar d) =  -- XXX hacky way to make ~ a TSpec
+lex loc (c:cs@(d:_)) |   (c == '!' || c == '~') && (d == '(' || d == '[' || isIdentChar d)   -- XXX hacky way to make ~ a TSpec
+                      || (c == '|' || c == '=' || c == '@') && not (isOperChar d) = -- make |, =, @ reserved
   TSpec loc c : lex (addCol loc 1) cs
 lex loc (d:cs) | isOperChar d =
   case span isOperChar cs of
