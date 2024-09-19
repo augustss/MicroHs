@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.9.18.1
+version:             0.10.1.0
                      -- *** When changing the version number, also
                      -- *** run updateversion.sh.
                      -- *** Yeah, it stinks.
@@ -109,7 +109,9 @@ executable mhs
                        process      >= 1.6 && < 1.8,
                        directory    >= 1.2 && < 1.5,
                        text         >= 2.0 && < 2.3,
---
+-- Hackage does not accept 'mhs' as a valid Haskell compiler,
+-- so mcabal has a hack to recognize lines that start with
+-- '--MHS' as non-comments.
 --MHS  if impl(mhs)
 --MHS    hs-source-dirs:    mhs src paths
 --MHS    build-depends:     base         >= 0.1 && < 10.0,

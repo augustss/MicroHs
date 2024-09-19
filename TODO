@@ -38,4 +38,5 @@ Bugs:
 * Check for escaping skolemized variables
 * Type checking Data.Data
 * MonadFix (->)
-* No ambig test on export
+* Install a targets.conf?
+
