@@ -93,7 +93,7 @@ lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
           file = tail $ init $ ws!!1   -- strip the initial and final '"' 
           loc' = SLoc file (read (ws!!0) - 1) 1
       in  lex loc' rs
-lex loc (c:cs@(d:_)) | (c == '=' || c == '|' || c == '@' || c == '!' || c == '~') && not (isOperChar d) = -- handle reserved
+lex loc (c:cs@(d:_)) | isSpecSing c && not (isOperChar d) = -- handle reserved
   TSpec loc c : lex (addCol loc 1) cs
 lex loc (d:cs) | isOperChar d =
   case span isOperChar cs of
@@ -227,10 +227,29 @@ conv :: Int -> Int -> Int -> String -> (Char, Int, String)
 conv b k r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (k+1) (r * b + n) ds
 conv _ k r ds = (chr r, k, ds)
 
+-- These characters are single characters token, no matter what.
 isSpec :: Char -> Bool
-isSpec c = elem c specChars
-  where specChars :: String
-        specChars = "()[],{}`;"
+isSpec '(' = True
+isSpec ')' = True
+isSpec '[' = True
+isSpec ']' = True
+isSpec '{' = True
+isSpec '}' = True
+isSpec ',' = True
+isSpec ';' = True
+isSpec '`' = True
+isSpec _ = False
+
+-- These characters are single characters token,
+-- if not part of an operator.
+isSpecSing :: Char -> Bool
+isSpecSing '=' = True
+isSpecSing '|' = True
+isSpecSing '\\' = True
+isSpecSing '@' = True
+isSpecSing '!' = True
+isSpecSing '~' = True
+isSpecSing _ = False
 
 upperIdent :: SLoc -> SLoc -> [String] -> String -> [Token]
 --upperIdent l c qs acs | trace (show (l, c, qs, acs)) False = undefined

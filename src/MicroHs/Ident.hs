@@ -133,10 +133,32 @@ isConIdent i@(Ident _ t) =
   in  isUpper c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()"
 
 isOperChar :: Char -> Bool
-isOperChar c = elem c operChars
-  where operChars :: String
-        operChars = "@\\=+-:<>.!#$%^&*/|~?\x2237\x21d2\x2192\x2190\x2200"
---                                           ::    =>    ->    <- forall
+isOperChar '@' = True
+isOperChar '\\' = True
+isOperChar '=' = True
+isOperChar '+' = True
+isOperChar '-' = True
+isOperChar ':' = True
+isOperChar '<' = True
+isOperChar '>' = True
+isOperChar '.' = True
+isOperChar '!' = True
+isOperChar '#' = True
+isOperChar '$' = True
+isOperChar '%' = True
+isOperChar '^' = True
+isOperChar '&' = True
+isOperChar '*' = True
+isOperChar '/' = True
+isOperChar '|' = True
+isOperChar '~' = True
+isOperChar '?' = True
+isOperChar '\x2237' = True  -- ::
+isOperChar '\x21d2' = True  -- =>
+isOperChar '\x2192' = True  -- ->
+isOperChar '\x2190' = True  -- <-
+isOperChar '\x2200' = True  -- forall
+isOperChar _ = False
 
 isIdentChar :: Char -> Bool
 isIdentChar c = isLower_ c || isUpper c || isDigit c || c == '\''

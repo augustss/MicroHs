@@ -623,7 +623,7 @@ pExprApp = do
   pure $ maybe r (ESign r) mt
 
 pLam :: P Expr
-pLam = eLam <$> (pSymbol "\\" *> esome pAPat) <*> (pSRArrow *> pExpr)
+pLam = eLam <$> (pSpec '\\' *> esome pAPat) <*> (pSRArrow *> pExpr)
 
 pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword "of" *> pBlock pCaseArm)
