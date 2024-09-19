@@ -114,6 +114,7 @@ data Expr
   | ESectL Expr Ident
   | ESectR Ident Expr
   | EIf Expr Expr Expr
+  | EMultiIf EAlts
   | ESign Expr EType
   | ENegApp Expr
   | EUpdate Expr [EField]
@@ -346,6 +347,7 @@ instance HasLoc Expr where
   getSLoc (ESectL e _) = getSLoc e
   getSLoc (ESectR i _) = getSLoc i
   getSLoc (EIf e _ _) = getSLoc e
+  getSLoc (EMultiIf e) = getSLoc e
   getSLoc (ESign e _) = getSLoc e
   getSLoc (ENegApp e) = getSLoc e
   getSLoc (EUpdate e _) = getSLoc e
@@ -498,6 +500,7 @@ allVarsExpr' aexpr =
     ESectL e i -> (i :) . allVarsExpr' e
     ESectR i e -> (i :) . allVarsExpr' e
     EIf e1 e2 e3 -> allVarsExpr' e1 . allVarsExpr' e2 . allVarsExpr' e3
+    EMultiIf e -> allVarsAlts e
     EListish l -> allVarsListish l
     ESign e _ -> allVarsExpr' e
     ENegApp e -> allVarsExpr' e
@@ -698,6 +701,7 @@ ppExprR raw = ppE
         ESectL e i -> parens $ ppE e <+> ppIdent i
         ESectR i e -> parens $ ppIdent i <+> ppE e
         EIf e1 e2 e3 -> parens $ sep [text "if" <+> ppE e1, text "then" <+> ppE e2, text "else" <+> ppE e3]
+        EMultiIf e -> text "if" <+> ppAlts (text "->") e
         EListish l -> ppListish l
         ESign e t -> parens $ ppE e <+> text "::" <+> ppEType t
         ENegApp e -> text "-" <+> ppE e

@@ -250,9 +250,13 @@ upperIdent loc sloc qs acs =
 
 tIdent :: SLoc -> [String] -> String -> [Token] -> [Token]
 tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
+                       || kw == "if" && isBar ats                -- For MultiWayIf
                                  = ti : tBrace ats
                      | otherwise = ti : ats
   where
+    isBar (TIdent _ _ "|" : _) = True
+    isBar _ = False
+
     ti = TIdent loc qs kw
 
     tBrace ts@(TSpec _ '{' : _) = ts
@@ -344,6 +348,7 @@ lexStart ts =
 
 lexTopLS :: FilePath -> String -> LexState
 lexTopLS f s = LS $ layoutLS (lexStart $ lex (SLoc f 1 1) s) []
+  -- error $ show $ map showToken $ lex (SLoc f 1 1) s
 
 -----------
 

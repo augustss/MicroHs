@@ -583,8 +583,11 @@ pAlts sep = do
   
 pAltsL :: P () -> P [EAlt]
 pAltsL sep =
-      esome ((,) <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr))
+      esome (pAlt sep)
   <|< ((\ e -> [([], e)]) <$> (sep *> pExpr))
+
+pAlt :: P () -> P EAlt
+pAlt sep = (,) <$> (pSymbol "|" *> esepBy1 pStmt (pSpec ',')) <*> (sep *> pExpr)
 
 pWhere :: P EBind -> P [EBind]
 pWhere pb =
@@ -637,6 +640,7 @@ pIf :: P Expr
 pIf = EIf <$> (pKeyword "if" *> pExpr) <*>
               (eoptional (pSpec ';') *> pKeyword "then" *> pExpr) <*>
               (eoptional (pSpec ';') *> pKeyword "else" *> pExpr)
+  <|< EMultiIf <$> (EAlts <$> (pKeyword "if" *> pBlock (pAlt (pSymbol "->"))) <*> pure [])
 
 pQualDo :: P Ident
 pQualDo = do
@@ -725,7 +729,8 @@ pOperators oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
 
 pBind :: P EBind
 pBind = 
-      BPat         <$> (pPatNotVar <* pSymbol "=") <*> pExpr
+      BPat <$> pPatNotVar <*> ((pSymbol "=" *> pExpr)
+                           <|< (EMultiIf <$> pAlts (pSymbol "=")))
   <|< pClsBind
 
 pClsBind :: P EBind

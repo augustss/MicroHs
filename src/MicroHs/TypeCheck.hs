@@ -1667,6 +1667,11 @@ tcExprR mt ae =
           tSetRefType loc ref t2
           return (EIf e1' e2'' e3'')
 
+    -- Translate (if | a1; | a2 ...) into
+    --           (case [] of _ | a1; | a2 ...)
+    EMultiIf a ->
+      tcExpr mt $ ECase (EListish (LList [])) [(EVar (mkIdent "_"), a)]
+
     EListish (LList es) -> do
       te <- newUVar
       munify loc mt (tApp (tList loc) te)

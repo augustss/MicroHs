@@ -64,6 +64,7 @@ Differences:
    * IncoherentInstances
    * KindSignatures
    * MonoLocalBinds
+   * MultiWayIf
    * MultiParamTypeClasses
    * NamedFieldPuns
    * NegativeLiterals
