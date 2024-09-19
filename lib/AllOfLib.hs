@@ -3,6 +3,7 @@
 module AllOfLib(main) where
 -- Only used to save the compilation cache.
 import Control.Applicative
+import Control.Category
 import Control.DeepSeq
 import Control.Error
 import Control.Exception
