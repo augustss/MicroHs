@@ -8,7 +8,6 @@ module MicroHs.TargetConfig(
 
 import Prelude hiding(lex)
 import Control.Applicative
-import Control.Monad
 import Data.List
 import Text.ParserComb
 import MicroHs.Ident
@@ -71,12 +70,6 @@ ident = satisfyM "key" is
   where is (TIdent _ _ x) = Just x
         is _              = Nothing
 
-keyword :: String -> Parser ()
-keyword s = do
-  s' <- ident
-  guard (s == s')
-  pure ()
-
 key :: Parser String
 key = ident
 
@@ -89,7 +82,7 @@ targetName :: Parser String
 targetName = spec '[' *> key <* spec ']'
 
 keyValue :: Parser (String, String)
-keyValue = (,) <$> key <*> (keyword "=" *> value)
+keyValue = (,) <$> key <*> (spec '=' *> value)
 
 keyValues :: Parser [(String,String)]
 keyValues = keyValue `esepBy` nl

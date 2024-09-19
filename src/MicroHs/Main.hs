@@ -61,7 +61,7 @@ main = do
                 _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-LPATH] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [ModuleName...]"
+usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-LPATH] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [ModuleName...]"
 
 -- Drop trailing '/foo'
 dropTrailing :: Int -> FilePath -> FilePath
@@ -108,7 +108,7 @@ readTargets flags dir = do
        tgFile <- readFile tgFilePath
        case parseTargets tgFilePath tgFile of
          Left e -> do
-           putStrLn $ "Can't read " ++ tgFilePath
+           putStrLn $ "Cannot parse " ++ tgFilePath
            when (verbose flags > 0) $
              putStrLn e
            return []
