@@ -130,7 +130,7 @@ headIdent (Ident _ i) = head i
 isConIdent :: Ident -> Bool
 isConIdent i@(Ident _ t) =
   let c = headIdent i
-  in  isUpper c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()"
+  in  isUpper c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()" || t == pack "->"
 
 isOperChar :: Char -> Bool
 isOperChar '@' = True
