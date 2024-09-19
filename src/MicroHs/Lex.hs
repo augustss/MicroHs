@@ -254,7 +254,7 @@ tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
                                  = ti : tBrace ats
                      | otherwise = ti : ats
   where
-    isBar (TIdent _ _ "|" : _) = True
+    isBar (TSpec _ '|' : _) = True
     isBar _ = False
 
     ti = TIdent loc qs kw
