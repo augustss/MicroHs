@@ -31,6 +31,7 @@ import Data.Foldable
 import Data.Fractional
 import Data.Function
 import Data.Functor
+import Data.Functor.Classes
 import Data.Functor.Const
 import Data.Functor.Identity
 import Data.IOArray
