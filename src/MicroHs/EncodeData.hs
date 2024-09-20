@@ -137,9 +137,15 @@ caseTree n tup lo hi pes dflt =
     [] -> dflt
     [(i, xs, e)] | hi - lo == 1 -> match tup xs e
                  | otherwise    -> encIf (eqInt n i) (match tup xs e) dflt
-{- This only slows things down slightly
+{-
+    -- Strangely, this slows things down.
+    -- Why?  A 3-way branch should be better than a 2-way.
     [(i, xs, e), (_, xs', e')]
                  | hi - lo == 2 -> encIf (eqInt n i) (match tup xs e) (match tup xs' e')
+      let !(pesl, (i, xs, e) : pesh) = splitAt (length pes `quot` 2) pes
+      in  encTri (cmpInt n i) (caseTree n tup lo i pesl dflt)
+                              (match tup xs e)
+                              (caseTree n tup (i+1) hi pesh dflt)
 -}
     _ ->
       let !(pesl, pesh@((i, _, _):_)) = splitAt (length pes `quot` 2) pes
@@ -151,6 +157,11 @@ caseTree n tup lo hi pes dflt =
    ltInt x i = app2 (Lit (LPrim "<")) x (Lit (LInt i))
    match :: Exp -> [Ident] -> Exp -> Exp
    match e is rhs = App e $ lams is rhs
+{-
+   cmpInt :: Exp -> Int -> Exp
+   cmpInt x i = app2 (Lit (LPrim "icmp")) x (Lit (LInt i))
+   encTri o l e h = app3 o l e h
+-}
 
 conNo :: Con -> Int
 conNo (ConData cks i _) = length $ takeWhile ((/= i) . fst) cks
