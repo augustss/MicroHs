@@ -185,6 +185,8 @@ primIntCompare :: forall a . Int -> Int -> Ordering
 primIntCompare  = primitive "icmp"
 primCharCompare :: forall a . Char -> Char -> Ordering
 primCharCompare  = primitive "icmp"
+primWordCompare :: forall a . Word -> Word -> Ordering
+primWordCompare  = primitive "ucmp"
 
 primStringEQ  :: [Char] -> [Char] -> Bool
 primStringEQ  = primitive "sequal"

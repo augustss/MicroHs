@@ -74,6 +74,7 @@ instance Eq Word where
   (/=) = primWordNE
 
 instance Ord Word where
+  compare = primWordCompare
   (<)  = primWordLT
   (<=) = primWordLE
   (>)  = primWordGT
@@ -113,7 +114,7 @@ bin8 op (W8 x) (W8 y) = w8 (x `op` y)
 bini8 :: (Word -> Int -> Word) -> (Word8 -> Int -> Word8)
 bini8 op (W8 x) y = w8 (x `op` y)
 
-cmp8 :: (Word -> Word -> Bool) -> (Word8 -> Word8 -> Bool)
+cmp8 :: (Word -> Word -> a) -> (Word8 -> Word8 -> a)
 cmp8 op (W8 x) (W8 y) = x `op` y
 
 una8 :: (Word -> Word) -> (Word8 -> Word8)
@@ -166,6 +167,7 @@ instance Eq Word8 where
   (/=) = cmp8 primWordNE
 
 instance Ord Word8 where
+  compare = cmp8 primWordCompare
   (<)  = cmp8 primWordLT
   (<=) = cmp8 primWordLE
   (>)  = cmp8 primWordGT
@@ -202,7 +204,7 @@ bin16 op (W16 x) (W16 y) = w16 (x `op` y)
 bini16 :: (Word -> Int -> Word) -> (Word16 -> Int -> Word16)
 bini16 op (W16 x) y = w16 (x `op` y)
 
-cmp16 :: (Word -> Word -> Bool) -> (Word16 -> Word16 -> Bool)
+cmp16 :: (Word -> Word -> a) -> (Word16 -> Word16 -> a)
 cmp16 op (W16 x) (W16 y) = x `op` y
 
 una16 :: (Word -> Word) -> (Word16 -> Word16)
@@ -255,6 +257,7 @@ instance Eq Word16 where
   (/=) = cmp16 primWordNE
 
 instance Ord Word16 where
+  compare = cmp16 primWordCompare
   (<)  = cmp16 primWordLT
   (<=) = cmp16 primWordLE
   (>)  = cmp16 primWordGT
@@ -291,7 +294,7 @@ bin32 op (W32 x) (W32 y) = w32 (x `op` y)
 bini32 :: (Word -> Int -> Word) -> (Word32 -> Int -> Word32)
 bini32 op (W32 x) y = w32 (x `op` y)
 
-cmp32 :: (Word -> Word -> Bool) -> (Word32 -> Word32 -> Bool)
+cmp32 :: (Word -> Word -> a) -> (Word32 -> Word32 -> a)
 cmp32 op (W32 x) (W32 y) = x `op` y
 
 una32 :: (Word -> Word) -> (Word32 -> Word32)
@@ -344,6 +347,7 @@ instance Eq Word32 where
   (/=) = cmp32 primWordNE
 
 instance Ord Word32 where
+  compare = cmp32 primWordCompare
   (<)  = cmp32 primWordLT
   (<=) = cmp32 primWordLE
   (>)  = cmp32 primWordGT
@@ -380,7 +384,7 @@ bin64 op (W64 x) (W64 y) = w64 (x `op` y)
 bini64 :: (Word -> Int -> Word) -> (Word64 -> Int -> Word64)
 bini64 op (W64 x) y = w64 (x `op` y)
 
-cmp64 :: (Word -> Word -> Bool) -> (Word64 -> Word64 -> Bool)
+cmp64 :: (Word -> Word -> a) -> (Word64 -> Word64 -> a)
 cmp64 op (W64 x) (W64 y) = x `op` y
 
 una64 :: (Word -> Word) -> (Word64 -> Word64)
@@ -433,6 +437,7 @@ instance Eq Word64 where
   (/=) = cmp64 primWordNE
 
 instance Ord Word64 where
+  compare = cmp64 primWordCompare
   (<)  = cmp64 primWordLT
   (<=) = cmp64 primWordLE
   (>)  = cmp64 primWordGT

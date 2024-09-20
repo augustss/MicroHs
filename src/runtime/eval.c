@@ -172,7 +172,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_K2, T_K3, T_K4, T_CCB,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
-                T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE,
+                T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE, T_ICMP, T_UCMP,
                 T_FPADD, T_FP2P, T_FPNEW, T_FPFIN,
                 T_TOPTR, T_TOINT, T_TODBL, T_TOFUNPTR,
                 T_BININT2, T_BININT1, T_UNINT1,
@@ -718,7 +718,8 @@ struct {
   { "sequal", T_EQUAL, T_EQUAL },
   { "compare", T_COMPARE },
   { "scmp", T_COMPARE },
-  { "icmp", T_COMPARE },
+  { "icmp", T_ICMP },
+  { "ucmp", T_UCMP },
   { "rnf", T_RNF },
   { "fromUTF8", T_BSFROMUTF8 },
   { "toUTF8", T_BSTOUTF8 },
@@ -2124,6 +2125,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_ULE: putsb("u<=", f); break;
   case T_UGT: putsb("u>", f); break;
   case T_UGE: putsb("u>=", f); break;
+  case T_ICMP: putsb("icmp", f); break;
+  case T_UCMP: putsb("ucmp", f); break;
   case T_FPADD: putsb("fp+", f); break;
   case T_FP2P: putsb("fp2p", f); break;
   case T_FPNEW: putsb("fpnew", f); break;
@@ -3020,10 +3023,12 @@ evali(NODEPTR an)
   case T_LE:
   case T_GT:
   case T_GE:
+  case T_ICMP:
   case T_ULT:
   case T_ULE:
   case T_UGT:
   case T_UGE:
+  case T_UCMP:
     CHECK(2);
     n = ARG(TOP(1));
     if (GETTAG(n) == T_INT) {
@@ -3371,10 +3376,12 @@ evali(NODEPTR an)
       case T_ULE:   GOIND(xu <= yu ? combTrue : combFalse);
       case T_UGT:   GOIND(xu >  yu ? combTrue : combFalse);
       case T_UGE:   GOIND(xu >= yu ? combTrue : combFalse);
+      case T_UCMP:  GOIND(xu <  yu ? combLT   : xu > yu ? combGT : combEQ);
       case T_LT:    GOIND((value_t)xu <  (value_t)yu ? combTrue : combFalse);
       case T_LE:    GOIND((value_t)xu <= (value_t)yu ? combTrue : combFalse);
       case T_GT:    GOIND((value_t)xu >  (value_t)yu ? combTrue : combFalse);
       case T_GE:    GOIND((value_t)xu >= (value_t)yu ? combTrue : combFalse);
+      case T_ICMP:  GOIND((value_t)xu <  (value_t)yu ? combLT   : (value_t)xu > (value_t)yu ? combGT : combEQ);
 
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
