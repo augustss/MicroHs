@@ -1,6 +1,12 @@
+{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE DeriveFunctor #-}
+
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Text.ParserCombinators.ReadP
+-- Module      :  GHC.Internal.Text.ParserCombinators.ReadP
 -- Copyright   :  (c) The University of Glasgow 2002
 -- License     :  BSD-style (see the file libraries/base/LICENSE)
 --
@@ -65,20 +71,26 @@ module Text.ParserCombinators.ReadP
   -- $properties
   )
  where
-
-import Control.Applicative
-import Control.Alternative
+import Prelude()
+import Primitives
+import Control.Applicative hiding (optional, many)
 import Control.Error
 import Control.Monad
+import Control.Monad.Fail
 import Data.Bool
 import Data.Char
 import Data.Eq
 import Data.Function
+import Data.Functor
 import Data.Int
-import Data.List
 import Data.Num
-import Data.Tuple
-
+import Data.List
+import Data.List.NonEmpty
+import Data.Monoid
+{-
+import Data.List ( replicate, null )
+import Control.Monad.Fail
+-}
 infixr 5 +++, <++
 
 ------------------------------------------------------------------------
@@ -100,34 +112,39 @@ data P a
   | Look (String -> P a)
   | Fail
   | Result a (P a)
-  | Final [(a,String)]
---  deriving Functor -- ^ @since 4.8.0.0
+  | Final (NonEmpty (a,String))
+--  deriving Functor -- ^ @since base-4.8.0.0
+
 instance Functor P where
-  fmap f (Get p) = Get (\ c -> fmap f (p c))
+  fmap f (Get g) = Get (fmap f . g)
+  fmap f (Look g) = Look (fmap f . g)
+  fmap _ Fail = Fail
+  fmap f (Result a pa) = Result (f a) (fmap f pa)
+  fmap f (Final xs) = Final (fmap (\ (a, s) -> (f a, s)) xs)
 
 -- Monad, MonadPlus
 
--- | @since 4.5.0.0
+-- | @since base-4.5.0.0
 instance Applicative P where
   pure x = Result x Fail
   (<*>) = ap
 
--- | @since 2.01
+-- | @since base-2.01
 instance MonadPlus P
 
--- | @since 2.01
+-- | @since base-2.01
 instance Monad P where
   (Get f)         >>= k = Get (\c -> f c >>= k)
   (Look f)        >>= k = Look (\s -> f s >>= k)
   Fail            >>= _ = Fail
   (Result x p)    >>= k = k x <|> (p >>= k)
-  (Final (r:rs))  >>= k = final [ys' | (x,s) <- (r:rs), ys' <- run (k x) s]
+  (Final (r:|rs)) >>= k = final [ys' | (x,s) <- (r:rs), ys' <- run (k x) s]
 
--- | @since 4.9.0.0
+-- | @since base-4.9.0.0
 instance MonadFail P where
   fail _ = Fail
 
--- | @since 4.5.0.0
+-- | @since base-4.5.0.0
 instance Alternative P where
   empty = Fail
 
@@ -145,11 +162,15 @@ instance Alternative P where
   -- two finals are combined
   -- final + look becomes one look and one final (=optimization)
   -- final + sthg else becomes one look and one final
-  Final r       <|> Final t = Final (r ++ t)
-  Final (r:rs)  <|> Look f  = Look (\s -> Final (r:(rs ++ run (f s) s)))
-  Final (r:rs)  <|> p       = Look (\s -> Final (r:(rs ++ run p s)))
-  Look f        <|> Final r = Look (\s -> Final (run (f s) s ++ r))
-  p             <|> Final r = Look (\s -> Final (run p s ++ r))
+  Final r       <|> Final t = Final (r <> t)
+  Final (r:|rs) <|> Look f  = Look (\s -> Final (r:|(rs ++ run (f s) s)))
+  Final (r:|rs) <|> p       = Look (\s -> Final (r:|(rs ++ run p s)))
+  Look f        <|> Final r = Look (\s -> Final (case run (f s) s of
+                                []     -> r
+                                (x:xs) -> (x:|xs) <> r))
+  p             <|> Final r = Look (\s -> Final (case run p s of
+                                []     -> r
+                                (x:xs) -> (x:|xs) <> r))
 
   -- two looks are combined (=optimization)
   -- look + sthg else floats upwards
@@ -162,44 +183,44 @@ instance Alternative P where
 
 newtype ReadP a = R (forall b . (a -> P b) -> P b)
 
--- | @since 2.01
+-- | @since base-2.01
 instance Functor ReadP where
   fmap h (R f) = R (\k -> f (k . h))
 
--- | @since 4.6.0.0
+-- | @since base-4.6.0.0
 instance Applicative ReadP where
     pure x = R (\k -> k x)
     (<*>) = ap
     -- liftA2 = liftM2
 
--- | @since 2.01
+-- | @since base-2.01
 instance Monad ReadP where
-  R m >>= f = R (\k -> m (\a -> let { R m' = f a } in m' k))
+  R m >>= f = R (\k -> m (\a -> let R m' = f a in m' k))
 
--- | @since 4.9.0.0
+-- | @since base-4.9.0.0
 instance MonadFail ReadP where
   fail _    = R (\_ -> Fail)
 
--- | @since 4.6.0.0
+-- | @since base-4.6.0.0
 instance Alternative ReadP where
   empty = pfail
   (<|>) = (+++)
 
--- | @since 2.01
+-- | @since base-2.01
 instance MonadPlus ReadP
 
 -- ---------------------------------------------------------------------------
 -- Operations over P
 
-final :: forall a . [(a,String)] -> P a
-final [] = Fail
-final rs = Final rs
+final :: [(a,String)] -> P a
+final []     = Fail
+final (r:rs) = Final (r:|rs)
 
-run :: forall a . P a -> ReadS a
+run :: P a -> ReadS a
 run (Get f)         (c:s) = run (f c) s
 run (Look f)        s     = run (f s) s
 run (Result x p)    s     = (x,s) : run p s
-run (Final rs)      _     = rs
+run (Final (r:|rs)) _     = (r:rs)
 run _               _     = []
 
 -- ---------------------------------------------------------------------------
@@ -215,44 +236,46 @@ look :: ReadP String
 --   consuming it.
 look = R Look
 
-pfail :: forall a . ReadP a
+pfail :: ReadP a
 -- ^ Always fails.
 pfail = R (\_ -> Fail)
 
-(+++) :: forall a . ReadP a -> ReadP a -> ReadP a
+(+++) :: ReadP a -> ReadP a -> ReadP a
 -- ^ Symmetric choice.
 R f1 +++ R f2 = R (\k -> f1 k <|> f2 k)
 
-(<++) :: forall a . ReadP a -> ReadP a -> ReadP a
+(<++) :: ReadP a -> ReadP a -> ReadP a
 -- ^ Local, exclusive, left-biased choice: If left parser
 --   locally produces any result at all, then right parser is
 --   not used.
-R f0 <++ q =
+(<++) (R f0) q =
   do s <- look
-     probe (f0 return) s (0::Int)
+     probe (f0 return) s 0
  where
-  probe (Get f)        (c:s) n = probe (f c) s (n + (1::Int))
+  probe (Get f)        (c:s) n = probe (f c) s (n + 1)
   probe (Look f)       s     n = probe (f s) s n
   probe p@(Result _ _) _     n = discard n >> R (p >>=)
   probe (Final r)      _     _ = R (Final r >>=)
   probe _              _     _ = q
 
-  discard n = if n == 0::Int then return () else get >> discard (n - (1::Int))
+  discard 0 = return ()
+  discard n = get >> discard (n - 1)
 
-gather :: forall a . ReadP a -> ReadP (String, a)
+gather :: ReadP a -> ReadP (String, a)
 -- ^ Transforms a parser into one that does the same, but
 --   in addition returns the exact characters read.
 --   IMPORTANT NOTE: 'gather' gives a runtime error if its first argument
 --   is built using any occurrences of readS_to_P.
 gather (R m)
   = R (\k -> gath id (m (\a -> return (\s -> k (s,a)))))
+
  where
-  gath :: forall b . (String -> String) -> P (String -> P b) -> P b
+  gath :: (String -> String) -> P (String -> P b) -> P b
   gath l (Get f)      = Get (\c -> gath (l.(c:)) (f c))
   gath _ Fail         = Fail
   gath l (Look f)     = Look (\s -> gath l (f s))
   gath l (Result k p) = k (l []) <|> gath l p
-  gath _ (Final _)    = error "do not use readS_to_P in gather!"
+  gath _ (Final _)    = errorWithoutStackTrace "do not use readS_to_P in gather!"
 
 -- ---------------------------------------------------------------------------
 -- Derived operations
@@ -300,7 +323,7 @@ munch1 p =
      if p c then do s <- munch p; return (c:s)
             else pfail
 
-choice :: forall a . [ReadP a] -> ReadP a
+choice :: [ReadP a] -> ReadP a
 -- ^ Combines all parsers in the specified list.
 choice []     = pfail
 choice [p]    = p
@@ -315,12 +338,12 @@ skipSpaces =
   skip (c:s) | isSpace c = do _ <- get; skip s
   skip _                 = return ()
 
-count :: forall a . Int -> ReadP a -> ReadP [a]
+count :: Int -> ReadP a -> ReadP [a]
 -- ^ @count n p@ parses @n@ occurrences of @p@ in sequence. A list of
 --   results is returned.
 count n p = sequence (replicate n p)
 
-between :: forall a open close . ReadP open -> ReadP close -> ReadP a -> ReadP a
+between :: ReadP open -> ReadP close -> ReadP a -> ReadP a
 -- ^ @between open close p@ parses @open@, followed by @p@ and finally
 --   @close@. Only the value of @p@ is returned.
 between open close p = do _ <- open
@@ -328,66 +351,66 @@ between open close p = do _ <- open
                           _ <- close
                           return x
 
-option :: forall a . a -> ReadP a -> ReadP a
+option :: a -> ReadP a -> ReadP a
 -- ^ @option x p@ will either parse @p@ or return @x@ without consuming
 --   any input.
 option x p = p +++ return x
 
-optional :: forall a . ReadP a -> ReadP ()
+optional :: ReadP a -> ReadP ()
 -- ^ @optional p@ optionally parses @p@ and always returns @()@.
 optional p = (p >> return ()) +++ return ()
 
-many :: forall a . ReadP a -> ReadP [a]
+many :: ReadP a -> ReadP [a]
 -- ^ Parses zero or more occurrences of the given parser.
 many p = return [] +++ many1 p
 
-many1 :: forall a . ReadP a -> ReadP [a]
+many1 :: ReadP a -> ReadP [a]
 -- ^ Parses one or more occurrences of the given parser.
 many1 p = liftM2 (:) p (many p)
 
-skipMany :: forall a . ReadP a -> ReadP ()
+skipMany :: ReadP a -> ReadP ()
 -- ^ Like 'many', but discards the result.
 skipMany p = many p >> return ()
 
-skipMany1 :: forall a . ReadP a -> ReadP ()
+skipMany1 :: ReadP a -> ReadP ()
 -- ^ Like 'many1', but discards the result.
 skipMany1 p = p >> skipMany p
 
-sepBy :: forall a sep . ReadP a -> ReadP sep -> ReadP [a]
+sepBy :: ReadP a -> ReadP sep -> ReadP [a]
 -- ^ @sepBy p sep@ parses zero or more occurrences of @p@, separated by @sep@.
 --   Returns a list of values returned by @p@.
 sepBy p sep = sepBy1 p sep +++ return []
 
-sepBy1 :: forall a sep . ReadP a -> ReadP sep -> ReadP [a]
+sepBy1 :: ReadP a -> ReadP sep -> ReadP [a]
 -- ^ @sepBy1 p sep@ parses one or more occurrences of @p@, separated by @sep@.
 --   Returns a list of values returned by @p@.
 sepBy1 p sep = liftM2 (:) p (many (sep >> p))
 
-endBy :: forall a sep . ReadP a -> ReadP sep -> ReadP [a]
+endBy :: ReadP a -> ReadP sep -> ReadP [a]
 -- ^ @endBy p sep@ parses zero or more occurrences of @p@, separated and ended
 --   by @sep@.
-endBy p sep = many (do { x <- p ; _ <- sep ; return x})
+endBy p sep = many (do x <- p ; _ <- sep ; return x)
 
-endBy1 :: forall a sep . ReadP a -> ReadP sep -> ReadP [a]
+endBy1 :: ReadP a -> ReadP sep -> ReadP [a]
 -- ^ @endBy p sep@ parses one or more occurrences of @p@, separated and ended
 --   by @sep@.
-endBy1 p sep = many1 (do { x <- p ; _ <- sep ; return x})
+endBy1 p sep = many1 (do x <- p ; _ <- sep ; return x)
 
-chainr :: forall a . ReadP a -> ReadP (a -> a -> a) -> a -> ReadP a
+chainr :: ReadP a -> ReadP (a -> a -> a) -> a -> ReadP a
 -- ^ @chainr p op x@ parses zero or more occurrences of @p@, separated by @op@.
 --   Returns a value produced by a /right/ associative application of all
 --   functions returned by @op@. If there are no occurrences of @p@, @x@ is
 --   returned.
 chainr p op x = chainr1 p op +++ return x
 
-chainl :: forall a . ReadP a -> ReadP (a -> a -> a) -> a -> ReadP a
+chainl :: ReadP a -> ReadP (a -> a -> a) -> a -> ReadP a
 -- ^ @chainl p op x@ parses zero or more occurrences of @p@, separated by @op@.
 --   Returns a value produced by a /left/ associative application of all
 --   functions returned by @op@. If there are no occurrences of @p@, @x@ is
 --   returned.
 chainl p op x = chainl1 p op +++ return x
 
-chainr1 :: forall a . ReadP a -> ReadP (a -> a -> a) -> ReadP a
+chainr1 :: ReadP a -> ReadP (a -> a -> a) -> ReadP a
 -- ^ Like 'chainr', but parses one or more occurrences of @p@.
 chainr1 p op = scan
   where scan   = p >>= rest
@@ -396,7 +419,7 @@ chainr1 p op = scan
                     return (f x y)
                  +++ return x
 
-chainl1 :: forall a . ReadP a -> ReadP (a -> a -> a) -> ReadP a
+chainl1 :: ReadP a -> ReadP (a -> a -> a) -> ReadP a
 -- ^ Like 'chainl', but parses one or more occurrences of @p@.
 chainl1 p op = p >>= rest
   where rest x = do f <- op
@@ -404,7 +427,7 @@ chainl1 p op = p >>= rest
                     rest (f x y)
                  +++ return x
 
-manyTill :: forall a end . ReadP a -> ReadP end -> ReadP [a]
+manyTill :: ReadP a -> ReadP end -> ReadP [a]
 -- ^ @manyTill p end@ parses zero or more occurrences of @p@, until @end@
 --   succeeds. Returns a list of values returned by @p@.
 manyTill p end = scan
@@ -413,16 +436,17 @@ manyTill p end = scan
 -- ---------------------------------------------------------------------------
 -- Converting between ReadP and Read
 
-readP_to_S :: forall a . ReadP a -> ReadS a
+readP_to_S :: ReadP a -> ReadS a
 -- ^ Converts a parser into a Haskell ReadS-style function.
 --   This is the main way in which you can \"run\" a 'ReadP' parser:
 --   the expanded type is
 -- @ readP_to_S :: ReadP a -> String -> [(a,String)] @
 readP_to_S (R f) = run (f return)
 
-readS_to_P :: forall a . ReadS a -> ReadP a
+readS_to_P :: ReadS a -> ReadP a
 -- ^ Converts a Haskell ReadS-style function into a parser.
 --   Warning: This introduces local backtracking in the resulting
 --   parser, and therefore a possible inefficiency.
 readS_to_P r =
   R (\k -> Look (\s -> final [bs'' | (a,s') <- r s, bs'' <- run (k a) s']))
+

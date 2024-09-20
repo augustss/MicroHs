@@ -98,38 +98,30 @@ module Data.List.NonEmpty (
    , nonEmpty    -- :: [a] -> Maybe (NonEmpty a)
    , xor         -- :: NonEmpty Bool -> Bool
    ) where
+import Prelude()
 
-
-import           Prelude             hiding (break, cycle, drop, dropWhile,
-                                      filter, foldl, foldr, head, init, iterate,
-                                      last, length, map, repeat, reverse,
-                                      scanl, scanl1, scanr, scanr1, span,
-                                      splitAt, tail, take, takeWhile,
-                                      unzip, zip, zipWith, (!!), Applicative(..))
-import qualified Prelude
-
-import           Control.Applicative (Applicative (..), Alternative (many))
-
-{- Original from base-4.20.0.1
-import           GHC.Internal.Data.Foldable       hiding (length, toList)
-import qualified GHC.Internal.Data.Foldable       as Foldable
-import           GHC.Internal.Data.Function       (on)
-import qualified GHC.Internal.Data.List           as List
-import           GHC.Internal.Data.Ord            (comparing)
-import           GHC.Internal.Base            (NonEmpty(..))
-import           GHC.Internal.Stack.Types     (HasCallStack)
--}
------ MHS replacement
-import Control.Monad(ap, liftM2)
-import Data.Ord(comparing)
-import Data.Function(on)
-import qualified Data.List as List
-import GHC.Stack(HasCallStack)
-import Data.List.NonEmpty_Type
+import Control.Applicative
+import Control.DeepSeq
+import Control.Error
+import Control.Monad
+import Data.Bool
+import Data.Eq
 import Data.Foldable hiding (length, toList)
 import qualified Data.Foldable as Foldable
+import Data.Function
+import Data.Functor
+import Data.Int
+import qualified Data.List as List
+import Data.List_Type
+import Data.List.NonEmpty_Type
+import Data.Num
+import Data.Maybe
+import Data.Monoid
+import Data.Ord
 import Data.Traversable
-import Control.DeepSeq
+import Data.Tuple
+import GHC.Stack(HasCallStack)
+import Text.Show
 
 {- In Data.List.NonEmpty_Type
 infixr 5 :|
@@ -184,7 +176,7 @@ infixr 5 <|
 
 -- | Number of elements in 'NonEmpty' list.
 length :: NonEmpty a -> Int
-length (_ :| xs) = 1 + Prelude.length xs
+length (_ :| xs) = 1 + List.length xs
 
 -- | Compute n-ary logic exclusive OR operation on 'NonEmpty' list.
 xor :: NonEmpty Bool -> Bool
@@ -345,8 +337,8 @@ inits1 =
   -- * The only empty element of `inits xs` is the first one (by the definition of `inits`)
   -- * Therefore, if we take all but the first element of `inits xs` i.e.
   --   `tail (inits xs)`, we have a nonempty list of nonempty lists
-  fromList . Prelude.map fromList . List.drop 1 . List.inits . Foldable.toList
---  fromList . Prelude.map fromList . List.drop 1 . List.inits . toList
+  fromList . List.map fromList . List.drop 1 . List.inits . Foldable.toList
+--  fromList . List.map fromList . List.drop 1 . List.inits . toList
 
 -- | The 'tails' function takes a stream @xs@ and returns all the
 -- suffixes of @xs@, starting with the longest. The result is 'NonEmpty'
@@ -377,8 +369,8 @@ tails1 =
   -- * The only empty element of `tails xs` is the last one (by the definition of `tails`)
   -- * Therefore, if we take all but the last element of `tails xs` i.e.
   --   `init (tails xs)`, we have a nonempty list of nonempty lists
---  fromList . Prelude.map fromList . List.init . List.tails . Foldable.toList
-  fromList . Prelude.map fromList . List.init . List.tails . toList
+--  fromList . List.map fromList . List.init . List.tails . Foldable.toList
+  fromList . List.map fromList . List.init . List.tails . toList
 
 -- | @'insert' x xs@ inserts @x@ into the last position in @xs@ where it
 -- is still less than or equal to the next element. In particular, if the

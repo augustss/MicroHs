@@ -17,7 +17,6 @@ import Data.Ord
 import Data.Ratio_Type
 import Data.Real
 import Numeric
-import Text.Read
 import Text.Show
 
 --------------------------------------------------------------------------------
@@ -63,8 +62,10 @@ instance Real Int8 where
 instance Show Int8 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Int8 where
   readsPrec = readIntegral
+-}
 
 instance Enum Int8 where
   succ x = x + 1
@@ -151,8 +152,10 @@ instance Real Int16 where
 instance Show Int16 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Int16 where
   readsPrec = readIntegral
+-}
 
 instance Enum Int16 where
   succ x = x + 1
@@ -239,8 +242,10 @@ instance Real Int32 where
 instance Show Int32 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Int32 where
   readsPrec = readIntegral
+-}
 
 instance Enum Int32 where
   succ x = x + 1
@@ -325,8 +330,10 @@ instance Real Int64 where
 instance Show Int64 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Int64 where
   readsPrec = readIntegral
+-}
 
 instance Enum Int64 where
   succ x = x + 1

@@ -1,4 +1,5 @@
 module Data.Complex(module Data.Complex) where
+import Control.DeepSeq
 import Data.Typeable
 
 infix 6 :+
@@ -136,3 +137,6 @@ instance forall a . (RealFloat a) => Floating (Complex a) where
       , v <- sin (b/2)
       , w <- -2*v*v = (u*w + u + w) :+ (u+1)*sin b
       | otherwise = exp x - 1
+
+instance (NFData a) => NFData (Complex a) where
+  rnf (x :+ y) = rnf x `seq` rnf y `seq` ()

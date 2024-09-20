@@ -211,9 +211,11 @@ instance Monad Maybe where
   Just a  >>= f = f a
 -}
 
-class (Monad m) => MonadPlus m where
+class (Alternative m, Monad m) => MonadPlus m where
   mzero :: forall a . m a
+  mzero = empty
   mplus :: forall a . m a -> m a -> m a
+  mplus = (<|>)
 
 instance MonadPlus [] where
   mzero = []

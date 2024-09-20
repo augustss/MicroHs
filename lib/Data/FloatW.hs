@@ -20,8 +20,6 @@ import Data.RealFloat
 import Data.RealFrac
 import Data.Num
 import Data.Word
-import Text.Read
-import Text.Read.Numeric
 import Text.Show
 
 --
@@ -66,8 +64,10 @@ instance Ord FloatW where
 instance Show FloatW where
   show = primFloatWShow
 
+{- in Text.Read.Internal
 instance Read FloatW where
   readsPrec _ = readSigned $ \ r -> [ (primFloatWRead s, t) | (s@(c:_), t) <- lex r, isDigit c ]
+-}
 
 instance Real FloatW where
   toRational x | isNaN x = rationalNaN

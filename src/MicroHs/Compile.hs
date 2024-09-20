@@ -119,8 +119,10 @@ compileModuleCached flags impt mn = do
       case impt of
         ImpBoot -> compileBootModule flags mn
         ImpNormal -> do
-          when (verbosityGT flags 1) $
-            liftIO $ putStrLn $ "importing " ++ showIdent mn
+          when (verbosityGT flags 1) $ do
+            ms <- gets getWorking
+            putStrLnInd $ "[from " ++ head (map showIdent ms ++ ["-"]) ++ "]"
+            putStrLnInd $ "importing " ++ showIdent mn
           mres <- liftIO (readModulePath flags ".hs" mn)
           case mres of
             Nothing -> findPkgModule flags mn
@@ -129,8 +131,13 @@ compileModuleCached flags impt mn = do
               compileModule flags ImpNormal mn pathfn file
     Just tm -> do
       when (verbosityGT flags 1) $
-        liftIO $ putStrLn $ "importing cached " ++ showIdent mn
+        putStrLnInd $ "importing cached " ++ showIdent mn
       return (tm, noSymbols, 0)
+
+putStrLnInd :: String -> StateIO Cache ()
+putStrLnInd msg = do
+  ms <- gets getWorking
+  liftIO $ putStrLn $ map (const ' ') ms ++ msg
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -138,7 +145,7 @@ noSymbols = (stEmpty, stEmpty)
 compileBootModule :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Symbols, Time)
 compileBootModule flags mn = do
   when (verbosityGT flags 0) $
-    liftIO $ putStrLn $ "importing boot " ++ showIdent mn
+    putStrLnInd $ "importing boot " ++ showIdent mn
   mres <- liftIO (readModulePath flags ".hs-boot" mn)
   case mres of
     Nothing -> error $ "boot module not found: " ++ showIdent mn
@@ -195,7 +202,7 @@ compileModule flags impt mn pathfn file = do
   when (verbosityGT flags 4) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   when (verbosityGT flags 0) $
-    liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++
+    putStrLnInd $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++
             "ms (" ++ show tParse ++ " + " ++ show tTCDesug ++ " + " ++ show tAbstract ++ ")"
   when (loading flags && mn /= mkIdent "Interactive" && not (verbosityGT flags 0)) $
     liftIO $ putStrLn $ "loaded " ++ showIdent mn

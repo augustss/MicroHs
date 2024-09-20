@@ -8,12 +8,25 @@ module Control.DeepSeq (
   rnfNoErr,
   rnfErr,
 ) where
+import Prelude()
 import Primitives(primRnfErr, primRnfNoErr)
-import Data.Complex
+import Control.Applicative
+import Control.Monad
+import Data.Bool
+import Data.Char
+import Data.Double
+import Data.Either
+import Data.Float
+import Data.Function
 import Data.Int
-import Data.Word
+import Data.Integer
+import Data.List
+import Data.Maybe
+import Data.Ord
+import Data.Proxy
 import Data.Ratio
 import Data.Tuple
+import Data.Word
 
 rnfNoErr :: forall a . a -> ()
 rnfNoErr = primRnfNoErr
@@ -68,8 +81,6 @@ instance NFData (Proxy a) where rnf Proxy = ()
 instance NFData a => NFData (Ratio a) where
   rnf x = rnf (numerator x, denominator x)
 
-instance (NFData a) => NFData (Complex a) where
-  rnf (x :+ y) = rnf x `seq` rnf y `seq` ()
 instance NFData a => NFData (Maybe a) where
   rnf Nothing = ()
   rnf (Just a) = rnf a

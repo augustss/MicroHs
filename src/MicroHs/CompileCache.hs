@@ -1,6 +1,6 @@
 module MicroHs.CompileCache(
   CModule,
-  Cache, addWorking, emptyCache, deleteFromCache, workToDone, addBoot, getBoots,
+  Cache, addWorking, getWorking, emptyCache, deleteFromCache, workToDone, addBoot, getBoots,
   cachedModules, lookupCache, lookupCacheChksum, getImportDeps,
   addPackage, getCompMdls, getPkgs,
   saveCache, loadCached,
@@ -54,6 +54,9 @@ addBoot mn c = c{ boots = mn : boots c }
 
 getBoots :: Cache -> [IdentModule]
 getBoots = boots
+
+getWorking :: Cache -> [IdentModule]
+getWorking = working
 
 addWorking :: IdentModule -> Cache -> Cache
 addWorking mn c =

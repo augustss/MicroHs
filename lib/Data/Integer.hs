@@ -28,7 +28,6 @@ import Data.Ord
 import Data.Ratio_Type
 import Data.Real
 import Numeric
-import Text.Read
 import Text.Show
 
 --
@@ -64,8 +63,10 @@ instance Ord Integer where
 instance Show Integer where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Integer where
   readsPrec = readIntegral
+-}
 
 instance Num Integer where
   (+) = addI

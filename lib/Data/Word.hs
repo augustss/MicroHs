@@ -20,7 +20,6 @@ import Data.Num
 import Data.Ord
 import Data.Real
 import Numeric
-import Text.Read
 import Text.Show
 
 instance Num Word where
@@ -46,8 +45,10 @@ instance Real Word where
 instance Show Word where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Word where
   readsPrec = readIntegral
+-}
 
 --------------------------------
 
@@ -143,8 +144,10 @@ instance Real Word8 where
 instance Show Word8 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Word8 where
   readsPrec = readIntegral
+-}
 
 instance Enum Word8 where
   succ x = x + 1
@@ -233,8 +236,10 @@ instance Real Word16 where
 instance Show Word16 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Word16 where
   readsPrec = readIntegral
+-}
 
 instance Enum Word16 where
   succ x = x + 1
@@ -323,8 +328,10 @@ instance Real Word32 where
 instance Show Word32 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Word32 where
   readsPrec = readIntegral
+-}
 
 instance Enum Word32 where
   succ x = x + 1
@@ -413,8 +420,10 @@ instance Real Word64 where
 instance Show Word64 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Word64 where
   readsPrec = readIntegral
+-}
 
 instance Enum Word64 where
   succ x = x + 1

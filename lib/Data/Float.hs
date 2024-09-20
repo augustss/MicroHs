@@ -13,7 +13,6 @@ import Data.Ord
 import Data.Real
 import Data.RealFloat
 import Data.RealFrac
-import Text.Read
 import Text.Show
 
 -- XXX I should really implement newtype deriving...
@@ -57,8 +56,10 @@ instance Ord Float where
 instance Show Float where
   showsPrec p = showsPrec p . unD
 
+{- in Text.Read.Internal
 instance Read Float where
   readsPrec p = map (\ (x, s) -> (D x, s)) . readsPrec p
+-}
 
 instance Real Float where
   toRational = toRational . unD
