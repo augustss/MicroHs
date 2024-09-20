@@ -7,10 +7,11 @@ module System.Environment(
   lookupEnv,
   getEnv,
   ) where
-import Prelude
+import Prelude(); import MiniPrelude
 import Primitives
 import Foreign.C.String
 import Foreign.Ptr
+import System.IO
 
 -- primArgRef returns an array containing a list of strings.
 -- The first element is the program name, the rest are the arguments.

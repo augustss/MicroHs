@@ -93,6 +93,7 @@ executable mhs
                        Data.Integer
                        Compat
                        PrimTable
+                       MHSPrelude
                        System.IO.MD5
                        System.IO.Serialize
                        System.IO.TimeMilli

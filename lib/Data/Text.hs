@@ -5,7 +5,7 @@ module Data.Text(
   append,
   head,
   ) where
-import Prelude hiding(head)
+import Prelude(); import MiniPrelude hiding(head)
 import Data.Monoid
 import Data.Semigroup
 import Data.String

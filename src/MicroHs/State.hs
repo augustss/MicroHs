@@ -1,6 +1,7 @@
 module MicroHs.State(
   module MicroHs.State,
   ) where
+import Prelude(); import MHSPrelude
 import Control.Monad
 --import Control.Monad.Fail
 

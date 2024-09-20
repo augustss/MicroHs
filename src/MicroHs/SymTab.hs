@@ -12,6 +12,7 @@ module MicroHs.SymTab(
   stInsertLcl,
   mapMSymTab,
   ) where
+import Prelude(); import MHSPrelude
 import Control.Applicative
 import Data.List
 import MicroHs.Expr(Expr(..), EType, conIdent)

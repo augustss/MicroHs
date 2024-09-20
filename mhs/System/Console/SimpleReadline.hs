@@ -8,7 +8,7 @@ module System.Console.SimpleReadline(
   getInputLineHist,
   getInputLineHistComp,
   ) where
-import Prelude
+import Prelude(); import MiniPrelude
 import Control.Monad
 import Data.Char
 import System.IO

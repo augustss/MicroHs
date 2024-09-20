@@ -1,4 +1,5 @@
 module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion) where
+import Prelude(); import MHSPrelude
 import Data.Char(ord, chr)
 import qualified MicroHs.IdentMap as M
 import Data.Maybe

@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
 module MicroHs.Main(main) where
+import Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import Data.Version
@@ -15,6 +16,7 @@ import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
 import MicroHs.Ident
+import MicroHs.Lex(readInt)
 import MicroHs.List
 import MicroHs.Package
 import MicroHs.Translate
@@ -165,7 +167,7 @@ splitNameVer s =
   case span (\ c -> isDigit c || c == '.') (reverse s) of
     (rver, '-':rname) | is@(_:_) <- readVersion (reverse rver) -> (reverse rname, makeVersion is)
     _ -> error $ "package name not of the form name-version:" ++ show s
-  where readVersion = map read . words . map (\ c -> if c == '.' then ' ' else c)
+  where readVersion = map readInt . words . map (\ c -> if c == '.' then ' ' else c)
 
 mainListPkg :: Flags -> FilePath -> IO ()
 mainListPkg _flags pkgfn = do

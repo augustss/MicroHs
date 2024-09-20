@@ -12,6 +12,7 @@ module MicroHs.Compile(
   mhsVersion,
   getMhsDir,
   ) where
+import Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import Data.Maybe

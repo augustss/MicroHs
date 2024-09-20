@@ -15,7 +15,7 @@ module MicroHs.IdentMap(
   toList, elems, keys,
   mapM,
   ) where
-import Prelude hiding(lookup, mapM)
+import Prelude(); import MHSPrelude hiding(lookup, mapM)
 import MicroHs.Ident
 
 data Map a

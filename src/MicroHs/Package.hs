@@ -2,6 +2,7 @@ module MicroHs.Package(
   IdentPackage,
   Package(..),
   ) where
+import Prelude(); import MHSPrelude
 import Data.Version
 import MicroHs.Desugar(LDef)
 import MicroHs.Ident(Ident)

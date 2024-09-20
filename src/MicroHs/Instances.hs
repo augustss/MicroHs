@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module MicroHs.Instances(compiledWithGHC) where
 -- For GHC compatibility
+import Prelude(); import MHSPrelude
 import MicroHs.CompileCache
 import MicroHs.Ident
 import MicroHs.Exp

@@ -1,4 +1,5 @@
 module System.Compress(compress) where
+import Prelude(); import MiniPrelude
 import Foreign.C.String
 import Foreign.C.Types
 import Foreign.Marshal.Alloc

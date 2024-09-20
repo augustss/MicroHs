@@ -12,7 +12,7 @@ module System.Directory(
   copyFile,
   getHomeDirectory,
   ) where
-import Prelude
+import Prelude(); import MiniPrelude
 import Control.Exception(bracket)
 import Control.Monad(when)
 import Foreign.C.String

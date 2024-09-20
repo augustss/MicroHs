@@ -1,4 +1,5 @@
 module MicroHs.Flags(Flags(..), verbosityGT, defaultFlags) where
+import Prelude(); import MHSPrelude
 
 data Flags = Flags {
   verbose    :: Int,        -- verbosity level

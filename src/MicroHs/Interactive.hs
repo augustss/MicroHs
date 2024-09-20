@@ -1,4 +1,5 @@
 module MicroHs.Interactive(module MicroHs.Interactive) where
+import Prelude(); import MHSPrelude
 import Data.List
 import Data.Maybe
 import Data.Version

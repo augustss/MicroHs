@@ -1,5 +1,5 @@
 module Data.ByteString.Internal(module Data.ByteString.Internal) where
-import Prelude hiding(length)
+import Prelude(); import MiniPrelude hiding(length)
 import Data.Word(Word8)
 
 data ByteString  -- primitive type

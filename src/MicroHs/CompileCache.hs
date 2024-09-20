@@ -5,6 +5,7 @@ module MicroHs.CompileCache(
   addPackage, getCompMdls, getPkgs,
   saveCache, loadCached,
   ) where
+import Prelude(); import MHSPrelude
 import MicroHs.Desugar(LDef)
 import MicroHs.Expr(IdentModule)
 import MicroHs.Ident(showIdent)

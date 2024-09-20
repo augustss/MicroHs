@@ -1,5 +1,5 @@
 module Foreign.Marshal.Utils(module Foreign.Marshal.Utils) where
-import Prelude
+import Prelude(); import MiniPrelude
 import Foreign.Marshal.Alloc
 import Foreign.C.Types
 import Foreign.Ptr

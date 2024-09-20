@@ -2,9 +2,10 @@ module MicroHs.Lex(
   Token(..), showToken,
   tokensLoc,
   LexState, lexTopLS,
-  popLayout, lex
+  popLayout, lex,
+  readInt,
   ) where
-import Prelude hiding(lex)
+import Prelude(); import MHSPrelude hiding(lex)
 import Data.Char
 import Data.List
 import MicroHs.Ident
@@ -91,7 +92,7 @@ lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
     (line, rs) ->        -- rs will contain the '\n', so subtract 1 below
       let ws = words line
           file = tail $ init $ ws!!1   -- strip the initial and final '"' 
-          loc' = SLoc file (read (ws!!0) - 1) 1
+          loc' = SLoc file (readInt (ws!!0) - 1) 1
       in  lex loc' rs
 lex loc (c:cs@(d:_)) | isSpecSing c && not (isOperChar d) = -- handle reserved
   TSpec loc c :
@@ -136,7 +137,7 @@ number :: SLoc -> String -> [Token]
 number loc cs =
   case span isDigit cs of
     (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
-               let i = read ds
+               let i = readBase 10 ds
                in  TInt loc i : lex (addCol loc $ length ds) rs
              | otherwise ->
                case span isDigit (tail rs) of
@@ -307,6 +308,9 @@ tokensLoc _                   = mkLocEOF
 readBase :: Integer -> String -> Integer
 readBase b = foldl (\ r c -> r * b + toInteger (digitToInt c)) 0
 
+readInt :: String -> Int
+readInt = fromInteger . readBase 10
+
 -- XXX This is a pretty hacky recognition of pragmas.
 pragma :: SLoc -> [Char] -> [Token]
 pragma loc cs =
@@ -390,16 +394,16 @@ readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
         (ds1, cr1) | ('.':r1) <- cr1                   -> rat2 f1 r1
                    | (c:r1)   <- cr1, toLower c == 'e' -> rat3 f1 r1
                    | otherwise                         -> f1
-          where f1 = toRational (read ds1 :: Integer)
+          where f1 = toRational (readBase 10 ds1)
 
     rat2 f1 s2 =
       case span isDigit s2 of
         (ds2, cr2) | (c:r2) <- cr2, toLower c == 'e' -> rat3 f2 r2
                    | otherwise                       -> f2
-          where f2 = f1 + toRational (read ds2 :: Integer) * 10 ^^ (negate $ length ds2)
+          where f2 = f1 + toRational (readBase 10 ds2) * 10 ^^ (negate $ length ds2)
 
     rat3 f2 ('+':s) = f2 * expo s
     rat3 f2 ('-':s) = f2 / expo s
     rat3 f2      s  = f2 * expo s
 
-    expo s = 10 ^ (read s :: Int)
+    expo s = 10 ^ (readBase 10 s)

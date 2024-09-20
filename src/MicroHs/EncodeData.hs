@@ -6,6 +6,7 @@ module MicroHs.EncodeData(
   encIf,
   encList,
   ) where
+import Prelude(); import MHSPrelude
 import Data.List
 import MicroHs.Exp
 import MicroHs.Expr(Con(..), Lit(..))

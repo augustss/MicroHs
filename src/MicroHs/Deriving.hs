@@ -1,5 +1,5 @@
 module MicroHs.Deriving(expandField, doDeriving, mkGetName) where
-import Prelude
+import Prelude(); import MHSPrelude
 --import Control.Monad
 import Data.Char
 import Data.Function

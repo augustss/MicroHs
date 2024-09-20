@@ -4,7 +4,7 @@ module MicroHs.IntMap(
   IntMap,
   empty, lookup, insert, fromList, toList, insertWith, (!), keys
   ) where
-import Prelude hiding(lookup)
+import Prelude(); import MHSPrelude hiding(lookup)
 
 data IntMap a
   = Empty

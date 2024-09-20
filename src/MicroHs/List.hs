@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.List where
+import Prelude(); import MHSPrelude
 import Data.List
 
 -- Various useful list functions.

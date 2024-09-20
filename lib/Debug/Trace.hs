@@ -1,5 +1,5 @@
 module Debug.Trace(module Debug.Trace) where
-import Prelude
+import Prelude(); import MiniPrelude
 import Primitives
 
 trace :: forall a . String -> a -> a

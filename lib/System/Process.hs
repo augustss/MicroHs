@@ -1,5 +1,5 @@
 module System.Process(callCommand) where
-import Prelude
+import Prelude(); import MiniPrelude
 import Control.Monad(when)
 import Foreign.C.String
 
