@@ -137,6 +137,10 @@ caseTree n tup lo hi pes dflt =
     [] -> dflt
     [(i, xs, e)] | hi - lo == 1 -> match tup xs e
                  | otherwise    -> encIf (eqInt n i) (match tup xs e) dflt
+{- This only slows things down slightly
+    [(i, xs, e), (_, xs', e')]
+                 | hi - lo == 2 -> encIf (eqInt n i) (match tup xs e) (match tup xs' e')
+-}
     _ ->
       let !(pesl, pesh@((i, _, _):_)) = splitAt (length pes `quot` 2) pes
       in  encIf (ltInt n i) (caseTree n tup lo i pesl dflt) (caseTree n tup i hi pesh dflt)
