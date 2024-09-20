@@ -305,7 +305,7 @@ mkTModule impt tds tcs =
       [ TypeExport i (tentry i) []        | Type    (i, _) _   <- tds ]
 
     -- All type synonym definitions.
-    ses = [ (qualIdent mn i, EForall vs t) | Type (i, vs) t  <- tds ]
+    ses = [ (qualIdent mn i, EForall True vs t) | Type (i, vs) t  <- tds ]
 
     -- All fixity declaration.
     fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
@@ -609,8 +609,8 @@ primTypes =
     tuple n =
       let
         i = tupleConstr builtinLoc n
-      in  (i, [entry i $ EForall [kk] $ foldr kArrow kv (replicate n kv)])
-    kImplies = EForall [kk] $ kConstraint `kArrow` (kv `kArrow` kv)
+      in  (i, [entry i $ EForall True [kk] $ foldr kArrow kv (replicate n kv)])
+    kImplies = EForall True [kk] $ kConstraint `kArrow` (kv `kArrow` kv)
   in
       [
        -- The function arrow et al are bothersome to define in Primitives, so keep them here.
@@ -640,7 +640,7 @@ primValues =
         vks = [IdKind (mkIdent ("a" ++ show i)) kType | i <- enumFromTo 1 n]
         ts = map tVarK vks
         r = tApps c ts
-      in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall vks $ EForall [] $ foldr tArrow r ts ])
+      in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall True vks $ EForall True [] $ foldr tArrow r ts ])
   in  map tuple (enumFromTo 2 10)
 
 kArrow :: EKind -> EKind -> EKind
@@ -686,7 +686,7 @@ expandSyn at = do
           syns <- gets synTable
           case M.lookup i syns of
             Nothing -> return $ eApps t ts
-            Just (EForall vks tt) ->
+            Just (EForall _ vks tt) ->
 --              if length vks /= length ts then tcError (getSLoc i) $ "bad synonym use"
 --              else expandSyn $ subst (zip (map idKindIdent vks) ts) tt
               let s = zip (map idKindIdent vks) ts
@@ -700,7 +700,7 @@ expandSyn at = do
             Just _ -> impossible
         EUVar _ -> return $ eApps t ts
         ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
-        EForall iks tt | null ts -> EForall iks <$> expandSyn tt
+        EForall b iks tt | null ts -> EForall b iks <$> expandSyn tt
         ELit _ (LStr _) -> return t
         ELit _ (LInteger _) -> return t
         _ -> impossible
@@ -711,7 +711,7 @@ mapEType fn = rec
   where
     rec (EApp f a) = EApp (rec f) (rec a)
     rec (ESign t k) = ESign (rec t) k
-    rec (EForall iks t) = EForall iks (rec t)
+    rec (EForall b iks t) = EForall b iks (rec t)
     rec t = fn t
 
 derefUVar :: EType -> T EType
@@ -731,7 +731,7 @@ derefUVar at =
           return t'
     EVar _ -> return at
     ESign t k -> flip ESign k <$> derefUVar t
-    EForall iks t -> EForall iks <$> derefUVar t
+    EForall b iks t -> EForall b iks <$> derefUVar t
     ELit _ (LStr _) -> return at
     ELit _ (LInteger _) -> return at
     _ -> impossible
@@ -839,7 +839,7 @@ tLookupV i = do
   tLookup (msgTCMode tcm) i
 
 tInst :: HasCallStack => Expr -> EType -> T (Expr, EType)
-tInst ae (EForall vks t) = do
+tInst ae (EForall _ vks t) = do
   t' <- tInstForall vks t
   tInst ae t'
 tInst ae at | Just (ctx, t) <- getImplies at = do
@@ -864,7 +864,7 @@ tInstForall vks t =
     return (subst (zip vs us) t)
 
 tInst' :: EType -> T EType
-tInst' (EForall vks t) = tInstForall vks t
+tInst' (EForall _ vks t) = tInstForall vks t
 tInst' t = return t
 
 extValE :: HasCallStack =>
@@ -1063,7 +1063,7 @@ addTypeSyn :: EDef -> T ()
 addTypeSyn adef =
   case adef of
     Type (i, vs) t -> do
-      let t' = EForall vs t
+      let t' = EForall True vs t
       extSyn i t'
       mn <- gets moduleName
       extSyn (qualIdent mn i) t'
@@ -1169,7 +1169,7 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
       dflttys = [ (i, t) | BDfltSign i t <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
-      mkDflt (BSign methId t) = [ Sign [iDflt] $ EForall vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
+      mkDflt (BSign methId t) = [ Sign [iDflt] $ EForall True vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
         where ty = fromMaybe t $ lookup methId dflttys
               def Nothing = Fcn iDflt $ simpleEqn noDflt
               def (Just eqns) = Fcn iDflt eqns
@@ -1209,7 +1209,7 @@ defaultSuffix :: String
 defaultSuffix = uniqIdentSep ++ "dflt"
 
 splitInst :: EConstraint -> ([IdKind], [EConstraint], EConstraint)
-splitInst (EForall iks t) =
+splitInst (EForall _ iks t) =
   case splitInst t of
     (iks', ctx, ct) -> (iks ++ iks', ctx, ct)
 splitInst act | Just (ctx, ct) <- getImplies act =
@@ -1331,7 +1331,7 @@ addValueType adef = do
         tret = tApps (qualIdent mn tycon) (map tVarK vks)
         addCon (Constr evks ectx c ets) = do
           let ts = either id (map snd) ets
-              cty = EForall vks $ EForall evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
+              cty = EForall True vks $ EForall True evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
               fs = either (const []) (map fst) ets
           extValETop c cty (ECon $ ConData cti (qualIdent mn c) fs)
       mapM_ addCon cs
@@ -1341,7 +1341,7 @@ addValueType adef = do
         t = snd $ head $ either id (map snd) ets
         tret = tApps (qualIdent mn tycon) (map tVarK vks)
         fs = either (const []) (map fst) ets
-      extValETop c (EForall vks $ EForall [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
+      extValETop c (EForall True vks $ EForall True [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
       addConFields tycon con
     ForImp _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
@@ -1361,9 +1361,9 @@ addValueClass ctx iCls vks fds ms = do
       tret = tApps qiCls (map tVarK vks)
       cti = [ (qualIdent mn iCon, length targs) ]
       iCon = mkClassConstructor iCls
-      iConTy = EForall vks $ foldr tArrow tret targs
+      iConTy = EForall True vks $ foldr tArrow tret targs
   extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon) [])
-  let addMethod (BSign i t) = extValETop i (EForall vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
+  let addMethod (BSign i t) = extValETop i (EForall True vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
       addMethod _ = impossible
 --  traceM ("addValueClass " ++ showEType (ETuple ctx))
   mapM_ addMethod meths
@@ -1399,14 +1399,14 @@ tcDefValue adef =
 
 -- Add implicit forall and type check.
 tCheckTypeTImpl :: HasCallStack => EType -> EType -> T EType
-tCheckTypeTImpl tchk t@(EForall _ _) = tCheckTypeT tchk t
+tCheckTypeTImpl tchk t@(EForall _ _ _) = tCheckTypeT tchk t
 tCheckTypeTImpl tchk t = do
   bvs <- stKeysLcl <$> gets valueTable         -- bound outside
   let fvs = freeTyVars [t]                     -- free variables in t
       -- these are free, and need quantification.  eDummy indicates missing kind
       iks = map (\ i -> IdKind i eDummy) (fvs \\ bvs)
   --when (not (null iks)) $ traceM ("tCheckTypeTImpl: " ++ show (t, eForall iks t))
-  tCheckTypeT tchk (eForall iks t)
+  tCheckTypeT tchk (eForall' False iks t)
 
 tCheckTypeT :: HasCallStack => EType -> EType -> T EType
 tCheckTypeT = tCheck tcTypeT
@@ -1711,11 +1711,11 @@ tcExprR mt ae =
       e' <- instSigma loc e t' mt
       checkSigma e' t'
     -- Only happens in type&kind checking mode.
-    EForall vks t ->
+    EForall b vks t ->
 --      assertTCMode (==TCType) $
       withVks vks $ \ vks' -> do
         tt <- tcExpr mt t
-        return (EForall vks' tt)
+        return (EForall b vks' tt)
     EUpdate e flds -> do
       ises <- concat <$> mapM (dsEField e) flds
       me <- dsUpdate unsetField e ises
@@ -1909,7 +1909,8 @@ tcExprLam mt qs = do
 
 tcEqns :: Bool -> EType -> [Eqn] -> T [Eqn]
 --tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (BFcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
-tcEqns top (EForall iks t) eqns = withExtTyps iks $ tcEqns top t eqns
+tcEqns top (EForall expl iks t) eqns | expl      = withExtTyps iks $ tcEqns top t eqns
+                                     | otherwise =                   tcEqns top t eqns
 tcEqns top t eqns | Just (ctx, t') <- getImplies t = do
   let loc = getSLoc eqns
   d <- newADictIdent loc
@@ -2063,9 +2064,9 @@ tcPat mt ae =
 --               traceM (show ipt)
                case xpt of
                   -- Sanity check
-                  EForall _ (EForall _ _) -> return ()
+                  EForall _ _ (EForall _ _ _) -> return ()
                   _ -> impossibleShow i
-               EForall avs apt <- tInst' xpt
+               EForall _ avs apt <- tInst' xpt
                (sks, spt) <- shallowSkolemise avs apt
                (d, p, pt) <-
                  case getImplies spt of
@@ -2242,7 +2243,7 @@ dsType at =
     EListish (LList [t]) -> tApp (tList (getSLoc at)) (dsType t)
     ETuple ts -> tApps (tupleConstr (getSLoc at) (length ts)) (map dsType ts)
     ESign t k -> ESign (dsType t) k
-    EForall iks t -> EForall iks (dsType t)
+    EForall b iks t -> EForall b iks (dsType t)
     ELit _ (LStr _) -> at
     ELit _ (LInteger _) -> at
     _ -> impossible
@@ -2289,7 +2290,7 @@ quantify tvs ty = do
   zipWithM_ (\ tv n -> setUVar tv (EVar n)) tvs newVars
   ty' <- derefUVar ty
   putUvarSubst osubst  -- reset the setUVar we did above
-  return (EForall newVarsK ty')
+  return (EForall False newVarsK ty')
 
 allBinders :: [Ident] -- a,b,..z, a1, b1,... z1, a2, b2,...
 allBinders = [ mkIdent [x] | x <- ['a' .. 'z'] ] ++
@@ -2305,7 +2306,7 @@ skolemise :: HasCallStack =>
              Sigma -> T ([TyVar], Rho)
 -- Performs deep skolemisation, returning the
 -- skolem constants and the skolemised type.
-skolemise (EForall tvs ty) = do -- Rule PRPOLY
+skolemise (EForall _ tvs ty) = do -- Rule PRPOLY
   (sks1, ty') <- shallowSkolemise tvs ty
   (sks2, ty'') <- skolemise ty'
   return (sks1 ++ sks2, ty'')
@@ -2333,7 +2334,7 @@ metaTvs tys = foldr go [] tys
       | elem tv acc = acc
       | otherwise = tv : acc
     go (EVar _) acc = acc
-    go (EForall _ ty) acc = go ty acc
+    go (EForall _ _ ty) acc = go ty acc
     go (EApp fun arg) acc = go fun (go arg acc)
     go (ELit _ _) acc = acc
     go _ _ = impossible
@@ -2370,7 +2371,7 @@ checkSigma expr sigma = do
 subsCheckRho :: HasCallStack =>
                 SLoc -> Expr -> Sigma -> Rho -> T Expr
 --subsCheckRho _ e1 t1 t2 | trace ("subsCheckRho: " ++ show e1 ++ " :: " ++ show t1 ++ " = " ++ show t2) False = undefined
-subsCheckRho loc exp1 sigma1@(EForall _ _) rho2 = do -- Rule SPEC
+subsCheckRho loc exp1 sigma1@(EForall _ _ _) rho2 = do -- Rule SPEC
   (exp1', rho1) <- tInst exp1 sigma1
   subsCheckRho loc exp1' rho1 rho2
 subsCheckRho loc exp1 arho1 rho2 | Just _ <- getImplies arho1 = do
@@ -2733,7 +2734,7 @@ substEUVar _ t@(EVar _) = t
 substEUVar _ t@(ELit _ _) = t
 substEUVar s (EApp f a) = EApp (substEUVar s f) (substEUVar s a)
 substEUVar s t@(EUVar i) = fromMaybe t $ lookup i s
-substEUVar s (EForall iks t) = EForall iks (substEUVar s t)
+substEUVar s (EForall b iks t) = EForall b iks (substEUVar s t)
 substEUVar _ _ = impossible
 
 -- Length of lists match, because of kind correctness.

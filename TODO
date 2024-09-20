@@ -32,6 +32,7 @@
 * Better naming of internal identifiers
 * Add mask&co to exceptions
 * Make deriving refer to identifiers that don't need to be in scope
+* Add reductions for underapplied K2,K3,K4
 
 Bugs:
 * Missing IO in ccall shows wrong location

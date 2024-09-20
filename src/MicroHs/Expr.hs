@@ -39,7 +39,7 @@ module MicroHs.Expr(
   Assoc(..), Fixity,
   getBindsVars,
   HasLoc(..),
-  eForall,
+  eForall, eForall',
   eDummy,
   impossible, impossibleShow,
   getArrow, getArrows,
@@ -124,7 +124,7 @@ data Expr
   | EViewPat Expr EPat
   | ELazy Bool EPat           -- True indicates ~p, False indicates !p
   -- only in types
-  | EForall [IdKind] EType
+  | EForall Bool [IdKind] EType  -- True indicates explicit forall in the code
   -- only while type checking
   | EUVar Int
   -- only after type checking
@@ -357,8 +357,8 @@ instance HasLoc Expr where
   getSLoc (ELazy _ e) = getSLoc e
   getSLoc (EUVar _) = error "getSLoc EUVar"
   getSLoc (ECon c) = getSLoc c
-  getSLoc (EForall [] e) = getSLoc e
-  getSLoc (EForall iks _) = getSLoc iks
+  getSLoc (EForall _ [] e) = getSLoc e
+  getSLoc (EForall _ iks _) = getSLoc iks
 
 instance forall a . HasLoc a => HasLoc [a] where
   getSLoc [] = noSLoc  -- XXX shouldn't happen
@@ -422,7 +422,7 @@ subst s =
         EApp f a -> EApp (sub f) (sub a)
         ESign e t -> ESign (sub e) t
         EUVar _ -> ae
-        EForall iks t -> EForall iks $ subst [ x | x@(i, _) <- s, not (elem i is) ] t
+        EForall b iks t -> EForall b iks $ subst [ x | x@(i, _) <- s, not (elem i is) ] t
           where is = map idKindIdent iks
         ELit _ _ -> ae
         _ -> error "subst unimplemented"
@@ -511,7 +511,7 @@ allVarsExpr' aexpr =
     ELazy _ p -> allVarsExpr' p
     EUVar _ -> id
     ECon c -> (conIdent c :)
-    EForall iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
+    EForall _ iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
   where field (EField _ e) = allVarsExpr' e
         field (EFieldPun is) = (last is :)
         field EFieldWild = impossible
@@ -713,7 +713,7 @@ ppExprR raw = ppE
         ELazy False p -> text "!" <> ppE p
         EUVar i -> text ("_a" ++ show i)
         ECon c -> ppCon c
-        EForall iks e -> ppForall iks <+> ppEType e
+        EForall _ iks e -> ppForall iks <+> ppEType e
 
     ppApp :: [Expr] -> Expr -> Doc
     ppApp as (EApp f a) = ppApp (a:as) f
@@ -814,8 +814,11 @@ getBindsVars :: [EBind] -> [Ident]
 getBindsVars = concatMap getBindVars
 
 eForall :: [IdKind] -> EType -> EType
-eForall [] t = t
-eForall vs t = EForall vs t
+eForall = eForall' True
+
+eForall' :: Bool -> [IdKind] -> EType -> EType
+eForall' _ [] t = t
+eForall' b vs t = EForall b vs t
 
 eDummy :: Expr
 eDummy = EVar dummyIdent
@@ -875,7 +878,7 @@ freeTyVars = foldr (go []) []
       | elem tv acc = acc
       | isConIdent tv = acc
       | otherwise = tv : acc
-    go bound (EForall tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
+    go bound (EForall _ tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
     go bound (EApp fun arg) acc = go bound fun (go bound arg acc)
     go _bound (EUVar _) acc = acc
     go _bound (ECon _) acc = acc
