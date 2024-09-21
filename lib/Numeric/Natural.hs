@@ -2,6 +2,9 @@ module Numeric.Natural
   ( Natural
   , minusNaturalMaybe
   ) where
+import Prelude(); import MiniPrelude
+import Data.Integer
+import Data.Real
 import Control.Exception
 
 newtype Natural = N Integer

@@ -70,14 +70,12 @@ import Data.RealFloat
 import Data.String
 import Data.Tuple
 import Data.Word
+import Numeric.Natural
 import qualified Text.ParserCombinators.ReadP as P
 import Text.ParserCombinators.ReadP(ReadS, readP_to_S)
 import Text.ParserCombinators.ReadPrec
 import qualified Text.Read.Lex as L
 import Text.Show(appPrec)
-
--- XXX
-type Natural = Integer
 
 ratioPrec :: Int
 ratioPrec = 7
@@ -635,12 +633,12 @@ instance Read Integer where
   readListPrec = readListPrecDefault
   readList     = readListDefault
 
-{-
 -- | @since base-4.8.0.0
 instance Read Natural where
   readsPrec d = map (\(n, s) -> (fromInteger n, s))
                   . filter ((>= 0) . (\(x,_)->x)) . readsPrec d
--}
+  readListPrec = readListPrecDefault
+  readList     = readListDefault
 
 -- | @since base-2.01
 instance Read Float where
