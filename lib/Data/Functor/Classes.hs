@@ -4,18 +4,18 @@ module Data.Functor.Classes (
     Eq1(..), eq1,
     Ord1(..), compare1,
     Read1(..), -- readsPrec1, readPrec1,
---    liftReadListDefault, liftReadListPrecDefault,
+    liftReadListDefault, liftReadListPrecDefault,
     Show1(..), showsPrec1,
     -- ** For binary constructors
     Eq2(..), eq2,
     Ord2(..), compare2,
     Read2(..), -- readsPrec2, readPrec2,
---    liftReadList2Default, liftReadListPrec2Default,
+    liftReadList2Default, liftReadListPrec2Default,
     Show2(..), showsPrec2,
     -- * Helper functions
---    readsData, readData,
---    readsUnaryWith, readUnaryWith,
---    readsBinaryWith, readBinaryWith,
+    readsData, readData,
+    readsUnaryWith, readUnaryWith,
+    readsBinaryWith, readBinaryWith,
     showsUnaryWith,
     showsBinaryWith,
   ) where
@@ -28,13 +28,8 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Complex (Complex((:+)))
 import Data.Tuple (Solo (..))
 
-{-
-import GHC.Read (expectP, list, paren)
-import Text.ParserCombinators.ReadPrec (ReadPrec, readPrec_to_S, readS_to_Prec)
-import Text.Read (Read(..), parens, prec, step)
-import Text.Read.Lex (Lexeme(..))
--}
 import Text.Read
+import Text.Read.Internal
 import Text.Show (showListWith)
 
 class Eq1 f where
@@ -50,7 +45,6 @@ compare1 :: (Ord1 f, Ord a) => f a -> f a -> Ordering
 compare1 = liftCompare compare
 
 class Read1 f where
-{-
     liftReadsPrec :: (Int -> ReadS a) -> ReadS [a] -> Int -> ReadS (f a)
     liftReadsPrec rp rl = readPrec_to_S $
         liftReadPrec (readS_to_Prec rp) (readS_to_Prec (const rl))
@@ -80,7 +74,6 @@ liftReadListDefault rp rl = readPrec_to_S
 liftReadListPrecDefault :: Read1 f => ReadPrec a -> ReadPrec [a]
                         -> ReadPrec [f a]
 liftReadListPrecDefault rp rl = list (liftReadPrec rp rl)
--}
 
 class Show1 f where
     liftShowsPrec :: (Int -> a -> ShowS) -> ([a] -> ShowS) ->
@@ -106,7 +99,6 @@ compare2 :: (Ord2 f, Ord a, Ord b) => f a b -> f a b -> Ordering
 compare2 = liftCompare2 compare compare
 
 class Read2 f where
-{-
     liftReadsPrec2 :: (Int -> ReadS a) -> ReadS [a] ->
         (Int -> ReadS b) -> ReadS [b] -> Int -> ReadS (f a b)
     liftReadsPrec2 rp1 rl1 rp2 rl2 = readPrec_to_S $
@@ -146,7 +138,6 @@ liftReadList2Default rp1 rl1 rp2 rl2 = readPrec_to_S
 liftReadListPrec2Default :: Read2 f => ReadPrec a -> ReadPrec [a] ->
     ReadPrec b -> ReadPrec [b] -> ReadPrec [f a b]
 liftReadListPrec2Default rp1 rl1 rp2 rl2 = list (liftReadPrec2 rp1 rl1 rp2 rl2)
--}
 
 class Show2 f where
     liftShowsPrec2 :: (Int -> a -> ShowS) -> ([a] -> ShowS) ->
@@ -172,7 +163,6 @@ instance Ord1 Maybe where
     liftCompare _ (Just _) Nothing = GT
     liftCompare comp (Just x) (Just y) = comp x y
 
-{-
 instance Read1 Maybe where
     liftReadPrec rp _ =
         parens (expectP (Ident "Nothing") *> pure Nothing)
@@ -181,7 +171,6 @@ instance Read1 Maybe where
 
     liftReadListPrec = liftReadListPrecDefault
     liftReadList     = liftReadListDefault
--}
 
 instance Show1 Maybe where
     liftShowsPrec _ _ _ Nothing = showString "Nothing"
@@ -199,12 +188,10 @@ instance Ord1 [] where
     liftCompare _ (_:_) [] = GT
     liftCompare comp (x:xs) (y:ys) = comp x y `mappend` liftCompare comp xs ys
 
-{-
 instance Read1 [] where
     liftReadPrec _ rl = rl
     liftReadListPrec  = liftReadListPrecDefault
     liftReadList      = liftReadListDefault
--}
 
 instance Show1 [] where
     liftShowsPrec _ sl _ = sl
@@ -215,14 +202,12 @@ instance Eq1 NonEmpty where
 instance Ord1 NonEmpty where
   liftCompare cmp (a :| as) (b :| bs) = cmp a b `mappend` liftCompare cmp as bs
 
-{-
 instance Read1 NonEmpty where
   liftReadsPrec rdP rdL p s = readParen (p > 5) (\s' -> do
     (a, s'') <- rdP 6 s'
     (":|", s''') <- lex s''
     (as, s'''') <- rdL s'''
     return (a :| as, s'''')) s
--}
 
 instance Show1 NonEmpty where
   liftShowsPrec shwP shwL p (a :| as) = showParen (p > 5) $
@@ -235,7 +220,6 @@ instance Ord2 (,) where
     liftCompare2 comp1 comp2 (x1, y1) (x2, y2) =
         comp1 x1 x2 `mappend` comp2 y1 y2
 
-{-
 instance Read2 (,) where
     liftReadPrec2 rp1 _ rp2 _ = parens $ paren $ do
         x <- rp1
@@ -245,7 +229,6 @@ instance Read2 (,) where
 
     liftReadListPrec2 = liftReadListPrec2Default
     liftReadList2     = liftReadList2Default
--}
 
 instance Show2 (,) where
     liftShowsPrec2 sp1 _ sp2 _ _ (x, y) =
@@ -263,9 +246,8 @@ instance Ord1 Solo where
 instance (Ord a) => Ord1 ((,) a) where
     liftCompare = liftCompare2 compare
 
-{-
 instance Read1 Solo where
-    liftReadPrec rp _ = readData (readUnaryWith rp "Solo" Solo)
+    liftReadPrec rp _ = readData (readUnaryWith rp "Solo" MkSolo)
 
     liftReadListPrec = liftReadListPrecDefault
     liftReadList     = liftReadListDefault
@@ -275,7 +257,6 @@ instance (Read a) => Read1 ((,) a) where
 
     liftReadListPrec = liftReadListPrecDefault
     liftReadList     = liftReadListDefault
--}
 
 instance Show1 Solo where
     liftShowsPrec sp _ d (MkSolo x) = showsUnaryWith sp "MkSolo" d x
@@ -293,7 +274,6 @@ instance Ord a => Ord2 ((,,) a) where
         compare u1 v1 `mappend`
         comp1 x1 x2 `mappend` comp2 y1 y2
 
-{-
 instance Read a => Read2 ((,,) a) where
     liftReadPrec2 rp1 _ rp2 _ = parens $ paren $ do
         x1 <- readPrec
@@ -305,7 +285,6 @@ instance Read a => Read2 ((,,) a) where
 
     liftReadListPrec2 = liftReadListPrec2Default
     liftReadList2     = liftReadList2Default
--}
 
 instance Show a => Show2 ((,,) a) where
     liftShowsPrec2 sp1 _ sp2 _ _ (x1,y1,y2)
@@ -320,18 +299,15 @@ instance (Eq a, Eq b) => Eq1 ((,,) a b) where
 instance (Ord a, Ord b) => Ord1 ((,,) a b) where
     liftCompare = liftCompare2 compare
 
-{-
 instance (Read a, Read b) => Read1 ((,,) a b) where
     liftReadPrec = liftReadPrec2 readPrec readListPrec
 
     liftReadListPrec = liftReadListPrecDefault
     liftReadList     = liftReadListDefault
--}
 
 instance (Show a, Show b) => Show1 ((,,) a b) where
     liftShowsPrec = liftShowsPrec2 showsPrec showList
 
-{-
 instance (Eq a, Eq b) => Eq2 ((,,,) a b) where
     liftEq2 e1 e2 (u1, u2, x1, y1) (v1, v2, x2, y2) =
         u1 == v1 &&
@@ -381,6 +357,7 @@ instance (Read a, Read b, Read c) => Read1 ((,,,) a b c) where
 instance (Show a, Show b, Show c) => Show1 ((,,,) a b c) where
     liftShowsPrec = liftShowsPrec2 showsPrec showList
 
+{-
 instance (Generic1 f, Eq1 (Rep1 f)) => Eq1 (Generically1 f) where
   liftEq :: (a1 -> a2 -> Bool) -> (Generically1 f a1 -> Generically1 f a2 -> Bool)
   liftEq (===) (Generically1 as1) (Generically1 as2) = liftEq (===) (from1 as1) (from1 as2)
@@ -546,7 +523,6 @@ instance Show1 Complex where
       where
         complexPrec = 6
 
-{-
 readsData :: (String -> ReadS a) -> Int -> ReadS a
 readsData reader d =
     readParen (d > 10) $ \ r -> [res | (kw,s) <- lex r, res <- reader kw s]
@@ -576,7 +552,6 @@ readBinaryWith rp1 rp2 name cons = do
     x <- step rp1
     y <- step rp2
     return $ cons x y
--}
 
 showsUnaryWith :: (Int -> a -> ShowS) -> String -> Int -> a -> ShowS
 showsUnaryWith sp name d x = showParen (d > 10) $
