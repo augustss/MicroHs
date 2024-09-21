@@ -24,7 +24,7 @@ import Data.Maybe_Type
 import Data.Num
 import Data.Ord
 import Data.String
-import Text.Read.Lex(lex, dropSpace)
+import Text.Read.OldLex(lex, dropSpace)
 import Text.Show
 
 type ReadS a = String -> [(a, String)]

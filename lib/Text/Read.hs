@@ -50,7 +50,7 @@ import Data.List
 import Data.Maybe
 import Data.String
 import Text.Read.Internal
-import Text.Read.Lexeme(Lexeme(..))
+import Text.Read.Lex(Lexeme(..))
 import Text.ParserCombinators.ReadPrec
 import qualified Text.ParserCombinators.ReadP as P
 

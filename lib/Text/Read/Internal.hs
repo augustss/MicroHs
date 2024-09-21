@@ -73,7 +73,7 @@ import Data.Word
 import qualified Text.ParserCombinators.ReadP as P
 import Text.ParserCombinators.ReadP(ReadS, readP_to_S)
 import Text.ParserCombinators.ReadPrec
-import qualified Text.Read.Lexeme as L
+import qualified Text.Read.Lex as L
 import Text.Show(appPrec)
 
 -- XXX
