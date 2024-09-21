@@ -44,3 +44,4 @@ Bugs:
 * let...in... doesn't parse correctly in a do
 * let needs {} in a do with {}
 * missing import in Text.Read.Internal gmhs: expandDict: Data.Floating.Floating
+* export list in -boot doesn't work
