@@ -16,7 +16,7 @@ import Data.Num
 import Data.Ord
 import Data.Ratio_Type
 import Data.Real
-import Numeric
+import Numeric.Show
 import Text.Show
 
 --------------------------------------------------------------------------------

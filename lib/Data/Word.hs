@@ -19,7 +19,7 @@ import Data.Maybe_Type
 import Data.Num
 import Data.Ord
 import Data.Real
-import Numeric
+import Numeric.Show
 import Text.Show
 
 instance Num Word where

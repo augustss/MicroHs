@@ -1,4 +1,4 @@
-module Text.Read.Numeric(
+module Numeric.Read(
   readParen,
   --
   readSigned,

@@ -3,7 +3,7 @@ module Paths_MicroHs(
   version,
   getDataDir,
   ) where
-import Prelude(); import MiniPrelude
+import Prelude(); import MHSPrelude
 import Data.Version
 
 getDataDir :: IO FilePath
