@@ -1,6 +1,5 @@
 module Numeric.Read(
   readParen,
-  --
   readSigned,
   readInt,
   readBin,
@@ -24,7 +23,7 @@ import Data.Maybe_Type
 import Data.Num
 import Data.Ord
 import Data.String
-import Text.Read.OldLex(lex, dropSpace)
+import {-# SOURCE #-} Text.Read.Internal(lex)
 import Text.Show
 
 type ReadS a = String -> [(a, String)]
@@ -79,3 +78,6 @@ readIntegral _ = readSigned (readAny . dropSpace)
 readBoundedEnum :: forall a . (Enum a, Bounded a, Show a) => ReadS a
 readBoundedEnum = \ r -> [ (e, t) | (s, t) <- lex r, Just e <- [lookup s table] ]
   where table = [ (show e, e) | e <- [ minBound .. maxBound ] ]
+
+dropSpace :: String -> String
+dropSpace = dropWhile isSpace
