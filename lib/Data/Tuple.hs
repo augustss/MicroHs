@@ -11,9 +11,8 @@ import Data.Bounded
 import Data.Eq
 import Data.Function
 import Data.Int
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Ord
-import Data.Semigroup
 import Text.Show
 
 --data (a,b) = (a,b)  -- all tuples are built in

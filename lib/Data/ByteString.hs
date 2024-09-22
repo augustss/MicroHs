@@ -159,7 +159,7 @@ import qualified Prelude as P
 import qualified Data.List as P
 import Data.List.NonEmpty(NonEmpty, fromList)
 import Data.Bits
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Semigroup
 import Data.String
 import Data.Word(Word8)

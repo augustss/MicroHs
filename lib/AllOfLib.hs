@@ -28,6 +28,7 @@ import Data.Eq
 import Data.FloatW
 import Data.Floating
 import Data.Foldable
+import Data.Foldable1
 import Data.Fractional
 import Data.Function
 import Data.Functor
@@ -51,6 +52,7 @@ import Data.List_Type
 import Data.Maybe
 import Data.Maybe_Type
 import Data.Monoid
+import Data.Monoid.Internal
 import Data.Num
 import Data.Ord
 import Data.Orphans

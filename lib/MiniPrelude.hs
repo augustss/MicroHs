@@ -14,7 +14,7 @@ module MiniPrelude(
   module Data.Integral,
   module Data.List,
   module Data.Maybe,
-  module Data.Monoid,
+  module Data.Monoid.Internal,
   module Data.Num,
   module Data.Records,
   module Data.String,
@@ -45,7 +45,7 @@ import Data.List([](..), map, (++), filter, head, last, tail, init, null, length
                  elem, notElem, lookup, zip, zip3, zipWith, zipWith3, unzip, unzip3,
                  lines, words, unlines, unwords)
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Num
 import Data.Records
 import Data.String

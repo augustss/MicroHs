@@ -86,11 +86,8 @@ import Data.Int
 import Data.Num
 import Data.List
 import Data.List.NonEmpty
-import Data.Monoid
-{-
-import Data.List ( replicate, null )
-import Control.Monad.Fail
--}
+import Data.Monoid.Internal
+
 infixr 5 +++, <++
 
 ------------------------------------------------------------------------

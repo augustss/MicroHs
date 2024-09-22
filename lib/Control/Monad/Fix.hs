@@ -5,7 +5,7 @@ module Control.Monad.Fix(
 import Control.Monad
 import Data.Function(fix)
 import Data.List.NonEmpty(NonEmpty(..))
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Tuple
 
 class (Monad m) => MonadFix m where

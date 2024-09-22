@@ -43,7 +43,7 @@ import Data.Char_Type
 import Data.Function
 import Data.Functor
 import Data.List
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Ord
 --import Data.Maybe
 

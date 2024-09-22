@@ -39,10 +39,9 @@ import Data.Int
 import Data.Integral
 import Data.List_Type
 import Data.Maybe_Type
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Num
 import Data.Ord
-import Data.Semigroup
 import Data.Tuple
 --import Text.Read
 import Text.Show

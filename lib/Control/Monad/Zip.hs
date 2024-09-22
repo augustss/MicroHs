@@ -17,20 +17,9 @@
 -----------------------------------------------------------------------------
 
 module Control.Monad.Zip where
-{-
-import GHC.Internal.Control.Monad (liftM, liftM2)
-import GHC.Internal.Data.Functor.Identity
-import qualified GHC.Internal.Data.Functor
-import GHC.Internal.Data.Monoid
-import GHC.Internal.Data.Ord ( Down(..) )
-import GHC.Internal.Data.Proxy
-import GHC.Generics
-import GHC.Tuple (Solo (..))
-import Prelude
--}
 import Control.Monad
 import Data.Functor.Identity
-import Data.Monoid
+import Data.Monoid.Internal
 import qualified Data.List.NonEmpty as NE
 --import Data.Tuple
 

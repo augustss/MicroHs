@@ -31,7 +31,7 @@ import Control.Applicative
 import Data.Data (Data)
 import Data.Foldable (Foldable(..))
 import Data.Functor.Classes
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Traversable
 --import Data.Type.Equality (TestEquality(..), (:~:)(..))
 --import GHC.Generics (Generic, Generic1)

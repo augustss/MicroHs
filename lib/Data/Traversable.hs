@@ -43,7 +43,7 @@ import Data.Functor.Identity
 import Data.List_Type
 import qualified Data.List as List
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Proxy
 --import Data.Ord ( Down(..) )
 --import Data.Proxy ( Proxy(..) )

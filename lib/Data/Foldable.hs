@@ -56,10 +56,10 @@ import Data.List_Type hiding (concatMap)
 import qualified Data.List as List
 import Data.Maybe
 import Data.Monoid
+import Data.Monoid.Internal
 import Data.Num
 import Data.Ord
 import Data.Proxy
-import Data.Semigroup
 
 newtype MMax a = MMax (Maybe a)
 getMMax :: forall a . MMax a -> Maybe a

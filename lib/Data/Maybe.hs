@@ -15,9 +15,8 @@ import Data.Functor
 import Data.Int
 import Data.List
 import Data.Maybe_Type
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Ord
-import Data.Semigroup
 import Text.Show
 
 instance forall a . Eq a => Eq (Maybe a) where

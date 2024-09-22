@@ -116,7 +116,7 @@ import Data.List_Type
 import Data.List.NonEmpty_Type
 import Data.Num
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Ord
 import Data.Traversable
 import Data.Tuple
