@@ -191,7 +191,7 @@ instance Ord a => Ord (Arg a b) where
 ----------------------
 
 newtype Alt f a = Alt (f a)
-  deriving (Show)
+--  deriving (Show)
 getAlt :: Alt f a -> f a
 getAlt (Alt x) = x
 {-
