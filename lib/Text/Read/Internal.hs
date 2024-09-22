@@ -17,6 +17,7 @@ module Text.Read.Internal
 
   -- ReadS type
   , ReadS
+  , ReadPrec
 
   -- H2010 compatibility
   , lex
