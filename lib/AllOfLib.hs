@@ -32,8 +32,11 @@ import Data.Fractional
 import Data.Function
 import Data.Functor
 import Data.Functor.Classes
+import Data.Functor.Compose
 import Data.Functor.Const
 import Data.Functor.Identity
+import Data.Functor.Product
+import Data.Functor.Sum
 import Data.IOArray
 import Data.IORef
 import Data.Int
@@ -50,6 +53,7 @@ import Data.Maybe_Type
 import Data.Monoid
 import Data.Num
 import Data.Ord
+import Data.Orphans
 import Data.Ordering_Type
 import Data.Proxy
 import Data.Ratio
