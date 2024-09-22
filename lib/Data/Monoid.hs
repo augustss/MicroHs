@@ -190,6 +190,36 @@ instance Ord a => Ord (Arg a b) where
 
 ----------------------
 
+newtype Alt f a = Alt (f a)
+  deriving (Show)
+getAlt :: Alt f a -> f a
+getAlt (Alt x) = x
+{-
+  deriving ( Generic     -- ^ @since base-4.8.0.0
+           , Generic1    -- ^ @since base-4.8.0.0
+           , Read        -- ^ @since base-4.8.0.0
+           , Show        -- ^ @since base-4.8.0.0
+           , Eq          -- ^ @since base-4.8.0.0
+           , Ord         -- ^ @since base-4.8.0.0
+           , Num         -- ^ @since base-4.8.0.0
+           , Enum        -- ^ @since base-4.8.0.0
+           , Monad       -- ^ @since base-4.8.0.0
+           , MonadPlus   -- ^ @since base-4.8.0.0
+           , Applicative -- ^ @since base-4.8.0.0
+           , Alternative -- ^ @since base-4.8.0.0
+           , Functor     -- ^ @since base-4.8.0.0
+           )
+-}
+
+instance Alternative f => Semigroup (Alt f a) where
+    Alt x <> Alt y = Alt (x <|> y)
+    stimes = stimesMonoid
+
+instance Alternative f => Monoid (Alt f a) where
+    mempty = Alt empty
+
+----------------------
+
 -- This really belongs in Data.Semigroup,
 -- but some functions have Monoid as in the context.
 
