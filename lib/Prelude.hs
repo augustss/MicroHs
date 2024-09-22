@@ -87,6 +87,8 @@ import Text.Read(ReadS, Read(..), read, reads, readParen, lex)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Primitives(_wordSize, _isWindows)
 
+import Data.Orphans()  -- Extra instances
+
 -- So we can detect mhs vs ghc
 usingMhs :: Bool
 usingMhs = True

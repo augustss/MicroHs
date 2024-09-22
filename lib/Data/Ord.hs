@@ -6,6 +6,7 @@ import Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool_Type
 import Data.Bounded
+import Data.Functor
 import Data.Ordering_Type
 import Data.Eq
 import Text.Show
@@ -70,38 +71,36 @@ newtype Down a = Down
       , RealFloat  -- ^ @since 4.14.0.0
       , Storable   -- ^ @since 4.14.0.0
       )
+-}
 
--- | This instance would be equivalent to the derived instances of the
--- 'Down' newtype if the 'getDown' field were removed
---
--- @since 4.7.0.0
+newtype Down a = Down a
+
+getDown :: Down a -> a
+getDown (Down a) = a
+
+{-
 instance (Read a) => Read (Down a) where
-    readsPrec d = readParen (d > 10) $ \ r ->
-        [(Down x,t) | ("Down",s) <- lex r, (x,t) <- readsPrec 11 s]
-
--- | This instance would be equivalent to the derived instances of the
--- 'Down' newtype if the 'getDown' field were removed
---
--- @since 4.7.0.0
+  readsPrec d = readParen (d > 10) $ \ r ->
+    [(Down x,t) | ("Down",s) <- lex r, (x,t) <- readsPrec 11 s]
+-}
+{-  In Data.Orphans
 instance (Show a) => Show (Down a) where
-    showsPrec d (Down x) = showParen (d > 10) $
-        showString "Down " . showsPrec 11 x
+-}
 
--- | @since 4.6.0.0
+instance Eq a => Eq (Down a) where
+  Down x == Down y  =  x == y
+
 instance Ord a => Ord (Down a) where
-    compare (Down x) (Down y) = y `compare` x
+  compare (Down x) (Down y) = y `compare` x
 
--- | Swaps @'minBound'@ and @'maxBound'@ of the underlying type.
---
--- @since 4.14.0.0
 instance Bounded a => Bounded (Down a) where
     minBound = Down maxBound
     maxBound = Down minBound
 
--- | @since 4.11.0.0
 instance Functor Down where
-    fmap = coerce
+    fmap f (Down a) = Down (f a)
 
+{-
 -- | @since 4.11.0.0
 instance Applicative Down where
     pure = Down
