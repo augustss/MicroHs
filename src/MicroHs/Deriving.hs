@@ -25,7 +25,7 @@ derivers =
   ,("Data.Ix.Ix",             derNotYet)
   ,("Data.Ord.Ord",           derOrd)
   ,("Data.Typeable.Typeable", derTypeable)
-  ,("Text.Read.Read",         derNotYet)
+  ,("Text.Read.Internal.Read",derNotYet)
   ,("Text.Show.Show",         derShow)
   ]
 
