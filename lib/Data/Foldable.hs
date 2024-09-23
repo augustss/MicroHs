@@ -49,6 +49,7 @@ import Control.Monad(Monad(..), MonadPlus(..))
 import Data.Bool
 import Data.Either
 import Data.Eq
+import Data.Foldable.Internal
 import Data.Function
 import Data.Functor.Const
 import Data.Functor.Identity
@@ -56,42 +57,10 @@ import Data.List_Type hiding (concatMap)
 import qualified Data.List as List
 import Data.Maybe
 import Data.Monoid
-import Data.Monoid.Internal
+import Data.Monoid.Internal hiding (Max(..), Min(..))
 import Data.Num
 import Data.Ord
 import Data.Proxy
-
-newtype MMax a = MMax (Maybe a)
-getMMax :: forall a . MMax a -> Maybe a
-getMMax (MMax ma) = ma
-
-newtype MMin a = MMin (Maybe a)
-getMMin :: forall a . MMin a -> Maybe a
-getMMin (MMin ma) = ma
-
-instance forall a . Ord a => Semigroup (MMax a) where
-    m <> MMax Nothing = m
-    MMax Nothing <> n = n
-    (MMax m@(Just x)) <> (MMax n@(Just y))
-      | x >= y    = MMax m
-      | otherwise = MMax n
-
-instance forall a . Ord a => Monoid (MMax a) where
-    mempty = MMax Nothing
-    mconcat = List.foldl' (<>) mempty
-
-instance forall a . Ord a => Semigroup (MMin a) where
-    m <> MMin Nothing = m
-    MMin Nothing <> n = n
-    (MMin m@(Just x)) <> (MMin n@(Just y))
-      | x <= y    = MMin m
-      | otherwise = MMin n
-
-instance forall a . Ord a => Monoid (MMin a) where
-    mempty = MMin Nothing
-    mconcat = List.foldl' (<>) mempty
-
--------------------------------
 
 infix  4 `elem`, `notElem`
 
@@ -155,11 +124,11 @@ class Foldable (t :: Type -> Type) where
 
     maximum :: forall a . Ord a => t a -> a
     maximum = fromMaybe (error "maximum: empty structure") .
-       getMMax . foldMap' (MMax . Just)
+       getMax . foldMap' (Max . Just)
 
     minimum :: forall a . Ord a => t a -> a
     minimum = fromMaybe (error "minimum: empty structure") .
-       getMMin . foldMap' (MMin . Just)
+       getMin . foldMap' (Min . Just)
 
     sum :: forall a . Num a => t a -> a
     sum = getSum . foldMap' Sum
