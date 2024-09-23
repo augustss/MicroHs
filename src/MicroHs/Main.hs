@@ -158,9 +158,13 @@ mainBuildPkg flags namever amns = do
                     , pkgExported = exported, pkgOther = other
                     , pkgDepends = pkgDeps }
   --print (map tModuleName $ pkgOther pkg)
+  t1 <- getTimeMilli
   when (verbose flags > 0) $
     putStrLn $ "Writing package " ++ namever ++ " to " ++ output flags
   writeSerializedCompressed (output flags) pkg
+  t2 <- getTimeMilli
+  when (verbose flags > 0) $
+    putStrLn $ "Compression time " ++ show (t2 - t1) ++ " ms"  
 
 splitNameVer :: String -> (String, Version)
 splitNameVer s =
