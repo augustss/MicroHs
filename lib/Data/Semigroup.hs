@@ -1,18 +1,19 @@
 module Data.Semigroup(
   Semigroup(..),
-  Endo(..), appEndo,
-  Dual(..), getDual,
-  Max(..), getMax,
-  Min(..), getMin,
-  Sum(..), getSum,
-  Product(..), getProduct,
-  All(..), getAll,
-  Any(..), getAny,
+  Endo(..),
+  Dual(..),
+  Max(..),
+  Min(..),
+  Sum(..),
+  Product(..),
+  All(..),
+  Any(..),
   Arg(..), ArgMin, ArgMax,
-  Alt(..), getAlt,
-  First(..), getFirst,
-  Last(..), getLast,
+  Alt(..),
+  First(..),
+  Last(..),
   stimesIdempotent, stimesIdempotentMonoid, stimesMonoid,
+  diff, cycle1,
   ) where
 import Prelude()              -- do not import Prelude
 import Data.Bool
@@ -22,6 +23,7 @@ import Data.Function
 import Data.List.NonEmpty_Type
 import Data.Ord
 import Data.Monoid.Internal
+import Data.Records
 import Text.Show
 
 {-
@@ -47,10 +49,8 @@ instance Enum a => Enum (First a) where
   enumFromThenTo (First a) (First b) (First c) = First `fmap` enumFromThenTo a b c
 -}
 
-newtype First a = First a
+newtype First a = First { getFirst :: a }
   deriving(Eq, Ord, Show, Bounded)
-getFirst :: First a -> a
-getFirst (First a) = a
 
 instance Semigroup (First a) where
   a <> _ = a
@@ -112,10 +112,8 @@ instance Enum a => Enum (Last a) where
   enumFromThenTo (Last a) (Last b) (Last c) = Last `fmap` enumFromThenTo a b c
 -}
 
-newtype Last a = Last a
+newtype Last a = Last { getLast :: a }
   deriving(Eq, Ord, Show, Bounded)
-getLast :: Last a -> a
-getLast (Last a) = a
 
 instance Semigroup (Last a) where
   _ <> b = b
@@ -152,3 +150,9 @@ instance Monad Last where
 instance MonadFix Last where
   mfix f = fix (f . getLast)
 -}
+
+diff :: Semigroup m => m -> Endo m
+diff = Endo . (<>)
+
+cycle1 :: Semigroup m => m -> m
+cycle1 xs = xs' where xs' = xs <> xs'

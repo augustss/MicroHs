@@ -15,6 +15,7 @@ import Data.List.NonEmpty_Type
 import Data.Ord
 import Data.Maybe_Type
 import Data.Num
+import Data.Records
 import Text.Show
 
 class Semigroup a => Monoid a where
@@ -27,9 +28,7 @@ class Semigroup a => Monoid a where
 
 ---------------------
 
-newtype Endo a = Endo (a -> a)
-appEndo :: forall a . Endo a -> (a -> a)
-appEndo (Endo f) = f
+newtype Endo a = Endo { appEndo :: a -> a }
 
 instance forall a . Semigroup (Endo a) where
   Endo f <> Endo g = Endo (f . g)
@@ -39,9 +38,8 @@ instance forall a . Monoid (Endo a) where
 
 ---------------------
 
-newtype Dual a = Dual a
-getDual :: forall a . Dual a -> a
-getDual (Dual a) = a
+newtype Dual a = Dual { getDual :: a }
+  deriving (Bounded, Eq, Ord, Show)
 
 instance forall a . Semigroup a => Semigroup (Dual a) where
   Dual a <> Dual b = Dual (b <> a)
@@ -58,33 +56,32 @@ instance Applicative Dual where
 
 ---------------------
 
-newtype Max a = Max a
-getMax :: forall a . Max a -> a
-getMax (Max a) = a
+newtype Max a = Max { getMax :: a }
+  deriving (Bounded, Eq, Ord, Show)
 
 instance forall a . Ord a => Semigroup (Max a) where
   Max a <> Max b = Max (a `max` b)
+  stimes = stimesIdempotent
 
 instance forall a . (Ord a, Bounded a) => Monoid (Max a) where
   mempty = Max minBound
 
 ---------------------
 
-newtype Min a = Min a
-getMin :: forall a . Min a -> a
-getMin (Min a) = a
+newtype Min a = Min { getMin :: a }
+  deriving (Bounded, Eq, Ord, Show)
 
 instance forall a . Ord a => Semigroup (Min a) where
   Min a <> Min b = Min (a `min` b)
+  stimes = stimesIdempotent
 
 instance forall a . (Ord a, Bounded a) => Monoid (Min a) where
   mempty = Min maxBound
 
 ---------------------
 
-newtype Sum a = Sum a
-getSum :: forall a . Sum a -> a
-getSum (Sum a) = a
+newtype Sum a = Sum { getSum :: a }
+  deriving (Bounded, Eq, Ord, Show)
 
 instance forall a . Num a => Semigroup (Sum a) where
   Sum a <> Sum b = Sum (a + b)
@@ -94,9 +91,8 @@ instance forall a . (Num a) => Monoid (Sum a) where
 
 ---------------------
 
-newtype Product a = Product a
-getProduct :: forall a . Product a -> a
-getProduct (Product a) = a
+newtype Product a = Product { getProduct :: a }
+  deriving (Bounded, Eq, Ord, Show)
 
 instance forall a . Num a => Semigroup (Product a) where
   Product a <> Product b = Product (a * b)
@@ -106,9 +102,8 @@ instance forall a . (Num a) => Monoid (Product a) where
 
 ---------------------
 
-newtype All = All Bool
-getAll :: All -> Bool
-getAll (All a) = a
+newtype All = All { getAll :: Bool }
+  deriving (Bounded, Eq, Ord, Show)
 
 instance Semigroup All where
   All a <> All b = All (a && b)
@@ -118,9 +113,8 @@ instance Monoid All where
 
 ---------------------
 
-newtype Any = Any Bool
-getAny :: Any -> Bool
-getAny (Any a) = a
+newtype Any = Any { getAny :: Bool }
+  deriving (Bounded, Eq, Ord, Show)
 
 instance Semigroup Any where
   Any a <> Any b = Any (a || b)
