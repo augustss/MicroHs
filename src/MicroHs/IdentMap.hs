@@ -78,9 +78,10 @@ lookup k = look
   where
     look Nil = Nothing
     look (One key val) =
-      case compare k key of
-        EQ -> Just val
-        _  -> Nothing
+      if k == key then
+        Just val
+      else
+        Nothing
     look (Node left _ key val right) =
       case k `compare` key of
         LT -> look left
