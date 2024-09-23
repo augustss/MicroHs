@@ -12,6 +12,7 @@ data IntMap a
   | Node (IntMap a) (IntMap a) (IntMap a) (IntMap a)
   --Xderiving (Show)
 
+{-
 -- This works for y>0
 divModX :: Int -> Int -> (Int, Int)
 divModX x y =
@@ -23,6 +24,12 @@ divModX x y =
       (q, r)
     else
       (q - 1, r + y)
+-}
+
+div4 :: Int -> Int
+div4 i = {-if i < 0 then error "div4" else-} i `quot` 4
+mod4 :: Int -> Int
+mod4 i = {-if i < 0 then error "mod4" else-} i `rem` 4
 
 empty :: forall a . IntMap a
 empty = Empty
@@ -34,10 +41,11 @@ lookup k am =
     Leaf i a -> if k == i then Just a else Nothing
     Node m0 m1 m2 m3 ->
       let
-        (d, m) = divModX k 4
-      in      if m == 0 then lookup d m0
-         else if m == 1 then lookup d m1
-         else if m == 2 then lookup d m2
+        d = div4 k
+        m = mod4 k
+      in      if 0 == m then lookup d m0
+         else if 1 == m then lookup d m1
+         else if 2 == m then lookup d m2
          else                lookup d m3
 
 insert :: forall a . Int -> a -> IntMap a -> IntMap a
@@ -85,12 +93,24 @@ insertWith comb ak a =
           if k == i then
             Leaf k (comb a b)
           else
-            ins k $ insert i b $ Node Empty Empty Empty Empty
+            ins k $ single i b
         Node m0 m1 m2 m3 ->
           let
-            (d, m) = divModX k 4
-          in      if m == 0 then Node (ins d m0) m1 m2 m3
-             else if m == 1 then Node m0 (ins d m1) m2 m3
-             else if m == 2 then Node m0 m1 (ins d m2) m3
+            d = div4 k
+            m = mod4 k
+          in      if 0 == m then Node (ins d m0) m1 m2 m3
+             else if 1 == m then Node m0 (ins d m1) m2 m3
+             else if 2 == m then Node m0 m1 (ins d m2) m3
              else                Node m0 m1 m2 (ins d m3)
   in ins ak
+
+single :: Int -> a -> IntMap a
+single k a = --insert k a $ Node Empty Empty Empty Empty
+  let
+    m = mod4 k
+    d = div4 k
+    l = Leaf d a
+  in      if 0 == m then Node l     Empty Empty Empty
+     else if 1 == m then Node Empty l     Empty Empty
+     else if 2 == m then Node Empty Empty l     Empty
+     else                Node Empty Empty Empty l
