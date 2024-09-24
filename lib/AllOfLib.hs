@@ -37,6 +37,7 @@ import Data.Functor
 import Data.Functor.Classes
 import Data.Functor.Compose
 import Data.Functor.Const
+import Data.Functor.Contravariant
 import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Functor.Sum
