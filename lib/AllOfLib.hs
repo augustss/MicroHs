@@ -76,6 +76,7 @@ import Data.String
 import Data.Text
 import Data.Traversable
 import Data.Tuple
+import Data.Tuple.Instances
 import Data.Typeable
 import Data.TypeLits
 import Data.Version

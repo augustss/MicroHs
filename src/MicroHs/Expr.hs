@@ -720,7 +720,8 @@ ppExprR raw = ppE
     ppApp as f | raw = ppApply f as
     ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppE a <+> text op <+> ppExpr b
                       | isOperChar cop, [a] <- as    = parens $ ppE a <+> text op
-                      | cop == ','                   = ppE (ETuple as)
+                      | cop == ',' && length op + 1 == length as
+                                                     = ppE (ETuple as)
                       | op == "[]", length as == 1   = ppE (EListish (LList as))
                         where op = unIdent (unQualIdent i)
                               cop = head op
