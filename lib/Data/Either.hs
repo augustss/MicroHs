@@ -3,6 +3,8 @@
 module Data.Either(module Data.Either) where
 import Prelude()              -- do not import Prelude
 import Primitives
+import Control.Applicative
+import Control.Monad
 import Data.Bool
 import Data.Eq
 import Data.Function
@@ -33,3 +35,13 @@ instance forall a b . (Show a, Show b) => Show (Either a b) where
 instance forall a . Functor (Either a) where
   fmap _ (Left a) = Left a
   fmap f (Right b) = Right (f b)
+
+instance forall a . Applicative (Either a) where
+  pure b              = Right b
+  Right f <*> Right x = Right (f x)
+  Right _ <*> Left a  = Left a
+  Left a  <*> _       = Left a
+
+instance forall a . Monad (Either a) where
+  Right b >>= k = k b
+  Left a  >>= _ = Left a
