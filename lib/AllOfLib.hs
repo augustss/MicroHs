@@ -17,6 +17,7 @@ import Data.Bool
 import Data.Bool_Type
 import Data.Bifoldable
 import Data.Bifunctor
+import Data.Bitraversable
 import Data.Bounded
 import Data.ByteString
 import Data.Char

@@ -141,6 +141,7 @@ class (forall a. Functor (p a)) => Bifunctor p where
 -- *** Exception: Prelude.undefined
 --
 -- @since 4.8.0.0
+
 {-
 instance Bifunctor (,) where
     bimap f g ~(a, b) = (f a, g b)

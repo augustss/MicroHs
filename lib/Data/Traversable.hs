@@ -35,11 +35,11 @@ import Control.Monad(Monad(..), MonadPlus(..), liftM)
 --import Data.Coerce
 import Data.Either
 import Data.Foldable
+import Data.Foldable.Internal(StateL(..), runStateL, StateR(..), runStateR, StateT(..), runStateT)
 import Data.Function
 import Data.Functor
 import Data.Functor.Const
 import Data.Functor.Identity
---import Data.Functor.Utils ( StateL(..), StateR(..), StateT(..), (#.) )
 import Data.List_Type
 import qualified Data.List as List
 import Data.Maybe
@@ -248,49 +248,3 @@ foldMapDefault f = getConst . traverse (Const . f)
 
 -----------------------
 
-newtype StateL s a = StateL (s -> (s, a))
-runStateL :: StateL s a -> s -> (s, a)
-runStateL (StateL f) = f
-
-instance Functor (StateL s) where
-    fmap f (StateL k) = StateL $ \ s -> let (s', v) = k s in (s', f v)
-
-instance Applicative (StateL s) where
-    pure x = StateL (\ s -> (s, x))
-    StateL kf <*> StateL kv = StateL $ \ s ->
-        let (s', f) = kf s
-            (s'', v) = kv s'
-        in (s'', f v)
-
-newtype StateR s a = StateR (s -> (s, a))
-runStateR :: StateR s a -> s -> (s, a)
-runStateR (StateR f) = f
-
-instance Functor (StateR s) where
-    fmap f (StateR k) = StateR $ \ s -> let (s', v) = k s in (s', f v)
-
-instance Applicative (StateR s) where
-    pure x = StateR (\ s -> (s, x))
-    StateR kf <*> StateR kv = StateR $ \ s ->
-        let (s', v) = kv s
-            (s'', f) = kf s'
-        in (s'', f v)
-
-newtype StateT s m a = StateT (s -> m (s, a))
-runStateT :: StateT s m a -> s -> m (s, a)
-runStateT (StateT f) = f
-
-instance Monad m => Functor (StateT s m) where
-    fmap = liftM
-
-instance Monad m => Applicative (StateT s m) where
-    pure a = StateT $ \ s -> return (s, a)
-    StateT mf <*> StateT mx = StateT $ \ s -> do
-        (s', f) <- mf s
-        (s'', x) <- mx s'
-        return (s'', f x)
-
-instance (Monad m) => Monad (StateT s m) where
-    m >>= k  = StateT $ \ s -> do
-        (s', a) <- runStateT m s
-        runStateT (k a) s'
