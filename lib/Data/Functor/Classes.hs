@@ -379,7 +379,6 @@ instance Ord2 Either where
     liftCompare2 _ _ (Right _) (Left _) = GT
     liftCompare2 _ comp2 (Right x) (Right y) = comp2 x y
 
-{-
 instance Read2 Either where
     liftReadPrec2 rp1 _ rp2 _ = readData $
          readUnaryWith rp1 "Left" Left <|>
@@ -387,7 +386,6 @@ instance Read2 Either where
 
     liftReadListPrec2 = liftReadListPrec2Default
     liftReadList2     = liftReadList2Default
--}
 
 instance Show2 Either where
     liftShowsPrec2 sp1 _ _ _ d (Left x) = showsUnaryWith sp1 "Left" d x
@@ -399,13 +397,11 @@ instance (Eq a) => Eq1 (Either a) where
 instance (Ord a) => Ord1 (Either a) where
     liftCompare = liftCompare2 compare
 
-{-
 instance (Read a) => Read1 (Either a) where
     liftReadPrec = liftReadPrec2 readPrec readListPrec
 
     liftReadListPrec = liftReadListPrecDefault
     liftReadList     = liftReadListDefault
--}
 
 instance (Show a) => Show1 (Either a) where
     liftShowsPrec = liftShowsPrec2 showsPrec showList
