@@ -1019,12 +1019,26 @@ withVks vks fun = assertTCMode (>=TCType) $ do
     expect = case tcm of { TCType -> sKind; TCKind -> rSort; _ -> undefined }
     loop r [] = fun (reverse r)
     loop r (IdKind i mk : iks) = do
-      k' <-
-        case mk of
-          EVar d | d == dummyIdent -> newUVar
-          _                        -> withTypeTable $ tcExpr (Check expect) mk   -- bump to next level
-      withExtVal i k' $ loop (IdKind i k' : r) iks
+      -- When we have 'forall k (a :: k) . t' the k is a kind.
+      -- Instead we have have to write 'forall (k :: Kind) (a :: k) . t' and then
+      -- we have to guess that k needs sort checking.
+      -- This doesn't work if there is not exactly 'Kind' (e.g., 'Primitives.Kind')
+      -- This sucks.
+      if tcm == TCType && guessIsKind mk then do
+        s <- withTypeTable $ withTypeTable $ tcExpr (Check rSort) mk
+        let ik = IdKind i s
+        withExtTyps [ik] $ loop (ik : r) iks
+      else do
+        k' <- case mk of
+                EVar d | d == dummyIdent -> newUVar
+                _                        -> withTypeTable $ tcExpr (Check expect) mk   -- bump to next level
+        withExtVal i k' $ loop (IdKind i k' : r) iks
   loop [] vks
+
+guessIsKind :: EType -> Bool
+guessIsKind (EVar i)                      = i == mkIdent "Kind"
+guessIsKind t | Just (f, a) <- getArrow t = guessIsKind f || guessIsKind a
+guessIsKind _                             = False
 
 -- Add symbol a table entry (with kind) for each top level typeish definition.
 -- If there is a kind signature, use it.  If not, use a kind variable.
