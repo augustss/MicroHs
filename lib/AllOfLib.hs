@@ -52,6 +52,7 @@ import Data.Integer
 import Data.Integer_Type
 import Data.Integral
 import Data.Ix
+import Data.Kind
 import Data.List
 import Data.List_Type
 import Data.Maybe
