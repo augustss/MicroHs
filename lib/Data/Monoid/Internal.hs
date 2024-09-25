@@ -28,6 +28,14 @@ class Semigroup a => Monoid a where
 
 ---------------------
 
+instance (Monoid b) => Monoid (a -> b) where
+  mempty _ = mempty
+
+instance (Semigroup b) => Semigroup (a -> b) where
+  f <> g = \ x -> f x <> g x
+
+---------------------
+
 newtype Endo a = Endo { appEndo :: a -> a }
 
 instance forall a . Semigroup (Endo a) where
@@ -241,6 +249,3 @@ stimesMonoid n x0 = case compare n 0 of
         | otherwise = g (x `mappend` x) (y `quot` 2) (x `mappend` z)
 
 ---------------------
-
-instance (Semigroup b) => Semigroup (a -> b) where
-  f <> g = \ x -> f x <> g x
