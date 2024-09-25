@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE Safe #-}
 
