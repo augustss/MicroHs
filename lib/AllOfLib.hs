@@ -10,6 +10,7 @@ import Control.Exception
 import Control.Exception.Internal
 import Control.Monad
 import Control.Monad.Fail
+import Control.Monad.IO.Class
 import Control.Monad.ST
 import Control.Monad.ST_Type
 import Data.Bits
