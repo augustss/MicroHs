@@ -3,13 +3,13 @@ module Data.Functor.Classes (
     -- ** For unary constructors
     Eq1(..), eq1,
     Ord1(..), compare1,
-    Read1(..), -- readsPrec1, readPrec1,
+    Read1(..), readsPrec1, readPrec1,
     liftReadListDefault, liftReadListPrecDefault,
     Show1(..), showsPrec1,
     -- ** For binary constructors
     Eq2(..), eq2,
     Ord2(..), compare2,
-    Read2(..), -- readsPrec2, readPrec2,
+    Read2(..), readsPrec2, readPrec2,
     liftReadList2Default, liftReadListPrec2Default,
     Show2(..), showsPrec2,
     -- * Helper functions
