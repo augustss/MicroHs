@@ -34,7 +34,7 @@ import Data.Bool
 import Data.Char
 import Data.Eq
 import Data.Function
-import Data.Functor
+import Data.Functor hiding(unzip)
 import Data.Int
 import Data.Integral
 import Data.List_Type

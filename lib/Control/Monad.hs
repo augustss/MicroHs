@@ -41,7 +41,7 @@ import Control.Error
 import Data.Bool
 import Data.Char_Type
 import Data.Function
-import Data.Functor
+import Data.Functor hiding(unzip)
 import Data.List
 import Data.Monoid.Internal
 import Data.Ord
