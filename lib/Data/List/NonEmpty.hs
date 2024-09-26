@@ -101,7 +101,6 @@ module Data.List.NonEmpty (
 import Prelude()
 
 import Control.Applicative
-import Control.DeepSeq
 import Control.Error
 import Control.Monad
 import Data.Bool
@@ -164,8 +163,6 @@ instance Foldable NonEmpty where
   foldr f z = foldr f z . toList
 --instance Traversable NonEmpty where
 --  traverse f = fromList . traverse f . toList
-instance NFData a => NFData (NonEmpty a) where
-  rnf = rnf . toList
   
 ----- End MHS replacement
 

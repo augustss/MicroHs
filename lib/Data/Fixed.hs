@@ -38,6 +38,12 @@ import Data.TypeLits (KnownNat, natVal)
 import Text.Read.Internal
 import Text.ParserCombinators.ReadPrec
 import Text.Read.Lex
+import Data.Double
+import Data.Floating
+import Data.Fractional
+import Data.Integer
+import Data.Real
+import Data.RealFrac
 import Data.Typeable
 
 default () -- avoid any defaulting shenanigans

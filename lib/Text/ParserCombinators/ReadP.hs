@@ -241,7 +241,7 @@ pfail = R (\_ -> Fail)
 -- ^ Symmetric choice.
 R f1 +++ R f2 = R (\k -> f1 k <|> f2 k)
 
-(<++) :: ReadP a -> ReadP a -> ReadP a
+(<++) :: forall a . ReadP a -> ReadP a -> ReadP a
 -- ^ Local, exclusive, left-biased choice: If left parser
 --   locally produces any result at all, then right parser is
 --   not used.
@@ -249,6 +249,7 @@ R f1 +++ R f2 = R (\k -> f1 k <|> f2 k)
   do s <- look
      probe (f0 return) s 0
  where
+  probe :: P a -> [Char] -> Int -> ReadP a
   probe (Get f)        (c:s) n = probe (f c) s (n + 1)
   probe (Look f)       s     n = probe (f s) s n
   probe p@(Result _ _) _     n = discard n >> R (p >>=)

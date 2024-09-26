@@ -14,13 +14,16 @@ import Control.Applicative
 import Control.Monad
 import Data.Bool
 import Data.Char
+import Data.Complex
 import Data.Double
 import Data.Either
+import Data.Fixed
 import Data.Float
 import Data.Function
 import Data.Int
 import Data.Integer
 import Data.List
+import Data.List.NonEmpty
 import Data.Maybe
 import Data.Ord
 import Data.Proxy
@@ -77,19 +80,27 @@ instance NFData Word16
 instance NFData Word32
 instance NFData Word64
 
+instance NFData a => NFData (NonEmpty a) where
+  rnf = rnf . toList
+
 instance NFData (Proxy a) where rnf Proxy = ()
+
 instance NFData a => NFData (Ratio a) where
   rnf x = rnf (numerator x, denominator x)
 
 instance NFData a => NFData (Maybe a) where
   rnf Nothing = ()
   rnf (Just a) = rnf a
+
 instance NFData a => NFData [a] where
   rnf = foldr (\ x r -> rnf x `seq` r) ()
 
 instance (NFData a, NFData b) => NFData (Either a b) where
   rnf (Left a) = rnf a
   rnf (Right b) = rnf b
+
+instance (NFData a) => NFData (Complex a) where
+  rnf (x :+ y) = rnf x `seq` rnf y
 
 {-
 -- | @since 1.4.3.0
