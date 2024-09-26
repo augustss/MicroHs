@@ -4,8 +4,10 @@ module Data.TypeLits(
   KnownNat(..),
   KnownSymbol(..),
   ) where
+import Prelude()
 import Primitives
-import Prelude
+import Data.Char_Type
+import Data.Integer
 
 class KnownNat (n :: Nat) where
   natVal :: forall (proxy :: Nat -> Type) . proxy n -> Integer
