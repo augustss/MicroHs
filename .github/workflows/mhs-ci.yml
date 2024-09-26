@@ -133,7 +133,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-armv7:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
