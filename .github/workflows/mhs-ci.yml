@@ -69,9 +69,9 @@ jobs:
       run: nmake -f Makefile.windows exampletest
 
   build-linux-aarch64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-    - uses: jirutka/setup-alpine@359b91e094d3dc6292e4b627abb84d8856ab7ef2
+    - uses: jirutka/setup-alpine@v1
       with:
         arch: aarch64
         branch: v3.15
