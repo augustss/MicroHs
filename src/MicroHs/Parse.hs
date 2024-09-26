@@ -310,7 +310,7 @@ pDef =
   <|< uncurry Fcn  <$> pEqns
   <|< Sign         <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Import       <$> (pKeyword "import"   *> pImportSpec)
-  <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> pKeyword "ccall" *> eoptional pString) <*> pLIdent <*> (pSymbol "::" *> pType)
+  <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> pKeyword "ccall" *> eoptional (pKeyword "unsafe") *> eoptional pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix        <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
