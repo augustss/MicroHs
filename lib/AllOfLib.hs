@@ -29,6 +29,7 @@ import Data.Dynamic
 import Data.Either
 import Data.Enum
 import Data.Eq
+import Data.Fixed
 import Data.FloatW
 import Data.Floating
 import Data.Foldable
