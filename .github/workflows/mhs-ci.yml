@@ -6,9 +6,13 @@ on:
   pull_request:
     branches: [ "master" ]
 
+# Using
+#  runs-on: ubuntu-latest
+# fails, so use an older Ubuntu
+
 jobs:
   build-linux-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
@@ -36,7 +40,7 @@ jobs:
       run: cabal build
 
   build-linux-micro-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
@@ -89,7 +93,7 @@ jobs:
 #      run: cabal build
 
   build-linux-s390x:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -149,7 +153,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-riscv64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -169,7 +173,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-ppc64le:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
