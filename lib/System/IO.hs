@@ -21,7 +21,7 @@ module System.IO(
 
   mkTextEncoding, hSetEncoding, utf8,
 
-  openTmpFile, openTempFile,
+  openTmpFile, openTempFile, openBinaryTempFile,
 
   withFile,
   ) where
@@ -301,8 +301,8 @@ openTmpFile tmpl = do
   return (tmp, h)
 
 -- Sloppy implementation of openTempFile
-openTempFile :: FilePath -> String -> IO (String, Handle)
-openTempFile tmp tmplt = do
+openTempFile' :: (FilePath -> IOMode -> IO Handle) -> FilePath -> String -> IO (String, Handle)
+openTempFile' open tmp tmplt = do
   let (pre, suf) = splitTmp tmplt
       loop n = do
         let fn = tmp ++ "/" ++ pre ++ show n ++ suf
@@ -312,6 +312,12 @@ openTempFile tmp tmplt = do
             hClose h
             loop (n+1 :: Int)
           Nothing -> do
-            h <- openFile fn ReadWriteMode
+            h <- open fn ReadWriteMode
             return (fn, h)
   loop 0
+
+openTempFile :: FilePath -> String -> IO (String, Handle)
+openTempFile = openTempFile' openFile
+
+openBinaryTempFile :: FilePath -> String -> IO (String, Handle)
+openBinaryTempFile = openTempFile' openBinaryFile
