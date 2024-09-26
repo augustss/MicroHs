@@ -442,6 +442,7 @@ addClassTable i x = modify $ \ ts -> ts { classTable = M.insert i x (classTable 
 
 addInstTable :: [InstDictC] -> T ()
 addInstTable ics = do
+--  tcTrace $ "addInstTable: " ++ show ics
   let
     -- Change type variable to unique unification variables.
     -- These unification variables will never leak, but as an extra caution
@@ -463,7 +464,7 @@ addInstTable ics = do
 
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
---  traceM $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
+--  tcTrace $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
   ctx' <- expandSyn ctx
   modify $ \ ts -> ts{ constraints = (d, ctx') : constraints ts }
 
@@ -477,12 +478,12 @@ withDicts ds ta = do
 
 withDict :: forall a . HasCallStack => Ident -> EConstraint -> T a -> T a
 withDict i c ta = do
---  traceM $ "+++ withDict enter " ++ show (i, c)
+--  tcTrace $ "+++ withDict enter " ++ show (i, c)
   ct <- gets ctxTables
   addDict (i, c)
   a <- ta
   putCtxTables ct
---  traceM $ "--- withDict leave " ++ show (i, c)
+--  tcTrace $ "--- withDict leave " ++ show (i, c)
   return a
 
 addDict :: (Ident, EConstraint) -> T ()
@@ -507,7 +508,7 @@ addInstDict i c = do
 addEqDict :: Ident -> EType -> EType -> T ()
 addEqDict _i t1 t2 = do
   is <- gets typeEqTable
---  traceM ("withEqDict: " ++ show (is, (t1,t2), (addTypeEq t1 t2 is)))
+--  tcTrace ("withEqDict: " ++ show (is, (t1,t2), (addTypeEq t1 t2 is)))
   putTypeEqTable (addTypeEq t1 t2 is)
 
 addMetaDict :: HasCallStack => Ident -> EConstraint -> T ()
@@ -782,7 +783,7 @@ unifyVar :: HasCallStack =>
             SLoc -> TRef -> EType -> T ()
 unifyVar loc r t = do
   mt <- getUVar r
---  traceM $ "unifyVar: " ++ show (r,t)
+--  tcTrace $ "unifyVar: " ++ show (r,t)
   case mt of
     Nothing -> unifyUnboundVar loc r t
     Just t' -> unify loc t' t
@@ -826,10 +827,10 @@ tLookup msg i = do
     Left            e -> do
 {-
       tcm <- gets tcMode
-      traceM ("TCMode=" ++ show tcm)
-      traceM ("Value table:\n" ++ show env)
+      tcTrace ("TCMode=" ++ show tcm)
+      tcTrace ("Value table:\n" ++ show env)
       tenv <- gets typeTable
-      traceM ("Type table:\n" ++ show tenv)
+      tcTrace ("Type table:\n" ++ show tenv)
 -}
       tcError (getSLoc i) e
 
@@ -844,7 +845,7 @@ tInst ae (EForall _ vks t) = do
   t' <- tInstForall vks t
   tInst ae t'
 tInst ae at | Just (ctx, t) <- getImplies at = do
-  --traceM $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
+  --tcTrace $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
   if eqExpr ae eCannotHappen then
     -- XXX Gruesome hack.  This avoid adding constraints in cases like
     --  (C a => a) -> T `subsCheck` b
@@ -948,13 +949,13 @@ withExtTyps iks ta = do
 
 tcDefs :: ImpType -> [EDef] -> T [EDef]
 tcDefs impt ds = do
---  traceM ("tcDefs 1:\n" ++ showEDefs ds)
+--  tcTrace ("tcDefs 1:\n" ++ showEDefs ds)
   mapM_ tcAddInfix ds
   dst <- tcDefsType ds
---  traceM ("tcDefs 2:\n" ++ showEDefs dst)
+--  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeSyn dst
   dst' <- tcExpand impt dst
---  traceM ("tcDefs 3:\n" ++ showEDefs dst')
+--  tcTrace ("tcDefs 3:\n" ++ showEDefs dst')
   case impt of
     ImpNormal -> do
       setDefault dst'
@@ -981,14 +982,14 @@ tcDefsType ds = withTypeTable $ do
   mapM_ (addTypeKind kindSigs) ds              -- Add the kind of each type to the environment
   dst <- mapM tcDefType ds                     -- Kind check all top level type expressions
 --  vars <- gets uvarSubst
---  traceM $ show vars
+--  tcTrace $ show vars
   vt <- gets valueTable
   let ent (Entry i t) = Entry i . mapEType def <$> derefUVar t
       def (EUVar _) = kType    -- default kind variables to Type
       def t = t
   vt' <- mapMSymTab ent vt
   putValueTable vt'
---  traceM $ "tcDefType value table:\n" ++ show vt'
+--  tcTrace $ "tcDefType value table:\n" ++ show vt'
   return dst
 
 -- Get all kind signatures, and do sort checking of them.
@@ -1005,9 +1006,9 @@ tcExpand :: ImpType -> [EDef] -> T [EDef]
 tcExpand impt dst = withTypeTable $ do
   dsc <- concat <$> mapM (expandClass impt) dst       -- Expand all class definitions
   dsf <- concat <$> mapM expandField dsc              -- Add HasField instances
---  traceM $ showEDefs dsf
+--  tcTrace $ showEDefs dsf
   dsd <- concat <$> mapM doDeriving  dsf              -- Add derived instances
---  traceM $ showEDefs dsd
+--  tcTrace $ showEDefs dsd
   dsi <- concat <$> mapM expandInst  dsd              -- Expand all instance definitions
   return dsi
 
@@ -1239,7 +1240,7 @@ expandInst dinst@(Instance act bs) = do
       qiCls = getAppCon cc
   let iInst = mkInstId loc cc
       sign = Sign [iInst] act
---  traceM ("expandInst " ++ show iInst)
+--  tcTrace ("expandInst " ++ show iInst)
 --  (e, _) <- tLookupV iCls
   ct <- gets classTable
 --  let qiCls = getAppCon e
@@ -1270,7 +1271,7 @@ expandInst d = return [d]
 
 tcDefsValue :: [EDef] -> T [EDef]
 tcDefsValue defs = do
---  traceM $ "tcDefsValue: ------------ start"
+--  tcTrace $ "tcDefsValue: ------------ start"
   -- Gather up all type signatures, and put them in the environment.
   mapM_ addValueType defs
   let smap = M.fromList [ (i, ()) | Sign is _ <- defs, i <- is ]
@@ -1288,7 +1289,7 @@ tcDefsValue defs = do
   -- return inferred Sign
   signDefs <- mapM tcSCC sccs
   --  type check all definitions (the inferred ones will be rechecked)
---  traceM $ "tcDefsValue: ------------ check"
+--  tcTrace $ "tcDefsValue: ------------ check"
   defs' <- mapM (\ d -> do { tcReset; tcDefValue d}) defs
   return $ concat signDefs ++ defs'
 
@@ -1298,7 +1299,7 @@ tInferDefs fcns = do
   tcReset
   -- Invent type variables for the definitions
   xts <- mapM (\ (Fcn i _) -> (,) i <$> newUVar) fcns
-  --traceM $ "tInferDefs: " ++ show (map fst xts)
+  --tcTrace $ "tInferDefs: " ++ show (map fst xts)
   -- Temporarily extend the local environment with the type variables
   withExtVals xts $ do
     -- Infer types for all the Fcns, ignore the new bodies.
@@ -1316,7 +1317,7 @@ tInferDefs fcns = do
             t'' = addConstraints ctx' t'
             vs' = metaTvs [t'']
         t''' <- quantify vs' t''
-        --traceM $ "tInferDefs: " ++ showIdent i ++ " :: " ++ showEType t'''
+        --tcTrace $ "tInferDefs: " ++ showIdent i ++ " :: " ++ showEType t'''
         extValQTop i t'''
         return $ Sign [i] t'''
   mapM genTop xts
@@ -1332,7 +1333,7 @@ getUnsolved = do
 addValueType :: EDef -> T ()
 addValueType adef = do
   mn <- gets moduleName
-  -- traceM ("addValueType: " ++ showEDefs [adef])
+  -- tcTrace ("addValueType: " ++ showEDefs [adef])
   let addConFields _     (Constr _ _ _ (Left _)) = return ()
       addConFields tycon (Constr _ _ _ (Right fs)) = mapM_ addField fs
         where addField (fld, _) = do
@@ -1380,7 +1381,7 @@ addValueClass ctx iCls vks fds ms = do
   extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon) [])
   let addMethod (BSign i t) = extValETop i (EForall True vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
       addMethod _ = impossible
---  traceM ("addValueClass " ++ showEType (ETuple ctx))
+--  tcTrace ("addValueClass " ++ showEType (ETuple ctx))
   mapM_ addMethod meths
   -- Update class table, now with actual constructor type.
   addClassTable qiCls (vks, ctx, iConTy, methIds, mkIFunDeps (map idKindIdent vks) fds)
@@ -1396,15 +1397,16 @@ tcDefValue adef =
     Fcn i eqns -> do
       (_, t) <- tLookup "type signature" i
       t' <- expandSyn t
---      traceM $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t'
---      traceM $ "tcDefValue:      " ++ showEDefs [adef]
+--      tcTrace $ "tcDefValue: ------- start " ++ showIdent i
+--      tcTrace $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t'
+--      tcTrace $ "tcDefValue: " ++ showEDefs [adef]
       teqns <- tcEqns True t' eqns
---      traceM ("tcDefValue: after\n" ++ showEDefs [adef, Fcn i teqns])
+--      tcTrace ("tcDefValue: after\n" ++ showEDefs [adef, Fcn i teqns])
 --      cs <- gets constraints
---      traceM $ "tcDefValue: constraints: " ++ show cs
+--      tcTrace $ "tcDefValue: constraints: " ++ show cs
       checkConstraints
       mn <- gets moduleName
---      traceM $ "tcDefValue: " ++ showIdent i ++ " done"
+--      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
       return $ Fcn (qualIdent mn i) teqns
     ForImp ie i t -> do
       mn <- gets moduleName
@@ -1420,7 +1422,7 @@ tCheckTypeTImpl tchk t = do
   let fvs = freeTyVars [t]                     -- free variables in t
       -- these are free, and need quantification.  eDummy indicates missing kind
       iks = map (\ i -> IdKind i eDummy) (fvs \\ bvs)
-  --when (not (null iks)) $ traceM ("tCheckTypeTImpl: " ++ show (t, eForall iks t))
+  --when (not (null iks)) $ tcTrace ("tCheckTypeTImpl: " ++ show (t, eForall iks t))
   tCheckTypeT tchk (eForall' False iks t)
 
 tCheckTypeT :: HasCallStack => EType -> EType -> T EType
@@ -1480,7 +1482,7 @@ tInferExpr = tInfer tcExpr
 tCheckExpr :: HasCallStack =>
               EType -> Expr -> T Expr
 tCheckExpr t e | Just (ctx, t') <- getImplies t = do
---  traceM $ "tCheckExpr: " ++ show (e, ctx, t')
+--  tcTrace $ "tCheckExpr: " ++ show (e, ctx, t')
   d <- newADictIdent (getSLoc e)
   e' <- withDict d ctx $ tCheckExprAndSolve t' e
   return $ eLam [EVar d] e'
@@ -1512,9 +1514,9 @@ tGetExpType (Infer r) = tGetRefType r
 tcExpr :: HasCallStack =>
           Expected -> Expr -> T Expr
 tcExpr mt ae = do
---  traceM ("tcExpr enter: " ++ showExpr ae)
+--  tcTrace ("tcExpr enter: " ++ showExpr ae)
   r <- tcExprR mt ae
---  traceM ("tcExpr exit: " ++ showExpr r)
+--  tcTrace ("tcExpr exit: " ++ showExpr r)
   return r
 tcExprR :: HasCallStack =>
            Expected -> Expr -> T Expr
@@ -1541,15 +1543,15 @@ tcExprR mt ae =
                case t of
                  EUVar r -> fmap (fromMaybe t) (getUVar r)
                  _ -> return t
-             --traceM $ "EVar: " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t' ++ " mt=" ++ show mt
+             --tcTrace $ "EVar: " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t' ++ " mt=" ++ show mt
              instSigma loc e t' mt
 
     EApp f a -> do
---      traceM $ "txExpr(0) EApp: expr=" ++ show ae ++ ":: " ++ show mt
+--      tcTrace $ "txExpr(0) EApp: expr=" ++ show ae ++ ":: " ++ show mt
       (f', ft) <- tInferExpr f
---      traceM $ "tcExpr(1) EApp: f=" ++ show f ++ "; f'=" ++ show f' ++ " :: " ++ show ft
+--      tcTrace $ "tcExpr(1) EApp: f=" ++ show f ++ "; f'=" ++ show f' ++ " :: " ++ show ft
       (at, rt) <- unArrow loc ft
---      traceM $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a ++ " :: " ++ show at ++ " retty=" ++ show rt
+--      tcTrace $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a ++ " :: " ++ show at ++ " retty=" ++ show rt
       -- We want to do the unification of rt ant mt before checking the argument to
       -- have more type information.  See tests/Eq1.hs.
       -- But instSigma may transform the input expression, so we have to be careful.
@@ -1557,7 +1559,7 @@ tcExprR mt ae =
           ugly = -1::Int
       etmp' <- instSigma loc etmp rt mt
       a' <- checkSigma a at
---      traceM $ "tcExpr(3) EApp: f = " ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a' ++ " :: " ++ show at ++ " retty=" ++ show rt ++ " mt = " ++ show mt
+--      tcTrace $ "tcExpr(3) EApp: f = " ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a' ++ " :: " ++ show at ++ " retty=" ++ show rt ++ " mt = " ++ show mt
       let res = EApp f' a'
       case etmp' of
         EUVar _ -> return res   -- instSigma did nothing, this is the common case
@@ -1610,7 +1612,7 @@ tcExprR mt ae =
                   (f, ft) <- tInferExpr (EVar (mkIdentSLoc loc $ "fromString"))  -- XXX should have this qualified somehow
                   (_at, rt) <- unArrow loc ft
                   -- We don't need to check that _at is String, it's part of the fromString type.
-                  --traceM ("LStr " ++ show (loc, r))
+                  --tcTrace ("LStr " ++ show (loc, r))
                   instSigma loc (EApp f ae) rt mt
             -- Not LInteger, LRat, LStr
             _ -> tcLit mt loc lit
@@ -1941,7 +1943,7 @@ tcEqns top t eqns = do
   let loc = getSLoc eqns
   f <- newIdent loc "fcnS"
   (eqns', ds) <- solveAndDefault top $ mapM (tcEqn t) eqns
---  traceM $ "tcEqns done: " ++ showEBind (BFcn dummyIdent eqns')
+--  tcTrace $ "tcEqns done: " ++ showEBind (BFcn dummyIdent eqns')
   case ds of
     [] -> return eqns'
     _  -> do
@@ -1955,7 +1957,7 @@ tcEqn :: EType -> Eqn -> T Eqn
 tcEqn t eqn =
   case eqn of
     Eqn ps alts -> tcPats t ps $ \ t' ps' -> do
---      traceM $ "tcEqn " ++ show ps ++ " ---> " ++ show ps'
+--      tcTrace $ "tcEqn " ++ show ps ++ " ---> " ++ show ps'
       alts' <- tcAlts t' alts
       return (Eqn ps' alts')
 
@@ -1971,7 +1973,7 @@ tcAlts :: EType -> EAlts -> T EAlts
 tcAlts t (EAlts alts bs) =
 --  trace ("tcAlts: bs in " ++ showEBinds bs) $
   tcBinds bs $ \ bs' -> do
---    traceM ("tcAlts: bs out " ++ showEBinds bbs)
+--    tcTrace ("tcAlts: bs out " ++ showEBinds bbs)
     alts' <- mapM (tcAlt t) alts
     return (EAlts alts' bs')
 
@@ -2038,17 +2040,17 @@ tCheckPatC :: forall a . EType -> EPat -> (EPat -> T a) -> T a
 tCheckPatC t p@(EVar v) ta | not (isConIdent v) = do  -- simple special case
   withExtVals [(v, t)] $ ta p
 tCheckPatC t app ta = do
---  traceM $ "tCheckPatC: " ++ show app ++ " :: " ++ show t
+--  tcTrace $ "tCheckPatC: " ++ show app ++ " :: " ++ show t
   app' <- dsEFields app
   let vs = patVars app'
   multCheck vs
   env <- mapM (\ v -> (,) v <$> newUVar) vs
   withExtVals env $ do
     (_sks, ds, pp) <- tCheckPat t app'
---    traceM ("tCheckPatC: " ++ show pp)
+--    tcTrace ("tCheckPatC: " ++ show pp)
     () <- checkArity 0 pp
 --    xt <- derefUVar t
---    traceM ("tCheckPatC ds=" ++ show ds ++ "t=" ++ show xt)
+--    tcTrace ("tCheckPatC ds=" ++ show ds ++ "t=" ++ show xt)
     -- XXX must check for leaking skolems
     withDicts ds $
       ta pp
@@ -2076,7 +2078,7 @@ tcPat mt ae =
 
            | isConIdent i -> do
                (con, xpt) <- tLookupV i
---               traceM (show ipt)
+--               tcTrace (show ipt)
                case xpt of
                   -- Sanity check
                   EForall _ _ (EForall _ _ _) -> return ()
@@ -2112,9 +2114,9 @@ tcPat mt ae =
       | isNeg f -> lit       -- if it's (negate e) it must have been a negative literal
       | otherwise -> do
       ((skf, df, f'), ft) <- tInferPat f
---      traceM $ "tcPat: EApp f=" ++ showExpr f ++ "; e'=" ++ showExpr f' ++ " :: " ++ showEType ft
+--      tcTrace $ "tcPat: EApp f=" ++ showExpr f ++ "; e'=" ++ showExpr f' ++ " :: " ++ showEType ft
       (at, rt) <- unArrow loc ft
---      traceM ("tcPat EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
+--      tcTrace ("tcPat EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
       (ska, da, a') <- tCheckPat at a
       instPatSigma loc rt mt
       return (skf ++ ska, df ++ da, EApp f' a')
@@ -2370,7 +2372,7 @@ checkSigma :: HasCallStack =>
 checkSigma expr sigma = do
   (skol_tvs, rho) <- skolemise sigma
 --  sigma' <- derefUVar sigma
---  traceM $ "**** checkSigma: " ++ show expr ++ " :: " ++ show sigma ++ " = " ++ show sigma' ++ " " ++ show skol_tvs
+--  tcTrace $ "**** checkSigma: " ++ show expr ++ " :: " ++ show sigma ++ " = " ++ show sigma' ++ " " ++ show skol_tvs
   expr' <- tCheckExpr rho expr
   if null skol_tvs then
     -- Fast special case
@@ -2399,7 +2401,7 @@ subsCheckRho loc exp1 rho1 rho2 | Just (a1, r1) <- getArrow rho1 = do -- Rule FU
   (a2,r2) <- unArrow loc rho2
   subsCheckFun loc exp1 a1 r1 a2 r2
 subsCheckRho loc exp1 tau1 tau2 = do  -- Rule MONO
---  traceM $ "subsCheckRho: MONO " ++ show (tau1, tau2)
+--  tcTrace $ "subsCheckRho: MONO " ++ show (tau1, tau2)
   unify loc tau1 tau2 -- Revert to ordinary unification
   return exp1
 
@@ -2412,11 +2414,11 @@ subsCheckFun loc e1 a1 r1 a2 r2 = do
 instSigma :: HasCallStack =>
              SLoc -> Expr -> Sigma -> Expected -> T Expr
 instSigma loc e1 t1 (Check t2) = do
---  traceM ("instSigma: Check " ++ showEType t1 ++ " = " ++ showEType t2)
+--  tcTrace ("instSigma: Check " ++ showEType t1 ++ " = " ++ showEType t2)
   subsCheckRho loc e1 t1 t2
 instSigma loc e1 t1 (Infer r) = do
   (e1', t1') <- tInst e1 t1
-  --traceM ("instSigma: Infer " ++ showEType t1 ++ " ==> " ++ showEType t1')
+  --tcTrace ("instSigma: Infer " ++ showEType t1 ++ " ==> " ++ showEType t1')
   tSetRefType loc r t1'
   return e1'
 
@@ -2487,7 +2489,7 @@ solveAndDefault True  ta = do
   ds <- solveConstraints
   cs <- gets constraints
   vs <- getMetaTyVars (map snd cs)    -- These are the type variables that need defaulting
---  traceM $ "solveAndDefault: meta=" ++ show vs
+--  tcTrace $ "solveAndDefault: meta=" ++ show vs
   -- XXX may have to iterate this with fundeps
   ds' <- concat <$> mapM defaultOneTyVar vs
   return (a, ds ++ ds')
@@ -2506,20 +2508,23 @@ defaultOneTyVar tv = do
   let tryDefaults [] = return []
       tryDefaults (ty:tys) = do
         ok <- checkDefaultTypes ty ourcs
-        --traceM ("checkDefaultTypes: " ++ show (tv, ty, ourcs, ok))
+--        tcTrace ("checkDefaultTypes: " ++ show (EUVar tv, ty, ourcs, ok))
         if not ok then
           tryDefaults tys   -- don't default
          else do
+--          tcTrace $ "defaultOneTyVar: " ++ show (EUVar tv) ++ ":=" ++ showEType ty
           setUVar tv ty
           putConstraints ourcs
           ds <- solveConstraints
           rcs <- gets constraints
           if null rcs then do
             -- Success, the type variable is gone
+--            tcTrace $ "defaultOneTyVar success: " ++ show (EUVar tv)
             putConstraints othercs   -- put back the other constraints
             return ds
            else do
             -- Not solved, try with the nest type
+--            tcTrace $ "defaultOneTyVar failed: " ++ show rcs
             put old            -- restore solver state
             tryDefaults tys    -- and try with next type
   tryDefaults (defaults old)
@@ -2597,13 +2602,13 @@ solveConstraints = do
     return []
    else do
     addMetaDicts
-    --traceM "------------------------------------------\nsolveConstraints"
+--    tcTrace "------------------------------------------\nsolveConstraints"
     cs' <- mapM (\ (i,t) -> do { t' <- derefUVar t; return (i,t') }) cs
-    --traceM ("constraints:\n" ++ unlines (map showConstraint cs'))
+--    tcTrace ("constraints:\n" ++ unlines (map showConstraint cs'))
     (unsolved, solved, improves) <- solveMany cs' [] [] []
     putConstraints unsolved
-    --traceM ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
-    --traceM ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
+--    tcTrace ("solved:\n"   ++ unlines [ showIdent i ++ " = "  ++ showExpr  e | (i, e) <- solved ])
+--    tcTrace ("unsolved:\n" ++ unlines [ showIdent i ++ " :: " ++ showEType t | (i, t) <- unsolved ])
     if null improves then
       return solved
      else do
@@ -2624,7 +2629,7 @@ solvers =
   [ (isJust . getTupleConstr,      solveTuple)        -- handle tuple constraints, i.e. (C1 t1, C2 t2, ...)
   , ((== mkIdent nameTypeEq),      solveTypeEq)       -- handle equality constraints, i.e. (t1 ~ t2)
   , ((== mkIdent nameKnownNat),    solveKnownNat)     -- KnownNat 999 constraints
-  , ((== mkIdent nameKnownSymbol), solveKnownSymbol)  -- KnownNat 999 constraints
+  , ((== mkIdent nameKnownSymbol), solveKnownSymbol)  -- KnownSymbol "abc" constraints
   , (const True,                   solveInst)         -- handle constraints with instances
   ]
 
@@ -2633,16 +2638,16 @@ solveMany :: [Goal] -> [UGoal] -> [Soln] -> [Improve] -> T ([UGoal], [Soln], [Im
 solveMany [] uns sol imp = return (uns, sol, imp)
 -- Need to handle ct of the form C => T, and forall a . T
 solveMany (cns@(di, ct) : cnss) uns sol imp = do
---  traceM ("trying " ++ showEType ct)
+--  tcTrace ("trying " ++ showEType ct)
   let loc = getSLoc di
       !(iCls, cts) = getApp ct
       solver = head [ s | (p, s) <- solvers, p iCls ]
   ads <- gets argDicts
   -- Check if we have an exact match among the arguments dictionaries.
-  -- This is importand to find tupled dictionaries in recursive calls.
+  -- This is important to find tupled dictionaries in recursive calls.
   case [ ai | (ai, act) <- ads, ct `eqEType` act ] of
     ai : _ -> do
-      --traceM $ "solve with arg " ++ show ct
+      --tcTrace $ "solve with arg " ++ show ct
       solveMany cnss uns ((di, EVar ai) : sol) imp
     [] -> do
       msol <- solver loc iCls cts
@@ -2653,25 +2658,31 @@ solveMany (cns@(di, ct) : cnss) uns sol imp = do
 solveInst :: SolveOne
 solveInst loc iCls cts = do
   it <- gets instTable
---  traceM ("instances:\n" ++ unlines (map showInstDef (M.toList it)))
+--  tcTrace ("instances:\n" ++ unlines (map showInstDef (M.toList it)))
   case M.lookup iCls it of
     Nothing -> return Nothing   -- no instances, so no chance
-    Just (InstInfo atomMap insts fds) ->
+    Just (InstInfo atomMap insts fds) -> do
+      -- tcTrace $ "solveInst: " ++ showIdent iCls ++ " atomMap size=" ++ show (M.size atomMap)
       case cts of
         [EVar i] -> do
           case M.lookup i atomMap of
             -- If the goal is just (C T) and there is an instance, the solution is simple
             Just e  -> return $ Just (e, [], [])
             -- Not found, but there might be a generic instance
-            Nothing -> solveGen fds insts loc iCls cts
-        _           -> solveGen fds insts loc iCls cts
+            Nothing -> solveGen (M.null atomMap) fds insts loc iCls cts
+        _           -> solveGen (M.null atomMap) fds insts loc iCls cts
 
-solveGen :: [IFunDep] -> [InstDict] -> SolveOne
-solveGen fds insts loc iCls cts = do
---  traceM ("solveGen " ++ show (iCls, cts))
-  let matches = getBestMatches $ findMatches loc fds insts cts
---  traceM ("matches " ++ showListS show (findMatches loc fds insts cts))
---  traceM ("matches " ++ showListS showMatch matches)
+-- When matching constraint (C _a) against an instance of the form
+-- instance (C b) then we don't want to match if the
+-- _a is later instantiated and it turns out we should
+-- have matched a (C T) instead.
+solveGen :: Bool -> [IFunDep] -> [InstDict] -> SolveOne
+solveGen noAtoms fds insts loc iCls cts = do
+--  tcTrace ("solveGen: " ++ show (iCls, cts))
+--  tcTrace ("solveGen: insts=" ++ show insts)
+  let matches = getBestMatches $ findMatches noAtoms loc fds insts cts
+--  tcTrace ("solveGen: matches allMatches =" ++ showListS show (findMatches noAtoms loc fds insts cts))
+--  tcTrace ("solveGen: matches bestMatches=" ++ showListS showMatch matches)
   case matches of
     []              -> return Nothing
     [(de, ctx, is)] ->
@@ -2679,7 +2690,7 @@ solveGen fds insts loc iCls cts = do
         return $ Just (de, [], is)
       else do
         d <- newDictIdent loc
---        traceM ("constraint " ++ showIdent di ++ " :: " ++ showEType ct ++ "\n" ++
+--        tcTrace ("constraint " ++ showIdent di ++ " :: " ++ showEType ct ++ "\n" ++
 --                "   turns into " ++ showIdent d ++ " :: " ++ showEType (tupleConstraints ctx) ++ ", " ++
 --                showIdent di ++ " = " ++ showExpr (EApp de (EVar d)))
         return $ Just (EApp de (EVar d), [(d, tupleConstraints ctx)], is)
@@ -2698,7 +2709,7 @@ solveTypeEq :: SolveOne
 solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETuple [], [], [(loc, t1, t2)])
                                | otherwise = do
   eqs <- gets typeEqTable
-  --traceM ("solveTypeEq eqs=" ++ show eqs)
+  --tcTrace ("solveTypeEq eqs=" ++ show eqs)
   case solveEq eqs t1 t2 of
     Nothing -> return Nothing
     Just (de, tts) -> do
@@ -2733,8 +2744,9 @@ type TySubst = [(TRef, EType)]
 -- For each matching instance return: (subst-size, (dict-expression, new-constraints))
 -- The subst-size is the size of the substitution that made the input instance match.
 -- It is a measure of how exact the match is.
-findMatches :: SLoc -> [IFunDep] -> [InstDict] -> [EType] -> [(Int, (Expr, [EConstraint], [Improve]))]
-findMatches loc fds ds its =
+findMatches :: Bool -> SLoc -> [IFunDep] -> [InstDict] -> [EType] -> [(Int, (Expr, [EConstraint], [Improve]))]
+findMatches False _ _ _ [EUVar _] = []
+findMatches _ loc fds ds its =
  let rrr =
        [ (length s, (de, map (substEUVar s) ctx, imp))
        | (de, ctx, ts) <- ds, Just (s, imp) <- [matchTypes loc ts its fds] ]
@@ -2776,7 +2788,7 @@ matchTypesFD loc ts ts' (ins, outs) = do
   -- We don't allow output FDs to have tyvars that are not instantiated
   let outImpTvs = metaTvs [ t | (_,t,_) <- imp ]
       outTvs = metaTvs [ t | (True, t) <- zip ins ts' ]   -- these tyvars were present in input positions in ts
---  traceM $ "matchTypesFD: " ++ show (ts, ts') ++ show (ins, outs) ++ show (tm, imp) ++ show (outTvs, outImpTvs)
+--  tcTrace $ "matchTypesFD: " ++ show (ts, ts') ++ show (ins, outs) ++ show (tm, imp) ++ show (outTvs, outImpTvs)
   when (not (null (outImpTvs \\ outTvs))) $
     errorMessage loc $ "free type variable in output fundep"
   pure (tm, imp)
@@ -2790,6 +2802,7 @@ matchType = match
     match r (EApp f a) (EApp f' a') = do
       r' <- match r f f'
       match r' a a'
+--    match _ _ (EUVar _) = Nothing
     match r (EUVar i) t' =
       -- For a variable, check that any previous match is the same.
       case lookup i r of
@@ -2833,7 +2846,7 @@ checkConstraints = do
     (i, t) : _ -> do
       t' <- derefUVar t
 --      is <- gets instTable
---      traceM $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> show i ++ ":\n" ++ showInstInfo ii) (M.toList is))
+--      tcTrace $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> show i ++ ":\n" ++ showInstInfo ii) (M.toList is))
       tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ show t'
 
 -- Add a type equality constraint.

@@ -15,6 +15,7 @@ import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
 import MicroHs.State
 import MicroHs.SymTab
+import Debug.Trace
 
 -----------------------------------------------
 -- TC
@@ -30,6 +31,13 @@ tcError :: forall s a .
 tcError = errorMessage
 
 instance MonadFail Identity where fail = error
+
+tcTrace :: String -> TC s ()
+--tcTrace _ = return ()
+tcTrace msg = do
+  s <- get
+  let s' = trace msg s
+  seq s' (put s')
 
 -----------------------------------------------
 -- Tables
