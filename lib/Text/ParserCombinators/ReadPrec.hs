@@ -57,6 +57,8 @@ import Data.Ord
 import Text.ParserCombinators.ReadP(ReadP, ReadS, readP_to_S, readS_to_P)
 import qualified Text.ParserCombinators.ReadP as ReadP(get, look, (+++), (<++), pfail)
 
+default (Int)
+
 -- ---------------------------------------------------------------------------
 -- The readPrec type
 

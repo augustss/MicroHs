@@ -88,6 +88,8 @@ import Data.List
 import Data.List.NonEmpty
 import Data.Monoid.Internal
 
+default (Int)
+
 infixr 5 +++, <++
 
 ------------------------------------------------------------------------
