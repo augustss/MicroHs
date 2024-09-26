@@ -85,11 +85,14 @@ import Data.Void
 import Data.Word
 import Data.ZipList
 import Debug.Trace
+import Foreign
 import Foreign.C.String
 import Foreign.C.Types
 import Foreign.ForeignPtr
+import Foreign.Marshal
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
+import Foreign.Marshal.Error
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
