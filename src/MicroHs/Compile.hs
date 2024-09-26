@@ -275,7 +275,7 @@ invertGraph = foldr ins M.empty
 -- Is the module name actually a file name?
 getFileName :: IdentModule -> Maybe String
 getFileName m | ".hs" `isSuffixOf` s = Just s
-             | otherwise = Nothing
+              | otherwise = Nothing
   where s = unIdent m
 
 readModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, String))
@@ -285,10 +285,14 @@ readModulePath flags suf mn | Just fn <- getFileName mn = do
     Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show fn
     Just h -> readRest fn h
 
-                        | otherwise = do
+                            | otherwise = do
   mh <- findModulePath flags suf mn
   case mh of
-    Nothing -> return Nothing
+    Nothing -> do
+      mhc <- findModulePath flags (suf ++ "c") mn  -- look for hsc file
+      case mhc of
+        Nothing -> return Nothing
+        Just (_fn, _h) -> undefined
     Just (fn, h) -> readRest fn h
   where readRest fn h = do
           hasCPP <- hasLangCPP fn
