@@ -28,6 +28,7 @@ import Data.Maybe
 import Data.Ord
 import Data.Proxy
 import Data.Ratio
+import Data.Real
 import Data.Tuple
 import Data.Word
 
@@ -80,9 +81,6 @@ instance NFData Word16
 instance NFData Word32
 instance NFData Word64
 
-instance NFData a => NFData (NonEmpty a) where
-  rnf = rnf . toList
-
 instance NFData (Proxy a) where rnf Proxy = ()
 
 instance NFData a => NFData (Ratio a) where
@@ -101,6 +99,12 @@ instance (NFData a, NFData b) => NFData (Either a b) where
 
 instance (NFData a) => NFData (Complex a) where
   rnf (x :+ y) = rnf x `seq` rnf y
+
+instance NFData a => NFData (NonEmpty a) where
+  rnf = rnf . toList
+
+instance NFData (Fixed a)
+--  rnf = rnf
 
 {-
 -- | @since 1.4.3.0
