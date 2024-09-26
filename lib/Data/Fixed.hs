@@ -32,8 +32,8 @@ module Data.Fixed
     mod',
     divMod'
 ) where
-
---import Data.Data
+import Prelude()
+import MiniPrelude
 import Data.TypeLits (KnownNat, natVal)
 import Text.Read.Internal
 import Text.ParserCombinators.ReadPrec
