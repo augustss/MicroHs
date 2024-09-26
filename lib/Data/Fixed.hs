@@ -105,25 +105,21 @@ instance Enum (Fixed a) where
 
 instance (HasResolution a) => Num (Fixed a) where
     (MkFixed a) + (MkFixed b) = MkFixed (a + b)
-{-
     (MkFixed a) - (MkFixed b) = MkFixed (a - b)
     fa@(MkFixed a) * (MkFixed b) = MkFixed (div (a * b) (resolution fa))
     negate (MkFixed a) = MkFixed (negate a)
     abs (MkFixed a) = MkFixed (abs a)
     signum (MkFixed a) = fromInteger (signum a)
     fromInteger i = withResolution (\res -> MkFixed (i * res))
--}
 
 instance (HasResolution a) => Real (Fixed a) where
     toRational fa@(MkFixed a) = (toRational a) / (toRational (resolution fa))
 
 instance (HasResolution a) => Fractional (Fixed a) where
-{-
     fa@(MkFixed a) / (MkFixed b) = MkFixed (div (a * (resolution fa)) b)
     recip fa@(MkFixed a) = MkFixed (div (res * res) a) where
         res = resolution fa
     fromRational r = withResolution (\res -> MkFixed (floor (r * (toRational res))))
--}
 
 instance (HasResolution a) => RealFrac (Fixed a) where
     properFraction a = (i,a - (fromIntegral i)) where
@@ -161,16 +157,12 @@ showFixed chopTrailingZeros fa@(MkFixed a) = (show i) ++ (withDot (showIntegerZe
     divCeil x y = (x + y - 1) `div` y
 
 instance (HasResolution a) => Show (Fixed a) where
-{-
     showsPrec p n = showParen (p > 6 && n < 0) $ showString $ showFixed False n
--}
 
 instance (HasResolution a) => Read (Fixed a) where
-{-
     readPrec     = readNumber convertFixed
     readListPrec = readListPrecDefault
     readList     = readListDefault
--}
 
 convertFixed :: forall a . HasResolution a => Lexeme -> ReadPrec (Fixed a)
 convertFixed (Number n)
