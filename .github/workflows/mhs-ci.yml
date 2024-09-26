@@ -71,7 +71,7 @@ jobs:
   build-linux-aarch64:
     runs-on: ubuntu-latest
     steps:
-    - uses: jirutka/setup-alpine@v1
+    - uses: jirutka/setup-alpine@359b91e094d3dc6292e4b627abb84d8856ab7ef2
       with:
         arch: aarch64
         branch: v3.15
