@@ -29,7 +29,7 @@ test:
 	$(TMHS) Word       && $(EVAL) > Word.out       && diff Word.ref Word.out
 	$(TMHS) Integer    && $(EVAL) > Integer.out    && diff Integer.ref Integer.out
 	$(TMHS) Enum       && $(EVAL) > Enum.out       && diff Enum.ref Enum.out
-#	$(TMHS) Foreign    && $(EVAL) > Foreign.out    && diff Foreign.ref Foreign.out
+#	$(TMHS) ForeignC   && $(EVAL) > ForeignC.out   && diff ForeignC.ref ForeignC.out
 	$(TMHS) MutRec     && $(EVAL) > MutRec.out     && diff MutRec.ref MutRec.out
 	$(TMHS) LocalPoly  && $(EVAL) > LocalPoly.out  && diff LocalPoly.ref LocalPoly.out
 	$(TMHS) Rank2      && $(EVAL) > Rank2.out      && diff Rank2.ref Rank2.out
