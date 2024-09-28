@@ -52,7 +52,13 @@ dsDef flags mn adef =
     Sign _ _ -> []
     KindSign _ _ -> []
     Import _ -> []
-    ForImp ie i t -> [(i, Lit $ LForImp (fromMaybe (unIdent (unQualIdent i)) ie)  (CType t))]
+    ForImp ie i t -> [(i, if isIO t then frgn else App perf frgn)]
+      where frgn = Lit $ LForImp (fromMaybe (unIdent (unQualIdent i)) ie) cty
+            cty = CType t
+            perf = Lit $ LPrim "IO.performIO"
+            isIO x | Just (_, r) <- getArrow x = isIO r
+            isIO (EApp (EVar io) _) = io == mkIdent "Primitives.IO"
+            isIO _ = False
     Infix _ _ -> []
     Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"
