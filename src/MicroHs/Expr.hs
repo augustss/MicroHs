@@ -5,6 +5,9 @@ module MicroHs.Expr(
   ImportSpec(..),
   ImportItem(..),
   ImpType(..),
+  ForImpDef(..),
+  ForExpDef(..),
+  FValue(..), FCallConv(..), FSafety(..),
   EDef(..), showEDefs,
   Expr(..), eLam, eEqn, eEqns, showExpr, eqExpr,
   Listish(..),
@@ -78,7 +81,8 @@ data EDef
   | Sign [Ident] EType
   | KindSign Ident EKind
   | Import ImportSpec
-  | ForImp (Maybe String) Ident EType
+  | ForImp ForImpDef
+  | ForExp ForExpDef
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance EConstraint [EBind]
@@ -99,6 +103,18 @@ data ImportItem
 --DEBUG  deriving (Show)
 
 type Deriving = [EConstraint]
+
+data ForImpDef = ForImpDef FCallConv FSafety (Maybe String) FValue String Ident EType
+
+data ForExpDef = ForExpDef FCallConv                               String Ident EType
+
+data FCallConv = Fccall | Fcapi
+  deriving (Show)
+
+data FSafety = Fsafe | Funsafe
+  deriving (Show)
+
+data FValue = Ffunc | Fptr | Fvalue | Fdynamic | Fwrapper
 
 data Expr
   = EVar Ident
@@ -610,13 +626,24 @@ ppEDef def =
       case mis of
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ",") (map ppImportItem is))
-    ForImp ie i t -> text "foreign import ccall" <+> maybe empty (text . show) ie <+> ppIdent i <+> text "::" <+> ppEType t
+    ForImp fi -> ppForImp fi
+    ForExp _  -> text "foreign export ..."
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
     Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default ts -> text "default" <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
     Pattern lhs p -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p
+
+ppForImp :: ForImpDef -> Doc
+ppForImp (ForImpDef cc s minc val cn i t) =
+  text "foreign import" <+> text (tail (show cc)) <+> text (tail (show s)) <+>
+  text (show (maybe "" (++ " ") minc) ++ pval ++ cn) <+> ppIdent i <+> text "::" <+> ppEType t
+  where pval = case val of Ffunc    -> ""
+                           Fptr     -> "&"
+                           Fvalue   -> "value "
+                           Fdynamic -> "dynamic"
+                           Fwrapper -> "wrapper"
 
 ppDeriving :: Deriving -> Doc
 ppDeriving [] = empty

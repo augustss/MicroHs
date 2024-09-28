@@ -1095,7 +1095,9 @@ tcDefType def = do
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first                    (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> flip (,) kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
     Sign      is t         ->                                                  Sign      is  <$> tCheckTypeTImpl kType t
-    ForImp ie i t          ->                                                  ForImp ie i   <$> tCheckTypeTImpl kType t
+    ForImp (ForImpDef cc sf inc val nam i t) ->                                ForImp . ForImpDef cc sf inc val nam i
+                                                                                             <$> tCheckTypeTImpl kType t
+    ForExp (ForExpDef _ _ i _)               ->                                tcError (getSLoc i) "foreign export not implemented"
     Instance ct m          ->                                                  Instance      <$> tCheckTypeTImpl kConstraint ct <*> return m
     Default ts             ->                                                  Default       <$> mapM (tCheckTypeT kType) ts
     _                      -> return def
@@ -1359,7 +1361,7 @@ addValueType adef = do
         fs = either (const []) (map fst) ets
       extValETop c (EForall True vks $ EForall True [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
       addConFields tycon con
-    ForImp _ i t -> extValQTop i t
+    ForImp (ForImpDef _ _ _ _ _ i t) -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     _ -> return ()
 
@@ -1408,10 +1410,10 @@ tcDefValue adef =
       mn <- gets moduleName
 --      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
       return $ Fcn (qualIdent mn i) teqns
-    ForImp ie i t -> do
+    ForImp (ForImpDef cc sf inc val nam i t) -> do
       mn <- gets moduleName
       t' <- expandSyn t
-      return (ForImp ie (qualIdent mn i) t')
+      return (ForImp (ForImpDef cc sf inc val nam (qualIdent mn i) t'))
     _ -> return adef
 
 -- Add implicit forall and type check.

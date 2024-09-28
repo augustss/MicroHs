@@ -7,6 +7,7 @@ import Control.Applicative
 import Control.Monad
 import Data.Char
 import Data.List
+import Data.Maybe
 import Text.ParserComb as P
 import MicroHs.Lex
 import MicroHs.Expr hiding (getSLoc)
@@ -310,7 +311,6 @@ pDef =
   <|< uncurry Fcn  <$> pEqns
   <|< Sign         <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Import       <$> (pKeyword "import"   *> pImportSpec)
-  <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> pKeyword "ccall" *> eoptional (pKeyword "unsafe") *> eoptional pString) <*> pLIdent <*> (pSymbol "::" *> pType)
   <|< Infix        <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
@@ -318,6 +318,8 @@ pDef =
   <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
   <|< Pattern      <$> (pKeyword "pattern"  *> pLHS) <*> pPatternDef
   <|< Sign         <$> (pKeyword "pattern" *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> pForImpDef)
+  <|< ForExp       <$> (pKeyword "foreign"  *> pKeyword "export" *> pForExpDef)
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
@@ -340,6 +342,45 @@ isExp (ETuple es) = all isExp es
 isExp (EApp e1 e2) = isExp e1 && isExp e2
 isExp (ELit _ _) = True
 isExp _ = False
+
+pCallConv :: P FCallConv
+pCallConv = (Fccall <$ pKeyword "ccall") <|> (Fcapi <$ pKeyword "capi")
+
+pForImpDef :: P ForImpDef
+pForImpDef = do
+  cc <- pCallConv
+  sf <- (Fsafe <$ pKeyword "safe") <|> (Funsafe <$ pKeyword "unsafe") <|> pure Fsafe
+  ie <- eoptional pString
+  i  <- pLIdent
+  pSymbol "::"
+  t  <- pType
+  (inc, val, name) <- maybe (pure (Nothing, Ffunc, unIdent i)) decodeImpEnt ie
+  pure $ ForImpDef cc sf inc val name i t
+
+decodeImpEnt :: String -> P (Maybe String, FValue, String)
+decodeImpEnt = dec False . words
+  where dec _ ("static" : ws)   = dec True ws
+        dec False   ["wrapper"] = pure $ (Nothing,  Fwrapper, "")
+        dec False   ["dynamic"] = pure $ (Nothing,  Fdynamic, "")
+        dec _ [     "value", n] = pure $ (Nothing,  Fvalue, n)
+        dec _ [     "&",     n] = pure $ (Nothing,  Fptr,   n)
+        dec _ [          '&':n] = pure $ (Nothing,  Fptr,   n)
+        dec _ [              n] = pure $ (Nothing,  Ffunc,  n)
+        dec _ [inc, "value", n] = pure $ (Just inc, Fvalue, n)
+        dec _ [inc, "&",     n] = pure $ (Just inc, Fptr,   n)
+        dec _ [inc,      '&':n] = pure $ (Just inc, Fptr,   n)
+        dec _ [inc,          n] = pure $ (Just inc, Ffunc,  n)
+        dec _ _                 = fail "decodeImpEnt"
+
+pForExpDef :: P ForExpDef
+pForExpDef = do
+  cc <- pCallConv
+  ee <- eoptional pString
+  i  <- pLIdent
+  pSymbol "::"
+  t  <- pType
+  let name = fromMaybe (unIdent i) ee
+  pure $ ForExpDef cc name i t
 
 pData :: P (LHS, [Constr])
 pData = do
