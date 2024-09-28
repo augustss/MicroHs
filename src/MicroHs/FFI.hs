@@ -14,7 +14,7 @@ makeFFI _ ds =
   let ffiImports = [ (parseImpEnt (getSLoc t) f, t) | (_, Lit (LForImp f (CType t))) <- ds ]
       wrappers = [ t | (ImpWrapper, t) <- ffiImports]
       dynamics = [ t | (ImpDynamic, t) <- ffiImports]
-      includes = "mhsffi.h" : catMaybes [ inc | (ImpStatic inc _addr _name, _) <- ffiImports ]
+      includes = "mhsffi.h" : nub (catMaybes [ inc | (ImpStatic inc _addr _name, _) <- ffiImports ])
       addrs    = [ (name, t) | (ImpStatic _inc True  name, t) <- ffiImports, name `notElem` runtimeFFI ]
       funcs    = [ (name, t) | (ImpStatic _inc False name, t) <- ffiImports, name `notElem` runtimeFFI ]
       funcs'   = uniqFst funcs
@@ -50,9 +50,10 @@ parseImpEnt loc s =
     r            -> rest r
  where rest (inc : r) | isSuffixOf ".h" inc = rest' (ImpStatic (Just inc)) r
        rest r                               = rest' (ImpStatic Nothing)    r
-       rest' c ("&" : r) = rest'' (c  True) r
-       rest' c ['&' : r] = rest'' (c  True) [r]
-       rest' c r         = rest'' (c False) r
+       rest' c ("&"     : r) = rest'' (c  True) r
+       rest' c ['&'     : r] = rest'' (c  True) [r]
+       rest' c ("value" : r) = rest'' (c False) r
+       rest' c r             = rest'' (c False) r
        rest'' c [n] = c n
        rest'' _ _ = errorMessage loc $ "bad foreign import " ++ show s
 
