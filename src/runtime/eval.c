@@ -564,11 +564,9 @@ alloc_node(enum node_tag t)
   heapoffs_t pos;
   NODEPTR n;
 
-#if 1
   /* This can happen if we run out of memory when parsing. */
   if (num_free <= 0)
     ERR("alloc_node");
-#endif
 
   for(;;) {
     heapoffs_t word = free_map[i];
@@ -1146,6 +1144,16 @@ gc(void)
     //PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
   }
 #endif  /* !WANT_STDIO */
+
+#if 0
+  /* For debugging only: mark all free cells */
+  for(int n = 0; n < heap_size; n++) {
+    NODEPTR p = HEAPREF(n);
+    if (!is_marked_used(p)) {
+      SETTAG(p, T_FREE);
+    }
+  }
+#endif
 }
 
 /* Check that there are k nodes available, if not then GC. */
@@ -2217,15 +2225,15 @@ pp(FILE *f, NODEPTR n)
   freeb_file(bf);
 }
 
+#if 0
 void
 ppmsg(const char *msg, NODEPTR n)
 {
-#if 0
   printf("%s", msg);
   pp(stdout, n);
   printf("\n");
-#endif
 }
+#endif
 
 void
 dump(const char *msg, NODEPTR at)
@@ -3002,6 +3010,59 @@ evali(NODEPTR an)
      *  If so, we know that both arguments are now evaluated, and we perform the strict operation.
      *
      * On my desktop machine this is about 3% slower, on my laptop (Apple M1) it is about 3% faster.
+     *
+     * Pictorially for BININT
+     *  Before the code below:
+     *  ----
+     *  | --------> @
+     *  ----       / \
+     *  | ------> @   y
+     *  ----     / \
+     *  n ----> ADD x
+     *
+     * After
+     *  ----
+     *  | --------> @
+     *  ----       / \
+     *  | ------> @   y
+     *  ----     / \
+     *  | ->BI2 ADD x
+     *  ----        ^
+     *  n ----------|
+     *
+     *  x becomes an INT, stack is not empty, BININT2 found on top
+     *  ----
+     *  | --------> @
+     *  ----       / \
+     *  | ------> @   y
+     *  ----     / \
+     *  | ->BI2 ADD INT
+     *  ----        ^
+     *  n ----------|
+     *
+     *  After
+     *  ----
+     *  | --------> @
+     *  ----       / \
+     *  | ------> @   y
+     *  ----     / \    \
+     *  | ->BI1 ADD INT  |
+     *  ----             |
+     *  n ---------------|
+     *
+     *  y becomes an INT, stack is not empty, BININT1 found on top
+     *  do arithmetic
+     *  ----
+     *  | --------> @
+     *  ----       / \
+     *  | ------> @   INT
+     *  ----     / \    \
+     *  | ->BI1 ADD INT  |
+     *  ----             |
+     *  n ---------------|
+     *
+     *  ---- 
+     *  n -------> INT(x+y)
      */
   case T_ADD:
   case T_SUB:
@@ -4025,22 +4086,19 @@ MAIN
   execio(&TOP(0));
   prog = TOP(0);
   POP(1);
-  gc();                      /* Run finalizers */
 #if SANITY
   if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
     ERR("main execio");
-#endif
-#if WANT_STDIO
   NODEPTR res = evali(ARG(prog));
-#else
-  (void)evali(ARG(prog));
+  if (GETTAG(res) != T_I)
+    ERR("main execio I");
 #endif
+  gc();                      /* Run finalizers */
   run_time += GETTIMEMILLI();
+
 #if WANT_STDIO
   if (verbose) {
     if (verbose > 1) {
-      PRINT("\nmain returns ");
-      pp(stdout, res);
       PRINT("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
     setlocale(LC_NUMERIC, "");  /* Make %' work on platforms that support it */
