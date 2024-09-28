@@ -3628,7 +3628,7 @@ execio(NODEPTR *np)
     return;
   }
   /* not done, it must be a C'BIND */
-  GCCHECK(1);
+  GCCHECKSAVE(res, 1);
   IOASSERT(GETTAG(q) == T_AP && GETTAG(FUN(q)) == T_AP && GETTAG(FUN(FUN(q))) == T_IO_CCBIND, "rest-AP");
   r = ARG(FUN(q));
   s = ARG(q);
