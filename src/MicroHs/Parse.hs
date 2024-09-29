@@ -448,7 +448,7 @@ pImportItem =
 pConList :: P (Maybe [Ident])
 pConList =
       (Nothing <$ pSymbol "..")
-  <|< (Just <$> esepBy1 (pQIdent <|< pParens pSymOper) (pSpec ','))
+  <|< (Just <$> esepBy (pQIdent <|< pParens pSymOper) (pSpec ','))
 
 --------
 -- Types
