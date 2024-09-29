@@ -10,7 +10,9 @@ import MicroHs.Flags
 
 makeFFI :: Flags -> [LDef] -> String
 makeFFI _ ds =
-  let ffiImports = [ (parseImpEnt i f, t) | (i, Lit (LForImp f (CType t))) <- ds ]
+  let ffiImports = [ (parseImpEnt i f, t) | (i, d) <- ds, Lit (LForImp f (CType t)) <- [get d] ]
+                 where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
+                       get a = a
       wrappers = [ t | (ImpWrapper, t) <- ffiImports]
       dynamics = [ t | (ImpDynamic, t) <- ffiImports]
       imps     = uniqName $ filter ((`notElem` runtimeFFI) . impName) ffiImports
@@ -31,6 +33,7 @@ uniqName :: [(ImpEnt, EType)] -> [(ImpEnt, EType)]
 uniqName = map head . groupBy ((==) `on` impName) . sortBy (compare `on` impName)
 
 data ImpEnt = ImpStatic Ident (Maybe String) Imp String | ImpDynamic | ImpWrapper
+--  deriving (Show)
 
 impName :: (ImpEnt, EType) -> String
 impName (ImpStatic i _ Value _, _) = unIdent' i
@@ -38,6 +41,7 @@ impName (ImpStatic _ _ _ s, _) = s
 impName _ = undefined
 
 data Imp = Ptr | Value | Func
+--  deriving (Show)
 
 -- "[static] [name.h] [&] [name]"
 -- "dynamic"

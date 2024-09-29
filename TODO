@@ -47,3 +47,4 @@ Bugs:
 * export list in -boot doesn't work
 * Cannot derive Show for 'newtype Alt f a = Alt (f a)'
 * Fundep bug mtl:Control/Monad/RWS/Class.hs
+* Cannot parse (== -1)
