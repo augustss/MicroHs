@@ -86,6 +86,8 @@ import Data.Word
 import Data.ZipList
 import Debug.Trace
 import Foreign
+import Foreign.C
+import Foreign.C.Error
 import Foreign.C.String
 import Foreign.C.Types
 import Foreign.ForeignPtr
