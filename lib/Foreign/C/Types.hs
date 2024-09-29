@@ -9,6 +9,7 @@ module Foreign.C.Types(
  CLLong(..), CULLong(..),
  CIntPtr(..), CUIntPtr(..),
  CFloat(..), CDouble(..),
+ CTime(..),
  intToCSize, cSizeToInt,
  ) where
 import Prelude()
@@ -16,6 +17,7 @@ import Primitives
 import Data.Bool
 import Data.Eq
 import Data.Int
+import Data.Integral
 import Data.Num
 import Data.Ord
 import Data.Word
@@ -57,6 +59,10 @@ newtype CIntPtr  = CIntPtr  Int
 newtype CUIntPtr = CUIntPtr Word
   deriving (Eq, Ord)
 
+-- XXX This is really platform specific
+newtype CTime = CTime Int
+  deriving (Eq, Ord)
+
 -- XXX We really need GND
 instance Num CInt where
   CInt x + CInt y = CInt (x + y)
@@ -68,6 +74,9 @@ instance Num CLong where
   CLong x - CLong y = CLong (x - y)
   CLong x * CLong y = CLong (x * y)
   fromInteger x = CLong (fromInteger x)
+instance Integral CLong where
+  quotRem (CLong x) (CLong y) = (CLong q, CLong r) where (q, r) = quotRem q r
+  toInteger (CLong x) = toInteger x
 
 -- XXX only one of these is actually correct
 newtype CFloat   = CFloat   FloatW
