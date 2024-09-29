@@ -137,13 +137,13 @@ number :: SLoc -> String -> [Token]
 number loc cs =
   case span isDigit cs of
     (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
-               let i = readBase 10 ds
-               in  TInt loc i : lex (addCol loc $ length ds) rs
+               case expo rs of
+                 Nothing -> TInt loc (readBase 10 ds) : lex (addCol loc $ length ds) rs
+                 Just (es, rs') -> mkD (ds ++ es) rs'
              | otherwise ->
                case span isDigit (tail rs) of
                  (ns, rs') ->
                    let s = ds ++ '.':ns
-                       mkD x r = TRat loc (readRational x) : lex (addCol loc $ length x) r
                    in  case expo rs' of
                          Nothing -> mkD s rs'
                          Just (es, rs'') -> mkD (s ++ es) rs''
@@ -152,6 +152,7 @@ number loc cs =
     expo (e:'+':xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':'+':as, bs) where (as, bs) = span isDigit xs
     expo (e:    xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':    as, bs) where (as, bs) = span isDigit xs
     expo _ = Nothing
+    mkD x r = TRat loc (readRational x) : lex (addCol loc $ length x) r
 
 -- Skip a {- -} style comment
 skipNest :: SLoc -> Int -> String -> [Token]
