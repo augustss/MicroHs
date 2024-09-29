@@ -28,6 +28,10 @@
 #define WANT_LZ77 1
 #endif
 
+#if !defined(WANT_RLE)
+#define WANT_RLE 1
+#endif
+
 #if WANT_LZ77
 size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
 size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);

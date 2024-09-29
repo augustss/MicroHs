@@ -353,6 +353,160 @@ add_lz77_compressor(BFILE *file)
 }
 
 #endif  /* WANT_LZ77 */
+
+#if WANT_RLE
+/***************** BFILE via RLE decompression *******************/
+/*
+ * Run Length Encoding for ASCII
+ * Format
+ * c                -  c       one ASCII character
+ * 0x80+n c         -  n       repetitions of ASCII character c
+ * 0x80+n 0x80+m c  -  n*128+m repetitions of ASCII character c
+ * ... for longer run lengths
+ */
+
+struct BFILE_rle {
+  BFILE    mets;
+  BFILE    *bfile;              /* underlying BFILE */
+  size_t   count;
+  int      byte;
+  int      unget;
+};
+
+int
+get_rep(BFILE *in)
+{
+  size_t n = 0;
+  for(;;) {
+    int c = getb(in);
+    //fprintf(stderr,"get_rep %02x\n", c);
+    if (c < 0)
+      return -1;
+    if (c < 128) {
+      ungetb(c, in);
+      return n;
+    }
+    n = n * 128 + c - 128;
+  }
+}
+
+int
+getb_rle(BFILE *bp)
+{
+  struct BFILE_rle *p = (struct BFILE_rle*)bp;
+  CHECKBFILE(bp, getb_rle);
+  if (p->unget >= 0) {
+    int c = p->unget;
+    p->unget = -1;
+    return c;
+  }
+  if (p->count) {
+    p->count--;
+    return p->byte;
+  } else {
+    int n = get_rep(p->bfile);
+    if (n < 0)
+      return -1;
+    p->count = n;
+    p->byte = getb(p->bfile);
+    return p->byte;
+  }
+}
+
+void
+ungetb_rle(int c, BFILE *bp)
+{
+  struct BFILE_rle *p = (struct BFILE_rle*)bp;
+  CHECKBFILE(bp, getb_rle);
+  p->unget = c;
+}
+
+void
+put_rep(BFILE *out, size_t n)
+{
+  if (n > 127)
+    put_rep(out, n / 128);
+  putb(n % 128 + 128, out);
+}
+
+void
+putb_rle(int b, BFILE *bp)
+{
+  struct BFILE_rle *p = (struct BFILE_rle*)bp;
+  CHECKBFILE(bp, getb_rle);
+
+  if (b == p->byte) {
+    p->count++;
+  } else {
+    if (p->count > 2) {
+      /* More than 2 repeating chars, it's worth compressing */
+      put_rep(p->bfile, p->count - 1);
+      putb(p->byte, p->bfile);
+    } else {
+      while(p->count-- > 0)
+        putb(p->byte, p->bfile);
+    }
+    p->count = 1;
+    p->byte = b;
+  }
+}
+
+void
+closeb_rle(BFILE *bp)
+{
+  struct BFILE_rle *p = (struct BFILE_rle*)bp;
+  CHECKBFILE(bp, getb_rle);
+
+  closeb(p->bfile);
+}
+
+void
+flushb_rle(BFILE *bp)
+{
+  /* There is nothing we can do */
+}
+
+BFILE *
+add_rle_decompressor(BFILE *file)
+{
+  struct BFILE_rle *p = MALLOC(sizeof(struct BFILE_rle));
+
+  if (!p)
+    memerr();
+  p->mets.getb = getb_rle;
+  p->mets.ungetb = ungetb_rle;
+  p->mets.putb = 0;
+  p->mets.flushb = 0;
+  p->mets.closeb = closeb_rle;
+  p->count = 0;
+  p->unget = -1;
+  p->bfile = file;
+
+  return (BFILE*)p;
+}
+
+BFILE *
+add_rle_compressor(BFILE *file)
+{
+  struct BFILE_rle *p = MALLOC(sizeof(struct BFILE_rle));
+
+  if (!p)
+    memerr();
+  p->mets.getb = getb_rle;
+  p->mets.ungetb = 0;
+  p->mets.putb = putb_rle;
+  p->mets.flushb = flushb_rle;
+  p->mets.closeb = closeb_rle;
+  p->count = 0;
+  p->byte = -1;
+  p->bfile = file;
+
+  return (BFILE*)p;
+}
+
+#endif  /* WANT_RLE */
+
+
 /***************** BFILE with UTF8 encode/decode *******************/
 
 struct BFILE_utf8 {
