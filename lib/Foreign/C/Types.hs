@@ -13,30 +13,67 @@ module Foreign.C.Types(
  ) where
 import Prelude()
 import Primitives
+import Data.Bool
+import Data.Eq
+import Data.Int
+import Data.Num
+import Data.Ord
 import Data.Word
+import Data.FloatW
 
 -- The MicroHs Word type is the "natural" architecture word size;
 -- it is the same as the pointer difference type.
 -- And Int is the natural signed word size.
 newtype CChar    = CChar    Char
+  deriving (Eq, Ord)
 newtype CSChar   = CSChar   Int
+  deriving (Eq, Ord)
 newtype CUChar   = CUChar   Word
+  deriving (Eq, Ord)
 newtype CShort   = CShort   Int
+  deriving (Eq, Ord)
 newtype CUShort  = CUShort  Word
+  deriving (Eq, Ord)
 newtype CInt     = CInt     Int
+  deriving (Eq, Ord)
 newtype CUInt    = CUInt    Word
+  deriving (Eq, Ord)
 newtype CLong    = CLong    Int
+  deriving (Eq, Ord)
 newtype CULong   = CULong   Word
+  deriving (Eq, Ord)
 newtype CPtrdiff = CPtrdiff Word
+  deriving (Eq, Ord)
 newtype CSize    = CSize    Word
+  deriving (Eq, Ord)
 newtype CSSize   = CSSize   Int
+  deriving (Eq, Ord)
 newtype CLLong   = CLLong   Int
+  deriving (Eq, Ord)
 newtype CULLong  = CULLong  Word
+  deriving (Eq, Ord)
 newtype CIntPtr  = CIntPtr  Int
+  deriving (Eq, Ord)
 newtype CUIntPtr = CUIntPtr Word
+  deriving (Eq, Ord)
 
+-- XXX We really need GND
+instance Num CInt where
+  CInt x + CInt y = CInt (x + y)
+  CInt x - CInt y = CInt (x - y)
+  CInt x * CInt y = CInt (x * y)
+  fromInteger x = CInt (fromInteger x)
+instance Num CLong where
+  CLong x + CLong y = CLong (x + y)
+  CLong x - CLong y = CLong (x - y)
+  CLong x * CLong y = CLong (x * y)
+  fromInteger x = CLong (fromInteger x)
+
+-- XXX only one of these is actually correct
 newtype CFloat   = CFloat   FloatW
+  deriving (Eq, Ord)
 newtype CDouble  = CDouble  FloatW
+  deriving (Eq, Ord)
 
 -- Temporary conversion functions.
 intToCSize :: Int -> CSize
