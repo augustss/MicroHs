@@ -33,23 +33,21 @@ foreign import ccall "add_lz77_decompressor" c_add_lz77_decompressor :: Ptr BFIL
 writeSerializedCompressed :: forall a . FilePath -> a -> IO ()
 writeSerializedCompressed p s = do
   h <- openBinaryFile p WriteMode
-  withHandle h $ \ p -> do
-    hPutChar h 'z'                               -- indicate compressed
-    h' <- mkHandle =<< c_add_lz77_compressor p
-    hSerialize h' s
-    hClose h'
+  hPutChar h 'z'                               -- indicate compressed
+  h' <- addTransducer "writeSerializedCompressed" c_add_lz77_compressor h
+  hSerialize h' s
+  hClose h'
 
 -- Read compressed or uncompressed
 readSerialized :: forall a . FilePath -> IO a
 readSerialized p = do
   h <- openBinaryFile p ReadMode
-  withHandle h $ \ p -> do
-    c <- hLookAhead h
-    h' <- if c == 'z' then do                    -- compressed?
-            hGetChar h   -- get rid of the 'z'
-            mkHandle =<< c_add_lz77_decompressor p
-          else
-            return h
-    a <- hDeserialize h'
-    hClose h'
-    return a
+  c <- hLookAhead h
+  h' <- if c == 'z' then do                    -- compressed?
+          hGetChar h   -- get rid of the 'z'
+          addTransducer "readSerialized" c_add_lz77_decompressor h
+        else
+          return h
+  a <- hDeserialize h'
+  hClose h'
+  return a

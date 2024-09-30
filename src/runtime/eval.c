@@ -173,7 +173,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE, T_ICMP, T_UCMP,
-                T_FPADD, T_FP2P, T_FPNEW, T_FPFIN,
+                T_FPADD, T_FP2P, T_FPNEW, T_FPFIN, // T_FPSTR,
                 T_TOPTR, T_TOINT, T_TODBL, T_TOFUNPTR,
                 T_BININT2, T_BININT1, T_UNINT1,
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
@@ -331,6 +331,7 @@ struct forptr {
   struct forptr *next;       /* the next ForeignPtr that shares the same finalizer */
   struct final  *finalizer;  /* the finalizer for this ForeignPtr */
   struct bytestring payload; /* the actual pointer to allocated data, and maybe a size */
+  //  char          *desc;
 };
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
 
@@ -711,6 +712,7 @@ struct {
   { "fp2p", T_FP2P },
   { "fpnew", T_FPNEW },
   { "fpfin", T_FPFIN },
+  //  { "fpstr", T_FPSTR },
   { "seq", T_SEQ },
   { "equal", T_EQUAL, T_EQUAL },
   { "sequal", T_EQUAL, T_EQUAL },
@@ -1140,7 +1142,8 @@ gc(void)
           num_bs_alloc_max = num_bs_alloc - num_bs_free;
       }
       void (*f)(void *) = (void (*)(void *))fin->final;
-      printf("forptr free fin=%p, f=%p, fp=%p\n", fin, f, fin->back);
+      //printf("forptr free fin=%p, f=%p", fin, f);
+      //fflush(stdout);
       if (f) {
         //printf("finalizer fin=%p final=%p\n", fin, f);
         (*f)(fin->arg);
@@ -1149,9 +1152,12 @@ gc(void)
         struct forptr *q = p->next;
         //printf("free fp=%p\n", p);
         //FREE(p);
+        //printf(" p=%p desc=%s", p, p->desc ? p->desc : "NONE");
+        //fflush(stdout);
         memset(p, 0x55, sizeof *p);
         p = q;
       }
+      //printf("\n");
       *finp = fin->next;
       //printf("free fin=%p\n", fin);
       //FREE(fin);
@@ -2161,6 +2167,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_FP2P: putsb("fp2p", f); break;
   case T_FPNEW: putsb("fpnew", f); break;
   case T_FPFIN: putsb("fpfin", f); break;
+    //  case T_FPSTR: putsb("fpstr", f); break;
   case T_EQUAL: putsb("equal", f); break;
   case T_COMPARE: putsb("compare", f); break;
   case T_RNF: putsb("rnf", f); break;
@@ -2345,6 +2352,7 @@ mkForPtr(struct bytestring bs)
   fp->next = 0;
   fp->payload = bs;
   fp->finalizer = fin;
+  //  fp->desc = 0;
   return fp;
 }
 
@@ -3371,6 +3379,7 @@ evali(NODEPTR an)
   case T_ARR_WRITE:
   case T_FPNEW:
   case T_FPFIN:
+    //  case T_FPSTR:
   case T_IO_GC:
     RET;
 
@@ -3928,6 +3937,20 @@ execio(NODEPTR *np)
         RETIO(combUnit);
       }
 
+#if 0
+    case T_FPSTR:
+      {
+        CHECKIO(2);
+        //printf("T_FPFIN\n");
+        struct forptr *xfp = evalforptr(ARG(TOP(2)));
+        //printf("T_FPFIN xfp=%p\n", xfp);
+        struct bytestring bs = evalstring(ARG(TOP(1)));
+        //printf("T_FPFIN yp=%p\n", yp);
+        xfp->desc = bs.string;
+        RETIO(combUnit);
+      }
+#endif
+
     case T_IO_GC:
       CHECKIO(0);
       //printf("gc()\n");
@@ -4115,8 +4138,9 @@ MAIN
   if (GETTAG(res) != T_I)
     ERR("main execio I");
 #endif
-  /* XXX should flush stdout, stderr */
-  printf("final gc\n");
+  /* Flush standard handles in case there is some BFILE buffering */
+  flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
+  flushb((BFILE*)FORPTR(comb_stderr)->payload.string);
   gc();                      /* Run finalizers */
   run_time += GETTIMEMILLI();
 

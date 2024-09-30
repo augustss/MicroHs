@@ -149,11 +149,11 @@ openFILEM p m = do
     return (Just h)
 
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
-openFileM p m = do
-  mf <- openFILEM p m
+openFileM fn m = do
+  mf <- openFILEM fn m
   case mf of
     Nothing -> return Nothing
-    Just p -> do { q <- c_add_utf8 =<< c_add_FILE p; Just <$> mkHandle q }
+    Just p -> do { q <- c_add_utf8 =<< c_add_FILE p; Just <$> mkHandle fn q }
 
 openFile :: String -> IOMode -> IO Handle
 openFile p m = do
@@ -252,11 +252,11 @@ interact :: (String -> String) -> IO ()
 interact f = getContents >>= putStr . f
 
 openBinaryFile :: String -> IOMode -> IO Handle
-openBinaryFile p m = do
-  mf <- openFILEM p m
+openBinaryFile fn m = do
+  mf <- openFILEM fn m
   case mf of
-    Nothing -> error $ "openBinaryFile: cannot open " ++ show p
-    Just p -> do { q <- c_add_FILE p; mkHandle q }
+    Nothing -> error $ "openBinaryFile: cannot open " ++ show fn
+    Just p -> do { q <- c_add_FILE p; mkHandle fn q }
 
 --------
 -- For compatibility
