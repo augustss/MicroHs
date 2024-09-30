@@ -328,7 +328,7 @@ struct final {
  * The size field is non-zero only for bytestrings.
  */
 struct forptr {
-  struct forptr *next;       /* the next ForeignPtr that shares the same finilizer */
+  struct forptr *next;       /* the next ForeignPtr that shares the same finalizer */
   struct final  *finalizer;  /* the finalizer for this ForeignPtr */
   struct bytestring payload; /* the actual pointer to allocated data, and maybe a size */
 };
@@ -759,6 +759,25 @@ struct {
 enum node_tag flip_ops[T_LAST_TAG];
 #endif
 
+#if WANT_STDIO
+/* Create a dummy foreign pointer for the standard stdio handles. */
+/* These handles are never gc():d. */
+void
+mk_std(NODEPTR n, FILE *f)
+{ 
+  struct final *fin = calloc(1, sizeof(struct final));
+  struct forptr *fp = calloc(1, sizeof(struct forptr));
+  if (!fin || !fp)
+    memerr();
+  BFILE *bf = add_utf8(add_FILE(f));
+  SETTAG(n, T_FORPTR);
+  FORPTR(n) = fp;
+  fin->arg = bf;
+  fin->back = fp;
+  fp->payload.string = bf;
+}
+#endif
+
 void
 init_nodes(void)
 {
@@ -802,9 +821,9 @@ init_nodes(void)
     case T_BINBS1: combBINBS1 = n; break;
     case T_BINBS2: combBINBS2 = n; break;
 #if WANT_STDIO
-    case T_IO_STDIN:  comb_stdin  = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdin));  break;
-    case T_IO_STDOUT: comb_stdout = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdout)); break;
-    case T_IO_STDERR: comb_stderr = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stderr)); break;
+    case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
+    case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
+    case T_IO_STDERR: comb_stderr = n; mk_std(n, stderr); break;
 #endif  /* WANT_STDIO */
     default:
       break;
@@ -836,9 +855,9 @@ init_nodes(void)
     case T_BINBS1: combBINBS1 = n; break;
     case T_BINBS2: combBINBS2 = n; break;
 #if WANT_STDIO
-    case T_IO_STDIN:  comb_stdin  = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdin));  break;
-    case T_IO_STDOUT: comb_stdout = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdout)); break;
-    case T_IO_STDERR: comb_stderr = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stderr)); break;
+    case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
+    case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
+    case T_IO_STDERR: comb_stderr = n; mk_std(n, stderr); break;
 #endif
     default:
       break;
@@ -1121,6 +1140,7 @@ gc(void)
           num_bs_alloc_max = num_bs_alloc - num_bs_free;
       }
       void (*f)(void *) = (void (*)(void *))fin->final;
+      printf("forptr free fin=%p, f=%p, fp=%p\n", fin, f, fin->back);
       if (f) {
         //printf("finalizer fin=%p final=%p\n", fin, f);
         (*f)(fin->arg);
@@ -1128,12 +1148,14 @@ gc(void)
       for (struct forptr *p = fin->back; p; ) {
         struct forptr *q = p->next;
         //printf("free fp=%p\n", p);
-        FREE(p);
+        //FREE(p);
+        memset(p, 0x55, sizeof *p);
         p = q;
       }
       *finp = fin->next;
       //printf("free fin=%p\n", fin);
-      FREE(fin);
+      //FREE(fin);
+      memset(fin, 0x77, sizeof *fin);
     }
   }
   gc_scan_time += GETTIMEMILLI();
@@ -2033,6 +2055,16 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     }
     break;
   case T_PTR:
+    if (prefix) {
+      char b[200]; sprintf(b,"PTR<%p>",PTR(n));
+      putsb(b, f);
+    } else {
+      ERR("Cannot serialize pointers");
+    }
+    break;
+  case T_FUNPTR:
+      ERR("Cannot serialize function pointers");
+  case T_FORPTR:
     if (n == comb_stdin)
       putsb("IO.stdin", f);
     else if (n == comb_stdout)
@@ -2040,18 +2072,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     else if (n == comb_stderr)
       putsb("IO.stderr", f);
     else {
-      if (prefix) {
-        char b[200]; sprintf(b,"PTR<%p>",PTR(n));
-        putsb(b, f);
-      } else {
-        ERR("Cannot serialize pointers");
-      }
-    }
-    break;
-  case T_FUNPTR:
-      ERR("Cannot serialize function pointers");
-  case T_FORPTR:
       ERR("Cannot serialize foreign pointers");
+    }
     break;
   case T_BSTR:
     print_string(f, FORPTR(n)->payload);
@@ -4093,6 +4115,8 @@ MAIN
   if (GETTAG(res) != T_I)
     ERR("main execio I");
 #endif
+  /* XXX should flush stdout, stderr */
+  printf("final gc\n");
   gc();                      /* Run finalizers */
   run_time += GETTIMEMILLI();
 
@@ -4254,6 +4278,7 @@ void mhs_tan(int s) { mhs_from_FloatW(s, 1, tanf(mhs_to_FloatW(s, 0))); }
 void mhs_add_FILE(int s) { mhs_from_Ptr(s, 1, add_FILE(mhs_to_Ptr(s, 0))); }
 void mhs_add_utf8(int s) { mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
 void mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
+void mhs_addr_closeb(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
 void mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
 void mhs_fopen(int s) { mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 void mhs_getb(int s) { mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
@@ -4363,6 +4388,7 @@ struct ffi_entry ffi_table[] = {
 { "add_FILE", mhs_add_FILE},
 { "add_utf8", mhs_add_utf8},
 { "closeb", mhs_closeb},
+{ "&closeb", mhs_addr_closeb},
 { "flushb", mhs_flushb},
 { "fopen", mhs_fopen},
 { "getb", mhs_getb},

@@ -30,7 +30,7 @@ instance Show (ForeignPtr a) where
     showsPrec p f = showsPrec p (unsafeForeignPtrToPtr f)
 
 unsafeForeignPtrToPtr :: ForeignPtr a -> Ptr a
-unsafeForeignPtrToPtr = primitive "fp2p"
+unsafeForeignPtrToPtr = primForeignPtrToPtr
 
 type FinalizerPtr a = FunPtr (Ptr a -> IO ())
 
@@ -60,7 +60,7 @@ mallocForeignPtrArray0 size = do
   newForeignPtr c_freefun ptr
 
 addForeignPtrFinalizer :: FinalizerPtr a -> ForeignPtr a -> IO ()
-addForeignPtrFinalizer = primitive "fpfin"
+addForeignPtrFinalizer = primAddFinalizer
 
 newForeignPtr :: FinalizerPtr a -> Ptr a -> IO (ForeignPtr a)
 newForeignPtr f p = do
@@ -69,7 +69,7 @@ newForeignPtr f p = do
   return fp
 
 newForeignPtr_ :: Ptr a -> IO (ForeignPtr a)
-newForeignPtr_ = primitive "fpnew"
+newForeignPtr_ = primNewForeignPtr
 
 withForeignPtr :: ForeignPtr a -> (Ptr a -> IO b) -> IO b
 withForeignPtr fp io = do
