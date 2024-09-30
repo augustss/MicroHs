@@ -1,9 +1,25 @@
 
 /***************** BFILE *******************/
 /*
- * BFILE is used to access files.
- * It allows various "transducers" to be added
- * to the processing.
+ * BFILE is a family of stream objects.
+ * There are two kinds: endpoints (source/sink) and transducers.
+ * The streams are typically bytes.
+ *
+ *  FILE   source/sink for stdio FILE handles, handles
+ *  buf    source/sink where the read/write uses a memory buffer.
+ *
+ *  lz77   transducer for LZ77 compression
+ *         put - compresses a byte
+ *         get - returns an decompressed byte
+ *  rle    transducer for Run Length Encoding
+ *         put - compresses an ASCII character
+ *         get - returns a decompressed ASCII
+ *  bwt    transducer for Burrows-Wheeler Transform
+ *         put - transforms a byte
+ *         get - untransforms a byte
+ *  utf8   transducer for UTF8 encoding
+ *         put - encodes a Unicode code point (int) to bytes
+ *         get - decodes a Unicode code point
  */
 
 /* Sanity checking */
