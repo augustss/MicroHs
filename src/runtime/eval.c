@@ -1151,17 +1151,17 @@ gc(void)
       for (struct forptr *p = fin->back; p; ) {
         struct forptr *q = p->next;
         //printf("free fp=%p\n", p);
-        //FREE(p);
         //printf(" p=%p desc=%s", p, p->desc ? p->desc : "NONE");
         //fflush(stdout);
-        memset(p, 0x55, sizeof *p);
+        FREE(p);
+        //memset(p, 0x55, sizeof *p);
         p = q;
       }
       //printf("\n");
       *finp = fin->next;
       //printf("free fin=%p\n", fin);
-      //FREE(fin);
-      memset(fin, 0x77, sizeof *fin);
+      FREE(fin);
+      //memset(fin, 0x77, sizeof *fin);
     }
   }
   gc_scan_time += GETTIMEMILLI();
