@@ -2434,7 +2434,7 @@ mkStringC(const char *str)
 NODEPTR
 mkStringU(struct bytestring bs)
 {
-  BFILE *ubuf = add_utf8(openb_buf(bs.string, bs.size));
+  BFILE *ubuf = add_utf8(openb_rd_buf(bs.string, bs.size));
   NODEPTR n, *np, nc;
 
   //printf("mkStringU %d %s\n", (int)bs.size, (char*)bs.string);
@@ -4082,7 +4082,7 @@ MAIN
 
   if (combexpr) {
     int c;
-    BFILE *bf = openb_buf(combexpr, combexprlen);
+    BFILE *bf = openb_rd_buf(combexpr, combexprlen);
     c = getb(bf);
     /* Compressed combinators start with a 'Z' or 'z', otherwise 'v' (for version) */
     if (c == 'z') {
@@ -4308,6 +4308,9 @@ void mhs_fopen(int s) { mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s,
 void mhs_getb(int s) { mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
 void mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_openwrbuf(int s) { mhs_from_Ptr(s, 0, openb_wr_buf()); }
+void mhs_openrdbuf(int s) { mhs_from_Ptr(s, 2, openb_rd_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+void mhs_getbuf(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  mhs_from_Unit(s, 3); }
 void mhs_system(int s) { mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
 void mhs_tmpname(int s) { mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 void mhs_unlink(int s) { mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
@@ -4411,6 +4414,7 @@ struct ffi_entry ffi_table[] = {
 #if WANT_STDIO
 { "add_FILE", mhs_add_FILE},
 { "add_utf8", mhs_add_utf8},
+//{ "add_rle", mhs_add_rle},
 { "closeb", mhs_closeb},
 { "&closeb", mhs_addr_closeb},
 { "flushb", mhs_flushb},
@@ -4418,6 +4422,9 @@ struct ffi_entry ffi_table[] = {
 { "getb", mhs_getb},
 { "putb", mhs_putb},
 { "ungetb", mhs_ungetb},
+{ "openb_wr_buf", mhs_openwrbuf},
+{ "openn_rd_buf", mhs_openrdbuf},
+{ "get_buf", mhs_getbuf},
 { "system", mhs_system},
 { "tmpname", mhs_tmpname},
 { "unlink", mhs_unlink},

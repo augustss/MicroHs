@@ -23,7 +23,11 @@
  */
 
 /* Sanity checking */
-#define CHECKBFILE(p, f) do { if (p->getb != f) ERR("CHECKBFILE"); } while(0)
+void foo(void)
+{
+  printf("foo\n");
+}
+#define CHECKBFILE(p, f) do { if (p->getb != f) { foo(); ERR("CHECKBFILE"); } } while(0)
 
 /* BFILE will have different implementations, they all have these methods */
 typedef struct BFILE {
@@ -108,7 +112,7 @@ putdecb(value_t n, BFILE *p)
   }
 }
 
-/***************** BFILE from static buffer *******************/
+/***************** BFILE from/to memory buffer *******************/
 struct BFILE_buffer {
   BFILE    mets;
   size_t   b_size;
@@ -127,6 +131,20 @@ getb_buf(BFILE *bp)
 }
 
 void
+putb_buf(int c, BFILE *bp)
+{
+  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
+  CHECKBFILE(bp, getb_buf);
+  if (p->b_pos >= p->b_size) {
+    p->b_size *= 2;
+    p->b_buffer = realloc(p->b_buffer, p->b_size);
+    if (!p->b_buffer)
+      ERR("putb_buf");
+  }
+  p->b_buffer[p->b_pos++] = c;
+}
+
+void
 ungetb_buf(int c, BFILE *bp)
 {
   struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
@@ -137,28 +155,75 @@ ungetb_buf(int c, BFILE *bp)
 }
 
 void
-closeb_buf(BFILE *bp)
+closeb_rd_buf(BFILE *bp)
 {
   CHECKBFILE(bp, getb_buf);
   FREE(bp);
 }
 
-/* There is no open().  Only used with statically allocated buffers. */
-struct BFILE*
-openb_buf(uint8_t *buf, size_t len)
+void
+closeb_wr_buf(BFILE *bp)
 {
-  struct BFILE_buffer *p = MALLOC(sizeof(struct BFILE_buffer));;
+  CHECKBFILE(bp, getb_buf);
+  FREE(bp);
+}
+
+void
+flushb_buf(BFILE *bp)
+{
+  CHECKBFILE(bp, getb_buf);
+}
+
+struct BFILE*
+openb_rd_buf(uint8_t *buf, size_t len)
+{
+  struct BFILE_buffer *p = MALLOC(sizeof(struct BFILE_buffer));
   if (!p)
     memerr();
   p->mets.getb = getb_buf;
   p->mets.ungetb = ungetb_buf;
   p->mets.putb = 0;
   p->mets.flushb = 0;
-  p->mets.closeb = closeb_buf;
+  p->mets.closeb = closeb_rd_buf;
   p->b_size = len;
   p->b_pos = 0;
   p->b_buffer = buf;
   return (struct BFILE*)p;
+}
+
+struct BFILE*
+openb_wr_buf(void)
+{
+  struct BFILE_buffer *p = MALLOC(sizeof(struct BFILE_buffer));
+  if (!p)
+    memerr();
+  p->mets.getb = getb_buf;      /* Just to make CHECKFILE happy */
+  p->mets.ungetb = 0;
+  p->mets.putb = putb_buf;
+  p->mets.flushb = flushb_buf;
+  p->mets.closeb = closeb_wr_buf;
+  p->b_size = 1000;
+  p->b_pos = 0;
+  p->b_buffer = malloc(p->b_size);
+  if (!p->b_buffer)
+    ERR("openb_wr_buf");
+  return (struct BFILE*)p;
+}
+
+/* 
+ * Get the buffer used by writing.
+ * This should be the last operation before closing,
+ * since the buffer can move when writing.
+ * The caller of openb_wr_buf() and get_buf() owns
+ *  the memory and must free it.
+ */
+void
+get_buf(struct BFILE *bp, uint8_t **bufp, size_t *lenp)
+{
+  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
+  CHECKBFILE(bp, getb_buf);
+  *bufp = p->b_buffer;
+  *lenp = p->b_pos;
 }
 
 #if WANT_STDIO
