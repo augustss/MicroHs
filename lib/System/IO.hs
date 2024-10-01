@@ -47,7 +47,7 @@ import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import System.IO.Unsafe
-import System.IO_Handle
+import System.IO.Internal
 
 data FILE
 
@@ -74,37 +74,23 @@ foreign import ccall "add_utf8"     c_add_utf8     :: Ptr BFILE          -> IO (
 instance Eq Handle where
   h == h'  =
     unsafePerformIO $
-    withHandle h $ \ p ->
-    withHandle h' $ \ p' ->
+    withHandleAny h $ \ p ->
+    withHandleAny h' $ \ p' ->
     pure (p == p')
 
 instance Show Handle where
   show h = unsafePerformIO $
-    withHandle h $ \ p ->
+    withHandleAny h $ \ p ->
       return $ "Handle-" ++ show p
 
 type FilePath = String
 
-data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
-
-instance Functor IO where
-  fmap f ioa   = ioa `primBind` \ a -> primReturn (f a)
-instance Applicative IO where
-  pure         = primReturn
-  (<*>)        = ap
-instance Monad IO where
-  (>>=)        = primBind
-  (>>)         = primThen
-  return       = primReturn
-instance MonadFail IO where
-  fail         = error
-
 stdin  :: Handle
-stdin  = unsafeHandle primStdin
+stdin  = unsafeHandle primStdin  HRead  "stdin"
 stdout :: Handle
-stdout = unsafeHandle primStdout
+stdout = unsafeHandle primStdout HWrite "stdout"
 stderr :: Handle
-stderr = unsafeHandle primStderr
+stderr = unsafeHandle primStderr HWrite "stderr"
 
 --bFILE :: Ptr FILE -> Handle
 --bFILE = Handle . primPerformIO . (c_add_utf8 <=< c_add_FILE)
@@ -112,13 +98,14 @@ stderr = unsafeHandle primStderr
 hClose :: Handle -> IO ()
 hClose h = do
   killHandle h
-  withHandle h c_closeb
+  withHandleNC h c_closeb
+  setHandleState h HClosed
 
 hFlush :: Handle -> IO ()
-hFlush h = withHandle h c_flushb
+hFlush h = withHandleWr h c_flushb
 
 hGetChar :: Handle -> IO Char
-hGetChar h = withHandle h $ \ p -> do
+hGetChar h = withHandleRd h $ \ p -> do
   c <- c_getb p
   if c == (-1::Int) then
     error "hGetChar: EOF"
@@ -126,13 +113,13 @@ hGetChar h = withHandle h $ \ p -> do
     return (chr c)
 
 hLookAhead :: Handle -> IO Char
-hLookAhead h = withHandle h $ \ p -> do
+hLookAhead h = withHandleRd h $ \ p -> do
   c <- hGetChar h
   c_ungetb (ord c) p
   return c
 
 hPutChar :: Handle -> Char -> IO ()
-hPutChar h c = withHandle h $ c_putb (ord c)
+hPutChar h c = withHandleWr h $ c_putb (ord c)
 
 openFILEM :: FilePath -> IOMode -> IO (Maybe (Ptr FILE))
 openFILEM p m = do
@@ -153,7 +140,7 @@ openFileM fn m = do
   mf <- openFILEM fn m
   case mf of
     Nothing -> return Nothing
-    Just p -> do { q <- c_add_utf8 =<< c_add_FILE p; Just <$> mkHandle fn q }
+    Just p -> do { q <- c_add_utf8 =<< c_add_FILE p; Just <$> mkHandle fn q (ioModeToHMode m) }
 
 openFile :: String -> IOMode -> IO Handle
 openFile p m = do
@@ -169,10 +156,10 @@ getChar :: IO Char
 getChar = hGetChar stdin
 
 cprint :: forall a . a -> IO ()
-cprint a = withHandle stdout $ \ p -> primRnfNoErr a `seq` primHPrint p a
+cprint a = withHandleWr stdout $ \ p -> primRnfNoErr a `seq` primHPrint p a
 
 cuprint :: forall a . a -> IO ()
-cuprint a = withHandle stdout $ \ p -> primHPrint p a
+cuprint a = withHandleWr stdout $ \ p -> primHPrint p a
 
 print :: forall a . (Show a) => a -> IO ()
 print a = putStrLn (show a)
@@ -236,10 +223,11 @@ readFile p = do
 
 -- Lazy hGetContents
 hGetContents :: Handle -> IO String
-hGetContents h = withHandle h $ \ p -> do
+hGetContents h = withHandleRd h $ \ p -> do
   c <- c_getb p
   if c == (-1::Int) then do
-    hClose h   -- EOF, so close the handle
+    hClose h                           -- EOF, so close the handle
+    setHandleState h HSemiClosed       -- but still allow a regular close
     return ""
    else do
     cs <- unsafeInterleaveIO (hGetContents h)
@@ -256,7 +244,7 @@ openBinaryFile fn m = do
   mf <- openFILEM fn m
   case mf of
     Nothing -> error $ "openBinaryFile: cannot open " ++ show fn
-    Just p -> do { q <- c_add_FILE p; mkHandle fn q }
+    Just p -> do { q <- c_add_FILE p; mkHandle fn q (ioModeToHMode m) }
 
 --------
 -- For compatibility

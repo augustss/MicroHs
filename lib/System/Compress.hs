@@ -9,7 +9,7 @@ import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
 import System.IO
-import System.IO_Handle
+import System.IO.Internal
 import System.IO.Unsafe
 
 foreign import ccall "lz77c" c_lz77c :: CString -> CSize -> Ptr CString -> IO CSize
@@ -52,7 +52,7 @@ withGetTransducer :: (PBFILE -> IO PBFILE) -> [Char] -> [Char]
 withGetTransducer trans file = unsafePerformIO $ do
   (ptr, len) <- newCAStringLen file
   bf <- c_openb_rd_buf ptr len >>= trans
-  h <- mkHandle "withGetTransducer" bf
+  h <- mkHandle "withGetTransducer" bf HRead
   hGetContents h
 
 compress' :: [Char] -> [Char]
@@ -61,6 +61,7 @@ compress' = withPutTransducer c_add_lz77_compressor
 decompress :: [Char] -> [Char]
 decompress = withGetTransducer c_add_lz77_decompressor
 
+{-
 main :: IO ()
 main = do
   haa <- openBinaryFile "aa" ReadMode
@@ -77,3 +78,4 @@ main = do
   putStrLn "FF"
   hClose haa
   putStrLn "GG"
+-}

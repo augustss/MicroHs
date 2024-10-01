@@ -7,8 +7,8 @@ module System.IO.Serialize(
   ) where
 import Prelude(); import MiniPrelude
 import Primitives(Ptr)
-import System.IO_Handle
 import System.IO
+import System.IO.Internal
 
 primHSerialize   :: forall a . Ptr BFILE -> a -> IO ()
 primHSerialize    = primitive "IO.serialize"
@@ -16,10 +16,10 @@ primHDeserialize :: forall a . Ptr BFILE -> IO a
 primHDeserialize  = primitive "IO.deserialize"
 
 hSerialize   :: forall a . Handle -> a -> IO ()
-hSerialize h a = withHandle h $ \ p -> primHSerialize p a
+hSerialize h a = withHandleWr h $ \ p -> primHSerialize p a
 
 hDeserialize :: forall a . Handle -> IO a
-hDeserialize h = withHandle h primHDeserialize
+hDeserialize h = withHandleRd h primHDeserialize
 
 writeSerialized :: forall a . FilePath -> a -> IO ()
 writeSerialized p s = do
@@ -34,7 +34,7 @@ writeSerializedCompressed :: forall a . FilePath -> a -> IO ()
 writeSerializedCompressed p s = do
   h <- openBinaryFile p WriteMode
   hPutChar h 'z'                               -- indicate compressed
-  h' <- addTransducer "writeSerializedCompressed" c_add_lz77_compressor h
+  h' <- addTransducer c_add_lz77_compressor h
   hSerialize h' s
   hClose h'
 
@@ -45,7 +45,7 @@ readSerialized p = do
   c <- hLookAhead h
   h' <- if c == 'z' then do                    -- compressed?
           hGetChar h   -- get rid of the 'z'
-          addTransducer "readSerialized" c_add_lz77_decompressor h
+          addTransducer c_add_lz77_decompressor h
         else
           return h
   a <- hDeserialize h'

@@ -105,6 +105,7 @@ import Numeric.FormatFloat
 import Numeric.Natural
 import Prelude
 import Primitives
+import System.Compress
 import System.Console.GetOpt
 --import System.Console.SimpleReadline
 import System.Directory
