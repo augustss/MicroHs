@@ -97,8 +97,13 @@ stderr = unsafeHandle primStderr HWrite "stderr"
 
 hClose :: Handle -> IO ()
 hClose h = do
-  killHandle h
-  withHandleNC h c_closeb
+  m <- getHandleState h
+  case m of
+    HClosed -> error "Handle already closed"
+    HSemiClosed -> return ()
+    _ -> do
+      killHandle h
+      withHandleAny h c_closeb
   setHandleState h HClosed
 
 hFlush :: Handle -> IO ()

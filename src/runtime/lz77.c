@@ -31,7 +31,6 @@ put(uint8_t **bufp, size_t *sizep, size_t *offsp, uint8_t byte)
 }
 #define PUT(x) put(&outbuf, &outsize, &outoffs, (x))
 
-/* dst must be big enough to hold the decompressed result */
 size_t
 lz77d(uint8_t *src, size_t srclen, uint8_t **bufp)
 {

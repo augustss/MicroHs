@@ -3,8 +3,8 @@ module System.IO.Internal(
   Handle, HandleState(..),
   IOMode(..), ioModeToHMode,
   mkHandle, unsafeHandle,
-  withHandleRd, withHandleWr, withHandleAny, withHandleNC,
-  setHandleState,
+  withHandleRd, withHandleWr, withHandleAny,
+  getHandleState, setHandleState,
   killHandle,
   addTransducer) where
 import Prelude()
@@ -54,11 +54,11 @@ withHandleRd = withHandleM [HRead, HReadWrite]
 withHandleWr :: Handle -> (Ptr BFILE -> IO a) -> IO a
 withHandleWr = withHandleM [HWrite, HReadWrite]
 
-withHandleNC :: Handle -> (Ptr BFILE -> IO a) -> IO a
-withHandleNC = withHandleM [HRead, HWrite, HReadWrite, HSemiClosed]
-
 withHandleAny :: Handle -> (Ptr BFILE -> IO a) -> IO a
 withHandleAny = withHandle
+
+getHandleState :: Handle -> IO HandleState
+getHandleState (Handle _ st _) = readIORef st
 
 setHandleState :: Handle -> HandleState -> IO ()
 setHandleState (Handle _ st _) m = writeIORef st m

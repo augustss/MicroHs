@@ -1884,7 +1884,7 @@ static INLINE int test_bit(bits_t *bits, NODEPTR n)
 }
 
 size_t strNodes(size_t len);
-NODEPTR mkStringC(const char *str);
+NODEPTR mkStringC(char *str);
 
 #if WANT_STDIO
 void
@@ -2409,16 +2409,18 @@ strNodes(size_t len)
   return len;
 }
 
-/* Turn a C string into a combinator string */
+/* Turn a C string into a combinator string.
+ * Does NOT do UTF decoding.
+ */
 NODEPTR
-mkString(const char *astr, size_t len)
+mkString(struct bytestring bs)
 {
   NODEPTR n, nc;
   size_t i;
-  const unsigned char *str = (unsigned char*)astr; /* no sign bits, please */
+  const unsigned char *str = bs.string; /* no sign bits, please */
 
   n = mkNil();
-  for(i = len; i > 0; i--) {
+  for(i = bs.size; i > 0; i--) {
     nc = mkInt(str[i-1]);
     n = mkCons(nc, n);
   }
@@ -2426,9 +2428,10 @@ mkString(const char *astr, size_t len)
 }
 
 NODEPTR
-mkStringC(const char *str)
+mkStringC(char *str)
 {
-  return mkString(str, strlen(str));
+  struct bytestring bs = { strlen(str), str };
+  return mkString(bs);
 }
 
 NODEPTR
@@ -2603,6 +2606,7 @@ evalbstr(NODEPTR n)
 /* Evaluate a string, returns a newly allocated buffer. */
 /* XXX this is cheating, should use continuations */
 /* XXX the malloc()ed string is leaked if we yield in here. */
+/* Does UTF-8 encoding */
 struct bytestring
 evalstring(NODEPTR n)
 {
@@ -2658,6 +2662,7 @@ evalstring(NODEPTR n)
   return bs;
 }
 
+/* Does not do UTF-8 encoding */
 struct bytestring
 evalbytestring(NODEPTR n)
 {
@@ -3827,7 +3832,7 @@ execio(NODEPTR *np)
     case T_NEWCASTRINGLEN:
       {
       CHECKIO(1);
-      struct bytestring bs = evalstring(ARG(TOP(1)));
+      struct bytestring bs = evalbytestring(ARG(TOP(1)));
       GCCHECK(4);
       n = new_ap(new_ap(combPair, x = alloc_node(T_PTR)), mkInt(bs.size));
       PTR(x) = bs.string;
@@ -3841,7 +3846,8 @@ execio(NODEPTR *np)
       name = evalptr(ARG(TOP(1)));
       size = strlen(name);
       GCCHECK(strNodes(size));
-      RETIO(mkString(name, size));
+      struct bytestring bs = { size, name };
+      RETIO(mkString(bs));
       }
 
     case T_PEEKCASTRINGLEN:
@@ -3851,7 +3857,8 @@ execio(NODEPTR *np)
       size = evalint(ARG(TOP(2)));
       name = evalptr(ARG(TOP(1)));
       GCCHECK(strNodes(size));
-      RETIO(mkString(name, size));
+      struct bytestring bs = { size, name };
+      RETIO(mkString(bs));
       }
 
     case T_ARR_ALLOC:
@@ -4072,9 +4079,9 @@ MAIN
     /* No GC checks, the heap is empty. */
     n = mkNil();
     for(int i = gargc-1; i >= 0; i--) {
-      n = mkCons(mkString(gargv[i], strlen(gargv[i])), n);
+      n = mkCons(mkStringC(gargv[i]), n);
     }
-    n = mkCons(mkString(progname, strlen(progname)), n);
+    n = mkCons(mkStringC(progname), n);
     argarray = arr_alloc(1, n);      /* An IORef contains a single element array */
     argarray->permanent = 1;         /* never GC the arguments, because a T_IO_GETARGREF can reach argarray */
   }
@@ -4423,7 +4430,7 @@ struct ffi_entry ffi_table[] = {
 { "putb", mhs_putb},
 { "ungetb", mhs_ungetb},
 { "openb_wr_buf", mhs_openwrbuf},
-{ "openn_rd_buf", mhs_openrdbuf},
+{ "openb_rd_buf", mhs_openrdbuf},
 { "get_buf", mhs_getbuf},
 { "system", mhs_system},
 { "tmpname", mhs_tmpname},
