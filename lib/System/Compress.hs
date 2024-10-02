@@ -1,4 +1,4 @@
-module System.Compress {-(compress)-} where
+module System.Compress(compress) where
 import Prelude(); import MiniPrelude
 import Data.Function
 import Foreign.Ptr
@@ -14,6 +14,7 @@ import System.IO.Unsafe
 
 foreign import ccall "lz77c" c_lz77c :: CString -> CSize -> Ptr CString -> IO CSize
 
+{-
 -- This really ought to be [Word8] -> [Word8]
 compress :: String -> String
 compress file = unsafePerformIO $ do
@@ -25,6 +26,7 @@ compress file = unsafePerformIO $ do
   free iptr
   free optr
   return res
+-}
 
 type PBFILE = Ptr BFILE
 foreign import ccall "openb_wr_buf" c_openb_wr_buf :: IO PBFILE
@@ -64,8 +66,8 @@ withGetTransducer trans file = unsafePerformIO $ do
   hClose h
   return cs
 
-compress' :: [Char] -> [Char]
-compress' = withPutTransducer c_add_lz77_compressor
+compress :: [Char] -> [Char]
+compress = withPutTransducer c_add_lz77_compressor
 
 decompress :: [Char] -> [Char]
 decompress = withGetTransducer c_add_lz77_decompressor
