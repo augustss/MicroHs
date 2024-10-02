@@ -203,7 +203,7 @@ BASEMODULES=Control.Applicative Control.Arrow Control.Category Control.DeepSeq C
 $(MCABALBIN)/mhs: bin/mhs
 	@mkdir -p $(MCABALBIN)
 	@mkdir -p $(MDIST)
-	@echo 'module Paths_MicroHs where {\nimport Prelude();\nimport MHSPrelude;\nimport Data.Version;\nversion :: Version; version = makeVersion [$(HVERSION)];\ngetDataDir :: IO FilePath;\ngetDataDir = return "$(MDATA)"\n}' > $(MDIST)/Paths_MicroHs.hs
+	@echo -e 'module Paths_MicroHs where {\nimport Prelude();\nimport MHSPrelude;\nimport Data.Version;\nversion :: Version; version = makeVersion [$(HVERSION)];\ngetDataDir :: IO FilePath;\ngetDataDir = return "$(MDATA)"\n}' > $(MDIST)/Paths_MicroHs.hs
 	bin/mhs -z $(MHSINCNP) -i$(MDIST) MicroHs.Main -o$(MCABALBIN)/mhs
 
 $(MCABALBIN)/cpphs: bin/cpphs
