@@ -2611,19 +2611,19 @@ struct bytestring
 evalstring(NODEPTR n)
 {
   size_t sz = 100;
-  char *name = MALLOC(sz);
+  char *buf = MALLOC(sz);
   size_t offs;
   uvalue_t c;
   NODEPTR x;
   struct bytestring bs;
 
-  if (!name)
+  if (!buf)
     memerr();
   for (offs = 0;;) {
     if (offs >= sz - 4) {
       sz *= 2;
-      name = REALLOC(name, sz);
-      if (!name)
+      buf = REALLOC(buf, sz);
+      if (!buf)
         memerr();
     }
     n = evali(n);
@@ -2631,23 +2631,23 @@ evalstring(NODEPTR n)
       break;
     else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
-      c = (uvalue_t)evalint(ARG(x));
+      c = evalint(ARG(x));
       n = POPTOP();
       /* XXX Encode as UTF8 */
       if (c < 0x80) {
-        name[offs++] = (char)c;
+        buf[offs++] = (char)c;
       } else if (c < 0x800) {
-        name[offs++] = ((c >> 6 )       ) | 0xc0;
-        name[offs++] = ((c      ) & 0x3f) | 0x80;
+        buf[offs++] = ((c >> 6 )       ) | 0xc0;
+        buf[offs++] = ((c      ) & 0x3f) | 0x80;
       } else if (c < 0x10000) {
-        name[offs++] = ((c >> 12)       ) | 0xe0;
-        name[offs++] = ((c >> 6 ) & 0x3f) | 0x80;
-        name[offs++] = ((c      ) & 0x3f) | 0x80;
+        buf[offs++] = ((c >> 12)       ) | 0xe0;
+        buf[offs++] = ((c >> 6 ) & 0x3f) | 0x80;
+        buf[offs++] = ((c      ) & 0x3f) | 0x80;
       } else if (c < 0x110000) {
-        name[offs++] = ((c >> 18)       ) | 0xf0;
-        name[offs++] = ((c >> 12) & 0x3f) | 0x80;
-        name[offs++] = ((c >> 6 ) & 0x3f) | 0x80;
-        name[offs++] = ((c      ) & 0x3f) | 0x80;
+        buf[offs++] = ((c >> 18)       ) | 0xf0;
+        buf[offs++] = ((c >> 12) & 0x3f) | 0x80;
+        buf[offs++] = ((c >> 6 ) & 0x3f) | 0x80;
+        buf[offs++] = ((c      ) & 0x3f) | 0x80;
       } else {
 	ERR("invalid char");
       }
@@ -2656,9 +2656,9 @@ evalstring(NODEPTR n)
       ERR("evalstring not Nil/Cons");
     }
   }
-  name[offs] = 0;
+  buf[offs] = 0;                /* in case we use it as a C string */
   bs.size = offs;
-  bs.string = name;
+  bs.string = buf;
   return bs;
 }
 
@@ -2676,7 +2676,7 @@ evalbytestring(NODEPTR n)
   if (!buf)
     memerr();
   for (offs = 0;;) {
-    if (offs >= sz) {
+    if (offs >= sz - 1) {
       sz *= 2;
       buf = REALLOC(buf, sz);
       if (!buf)
@@ -2687,14 +2687,15 @@ evalbytestring(NODEPTR n)
       break;
     else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
-      c = (uvalue_t)evalint(ARG(x));
+      c = evalint(ARG(x));
       n = POPTOP();
-      buf[offs++] = (char)c;
+      buf[offs++] = c;
       n = ARG(n);
     } else {
       ERR("evalbytestring not Nil/Cons");
     }
   }
+  buf[offs] = 0;                /* in case we use it as a C string */
   bs.size = offs;
   bs.string = buf;
   return bs;
