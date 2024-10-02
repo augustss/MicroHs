@@ -478,6 +478,7 @@ struct BFILE_rle {
   size_t   count;
   int      byte;
   int      unget;
+  int      read;
 };
 
 int
@@ -537,6 +538,19 @@ put_rep(BFILE *out, size_t n)
 }
 
 void
+out_rle(struct BFILE_rle *p)
+{
+  if (p->count > 2) {
+    /* More than 2 repeating chars, it's worth compressing */
+    put_rep(p->bfile, p->count - 1);
+    putb(p->byte, p->bfile);
+  } else {
+    while(p->count-- > 0)
+      putb(p->byte, p->bfile);
+  }
+}
+
+void
 putb_rle(int b, BFILE *bp)
 {
   struct BFILE_rle *p = (struct BFILE_rle*)bp;
@@ -545,14 +559,7 @@ putb_rle(int b, BFILE *bp)
   if (b == p->byte) {
     p->count++;
   } else {
-    if (p->count > 2) {
-      /* More than 2 repeating chars, it's worth compressing */
-      put_rep(p->bfile, p->count - 1);
-      putb(p->byte, p->bfile);
-    } else {
-      while(p->count-- > 0)
-        putb(p->byte, p->bfile);
-    }
+    out_rle(p);
     p->count = 1;
     p->byte = b;
   }
@@ -564,13 +571,20 @@ closeb_rle(BFILE *bp)
   struct BFILE_rle *p = (struct BFILE_rle*)bp;
   CHECKBFILE(bp, getb_rle);
 
+  if (!p->read)
+    flushb(bp);
+
   closeb(p->bfile);
 }
 
 void
 flushb_rle(BFILE *bp)
 {
-  /* There is nothing we can do */
+  struct BFILE_rle *p = (struct BFILE_rle*)bp;
+  CHECKBFILE(bp, getb_rle);
+
+  /* output last byte(s) */
+  out_rle(p);
 }
 
 BFILE *
@@ -588,6 +602,7 @@ add_rle_decompressor(BFILE *file)
   p->count = 0;
   p->unget = -1;
   p->bfile = file;
+  p->read = 1;
 
   return (BFILE*)p;
 }
@@ -607,6 +622,7 @@ add_rle_compressor(BFILE *file)
   p->count = 0;
   p->byte = -1;
   p->bfile = file;
+  p->read = 0;
 
   return (BFILE*)p;
 }
