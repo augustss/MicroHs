@@ -74,6 +74,7 @@ test:
 	$(TMHS) MultiIf    && $(EVAL) > MultiIf.out    && diff MultiIf.ref MultiIf.out
 	$(TMHS) LameCase   && $(EVAL) > LameCase.out   && diff LameCase.ref LameCase.out
 	$(TMHS) NoForall   && $(EVAL) > NoForall.out   && diff NoForall.ref NoForall.out
+	$(TMHS) Bang       && $(EVAL) > Bang.out       && diff Bang.ref Bang.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

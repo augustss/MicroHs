@@ -1,13 +1,33 @@
 
 /***************** BFILE *******************/
 /*
- * BFILE is used to access files.
- * It allows various "transducers" to be added
- * to the processing.
+ * BFILE is a family of stream objects.
+ * There are two kinds: endpoints (source/sink) and transducers.
+ * The streams are typically bytes.
+ *
+ *  FILE   source/sink for stdio FILE handles, handles
+ *  buf    source/sink where the read/write uses a memory buffer.
+ *
+ *  lz77   transducer for LZ77 compression
+ *         put - compresses a byte
+ *         get - returns an decompressed byte
+ *  rle    transducer for Run Length Encoding
+ *         put - compresses an ASCII character
+ *         get - returns a decompressed ASCII
+ *  bwt    transducer for Burrows-Wheeler Transform
+ *         put - transforms a byte
+ *         get - untransforms a byte
+ *  utf8   transducer for UTF8 encoding
+ *         put - encodes a Unicode code point (int) to bytes
+ *         get - decodes a Unicode code point
  */
 
 /* Sanity checking */
-#define CHECKBFILE(p, f) do { if (p->getb != f) ERR("CHECKBFILE"); } while(0)
+void foo(void)
+{
+  printf("foo\n");
+}
+#define CHECKBFILE(p, f) do { if (p->getb != f) { foo(); ERR("CHECKBFILE"); } } while(0)
 
 /* BFILE will have different implementations, they all have these methods */
 typedef struct BFILE {
@@ -92,7 +112,26 @@ putdecb(value_t n, BFILE *p)
   }
 }
 
-/***************** BFILE from static buffer *******************/
+void
+putint32(value_t n, BFILE *p)
+{
+  putb(n % 256, p); n /= 256;
+  putb(n % 256, p); n /= 256;
+  putb(n % 256, p); n /= 256;
+  putb(n % 256, p);
+}
+
+value_t
+getint32(BFILE *p)
+{
+  value_t b0 = getb(p);
+  value_t b1 = getb(p);
+  value_t b2 = getb(p);
+  value_t b3 = getb(p);
+  return ((((b3 * 256) + b2) * 256) + b1) * 256 + b0;
+}
+
+/***************** BFILE from/to memory buffer *******************/
 struct BFILE_buffer {
   BFILE    mets;
   size_t   b_size;
@@ -111,6 +150,20 @@ getb_buf(BFILE *bp)
 }
 
 void
+putb_buf(int c, BFILE *bp)
+{
+  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
+  CHECKBFILE(bp, getb_buf);
+  if (p->b_pos >= p->b_size) {
+    p->b_size *= 2;
+    p->b_buffer = realloc(p->b_buffer, p->b_size);
+    if (!p->b_buffer)
+      ERR("putb_buf");
+  }
+  p->b_buffer[p->b_pos++] = c;
+}
+
+void
 ungetb_buf(int c, BFILE *bp)
 {
   struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
@@ -121,28 +174,75 @@ ungetb_buf(int c, BFILE *bp)
 }
 
 void
-closeb_buf(BFILE *bp)
+closeb_rd_buf(BFILE *bp)
 {
   CHECKBFILE(bp, getb_buf);
   FREE(bp);
 }
 
-/* There is no open().  Only used with statically allocated buffers. */
-struct BFILE*
-openb_buf(uint8_t *buf, size_t len)
+void
+closeb_wr_buf(BFILE *bp)
 {
-  struct BFILE_buffer *p = MALLOC(sizeof(struct BFILE_buffer));;
+  CHECKBFILE(bp, getb_buf);
+  FREE(bp);
+}
+
+void
+flushb_buf(BFILE *bp)
+{
+  CHECKBFILE(bp, getb_buf);
+}
+
+struct BFILE*
+openb_rd_buf(uint8_t *buf, size_t len)
+{
+  struct BFILE_buffer *p = MALLOC(sizeof(struct BFILE_buffer));
   if (!p)
     memerr();
   p->mets.getb = getb_buf;
   p->mets.ungetb = ungetb_buf;
   p->mets.putb = 0;
   p->mets.flushb = 0;
-  p->mets.closeb = closeb_buf;
+  p->mets.closeb = closeb_rd_buf;
   p->b_size = len;
   p->b_pos = 0;
   p->b_buffer = buf;
   return (struct BFILE*)p;
+}
+
+struct BFILE*
+openb_wr_buf(void)
+{
+  struct BFILE_buffer *p = MALLOC(sizeof(struct BFILE_buffer));
+  if (!p)
+    memerr();
+  p->mets.getb = getb_buf;      /* Just to make CHECKFILE happy */
+  p->mets.ungetb = 0;
+  p->mets.putb = putb_buf;
+  p->mets.flushb = flushb_buf;
+  p->mets.closeb = closeb_wr_buf;
+  p->b_size = 1000;
+  p->b_pos = 0;
+  p->b_buffer = malloc(p->b_size);
+  if (!p->b_buffer)
+    ERR("openb_wr_buf");
+  return (struct BFILE*)p;
+}
+
+/* 
+ * Get the buffer used by writing.
+ * This should be the last operation before closing,
+ * since the buffer can move when writing.
+ * The caller of openb_wr_buf() and get_buf() owns
+ * the memory and must free it.
+ */
+void
+get_buf(struct BFILE *bp, uint8_t **bufp, size_t *lenp)
+{
+  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
+  CHECKBFILE(bp, getb_buf);
+  *bufp = p->b_buffer;
+  *lenp = p->b_pos;
 }
 
 #if WANT_STDIO
@@ -227,6 +327,7 @@ struct BFILE_lz77 {
   size_t   len;
   size_t   pos;
   int      read;
+  int      numflush;
 };
 
 int
@@ -262,6 +363,27 @@ putb_lz77(int b, BFILE *bp)
   p->buf[p->pos++] = b;
 }
 
+/* Compress and write to output BFILE */
+void
+flushb_lz77(BFILE *bp)
+{
+  struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
+  CHECKBFILE(bp, getb_lz77);
+
+  /* If we have had a flush, and there is no new data then do nothing */
+  if (p->numflush++ && !p->pos)
+    return;
+  uint8_t *obuf;
+  size_t olen = lz77c(p->buf, p->pos, &obuf);
+  putsb("LZ1", p->bfile);              /* Version no */
+  putint32(olen, p->bfile);            /* 32 bit length */
+  for (size_t i = 0; i < olen; i++) {
+    putb(obuf[i], p->bfile);           /* and the data */
+  }
+  free(obuf);
+  p->pos = 0;
+}
+
 void
 closeb_lz77(BFILE *bp)
 {
@@ -270,23 +392,12 @@ closeb_lz77(BFILE *bp)
 
   if (!p->read) {
     /* We are in write mode, so compress and push it down */
-    uint8_t *obuf;
-    size_t olen = lz77c(p->buf, p->pos, &obuf);
+    flushb_lz77(bp);
     FREE(p->buf);
-    for (size_t i = 0; i < olen; i++) {
-      putb(obuf[i], p->bfile);
-    }
-    FREE(obuf);
   }
 
   closeb(p->bfile);
   FREE(p);
-}
-
-void
-flushb_lz77(BFILE *bp)
-{
-  /* There is nothing we can do */
 }
 
 BFILE *
@@ -304,25 +415,20 @@ add_lz77_decompressor(BFILE *file)
   p->mets.closeb = closeb_lz77;
   p->read = 1;
   p->bfile = file;
+  p->numflush = 0;
 
-  size_t size = 25000;
-  uint8_t *buf = MALLOC(size);
-  size_t i;
+  /* First check version */
+  if (getb(file) != 'L' || getb(file) != 'Z' || getb(file) != '1')
+    ERR("Bad LZ77 signature");
+
+  size_t size = getint32(file); /* then read size */
+  uint8_t *buf = MALLOC(size);  /* temporary buffer for input */
   if (!buf)
     memerr();
-  for(i = 0;;) {
-    int b = getb(file);
-    if (b < 0)
-      break;
-    if (i >= size) {
-      size *= 2;
-      buf = realloc(buf, size);
-      if (!buf)
-        memerr();
-    }
-    buf[i++] = b;
+  for(size_t i = 0; i < size; i++) {
+    buf[i] = getb(file);        /* and read data */
   }
-  p->len = lz77d(buf, i, &p->buf);
+  p->len = lz77d(buf, size, &p->buf); /* decompress */
   FREE(buf);
   p->pos = 0;
   return (BFILE*)p;
@@ -343,6 +449,7 @@ add_lz77_compressor(BFILE *file)
   p->mets.closeb = closeb_lz77;
   p->read = 0;
   p->bfile = file;
+  p->numflush = 0;
 
   p->len = 25000;
   p->buf = MALLOC(p->len);
@@ -505,7 +612,6 @@ add_rle_compressor(BFILE *file)
 }
 
 #endif  /* WANT_RLE */
-
 
 /***************** BFILE with UTF8 encode/decode *******************/
 

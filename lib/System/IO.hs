@@ -47,17 +47,17 @@ import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import System.IO.Unsafe
-import System.IO_Handle
+import System.IO.Internal
 
 data FILE
 
 primHPrint       :: forall a . Ptr BFILE -> a -> IO ()
 primHPrint        = primitive "IO.print"
-primStdin        :: Ptr BFILE
+primStdin        :: ForeignPtr BFILE
 primStdin         = primitive "IO.stdin"
-primStdout       :: Ptr BFILE
+primStdout       :: ForeignPtr BFILE
 primStdout        = primitive "IO.stdout"
-primStderr       :: Ptr BFILE
+primStderr       :: ForeignPtr BFILE
 primStderr        = primitive "IO.stderr"
 
 foreign import ccall "fopen"        c_fopen        :: CString -> CString -> IO (Ptr FILE)
@@ -72,45 +72,45 @@ foreign import ccall "add_utf8"     c_add_utf8     :: Ptr BFILE          -> IO (
 ----------------------------------------------------------
 
 instance Eq Handle where
-  Handle p == Handle q  =  p == q
+  h == h'  =
+    unsafePerformIO $
+    withHandleAny h $ \ p ->
+    withHandleAny h' $ \ p' ->
+    pure (p == p')
 
 instance Show Handle where
-  show (Handle p) = "Handle-" ++ show p
+  show h = unsafePerformIO $
+    withHandleAny h $ \ p ->
+      return $ "Handle-" ++ show p
 
 type FilePath = String
 
-data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
-
-instance Functor IO where
-  fmap f ioa   = ioa `primBind` \ a -> primReturn (f a)
-instance Applicative IO where
-  pure         = primReturn
-  (<*>)        = ap
-instance Monad IO where
-  (>>=)        = primBind
-  (>>)         = primThen
-  return       = primReturn
-instance MonadFail IO where
-  fail         = error
-
 stdin  :: Handle
-stdin  = Handle primStdin
+stdin  = unsafeHandle primStdin  HRead  "stdin"
 stdout :: Handle
-stdout = Handle primStdout
+stdout = unsafeHandle primStdout HWrite "stdout"
 stderr :: Handle
-stderr = Handle primStderr
+stderr = unsafeHandle primStderr HWrite "stderr"
 
 --bFILE :: Ptr FILE -> Handle
 --bFILE = Handle . primPerformIO . (c_add_utf8 <=< c_add_FILE)
 
 hClose :: Handle -> IO ()
-hClose (Handle p) = c_closeb p
+hClose h = do
+  m <- getHandleState h
+  case m of
+    HClosed -> error "Handle already closed"
+    HSemiClosed -> return ()
+    _ -> do
+      killHandle h
+      withHandleAny h c_closeb
+  setHandleState h HClosed
 
 hFlush :: Handle -> IO ()
-hFlush (Handle p) = c_flushb p
+hFlush h = withHandleWr h c_flushb
 
 hGetChar :: Handle -> IO Char
-hGetChar (Handle p) = do
+hGetChar h = withHandleRd h $ \ p -> do
   c <- c_getb p
   if c == (-1::Int) then
     error "hGetChar: EOF"
@@ -118,13 +118,13 @@ hGetChar (Handle p) = do
     return (chr c)
 
 hLookAhead :: Handle -> IO Char
-hLookAhead h@(Handle p) = do
+hLookAhead h = withHandleRd h $ \ p -> do
   c <- hGetChar h
   c_ungetb (ord c) p
   return c
 
 hPutChar :: Handle -> Char -> IO ()
-hPutChar (Handle p) c = c_putb (ord c) p
+hPutChar h c = withHandleWr h $ c_putb (ord c)
 
 openFILEM :: FilePath -> IOMode -> IO (Maybe (Ptr FILE))
 openFILEM p m = do
@@ -141,11 +141,11 @@ openFILEM p m = do
     return (Just h)
 
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
-openFileM p m = do
-  mf <- openFILEM p m
+openFileM fn m = do
+  mf <- openFILEM fn m
   case mf of
     Nothing -> return Nothing
-    Just p -> do { q <- c_add_utf8 =<< c_add_FILE p; return (Just (Handle q)) }
+    Just p -> do { q <- c_add_utf8 =<< c_add_FILE p; Just <$> mkHandle fn q (ioModeToHMode m) }
 
 openFile :: String -> IOMode -> IO Handle
 openFile p m = do
@@ -161,12 +161,10 @@ getChar :: IO Char
 getChar = hGetChar stdin
 
 cprint :: forall a . a -> IO ()
-cprint a = primRnfNoErr a `seq` primHPrint p a
-  where Handle p = stdout
+cprint a = withHandleWr stdout $ \ p -> primRnfNoErr a `seq` primHPrint p a
 
 cuprint :: forall a . a -> IO ()
-cuprint = primHPrint p
-  where Handle p = stdout
+cuprint a = withHandleWr stdout $ \ p -> primHPrint p a
 
 print :: forall a . (Show a) => a -> IO ()
 print a = putStrLn (show a)
@@ -230,10 +228,11 @@ readFile p = do
 
 -- Lazy hGetContents
 hGetContents :: Handle -> IO String
-hGetContents h@(Handle p) = do
+hGetContents h = withHandleRd h $ \ p -> do
   c <- c_getb p
   if c == (-1::Int) then do
-    hClose h   -- EOF, so close the handle
+    hClose h                           -- EOF, so close the handle
+    setHandleState h HSemiClosed       -- but still allow a regular close
     return ""
    else do
     cs <- unsafeInterleaveIO (hGetContents h)
@@ -246,11 +245,11 @@ interact :: (String -> String) -> IO ()
 interact f = getContents >>= putStr . f
 
 openBinaryFile :: String -> IOMode -> IO Handle
-openBinaryFile p m = do
-  mf <- openFILEM p m
+openBinaryFile fn m = do
+  mf <- openFILEM fn m
   case mf of
-    Nothing -> error $ "openBinaryFile: cannot open " ++ show p
-    Just p -> do { q <- c_add_FILE p; return (Handle q) }
+    Nothing -> error $ "openBinaryFile: cannot open " ++ show fn
+    Just p -> do { q <- c_add_FILE p; mkHandle fn q (ioModeToHMode m) }
 
 --------
 -- For compatibility

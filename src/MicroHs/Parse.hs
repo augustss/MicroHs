@@ -644,7 +644,11 @@ pLet :: P Expr
 pLet = ELet <$> (pKeyword "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)
 
 pDo :: P Expr
-pDo = EDo <$> ((Just <$> pQualDo) <|< (Nothing <$ pKeyword "do")) <*> pBlock pStmt
+pDo = do
+  q <- (Just <$> pQualDo) <|< (Nothing <$ pKeyword "do")
+  ss <- pBlock pStmt
+  guard (not (null ss))
+  pure (EDo q ss)
 
 pIf :: P Expr
 pIf = EIf <$> (pKeyword "if" *> pExpr) <*>

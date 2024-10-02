@@ -177,7 +177,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE, T_ICMP, T_UCMP,
-                T_FPADD, T_FP2P, T_FPNEW, T_FPFIN,
+                T_FPADD, T_FP2P, T_FPNEW, T_FPFIN, // T_FPSTR,
                 T_TOPTR, T_TOINT, T_TODBL, T_TOFUNPTR,
                 T_BININT2, T_BININT1, T_UNINT1,
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
@@ -332,9 +332,10 @@ struct final {
  * The size field is non-zero only for bytestrings.
  */
 struct forptr {
-  struct forptr *next;       /* the next ForeignPtr that shares the same finilizer */
+  struct forptr *next;       /* the next ForeignPtr that shares the same finalizer */
   struct final  *finalizer;  /* the finalizer for this ForeignPtr */
   struct bytestring payload; /* the actual pointer to allocated data, and maybe a size */
+  //  char          *desc;
 };
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
 
@@ -715,6 +716,7 @@ struct {
   { "fp2p", T_FP2P },
   { "fpnew", T_FPNEW },
   { "fpfin", T_FPFIN },
+  //  { "fpstr", T_FPSTR },
   { "seq", T_SEQ },
   { "equal", T_EQUAL, T_EQUAL },
   { "sequal", T_EQUAL, T_EQUAL },
@@ -763,6 +765,25 @@ struct {
 enum node_tag flip_ops[T_LAST_TAG];
 #endif
 
+#if WANT_STDIO
+/* Create a dummy foreign pointer for the standard stdio handles. */
+/* These handles are never gc():d. */
+void
+mk_std(NODEPTR n, FILE *f)
+{ 
+  struct final *fin = calloc(1, sizeof(struct final));
+  struct forptr *fp = calloc(1, sizeof(struct forptr));
+  if (!fin || !fp)
+    memerr();
+  BFILE *bf = add_utf8(add_FILE(f));
+  SETTAG(n, T_FORPTR);
+  FORPTR(n) = fp;
+  fin->arg = bf;
+  fin->back = fp;
+  fp->payload.string = bf;
+}
+#endif
+
 void
 init_nodes(void)
 {
@@ -806,9 +827,9 @@ init_nodes(void)
     case T_BINBS1: combBINBS1 = n; break;
     case T_BINBS2: combBINBS2 = n; break;
 #if WANT_STDIO
-    case T_IO_STDIN:  comb_stdin  = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdin));  break;
-    case T_IO_STDOUT: comb_stdout = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdout)); break;
-    case T_IO_STDERR: comb_stderr = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stderr)); break;
+    case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
+    case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
+    case T_IO_STDERR: comb_stderr = n; mk_std(n, stderr); break;
 #endif  /* WANT_STDIO */
     default:
       break;
@@ -840,9 +861,9 @@ init_nodes(void)
     case T_BINBS1: combBINBS1 = n; break;
     case T_BINBS2: combBINBS2 = n; break;
 #if WANT_STDIO
-    case T_IO_STDIN:  comb_stdin  = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdin));  break;
-    case T_IO_STDOUT: comb_stdout = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stdout)); break;
-    case T_IO_STDERR: comb_stderr = n; SETTAG(n, T_PTR); PTR(n) = add_utf8(add_FILE(stderr)); break;
+    case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
+    case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
+    case T_IO_STDERR: comb_stderr = n; mk_std(n, stderr); break;
 #endif
     default:
       break;
@@ -1125,6 +1146,8 @@ gc(void)
           num_bs_alloc_max = num_bs_alloc - num_bs_free;
       }
       void (*f)(void *) = (void (*)(void *))fin->final;
+      //printf("forptr free fin=%p, f=%p", fin, f);
+      //fflush(stdout);
       if (f) {
         //printf("finalizer fin=%p final=%p\n", fin, f);
         (*f)(fin->arg);
@@ -1132,12 +1155,17 @@ gc(void)
       for (struct forptr *p = fin->back; p; ) {
         struct forptr *q = p->next;
         //printf("free fp=%p\n", p);
+        //printf(" p=%p desc=%s", p, p->desc ? p->desc : "NONE");
+        //fflush(stdout);
         FREE(p);
+        //memset(p, 0x55, sizeof *p);
         p = q;
       }
+      //printf("\n");
       *finp = fin->next;
       //printf("free fin=%p\n", fin);
       FREE(fin);
+      //memset(fin, 0x77, sizeof *fin);
     }
   }
   gc_scan_time += GETTIMEMILLI();
@@ -1860,7 +1888,7 @@ static INLINE int test_bit(bits_t *bits, NODEPTR n)
 }
 
 size_t strNodes(size_t len);
-NODEPTR mkStringC(const char *str);
+NODEPTR mkStringC(char *str);
 
 #if WANT_STDIO
 void
@@ -2037,6 +2065,16 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     }
     break;
   case T_PTR:
+    if (prefix) {
+      char b[200]; sprintf(b,"PTR<%p>",PTR(n));
+      putsb(b, f);
+    } else {
+      ERR("Cannot serialize pointers");
+    }
+    break;
+  case T_FUNPTR:
+      ERR("Cannot serialize function pointers");
+  case T_FORPTR:
     if (n == comb_stdin)
       putsb("IO.stdin", f);
     else if (n == comb_stdout)
@@ -2044,18 +2082,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     else if (n == comb_stderr)
       putsb("IO.stderr", f);
     else {
-      if (prefix) {
-        char b[200]; sprintf(b,"PTR<%p>",PTR(n));
-        putsb(b, f);
-      } else {
-        ERR("Cannot serialize pointers");
-      }
-    }
-    break;
-  case T_FUNPTR:
-      ERR("Cannot serialize function pointers");
-  case T_FORPTR:
       ERR("Cannot serialize foreign pointers");
+    }
     break;
   case T_BSTR:
     print_string(f, FORPTR(n)->payload);
@@ -2143,6 +2171,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_FP2P: putsb("fp2p", f); break;
   case T_FPNEW: putsb("fpnew", f); break;
   case T_FPFIN: putsb("fpfin", f); break;
+    //  case T_FPSTR: putsb("fpstr", f); break;
   case T_EQUAL: putsb("equal", f); break;
   case T_COMPARE: putsb("compare", f); break;
   case T_RNF: putsb("rnf", f); break;
@@ -2327,6 +2356,7 @@ mkForPtr(struct bytestring bs)
   fp->next = 0;
   fp->payload = bs;
   fp->finalizer = fin;
+  //  fp->desc = 0;
   return fp;
 }
 
@@ -2383,16 +2413,18 @@ strNodes(size_t len)
   return len;
 }
 
-/* Turn a C string into a combinator string */
+/* Turn a C string into a combinator string.
+ * Does NOT do UTF decoding.
+ */
 NODEPTR
-mkString(const char *astr, size_t len)
+mkString(struct bytestring bs)
 {
   NODEPTR n, nc;
   size_t i;
-  const unsigned char *str = (unsigned char*)astr; /* no sign bits, please */
+  const unsigned char *str = bs.string; /* no sign bits, please */
 
   n = mkNil();
-  for(i = len; i > 0; i--) {
+  for(i = bs.size; i > 0; i--) {
     nc = mkInt(str[i-1]);
     n = mkCons(nc, n);
   }
@@ -2400,15 +2432,16 @@ mkString(const char *astr, size_t len)
 }
 
 NODEPTR
-mkStringC(const char *str)
+mkStringC(char *str)
 {
-  return mkString(str, strlen(str));
+  struct bytestring bs = { strlen(str), str };
+  return mkString(bs);
 }
 
 NODEPTR
 mkStringU(struct bytestring bs)
 {
-  BFILE *ubuf = add_utf8(openb_buf(bs.string, bs.size));
+  BFILE *ubuf = add_utf8(openb_rd_buf(bs.string, bs.size));
   NODEPTR n, *np, nc;
 
   //printf("mkStringU %d %s\n", (int)bs.size, (char*)bs.string);
@@ -2577,23 +2610,24 @@ evalbstr(NODEPTR n)
 /* Evaluate a string, returns a newly allocated buffer. */
 /* XXX this is cheating, should use continuations */
 /* XXX the malloc()ed string is leaked if we yield in here. */
+/* Does UTF-8 encoding */
 struct bytestring
 evalstring(NODEPTR n)
 {
   size_t sz = 100;
-  char *name = MALLOC(sz);
+  char *buf = MALLOC(sz);
   size_t offs;
   uvalue_t c;
   NODEPTR x;
   struct bytestring bs;
 
-  if (!name)
+  if (!buf)
     memerr();
   for (offs = 0;;) {
     if (offs >= sz - 4) {
       sz *= 2;
-      name = REALLOC(name, sz);
-      if (!name)
+      buf = REALLOC(buf, sz);
+      if (!buf)
         memerr();
     }
     n = evali(n);
@@ -2601,23 +2635,23 @@ evalstring(NODEPTR n)
       break;
     else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
-      c = (uvalue_t)evalint(ARG(x));
+      c = evalint(ARG(x));
       n = POPTOP();
       /* XXX Encode as UTF8 */
       if (c < 0x80) {
-        name[offs++] = (char)c;
+        buf[offs++] = (char)c;
       } else if (c < 0x800) {
-        name[offs++] = ((c >> 6 )       ) | 0xc0;
-        name[offs++] = ((c      ) & 0x3f) | 0x80;
+        buf[offs++] = ((c >> 6 )       ) | 0xc0;
+        buf[offs++] = ((c      ) & 0x3f) | 0x80;
       } else if (c < 0x10000) {
-        name[offs++] = ((c >> 12)       ) | 0xe0;
-        name[offs++] = ((c >> 6 ) & 0x3f) | 0x80;
-        name[offs++] = ((c      ) & 0x3f) | 0x80;
+        buf[offs++] = ((c >> 12)       ) | 0xe0;
+        buf[offs++] = ((c >> 6 ) & 0x3f) | 0x80;
+        buf[offs++] = ((c      ) & 0x3f) | 0x80;
       } else if (c < 0x110000) {
-        name[offs++] = ((c >> 18)       ) | 0xf0;
-        name[offs++] = ((c >> 12) & 0x3f) | 0x80;
-        name[offs++] = ((c >> 6 ) & 0x3f) | 0x80;
-        name[offs++] = ((c      ) & 0x3f) | 0x80;
+        buf[offs++] = ((c >> 18)       ) | 0xf0;
+        buf[offs++] = ((c >> 12) & 0x3f) | 0x80;
+        buf[offs++] = ((c >> 6 ) & 0x3f) | 0x80;
+        buf[offs++] = ((c      ) & 0x3f) | 0x80;
       } else {
 	ERR("invalid char");
       }
@@ -2626,12 +2660,13 @@ evalstring(NODEPTR n)
       ERR("evalstring not Nil/Cons");
     }
   }
-  name[offs] = 0;
+  buf[offs] = 0;                /* in case we use it as a C string */
   bs.size = offs;
-  bs.string = name;
+  bs.string = buf;
   return bs;
 }
 
+/* Does not do UTF-8 encoding */
 struct bytestring
 evalbytestring(NODEPTR n)
 {
@@ -2645,7 +2680,7 @@ evalbytestring(NODEPTR n)
   if (!buf)
     memerr();
   for (offs = 0;;) {
-    if (offs >= sz) {
+    if (offs >= sz - 1) {
       sz *= 2;
       buf = REALLOC(buf, sz);
       if (!buf)
@@ -2656,14 +2691,15 @@ evalbytestring(NODEPTR n)
       break;
     else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
-      c = (uvalue_t)evalint(ARG(x));
+      c = evalint(ARG(x));
       n = POPTOP();
-      buf[offs++] = (char)c;
+      buf[offs++] = c;
       n = ARG(n);
     } else {
       ERR("evalbytestring not Nil/Cons");
     }
   }
+  buf[offs] = 0;                /* in case we use it as a C string */
   bs.size = offs;
   bs.string = buf;
   return bs;
@@ -3353,6 +3389,7 @@ evali(NODEPTR an)
   case T_ARR_WRITE:
   case T_FPNEW:
   case T_FPFIN:
+    //  case T_FPSTR:
   case T_IO_GC:
     RET;
 
@@ -3800,7 +3837,7 @@ execio(NODEPTR *np)
     case T_NEWCASTRINGLEN:
       {
       CHECKIO(1);
-      struct bytestring bs = evalstring(ARG(TOP(1)));
+      struct bytestring bs = evalbytestring(ARG(TOP(1)));
       GCCHECK(4);
       n = new_ap(new_ap(combPair, x = alloc_node(T_PTR)), mkInt(bs.size));
       PTR(x) = bs.string;
@@ -3814,7 +3851,8 @@ execio(NODEPTR *np)
       name = evalptr(ARG(TOP(1)));
       size = strlen(name);
       GCCHECK(strNodes(size));
-      RETIO(mkString(name, size));
+      struct bytestring bs = { size, name };
+      RETIO(mkString(bs));
       }
 
     case T_PEEKCASTRINGLEN:
@@ -3824,7 +3862,8 @@ execio(NODEPTR *np)
       size = evalint(ARG(TOP(2)));
       name = evalptr(ARG(TOP(1)));
       GCCHECK(strNodes(size));
-      RETIO(mkString(name, size));
+      struct bytestring bs = { size, name };
+      RETIO(mkString(bs));
       }
 
     case T_ARR_ALLOC:
@@ -3909,6 +3948,20 @@ execio(NODEPTR *np)
         xfp->finalizer->final = yp;
         RETIO(combUnit);
       }
+
+#if 0
+    case T_FPSTR:
+      {
+        CHECKIO(2);
+        //printf("T_FPFIN\n");
+        struct forptr *xfp = evalforptr(ARG(TOP(2)));
+        //printf("T_FPFIN xfp=%p\n", xfp);
+        struct bytestring bs = evalstring(ARG(TOP(1)));
+        //printf("T_FPFIN yp=%p\n", yp);
+        xfp->desc = bs.string;
+        RETIO(combUnit);
+      }
+#endif
 
     case T_IO_GC:
       CHECKIO(0);
@@ -4031,9 +4084,9 @@ MAIN
     /* No GC checks, the heap is empty. */
     n = mkNil();
     for(int i = gargc-1; i >= 0; i--) {
-      n = mkCons(mkString(gargv[i], strlen(gargv[i])), n);
+      n = mkCons(mkStringC(gargv[i]), n);
     }
-    n = mkCons(mkString(progname, strlen(progname)), n);
+    n = mkCons(mkStringC(progname), n);
     argarray = arr_alloc(1, n);      /* An IORef contains a single element array */
     argarray->permanent = 1;         /* never GC the arguments, because a T_IO_GETARGREF can reach argarray */
   }
@@ -4041,7 +4094,7 @@ MAIN
 
   if (combexpr) {
     int c;
-    BFILE *bf = openb_buf(combexpr, combexprlen);
+    BFILE *bf = openb_rd_buf(combexpr, combexprlen);
     c = getb(bf);
     /* Compressed combinators start with a 'Z' or 'z', otherwise 'v' (for version) */
     if (c == 'z') {
@@ -4097,6 +4150,9 @@ MAIN
   if (GETTAG(res) != T_I)
     ERR("main execio I");
 #endif
+  /* Flush standard handles in case there is some BFILE buffering */
+  flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
+  flushb((BFILE*)FORPTR(comb_stderr)->payload.string);
   gc();                      /* Run finalizers */
   run_time += GETTIMEMILLI();
 
@@ -4258,11 +4314,15 @@ void mhs_tan(int s) { mhs_from_FloatW(s, 1, tanf(mhs_to_FloatW(s, 0))); }
 void mhs_add_FILE(int s) { mhs_from_Ptr(s, 1, add_FILE(mhs_to_Ptr(s, 0))); }
 void mhs_add_utf8(int s) { mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
 void mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
+void mhs_addr_closeb(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
 void mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
 void mhs_fopen(int s) { mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 void mhs_getb(int s) { mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
 void mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_openwrbuf(int s) { mhs_from_Ptr(s, 0, openb_wr_buf()); }
+void mhs_openrdbuf(int s) { mhs_from_Ptr(s, 2, openb_rd_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+void mhs_getbuf(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  mhs_from_Unit(s, 3); }
 void mhs_system(int s) { mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
 void mhs_tmpname(int s) { mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 void mhs_unlink(int s) { mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
@@ -4279,6 +4339,11 @@ void mhs_add_lz77_compressor(int s) { mhs_from_Ptr(s, 1, add_lz77_compressor(mhs
 void mhs_add_lz77_decompressor(int s) { mhs_from_Ptr(s, 1, add_lz77_decompressor(mhs_to_Ptr(s, 0))); }
 void mhs_lz77c(int s) { mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1), mhs_to_Ptr(s, 2))); }
 #endif  /* WANT_LZ77 */
+
+#if WANT_RLE
+void mhs_add_rle_compressor(int s) { mhs_from_Ptr(s, 1, add_rle_compressor(mhs_to_Ptr(s, 0))); }
+void mhs_add_rle_decompressor(int s) { mhs_from_Ptr(s, 1, add_rle_decompressor(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_RLE */
 
 void mhs_calloc(int s) { mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
 void mhs_free(int s) { free(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
@@ -4366,12 +4431,17 @@ struct ffi_entry ffi_table[] = {
 #if WANT_STDIO
 { "add_FILE", mhs_add_FILE},
 { "add_utf8", mhs_add_utf8},
+//{ "add_rle", mhs_add_rle},
 { "closeb", mhs_closeb},
+{ "&closeb", mhs_addr_closeb},
 { "flushb", mhs_flushb},
 { "fopen", mhs_fopen},
 { "getb", mhs_getb},
 { "putb", mhs_putb},
 { "ungetb", mhs_ungetb},
+{ "openb_wr_buf", mhs_openwrbuf},
+{ "openb_rd_buf", mhs_openrdbuf},
+{ "get_buf", mhs_getbuf},
 { "system", mhs_system},
 { "tmpname", mhs_tmpname},
 { "unlink", mhs_unlink},
@@ -4388,6 +4458,11 @@ struct ffi_entry ffi_table[] = {
 { "add_lz77_decompressor", mhs_add_lz77_decompressor},
 { "lz77c", mhs_lz77c},
 #endif  /* WANT_LZ77 */
+
+#if WANT_RLE
+{ "add_rle_compressor", mhs_add_rle_compressor},
+{ "add_rle_decompressor", mhs_add_rle_decompressor},
+#endif  /* WANT_RLE */
 
 { "calloc", mhs_calloc},
 { "free", mhs_free},

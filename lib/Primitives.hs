@@ -283,3 +283,13 @@ primArrEQ = primitive "A.=="
 
 primGC :: IO ()
 primGC = primitive "IO.gc"
+
+primForeignPtrToPtr :: ForeignPtr a -> Ptr a
+primForeignPtrToPtr = primitive "fp2p"
+
+primNewForeignPtr :: Ptr a -> IO (ForeignPtr a)
+primNewForeignPtr = primitive "fpnew"
+
+primAddFinalizer :: FunPtr (Ptr a -> IO ()) -> ForeignPtr a -> IO ()
+primAddFinalizer = primitive "fpfin"
+

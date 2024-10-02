@@ -152,5 +152,9 @@ primTable = [
   ("bslength", primitive "bslength"),
   ("bssubstr", primitive "bssubstr"),
   ("fromUTF8", primitive "fromUTF8"),
-  ("toUTF8", primitive "toUTF8")
+  ("toUTF8", primitive "toUTF8"),
+  ("fp+", primitive "fp+"),
+  ("fp2p", primitive "fp2p"),
+  ("fpnew", primitive "fpnew"),
+  ("fpfin", primitive "fpfin")
   ]
