@@ -22,12 +22,46 @@
  *         get - decodes a Unicode code point
  */
 
-/* Sanity checking */
-void foo(void)
+/**** Buffers for collecting data. */
+
+struct bfbuffer {
+  size_t   size;                /* total size of buffer */
+  size_t   pos;                 /* current index into buffer */
+  uint8_t *buf;                 /* actual data */
+};
+
+void
+bfbuffer_init(struct bfbuffer *bf, size_t size)
 {
-  printf("foo\n");
+  bf->size = size;
+  bf->pos = 0;
+  bf->buf = MALLOC(size);
+  if (!bf->buf)
+    ERR("bfbuffer_init");
 }
-#define CHECKBFILE(p, f) do { if (p->getb != f) { foo(); ERR("CHECKBFILE"); } } while(0)
+
+void
+bfbuffer_snoc(struct bfbuffer *bf, int byte)
+{
+  if (bf->pos >= bf->size) {
+    bf->size *= 2;
+    bf->buf = REALLOC(bf->buf, bf->size);
+    if (!bf->buf)
+      ERR("bfbuffer_snoc");
+  }
+  bf->buf[bf->pos++] = byte;
+}
+
+void
+bfbuffer_free(struct bfbuffer *bf)
+{
+  FREE(bf->buf);
+}
+
+/*********************************/
+
+/* Sanity checking */
+#define CHECKBFILE(p, f) do { if (p->getb != f) { ERR("CHECKBFILE"); } } while(0)
 
 /* BFILE will have different implementations, they all have these methods */
 typedef struct BFILE {
@@ -323,9 +357,7 @@ add_FILE(FILE *f)
 struct BFILE_lz77 {
   BFILE    mets;
   BFILE    *bfile;              /* underlying BFILE */
-  uint8_t  *buf;
-  size_t   len;
-  size_t   pos;
+  struct bfbuffer bf;
   int      read;
   int      numflush;
 };
@@ -335,9 +367,9 @@ getb_lz77(BFILE *bp)
 {
   struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
   CHECKBFILE(bp, getb_lz77);
-  if (p->pos >= p->len)
+  if (p->bf.pos >= p->bf.size)
     return -1;
-  return p->buf[p->pos++];
+  return p->bf.buf[p->bf.pos++];
 }
 
 void
@@ -345,7 +377,7 @@ ungetb_lz77(int c, BFILE *bp)
 {
   struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
   CHECKBFILE(bp, getb_lz77);
-  p->pos--;
+  p->bf.pos--;
 }
 
 void
@@ -354,13 +386,7 @@ putb_lz77(int b, BFILE *bp)
   struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
   CHECKBFILE(bp, getb_lz77);
 
-  if (p->pos >= p->len) {
-    p->len *= 2;
-    p->buf = realloc(p->buf, p->len);
-    if (!p->buf)
-      memerr();
-  }
-  p->buf[p->pos++] = b;
+  bfbuffer_snoc(&p->bf, b);
 }
 
 /* Compress and write to output BFILE */
@@ -371,17 +397,17 @@ flushb_lz77(BFILE *bp)
   CHECKBFILE(bp, getb_lz77);
 
   /* If we have had a flush, and there is no new data then do nothing */
-  if (p->numflush++ && !p->pos)
+  if (p->numflush++ && !p->bf.pos)
     return;
   uint8_t *obuf;
-  size_t olen = lz77c(p->buf, p->pos, &obuf);
+  size_t olen = lz77c(p->bf.buf, p->bf.pos, &obuf);
   putsb("LZ1", p->bfile);              /* Version no */
   putint32(olen, p->bfile);            /* 32 bit length */
   for (size_t i = 0; i < olen; i++) {
     putb(obuf[i], p->bfile);           /* and the data */
   }
   free(obuf);
-  p->pos = 0;
+  p->bf.pos = 0;
 }
 
 void
@@ -393,7 +419,7 @@ closeb_lz77(BFILE *bp)
   if (!p->read) {
     /* We are in write mode, so compress and push it down */
     flushb_lz77(bp);
-    FREE(p->buf);
+    bfbuffer_free(&p->bf);
   }
 
   closeb(p->bfile);
@@ -428,9 +454,9 @@ add_lz77_decompressor(BFILE *file)
   for(size_t i = 0; i < size; i++) {
     buf[i] = getb(file);        /* and read data */
   }
-  p->len = lz77d(buf, size, &p->buf); /* decompress */
+  p->bf.size = lz77d(buf, size, &p->bf.buf); /* decompress */
   FREE(buf);
-  p->pos = 0;
+  p->bf.pos = 0;
   return (BFILE*)p;
 }
 
@@ -451,11 +477,7 @@ add_lz77_compressor(BFILE *file)
   p->bfile = file;
   p->numflush = 0;
 
-  p->len = 25000;
-  p->buf = MALLOC(p->len);
-  if (!p->buf)
-    memerr();
-  p->pos = 0;
+  bfbuffer_init(&p->bf, 25000);
   return (BFILE*)p;
 }
 
