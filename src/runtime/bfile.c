@@ -470,6 +470,8 @@ add_lz77_compressor(BFILE *file)
  * 0x80+n c         -  n       repetitions of ASCII character c
  * 0x80+n 0x80+m c  -  n*128+m repetitions of ASCII character c
  * ... for longer run lengths
+ * Non-ASCII (i.e., >= 128) have very poor encoding:
+ * 0x81 c-0x80
  */
 
 struct BFILE_rle {
@@ -513,11 +515,16 @@ getb_rle(BFILE *bp)
     return p->byte;
   } else {
     int n = get_rep(p->bfile);
-    if (n < 0)
+    if (n < 0) {
       return -1;
-    p->count = n;
-    p->byte = getb(p->bfile);
-    return p->byte;
+    } else if (n == 1) {
+      /* repetition count == 1 means a non-ASCII byte */
+      return getb(p->bfile) | 0x80;
+    } else {
+      p->count = n;
+      p->byte = getb(p->bfile);
+      return p->byte;
+    }
   }
 }
 
@@ -556,7 +563,14 @@ putb_rle(int b, BFILE *bp)
   struct BFILE_rle *p = (struct BFILE_rle*)bp;
   CHECKBFILE(bp, getb_rle);
 
-  if (b == p->byte) {
+  if (b & 0x80) {
+    /* Encode non-ASCII as repetition count 1, followed by the byte with MSB removed */
+    out_rle(p);
+    put_rep(p->bfile, 1);
+    putb(b & 0x7f, p->bfile);
+    p->count = 0;
+    p->byte = -1;
+  } else if (b == p->byte) {
     p->count++;
   } else {
     out_rle(p);
