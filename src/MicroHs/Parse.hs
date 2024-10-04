@@ -488,10 +488,7 @@ pTypeApp :: P EType
 pTypeApp = do
   f <- pAType
   as <- emany pAType
-  mt <- eoptional (pSymbol "::" *> pType)
-  let
-    r = foldl EApp f as
-  pure $ maybe r (ESign r) mt
+  pure $ foldl EApp f as
 
 pAType :: P Expr
 pAType =
@@ -539,10 +536,7 @@ pPatApp = do
   f <- pAPat
   as <- emany pAPat
   guard (null as || isPConApp f)
-  mt <- eoptional (pSymbol "::" *> pType)
-  let
-    r = foldl EApp f as
-  pure $ maybe r (ESign r) mt
+  pure $ foldl EApp f as
 
 pPatNotVar :: P EPat
 pPatNotVar = guardM pPat isPConApp
@@ -619,10 +613,7 @@ pExprApp :: P Expr
 pExprApp = do
   f <- pAExpr
   as <- emany pAExpr
-  mt <- eoptional (pSymbol "::" *> pType)
-  let
-    r = foldl EApp f as
-  pure $ maybe r (ESign r) mt
+  pure $ foldl EApp f as
 
 pLam :: P Expr
 pLam =
@@ -732,7 +723,13 @@ pExprArgNeg :: P Expr
 pExprArgNeg = (pSymbol "-" *> (ENegApp <$> pExprArg)) <|< pExprArg
 
 pOperators :: P Ident -> P Expr -> P Expr
-pOperators oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
+pOperators oper one = do
+  r <- pOperators' oper one
+  mt <- eoptional (pSymbol "::" *> pType)
+  pure $ maybe r (ESign r) mt
+
+pOperators' :: P Ident -> P Expr -> P Expr
+pOperators' oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
   where eOper e [] | notNeg e = e
         eOper e ies = EOper e ies
         notNeg (ENegApp _) = False
