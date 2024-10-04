@@ -408,6 +408,7 @@ flushb_lz77(BFILE *bp)
   }
   free(obuf);
   p->bf.pos = 0;
+  flushb(p->bfile);
 }
 
 void
@@ -621,6 +622,8 @@ flushb_rle(BFILE *bp)
 
   /* output last byte(s) */
   out_rle(p);
+  p->count = 0;
+  flushb(p->bfile);
 }
 
 BFILE *
@@ -664,6 +667,239 @@ add_rle_compressor(BFILE *file)
 }
 
 #endif  /* WANT_RLE */
+
+#if WANT_BWT
+/***************** BFILE via Burrows-Wheeler Transform *******************/
+/*
+ */
+
+struct BFILE_bwt {
+  BFILE    mets;
+  BFILE    *bfile;              /* underlying BFILE */
+  size_t   count;
+  struct bfbuffer bf;
+  int      read;
+  int      numflush;
+};
+
+int
+getb_bwt(BFILE *bp)
+{
+  struct BFILE_bwt *p = (struct BFILE_bwt*)bp;
+  CHECKBFILE(bp, getb_bwt);
+  if (p->bf.pos >= p->bf.size)
+    return -1;
+  return p->bf.buf[p->bf.pos++];
+}
+
+void
+ungetb_bwt(int c, BFILE *bp)
+{
+  struct BFILE_bwt *p = (struct BFILE_bwt*)bp;
+  CHECKBFILE(bp, getb_bwt);
+  p->bf.pos--;
+}
+
+void
+putb_bwt(int b, BFILE *bp)
+{
+  struct BFILE_bwt *p = (struct BFILE_bwt*)bp;
+  CHECKBFILE(bp, getb_bwt);
+
+  bfbuffer_snoc(&p->bf, b);
+}
+
+void
+closeb_bwt(BFILE *bp)
+{
+  struct BFILE_bwt *p = (struct BFILE_bwt*)bp;
+  CHECKBFILE(bp, getb_bwt);
+
+  if (!p->read)
+    flushb(bp);
+
+  closeb(p->bfile);
+}
+
+/* Sort all rotations of buf, and the indices of the sorted strings in res. */
+/*
+ * |.......................................|
+ *         ^           ^
+ *         a           b
+ *                     <-      n         ->
+ *         <-  m     ->
+ * <-  o ->
+ */
+static uint8_t *compar_arg;
+static size_t compar_len;
+int compar(const void *pa, const void *pb)
+{
+  uint32_t a = *(uint32_t*)pa;
+  uint32_t b = *(uint32_t*)pb;
+  int r;
+  if (a == b)
+    return 0;
+  if (a < b) {
+    size_t n = compar_len - b; /* bytes until end of buffer */
+    r = memcmp(compar_arg + a, compar_arg + b, n);
+    if (r)
+      return r;
+    size_t m = b - a;
+    r = memcmp(compar_arg + a + n, compar_arg, m);
+    if (r)
+      return r;
+    size_t o = a;
+    return memcmp(compar_arg, compar_arg + m, o);
+  } else {
+    size_t n = compar_len - a; /* bytes until end of buffer */
+    r = memcmp(compar_arg + a, compar_arg + b, n);
+    if (r)
+      return r;
+    size_t m = a - b;
+    r = memcmp(compar_arg, compar_arg + b + n, m);
+    if (r)
+      return r;
+    size_t o = a;
+    return memcmp(compar_arg + m, compar_arg, o);
+    
+  }
+  return 0;
+}
+
+void
+sort_buffer(uint8_t *buf, size_t buflen, uint32_t *res)
+{
+  for(size_t i = 0; i < buflen; i++)
+    res[i] = i;
+  compar_arg = buf;
+  compar_len = buflen;
+  qsort(res, buflen, sizeof(uint32_t), compar);
+}
+
+uint32_t
+encode_bwt(uint8_t *data, size_t len, uint8_t *last)
+{
+  uint32_t *res = malloc(len * sizeof(uint32_t));
+  if (!res)
+    ERR("encode_bwt");
+  sort_buffer(data, len, res);
+  uint32_t zero = 0;
+  for(size_t i = 0; i < len; i++) {
+    uint32_t offs = res[i];
+    last[i] = data[(offs + len - 1) % len];
+    if (offs == 0)
+      zero = i;
+  }
+  return zero;
+}
+
+void
+flushb_bwt(BFILE *bp)
+{
+  struct BFILE_bwt *p = (struct BFILE_bwt*)bp;
+  CHECKBFILE(bp, getb_bwt);
+
+  /* If we have had a flush, and there is no new data then do nothing */
+  if (p->numflush++ && !p->bf.pos)
+    return;
+  putsb("BW1", p->bfile);             /* version no */
+  putint32(p->bf.pos, p->bfile);      /* 32 bit length */
+  uint8_t *last = malloc(p->bf.pos);
+  if (!last)
+    ERR("flushb_bwt");
+  size_t zero = encode_bwt(p->bf.buf, p->bf.pos, last);
+  putint32(zero, p->bfile);
+  for(size_t i = 0; i < p->bf.pos; i++)
+    putb(last[i], p->bfile);
+  FREE(last);
+  p->bf.pos = 0;
+  flushb(p->bfile);
+}
+
+#define MAXBYTE 256
+
+void
+decode_bwt(uint8_t *data, size_t len, uint8_t *odata, size_t zero)
+{
+  size_t count[MAXBYTE];
+  uint32_t *pred = malloc(len * sizeof(uint32_t));
+  for(size_t i = 0; i < MAXBYTE; i++) {
+    count[i] = 0;
+  }
+  for(size_t i = 0; i < len; i++) {
+    pred[i] = count[data[i]]++;
+  }
+  size_t sum = 0;
+  for(size_t i = 0; i < MAXBYTE; i++) {
+    size_t s = count[i];
+    count[i] = sum;
+    sum += s;
+  }
+  size_t i = zero;
+  for(size_t j = len; j > 0; j--) {
+    odata[j - 1] = data[i];
+    i = pred[i] + count[data[i]];
+  }
+}
+
+BFILE *
+add_bwt_decompressor(BFILE *file)
+{
+  struct BFILE_bwt *p = MALLOC(sizeof(struct BFILE_bwt));
+
+  if (!p)
+    memerr();
+  memset(p, 0, sizeof(struct BFILE_bwt));
+  p->mets.getb = getb_bwt;
+  p->mets.ungetb = ungetb_bwt;
+  p->mets.putb = 0;
+  p->mets.flushb = 0;
+  p->mets.closeb = closeb_bwt;
+  p->read = 1;
+  p->bfile = file;
+  p->numflush = 0;
+
+  /* First check version */
+  if (getb(file) != 'B' || getb(file) != 'W' || getb(file) != '1')
+    ERR("Bad BWT signature");
+
+  size_t size = getint32(file); /* then read size */
+  uint32_t zero = getint32(file);
+
+  uint8_t *buf = MALLOC(size);  /* temporary buffer for input */
+  if (!buf)
+    memerr();
+  for(size_t i = 0; i < size; i++) {
+    buf[i] = getb(file);        /* and read data */
+  }
+  bfbuffer_init(&p->bf, size);
+  decode_bwt(buf, size, p->bf.buf, zero); /* decode */
+  FREE(buf);
+
+  return (BFILE*)p;
+}
+
+BFILE *
+add_bwt_compressor(BFILE *file)
+{
+  struct BFILE_bwt *p = MALLOC(sizeof(struct BFILE_bwt));
+
+  if (!p)
+    memerr();
+  p->mets.getb = getb_bwt;
+  p->mets.ungetb = 0;
+  p->mets.putb = putb_bwt;
+  p->mets.flushb = flushb_bwt;
+  p->mets.closeb = closeb_bwt;
+  p->read = 0;
+  p->bfile = file;
+  p->numflush = 0;
+
+  bfbuffer_init(&p->bf, 25000);
+  return (BFILE*)p;
+}
+
+#endif  /* WANT_BWT */
 
 /***************** BFILE with UTF8 encode/decode *******************/
 

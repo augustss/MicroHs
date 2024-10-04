@@ -32,6 +32,10 @@
 #define WANT_RLE 1
 #endif
 
+#if !defined(WANT_BWT)
+#define WANT_BWT 1
+#endif
+
 #if WANT_LZ77
 size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
 size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
@@ -4345,6 +4349,11 @@ void mhs_add_rle_compressor(int s) { mhs_from_Ptr(s, 1, add_rle_compressor(mhs_t
 void mhs_add_rle_decompressor(int s) { mhs_from_Ptr(s, 1, add_rle_decompressor(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_RLE */
 
+#if WANT_BWT
+void mhs_add_bwt_compressor(int s) { mhs_from_Ptr(s, 1, add_bwt_compressor(mhs_to_Ptr(s, 0))); }
+void mhs_add_bwt_decompressor(int s) { mhs_from_Ptr(s, 1, add_bwt_decompressor(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_BWT */
+
 void mhs_calloc(int s) { mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
 void mhs_free(int s) { free(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
 void mhs_addr_free(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
@@ -4431,7 +4440,6 @@ struct ffi_entry ffi_table[] = {
 #if WANT_STDIO
 { "add_FILE", mhs_add_FILE},
 { "add_utf8", mhs_add_utf8},
-//{ "add_rle", mhs_add_rle},
 { "closeb", mhs_closeb},
 { "&closeb", mhs_addr_closeb},
 { "flushb", mhs_flushb},
@@ -4462,6 +4470,11 @@ struct ffi_entry ffi_table[] = {
 #if WANT_RLE
 { "add_rle_compressor", mhs_add_rle_compressor},
 { "add_rle_decompressor", mhs_add_rle_decompressor},
+#endif  /* WANT_RLE */
+
+#if WANT_BWT
+{ "add_bwt_compressor", mhs_add_bwt_compressor},
+{ "add_bwt_decompressor", mhs_add_bwt_decompressor},
 #endif  /* WANT_RLE */
 
 { "calloc", mhs_calloc},
