@@ -109,6 +109,7 @@ data Expr
   | ECase Expr [ECaseArm]
   | ELet [EBind] Expr
   | ETuple [Expr]
+  | EParen Expr
   | EListish Listish
   | EDo (Maybe Ident) [EStmt]
   | ESectL Expr Ident
@@ -247,6 +248,7 @@ patVars apat =
     EOper p1 ips -> patVars p1 ++ concatMap (\ (i, p2) -> i `add` patVars p2) ips
     ELit _ _ -> []
     ETuple ps -> concatMap patVars ps
+    EParen p -> patVars p
     EListish (LList ps) -> concatMap patVars ps
     ESign p _ -> patVars p
     EAt i p -> i `add` patVars p
@@ -341,6 +343,7 @@ instance HasLoc Expr where
   getSLoc (ECase e _) = getSLoc e
   getSLoc (ELet bs _) = getSLoc bs
   getSLoc (ETuple es) = getSLoc es
+  getSLoc (EParen e) = getSLoc e
   getSLoc (EListish l) = getSLoc l
   getSLoc (EDo (Just i) _) = getSLoc i
   getSLoc (EDo _ ss) = getSLoc ss
@@ -495,6 +498,7 @@ allVarsExpr' aexpr =
     ECase e as -> allVarsExpr' e . composeMap allVarsCaseArm as
     ELet bs e -> composeMap allVarsBind' bs . allVarsExpr' e
     ETuple es -> composeMap allVarsExpr' es
+    EParen e -> allVarsExpr' e
     EListish (LList es) -> composeMap allVarsExpr' es
     EDo mi ss -> maybe id (:) mi . composeMap allVarsStmt ss
     ESectL e i -> (i :) . allVarsExpr' e
@@ -697,6 +701,7 @@ ppExprR raw = ppE
         ECase e as -> text "case" <+> ppE e <+> text "of" $$ nest 2 (vcat (map ppCaseArm as))
         ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppE e
         ETuple es -> parens $ hsep $ punctuate (text ",") (map ppE es)
+        EParen e -> parens (ppE e)
         EDo mn ss -> maybe (text "do") (\ n -> ppIdent n <> text ".do") mn $$ nest 2 (vcat (map ppEStmt ss))
         ESectL e i -> parens $ ppE e <+> ppIdent i
         ESectR i e -> parens $ ppIdent i <+> ppE e
@@ -888,6 +893,7 @@ freeTyVars = foldr (go []) []
     go bound (ESign e _) acc = go bound e acc
     go bound (EListish (LList [e])) acc = go bound e acc
     go bound (ETuple es) acc = goList bound es acc
+    go bound (EParen e) acc = go bound e acc
     go _ x _ = error ("freeTyVars: " ++ show x) --  impossibleShow x
     goList bound es acc = foldr (go bound) acc es
 

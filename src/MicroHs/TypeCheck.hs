@@ -1565,7 +1565,7 @@ tcExprR mt ae =
         EUVar _ -> return res   -- instSigma did nothing, this is the common case
         _ -> return $ substEUVar [(ugly, res)] etmp'
 
-    EOper e ies -> do e' <- tcOper e ies; tcExpr mt e'
+    EOper e ies -> tcOper e ies >>= tcExpr mt
     ELam qs -> tcExprLam mt qs
     ELit _ lit -> do
       tcm <- gets tcMode
@@ -1633,6 +1633,7 @@ tcExprR mt ae =
         ttup = tApps (tupleConstr loc n) tes
       munify loc mt ttup
       return (ETuple ees)
+    EParen e -> tcExpr mt e
     EDo mmn ass -> do
       case ass of
         [] -> impossible
@@ -1665,10 +1666,8 @@ tcExprR mt ae =
             SLet bs ->
               tcExpr mt (ELet bs (EDo mmn ss))
 
-    ESectL e i -> tcExpr mt (EApp (EVar i) e)
-    ESectR i e -> do
-        let x = eVarI loc "$x"
-        tcExpr mt (eLam [x] (EApp (EApp (EVar i) x) e))
+    ESectL e i -> tcLSect e i >>= tcExpr mt
+    ESectR i e -> tcRSect i e >>= tcExpr mt
     EIf e1 e2 e3 -> do
       e1' <- tCheckExpr (tBool (getSLoc e1)) e1
       case mt of
@@ -1756,6 +1755,7 @@ failureFree (EAt _ p) = failureFree p
 failureFree (ELazy True _) = return True
 failureFree (ELazy False p) = failureFree p
 failureFree (EViewPat _ p) = failureFree p
+failureFree (EParen p) = failureFree p
 failureFree _ = return False
 
 failureFreeAp :: [Bool] -> EPat -> T Bool
@@ -1824,6 +1824,7 @@ dsEFields apat =
     ELazy z p -> ELazy z <$> dsEFields p
     ECon _ -> return apat
     EUpdate c fs -> EUpdate c . concat <$> mapM (dsEField c) fs
+    EParen p -> dsEFields p
     ENegApp _ -> return apat
     _ -> error $ "dsEFields " ++ show apat
 
@@ -1887,6 +1888,29 @@ tcOper ae aies = do
   case resolveFixity ae ites of
     Left (loc, err) -> tcError loc err
     Right e -> return e
+
+tcLSect :: Expr -> Ident -> T Expr
+tcLSect (EOper e ies) op = do
+  let x = eVarI loc "$x"
+      loc = getSLoc op
+  e' <- tcOper e (ies ++ [(op, x)])
+  case e' of
+    EApp f x' | x' `eqExpr` x -> return f
+    _                   -> tcError loc "Bad section fixity"
+tcLSect e op =
+  return (EApp (EVar op) e)
+
+tcRSect :: Ident -> Expr -> T Expr
+tcRSect op (EOper e ies) = do
+  let x = eVarI loc "$x"
+      loc = getSLoc op
+  e' <- tcOper x ((op, e):ies)
+  case e' of
+    EApp (EApp _ x') _ | x `eqExpr` x' -> return (eLam [x] e')
+    _                            -> tcError loc "Bad section fixity"
+tcRSect op e = do
+  let x = eVarI (getSLoc op) "$x"
+  return (eLam [x] (EApp (EApp (EVar op) x) e))
 
 unArrow :: HasCallStack =>
            SLoc -> EType -> T (EType, EType)
@@ -2131,6 +2155,8 @@ tcPat mt ae =
       munify loc mt ttup
       return (concat sks, concat ds, ETuple ees)
 
+    EParen e -> tcPat mt e
+
     EListish (LList es) -> do
       te <- newUVar
       munify loc mt (tApp (tList loc) te)
@@ -2259,6 +2285,7 @@ dsType at =
     EOper t ies -> EOper (dsType t) [(i, dsType e) | (i, e) <- ies]
     EListish (LList [t]) -> tApp (tList (getSLoc at)) (dsType t)
     ETuple ts -> tApps (tupleConstr (getSLoc at) (length ts)) (map dsType ts)
+    EParen t -> dsType t
     ESign t k -> ESign (dsType t) k
     EForall b iks t -> EForall b iks (dsType t)
     ELit _ (LStr _) -> at

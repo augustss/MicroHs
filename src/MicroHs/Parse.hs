@@ -692,8 +692,8 @@ pAExpr' = (
   <|< pLit
   <|< (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
   <|< EListish <$> (pSpec '[' *> pListish <* pSpec ']')
-  <|< (ESectL <$> (pSpec '(' *> pExprArg) <*> (pOperComma <* pSpec ')'))
-  <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprArg <* pSpec ')'))
+  <|< (ESectL <$> (pSpec '(' *> pExprOp) <*> (pOperComma <* pSpec ')'))
+  <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprOp <* pSpec ')'))
   <|< (ESelect <$> (pSpec '(' *> esome pSelect <* pSpec ')'))
   <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
   )
@@ -759,7 +759,7 @@ pInstBind =
 
 eTuple :: [Expr] -> Expr
 eTuple [] = error "eTuple"
-eTuple [e] = e
+eTuple [e] = EParen e
 eTuple es = ETuple es
 
 isAlpha_ :: Char -> Bool
