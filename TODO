@@ -34,12 +34,12 @@
 * Make deriving refer to identifiers that don't need to be in scope
 * Add reductions for underapplied K2,K3,K4
 * Move some Typeable instances from the class file to ST&co (makes it leaner)
+* Make a Unicode version of Data.Char
 
 Bugs:
 * Missing IO in ccall shows wrong location
 * Check for escaping skolemized variables
 * Type checking Data.Data
-* MonadFix (->)
 * Install a targets.conf?
 * let...in... doesn't parse correctly in a do
 * let needs {} in a do with {}

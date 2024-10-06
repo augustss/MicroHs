@@ -33,13 +33,13 @@ instance MonadFix NonEmpty where
       neHead ~(a :| _) = a
       neTail ~(_ :| as) = as
 
-{-
-instance MonadFix IO where
-    mfix = fixIO
+--instance MonadFix IO where
+--    mfix = fixIO
 
 instance MonadFix ((->) r) where
     mfix f = \ r -> let a = f a r in a
 
+{-
 instance MonadFix (Either e) where
     mfix f = let a = f (unRight a) in a
              where unRight (Right x) = x
