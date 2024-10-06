@@ -45,11 +45,21 @@
 
 /*
  * Find First Set
- * This macro must be defined.
+ * This macro should be defined.
  * It returns the number of the least significant bit that is set.
  * Numberings starts from 1.  If no bit is set, it should return 0.
  */
+#if defined(__gnu_linux__) || defined(__APPLE__) || defined(__FreeBSD__)
+/* Only some platforms have 64 bit ffsl function directly. */
 #define FFS ffsl
+#elif defined(__GNUC__)
+/* GCC has ffsl as a builtin. */
+#define FFS __builtin_ffsl
+/* CLANG has ffsl as a builtin. */
+#elif defined(__clang__) && __has_builtin(__builtin__ffsl)
+#define FFS __builtin_ffsl
+#endif
+
 
 /*
  * This is the character used for comma-separation in printf.
