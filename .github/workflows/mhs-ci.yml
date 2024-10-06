@@ -192,6 +192,26 @@ jobs:
       run: make CONF=unix-64 everytestmhs
       shell: alpine.sh {0}
 
+  build-linux-ppc64be:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: jirutka/setup-alpine@v1
+      with:
+        arch: ppc64be
+        branch: v3.15
+        packages: >
+          build-base
+          gcc
+          make
+    - name: checkout repo
+      uses: actions/checkout@v4
+    - name: make
+      run: make CONF=unix-64
+      shell: alpine.sh {0}
+    - name: make everytestmhs
+      run: make CONF=unix-64 everytestmhs
+      shell: alpine.sh {0}
+
   build-linux-emscripten:
     runs-on: ubuntu-latest
     steps:
