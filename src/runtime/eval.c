@@ -2217,7 +2217,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   default: ERR("print tag");
   }
   if (!prefix) {
-    putb(' ', f);
+    if (GETTAG(n) != T_AP)
+      putb(' ', f);
     if (share) {
       putb(':', f);
       putdecb((value_t)LABEL(n), f);
