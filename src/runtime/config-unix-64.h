@@ -49,22 +49,10 @@
  * It returns the number of the least significant bit that is set.
  * Numberings starts from 1.  If no bit is set, it should return 0.
  */
-#ifdef __OpenBSD__
-int
-ffsl(long value)
-{
-  int bit = 1;
-  if (value == 0)
-    return 0;
-  while (!(value & 1)) {
-    value >>= 1;
-    bit++;
-  }
-  return bit;
-}
-#endif
 
+#ifndef __OpenBSD__
 #define FFS ffsl
+#endif
 
 /*
  * This is the character used for comma-separation in printf.
