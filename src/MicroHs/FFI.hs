@@ -165,7 +165,8 @@ cTypes =
     "CSize",
     "CSSize",
     "CLLong",
-    "CULLong"
+    "CULLong",
+    "CTime"
   ]
 
 -- These are already in the runtime
