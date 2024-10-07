@@ -176,6 +176,11 @@ splitNameVer s =
 mainListPkg :: Flags -> FilePath -> IO ()
 mainListPkg _flags pkgfn = do
   pkg <- readSerialized pkgfn
+  putStrLn $ "name: " ++ showIdent (pkgName pkg)
+  putStrLn $ "version: " ++ showVersion (pkgVersion pkg)
+  putStrLn $ "compiler: mhs-" ++ pkgCompiler pkg
+  putStrLn $ "depends: " ++ unwords (map (\ (i, v) -> showIdent i ++ "-" ++ showVersion v) (pkgDepends pkg))
+
   let list = mapM_ (putStrLn . ("  " ++) . showIdent . tModuleName)
   putStrLn "exposed-modules:"
   list (pkgExported pkg)
@@ -184,11 +189,11 @@ mainListPkg _flags pkgfn = do
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
-  (rmn, allDefs) <- do
+  (cash, (rmn, allDefs)) <- do
     cash <- getCached flags
     (rds, _, cash') <- compileCacheTop flags mn cash
     maybeSaveCache flags cash'
-    return rds
+    return (cash', rds)
 
   t1 <- getTimeMilli
   let
@@ -231,8 +236,15 @@ mainCompile flags mn = do
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
        let dir = mhsdir flags
+           incDirs = map (convertToInclude . fst) $ getPathPkgs cash
+       incDirs' <- filterM doesDirectoryExist incDirs
+       --print (map fst $ getPathPkgs cash, incDirs, incDirs')
+       let incs = unwords $ map ("-I" ++) incDirs'
        TTarget _ compiler conf <- readTarget flags dir
-       let cc = fromMaybe (compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
+       let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
+                             incs ++ " " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
+                             " $IN -lm -o $OUT"
+           cc = fromMaybe dcc mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbosityGT flags 0) $
          putStrLn $ "Execute: " ++ show cmd
@@ -267,3 +279,14 @@ mainInstallPackage flags [pkgfn] =
     first:_ -> mainInstallPackage flags [pkgfn, first]
 mainInstallPackage _ _ = error usage
 
+-- Convert something like
+--   .../.mcabal/mhs-0.10.3.0/packages/base-0.10.3.0.pkg
+-- into
+--   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
+convertToInclude :: FilePath -> FilePath
+convertToInclude pkgPath =
+  let path1 = init $ dropWhileEnd (/= '/') pkgPath  --   .../.mcabal/mhs-0.10.3.0/packages
+      base1 = takeWhileEnd (/= '/') pkgPath         --   base-0.10.3.0.pkg
+      base2 = init $ dropWhileEnd (/= '.') base1    --   base-0.10.3.0
+      path2 = dropWhileEnd (/= '/') path1           --   .../.mcabal/mhs-0.10.3.0/
+  in  path2 ++ "data/" ++ base2 ++ "/include"       --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include

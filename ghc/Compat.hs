@@ -11,6 +11,11 @@ import GHC.Types
 import System.Environment
 import System.IO
 
+------- List --------
+
+takeWhileEnd :: forall a . (a -> Bool) -> [a] -> [a]
+takeWhileEnd p = reverse . takeWhile p . reverse
+
 ------- IO --------
 
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
