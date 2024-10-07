@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #if 0
 #include <stdio.h>
+#define INLINE
 #endif
 
 #define MAX(x,y) ((x) > (y) ? (x) : (y))
@@ -71,6 +72,27 @@ lz77d(uint8_t *src, size_t srclen, uint8_t **bufp)
   return outoffs;
 }
 
+#define HASHBITS 11
+#define HASHSIZE (1 << HASHBITS)
+typedef size_t lzhash_t;
+static INLINE lzhash_t
+lz77hash(uint8_t *b, size_t n)
+{
+#if 0
+  n = MIN(n, MINMATCH);
+  size_t h = 0;
+  for (size_t i = 0; i < n; i++)
+    h = h * 256 + b[i];
+  return ((h * 99999989) >> 15) & (HASHSIZE - 1);
+#else
+  n = MIN(n, 4);
+  size_t h = 5381;
+  for (size_t i = 0; i < n; i++)
+    h = h * 33 + b[i];
+  return h & (HASHSIZE - 1);
+#endif
+}
+
 static INLINE size_t
 match(uint8_t *src, uint8_t *win, uint8_t *end)
 {
@@ -81,17 +103,22 @@ match(uint8_t *src, uint8_t *win, uint8_t *end)
   return n;
 }
 
+typedef size_t lzoffs_t;
+#define NUMPREV 16
+
 /* Find the longest match within the match window */
 static INLINE size_t
-find_longest_match(uint8_t *src, uint8_t *cur, uint8_t *end, size_t *match_offs_p)
+find_longest_match(uint8_t *src, uint8_t *cur, uint8_t *end, size_t *match_offs_p, lzoffs_t lzhashes[][NUMPREV])
 {
   size_t win_end = cur - src + 1;
   size_t win_len = MIN(win_end, MAXWIN);
 
-  /* Inefficient match loop */
+  lzhash_t h = lz77hash(cur, end - cur);
+  lzoffs_t *offsets = lzhashes[h];
+
   size_t m_len = 0;
   size_t m_offs = 0;
-  /* Compression is slow, since we use brute force to find a match. */
+#if 0
   for (size_t offs = MINOFFS; offs < win_len; offs++) {
     size_t n = match(cur, cur - offs, end);
     if (n > m_len) {
@@ -99,11 +126,37 @@ find_longest_match(uint8_t *src, uint8_t *cur, uint8_t *end, size_t *match_offs_
       m_offs = offs;
     }
   }
+#else
+  for (size_t i = 0; i < NUMPREV; i++) {
+    lzoffs_t o = offsets[i];
+    if (o == ~0)
+      break;                    /* unused slot */
+    size_t offs = (cur - src) - o;
+    if (offs >= win_len || offs < MINOFFS)
+      break;                  /* offset is not in range */
+    size_t n = match(cur, cur - offs, end);
+    if (n > m_len) {
+      m_len = n;
+      m_offs = offs;
+    }
+  }
+#endif
   *match_offs_p = m_offs;
   return m_len;
 }
 
-/* XXX finding the match really needs some clever speedup */
+static INLINE void
+lzupdatehash(uint8_t *src, uint8_t *cur, uint8_t *end, lzoffs_t lzhashes[][NUMPREV])
+{
+  lzhash_t h = lz77hash(cur, end - cur);
+  lzoffs_t offs = cur - src;
+
+  for(size_t k = NUMPREV-1; k > 0; k--)
+    lzhashes[h][k] = lzhashes[h][k-1];
+  lzhashes[h][0] = offs;
+}
+
+
 size_t
 lz77c(uint8_t *src, size_t srclen, uint8_t **bufp)
 {
@@ -113,6 +166,13 @@ lz77c(uint8_t *src, size_t srclen, uint8_t **bufp)
   uint8_t *outbuf = malloc(outsize);
   size_t outoffs = 0;
 
+  lzoffs_t lzhashes[HASHSIZE][NUMPREV];
+
+  for(size_t i = 0; i < HASHSIZE; i++) {
+    for(size_t k = 0; k < NUMPREV; k++)
+      lzhashes[i][k] = ~0;
+  }
+
   for (cur = src; cur < end; ) {
     size_t match_offs = 0;
     size_t match_len = 0;
@@ -120,9 +180,10 @@ lz77c(uint8_t *src, size_t srclen, uint8_t **bufp)
     /* Start from the current position and look for a match in the window. */
     /* If the is no match, try the next position, and so on. */
     for (len = 0; len < end - cur; len++) {
-      match_len = find_longest_match(src, cur + len, end, &match_offs);
+      match_len = find_longest_match(src, cur + len, end, &match_offs, lzhashes);
       if (match_len >= MINMATCH) /* Stop when we find a match. */
         break;
+      lzupdatehash(src, cur + len, end, lzhashes);
     }
     /* As we exit the loop, we have len bytes that did not match anywhere
      * in the window, so they need to be emitted as a literal. */
@@ -137,7 +198,10 @@ lz77c(uint8_t *src, size_t srclen, uint8_t **bufp)
     }
     if (match_len >= MINMATCH) {
       /* If we actually had a match, output it. */
-      cur += match_len;         /* skip over the matched positions */
+      //cur += match_len;         /* skip over the matched positions */
+      for(size_t i = 0; i < match_len; i++) {
+        lzupdatehash(src, cur++, end, lzhashes);
+      }
       match_offs -= MINOFFS;
       match_len -= 2;
       int hi = match_offs >> 8;
