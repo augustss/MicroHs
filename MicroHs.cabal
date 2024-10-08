@@ -39,10 +39,15 @@ extra-source-files:
       tests/*.ref
 
 data-files:
-      lib/**/*.hs
-      lib/**/*.hs-boot
       src/runtime/*.c
       src/runtime/*.h
+
+-- Cabal doesn't seem to understand this, so it never copies
+-- these files.
+--if impl(ghc)
+--  data-files:
+      lib/**/*.hs
+      lib/**/*.hs-boot
 
 source-repository head
     type:     git
@@ -110,6 +115,7 @@ executable mhs
                        process      >= 1.6 && < 1.8,
                        directory    >= 1.2 && < 1.5,
                        text         >= 2.0 && < 2.3,
+
 -- Hackage does not accept 'mhs' as a valid Haskell compiler,
 -- so mcabal has a hack to recognize lines that start with
 -- '--MHS' as non-comments.
