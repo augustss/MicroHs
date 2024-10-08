@@ -88,6 +88,8 @@ decodeArgs f mdls (arg:args) =
     "-Q"        -> decodeArgs f{installPkg = True} mdls args
     '-':'i':[]  -> decodeArgs f{paths = []} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
+    '-':'o':[] | s : args' <- args
+                -> decodeArgs f{output = s} mdls args'
     '-':'o':s   -> decodeArgs f{output = s} mdls args
     '-':'t':s   -> decodeArgs f{target = s} mdls args
     '-':'D':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
@@ -97,7 +99,10 @@ decodeArgs f mdls (arg:args) =
     '-':'a':s   -> decodeArgs f{pkgPath = s : pkgPath f} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
-    _           -> decodeArgs f (mdls ++ [arg]) args
+    _ | ".c" `isSuffixOf` arg || ".o" `isSuffixOf` arg || ".a" `isSuffixOf` arg
+                -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args
+      | otherwise
+                -> decodeArgs f (mdls ++ [arg]) args
 
 
 readTargets :: Flags -> FilePath -> IO [Target]
@@ -243,6 +248,7 @@ mainCompile flags mn = do
        TTarget _ compiler conf <- readTarget flags dir
        let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
                              incs ++ " " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
+                             unwords (cArgs flags) ++
                              " $IN -lm -o $OUT"
            cc = fromMaybe dcc mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
