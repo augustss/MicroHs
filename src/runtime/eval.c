@@ -259,7 +259,7 @@ typedef struct node {
     void           *uuptr;
     HsFunPtr        uufunptr;
     struct ioarray *uuarray;
-    struct forptr  *uuforptr;
+    struct forptr  *uuforptr;      /* foreign pointers and byte arrays */
   } uarg;
 } node;
 typedef struct node* NODEPTR;
