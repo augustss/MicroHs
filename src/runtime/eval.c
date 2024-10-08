@@ -19,6 +19,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif  /* WANT_DIR */
+#if WANT_TIME
+#include <time.h>
+#endif
 
 #if WANT_MD5
 #include "md5.h"
@@ -4246,6 +4249,9 @@ MHS_FROM(mhs_from_CULong, SETINT, unsigned long);
 MHS_FROM(mhs_from_CLLong, SETINT, long long);
 MHS_FROM(mhs_from_CULLong, SETINT, unsigned long long);
 MHS_FROM(mhs_from_CSize, SETINT, size_t);
+#if WANT_TIME
+MHS_FROM(mhs_from_CTime, SETINT, time_t);
+#endif
 // MHS_FROM(mhs_from_CSSize, SETINT, ssize_t);
 MHS_FROM(mhs_from_CIntPtr, SETINT, intptr_t);
 MHS_FROM(mhs_from_CUIntPtr, SETINT, uintptr_t);
@@ -4279,6 +4285,9 @@ MHS_TO(mhs_to_CULong, evalint, unsigned long);
 MHS_TO(mhs_to_CLLong, evalint, long long);
 MHS_TO(mhs_to_CULLong, evalint, unsigned long long);
 MHS_TO(mhs_to_CSize, evalint, size_t);
+#if WANT_TIME
+MHS_TO(mhs_to_CTime, evalint, time_t);
+#endif
 // MHS_TO(mhs_to_CSSize, evalint, ssize_t);
 MHS_TO(mhs_to_CIntPtr, evalint, intptr_t);
 MHS_TO(mhs_to_CUIntPtr, evalint, uintptr_t);
