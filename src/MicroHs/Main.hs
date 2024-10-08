@@ -55,7 +55,7 @@ main = do
           Nothing ->
             if installPkg flags then mainInstallPackage flags mdls else
             withArgs rargs $ do
-              when (verbosityGT flags 0) $
+              when (verbosityGT flags 1) $
                 putStrLn $ "flags = " ++ show flags
               case mdls of
                 []  -> mainInteractive flags
@@ -241,14 +241,18 @@ mainCompile flags mn = do
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
        let dir = mhsdir flags
-           incDirs = map (convertToInclude . fst) $ getPathPkgs cash
+           ppkgs   = map fst $ getPathPkgs cash
+           incDirs = map (convertToInclude "/include") ppkgs
+           cDirs   = map (convertToInclude "/cbits") ppkgs
        incDirs' <- filterM doesDirectoryExist incDirs
+       cDirs'   <- filterM doesDirectoryExist cDirs
        --print (map fst $ getPathPkgs cash, incDirs, incDirs')
        let incs = unwords $ map ("-I" ++) incDirs'
        TTarget _ compiler conf <- readTarget flags dir
        let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
                              incs ++ " " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
                              unwords (cArgs flags) ++
+                             unwords (map (++ "/*.c") cDirs') ++
                              " $IN -lm -o $OUT"
            cc = fromMaybe dcc mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
@@ -289,10 +293,10 @@ mainInstallPackage _ _ = error usage
 --   .../.mcabal/mhs-0.10.3.0/packages/base-0.10.3.0.pkg
 -- into
 --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
-convertToInclude :: FilePath -> FilePath
-convertToInclude pkgPath =
+convertToInclude :: String -> FilePath -> FilePath
+convertToInclude inc pkgPath =
   let path1 = init $ dropWhileEnd (/= '/') pkgPath  --   .../.mcabal/mhs-0.10.3.0/packages
       base1 = takeWhileEnd (/= '/') pkgPath         --   base-0.10.3.0.pkg
       base2 = init $ dropWhileEnd (/= '.') base1    --   base-0.10.3.0
       path2 = dropWhileEnd (/= '/') path1           --   .../.mcabal/mhs-0.10.3.0/
-  in  path2 ++ "data/" ++ base2 ++ "/include"       --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
+  in  path2 ++ "data/" ++ base2 ++ inc              --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
