@@ -12,6 +12,7 @@ import Data.Floating
 import Data.Fractional
 import Data.Function
 import Data.Integer
+import Data.Integral
 import Data.List
 import Data.Ord
 import Data.Ratio
@@ -77,7 +78,12 @@ instance Real FloatW where
       (m, e) -> toRational m * 2^^e
 
 instance RealFrac FloatW where
-  properFraction _ = error "FloatW.properFraction not implemented"
+  properFraction x =
+    case decodeFloat x of
+      (m, e) ->   -- x = m * 2^e
+        let m' | e < 0     = m `quot` 2^(-e)
+               | otherwise = m * 2^e
+        in  (fromInteger m', x - fromInteger m')
 
 instance Floating FloatW where
   pi     = 3.141592653589793
