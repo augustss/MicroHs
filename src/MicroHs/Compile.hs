@@ -349,8 +349,7 @@ runCPPTmp flags infile = do
 
 mhsDefines :: [String]
 mhsDefines =
-  [ "'-DMIN_VERSION_base(x,y,z)=(x<=4||y<=14)'" -- Pretend we have base version 4.14
-  , "-D__MHS__"                                 -- We are MHS
+  [ "-D__MHS__"                                 -- We are MHS
   ]
 
 runCPP :: Flags -> FilePath -> FilePath -> IO ()
