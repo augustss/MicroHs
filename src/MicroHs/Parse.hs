@@ -44,8 +44,8 @@ eof :: P ()
 eof = do
   t <- nextToken
   case t of
-    TEnd -> pure ()
-    _    -> fail "eof"
+    TEnd _ -> pure ()
+    _      -> fail "eof"
 
 pTop :: P EModule
 pTop = (pModule <|< pModuleEmpty) <* eof

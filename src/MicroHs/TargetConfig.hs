@@ -41,7 +41,7 @@ findTarget name ((Target n conf):ts) | n == name = Just $ Target n conf
 type Parser = Prsr [Token] Token
 
 instance TokenMachine [Token] Token where
-  tmNextToken [] = (TEnd, [])
+  tmNextToken [] = (TEnd noSLoc, [])
   tmNextToken (x:xs) = (x,xs)
 
   tmRawTokens = id
@@ -51,8 +51,8 @@ eof :: Parser ()
 eof = do
   t <- nextToken
   case t of
-    TEnd -> pure ()
-    _    -> fail "eof"
+    TEnd _ -> pure ()
+    _      -> fail "eof"
 
 nl :: Parser [Token]
 nl = many $ satisfy "\\n" isWhite

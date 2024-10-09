@@ -27,7 +27,7 @@ data Token
   | TBrace  SLoc                  -- {n} in the Haskell report
   | TIndent SLoc                  -- <n> in the Haskell report
   | TPragma SLoc String           -- a {-# PRAGMA #-}
-  | TEnd
+  | TEnd    SLoc
   | TRaw [Token]
   deriving (Show)
 
@@ -44,7 +44,7 @@ showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
 showToken (TIndent _) = "TIndent"
 showToken (TPragma _ s) = "{-# " ++ s ++ " #-}"
-showToken TEnd = "EOF"
+showToken (TEnd _) = "EOF"
 showToken (TRaw _) = "TRaw"
 
 incrLine :: SLoc -> SLoc
@@ -113,7 +113,7 @@ lex loc ('\'':cs) =
   in  case takeChars loc tchar '\'' (addCol loc 1) [] cs of  -- XXX head of
         (t, loc', rs) -> t : lex loc' rs
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ show d]
-lex _ [] = []
+lex loc [] = [TEnd loc]
 
 nested :: SLoc -> [Char] -> [Token]
 nested loc ('#':cs) = pragma loc cs
@@ -306,6 +306,7 @@ tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
 tokensLoc (TPragma loc _  :_) = loc
+tokensLoc (TEnd    loc    :_) = loc
 tokensLoc _                   = mkLocEOF
 
 readBase :: Integer -> String -> Integer
@@ -344,8 +345,9 @@ layoutLS ::                [Token] ->    [Int] -> Cmd      -> (Token,           
 layoutLS                        ts           ms  Raw        = (TRaw ts,                  LS $ layoutLS  ts     ms )
 layoutLS                        ts          mms  Pop        =                                                    
                                                    case (mms, ts) of                                              
-                                                     (m:ms,_:_) | m/=0 -> (       TEnd,  LS $ layoutLS  ts     ms )
+                                                     (m:ms,_:_) | m/=0 -> (TEnd (tokensLoc ts),  LS $ layoutLS  ts     ms )
                                                      _ ->     (TError l "syntax error",  LS $ layoutLS  []     [] ) where l = tokensLoc ts
+-- The rest are the Next commands
 layoutLS tts@(TIndent x       : ts) mms@(m : ms) _ | n == m = (TSpec (tokensLoc ts) ';', LS $ layoutLS  ts    mms )
                                                    | n <  m = (TSpec (tokensLoc ts) '>', LS $ layoutLS tts     ms ) where {n = getCol x}
 layoutLS     (TIndent _       : ts)          ms  _          =                                 layoutLS  ts     ms  Next
@@ -355,9 +357,10 @@ layoutLS     (TBrace x        : ts)          ms  _          = (TSpec (tokensLoc 
 layoutLS     (t@(TSpec _ '}') : ts)     (0 : ms) _          = (                       t, LS $ layoutLS  ts     ms )
 layoutLS     (  (TSpec l '}') :  _)           _  _          = (TError l "layout error }",LS $ layoutLS  []     [] )
 layoutLS     (t@(TSpec _ '{') : ts)          ms  _          = (                       t, LS $ layoutLS  ts  (0:ms))
+layoutLS     ts@(t@(TEnd _)   :  _)          []  _          = (                       t, LS $ layoutLS  ts     [] )  -- repeat the TEnd token
+layoutLS     ts@(TEnd l       :  _)     (_ : ms) _          = (TSpec l '>'             , LS $ layoutLS  ts     ms )  -- insert '>' and try again
 layoutLS     (t               : ts)          ms  _          = (                       t, LS $ layoutLS  ts     ms )
-layoutLS     []                         (_ : ms) _          = (TSpec mkLocEOF '>'      , LS $ layoutLS  []     ms )
-layoutLS     []                              []  _          = (TEnd                    , LS $ layoutLS  []     [] )
+layoutLS     []                               _  _          = error "layoutLS"
 
 instance TokenMachine LexState Token where
   tmNextToken (LS f) = f Next
