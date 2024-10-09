@@ -44,6 +44,7 @@ import Data.Functor.Contravariant
 import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Functor.Sum
+import Data.Hashable
 import Data.IOArray
 import Data.IORef
 import Data.Int
