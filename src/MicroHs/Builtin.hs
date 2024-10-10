@@ -2,6 +2,7 @@ module MicroHs.Builtin(
   builtinMdl,
   mkBuiltin,
   ) where
+import Prelude(); import MHSPrelude
 import MicroHs.Ident
 
 -- The compiler needs a number of identifiers from libraries.
