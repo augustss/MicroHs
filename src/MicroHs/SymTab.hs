@@ -91,7 +91,9 @@ stLookup msg i (SymTab l ug qg) =
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
 
--- XXX why?
+-- When a module uses 'import Prelude()' the Mhs.Builtin (aka B@) will
+-- also not be imported.  So as a last recourse, look for the identifier
+-- unqualified.
 hackBuiltin :: Ident -> Ident
 hackBuiltin i | Just ('.':s) <- stripPrefix builtinMdl (unIdent i) = mkIdentSLoc (slocIdent i) s
 hackBuiltin i = i
