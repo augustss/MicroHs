@@ -20,6 +20,7 @@ module Control.Exception(
   --
   ArithException(..),
   ) where
+import Prelude(); import MiniPrelude
 import Control.Exception.Internal
 import {-# SOURCE #-} Data.Typeable
 import System.IO.Unsafe

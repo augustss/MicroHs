@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Functor.Identity(Identity(..), runIdentity) where
+module Data.Functor.Identity(Identity(..)) where
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
@@ -11,13 +11,11 @@ import Data.Function
 import Data.Functor
 import Data.Int
 import Data.Ord
+import Data.Records
 import Text.Show
 
-newtype Identity a = Identity a
+newtype Identity a = Identity { runIdentity :: a }
   deriving (Eq, Ord, Show)
-
-runIdentity :: forall a . Identity a -> a
-runIdentity (Identity a) = a
 
 instance Functor Identity where
   fmap f (Identity a) = Identity (f a)

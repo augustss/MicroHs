@@ -123,10 +123,19 @@ primWordToFloatWRaw :: Word -> FloatW
 primWordToFloatWRaw = primitive "toDbl"
 primWordFromFloatWRaw :: FloatW -> Word
 primWordFromFloatWRaw = primitive "toInt"
+
+primIntAnd :: Int -> Int -> Int
+primIntAnd  = primitive "and"
+primIntOr :: Int -> Int -> Int
+primIntOr  = primitive "or"
+primIntXor :: Int -> Int -> Int
+primIntXor  = primitive "xor"
 primIntShl :: Int -> Int -> Int
 primIntShl  = primitive "shl"
 primIntShr :: Int -> Int -> Int
 primIntShr  = primitive "ashr"
+primIntInv :: Int -> Int
+primIntInv  = primitive "inv"
 
 primWordEQ  :: Word -> Word -> Bool
 primWordEQ  = primitive "=="
@@ -176,6 +185,8 @@ primIntCompare :: forall a . Int -> Int -> Ordering
 primIntCompare  = primitive "icmp"
 primCharCompare :: forall a . Char -> Char -> Ordering
 primCharCompare  = primitive "icmp"
+primWordCompare :: forall a . Word -> Word -> Ordering
+primWordCompare  = primitive "ucmp"
 
 primStringEQ  :: [Char] -> [Char] -> Bool
 primStringEQ  = primitive "sequal"
@@ -272,3 +283,13 @@ primArrEQ = primitive "A.=="
 
 primGC :: IO ()
 primGC = primitive "IO.gc"
+
+primForeignPtrToPtr :: ForeignPtr a -> Ptr a
+primForeignPtrToPtr = primitive "fp2p"
+
+primNewForeignPtr :: Ptr a -> IO (ForeignPtr a)
+primNewForeignPtr = primitive "fpnew"
+
+primAddFinalizer :: FunPtr (Ptr a -> IO ()) -> ForeignPtr a -> IO ()
+primAddFinalizer = primitive "fpfin"
+

@@ -5,10 +5,8 @@ module MicroHs.TargetConfig(
   , parseTargets
   , findTarget
   ) where
-
-import Prelude hiding(lex)
+import Prelude(); import MHSPrelude hiding(lex)
 import Control.Applicative
-import Control.Monad
 import Data.List
 import Text.ParserComb
 import MicroHs.Ident
@@ -43,7 +41,7 @@ findTarget name ((Target n conf):ts) | n == name = Just $ Target n conf
 type Parser = Prsr [Token] Token
 
 instance TokenMachine [Token] Token where
-  tmNextToken [] = (TEnd, [])
+  tmNextToken [] = (TEnd noSLoc, [])
   tmNextToken (x:xs) = (x,xs)
 
   tmRawTokens = id
@@ -53,8 +51,8 @@ eof :: Parser ()
 eof = do
   t <- nextToken
   case t of
-    TEnd -> pure ()
-    _    -> fail "eof"
+    TEnd _ -> pure ()
+    _      -> fail "eof"
 
 nl :: Parser [Token]
 nl = many $ satisfy "\\n" isWhite
@@ -71,12 +69,6 @@ ident = satisfyM "key" is
   where is (TIdent _ _ x) = Just x
         is _              = Nothing
 
-keyword :: String -> Parser ()
-keyword s = do
-  s' <- ident
-  guard (s == s')
-  pure ()
-
 key :: Parser String
 key = ident
 
@@ -89,7 +81,7 @@ targetName :: Parser String
 targetName = spec '[' *> key <* spec ']'
 
 keyValue :: Parser (String, String)
-keyValue = (,) <$> key <*> (keyword "=" *> value)
+keyValue = (,) <$> key <*> (spec '=' *> value)
 
 keyValues :: Parser [(String,String)]
 keyValues = keyValue `esepBy` nl

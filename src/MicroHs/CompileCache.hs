@@ -1,10 +1,11 @@
 module MicroHs.CompileCache(
   CModule,
-  Cache, addWorking, emptyCache, deleteFromCache, workToDone, addBoot, getBoots,
+  Cache, addWorking, getWorking, emptyCache, deleteFromCache, workToDone, addBoot, getBoots,
   cachedModules, lookupCache, lookupCacheChksum, getImportDeps,
-  addPackage, getCompMdls, getPkgs,
+  addPackage, getCompMdls, getPathPkgs, getPkgs,
   saveCache, loadCached,
   ) where
+import Prelude(); import MHSPrelude
 import MicroHs.Desugar(LDef)
 import MicroHs.Expr(IdentModule)
 import MicroHs.Ident(showIdent)
@@ -39,7 +40,7 @@ data Cache = Cache {
   working :: [IdentModule],             -- modules currently being processed (used to detected circular imports)
   boots   :: [IdentModule],             -- modules where only the boot version has been compiled
   cache   :: M.Map CacheEntry,          -- cached compiled modules
-  pkgs    :: [Package]                  -- loaded packages
+  pkgs    :: [(FilePath, Package)]      -- loaded packages
   }
 --  deriving (Show)
 
@@ -54,6 +55,9 @@ addBoot mn c = c{ boots = mn : boots c }
 
 getBoots :: Cache -> [IdentModule]
 getBoots = boots
+
+getWorking :: Cache -> [IdentModule]
+getWorking = working
 
 addWorking :: IdentModule -> Cache -> Cache
 addWorking mn c =
@@ -83,11 +87,14 @@ getImportDeps cash = [ (tModuleName tm, imps) | CompMdl tm imps _ <- M.elems (ca
 getCompMdls :: Cache -> [TModule [LDef]]
 getCompMdls cash = [ tm | CompMdl tm _ _ <- M.elems (cache cash) ]
 
-getPkgs :: Cache -> [Package]
-getPkgs = pkgs
+getPathPkgs :: Cache -> [(FilePath, Package)]
+getPathPkgs = pkgs
 
-addPackage :: Package -> Cache -> Cache
-addPackage p c = c{ pkgs = p : pkgs c, cache = foldr ins (cache c) (pkgExported p ++ pkgOther p) }
+getPkgs :: Cache -> [Package]
+getPkgs = map snd . pkgs
+
+addPackage :: FilePath -> Package -> Cache -> Cache
+addPackage f p c = c{ pkgs = (f, p) : pkgs c, cache = foldr ins (cache c) (pkgExported p ++ pkgOther p) }
   where ins t = M.insert (tModuleName t) (PkgMdl t)
 
 saveCache :: FilePath -> Cache -> IO ()

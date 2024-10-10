@@ -2,9 +2,10 @@ module MicroHs.Lex(
   Token(..), showToken,
   tokensLoc,
   LexState, lexTopLS,
-  popLayout, lex
+  popLayout, lex,
+  readInt,
   ) where
-import Prelude hiding(lex)
+import Prelude(); import MHSPrelude hiding(lex)
 import Data.Char
 import Data.List
 import MicroHs.Ident
@@ -26,7 +27,7 @@ data Token
   | TBrace  SLoc                  -- {n} in the Haskell report
   | TIndent SLoc                  -- <n> in the Haskell report
   | TPragma SLoc String           -- a {-# PRAGMA #-}
-  | TEnd
+  | TEnd    SLoc
   | TRaw [Token]
   deriving (Show)
 
@@ -43,14 +44,14 @@ showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
 showToken (TIndent _) = "TIndent"
 showToken (TPragma _ s) = "{-# " ++ s ++ " #-}"
-showToken TEnd = "EOF"
+showToken (TEnd _) = "EOF"
 showToken (TRaw _) = "TRaw"
 
 incrLine :: SLoc -> SLoc
-incrLine (SLoc f l _) = SLoc f (l+1) 1
+incrLine (SLoc f l _) = let l' = l+1 in seq l' (SLoc f l' 1)
 
 addCol :: SLoc -> Int -> SLoc
-addCol (SLoc f l c) i = SLoc f l (c + i)
+addCol (SLoc f l c) i = let c' = c+i in seq c' (SLoc f l c')
 
 tabCol :: SLoc -> SLoc
 tabCol (SLoc f l c) = SLoc f l (((c + 7) `quot` 8) * 8)
@@ -85,8 +86,20 @@ lex loc ('0':x:cs) | toLower x == 'x' = hexNumber loc cs
 lex loc cs@(d:_) | isDigit d = number loc cs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
-lex loc (c:cs@(d:_)) | (c == '!' || c == '~') && (d == '(' || d == '[' || isIdentChar d) =  -- XXX hacky way to make ~ a TSpec
-  TSpec loc c : lex (addCol loc 1) cs
+-- Recognize #line 123 "file/name.hs"
+lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
+  case span (/= '\n') cs of
+    (line, rs) ->        -- rs will contain the '\n', so subtract 1 below
+      let ws = words line
+          file = tail $ init $ ws!!1   -- strip the initial and final '"' 
+          loc' = SLoc file (readInt (ws!!0) - 1) 1
+      in  lex loc' rs
+lex loc ('!':' ':cs) =  -- ! followed by a space is always an operator
+  TIdent loc [] "!" : lex (addCol loc 2) cs
+lex loc (c:cs@(d:_)) | isSpecSing c && not (isOperChar d) = -- handle reserved
+  TSpec loc c :
+    let ts = lex (addCol loc 1) cs
+    in  if c == '\\' then tLam ts else ts
 lex loc (d:cs) | isOperChar d =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
@@ -100,7 +113,7 @@ lex loc ('\'':cs) =
   in  case takeChars loc tchar '\'' (addCol loc 1) [] cs of  -- XXX head of
         (t, loc', rs) -> t : lex loc' rs
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ show d]
-lex _ [] = []
+lex loc [] = [TEnd loc]
 
 nested :: SLoc -> [Char] -> [Token]
 nested loc ('#':cs) = pragma loc cs
@@ -126,13 +139,13 @@ number :: SLoc -> String -> [Token]
 number loc cs =
   case span isDigit cs of
     (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
-               let i = read ds
-               in  TInt loc i : lex (addCol loc $ length ds) rs
+               case expo rs of
+                 Nothing -> TInt loc (readBase 10 ds) : lex (addCol loc $ length ds) rs
+                 Just (es, rs') -> mkD (ds ++ es) rs'
              | otherwise ->
                case span isDigit (tail rs) of
                  (ns, rs') ->
                    let s = ds ++ '.':ns
-                       mkD x r = TRat loc (readRational x) : lex (addCol loc $ length x) r
                    in  case expo rs' of
                          Nothing -> mkD s rs'
                          Just (es, rs'') -> mkD (s ++ es) rs''
@@ -141,6 +154,7 @@ number loc cs =
     expo (e:'+':xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':'+':as, bs) where (as, bs) = span isDigit xs
     expo (e:    xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':    as, bs) where (as, bs) = span isDigit xs
     expo _ = Nothing
+    mkD x r = TRat loc (readRational x) : lex (addCol loc $ length x) r
 
 -- Skip a {- -} style comment
 skipNest :: SLoc -> Int -> String -> [Token]
@@ -219,10 +233,29 @@ conv :: Int -> Int -> Int -> String -> (Char, Int, String)
 conv b k r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (k+1) (r * b + n) ds
 conv _ k r ds = (chr r, k, ds)
 
+-- These characters are single characters token, no matter what.
 isSpec :: Char -> Bool
-isSpec c = elem c specChars
-  where specChars :: String
-        specChars = "()[],{}`;"
+isSpec '(' = True
+isSpec ')' = True
+isSpec '[' = True
+isSpec ']' = True
+isSpec '{' = True
+isSpec '}' = True
+isSpec ',' = True
+isSpec ';' = True
+isSpec '`' = True
+isSpec _ = False
+
+-- These characters are single characters token,
+-- if not part of an operator.
+isSpecSing :: Char -> Bool
+isSpecSing '=' = True
+isSpecSing '|' = True
+isSpecSing '\\' = True
+isSpecSing '@' = True
+isSpecSing '!' = True
+isSpecSing '~' = True
+isSpecSing _ = False
 
 upperIdent :: SLoc -> SLoc -> [String] -> String -> [Token]
 --upperIdent l c qs acs | trace (show (l, c, qs, acs)) False = undefined
@@ -240,17 +273,27 @@ upperIdent loc sloc qs acs =
            }
       _ -> TIdent sloc (reverse qs) ds : lex (addCol loc $ length ds) rs
 
+-- For LambdaCase
+tLam :: [Token] -> [Token]
+tLam (t@(TIdent _ [] "case") : ts) = t : tBrace ts
+tLam ts = ts
+
 tIdent :: SLoc -> [String] -> String -> [Token] -> [Token]
 tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
+                       || kw == "if" && isBar ats                -- For MultiWayIf
                                  = ti : tBrace ats
                      | otherwise = ti : ats
   where
+    isBar (TSpec _ '|' : _) = True
+    isBar _ = False
+
     ti = TIdent loc qs kw
 
-    tBrace ts@(TSpec _ '{' : _) = ts
-    tBrace ts@(TIndent _ : TSpec _ '{' : _) = ts
-    tBrace (TIndent _ : ts) = TBrace (tokensLoc ts) : ts
-    tBrace ts = TBrace (tokensLoc ts) : ts
+tBrace :: [Token] -> [Token]
+tBrace ts@(TSpec _ '{' : _) = ts
+tBrace ts@(TIndent _ : TSpec _ '{' : _) = ts
+tBrace (TIndent _ : ts) = TBrace (tokensLoc ts) : ts
+tBrace ts = TBrace (tokensLoc ts) : ts
 
 tokensLoc :: [Token] -> SLoc
 tokensLoc (TIdent  loc _ _:_) = loc
@@ -263,10 +306,14 @@ tokensLoc (TError  loc _  :_) = loc
 tokensLoc (TBrace  loc    :_) = loc
 tokensLoc (TIndent loc    :_) = loc
 tokensLoc (TPragma loc _  :_) = loc
+tokensLoc (TEnd    loc    :_) = loc
 tokensLoc _                   = mkLocEOF
 
 readBase :: Integer -> String -> Integer
 readBase b = foldl (\ r c -> r * b + toInteger (digitToInt c)) 0
+
+readInt :: String -> Int
+readInt = fromInteger . readBase 10
 
 -- XXX This is a pretty hacky recognition of pragmas.
 pragma :: SLoc -> [Char] -> [Token]
@@ -298,8 +345,9 @@ layoutLS ::                [Token] ->    [Int] -> Cmd      -> (Token,           
 layoutLS                        ts           ms  Raw        = (TRaw ts,                  LS $ layoutLS  ts     ms )
 layoutLS                        ts          mms  Pop        =                                                    
                                                    case (mms, ts) of                                              
-                                                     (m:ms,_:_) | m/=0 -> (       TEnd,  LS $ layoutLS  ts     ms )
+                                                     (m:ms,_:_) | m/=0 -> (TEnd (tokensLoc ts),  LS $ layoutLS  ts     ms )
                                                      _ ->     (TError l "syntax error",  LS $ layoutLS  []     [] ) where l = tokensLoc ts
+-- The rest are the Next commands
 layoutLS tts@(TIndent x       : ts) mms@(m : ms) _ | n == m = (TSpec (tokensLoc ts) ';', LS $ layoutLS  ts    mms )
                                                    | n <  m = (TSpec (tokensLoc ts) '>', LS $ layoutLS tts     ms ) where {n = getCol x}
 layoutLS     (TIndent _       : ts)          ms  _          =                                 layoutLS  ts     ms  Next
@@ -309,9 +357,10 @@ layoutLS     (TBrace x        : ts)          ms  _          = (TSpec (tokensLoc 
 layoutLS     (t@(TSpec _ '}') : ts)     (0 : ms) _          = (                       t, LS $ layoutLS  ts     ms )
 layoutLS     (  (TSpec l '}') :  _)           _  _          = (TError l "layout error }",LS $ layoutLS  []     [] )
 layoutLS     (t@(TSpec _ '{') : ts)          ms  _          = (                       t, LS $ layoutLS  ts  (0:ms))
+layoutLS     ts@(t@(TEnd _)   :  _)          []  _          = (                       t, LS $ layoutLS  ts     [] )  -- repeat the TEnd token
+layoutLS     ts@(TEnd l       :  _)     (_ : ms) _          = (TSpec l '>'             , LS $ layoutLS  ts     ms )  -- insert '>' and try again
 layoutLS     (t               : ts)          ms  _          = (                       t, LS $ layoutLS  ts     ms )
-layoutLS     []                         (_ : ms) _          = (TSpec mkLocEOF '>'      , LS $ layoutLS  []     ms )
-layoutLS     []                              []  _          = (TEnd                    , LS $ layoutLS  []     [] )
+layoutLS     []                               _  _          = error "layoutLS"
 
 instance TokenMachine LexState Token where
   tmNextToken (LS f) = f Next
@@ -336,6 +385,7 @@ lexStart ts =
 
 lexTopLS :: FilePath -> String -> LexState
 lexTopLS f s = LS $ layoutLS (lexStart $ lex (SLoc f 1 1) s) []
+  -- error $ show $ map showToken $ lex (SLoc f 1 1) s
 
 -----------
 
@@ -350,16 +400,16 @@ readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
         (ds1, cr1) | ('.':r1) <- cr1                   -> rat2 f1 r1
                    | (c:r1)   <- cr1, toLower c == 'e' -> rat3 f1 r1
                    | otherwise                         -> f1
-          where f1 = toRational (read ds1 :: Integer)
+          where f1 = toRational (readBase 10 ds1)
 
     rat2 f1 s2 =
       case span isDigit s2 of
         (ds2, cr2) | (c:r2) <- cr2, toLower c == 'e' -> rat3 f2 r2
                    | otherwise                       -> f2
-          where f2 = f1 + toRational (read ds2 :: Integer) * 10 ^^ (negate $ length ds2)
+          where f2 = f1 + toRational (readBase 10 ds2) * 10 ^^ (negate $ length ds2)
 
     rat3 f2 ('+':s) = f2 * expo s
     rat3 f2 ('-':s) = f2 / expo s
     rat3 f2      s  = f2 * expo s
 
-    expo s = 10 ^ (read s :: Int)
+    expo s = 10 ^ (readBase 10 s)

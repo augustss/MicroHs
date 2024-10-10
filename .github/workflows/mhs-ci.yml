@@ -6,9 +6,13 @@ on:
   pull_request:
     branches: [ "master" ]
 
+# Using
+#  runs-on: ubuntu-latest
+# fails, so use an older Ubuntu
+
 jobs:
   build-linux-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
@@ -36,7 +40,7 @@ jobs:
       run: cabal build
 
   build-linux-micro-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
@@ -69,7 +73,7 @@ jobs:
       run: nmake -f Makefile.windows exampletest
 
   build-linux-aarch64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -89,7 +93,7 @@ jobs:
 #      run: cabal build
 
   build-linux-s390x:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -129,7 +133,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-armv7:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -149,7 +153,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-riscv64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -169,7 +173,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-ppc64le:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -187,6 +191,26 @@ jobs:
     - name: make everytestmhs
       run: make CONF=unix-64 everytestmhs
       shell: alpine.sh {0}
+
+#  build-linux-ppc64be:
+#    runs-on: ubuntu-22.04
+#    steps:
+#    - uses: jirutka/setup-alpine@v1
+#      with:
+#        arch: ppc64be
+#        branch: v3.15
+#        packages: >
+#          build-base
+#          gcc
+#          make
+#    - name: checkout repo
+#      uses: actions/checkout@v4
+#    - name: make
+#      run: make CONF=unix-64
+#      shell: alpine.sh {0}
+#    - name: make everytestmhs
+#      run: make CONF=unix-64 everytestmhs
+#      shell: alpine.sh {0}
 
   build-linux-emscripten:
     runs-on: ubuntu-latest

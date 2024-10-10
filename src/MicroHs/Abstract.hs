@@ -2,6 +2,7 @@ module MicroHs.Abstract(
   compileOpt,
   -- reduce,
   ) where
+import Prelude(); import MHSPrelude
 import MicroHs.Ident
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..))

@@ -12,11 +12,12 @@ module MicroHs.SymTab(
   stInsertLcl,
   mapMSymTab,
   ) where
+import Prelude(); import MHSPrelude
 import Control.Applicative
 import Data.List
 import MicroHs.Builtin(builtinMdl)
 import MicroHs.Expr(Expr(..), EType, conIdent)
-import MicroHs.Ident(Ident(..), showIdent)
+import MicroHs.Ident(Ident(..), showIdent, unIdent, mkIdentSLoc, slocIdent)
 import MicroHs.List
 import qualified MicroHs.IdentMap as M
 
@@ -90,8 +91,9 @@ stLookup msg i (SymTab l ug qg) =
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
 
+-- XXX why?
 hackBuiltin :: Ident -> Ident
-hackBuiltin (Ident l qs) | Just ('.':s) <- stripPrefix builtinMdl qs = Ident l s
+hackBuiltin i | Just ('.':s) <- stripPrefix builtinMdl (unIdent i) = mkIdentSLoc (slocIdent i) s
 hackBuiltin i = i
 
 stFromList :: [(Ident, [Entry])] -> [(Ident, [Entry])] -> SymTab

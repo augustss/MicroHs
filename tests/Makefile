@@ -29,7 +29,7 @@ test:
 	$(TMHS) Word       && $(EVAL) > Word.out       && diff Word.ref Word.out
 	$(TMHS) Integer    && $(EVAL) > Integer.out    && diff Integer.ref Integer.out
 	$(TMHS) Enum       && $(EVAL) > Enum.out       && diff Enum.ref Enum.out
-#	$(TMHS) Foreign    && $(EVAL) > Foreign.out    && diff Foreign.ref Foreign.out
+#	$(TMHS) ForeignC   && $(EVAL) > ForeignC.out   && diff ForeignC.ref ForeignC.out
 	$(TMHS) MutRec     && $(EVAL) > MutRec.out     && diff MutRec.ref MutRec.out
 	$(TMHS) LocalPoly  && $(EVAL) > LocalPoly.out  && diff LocalPoly.ref LocalPoly.out
 	$(TMHS) Rank2      && $(EVAL) > Rank2.out      && diff Rank2.ref Rank2.out
@@ -68,6 +68,13 @@ test:
 	$(TMHS) Eq1        && $(EVAL) > Eq1.out        && diff Eq1.ref Eq1.out
 	$(TMHS) Irref      && $(EVAL) > Irref.out      && diff Irref.ref Irref.out
 	$(TMHS) DfltSig    && $(EVAL) > DfltSig.out    && diff DfltSig.ref DfltSig.out
+	$(TMHS) Bytestring && $(EVAL) > Bytestring.out && diff Bytestring.ref Bytestring.out
+	$(TMHS) Text       && $(EVAL) > Text.out       && diff Text.ref Text.out
+	$(TMHS) ImpMet     && $(EVAL) > ImpMet.out     && diff ImpMet.ref ImpMet.out
+	$(TMHS) MultiIf    && $(EVAL) > MultiIf.out    && diff MultiIf.ref MultiIf.out
+	$(TMHS) LameCase   && $(EVAL) > LameCase.out   && diff LameCase.ref LameCase.out
+	$(TMHS) NoForall   && $(EVAL) > NoForall.out   && diff NoForall.ref NoForall.out
+	$(TMHS) Bang       && $(EVAL) > Bang.out       && diff Bang.ref Bang.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

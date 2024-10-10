@@ -2,7 +2,7 @@ module Data.STRef(
   STRef,
   newSTRef, readSTRef, writeSTRef, modifySTRef,
   ) where
-import Prelude
+import Prelude(); import MiniPrelude
 import Control.Monad.ST_Type
 import Data.IORef
 

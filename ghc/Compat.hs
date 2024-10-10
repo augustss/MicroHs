@@ -5,10 +5,16 @@
 -- Functions for GHC that are defined in the UHS libs.
 module Compat(module Compat, Type) where
 import Data.Maybe
+import Data.Text(Text, append, pack)
 import Control.Exception
 import GHC.Types
 import System.Environment
 import System.IO
+
+------- List --------
+
+takeWhileEnd :: forall a . (a -> Bool) -> [a] -> [a]
+takeWhileEnd p = reverse . takeWhile p . reverse
 
 ------- IO --------
 
@@ -46,3 +52,6 @@ rnfNoErr _ = ()
 -- This cannot be implemented with GHC.
 rnfErr :: forall a . a -> ()
 rnfErr _ = ()
+
+appendDot :: Text -> Text -> Text
+appendDot x y = x `append` pack "." `append` y

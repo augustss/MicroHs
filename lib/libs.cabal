@@ -24,6 +24,7 @@ library base
         Data.Bits
         Data.Bool
         Data.Bounded
+        Data.ByteString
         Data.Char
         Data.Complex
         Data.Constraint
@@ -64,6 +65,7 @@ library base
         Data.String
         Data.Time.Clock    -- XXX remove
         Data.Time.Format   -- XXX remove
+        Data.Text
         Data.Traversable
         Data.Tuple
         Data.Type.Equality

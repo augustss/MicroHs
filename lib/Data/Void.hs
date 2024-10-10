@@ -1,5 +1,5 @@
 module Data.Void(module Data.Void) where
-import Prelude
+import Prelude(); import MiniPrelude
 
 data Void
 

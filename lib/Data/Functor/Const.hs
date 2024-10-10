@@ -9,17 +9,11 @@ import Data.Bool
 import Data.Eq
 import Data.Function
 import Data.Functor
+import Data.Functor.Const_Type
 import Data.Int
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Ord
 import Text.Show
-
-type Const :: forall k . Type -> k -> Type
-newtype Const a b = Const a
-  deriving (Eq, Ord, Show)
-
-getConst :: forall a b . Const a b -> a
-getConst (Const a) = a
 
 instance forall a . Functor (Const a) where
   fmap _ (Const a) = Const a

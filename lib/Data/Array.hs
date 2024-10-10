@@ -13,9 +13,23 @@ module Data.Array (
     accum,
     ixmap,
   ) where
+import Prelude()
 import Primitives(primPerformIO, primArrCopy, primArrEQ)
+import Control.Error
+import Control.Monad
+import Data.Bool
+import Data.Char
+import Data.Enum
+import Data.Eq
+import Data.Function
+import Data.Functor
+import Data.Int
 import Data.Ix
 import Data.IOArray
+import Data.List
+import Data.Num
+import Data.Ord
+import System.IO
 import Text.Show
 
 data Array i a
@@ -111,7 +125,7 @@ safeIndex (l,u) n i | 0 <= i' && i' < n = i'
   where i' = index (l,u) i
 
 badSafeIndex :: Int -> Int -> a
-badSafeIndex i n = error $ "Error in array index; " ++ show i ++ " not in range [0.." ++ show n ++ ")"
+badSafeIndex i n = error $ ("Error in array index; "::String) ++ show i ++ (" not in range [0.."::String) ++ show n ++ (")"::String)
 
 safeRangeSize :: Ix i => (i, i) -> Int
 safeRangeSize b =

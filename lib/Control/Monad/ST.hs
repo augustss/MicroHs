@@ -2,7 +2,7 @@ module Control.Monad.ST(
   ST,
   runST,
   ) where
-import Prelude
+import Prelude(); import MiniPrelude
 import Primitives(primPerformIO)
 import Control.Monad.ST_Type
 

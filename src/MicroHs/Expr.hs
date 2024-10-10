@@ -39,7 +39,7 @@ module MicroHs.Expr(
   Assoc(..), Fixity,
   getBindsVars,
   HasLoc(..),
-  eForall,
+  eForall, eForall',
   eDummy,
   impossible, impossibleShow,
   getArrow, getArrows,
@@ -48,7 +48,7 @@ module MicroHs.Expr(
   getAppM,
   TyVar, freeTyVars,
   ) where
-import Prelude hiding ((<>))
+import Prelude(); import MHSPrelude hiding ((<>))
 import Control.Arrow(first)
 import Data.List
 import Data.Maybe
@@ -109,11 +109,13 @@ data Expr
   | ECase Expr [ECaseArm]
   | ELet [EBind] Expr
   | ETuple [Expr]
+  | EParen Expr
   | EListish Listish
   | EDo (Maybe Ident) [EStmt]
   | ESectL Expr Ident
   | ESectR Ident Expr
   | EIf Expr Expr Expr
+  | EMultiIf EAlts
   | ESign Expr EType
   | ENegApp Expr
   | EUpdate Expr [EField]
@@ -123,7 +125,7 @@ data Expr
   | EViewPat Expr EPat
   | ELazy Bool EPat           -- True indicates ~p, False indicates !p
   -- only in types
-  | EForall [IdKind] EType
+  | EForall Bool [IdKind] EType  -- True indicates explicit forall in the code
   -- only while type checking
   | EUVar Int
   -- only after type checking
@@ -246,6 +248,7 @@ patVars apat =
     EOper p1 ips -> patVars p1 ++ concatMap (\ (i, p2) -> i `add` patVars p2) ips
     ELit _ _ -> []
     ETuple ps -> concatMap patVars ps
+    EParen p -> patVars p
     EListish (LList ps) -> concatMap patVars ps
     ESign p _ -> patVars p
     EAt i p -> i `add` patVars p
@@ -292,18 +295,18 @@ type EKind = EType
 type ESort = EType
 
 sKind :: ESort
-sKind = EVar (Ident noSLoc "Primitives.Kind")
+sKind = EVar (mkIdent "Primitives.Kind")
 
 kType :: EKind
-kType = EVar (Ident noSLoc "Primitives.Type")
+kType = EVar (mkIdent "Primitives.Type")
 
 kConstraint :: EKind
-kConstraint = EVar (Ident noSLoc "Primitives.Constraint")
+kConstraint = EVar (mkIdent "Primitives.Constraint")
 
 tupleConstr :: SLoc -> Int -> Ident
 tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
 
--- Check if it is a suple constructor
+-- Check if it is a tuple constructor
 getTupleConstr :: Ident -> Maybe Int
 getTupleConstr i =
   case unIdent i of
@@ -334,7 +337,7 @@ class HasLoc a where
   getSLoc :: a -> SLoc
 
 instance HasLoc Ident where
-  getSLoc (Ident l _) = l
+  getSLoc = slocIdent
 
 -- Approximate location; only identifiers and literals carry a location
 instance HasLoc Expr where
@@ -346,12 +349,14 @@ instance HasLoc Expr where
   getSLoc (ECase e _) = getSLoc e
   getSLoc (ELet bs _) = getSLoc bs
   getSLoc (ETuple es) = getSLoc es
+  getSLoc (EParen e) = getSLoc e
   getSLoc (EListish l) = getSLoc l
   getSLoc (EDo (Just i) _) = getSLoc i
   getSLoc (EDo _ ss) = getSLoc ss
   getSLoc (ESectL e _) = getSLoc e
   getSLoc (ESectR i _) = getSLoc i
   getSLoc (EIf e _ _) = getSLoc e
+  getSLoc (EMultiIf e) = getSLoc e
   getSLoc (ESign e _) = getSLoc e
   getSLoc (ENegApp e) = getSLoc e
   getSLoc (EUpdate e _) = getSLoc e
@@ -361,8 +366,8 @@ instance HasLoc Expr where
   getSLoc (ELazy _ e) = getSLoc e
   getSLoc (EUVar _) = error "getSLoc EUVar"
   getSLoc (ECon c) = getSLoc c
-  getSLoc (EForall [] e) = getSLoc e
-  getSLoc (EForall iks _) = getSLoc iks
+  getSLoc (EForall _ [] e) = getSLoc e
+  getSLoc (EForall _ iks _) = getSLoc iks
 
 instance forall a . HasLoc a => HasLoc [a] where
   getSLoc [] = noSLoc  -- XXX shouldn't happen
@@ -426,7 +431,7 @@ subst s =
         EApp f a -> EApp (sub f) (sub a)
         ESign e t -> ESign (sub e) t
         EUVar _ -> ae
-        EForall iks t -> EForall iks $ subst [ x | x@(i, _) <- s, not (elem i is) ] t
+        EForall b iks t -> EForall b iks $ subst [ x | x@(i, _) <- s, not (elem i is) ] t
           where is = map idKindIdent iks
         ELit _ _ -> ae
         _ -> error "subst unimplemented"
@@ -499,11 +504,13 @@ allVarsExpr' aexpr =
     ECase e as -> allVarsExpr' e . composeMap allVarsCaseArm as
     ELet bs e -> composeMap allVarsBind' bs . allVarsExpr' e
     ETuple es -> composeMap allVarsExpr' es
+    EParen e -> allVarsExpr' e
     EListish (LList es) -> composeMap allVarsExpr' es
     EDo mi ss -> maybe id (:) mi . composeMap allVarsStmt ss
     ESectL e i -> (i :) . allVarsExpr' e
     ESectR i e -> (i :) . allVarsExpr' e
     EIf e1 e2 e3 -> allVarsExpr' e1 . allVarsExpr' e2 . allVarsExpr' e3
+    EMultiIf e -> allVarsAlts e
     EListish l -> allVarsListish l
     ESign e _ -> allVarsExpr' e
     ENegApp e -> allVarsExpr' e
@@ -514,7 +521,7 @@ allVarsExpr' aexpr =
     ELazy _ p -> allVarsExpr' p
     EUVar _ -> id
     ECon c -> (conIdent c :)
-    EForall iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
+    EForall _ iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
   where field (EField _ e) = allVarsExpr' e
         field (EFieldPun is) = (last is :)
         field EFieldWild = impossible
@@ -686,7 +693,7 @@ ppExprR raw = ppE
     ppE :: Expr -> Doc
     ppE ae =
       case ae of
-        EVar i | raw            -> text (unIdent i)
+        EVar i | raw            -> text si
                | isOperChar cop -> parens (text op)
                | otherwise      -> text s
                  where op = unIdent (unQualIdent i)
@@ -700,10 +707,12 @@ ppExprR raw = ppE
         ECase e as -> text "case" <+> ppE e <+> text "of" $$ nest 2 (vcat (map ppCaseArm as))
         ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppE e
         ETuple es -> parens $ hsep $ punctuate (text ",") (map ppE es)
+        EParen e -> parens (ppE e)
         EDo mn ss -> maybe (text "do") (\ n -> ppIdent n <> text ".do") mn $$ nest 2 (vcat (map ppEStmt ss))
         ESectL e i -> parens $ ppE e <+> ppIdent i
         ESectR i e -> parens $ ppIdent i <+> ppE e
         EIf e1 e2 e3 -> parens $ sep [text "if" <+> ppE e1, text "then" <+> ppE e2, text "else" <+> ppE e3]
+        EMultiIf e -> text "if" <+> ppAlts (text "->") e
         EListish l -> ppListish l
         ESign e t -> parens $ ppE e <+> text "::" <+> ppEType t
         ENegApp e -> text "-" <+> ppE e
@@ -715,14 +724,15 @@ ppExprR raw = ppE
         ELazy False p -> text "!" <> ppE p
         EUVar i -> text ("_a" ++ show i)
         ECon c -> ppCon c
-        EForall iks e -> ppForall iks <+> ppEType e
+        EForall _ iks e -> ppForall iks <+> ppEType e
 
     ppApp :: [Expr] -> Expr -> Doc
     ppApp as (EApp f a) = ppApp (a:as) f
     ppApp as f | raw = ppApply f as
     ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppE a <+> text op <+> ppExpr b
                       | isOperChar cop, [a] <- as    = parens $ ppE a <+> text op
-                      | cop == ','                   = ppE (ETuple as)
+                      | cop == ',' && length op + 1 == length as
+                                                     = ppE (ETuple as)
                       | op == "[]", length as == 1   = ppE (EListish (LList as))
                         where op = unIdent (unQualIdent i)
                               cop = head op
@@ -816,8 +826,11 @@ getBindsVars :: [EBind] -> [Ident]
 getBindsVars = concatMap getBindVars
 
 eForall :: [IdKind] -> EType -> EType
-eForall [] t = t
-eForall vs t = EForall vs t
+eForall = eForall' True
+
+eForall' :: Bool -> [IdKind] -> EType -> EType
+eForall' _ [] t = t
+eForall' b vs t = EForall b vs t
 
 eDummy :: Expr
 eDummy = EVar dummyIdent
@@ -877,7 +890,7 @@ freeTyVars = foldr (go []) []
       | elem tv acc = acc
       | isConIdent tv = acc
       | otherwise = tv : acc
-    go bound (EForall tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
+    go bound (EForall _ tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc
     go bound (EApp fun arg) acc = go bound fun (go bound arg acc)
     go _bound (EUVar _) acc = acc
     go _bound (ECon _) acc = acc
@@ -886,6 +899,7 @@ freeTyVars = foldr (go []) []
     go bound (ESign e _) acc = go bound e acc
     go bound (EListish (LList [e])) acc = go bound e acc
     go bound (ETuple es) acc = goList bound es acc
+    go bound (EParen e) acc = go bound e acc
     go _ x _ = error ("freeTyVars: " ++ show x) --  impossibleShow x
     goList bound es acc = foldr (go bound) acc es
 

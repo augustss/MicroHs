@@ -96,7 +96,7 @@ import Data.Char
 import Data.Int
 import Data.List (stripPrefix)
 import Data.Word
-import Numeric
+import Numeric.Show
 import Numeric.FormatFloat(showEFloat, showFFloat, showGFloat, showFFloatAlt, showGFloatAlt)
 import Numeric.Natural
 import System.IO

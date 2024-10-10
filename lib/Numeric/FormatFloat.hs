@@ -10,7 +10,7 @@ module Numeric.FormatFloat(
 
   ) where
 import Data.Char
-import Numeric
+import Numeric.Show
 
 --showFloat :: (RealFloat a) => a -> ShowS
 --showFloat x  =  showString (formatRealFloat FFGeneric Nothing x)

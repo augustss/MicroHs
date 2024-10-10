@@ -1,4 +1,5 @@
 module MicroHs.Flags(Flags(..), verbosityGT, defaultFlags) where
+import Prelude(); import MHSPrelude
 
 data Flags = Flags {
   verbose    :: Int,        -- verbosity level
@@ -12,6 +13,7 @@ data Flags = Flags {
   useTicks   :: Bool,       -- emit ticks
   doCPP      :: Bool,       -- run ccphs on input files
   cppArgs    :: [String],   -- flags for CPP
+  cArgs      :: [String],   -- arguments for C compiler
   compress   :: Bool,       -- compress generated combinators
   buildPkg   :: Maybe FilePath, -- build a package
   listPkg    :: Maybe FilePath, -- list package contents
@@ -37,6 +39,7 @@ defaultFlags dir = Flags {
   useTicks   = False,
   doCPP      = False,
   cppArgs    = [],
+  cArgs      = [],
   compress   = False,
   buildPkg   = Nothing,
   listPkg    = Nothing,

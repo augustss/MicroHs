@@ -16,8 +16,7 @@ import Data.Num
 import Data.Ord
 import Data.Ratio_Type
 import Data.Real
-import Numeric
-import Text.Read
+import Numeric.Show
 import Text.Show
 
 --------------------------------------------------------------------------------
@@ -34,7 +33,7 @@ bin8 op (I8 x) (I8 y) = i8 (x `op` y)
 bini8 :: (Int -> Int -> Int) -> (Int8 -> Int -> Int8)
 bini8 op (I8 x) y = i8 (x `op` y)
 
-cmp8 :: (Int -> Int -> Bool) -> (Int8 -> Int8 -> Bool)
+cmp8 :: (Int -> Int -> a) -> (Int8 -> Int8 -> a)
 cmp8 op (I8 x) (I8 y) = x `op` y
 
 una8 :: (Int -> Int) -> (Int8 -> Int8)
@@ -63,8 +62,10 @@ instance Real Int8 where
 instance Show Int8 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Int8 where
   readsPrec = readIntegral
+-}
 
 instance Enum Int8 where
   succ x = x + 1
@@ -87,6 +88,7 @@ instance Eq Int8 where
   (/=) = cmp8 primIntNE
 
 instance Ord Int8 where
+  compare = cmp8 primIntCompare
   (<)  = cmp8 primIntLT
   (<=) = cmp8 primIntLE
   (>)  = cmp8 primIntGT
@@ -121,7 +123,7 @@ bin16 op (I16 x) (I16 y) = i16 (x `op` y)
 bini16 :: (Int -> Int -> Int) -> (Int16 -> Int -> Int16)
 bini16 op (I16 x) y = i16 (x `op` y)
 
-cmp16 :: (Int -> Int -> Bool) -> (Int16 -> Int16 -> Bool)
+cmp16 :: (Int -> Int -> a) -> (Int16 -> Int16 -> a)
 cmp16 op (I16 x) (I16 y) = x `op` y
 
 una16 :: (Int -> Int) -> (Int16 -> Int16)
@@ -150,8 +152,10 @@ instance Real Int16 where
 instance Show Int16 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Int16 where
   readsPrec = readIntegral
+-}
 
 instance Enum Int16 where
   succ x = x + 1
@@ -174,6 +178,7 @@ instance Eq Int16 where
   (/=) = cmp16 primIntNE
 
 instance Ord Int16 where
+  compare = cmp16 primIntCompare
   (<)  = cmp16 primIntLT
   (<=) = cmp16 primIntLE
   (>)  = cmp16 primIntGT
@@ -208,7 +213,7 @@ bin32 op (I32 x) (I32 y) = i32 (x `op` y)
 bini32 :: (Int -> Int -> Int) -> (Int32 -> Int -> Int32)
 bini32 op (I32 x) y = i32 (x `op` y)
 
-cmp32 :: (Int -> Int -> Bool) -> (Int32 -> Int32 -> Bool)
+cmp32 :: (Int -> Int -> a) -> (Int32 -> Int32 -> a)
 cmp32 op (I32 x) (I32 y) = x `op` y
 
 una32 :: (Int -> Int) -> (Int32 -> Int32)
@@ -237,8 +242,10 @@ instance Real Int32 where
 instance Show Int32 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Int32 where
   readsPrec = readIntegral
+-}
 
 instance Enum Int32 where
   succ x = x + 1
@@ -261,6 +268,7 @@ instance Eq Int32 where
   (/=) = cmp32 primIntNE
 
 instance Ord Int32 where
+  compare = cmp32 primIntCompare
   (<)  = cmp32 primIntLT
   (<=) = cmp32 primIntLE
   (>)  = cmp32 primIntGT
@@ -293,7 +301,7 @@ bin64 op (I64 x) (I64 y) = i64 (x `op` y)
 bini64 :: (Int -> Int -> Int) -> (Int64 -> Int -> Int64)
 bini64 op (I64 x) y = i64 (x `op` y)
 
-cmp64 :: (Int -> Int -> Bool) -> (Int64 -> Int64 -> Bool)
+cmp64 :: (Int -> Int -> a) -> (Int64 -> Int64 -> a)
 cmp64 op (I64 x) (I64 y) = x `op` y
 
 una64 :: (Int -> Int) -> (Int64 -> Int64)
@@ -322,8 +330,10 @@ instance Real Int64 where
 instance Show Int64 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Int64 where
   readsPrec = readIntegral
+-}
 
 instance Enum Int64 where
   succ x = x + 1
@@ -346,6 +356,7 @@ instance Eq Int64 where
   (/=) = cmp64 primIntNE
 
 instance Ord Int64 where
+  compare = cmp64 primIntCompare
   (<)  = cmp64 primIntLT
   (<=) = cmp64 primIntLE
   (>)  = cmp64 primIntGT

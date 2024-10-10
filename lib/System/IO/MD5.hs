@@ -1,16 +1,17 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module System.IO.MD5(MD5CheckSum, md5File, md5Handle, md5String, md5Combine) where
+import Prelude(); import MiniPrelude
 import Primitives(primPerformIO)
-import Prelude
 import Data.Word
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import System.IO
+import System.IO.Internal
 
-foreign import ccall "md5BFILE"  c_md5BFILE  :: Handle    -> Ptr Word -> IO ()
+foreign import ccall "md5BFILE"  c_md5BFILE  :: Ptr BFILE -> Ptr Word -> IO ()
 foreign import ccall "md5String" c_md5String :: CString   -> Ptr Word -> IO ()
 foreign import ccall "md5Array"  c_md5Array  :: Ptr Word  -> Ptr Word -> Int -> IO ()
 
@@ -43,7 +44,7 @@ md5String :: String -> MD5CheckSum
 md5String s = primPerformIO $ withCAString s $ chksum . c_md5String
 
 md5Handle :: Handle -> IO MD5CheckSum
-md5Handle h = chksum $ c_md5BFILE h
+md5Handle h = withHandleRd h $ chksum . c_md5BFILE
 
 md5File :: FilePath -> IO (Maybe MD5CheckSum)
 md5File fn = do

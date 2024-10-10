@@ -11,11 +11,12 @@ module MicroHs.IdentMap(
   fromListWith, fromList,
   delete,
   lookup,
+  null,
   size,
   toList, elems, keys,
   mapM,
   ) where
-import Prelude hiding(lookup, mapM)
+import Prelude(); import MHSPrelude hiding(lookup, mapM, null)
 import MicroHs.Ident
 
 data Map a
@@ -69,6 +70,10 @@ size Nil = 0
 size (One _ _) = 1
 size (Node _ s _ _ _) = s
 
+null :: forall a . Map a -> Bool
+null Nil = True
+null _ = False
+
 node :: forall a . Map a -> Ident -> a -> Map a -> Map a
 node Nil  key val Nil   = One key val
 node left key val right = Node left (size left + 1 + size right) key val right
@@ -78,9 +83,10 @@ lookup k = look
   where
     look Nil = Nothing
     look (One key val) =
-      case compare k key of
-        EQ -> Just val
-        _  -> Nothing
+      if k == key then
+        Just val
+      else
+        Nothing
     look (Node left _ key val right) =
       case k `compare` key of
         LT -> look left

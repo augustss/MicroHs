@@ -1,6 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.MakeCArray(makeCArray) where
+import Prelude(); import MHSPrelude
 import Data.Char
 import MicroHs.Flags
 import qualified System.Compress as C

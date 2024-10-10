@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
 module MicroHs.Main(main) where
+import Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import Data.Version
@@ -15,6 +16,7 @@ import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
 import MicroHs.Ident
+import MicroHs.Lex(readInt)
 import MicroHs.List
 import MicroHs.Package
 import MicroHs.Translate
@@ -53,7 +55,7 @@ main = do
           Nothing ->
             if installPkg flags then mainInstallPackage flags mdls else
             withArgs rargs $ do
-              when (verbosityGT flags 0) $
+              when (verbosityGT flags 1) $
                 putStrLn $ "flags = " ++ show flags
               case mdls of
                 []  -> mainInteractive flags
@@ -61,7 +63,7 @@ main = do
                 _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-LPATH] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [ModuleName...]"
+usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-LPATH] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [ModuleName...]"
 
 -- Drop trailing '/foo'
 dropTrailing :: Int -> FilePath -> FilePath
@@ -86,6 +88,8 @@ decodeArgs f mdls (arg:args) =
     "-Q"        -> decodeArgs f{installPkg = True} mdls args
     '-':'i':[]  -> decodeArgs f{paths = []} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
+    '-':'o':[] | s : args' <- args
+                -> decodeArgs f{output = s} mdls args'
     '-':'o':s   -> decodeArgs f{output = s} mdls args
     '-':'t':s   -> decodeArgs f{target = s} mdls args
     '-':'D':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
@@ -95,7 +99,10 @@ decodeArgs f mdls (arg:args) =
     '-':'a':s   -> decodeArgs f{pkgPath = s : pkgPath f} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
-    _           -> decodeArgs f (mdls ++ [arg]) args
+    _ | ".c" `isSuffixOf` arg || ".o" `isSuffixOf` arg || ".a" `isSuffixOf` arg
+                -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args
+      | otherwise
+                -> decodeArgs f (mdls ++ [arg]) args
 
 
 readTargets :: Flags -> FilePath -> IO [Target]
@@ -108,7 +115,7 @@ readTargets flags dir = do
        tgFile <- readFile tgFilePath
        case parseTargets tgFilePath tgFile of
          Left e -> do
-           putStrLn $ "Can't read " ++ tgFilePath
+           putStrLn $ "Cannot parse " ++ tgFilePath
            when (verbose flags > 0) $
              putStrLn e
            return []
@@ -156,20 +163,29 @@ mainBuildPkg flags namever amns = do
                     , pkgExported = exported, pkgOther = other
                     , pkgDepends = pkgDeps }
   --print (map tModuleName $ pkgOther pkg)
+  t1 <- getTimeMilli
   when (verbose flags > 0) $
     putStrLn $ "Writing package " ++ namever ++ " to " ++ output flags
   writeSerializedCompressed (output flags) pkg
+  t2 <- getTimeMilli
+  when (verbose flags > 0) $
+    putStrLn $ "Compression time " ++ show (t2 - t1) ++ " ms"  
 
 splitNameVer :: String -> (String, Version)
 splitNameVer s =
   case span (\ c -> isDigit c || c == '.') (reverse s) of
     (rver, '-':rname) | is@(_:_) <- readVersion (reverse rver) -> (reverse rname, makeVersion is)
     _ -> error $ "package name not of the form name-version:" ++ show s
-  where readVersion = map read . words . map (\ c -> if c == '.' then ' ' else c)
+  where readVersion = map readInt . words . map (\ c -> if c == '.' then ' ' else c)
 
 mainListPkg :: Flags -> FilePath -> IO ()
 mainListPkg _flags pkgfn = do
   pkg <- readSerialized pkgfn
+  putStrLn $ "name: " ++ showIdent (pkgName pkg)
+  putStrLn $ "version: " ++ showVersion (pkgVersion pkg)
+  putStrLn $ "compiler: mhs-" ++ pkgCompiler pkg
+  putStrLn $ "depends: " ++ unwords (map (\ (i, v) -> showIdent i ++ "-" ++ showVersion v) (pkgDepends pkg))
+
   let list = mapM_ (putStrLn . ("  " ++) . showIdent . tModuleName)
   putStrLn "exposed-modules:"
   list (pkgExported pkg)
@@ -178,11 +194,11 @@ mainListPkg _flags pkgfn = do
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
-  (rmn, allDefs) <- do
+  (cash, (rmn, allDefs)) <- do
     cash <- getCached flags
     (rds, _, cash') <- compileCacheTop flags mn cash
     maybeSaveCache flags cash'
-    return rds
+    return (cash', rds)
 
   t1 <- getTimeMilli
   let
@@ -225,8 +241,20 @@ mainCompile flags mn = do
        ct1 <- getTimeMilli
        mcc <- lookupEnv "MHSCC"
        let dir = mhsdir flags
+           ppkgs   = map fst $ getPathPkgs cash
+           incDirs = map (convertToInclude "/include") ppkgs
+           cDirs   = map (convertToInclude "/cbits") ppkgs
+       incDirs' <- filterM doesDirectoryExist incDirs
+       cDirs'   <- filterM doesDirectoryExist cDirs
+       --print (map fst $ getPathPkgs cash, incDirs, incDirs')
+       let incs = unwords $ map ("-I" ++) incDirs'
        TTarget _ compiler conf <- readTarget flags dir
-       let cc = fromMaybe (compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++ " $IN -lm -o $OUT") mcc
+       let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
+                             incs ++ " " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
+                             unwords (cArgs flags) ++
+                             unwords (map (++ "/*.c") cDirs') ++
+                             " $IN -lm -o $OUT"
+           cc = fromMaybe dcc mcc
            cmd = substString "$IN" fn $ substString "$OUT" outFile cc
        when (verbosityGT flags 0) $
          putStrLn $ "Execute: " ++ show cmd
@@ -261,11 +289,14 @@ mainInstallPackage flags [pkgfn] =
     first:_ -> mainInstallPackage flags [pkgfn, first]
 mainInstallPackage _ _ = error usage
 
------------------
-
-getMhsDir :: IO FilePath
-getMhsDir = do
-  md <- lookupEnv "MHSDIR"
-  case md of
-    Just d -> return d
-    Nothing -> getDataDir
+-- Convert something like
+--   .../.mcabal/mhs-0.10.3.0/packages/base-0.10.3.0.pkg
+-- into
+--   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
+convertToInclude :: String -> FilePath -> FilePath
+convertToInclude inc pkgPath =
+  let path1 = init $ dropWhileEnd (/= '/') pkgPath  --   .../.mcabal/mhs-0.10.3.0/packages
+      base1 = takeWhileEnd (/= '/') pkgPath         --   base-0.10.3.0.pkg
+      base2 = init $ dropWhileEnd (/= '.') base1    --   base-0.10.3.0
+      path2 = dropWhileEnd (/= '/') path1           --   .../.mcabal/mhs-0.10.3.0/
+  in  path2 ++ "data/" ++ base2 ++ inc              --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include

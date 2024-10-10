@@ -1,10 +1,10 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.9.16.0
+version:             0.10.3.0
                      -- *** When changing the version number, also
-                     -- *** run updateversion.sh.
+                     -- *** run 'sh updateversion.sh'
                      -- *** Yeah, it stinks.
-synopsis:            A compiler for Haskell
+synopsis:            A small compiler for Haskell
 license:             Apache-2.0
 license-file:        LICENSE
 copyright:           2023,2024 Lennart Augustsson
@@ -39,10 +39,15 @@ extra-source-files:
       tests/*.ref
 
 data-files:
-      lib/**/*.hs
-      lib/**/*.hs-boot
       src/runtime/*.c
       src/runtime/*.h
+
+-- Cabal doesn't seem to understand this, so it never copies
+-- these files.
+--if impl(ghc)
+--  data-files:
+      lib/**/*.hs
+      lib/**/*.hs-boot
 
 source-repository head
     type:     git
@@ -93,6 +98,7 @@ executable mhs
                        Data.Integer
                        Compat
                        PrimTable
+                       MHSPrelude
                        System.IO.MD5
                        System.IO.Serialize
                        System.IO.TimeMilli
@@ -108,6 +114,11 @@ executable mhs
                        time         >= 1.1 && < 1.15,
                        process      >= 1.6 && < 1.8,
                        directory    >= 1.2 && < 1.5,
---  if impl(mhs)
---    hs-source-dirs:    mhs src
---    build-depends:     base
+                       text         >= 2.0 && < 2.3,
+
+-- Hackage does not accept 'mhs' as a valid Haskell compiler,
+-- so mcabal has a hack to recognize lines that start with
+-- '--MHS' as non-comments.
+--MHS  if impl(mhs)
+--MHS    hs-source-dirs:    mhs src paths
+--MHS    build-depends:     base         >= 0.1 && < 10.0,

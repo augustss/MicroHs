@@ -21,3 +21,6 @@ Interactive.hs
 *.pkg
 targets.conf
 *.bak
+timing
+mdist/*
+dist-mcabal/

@@ -19,8 +19,7 @@ module Text.ParserComb(
   TokenMachine(..),
   mapTokenState,
   ) where
---Ximport Prelude()
-import Prelude
+import Prelude(); import MHSPrelude
 import Control.Applicative
 import Control.Monad
 

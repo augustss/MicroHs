@@ -1,132 +1,113 @@
--- Copyright 2023,2024 Lennart Augustsson
--- See LICENSE file for full license.
--- Temporary Read class
-module Text.Read(
-  ReadS,
-  Read(..),
-  read,
-  reads,
-  readMaybe,
-  readParen,
-  lex,
-  ) where
-import Prelude()              -- do not import Prelude
-import Primitives
+{-# LANGUAGE Safe #-}
+
+-- |
+--
+-- Module      :  Text.Read
+-- Copyright   :  (c) The University of Glasgow 2001
+-- License     :  BSD-style (see the file libraries/base/LICENSE)
+--
+-- Maintainer  :  libraries@haskell.org
+-- Stability   :  provisional
+-- Portability :  non-portable (uses Text.ParserCombinators.ReadP)
+--
+-- Converting strings to values.
+--
+-- The "Text.Read" module is the canonical place to import for
+-- 'Read'-class facilities.  For GHC only, it offers an extended and much
+-- improved 'Read' class, which constitutes a proposed alternative to the
+-- Haskell 2010 'Read'.  In particular, writing parsers is easier, and
+-- the parsers are much more efficient.
+--
+
+module Text.Read
+    (-- *  The 'Read' class
+     Read(..),
+     ReadS,
+     -- *  Haskell 2010 functions
+     reads,
+     read,
+     readParen,
+     lex,
+     -- *  New parsing functions
+     module Text.ParserCombinators.ReadPrec,
+     Lexeme(..),
+     lexP,
+     parens,
+     readListDefault,
+     readListPrecDefault,
+     readEither,
+     readMaybe
+     ) where
+import Prelude()
 import Control.Error
-import Data.Char
+import Control.Monad
 import Data.Bool
+import Data.Char
 import Data.Either
 import Data.Eq
 import Data.Function
-import Data.Int
 import Data.List
-import Data.Maybe_Type
-import Data.Num
-import Data.Ord
+import Data.Maybe
 import Data.String
-import Text.Read.Numeric
-import Text.Read.Lex
+import Text.Read.Internal
+import Text.Read.Lex(Lexeme(..))
+import Text.ParserCombinators.ReadPrec
+import qualified Text.ParserCombinators.ReadP as P
 
-type ReadS a = String -> [(a, String)]
+------------------------------------------------------------------------
+-- utility functions
 
-class Read a where
-  readsPrec    :: Int -> ReadS a
-  readList     :: ReadS [a]
+-- | equivalent to 'readsPrec' with a precedence of 0.
+reads :: Read a => ReadS a
+reads = readsPrec minPrec
 
-  readList = readParen False (\r -> [ pr
-                                    | ("[",s) <- lex r
-                                    , pr <- readl s])
-    where readl  s = [([],t)   | ("]",t)  <- lex s] ++
-                     [(x:xs,u) | (x,t)    <- reads s,
-                                 (xs,u)   <- readl' t]
-          readl' s = [([],t)   | ("]",t)  <- lex s] ++
-                     [(x:xs,v) | (",",t)  <- lex s,
-                                 (x,u)    <- reads t,
-                                 (xs,v)   <- readl' u]
+-- | Parse a string using the 'Read' instance.
+-- Succeeds if there is exactly one valid result.
+-- A 'Left' value indicates a parse error.
+--
+-- >>> readEither "123" :: Either String Int
+-- Right 123
+--
+-- >>> readEither "hello" :: Either String Int
+-- Left "Prelude.read: no parse"
+--
+-- @since base-4.6.0.0
+readEither :: Read a => String -> Either String a
+readEither s =
+  case [ x | (x,"") <- readPrec_to_S read' minPrec s ] of
+    [x] -> Right x
+    []  -> Left "Prelude.read: no parse"
+    _   -> Left "Prelude.read: ambiguous parse"
+ where
+  read' =
+    do x <- readPrec
+       lift P.skipSpaces
+       return x
 
-reads :: forall a . Read a => ReadS a
-reads = readsPrec 0
+-- | Parse a string using the 'Read' instance.
+-- Succeeds if there is exactly one valid result.
+--
+-- >>> readMaybe "123" :: Maybe Int
+-- Just 123
+--
+-- >>> readMaybe "hello" :: Maybe Int
+-- Nothing
+--
+-- @since base-4.6.0.0
+readMaybe :: Read a => String -> Maybe a
+readMaybe s = case readEither s of
+                Left _  -> Nothing
+                Right a -> Just a
 
-read :: forall a . Read a => String -> a
-read s =
-  case readMaybe s of
-    Just a  -> a
-    Nothing -> error "read: failed"
-
-readMaybe :: forall a . Read a => String -> Maybe a
-readMaybe s =
-  case readsPrec 0 s of
-    [(a, ss)] | [] <- dropSpace ss -> Just a
-    _ -> Nothing
-
--------------------------------------------------------
--- To avoid circular imports, some instances go here.
-
-instance Read Int where
-  readsPrec = readIntegral
-
-instance forall a . Read a => Read [a] where
-  readsPrec _ = readList
-
-instance Read Bool where
-  readsPrec _ = readBoundedEnum
-
-instance Read Ordering where
-  readsPrec _ = readBoundedEnum
-
-instance forall a . Read a => Read (Maybe a) where
-  readsPrec p u = [ (Nothing :: Maybe a, t) | ("Nothing", t) <- lex u ] ++
-                  readParen (p > 10) ( \ r ->
-                    [ (Just a,  t) | ("Just",    s) <- lex r, (a, t) <- readsPrec 11 s ]
-                    ) u
-
-instance forall a b . (Read a, Read b) => Read (Either a b) where
-  readsPrec p = readParen (p > 10) $ \ r ->
-                [ (Left  a, t) | ("Left",  s) <- lex r, (a, t) <- readsPrec 11 s ] ++
-                [ (Right b, t) | ("Right", s) <- lex r, (b, t) <- readsPrec 11 s ]
-
-instance Read () where
-  readsPrec p  = readParen False $
-                   \ r -> [((),t) | ("(",s) <- lex r,
-                                    (")",t) <- lex s ]
-
-instance forall a b . (Read a, Read b) => Read (a,b)  where
-  readsPrec p = readParen True $
-                  \ r -> [((a, b), u) | (a, s)   <- reads r,
-                                        (",", t) <- lex s,
-                                        (b, u)   <- reads t ]
-
-instance Read Char where
-    readsPrec p = readParen False $
-                    \ r -> [(c,t) | ('\'':s,t)<- lex r,
-                                    (c,"\'")  <- readLitChar s]
- 
-    readList = readParen False $ \ r -> [(l,t) | ('"':s, t) <- lex r,
-                                                 (l,_)      <- readl s ]
-        where readl ('"':s)      = [("",s)]
-              readl ('\\':'&':s) = readl s
-              readl s            = [(c:cs,u) | (c ,t) <- readLitChar s,
-                                               (cs,u) <- readl t ]
-
-readLitChar :: ReadS Char
-readLitChar ('\\':s) = readEsc s
-readLitChar (c:s)    = [(c, s)]
-
-readEsc :: ReadS Char
-readEsc ('a':s)  = [('\a',s)]
-readEsc ('b':s)  = [('\b',s)]
-readEsc ('f':s)  = [('\f',s)]
-readEsc ('n':s)  = [('\n',s)]
-readEsc ('r':s)  = [('\r',s)]
-readEsc ('t':s)  = [('\t',s)]
-readEsc ('v':s)  = [('\v',s)]
-readEsc ('\\':s) = [('\\',s)]
-readEsc ('"':s)  = [('"',s)]
-readEsc ('\'':s) = [('\'',s)]
-readEsc ('^':c:s) | c >= '@' && c <= '_'
-                 = [(chr (ord c - ord '@'), s)]
-readEsc s@(d:_) | isDigit d
-                 = [(chr n, t) | (n,t) <- readDec s]
-readEsc ('o':s)  = [(chr n, t) | (n,t) <- readOct s]
-readEsc ('x':s)  = [(chr n, t) | (n,t) <- readHex s]
-readEsc _        = []
+-- | The 'read' function reads input from a string, which must be
+-- completely consumed by the input process. 'read' fails with an 'error' if the
+-- parse is unsuccessful, and it is therefore discouraged from being used in
+-- real applications. Use 'readMaybe' or 'readEither' for safe alternatives.
+--
+-- >>> read "123" :: Int
+-- 123
+--
+-- >>> read "hello" :: Int
+-- *** Exception: Prelude.read: no parse
+read :: Read a => String -> a
+read s = either errorWithoutStackTrace id (readEither s)

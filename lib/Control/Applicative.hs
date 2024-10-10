@@ -4,6 +4,7 @@ module Control.Applicative(
   liftA, liftA3,
   Alternative(..),
   guard, asum, optional,
+  module Data.Functor.Const_Type,
   ) where
 import Prelude()              -- do not import Prelude
 import Primitives  -- for fixity
@@ -12,6 +13,7 @@ import Data.Functor
 import Data.Function
 import Data.List_Type
 import Data.Maybe_Type
+import Data.Functor.Const_Type
 
 infixl 4 <*>, *>, <*, <**>
 

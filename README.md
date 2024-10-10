@@ -7,6 +7,10 @@ The `boards/` directory contains some samples, e.g., some sample code for an STM
 
 The compiler can compile itself.
 
+## Presentation
+You can find my [presentation from the Haskell Symposium 2024](https://docs.google.com/presentation/d/1WsSiSwypNVTm0oZ3spRYF8gA59wyteOsIkPRjCUAZec/edit?usp=sharing), [video](https://m.youtube.com/watch?v=uMurx1a6Zck&t=36m).
+There is also a short paper in `doc/hs2024.pdf`.
+
 ## Compiling MicroHs
 There are two different ways to compile MicroHs:
 * Using GHC. `Makefile` target `bin/gmhs`
@@ -23,12 +27,12 @@ Note that `mhs` built with ghc does not have all the functionality.
 Also note that there is no need to have a Haskell compiler to run MicroHs.
 All you need is a C compiler, and MicroHs can bootstrap, given the included combinator file.
 
-To install `mhs` use `make installmcabal`.  This will install `mhs` in `~/.mcabal` in the same
+To install `mhs` use `make install`.  This will install `mhs` in `~/.mcabal` in the same
 way as `mcabal` (MicroCabal) would have.  It will install a compiler binary and a compiled base package.
 You will have to add `~/.mcabal/bin` to your `PATH`.
 
-Alternatively, to install `mhs` use `make install`.  By default this copies the files to `/usr/local`,
-but this can be overridden by `make PREFIX=dir install`.
+Alternatively, to install `mhs` use `make oldinstall`.  By default this copies the files to `/usr/local`,
+but this can be overridden by `make PREFIX=dir oldinstall`.
 You also need to set the environment variable `MHSDIR`.
 
 To compile on Windows make sure `cl` is in the path, and then use `nmake` with `Makefile.windows`.
@@ -59,7 +63,9 @@ Differences:
    * ImportQualifiedPost
    * IncoherentInstances
    * KindSignatures
+   * LambdaCase
    * MonoLocalBinds
+   * MultiWayIf
    * MultiParamTypeClasses
    * NamedFieldPuns
    * NegativeLiterals
@@ -85,7 +91,6 @@ Differences:
  * Many things that should be an error (but which are mostly harmless) are not reported.
  * Text file I/O uses UTF8, but the source code does not allow Unicode.
  * The `BangPatterns` extension is parsed, but only effective at the a top level `let`/`where`.
- * Lazy patterns (`~pat`) are ignored.
  * More differences that I don't remember right now.
 
 Mutually recursive modules are allowed the same way as with GHC, using `.hs-boot` files. 

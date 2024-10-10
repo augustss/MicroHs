@@ -9,7 +9,7 @@ import Data.Word
 import Data.Eq
 import Data.Function
 import Data.Ord
-import Numeric(showHex)
+import Numeric.Show(showHex)
 import Text.Show
 
 instance forall a . Eq (Ptr a) where

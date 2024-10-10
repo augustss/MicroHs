@@ -17,8 +17,11 @@ module Data.Typeable (
   typeRepTyCon,
   typeRepArgs,
   ) where
+import Prelude(); import MiniPrelude
 import Primitives
 import Control.Monad.ST
+import Data.Double
+import Data.Integer
 import Data.IORef
 import Data.Proxy
 import Data.Ratio

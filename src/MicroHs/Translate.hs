@@ -3,6 +3,7 @@
 module MicroHs.Translate(
   translate, translateAndRun
   ) where
+import Prelude(); import MHSPrelude
 import Data.Maybe
 import qualified MicroHs.IdentMap as M
 import Unsafe.Coerce
@@ -136,5 +137,24 @@ primTable = [
   ("A.size", primitive "A.size"),
   ("A.read", primitive "A.read"),
   ("A.write", primitive "A.write"),
-  ("A.==", primitive "A.==")
+  ("A.==", primitive "A.=="),
+  ("bs++", primitive "bs++"),
+  ("bs+++", primitive "bs+++"),
+  ("bs==", primitive "bs=="),
+  ("bs/=", primitive "bs/="),
+  ("bs<", primitive "bs<"),
+  ("bs<=", primitive "bs<="),
+  ("bs>", primitive "bs>"),
+  ("bs>=", primitive "bs>="),
+  ("bscmp", primitive "bscmp"),
+  ("bspack", primitive "bspack"),
+  ("bsunpack", primitive "bsunpack"),
+  ("bslength", primitive "bslength"),
+  ("bssubstr", primitive "bssubstr"),
+  ("fromUTF8", primitive "fromUTF8"),
+  ("toUTF8", primitive "toUTF8"),
+  ("fp+", primitive "fp+"),
+  ("fp2p", primitive "fp2p"),
+  ("fpnew", primitive "fpnew"),
+  ("fpfin", primitive "fpfin")
   ]

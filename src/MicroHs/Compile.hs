@@ -10,7 +10,9 @@ module MicroHs.Compile(
   moduleToFile,
   packageDir, packageSuffix, packageTxtSuffix,
   mhsVersion,
+  getMhsDir,
   ) where
+import Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import Data.Maybe
@@ -39,7 +41,7 @@ import MicroHs.SymTab
 import MicroHs.TypeCheck
 import Compat
 import MicroHs.Instances() -- for ghc
-import Paths_MicroHs(version)
+import Paths_MicroHs(version, getDataDir)
 
 mhsVersion :: String
 mhsVersion = showVersion version
@@ -80,7 +82,9 @@ maybeSaveCache flags cash =
   when (writeCache flags) $ do
     when (verbosityGT flags 0) $
       putStrLn $ "Saving cache " ++ show mhsCacheName
-    () <- seq (rnfNoErr cash) (return ())
+    -- This causes all kinds of chaos, probably because there
+    -- will be equality tests of unevaluated thunks.
+    -- () <- seq (rnfNoErr cash) (return ())
     saveCache mhsCacheName cash
 
 compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Symbols, Cache)
@@ -117,8 +121,10 @@ compileModuleCached flags impt mn = do
       case impt of
         ImpBoot -> compileBootModule flags mn
         ImpNormal -> do
-          when (verbosityGT flags 1) $
-            liftIO $ putStrLn $ "importing " ++ showIdent mn
+          when (verbosityGT flags 1) $ do
+            ms <- gets getWorking
+            putStrLnInd $ "[from " ++ head (map showIdent ms ++ ["-"]) ++ "]"
+            putStrLnInd $ "importing " ++ showIdent mn
           mres <- liftIO (readModulePath flags ".hs" mn)
           case mres of
             Nothing -> findPkgModule flags mn
@@ -127,8 +133,13 @@ compileModuleCached flags impt mn = do
               compileModule flags ImpNormal mn pathfn file
     Just tm -> do
       when (verbosityGT flags 1) $
-        liftIO $ putStrLn $ "importing cached " ++ showIdent mn
+        putStrLnInd $ "importing cached " ++ showIdent mn
       return (tm, noSymbols, 0)
+
+putStrLnInd :: String -> StateIO Cache ()
+putStrLnInd msg = do
+  ms <- gets getWorking
+  liftIO $ putStrLn $ map (const ' ') ms ++ msg
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -136,7 +147,7 @@ noSymbols = (stEmpty, stEmpty)
 compileBootModule :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Symbols, Time)
 compileBootModule flags mn = do
   when (verbosityGT flags 0) $
-    liftIO $ putStrLn $ "importing boot " ++ showIdent mn
+    putStrLnInd $ "importing boot " ++ showIdent mn
   mres <- liftIO (readModulePath flags ".hs-boot" mn)
   case mres of
     Nothing -> error $ "boot module not found: " ++ showIdent mn
@@ -152,6 +163,8 @@ compileModule flags impt mn pathfn file = do
       chksum = fromMaybe undefined mchksum
   let pmdl = parseDie pTop pathfn file
       mdl@(EModule mnn _ defs) = addPreludeImport pmdl
+  when (verbosityGT flags 4) $
+    liftIO $ putStrLn $ "parsing: " ++ pathfn
   when (verbosityGT flags 4) $
     liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
   
@@ -178,7 +191,8 @@ compileModule flags impt mn pathfn file = do
 
   let
     cmdl = setBindings [ (i, compileOpt e) | (i, e) <- bindingsOf dmdl ] dmdl
-  () <- return $ rnfErr $ bindingsOf cmdl
+  () <- return $ rnfErr $ bindingsOf cmdl  -- This makes execution slower, but speeds up GC
+--  () <- return $ rnfErr syms same for this, but worse total time
   t5 <- liftIO getTimeMilli
 
   let tParse = t2 - t1
@@ -190,7 +204,7 @@ compileModule flags impt mn pathfn file = do
   when (verbosityGT flags 4) $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   when (verbosityGT flags 0) $
-    liftIO $ putStrLn $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++
+    putStrLnInd $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++
             "ms (" ++ show tParse ++ " + " ++ show tTCDesug ++ " + " ++ show tAbstract ++ ")"
   when (loading flags && mn /= mkIdent "Interactive" && not (verbosityGT flags 0)) $
     liftIO $ putStrLn $ "loaded " ++ showIdent mn
@@ -266,7 +280,7 @@ invertGraph = foldr ins M.empty
 -- Is the module name actually a file name?
 getFileName :: IdentModule -> Maybe String
 getFileName m | ".hs" `isSuffixOf` s = Just s
-             | otherwise = Nothing
+              | otherwise = Nothing
   where s = unIdent m
 
 readModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, String))
@@ -276,10 +290,14 @@ readModulePath flags suf mn | Just fn <- getFileName mn = do
     Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show fn
     Just h -> readRest fn h
 
-                        | otherwise = do
+                            | otherwise = do
   mh <- findModulePath flags suf mn
   case mh of
-    Nothing -> return Nothing
+    Nothing -> do
+      mhc <- findModulePath flags (suf ++ "c") mn  -- look for hsc file
+      case mhc of
+        Nothing -> return Nothing
+        Just (_fn, _h) -> undefined
     Just (fn, h) -> readRest fn h
   where readRest fn h = do
           hasCPP <- hasLangCPP fn
@@ -336,16 +354,18 @@ runCPPTmp flags infile = do
 
 mhsDefines :: [String]
 mhsDefines =
-  [ "'-DMIN_VERSION_base(x,y,z)=(x<=4||y<=14)'" -- Pretend we have base version 4.14
-  , "-D__MHS__"                                 -- We are MHS
+  [ "-D__MHS__"                                 -- We are MHS
   ]
 
 runCPP :: Flags -> FilePath -> FilePath -> IO ()
 runCPP flags infile outfile = do
   mcpphs <- lookupEnv "MHSCPPHS"
+  datadir <- getMhsDir
   let cpphs = fromMaybe "cpphs" mcpphs
-      args = mhsDefines ++ cppArgs flags
-      cmd = cpphs ++ " --noline --strip " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
+      mhsIncludes = ["-I" ++ datadir ++ "/src/runtime"]
+      args = mhsDefines ++ mhsIncludes ++ map quote (cppArgs flags)
+      cmd = cpphs ++ " --strip " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
+      quote s = "'" ++ s ++ "'"
   when (verbosityGT flags 1) $
     putStrLn $ "Run cpphs: " ++ show cmd
   callCommand cmd
@@ -388,7 +408,7 @@ loadPkg flags fn = do
   pkg <- liftIO $ readSerialized fn
   when (pkgCompiler pkg /= mhsVersion) $
     error $ "Package compile version mismatch: package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
-  modify $ addPackage pkg
+  modify $ addPackage fn pkg
 
 -- XXX add function to find&load package from package name
 
@@ -413,3 +433,10 @@ loadDeps flags pid = do
     Just (pfn, hdl) -> do
       liftIO $ hClose hdl
       loadPkg flags pfn
+
+getMhsDir :: IO FilePath
+getMhsDir = do
+  md <- lookupEnv "MHSDIR"
+  case md of
+    Just d -> return d
+    Nothing -> getDataDir

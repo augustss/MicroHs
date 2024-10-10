@@ -4,14 +4,14 @@ module Data.List(
   module Data.List_Type,
   (++), head, last, tail, init, uncons, unsnoc, singleton, null, length,
   map, reverse, intersperse, intercalate, transpose, subsequences, permutations,
-  foldl, foldl', foldl1, foldl1', foldr, foldr1,
+  foldl, foldl', foldl1, foldl1', foldr, foldr', foldr1, foldr1',
   concat, concatMap, and, or, any, all, sum, product, maximum, minimum,
   scanl, scanl', scanl1, scanr, scanr1,
   mapAccumL, mapAccumR,
   iterate, iterate', repeat, replicate, cycle,
   unfoldr,
-  take, drop, splitAt, takeWhile, dropWhile, dropWhileEnd, span, break,
-  stripPrefix, group, inits, tails,
+  take, drop, splitAt, takeWhile, takeWhileEnd, dropWhile, dropWhileEnd, span, spanUntil, break, splitWith,
+  stripPrefix, stripSuffix, group, inits, tails,
   isPrefixOf, isSuffixOf, isInfixOf, isSubsequenceOf,
   elem, notElem, lookup,
   find, filter, partition,
@@ -34,15 +34,14 @@ import Data.Bool
 import Data.Char
 import Data.Eq
 import Data.Function
-import Data.Functor
+import Data.Functor hiding(unzip)
 import Data.Int
 import Data.Integral
 import Data.List_Type
 import Data.Maybe_Type
-import Data.Monoid
+import Data.Monoid.Internal
 import Data.Num
 import Data.Ord
-import Data.Semigroup
 import Data.Tuple
 --import Text.Read
 import Text.Show
@@ -106,13 +105,11 @@ foldr f z =
     rec (x : xs) = f x (rec xs)
   in rec
 
-{-
 foldr' :: forall a b . (a -> b -> b) -> b -> [a] -> b
 foldr' f z [] = z
 foldr' f z (x:xs) =
   let y = foldr f z xs
   in  y `seq` f x y
--}
 
 foldr1 :: forall a . (a -> a -> a) -> [a] -> a
 foldr1 f =
@@ -120,6 +117,16 @@ foldr1 f =
     rec [] = error "foldr1"
     rec [x] = x
     rec (x : xs) = f x (rec xs)
+  in rec
+
+foldr1' :: forall a . (a -> a -> a) -> [a] -> a
+foldr1' f =
+  let
+    rec [] = error "foldr1"
+    rec [x] = x
+    rec (x : xs) =
+          let y = rec xs
+          in  y `seq` f x y
   in rec
 
 foldl :: forall a b . (b -> a -> b) -> b -> [a] -> b
@@ -304,6 +311,12 @@ stripPrefixBy eq (c:cs) [] = Nothing
 stripPrefixBy eq (c:cs) (d:ds) | eq c d = stripPrefixBy eq cs ds
                                | otherwise = Nothing
 
+stripSuffix :: forall a . Eq a => [a] -> [a] -> Maybe [a]
+stripSuffix s t =
+  case stripPrefix (reverse s) (reverse t) of
+    Nothing -> Nothing
+    Just x -> Just (reverse x)
+
 isPrefixOf :: forall a . Eq a => [a] -> [a] -> Bool
 isPrefixOf = isPrefixOfBy (==)
 
@@ -342,6 +355,9 @@ takeWhile p (x:xs) =
   else
     []
 
+takeWhileEnd :: forall a . (a -> Bool) -> [a] -> [a]
+takeWhileEnd p = reverse . takeWhile p . reverse
+
 dropWhile :: forall a . (a -> Bool) -> [a] -> [a]
 dropWhile _ [] = []
 dropWhile p (x:xs) =
@@ -369,6 +385,14 @@ spanUntil p =
     rec r [] = (reverse r, [])
     rec r (x:xs) = if p x then rec (x:r) xs else (reverse (x:r), xs)
   in rec []
+
+splitWith :: forall a . (a -> Bool) -> [a] -> [[a]]
+splitWith p =
+  let
+    rec r s  []                = reverse (reverse s : r)
+    rec r s (x:xs) | p x       = rec (reverse s : r) []      xs
+                   | otherwise = rec              r  (x : s) xs
+  in rec [] []
 
 head :: forall a . [a] -> a
 head [] = error "head"

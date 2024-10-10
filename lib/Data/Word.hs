@@ -19,8 +19,7 @@ import Data.Maybe_Type
 import Data.Num
 import Data.Ord
 import Data.Real
-import Numeric
-import Text.Read
+import Numeric.Show
 import Text.Show
 
 instance Num Word where
@@ -46,8 +45,10 @@ instance Real Word where
 instance Show Word where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Word where
   readsPrec = readIntegral
+-}
 
 --------------------------------
 
@@ -74,6 +75,7 @@ instance Eq Word where
   (/=) = primWordNE
 
 instance Ord Word where
+  compare = primWordCompare
   (<)  = primWordLT
   (<=) = primWordLE
   (>)  = primWordGT
@@ -93,6 +95,10 @@ instance Bits Word where
   bit n = primWordShl 1 n
   zeroBits = 0
 
+
+instance FiniteBits Word where
+  finiteBitSize _ = _wordSize
+
 --------------------------------------------------------------------------------
 ----    Word8
 
@@ -109,7 +115,7 @@ bin8 op (W8 x) (W8 y) = w8 (x `op` y)
 bini8 :: (Word -> Int -> Word) -> (Word8 -> Int -> Word8)
 bini8 op (W8 x) y = w8 (x `op` y)
 
-cmp8 :: (Word -> Word -> Bool) -> (Word8 -> Word8 -> Bool)
+cmp8 :: (Word -> Word -> a) -> (Word8 -> Word8 -> a)
 cmp8 op (W8 x) (W8 y) = x `op` y
 
 una8 :: (Word -> Word) -> (Word8 -> Word8)
@@ -138,8 +144,10 @@ instance Real Word8 where
 instance Show Word8 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Word8 where
   readsPrec = readIntegral
+-}
 
 instance Enum Word8 where
   succ x = x + 1
@@ -162,6 +170,7 @@ instance Eq Word8 where
   (/=) = cmp8 primWordNE
 
 instance Ord Word8 where
+  compare = cmp8 primWordCompare
   (<)  = cmp8 primWordLT
   (<=) = cmp8 primWordLE
   (>)  = cmp8 primWordGT
@@ -179,6 +188,9 @@ instance Bits Word8 where
   bit n = w8 (primWordShl 1 n)
   zeroBits = 0
 
+instance FiniteBits Word8 where
+  finiteBitSize _ = 8
+
 --------------------------------------------------------------------------------
 ----    Word16
 
@@ -195,7 +207,7 @@ bin16 op (W16 x) (W16 y) = w16 (x `op` y)
 bini16 :: (Word -> Int -> Word) -> (Word16 -> Int -> Word16)
 bini16 op (W16 x) y = w16 (x `op` y)
 
-cmp16 :: (Word -> Word -> Bool) -> (Word16 -> Word16 -> Bool)
+cmp16 :: (Word -> Word -> a) -> (Word16 -> Word16 -> a)
 cmp16 op (W16 x) (W16 y) = x `op` y
 
 una16 :: (Word -> Word) -> (Word16 -> Word16)
@@ -224,8 +236,10 @@ instance Real Word16 where
 instance Show Word16 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Word16 where
   readsPrec = readIntegral
+-}
 
 instance Enum Word16 where
   succ x = x + 1
@@ -248,6 +262,7 @@ instance Eq Word16 where
   (/=) = cmp16 primWordNE
 
 instance Ord Word16 where
+  compare = cmp16 primWordCompare
   (<)  = cmp16 primWordLT
   (<=) = cmp16 primWordLE
   (>)  = cmp16 primWordGT
@@ -265,6 +280,9 @@ instance Bits Word16 where
   bit n = w16 (primWordShl 1 n)
   zeroBits = 0
 
+instance FiniteBits Word16 where
+  finiteBitSize _ = 16
+
 --------------------------------------------------------------------------------
 ----    Word32
 
@@ -281,7 +299,7 @@ bin32 op (W32 x) (W32 y) = w32 (x `op` y)
 bini32 :: (Word -> Int -> Word) -> (Word32 -> Int -> Word32)
 bini32 op (W32 x) y = w32 (x `op` y)
 
-cmp32 :: (Word -> Word -> Bool) -> (Word32 -> Word32 -> Bool)
+cmp32 :: (Word -> Word -> a) -> (Word32 -> Word32 -> a)
 cmp32 op (W32 x) (W32 y) = x `op` y
 
 una32 :: (Word -> Word) -> (Word32 -> Word32)
@@ -310,8 +328,10 @@ instance Real Word32 where
 instance Show Word32 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Word32 where
   readsPrec = readIntegral
+-}
 
 instance Enum Word32 where
   succ x = x + 1
@@ -334,6 +354,7 @@ instance Eq Word32 where
   (/=) = cmp32 primWordNE
 
 instance Ord Word32 where
+  compare = cmp32 primWordCompare
   (<)  = cmp32 primWordLT
   (<=) = cmp32 primWordLE
   (>)  = cmp32 primWordGT
@@ -351,6 +372,9 @@ instance Bits Word32 where
   bit n = w32 (primWordShl 1 n)
   zeroBits = 0
 
+instance FiniteBits Word32 where
+  finiteBitSize _ = 32
+
 --------------------------------------------------------------------------------
 ----    Word64
 
@@ -367,7 +391,7 @@ bin64 op (W64 x) (W64 y) = w64 (x `op` y)
 bini64 :: (Word -> Int -> Word) -> (Word64 -> Int -> Word64)
 bini64 op (W64 x) y = w64 (x `op` y)
 
-cmp64 :: (Word -> Word -> Bool) -> (Word64 -> Word64 -> Bool)
+cmp64 :: (Word -> Word -> a) -> (Word64 -> Word64 -> a)
 cmp64 op (W64 x) (W64 y) = x `op` y
 
 una64 :: (Word -> Word) -> (Word64 -> Word64)
@@ -396,8 +420,10 @@ instance Real Word64 where
 instance Show Word64 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
 instance Read Word64 where
   readsPrec = readIntegral
+-}
 
 instance Enum Word64 where
   succ x = x + 1
@@ -420,6 +446,7 @@ instance Eq Word64 where
   (/=) = cmp64 primWordNE
 
 instance Ord Word64 where
+  compare = cmp64 primWordCompare
   (<)  = cmp64 primWordLT
   (<=) = cmp64 primWordLE
   (>)  = cmp64 primWordGT
@@ -436,3 +463,6 @@ instance Bits Word64 where
   bitSize _ = 64
   bit n = w64 (primWordShl 1 n)
   zeroBits = 0
+
+instance FiniteBits Word64 where
+  finiteBitSize _ = 64

@@ -12,9 +12,8 @@ GHC= ghc
 GHCINCS= -ighc -isrc -ipaths
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -Wno-deprecations
 GHCOPTS= -O
-GHCEXTS= -DNOTCABAL -XScopedTypeVariables -XPatternGuards -XTupleSections -XTypeSynonymInstances -XFlexibleInstances -XOverloadedRecordDot -XDisambiguateRecordFields -XOverloadedStrings
-# -XOverloadedRecordUpdate
-GHCPKGS= -package mtl -package pretty -package haskeline -package process -package time -package ghc-prim -package containers -package deepseq -package directory
+GHCEXTS= -DNOTCABAL -XScopedTypeVariables -XTypeSynonymInstances -XMultiParamTypeClasses -XFlexibleInstances -XBangPatterns
+GHCPKGS= -package mtl -package pretty -package haskeline -package process -package time -package ghc-prim -package containers -package deepseq -package directory -package text
 GHCTOOL= # -F -pgmF Tools/convertX.sh
 GHCOUTDIR= ghc-out
 GHCOUT= -outputdir $(GHCOUTDIR)
@@ -140,12 +139,12 @@ cachelib:
 
 #
 clean:
-	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) tmp/* Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal cpphssrc Interactive.hs
+	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal cpphssrc Interactive.hs .mhsi
 	make clean -f Makefile.emscripten
 	cd tests; make clean
 	-cabal clean
 
-install:
+oldinstall:
 	mkdir -p $(PREFIX)/bin
 	cp bin/mhs $(PREFIX)/bin
 	-cp bin/cpphs $(PREFIX)/bin
@@ -190,8 +189,8 @@ emscripten: bin/mhs targets.conf
 
 ######
 
-VERSION=0.9.16.0
-HVERSION=0,9,16,0
+VERSION=0.10.3.0
+HVERSION=0,10,3,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/data/mhs-$(VERSION)/data
@@ -199,26 +198,26 @@ MRUNTIME=$(MDATA)/src/runtime
 MCABALBIN=$(MCABAL)/bin
 MDIST=dist-mcabal
 BASE=base-$(VERSION)
-BASEMODULES=Control.Applicative Control.Arrow Control.DeepSeq Control.Error Control.Exception Control.Monad Control.Monad.Fail Control.Monad.ST Data.Array Data.Bits Data.Bool Data.Bounded Data.Char Data.Complex Data.Constraint Data.Data Data.Double Data.Dynamic Data.Either Data.Enum Data.Eq Data.Float Data.FloatW Data.Floating Data.Foldable Data.Fractional Data.Function Data.Functor Data.Functor.Const Data.Functor.Identity Data.IOArray Data.IORef Data.Int Data.Integer Data.Integral Data.Ix Data.List Data.List.NonEmpty Data.Maybe Data.Monoid Data.Num Data.Ord Data.Proxy Data.Ratio Data.Real Data.RealFloat Data.RealFrac Data.Records Data.STRef Data.Semigroup Data.String Data.Time.Clock Data.Time.Format Data.Traversable Data.Tuple Data.Type.Equality Data.TypeLits Data.Typeable Data.Version Data.Void Data.Word Data.ZipList Debug.Trace Foreign.C.String Foreign.C.Types Foreign.ForeignPtr Foreign.Marshal.Alloc Foreign.Marshal.Array Foreign.Marshal.Utils Foreign.Ptr Foreign.Storable GHC.Stack GHC.Types Numeric Numeric.FormatFloat Numeric.Natural Prelude System.Cmd System.Compress System.Directory System.Environment System.Exit System.IO System.IO.MD5 System.IO.PrintOrRun System.IO.Serialize System.IO.TimeMilli System.IO.Unsafe System.Info System.Process Text.Printf Text.Read Text.Read.Lex Text.Read.Numeric Text.Show TimeCompat Unsafe.Coerce
+BASEMODULES=Control.Applicative Control.Arrow Control.Category Control.DeepSeq Control.Error Control.Exception Control.Monad Control.Monad.Fail Control.Monad.Fix Control.Monad.IO.Class Control.Monad.ST Control.Monad.Zip Data.Array Data.Bifoldable Data.Bifunctor Data.Bitraversable Data.Bits Data.Bool Data.Bounded Data.ByteString Data.Char Data.Complex Data.Constraint Data.Data Data.Double Data.Dynamic Data.Either Data.Enum Data.Eq Data.Fixed Data.Float Data.FloatW Data.Floating Data.Foldable Data.Foldable1 Data.Fractional Data.Function Data.Functor Data.Functor.Classes Data.Functor.Compose Data.Functor.Const Data.Functor.Contravariant Data.Functor.Identity Data.Functor.Product Data.Functor.Sum Data.Hashable Data.IOArray Data.IORef Data.Int Data.Integer Data.Integral Data.Ix Data.Kind Data.List Data.List.NonEmpty Data.Maybe Data.Monoid Data.Num Data.Ord Data.Proxy Data.Ratio Data.Real Data.RealFloat Data.RealFrac Data.Records Data.STRef Data.Semigroup Data.String Data.Text Data.Traversable Data.Tuple Data.Tuple.Instances Data.Type.Equality Data.TypeLits Data.Typeable Data.Version Data.Void Data.Word Data.ZipList Debug.Trace Foreign Foreign.C Foreign.C.Error Foreign.C.String Foreign.C.Types Foreign.ForeignPtr Foreign.Marshal Foreign.Marshal.Alloc Foreign.Marshal.Array Foreign.Marshal.Error Foreign.Marshal.Utils Foreign.Ptr Foreign.Storable GHC.Stack GHC.Types Numeric Numeric.FormatFloat Numeric.Natural Prelude System.Cmd System.Console.GetOpt System.Compress System.Directory System.Environment System.Exit System.IO System.IO.Error System.IO.MD5 System.IO.PrintOrRun System.IO.Serialize System.IO.TimeMilli System.IO.Unsafe System.Info System.Process Text.Printf Text.ParserCombinators.ReadP Text.ParserCombinators.ReadPrec Text.Read Text.Read.Lex Text.Show Unsafe.Coerce
 
 $(MCABALBIN)/mhs: bin/mhs
 	@mkdir -p $(MCABALBIN)
 	@mkdir -p $(MDIST)
-	@echo 'module Paths_MicroHs where {import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
+	@echo 'module Paths_MicroHs where { import Prelude(); import MHSPrelude; import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
 	bin/mhs -z $(MHSINCNP) -i$(MDIST) MicroHs.Main -o$(MCABALBIN)/mhs
 
 $(MCABALBIN)/cpphs: bin/cpphs
 	@mkdir -p $(MCABALBIN)
 	cp bin/cpphs $(MCABALBIN)
 
-$(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs
+$(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	@mkdir -p $(MRUNTIME)
 	cp src/runtime/*.[ch] $(MRUNTIME)
 	bin/mhs -P$(BASE) -o$(BASE).pkg -ilib $(BASEMODULES)
 	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
 	@rm $(BASE).pkg
 
-installmcabal: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
+install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 # mkdir ~/.mcabal/packages/array-0.5.6.0

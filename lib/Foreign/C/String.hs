@@ -1,8 +1,9 @@
 module Foreign.C.String(
-  CChar, CString,
+  CString, CStringLen,
   newCAString, newCAStringLen,
   peekCAString, peekCAStringLen,
   withCAString,
+  peekCString,
   ) where
 import Prelude()              -- do not import Prelude
 import Primitives
@@ -31,3 +32,8 @@ peekCAString = primPeekCAString
 
 peekCAStringLen :: CStringLen -> IO String
 peekCAStringLen (p, i) = primPeekCAStringLen p i
+
+-- Not quite right
+peekCString :: CString -> IO String
+peekCString = primPeekCAString
+

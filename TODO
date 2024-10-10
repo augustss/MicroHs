@@ -32,9 +32,18 @@
 * Better naming of internal identifiers
 * Add mask&co to exceptions
 * Make deriving refer to identifiers that don't need to be in scope
+* Add reductions for underapplied K2,K3,K4
+* Move some Typeable instances from the class file to ST&co (makes it leaner)
+* Make a Unicode version of Data.Char
 
 Bugs:
-* Missing IO in ccall show wrong location
+* Missing IO in ccall shows wrong location
 * Check for escaping skolemized variables
 * Type checking Data.Data
-* Class export with list does nt export $dflt
+* Install a targets.conf?
+* let...in... doesn't parse correctly in a do
+* let needs {} in a do with {}
+* missing import in Text.Read.Internal gmhs: expandDict: Data.Floating.Floating
+* export list in -boot doesn't work
+* Cannot derive Show for 'newtype Alt f a = Alt (f a)'
+* Fundep bug mtl:Control/Monad/RWS/Class.hs

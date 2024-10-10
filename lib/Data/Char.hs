@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 module Data.Char(
   module Data.Char,
-  module Data.Char_Type   -- exports Char and String
+  module Data.Char_Type       -- exports Char and String
   ) where
 import Prelude()              -- do not import Prelude
 import Primitives
@@ -29,6 +29,7 @@ instance Ord Char where
   (>)  = primCharGT
   (>=) = primCharGE
 
+-- Using primitive comparison is still a small speedup, even using mostly bytestrings
 instance Eq String where
   (==) = primStringEQ
 
@@ -38,6 +39,7 @@ instance Ord String where
   x <= y  =  case primStringCompare x y of { GT -> False; _ -> True }
   x >  y  =  case primStringCompare x y of { GT -> True; _ -> False }
   x >= y  =  case primStringCompare x y of { LT -> False; _ -> True }
+
 
 instance Bounded Char where
   minBound = chr 0
@@ -52,8 +54,14 @@ ord = primOrd
 isLower :: Char -> Bool
 isLower c = (primCharLE 'a' c) && (primCharLE c 'z')
 
+isAsciiLower :: Char -> Bool
+isAsciiLower = isLower
+
 isUpper :: Char -> Bool
 isUpper c = (primCharLE 'A' c) && (primCharLE c 'Z')
+
+isAsciiUpper :: Char -> Bool
+isAsciiUpper = isUpper
 
 isAlpha :: Char -> Bool
 isAlpha c = isLower c || isUpper c
@@ -65,7 +73,7 @@ isOctDigit :: Char -> Bool
 isOctDigit c = (primCharLE '0' c) && (primCharLE c '7')
 
 isHexDigit :: Char -> Bool
-isHexDigit c = isDigit c || (primCharLE 'a' c && primCharLE c 'f') || (primCharLE 'F' c && primCharLE c 'F') 
+isHexDigit c = isDigit c || (primCharLE 'a' c && primCharLE c 'f') || (primCharLE 'A' c && primCharLE c 'F') 
 
 isAlphaNum :: Char -> Bool
 isAlphaNum c = isAlpha c || isDigit c
