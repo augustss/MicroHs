@@ -12,7 +12,7 @@ import MicroHs.Expr(IdentModule)
 import MicroHs.Ident(showIdent)
 import qualified MicroHs.IdentMap as M
 import MicroHs.Package
-import MicroHs.TypeCheck(TModule, tModuleName, GlobTables, emptyGlobTables)
+import MicroHs.TypeCheck(TModule, tModuleName, GlobTables, emptyGlobTables, mergeGlobTables)
 import System.IO
 import System.IO.Serialize
 import System.IO.MD5(MD5CheckSum)
@@ -103,7 +103,11 @@ getPkgs :: Cache -> [Package]
 getPkgs = map snd . pkgs
 
 addPackage :: FilePath -> Package -> Cache -> Cache
-addPackage f p c = c{ pkgs = (f, p) : pkgs c, cache = foldr ins (cache c) (pkgExported p ++ pkgOther p) }
+addPackage f p c = c{
+  pkgs = (f, p) : pkgs c,
+  cache = foldr ins (cache c) (pkgExported p ++ pkgOther p),
+  tables = mergeGlobTables (pkgTables p) (tables c)
+  }
   where ins t = M.insert (tModuleName t) (PkgMdl t)
 
 saveCache :: FilePath -> Cache -> IO ()

@@ -161,6 +161,7 @@ mainBuildPkg flags namever amns = do
       pkg = Package { pkgName = mkIdent name, pkgVersion = ver
                     , pkgCompiler = mhsVersion
                     , pkgExported = exported, pkgOther = other
+                    , pkgTables = getCacheTables cash
                     , pkgDepends = pkgDeps }
   --print (map tModuleName $ pkgOther pkg)
   t1 <- getTimeMilli

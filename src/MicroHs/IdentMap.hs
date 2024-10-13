@@ -14,6 +14,7 @@ module MicroHs.IdentMap(
   null,
   size,
   toList, elems, keys,
+  merge,
   mapM,
   ) where
 import Prelude(); import MHSPrelude hiding(lookup, mapM, null)
@@ -187,3 +188,8 @@ doubleR :: forall a . Map a -> Ident -> a -> Map a -> Map a
 doubleR (Node ll _ lk lv (Node lrl _ lrk lrv lrr)) k v r = node (node ll lk lv lrl) lrk lrv (node lrr k v r)
 doubleR (Node ll _ lk lv (One        lrk lrv    )) k v r = node (node ll lk lv Nil) lrk lrv (node Nil k v r)
 doubleR _ _ _ _ = undefined
+
+-- Merge two maps.  There is no guarantee which side "wins"
+merge :: Map a -> Map a -> Map a
+merge m1 m2 | size m1 <= size m2 = foldr (uncurry insert) m2 (toList m1)
+            | otherwise = merge m2 m1

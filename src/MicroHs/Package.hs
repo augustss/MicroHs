@@ -6,7 +6,7 @@ import Prelude(); import MHSPrelude
 import Data.Version
 import MicroHs.Desugar(LDef)
 import MicroHs.Ident(Ident)
-import MicroHs.TypeCheck(TModule)
+import MicroHs.TypeCheck(TModule, GlobTables)
 
 --
 -- Packages are organized as follows:
@@ -31,6 +31,7 @@ data Package = Package {
   pkgCompiler  :: String,                          -- compiler version that created the package
   pkgExported  :: [TModule [LDef]],                -- exported modules
   pkgOther     :: [TModule [LDef]],                -- non-exported modules
+  pkgTables    :: GlobTables,                      -- global tables
   pkgDepends   :: [(IdentPackage, Version)]        -- used packages
   }
   -- deriving (Show)
