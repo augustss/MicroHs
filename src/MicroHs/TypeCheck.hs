@@ -163,8 +163,8 @@ typeCheck globs impt aimps (EModule mn exps defs) =
 --  trace (unlines $ map (showTModuleExps . snd) aimps) $
   let
     imps = map filterImports aimps
-    (fs, ts, ss, cs, is, vs, as) = mkTables globs imps
-  in case tcRun (tcDefs impt defs) (initTC mn fs ts ss cs is vs as) of
+    tc = mkTCState mn globs imps
+  in case tcRun (tcDefs impt defs) tc of
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule impt tds tcs)
@@ -329,9 +329,8 @@ getAssocs vt at ai =
                  _       -> impossible
   in  map (\ qi -> ValueExport (unQualIdent qi) (val qi)) qis
 
-mkTables :: forall a . GlobTables -> [(ImportSpec, TModule a)] ->
-            (FixTable, TypeTable, SynTable, ClassTable, InstTable, ValueTable, AssocTable)
-mkTables globs mdls =
+mkTCState :: IdentModule -> GlobTables -> [(ImportSpec, TModule a)] -> TCState
+mkTCState mdlName globs mdls =
   let
     allValues :: ValueTable
     allValues =
@@ -344,7 +343,7 @@ mkTables globs mdls =
           let m = fromMaybe mn mas in
           [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent    m i } ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdentD e m i } ] ++
-          [ (v, [Entry (EVar v) t]) | (i, ClassInfo _ _ t _ _) <- M.toList allClasses, let { v = mkClassConstructor i } ]
+          [ (v, [Entry (EVar v) t]) | (i, ClassInfo _ _ t _ _) <- M.toList (gClassTable globs), let { v = mkClassConstructor i } ]
         -- Default methods are always entered with their qualified original name.
         qualIdentD (Entry e _) m i | not (isDefaultMethodId i) = qualIdent m i
                                    | otherwise = 
@@ -372,13 +371,20 @@ mkTables globs mdls =
             m = fromMaybe mn mas
           in  [ (qualIdent m i, [qualIdent m a | ValueExport a _ <- cs]) | TypeExport i _ cs <- tes ]
       in  M.fromList $ concatMap assocs mdls
-    allSyns :: SynTable
-    allSyns = gSynTable globs
-    allClasses :: ClassTable
-    allClasses = gClassTable globs
-    allInsts :: InstTable
-    allInsts = gInstInfo globs
-  in  (allFixes, allTypes, allSyns, allClasses, allInsts, allValues, allAssocs)
+  in TC { moduleName = mdlName,
+          unique = 1,
+          fixTable = addPrimFixs allFixes,
+          typeTable = foldr (uncurry stInsertGlbU) allTypes primTypes,
+          synTable = gSynTable globs,
+          valueTable = foldr (uncurry stInsertGlbU) allValues primValues,
+          assocTable = allAssocs,
+          uvarSubst = IM.empty,
+          tcMode = TCExpr,
+          classTable = gClassTable globs,
+          ctxTables = (gInstInfo globs, [], [], []),
+          constraints = [],
+          defaults = stdDefaults
+        }
 
 mergeInstInfo :: InstInfo -> InstInfo -> InstInfo
 mergeInstInfo (InstInfo m1 l1 fds) (InstInfo m2 l2 _) =
@@ -511,17 +517,6 @@ addArgDict :: HasCallStack => Ident -> EConstraint -> T ()
 addArgDict i c = do
   ads <- gets argDicts
   putArgDicts ((i,c) : ads)
-
-initTC :: IdentModule -> FixTable -> TypeTable -> SynTable -> ClassTable -> InstTable -> ValueTable -> AssocTable -> TCState
-initTC mn fs ts ss cs is vs as =
---  trace ("**** initTC " ++ showIdent mn ++ ": " ++ showListS (showPairS showIdent showEType) (M.toList ss)) $
-  let
-    xts = foldr (uncurry stInsertGlbU) ts primTypes
-    xvs = foldr (uncurry stInsertGlbU) vs primValues
-  in TC { moduleName = mn, unique = 1, fixTable = addPrimFixs fs, typeTable = xts,
-          synTable = ss, valueTable = xvs, assocTable = as, uvarSubst = IM.empty,
-          tcMode = TCExpr, classTable = cs, ctxTables = (is,[],[],[]), constraints = [],
-          defaults = stdDefaults }
 
 stdDefaults :: [EType]
 stdDefaults = [EVar identInteger, EVar identFloatW, EApp (EVar identList) (EVar identChar)]
