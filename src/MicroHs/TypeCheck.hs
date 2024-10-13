@@ -4,11 +4,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 module MicroHs.TypeCheck(
   typeCheck,
-  TModule(..), showTModule, tModuleName,
+  TModule(..), showTModule,
+  GlobTables, emptyGlobTables,
   impossible, impossibleShow,
   mkClassConstructor,
   mkSuperSel,
-  bindingsOf,
   setBindings,
   boolPrefix,
   listPrefix,
@@ -113,27 +113,30 @@ nameKnownSymbol = "Data.TypeLits.KnownSymbol"
 
 ----------------------
 
+-- Certain data structures persist during the entire compilation
+-- session.  The information is needed beyond the scope where it was defined.
+data GlobTables = GlobTables {
+  gSynTable   :: SynTable,        -- type synonyms are needed for expansion
+  gClassTable :: ClassTable,      -- classes are neede for superclass expansion
+  gInstInfo   :: InstTable        -- instances are implicitely global
+  }
+
+emptyGlobTables :: GlobTables
+emptyGlobTables = GlobTables { gSynTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty }
+
 type Symbols = (SymTab, SymTab)
 
-data TModule a = TModule
-  IdentModule     -- module names
-  [FixDef]        -- all fixities, exported or not
-  [TypeExport]    -- exported types
-  [SynDef]        -- all type synonyms, exported or not
-  [ClsDef]        -- all classes
-  [InstDef]       -- all instances
-  [ValueExport]   -- exported values (including from T(..))
-  a               -- bindings
+data TModule a = TModule {
+  tModuleName :: IdentModule,     -- module names
+  tFixDefs    :: [FixDef],        -- all fixities, exported or not
+  tTypeExps   :: [TypeExport],    -- exported types
+  tValueExps  :: [ValueExport],   -- exported values (including from T(..))
+  tBindingsOf  :: a               -- bindings
+  }
 --  deriving (Show)
 
-tModuleName :: forall a . TModule a -> IdentModule
-tModuleName (TModule a _ _ _ _ _ _ _) = a
-
-bindingsOf :: forall a . TModule a -> a
-bindingsOf (TModule _ _ _ _ _ _ _ a) = a
-
-setBindings :: forall a . a -> TModule a -> TModule a
-setBindings a (TModule x1 x2 x3 x4 x5 x6 x7 _) = TModule x1 x2 x3 x4 x5 x6 x7 a
+setBindings :: TModule b -> a -> TModule a
+setBindings (TModule x y z w _) a = TModule x y z w a
 
 data TypeExport = TypeExport
   Ident           -- unqualified name
@@ -151,42 +154,40 @@ data ValueExport = ValueExport
 --instance Show ValueExport where show (ValueExport i _) = showIdent i
 
 type FixDef = (Ident, Fixity)
-type SynDef = (Ident, EType)
-type ClsDef = (Ident, ClassInfo)
-type InstDef= (Ident, InstInfo)
 
 type Sigma = EType
---type Tau   = EType
 type Rho   = EType
 
-typeCheck :: forall a . ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], Symbols)
-typeCheck impt aimps (EModule mn exps defs) =
+typeCheck :: forall a . GlobTables -> ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], GlobTables, Symbols)
+typeCheck globs impt aimps (EModule mn exps defs) =
 --  trace (unlines $ map (showTModuleExps . snd) aimps) $
   let
     imps = map filterImports aimps
-    (fs, ts, ss, cs, is, vs, as) = mkTables imps
+    (fs, ts, ss, cs, is, vs, as) = mkTables globs imps
   in case tcRun (tcDefs impt defs) (initTC mn fs ts ss cs is vs as) of
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule impt tds tcs)
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ _ m mm _, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
-           (texps, cexps, vexps) =
-             unzip3 $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs) (classTable tcs)) exps
-           fexps = [ fe | TModule _ fe _ _ _ _ _ _ <- M.elems impMap ]
-           sexps = M.toList (synTable tcs)
-           iexps = M.toList (instTable tcs)
-         in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) sexps (concat cexps) iexps (concat vexps) tds
+           (texps, vexps) =
+             unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
+           fexps = map tFixDefs (M.elems impMap)
+           sexps = synTable tcs
+           iexps = instTable tcs
+           ctbl  = classTable tcs
+         in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) {- sexps (concat cexps) iexps-} (concat vexps) tds
+             , GlobTables { gSynTable = sexps, gClassTable = ctbl, gInstInfo = iexps }
              , (typeTable tcs, valueTable tcs)
              )
 
 -- A hack to force evaluation of errors.
 -- This should be redone to all happen in the T monad.
-tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [SynDef] -> [ClsDef] -> [InstDef] -> [ValueExport] -> [EDef] ->
+tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [ValueExport] -> [EDef] ->
            TModule [EDef]
-tModule mn fs ts ss cs is vs ds =
+tModule mn fs ts vs ds =
 --  trace ("tmodule " ++ showIdent mn ++ ":\n" ++ show vs) $
-  tseq ts `seq` vseq vs `seq` TModule mn fs ts ss cs is vs ds
+  tseq ts `seq` vseq vs `seq` TModule mn fs ts vs ds
   where
     tseq [] = ()
     tseq (TypeExport _ e _:xs) = e `seq` tseq xs
@@ -195,7 +196,7 @@ tModule mn fs ts ss cs is vs ds =
 
 filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
 filterImports it@(ImportSpec _ _ _ _ Nothing, _) = it
-filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts ss cs ins vs a) =
+filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs a) =
   let
     keep x xs = elem x xs /= hide
     ivs  = [ i | ImpValue i <- is ]
@@ -225,7 +226,7 @@ filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts ss c
        checkBad msg (ivs \\ allVs) .
        checkBad msg (its \\ allTs))
     --trace (show (ts, vs)) $
-    (imp, TModule mn fx ts' ss cs ins vs' a)
+    (imp, TModule mn fx ts' vs' a)
 
 checkBad :: forall a . String -> [Ident] -> a -> a
 checkBad _ [] a = a
@@ -233,29 +234,26 @@ checkBad msg (i:_) _ =
   errorMessage (getSLoc i) $ msg ++ ": " ++ showIdent i
 
 -- Type and value exports
-getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ClassTable -> ExportItem ->
-             ([TypeExport], [ClsDef], [ValueExport])
-getTVExps impMap _ _ _ _ (ExpModule m) =
+getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ExportItem ->
+             ([TypeExport], [ValueExport])
+getTVExps impMap _ _ _ (ExpModule m) =
   case M.lookup m impMap of
-    Just (TModule _ _ te _ ce _ ve _) -> (te, ce, ve)
+    Just (TModule _ _ te ve _) -> (te, ve)
     _ -> errorMessage (getSLoc m) $ "undefined module: " ++ showIdent m
-getTVExps _ tys vals ast cls (ExpTypeSome i is) = getTypeExp tys vals ast cls i (`elem` is)
-getTVExps _ tys vals ast cls (ExpTypeAll  i   ) = getTypeExp tys vals ast cls i (const True)
-getTVExps _ _ vals _ _ (ExpValue i) =
-    ([], [], [ValueExport i (expLookup i vals)])
+getTVExps _ tys vals ast (ExpTypeSome i is) = getTypeExp tys vals ast i (`elem` is)
+getTVExps _ tys vals ast (ExpTypeAll  i   ) = getTypeExp tys vals ast i (const True)
+getTVExps _ _ vals _ (ExpValue i) =
+    ([], [ValueExport i (expLookup i vals)])
 
 -- Export a type, filter exported values by p.
-getTypeExp :: TypeTable -> ValueTable -> AssocTable -> ClassTable -> Ident -> (Ident -> Bool) ->
-              ([TypeExport], [ClsDef], [ValueExport])
-getTypeExp tys vals ast cls ti p =
+getTypeExp :: TypeTable -> ValueTable -> AssocTable -> Ident -> (Ident -> Bool) ->
+              ([TypeExport], [ValueExport])
+getTypeExp tys vals ast ti p =
   let
     e = expLookup ti tys
     qi = tyQIdent e
     ves = filter (\ (ValueExport i _) -> p i) $ getAssocs vals ast qi
-    cl = case M.lookup qi cls of
-           Just ci -> [(qi, ci)]
-           Nothing -> []
-  in ([TypeExport ti e ves], cl, [])
+  in ([TypeExport ti e ves], [])
 
 expLookup :: Ident -> SymTab -> Entry
 expLookup i m = either (errorMessage (getSLoc i)) id $ stLookup "export" i m
@@ -280,8 +278,8 @@ mkTModule impt tds tcs =
     tt = typeTable  tcs
     at = assocTable tcs
     vt = valueTable tcs
-    ct = classTable tcs
-    it = instTable  tcs
+--    ct = classTable tcs
+--    it = instTable  tcs
 
     -- Find the Entry for a type.
     tentry i =
@@ -305,19 +303,22 @@ mkTModule impt tds tcs =
       [ TypeExport i (tentry i) (assoc i) | Class _ (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) []        | Type    (i, _) _   <- tds ]
 
+{-
     -- All type synonym definitions.
     ses = [ (qualIdent mn i, EForall True vs t) | Type (i, vs) t  <- tds ]
-
+-}
     -- All fixity declaration.
     fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
 
+{-
     -- All classes
     -- XXX only export the locally defined classes
     ces = M.toList ct
 
     -- All instances
     ies = M.toList it
-  in  TModule mn fes tes ses ces ies ves impossible
+-}
+  in  TModule mn fes tes ves impossible
 
 -- Find all value Entry for names associated with a type.
 getAssocs :: (HasCallStack) => ValueTable -> AssocTable -> Ident -> [ValueExport]
@@ -328,22 +329,22 @@ getAssocs vt at ai =
                  _       -> impossible
   in  map (\ qi -> ValueExport (unQualIdent qi) (val qi)) qis
 
-mkTables :: forall a . [(ImportSpec, TModule a)] ->
+mkTables :: forall a . GlobTables -> [(ImportSpec, TModule a)] ->
             (FixTable, TypeTable, SynTable, ClassTable, InstTable, ValueTable, AssocTable)
-mkTables mdls =
+mkTables globs mdls =
   let
     allValues :: ValueTable
     allValues =
       let
-        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _ ves _) =
+        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes ves _) =
           if qual then [] else
           [ (i, [e]) | ValueExport i e    <- ves, not (isInstId i)  ] ++
           [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, not (isDefaultMethodId i) ]
-        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ cls _ ves _) =
+        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes {-_ cls _-} ves _) =
           let m = fromMaybe mn mas in
           [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent    m i } ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdentD e m i } ] ++
-          [ (v, [Entry (EVar v) t]) | (i, (_, _, t, _, _)) <- cls, let { v = mkClassConstructor i } ]
+          [ (v, [Entry (EVar v) t]) | (i, ClassInfo _ _ t _ _) <- M.toList allClasses, let { v = mkClassConstructor i } ]
         -- Default methods are always entered with their qualified original name.
         qualIdentD (Entry e _) m i | not (isDefaultMethodId i) = qualIdent m i
                                    | otherwise = 
@@ -351,42 +352,32 @@ mkTables mdls =
                                        EVar qi -> qi
                                        _ -> undefined
       in  stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
-    allSyns =
-      let
-        syns (_, TModule _ _ _ ses _ _ _ _) = ses
-      in  M.fromList (concatMap syns mdls)
     allTypes :: TypeTable
     allTypes =
       let
-        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _ _ _) =
+        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _) =
           if qual then [] else [ (i, [e]) | TypeExport i e _ <- tes ]
-        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _ _ _) =
+        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _) =
           let m = fromMaybe mn mas in
           [ (qualIdent m i, [e]) | TypeExport i e _ <- tes ]
       in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
-    allFixes =
-      let
-        fixes (_, TModule _ fes _ _ _ _ _ _) = fes
-      in M.fromList (concatMap fixes mdls)
+
+    allFixes :: FixTable
+    allFixes = M.fromList (concatMap (tFixDefs . snd) mdls)
     allAssocs :: AssocTable
     allAssocs =
       let
-        assocs (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _ _ _) =
+        assocs (ImportSpec _ _ _ mas _, TModule mn _ tes _ _) =
           let
             m = fromMaybe mn mas
           in  [ (qualIdent m i, [qualIdent m a | ValueExport a _ <- cs]) | TypeExport i _ cs <- tes ]
       in  M.fromList $ concatMap assocs mdls
+    allSyns :: SynTable
+    allSyns = gSynTable globs
     allClasses :: ClassTable
-    allClasses =
-      let
-        clss (_, TModule _ _ _ _ ces _ _ _) = ces
-      in  --(\ m -> trace ("allClasses: " ++ showListS showIdentClassInfo (M.toList m)) m) $
-          M.fromList $ concatMap clss mdls
+    allClasses = gClassTable globs
     allInsts :: InstTable
-    allInsts =
-      let
-        insts (_, TModule _ _ _ _ _ ies _ _) = ies
-      in  M.fromListWith mergeInstInfo $ concatMap insts mdls
+    allInsts = gInstInfo globs
   in  (allFixes, allTypes, allSyns, allClasses, allInsts, allValues, allAssocs)
 
 mergeInstInfo :: InstInfo -> InstInfo -> InstInfo
@@ -1199,7 +1190,9 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
       dDflts = case impt of
                  ImpNormal -> concatMap mkDflt meths
                  ImpBoot   -> []
-  addClassTable (qualIdent mn iCls) (vks, ctx, EUVar 0, methIds, mkIFunDeps (map idKindIdent vks) fds)   -- Initial entry, no type needed.
+  -- Add to the class table.  XXX also in addValueClass???
+  addClassTable (qualIdent mn iCls)
+                (ClassInfo vks ctx (EUVar 0) methIds (mkIFunDeps (map idKindIdent vks) fds))   -- Initial entry, no type needed.
   return $ dcls : dDflts
 expandClass _ d = return [d]
 
@@ -1244,7 +1237,7 @@ expandInst dinst@(Instance act bs) = do
 --  (e, _) <- tLookupV iCls
   ct <- gets classTable
 --  let qiCls = getAppCon e
-  (_, supers, _, mis, fds) <-
+  (ClassInfo _ supers _ mis fds) <-
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> return x
@@ -1384,7 +1377,7 @@ addValueClass ctx iCls vks fds ms = do
 --  tcTrace ("addValueClass " ++ showEType (ETuple ctx))
   mapM_ addMethod meths
   -- Update class table, now with actual constructor type.
-  addClassTable qiCls (vks, ctx, iConTy, methIds, mkIFunDeps (map idKindIdent vks) fds)
+  addClassTable qiCls (ClassInfo vks ctx iConTy methIds (mkIFunDeps (map idKindIdent vks) fds))
 
 mkClassConstructor :: Ident -> Ident
 mkClassConstructor i = addIdentSuffix i "$C"
@@ -2302,9 +2295,7 @@ tBool :: SLoc -> EType
 tBool loc = tConI loc $ boolPrefix ++ "Bool"
 
 showTModule :: forall a . (a -> String) -> TModule a -> String
-showTModule sh amdl =
-  case amdl of
-    TModule mn _ _ _ _ _ _ a -> "Tmodule " ++ showIdent mn ++ "\n" ++ sh a ++ "\n"
+showTModule sh amdl = "Tmodule " ++ showIdent (tModuleName amdl) ++ "\n" ++ sh (tBindingsOf amdl) ++ "\n"
 
 -----------------------------------------------------
 
@@ -2481,7 +2472,7 @@ expandDict' avks actx edict acc = do
             -- XXX it seems we can get here, e.g., Control.Monad.Fail without Applicative import
             error ("expandDict: " ++ show iCls)
           return [(edict, vks, ctx, cc, [])]
-        Just (iks, sups, _, _, fds) -> do
+        Just (ClassInfo iks sups _ _ fds) -> do
           let 
             vs = map idKindIdent iks
             sub = zip vs args
@@ -2567,7 +2558,7 @@ getSuperClasses i = do
   ct <- gets classTable
   case M.lookup i ct of
     Nothing -> return Nothing
-    Just (_, supers, _, _, _) -> return $ Just $ map (fst . getApp) supers
+    Just (ClassInfo _ supers _ _ _) -> return $ Just $ map (fst . getApp) supers
 
 checkDefaultTypes :: EType -> Constraints -> T Bool
 checkDefaultTypes ty cs = do

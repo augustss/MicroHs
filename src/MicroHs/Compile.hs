@@ -106,7 +106,7 @@ compile flags nm ach = do
   ((cm, syms, t), ch) <- runStateIO comp ach
   when (verbosityGT flags 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (show t) ++ "ms"
-  return ((tModuleName cm, concatMap bindingsOf $ cachedModules ch), syms, ch)
+  return ((tModuleName cm, concatMap tBindingsOf $ cachedModules ch), syms, ch)
 
 -- Compile a module with the given name.
 -- If the module has already been compiled, return the cached result.
@@ -179,18 +179,20 @@ compileModule flags impt mn pathfn file = do
   (impMdls, _, tImps) <- fmap unzip3 $ mapM (uncurry $ compileModuleCached flags) imported
 
   t3 <- liftIO getTimeMilli
+  glob <- gets getCacheTables
   let
-    (tmdl, syms) = typeCheck impt (zip specs impMdls) mdl
+    (tmdl, glob', syms) = typeCheck glob impt (zip specs impMdls) mdl
+  modify $ setCacheTables glob'
   when (verbosityGT flags 3) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   let
     dmdl = desugar flags tmdl
-  () <- return $ rnfErr $ bindingsOf dmdl
+  () <- return $ rnfErr $ tBindingsOf dmdl
   t4 <- liftIO getTimeMilli
 
   let
-    cmdl = setBindings [ (i, compileOpt e) | (i, e) <- bindingsOf dmdl ] dmdl
-  () <- return $ rnfErr $ bindingsOf cmdl  -- This makes execution slower, but speeds up GC
+    cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- tBindingsOf dmdl ]
+  () <- return $ rnfErr $ tBindingsOf cmdl  -- This makes execution slower, but speeds up GC
 --  () <- return $ rnfErr syms same for this, but worse total time
   t5 <- liftIO getTimeMilli
 

@@ -3,6 +3,7 @@ module MicroHs.CompileCache(
   Cache, addWorking, getWorking, emptyCache, deleteFromCache, workToDone, addBoot, getBoots,
   cachedModules, lookupCache, lookupCacheChksum, getImportDeps,
   addPackage, getCompMdls, getPathPkgs, getPkgs,
+  getCacheTables, setCacheTables,
   saveCache, loadCached,
   ) where
 import Prelude(); import MHSPrelude
@@ -11,7 +12,7 @@ import MicroHs.Expr(IdentModule)
 import MicroHs.Ident(showIdent)
 import qualified MicroHs.IdentMap as M
 import MicroHs.Package
-import MicroHs.TypeCheck(TModule, tModuleName)
+import MicroHs.TypeCheck(TModule, tModuleName, GlobTables, emptyGlobTables)
 import System.IO
 import System.IO.Serialize
 import System.IO.MD5(MD5CheckSum)
@@ -40,12 +41,20 @@ data Cache = Cache {
   working :: [IdentModule],             -- modules currently being processed (used to detected circular imports)
   boots   :: [IdentModule],             -- modules where only the boot version has been compiled
   cache   :: M.Map CacheEntry,          -- cached compiled modules
-  pkgs    :: [(FilePath, Package)]      -- loaded packages
+  pkgs    :: [(FilePath, Package)],     -- loaded packages
+  tables  :: GlobTables
   }
 --  deriving (Show)
 
+getCacheTables :: Cache -> GlobTables
+getCacheTables = tables
+
+setCacheTables :: GlobTables -> Cache -> Cache
+setCacheTables ct c = c{ tables = ct }
+
 emptyCache :: Cache
-emptyCache = Cache { working = [], boots = [], cache = M.empty, pkgs = [] }
+emptyCache =
+  Cache { working = [], boots = [], cache = M.empty, pkgs = [], tables = emptyGlobTables }
 
 deleteFromCache :: IdentModule -> Cache -> Cache
 deleteFromCache mn c = c{ cache = M.delete mn (cache c) }
