@@ -43,7 +43,6 @@ Bugs:
 * Install a targets.conf?
 * let...in... doesn't parse correctly in a do
 * let needs {} in a do with {}
-* missing import in Text.Read.Internal gmhs: expandDict: Data.Floating.Floating
 * export list in -boot doesn't work
 * Cannot derive Show for 'newtype Alt f a = Alt (f a)'
 * Fundep bug mtl:Control/Monad/RWS/Class.hs

@@ -29,10 +29,8 @@ import MicroHs.TypeCheck
 type LDef = (Ident, Exp)
 
 desugar :: Flags -> TModule [EDef] -> TModule [LDef]
-desugar flags atm =
-  case atm of
-    TModule mn fxs tys syns clss insts vals ds ->
-      TModule mn fxs tys syns clss insts vals $ map lazier $ checkDup $ concatMap (dsDef flags mn) ds
+desugar flags tm =
+  setBindings tm (map lazier $ checkDup $ concatMap (dsDef flags (tModuleName tm)) (tBindingsOf tm))
 
 dsDef :: Flags -> IdentModule -> EDef -> [LDef]
 dsDef flags mn adef =

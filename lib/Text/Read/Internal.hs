@@ -54,7 +54,6 @@ import Data.Double
 import Data.Either
 import Data.Eq
 import Data.Float
-import Data.Floating
 import Data.Fractional
 import Data.Function
 import Data.Maybe

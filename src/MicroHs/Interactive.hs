@@ -271,15 +271,11 @@ getCModule cash =
 
 getTypeInCache :: Cache -> Ident -> EType
 getTypeInCache cash i =
-  case getCModule cash of
-    TModule _ _ _ _ _ _ vals _ ->
-      head $ [ t | ValueExport i' (Entry _ t) <- vals, i == i' ] ++ [undefined]
+  head $ [ t | ValueExport i' (Entry _ t) <- tValueExps (getCModule cash), i == i' ] ++ [undefined]
 
 getKindInCache :: Cache -> Ident -> EType
 getKindInCache cash i =
-  case getCModule cash of
-    TModule _ _ tys _ _ _ _ _ ->
-      head $ [ k | TypeExport i' (Entry _ k) _ <- tys, i == i' ] ++ [undefined]
+  head $ [ k | TypeExport i' (Entry _ k) _ <- tTypeExps (getCModule cash), i == i' ] ++ [undefined]
 
 -- This could be smarter:
 --  ":a"        should complete with commands
