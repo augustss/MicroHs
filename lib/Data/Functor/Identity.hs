@@ -11,7 +11,7 @@ import Data.Function
 import Data.Functor
 import Data.Int
 import Data.Ord
-import Data.Records
+import Data.Records   -- needed since we don't import Mhs.Builtin
 import Text.Show
 
 newtype Identity a = Identity { runIdentity :: a }

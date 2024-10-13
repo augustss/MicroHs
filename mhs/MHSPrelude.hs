@@ -62,7 +62,7 @@ import Data.Num(Num(..), subtract)
 import Data.Ord(Ord(..), Ordering(..))
 import Data.Ratio(Rational)
 import Data.Real(Real(..), realToFrac)
-import Data.Records  -- XXX redo this somehow
+import Data.Records  -- needed for data types with fields
 import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(()(..), fst, snd, curry, uncurry)
 import Data.Word(Word)

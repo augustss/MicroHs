@@ -1768,7 +1768,7 @@ failureFreeAp _ _ = return False  -- bad pattern, just ignore
 eSetFields :: EField -> Expr -> Expr
 eSetFields (EField is e) r =
   let loc = getSLoc is
-      eCompose = EVar $ mkIdentSLoc loc "composeSet"
+      eCompose = EVar $ mkBuiltin loc "composeSet"
       has = map eHasField $ init is
       set1 = eSetField (last is)
       set = foldr (EApp . EApp eCompose) set1 has
@@ -1777,19 +1777,19 @@ eSetFields _ _ = impossible
 
 eHasField :: Ident -> Expr
 eHasField i = EApp (EVar ihas) (eProxy i)
-  where ihas = mkIdentSLoc (getSLoc i) "hasField"
+  where ihas = mkBuiltin (getSLoc i) "hasField"
 
 eSetField :: Ident -> Expr
 eSetField i = EApp (EVar iset) (eProxy i)
-  where iset = mkIdentSLoc (getSLoc i) "setField"
+  where iset = mkBuiltin (getSLoc i) "setField"
 
 eGetField :: Ident -> Expr
 eGetField i = EApp (EVar iget) (eProxy i)
-  where iget = mkIdentSLoc (getSLoc i) "getField"
+  where iget = mkBuiltin (getSLoc i) "getField"
 
 eProxy :: Ident -> Expr
 eProxy i = ESign proxy (EApp proxy (ELit loc (LStr (unIdent i))))
-  where proxy = EVar $ mkIdentSLoc loc "Proxy"
+  where proxy = EVar $ mkBuiltin loc "Proxy"
         loc = getSLoc i
 
 dsEField :: Expr -> EField -> T [EField]
@@ -2083,7 +2083,7 @@ tInferPat = tInfer tcPat
 tcPat :: Expected -> EPat -> T EPatRet
 tcPat mt ae =
   let loc = getSLoc ae
-      lit = tcPat mt (EViewPat (EApp (EVar (mkIdentSLoc loc "==")) ae) (EVar (mkIdentSLoc loc "True")))
+      lit = tcPat mt (EViewPat (EApp (EVar (mkBuiltin loc "==")) ae) (EVar (mkBuiltin loc "True")))
       isNeg (EVar i) = i == mkIdent "negate"
       isNeg _ = False
   in

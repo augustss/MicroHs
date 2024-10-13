@@ -79,7 +79,7 @@ import Data.Function
 import Data.Int
 import Data.List
 import Data.Maybe
-import Data.Records
+import Data.Records   -- needed since we don't import Mhs.Builtin
 import Data.String
 import Data.Typeable
 import System.IO
