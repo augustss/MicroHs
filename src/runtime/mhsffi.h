@@ -1,5 +1,6 @@
 #include <inttypes.h>
 #include <stdlib.h>
+#include <time.h>
 
 #if INTPTR_MAX == 0x7fff
 #define WORD_SIZE 16
@@ -48,7 +49,7 @@ void mhs_from_CULong(intptr_t, int, unsigned long);
 void mhs_from_CLLong(intptr_t, int, long long);
 void mhs_from_CULLong(intptr_t, int, unsigned long long);
 void mhs_from_CSize(intptr_t, int, size_t);
-// void mhs_from_CTime(intptr_t, int, long); /* XXX wrong */
+void mhs_from_CTime(intptr_t, int, time_t); /* XXX wrong */
 // not on MacOS void mhs_from_CSSize(intptr_t, int, ssize_t);
 void mhs_from_CIntPtr(intptr_t, int, intptr_t);
 void mhs_from_CUIntPtr(intptr_t, int, uintptr_t);
@@ -72,7 +73,7 @@ unsigned long      mhs_to_CULong(intptr_t, int);
 long long          mhs_to_CLLong(intptr_t, int);
 unsigned long long mhs_to_CULLong(intptr_t, int);
 size_t             mhs_to_CSize(intptr_t, int);
-// long               mhs_to_CTime(intptr_t, int); /* XXX wrong */
+time_t             mhs_to_CTime(intptr_t, int); /* XXX wrong */
 // ssize_t            mhs_to_CSSize(intptr_t, int);
 intptr_t           mhs_to_CIntPtr(intptr_t, int);
 uintptr_t          mhs_to_CUIntPtr(intptr_t, int);

@@ -28,8 +28,8 @@ import MicroHs.Expr(Lit(..))
 -- O  x y z w = w x y                 A
 -- K2 x y z   = x                     *
 -- K3 x y z w = x                     *
--- K4 x y z w v = x                     *
--- C'B x y z w = x z (y w)
+-- K4 x y z w v = x                   *
+-- C'B x y z w = x z (y w)            A
 --
 
 data MaybeApp = NotApp | IsApp Exp Exp
