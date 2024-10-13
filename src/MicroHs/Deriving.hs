@@ -148,19 +148,26 @@ nameDataListType = "Data.List_Type"
 
 --------------------------------------------
 
-getConstrTyVars :: Constr -> [Ident]
-getConstrTyVars (Constr evs ctx _ flds) =
-  let vs = freeTyVars $ ctx ++ either (map snd) (map (snd . snd)) flds
-  in  vs \\ map idKindIdent evs
+getConstrTys :: Constr -> [EType]
+getConstrTys (Constr evs ctx cn flds)
+  | not (null evs) || not (null ctx) = errorMessage (getSLoc cn) ("Cannot derive for " ++ showIdent cn)
+  | otherwise =
+    either (map snd) (map (snd . snd)) flds
+
+hasTyVar :: EType -> Bool
+hasTyVar = not . null . freeTyVars . (:[])
 
 mkHdr :: LHS -> [Constr] -> EConstraint -> T EConstraint
 mkHdr (t, iks) cs cls = do
   mn <- gets moduleName
-  let used = foldr (union . getConstrTyVars) [] cs  -- Used type variables
-      iks' = filter ((`elem` used) . idKindIdent) iks
-      vs = map tVarK iks'
+  let -- Compute used type expressions that will need a context
+      usedTys = filter hasTyVar $ nubBy eqEType $ concatMap getConstrTys cs
+--      usedTyvars = foldr union [] $ map (freeTyVars . (:[])) usedTys
+--      iks' = filter ((`elem` usedTyvars) . idKindIdent) iks
       ty = tApps (qualIdent mn t) $ map tVarK iks
-  pure $ eForall iks $ addConstraints (map (tApp cls) vs) $ tApp cls ty
+      hdr = eForall iks $ addConstraints (map (tApp cls) usedTys) $ tApp cls ty
+  traceM $ "mkHdr " ++ showExpr hdr
+  pure hdr
 
 mkPat :: Constr -> String -> (EPat, [Expr])
 mkPat (Constr _ _ c flds) s =
