@@ -5,8 +5,10 @@ module Data.STRef(
 import Prelude(); import MiniPrelude
 import Control.Monad.ST_Type
 import Data.IORef
+import {-# SOURCE #-} Data.Typeable
 
 newtype STRef s a = R (IORef a)
+  deriving (Typeable)
 
 newSTRef :: forall s a . a -> ST s (STRef s a)
 newSTRef a = ST (R <$> newIORef a)

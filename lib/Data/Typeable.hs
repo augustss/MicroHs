@@ -19,13 +19,10 @@ module Data.Typeable (
   ) where
 import Prelude(); import MiniPrelude
 import Primitives
-import Control.Monad.ST
 import Data.Double
 import Data.Integer
-import Data.IORef
 import Data.Proxy
 import Data.Ratio
-import Data.STRef
 import Data.Type.Equality
 import Data.Void
 import Data.Word
@@ -159,8 +156,9 @@ instance Typeable TyCon       where typeRep = nullary "Data.Typeable"       "TyC
 
 instance Typeable IO          where typeRep = prim                          "IO"
 instance Typeable Ptr         where typeRep = prim                          "Ptr"
+instance Typeable FunPtr      where typeRep = prim                          "FunPtr"
+instance Typeable ForeignPtr  where typeRep = prim                          "ForeignPtr"
 instance Typeable IOArray     where typeRep = prim                          "IOArray"
-instance Typeable IORef       where typeRep = nullary "Data.IORef"          "IORef"
 
 instance Typeable []          where typeRep = nullary "Data.List_Type"      "[]"
 instance Typeable Maybe       where typeRep = nullary "Data.Maybe_Type"     "Maybe"
@@ -173,8 +171,6 @@ instance Typeable Monad       where typeRep = nullary "Control.Monad"       "Mon
 instance Typeable (,)         where typeRep = nullary "Data.Tuple"          ","
 instance Typeable (->)        where typeRep = prim                          "->"
 instance Typeable Either      where typeRep = nullary "Data.Either"         "Either"
-instance Typeable ST          where typeRep = nullary "Control.Monad.ST"    "ST"
-instance Typeable STRef       where typeRep = nullary "Data.STRef"          "STRef"
 
 instance Typeable (,,)        where typeRep = nullary "Data.Tuple"          ",,"
 instance Typeable (,,,)       where typeRep = nullary "Data.Tuple"          ",,,"

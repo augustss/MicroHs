@@ -6,11 +6,8 @@
   - instead of skolemization, use regular variables, making sure they are unique
 * Redo type synonym expansion
   - Do expansion during unification
-* Redo handling of synonym and instance tables.
-  - These tables can persist during the compilation and only grow
 * Implement two level tables for instances even in the tricky cases
 * Removing [] from prim table
-* Faster compression
 * Use pointer reversal during marking, will be slower
 * Fix bug uncovered by Data.Type.Equality
 * mkQIdent
@@ -26,15 +23,13 @@
 * Ad hoc fix for f.g: check if g is a field
 * Divide lib into different packages
 * Sync lib with GHC base
-* Handle closing of Handle properly (don't crash on multiple close)
-  - implement ForeignPtr with finalizers for this.
 * Use finalizers for alloca?
 * Better naming of internal identifiers
 * Add mask&co to exceptions
-* Make deriving refer to identifiers that don't need to be in scope
 * Add reductions for underapplied K2,K3,K4
-* Move some Typeable instances from the class file to ST&co (makes it leaner)
 * Make a Unicode version of Data.Char
+  - make tables using the Haskell tools
+  - read tables lazily when outside ASCII range
 
 Bugs:
 * Missing IO in ccall shows wrong location
