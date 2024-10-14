@@ -182,7 +182,7 @@ typeCheck globs impt aimps (EModule mn exps defs) =
            sexps = synTable tcs
            iexps = instTable tcs
            ctbl  = classTable tcs
-         in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) {- sexps (concat cexps) iexps-} (concat vexps) tds
+         in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) (concat vexps) tds
              , GlobTables { gSynTable = sexps, gClassTable = ctbl, gInstInfo = iexps }
              , (typeTable tcs, valueTable tcs)
              )
@@ -284,8 +284,6 @@ mkTModule impt tds tcs =
     tt = typeTable  tcs
     at = assocTable tcs
     vt = valueTable tcs
---    ct = classTable tcs
---    it = instTable  tcs
 
     -- Find the Entry for a type.
     tentry i =
@@ -309,21 +307,9 @@ mkTModule impt tds tcs =
       [ TypeExport i (tentry i) (assoc i) | Class _ (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) []        | Type    (i, _) _   <- tds ]
 
-{-
-    -- All type synonym definitions.
-    ses = [ (qualIdent mn i, EForall True vs t) | Type (i, vs) t  <- tds ]
--}
     -- All fixity declaration.
     fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
 
-{-
-    -- All classes
-    -- XXX only export the locally defined classes
-    ces = M.toList ct
-
-    -- All instances
-    ies = M.toList it
--}
   in  TModule mn fes tes ves impossible
 
 -- Find all value Entry for names associated with a type.
@@ -345,7 +331,7 @@ mkTCState mdlName globs mdls =
           if qual then [] else
           [ (i, [e]) | ValueExport i e    <- ves, not (isInstId i)  ] ++
           [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, not (isDefaultMethodId i) ]
-        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes {-_ cls _-} ves _) =
+        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes ves _) =
           let m = fromMaybe mn mas in
           [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent    m i } ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdentD e m i } ] ++
@@ -648,14 +634,6 @@ getImplies (EApp (EApp (EVar n) a) b) =
   if isIdent "=>" n || isIdent "Primitives.=>" n then Just (a, b) else Nothing
 getImplies _ = Nothing
 
-{-
-getTuple :: Int -> EType -> Maybe [EType]
-getTuple n t = loop t []
-  where loop (EVar i) r | isTupleConstr n i && length r == n = Just (reverse r)
-        loop (EApp f a) r = loop f (a:r)
-        loop _ _ = Nothing
--}
-
 setUVar :: TRef -> EType -> T ()
 setUVar i t = modify $ \ ts -> ts{ uvarSubst = IM.insert i t (uvarSubst ts) }
 
@@ -681,8 +659,6 @@ expandSyn at = do
           case M.lookup i syns of
             Nothing -> return $ eApps t ts
             Just (EForall _ vks tt) ->
---              if length vks /= length ts then tcError (getSLoc i) $ "bad synonym use"
---              else expandSyn $ subst (zip (map idKindIdent vks) ts) tt
               let s = zip (map idKindIdent vks) ts
                   lvks = length vks
                   lts = length ts
@@ -690,7 +666,6 @@ expandSyn at = do
                     LT -> expandSyn $ eApps (subst s tt) (drop lvks ts)
                     EQ -> expandSyn $ subst s tt
                     GT -> tcError (getSLoc i) $ "bad synonym use"
-                          --EForall (drop lts vks) (subst s tt)
             Just _ -> impossible
         EUVar _ -> return $ eApps t ts
         ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
@@ -1182,11 +1157,7 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
               def Nothing = Fcn iDflt $ simpleEqn noDflt
               def (Just eqns) = Fcn iDflt eqns
               iDflt = mkDefaultMethodId methId
-              -- XXX This isn't right, "Prelude._nodefault" might not be in scope
               noDflt = mkExn (getSLoc methId) (unIdent methId) "noMethodError"
--- EApp noDefaultE (mkEStr (getSLoc iCls) (unIdent iCls ++ "." ++ unIdent methId))
---noDefaultE :: Expr
---noDefaultE = ELit noSLoc $ LExn "Control.Exception.Internal.noMethodError"
       mkDflt _ = impossible
       dDflts = case impt of
                  ImpNormal -> concatMap mkDflt meths
