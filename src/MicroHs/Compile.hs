@@ -51,6 +51,8 @@ mhsCacheName = ".mhscache"
 
 type Time = Int
 
+type CM a = StateIO Cache a
+
 -----------------
 
 -- Compile the module with the given name, starting with the given cache.
@@ -113,7 +115,7 @@ compile flags nm ach = do
 -- If the module has already been compiled, return the cached result.
 -- If the module has not been compiled, first try to find a source file.
 -- If there is no source file, try loading a package.
-compileModuleCached :: Flags -> ImpType -> IdentModule -> StateIO Cache (TModule [LDef], Symbols, Time)
+compileModuleCached :: Flags -> ImpType -> IdentModule -> CM (TModule [LDef], Symbols, Time)
 compileModuleCached flags impt mn = do
   cash <- get
   case lookupCache mn cash of
@@ -136,7 +138,7 @@ compileModuleCached flags impt mn = do
         putStrLnInd $ "importing cached " ++ showIdent mn
       return (tm, noSymbols, 0)
 
-putStrLnInd :: String -> StateIO Cache ()
+putStrLnInd :: String -> CM ()
 putStrLnInd msg = do
   ms <- gets getWorking
   liftIO $ putStrLn $ map (const ' ') ms ++ msg
@@ -144,7 +146,7 @@ putStrLnInd msg = do
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
 
-compileBootModule :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Symbols, Time)
+compileBootModule :: Flags -> IdentModule -> CM (TModule [LDef], Symbols, Time)
 compileBootModule flags mn = do
   when (verbosityGT flags 0) $
     putStrLnInd $ "importing boot " ++ showIdent mn
@@ -155,18 +157,18 @@ compileBootModule flags mn = do
       modify $ addBoot mn
       compileModule flags ImpBoot mn pathfn file
 
-compileModule :: Flags -> ImpType -> IdentModule -> FilePath -> String -> StateIO Cache (TModule [LDef], Symbols, Time)
+compileModule :: Flags -> ImpType -> IdentModule -> FilePath -> String -> CM (TModule [LDef], Symbols, Time)
 compileModule flags impt mn pathfn file = do
   t1 <- liftIO getTimeMilli
   mchksum <- liftIO (md5File pathfn)  -- XXX there is a small gap between reading and computing the checksum.
   let chksum :: MD5CheckSum
       chksum = fromMaybe undefined mchksum
-  let pmdl = parseDie pTop pathfn file
-      mdl@(EModule mnn _ defs) = addPreludeImport pmdl
   when (verbosityGT flags 4) $
     liftIO $ putStrLn $ "parsing: " ++ pathfn
+  let pmdl = parseDie pTop pathfn file
   when (verbosityGT flags 4) $
     liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
+  let mdl@(EModule mnn _ defs) = addPreludeImport pmdl
   
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
@@ -242,7 +244,7 @@ validateCache flags acash = execStateIO (mapM_ (validate . fst) fdeps) acash
   where
     fdeps = getImportDeps acash                           -- forwards dependencies
     deps = invertGraph fdeps                              -- backwards dependencies
-    invalidate :: IdentModule -> StateIO Cache ()
+    invalidate :: IdentModule -> CM ()
     invalidate mn = do
       b <- gets $ isJust . lookupCache mn
       when b $ do
@@ -251,7 +253,7 @@ validateCache flags acash = execStateIO (mapM_ (validate . fst) fdeps) acash
           liftIO $ putStrLn $ "invalidate cached " ++ show mn
         modify (deleteFromCache mn)
         mapM_ invalidate $ fromMaybe [] $ M.lookup mn deps
-    validate :: IdentModule -> StateIO Cache ()
+    validate :: IdentModule -> CM ()
     validate mn = do
       cash <- get
       case lookupCacheChksum mn cash of
@@ -380,7 +382,7 @@ packageTxtSuffix :: String
 packageTxtSuffix = ".txt"
 
 -- Find the module mn in the package path, and return it's contents.
-findPkgModule :: Flags -> IdentModule -> StateIO Cache (TModule [LDef], Symbols, Time)
+findPkgModule :: Flags -> IdentModule -> CM (TModule [LDef], Symbols, Time)
 findPkgModule flags mn = do
   t0 <- liftIO getTimeMilli
   let fn = moduleToFile mn ++ packageTxtSuffix
@@ -403,7 +405,7 @@ findPkgModule flags mn = do
         "\nsearch path=" ++ show (paths flags) ++
         "\npackage path=" ++ show (pkgPath flags)
 
-loadPkg :: Flags -> FilePath -> StateIO Cache ()
+loadPkg :: Flags -> FilePath -> CM ()
 loadPkg flags fn = do
   when (loading flags || verbosityGT flags 0) $
     liftIO $ putStrLn $ "Loading package " ++ fn
@@ -415,7 +417,7 @@ loadPkg flags fn = do
 -- XXX add function to find&load package from package name
 
 -- Load all packages that we depend on, but that are not already loaded.
-loadDependencies :: Flags -> StateIO Cache ()
+loadDependencies :: Flags -> CM ()
 loadDependencies flags = do
   loadedPkgs <- gets getPkgs
   let deps = concatMap pkgDepends loadedPkgs
@@ -427,7 +429,7 @@ loadDependencies flags = do
     mapM_ (loadDeps flags) deps'
     loadDependencies flags  -- loadDeps can add new dependencies
 
-loadDeps :: Flags -> IdentPackage -> StateIO Cache ()
+loadDeps :: Flags -> IdentPackage -> CM ()
 loadDeps flags pid = do
   mres <- liftIO $ openFilePath (pkgPath flags) (packageDir ++ "/" ++ unIdent pid ++ packageSuffix)
   case mres of
