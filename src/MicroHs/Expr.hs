@@ -87,16 +87,16 @@ data EDef
 --DEBUG  deriving (Show)
 
 data ImpType = ImpNormal | ImpBoot
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data ImportSpec = ImportSpec ImpType Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
---DEBUG  deriving (Show)
+  deriving (Show)
 
 data ImportItem
   = ImpTypeSome Ident [Ident]
   | ImpTypeAll Ident
   | ImpValue Ident
---DEBUG  deriving (Show)
+  deriving (Show)
 
 type Deriving = [EConstraint]
 

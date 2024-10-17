@@ -4,6 +4,7 @@ module MicroHs.SymTab(
   stEmpty,
   stLookup,
   stFromList,
+  stInsertMany,
   stInsertGlbU,
   stInsertGlbQ,
   stElemsLcl,
@@ -100,6 +101,9 @@ hackBuiltin i = i
 
 stFromList :: [(Ident, [Entry])] -> [(Ident, [Entry])] -> SymTab
 stFromList us qs = SymTab [] (M.fromListWith union us) (M.fromListWith union qs)
+
+stInsertMany :: [(Ident, [Entry])] -> [(Ident, [Entry])] -> SymTab -> SymTab
+stInsertMany us qs (SymTab lcl sus sqs) = SymTab lcl (M.insertManyWith union us sus) (M.insertManyWith union qs sqs)
 
 stElemsLcl :: SymTab -> [Entry]
 stElemsLcl (SymTab l _ _) = map snd l

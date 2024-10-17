@@ -119,16 +119,18 @@ nameKnownSymbol = "Data.TypeLits.KnownSymbol"
 data GlobTables = GlobTables {
   gSynTable   :: SynTable,        -- type synonyms are needed for expansion
   gClassTable :: ClassTable,      -- classes are neede for superclass expansion
-  gInstInfo   :: InstTable        -- instances are implicitely global
+  gInstInfo   :: InstTable,       -- instances are implicitely global
+  gPrelude    :: Maybe (IdentModule, TypeTable, ValueTable)
   }
 
 emptyGlobTables :: GlobTables
-emptyGlobTables = GlobTables { gSynTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty }
+emptyGlobTables = GlobTables { gSynTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty, gPrelude = Nothing }
 
 mergeGlobTables :: GlobTables -> GlobTables -> GlobTables
 mergeGlobTables g1 g2 = GlobTables { gSynTable = M.merge (gSynTable g1) (gSynTable g2),
                                      gClassTable = M.merge (gClassTable g1) (gClassTable g2),
-                                     gInstInfo = M.merge (gInstInfo g1) (gInstInfo g2) }
+                                     gInstInfo = M.merge (gInstInfo g1) (gInstInfo g2),
+                                     gPrelude = Nothing}
 
 type Symbols = (SymTab, SymTab)
 
@@ -182,10 +184,18 @@ typeCheck globs impt aimps (EModule mn exps defs) =
            sexps = synTable tcs
            iexps = instTable tcs
            ctbl  = classTable tcs
+           gtbl  = GlobTables { gSynTable = sexps, gClassTable = ctbl, gInstInfo = iexps, gPrelude = gPrelude globs }
          in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) (concat vexps) tds
-             , GlobTables { gSynTable = sexps, gClassTable = ctbl, gInstInfo = iexps }
+             , cachePrelude (mn, tcs) gtbl
              , (typeTable tcs, valueTable tcs)
              )
+
+-- If a module has a Prelude name, and nothing has been cached, remember its symbol tables.
+cachePrelude :: (IdentModule, TCState) -> GlobTables -> GlobTables
+cachePrelude (mn, tcs) glob | "Prelude" {- `isInfixOf`-} == unIdent mn, isNothing (gPrelude glob) =
+  trace ("Caching " ++ showIdent mn) $
+  glob{ gPrelude = Just (mn, typeTable tcs, valueTable tcs) }
+                            | otherwise = glob
 
 -- A hack to force evaluation of errors.
 -- This should be redone to all happen in the T monad.
@@ -324,6 +334,15 @@ getAssocs vt at ai =
 mkTCState :: IdentModule -> GlobTables -> [(ImportSpec, TModule a)] -> TCState
 mkTCState mdlName globs mdls =
   let
+    (tInit, vInit, xmdls) =
+      case (gPrelude globs, mdls) of
+        (Just (mn, tys, vals), (ImportSpec ImpNormal False mn' Nothing Nothing, _) : rest) | mn == mn' ->
+             trace ("Using cached " ++ show (mdlName, mn)) $
+             (tys, vals, rest)
+        _ -> (foldr (uncurry stInsertGlbU) stEmpty primTypes,
+              foldr (uncurry stInsertGlbU) stEmpty primValues,
+              mdls)
+
     allValues :: ValueTable
     allValues =
       let
@@ -342,7 +361,8 @@ mkTCState mdlName globs mdls =
                                      case e of
                                        EVar qi -> qi
                                        _ -> undefined
-      in  stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
+      in  stInsertMany (xxx $ concatMap usyms xmdls) (concatMap qsyms xmdls) vInit
+    xxx xs = trace (show (length xs, length $ stKeysGlbU vInit)) xs
     allTypes :: TypeTable
     allTypes =
       let
@@ -351,7 +371,7 @@ mkTCState mdlName globs mdls =
         qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _) =
           let m = fromMaybe mn mas in
           [ (qualIdent m i, [e]) | TypeExport i e _ <- tes ]
-      in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
+      in stInsertMany (concatMap usyms xmdls) (concatMap qsyms xmdls) tInit
 
     allFixes :: FixTable
     allFixes = M.fromList (concatMap (tFixDefs . snd) mdls)
@@ -366,9 +386,9 @@ mkTCState mdlName globs mdls =
   in TC { moduleName = mdlName,
           unique = 1,
           fixTable = addPrimFixs allFixes,
-          typeTable = foldr (uncurry stInsertGlbU) allTypes primTypes,
+          typeTable = allTypes,
           synTable = gSynTable globs,
-          valueTable = foldr (uncurry stInsertGlbU) allValues primValues,
+          valueTable = allValues,
           assocTable = allAssocs,
           uvarSubst = IM.empty,
           tcMode = TCExpr,

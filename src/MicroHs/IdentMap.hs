@@ -7,7 +7,7 @@
 module MicroHs.IdentMap(
   Map,
   empty, singleton,
-  insertWith, insert,
+  insertWith, insert, insertManyWith,
   fromListWith, fromList,
   delete,
   lookup,
@@ -59,7 +59,10 @@ fromList :: forall v . [(Ident, v)] -> Map v
 fromList = fromListWith const
 
 fromListWith :: forall v . (v -> v -> v) -> [(Ident, v)] -> Map v
-fromListWith comb = foldr (uncurry (insertWith comb)) empty
+fromListWith comb iks = insertManyWith comb iks empty
+
+insertManyWith :: forall v . (v -> v -> v) -> [(Ident, v)] -> Map v -> Map v
+insertManyWith comb iks m = foldr (uncurry (insertWith comb)) m iks
 
 mapM :: forall m a b . Monad m => (a -> m b) -> Map a -> m (Map b)
 mapM _ Nil = return Nil
