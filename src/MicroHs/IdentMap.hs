@@ -146,12 +146,14 @@ extractMax (Node left _ key val right) =
   case extractMax right of
     (max, vmax, right') -> (max, vmax, balance left key val right')
 
+-- omega=2 is not valid in the sense that balance can always be restored.
+-- But it gives the best performance on benchmarks, so we use it.
 omega :: Int
-omega = 3
+omega = 2
 alpha :: Int
 alpha = 2
-delta :: Int
-delta = 0
+--delta :: Int
+--delta = 0
 
 balance :: forall a . Map a -> Ident -> a -> Map a -> Map a
 balance left key val right
@@ -159,12 +161,12 @@ balance left key val right
 balance (One k v) key val right = balance (Node Nil 1 k v Nil) key val right
 balance left key val (One k v)  = balance left key val (Node Nil 1 k v Nil)
 balance left key val right
-  | size right > omega * size left + delta =
+  | size right > omega * size left {- + delta -} =
       case right of
         (Node rl _ _ _ rr) | size rl < alpha*size rr -> singleL left key val right
                            | otherwise -> doubleL left key val right
         _ -> undefined
-  | size left > omega * size right + delta =
+  | size left > omega * size right {- + delta -} =
       case left of
         (Node ll _ _ _ lr) | size lr < alpha*size ll -> singleR left key val right
                            | otherwise -> doubleR left key val right
