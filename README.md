@@ -60,6 +60,7 @@ Differences:
    * FunctionalDependencies
    * GADTs
    * GADTsyntax
+   * ImportShadowing
    * ImportQualifiedPost
    * IncoherentInstances
    * KindSignatures

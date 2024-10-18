@@ -121,12 +121,12 @@ stInsertLcl i a (SymTab l ug qg)
 stInsertGlbU :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
 stInsertGlbU i as (SymTab l ug qg)
 {-  | isQual i = error $ "stInsertGlbU " ++ showIdent i
-  | otherwise -} = SymTab l (M.insertWith union i as ug) qg
+  | otherwise -} = SymTab l (M.insert i as ug) qg
 
 stInsertGlbQ :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
 stInsertGlbQ i as (SymTab l ug qg)
 {-  | not (isQual i) = error $ "stInsertGlbQ " ++ showIdent i
-  | otherwise -} = SymTab l ug (M.insertWith union i as qg)
+  | otherwise -} = SymTab l ug (M.insert i as qg)
 
 -- Pick the correct table to insert in
 stInsertGlbA :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
