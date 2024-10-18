@@ -6,6 +6,7 @@ module MicroHs.SymTab(
   stFromList,
   stInsertGlbU,
   stInsertGlbQ,
+  stInsertGlbA,
   stElemsLcl,
   stKeysLcl,
   stKeysGlbU,
@@ -13,8 +14,10 @@ module MicroHs.SymTab(
   mapMSymTab,
   ) where
 import Prelude(); import MHSPrelude
+import Data.Char
 import Control.Applicative
 import Data.List
+import GHC.Stack
 import MicroHs.Builtin(builtinMdl)
 import MicroHs.Expr(Expr(..), EType, conIdent)
 import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent)
@@ -110,11 +113,26 @@ stKeysLcl (SymTab l _ _) = map fst l
 stKeysGlbU :: SymTab -> [Ident]
 stKeysGlbU (SymTab _ m _) = M.keys m
 
-stInsertLcl :: Ident -> Entry -> SymTab -> SymTab
-stInsertLcl i a (SymTab l ug qg) = SymTab ((i, a) : l) ug qg
+stInsertLcl :: HasCallStack => Ident -> Entry -> SymTab -> SymTab
+stInsertLcl i a (SymTab l ug qg)
+{-  | isQual i = error $ "stInsertLcl " ++ showIdent i
+  | otherwise -} = SymTab ((i, a) : l) ug qg
 
-stInsertGlbU :: Ident -> [Entry] -> SymTab -> SymTab
-stInsertGlbU i as (SymTab l ug qg) = SymTab l (M.insertWith union i as ug) qg
+stInsertGlbU :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
+stInsertGlbU i as (SymTab l ug qg)
+{-  | isQual i = error $ "stInsertGlbU " ++ showIdent i
+  | otherwise -} = SymTab l (M.insertWith union i as ug) qg
 
-stInsertGlbQ :: Ident -> [Entry] -> SymTab -> SymTab
-stInsertGlbQ i as (SymTab l ug qg) = SymTab l ug (M.insertWith union i as qg)
+stInsertGlbQ :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
+stInsertGlbQ i as (SymTab l ug qg)
+{-  | not (isQual i) = error $ "stInsertGlbQ " ++ showIdent i
+  | otherwise -} = SymTab l ug (M.insertWith union i as qg)
+
+-- Pick the correct table to insert in
+stInsertGlbA :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
+stInsertGlbA i as (SymTab l ug qg) | isQual i  = SymTab l ug (M.insertWith union i as qg)
+                                   | otherwise = SymTab l (M.insertWith union i as ug) qg
+
+isQual :: Ident -> Bool
+isQual i = isUpper (head s) && elem '.' s
+  where s = unIdent i
