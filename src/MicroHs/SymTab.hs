@@ -31,13 +31,15 @@ import qualified MicroHs.IdentMap as M
 data Entry = Entry
   Expr             -- convert (EVar i) to this expression; sometimes just (EVar i)
   EType            -- type/kind of identifier
+  | Entries [Expr]
 --  deriving(Show)
 
 instance Show Entry where
   showsPrec _ (Entry e t) = showsPrec 0 e . showString " :: " . showsPrec 0 t
+  showsPrec _ (Entries es) = showString "ambig" . showsPrec 0 es
 
-instance Eq Entry where
-  Entry x _ == Entry y _  =  getIdent x == getIdent y
+--instance Eq Entry where
+--  Entry x _ == Entry y _  =  getIdent x == getIdent y
 
 getIdent :: Expr -> Ident
 getIdent ae =
@@ -49,6 +51,18 @@ getIdent ae =
 
 entryType :: Entry -> EType
 entryType (Entry _ t) = t
+entryType _ = error "entryType"
+
+unionEntry :: Entry -> Entry -> Entry
+unionEntry e@(Entry x _) (Entry y _) | getIdent x == getIdent y = e
+                                     | otherwise = Entries [x, y]
+unionEntry (Entry x _) (Entries xs) = Entries (x:xs)
+unionEntry (Entries xs) (Entry x _) = Entries (x:xs)
+unionEntry (Entries xs) (Entries ys) = Entries (xs ++ ys)
+
+mapME :: Monad m => (Entry -> m Entry) -> Entry -> m Entry
+mapME f e@(Entry _ _) = f e
+mapME _ es = pure es
 
 -----------------------------------------------
 
@@ -61,8 +75,8 @@ entryType (Entry _ t) = t
 --      globals
 data SymTab = SymTab {
   _lcl  :: [(Ident, Entry)],     -- locals
-  _uglb :: M.Map [Entry],        -- unqualified globals
-  _qglb :: M.Map [Entry]         -- qualified globals
+  _uglb :: M.Map Entry,        -- unqualified globals
+  _qglb :: M.Map Entry         -- qualified globals
   }
 --  deriving(Show)
 
@@ -75,8 +89,8 @@ instance Show SymTab where
 mapMSymTab :: forall m . Monad m => (Entry -> m Entry) -> SymTab -> m SymTab
 mapMSymTab f (SymTab l ug qg) = do
   l' <- mapM (\ (i, a) -> (,) i <$> f a) l
-  ug' <- M.mapM (mapM f) ug
-  qg' <- M.mapM (mapM f) qg
+  ug' <- M.mapM (mapME f) ug
+  qg' <- M.mapM (mapME f) qg
   return $ SymTab l' ug' qg'
 
 stEmpty :: SymTab
@@ -88,9 +102,9 @@ stLookup msg i (SymTab l ug qg) =
     Just e -> Right e
     Nothing ->
       case M.lookup i ug <|> M.lookup i qg <|> M.lookup (hackBuiltin i) ug of
-        Just [e] -> Right e
-        Just es  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++
-                           showListS showIdent [ getIdent e | Entry e _ <- es ]
+        Just e@(Entry _ _) -> Right e
+        Just (Entries es)  -> Left $ "ambiguous " ++ msg ++ ": " ++ showIdent i ++ " " ++
+                                     showListS showIdent (map getIdent es)
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
 
@@ -101,8 +115,8 @@ hackBuiltin :: Ident -> Ident
 hackBuiltin i | Just ('.':s) <- stripPrefix builtinMdl (unIdent i) = mkIdentSLoc (slocIdent i) s
 hackBuiltin i = i
 
-stFromList :: [(Ident, [Entry])] -> [(Ident, [Entry])] -> SymTab
-stFromList us qs = SymTab [] (M.fromListWith union us) (M.fromListWith union qs)
+stFromList :: [(Ident, Entry)] -> [(Ident, Entry)] -> SymTab
+stFromList us qs = SymTab [] (M.fromListWith unionEntry us) (M.fromListWith unionEntry qs)
 
 stElemsLcl :: SymTab -> [Entry]
 stElemsLcl (SymTab l _ _) = map snd l
@@ -118,20 +132,20 @@ stInsertLcl i a (SymTab l ug qg)
 {-  | isQual i = error $ "stInsertLcl " ++ showIdent i
   | otherwise -} = SymTab ((i, a) : l) ug qg
 
-stInsertGlbU :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
+stInsertGlbU :: HasCallStack => Ident -> Entry -> SymTab -> SymTab
 stInsertGlbU i as (SymTab l ug qg)
 {-  | isQual i = error $ "stInsertGlbU " ++ showIdent i
   | otherwise -} = SymTab l (M.insert i as ug) qg
 
-stInsertGlbQ :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
+stInsertGlbQ :: HasCallStack => Ident -> Entry -> SymTab -> SymTab
 stInsertGlbQ i as (SymTab l ug qg)
 {-  | not (isQual i) = error $ "stInsertGlbQ " ++ showIdent i
   | otherwise -} = SymTab l ug (M.insert i as qg)
 
 -- Pick the correct table to insert in
-stInsertGlbA :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
-stInsertGlbA i as (SymTab l ug qg) | isQual i  = SymTab l ug (M.insertWith union i as qg)
-                                   | otherwise = SymTab l (M.insertWith union i as ug) qg
+stInsertGlbA :: HasCallStack => Ident -> Entry -> SymTab -> SymTab
+stInsertGlbA i as (SymTab l ug qg) | isQual i  = SymTab l ug (M.insertWith unionEntry i as qg)
+                                   | otherwise = SymTab l (M.insertWith unionEntry i as ug) qg
 
 isQual :: Ident -> Bool
 isQual i = isUpper (head s) && elem '.' s

@@ -343,13 +343,13 @@ mkTCState mdlName globs mdls =
       let
         usyms (ImportSpec _ qual _ _ _, TModule _ _ tes ves _) =
           if qual then [] else
-          [ (i, [e]) | ValueExport i e    <- ves, not (isInstId i)  ] ++
-          [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, not (isDefaultMethodId i) ]
+          [ (i, e) | ValueExport i e    <- ves, not (isInstId i)  ] ++
+          [ (i, e) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, not (isDefaultMethodId i) ]
         qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes {-_ cls _-} ves _) =
           let m = fromMaybe mn mas in
-          [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent    m i } ] ++
-          [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdentD e m i } ] ++
-          [ (v, [Entry (EVar v) t]) | (i, ClassInfo _ _ t _ _) <- M.toList (gClassTable globs), let { v = mkClassConstructor i } ]
+          [ (v, e) | ValueExport i e    <- ves,                        let { v = qualIdent    m i } ] ++
+          [ (v, e) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdentD e m i } ] ++
+          [ (v, Entry (EVar v) t) | (i, ClassInfo _ _ t _ _) <- M.toList (gClassTable globs), let { v = mkClassConstructor i } ]
         -- Default methods are always entered with their qualified original name.
         qualIdentD (Entry e _) m i | not (isDefaultMethodId i) = qualIdent m i
                                    | otherwise = 
@@ -361,10 +361,10 @@ mkTCState mdlName globs mdls =
     allTypes =
       let
         usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _) =
-          if qual then [] else [ (i, [e]) | TypeExport i e _ <- tes ]
+          if qual then [] else [ (i, e) | TypeExport i e _ <- tes ]
         qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _) =
           let m = fromMaybe mn mas in
-          [ (qualIdent m i, [e]) | TypeExport i e _ <- tes ]
+          [ (qualIdent m i, e) | TypeExport i e _ <- tes ]
       in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
 
     allFixes :: FixTable
@@ -564,7 +564,7 @@ primSortTable =
     entry i s = Entry (EVar (mkIdentB i)) s
     qsorts = [
        -- The kinds are wired in (for now)
-       (mkIdentB nameKind,       [entry nameKind rSort])
+       (mkIdentB nameKind,       entry nameKind rSort)
        ]
   in stFromList (map (first unQualIdent) qsorts) qsorts
 
@@ -578,11 +578,11 @@ primKindTable =
     entry i k = Entry (EVar (mkIdentB i)) k
     qkinds = [
        -- The kinds are wired in (for now)
-       (mkIdentB nameType,       [entry nameType sKind]),
-       (mkIdentB nameConstraint, [entry nameConstraint sKind]),
-       (mkIdentB nameSymbol,     [entry nameSymbol sKind]),
-       (mkIdentB nameNat,        [entry nameNat sKind]),
-       (identArrow,              [entry nameArrow sKindKindKind])
+       (mkIdentB nameType,       entry nameType sKind),
+       (mkIdentB nameConstraint, entry nameConstraint sKind),
+       (mkIdentB nameSymbol,     entry nameSymbol sKind),
+       (mkIdentB nameNat,        entry nameNat sKind),
+       (identArrow,              entry nameArrow sKindKindKind)
        ]
   in stFromList (map (first unQualIdent) qkinds) qkinds
 
@@ -592,7 +592,7 @@ primKindTable =
 --  (->)  :: Type -> Type -> Type
 --  (=>)  :: forall k . Constraint -> k -> k
 --  Maybe :: Type -> Type
-primTypes :: [(Ident, [Entry])]
+primTypes :: [(Ident, Entry)]
 primTypes =
   let
     entry i = Entry (EVar i)
@@ -603,20 +603,20 @@ primTypes =
     tuple n =
       let
         i = tupleConstr builtinLoc n
-      in  (i, [entry i $ EForall True [kk] $ foldr kArrow kv (replicate n kv)])
+      in  (i, entry i $ EForall True [kk] $ foldr kArrow kv (replicate n kv))
     kImplies = EForall True [kk] $ kConstraint `kArrow` (kv `kArrow` kv)
   in
       [
        -- The function arrow et al are bothersome to define in Primitives, so keep them here.
        -- But the fixity is defined in Primitives.
-       (mkIdentB "->",           [entry identArrow    kTypeTypeTypeS]),
-       (mkIdentB "=>",           [entry identImplies  kImplies]),
-       (mkIdentB "~",            [entry identTypeEq   kTypeTypeConstraintS]),
+       (mkIdentB "->",           entry identArrow    kTypeTypeTypeS),
+       (mkIdentB "=>",           entry identImplies  kImplies),
+       (mkIdentB "~",            entry identTypeEq   kTypeTypeConstraintS),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        -- XXX should not be needed
-       (identList,               [entry identList     kTypeTypeS]),
-       (mkIdentB "\x2192",       [entry identArrow    kTypeTypeTypeS]),  -- ->
-       (mkIdentB "\x21d2",       [entry identImplies  kImplies])         -- =>
+       (identList,               entry identList     kTypeTypeS),
+       (mkIdentB "\x2192",       entry identArrow    kTypeTypeTypeS),  -- ->
+       (mkIdentB "\x21d2",       entry identImplies  kImplies)         -- =>
       ] ++
       map tuple (enumFromTo 2 10)
 
@@ -625,7 +625,7 @@ primTypes =
 --  (&&) :: Bool -> Bool
 --  Just :: forall a . a -> Maybe a
 --  ,    :: forall a b . a -> b -> (a,b)
-primValues :: [(Ident, [Entry])]
+primValues :: [(Ident, Entry)]
 primValues =
   let
     tuple n =
@@ -634,7 +634,7 @@ primValues =
         vks = [IdKind (mkIdent ("a" ++ show i)) kType | i <- enumFromTo 1 n]
         ts = map tVarK vks
         r = tApps c ts
-      in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall True vks $ EForall True [] $ foldr tArrow r ts ])
+      in  (c, Entry (ECon $ ConData [(c, n)] c []) $ EForall True vks $ EForall True [] $ foldr tArrow r ts )
   in  map tuple (enumFromTo 2 10)
 
 kArrow :: EKind -> EKind -> EKind
@@ -816,6 +816,7 @@ tLookup msg i = do
   env <- gets valueTable
   case stLookup msg i env of
     Right (Entry e s) -> return (setSLocExpr (getSLoc i) e, s)
+    Right           _ -> undefined
     Left            e -> do
 {-
       tcm <- gets tcMode
@@ -875,8 +876,8 @@ extValETop i t e = do
   mn <- gets moduleName
   venv <- gets valueTable
   let qi = qualIdent mn i
-      venv'  = stInsertGlbQ qi [Entry e t] venv
-      venv'' = stInsertGlbU  i [Entry e t] venv'
+      venv'  = stInsertGlbQ qi (Entry e t) venv
+      venv'' = stInsertGlbU  i (Entry e t) venv'
   putValueTable venv''
 
 -- Extend symbol table with i::t.
@@ -977,6 +978,7 @@ tcDefsType ds = withTypeTable $ do
 --  tcTrace $ show vars
   vt <- gets valueTable
   let ent (Entry i t) = Entry i . mapEType def <$> derefUVar t
+      ent e = pure e
       def (EUVar _) = kType    -- default kind variables to Type
       def t = t
   vt' <- mapMSymTab ent vt
