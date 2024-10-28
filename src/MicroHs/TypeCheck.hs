@@ -248,8 +248,7 @@ getTVExps impMap _ _ _ (ExpModule m) =
     _ -> errorMessage (getSLoc m) $ "undefined module: " ++ showIdent m
 getTVExps _ tys vals ast (ExpTypeSome i is) = getTypeExp tys vals ast i (`elem` is)
 getTVExps _ tys vals ast (ExpTypeAll  i   ) = getTypeExp tys vals ast i (const True)
-getTVExps _ _ vals _ (ExpValue i) =
-    ([], [ValueExport i (expLookup i vals)])
+getTVExps _ _ vals _ (ExpValue i) = ([], [ValueExport (unQualIdent i) (expLookup i vals)])
 
 -- Export a type, filter exported values by p.
 getTypeExp :: TypeTable -> ValueTable -> AssocTable -> Ident -> (Ident -> Bool) ->
@@ -259,7 +258,7 @@ getTypeExp tys vals ast ti p =
     e = expLookup ti tys
     qi = tyQIdent e
     ves = filter (\ (ValueExport i _) -> p i) $ getAssocs vals ast qi
-  in ([TypeExport ti e ves], [])
+  in ([TypeExport (unQualIdent ti) e ves], [])
 
 expLookup :: Ident -> SymTab -> Entry
 expLookup i m = either (errorMessage (getSLoc i)) id $ stLookup "export" i m
