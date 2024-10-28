@@ -2090,9 +2090,7 @@ tcPat mt ae =
                -- type references.  Assign the reference the given type.
                ext <- tGetExpType mt
                (p, t) <- tLookupV i
-               case t of
-                 EUVar r -> tSetRefType loc r ext
-                 _ -> impossibleShow t
+               unify loc t ext
                return ([], [], p)
 
     EOper e ies -> do e' <- tcOper e ies; tcPat mt e'
