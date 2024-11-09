@@ -72,6 +72,7 @@ Differences:
    * NegativeLiterals
    * NoMonomorphismRestriction
    * NoStarIsType
+   * OrPatterns
    * OverlappingInstances
    * OverloadedRecordDot
    * OverloadedRecordUpdate

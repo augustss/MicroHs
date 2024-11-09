@@ -1789,6 +1789,7 @@ dsEFields apat =
     EUpdate c fs -> EUpdate c . concat <$> mapM (dsEField c) fs
     EParen p -> dsEFields p
     ENegApp _ -> return apat
+    EOr ps -> EOr <$> mapM dsEFields ps
     _ -> error $ "dsEFields " ++ show apat
 
 unsetField :: Ident -> Expr
@@ -2164,7 +2165,18 @@ tcPat mt ae =
         Just p' -> tcPat mt p'
         Nothing -> impossible
 
+    EOr ps -> do
+      let orFun = ELam $ [ eEqn [p] true | p <- ps] ++ [ eEqn [EVar dummyIdent] (eFalse loc) ]
+          true = eTrue loc
+      tcPat mt $ EViewPat orFun true
+
     _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ show ae
+
+eTrue :: SLoc -> Expr
+eTrue l = EVar $ mkBuiltin l "True"
+
+eFalse :: SLoc -> Expr
+eFalse l = EVar $ mkBuiltin l "False"
 
 multCheck :: [Ident] -> T ()
 multCheck vs =

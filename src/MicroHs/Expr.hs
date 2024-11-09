@@ -124,6 +124,7 @@ data Expr
   | EAt Ident EPat
   | EViewPat Expr EPat
   | ELazy Bool EPat           -- True indicates ~p, False indicates !p
+  | EOr [EPat]
   -- only in types
   | EForall Bool [IdKind] EType  -- True indicates explicit forall in the code
   -- only while type checking
@@ -257,6 +258,7 @@ patVars apat =
     ECon _ -> []
     EUpdate _ fs -> concatMap field fs
     ENegApp _ -> []
+    EOr ps -> concatMap patVars ps
     _ -> error $ "patVars " ++ showExpr apat
   where add i is | isConIdent i || isDummyIdent i = is
                  | otherwise = i : is
@@ -364,6 +366,7 @@ instance HasLoc Expr where
   getSLoc (EAt i _) = getSLoc i
   getSLoc (EViewPat e _) = getSLoc e
   getSLoc (ELazy _ e) = getSLoc e
+  getSLoc (EOr es) = getSLoc es
   getSLoc (EUVar _) = error "getSLoc EUVar"
   getSLoc (ECon c) = getSLoc c
   getSLoc (EForall _ [] e) = getSLoc e
@@ -519,6 +522,7 @@ allVarsExpr' aexpr =
     EAt i e -> (i :) . allVarsExpr' e
     EViewPat e p -> allVarsExpr' e . allVarsExpr' p
     ELazy _ p -> allVarsExpr' p
+    EOr ps -> composeMap allVarsExpr' ps
     EUVar _ -> id
     ECon c -> (conIdent c :)
     EForall _ iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
@@ -722,6 +726,7 @@ ppExprR raw = ppE
         EViewPat e p -> parens $ ppE e <+> text "->" <+> ppE p
         ELazy True p -> text "~" <> ppE p
         ELazy False p -> text "!" <> ppE p
+        EOr ps -> parens $ hsep (punctuate (text ";") (map ppE ps))
         EUVar i -> text ("_a" ++ show i)
         ECon c -> ppCon c
         EForall _ iks e -> ppForall iks <+> ppEType e

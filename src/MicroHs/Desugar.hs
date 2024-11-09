@@ -275,7 +275,7 @@ dsPat apat =
     ELit loc (LStr cs) | length cs < 2 -> dsPat (EListish (LList (map (ELit loc . LChar) cs)))
     ELit _ _ -> apat
     ENegApp _ -> apat
-    EViewPat _ _ -> apat
+    EViewPat e p -> EViewPat e (dsPat p)
     ELazy b pat -> ELazy b (dsPat pat)
     _ -> impossible
 
