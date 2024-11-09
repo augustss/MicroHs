@@ -411,7 +411,7 @@ loadPkg flags fn = do
     liftIO $ putStrLn $ "Loading package " ++ fn
   pkg <- liftIO $ readSerialized fn
   when (pkgCompiler pkg /= mhsVersion) $
-    error $ "Package compile version mismatch: package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
+    error $ "Package compile version mismatch: file=" ++ fn ++ ", package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
   modify $ addPackage fn pkg
 
 -- XXX add function to find&load package from package name
