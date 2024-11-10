@@ -36,6 +36,8 @@ module Prelude(
   module Text.Read,
   module Text.Show,
   Float, Double,
+  default Num,
+  default IsString,
   usingMhs, _wordSize, _isWindows,
   ) where
 import Prelude()              -- do not import Prelude
@@ -88,6 +90,9 @@ import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Primitives(_wordSize, _isWindows)
 
 import Data.Orphans()  -- Extra instances
+
+default Num (Integer, Double)
+default IsString (String)
 
 -- So we can detect mhs vs ghc
 usingMhs :: Bool

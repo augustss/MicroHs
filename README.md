@@ -68,6 +68,7 @@ Differences:
    * MonoLocalBinds
    * MultiWayIf
    * MultiParamTypeClasses
+   * NamedDefaults
    * NamedFieldPuns
    * NegativeLiterals
    * NoMonomorphismRestriction

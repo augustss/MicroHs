@@ -1,6 +1,8 @@
 module Default(main) where
 import Prelude
-default (Int, Double, String, ())
+default Num (Int, Double)
+default IsString (String)
+default Show (())
 
 main :: IO ()
 main = do
