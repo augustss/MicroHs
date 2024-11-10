@@ -104,14 +104,15 @@ lex loc (d:cs) | isOperChar d =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
 lex loc (d:cs) | isSpec d  = TSpec loc d : lex (addCol loc 1) cs
-lex loc ('"':cs) =
-  case takeChars loc (TString loc) '"' (addCol loc 1) [] cs of
-    (t, loc', rs) -> t : lex loc' rs
-lex loc ('\'':cs) =
-  let tchar [c] = TChar loc c
-      tchar _ = TError loc "Illegal Char literal"
-  in  case takeChars loc tchar '\'' (addCol loc 1) [] cs of  -- XXX head of
-        (t, loc', rs) -> t : lex loc' rs
+lex loc ('"':cs) = lexLitStr loc (addCol loc 1) (TString loc) isDQuote cs
+  where isDQuote ('"':_) = Just 1
+        isDQuote _ = Nothing
+lex loc ('\'':cs) = lexLitStr loc (addCol loc 1) tchar isSQuote cs
+  where isSQuote ('\'':_) = Just 1
+        isSQuote _ = Nothing
+        tchar [c] = TChar loc c
+        tchar _   = TError loc $ "Illegal Char literal"
+
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ show d]
 lex loc [] = [TEnd loc]
 
@@ -180,41 +181,51 @@ tIndent :: [Token] -> [Token]
 tIndent ts@(TIndent _ : _) = ts
 tIndent ts = TIndent (tokensLoc ts) : ts
 
-takeChars :: SLoc -> (String -> Token) -> Char -> SLoc -> String -> String -> (Token, SLoc, String)
-takeChars oloc  _ c loc _ [] = (TError oloc ("Unmatched " ++ [c]), loc, [])
-takeChars oloc fn c loc str ('\\':cs) =
-  let skipGap l (' ' :rs) = skipGap (addCol l 1) rs
-      skipGap l ('\n':rs) = skipGap (incrLine l) rs
-      skipGap l ('\r':rs) = skipGap l rs
-      skipGap l ('\t':rs) = skipGap (tabCol l) rs
-      skipGap l ('\\':rs) = takeChars oloc fn c (addCol l 1) str rs
-      skipGap l       rs  = (TError oloc "Bad string gap", l, rs)
-  in
-  case cs of
-    '&':rs -> takeChars oloc fn c (addCol loc 2) str rs
-    d:_ | isSpace d -> skipGap loc cs
-    _ ->
-      case decodeChar cs of
-        (d, m, rs) -> takeChars oloc fn c (addCol loc m) (d:str) rs
-takeChars   _  fn c loc str (d:cs) | c == d = (fn (reverse str), addCol loc 1, cs)
-takeChars oloc fn c loc str (d:cs) = takeChars oloc fn c (addCol loc 1) (d:str) cs
+lexLitStr :: SLoc -> SLoc -> (String -> Token) -> (String -> Maybe Int) -> String -> [Token]
+lexLitStr oloc loc mk end acs = loop loc [] acs
+  where loop l rs cs | Just k <- end cs   = mk (decodeEscs $ reverse rs) : lex (addCol l k) (drop k cs)
+        loop l rs ('\\':c:cs) | isSpace c = remGap l rs cs
+        loop l rs ('\\':'^':'\\':cs)      = loop (addCol l 3) ('\\':'^':'\\':rs) cs  -- special hack for unescaped \
+        loop l rs ('\\':cs)               = loop' (addCol l 1) ('\\':rs) cs
+        loop l rs       cs                = loop' l rs cs
 
-decodeChar :: String -> (Char, Int, String)
-decodeChar ('n':cs) = ('\n', 1, cs)
-decodeChar ('a':cs) = ('\a', 1, cs)
-decodeChar ('b':cs) = ('\b', 1, cs)
-decodeChar ('f':cs) = ('\f', 1, cs)
-decodeChar ('r':cs) = ('\r', 1, cs)
-decodeChar ('t':cs) = ('\t', 1, cs)
-decodeChar ('v':cs) = ('\v', 1, cs)
-decodeChar ('x':cs) = conv 16 1 0 cs
-decodeChar ('o':cs) = conv 8 1 0 cs
-decodeChar ('^':c:cs) | '@' <= c && c <= '_' = (chr (ord c - ord '@'), 2, cs)
-decodeChar (cs@(c:_)) | isDigit c = conv 10 0 0 cs
-decodeChar (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = (c, 3, cs)
-decodeChar (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = (c, 2, cs)
-decodeChar (c  :cs) = (c,    1, cs)
-decodeChar []       = ('X',  0,   [])
+        loop' l rs ('\n' :cs) = loop  (incrLine l) ( '\n':rs) cs
+        loop' l rs ('\t' :cs) = loop  (tabCol   l) ( '\t':rs) cs
+        loop' l rs ('\r' :cs) = loop            l         rs  cs
+        loop' l rs     (c:cs) = loop  (addCol l 1) (    c:rs) cs
+        loop' _ _          [] = [TError oloc "unterminated Char/String literal"]
+--        foo xs = trace (show ("foo", loc, take 20 acs, xs)) xs
+
+        remGap l rs ('\\':cs) = loop   (addCol l 1)       rs  cs
+        remGap l rs ('\n':cs) = remGap (incrLine l) ('\n':rs) cs 
+        remGap l rs ('\t':cs) = remGap (tabCol   l) ('\t':rs) cs
+        remGap l rs ('\r':cs) = remGap           l        rs  cs
+        remGap l rs (' ' :cs) = remGap (addCol l 1)       rs  cs
+        remGap _ _         _  = error "bad string gap"
+
+decodeEscs :: String -> String
+decodeEscs [] = []
+decodeEscs ('\\':cs) = decodeEsc cs
+decodeEscs (c:cs) = c : decodeEscs cs
+
+decodeEsc :: String -> String
+decodeEsc ('n':cs) = '\n' : decodeEscs cs
+decodeEsc ('a':cs) = '\a' : decodeEscs cs
+decodeEsc ('b':cs) = '\b' : decodeEscs cs
+decodeEsc ('f':cs) = '\f' : decodeEscs cs
+decodeEsc ('r':cs) = '\r' : decodeEscs cs
+decodeEsc ('t':cs) = '\t' : decodeEscs cs
+decodeEsc ('v':cs) = '\v' : decodeEscs cs
+decodeEsc ('&':cs) = decodeEscs cs
+decodeEsc ('x':cs) = conv 16 0 cs
+decodeEsc ('o':cs) = conv 8 0 cs
+decodeEsc ('^':c:cs) | '@' <= c && c <= '_' = chr (ord c - ord '@') : decodeEscs cs
+decodeEsc (cs@(c:_)) | isDigit c = conv 10 0 cs
+decodeEsc (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = c : decodeEscs cs
+decodeEsc (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = c : decodeEscs cs
+decodeEsc (c  :cs) = c : decodeEscs cs
+decodeEsc []       = error "Bad \\ escape"
+
 
 -- Nobody uses these, but it's part of the Haskell Report so...
 ctlCodes :: [(String, Char)]
@@ -229,9 +240,9 @@ ctlCodes =
    ("FS",  '\FS'),  ("GS",  '\GS'),  ("RS",  '\RS'),  ("US",  '\US'), 
    ("SP",  '\SP'),  ("DEL", '\DEL')]
 
-conv :: Int -> Int -> Int -> String -> (Char, Int, String)
-conv b k r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (k+1) (r * b + n) ds
-conv _ k r ds = (chr r, k, ds)
+conv :: Int -> Int -> String -> String
+conv b r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (r * b + n) ds
+conv _ r ds = chr r : decodeEscs ds
 
 -- These characters are single characters token, no matter what.
 isSpec :: Char -> Bool
