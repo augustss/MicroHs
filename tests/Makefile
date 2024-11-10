@@ -75,6 +75,7 @@ test:
 	$(TMHS) LameCase   && $(EVAL) > LameCase.out   && diff LameCase.ref LameCase.out
 	$(TMHS) NoForall   && $(EVAL) > NoForall.out   && diff NoForall.ref NoForall.out
 	$(TMHS) Bang       && $(EVAL) > Bang.out       && diff Bang.ref Bang.out
+	$(TMHS) MString    && $(EVAL) > MString.out    && diff MString.ref MString.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

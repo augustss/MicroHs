@@ -66,8 +66,9 @@ Differences:
    * KindSignatures
    * LambdaCase
    * MonoLocalBinds
-   * MultiWayIf
+   * MultilineStrings
    * MultiParamTypeClasses
+   * MultiWayIf
    * NamedDefaults
    * NamedFieldPuns
    * NegativeLiterals

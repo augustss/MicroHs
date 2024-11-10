@@ -17,7 +17,7 @@ data Token
   | TChar   SLoc Char             -- Char literal
   | TInt    SLoc Integer          -- Integer literal
   | TRat    SLoc Rational         -- Rational literal (i.e., decimal number)
-  | TSpec   SLoc Char             -- one of ()[]{},`;
+  | TSpec   SLoc Char             -- one of ()[]{},`<>;
                                   -- for synthetic {} we use <>, also
                                   --  .  for record selection
                                   --  ~  for lazy
@@ -104,10 +104,13 @@ lex loc (d:cs) | isOperChar d =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
 lex loc (d:cs) | isSpec d  = TSpec loc d : lex (addCol loc 1) cs
-lex loc ('"':cs) = lexLitStr loc (addCol loc 1) (TString loc) isDQuote cs
+lex loc ('"':'"':'"':cs) = lexLitStr loc (addCol loc 3) (TString loc) isTrip multiLine cs
+  where isTrip ('"':'"':'"':_) = Just 3
+        isTrip _ = Nothing
+lex loc ('"':cs) = lexLitStr loc (addCol loc 1) (TString loc) isDQuote id cs
   where isDQuote ('"':_) = Just 1
         isDQuote _ = Nothing
-lex loc ('\'':cs) = lexLitStr loc (addCol loc 1) tchar isSQuote cs
+lex loc ('\'':cs) = lexLitStr loc (addCol loc 1) tchar isSQuote id cs
   where isSQuote ('\'':_) = Just 1
         isSQuote _ = Nothing
         tchar [c] = TChar loc c
@@ -181,9 +184,9 @@ tIndent :: [Token] -> [Token]
 tIndent ts@(TIndent _ : _) = ts
 tIndent ts = TIndent (tokensLoc ts) : ts
 
-lexLitStr :: SLoc -> SLoc -> (String -> Token) -> (String -> Maybe Int) -> String -> [Token]
-lexLitStr oloc loc mk end acs = loop loc [] acs
-  where loop l rs cs | Just k <- end cs   = mk (decodeEscs $ reverse rs) : lex (addCol l k) (drop k cs)
+lexLitStr :: SLoc -> SLoc -> (String -> Token) -> (String -> Maybe Int) -> (String -> String) -> String -> [Token]
+lexLitStr oloc loc mk end post acs = loop loc [] acs
+  where loop l rs cs | Just k <- end cs   = mk (decodeEscs $ post $ reverse rs) : lex (addCol l k) (drop k cs)
         loop l rs ('\\':c:cs) | isSpace c = remGap l rs cs
         loop l rs ('\\':'^':'\\':cs)      = loop (addCol l 3) ('\\':'^':'\\':rs) cs  -- special hack for unescaped \
         loop l rs ('\\':cs)               = loop' (addCol l 1) ('\\':rs) cs
@@ -226,7 +229,6 @@ decodeEsc (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = c : decodeEscs cs
 decodeEsc (c  :cs) = c : decodeEscs cs
 decodeEsc []       = error "Bad \\ escape"
 
-
 -- Nobody uses these, but it's part of the Haskell Report so...
 ctlCodes :: [(String, Char)]
 ctlCodes =
@@ -243,6 +245,35 @@ ctlCodes =
 conv :: Int -> Int -> String -> String
 conv b r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (r * b + n) ds
 conv _ r ds = chr r : decodeEscs ds
+
+-- Multiline string literals
+multiLine :: String -> String
+multiLine =
+  finalTrim          .     -- trim initial \n
+  intercalate "\\n"  .     -- join with \n
+  map removeAllWhite .     -- remove white-space only
+  removeCommonPrefix .     -- remove common space prefix
+  map tabToSpace     .     -- replace leading tabs with spaces
+  lines                    -- split the string by newlines
+  where
+    tabToSpace = to 0
+      where to n ('\t':cs) = replicate (8 - n `rem` 8) ' ' ++ to 0 cs
+            to n (' ' :cs) = ' ' : to (n+1) cs
+            to _ cs        = cs
+    removeCommonPrefix :: [String] -> [String]
+    removeCommonPrefix [] = []
+    removeCommonPrefix (l:ls) = l : map (drop k) ls
+      where k = foldl' pref 1000000 ls
+            pref n [] = n
+            pref n cs =
+              case span isSpace cs of
+                (_, []) -> n                 -- ignore white space only
+                (w, _)  -> min n (length w)  -- find common prefix length
+    removeAllWhite cs | all isSpace cs = ""
+                      | otherwise      = cs
+    -- The GHC manual is wrong.  Follow the implementation.
+    finalTrim ('\\':'n':cs) = cs
+    finalTrim cs            = cs
 
 -- These characters are single characters token, no matter what.
 isSpec :: Char -> Bool
