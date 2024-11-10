@@ -76,6 +76,7 @@ test:
 	$(TMHS) NoForall   && $(EVAL) > NoForall.out   && diff NoForall.ref NoForall.out
 	$(TMHS) Bang       && $(EVAL) > Bang.out       && diff Bang.ref Bang.out
 	$(TMHS) MString    && $(EVAL) > MString.out    && diff MString.ref MString.out
+	$(TMHS) OrPat      && $(EVAL) > OrPat.out      && diff OrPat.ref OrPat.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
