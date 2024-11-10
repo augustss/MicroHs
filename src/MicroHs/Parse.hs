@@ -260,6 +260,7 @@ pExportItem =
   <|< ExpValue    <$> pLQIdentSym
   <|< ExpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
   <|< ExpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
+  <|< ExpDefault  <$> (pKeyword "default" *> pUQIdentSym)
   where expType i Nothing   = ExpTypeAll  i
         expType i (Just is) = ExpTypeSome i is
 
@@ -315,7 +316,7 @@ pDef =
   <|< Infix        <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
-  <|< Default      <$> (pKeyword "default"  *> pParens (esepBy pType (pSpec ',')))
+  <|< Default      <$> (pKeyword "default"  *> eoptional clsSym) <*> pParens (esepBy pType (pSpec ','))
   <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
   <|< Pattern      <$> (pKeyword "pattern"  *> pLHS) <*> pPatternDef
   <|< Sign         <$> (pKeyword "pattern" *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
@@ -332,6 +333,8 @@ pDef =
 
     pPatternDef = (pSpec '=' *> pPatAndExp) <|< (pSymbol "<-" *> pPat)
     pPatAndExp = do p <- pPat; guard (isExp p); pure p
+
+    clsSym = do s <- pUIdentSym; guard (unIdent s /= "()"); return s
 
 -- Is a pattern also an expression?
 isExp :: Expr -> Bool
@@ -448,7 +451,7 @@ pImportItem =
 pConList :: P (Maybe [Ident])
 pConList =
       (Nothing <$ pSymbol "..")
-  <|< (Just <$> esepBy (pQIdent <|< pParens pSymOper) (pSpec ','))
+  <|< (Just <$> esepBy (pQIdent <|< pUIdentSpecial <|< pParens pSymOper) (pSpec ','))
 
 --------
 -- Types
@@ -519,6 +522,7 @@ pAPat =
   <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSRArrow *> pAPat <* pSpec ')'))
   <|< (ELazy True  <$> (pSpec '~' *> pAPat))
   <|< (ELazy False <$> (pSpec '!' *> pAPat))
+  <|< (EOr <$> (pSpec '(' *> esepBy1 pPat (pSpec ';') <* pSpec ')'))  -- if there is a single pattern it will be matched by the tuple case
   where evar v Nothing = EVar v
         evar v (Just upd) = EUpdate (EVar v) upd
 

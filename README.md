@@ -68,10 +68,12 @@ Differences:
    * MonoLocalBinds
    * MultiWayIf
    * MultiParamTypeClasses
+   * NamedDefaults
    * NamedFieldPuns
    * NegativeLiterals
    * NoMonomorphismRestriction
    * NoStarIsType
+   * OrPatterns
    * OverlappingInstances
    * OverloadedRecordDot
    * OverloadedRecordUpdate

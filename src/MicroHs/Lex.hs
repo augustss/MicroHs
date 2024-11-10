@@ -172,7 +172,7 @@ skipNest loc _ []           = [TError loc "Unclosed {- comment"]
 skipLine :: SLoc -> String -> [Token]
 skipLine loc cs@('\n':_) = lex loc cs
 skipLine loc (_:cs)      = skipLine loc cs
-skipLine   _ []          = []
+skipLine loc []          = lex loc []
 
 -- | Takes a list of tokens and produces a list of tokens. If the first token in
 -- the input list is a TIndent, the input is returned unaltered. Otherwise, a

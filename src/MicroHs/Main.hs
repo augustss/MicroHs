@@ -295,9 +295,9 @@ mainInstallPackage _ _ = error usage
 -- into
 --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
 convertToInclude :: String -> FilePath -> FilePath
-convertToInclude inc pkgPath =
-  let path1 = init $ dropWhileEnd (/= '/') pkgPath  --   .../.mcabal/mhs-0.10.3.0/packages
-      base1 = takeWhileEnd (/= '/') pkgPath         --   base-0.10.3.0.pkg
+convertToInclude inc pkg =
+  let path1 = init $ dropWhileEnd (/= '/') pkg      --   .../.mcabal/mhs-0.10.3.0/packages
+      base1 = takeWhileEnd (/= '/') pkg             --   base-0.10.3.0.pkg
       base2 = init $ dropWhileEnd (/= '.') base1    --   base-0.10.3.0
       path2 = dropWhileEnd (/= '/') path1           --   .../.mcabal/mhs-0.10.3.0/
   in  path2 ++ "data/" ++ base2 ++ inc              --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include

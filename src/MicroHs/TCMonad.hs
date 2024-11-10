@@ -53,7 +53,7 @@ type InstTable  = M.Map InstInfo   -- indexed by class name
 type MetaTable  = [(Ident, EConstraint)]  -- instances with unification variables
 type Constraints= [(Ident, EConstraint)]
 type ArgDicts   = [(Ident, EConstraint)]  -- dictionary arguments
-type Defaults   = [EType]          -- Current defaults
+type Defaults   = M.Map [EType]    -- defaults, maps from class name to types
 
 -- To make type checking fast it is essential to solve constraints fast.
 -- The naive implementation of InstInfo would be [InstDict], but

@@ -68,7 +68,7 @@ dsDef flags mn adef =
       in  (qualIdent mn $ mkClassConstructor c, lams xs $ Lam f $ apps (Var f) (map Var xs)) :
           zipWith (\ i x -> (i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
     Instance _ _ -> []
-    Default _ -> []
+    Default _ _ -> []
     Pattern _ _ -> []
 
 wrapTick :: Bool -> Ident -> Exp -> Exp
@@ -275,7 +275,7 @@ dsPat apat =
     ELit loc (LStr cs) | length cs < 2 -> dsPat (EListish (LList (map (ELit loc . LChar) cs)))
     ELit _ _ -> apat
     ENegApp _ -> apat
-    EViewPat _ _ -> apat
+    EViewPat e p -> EViewPat e (dsPat p)
     ELazy b pat -> ELazy b (dsPat pat)
     _ -> impossible
 

@@ -137,12 +137,13 @@ data TModule a = TModule {
   tFixDefs    :: [FixDef],        -- all fixities, exported or not
   tTypeExps   :: [TypeExport],    -- exported types
   tValueExps  :: [ValueExport],   -- exported values (including from T(..))
-  tBindingsOf  :: a               -- bindings
+  tDefaults   :: Defaults,        -- exported defaults
+  tBindingsOf :: a                -- bindings
   }
 --  deriving (Show)
 
 setBindings :: TModule b -> a -> TModule a
-setBindings (TModule x y z w _) a = TModule x y z w a
+setBindings (TModule x y z w v _) a = TModule x y z w v a
 
 data TypeExport = TypeExport
   Ident           -- unqualified name
@@ -182,18 +183,20 @@ typeCheck globs impt aimps (EModule mn exps defs) =
            sexps = synTable tcs
            iexps = instTable tcs
            ctbl  = classTable tcs
-         in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) {- sexps (concat cexps) iexps-} (concat vexps) tds
+           dflts = M.fromList $ filter ((`elem` ds) . fst) $ M.toList $ defaults tcs
+                 where ds = [ tyQIdent $ expLookup ti (typeTable tcs) | ExpDefault ti <- exps ]
+         in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) (concat vexps) dflts tds
              , GlobTables { gSynTable = sexps, gClassTable = ctbl, gInstInfo = iexps }
              , (typeTable tcs, valueTable tcs)
              )
 
 -- A hack to force evaluation of errors.
 -- This should be redone to all happen in the T monad.
-tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [ValueExport] -> [EDef] ->
+tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [ValueExport] -> Defaults -> [EDef] ->
            TModule [EDef]
-tModule mn fs ts vs ds =
+tModule mn fs ts vs ds bs =
 --  trace ("tmodule " ++ showIdent mn ++ ":\n" ++ show vs) $
-  tseq ts `seq` vseq vs `seq` TModule mn fs ts vs ds
+  tseq ts `seq` vseq vs `seq` ds `seq` TModule mn fs ts vs ds bs
   where
     tseq [] = ()
     tseq (TypeExport _ e _:xs) = e `seq` tseq xs
@@ -202,7 +205,7 @@ tModule mn fs ts vs ds =
 
 filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
 filterImports it@(ImportSpec _ _ _ _ Nothing, _) = it
-filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs a) =
+filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs ds a) =
   let
     keep x xs = elem x xs /= hide
     ivs  = [ i | ImpValue i <- is ]
@@ -232,7 +235,7 @@ filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs a
        checkBad msg (ivs \\ allVs) .
        checkBad msg (its \\ allTs))
     --trace (show (ts, vs)) $
-    (imp, TModule mn fx ts' vs' a)
+    (imp, TModule mn fx ts' vs' ds a)
 
 checkBad :: forall a . String -> [Ident] -> a -> a
 checkBad _ [] a = a
@@ -244,12 +247,12 @@ getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTab
              ([TypeExport], [ValueExport])
 getTVExps impMap _ _ _ (ExpModule m) =
   case M.lookup m impMap of
-    Just (TModule _ _ te ve _) -> (te, ve)
+    Just (TModule _ _ te ve _ _) -> (te, ve)
     _ -> errorMessage (getSLoc m) $ "undefined module: " ++ showIdent m
 getTVExps _ tys vals ast (ExpTypeSome i is) = getTypeExp tys vals ast i (`elem` is)
 getTVExps _ tys vals ast (ExpTypeAll  i   ) = getTypeExp tys vals ast i (const True)
-getTVExps _ _ vals _ (ExpValue i) =
-    ([], [ValueExport i (expLookup i vals)])
+getTVExps _ _ vals _ (ExpValue i) = ([], [ValueExport (unQualIdent i) (expLookup i vals)])
+getTVExps _ _ _ _ (ExpDefault _) = ([], [])
 
 -- Export a type, filter exported values by p.
 getTypeExp :: TypeTable -> ValueTable -> AssocTable -> Ident -> (Ident -> Bool) ->
@@ -259,7 +262,7 @@ getTypeExp tys vals ast ti p =
     e = expLookup ti tys
     qi = tyQIdent e
     ves = filter (\ (ValueExport i _) -> p i) $ getAssocs vals ast qi
-  in ([TypeExport ti e ves], [])
+  in ([TypeExport (unQualIdent ti) e ves], [])
 
 expLookup :: Ident -> SymTab -> Entry
 expLookup i m = either (errorMessage (getSLoc i)) id $ stLookup "export" i m
@@ -284,8 +287,6 @@ mkTModule impt tds tcs =
     tt = typeTable  tcs
     at = assocTable tcs
     vt = valueTable tcs
---    ct = classTable tcs
---    it = instTable  tcs
 
     -- Find the Entry for a type.
     tentry i =
@@ -309,22 +310,13 @@ mkTModule impt tds tcs =
       [ TypeExport i (tentry i) (assoc i) | Class _ (i, _) _ _ <- tds ] ++
       [ TypeExport i (tentry i) []        | Type    (i, _) _   <- tds ]
 
-{-
-    -- All type synonym definitions.
-    ses = [ (qualIdent mn i, EForall True vs t) | Type (i, vs) t  <- tds ]
--}
     -- All fixity declaration.
     fes = [ (qualIdent mn i, fx) | Infix fx is <- tds, i <- is ]
 
-{-
-    -- All classes
-    -- XXX only export the locally defined classes
-    ces = M.toList ct
+    -- All defaults
+    des = defaults tcs
 
-    -- All instances
-    ies = M.toList it
--}
-  in  TModule mn fes tes ves impossible
+  in  TModule mn fes tes ves des impossible
 
 -- Find all value Entry for names associated with a type.
 getAssocs :: (HasCallStack) => ValueTable -> AssocTable -> Ident -> [ValueExport]
@@ -341,11 +333,11 @@ mkTCState mdlName globs mdls =
     allValues :: ValueTable
     allValues =
       let
-        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes ves _) =
+        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes ves _ _) =
           if qual then [] else
           [ (i, [e]) | ValueExport i e    <- ves, not (isInstId i)  ] ++
           [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, not (isDefaultMethodId i) ]
-        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes {-_ cls _-} ves _) =
+        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes ves _ _) =
           let m = fromMaybe mn mas in
           [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent    m i } ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdentD e m i } ] ++
@@ -360,9 +352,9 @@ mkTCState mdlName globs mdls =
     allTypes :: TypeTable
     allTypes =
       let
-        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _) =
+        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _) =
           if qual then [] else [ (i, [e]) | TypeExport i e _ <- tes ]
-        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _) =
+        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _) =
           let m = fromMaybe mn mas in
           [ (qualIdent m i, [e]) | TypeExport i e _ <- tes ]
       in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
@@ -372,11 +364,14 @@ mkTCState mdlName globs mdls =
     allAssocs :: AssocTable
     allAssocs =
       let
-        assocs (ImportSpec _ _ _ mas _, TModule mn _ tes _ _) =
+        assocs (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _) =
           let
             m = fromMaybe mn mas
           in  [ (qualIdent m i, [qualIdent m a | ValueExport a _ <- cs]) | TypeExport i _ cs <- tes ]
       in  M.fromList $ concatMap assocs mdls
+
+    dflts = foldr mergeDefaults M.empty (map (tDefaults . snd) mdls)
+
   in TC { moduleName = mdlName,
           unique = 1,
           fixTable = addPrimFixs allFixes,
@@ -389,8 +384,15 @@ mkTCState mdlName globs mdls =
           classTable = gClassTable globs,
           ctxTables = (gInstInfo globs, [], [], []),
           constraints = [],
-          defaults = stdDefaults
+          defaults = dflts
         }
+
+mergeDefaults :: Defaults -> Defaults -> Defaults
+mergeDefaults ds = foldr (uncurry $ M.insertWith mrg) ds . M.toList
+  where mrg :: [EType] -> [EType] -> [EType]
+        mrg ts ts' | null (filter (\ t -> not (elemBy eqEType t ts)) ts') = ts
+                   | null (filter (\ t -> not (elemBy eqEType t ts')) ts) = ts'
+                   | otherwise = []
 
 mergeInstInfo :: InstInfo -> InstInfo -> InstInfo
 mergeInstInfo (InstInfo m1 l1 fds) (InstInfo m2 l2 _) =
@@ -524,8 +526,8 @@ addArgDict i c = do
   ads <- gets argDicts
   putArgDicts ((i,c) : ads)
 
-stdDefaults :: [EType]
-stdDefaults = [EVar identInteger, EVar identFloatW, EApp (EVar identList) (EVar identChar)]
+--stdDefaults :: [EType]
+--stdDefaults = [EVar identInteger, EVar identFloatW, EApp (EVar identList) (EVar identChar)]
 
 addPrimFixs :: FixTable -> FixTable
 addPrimFixs =
@@ -648,14 +650,6 @@ getImplies (EApp (EApp (EVar n) a) b) =
   if isIdent "=>" n || isIdent "Primitives.=>" n then Just (a, b) else Nothing
 getImplies _ = Nothing
 
-{-
-getTuple :: Int -> EType -> Maybe [EType]
-getTuple n t = loop t []
-  where loop (EVar i) r | isTupleConstr n i && length r == n = Just (reverse r)
-        loop (EApp f a) r = loop f (a:r)
-        loop _ _ = Nothing
--}
-
 setUVar :: TRef -> EType -> T ()
 setUVar i t = modify $ \ ts -> ts{ uvarSubst = IM.insert i t (uvarSubst ts) }
 
@@ -681,8 +675,6 @@ expandSyn at = do
           case M.lookup i syns of
             Nothing -> return $ eApps t ts
             Just (EForall _ vks tt) ->
---              if length vks /= length ts then tcError (getSLoc i) $ "bad synonym use"
---              else expandSyn $ subst (zip (map idKindIdent vks) ts) tt
               let s = zip (map idKindIdent vks) ts
                   lvks = length vks
                   lts = length ts
@@ -690,7 +682,6 @@ expandSyn at = do
                     LT -> expandSyn $ eApps (subst s tt) (drop lvks ts)
                     EQ -> expandSyn $ subst s tt
                     GT -> tcError (getSLoc i) $ "bad synonym use"
-                          --EForall (drop lts vks) (subst s tt)
             Just _ -> impossible
         EUVar _ -> return $ eApps t ts
         ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
@@ -957,9 +948,13 @@ tcDefs impt ds = do
 
 setDefault :: [EDef] -> T ()
 setDefault defs = do
-  let ds = last $ stdDefaults : [ ts | Default ts <- defs ]
-  ds' <- mapM expandSyn ds
-  putDefaults ds'
+  tys <- gets typeTable
+  ds <- sequence [ do { ts' <- mapM expandSyn ts; return (tyQIdent $ expLookup c tys, ts') }
+                 | Default (Just c) ts <- defs ]
+  dflts <- gets defaults
+  let dflts' = foldr (uncurry M.insert) dflts ds
+--  traceM $ "Active defaults " ++ show (M.toList dflts')
+  putDefaults dflts'
 
 tcAddInfix :: EDef -> T ()
 tcAddInfix (Infix fx is) = do
@@ -1086,10 +1081,11 @@ tcDefType def = do
     Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDerive ds)
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first                    (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> flip (,) kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
-    Sign      is t         ->                                                  Sign      is  <$> tCheckTypeTImpl kType t
-    ForImp ie i t          ->                                                  ForImp ie i   <$> tCheckTypeTImpl kType t
-    Instance ct m          ->                                                  Instance      <$> tCheckTypeTImpl kConstraint ct <*> return m
-    Default ts             ->                                                  Default       <$> mapM (tCheckTypeT kType) ts
+    Sign      is t         ->                                                  Sign      is   <$> tCheckTypeTImpl kType t
+    ForImp ie i t          ->                                                  ForImp ie i    <$> tCheckTypeTImpl kType t
+    Instance ct m          ->                                                  Instance       <$> tCheckTypeTImpl kConstraint ct <*> return m
+    Default mc ts          ->                                                  Default (Just c) <$> mapM (tcDefault c) ts
+                                                                                 where c = fromMaybe num mc
     _                      -> return def
  where
    tcMethod (BSign i t) = BSign i <$> tCheckTypeTImpl kType t
@@ -1098,6 +1094,10 @@ tcDefType def = do
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
    tcDerive = tCheckTypeT (kType `kArrow` kConstraint)
+   num = mkBuiltin noSLoc "Num"
+   tcDefault c t = do
+     EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
+     return t'
 
 withLHS :: forall a . HasCallStack => LHS -> (LHS -> T (a, EKind)) -> T a
 withLHS (i, vks) ta = do
@@ -1182,11 +1182,7 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
               def Nothing = Fcn iDflt $ simpleEqn noDflt
               def (Just eqns) = Fcn iDflt eqns
               iDflt = mkDefaultMethodId methId
-              -- XXX This isn't right, "Prelude._nodefault" might not be in scope
               noDflt = mkExn (getSLoc methId) (unIdent methId) "noMethodError"
--- EApp noDefaultE (mkEStr (getSLoc iCls) (unIdent iCls ++ "." ++ unIdent methId))
---noDefaultE :: Expr
---noDefaultE = ELit noSLoc $ LExn "Control.Exception.Internal.noMethodError"
       mkDflt _ = impossible
       dDflts = case impt of
                  ImpNormal -> concatMap mkDflt meths
@@ -1819,6 +1815,7 @@ dsEFields apat =
     EUpdate c fs -> EUpdate c . concat <$> mapM (dsEField c) fs
     EParen p -> dsEFields p
     ENegApp _ -> return apat
+    EOr ps -> EOr <$> mapM dsEFields ps
     _ -> error $ "dsEFields " ++ show apat
 
 unsetField :: Ident -> Expr
@@ -2120,9 +2117,7 @@ tcPat mt ae =
                -- type references.  Assign the reference the given type.
                ext <- tGetExpType mt
                (p, t) <- tLookupV i
-               case t of
-                 EUVar r -> tSetRefType loc r ext
-                 _ -> impossibleShow t
+               unify loc t ext
                return ([], [], p)
 
     EOper e ies -> do e' <- tcOper e ies; tcPat mt e'
@@ -2196,7 +2191,18 @@ tcPat mt ae =
         Just p' -> tcPat mt p'
         Nothing -> impossible
 
+    EOr ps -> do
+      let orFun = ELam $ [ eEqn [p] true | p <- ps] ++ [ eEqn [EVar dummyIdent] (eFalse loc) ]
+          true = eTrue loc
+      tcPat mt $ EViewPat orFun true
+
     _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ show ae
+
+eTrue :: SLoc -> Expr
+eTrue l = EVar $ mkBuiltin l "True"
+
+eFalse :: SLoc -> Expr
+eFalse l = EVar $ mkBuiltin l "False"
 
 multCheck :: [Ident] -> T ()
 multCheck vs =
@@ -2512,81 +2518,33 @@ solveAndDefault True  ta = do
   ds' <- concat <$> mapM defaultOneTyVar vs
   return (a, ds ++ ds')
 
-constraintHasTyVar :: TRef -> (Ident, EConstraint) -> T Bool
-constraintHasTyVar tv (_, t) = elem tv <$> getMetaTyVars [t]
-
--- When defaulting to a type that has a Num instance,
--- only do the defaulting if at least one of the classes is numeric.
--- Similarely for IsString.
 defaultOneTyVar :: TRef -> T [Solved]
 defaultOneTyVar tv = do
   old <- get             -- get entire old state
-  -- split constraints into those with the current tyvar and those without
-  (ourcs, othercs) <- partitionM (constraintHasTyVar tv) (constraints old)
-  let tryDefaults [] = return []
-      tryDefaults (ty:tys) = do
-        ok <- checkDefaultTypes ty ourcs
---        tcTrace ("checkDefaultTypes: " ++ show (EUVar tv, ty, ourcs, ok))
-        if not ok then
-          tryDefaults tys   -- don't default
-         else do
---          tcTrace $ "defaultOneTyVar: " ++ show (EUVar tv) ++ ":=" ++ showEType ty
-          setUVar tv ty
-          putConstraints ourcs
-          ds <- solveConstraints
-          rcs <- gets constraints
-          if null rcs then do
-            -- Success, the type variable is gone
---            tcTrace $ "defaultOneTyVar success: " ++ show (EUVar tv)
-            putConstraints othercs   -- put back the other constraints
-            return ds
-           else do
-            -- Not solved, try with the nest type
---            tcTrace $ "defaultOneTyVar failed: " ++ show rcs
-            put old            -- restore solver state
-            tryDefaults tys    -- and try with next type
-  tryDefaults (defaults old)
+  let cvs = nub [ c | (_, EApp (EVar c) (EUVar tv')) <- constraints old, tv == tv' ]  -- all C v constraints
+  dvs <- nub . (cvs ++ ) . concat <$> mapM getSuperClasses cvs                        -- add superclasses
+  let oneCls c | Just ts <- M.lookup c (defaults old) =
+        take 1 $ filter (\ t -> all (\ cc -> soluble cc t) cvs) ts
+               | otherwise = []
+      soluble c t = fst $ flip tcRun old $ do
+        putConstraints [(dummyIdent, EApp (EVar c) t)]  -- Use current (C T) constraint
+        _ <- solveConstraints                           -- and solve.
+        cs <- gets constraints
+        return $ null cs                                -- No constraints left?
+      tys = nubBy eqEType $ concatMap oneCls dvs
+--  traceM $ "defaultOneTyVar " ++ show (tv, cvs, tys)
+  case tys of
+    [ty] -> do            -- There is a single type solving everything
+      setUVar tv ty
+      solveConstraints
+    _ -> return []        -- Nothing solved
 
-identNum :: Ident
-identNum = mkIdent "Data.Num.Num"
-
-identIsString :: Ident
-identIsString = mkIdent "Data.String.IsString"
-
-getSuperClasses :: Ident -> T (Maybe [Ident])
+getSuperClasses :: Ident -> T [Ident]
 getSuperClasses i = do
   ct <- gets classTable
   case M.lookup i ct of
-    Nothing -> return Nothing
-    Just (ClassInfo _ supers _ _ _) -> return $ Just $ map (fst . getApp) supers
-
-checkDefaultTypes :: EType -> Constraints -> T Bool
-checkDefaultTypes ty cs = do
-  let -- Is there an instance (c t)?
-      hasInstance :: Ident -> EType -> T Bool
-      hasInstance c t = do
-        it <- gets instTable
-        case M.lookup c it of
-          Nothing -> return False
-          Just (InstInfo atomMap _ _) -> return $ isJust $ M.lookup (fst $ getApp t) atomMap
-
-      -- Is i among the super-classes (or identical) of ci.
-      hasSuper :: Ident -> Ident -> T Bool
-      hasSuper i ci | i == ci = return True
-                    | otherwise = do
-          msup <- getSuperClasses ci
-          return $ i `elem` fromMaybe [] msup
-
-  let clss = map (fst . getApp . snd) cs
-  num <- hasInstance identNum ty                  -- If it's a numeric type
-  if num then
-    or <$> mapM (hasSuper identNum) clss          -- then make sure one of the classes is numeric.
-   else do
-     str <- hasInstance identIsString ty          -- If it's a stringy type
-     if str then
-       or <$> mapM (hasSuper identIsString) clss  -- then make sure one of the classes is stringy.
-      else
-       return True                                -- Otherwise, just allow the defaulting.
+    Nothing -> error "getSuperClasses"
+    Just (ClassInfo _ supers _ _ _) -> return $ map (fst . getApp) supers
 
 {-
 showInstInfo :: InstInfo -> String
