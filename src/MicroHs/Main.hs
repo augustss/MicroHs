@@ -249,9 +249,12 @@ mainCompile flags mn = do
        cDirs'   <- filterM doesDirectoryExist cDirs
        --print (map fst $ getPathPkgs cash, incDirs, incDirs')
        let incs = unwords $ map ("-I" ++) incDirs'
+           defs = "-D__MHS__"
        TTarget _ compiler conf <- readTarget flags dir
        let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
-                             incs ++ " " ++ dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
+                             incs ++ " " ++
+                             defs ++ " " ++
+                             dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
                              unwords (cArgs flags) ++
                              unwords (map (++ "/*.c") cDirs') ++
                              " $IN -lm -o $OUT"
