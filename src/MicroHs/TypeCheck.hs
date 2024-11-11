@@ -126,9 +126,10 @@ emptyGlobTables :: GlobTables
 emptyGlobTables = GlobTables { gSynTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty }
 
 mergeGlobTables :: GlobTables -> GlobTables -> GlobTables
-mergeGlobTables g1 g2 = GlobTables { gSynTable = M.merge (gSynTable g1) (gSynTable g2),
-                                     gClassTable = M.merge (gClassTable g1) (gClassTable g2),
-                                     gInstInfo = M.merge (gInstInfo g1) (gInstInfo g2) }
+mergeGlobTables g1 g2 =
+  GlobTables { gSynTable = M.merge (gSynTable g1) (gSynTable g2),
+               gClassTable = M.merge (gClassTable g1) (gClassTable g2),
+               gInstInfo = M.mergeWith mergeInstInfo (gInstInfo g1) (gInstInfo g2) }
 
 type Symbols = (SymTab, SymTab)
 
