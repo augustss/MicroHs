@@ -14,7 +14,7 @@ module MicroHs.IdentMap(
   null,
   size,
   toList, elems, keys,
-  merge,
+  merge, mergeWith,
   mapM,
   ) where
 import Prelude(); import MHSPrelude hiding(lookup, mapM, null)
@@ -195,3 +195,7 @@ doubleR _ _ _ _ = undefined
 merge :: Map a -> Map a -> Map a
 merge m1 m2 | size m1 <= size m2 = foldr (uncurry insert) m2 (toList m1)
             | otherwise = merge m2 m1
+
+mergeWith :: (a -> a -> a) -> Map a -> Map a -> Map a
+mergeWith f m1 m2 | size m1 <= size m2 = foldr (uncurry $ insertWith f) m2 (toList m1)
+                  | otherwise = mergeWith f m2 m1
