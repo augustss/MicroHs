@@ -2824,6 +2824,7 @@ checkConstraints = do
 --      is <- gets instTable
 --      tcTrace $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> show i ++ ":\n" ++ showInstInfo ii) (M.toList is))
       tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ show t'
+                            ++ "\n     fully qualified: " ++ showExprRaw t'
 
 -- Add a type equality constraint.
 addEqConstraint :: SLoc -> EType -> EType -> T ()
