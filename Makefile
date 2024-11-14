@@ -23,9 +23,9 @@ GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(G
 MHSINCNP= -i -imhs -isrc -ilib
 MHSINC=$(MHSINCNP) -ipaths 
 #
-.PHONY:	clean bootstrap install ghcgen newmhs cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info
+.PHONY:	clean bootstrap install ghcgen newmhs newmhsz cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info
 
-all:	bin/mhs bin/cpphs
+all:	bin/mhs bin/cpphs bin/mcabal
 
 targets.conf:
 	echo [default]           > targets.conf
@@ -35,6 +35,10 @@ targets.conf:
 newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c -o bin/mhs
 	$(CC) $(CCWARNS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
+
+newmhsz:	newmhs
+	rm generated/mhs.c
+	make generated/mhs.c
 
 sanitizemhs:	ghcgen targets.conf
 	$(CCEVAL) -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract generated/mhs.c -o bin/mhssane
@@ -48,6 +52,11 @@ bin/mhs:	src/runtime/*.c src/runtime/*.h targets.conf #generated/mhs.c
 bin/cpphs:	src/runtime/*.c src/runtime/config*.h generated/cpphs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/cpphs.c -o bin/cpphs
+
+# Compile mcabal from distribution, with C compiler
+bin/mcabal:	src/runtime/*.c src/runtime/config*.h generated/mcabal.c
+	@mkdir -p bin
+	$(CCEVAL) generated/mcabal.c -o bin/mcabal
 
 # Compile combinator evaluator
 bin/mhseval:	src/runtime/*.c src/runtime/config*.h
@@ -76,6 +85,11 @@ generated/mhs.c:	bin/mhs src/*/*.hs
 
 ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/gmhs $(MHSINC) MicroHs.Main -ogenerated/mhs.c
+
+#
+generated/mcabal.c: bin/mhs
+	bin/mhs -z -i../MicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
+
 
 # Make sure boottrapping works
 bootstrap:	bin/mhs-stage2
@@ -221,3 +235,5 @@ install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 # mkdir ~/.mcabal/packages/array-0.5.6.0
+
+preparedist:	newmhsz bootstrapcpphs generated/mcabal.c
