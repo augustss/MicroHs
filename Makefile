@@ -87,7 +87,7 @@ ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/gmhs $(MHSINC) MicroHs.Main -ogenerated/mhs.c
 
 #
-generated/mcabal.c: bin/mhs
+generated/mcabal.c:
 	bin/mhs -z -i../MicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
 
 
