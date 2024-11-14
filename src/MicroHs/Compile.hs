@@ -11,6 +11,7 @@ module MicroHs.Compile(
   packageDir, packageSuffix, packageTxtSuffix,
   mhsVersion,
   getMhsDir,
+  openFilePath,
   ) where
 import Prelude(); import MHSPrelude
 import Data.Char

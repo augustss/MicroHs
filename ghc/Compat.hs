@@ -5,6 +5,7 @@
 -- Functions for GHC that are defined in the UHS libs.
 module Compat(module Compat, Type) where
 import Data.Maybe
+import Data.List
 import Data.Text(Text, append, pack)
 import Control.Exception
 import GHC.Types
@@ -15,6 +16,12 @@ import System.IO
 
 takeWhileEnd :: forall a . (a -> Bool) -> [a] -> [a]
 takeWhileEnd p = reverse . takeWhile p . reverse
+
+stripSuffix :: forall a . Eq a => [a] -> [a] -> Maybe [a]
+stripSuffix s t =
+  case stripPrefix (reverse s) (reverse t) of
+    Nothing -> Nothing
+    Just x -> Just (reverse x)
 
 ------- IO --------
 

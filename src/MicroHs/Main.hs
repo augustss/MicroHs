@@ -47,6 +47,8 @@ main = do
         (flags, mdls, rargs) = decodeArgs dflags [] args
         pkgPaths | dir == dataDir && dir /= "." = [dropTrailing 3 dataDir]  -- This is a bit ugly
                  | otherwise                    = []                        -- No package search path
+    when (verbosityGT flags 1) $
+      putStrLn $ "flags = " ++ show flags
     case listPkg flags of
       Just p -> mainListPkg flags p
       Nothing ->
@@ -55,15 +57,13 @@ main = do
           Nothing ->
             if installPkg flags then mainInstallPackage flags mdls else
             withArgs rargs $ do
-              when (verbosityGT flags 1) $
-                putStrLn $ "flags = " ++ show flags
               case mdls of
                 []  -> mainInteractive flags
                 [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
                 _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-Ddef] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-LPATH] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [ModuleName...]"
+usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [MODULENAME..|FILE]"
 
 -- Drop trailing '/foo'
 dropTrailing :: Int -> FilePath -> FilePath
@@ -180,7 +180,21 @@ splitNameVer s =
   where readVersion = map readInt . words . map (\ c -> if c == '.' then ' ' else c)
 
 mainListPkg :: Flags -> FilePath -> IO ()
-mainListPkg _flags pkgfn = do
+mainListPkg flags "" = mainListPackages flags
+mainListPkg flags pkg = do
+  ok <- doesFileExist pkg
+  if ok then
+    mainListPkg' flags pkg
+   else do
+    mres <- openFilePath (pkgPath flags) (packageDir ++ "/" ++ pkg ++ packageSuffix)
+    case mres of
+      Nothing -> error $ "Cannot find " ++ pkg
+      Just (pfn, hdl) -> do
+        hClose hdl
+        mainListPkg' flags pfn
+
+mainListPkg' :: Flags -> FilePath -> IO ()
+mainListPkg' _flags pkgfn = do
   pkg <- readSerialized pkgfn
   putStrLn $ "name: " ++ showIdent (pkgName pkg)
   putStrLn $ "version: " ++ showVersion (pkgVersion pkg)
@@ -294,6 +308,18 @@ mainInstallPackage flags [pkgfn] =
     [] -> error $ "pkgPath is empty"
     first:_ -> mainInstallPackage flags [pkgfn, first]
 mainInstallPackage _ _ = error usage
+
+mainListPackages :: Flags -> IO ()
+mainListPackages flags = mapM_ list (pkgPath flags)
+  where list dir = do
+          let pdir = dir ++ "/" ++ packageDir
+          ok <- doesDirectoryExist pdir
+          when ok $ do
+            files <- getDirectoryContents pdir
+            let pkgs = [ b | f <- files, Just b <- [stripSuffix ".pkg" f] ]
+            putStrLn $ pdir ++ ":"
+            mapM_ (\ p -> putStrLn $ "  " ++ p) pkgs
+
 
 -- Convert something like
 --   .../.mcabal/mhs-0.10.3.0/packages/base-0.10.3.0.pkg
