@@ -11,6 +11,7 @@ module Data.List(
   iterate, iterate', repeat, replicate, cycle,
   unfoldr,
   take, drop, splitAt, takeWhile, takeWhileEnd, dropWhile, dropWhileEnd, span, spanUntil, break, splitWith,
+  spanEnd, breakEnd,
   stripPrefix, stripSuffix, group, inits, tails,
   isPrefixOf, isSuffixOf, isInfixOf, isSubsequenceOf,
   elem, notElem, lookup,
@@ -378,6 +379,12 @@ span p =
 
 break :: forall a . (a -> Bool) -> [a] -> ([a],[a])
 break p = span (not . p)
+
+spanEnd :: (a -> Bool) -> [a] -> ([a], [a])
+spanEnd p xs = (dropWhileEnd p xs, takeWhileEnd p xs)
+
+breakEnd :: (a -> Bool) -> [a] -> ([a], [a])
+breakEnd p = spanEnd (not . p)
 
 spanUntil :: forall a . (a -> Bool) -> [a] -> ([a], [a])
 spanUntil p =
