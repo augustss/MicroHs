@@ -128,11 +128,21 @@ compileModuleCached flags impt mn = do
           when (verbosityGT flags 1) $ do
             ms <- gets getWorking
             putStrLnInd $ "[from " ++ head (map showIdent ms ++ ["-"]) ++ "]"
-            putStrLnInd $ "importing " ++ showIdent mn
+            putStrInd $ "importing " ++ showIdent mn
           mres <- liftIO (readModulePath flags ".hs" mn)
           case mres of
-            Nothing -> findPkgModule flags mn
+            Nothing -> do
+              (fn, res) <- findPkgModule flags mn
+              liftIO $ when (verbosityGT flags 1) $ do
+                when (verbosityGT flags 2) $
+                  putStrLn $ " (" ++ show fn ++ ")"
+                putStrLn ""
+              return res
             Just (pathfn, file) -> do
+              liftIO $ when (verbosityGT flags 1) $ do
+                when (verbosityGT flags 2) $
+                  putStrLn $ " (" ++ show pathfn ++ ")"
+                putStrLn ""
               modify $ addWorking mn
               compileModule flags ImpNormal mn pathfn file
     Just tm -> do
@@ -144,6 +154,11 @@ putStrLnInd :: String -> CM ()
 putStrLnInd msg = do
   ms <- gets getWorking
   liftIO $ putStrLn $ map (const ' ') ms ++ msg
+
+putStrInd :: String -> CM ()
+putStrInd msg = do
+  ms <- gets getWorking
+  liftIO $ putStr $ map (const ' ') ms ++ msg
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -384,7 +399,7 @@ packageTxtSuffix :: String
 packageTxtSuffix = ".txt"
 
 -- Find the module mn in the package path, and return it's contents.
-findPkgModule :: Flags -> IdentModule -> CM (TModule [LDef], Symbols, Time)
+findPkgModule :: Flags -> IdentModule -> CM (FilePath, (TModule [LDef], Symbols, Time))
 findPkgModule flags mn = do
   t0 <- liftIO getTimeMilli
   let fn = moduleToFile mn <.> packageTxtSuffix
@@ -400,7 +415,7 @@ findPkgModule flags mn = do
         Nothing -> error $ "package does not contain module " ++ pkg ++ " " ++ showIdent mn
         Just t -> do
           t1 <- liftIO getTimeMilli
-          return (t, noSymbols, t1 - t0)
+          return (pfn, (t, noSymbols, t1 - t0))
     Nothing ->
       errorMessage (getSLoc mn) $
         "Module not found: " ++ show mn ++

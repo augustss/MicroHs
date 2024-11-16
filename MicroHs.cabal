@@ -41,13 +41,15 @@ extra-source-files:
 data-files:
       src/runtime/*.c
       src/runtime/*.h
+-- I would like to have these two only for ghc, but I can't figure out how.
+      lib/**/*.hs           --NOT_MHS
+      lib/**/*.hs-boot      --NOT_MHS
 
+-- These files must not be installed for mhs!
 -- Cabal doesn't seem to understand this, so it never copies
 -- these files.
 --if impl(ghc)
---  data-files:
-      lib/**/*.hs
-      lib/**/*.hs-boot
+--xMHS if !impl(mhs)
 
 source-repository head
     type:     git
@@ -121,3 +123,4 @@ executable mhs
   if impl(mhs)
     hs-source-dirs:    mhs src
     build-depends:     base         >= 0.1 && < 10.0,
+
