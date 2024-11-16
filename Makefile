@@ -238,6 +238,6 @@ install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
 
 preparedist:	newmhsz bootstrapcpphs generated/mcabal.c
 
-minstall:
-	mcabal install
-	cd lib; mcabal install
+minstall:	$(MCABALBIN)/mhs
+	cp bin/cpphs bin/mcabal $(MCABALBIN)
+	PATH=$(MCABALBIN):"$$PATH" cd lib; mcabal install
