@@ -87,7 +87,7 @@ ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/gmhs $(MHSINC) MicroHs.Main -ogenerated/mhs.c
 
 #
-generated/mcabal.c: ../MicroCabal/src/MicroCabal/*.hs
+generated/mcabal.c:
 	bin/mhs -z -i../MicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
 
 
@@ -236,7 +236,9 @@ install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
 
 # mkdir ~/.mcabal/packages/array-0.5.6.0
 
-preparedist:	newmhsz bootstrapcpphs generated/mcabal.c
+preparedist:	newmhsz bootstrapcpphs
+	rm -f generated/mcabal.c
+	make generated/mcabal.c
 
 minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
