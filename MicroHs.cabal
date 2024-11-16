@@ -110,6 +110,7 @@ executable mhs
     hs-source-dirs:    ghc src
     build-depends:     base         >= 4.10 && < 4.22,
                        deepseq      >= 1.1 && < 1.6,
+                       filepath     >= 1.1 && < 1.6,
                        ghc-prim     >= 0.5 && < 0.12,
                        haskeline    >= 0.8 && < 0.9,
                        time         >= 1.1 && < 1.15,

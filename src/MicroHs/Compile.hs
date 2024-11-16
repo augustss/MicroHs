@@ -20,6 +20,7 @@ import Data.Maybe
 import Data.Version
 import System.Directory
 import System.Environment
+import System.FilePath
 import System.IO
 import System.IO.MD5
 import System.IO.Serialize
@@ -302,7 +303,7 @@ readModulePath flags suf mn | Just fn <- getFileName mn = do
       mhc <- findModulePath flags (suf ++ "c") mn  -- look for hsc file
       case mhc of
         Nothing -> return Nothing
-        Just (_fn, _h) -> undefined
+        Just (_fn, _h) -> undefined  -- hsc2hs no implemented yet
     Just (fn, h) -> readRest fn h
   where readRest fn h = do
           hasCPP <- hasLangCPP fn
@@ -329,12 +330,12 @@ hasLangCPP fn = do
   scanFor "cpp" . map toLower <$> readFile fn
 
 moduleToFile :: IdentModule -> FilePath
-moduleToFile mn = map (\ c -> if c == '.' then '/' else c) (unIdent mn)
+moduleToFile mn = map (\ c -> if c == '.' then pathSeparator else c) (unIdent mn)
 
 findModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, Handle))
 findModulePath flags suf mn = do
   let
-    fn = moduleToFile mn ++ suf
+    fn = moduleToFile mn <.> suf
   openFilePath (paths flags) fn
 
 openFilePath :: [FilePath] -> FilePath -> IO (Maybe (FilePath, Handle))
@@ -343,7 +344,7 @@ openFilePath adirs fileName =
     [] -> return Nothing
     dir:dirs -> do
       let
-        path = dir ++ "/" ++ fileName
+        path = dir </> fileName
       mh <- openFileM path ReadMode
       case mh of
         Nothing -> openFilePath dirs fileName -- If opening failed, try the next directory
@@ -367,7 +368,7 @@ runCPP flags infile outfile = do
   mcpphs <- lookupEnv "MHSCPPHS"
   datadir <- getMhsDir
   let cpphs = fromMaybe "cpphs" mcpphs
-      mhsIncludes = ["-I" ++ datadir ++ "/src/runtime"]
+      mhsIncludes = ["-I" ++ datadir </> "src/runtime"]
       args = mhsDefines ++ mhsIncludes ++ map quote (cppArgs flags)
       cmd = cpphs ++ " --strip " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
       quote s = "'" ++ s ++ "'"
@@ -386,14 +387,14 @@ packageTxtSuffix = ".txt"
 findPkgModule :: Flags -> IdentModule -> CM (TModule [LDef], Symbols, Time)
 findPkgModule flags mn = do
   t0 <- liftIO getTimeMilli
-  let fn = moduleToFile mn ++ packageTxtSuffix
+  let fn = moduleToFile mn <.> packageTxtSuffix
   mres <- liftIO $ openFilePath (pkgPath flags) fn
   case mres of
     Just (pfn, hdl) -> do
       -- liftIO $ putStrLn $ "findPkgModule " ++ pfn
       pkg <- liftIO $ hGetContents hdl  -- this closes the handle
       let dir = take (length pfn - length fn) pfn  -- directory where the file was found
-      loadPkg flags (dir ++ packageDir ++ "/" ++ pkg)
+      loadPkg flags (dir ++ packageDir </> pkg)
       cash <- get
       case lookupCache mn cash of
         Nothing -> error $ "package does not contain module " ++ pkg ++ " " ++ showIdent mn
@@ -432,7 +433,7 @@ loadDependencies flags = do
 
 loadDeps :: Flags -> IdentPackage -> CM ()
 loadDeps flags pid = do
-  mres <- liftIO $ openFilePath (pkgPath flags) (packageDir ++ "/" ++ unIdent pid ++ packageSuffix)
+  mres <- liftIO $ openFilePath (pkgPath flags) (packageDir </> unIdent pid <.> packageSuffix)
   case mres of
     Nothing -> error $ "Cannot find package " ++ showIdent pid
     Just (pfn, hdl) -> do

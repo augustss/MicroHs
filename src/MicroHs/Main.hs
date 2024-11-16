@@ -25,6 +25,7 @@ import MicroHs.Interactive
 import MicroHs.MakeCArray
 import System.Cmd
 import System.Exit
+import System.FilePath
 import System.Directory
 import System.IO
 import System.IO.Serialize
@@ -45,7 +46,7 @@ main = do
    _ -> do
     let dflags = (defaultFlags dir){ pkgPath = pkgPaths }
         (flags, mdls, rargs) = decodeArgs dflags [] args
-        pkgPaths | dir == dataDir && dir /= "." = [dropTrailing 3 dataDir]  -- This is a bit ugly
+        pkgPaths | dir == dataDir && dir /= "." = [takeDirectory $ takeDirectory $ takeDirectory dataDir]  -- This is a bit ugly
                  | otherwise                    = []                        -- No package search path
     when (verbosityGT flags 1) $
       putStrLn $ "flags = " ++ show flags
@@ -64,11 +65,6 @@ main = do
 
 usage :: String
 usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [MODULENAME..|FILE]"
-
--- Drop trailing '/foo'
-dropTrailing :: Int -> FilePath -> FilePath
-dropTrailing 0 s = s
-dropTrailing n s = dropTrailing (n-1) . reverse . drop 1 . dropWhile (/= '/') . reverse $ s
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
@@ -99,7 +95,7 @@ decodeArgs f mdls (arg:args) =
     '-':'a':s   -> decodeArgs f{pkgPath = s : pkgPath f} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
-    _ | ".c" `isSuffixOf` arg || ".o" `isSuffixOf` arg || ".a" `isSuffixOf` arg
+    _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"
                 -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args
       | otherwise
                 -> decodeArgs f (mdls ++ [arg]) args
@@ -107,7 +103,7 @@ decodeArgs f mdls (arg:args) =
 
 readTargets :: Flags -> FilePath -> IO [Target]
 readTargets flags dir = do
-  let tgFilePath = dir ++ "/targets.conf"
+  let tgFilePath = dir </> "targets.conf"
   exists <- doesFileExist tgFilePath
   if not exists 
      then return []
@@ -186,7 +182,7 @@ mainListPkg flags pkg = do
   if ok then
     mainListPkg' flags pkg
    else do
-    mres <- openFilePath (pkgPath flags) (packageDir ++ "/" ++ pkg ++ packageSuffix)
+    mres <- openFilePath (pkgPath flags) (packageDir </> pkg <.> packageSuffix)
     case mres of
       Nothing -> error $ "Cannot find " ++ pkg
       Just (pfn, hdl) -> do
@@ -245,9 +241,9 @@ mainCompile flags mn = do
     --  * file ends in .c: write C version of combinator
     --  * otherwise, write C file and compile to a binary with cc
     let outFile = output flags
-    if ".comb" `isSuffixOf` outFile then
+    if outFile `hasTheExtension` ".comb" then
       writeFile outFile outData
-     else if ".c" `isSuffixOf` outFile then
+     else if outFile `hasTheExtension` ".c" then
       writeFile outFile cCode
      else do
        (fn, h) <- openTmpFile "mhsc.c"
@@ -257,8 +253,8 @@ mainCompile flags mn = do
        mcc <- lookupEnv "MHSCC"
        let dir = mhsdir flags
            ppkgs   = map fst $ getPathPkgs cash
-           incDirs = map (convertToInclude "/include") ppkgs
-           cDirs   = map (convertToInclude "/cbits") ppkgs
+           incDirs = map (convertToInclude "include") ppkgs
+           cDirs   = map (convertToInclude "cbits") ppkgs
        incDirs' <- filterM doesDirectoryExist incDirs
        cDirs'   <- filterM doesDirectoryExist cDirs
        --print (map fst $ getPathPkgs cash, incDirs, incDirs')
@@ -291,16 +287,16 @@ mainInstallPackage flags [pkgfn, dir] = do
   when (verbosityGT flags (-1)) $
     putStrLn $ "Installing package " ++ pkgfn ++ " in " ++ dir
   pkg <- readSerialized pkgfn
-  let pdir = dir ++ "/" ++ packageDir
-      pkgout = unIdent (pkgName pkg) ++ "-" ++ showVersion (pkgVersion pkg) ++ packageSuffix
+  let pdir = dir </> packageDir
+      pkgout = unIdent (pkgName pkg) ++ "-" ++ showVersion (pkgVersion pkg) <.> packageSuffix
   createDirectoryIfMissing True pdir
-  copyFile pkgfn (pdir ++ "/" ++ pkgout)
+  copyFile pkgfn (pdir </> pkgout)
   let mk tm = do
-        let fn = dir ++ "/" ++ moduleToFile (tModuleName tm) ++ packageTxtSuffix
-            d = dropWhileEnd (/= '/') fn
+        let fn = dir </> moduleToFile (tModuleName tm) <.> packageTxtSuffix
+            dn = takeDirectory fn
         when (verbosityGT flags 2) $
           putStrLn $ "create " ++ fn
-        createDirectoryIfMissing True d
+        createDirectoryIfMissing True dn
         writeFile fn pkgout
   mapM_ mk (pkgExported pkg)
 mainInstallPackage flags [pkgfn] =
@@ -312,7 +308,7 @@ mainInstallPackage _ _ = error usage
 mainListPackages :: Flags -> IO ()
 mainListPackages flags = mapM_ list (pkgPath flags)
   where list dir = do
-          let pdir = dir ++ "/" ++ packageDir
+          let pdir = dir </> packageDir
           ok <- doesDirectoryExist pdir
           when ok $ do
             files <- getDirectoryContents pdir
@@ -327,8 +323,10 @@ mainListPackages flags = mapM_ list (pkgPath flags)
 --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
 convertToInclude :: String -> FilePath -> FilePath
 convertToInclude inc pkg =
-  let path1 = init $ dropWhileEnd (/= '/') pkg      --   .../.mcabal/mhs-0.10.3.0/packages
-      base1 = takeWhileEnd (/= '/') pkg             --   base-0.10.3.0.pkg
-      base2 = init $ dropWhileEnd (/= '.') base1    --   base-0.10.3.0
-      path2 = dropWhileEnd (/= '/') path1           --   .../.mcabal/mhs-0.10.3.0/
-  in  path2 ++ "data/" ++ base2 ++ inc              --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
+  let (path1, base1) = splitFileName pkg            --   (.../.mcabal/mhs-0.10.3.0/packages, base-0.10.3.0.pkg)
+      base2 = dropExtension base1                   --   base-0.10.3.0
+      path2 = takeDirectory path1                   --   .../.mcabal/mhs-0.10.3.0
+  in  path2 </> "data" </> base2 </> inc            --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
+
+hasTheExtension :: FilePath -> String -> Bool
+hasTheExtension f e = takeExtension f == e
