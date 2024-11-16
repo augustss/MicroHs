@@ -260,16 +260,53 @@ Packages can depend on already installed packages.
 
 There is a search path for installed packages, controlled by the `-a` flag.
 
+There is no need for any extra flags to `mhs` to use installed packages, they are all visible at all times.
+When compiling to a binary only the used parts of a package will be included in the binary.
+
+### Compiling a package
 To compile a package use the command `mhs -Ppackage-name.pkg modules...` where `modules...`
 are all the modules you wish to expose from the package.  If other modules are needed they will
 automatically be included in the package.
 You typically also want to use the `-o` flag to give the package a sensible name.
 
+### Installing a package
 To install a package use the command `mhs -Q package-name.pkg [install-dir]`.
 If the `install-dir` is left out the package is installed in the default place.
 
-There is no need for any extra flags to `mhs` to use installed packages, they are all visible at all times.
-When compiling to a binary only the used parts of a package will be included in the binary.
+### MicroCabal (`mcabal`)
+Normally a package is downloaded from hackage and it will have a `.cabal` file
+that describes the package contents.  To install a downloaded package simply
+do `mcabal install`.  The `mcabal` program is included in the MicroHs download.
+You can also do `mcabal install PKG` to download an install a package.
+
+### Installed package organization
+The packages are typically installed in `~/.mcabal/` and it has the following
+layout:
+* `.mcabal/bin/` installed binaries, initially `mhs`, `cpphs`, and `mcabal`
+* `.mcabal/mhs-VER/` installed files for the given `mhs` version
+* `.mcabal/mhs-VER/packages/` for each library package a `PKG.pkg` file (the binary blob for the package)
+  and also (maybe) a directory `PKG/` that contains `data/`, `include/`, and `cbits/` for the package.
+* `.mcabal/.../MODULE.txt` a file for each installed module, it contains the name of the package the contains that module.
+
+For example, after installing `mhs` version 0.10.5.0 we will have something like this:
+```
+.mcabal/
+        bin/cpphs
+            mcabal
+            mhs
+        mhs-0.10.5.0/Control/Applicative.txt   -- contains "base-0.10.5.0.pkg"
+                             ...
+                             Monad/Fail.txt    -- contains "base-0.10.5.0.pkg"
+                                   ...
+                             ...
+                     Data/
+                     ...
+                     Prelude.txt               -- contains "base-0.10.5.0.pkg"
+        packages/base-0.10.5.0.pkg
+                 mhs-0.10.5.0/data/src/runtime/eval.c
+                                               ...
+```
+
 
 A (maybe) short-coming of the package system is that there can only be one version of a
 package installed at a time.  If you need multiple version, you have to use different directories for them

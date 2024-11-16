@@ -46,7 +46,7 @@ main = do
    _ -> do
     let dflags = (defaultFlags dir){ pkgPath = pkgPaths }
         (flags, mdls, rargs) = decodeArgs dflags [] args
-        pkgPaths | dir == dataDir && dir /= "." = [takeDirectory $ takeDirectory $ takeDirectory dataDir]  -- This is a bit ugly
+        pkgPaths | dir == dataDir && dir /= "." = [takeDirectory $ takeDirectory $ takeDirectory dataDir]   -- This is a bit ugly
                  | otherwise                    = []                        -- No package search path
     when (verbosityGT flags 1) $
       putStrLn $ "flags = " ++ show flags
@@ -257,7 +257,7 @@ mainCompile flags mn = do
            cDirs   = map (convertToInclude "cbits") ppkgs
        incDirs' <- filterM doesDirectoryExist incDirs
        cDirs'   <- filterM doesDirectoryExist cDirs
-       --print (map fst $ getPathPkgs cash, incDirs, incDirs')
+       -- print (map fst $ getPathPkgs cash, (incDirs, incDirs'), (cDirs, cDirs'))
        let incs = unwords $ map ("-I" ++) incDirs'
            defs = "-D__MHS__"
            cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
@@ -320,13 +320,9 @@ mainListPackages flags = mapM_ list (pkgPath flags)
 -- Convert something like
 --   .../.mcabal/mhs-0.10.3.0/packages/base-0.10.3.0.pkg
 -- into
---   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
+--   .../.mcabal/mhs-0.10.3.0/packages/base-0.10.3.0/include
 convertToInclude :: String -> FilePath -> FilePath
-convertToInclude inc pkg =
-  let (path1, base1) = splitFileName pkg            --   (.../.mcabal/mhs-0.10.3.0/packages, base-0.10.3.0.pkg)
-      base2 = dropExtension base1                   --   base-0.10.3.0
-      path2 = takeDirectory path1                   --   .../.mcabal/mhs-0.10.3.0
-  in  path2 </> "data" </> base2 </> inc            --   .../.mcabal/mhs-0.10.3.0/data/base-0.10.3.0/include
+convertToInclude inc pkg = dropExtension pkg </> inc
 
 hasTheExtension :: FilePath -> String -> Bool
 hasTheExtension f e = takeExtension f == e

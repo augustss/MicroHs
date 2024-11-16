@@ -203,11 +203,11 @@ emscripten: bin/mhs targets.conf
 
 ######
 
-VERSION=0.10.5.0
-HVERSION=0,10,5,0
+VERSION=0.10.6.0
+HVERSION=0,10,6,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
-MDATA=$(MCABALMHS)/data/mhs-$(VERSION)/data
+MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
 MRUNTIME=$(MDATA)/src/runtime
 MCABALBIN=$(MCABAL)/bin
 MDIST=dist-mcabal
@@ -226,12 +226,16 @@ $(MCABALBIN)/cpphs: bin/cpphs
 	@mkdir -p $(MCABALBIN)
 	cp bin/cpphs $(MCABALBIN)
 
+$(MCABALBIN)/mcabal: bin/mcabal
+	@mkdir -p $(MCABALBIN)
+	cp bin/mcabal $(MCABALBIN)
+
 $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/mhs -P$(BASE) -o$(BASE).pkg -ilib $(BASEMODULES)
 	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
 	@rm $(BASE).pkg
 
-install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALMHS)/packages/$(BASE).pkg
+install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALBIN)/mcabal $(MCABALMHS)/packages/$(BASE).pkg
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 # mkdir ~/.mcabal/packages/array-0.5.6.0
@@ -242,5 +246,5 @@ preparedist:	newmhsz bootstrapcpphs
 
 minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
-	PATH=$(MCABALBIN):"$$PATH" mcabal install
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal install
+	PATH=$(MCABALBIN):"$$PATH" mcabal install
