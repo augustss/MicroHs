@@ -35,6 +35,8 @@ derivers =
   ,("Data.Ix.Ix",             derNotYet)
   ,("Data.Ord.Ord",           derOrd)
   ,("Data.Typeable.Typeable", derTypeable)
+  ,("GHC.Generics.Generic",   derNotYet)
+  ,("Language.Haskell.TH.Syntax.Lift", derLift)
   ,("Text.Read.Internal.Read",derNotYet)
   ,("Text.Show.Show",         derShow)
   ]
@@ -50,6 +52,10 @@ derNotYet :: Deriver
 derNotYet _ _ d = do
   traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
   return []
+
+-- We will never have Template Haskell, but we pretend we can derive Lift for it.
+derLift :: Deriver
+derLift _ _ _ = return []
 
 --------------------------------------------
 

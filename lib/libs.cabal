@@ -105,8 +105,10 @@ library base
         Foreign.Marshal.Utils
         Foreign.Ptr
         Foreign.Storable
+        GHC.Generics
         GHC.Stack
         GHC.Types
+        Language.Haskell.TH.Syntax
         Mhs.Builtin
         Numeric
         Numeric.FormatFloat
