@@ -37,7 +37,7 @@ derivers =
   ,("Data.Typeable.Typeable", derTypeable)
   ,("GHC.Generics.Generic",   derNotYet)
   ,("Language.Haskell.TH.Syntax.Lift", derLift)
-  ,("Text.Read.Internal.Read",derNotYet)
+  ,("Text.Read.Internal.Read",derRead)
   ,("Text.Show.Show",         derShow)
   ]
 
@@ -50,8 +50,12 @@ derive lhs cs d = do
 
 derNotYet :: Deriver
 derNotYet _ _ d = do
-  traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
+  notYet d
   return []
+
+notYet :: EConstraint -> T ()
+notYet d =
+  traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
 
 -- We will never have Template Haskell, but we pretend we can derive Lift for it.
 derLift :: Deriver
@@ -308,3 +312,17 @@ derData lhs cs edata = do
   let
     inst = Instance hdr []
   return [inst]
+
+--------------------------------------------
+
+derRead :: Deriver
+derRead lhs cs eread = do
+  notYet eread
+  hdr <- mkHdr lhs cs eread
+  let
+    loc = getSLoc eread
+    iReadPrec = mkIdentSLoc loc "readPrec"
+    err = eEqn [] $ EApp (EVar $ mkBuiltin loc "error") (ELit loc (LStr "readPrec not defined"))
+    inst = Instance hdr [BFcn iReadPrec [err]]
+  return [inst]
+
