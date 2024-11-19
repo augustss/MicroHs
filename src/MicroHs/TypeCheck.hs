@@ -2524,9 +2524,19 @@ solveAndDefault True  ta = do
 
 defaultOneTyVar :: TRef -> T [Solved]
 defaultOneTyVar tv = do
+--  traceM $ "defaultOneTyVar: " ++ show tv
   old <- get             -- get entire old state
   let cvs = nub [ c | (_, EApp (EVar c) (EUVar tv')) <- constraints old, tv == tv' ]  -- all C v constraints
-  dvs <- nub . (cvs ++ ) . concat <$> mapM getSuperClasses cvs                        -- add superclasses
+      addSupers :: [Ident] -> T [Ident]
+      addSupers cs = do
+        scs <- nub . concat <$> mapM getSuperClasses cs -- immediate superclasses
+        if null scs then
+          return cs
+         else
+          nub . ((cs ++ scs) ++) <$> addSupers scs
+--  traceM $ "defaultOneTyVar: cvs = " ++ show cvs
+  dvs <- addSupers cvs                                  -- add superclasses
+--  traceM $ "defaultOneTyVar: dvs = " ++ show dvs
   let oneCls c | Just ts <- M.lookup c (defaults old) =
         take 1 $ filter (\ t -> all (\ cc -> soluble cc t) cvs) ts
                | otherwise = []
@@ -2536,7 +2546,7 @@ defaultOneTyVar tv = do
         cs <- gets constraints
         return $ null cs                                -- No constraints left?
       tys = nubBy eqEType $ concatMap oneCls dvs
---  traceM $ "defaultOneTyVar " ++ show (tv, cvs, tys)
+--  traceM $ "defaultOneTyVar: " ++ show (tv, tys)
   case tys of
     [ty] -> do            -- There is a single type solving everything
       setUVar tv ty
@@ -2547,8 +2557,11 @@ getSuperClasses :: Ident -> T [Ident]
 getSuperClasses i = do
   ct <- gets classTable
   case M.lookup i ct of
-    Nothing -> error "getSuperClasses"
-    Just (ClassInfo _ supers _ _ _) -> return $ map (fst . getApp) supers
+    Nothing -> error $ "getSuperClasses: " ++ show i
+    Just (ClassInfo _ supers _ _ _) -> do
+      --let supers' = flattenContext supers
+--      traceM ("getSuperClasses: supers=" ++ show (supers, map (fst . getApp) supers))
+      return $ map (fst . getApp) supers
 
 {-
 showInstInfo :: InstInfo -> String
