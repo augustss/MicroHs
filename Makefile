@@ -248,3 +248,4 @@ minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal install
 	PATH=$(MCABALBIN):"$$PATH" mcabal install
+	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
