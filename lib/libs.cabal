@@ -18,6 +18,7 @@ library base
         Control.DeepSeq
         Control.Error
         Control.Exception
+        Control.Exception.Base
         Control.Monad
         Control.Monad.Fail
         Control.Monad.Fix
