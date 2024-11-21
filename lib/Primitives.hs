@@ -34,8 +34,7 @@ data Ptr a
 data ForeignPtr a
 data FunPtr a
 data IOArray a
-
-data () = ()   -- Parser hacks allows () to be used
+-- (), (,), (,,), etc are built in to the compiler
 
 primIntAdd :: Int -> Int -> Int
 primIntAdd  = primitive "+"

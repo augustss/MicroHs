@@ -624,7 +624,7 @@ primTypes =
        (mkIdentB "\x2192",       [entry identArrow    kTypeTypeTypeS]),  -- ->
        (mkIdentB "\x21d2",       [entry identImplies  kImplies])         -- =>
       ] ++
-      map tuple (enumFromTo 2 10)
+      map tuple (0 : enumFromTo 2 10)
 
 -- E.g.
 --  True :: Bool
@@ -641,7 +641,7 @@ primValues =
         ts = map tVarK vks
         r = tApps c ts
       in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall True vks $ EForall True [] $ foldr tArrow r ts ])
-  in  map tuple (enumFromTo 2 10)
+  in  map tuple (0 : enumFromTo 2 10)
 
 kArrow :: EKind -> EKind -> EKind
 kArrow = tArrow

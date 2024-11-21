@@ -307,12 +307,15 @@ kConstraint :: EKind
 kConstraint = EVar (mkIdent "Primitives.Constraint")
 
 tupleConstr :: SLoc -> Int -> Ident
+tupleConstr loc 0 = mkIdentSLoc loc "()"
+tupleConstr   _ 1 = error "tupleConstr"
 tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
 
 -- Check if it is a tuple constructor
 getTupleConstr :: Ident -> Maybe Int
 getTupleConstr i =
   case unIdent i of
+    "()" -> Just 0
     ',':xs -> Just (length xs + 2)  -- "," is 2-tuple
     _ -> Nothing
 

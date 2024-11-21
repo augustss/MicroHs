@@ -152,7 +152,7 @@ module Data.ByteString(
   hPutNonBlocking,
   hPutStr,
   ) where
-import Prelude(Bool(..), Int, Char, Ordering, FilePath, IO, Maybe(..), (), [](..), String,
+import Prelude(Bool(..), Int, Char, Ordering, FilePath, IO, Maybe(..), [](..), String,
                Eq(..), Ord(..), Show(..), Num(..), Monad(..), Functor(..),
                (.), ($), Enum(..), (||), (&&), not, otherwise, (!!), fst, snd)
 import qualified Prelude as P

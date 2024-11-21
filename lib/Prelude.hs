@@ -80,7 +80,7 @@ import Data.RealFrac(RealFrac(..))
 import Data.Records  -- XXX redo this somehow
 import Data.Semigroup(Semigroup(..))
 import Data.String(IsString(..), lines, unlines, words, unwords)
-import Data.Tuple(()(..), fst, snd, curry, uncurry)
+import Data.Tuple(fst, snd, curry, uncurry)
 import Data.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                  FilePath, readFile, writeFile, appendFile,

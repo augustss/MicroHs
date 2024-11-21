@@ -2,10 +2,8 @@
 -- See LICENSE file for full license.
 module Data.Tuple(
   module Data.Tuple,
-  ()(..)
   ) where
 import Prelude()              -- do not import Prelude
-import Primitives  -- for ()
 import Data.Bool
 import Data.Bounded
 import Data.Eq
@@ -42,6 +40,8 @@ swap :: forall a b . (a, b) -> (b, a)
 swap (a, b) = (b, a)
 
 -----------------------------------
+
+-- data () = () built in
 
 instance Eq () where
   () == ()  =  True

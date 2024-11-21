@@ -64,7 +64,7 @@ import Data.Ratio(Rational)
 import Data.Real(Real(..), realToFrac)
 import Data.Records  -- needed for data types with fields
 import Data.String(IsString(..), lines, unlines, words, unwords)
-import Data.Tuple(()(..), fst, snd, curry, uncurry)
+import Data.Tuple(fst, snd, curry, uncurry)
 import Data.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                  FilePath, readFile, writeFile, appendFile,

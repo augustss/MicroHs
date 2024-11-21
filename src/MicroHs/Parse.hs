@@ -106,7 +106,6 @@ pUIdentSpecial = do
     mk = mkIdentSLoc loc
   
   (mk . map (const ',') <$> (pSpec '(' *> esome (pSpec ',') <* pSpec ')'))
-    <|< (mk "()" <$ (pSpec '(' *> pSpec ')'))  -- Allow () as a constructor name
     <|< (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
 
 -- Upper case, possibly qualified, alphanumeric identifier
@@ -498,7 +497,7 @@ pAType =
       (EVar <$> pLQIdentSym)
   <|< (EVar <$> pUQIdentSym)
   <|< pLit
-  <|< (eTuple <$> (pSpec '(' *> esepBy1 pType (pSpec ',') <* pSpec ')'))
+  <|< (eTuple <$> (pSpec '(' *> esepBy pType (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
 
 -------------
@@ -517,7 +516,7 @@ pAPat =
       )
   <|< (evar <$> pUQIdentSym <*> optional pUpdate)
   <|< pLit
-  <|< (eTuple <$> (pSpec '(' *> esepBy1 pPat (pSpec ',') <* pSpec ')'))
+  <|< (eTuple <$> (pSpec '(' *> esepBy pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
   <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSRArrow *> pAPat <* pSpec ')'))
   <|< (ELazy True  <$> (pSpec '~' *> pAPat))
@@ -694,7 +693,7 @@ pAExpr' = (
       (EVar   <$> pLQIdentSym)
   <|< (EVar   <$> pUQIdentSym)
   <|< pLit
-  <|< (eTuple <$> (pSpec '(' *> esepBy1 pExpr (pSpec ',') <* pSpec ')'))
+  <|< (eTuple <$> (pSpec '(' *> esepBy pExpr (pSpec ',') <* pSpec ')'))
   <|< EListish <$> (pSpec '[' *> pListish <* pSpec ']')
   <|< (ESectL <$> (pSpec '(' *> pExprOp) <*> (pOperComma <* pSpec ')'))
   <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprOp <* pSpec ')'))
@@ -762,7 +761,6 @@ pInstBind =
 -------------
 
 eTuple :: [Expr] -> Expr
-eTuple [] = error "eTuple"
 eTuple [e] = EParen e
 eTuple es = ETuple es
 
