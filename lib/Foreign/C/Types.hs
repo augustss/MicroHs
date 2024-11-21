@@ -20,6 +20,7 @@ import Data.Int
 import Data.Integral
 import Data.Num
 import Data.Ord
+import Data.Real
 import Data.Word
 import Data.FloatW
 
@@ -77,6 +78,8 @@ instance Num CLong where
 instance Integral CLong where
   quotRem (CLong x) (CLong y) = (CLong q, CLong r) where (q, r) = quotRem q r
   toInteger (CLong x) = toInteger x
+instance Real CLong where
+  toRational (CLong x) = toRational x
 
 -- XXX only one of these is actually correct
 newtype CFloat   = CFloat   FloatW

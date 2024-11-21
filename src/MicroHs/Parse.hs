@@ -387,7 +387,7 @@ pDeriving = pKeyword "deriving" *> pDer <|< pure []
 pContext :: P [EConstraint]
 pContext = (pCtx <* pDRArrow) <|< pure []
   where
-    pCtx = pParens (emany pType) <|< ((:[]) <$> pTypeApp)
+    pCtx = pParens (esepBy pType (pSpec ',')) <|< ((:[]) <$> pTypeApp)
 
 pDRArrow :: P ()
 pDRArrow = pSymbol "=>" <|< pSymbol "\x21d2"

@@ -14,6 +14,7 @@ module Mhs.Builtin(
   module Text.Show,
   ) where
 import Prelude()
+import Control.Error(error)
 import Control.Monad(Monad(..))
 import Control.Monad.Fail(MonadFail(..))
 import Data.Bool((&&), Bool(..))

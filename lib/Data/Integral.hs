@@ -9,10 +9,14 @@ import Data.Eq
 import Data.Integer_Type
 import Data.Num
 import Data.Ord
+import Data.Real
 
 infixl 7 `quot`,`rem`
+infixl 7 `div`,`mod`
 
-class {-(Real a, Enum a) => -} (Eq a, Num a) => Integral a where
+-- XXX Importing Data.Enum causes an import cycle.
+--     I don't really see the point of Enum as a superclass.
+class (Real a{-, Enum a-}) => Integral a where
   quot      :: a -> a -> a
   rem       :: a -> a -> a
   div       :: a -> a -> a

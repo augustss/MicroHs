@@ -33,6 +33,7 @@ module Prelude(
   module Data.Tuple,
   module Data.Word,
   module System.IO,
+  module System.IO.Error,
   module Text.Read,
   module Text.Show,
   Float, Double,
@@ -55,7 +56,7 @@ import Data.Enum(Enum(..))
 import Data.Eq(Eq(..))
 import Data.Float(Float)
 import Data.Floating(Floating(..))
-import Data.Fractional(Fractional(..), (^^))
+import Data.Fractional(Fractional(..), (^^), realToFrac)
 import Data.Function(id, const, (.), flip, ($), seq, ($!), until, asTypeOf)
 import Data.Functor(Functor(..), (<$>))
 import Data.Int(Int)
@@ -74,7 +75,7 @@ import Data.Monoid(Monoid(..))
 import Data.Num(Num(..), subtract)
 import Data.Ord(Ord(..), Ordering(..))
 import Data.Ratio(Rational)
-import Data.Real(Real(..), realToFrac)
+import Data.Real(Real(..))
 import Data.RealFloat(RealFloat(..))
 import Data.RealFrac(RealFrac(..))
 import Data.Records  -- XXX redo this somehow
@@ -85,6 +86,7 @@ import Data.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                  FilePath, readFile, writeFile, appendFile,
                  cprint, cuprint)
+import System.IO.Error(IOError)
 import Text.Read(ReadS, Read(..), read, reads, readParen, lex)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Primitives(_wordSize, _isWindows)
