@@ -325,4 +325,4 @@ convertToInclude :: String -> FilePath -> FilePath
 convertToInclude inc pkg = dropExtension pkg </> inc
 
 hasTheExtension :: FilePath -> String -> Bool
-hasTheExtension f e = takeExtension f == e
+hasTheExtension f e = isSuffixOf e f
