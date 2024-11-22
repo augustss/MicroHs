@@ -2457,8 +2457,8 @@ eCannotHappen = --undefined
 -----
 
 -- Given a dictionary of a (constraint type), split it up
---  * name components of a tupled constraint
---  * name superclasses of a constraint
+--  * components of a tupled constraint
+--  * superclasses of a constraint
 expandDict :: HasCallStack => Expr -> EConstraint -> T [InstDictC]
 expandDict edict ct = expandDict' [] [] edict =<< expandSyn ct
 
@@ -2527,15 +2527,8 @@ defaultOneTyVar tv = do
 --  traceM $ "defaultOneTyVar: " ++ show tv
   old <- get             -- get entire old state
   let cvs = nub [ c | (_, EApp (EVar c) (EUVar tv')) <- constraints old, tv == tv' ]  -- all C v constraints
-      addSupers :: [Ident] -> T [Ident]
-      addSupers cs = do
-        scs <- nub . concat <$> mapM getSuperClasses cs -- immediate superclasses
-        if null scs then
-          return cs
-         else
-          nub . ((cs ++ scs) ++) <$> addSupers scs
 --  traceM $ "defaultOneTyVar: cvs = " ++ show cvs
-  dvs <- addSupers cvs                                  -- add superclasses
+  dvs <- getSuperClasses cvs                            -- add superclasses
 --  traceM $ "defaultOneTyVar: dvs = " ++ show dvs
   let oneCls c | Just ts <- M.lookup c (defaults old) =
         take 1 $ filter (\ t -> all (\ cc -> soluble cc t) cvs) ts
@@ -2553,15 +2546,23 @@ defaultOneTyVar tv = do
       solveConstraints
     _ -> return []        -- Nothing solved
 
-getSuperClasses :: Ident -> T [Ident]
-getSuperClasses i = do
+-- The transitive closure of super-classes.
+-- XXX Somewhat duplicated with expandDict
+getSuperClasses :: [Ident] -> T [Ident]
+getSuperClasses ais = do
   ct <- gets classTable
-  case M.lookup i ct of
-    Nothing -> error $ "getSuperClasses: " ++ show i
-    Just (ClassInfo _ supers _ _ _) -> do
-      --let supers' = flattenContext supers
---      traceM ("getSuperClasses: supers=" ++ show (supers, map (fst . getApp) supers))
-      return $ map (fst . getApp) supers
+  let loop done [] = done
+      loop done (i:is) | i `elem` done = loop done is
+                       | otherwise = i :
+        case M.lookup i ct of
+          Nothing -> error $ "getSuperClasses: " ++ show i
+          Just (ClassInfo _ supers _ _ _) ->
+            loop done (concatMap flatten supers ++ is)
+      flatten a | (c, ts) <- getApp a =
+        case getTupleConstr c of
+          Nothing -> [c]
+          Just _ -> concatMap flatten ts
+  return $ loop [] ais
 
 {-
 showInstInfo :: InstInfo -> String

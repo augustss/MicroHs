@@ -31,6 +31,11 @@ data T a = Show a => T a
 sh :: forall a . T a -> String
 sh (T a) = show a
 
+data D = forall a . (Show a, Num a) => D a
+
+unD :: D -> String
+unD (D x) = show (x+1)
+
 main :: IO ()
 main = do
   print es
@@ -40,3 +45,5 @@ main = do
   putStrLn (bar someE)
   putStrLn (sh (T True))
   putStrLn (sh (T 'x'))
+  putStrLn (unD (D (1::Int)))
+  putStrLn (unD (D 1.5))

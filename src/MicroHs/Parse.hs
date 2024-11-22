@@ -384,10 +384,11 @@ pDeriving = pKeyword "deriving" *> pDer <|< pure []
   where pDer =     pParens (esepBy pType (pSpec ','))
                <|< ((:[]) <$> pType)
 
+-- List has 0 or 1 elements
 pContext :: P [EConstraint]
 pContext = (pCtx <* pDRArrow) <|< pure []
   where
-    pCtx = pParens (esepBy pType (pSpec ',')) <|< ((:[]) <$> pTypeApp)
+    pCtx = ((:[]) <$> pTypeApp)
 
 pDRArrow :: P ()
 pDRArrow = pSymbol "=>" <|< pSymbol "\x21d2"
