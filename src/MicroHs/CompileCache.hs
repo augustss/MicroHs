@@ -1,7 +1,7 @@
 module MicroHs.CompileCache(
   CModule,
   Cache, addWorking, getWorking, emptyCache, deleteFromCache, workToDone, addBoot, getBoots,
-  cachedModules, lookupCache, lookupCacheChksum, getImportDeps,
+  cachedModules, cachedModuleNames, lookupCache, lookupCacheChksum, getImportDeps,
   addPackage, getCompMdls, getPathPkgs, getPkgs,
   getCacheTables, setCacheTables,
   saveCache, loadCached,
@@ -83,6 +83,9 @@ workToDone _ _ = undefined
 
 cachedModules :: Cache -> [TModule [LDef]]
 cachedModules = map tModuleOf . M.elems . cache
+
+cachedModuleNames :: Cache -> [IdentModule]
+cachedModuleNames = M.keys . cache
 
 lookupCache :: IdentModule -> Cache -> Maybe (TModule [LDef])
 lookupCache mn c = tModuleOf <$> M.lookup mn (cache c)

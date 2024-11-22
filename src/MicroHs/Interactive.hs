@@ -57,8 +57,9 @@ start = do
 
 repl :: I ()
 repl = do
+  mdls <- gets (cachedModuleNames . isCache)
   syms <- gets isSymbols
-  ms <- liftIO $ getInputLineHistComp (return . complete syms) ".mhsi" "> "
+  ms <- liftIO $ getInputLineHistComp (return . complete mdls syms) ".mhsi" "> "
   case ms of
     Nothing -> repl
     Just s ->
@@ -283,10 +284,11 @@ getKindInCache cash i =
 --  operator completion
 --  completion with qualified names
 
-complete :: Symbols -> (String, String) -> [String]
-complete (tys, vals) (rpre, _post) =
-  let pre = reverse $ takeWhile isIdentChar rpre
-      allSyms = map unIdent $ stKeysGlbU tys ++ stKeysGlbU vals
+complete :: [Ident] -> Symbols -> (String, String) -> [String]
+complete mdls (tys, vals) (rpre, _post) =
+  let pre = reverse $ takeWhile isId rpre
+      isId c = isIdentChar c || c == '.'
+      allSyms = map unIdent $ stKeysGlbU tys ++ stKeysGlbU vals ++ mdls
       allStrs = allSyms ++ keywords
       real = notElem '$'
   in  case filter real $ catMaybes $ map (stripPrefix pre) allStrs of
