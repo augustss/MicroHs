@@ -94,7 +94,16 @@ getraw(void)
   struct termios old, new;
   char c;
   int r;
-  
+
+#if defined(USE_SYSTEM_RAW)
+
+  /* For, e.g., execution with WASM in node the ioctl() doesn't seem to work */
+  system("stty raw");
+  r = read(0, &c, 1);
+  system("stty -raw");
+
+#else  /* USE_SYSTEM_RAW */
+
   if (tcgetattr(0, &old)) {
 #if WANT_STDIO
     fprintf(stderr, "tcgetattr failed: errno=%d\n", errno);
@@ -121,6 +130,9 @@ getraw(void)
 #endif  /* WANT_STDIO */
     return -1;
   }
+
+#endif  /* USE_SYSTEM_RAW */
+
   if (r == 1)
     return c;
   else {

@@ -64,7 +64,7 @@ main = do
                 _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [MODULENAME..|FILE]"
+usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [MODULENAME..|FILE]"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
@@ -82,17 +82,19 @@ decodeArgs f mdls (arg:args) =
     "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
     "-z"        -> decodeArgs f{compress = True} mdls args
     "-Q"        -> decodeArgs f{installPkg = True} mdls args
+    "-o" | s : args' <- args
+                -> decodeArgs f{output = s} mdls args'
+    "-optc" | s : args' <- args
+                -> decodeArgs f{cArgs = cArgs f ++ [s]} mdls args'
     '-':'i':[]  -> decodeArgs f{paths = []} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
-    '-':'o':[] | s : args' <- args
-                -> decodeArgs f{output = s} mdls args'
     '-':'o':s   -> decodeArgs f{output = s} mdls args
     '-':'t':s   -> decodeArgs f{target = s} mdls args
     '-':'D':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'I':_   -> decodeArgs f{cppArgs = cppArgs f ++ [arg]} mdls args
     '-':'P':s   -> decodeArgs f{buildPkg = Just s} mdls args
     '-':'a':[]  -> decodeArgs f{pkgPath = []} mdls args
-    '-':'a':s   -> decodeArgs f{pkgPath = s : pkgPath f} mdls args
+    '-':'a':s   -> decodeArgs f{pkgPath = pkgPath f ++ [s]} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"

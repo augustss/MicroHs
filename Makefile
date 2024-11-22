@@ -20,6 +20,8 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
+EMCC=emcc -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW
+#
 MHSINCNP= -i -imhs -isrc -ilib
 MHSINC=$(MHSINCNP) -ipaths 
 #
@@ -30,6 +32,10 @@ all:	bin/mhs bin/cpphs bin/mcabal
 targets.conf:
 	echo [default]           > targets.conf
 	echo cc = \"$(CC)\"     >> targets.conf
+	echo conf = \"$(CONF)\" >> targets.conf
+	echo ''                 >> targets.conf
+	echo [emscripten]       >> targets.conf
+	echo cc = \"$(EMCC)\"   >> targets.conf
 	echo conf = \"$(CONF)\" >> targets.conf
 
 newmhs:	ghcgen targets.conf
@@ -90,6 +96,9 @@ ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 generated/mcabal.c:
 	bin/mhs -z -i../MicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
 
+# Flags to read local file system, generate a single .js file, and to avoid ioctl()
+mhs.js:	src/*/*.hs src/runtime/*.[ch] targets.conf
+	bin/mhs $(MHSINC) -temscripten MicroHs.Main -o mhs.js
 
 # Make sure boottrapping works
 bootstrap:	bin/mhs-stage2
