@@ -8,7 +8,7 @@ readDouble = read
 -- We only use values that can be represented exactly.
 
 list1 :: [Double]
-list1 = [-100.25::Double, -53.25::Double, 0.0::Double, 1.0::Double, 1.125::Double, 1.0e4::Double]
+list1 = [-100.5::Double, -53.25::Double, 0.0::Double, 1.0::Double, 1.125::Double, 1.0e3::Double]
 
 main :: IO ()
 main = do
