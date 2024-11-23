@@ -188,14 +188,14 @@ Do **NOT** use `-C` when you are changing the compiler itself; if the cached dat
 
 ### Targets
 The configuration file `targets.conf` (in the installation directory) defines how to compile for
-different targets.  As distributed it contains thetargets `default` and `emscripten`.
+different targets.  As distributed it contains the targets `default` and `emscripten`.
 The first is the normal target to run on the host.
-The `emscripten` target uses `emcc` to generate JavaScript.
-If you have `emcc` and node installed you can do
+The `emscripten` target uses `emcc` to generate JavaScript/WASM.
+If you have `emcc` and `node` installed you can do
   ```
   mhs -temscripten Example -oout.js; node out.js
   ```
-to compile and run the JavaScript.  There generated JavaScript file has some regular JavaScript,
+to compile and run the JavaScript.  The generated JavaScript file has some regular JavaScript,
 and also the WASM code embedded as a blob.  Running via JavaScript/WASM is almost as fast as running natively.
 
 ### Environment variables
