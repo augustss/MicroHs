@@ -142,7 +142,7 @@ runtestmhs:
 
 # Run test examples going via JavaScript
 runtestemscripten:
-	cd tests; MHSDIR=.. make MHS="../bin/gmhs -temscripten -oout.js" EVAL="node out.js" alltest
+	cd tests; make MHS=../bin/mhs cache; MHSDIR=.. make MHS="../bin/mhs -CR -temscripten -oout.js" EVAL="node out.js" info test errtest
 
 
 # Compress the binary (broken on MacOS)
