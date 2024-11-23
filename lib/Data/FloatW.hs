@@ -108,7 +108,7 @@ foreign import ccall "acos" cacos :: FloatW -> IO FloatW
 foreign import ccall "atan" catan :: FloatW -> IO FloatW
 foreign import ccall "atan2" catan2 :: FloatW -> FloatW -> IO FloatW
 
--- Assumes 64 bit floats
+-- Assumes 32/64 bit floats
 instance RealFloat FloatW where
   floatRadix     _ = 2
   floatDigits    _ = flt 24 53

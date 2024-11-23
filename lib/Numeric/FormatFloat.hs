@@ -11,8 +11,6 @@ module Numeric.FormatFloat(
   showHFloat,
 
   ) where
-import Prelude()
-import MiniPrelude
 import Data.Char
 import Numeric.Show
 
