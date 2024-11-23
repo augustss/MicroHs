@@ -35,7 +35,7 @@ trans r ae =
     Lit (LInt i) -> unsafeCoerce i
     Lit (LDouble i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
-    Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ p) $ lookup p primTable
+    Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
     Lit (LForImp s _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
     _ -> error $ "trans: impossible: " ++ show ae
@@ -139,6 +139,7 @@ primTable = [
   ("A.write", primitive "A.write"),
   ("A.==", primitive "A.=="),
   ("bs++", primitive "bs++"),
+  ("bs++.", primitive "bs++."),
   ("bs+++", primitive "bs+++"),
   ("bs==", primitive "bs=="),
   ("bs/=", primitive "bs/="),
@@ -153,6 +154,7 @@ primTable = [
   ("bssubstr", primitive "bssubstr"),
   ("fromUTF8", primitive "fromUTF8"),
   ("toUTF8", primitive "toUTF8"),
+  ("headUTF8", primitive "headUTF8"),
   ("fp+", primitive "fp+"),
   ("fp2p", primitive "fp2p"),
   ("fpnew", primitive "fpnew"),
