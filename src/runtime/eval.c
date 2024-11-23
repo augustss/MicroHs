@@ -1898,13 +1898,18 @@ size_t strNodes(size_t len);
 NODEPTR mkStringC(char *str);
 
 #if WANT_STDIO
+#if WORD_SIZE == 64
+#define CONVDBL "%.16g"
+#elif WORD_SIZE == 32
+#define CONVDBL "%.8g"
+#endif
 void
 convdbl(char *str, flt_t x)
 {
   /* Using 16 decimals will lose some precision.
    * 17 would keep the precision, but it frequently looks very ugly.
    */
-  (void)snprintf(str, 25, "%.16g", x);
+  (void)snprintf(str, 25, CONVDBL, x);
   if (strcmp(str, "nan") != 0 && strcmp(str, "-nan") != 0 &&
       strcmp(str, "inf") != 0 && strcmp(str, "-inf") != 0 &&
       !strchr(str, '.') && !strchr(str, 'e') && !strchr(str, 'E')) {

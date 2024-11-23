@@ -1,4 +1,6 @@
 module Numeric.FormatFloat(
+  showFloat,
+
   formatRealFloat, formatRealFloatAlt,
 
   showEFloat,
@@ -9,11 +11,13 @@ module Numeric.FormatFloat(
   showHFloat,
 
   ) where
+import Prelude()
+import MiniPrelude
 import Data.Char
 import Numeric.Show
 
---showFloat :: (RealFloat a) => a -> ShowS
---showFloat x  =  showString (formatRealFloat FFGeneric Nothing x)
+showFloat :: (RealFloat a) => a -> ShowS
+showFloat x = showString (formatRealFloat FFGeneric Nothing x)
 
 -- These are the format types.  This type is not exported.
 data FFFormat = FFExponent | FFFixed | FFGeneric

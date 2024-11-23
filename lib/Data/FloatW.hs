@@ -63,7 +63,7 @@ instance Ord FloatW where
   
 -- For now, cheat and call C
 instance Show FloatW where
-  show = primFloatWShow
+  show = primFloatWShow -- should be Numeric.FormatFloat.showFloat, but that drags in a lot of stuff
 
 {- in Text.Read.Internal
 instance Read FloatW where

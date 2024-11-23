@@ -45,6 +45,7 @@
 
 /*
  * Number of bits in a word.  Only 32 and 64 are supported.
+ * WORD_SIZE set in mhsffi.h
  */
 //#define WORD_SIZE 64
 
