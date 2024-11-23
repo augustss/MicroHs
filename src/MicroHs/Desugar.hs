@@ -193,8 +193,10 @@ mutualRec v ies body =
   in  letRecE v (bnds $ mkTupleE es) $
       bnds body
 
+-- In case we are cross compiling for a 32 bit platform we don't want integers that are too big.
+-- So we use the 32 bit bounds on the int encoding.
 encodeInteger :: Integer -> Exp
-encodeInteger i | toInteger (minBound::Int) <= i && i < toInteger (maxBound::Int) =
+encodeInteger i | -0x80000000 <= i && i <= 0x7fffffff  =
 --  trace ("*** small integer " ++ show i) $
   App (Var (mkIdent "Data.Integer_Type._intToInteger")) (Lit (LInt (fromInteger i)))
                 | otherwise =

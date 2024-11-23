@@ -317,17 +317,24 @@ gtI x y = ltI y x
 geI :: Integer -> Integer -> Bool
 geI x y = not (ltI x y)
 
+-- To make the [Int] representing an integer portable, we
+-- need to base that does not depend on the word size
+integerListBase :: Integer
+integerListBase = 32768
+
 -- These two functions return an (opaque) representation of an
 -- Integer as [Int].
 -- This is used by the compiler to generate Integer literals.
 -- First _integerToIntList is used in the compiler to get a list of
 -- Int, and the generated code will have a call to _intListToInteger.
 _integerToIntList :: Integer -> [Int]
-_integerToIntList (I Plus  ds) = ds
-_integerToIntList (I Minus ds) = (-1::Int) : ds
+_integerToIntList i = if i < 0 then (-1::Int) : f (-i) else f i
+  where f 0 = []
+        f i = fromInteger r : f q  where (q, r) = quotRem i integerListBase
 
 _intListToInteger :: [Int] -> Integer
-_intListToInteger ads@(x : ds) = if x == -1 then I Minus ds else I Plus ads
+_intListToInteger ads@(x : ds) = if x == -1 then - f ds else f ads
+  where f = foldr (\ d a -> a * integerListBase + toInteger d) 0
 
 ---------------------------------
 {-
