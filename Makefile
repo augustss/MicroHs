@@ -140,6 +140,11 @@ runtest:	bin/mhseval bin/gmhs tests/*.hs
 runtestmhs:
 	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H4M -RTS -CR" info test errtest
 
+# Run test examples going via JavaScript
+runtestemscripten:
+	cd tests; MHSDIR=.. make MHS="../bin/gmhs -temscripten -oout.js" EVAL="node out.js" alltest
+
+
 # Compress the binary (broken on MacOS)
 bin/umhs: bin/mhs
 	rm -f bin/umhs
@@ -163,7 +168,6 @@ cachelib:
 #
 clean:
 	rm -rf src/*/*.hi src/*/*.o *.comb *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal cpphssrc Interactive.hs .mhsi
-	make clean -f Makefile.emscripten
 	cd tests; make clean
 	-cabal clean
 
@@ -206,9 +210,6 @@ cachetest:	bin/mhs bin/mhseval Example.hs
 
 nfibtest: bin/mhs bin/mhseval
 	bin/mhs -itests Nfib && bin/mhseval
-
-emscripten: bin/mhs targets.conf
-	make test -f Makefile.emscripten
 
 ######
 

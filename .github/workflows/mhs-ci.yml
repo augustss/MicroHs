@@ -221,7 +221,7 @@ jobs:
        with:
          node-version: 20
      - name: run emscripten tests
-       run: make emscripten
+       run: make runtestemscripten
 
   build-macos-emscripten:
     runs-on: macos-latest
@@ -232,4 +232,4 @@ jobs:
        with:
          node-version: 20
      - name: run emscripten tests
-       run: make emscripten
+       run: make runtestemscripten
