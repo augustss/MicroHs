@@ -273,7 +273,7 @@ data Constr = Constr
   [IdKind] [EConstraint]          -- existentials: forall vs . ctx =>
   Ident                           -- constructor name
   (Either [SType] [ConstrField])  -- types or named fields
---DEBUG  deriving(Show)
+  deriving(Show)
 
 type ConstrField = (Ident, SType)              -- record label and type
 type SType = (Bool, EType)                     -- the Bool indicates strict

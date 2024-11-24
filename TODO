@@ -32,12 +32,9 @@
   - read tables lazily when outside ASCII range
 
 Bugs:
-* Missing IO in ccall shows wrong location
 * Check for escaping skolemized variables
 * Type checking Data.Data
-* Install a targets.conf?
 * let...in... doesn't parse correctly in a do
 * let needs {} in a do with {}
 * export list in -boot doesn't work
-* Cannot derive Show for 'newtype Alt f a = Alt (f a)'
 * Fundep bug mtl:Control/Monad/RWS/Class.hs

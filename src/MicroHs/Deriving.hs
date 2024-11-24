@@ -146,19 +146,22 @@ derTypeable (i, _) _ etyp = do
 
 --------------------------------------------
 
-getConstrTyVars :: Constr -> [Ident]
-getConstrTyVars (Constr evs ctx _ flds) =
-  let vs = freeTyVars $ ctx ++ either (map snd) (map (snd . snd)) flds
-  in  vs \\ map idKindIdent evs
+getFieldTys :: (Either [SType] [ConstrField]) -> [EType]
+getFieldTys (Left ts) = map snd ts
+getFieldTys (Right ts) = map (snd . snd) ts
+
+decomp :: EType -> [EType]
+decomp t | Just (c, ts) <- getAppM t, isConIdent c = concatMap decomp ts
+         | otherwise = [t]
 
 mkHdr :: LHS -> [Constr] -> EConstraint -> T EConstraint
 mkHdr (t, iks) cs cls = do
   mn <- gets moduleName
-  let used = foldr (union . getConstrTyVars) [] cs  -- Used type variables
-      iks' = filter ((`elem` used) . idKindIdent) iks
-      vs = map tVarK iks'
+  let ctys :: [EType]  -- All top level types used by the constructors.
+      ctys = nubBy eqEType [ tt | Constr evs _ _ flds <- cs, ft <- getFieldTys flds, tt <- decomp ft,
+                            not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
       ty = tApps (qualIdent mn t) $ map tVarK iks
-  pure $ eForall iks $ addConstraints (map (tApp cls) vs) $ tApp cls ty
+  pure $ eForall iks $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
 
 mkPat :: Constr -> String -> (EPat, [Expr])
 mkPat (Constr _ _ c flds) s =

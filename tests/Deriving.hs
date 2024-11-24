@@ -7,6 +7,9 @@ data T a b c = A a | B b | C a Int | D
 data Rec a = R { x :: a, y :: Int }
   deriving Show
 
+newtype Alt f a = Alt (f a)
+  deriving Show
+
 main :: IO ()
 main = do
   print $ A 'a' == (A 'a' :: T Char () ())
@@ -29,3 +32,5 @@ main = do
   print (A (A 'a') :: T (T Char () ()) () ())
   print $ R{ x='a', y=10 }
   print $ R{ x=R{x='b',y=11}, y=10 }
+
+  print $ Alt [True]
