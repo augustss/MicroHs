@@ -361,12 +361,14 @@ dsMatrixL dflt is arms = dsMatrix dflt is (map dsLazy arms)
 
 dsLazy :: Arm -> Arm
 dsLazy (ps, rhs) =
+  -- Accumulate lazy bindings and strict bindings
   let ((_, rbs, ris), ps') = mapAccumL lazy (1, [], []) ps
       lazy :: (Int, [EBind], [Exp]) -> EPat -> ((Int, [EBind], [Exp]), EPat)
       lazy s@(n, bs, is) ap =
         case ap of
-          ELazy False p'@(EVar i) -> ((n, bs, Var i : is), p')
-          ELazy False p'          -> lazy (n, bs, is) p'
+          ELazy False p'@(EVar i) | not (isDummyIdent i)        -- XXX !_ doesn't work
+                                  -> ((n, bs, Var i : is), p')
+          ELazy False p'          -> lazy (n, bs, is) p'        -- ignore ! on non-variables for now
           ELazy True  p'          -> ((n+1, b:bs, is), EVar v)
             where v = mkIdent ("~" ++ show n)
                   b = BPat p' (EVar v)
