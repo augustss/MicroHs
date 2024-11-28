@@ -24,6 +24,10 @@ module System.IO(
   openTmpFile, openTempFile, openBinaryTempFile,
 
   withFile,
+
+  BufferMode(..),
+  hSetBuffering,
+
   ) where
 import Prelude()              -- do not import Prelude
 import Primitives
@@ -40,6 +44,7 @@ import Data.Int
 import Data.List
 import Data.Maybe
 import Data.Num
+import Data.Ord
 import Data.String
 import Data.Tuple
 import Text.Show
@@ -320,3 +325,10 @@ openTempFile = openTempFile' openFile
 
 openBinaryTempFile :: FilePath -> String -> IO (String, Handle)
 openBinaryTempFile = openTempFile' openBinaryFile
+
+data BufferMode = NoBuffering | LineBuffering | BlockBuffering (Maybe Int)
+  deriving (Eq, Ord, Show)
+
+-- This currently does nothing.
+hSetBuffering :: Handle -> BufferMode -> IO ()
+hSetBuffering _ _ = return ()
