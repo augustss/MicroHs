@@ -70,6 +70,7 @@ dsDef flags mn adef =
     Instance _ _ -> []
     Default _ _ -> []
     Pattern _ _ -> []
+    Deriving _ -> []
 
 wrapTick :: Bool -> Ident -> Exp -> Exp
 wrapTick False _ ee = ee

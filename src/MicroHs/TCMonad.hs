@@ -46,6 +46,7 @@ type ValueTable = SymTab           -- type of value identifiers, used during typ
 type TypeTable  = SymTab           -- kind of type  identifiers, used during kind checking types
 type KindTable  = SymTab           -- sort of kind  identifiers, used during sort checking kinds
 type SynTable   = M.Map EType      -- body of type synonyms
+type DataTable  = M.Map EDef       -- data/newtype definitions (only used for standalone deriving)
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated constructors/selectors/methods
 type ClassTable = M.Map ClassInfo  -- maps a class identifier to its associated information
@@ -93,6 +94,7 @@ data TCState = TC {
   fixTable    :: FixTable,              -- fixities, indexed by QIdent
   typeTable   :: TypeTable,             -- type symbol table
   synTable    :: SynTable,              -- synonyms, indexed by QIdent
+  dataTable   :: DataTable,             -- data/newtype definitions
   valueTable  :: ValueTable,            -- value symbol table
   assocTable  :: AssocTable,            -- values associated with a type, indexed by QIdent
   uvarSubst   :: (IM.IntMap EType),     -- mapping from unique id to type
@@ -128,6 +130,9 @@ putTypeTable tenv = modify $ \ ts -> ts{ typeTable = tenv }
 
 putSynTable :: SynTable -> T ()
 putSynTable senv = modify $ \ ts -> ts{ synTable = senv }
+
+putDataTable :: DataTable -> T ()
+putDataTable denv = modify $ \ ts -> ts{ dataTable = denv }
 
 putUvarSubst :: IM.IntMap EType -> T ()
 putUvarSubst sub = modify $ \ ts -> ts{ uvarSubst = sub }

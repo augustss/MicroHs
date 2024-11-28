@@ -84,6 +84,7 @@ Differences:
    * RecordWildCards
    * QualifiedDo
    * ScopedTypeVariables
+   * StandaloneDeriving
    * StandaloneKindSignatures
    * TupleSections (only pairs right now)
    * TypeLits

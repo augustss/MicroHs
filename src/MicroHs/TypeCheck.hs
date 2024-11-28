@@ -118,16 +118,18 @@ nameKnownSymbol = "Data.TypeLits.KnownSymbol"
 -- session.  The information is needed beyond the scope where it was defined.
 data GlobTables = GlobTables {
   gSynTable   :: SynTable,        -- type synonyms are needed for expansion
+  gDataTable  :: DataTable,       -- data/newtype definitions
   gClassTable :: ClassTable,      -- classes are neede for superclass expansion
   gInstInfo   :: InstTable        -- instances are implicitely global
   }
 
 emptyGlobTables :: GlobTables
-emptyGlobTables = GlobTables { gSynTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty }
+emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty }
 
 mergeGlobTables :: GlobTables -> GlobTables -> GlobTables
 mergeGlobTables g1 g2 =
   GlobTables { gSynTable = M.merge (gSynTable g1) (gSynTable g2),
+               gDataTable = M.merge (gDataTable g1) (gDataTable g2),
                gClassTable = M.merge (gClassTable g1) (gClassTable g2),
                gInstInfo = M.mergeWith mergeInstInfo (gInstInfo g1) (gInstInfo g2) }
 
@@ -182,12 +184,13 @@ typeCheck globs impt aimps (EModule mn exps defs) =
              unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
            fexps = map tFixDefs (M.elems impMap)
            sexps = synTable tcs
+           dexps = dataTable tcs
            iexps = instTable tcs
            ctbl  = classTable tcs
            dflts = M.fromList $ filter ((`elem` ds) . fst) $ M.toList $ defaults tcs
                  where ds = [ tyQIdent $ expLookup ti (typeTable tcs) | ExpDefault ti <- exps ]
          in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) (concat vexps) dflts tds
-             , GlobTables { gSynTable = sexps, gClassTable = ctbl, gInstInfo = iexps }
+             , GlobTables { gSynTable = sexps, gDataTable = dexps, gClassTable = ctbl, gInstInfo = iexps }
              , (typeTable tcs, valueTable tcs)
              )
 
@@ -378,6 +381,7 @@ mkTCState mdlName globs mdls =
           fixTable = addPrimFixs allFixes,
           typeTable = foldr (uncurry stInsertGlbA) allTypes primTypes,
           synTable = gSynTable globs,
+          dataTable = gDataTable globs,
           valueTable = foldr (uncurry stInsertGlbA) allValues primValues,
           assocTable = allAssocs,
           uvarSubst = IM.empty,
@@ -649,11 +653,6 @@ kArrow = tArrow
 sArrow :: ESort -> ESort -> ESort
 sArrow = tArrow
 
-getImplies :: EType -> Maybe (EType, EType)
-getImplies (EApp (EApp (EVar n) a) b) =
-  if isIdent "=>" n || isIdent "Primitives.=>" n then Just (a, b) else Nothing
-getImplies _ = Nothing
-
 setUVar :: TRef -> EType -> T ()
 setUVar i t = modify $ \ ts -> ts{ uvarSubst = IM.insert i t (uvarSubst ts) }
 
@@ -904,6 +903,11 @@ extSyn i t = do
   senv <- gets synTable
   putSynTable (M.insert i t senv)
 
+extData :: Ident -> EDef -> T ()
+extData i d = do
+  denv <- gets dataTable
+  putDataTable (M.insert i d denv)
+
 extFix :: Ident -> Fixity -> T ()
 extFix i fx = modify $ \ ts -> ts{ fixTable = M.insert i fx (fixTable ts) }
 
@@ -940,7 +944,7 @@ tcDefs impt ds = do
   mapM_ tcAddInfix ds
   dst <- tcDefsType ds
 --  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
-  mapM_ addTypeSyn dst
+  mapM_ addTypeAndData dst
   dst' <- tcExpand impt dst
 --  tcTrace ("tcDefs 3:\n" ++ showEDefs dst')
   case impt of
@@ -1065,15 +1069,14 @@ addTypeKind kdefs adef = do
       addAssoc i [ x | BSign m _ <- ms, x <- [m, mkDefaultMethodId m] ]
     _ -> return ()
 
--- Add type synonyms to the synonym table
-addTypeSyn :: EDef -> T ()
-addTypeSyn adef =
+-- Add type synonyms to the synonym table, and data/newtype to the data table
+addTypeAndData :: EDef -> T ()
+addTypeAndData adef = do
+  mn <- gets moduleName
   case adef of
-    Type (i, vs) t -> do
-      let t' = EForall True vs t
-      extSyn i t'
-      mn <- gets moduleName
-      extSyn (qualIdent mn i) t'
+    Type    (i, vs) t  -> extSyn  (qualIdent mn i) (EForall True vs t)
+    Data    (i, _) _ _ -> extData (qualIdent mn i) adef
+    Newtype (i, _) _ _ -> extData (qualIdent mn i) adef
     _ -> return ()
 
 -- Do kind checking of all typeish definitions.
@@ -1090,6 +1093,7 @@ tcDefType def = do
     Instance ct m          ->                                                  Instance       <$> tCheckTypeTImpl kConstraint ct <*> return m
     Default mc ts          ->                                                  Default (Just c) <$> mapM (tcDefault c) ts
                                                                                  where c = fromMaybe num mc
+    Deriving ct            ->                                                  Deriving       <$> tCheckTypeTImpl kConstraint ct
     _                      -> return def
  where
    tcMethod (BSign i t) = BSign i <$> tCheckTypeTImpl kType t
@@ -2909,3 +2913,29 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
   showIdent i ++ " :: " ++ showEType cc ++
     " has " ++ showListS showIdent ms
 -}
+
+doDeriving :: EDef -> T [EDef]
+doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (deriveHdr lhs  cs) ds
+doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (deriveHdr lhs [c]) ds
+doDeriving def@(Deriving ct)       = (def:) <$> standaloneDeriving ct
+doDeriving def                     = return [def]
+
+standaloneDeriving :: EType -> T [EDef]
+standaloneDeriving act = do
+  (_vks, _ctx, cc) <- splitInst <$> expandSyn act
+  dtable <- gets dataTable
+--  traceM ("standaloneDeriving 1 " ++ show (ctx, cc))
+  (cls, tname) <-
+    case getAppM cc of
+      Just (c, ts@(_:_)) |
+        let t = last ts,
+        Just (n, _) <- getAppM t -> return (tApps c (init ts), n)
+      _ -> tcError (getSLoc act) "malformed standalone deriving"
+--  traceM ("standaloneDeriving 2 " ++ show (act, cls, tname))
+  (lhs, cs) <-
+    case M.lookup tname dtable of
+      Just (Newtype l  c _) -> return (l, [c])
+      Just (Data    l xs _) -> return (l, xs)
+      _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
+  -- We want 'instance ctx => cls ty'
+  deriveNoHdr act lhs cs cls

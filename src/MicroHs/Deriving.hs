@@ -1,6 +1,5 @@
-module MicroHs.Deriving(expandField, doDeriving, mkGetName) where
+module MicroHs.Deriving(expandField, deriveHdr, deriveNoHdr, mkGetName) where
 import Prelude(); import MHSPrelude
---import Control.Monad
 import Data.Char
 import Data.Function
 import Data.List
@@ -19,12 +18,8 @@ import Debug.Trace
 --   constructor names in the derived type unqualified
 --   all other names should be qualified with B@
 
-doDeriving :: EDef -> T [EDef]
-doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (derive lhs  cs) ds
-doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (derive lhs [c]) ds
-doDeriving def                     = return [def]
-
-type Deriver = LHS -> [Constr] -> EConstraint -> T [EDef]
+type DeriverT = LHS -> [Constr] -> EConstraint -> T [EDef]
+type Deriver = Maybe EConstraint -> DeriverT
 
 derivers :: [(String, Deriver)]
 derivers =
@@ -41,15 +36,21 @@ derivers =
   ,("Text.Show.Show",         derShow)
   ]
 
-derive :: Deriver
-derive lhs cs d = do
+deriveHdr :: DeriverT
+deriveHdr = deriveNoHdr' Nothing
+
+deriveNoHdr :: EConstraint -> DeriverT
+deriveNoHdr ctx = deriveNoHdr' (Just ctx)
+
+deriveNoHdr' :: Maybe EConstraint -> DeriverT
+deriveNoHdr' mctx lhs cs d = do
   let c = getAppCon d
   case lookup (unIdent c) derivers of
     Nothing -> tcError (getSLoc c) $ "Cannot derive " ++ show c
-    Just f  -> f lhs cs d
+    Just f  -> f mctx lhs cs d
 
 derNotYet :: Deriver
-derNotYet _ _ d = do
+derNotYet _ _ _ d = do
   notYet d
   return []
 
@@ -59,7 +60,7 @@ notYet d =
 
 -- We will never have Template Haskell, but we pretend we can derive Lift for it.
 derLift :: Deriver
-derLift _ _ _ = return []
+derLift _ _ _ _ = return []
 
 --------------------------------------------
 
@@ -130,7 +131,7 @@ mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld
 --------------------------------------------
 
 derTypeable :: Deriver
-derTypeable (i, _) _ etyp = do
+derTypeable _ (i, _) _ etyp = do
   mn <- gets moduleName
   let
     loc = getSLoc i
@@ -154,8 +155,11 @@ decomp :: EType -> [EType]
 decomp t | Just (c, ts) <- getAppM t, isConIdent c = concatMap decomp ts
          | otherwise = [t]
 
-mkHdr :: LHS -> [Constr] -> EConstraint -> T EConstraint
-mkHdr (t, iks) cs cls = do
+-- If there is no mctx we use the default strategy to derive the instance context.
+-- The default strategy basically extracts all subtypes with variables.
+mkHdr :: Maybe EConstraint -> LHS -> [Constr] -> EConstraint -> T EConstraint
+mkHdr (Just ctx) _ _ _ = return ctx
+mkHdr _ (t, iks) cs cls = do
   mn <- gets moduleName
   let ctys :: [EType]  -- All top level types used by the constructors.
       ctys = nubBy eqEType [ tt | Constr evs _ _ flds <- cs, ft <- getFieldTys flds, tt <- decomp ft,
@@ -170,11 +174,14 @@ mkPat (Constr _ _ c flds) s =
       vs = map (EVar . mkIdentSLoc loc . (s ++) . show) [1..n]
   in  (tApps c vs, vs)
 
+cannotDerive :: String -> Ident -> EConstraint -> T [EDef]
+cannotDerive cls ty e = tcError (getSLoc e) $ "Cannot derive " ++ cls ++ " " ++ show ty
+
 --------------------------------------------
 
 derEq :: Deriver
-derEq lhs cs@(_:_) eeq = do
-  hdr <- mkHdr lhs cs eeq
+derEq mctx lhs cs@(_:_) eeq = do
+  hdr <- mkHdr mctx lhs cs eeq
   let loc = getSLoc eeq
       mkEqn c =
         let (xp, xs) = mkPat c "x"
@@ -189,13 +196,13 @@ derEq lhs cs@(_:_) eeq = do
       inst = Instance hdr [BFcn iEq eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
-derEq (c, _) _ e = cannotDerive "Eq" c e
+derEq _ (c, _) _ e = cannotDerive "Eq" c e
 
 --------------------------------------------
 
 derOrd :: Deriver
-derOrd lhs cs@(_:_) eord = do
-  hdr <- mkHdr lhs cs eord
+derOrd mctx lhs cs@(_:_) eord = do
+  hdr <- mkHdr mctx lhs cs eord
   let loc = getSLoc eord
       mkEqn c =
         let (xp, xs) = mkPat c "x"
@@ -213,15 +220,14 @@ derOrd lhs cs@(_:_) eord = do
       inst = Instance hdr [BFcn iCompare eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
-derOrd (c, _) _ e = cannotDerive "Ord" c e
+derOrd _ (c, _) _ e = cannotDerive "Ord" c e
 
 --------------------------------------------
 
 derBounded :: Deriver
-derBounded lhs cs@(c0:_) ebnd = do
-  hdr <- mkHdr lhs cs ebnd
+derBounded mctx lhs cs@(c0:_) ebnd = do
+  hdr <- mkHdr mctx lhs cs ebnd
   let loc = getSLoc ebnd
-
       mkEqn bnd (Constr _ _ c flds) =
         let n = either length length flds
         in  eEqn [] $ tApps c (replicate n (EVar bnd))
@@ -233,16 +239,13 @@ derBounded lhs cs@(c0:_) ebnd = do
       inst = Instance hdr [BFcn iMinBound [minEqn], BFcn iMaxBound [maxEqn]]
   -- traceM $ showEDefs [inst]
   return [inst]
-derBounded (c, _) _ e = cannotDerive "Bounded" c e
-
-cannotDerive :: String -> Ident -> EConstraint -> T [EDef]
-cannotDerive cls ty e = tcError (getSLoc e) $ "Cannot derive " ++ cls ++ " " ++ show ty
+derBounded _ (c, _) _ e = cannotDerive "Bounded" c e
 
 --------------------------------------------
 
 derEnum :: Deriver
-derEnum lhs cs@(_:_) enm | all isNullary cs = do
-  hdr <- mkHdr lhs cs enm
+derEnum mctx lhs cs@(_:_) enm | all isNullary cs = do
+  hdr <- mkHdr mctx lhs cs enm
   let loc = getSLoc enm
 
       mkFrom (Constr _ _ c _) i =
@@ -257,7 +260,7 @@ derEnum lhs cs@(_:_) enm | all isNullary cs = do
       inst = Instance hdr [BFcn iFromEnum fromEqns, BFcn iToEnum toEqns]
   --traceM $ showEDefs [inst]
   return [inst]
-derEnum (c, _) _ e = cannotDerive "Enum" c e
+derEnum _ (c, _) _ e = cannotDerive "Enum" c e
 
 isNullary :: Constr -> Bool
 isNullary (Constr _ _ _ flds) = either null null flds
@@ -265,8 +268,8 @@ isNullary (Constr _ _ _ flds) = either null null flds
 --------------------------------------------
 
 derShow :: Deriver
-derShow lhs cs@(_:_) eshow = do
-  hdr <- mkHdr lhs cs eshow
+derShow mctx lhs cs@(_:_) eshow = do
+  hdr <- mkHdr mctx lhs cs eshow
   let loc = getSLoc eshow
       mkEqn c@(Constr _ _ nm flds) =
         let (xp, xs) = mkPat c "x"
@@ -299,7 +302,7 @@ derShow lhs cs@(_:_) eshow = do
       inst = Instance hdr [BFcn iShowsPrec eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
-derShow (c, _) _ e = cannotDerive "Show" c e
+derShow _ (c, _) _ e = cannotDerive "Show" c e
 
 unIdentPar :: Ident -> String
 unIdentPar i =
@@ -310,8 +313,9 @@ unIdentPar i =
 
 -- Deriving for the fake Data class.
 derData :: Deriver
-derData lhs cs edata = do
-  hdr <- mkHdr lhs cs edata
+derData mctx lhs cs edata = do
+  notYet edata
+  hdr <- mkHdr mctx lhs cs edata
   let
     inst = Instance hdr []
   return [inst]
@@ -319,13 +323,15 @@ derData lhs cs edata = do
 --------------------------------------------
 
 derRead :: Deriver
-derRead lhs cs eread = do
+derRead mctx lhs cs eread = do
   notYet eread
-  hdr <- mkHdr lhs cs eread
+  hdr <- mkHdr mctx lhs cs eread
   let
     loc = getSLoc eread
     iReadPrec = mkIdentSLoc loc "readPrec"
     err = eEqn [] $ EApp (EVar $ mkBuiltin loc "error") (ELit loc (LStr "readPrec not defined"))
     inst = Instance hdr [BFcn iReadPrec [err]]
   return [inst]
+
+--------------------------------------------
 

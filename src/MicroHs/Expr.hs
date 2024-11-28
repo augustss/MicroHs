@@ -47,6 +47,7 @@ module MicroHs.Expr(
   mkEStr, mkExn,
   getAppM,
   TyVar, freeTyVars,
+  getImplies,
   ) where
 import Prelude(); import MHSPrelude hiding ((<>))
 import Control.Arrow(first)
@@ -85,6 +86,7 @@ data EDef
   | Instance EConstraint [EBind]
   | Default (Maybe Ident) [EType]
   | Pattern LHS EPat
+  | Deriving EConstraint
 --DEBUG  deriving (Show)
 
 data ImpType = ImpNormal | ImpBoot
@@ -635,6 +637,7 @@ ppEDef def =
     Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default mc ts -> text "default" <+> (maybe empty ppIdent mc) <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
     Pattern lhs p -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p
+    Deriving ct -> text "deriving instance" <+> ppEType ct
 
 ppDeriving :: Deriving -> Doc
 ppDeriving [] = empty
@@ -911,4 +914,9 @@ freeTyVars = foldr (go []) []
     go bound (EParen e) acc = go bound e acc
     go _ x _ = error ("freeTyVars: " ++ show x) --  impossibleShow x
     goList bound es acc = foldr (go bound) acc es
+
+getImplies :: EType -> Maybe (EType, EType)
+getImplies (EApp (EApp (EVar n) a) b) =
+  if isIdent "=>" n || isIdent "Primitives.=>" n then Just (a, b) else Nothing
+getImplies _ = Nothing
 
