@@ -788,6 +788,7 @@ mk_std(NODEPTR n, FILE *f)
   fin->arg = bf;
   fin->back = fp;
   fp->payload.string = bf;
+  fp->finalizer = fin;
 }
 #endif
 
