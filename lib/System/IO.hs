@@ -88,7 +88,17 @@ stderr = unsafeHandle primStderr HWrite "stderr"
 --bFILE = Handle . primPerformIO . (c_add_utf8 <=< c_add_FILE)
 
 hClose :: Handle -> IO ()
-hClose h = do
+hClose h =
+  -- Don't close the std handles, the runtime assume they remain open.
+  if h == stdin then
+    return ()
+  else if h == stdout || h == stderr then
+    hFlush h       -- closing would have flushed
+  else
+    hCloseReal h
+
+hCloseReal :: Handle -> IO ()
+hCloseReal h = do
   m <- getHandleState h
   case m of
     HClosed -> ioErrH h OtherError "hClose: Handle already closed"
