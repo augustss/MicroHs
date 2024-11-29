@@ -184,7 +184,7 @@ err :: SomeException -> IO ()
 err e = err' $ displayException e
 
 err' :: String -> IO ()
-err' s = putStrLn $ "Exception: " ++ s
+err' s = putStrLn $ "*** Exception: " ++ s
 
 oneline :: String -> I ()
 oneline line = do

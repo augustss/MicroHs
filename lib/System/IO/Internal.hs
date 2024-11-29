@@ -1,4 +1,5 @@
 module System.IO.Internal(
+  FilePath,
   BFILE,
   Handle, HandleState(..),
   IOMode(..), ioModeToHMode,
@@ -20,8 +21,27 @@ import Data.Function
 import Data.IORef
 import Data.List
 --import Foreign.ForeignPtr  causes import cycle
+import Foreign.Ptr
+import Mhs.Builtin
 import System.IO_Handle
 import System.IO.Unsafe
+import Text.Show
+
+instance Eq Handle where
+  h == h'  =
+    unsafePerformIO $
+    withHandleAny h $ \ p ->
+    withHandleAny h' $ \ p' ->
+    pure (p == p')
+
+instance Show Handle where
+  show h = unsafePerformIO $
+    withHandleAny h $ \ p ->
+      return $ "Handle-" ++ show p
+
+-----
+
+type FilePath = String
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
   deriving (Eq)

@@ -69,6 +69,7 @@ module System.IO.Error (
     modifyIOError,
   ) where
 import Prelude()
+import Primitives(IO)
 import Control.Exception.Internal
 import Control.Monad
 import Data.Bool
@@ -81,8 +82,8 @@ import Data.List
 import Data.Maybe
 import Data.Records   -- needed since we don't import Mhs.Builtin
 import Data.String
-import Data.Typeable
-import System.IO
+import {-#SOURCE#-} Data.Typeable
+import System.IO.Internal
 import Text.Show
 
 

@@ -53,6 +53,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import System.IO.Unsafe
 import System.IO.Internal
+import System.IO.Error
 
 data FILE
 
@@ -76,20 +77,6 @@ foreign import ccall "add_utf8"     c_add_utf8     :: Ptr BFILE          -> IO (
 
 ----------------------------------------------------------
 
-instance Eq Handle where
-  h == h'  =
-    unsafePerformIO $
-    withHandleAny h $ \ p ->
-    withHandleAny h' $ \ p' ->
-    pure (p == p')
-
-instance Show Handle where
-  show h = unsafePerformIO $
-    withHandleAny h $ \ p ->
-      return $ "Handle-" ++ show p
-
-type FilePath = String
-
 stdin  :: Handle
 stdin  = unsafeHandle primStdin  HRead  "stdin"
 stdout :: Handle
@@ -104,7 +91,7 @@ hClose :: Handle -> IO ()
 hClose h = do
   m <- getHandleState h
   case m of
-    HClosed -> error "Handle already closed"
+    HClosed -> ioErrH h OtherError "hClose: Handle already closed"
     HSemiClosed -> return ()
     _ -> do
       killHandle h
@@ -118,7 +105,7 @@ hGetChar :: Handle -> IO Char
 hGetChar h = withHandleRd h $ \ p -> do
   c <- c_getb p
   if c == (-1::Int) then
-    error "hGetChar: EOF"
+    ioErrH h EOF "hGetChar"
    else
     return (chr c)
 
@@ -156,7 +143,7 @@ openFile :: String -> IOMode -> IO Handle
 openFile p m = do
   mh <- openFileM p m
   case mh of
-    Nothing -> error ("openFile: cannot open " ++ p)
+    Nothing -> ioErr NoSuchThing "openFile" p
     Just h -> return h
 
 putChar :: Char -> IO ()
@@ -253,8 +240,16 @@ openBinaryFile :: String -> IOMode -> IO Handle
 openBinaryFile fn m = do
   mf <- openFILEM fn m
   case mf of
-    Nothing -> error $ "openBinaryFile: cannot open " ++ show fn
+    Nothing -> ioErr NoSuchThing "openBinaryFile" fn
     Just p -> do { q <- c_add_FILE p; mkHandle fn q (ioModeToHMode m) }
+
+--------
+
+ioErrH :: Handle -> IOErrorType -> String -> IO a
+ioErrH h typ desc   = ioError $ IOError (Just h) typ "" desc Nothing Nothing
+
+ioErr :: IOErrorType -> String -> String -> IO a
+ioErr typ desc name = ioError $ IOError Nothing  typ "" "" Nothing (Just $ name ++ ": " ++ desc)
 
 --------
 -- For compatibility
