@@ -1066,7 +1066,7 @@ addTypeKind kdefs adef = do
       addDef lhs
     Class _ lhs@(i, _) _ ms -> do
       addDef lhs
-      addAssoc i [ x | BSign m _ <- ms, x <- [m, mkDefaultMethodId m] ]
+      addAssoc i [ x | BSign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
     _ -> return ()
 
 -- Add type synonyms to the synonym table, and data/newtype to the data table
@@ -1096,7 +1096,7 @@ tcDefType def = do
     Deriving ct            ->                                                  Deriving       <$> tCheckTypeTImpl kConstraint ct
     _                      -> return def
  where
-   tcMethod (BSign i t) = BSign i <$> tCheckTypeTImpl kType t
+   tcMethod (BSign is t) = BSign is <$> tCheckTypeTImpl kType t
    tcMethod (BDfltSign i t) = BDfltSign i <$> tCheckTypeTImpl kType t
    tcMethod m = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
@@ -1181,16 +1181,18 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
   mn <- gets moduleName
   let
       meths = [ b | b@(BSign _ _) <- ms ]
-      methIds = map (\ (BSign i _) -> i) meths
+      methIds = concatMap (\ (BSign is _) -> is) meths
       mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
       dflttys = [ (i, t) | BDfltSign i t <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
-      mkDflt (BSign methId t) = [ Sign [iDflt] $ EForall True vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
-        where ty = fromMaybe t $ lookup methId dflttys
-              def Nothing = Fcn iDflt $ simpleEqn noDflt
-              def (Just eqns) = Fcn iDflt eqns
-              iDflt = mkDefaultMethodId methId
-              noDflt = mkExn (getSLoc methId) (unIdent methId) "noMethodError"
+      mkDflt (BSign is t) = concatMap method is
+        where method methId = [ Sign [iDflt] $ EForall True vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
+                where ty = fromMaybe t $ lookup methId dflttys
+                      def Nothing = Fcn iDflt $ simpleEqn noDflt
+                      def (Just eqns) = Fcn iDflt eqns
+                      iDflt = mkDefaultMethodId methId
+                      noDflt = mkExn (getSLoc methId) (unIdent methId) "noMethodError"
+              
       mkDflt _ = impossible
       dDflts = case impt of
                  ImpNormal -> concatMap mkDflt meths
@@ -1368,7 +1370,7 @@ addValueClass ctx iCls vks fds ms = do
   let
       meths = [ b | b@(BSign _ _) <- ms ]
       methTys = map (\ (BSign _ t) -> t) meths
-      methIds = map (\ (BSign i _) -> i) meths
+      methIds = concatMap (\ (BSign is _) -> is) meths
       supTys = ctx  -- XXX should do some checking
       targs = supTys ++ methTys
       qiCls = qualIdent mn iCls
@@ -1377,7 +1379,8 @@ addValueClass ctx iCls vks fds ms = do
       iCon = mkClassConstructor iCls
       iConTy = EForall True vks $ foldr tArrow tret targs
   extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon) [])
-  let addMethod (BSign i t) = extValETop i (EForall True vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
+  let addMethod (BSign is t) = mapM_ method is
+        where method i = extValETop i (EForall True vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
       addMethod _ = impossible
 --  tcTrace ("addValueClass " ++ showEType (ETuple ctx))
   mapM_ addMethod meths
@@ -2248,7 +2251,7 @@ checkArity n p =
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = do
   let
-    tmap = M.fromList [ (i, t) | BSign i t <- xbs ]
+    tmap = M.fromList [ (i, t) | BSign is t <- xbs, i <- is ]
     xs = getBindsVars xbs
   multCheck xs
   xts <- mapM (tcBindVarT tmap) xs

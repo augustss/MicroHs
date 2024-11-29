@@ -219,7 +219,7 @@ data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
 data EBind
   = BFcn Ident [Eqn]
   | BPat EPat Expr
-  | BSign Ident EType
+  | BSign [Ident] EType
   | BDfltSign Ident EType     -- only in class declarations
 --DEBUG  deriving (Show)
 
@@ -479,7 +479,7 @@ allVarsBind' abind =
   case abind of
     BFcn i eqns -> (i:) . composeMap allVarsEqn eqns
     BPat p e -> allVarsPat p . allVarsExpr' e
-    BSign i _ -> (i:)
+    BSign is _ -> (is ++)
     BDfltSign i _ -> (i:)
 
 allVarsEqns :: [Eqn] -> [Ident]
@@ -806,8 +806,8 @@ ppEBind ab =
   case ab of
     BFcn i eqns -> ppEDef (Fcn i eqns)
     BPat p e -> ppEPat p <+> text "=" <+> ppExpr e
-    BSign i t -> ppIdent i <+> text "::" <+> ppEType t
-    BDfltSign i t -> text "default" <+> ppEBind (BSign i t)
+    BSign is t -> ppEDef (Sign is t)
+    BDfltSign i t -> text "default" <+> ppEBind (BSign [i] t)
 
 ppCaseArm :: ECaseArm -> Doc
 ppCaseArm arm =

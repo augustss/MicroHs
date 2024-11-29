@@ -752,7 +752,7 @@ pBind =
 pClsBind :: P EBind
 pClsBind = 
       uncurry BFcn <$> pEqns
-  <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pType
+  <|< BSign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* pSymbol "::") <*> pType
   <|< BDfltSign    <$> (pKeyword "default" *> pLIdentSym <* pSymbol "::") <*> pType
 
 pInstBind :: P EBind

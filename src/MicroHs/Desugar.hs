@@ -61,7 +61,7 @@ dsDef flags mn adef =
     Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"
           meths :: [Ident]
-          meths = [ qualIdent mn i | (BSign i _) <- bs ]
+          meths = [ qualIdent mn i | (BSign is _) <- bs, i <- is ]
           supers :: [Ident]
           supers = [ qualIdent mn $ mkSuperSel c i | i <- [1 .. length ctx] ]
           xs = [ mkIdent ("$x" ++ show j) | j <- [ 1 .. length ctx + length meths ] ]
