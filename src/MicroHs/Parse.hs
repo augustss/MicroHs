@@ -311,14 +311,14 @@ pDef =
   <|< Sign         <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Import       <$> (pKeyword "import"   *> pImportSpec)
   <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> (pKeyword "ccall" <|> pKeyword "capi")
-                        *> eoptional (pKeyword "unsafe") *> eoptional pString) <*> pLIdent <*> (pSymbol "::" *> pType)
+                        *> eoptional (pKeyword "unsafe") *> eoptional pString) <*> pLIdent <*> (dcolon *> pType)
   <|< Infix        <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
   <|< Default      <$> (pKeyword "default"  *> eoptional clsSym) <*> pParens (esepBy pType (pSpec ','))
-  <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (pSymbol "::" *> pKind)
-  <|< Pattern      <$> (pKeyword "pattern"  *> pLHS) <*> pPatternDef
-  <|< Sign         <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (dcolon *> pKind)
+  <|< mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
+  <|< PatternSign  <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Deriving     <$> (pKeyword "deriving" *> pKeyword "instance" *> pType)
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
@@ -329,12 +329,28 @@ pDef =
     pFunDeps = (pSpec '|' *> esepBy1 pFunDep (pSpec ',')) <|< pure []
     pFunDep = (,) <$> esome pLIdent <*> (pSRArrow *> esome pLIdent)
     pField = guardM pFields ((== 1) . either length length)
-    dcolon = pSymbol "::" <|< pSymbol "\x2237"
-
-    pPatternDef = (pSpec '=' *> pPatAndExp) <|< (pSymbol "<-" *> pPat)
-    pPatAndExp = do p <- pPat; guard (isExp p); pure p
 
     clsSym = do s <- pUIdentSym; guard (unIdent s /= "()"); return s
+
+    mkPattern (lhs, pat, meqn) = Pattern lhs pat meqn
+
+pPatSyn :: P (LHS, EPat, Maybe [Eqn])
+pPatSyn = do
+  lhs@(i, vs) <- pLHS
+  ( do pSpec '=';
+       p <- pPat
+       guard (isExp p)
+       let eqn = eEqn (map (EVar . idKindIdent) vs) p
+       pure (lhs, p, Just [eqn])
+   ) <|> (
+    do pSymbol "<-"
+       p <- pPat
+       meqns <- optional (pKeyword "where" *> pBraces (pEqns' (\ n _ -> i == n)))
+       pure (lhs, p, fmap snd meqns)
+   )
+
+dcolon :: P ()
+dcolon = pSymbol "::" <|< pSymbol "\x2237"
 
 -- Is a pattern also an expression?
 isExp :: Expr -> Bool
@@ -364,7 +380,7 @@ pGADT (n, vks) = do
 pGADTconstr :: P (Ident, [IdKind], [EConstraint], [SType], EType)
 pGADTconstr = do
   cn <- pUIdentSym
-  pSymbol "::"
+  dcolon
   es <- pForall
   ctx <- pContext
   args <- emany (pSTypeApp <* pSymbol "->")
@@ -409,7 +425,7 @@ pConstr = (Constr <$> pForall <*> pContext <*> pUIdentSym <*> pFields)
 pFields :: P (Either [SType] [(Ident, SType)])
 pFields = Left  <$> emany pSAType
       -- The <|> is needed because 'emany' can be empty.
-      <|> Right <$> (pSpec '{' *> (concatMap flat <$> esepBy ((,) <$> (esepBy1 pLIdentSym (pSpec ',') <* pSymbol "::") <*> pSType) (pSpec ',') <* pSpec '}'))
+      <|> Right <$> (pSpec '{' *> (concatMap flat <$> esepBy ((,) <$> (esepBy1 pLIdentSym (pSpec ',') <* dcolon) <*> pSType) (pSpec ',') <* pSpec '}'))
   where flat (is, t) = [ (i, t) | i <- is ]
 
 -- XXX This is a mess.
@@ -460,7 +476,7 @@ pConList =
 pIdKind :: P IdKind
 pIdKind =
       ((\ i -> IdKind i (EVar dummyIdent)) <$> pLIdentSym)          -- dummyIdent indicates that we have no kind info
-  <|< pParens (IdKind <$> pLIdentSym <*> (pSymbol "::" *> pKind))
+  <|< pParens (IdKind <$> pLIdentSym <*> (dcolon *> pKind))
 
 pKind :: P EKind
 pKind = pType
@@ -549,8 +565,11 @@ pPatNotVar = guardM pPat isPConApp
 -------------
 
 pEqns :: P (Ident, [Eqn])
-pEqns = do
-  (name, eqn@(Eqn ps alts)) <- pEqn (\ _ _ -> True)
+pEqns = pEqns' (\ _ _ -> True)
+
+pEqns' :: (Ident -> Int -> Bool) -> P (Ident, [Eqn])
+pEqns' pfst = do
+  (name, eqn@(Eqn ps alts)) <- pEqn pfst
   case (ps, alts) of
     ([], EAlts [_] []) ->
       -- don't collect equations when of the form 'i = e'
@@ -730,7 +749,7 @@ pExprArgNeg = (pSymbol "-" *> (ENegApp <$> pExprArg)) <|< pExprArg
 pOperators :: P Ident -> P Expr -> P Expr
 pOperators oper one = do
   r <- pOperators' oper one
-  mt <- eoptional (pSymbol "::" *> pType)
+  mt <- eoptional (dcolon *> pType)
   pure $ maybe r (ESign r) mt
 
 pOperators' :: P Ident -> P Expr -> P Expr
@@ -752,13 +771,13 @@ pBind =
 pClsBind :: P EBind
 pClsBind = 
       uncurry BFcn <$> pEqns
-  <|< BSign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* pSymbol "::") <*> pType
-  <|< BDfltSign    <$> (pKeyword "default" *> pLIdentSym <* pSymbol "::") <*> pType
+  <|< BSign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|< BDfltSign    <$> (pKeyword "default" *> pLIdentSym <* dcolon) <*> pType
 
 pInstBind :: P EBind
 pInstBind = 
       uncurry BFcn <$> pEqns
--- no InstanceSig yet  <|< BSign        <$> (pLIdentSym <* pSymbol "::") <*> pType
+-- no InstanceSig yet  <|< BSign        <$> (pLIdentSym <* dcolon) <*> pType
 
 -------------
 

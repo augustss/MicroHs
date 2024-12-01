@@ -45,11 +45,7 @@ dsDef flags mn adef =
           in (qualIdent mn c, encConstr i n ss)
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
-    Type _ _ -> []
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
-    Sign _ _ -> []
-    KindSign _ _ -> []
-    Import _ -> []
     ForImp ie i t -> [(i, if isIO t then frgn else App perf frgn)]
       where frgn = Lit $ LForImp (fromMaybe (unIdent (unQualIdent i)) ie) cty
             cty = CType t
@@ -57,7 +53,6 @@ dsDef flags mn adef =
             isIO x | Just (_, r) <- getArrow x = isIO r
             isIO (EApp (EVar io) _) = io == mkIdent "Primitives.IO"
             isIO _ = False
-    Infix _ _ -> []
     Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"
           meths :: [Ident]
@@ -67,10 +62,7 @@ dsDef flags mn adef =
           xs = [ mkIdent ("$x" ++ show j) | j <- [ 1 .. length ctx + length meths ] ]
       in  (qualIdent mn $ mkClassConstructor c, lams xs $ Lam f $ apps (Var f) (map Var xs)) :
           zipWith (\ i x -> (i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
-    Instance _ _ -> []
-    Default _ _ -> []
-    Pattern _ _ -> []
-    Deriving _ -> []
+    _ -> []
 
 wrapTick :: Bool -> Ident -> Exp -> Exp
 wrapTick False _ ee = ee
