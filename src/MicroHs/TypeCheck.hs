@@ -389,7 +389,8 @@ mkTCState mdlName globs mdls =
           classTable = gClassTable globs,
           ctxTables = (gInstInfo globs, [], [], []),
           constraints = [],
-          defaults = dflts
+          defaults = dflts,
+          patSynTable = M.empty
         }
 
 mergeDefaults :: Defaults -> Defaults -> Defaults
@@ -945,14 +946,15 @@ tcDefs impt ds = do
   dst <- tcDefsType ds
 --  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeAndData dst
-  dst' <- tcExpand impt dst
---  tcTrace ("tcDefs 3:\n" ++ showEDefs dst')
+  dstp <- tcPatSyn dst
+  dste <- tcExpand impt dstp
+  tcTrace ("tcDefs 3:\n" ++ showEDefs dste)
   case impt of
     ImpNormal -> do
-      setDefault dst'
-      tcDefsValue dst'
+      setDefault dste
+      tcDefsValue dste
     ImpBoot ->
-      return dst'
+      return dste
 
 setDefault :: [EDef] -> T ()
 setDefault defs = do
@@ -2942,3 +2944,17 @@ standaloneDeriving act = do
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
   deriveNoHdr act lhs cs cls
+
+tcPatSyn :: [EDef] -> T [EDef]
+tcPatSyn ds = do
+  let one d@(Pattern (i, iks) p me) = do
+        addPatSyn i (map idKindIdent iks, p)
+        case me of
+          Nothing -> return [d]
+          Just e  -> return [d, Fcn i e]
+      one d = return [d]
+  concat <$> mapM one ds
+
+addPatSyn :: Ident -> ([Ident], EPat) -> T ()
+addPatSyn i ps =
+  modify $ \ ts -> ts{ patSynTable = M.insert i ps (patSynTable ts) }

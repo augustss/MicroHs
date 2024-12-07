@@ -98,7 +98,7 @@ pUIdent =
 pUIdentSym :: P Ident
 pUIdentSym = pUIdent <|< pParens pUSymOper
 
--- Special "identifiers": () [] (,) ...
+-- Special "identifiers": [] (,) ...
 pUIdentSpecial :: P Ident
 pUIdentSpecial = do
   loc <- getSLoc
@@ -345,7 +345,7 @@ pPatSyn = do
    ) <|> (
     do pSymbol "<-"
        p <- pPat
-       meqns <- optional (pKeyword "where" *> pBraces (pEqns' (\ n _ -> i == n)))
+       meqns <- optional (pKeyword "where" *> pBraces (pEqnsU i))
        pure (lhs, p, fmap snd meqns)
    )
 
@@ -564,37 +564,44 @@ pPatNotVar = guardM pPat isPConApp
 
 -------------
 
+-- Regular function definition
 pEqns :: P (Ident, [Eqn])
-pEqns = pEqns' (\ _ _ -> True)
+pEqns = pEqns' pLIdentSym pLOper (\ _ _ -> True)
+  where pLOper = guardM pOper (not . isConIdent)
 
-pEqns' :: (Ident -> Int -> Bool) -> P (Ident, [Eqn])
-pEqns' pfst = do
-  (name, eqn@(Eqn ps alts)) <- pEqn pfst
+-- Pattern synonym function; must have name i.
+pEqnsU :: Ident -> P (Ident, [Eqn])
+pEqnsU i = pEqns' pUIdentSym pUOper (\ n _ -> i == n)
+
+-- pEqns' is used to parse oridinary function definitions as well
+-- as the 'constructor' of pattern synonyms, which has an upper case identifier.
+pEqns' :: P Ident -> P Ident -> (Ident -> Int -> Bool) -> P (Ident, [Eqn])
+pEqns' ident oper test = do
+  (name, eqn@(Eqn ps alts)) <- pEqn ident oper test
   case (ps, alts) of
     ([], EAlts [_] []) ->
       -- don't collect equations when of the form 'i = e'
       pure (name, [eqn])
     _ -> do
-      neqns <- emany (pSpec ';' *> pEqn (\ n l -> n == name && l == length ps))
+      neqns <- emany (pSpec ';' *> pEqn ident oper (\ n l -> n == name && l == length ps))
       pure (name, eqn : map snd neqns)
 
-pEqn :: (Ident -> Int -> Bool) -> P (Ident, Eqn)
-pEqn test = do
-  (name, pats) <- pEqnLHS
+pEqn :: P Ident -> P Ident -> (Ident -> Int -> Bool) -> P (Ident, Eqn)
+pEqn ident oper test = do
+  (name, pats) <- pEqnLHS ident oper
   alts <- pAlts (pSpec '=')
   guard (test name (length pats))
   pure (name, Eqn pats alts)
 
-pEqnLHS :: P (Ident, [EPat])
-pEqnLHS =
-  ((,) <$> pLIdentSym <*> emany pAPat)
+pEqnLHS :: P Ident -> P Ident -> P (Ident, [EPat])
+pEqnLHS ident oper =
+  ((,) <$> ident <*> emany pAPat)
   <|>   -- XXX this <|> causes a slowdown, but is necessary
   pOpLHS
   <|<
   ((\ (i, ps1) ps2 -> (i, ps1 ++ ps2)) <$> pParens pOpLHS <*> emany pAPat)
   where
-    pOpLHS = (\ p1 i p2 -> (i, [p1,p2])) <$> pPatApp <*> pLOper <*> pPatApp
-    pLOper = guardM pOper (not . isConIdent)
+    pOpLHS = (\ p1 i p2 -> (i, [p1,p2])) <$> pPatApp <*> oper <*> pPatApp
 
 pAlts :: P () -> P EAlts
 pAlts sep = do
