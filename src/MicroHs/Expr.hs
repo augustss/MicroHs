@@ -33,7 +33,7 @@ module MicroHs.Expr(
   eApp2, eApp3, eApps,
   lhsToType,
   subst,
-  allVarsExpr, allVarsBind, allVarsEqns,
+  allVarsExpr, allVarsBind, allVarsEqns, allVarsPat,
   setSLocExpr,
   errorMessage,
   Assoc(..), Fixity,
