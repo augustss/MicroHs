@@ -1439,13 +1439,20 @@ tcDefValue adef =
     _ -> return adef
 
 tcPattern :: EDef -> EType -> T EDef
-tcPattern (Pattern (i, vks) p me) t = do
-  traceM ("Pattern " ++ show (i, vks, p, t))
-  p' <- return p  -- XXX
-  me' <- traverse (tcEqns True t) me
+tcPattern (Pattern (ip, vks) p me) at = do
+  traceM ("Pattern " ++ show (ip, vks, p, me, at))
+  let step [] t = tcPat (Check t) p
+      step (ik:iks) t = do
+        (ti, tr) <- unArrow (getSLoc ik) t
+        withExtVal (idKindIdent ik) ti $ step iks tr
+      dropForall (EForall _ _ t) = dropForall t
+      dropForall t = t
+  (_, _, p') <- step vks (dropForall at)   -- XXX
+  me' <- traverse (tcEqns True at) me
   mn <- gets moduleName
   checkConstraints
-  return $ Pattern (qualIdent mn i, vks) p' me'
+  traceM ("Pattern after " ++ show (qualIdent mn ip, vks, p', me'))
+  return $ Pattern (qualIdent mn ip, vks) p' me'
 tcPattern _ _ = error "tcPattern"
 
 -- Add implicit forall and type check.
@@ -2277,9 +2284,9 @@ checkArity n p =
     ELit _ _           -> check0
     ENegApp _          -> check0
     EViewPat _ _       -> check0
-    _ -> impossible
+    _                  -> impossible
   where
-    check0 = if n /= 0 then tcError (getSLoc p) "Bad pattern" else return ()
+    check0 = if n /= 0 then tcError (getSLoc p) ("Bad pattern " ++ show p) else return ()
 
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = do

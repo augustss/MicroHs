@@ -53,6 +53,7 @@ Differences:
    * DuplicateRecordFields
    * EmptyDataDecls
    * ExistentialQuantification
+   * ExplicitNamespaces
    * ExtendedDefaultRules
    * FlexibleContexts
    * FlexibleInstance
