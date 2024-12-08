@@ -1457,7 +1457,7 @@ tcKind mk = assertTCMode (==TCType) . withTypeTable . tcKindT mk
 -- When inferring the type, the resulting type will
 -- be assigned to the TRef (using tSetRefType),
 -- and can then be read of (using tGetRefType).
--- When checking, the expected type is simple given.
+-- When checking, the expected type is simply given.
 data Expected = Infer TRef | Check EType
 --  deriving(Show)
 
@@ -1495,7 +1495,7 @@ tGetRefType :: HasCallStack =>
 tGetRefType ref = do
   m <- gets uvarSubst
   case IM.lookup ref m of
-    Nothing -> return (EUVar ref) -- error "tGetRefType"
+    Nothing -> return (EUVar ref)
     Just t  -> return t
 
 -- Set the type for an Infer
