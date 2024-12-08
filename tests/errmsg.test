@@ -16,31 +16,27 @@ mhs: "../tmp/E.hs": line 5, col 1:
 
 =====
 module E() where
-import Prelude
 x :: Int
 x = y
 -----
-mhs: "../tmp/E.hs": line 5, col 5: undefined value: y
+mhs: "../tmp/E.hs": line 4, col 5: undefined value: y
 
 =====
 module E() where
-import Prelude
 x :: Int
 x = A
 -----
-mhs: "../tmp/E.hs": line 5, col 5: undefined value: A
+mhs: "../tmp/E.hs": line 4, col 5: undefined value: A
 
 =====
 module E() where
-import Prelude
 x :: T
 x = 1
 -----
-mhs: "../tmp/E.hs": line 4, col 6: undefined type: T
+mhs: "../tmp/E.hs": line 3, col 6: undefined type: T
 
 =====
 module E() where
-import Prelude
 x :: Int
 x = 1
 y :: Int
@@ -48,17 +44,16 @@ y = 2
 x :: Int
 x = 3
 -----
-mhs: "../tmp/E.hs": line 5, col 1: duplicate definition E.x
+mhs: "../tmp/E.hs": line 4, col 1: duplicate definition E.x
 
 =====
 module E() where
-import Prelude
 type T a = [a]
 data D (f :: Type -> Type) = D (f Int)
 x :: D T
 x = [0]
 -----
-mhs: "../tmp/E.hs": line 6, col 8: bad synonym use
+mhs: "../tmp/E.hs": line 5, col 8: bad synonym use
 
 =====
 module E(module M) where
@@ -82,23 +77,20 @@ mhs: "../tmp/E.hs": line 2, col 10: undefined export: x
 
 =====
 module E(lookup) where
-import Prelude
 import TestMap
 -----
 mhs: "../tmp/E.hs": line 2, col 10: ambiguous export: lookup [Data.List.lookup,TestMap.lookup]
 
 =====
 module E() where
-import Prelude
 import TestMap
 a :: ()
 a = lookup
 -----
-mhs: "../tmp/E.hs": line 6, col 5: ambiguous value: lookup [Data.List.lookup,TestMap.lookup]
+mhs: "../tmp/E.hs": line 5, col 5: ambiguous value: lookup [Data.List.lookup,TestMap.lookup]
 
 =====
 module E() where
-import Prelude
 infixl 5 +++
 infixr 5 ***
 (+++) :: Int -> Int -> Int
@@ -108,46 +100,57 @@ infixr 5 ***
 x :: Int
 x = 1 +++ 2 *** 3
 -----
-mhs: "../tmp/E.hs": line 11, col 13: ambiguous operator expression
+mhs: "../tmp/E.hs": line 10, col 13: ambiguous operator expression
 
 =====
 module E() where
-import Prelude
 a :: Int
 a = 'a'
 -----
-mhs: "../tmp/E.hs": line 5, col 5: Cannot satisfy constraint: (Char ~ Int)
+mhs: "../tmp/E.hs": line 4, col 5: Cannot satisfy constraint: (Char ~ Int)
      fully qualified: (Primitives.~ Primitives.Char Primitives.Int)
 =====
 module E() where
-import Prelude
 data T = C Maybe
 -----
-mhs: "../tmp/E.hs": line 4, col 12: kind error: cannot unify Type and (_a2 -> _a3)
+mhs: "../tmp/E.hs": line 3, col 12: kind error: cannot unify Type and (_a2 -> _a3)
 
 =====
 module E() where
-import Prelude
 data T (a :: X) = T
 -----
-mhs: "../tmp/E.hs": line 4, col 14: undefined kind: X
+mhs: "../tmp/E.hs": line 3, col 14: undefined kind: X
 
 =====
 module E() where
-import Prelude
 data T = forall a . C a
 x :: Int
 x = let { C a = C (1::Int) } in a
 -----
-mhs: "../tmp/E.hs": line 6, col 11: existentials not allowed in pattern binding
+mhs: "../tmp/E.hs": line 5, col 11: existentials not allowed in pattern binding
 
 =====
 module E() where
-import Prelude
 class C a where { m :: a }
 instance C Int where { x = 1 }
 -----
-mhs: "../tmp/E.hs": line 5, col 24: superflous instance binding
+mhs: "../tmp/E.hs": line 4, col 24: superflous instance binding
+
+=====
+module E() where
+data T = C Int
+x = case undefined of
+      C -> True
+-----
+mhs: "../tmp/E.hs": line 5, col 7: too few arguments
+
+=====
+module E() where
+data T = C Int
+x = case undefined of
+      C _ _ -> True
+-----
+mhs: "../tmp/E.hs": line 5, col 7: too many arguments
 
 =====
 END
