@@ -149,7 +149,7 @@ cTypes =
   , ("Primitives.Int",    "Int")
   , ("Primitives.Word",   "Word")
   , ("Data.Word.Word8",   "Word8")
-  , ("Primitives.()",     "Unit")
+  , ("()",                "Unit")
   , ("System.IO.Handle",  "Ptr")
   ] ++ map (\ t -> ("Foreign.C.Types." ++ t, t))
   [ "CChar",
