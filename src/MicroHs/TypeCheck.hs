@@ -2113,7 +2113,6 @@ tCheckPatC t app ta = do
   withExtVals env $ do
     (_sks, ds, pp) <- tCheckPat t app'
 --    tcTrace ("tCheckPatC: " ++ show pp)
-    () <- checkArity 0 pp
 --    xt <- derefUVar t
 --    tcTrace ("tCheckPatC ds=" ++ show ds ++ "t=" ++ show xt)
     -- XXX must check for leaking skolems
@@ -2140,50 +2139,20 @@ tcPat mt ae =
                -- _ can be anything, so just ignore it
                _ <- tGetExpType mt
                return ([], [], ae)
-
-           | isConIdent i -> do
-               (con, xpt) <- tLookupV i
---               tcTrace (show ipt)
-               case xpt of
-                  -- Sanity check
-                  EForall _ _ (EForall _ _ _) -> return ()
-                  _ -> impossibleShow i
-               EForall _ avs apt <- tInst' xpt
-               (sks, spt) <- shallowSkolemise avs apt
-               (d, p, pt) <-
-                 case getImplies spt of
-                   Nothing -> return ([], con, apt)
-                   Just (ctx, pt') -> do
-                     di <- newADictIdent loc
-                     return ([(di, ctx)], EApp con (EVar di), pt')
-                   
-               -- We will only have an expected type for a non-nullary constructor
-               pp <- case mt of
-                       Check ext -> subsCheck loc p ext pt
-                       Infer r   -> do { tSetRefType loc r pt; return p }
-               return (sks, d, pp)
-
-           | otherwise -> do
+           | not (isConIdent i) -> do
                -- All pattern variables are in the environment as
                -- type references.  Assign the reference the given type.
                ext <- tGetExpType mt
                (p, t) <- tLookupV i
                unify loc t ext
                return ([], [], p)
+           | otherwise -> tcPatAp mt [] ae
+    EApp f _
+           | isNeg f   -> lit            -- if it's (negate e) it must have been a negative literal
+           | otherwise -> tcPatAp mt [] ae
 
     EOper e ies -> do e' <- tcOper e ies; tcPat mt e'
 
-    EApp f a
-      | isNeg f -> lit       -- if it's (negate e) it must have been a negative literal
-      | otherwise -> do
-      ((skf, df, f'), ft) <- tInferPat f
---      tcTrace $ "tcPat: EApp f=" ++ showExpr f ++ "; e'=" ++ showExpr f' ++ " :: " ++ showEType ft
-      (at, rt) <- unArrow loc ft
---      tcTrace ("tcPat EApp: " ++ showExpr f ++ " :: " ++ showEType ft)
-      (ska, da, a') <- tCheckPat at a
-      instPatSigma loc rt mt
-      return (skf ++ ska, df ++ da, EApp f' a')
-           
     ETuple es -> do
       let
         n = length es
@@ -2249,6 +2218,61 @@ tcPat mt ae =
 
     _ -> error $ "tcPat: " ++ show (getSLoc ae) ++ " " ++ show ae
 
+-- The expected type is for (eApps afn (reverse args))
+tcPatAp :: HasCallStack =>
+           Expected -> [EPat] -> EPat -> T EPatRet
+--tcPatAp mt args afn | trace ("tcPatAp: " ++ show (mt, args, afn)) False = undefined
+tcPatAp mt args afn =
+  case afn of
+    EVar i | isConIdent i -> do
+      let loc = getSLoc i
+      (con, xpt) <- tLookupV i
+--      tcTrace (show xpt)
+      case xpt of
+         -- Sanity check
+         EForall _ _ (EForall _ _ _) -> return ()
+         _ -> impossibleShow i
+      EForall _ avs apt <- tInst' xpt
+
+      (sks, spt) <- shallowSkolemise avs apt
+      (df, pf, pt) <-
+        case getImplies spt of
+          Nothing -> return ([], con, apt)
+          Just (ctx, pt') -> do
+            di <- newADictIdent loc
+            return ([(di, ctx)], EApp con (EVar di), pt')
+          
+      let ary = arity pf
+            where arity (ECon c) = conArity c
+                  arity (EApp f _) = arity f - 1  -- deal with dictionary added above
+                  arity e = impossibleShow e
+          nargs = length args
+      if nargs < ary then
+        tcError loc "too few arguments"
+       else if nargs > ary then
+        tcError loc "too many arguments"
+       else
+        return ()
+
+      let step [] t r = return (t, r)
+          step (a:as) t (sk, d, f) = do
+            (at, rt) <- unArrow loc t
+            (ska, da, a') <- tCheckPat at a
+            step as rt (ska ++ sk, da ++ d, EApp f a')
+      (tt, (skr, dr, pr)) <- step args pt (sks, df, pf)
+
+      pp <- case mt of
+              Check ext -> subsCheck loc pr ext tt
+              Infer r   -> do { tSetRefType loc r tt; return pr }
+      return (skr, dr, pp)
+
+    EApp f a -> tcPatAp mt (a:args) f
+
+    EParen e -> tcPatAp mt args e
+
+    _ -> tcError (getSLoc afn) ("Bad pattern " ++ show afn)
+  
+
 eTrue :: SLoc -> Expr
 eTrue l = EVar $ mkBuiltin l "True"
 
@@ -2260,33 +2284,6 @@ multCheck vs =
   when (anySame vs) $ do
     let v = head vs
     tcError (getSLoc v) $ "Multiply defined: " ++ showIdent v
-
-checkArity :: Int -> EPat -> T ()
-checkArity n (EApp f a) = do
-  checkArity (n+1) f
-  checkArity 0 a
-checkArity n (ECon c) =
-  let a = conArity c
-  in  if n < a then
-        tcError (getSLoc c) "too few arguments"
-      else if n > a then
-        tcError (getSLoc c) $ "too many arguments"
-      else
-        return ()
-checkArity n (EAt _ p) = checkArity n p
-checkArity n (ELazy _ p) = checkArity n p
-checkArity n (ESign p _) = checkArity n p
-checkArity n p =
-  case p of
-    ETuple _           -> check0
-    EListish (LList _) -> check0
-    EVar _             -> check0
-    ELit _ _           -> check0
-    ENegApp _          -> check0
-    EViewPat _ _       -> check0
-    _                  -> impossible
-  where
-    check0 = if n /= 0 then tcError (getSLoc p) ("Bad pattern " ++ show p) else return ()
 
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = do
