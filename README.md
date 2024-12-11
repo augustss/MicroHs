@@ -423,6 +423,8 @@ This assumes that you have `git` to download the needed packages.
 At the moment, the downloaded packages are forks of the original to
 make it compile with `mhs`.
 
+To identify that it is MicroHs that is the compiler it defines the symbol `__MHS__`.
+
 # FAQ
 * 
   * Q: When will it get _insert feature_?
