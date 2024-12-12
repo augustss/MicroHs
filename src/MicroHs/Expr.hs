@@ -163,6 +163,7 @@ type FieldName = Ident
 data Con
   = ConData ConTyInfo Ident [FieldName]
   | ConNew Ident [FieldName]
+  | ConSyn Ident Int
 --DEBUG  deriving(Show)
 
 data Listish
@@ -178,18 +179,22 @@ conIdent :: HasCallStack =>
             Con -> Ident
 conIdent (ConData _ i _) = i
 conIdent (ConNew i _) = i
+conIdent (ConSyn i _) = i
 
 conArity :: Con -> Int
 conArity (ConData cs i _) = fromMaybe (error "conArity") $ lookup i cs
 conArity (ConNew _ _) = 1
+conArity (ConSyn _ n) = n
 
 conFields :: Con -> [FieldName]
 conFields (ConData _ _ fs) = fs
 conFields (ConNew _ fs) = fs
+conFields (ConSyn _ _) = []
 
 instance Eq Con where
   (==) (ConData _ i _) (ConData _ j _) = i == j
   (==) (ConNew    i _) (ConNew    j _) = i == j
+  (==) (ConSyn    i _) (ConSyn    j _) = i == j
   (==) _               _               = False
 
 data Lit
@@ -389,6 +394,7 @@ instance HasLoc IdKind where
 instance HasLoc Con where
   getSLoc (ConData _ i _) = getSLoc i
   getSLoc (ConNew i _) = getSLoc i
+  getSLoc (ConSyn i _) = getSLoc i
 
 instance HasLoc Listish where
   getSLoc (LList es) = getSLoc es
@@ -566,6 +572,7 @@ setSLocExpr _ _ = error "setSLocExpr"  -- what other cases do we need?
 setSLocCon :: SLoc -> Con -> Con
 setSLocCon l (ConData ti i fs) = ConData ti (setSLocIdent l i) fs
 setSLocCon l (ConNew i fs) = ConNew (setSLocIdent l i) fs
+setSLocCon l (ConSyn i n) = ConSyn (setSLocIdent l i) n
 
 errorMessage :: forall a .
                 HasCallStack =>
@@ -773,6 +780,7 @@ ppListish (LFromThenTo e1 e2 e3) = brackets $ ppExpr e1 <> text "," <> ppExpr e2
 ppCon :: Con -> Doc
 ppCon (ConData _ s _) = ppIdent s
 ppCon (ConNew s _) = ppIdent s
+ppCon (ConSyn s _) = ppIdent s
 
 -- Literals are tagged the way they appear in the combinator file:
 --  #   Int
