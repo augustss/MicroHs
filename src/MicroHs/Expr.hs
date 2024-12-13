@@ -133,6 +133,7 @@ data Expr
   | EForall Bool [IdKind] EType  -- True indicates explicit forall in the code
   -- only while type checking
   | EUVar Int
+  | EQVar Expr EType             -- already resolved identifier
   -- only after type checking
   | ECon Con
 --DEBUG  deriving (Show)
@@ -163,7 +164,7 @@ type FieldName = Ident
 data Con
   = ConData ConTyInfo Ident [FieldName]
   | ConNew Ident [FieldName]
-  | ConSyn Ident Int
+  | ConSyn Ident Int (Expr, EType)
 --DEBUG  deriving(Show)
 
 data Listish
@@ -179,23 +180,23 @@ conIdent :: HasCallStack =>
             Con -> Ident
 conIdent (ConData _ i _) = i
 conIdent (ConNew i _) = i
-conIdent (ConSyn i _) = i
+conIdent (ConSyn i _ _) = i
 
 conArity :: Con -> Int
 conArity (ConData cs i _) = fromMaybe (error "conArity") $ lookup i cs
 conArity (ConNew _ _) = 1
-conArity (ConSyn _ n) = n
+conArity (ConSyn _ n _) = n
 
 conFields :: Con -> [FieldName]
 conFields (ConData _ _ fs) = fs
 conFields (ConNew _ fs) = fs
-conFields (ConSyn _ _) = []
+conFields (ConSyn _ _ _) = []
 
 instance Eq Con where
-  (==) (ConData _ i _) (ConData _ j _) = i == j
-  (==) (ConNew    i _) (ConNew    j _) = i == j
-  (==) (ConSyn    i _) (ConSyn    j _) = i == j
-  (==) _               _               = False
+  (==) (ConData _ i _)   (ConData _ j _)   = i == j
+  (==) (ConNew    i _)   (ConNew    j _)   = i == j
+  (==) (ConSyn    i _ _) (ConSyn    j _ _) = i == j
+  (==) _                 _                 = False
 
 data Lit
   = LInt Int
@@ -380,6 +381,7 @@ instance HasLoc Expr where
   getSLoc (ELazy _ e) = getSLoc e
   getSLoc (EOr es) = getSLoc es
   getSLoc (EUVar _) = error "getSLoc EUVar"
+  getSLoc (EQVar e _) = getSLoc e
   getSLoc (ECon c) = getSLoc c
   getSLoc (EForall _ [] e) = getSLoc e
   getSLoc (EForall _ iks _) = getSLoc iks
@@ -394,7 +396,7 @@ instance HasLoc IdKind where
 instance HasLoc Con where
   getSLoc (ConData _ i _) = getSLoc i
   getSLoc (ConNew i _) = getSLoc i
-  getSLoc (ConSyn i _) = getSLoc i
+  getSLoc (ConSyn i _ _) = getSLoc i
 
 instance HasLoc Listish where
   getSLoc (LList es) = getSLoc es
@@ -537,6 +539,7 @@ allVarsExpr' aexpr =
     ELazy _ p -> allVarsExpr' p
     EOr ps -> composeMap allVarsExpr' ps
     EUVar _ -> id
+    EQVar e _ -> allVarsExpr' e
     ECon c -> (conIdent c :)
     EForall _ iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
   where field (EField _ e) = allVarsExpr' e
@@ -572,7 +575,7 @@ setSLocExpr _ _ = error "setSLocExpr"  -- what other cases do we need?
 setSLocCon :: SLoc -> Con -> Con
 setSLocCon l (ConData ti i fs) = ConData ti (setSLocIdent l i) fs
 setSLocCon l (ConNew i fs) = ConNew (setSLocIdent l i) fs
-setSLocCon l (ConSyn i n) = ConSyn (setSLocIdent l i) n
+setSLocCon l (ConSyn i n m) = ConSyn (setSLocIdent l i) n m
 
 errorMessage :: forall a .
                 HasCallStack =>
@@ -744,6 +747,7 @@ ppExprR raw = ppE
         ELazy False p -> text "!" <> ppE p
         EOr ps -> parens $ hsep (punctuate (text ";") (map ppE ps))
         EUVar i -> text ("_a" ++ show i)
+        EQVar e _ -> ppE e
         ECon c -> ppCon c
         EForall _ iks e -> ppForall iks <+> ppEType e
 
@@ -780,7 +784,7 @@ ppListish (LFromThenTo e1 e2 e3) = brackets $ ppExpr e1 <> text "," <> ppExpr e2
 ppCon :: Con -> Doc
 ppCon (ConData _ s _) = ppIdent s
 ppCon (ConNew s _) = ppIdent s
-ppCon (ConSyn s _) = ppIdent s
+ppCon (ConSyn s _ _) = ppIdent s
 
 -- Literals are tagged the way they appear in the combinator file:
 --  #   Int

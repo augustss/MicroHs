@@ -1300,8 +1300,8 @@ tcDefsValue defs = do
   --  type check all definitions (the inferred ones will be rechecked)
   defs'' <- mapM (\ d -> do { tcReset; tcDefValue d}) defs'
   let defs''' = concat signDefs ++ defs''
-  traceM $ "tcDefsValue: ------------ done"
-  traceM $ showEDefs defs'''
+--  traceM $ "tcDefsValue: ------------ done"
+--  traceM $ showEDefs defs'''
   pure defs'''
 
 -- Infer a type for a definition
@@ -1390,6 +1390,7 @@ addValueType adef = do
 addPatSyn :: EType -> Ident -> T ()
 addPatSyn at i = do
   at' <- expandSyn at
+  mn <- gets moduleName
   let (t', n) =
         -- Patterns must have two universals.
         -- XXX Add double contexts
@@ -1397,8 +1398,9 @@ addPatSyn at i = do
           EForall b vs t -> (EForall b     vs $ EForall False []  t, arity t)
           _              -> (EForall False [] $ EForall False [] at, arity at)
       arity = length . fst . getArrows  -- XXX
-  mn <- gets moduleName
-  extValETop i t' $ ECon $ ConSyn (qualIdent mn i) n
+      qi = qualIdent mn i
+      mtch = (EVar $ mkPatSynMatch qi, mkPatSynType t')
+  extValETop i t' $ ECon $ ConSyn qi n mtch
 
 -- XXX FunDep
 addValueClass :: [EConstraint] -> Ident -> [IdKind] -> [FunDep] -> [EBind] -> T ()
@@ -1435,9 +1437,9 @@ tcDefValue adef =
     Fcn i eqns -> do
       (_, t) <- tLookup "type signature" i
       t' <- expandSyn t
-      tcTrace $ "tcDefValue: ------- start " ++ showIdent i
-      tcTrace $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t'
-      tcTrace $ "tcDefValue: " ++ showEDefs [adef]
+--      tcTrace $ "tcDefValue: ------- start " ++ showIdent i
+--      tcTrace $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t'
+--      tcTrace $ "tcDefValue: " ++ showEDefs [adef]
       teqns <- tcEqns True t' eqns
 --      tcTrace ("tcDefValue: after\n" ++ showEDefs [adef, Fcn i teqns])
 --      cs <- gets constraints
@@ -1466,7 +1468,7 @@ tcPattern (Pattern (ip, vks) p me) at = do
       dropForall (EForall _ _ t) = dropForall t
       dropForall t = t
   (_, _, p') <- step vks (dropForall at)   -- XXX
-  me' <- traverse (tcEqns True at) me
+  me' <- case me of Nothing -> pure Nothing; Just e -> Just <$> tcEqns True at e
   mn <- gets moduleName
   checkConstraints
 --  traceM ("Pattern after " ++ show (qualIdent mn ip, vks, p', me'))
@@ -1604,6 +1606,8 @@ tcExprR mt ae =
                  _ -> return t
              --tcTrace $ "EVar: " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t' ++ " mt=" ++ show mt
              instSigma loc e t' mt
+    EQVar e t ->  -- already resolved, just instantiate
+             instSigma loc e t mt
 
     EApp f a -> do
 --      tcTrace $ "txExpr(0) EApp: expr=" ++ show ae ++ ":: " ++ show mt
@@ -2254,11 +2258,11 @@ tcPatAp mt args afn =
             return ()
     (con, xpt) <- tLookupV i
     case con of
-     ECon (ConSyn ps n) -> do
+     ECon (ConSyn _ n (e, t)) -> do
       checkArity n
       let (_, _, pcon) = mkMatchIdents loc False n
-          vp = EViewPat (EVar $ mkPatSynMatch ps) (eApps (EVar pcon) args)
-      traceM ("patsyn " ++ show vp)
+          vp = EViewPat (EQVar e t) (eApps (EVar pcon) args)
+      --traceM ("patsyn " ++ show vp)
       tcPat mt vp
      _ -> do 
 --      tcTrace (show xpt)
@@ -2548,15 +2552,17 @@ addPatSynMatch :: Ident -> EType -> T Ident
 addPatSynMatch ps at = do
   mn <- gets moduleName
   let im = mkPatSynMatch ps
-      (m, vks, (ats, rt)) =
+  extValETop im (mkPatSynType at) (EVar (qualIdent mn im))
+  return im
+
+mkPatSynType :: EType -> EType
+mkPatSynType at =
+  let (m, vks, (ats, rt)) =
         case at of
           EForall m' vks' (EForall _ _ t) -> (m', vks', getArrows t) -- XXX
-          _ -> impossible
-      (pstycon, _, _) = mkMatchIdents (getSLoc ps) False (length ats) -- XXX
-      conty = EForall m vks $ rt `tArrow` tApps pstycon ats -- XXX
---      con = ConSyn (qualIdent mn im) (length ats)
-  extValETop im conty (EVar (qualIdent mn im))
-  return im
+          _ -> impossibleShow at
+      (pstycon, _, _) = mkMatchIdents (getSLoc at) False (length ats) -- XXX
+  in  EForall m vks $ rt `tArrow` tApps pstycon ats -- XXX
 
 mkPatSynMatch :: Ident -> Ident
 mkPatSynMatch i = addIdentSuffix i "%"

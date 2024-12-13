@@ -462,6 +462,8 @@ pImportItem =
       impType     <$> pUQIdentSym <*> (pSpec '(' *> pConList <* pSpec ')')
   <|< ImpTypeSome <$> pUQIdentSym <*> pure []
   <|< ImpValue    <$> pLQIdentSym
+  <|< ImpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
+  <|< ImpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
   where impType i Nothing   = ImpTypeAll  i
         impType i (Just is) = ImpTypeSome i is
 
