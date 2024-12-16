@@ -12,11 +12,30 @@ import Data.List
 elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy eq a = any (eq a)
 
--- A simple "quicksort" for now.
+-- A simple merge sort for now.
 sortLE :: forall a . (a -> a -> Bool) -> [a] -> [a]
-sortLE _  [] = []
-sortLE le (x:xs) = sortLE le lt ++ (x : sortLE le ge)
-  where (ge, lt) = partition (le x) xs
+sortLE le = mergeAll . splatter
+  where
+    splatter [] = []
+    splatter [a] = [[a]]
+    splatter (a1 : a2 : as)
+      | a1 `le` a2 = [a1, a2] : splatter as
+      | otherwise  = [a2, a1] : splatter as
+
+    mergeAll [] = []
+    mergeAll [xs] = xs
+    mergeAll xss = mergeAll (mergePairs xss)
+
+    mergePairs [] = []
+    mergePairs [xs] = [xs]
+    mergePairs (xs1 : xs2 : xss) = merge xs1 xs2 : mergePairs xss
+
+    merge [] ys = ys
+    merge xs [] = xs
+    merge axs@(x : xs) ays@(y : ys)
+      | x `le` y  = x : merge xs ays
+      | otherwise = y : merge axs ys
+
 
 showListS :: (a -> String) -> [a] -> String
 showListS sa arg =
@@ -36,6 +55,14 @@ anySame = anySameBy (==)
 anySameBy :: (a -> a -> Bool) -> [a] -> Bool
 anySameBy _ [] = False
 anySameBy eq (x:xs) = elemBy eq x xs || anySameBy eq xs
+
+anySameByLE :: (a -> a -> Bool) -> [a] -> Bool
+anySameByLE le = anySameAdj . sortLE le
+  where
+    anySameAdj (x1 : xs@(x2 : _))
+      | x2 `le` x1 = True
+      | otherwise = anySameAdj xs
+    anySameAdj _ = False
 
 deleteAllBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
 deleteAllBy _ _ [] = []

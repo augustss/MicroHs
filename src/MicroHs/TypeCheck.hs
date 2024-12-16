@@ -2238,7 +2238,7 @@ eFalse l = EVar $ mkBuiltin l "False"
 
 multCheck :: [Ident] -> T ()
 multCheck vs =
-  when (anySame vs) $ do
+  when (anySameByLE (<=) vs) $ do
     let v = head vs
     tcError (getSLoc v) $ "Multiply defined: " ++ showIdent v
 
