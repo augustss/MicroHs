@@ -555,14 +555,6 @@ kTypeTypeS = kArrow kType kType
 kTypeTypeTypeS :: EType
 kTypeTypeTypeS = kArrow kType $ kArrow kType kType
 
--- (=>) :: Constraint -> Type -> Type
---kConstraintTypeTypeS :: EType
---kConstraintTypeTypeS = kArrow kConstraint $ kArrow kType kType
-
--- (~) :: Type -> Type -> Constraint
-kTypeTypeConstraintS :: EType
-kTypeTypeConstraintS = kArrow kType (kArrow kType kConstraint)
-
 mkIdentB :: String -> Ident
 mkIdentB = mkIdentSLoc builtinLoc
 
@@ -610,18 +602,23 @@ primTypes =
     kv = EVar k
     kk = IdKind k sKind
     -- Tuples are polykinded since they need to handle both Type and Constraint
+    -- (,) :: forall k . k -> k -> k
+    -- etc.
     tuple n =
       let
         i = tupleConstr builtinLoc n
       in  (i, [entry i $ EForall True [kk] $ foldr kArrow kv (replicate n kv)])
+    -- (=>) :: forall k . Constraint -> k -> k
     kImplies = EForall True [kk] $ kConstraint `kArrow` (kv `kArrow` kv)
+    -- (~) :: forall k . k -> k -> Constraint
+    kTypeEqual = EForall True [kk] $ kv `kArrow` (kv `kArrow` kConstraint)
   in
       [
        -- The function arrow et al are bothersome to define in Primitives, so keep them here.
        -- But the fixity is defined in Primitives.
        (mkIdentB "->",           [entry identArrow    kTypeTypeTypeS]),
        (mkIdentB "=>",           [entry identImplies  kImplies]),
-       (mkIdentB "~",            [entry identTypeEq   kTypeTypeConstraintS]),
+       (mkIdentB "~",            [entry identTypeEq   kTypeEqual]),
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        -- XXX should not be needed
        (identList,               [entry identList     kTypeTypeS]),
