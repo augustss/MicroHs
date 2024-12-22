@@ -3046,6 +3046,7 @@ evali(NODEPTR an)
   case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
   case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
   case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
+                                                                                          /* XXX A x = I */
   case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
   case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
   case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
