@@ -618,14 +618,15 @@ new_ap(NODEPTR f, NODEPTR a)
 
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combFalse, combTrue, combUnit, combCons, combPair;
-NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND;
+NODEPTR combK, combTrue, combUnit, combCons, combPair;
+NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND, combB;
 NODEPTR combLT, combEQ, combGT;
 NODEPTR combShowExn, combU, combK2;
 NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
 NODEPTR combBINBS1, combBINBS2;
 NODEPTR comb_stdin, comb_stdout, comb_stderr;
+#define combFalse combK
 
 /* One node of each kind for primitives, these are never GCd. */
 /* We use linear search in this, because almost all lookups
@@ -814,12 +815,13 @@ init_nodes(void)
     //MARK(n) = MARKED;
     SETTAG(n, primops[j].tag);
     switch (primops[j].tag) {
-    case T_K: combFalse = n; break;
+    case T_K: combK = n; break;
     case T_A: combTrue = n; break;
     case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
+    case T_B: combB = n; break;
     case T_Z: combZ = n; break;
     case T_U: combU = n; break;
     case T_K2: combK2 = n; break;
@@ -848,12 +850,13 @@ init_nodes(void)
     NODEPTR n = HEAPREF(heap_start++);
     SETTAG(n, t);
     switch (t) {
-    case T_K: combFalse = n; break;
+    case T_K: combK = n; break;
     case T_A: combTrue = n; break;
     case T_I: combUnit = n; break;
     case T_O: combCons = n; break;
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
+    case T_B: combB = n; break;
     case T_Z: combZ = n; break;
     case T_U: combU = n; break;
     case T_K2: combK2 = n; break;
@@ -928,6 +931,7 @@ init_nodes(void)
 #if GCRED
 int red_a, red_k, red_i, red_int, red_flip;
 #endif
+int red_bb, red_k4, red_k3, red_k2;
 
 //counter_t mark_depth;
 //counter_t max_mark_depth = 0;
@@ -2973,7 +2977,8 @@ evali(NODEPTR an)
 /* Reset stack pointer and return. */
 #define RET do { goto ret; } while(0)
 /* Check that there are at least n arguments, return if not. */
-#define CHECK(n) do { if (stack_ptr - stk < (n)) RET; } while(0)
+#define HASNARGS(n) (stack_ptr - stk >= (n))
+#define CHECK(n) do { if (!HASNARGS(n)) RET; } while(0)
 
 #define SETIND(n, x) do { SETTAG((n), T_IND); INDIR((n)) = (x); } while(0)
 #define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
@@ -3035,15 +3040,23 @@ evali(NODEPTR an)
   case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
   case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
   case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
-  case T_BB:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w));                     /* B' x y z w = x y (z w) */
+  case T_BB:   if (!HASNARGS(4)) {                /* 2 or 3 arguments, use                   B' x y = B (x y) */
+               GCCHECK(1); CHKARG2; red_bb++; GOAP(combB, new_ap(x, y)); } else {
+               GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w)); }                   /* B' x y z w = x y (z w) */
   case T_Z:                CHKARG3; GOAP(x, y);                                           /* Z x y z = x y */
   case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
   case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
   case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
   case T_R:    GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
   case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
-  case T_K2:               CHKARG3; GOIND(x);                                             /* K2 x y z = *x */
-  case T_K3:               CHKARG4; GOIND(x);                                             /* K3 x y z w = *x */
+  case T_K2:   if (!HASNARGS(3)) {                /* 2 arguments, use                        K2 x y = K x */
+                           CHKARG2; red_k2++; GOAP(combK, x); } else {
+                           CHKARG3; GOIND(x); }                                           /* K2 x y z = *x */
+  case T_K3:   if (!HASNARGS(4)) {
+                 if (HASNARGS(3)) {
+                           CHKARG3; red_k3++; GOAP(combK, x); } else {                    /* K3 x y z = K x */
+                           CHKARG2; red_k3++; GOAP(combK2, x); }} else {                  /* K3 x y = K2 x */
+                           CHKARG4; GOIND(x); }                                           /* K3 x y z w = *x */
   case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
   case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
 
@@ -4202,6 +4215,7 @@ MAIN
           (double)gc_scan_time / 1000);
 #if GCRED
     PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
+    PRINT(" special reductions B'=%d K4=%d K3=%d K2=%d\n", red_bb, red_k4, red_k3, red_k2);
 #endif
   }
 #endif  /* WANT_STDIO */
