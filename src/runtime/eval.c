@@ -621,7 +621,7 @@ NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combK, combTrue, combUnit, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND, combB;
 NODEPTR combLT, combEQ, combGT;
-NODEPTR combShowExn, combU, combK2;
+NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
 NODEPTR combBINBS1, combBINBS2;
@@ -825,6 +825,7 @@ init_nodes(void)
     case T_Z: combZ = n; break;
     case T_U: combU = n; break;
     case T_K2: combK2 = n; break;
+    case T_K3: combK3 = n; break;
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_CCBIND: combIOCCBIND = n; break;
@@ -860,6 +861,7 @@ init_nodes(void)
     case T_Z: combZ = n; break;
     case T_U: combU = n; break;
     case T_K2: combK2 = n; break;
+    case T_K3: combK3 = n; break;
     case T_IO_BIND: combIOBIND = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_CCBIND: combIOCCBIND = n; break;
@@ -3040,8 +3042,8 @@ evali(NODEPTR an)
   case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
   case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
   case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
-  case T_BB:   if (!HASNARGS(4)) {                /* 2 or 3 arguments, use                   B' x y = B (x y) */
-               GCCHECK(1); CHKARG2; red_bb++; GOAP(combB, new_ap(x, y)); } else {
+  case T_BB:   if (!HASNARGS(4)) {
+               GCCHECK(1); CHKARG2; red_bb++; GOAP(combB, new_ap(x, y)); } else {         /* B' x y = B (x y) */
                GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w)); }                   /* B' x y z w = x y (z w) */
   case T_Z:                CHKARG3; GOAP(x, y);                                           /* Z x y z = x y */
   case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
@@ -3049,16 +3051,18 @@ evali(NODEPTR an)
   case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
   case T_R:    GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
   case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
-  case T_K2:   if (!HASNARGS(3)) {                /* 2 arguments, use                        K2 x y = K x */
-                           CHKARG2; red_k2++; GOAP(combK, x); } else {
+  case T_K2:   if (!HASNARGS(3)) {
+                           CHKARG2; red_k2++; GOAP(combK, x); } else {                    /* K2 x y = K x */
                            CHKARG3; GOIND(x); }                                           /* K2 x y z = *x */
   case T_K3:   if (!HASNARGS(4)) {
-                 if (HASNARGS(3)) {
-                           CHKARG3; red_k3++; GOAP(combK, x); } else {                    /* K3 x y z = K x */
-                           CHKARG2; red_k3++; GOAP(combK2, x); }} else {                  /* K3 x y = K2 x */
+                           CHKARG2; red_k3++; GOAP(combK2, x); } else {                   /* K3 x y = K2 x */
                            CHKARG4; GOIND(x); }                                           /* K3 x y z w = *x */
-  case T_K4:               CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x);     /* K4 x y z w v = *x */
-  case T_CCB:  GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w));                     /* C'B x y z w = x z (y w) */
+  case T_K4:   if (!HASNARGS(5)) {
+                           CHKARG2; red_k4++; GOAP(combK3, x); } else {                   /* K4 x y = K3 x */
+                           CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x); }   /* K4 x y z w v = *x */
+  case T_CCB:  if (!HASNARGS(4)) {
+               GCCHECK(2); CHKARG3; GOAP(new_ap(combB, new_ap(x, z)), y); } else {        /* C'B x y z = B (x z) y */
+               GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w)); }                   /* C'B x y z w = x z (y w) */
 
     /*
      * Strict primitives require evaluating the arguments before we can proceed.

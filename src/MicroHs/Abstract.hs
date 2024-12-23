@@ -67,6 +67,15 @@ isY = isPrim "Y"
 isP :: Exp -> Bool
 isP = isPrim "P"
 
+isZ :: Exp -> Bool
+isZ = isPrim "Z"
+
+isK2 :: Exp -> Bool
+isK2 = isPrim "K2"
+
+isK3 :: Exp -> Bool
+isK3 = isPrim "K3"
+
 cId :: Exp
 cId = Lit (LPrim "I")
 
@@ -272,6 +281,12 @@ improveT ae =
           Lit (LPrim "R")
         else if isCC ff && isB aa then
           Lit (LPrim "C'B")
+        else if isZ ff && isK aa then
+          Lit (LPrim "K2")
+        else if isZ ff && isK2 aa then
+          Lit (LPrim "K3")
+        else if isZ ff && isK3 aa then
+          Lit (LPrim "K4")
         else
           let
             def =
