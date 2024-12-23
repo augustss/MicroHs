@@ -320,6 +320,8 @@ pDef =
   <|< mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
   <|< PatternSign  <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Deriving     <$> (pKeyword "deriving" *> pKeyword "instance" *> pType)
+  <|< noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
+                                               (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
     dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
@@ -333,6 +335,7 @@ pDef =
     clsSym = do s <- pUIdentSym; guard (unIdent s /= "()"); return s
 
     mkPattern (lhs, pat, meqn) = Pattern lhs pat meqn
+    noop = Infix (AssocLeft, 0) []        -- harmless definition
 
 pPatSyn :: P (LHS, EPat, Maybe [Eqn])
 pPatSyn = do
@@ -405,7 +408,10 @@ pDeriving = pKeyword "deriving" *> pDer <|< pure []
 pContext :: P [EConstraint]
 pContext = (pCtx <* pDRArrow) <|< pure []
   where
-    pCtx = ((:[]) <$> pTypeApp)
+    pCtx =     ((:[]) <$> pTypeApp)
+           <|> (eq <$> pTypeArg <*> pTilde <*> pTypeArg)   -- A hack to allow   a~b => ...
+    eq t1 i t2 = [eApp2 (EVar i) t1 t2]
+    pTilde = do i <- pQSymOper; guard (i == mkIdent "~"); return i
 
 pDRArrow :: P ()
 pDRArrow = pSymbol "=>" <|< pSymbol "\x21d2"

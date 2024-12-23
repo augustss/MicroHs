@@ -77,6 +77,7 @@ test:
 	$(TMHS) Bang       && $(EVAL) > Bang.out       && diff Bang.ref Bang.out
 	$(TMHS) MString    && $(EVAL) > MString.out    && diff MString.ref MString.out
 	$(TMHS) OrPat      && $(EVAL) > OrPat.out      && diff OrPat.ref OrPat.out
+	$(TMHS) PartRed    && $(EVAL) > PartRed.out    && diff PartRed.ref PartRed.out
 	$(TMHS) PatSyn     && $(EVAL) > PatSyn.out     && diff PatSyn.ref PatSyn.out
 
 errtest:

@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.10.6.0
+version:             0.10.7.0
                      -- *** When changing the version number, also
                      -- *** run 'sh updateversion.sh'
                      -- *** Yeah, it stinks.
@@ -42,8 +42,8 @@ data-files:
       src/runtime/*.c
       src/runtime/*.h
 -- I would like to have these two only for ghc, but I can't figure out how.
-      lib/**/*.hs           --NOT_MHS
-      lib/**/*.hs-boot      --NOT_MHS
+      lib/**/*.hs
+      lib/**/*.hs-boot
 
 -- These files must not be installed for mhs!
 -- Cabal doesn't seem to understand this, so it never copies
