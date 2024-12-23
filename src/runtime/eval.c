@@ -619,7 +619,7 @@ new_ap(NODEPTR f, NODEPTR a)
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combK, combTrue, combUnit, combCons, combPair;
-NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND, combB;
+NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND, combB, combC;
 NODEPTR combLT, combEQ, combGT;
 NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
@@ -822,6 +822,7 @@ init_nodes(void)
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
     case T_B: combB = n; break;
+    case T_C: combC = n; break;
     case T_Z: combZ = n; break;
     case T_U: combU = n; break;
     case T_K2: combK2 = n; break;
@@ -858,6 +859,7 @@ init_nodes(void)
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
     case T_B: combB = n; break;
+    case T_C: combC = n; break;
     case T_Z: combZ = n; break;
     case T_U: combU = n; break;
     case T_K2: combK2 = n; break;
@@ -933,7 +935,7 @@ init_nodes(void)
 #if GCRED
 int red_a, red_k, red_i, red_int, red_flip;
 #endif
-int red_bb, red_k4, red_k3, red_k2;
+int red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
 //counter_t mark_depth;
 //counter_t max_mark_depth = 0;
@@ -3034,6 +3036,12 @@ evali(NODEPTR an)
   case T_ARR:  RET;
   case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
     
+  /*
+   * Some of these reductions, (e.g., Z x y = K (x y)) are there to avoid
+   * that increase in arity that some "optimizations" in Abstract.hs
+   * stop reductions from happening.  This can be important for "full laziness".
+   * In practice, these reductions almost never happen, but there they are anyway. :)
+   */
   case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
   case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
   case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
@@ -3045,11 +3053,15 @@ evali(NODEPTR an)
   case T_BB:   if (!HASNARGS(4)) {
                GCCHECK(1); CHKARG2; red_bb++; GOAP(combB, new_ap(x, y)); } else {         /* B' x y = B (x y) */
                GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w)); }                   /* B' x y z w = x y (z w) */
-  case T_Z:                CHKARG3; GOAP(x, y);                                           /* Z x y z = x y */
+  case T_Z:    if (!HASNARGS(3)) {
+               GCCHECK(1); CHKARG2; red_z++; GOAP(combK, new_ap(x, y)); } else {          /* Z x y = K (x y) */
+                           CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
   case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
   case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
   case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
-  case T_R:    GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x);                                /* R x y z = y z x */
+  case T_R:    if(!HASNARGS(3)) {
+               GCCHECK(1); CHKARG2; red_r++; GOAP(new_ap(combC, y), x); } else {          /* R x y = C y x */
+               GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x); }                              /* R x y z = y z x */
   case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
   case T_K2:   if (!HASNARGS(3)) {
                            CHKARG2; red_k2++; GOAP(combK, x); } else {                    /* K2 x y = K x */
@@ -3061,7 +3073,7 @@ evali(NODEPTR an)
                            CHKARG2; red_k4++; GOAP(combK3, x); } else {                   /* K4 x y = K3 x */
                            CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x); }   /* K4 x y z w v = *x */
   case T_CCB:  if (!HASNARGS(4)) {
-               GCCHECK(2); CHKARG3; GOAP(new_ap(combB, new_ap(x, z)), y); } else {        /* C'B x y z = B (x z) y */
+               GCCHECK(2); CHKARG3; red_ccb++; GOAP(new_ap(combB, new_ap(x, z)), y); } else {  /* C'B x y z = B (x z) y */
                GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w)); }                   /* C'B x y z w = x z (y w) */
 
     /*
@@ -4219,7 +4231,7 @@ MAIN
           (double)gc_scan_time / 1000);
 #if GCRED
     PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
-    PRINT(" special reductions B'=%d K4=%d K3=%d K2=%d\n", red_bb, red_k4, red_k3, red_k2);
+    PRINT(" special reductions B'=%d K4=%d K3=%d K2=%d C'B=%d, Z=%d, R=%d\n", red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
 #endif
   }
 #endif  /* WANT_STDIO */

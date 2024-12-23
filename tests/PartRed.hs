@@ -50,6 +50,22 @@ c'b x y z w = x z (y w)
 fc'b :: Int -> Int
 fc'b = c'b primIntAdd primIntNeg 99
 
+---
+
+cZ :: (Int -> Int) -> Int -> Int -> Int
+cZ x y z = x y
+
+fcZ :: Int -> Int
+fcZ = cZ primIntNeg 11
+
+---
+
+r :: Int -> (Int -> Int -> Int) -> Int -> Int
+r x y z = y z x
+
+fr :: Int -> Int
+fr = r 22 primIntAdd
+
 main :: IO ()
 main = do
   cprint k2
@@ -66,8 +82,12 @@ main = do
   --
   cprint c'b
   cprint fc'b
+  --
+  cprint cZ
+  cprint fcZ
+  --
+  cprint r
+  cprint fr
 
 
--- C'B x y z = B (x z) y
--- Z x y = K (x y)
 -- R x y = C y x
