@@ -17,3 +17,6 @@ dup :: (Eq a) => [a] -> Maybe a
 dup [x,x'] | x==x' = Just x
 dup _ = Nothing
 -}
+
+pattern One :: forall a . (Eq a) => a
+pattern One <- 1

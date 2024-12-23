@@ -747,8 +747,8 @@ ppExprR raw = ppE
         ELazy False p -> text "!" <> ppE p
         EOr ps -> parens $ hsep (punctuate (text ";") (map ppE ps))
         EUVar i -> text ("_a" ++ show i)
-        EQVar e _ -> ppE e
-        ECon c -> ppCon c
+        EQVar e t -> parens $ ppE e <> text "::" <> ppE t
+        ECon c -> text "***" <> ppCon c
         EForall _ iks e -> ppForall iks <+> ppEType e
 
     ppApp :: [Expr] -> Expr -> Doc

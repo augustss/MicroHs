@@ -97,7 +97,6 @@ data TCState = TC {
   dataTable   :: DataTable,             -- data/newtype definitions
   valueTable  :: ValueTable,            -- value symbol table
   assocTable  :: AssocTable,            -- values associated with a type, indexed by QIdent
-  patSynTable :: M.Map ([Ident], EPat), -- pattern synonyms
   uvarSubst   :: (IM.IntMap EType),     -- mapping from unique id to type
   tcMode      :: TCMode,                -- pattern, value, or type
   classTable  :: ClassTable,            -- class info, indexed by QIdent
@@ -254,3 +253,7 @@ tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
 
 tImplies :: EType -> EType -> EType
 tImplies a r = tApp (tApp (tConI builtinLoc "Primitives.=>") a) r
+
+etImplies :: EType -> EType -> EType
+etImplies (EVar i) t | i == tupleConstr noSLoc 0 = t
+etImplies a t = tImplies a t
