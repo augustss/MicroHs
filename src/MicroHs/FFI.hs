@@ -73,7 +73,7 @@ iIO :: Ident
 iIO = mkIdent "Primitives.IO"
 
 iUnit :: Ident
-iUnit = mkIdent "Primitives.()"
+iUnit = mkIdent "()"
 
 iPtr :: Ident
 iPtr = mkIdent "Primitives.Ptr"
