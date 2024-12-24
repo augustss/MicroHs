@@ -55,6 +55,9 @@ instance forall a b c . (Eq a, Eq b, Eq c) => Eq (a, b, c) where
 instance forall a b c d . (Eq a, Eq b, Eq c, Eq d) => Eq (a, b, c, d) where
   (a1, b1, c1, d1) == (a2, b2, c2, d2)  =  a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
 
+instance forall a b c d e . (Eq a, Eq b, Eq c, Eq d, Eq e) => Eq (a, b, c, d, e) where
+  (a1, b1, c1, d1, e1) == (a2, b2, c2, d2, e2)  =  a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
+
 -----------------------------------
 
 instance Ord () where
@@ -68,6 +71,9 @@ instance forall a b c . (Ord a, Ord b, Ord c) => Ord (a, b, c) where
 
 instance forall a b c d . (Ord a, Ord b, Ord c, Ord d) => Ord (a, b, c, d) where
   (a1, b1, c1, d1) `compare` (a2, b2, c2, d2)  =  a1 `compare` a2 <> b1 `compare` b2 <> c1 `compare` c2 <> d1 `compare` d2
+
+instance forall a b c d e . (Ord a, Ord b, Ord c, Ord d, Ord e) => Ord (a, b, c, d, e) where
+  (a1, b1, c1, d1, e1) `compare` (a2, b2, c2, d2, e2)  =  a1 `compare` a2 <> b1 `compare` b2 <> c1 `compare` c2 <> d1 `compare` d2 <> e1 `compare` e2
 
 -----------------------------------
 
@@ -86,6 +92,10 @@ instance forall a b c . (Show a, Show b, Show c) => Show (a, b, c) where
 instance forall a b c d . (Show a, Show b, Show c, Show d) => Show (a, b, c, d) where
   showsPrec _ (a, b, c, d) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b . showString "," . showsPrec 0 c .
                                              showString "," . showsPrec 0 d)
+
+instance forall a b c d e . (Show a, Show b, Show c, Show d, Show e) => Show (a, b, c, d, e) where
+  showsPrec _ (a, b, c, d, e) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b . showString "," . showsPrec 0 c .
+                                                showString "," . showsPrec 0 d . showString "," . showsPrec 0 e)
 
 -----------------------------------
 
