@@ -39,7 +39,7 @@ module MicroHs.Expr(
   Assoc(..), Fixity,
   getBindsVars,
   HasLoc(..),
-  eForall, eForall',
+  eForall, eForall', unForall,
   eDummy,
   impossible, impossibleShow,
   getArrow, getArrows,
@@ -857,6 +857,10 @@ eForall = eForall' True
 eForall' :: Bool -> [IdKind] -> EType -> EType
 eForall' _ [] t = t
 eForall' b vs t = EForall b vs t
+
+unForall :: EType -> ([IdKind], EType)
+unForall (EForall _ xs t) = (xs, t)
+unForall               t  = ([], t)
 
 eDummy :: Expr
 eDummy = EVar dummyIdent

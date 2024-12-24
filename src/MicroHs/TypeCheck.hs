@@ -1284,6 +1284,7 @@ tcDefsValue defs = do
         where node d@(Fcn i e) = (d, i, allVarsEqns e)
               node d@(Pattern (i, _) p me) = (d, i, allVarsPat p $ maybe [] allVarsEqns me)
               node _ = undefined
+      tcSCC (AcyclicSCC d@(Pattern _ _ _)) = tcPatSyn d
       tcSCC (AcyclicSCC d) = tInferDefs [d]
       tcSCC (CyclicSCC ds) = tInferDefs ds
   --traceM $ "tcDefsValue: unsigned=" ++ show unsigned
@@ -1316,16 +1317,15 @@ tInferDefs fcns = do
   withExtVals xts $ do
     -- Infer types for all the Fcns, ignore the new bodies.
     -- The bodies will be re-typecked in tcDefsValues.
-    let tc (Fcn _ eqns) (_, t) = do _ <- tcEqns False t eqns; return ()
-        tc d@(Pattern _ _ _) (_, t) = do _ <- tcPattern d t; return ()
+    let tc (Fcn _ eqns) (_, t)   = do _ <- tcEqns False t eqns; return ()
+        tc (Pattern (i,_) _ _) _ = tcError (getSLoc i) "Cannot infer recursive pattern synonym types"
         tc _ _ = impossible
     zipWithM_ tc fcns xts
   -- Get the unsolved constraints
   ctx <- getUnsolved
   -- For each definition, quantify over the free meta variables, and include
   -- context mentioning them.
-  let isPatSyn = isConIdent   -- hacky way to recognize pattern synonyms
-      genTop :: (Ident, EType) -> T EDef
+  let genTop :: (Ident, EType) -> T EDef
       genTop (i, t) = do
         t' <- derefUVar t
         let vs = metaTvs [t']
@@ -1334,13 +1334,8 @@ tInferDefs fcns = do
             vs' = metaTvs [t'']
         t''' <- quantify vs' t''
         --tcTrace $ "tInferDefs: " ++ showIdent i ++ " :: " ++ showEType t'''
-        if isPatSyn i then do
-          t'''' <- canonPatSynType t'''
-          addPatSyn t'''' i
-          return $ PatternSign [i] t''''
-         else do
-          extValQTop i t'''
-          return $ Sign [i] t'''
+        extValQTop i t'''
+        return $ Sign [i] t'''
   mapM genTop xts
 
 getUnsolved :: T [EConstraint]
@@ -1433,9 +1428,9 @@ tcDefValue adef =
     Fcn i eqns -> do
       (_, t) <- tLookup "type signature" i
       t' <- expandSyn t
-      when (isConIdent i) $ do
-        tcTrace $ "tcDefValue: patsyn\n" ++ show i ++ " :: " ++ show t'
-        tcTrace $ "tcDefValue:\n" ++ showEDefs [adef]
+--      when (isConIdent i) $ do
+--        tcTrace $ "tcDefValue: patsyn\n" ++ show i ++ " :: " ++ show t'
+--        tcTrace $ "tcDefValue:\n" ++ showEDefs [adef]
 --      tcTrace $ "tcDefValue: ------- start " ++ showIdent i
 --      tcTrace $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t'
 --      tcTrace $ "tcDefValue: " ++ showEDefs [adef]
@@ -1452,36 +1447,39 @@ tcDefValue adef =
       t' <- expandSyn t
       return (ForImp ie (qualIdent mn i) t')
     Pattern _ _ _ -> impossible
-    {- Pattern (i, _) _ _ -> do
-      (_, t) <- tLookup "pattern type signature" i
-      t' <- expandSyn t
-      tcPattern adef t'-}
     _ -> return adef
 
 -- This is only used during inference.
 -- When doing type checking the actual Pattern definition will have been
 -- removed by expandPatSyn.
-tcPattern :: EDef -> EType -> T EDef
-tcPattern (Pattern (ip, vks) p me) at = do
-  traceM ("Pattern enter " ++ show (ip, vks, p, me, at))
-  let (_vks1, ctx1, _vks2, _ctx2, ty) = splitPatSynType at
-      step [] t = do
-        d <- newADictIdent (getSLoc ip)
---        traceM $ "tcPattern: add ctx " ++ show ctx1
-        withDict d ctx1 $ do
-          r <- tcPat (Check t) p
-          _ <- solveConstraints
-          checkConstraints
-          pure r
+-- The important thing here is the call to addPatSyn
+tcPatSyn :: EDef -> T [EDef]
+tcPatSyn (Pattern (ip, vks) p me) = do
+--  traceM $ "tcPatSyn: enter " ++ show (ip, vks, p, me)
+  let step [] t = tcPat (Check t) p
       step (ik:iks) t = do
         (ti, tr) <- unArrow (getSLoc ik) t
         withExtVal (idKindIdent ik) ti $ step iks tr
-  (_, _, p') <- step vks ty
-  me' <- case me of Nothing -> pure Nothing; Just e -> Just <$> do e' <- tcEqns True at e; checkConstraints; pure e'
-  mn <- gets moduleName
-  traceM ("Pattern after " ++ show (qualIdent mn ip, vks, p', me'))
-  return $ Pattern (qualIdent mn ip, vks) p' me'
-tcPattern _ _ = error "tcPattern"
+  pty <- newUVar   -- invent a type
+  (sks, dicts, _p) <- step vks pty
+  let ctx2 = map snd dicts
+--  traceM $ "tcPatSyn: pat " ++ show (sks, ctx2)
+  case me of Nothing -> pure (); Just e -> void $ tcEqns False pty e
+  ctx1 <- getUnsolved
+--  traceM $ "tcPatSyn: ctx " ++ show ctx1
+  ty0 <- addConstraints ctx2 <$> derefUVar pty
+  let ctx1' = deleteFirstsBy eqEType ctx1 ctx2   -- remove provided from required
+      (sks', sub) = tyVarSubst sks ty0           -- turn skolems
+      ty1 = subst sub ty0                        --    into rigid tyvars
+  ty2 <- quantify (metaTvs [ty1]) (addConstraints ctx1' ty1)
+  let (vs, ty3) = unForall ty2
+      ty4 = eForall' False (sks' ++ vs) ty3      -- add the skolems tyvars
+  ty5 <- canonPatSynType ty4
+--  traceM $ "tcPatSyn: tys " ++ show (ty0, ty1, ty2, ty3, ty4, ty5)
+  addPatSyn ty5 ip
+--  traceM ("tcPatSyn: after " ++ show (ip, ty5))
+  return [ PatternSign [ip] ty3 ]
+tcPatSyn _ = impossible
 
 -- Add implicit forall and type check.
 tCheckTypeTImpl :: HasCallStack => EType -> EType -> T EType
@@ -2282,7 +2280,7 @@ tcPatApCon mt args con xpt = do
     -- Pattern synonym
     ECon (ConSyn qi n (e, t)) -> do
       checkArity n
-      let (yes, _) = mkMatchDataTypeConstr (mkPatSynMatch qi) xpt
+      let (_, yes, _) = mkMatchDataTypeConstr (mkPatSynMatch qi) xpt
           vp = EViewPat (EQVar e t) (eApps yes args)
       --traceM ("patsyn " ++ show vp)
       tcPat mt vp
@@ -2414,24 +2412,29 @@ getMetaTyVars tys = do
 getEnvTypes :: T [EType]
 getEnvTypes = gets (map entryType . stElemsLcl . valueTable)
 
+tyVarSubst :: [a] -> EType -> ([IdKind], [(a, EType)])
+tyVarSubst tvs ty =
+  let usedVars = allVarsExpr ty -- Avoid used type variables
+      newVars = take (length tvs) (allBinders \\ usedVars)
+      newVarsK = map (\ i -> IdKind i noKind) newVars
+      noKind = eDummy
+  in  (newVarsK, zipWith (\ tv n -> (tv, EVar n)) tvs newVars)
+
 -- Quantify over the specified type variables.
 -- The type should be zonked.
 quantify :: [TRef] -> Rho -> T Sigma
 quantify [] ty = return ty
 quantify tvs ty = do
-  let usedVars = allVarsExpr ty -- Avoid used type variables
-      newVars = take (length tvs) (allBinders \\ usedVars)
-      newVarsK = map (\ i -> IdKind i noKind) newVars
-      noKind = eDummy
+  let (newVarsK, sub) = tyVarSubst tvs ty
   osubst <- gets uvarSubst
-  zipWithM_ (\ tv n -> setUVar tv (EVar n)) tvs newVars
+  mapM_ (uncurry setUVar) sub
   ty' <- derefUVar ty
   putUvarSubst osubst  -- reset the setUVar we did above
   return (EForall False newVarsK ty')
 
-allBinders :: [Ident] -- a,b,..z, a1, b1,... z1, a2, b2,...
+allBinders :: [Ident] -- a,b,...,z,a1,a2,...
 allBinders = [ mkIdent [x] | x <- ['a' .. 'z'] ] ++
-             [ mkIdent (x : show i) | i <- [1::Int ..], x <- ['a' .. 'z']]
+             [ mkIdent ('a' : show i) | i <- [1::Int ..]]
 
 -- Skolemize the given variables
 shallowSkolemise :: [IdKind] -> EType -> T ([TyVar], EType)
@@ -2597,19 +2600,15 @@ isEmptyCtx _ = False
 expandPatSyn :: EDef -> T [EDef]
 expandPatSyn (Pattern (i, vks) p me) = do
   (_, t) <- tLookup "type signature" i
-  (vks1, _ctx1, vks2, ctx2, _ty) = splitPatSynType t
   (im, qim) <- addPatSynMatch i t
-  let (yes, no) = mkMatchDataTypeConstr qim t
+  let (ddata, yes, no) = mkMatchDataTypeConstr qim t
       mexp = fmap (Fcn i) me
       pat = Fcn im [ eEqn [p] match
                    , eEqn [eDummy] no]
       match = eApps yes (map (EVar . idKindIdent) vks)
-      ddata = Data lhs [cm, cn] []
-            where lhs = (mkMatchDataTypeName qim, vks1)
-                  cm = Constr vks2 (if isEmptyCtx ctx2 then [] else [ctx2]) mi (Left (False, xxx))
-                  cn = Constr []   []                                       ni (Left (False, ))
-                  EQVar (ECon (ConData _ mi _)) tm = yes
-                  EQVar (ECon (ConData _ ni _)) tn = no
+      dname = case ddata of Data (n, _) _ _ -> n; _ -> impossible
+  kvar <- newUVar    -- We don't care about the kind
+  withTypeTable $ extValQTop dname kvar
   pure $ maybeToList mexp ++ [pat, ddata]
 expandPatSyn d = pure [d]
 
@@ -2632,10 +2631,9 @@ mkPatSynMatchType qip at =
 
 -- Given the (qualified) name of a synonym and its type generate:
 -- match-constructor, nomatch-constructor
-mkMatchDataTypeConstr :: HasCallStack => Ident -> EType -> (Expr, Expr)
+mkMatchDataTypeConstr :: HasCallStack => Ident -> EType -> (EDef, Expr, Expr)
 mkMatchDataTypeConstr qi at =
-  let loc = getSLoc at
-      (vks1, _ctx1, vks2, ctx2, ty) = splitPatSynType at
+  let (vks1, _ctx1, vks2, ctx2, ty) = splitPatSynType at
       (ats, _rt) = getArrows ty
       n = length ats
       mi = addIdentSuffix qi "M"
@@ -2647,8 +2645,15 @@ mkMatchDataTypeConstr qi at =
       tr = tApps tycon $ map (EVar . idKindIdent) vks1
       tn = EForall True vks1 $ EForall True [] tr
       tm = EForall True vks1 $ EForall True vks2 $ etImplies ctx2 $ foldr tArrow tr ats
-  in  trace ("M :: " ++ show tm ++ ",  N :: " ++ show tn)
-      (EQVar (ECon conm) tm, EQVar (ECon conn) tn)
+
+      ddata = Data lhs [cm, cn] []
+            where lhs = (unQualIdent tycon, vks1)
+                  cm = Constr vks2 (if isEmptyCtx ctx2 then [] else [ctx2]) (unQualIdent mi) (Left $ zip (repeat False) ats)
+                  cn = Constr []   []                                       (unQualIdent ni) (Left [])
+
+  in  -- trace ("M :: " ++ show tm ++ ",  N :: " ++ show tn) $
+      -- trace (showEDefs [ddata]) $
+      (ddata, EQVar (ECon conm) tm, EQVar (ECon conn) tn)
 
 mkPatSynMatch :: Ident -> Ident
 mkPatSynMatch i = addIdentSuffix i "%"
@@ -2659,23 +2664,39 @@ mkMatchDataTypeName i = addIdentSuffix i "T"
 -- A pattern synonym always has a type of the form
 --  forall vs1 . ctx1 => forall vs2 . ctx2 => ty
 --         required             provided
+-- The input has forall inserted, but the implicit forall
+-- may be in the wrong place.
 canonPatSynType :: EType -> T EType
 canonPatSynType at = do
+  let mkTyp rVks rCtx pVks pCtx ty =
+        EForall True rVks $ tImplies rCtx $
+        EForall True pVks $ tImplies pCtx ty
+      getImplies' :: EType -> (EConstraint, EType)
+      getImplies' ty = fromMaybe (emptyCtx, ty) $ getImplies ty
+
   at' <- expandSyn at
-  let (vks, t0) =
-        case at' of
-          EForall _ xs t -> (xs, t)
-          t              -> ([], t)
-      (ctx1, ctx2, ty) =
-        case getImplies t0 of
-          Nothing ->           (emptyCtx, emptyCtx, t0)
-          Just (c1, t1) ->
-            case getImplies t1 of
-              Nothing       -> (c1,       emptyCtx, t1)
-              Just (c2, t2) -> (c1,       c2,       t2)
-      vs2 = freeTyVars [ctx2]
-      (vks2, vks1) = partition ((`elem` vs2) . idKindIdent) vks
-  pure $ EForall True vks1 $ tImplies ctx1 $ EForall True vks2 $ tImplies ctx2 ty
+  case at' of
+    EForall False vks t0 -> do
+      -- Implicit forall, the xs need to be split between required and provided.
+      let (reqCtx, t1) = getImplies' t0
+          (proCtx, t2) = getImplies' t1
+          proVs = freeTyVars [proCtx]
+          (proVks, reqVks) = partition ((`elem` proVs) . idKindIdent) vks
+--      traceM "%%% implicit"
+      pure $ mkTyp reqVks reqCtx proVks proCtx t2
+
+    EForall True reqVks t0 -> do
+      -- Explicit forall
+      let (reqCtx, t1) = getImplies' t0
+          (proVks, t2) = unForall t1
+          (proCtx, t3) = getImplies' t2
+--      traceM "%%% explicit"
+      pure $ mkTyp reqVks reqCtx proVks proCtx t3
+
+    ty -> do
+      -- No forall at all.  XXX doesn't work with nullary classes
+--      traceM "%%% none"
+      pure $ mkTyp [] emptyCtx [] emptyCtx ty
 
 splitPatSynType :: EType -> ([IdKind], EConstraint, [IdKind], EConstraint, EType)
 splitPatSynType (EForall _ vks1 t0)
@@ -2710,7 +2731,7 @@ expandDict' avks actx edict acc = do
           when (isConIdent iCls) $
             --impossible
             -- XXX it seems we can get here, e.g., Control.Monad.Fail without Applicative import
-            error ("expandDict: " ++ show iCls)
+            error ("expandDict: " ++ showExprRaw acc)
           return [(edict, vks, ctx, cc, [])]
         Just (ClassInfo iks sups _ _ fds) -> do
           let 
@@ -2737,6 +2758,7 @@ solveLocalConstraints ta = do
   a <- ta                          -- compute, generating constraints
   ds <- solveConstraints           -- solve those
   un <- gets constraints           -- get remaining unsolved
+--  traceM $ "solveLocalConstraints: " ++ show (cs, ds, un)
   putConstraints (un ++ cs)        -- put back unsolved and old constraints
   return (a, ds)
 

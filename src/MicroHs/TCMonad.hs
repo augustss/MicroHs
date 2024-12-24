@@ -224,7 +224,6 @@ addConstraints []  t = t
 addConstraints cs  t = tupleConstraints cs `tImplies` t
 
 tupleConstraints :: [EConstraint] -> EConstraint
-tupleConstraints []  = error "tupleConstraints"
 tupleConstraints [c] = c
 tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
 
