@@ -544,7 +544,7 @@ pAPat =
   <|< pLit
   <|< (eTuple <$> (pSpec '(' *> esepBy pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
-  <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSRArrow *> pAPat <* pSpec ')'))
+  <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSRArrow *> pPatApp <* pSpec ')'))
   <|< (ELazy True  <$> (pSpec '~' *> pAPat))
   <|< (ELazy False <$> (pSpec '!' *> pAPat))
   <|< (EOr <$> (pSpec '(' *> esepBy1 pPat (pSpec ';') <* pSpec ')'))  -- if there is a single pattern it will be matched by the tuple case
