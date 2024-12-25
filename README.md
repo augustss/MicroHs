@@ -80,6 +80,7 @@ Differences:
    * OverloadedRecordDot
    * OverloadedRecordUpdate
    * OverloadedStrings
+   * PatternSynonyms
    * PolyKinds
    * RankNTypes
    * RecordWildCards
