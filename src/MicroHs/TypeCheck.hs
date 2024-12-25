@@ -305,7 +305,8 @@ mkTModule impt tds tcs =
                 _ -> getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
-    ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign is ts <- tds, i <- is ]
+    ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign is ts <- tds, i <- is ] ++
+          [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | PatternSign is ts <- tds, i <- is ]
 
     -- All top level types possible to export.
     tes =
