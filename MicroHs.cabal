@@ -42,14 +42,11 @@ data-files:
       src/runtime/*.c
       src/runtime/*.h
 -- I would like to have these two only for ghc, but I can't figure out how.
+-- But mcabal has a hack that recognizes lines that start with --MCABAL as valid lines.
+--MCABALif impl(ghc)
+--MCABAL data-files:
       lib/**/*.hs
       lib/**/*.hs-boot
-
--- These files must not be installed for mhs!
--- Cabal doesn't seem to understand this, so it never copies
--- these files.
---if impl(ghc)
---xMHS if !impl(mhs)
 
 source-repository head
     type:     git
