@@ -305,8 +305,7 @@ mkTModule impt tds tcs =
                 _ -> getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
-    ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign is ts <- tds, i <- is ] ++
-          [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | PatternSign is ts <- tds, i <- is ]
+    ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign is ts <- tds, i <- is ]
 
     -- All top level types possible to export.
     tes =
@@ -1087,7 +1086,6 @@ tcDefType def = do
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first                    (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> flip (,) kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
     Sign      is t         ->                                                  Sign      is   <$> tCheckTypeTImpl kType t
-    PatternSign is t       ->                                                  PatternSign is <$> tCheckTypeTImpl kType t
     ForImp ie i t          ->                                                  ForImp ie i    <$> tCheckTypeTImpl kType t
     Instance ct m          ->                                                  Instance       <$> tCheckTypeTImpl kConstraint ct <*> return m
     Default mc ts          ->                                                  Default (Just c) <$> mapM (tcDefault c) ts
@@ -1273,8 +1271,7 @@ tcDefsValue defs = do
 --  tcTrace $ "tcDefsValue: ------------ start"
   -- Gather up all type signatures, and put them in the environment.
   mapM_ addValueType defs
-  let smap = M.fromList $ [ (i, ()) | Sign is _ <- defs, i <- is ] ++
-                          [ (i, ()) | PatternSign is _ <- defs, i <- is ]
+  let smap = M.fromList $ [ (i, ()) | Sign is _ <- defs, i <- is ]
       -- Split Fcn into those without and with type signatures
       unsigned = filter noSign defs
         where noSign (Fcn i _) = isNothing $ M.lookup i smap
@@ -1357,7 +1354,13 @@ addValueType adef = do
                 (fe, fty) <- tLookup "???" $ mkGetName tycon fld
                 extValETop fld fty fe
   case adef of
-    Sign is t -> mapM_ (\ i -> extValQTop i t) is
+    Sign is@(i:_) t | isConIdent i -> do
+      -- pattern synonym
+      t' <- canonPatSynType t
+      mapM_ (addPatSyn t') is
+    Sign is t ->
+      -- regular synonym
+      mapM_ (\ i -> extValQTop i t) is
     Data (tycon, vks) cs _ -> do
       let
         cti = [ (qualIdent mn c, either length length ets + if null ctx then 0 else 1) | Constr _ ctx c ets <- cs ]
@@ -1378,9 +1381,6 @@ addValueType adef = do
       addConFields tycon con
     ForImp _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
-    PatternSign is at -> do
-      at' <- canonPatSynType at
-      mapM_ (addPatSyn at') is
     _ -> return ()
 
 -- Add a pattern synonym to the symbol table.
@@ -1479,7 +1479,7 @@ tcPatSyn (Pattern (ip, vks) p me) = do
 --  traceM $ "tcPatSyn: tys " ++ show (ty0, ty1, ty2, ty3, ty4, ty5)
   addPatSyn ty5 ip
 --  traceM ("tcPatSyn: after " ++ show (ip, ty5))
-  return [ PatternSign [ip] ty3 ]
+  return [ Sign [ip] ty3 ]
 tcPatSyn _ = impossible
 
 -- Add implicit forall and type check.

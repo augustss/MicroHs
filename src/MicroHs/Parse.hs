@@ -318,7 +318,7 @@ pDef =
   <|< Default      <$> (pKeyword "default"  *> eoptional clsSym) <*> pParens (esepBy pType (pSpec ','))
   <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (dcolon *> pKind)
   <|< mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
-  <|< PatternSign  <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|< Sign         <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Deriving     <$> (pKeyword "deriving" *> pKeyword "instance" *> pType)
   <|< noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))

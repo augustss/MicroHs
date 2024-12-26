@@ -86,7 +86,6 @@ data EDef
   | Instance EConstraint [EBind]
   | Default (Maybe Ident) [EType]
   | Pattern LHS EPat (Maybe [Eqn])
-  | PatternSign [Ident] EType
   | Deriving EConstraint
 --DEBUG  deriving (Show)
 
@@ -648,7 +647,6 @@ ppEDef def =
     Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default mc ts -> text "default" <+> (maybe empty ppIdent mc) <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . BFcn i) meqns
-    PatternSign is t -> text "pattern" <+> ppEDef (Sign is t)
     Deriving ct -> text "deriving instance" <+> ppEType ct
 
 ppDeriving :: Deriving -> Doc
