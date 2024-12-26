@@ -297,7 +297,11 @@ mkTModule impt tds tcs =
       case stLookup "" (qualIdent mn i) tt of
         Right e -> e
         _       -> impossible
-          -- error $ show (qualIdent mn i, M.toList tt)
+    ventry i t =
+      let qi = qualIdent mn i in
+      case stLookup "" qi vt of
+        Right e -> e
+        _       -> Entry (EVar qi) t  -- XXX A hack for boot modules
           
     -- Find all value Entry for names associated with a type.
     assoc i = case impt of
@@ -305,7 +309,7 @@ mkTModule impt tds tcs =
                 _ -> getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
-    ves = [ ValueExport i (Entry (EVar (qualIdent mn i)) ts) | Sign is ts <- tds, i <- is ]
+    ves = [ ValueExport i (ventry i t) | Sign is t <- tds, i <- is ]
 
     -- All top level types possible to export.
     tes =
