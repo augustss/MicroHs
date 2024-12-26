@@ -499,7 +499,7 @@ withDict i c ta = do
 --  tcTrace $ "--- withDict leave " ++ show (i, c)
   return a
 
-addDict :: (Ident, EConstraint) -> T ()
+addDict :: HasCallStack => (Ident, EConstraint) -> T ()
 addDict (i, c) = do
   c' <- expandSyn c >>= derefUVar
   if null (metaTvs [c']) then
@@ -2714,7 +2714,7 @@ splitPatSynType t = impossibleShow t
 expandDict :: HasCallStack => Expr -> EConstraint -> T [InstDictC]
 expandDict edict ct = expandDict' [] [] edict =<< expandSyn ct
 
-expandDict' :: [IdKind] -> [EConstraint] -> Expr -> EConstraint -> T [InstDictC]
+expandDict' :: HasCallStack => [IdKind] -> [EConstraint] -> Expr -> EConstraint -> T [InstDictC]
 expandDict' avks actx edict acc = do
   let
     (bvks, bctx, cc) = splitInst acc
@@ -2727,7 +2727,11 @@ expandDict' avks actx edict acc = do
     Nothing -> do
       ct <- gets classTable
       case M.lookup iCls ct of
-        Nothing -> do
+        Nothing ->
+         -- XXX ~ could be in the symbol table
+         if iCls == mkIdent "Primitives.~" then
+          return []
+         else do
           -- if iCls is a variable it's not in the class table, otherwise it's an error
           when (isConIdent iCls) $
             --impossible
