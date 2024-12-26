@@ -403,8 +403,7 @@ The C code for the evaluator does not use any special features, and should be
 portable to many platforms.  It has mostly been tested with MacOS and Linux,
 and somewhat with Windows.
 
-The code has mostly been tested on 64 bit platforms, so again, there are lurking problems
-with other word sizes, but they should be easy to fix.
+The code has been tested on 64- and 32-bit little-endian platforms.
 
 The `src/runtime/` directory contains configuration files for different platform.
 Use the appropriate `src/runtime/eval-`*platform*`.c`.
@@ -435,8 +434,8 @@ To identify that it is MicroHs that is the compiler it defines the symbol `__MHS
   * A: Error messages are boring.
 * 
   * Q: Why is the so much source code?
-  * A: I wonder this myself.  7000+ lines of Haskell seems excessive.
-       2500+ lines of C is also more than I'd like for such a simple system.
+  * A: I wonder this myself.  10000+ lines of Haskell seems excessive.
+       6000+ lines of C is also more than I'd like for such a simple system.
 * 
   * Q: Why are the binaries so big?
   * A: The combinator file is rather verbose.  The combinator file
