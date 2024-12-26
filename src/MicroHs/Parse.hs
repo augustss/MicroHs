@@ -544,7 +544,7 @@ pAPat =
   <|< pLit
   <|< (eTuple <$> (pSpec '(' *> esepBy pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
-  <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSRArrow *> pPatApp <* pSpec ')'))
+  <|< (EViewPat <$> (pSpec '(' *> pExpr) <*> (pSRArrow *> pPatApp <* pSpec ')'))
   <|< (ELazy True  <$> (pSpec '~' *> pAPat))
   <|< (ELazy False <$> (pSpec '!' *> pAPat))
   <|< (EOr <$> (pSpec '(' *> esepBy1 pPat (pSpec ';') <* pSpec ')'))  -- if there is a single pattern it will be matched by the tuple case
@@ -553,6 +553,8 @@ pAPat =
 
 pPat :: P EPat
 pPat = pPatOp
+  -- This is where view patterns belong, but it's too slow
+  --  <|> (EViewPat <$> pExpr <*> (pSRArrow *> pPatApp))
 
 pPatOp :: P EPat
 pPatOp = pOperators pUOper pPatArg
