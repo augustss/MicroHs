@@ -76,3 +76,5 @@ main = do
   print (ft1 x, ft2 x)
   print (ft1 y, ft2 y)
   print (ft1 z, ft2 z)
+  print AA
+  case A of AA -> print 42

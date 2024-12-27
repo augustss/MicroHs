@@ -32,6 +32,7 @@ import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
 import MicroHs.List
+import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
 import GHC.Stack
@@ -253,20 +254,22 @@ getTVExps impMap _ _ _ (ExpModule m) =
   case M.lookup m impMap of
     Just (TModule _ _ te ve _ _) -> (te, ve)
     _ -> errorMessage (getSLoc m) $ "undefined module: " ++ showIdent m
-getTVExps _ tys vals ast (ExpTypeSome i is) = getTypeExp tys vals ast i (`elem` is)
-getTVExps _ tys vals ast (ExpTypeAll  i   ) = getTypeExp tys vals ast i (const True)
+getTVExps _ tys vals ast (ExpTypeSome ti is) =
+  let e = expLookup ti tys
+      assc = getAssocs vals ast $ tyQIdent e   -- all associated values
+      ves = concatMap one is
+      one i | i == dotDotIdent = assc          -- '..' means all assocaited values
+            | otherwise =
+              case filter (\ (ValueExport i' _) -> i == i') assc of
+                ee : _ -> [ee]                 -- Pick the assocaited value if it exists
+                [] -> [ValueExport (unQualIdent i) $ expLookup i vals]
+                                               -- otherwise, just look up a pattern synonym.
+                                               -- This might accidentally pick up a constructor from
+                                               -- another type, but it doesn't really matter.
+  in ([TypeExport (unQualIdent ti) e ves], [])
+  
 getTVExps _ _ vals _ (ExpValue i) = ([], [ValueExport (unQualIdent i) (expLookup i vals)])
 getTVExps _ _ _ _ (ExpDefault _) = ([], [])
-
--- Export a type, filter exported values by p.
-getTypeExp :: TypeTable -> ValueTable -> AssocTable -> Ident -> (Ident -> Bool) ->
-              ([TypeExport], [ValueExport])
-getTypeExp tys vals ast ti p =
-  let
-    e = expLookup ti tys
-    qi = tyQIdent e
-    ves = filter (\ (ValueExport i _) -> p i) $ getAssocs vals ast qi
-  in ([TypeExport (unQualIdent ti) e ves], [])
 
 expLookup :: Ident -> SymTab -> Entry
 expLookup i m = either (errorMessage (getSLoc i)) id $ stLookup "export" i m
@@ -327,6 +330,7 @@ mkTModule impt tds tcs =
   in  TModule mn fes tes ves des impossible
 
 -- Find all value Entry for names associated with a type.
+-- XXX join stLookup code with tentry
 getAssocs :: (HasCallStack) => ValueTable -> AssocTable -> Ident -> [ValueExport]
 getAssocs vt at ai =
   let qis = fromMaybe [] $ M.lookup ai at

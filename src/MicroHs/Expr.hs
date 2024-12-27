@@ -67,7 +67,6 @@ data EModule = EModule IdentModule [ExportItem] [EDef]
 data ExportItem
   = ExpModule IdentModule
   | ExpTypeSome Ident [Ident]
-  | ExpTypeAll Ident
   | ExpValue Ident
   | ExpDefault Ident
 --DEBUG  deriving (Show)

@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
-module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords) where
+module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords, dotDotIdent) where
 import Prelude(); import MHSPrelude
 import Control.Applicative
 import Control.Monad
@@ -253,14 +253,12 @@ pString = satisfyM "string" is
 pExportItem :: P ExportItem
 pExportItem =
       ExpModule   <$> (pKeyword "module" *> pUQIdent)
-  <|< expType     <$> pUQIdentSym <*> pParens pConList
+  <|< ExpTypeSome <$> pUQIdentSym <*> pParens pConList
   <|< ExpTypeSome <$> pUQIdentSym <*> pure []
   <|< ExpValue    <$> pLQIdentSym
   <|< ExpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
   <|< ExpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
   <|< ExpDefault  <$> (pKeyword "default" *> pUQIdentSym)
-  where expType i [d] | d == dotDotIdent = ExpTypeAll  i
-        expType i is                     = ExpTypeSome i is
 
 pKeyword :: String -> P ()
 pKeyword kw = () <$ satisfy kw is
@@ -545,7 +543,7 @@ pAPat =
   <|< pLit
   <|< (eTuple <$> (pSpec '(' *> esepBy pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
-  <|< (EViewPat <$> (pSpec '(' *> pExpr) <*> (pSRArrow *> pPatApp <* pSpec ')'))
+  <|< (EViewPat <$> (pSpec '(' *> pExpr) <*> (pSRArrow *> pPat <* pSpec ')'))
   <|< (ELazy True  <$> (pSpec '~' *> pAPat))
   <|< (ELazy False <$> (pSpec '!' *> pAPat))
   <|< (EOr <$> (pSpec '(' *> esepBy1 pPat (pSpec ';') <* pSpec ')'))  -- if there is a single pattern it will be matched by the tuple case
