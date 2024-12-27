@@ -104,7 +104,6 @@ pUIdentSpecial = do
   loc <- getSLoc
   let
     mk = mkIdentSLoc loc
-  
   (mk . map (const ',') <$> (pSpec '(' *> esome (pSpec ',') <* pSpec ')'))
     <|< (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
 
@@ -254,14 +253,14 @@ pString = satisfyM "string" is
 pExportItem :: P ExportItem
 pExportItem =
       ExpModule   <$> (pKeyword "module" *> pUQIdent)
-  <|< expType     <$> pUQIdentSym <*> (pSpec '(' *> pConList <* pSpec ')')
+  <|< expType     <$> pUQIdentSym <*> pParens pConList
   <|< ExpTypeSome <$> pUQIdentSym <*> pure []
   <|< ExpValue    <$> pLQIdentSym
   <|< ExpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
   <|< ExpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
   <|< ExpDefault  <$> (pKeyword "default" *> pUQIdentSym)
-  where expType i Nothing   = ExpTypeAll  i
-        expType i (Just is) = ExpTypeSome i is
+  where expType i [d] | d == dotDotIdent = ExpTypeAll  i
+        expType i is                     = ExpTypeSome i is
 
 pKeyword :: String -> P ()
 pKeyword kw = () <$ satisfy kw is
@@ -465,18 +464,20 @@ pImportSpec =
 
 pImportItem :: P ImportItem
 pImportItem =
-      impType     <$> pUQIdentSym <*> (pSpec '(' *> pConList <* pSpec ')')
+      impType     <$> pUQIdentSym <*> pParens pConList
   <|< ImpTypeSome <$> pUQIdentSym <*> pure []
   <|< ImpValue    <$> pLQIdentSym
   <|< ImpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
   <|< ImpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
-  where impType i Nothing   = ImpTypeAll  i
-        impType i (Just is) = ImpTypeSome i is
+  where impType i [d] | d == dotDotIdent = ImpTypeAll  i
+        impType i is                     = ImpTypeSome i is
 
-pConList :: P (Maybe [Ident])
-pConList =
-      (Nothing <$ pSymbol "..")
-  <|< (Just <$> esepBy (pQIdent <|< pUIdentSpecial <|< pParens pSymOper) (pSpec ','))
+pConList :: P [Ident]
+pConList = esepBy (pDotDot <|< pQIdent <|< pUIdentSpecial <|< pParens pSymOper) (pSpec ',')
+  where pDotDot = dotDotIdent <$ pSymbol ".."
+
+dotDotIdent :: Ident
+dotDotIdent = mkIdent ".."
 
 --------
 -- Types
