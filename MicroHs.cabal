@@ -107,15 +107,15 @@ executable mhs
   autogen-modules:     Paths_MicroHs
   if impl(ghc)
     hs-source-dirs:    ghc src
-    build-depends:     base         >= 4.10 && < 4.22,
-                       deepseq      >= 1.1 && < 1.6,
-                       filepath     >= 1.1 && < 1.6,
-                       ghc-prim     >= 0.5 && < 0.12,
-                       haskeline    >= 0.8 && < 0.9,
-                       time         >= 1.1 && < 1.15,
-                       process      >= 1.6 && < 1.8,
-                       directory    >= 1.2 && < 1.5,
-                       text         >= 2.0 && < 2.3,
+    build-depends:     base         >= 4.10 && < 4.30,
+                       deepseq      >= 1.1 && < 1.8,
+                       filepath     >= 1.1 && < 1.8,
+                       ghc-prim     >= 0.5 && < 0.15,
+                       haskeline    >= 0.8 && < 0.10,
+                       time         >= 1.1 && < 1.20,
+                       process      >= 1.6 && < 1.10,
+                       directory    >= 1.2 && < 1.6,
+                       text         >= 2.0 && < 2.5,
 
   if impl(mhs)
     hs-source-dirs:    mhs src
