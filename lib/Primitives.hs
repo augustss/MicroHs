@@ -25,7 +25,8 @@ data Type
 
 -- Types
 data AnyType
-data Char
+--data Char
+newtype Char = Char Word
 data Int
 data FloatW
 data IO a
@@ -154,19 +155,19 @@ primWordToInt = primitive "I"
 primIntToWord :: Int -> Word
 primIntToWord = primitive "I"
 
--- Char is represented by Int
+-- Char is represented by Word
 primCharEQ :: Char -> Char -> Bool
 primCharEQ  = primitive "=="
 primCharNE :: Char -> Char -> Bool
 primCharNE  = primitive "/="
 primCharLT :: Char -> Char -> Bool
-primCharLT  = primitive "<"
+primCharLT  = primitive "u<"
 primCharLE :: Char -> Char -> Bool
-primCharLE  = primitive "<="
+primCharLE  = primitive "u<="
 primCharGT :: Char -> Char -> Bool
-primCharGT  = primitive ">"
+primCharGT  = primitive "u>"
 primCharGE :: Char -> Char -> Bool
-primCharGE  = primitive ">="
+primCharGE  = primitive "u>="
 
 primFix    :: forall a . (a -> a) -> a
 primFix    = primitive "Y"
