@@ -110,6 +110,9 @@ nameKnownNat = "Data.TypeLits.KnownNat"
 nameKnownSymbol :: String
 nameKnownSymbol = "Data.TypeLits.KnownSymbol"
 
+nameCoercible :: String
+nameCoercible = "Data.Coerce.Coercible"
+
 --primitiveKinds :: [String]
 --primitiveKinds = [nameType, nameConstraint, nameSymbol, nameNat]
 
@@ -2890,6 +2893,7 @@ solvers =
   , ((== mkIdent nameTypeEq),      solveTypeEq)       -- handle equality constraints, i.e. (t1 ~ t2)
   , ((== mkIdent nameKnownNat),    solveKnownNat)     -- KnownNat 123 constraints
   , ((== mkIdent nameKnownSymbol), solveKnownSymbol)  -- KnownSymbol "abc" constraints
+  , ((== mkIdent nameCoercible),   solveCoercible)    -- Coercible a b constraints
   , (const True,                   solveInst)         -- handle constraints with instances
   ]
 
@@ -2972,13 +2976,53 @@ solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETupl
   --tcTrace ("solveTypeEq eqs=" ++ show eqs)
   case solveEq eqs t1 t2 of
     Nothing -> return Nothing
-    Just (de, tts) -> do
+    Just tts -> do
       let mkEq (u1, u2) = do
             i <- newDictIdent loc
             return (i, mkEqType loc u1 u2)
       ncs <- mapM mkEq tts
-      return $ Just (de, ncs, [])
+      return $ Just (ETuple [], ncs, [])
 solveTypeEq _ _ _ = impossible
+
+solveCoercible :: SolveOne
+solveCoercible loc _iCls [t1, t2] = do
+  st <- gets synTable
+  extNewtypeSyns        -- pretend newtypes are type synonyms
+  t1' <- expandSyn t1
+  t2' <- expandSyn t2
+  putSynTable st
+  -- walk over the types in parallel,
+  -- and generate new Coercible constraints when not equal.
+  case genCoerce t1' t2' of
+    Nothing -> return Nothing
+    Just [(u1, u2)] | u1 `eqEType` t1 && u2 `eqEType` t2 -> return Nothing  -- Nothing has improved
+    Just tts -> do
+      let mkCo (u1, u2) = do
+            i <- newDictIdent loc
+            return (i, mkCoercible loc u1 u2)
+      ncs <- mapM mkCo tts
+      return $ Just (ETuple [], ncs, [])
+solveCoercible _ _ _ = impossible
+
+genCoerce :: EType -> EType -> Maybe [(EType, EType)]
+genCoerce t1 t2 | eqEType t1 t2 = Just []
+genCoerce t1@(EUVar _) t2 = Just [(t1, t2)]
+genCoerce t1@(EVar _)  t2 = Just [(t1, t2)]
+genCoerce t1 t2@(EUVar _) = Just [(t1, t2)]
+genCoerce t1 t2@(EVar _)  = Just [(t1, t2)]
+genCoerce (EApp f1 a1) (EApp f2 a2) = (++) <$> genCoerce f1 f2 <*> genCoerce a1 a2
+genCoerce _ _ = Nothing
+
+-- Pretend newtypes are type synonyms
+extNewtypeSyns :: T ()
+extNewtypeSyns = do
+  dt <- gets dataTable
+  mn <- gets moduleName
+  let ext (Newtype (i, vs) (Constr _ _ _ et) _) = extSyn (qualIdent mn i) (EForall True vs t)
+          where t = either (snd . head) (snd . snd . head) et
+      ext _ = return ()
+  mapM_ ext $ M.elems dt
+  
 
 isEUVar :: EType -> Bool
 isEUVar (EUVar _) = True
@@ -3119,14 +3163,17 @@ addEqConstraint loc t1 t2 = do
 mkEqType :: SLoc -> EType -> EType -> EConstraint
 mkEqType loc t1 t2 = eAppI2 (mkIdentSLoc loc nameTypeEq) t1 t2
 
+mkCoercible :: SLoc -> EType -> EType -> EConstraint
+mkCoercible loc t1 t2 = eAppI2 (mkIdentSLoc loc nameCoercible) t1 t2
+
 -- Possibly solve a type equality.
-solveEq :: TypeEqTable -> EType -> EType -> Maybe (Expr, [(EType, EType)])
+solveEq :: TypeEqTable -> EType -> EType -> Maybe [(EType, EType)]
 --solveEq eqs t1 t2 | trace ("solveEq: " ++ show (t1,t2) ++ show eqs) False = undefined
-solveEq eqs t1 t2 | t1 `eqEType` t2            = Just (ETuple [], [])
-                  | elemBy eqTyTy (t1, t2) eqs = Just (ETuple [], [])
+solveEq eqs t1 t2 | t1 `eqEType` t2            = Just []
+                  | elemBy eqTyTy (t1, t2) eqs = Just []
                   | otherwise =
   case (t1, t2) of
-    (EApp f1 a1, EApp f2 a2) -> Just (ETuple [], [(f1, f2), (a1, a2)])
+    (EApp f1 a1, EApp f2 a2) -> Just [(f1, f2), (a1, a2)]
     _                        -> Nothing
 
 -- Add the equality t1~t2.
