@@ -33,6 +33,7 @@ library base
         Data.Bool
         Data.Bounded
         Data.ByteString
+        Data.ByteString.Char8
         Data.ByteString.Lazy.Char8
         Data.Char
         Data.Coerce
