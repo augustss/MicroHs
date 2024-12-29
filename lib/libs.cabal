@@ -85,6 +85,7 @@ library base
         Data.Semigroup
         Data.String
         Data.Text
+        Data.Text.Lazy
         Data.Traversable
         Data.Tuple
         Data.Tuple.Instances
