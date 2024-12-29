@@ -179,7 +179,10 @@ bsUnimp s = P.error $ "Data.ByteString." P.++ s P.++ " unimplemented"
 
 -----------------------------------------
 
+fromStrict :: ByteString -> a
 fromStrict = bsUnimp "fromStrict"
+
+toStrict :: a -> ByteString
 toStrict = bsUnimp "toStrict"
 
 fromFilePath :: FilePath -> IO ByteString
