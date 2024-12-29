@@ -407,7 +407,7 @@ pContext = (pCtx <* pDRArrow) <|< pure []
   where
     pCtx =     ((:[]) <$> pTypeApp)
            <|> (eq <$> pTypeArg <*> pTilde <*> pTypeArg)   -- A hack to allow   a~b => ...
-    eq t1 i t2 = [eApp2 (EVar i) t1 t2]
+    eq t1 i t2 = [eAppI2 i t1 t2]
     pTilde = do i <- pQSymOper; guard (i == mkIdent "~"); return i
 
 pDRArrow :: P ()

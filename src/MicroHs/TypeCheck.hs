@@ -3117,7 +3117,7 @@ addEqConstraint loc t1 t2 = do
   addConstraint d (mkEqType loc t1 t2)
 
 mkEqType :: SLoc -> EType -> EType -> EConstraint
-mkEqType loc t1 t2 = EApp (EApp (EVar (mkIdentSLoc loc nameTypeEq)) t1) t2
+mkEqType loc t1 t2 = eAppI2 (mkIdentSLoc loc nameTypeEq) t1 t2
 
 -- Possibly solve a type equality.
 solveEq :: TypeEqTable -> EType -> EType -> Maybe (Expr, [(EType, EType)])

@@ -141,7 +141,7 @@ derTypeable _ (i, _) _ etyp = do
     hdr = EApp etyp (EVar $ qualIdent mn i)
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
-    eqns = eEqns [eDummy] $ eApp2 (EVar imkTyConApp) (eApp2 (EVar imkTyCon) mdl nam) (EListish (LList []))
+    eqns = eEqns [eDummy] $ eAppI2 imkTyConApp (eAppI2 imkTyCon mdl nam) (EListish (LList []))
     inst = Instance hdr [BFcn itypeRep eqns]
   return [inst]
 
