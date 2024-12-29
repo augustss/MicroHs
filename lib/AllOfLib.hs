@@ -23,6 +23,7 @@ import Data.Bounded
 import Data.ByteString
 import Data.Char
 import Data.Char_Type
+import Data.Coerce
 import Data.Complex
 import Data.Constraint
 import Data.Dynamic

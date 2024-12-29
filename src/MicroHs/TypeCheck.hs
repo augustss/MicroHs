@@ -3018,8 +3018,12 @@ extNewtypeSyns :: T ()
 extNewtypeSyns = do
   dt <- gets dataTable
   mn <- gets moduleName
-  let ext (Newtype (i, vs) (Constr _ _ _ et) _) = extSyn (qualIdent mn i) (EForall True vs t)
-          where t = either (snd . head) (snd . snd . head) et
+  let ext (Newtype (i, vs) (Constr _ _ _c et) _) = do
+          -- XXX We should check that the constructor name (_c) is visible.
+          -- But this is tricky since we don't know under what qualified name it
+          -- it should be visible.
+          let t = either (snd . head) (snd . snd . head) et
+          extSyn (qualIdent mn i) (EForall True vs t)  -- extend synonym table
       ext _ = return ()
   mapM_ ext $ M.elems dt
   

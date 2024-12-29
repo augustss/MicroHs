@@ -1,6 +1,6 @@
 cabal-version:  3.0
 name:           libs
-version:        0.11.0.0
+version:        0.11.1.0
 license:        Apache
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net
@@ -34,6 +34,7 @@ library base
         Data.Bounded
         Data.ByteString
         Data.Char
+        Data.Coerce
         Data.Complex
         Data.Constraint
         Data.Data
