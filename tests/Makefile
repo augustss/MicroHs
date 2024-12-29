@@ -79,6 +79,7 @@ test:
 	$(TMHS) OrPat      && $(EVAL) > OrPat.out      && diff OrPat.ref OrPat.out
 	$(TMHS) PartRed    && $(EVAL) > PartRed.out    && diff PartRed.ref PartRed.out
 	$(TMHS) PatSyn     && $(EVAL) > PatSyn.out     && diff PatSyn.ref PatSyn.out
+	$(TMHS) Coerce     && $(EVAL) > Coerce.out     && diff Coerce.ref Coerce.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
