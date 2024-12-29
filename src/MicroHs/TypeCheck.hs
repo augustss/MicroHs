@@ -2993,6 +2993,7 @@ solveCoercible loc _iCls [t1, t2] = do
   putSynTable st
   -- walk over the types in parallel,
   -- and generate new Coercible constraints when not equal.
+--  traceM $ "solveCoercible: " ++ showExprRaw t1' ++ " and " ++ showExprRaw t2'
   case genCoerce t1' t2' of
     Nothing -> return Nothing
     Just [(u1, u2)] | u1 `eqEType` t1 && u2 `eqEType` t2 -> return Nothing  -- Nothing has improved
@@ -3013,19 +3014,20 @@ genCoerce t1 t2@(EVar _)  = Just [(t1, t2)]
 genCoerce (EApp f1 a1) (EApp f2 a2) = (++) <$> genCoerce f1 f2 <*> genCoerce a1 a2
 genCoerce _ _ = Nothing
 
--- Pretend newtypes are type synonyms
+-- Pretend newtypes are type synonyms.
+-- XXX It's rather inefficient to do this over and over.
 extNewtypeSyns :: T ()
 extNewtypeSyns = do
   dt <- gets dataTable
-  mn <- gets moduleName
-  let ext (Newtype (i, vs) (Constr _ _ _c et) _) = do
+  let ext (qi, Newtype (_, vs) (Constr _ _ _c et) _) = do
           -- XXX We should check that the constructor name (_c) is visible.
           -- But this is tricky since we don't know under what qualified name it
           -- it should be visible.
           let t = either (snd . head) (snd . snd . head) et
-          extSyn (qualIdent mn i) (EForall True vs t)  -- extend synonym table
+--          traceM $ "extNewtypeSyns: " ++ showIdent qi ++ show vs ++ " = " ++ showExprRaw t
+          extSyn qi (EForall True vs t)  -- extend synonym table
       ext _ = return ()
-  mapM_ ext $ M.elems dt
+  mapM_ ext $ M.toList dt
   
 
 isEUVar :: EType -> Bool

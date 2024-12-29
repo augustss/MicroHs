@@ -1,5 +1,6 @@
 module Coerce where
 import Data.Coerce
+import Data.Word
 
 newtype NT = NT Int
   deriving (Show)
@@ -24,3 +25,4 @@ main = do
   print (coerce (List [3::Int, 4]) :: [Int])
   print (coerce (List [NT 5, NT 6]) :: [NT])
   print (coerce (List [NT 7, NT 8]) :: [Int])
+  print (coerce "hello" :: [Word8])
