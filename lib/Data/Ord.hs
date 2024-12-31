@@ -52,6 +52,9 @@ instance Bounded Ordering where
 comparing :: (Ord b) => (a -> b) -> a -> a -> Ordering
 comparing f x y = compare (f x) (f y)
 
+clamp :: (Ord a) => (a, a) -> a -> a
+clamp (low, high) a = min high (max a low)
+
 {-
 newtype Down a = Down
     { getDown :: a -- ^ @since 4.14.0.0
