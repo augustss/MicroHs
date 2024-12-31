@@ -80,6 +80,7 @@ test:
 	$(TMHS) PartRed    && $(EVAL) > PartRed.out    && diff PartRed.ref PartRed.out
 	$(TMHS) PatSyn     && $(EVAL) > PatSyn.out     && diff PatSyn.ref PatSyn.out
 	$(TMHS) Coerce     && $(EVAL) > Coerce.out     && diff Coerce.ref Coerce.out
+	$(TMHS) PatBind    && $(EVAL) > PatBind.out    && diff PatBind.ref PatBind.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

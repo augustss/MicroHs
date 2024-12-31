@@ -46,6 +46,11 @@ dsDef flags mn adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
+    PatBind p e ->
+      case patVarsQ p of
+        [] -> []    -- no bound variable, just throw it away
+        -- Create a unique varible by adding a "$g" suffix to one of the bound variables.
+        v : _ -> dsPatBind (addIdentSuffix v "$g") p e
     ForImp ie i t -> [(i, if isIO t then frgn else App perf frgn)]
       where frgn = Lit $ LForImp (fromMaybe (unIdent (unQualIdent i)) ie) cty
             cty = CType t
@@ -85,13 +90,20 @@ dsBind :: Ident -> EBind -> [LDef]
 dsBind v abind =
   case abind of
     BFcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
-    BPat p e ->
-      let
-        de = (v, dsExpr e)
-        ds = [ (i, dsExpr (ECase (EVar v) [(p, oneAlt $ EVar i)])) | i <- patVars p ]
-      in  de : ds
+    BPat p e -> dsPatBind v p e
     BSign _ _ -> []
     BDfltSign _ _ -> []
+
+dsPatBind :: Ident -> EPat -> Expr -> [LDef]
+dsPatBind v p e =
+  let de = (v, dsExpr e)
+      ds = [ (i, dsExpr (ECase (EVar v) [(p, oneAlt $ EVar i)])) | i <- patVarsQ p ]
+  in  de : ds
+
+-- patVars does not work wth qualified bound variable names,
+-- but that's what we get for a top level PatBind
+patVarsQ :: EPat -> [Ident]
+patVarsQ = filter (\ i -> not (isDummyIdent i) && not (isConIdent $ unQualIdent i)) . allVarsExpr
 
 dsEqns :: SLoc -> [Eqn] -> Exp
 dsEqns loc eqns =

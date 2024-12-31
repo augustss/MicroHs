@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-unused-do-bind #-}
 {-# LANGUAGE FlexibleContexts #-}
 module MicroHs.TypeCheck(
   typeCheck,
@@ -1285,17 +1285,24 @@ tcDefsValue defs = do
   let smap = M.fromList $ [ (i, ()) | Sign is _ <- defs, i <- is ]
       -- Split Fcn into those without and with type signatures
       unsigned = filter noSign defs
-        where noSign (Fcn i _) = isNothing $ M.lookup i smap
-              noSign (Pattern (i, _) _ _) = isNothing $ M.lookup i smap
+        where noSign (Fcn i _) = hasNoSign i
+              noSign (Pattern (i, _) _ _) = hasNoSign i
+              noSign (PatBind p _) = any hasNoSign (patVars p)
               noSign _ = False
+              hasNoSign i = isNothing $ M.lookup i smap
       -- split the unsigned defs into strongly connected components
       sccs = stronglyConnComp $ map node unsigned
-        where node d@(Fcn i e) = (d, i, allVarsEqns e)
-              node d@(Pattern (i, _) p me) = (d, i, allVarsPat p $ maybe [] allVarsEqns me)
+        where node d@(Fcn i e)             = (d, i,                tr $ allVarsEqns e)
+              node d@(Pattern (i, _) p me) = (d, i,                tr $ allVarsPat p $ maybe [] allVarsEqns me)
+              node d@(PatBind p e)         = (d, head $ patVars p, tr $ allVarsExpr e)  -- use the first bound var as the key
               node _ = undefined
+              tr x | null sub = x  -- do nothing when there are no PatBinds
+                   | otherwise = map (\ i -> fromMaybe i $ lookup i sub) x
+              -- Map all (bound) identifiers in a PatBind into the first (bound) identifier
+              sub = [ (d, i) | PatBind p _ <- unsigned, i:ds <- [patVars p], d <- ds ]
       tcSCC (AcyclicSCC d@(Pattern _ _ _)) = tcPatSyn d
-      tcSCC (AcyclicSCC d) = tInferDefs [d]
-      tcSCC (CyclicSCC ds) = tInferDefs ds
+      tcSCC (AcyclicSCC d) = tInferDefs smap [d]
+      tcSCC (CyclicSCC ds) = tInferDefs smap ds
   --traceM $ "tcDefsValue: unsigned=" ++ show unsigned
   -- type infer and enter each SCC in the symbol table
   -- return inferred Sign
@@ -1312,22 +1319,29 @@ tcDefsValue defs = do
   pure defs'''
 
 -- Infer a type for a definition
-tInferDefs :: [EDef] -> T [EDef]
-tInferDefs fcns = do
+tInferDefs :: M.Map () -> [EDef] -> T [EDef]
+tInferDefs smap fcns = do
 --  traceM "tInferDefs"
   tcReset
   -- Invent type variables for the definitions
-  let idOf (Fcn i _) = i
-      idOf (Pattern (i, _) _ _) = i
-      idOf _ = undefined
-  xts <- mapM (\ d -> (,) (idOf d) <$> newUVar) fcns
+  xts <- 
+           let f (Fcn i _)            = do t <- newUVar; pure [(i, t)]
+               f (Pattern (i, _) _ _) = do t <- newUVar; pure [(i, t)]
+               f (PatBind p _)        = concat <$> mapM g (patVars p)
+               f _                    = impossible
+               -- Only add type variables for those variables that don't have a signature
+               g i = case M.lookup i smap of
+                       Nothing -> do t <- newUVar; pure [(i, t)]
+                       _       -> pure []
+           in  concat <$> mapM f fcns
   --tcTrace $ "tInferDefs: " ++ show (map fst xts)
   -- Temporarily extend the local environment with the type variables
   withExtVals xts $ do
     -- Infer types for all the Fcns, ignore the new bodies.
     -- The bodies will be re-typecked in tcDefsValues.
-    let tc (Fcn _ eqns) (_, t)   = do _ <- tcEqns False t eqns; return ()
+    let tc (Fcn _ eqns) (_, t)   = do tcEqns False t eqns; return ()
         tc (Pattern (i,_) _ _) _ = tcError (getSLoc i) "Cannot infer recursive pattern synonym types"
+        tc (PatBind p e)       _ = do tcPatBind PatBind p e; return ()
         tc _ _ = impossible
     zipWithM_ tc fcns xts
   -- Get the unsolved constraints
@@ -1454,6 +1468,7 @@ tcDefValue adef =
       mn <- gets moduleName
 --      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
       return $ Fcn (qualIdent mn i) teqns
+    PatBind p e -> tcPatBind PatBind p e
     ForImp ie i t -> do
       mn <- gets moduleName
       t' <- expandSyn t
@@ -2371,15 +2386,19 @@ tcBind abind =
       (_, tt) <- tLookupV i
       teqns <- tcEqns False tt eqns
       return $ BFcn i teqns
-    BPat p a -> do
-      ((sk, ds, ep), tp) <- tInferPat p  -- pattern variables already bound
-      -- This is just to complicated.
-      when (not (null sk) || not (null ds)) $
-        tcError (getSLoc p) "existentials not allowed in pattern binding"
-      ea <- tCheckExprAndSolve tp a
-      return $ BPat ep ea
+    BPat p a -> tcPatBind BPat p a
     BSign _ _ -> return abind
     BDfltSign _ _ -> return abind
+
+tcPatBind :: (EPat -> Expr -> a) -> EPat -> Expr -> T a
+tcPatBind con p a = do
+  ((sk, ds, ep), tp) <- tInferPat p  -- pattern variables already bound
+  -- This is just to complicated.
+  when (not (null sk) || not (null ds)) $
+    tcError (getSLoc p) "existentials not allowed in pattern binding"
+  ea <- tCheckExprAndSolve tp a
+  return $ con ep ea
+
 
 -- Desugar [T] and (T,T,...)
 dsType :: EType -> EType

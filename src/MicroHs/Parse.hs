@@ -317,6 +317,8 @@ pDef =
   <|< mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
   <|< Sign         <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Deriving     <$> (pKeyword "deriving" *> pKeyword "instance" *> pType)
+  <|< PatBind      <$> pPatNotVar <*> ((pSpec '=' *> pExpr)
+                                       <|< (EMultiIf <$> pAlts (pSpec '=')))
   <|< noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
   where
