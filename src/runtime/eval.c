@@ -1705,6 +1705,8 @@ parse(BFILE *f)
     case '\n':
       continue;
     }
+    if (num_free < 3)
+      ERR("out of heap reading code");
     GCCHECK(1);
     switch(c) {
     case '@':
@@ -3823,6 +3825,7 @@ execio(NODEPTR *np)
     case T_IO_DESERIALIZE:
       CHECKIO(1);
       ptr = (struct BFILE*)evalptr(ARG(TOP(1)));
+      gc();                     /* make sure we have room.  GC during parse is dodgy. */
       n = parse_top(ptr);
       RETIO(n);
 #endif
