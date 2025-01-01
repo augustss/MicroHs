@@ -64,7 +64,7 @@ main = do
                 _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [MODULENAME..|FILE]"
+usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [MODULENAME..|FILE]"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
@@ -75,6 +75,7 @@ decodeArgs f mdls (arg:args) =
     "-q"        -> decodeArgs f{verbose = -1} mdls args
     "-r"        -> decodeArgs f{runIt = True} mdls args
     "-l"        -> decodeArgs f{loading = True} mdls args
+    "-s"        -> decodeArgs f{speed = True} mdls args
     "-CR"       -> decodeArgs f{readCache = True} mdls args
     "-CW"       -> decodeArgs f{writeCache = True} mdls args
     "-C"        -> decodeArgs f{readCache=True, writeCache = True} mdls args
@@ -207,6 +208,7 @@ mainListPkg' _flags pkgfn = do
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
+  t0 <- getTimeMilli
   (cash, (rmn, allDefs)) <- do
     cash <- getCached flags
     (rds, _, cash') <- compileCacheTop flags mn cash
@@ -235,6 +237,11 @@ mainCompile flags mn = do
     t2 <- getTimeMilli
     when (verbosityGT flags 0) $
       putStrLn $ "final pass            " ++ padLeft 6 (show (t2-t1)) ++ "ms"
+
+    when (speed flags) $ do
+      let fns = filter (isSuffixOf ".hs") $ map (slocFile . slocIdent) $ cachedModuleNames cash
+      locs <- sum . map (length . lines) <$> mapM readFile fns
+      putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
     let cCode = makeCArray flags outData ++ makeFFI flags allDefs
 

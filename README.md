@@ -163,6 +163,7 @@ it will be the entry point to the program.
 * `-T` generate dynamic function usage statistics
 * `-z` compress combinator code generated in the `.c` file
 * `-l` show every time a module is loaded
+* `-s` show compilation speed in lines/s
 * `-XCPP` run `cpphs` on source files
 * `-Dxxx` passed to `cpphs`
 * `-Ixxx` passed to `cpphs`

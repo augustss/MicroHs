@@ -16,7 +16,7 @@ module MicroHs.Ident(
   qualOf,
   addIdentSuffix,
   SLoc(..), noSLoc,
-  showSLoc,
+  showSLoc, slocFile,
   ) where
 import Prelude(); import MHSPrelude hiding(head)
 import Data.Char
@@ -179,3 +179,6 @@ showSLoc (SLoc fn l c) =
     if l == 0  then "no location" else
     if l == -1 then "end-of-file" else
     "line " ++ show l ++ ", col " ++ show c
+
+slocFile :: SLoc -> FilePath
+slocFile (SLoc f _ _) = f

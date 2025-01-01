@@ -8,6 +8,7 @@ data Flags = Flags {
   paths      :: [FilePath], -- module search path
   output     :: String,     -- output file
   loading    :: Bool,       -- show loading message
+  speed      :: Bool,       -- show lines/s
   readCache  :: Bool,       -- read and use cache
   writeCache :: Bool,       -- generate cache
   useTicks   :: Bool,       -- emit ticks
@@ -34,6 +35,7 @@ defaultFlags dir = Flags {
   paths      = [".", dir ++ "/lib"],
   output     = "out.comb",
   loading    = False,
+  speed      = False,
   readCache  = False,
   writeCache = False,
   useTicks   = False,

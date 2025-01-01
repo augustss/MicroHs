@@ -152,13 +152,13 @@ bin/umhs: bin/mhs
 
 #
 timecompile: bin/mhs
-	time bin/mhs +RTS -v -RTS $(MHSINC) MicroHs.Main
+	time bin/mhs +RTS -v -RTS -s $(MHSINC) MicroHs.Main
 
 #
 timecachecompile: bin/mhs
 	@-rm -f .mhscache
 	time bin/mhs +RTS -v -RTS -CW AllOfLib
-	time bin/mhs +RTS -v -RTS -CR $(MHSINC) MicroHs.Main
+	time bin/mhs +RTS -v -RTS -CR -s $(MHSINC) MicroHs.Main
 
 #
 cachelib:
@@ -213,8 +213,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.11.1.1
-HVERSION=0,11,1,1
+VERSION=0.11.1.2
+HVERSION=0,11,1,2
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
