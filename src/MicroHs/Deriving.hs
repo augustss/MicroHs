@@ -107,11 +107,16 @@ genHasField (tycon, iks) cs (fld, fldty) = do
               rhs = eLam [eFld] conApp
       getName = mkGetName tycon fld
 
-  pure [ Sign [getName] $ eForall iks $ lhsToType (qtycon, iks) `tArrow` fldty
-       , Fcn getName $ map conEqnGet cs
-       , Instance hdrGet [BFcn igetField [eEqn [eDummy] $ EVar getName] ]
-       , Instance hdrSet [BFcn isetField $ map conEqnSet cs]
-       ]
+      -- XXX A hack, we can't handle forall yet.
+      validType (EForall _ _ _) = False
+      validType _ = True
+
+  pure $ [ Sign [getName] $ eForall iks $ lhsToType (qtycon, iks) `tArrow` fldty
+         , Fcn getName $ map conEqnGet cs ]
+    ++ if not (validType fldty) then [] else
+         [ Instance hdrGet [BFcn igetField [eEqn [eDummy] $ EVar getName] ]
+         , Instance hdrSet [BFcn isetField $ map conEqnSet cs]
+         ]
 
 nameHasField :: String
 nameHasField = "Data.Records.HasField"
