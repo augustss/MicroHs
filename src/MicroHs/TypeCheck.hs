@@ -2549,10 +2549,9 @@ subsCheckRho :: HasCallStack =>
                 SLoc -> Expr -> Sigma -> Rho -> T Expr
 --subsCheckRho _ e1 t1 t2 | trace ("subsCheckRho: " ++ show e1 ++ " :: " ++ show t1 ++ " = " ++ show t2) False = undefined
 -- XXX Is this even right?  It's not part of the paper.
-subsCheckRho _loc exp1 (EForall _ vs1 t1) (EForall _ vs2 t2)
-  | length vs1 == length vs2,
-    let { sub = [(v1, EVar v2) | (IdKind v1 _, IdKind v2 _) <- zip vs1 vs2] },
-    eqEType (subst sub t1) t2 = do
+subsCheckRho loc exp1 (EForall _ vs1 t1) (EForall _ vs2 t2) | length vs1 == length vs2 = do
+  let sub = [(v1, EVar v2) | (IdKind v1 _, IdKind v2 _) <- zip vs1 vs2]
+  unify loc (subst sub t1) t2
   return exp1
 subsCheckRho loc exp1 sigma1@(EForall _ _ _) rho2 = do -- Rule SPEC
   (exp1', rho1) <- tInst exp1 sigma1
