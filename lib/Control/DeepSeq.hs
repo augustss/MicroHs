@@ -82,27 +82,39 @@ instance NFData Word32
 instance NFData Word64
 
 instance NFData (Proxy a) where rnf Proxy = ()
+instance NFData1 Proxy where liftRnf _ Proxy = ()
 
 instance NFData a => NFData (Ratio a) where
   rnf x = rnf (numerator x, denominator x)
 
 instance NFData a => NFData (Maybe a) where
-  rnf Nothing = ()
-  rnf (Just a) = rnf a
+  rnf = rnf1
+instance NFData1 Maybe where
+  liftRnf _ Nothing = ()
+  liftRnf rnfa (Just a) = rnfa a
 
 instance NFData a => NFData [a] where
-  rnf = foldr (\ x r -> rnf x `seq` r) ()
+  rnf = rnf1
+instance NFData1 [] where
+  liftRnf rnfa = foldr (\ x r -> rnfa x `seq` r) ()
 
 instance (NFData a, NFData b) => NFData (Either a b) where
-  rnf (Left a) = rnf a
-  rnf (Right b) = rnf b
+  rnf = rnf2
+instance NFData2 Either where
+  liftRnf2 rnfa _ (Left  a) = rnfa a
+  liftRnf2 _ rnfb (Right b) = rnfb b
 
 instance (NFData a) => NFData (Complex a) where
-  rnf (x :+ y) = rnf x `seq` rnf y
+  rnf = rnf1
+instance NFData1 Complex where
+  liftRnf rnfa (x :+ y) = rnfa x `seq` rnfa y
 
 instance NFData a => NFData (NonEmpty a) where
-  rnf = rnf . toList
+  rnf = rnf1
+instance NFData1 NonEmpty where
+  liftRnf rnfa = liftRnf rnfa . toList
 
+-- Fixed is a newtype over Integer
 instance NFData (Fixed a)
 --  rnf = rnf
 
@@ -524,3 +536,21 @@ instance
   NFData (a1, a2, a3, a4, a5)
   where
   rnf (a1, a2, a3, a4, a5) = rnf a1 `seq` rnf a2 `seq` rnf a3 `seq` rnf a4 `seq` rnf a5
+
+----------------------------------------------------------------------------
+-- NFData1 and NFData 2 are not totally compatible with GHC, but they sometimes work.
+-- To be compatible, we need QuantifiedConstraints.
+
+class NFData1 f where
+  liftRnf :: (a -> ()) -> f a -> ()
+
+class NFData2 p where
+  liftRnf2 :: (a -> ()) -> (b -> ()) -> p a b -> ()
+
+rnf1 :: (NFData1 f, NFData a) => f a -> ()
+rnf1 = liftRnf rnf
+
+rnf2 :: (NFData2 p, NFData a, NFData b) => p a b -> ()
+rnf2 = liftRnf2 rnf rnf
+
+
