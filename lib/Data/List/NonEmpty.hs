@@ -161,8 +161,8 @@ instance Show a => Show (NonEmpty a) where
   showsPrec p = showsPrec p . toList
 instance Foldable NonEmpty where
   foldr f z = foldr f z . toList
---instance Traversable NonEmpty where
---  traverse f = fromList . traverse f . toList
+instance Traversable NonEmpty where
+  traverse f = fmap fromList . traverse f . toList
   
 ----- End MHS replacement
 
