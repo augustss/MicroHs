@@ -751,7 +751,7 @@ ppExprR raw = ppE
         EUVar i -> text ("_a" ++ show i)
         EQVar e t -> parens $ ppE e <> text "::" <> ppE t
         ECon c -> text "***" <> ppCon c
-        EForall _ iks e -> ppForall iks <+> ppEType e
+        EForall _ iks e -> parens $ ppForall iks <+> ppEType e
 
     ppApp :: [Expr] -> Expr -> Doc
     ppApp as (EApp f a) = ppApp (a:as) f

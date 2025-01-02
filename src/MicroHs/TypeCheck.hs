@@ -1608,7 +1608,7 @@ tGetExpType (Infer r) = tGetRefType r
 tcExpr :: HasCallStack =>
           Expected -> Expr -> T Expr
 tcExpr mt ae = do
---  tcTrace ("tcExpr enter: " ++ showExpr ae)
+--  tcTrace ("tcExpr enter: mt=" ++ show mt ++ " ae=" ++ showExpr ae)
   r <- tcExprR mt ae
 --  tcTrace ("tcExpr exit: " ++ showExpr r)
   return r
@@ -1637,7 +1637,7 @@ tcExprR mt ae =
                case t of
                  EUVar r -> fmap (fromMaybe t) (getUVar r)
                  _ -> return t
-             --tcTrace $ "EVar: " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t' ++ " mt=" ++ show mt
+--             tcTrace $ "EVar: " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t' ++ " mt=" ++ show mt
              instSigma loc e t' mt
     EQVar e t ->  -- already resolved, just instantiate
              instSigma loc e t mt
@@ -1645,21 +1645,27 @@ tcExprR mt ae =
     EApp f a -> do
 --      tcTrace $ "txExpr(0) EApp: expr=" ++ show ae ++ ":: " ++ show mt
       (f', ft) <- tInferExpr f
---      tcTrace $ "tcExpr(1) EApp: f=" ++ show f ++ "; f'=" ++ show f' ++ " :: " ++ show ft
-      (at, rt) <- unArrow loc ft
---      tcTrace $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a ++ " :: " ++ show at ++ " retty=" ++ show rt
-      -- We want to do the unification of rt ant mt before checking the argument to
-      -- have more type information.  See tests/Eq1.hs.
-      -- But instSigma may transform the input expression, so we have to be careful.
-      let etmp = EUVar ugly
-          ugly = -1::Int
-      etmp' <- instSigma loc etmp rt mt
-      a' <- checkSigma a at
---      tcTrace $ "tcExpr(3) EApp: f = " ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a' ++ " :: " ++ show at ++ " retty=" ++ show rt ++ " mt = " ++ show mt
-      let res = EApp f' a'
-      case etmp' of
-        EUVar _ -> return res   -- instSigma did nothing, this is the common case
-        _ -> return $ substEUVar [(ugly, res)] etmp'
+      -- A hack to make $ work the same way with instantiation as application.
+      -- This is ugly, but GHC does it, so people use it.
+      -- So use the identity '($) a == a'
+      case f' of
+        EVar i | i == mkIdent "Data.Function.$" -> tcExpr mt a
+        _ -> do
+--          tcTrace $ "tcExpr(1) EApp: f=" ++ show f ++ "; f'=" ++ showExprRaw f' ++ " :: " ++ show ft
+          (at, rt) <- unArrow loc ft
+--          tcTrace $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a ++ " :: " ++ show at ++ " retty=" ++ show rt
+          -- We want to do the unification of rt ant mt before checking the argument to
+          -- have more type information.  See tests/Eq1.hs.
+          -- But instSigma may transform the input expression, so we have to be careful.
+          let etmp = EUVar ugly
+              ugly = -1::Int
+          etmp' <- instSigma loc etmp rt mt
+          a' <- checkSigma a at
+--          tcTrace $ "tcExpr(3) EApp: f = " ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a' ++ " :: " ++ show at ++ " retty=" ++ show rt ++ " mt = " ++ show mt
+          let res = EApp f' a'
+          case etmp' of
+            EUVar _ -> return res   -- instSigma did nothing, this is the common case
+            _ -> return $ substEUVar [(ugly, res)] etmp'
 
     EOper e ies -> tcOper e ies >>= tcExpr mt
     ELam qs -> tcExprLam mt qs
