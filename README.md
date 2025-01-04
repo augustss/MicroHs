@@ -82,6 +82,7 @@ Differences:
    * OverloadedStrings
    * PatternSynonyms
    * PolyKinds
+   * PolymorphicComponents
    * RankNTypes
    * RecordWildCards
    * QualifiedDo
