@@ -77,8 +77,8 @@ data InstInfo = InstInfo
 type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint, [IFunDep])
 -- This is the dictionary expression, instance context, and types.
 -- An instance (C T1 ... Tn) has the type list [T1,...,Tn]
--- The types and constraint have their type variables normalized to EUVar (-1), EUVar (-2), etc
-type InstDict   = (Expr, [EConstraint], [EType])
+-- The types and constraint can be instantiated by providing a starting TRef
+type InstDict   = (Expr, TRef -> ([EConstraint], [EType]))
 
 -- All known type equalities, contains the transitive&commutative closure.
 type TypeEqTable = [(EType, EType)]

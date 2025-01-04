@@ -31,6 +31,28 @@ instance Iso Char Int where
   isoL = ord
   isoR = chr
 
+data T a = T a
+
+instance C a b => C (T a) b where
+  f (T a) = f a
+
+{-
+class D a where
+  d :: a -> Int
+
+instance D Char where
+  d _ = 999
+
+class E a
+
+-- This currently not allowed (unbound b), but it could be.
+class C a b => E a where
+  e :: a -> a
+  e = id
+
+instance E Int
+-}
+
 main :: IO ()
 main = do
   print $ f 'a' + 1
@@ -40,3 +62,5 @@ main = do
   print $ plus (1::Double) (2::Double)
   print $ isoL 'a'
   print $ isoR (100::Int)
+  print $ f (T 'b')
+--  print $ d (f (e (0::Int)))

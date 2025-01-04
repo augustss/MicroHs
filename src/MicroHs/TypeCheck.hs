@@ -424,7 +424,7 @@ mergeInstInfo (InstInfo m1 l1 fds) (InstInfo m2 l2 _) =
 -- Approximate equality for dictionaries.
 -- The important thing is to avoid exact duplicates in the instance table.
 eqInstDict :: InstDict -> InstDict -> Bool
-eqInstDict (e, _, _) (e', _, _) = eqExpr e e'
+eqInstDict (e, _) (e', _) = eqExpr e e'
 
 -- Identifier should only be seen with it's qualified name.
 isInstId :: Ident -> Bool
@@ -471,17 +471,19 @@ addInstTable ics = do
     -- Change type variable to unique unification variables.
     -- These unification variables will never leak, but as an extra caution
     -- we use negative numbers..
-    freshSubst iks =
-      zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [-1, -2 ..]
+    freshSubst u iks =
+      zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [u ..]
 
     mkInstInfo :: InstDictC -> T (Ident, InstInfo)
     mkInstInfo (e, iks, ctx, ct, fds) = do
       case (iks, ctx, getApp ct) of
         ([], [], (c, [EVar i])) -> return $ (c, InstInfo (M.singleton i e) [] fds)
-        (_,  _,  (c, ts      )) -> return $ (c, InstInfo M.empty [(e, ctx', ts')] fds)
-          where ctx' = map (subst s) ctx
-                ts'  = map (subst s) ts
-                s    = freshSubst iks
+        (_,  _,  (c, ts      )) -> return $ (c, InstInfo M.empty [(e, ii)] fds)
+          where ii u =
+                  let ctx' = map (subst s) ctx
+                      ts'  = map (subst s) ts
+                      s    = freshSubst u iks
+                  in  (ctx', ts')
   iis <- mapM mkInstInfo ics
   it <- gets instTable
   putInstTable $ foldr (uncurry $ M.insertWith mergeInstInfo) it iis
@@ -2953,6 +2955,11 @@ solveInst :: SolveOne
 solveInst loc iCls cts = do
   it <- gets instTable
 --  tcTrace ("instances:\n" ++ unlines (map showInstDef (M.toList it)))
+  -- XXX The solveGen&co functions are not in the T monad.
+  -- But we sometimes need to instantiate type variable, so we use the
+  -- hack to pass dowwn a starting uniq.
+  -- This ought to be fixed, but is will be less efficient.
+  uniq <- do ts <- get; let { u = unique ts }; put ts{ unique = u+100 }; return u   -- make room for many UVars
   case M.lookup iCls it of
     Nothing -> return Nothing   -- no instances, so no chance
     Just (InstInfo atomMap insts fds) -> do
@@ -2963,19 +2970,19 @@ solveInst loc iCls cts = do
             -- If the goal is just (C T) and there is an instance, the solution is simple
             Just e  -> return $ Just (e, [], [])
             -- Not found, but there might be a generic instance
-            Nothing -> solveGen (M.null atomMap) fds insts loc iCls cts
-        _           -> solveGen (M.null atomMap) fds insts loc iCls cts
+            Nothing -> solveGen uniq (M.null atomMap) fds insts loc iCls cts
+        _           -> solveGen uniq (M.null atomMap) fds insts loc iCls cts
 
 -- When matching constraint (C _a) against an instance of the form
 -- instance (C b) then we don't want to match if the
 -- _a is later instantiated and it turns out we should
 -- have matched a (C T) instead.
-solveGen :: Bool -> [IFunDep] -> [InstDict] -> SolveOne
-solveGen noAtoms fds insts loc iCls cts = do
+solveGen :: TRef -> Bool -> [IFunDep] -> [InstDict] -> SolveOne
+solveGen uniq noAtoms fds insts loc iCls cts = do
 --  tcTrace ("solveGen: " ++ show (iCls, cts))
 --  tcTrace ("solveGen: insts=" ++ show insts)
-  let matches = getBestMatches $ findMatches noAtoms loc fds insts cts
---  tcTrace ("solveGen: matches allMatches =" ++ showListS show (findMatches noAtoms loc fds insts cts))
+  let matches = getBestMatches $ findMatches uniq noAtoms loc fds insts cts
+--  tcTrace ("solveGen: matches allMatches =" ++ showListS show (findMatches uniq noAtoms loc fds insts cts))
 --  tcTrace ("solveGen: matches bestMatches=" ++ showListS showMatch matches)
   case matches of
     []              -> return Nothing
@@ -3084,12 +3091,15 @@ type TySubst = [(TRef, EType)]
 -- For each matching instance return: (subst-size, (dict-expression, new-constraints))
 -- The subst-size is the size of the substitution that made the input instance match.
 -- It is a measure of how exact the match is.
-findMatches :: Bool -> SLoc -> [IFunDep] -> [InstDict] -> [EType] -> [(Int, (Expr, [EConstraint], [Improve]))]
-findMatches False _ _ _ [EUVar _] = []
-findMatches _ loc fds ds its =
+findMatches :: TRef -> Bool -> SLoc -> [IFunDep] -> [InstDict] -> [EType] -> [(Int, (Expr, [EConstraint], [Improve]))]
+findMatches _ False _ _ _ [EUVar _] = []
+findMatches uniq _ loc fds ds its =
  let rrr =
        [ (length s, (de, map (substEUVar s) ctx, imp))
-       | (de, ctx, ts) <- ds, Just (s, imp) <- [matchTypes loc ts its fds] ]
+       | (de, ctxts) <- ds
+       , let (ctx, ts) = ctxts uniq
+       , Just (s, imp) <- [matchTypes loc ts its fds]
+       ]
  in --trace ("findMatches: " ++ showListS showInstDict ds ++ "; " ++ show its ++ "; " ++ show fds ++ "; " ++ show rrr)
     rrr
 
@@ -3125,12 +3135,6 @@ matchTypesFD loc ts ts' (ins, outs) = do
   tm  <- combineTySubsts tms               -- combine all substitutions
   is  <- combineTySubsts [ s | (True, s) <- zip ins tms]  -- subst from input FDs
   let imp = [ (loc, substEUVar is t, t') | (True, t, t') <- zip3 outs ts ts' ]  -- improvements
-  -- We don't allow output FDs to have tyvars that are not instantiated
-  let outImpTvs = metaTvs [ t | (_,t,_) <- imp ]
-      outTvs = metaTvs [ t | (True, t) <- zip ins ts' ]   -- these tyvars were present in input positions in ts
---  tcTrace $ "matchTypesFD: " ++ show (ts, ts') ++ show (ins, outs) ++ show (tm, imp) ++ show (outTvs, outImpTvs)
-  when (not (null (outImpTvs \\ outTvs))) $
-    errorMessage loc $ "free type variable in output fundep"
   pure (tm, imp)
 
 -- Match two types, instantiate variables in the first type.
