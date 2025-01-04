@@ -3,9 +3,12 @@ module Data.Text(
   pack, unpack,
   empty,
   append,
+  null,
   head,
+  tail,
+  uncons,
   ) where
-import Prelude(); import MiniPrelude hiding(head)
+import Prelude(); import MiniPrelude hiding(head, tail, null)
 import Data.Monoid.Internal
 import Data.String
 import qualified Data.ByteString.Internal as BS
@@ -49,5 +52,15 @@ unpack (T t) = primitive "fromUTF8" t
 append :: Text -> Text -> Text
 append (T x) (T y) = T (BS.append x y)
 
+null :: Text -> Bool
+null (T bs) = BS.null bs
+
 head :: Text -> Char
 head (T t) = primitive "headUTF8" t
+
+tail :: Text -> Text
+tail (T t) = primitive "tailUTF8" t
+
+uncons :: Text -> Maybe (Char, Text)
+uncons t | null t    = Nothing
+         | otherwise = Just (head t, tail t)

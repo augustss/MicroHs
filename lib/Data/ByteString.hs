@@ -224,9 +224,6 @@ unsnoc :: ByteString -> Maybe (ByteString, Word8)
 unsnoc bs | null bs = Nothing
           | otherwise = Just (init bs, last bs)
 
-null :: ByteString -> Bool
-null bs = length bs == 0
-
 map :: (Word8 -> Word8) -> ByteString -> ByteString
 map f = pack . P.map f . unpack
 

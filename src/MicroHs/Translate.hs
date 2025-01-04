@@ -155,6 +155,7 @@ primTable = [
   ("fromUTF8", primitive "fromUTF8"),
   ("toUTF8", primitive "toUTF8"),
   ("headUTF8", primitive "headUTF8"),
+  ("tailUTF8", primitive "tailUTF8"),
   ("fp+", primitive "fp+"),
   ("fp2p", primitive "fp2p"),
   ("fpnew", primitive "fpnew"),

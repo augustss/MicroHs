@@ -87,3 +87,5 @@ pack = primBSpack
 unpack :: ByteString -> [Word8]
 unpack = primBSunpack
 
+null :: ByteString -> Bool
+null bs = length bs == 0
