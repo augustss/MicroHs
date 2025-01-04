@@ -1,5 +1,5 @@
 module Control.DeepSeq (
-  NFData(..),
+  NFData(..), NFData1(..), NFData2(..),
   deepseq,
   force,
   ($!!),
