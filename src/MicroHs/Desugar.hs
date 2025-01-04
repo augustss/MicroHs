@@ -245,6 +245,8 @@ dsCompr :: Expr -> [EStmt] -> Expr -> Expr
 dsCompr e [] l = EApp (EApp consCon e) l
 dsCompr e (SThen c : ss) l = EIf c (dsCompr e ss l) l
 dsCompr e (SLet ds : ss) l = ELet ds (dsCompr e ss l)
+-- Special case for the idiom [ ... | ..., p <- [x], ... ].  This is a little more efficient.
+dsCompr e (SBind p (EListish (LList [x])) : ss) l = ECase x [(p, oneAlt $ dsCompr e ss l), (EVar dummyIdent, oneAlt l)]
 dsCompr e xss@(SBind p g : ss) l = ELet [hdef] (EApp eh g)
   where
     hdef = BFcn h [eqn1, eqn2, eqn3]
