@@ -37,6 +37,6 @@ while [ "$line" != "END" ]; do
     #echo "==="
     #echo "next: $line"
     sed -e '/^ *$/d' $terr > $err
-    $comp $* -i../lib -i../tmp E 2>&1 | sed -e 's/^gmhs/mhs/' -e '/CallStack/,$d' -e '/^XX/d' -e 's/^mhs: error:/mhs:/' > $cerr
-    diff $err $cerr || exit 1
+    $comp $* -i../lib -i../tmp E 2>&1 | sed -e 's/^gmhs/mhs/' -e '/CallStack/,$d' -e '/^XX/d' -e 's/^mhs: error:/mhs:/' -e 's/^mhs: //' -e '/Uncaught exception/d' -e '/^ *$/d'  > $cerr
+    diff $err $cerr || (cat ../tmp/E.hs; exit 1)
 done
