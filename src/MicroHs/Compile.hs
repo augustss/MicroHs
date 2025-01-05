@@ -36,6 +36,7 @@ import MicroHs.Flags
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.List
+import MicroHs.MRnf
 import MicroHs.Package
 import MicroHs.Parse
 import MicroHs.StateIO
@@ -205,6 +206,7 @@ compileModule flags impt mn pathfn file = do
   modify $ setCacheTables glob'
   when (verbosityGT flags 3) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
+  () <- return $ mrnf tmdl
   let
     dmdl = desugar flags tmdl
   () <- return $ rnfErr $ tBindingsOf dmdl
