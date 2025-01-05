@@ -157,16 +157,18 @@ mainBuildPkg flags namever amns = do
       (name, ver) = splitNameVer namever
       (exported, other) = partition ((`elem` mns) . tModuleName) mdls
       pkgDeps = map (\ p -> (pkgName p, pkgVersion p)) $ getPkgs cash
-      pkg = Package { pkgName = mkIdent name, pkgVersion = ver
+      pkg = Package { pkgName = mkIdent name
+                    , pkgVersion = ver
                     , pkgCompiler = mhsVersion
-                    , pkgExported = exported, pkgOther = other
+                    , pkgExported = exported
+                    , pkgOther = other
                     , pkgTables = getCacheTables cash
                     , pkgDepends = pkgDeps }
   --print (map tModuleName $ pkgOther pkg)
   t1 <- getTimeMilli
   when (verbose flags > 0) $
     putStrLn $ "Writing package " ++ namever ++ " to " ++ output flags
-  writeSerializedCompressed (output flags) pkg
+  writeSerializedCompressed (output flags) (forcePackage pkg)
   t2 <- getTimeMilli
   when (verbose flags > 0) $
     putStrLn $ "Compression time " ++ show (t2 - t1) ++ " ms"  
@@ -321,7 +323,7 @@ mainListPackages flags = mapM_ list (pkgPath flags)
           ok <- doesDirectoryExist pdir
           when ok $ do
             files <- getDirectoryContents pdir
-            let pkgs = [ b | f <- files, Just b <- [stripSuffix ".pkg" f] ]
+            let pkgs = [ b | f <- files, Just b <- [stripSuffix packageSuffix f] ]
             putStrLn $ pdir ++ ":"
             mapM_ (\ p -> putStrLn $ "  " ++ p) pkgs
 

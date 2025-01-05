@@ -23,6 +23,7 @@ import Data.Char
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 import MicroHs.List(dropEnd)
+import MicroHs.MRnf
 
 import Data.Text(Text, pack, unpack, append, head)
 import Compat
@@ -53,6 +54,9 @@ data SLoc = SLoc FilePath Line Col
 instance Show SLoc where
   show (SLoc f l c) = show f ++ "," ++ show l ++ ":" ++ show c
 
+instance MRnf SLoc where
+  mrnf (SLoc a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+
 data Ident = Ident SLoc Text
   --deriving (Show)
 
@@ -68,6 +72,9 @@ instance Ord Ident where
 
 instance Show Ident where
   show = showIdent
+
+instance MRnf Ident where
+  mrnf (Ident a b) = mrnf a `seq` mrnf b
 
 slocIdent :: Ident -> SLoc
 slocIdent (Ident l _) = l

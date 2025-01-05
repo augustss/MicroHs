@@ -1,11 +1,13 @@
 module MicroHs.Package(
   IdentPackage,
   Package(..),
+  forcePackage,
   ) where
 import Prelude(); import MHSPrelude
 import Data.Version
 import MicroHs.Desugar(LDef)
 import MicroHs.Ident(Ident)
+import MicroHs.MRnf
 import MicroHs.TypeCheck(TModule, GlobTables)
 
 --
@@ -35,3 +37,11 @@ data Package = Package {
   pkgDepends   :: [(IdentPackage, Version)]        -- used packages
   }
   -- deriving (Show)
+
+instance MRnf Package where
+  mrnf (Package a b c d e f g) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e `seq` mrnf f `seq` mrnf g
+
+-- Fully evaluate a package
+forcePackage :: Package -> Package
+forcePackage p = mrnf p `seq` p
+

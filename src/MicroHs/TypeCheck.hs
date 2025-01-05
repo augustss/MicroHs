@@ -32,6 +32,7 @@ import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
 import MicroHs.List
+import MicroHs.MRnf
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
@@ -127,6 +128,9 @@ data GlobTables = GlobTables {
   gInstInfo   :: InstTable        -- instances are implicitely global
   }
 
+instance MRnf GlobTables where
+  mrnf (GlobTables a b c d) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d
+
 emptyGlobTables :: GlobTables
 emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty }
 
@@ -149,6 +153,9 @@ data TModule a = TModule {
   }
 --  deriving (Show)
 
+instance MRnf a => MRnf (TModule a) where
+  mrnf (TModule a b c d e f) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e `seq` mrnf f
+
 setBindings :: TModule b -> a -> TModule a
 setBindings (TModule x y z w v _) a = TModule x y z w v a
 
@@ -160,12 +167,18 @@ data TypeExport = TypeExport
 
 --instance Show TypeExport where show (TypeExport i _ vs) = showIdent i ++ show vs
 
+instance MRnf TypeExport where
+  mrnf (TypeExport a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+
 data ValueExport = ValueExport
   Ident           -- unqualified name
   Entry           -- symbol table entry
 --  deriving (Show)
 
 --instance Show ValueExport where show (ValueExport i _) = showIdent i
+
+instance MRnf ValueExport where
+  mrnf (ValueExport a b) = mrnf a `seq` mrnf b
 
 type FixDef = (Ident, Fixity)
 

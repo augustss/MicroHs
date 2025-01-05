@@ -13,6 +13,7 @@ import MicroHs.Expr
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
+import MicroHs.MRnf
 import MicroHs.State
 import MicroHs.SymTab
 import Debug.Trace
@@ -72,6 +73,9 @@ data InstInfo = InstInfo
        [IFunDep]
 --  deriving (Show)
 
+instance MRnf InstInfo where
+  mrnf (InstInfo a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+
 -- This is the dictionary expression, instance variables, instance context,
 -- and instance.
 type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint, [IFunDep])
@@ -85,6 +89,9 @@ type TypeEqTable = [(EType, EType)]
 
 data ClassInfo = ClassInfo [IdKind] [EConstraint] EKind [Ident] [IFunDep]  -- class tyvars, superclasses, class kind, methods, fundeps
 type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables
+
+instance MRnf ClassInfo where
+  mrnf (ClassInfo a b c d e) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e
 
 -----------------------------------------------
 -- TCState
