@@ -152,21 +152,6 @@ data TModule a = TModule {
 setBindings :: TModule b -> a -> TModule a
 setBindings (TModule x y z w v _) a = TModule x y z w v a
 
-data TypeExport = TypeExport
-  Ident           -- unqualified name
-  Entry           -- symbol table entry
-  [ValueExport]   -- associated values, i.e., constructors, selectors, methods
---  deriving (Show)
-
---instance Show TypeExport where show (TypeExport i _ vs) = showIdent i ++ show vs
-
-data ValueExport = ValueExport
-  Ident           -- unqualified name
-  Entry           -- symbol table entry
---  deriving (Show)
-
---instance Show ValueExport where show (ValueExport i _) = showIdent i
-
 type FixDef = (Ident, Fixity)
 
 type Sigma = EType
@@ -335,12 +320,7 @@ mkTModule impt tds tcs =
 -- Find all value Entry for names associated with a type.
 -- XXX join stLookup code with tentry
 getAssocs :: (HasCallStack) => ValueTable -> AssocTable -> Ident -> [ValueExport]
-getAssocs vt at ai =
-  let qis = fromMaybe [] $ M.lookup ai at
-      val qi = case stLookup "" qi vt of
-                 Right e -> e
-                 _       -> impossible
-  in  map (\ qi -> ValueExport (unQualIdent qi) (val qi)) qis
+getAssocs _vt at ai = fromMaybe [] $ M.lookup ai at
 
 mkTCState :: IdentModule -> GlobTables -> [(ImportSpec, TModule a)] -> TCState
 mkTCState mdlName globs mdls =
@@ -378,11 +358,7 @@ mkTCState mdlName globs mdls =
     allFixes = M.fromList (concatMap (tFixDefs . snd) mdls)
     allAssocs :: AssocTable
     allAssocs =
-      let
-        assocs (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _) =
-          let
-            m = fromMaybe mn mas
-          in  [ (qualIdent m i, [qualIdent m a | ValueExport a _ <- cs]) | TypeExport i _ cs <- tes ]
+      let assocs (_, TModule _ _ tes _ _ _) = [ (tyQIdent e, cs) | TypeExport _ e cs <- tes ]
       in  M.fromList $ concatMap assocs mdls
 
     dflts = foldr mergeDefaults M.empty (map (tDefaults . snd) mdls)
@@ -458,7 +434,7 @@ withTypeTable ta = do
   putTCMode otcm
   return a
   
-addAssocTable :: Ident -> [Ident] -> T ()
+addAssocTable :: Ident -> [ValueExport] -> T ()
 addAssocTable i ids = modify $ \ ts -> ts { assocTable = M.insert i ids (assocTable ts) }
 
 addClassTable :: Ident -> ClassInfo -> T ()
@@ -1072,8 +1048,13 @@ addAssocs :: EDef -> T ()
 addAssocs adef = do
   mn <- gets moduleName
   let
-    addAssoc i is =
-      addAssocTable (qualIdent mn i) (map (qualIdent mn) is)
+    addAssoc ti is = do
+      vt <- gets valueTable
+      let val i =
+            case stLookup "" i vt of
+              Right e -> ValueExport i e
+              _       -> impossible
+      addAssocTable (qualIdent mn ti) (map val is)
 
     assocData (Constr _ _ c (Left _)) = [c]
     assocData (Constr _ _ c (Right its)) = c : map fst its
