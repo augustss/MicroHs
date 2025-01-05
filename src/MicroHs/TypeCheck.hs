@@ -960,7 +960,9 @@ tcDefs impt ds = do
   case impt of
     ImpNormal -> do
       setDefault dste
-      tcDefsValue dste
+      dste' <- tcDefsValue dste
+      mapM_ addAssocs dste'
+      return dste'
     ImpBoot ->
       return dste
 
@@ -1051,13 +1053,6 @@ guessIsKind _                             = False
 addTypeKind :: M.Map EKind -> EDef -> T ()
 addTypeKind kdefs adef = do
   let
-    addAssoc i is = do
-      mn <- gets moduleName
-      addAssocTable (qualIdent mn i) (map (qualIdent mn) is)
---    assocData (Constr _ _ c _) = [c]
-    assocData (Constr _ _ c (Left _)) = [c]
-    assocData (Constr _ _ c (Right its)) = c : map fst its
-
     addDef (i, _) = do
       k <-
         case M.lookup i kdefs of
@@ -1066,18 +1061,28 @@ addTypeKind kdefs adef = do
       extValQTop i k
       
   case adef of
-    Data    lhs@(i, _) cs _ -> do
-      addDef lhs
-      addAssoc i (nub $ concatMap assocData cs)
-    Newtype lhs@(i, _) c  _ -> do
-      addDef lhs
-      addAssoc i (assocData c)
-    Type    lhs _           ->
-      addDef lhs
-    Class _ lhs@(i, _) _ ms -> do
-      addDef lhs
-      addAssoc i [ x | BSign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
-    _ -> return ()
+    Data    lhs _ _ -> addDef lhs
+    Newtype lhs _ _ -> addDef lhs
+    Type    lhs _   -> addDef lhs
+    Class _ lhs _ _ -> addDef lhs
+    _               -> return ()
+
+-- Add symbols associated with a type.
+addAssocs :: EDef -> T ()
+addAssocs adef = do
+  mn <- gets moduleName
+  let
+    addAssoc i is =
+      addAssocTable (qualIdent mn i) (map (qualIdent mn) is)
+
+    assocData (Constr _ _ c (Left _)) = [c]
+    assocData (Constr _ _ c (Right its)) = c : map fst its
+
+  case adef of
+    Data    (i, _) cs _ -> addAssoc i (nub $ concatMap assocData cs)
+    Newtype (i, _) c  _ -> addAssoc i (assocData c)
+    Class _ (i, _) _ ms -> addAssoc i [ x | BSign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
+    _                   -> return ()
 
 -- Add type synonyms to the synonym table, and data/newtype to the data table
 addTypeAndData :: EDef -> T ()
@@ -1087,7 +1092,7 @@ addTypeAndData adef = do
     Type    (i, vs) t  -> extSyn  (qualIdent mn i) (EForall True vs t)
     Data    (i, _) _ _ -> extData (qualIdent mn i) adef
     Newtype (i, _) _ _ -> extData (qualIdent mn i) adef
-    _ -> return ()
+    _                  -> return ()
 
 -- Do kind checking of all typeish definitions.
 tcDefType :: HasCallStack => EDef -> T EDef
