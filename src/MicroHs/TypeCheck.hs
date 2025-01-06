@@ -159,27 +159,6 @@ instance MRnf a => MRnf (TModule a) where
 setBindings :: TModule b -> a -> TModule a
 setBindings (TModule x y z w v _) a = TModule x y z w v a
 
-data TypeExport = TypeExport
-  Ident           -- unqualified name
-  Entry           -- symbol table entry
-  [ValueExport]   -- associated values, i.e., constructors, selectors, methods
---  deriving (Show)
-
---instance Show TypeExport where show (TypeExport i _ vs) = showIdent i ++ show vs
-
-instance MRnf TypeExport where
-  mrnf (TypeExport a b c) = mrnf a `seq` mrnf b `seq` mrnf c
-
-data ValueExport = ValueExport
-  Ident           -- unqualified name
-  Entry           -- symbol table entry
---  deriving (Show)
-
---instance Show ValueExport where show (ValueExport i _) = showIdent i
-
-instance MRnf ValueExport where
-  mrnf (ValueExport a b) = mrnf a `seq` mrnf b
-
 type FixDef = (Ident, Fixity)
 
 type Sigma = EType
@@ -348,12 +327,7 @@ mkTModule impt tds tcs =
 -- Find all value Entry for names associated with a type.
 -- XXX join stLookup code with tentry
 getAssocs :: (HasCallStack) => ValueTable -> AssocTable -> Ident -> [ValueExport]
-getAssocs vt at ai =
-  let qis = fromMaybe [] $ M.lookup ai at
-      val qi = case stLookup "" qi vt of
-                 Right e -> e
-                 _       -> impossible
-  in  map (\ qi -> ValueExport (unQualIdent qi) (val qi)) qis
+getAssocs _vt at ai = fromMaybe [] $ M.lookup ai at
 
 mkTCState :: IdentModule -> GlobTables -> [(ImportSpec, TModule a)] -> TCState
 mkTCState mdlName globs mdls =
@@ -391,11 +365,7 @@ mkTCState mdlName globs mdls =
     allFixes = M.fromList (concatMap (tFixDefs . snd) mdls)
     allAssocs :: AssocTable
     allAssocs =
-      let
-        assocs (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _) =
-          let
-            m = fromMaybe mn mas
-          in  [ (qualIdent m i, [qualIdent m a | ValueExport a _ <- cs]) | TypeExport i _ cs <- tes ]
+      let assocs (_, TModule _ _ tes _ _ _) = [ (tyQIdent e, cs) | TypeExport _ e cs <- tes ]
       in  M.fromList $ concatMap assocs mdls
 
     dflts = foldr mergeDefaults M.empty (map (tDefaults . snd) mdls)
@@ -471,7 +441,7 @@ withTypeTable ta = do
   putTCMode otcm
   return a
   
-addAssocTable :: Ident -> [Ident] -> T ()
+addAssocTable :: Ident -> [ValueExport] -> T ()
 addAssocTable i ids = modify $ \ ts -> ts { assocTable = M.insert i ids (assocTable ts) }
 
 addClassTable :: Ident -> ClassInfo -> T ()
@@ -973,7 +943,9 @@ tcDefs impt ds = do
   case impt of
     ImpNormal -> do
       setDefault dste
-      tcDefsValue dste
+      dste' <- tcDefsValue dste
+      mapM_ addAssocs dste'
+      return dste'
     ImpBoot ->
       return dste
 
@@ -1064,13 +1036,6 @@ guessIsKind _                             = False
 addTypeKind :: M.Map EKind -> EDef -> T ()
 addTypeKind kdefs adef = do
   let
-    addAssoc i is = do
-      mn <- gets moduleName
-      addAssocTable (qualIdent mn i) (map (qualIdent mn) is)
---    assocData (Constr _ _ c _) = [c]
-    assocData (Constr _ _ c (Left _)) = [c]
-    assocData (Constr _ _ c (Right its)) = c : map fst its
-
     addDef (i, _) = do
       k <-
         case M.lookup i kdefs of
@@ -1079,18 +1044,33 @@ addTypeKind kdefs adef = do
       extValQTop i k
       
   case adef of
-    Data    lhs@(i, _) cs _ -> do
-      addDef lhs
-      addAssoc i (nub $ concatMap assocData cs)
-    Newtype lhs@(i, _) c  _ -> do
-      addDef lhs
-      addAssoc i (assocData c)
-    Type    lhs _           ->
-      addDef lhs
-    Class _ lhs@(i, _) _ ms -> do
-      addDef lhs
-      addAssoc i [ x | BSign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
-    _ -> return ()
+    Data    lhs _ _ -> addDef lhs
+    Newtype lhs _ _ -> addDef lhs
+    Type    lhs _   -> addDef lhs
+    Class _ lhs _ _ -> addDef lhs
+    _               -> return ()
+
+-- Add symbols associated with a type.
+addAssocs :: EDef -> T ()
+addAssocs adef = do
+  mn <- gets moduleName
+  let
+    addAssoc ti is = do
+      vt <- gets valueTable
+      let val i =
+            case stLookup "" i vt of
+              Right e -> ValueExport i e
+              _       -> impossible
+      addAssocTable (qualIdent mn ti) (map val is)
+
+    assocData (Constr _ _ c (Left _)) = [c]
+    assocData (Constr _ _ c (Right its)) = c : map fst its
+
+  case adef of
+    Data    (i, _) cs _ -> addAssoc i (nub $ concatMap assocData cs)
+    Newtype (i, _) c  _ -> addAssoc i (assocData c)
+    Class _ (i, _) _ ms -> addAssoc i [ x | BSign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
+    _                   -> return ()
 
 -- Add type synonyms to the synonym table, and data/newtype to the data table
 addTypeAndData :: EDef -> T ()
@@ -1100,7 +1080,7 @@ addTypeAndData adef = do
     Type    (i, vs) t  -> extSyn  (qualIdent mn i) (EForall True vs t)
     Data    (i, _) _ _ -> extData (qualIdent mn i) adef
     Newtype (i, _) _ _ -> extData (qualIdent mn i) adef
-    _ -> return ()
+    _                  -> return ()
 
 -- Do kind checking of all typeish definitions.
 tcDefType :: HasCallStack => EDef -> T EDef
@@ -1274,8 +1254,8 @@ expandInst dinst@(Instance act bs) = do
   -- XXX this ignores type signatures and other bindings
   -- XXX should tack on signatures with ESign
   let clsMdl = qualOf qiCls                   -- get class's module name
-      ies = [(i, ELam qs) | BFcn i qs <- bs]
-      meth i = fromMaybe (ELam $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
+      ies = [(i, ELam noSLoc qs) | BFcn i qs <- bs]
+      meth i = fromMaybe (ELam noSLoc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
@@ -1683,7 +1663,7 @@ tcExprR mt ae =
             _ -> return $ substEUVar [(ugly, res)] etmp'
 
     EOper e ies -> tcOper e ies >>= tcExpr mt
-    ELam qs -> tcExprLam mt qs
+    ELam _ qs -> tcExprLam mt loc qs
     ELit _ lit -> do
       tcm <- gets tcMode
       case tcm of
@@ -2060,10 +2040,10 @@ dictPrefixDollar = dictPrefix ++ uniqIdentSep
 newDictIdent :: SLoc -> T Ident
 newDictIdent loc = newIdent loc dictPrefix
 
-tcExprLam :: Expected -> [Eqn] -> T Expr
-tcExprLam mt qs = do
+tcExprLam :: Expected -> SLoc -> [Eqn] -> T Expr
+tcExprLam mt loc qs = do
   t <- tGetExpType mt
-  ELam <$> tcEqns False t qs
+  ELam loc <$> tcEqns False t qs
 
 tcEqns :: Bool -> EType -> [Eqn] -> T [Eqn]
 --tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (BFcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
@@ -2289,7 +2269,7 @@ tcPat mt ae =
         Nothing -> impossible
 
     EOr ps -> do
-      let orFun = ELam $ [ eEqn [p] true | p <- ps] ++ [ eEqn [eDummy] (eFalse loc) ]
+      let orFun = ELam noSLoc $ [ eEqn [p] true | p <- ps] ++ [ eEqn [eDummy] (eFalse loc) ]
           true = eTrue loc
       tcPat mt $ EViewPat orFun true
 

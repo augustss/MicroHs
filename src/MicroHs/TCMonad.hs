@@ -41,6 +41,29 @@ tcTrace msg = do
   seq s' (put s')
 
 -----------------------------------------------
+
+data TypeExport = TypeExport
+  Ident           -- unqualified name
+  Entry           -- symbol table entry
+  [ValueExport]   -- associated values, i.e., constructors, selectors, methods
+--  deriving (Show)
+
+--instance Show TypeExport where show (TypeExport i _ vs) = showIdent i ++ show vs
+
+instance MRnf TypeExport where
+  mrnf (TypeExport a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+
+data ValueExport = ValueExport
+  Ident           -- unqualified name
+  Entry           -- symbol table entry
+--  deriving (Show)
+
+--instance Show ValueExport where show (ValueExport i _) = showIdent i
+
+instance MRnf ValueExport where
+  mrnf (ValueExport a b) = mrnf a `seq` mrnf b
+
+-----------------------------------------------
 -- Tables
 
 type ValueTable = SymTab           -- type of value identifiers, used during type checking values
@@ -49,7 +72,7 @@ type KindTable  = SymTab           -- sort of kind  identifiers, used during sor
 type SynTable   = M.Map EType      -- body of type synonyms
 type DataTable  = M.Map EDef       -- data/newtype definitions (only used for standalone deriving)
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
-type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated constructors/selectors/methods
+type AssocTable = M.Map [ValueExport] -- maps a type identifier to its associated constructors/selectors/methods
 type ClassTable = M.Map ClassInfo  -- maps a class identifier to its associated information
 type InstTable  = M.Map InstInfo   -- indexed by class name
 type MetaTable  = [(Ident, EConstraint)]  -- instances with unification variables

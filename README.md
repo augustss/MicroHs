@@ -51,6 +51,7 @@ Differences:
    * DefaultSignatures
    * DoAndIfThenElse
    * DuplicateRecordFields
+   * EmptyCase
    * EmptyDataDecls
    * ExistentialQuantification
    * ExplicitNamespaces
