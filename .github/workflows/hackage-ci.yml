@@ -51,6 +51,18 @@ jobs:
         cd transformers
         mcabal install
 
+    # time
+    - name: checkout time repo
+      uses: actions/checkout@v4
+      with:
+        repository: haskell/time
+        path: time
+    - name: compile and install time package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd time
+        mcabal install
+
     # malcolm-wallace-universe
     - name: checkout malcolm-wallace-universe repo
       uses: actions/checkout@v4
