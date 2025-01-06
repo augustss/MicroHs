@@ -206,7 +206,8 @@ compileModule flags impt mn pathfn file = do
   modify $ setCacheTables glob'
   when (verbosityGT flags 3) $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
-  () <- return $ mrnf tmdl
+  () <- when False $ do               -- Always forcing is slower.  Maybe add a flag?
+          mrnf tmdl `seq` return ()
   let
     dmdl = desugar flags tmdl
   () <- return $ rnfErr $ tBindingsOf dmdl
