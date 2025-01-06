@@ -151,6 +151,7 @@ data Expr
   | ENegApp Expr
   | EUpdate Expr [EField]
   | ESelect [Ident]
+  | ETypeArg EType           -- @type
   -- only in patterns
   | EAt Ident EPat
   | EViewPat Expr EPat
@@ -185,6 +186,7 @@ instance MRnf Expr where
   mrnf (ENegApp a) = mrnf a
   mrnf (EUpdate a b) = mrnf a `seq` mrnf b
   mrnf (ESelect a) = mrnf a
+  mrnf (ETypeArg a) = mrnf a
   mrnf (EAt a b) = mrnf a `seq` mrnf b
   mrnf (EViewPat a b) = mrnf a `seq` mrnf b
   mrnf (ELazy a b) = mrnf a `seq` mrnf b
@@ -494,7 +496,8 @@ instance HasLoc Expr where
   getSLoc (ESign e _) = getSLoc e
   getSLoc (ENegApp e) = getSLoc e
   getSLoc (EUpdate e _) = getSLoc e
-  getSLoc (ESelect is) = getSLoc (head is)
+  getSLoc (ESelect is) = getSLoc is
+  getSLoc (ETypeArg t) = getSLoc t
   getSLoc (EAt i _) = getSLoc i
   getSLoc (EViewPat e _) = getSLoc e
   getSLoc (ELazy _ e) = getSLoc e
@@ -655,6 +658,7 @@ allVarsExpr' aexpr =
     ENegApp e -> allVarsExpr' e
     EUpdate e ies -> allVarsExpr' e . composeMap field ies
     ESelect _ -> id
+    ETypeArg _ -> id
     EAt i e -> (i :) . allVarsExpr' e
     EViewPat e p -> allVarsExpr' e . allVarsExpr' p
     ELazy _ p -> allVarsExpr' p
@@ -829,12 +833,11 @@ ppExprRaw :: Expr -> Doc
 ppExprRaw = ppExprR True
 
 ppExpr :: Expr -> Doc
-ppExpr = ppExprR True -- False
+ppExpr = ppExprR False
 
 ppExprR :: Bool -> Expr -> Doc
-ppExprR _raw = ppE
+ppExprR raw = ppE
   where
-    raw = True
     ppE :: Expr -> Doc
     ppE ae =
       case ae of
@@ -863,6 +866,7 @@ ppExprR _raw = ppE
         ENegApp e -> text "-" <+> ppE e
         EUpdate ee ies -> ppE ee <> text "{" <+> hsep (punctuate (text ",") (map ppField ies)) <+> text "}"
         ESelect is -> parens $ hcat $ map (\ i -> text "." <> ppIdent i) is
+        ETypeArg t -> text "@" <> ppE t
         EAt i e -> ppIdent i <> text "@" <> ppE e
         EViewPat e p -> parens $ ppE e <+> text "->" <+> ppE p
         ELazy True p -> text "~" <> ppE p
@@ -1059,4 +1063,3 @@ getImplies :: EType -> Maybe (EType, EType)
 getImplies (EApp (EApp (EVar n) a) b) =
   if isIdent "=>" n || isIdent "Primitives.=>" n then Just (a, b) else Nothing
 getImplies _ = Nothing
-

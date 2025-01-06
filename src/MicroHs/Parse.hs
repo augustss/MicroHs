@@ -739,6 +739,7 @@ pAExpr' = (
   <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprOp <* pSpec ')'))
   <|< (ESelect <$> (pSpec '(' *> esome pSelect <* pSpec ')'))
   <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
+  <|< (ETypeArg <$> (pSpec '@' *> pAType))
   )
   -- This weirdly slows down parsing
   -- <?> "aexpr"
