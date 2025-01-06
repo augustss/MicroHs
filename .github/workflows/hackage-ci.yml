@@ -3,7 +3,9 @@ name: hackage-ci
 # Build some hackage packages:
 #  containers time polyparse hscolour cpphs pretty
 # and some currently modified packages:
-#  transformers mtl parsec
+#  * transformers      master source in darcs
+#  * mtl               PR not submitted yet
+#  * parsec
 
 on:
   push:
@@ -30,7 +32,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: haskell/containers
-        path: transformers
+        path: containers
     - name: compile and install containers package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
@@ -88,7 +90,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: haskell/pretty
-        path: transformers
+        path: pretty
     - name: compile and install pretty package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
