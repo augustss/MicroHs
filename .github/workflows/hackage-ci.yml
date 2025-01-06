@@ -70,7 +70,7 @@ jobs:
     - name: compile and install cpphs
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd malcolm-wallace-universe/spphs-1.20.9
+        cd malcolm-wallace-universe/cpphs-1.20.9
         mcabal install
 
     # mtl
