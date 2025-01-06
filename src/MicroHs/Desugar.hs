@@ -117,7 +117,7 @@ dsEqns loc eqns =
           in  (ps', dsAlts alts)
         ex = dsCaseExp loc (vs ++ xs) (map Var xs) (map mkArm eqns)
       in foldr Lam ex xs
-    _ -> impossible
+    _ -> eMatchErr loc
 
 dsAlts :: EAlts -> (Exp -> Exp)
 dsAlts (EAlts alts bs) = dsBinds bs . dsAltsL alts
@@ -219,7 +219,7 @@ dsExpr aexpr =
     EApp (EApp (EVar app) (EListish (LCompr e stmts))) l | app == mkIdent "Data.List_Type.++" ->
       dsExpr $ dsCompr e stmts l
     EApp f a -> App (dsExpr f) (dsExpr a)
-    ELam qs -> dsEqns (getSLoc aexpr) qs
+    ELam l qs -> dsEqns l qs
     ELit l (LExn s) -> Var (mkIdentSLoc l s)
     ELit _ (LChar c) -> Lit (LInt (ord c))
     ELit _ (LInteger i) -> encodeInteger i
