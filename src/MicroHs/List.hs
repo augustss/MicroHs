@@ -60,6 +60,9 @@ anySameByLE le = anySameAdj . sortLE le
       | otherwise = anySameAdj xs
     anySameAdj _ = False
 
+groupSort :: (Ord a) => [a] -> [[a]]
+groupSort = group . sortLE (<=)
+
 deleteAllBy :: forall a . (a -> a -> Bool) -> a -> [a] -> [a]
 deleteAllBy _ _ [] = []
 deleteAllBy eq x (y:ys) = if eq x y then deleteAllBy eq x ys else y : deleteAllBy eq x ys

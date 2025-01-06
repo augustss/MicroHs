@@ -389,6 +389,15 @@ dsLazy (ps, rhs) =
 eSeq :: Exp -> Exp -> Exp
 eSeq e1 e2 = App (App (Lit (LPrim "seq")) e1) e2
 
+-- XXX quadratic.  but only used for short lists
+groupEq :: forall a . (a -> a -> Bool) -> [a] -> [[a]]
+groupEq eq axs =
+  case axs of
+    [] -> []
+    x:xs ->
+      case partition (eq x) xs of
+        (es, ns) -> (x:es) : groupEq eq ns
+
 -- Desugar a pattern matrix.
 -- The input is a (usually identifier) vector e1, ..., en
 -- and patterns matrix p11, ..., p1n   -> e1
@@ -529,21 +538,12 @@ pArgs apat =
     ELit _ _ -> []
     _ -> impossible
 
--- XXX quadratic
-groupEq :: forall a . (a -> a -> Bool) -> [a] -> [[a]]
-groupEq eq axs =
-  case axs of
-    [] -> []
-    x:xs ->
-      case partition (eq x) xs of
-        (es, ns) -> (x:es) : groupEq eq ns
-
-getDups :: forall a . (a -> a -> Bool) -> [a] -> [[a]]
-getDups eq = filter ((> 1) . length) . groupEq eq
+getDups :: (Ord a) => [a] -> [[a]]
+getDups = filter ((> 1) . length) . groupSort
 
 checkDup :: [LDef] -> [LDef]
 checkDup ds =
-  case getDups (==) (filter (/= dummyIdent) $ map fst ds) of
+  case getDups $ filter (/= dummyIdent) $ map fst ds of
     [] -> ds
     (i1:_i2:_) : _ ->
       errorMessage (getSLoc i1) $ "duplicate definition " ++ showIdent i1
