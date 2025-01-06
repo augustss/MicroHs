@@ -11,6 +11,7 @@ import MicroHs.Desugar(LDef)
 import MicroHs.Expr(IdentModule)
 import MicroHs.Ident(showIdent)
 import qualified MicroHs.IdentMap as M
+import MicroHs.MRnf
 import MicroHs.Package
 import MicroHs.TypeCheck(TModule, tModuleName, GlobTables, emptyGlobTables, mergeGlobTables)
 import System.IO
@@ -29,6 +30,10 @@ data CacheEntry =
     (TModule [LDef])                    -- the cached module
 --  deriving (Show)
 
+instance MRnf CacheEntry where
+  mrnf (CompMdl a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+  mrnf (PkgMdl a) = mrnf a
+
 tModuleOf :: CacheEntry -> TModule [LDef]
 tModuleOf (CompMdl t _ _) = t
 tModuleOf (PkgMdl t) = t
@@ -45,6 +50,12 @@ data Cache = Cache {
   tables  :: GlobTables
   }
 --  deriving (Show)
+
+instance MRnf Cache where
+  mrnf (Cache a b c d e) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e
+
+forceCache :: Cache -> Cache
+forceCache c = mrnf c `seq` c
 
 getCacheTables :: Cache -> GlobTables
 getCacheTables = tables
@@ -114,7 +125,7 @@ addPackage f p c = c{
   where ins t = M.insert (tModuleName t) (PkgMdl t)
 
 saveCache :: FilePath -> Cache -> IO ()
-saveCache fn cash = writeSerializedCompressed fn cash
+saveCache fn cash = writeSerializedCompressed fn (forceCache cash)
 
 loadCached :: FilePath -> IO (Maybe Cache)
 loadCached fn = do
