@@ -1247,8 +1247,8 @@ expandInst dinst@(Instance act bs) = do
   -- XXX this ignores type signatures and other bindings
   -- XXX should tack on signatures with ESign
   let clsMdl = qualOf qiCls                   -- get class's module name
-      ies = [(i, ELam qs) | BFcn i qs <- bs]
-      meth i = fromMaybe (ELam $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
+      ies = [(i, ELam noSLoc qs) | BFcn i qs <- bs]
+      meth i = fromMaybe (ELam noSLoc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
@@ -1656,7 +1656,7 @@ tcExprR mt ae =
             _ -> return $ substEUVar [(ugly, res)] etmp'
 
     EOper e ies -> tcOper e ies >>= tcExpr mt
-    ELam qs -> tcExprLam mt qs
+    ELam _ qs -> tcExprLam mt loc qs
     ELit _ lit -> do
       tcm <- gets tcMode
       case tcm of
@@ -2033,10 +2033,10 @@ dictPrefixDollar = dictPrefix ++ uniqIdentSep
 newDictIdent :: SLoc -> T Ident
 newDictIdent loc = newIdent loc dictPrefix
 
-tcExprLam :: Expected -> [Eqn] -> T Expr
-tcExprLam mt qs = do
+tcExprLam :: Expected -> SLoc -> [Eqn] -> T Expr
+tcExprLam mt loc qs = do
   t <- tGetExpType mt
-  ELam <$> tcEqns False t qs
+  ELam loc <$> tcEqns False t qs
 
 tcEqns :: Bool -> EType -> [Eqn] -> T [Eqn]
 --tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (BFcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
@@ -2262,7 +2262,7 @@ tcPat mt ae =
         Nothing -> impossible
 
     EOr ps -> do
-      let orFun = ELam $ [ eEqn [p] true | p <- ps] ++ [ eEqn [eDummy] (eFalse loc) ]
+      let orFun = ELam noSLoc $ [ eEqn [p] true | p <- ps] ++ [ eEqn [eDummy] (eFalse loc) ]
           true = eTrue loc
       tcPat mt $ EViewPat orFun true
 

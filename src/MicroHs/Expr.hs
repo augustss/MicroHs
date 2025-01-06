@@ -6,7 +6,7 @@ module MicroHs.Expr(
   ImportItem(..),
   ImpType(..),
   EDef(..), showEDefs,
-  Expr(..), eLam, eEqn, eEqns, showExpr, eqExpr,
+  Expr(..), eLam, eLamWithSLoc, eEqn, eEqns, showExpr, eqExpr,
   Listish(..),
   Lit(..), showLit,
   CType(..),
@@ -107,7 +107,7 @@ data Expr
   = EVar Ident
   | EApp Expr Expr
   | EOper Expr [(Ident, Expr)]
-  | ELam [Eqn]
+  | ELam SLoc [Eqn]
   | ELit SLoc Lit
   | ECase Expr [ECaseArm]
   | ELet [EBind] Expr
@@ -150,7 +150,10 @@ unEField _ = impossible
 type FunDep = ([Ident], [Ident])
 
 eLam :: [EPat] -> Expr -> Expr
-eLam ps e = ELam $ eEqns ps e
+eLam = eLamWithSLoc noSLoc
+
+eLamWithSLoc :: SLoc -> [EPat] -> Expr -> Expr
+eLamWithSLoc loc ps e = ELam loc $ eEqns ps e
 
 eEqns :: [EPat] -> Expr -> [Eqn]
 eEqns ps e = [eEqn ps e]
@@ -361,7 +364,7 @@ instance HasLoc Expr where
   getSLoc (EVar i) = getSLoc i
   getSLoc (EApp e _) = getSLoc e
   getSLoc (EOper e _) = getSLoc e
-  getSLoc (ELam qs) = getSLoc qs
+  getSLoc (ELam l _) = l
   getSLoc (ELit l _) = l
   getSLoc (ECase e _) = getSLoc e
   getSLoc (ELet bs _) = getSLoc bs
@@ -519,7 +522,7 @@ allVarsExpr' aexpr =
     EVar i -> (i:)
     EApp e1 e2 -> allVarsExpr' e1 . allVarsExpr' e2
     EOper e1 ies -> allVarsExpr' e1 . composeMap (\ (i,e2) -> (i :) . allVarsExpr' e2) ies
-    ELam qs -> composeMap allVarsEqn qs
+    ELam _ qs -> composeMap allVarsEqn qs
     ELit _ _ -> id
     ECase e as -> allVarsExpr' e . composeMap allVarsCaseArm as
     ELet bs e -> composeMap allVarsBind' bs . allVarsExpr' e
@@ -727,7 +730,7 @@ ppExprR raw = ppE
                        cop = head op
         EApp _ _ -> ppApp [] ae
         EOper e ies -> ppE (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
-        ELam qs -> parens $ text "\\" <> ppEqns empty (text "->") qs
+        ELam _ qs -> parens $ text "\\" <> ppEqns empty (text "->") qs
         ELit _ i -> text (showLit i)
         ECase e as -> text "case" <+> ppE e <+> text "of" $$ nest 2 (vcat (map ppCaseArm as))
         ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppE e

@@ -658,14 +658,15 @@ pExprApp = do
   pure $ foldl EApp f as
 
 pLam :: P Expr
-pLam =
-    pSpec '\\' *>
-      (    eLam <$> esome pAPat <*> (pSRArrow *> pExpr)
-       <|< eLamCase <$> (pKeyword "case" *> pBlock pCaseArm)
-      )
+pLam = do
+  loc <- getSLoc
+  pSpec '\\' *>
+    (    eLamWithSLoc loc <$> esome pAPat <*> (pSRArrow *> pExpr)
+     <|< eLamCase loc <$> (pKeyword "case" *> pBlock pCaseArm)
+    )
 
-eLamCase :: [ECaseArm] -> Expr
-eLamCase as = ELam [ Eqn [p] a | (p, a) <- as ]
+eLamCase :: SLoc -> [ECaseArm] -> Expr
+eLamCase loc as = ELam loc [ Eqn [p] a | (p, a) <- as ]
 
 pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword "of" *> pBlock pCaseArm)
