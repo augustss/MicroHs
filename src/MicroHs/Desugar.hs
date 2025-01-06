@@ -117,7 +117,7 @@ dsEqns loc eqns =
           in  (ps', dsAlts alts)
         ex = dsCaseExp loc (vs ++ xs) (map Var xs) (map mkArm eqns)
       in foldr Lam ex xs
-    _ -> impossible
+    _ -> eMatchErr loc
 
 dsAlts :: EAlts -> (Exp -> Exp)
 dsAlts (EAlts alts bs) = dsBinds bs . dsAltsL alts

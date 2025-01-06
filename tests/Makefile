@@ -81,6 +81,7 @@ test:
 	$(TMHS) PatSyn     && $(EVAL) > PatSyn.out     && diff PatSyn.ref PatSyn.out
 	$(TMHS) Coerce     && $(EVAL) > Coerce.out     && diff Coerce.ref Coerce.out
 	$(TMHS) PatBind    && $(EVAL) > PatBind.out    && diff PatBind.ref PatBind.out
+	$(TMHS) EmptyCase  && $(EVAL) > EmptyCase.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

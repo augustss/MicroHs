@@ -137,11 +137,11 @@ runtest:	bin/mhseval bin/gmhs tests/*.hs
 	cd tests; make alltest
 
 # Run test examples with mhs-compiled compiler
-runtestmhs: bin/mhs
+runtestmhs: bin/mhseval bin/mhs
 	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H4M -RTS -CR" info test errtest
 
 # Run test examples going via JavaScript
-runtestemscripten: bin/mhs
+runtestemscripten: bin/mhseval bin/mhs
 	cd tests; make MHS=../bin/mhs cache; MHSDIR=.. make MHS="../bin/mhs -CR -temscripten -oout.js" EVAL="node out.js" info test errtest
 
 
