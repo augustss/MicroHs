@@ -1053,14 +1053,15 @@ addAssocs adef = do
       let val i =
             case stLookup "" i vt of
               Right e -> ValueExport i e
-              _       -> impossible
+              _       -> impossibleShow i
       addAssocTable (qualIdent mn ti) (map val is)
 
     assocData (Constr _ _ c (Left _)) = [c]
     assocData (Constr _ _ c (Right its)) = c : map fst its
 
   case adef of
-    Data    (i, _) cs _ -> addAssoc i (nub $ concatMap assocData cs)
+    Data    (i, _) cs _ | not (isMatchDataTypeName i)
+                        -> addAssoc i (nub $ concatMap assocData cs)
     Newtype (i, _) c  _ -> addAssoc i (assocData c)
     Class _ (i, _) _ ms -> addAssoc i [ x | BSign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
     _                   -> return ()
@@ -2690,6 +2691,9 @@ mkPatSynMatch i = addIdentSuffix i "%"
 
 mkMatchDataTypeName :: Ident -> Ident
 mkMatchDataTypeName i = addIdentSuffix i "T"
+
+isMatchDataTypeName :: Ident -> Bool
+isMatchDataTypeName = isSuffixOf "%T" . unIdent
 
 -- A pattern synonym always has a type of the form
 --  forall vs1 . ctx1 => forall vs2 . ctx2 => ty
