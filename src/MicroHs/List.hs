@@ -49,12 +49,8 @@ showListS sa arg =
       [] -> "[]"
       a : as -> "[" ++ sa a ++ showRest as
 
-anySame :: (Eq a) => [a] -> Bool
-anySame = anySameBy (==)
-
-anySameBy :: (a -> a -> Bool) -> [a] -> Bool
-anySameBy _ [] = False
-anySameBy eq (x:xs) = elemBy eq x xs || anySameBy eq xs
+anySame :: (Ord a) => [a] -> Bool
+anySame = anySameByLE (<=)
 
 anySameByLE :: (a -> a -> Bool) -> [a] -> Bool
 anySameByLE le = anySameAdj . sortLE le
