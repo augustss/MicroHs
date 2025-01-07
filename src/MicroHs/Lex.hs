@@ -82,18 +82,9 @@ lex loc (d:cs) | isLower_ d =
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('0':x:cs)
-  | toLower x == 'x' =
-    case readIntBase 16 isHexDigit cs of
-      Just (n, len, rs) -> TInt loc n : lex (addCol loc $ len + 2) rs
-      Nothing -> TInt loc 0 : lex (addCol loc 1) (x : cs)
-  | toLower x == 'o' =
-    case readIntBase 8 isOctDigit cs of
-      Just (n, len, rs) -> TInt loc n : lex (addCol loc $ len + 2) rs
-      Nothing -> TInt loc 0 : lex (addCol loc 1) (x : cs)
-  | toLower x == 'b' =
-    case readIntBase 2 isBinDigit cs of
-      Just (n, len, rs) -> TInt loc n : lex (addCol loc $ len + 2) rs
-      Nothing -> TInt loc 0 : lex (addCol loc 1) (x : cs)
+  | toLower x == 'x' = lexNumBasePrefix x 16 isHexDigit loc cs
+  | toLower x == 'o' = lexNumBasePrefix x  8 isOctDigit loc cs
+  | toLower x == 'b' = lexNumBasePrefix x  2 isBinDigit loc cs
   where isBinDigit c = c == '0' || c == '1'
 lex loc cs@(d:_) | isDigit d =
   case readNumDec cs of
@@ -137,6 +128,13 @@ lex loc [] = [TEnd loc]
 nested :: SLoc -> [Char] -> [Token]
 nested loc ('#':cs) = pragma loc cs
 nested loc cs = skipNest loc 1 cs
+
+-- lex a number of the form '0':x:cs
+lexNumBasePrefix :: Char -> Integer -> (Char -> Bool) -> SLoc -> String -> [Token]
+lexNumBasePrefix x base isDig loc cs =
+  case readIntBase base isDig cs of
+    Just (n, len, rs) -> TInt loc n : lex (addCol loc $ len + 2) rs
+    Nothing -> TInt loc 0 : lex (addCol loc 1) (x : cs)
 
 readIntBase :: Integer -> (Char -> Bool) -> String -> Maybe (Integer, Int, String)
 readIntBase base isDig ds =
