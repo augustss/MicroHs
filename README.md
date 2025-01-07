@@ -47,6 +47,7 @@ Differences:
  * Kind variables need an explicit `forall`.
  * Always enabled extension:
    * BangPatterns
+   * BinaryLiterals
    * ConstraintKinds
    * DefaultSignatures
    * DoAndIfThenElse
@@ -76,6 +77,7 @@ Differences:
    * NegativeLiterals
    * NoMonomorphismRestriction
    * NoStarIsType
+   * NumericUnderscores
    * OrPatterns
    * OverlappingInstances
    * OverloadedRecordDot

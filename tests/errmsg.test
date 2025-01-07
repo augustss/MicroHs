@@ -153,4 +153,77 @@ x = case undefined of
 "../tmp/E.hs": line 5, col 7: too many arguments
 
 =====
+module E() where
+x = 1000000_
+-----
+"../tmp/E.hs": line 3, col 12: _ cannot be used as a variable
+
+=====
+module E() where
+x = _1000000
+-----
+"../tmp/E.hs": line 3, col 5: undefined value: _1000000
+
+=====
+module E() where
+x = _0.0001
+-----
+"../tmp/E.hs": line 3, col 5: undefined value: _0
+
+=====
+module E() where
+x = 0_.0001
+-----
+"../tmp/E.hs": line 3, col 6: _ cannot be used as a variable
+
+=====
+module E() where
+x = 0._0001
+-----
+"../tmp/E.hs": line 3, col 7: Cannot satisfy constraint: (HasField "_0001" Integer b)
+     fully qualified: (Data.Records.HasField "_0001" Data.Integer_Type.Integer b)
+
+=====
+module E() where
+x = 0.0001_
+-----
+"../tmp/E.hs": line 3, col 11: _ cannot be used as a variable
+
+=====
+module E() where
+x = 1e_+23
+-----
+"../tmp/E.hs": line 3, col 6: undefined value: e_
+
+=====
+module E() where
+x = 1e+_23
+-----
+"../tmp/E.hs": line 3, col 6: undefined value: e
+
+=====
+module E() where
+x = 1e_23
+-----
+"../tmp/E.hs": line 3, col 6: undefined value: e_23
+
+=====
+module E() where
+x = 1e23_
+-----
+"../tmp/E.hs": line 3, col 9: _ cannot be used as a variable
+
+=====
+module E() where
+x = _0xffff
+-----
+"../tmp/E.hs": line 3, col 5: undefined value: _0xffff
+
+=====
+module E() where
+x = 0xffff_
+-----
+"../tmp/E.hs": line 3, col 11: _ cannot be used as a variable
+
+=====
 END
