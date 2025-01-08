@@ -112,7 +112,8 @@ instance Eq Sign where
 -- Trim off 0s and make an Integer
 sI :: Sign -> [Digit] -> Integer
 sI s ds =
-  case trim0 ds of
+  -- Remove trailing 0s
+  case dropWhileEnd (== (0 :: Word)) ds of
     []  -> I Plus []
     ds' -> I s    ds'
 
@@ -166,10 +167,6 @@ subW :: Digit -> Digit -> Digit -> (Digit, Digit)
 subW b x y =
   let d = maxD + x - y - b
   in (1 - quotMaxD d, remMaxD d)
-
--- Remove trailing 0s
-trim0 :: [Digit] -> [Digit]
-trim0 = reverse . dropWhile (== (0 :: Word)) . reverse
 
 -- Is axs < ays?
 ltW :: [Digit] -> [Digit] -> Bool
