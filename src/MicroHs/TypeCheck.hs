@@ -1622,7 +1622,7 @@ tcExprR mt ae =
                Check t -> addConstraint d t
              return (EVar d)
 
-           | isDummyIdent i -> impossibleShow ae
+           | isDummyIdent i -> tcError loc "_ cannot be used as a variable"
            | otherwise -> do
              -- Type checking an expression (or type)
              (e, t) <- tLookupV i

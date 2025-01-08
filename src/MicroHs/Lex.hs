@@ -8,6 +8,7 @@ module MicroHs.Lex(
 import Prelude(); import MHSPrelude hiding(lex)
 import Data.Char
 import Data.List
+import Data.Maybe (fromJust)
 import MicroHs.Ident
 import Text.ParserComb(TokenMachine(..))
 
@@ -80,10 +81,15 @@ lex loc (d:cs) | isLower_ d =
   case span isIdentChar cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
-lex loc ('0':x:cs) | toLower x == 'x' = hexNumber loc cs
-                   | toLower x == 'o' = octNumber loc cs
-                   | toLower x == 'b' = binNumber loc cs
-lex loc cs@(d:_) | isDigit d = number loc cs
+lex loc ('0':x:cs)
+  | toLower x == 'x' = lexNumBasePrefix x 16 isHexDigit loc cs
+  | toLower x == 'o' = lexNumBasePrefix x  8 isOctDigit loc cs
+  | toLower x == 'b' = lexNumBasePrefix x  2 isBinDigit loc cs
+  where isBinDigit c = c == '0' || c == '1'
+lex loc cs@(d:_) | isDigit d =
+  case readNumDec cs of
+    (Left n, len, rs) -> TInt loc n : lex (addCol loc len) rs
+    (Right q, len, rs) -> TRat loc q : lex (addCol loc len) rs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
 -- Recognize #line 123 "file/name.hs"
@@ -123,42 +129,64 @@ nested :: SLoc -> [Char] -> [Token]
 nested loc ('#':cs) = pragma loc cs
 nested loc cs = skipNest loc 1 cs
 
-hexNumber :: SLoc -> String -> [Token]
-hexNumber loc cs =
-  case span isHexDigit cs of
-    (ds, rs) -> TInt loc (readBase 16 ds) : lex (addCol loc $ length ds + 2) rs
+-- lex a number of the form '0':x:cs
+lexNumBasePrefix :: Char -> Integer -> (Char -> Bool) -> SLoc -> String -> [Token]
+lexNumBasePrefix x base isDig loc cs =
+  case readIntBase base isDig cs of
+    Just (n, len, rs) -> TInt loc n : lex (addCol loc $ len + 2) rs
+    Nothing -> TInt loc 0 : lex (addCol loc 1) (x : cs)
 
-octNumber :: SLoc -> String -> [Token]
-octNumber loc cs =
-  case span isOctDigit cs of
-    (ds, rs) -> TInt loc (readBase 8 ds) : lex (addCol loc $ length ds + 2) rs
-
-binNumber :: SLoc -> String -> [Token]
-binNumber loc cs =
-  case span isBinDigit cs of
-    (ds, rs) -> TInt loc (readBase 2 ds) : lex (addCol loc $ length ds + 2) rs
-  where isBinDigit c = c == '0' || c == '1'
-
-number :: SLoc -> String -> [Token]
-number loc cs =
-  case span isDigit cs of
-    (ds, rs) | null rs || not (head rs == '.') || (take 2 rs) == ".." ->
-               case expo rs of
-                 Nothing -> TInt loc (readBase 10 ds) : lex (addCol loc $ length ds) rs
-                 Just (es, rs') -> mkD (ds ++ es) rs'
-             | otherwise ->
-               case span isDigit (tail rs) of
-                 (ns, rs') ->
-                   let s = ds ++ '.':ns
-                   in  case expo rs' of
-                         Nothing -> mkD s rs'
-                         Just (es, rs'') -> mkD (s ++ es) rs''
+readIntBase :: Integer -> (Char -> Bool) -> String -> Maybe (Integer, Int, String)
+readIntBase base isDig ds =
+    let (n, len, rest) = goDig 0 0 ds
+    in if len > 0 then Just (n, len, rest) else Nothing
   where
-    expo (e:'-':xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':'-':as, bs) where (as, bs) = span isDigit xs
-    expo (e:'+':xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':'+':as, bs) where (as, bs) = span isDigit xs
-    expo (e:    xs@(d:_)) | toLower e == 'e' && isDigit d = Just ('e':    as, bs) where (as, bs) = span isDigit xs
-    expo _ = Nothing
-    mkD x r = TRat loc (readRational x) : lex (addCol loc $ length x) r
+    goSep acc lastLen lastRest len ('_' : cs) = goSep acc lastLen lastRest (len + 1) cs
+    goSep acc _ _ len (d : cs) | isDig d = goDig (addDigit acc d) (len + 1) cs
+    goSep acc lastLen lastRest _ _ = (acc, lastLen, lastRest)
+
+    goDig acc len rest@('_' : cs) = goSep acc len rest (len + 1) cs
+    goDig acc len (d : cs) | isDig d = goDig (addDigit acc d) (len + 1) cs
+    goDig acc len rest = (acc, len, rest)
+
+    addDigit x d = x * base + toInteger (digitToInt d)
+
+readNumDec :: String -> (Either Integer Rational, Int, String)
+readNumDec cs =
+  case readIntDec cs of
+    Just (n, nLen, rest) ->
+      case rest of
+        '.' : rs@(d : _) | isDigit d ->
+          case readIntDec rs of
+            Just (m, mLen, rest') ->
+              let q = toRational n + toRational m * 10 ^^ negate (length $ filter isDigit $ take mLen rs)
+              in case expo rest' of
+                Just (e, eLen, rest'') -> (Right $ q * 10 ^^ e, nLen + 1 + mLen + eLen, rest'')
+                Nothing -> (Right q, nLen + 1 + mLen, rest')
+            Nothing -> (Left n, nLen, rest) -- this can't happen
+        _ ->
+          case expo rest of
+            Just (e, eLen, rest') -> (Right $ toRational n * 10 ^^ e, nLen + eLen, rest')
+            Nothing -> (Left n, nLen, rest)
+    Nothing -> error "impossible: first char is a digit"
+  where
+    readIntDec = readIntBase 10 isDigit
+
+    -- try to read an exponent
+    expo :: String -> Maybe (Integer, Int, String)
+    expo = go 0
+
+    go len ('_' : xs) = go (len + 1) xs
+    go len (e:'-':xs@(d:_)) | toLower e == 'e' && isDigit d =
+      let (n, len', rest) = fromJust $ readIntDec xs
+      in Just (-n, len + 2 + len', rest)
+    go len (e:'+':xs@(d:_)) | toLower e == 'e' && isDigit d =
+      let (n, len', rest) = fromJust $ readIntDec xs
+      in Just (n, len + 2 + len', rest)
+    go len (e:    xs@(d:_)) | toLower e == 'e' && isDigit d =
+      let (n, len', rest) = fromJust $ readIntDec xs
+      in Just (n, len + 1 + len', rest)
+    go _ _ = Nothing
 
 -- Skip a {- -} style comment
 skipNest :: SLoc -> Int -> String -> [Token]
@@ -428,30 +456,3 @@ lexStart ts =
 lexTopLS :: FilePath -> String -> LexState
 lexTopLS f s = LS $ layoutLS (lexStart $ lex (SLoc f 1 1) s) []
   -- error $ show $ map showToken $ lex (SLoc f 1 1) s
-
------------
-
--- Convert string in scientific notation to a rational number.
-readRational :: String -> Rational
-readRational "" = undefined
-readRational acs@(sgn:as) | sgn == '-' = negate $ rat1 as
-                          | otherwise  =          rat1 acs
-  where
-    rat1 s1 =
-      case span isDigit s1 of
-        (ds1, cr1) | ('.':r1) <- cr1                   -> rat2 f1 r1
-                   | (c:r1)   <- cr1, toLower c == 'e' -> rat3 f1 r1
-                   | otherwise                         -> f1
-          where f1 = toRational (readBase 10 ds1)
-
-    rat2 f1 s2 =
-      case span isDigit s2 of
-        (ds2, cr2) | (c:r2) <- cr2, toLower c == 'e' -> rat3 f2 r2
-                   | otherwise                       -> f2
-          where f2 = f1 + toRational (readBase 10 ds2) * 10 ^^ (negate $ length ds2)
-
-    rat3 f2 ('+':s) = f2 * expo s
-    rat3 f2 ('-':s) = f2 / expo s
-    rat3 f2      s  = f2 * expo s
-
-    expo s = 10 ^ (readBase 10 s)
