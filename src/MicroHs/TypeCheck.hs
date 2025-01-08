@@ -1638,30 +1638,7 @@ tcExprR mt ae =
     EQVar e t ->  -- already resolved, just instantiate
              instSigma loc e t mt
 
-    EApp f a -> do
---      tcTrace $ "txExpr(0) EApp: expr=" ++ show ae ++ ":: " ++ show mt
-      (f', ft) <- tInferExpr f
-      -- A hack to make $ work the same way with instantiation as application.
-      -- This is ugly, but GHC does it, so people use it.
-      -- So use the identity '($) a == a'
-      case f' of
-        EVar i | i == mkIdent "Data.Function.$" -> tcExpr mt a
-        _ -> do
---          tcTrace $ "tcExpr(1) EApp: f=" ++ show f ++ "; f'=" ++ showExprRaw f' ++ " :: " ++ show ft
-          (at, rt) <- unArrow loc ft
---          tcTrace $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a ++ " :: " ++ show at ++ " retty=" ++ show rt
-          -- We want to do the unification of rt ant mt before checking the argument to
-          -- have more type information.  See tests/Eq1.hs.
-          -- But instSigma may transform the input expression, so we have to be careful.
-          let etmp = EUVar ugly
-              ugly = -1::Int
-          etmp' <- instSigma loc etmp rt mt
-          a' <- checkSigma a at
---          tcTrace $ "tcExpr(3) EApp: f = " ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a' ++ " :: " ++ show at ++ " retty=" ++ show rt ++ " mt = " ++ show mt
-          let res = EApp f' a'
-          case etmp' of
-            EUVar _ -> return res   -- instSigma did nothing, this is the common case
-            _ -> return $ substEUVar [(ugly, res)] etmp'
+    EApp _ _ -> tcExprAp mt ae []
 
     EOper e ies -> tcOper e ies >>= tcExpr mt
     ELam _ qs -> tcExprLam mt loc qs
@@ -1840,6 +1817,95 @@ tcExprR mt ae =
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
     _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
+
+tcExprAp :: HasCallStack =>
+            Expected -> Expr -> [Expr] -> T Expr
+tcExprAp mt ae args =
+  case ae of
+    EApp f a -> tcExprAp mt f (a : args)
+    EParen f -> tcExprAp mt f args
+    EOper e ies -> tcOper e ies >>= \ eop -> tcExprAp mt eop args
+    EVar i | isIdent dictPrefixDollar i -> impossibleShow ae
+           | isDummyIdent i -> impossibleShow ae
+           | otherwise -> do
+             -- Type checking an expression (or type)
+             (fn, t) <- tLookupV i
+             -- Variables bound in patterns start out with an (EUVar ref) type,
+             -- which can be instantiated to a polytype.
+             -- Dereference such a ref.
+             t' <-
+               case t of
+                 EUVar r -> fmap (fromMaybe t) (getUVar r)
+                 _ -> return t
+--             tcTrace $ "exExprAp: EVar " ++ showIdent i ++ " :: " ++ showExpr t ++ " = " ++ showExpr t' ++ " mt=" ++ show mt
+             case fn of
+               EVar ii | ii == mkIdent "Data.Function.$", f:as <- args -> tcExprAp mt f as
+               _ -> tcExprApFn mt fn t' args
+    EQVar f t ->  -- already resolved
+      tcExprApFn mt f t args
+    _ -> do
+      (f, t) <- tInferExpr ae
+      tcExprApFn mt f t args
+    
+tcExprApFn :: Expected -> Expr -> EType -> [Expr] -> T Expr
+tcExprApFn mt fn tfn args = do
+--  traceM $ "tcExprApFn: " ++ show (mt, fn, tfn, args)
+--  xx <- gets ctxTables
+--  traceM $ "tcExprApFn: ctxTables=" ++ show xx
+  let loc = getSLoc fn
+  (fn', tfn') <- tInst fn tfn
+  let loop ats     [] ft = final ats ft
+      loop ats (a:as) ft = do
+        (at, rt) <- unArrow loc ft
+        loop ((a, at):ats) as rt
+      final aats rt = do
+{-
+        let etmp = EUVar ugly
+            ugly = -1::Int
+        etmp' <- instSigma loc etmp rt mt
+-}
+        let apply f [] = return f
+            apply f ((a,at):ats) = do
+              a' <- checkSigma a at
+              apply (EApp f a') ats
+        res <- apply fn' (reverse aats)
+--        cc <- gets constraints
+--        traceM $ "tcExprApFn: constraints=" ++ show cc
+{-
+        case etmp' of
+          EUVar _ -> return res   -- instSigma did nothing, this is the common case
+          _ -> return $ substEUVar [(ugly, res)] etmp'
+-}
+        instSigma loc res rt mt
+      
+  loop [] args tfn'
+
+{-
+    EApp f a -> do
+--      tcTrace $ "txExpr(0) EApp: expr=" ++ show ae ++ ":: " ++ show mt
+      (f', ft) <- tInferExpr f
+      -- A hack to make $ work the same way with instantiation as application.
+      -- This is ugly, but GHC does it, so people use it.
+      -- So use the identity '($) a == a'
+      case f' of
+        EVar i | i == mkIdent "Data.Function.$" -> tcExpr mt a
+        _ -> do
+--          tcTrace $ "tcExpr(1) EApp: f=" ++ show f ++ "; f'=" ++ showExprRaw f' ++ " :: " ++ show ft
+          (at, rt) <- unArrow loc ft
+--          tcTrace $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a ++ " :: " ++ show at ++ " retty=" ++ show rt
+          -- We want to do the unification of rt ant mt before checking the argument to
+          -- have more type information.  See tests/Eq1.hs.
+          -- But instSigma may transform the input expression, so we have to be careful.
+          let etmp = EUVar ugly
+              ugly = -1::Int
+          etmp' <- instSigma loc etmp rt mt
+          a' <- checkSigma a at
+--          tcTrace $ "tcExpr(3) EApp: f = " ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a' ++ " :: " ++ show at ++ " retty=" ++ show rt ++ " mt = " ++ show mt
+          let res = EApp f' a'
+          case etmp' of
+            EUVar _ -> return res   -- instSigma did nothing, this is the common case
+            _ -> return $ substEUVar [(ugly, res)] etmp'
+-}
 
 -- Approximation of failure free.
 -- XXX single constructor types should be transparent
@@ -2862,12 +2928,13 @@ getSuperClasses ais = do
   return $ loop [] ais
 
 
+
 {-
 showInstInfo :: InstInfo -> String
 showInstInfo (InstInfo m ds fds) = "InstInfo " ++ show (M.toList m) ++ " " ++ showListS showInstDict ds ++ show fds
 
 showInstDict :: InstDict -> String
-showInstDict (e, ctx, ts) = showExpr e ++ " :: " ++ show (addConstraints ctx (tApps (mkIdent "_") ts))
+showInstDict (e, ctx, ts) = showExpr e ++ " :: " ++ show (addConstraints (ctx 10000) (tApps (mkIdent "_") ts))
 
 showInstDef :: InstDef -> String
 showInstDef (cls, InstInfo m ds _) = "instDef " ++ show cls ++ ": "
