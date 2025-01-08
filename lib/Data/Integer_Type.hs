@@ -22,6 +22,21 @@ maxD =
   else
     error "Integer: unsupported word size"
 
+shiftD :: Int
+shiftD =
+  if _wordSize `primIntEQ` 64 then
+    (32::Int)
+  else if _wordSize `primIntEQ` 32 then
+    (16::Int)
+  else
+    error "Integer: unsupported word size"
+
+quotMaxD :: Digit -> Digit
+quotMaxD d = d `primWordShr` shiftD
+
+remMaxD :: Digit -> Digit
+remMaxD d = d `primWordAnd` (maxD `primWordSub` 1)
+
 -- Sadly, we also need a bunch of functions.
 
 _intToInteger :: Int -> Integer

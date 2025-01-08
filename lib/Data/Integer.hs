@@ -14,6 +14,7 @@ module Data.Integer(
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
+import Data.Bits
 import Data.Bool
 import Data.Char
 import Data.Enum
@@ -148,7 +149,7 @@ add' ci []       []       = if ci == zeroD then [] else [ci]
 
 -- Add 3 digits with carry
 addD :: Digit -> Digit -> Digit -> (Digit, Digit)
-addD x y z = (quot s maxD, rem s maxD)  where s = x + y + z
+addD x y z = (quotMaxD s, remMaxD s)  where s = x + y + z
 
 -- Invariant: xs >= ys, so result is always >= 0
 sub :: [Digit] -> [Digit] -> [Digit]
@@ -164,7 +165,7 @@ sub' _  []       _        = error "impossible: xs >= ys"
 subW :: Digit -> Digit -> Digit -> (Digit, Digit)
 subW b x y =
   let d = maxD + x - y - b
-  in (1 - quot d maxD, rem d maxD)
+  in (1 - quotMaxD d, remMaxD d)
 
 -- Remove trailing 0s
 trim0 :: [Digit] -> [Digit]
@@ -196,8 +197,8 @@ mulD ci [] _ = if ci == 0 then [] else [ci]
 mulD ci (x:xs) y = r : mulD q xs y
   where
     xy = x * y + ci
-    q = quot xy maxD
-    r = rem  xy maxD
+    q = quotMaxD xy
+    r = remMaxD xy
 
 mulM :: [Digit] -> [Digit] -> [Digit]
 mulM xs ys =
@@ -240,7 +241,7 @@ quotRemD axs y = qr zeroD (reverse axs) []
     qr ci []     res = (res, [ci])
     qr ci (x:xs) res = qr r xs (q:res)
       where
-        cx = ci * maxD + x
+        cx = ci `shiftL` shiftD + x
         q = quot cx y
         r = rem cx y
 
