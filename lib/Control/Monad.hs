@@ -32,6 +32,8 @@ module Control.Monad(
   liftM,
   liftM2,
   liftM3,
+  liftM4,
+  liftM5,
   ap,
   ) where
 import Prelude()              -- do not import Prelude
@@ -171,6 +173,10 @@ liftM2 :: forall m r a1 a2 . (Monad m) => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
 liftM2 f m1 m2 = do { x1 <- m1; x2 <- m2; return (f x1 x2) }
 liftM3 :: forall m r a1 a2 a3 . (Monad m) => (a1 -> a2 -> a3 -> r) -> m a1 -> m a2 -> m a3 -> m r
 liftM3 f m1 m2 m3 = do { x1 <- m1; x2 <- m2; x3 <- m3; return (f x1 x2 x3) }
+liftM4 :: forall m r a1 a2 a3 a4 . (Monad m) => (a1 -> a2 -> a3 -> a4 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m r
+liftM4 f m1 m2 m3 m4 = do { x1 <- m1; x2 <- m2; x3 <- m3; x4 <- m4; return (f x1 x2 x3 x4) }
+liftM5 :: forall m r a1 a2 a3 a4 a5 . (Monad m) => (a1 -> a2 -> a3 -> a4 -> a5 -> r) -> m a1 -> m a2 -> m a3 -> m a4 -> m a5 -> m r
+liftM5 f m1 m2 m3 m4 m5 = do { x1 <- m1; x2 <- m2; x3 <- m3; x4 <- m4; x5 <- m5; return (f x1 x2 x3 x4 x5) }
 
 ap :: forall m a b . Monad m => m (a -> b) -> m a -> m b
 ap f a = do

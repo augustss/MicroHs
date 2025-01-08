@@ -11,7 +11,7 @@ import Data.Typeable
 import System.IO
 
 data ExitCode = ExitSuccess | ExitFailure Int
-  deriving (Eq, Typeable, Show)
+  deriving (Eq, Ord, Typeable, Show)
 
 instance Exception ExitCode
 

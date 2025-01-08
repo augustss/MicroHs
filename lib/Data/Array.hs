@@ -43,8 +43,8 @@ instance Ix a => Functor (Array a) where
 instance (Ix a, Eq b)  => Eq (Array a b) where
   (==) (Array b1 _ a1) (Array b2 _ a2) = b1 == b2 && primArrEQ a1 a2
 
-instance (Ix a, Ord b) => Ord  (Array a b) where
-  compare = undefined
+instance (Ix a, Ord b) => Ord (Array a b) where
+  compare arr1 arr2 = compare (assocs arr1) (assocs arr2)
 
 instance (Ix a, Show a, Show b) => Show (Array a b) where
   showsPrec p a =

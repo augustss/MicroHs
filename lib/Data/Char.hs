@@ -87,6 +87,12 @@ isSpace c = c == ' ' || c == '\t' || c == '\n'
 isAscii :: Char -> Bool
 isAscii c = c <= '\127'
 
+isControl :: Char -> Bool
+isControl c = c <= '\31' || c == '\127'
+
+isLetter :: Char -> Bool
+isLetter = isAlpha
+
 digitToInt :: Char -> Int
 digitToInt c | (primCharLE '0' c) && (primCharLE c '9') = ord c - ord '0'
              | (primCharLE 'a' c) && (primCharLE c 'f') = ord c - (ord 'a' - 10)
