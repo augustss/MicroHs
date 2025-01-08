@@ -72,16 +72,10 @@ instance Enum Int8 where
   pred x = x - 1
   toEnum = i8
   fromEnum = unI8
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Eq Int8 where
   (==) = cmp8 primIntEQ
@@ -162,16 +156,10 @@ instance Enum Int16 where
   pred x = x - 1
   toEnum = i16
   fromEnum = unI16
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Eq Int16 where
   (==) = cmp16 primIntEQ
@@ -252,16 +240,10 @@ instance Enum Int32 where
   pred x = x - 1
   toEnum = i32
   fromEnum = unI32
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Eq Int32 where
   (==) = cmp32 primIntEQ
@@ -340,16 +322,10 @@ instance Enum Int64 where
   pred x = x - 1
   toEnum = i64
   fromEnum = unI64
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Eq Int64 where
   (==) = cmp64 primIntEQ

@@ -40,6 +40,25 @@ boundedEnumFromThen n1 n2
     i_n1 = fromEnum n1
     i_n2 = fromEnum n2
 
+numericEnumFrom :: (Num a) => a -> [a]
+numericEnumFrom n = n : numericEnumFrom (n + 1)
+
+numericEnumFromThen :: (Num a) => a -> a -> [a]
+numericEnumFromThen n m = from n
+  where
+    d = m - n
+    from i = i : from (i + d)
+
+numericEnumFromTo :: (Num a, Ord a) => a -> a -> [a]
+numericEnumFromTo l h = takeWhile (<= h) (numericEnumFrom l)
+
+numericEnumFromThenTo :: (Num a, Ord a) => a -> a -> a -> [a]
+numericEnumFromThenTo l m h =
+    if m > l then
+      takeWhile (<= h) (numericEnumFromThen l m)
+    else
+      takeWhile (>= h) (numericEnumFromThen l m)
+
 -- This instance is difficult to put in Data.Int,
 -- so it gets to live here.
 instance Enum Int where
@@ -47,16 +66,10 @@ instance Enum Int where
   pred x = x - 1
   toEnum x = x
   fromEnum x = x
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 -- Likewise for Bool
 instance Enum Bool where
