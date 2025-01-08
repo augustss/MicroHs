@@ -93,16 +93,10 @@ instance Enum Integer where
   pred x = x - 1
   toEnum x = _intToInteger x
   fromEnum x = _integerToInt x
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 ------------------------------------------------
 

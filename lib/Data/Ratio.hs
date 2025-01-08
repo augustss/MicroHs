@@ -9,6 +9,7 @@ module Data.Ratio(
   ) where
 import Prelude()              -- do not import Prelude
 import Data.Bool
+import Data.Enum
 import Data.Eq
 import Data.Fractional
 import Data.Function
@@ -42,6 +43,16 @@ data Ratio a = !a :% !a
 -- NOTE. Experimentally, we extend this with:
 --  x/0 ==  1/0 when x > 0
 --  x/0 == -1/0 when x < 0
+
+instance (Integral a) => Enum (Ratio a) where
+  succ x         = x + 1
+  pred x         = x - 1
+  toEnum         = fromIntegral
+  fromEnum       = fromInteger . truncate
+  enumFrom       = numericEnumFrom
+  enumFromThen   = numericEnumFromThen
+  enumFromTo     = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance forall a . Eq a => Eq (Ratio a) where
   (x :% y) == (x' :% y')  =  x == x' && y == y'

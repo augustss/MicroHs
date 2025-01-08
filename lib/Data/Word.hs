@@ -57,16 +57,10 @@ instance Enum Word where
   pred x = x - 1
   toEnum = primIntToWord
   fromEnum = primWordToInt
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 --------------------------------
 
@@ -154,16 +148,10 @@ instance Enum Word8 where
   pred x = x - 1
   toEnum = w8 . primIntToWord
   fromEnum = primWordToInt . unW8
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Eq Word8 where
   (==) = cmp8 primWordEQ
@@ -245,17 +233,10 @@ instance Enum Word16 where
   succ x = x + 1
   pred x = x - 1
   toEnum = w16 . primIntToWord
-  fromEnum = primWordToInt . unW16
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Eq Word16 where
   (==) = cmp16 primWordEQ
@@ -338,16 +319,10 @@ instance Enum Word32 where
   pred x = x - 1
   toEnum = w32 . primIntToWord
   fromEnum = primWordToInt . unW32
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Eq Word32 where
   (==) = cmp32 primWordEQ
@@ -430,16 +405,10 @@ instance Enum Word64 where
   pred x = x - 1
   toEnum = w64 . primIntToWord
   fromEnum = primWordToInt . unW64
-  enumFrom n = n : enumFrom (n+1)
-  enumFromThen n m = from n
-    where d = m - n
-          from i = i : from (i+d)
-  enumFromTo l h = takeWhile (<= h) (enumFrom l)
-  enumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (enumFromThen l m)
-    else
-      takeWhile (>= h) (enumFromThen l m)
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Eq Word64 where
   (==) = cmp64 primWordEQ
