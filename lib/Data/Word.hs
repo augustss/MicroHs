@@ -12,12 +12,13 @@ import Data.Enum
 import Data.Eq
 import Data.Function
 import Data.Int()  -- instances only
-import Data.Integer
+import Data.Integer_Type
 import Data.Integral
 import Data.List
 import Data.Maybe_Type
 import Data.Num
 import Data.Ord
+import Data.Ratio_Type
 import Data.Real
 import Numeric.Show
 import Text.Show
@@ -28,7 +29,7 @@ instance Num Word where
   (*)  = primWordMul
   abs x = x
   signum x = if x == 0 then 0 else 1
-  fromInteger x = primIntToWord (_integerToInt x)
+  fromInteger = _integerToWord
 
 instance Integral Word where
   quot = primWordQuot

@@ -19,7 +19,6 @@ import Data.Char
 import Data.Enum
 import Data.Eq
 import Data.Function
-import Data.Int
 import Data.Integer_Type
 import Data.Integral
 import Data.List
@@ -27,24 +26,25 @@ import Data.Num
 import Data.Ord
 import Data.Ratio_Type
 import Data.Real
+import Data.Word ()
 import Numeric.Show
 import Text.Show
 
 --
--- The Integer is stored in sign-magniture format with digits in base maxD (2^31)
+-- The Integer is stored in sign-magnitude format with digits in base maxD (2^32)
 -- It has the following invariants:
 --  * each digit is >= 0 and < maxD
---  * least signification digits first, most significant last
+--  * least significant digits first, most significant last
 --  * no trailing 0s in the digits
 --  * 0 is positive
 {- These definitions are in Integer_Type
 data Integer = I Sign [Digit]
   --deriving Show
 
-type Digit = Int
+type Digit = Word
 
 maxD :: Digit
-maxD = 2147483648  -- 2^31, this is used so multiplication of two digit doesn't overflow a 64 bit Int
+maxD = 4294967296 -- 2^32, this is used so multiplication of two digit doesn't overflow a 64 bit Word
 
 data Sign = Plus | Minus
   --deriving Show
@@ -158,20 +158,17 @@ sub' :: Digit -> [Digit] -> [Digit] -> [Digit]
 sub' bi (x : xs) (y : ys) = d : sub' bo xs ys  where (bo, d) = subW bi x y
 sub' bi (x : xs) []       = d : sub' bo xs []  where (bo, d) = subW bi x zeroD
 sub' 0  []       []       = []
-sub' _  []       _        = undefined
+sub' _  []       _        = error "impossible: xs >= ys"
 
 -- Subtract with borrow
 subW :: Digit -> Digit -> Digit -> (Digit, Digit)
 subW b x y =
-  let d = x - y + b
-  in  if d < 0 then
-        (quot d maxD - 1, rem d maxD + maxD)
-      else
-        (quot d maxD, rem d maxD)
+  let d = maxD + x - y - b
+  in (1 - quot d maxD, rem d maxD)
 
 -- Remove trailing 0s
 trim0 :: [Digit] -> [Digit]
-trim0 = reverse . dropWhile (== (0::Int)) . reverse
+trim0 = reverse . dropWhile (== (0 :: Word)) . reverse
 
 -- Is axs < ays?
 ltW :: [Digit] -> [Digit] -> Bool
@@ -182,7 +179,7 @@ ltW axs ays = lxs < lys || lxs == lys && cmp (reverse axs) (reverse ays)
     cmp (x:xs) (y:ys) = x < y || x == y && cmp xs ys
     cmp []     []     = False
     cmp _      _      = error "ltW.cmp"
-    
+
 mulI :: Integer -> Integer -> Integer
 mulI (I _ []) _ = I Plus []         -- 0 * x = 0
 mulI _ (I _ []) = I Plus []         -- x * 0 = 0
@@ -205,7 +202,7 @@ mulD ci (x:xs) y = r : mulD q xs y
 mulM :: [Digit] -> [Digit] -> [Digit]
 mulM xs ys =
   let rs = map (mulD zeroD xs) ys
-      ss = zipWith (++) (map (`replicate` (0::Int)) [0::Int ..]) rs
+      ss = zipWith (++) (map (`replicate` (0 :: Word)) [0 :: Int ..]) rs
   in  foldl1 add ss
 
 -- Signs:
@@ -216,7 +213,7 @@ mulM xs ys =
 quotRemI :: Integer -> Integer -> (Integer, Integer)
 quotRemI _         (I _  [])  = error "Integer: division by 0" -- n / 0
 quotRemI (I _  [])          _ = (I Plus [], I Plus [])         -- 0 / n
-quotRemI (I sx xs) (I sy ys) | all (== (0::Int)) ys' =
+quotRemI (I sx xs) (I sy ys) | all (== (0 :: Word)) ys' =
   -- All but the MSD are 0.  Scale numerator accordingly and divide.
   -- Then add back (the ++) the remainder we scaled off.
     case quotRemD xs' y of
@@ -252,7 +249,7 @@ quotRemB :: [Digit] -> [Digit] -> ([Digit], [Digit])
 quotRemB xs ys =
   let n  = I Plus xs
       d  = I Plus ys
-      a  = I Plus $ replicate (length ys - (1::Int)) (0::Int) ++ [last ys]  -- only MSD of ys
+      a  = I Plus $ replicate (length ys - (1 :: Int)) (0 :: Word) ++ [last ys]  -- only MSD of ys
       aq = quotI n a
       ar = addI d oneI
       loop q r =
@@ -411,7 +408,6 @@ instance Arbitrary SmallInteger where
 {-
 sanity :: HasCallStack => Integer -> Integer
 sanity (I Minus []) = undefined
-sanity (I _ ds) | any (< 0) ds = undefined
 sanity (I _ ds) | length ds > 1 && last ds == 0 = undefined
 sanity i = i
 -}
@@ -438,7 +434,7 @@ prop_div :: Integer -> NonZero Integer -> Bool
 prop_div x (NonZero y) =
   to (quotRemI x y) == toInteger x `quotRem` toInteger y
   where to (a, b) = (toInteger a, toInteger b)
-  
+
 prop_muldiv :: Integer -> NonZero Integer -> Bool
 prop_muldiv x (NonZero y) =
   let (q, r) = quotRemI x y
@@ -472,5 +468,5 @@ checkAll = do
   mapM_ qc [prop_add, prop_sub, prop_mul,
             prop_eq, prop_ne, prop_lt, prop_gt, prop_le, prop_ge]
   mapM_ qc [prop_div, prop_muldiv]
-  
+
 -}
