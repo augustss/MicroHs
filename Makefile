@@ -213,8 +213,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.11.1.8
-HVERSION=0,11,1,8
+VERSION=0.11.1.9
+HVERSION=0,11,1,9
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
