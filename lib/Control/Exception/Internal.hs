@@ -41,7 +41,7 @@ data SomeException = forall e . Exception e => SomeException e
 
 -- NOTE: The runtime system knows about this class.
 -- It uses displayException to show an uncaught exception.
--- Any changes here must be refleced in eval.c
+-- Any changes here must be reflected in eval.c
 class (Typeable e, Show e) => Exception e where
     toException      :: e -> SomeException
     fromException    :: SomeException -> Maybe e

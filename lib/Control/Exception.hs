@@ -28,6 +28,9 @@ import System.IO.Unsafe
 instance Show SomeException where
   showsPrec p (SomeException e) = showsPrec p e
 
+-- NOTE: The runtime system knows about this instance.
+-- It uses displayException to show an uncaught exception.
+-- Any changes here must be reflected in eval.c
 instance Exception SomeException where
   toException se = se
   fromException = Just
