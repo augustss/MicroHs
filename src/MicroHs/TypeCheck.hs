@@ -1072,7 +1072,7 @@ addAssocs adef = do
     Data    (i, _) cs _ | not (isMatchDataTypeName i)
                         -> addAssoc i (nub $ concatMap assocData cs)
     Newtype (i, _) c  _ -> addAssoc i (assocData c)
-    Class _ (i, _) _ ms -> addAssoc i [ x | BSign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
+    Class _ (i, _) _ ms -> addAssoc i [ x | Sign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
     _                   -> return ()
 
 -- Add type synonyms to the synonym table, and data/newtype to the data table
@@ -1102,8 +1102,8 @@ tcDefType def = do
     Deriving ct            ->                                                  Deriving       <$> tCheckTypeTImpl kConstraint ct
     _                      -> return def
  where
-   tcMethod (BSign is t) = BSign is <$> tCheckTypeTImpl kType t
-   tcMethod (BDfltSign i t) = BDfltSign i <$> tCheckTypeTImpl kType t
+   tcMethod (Sign is t) = Sign is <$> tCheckTypeTImpl kType t
+   tcMethod (DfltSign i t) = DfltSign i <$> tCheckTypeTImpl kType t
    tcMethod m = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
@@ -1186,12 +1186,12 @@ expandClass :: ImpType -> EDef -> T [EDef]
 expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
   mn <- gets moduleName
   let
-      meths = [ b | b@(BSign _ _) <- ms ]
-      methIds = concatMap (\ (BSign is _) -> is) meths
-      mdflts = [ (i, eqns) | BFcn i eqns <- ms ]
-      dflttys = [ (i, t) | BDfltSign i t <- ms ]
+      meths = [ b | b@(Sign _ _) <- ms ]
+      methIds = concatMap (\ (Sign is _) -> is) meths
+      mdflts = [ (i, eqns) | Fcn i eqns <- ms ]
+      dflttys = [ (i, t) | DfltSign i t <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
-      mkDflt (BSign is t) = concatMap method is
+      mkDflt (Sign is t) = concatMap method is
         where method methId = [ Sign [iDflt] $ EForall True vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
                 where ty = fromMaybe t $ lookup methId dflttys
                       def Nothing = Fcn iDflt $ simpleEqn noDflt
@@ -1257,12 +1257,12 @@ expandInst dinst@(Instance act bs) = do
   -- XXX this ignores type signatures and other bindings
   -- XXX should tack on signatures with ESign
   let clsMdl = qualOf qiCls                   -- get class's module name
-      ies = [(i, ELam noSLoc qs) | BFcn i qs <- bs]
+      ies = [(i, ELam noSLoc qs) | Fcn i qs <- bs]
       meth i = fromMaybe (ELam noSLoc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
       meths = map meth mis
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
-      instBind (BFcn i _) = i `elem` mis
+      instBind (Fcn i _) = i `elem` mis
       instBind _ = False
   case filter (not . instBind) bs of
     [] -> return ()
@@ -1422,9 +1422,9 @@ addValueClass :: [EConstraint] -> Ident -> [IdKind] -> [FunDep] -> [EBind] -> T 
 addValueClass ctx iCls vks fds ms = do
   mn <- gets moduleName
   let
-      meths = [ b | b@(BSign _ _) <- ms ]
-      methTys = map (\ (BSign _ t) -> t) meths
-      methIds = concatMap (\ (BSign is _) -> is) meths
+      meths = [ b | b@(Sign _ _) <- ms ]
+      methTys = map (\ (Sign _ t) -> t) meths
+      methIds = concatMap (\ (Sign is _) -> is) meths
       supTys = ctx  -- XXX should do some checking
       targs = supTys ++ methTys
       qiCls = qualIdent mn iCls
@@ -1433,7 +1433,7 @@ addValueClass ctx iCls vks fds ms = do
       iCon = mkClassConstructor iCls
       iConTy = EForall True vks $ foldr tArrow tret targs
   extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon) [])
-  let addMethod (BSign is t) = mapM_ method is
+  let addMethod (Sign is t) = mapM_ method is
         where method i = extValETop i (EForall True vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
       addMethod _ = impossible
 --  tcTrace ("addValueClass " ++ showEType (ETuple ctx))
@@ -2049,7 +2049,7 @@ tcExprLam mt loc qs = do
   ELam loc <$> tcEqns False t qs
 
 tcEqns :: Bool -> EType -> [Eqn] -> T [Eqn]
---tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (BFcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
+--tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (Fcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
 tcEqns top (EForall expl iks t) eqns | expl      = withExtTyps iks $ tcEqns top t eqns
                                      | otherwise =                   tcEqns top t eqns
 tcEqns top t eqns | Just (ctx, t') <- getImplies t = do
@@ -2061,19 +2061,19 @@ tcEqns top t eqns | Just (ctx, t') <- getImplies t = do
     let eqn =
           case eqns' of
             [Eqn [] alts] -> Eqn [EVar d] alts
-            _             -> Eqn [EVar d] $ EAlts [([], EVar f)] [BFcn f eqns']
+            _             -> Eqn [EVar d] $ EAlts [([], EVar f)] [Fcn f eqns']
     return [eqn]
 tcEqns top t eqns = do
   let loc = getSLoc eqns
   f <- newIdent loc "fcnS"
   (eqns', ds) <- solveAndDefault top $ mapM (tcEqn t) eqns
---  tcTrace $ "tcEqns done: " ++ showEBind (BFcn dummyIdent eqns')
+--  tcTrace $ "tcEqns done: " ++ showEBind (Fcn dummyIdent eqns')
   case ds of
     [] -> return eqns'
     _  -> do
       let
         bs = eBinds ds
-        eqn = Eqn [] $ EAlts [([], EVar f)] (bs ++ [BFcn f eqns'])
+        eqn = Eqn [] $ EAlts [([], EVar f)] (bs ++ [Fcn f eqns'])
       return [eqn]
 
 tcEqn :: EType -> Eqn -> T Eqn
@@ -2140,7 +2140,7 @@ tCheckExprAndSolve t e = do
     return $ ELet (eBinds bs) e'
 
 eBinds :: [(Ident, Expr)] -> [EBind]
-eBinds ds = [BFcn i $ simpleEqn e | (i, e) <- ds]
+eBinds ds = [Fcn i $ simpleEqn e | (i, e) <- ds]
 
 instPatSigma :: HasCallStack =>
                  SLoc -> Sigma -> Expected -> T ()
@@ -2365,7 +2365,7 @@ multCheck vs =
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = do
   let
-    tmap = M.fromList [ (i, t) | BSign is t <- xbs, i <- is ]
+    tmap = M.fromList [ (i, t) | Sign is t <- xbs, i <- is ]
     xs = getBindsVars xbs
   multCheck xs
   xts <- mapM (tcBindVarT tmap) xs
@@ -2386,13 +2386,12 @@ tcBindVarT tmap x = do
 tcBind :: EBind -> T EBind
 tcBind abind =
   case abind of
-    BFcn i eqns -> do
+    Fcn i eqns -> do
       (_, tt) <- tLookupV i
       teqns <- tcEqns False tt eqns
-      return $ BFcn i teqns
-    BPat p a -> tcPatBind BPat p a
-    BSign _ _ -> return abind
-    BDfltSign _ _ -> return abind
+      return $ Fcn i teqns
+    PatBind p a -> tcPatBind PatBind p a
+    _ -> return abind
 
 tcPatBind :: (EPat -> Expr -> a) -> EPat -> Expr -> T a
 tcPatBind con p a = do

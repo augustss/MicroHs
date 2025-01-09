@@ -784,19 +784,19 @@ pOperators' oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
 
 pBind :: P EBind
 pBind = 
-      BPat <$> pPatNotVar <*> ((pSpec '=' *> pExpr)
-                           <|< (EMultiIf <$> pAlts (pSpec '=')))
+      PatBind <$> pPatNotVar <*> ((pSpec '=' *> pExpr)
+                              <|< (EMultiIf <$> pAlts (pSpec '=')))
   <|< pClsBind
 
 pClsBind :: P EBind
 pClsBind = 
-      uncurry BFcn <$> pEqns
-  <|< BSign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
-  <|< BDfltSign    <$> (pKeyword "default" *> pLIdentSym <* dcolon) <*> pType
+      uncurry Fcn <$> pEqns
+  <|< Sign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|< DfltSign    <$> (pKeyword "default" *> pLIdentSym <* dcolon) <*> pType
 
 pInstBind :: P EBind
 pInstBind = 
-      uncurry BFcn <$> pEqns
+      uncurry Fcn <$> pEqns
 -- no InstanceSig yet  <|< BSign        <$> (pLIdentSym <* dcolon) <*> pType
 
 -------------

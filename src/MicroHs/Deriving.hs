@@ -114,8 +114,8 @@ genHasField (tycon, iks) cs (fld, fldty) = do
   pure $ [ Sign [getName] $ eForall iks $ lhsToType (qtycon, iks) `tArrow` fldty
          , Fcn getName $ map conEqnGet cs ]
     ++ if not (validType fldty) then [] else
-         [ Instance hdrGet [BFcn igetField [eEqn [eDummy] $ EVar getName] ]
-         , Instance hdrSet [BFcn isetField $ map conEqnSet cs]
+         [ Instance hdrGet [Fcn igetField [eEqn [eDummy] $ EVar getName] ]
+         , Instance hdrSet [Fcn isetField $ map conEqnSet cs]
          ]
 
 nameHasField :: String
@@ -147,7 +147,7 @@ derTypeable _ (i, _) _ etyp = do
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
     eqns = eEqns [eDummy] $ eAppI2 imkTyConApp (eAppI2 imkTyCon mdl nam) (EListish (LList []))
-    inst = Instance hdr [BFcn itypeRep eqns]
+    inst = Instance hdr [Fcn itypeRep eqns]
   return [inst]
 
 --------------------------------------------
@@ -198,7 +198,7 @@ derEq mctx lhs cs@(_:_) eeq = do
       eAnd = EApp . EApp (EVar $ mkBuiltin loc "&&")
       eTrue = EVar $ mkBuiltin loc "True"
       eFalse = EVar $ mkBuiltin loc "False"
-      inst = Instance hdr [BFcn iEq eqns]
+      inst = Instance hdr [Fcn iEq eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
 derEq _ (c, _) _ e = cannotDerive "Eq" c e
@@ -222,7 +222,7 @@ derOrd mctx lhs cs@(_:_) eord = do
       eEQ = EVar $ mkBuiltin loc "EQ"
       eLT = EVar $ mkBuiltin loc "LT"
       eGT = EVar $ mkBuiltin loc "GT"
-      inst = Instance hdr [BFcn iCompare eqns]
+      inst = Instance hdr [Fcn iCompare eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
 derOrd _ (c, _) _ e = cannotDerive "Ord" c e
@@ -241,7 +241,7 @@ derBounded mctx lhs cs@(c0:_) ebnd = do
       iMaxBound = mkIdentSLoc loc "maxBound"
       minEqn = mkEqn iMinBound c0
       maxEqn = mkEqn iMaxBound (last cs)
-      inst = Instance hdr [BFcn iMinBound [minEqn], BFcn iMaxBound [maxEqn]]
+      inst = Instance hdr [Fcn iMinBound [minEqn], Fcn iMaxBound [maxEqn]]
   -- traceM $ showEDefs [inst]
   return [inst]
 derBounded _ (c, _) _ e = cannotDerive "Bounded" c e
@@ -262,7 +262,7 @@ derEnum mctx lhs cs@(_:_) enm | all isNullary cs = do
       iToEnum = mkIdentSLoc loc "toEnum"
       fromEqns = zipWith mkFrom cs [0..]
       toEqns   = zipWith mkTo   cs [0..]
-      inst = Instance hdr [BFcn iFromEnum fromEqns, BFcn iToEnum toEqns]
+      inst = Instance hdr [Fcn iFromEnum fromEqns, Fcn iToEnum toEqns]
   --traceM $ showEDefs [inst]
   return [inst]
 derEnum _ (c, _) _ e = cannotDerive "Enum" c e
@@ -304,7 +304,7 @@ derShow mctx lhs cs@(_:_) eshow = do
           where fld (f, x) = eShowString (unIdentPar f ++ "=") `ejoin` eShowsPrec 0 x
 
       eqns = map mkEqn cs
-      inst = Instance hdr [BFcn iShowsPrec eqns]
+      inst = Instance hdr [Fcn iShowsPrec eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
 derShow _ (c, _) _ e = cannotDerive "Show" c e
@@ -335,7 +335,7 @@ derRead mctx lhs cs eread = do
     loc = getSLoc eread
     iReadPrec = mkIdentSLoc loc "readPrec"
     err = eEqn [] $ EApp (EVar $ mkBuiltin loc "error") (ELit loc (LStr "readPrec not defined"))
-    inst = Instance hdr [BFcn iReadPrec [err]]
+    inst = Instance hdr [Fcn iReadPrec [err]]
   return [inst]
 
 --------------------------------------------

@@ -10,7 +10,7 @@ module MicroHs.Expr(
   Listish(..),
   Lit(..), showLit,
   CType(..),
-  EBind(..), showEBind, showEBinds,
+  EBind, showEBind, showEBinds,
   Eqn(..),
   EStmt(..),
   EAlts(..),
@@ -88,6 +88,7 @@ data EDef
   | Default (Maybe Ident) [EType]
   | Pattern LHS EPat (Maybe [Eqn])
   | Deriving EConstraint
+  | DfltSign Ident EType                      -- only in class declarations
 --DEBUG  deriving (Show)
 
 instance MRnf EDef where
@@ -106,6 +107,7 @@ instance MRnf EDef where
   mrnf (Default a b) = mrnf a `seq` mrnf b
   mrnf (Pattern a b c) = mrnf a `seq` mrnf b `seq` mrnf c
   mrnf (Deriving a) = mrnf a
+  mrnf (DfltSign a b) = mrnf a `seq` mrnf b
 
 data ImpType = ImpNormal | ImpBoot
   deriving (Eq)
@@ -323,18 +325,7 @@ instance MRnf EStmt where
   mrnf (SThen a) = mrnf a
   mrnf (SLet a) = mrnf a
 
-data EBind
-  = BFcn Ident [Eqn]
-  | BPat EPat Expr
-  | BSign [Ident] EType
-  | BDfltSign Ident EType     -- only in class declarations
---DEBUG  deriving (Show)
-
-instance MRnf EBind where
-  mrnf (BFcn a b) = mrnf a `seq` mrnf b
-  mrnf (BPat a b) = mrnf a `seq` mrnf b
-  mrnf (BSign a b) = mrnf a `seq` mrnf b
-  mrnf (BDfltSign a b) = mrnf a `seq` mrnf b
+type EBind = EDef   -- subset with Fcn, PatBind, Sign, and DfltSign
 
 -- A single equation for a function
 data Eqn = Eqn [EPat] EAlts
@@ -475,6 +466,13 @@ class HasLoc a where
 instance HasLoc Ident where
   getSLoc = slocIdent
 
+instance HasLoc EDef where
+  getSLoc (Fcn i _) = getSLoc i
+  getSLoc (PatBind p _) = getSLoc p
+  getSLoc (Sign i _) = getSLoc i
+  getSLoc (DfltSign i _) = getSLoc i
+  getSLoc _ = error "HasLoc EDef: unimplemented"
+
 -- Approximate location; only identifiers and literals carry a location
 instance HasLoc Expr where
   getSLoc (EVar i) = getSLoc i
@@ -532,12 +530,6 @@ instance HasLoc EStmt where
   getSLoc (SBind p _) = getSLoc p
   getSLoc (SThen e) = getSLoc e
   getSLoc (SLet bs) = getSLoc bs
-
-instance HasLoc EBind where
-  getSLoc (BFcn i _) = getSLoc i
-  getSLoc (BPat p _) = getSLoc p
-  getSLoc (BSign i _) = getSLoc i
-  getSLoc (BDfltSign i _) = getSLoc i
 
 instance HasLoc Eqn where
   getSLoc (Eqn [] a) = getSLoc a
@@ -610,10 +602,11 @@ allVarsBind b = allVarsBind' b []
 allVarsBind' :: EBind -> DList Ident
 allVarsBind' abind =
   case abind of
-    BFcn i eqns -> (i:) . composeMap allVarsEqn eqns
-    BPat p e -> allVarsPat p . allVarsExpr' e
-    BSign is _ -> (is ++)
-    BDfltSign i _ -> (i:)
+    Fcn i eqns -> (i:) . composeMap allVarsEqn eqns
+    PatBind p e -> allVarsPat p . allVarsExpr' e
+    Sign is _ -> (is ++)
+    DfltSign i _ -> (i:)
+    _ -> impossible
 
 allVarsEqns :: [Eqn] -> [Ident]
 allVarsEqns eqns = composeMap allVarsEqn eqns []
@@ -750,6 +743,9 @@ ppImportItem ae =
 ppCommaSep :: [Doc] -> Doc
 ppCommaSep = hsep . punctuate (text ",")
 
+ppEBind :: EBind -> Doc
+ppEBind = ppEDef
+
 ppEDef :: EDef -> Doc
 ppEDef def =
   case def of
@@ -773,8 +769,9 @@ ppEDef def =
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
     Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default mc ts -> text "default" <+> (maybe empty ppIdent mc) <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
-    Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . BFcn i) meqns
+    Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
     Deriving ct -> text "deriving instance" <+> ppEType ct
+    DfltSign i t -> text "default" <+> ppIdent i <+> text "::" <+> ppEType t
 
 ppDeriving :: Deriving -> Doc
 ppDeriving [] = empty
@@ -941,14 +938,6 @@ ppEStmt as =
     SThen e -> ppExpr e
     SLet bs -> text "let" $$ nest 2 (vcat (map ppEBind bs))
 
-ppEBind :: EBind -> Doc
-ppEBind ab =
-  case ab of
-    BFcn i eqns -> ppEDef (Fcn i eqns)
-    BPat p e -> ppEPat p <+> text "=" <+> ppExpr e
-    BSign is t -> ppEDef (Sign is t)
-    BDfltSign i t -> text "default" <+> ppEBind (BSign [i] t)
-
 ppCaseArm :: ECaseArm -> Doc
 ppCaseArm arm =
   case arm of
@@ -969,10 +958,9 @@ ppList pp xs = brackets $ hsep $ punctuate (text ",") (map pp xs)
 getBindVars :: EBind -> [Ident]
 getBindVars abind =
   case abind of
-    BFcn i _  -> [i]
-    BPat p _  -> patVars p
-    BSign _ _ -> []
-    BDfltSign _ _ -> []
+    Fcn i _  -> [i]
+    PatBind p _  -> patVars p
+    _ -> []
 
 getBindsVars :: [EBind] -> [Ident]
 getBindsVars = concatMap getBindVars
