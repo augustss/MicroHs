@@ -301,15 +301,13 @@ pBlock p = pBraces body
 
 pDef :: P EDef
 pDef =
-      uncurry Data <$> (pKeyword "data"     *> pData) <*> pDeriving
+      pBind'      -- Fcn, Sign, PatBind, Infix
+  <|< uncurry Data <$> (pKeyword "data"     *> pData) <*> pDeriving
   <|< Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSpec '=' *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
   <|< Type         <$> (pKeyword "type"     *> pLHS) <*> (pSpec '=' *> pType)
-  <|< uncurry Fcn  <$> pEqns
-  <|< Sign         <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Import       <$> (pKeyword "import"   *> pImportSpec)
   <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> (pKeyword "ccall" <|> pKeyword "capi")
                         *> eoptional (pKeyword "unsafe") *> eoptional pString) <*> pLIdent <*> (dcolon *> pType)
-  <|< Infix        <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
   <|< Default      <$> (pKeyword "default"  *> eoptional clsSym) <*> pParens (esepBy pType (pSpec ','))
@@ -317,16 +315,9 @@ pDef =
   <|< mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
   <|< Sign         <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Deriving     <$> (pKeyword "deriving" *> pKeyword "instance" *> pType)
-  <|< PatBind      <$> pPatNotVar <*> ((pSpec '=' *> pExpr)
-                                       <|< (EMultiIf <$> pAlts (pSpec '=')))
   <|< noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
   where
-    pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
-    dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
-    dig _ = Nothing
-    pPrec = satisfyM "digit" dig
-
     pFunDeps = (pSpec '|' *> esepBy1 pFunDep (pSpec ',')) <|< pure []
     pFunDep = (,) <$> esome pLIdent <*> (pSRArrow *> esome pLIdent)
     pField = guardM pFields ((== 1) . either length length)
@@ -782,22 +773,37 @@ pOperators' oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
 -------------
 -- Bindings
 
+-- Bindings allowed in a let
 pBind :: P EBind
-pBind = 
-      PatBind <$> pPatNotVar <*> ((pSpec '=' *> pExpr)
-                              <|< (EMultiIf <$> pAlts (pSpec '=')))
-  <|< pClsBind
+pBind =
+      pBind'
+  <|< PatBind     <$> pPatNotVar <*> ((pSpec '=' *> pExpr)
+                                      <|<
+                                      (EMultiIf <$> pAlts (pSpec '=')))
 
-pClsBind :: P EBind
-pClsBind = 
+-- Bindings allowed in top level, let, class
+pBind' :: P EBind
+pBind' =
       uncurry Fcn <$> pEqns
   <|< Sign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
+  where
+    pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
+    dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
+    dig _ = Nothing
+    pPrec = satisfyM "digit" dig <|< pure 9
+
+-- Bindings allowed in a class definition
+pClsBind :: P EBind
+pClsBind =
+      pBind'
   <|< DfltSign    <$> (pKeyword "default" *> pLIdentSym <* dcolon) <*> pType
 
+-- Bindings allowed in an instance definition
 pInstBind :: P EBind
 pInstBind = 
       uncurry Fcn <$> pEqns
--- no InstanceSig yet  <|< BSign        <$> (pLIdentSym <* dcolon) <*> pType
+-- no InstanceSig yet  <|< Sign        <$> (pLIdentSym <* dcolon) <*> pType
 
 -------------
 

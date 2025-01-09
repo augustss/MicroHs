@@ -2363,7 +2363,7 @@ multCheck vs =
     tcError (getSLoc v) $ "Multiply defined: " ++ showIdent v
 
 tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
-tcBinds xbs ta = do
+tcBinds xbs ta = withFixes [ (i, fx) | Infix fx is <- xbs, i <- is ] $ do
   let
     tmap = M.fromList [ (i, t) | Sign is t <- xbs, i <- is ]
     xs = getBindsVars xbs
@@ -2372,6 +2372,16 @@ tcBinds xbs ta = do
   withExtVals xts $ do
     nbs <- mapM tcBind xbs
     ta nbs
+
+-- Temporarily exten the fixity table
+withFixes :: [FixDef] -> T a -> T a
+withFixes [] ta = ta
+withFixes fixs ta = do
+  ft <- gets fixTable
+  modify $ \ st -> st{ fixTable = foldr (uncurry M.insert) ft fixs }
+  a <- ta
+  modify $ \ st -> st{ fixTable = ft }
+  return a
 
 tcBindVarT :: HasCallStack => M.Map EType -> Ident -> T (Ident, EType)
 tcBindVarT tmap x = do

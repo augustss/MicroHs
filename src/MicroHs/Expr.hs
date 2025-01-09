@@ -471,6 +471,7 @@ instance HasLoc EDef where
   getSLoc (PatBind p _) = getSLoc p
   getSLoc (Sign i _) = getSLoc i
   getSLoc (DfltSign i _) = getSLoc i
+  getSLoc (Infix _ is) = getSLoc is
   getSLoc _ = error "HasLoc EDef: unimplemented"
 
 -- Approximate location; only identifiers and literals carry a location
@@ -606,6 +607,7 @@ allVarsBind' abind =
     PatBind p e -> allVarsPat p . allVarsExpr' e
     Sign is _ -> (is ++)
     DfltSign i _ -> (i:)
+    Infix _ _ -> id
     _ -> impossible
 
 allVarsEqns :: [Eqn] -> [Ident]
