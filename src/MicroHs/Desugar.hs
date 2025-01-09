@@ -501,6 +501,7 @@ cheap ae =
     _ -> False
 
 eLet :: Ident -> Exp -> Exp -> Exp
+eLet i e b | cheap e = substExp i e b    -- always inline variables and literals
 eLet i e b =
   if i == dummyIdent then
     b
