@@ -179,13 +179,13 @@ primSeq    = primitive "seq"
 --primEqual  = primitive "equal"
 
 -- Works for Int, Char, String
-primStringCompare :: forall a . [Char] -> [Char] -> Ordering
+primStringCompare :: [Char] -> [Char] -> Ordering
 primStringCompare  = primitive "scmp"
-primIntCompare :: forall a . Int -> Int -> Ordering
+primIntCompare :: Int -> Int -> Ordering
 primIntCompare  = primitive "icmp"
-primCharCompare :: forall a . Char -> Char -> Ordering
+primCharCompare :: Char -> Char -> Ordering
 primCharCompare  = primitive "icmp"
-primWordCompare :: forall a . Word -> Word -> Ordering
+primWordCompare :: Word -> Word -> Ordering
 primWordCompare  = primitive "ucmp"
 
 primStringEQ  :: [Char] -> [Char] -> Bool
