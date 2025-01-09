@@ -301,7 +301,7 @@ pBlock p = pBraces body
 
 pDef :: P EDef
 pDef =
-      pBind'      -- Fcn, Sign, PatBind, Infix
+      pBind        -- Fcn, Sign, PatBind, Infix
   <|< uncurry Data <$> (pKeyword "data"     *> pData) <*> pDeriving
   <|< Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSpec '=' *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
   <|< Type         <$> (pKeyword "type"     *> pLHS) <*> (pSpec '=' *> pType)
