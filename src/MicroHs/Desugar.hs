@@ -171,6 +171,8 @@ letE :: Ident -> Exp -> Exp -> Exp
 letE i e b = eLet i e b          -- do some minor optimizations
              --App (Lam i b) e
 
+-- Do a single recursive definition 'let i = e in b'
+-- by 'let i = Y (\i.e) in b'
 letRecE :: Ident -> Exp -> Exp -> Exp
 letRecE i e b = letE i (App (Lit (LPrim "Y")) (Lam i e)) b
 
