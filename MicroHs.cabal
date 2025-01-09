@@ -7,7 +7,7 @@ version:             0.11.1.10
 synopsis:            A small compiler for Haskell
 license:             Apache-2.0
 license-file:        LICENSE
-copyright:           2023,2024 Lennart Augustsson
+copyright:           2023,2024,2025 Lennart Augustsson
 category:            language
 author:              lennart@augustsson.net
 maintainer:          lennart@augustsson.net
