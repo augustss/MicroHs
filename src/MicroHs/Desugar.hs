@@ -61,7 +61,7 @@ dsDef flags mn adef =
     Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"
           meths :: [Ident]
-          meths = [ qualIdent mn i | (BSign is _) <- bs, i <- is ]
+          meths = [ qualIdent mn i | (Sign is _) <- bs, i <- is ]
           supers :: [Ident]
           supers = [ qualIdent mn $ mkSuperSel c i | i <- [1 .. length ctx] ]
           xs = [ mkIdent ("$x" ++ show j) | j <- [ 1 .. length ctx + length meths ] ]
@@ -89,10 +89,9 @@ oneAlt e = EAlts [([], e)] []
 dsBind :: Ident -> EBind -> [LDef]
 dsBind v abind =
   case abind of
-    BFcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
-    BPat p e -> dsPatBind v p e
-    BSign _ _ -> []
-    BDfltSign _ _ -> []
+    Fcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
+    PatBind p e -> dsPatBind v p e
+    _ -> []
 
 dsPatBind :: Ident -> EPat -> Expr -> [LDef]
 dsPatBind v p e =
@@ -110,7 +109,7 @@ dsEqns loc eqns =
   case eqns of
     Eqn aps _ : _ ->
       let
-        vs = allVarsBind $ BFcn (mkIdent "") eqns
+        vs = allVarsBind $ Fcn (mkIdent "") eqns
         xs = take (length aps) $ newVars "$q" vs
         mkArm (Eqn ps alts) =
           let ps' = map dsPat ps
@@ -140,7 +139,7 @@ dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
 dsBinds :: [EBind] -> Exp -> Exp
 dsBinds [] ret = ret
-dsBinds ads@(BPat (ELazy False p) e : ds) ret =
+dsBinds ads@(PatBind (ELazy False p) e : ds) ret =
   -- Turn a strict let/where into a case.
   -- XXX This does no reordering of bindings.
   let rest = dsBinds ds ret
@@ -172,6 +171,8 @@ letE :: Ident -> Exp -> Exp -> Exp
 letE i e b = eLet i e b          -- do some minor optimizations
              --App (Lam i b) e
 
+-- Do a single recursive definition 'let i = e in b'
+-- by 'let i = Y (\i.e) in b'
 letRecE :: Ident -> Exp -> Exp -> Exp
 letRecE i e b = letE i (App (Lit (LPrim "Y")) (Lam i e)) b
 
@@ -249,7 +250,7 @@ dsCompr e (SLet ds : ss) l = ELet ds (dsCompr e ss l)
 dsCompr e (SBind p (EListish (LList [x])) : ss) l = ECase x [(p, oneAlt $ dsCompr e ss l), (EVar dummyIdent, oneAlt l)]
 dsCompr e xss@(SBind p g : ss) l = ELet [hdef] (EApp eh g)
   where
-    hdef = BFcn h [eqn1, eqn2, eqn3]
+    hdef = Fcn h [eqn1, eqn2, eqn3]
     eqn1 = eEqn [nilCon] l
     eqn2 = eEqn [EApp (EApp consCon p) vs] (dsCompr e ss (EApp eh vs))
     eqn3 = eEqn [EApp (EApp consCon u) vs]               (EApp eh vs)
@@ -377,7 +378,7 @@ dsLazy (ps, rhs) =
           ELazy False p'          -> lazy (n, bs, is) p'        -- ignore ! on non-variables for now
           ELazy True  p'          -> ((n+1, b:bs, is), EVar v)
             where v = mkIdent ("~" ++ show n)
-                  b = BPat p' (EVar v)
+                  b = PatBind p' (EVar v)
           EVar _                  -> (s, ap)
           EViewPat e p            -> (s', EViewPat e p') where (s', p')  = lazy s p
           ECon _                  -> (s, ap)
@@ -500,6 +501,7 @@ cheap ae =
     _ -> False
 
 eLet :: Ident -> Exp -> Exp -> Exp
+eLet i e b | cheap e = substExp i e b    -- always inline variables and literals
 eLet i e b =
   if i == dummyIdent then
     b
