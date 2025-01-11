@@ -312,7 +312,7 @@ munch p =
      scan s
  where
   scan (c:cs) | p c = do _ <- get; s <- scan cs; return (c:s)
-  scan _            = return ""
+  scan _            = return (""::String)
 
 munch1 :: (Char -> Bool) -> ReadP String
 -- ^ Parses the first one or more characters satisfying the predicate.
