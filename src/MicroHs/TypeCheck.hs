@@ -1861,11 +1861,14 @@ tcExprApFn mt fn tfn args = do
         (at, rt) <- unArrow loc ft
         loop ((a, at):ats) as rt
       final aats rt = do
-{-
+
+        -- We want to do the unification of rt ant mt before checking the argument to
+        -- have more type information.  See tests/Eq1.hs.
+        -- But instSigma may transform the input expression, so we have to be careful.
         let etmp = EUVar ugly
             ugly = -1::Int
         etmp' <- instSigma loc etmp rt mt
--}
+
         let apply f [] = return f
             apply f ((a,at):ats) = do
               a' <- checkSigma a at
@@ -1873,44 +1876,16 @@ tcExprApFn mt fn tfn args = do
         res <- apply fn' (reverse aats)
 --        cc <- gets constraints
 --        traceM $ "tcExprApFn: constraints=" ++ show cc
-{-
+
         case etmp' of
           EUVar _ -> return res   -- instSigma did nothing, this is the common case
           _ -> return $ substEUVar [(ugly, res)] etmp'
--}
+
         instSigma loc res rt mt
       
   loop [] args tfn'
 
-{-
-    EApp f a -> do
---      tcTrace $ "txExpr(0) EApp: expr=" ++ show ae ++ ":: " ++ show mt
-      (f', ft) <- tInferExpr f
-      -- A hack to make $ work the same way with instantiation as application.
-      -- This is ugly, but GHC does it, so people use it.
-      -- So use the identity '($) a == a'
-      case f' of
-        EVar i | i == mkIdent "Data.Function.$" -> tcExpr mt a
-        _ -> do
---          tcTrace $ "tcExpr(1) EApp: f=" ++ show f ++ "; f'=" ++ showExprRaw f' ++ " :: " ++ show ft
-          (at, rt) <- unArrow loc ft
---          tcTrace $ "tcExpr(2) EApp: f=" ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a ++ " :: " ++ show at ++ " retty=" ++ show rt
-          -- We want to do the unification of rt ant mt before checking the argument to
-          -- have more type information.  See tests/Eq1.hs.
-          -- But instSigma may transform the input expression, so we have to be careful.
-          let etmp = EUVar ugly
-              ugly = -1::Int
-          etmp' <- instSigma loc etmp rt mt
-          a' <- checkSigma a at
---          tcTrace $ "tcExpr(3) EApp: f = " ++ show f ++ " :: " ++ show ft ++ ", arg=" ++ show a' ++ " :: " ++ show at ++ " retty=" ++ show rt ++ " mt = " ++ show mt
-          let res = EApp f' a'
-          case etmp' of
-            EUVar _ -> return res   -- instSigma did nothing, this is the common case
-            _ -> return $ substEUVar [(ugly, res)] etmp'
--}
-
--- Approximation of failure free.
--- XXX single constructor types should be transparent
+-- Is a pattern failure free?
 failureFree :: EPat -> T Bool
 failureFree p@(EVar _) = failureFreeAp [] p
 failureFree p@(EApp _ _) = failureFreeAp [] p
@@ -2973,7 +2948,8 @@ solveConstraints = do
    else do
     addMetaDicts
 --    tcTrace "------------------------------------------\nsolveConstraints"
-    cs' <- mapM (\ (i,t) -> do { t' <- derefUVar t; return (i,t') }) cs
+    eqs <- gets typeEqTable
+    cs' <- mapM (\ (i,t) -> do { t' <- derefUVar t; return (i, normTypeEq eqs t') }) cs
 --    tcTrace ("constraints:\n" ++ unlines (map showConstraint cs'))
     (unsolved, solved, improves) <- solveMany cs' [] [] []
     putConstraints unsolved
