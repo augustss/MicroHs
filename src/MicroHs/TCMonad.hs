@@ -107,8 +107,8 @@ type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint, [IFunDep])
 -- The types and constraint can be instantiated by providing a starting TRef
 type InstDict   = (Expr, TRef -> ([EConstraint], [EType]))
 
--- All known type equalities, contains the transitive&commutative closure.
-type TypeEqTable = [(EType, EType)]
+-- All known type equalities, normalized into a substitution.
+type TypeEqTable = [(Ident, EType)]
 
 data ClassInfo = ClassInfo [IdKind] [EConstraint] EKind [Ident] [IFunDep]  -- class tyvars, superclasses, class kind, methods, fundeps
 type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables

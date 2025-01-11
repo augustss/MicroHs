@@ -504,7 +504,7 @@ addDict (i, c) = do
       _ -> addInstDict i c'
    else
     -- With constraint variables we might get unification variables.
-    -- We stash them away in how that we will learn more later.
+    -- We stash them away in hope that we will learn more later.
     addMetaDict i c'
 
 addInstDict :: HasCallStack => Ident -> EConstraint -> T ()
@@ -3282,27 +3282,51 @@ mkCoercible :: SLoc -> EType -> EType -> EConstraint
 mkCoercible loc t1 t2 = eAppI2 (mkIdentSLoc loc nameCoercible) t1 t2
 
 -- Possibly solve a type equality.
+-- Just normalize both types and compare.
 solveEq :: TypeEqTable -> EType -> EType -> Maybe [(EType, EType)]
 --solveEq eqs t1 t2 | trace ("solveEq: " ++ show (t1,t2) ++ show eqs) False = undefined
-solveEq eqs t1 t2 | t1 `eqEType` t2            = Just []
-                  | elemBy eqTyTy (t1, t2) eqs = Just []
+solveEq eqs t1 t2 | normTypeEq eqs t1 `eqEType` normTypeEq eqs t2 = Just []
                   | otherwise =
   case (t1, t2) of
     (EApp f1 a1, EApp f2 a2) -> Just [(f1, f2), (a1, a2)]
     _                        -> Nothing
 
 -- Add the equality t1~t2.
--- The type table is always the symmetric&transitive closure of all equalities.
--- This isn't very efficient, but it's simple.
+-- Type equalities are saved as a rewrite system where all the rules
+-- have the form
+--   v -> rhs
+-- where v is a type variable (rigid or skolem), and the rhs contains
+-- only type constructors and type variables that are not the LHS of any rule.
+-- To find out if two type are equal according to the known equalites,
+-- we just normalize both type using the rewrite rules (which is just a substitution).
+-- When we get TypeFamilies the LHS has to be a type expression as well.
+-- And the rewrite rules can probably be obtained with Knuth-Bendix completion
+-- of the equalities.
+-- Note: there should be no meta variables in t1 and t2.
+-- XXX This guaranteed by how it's called, but I'm not sure it always works properly.
 addTypeEq :: EType -> EType -> TypeEqTable -> TypeEqTable
-addTypeEq t1 t2 aeqs | t1 `eqEType` t2 || elemBy eqTyTy (t1, t2) aeqs || elemBy eqTyTy (t2, t1) aeqs = aeqs
-                     | otherwise = (t1, t2) : (t2, t1) :                    -- symmetry
-                                   trans t1 t2 aeqs ++ trans t2 t1 aeqs ++  -- transitivity
-                                   aeqs
-  where trans a1 a2 eqs = [ ab | (b1, b2) <- eqs, eqEType a2 b1, ab <- [(a1, b2), (b2, a1)] ]
+addTypeEq t1 t2 aeqs =
+  let deref (EVar i) | Just t <- lookup i aeqs = t
+      deref (ESign t _) = t
+      deref t = t
+      t1' = deref t1
+      t2' = deref t2
+      isVar = not . isConIdent
+  in  case (t1', t2') of
+        (EVar i1, EVar i2) | isVar i1 && isVar i2 ->
+               if i1 < i2 then (i2, t1') : aeqs  -- always point smaller to bigger
+          else if i1 > i2 then (i1, t2') : aeqs
+          else                             aeqs
+        (EVar i1, _) | isVar i1 -> (i1, t2') : aeqs
+        (_, EVar i2) | isVar i2 -> (i2, t1') : aeqs
+        (EApp f1 a1, EApp f2 a2) -> addTypeEq f1 f2 (addTypeEq a1 a2 aeqs)
+        _ | t1' `eqEType` t2 -> aeqs
+        _ -> errorMessage (getSLoc t1) $ "inconsisten type equality " ++ showEType t1' ++ " ~ " ++ showEType t2'
 
-eqTyTy :: (EType, EType) -> (EType, EType) -> Bool
-eqTyTy (t1, t2) (u1, u2) = eqEType t1 u1 && eqEType t2 u2
+-- Normalize a type with the known type equalties.
+-- For now, it's just substitution.
+normTypeEq :: TypeEqTable -> EType -> EType
+normTypeEq = subst
 
 ---------------------
 

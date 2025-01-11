@@ -200,7 +200,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_CCBIND,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGREF,
-                T_IO_PERFORMIO, T_IO_GETTIMEMILLI, T_IO_PRINT, T_CATCH,
+                T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
@@ -233,7 +233,7 @@ static const char* tag_names[] = {
   "C'BIND",
   "IO_SERIALIZE", "IO_DESERIALIZE",
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
-  "IO_PERFORMIO", "IO_GETTIMEMILLI", "IO_PRINT", "CATCH",
+  "IO_PERFORMIO", "IO_PRINT", "CATCH",
   "IO_CCALL", "IO_GC", "DYNSYM",
   "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
   "BSFROMUTF8",
@@ -749,7 +749,6 @@ struct {
   { "IO.stdout", T_IO_STDOUT },
   { "IO.stderr", T_IO_STDERR },
   { "IO.getArgRef", T_IO_GETARGREF },
-  { "IO.getTimeMilli", T_IO_GETTIMEMILLI },
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.gc", T_IO_GC },
   { "raise", T_RAISE },
@@ -2208,7 +2207,6 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_IO_PRINT: putsb("IO.print", f); break;
   case T_IO_DESERIALIZE: putsb("IO.deserialize", f); break;
   case T_IO_GETARGREF: putsb("IO.getArgRef", f); break;
-  case T_IO_GETTIMEMILLI: putsb("IO.getTimeMilli", f); break;
   case T_IO_PERFORMIO: putsb("IO.performIO", f); break;
   case T_IO_GC: putsb("IO.gc", f); break;
   case T_RAISE: putsb("raise", f); break;
@@ -3439,7 +3437,6 @@ evali(NODEPTR an)
   case T_IO_PRINT:
   case T_IO_DESERIALIZE:
   case T_IO_GETARGREF:
-  case T_IO_GETTIMEMILLI:
   case T_IO_CCALL:
   case T_CATCH:
   case T_NEWCASTRINGLEN:
