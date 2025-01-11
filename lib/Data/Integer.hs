@@ -23,6 +23,7 @@ import Data.Function
 import Data.Integer_Type
 import Data.Integral
 import Data.List
+import Data.Maybe_Type
 import Data.Num
 import Data.Ord
 import Data.Ratio_Type
@@ -211,16 +212,20 @@ mulM xs ys =
 quotRemI :: Integer -> Integer -> (Integer, Integer)
 quotRemI _         (I _  [])  = error "Integer: division by 0" -- n / 0
 quotRemI (I _  [])          _ = (I Plus [], I Plus [])         -- 0 / n
-quotRemI (I sx xs) (I sy ys) | all (== (0 :: Word)) ys' =
+quotRemI (I sx xs) (I sy ys) | Just (y, n) <- msd ys =
   -- All but the MSD are 0.  Scale numerator accordingly and divide.
   -- Then add back (the ++) the remainder we scaled off.
-    case quotRemD xs' y of
-      (q, r) -> qrRes sx sy (q, rs ++ r)
-  where ys'       = init ys
-        y         = last ys
-        n         = length ys'
-        (rs, xs') = splitAt n xs  -- xs' is the scaled number
+  let (rs, xs') = splitAt n xs  -- xs' is the scaled number
+  in case quotRemD xs' y of
+    (q, r) -> qrRes sx sy (q, rs ++ r)
 quotRemI (I sx xs) (I sy ys)  = qrRes sx sy (quotRemB xs ys)
+
+msd :: [Digit] -> Maybe (Digit, Int)
+msd = go 0
+  where
+    go _ [] = Nothing
+    go n [d] = Just (d, n)
+    go n (d : ds) = if d == 0 then go (n + 1) ds else Nothing
 
 qrRes :: Sign -> Sign -> ([Digit], [Digit]) -> (Integer, Integer)
 qrRes sx sy (ds, rs) = (sI (mulSign sx sy) ds, sI sx rs)
