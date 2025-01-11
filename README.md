@@ -93,6 +93,7 @@ Differences:
    * StandaloneDeriving
    * StandaloneKindSignatures
    * TupleSections (only pairs right now)
+   * TypeApplications
    * TypeLits
    * TypeSynonymInstances
    * UndecidableInstances

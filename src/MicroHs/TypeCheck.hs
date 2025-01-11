@@ -1817,6 +1817,8 @@ tcExprR mt ae =
     ESelect is -> do
         let x = eVarI loc "$x"
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
+    ETypeArg _ ->
+        tcError loc $ "Bad type application"
     _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
 
@@ -1850,6 +1852,10 @@ tcExprAp mt ae args =
       tcExprApFn mt f t args
     
 tcExprApFn :: Expected -> Expr -> EType -> [Expr] -> T Expr
+--tcExprApFn _ fn fnt args | trace (show (fn, fnt, args)) False = undefined
+tcExprApFn mt fn (EForall {-True-}_ (IdKind i _:iks) ft) (ETypeArg t : args) = do
+  t' <- if t `eqEType` EVar dummyIdent then newUVar else tcType (Check kType) t
+  tcExprApFn mt fn (eForall iks (subst [(i, t')] ft)) args
 tcExprApFn mt fn tfn args = do
 --  traceM $ "tcExprApFn: " ++ show (mt, fn, tfn, args)
 --  xx <- gets ctxTables
