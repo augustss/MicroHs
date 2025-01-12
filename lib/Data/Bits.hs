@@ -93,13 +93,24 @@ class Bits b => FiniteBits b where
 
       w = finiteBitSize x
 
+_overflowError :: a
+_overflowError = error "arithmetic overflow"
+
 instance Bits Int where
   (.&.) = primIntAnd
   (.|.) = primIntOr
   xor   = primIntXor
   complement = primIntInv
-  shiftL = primIntShl
-  shiftR = primIntShr
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | i >= _wordSize = 0
+    | otherwise = x `primIntShl` i
+  unsafeShiftL = primIntShl
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | i >= _wordSize = 0
+    | otherwise = x `primIntShr` i
+  unsafeShiftR = primIntShr
   bitSizeMaybe _ = Just _wordSize
   bitSize _ = _wordSize
   bit n = primIntShl 1 n

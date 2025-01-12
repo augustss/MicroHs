@@ -83,13 +83,20 @@ instance Bits Word where
   (.|.) = primWordOr
   xor   = primWordXor
   complement = primWordInv
-  shiftL = primWordShl
-  shiftR = primWordShr
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | i >= _wordSize = 0
+    | True = x `primWordShl` i
+  unsafeShiftL = primWordShl
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | i >= _wordSize = 0
+    | True = x `primWordShr` i
+  unsafeShiftR = primWordShr
   bitSizeMaybe _ = Just _wordSize
   bitSize _ = _wordSize
   bit n = primWordShl 1 n
   zeroBits = 0
-
 
 instance FiniteBits Word where
   finiteBitSize _ = _wordSize
@@ -170,8 +177,16 @@ instance Bits Word8 where
   (.|.) = bin8 primWordOr
   xor   = bin8 primWordXor
   complement = una8 primWordInv
-  shiftL = bini8 primWordShl
-  shiftR = bini8 primWordShr
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | i >= 8 = 0
+    | True = x `unsafeShiftL` i
+  unsafeShiftL = bini8 primWordShl
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | i >= 8 = 0
+    | True = x `unsafeShiftR` i
+  unsafeShiftR = bini8 primWordShr
   bitSizeMaybe _ = Just 8
   bitSize _ = 8
   bit n = w8 (primWordShl 1 n)
@@ -255,8 +270,16 @@ instance Bits Word16 where
   (.|.) = bin16 primWordOr
   xor   = bin16 primWordXor
   complement = una16 primWordInv
-  shiftL = bini16 primWordShl
-  shiftR = bini16 primWordShr
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | i >= 16 = 0
+    | True = x `unsafeShiftL` i
+  unsafeShiftL = bini16 primWordShl
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | i >= 16 = 0
+    | True = x `unsafeShiftR` i
+  unsafeShiftR = bini16 primWordShr
   bitSizeMaybe _ = Just 16
   bitSize _ = 16
   bit n = w16 (primWordShl 1 n)
@@ -341,8 +364,16 @@ instance Bits Word32 where
   (.|.) = bin32 primWordOr
   xor   = bin32 primWordXor
   complement = una32 primWordInv
-  shiftL = bini32 primWordShl
-  shiftR = bini32 primWordShr
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | i >= 32 = 0
+    | True = x `unsafeShiftL` i
+  unsafeShiftL = bini32 primWordShl
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | i >= 32 = 0
+    | True = x `unsafeShiftR` i
+  unsafeShiftR = bini32 primWordShr
   bitSizeMaybe _ = Just 32
   bitSize _ = 32
   bit n = w32 (primWordShl 1 n)
@@ -427,8 +458,16 @@ instance Bits Word64 where
   (.|.) = bin64 primWordOr
   xor   = bin64 primWordXor
   complement = una64 primWordInv
-  shiftL = bini64 primWordShl
-  shiftR = bini64 primWordShr
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | i >= 64 = 0
+    | True = x `unsafeShiftL` i
+  unsafeShiftL = bini64 primWordShl
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | i >= 64 = 0
+    | True = x `unsafeShiftR` i
+  unsafeShiftR = bini64 primWordShr
   bitSizeMaybe _ = Just 64
   bitSize _ = 64
   bit n = w64 (primWordShl 1 n)

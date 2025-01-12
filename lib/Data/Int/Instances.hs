@@ -12,6 +12,7 @@ import Data.Int.IntN
 import Data.Integer_Type
 import Data.Integral
 import Data.List
+import Data.Maybe_Type
 import Data.Num
 import Data.Ord
 import Data.Ratio_Type
@@ -88,20 +89,28 @@ instance Ord Int8 where
   (>)  = cmp8 primIntGT
   (>=) = cmp8 primIntGE
 
-{-
 instance Bits Int8 where
   (.&.) = bin8 primIntAnd
   (.|.) = bin8 primIntOr
   xor   = bin8 primIntXor
   complement = una8 primIntInv
-  shiftL = bini8 primIntShl
-  shiftR = bini8 primIntShr
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | i >= 8 = 0
+    | True = x `unsafeShiftL` i
+  unsafeShiftL = bini8 primIntShl
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | i >= 8 = 0
+    | True = x `unsafeShiftR` i
+  unsafeShiftR = bini8 primIntShr
   bitSizeMaybe _ = Just 8
   bitSize _ = 8
   bit n = i8 (primIntShl 1 n)
   zeroBits = 0
--}
 
+instance FiniteBits Int8 where
+  finiteBitSize _ = 8
 
 --------------------------------------------------------------------------------
 ----    Int16
@@ -172,20 +181,28 @@ instance Ord Int16 where
   (>)  = cmp16 primIntGT
   (>=) = cmp16 primIntGE
 
-{-
 instance Bits Int16 where
   (.&.) = bin16 primIntAnd
   (.|.) = bin16 primIntOr
   xor   = bin16 primIntXor
   complement = una16 primIntInv
-  shiftL = bini16 primIntShl
-  shiftR = bini16 primIntShr
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | i >= 16 = 0
+    | True = x `unsafeShiftL` i
+  unsafeShiftL = bini16 primIntShl
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | i >= 16 = 0
+    | True = x `unsafeShiftR` i
+  unsafeShiftR = bini16 primIntShr
   bitSizeMaybe _ = Just 16
   bitSize _ = 16
   bit n = i16 (primIntShl 1 n)
   zeroBits = 0
--}
 
+instance FiniteBits Int16 where
+  finiteBitSize _ = 16
 
 --------------------------------------------------------------------------------
 ----    Int32
@@ -256,19 +273,28 @@ instance Ord Int32 where
   (>)  = cmp32 primIntGT
   (>=) = cmp32 primIntGE
 
-{-
 instance Bits Int32 where
   (.&.) = bin32 primIntAnd
   (.|.) = bin32 primIntOr
   xor   = bin32 primIntXor
   complement = una32 primIntInv
-  shiftL = bini32 primIntShl
-  shiftR = bini32 primIntShr
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | i >= 32 = 0
+    | True = x `unsafeShiftL` i
+  unsafeShiftL = bini32 primIntShl
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | i >= 32 = 0
+    | True = x `unsafeShiftR` i
+  unsafeShiftR = bini32 primIntShr
   bitSizeMaybe _ = Just 32
   bitSize _ = 32
   bit n = i32 (primIntShl 1 n)
   zeroBits = 0
--}
+
+instance FiniteBits Int32 where
+  finiteBitSize _ = 32
 
 --------------------------------------------------------------------------------
 ----    Int64
@@ -338,19 +364,25 @@ instance Ord Int64 where
   (>)  = cmp64 primIntGT
   (>=) = cmp64 primIntGE
 
-{-
 instance Bits Int64 where
   (.&.) = bin64 primIntAnd
   (.|.) = bin64 primIntOr
   xor   = bin64 primIntXor
   complement = una64 primIntInv
-  shiftL = bini64 primIntShl
-  shiftR = bini64 primIntShr
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | i >= 64 = 0
+    | True = x `unsafeShiftL` i
+  unsafeShiftL = bini64 primIntShl
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | i >= 64 = 0
+    | True = x `unsafeShiftR` i
+  unsafeShiftR = bini64 primIntShr
   bitSizeMaybe _ = Just 64
   bitSize _ = 64
   bit n = i64 (primIntShl 1 n)
   zeroBits = 0
--}
 
-
-
+instance FiniteBits Int64 where
+  finiteBitSize _ = 64
