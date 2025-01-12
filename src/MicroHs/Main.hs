@@ -59,7 +59,8 @@ main = do
             if installPkg flags then mainInstallPackage flags mdls else
             withArgs rargs $ do
               case mdls of
-                []  -> mainInteractive flags
+                []  | null (cArgs flags) -> mainInteractive flags
+                    | otherwise -> mainCompileC flags [] ""
                 [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
                 _   -> error usage
 
@@ -258,40 +259,45 @@ mainCompile flags mn = do
       writeFile outFile cCode
      else do
        (fn, h) <- openTmpFile "mhsc.c"
+       let ppkgs = map fst $ getPathPkgs cash
        hPutStr h cCode
        hClose h
-       ct1 <- getTimeMilli
-       mcc <- lookupEnv "MHSCC"
-       let dir = mhsdir flags
-           ppkgs   = map fst $ getPathPkgs cash
-           incDirs = map (convertToInclude "include") ppkgs
-           cDirs   = map (convertToInclude "cbits") ppkgs
-       incDirs' <- filterM doesDirectoryExist incDirs
-       cDirs'   <- filterM doesDirectoryExist cDirs
-       -- print (map fst $ getPathPkgs cash, (incDirs, incDirs'), (cDirs, cDirs'))
-       let incs = unwords $ map ("-I" ++) incDirs'
-           defs = "-D__MHS__"
-           cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
-       TTarget _ compiler conf <- readTarget flags dir
-       let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
-                             incs ++ " " ++
-                             defs ++ " " ++
-                             cpps ++
-                             dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
-                             unwords (cArgs flags) ++
-                             unwords (map (++ "/*.c") cDirs') ++
-                             " $IN -lm -o $OUT"
-           cc = fromMaybe dcc mcc
-           cmd = substString "$IN" fn $ substString "$OUT" outFile cc
-       when (verbosityGT flags 0) $
-         putStrLn $ "Execute: " ++ show cmd
-       ec <- system cmd
+       mainCompileC flags ppkgs fn
        removeFile fn
-       when (ec /= ExitSuccess) $
-         error $ "command failed: " ++ cmd
-       ct2 <- getTimeMilli
-       when (verbosityGT flags 0) $
-         putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"
+
+mainCompileC :: Flags -> [FilePath] -> FilePath -> IO ()
+mainCompileC flags ppkgs infile = do
+  ct1 <- getTimeMilli
+  mcc <- lookupEnv "MHSCC"
+  let dir = mhsdir flags
+      incDirs = map (convertToInclude "include") ppkgs
+      cDirs   = map (convertToInclude "cbits") ppkgs
+      outFile = output flags
+  incDirs' <- filterM doesDirectoryExist incDirs
+  cDirs'   <- filterM doesDirectoryExist cDirs
+  -- print (map fst $ getPathPkgs cash, (incDirs, incDirs'), (cDirs, cDirs'))
+  let incs = unwords $ map ("-I" ++) incDirs'
+      defs = "-D__MHS__"
+      cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
+  TTarget _ compiler conf <- readTarget flags dir
+  let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
+                        incs ++ " " ++
+                        defs ++ " " ++
+                        cpps ++
+                        dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
+                        unwords (cArgs flags) ++
+                        unwords (map (++ "/*.c") cDirs') ++
+                        " $IN -lm -o $OUT"
+      cc = fromMaybe dcc mcc
+      cmd = substString "$IN" infile $ substString "$OUT" outFile cc
+  when (verbosityGT flags 0) $
+    putStrLn $ "Execute: " ++ show cmd
+  ec <- system cmd
+  when (ec /= ExitSuccess) $
+    error $ "command failed: " ++ cmd
+  ct2 <- getTimeMilli
+  when (verbosityGT flags 0) $
+    putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"
 
 mainInstallPackage :: Flags -> [FilePath] -> IO ()
 mainInstallPackage flags [pkgfn, dir] = do
