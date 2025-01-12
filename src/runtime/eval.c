@@ -4167,6 +4167,7 @@ MAIN
     }
     prog = parse_top(bf);
     closeb(bf);
+    file_size = combexprlen;
   } else {
 #if WANT_STDIO
     prog = parse_file(inname, &file_size);
