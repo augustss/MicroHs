@@ -27,7 +27,7 @@ Note that `mhs` built with ghc does not have all the functionality.
 Also note that there is no need to have a Haskell compiler to run MicroHs.
 All you need is a C compiler, and MicroHs can bootstrap, given the included combinator file.
 
-To install `mhs` use `make install`.  This will install `mhs` in `~/.mcabal` in the same
+To install `mhs` use `make minstall`.  This will install `mhs` in `~/.mcabal` in the same
 way as `mcabal` (MicroCabal) would have.  It will install a compiler binary and a compiled base package.
 You will have to add `~/.mcabal/bin` to your `PATH`.
 
@@ -99,6 +99,7 @@ Differences:
    * UndecidableInstances
    * UndecidableSuperClasses
    * ViewPatterns
+ * The only extension that is not always on is `CPP`.
  * `main` in the top module given to `mhs` serves at the program entry point.
  * Many things that should be an error (but which are mostly harmless) are not reported.
  * Text file I/O uses UTF8, but the source code does not allow Unicode.
@@ -176,7 +177,7 @@ it will be the entry point to the program.
 * `-a` set package search path to empty
 * `-aDIR` prepend `DIR` to package search path
 * `-PPKG` create package `PKG`
-* `-LFILE` list all modules in a package
+* `-L[FILE]` list all modules in a package
 * `-Q FILE [DIR]` install package
 *  `--` marks end of compiler arguments
 
@@ -333,6 +334,20 @@ package installed at a time.  If you need multiple version, you have to use diff
 and use `-a` to control it.  There is absolutely no checks for consistency among packages.
 There is also no compatibility between packages compiled with different versions of the compiler.
 
+### Hackage
+Hackage is full of great packages, unfortunately most of them contain some GHC specific code.
+There is a handful packages that works with mhs out of the box, or have been converted:
+* `containers`
+* `cpphs`
+* `hscolour`
+* `mtl` changes not merged yet, use [github.com/augustss/mtl](https://github.com/augustss/mtl)
+* `parsec` changes not merged yet, use [github.com/augustss/aprsec](https://github.com/augustss/parsec)
+* `polyparse`
+* `pretty`
+* `time`
+* `transformers`
+Some of these might not have be released on hackage yet, but the github repo works.
+
 ## Files
 There is a number of subdirectories:
 * `Tools/` a few useful tools for compressions etc.
@@ -359,6 +374,8 @@ the running program.
 * `-KSIZE` set stack size to `SIZE` entries, can be suffixed by `k`, `M`, or `G`, default is`100k`
 * `-rFILE` read combinators from `FILE`, instead of `out.comb`
 * `-v` be more verbose, flag can be repeated
+* `-T` generate profiling stats (if compiled with `-T` as well)
+* `-oFILE` just read the input, run garbage collection, and write out the resulting graph to file.
 
 For example, `bin/mhseval +RTS -H1M -v -RTS hello` runs `out.comb` and the program gets the argument `hello`,
 whereas the runtime system sets the heap to 1M cells and is verbose.
@@ -367,6 +384,8 @@ whereas the runtime system sets the heap to 1M cells and is verbose.
 MicroHs supports calling C functions.
 When running the program directly (using `-r`) or when generating a `.comb` file only the functions in the table built
 into `src/runtime/eval.c` can be used.  When generating a `.c` file or an executable any C function can be called.
+
+There is a lot of missing FFI functionality compared to GHC.
 
 ### Records
 MicroHs implements the record dot extensions.
@@ -382,10 +401,11 @@ fully implement `OverloadedRecordUpdate`.  When GHC decides how to do it, MicroH
 
 Note that record updates cannot change the type of polymorphic fields.
 
-### Features
+### Serialization
 The runtime system can serialize and deserialize any expression
 and keep its graph structure (sharing and cycles).
-The only exceptions to this are C pointers (e.g., file handles), which cannot be serialized (except for `stdin`, `stdout`, and `stderr`).
+The only exceptions to this are C pointers (e.g., file handles),
+which cannot be serialized (except for `stdin`, `stdout`, and `stderr`).
 
 ### Memory layout
 Memory allocation is based on cells.  Each cell has room for two pointers (i.e., two words, typically 16 bytes),
@@ -434,7 +454,7 @@ To identify that it is MicroHs that is the compiler it defines the symbol `__MHS
 # FAQ
 * 
   * Q: When will it get _insert feature_?
-  * A: Maybe some time, maybe never.
+  * A: Maybe some time, maybe never.  But it doesn't hurt to ask for it.
 * 
   * Q: Why are the error messages so bad?
   * A: Error messages are boring.
@@ -442,10 +462,3 @@ To identify that it is MicroHs that is the compiler it defines the symbol `__MHS
   * Q: Why is the so much source code?
   * A: I wonder this myself.  10000+ lines of Haskell seems excessive.
        6000+ lines of C is also more than I'd like for such a simple system.
-* 
-  * Q: Why are the binaries so big?
-  * A: The combinator file is rather verbose.  The combinator file
-       for the compiler shrinks from 350kB to 75kB when compressed with upx.
-       The evaluator alone is about 70kB (26kB compressed with upx).
-
-
