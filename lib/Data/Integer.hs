@@ -14,7 +14,6 @@ module Data.Integer(
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
-import Data.Bits
 import Data.Bool
 import Data.Char
 import Data.Enum
@@ -243,7 +242,7 @@ quotRemD axs y = qr zeroD (reverse axs) []
     qr ci []     res = (res, [ci])
     qr ci (x:xs) res = qr r xs (q:res)
       where
-        cx = ci `shiftL` shiftD + x
+        cx = ci * maxD + x
         q = quot cx y
         r = rem cx y
 
