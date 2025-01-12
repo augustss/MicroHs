@@ -1863,6 +1863,9 @@ tcExprApFn mt fn tfn args = do
   let loc = getSLoc fn
   (fn', tfn') <- tInst fn tfn
   let loop ats     [] ft = final ats ft
+      loop ats as@(_:_) (EForall _ vks ft) = do
+        ft' <- tInstForall vks ft
+        loop ats as ft'
       loop ats (a:as) ft = do
         (at, rt) <- unArrow loc ft
         loop ((a, at):ats) as rt
@@ -2061,6 +2064,7 @@ tcRSect op e = do
 
 unArrow :: HasCallStack =>
            SLoc -> EType -> T (EType, EType)
+--unArrow loc t@(EForall _ _ _) | trace ("unArrow: " ++ show t) False = undefined
 unArrow loc t = do
   case getArrow t of
     Just ar -> return ar
