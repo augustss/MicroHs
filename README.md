@@ -346,7 +346,10 @@ There is a handful packages that works with mhs out of the box, or have been con
 * `pretty`
 * `time`
 * `transformers`
+
 Some of these might not have be released on hackage yet, but the github repo works.
+
+Contributions to this list are very welcome.
 
 ## Files
 There is a number of subdirectories:
