@@ -93,6 +93,18 @@ class Bits b => FiniteBits b where
 
       w = finiteBitSize x
 
+bitDefault :: (Bits a, Num a) => Int -> a
+bitDefault i = 1 `shiftL` i
+
+testBitDefault :: (Bits a, Num a) => a -> Int -> Bool
+testBitDefault x i = (x .&. bit i) /= 0
+
+popCountDefault :: (Bits a, Num a) => a -> Int
+popCountDefault = go 0
+  where
+    go c 0 = c
+    go c w = go (c + 1) (w .&. (w - 1)) -- clear the least significant bit
+
 _overflowError :: a
 _overflowError = error "arithmetic overflow"
 
@@ -113,7 +125,9 @@ instance Bits Int where
   unsafeShiftR = primIntShr
   bitSizeMaybe _ = Just _wordSize
   bitSize _ = _wordSize
-  bit n = primIntShl 1 n
+  bit = bitDefault
+  testBit = testBitDefault
+  popCount = popCountDefault
   zeroBits = 0
 
 instance FiniteBits Int where

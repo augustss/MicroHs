@@ -106,7 +106,9 @@ instance Bits Int8 where
   unsafeShiftR = bini8 primIntShr
   bitSizeMaybe _ = Just 8
   bitSize _ = 8
-  bit n = i8 (primIntShl 1 n)
+  bit = bitDefault
+  testBit = testBitDefault
+  popCount = popCountDefault
   zeroBits = 0
 
 instance FiniteBits Int8 where
@@ -198,7 +200,9 @@ instance Bits Int16 where
   unsafeShiftR = bini16 primIntShr
   bitSizeMaybe _ = Just 16
   bitSize _ = 16
-  bit n = i16 (primIntShl 1 n)
+  bit = bitDefault
+  testBit = testBitDefault
+  popCount = popCountDefault
   zeroBits = 0
 
 instance FiniteBits Int16 where
@@ -290,7 +294,9 @@ instance Bits Int32 where
   unsafeShiftR = bini32 primIntShr
   bitSizeMaybe _ = Just 32
   bitSize _ = 32
-  bit n = i32 (primIntShl 1 n)
+  bit = bitDefault
+  testBit = testBitDefault
+  popCount = popCountDefault
   zeroBits = 0
 
 instance FiniteBits Int32 where
@@ -381,7 +387,9 @@ instance Bits Int64 where
   unsafeShiftR = bini64 primIntShr
   bitSizeMaybe _ = Just 64
   bitSize _ = 64
-  bit n = i64 (primIntShl 1 n)
+  bit = bitDefault
+  testBit = testBitDefault
+  popCount = popCountDefault
   zeroBits = 0
 
 instance FiniteBits Int64 where
