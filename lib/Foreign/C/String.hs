@@ -2,8 +2,10 @@ module Foreign.C.String(
   CString, CStringLen,
   newCAString, newCAStringLen,
   peekCAString, peekCAStringLen,
-  withCAString,
-  peekCString,
+  withCAString, withCAStringLen,
+  newCString, newCStringLen,
+  peekCString, peekCStringLen,
+  withCString, withCStringLen,
   ) where
 import Prelude()              -- do not import Prelude
 import Primitives
@@ -27,13 +29,36 @@ withCAString s io =
   free cs `primThen`
   primReturn a
 
+withCAStringLen :: forall a . String -> (CStringLen -> IO a) -> IO a
+withCAStringLen s io =
+  newCAStringLen s `primBind` \ cs@(p, _) ->
+  io cs `primBind` \ a ->
+  free p `primThen`
+  primReturn a
+
 peekCAString :: CString -> IO String
 peekCAString = primPeekCAString
 
 peekCAStringLen :: CStringLen -> IO String
 peekCAStringLen (p, i) = primPeekCAStringLen p i
 
--- Not quite right
-peekCString :: CString -> IO String
-peekCString = primPeekCAString
+------------------------------------------------------
+-- XXX:  No encoding!
 
+newCString :: String -> IO CString
+newCString = newCAString
+
+newCStringLen :: String -> IO CStringLen
+newCStringLen = newCAStringLen
+
+withCString :: forall a . String -> (CString -> IO a) -> IO a
+withCString = withCAString
+
+withCStringLen :: forall a . String -> (CStringLen -> IO a) -> IO a
+withCStringLen = withCAStringLen
+
+peekCString :: CString -> IO String
+peekCString = peekCAString
+
+peekCStringLen :: CStringLen -> IO String
+peekCStringLen = peekCAStringLen
