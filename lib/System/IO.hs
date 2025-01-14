@@ -28,6 +28,8 @@ module System.IO(
   BufferMode(..),
   hSetBuffering,
 
+  IOException(..),
+
   ) where
 import Prelude()              -- do not import Prelude
 import Primitives
