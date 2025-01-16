@@ -7,6 +7,14 @@ import {-# SOURCE #-} Control.Error
 import Data.Bool_Type
 import Data.List_Type
 
+--
+-- The Integer is stored in sign-magnitude format with digits in base maxD (2^32)
+-- It has the following invariants:
+--  * each digit is >= 0 and < maxD
+--  * least significant digits first, most significant last
+--  * no trailing 0s in the digits
+--  * 0 is positive
+
 data Integer = I Sign [Digit]
 
 data Sign = Plus | Minus
