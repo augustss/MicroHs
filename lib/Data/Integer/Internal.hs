@@ -3,7 +3,7 @@
 module Data.Integer.Internal(
   Integer,
   zeroI, oneI, negOneI,
-  eqI, neI, ltI, leI, gtI, geI,
+  eqI, neI, cmpI, ltI, leI, gtI, geI,
   addI, subI, mulI, quotRemI,
   negateI, absI,
   andI, orI, xorI,
@@ -51,12 +51,12 @@ zeroD :: Digit
 zeroD = 0
 
 addI :: Integer -> Integer -> Integer
-addI (I Plus  xs) (I Plus  ys)             =  I Plus  (add xs ys)
-addI (I Plus  xs) (I Minus ys) | ltW xs ys = sI Minus (sub ys xs)
-                               | True      = sI Plus  (sub xs ys)
-addI (I Minus xs) (I Plus  ys) | ltW ys xs = sI Minus (sub xs ys)
-                               | True      = sI Plus  (sub ys xs)
-addI (I Minus xs) (I Minus ys)             =  I Minus (add xs ys)
+addI (I Plus  xs) (I Plus  ys)                    =  I Plus  (add xs ys)
+addI (I Plus  xs) (I Minus ys) | LT <- cmpW xs ys = sI Minus (sub ys xs)
+                               | True             = sI Plus  (sub xs ys)
+addI (I Minus xs) (I Plus  ys) | LT <- cmpW ys xs = sI Minus (sub xs ys)
+                               | True             = sI Plus  (sub ys xs)
+addI (I Minus xs) (I Minus ys)                    =  I Minus (add xs ys)
 
 negateI :: Integer -> Integer
 negateI i@(I _    []) = i
@@ -98,15 +98,14 @@ subW b x y =
   let d = maxD + x - y - b
   in (1 - quotMaxD d, remMaxD d)
 
--- Is axs < ays?
-ltW :: [Digit] -> [Digit] -> Bool
-ltW axs ays = lxs < lys || lxs == lys && cmp (reverse axs) (reverse ays)
-  where
-    lxs = length axs
-    lys = length ays
-    cmp (x:xs) (y:ys) = x < y || x == y && cmp xs ys
-    cmp []     []     = False
-    cmp _      _      = error "ltW.cmp"
+cmpW :: [Digit] -> [Digit] -> Ordering
+cmpW (x : xs) (y : ys) =
+  case cmpW xs ys of
+    EQ -> compare x y
+    res -> res
+cmpW (_ : _) [] = GT
+cmpW [] (_ : _) = LT
+cmpW [] [] = EQ
 
 mulI :: Integer -> Integer -> Integer
 mulI (I _ []) _ = I Plus []         -- 0 * x = 0
@@ -226,20 +225,35 @@ eqI (I sx xs) (I sy ys) = sx == sy && xs == ys
 neI :: Integer -> Integer -> Bool
 neI x y = not (eqI x y)
 
+cmpI :: Integer -> Integer -> Ordering
+cmpI (I Plus  xs) (I Plus  ys) = cmpW xs ys
+cmpI (I Minus  _) (I Plus   _) = LT
+cmpI (I Plus   _) (I Minus  _) = GT
+cmpI (I Minus xs) (I Minus ys) = cmpW ys xs
+
 ltI :: Integer -> Integer -> Bool
-ltI (I Plus  xs) (I Plus  ys) = ltW xs ys
-ltI (I Minus  _) (I Plus   _) = True
-ltI (I Plus   _) (I Minus  _) = False
-ltI (I Minus xs) (I Minus ys) = ltW ys xs
+ltI x y =
+  case cmpI x y of
+    LT -> True
+    _  -> False
 
 leI :: Integer -> Integer -> Bool
-leI x y = not (ltI y x)
+leI x y =
+  case cmpI x y of
+    GT -> False
+    _  -> True
 
 gtI :: Integer -> Integer -> Bool
-gtI x y = ltI y x
+gtI x y =
+  case cmpI x y of
+    GT -> True
+    _  -> False
 
 geI :: Integer -> Integer -> Bool
-geI x y = not (ltI x y)
+geI x y =
+  case cmpI x y of
+    LT -> False
+    _  -> True
 
 ---------------------------------
 
