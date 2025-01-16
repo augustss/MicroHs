@@ -14,6 +14,7 @@ module Data.Integer(
 import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
+import Data.Bits
 import Data.Bool
 import Data.Char
 import Data.Enum
@@ -98,6 +99,47 @@ instance Enum Integer where
   enumFromThen = numericEnumFromThen
   enumFromTo = numericEnumFromTo
   enumFromThenTo = numericEnumFromThenTo
+
+instance Bits Integer where
+  (.&.) = andI
+  (.|.) = orI
+  xor = xorI
+  complement x = negOneI - x -- -x = complement x + 1 => complement x = -1 - x
+  I sign ds `unsafeShiftL` i
+    | null ds = zeroI
+    | otherwise =
+      let (q, r) = quotRem i shiftD
+      in I sign (replicate q 0 ++ shiftLD ds r)
+  x `shiftL` i
+    | i < 0 = _overflowError
+    | otherwise = x `unsafeShiftL` i
+  I sign ds `unsafeShiftR` i
+    | null ds = zeroI
+    | otherwise =
+      let
+        (q, r) = quotRem i shiftD
+        (rs, ds') = splitAt q ds
+        (ds'', shiftedOut1s) = shiftRD ds' r
+      in case sign of
+        Minus | shiftedOut1s || any (/= 0) rs -> I sign (add1 ds'')
+        _ -> I sign ds''
+  x `shiftR` i
+    | i < 0 = _overflowError
+    | otherwise = x `unsafeShiftR` i
+  x `shift` i
+    | i < 0 = x `unsafeShiftR` (-i)
+    | i > 0 = x `unsafeShiftL` i
+    | otherwise = x
+  rotate = shift
+  bit i = oneI `shiftL` i
+  testBit = testBitI
+  zeroBits = zeroI
+  bitSizeMaybe _ = Nothing
+  popCount (I sign ds) =
+    let count = sum (map popCount ds)
+    in case sign of
+      Plus -> count
+      Minus -> -count
 
 ------------------------------------------------
 
@@ -242,7 +284,7 @@ quotRemD axs y = qr zeroD (reverse axs) []
     qr ci []     res = (res, [ci])
     qr ci (x:xs) res = qr r xs (q:res)
       where
-        cx = ci * maxD + x
+        cx = ci `unsafeShiftL` shiftD + x
         q = quot cx y
         r = rem cx y
 
@@ -328,6 +370,91 @@ _integerToIntList i = if i < 0 then (-1::Int) : f (-i) else f i
 _intListToInteger :: [Int] -> Integer
 _intListToInteger ads@(x : ds) = if x == -1 then - f ds else f ads
   where f = foldr (\ d a -> a * integerListBase + toInteger d) 0
+
+---------------------------------
+
+andI :: Integer -> Integer -> Integer
+andI (I Plus  xs) (I Plus  ys) = bI Plus  (andDigits xs ys)
+andI (I Plus  xs) (I Minus ys) = bI Plus  (andNotDigits (sub1 ys) xs)
+andI (I Minus xs) (I Plus  ys) = bI Plus  (andNotDigits (sub1 xs) ys)
+andI (I Minus xs) (I Minus ys) = bI Minus (orDigits (sub1 xs) (sub1 ys))
+
+orI :: Integer -> Integer -> Integer
+orI (I Plus  xs) (I Plus  ys) = bI Plus  (orDigits xs ys)
+orI (I Plus  xs) (I Minus ys) = bI Minus (andNotDigits xs (sub1 ys))
+orI (I Minus xs) (I Plus  ys) = bI Minus (andNotDigits ys (sub1 xs))
+orI (I Minus xs) (I Minus ys) = bI Minus (andDigits (sub1 xs) (sub1 ys))
+
+xorI :: Integer -> Integer -> Integer
+xorI (I Plus  xs) (I Plus  ys) = bI Plus  (xorDigits xs ys)
+xorI (I Plus  xs) (I Minus ys) = bI Minus (xorDigits xs (sub1 ys))
+xorI (I Minus xs) (I Plus  ys) = bI Minus (xorDigits (sub1 xs) ys)
+xorI (I Minus xs) (I Minus ys) = bI Plus  (xorDigits (sub1 xs) (sub1 ys))
+
+bI :: Sign -> [Digit] -> Integer
+bI Plus  ds = sI Plus  ds
+bI Minus ds = sI Minus (add1 ds)
+
+add1 :: [Digit] -> [Digit]
+add1 ds = add ds [1]
+
+sub1 :: [Digit] -> [Digit]
+sub1 ds = sub ds [1]
+
+andDigits :: [Digit] -> [Digit] -> [Digit]
+andDigits (x : xs) (y : ys) = (x .&. y) : andDigits xs ys
+andDigits _        _        = []
+
+andNotDigits :: [Digit] -> [Digit] -> [Digit]
+andNotDigits []       []       = []
+andNotDigits []       ys       = ys
+andNotDigits xs       []       = []
+andNotDigits (x : xs) (y : ys) = (complement x .&. y) : andNotDigits xs ys
+
+orDigits :: [Digit] -> [Digit] -> [Digit]
+orDigits []       []       = []
+orDigits []       ys       = ys
+orDigits xs       []       = xs
+orDigits (x : xs) (y : ys) = (x .|. y) : orDigits xs ys
+
+xorDigits :: [Digit] -> [Digit] -> [Digit]
+xorDigits []       []       = []
+xorDigits []       ys       = ys
+xorDigits xs       []       = xs
+xorDigits (x : xs) (y : ys) = (x `xor` y) : xorDigits xs ys
+
+shiftLD :: [Digit] -> Int -> [Digit]
+shiftLD ds 0 = ds
+shiftLD ds i = go 0 ds
+  where
+    go ci [] = if ci == 0 then [] else [ci]
+    go ci (d : ds) =
+      let
+        x = (d `unsafeShiftL` i) .|. ci
+        co = quotMaxD x
+        s = remMaxD x
+      in s : go co ds
+
+shiftRD :: [Digit] -> Int -> ([Digit], Bool)
+shiftRD ds 0 = (ds, False)
+shiftRD ds i =
+  let (rs, ds') = splitAt 1 (shiftLD ds (shiftD - i))
+  in (ds', any (/= 0) rs)
+
+testBitI :: Integer -> Int -> Bool
+testBitI (I Plus  ds) i =
+  case ds !? q of
+    Just d -> testBit d r
+    Nothing -> False
+  where (q, r) = quotRem i shiftD
+testBitI (I Minus ds) i =
+  -- not (testBitI (complement (I Minus ds)) i)
+  case ds !? q of
+    Just d ->
+      let d' = if all (== 0) (take q ds) then d - 1 else d
+      in not (testBit d' r)
+    Nothing -> True
+  where (q, r) = quotRem i shiftD
 
 ---------------------------------
 {-
