@@ -30,6 +30,7 @@ instance Eq Integer where
   (/=) = neI
 
 instance Ord Integer where
+  compare = cmpI
   (<)  = ltI
   (<=) = leI
   (>)  = gtI
