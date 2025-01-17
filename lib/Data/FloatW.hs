@@ -12,6 +12,7 @@ import Data.Floating
 import Data.Fractional
 import Data.Function
 import Data.Integer
+import Data.Integer.Internal(_integerToFloatW, _wordToInteger)
 import Data.Integral
 import Data.List
 import Data.Ord

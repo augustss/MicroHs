@@ -7,6 +7,14 @@ import {-# SOURCE #-} Control.Error
 import Data.Bool_Type
 import Data.List_Type
 
+--
+-- The Integer is stored in sign-magnitude format with digits in base maxD (2^32)
+-- It has the following invariants:
+--  * each digit is >= 0 and < maxD
+--  * least significant digits first, most significant last
+--  * no trailing 0s in the digits
+--  * 0 is positive
+
 data Integer = I Sign [Digit]
 
 data Sign = Plus | Minus
@@ -14,19 +22,22 @@ data Sign = Plus | Minus
 type Digit = Word
 
 maxD :: Digit
-maxD =
+maxD = 1 `primWordShl` shiftD
+
+shiftD :: Int
+shiftD =
   if _wordSize `primIntEQ` 64 then
-    (4294967296 :: Word) -- 2^32, this is used so multiplication of two digits doesn't overflow a 64 bit Word
+    (32 :: Int) -- this is used so multiplication of two digits doesn't overflow a 64 bit Word
   else if _wordSize `primIntEQ` 32 then
-    (65536 :: Word)      -- 2^16, this is used so multiplication of two digits doesn't overflow a 32 bit Word
+    (16 :: Int) -- this is used so multiplication of two digits doesn't overflow a 32 bit Word
   else
     error "Integer: unsupported word size"
 
 quotMaxD :: Digit -> Digit
-quotMaxD d = d `primWordQuot` maxD
+quotMaxD d = d `primWordShr` shiftD
 
 remMaxD :: Digit -> Digit
-remMaxD d = d `primWordRem` maxD
+remMaxD d = d `primWordAnd` (maxD `primWordSub` 1)
 
 -- Sadly, we also need a bunch of functions.
 
@@ -38,8 +49,8 @@ _intToInteger i
   where
     f sign i =
       let
-        high = i `primWordQuot` maxD
-        low = i `primWordRem` maxD
+        high = quotMaxD i
+        low = remMaxD i
       in if high `primWordEQ` 0 then I sign [low] else I sign [low, high]
 
 _integerToInt :: Integer -> Int
@@ -51,8 +62,8 @@ _wordToInteger i
   | high `primWordEQ` 0 = I Plus [low]
   | True                = I Plus [low, high]
   where
-    high = i `primWordQuot` maxD
-    low = i `primWordRem` maxD
+    high = quotMaxD i
+    low = remMaxD i
 
 _integerToWord :: Integer -> Word
 _integerToWord (I sign ds) =
@@ -64,7 +75,7 @@ _integerToWord (I sign ds) =
       case ds of
         []          -> 0 :: Word
         [d1]        -> d1
-        d1 : d2 : _ -> d1 `primWordAdd` (maxD `primWordMul` d2)
+        d1 : d2 : _ -> d1 `primWordAdd` (d2 `primWordShl` shiftD)
 
 _integerToFloatW :: Integer -> FloatW
 _integerToFloatW (I sign ds) = s `primFloatWMul` loop ds

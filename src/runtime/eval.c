@@ -1597,13 +1597,20 @@ parse_double(BFILE *f)
 
 struct forptr *mkForPtr(struct bytestring bs);
 
+/* Create a forptr that has a free() finalizer. */
+struct forptr *
+mkForPtrFree(struct bytestring str)
+{
+  struct forptr *fp = mkForPtr(str);         /* Create a foreign pointer */
+  fp->finalizer->final = (HsFunPtr)FREE;     /* and set the finalizer to just free it */
+  return fp;
+}
+
 NODEPTR
 mkStrNode(struct bytestring str)
 {
   NODEPTR n = alloc_node(T_BSTR);
-  struct forptr *fp = mkForPtr(str);         /* Create a foreign pointer */
-  fp->finalizer->final = (HsFunPtr)FREE;     /* and set the finalizer to just free it */
-  FORPTR(n) = fp;
+  FORPTR(n) = mkForPtrFree(str);
   //printf("mkForPtr n=%p fp=%p %d %s payload.string=%p\n", n, fp, (int)FORPTR(n)->payload.size, (char*)FORPTR(n)->payload.string, FORPTR(n)->payload.string);
   return n;
 }
@@ -2374,7 +2381,7 @@ mkForPtr(struct bytestring bs)
   final_root = fin;
   fin->final = 0;
   fin->arg = bs.string;
-  fin->size = bs.size;
+  fin->size = bs.size;          /* The size is not really needed */
   fin->back = fp;
   fin->marked = 0;
   fp->next = 0;
@@ -2631,10 +2638,12 @@ evalbstr(NODEPTR n)
   return FORPTR(n);
 }
 
-/* Evaluate a string, returns a newly allocated buffer. */
-/* XXX this is cheating, should use continuations */
-/* XXX the malloc()ed string is leaked if we yield in here. */
-/* Does UTF-8 encoding */
+/* Evaluate a string, returns a newly allocated buffer.
+ * XXX this is cheating, should use continuations.
+ * XXX the malloc()ed string is leaked if we yield in here.
+ * Caller is responsible to free().
+ * Does UTF-8 encoding.
+ */
 struct bytestring
 evalstring(NODEPTR n)
 {
@@ -3010,6 +3019,7 @@ evali(NODEPTR an)
 #define SETPTR(n,r)    do { SETTAG((n), T_PTR); PTR(n) = (r); } while(0)
 #define SETFUNPTR(n,r) do { SETTAG((n), T_FUNPTR); FUNPTR(n) = (r); } while(0)
 #define SETFORPTR(n,r) do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); } while(0)
+#define SETBSTR(n,r)   do { SETTAG((n), T_BSTR); FORPTR(n) = (r); } while(0)
 #define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
@@ -3285,8 +3295,7 @@ evali(NODEPTR an)
       struct bytestring bs = evalstring(ARG(TOP(0)));
       POP(1);
       n = TOP(-1);
-      SETTAG(n, T_BSTR);
-      FORPTR(n) = mkForPtr(bs);
+      SETBSTR(n, mkForPtrFree(bs));
       RET;
     }
 
@@ -3310,8 +3319,7 @@ evali(NODEPTR an)
       (void)headutf8(xfp->payload, &out);           /* skip one UTF8 character */
       xi = (char*)out - (char*)xfp->payload.string; /* offset */
       yi = xfp->payload.size - xi;                  /* remaining length */
-      SETTAG(n, T_BSTR);
-      FORPTR(n) = bssubstr(xfp, xi, yi);            /* make a substring */
+      SETBSTR(n, bssubstr(xfp, xi, yi));            /* make a substring */
     }
     RET;
 
@@ -3337,15 +3345,12 @@ evali(NODEPTR an)
     GOIND(bsunpack(BSTR(x)));
 
   case T_BSPACK:
-    {
-      CHECK(1);
-      struct bytestring bs = evalbytestring(ARG(TOP(0)));
-      POP(1);
-      n = TOP(-1);
-      SETTAG(n, T_BSTR);
-      FORPTR(n) = mkForPtr(bs);
-      RET;
-    }
+    CHECK(1);
+    struct bytestring rbs = evalbytestring(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETBSTR(n, mkForPtrFree(rbs));
+    RET;
 
   case T_BSSUBSTR:
     CHECK(3);
@@ -3354,8 +3359,7 @@ evali(NODEPTR an)
     yi = evalint(ARG(TOP(2)));
     POP(3);
     n = TOP(-1);
-    SETTAG(n, T_BSTR);
-    FORPTR(n) = bssubstr(xfp, xi, yi);
+    SETBSTR(n, bssubstr(xfp, xi, yi));
     RET;
 
   case T_BSLENGTH:
@@ -3685,8 +3689,7 @@ evali(NODEPTR an)
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
         ERR("BINBS");
       }
-      SETTAG((n), T_BSTR);
-      FORPTR(n) = mkForPtr(rbs);
+      SETBSTR(n, mkForPtrFree(rbs));
       goto ret;
 
     default:

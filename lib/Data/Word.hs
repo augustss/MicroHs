@@ -95,7 +95,9 @@ instance Bits Word where
   unsafeShiftR = primWordShr
   bitSizeMaybe _ = Just _wordSize
   bitSize _ = _wordSize
-  bit n = primWordShl 1 n
+  bit = bitDefault
+  testBit = testBitDefault
+  popCount = popCountDefault
   zeroBits = 0
 
 instance FiniteBits Word where
@@ -189,7 +191,9 @@ instance Bits Word8 where
   unsafeShiftR = bini8 primWordShr
   bitSizeMaybe _ = Just 8
   bitSize _ = 8
-  bit n = w8 (primWordShl 1 n)
+  bit = bitDefault
+  testBit = testBitDefault
+  popCount = popCountDefault
   zeroBits = 0
 
 instance FiniteBits Word8 where
@@ -282,7 +286,9 @@ instance Bits Word16 where
   unsafeShiftR = bini16 primWordShr
   bitSizeMaybe _ = Just 16
   bitSize _ = 16
-  bit n = w16 (primWordShl 1 n)
+  bit = bitDefault
+  testBit = testBitDefault
+  popCount = popCountDefault
   zeroBits = 0
 
 instance FiniteBits Word16 where
@@ -376,7 +382,9 @@ instance Bits Word32 where
   unsafeShiftR = bini32 primWordShr
   bitSizeMaybe _ = Just 32
   bitSize _ = 32
-  bit n = w32 (primWordShl 1 n)
+  bit = bitDefault
+  testBit = testBitDefault
+  popCount = popCountDefault
   zeroBits = 0
 
 instance FiniteBits Word32 where
@@ -470,7 +478,9 @@ instance Bits Word64 where
   unsafeShiftR = bini64 primWordShr
   bitSizeMaybe _ = Just 64
   bitSize _ = 64
-  bit n = w64 (primWordShl 1 n)
+  bit = bitDefault
+  testBit = testBitDefault
+  popCount = popCountDefault
   zeroBits = 0
 
 instance FiniteBits Word64 where
