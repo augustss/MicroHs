@@ -334,7 +334,7 @@ upperIdent loc sloc qs acs =
    (ds, rs) ->
     case rs of
       '.':cs@(d:_) | isUpper d    -> upperIdent (addCol loc $ 1 + length ds) sloc (ds:qs) cs
-                   | isLower d    -> ident isIdentChar
+                   | isLower_ d   -> ident isIdentChar
                    | isOperChar d -> ident isOperChar
          where {
            ident p =

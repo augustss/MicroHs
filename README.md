@@ -213,6 +213,7 @@ and also the WASM code embedded as a blob.  Running via JavaScript/WASM is almos
 * `MHSCC` command use to compile C file to produce binaries.  Look at the source for more information.
 * `MHSCPPHS` command to use with `-XCPP` flag.  Defaults to `cpphs`.
 * `MHSCONF` which runtime to use, defaults to `unix-32/64` depending on your host's word size
+* `MHSEXTRACCFLAGS` extra flags passed to the C compiler
 
 ### Compiler modules
 
