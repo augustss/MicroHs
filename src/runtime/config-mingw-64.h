@@ -43,6 +43,22 @@
  */
 #define FFS __builtin_ffsll
 
+#define POPCOUNT __builtin_popcountll
+
+#include <inttypes.h>
+
+static inline uint64_t clz(uint64_t x) {
+  if (x == 0) return 64;
+  return __builtin_clzll(x);
+}
+#define CLZ clz
+
+static inline uint64_t ctz(uint64_t x) {
+  if (x == 0) return 64;
+  return __builtin_ctzll(x);
+}
+#define CTZ ctz
+
 /*
  * This is the character used for comma-separation in printf.
  * Defaults to "'".

@@ -142,6 +142,8 @@ ffs(uintptr_t x)
 }
 #define FFS ffs
 
+#define CLZ __CLZ
+
 #define FFI_EXTRA \
   { "set_led",   (funptr_t)set_led,   FFI_IIV }, \
   { "busy_wait", (funptr_t)busy_wait, FFI_IV },

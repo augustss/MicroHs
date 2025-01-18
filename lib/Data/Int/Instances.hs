@@ -108,11 +108,13 @@ instance Bits Int8 where
   bitSize _ = 8
   bit = bitDefault
   testBit = testBitDefault
-  popCount = popCountDefault
+  popCount (I8 x) = primIntPopcount (x .&. 0xff)
   zeroBits = 0
 
 instance FiniteBits Int8 where
   finiteBitSize _ = 8
+  countLeadingZeros (I8 x) = primIntClz (x .&. 0xff) - (_wordSize - 8)
+  countTrailingZeros (I8 x) = if x == 0 then 8 else primIntCtz x
 
 --------------------------------------------------------------------------------
 ----    Int16
@@ -202,11 +204,13 @@ instance Bits Int16 where
   bitSize _ = 16
   bit = bitDefault
   testBit = testBitDefault
-  popCount = popCountDefault
+  popCount (I16 x) = primIntPopcount (x .&. 0xffff)
   zeroBits = 0
 
 instance FiniteBits Int16 where
   finiteBitSize _ = 16
+  countLeadingZeros (I16 x) = primIntClz (x .&. 0xffff) - (_wordSize - 16)
+  countTrailingZeros (I16 x) = if x == 0 then 16 else primIntCtz x
 
 --------------------------------------------------------------------------------
 ----    Int32
@@ -296,11 +300,13 @@ instance Bits Int32 where
   bitSize _ = 32
   bit = bitDefault
   testBit = testBitDefault
-  popCount = popCountDefault
+  popCount (I32 x) = primIntPopcount (x .&. 0xffffffff)
   zeroBits = 0
 
 instance FiniteBits Int32 where
   finiteBitSize _ = 32
+  countLeadingZeros (I32 x) = primIntClz (x .&. 0xffffffff) - (_wordSize - 32)
+  countTrailingZeros (I32 x) = if x == 0 then 32 else primIntCtz x
 
 --------------------------------------------------------------------------------
 ----    Int64
@@ -389,8 +395,10 @@ instance Bits Int64 where
   bitSize _ = 64
   bit = bitDefault
   testBit = testBitDefault
-  popCount = popCountDefault
+  popCount (I64 x) = primIntPopcount x
   zeroBits = 0
 
 instance FiniteBits Int64 where
   finiteBitSize _ = 64
+  countLeadingZeros = primIntClz . unI64
+  countTrailingZeros = primIntCtz . unI64
