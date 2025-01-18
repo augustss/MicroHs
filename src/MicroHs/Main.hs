@@ -280,9 +280,11 @@ mainCompileC flags ppkgs infile = do
       defs = "-D__MHS__"
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
   TTarget _ compiler conf <- readTarget flags dir
+  extra <- fromMaybe "" <$> lookupEnv "MHSEXTRACCFLAGS"
   let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
                         incs ++ " " ++
                         defs ++ " " ++
+                        extra ++ " " ++
                         cpps ++
                         dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
                         unwords (cArgs flags) ++
