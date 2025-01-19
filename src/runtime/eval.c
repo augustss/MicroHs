@@ -127,6 +127,60 @@ FFS(bits_t x)
 }
 #endif  /* !defined(FFS) */
 
+#if !defined(POPCOUNT)
+uvalue_t POPCOUNT(uvalue_t x) {
+#if defined(__GNUC__)
+  return __builtin_popcountl(x);
+#elif defined(__clang__) && __has_builtin(__builtin_popcountl)
+  return __builtin_popcountl(x);
+#else
+  uvalue_t count = 0;
+  while (x) {
+    x = x & (x - 1); // clear lowest 1 bit
+    count += 1;
+  }
+  return count;
+#endif
+}
+#endif
+
+#if !defined(CLZ)
+uvalue_t CLZ(uvalue_t x) {
+#if defined(__GNUC__)
+  if (x == 0) return WORD_SIZE;
+  return __builtin_clzl(x);
+#elif defined(__clang__) && __has_builtin(__builtin_clzl)
+  if (x == 0) return WORD_SIZE;
+  return __builtin_clzl(x);
+#else
+  value_t count = WORD_SIZE;
+  while (x) {
+    x = x >> 1;
+    count -= 1;
+  }
+  return count;
+#endif
+}
+#endif
+
+#if !defined(CTZ)
+uvalue_t CTZ(uvalue_t x) {
+  if (x == 0) return WORD_SIZE;
+#if defined(__GNUC__)
+  return __builtin_ctzl(x);
+#elif defined(__clang__) && __has_builtin(__builtin_ctzl)
+  return __builtin_ctzl(x);
+#else
+  uvalue_t count = 0;
+  while ((x & 1) == 0) {
+    x = x >> 1;
+    count += 1;
+  }
+  return count;
+#endif
+}
+#endif
+
 #if !defined(WANT_ARGS)
 #define WANT_ARGS 1
 #endif
@@ -183,6 +237,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_K2, T_K3, T_K4, T_CCB,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
+                T_POPCOUNT, T_CLZ, T_CTZ,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE, T_ICMP, T_UCMP,
                 T_FPADD, T_FP2P, T_FPNEW, T_FPFIN, // T_FPSTR,
                 T_TOPTR, T_TOINT, T_TODBL, T_TOFUNPTR,
@@ -217,6 +272,7 @@ static const char* tag_names[] = {
   "K2", "K3", "K4", "CCB",
   "ADD", "SUB", "MUL", "QUOT", "REM", "SUBR", "UQUOT", "UREM", "NEG",
   "AND", "OR", "XOR", "INV", "SHL", "SHR", "ASHR",
+  "POPCOUNT", "CLZ", "CTZ",
   "EQ", "NE", "LT", "LE", "GT", "GE", "ULT", "ULE", "UGT", "UGE",
   "FPADD", "FP2P", "FPNEW", "FPFIN",
   "TOPTR", "TOINT", "TODBL", "TOFUNPTR",
@@ -676,6 +732,9 @@ struct {
   { "shl", T_SHL },
   { "shr", T_SHR },
   { "ashr", T_ASHR },
+  { "popcount", T_POPCOUNT },
+  { "clz", T_CLZ },
+  { "ctz", T_CTZ },
 #if WANT_FLOAT
   { "f+" , T_FADD, T_FADD},
   { "f-" , T_FSUB, T_FSUB},
@@ -2155,6 +2214,9 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_SHL: putsb("shl", f); break;
   case T_SHR: putsb("shr", f); break;
   case T_ASHR: putsb("ashr", f); break;
+  case T_POPCOUNT: putsb("popcount", f); break;
+  case T_CLZ: putsb("clz", f); break;
+  case T_CTZ: putsb("ctz", f); break;
 #if WANT_FLOAT
   case T_FADD: putsb("f+", f); break;
   case T_FSUB: putsb("f-", f); break;
@@ -3198,6 +3260,9 @@ evali(NODEPTR an)
     goto top;
   case T_NEG:
   case T_INV:
+  case T_POPCOUNT:
+  case T_CLZ:
+  case T_CTZ:
     CHECK(1);
     n = ARG(TOP(0));
     PUSH(combUNINT1);
@@ -3568,9 +3633,12 @@ evali(NODEPTR an)
       n = TOP(-1);
     unint:
       switch (GETTAG(p)) {
-      case T_IND:   p = INDIR(p); goto unint;
-      case T_NEG:   ru = -xu; break;
-      case T_INV:   ru = ~xu; break;
+      case T_IND:      p = INDIR(p); goto unint;
+      case T_NEG:      ru = -xu; break;
+      case T_INV:      ru = ~xu; break;
+      case T_POPCOUNT: ru = POPCOUNT(xu); break;
+      case T_CLZ:      ru = CLZ(xu); break;
+      case T_CTZ:      ru = CTZ(xu); break;
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
         ERR("UNINT");

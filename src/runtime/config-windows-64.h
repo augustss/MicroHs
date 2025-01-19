@@ -62,6 +62,32 @@ ffs(int64_t arg)
 }
 #define FFS ffs
 
+#if defined(_M_X64)
+#define POPCOUNT __popcnt64
+#elif defined(_M_IX86)
+#define POPCOUNT __popcnt
+#endif
+
+static inline uint64_t clz(uint64_t x) {
+  unsigned long count;
+  if (_BitScanReverse64(&count, x)) {
+    return 63 - (uint64_t)count;
+  } else {
+    return 64;
+  }
+}
+#define CLZ clz
+
+static inline uint64_t ctz(uint64_t x) {
+  unsigned long count;
+  if (_BitScanForward64(&count, x)) {
+    return (uint64_t)count;
+  } else {
+    return 64;
+  }
+}
+#define CTZ ctz
+
 /*
  * This is the character used for comma-separation in printf.
  * Defaults to "'".
