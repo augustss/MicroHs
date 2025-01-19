@@ -12,8 +12,9 @@ module System.FilePath(
   ) where
 import Prelude(); import MHSPrelude
 import Data.List
+import Compat
 
-infixr 7 <.>, -<.>
+infixr 7 <.>
 infixr 5 </>
 
 (</>) :: FilePath -> FilePath -> FilePath

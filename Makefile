@@ -20,6 +20,12 @@ GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
 #
+# Hugs
+HUGS= runhugs
+FFIHUGS= ffihugs
+HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
+
+#
 EMCC=emcc -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW
 #
 MHSINCNP= -i -imhs -isrc -ilib
@@ -260,3 +266,18 @@ minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal install
 	PATH=$(MCABALBIN):"$$PATH" mcabal install
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
+
+#####
+# Hugs
+tmp/mhs_hugs.c:
+	mkdir -p tmp
+#	$(HUGS) $(HUGSINCS) Main -z $(MHSINC) MicroHs.Main -otmp/mhs_hugs.c
+	$(HUGS) $(HUGSINCS) MicroHs.Main
+
+bin/mhs_hugs: tmp/mhs_hugs.c
+	$(CCEVAL) tmp/mhs_hugs.c -o bin/mhs_hugs
+
+hugs/obj/System/Process.so: lib/System/Process.hs
+	mkdir -p hugs/obj
+	$(FFIHUGS) $(HUGSINCS) System.Process
+	mv lib/System/Process.so hugs/obj/System/Process.so
