@@ -127,8 +127,10 @@ instance Bits Int where
   bitSize _ = _wordSize
   bit = bitDefault
   testBit = testBitDefault
-  popCount = popCountDefault
+  popCount = primIntPopcount
   zeroBits = 0
 
 instance FiniteBits Int where
   finiteBitSize _ = _wordSize
+  countLeadingZeros = primIntClz
+  countTrailingZeros = primIntCtz

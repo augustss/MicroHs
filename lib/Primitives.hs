@@ -119,6 +119,12 @@ primWordAshr :: Word -> Int -> Word
 primWordAshr  = primitive "ashr"
 primWordInv :: Word -> Word
 primWordInv  = primitive "inv"
+primWordPopcount :: Word -> Int
+primWordPopcount = primitive "popcount"
+primWordClz :: Word -> Int
+primWordClz = primitive "clz"
+primWordCtz :: Word -> Int
+primWordCtz = primitive "ctz"
 primWordToFloatWRaw :: Word -> FloatW
 primWordToFloatWRaw = primitive "toDbl"
 primWordFromFloatWRaw :: FloatW -> Word
@@ -136,6 +142,12 @@ primIntShr :: Int -> Int -> Int
 primIntShr  = primitive "ashr"
 primIntInv :: Int -> Int
 primIntInv  = primitive "inv"
+primIntPopcount :: Int -> Int
+primIntPopcount = primitive "popcount"
+primIntClz :: Int -> Int
+primIntClz = primitive "clz"
+primIntCtz :: Int -> Int
+primIntCtz = primitive "ctz"
 
 primWordEQ  :: Word -> Word -> Bool
 primWordEQ  = primitive "=="

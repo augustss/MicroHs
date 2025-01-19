@@ -62,6 +62,9 @@ primOps =
   , arithwi "shl" shiftL
   , arithwi "shr" shiftR
   , arith "ashr" shiftR
+  , arithu "popcount" popCount
+  , arithu "clz" countLeadingZeros
+  , arithu "ctz" countTrailingZeros
   , cmp "==" (==)
   , cmp "/=" (/=)
   , cmp "<"  (<)

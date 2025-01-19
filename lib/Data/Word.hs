@@ -97,11 +97,13 @@ instance Bits Word where
   bitSize _ = _wordSize
   bit = bitDefault
   testBit = testBitDefault
-  popCount = popCountDefault
+  popCount = primWordPopcount
   zeroBits = 0
 
 instance FiniteBits Word where
   finiteBitSize _ = _wordSize
+  countLeadingZeros = primWordClz
+  countTrailingZeros = primWordCtz
 
 --------------------------------------------------------------------------------
 ----    Word8
@@ -131,7 +133,7 @@ instance Num Word8 where
   (*)  = bin8 primWordMul
   abs x = x
   signum x = if x == 0 then 0 else 1
-  fromInteger i = w8 (primIntToWord (_integerToInt i))
+  fromInteger i = w8 (_integerToWord i)
 
 instance Integral Word8 where
   quot = bin8 primWordQuot
@@ -193,11 +195,13 @@ instance Bits Word8 where
   bitSize _ = 8
   bit = bitDefault
   testBit = testBitDefault
-  popCount = popCountDefault
+  popCount = primWordPopcount . unW8
   zeroBits = 0
 
 instance FiniteBits Word8 where
   finiteBitSize _ = 8
+  countLeadingZeros (W8 x) = primWordClz x - (_wordSize - 8)
+  countTrailingZeros (W8 x) = if x == 0 then 8 else primWordCtz x
 
 --------------------------------------------------------------------------------
 ----    Word16
@@ -227,7 +231,7 @@ instance Num Word16 where
   (*)  = bin16 primWordMul
   abs x = x
   signum x = if x == 0 then 0 else 1
-  fromInteger i = w16 (primIntToWord (_integerToInt i))
+  fromInteger i = w16 (_integerToWord i)
 
 instance Integral Word16 where
   quot = bin16 primWordQuot
@@ -288,11 +292,13 @@ instance Bits Word16 where
   bitSize _ = 16
   bit = bitDefault
   testBit = testBitDefault
-  popCount = popCountDefault
+  popCount = primWordPopcount . unW16
   zeroBits = 0
 
 instance FiniteBits Word16 where
   finiteBitSize _ = 16
+  countLeadingZeros (W16 x) = primWordClz x - (_wordSize - 16)
+  countTrailingZeros (W16 x) = if x == 0 then 16 else primWordCtz x
 
 --------------------------------------------------------------------------------
 ----    Word32
@@ -322,7 +328,7 @@ instance Num Word32 where
   (*)  = bin32 primWordMul
   abs x = x
   signum x = if x == 0 then 0 else 1
-  fromInteger i = w32 (primIntToWord (_integerToInt i))
+  fromInteger i = w32 (_integerToWord i)
 
 instance Integral Word32 where
   quot = bin32 primWordQuot
@@ -384,11 +390,13 @@ instance Bits Word32 where
   bitSize _ = 32
   bit = bitDefault
   testBit = testBitDefault
-  popCount = popCountDefault
+  popCount = primWordPopcount . unW32
   zeroBits = 0
 
 instance FiniteBits Word32 where
   finiteBitSize _ = 32
+  countLeadingZeros (W32 x) = primWordClz x - (_wordSize - 32)
+  countTrailingZeros (W32 x) = if x == 0 then 32 else primWordCtz x
 
 --------------------------------------------------------------------------------
 ----    Word64
@@ -418,7 +426,7 @@ instance Num Word64 where
   (*)  = bin64 primWordMul
   abs x = x
   signum x = if x == 0 then 0 else 1
-  fromInteger i = w64 (primIntToWord (_integerToInt i))
+  fromInteger i = w64 (_integerToWord i)
 
 instance Integral Word64 where
   quot = bin64 primWordQuot
@@ -480,8 +488,10 @@ instance Bits Word64 where
   bitSize _ = 64
   bit = bitDefault
   testBit = testBitDefault
-  popCount = popCountDefault
+  popCount = primWordPopcount . unW64
   zeroBits = 0
 
 instance FiniteBits Word64 where
   finiteBitSize _ = 64
+  countLeadingZeros = primWordClz . unW64
+  countTrailingZeros = primWordCtz . unW64
