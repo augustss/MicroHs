@@ -2280,8 +2280,8 @@ tcPat mt ae =
       te <- newUVar
       munify loc mt (tApp (tList loc) te)
       xs <- mapM (tCheckPat te) es
-      let !(sks, ds, es') = unzip3 xs
-      return (concat sks, concat ds, EListish (LList es'))
+      case unzip3 xs of
+        (sks, ds, es') -> return (concat sks, concat ds, EListish (LList es'))
 
     ELit _ _ -> lit
 
@@ -2997,7 +2997,7 @@ solveMany [] uns sol imp = return (uns, sol, imp)
 solveMany (cns@(di, ct) : cnss) uns sol imp = do
 --  tcTrace ("trying " ++ showEType ct)
   let loc = getSLoc di
-      !(iCls, cts) = getApp ct
+      (iCls, cts) = getApp ct
       solver = head [ s | (p, s) <- solvers, p iCls ]
   ads <- gets argDicts
   -- Check if we have an exact match among the arguments dictionaries.
@@ -3236,7 +3236,7 @@ getBestMatches [] = []
 getBestMatches ams =
   let isDictArg (EVar i) = (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i
       isDictArg _ = True
-      !(args, insts) = partition (\ (_, (ei, _, _)) -> isDictArg ei) ams
+      (args, insts) = partition (\ (_, (ei, _, _)) -> isDictArg ei) ams
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest
