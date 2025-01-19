@@ -3,10 +3,12 @@ PREFIX=/usr/local
 # Unix-like system, 64 bit words
 CONF=unix-64
 #
+CCINCS=-I/opt/homebrew/include
+CCLIBDIRS=-L/opt/homebrew/lib
 CCWARNS= -Wall
 CCOPTS= -O3
-CCLIBS= -lm
-CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS)
+CCLIBS= -lm -lgmp
+CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(CCINCS) $(CCLIBDIRS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS)
 #
 GHC= ghc
 GHCINCS= -ighc -isrc -ipaths
@@ -40,7 +42,7 @@ targets.conf:
 
 newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c -o bin/mhs
-	$(CC) $(CCWARNS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
+	$(CC) $(CCWARNS) $(CCINCS) $(CCLIBDIRS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
 
 newmhsz:	newmhs
 	rm generated/mhs.c
@@ -72,7 +74,7 @@ bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 
 bin/mhsevalgdb:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
-	$(CC) $(CCWARNS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c -o bin/mhsevalgdb
+	$(CC) $(CCWARNS) $(CCINCS) $(CCLIBDIRS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c -o bin/mhsevalgdb
 
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
