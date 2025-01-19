@@ -48,7 +48,7 @@ instance Storable Int where
 foreign import ccall "peekPtr" c_peekPtr :: Ptr (Ptr ()) -> IO (Ptr ())
 foreign import ccall "pokePtr" c_pokePtr :: Ptr (Ptr ()) -> Ptr () -> IO ()
 
-instance forall a . Storable (Ptr a) where
+instance Storable (Ptr a) where
   sizeOf    _ = wordSizeInBytes
   alignment _ = wordSizeInBytes
   peek p      = c_peekPtr (castPtr p) `primBind` \ q -> primReturn (castPtr q)

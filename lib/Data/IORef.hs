@@ -14,7 +14,7 @@ import {-# SOURCE #-} Data.Typeable
 newtype IORef a = R (IOArray a)
   deriving (Typeable)
 
-instance forall a . Eq (IORef a) where
+instance Eq (IORef a) where
   R x == R y  =  primArrEQ x y
 
 newIORef :: forall a . a -> IO (IORef a)

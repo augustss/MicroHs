@@ -507,7 +507,7 @@ instance HasLoc Expr where
   getSLoc (EForall _ [] e) = getSLoc e
   getSLoc (EForall _ iks _) = getSLoc iks
 
-instance forall a . HasLoc a => HasLoc [a] where
+instance HasLoc a => HasLoc [a] where
   getSLoc [] = noSLoc  -- XXX shouldn't happen
   getSLoc (a:_) = getSLoc a
 

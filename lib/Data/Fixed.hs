@@ -84,7 +84,7 @@ type HasResolution :: forall k . k -> Constraint
 class HasResolution a where
     resolution :: p a -> Integer
 
-instance forall n . KnownNat n => HasResolution n where
+instance KnownNat n => HasResolution n where
     resolution _ = natVal (Proxy :: Proxy n)
 
 withType :: (Proxy a -> f a) -> f a

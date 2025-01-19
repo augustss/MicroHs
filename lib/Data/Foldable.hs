@@ -163,7 +163,7 @@ instance Foldable [] where
     sum     = List.sum
     toList  = id
   
-instance forall a . Foldable (Either a) where
+instance Foldable (Either a) where
     foldMap _ (Left _) = mempty
     foldMap f (Right y) = f y
 
@@ -181,7 +181,7 @@ instance Foldable Proxy where
 instance Foldable Identity where
   foldMap f (Identity a) = f a
 
-instance forall m . Foldable (Const m) where
+instance Foldable (Const m) where
   foldMap _ _ = mempty
 
 {-

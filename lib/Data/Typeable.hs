@@ -175,5 +175,5 @@ instance Typeable Either      where typeRep = nullary "Data.Either"         "Eit
 instance Typeable (,,)        where typeRep = nullary "Data.Tuple"          ",,"
 instance Typeable (,,,)       where typeRep = nullary "Data.Tuple"          ",,,"
 
-instance forall f a . (Typeable f, Typeable a) => Typeable (f a) where
+instance (Typeable f, Typeable a) => Typeable (f a) where
   typeRep _ = mkAppTy (typeRep (Proxy :: Proxy f)) (typeRep (Proxy :: Proxy a))

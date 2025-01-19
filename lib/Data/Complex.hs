@@ -6,10 +6,10 @@ infix 6 :+
 data Complex a = !a :+ !a
   deriving(Typeable)
 
-instance forall a . Eq a => Eq (Complex a) where
+instance Eq a => Eq (Complex a) where
   (x :+ y) == (x' :+ y')  =  x == x' && y == y'   -- parser bug
 
-instance forall a . Show a => Show (Complex a) where
+instance Show a => Show (Complex a) where
   show (x :+ y) = show x ++ " :+ " ++ show y
 
 realPart :: forall a . Complex a -> a
@@ -46,7 +46,7 @@ phase (x:+y) | x==0 && y==0 = 0
              | otherwise    = atan2 y x
 
 
-instance forall a . (RealFloat a) => Num (Complex a)  where
+instance (RealFloat a) => Num (Complex a)  where
     (x:+y) + (x':+y')   =  (x+x') :+ (y+y')
     (x:+y) - (x':+y')   =  (x-x') :+ (y-y')
     (x:+y) * (x':+y')   =  (x*x'-y*y') :+ (x*y'+y*x')
@@ -57,7 +57,7 @@ instance forall a . (RealFloat a) => Num (Complex a)  where
                     | otherwise    =  x/r :+ y/r  where r = magnitude z
     fromInteger n       =  fromInteger n :+ 0
 
-instance forall a . (RealFloat a) => Fractional (Complex a)  where
+instance (RealFloat a) => Fractional (Complex a)  where
     (x:+y) / (x':+y')   =  (x*x''+y*y'') / d :+ (y*x''-x*y'') / d
                            where x'' = scaleFloat k x'
                                  y'' = scaleFloat k y'
@@ -66,7 +66,7 @@ instance forall a . (RealFloat a) => Fractional (Complex a)  where
 
     fromRational a      =  fromRational a :+ 0
 
-instance forall a . (RealFloat a) => Floating (Complex a) where
+instance (RealFloat a) => Floating (Complex a) where
     pi             =  pi :+ 0
     exp (x:+y)     =  expx * cos y :+ expx * sin y
                       where expx = exp x

@@ -70,7 +70,7 @@ instance Traversable [] where
   traverse f = List.foldr cons_f (pure [])
     where cons_f x ys = liftA2 (:) (f x) ys
 
-instance forall a . Traversable (Either a) where
+instance Traversable (Either a) where
   traverse _ (Left x) = pure (Left x)
   traverse f (Right y) = Right <$> f y
 
@@ -80,7 +80,7 @@ instance Traversable Identity where
 instance Traversable Proxy where
   traverse _ _ = pure Proxy
 
-instance forall m . Traversable (Const m) where
+instance Traversable (Const m) where
   traverse _ (Const m) = pure $ Const m
 
 {-

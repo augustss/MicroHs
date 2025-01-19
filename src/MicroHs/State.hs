@@ -7,26 +7,26 @@ import Control.Monad
 
 data State s a = S (s -> (a, s))
 
-instance forall s . Functor (State s) where
+instance Functor (State s) where
   fmap f sa = S $ \ s ->
     case runState sa s of
       (a, ss) -> (f a, ss)
 
-instance forall s . Applicative (State s) where
+instance Applicative (State s) where
   pure a = S $ \ s -> (a, s)
   (<*>) = ap
   (*>) m k = S $ \ s ->
     case runState m s of
       (_, ss) -> runState k ss
 
-instance forall s . Monad (State s) where
+instance Monad (State s) where
   (>>=) m k = S $ \ s ->
     case runState m s of
       (a, ss) -> runState (k a) ss
   (>>) = (*>)
   return = pure
 
-instance forall s . MonadFail (State s) where
+instance MonadFail (State s) where
   fail = error
 
 runState :: forall s a . State s a -> (s -> (a,s))

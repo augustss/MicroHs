@@ -26,26 +26,26 @@ execStateIO sa s = do
   case as of
     (_, ss) -> return ss
 
-instance forall s . Functor (StateIO s) where
+instance Functor (StateIO s) where
   fmap f sa = S $ \ s -> do
     (a, ss) <- runStateIO sa s
     return (f a, ss)
 
-instance forall s . Applicative (StateIO s) where
+instance Applicative (StateIO s) where
   pure a = S $ \ s -> return (a, s)
   (<*>) = ap
   (*>) m k = S $ \ s -> do
     (_, ss) <- runStateIO m s
     runStateIO k ss
 
-instance forall s . Monad (StateIO s) where
+instance Monad (StateIO s) where
   (>>=) m k = S $ \ s -> do
     (a, ss) <- runStateIO m s
     runStateIO (k a) ss
   (>>) = (*>)
 
 {-
-instance forall s . MonadFail (StateIO s) where
+instance MonadFail (StateIO s) where
   fail = error
 -}
 
