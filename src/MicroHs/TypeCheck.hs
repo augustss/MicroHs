@@ -1094,16 +1094,16 @@ tcDefType def = do
     Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDerive ds)
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first                    (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> flip (,) kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
-    Sign      is t         ->                                                  Sign      is   <$> tCheckTypeTImpl kType t
-    ForImp ie i t          ->                                                  ForImp ie i    <$> tCheckTypeTImpl kType t
-    Instance ct m          ->                                                  Instance       <$> tCheckTypeTImpl kConstraint ct <*> return m
+    Sign      is t         ->                                                  Sign      is   <$> tCheckTypeTImpl False kType t
+    ForImp ie i t          ->                                                  ForImp ie i    <$> tCheckTypeTImpl False kType t
+    Instance ct m          ->                                                  Instance       <$> tCheckTypeTImpl True kConstraint ct <*> return m
     Default mc ts          ->                                                  Default (Just c) <$> mapM (tcDefault c) ts
                                                                                  where c = fromMaybe num mc
-    Deriving ct            ->                                                  Deriving       <$> tCheckTypeTImpl kConstraint ct
+    Deriving ct            ->                                                  Deriving       <$> tCheckTypeTImpl False kConstraint ct
     _                      -> return def
  where
-   tcMethod (Sign is t) = Sign is <$> tCheckTypeTImpl kType t
-   tcMethod (DfltSign i t) = DfltSign i <$> tCheckTypeTImpl kType t
+   tcMethod (Sign is t) = Sign is <$> tCheckTypeTImpl False kType t
+   tcMethod (DfltSign i t) = DfltSign i <$> tCheckTypeTImpl False kType t
    tcMethod m = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
@@ -1507,15 +1507,15 @@ tcPatSyn (Pattern (ip, vks) p me) = do
 tcPatSyn _ = impossible
 
 -- Add implicit forall and type check.
-tCheckTypeTImpl :: HasCallStack => EType -> EType -> T EType
-tCheckTypeTImpl tchk t@(EForall _ _ _) = tCheckTypeT tchk t
-tCheckTypeTImpl tchk t = do
+tCheckTypeTImpl :: HasCallStack => Bool -> EType -> EType -> T EType
+tCheckTypeTImpl _ tchk t@(EForall _ _ _) = tCheckTypeT tchk t
+tCheckTypeTImpl impl tchk t = do
   bvs <- stKeysLcl <$> gets valueTable         -- bound outside
   let fvs = freeTyVars [t]                     -- free variables in t
       -- these are free, and need quantification.  eDummy indicates missing kind
       iks = map (\ i -> IdKind i eDummy) (fvs \\ bvs)
   --when (not (null iks)) $ tcTrace ("tCheckTypeTImpl: " ++ show (t, eForall iks t))
-  tCheckTypeT tchk (eForall' False iks t)
+  tCheckTypeT tchk (eForall' impl iks t)
 
 tCheckTypeT :: HasCallStack => EType -> EType -> T EType
 tCheckTypeT = tCheck tcTypeT
@@ -2441,7 +2441,7 @@ tcBindVarT tmap x = do
       t <- newUVar
       return (x, t)
     Just t -> do
-      tt <- withTypeTable $ tCheckTypeTImpl kType t
+      tt <- withTypeTable $ tCheckTypeTImpl False kType t
       return (x, tt)
 
 tcBind :: EBind -> T EBind
