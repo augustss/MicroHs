@@ -1,6 +1,10 @@
 /* Copyright 2023 Lennart Augustsson
  * See LICENSE file for full license.
  */
+#if !defined(WANT_GMP)
+#define WANT_GMP 0
+#endif
+
 #include <inttypes.h>
 #if WANT_STDIO
 #include <stdio.h>
@@ -21,6 +25,9 @@
 #endif  /* WANT_DIR */
 #if WANT_TIME
 #include <time.h>
+#endif
+#if WANT_GMP
+#include <gmp.h>
 #endif
 
 #if WANT_MD5
@@ -425,9 +432,9 @@ NODEPTR atptr;
 NODEPTR *stack;
 stackptr_t stack_ptr = -1;
 #if STACKOVL
-#define PUSH(x) do { if (stack_ptr >= stack_size-1) ERR("stack overflow"); stack[++stack_ptr] = (x); MAXSTACK; } while(0)
+#define PUSH(x) do { if (stack_ptr >= stack_size-1) stackerr(); stack[++stack_ptr] = (x); MAXSTACK; } while(0)
 #else  /* STACKOVL */
-#define PUSH(x) do {                                                       stack[++stack_ptr] = (x); MAXSTACK; } while(0)
+#define PUSH(x) do {                                            stack[++stack_ptr] = (x); MAXSTACK; } while(0)
 #endif  /* STACKOVL */
 #define TOP(n) stack[stack_ptr - (n)]
 #define POP(n) stack_ptr -= (n)
@@ -464,6 +471,14 @@ void
 memerr(void)
 {
   ERR("Out of memory");
+  EXIT(1);
+}
+
+NORETURN
+void
+stackerr(void)
+{
+  ERR("stack overflow");
   EXIT(1);
 }
 
@@ -4364,6 +4379,7 @@ MHS_FROM(mhs_from_Int, SETINT, value_t);
 MHS_FROM(mhs_from_Word, SETINT, uvalue_t);
 MHS_FROM(mhs_from_Word8, SETINT, uvalue_t);
 MHS_FROM(mhs_from_Ptr, SETPTR, void*);
+MHS_FROM(mhs_from_ForPtr, SETFORPTR, struct forptr *);
 MHS_FROM(mhs_from_FunPtr, SETFUNPTR, HsFunPtr);
 MHS_FROM(mhs_from_CChar, SETINT, char);
 MHS_FROM(mhs_from_CSChar, SETINT, signed char);
@@ -4459,6 +4475,7 @@ void mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
 void mhs_addr_closeb(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
 void mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
 void mhs_fopen(int s) { mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+
 void mhs_getb(int s) { mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
 void mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
 void mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
@@ -4558,6 +4575,58 @@ void mhs_chdir(int s) { mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
 void mhs_mkdir(int s) { mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 void mhs_getcwd(int s) { mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
+#if WANT_GMP
+void
+free_mpz(void *p)
+{
+  printf("free_mpz %p\n", p);
+  mpz_clear(p);                 /* free any extra storage */
+  FREE(p);                      /* and free the mpz itself */
+}
+
+/* Allocate an initialize a GMP integer */
+struct forptr *
+new_mpz(void)
+{
+  mpz_ptr p = MALLOC(sizeof(*p));
+  if (!p) memerr();
+  mpz_init(p);
+  struct forptr *fp = mkForPtrP(p);
+  fp->finalizer->final = (HsFunPtr)free_mpz;
+  printf("new_mpz %p %p\n", p, fp);
+  return fp;
+}
+
+void
+print_mpz(mpz_ptr p)
+{
+  mpz_out_str(stdout, 10, p);
+}
+
+void mhs_print_mpz(int s) { print_mpz(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
+void mhs_new_mpz(int s) { mhs_from_ForPtr(s, 0, new_mpz()); }
+
+/* Stubs for GMP functions */
+void mhs_mpz_abs(int s) { mpz_abs(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_mpz_add(int s) { mpz_add(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_mpz_and(int s) { mpz_and(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_mpz_cmp(int s) { mhs_from_Int(s, 2, mpz_cmp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+void mhs_mpz_get_d(int s) { mhs_from_FloatW(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
+void mhs_mpz_get_si(int s) { mhs_from_Int(s, 1, mpz_get_si(mhs_to_Ptr(s, 0))); }
+void mhs_mpz_get_ui(int s) { mhs_from_Word(s, 1, mpz_get_ui(mhs_to_Ptr(s, 0))); }
+void mhs_mpz_init_set_si(int s) { mpz_init_set_si(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_mpz_init_set_ui(int s) { mpz_init_set_ui(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_mpz_ior(int s) { mpz_ior(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_mpz_mul(int s) { mpz_mul(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_mpz_mul_2exp(int s) { mpz_mul_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_mpz_neg(int s) { mpz_neg(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+void mhs_mpz_popcount(int s) { mhs_from_Int(s, 1, mpz_popcount(mhs_to_Ptr(s, 0))); }
+void mhs_mpz_sub(int s) { mpz_sub(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_mpz_tdiv_q_2exp(int s) { mpz_tdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2), mhs_to_Ptr(s, 3)); mhs_from_Unit(s, 4); }
+void mhs_mpz_tstbit(int s) { mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+void mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
+#endif  /* WANT_GMP */
 
 struct ffi_entry ffi_table[] = {
 { "GETRAW", mhs_GETRAW},
@@ -4681,6 +4750,29 @@ struct ffi_entry ffi_table[] = {
 { "mkdir", mhs_mkdir},
 { "getcwd", mhs_getcwd},
 #endif  /* WANT_DIR */
+#if WANT_GMP
+{ "print_mpz", mhs_print_mpz},
+{ "new_mpz", mhs_new_mpz},
+{ "mpz_abs", mhs_mpz_abs},
+{ "mpz_add", mhs_mpz_add},
+{ "mpz_and", mhs_mpz_and},
+{ "mpz_cmp", mhs_mpz_cmp},
+{ "mpz_get_d", mhs_mpz_get_d},
+{ "mpz_get_si", mhs_mpz_get_si},
+{ "mpz_get_ui", mhs_mpz_get_ui},
+{ "mpz_init_set_si", mhs_mpz_init_set_si},
+{ "mpz_init_set_ui", mhs_mpz_init_set_ui},
+{ "mpz_ior", mhs_mpz_ior},
+{ "mpz_mul", mhs_mpz_mul},
+{ "mpz_mul_2exp", mhs_mpz_mul_2exp},
+{ "mpz_neg", mhs_mpz_neg},
+{ "mpz_popcount", mhs_mpz_popcount},
+{ "mpz_sub", mhs_mpz_sub},
+{ "mpz_tdiv_q_2exp", mhs_mpz_tdiv_q_2exp},
+{ "mpz_tdiv_qr", mhs_mpz_tdiv_qr},
+{ "mpz_tstbit", mhs_mpz_tstbit},
+{ "mpz_xor", mhs_mpz_xor},
+#endif  /* WANT_GMP */
 { 0,0 }
 };
 

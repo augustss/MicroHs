@@ -32,6 +32,7 @@ struct ffi_entry {
 extern struct ffi_entry *xffi_table;
 
 void mhs_from_Double(intptr_t, int, flt_t);
+void mhs_from_FloatW(intptr_t, int, flt_t);
 void mhs_from_Int(intptr_t, int, intptr_t);
 void mhs_from_Word(intptr_t, int, uintptr_t);
 void mhs_from_Word8(intptr_t, int, uintptr_t);
@@ -56,6 +57,7 @@ void mhs_from_CUIntPtr(intptr_t, int, uintptr_t);
 void mhs_from_Unit(intptr_t, int);
 
 flt_t              mhs_to_Double(intptr_t, int);
+flt_t              mhs_to_FloatW(intptr_t, int);
 intptr_t           mhs_to_Int(intptr_t, int);
 uintptr_t          mhs_to_Word(intptr_t, int);
 uint8_t            mhs_to_Word8(intptr_t, int);
