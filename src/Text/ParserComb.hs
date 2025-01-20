@@ -60,7 +60,7 @@ firstToken tm =
 data Res tm t a = Many [(a, tm)] (LastFail t)
   --deriving (Show)
 
-data Prsr tm t a = P (tm -> Res tm t a)
+newtype Prsr tm t a = P (tm -> Res tm t a)
 --instance Show (Prsr s t a) where show _ = "<<Prsr>>"
 
 runP :: forall tm t a . Prsr tm t a -> (tm -> Res tm t a)
