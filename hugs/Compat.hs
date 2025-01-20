@@ -13,9 +13,6 @@ import Debug.Trace
 
 ------- List --------
 
-intercalate :: forall a . [a] -> [[a]] -> [a]
-intercalate xs xss = concat (intersperse xs xss)
-
 stripSuffix :: forall a . Eq a => [a] -> [a] -> Maybe [a]
 stripSuffix s t =
   case stripPrefix (reverse s) (reverse t) of
@@ -57,7 +54,7 @@ openFileM path m = do
     Right h -> return (Just h)
 
 splitTmp :: String -> (String, String)
-splitTmp tmpl = 
+splitTmp tmpl =
   case span (/= '.') (reverse tmpl) of
     (rsuf, "") -> (tmpl, "")
     (rsuf, _:rpre) -> (reverse rpre, '.':reverse rsuf)

@@ -1684,7 +1684,7 @@ tcExprR mt ae =
               mex <- getExpected mt
               case mex of
                 Just (EApp (EVar lst) (EVar c))
-                 | lst == identList, c == identChar -> tcLit mt loc lit
+                 | lst == identList && c == identChar -> tcLit mt loc lit
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromString"))
                   (_at, rt) <- unArrow loc ft

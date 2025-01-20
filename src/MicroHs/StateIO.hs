@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports #-}
+{-# OPTIONS_GHC -Wno-unused-imports -Wno-dodgy-imports -Wno-noncanonical-monad-instances #-}
 -- State monad over IO
 module MicroHs.StateIO(
   module MicroHs.StateIO,
@@ -34,15 +34,15 @@ instance Functor (StateIO s) where
 instance Applicative (StateIO s) where
   pure a = S $ \ s -> return (a, s)
   (<*>) = ap
-  (*>) m k = S $ \ s -> do
-    (_, ss) <- runStateIO m s
-    runStateIO k ss
 
 instance Monad (StateIO s) where
   (>>=) m k = S $ \ s -> do
     (a, ss) <- runStateIO m s
     runStateIO (k a) ss
-  (>>) = (*>)
+  (>>) m k = S $ \ s -> do
+    (_, ss) <- runStateIO m s
+    runStateIO k ss
+  return = pure
 
 {-
 instance MonadFail (StateIO s) where

@@ -879,11 +879,11 @@ ppExprR raw = ppE
     ppApp :: [Expr] -> Expr -> Doc
     ppApp as (EApp f a) = ppApp (a:as) f
     ppApp as f | raw = ppApply f as
-    ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppE a <+> text op <+> ppExpr b
-                      | isOperChar cop, [a] <- as    = parens $ ppE a <+> text op
+    ppApp as (EVar i) | isOperChar cop && length as == 2 = parens $ ppE (as !! 0) <+> text op <+> ppExpr (as !! 1)
+                      | isOperChar cop && length as == 1 = parens $ ppE (as !! 0) <+> text op
                       | cop == ',' && length op + 1 == length as
-                                                     = ppE (ETuple as)
-                      | op == "[]", length as == 1   = ppE (EListish (LList as))
+                                                         = ppE (ETuple as)
+                      | op == "[]" && length as == 1     = ppE (EListish (LList as))
                         where op = unIdent (unQualIdent i)
                               cop = head op
     ppApp as f = ppApply f as
@@ -987,8 +987,7 @@ impossible :: forall a .
 impossible = error "impossible"
 
 impossibleShow :: forall a b .
-                  HasCallStack =>
-                  (Show a, HasLoc a) => a -> b
+                  (HasCallStack, Show a, HasLoc a) => a -> b
 impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ show a
 
 -----------

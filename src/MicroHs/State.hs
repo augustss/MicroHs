@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-noncanonical-monad-instances #-}
 module MicroHs.State(
   module MicroHs.State,
   ) where
@@ -15,15 +16,19 @@ instance Functor (State s) where
 instance Applicative (State s) where
   pure a = S $ \ s -> (a, s)
   (<*>) = ap
+{-
   (*>) m k = S $ \ s ->
     case runState m s of
       (_, ss) -> runState k ss
+-}
 
 instance Monad (State s) where
   (>>=) m k = S $ \ s ->
     case runState m s of
       (a, ss) -> runState (k a) ss
-  (>>) = (*>)
+  (>>) m k = S $ \ s ->
+    case runState m s of
+      (_, ss) -> runState k ss
   return = pure
 
 instance MonadFail (State s) where

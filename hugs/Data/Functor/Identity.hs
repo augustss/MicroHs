@@ -15,3 +15,4 @@ instance Applicative Identity where
 
 instance Monad Identity where
   Identity a >>= f = f a
+  return = pure

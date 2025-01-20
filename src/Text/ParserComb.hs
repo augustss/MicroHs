@@ -1,6 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-{-# OPTIONS_GHC -Wno-type-defaults #-}
+{-# OPTIONS_GHC -Wno-type-defaults -Wno-noncanonical-monad-instances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 module Text.ParserComb(
   Prsr, runPrsr,
@@ -69,17 +69,16 @@ runP (P p) = p
 mapTokenState :: forall tm t . (tm -> tm) -> Prsr tm t ()
 mapTokenState f = P (\ tm -> Many [((), f tm)] noFail)
 
-instance forall tm t . Functor (Prsr tm t) where
+instance Functor (Prsr tm t) where
   fmap f p = P $ \ t ->
     case runP p t of
       Many aus lf -> Many [ (f a, u) | (a, u) <- aus ] lf
 
-instance forall tm t . Applicative (Prsr tm t) where
+instance Applicative (Prsr tm t) where
   pure a = P $ \ t -> Many [(a, t)] noFail
   (<*>) = ap
-  (*>) p k = p >>= \ _ -> k
 
-instance forall tm t . Monad (Prsr tm t) where
+instance Monad (Prsr tm t) where
   (>>=) p k = P $ \ t ->
     case runP p t of
       Many aus plf ->
@@ -87,12 +86,13 @@ instance forall tm t . Monad (Prsr tm t) where
             lfs = map (\ (Many _ lf) -> lf) ms
             rrs = [ r | Many rs _ <- ms, r <- rs ]
         in  Many rrs (longests (plf : lfs))
+  (>>) p k = p >>= \ _ -> k
   return = pure
 
-instance forall t tm . TokenMachine tm t => MonadFail (Prsr tm t) where
+instance TokenMachine tm t => MonadFail (Prsr tm t) where
   fail m = P $ \ ts -> Many [] (LastFail (tmLeft ts) (firstToken ts) [m])
 
-instance forall t tm . TokenMachine tm t => Alternative (Prsr tm t) where
+instance TokenMachine tm t => Alternative (Prsr tm t) where
   empty = P $ \ ts -> Many [] (LastFail (tmLeft ts) (firstToken ts) ["empty"])
 
   (<|>) p q = P $ \ t ->
@@ -100,6 +100,10 @@ instance forall t tm . TokenMachine tm t => Alternative (Prsr tm t) where
       Many a lfa ->
         case runP q t of
           Many b lfb -> Many (a ++ b) (longest lfa lfb)
+
+instance TokenMachine tm t => MonadPlus (Prsr tm t) where
+  mzero = empty
+  mplus = (<|>)
 
 -- Left biased choice
 infixl 3 <|<

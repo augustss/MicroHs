@@ -4,15 +4,25 @@ module MHSPrelude(
   module Prelude,
   module Control.Monad.Fail,
   module Data.Monoid,
-  (<$>), takeWhileEnd, dropWhileEnd, spanEnd, breakEnd, stripPrefix,
-  stripPrefixBy, NonEmpty(..), Semigroup(..), makeVersion) where
+  (<$>), Applicative(..),
+  intercalate, takeWhileEnd, dropWhileEnd, spanEnd, breakEnd, stripPrefix,
+  stripPrefixBy, NonEmpty(..), Semigroup(..), makeVersion,
+  void, asum,
+  traceM,
+  ) where
 import Prelude hiding(fail)
 import Control.Applicative
+import Control.Exception(Exception)
 import Control.Monad.Fail
+import Data.List
 import Data.Monoid
 import Data.Version
+import Debug.Trace
 
 ------- List --------
+
+intercalate :: forall a . [a] -> [[a]] -> [a]
+intercalate xs xss = concat (intersperse xs xss)
 
 stripPrefix :: forall a . Eq a => [a] -> [a] -> Maybe [a]
 stripPrefix = stripPrefixBy (==)
@@ -67,3 +77,18 @@ class Semigroup a where
 
 makeVersion :: [Int] -> Version
 makeVersion b = Version b []
+
+------- Debug --------
+
+traceM :: Monad m => String -> m ()
+traceM s = do () <- trace s $ return (); return ()
+
+-------
+
+void :: Functor f => f a -> f ()
+void = fmap (const ())
+
+asum :: Alternative f => [f a] -> f a
+asum [] = empty
+asum (a:as) = a <|> asum as
+

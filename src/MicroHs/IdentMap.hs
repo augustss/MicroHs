@@ -69,8 +69,14 @@ fromListWith comb = foldr (uncurry (insertWith comb)) empty
 
 mapM :: forall m a b . Monad m => (a -> m b) -> Map a -> m (Map b)
 mapM _ Nil = return Nil
-mapM f (One k v) = One k <$> f v
-mapM f (Node l s k v r) = Node <$> mapM f l <*> return s <*> return k <*> f v <*> mapM f r
+mapM f (One k v) = do
+  v' <- f v
+  return $ One k v'
+mapM f (Node l s k v r) = do
+  l' <- mapM f l
+  v' <- f v
+  r' <- mapM f r
+  return $ Node l' s k v' r'
 
 size :: forall a . Map a -> Int
 size Nil = 0
