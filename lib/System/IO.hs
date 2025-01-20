@@ -60,13 +60,13 @@ import System.IO.Error
 data FILE
 
 primHPrint       :: forall a . Ptr BFILE -> a -> IO ()
-primHPrint        = primitive "IO.print"
+primHPrint        = _primitive "IO.print"
 primStdin        :: ForeignPtr BFILE
-primStdin         = primitive "IO.stdin"
+primStdin         = _primitive "IO.stdin"
 primStdout       :: ForeignPtr BFILE
-primStdout        = primitive "IO.stdout"
+primStdout        = _primitive "IO.stdout"
 primStderr       :: ForeignPtr BFILE
-primStderr        = primitive "IO.stderr"
+primStderr        = _primitive "IO.stderr"
 
 foreign import ccall "fopen"        c_fopen        :: CString -> CString -> IO (Ptr FILE)
 foreign import ccall "closeb"       c_closeb       :: Ptr BFILE          -> IO ()

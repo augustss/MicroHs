@@ -17,6 +17,6 @@ class NFData a
 
 appendDot :: Text -> Text -> Text
 appendDot x y =
-  primitive "bs++." x y
+  _primitive "bs++." x y
   --x `append` pack "." `append` y
 

@@ -16,10 +16,10 @@ import {-# SOURCE #-} Data.Typeable
 import Text.Show
 
 primRaise :: forall a . SomeException -> a
-primRaise = primitive "raise"
+primRaise = _primitive "raise"
 
 primCatch :: forall a . IO a -> (SomeException -> IO a) -> IO a
-primCatch = primitive "catch"
+primCatch = _primitive "catch"
 
 throw :: forall e a. Exception e => e -> a
 throw e = primRaise (toException e)

@@ -145,7 +145,7 @@ keywords :: [String]
 keywords =
   ["case", "class", "data", "default", "deriving", "do", "else", "forall", "foreign", "if",
    "import", "in", "infix", "infixl", "infixr", "instance",
-   "let", "module", "newtype", "of", "pattern", "primitive", "then", "type", "where"]
+   "let", "module", "newtype", "of", "pattern", "_primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
 pSpec c = () <$ satisfy (showToken $ TSpec (SLoc "" 0 0) c) is
@@ -729,7 +729,7 @@ pAExpr' = (
   <|< (ESectL <$> (pSpec '(' *> pExprOp) <*> (pOperComma <* pSpec ')'))
   <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprOp <* pSpec ')'))
   <|< (ESelect <$> (pSpec '(' *> esome pSelect <* pSpec ')'))
-  <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
+  <|< (ELit noSLoc . LPrim <$> (pKeyword "_primitive" *> pString))
   <|< (ETypeArg <$> (pSpec '@' *> pAType))
   )
   -- This weirdly slows down parsing

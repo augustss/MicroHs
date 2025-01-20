@@ -11,9 +11,9 @@ import System.IO
 import System.IO.Internal
 
 primHSerialize   :: forall a . Ptr BFILE -> a -> IO ()
-primHSerialize    = primitive "IO.serialize"
+primHSerialize    = _primitive "IO.serialize"
 primHDeserialize :: forall a . Ptr BFILE -> IO a
-primHDeserialize  = primitive "IO.deserialize"
+primHDeserialize  = _primitive "IO.deserialize"
 
 hSerialize   :: forall a . Handle -> a -> IO ()
 hSerialize h a = withHandleWr h $ \ p -> primHSerialize p a

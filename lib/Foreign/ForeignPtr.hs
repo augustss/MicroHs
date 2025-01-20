@@ -85,4 +85,4 @@ castForeignPtr :: ForeignPtr a -> ForeignPtr b
 castForeignPtr = primUnsafeCoerce
 
 plusForeignPtr :: ForeignPtr a -> Int -> ForeignPtr b
-plusForeignPtr = primitive "fp+"
+plusForeignPtr = _primitive "fp+"

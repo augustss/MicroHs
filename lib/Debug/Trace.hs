@@ -3,7 +3,7 @@ import Prelude(); import MiniPrelude
 import Primitives
 
 trace :: forall a . String -> a -> a
-trace msg a = primitive "IO.performIO" (
+trace msg a = _primitive "IO.performIO" (
   do
     putStrLn msg
     return a
