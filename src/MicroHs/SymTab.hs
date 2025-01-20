@@ -102,8 +102,10 @@ stLookup msg i (SymTab l ug qg) =
 -- also not be imported.  So as a last recourse, look for the identifier
 -- unqualified.
 hackBuiltin :: Ident -> Ident
-hackBuiltin i | Just ('.':s) <- stripPrefix builtinMdl (unIdent i) = mkIdentSLoc (slocIdent i) s
-hackBuiltin i = i
+hackBuiltin i =
+  case stripPrefix builtinMdl (unIdent i) of
+    Just ('.':s) -> mkIdentSLoc (slocIdent i) s
+    _            -> i
 
 stFromList :: [(Ident, [Entry])] -> [(Ident, [Entry])] -> SymTab
 stFromList us qs = SymTab [] (M.fromListWith union us) (M.fromListWith union qs)
