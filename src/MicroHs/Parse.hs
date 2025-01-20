@@ -2,8 +2,8 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
 module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords, dotDotIdent) where
-import Prelude(); import MHSPrelude
-import Control.Applicative
+import Prelude(); import MHSPrelude hiding ((*>))
+import Control.Applicative hiding ((*>))
 import Control.Monad
 import Data.Char
 import Data.List
@@ -13,6 +13,11 @@ import MicroHs.Expr hiding (getSLoc)
 import qualified MicroHs.Expr as E
 import MicroHs.Ident
 --import Debug.Trace
+
+-- Hugs can't define the efficient *>
+infixl 4 *>
+(*>) :: Prsr s t a -> Prsr s t b -> Prsr s t b
+(*>) = (>>)
 
 type P a = Prsr LexState Token a
 
