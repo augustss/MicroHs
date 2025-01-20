@@ -13,12 +13,10 @@ import Control.Applicative
 import Control.Monad
 import Data.Functor hiding(unzip)
 
-data StateIO s a = S (s -> IO (a,s))
+newtype StateIO s a = S (s -> IO (a,s))
 
 runStateIO :: forall s a . StateIO s a -> (s -> IO (a,s))
-runStateIO sa =
-  case sa of
-    S x -> x
+runStateIO (S x) = x
 
 execStateIO :: forall s a . StateIO s a -> s -> IO s
 execStateIO sa s = do
@@ -34,6 +32,7 @@ instance Functor (StateIO s) where
 instance Applicative (StateIO s) where
   pure a = S $ \ s -> return (a, s)
   (<*>) = ap
+  -- Hugs doesn't have *> here
 
 instance Monad (StateIO s) where
   (>>=) m k = S $ \ s -> do

@@ -269,6 +269,10 @@ minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 
 #####
 # Hugs
+HUGS= runhugs
+FFIHUGS= ffihugs
+HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
+
 tmp/mhs_hugs.c:
 	mkdir -p tmp
 #	$(HUGS) $(HUGSINCS) Main -z $(MHSINC) MicroHs.Main -otmp/mhs_hugs.c
@@ -276,8 +280,3 @@ tmp/mhs_hugs.c:
 
 bin/mhs_hugs: tmp/mhs_hugs.c
 	$(CCEVAL) tmp/mhs_hugs.c -o bin/mhs_hugs
-
-hugs/obj/System/Process.so: lib/System/Process.hs
-	mkdir -p hugs/obj
-	$(FFIHUGS) $(HUGSINCS) System.Process
-	mv lib/System/Process.so hugs/obj/System/Process.so

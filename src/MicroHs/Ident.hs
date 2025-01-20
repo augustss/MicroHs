@@ -26,7 +26,6 @@ import MicroHs.List(dropEnd)
 import MicroHs.MRnf
 
 import Data.Text(Text, pack, unpack, append, head)
-import Compat
 
 {-
 -- Uncomment this section, and comment out the two lines above

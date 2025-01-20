@@ -60,7 +60,7 @@ firstToken tm =
 data Res tm t a = Many [(a, tm)] (LastFail t)
   --deriving (Show)
 
-data Prsr tm t a = P (tm -> Res tm t a)
+newtype Prsr tm t a = P (tm -> Res tm t a)
 --instance Show (Prsr s t a) where show _ = "<<Prsr>>"
 
 runP :: forall tm t a . Prsr tm t a -> (tm -> Res tm t a)
@@ -77,6 +77,8 @@ instance Functor (Prsr tm t) where
 instance Applicative (Prsr tm t) where
   pure a = P $ \ t -> Many [(a, t)] noFail
   (<*>) = ap
+-- Hugs does not have *> here
+--  (*>) p k = p >>= \ _ -> k
 
 instance Monad (Prsr tm t) where
   (>>=) p k = P $ \ t ->
@@ -193,10 +195,10 @@ choice [] = empty
 choice ps = foldr1 (<|>) ps
 
 sepBy1 :: forall tm t a sep . TokenMachine tm t => Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
-sepBy1 p sep = (:) <$> p <*> many (sep *> p)
+sepBy1 p sep = (:) <$> p <*> many (sep >> p)
 
 esepBy1 :: forall tm t a sep . Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
-esepBy1 p sep = (:) <$> p <*> emany (sep *> p)
+esepBy1 p sep = (:) <$> p <*> emany (sep >> p)
 
 esepBy :: forall tm t a sep . Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
 esepBy p sep = esepBy1 p sep <|< pure []
@@ -205,5 +207,5 @@ esepEndBy :: forall tm t a sep . Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
 esepEndBy p sep = esepEndBy1 p sep <|< pure []
 
 esepEndBy1 :: forall tm t a sep . Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
-esepEndBy1 p sep = (:) <$> p <*> ((sep *> esepEndBy p sep) <|< pure [])
+esepEndBy1 p sep = (:) <$> p <*> ((sep >> esepEndBy p sep) <|< pure [])
 

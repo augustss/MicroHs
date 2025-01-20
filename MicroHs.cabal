@@ -81,6 +81,7 @@ executable mhs
                        MicroHs.Lex
                        MicroHs.List
                        MicroHs.MakeCArray
+                       MicroHs.MRnf
                        MicroHs.Package
                        MicroHs.Parse
                        MicroHs.State
@@ -95,7 +96,6 @@ executable mhs
                        System.Console.SimpleReadline
                        Data.Double
                        Data.Integer
-                       Compat
                        PrimTable
                        MHSPrelude
                        System.IO.MD5
