@@ -82,8 +82,10 @@ partitionM p (x:xs) = do
 
 substString :: forall a . Eq a => [a] -> [a] -> [a] -> [a]
 substString _ _ [] = []
-substString from to xs@(c:cs) | Just rs <- stripPrefix from xs = to ++ substString from to rs
-                              | otherwise = c : substString from to cs
+substString from to xs@(c:cs) =
+  case stripPrefix from xs of
+    Just rs -> to ++ substString from to rs
+    _       -> c : substString from to cs
 
 showPairS :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
 showPairS sa sb (a, b) = "(" ++ sa a ++ "," ++ sb b ++ ")"
@@ -91,10 +93,12 @@ showPairS sa sb (a, b) = "(" ++ sa a ++ "," ++ sb b ++ ")"
 findCommonPrefix :: Eq a => [[a]] -> [a]
 findCommonPrefix [] = []
 findCommonPrefix ([] : _) = []
-findCommonPrefix ((x:xs) : ys) | Just ys' <- mapM (f x) ys = x : findCommonPrefix (xs:ys')
-                               | otherwise = []
-  where f a (b:bs) | a == b = Just bs
-        f _ _ = Nothing
+findCommonPrefix ((x:xs) : ys) =
+  let f a (b:bs) | a == b = Just bs
+      f _ _ = Nothing
+  in  case mapM (f x) ys of
+        Just ys' -> x : findCommonPrefix (xs:ys')
+        _        -> []
 
 dropEnd :: Int -> [a] -> [a]
 dropEnd n = reverse . drop n . reverse
