@@ -42,7 +42,6 @@ import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.SymTab
 import MicroHs.TypeCheck
-import Compat
 import MicroHs.Instances() -- for ghc
 import Paths_MicroHs(version, getDataDir)
 

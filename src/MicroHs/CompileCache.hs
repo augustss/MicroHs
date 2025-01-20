@@ -18,7 +18,6 @@ import MicroHs.TypeCheck(TModule, tModuleName, GlobTables, emptyGlobTables, merg
 import System.IO
 import System.IO.Serialize
 import System.IO.MD5(MD5CheckSum)
-import Compat
 
 type CModule = (TModule [LDef], [IdentModule], MD5CheckSum)
 

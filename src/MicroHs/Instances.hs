@@ -7,7 +7,6 @@ import MicroHs.CompileCache
 import MicroHs.Ident
 import MicroHs.Exp
 import MicroHs.Expr
-import Compat
 
 compiledWithGHC :: Bool
 compiledWithGHC = False
