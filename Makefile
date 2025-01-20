@@ -271,12 +271,11 @@ minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 # Hugs
 HUGS= runhugs
 FFIHUGS= ffihugs
-HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
+HUGSINCS= '+Phugs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
 
 tmp/mhs_hugs.c:
 	mkdir -p tmp
-#	$(HUGS) $(HUGSINCS) Main -z $(MHSINC) MicroHs.Main -otmp/mhs_hugs.c
-	$(HUGS) $(HUGSINCS) MicroHs.Main
+	$(HUGS) $(HUGSINCS) src/MicroHs/Main.hs $(MHSINC) -otmp/mhs_hugs.c
 
 bin/mhs_hugs: tmp/mhs_hugs.c
 	$(CCEVAL) tmp/mhs_hugs.c -o bin/mhs_hugs

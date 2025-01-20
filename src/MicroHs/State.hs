@@ -4,7 +4,7 @@ module MicroHs.State(
   ) where
 import Prelude(); import MHSPrelude
 import Control.Monad
---import Control.Monad.Fail
+import Control.Monad.Fail
 
 newtype State s a = S (s -> (a, s))
 

@@ -22,6 +22,8 @@ module Text.ParserComb(
 import Prelude(); import MHSPrelude
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Fail
+import Data.Maybe
 
 data LastFail t
   = LastFail Int [t] [String]
@@ -126,7 +128,9 @@ satisfy msg f = P $ \ acs ->
 satisfyM :: forall tm t a . TokenMachine tm t => String -> (t -> Maybe a) -> Prsr tm t a
 satisfyM msg f = P $ \ acs ->
   case tmNextToken acs of
-    (c, cs) | Just a <- f c -> Many [(a, cs)] noFail
+--XXX    (c, cs) | Just a <- f c -> Many [(a, cs)] noFail
+    (c, cs) | isJust fc -> Many [(fromJust fc, cs)] noFail
+        where fc = f c
     _ -> Many [] (LastFail (tmLeft acs) (firstToken acs) [msg])
 
 satisfyMany :: forall tm t . TokenMachine tm t => (t -> Bool) -> Prsr tm t [t]

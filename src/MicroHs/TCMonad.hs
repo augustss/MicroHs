@@ -7,6 +7,7 @@ import Prelude(); import MHSPrelude
 import Data.Functor.Identity
 import GHC.Stack
 import Control.Applicative
+import Control.Monad.Fail
 import Data.Functor
 import Data.List(nub)
 import MicroHs.Expr

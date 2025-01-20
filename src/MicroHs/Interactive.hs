@@ -20,7 +20,6 @@ import Unsafe.Coerce
 import System.Console.SimpleReadline
 import MicroHs.Instances(compiledWithGHC)
 import Paths_MicroHs(version)
-import Compat
 
 data IState = IState {
   isLines   :: String,

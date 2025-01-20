@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
-module MicroHs.Main(main) where
+module {-MicroHs.-}Main(main) where
 import Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
@@ -83,10 +83,10 @@ decodeArgs f mdls (arg:args) =
     "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
     "-z"        -> decodeArgs f{compress = True} mdls args
     "-Q"        -> decodeArgs f{installPkg = True} mdls args
-    "-o" | s : args' <- args
-                -> decodeArgs f{output = s} mdls args'
-    "-optc" | s : args' <- args
-                -> decodeArgs f{cArgs = cArgs f ++ [s]} mdls args'
+    "-o" | not (null args)
+                -> decodeArgs f{output = head args} mdls (tail args)
+    "-optc" | not (null args)
+                -> decodeArgs f{cArgs = cArgs f ++ [head args]} mdls (tail args)
     '-':'i':[]  -> decodeArgs f{paths = []} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
@@ -176,7 +176,8 @@ mainBuildPkg flags namever amns = do
 splitNameVer :: String -> (String, Version)
 splitNameVer s =
   case span (\ c -> isDigit c || c == '.') (reverse s) of
-    (rver, '-':rname) | is@(_:_) <- readVersion (reverse rver) -> (reverse rname, makeVersion is)
+    (rver, '-':rname) | not (null is)  -> (reverse rname, makeVersion is)
+      where is = readVersion (reverse rver)
     _ -> error $ "package name not of the form name-version:" ++ show s
   where readVersion = map readInt . words . map (\ c -> if c == '.' then ' ' else c)
 

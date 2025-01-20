@@ -8,7 +8,7 @@ module MicroHs.Lex(
 import Prelude(); import MHSPrelude hiding(lex)
 import Data.Char
 import Data.List
-import Data.Maybe (fromJust)
+import Data.Maybe
 import MicroHs.Ident
 import Text.ParserComb(TokenMachine(..))
 
@@ -93,13 +93,18 @@ lex loc cs@(d:_) | isDigit d =
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
 -- Recognize #line 123 "file/name.hs"
-lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
-  case span (/= '\n') cs of
+-- PATGUARD lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
+lex loc ('#':xcs) | slocOne loc && isJust mcs =
+  case span (/= '\n') (fromJust mcs) of
     (line, rs) ->        -- rs will contain the '\n', so subtract 1 below
       let ws = words line
           file = tail $ init $ ws!!1   -- strip the initial and final '"' 
           loc' = SLoc file (readInt (ws!!0) - 1) 1
       in  lex loc' rs
+  where
+    mcs = stripPrefix "line " xcs
+    slocOne (SLoc _ _ 1) = True
+    slocOne _ = False
 lex loc ('!':' ':cs) =  -- ! followed by a space is always an operator
   TIdent loc [] "!" : lex (addCol loc 2) cs
 lex loc (c:cs@(d:_)) | isSpecSing c && not (isOperChar d) = -- handle reserved
@@ -214,7 +219,9 @@ tIndent ts = TIndent (tokensLoc ts) : ts
 
 lexLitStr :: SLoc -> SLoc -> (String -> Token) -> (String -> Maybe Int) -> (String -> String) -> String -> [Token]
 lexLitStr oloc loc mk end post acs = loop loc [] acs
-  where loop l rs cs | Just k <- end cs   = mk (decodeEscs $ post $ reverse rs) : lex (addCol l k) (drop k cs)
+  where loop l rs cs | isJust mecs        = mk (decodeEscs $ post $ reverse rs) : lex (addCol l k) (drop k cs)
+          where mecs = end cs
+                k = fromJust mecs
         loop l rs ('\\':c:cs) | isSpace c = remGap l rs cs
         loop l rs ('\\':'^':'\\':cs)      = loop (addCol l 3) ('\\':'^':'\\':rs) cs  -- special hack for unescaped \
         loop l rs ('\\':cs)               = loop' (addCol l 1) ('\\':rs) cs
@@ -252,8 +259,10 @@ decodeEsc ('x':cs) = conv 16 0 cs
 decodeEsc ('o':cs) = conv 8 0 cs
 decodeEsc ('^':c:cs) | '@' <= c && c <= '_' = chr (ord c - ord '@') : decodeEscs cs
 decodeEsc (cs@(c:_)) | isDigit c = conv 10 0 cs
-decodeEsc (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = c : decodeEscs cs
-decodeEsc (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = c : decodeEscs cs
+decodeEsc (c1:c2:c3:cs) | isJust mc  = fromJust mc : decodeEscs cs
+  where mc = lookup [c1,c2,c3] ctlCodes
+decodeEsc (c1:c2:cs) | isJust mc = fromJust mc : decodeEscs cs
+  where mc = lookup [c1,c2] ctlCodes
 decodeEsc (c  :cs) = c : decodeEscs cs
 decodeEsc []       = error "Bad \\ escape"
 
@@ -271,7 +280,8 @@ ctlCodes =
    ("SP",  '\SP'),  ("DEL", '\DEL')]
 
 conv :: Int -> Int -> String -> String
-conv b r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (r * b + n) ds
+conv b r (c:ds) | isHexDigit c && n < b = conv b (r * b + n) ds
+  where n = digitToInt c
 conv _ r ds = chr r : decodeEscs ds
 
 -- Multiline string literals

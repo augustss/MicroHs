@@ -2,6 +2,7 @@ module MicroHs.FFI(makeFFI) where
 import Prelude(); import MHSPrelude
 import Data.Function
 import Data.List
+import Data.Maybe
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp
 import MicroHs.Expr
@@ -139,7 +140,8 @@ unIdent' = unIdent . unQualIdent
 cTypeName :: EType -> String
 cTypeName (EApp (EVar ptr) _t) | ptr == iPtr = "Ptr"
                                | ptr == iFunPtr = "FunPtr"
-cTypeName (EVar i) | Just c <- lookup (unIdent i) cTypes = c
+cTypeName (EVar i) | isJust mc = fromJust mc
+  where mc = lookup (unIdent i) cTypes
 cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
 cTypes :: [(String, String)]

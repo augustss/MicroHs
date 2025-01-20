@@ -55,7 +55,8 @@ dsDef flags mn adef =
       where frgn = Lit $ LForImp (fromMaybe (unIdent (unQualIdent i)) ie) cty
             cty = CType t
             perf = Lit $ LPrim "IO.performIO"
-            isIO x | Just (_, r) <- getArrow x = isIO r
+            isIO x | isJust mr = isIO (snd (fromJust mr))
+              where mr = getArrow x
             isIO (EApp (EVar io) _) = io == mkIdent "Primitives.IO"
             isIO _ = False
     Class ctx (c, _) _ bs ->
