@@ -4,7 +4,7 @@ import Foreign.ForeignPtr
 import Foreign.Storable
 
 gc :: IO ()
-gc = primitive "IO.gc"
+gc = _primitive "IO.gc"
 
 add :: Ptr a -> Int -> Ptr a
 add = plusPtr

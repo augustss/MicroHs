@@ -19,10 +19,10 @@ import System.IO.Unsafe
 
 type AnyType = Any
 
-primitive :: String -> Any
---primitive s | trace ("primitive " ++ show s) False = undefined
-primitive "dynsym" = unsafeCoerce dynsym
-primitive s = fromMaybe (error $ "PrimTable.primitive: " ++ s) $ lookup s primOps
+_primitive :: String -> Any
+--_primitive s | trace ("_primitive " ++ show s) False = undefined
+_primitive "dynsym" = unsafeCoerce dynsym
+_primitive s = fromMaybe (error $ "PrimTable._primitive: " ++ s) $ lookup s primOps
 
 primOps :: [(String, Any)]
 primOps =

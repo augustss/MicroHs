@@ -87,7 +87,7 @@ foreign import ccall "&closeb" c_close :: FunPtr (Ptr BFILE -> IO ())
 
 {-
 primSetDesc :: [Char] -> ForeignPtr BFILE -> IO ()
-primSetDesc = primitive "fpstr"
+primSetDesc = _primitive "fpstr"
 -}
 
 -- Create a Handle with the appropriate finalizer.
