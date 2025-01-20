@@ -260,3 +260,17 @@ minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal install
 	PATH=$(MCABALBIN):"$$PATH" mcabal install
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
+
+#####
+# Hugs
+HUGS= runhugs
+FFIHUGS= ffihugs
+HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
+
+tmp/mhs_hugs.c:
+	mkdir -p tmp
+#	$(HUGS) $(HUGSINCS) Main -z $(MHSINC) MicroHs.Main -otmp/mhs_hugs.c
+	$(HUGS) $(HUGSINCS) MicroHs.Main
+
+bin/mhs_hugs: tmp/mhs_hugs.c
+	$(CCEVAL) tmp/mhs_hugs.c -o bin/mhs_hugs
