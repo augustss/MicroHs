@@ -2,9 +2,9 @@
 module MicroHs.State(
   module MicroHs.State,
   ) where
-import Prelude(); import MHSPrelude
-import Control.Monad
+import Prelude(); import MHSPrelude hiding(fail)
 import Control.Monad.Fail
+import Control.Monad
 
 newtype State s a = S (s -> (a, s))
 
