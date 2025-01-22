@@ -176,7 +176,8 @@ mainBuildPkg flags namever amns = do
 splitNameVer :: String -> (String, Version)
 splitNameVer s =
   case span (\ c -> isDigit c || c == '.') (reverse s) of
-    (rver, '-':rname) | is@(_:_) <- readVersion (reverse rver) -> (reverse rname, makeVersion is)
+    (rver, '-':rname) | not (null is)  -> (reverse rname, makeVersion is)
+      where is = readVersion (reverse rver)
     _ -> error $ "package name not of the form name-version:" ++ show s
   where readVersion = map readInt . words . map (\ c -> if c == '.' then ' ' else c)
 

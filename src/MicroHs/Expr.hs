@@ -987,8 +987,7 @@ impossible :: forall a .
 impossible = error "impossible"
 
 impossibleShow :: forall a b .
-                  HasCallStack =>
-                  (Show a, HasLoc a) => a -> b
+                  (HasCallStack, Show a, HasLoc a) => a -> b
 impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ show a
 
 -----------

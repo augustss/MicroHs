@@ -1030,8 +1030,10 @@ withVks vks fun = assertTCMode (>=TCType) $ do
 
 guessIsKind :: EType -> Bool
 guessIsKind (EVar i)                      = i == mkIdent "Kind"
-guessIsKind t | Just (f, a) <- getArrow t = guessIsKind f || guessIsKind a
-guessIsKind _                             = False
+guessIsKind t =
+  case getArrow t of
+    Just (f, a) -> guessIsKind f || guessIsKind a
+    _           -> False
 
 -- Add symbol a table entry (with kind) for each top level typeish definition.
 -- If there is a kind signature, use it.  If not, use a kind variable.
@@ -1234,10 +1236,12 @@ splitInst :: EConstraint -> ([IdKind], [EConstraint], EConstraint)
 splitInst (EForall _ iks t) =
   case splitInst t of
     (iks', ctx, ct) -> (iks ++ iks', ctx, ct)
-splitInst act | Just (ctx, ct) <- getImplies act =
-  case splitInst ct of
-    (iks, ctxs, ct') -> (iks, ctx : ctxs, ct')
-splitInst ct = ([], [], ct)
+splitInst act =
+  case getImplies act of
+    Just (ctx, ct) ->
+      case splitInst ct of
+        (iks, ctxs, ct') -> (iks, ctx : ctxs, ct')
+    _ -> ([], [], act)
 
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance act bs) = do
@@ -1684,7 +1688,7 @@ tcExprR mt ae =
               mex <- getExpected mt
               case mex of
                 Just (EApp (EVar lst) (EVar c))
-                 | lst == identList, c == identChar -> tcLit mt loc lit
+                 | lst == identList && c == identChar -> tcLit mt loc lit
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromString"))
                   (_at, rt) <- unArrow loc ft
@@ -2917,10 +2921,12 @@ getSuperClasses ais = do
           Nothing -> error $ "getSuperClasses: " ++ show i
           Just (ClassInfo _ supers _ _ _) ->
             loop done (concatMap flatten supers ++ is)
-      flatten a | (c, ts) <- getApp a =
-        case getTupleConstr c of
-          Nothing -> [c]
-          Just _ -> concatMap flatten ts
+      flatten a =
+        case getApp a of
+          (c, ts) ->
+            case getTupleConstr c of
+              Nothing -> [c]
+              Just _ -> concatMap flatten ts
   return $ loop [] ais
 
 

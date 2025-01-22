@@ -271,7 +271,8 @@ ctlCodes =
    ("SP",  '\SP'),  ("DEL", '\DEL')]
 
 conv :: Int -> Int -> String -> String
-conv b r (c:ds) | isHexDigit c, let { n = digitToInt c }, n < b = conv b (r * b + n) ds
+conv b r (c:ds) | isHexDigit c && n < b = conv b (r * b + n) ds
+  where n = digitToInt c
 conv _ r ds = chr r : decodeEscs ds
 
 -- Multiline string literals
