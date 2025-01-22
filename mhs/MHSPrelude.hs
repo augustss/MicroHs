@@ -32,7 +32,7 @@ module MHSPrelude(
   rnfNoErr, rnfErr, NFData, appendDot,
   ) where
 import Prelude()
-import Primitives(primRnfNoErr, primRnfErr)
+--import Primitives(primRnfNoErr, primRnfErr)
 import Control.Applicative(Applicative(..))
 import Control.Error(error, undefined)
 import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
@@ -83,10 +83,10 @@ usingMhs = True
 
 -- Define these here to avoid dragging in Control.DeepSeq
 rnfNoErr :: forall a . a -> ()
-rnfNoErr = primRnfNoErr
+rnfNoErr = _primitive "rnf" (1::Int)
 
 rnfErr :: forall a . a -> ()
-rnfErr = primRnfErr
+rnfErr = _primitive "rnf" (0::Int)
 
 class NFData a
 
