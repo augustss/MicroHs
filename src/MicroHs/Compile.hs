@@ -307,22 +307,24 @@ getFileName m | ".hs" `isSuffixOf` s = Just s
   where s = unIdent m
 
 readModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, String))
-readModulePath flags suf mn | Just fn <- getFileName mn = do
-  mh <- openFileM fn ReadMode
-  case mh of
-    Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show fn
-    Just h -> readRest fn h
-
-                            | otherwise = do
-  mh <- findModulePath flags suf mn
-  case mh of
-    Nothing -> do
-      mhc <- findModulePath flags (suf ++ "c") mn  -- look for hsc file
-      case mhc of
-        Nothing -> return Nothing
-        Just (_fn, _h) -> undefined  -- hsc2hs no implemented yet
-    Just (fn, h) -> readRest fn h
-  where readRest fn h = do
+readModulePath flags suf mn = do
+  case getFileName mn of
+    Just fn -> do
+      mh <- openFileM fn ReadMode
+      case mh of
+        Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show fn
+        Just h  -> readRest fn h
+    _ -> do
+      mh <- findModulePath flags suf mn
+      case mh of
+        Nothing -> do
+          mhc <- findModulePath flags (suf ++ "c") mn  -- look for hsc file
+          case mhc of
+            Nothing -> return Nothing
+            Just (_fn, _h) -> undefined  -- hsc2hs no implemented yet
+        Just (fn, h) -> readRest fn h
+  where readRest :: FilePath -> Handle -> IO (Maybe (FilePath, String))
+        readRest fn h = do
           hasCPP <- hasLangCPP fn
           file <-
             if hasCPP || doCPP flags then do
