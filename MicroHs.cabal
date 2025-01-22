@@ -54,7 +54,7 @@ source-repository head
 
 executable mhs
   default-language:    Haskell2010
-  ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -main-is MicroHs.Main
+  ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial
                        -fwrite-ide-info -Wno-deprecations
   main-is:             MicroHs/Main.hs
   default-extensions:  ScopedTypeVariables TypeSynonymInstances MultiParamTypeClasses FlexibleInstances

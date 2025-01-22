@@ -5,6 +5,7 @@ module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords, d
 import Prelude(); import MHSPrelude hiding ((*>))
 import Control.Applicative hiding ((*>))
 import Control.Monad
+import Control.Monad.Fail
 import Data.Char
 import Data.List
 import Text.ParserComb as P
@@ -50,7 +51,7 @@ eof = do
   t <- nextToken
   case t of
     TEnd _ -> pure ()
-    _      -> fail "eof"
+    _      -> Control.Monad.Fail.fail "expected eof"
 
 pTop :: P EModule
 pTop = (pModule <|< pModuleEmpty) <* eof

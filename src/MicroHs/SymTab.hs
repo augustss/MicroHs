@@ -78,7 +78,7 @@ instance Show SymTab where
   
 mapMSymTab :: forall m . Monad m => (Entry -> m Entry) -> SymTab -> m SymTab
 mapMSymTab f (SymTab l ug qg) = do
-  l' <- mapM (\ (i, a) -> (,) i <$> f a) l
+  l' <- mapM (\ (i, a) -> f a >>= \ a' -> return (i, a')) l
   ug' <- M.mapM (mapM f) ug
   qg' <- M.mapM (mapM f) qg
   return $ SymTab l' ug' qg'
