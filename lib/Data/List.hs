@@ -336,7 +336,7 @@ isInfixOf :: forall a . Eq a => [a] -> [a] -> Bool
 isInfixOf = isInfixOfBy (==)
 
 isInfixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
-isInfixOfBy eq cs ds = any (isPrefixOfBy eq cs) (inits ds)
+isInfixOfBy eq cs ds = any (isPrefixOfBy eq cs) (tails ds)
 
 splitAt :: forall a . Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
