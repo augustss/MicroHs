@@ -274,7 +274,9 @@ HUGS= runhugs
 HUGSINCS= '+Phugs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
 
 generated/hmhs.c:
+	@mkdir -p generated
 	$(HUGS) $(HUGSINCS) $(MAINMODULE) $(MHSINC) $(MAINMODULE) -ogenerated/hmhs.c
 
 bin/hmhs: generated/hmhs.c
+	@mkdir -p bin
 	$(CCEVAL) generated/hmhs.c -o bin/hmhs
