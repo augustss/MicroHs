@@ -102,7 +102,7 @@ instance Bits Integer where
 -- For the combinator file we need a portable way to store
 -- the Integer type.  We use [Int], with digits in a small base.
 integerListBase :: Integer
-integerListBase = 32768
+integerListBase = _intToInteger 32768
 
 -- These two functions return an (opaque) representation of an
 -- Integer as [Int].
@@ -115,6 +115,7 @@ _integerToIntList i = if i < 0 then (-1::Int) : f (-i) else f i
         f i = fromInteger r : f q  where (q, r) = quotRem i integerListBase
 
 _intListToInteger :: [Int] -> Integer
+_intListToInteger [] = _intToInteger 0
 _intListToInteger ads@(x : ds) = if x == -1 then - f ds else f ads
   where f = foldr (\ d a -> a * integerListBase + toInteger d) 0
 
