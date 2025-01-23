@@ -109,7 +109,7 @@ foldr f z =
 foldr' :: forall a b . (a -> b -> b) -> b -> [a] -> b
 foldr' f z [] = z
 foldr' f z (x:xs) =
-  let y = foldr f z xs
+  let y = foldr' f z xs
   in  y `seq` f x y
 
 foldr1 :: forall a . (a -> a -> a) -> [a] -> a
@@ -138,7 +138,7 @@ foldl' :: forall a b . (b -> a -> b) -> b -> [a] -> b
 foldl' _ z [] = z
 foldl' f z (x : xs) =
   let y = f z x
-  in  y `seq` foldl f y xs
+  in  y `seq` foldl' f y xs
 
 foldl1 :: forall a . (a -> a -> a) -> [a] -> a
 foldl1 _ [] = error "foldl1"
