@@ -4579,7 +4579,7 @@ void mhs_getcwd(int s) { mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(
 void
 free_mpz(void *p)
 {
-  printf("free_mpz %p\n", p);
+  /*  printf("free_mpz %p\n", p);*/
   mpz_clear(p);                 /* free any extra storage */
   FREE(p);                      /* and free the mpz itself */
 }
@@ -4588,12 +4588,19 @@ free_mpz(void *p)
 struct forptr *
 new_mpz(void)
 {
+  {
+    static int done = 0;
+    if (!done) {
+      printf("GMP\n");
+      done = 1;
+    }
+  }
   mpz_ptr p = MALLOC(sizeof(*p));
   if (!p) memerr();
   mpz_init(p);
   struct forptr *fp = mkForPtrP(p);
   fp->finalizer->final = (HsFunPtr)free_mpz;
-  printf("new_mpz %p %p\n", p, fp);
+  /*  printf("new_mpz %p %p\n", p, fp); */
   return fp;
 }
 
