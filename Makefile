@@ -18,7 +18,7 @@ GHCTOOL= # -F -pgmF Tools/convertX.sh
 GHCOUTDIR= ghc-out
 GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
-GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
+GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF) -main-is MicroHs.Main
 #
 # Hugs
 HUGS= runhugs
@@ -30,7 +30,7 @@ EMCC=emcc -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUS
 #
 MHSINCNP= -i -imhs -isrc -ilib
 MHSINC=$(MHSINCNP) -ipaths 
-MAINMODULE=src/MicroHs/Main.hs
+MAINMODULE=MicroHs.Main
 #
 .PHONY:	clean bootstrap install ghcgen newmhs newmhsz cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info
 
@@ -275,7 +275,7 @@ HUGSINCS= '+Phugs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
 
 generated/hmhs.c:
 	@mkdir -p generated
-	$(HUGS) $(HUGSINCS) $(MAINMODULE) $(MHSINC) $(MAINMODULE) -ogenerated/hmhs.c
+	$(HUGS) $(HUGSINCS) hugs/Main.hs $(MHSINC) $(MAINMODULE) -ogenerated/hmhs.c
 
 bin/hmhs: generated/hmhs.c
 	@mkdir -p bin
