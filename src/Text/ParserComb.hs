@@ -23,6 +23,7 @@ import Prelude(); import MHSPrelude hiding (fail)
 import Control.Applicative
 import Control.Monad.Fail
 import Control.Monad
+import Data.Maybe
 
 data LastFail t
   = LastFail Int [t] [String]
