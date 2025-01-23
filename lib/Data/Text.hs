@@ -44,10 +44,10 @@ empty :: Text
 empty = pack []
 
 pack :: String -> Text
-pack s = T (primitive "toUTF8" s)
+pack s = T (_primitive "toUTF8" s)
 
 unpack :: Text -> String
-unpack (T t) = primitive "fromUTF8" t
+unpack (T t) = _primitive "fromUTF8" t
 
 append :: Text -> Text -> Text
 append (T x) (T y) = T (BS.append x y)
@@ -56,10 +56,10 @@ null :: Text -> Bool
 null (T bs) = BS.null bs
 
 head :: Text -> Char
-head (T t) = primitive "headUTF8" t
+head (T t) = _primitive "headUTF8" t
 
 tail :: Text -> Text
-tail (T t) = primitive "tailUTF8" t
+tail (T t) = _primitive "tailUTF8" t
 
 uncons :: Text -> Maybe (Char, Text)
 uncons t | null t    = Nothing

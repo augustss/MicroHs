@@ -12,17 +12,17 @@ import Data.Ord
 import Numeric.Show(showHex)
 import Text.Show
 
-instance forall a . Eq (Ptr a) where
+instance Eq (Ptr a) where
   p == q  =  primPtrToWord p == primPtrToWord q
 
-instance forall a . Ord (Ptr a) where
+instance Ord (Ptr a) where
   p `compare` q  =  primPtrToWord p `compare` primPtrToWord q
   p <  q  =  primPtrToWord p <  primPtrToWord q
   p <= q  =  primPtrToWord p <= primPtrToWord q
   p >  q  =  primPtrToWord p >  primPtrToWord q
   p >= q  =  primPtrToWord p >= primPtrToWord q
 
-instance forall a . Show (Ptr a) where
+instance Show (Ptr a) where
   showsPrec _ p = showString "0x" . showHex (primPtrToWord p)
 
 nullPtr :: forall a . Ptr a
@@ -39,13 +39,13 @@ minusPtr p q = primPtrToInt p `primIntSub` primPtrToInt q
 
 -------
 
-instance forall a . Show (FunPtr a) where
+instance Show (FunPtr a) where
   showsPrec _ p = showString "0x" . showHex (primFunPtrToWord p)
 
-instance forall a . Eq (FunPtr a) where
+instance Eq (FunPtr a) where
   p == q  =  primFunPtrToWord p == primFunPtrToWord q
 
-instance forall a . Ord (FunPtr a) where
+instance Ord (FunPtr a) where
   p `compare` q  =  primFunPtrToWord p `compare` primFunPtrToWord q
   p <  q  =  primFunPtrToWord p <  primFunPtrToWord q
   p <= q  =  primFunPtrToWord p <= primFunPtrToWord q

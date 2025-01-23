@@ -19,18 +19,18 @@ import Data.Monoid.Internal
 import Data.Ord
 import Text.Show
 
-instance forall a . Eq a => Eq (Maybe a) where
+instance Eq a => Eq (Maybe a) where
   Nothing == Nothing  =  True
   Just x  == Just x'  =  x == x'
   _       == _        =  False
 
-instance forall a . Ord a => Ord (Maybe a) where
+instance Ord a => Ord (Maybe a) where
   Nothing `compare` Nothing = EQ
   Nothing `compare` Just _  = LT
   Just _  `compare` Nothing = GT
   Just x  `compare` Just y  = x `compare` y
 
-instance forall a . (Show a) => Show (Maybe a) where
+instance (Show a) => Show (Maybe a) where
   showsPrec _ Nothing  = showString "Nothing"
   showsPrec p (Just a) = showParen (p >= 11) (showString "Just " . showsPrec 11 a)
 
@@ -61,12 +61,12 @@ instance Alternative Maybe where
   Nothing <|> y = y
   x       <|> _ = x
 
-instance forall a . Semigroup a => Semigroup (Maybe a) where
+instance Semigroup a => Semigroup (Maybe a) where
   Nothing <> b       = b
   a       <> Nothing = a
   Just a  <> Just b  = Just (a <> b)
 
-instance forall a . Semigroup a => Monoid (Maybe a) where
+instance Semigroup a => Monoid (Maybe a) where
   mempty = Nothing
 
 maybe :: forall a r . r -> (a -> r) -> Maybe a -> r

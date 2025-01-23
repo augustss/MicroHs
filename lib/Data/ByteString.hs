@@ -172,7 +172,7 @@ import Data.ByteString.Internal
 type StrictByteString = ByteString
 
 primBS2FPtr   :: ByteString -> ForeignPtr Char
-primBS2FPtr   = primitive "I"  -- same representation
+primBS2FPtr   = _primitive "I"  -- same representation
 
 bsUnimp :: String -> a
 bsUnimp s = P.error $ "Data.ByteString." P.++ s P.++ " unimplemented"

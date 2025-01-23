@@ -1,9 +1,11 @@
 module ListTest(module ListTest) where
-import Prelude
+
+import Data.List
 
 main :: IO ()
 main = do
-  putStrLn $ show $ sum [1,2,3::Int]
-  putStrLn $ show $ product [1,2,3,4::Int]
-  putStrLn $ show $ and [True]
-  putStrLn $ show $ and [True, False]
+  print $ sum [1, 2, 3 :: Int]
+  print $ product [1, 2, 3, 4 :: Int]
+  print $ and [True]
+  print $ and [True, False]
+  print $ [2] `isInfixOf` [1, 2, 3 :: Int]

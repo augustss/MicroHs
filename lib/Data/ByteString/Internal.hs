@@ -5,31 +5,31 @@ import Data.Word(Word8)
 data ByteString  -- primitive type
 
 primBSappend  :: ByteString -> ByteString -> ByteString
-primBSappend  = primitive "bs++"
+primBSappend  = _primitive "bs++"
 primBSappend3 :: ByteString -> ByteString -> ByteString -> ByteString
-primBSappend3 = primitive "bs+++"
+primBSappend3 = _primitive "bs+++"
 primBSEQ      :: ByteString -> ByteString -> Bool
-primBSEQ      = primitive "bs=="
+primBSEQ      = _primitive "bs=="
 primBSNE      :: ByteString -> ByteString -> Bool
-primBSNE      = primitive "bs/="
+primBSNE      = _primitive "bs/="
 primBSLT      :: ByteString -> ByteString -> Bool
-primBSLT      = primitive "bs<"
+primBSLT      = _primitive "bs<"
 primBSLE      :: ByteString -> ByteString -> Bool
-primBSLE      = primitive "bs<="
+primBSLE      = _primitive "bs<="
 primBSGT      :: ByteString -> ByteString -> Bool
-primBSGT      = primitive "bs>"
+primBSGT      = _primitive "bs>"
 primBSGE      :: ByteString -> ByteString -> Bool
-primBSGE      = primitive "bs>="
+primBSGE      = _primitive "bs>="
 primBScmp     :: ByteString -> ByteString -> Ordering
-primBScmp     = primitive "bscmp"
+primBScmp     = _primitive "bscmp"
 primBSpack    :: [Word8] -> ByteString
-primBSpack    = primitive "bspack"
+primBSpack    = _primitive "bspack"
 primBSunpack  :: ByteString -> [Word8]
-primBSunpack  = primitive "bsunpack"
+primBSunpack  = _primitive "bsunpack"
 primBSlength  :: ByteString -> Int
-primBSlength  = primitive "bslength"
+primBSlength  = _primitive "bslength"
 primBSsubstr  :: ByteString -> Int -> Int -> ByteString
-primBSsubstr  = primitive "bssubstr"
+primBSsubstr  = _primitive "bssubstr"
 
 -----------------------------------------
 

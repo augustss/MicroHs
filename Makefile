@@ -14,18 +14,25 @@ GHC= ghc
 GHCINCS= -ighc -isrc -ipaths
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -Wno-deprecations
 GHCOPTS= -O
-GHCEXTS= -DNOTCABAL -XScopedTypeVariables -XTypeSynonymInstances -XMultiParamTypeClasses -XFlexibleInstances -XBangPatterns
+GHCEXTS= -DNOTCABAL -XScopedTypeVariables -XTypeSynonymInstances -XMultiParamTypeClasses -XFlexibleInstances
 GHCPKGS= -package mtl -package pretty -package haskeline -package process -package time -package ghc-prim -package containers -package deepseq -package directory -package text
 GHCTOOL= # -F -pgmF Tools/convertX.sh
 GHCOUTDIR= ghc-out
 GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
-GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF)
+GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF) -main-is MicroHs.Main
+#
+# Hugs
+HUGS= runhugs
+FFIHUGS= ffihugs
+HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
+
 #
 EMCC=emcc -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW
 #
 MHSINCNP= -i -imhs -isrc -ilib
 MHSINC=$(MHSINCNP) -ipaths 
+MAINMODULE=MicroHs.Main
 #
 .PHONY:	clean bootstrap install ghcgen newmhs newmhsz cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info
 
@@ -79,20 +86,20 @@ bin/mhsevalgdb:	src/runtime/*.c src/runtime/config*.h
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
 	@mkdir -p bin
-	$(GHC) $(GHCFLAGS) src/MicroHs/Main.hs -main-is MicroHs.Main -o bin/gmhs
+	$(GHC) $(GHCFLAGS) $(MAINMODULE) -o bin/gmhs
 
 # Compile mhs with ghc, with code coverage
 bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs
 	@mkdir -p bin
-	$(GHC) $(GHCFLAGS) -fhpc src/MicroHs/Main.hs -main-is MicroHs.Main -o bin/cmhs
+	$(GHC) $(GHCFLAGS) -fhpc $(MAINMODULE) -o bin/cmhs
 
 # Generate distribution C file
 generated/mhs.c:	bin/mhs src/*/*.hs
 	@mkdir -p generated
-	bin/mhs -z $(MHSINC) MicroHs.Main -ogenerated/mhs.c
+	bin/mhs -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs.c
 
 ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
-	bin/gmhs $(MHSINC) MicroHs.Main -ogenerated/mhs.c
+	bin/gmhs $(MHSINC) $(MAINMODULE) -ogenerated/mhs.c
 
 #
 generated/mcabal.c:
@@ -100,7 +107,7 @@ generated/mcabal.c:
 
 # Flags to read local file system, generate a single .js file, and to avoid ioctl()
 mhs.js:	src/*/*.hs src/runtime/*.[ch] targets.conf
-	bin/mhs $(MHSINC) -temscripten MicroHs.Main -o mhs.js
+	bin/mhs $(MHSINC) -temscripten $(MAINMODULE) -o mhs.js
 
 # Make sure boottrapping works
 bootstrap:	bin/mhs-stage2
@@ -112,14 +119,14 @@ bootstrap:	bin/mhs-stage2
 bin/mhs-stage1:	bin/mhs src/*/*.hs
 	@mkdir -p generated
 	@echo "*** Build stage1 compiler, using bin/mhs"
-	bin/mhs -z $(MHSINC) MicroHs.Main -ogenerated/mhs-stage1.c
+	bin/mhs -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs-stage1.c
 	$(CCEVAL) generated/mhs-stage1.c -o bin/mhs-stage1
 
 # Build stage2 compiler with stage1 compiler, and compare
 bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 	@mkdir -p generated
 	@echo "*** Build stage2 compiler, with stage1 compiler"
-	bin/mhs-stage1 -z $(MHSINC) MicroHs.Main -ogenerated/mhs-stage2.c
+	bin/mhs-stage1 -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs-stage2.c
 	cmp generated/mhs-stage1.c generated/mhs-stage2.c
 	@echo "*** stage2 equal to stage1"
 	$(CCEVAL) generated/mhs-stage2.c -o bin/mhs-stage2
@@ -154,13 +161,13 @@ bin/umhs: bin/mhs
 
 #
 timecompile: bin/mhs
-	time bin/mhs +RTS -v -RTS -s $(MHSINC) MicroHs.Main
+	time bin/mhs +RTS -v -RTS -s $(MHSINC) $(MAINMODULE)
 
 #
 timecachecompile: bin/mhs
 	@-rm -f .mhscache
 	time bin/mhs +RTS -v -RTS -CW AllOfLib
-	time bin/mhs +RTS -v -RTS -CR -s $(MHSINC) MicroHs.Main
+	time bin/mhs +RTS -v -RTS -CR -s $(MHSINC) $(MAINMODULE)
 
 #
 cachelib:
@@ -191,8 +198,8 @@ everytest:	newmhs runtest exampletest cachetest bootcombtest nfibtest info
 everytestmhs:	bin/mhs bin/mhseval exampletest cachetest bootstrap runtestmhs nfibtest info
 
 bootcombtest:	bin/gmhs bin/mhseval
-	bin/gmhs $(MHSINC) -ogmhs.comb  MicroHs.Main
-	bin/mhseval +RTS -v -rgmhs.comb -RTS $(MHSINC) -omhs.comb MicroHs.Main
+	bin/gmhs $(MHSINC) -ogmhs.comb $(MAINMODULE)
+	bin/mhseval +RTS -v -rgmhs.comb -RTS $(MHSINC) -omhs.comb $(MAINMODULE)
 	cmp gmhs.comb mhs.comb
 
 exampletest:	bin/mhs bin/mhseval Example.hs
@@ -207,7 +214,7 @@ cachetest:	bin/mhs bin/mhseval Example.hs
 	rm -f .mhscache
 	bin/mhs -CW AllOfLib
 	bin/mhs -CR Example && bin/mhseval
-	bin/mhs +RTS -v -RTS $(MHSINC) -CR MicroHs.Main
+	bin/mhs +RTS -v -RTS $(MHSINC) -CR $(MAINMODULE)
 	rm -f .mhscache
 
 nfibtest: bin/mhs bin/mhseval
@@ -215,8 +222,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.11.2.4
-HVERSION=0,11,2,4
+VERSION=0.11.3.0
+HVERSION=0,11,3,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
@@ -230,7 +237,7 @@ $(MCABALBIN)/mhs: bin/mhs src/runtime/*.[ch] targets.conf
 	@mkdir -p $(MCABALBIN)
 	@mkdir -p $(MDIST)
 	@echo 'module Paths_MicroHs where { import Prelude(); import MHSPrelude; import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
-	bin/mhs -z $(MHSINCNP) -i$(MDIST) MicroHs.Main -o$(MCABALBIN)/mhs
+	bin/mhs -z $(MHSINCNP) -i$(MDIST) $(MAINMODULE) -o$(MCABALBIN)/mhs
 	@mkdir -p $(MRUNTIME)
 	cp targets.conf $(MDATA)
 	cp src/runtime/*.[ch] $(MRUNTIME)
@@ -262,3 +269,16 @@ minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal install
 	PATH=$(MCABALBIN):"$$PATH" mcabal install
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
+
+#####
+# Hugs
+HUGS= runhugs
+HUGSINCS= '+Phugs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w -h100m
+
+generated/hmhs.c:
+	@mkdir -p generated
+	$(HUGS) $(HUGSINCS) hugs/Main.hs $(MHSINC) $(MAINMODULE) -ogenerated/hmhs.c
+
+bin/hmhs: generated/hmhs.c
+	@mkdir -p bin
+	$(CCEVAL) generated/hmhs.c -o bin/hmhs

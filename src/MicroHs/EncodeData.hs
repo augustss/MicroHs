@@ -9,7 +9,7 @@ module MicroHs.EncodeData(
 import Prelude(); import MHSPrelude
 import Data.List
 import MicroHs.Exp
-import MicroHs.Expr(Con(..), Lit(..))
+import MicroHs.Expr(Con(..), Lit(..), impossible)
 import MicroHs.Ident
 
 --
@@ -60,10 +60,8 @@ encCaseScott var pes dflt =
     (SPat (ConData cs _ _) _, _) : _ ->
       let
         arm (c, k) =
-          let
-            !(vs, rhs) = head $ [ (xs, e) | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
-                                [ (replicate k dummyIdent, dflt) ]
-          in lams vs rhs
+          head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
+                 [ lams (replicate k dummyIdent) dflt ]
       in  apps var (map arm cs)
     _ -> undefined
 
@@ -140,14 +138,16 @@ caseTree n tup lo hi pes dflt =
     -- Why?  A 3-way branch should be better than a 2-way.
     [(i, xs, e), (_, xs', e')]
                  | hi - lo == 2 -> encIf (eqInt n i) (match tup xs e) (match tup xs' e')
-      let !(pesl, (i, xs, e) : pesh) = splitAt (length pes `quot` 2) pes
+      let (pesl, (i, xs, e) : pesh) = splitAt (length pes `quot` 2) pes
       in  encTri (cmpInt n i) (caseTree n tup lo i pesl dflt)
                               (match tup xs e)
                               (caseTree n tup (i+1) hi pesh dflt)
 -}
     _ ->
-      let !(pesl, pesh@((i, _, _):_)) = splitAt (length pes `quot` 2) pes
-      in  encIf (ltInt n i) (caseTree n tup lo i pesl dflt) (caseTree n tup i hi pesh dflt)
+      case splitAt (length pes `quot` 2) pes of
+        (pesl, pesh@((i, _, _):_)) ->
+          encIf (ltInt n i) (caseTree n tup lo i pesl dflt) (caseTree n tup i hi pesh dflt)
+        _ -> impossible
  where
    eqInt :: Exp -> Int -> Exp
    eqInt x i = app2 (Lit (LPrim "==")) x (Lit (LInt i))

@@ -191,7 +191,7 @@ letRecE i e b = letE i (App (Lit (LPrim "Y")) (Lam i e)) b
 --    in  body
 mutualRec :: Ident -> [LDef] -> Exp -> Exp
 mutualRec v ies body =
-  let !(is, es) = unzip ies
+  let (is, es) = unzip ies
       n = length is
       ev = Var v
       one m i = letE i (mkTupleSelE m n ev)
@@ -417,7 +417,7 @@ dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
   case leftMost aarm of
     EVar _ -> do
       -- Find all variables, substitute with i, and proceed
-      let !(vars, nvars) = span (isPVar . leftMost) aarms
+      let (vars, nvars) = span (isPVar . leftMost) aarms
           vars' = map (sub . unAt i) vars
           sub (EVar x : ps, rhs) = (ps, substAlpha x i . rhs)
           sub _ = impossible

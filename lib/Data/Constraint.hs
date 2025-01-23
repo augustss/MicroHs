@@ -10,7 +10,7 @@ import Text.Show
 type Dict :: Constraint -> Type
 data Dict c = c => Dict
 
-instance forall c . Show (Dict c) where
+instance Show (Dict c) where
   showsPrec _ Dict = showString "Dict"
 
 withDict :: forall c r . Dict c -> (c => r) -> r

@@ -54,16 +54,16 @@ instance (Integral a) => Enum (Ratio a) where
   enumFromTo     = numericEnumFromTo
   enumFromThenTo = numericEnumFromThenTo
 
-instance forall a . Eq a => Eq (Ratio a) where
+instance Eq a => Eq (Ratio a) where
   (x :% y) == (x' :% y')  =  x == x' && y == y'
 
-instance forall a . (Integral a, Ord a) => Ord (Ratio a) where
+instance (Integral a, Ord a) => Ord (Ratio a) where
   (x :% y) <= (x' :% y')  =  x * y' <= x' * y
   (x :% y) <  (x' :% y')  =  x * y' <  x' * y
   (x :% y) >= (x' :% y')  =  x * y' >= x' * y
   (x :% y) >  (x' :% y')  =  x * y' >  x' * y
 
-instance forall a . (Integral a, Ord a) => Num (Ratio a) where
+instance (Integral a, Ord a) => Num (Ratio a) where
   (x:%y) + (x':%y')   =  reduce (x*y' + x'*y) (y*y')
   (x:%y) - (x':%y')   =  reduce (x*y' - x'*y) (y*y')
   (x:%y) * (x':%y')   =  reduce (x * x') (y * y')
@@ -72,20 +72,20 @@ instance forall a . (Integral a, Ord a) => Num (Ratio a) where
   signum (x:%_)       =  signum x :% 1
   fromInteger x       =  fromInteger x :% 1
 
-instance forall a . (Integral a, Ord a) => Fractional (Ratio a) where
+instance (Integral a, Ord a) => Fractional (Ratio a) where
   (x:%y) / (x':%y')   = reduce (x*y') (y*x')
   recip (x:%y)
     | x < 0           = (-y) :% (-x)
     | otherwise       =  y :%  x
   fromRational (x:%y) =  fromInteger x % fromInteger y
 
-instance forall a . (Show a) => Show (Ratio a)  where
+instance (Show a) => Show (Ratio a)  where
   showsPrec p (x:%y) = showParen (p > 7) $
                        showsPrec 8 x .
                        showString " % " .
                        showsPrec 8 y
 
-instance forall a . (Integral a, Ord a) => Real (Ratio a) where
+instance (Integral a, Ord a) => Real (Ratio a) where
   toRational (x :% y) = toInteger x :% toInteger y
 
 rationalInfinity :: Rational

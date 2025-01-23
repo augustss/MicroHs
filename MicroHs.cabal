@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.11.2.4
+version:             0.11.3.0
                      -- *** When changing the version number, also
                      -- *** run 'sh updateversion.sh'
                      -- *** Yeah, it stinks.
@@ -54,11 +54,11 @@ source-repository head
 
 executable mhs
   default-language:    Haskell2010
-  ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -main-is MicroHs.Main
+  ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial
                        -fwrite-ide-info -Wno-deprecations
+                       -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
-  default-extensions:  ScopedTypeVariables TypeSynonymInstances MultiParamTypeClasses
-                       FlexibleInstances BangPatterns
+  default-extensions:  ScopedTypeVariables TypeSynonymInstances MultiParamTypeClasses FlexibleInstances
   other-modules:       MicroHs.Abstract
                        MicroHs.Builtin
                        MicroHs.Compile
@@ -82,6 +82,7 @@ executable mhs
                        MicroHs.Lex
                        MicroHs.List
                        MicroHs.MakeCArray
+                       MicroHs.MRnf
                        MicroHs.Package
                        MicroHs.Parse
                        MicroHs.State
@@ -96,7 +97,6 @@ executable mhs
                        System.Console.SimpleReadline
                        Data.Double
                        Data.Integer
-                       Compat
                        PrimTable
                        MHSPrelude
                        System.IO.MD5

@@ -28,20 +28,20 @@ isRight :: forall a b . Either a b -> Bool
 isRight (Left  _) = False
 isRight (Right _) = True
 
-instance forall a b . (Show a, Show b) => Show (Either a b) where
+instance (Show a, Show b) => Show (Either a b) where
   showsPrec p (Left  a) = showParen (p>=appPrec1) (showString "Left "  . showsPrec appPrec1 a)
   showsPrec p (Right b) = showParen (p>=appPrec1) (showString "Right " . showsPrec appPrec1 b)
 
-instance forall a . Functor (Either a) where
+instance Functor (Either a) where
   fmap _ (Left a) = Left a
   fmap f (Right b) = Right (f b)
 
-instance forall a . Applicative (Either a) where
+instance Applicative (Either a) where
   pure b              = Right b
   Right f <*> Right x = Right (f x)
   Right _ <*> Left a  = Left a
   Left a  <*> _       = Left a
 
-instance forall a . Monad (Either a) where
+instance Monad (Either a) where
   Right b >>= k = k b
   Left a  >>= _ = Left a

@@ -157,8 +157,10 @@ getFieldTys (Left ts) = map snd ts
 getFieldTys (Right ts) = map (snd . snd) ts
 
 decomp :: EType -> [EType]
-decomp t | Just (c, ts) <- getAppM t, isConIdent c = concatMap decomp ts
-         | otherwise = [t]
+decomp t =
+  case getAppM t of
+    Just (c, ts) | isConIdent c -> concatMap decomp ts
+    _                           -> [t]
 
 -- If there is no mctx we use the default strategy to derive the instance context.
 -- The default strategy basically extracts all subtypes with variables.

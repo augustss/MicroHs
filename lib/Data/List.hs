@@ -47,12 +47,12 @@ import Data.Tuple
 --import Text.Read
 import Text.Show
 
-instance {-# OVERLAPPABLE #-} forall a . Eq a => Eq [a] where
+instance {-# OVERLAPPABLE #-} Eq a => Eq [a] where
   []     == []      =  True
   (x:xs) == (y:ys)  =  x == y && xs == ys
   _      == _       =  False
 
-instance forall a . Ord a => Ord [a] where
+instance Ord a => Ord [a] where
   []     <= _       =  True
   (_:_)  <= []      =  False
   (x:xs) <= (y:ys)  =  x < y || x == y && xs <= ys
@@ -64,17 +64,17 @@ instance Applicative [] where
   pure a = [a]
   fs <*> xs = concatMap (\ f -> map (\ x -> f x) xs) fs
 
-instance forall a . Show a => Show [a] where
+instance Show a => Show [a] where
   showsPrec _ = showList
 
 instance Alternative [] where
   empty = []
   (<|>) = (++)
 
-instance forall a . Semigroup [a] where
+instance Semigroup [a] where
   (<>) = (++)
 
-instance forall a . Monoid [a] where
+instance Monoid [a] where
   mempty = []
   mconcat = concat
 
@@ -336,7 +336,7 @@ isInfixOf :: forall a . Eq a => [a] -> [a] -> Bool
 isInfixOf = isInfixOfBy (==)
 
 isInfixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
-isInfixOfBy eq cs ds = any (isPrefixOfBy eq cs) (inits ds)
+isInfixOfBy eq cs ds = any (isPrefixOfBy eq cs) (tails ds)
 
 splitAt :: forall a . Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)

@@ -117,7 +117,7 @@ mkHdr (ImpStatic _ _ Ptr fn, iot) =
       body = mkRet r 0 (s ++ "&" ++ fn)
   in  mkMhsFun ("addr_" ++ fn) body
 mkHdr (ImpStatic _ _ Func fn, t) =
-  let !(as, ior) = getArrows t
+  let (as, ior) = getArrows t
       r = checkIO ior
       n = length as
       call = fn ++ "(" ++ intercalate ", " (zipWith mkArg as [0..]) ++ ")"

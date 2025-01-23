@@ -78,7 +78,7 @@ instance Show SymTab where
   
 mapMSymTab :: forall m . Monad m => (Entry -> m Entry) -> SymTab -> m SymTab
 mapMSymTab f (SymTab l ug qg) = do
-  l' <- mapM (\ (i, a) -> (,) i <$> f a) l
+  l' <- mapM (\ (i, a) -> f a >>= \ a' -> return (i, a')) l
   ug' <- M.mapM (mapM f) ug
   qg' <- M.mapM (mapM f) qg
   return $ SymTab l' ug' qg'
@@ -102,8 +102,10 @@ stLookup msg i (SymTab l ug qg) =
 -- also not be imported.  So as a last recourse, look for the identifier
 -- unqualified.
 hackBuiltin :: Ident -> Ident
-hackBuiltin i | Just ('.':s) <- stripPrefix builtinMdl (unIdent i) = mkIdentSLoc (slocIdent i) s
-hackBuiltin i = i
+hackBuiltin i =
+  case stripPrefix builtinMdl (unIdent i) of
+    Just ('.':s) -> mkIdentSLoc (slocIdent i) s
+    _            -> i
 
 stFromList :: [(Ident, [Entry])] -> [(Ident, [Entry])] -> SymTab
 stFromList us qs = SymTab [] (M.fromListWith union us) (M.fromListWith union qs)

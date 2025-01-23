@@ -2,9 +2,10 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
 module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords, dotDotIdent) where
-import Prelude(); import MHSPrelude
-import Control.Applicative
+import Prelude(); import MHSPrelude hiding ((*>))
+import Control.Applicative hiding ((*>))
 import Control.Monad
+import Control.Monad.Fail
 import Data.Char
 import Data.List
 import Text.ParserComb as P
@@ -13,6 +14,11 @@ import MicroHs.Expr hiding (getSLoc)
 import qualified MicroHs.Expr as E
 import MicroHs.Ident
 --import Debug.Trace
+
+-- Hugs can't define the efficient *>
+infixl 4 *>
+(*>) :: Prsr s t a -> Prsr s t b -> Prsr s t b
+(*>) = (>>)
 
 type P a = Prsr LexState Token a
 
@@ -45,7 +51,7 @@ eof = do
   t <- nextToken
   case t of
     TEnd _ -> pure ()
-    _      -> fail "eof"
+    _      -> Control.Monad.Fail.fail "expected eof"
 
 pTop :: P EModule
 pTop = (pModule <|< pModuleEmpty) <* eof
@@ -145,7 +151,7 @@ keywords :: [String]
 keywords =
   ["case", "class", "data", "default", "deriving", "do", "else", "forall", "foreign", "if",
    "import", "in", "infix", "infixl", "infixr", "instance",
-   "let", "module", "newtype", "of", "pattern", "primitive", "then", "type", "where"]
+   "let", "module", "newtype", "of", "pattern", "_primitive", "then", "type", "where"]
 
 pSpec :: Char -> P ()
 pSpec c = () <$ satisfy (showToken $ TSpec (SLoc "" 0 0) c) is
@@ -729,7 +735,7 @@ pAExpr' = (
   <|< (ESectL <$> (pSpec '(' *> pExprOp) <*> (pOperComma <* pSpec ')'))
   <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprOp <* pSpec ')'))
   <|< (ESelect <$> (pSpec '(' *> esome pSelect <* pSpec ')'))
-  <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
+  <|< (ELit noSLoc . LPrim <$> (pKeyword "_primitive" *> pString))
   <|< (ETypeArg <$> (pSpec '@' *> pAType))
   )
   -- This weirdly slows down parsing

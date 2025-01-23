@@ -1030,8 +1030,10 @@ withVks vks fun = assertTCMode (>=TCType) $ do
 
 guessIsKind :: EType -> Bool
 guessIsKind (EVar i)                      = i == mkIdent "Kind"
-guessIsKind t | Just (f, a) <- getArrow t = guessIsKind f || guessIsKind a
-guessIsKind _                             = False
+guessIsKind t =
+  case getArrow t of
+    Just (f, a) -> guessIsKind f || guessIsKind a
+    _           -> False
 
 -- Add symbol a table entry (with kind) for each top level typeish definition.
 -- If there is a kind signature, use it.  If not, use a kind variable.
@@ -1094,16 +1096,16 @@ tcDefType def = do
     Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDerive ds)
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first                    (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> flip (,) kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
-    Sign      is t         ->                                                  Sign      is   <$> tCheckTypeTImpl kType t
-    ForImp ie i t          ->                                                  ForImp ie i    <$> tCheckTypeTImpl kType t
-    Instance ct m          ->                                                  Instance       <$> tCheckTypeTImpl kConstraint ct <*> return m
+    Sign      is t         ->                                                  Sign      is   <$> tCheckTypeTImpl False kType t
+    ForImp ie i t          ->                                                  ForImp ie i    <$> tCheckTypeTImpl False kType t
+    Instance ct m          ->                                                  Instance       <$> tCheckTypeTImpl True kConstraint ct <*> return m
     Default mc ts          ->                                                  Default (Just c) <$> mapM (tcDefault c) ts
                                                                                  where c = fromMaybe num mc
-    Deriving ct            ->                                                  Deriving       <$> tCheckTypeTImpl kConstraint ct
+    Deriving ct            ->                                                  Deriving       <$> tCheckTypeTImpl False kConstraint ct
     _                      -> return def
  where
-   tcMethod (Sign is t) = Sign is <$> tCheckTypeTImpl kType t
-   tcMethod (DfltSign i t) = DfltSign i <$> tCheckTypeTImpl kType t
+   tcMethod (Sign is t) = Sign is <$> tCheckTypeTImpl False kType t
+   tcMethod (DfltSign i t) = DfltSign i <$> tCheckTypeTImpl False kType t
    tcMethod m = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
@@ -1234,10 +1236,12 @@ splitInst :: EConstraint -> ([IdKind], [EConstraint], EConstraint)
 splitInst (EForall _ iks t) =
   case splitInst t of
     (iks', ctx, ct) -> (iks ++ iks', ctx, ct)
-splitInst act | Just (ctx, ct) <- getImplies act =
-  case splitInst ct of
-    (iks, ctxs, ct') -> (iks, ctx : ctxs, ct')
-splitInst ct = ([], [], ct)
+splitInst act =
+  case getImplies act of
+    Just (ctx, ct) ->
+      case splitInst ct of
+        (iks, ctxs, ct') -> (iks, ctx : ctxs, ct')
+    _ -> ([], [], act)
 
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance act bs) = do
@@ -1507,15 +1511,15 @@ tcPatSyn (Pattern (ip, vks) p me) = do
 tcPatSyn _ = impossible
 
 -- Add implicit forall and type check.
-tCheckTypeTImpl :: HasCallStack => EType -> EType -> T EType
-tCheckTypeTImpl tchk t@(EForall _ _ _) = tCheckTypeT tchk t
-tCheckTypeTImpl tchk t = do
+tCheckTypeTImpl :: HasCallStack => Bool -> EType -> EType -> T EType
+tCheckTypeTImpl _ tchk t@(EForall _ _ _) = tCheckTypeT tchk t
+tCheckTypeTImpl impl tchk t = do
   bvs <- stKeysLcl <$> gets valueTable         -- bound outside
   let fvs = freeTyVars [t]                     -- free variables in t
       -- these are free, and need quantification.  eDummy indicates missing kind
       iks = map (\ i -> IdKind i eDummy) (fvs \\ bvs)
   --when (not (null iks)) $ tcTrace ("tCheckTypeTImpl: " ++ show (t, eForall iks t))
-  tCheckTypeT tchk (eForall' False iks t)
+  tCheckTypeT tchk (eForall' impl iks t)
 
 tCheckTypeT :: HasCallStack => EType -> EType -> T EType
 tCheckTypeT = tCheck tcTypeT
@@ -1684,7 +1688,7 @@ tcExprR mt ae =
               mex <- getExpected mt
               case mex of
                 Just (EApp (EVar lst) (EVar c))
-                 | lst == identList, c == identChar -> tcLit mt loc lit
+                 | lst == identList && c == identChar -> tcLit mt loc lit
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromString"))
                   (_at, rt) <- unArrow loc ft
@@ -2280,8 +2284,8 @@ tcPat mt ae =
       te <- newUVar
       munify loc mt (tApp (tList loc) te)
       xs <- mapM (tCheckPat te) es
-      let !(sks, ds, es') = unzip3 xs
-      return (concat sks, concat ds, EListish (LList es'))
+      case unzip3 xs of
+        (sks, ds, es') -> return (concat sks, concat ds, EListish (LList es'))
 
     ELit _ _ -> lit
 
@@ -2441,7 +2445,7 @@ tcBindVarT tmap x = do
       t <- newUVar
       return (x, t)
     Just t -> do
-      tt <- withTypeTable $ tCheckTypeTImpl kType t
+      tt <- withTypeTable $ tCheckTypeTImpl False kType t
       return (x, tt)
 
 tcBind :: EBind -> T EBind
@@ -2917,10 +2921,12 @@ getSuperClasses ais = do
           Nothing -> error $ "getSuperClasses: " ++ show i
           Just (ClassInfo _ supers _ _ _) ->
             loop done (concatMap flatten supers ++ is)
-      flatten a | (c, ts) <- getApp a =
-        case getTupleConstr c of
-          Nothing -> [c]
-          Just _ -> concatMap flatten ts
+      flatten a =
+        case getApp a of
+          (c, ts) ->
+            case getTupleConstr c of
+              Nothing -> [c]
+              Just _ -> concatMap flatten ts
   return $ loop [] ais
 
 
@@ -2997,7 +3003,7 @@ solveMany [] uns sol imp = return (uns, sol, imp)
 solveMany (cns@(di, ct) : cnss) uns sol imp = do
 --  tcTrace ("trying " ++ showEType ct)
   let loc = getSLoc di
-      !(iCls, cts) = getApp ct
+      (iCls, cts) = getApp ct
       solver = head [ s | (p, s) <- solvers, p iCls ]
   ads <- gets argDicts
   -- Check if we have an exact match among the arguments dictionaries.
@@ -3236,7 +3242,7 @@ getBestMatches [] = []
 getBestMatches ams =
   let isDictArg (EVar i) = (adictPrefix ++ uniqIdentSep) `isPrefixOf` unIdent i
       isDictArg _ = True
-      !(args, insts) = partition (\ (_, (ei, _, _)) -> isDictArg ei) ams
+      (args, insts) = partition (\ (_, (ei, _, _)) -> isDictArg ei) ams
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest

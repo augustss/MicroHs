@@ -186,14 +186,14 @@ ap f a = do
 
 -----
 
-instance forall a . Functor ((->) a) where
+instance Functor ((->) a) where
   fmap = (.)
 
-instance forall a . Applicative ((->) a) where
+instance Applicative ((->) a) where
   pure = const
   f <*> g = \ a -> f a (g a)
 
-instance forall a . Monad ((->) a) where
+instance Monad ((->) a) where
   x >>= y = \ z -> y (x z) z
 
 instance Monad Dual where

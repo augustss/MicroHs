@@ -29,8 +29,10 @@ module MHSPrelude(
   module System.IO,
   module Text.Show,
   usingMhs, _wordSize, _isWindows,
+  rnfNoErr, rnfErr, NFData, appendDot,
   ) where
 import Prelude()
+--import Primitives(primRnfNoErr, primRnfErr)
 import Control.Applicative(Applicative(..))
 import Control.Error(error, undefined)
 import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
@@ -71,7 +73,24 @@ import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, int
                  cprint, cuprint)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Primitives(_wordSize, _isWindows)
+import Data.Text(Text)
 
 -- So we can detect mhs vs ghc
 usingMhs :: Bool
 usingMhs = True
+
+-------
+
+-- Define these here to avoid dragging in Control.DeepSeq
+rnfNoErr :: forall a . a -> ()
+rnfNoErr = _primitive "rnf" (1::Int)
+
+rnfErr :: forall a . a -> ()
+rnfErr = _primitive "rnf" (0::Int)
+
+class NFData a
+
+appendDot :: Text -> Text -> Text
+appendDot x y =
+  _primitive "bs++." x y
+  --x `append` pack "." `append` y

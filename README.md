@@ -443,6 +443,12 @@ The compiler can compile itself.  To replace `bin/mhs` with a new version,
 do `make bootstrap`.  This will recompile the compiler twice and compare
 the outputs to make sure the new compiler still works.
 
+### Bootstrapping with Hugs
+It is also possible to bootstrap MicroHs using Hugs.  That means that
+MicroHs can be built from scratch in the sense of [bootstrappable.org](https://bootstrappable.org/).
+To compile with Hugs you need [a slightly patched version of Hugs](https://github.com/augustss/hugs98-plus-Sep2006)
+and also the [hugs branch of MicroHs](https://github.com/augustss/MicroHs/tree/hugs).
+
 # Preprocessor
 Sadly, compiling a lot of Haskell packages needs the C preprocessor.
 To this end, the distribution contains the combinator code for `cpphs`.
