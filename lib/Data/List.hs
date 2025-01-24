@@ -53,16 +53,22 @@ instance {-# OVERLAPPABLE #-} Eq a => Eq [a] where
   _      == _       =  False
 
 instance Ord a => Ord [a] where
-  []     <= _       =  True
-  (_:_)  <= []      =  False
-  (x:xs) <= (y:ys)  =  x < y || x == y && xs <= ys
+  compare []     []     = EQ
+  compare []     (_:_)  = LT
+  compare (_:_)  []     = GT
+  compare (x:xs) (y:ys) =
+    case compare x y of
+      EQ    -> compare xs ys
+      other -> other
 
 instance Functor [] where
   fmap = map
 
 instance Applicative [] where
   pure a = [a]
-  fs <*> xs = concatMap (\ f -> map (\ x -> f x) xs) fs
+  fs <*> xs = concatMap (\f -> map f xs) fs
+  xs *> ys = concatMap (\_ -> ys) xs
+  liftA2 f xs ys = concatMap (\x -> map (f x) ys) xs
 
 instance Show a => Show [a] where
   showsPrec _ = showList
@@ -73,6 +79,12 @@ instance Alternative [] where
 
 instance Semigroup [a] where
   (<>) = (++)
+  stimes n x
+    | n < 0 = error "stimes: negative multiplier"
+    | otherwise = rep n
+    where
+      rep 0 = []
+      rep i = x ++ rep (i - 1)
 
 instance Monoid [a] where
   mempty = []
@@ -86,25 +98,16 @@ concat :: forall a . [[a]] -> [a]
 concat = foldr (++) []
 
 map :: forall a b . (a -> b) -> [a] -> [b]
-map f =
-  let
-    rec [] = []
-    rec (a : as) = f a : rec as
-  in rec
+map _ [] = []
+map f (x : xs) = f x : map f xs
 
 filter :: forall a . (a -> Bool) -> [a] -> [a]
-filter p =
-  let
-    rec [] = []
-    rec (x : xs) = if p x then x : rec xs else rec xs
-  in rec
+filter _ [] = []
+filter p (x : xs) = if p x then x : filter p xs else filter p xs
 
 foldr :: forall a b . (a -> b -> b) -> b -> [a] -> b
-foldr f z =
-  let
-    rec [] = z
-    rec (x : xs) = f x (rec xs)
-  in rec
+foldr _ z [] = z
+foldr f z (x : xs) = f x (foldr f z xs)
 
 foldr' :: forall a b . (a -> b -> b) -> b -> [a] -> b
 foldr' f z [] = z
@@ -113,22 +116,16 @@ foldr' f z (x:xs) =
   in  y `seq` f x y
 
 foldr1 :: forall a . (a -> a -> a) -> [a] -> a
-foldr1 f =
-  let
-    rec [] = error "foldr1"
-    rec [x] = x
-    rec (x : xs) = f x (rec xs)
-  in rec
+foldr1 _ [] = error "foldr1: empty list"
+foldr1 _ [x] = x
+foldr1 f (x : xs) = f x (foldr1 f xs)
 
 foldr1' :: forall a . (a -> a -> a) -> [a] -> a
-foldr1' f =
-  let
-    rec [] = error "foldr1"
-    rec [x] = x
-    rec (x : xs) =
-          let y = rec xs
-          in  y `seq` f x y
-  in rec
+foldr1' f [] = error "foldr1: empty list"
+foldr1' _ [x] = x
+foldr1' f (x : xs) =
+  let y = foldr1' f xs
+  in  y `seq` f x y
 
 foldl :: forall a b . (b -> a -> b) -> b -> [a] -> b
 foldl _ z [] = z
@@ -141,19 +138,19 @@ foldl' f z (x : xs) =
   in  y `seq` foldl' f y xs
 
 foldl1 :: forall a . (a -> a -> a) -> [a] -> a
-foldl1 _ [] = error "foldl1"
+foldl1 _ [] = error "foldl1: empty list"
 foldl1 f (x : xs) = foldl f x xs
 
 foldl1' :: forall a . (a -> a -> a) -> [a] -> a
-foldl1' _ [] = error "foldl1'"
+foldl1' _ [] = error "foldl1': empty list"
 foldl1' f (x : xs) = foldl' f x xs
 
 minimum :: forall a . Ord a => [a] -> a
-minimum [] = error "minimum"
+minimum [] = error "minimum: empty list"
 minimum (x:ys) = foldr (\ y m -> if y < m then y else m) x ys
 
 maximum :: forall a . Ord a => [a] -> a
-maximum [] = error "maximum"
+maximum [] = error "maximum: empty list"
 maximum (x:ys) = foldr (\ y m -> if y > m then y else m) x ys
 
 sum :: forall a . Num a => [a] -> a
@@ -304,13 +301,10 @@ unzip7 axyzs =
         (xs, ys, zs, ws, vs, us, ts) -> (x:xs, y:ys, z:zs, w:ws, v:vs, u:us, t:ts)
 
 stripPrefix :: forall a . Eq a => [a] -> [a] -> Maybe [a]
-stripPrefix = stripPrefixBy (==)
-
-stripPrefixBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Maybe [a]
-stripPrefixBy eq [] s = Just s
-stripPrefixBy eq (c:cs) [] = Nothing
-stripPrefixBy eq (c:cs) (d:ds) | eq c d = stripPrefixBy eq cs ds
-                               | otherwise = Nothing
+stripPrefix [] s = Just s
+stripPrefix (c:cs) [] = Nothing
+stripPrefix (c:cs) (d:ds) | c == d = stripPrefix cs ds
+                          | otherwise = Nothing
 
 stripSuffix :: forall a . Eq a => [a] -> [a] -> Maybe [a]
 stripSuffix s t =
@@ -319,24 +313,15 @@ stripSuffix s t =
     Just x -> Just (reverse x)
 
 isPrefixOf :: forall a . Eq a => [a] -> [a] -> Bool
-isPrefixOf = isPrefixOfBy (==)
-
-isPrefixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
-isPrefixOfBy eq (c:cs) (d:ds) = eq c d && isPrefixOfBy eq cs ds
-isPrefixOfBy _ [] _ = True
-isPrefixOfBy _ _  _ = False
+isPrefixOf (c:cs) (d:ds) = c == d && isPrefixOf cs ds
+isPrefixOf [] _ = True
+isPrefixOf _  _ = False
 
 isSuffixOf :: forall a . Eq a => [a] -> [a] -> Bool
-isSuffixOf = isSuffixOfBy (==)
-
-isSuffixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
-isSuffixOfBy eq n h = isPrefixOfBy eq (reverse n) (reverse h)
+isSuffixOf n h = isPrefixOf (reverse n) (reverse h)
 
 isInfixOf :: forall a . Eq a => [a] -> [a] -> Bool
-isInfixOf = isInfixOfBy (==)
-
-isInfixOfBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> Bool
-isInfixOfBy eq cs ds = any (isPrefixOfBy eq cs) (tails ds)
+isInfixOf cs ds = any (isPrefixOf cs) (tails ds)
 
 splitAt :: forall a . Int -> [a] -> ([a], [a])
 splitAt n xs = (take n xs, drop n xs)
@@ -371,11 +356,10 @@ dropWhileEnd :: (a -> Bool) -> [a] -> [a]
 dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x : xs) []
 
 span :: forall a . (a -> Bool) -> [a] -> ([a], [a])
-span p =
-  let
-    rec r [] = (reverse r, [])
-    rec r (x:xs) = if p x then rec (x:r) xs else (reverse r, x:xs)
-  in rec []
+span _ [] = ([], [])
+span p axs@(x : xs)
+  | p x       = let (ys, zs) = span p xs in (x : ys, zs)
+  | otherwise = ([], axs)
 
 break :: forall a . (a -> Bool) -> [a] -> ([a],[a])
 break p = span (not . p)
@@ -387,26 +371,26 @@ breakEnd :: (a -> Bool) -> [a] -> ([a], [a])
 breakEnd p = spanEnd (not . p)
 
 spanUntil :: forall a . (a -> Bool) -> [a] -> ([a], [a])
-spanUntil p =
-  let
-    rec r [] = (reverse r, [])
-    rec r (x:xs) = if p x then rec (x:r) xs else (reverse (x:r), xs)
-  in rec []
+spanUntil _ [] = ([], [])
+spanUntil p (x : xs)
+  | p x       = let (ys, zs) = spanUntil p xs in (x : ys, zs)
+  | otherwise = ([x], xs)
 
 splitWith :: forall a . (a -> Bool) -> [a] -> [[a]]
-splitWith p =
-  let
-    rec r s  []                = reverse (reverse s : r)
-    rec r s (x:xs) | p x       = rec (reverse s : r) []      xs
-                   | otherwise = rec              r  (x : s) xs
-  in rec [] []
+splitWith _ [] = [[]]
+splitWith p (x : xs)
+  | p x = [] : rs
+  | otherwise = case rs of
+    (r : rs') -> (x : r) : rs'
+    [] -> [[x]] -- impossible
+  where rs = splitWith p xs
 
 head :: forall a . [a] -> a
-head [] = error "head"
+head [] = error "head: empty list"
 head (x:_) = x
 
 tail :: forall a . [a] -> [a]
-tail [] = error "tail"
+tail [] = error "tail: empty list"
 tail (_:ys) = ys
 
 tails :: forall a . [a] -> [[a]]
@@ -414,7 +398,8 @@ tails [] = [[]]
 tails xxs@(_:xs) = xxs : tails xs
 
 inits :: forall a . [a] -> [[a]]
-inits = map reverse . reverse . tails . reverse
+-- use difference lists to build up the inits
+inits = map ($ []) . scanl (\xs x -> xs . (x :)) id
 
 intersperse :: forall a . a -> [a] -> [a]
 intersperse _ [] = []
@@ -427,10 +412,7 @@ intercalate :: forall a . [a] -> [[a]] -> [a]
 intercalate xs xss = concat (intersperse xs xss)
 
 elem :: forall a . (Eq a) => a -> [a] -> Bool
-elem = elemBy (==)
-
-elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
-elemBy eq a = any (eq a)
+elem a = any (a ==)
 
 notElem :: forall a . (Eq a) => a -> [a] -> Bool
 notElem a as = not (elem a as)
@@ -440,11 +422,8 @@ find p [] = Nothing
 find p (x:xs) = if p x then Just x else find p xs
 
 lookup :: forall a b . Eq a => a -> [(a, b)] -> Maybe b
-lookup = lookupBy (==)
-
-lookupBy :: forall a b . (a -> a -> Bool) -> a -> [(a, b)] -> Maybe b
-lookupBy eq x xys =
-  case find (eq x . fst) xys of
+lookup x xys =
+  case find ((x ==) . fst) xys of
     Nothing -> Nothing
     Just (_, b) -> Just b
 
@@ -458,7 +437,9 @@ intersect :: forall a . Eq a => [a] -> [a] -> [a]
 intersect = intersectBy (==)
 
 intersectBy :: forall a . (a -> a -> Bool) -> [a] -> [a] -> [a]
-intersectBy eq xs ys = filter (\ x -> elemBy eq x ys) xs
+intersectBy _  [] _  = []
+intersectBy _  _  [] = []
+intersectBy eq xs ys = filter (\x -> any (eq x) ys) xs
 
 delete :: (Eq a) => a -> [a] -> [a]
 delete = deleteBy (==)
@@ -486,7 +467,7 @@ repeat :: forall a . a -> [a]
 repeat x = let xs = x:xs in xs
 
 cycle :: [a] -> [a]
-cycle [] = error "cycle: []"
+cycle [] = error "cycle: empty list"
 cycle xs = let xs' = xs ++ xs' in xs'
 
 infix 5 \\
@@ -506,10 +487,10 @@ infixl 9 !!
 (!!) :: forall a . [a] -> Int -> a
 (!!) axs i =
   if i < (0::Int) then
-    error "!!: <0"
+    error "!!: negative index"
   else
     let
-      nth _ [] = error "!!: empty"
+      nth _ [] = error "!!: index too large"
       nth n (x:xs) = if n == (0::Int) then x else nth (n - (1::Int)) xs
     in nth i axs
 
@@ -525,28 +506,46 @@ infixl 9 !?
     in nth i axs
 
 partition :: forall a . (a -> Bool) -> [a] -> ([a], [a])
-partition p xs = (filter p xs, filter (not . p) xs)
+partition p = foldr select ([], [])
+  where
+    select x (ts, fs)
+      | p x       = (x : ts, fs)
+      | otherwise = (ts, x : fs)
 
 sort :: forall a . Ord a => [a] -> [a]
-sort = sortLE (<=)
+sort = sortBy compare
 
+-- A simple merge sort for now.
 sortBy :: forall a . (a -> a -> Ordering) -> [a] -> [a]
-sortBy f = sortLE (\ x y -> f x y /= GT)
+sortBy cmp = mergeAll . splatter
+  where
+    splatter [] = []
+    splatter [a] = [[a]]
+    splatter (a1 : a2 : as) = case cmp a1 a2 of
+      GT -> [a2, a1] : splatter as
+      _  -> [a1, a2] : splatter as
 
--- A simple "quicksort" for now.
-sortLE :: forall a . (a -> a -> Bool) -> [a] -> [a]
-sortLE _  [] = []
-sortLE le (x:xs) =
-  case partition (le x) xs of
-    (ge, lt) -> sortLE le lt ++ (x : sortLE le ge)
+    mergeAll [] = []
+    mergeAll [xs] = xs
+    mergeAll xss = mergeAll (mergePairs xss)
+
+    mergePairs [] = []
+    mergePairs [xs] = [xs]
+    mergePairs (xs1 : xs2 : xss) = merge xs1 xs2 : mergePairs xss
+
+    merge [] ys = ys
+    merge xs [] = xs
+    merge axs@(x : xs) ays@(y : ys) = case cmp x y of
+      GT -> y : merge axs ys
+      _  -> x : merge xs ays
 
 last :: forall a . [a] -> a
-last [] = error "last: []"
+last [] = error "last: empty list"
 last [x] = x
 last (_:xs) = last xs
 
 init :: forall a . [a] -> [a]
-init [] = error "init: []"
+init [] = error "init: empty list"
 init [_] = []
 init (x:xs) = x : init xs
 
@@ -555,7 +554,7 @@ anySame = anySameBy (==)
 
 anySameBy :: forall a . (a -> a -> Bool) -> [a] -> Bool
 anySameBy _ [] = False
-anySameBy eq (x:xs) = elemBy eq x xs || anySameBy eq xs
+anySameBy eq (x:xs) = any (eq x) xs || anySameBy eq xs
 
 iterate :: forall a . (a -> a) -> a -> [a]
 iterate f x = x : iterate f (f x)
@@ -579,33 +578,29 @@ groupBy eq (x:xs) =  (x:ys) : groupBy eq zs
   where (ys,zs) = span (eq x) xs
 
 scanl :: (b -> a -> b) -> b -> [a] -> [b]
-scanl f = rec
-  where rec q ls = q : case ls of
-                         []   -> []
-                         x:xs -> rec (f q x) xs
+scanl f q ls = q : case ls of
+                     []   -> []
+                     x:xs -> scanl f (f q x) xs
 
 scanl' :: (b -> a -> b) -> b -> [a] -> [b]
-scanl' f = rec
-  where rec q ls = q : case ls of
-                         []   -> []
-                         x:xs -> let y = f q x in seq y (rec y xs)
+scanl' f q ls = q : case ls of
+                      []   -> []
+                      x:xs -> let y = f q x in seq y (scanl' f y xs)
 
 scanl1 :: (a -> a -> a) -> [a] -> [a]
 scanl1 f (x:xs) = scanl f x xs
 scanl1 _ []     = []
 
 scanr :: (a -> b -> b) -> b -> [a] -> [b]
-scanr f z = rec
-  where rec []     =  [z]
-        rec (x:xs) =  f x q : qs
-              where qs@(q:_) = rec xs
+scanr _ z []     = [z]
+scanr f z (x:xs) = f x q : qs
+  where qs@(q:_) = scanr f z xs
 
 scanr1 :: (a -> a -> a) -> [a] -> [a]
-scanr1 f = rec
-  where rec []     = []
-        rec [x]    = [x]
-        rec (x:xs) = f x q : qs
-              where qs@(q:_) = rec xs
+scanr1 _ []     = []
+scanr1 _ [x]    = [x]
+scanr1 f (x:xs) = f x q : qs
+  where qs@(q:_) = scanr1 f xs
 
 isSubsequenceOf :: (Eq a) => [a] -> [a] -> Bool
 isSubsequenceOf []       _                 = True
@@ -618,8 +613,10 @@ uncons []     = Nothing
 uncons (x:xs) = Just (x, xs)
 
 unsnoc :: [a] -> Maybe ([a], a)
-unsnoc [] = Nothing
-unsnoc xs = Just (init xs, last xs)
+unsnoc = foldr step Nothing
+  where
+    step x (Just (a, b)) = Just (x : a, b)
+    step x Nothing = Just ([], x)
 
 singleton :: a -> [a]
 singleton x = [x]
@@ -627,10 +624,9 @@ singleton x = [x]
 transpose :: [[a]] -> [[a]]
 transpose [] = []
 transpose ([] : xss) = transpose xss
-transpose ((x : xs) : xss) = combine x hds xs tls
+transpose ((x : xs) : xss) = (x : hds) : transpose (xs : tls)
   where
     (hds, tls) = unzip [(hd, tl) | hd : tl <- xss]
-    combine y h ys t = (y:h) : transpose (ys:t)
 
 subsequences :: [a] -> [[a]]
 subsequences xs = [] : sub xs
@@ -674,10 +670,10 @@ elemIndices :: Eq a => a -> [a] -> [Int]
 elemIndices x xs = findIndices (x ==) xs
 
 findIndices :: (a -> Bool) -> [a] -> [Int]
-findIndices p = rec 0
-  where rec _ [] = []
-        rec i (x:xs) | p x = i : rec (i+1) xs
-                     | otherwise = rec (i+1) xs
+findIndices p = go 0
+  where go _ [] = []
+        go i (x:xs) | p x = i : go (i+1) xs
+                    | otherwise = go (i+1) xs
 
 findIndex :: (a -> Bool) -> [a] -> Maybe Int
 findIndex p xs =
@@ -688,30 +684,32 @@ findIndex p xs =
 lines :: String -> [String]
 lines [] = []
 lines s =
-  case span (not . (== '\n')) s of
+  case break (== '\n') s of
     (l, s') ->
       case s' of
         [] -> [l]
         _:s'' -> l : lines s''
 
 unlines :: [String] -> String
-unlines = concatMap (++ ['\n'])
+unlines [] = []
+unlines (l:ls) = l ++ '\n' : unlines ls
 
 words :: String -> [String]
 words s =
   case dropWhile isSpace s of
     [] -> []
     s' -> w : words s''
-      where (w, s'') = span (not . isSpace) s'
+      where (w, s'') = break isSpace s'
 
 unwords :: [String] -> String
-unwords ss = intercalate [' '] ss
+unwords [] = []
+unwords ws = foldr1 (\w s -> w ++ ' ' : s) ws
 
 sortOn :: Ord b => (a -> b) -> [a] -> [a]
 sortOn f = map snd . sortBy (comparing fst) . map (\x -> let y = f x in y `seq` (y, x))
 
 insert :: Ord a => a -> [a] -> [a]
-insert e ls = insertBy (compare) e ls
+insert e ls = insertBy compare e ls
 
 insertBy :: (a -> a -> Ordering) -> a -> [a] -> [a]
 insertBy _   x [] = [x]
@@ -721,7 +719,7 @@ insertBy cmp x ys@(y:ys') =
     _  -> x : ys
 
 maximumBy :: (a -> a -> Ordering) -> [a] -> a
-maximumBy _ []   =  error "List.maximumBy: []"
+maximumBy _ []   =  error "List.maximumBy: empty list"
 maximumBy cmp xs =  foldl1 maxBy xs
   where
     maxBy x y = case cmp x y of
@@ -729,7 +727,7 @@ maximumBy cmp xs =  foldl1 maxBy xs
                   _  -> y
 
 minimumBy :: (a -> a -> Ordering) -> [a] -> a
-minimumBy _ []   =  error "List.minimumBy: []"
+minimumBy _ []   =  error "List.minimumBy: empty list"
 minimumBy cmp xs =  foldl1 minBy xs
   where
     minBy x y = case cmp x y of
@@ -756,8 +754,8 @@ genericSplitAt n xs = (genericTake n xs, genericDrop n xs)
 genericIndex :: (Integral i, Ord i) => [a] -> i -> a
 genericIndex (x:_)  0 = x
 genericIndex (_:xs) n | n > 0     = genericIndex xs (n-1)
-                      | otherwise = error "List.genericIndex: < 0"
-genericIndex _ _                  = error "List.genericIndex: index too large."
+                      | otherwise = error "List.genericIndex: negative index"
+genericIndex _ _                  = error "List.genericIndex: index too large"
 
 genericReplicate :: (Integral i, Ord i) => i -> a -> [a]
 genericReplicate n x = genericTake n (repeat x)
