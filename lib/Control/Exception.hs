@@ -12,11 +12,13 @@ module Control.Exception(
   handle, handleJust,
 
   bracket, finally, bracket_, bracketOnError,
-  
+
   try,
   throwIO,
   onException,
   displaySomeException,
+  evaluate,
+  mapException,
   --
   ArithException(..),
   ) where
