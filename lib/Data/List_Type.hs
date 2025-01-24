@@ -10,14 +10,12 @@ data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable
 infixr 5 ++
 (++) :: forall a . [a] -> [a] -> [a]
 axs ++ ys =
-  let rec [] = ys
-      rec (x:xs) = x : rec xs
-  in  rec axs
+  let go [] = ys
+      go (x:xs) = x : go xs
+  in  go axs
 
 -- Put concatMap here so list comprehensions can be desugared
 -- using only List_Type
 concatMap :: forall a b . (a -> [b]) -> [a] -> [b]
-concatMap f = rec
-  where
-    rec [] = []
-    rec (x:xs) = f x ++ rec xs
+concatMap _ [] = []
+concatMap f (x : xs) = f x ++ concatMap f xs
