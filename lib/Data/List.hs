@@ -190,8 +190,14 @@ drop n arg =
       _ : xs -> drop (n - (1::Int)) xs
 
 length :: forall a . [a] -> Int
-length [] = 0
-length (_ : xs) = 1 + length xs
+length =
+  -- Make it tail recursive and strict
+  let
+    rec r [] = r
+    rec r (_:xs) =
+          let r' = r + (1::Int)
+          in  r' `primSeq` rec r' xs
+  in rec (0::Int)
 
 zip :: forall a b . [a] -> [b] -> [(a, b)]
 zip = zipWith (\ x y -> (x, y))
