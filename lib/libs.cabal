@@ -154,6 +154,7 @@ library base
         Data.Functor.Const_Type
         Data.Int.IntN
         Data.Int.Instances
+        Data.Integer.Internal
         Data.Integer_Type
         Data.List.NonEmpty_Type
         Data.Monoid.Internal
