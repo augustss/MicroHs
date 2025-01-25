@@ -10,7 +10,16 @@ build-type:     Simple
 description:
     This package contains the Standard Haskell "Prelude" and its support libraries.
 
+flag gmp
+  description: Use GMP for Integer
+  default: False
+  manual: True
+
 library base
+    if flag(gmp)
+      hs-source-dirs: gmp .
+    else
+      hs-source-dirs: .
     exposed-modules:
         Control.Applicative
         Control.Arrow
