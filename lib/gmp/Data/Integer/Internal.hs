@@ -28,7 +28,7 @@ import Data.Integer_Type
 
 -- We cannot import Foreign.ForeignPtr; it is circular.
 withForeignPtr :: ForeignPtr a -> (Ptr a -> IO b) -> IO b
-withForeignPtr fp io = 
+withForeignPtr fp io =
   io (primForeignPtrToPtr fp) `primBind` \ b ->
   primSeq fp (primReturn b)
 
@@ -45,7 +45,7 @@ foreign import capi "mpz_and"         mpz_and         :: Ptr MPZ -> Ptr MPZ -> P
 foreign import capi "mpz_ior"         mpz_ior         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
 foreign import capi "mpz_xor"         mpz_xor         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
 foreign import capi "mpz_mul_2exp"    mpz_mul_2exp    :: Ptr MPZ -> Ptr MPZ -> Int ->                IO ()
-foreign import capi "mpz_tdiv_q_2exp" mpz_tdiv_q_2exp :: Ptr MPZ -> Ptr MPZ -> Int ->                IO ()
+foreign import capi "mpz_fdiv_q_2exp" mpz_fdiv_q_2exp :: Ptr MPZ -> Ptr MPZ -> Int ->                IO ()
 foreign import capi "mpz_popcount"    mpz_popcount    :: Ptr MPZ ->                                  IO Int
 foreign import capi "mpz_tstbit"      mpz_tstbit      :: Ptr MPZ -> Int ->                           IO Int
 
@@ -107,7 +107,7 @@ isZero :: Integer -> Bool
 isZero = eqI zeroI
 
 cmpop :: (Int -> a) -> Integer -> Integer -> a
-cmpop f (I x) (I y) = unsafePerformIO $ 
+cmpop f (I x) (I y) = unsafePerformIO $
   withForeignPtr x $ \ px ->
     withForeignPtr y $ \ py -> do
       s <- mpz_cmp px py
@@ -155,7 +155,7 @@ shiftLI :: Integer -> Int -> Integer
 shiftLI x i = unop (\ pz px -> mpz_mul_2exp pz px i) x
 
 shiftRI :: Integer -> Int -> Integer
-shiftRI x i = unop (\ pz px -> mpz_tdiv_q_2exp pz px i) x
+shiftRI x i = unop (\ pz px -> mpz_fdiv_q_2exp pz px i) x
 
 popCountI :: Integer -> Int
 popCountI (I x) = unsafePerformIO $ withForeignPtr x $ mpz_popcount

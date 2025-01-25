@@ -451,8 +451,8 @@ and also the [hugs branch of MicroHs](https://github.com/augustss/MicroHs/tree/h
 
 ## Using GMP for `Integer`
 The default implementation of the `Integer` type is written is Haskell and is quite slow.
-It is possible to use GMP [GNU Multi Precision](https://gmplib.org/) instead.
-To use GMP you need to uncomment the first few line in the `Makefile`, and also
+It is possible to use the [GMP](https://gmplib.org/) library instead.
+To use GMP you need to uncomment the first few lines in the `Makefile`, and also
 modify the definition that directs the C compiler where to find GMP.
 
 ***NOTE*** To switch between using and not using GMP you need to do `make clean`.

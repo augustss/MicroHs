@@ -174,7 +174,7 @@ runtimeFFI :: [String]
 runtimeFFI = [
   "GETRAW", "GETTIMEMILLI", "acos", "add_FILE", "add_utf8", "asin", "atan", "atan2", "calloc", "closeb",
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "iswindows", "log", "malloc",
-  "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", 
+  "md5Array", "md5BFILE", "md5String", "memcpy", "memmove",
   "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "unlink",
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
   "add_lz77_compressor", "add_lz77_decompressor",
@@ -190,9 +190,9 @@ runtimeFFI = [
   "sizeof_int", "sizeof_long", "sizeof_llong",
   "opendir", "closedir", "readdir", "c_d_name", "chdir", "mkdir", "getcwd",
   "get_buf", "openb_rd_buf", "openb_wr_buf",
-  "new_mpz", "mpz_abs", "mpz_add", "mpz_and", "mpz_cmp", "mpz_get_d", 
-  "mpz_get_si", "mpz_get_ui", "mpz_init_set_si", "mpz_init_set_ui", "mpz_ior", 
-  "mpz_mul", "mpz_mul_2exp", "mpz_neg", "mpz_popcount", "mpz_sub", "mpz_tdiv_q_2exp", 
+  "new_mpz", "mpz_abs", "mpz_add", "mpz_and", "mpz_cmp", "mpz_get_d",
+  "mpz_get_si", "mpz_get_ui", "mpz_init_set_si", "mpz_init_set_ui", "mpz_ior",
+  "mpz_mul", "mpz_mul_2exp", "mpz_neg", "mpz_popcount", "mpz_sub", "mpz_fdiv_q_2exp",
   "mpz_tdiv_qr", "mpz_tstbit", "mpz_xor",
   "want_gmp"
   ]
