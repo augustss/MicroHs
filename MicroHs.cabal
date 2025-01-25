@@ -117,6 +117,9 @@ executable mhs
                        directory    >= 1.2 && < 1.6,
                        text         >= 2.0 && < 2.5,
 
+  if impl(hugs)
+    hs-source-dirs:    hugs src
+
   if impl(mhs)
     hs-source-dirs:    mhs src
     build-depends:     base         >= 0.1 && < 10.0,
