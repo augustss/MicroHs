@@ -33,6 +33,7 @@ type I a = StateIO IState a
 mainInteractive :: Flags -> IO ()
 mainInteractive flags = do
   putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
+  when wantGMP $ putStrLn "Using GMP"
   let flags' = flags{ loading = True }
   cash <- getCached flags'
   _ <- runStateIO start $ IState preamble flags' cash noSymbols

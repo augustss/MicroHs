@@ -4575,6 +4575,10 @@ void mhs_chdir(int s) { mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
 void mhs_mkdir(int s) { mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 void mhs_getcwd(int s) { mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
+
+/* Use this to detect if we have (and want) GMP or not. */
+void mhs_want_gmp(int s) { mhs_from_Int(s, 0, WANT_GMP); }
+
 #if WANT_GMP
 void
 free_mpz(void *p)
@@ -4588,6 +4592,7 @@ free_mpz(void *p)
 struct forptr *
 new_mpz(void)
 {
+#if 0
   {
     static int done = 0;
     if (!done) {
@@ -4595,6 +4600,7 @@ new_mpz(void)
       done = 1;
     }
   }
+#endif
   mpz_ptr p = MALLOC(sizeof(*p));
   if (!p) memerr();
   mpz_init(p);
@@ -4604,13 +4610,14 @@ new_mpz(void)
   return fp;
 }
 
+#if 0
 void
 print_mpz(mpz_ptr p)
 {
   mpz_out_str(stdout, 10, p);
 }
+#endif
 
-void mhs_print_mpz(int s) { print_mpz(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
 void mhs_new_mpz(int s) { mhs_from_ForPtr(s, 0, new_mpz()); }
 
 /* Stubs for GMP functions */
@@ -4757,8 +4764,8 @@ struct ffi_entry ffi_table[] = {
 { "mkdir", mhs_mkdir},
 { "getcwd", mhs_getcwd},
 #endif  /* WANT_DIR */
+{ "want_gmp", mhs_want_gmp},
 #if WANT_GMP
-{ "print_mpz", mhs_print_mpz},
 { "new_mpz", mhs_new_mpz},
 { "mpz_abs", mhs_mpz_abs},
 { "mpz_add", mhs_mpz_add},

@@ -26,25 +26,28 @@ import System.IO.Internal
 import System.IO.Unsafe
 import Data.Integer_Type
 
+-- We cannot import Foreign.ForeignPtr; it is circular.
 withForeignPtr :: ForeignPtr a -> (Ptr a -> IO b) -> IO b
 withForeignPtr fp io = 
   io (primForeignPtrToPtr fp) `primBind` \ b ->
   primSeq fp (primReturn b)
 
-foreign import capi "gmp.h mpz_add"       mpz_add       :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
-foreign import capi "gmp.h mpz_sub"       mpz_sub       :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
-foreign import capi "gmp.h mpz_mul"       mpz_mul       :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
-foreign import capi "gmp.h mpz_neg"       mpz_neg       :: Ptr MPZ -> Ptr MPZ ->                       IO ()
-foreign import capi "gmp.h mpz_abs"       mpz_abs       :: Ptr MPZ -> Ptr MPZ ->                       IO ()
-foreign import capi "gmp.h mpz_tdiv_qr"   mpz_tdiv_qr   :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ -> Ptr MPZ -> IO ()
-foreign import capi "gmp.h mpz_cmp"       mpz_cmp       :: Ptr MPZ -> Ptr MPZ ->                       IO Int
-foreign import capi "gmp.h mpz_and"       mpz_and       :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
-foreign import capi "gmp.h mpz_ior"       mpz_ior       :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
-foreign import capi "gmp.h mpz_xor"       mpz_xor       :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
-foreign import capi "gmp.h mpz_mul_2exp"  mpz_mul_2exp  :: Ptr MPZ -> Ptr MPZ -> Int ->                IO ()
-foreign import capi "gmp.h mpz_tdiv_q_2exp" mpz_tdiv_q_2exp :: Ptr MPZ -> Ptr MPZ -> Int ->                IO ()
-foreign import capi "gmp.h mpz_popcount"  mpz_popcount  :: Ptr MPZ ->                                  IO Int
-foreign import capi "gmp.h mpz_tstbit"    mpz_tstbit    :: Ptr MPZ -> Int ->                           IO Int
+-----
+
+foreign import capi "mpz_add"         mpz_add         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_sub"         mpz_sub         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_mul"         mpz_mul         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_neg"         mpz_neg         :: Ptr MPZ -> Ptr MPZ ->                       IO ()
+foreign import capi "mpz_abs"         mpz_abs         :: Ptr MPZ -> Ptr MPZ ->                       IO ()
+foreign import capi "mpz_tdiv_qr"     mpz_tdiv_qr     :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ -> Ptr MPZ -> IO ()
+foreign import capi "mpz_cmp"         mpz_cmp         :: Ptr MPZ -> Ptr MPZ ->                       IO Int
+foreign import capi "mpz_and"         mpz_and         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_ior"         mpz_ior         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_xor"         mpz_xor         :: Ptr MPZ -> Ptr MPZ -> Ptr MPZ ->            IO ()
+foreign import capi "mpz_mul_2exp"    mpz_mul_2exp    :: Ptr MPZ -> Ptr MPZ -> Int ->                IO ()
+foreign import capi "mpz_tdiv_q_2exp" mpz_tdiv_q_2exp :: Ptr MPZ -> Ptr MPZ -> Int ->                IO ()
+foreign import capi "mpz_popcount"    mpz_popcount    :: Ptr MPZ ->                                  IO Int
+foreign import capi "mpz_tstbit"      mpz_tstbit      :: Ptr MPZ -> Int ->                           IO Int
 
 binop :: (Ptr MPZ -> Ptr MPZ -> Ptr MPZ -> IO ()) -> Integer -> Integer -> Integer
 binop f (I x) (I y) = unsafePerformIO $ do
