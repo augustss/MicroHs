@@ -1,6 +1,6 @@
 cabal-version:  3.0
 name:           libs
-version:        0.11.3.0
+version:        0.11.3.1
 license:        Apache
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net
@@ -154,6 +154,7 @@ library base
         Data.Functor.Const_Type
         Data.Int.IntN
         Data.Int.Instances
+        Data.Integer.Internal
         Data.Integer_Type
         Data.List.NonEmpty_Type
         Data.Monoid.Internal
