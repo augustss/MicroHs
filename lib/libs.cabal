@@ -141,6 +141,7 @@ library base
         System.IO.MD5
         System.IO.PrintOrRun
         System.IO.Serialize
+        System.IO.StringHandle
         System.IO.TimeMilli
         System.IO.Unsafe
         System.Info
