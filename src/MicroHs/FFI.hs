@@ -195,5 +195,6 @@ runtimeFFI = [
   "new_mpz", "mpz_abs", "mpz_add", "mpz_and", "mpz_cmp", "mpz_get_d", 
   "mpz_get_si", "mpz_get_ui", "mpz_init_set_si", "mpz_init_set_ui", "mpz_ior", 
   "mpz_mul", "mpz_mul_2exp", "mpz_neg", "mpz_popcount", "mpz_sub", "mpz_tdiv_q_2exp", 
-  "mpz_tdiv_qr", "mpz_tstbit", "mpz_xor"
+  "mpz_tdiv_qr", "mpz_tstbit", "mpz_xor",
+  "want_gmp"
   ]

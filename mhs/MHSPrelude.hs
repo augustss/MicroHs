@@ -30,6 +30,7 @@ module MHSPrelude(
   module Text.Show,
   usingMhs, _wordSize, _isWindows,
   rnfNoErr, rnfErr, NFData, appendDot,
+  wantGMP,
   ) where
 import Prelude()
 --import Primitives(primRnfNoErr, primRnfErr)
@@ -94,3 +95,9 @@ appendDot :: Text -> Text -> Text
 appendDot x y =
   _primitive "bs++." x y
   --x `append` pack "." `append` y
+
+-- Exported by the runtime system to indicate if GMP is desired.
+foreign import capi "want_gmp" want_gmp :: Int
+
+wantGMP :: Bool
+wantGMP = want_gmp /= 0

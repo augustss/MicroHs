@@ -167,3 +167,6 @@ rnfErr _ = ()
 
 appendDot :: Text -> Text -> Text
 appendDot x y = x `append` pack "." `append` y
+
+wantGMP :: Bool
+wantGMP = False

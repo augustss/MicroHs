@@ -212,5 +212,3 @@ tmpname(const char* pre, const char* suf)
 #define INTTABLE 1              /* use fixed table of small INT nodes */
 #define SANITY   1              /* do some sanity checks */
 #define STACKOVL 1              /* check for stack overflow */
-
-#define WANT_GMP 1

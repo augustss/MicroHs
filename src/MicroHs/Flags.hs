@@ -1,4 +1,4 @@
-module MicroHs.Flags(Flags(..), verbosityGT, defaultFlags) where
+module MicroHs.Flags(Flags(..), verbosityGT, defaultFlags, wantGMP) where
 import Prelude(); import MHSPrelude
 
 data Flags = Flags {
@@ -32,7 +32,7 @@ defaultFlags dir = Flags {
   verbose    = 0,
   runIt      = False,
   mhsdir     = dir,
-  paths      = [".", dir ++ "/lib"],
+  paths      = ["."] ++ gmp ++ [dir ++ "/lib"],
   output     = "out.comb",
   loading    = False,
   speed      = False,
@@ -49,3 +49,6 @@ defaultFlags dir = Flags {
   installPkg = False,
   target     = "default"
   }
+  -- This is a hack so that the in-place mhs picks up GMP.
+  where gmp | dir == "." && wantGMP = ["lib/gmp"]
+            | otherwise             = []

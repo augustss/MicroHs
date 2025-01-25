@@ -1,6 +1,6 @@
 # Flags needed for using GMP
 # For MacOS with homebrew:
-MHSGMPCCFLAGS=-L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
+MHSGMPCCFLAGS=-DWANT_GMP=1 -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
 MHSGMP=-ilib/gmp
 # installation prefix
 PREFIX=/usr/local
