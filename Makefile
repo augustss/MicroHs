@@ -1,14 +1,16 @@
+# Flags needed for using GMP
+# For MacOS with homebrew:
+MHSGMPCCFLAGS=-L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
+MHSGMP=-ilib/gmp
 # installation prefix
 PREFIX=/usr/local
 # Unix-like system, 64 bit words
 CONF=unix-64
 #
-CCINCS=-I/opt/homebrew/include
-CCLIBDIRS=-L/opt/homebrew/lib
 CCWARNS= -Wall
 CCOPTS= -O3
-CCLIBS= -lm -lgmp
-CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(CCINCS) $(CCLIBDIRS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS)
+CCLIBS= -lm
+CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS)
 #
 GHC= ghc
 GHCINCS= -ighc -isrc -ipaths
@@ -30,7 +32,7 @@ HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
 #
 EMCC=emcc -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW
 #
-MHSINCNP= -i -imhs -isrc -ilib
+MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib
 MHSINC=$(MHSINCNP) -ipaths 
 MAINMODULE=MicroHs.Main
 #
@@ -41,6 +43,7 @@ all:	bin/mhs bin/cpphs bin/mcabal
 targets.conf:
 	echo [default]           > targets.conf
 	echo cc = \"$(CC)\"     >> targets.conf
+	echo ccflags = \"$(MHSGMPCCFLAGS)\" >> targets.conf
 	echo conf = \"$(CONF)\" >> targets.conf
 	echo ''                 >> targets.conf
 	echo [emscripten]       >> targets.conf
@@ -49,7 +52,7 @@ targets.conf:
 
 newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c -o bin/mhs
-	$(CC) $(CCWARNS) $(CCINCS) $(CCLIBDIRS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
+	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
 
 newmhsz:	newmhs
 	rm generated/mhs.c
@@ -81,7 +84,7 @@ bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 
 bin/mhsevalgdb:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
-	$(CC) $(CCWARNS) $(CCINCS) $(CCLIBDIRS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c -o bin/mhsevalgdb
+	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c -o bin/mhsevalgdb
 
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
