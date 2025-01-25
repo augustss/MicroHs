@@ -1,7 +1,8 @@
-# Flags needed for using GMP
+# Define these two lines to use GMP for Integer.
 # For MacOS with homebrew:
-MHSGMPCCFLAGS=-DWANT_GMP=1 -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
-MHSGMP=-ilib/gmp
+#MHSGMPCCFLAGS=-DWANT_GMP=1 -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
+#MHSGMP=-ilib/gmp
+#
 # installation prefix
 PREFIX=/usr/local
 # Unix-like system, 64 bit words
