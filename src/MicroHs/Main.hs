@@ -126,24 +126,27 @@ readTargets flags dir = do
 
 readTarget :: Flags -> FilePath -> IO TTarget
 readTarget flags dir = do
-  targets <- readTargets flags dir
+  targets  <- readTargets flags dir
   compiler <- lookupEnv "CC"
-  conf <- lookupEnv "MHSCONF"
+  ccflags  <- lookupEnv "MHSCCFLAGS"
+  conf     <- lookupEnv "MHSCONF"
   let dConf = "unix-" ++ show _wordSize
   case findTarget (target flags) targets of
     Nothing -> do
       when (verbose flags > 0) $
         putStrLn $ unwords ["Could not find", target flags, "in file"]
-      return TTarget { tName = "default"
-                     , tCC   = fromMaybe "cc" compiler 
-                     , tConf = fromMaybe dConf conf
+      return TTarget { tName    = "default"
+                     , tCC      = fromMaybe "cc" compiler
+                     , tCCFlags = fromMaybe "" ccflags
+                     , tConf    = fromMaybe dConf conf
                      }
     Just (Target n cs) -> do
       when (verbose flags > 0) $
         putStrLn $ "Found target: " ++ show cs
-      return TTarget { tName = n
-                     , tCC   = fromMaybe "cc"  $ compiler <|> lookup "cc"   cs
-                     , tConf = fromMaybe dConf $ conf     <|> lookup "conf" cs
+      return TTarget { tName    = n
+                     , tCC      = fromMaybe "cc"  $ compiler <|> lookup "cc"      cs
+                     , tCCFlags = fromMaybe ""    $ ccflags  <|> lookup "ccflags" cs
+                     , tConf    = fromMaybe dConf $ conf     <|> lookup "conf"    cs
                      }
 
 
@@ -279,9 +282,10 @@ mainCompileC flags ppkgs infile = do
   let incs = unwords $ map ("-I" ++) incDirs'
       defs = "-D__MHS__"
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
-  TTarget _ compiler conf <- readTarget flags dir
+  TTarget _ compiler ccflags conf <- readTarget flags dir
   extra <- fromMaybe "" <$> lookupEnv "MHSEXTRACCFLAGS"
   let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
+                        ccflags ++ " " ++
                         incs ++ " " ++
                         defs ++ " " ++
                         extra ++ " " ++

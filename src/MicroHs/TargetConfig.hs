@@ -25,9 +25,10 @@ data Target = Target String [(String,String)]
   deriving Show
 
 data TTarget = TTarget
-  { tName :: String
-  , tCC   :: String
-  , tConf :: String
+  { tName    :: String
+  , tCC      :: String
+  , tCCFlags :: String
+  , tConf    :: String
   }
 
 findTarget :: String -> [Target] -> Maybe Target
