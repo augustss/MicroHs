@@ -1,8 +1,8 @@
-# Define these two lines to use GMP for Integer.
+# Define these 3 lines to use GMP for Integer.
 # For MacOS with homebrew:
-MHSGMPCCFLAGS=-DWANT_GMP=1 -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
-MHSGMP=-ilib/gmp
-MCABALGMP=-fgmp
+#MHSGMPCCFLAGS=-DWANT_GMP=1 -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
+#MHSGMP=-ilib/gmp
+#MCABALGMP=-fgmp
 #
 # installation prefix
 PREFIX=/usr/local
@@ -143,7 +143,7 @@ cpphssrc/malcolm-wallace-universe:
 # Use this cpphs for bootstrapping
 USECPPHS=bin/cpphs
 
-bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe $(USECPPHS)
+bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe
 	MHSCPPHS=$(USECPPHS) bin/mhs -z -XCPP '-DMIN_VERSION_base(x,y,z)=((x)<4||(x)==4&&(y)<19||(x)==4&&(y)==19&&(z)<=1)' -icpphscompat -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
 # Run test examples with ghc-compiled compiler
@@ -227,8 +227,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.11.3.1
-HVERSION=0,11,3,1
+VERSION=0.11.4.0
+HVERSION=0,11,4,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
