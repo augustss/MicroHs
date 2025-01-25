@@ -230,7 +230,7 @@ compileModule flags impt mn pathfn file = do
     putStrLnInd $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++
             "ms (" ++ show tParse ++ " + " ++ show tTCDesug ++ " + " ++ show tAbstract ++ ")"
   when (loading flags && mn /= mkIdent "Interactive" && not (verbosityGT flags 0)) $
-    liftIO $ putStrLn $ "loaded " ++ showIdent mn
+    liftIO $ putStrLn $ "loaded " ++ showIdent mn ++ " (" ++ pathfn ++ ")"
 
   case impt of
     ImpNormal -> modify $ workToDone (cmdl, map snd imported, chksum)

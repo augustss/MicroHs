@@ -1,7 +1,8 @@
 # Define these two lines to use GMP for Integer.
 # For MacOS with homebrew:
-#MHSGMPCCFLAGS=-DWANT_GMP=1 -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
-#MHSGMP=-ilib/gmp
+MHSGMPCCFLAGS=-DWANT_GMP=1 -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
+MHSGMP=-ilib/gmp
+MCABALGMP=-fgmp
 #
 # installation prefix
 PREFIX=/usr/local
@@ -270,7 +271,7 @@ preparedist:	newmhsz bootstrapcpphs
 
 minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
-	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal install
+	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
 	PATH=$(MCABALBIN):"$$PATH" mcabal install
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
