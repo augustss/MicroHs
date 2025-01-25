@@ -124,6 +124,7 @@ import System.IO.Error
 import System.IO.MD5
 import System.IO.PrintOrRun
 import System.IO.Serialize
+import System.IO.StringHandle
 import System.IO.TimeMilli
 import System.Info
 import System.Process
