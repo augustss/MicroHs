@@ -3011,13 +3011,16 @@ compare(NODEPTR cmp)
       {
       struct forptr *fp = FORPTR(p);
       struct forptr *fq = FORPTR(q);
+#if WANT_GMP
       if (fp->finalizer->isMPZ && fq->finalizer->isMPZ) {
         int i = mpz_cmp(fp->payload.string, fq->payload.string);
         if (i < 0)
           CRET(-1);
         if (i > 0)
           CRET(1);
-      } else {
+      } else
+#endif
+      {
         f = fp->payload.string;
         g = fq->payload.string;
         if (f < g)
