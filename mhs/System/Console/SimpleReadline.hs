@@ -20,7 +20,7 @@ foreign import ccall "GETRAW" c_getRaw :: IO Int
 -- Return Nothing if the input is ^D, otherwise the typed string.
 getInputLine :: String -> IO (Maybe String)
 getInputLine prompt = do
-  (_, r) <- loop (\ _ -> return []) ([],[]) "" ""
+  (_, r) <- loop (\ _ -> return []) emptyHist "" ""
   return r
 
 getInputLineHist :: FilePath -> String -> IO (Maybe String)
@@ -42,7 +42,7 @@ getInputLineHistComp comp hfn prompt = do
         let h = lines file
         seq (length h) (return h)   -- force file to be read
   putStr prompt
-  (hist', r) <- loop comp (reverse hist, []) "" ""
+  (hist', r) <- loop comp (fromLines hist) "" ""
 --  putStrLn $ "done: " ++ hfn ++ "\n" ++ unlines hist'
   writeFile hfn $ unlines hist'
   return r   -- XXX no type error
@@ -54,7 +54,20 @@ getRaw = do
     error "getRaw failed"
   return (chr i)
 
-type Hist = ([String], [String])
+-- The history.
+-- before: the inputs before the current input
+-- after: the inputs after the current input, including the current input (if non-empty)
+-- original: the original input before using the history, if the history was already used
+data Hist = Hist {- before -} [String] {- after -} [String] {- original -} (Maybe String)
+
+emptyHist :: Hist
+emptyHist = Hist [] [] Nothing
+
+fromLines :: [String] -> Hist
+fromLines hist = Hist (reverse hist) [] Nothing
+
+toLines :: Hist -> [String]
+toLines (Hist before after _) = reverse before ++ after
 
 loop :: CompleteFn -> Hist -> String -> String -> IO ([String], Maybe String)
 loop comp hist before after = do
@@ -117,7 +130,7 @@ loop' comp hist before after cmd = do
       putChar '\n'
       hFlush stdout
       let
-        o = reverse (fst hist) ++ snd hist
+        o = toLines hist
         l =
           case ms of
             Nothing -> []
@@ -137,12 +150,16 @@ loop' comp hist before after cmd = do
 
     next =
       case hist of
-        (_, []) -> noop
-        (p, l:n) -> setLine (l:p, n) l
+        Hist _ [] Nothing -> noop
+        Hist p [] (Just orig) -> setLine (Hist p [] Nothing) orig
+        Hist _ [_] Nothing -> noop
+        Hist p [l] (Just orig) -> setLine (Hist (l:p) [] Nothing) orig
+        Hist p (c:l:n) orig -> setLine (Hist (c:p) (l:n) orig) l
     previous =
       case hist of
-        ([], _) -> noop
-        (l:p, n) -> setLine (p, l:n) l
+        Hist [] _ _ -> noop
+        Hist (l:p) [] Nothing -> setLine (Hist p [l] (Just cur)) l
+        Hist (l:p) n orig -> setLine (Hist p (l:n) orig) l
     setLine h s = do
       eraseLine
       putStr s
@@ -206,5 +223,5 @@ loop' comp hist before after cmd = do
               'D' -> backward
               _   -> noop
         _ -> if i >= ' ' && i < '\DEL' then add i else noop
-  
+
   exec cmd
