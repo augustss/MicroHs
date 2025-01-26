@@ -3008,12 +3008,24 @@ compare(NODEPTR cmp)
         CRET(1);
       break;
     case T_FORPTR:
-      f = FORPTR(p)->payload.string;
-      g = FORPTR(q)->payload.string;
-      if (f < g)
-        CRET(-1);
-      if (f > g)
-        CRET(1);
+      {
+      struct forptr *fp = FORPTR(p);
+      struct forptr *fq = FORPTR(q);
+      if (fp->finalizer->isMPZ && fq->finalizer->isMPZ) {
+        int i = mpz_cmp(fp->payload.string, fq->payload.string);
+        if (i < 0)
+          CRET(-1);
+        if (i > 0)
+          CRET(1);
+      } else {
+        f = fp->payload.string;
+        g = fq->payload.string;
+        if (f < g)
+          CRET(-1);
+        if (f > g)
+          CRET(1);
+      }
+      }
       break;
     case T_BSTR:
       r = bscompare(BSTR(p), BSTR(q));
