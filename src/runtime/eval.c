@@ -393,6 +393,7 @@ struct final {
 #define NOSIZE ~0           /* used as the size in payload for actual foreign pointers */
   struct forptr *back;      /* back pointer to the first forptr */
   int            marked;    /* mark bit for GC */
+  int            isMPZ;     /* is GMP MPZ pointer */
 };
 
 /*
@@ -1766,6 +1767,8 @@ parse_string(BFILE *f)
   return bs;
 }
 
+struct forptr *new_mpz(void);
+
 NODEPTR
 parse(BFILE *f)
 {
@@ -1802,6 +1805,20 @@ parse(BFILE *f)
       if (stack_ptr != stk)
         ERR("parse: stack");
       return x;
+#if WANT_GMP
+    case '%':
+      {
+        struct bytestring bs = parse_string(f); /* get all the digits, terminated by " */
+        struct forptr *fp = new_mpz();          /* a new mpz */
+        mpz_ptr op = fp->payload.string;        /* get actual pointer */
+        mpz_set_str(op, bs.string, 10);         /* convert to an mpz */
+        free(bs.string);
+        r = alloc_node(T_FORPTR);
+        FORPTR(r) = fp;
+        PUSH(r);
+        break;
+      }
+#endif
     case '&':
 #if WANT_FLOAT
       r = mkFlt(parse_double(f));
@@ -1835,7 +1852,7 @@ parse(BFILE *f)
         PUSH(r);
         break;
       }
-    case '_' :
+    case '_':
       /* Reference to a shared value: _label */
       l = parse_int(f);  /* The label */
       nodep = find_label(l);
@@ -1846,7 +1863,7 @@ parse(BFILE *f)
       }
       PUSH(*nodep);
       break;
-    case ':' :
+    case ':':
       /* Define a shared expression: :label e */
       l = parse_int(f);  /* The label */
       if (!gobble(f, ' ')) ERR("parse ' '");
@@ -1861,7 +1878,7 @@ parse(BFILE *f)
         INDIR(*nodep) = x;
       }
       break;
-    case '"' :
+    case '"':
       /* Everything up to the next " is a string.
        * Special characters are encoded as \NNN&,
        * where NNN is the decimal value of the character */
@@ -2185,6 +2202,21 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
       putsb("IO.stdout", f);
     else if (n == comb_stderr)
       putsb("IO.stderr", f);
+#if WANT_GMP
+    else if (FORPTR(n)->finalizer->isMPZ) {
+      /* Serialize as %99999" */
+      mpz_ptr op = FORPTR(n)->payload.string; /* get the mpz */
+      int sz = mpz_sizeinbase(op, 10);        /* maximum length */
+      char *s = malloc(sz + 2);
+      if (!s)
+        memerr();
+      (void)mpz_get_str(s, 10, op);           /* convert to a string */
+      putsb("%", f);
+      putsb(s, f);
+      putsb("\"", f);                         /* so we can use parse_string */
+      free(s);
+    }
+#endif  /* WANT_GMP */
     else {
       ERR("Cannot serialize foreign pointers");
     }
@@ -2440,8 +2472,8 @@ mkFunPtr(void (*p)(void))
 struct forptr*
 mkForPtr(struct bytestring bs)
 {
-  struct final *fin = malloc(sizeof(struct final));
-  struct forptr *fp = malloc(sizeof(struct forptr));
+  struct final *fin = calloc(1, sizeof(struct final));
+  struct forptr *fp = calloc(1, sizeof(struct forptr));
   if (!fin || !fp)
     memerr();
   if (bs.size == NOSIZE) {
@@ -4602,10 +4634,12 @@ new_mpz(void)
   }
 #endif
   mpz_ptr p = MALLOC(sizeof(*p));
-  if (!p) memerr();
+  if (!p)
+    memerr();
   mpz_init(p);
   struct forptr *fp = mkForPtrP(p);
   fp->finalizer->final = (HsFunPtr)free_mpz;
+  fp->finalizer->isMPZ = 1;
   /*  printf("new_mpz %p %p\n", p, fp); */
   return fp;
 }
