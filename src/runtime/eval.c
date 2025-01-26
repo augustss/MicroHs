@@ -4634,9 +4634,20 @@ void mhs_mpz_ior(int s) { mpz_ior(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr
 void mhs_mpz_mul(int s) { mpz_mul(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
 void mhs_mpz_mul_2exp(int s) { mpz_mul_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
 void mhs_mpz_neg(int s) { mpz_neg(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_mpz_popcount(int s) { mhs_from_Int(s, 1, mpz_popcount(mhs_to_Ptr(s, 0))); }
+void mhs_mpz_popcount(int s) {
+  mpz_ptr a = mhs_to_Ptr(s, 0);
+  if (mpz_sgn(a) < 0) {
+    mpz_t neg_a;
+    mpz_init(neg_a);
+    mpz_neg(neg_a, a);
+    mhs_from_Int(s, 1, -mpz_popcount(neg_a));
+    mpz_clear(neg_a);
+  } else {
+    mhs_from_Int(s, 1, mpz_popcount(a));
+  }
+}
 void mhs_mpz_sub(int s) { mpz_sub(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_tdiv_q_2exp(int s) { mpz_tdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
+void mhs_mpz_fdiv_q_2exp(int s) { mpz_fdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
 void mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2), mhs_to_Ptr(s, 3)); mhs_from_Unit(s, 4); }
 void mhs_mpz_tstbit(int s) { mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 void mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
@@ -4782,7 +4793,7 @@ struct ffi_entry ffi_table[] = {
 { "mpz_neg", mhs_mpz_neg},
 { "mpz_popcount", mhs_mpz_popcount},
 { "mpz_sub", mhs_mpz_sub},
-{ "mpz_tdiv_q_2exp", mhs_mpz_tdiv_q_2exp},
+{ "mpz_fdiv_q_2exp", mhs_mpz_fdiv_q_2exp},
 { "mpz_tdiv_qr", mhs_mpz_tdiv_qr},
 { "mpz_tstbit", mhs_mpz_tstbit},
 { "mpz_xor", mhs_mpz_xor},
