@@ -470,6 +470,23 @@ make it compile with `mhs`.
 
 To identify that it is MicroHs that is the compiler it defines the symbol `__MHS__`.
 
+# Thank You
+A big thanks goes to the people who have contributed to MicroHs:
+@dmjio
+gay@disroot.org
+@gergoerdi
+@jmaessen
+@juhp
+@kolmidin
+@konsumlamm
+@liolin
+@rewbert
+@thimc
+@treeowl
+@TristanCacqueray
+@yobson
+
+
 # FAQ
 * 
   * Q: When will it get _insert feature_?
