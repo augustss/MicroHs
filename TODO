@@ -34,7 +34,6 @@
 Bugs:
 * Check for escaping skolemized variables
 * Type checking Data.Data
-* let...in... doesn't parse correctly in a do
 * let needs {} in a do with {}
 * export list in -boot doesn't work
 * Fundep bug mtl:Control/Monad/RWS/Class.hs
