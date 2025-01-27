@@ -14,5 +14,5 @@ import Data.List
 class IsString a where
   fromString :: String -> a
 
-instance IsString String where
+instance (a ~ Char) => IsString [a] where
   fromString s = s
