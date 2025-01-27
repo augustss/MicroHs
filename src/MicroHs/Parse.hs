@@ -636,8 +636,8 @@ pWhere pb =
 pStmt :: P EStmt
 pStmt =
       (SBind <$> (pPat <* pSLArrow) <*> pExpr)
-  <|< (SLet  <$> (pKeyword "let" *> pBlock pBind))
   <|< (SThen <$> pExpr)
+  <|< (SLet  <$> (pKeyword "let" *> pBlock pBind))
 
 -------------
 -- Expressions
