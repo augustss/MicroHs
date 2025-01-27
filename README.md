@@ -477,7 +477,7 @@ gay@disroot.org
 @gergoerdi
 @jmaessen
 @juhp
-@kolmidin
+@kolmodin
 @konsumlamm
 @liolin
 @rewbert
