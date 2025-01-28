@@ -1,0 +1,3 @@
+[submodule "MicroCabal"]
+	path = MicroCabal
+	url = https://github.com/augustss/MicroCabal.git

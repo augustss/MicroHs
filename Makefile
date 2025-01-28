@@ -73,11 +73,6 @@ bin/cpphs:	src/runtime/*.c src/runtime/config*.h generated/cpphs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/cpphs.c -o bin/cpphs
 
-# Compile mcabal from distribution, with C compiler
-bin/mcabal:	src/runtime/*.c src/runtime/config*.h generated/mcabal.c
-	@mkdir -p bin
-	$(CCEVAL) generated/mcabal.c -o bin/mcabal
-
 # Compile combinator evaluator
 bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
@@ -106,9 +101,12 @@ generated/mhs.c:	bin/mhs src/*/*.hs
 ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/gmhs $(MHSINC) $(MAINMODULE) -ogenerated/mhs.c
 
-#
-generated/mcabal.c:
-	bin/mhs -z -i../MicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
+MicroCabal/.git:
+	git submodule update --init --depth 1 MicroCabal
+
+# Compile MicroCabal with MicroHs
+bin/mcabal: bin/mhs MicroCabal/.git
+	bin/mhs -z -iMicroCabal/src -ilib -obin/mcabal MicroCabal.Main
 
 # Flags to read local file system, generate a single .js file, and to avoid ioctl()
 mhs.js:	src/*/*.hs src/runtime/*.[ch] targets.conf
