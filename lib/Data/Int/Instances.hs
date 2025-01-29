@@ -3,8 +3,9 @@ import Prelude()
 import Primitives
 import Control.Error
 import Data.Bits
-import Data.Bool_Type
+import Data.Bool
 import Data.Bounded
+import Data.Coerce
 import Data.Enum
 import Data.Eq
 import Data.Function
@@ -69,14 +70,16 @@ instance Read Int8 where
 -}
 
 instance Enum Int8 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int8.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int8.pred: underflow" else x - 1
   toEnum = i8
   fromEnum = unI8
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int8 where
   (==) = cmp8 primIntEQ
@@ -165,14 +168,16 @@ instance Read Int16 where
 -}
 
 instance Enum Int16 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int16.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int16.pred: underflow" else x - 1
   toEnum = i16
   fromEnum = unI16
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int16 where
   (==) = cmp16 primIntEQ
@@ -261,14 +266,16 @@ instance Read Int32 where
 -}
 
 instance Enum Int32 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int32.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int32.pred: underflow" else x - 1
   toEnum = i32
   fromEnum = unI32
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int32 where
   (==) = cmp32 primIntEQ
@@ -356,14 +363,16 @@ instance Read Int64 where
 -}
 
 instance Enum Int64 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int64.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int64.pred: underflow" else x - 1
   toEnum = i64
   fromEnum = unI64
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int64 where
   (==) = cmp64 primIntEQ
