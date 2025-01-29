@@ -264,8 +264,6 @@ install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALBIN)/mcabal $(MCABALMHS)/pa
 # mkdir ~/.mcabal/packages/array-0.5.6.0
 
 preparedist:	newmhsz bootstrapcpphs
-	rm -f generated/mcabal.c
-	make generated/mcabal.c
 
 minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
