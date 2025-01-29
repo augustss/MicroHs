@@ -251,7 +251,7 @@ derBounded _ (c, _) _ e = cannotDerive "Bounded" c e
 --------------------------------------------
 
 derEnum :: Deriver
-derEnum mctx lhs cs@(_:_) enm | all isNullary cs = do
+derEnum mctx lhs cs@(c0:_) enm | all isNullary cs = do
   hdr <- mkHdr mctx lhs cs enm
   let loc = getSLoc enm
 
@@ -259,12 +259,28 @@ derEnum mctx lhs cs@(_:_) enm | all isNullary cs = do
         eEqn [EVar c] $ ELit loc (LInt i)
       mkTo (Constr _ _ c _) i =
         eEqn [ELit loc (LInt i)] $ EVar c
+      eFirstCon = let Constr _ _ c _ = c0 in tCon c
+      eLastCon = let Constr _ _ c _ = last cs in tCon c
 
       iFromEnum = mkIdentSLoc loc "fromEnum"
       iToEnum = mkIdentSLoc loc "toEnum"
+      iEnumFrom = mkIdentSLoc loc "enumFrom"
+      iEnumFromThen = mkIdentSLoc loc "enumFromThen"
+      iEnumFromTo = mkIdentSLoc loc "enumFromTo"
+      iEnumFromThenTo = mkIdentSLoc loc "enumFromThenTo"
       fromEqns = zipWith mkFrom cs [0..]
       toEqns   = zipWith mkTo   cs [0..]
-      inst = Instance hdr [Fcn iFromEnum fromEqns, Fcn iToEnum toEqns]
+      enumFromEqn =
+        -- enumFrom x = enumFromTo x (last cs)
+        let x = EVar (mkIdentSLoc loc "x")
+        in eEqn [x] (eAppI2 iEnumFromTo x eLastCon)
+      enumFromThenEqn =
+        -- enumFromThen x1 x2 = if fromEnum x2 >= fromEnum x1 then enumFromThenTo x1 x2 (last cs) else enumFromThenTo x1 x2 (head cs)
+        let
+          x1 = EVar (mkIdentSLoc loc "x1")
+          x2 = EVar (mkIdentSLoc loc "x2")
+        in eEqn [x1, x2] (EIf (eAppI2 (mkBuiltin loc ">=") (EApp (EVar iFromEnum) x2) (EApp (EVar iFromEnum) x1)) (eAppI3 iEnumFromThenTo x1 x2 eLastCon) (eAppI3 iEnumFromThenTo x1 x2 eFirstCon))
+      inst = Instance hdr [Fcn iFromEnum fromEqns, Fcn iToEnum toEqns, Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]]
   --traceM $ showEDefs [inst]
   return [inst]
 derEnum _ (c, _) _ e = cannotDerive "Enum" c e
