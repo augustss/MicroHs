@@ -284,6 +284,11 @@ generated/hmhs.c:
 	@mkdir -p generated
 	$(HUGS) $(HUGSINCS) hugs/Main.hs $(MHSINC) $(MAINMODULE) -ogenerated/hmhs.c
 
-bin/hmhs: generated/hmhs.c
+bootstrap/.git:
+# Use exact commit for reproducible builds
+	git worktree add bootstrap e43e3cf30499e34da167384e8f26410e95e42648
+
+bin/hmhs: bootstrap/.git
 	@mkdir -p bin
-	$(CCEVAL) generated/hmhs.c -o bin/hmhs
+	cd bootstrap; make HUGS="$(HUGS)" HUGSINCS="$(HUGSINCS)" bin/hmhs
+	bootstrap/bin/hmhs -z $(MHSINC) $(MAINMODULE) -obin/hmhs
