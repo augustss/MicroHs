@@ -12,8 +12,9 @@ You can find my [presentation from the Haskell Symposium 2024](https://docs.goog
 There is also a short paper in `doc/hs2024.pdf`.
 
 ## Compiling MicroHs
-There are two different ways to compile MicroHs:
+There are three different ways to compile MicroHs:
 * Using GHC. `Makefile` target `bin/gmhs`
+* Using Hugs. `Makefile` target `bin/hmhs` ([see Bootstrapping with hugs for more information](#bootstrapping-with-hugs))
 * Using the included combinator file and runtime.  `Makefile` target `bin/mhs`
 
 These different ways of compiling need slightly different imports etc.
@@ -446,8 +447,9 @@ the outputs to make sure the new compiler still works.
 ### Bootstrapping with Hugs
 It is also possible to bootstrap MicroHs using Hugs.  That means that
 MicroHs can be built from scratch in the sense of [bootstrappable.org](https://bootstrappable.org/).
-To compile with Hugs you need [a slightly patched version of Hugs](https://github.com/augustss/hugs98-plus-Sep2006)
-and also the [hugs branch of MicroHs](https://github.com/augustss/MicroHs/tree/hugs).
+To compile with Hugs you need [a slightly patched version of Hugs](https://github.com/augustss/hugs98-plus-Sep2006).
+
+Running `make bin/hmhs` will use git to automatically pull a patched version of MicroHs to be bootstrap with Hugs, then build the current tree with said patched version of MicroHs.
 
 ## Using GMP for `Integer`
 The default implementation of the `Integer` type is written is Haskell and is quite slow.
