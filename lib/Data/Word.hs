@@ -141,8 +141,8 @@ instance Integral Word8 where
   toInteger = _wordToInteger . unW8
 
 instance Bounded Word8 where
-  minBound = W8 0
-  maxBound = W8 0xff
+  minBound = w8 0
+  maxBound = w8 0xff
 
 instance Real Word8 where
   toRational = _integerToRational . _wordToInteger . unW8
@@ -239,8 +239,8 @@ instance Integral Word16 where
   toInteger = _wordToInteger . unW16
 
 instance Bounded Word16 where
-  minBound = W16 0
-  maxBound = W16 0xffff
+  minBound = w16 0
+  maxBound = w16 0xffff
 
 instance Real Word16 where
   toRational = _integerToRational . _wordToInteger . unW16
@@ -336,8 +336,8 @@ instance Integral Word32 where
   toInteger = _wordToInteger . unW32
 
 instance Bounded Word32 where
-  minBound = W32 0
-  maxBound = W32 0xffffffff
+  minBound = w32 0
+  maxBound = w32 0xffffffff
 
 instance Real Word32 where
   toRational = _integerToRational . _wordToInteger . unW32
@@ -434,8 +434,8 @@ instance Integral Word64 where
   toInteger = _wordToInteger . unW64
 
 instance Bounded Word64 where
-  minBound = W64 0
-  maxBound = W64 0xffffffffffffffff
+  minBound = w64 0
+  maxBound = w64 0xffffffffffffffff
 
 instance Real Word64 where
   toRational = _integerToRational . _wordToInteger . unW64
