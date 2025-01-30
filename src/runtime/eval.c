@@ -266,7 +266,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
-                T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR,
+                T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8,  T_BSTAILUTF8,
                 T_BSAPPENDDOT,
                 T_LAST_TAG,
@@ -768,20 +768,21 @@ struct {
   { "fread", T_FREAD},
 #endif  /* WANT_FLOAT */
 
-  { "bs++", T_BSAPPEND},
-  { "bs++.", T_BSAPPENDDOT},
-  { "bs+++", T_BSAPPEND3},
-  { "bs==", T_BSEQ, T_BSEQ},
-  { "bs/=", T_BSNE, T_BSNE},
-  { "bs<", T_BSLT},
-  { "bs<=", T_BSLE},
-  { "bs>", T_BSGT},
-  { "bs>=", T_BSGE},
-  { "bscmp", T_BSCMP},
-  { "bspack", T_BSPACK},
-  { "bsunpack", T_BSUNPACK},
-  { "bslength", T_BSLENGTH},
-  { "bssubstr", T_BSSUBSTR},
+  { "bs++", T_BSAPPEND },
+  { "bs++.", T_BSAPPENDDOT },
+  { "bs+++", T_BSAPPEND3 },
+  { "bs==", T_BSEQ, T_BSEQ },
+  { "bs/=", T_BSNE, T_BSNE },
+  { "bs<", T_BSLT },
+  { "bs<=", T_BSLE },
+  { "bs>", T_BSGT },
+  { "bs>=", T_BSGE },
+  { "bscmp", T_BSCMP },
+  { "bspack", T_BSPACK },
+  { "bsunpack", T_BSUNPACK },
+  { "bslength", T_BSLENGTH },
+  { "bssubstr", T_BSSUBSTR },
+  { "bsindex", T_BSINDEX },
 
   { "ord", T_I },
   { "chr", T_I },
@@ -2294,6 +2295,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_BSUNPACK: putsb("bsunpack", f); break;
   case T_BSLENGTH: putsb("bslength", f); break;
   case T_BSSUBSTR: putsb("bssubstr", f); break;
+  case T_BSINDEX: putsb("bsindex", f); break;
   case T_EQ: putsb("==", f); break;
   case T_NE: putsb("/=", f); break;
   case T_LT: putsb("<", f); break;
@@ -3479,6 +3481,14 @@ evali(NODEPTR an)
     SETBSTR(n, mkForPtrFree(rbs));
     RET;
 
+  case T_BSLENGTH:
+    CHECK(1);
+    xfp = evalbstr(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, xfp->payload.size);
+    RET;
+
   case T_BSSUBSTR:
     CHECK(3);
     xfp = evalbstr(ARG(TOP(0)));
@@ -3489,12 +3499,13 @@ evali(NODEPTR an)
     SETBSTR(n, bssubstr(xfp, xi, yi));
     RET;
 
-  case T_BSLENGTH:
-    CHECK(1);
+  case T_BSINDEX:
+    CHECK(2);
     xfp = evalbstr(ARG(TOP(0)));
-    POP(1);
+    xi = evalint(ARG(TOP(1)));
+    POP(2);
     n = TOP(-1);
-    SETINT(n, xfp->payload.size);
+    SETINT(n, ((uint8_t *)xfp->payload.string)[xi]);
     RET;
 
   case T_RAISE:
