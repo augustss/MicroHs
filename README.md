@@ -46,6 +46,7 @@ Differences:
  * There is only deriving for `Bounded`, `Enum`, `Eq`, `Ord`, `Show`, and `Typeable`.
  * Kind variables need an explicit `forall`.
  * Always enabled extension:
+   * AllowAmbiguousTypes
    * BangPatterns
    * BinaryLiterals
    * ConstraintKinds
