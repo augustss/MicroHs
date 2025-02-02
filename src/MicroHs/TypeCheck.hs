@@ -32,7 +32,6 @@ import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
 import MicroHs.List
-import MicroHs.MRnf
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
@@ -128,8 +127,8 @@ data GlobTables = GlobTables {
   gInstInfo   :: InstTable        -- instances are implicitely global
   }
 
-instance MRnf GlobTables where
-  mrnf (GlobTables a b c d) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d
+instance NFData GlobTables where
+  rnf (GlobTables a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
 
 emptyGlobTables :: GlobTables
 emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty }
@@ -153,8 +152,8 @@ data TModule a = TModule {
   }
 --  deriving (Show)
 
-instance MRnf a => MRnf (TModule a) where
-  mrnf (TModule a b c d e f) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e `seq` mrnf f
+instance NFData a => NFData (TModule a) where
+  rnf (TModule a b c d e f) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f
 
 setBindings :: TModule b -> a -> TModule a
 setBindings (TModule x y z w v _) a = TModule x y z w v a

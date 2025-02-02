@@ -54,7 +54,6 @@ import Control.Arrow(first)
 import Data.List
 import Data.Maybe
 import MicroHs.Ident
-import MicroHs.MRnf
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 
@@ -91,34 +90,34 @@ data EDef
   | DfltSign Ident EType                      -- only in class declarations
 --DEBUG  deriving (Show)
 
-instance MRnf EDef where
-  mrnf (Data a b c) = mrnf a `seq` mrnf b `seq` mrnf c
-  mrnf (Newtype a b c) = mrnf a `seq` mrnf b `seq` mrnf c
-  mrnf (Type a b) = mrnf a `seq` mrnf b
-  mrnf (Fcn a b) = mrnf a `seq` mrnf b
-  mrnf (PatBind a b) = mrnf a `seq` mrnf b
-  mrnf (Sign a b) = mrnf a `seq` mrnf b
-  mrnf (KindSign a b) = mrnf a `seq` mrnf b
-  mrnf (Import a) = mrnf a
-  mrnf (ForImp a b c) = mrnf a `seq` mrnf b `seq` mrnf c
-  mrnf (Infix a b) = mrnf a `seq` mrnf b
-  mrnf (Class a b c d) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d
-  mrnf (Instance a b) = mrnf a `seq` mrnf b
-  mrnf (Default a b) = mrnf a `seq` mrnf b
-  mrnf (Pattern a b c) = mrnf a `seq` mrnf b `seq` mrnf c
-  mrnf (Deriving a) = mrnf a
-  mrnf (DfltSign a b) = mrnf a `seq` mrnf b
+instance NFData EDef where
+  rnf (Data a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (Newtype a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (Type a b) = rnf a `seq` rnf b
+  rnf (Fcn a b) = rnf a `seq` rnf b
+  rnf (PatBind a b) = rnf a `seq` rnf b
+  rnf (Sign a b) = rnf a `seq` rnf b
+  rnf (KindSign a b) = rnf a `seq` rnf b
+  rnf (Import a) = rnf a
+  rnf (ForImp a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (Infix a b) = rnf a `seq` rnf b
+  rnf (Class a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
+  rnf (Instance a b) = rnf a `seq` rnf b
+  rnf (Default a b) = rnf a `seq` rnf b
+  rnf (Pattern a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (Deriving a) = rnf a
+  rnf (DfltSign a b) = rnf a `seq` rnf b
 
 data ImpType = ImpNormal | ImpBoot
   deriving (Eq)
 
-instance MRnf ImpType
+instance NFData ImpType where rnf x = x `seq` ()
 
 data ImportSpec = ImportSpec ImpType Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
 --DEBUG  deriving (Show)
 
-instance MRnf ImportSpec where
-  mrnf (ImportSpec a b c d e) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e
+instance NFData ImportSpec where
+  rnf (ImportSpec a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
 
 data ImportItem
   = ImpTypeSome Ident [Ident]
@@ -126,10 +125,10 @@ data ImportItem
   | ImpValue Ident
 --DEBUG  deriving (Show)
 
-instance MRnf ImportItem where
-  mrnf (ImpTypeSome a b) = mrnf a `seq` mrnf b
-  mrnf (ImpTypeAll a) = mrnf a
-  mrnf (ImpValue a) = mrnf a
+instance NFData ImportItem where
+  rnf (ImpTypeSome a b) = rnf a `seq` rnf b
+  rnf (ImpTypeAll a) = rnf a
+  rnf (ImpValue a) = rnf a
 
 type Deriving = [EConstraint]
 
@@ -168,35 +167,35 @@ data Expr
   | ECon Con
 --DEBUG  deriving (Show)
 
-instance MRnf Expr where
-  mrnf (EVar a) = mrnf a
-  mrnf (EApp a b) = mrnf a `seq` mrnf b
-  mrnf (EOper a b) = mrnf a `seq` mrnf b
-  mrnf (ELam a b) = mrnf a `seq` mrnf b
-  mrnf (ELit a b) = mrnf a `seq` mrnf b
-  mrnf (ECase a b) = mrnf a `seq` mrnf b
-  mrnf (ELet a b) = mrnf a `seq` mrnf b
-  mrnf (ETuple a) = mrnf a
-  mrnf (EParen a) = mrnf a
-  mrnf (EListish a) = mrnf a
-  mrnf (EDo a b) = mrnf a `seq` mrnf b
-  mrnf (ESectL a b) = mrnf a `seq` mrnf b
-  mrnf (ESectR a b) = mrnf a `seq` mrnf b
-  mrnf (EIf a b c) = mrnf a `seq` mrnf b `seq` mrnf c
-  mrnf (EMultiIf a) = mrnf a
-  mrnf (ESign a b) = mrnf a `seq` mrnf b
-  mrnf (ENegApp a) = mrnf a
-  mrnf (EUpdate a b) = mrnf a `seq` mrnf b
-  mrnf (ESelect a) = mrnf a
-  mrnf (ETypeArg a) = mrnf a
-  mrnf (EAt a b) = mrnf a `seq` mrnf b
-  mrnf (EViewPat a b) = mrnf a `seq` mrnf b
-  mrnf (ELazy a b) = mrnf a `seq` mrnf b
-  mrnf (EOr a) = mrnf a
-  mrnf (EForall a b c) = mrnf a `seq` mrnf b `seq` mrnf c
-  mrnf (EUVar a) = mrnf a
-  mrnf (EQVar a b) = mrnf a `seq` mrnf b
-  mrnf (ECon a) = mrnf a
+instance NFData Expr where
+  rnf (EVar a) = rnf a
+  rnf (EApp a b) = rnf a `seq` rnf b
+  rnf (EOper a b) = rnf a `seq` rnf b
+  rnf (ELam a b) = rnf a `seq` rnf b
+  rnf (ELit a b) = rnf a `seq` rnf b
+  rnf (ECase a b) = rnf a `seq` rnf b
+  rnf (ELet a b) = rnf a `seq` rnf b
+  rnf (ETuple a) = rnf a
+  rnf (EParen a) = rnf a
+  rnf (EListish a) = rnf a
+  rnf (EDo a b) = rnf a `seq` rnf b
+  rnf (ESectL a b) = rnf a `seq` rnf b
+  rnf (ESectR a b) = rnf a `seq` rnf b
+  rnf (EIf a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (EMultiIf a) = rnf a
+  rnf (ESign a b) = rnf a `seq` rnf b
+  rnf (ENegApp a) = rnf a
+  rnf (EUpdate a b) = rnf a `seq` rnf b
+  rnf (ESelect a) = rnf a
+  rnf (ETypeArg a) = rnf a
+  rnf (EAt a b) = rnf a `seq` rnf b
+  rnf (EViewPat a b) = rnf a `seq` rnf b
+  rnf (ELazy a b) = rnf a `seq` rnf b
+  rnf (EOr a) = rnf a
+  rnf (EForall a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (EUVar a) = rnf a
+  rnf (EQVar a b) = rnf a `seq` rnf b
+  rnf (ECon a) = rnf a
 
 
 data EField
@@ -205,10 +204,10 @@ data EField
   | EFieldWild              -- ..
 --DEBUG  deriving (Show)
 
-instance MRnf EField where
-  mrnf (EField a b) = mrnf a `seq` mrnf b
-  mrnf (EFieldPun a) = mrnf a
-  mrnf EFieldWild = ()
+instance NFData EField where
+  rnf (EField a b) = rnf a `seq` rnf b
+  rnf (EFieldPun a) = rnf a
+  rnf EFieldWild = ()
 
 unEField :: EField -> ([Ident], Expr)
 unEField (EField is e) = (is, e)
@@ -236,10 +235,10 @@ data Con
   | ConSyn Ident Int (Expr, EType)
 --DEBUG  deriving(Show)
 
-instance MRnf Con where
-  mrnf (ConData a b c) = mrnf a `seq` mrnf b `seq` mrnf c
-  mrnf (ConNew a b) = mrnf a `seq` mrnf b
-  mrnf (ConSyn a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+instance NFData Con where
+  rnf (ConData a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (ConNew a b) = rnf a `seq` rnf b
+  rnf (ConSyn a b c) = rnf a `seq` rnf b `seq` rnf c
 
 data Listish
   = LList [Expr]
@@ -250,13 +249,13 @@ data Listish
   | LFromThenTo Expr Expr Expr
 --DEBUG  deriving(Show)
 
-instance MRnf Listish where
-  mrnf (LList a) = mrnf a
-  mrnf (LCompr a b) = mrnf a `seq` mrnf b
-  mrnf (LFrom a) = mrnf a
-  mrnf (LFromTo a b) = mrnf a `seq` mrnf b
-  mrnf (LFromThen a b) = mrnf a `seq` mrnf b
-  mrnf (LFromThenTo a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+instance NFData Listish where
+  rnf (LList a) = rnf a
+  rnf (LCompr a b) = rnf a `seq` rnf b
+  rnf (LFrom a) = rnf a
+  rnf (LFromTo a b) = rnf a `seq` rnf b
+  rnf (LFromThen a b) = rnf a `seq` rnf b
+  rnf (LFromThenTo a b c) = rnf a `seq` rnf b `seq` rnf c
 
 conIdent :: HasCallStack =>
             Con -> Ident
@@ -295,35 +294,35 @@ data Lit
 --DEBUG  deriving (Show)
   deriving (Eq)
 
-instance MRnf Lit where
-  mrnf (LInt a) = mrnf a
-  mrnf (LInteger a) = mrnf a
-  mrnf (LDouble a) = mrnf a
-  mrnf (LRat a) = mrnf a
-  mrnf (LChar a) = mrnf a
-  mrnf (LStr a) = mrnf a
-  mrnf (LUStr a) = mrnf a
-  mrnf (LPrim a) = mrnf a
-  mrnf (LExn a) = mrnf a
-  mrnf (LForImp a b) = mrnf a `seq` mrnf b
-  mrnf (LTick a) = mrnf a
+instance NFData Lit where
+  rnf (LInt a) = rnf a
+  rnf (LInteger a) = rnf a
+  rnf (LDouble a) = rnf a
+  rnf (LRat a) = rnf a
+  rnf (LChar a) = rnf a
+  rnf (LStr a) = rnf a
+  rnf (LUStr a) = rnf a
+  rnf (LPrim a) = rnf a
+  rnf (LExn a) = rnf a
+  rnf (LForImp a b) = rnf a `seq` rnf b
+  rnf (LTick a) = rnf a
 
 -- A type of a C FFI function
 newtype CType = CType EType
 instance Eq CType where
   _ == _  =  True    -- Just ignore the CType
-instance MRnf CType where
-  mrnf (CType t) = mrnf t
+instance NFData CType where
+  rnf (CType t) = rnf t
 
 type ECaseArm = (EPat, EAlts)
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
 --DEBUG  deriving (Show)
 
-instance MRnf EStmt where
-  mrnf (SBind a b) = mrnf a `seq` mrnf b
-  mrnf (SThen a) = mrnf a
-  mrnf (SLet a) = mrnf a
+instance NFData EStmt where
+  rnf (SBind a b) = rnf a `seq` rnf b
+  rnf (SThen a) = rnf a
+  rnf (SLet a) = rnf a
 
 type EBind = EDef   -- subset with Fcn, PatBind, Sign, and DfltSign
 
@@ -331,14 +330,14 @@ type EBind = EDef   -- subset with Fcn, PatBind, Sign, and DfltSign
 data Eqn = Eqn [EPat] EAlts
 --DEBUG  deriving (Show)
 
-instance MRnf Eqn where
-  mrnf (Eqn a b) = mrnf a `seq` mrnf b
+instance NFData Eqn where
+  rnf (Eqn a b) = rnf a `seq` rnf b
 
 data EAlts = EAlts [EAlt] [EBind]
 --DEBUG  deriving (Show)
 
-instance MRnf EAlts where
-  mrnf (EAlts a b) = mrnf a `seq` mrnf b
+instance NFData EAlts where
+  rnf (EAlts a b) = rnf a `seq` rnf b
 
 type EAlt = ([EStmt], Expr)
 
@@ -387,8 +386,8 @@ data Constr = Constr
   (Either [SType] [ConstrField])  -- types or named fields
   deriving(Show)
 
-instance MRnf Constr where
-  mrnf (Constr a b c d) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d
+instance NFData Constr where
+  rnf (Constr a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
 
 type ConstrField = (Ident, SType)              -- record label and type
 type SType = (Bool, EType)                     -- the Bool indicates strict
@@ -406,8 +405,8 @@ data IdKind = IdKind Ident EKind
 instance Show IdKind where
   show (IdKind i k) = "(" ++ show i ++ "::" ++ show k ++ ")"
 
-instance MRnf IdKind where
-  mrnf (IdKind a b) = mrnf a `seq` mrnf b
+instance NFData IdKind where
+  rnf (IdKind a b) = rnf a `seq` rnf b
 
 idKindIdent :: IdKind -> Ident
 idKindIdent (IdKind i _) = i
@@ -554,7 +553,7 @@ data Assoc = AssocLeft | AssocRight | AssocNone
 
 type Fixity = (Assoc, Int)
 
-instance MRnf Assoc
+instance NFData Assoc where rnf x = x `seq` ()
 
 ---------------------------------
 

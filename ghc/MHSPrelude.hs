@@ -1,9 +1,10 @@
-module MHSPrelude(module Prelude, module MHSPrelude, Type) where
+module MHSPrelude(module Prelude, module Control.DeepSeq, module MHSPrelude, Type) where
 import Prelude
+import Control.DeepSeq
+import Control.Exception
 import Data.Maybe
 import Data.List
 import Data.Text(Text, append, pack)
-import Control.Exception
 import GHC.Types
 import System.Environment
 import System.IO
@@ -61,3 +62,6 @@ appendDot x y = x `append` pack "." `append` y
 
 wantGMP :: Bool
 wantGMP = False
+
+compiledWithMhs :: Bool
+compiledWithMhs = False

@@ -30,7 +30,6 @@ import System.Directory
 import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
-import MicroHs.Instances() -- for GHC
 import MicroHs.TargetConfig
 import Paths_MicroHs(getDataDir)
 
