@@ -180,6 +180,7 @@ it will be the entry point to the program.
 * `-PPKG` create package `PKG`
 * `-L[FILE]` list all modules in a package
 * `-Q FILE [DIR]` install package
+* `-ddump-PASS` debug, show AST after `PASS`.  Possible passes `parse`, `typecheck`, `desugar`, `toplevel`, `combinator`, `all`
 *  `--` marks end of compiler arguments
 
 With the `-v` flag the processing time for each module is reported.
