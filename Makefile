@@ -136,14 +136,14 @@ bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 	@echo "*** stage2 equal to stage1"
 	$(CCEVAL) generated/mhs-stage2.c -o bin/mhs-stage2
 
-# Fetch cpphs submodule
-cpphssrc/malcolm-wallace-universe/.git:
-	git submodule update --init --depth 1 cpphssrc/malcolm-wallace-universe
+cpphssrc/malcolm-wallace-universe:
+	mkdir -p cpphssrc
+	cd cpphssrc; git clone git@github.com:hackage-trustees/malcolm-wallace-universe.git
 
 # Use this cpphs for bootstrapping
 USECPPHS=bin/cpphs
 
-bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe/.git
+bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe
 	MHSCPPHS=$(USECPPHS) bin/mhs -z -XCPP '-DMIN_VERSION_base(x,y,z)=((x)<4||(x)==4&&(y)<19||(x)==4&&(y)==19&&(z)<=1)' -icpphscompat -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
 # Run test examples with ghc-compiled compiler
