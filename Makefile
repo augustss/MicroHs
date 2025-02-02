@@ -182,6 +182,7 @@ clean:
 	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal cpphssrc Interactive.hs .mhsi
 	cd tests; make clean
 	-cabal clean
+	git submodule deinit MicroCabal
 
 oldinstall:
 	mkdir -p $(PREFIX)/bin
