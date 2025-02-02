@@ -14,6 +14,7 @@ module MicroHs.TypeCheck(
   listPrefix,
   ValueExport(..), TypeExport(..),
   Symbols,
+  isInstId,
   ) where
 import Prelude(); import MHSPrelude
 import Control.Applicative
@@ -27,12 +28,12 @@ import MicroHs.Builtin
 import MicroHs.Deriving
 import MicroHs.Expr
 import MicroHs.Fixity
+import MicroHs.Flags
 import MicroHs.Graph
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
 import MicroHs.List
-import MicroHs.MRnf
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
@@ -128,8 +129,8 @@ data GlobTables = GlobTables {
   gInstInfo   :: InstTable        -- instances are implicitely global
   }
 
-instance MRnf GlobTables where
-  mrnf (GlobTables a b c d) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d
+instance NFData GlobTables where
+  rnf (GlobTables a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
 
 emptyGlobTables :: GlobTables
 emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty }
@@ -153,8 +154,8 @@ data TModule a = TModule {
   }
 --  deriving (Show)
 
-instance MRnf a => MRnf (TModule a) where
-  mrnf (TModule a b c d e f) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e `seq` mrnf f
+instance NFData a => NFData (TModule a) where
+  rnf (TModule a b c d e f) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f
 
 setBindings :: TModule b -> a -> TModule a
 setBindings (TModule x y z w v _) a = TModule x y z w v a
@@ -164,13 +165,13 @@ type FixDef = (Ident, Fixity)
 type Sigma = EType
 type Rho   = EType
 
-typeCheck :: forall a . GlobTables -> ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], GlobTables, Symbols)
-typeCheck globs impt aimps (EModule mn exps defs) =
+typeCheck :: Flags -> GlobTables -> ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], GlobTables, Symbols)
+typeCheck flags globs impt aimps (EModule mn exps defs) =
 --  trace (unlines $ map (showTModuleExps . snd) aimps) $
   let
     imps = map filterImports aimps
     tc = mkTCState mn globs imps
-  in case tcRun (tcDefs impt defs) tc of
+  in case tcRun (tcDefs flags impt defs) tc of
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule impt tds tcs)
@@ -933,14 +934,16 @@ withExtTyps iks ta = do
   putTypeTable venv
   return a
 
-tcDefs :: ImpType -> [EDef] -> T [EDef]
-tcDefs impt ds = do
+tcDefs :: Flags -> ImpType -> [EDef] -> T [EDef]
+tcDefs flags impt ds = do
 --  tcTrace ("tcDefs 1:\n" ++ showEDefs ds)
   mapM_ tcAddInfix ds
   dst <- tcDefsType ds
 --  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeAndData dst
   dste <- tcExpandClassInst impt dst
+  dumpIf flags Dderive $
+    traceM $ "expanded:\n" ++ showEDefs dste
 --  tcTrace ("tcDefs 3:\n" ++ showEDefs dste)
   case impt of
     ImpNormal -> do
@@ -1272,8 +1275,7 @@ expandInst dinst@(Instance act bs) = do
     [] -> return ()
     b:_ -> tcError (getSLoc b) $ "superflous instance binding"
   let bind = Fcn iInst $ eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
-  mn <- gets moduleName
-  addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc, fds)]
+  addInstTable [(EVar iInst, vks, ctx, cc, fds)]
   return [dinst, sign, bind]
 expandInst d = return [d]
 
@@ -1469,14 +1471,18 @@ tcDefValue adef =
       checkConstraints
       mn <- gets moduleName
 --      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
-      return $ Fcn (qualIdent mn i) teqns
+      return $ Fcn (qualIdent' mn i) teqns
     PatBind p e -> tcPatBind PatBind p e
     ForImp ie i t -> do
       mn <- gets moduleName
       t' <- expandSyn t
-      return (ForImp ie (qualIdent mn i) t')
+      return (ForImp ie (qualIdent' mn i) t')
     Pattern _ _ _ -> impossible
     _ -> return adef
+
+qualIdent' :: IdentModule -> Ident -> Ident
+qualIdent' mn i | isInstId i = i
+                | otherwise  = qualIdent mn i
 
 -- This is only used during inference.
 -- When doing type checking the actual Pattern definition will have been

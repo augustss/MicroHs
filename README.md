@@ -46,6 +46,7 @@ Differences:
  * There is only deriving for `Bounded`, `Enum`, `Eq`, `Ord`, `Show`, and `Typeable`.
  * Kind variables need an explicit `forall`.
  * Always enabled extension:
+   * AllowAmbiguousTypes
    * BangPatterns
    * BinaryLiterals
    * ConstraintKinds
@@ -106,7 +107,7 @@ Differences:
  * The `BangPatterns` extension is parsed, but only effective at the a top level `let`/`where`.
  * More differences that I don't remember right now.
 
-Mutually recursive modules are allowed the same way as with GHC, using `.hs-boot` files. 
+Mutually recursive modules are allowed the same way as with GHC, using `.hs-boot` files.
 
 ## Example
 The file `Example.hs` contains the following:
@@ -179,6 +180,7 @@ it will be the entry point to the program.
 * `-PPKG` create package `PKG`
 * `-L[FILE]` list all modules in a package
 * `-Q FILE [DIR]` install package
+* `-ddump-PASS` debug, show AST after `PASS`.  Possible passes `parse`, `typecheck`, `desugar`, `toplevel`, `combinator`, `all`
 *  `--` marks end of compiler arguments
 
 With the `-v` flag the processing time for each module is reported.
@@ -470,6 +472,61 @@ make it compile with `mhs`.
 
 To identify that it is MicroHs that is the compiler it defines the symbol `__MHS__`.
 
+# Contributing
+Contributions are very welcome!
+
+When modifying the compiler, run `make newmhs` or `make newmhsz` (the latter compresses the binary)
+to generate a compiler that includes your changes.
+
+## Libraries
+
+The libraries live in the `lib/` directory. Adding missing functions/instances/types from the report is a welcome contribution.
+Common things from `base` and GHC boot libraries that use a lot of GHC-specific code (such as `array`, `bytestring`, `text`, ...) can also be added.
+
+## Tests
+
+The test suite is located in the `tests/` directory.
+
+To add a new test, create a `MyTest.hs` file and a corresponding `MyTest.ref` file for the expected output.
+Then add it to the `test` rule in `tests/Makefile`:
+```makefile
+	$(TMHS) MyTest     && $(EVAL) > MyTest.out     && diff MyTest.ref MyTest.out
+```
+
+If you want to test that a module fails to compile with a certain error message,
+add it to `tests/errmsg.test`, for example:
+```
+module E() where
+x :: Int
+x = y
+-----
+"../tmp/E.hs": line 4, col 5: undefined value: y
+
+=====
+```
+
+To run the test suite, do
+* `make runtest` to use the GHC-compiled compiler
+* `make runtestmhs` to use the MicroHs-compiled compiler
+* `make runtestemscripten` to use the MicroHs-compiled compiler targeting JavaScript
+
+## Primitives
+
+If you want to add a new primitive, you need to modify a few things:
+* in `src/runtime/eval.c`
+  - add a variant to `enum node_tag`
+  - add an entry to the `primops` table (mapping the name of your primitive to the tag)
+  - add a `case` in `printrec`
+  - implement the primitive by adding a `case` in `evali` (you can use the other primitives as a guide)
+* in `src/MicroHs/Translate.hs`
+  - add an entry to the `primTable`, to make the primitive available in the interactive mode
+* in `ghc/PrimTable.hs`
+  - add an entry to `primOps`, if the primitive should be available in the GHC-compiled interactive mode
+* in `hugs/PrimTable.hs`
+  - add an entry to `primOps`, if the primitive should be available in the Hugs-compiled interactive mode
+
+Then you can use the primitive via the `_primitive` keyword (`_primitive "myPrimitive"`).
+
 # Thank You
 A big thanks goes to the people who have contributed to MicroHs:
 @dmjio
@@ -488,13 +545,13 @@ gay@disroot.org
 
 
 # FAQ
-* 
+*
   * Q: When will it get _insert feature_?
   * A: Maybe some time, maybe never.  But it doesn't hurt to ask for it.
-* 
+*
   * Q: Why are the error messages so bad?
   * A: Error messages are boring.
-* 
+*
   * Q: Why is the so much source code?
   * A: I wonder this myself.  10000+ lines of Haskell seems excessive.
        6000+ lines of C is also more than I'd like for such a simple system.

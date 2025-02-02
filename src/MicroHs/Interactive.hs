@@ -18,7 +18,6 @@ import MicroHs.Translate
 import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..), Symbols)
 import Unsafe.Coerce
 import System.Console.SimpleReadline
-import MicroHs.Instances(compiledWithGHC)
 import Paths_MicroHs(version)
 
 data IState = IState {
@@ -52,8 +51,8 @@ start = do
   is <- get
   liftIO $ maybeSaveCache (isFlags is) (isCache is)
   liftIO $ putStrLn "Type ':quit' to quit, ':help' for help"
-  when compiledWithGHC $
-    liftIO $ putStrLn "WARNING: Compiled with GHC, so limited functionality."
+  when (not compiledWithMhs) $
+    liftIO $ putStrLn "WARNING: Not compiled with mhs, so limited functionality."
   repl
 
 repl :: I ()

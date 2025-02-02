@@ -3,6 +3,7 @@
 module System.IO.MD5(MD5CheckSum, md5File, md5Handle, md5String, md5Combine) where
 import Prelude(); import MiniPrelude
 import Primitives(primPerformIO)
+import Control.DeepSeq.Class
 import Data.Word
 import Foreign.C.String
 import Foreign.Marshal.Alloc
@@ -16,15 +17,13 @@ foreign import ccall "md5String" c_md5String :: CString   -> Ptr Word -> IO ()
 foreign import ccall "md5Array"  c_md5Array  :: Ptr Word  -> Ptr Word -> Int -> IO ()
 
 newtype MD5CheckSum = MD5 [Word]  -- either 2*64 bits or 4*32 bits
-
-instance Eq MD5CheckSum where
-  MD5 a == MD5 b  =  a == b
-
-instance Ord MD5CheckSum where
-  MD5 a <= MD5 b  =  a <= b
+  deriving (Eq, Ord)
 
 instance Show MD5CheckSum where
   show (MD5 ws) = "MD5" ++ show ws
+
+instance NFData MD5CheckSum where
+  rnf (MD5 ws) = rnf ws
 
 md5Len :: Int
 md5Len = 16   -- The MD5 checksum is 16 bytes

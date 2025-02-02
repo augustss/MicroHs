@@ -12,7 +12,6 @@ import MicroHs.Desugar(LDef)
 import MicroHs.Expr(IdentModule)
 import MicroHs.Ident(showIdent)
 import qualified MicroHs.IdentMap as M
-import MicroHs.MRnf
 import MicroHs.Package
 import MicroHs.TypeCheck(TModule, tModuleName, GlobTables, emptyGlobTables, mergeGlobTables)
 import System.IO
@@ -30,9 +29,9 @@ data CacheEntry =
     (TModule [LDef])                    -- the cached module
 --  deriving (Show)
 
-instance MRnf CacheEntry where
-  mrnf (CompMdl a b c) = mrnf a `seq` mrnf b `seq` mrnf c
-  mrnf (PkgMdl a) = mrnf a
+instance NFData CacheEntry where
+  rnf (CompMdl a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (PkgMdl a) = rnf a
 
 tModuleOf :: CacheEntry -> TModule [LDef]
 tModuleOf (CompMdl t _ _) = t
@@ -51,11 +50,11 @@ data Cache = Cache {
   }
 --  deriving (Show)
 
-instance MRnf Cache where
-  mrnf (Cache a b c d e) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e
+instance NFData Cache where
+  rnf (Cache a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
 
 forceCache :: Cache -> Cache
-forceCache c = mrnf c `seq` c
+forceCache c = force c
 
 getCacheTables :: Cache -> GlobTables
 getCacheTables = tables

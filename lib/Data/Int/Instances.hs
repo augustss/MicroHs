@@ -54,8 +54,8 @@ instance Integral Int8 where
   toInteger = _intToInteger . unI8
 
 instance Bounded Int8 where
-  minBound = I8 0x80
-  maxBound = I8 0x7f
+  minBound = i8 0x80
+  maxBound = i8 0x7f
 
 instance Real Int8 where
   toRational = _integerToRational . _intToInteger . unI8
@@ -150,8 +150,8 @@ instance Integral Int16 where
   toInteger = _intToInteger . unI16
 
 instance Bounded Int16 where
-  minBound = I16 0x8000
-  maxBound = I16 0x7fff
+  minBound = i16 0x8000
+  maxBound = i16 0x7fff
 
 instance Real Int16 where
   toRational = _integerToRational . _intToInteger . unI16
@@ -246,8 +246,8 @@ instance Integral Int32 where
   toInteger = _intToInteger . unI32
 
 instance Bounded Int32 where
-  minBound = I32 0x80000000
-  maxBound = I32 0x7fffffff
+  minBound = i32 0x80000000
+  maxBound = i32 0x7fffffff
 
 instance Real Int32 where
   toRational = _integerToRational . _intToInteger . unI32
@@ -341,8 +341,8 @@ instance Integral Int64 where
   toInteger = _intToInteger . unI64
 
 instance Bounded Int64 where
-  minBound = I64 0x8000000000000000
-  maxBound = I64 0x7fffffffffffffff
+  minBound = i64 0x8000000000000000
+  maxBound = i64 0x7fffffffffffffff
 
 instance Real Int64 where
   toRational = _integerToRational . _intToInteger . unI64

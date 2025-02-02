@@ -9,6 +9,7 @@ module Data.Text(
   uncons,
   ) where
 import Prelude(); import MiniPrelude hiding(head, tail, null)
+import Control.DeepSeq.Class
 import Data.Monoid.Internal
 import Data.String
 import qualified Data.ByteString.Internal as BS
@@ -39,6 +40,9 @@ instance Semigroup Text where
 
 instance Monoid Text where
   mempty = empty
+
+instance NFData Text where
+  rnf (T bs) = seq bs ()
 
 empty :: Text
 empty = pack []

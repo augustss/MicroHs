@@ -5,6 +5,7 @@ module AllOfLib(main) where
 import Control.Applicative
 import Control.Category
 import Control.DeepSeq
+import Control.DeepSeq.Class
 import Control.Error
 import Control.Exception
 import Control.Exception.Internal

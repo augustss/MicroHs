@@ -16,6 +16,7 @@ instance Show Natural where
 instance Num Natural where
   N x + N y = N (x + y)
   N x - N y | y > x = throw Underflow
+            | otherwise = N (x - y)
   N x * N y = N (x * y)
   abs x = x
   signum x = if x > 0 then 1 else 0
