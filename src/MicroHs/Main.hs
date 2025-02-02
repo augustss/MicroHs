@@ -64,7 +64,7 @@ main = do
                 _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [MODULENAME..|FILE]"
+usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
@@ -97,12 +97,15 @@ decodeArgs f mdls (arg:args) =
     '-':'a':[]  -> decodeArgs f{pkgPath = []} mdls args
     '-':'a':s   -> decodeArgs f{pkgPath = pkgPath f ++ [s]} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
+    '-':'d':'d':'u':'m':'p':'-':r | Just d <- lookup r dumpFlagTable ->
+                   decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"
                 -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args
       | otherwise
                 -> decodeArgs f (mdls ++ [arg]) args
-
+  where
+    dumpFlagTable = [(drop 1 $ show d, d) | d <- [minBound..maxBound]]
 
 readTargets :: Flags -> FilePath -> IO [Target]
 readTargets flags dir = do
@@ -229,7 +232,7 @@ mainCompile flags mn = do
     numDefs = length allDefs
   when (verbosityGT flags 0) $
     putStrLn $ "top level defns:      " ++ padLeft 6 (show numOutDefs) ++ " (unpruned " ++ show numDefs ++ ")"
-  when (verbosityGT flags 2) $
+  dumpIf flags Dtoplevel $
     mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") allDefs
   if runIt flags then do
     let
