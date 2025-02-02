@@ -292,7 +292,7 @@ generated/hmhs.c:
 
 bootstrap/.git:
 # Use exact commit for reproducible builds
-	git worktree add bootstrap e43e3cf30499e34da167384e8f26410e95e42648
+	git worktree add bootstrap 4a85b7204627f3ad76d463fe383259821eec755b
 
 bin/hmhs: bootstrap/.git
 	@mkdir -p bin
