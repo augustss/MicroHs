@@ -69,12 +69,12 @@ bin/mhs:	src/runtime/*.c src/runtime/*.h targets.conf #generated/mhs.c
 	$(CCEVAL) generated/mhs.c -o bin/mhs
 
 # Compile cpphs from distribution, with C compiler
-bin/cpphs:	src/runtime/*.c src/runtime/config*.h generated/cpphs.c
+bin/cpphs:	src/runtime/*.c src/runtime/config*.h #generated/cpphs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/cpphs.c -o bin/cpphs
 
 # Compile mcabal from distribution, with C compiler
-bin/mcabal:	src/runtime/*.c src/runtime/config*.h generated/mcabal.c
+bin/mcabal:	src/runtime/*.c src/runtime/config*.h #generated/mcabal.c
 	@mkdir -p bin
 	$(CCEVAL) generated/mcabal.c -o bin/mcabal
 
