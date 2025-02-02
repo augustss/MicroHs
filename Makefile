@@ -184,9 +184,10 @@ cachelib:
 
 #
 clean:
-	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal cpphssrc Interactive.hs .mhsi
+	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal Interactive.hs .mhsi
 	cd tests; make clean
 	-cabal clean
+	git submodule deinit cpphssrc/malcolm-wallace-universe
 
 oldinstall:
 	mkdir -p $(PREFIX)/bin
