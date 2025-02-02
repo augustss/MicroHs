@@ -199,7 +199,7 @@ compileModule flags impt mn pathfn file = do
   t3 <- liftIO getTimeMilli
   glob <- gets getCacheTables
   let
-    (tmdl, glob', syms) = typeCheck glob impt (zip specs impMdls) mdl
+    (tmdl, glob', syms) = typeCheck flags glob impt (zip specs impMdls) mdl
   modify $ setCacheTables glob'
   dumpIf flags Dtypecheck $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"

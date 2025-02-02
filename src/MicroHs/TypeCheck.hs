@@ -27,6 +27,7 @@ import MicroHs.Builtin
 import MicroHs.Deriving
 import MicroHs.Expr
 import MicroHs.Fixity
+import MicroHs.Flags
 import MicroHs.Graph
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
@@ -163,13 +164,13 @@ type FixDef = (Ident, Fixity)
 type Sigma = EType
 type Rho   = EType
 
-typeCheck :: forall a . GlobTables -> ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], GlobTables, Symbols)
-typeCheck globs impt aimps (EModule mn exps defs) =
+typeCheck :: Flags -> GlobTables -> ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], GlobTables, Symbols)
+typeCheck flags globs impt aimps (EModule mn exps defs) =
 --  trace (unlines $ map (showTModuleExps . snd) aimps) $
   let
     imps = map filterImports aimps
     tc = mkTCState mn globs imps
-  in case tcRun (tcDefs impt defs) tc of
+  in case tcRun (tcDefs flags impt defs) tc of
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule impt tds tcs)
@@ -932,14 +933,16 @@ withExtTyps iks ta = do
   putTypeTable venv
   return a
 
-tcDefs :: ImpType -> [EDef] -> T [EDef]
-tcDefs impt ds = do
+tcDefs :: Flags -> ImpType -> [EDef] -> T [EDef]
+tcDefs flags impt ds = do
 --  tcTrace ("tcDefs 1:\n" ++ showEDefs ds)
   mapM_ tcAddInfix ds
   dst <- tcDefsType ds
 --  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeAndData dst
   dste <- tcExpandClassInst impt dst
+  dumpIf flags Dderive $
+    traceM $ "expanded:\n" ++ showEDefs dste
 --  tcTrace ("tcDefs 3:\n" ++ showEDefs dste)
   case impt of
     ImpNormal -> do
