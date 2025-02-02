@@ -25,3 +25,4 @@ timing
 mdist/*
 dist-mcabal/
 cpphssrc/
+bootstrap/
