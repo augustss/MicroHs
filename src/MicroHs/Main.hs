@@ -96,8 +96,10 @@ decodeArgs f mdls (arg:args) =
     '-':'a':[]  -> decodeArgs f{pkgPath = []} mdls args
     '-':'a':s   -> decodeArgs f{pkgPath = pkgPath f ++ [s]} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
-    '-':'d':'d':'u':'m':'p':'-':r | Just d <- lookup r dumpFlagTable ->
+    '-':'d':'d':'u':'m':'p':'-':r | isJust md ->
                    decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
+                   where md = lookup r dumpFlagTable
+                         Just d = md
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"
                 -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args

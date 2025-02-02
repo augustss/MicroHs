@@ -502,6 +502,7 @@ x = y
 -----
 "../tmp/E.hs": line 4, col 5: undefined value: y
 
+=====
 ```
 
 To run the test suite, do
@@ -526,7 +527,6 @@ If you want to add a new primitive, you need to modify a few things:
 
 Then you can use the primitive via the `_primitive` keyword (`_primitive "myPrimitive"`).
 
->>>>>>> master
 # Thank You
 A big thanks goes to the people who have contributed to MicroHs:
 @dmjio

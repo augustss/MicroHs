@@ -4,7 +4,6 @@ module MHSPrelude(
   module Prelude,
   module MHSPrelude,
 --  module Control.Monad.Fail,
-  module Control.DeepSeq
   module Data.Monoid,
   module Data.Semigroup,
   (<$>), Applicative(..), (*>),
@@ -13,18 +12,20 @@ import Hugs.Prelude()
 import Prelude hiding(fail)
 import qualified Prelude
 import Control.Applicative
-import Control.DeepSeq
 import Control.Exception(Exception, try)
 --import Control.Monad.Fail
 import Data.List
 import Data.Maybe
 import Data.Monoid
+import Data.Ratio
 import Data.Semigroup
 import Data.Text(Text, append, pack)
+import Data.Word
 import Data.Version
 import Debug.Trace
 import System.IO
 import System.Environment
+import System.IO.MD5
 
 ------- List --------
 
@@ -175,3 +176,57 @@ wantGMP = False
 
 compiledWithMhs :: Bool
 compiledWithMhs = False
+
+-------- Control.DeepSeq ------
+
+-- NFData class and instances for primitive types.
+
+class NFData a where
+  rnf :: a -> ()
+  rnf a = seq a ()
+
+infixr 0 `deepseq`
+deepseq :: NFData a => a -> b -> b
+deepseq a b = rnf a `seq` b
+
+infixr 0 $!!
+($!!) :: (NFData a) => (a -> b) -> a -> b
+f $!! x = x `deepseq` f x
+
+force :: (NFData a) => a -> a
+force x = x `deepseq` x
+
+instance NFData Int
+instance NFData Word
+instance NFData Float
+instance NFData Double
+instance NFData Char
+instance NFData Bool
+instance NFData Ordering
+instance NFData ()
+instance NFData Text
+
+instance NFData Integer where
+  rnf x = (x == 0) `seq` ()
+
+instance Integral a => NFData (Ratio a) where
+  rnf x = (x == 0) `seq` ()
+
+instance NFData a => NFData (Maybe a) where
+  rnf Nothing = ()
+  rnf (Just a) = rnf a
+
+instance NFData a => NFData [a] where
+  rnf [] = ()
+  rnf (x:xs) = rnf x `seq` rnf xs
+
+instance (NFData a, NFData b) => NFData (Either a b) where
+  rnf (Left a) = rnf a
+  rnf (Right b) = rnf b
+
+instance (NFData a, NFData b) => NFData (a, b) where
+  rnf (a, b) = rnf a `seq` rnf b
+
+instance NFData (a -> b)
+instance NFData Version
+instance NFData MD5CheckSum
