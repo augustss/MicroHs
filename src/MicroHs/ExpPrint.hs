@@ -7,14 +7,18 @@ import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..))
-import MicroHs.Ident(Ident, showIdent, mkIdent)
+import MicroHs.Ident(Ident, showIdent, mkIdent, showSLoc)
+import MicroHs.List(groupSort)
 import MicroHs.State
+import MicroHs.TypeCheck(isInstId)
 
 -- Version number of combinator file.
 -- Must match version in eval.c.
 combVersion :: String
 combVersion = "v7.0\n"
 
+-- Rename (to a numbers) top level definitions and remove unused ones.
+-- Also check for duplicated instances.
 toStringCMdl :: (Ident, [LDef]) -> (Int, String)
 toStringCMdl (mainName, ds) =
   let
@@ -49,7 +53,17 @@ toStringCMdl (mainName, ds) =
     def :: (String -> String) -> (Int, Exp) -> (String -> String)
     def r (i, e) =
       ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @\n") ++) . r . ("@" ++)
-  in (ndefs, combVersion ++ show ndefs ++ "\n" ++ res " }")
+  in
+    case dupInstances ds of
+      (n1 : n2 : _) : _ -> errorMessage (getSLoc n1) $ "Duplicate instance " ++ unmangleInst (showIdent n1) ++ " at " ++ showSLoc (getSLoc n2)
+      _ -> (ndefs, combVersion ++ show ndefs ++ "\n" ++ res " }")
+
+dupInstances :: [LDef] -> [[Ident]]
+dupInstances = filter ((> 1) . length) . groupSort . filter isInstId . map fst
+
+-- XXX not nice
+unmangleInst :: String -> String
+unmangleInst = map (\ c -> if c == '@' then ' ' else c) . drop 5
 
 -- Avoid quadratic concatenation by using difference lists,
 -- turning concatenation into function composition.

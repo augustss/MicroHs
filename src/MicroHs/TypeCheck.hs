@@ -14,6 +14,7 @@ module MicroHs.TypeCheck(
   listPrefix,
   ValueExport(..), TypeExport(..),
   Symbols,
+  isInstId,
   ) where
 import Prelude(); import MHSPrelude
 import Control.Applicative
@@ -1274,8 +1275,7 @@ expandInst dinst@(Instance act bs) = do
     [] -> return ()
     b:_ -> tcError (getSLoc b) $ "superflous instance binding"
   let bind = Fcn iInst $ eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
-  mn <- gets moduleName
-  addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc, fds)]
+  addInstTable [(EVar iInst, vks, ctx, cc, fds)]
   return [dinst, sign, bind]
 expandInst d = return [d]
 
@@ -1471,14 +1471,18 @@ tcDefValue adef =
       checkConstraints
       mn <- gets moduleName
 --      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
-      return $ Fcn (qualIdent mn i) teqns
+      return $ Fcn (qualIdent' mn i) teqns
     PatBind p e -> tcPatBind PatBind p e
     ForImp ie i t -> do
       mn <- gets moduleName
       t' <- expandSyn t
-      return (ForImp ie (qualIdent mn i) t')
+      return (ForImp ie (qualIdent' mn i) t')
     Pattern _ _ _ -> impossible
     _ -> return adef
+
+qualIdent' :: IdentModule -> Ident -> Ident
+qualIdent' mn i | isInstId i = i
+                | otherwise  = qualIdent mn i
 
 -- This is only used during inference.
 -- When doing type checking the actual Pattern definition will have been
