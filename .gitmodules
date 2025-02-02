@@ -1,0 +1,3 @@
+[submodule "cpphssrc/malcolm-wallace-universe"]
+	path = cpphssrc/malcolm-wallace-universe
+	url = https://github.com/hackage-trustees/malcolm-wallace-universe

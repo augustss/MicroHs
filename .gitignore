@@ -24,4 +24,3 @@ targets.conf
 timing
 mdist/*
 dist-mcabal/
-cpphssrc/
