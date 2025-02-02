@@ -188,6 +188,7 @@ clean:
 	cd tests; make clean
 	-cabal clean
 	git submodule deinit cpphssrc/malcolm-wallace-universe
+	git submodule deinit MicroCabal
 
 oldinstall:
 	mkdir -p $(PREFIX)/bin
