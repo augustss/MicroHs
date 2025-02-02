@@ -77,12 +77,10 @@ executable mhs
                        MicroHs.IdentMap
                        MicroHs.IntMap
                        MicroHs.IntSet
-                       MicroHs.Instances
                        MicroHs.Interactive
                        MicroHs.Lex
                        MicroHs.List
                        MicroHs.MakeCArray
-                       MicroHs.MRnf
                        MicroHs.Package
                        MicroHs.Parse
                        MicroHs.State
