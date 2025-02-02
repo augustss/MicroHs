@@ -16,7 +16,6 @@ import Data.Integral
 import Data.List_Type
 import Data.Maybe_Type
 import Data.Ord
-import Data.Ratio
 import Data.Tuple
 import Data.Word
 import Mhs.Builtin
@@ -48,9 +47,6 @@ instance NFData Ordering
 instance NFData ()
 
 instance NFData Integer where
-  rnf x = (x == 0) `seq` ()
-
-instance Integral a => NFData (Ratio a) where
   rnf x = (x == 0) `seq` ()
 
 instance NFData a => NFData (Maybe a) where
