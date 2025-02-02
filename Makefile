@@ -25,6 +25,11 @@ GHCOUTDIR= ghc-out
 GHCOUT= -outputdir $(GHCOUTDIR)
 GHCPROF= # -prof -fprof-late #-prof -fprof-auto
 GHCFLAGS= $(GHCEXTS) $(GHCINCS) $(GHCWARNS) $(GHCOPTS) $(GHCTOOL) $(GHCPKGS) $(GHCOUT) $(GHCPROF) -main-is MicroHs.Main
+#
+# Hugs
+HUGS= runhugs
+FFIHUGS= ffihugs
+HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
 
 #
 EMCC=emcc -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW
