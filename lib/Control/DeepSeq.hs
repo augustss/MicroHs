@@ -50,9 +50,6 @@ instance NFData Word64
 instance NFData (Proxy a) where rnf Proxy = ()
 instance NFData1 Proxy where liftRnf _ Proxy = ()
 
-instance NFData a => NFData (Ratio a) where
-  rnf x = rnf (numerator x, denominator x)
-
 instance NFData1 Maybe where
   liftRnf _ Nothing = ()
   liftRnf rnfa (Just a) = rnfa a

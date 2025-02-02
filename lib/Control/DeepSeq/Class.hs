@@ -50,8 +50,8 @@ instance NFData ()
 instance NFData Integer where
   rnf x = (x == 0) `seq` ()
 
-instance Integral a => NFData (Ratio a) where
-  rnf x = (x == 0) `seq` ()
+instance NFData a => NFData (Ratio a) where
+  rnf x = rnf (numerator x, denominator x)
 
 instance NFData a => NFData (Maybe a) where
   rnf Nothing = ()
