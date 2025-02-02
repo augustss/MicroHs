@@ -1,4 +1,7 @@
-module MicroHs.Flags(Flags(..), verbosityGT, defaultFlags, wantGMP) where
+module MicroHs.Flags(
+  Flags(..), verbosityGT, defaultFlags,
+  DumpFlag(..), dumpIf,
+  wantGMP) where
 import Prelude(); import MHSPrelude
 
 data Flags = Flags {
@@ -20,7 +23,8 @@ data Flags = Flags {
   listPkg    :: Maybe FilePath, -- list package contents
   pkgPath    :: [FilePath], -- package search path
   installPkg :: Bool,       -- install a package
-  target     :: String      -- Compile target defined in target.conf
+  target     :: String,     -- Compile target defined in target.conf
+  dumpFlags  :: [DumpFlag]  -- For debugging
   }
   deriving (Show)
 
@@ -47,8 +51,17 @@ defaultFlags dir = Flags {
   listPkg    = Nothing,
   pkgPath    = [],
   installPkg = False,
-  target     = "default"
+  target     = "default",
+  dumpFlags  = []
   }
   -- This is a hack so that the in-place mhs picks up GMP.
   where gmp | dir == "." && wantGMP = ["lib/gmp"]
             | otherwise             = []
+
+data DumpFlag = Dparse | Dderive | Dtypecheck | Ddesugar | Dtoplevel | Dcombinator | Dall
+  deriving (Eq, Show, Enum, Bounded)
+
+dumpIf :: Monad m => Flags -> DumpFlag -> m () -> m ()
+dumpIf flags df act | df `elem` dfs || Dall `elem` dfs = act
+                    | otherwise = return ()
+  where dfs = dumpFlags flags

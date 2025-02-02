@@ -5,9 +5,10 @@ import Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bits
-import Data.Bool_Type
+import Data.Bool
 import Data.Bounded
 import Data.Char
+import Data.Coerce
 import Data.Enum
 import Data.Eq
 import Data.Function
@@ -53,15 +54,48 @@ instance Read Word where
 
 --------------------------------
 
+eftWord :: Word -> Word -> [Word]
+eftWord x y
+  | x `primWordGT` y = []
+  | otherwise = go x
+  where
+    go n = n : if n `primWordEQ` y then [] else go (n `primWordAdd` 1)
+
+efttWordUp :: Word -> Word -> Word -> [Word]
+-- x2 >= x1
+efttWordUp x1 x2 y
+  | y `primWordLT` x2 = if y `primWordLT` x1 then [] else [x1]
+  | otherwise =
+    let
+      delta = x2 `primWordSub` x1
+      y' = y `primWordSub` delta
+      go x = if x `primWordGT` y' then [x] else x : go (x `primWordAdd` delta)
+    in x1 : go x2
+
+efttWordDown :: Word -> Word -> Word -> [Word]
+-- x2 <= x1
+efttWordDown x1 x2 y
+  | y `primWordGT` x2 = if y `primWordGT` x1 then [] else [x1]
+  | otherwise =
+    let
+      delta = x2 `primWordSub` x1
+      y' = y `primWordSub` delta
+      go x = if x `primWordLT` y' then [x] else x : go (x `primWordAdd` delta)
+    in x1 : go x2
+
 instance Enum Word where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x `primWordEQ` maxBound then error "Word.succ: overflow" else x + 1
+  pred x = if x `primWordEQ` minBound then error "Word.pred: underflow" else x - 1
   toEnum = primIntToWord
   fromEnum = primWordToInt
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = eftWord n maxBound
+  enumFromThen x1 x2
+    | x2 `primWordGE` x1 = efttWordUp x1 x2 maxBound
+    | otherwise          = efttWordDown x1 x2 minBound
+  enumFromTo = eftWord
+  enumFromThenTo x1 x2 y
+    | x2 `primWordGE` x1 = efttWordUp x1 x2 y
+    | otherwise          = efttWordDown x1 x2 y
 
 --------------------------------
 
@@ -86,12 +120,12 @@ instance Bits Word where
   x `shiftL` i
     | i < 0 = _overflowError
     | i >= _wordSize = 0
-    | True = x `primWordShl` i
+    | otherwise = x `primWordShl` i
   unsafeShiftL = primWordShl
   x `shiftR` i
     | i < 0 = _overflowError
     | i >= _wordSize = 0
-    | True = x `primWordShr` i
+    | otherwise = x `primWordShr` i
   unsafeShiftR = primWordShr
   bitSizeMaybe _ = Just _wordSize
   bitSize _ = _wordSize
@@ -141,8 +175,8 @@ instance Integral Word8 where
   toInteger = _wordToInteger . unW8
 
 instance Bounded Word8 where
-  minBound = W8 0
-  maxBound = W8 0xff
+  minBound = w8 0
+  maxBound = w8 0xff
 
 instance Real Word8 where
   toRational = _integerToRational . _wordToInteger . unW8
@@ -156,14 +190,16 @@ instance Read Word8 where
 -}
 
 instance Enum Word8 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Word8.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Word8.pred: underflow" else x - 1
   toEnum = w8 . primIntToWord
   fromEnum = primWordToInt . unW8
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Word)
+  enumFromThenTo = coerce (enumFromThenTo @Word)
 
 instance Eq Word8 where
   (==) = cmp8 primWordEQ
@@ -184,12 +220,12 @@ instance Bits Word8 where
   x `shiftL` i
     | i < 0 = _overflowError
     | i >= 8 = 0
-    | True = x `unsafeShiftL` i
+    | otherwise = x `unsafeShiftL` i
   unsafeShiftL = bini8 primWordShl
   x `shiftR` i
     | i < 0 = _overflowError
     | i >= 8 = 0
-    | True = x `unsafeShiftR` i
+    | otherwise = x `unsafeShiftR` i
   unsafeShiftR = bini8 primWordShr
   bitSizeMaybe _ = Just 8
   bitSize _ = 8
@@ -239,8 +275,8 @@ instance Integral Word16 where
   toInteger = _wordToInteger . unW16
 
 instance Bounded Word16 where
-  minBound = W16 0
-  maxBound = W16 0xffff
+  minBound = w16 0
+  maxBound = w16 0xffff
 
 instance Real Word16 where
   toRational = _integerToRational . _wordToInteger . unW16
@@ -254,13 +290,16 @@ instance Read Word16 where
 -}
 
 instance Enum Word16 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Word16.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Word16.pred: underflow" else x - 1
   toEnum = w16 . primIntToWord
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  fromEnum = primWordToInt . unW16
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Word)
+  enumFromThenTo = coerce (enumFromThenTo @Word)
 
 instance Eq Word16 where
   (==) = cmp16 primWordEQ
@@ -281,12 +320,12 @@ instance Bits Word16 where
   x `shiftL` i
     | i < 0 = _overflowError
     | i >= 16 = 0
-    | True = x `unsafeShiftL` i
+    | otherwise = x `unsafeShiftL` i
   unsafeShiftL = bini16 primWordShl
   x `shiftR` i
     | i < 0 = _overflowError
     | i >= 16 = 0
-    | True = x `unsafeShiftR` i
+    | otherwise = x `unsafeShiftR` i
   unsafeShiftR = bini16 primWordShr
   bitSizeMaybe _ = Just 16
   bitSize _ = 16
@@ -336,8 +375,8 @@ instance Integral Word32 where
   toInteger = _wordToInteger . unW32
 
 instance Bounded Word32 where
-  minBound = W32 0
-  maxBound = W32 0xffffffff
+  minBound = w32 0
+  maxBound = w32 0xffffffff
 
 instance Real Word32 where
   toRational = _integerToRational . _wordToInteger . unW32
@@ -351,14 +390,16 @@ instance Read Word32 where
 -}
 
 instance Enum Word32 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Word32.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Word32.pred: underflow" else x - 1
   toEnum = w32 . primIntToWord
   fromEnum = primWordToInt . unW32
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Word)
+  enumFromThenTo = coerce (enumFromThenTo @Word)
 
 instance Eq Word32 where
   (==) = cmp32 primWordEQ
@@ -379,12 +420,12 @@ instance Bits Word32 where
   x `shiftL` i
     | i < 0 = _overflowError
     | i >= 32 = 0
-    | True = x `unsafeShiftL` i
+    | otherwise = x `unsafeShiftL` i
   unsafeShiftL = bini32 primWordShl
   x `shiftR` i
     | i < 0 = _overflowError
     | i >= 32 = 0
-    | True = x `unsafeShiftR` i
+    | otherwise = x `unsafeShiftR` i
   unsafeShiftR = bini32 primWordShr
   bitSizeMaybe _ = Just 32
   bitSize _ = 32
@@ -434,8 +475,8 @@ instance Integral Word64 where
   toInteger = _wordToInteger . unW64
 
 instance Bounded Word64 where
-  minBound = W64 0
-  maxBound = W64 0xffffffffffffffff
+  minBound = w64 0
+  maxBound = w64 0xffffffffffffffff
 
 instance Real Word64 where
   toRational = _integerToRational . _wordToInteger . unW64
@@ -449,14 +490,16 @@ instance Read Word64 where
 -}
 
 instance Enum Word64 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Word64.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Word64.pred: underflow" else x - 1
   toEnum = w64 . primIntToWord
   fromEnum = primWordToInt . unW64
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Word)
+  enumFromThenTo = coerce (enumFromThenTo @Word)
 
 instance Eq Word64 where
   (==) = cmp64 primWordEQ
@@ -477,12 +520,12 @@ instance Bits Word64 where
   x `shiftL` i
     | i < 0 = _overflowError
     | i >= 64 = 0
-    | True = x `unsafeShiftL` i
+    | otherwise = x `unsafeShiftL` i
   unsafeShiftL = bini64 primWordShl
   x `shiftR` i
     | i < 0 = _overflowError
     | i >= 64 = 0
-    | True = x `unsafeShiftR` i
+    | otherwise = x `unsafeShiftR` i
   unsafeShiftR = bini64 primWordShr
   bitSizeMaybe _ = Just 64
   bitSize _ = 64

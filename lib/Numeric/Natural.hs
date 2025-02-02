@@ -3,6 +3,7 @@ module Numeric.Natural
   , minusNaturalMaybe
   ) where
 import Prelude(); import MiniPrelude
+import Data.Coerce
 import Data.Integer
 import Data.Real
 import Control.Exception
@@ -16,6 +17,7 @@ instance Show Natural where
 instance Num Natural where
   N x + N y = N (x + y)
   N x - N y | y > x = throw Underflow
+            | otherwise = N (x - y)
   N x * N y = N (x * y)
   abs x = x
   signum x = if x > 0 then 1 else 0
@@ -23,8 +25,16 @@ instance Num Natural where
                 | otherwise = N x
 
 instance Enum Natural where
+  succ n = n + 1
+  pred n = n - 1
   toEnum   = fromInteger . toInteger
   fromEnum = fromInteger . toInteger
+  enumFrom = coerce (enumFrom @Integer)
+  enumFromThen x1 x2
+    | x2 >= x1 = coerce (enumFromThen @Integer) x1 x2
+    | otherwise = enumFromThenTo x1 x2 0
+  enumFromTo = coerce (enumFromTo @Integer)
+  enumFromThenTo = coerce (enumFromThenTo @Integer)
 
 instance Integral Natural where
   toInteger (N i) = i

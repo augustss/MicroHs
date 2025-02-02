@@ -3,8 +3,9 @@ import Prelude()
 import Primitives
 import Control.Error
 import Data.Bits
-import Data.Bool_Type
+import Data.Bool
 import Data.Bounded
+import Data.Coerce
 import Data.Enum
 import Data.Eq
 import Data.Function
@@ -54,8 +55,8 @@ instance Integral Int8 where
   toInteger = _intToInteger . unI8
 
 instance Bounded Int8 where
-  minBound = I8 0x80
-  maxBound = I8 0x7f
+  minBound = i8 0x80
+  maxBound = i8 0x7f
 
 instance Real Int8 where
   toRational = _integerToRational . _intToInteger . unI8
@@ -69,14 +70,16 @@ instance Read Int8 where
 -}
 
 instance Enum Int8 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int8.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int8.pred: underflow" else x - 1
   toEnum = i8
   fromEnum = unI8
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int8 where
   (==) = cmp8 primIntEQ
@@ -150,8 +153,8 @@ instance Integral Int16 where
   toInteger = _intToInteger . unI16
 
 instance Bounded Int16 where
-  minBound = I16 0x8000
-  maxBound = I16 0x7fff
+  minBound = i16 0x8000
+  maxBound = i16 0x7fff
 
 instance Real Int16 where
   toRational = _integerToRational . _intToInteger . unI16
@@ -165,14 +168,16 @@ instance Read Int16 where
 -}
 
 instance Enum Int16 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int16.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int16.pred: underflow" else x - 1
   toEnum = i16
   fromEnum = unI16
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int16 where
   (==) = cmp16 primIntEQ
@@ -246,8 +251,8 @@ instance Integral Int32 where
   toInteger = _intToInteger . unI32
 
 instance Bounded Int32 where
-  minBound = I32 0x80000000
-  maxBound = I32 0x7fffffff
+  minBound = i32 0x80000000
+  maxBound = i32 0x7fffffff
 
 instance Real Int32 where
   toRational = _integerToRational . _intToInteger . unI32
@@ -261,14 +266,16 @@ instance Read Int32 where
 -}
 
 instance Enum Int32 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int32.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int32.pred: underflow" else x - 1
   toEnum = i32
   fromEnum = unI32
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int32 where
   (==) = cmp32 primIntEQ
@@ -341,8 +348,8 @@ instance Integral Int64 where
   toInteger = _intToInteger . unI64
 
 instance Bounded Int64 where
-  minBound = I64 0x8000000000000000
-  maxBound = I64 0x7fffffffffffffff
+  minBound = i64 0x8000000000000000
+  maxBound = i64 0x7fffffffffffffff
 
 instance Real Int64 where
   toRational = _integerToRational . _intToInteger . unI64
@@ -356,14 +363,16 @@ instance Read Int64 where
 -}
 
 instance Enum Int64 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int64.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int64.pred: underflow" else x - 1
   toEnum = i64
   fromEnum = unI64
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int64 where
   (==) = cmp64 primIntEQ

@@ -22,7 +22,6 @@ import MicroHs.Builtin(builtinMdl)
 import MicroHs.Expr(Expr(..), EType, conIdent)
 import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent)
 import MicroHs.List
-import MicroHs.MRnf
 import qualified MicroHs.IdentMap as M
 
 -- Symbol table
@@ -40,8 +39,8 @@ instance Show Entry where
 instance Eq Entry where
   Entry x _ == Entry y _  =  getIdent x == getIdent y
 
-instance MRnf Entry where
-  mrnf (Entry a b) = mrnf a `seq` mrnf b
+instance NFData Entry where
+  rnf (Entry a b) = rnf a `seq` rnf b
 
 getIdent :: Expr -> Ident
 getIdent ae =

@@ -1,5 +1,6 @@
 module MHSPrelude(
   module Control.Applicative,
+  module Control.DeepSeq.Class,
   module Control.Error,
   module Control.Monad,
   module Control.Monad.Fail,
@@ -29,13 +30,15 @@ module MHSPrelude(
   module System.IO,
   module Text.Show,
   usingMhs, _wordSize, _isWindows,
-  rnfNoErr, rnfErr, NFData, appendDot,
+  appendDot,
   wantGMP,
+  compiledWithMhs,
   ) where
 import Prelude()
 --import Primitives(primRnfNoErr, primRnfErr)
 import Control.Applicative(Applicative(..))
 import Control.Error(error, undefined)
+import Control.DeepSeq.Class
 import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
 import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)
@@ -82,15 +85,6 @@ usingMhs = True
 
 -------
 
--- Define these here to avoid dragging in Control.DeepSeq
-rnfNoErr :: forall a . a -> ()
-rnfNoErr = _primitive "rnf" (1::Int)
-
-rnfErr :: forall a . a -> ()
-rnfErr = _primitive "rnf" (0::Int)
-
-class NFData a
-
 appendDot :: Text -> Text -> Text
 appendDot x y =
   _primitive "bs++." x y
@@ -101,3 +95,9 @@ foreign import capi "want_gmp" want_gmp :: Int
 
 wantGMP :: Bool
 wantGMP = want_gmp /= 0
+
+compiledWithMhs :: Bool
+compiledWithMhs = True
+
+instance NFData (a -> b) where
+  rnf f = seq f ()

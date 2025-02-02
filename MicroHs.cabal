@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.11.4.1
+version:             0.11.4.3
                      -- *** When changing the version number, also
                      -- *** run 'sh updateversion.sh'
                      -- *** Yeah, it stinks.
@@ -77,12 +77,10 @@ executable mhs
                        MicroHs.IdentMap
                        MicroHs.IntMap
                        MicroHs.IntSet
-                       MicroHs.Instances
                        MicroHs.Interactive
                        MicroHs.Lex
                        MicroHs.List
                        MicroHs.MakeCArray
-                       MicroHs.MRnf
                        MicroHs.Package
                        MicroHs.Parse
                        MicroHs.State

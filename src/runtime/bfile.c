@@ -5,7 +5,7 @@
  * There are two kinds: endpoints (source/sink) and transducers.
  * The streams are typically bytes.
  *
- *  FILE   source/sink for stdio FILE handles, handles
+ *  FILE   source/sink for stdio FILE handles
  *  buf    source/sink where the read/write uses a memory buffer.
  *
  *  lz77   transducer for LZ77 compression
@@ -70,6 +70,7 @@ typedef struct BFILE {
   void (*putb)(int, struct BFILE*);
   void (*flushb)(struct BFILE*);
   void (*closeb)(struct BFILE*);
+  size_t (*writeb)(void *, size_t, struct BFILE*); /* optional block write */
 } BFILE;
 
 static INLINE int
@@ -122,6 +123,23 @@ readb(void *abuf, size_t size, BFILE *p)
     buf[s] = c;
   }
   return s;
+}
+
+size_t
+writeb(void *abuf, size_t size, BFILE *p)
+{
+  if (p->writeb) {
+    /* If there is a write method, use it. */
+    return p->writeb(abuf, size, p);
+  } else {
+    /* Otherwise, do it byte by byte. */
+    uint8_t *buf = abuf;
+    size_t s;
+    for(s = 0; s < size; s++) {
+      putb(buf[s], p);
+    }
+    return s;
+  }
 }
 
 /* convert -n to a string, handles MINBOUND correctly */
@@ -238,6 +256,7 @@ openb_rd_buf(uint8_t *buf, size_t len)
   p->mets.putb = 0;
   p->mets.flushb = 0;
   p->mets.closeb = closeb_rd_buf;
+  p->mets.writeb = 0;
   p->b_size = len;
   p->b_pos = 0;
   p->b_buffer = buf;
@@ -255,6 +274,7 @@ openb_wr_buf(void)
   p->mets.putb = putb_buf;
   p->mets.flushb = flushb_buf;
   p->mets.closeb = closeb_wr_buf;
+  p->mets.writeb = 0;
   p->b_size = 1000;
   p->b_pos = 0;
   p->b_buffer = malloc(p->b_size);
@@ -335,6 +355,14 @@ freeb_file(BFILE *bp)
   FREE(p);
 }
 
+size_t
+writeb_file(void *buf, size_t size, BFILE *bp)
+{
+  struct BFILE_file *p = (struct BFILE_file *)bp;
+  CHECKBFILE(bp, getb_file);
+  return fwrite(buf, 1, size, p->file);
+}
+
 BFILE *
 add_FILE(FILE *f)
 {
@@ -346,6 +374,7 @@ add_FILE(FILE *f)
   p->mets.putb   = putb_file;
   p->mets.flushb = flushb_file;
   p->mets.closeb = closeb_file;
+  p->mets.writeb = writeb_file;
   p->file = f;
   return (BFILE*)p;
 }
@@ -440,6 +469,7 @@ add_lz77_decompressor(BFILE *file)
   p->mets.putb = 0;
   p->mets.flushb = 0;
   p->mets.closeb = closeb_lz77;
+  p->mets.writeb = 0;
   p->read = 1;
   p->bfile = file;
   p->numflush = 0;
@@ -474,6 +504,7 @@ add_lz77_compressor(BFILE *file)
   p->mets.putb = putb_lz77;
   p->mets.flushb = flushb_lz77;
   p->mets.closeb = closeb_lz77;
+  p->mets.writeb = 0;
   p->read = 0;
   p->bfile = file;
   p->numflush = 0;
@@ -638,6 +669,7 @@ add_rle_decompressor(BFILE *file)
   p->mets.putb = 0;
   p->mets.flushb = 0;
   p->mets.closeb = closeb_rle;
+  p->mets.writeb = 0;
   p->count = 0;
   p->unget = -1;
   p->bfile = file;
@@ -658,6 +690,7 @@ add_rle_compressor(BFILE *file)
   p->mets.putb = putb_rle;
   p->mets.flushb = flushb_rle;
   p->mets.closeb = closeb_rle;
+  p->mets.writeb = 0;
   p->count = 0;
   p->byte = -1;
   p->bfile = file;
@@ -855,6 +888,7 @@ add_bwt_decompressor(BFILE *file)
   p->mets.putb = 0;
   p->mets.flushb = 0;
   p->mets.closeb = closeb_bwt;
+  p->mets.writeb = 0;
   p->read = 1;
   p->bfile = file;
   p->numflush = 0;
@@ -891,6 +925,7 @@ add_bwt_compressor(BFILE *file)
   p->mets.putb = putb_bwt;
   p->mets.flushb = flushb_bwt;
   p->mets.closeb = closeb_bwt;
+  p->mets.writeb = 0;
   p->read = 0;
   p->bfile = file;
   p->numflush = 0;
@@ -1019,6 +1054,7 @@ add_utf8(BFILE *file)
   p->mets.putb = putb_utf8;
   p->mets.flushb = flushb_utf8;
   p->mets.closeb = closeb_utf8;
+  p->mets.writeb = 0;
   p->bfile = file;
   p->unget = -1;
 
