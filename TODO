@@ -13,11 +13,7 @@
 * mkQIdent
 * Get rid of evalstring()
   - do everything in Haskell
-  - make a low level primError that takes a utf8 string
 * Better pretty print of Expr
-* Allow top level pattern bindings
-  - Merge EBind and EDef
-* Implement pattern synonyms
 * Implement qualified constraints
 * Use capi, add value and field modifiers
 * Ad hoc fix for f.g: check if g is a field
@@ -26,7 +22,6 @@
 * Use finalizers for alloca?
 * Better naming of internal identifiers
 * Add mask&co to exceptions
-* Add reductions for underapplied K2,K3,K4
 * Make a Unicode version of Data.Char
   - make tables using the Haskell tools
   - read tables lazily when outside ASCII range
@@ -34,7 +29,5 @@
 Bugs:
 * Check for escaping skolemized variables
 * Type checking Data.Data
-* let...in... doesn't parse correctly in a do
 * let needs {} in a do with {}
 * export list in -boot doesn't work
-* Fundep bug mtl:Control/Monad/RWS/Class.hs

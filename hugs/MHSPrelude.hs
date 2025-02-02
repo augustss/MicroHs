@@ -4,6 +4,7 @@ module MHSPrelude(
   module Prelude,
   module MHSPrelude,
 --  module Control.Monad.Fail,
+  module Control.DeepSeq
   module Data.Monoid,
   module Data.Semigroup,
   (<$>), Applicative(..), (*>),
@@ -12,6 +13,7 @@ import Hugs.Prelude()
 import Prelude hiding(fail)
 import qualified Prelude
 import Control.Applicative
+import Control.DeepSeq
 import Control.Exception(Exception, try)
 --import Control.Monad.Fail
 import Data.List
@@ -170,3 +172,6 @@ appendDot x y = x `append` pack "." `append` y
 
 wantGMP :: Bool
 wantGMP = False
+
+compiledWithMhs :: Bool
+compiledWithMhs = False

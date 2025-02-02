@@ -14,7 +14,6 @@ import MicroHs.Expr
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
-import MicroHs.MRnf
 import MicroHs.State
 import MicroHs.SymTab
 import Debug.Trace
@@ -51,8 +50,8 @@ data TypeExport = TypeExport
 
 --instance Show TypeExport where show (TypeExport i _ vs) = showIdent i ++ show vs
 
-instance MRnf TypeExport where
-  mrnf (TypeExport a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+instance NFData TypeExport where
+  rnf (TypeExport a b c) = rnf a `seq` rnf b `seq` rnf c
 
 data ValueExport = ValueExport
   Ident           -- unqualified name
@@ -61,8 +60,8 @@ data ValueExport = ValueExport
 
 --instance Show ValueExport where show (ValueExport i _) = showIdent i
 
-instance MRnf ValueExport where
-  mrnf (ValueExport a b) = mrnf a `seq` mrnf b
+instance NFData ValueExport where
+  rnf (ValueExport a b) = rnf a `seq` rnf b
 
 -----------------------------------------------
 -- Tables
@@ -97,8 +96,8 @@ data InstInfo = InstInfo
        [IFunDep]
 --  deriving (Show)
 
-instance MRnf InstInfo where
-  mrnf (InstInfo a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+instance NFData InstInfo where
+  rnf (InstInfo a b c) = rnf a `seq` rnf b `seq` rnf c
 
 -- This is the dictionary expression, instance variables, instance context,
 -- and instance.
@@ -114,8 +113,8 @@ type TypeEqTable = [(Ident, EType)]
 data ClassInfo = ClassInfo [IdKind] [EConstraint] EKind [Ident] [IFunDep]  -- class tyvars, superclasses, class kind, methods, fundeps
 type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables
 
-instance MRnf ClassInfo where
-  mrnf (ClassInfo a b c d e) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e
+instance NFData ClassInfo where
+  rnf (ClassInfo a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
 
 -----------------------------------------------
 -- TCState

@@ -15,7 +15,6 @@ import Data.List
 import MicroHs.Ident
 import MicroHs.Expr(Lit(..), showLit)
 import MicroHs.List
-import MicroHs.MRnf
 import Text.PrettyPrint.HughesPJLite
 import Debug.Trace
 
@@ -28,11 +27,11 @@ data Exp
   | Lit Lit
   deriving (Eq)
 
-instance MRnf Exp where
-  mrnf (Var a) = mrnf a
-  mrnf (App a b) = mrnf a `seq` mrnf b
-  mrnf (Lam a b) = mrnf a `seq` mrnf b
-  mrnf (Lit a) = mrnf a
+instance NFData Exp where
+  rnf (Var a) = rnf a
+  rnf (App a b) = rnf a `seq` rnf b
+  rnf (Lam a b) = rnf a `seq` rnf b
+  rnf (Lit a) = rnf a
 
 app2 :: Exp -> Exp -> Exp -> Exp
 app2 f a1 a2 = App (App f a1) a2

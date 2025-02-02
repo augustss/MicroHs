@@ -4,10 +4,14 @@ module Data.Version(
   makeVersion
   ) where
 import Prelude(); import MiniPrelude
+import Control.DeepSeq.Class
 import Data.List(intercalate)
 
-data Version = Version { versionBranch :: [Int] }
+newtype Version = Version { versionBranch :: [Int] }
   deriving (Show, Eq, Ord)
+
+instance NFData Version where
+  rnf (Version x) = rnf x
 
 showVersion :: Version -> String
 showVersion (Version b) = intercalate "." (map show b)

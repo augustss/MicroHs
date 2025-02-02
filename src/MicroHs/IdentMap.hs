@@ -19,7 +19,6 @@ module MicroHs.IdentMap(
   ) where
 import Prelude(); import MHSPrelude hiding(lookup, mapM, null)
 import MicroHs.Ident
-import MicroHs.MRnf
 
 data Map a
   = Nil           -- empty tree
@@ -37,10 +36,10 @@ instance Show a => Show (Map a) where
   show m = show (toList m)
 -}
 
-instance MRnf a => MRnf (Map a) where
-  mrnf Nil = ()
-  mrnf (One a b) = mrnf a `seq` mrnf b
-  mrnf (Node a b c d e) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e
+instance NFData a => NFData (Map a) where
+  rnf Nil = ()
+  rnf (One a b) = rnf a `seq` rnf b
+  rnf (Node a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
 
 empty :: forall a . Map a
 empty = Nil

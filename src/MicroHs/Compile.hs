@@ -36,13 +36,11 @@ import MicroHs.Flags
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.List
-import MicroHs.MRnf
 import MicroHs.Package
 import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.SymTab
 import MicroHs.TypeCheck
-import MicroHs.Instances() -- for ghc
 import Paths_MicroHs(version, getDataDir)
 
 mhsVersion :: String
@@ -62,7 +60,7 @@ type CM a = StateIO Cache a
 compileCacheTop :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [(Ident, Exp)]), Symbols, Cache)
 compileCacheTop flags mn ch = do
   res@((_, ds), _, _) <- compile flags mn ch
-  when (verbosityGT flags 4) $
+  dumpIf flags Dcombinator $
     putStrLn $ "combinators:\n" ++ showLDefs ds
   return res
 
@@ -183,7 +181,7 @@ compileModule flags impt mn pathfn file = do
   when (verbosityGT flags 4) $
     liftIO $ putStrLn $ "parsing: " ++ pathfn
   let pmdl = parseDie pTop pathfn file
-  when (verbosityGT flags 4) $
+  dumpIf flags Dparse $
     liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
   let mdl@(EModule mnn _ defs) = addPreludeImport pmdl
   
@@ -203,18 +201,18 @@ compileModule flags impt mn pathfn file = do
   let
     (tmdl, glob', syms) = typeCheck glob impt (zip specs impMdls) mdl
   modify $ setCacheTables glob'
-  when (verbosityGT flags 3) $
+  dumpIf flags Dtypecheck $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
   () <- when False $ do               -- Always forcing is slower.  Maybe add a flag?
-          mrnf tmdl `seq` return ()
+          rnf tmdl `seq` return ()
   let
     dmdl = desugar flags tmdl
-  () <- return $ rnfErr $ tBindingsOf dmdl
+  () <- return $ rnf $ tBindingsOf dmdl
   t4 <- liftIO getTimeMilli
 
   let
     cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- tBindingsOf dmdl ]
-  () <- return $ rnfErr $ tBindingsOf cmdl  -- This makes execution slower, but speeds up GC
+  () <- return $ rnf $ tBindingsOf cmdl  -- This makes execution slower, but speeds up GC
 --  () <- return $ rnfErr syms same for this, but worse total time
   t5 <- liftIO getTimeMilli
 
@@ -224,7 +222,7 @@ compileModule flags impt mn pathfn file = do
       tThis = tParse + tTCDesug + tAbstract
       tImp = sum tImps
 
-  when (verbosityGT flags 4) $
+  dumpIf flags Ddesugar $
     (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
   when (verbosityGT flags 0) $
     putStrLnInd $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++

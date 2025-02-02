@@ -85,6 +85,7 @@ test:
 	$(TMHS) NumUnder   && $(EVAL) > NumUnder.out   && diff NumUnder.ref NumUnder.out
 	$(TMHS) LocalFix   && $(EVAL) > LocalFix.out   && diff LocalFix.ref LocalFix.out
 	$(TMHS) TypeApp    && $(EVAL) > TypeApp.out    && diff TypeApp.ref TypeApp.out
+	$(TMHS) Do         && $(EVAL) > Do.out         && diff Do.ref Do.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

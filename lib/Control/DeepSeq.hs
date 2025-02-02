@@ -5,12 +5,10 @@ module Control.DeepSeq (
   ($!!),
   (<$!!>),
   rwhnf,
-  rnfNoErr,
-  rnfErr,
 ) where
 import Prelude()
-import Primitives(primRnfErr, primRnfNoErr)
 import Control.Applicative
+import Control.DeepSeq.Class
 import Control.Monad
 import Data.Bool
 import Data.Char
@@ -32,46 +30,14 @@ import Data.Real
 import Data.Tuple
 import Data.Word
 
-rnfNoErr :: forall a . a -> ()
-rnfNoErr = primRnfNoErr
-
-rnfErr :: forall a . a -> ()
-rnfErr = primRnfErr
-
-infixr 0 $!!
-
-infixr 0 `deepseq`
-
-deepseq :: NFData a => a -> b -> b
-deepseq a b = rnf a `seq` b
-
-($!!) :: (NFData a) => (a -> b) -> a -> b
-f $!! x = x `deepseq` f x
-
-force :: (NFData a) => a -> a
-force x = x `deepseq` x
+infixl 4 <$!!>
 
 (<$!!>) :: (Monad m, NFData b) => (a -> b) -> m a -> m b
 f <$!!> m = m >>= \x -> pure $!! f x
 
-infixl 4 <$!!>
-
 rwhnf :: a -> ()
-rwhnf = (`seq` ())
+rwhnf a = a `seq` ()
 
-class NFData a where
-  rnf :: a -> ()
-  rnf = primRnfErr
-
-instance NFData Int
-instance NFData Word
-instance NFData Integer
-instance NFData Float
-instance NFData Double
-instance NFData Char
-instance NFData Bool
-instance NFData Ordering
-instance NFData ()
 instance NFData Int8
 instance NFData Int16
 instance NFData Int32
@@ -87,19 +53,13 @@ instance NFData1 Proxy where liftRnf _ Proxy = ()
 instance NFData a => NFData (Ratio a) where
   rnf x = rnf (numerator x, denominator x)
 
-instance NFData a => NFData (Maybe a) where
-  rnf = rnf1
 instance NFData1 Maybe where
   liftRnf _ Nothing = ()
   liftRnf rnfa (Just a) = rnfa a
 
-instance NFData a => NFData [a] where
-  rnf = rnf1
 instance NFData1 [] where
   liftRnf rnfa = foldr (\ x r -> rnfa x `seq` r) ()
 
-instance (NFData a, NFData b) => NFData (Either a b) where
-  rnf = rnf2
 instance NFData2 Either where
   liftRnf2 rnfa _ (Left  a) = rnfa a
   liftRnf2 _ rnfb (Right b) = rnfb b
@@ -517,24 +477,16 @@ instance NFData ExitCode where
 instance NFData a => NFData (Solo a) where
   rnf (MkSolo a) = rnf a
 
-instance (NFData a, NFData b) => NFData (a, b) where rnf (a, b) = rnf a `seq` rnf b
-
-instance
-  (NFData a1, NFData a2, NFData a3) =>
-  NFData (a1, a2, a3)
-  where
+instance (NFData a1, NFData a2, NFData a3) =>
+         NFData (a1, a2, a3) where
   rnf (a1, a2, a3) = rnf a1 `seq` rnf a2 `seq` rnf a3
 
-instance
-  (NFData a1, NFData a2, NFData a3, NFData a4) =>
-  NFData (a1, a2, a3, a4)
-  where
+instance (NFData a1, NFData a2, NFData a3, NFData a4) =>
+         NFData (a1, a2, a3, a4) where
   rnf (a1, a2, a3, a4) = rnf a1 `seq` rnf a2 `seq` rnf a3 `seq` rnf a4
 
-instance
-  (NFData a1, NFData a2, NFData a3, NFData a4, NFData a5) =>
-  NFData (a1, a2, a3, a4, a5)
-  where
+instance (NFData a1, NFData a2, NFData a3, NFData a4, NFData a5) =>
+         NFData (a1, a2, a3, a4, a5) where
   rnf (a1, a2, a3, a4, a5) = rnf a1 `seq` rnf a2 `seq` rnf a3 `seq` rnf a4 `seq` rnf a5
 
 ----------------------------------------------------------------------------

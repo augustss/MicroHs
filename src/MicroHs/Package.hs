@@ -7,7 +7,6 @@ import Prelude(); import MHSPrelude
 import Data.Version
 import MicroHs.Desugar(LDef)
 import MicroHs.Ident(Ident)
-import MicroHs.MRnf
 import MicroHs.TypeCheck(TModule, GlobTables)
 
 --
@@ -38,10 +37,9 @@ data Package = Package {
   }
   -- deriving (Show)
 
-instance MRnf Package where
-  mrnf (Package a b c d e f g) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e `seq` mrnf f `seq` mrnf g
+instance NFData Package where
+  rnf (Package a b c d e f g) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f `seq` rnf g
 
 -- Fully evaluate a package
 forcePackage :: Package -> Package
-forcePackage p = mrnf p `seq` p
-
+forcePackage p = force p
