@@ -145,7 +145,6 @@ primTable = [
   ("A.==", _primitive "A.=="),
   ("bs++", _primitive "bs++"),
   ("bs++.", _primitive "bs++."),
-  ("bs+++", _primitive "bs+++"),
   ("bs==", _primitive "bs=="),
   ("bs/=", _primitive "bs/="),
   ("bs<", _primitive "bs<"),

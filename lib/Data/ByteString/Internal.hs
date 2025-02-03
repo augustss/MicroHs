@@ -1,13 +1,12 @@
 module Data.ByteString.Internal(module Data.ByteString.Internal) where
 import Prelude(); import MiniPrelude hiding(length)
+import Control.DeepSeq.Class
 import Data.Word(Word8)
 
 data ByteString  -- primitive type
 
 primBSappend  :: ByteString -> ByteString -> ByteString
 primBSappend  = _primitive "bs++"
-primBSappend3 :: ByteString -> ByteString -> ByteString -> ByteString
-primBSappend3 = _primitive "bs+++"
 primBSEQ      :: ByteString -> ByteString -> Bool
 primBSEQ      = _primitive "bs=="
 primBSNE      :: ByteString -> ByteString -> Bool
@@ -34,6 +33,8 @@ primBSindex   :: ByteString -> Int -> Word8
 primBSindex   = _primitive "bsindex"
 
 -----------------------------------------
+
+instance NFData ByteString
 
 instance Eq ByteString where
   (==) = primBSEQ
