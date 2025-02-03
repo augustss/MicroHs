@@ -18,7 +18,7 @@ import Debug.Trace
 --   constructor names in the derived type unqualified
 --   all other names should be qualified with B@
 
-type DeriverT = LHS -> [Constr] -> EConstraint -> T [EDef]
+type DeriverT = Bool -> LHS -> [Constr] -> EConstraint -> T [EDef]   -- Bool indicates a newtype
 type Deriver = Maybe EConstraint -> DeriverT
 
 derivers :: [(String, Deriver)]
@@ -40,17 +40,18 @@ deriveHdr :: DeriverT
 deriveHdr = deriveNoHdr' Nothing
 
 deriveNoHdr :: EConstraint -> DeriverT
-deriveNoHdr ctx = deriveNoHdr' (Just ctx)
+deriveNoHdr ctx newt = deriveNoHdr' (Just ctx) newt
 
 deriveNoHdr' :: Maybe EConstraint -> DeriverT
-deriveNoHdr' mctx lhs cs d = do
+deriveNoHdr' mctx newt lhs cs d = do
   let c = getAppCon d
   case lookup (unIdent c) derivers of
-    Nothing -> tcError (getSLoc c) $ "Cannot derive " ++ show c
-    Just f  -> f mctx lhs cs d
+    Just f        -> f mctx newt lhs cs d
+    _ | newt      -> newtypeDer mctx lhs (cs!!0) d
+      | otherwise -> tcError (getSLoc c) $ "Cannot derive " ++ show c
 
 derNotYet :: Deriver
-derNotYet _ _ _ d = do
+derNotYet _ _ _ _ d = do
   notYet d
   return []
 
@@ -60,7 +61,7 @@ notYet d =
 
 -- We will never have Template Haskell, but we pretend we can derive Lift for it.
 derLift :: Deriver
-derLift _ _ _ _ = return []
+derLift _ _ _ _ _ = return []
 
 --------------------------------------------
 
@@ -114,8 +115,8 @@ genHasField (tycon, iks) cs (fld, fldty) = do
   pure $ [ Sign [getName] $ eForall iks $ lhsToType (qtycon, iks) `tArrow` fldty
          , Fcn getName $ map conEqnGet cs ]
     ++ if not (validType fldty) then [] else
-         [ Instance hdrGet [Fcn igetField [eEqn [eDummy] $ EVar getName] ]
-         , Instance hdrSet [Fcn isetField $ map conEqnSet cs]
+         [ instanceBody hdrGet [Fcn igetField [eEqn [eDummy] $ EVar getName] ]
+         , instanceBody hdrSet [Fcn isetField $ map conEqnSet cs]
          ]
 
 nameHasField :: String
@@ -136,7 +137,7 @@ mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld
 --------------------------------------------
 
 derTypeable :: Deriver
-derTypeable _ (i, _) _ etyp = do
+derTypeable _ _ (i, _) _ etyp = do
   mn <- gets moduleName
   let
     loc = getSLoc i
@@ -147,7 +148,7 @@ derTypeable _ (i, _) _ etyp = do
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
     eqns = eEqns [eDummy] $ eAppI2 imkTyConApp (eAppI2 imkTyCon mdl nam) (EListish (LList []))
-    inst = Instance hdr [Fcn itypeRep eqns]
+    inst = instanceBody hdr [Fcn itypeRep eqns]
   return [inst]
 
 --------------------------------------------
@@ -166,13 +167,17 @@ decomp t =
 -- The default strategy basically extracts all subtypes with variables.
 mkHdr :: Maybe EConstraint -> LHS -> [Constr] -> EConstraint -> T EConstraint
 mkHdr (Just ctx) _ _ _ = return ctx
-mkHdr _ (t, iks) cs cls = do
-  mn <- gets moduleName
+mkHdr _ lhs@(_, iks) cs cls = do
+  ty <- mkLhsTy lhs
   let ctys :: [EType]  -- All top level types used by the constructors.
       ctys = nubBy eqEType [ tt | Constr evs _ _ flds <- cs, ft <- getFieldTys flds, tt <- decomp ft,
                             not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
-      ty = tApps (qualIdent mn t) $ map tVarK iks
   pure $ eForall iks $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
+
+mkLhsTy :: LHS -> T EType
+mkLhsTy (t, iks) = do
+  mn <- gets moduleName
+  return $ tApps (qualIdent mn t) $ map tVarK iks
 
 mkPat :: Constr -> String -> (EPat, [Expr])
 mkPat (Constr _ _ c flds) s =
@@ -187,7 +192,8 @@ cannotDerive cls ty e = tcError (getSLoc e) $ "Cannot derive " ++ cls ++ " " ++ 
 --------------------------------------------
 
 derEq :: Deriver
-derEq mctx lhs cs@(_:_) eeq = do
+derEq mctx True lhs (c:_) eeq = newtypeDer mctx lhs c eeq
+derEq mctx _newt lhs cs@(_:_) eeq = do
   hdr <- mkHdr mctx lhs cs eeq
   let loc = getSLoc eeq
       mkEqn c =
@@ -200,15 +206,15 @@ derEq mctx lhs cs@(_:_) eeq = do
       eAnd = EApp . EApp (EVar $ mkBuiltin loc "&&")
       eTrue = EVar $ mkBuiltin loc "True"
       eFalse = EVar $ mkBuiltin loc "False"
-      inst = Instance hdr [Fcn iEq eqns]
+      inst = instanceBody hdr [Fcn iEq eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
-derEq _ (c, _) _ e = cannotDerive "Eq" c e
+derEq _ _ (c, _) _ e = cannotDerive "Eq" c e
 
 --------------------------------------------
 
 derOrd :: Deriver
-derOrd mctx lhs cs@(_:_) eord = do
+derOrd mctx _newt lhs cs@(_:_) eord = do
   hdr <- mkHdr mctx lhs cs eord
   let loc = getSLoc eord
       mkEqn c =
@@ -224,15 +230,15 @@ derOrd mctx lhs cs@(_:_) eord = do
       eEQ = EVar $ mkBuiltin loc "EQ"
       eLT = EVar $ mkBuiltin loc "LT"
       eGT = EVar $ mkBuiltin loc "GT"
-      inst = Instance hdr [Fcn iCompare eqns]
+      inst = instanceBody hdr [Fcn iCompare eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
-derOrd _ (c, _) _ e = cannotDerive "Ord" c e
+derOrd _ _ (c, _) _ e = cannotDerive "Ord" c e
 
 --------------------------------------------
 
 derBounded :: Deriver
-derBounded mctx lhs cs@(c0:_) ebnd = do
+derBounded mctx _newt lhs cs@(c0:_) ebnd = do
   hdr <- mkHdr mctx lhs cs ebnd
   let loc = getSLoc ebnd
       mkEqn bnd (Constr _ _ c flds) =
@@ -243,15 +249,15 @@ derBounded mctx lhs cs@(c0:_) ebnd = do
       iMaxBound = mkIdentSLoc loc "maxBound"
       minEqn = mkEqn iMinBound c0
       maxEqn = mkEqn iMaxBound (last cs)
-      inst = Instance hdr [Fcn iMinBound [minEqn], Fcn iMaxBound [maxEqn]]
+      inst = instanceBody hdr [Fcn iMinBound [minEqn], Fcn iMaxBound [maxEqn]]
   -- traceM $ showEDefs [inst]
   return [inst]
-derBounded _ (c, _) _ e = cannotDerive "Bounded" c e
+derBounded _ _ (c, _) _ e = cannotDerive "Bounded" c e
 
 --------------------------------------------
 
 derEnum :: Deriver
-derEnum mctx lhs cs@(c0:_) enm | all isNullary cs = do
+derEnum mctx _newt lhs cs@(c0:_) enm | all isNullary cs = do
   hdr <- mkHdr mctx lhs cs enm
   let loc = getSLoc enm
 
@@ -280,10 +286,10 @@ derEnum mctx lhs cs@(c0:_) enm | all isNullary cs = do
           x1 = EVar (mkIdentSLoc loc "x1")
           x2 = EVar (mkIdentSLoc loc "x2")
         in eEqn [x1, x2] (EIf (eAppI2 (mkBuiltin loc ">=") (EApp (EVar iFromEnum) x2) (EApp (EVar iFromEnum) x1)) (eAppI3 iEnumFromThenTo x1 x2 eLastCon) (eAppI3 iEnumFromThenTo x1 x2 eFirstCon))
-      inst = Instance hdr [Fcn iFromEnum fromEqns, Fcn iToEnum toEqns, Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]]
+      inst = instanceBody hdr [Fcn iFromEnum fromEqns, Fcn iToEnum toEqns, Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]]
   --traceM $ showEDefs [inst]
   return [inst]
-derEnum _ (c, _) _ e = cannotDerive "Enum" c e
+derEnum _ _ (c, _) _ e = cannotDerive "Enum" c e
 
 isNullary :: Constr -> Bool
 isNullary (Constr _ _ _ flds) = either null null flds
@@ -291,7 +297,7 @@ isNullary (Constr _ _ _ flds) = either null null flds
 --------------------------------------------
 
 derShow :: Deriver
-derShow mctx lhs cs@(_:_) eshow = do
+derShow mctx _ lhs cs@(_:_) eshow = do
   hdr <- mkHdr mctx lhs cs eshow
   let loc = getSLoc eshow
       mkEqn c@(Constr _ _ nm flds) =
@@ -322,10 +328,10 @@ derShow mctx lhs cs@(_:_) eshow = do
           where fld (f, x) = eShowString (unIdentPar f ++ "=") `ejoin` eShowsPrec 0 x
 
       eqns = map mkEqn cs
-      inst = Instance hdr [Fcn iShowsPrec eqns]
+      inst = instanceBody hdr [Fcn iShowsPrec eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
-derShow _ (c, _) _ e = cannotDerive "Show" c e
+derShow _ _ (c, _) _ e = cannotDerive "Show" c e
 
 unIdentPar :: Ident -> String
 unIdentPar i =
@@ -336,25 +342,35 @@ unIdentPar i =
 
 -- Deriving for the fake Data class.
 derData :: Deriver
-derData mctx lhs cs edata = do
+derData mctx _ lhs cs edata = do
   notYet edata
   hdr <- mkHdr mctx lhs cs edata
   let
-    inst = Instance hdr []
+    inst = instanceBody hdr []
   return [inst]
 
 --------------------------------------------
 
 derRead :: Deriver
-derRead mctx lhs cs eread = do
+derRead mctx _ lhs cs eread = do
   notYet eread
   hdr <- mkHdr mctx lhs cs eread
   let
     loc = getSLoc eread
     iReadPrec = mkIdentSLoc loc "readPrec"
     err = eEqn [] $ EApp (EVar $ mkBuiltin loc "error") (ELit loc (LStr "readPrec not defined"))
-    inst = Instance hdr [Fcn iReadPrec [err]]
+    inst = instanceBody hdr [Fcn iReadPrec [err]]
   return [inst]
 
 --------------------------------------------
 
+newtypeDer :: Maybe EConstraint -> LHS -> Constr -> EConstraint -> T [EDef]
+newtypeDer mctx lhs c cls = do
+  hdr <- mkHdr mctx lhs [c] cls
+  let cty =
+        case c of
+          Constr [] [] _ (Left [(False, t)]) -> t
+          Constr [] [] _ (Right [(_, (_, t))]) -> t
+          _ -> error "newtypeDer"
+--  traceM ("newtypeDer: " ++ show hdr)
+  return [Instance hdr $ InstanceVia (tApp cls cty) Nothing]

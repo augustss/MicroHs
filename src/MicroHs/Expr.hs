@@ -6,6 +6,7 @@ module MicroHs.Expr(
   ImportItem(..),
   ImpType(..),
   EDef(..), showEDefs,
+  InstanceBody(..), instanceBody,
   Expr(..), eLam, eLamWithSLoc, eEqn, eEqns, showExpr, eqExpr,
   Listish(..),
   Lit(..), showLit,
@@ -83,7 +84,7 @@ data EDef
   | ForImp (Maybe String) Ident EType
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
-  | Instance EConstraint [EBind]
+  | Instance EConstraint InstanceBody
   | Default (Maybe Ident) [EType]
   | Pattern LHS EPat (Maybe [Eqn])
   | Deriving EConstraint
@@ -107,6 +108,18 @@ instance NFData EDef where
   rnf (Pattern a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (Deriving a) = rnf a
   rnf (DfltSign a b) = rnf a `seq` rnf b
+
+data InstanceBody
+  = InstanceBody [EBind]
+  | InstanceVia EConstraint (Maybe EConstraint)
+--DEBUG  deriving (Show)
+
+instance NFData InstanceBody where
+  rnf (InstanceBody a) = rnf a
+  rnf (InstanceVia a b) = rnf a `seq` rnf b
+
+instanceBody :: EConstraint -> [EBind] -> EDef
+instanceBody ctx bs = Instance ctx (InstanceBody bs)
 
 data ImpType = ImpNormal | ImpBoot
   deriving (Eq)
@@ -771,7 +784,8 @@ ppEDef def =
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
-    Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
+    Instance ct (InstanceBody bs) -> ppWhere (text "instance" <+> ppEType ct) bs
+    Instance c (InstanceVia d m) -> text "instance" <+> ppEType c <+> text "from" <+> ppEType d <+> maybe empty (\ t -> text "via" <+> ppEType t) m
     Default mc ts -> text "default" <+> (maybe empty ppIdent mc) <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
     Deriving ct -> text "deriving instance" <+> ppEType ct
@@ -834,7 +848,7 @@ ppExprRaw :: Expr -> Doc
 ppExprRaw = ppExprR True
 
 ppExpr :: Expr -> Doc
-ppExpr = ppExprR False
+ppExpr = ppExprR True
 
 ppExprR :: Bool -> Expr -> Doc
 ppExprR raw = ppE
@@ -874,8 +888,8 @@ ppExprR raw = ppE
         ELazy False p -> text "!" <> ppE p
         EOr ps -> parens $ hsep (punctuate (text ";") (map ppE ps))
         EUVar i -> text ("_a" ++ show i)
-        EQVar e t -> parens $ ppE e <> text "::" <> ppE t
-        ECon c -> text "***" <> ppCon c
+        EQVar e t -> parens $ ppE e <> text ":::" <> ppE t
+        ECon c -> {-text "***" <>-} ppCon c
         EForall _ iks e -> parens $ ppForall iks <+> ppEType e
 
     ppApp :: [Expr] -> Expr -> Doc

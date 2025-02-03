@@ -25,6 +25,7 @@
 * Make a Unicode version of Data.Char
   - make tables using the Haskell tools
   - read tables lazily when outside ASCII range
+* Add EmptyDataDeriving
 
 Bugs:
 * Check for escaping skolemized variables

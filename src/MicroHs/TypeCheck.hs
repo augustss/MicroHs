@@ -1101,7 +1101,7 @@ tcDefType def = do
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> flip (,) kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
     Sign      is t         ->                                                  Sign      is   <$> tCheckTypeTImpl False kType t
     ForImp ie i t          ->                                                  ForImp ie i    <$> tCheckTypeTImpl False kType t
-    Instance ct m          ->                                                  Instance       <$> tCheckTypeTImpl True kConstraint ct <*> return m
+    Instance ct (InstanceBody m) ->                                            instanceBody   <$> tCheckTypeTImpl True kConstraint ct <*> return m
     Default mc ts          ->                                                  Default (Just c) <$> mapM (tcDefault c) ts
                                                                                  where c = fromMaybe num mc
     Deriving ct            ->                                                  Deriving       <$> tCheckTypeTImpl False kConstraint ct
@@ -1247,11 +1247,11 @@ splitInst act =
     _ -> ([], [], act)
 
 expandInst :: EDef -> T [EDef]
-expandInst dinst@(Instance act bs) = do
+expandInst dinst@(Instance act ib) = do
   (vks, ctx, cc) <- splitInst <$> expandSyn act
   let loc = getSLoc act
       qiCls = getAppCon cc
-  let iInst = mkInstId loc cc
+      iInst = mkInstId loc cc
       sign = Sign [iInst] act
 --  tcTrace ("expandInst " ++ show iInst)
 --  (e, _) <- tLookupV iCls
@@ -1261,22 +1261,53 @@ expandInst dinst@(Instance act bs) = do
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> return x
-  -- XXX this ignores type signatures and other bindings
-  -- XXX should tack on signatures with ESign
-  let clsMdl = qualOf qiCls                   -- get class's module name
-      ies = [(i, ELam noSLoc qs) | Fcn i qs <- bs]
-      meth i = fromMaybe (ELam noSLoc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
-      meths = map meth mis
-      sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
-      args = sups ++ meths
-      instBind (Fcn i _) = i `elem` mis
-      instBind _ = False
-  case filter (not . instBind) bs of
-    [] -> return ()
-    b:_ -> tcError (getSLoc b) $ "superflous instance binding"
-  let bind = Fcn iInst $ eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
+  -- Add a Coercible constraint.  The dictionary is a dummy and will never be used.
+  let canCoerce f t = do
+        d <- newDictIdent loc
+        addConstraint d (mkCoercible loc f t)
+  body <-
+    case ib of
+      InstanceBody bs -> do
+        -- XXX this ignores type signatures and other bindings
+        -- XXX should tack on signatures with ESign
+        let clsMdl = qualOf qiCls                   -- get class's module name
+            ies = [(i, ELam loc qs) | Fcn i qs <- bs]
+            meth i = fromMaybe (ELam loc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
+            meths = map meth mis
+            sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
+            args = sups ++ meths
+            instBind (Fcn i _) = i `elem` mis
+            instBind _ = False
+        case filter (not . instBind) bs of
+          [] -> return ()
+          b:_ -> tcError (getSLoc b) $ "superflous instance binding"
+        return $ eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
+
+      -- A newtype instance.  The 'old' is the type of the original type,
+      -- 'cc' is the type we want, and 'mvia' is the possible type providing
+      -- the instance (if Nothing it's 'old' that provides the instance).
+      -- XXX do some consistency checks?  Eta-convert?
+      InstanceVia old mvia -> do
+        -- The type 'from' will provide the instance.
+        from <-
+          case mvia of
+            Nothing -> return old
+            Just via -> do
+              -- Make sure we can coerce from 'old' to 'from'
+              canCoerce old via
+              return via
+        -- Make sure the coercion 'from' to 'cc' is OK.
+        -- (This is redundant for newtype-deriving, but safety first.)
+        canCoerce from cc
+        let coe = EQVar (EVar $ mkIdentSLoc loc "Data.Coerce.coerce") coety
+            coety = from `tArrow` cc
+        
+        return $ eEqns [] $ EApp coe (EVar $ mkIdentSLoc loc dictPrefixDollar)
+
+  let bind = Fcn iInst body
   addInstTable [(EVar iInst, vks, ctx, cc, fds)]
   return [dinst, sign, bind]
+
 expandInst d = return [d]
 
 ---------------------
@@ -3361,8 +3392,8 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
 -}
 
 doDeriving :: EDef -> T [EDef]
-doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (deriveHdr lhs  cs) ds
-doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (deriveHdr lhs [c]) ds
+doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (deriveHdr False lhs  cs) ds
+doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (deriveHdr True  lhs [c]) ds
 doDeriving def@(Deriving ct)       = (def:) <$> standaloneDeriving ct
 doDeriving def                     = return [def]
 
@@ -3378,10 +3409,10 @@ standaloneDeriving act = do
         Just (n, _) <- getAppM t -> return (tApps c (init ts), n)
       _ -> tcError (getSLoc act) "malformed standalone deriving"
 --  traceM ("standaloneDeriving 2 " ++ show (act, cls, tname))
-  (lhs, cs) <-
+  (lhs, newt, cs) <-
     case M.lookup tname dtable of
-      Just (Newtype l  c _) -> return (l, [c])
-      Just (Data    l xs _) -> return (l, xs)
+      Just (Newtype l  c _) -> return (l, True,  [c])
+      Just (Data    l xs _) -> return (l, False, xs)
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
-  deriveNoHdr act lhs cs cls
+  deriveNoHdr act newt lhs cs cls

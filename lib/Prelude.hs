@@ -1,4 +1,4 @@
--- Copyright 2023 Lennart Augustsson
+-- Copyright 2023, 2024, 2025 Lennart Augustsson
 -- See LICENSE file for full license.
 module Prelude(
   module Control.Applicative,

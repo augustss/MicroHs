@@ -51,6 +51,8 @@ Differences:
    * BinaryLiterals
    * ConstraintKinds
    * DefaultSignatures
+   * DerivingStrategies
+   * DerivingVia
    * DoAndIfThenElse
    * DuplicateRecordFields
    * EmptyCase
@@ -64,6 +66,7 @@ Differences:
    * FunctionalDependencies
    * GADTs
    * GADTsyntax
+   * GeneralizedNewtypeDeriving
    * ImportShadowing
    * ImportQualifiedPost
    * IncoherentInstances
