@@ -130,7 +130,7 @@ module Data.ByteString(
   useAsCStringLen,
 
   -- * I\/O with 'ByteString's
-  
+
   -- ** Standard input and output
   getLine,
   getContents,
@@ -201,7 +201,9 @@ snoc :: ByteString -> Word8 -> ByteString
 snoc bs c = append bs (pack [c])
 
 head :: ByteString -> Word8
-head = P.head . unpack
+head bs
+  | null bs = bsError "head: empty"
+  | otherwise = primBSindex bs 0
 
 tail :: ByteString -> ByteString
 tail bs | sz == 0 = bsError "tail: empty"
@@ -213,7 +215,9 @@ uncons bs | null bs = Nothing
           | otherwise = Just (head bs, tail bs)
 
 last :: ByteString -> Word8
-last = P.last . unpack
+last bs
+  | null bs = bsError "last: empty"
+  | otherwise = primBSindex bs (length bs - 1)
 
 init :: ByteString -> ByteString
 init bs | sz == 0 = bsError "init: empty"
@@ -397,10 +401,15 @@ intercalate :: ByteString -> [ByteString] -> ByteString
 intercalate s = pack . P.intercalate (unpack s) . P.map unpack
 
 index :: ByteString -> Int -> Word8
-index bs n = unpack bs !! n
+index bs i
+  | i < 0          = bsError "index: negative index"
+  | i >= length bs = bsError "index: index too large"
+  | otherwise      = primBSindex bs i
 
 indexMaybe :: ByteString -> Int -> Maybe Word8
-indexMaybe bs n = unpack bs P.!? n
+indexMaybe bs i
+  | i < 0 || i >= length bs = Nothing
+  | otherwise               = Just (primBSindex bs i)
 
 (!?) :: ByteString -> Int -> Maybe Word8
 (!?) = indexMaybe

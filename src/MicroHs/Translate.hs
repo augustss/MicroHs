@@ -157,6 +157,7 @@ primTable = [
   ("bsunpack", _primitive "bsunpack"),
   ("bslength", _primitive "bslength"),
   ("bssubstr", _primitive "bssubstr"),
+  ("bsindex", _primitive "bsindex"),
   ("fromUTF8", _primitive "fromUTF8"),
   ("toUTF8", _primitive "toUTF8"),
   ("headUTF8", _primitive "headUTF8"),

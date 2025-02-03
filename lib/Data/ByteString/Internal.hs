@@ -30,6 +30,8 @@ primBSlength  :: ByteString -> Int
 primBSlength  = _primitive "bslength"
 primBSsubstr  :: ByteString -> Int -> Int -> ByteString
 primBSsubstr  = _primitive "bssubstr"
+primBSindex   :: ByteString -> Int -> Word8
+primBSindex   = _primitive "bsindex"
 
 -----------------------------------------
 
@@ -73,8 +75,8 @@ append = primBSappend
 
 substr :: ByteString -> Int -> Int -> ByteString
 substr bs offs len
-  | offs < 0 || offs > sz     = bsError "substr bad offset"
-  | len < 0  || len > sz-offs = bsError "substr bad length"
+  | offs < 0 || offs > sz     = bsError "substr: bad offset"
+  | len < 0  || len > sz-offs = bsError "substr: bad length"
   | otherwise = primBSsubstr bs offs len
   where sz = length bs
 
