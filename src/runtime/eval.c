@@ -265,7 +265,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
-                T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
+                T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8,  T_BSTAILUTF8,
                 T_BSAPPENDDOT,
@@ -770,7 +770,6 @@ struct {
 
   { "bs++", T_BSAPPEND },
   { "bs++.", T_BSAPPENDDOT },
-  { "bs+++", T_BSAPPEND3 },
   { "bs==", T_BSEQ, T_BSEQ },
   { "bs/=", T_BSNE, T_BSNE },
   { "bs<", T_BSLT },
@@ -2283,7 +2282,6 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 #endif
   case T_BSAPPEND: putsb("bs++", f); break;
   case T_BSAPPENDDOT: putsb("bs++.", f); break;
-  case T_BSAPPEND3: putsb("bs+++", f); break;
   case T_BSEQ: putsb("bs==", f); break;
   case T_BSNE: putsb("bs/=", f); break;
   case T_BSLT: putsb("bs<", f); break;
@@ -2852,10 +2850,6 @@ evalbytestring(NODEPTR n)
 struct bytestring
 bsappend(struct bytestring p, struct bytestring q)
 {
-  if (p.size == 0)
-    return q;
-  if (q.size == 0)
-    return p;
   struct bytestring r;
   r.size = p.size + q.size;
   r.string = MALLOC(r.size);
