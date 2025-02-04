@@ -28,7 +28,7 @@ deriveStrat mctx newt lhs cs strat cls =
     DerAnyClass                   -> anyclassDer mctx lhs cls
     DerVia via | newt             -> newtypeDer  mctx lhs (cs!!0) cls (Just via)
     _                             -> cannotDerive lhs cls
-  where useNewt d = False && unIdent (getAppCon d) `notElem`
+  where useNewt d = unIdent (getAppCon d) `notElem`
           ["Data.Data.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic",
            "Text.Read.Internal.Read", "Text.Show.Show"]
 
@@ -380,7 +380,7 @@ newtypeDer mctx lhs c cls mvia = do
           Constr [] [] _ (Left [(False, t)]) -> t
           Constr [] [] _ (Right [(_, (_, t))]) -> t
           _ -> error "newtypeDer"
---  traceM ("newtypeDer: " ++ show hdr)
+  traceM ("newtypeDer: " ++ show hdr)
   return [Instance hdr $ InstanceVia (tApp cls cty) mvia]
 
 anyclassDer :: Maybe EConstraint -> LHS -> EConstraint -> T [EDef]

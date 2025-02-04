@@ -1005,6 +1005,8 @@ tcExpandClassInst impt dst = withTypeTable $ do
   dsd <- concat <$> mapM doDeriving  dsf              -- Add derived instances
 --  tcTrace $ showEDefs dsd
   dsi <- concat <$> mapM expandInst  dsd              -- Expand all instance definitions
+  -- expandInst add Coercible constraints.  Solve them now.
+  _ <- solveConstraints
   return dsi
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
@@ -1307,9 +1309,10 @@ expandInst dinst@(Instance act ib) = do
         -- Make sure the coercion 'from' to 'cc' is OK.
         -- (This is redundant for newtype-deriving, but safety first.)
         canCoerce from cc
-        let coe = EQVar (EVar $ mkIdentSLoc loc "Data.Coerce.coerce") coety
+        let coe = EQVar (EApp (EVar $ mkIdentSLoc loc "Data.Coerce.coerce") (ETuple [])) coety
             coety = from `tArrow` cc
         
+        --traceM ("InstanceVia: " ++ show coe)
         return $ eEqns [] $ EApp coe (EVar $ mkIdentSLoc loc dictPrefixDollar)
 
   let bind = Fcn iInst body
