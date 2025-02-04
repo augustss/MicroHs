@@ -19,4 +19,3 @@ main = do
   print $ a // [(1,'w')]
   print $ fmap fromEnum a
   print $ ixmap (0,2) succ a
-  

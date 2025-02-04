@@ -22,7 +22,7 @@ import MicroHs.TypeCheck(TModule, GlobTables)
 --   Foo/Bar.txt
 --   Foo/Baz.txt
 -- The files Foo/Bar.txt and Foo/Baz.txt will contain simply "foo.pkg".
--- 
+--
 
 type IdentPackage = Ident
 

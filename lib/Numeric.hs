@@ -1,6 +1,6 @@
 module Numeric(
   module Numeric.Show,
-    
+
   readSigned,
   readInt,
   readBin,

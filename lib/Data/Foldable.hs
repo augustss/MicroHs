@@ -162,7 +162,7 @@ instance Foldable [] where
     product = List.product
     sum     = List.sum
     toList  = id
-  
+
 instance Foldable (Either a) where
     foldMap _ (Left _) = mempty
     foldMap f (Right y) = f y

@@ -151,7 +151,7 @@ instance Monad NonEmpty where
   ~(a :| as) >>= f = b :| (bs ++ bs')
     where b :| bs = f a
           bs' = as >>= toList . f
-          
+
 --instance Foldable NonEmpty -- Defined in Data.Foldable
 --instance Traversable NonEmpty -- Defined in Data.Traversable
 --instance Read a => Read (NonEmpty a) -- Defined in GHC.Read
@@ -163,7 +163,7 @@ instance Foldable NonEmpty where
   foldr f z = foldr f z . toList
 instance Traversable NonEmpty where
   traverse f = fmap fromList . traverse f . toList
-  
+
 ----- End MHS replacement
 
 infixr 5 <|

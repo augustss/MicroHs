@@ -76,7 +76,7 @@ encConstrScott i n ss =
     strict (False:ys) (_:is) e = strict ys is e
     strict (True:ys)  (x:is) e = app2 (Lit (LPrim "seq")) (Var x) (strict ys is e)
     strict _ _ e = e
-  in lams xs $ strict ss xs $ lams fs $ apps (Var f) (map Var xs)  
+  in lams xs $ strict ss xs $ lams fs $ apps (Var f) (map Var xs)
 
 encIfScott :: Exp -> Exp -> Exp -> Exp
 encIfScott c t e = app2 c e t
@@ -118,7 +118,7 @@ tuple :: [Exp] -> Exp
 tuple es = Lam f $ apps (Var f) es
   where f = -- newIdent "$t" es --
             mkIdent "$t"
-  
+
 encCaseNo :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCaseNo var pes dflt =
   App var (Lam n $ Lam t $ caseTree (Var n) (Var t) 0 (numConstr pes) pes' dflt)

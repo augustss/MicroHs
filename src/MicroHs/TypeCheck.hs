@@ -263,7 +263,7 @@ getTVExps _ tys vals ast (ExpTypeSome ti is) =
                                                -- This might accidentally pick up a constructor from
                                                -- another type, but it doesn't really matter.
   in ([TypeExport (unQualIdent ti) e ves], [])
-  
+
 getTVExps _ _ vals _ (ExpValue i) = ([], [ValueExport (unQualIdent i) (expLookup i vals)])
 getTVExps _ _ _ _ (ExpDefault _) = ([], [])
 
@@ -301,7 +301,7 @@ mkTModule impt tds tcs =
       case stLookup "" qi vt of
         Right e -> e
         _       -> Entry (EVar qi) t  -- XXX A hack for boot modules
-          
+
     -- Find all value Entry for names associated with a type.
     assoc i = case impt of
                 ImpBoot -> []  -- XXX For boot files the tables are not set up correctly.
@@ -347,7 +347,7 @@ mkTCState mdlName globs mdls =
           [ (v, [Entry (EVar v) t]) | (i, ClassInfo _ _ t _ _) <- M.toList (gClassTable globs), let { v = mkClassConstructor i } ]
         -- Default methods are always entered with their qualified original name.
         qualIdentD (Entry e _) m i | not (isDefaultMethodId i) = qualIdent m i
-                                   | otherwise = 
+                                   | otherwise =
                                      case e of
                                        EVar qi -> qi
                                        _ -> undefined
@@ -441,7 +441,7 @@ withTypeTable ta = do
   putTypeTable tt'
   putTCMode otcm
   return a
-  
+
 addAssocTable :: Ident -> [ValueExport] -> T ()
 addAssocTable i ids = modify $ \ ts -> ts { assocTable = M.insert i ids (assocTable ts) }
 
@@ -1051,7 +1051,7 @@ addTypeKind kdefs adef = do
            Nothing -> newUVar
            Just k' -> return k'
       extValQTop i k
-      
+
   case adef of
     Data    lhs _ _ -> addDef lhs
     Newtype lhs _ _ -> addDef lhs
@@ -1213,7 +1213,7 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
                       def (Just eqns) = Fcn iDflt eqns
                       iDflt = mkDefaultMethodId methId
                       noDflt = mkExn (getSLoc methId) (unIdent methId) "noMethodError"
-              
+
       mkDflt _ = impossible
       dDflts = case impt of
                  ImpNormal -> concatMap mkDflt meths
@@ -1311,7 +1311,7 @@ expandInst dinst@(Instance act ib) = do
         canCoerce from cc
         let coe = EQVar (EApp (EVar $ mkIdentSLoc loc "Data.Coerce.coerce") (ETuple [])) coety
             coety = from `tArrow` cc
-        
+
         --traceM ("InstanceVia: " ++ show coe)
         return $ eEqns [] $ EApp coe (EVar $ mkIdentSLoc loc dictPrefixDollar)
 
@@ -1370,7 +1370,7 @@ tInferDefs smap fcns = do
 --  traceM "tInferDefs"
   tcReset
   -- Invent type variables for the definitions
-  xts <- 
+  xts <-
            let f (Fcn i _)            = do t <- newUVar; pure [(i, t)]
                f (Pattern (i, _) _ _) = do t <- newUVar; pure [(i, t)]
                f (PatBind p _)        = concat <$> mapM g (patVars p)
@@ -1790,7 +1790,7 @@ tcExprR mt ae =
                 ithen = mkBuiltin loc ">>"
                 sthen = maybe ithen (\ mn -> qualIdent mn ithen) mmn
               tcExpr mt (EApp (EApp (EVar sthen) a) (EDo mmn ss))
-                
+
             SLet bs ->
               tcExpr mt (ELet bs (EDo mmn ss))
 
@@ -1902,7 +1902,7 @@ tcExprAp mt ae args =
     _ -> do
       (f, t) <- tInferExpr ae
       tcExprApFn mt f t args
-    
+
 tcExprApFn :: Expected -> Expr -> EType -> [Expr] -> T Expr
 --tcExprApFn _ fn fnt args | trace (show (fn, fnt, args)) False = undefined
 tcExprApFn mt fn (EForall {-True-}_ (IdKind i _:iks) ft) (ETypeArg t : args) = do
@@ -1943,7 +1943,7 @@ tcExprApFn mt fn tfn args = do
           _ -> return $ substEUVar [(ugly, res)] etmp'
 
         instSigma loc res rt mt
-      
+
   loop [] args tfn'
 
 -- Is a pattern failure free?
@@ -1972,7 +1972,7 @@ failureFreeAp bs (EVar v) | not (isConIdent v) = return True
                                 _ -> False
 failureFreeAp bs (ESign p _) = failureFreeAp bs p
 failureFreeAp _ _ = return False  -- bad pattern, just ignore
-                           
+
 eSetFields :: EField -> Expr -> Expr
 eSetFields (EField is e) r =
   let loc = getSLoc is
@@ -2366,7 +2366,7 @@ tcPat mt ae =
     EUpdate p [] -> do
       (p', _) <- tInferExpr p
       case p' of
-        ECon c -> tcPat mt $ eApps p (replicate (conArity c) eDummy)          
+        ECon c -> tcPat mt $ eApps p (replicate (conArity c) eDummy)
         _      -> impossible
     EUpdate p isps -> do
       me <- dsUpdate (const eDummy) p isps
@@ -2420,7 +2420,7 @@ tcPatApCon mt args con xpt = do
       tcPat mt vp
 
     -- Regular constructor
-    _ -> do 
+    _ -> do
       case xpt of
          -- Sanity check
          EForall _ _ (EForall _ _ _) -> return ()
@@ -2434,7 +2434,7 @@ tcPatApCon mt args con xpt = do
           Just (ctx, pt') -> do
             di <- newADictIdent loc
             return ([(di, ctx)], EApp con (EVar di), pt')
-          
+
       let ary = arity pf
             where arity (ECon c) = conArity c
                   arity (EApp f _) = arity f - 1  -- deal with dictionary added above
@@ -2893,7 +2893,7 @@ expandDict' avks actx edict acc = do
             error ("expandDict: " ++ showExprRaw acc)
           return [(edict, vks, ctx, cc, [])]
         Just (ClassInfo iks sups _ _ fds) -> do
-          let 
+          let
             vs = map idKindIdent iks
             sub = zip vs args
             sups' = map (subst sub) sups
@@ -3180,7 +3180,7 @@ extNewtypeSyns = do
           extSyn qi (EForall True vs t)  -- extend synonym table
       ext _ = return ()
   mapM_ ext $ M.toList dt
-  
+
 
 isEUVar :: EType -> Bool
 isEUVar (EUVar _) = True

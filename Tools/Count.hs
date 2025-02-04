@@ -6,4 +6,4 @@ main = do
   file <- readFile fn
   let n = length $ filter (isPrefixOf pat) (tails file)
   print n
-  
+

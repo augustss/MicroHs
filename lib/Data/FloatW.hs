@@ -61,7 +61,7 @@ instance Ord FloatW where
   (<=) = primFloatWLE
   (>)  = primFloatWGT
   (>=) = primFloatWGE
-  
+
 -- For now, cheat and call C
 instance Show FloatW where
   show = primFloatWShow -- should be Numeric.FormatFloat.showFloat, but that drags in a lot of stuff

@@ -1,4 +1,4 @@
-module Foreign.ForeignPtr ( 
+module Foreign.ForeignPtr (
   ForeignPtr,
   FinalizerPtr,
   newForeignPtr,

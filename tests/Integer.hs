@@ -13,4 +13,3 @@ main = do
   h <- stringToHandle s
   i' <- hDeserialize h
   print $ i == i'
-  

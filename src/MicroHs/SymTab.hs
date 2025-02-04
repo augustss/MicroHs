@@ -25,7 +25,7 @@ import MicroHs.List
 import qualified MicroHs.IdentMap as M
 
 -- Symbol table
--- 
+--
 
 -- Symbol table entry for symbol i.
 data Entry = Entry
@@ -74,7 +74,7 @@ instance Show SymTab where
     ("Locals:"  : map (("  " ++) . show) l) ++
     ("UGlobals:" : map (("  " ++) . show) (M.toList ug)) ++
     ("QGlobals:" : map (("  " ++) . show) (M.toList qg))
-  
+
 mapMSymTab :: forall m . Monad m => (Entry -> m Entry) -> SymTab -> m SymTab
 mapMSymTab f (SymTab l ug qg) = do
   l' <- mapM (\ (i, a) -> f a >>= \ a' -> return (i, a')) l

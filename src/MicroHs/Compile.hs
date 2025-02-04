@@ -184,7 +184,7 @@ compileModule flags impt mn pathfn file = do
   dumpIf flags Dparse $
     liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
   let mdl@(EModule mnn _ defs) = addPreludeImport pmdl
-  
+
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
   -- TODO: skip test when mn is a file name

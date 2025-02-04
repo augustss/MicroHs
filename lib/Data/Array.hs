@@ -65,7 +65,7 @@ array b ies =
 listArray  :: (Ix a) => (a,a) -> [b] -> Array a b
 listArray b es =
   let n = safeRangeSize b
-  in  if length es > n then error "listArray: list too long" else unsafeArray' b n (zip [0..] es)  
+  in  if length es > n then error "listArray: list too long" else unsafeArray' b n (zip [0..] es)
 
 accumArray :: (Ix a) => (b -> c -> b) -> b -> (a,a) -> [(a,c)] -> Array a b
 accumArray f z b = accum f (array b [(i, z) | i <- range b])

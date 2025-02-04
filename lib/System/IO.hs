@@ -241,7 +241,7 @@ hGetContents h = withHandleRd h $ \ p -> do
    else do
     cs <- unsafeInterleaveIO (hGetContents h)
     return (chr c : cs)
-  
+
 getContents :: IO String
 getContents = hGetContents stdin
 
@@ -292,7 +292,7 @@ withFile fn md io = do
 --------
 
 splitTmp :: String -> (String, String)
-splitTmp tmpl = 
+splitTmp tmpl =
   case span (/= '.') (reverse tmpl) of
     (rsuf, "") -> (tmpl, "")
     (rsuf, _:rpre) -> (reverse rpre, '.':reverse rsuf)

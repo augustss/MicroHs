@@ -623,7 +623,7 @@ pAlts sep = do
   alts <- pAltsL sep
   bs <- pWhere pBind
   pure (EAlts alts bs)
-  
+
 pAltsL :: P () -> P [EAlt]
 pAltsL sep =
       esome (pAlt sep)
@@ -814,7 +814,7 @@ pClsBind =
 
 -- Bindings allowed in an instance definition
 pInstBind :: P EBind
-pInstBind = 
+pInstBind =
       uncurry Fcn <$> pEqns
 -- no InstanceSig yet  <|< Sign        <$> (pLIdentSym <* dcolon) <*> pType
 

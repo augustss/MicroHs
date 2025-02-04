@@ -539,7 +539,7 @@ instance (Read a, Read b) => Read (Either a b) where
            x <- step readPrec
            return (Right x))
     )
-    
+
   readListPrec = readListPrecDefault
   readList     = readListDefault
 

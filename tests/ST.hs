@@ -18,7 +18,7 @@ facST n = do
           loop
   loop
   readSTRef rr
-  
+
 fac :: Int -> Int
 fac n = runST (facST n)
 

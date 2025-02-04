@@ -13,4 +13,4 @@ loop = do
   case s of
     Just "quit" -> putStrLn "Bye"
     _ -> do putStrLn $ showMaybe showString s; loop
-    
+

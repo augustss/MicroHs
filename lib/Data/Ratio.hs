@@ -39,7 +39,7 @@ data Ratio a = !a :% !a
 --  (x + y) * z + 0*z == x*z + y*z
 -- When z is a normal rational number the is clearly the same
 -- as the usual distributive law.
--- 
+--
 -- NOTE. Experimentally, we extend this with:
 --  x/0 ==  1/0 when x > 0
 --  x/0 == -1/0 when x < 0

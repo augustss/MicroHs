@@ -97,7 +97,7 @@ lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
   case span (/= '\n') cs of
     (line, rs) ->        -- rs will contain the '\n', so subtract 1 below
       let ws = words line
-          file = tail $ init $ ws!!1   -- strip the initial and final '"' 
+          file = tail $ init $ ws!!1   -- strip the initial and final '"'
           loc' = SLoc file (readInt (ws!!0) - 1) 1
       in  lex loc' rs
 lex loc ('!':' ':cs) =  -- ! followed by a space is always an operator
@@ -207,7 +207,7 @@ skipLine loc []          = lex loc []
 
 -- | Takes a list of tokens and produces a list of tokens. If the first token in
 -- the input list is a TIndent, the input is returned unaltered. Otherwise, a
--- TIndent is prepended to the input list        
+-- TIndent is prepended to the input list
 tIndent :: [Token] -> [Token]
 tIndent ts@(TIndent _ : _) = ts
 tIndent ts = TIndent (tokensLoc ts) : ts
@@ -228,7 +228,7 @@ lexLitStr oloc loc mk end post acs = loop loc [] acs
 --        foo xs = trace (show ("foo", loc, take 20 acs, xs)) xs
 
         remGap l rs ('\\':cs) = loop   (addCol l 1)       rs  cs
-        remGap l rs ('\n':cs) = remGap (incrLine l) ('\n':rs) cs 
+        remGap l rs ('\n':cs) = remGap (incrLine l) ('\n':rs) cs
         remGap l rs ('\t':cs) = remGap (tabCol   l) ('\t':rs) cs
         remGap l rs ('\r':cs) = remGap           l        rs  cs
         remGap l rs (' ' :cs) = remGap (addCol l 1)       rs  cs
@@ -263,11 +263,11 @@ ctlCodes =
   [("NUL", '\NUL'), ("SOH", '\SOH'), ("STX", '\STX'), ("ETX", '\ETX'),
    ("EOT", '\EOT'), ("ENQ", '\ENQ'), ("ACK", '\ACK'), ("BEL", '\BEL'),
    ("BS",  '\BS'),  ("HT",  '\HT'),  ("LF",  '\LF'),  ("VT", '\VT'),
-   ("FF",  '\FF'),  ("CR",  '\CR'),  ("SO",  '\SO'),  ("SI", '\SI'), 
+   ("FF",  '\FF'),  ("CR",  '\CR'),  ("SO",  '\SO'),  ("SI", '\SI'),
    ("DLE", '\DLE'), ("DC1", '\DC1'), ("DC2", '\DC2'), ("DC3", '\DC3'),
    ("DC4", '\DC4'), ("NAK", '\NAK'), ("SYN", '\SYN'), ("ETB", '\ETB'),
    ("CAN", '\CAN'), ("EM",  '\EM'),  ("SUB", '\SUB'), ("ESC", '\ESC'),
-   ("FS",  '\FS'),  ("GS",  '\GS'),  ("RS",  '\RS'),  ("US",  '\US'), 
+   ("FS",  '\FS'),  ("GS",  '\GS'),  ("RS",  '\RS'),  ("US",  '\US'),
    ("SP",  '\SP'),  ("DEL", '\DEL')]
 
 conv :: Int -> Int -> String -> String
@@ -414,8 +414,8 @@ data Cmd = Next | Raw | Pop
 
 layoutLS ::                [Token] ->    [Int] -> Cmd      -> (Token,                    LexState)
 layoutLS                        ts           ms  Raw        = (TRaw ts,                  LS $ layoutLS  ts     ms )
-layoutLS                        ts          mms  Pop        =                                                    
-                                                   case (mms, ts) of                                              
+layoutLS                        ts          mms  Pop        =
+                                                   case (mms, ts) of
                                                      (m:ms,_:_) | m/=0 -> (TEnd (tokensLoc ts),  LS $ layoutLS  ts     ms )
                                                      _ ->     (TError l "syntax error",  LS $ layoutLS  []     [] ) where l = tokensLoc ts
 -- The rest are the Next commands

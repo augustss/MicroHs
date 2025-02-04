@@ -134,7 +134,7 @@ data TCState = TC {
                   MetaTable,            -- instances with unification variables
                   TypeEqTable,          -- type equalities
                   ArgDicts              -- dictionary arguments
-                 ),             
+                 ),
   constraints :: Constraints,           -- constraints that have to be solved
   defaults    :: Defaults               -- current defaults
   }

@@ -305,7 +305,7 @@ fullRender lineLen (num, den) rest doc
 
     ribbonLen   = (lineLen * den) `quot` num
     bestLineLen = lineLen
-                    
+
 display :: Int -> Int -> String -> Doc -> String
 display _page_width _ribbon_width end doc
   = let lay :: Int -> Doc -> String

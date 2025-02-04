@@ -308,7 +308,7 @@ improveT ae =
                   def
               NotApp -> def
 -}
-            
+
 
 kApp :: Exp -> Exp -> Exp
 kApp (Lit (LPrim "K")) (App (Lit (LPrim ('K':s))) x)
