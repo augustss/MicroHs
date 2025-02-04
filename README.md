@@ -451,6 +451,9 @@ MicroHs can be built from scratch in the sense of [bootstrappable.org](https://b
 To compile with Hugs you need [a slightly patched version of Hugs](https://github.com/augustss/hugs98-plus-Sep2006)
 and also the [hugs branch of MicroHs](https://github.com/augustss/MicroHs/tree/hugs).
 
+The patched version of Hugs is needed to work around undefined behavior with arithmatic overflow.
+Hugs provided Linux distribtions or other third party package managers may or may not work.
+
 ## Using GMP for `Integer`
 The default implementation of the `Integer` type is written is Haskell and is quite slow.
 It is possible to use the [GMP](https://gmplib.org/) library instead.
