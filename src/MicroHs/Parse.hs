@@ -308,8 +308,8 @@ pBlock p = pBraces body
 pDef :: P EDef
 pDef =
       pBind        -- Fcn, Sign, PatBind, Infix
-  <|< uncurry Data <$> (pKeyword "data"     *> pData) <*> pDeriving
-  <|< Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSpec '=' *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
+  <|< uncurry Data <$> (pKeyword "data"     *> pData) <*> pDerivings
+  <|< Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSpec '=' *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDerivings
   <|< Type         <$> (pKeyword "type"     *> pLHS) <*> (pSpec '=' *> pType)
   <|< Import       <$> (pKeyword "import"   *> pImportSpec)
   <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> (pKeyword "ccall" <|> pKeyword "capi")
@@ -320,7 +320,7 @@ pDef =
   <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (dcolon *> pKind)
   <|< mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
   <|< Sign         <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
-  <|< Deriving     <$> (pKeyword "deriving" *> pKeyword "instance" *> pType)
+  <|< StandDeriving<$> (pKeyword "deriving" *> pKeyword "instance" *> pType)
   <|< noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
   where
@@ -395,10 +395,17 @@ dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
             eq t1 t2 = EApp (EApp (EVar (mkIdentSLoc (E.getSLoc t1) "~")) t1) t2
     _ -> errorMessage (E.getSLoc rty) $ "Bad GADT result type" ++ show (rty, tnm, vks)
 
-pDeriving :: P [EConstraint]
-pDeriving = pKeyword "deriving" *> pDer <|< pure []
+pDerivings :: P [Deriving]
+pDerivings = many pDeriving
+
+pDeriving :: P Deriving
+pDeriving = pKeyword "deriving" *> (    (Deriving <$> pStrat <*> pDer)
+                                    <|> (flip Deriving <$> pDer <*> pVia) )
   where pDer =     pParens (esepBy pType (pSpec ','))
                <|< ((:[]) <$> pType)
+        pVia = DerVia <$> (pKeyword "via" *> pType)
+        pStrat = (DerStock <$ pKeyword "stock") <|< (DerNewtype <$ pKeyword "newtype")
+             <|< (DerAnyClass <$ pKeyword "anyclass") <|< pure DerNone
 
 -- List has 0 or 1 elements
 pContext :: P [EConstraint]

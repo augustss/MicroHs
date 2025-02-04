@@ -1095,8 +1095,8 @@ tcDefType :: HasCallStack => EDef -> T EDef
 tcDefType def = do
   --tcReset
   case def of
-    Data    lhs cs ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Data    lhs'  <$> mapM tcConstr cs <*> mapM tcDerive ds)
-    Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDerive ds)
+    Data    lhs cs ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Data    lhs'  <$> mapM tcConstr cs <*> mapM tcDeriving ds)
+    Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDeriving ds)
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first                    (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> flip (,) kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
     Sign      is t         ->                                                  Sign      is   <$> tCheckTypeTImpl False kType t
@@ -1104,7 +1104,7 @@ tcDefType def = do
     Instance ct (InstanceBody m) ->                                            instanceBody   <$> tCheckTypeTImpl True kConstraint ct <*> return m
     Default mc ts          ->                                                  Default (Just c) <$> mapM (tcDefault c) ts
                                                                                  where c = fromMaybe num mc
-    Deriving ct            ->                                                  Deriving       <$> tCheckTypeTImpl False kConstraint ct
+    StandDeriving ct       ->                                                  StandDeriving  <$> tCheckTypeTImpl False kConstraint ct
     _                      -> return def
  where
    tcMethod (Sign is t) = Sign is <$> tCheckTypeTImpl False kType t
@@ -1112,11 +1112,19 @@ tcDefType def = do
    tcMethod m = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
-   tcDerive = tCheckTypeT (kType `kArrow` kConstraint)
    num = mkBuiltin noSLoc "Num"
    tcDefault c t = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
+
+tcDeriving :: Deriving -> T Deriving
+tcDeriving (Deriving strat cs) = do
+  let tcDerive = tCheckTypeT (kType `kArrow` kConstraint)
+  cs' <- mapM tcDerive cs
+  strat' <- case strat of
+              DerVia t -> DerVia <$> tcDerive t
+              _        -> return strat
+  return $ Deriving strat' cs'
 
 withLHS :: forall a . HasCallStack => LHS -> (LHS -> T (a, EKind)) -> T a
 withLHS (i, vks) ta = do
@@ -3392,10 +3400,13 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
 -}
 
 doDeriving :: EDef -> T [EDef]
-doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (deriveHdr False lhs  cs) ds
-doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (deriveHdr True  lhs [c]) ds
-doDeriving def@(Deriving ct)       = (def:) <$> standaloneDeriving ct
+doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (deriveDer False lhs  cs) ds
+doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (deriveDer True  lhs [c]) ds
+doDeriving def@(StandDeriving ct)  = (def:) <$> standaloneDeriving ct
 doDeriving def                     = return [def]
+
+deriveDer :: Bool -> LHS -> [Constr] -> Deriving -> T [EDef]
+deriveDer newt lhs cs (Deriving strat ds) = concat <$> mapM (deriveStrat Nothing newt lhs cs strat) ds
 
 standaloneDeriving :: EType -> T [EDef]
 standaloneDeriving act = do
@@ -3415,4 +3426,4 @@ standaloneDeriving act = do
       Just (Data    l xs _) -> return (l, False, xs)
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
-  deriveNoHdr act newt lhs cs cls
+  deriveStrat (Just act) newt lhs cs DerNone cls

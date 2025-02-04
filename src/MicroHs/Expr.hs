@@ -7,6 +7,7 @@ module MicroHs.Expr(
   ImpType(..),
   EDef(..), showEDefs,
   InstanceBody(..), instanceBody,
+  Deriving(..), DerStrategy(..),
   Expr(..), eLam, eLamWithSLoc, eEqn, eEqns, showExpr, eqExpr,
   Listish(..),
   Lit(..), showLit,
@@ -73,8 +74,8 @@ data ExportItem
 --DEBUG  deriving (Show)
 
 data EDef
-  = Data LHS [Constr] Deriving
-  | Newtype LHS Constr Deriving
+  = Data LHS [Constr] [Deriving]
+  | Newtype LHS Constr [Deriving]
   | Type LHS EType
   | Fcn Ident [Eqn]
   | PatBind EPat Expr
@@ -87,7 +88,7 @@ data EDef
   | Instance EConstraint InstanceBody
   | Default (Maybe Ident) [EType]
   | Pattern LHS EPat (Maybe [Eqn])
-  | Deriving EConstraint
+  | StandDeriving EConstraint
   | DfltSign Ident EType                      -- only in class declarations
 --DEBUG  deriving (Show)
 
@@ -106,7 +107,7 @@ instance NFData EDef where
   rnf (Instance a b) = rnf a `seq` rnf b
   rnf (Default a b) = rnf a `seq` rnf b
   rnf (Pattern a b c) = rnf a `seq` rnf b `seq` rnf c
-  rnf (Deriving a) = rnf a
+  rnf (StandDeriving a) = rnf a
   rnf (DfltSign a b) = rnf a `seq` rnf b
 
 data InstanceBody
@@ -143,7 +144,21 @@ instance NFData ImportItem where
   rnf (ImpTypeAll a) = rnf a
   rnf (ImpValue a) = rnf a
 
-type Deriving = [EConstraint]
+data Deriving = Deriving DerStrategy [EConstraint]
+
+instance NFData Deriving where
+  rnf (Deriving a b) = rnf a `seq` rnf b
+
+data DerStrategy
+  = DerNone
+  | DerStock
+  | DerNewtype
+  | DerAnyClass
+  | DerVia EConstraint
+
+instance NFData DerStrategy where
+  rnf (DerVia a) = rnf a
+  rnf _ = ()
 
 data Expr
   = EVar Ident
@@ -766,9 +781,9 @@ ppEBind = ppEDef
 ppEDef :: EDef -> Doc
 ppEDef def =
   case def of
-    Data lhs [] ds -> text "data" <+> ppLHS lhs <+> ppDeriving ds
-    Data lhs cs ds -> text "data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDeriving ds
-    Newtype lhs c ds -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c <+> ppDeriving ds
+    Data lhs [] ds -> text "data" <+> ppLHS lhs <+> ppDerivings ds
+    Data lhs cs ds -> text "data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDerivings ds
+    Newtype lhs c ds -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c <+> ppDerivings ds
     Type lhs t -> text "type" <+> ppLHS lhs <+> text "=" <+> ppEType t
     Fcn i eqns -> ppEqns (ppIdent i) (text "=") eqns
     PatBind p e -> ppEPat p <+> text "=" <+> ppExpr e
@@ -788,12 +803,25 @@ ppEDef def =
     Instance c (InstanceVia d m) -> text "instance" <+> ppEType c <+> text "from" <+> ppEType d <+> maybe empty (\ t -> text "via" <+> ppEType t) m
     Default mc ts -> text "default" <+> (maybe empty ppIdent mc) <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
-    Deriving ct -> text "deriving instance" <+> ppEType ct
+    StandDeriving ct -> text "deriving instance" <+> ppEType ct
     DfltSign i t -> text "default" <+> ppIdent i <+> text "::" <+> ppEType t
 
+ppDerivings :: [Deriving] -> Doc
+ppDerivings = sep . map ppDeriving
+
 ppDeriving :: Deriving -> Doc
-ppDeriving [] = empty
-ppDeriving ds = text "deriving" <+> parens (hsep $ punctuate (text ",") (map ppExpr ds))
+ppDeriving (Deriving s ds) = text "deriving" <+>
+  case s of
+    DerNone -> empty
+    DerStock -> text "stock"
+    DerNewtype -> text "newtype"
+    DerAnyClass -> text "anyclass"
+    DerVia _ -> empty
+  <+> parens (hsep $ punctuate (text ",") (map ppExpr ds))
+  <+>
+  case s of
+    DerVia t -> text "via" <+> ppEType t
+    _ -> empty
 
 ppCtx :: [EConstraint] -> Doc
 ppCtx [] = empty
@@ -848,7 +876,7 @@ ppExprRaw :: Expr -> Doc
 ppExprRaw = ppExprR True
 
 ppExpr :: Expr -> Doc
-ppExpr = ppExprR True
+ppExpr = ppExprR False
 
 ppExprR :: Bool -> Expr -> Doc
 ppExprR raw = ppE
