@@ -10,6 +10,9 @@ data Rec a = R { x :: a, y :: Int }
 newtype Alt f a = Alt (f a)
   deriving Show
 
+data E = X | Y | Z
+  deriving (Enum, Bounded, Show)
+
 main :: IO ()
 main = do
   print $ A 'a' == (A 'a' :: T Char () ())
@@ -34,3 +37,6 @@ main = do
   print $ R{ x=R{x='b',y=11}, y=10 }
 
   print $ Alt [True]
+
+  print $ fromEnum Y
+  print $ (minBound :: E, maxBound :: E)
