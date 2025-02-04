@@ -1097,23 +1097,25 @@ tcDefType :: HasCallStack => EDef -> T EDef
 tcDefType def = do
   --tcReset
   case def of
-    Data    lhs cs ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Data    lhs'  <$> mapM tcConstr cs <*> mapM tcDeriving ds)
-    Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDeriving ds)
-    Type    lhs t          -> withLHS lhs $ \ lhs' -> first                    (Type    lhs') <$> tInferTypeT t
-    Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> flip (,) kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
-    Sign      is t         ->                                                  Sign      is   <$> tCheckTypeTImpl False kType t
-    ForImp ie i t          ->                                                  ForImp ie i    <$> tCheckTypeTImpl False kType t
-    Instance ct (InstanceBody m) ->                                            instanceBody   <$> tCheckTypeTImpl True kConstraint ct <*> return m
-    Default mc ts          ->                                                  Default (Just c) <$> mapM (tcDefault c) ts
-                                                                                 where c = fromMaybe num mc
-    StandDeriving st ct    ->                                                  StandDeriving  <$> tcStrat st <*> tCheckTypeTImpl False kConstraint ct
+    Data    lhs cs ds      -> withLHS lhs $ \ lhs' -> cm kType       <$> (Data    lhs'  <$> mapM tcConstr cs <*> mapM (tcDeriving lhs') ds)
+    Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> cm kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM (tcDeriving lhs') ds)
+    Type    lhs t          -> withLHS lhs $ \ lhs' -> first              (Type    lhs') <$> tInferTypeT t
+    Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> cm kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
+    Sign      is t         ->                                            Sign      is   <$> tCheckTypeTImpl False kType t
+    ForImp ie i t          ->                                            ForImp ie i    <$> tCheckTypeTImpl False kType t
+    Instance ct (InstanceBody m) ->                                      instanceBody   <$> tCheckTypeTImpl True kConstraint ct <*> return m
+    Default mc ts          ->                                            Default (Just c) <$> mapM (tcDefault c) ts
+                                                                           where c = fromMaybe num mc
+    -- XXX StandDeriving is wrong
+    StandDeriving st ct    ->                                            StandDeriving  <$> tcStrat st <*> tCheckTypeTImpl False kConstraint ct
     _                      -> return def
  where
-   tcMethod (Sign is t) = Sign is <$> tCheckTypeTImpl False kType t
+   cm = flip (,)
+   tcMethod (Sign    is t) = Sign    is <$> tCheckTypeTImpl False kType t
    tcMethod (DfltSign i t) = DfltSign i <$> tCheckTypeTImpl False kType t
-   tcMethod m = return m
+   tcMethod m              = return m
    tcStrat (DerVia t) = DerVia <$> tCheckTypeT kType t
-   tcStrat s = return s
+   tcStrat s          = return s
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
    num = mkBuiltin noSLoc "Num"
@@ -1121,15 +1123,37 @@ tcDefType def = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
 
-tcDeriving :: Deriving -> T Deriving
-tcDeriving (Deriving strat cs) = do
-  let tcDerive = tCheckTypeT (kType `kArrow` kConstraint)
+tcDeriving :: LHS -> Deriving -> T Deriving
+tcDeriving (tyId, vks) (Deriving strat cs) = do
+  let tcDerive c = do
+        let loc = getSLoc c
+        -- The kind of c has to be of the form (k1 -> ... kn -> Type) -> Constraint
+        -- Check that it is.
+        k <- newUVar
+        c' <- tCheckTypeT (k `kArrow` kConstraint) c
+        (ks, _) <- getArrows <$> (expandSyn =<< derefUVar k)  -- get [k1,...,kn] and final kind
+        -- Checking that the final kind is Type happens with the tc call below.
+        let r = length ks                      -- number of args consumed by c
+            m = length vks                     -- number of args given to the data type
+            i = m - r                          -- keep this many
+            ty = tApps tyId (map (EVar . idKindIdent) (take i vks))
+        when (i < 0) $
+          tcError loc "Bad deriving"
+        -- The generated instance has the form 'instance ... => c ty'.
+        -- Check that this has kind Constraint.
+        -- Also check that any via type also fulfills this.
+        let tc t = do _ <- tCheckTypeT kConstraint (tApp c t); return ()
+        tc ty
+        case strat of
+          DerVia v -> tc v
+          _        -> return ()
+        return c'
+
   --traceM $ "tcDerive 1 " ++ show cs
   cs' <- mapM tcDerive cs
+  -- Ignore the kind here, it's checked for each derived type
   strat' <- case strat of
-              DerVia t -> do
-                --traceM $ "tcDerive 2 " ++ show t
-                DerVia <$> tCheckTypeT kType t
+              DerVia t -> DerVia . fst <$> tInferTypeT t
               _        -> return strat
   return $ Deriving strat' cs'
 
