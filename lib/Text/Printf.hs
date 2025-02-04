@@ -395,11 +395,9 @@ instance PrintfArg Natural where
 instance PrintfArg Float where
     formatArg = formatRealFloat
 
-{- Double=Float
 -- | @since 2.01
 instance PrintfArg Double where
     formatArg = formatRealFloat
--}
 
 -- | This class, with only the one instance, is used as
 -- a workaround for the fact that 'String', as a concrete
