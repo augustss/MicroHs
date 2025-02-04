@@ -30,7 +30,7 @@ deriveStrat mctx newt lhs cs strat cls =
     _                             -> cannotDerive lhs cls
   where useNewt d = unIdent (getAppCon d) `notElem`
           ["Data.Data.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic",
-           "Text.Read.Internal.Read", "Text.Show.Show"]
+           "Language.Haskell.TH.Syntax.Lift", "Text.Read.Internal.Read", "Text.Show.Show"]
 
 type DeriverT = LHS -> [Constr] -> EConstraint -> T [EDef]   -- Bool indicates a newtype
 type Deriver = Maybe EConstraint -> DeriverT
