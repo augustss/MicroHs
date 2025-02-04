@@ -41,6 +41,7 @@ derivers =
   ,("Data.Enum.Enum",                  derEnum)
   ,("Data.Data.Data",                  derData)
   ,("Data.Eq.Eq",                      derEq)
+  ,("Data.Functor.Functor",            derNotYet) -- derFunctor)
   ,("Data.Ix.Ix",                      derNotYet)
   ,("Data.Ord.Ord",                    derOrd)
   ,("Data.Typeable.Typeable",          derTypeable)
