@@ -1106,12 +1106,14 @@ tcDefType def = do
     Instance ct (InstanceBody m) ->                                            instanceBody   <$> tCheckTypeTImpl True kConstraint ct <*> return m
     Default mc ts          ->                                                  Default (Just c) <$> mapM (tcDefault c) ts
                                                                                  where c = fromMaybe num mc
-    StandDeriving ct       ->                                                  StandDeriving  <$> tCheckTypeTImpl False kConstraint ct
+    StandDeriving st ct    ->                                                  StandDeriving  <$> tcStrat st <*> tCheckTypeTImpl False kConstraint ct
     _                      -> return def
  where
    tcMethod (Sign is t) = Sign is <$> tCheckTypeTImpl False kType t
    tcMethod (DfltSign i t) = DfltSign i <$> tCheckTypeTImpl False kType t
    tcMethod m = return m
+   tcStrat (DerVia t) = DerVia <$> tCheckTypeT kType t
+   tcStrat s = return s
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
    num = mkBuiltin noSLoc "Num"
@@ -3407,16 +3409,16 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
 -}
 
 doDeriving :: EDef -> T [EDef]
-doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (deriveDer False lhs  cs) ds
-doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (deriveDer True  lhs [c]) ds
-doDeriving def@(StandDeriving ct)  = (def:) <$> standaloneDeriving ct
-doDeriving def                     = return [def]
+doDeriving def@(Data    lhs cs ds)  = (def:) . concat <$> mapM (deriveDer False lhs  cs) ds
+doDeriving def@(Newtype lhs  c ds)  = (def:) . concat <$> mapM (deriveDer True  lhs [c]) ds
+doDeriving def@(StandDeriving s ct) = (def:) <$> standaloneDeriving s ct
+doDeriving def                      = return [def]
 
 deriveDer :: Bool -> LHS -> [Constr] -> Deriving -> T [EDef]
 deriveDer newt lhs cs (Deriving strat ds) = concat <$> mapM (deriveStrat Nothing newt lhs cs strat) ds
 
-standaloneDeriving :: EType -> T [EDef]
-standaloneDeriving act = do
+standaloneDeriving :: DerStrategy -> EConstraint -> T [EDef]
+standaloneDeriving str act = do
   (_vks, _ctx, cc) <- splitInst <$> expandSyn act
   dtable <- gets dataTable
 --  traceM ("standaloneDeriving 1 " ++ show (ctx, cc))
@@ -3433,4 +3435,4 @@ standaloneDeriving act = do
       Just (Data    l xs _) -> return (l, False, xs)
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
-  deriveStrat (Just act) newt lhs cs DerNone cls
+  deriveStrat (Just act) newt lhs cs str cls

@@ -88,7 +88,7 @@ data EDef
   | Instance EConstraint InstanceBody
   | Default (Maybe Ident) [EType]
   | Pattern LHS EPat (Maybe [Eqn])
-  | StandDeriving EConstraint
+  | StandDeriving DerStrategy EConstraint
   | DfltSign Ident EType                      -- only in class declarations
 --DEBUG  deriving (Show)
 
@@ -107,7 +107,7 @@ instance NFData EDef where
   rnf (Instance a b) = rnf a `seq` rnf b
   rnf (Default a b) = rnf a `seq` rnf b
   rnf (Pattern a b c) = rnf a `seq` rnf b `seq` rnf c
-  rnf (StandDeriving a) = rnf a
+  rnf (StandDeriving a b) = rnf a `seq` rnf b
   rnf (DfltSign a b) = rnf a `seq` rnf b
 
 data InstanceBody
@@ -803,7 +803,7 @@ ppEDef def =
     Instance c (InstanceVia d m) -> text "instance" <+> ppEType c <+> text "from" <+> ppEType d <+> maybe empty (\ t -> text "via" <+> ppEType t) m
     Default mc ts -> text "default" <+> (maybe empty ppIdent mc) <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
-    StandDeriving ct -> text "deriving instance" <+> ppEType ct
+    StandDeriving _s ct -> text "deriving instance" <+> ppEType ct
     DfltSign i t -> text "default" <+> ppIdent i <+> text "::" <+> ppEType t
 
 ppDerivings :: [Deriving] -> Doc

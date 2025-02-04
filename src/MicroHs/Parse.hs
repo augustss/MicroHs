@@ -320,13 +320,14 @@ pDef =
   <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (dcolon *> pKind)
   <|< mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
   <|< Sign         <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
-  <|< StandDeriving<$> (pKeyword "deriving" *> pKeyword "instance" *> pType)
+  <|< StandDeriving<$> (pKeyword "deriving" *> pStrat) <*> (pKeyword "instance" *> pType)
   <|< noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
   where
     pFunDeps = (pSpec '|' *> esepBy1 pFunDep (pSpec ',')) <|< pure []
     pFunDep = (,) <$> esome pLIdent <*> (pSRArrow *> esome pLIdent)
     pField = guardM pFields ((== 1) . either length length)
+    pStrat = DerVia <$> (pKeyword "via" *> pAType) <|> pure DerNone
 
     clsSym = do s <- pUIdentSym; guard (unIdent s /= "()"); return s
 
