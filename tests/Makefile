@@ -86,6 +86,7 @@ test:
 	$(TMHS) LocalFix   && $(EVAL) > LocalFix.out   && diff LocalFix.ref LocalFix.out
 	$(TMHS) TypeApp    && $(EVAL) > TypeApp.out    && diff TypeApp.ref TypeApp.out
 	$(TMHS) Do         && $(EVAL) > Do.out         && diff Do.ref Do.out
+	$(TMHS) Via        && $(EVAL) > Via.out        && diff Via.ref Via.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

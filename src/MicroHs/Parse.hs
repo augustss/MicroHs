@@ -399,11 +399,11 @@ pDerivings :: P [Deriving]
 pDerivings = many pDeriving
 
 pDeriving :: P Deriving
-pDeriving = pKeyword "deriving" *> (    (Deriving <$> pStrat <*> pDer)
-                                    <|> (flip Deriving <$> pDer <*> pVia) )
+pDeriving = pKeyword "deriving" *> (    (flip Deriving <$> pDer <*> pVia)
+                                    <|> (Deriving <$> pStrat <*> pDer) )
   where pDer =     pParens (esepBy pType (pSpec ','))
-               <|< ((:[]) <$> pType)
-        pVia = DerVia <$> (pKeyword "via" *> pType)
+               <|< ((:[]) <$> pAType)
+        pVia = DerVia <$> (pKeyword "via" *> pAType)
         pStrat = (DerStock <$ pKeyword "stock") <|< (DerNewtype <$ pKeyword "newtype")
              <|< (DerAnyClass <$ pKeyword "anyclass") <|< pure DerNone
 

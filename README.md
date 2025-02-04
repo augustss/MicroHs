@@ -51,6 +51,7 @@ Differences:
    * BinaryLiterals
    * ConstraintKinds
    * DefaultSignatures
+   * DeriveAnyClass
    * DerivingStrategies
    * DerivingVia
    * DoAndIfThenElse

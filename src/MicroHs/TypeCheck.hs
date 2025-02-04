@@ -1122,9 +1122,12 @@ tcDefType def = do
 tcDeriving :: Deriving -> T Deriving
 tcDeriving (Deriving strat cs) = do
   let tcDerive = tCheckTypeT (kType `kArrow` kConstraint)
+  --traceM $ "tcDerive 1 " ++ show cs
   cs' <- mapM tcDerive cs
   strat' <- case strat of
-              DerVia t -> DerVia <$> tcDerive t
+              DerVia t -> do
+                --traceM $ "tcDerive 2 " ++ show t
+                DerVia <$> tCheckTypeT kType t
               _        -> return strat
   return $ Deriving strat' cs'
 
@@ -1903,7 +1906,8 @@ tcExprAp mt ae args =
       (f, t) <- tInferExpr ae
       tcExprApFn mt f t args
 
-tcExprApFn :: Expected -> Expr -> EType -> [Expr] -> T Expr
+tcExprApFn :: HasCallStack =>
+              Expected -> Expr -> EType -> [Expr] -> T Expr
 --tcExprApFn _ fn fnt args | trace (show (fn, fnt, args)) False = undefined
 tcExprApFn mt fn (EForall {-True-}_ (IdKind i _:iks) ft) (ETypeArg t : args) = do
   t' <- if t `eqEType` EVar dummyIdent then newUVar else tcType (Check kType) t

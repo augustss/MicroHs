@@ -380,8 +380,9 @@ newtypeDer mctx lhs c cls mvia = do
           Constr [] [] _ (Left [(False, t)]) -> t
           Constr [] [] _ (Right [(_, (_, t))]) -> t
           _ -> error "newtypeDer"
-  traceM ("newtypeDer: " ++ show hdr)
-  return [Instance hdr $ InstanceVia (tApp cls cty) mvia]
+      mvia' = fmap (tApp cls) mvia
+--  traceM ("newtypeDer: " ++ show hdr)
+  return [Instance hdr $ InstanceVia (tApp cls cty) mvia']
 
 anyclassDer :: Maybe EConstraint -> LHS -> EConstraint -> T [EDef]
 anyclassDer mctx lhs cls = do
