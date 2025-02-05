@@ -71,6 +71,7 @@ Differences:
    * ImportShadowing
    * ImportQualifiedPost
    * IncoherentInstances
+   * InstanceSigs
    * KindSignatures
    * LambdaCase
    * MonoLocalBinds

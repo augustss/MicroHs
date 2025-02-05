@@ -1309,13 +1309,16 @@ expandInst dinst@(Instance act ib) = do
       InstanceBody bs -> do
         -- XXX this ignores type signatures and other bindings
         -- XXX should tack on signatures with ESign
-        let clsMdl = qualOf qiCls                   -- get class's module name
-            ies = [(i, ELam loc qs) | Fcn i qs <- bs]
+        let signs = [ (i, t) | Sign is t <- bs, i <- is ]
+            addSign i e = maybe e (ESign e) $ lookup i signs
+            clsMdl = qualOf qiCls                   -- get class's module name
+            ies = [(i, addSign i $ ELam loc qs) | Fcn i qs <- bs]
             meth i = fromMaybe (ELam loc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
             meths = map meth mis
             sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
             args = sups ++ meths
             instBind (Fcn i _) = i `elem` mis
+            instBind (Sign is _) = all (`elem` mis) is
             instBind _ = False
         case filter (not . instBind) bs of
           [] -> return ()

@@ -817,7 +817,7 @@ pClsBind =
 pInstBind :: P EBind
 pInstBind =
       uncurry Fcn <$> pEqns
--- no InstanceSig yet  <|< Sign        <$> (pLIdentSym <* dcolon) <*> pType
+  <|< Sign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
 
 -------------
 
