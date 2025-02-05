@@ -1,8 +1,6 @@
 module Serdes(main) where
-import Prelude
-import System.IO as IO
-import System.Environment
-import Debug.Trace
+
+import System.IO.Serialize
 
 f :: Int -> Int
 f x = x*2+1
