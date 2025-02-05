@@ -156,11 +156,11 @@ primOps =
     ioret = return
     -- Can't implement this
     ioprint :: Handle -> a -> IO ()
-    ioprint h _ = hPutStrLn h "ghc does not support cprint"
+    ioprint h _ = hPutStrLn h "hugs does not support cprint"
     ioserialize :: Handle -> a -> IO ()
-    ioserialize h _ = hPutStrLn h "ghc does not support serialize"
+    ioserialize h _ = hPutStrLn h "hugs does not support serialize"
     iodeserialize :: Handle -> IO a
-    iodeserialize _ = error "ghc does not support deserialize"
+    iodeserialize _ = error "hugs does not support deserialize"
 
 {-
     iogetargs :: IO Any
@@ -168,7 +168,7 @@ primOps =
       args <- getArgs
       return $ fromList $ map fromString args
 -}
-    iogetargref = error "ghc: no IO.getArgRef"
+    iogetargref = error "hugs: no IO.getArgRef"
 
     -- Can't implement this
     rnf :: a -> ()
@@ -204,7 +204,7 @@ dynsym acfun =
   let s = toString acfun
   in
 --      trace ("dynsym: " ++ show s) $
-      fromMaybe (error $ "ghc: unimplemented FFI: " ++ s) $ lookup s cops
+      fromMaybe (error $ "hugs: unimplemented FFI: " ++ s) $ lookup s cops
 
 popCount :: Int -> Int
 popCount = undefined

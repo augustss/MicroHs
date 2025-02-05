@@ -13,21 +13,21 @@ module System.IO.Serialize(
 
 {-
 hSerialize   :: forall a . Handle -> a -> IO ()
-hSerialize = errghc
+hSerialize = errhugs
 hDeserialize :: forall a . Handle -> IO a
-hDeserialize = errghc
+hDeserialize = errhugs
 writeSerialized :: forall a . FilePath -> a -> IO ()
-writeSerialized = errghc
+writeSerialized = errhugs
 -}
 
 writeSerializedCompressed :: FilePath -> a -> IO ()
-writeSerializedCompressed = errghc
+writeSerializedCompressed = errhugs
 
 writeSerialized :: FilePath -> a -> IO ()
-writeSerialized = errghc
+writeSerialized = errhugs
 
 readSerialized ::  FilePath -> IO a
-readSerialized = errghc
+readSerialized = errhugs
 
-errghc :: a
-errghc = error "System.IO.Serialize: serialization not available with hugs"
+errhugs :: a
+errhugs = error "System.IO.Serialize: serialization not available with hugs"
