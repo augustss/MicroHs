@@ -14,6 +14,7 @@ import MicroHs.Expr
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
+import MicroHs.Names
 import MicroHs.State
 import MicroHs.SymTab
 import Debug.Trace
@@ -259,9 +260,6 @@ tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
 
 -----------------------------------------------
 
-builtinLoc :: SLoc
-builtinLoc = SLoc "builtin" 0 0
-
 tConI :: SLoc -> String -> EType
 tConI loc = tCon . mkIdentSLoc loc
 
@@ -278,11 +276,17 @@ tApps :: Ident -> [EType] -> EType
 tApps i ts = eApps (tCon i) ts
 
 tArrow :: EType -> EType -> EType
-tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
+tArrow a r = tApp (tApp (tConI builtinLoc nameArrow) a) r
 
 tImplies :: EType -> EType -> EType
-tImplies a r = tApp (tApp (tConI builtinLoc "Primitives.=>") a) r
+tImplies a r = tApp (tApp (tConI builtinLoc nameImplies) a) r
 
 etImplies :: EType -> EType -> EType
 etImplies (EVar i) t | i == tupleConstr noSLoc 0 = t
 etImplies a t = tImplies a t
+
+mkEqType :: SLoc -> EType -> EType -> EConstraint
+mkEqType loc t1 t2 = eAppI2 (mkIdentSLoc loc nameTypeEq) t1 t2
+
+mkCoercible :: SLoc -> EType -> EType -> EConstraint
+mkCoercible loc t1 t2 = eAppI2 (mkIdentSLoc loc nameCoercible) t1 t2

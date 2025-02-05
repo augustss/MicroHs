@@ -80,6 +80,7 @@ executable mhs
                        MicroHs.Interactive
                        MicroHs.Lex
                        MicroHs.List
+                       MicroHs.Names
                        MicroHs.MakeCArray
                        MicroHs.Package
                        MicroHs.Parse

@@ -1,4 +1,4 @@
--- Copyright 2023 Lennart Augustsson
+-- Copyright 2023-2025 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-unused-do-bind #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -34,86 +34,12 @@ import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
 import MicroHs.List
+import MicroHs.Names
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
 import GHC.Stack
 import Debug.Trace
-
-boolPrefix :: String
-boolPrefix = "Data.Bool_Type."
-
-listPrefix :: String
-listPrefix = "Data.List_Type."
-
-nameList :: String
-nameList = listPrefix ++ "[]"
-identList :: Ident
-identList = mkIdentB nameList
-
-nameInt :: String
-nameInt = "Primitives.Int"
-identInt :: Ident
-identInt = mkIdentB nameInt
-
-nameWord :: String
-nameWord = "Primitives.Word"
-identWord :: Ident
-identWord = mkIdentB nameWord
-
-nameFloatW :: String
-nameFloatW = "Primitives.FloatW"
-identFloatW :: Ident
-identFloatW = mkIdentB nameFloatW
-
-nameChar :: String
-nameChar = "Primitives.Char"
-identChar :: Ident
-identChar = mkIdentB nameChar
-
-nameInteger :: String
-nameInteger = "Data.Integer_Type.Integer"
-identInteger :: Ident
-identInteger = mkIdentB nameInteger
-
-nameTypeEq :: String
-nameTypeEq = "Primitives.~"
-identTypeEq :: Ident
-identTypeEq = mkIdentB nameTypeEq
-
-nameImplies :: String
-nameImplies = "Primitives.=>"
-identImplies :: Ident
-identImplies = mkIdentB nameImplies
-
-nameArrow :: String
-nameArrow = "Primitives.->"
-identArrow :: Ident
-identArrow = mkIdentB nameArrow
-
-nameSymbol :: String
-nameSymbol = "Primitives.Symbol"
-
-nameNat :: String
-nameNat = "Primitives.Nat"
-
-nameType :: String
-nameType = "Primitives.Type"
-
-nameKind :: String
-nameKind = "Primitives.Kind"
-
-nameConstraint :: String
-nameConstraint = "Primitives.Constraint"
-
-nameKnownNat :: String
-nameKnownNat = "Data.TypeLits.KnownNat"
-
-nameKnownSymbol :: String
-nameKnownSymbol = "Data.TypeLits.KnownSymbol"
-
-nameCoercible :: String
-nameCoercible = "Data.Coerce.Coercible"
 
 --primitiveKinds :: [String]
 --primitiveKinds = [nameType, nameConstraint, nameSymbol, nameNat]
@@ -418,9 +344,6 @@ mkInstId :: SLoc -> EType -> Ident
 mkInstId loc ct = mkIdentSLoc loc $ instPrefix ++ uniqIdentSep ++ clsTy
   where clsTy = map (\ c -> if isSpace c then '@' else c) $ showExprRaw ct
 
-instPrefix :: String
-instPrefix = "inst"
-
 --------------------------
 
 -- Use the type table as the value table, and the primKind table as the type table.
@@ -551,9 +474,6 @@ kTypeTypeS = kArrow kType kType
 
 kTypeTypeTypeS :: EType
 kTypeTypeTypeS = kArrow kType $ kArrow kType kType
-
-mkIdentB :: String -> Ident
-mkIdentB = mkIdentSLoc builtinLoc
 
 -- E.g.
 --  Kind :: Sort
@@ -791,9 +711,6 @@ tcReset = modify $ \ ts -> ts{ uvarSubst = IM.empty }
 
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
-
-uniqIdentSep :: String
-uniqIdentSep = "$"
 
 newIdent :: SLoc -> String -> T Ident
 newIdent loc s = do
@@ -2168,19 +2085,8 @@ unArrow loc t = do
 getFixity :: FixTable -> Ident -> Fixity
 getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
 
--- Dictionary argument names
-adictPrefix :: String
-adictPrefix = "adict"
-
 newADictIdent :: SLoc -> T Ident
 newADictIdent loc = newIdent loc adictPrefix
-
--- Needed dictionaries
-dictPrefix :: String
-dictPrefix = "dict"
-
-dictPrefixDollar :: String
-dictPrefixDollar = dictPrefix ++ uniqIdentSep
 
 newDictIdent :: SLoc -> T Ident
 newDictIdent loc = newIdent loc dictPrefix
@@ -3353,12 +3259,6 @@ addEqConstraint :: SLoc -> EType -> EType -> T ()
 addEqConstraint loc t1 t2 = do
   d <- newDictIdent loc
   addConstraint d (mkEqType loc t1 t2)
-
-mkEqType :: SLoc -> EType -> EType -> EConstraint
-mkEqType loc t1 t2 = eAppI2 (mkIdentSLoc loc nameTypeEq) t1 t2
-
-mkCoercible :: SLoc -> EType -> EType -> EConstraint
-mkCoercible loc t1 t2 = eAppI2 (mkIdentSLoc loc nameCoercible) t1 t2
 
 -- Possibly solve a type equality.
 -- Just normalize both types and compare.
