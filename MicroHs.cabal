@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.11.5.0
+version:             0.11.6.0
                      -- *** When changing the version number, also
                      -- *** run 'sh updateversion.sh'
                      -- *** Yeah, it stinks.
