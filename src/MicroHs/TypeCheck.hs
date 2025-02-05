@@ -1885,7 +1885,13 @@ tcExprR mt ae =
     ESign e t -> do
       t' <- withTypeTable $ tCheckTypeTImpl False kType t
       e' <- instSigma loc e t' mt
-      checkSigma e' t'
+      --traceM $ "ESign " ++ show (e, e', t')
+      --checkSigma e' t'
+      case t' of  -- XXX should skolemize
+        EForall expl iks tt | expl      -> withExtTyps iks $ tCheckExpr tt e'
+                            | otherwise ->                   tCheckExpr tt e'
+        _ -> tCheckExpr t' e'
+
     -- Only happens in type&kind checking mode.
     EForall b vks t ->
 --      assertTCMode (==TCType) $
