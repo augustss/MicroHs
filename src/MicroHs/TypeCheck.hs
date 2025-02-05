@@ -1587,7 +1587,7 @@ tcPatSyn (Pattern (ip, vks) p me) = do
   return [ Sign [ip] ty3 ]
 tcPatSyn _ = impossible
 
--- Add implicit forall and type check.
+-- Add implicit forall and kind check, in type mode
 tCheckTypeTImpl :: HasCallStack => Bool -> EType -> EType -> T EType
 tCheckTypeTImpl _ tchk t@(EForall _ _ _) = tCheckTypeT tchk t
 tCheckTypeTImpl impl tchk t = do
@@ -1880,7 +1880,7 @@ tcExprR mt ae =
     EListish (LFromThen   e1 e2)    -> tcExpr mt (enum loc "FromThen" [e1,e2])
     EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enum loc "FromThenTo" [e1,e2,e3])
     ESign e t -> do
-      t' <- tcType (Check kType) t
+      t' <- withTypeTable $ tCheckTypeTImpl False kType t
       e' <- instSigma loc e t' mt
       checkSigma e' t'
     -- Only happens in type&kind checking mode.
