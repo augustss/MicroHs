@@ -1,6 +1,7 @@
 -- Copyright 2025 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.Names where
+import Prelude(); import MHSPrelude
 import MicroHs.Ident
 
 -- Identifiers known by the compiler.
