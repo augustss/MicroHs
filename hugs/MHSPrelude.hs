@@ -155,7 +155,7 @@ usingMhs :: Bool
 usingMhs = False
 
 _wordSize :: Int
-_wordSize = 64
+_wordSize = 32         -- Hugs has 32 bit Int
 
 _isWindows :: Bool
 _isWindows = False
