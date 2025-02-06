@@ -200,17 +200,13 @@ compileModule flags impt mn pathfn file = do
   modify $ setCacheTables glob'
   dumpIf flags Dtypecheck $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
-  () <- when False $ do               -- Always forcing is slower.  Maybe add a flag?
-          rnf tmdl `seq` return ()
   let
     dmdl = desugar flags tmdl
-  () <- return $ rnf $ tBindingsOf dmdl
-  t4 <- liftIO getTimeMilli
 
+  t4 <- liftIO getTimeMilli
   let
     cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- tBindingsOf dmdl ]
-  () <- return $ rnf $ tBindingsOf cmdl  -- This makes execution slower, but speeds up GC
---  () <- return $ rnfErr syms same for this, but worse total time
+  () <- return $ rnf cmdl  -- This makes execution slower, but speeds up GC
   t5 <- liftIO getTimeMilli
 
   let tParse = t2 - t1
@@ -247,7 +243,7 @@ addPreludeImport (EModule mn es ds) =
         ps' =
           case ps of
             [] -> [Import $ ImportSpec ImpNormal False idPrelude Nothing Nothing,      -- no Prelude imports, so add 'import Prelude'
-                   iblt]                                                               -- and 'import Mhs.Builtin as @B'
+                   iblt]                                                               -- and 'import Mhs.Builtin as B@'
             [Import (ImportSpec ImpNormal False _ Nothing (Just (False, [])))] -> []   -- exactly 'import Prelude()', so import nothing
             _ -> iblt : ps                                                             -- keep the given Prelude imports, add Builtin
 
