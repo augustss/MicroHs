@@ -84,9 +84,6 @@ maybeSaveCache flags cash =
   when (writeCache flags) $ do
     when (verbosityGT flags 0) $
       putStrLn $ "Saving cache " ++ show mhsCacheName
-    -- This causes all kinds of chaos, probably because there
-    -- will be equality tests of unevaluated thunks.
-    -- () <- seq (rnfNoErr cash) (return ())
     saveCache mhsCacheName cash
 
 compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Symbols, Cache)

@@ -49,14 +49,6 @@ _wordSize = 64
 _isWindows :: Bool
 _isWindows = False
 
--- This cannot be implemented with GHC.
-rnfNoErr :: forall a . a -> ()
-rnfNoErr _ = ()
-
--- This cannot be implemented with GHC.
-rnfErr :: forall a . a -> ()
-rnfErr _ = ()
-
 appendDot :: Text -> Text -> Text
 appendDot x y = x `append` pack "." `append` y
 
