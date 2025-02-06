@@ -208,7 +208,7 @@ putb_buf(int c, BFILE *bp)
   CHECKBFILE(bp, getb_buf);
   if (p->b_pos >= p->b_size) {
     p->b_size *= 2;
-    p->b_buffer = realloc(p->b_buffer, p->b_size);
+    p->b_buffer = REALLOC(p->b_buffer, p->b_size);
     if (!p->b_buffer)
       ERR("putb_buf");
   }
@@ -277,13 +277,13 @@ openb_wr_buf(void)
   p->mets.writeb = 0;
   p->b_size = 1000;
   p->b_pos = 0;
-  p->b_buffer = malloc(p->b_size);
+  p->b_buffer = MALLOC(p->b_size);
   if (!p->b_buffer)
     ERR("openb_wr_buf");
   return (struct BFILE*)p;
 }
 
-/* 
+/*
  * Get the buffer used by writing.
  * This should be the last operation before closing,
  * since the buffer can move when writing.
@@ -435,7 +435,7 @@ flushb_lz77(BFILE *bp)
   for (size_t i = 0; i < olen; i++) {
     putb(obuf[i], p->bfile);           /* and the data */
   }
-  free(obuf);
+  FREE(obuf);
   p->bf.pos = 0;
   flushb(p->bfile);
 }
@@ -794,7 +794,7 @@ int compar(const void *pa, const void *pb)
       return r;
     size_t o = a;
     return memcmp(compar_arg + m, compar_arg, o);
-    
+
   }
   return 0;
 }
@@ -812,7 +812,7 @@ sort_buffer(uint8_t *buf, size_t buflen, uint32_t *res)
 uint32_t
 encode_bwt(uint8_t *data, size_t len, uint8_t *last)
 {
-  uint32_t *res = malloc(len * sizeof(uint32_t));
+  uint32_t *res = MALLOC(len * sizeof(uint32_t));
   if (!res)
     ERR("encode_bwt");
   sort_buffer(data, len, res);
@@ -823,6 +823,7 @@ encode_bwt(uint8_t *data, size_t len, uint8_t *last)
     if (offs == 0)
       zero = i;
   }
+  FREE(res);
   return zero;
 }
 
@@ -837,7 +838,7 @@ flushb_bwt(BFILE *bp)
     return;
   putsb("BW1", p->bfile);             /* version no */
   putint32(p->bf.pos, p->bfile);      /* 32 bit length */
-  uint8_t *last = malloc(p->bf.pos);
+  uint8_t *last = MALLOC(p->bf.pos);
   if (!last)
     ERR("flushb_bwt");
   size_t zero = encode_bwt(p->bf.buf, p->bf.pos, last);
@@ -855,7 +856,7 @@ void
 decode_bwt(uint8_t *data, size_t len, uint8_t *odata, size_t zero)
 {
   size_t count[MAXBYTE];
-  uint32_t *pred = malloc(len * sizeof(uint32_t));
+  uint32_t *pred = MALLOC(len * sizeof(uint32_t));
   for(size_t i = 0; i < MAXBYTE; i++) {
     count[i] = 0;
   }
@@ -873,6 +874,7 @@ decode_bwt(uint8_t *data, size_t len, uint8_t *odata, size_t zero)
     odata[j - 1] = data[i];
     i = pred[i] + count[data[i]];
   }
+  FREE(pred);
 }
 
 BFILE *
@@ -1046,7 +1048,7 @@ BFILE *
 add_utf8(BFILE *file)
 {
   struct BFILE_utf8 *p = MALLOC(sizeof(struct BFILE_utf8));
-  
+
   if (!p)
     memerr();
   p->mets.getb = getb_utf8;
