@@ -2524,10 +2524,6 @@ quantify tvs ty = do
   putUvarSubst osubst  -- reset the setUVar we did above
   return (EForall False newVarsK ty')
 
-allBinders :: [Ident] -- a,b,...,z,a1,a2,...
-allBinders = [ mkIdent [x] | x <- ['a' .. 'z'] ] ++
-             [ mkIdent ('a' : show i) | i <- [1::Int ..]]
-
 -- Skolemize the given variables
 shallowSkolemise :: [IdKind] -> EType -> T ([TyVar], EType)
 shallowSkolemise tvs ty = do

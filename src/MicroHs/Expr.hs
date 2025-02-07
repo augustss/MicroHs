@@ -34,7 +34,7 @@ module MicroHs.Expr(
   mkTupleSel,
   eApp2, eAppI2, eApp3, eAppI3, eApps,
   lhsToType,
-  subst,
+  subst, allBinders,
   allVarsExpr, allVarsBind, allVarsEqns, allVarsPat,
   setSLocExpr,
   errorMessage,
@@ -596,11 +596,26 @@ subst s =
         EApp f a -> EApp (sub f) (sub a)
         ESign e t -> ESign (sub e) t
         EUVar _ -> ae
-        EForall b iks t -> EForall b iks $ subst [ x | x@(i, _) <- s, not (elem i is) ] t
+        EForall b iks t | null (intersect vs is) -> EForall b iks $ subst s' t
+                        | otherwise ->
+                          -- We need to alpha convert to avoid accidental capture
+                          let used = freeTyVars [t]
+                              new = allBinders \\ (is ++ vs ++ used)
+                              iks'  = zipWith (\ (IdKind _ k) n -> IdKind n k) iks new
+                              alpha = zipWith (\ (IdKind i _) n -> (i, EVar n)) iks new
+                          in  subst s' $ EForall b iks' $ subst alpha t
           where is = map idKindIdent iks
+                s' = [ x | x@(i, _) <- s, not (elem i is) ]
+                vs = freeTyVars (map snd s')    -- these are free in s'
+
         ELit _ _ -> ae
+        ETuple ts -> ETuple (map sub ts)
         _ -> error "subst unimplemented"
   in sub
+
+allBinders :: [Ident] -- a,b,...,z,a1,a2,...
+allBinders = [ mkIdent [x] | x <- ['a' .. 'z'] ] ++
+             [ mkIdent ('a' : show i) | i <- [1::Int ..]]
 
 ---------------------------------
 
