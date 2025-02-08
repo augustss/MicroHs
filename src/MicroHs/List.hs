@@ -102,3 +102,6 @@ findCommonPrefix ((x:xs) : ys) =
 
 dropEnd :: Int -> [a] -> [a]
 dropEnd n = reverse . drop n . reverse
+
+takeEnd :: Int -> [a] -> [a]
+takeEnd n = reverse . take n . reverse

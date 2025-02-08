@@ -5,6 +5,8 @@ True
 N 3
 True
 True
+True
 0x20AC
 "S \"hello\""
+P (Just 10)
 done

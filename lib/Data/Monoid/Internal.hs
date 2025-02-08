@@ -5,6 +5,7 @@ import Control.Applicative
 import Control.Error
 import Data.Bool
 import Data.Bounded
+import Data.Coerce
 import Data.Eq
 import Data.Function
 import Data.Functor

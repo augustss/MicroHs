@@ -6,7 +6,6 @@ module MicroHs.Expr(
   ImportItem(..),
   ImpType(..),
   EDef(..), showEDefs,
-  InstanceBody(..), instanceBody,
   Deriving(..), DerStrategy(..),
   Expr(..), eLam, eLamWithSLoc, eEqn, eEqns, showExpr, eqExpr,
   Listish(..),
@@ -32,7 +31,7 @@ module MicroHs.Expr(
   Con(..), conIdent, conArity, conFields,
   tupleConstr, getTupleConstr,
   mkTupleSel,
-  eApp2, eAppI2, eApp3, eAppI3, eApps,
+  eAppI, eApp2, eAppI2, eApp3, eAppI3, eApps,
   lhsToType,
   subst, allBinders,
   allVarsExpr, allVarsBind, allVarsEqns, allVarsPat,
@@ -85,7 +84,7 @@ data EDef
   | ForImp (Maybe String) Ident EType
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
-  | Instance EConstraint InstanceBody
+  | Instance EConstraint [EBind]
   | Default (Maybe Ident) [EType]
   | Pattern LHS EPat (Maybe [Eqn])
   | StandDeriving DerStrategy EConstraint
@@ -110,18 +109,6 @@ instance NFData EDef where
   rnf (StandDeriving a b) = rnf a `seq` rnf b
   rnf (DfltSign a b) = rnf a `seq` rnf b
 
-data InstanceBody
-  = InstanceBody [EBind]
-  | InstanceVia EConstraint (Maybe EConstraint)
---DEBUG  deriving (Show)
-
-instance NFData InstanceBody where
-  rnf (InstanceBody a) = rnf a
-  rnf (InstanceVia a b) = rnf a `seq` rnf b
-
-instanceBody :: EConstraint -> [EBind] -> EDef
-instanceBody ctx bs = Instance ctx (InstanceBody bs)
-
 data ImpType = ImpNormal | ImpBoot
   deriving (Eq)
 
@@ -144,7 +131,7 @@ instance NFData ImportItem where
   rnf (ImpTypeAll a) = rnf a
   rnf (ImpValue a) = rnf a
 
-data Deriving = Deriving DerStrategy [EConstraint]
+data Deriving = Deriving DerStrategy [(Int, EConstraint)] -- The Int is added by the type checker, it indicates how many arguments to keep
 
 instance NFData Deriving where
   rnf (Deriving a b) = rnf a `seq` rnf b
@@ -469,6 +456,9 @@ mkTupleSel :: Int -> Int -> Expr
 mkTupleSel i n = eLam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [0 .. n - 1] ]] (EVar x)
   where x = mkIdent "$x"
 
+eAppI :: Ident -> Expr -> Expr
+eAppI i a = EApp (EVar i) a
+
 eApp2 :: Expr -> Expr -> Expr -> Expr
 eApp2 a b c = EApp (EApp a b) c
 
@@ -531,7 +521,7 @@ instance HasLoc Expr where
   getSLoc (EViewPat e _) = getSLoc e
   getSLoc (ELazy _ e) = getSLoc e
   getSLoc (EOr es) = getSLoc es
-  getSLoc (EUVar _) = error "getSLoc EUVar"
+  getSLoc (EUVar _) = noSLoc -- error "getSLoc EUVar"
   getSLoc (EQVar e _) = getSLoc e
   getSLoc (ECon c) = getSLoc c
   getSLoc (EForall _ [] e) = getSLoc e
@@ -569,9 +559,8 @@ instance HasLoc Eqn where
 instance HasLoc EAlts where
   getSLoc (EAlts as _) = getSLoc as
 
-instance HasLoc EAlt where
-  getSLoc ([], e) = getSLoc e
-  getSLoc (ss, _) = getSLoc ss
+instance HasLoc a => HasLoc (a, b) where
+  getSLoc (a, _) = getSLoc a
 
 ---------------------------------
 
@@ -814,8 +803,7 @@ ppEDef def =
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
-    Instance ct (InstanceBody bs) -> ppWhere (text "instance" <+> ppEType ct) bs
-    Instance c (InstanceVia d m) -> text "instance" <+> ppEType c <+> text "from" <+> ppEType d <+> maybe empty (\ t -> text "via" <+> ppEType t) m
+    Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default mc ts -> text "default" <+> (maybe empty ppIdent mc) <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
     StandDeriving _s ct -> text "deriving instance" <+> ppEType ct
@@ -832,7 +820,7 @@ ppDeriving (Deriving s ds) = text "deriving" <+>
     DerNewtype -> text "newtype"
     DerAnyClass -> text "anyclass"
     DerVia _ -> empty
-  <+> parens (hsep $ punctuate (text ",") (map ppExpr ds))
+  <+> parens (hsep $ punctuate (text ",") (map (ppExpr . snd) ds))
   <+>
   case s of
     DerVia t -> text "via" <+> ppEType t
@@ -1104,6 +1092,7 @@ freeTyVars = foldr (go []) []
     go bound (EListish (LList [e])) acc = go bound e acc
     go bound (ETuple es) acc = goList bound es acc
     go bound (EParen e) acc = go bound e acc
+    go bound (EQVar e _) acc = go bound e acc
     go _ x _ = error ("freeTyVars: " ++ show x) --  impossibleShow x
     goList bound es acc = foldr (go bound) acc es
 

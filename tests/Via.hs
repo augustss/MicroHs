@@ -17,6 +17,9 @@ newtype BI = BI (Id Int)
 newtype Id2 a = Id2 (Id a)
   deriving newtype Eq
 
+newtype Id3 a = Id3 a
+  deriving newtype Eq
+
 ------
 
 import Numeric
@@ -29,8 +32,6 @@ instance (Integral a, Show a) => Show (Hex a) where
 newtype Unicode = U Int
   deriving Show via (Hex Int)
 
--- >>> euroSign
--- 0x20ac
 euroSign :: Unicode
 euroSign = U 0x20ac
 
@@ -44,6 +45,20 @@ class SPretty a where
 data S = S String
   deriving stock Show
   deriving anyclass SPretty
+
+-------
+
+newtype P a = P (Maybe a)
+  deriving stock Show
+  deriving newtype (Eq, Functor)
+
+-------
+
+newtype LiftingAccum (t :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) (a :: Type)
+  = LiftingAccum (t m a)
+  deriving
+    (Functor, Applicative, Monad)
+    via (t m)
 
 -------
 
@@ -62,8 +77,12 @@ main = do
 
   print $ Id2 (Id False) == Id2 (Id False)
 
+  print $ Id3 (1 :: Int) == Id3 1
+
   print euroSign
 
   print $ sPpr $ S "hello"
+
+  print $ fmap (*5) (P (Just 2))
 
   putStrLn "done"

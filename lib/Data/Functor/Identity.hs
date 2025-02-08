@@ -6,6 +6,7 @@ import Primitives
 import Control.Applicative
 import Control.Monad
 import Data.Bool
+import Data.Coerce
 import Data.Eq
 import Data.Function
 import Data.Functor

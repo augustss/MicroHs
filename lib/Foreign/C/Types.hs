@@ -15,6 +15,7 @@ module Foreign.C.Types(
 import Prelude()
 import Primitives
 import Data.Bool
+import Data.Coerce
 import Data.Eq
 import Data.Int
 import Data.Integral

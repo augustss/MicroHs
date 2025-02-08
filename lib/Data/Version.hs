@@ -7,7 +7,7 @@ import Prelude(); import MiniPrelude
 import Control.DeepSeq.Class
 import Data.List(intercalate)
 
-newtype Version = Version { versionBranch :: [Int] }
+data Version = Version { versionBranch :: [Int] }
   deriving (Show, Eq, Ord)
 
 instance NFData Version where

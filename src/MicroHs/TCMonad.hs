@@ -17,6 +17,7 @@ import qualified MicroHs.IntMap as IM
 import MicroHs.Names
 import MicroHs.State
 import MicroHs.SymTab
+import System.IO.Unsafe(unsafePerformIO)
 import Debug.Trace
 
 -----------------------------------------------
@@ -39,6 +40,14 @@ tcTrace :: String -> TC s ()
 tcTrace msg = do
   s <- get
   let s' = trace msg s
+  seq s' (put s')
+
+-- trace to stdout
+tcTrace' :: String -> TC s ()
+--tcTrace _ = return ()
+tcTrace' msg = do
+  s <- get
+  let s' = unsafePerformIO $ do putStrLn msg; return s
   seq s' (put s')
 
 -----------------------------------------------

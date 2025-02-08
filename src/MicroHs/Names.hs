@@ -87,6 +87,18 @@ nameKnownSymbol = "Data.TypeLits.KnownSymbol"
 nameCoercible :: String
 nameCoercible = "Data.Coerce.Coercible"
 
+nameHasField :: String
+nameHasField = "Data.Records.HasField"
+
+nameSetField :: String
+nameSetField = "Data.Records.SetField"
+
+namegetField :: String
+namegetField = "getField"
+
+namesetField :: String
+namesetField = "setField"
+
 -----
 
 instPrefix :: String

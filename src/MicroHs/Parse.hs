@@ -315,7 +315,7 @@ pDef =
   <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> (pKeyword "ccall" <|> pKeyword "capi")
                         *> eoptional (pKeyword "unsafe") *> eoptional pString) <*> pLIdent <*> (dcolon *> pType)
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
-  <|< instanceBody <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
+  <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
   <|< Default      <$> (pKeyword "default"  *> eoptional clsSym) <*> pParens (esepBy pType (pSpec ','))
   <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (dcolon *> pKind)
   <|< mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
@@ -402,8 +402,9 @@ pDerivings = many pDeriving
 pDeriving :: P Deriving
 pDeriving = pKeyword "deriving" *> (    (flip Deriving <$> pDer <*> pVia)
                                     <|> (Deriving <$> pStrat <*> pDer) )
-  where pDer =     pParens (esepBy pType (pSpec ','))
-               <|< ((:[]) <$> pAType)
+  where pDer = zipWith (,) (repeat 0) <$>
+                   (    pParens (esepBy pType (pSpec ','))
+                    <|< ((:[]) <$> pAType) )
         pVia = DerVia <$> (pKeyword "via" *> pAType)
         pStrat = (DerStock <$ pKeyword "stock") <|< (DerNewtype <$ pKeyword "newtype")
              <|< (DerAnyClass <$ pKeyword "anyclass") <|< pure DerNone

@@ -4,6 +4,7 @@ module System.IO.MD5(MD5CheckSum, md5File, md5Handle, md5String, md5Combine) whe
 import Prelude(); import MiniPrelude
 import Primitives(primPerformIO)
 import Control.DeepSeq.Class
+import Data.Coerce
 import Data.Word
 import Foreign.C.String
 import Foreign.Marshal.Alloc

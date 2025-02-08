@@ -13,6 +13,10 @@ newtype Alt f a = Alt (f a)
 data E = X | Y | Z
   deriving (Enum, Bounded, Show)
 
+-- Not yet
+-- data F a = F0 | F1 a | F2 (a,a) | F3 Int | F4 a Int | F5 (Int -> a)
+--   deriving Functor
+
 main :: IO ()
 main = do
   print $ A 'a' == (A 'a' :: T Char () ())

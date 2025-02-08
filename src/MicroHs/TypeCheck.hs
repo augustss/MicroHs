@@ -580,6 +580,7 @@ munify loc (Check a) b = unify loc a b
 
 expandSyn :: HasCallStack =>
              EType -> T EType
+--expandSyn at | trace ("expandSyn: " ++ show at) False = undefined
 expandSyn at = do
   let
     syn ts t =
@@ -591,14 +592,19 @@ expandSyn at = do
           syns <- gets synTable
           case M.lookup i syns of
             Nothing -> return $ eApps t ts
-            Just (EForall _ vks tt) ->
-              let s = zip (map idKindIdent vks) ts
-                  lvks = length vks
-                  lts = length ts
-              in  case compare lvks lts of
-                    LT -> expandSyn $ eApps (subst s tt) (drop lvks ts)
-                    EQ -> expandSyn $ subst s tt
-                    GT -> tcError (getSLoc i) $ "bad synonym use"
+            Just (EForall _ avks att) ->
+              -- Eta reduce type synonyms.
+              -- E.g. 'type T a = Maybe a' could be 'type T = Maybe'.
+              -- So change 'forall ... a . T a' into 'forall ... . T', if a does not occur in T.
+              case etaReduce (map idKindIdent avks) att of
+                (is, tt) ->
+                  let s = zip is ts
+                      lis = length is
+                      lts = length ts
+                  in  if lis > lts then
+                        tcError (getSLoc i) $ "bad synonym use"
+                      else
+                        expandSyn $ eApps (subst s tt) (drop lis ts)
             Just _ -> impossible
         EUVar _ -> return $ eApps t ts
         ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
@@ -740,6 +746,7 @@ tLookupV i = do
   tLookup (msgTCMode tcm) i
 
 tInst :: HasCallStack => Expr -> EType -> T (Expr, EType)
+--tInst ae t | trace ("tInst: " ++ show (ae, t)) False = undefined
 tInst ae (EForall _ vks t) = do
   t' <- tInstForall vks t
   tInst ae t'
@@ -851,7 +858,7 @@ withExtTyps iks ta = do
   putTypeTable venv
   return a
 
-tcDefs :: Flags -> ImpType -> [EDef] -> T [EDef]
+tcDefs :: HasCallStack => Flags -> ImpType -> [EDef] -> T [EDef]
 tcDefs flags impt ds = do
 --  tcTrace ("tcDefs 1:\n" ++ showEDefs ds)
   mapM_ tcAddInfix ds
@@ -860,7 +867,7 @@ tcDefs flags impt ds = do
   mapM_ addTypeAndData dst
   dste <- tcExpandClassInst impt dst
   dumpIf flags Dderive $
-    traceM $ "expanded:\n" ++ showEDefs dste
+    tcTrace' $ "expanded:\n" ++ showEDefs dste
 --  tcTrace ("tcDefs 3:\n" ++ showEDefs dste)
   case impt of
     ImpNormal -> do
@@ -915,16 +922,13 @@ getKindSigns ds = do
 
 -- Expand class and instance definitions (must be done after type synonym processing)
 tcExpandClassInst :: ImpType -> [EDef] -> T [EDef]
-tcExpandClassInst impt dst = withTypeTable $ do
-  dsc <- concat <$> mapM (expandClass impt) dst       -- Expand all class definitions
-  dsf <- concat <$> mapM expandField dsc              -- Add HasField instances
---  tcTrace $ showEDefs dsf
-  dsd <- concat <$> mapM doDeriving  dsf              -- Add derived instances
---  tcTrace $ showEDefs dsd
-  dsi <- concat <$> mapM expandInst  dsd              -- Expand all instance definitions
-  -- expandInst add Coercible constraints.  Solve them now.
-  _ <- solveConstraints
-  return dsi
+tcExpandClassInst impt dst = do
+  dsf <- withTypeTable $ do
+    dsc <- concat <$> mapM (expandClass impt) dst       -- Expand all class definitions
+    concat <$> mapM expandField dsc                     -- Add HasField instances
+  mapM_ addValueTypeClass dsf                           -- Add methods, needed while deriving
+  dsd <- concat <$> mapM doDeriving dsf                 -- Add derived instances
+  concat <$> mapM expandInst dsd                        -- Expand all instance definitions
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
 withVks :: forall a . HasCallStack => [IdKind] -> ([IdKind] -> T a) -> T a
@@ -977,7 +981,7 @@ addTypeKind kdefs adef = do
     _               -> return ()
 
 -- Add symbols associated with a type.
-addAssocs :: EDef -> T ()
+addAssocs :: HasCallStack => EDef -> T ()
 addAssocs adef = do
   mn <- gets moduleName
   let
@@ -1020,7 +1024,7 @@ tcDefType def = do
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> cm kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
     Sign      is t         ->                                            Sign      is   <$> tCheckTypeTImpl False kType t
     ForImp ie i t          ->                                            ForImp ie i    <$> tCheckTypeTImpl False kType t
-    Instance ct (InstanceBody m) ->                                      instanceBody   <$> tCheckTypeTImpl True kConstraint ct <*> return m
+    Instance ct m          ->                                            Instance       <$> tCheckTypeTImpl True kConstraint ct <*> return m
     Default mc ts          ->                                            Default (Just c) <$> mapM (tcDefault c) ts
                                                                            where c = fromMaybe num mc
     -- XXX StandDeriving is wrong
@@ -1042,7 +1046,7 @@ tcDefType def = do
 
 tcDeriving :: LHS -> Deriving -> T Deriving
 tcDeriving (tyId, vks) (Deriving strat cs) = do
-  let tcDerive c = do
+  let tcDerive (_, c) = do
         let loc = getSLoc c
         -- The kind of c has to be of the form (k1 -> ... kn -> Type) -> Constraint
         -- Check that it is.
@@ -1064,7 +1068,7 @@ tcDeriving (tyId, vks) (Deriving strat cs) = do
         case strat of
           DerVia v -> tc v
           _        -> return ()
-        return c'
+        return (r, c')
 
   --traceM $ "tcDerive 1 " ++ show cs
   cs' <- mapM tcDerive cs
@@ -1202,13 +1206,15 @@ splitInst act =
         (iks, ctxs, ct') -> (iks, ctx : ctxs, ct')
     _ -> ([], [], act)
 
+-- expandInst runs when all kind checking has been done, but no value checking.
+-- So any generated type expressions must be kind correct and fully qualified,
+-- whereas value expressions do not.
 expandInst :: EDef -> T [EDef]
-expandInst dinst@(Instance act ib) = do
+expandInst dinst@(Instance act bs) = do
   (vks, ctx, cc) <- splitInst <$> expandSyn act
   let loc = getSLoc act
       qiCls = getAppCon cc
       iInst = mkInstId loc cc
-      sign = Sign [iInst] act
 --  tcTrace ("expandInst " ++ show iInst)
 --  (e, _) <- tLookupV iCls
   ct <- gets classTable
@@ -1217,54 +1223,24 @@ expandInst dinst@(Instance act ib) = do
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> return x
-  -- Add a Coercible constraint.  The dictionary is a dummy and will never be used.
-  let canCoerce f t = do
-        d <- newDictIdent loc
-        addConstraint d (mkCoercible loc f t)
-  body <-
-    case ib of
-      InstanceBody bs -> do
-        -- XXX this ignores type signatures and other bindings
-        -- XXX should tack on signatures with ESign
-        let signs = [ (i, t) | Sign is t <- bs, i <- is ]
-            addSign i e = maybe e (ESign e) $ lookup i signs
-            clsMdl = qualOf qiCls                   -- get class's module name
-            ies = [(i, addSign i $ ELam loc qs) | Fcn i qs <- bs]
-            meth i = fromMaybe (ELam loc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
-            meths = map meth mis
-            sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
-            args = sups ++ meths
-            instBind (Fcn i _) = i `elem` mis
-            instBind (Sign is _) = all (`elem` mis) is
-            instBind _ = False
-        case filter (not . instBind) bs of
-          [] -> return ()
-          b:_ -> tcError (getSLoc b) $ "superflous instance binding"
-        return $ eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
+  let signs = [ (i, t) | Sign is t <- bs, i <- is ]
+      addSign i e = maybe e (ESign e) $ lookup i signs
+      clsMdl = qualOf qiCls                   -- get class's module name
+      ies = [(i, addSign i $ ELam loc qs) | Fcn i qs <- bs]
+      meth i = fromMaybe (ELam loc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
+      meths = map meth mis
+      sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
+      args = sups ++ meths
+      instBind (Fcn i _) = i `elem` mis
+      instBind (Sign is _) = all (`elem` mis) is
+      instBind _ = False
+  case filter (not . instBind) bs of
+    [] -> return ()
+    b:_ -> tcError (getSLoc b) $ "superflous instance binding"
 
-      -- A newtype instance.  The 'old' is the type of the original type,
-      -- 'cc' is the type we want, and 'mvia' is the possible type providing
-      -- the instance (if Nothing it's 'old' that provides the instance).
-      -- XXX do some consistency checks?  Eta-convert?
-      InstanceVia old mvia -> do
-        -- The type 'from' will provide the instance.
-        from <-
-          case mvia of
-            Nothing -> return old
-            Just via -> do
-              -- Make sure we can coerce from 'old' to 'from'
-              canCoerce old via
-              return via
-        -- Make sure the coercion 'from' to 'cc' is OK.
-        -- (This is redundant for newtype-deriving, but safety first.)
-        canCoerce from cc
-        let coe = EQVar (EApp (EVar $ mkIdentSLoc loc "Data.Coerce.coerce") (ETuple [])) coety
-            coety = from `tArrow` cc
-
-        --traceM ("InstanceVia: " ++ show coe)
-        return $ eEqns [] $ EApp coe (EVar $ mkIdentSLoc loc dictPrefixDollar)
-
-  let bind = Fcn iInst body
+  let body = eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
+      bind = Fcn iInst body
+      sign = Sign [iInst] $ eForall vks $ addConstraints ctx cc
   addInstTable [(EVar iInst, vks, ctx, cc, fds)]
   return [dinst, sign, bind]
 
@@ -1402,6 +1378,11 @@ addValueType adef = do
     ForImp _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     _ -> return ()
+
+-- Add methods to symbol table
+addValueTypeClass :: EDef -> T ()
+addValueTypeClass (Class ctx (i, vks) fds ms) = addValueClass ctx i vks fds ms
+addValueTypeClass _ = return ()
 
 -- Add a pattern synonym to the symbol table.
 addPatSyn :: EType -> Ident -> T ()
@@ -1831,6 +1812,7 @@ tcExprR mt ae =
 
 tcExprAp :: HasCallStack =>
             Expected -> Expr -> [Expr] -> T Expr
+--tcExprAp _ ae args | trace ("tcExprAp: " ++ show (ae, args)) False = undefined
 tcExprAp mt ae args =
   case ae of
     EApp f a -> tcExprAp mt f (a : args)
@@ -1860,16 +1842,17 @@ tcExprAp mt ae args =
 
 tcExprApFn :: HasCallStack =>
               Expected -> Expr -> EType -> [Expr] -> T Expr
---tcExprApFn _ fn fnt args | trace (show (fn, fnt, args)) False = undefined
+--tcExprApFn _ fn fnt args | trace ("tcExprApFn: " ++ show (fn, fnt, args)) False = undefined
 tcExprApFn mt fn (EForall {-True-}_ (IdKind i _:iks) ft) (ETypeArg t : args) = do
   t' <- if t `eqEType` EVar dummyIdent then newUVar else tcType (Check kType) t
-  tcExprApFn mt fn (eForall iks (subst [(i, t')] ft)) args
-tcExprApFn mt fn tfn args = do
+  tcExprApFn mt fn (subst [(i, t')] $ eForall iks ft) args
+tcExprApFn mt fn atfn args = do
 --  traceM $ "tcExprApFn: " ++ show (mt, fn, tfn, args)
 --  xx <- gets ctxTables
 --  traceM $ "tcExprApFn: ctxTables=" ++ show xx
   let loc = getSLoc fn
-  (fn', tfn') <- tInst fn tfn
+  (fn', tfn') <- tInst fn atfn
+--  traceM $ "tcExprApFn: (fn', tfn') = " ++ show (fn', tfn')
   let loop ats     [] ft = final ats ft
       loop ats as@(_:_) (EForall _ vks ft) = do
         ft' <- tInstForall vks ft
@@ -2096,7 +2079,7 @@ tcExprLam mt loc qs = do
   t <- tGetExpType mt
   ELam loc <$> tcEqns False t qs
 
-tcEqns :: Bool -> EType -> [Eqn] -> T [Eqn]
+tcEqns :: HasCallStack => Bool -> EType -> [Eqn] -> T [Eqn]
 --tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (Fcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
 tcEqns top (EForall expl iks t) eqns | expl      = withExtTyps iks $ tcEqns top t eqns
                                      | otherwise =                   tcEqns top t eqns
@@ -2475,7 +2458,8 @@ dsType at =
     EForall b iks t -> EForall b iks (dsType t)
     ELit _ (LStr _) -> at
     ELit _ (LInteger _) -> at
-    _ -> impossible
+    EQVar _ _ -> at
+    _ -> impossibleShow at
 
 tListI :: SLoc -> Ident
 tListI loc = mkIdentSLoc loc nameList
@@ -2831,7 +2815,7 @@ expandDict' avks actx edict acc = do
           when (isConIdent iCls) $
             --impossible
             -- XXX it seems we can get here, e.g., Control.Monad.Fail without Applicative import
-            error ("expandDict: " ++ showExprRaw acc)
+            impossibleShow (acc, iCls)
           return [(edict, vks, ctx, cc, [])]
         Just (ClassInfo iks sups _ _ fds) -> do
           let
@@ -3077,7 +3061,7 @@ solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETupl
       return $ Just (ETuple [], ncs, [])
 solveTypeEq _ _ _ = impossible
 
-solveCoercible :: SolveOne
+solveCoercible :: HasCallStack => SolveOne
 solveCoercible loc _iCls [t1, t2] = do
   st <- gets synTable
   extNewtypeSyns        -- pretend newtypes are type synonyms
@@ -3364,4 +3348,4 @@ standaloneDeriving str act = do
       Just (Data    l xs _) -> return (l, False, xs)
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
-  deriveStrat (Just act) newt lhs cs str cls
+  deriveStrat (Just act) newt lhs cs str (10000, cls)  -- XXX 10000 is totally wrong
