@@ -1,5 +1,5 @@
 module Data.Real(module Data.Real) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Num
 import Data.Ord

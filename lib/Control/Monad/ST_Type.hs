@@ -2,7 +2,7 @@
 module Control.Monad.ST_Type(
   ST(..), unST,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives(IO)
 import {-# SOURCE #-} Data.Typeable
 

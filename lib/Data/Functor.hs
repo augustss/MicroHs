@@ -6,7 +6,7 @@ module Data.Functor(
   unzip,
   void,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives  -- for fixity
 import Data.Function
 

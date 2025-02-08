@@ -12,7 +12,7 @@ module Foreign.C.Types(
  CTime(..),
  intToCSize, cSizeToInt,
  ) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Data.Bool
 import Data.Coerce

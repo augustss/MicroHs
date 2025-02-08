@@ -7,7 +7,7 @@ module Foreign.C.String(
   peekCString, peekCStringLen,
   withCString, withCStringLen,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Char_Type
 import Foreign.Marshal.Alloc

@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
 module MicroHs.Main(main) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import Data.Version

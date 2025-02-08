@@ -5,7 +5,7 @@ module MicroHs.TargetConfig(
   , parseTargets
   , findTarget
   ) where
-import Prelude(); import MHSPrelude hiding(lex)
+import qualified Prelude(); import MHSPrelude hiding(lex)
 import Control.Applicative
 import Data.List
 import Text.ParserComb

@@ -6,7 +6,7 @@ module Control.DeepSeq (
   (<$!!>),
   rwhnf,
 ) where
-import Prelude()
+import qualified Prelude()
 import Control.Applicative
 import Control.DeepSeq.Class
 import Control.Monad
@@ -501,5 +501,3 @@ rnf1 = liftRnf rnf
 
 rnf2 :: (NFData2 p, NFData a, NFData b) => p a b -> ()
 rnf2 = liftRnf2 rnf rnf
-
-

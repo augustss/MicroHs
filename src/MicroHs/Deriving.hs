@@ -1,5 +1,5 @@
 module MicroHs.Deriving(deriveStrat, expandField, mkGetName, etaReduce) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.Function
 import Data.List

@@ -7,7 +7,7 @@ module System.Environment(
   lookupEnv,
   getEnv,
   ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Primitives
 import Foreign.C.String
 import Foreign.Ptr

@@ -81,7 +81,7 @@ module Foreign.C.Error (
   throwErrnoPathIfMinus1,
   throwErrnoPathIfMinus1_,
 ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 
 import Foreign.Ptr
 import Foreign.Marshal.Alloc

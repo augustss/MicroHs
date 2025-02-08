@@ -41,7 +41,7 @@ module Text.Read.Internal
   , readParen
   )
  where
-import Prelude()
+import qualified Prelude()
 
 import Control.Applicative
 import Control.Error
@@ -796,4 +796,3 @@ instance (Read a, Read b, Read c, Read d, Read e, Read f, Read g, Read h,
                           ; return (a,b,c,d,e,f,g,h,i,j) })
   readListPrec = readListPrecDefault
   readList     = readListDefault
-

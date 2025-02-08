@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Integer_Type(module Data.Integer_Type) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import {-# SOURCE #-} Control.Error
 import Data.Bool_Type

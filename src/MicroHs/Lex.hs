@@ -5,7 +5,7 @@ module MicroHs.Lex(
   popLayout, lex,
   readInt,
   ) where
-import Prelude(); import MHSPrelude hiding(lex)
+import qualified Prelude(); import MHSPrelude hiding(lex)
 import Data.Char
 import Data.List
 import Data.Maybe (fromJust)

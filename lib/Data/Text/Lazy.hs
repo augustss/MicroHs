@@ -9,7 +9,7 @@ module Data.Text.Lazy(
   tail,
   uncons,
   ) where
-import Prelude(); import MiniPrelude hiding(head)
+import qualified Prelude(); import MiniPrelude hiding(head)
 import Data.Monoid.Internal
 import Data.String
 import qualified Data.ByteString.Internal as BS

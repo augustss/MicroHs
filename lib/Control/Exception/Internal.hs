@@ -7,7 +7,7 @@ module Control.Exception.Internal(
   PatternMatchFail, NoMethodError, RecSelError, RecConError(..),
   patternMatchFail, noMethodError, recSelError, recConError,
   ) where
-import Prelude()
+import qualified Prelude()
 import Primitives(IO)
 import Data.Char_Type
 import Data.List_Type

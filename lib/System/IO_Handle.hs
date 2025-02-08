@@ -1,5 +1,5 @@
 module System.IO_Handle(BFILE, Handle(..), HandleState(..)) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Data.Bool
 import Data.Eq

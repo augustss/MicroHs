@@ -4,7 +4,7 @@ module Data.Integer_Type(
   _intToInteger, _wordToInteger, _integerToInt, _integerToWord,
   _integerToFloatW,
   ) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 --import Foreign.ForeignPtr
 --import Mhs.Builtin

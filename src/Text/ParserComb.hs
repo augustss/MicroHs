@@ -19,7 +19,7 @@ module Text.ParserComb(
   TokenMachine(..),
   mapTokenState,
   ) where
-import Prelude(); import MHSPrelude hiding (fail)
+import qualified Prelude(); import MHSPrelude hiding (fail)
 import Control.Applicative
 import Control.Monad.Fail
 import Control.Monad

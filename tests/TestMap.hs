@@ -1,5 +1,5 @@
 module TestMap(lookup) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 
 lookup :: ()

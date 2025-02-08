@@ -23,7 +23,7 @@ module Mhs.Builtin(
 -- qualified with the name B@, this ways these names are always available
 -- qualified, but under a name that cannot be used accidentally.
 -- If the Prelude is not imported, then neither is this module.
-import Prelude()
+import qualified Prelude()
 import Control.Error(error)
 import Control.Monad(Monad(..))
 import Control.Monad.Fail(MonadFail(..))

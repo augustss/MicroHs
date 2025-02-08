@@ -13,7 +13,7 @@ module MicroHs.SymTab(
   stInsertLcl,
   mapMSymTab,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Control.Applicative
 import Data.List
@@ -97,7 +97,7 @@ stLookup msg i (SymTab l ug qg) =
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
 
--- When a module uses 'import Prelude()' the Mhs.Builtin (aka B@) will
+-- When a module uses 'import quakified Prelude()' the Mhs.Builtin (aka B@) will
 -- also not be imported.  So as a last recourse, look for the identifier
 -- unqualified.
 hackBuiltin :: Ident -> Ident

@@ -2,7 +2,7 @@ module MicroHs.Flags(
   Flags(..), verbosityGT, defaultFlags,
   DumpFlag(..), dumpIf,
   wantGMP) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 
 data Flags = Flags {
   verbose    :: Int,        -- verbosity level

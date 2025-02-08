@@ -16,7 +16,7 @@ module MicroHs.TypeCheck(
   Symbols,
   isInstId,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Control.Applicative
 import Control.Arrow(first)
 import Control.Monad

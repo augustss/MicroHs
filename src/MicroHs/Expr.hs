@@ -50,7 +50,7 @@ module MicroHs.Expr(
   TyVar, freeTyVars,
   getImplies,
   ) where
-import Prelude(); import MHSPrelude hiding ((<>))
+import qualified Prelude(); import MHSPrelude hiding ((<>))
 import Control.Arrow(first)
 import Data.List
 import Data.Maybe

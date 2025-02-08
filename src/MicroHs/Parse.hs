@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
 module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords, dotDotIdent) where
-import Prelude(); import MHSPrelude hiding ((*>))
+import qualified Prelude(); import MHSPrelude hiding ((*>))
 import Control.Applicative hiding ((*>))
 import Control.Monad
 import Control.Monad.Fail

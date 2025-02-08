@@ -41,7 +41,7 @@ module Prelude(
   default IsString,
   usingMhs, _wordSize, _isWindows,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Control.Applicative(Applicative(..))
 import Control.Error(error, undefined)
 import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))

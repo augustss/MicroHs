@@ -35,7 +35,7 @@ module Text.Read.Lex
   , isSymbolChar
   )
  where
-import Prelude()
+import qualified Prelude()
 import Control.Error
 import Control.Monad
 import Data.Char

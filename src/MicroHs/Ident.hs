@@ -18,7 +18,7 @@ module MicroHs.Ident(
   SLoc(..), noSLoc,
   showSLoc, slocFile,
   ) where
-import Prelude(); import MHSPrelude hiding(head)
+import qualified Prelude(); import MHSPrelude hiding(head)
 import Data.Char
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack

@@ -1,7 +1,7 @@
 -- Copyright 2024 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Int.IntN(module Data.Int.IntN) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 
 -- Just the types for sized Int.

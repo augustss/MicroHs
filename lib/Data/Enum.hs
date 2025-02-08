@@ -7,7 +7,7 @@ module Data.Enum (
   numericEnumFromTo,
   numericEnumFromThenTo,
 ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bool

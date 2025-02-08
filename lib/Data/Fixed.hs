@@ -32,7 +32,7 @@ module Data.Fixed
     mod',
     divMod'
 ) where
-import Prelude()
+import qualified Prelude()
 import MiniPrelude
 import Data.TypeLits (KnownNat, natVal)
 import Text.Read.Internal

@@ -38,7 +38,7 @@ module Text.Read
      readEither,
      readMaybe
      ) where
-import Prelude()
+import qualified Prelude()
 import Control.Error
 import Control.Monad
 import Data.Bool

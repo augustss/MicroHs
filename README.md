@@ -144,6 +144,12 @@ The `Prelude` contains the functions from the Haskell Report and a few extension
 with the notable exception that `Foldable` and `Traversable` are not part of the `Prelude`.
 They can be imported separately, though.
 
+### Not importing `Prelude`
+To completely avoid importing the prelude (which can be needed in base to
+avoid circular imports) use the incantation `import qualified Prelude()`.
+This will not even try to open `Prelude.hs`.  It also avoids the automagic
+(qualified) import of `Mhs.Builtin` that normally happens.
+
 ## Types
 There are some primitive data types, e.g `Int`, `IO`, `Ptr`, and `Double`.
 These are known by the runtime system and various primitive operations work on them.

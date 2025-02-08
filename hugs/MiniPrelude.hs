@@ -1,3 +1,3 @@
 module MiniPrelude(module MHSPrelude) where
-import Prelude()
+import qualified Prelude()
 import MHSPrelude

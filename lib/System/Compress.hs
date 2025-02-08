@@ -1,5 +1,5 @@
 module System.Compress(compress, decompress) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Data.Function
 import Foreign.Ptr
 import Foreign.C.String

@@ -1,5 +1,5 @@
 module Control.Monad.Fail(MonadFail(..)) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
 import Control.Error

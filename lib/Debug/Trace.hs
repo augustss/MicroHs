@@ -1,5 +1,5 @@
 module Debug.Trace(module Debug.Trace) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import System.IO(hPutStrLn, stderr)
 import Primitives
 

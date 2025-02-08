@@ -6,7 +6,7 @@ module MicroHs.Desugar(
   LDef, showLDefs,
   encodeInteger,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.Function
 import Data.Integer(_integerToIntList)

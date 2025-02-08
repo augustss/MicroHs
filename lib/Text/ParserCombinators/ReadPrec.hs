@@ -45,7 +45,7 @@ module Text.ParserCombinators.ReadPrec
   readS_to_Prec,
   )
  where
-import Prelude()
+import qualified Prelude()
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Fail

@@ -1,5 +1,5 @@
 module System.IO.Unsafe(unsafePerformIO, unsafeInterleaveIO) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 
 unsafePerformIO :: IO a -> a

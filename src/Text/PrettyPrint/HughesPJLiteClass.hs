@@ -25,7 +25,7 @@ module Text.PrettyPrint.HughesPJLiteClass (
     -- re-export HughesPJ
     module Text.PrettyPrint.HughesPJ
   ) where
-import Prelude(); import MHSPrelude hiding ((<>))
+import qualified Prelude(); import MHSPrelude hiding ((<>))
 
 import Text.PrettyPrint.HughesPJ
 

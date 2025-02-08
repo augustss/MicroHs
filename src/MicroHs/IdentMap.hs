@@ -17,7 +17,7 @@ module MicroHs.IdentMap(
   merge, mergeWith,
   mapM,
   ) where
-import Prelude(); import MHSPrelude hiding(lookup, mapM, null)
+import qualified Prelude(); import MHSPrelude hiding(lookup, mapM, null)
 import MicroHs.Ident
 
 data Map a

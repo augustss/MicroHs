@@ -98,7 +98,7 @@ module Data.List.NonEmpty (
    , nonEmpty    -- :: [a] -> Maybe (NonEmpty a)
    , xor         -- :: NonEmpty Bool -> Bool
    ) where
-import Prelude()
+import qualified Prelude()
 
 import Control.Applicative
 import Control.Error

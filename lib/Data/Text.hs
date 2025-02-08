@@ -8,7 +8,7 @@ module Data.Text(
   tail,
   uncons,
   ) where
-import Prelude(); import MiniPrelude hiding(head, tail, null)
+import qualified Prelude(); import MiniPrelude hiding(head, tail, null)
 import Control.DeepSeq.Class
 import Data.Monoid.Internal
 import Data.String

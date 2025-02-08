@@ -4,7 +4,7 @@ module Data.String(
   lines, unlines,
   words, unwords,
   ) where
-import Prelude()
+import qualified Prelude()
 import Data.Bool
 import Data.Char
 import Data.Eq

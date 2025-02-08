@@ -13,7 +13,7 @@ module Data.Array (
     accum,
     ixmap,
   ) where
-import Prelude()
+import qualified Prelude()
 import Primitives(primPerformIO, primArrCopy, primArrEQ)
 import Control.Error
 import Control.Monad

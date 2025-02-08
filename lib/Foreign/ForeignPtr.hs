@@ -14,7 +14,7 @@ module Foreign.ForeignPtr (
   mallocForeignPtrArray,
   mallocForeignPtrArray0,
   ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Primitives
 import Foreign.Ptr
 import Foreign.Storable

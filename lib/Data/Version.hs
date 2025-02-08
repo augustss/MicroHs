@@ -3,7 +3,7 @@ module Data.Version(
   showVersion,
   makeVersion
   ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Control.DeepSeq.Class
 import Data.List(intercalate)
 

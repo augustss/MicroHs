@@ -27,7 +27,7 @@ module Data.List(
   sortBy, insertBy, maximumBy, minimumBy,
   genericLength, genericTake, genericDrop, genericSplitAt, genericIndex, genericReplicate,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
 import Control.Error

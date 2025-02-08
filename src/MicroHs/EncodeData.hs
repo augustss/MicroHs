@@ -6,7 +6,7 @@ module MicroHs.EncodeData(
   encIf,
   encList,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.List
 import MicroHs.Exp
 import MicroHs.Expr(Con(..), Lit(..), impossible)
@@ -168,4 +168,3 @@ conNo _ = undefined
 numConstr :: [(SPat, Exp)] -> Int
 numConstr ((SPat (ConData cs _ _) _, _):_) = length cs
 numConstr _ = undefined
-

@@ -1,5 +1,5 @@
 module MicroHs.FFI(makeFFI) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Function
 import Data.List
 import MicroHs.Desugar(LDef)

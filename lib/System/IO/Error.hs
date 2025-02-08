@@ -68,7 +68,7 @@ module System.IO.Error (
 
     modifyIOError,
   ) where
-import Prelude()
+import qualified Prelude()
 import Primitives(IO)
 import Control.Exception.Internal
 import Control.Monad

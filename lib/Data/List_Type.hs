@@ -1,5 +1,5 @@
 module Data.List_Type(module Data.List_Type) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 
 infixr 5 :

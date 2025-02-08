@@ -1,5 +1,5 @@
 module Data.Typeable where
-import Prelude()
+import qualified Prelude()
 import Data.Char_Type
 import Data.Maybe_Type
 

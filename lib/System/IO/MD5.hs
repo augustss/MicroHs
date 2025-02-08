@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module System.IO.MD5(MD5CheckSum, md5File, md5Handle, md5String, md5Combine) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Primitives(primPerformIO)
 import Control.DeepSeq.Class
 import Data.Coerce

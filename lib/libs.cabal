@@ -25,6 +25,7 @@ library base
         Control.Arrow
         Control.Category
         Control.DeepSeq
+        Control.DeepSeq.Class
         Control.Error
         Control.Exception
         Control.Exception.Base

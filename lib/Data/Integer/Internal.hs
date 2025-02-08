@@ -14,7 +14,7 @@ module Data.Integer.Internal(
   _integerToInt,
   _wordToInteger,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 --import Primitives
 import Control.Error
 import Data.Bits
@@ -509,4 +509,3 @@ checkAll = do
   mapM_ qc [prop_div, prop_muldiv]
 
 -}
-

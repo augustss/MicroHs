@@ -17,7 +17,7 @@ module Text.PrettyPrint.HughesPJLite(
   Style,
   render, renderStyle,
   ) where
-import Prelude(); import MHSPrelude hiding ((<>))
+import qualified Prelude(); import MHSPrelude hiding ((<>))
 
 infixl 6 <>, <+>
 infixl 5 $$, $+$

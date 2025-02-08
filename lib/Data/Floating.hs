@@ -1,5 +1,5 @@
 module Data.Floating(module Data.Floating) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Fractional
 import Data.Num

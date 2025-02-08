@@ -7,7 +7,7 @@ module Data.Ratio(
   rationalNaN,
   rationalMinusZero,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Data.Bool
 import Data.Enum
 import Data.Eq

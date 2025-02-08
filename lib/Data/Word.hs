@@ -1,7 +1,7 @@
 -- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Word(Word, Word8, Word16, Word32, Word64) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bits

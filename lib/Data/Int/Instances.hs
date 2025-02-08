@@ -1,5 +1,5 @@
 module Data.Int.Instances() where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Control.Error
 import Data.Bits

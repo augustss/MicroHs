@@ -3,7 +3,7 @@ module MicroHs.TCMonad(
   module MicroHs.TCMonad,
   get, put, gets, modify,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Functor.Identity
 import GHC.Stack
 import Control.Applicative

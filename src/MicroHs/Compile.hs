@@ -13,7 +13,7 @@ module MicroHs.Compile(
   getMhsDir,
   openFilePath,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import Data.Maybe
@@ -244,7 +244,7 @@ addPreludeImport (EModule mn es ds) =
           case ps of
             [] -> [Import $ ImportSpec ImpNormal False idPrelude Nothing Nothing,      -- no Prelude imports, so add 'import Prelude'
                    iblt]                                                               -- and 'import Mhs.Builtin as B@'
-            [Import (ImportSpec ImpNormal False _ Nothing (Just (False, [])))] -> []   -- exactly 'import Prelude()', so import nothing
+            [Import (ImportSpec ImpNormal True _ Nothing (Just (False, [])))] -> []    -- exactly 'import qualified Prelude()', so import nothing
             _ -> iblt : ps                                                             -- keep the given Prelude imports, add Builtin
 
 -------------------------------------------

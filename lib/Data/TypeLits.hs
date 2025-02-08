@@ -4,7 +4,7 @@ module Data.TypeLits(
   KnownNat(..),
   KnownSymbol(..),
   ) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Data.Char_Type
 import Data.Integer

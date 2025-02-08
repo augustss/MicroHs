@@ -1,5 +1,5 @@
 module Control.Category(module Control.Category) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import qualified Data.Function as F
 

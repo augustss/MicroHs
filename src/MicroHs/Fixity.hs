@@ -1,5 +1,5 @@
 module MicroHs.Fixity(resolveFixity) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import MicroHs.Expr
 import MicroHs.Ident
 

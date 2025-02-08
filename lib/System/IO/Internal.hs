@@ -8,7 +8,7 @@ module System.IO.Internal(
   getHandleState, setHandleState,
   killHandle,
   addTransducer) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Control.Applicative
 import Control.Error

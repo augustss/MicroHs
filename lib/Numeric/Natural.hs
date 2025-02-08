@@ -2,7 +2,7 @@ module Numeric.Natural
   ( Natural
   , minusNaturalMaybe
   ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Data.Coerce
 import Data.Integer
 import Data.Real

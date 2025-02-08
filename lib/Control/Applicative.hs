@@ -6,7 +6,7 @@ module Control.Applicative(
   guard, asum, optional,
   module Data.Functor.Const_Type,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives  -- for fixity
 import Data.Bool_Type
 import Data.Functor

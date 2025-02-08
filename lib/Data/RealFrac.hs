@@ -1,5 +1,5 @@
 module Data.RealFrac(module Data.RealFrac) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Data.Ord
 import Data.Fractional

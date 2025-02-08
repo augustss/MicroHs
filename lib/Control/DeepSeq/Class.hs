@@ -1,7 +1,7 @@
 -- Copyright 2025 Lennart Augustsson
 -- See LICENSE file for full license.
 module Control.DeepSeq.Class(module Control.DeepSeq.Class) where
-import Prelude()
+import qualified Prelude()
 import Primitives(primSeq)
 import Data.Bool
 import Data.Char

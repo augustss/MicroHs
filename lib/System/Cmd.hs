@@ -1,5 +1,5 @@
 module System.Cmd(system) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Foreign.C.String
 import System.Exit
 

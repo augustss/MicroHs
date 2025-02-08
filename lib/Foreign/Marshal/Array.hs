@@ -1,5 +1,5 @@
 module Foreign.Marshal.Array(module Foreign.Marshal.Array) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Alloc

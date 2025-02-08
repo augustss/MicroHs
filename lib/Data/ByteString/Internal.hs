@@ -1,5 +1,5 @@
 module Data.ByteString.Internal(module Data.ByteString.Internal) where
-import Prelude(); import MiniPrelude hiding(length)
+import qualified Prelude(); import MiniPrelude hiding(length)
 import Control.DeepSeq.Class
 import Data.Word(Word8)
 

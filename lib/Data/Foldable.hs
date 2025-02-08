@@ -41,7 +41,7 @@ module Data.Foldable (
     notElem,
     find
     ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative(Applicative(..), Alternative(..))
 import Control.Error
