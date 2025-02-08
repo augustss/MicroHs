@@ -327,12 +327,14 @@ pDef =
     pFunDeps = (pSpec '|' *> esepBy1 pFunDep (pSpec ',')) <|< pure []
     pFunDep = (,) <$> esome pLIdent <*> (pSRArrow *> esome pLIdent)
     pField = guardM pFields ((== 1) . either length length)
-    pStrat = DerVia <$> (pKeyword "via" *> pAType) <|> pure DerNone
 
     clsSym = do s <- pUIdentSym; guard (unIdent s /= "()"); return s
 
     mkPattern (lhs, pat, meqn) = Pattern lhs pat meqn
     noop = Infix (AssocLeft, 0) []        -- harmless definition
+
+    pStrat = (DerVia <$> (pKeyword "via" *> pAType)) <|< pSimpleStrat
+
 
 pPatSyn :: P (LHS, EPat, Maybe [Eqn])
 pPatSyn = do
@@ -401,13 +403,15 @@ pDerivings = many pDeriving
 
 pDeriving :: P Deriving
 pDeriving = pKeyword "deriving" *> (    (flip Deriving <$> pDer <*> pVia)
-                                    <|> (Deriving <$> pStrat <*> pDer) )
+                                    <|> (Deriving <$> pSimpleStrat <*> pDer) )
   where pDer = zipWith (,) (repeat 0) <$>
                    (    pParens (esepBy pType (pSpec ','))
                     <|< ((:[]) <$> pAType) )
         pVia = DerVia <$> (pKeyword "via" *> pAType)
-        pStrat = (DerStock <$ pKeyword "stock") <|< (DerNewtype <$ pKeyword "newtype")
-             <|< (DerAnyClass <$ pKeyword "anyclass") <|< pure DerNone
+
+pSimpleStrat :: P DerStrategy
+pSimpleStrat = (DerStock <$ pKeyword "stock") <|< (DerNewtype <$ pKeyword "newtype")
+           <|< (DerAnyClass <$ pKeyword "anyclass") <|< pure DerNone
 
 -- List has 0 or 1 elements
 pContext :: P [EConstraint]

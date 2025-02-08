@@ -252,6 +252,7 @@ $(MCABALBIN)/mhs: bin/mhs src/runtime/*.[ch] targets.conf $(MDIST)/Paths_MicroHs
 	cp src/runtime/*.[ch] $(MRUNTIME)
 
 $(MDIST)/Paths_MicroHs.hs:
+	@mkdir -p $(MDIST)
 	@echo 'module Paths_MicroHs where { import qualified Prelude(); import MHSPrelude; import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
 
 $(MCABALBIN)/cpphs: bin/cpphs
