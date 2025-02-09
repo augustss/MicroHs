@@ -43,12 +43,12 @@ MAINMODULE=MicroHs.Main
 all:	bin/mhs bin/cpphs bin/mcabal
 
 targets.conf:
-	echo [default]           > targets.conf
+	echo "[default]"         > targets.conf
 	echo cc = \"$(CC)\"     >> targets.conf
 	echo ccflags = \"$(MHSGMPCCFLAGS)\" >> targets.conf
 	echo conf = \"$(CONF)\" >> targets.conf
 	echo ''                 >> targets.conf
-	echo [emscripten]       >> targets.conf
+	echo "[emscripten]"     >> targets.conf
 	echo cc = \"$(EMCC)\"   >> targets.conf
 	echo conf = \"$(CONF)\" >> targets.conf
 
@@ -268,8 +268,8 @@ $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
 	@rm $(BASE).pkg
 
-install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALBIN)/mcabal $(MCABALMHS)/packages/$(BASE).pkg
-	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
+#install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALBIN)/mcabal $(MCABALMHS)/packages/$(BASE).pkg
+#	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 # mkdir ~/.mcabal/packages/array-0.5.6.0
 
@@ -277,7 +277,7 @@ preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c
 	make generated/mcabal.c
 
-minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
+install:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
 	PATH=$(MCABALBIN):"$$PATH" mcabal install
