@@ -277,6 +277,7 @@ preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c
 	make generated/mcabal.c
 
+minstall:	install
 install:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
