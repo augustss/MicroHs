@@ -158,14 +158,14 @@ import Prelude(Bool(..), Int, Char, Ordering, FilePath, IO, Maybe(..), [](..), S
 import qualified Prelude as P
 import qualified Data.List as P
 import Control.Exception (evaluate)
-import Data.List.NonEmpty(NonEmpty, fromList)
+import Data.List.NonEmpty (NonEmpty, fromList)
 import Data.Bits
 import Data.Function (($!))
 import Data.Monoid.Internal
 import Data.Semigroup
 import Data.String
-import Data.Word(Word8)
-import Foreign.C.String(CString, CStringLen)
+import Data.Word (Word8)
+import Foreign.C.String (CString, CStringLen)
 import Foreign.Ptr (Ptr)
 import System.IO (Handle, IOMode(..), hClose, openFile, stdin, stdout)
 import qualified System.IO as P
@@ -179,13 +179,12 @@ foreign import ccall "writeb" c_writeb :: CString -> Int -> Ptr BFILE -> IO Int
 type StrictByteString = ByteString
 
 primBS2FPtr :: ByteString -> ForeignPtr Char
-primBS2FPtr = _primitive "I"  -- FIXME
+primBS2FPtr = _primitive "bs2fp"
 
-primFPtr2BS :: ForeignPtr Char -> ByteString
-primFPtr2BS = _primitive "I"  -- FIXME
-
-primFPtrLen2BS :: ForeignPtr Char -> Int -> ByteString
-primFPtrLen2Bs fp len = take len (primFPtr2BS fp)
+-- Warning: This function modifies the `ForeignPtr`,
+-- avoid using the `ForeignPtr` after calling `primFPtr2BS`.
+primFPtr2BS :: ForeignPtr Char -> Int -> ByteString
+primFPtr2BS = _primitive "fp2bs"
 
 bsUnimp :: String -> a
 bsUnimp s = P.error $ "Data.ByteString." P.++ s P.++ " unimplemented"
@@ -571,7 +570,7 @@ hGet h i =
   withHandleRd h $ \bfile -> do
     fp <- mallocForeignPtrBytes i
     bytesRead <- withForeignPtr fp $ \buf -> c_readb buf i bfile
-    return $! primFPtrLen2BS fp bytesRead
+    return $! primFPtr2BS fp bytesRead
 
 hGetNonBlocking :: Handle -> Int -> IO ByteString
 hGetNonBlocking h i = bsUnimp "hGetNonBlocking"
@@ -588,10 +587,10 @@ hGetContents h =
         bytesRead <- withForeignPtr fp $ \buf -> c_readb buf chunkSize bfile
         if bytesRead < chunkSize then do
           -- EOF
-          lastChunk <- evaluate $ primFPtrLen2BS fp bytesRead
+          lastChunk <- evaluate $ primFPtr2BS fp bytesRead
           evaluate $ concat (P.reverse (lastChunk : chunks))
         else do
-          chunk <- evaluate $ primFPtrLen2BS fp bytesRead
+          chunk <- evaluate $ primFPtr2BS fp bytesRead
           readChunks (chunkSize * 2) (chunk : chunks)
     bs <- readChunks 1024 []
     hClose h

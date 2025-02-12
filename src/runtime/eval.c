@@ -247,6 +247,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_POPCOUNT, T_CLZ, T_CTZ,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE, T_ICMP, T_UCMP,
                 T_FPADD, T_FP2P, T_FPNEW, T_FPFIN, // T_FPSTR,
+                T_FP2BS, T_BS2FP,
                 T_TOPTR, T_TOINT, T_TODBL, T_TOFUNPTR,
                 T_BININT2, T_BININT1, T_UNINT1,
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
@@ -806,6 +807,8 @@ struct {
   { "fpnew", T_FPNEW },
   { "fpfin", T_FPFIN },
   //  { "fpstr", T_FPSTR },
+  { "fp2bs", T_FP2BS },
+  { "bs2fp", T_BS2FP },
   { "seq", T_SEQ },
   { "equal", T_EQUAL, T_EQUAL },
   { "sequal", T_EQUAL, T_EQUAL },
@@ -2317,6 +2320,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_FPNEW: putsb("fpnew", f); break;
   case T_FPFIN: putsb("fpfin", f); break;
     //  case T_FPSTR: putsb("fpstr", f); break;
+  case T_FP2BS: putsb("fp2bs", f); break;
+  case T_BS2FP: putsb("bs2fp", f); break;
   case T_EQUAL: putsb("equal", f); break;
   case T_COMPARE: putsb("compare", f); break;
   case T_RNF: putsb("rnf", f); break;
@@ -2740,7 +2745,7 @@ evalforptr(NODEPTR n)
   return FORPTR(n);
 }
 
-/* Evaluate to a T_BSTR */
+/* Evaluate to a bytestring */
 struct forptr *
 evalbstr(NODEPTR n)
 {
@@ -3399,11 +3404,31 @@ evali(NODEPTR an)
 #undef CONV
 
   case T_FPADD: CHECK(2); xfp = evalforptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETFORPTR(n, addForPtr(xfp, yi)); RET;
-  case T_FP2P:  CHECK(1);
-    //printf("T_FP2P\n");
-    xfp = evalforptr(ARG(TOP(0))); POP(1); n = TOP(-1);
-    //printf("T_FP2P xfp=%p, payload=%p\n", xfp, xfp->payload);
-    SETPTR(n, xfp->payload.string); RET;
+  case T_FP2P:
+    CHECK(1);
+    xfp = evalforptr(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETPTR(n, xfp->payload.string);
+    RET;
+
+  case T_FP2BS:
+    CHECK(2);
+    xfp = evalforptr(ARG(TOP(0)));
+    xi = evalint(ARG(TOP(1)));
+    POP(2);
+    n = TOP(-1);
+    xfp->payload.size = xi;
+    SETBSTR(n, xfp);
+    RET;
+
+  case T_BS2FP:
+    CHECK(1);
+    xfp = evalbstr(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETFORPTR(n, xfp);
+    RET;
 
   case T_ARR_EQ:
     {
