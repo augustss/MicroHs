@@ -585,14 +585,12 @@ hGetContents h =
       readChunks chunkSize chunks = do
         fp <- mallocForeignPtrBytes chunkSize
         bytesRead <- withForeignPtr fp $ \buf -> c_readb buf chunkSize bfile
-        if bytesRead < chunkSize then do
+        if bytesRead < chunkSize then
           -- EOF
-          lastChunk <- evaluate $ primFPtr2BS fp bytesRead
-          evaluate $ concat (P.reverse (lastChunk : chunks))
-        else do
-          chunk <- evaluate $ primFPtr2BS fp bytesRead
-          readChunks (chunkSize * 2) (chunk : chunks)
-    bs <- readChunks 1024 []
+          evaluate $ chunks `append` primFPtr2BS fp bytesRead
+        else
+          readChunks (chunkSize * 2) (chunks `append` primFPtr2BS fp bytesRead)
+    bs <- readChunks 1024 empty
     hClose h
     return bs
 
@@ -605,8 +603,7 @@ interact transformer = getContents >>= putStr . transformer
 readFile :: FilePath -> IO ByteString
 readFile f = do
   h <- openFile f ReadMode
-  bs <- hGetContents h
-  return bs
+  hGetContents h
 
 writeFile :: FilePath -> ByteString -> IO ()
 writeFile f bs = do
