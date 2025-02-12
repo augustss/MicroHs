@@ -164,5 +164,7 @@ primTable = [
   ("fp+", _primitive "fp+"),
   ("fp2p", _primitive "fp2p"),
   ("fpnew", _primitive "fpnew"),
-  ("fpfin", _primitive "fpfin")
+  ("fpfin", _primitive "fpfin"),
+  ("fp2bs", _primitive "fp2bs"),
+  ("bs2fp", _primitive "bs2fp")
   ]

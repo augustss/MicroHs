@@ -176,6 +176,7 @@ runtimeFFI = [
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "iswindows", "log", "malloc",
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove",
   "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "unlink",
+  "readb", "writeb",
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
   "add_lz77_compressor", "add_lz77_decompressor",
   "add_rle_compressor", "add_rle_decompressor",
