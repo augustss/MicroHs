@@ -238,7 +238,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_BSTR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -372,6 +372,12 @@ struct ioarray {
 };
 struct ioarray *array_root = 0; /* root of all allocated arrays, linked by next */
 
+enum fptype {
+  FP_FORPTR = 0,                /* a regular foreign pointer to unknown memory */
+  FP_BSTR,                      /* a bytestring */
+  FP_MPZ,                       /* a GMP MPZ pointer */
+};
+
 /*
  * A Haskell ForeignPtr has a normal pointer, and a finalizer
  * function that is to be called when there are no more references
@@ -392,8 +398,8 @@ struct final {
   size_t         size;      /* size of memory, if known, otherwise NOSIZE */
 #define NOSIZE ~0           /* used as the size in payload for actual foreign pointers */
   struct forptr *back;      /* back pointer to the first forptr */
-  int            marked;    /* mark bit for GC */
-  int            isMPZ;     /* is GMP MPZ pointer */
+  short          marked;    /* mark bit for GC */
+  enum fptype    fptype;    /* what kind of foreign pointer */
 };
 
 /*
@@ -1147,7 +1153,6 @@ mark(NODEPTR *np)
       break;
     }
    case T_FORPTR:
-   case T_BSTR:
      FORPTR(n)->finalizer->marked = 1;
      goto fin;
 
@@ -1684,8 +1689,10 @@ mkForPtrFree(struct bytestring str)
 NODEPTR
 mkStrNode(struct bytestring str)
 {
-  NODEPTR n = alloc_node(T_BSTR);
-  FORPTR(n) = mkForPtrFree(str);
+  NODEPTR n = alloc_node(T_FORPTR);
+  struct forptr *fp = mkForPtrFree(str);
+  FORPTR(n) = fp;
+  fp->finalizer->fptype = FP_BSTR;
   //printf("mkForPtr n=%p fp=%p %d %s payload.string=%p\n", n, fp, (int)FORPTR(n)->payload.size, (char*)FORPTR(n)->payload.string, FORPTR(n)->payload.string);
   return n;
 }
@@ -2058,7 +2065,7 @@ find_sharing(struct print_bits *pb, NODEPTR n)
   if (n < cells || n >= cells + heap_size) abort();
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   tag_t tag = GETTAG(n);
-  if (tag == T_AP || tag == T_ARR || tag == T_BSTR) {
+  if (tag == T_AP || tag == T_ARR || tag == T_FORPTR) {
     if (test_bit(pb->shared_bits, n)) {
       /* Alread marked as shared */
       //PRINT("shared\n");
@@ -2203,7 +2210,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     else if (n == comb_stderr)
       putsb("IO.stderr", f);
 #if WANT_GMP
-    else if (FORPTR(n)->finalizer->isMPZ) {
+    else if (FORPTR(n)->finalizer->fptype == FP_MPZ) {
       /* Serialize as %99999" */
       mpz_ptr op = FORPTR(n)->payload.string; /* get the mpz */
       int sz = mpz_sizeinbase(op, 10);        /* maximum length */
@@ -2217,12 +2224,11 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
       free(s);
     }
 #endif  /* WANT_GMP */
-    else {
+    else if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
+      print_string(f, FORPTR(n)->payload);
+    } else {
       ERR("Cannot serialize foreign pointers");
     }
-    break;
-  case T_BSTR:
-    print_string(f, FORPTR(n)->payload);
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
@@ -2740,7 +2746,7 @@ evalbstr(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_BSTR) {
+  if (GETTAG(n) != T_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR) {
     ERR1("evalbstr, bad tag %d", GETTAG(n));
   }
 #endif
@@ -3008,7 +3014,7 @@ compare(NODEPTR cmp)
       struct forptr *fp = FORPTR(p);
       struct forptr *fq = FORPTR(q);
 #if WANT_GMP
-      if (fp->finalizer->isMPZ && fq->finalizer->isMPZ) {
+      if (fp->finalizer->fptype == FP_MPZ && fq->finalizer->fptype == FP_MPZ) {
         int i = mpz_cmp(fp->payload.string, fq->payload.string);
         if (i < 0)
           CRET(-1);
@@ -3016,7 +3022,11 @@ compare(NODEPTR cmp)
           CRET(1);
       } else
 #endif
-      {
+      if (fp->finalizer->fptype == FP_BSTR && fq->finalizer->fptype == FP_BSTR) {
+        r = bscompare(BSTR(p), BSTR(q));
+        if (r)
+          CRET(r);
+      } else {
         f = fp->payload.string;
         g = fq->payload.string;
         if (f < g)
@@ -3025,11 +3035,6 @@ compare(NODEPTR cmp)
           CRET(1);
       }
       }
-      break;
-    case T_BSTR:
-      r = bscompare(BSTR(p), BSTR(q));
-      if (r)
-        CRET(r);
       break;
     case T_ARR:
       if (ARR(p) < ARR(q))
@@ -3139,7 +3144,7 @@ evali(NODEPTR an)
 #define SETPTR(n,r)    do { SETTAG((n), T_PTR); PTR(n) = (r); } while(0)
 #define SETFUNPTR(n,r) do { SETTAG((n), T_FUNPTR); FUNPTR(n) = (r); } while(0)
 #define SETFORPTR(n,r) do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); } while(0)
-#define SETBSTR(n,r)   do { SETTAG((n), T_BSTR); FORPTR(n) = (r); } while(0)
+#define SETBSTR(n,r)   do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); FORPTR(n)->finalizer->fptype = FP_BSTR; } while(0)
 #define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
@@ -3159,7 +3164,6 @@ evali(NODEPTR an)
   ap:
   case T_AP:   PUSH(n); n = FUN(n); goto top;
 
-  case T_BSTR: RET;
   case T_INT:  RET;
   case T_DBL:  RET;
   case T_PTR:  RET;
@@ -3424,21 +3428,18 @@ evali(NODEPTR an)
 
   case T_BSHEADUTF8:
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-    if (GETTAG(x) != T_BSTR) ERR("HEADUTF8");
+    xfp = evalbstr(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    SETINT(n, headutf8(BSTR(x), (void**)0));
+    SETINT(n, headutf8(xfp->payload, (void**)0));
     RET;
 
   case T_BSTAILUTF8:
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-    if (GETTAG(x) != T_BSTR) ERR("TAILUTF8");
+    xfp = evalbstr(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    { xfp = FORPTR(x);                              /* foreign pointer to the string */
-      void *out;
+    { void *out;
       (void)headutf8(xfp->payload, &out);           /* skip one UTF8 character */
       xi = (char*)out - (char*)xfp->payload.string; /* offset */
       yi = xfp->payload.size - xi;                  /* remaining length */
@@ -3449,23 +3450,22 @@ evali(NODEPTR an)
   case T_BSFROMUTF8:
     if (doing_rnf) RET;
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-    if (GETTAG(x) != T_BSTR) ERR("FROMUTF8");
+
+    xfp = evalbstr(ARG(TOP(0)));
+    GCCHECK(strNodes(xfp->payload.size));
     POP(1);
     n = TOP(-1);
-    GCCHECK(strNodes(BSTR(x).size));
     //printf("T_FROMUTF8 x = %p fp=%p payload.string=%p\n", x, x->uarg.uuforptr, x->uarg.uuforptr->payload.string);
-    GOIND(mkStringU(BSTR(x)));
+    GOIND(mkStringU(xfp->payload));
 
   case T_BSUNPACK:
     if (doing_rnf) RET;
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-    if (GETTAG(x) != T_BSTR) ERR("BSUNPACK");
+    struct forptr *xfp = evalbstr(ARG(TOP(0)));
+    GCCHECK(strNodes(xfp->payload.size));
     POP(1);
     n = TOP(-1);
-    GCCHECK(strNodes(BSTR(x).size));
-    GOIND(bsunpack(BSTR(x)));
+    GOIND(bsunpack(xfp->payload));
 
   case T_BSPACK:
     CHECK(1);
@@ -3790,7 +3790,7 @@ evali(NODEPTR an)
     case T_BINBS1:
       /* First argument */
 #if SANITY
-      if (GETTAG(n) != T_BSTR)
+      if (GETTAG(n) != T_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR)
         ERR("BINBS 0");
 #endif  /* SANITY */
       xbs = BSTR(n);
@@ -3799,7 +3799,7 @@ evali(NODEPTR an)
       while (GETTAG(y) == T_IND)
         y = INDIR(y);
 #if SANITY
-      if (GETTAG(y) != T_BSTR)
+      if (GETTAG(y) != T_FORPTR || FORPTR(y)->finalizer->fptype != FP_BSTR)
         ERR("BINBS 1");
 #endif  /* SANITY */
       ybs = BSTR(y);
@@ -4660,7 +4660,7 @@ new_mpz(void)
   mpz_init(p);
   struct forptr *fp = mkForPtrP(p);
   fp->finalizer->final = (HsFunPtr)free_mpz;
-  fp->finalizer->isMPZ = 1;
+  fp->finalizer->fptype = FP_MPZ;
   /*  printf("new_mpz %p %p\n", p, fp); */
   return fp;
 }
