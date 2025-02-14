@@ -157,22 +157,34 @@ import Prelude(Bool(..), Int, Char, Ordering, FilePath, IO, Maybe(..), [](..), S
                (.), ($), Enum(..), (||), (&&), not, otherwise, (!!), fst, snd)
 import qualified Prelude as P
 import qualified Data.List as P
-import Data.List.NonEmpty(NonEmpty, fromList)
+import Control.Exception (evaluate)
+import Data.List.NonEmpty (NonEmpty, fromList)
 import Data.Bits
+import Data.Function (($!))
 import Data.Monoid.Internal
 import Data.Semigroup
 import Data.String
-import Data.Word(Word8)
-import Foreign.C.String(CString, CStringLen)
-import System.IO(Handle, IOMode(..), stdin, stdout)
+import Data.Word (Word8)
+import Foreign.C.String (CString, CStringLen)
+import Foreign.Ptr (Ptr)
+import System.IO (Handle, IOMode(..), hClose, openFile, stdin, stdout)
 import qualified System.IO as P
+import System.IO.Internal (BFILE, withHandleRd, withHandleWr)
 import Foreign.ForeignPtr
 import Data.ByteString.Internal
 
+foreign import ccall "readb" c_readb :: CString -> Int -> Ptr BFILE -> IO Int
+foreign import ccall "writeb" c_writeb :: CString -> Int -> Ptr BFILE -> IO Int
+
 type StrictByteString = ByteString
 
-primBS2FPtr   :: ByteString -> ForeignPtr Char
-primBS2FPtr   = _primitive "I"  -- same representation
+primBS2FPtr :: ByteString -> ForeignPtr Char
+primBS2FPtr = _primitive "bs2fp"
+
+-- Warning: This function modifies the `ForeignPtr`,
+-- avoid using the `ForeignPtr` after calling `primFPtr2BS`.
+primFPtr2BS :: ForeignPtr Char -> Int -> ByteString
+primFPtr2BS = _primitive "fp2bs"
 
 bsUnimp :: String -> a
 bsUnimp s = P.error $ "Data.ByteString." P.++ s P.++ " unimplemented"
@@ -344,7 +356,7 @@ takeEnd n bs
   | otherwise = substr bs (l - n) n
   where l = length bs
 
-drop  :: Int -> ByteString -> ByteString
+drop :: Int -> ByteString -> ByteString
 drop n bs
   | n <= 0    = bs
   | n >= l    = empty
@@ -520,7 +532,7 @@ useAsCString bs act =
 
 useAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
 useAsCStringLen bs act =
-  withForeignPtr (primBS2FPtr bs) $ \ p -> act (p, length bs)
+  withForeignPtr (primBS2FPtr bs) $ \p -> act (p, length bs)
 
 packCString :: CString -> IO ByteString
 packCString cstr = bsUnimp "packCString"
@@ -538,7 +550,11 @@ hGetLine :: Handle -> IO ByteString
 hGetLine = fmap fromString . P.hGetLine
 
 hPut :: Handle -> ByteString -> IO ()
-hPut h = P.hPutStr h . toString
+hPut h bs =
+  withHandleWr h $ \bfile ->
+    useAsCStringLen bs $ \(cstr, len) ->
+      () <$ c_writeb cstr len bfile
+      -- XXX: flush if not BlockBuffering
 
 hPutNonBlocking :: Handle -> ByteString -> IO ByteString
 hPutNonBlocking = bsUnimp "hPutNonBlocking"
@@ -550,7 +566,11 @@ putStr :: ByteString -> IO ()
 putStr = hPut stdout
 
 hGet :: Handle -> Int -> IO ByteString
-hGet h i = bsUnimp "hGet"
+hGet h i =
+  withHandleRd h $ \bfile -> do
+    fp <- mallocForeignPtrBytes i
+    bytesRead <- withForeignPtr fp $ \buf -> c_readb buf i bfile
+    return $! primFPtr2BS fp bytesRead
 
 hGetNonBlocking :: Handle -> Int -> IO ByteString
 hGetNonBlocking h i = bsUnimp "hGetNonBlocking"
@@ -559,7 +579,20 @@ hGetSome :: Handle -> Int -> IO ByteString
 hGetSome h i = bsUnimp "hGetSome"
 
 hGetContents :: Handle -> IO ByteString
-hGetContents = fmap fromString . P.hGetContents
+hGetContents h =
+  withHandleRd h $ \bfile -> do
+    let
+      readChunks chunkSize chunks = do
+        fp <- mallocForeignPtrBytes chunkSize
+        bytesRead <- withForeignPtr fp $ \buf -> c_readb buf chunkSize bfile
+        if bytesRead < chunkSize then
+          -- EOF
+          evaluate $ chunks `append` primFPtr2BS fp bytesRead
+        else
+          readChunks (chunkSize * 2) (chunks `append` primFPtr2BS fp bytesRead)
+    bs <- readChunks 1024 empty
+    hClose h
+    return bs
 
 getContents :: IO ByteString
 getContents = hGetContents stdin
@@ -568,10 +601,18 @@ interact :: (ByteString -> ByteString) -> IO ()
 interact transformer = getContents >>= putStr . transformer
 
 readFile :: FilePath -> IO ByteString
-readFile = fmap fromString . P.readFile
+readFile f = do
+  h <- openFile f ReadMode
+  hGetContents h
 
 writeFile :: FilePath -> ByteString -> IO ()
-writeFile f = P.writeFile f . toString
+writeFile f bs = do
+  h <- openFile f WriteMode
+  hPut h bs
+  hClose h
 
 appendFile :: FilePath -> ByteString -> IO ()
-appendFile f = P.appendFile f . toString
+appendFile f bs = do
+  h <- openFile f AppendMode
+  hPut h bs
+  hClose h

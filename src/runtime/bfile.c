@@ -64,15 +64,11 @@ size_t
 bfbuffer_read(struct bfbuffer *bf, uint8_t *buf, size_t size)
 {
   if (bf->pos + size > bf->size) {
-    size_t max_size = bf->size - bf->pos;
-    memcpy(buf, bf->buf + bf->pos, max_size);
-    bf->pos = bf->size;
-    return max_size;
-  } else {
-    memcpy(buf, bf->buf + bf->pos, size);
-    bf->pos += size;
-    return size;
+    size = bf->size - bf->pos;
   }
+  memcpy(buf, bf->buf + bf->pos, size);
+  bf->pos += size;
+  return size;
 }
 
 size_t
