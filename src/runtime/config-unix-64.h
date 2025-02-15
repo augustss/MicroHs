@@ -58,14 +58,13 @@
 #if defined(__gnu_linux__) || defined(__APPLE__) || defined(__FreeBSD__)
 /* Only some platforms have 64 bit ffsl function directly. */
 #define FFS ffsl
-#elif defined(__GNUC__)
-/* GCC has ffsl as a builtin. */
-#define FFS __builtin_ffsl
-/* CLANG has ffsl as a builtin. */
-#elif defined(__clang__) && __has_builtin(__builtin__ffsl)
+#elif defined(__has_builtin)
+
+#if __has_builtin(__builtin__ffsl)
 #define FFS __builtin_ffsl
 #endif
 
+#endif
 
 /*
  * This is the character used for comma-separation in printf.

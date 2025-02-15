@@ -134,11 +134,17 @@ FFS(bits_t x)
 }
 #endif  /* !defined(FFS) */
 
+#if defined(__has_builtin)
+
+#if __has_builtin(__builtin_popcountl)
+#define BUILTIN_POPCOUNT
+#endif
+
+#endif
+
 #if !defined(POPCOUNT)
 uvalue_t POPCOUNT(uvalue_t x) {
-#if defined(__GNUC__)
-  return __builtin_popcountl(x);
-#elif defined(__clang__) && __has_builtin(__builtin_popcountl)
+#if defined(BUILTIN_POPCOUNT)
   return __builtin_popcountl(x);
 #else
   uvalue_t count = 0;
@@ -151,12 +157,20 @@ uvalue_t POPCOUNT(uvalue_t x) {
 }
 #endif
 
+#if defined(__GNUC__)
+#define BUILTIN_CLZ
+#elif defined(__clang__)
+
+#if __has_builtin(__builtin_clzl)
+#define BUILTIN_CLZ
+#endif
+
+#endif
+
+
 #if !defined(CLZ)
 uvalue_t CLZ(uvalue_t x) {
-#if defined(__GNUC__)
-  if (x == 0) return WORD_SIZE;
-  return __builtin_clzl(x);
-#elif defined(__clang__) && __has_builtin(__builtin_clzl)
+#if defined(BUILTIN_CLZ)
   if (x == 0) return WORD_SIZE;
   return __builtin_clzl(x);
 #else
@@ -170,12 +184,19 @@ uvalue_t CLZ(uvalue_t x) {
 }
 #endif
 
+#if defined(__has_builtin)
+
+#if __has_builtin(__builtin_ctzl)
+#define BUILTIN_CTZ
+#endif
+
+#endif
+
+
 #if !defined(CTZ)
 uvalue_t CTZ(uvalue_t x) {
   if (x == 0) return WORD_SIZE;
-#if defined(__GNUC__)
-  return __builtin_ctzl(x);
-#elif defined(__clang__) && __has_builtin(__builtin_ctzl)
+#if defined(BUILTIN_CLZ)
   return __builtin_ctzl(x);
 #else
   uvalue_t count = 0;
