@@ -1,0 +1,97 @@
+# Warnings currently triggered by your code
+- ignore: {name: "Avoid lambda"} # 14 hints
+- ignore: {name: "Avoid lambda using `infix`"} # 13 hints
+- ignore: {name: "Collapse lambdas"} # 2 hints
+- ignore: {name: "Eta reduce"} # 101 hints
+- ignore: {name: "Fuse foldr/map"} # 3 hints
+- ignore: {name: "Move brackets to avoid $"} # 5 hints
+- ignore: {name: "Move guards forward"} # 2 hints
+- ignore: {name: "Parenthesize unary negation"} # 4 hints
+- ignore: {name: "Redundant $"} # 20 hints
+- ignore: {name: "Redundant <$>"} # 9 hints
+- ignore: {name: "Redundant =="} # 8 hints
+- ignore: {name: "Redundant bracket"} # 53 hints
+- ignore: {name: "Redundant compare"} # 1 hint
+- ignore: {name: "Redundant if"} # 5 hints
+- ignore: {name: "Redundant lambda"} # 16 hints
+- ignore: {name: "Redundant list comprehension"} # 3 hints
+- ignore: {name: "Redundant return"} # 3 hints
+- ignore: {name: "Replace case with fromMaybe"} # 1 hint
+- ignore: {name: "Replace case with maybe"} # 4 hints
+- ignore: {name: "Unused LANGUAGE pragma"} # 18 hints
+- ignore: {name: "Use $>"} # 1 hint
+- ignore: {name: "Use &&"} # 1 hint
+- ignore: {name: "Use (,)"} # 1 hint
+- ignore: {name: "Use (,,)"} # 1 hint
+- ignore: {name: "Use <$>"} # 12 hints
+- ignore: {name: "Use >=>"} # 2 hints
+- ignore: {name: "Use >>"} # 1 hint
+- ignore: {name: "Use any"} # 2 hints
+- ignore: {name: "Use bimap"} # 1 hint
+- ignore: {name: "Use camelCase"} # 20 hints
+- ignore: {name: "Use catMaybes"} # 1 hint
+- ignore: {name: "Use const"} # 14 hints
+- ignore: {name: "Use elem"} # 1 hint
+- ignore: {name: "Use elemIndex"} # 1 hint
+- ignore: {name: "Use elemIndices"} # 1 hint
+- ignore: {name: "Use error"} # 1 hint
+- ignore: {name: "Use even"} # 4 hints
+- ignore: {name: "Use fewer imports"} # 2 hints
+- ignore: {name: "Use first"} # 3 hints
+- ignore: {name: "Use fmap"} # 5 hints
+- ignore: {name: "Use fold"} # 1 hint
+- ignore: {name: "Use foldr"} # 3 hints
+- ignore: {name: "Use fromMaybe"} # 1 hint
+- ignore: {name: "Use fst"} # 3 hints
+- ignore: {name: "Use guards"} # 10 hints
+- ignore: {name: "Use head"} # 4 hints
+- ignore: {name: "Use id"} # 3 hints
+- ignore: {name: "Use infix"} # 22 hints
+- ignore: {name: "Use insert"} # 1 hint
+- ignore: {name: "Use isDigit"} # 2 hints
+- ignore: {name: "Use isJust"} # 2 hints
+- ignore: {name: "Use isNothing"} # 4 hints
+- ignore: {name: "Use isOctDigit"} # 1 hint
+- ignore: {name: "Use let"} # 1 hint
+- ignore: {name: "Use list comprehension"} # 10 hints
+- ignore: {name: "Use list literal pattern"} # 3 hints
+- ignore: {name: "Use logBase"} # 1 hint
+- ignore: {name: "Use map"} # 1 hint
+- ignore: {name: "Use map with tuple-section"} # 3 hints
+- ignore: {name: "Use mapAndUnzipM"} # 2 hints
+- ignore: {name: "Use mapMaybe"} # 1 hint
+- ignore: {name: "Use max"} # 2 hints
+- ignore: {name: "Use min"} # 3 hints
+- ignore: {name: "Use negate"} # 3 hints
+- ignore: {name: "Use newtype instead of data"} # 8 hints
+- ignore: {name: "Use notElem"} # 7 hints
+- ignore: {name: "Use otherwise"} # 14 hints
+- ignore: {name: "Use print"} # 52 hints
+- ignore: {name: "Use record patterns"} # 19 hints
+- ignore: {name: "Use replicate"} # 1 hint
+- ignore: {name: "Use replicateM"} # 1 hint
+- ignore: {name: "Use sequenceA"} # 1 hint
+- ignore: {name: "Use show"} # 1 hint
+- ignore: {name: "Use shows"} # 22 hints
+- ignore: {name: "Use snd"} # 3 hints
+- ignore: {name: "Use tan"} # 1 hint
+- ignore: {name: "Use traverse"} # 1 hint
+- ignore: {name: "Use tuple-section"} # 12 hints
+- ignore: {name: "Use typeRep"} # 2 hints
+- ignore: {name: "Use uncurry"} # 2 hints
+- ignore: {name: "Use unless"} # 11 hints
+- ignore: {name: "Use void"} # 8 hints
+- ignore: {name: "Use when"} # 1 hint
+- ignore: {name: "Use zip"} # 1 hint
+
+- arguments:
+    - --ignore-glob=lib/Data/ByteString.hs
+    - --ignore-glob=lib/Data/Foldable1.hs
+    - --ignore-glob=lib/MiniPrelude.hs
+    - --ignore-glob=lib/Prelude.hs
+    - --ignore-glob=lib/gmp/Data/Integer_Type.hs
+    - --ignore-glob=mhs/MHSPrelude.hs
+    - --ignore-glob=tests/Bang.hs
+    - --ignore-glob=tests/MultiIf.hs
+    - --ignore-glob=tests/Record.hs
+    - --ignore-glob=tests/Via.hs
