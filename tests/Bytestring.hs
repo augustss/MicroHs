@@ -1,6 +1,6 @@
 module Bytestring where
 import Data.Word
-import Data.ByteString
+import Data.ByteString as BS
 
 bs1 :: ByteString
 bs1 = pack [1,2,3]
@@ -25,3 +25,4 @@ main = do
         ]
   print [ compare x y | x <- [bs1, bs2, bs3, bs4], y <- [bs1, bs2, bs3, bs4] ]
   print $ unpack "abc"
+  print $ BS.replicate 64 42
