@@ -31,6 +31,8 @@ primBSsubstr  :: ByteString -> Int -> Int -> ByteString
 primBSsubstr  = _primitive "bssubstr"
 primBSindex   :: ByteString -> Int -> Word8
 primBSindex   = _primitive "bsindex"
+primBSreplicate :: Int -> Word8 -> ByteString
+primBSreplicate = _primitive "bsreplicate"
 
 -----------------------------------------
 

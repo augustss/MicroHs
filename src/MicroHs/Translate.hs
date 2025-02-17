@@ -154,6 +154,7 @@ primTable = [
   ("bscmp", _primitive "bscmp"),
   ("bspack", _primitive "bspack"),
   ("bsunpack", _primitive "bsunpack"),
+  ("bsreplicate", _primitive "bsreplicate"),
   ("bslength", _primitive "bslength"),
   ("bssubstr", _primitive "bssubstr"),
   ("bsindex", _primitive "bsindex"),

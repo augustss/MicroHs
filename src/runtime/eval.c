@@ -288,8 +288,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
-                T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
-                T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8,  T_BSTAILUTF8,
+                T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
+                T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT,
                 T_LAST_TAG,
 };
@@ -807,6 +807,7 @@ struct {
   { "bscmp", T_BSCMP },
   { "bspack", T_BSPACK },
   { "bsunpack", T_BSUNPACK },
+  { "bsreplicate", T_BSREPLICATE },
   { "bslength", T_BSLENGTH },
   { "bssubstr", T_BSSUBSTR },
   { "bsindex", T_BSINDEX },
@@ -2321,6 +2322,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_BSCMP: putsb("bscmp", f); break;
   case T_BSPACK: putsb("bspack", f); break;
   case T_BSUNPACK: putsb("bsunpack", f); break;
+  case T_BSREPLICATE: putsb("bsreplicate", f); break;
   case T_BSLENGTH: putsb("bslength", f); break;
   case T_BSSUBSTR: putsb("bssubstr", f); break;
   case T_BSINDEX: putsb("bsindex", f); break;
@@ -2876,6 +2878,18 @@ evalbytestring(NODEPTR n)
   buf[offs] = 0;                /* in case we use it as a C string */
   bs.size = offs;
   bs.string = buf;
+  return bs;
+}
+
+struct bytestring
+bsreplicate(size_t size, uint8_t value)
+{
+  struct bytestring bs;
+  bs.size = size;
+  bs.string = MALLOC(size);
+  if (!bs.string)
+    memerr();
+  memset(bs.string, value, size);
   return bs;
 }
 
@@ -3519,6 +3533,15 @@ evali(NODEPTR an)
     POP(1);
     n = TOP(-1);
     SETBSTR(n, mkForPtrFree(rbs));
+    RET;
+
+  case T_BSREPLICATE:
+    CHECK(2);
+    xi = evalint(ARG(TOP(0)));
+    yi = evalint(ARG(TOP(1)));
+    POP(2);
+    n = TOP(-1);
+    SETBSTR(n, mkForPtrFree(bsreplicate(xi, yi)));
     RET;
 
   case T_BSLENGTH:
