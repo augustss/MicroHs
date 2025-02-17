@@ -184,7 +184,8 @@ cachelib:
 
 #
 clean:
-	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal Interactive.hs .mhsi
+	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal Interactive.hs .mhsi bootstrap
+	git worktree prune
 	cd tests; make clean
 	-cabal clean
 	-git submodule deinit cpphssrc/malcolm-wallace-universe
@@ -293,6 +294,11 @@ generated/hmhs.c:
 	@mkdir -p generated
 	$(HUGS) $(HUGSINCS) hugs/Main.hs $(MHSINC) $(MAINMODULE) -ogenerated/hmhs.c
 
-bin/hmhs: generated/hmhs.c
+bootstrap/.git:
+# Use exact commit for reproducible builds
+	git worktree add bootstrap 4a85b7204627f3ad76d463fe383259821eec755b
+
+bin/hmhs: bootstrap/.git
 	@mkdir -p bin
-	$(CCEVAL) generated/hmhs.c -o bin/hmhs
+	cd bootstrap; make HUGS="$(HUGS)" HUGSINCS="$(HUGSINCS)" bin/hmhs
+	bootstrap/bin/hmhs -z $(MHSINC) $(MAINMODULE) -obin/hmhs
