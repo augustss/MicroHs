@@ -331,7 +331,7 @@ scanr1 :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString
 scanr1 f = pack . P.scanr1 f . unpack
 
 replicate :: Int -> Word8 -> ByteString
-replicate w = pack . P.replicate w
+replicate = primBSreplicate
 
 unfoldr :: (a -> Maybe (Word8, a)) -> a -> ByteString
 unfoldr f = pack . P.unfoldr f
