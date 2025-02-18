@@ -39,31 +39,72 @@ main = do
   dir <- getMhsDir
   dataDir <- getDataDir
   case args of
-   ["--version"] -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
-   ["--numeric-version"] -> putStrLn mhsVersion
-   _ -> do
-    let dflags = (defaultFlags dir){ pkgPath = pkgPaths }
-        (flags, mdls, rargs) = decodeArgs dflags [] args
-        pkgPaths | dir == dataDir && dir /= "." = [takeDirectory $ takeDirectory $ takeDirectory dataDir]   -- This is a bit ugly
-                 | otherwise                    = []                        -- No package search path
-    when (verbosityGT flags 1) $
-      putStrLn $ "flags = " ++ show flags
-    case listPkg flags of
-      Just p -> mainListPkg flags p
-      Nothing ->
-        case buildPkg flags of
-          Just p -> mainBuildPkg flags p mdls
-          Nothing ->
-            if installPkg flags then mainInstallPackage flags mdls else
-            withArgs rargs $ do
-              case mdls of
-                []  | null (cArgs flags) -> mainInteractive flags
-                    | otherwise -> mainCompileC flags [] ""
-                [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
-                _   -> error usage
+    ["-h"] -> putStrLn usage
+    ["--help"] -> putStrLn longUsage
+    ["--version"] -> putStrLn $ "MicroHs, version " ++ mhsVersion ++ ", combinator file version " ++ combVersion
+    ["--numeric-version"] -> putStrLn mhsVersion
+    _ -> do
+      let dflags = (defaultFlags dir){ pkgPath = pkgPaths }
+          (flags, mdls, rargs) = decodeArgs dflags [] args
+          pkgPaths | dir == dataDir && dir /= "." = [takeDirectory $ takeDirectory $ takeDirectory dataDir]   -- This is a bit ugly
+                   | otherwise                    = []                        -- No package search path
+      when (verbosityGT flags 1) $
+        putStrLn $ "flags = " ++ show flags
+      case listPkg flags of
+        Just p -> mainListPkg flags p
+        Nothing ->
+          case buildPkg flags of
+            Just p -> mainBuildPkg flags p mdls
+            Nothing ->
+              if installPkg flags then mainInstallPackage flags mdls else
+              withArgs rargs $ do
+                case mdls of
+                  []  | null (cArgs flags) -> mainInteractive flags
+                      | otherwise -> mainCompileC flags [] ""
+                  [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+                  _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+
+longUsage :: String
+longUsage = usage ++ "\nOptions:\n" ++ unlines details
+  where
+    details =
+      [ "-h                 Print usage"
+      , "--help             Print this message"
+      , "--version          Print the version"
+      , "--numeric-version  Print the version number"
+      , "-v                 Increase verbosity (flag can be repeated)"
+      , "-q                 Decrease verbosity (flag can be repeated)"
+      , "-l                 Show every time a module is loaded"
+      , "-s                 Show compilation speed in lines/s"
+      , "-r                 Run directly"
+      , "-CR                Read compilation cache"
+      , "-CW                Write compilation cache"
+      , "-C                 Read and write compilation cache"
+      , "-XCPP              Run cpphs on source files"
+      , "-Dxxx              Pass -Dxxx to cpphs"
+      , "-Ixxx              Pass -Ixxx to cpphs"
+      , "-T                 Generate dynamic function usage statistics"
+      , "-z                 Compress combinator code generated in the .c file"
+      , "-iPATH             Add PATH to module search path"
+      , "-oFILE             Output to FILE"
+      , "                   If FILE ends in .comb produce a combinator file"
+      , "                   If FILE ends in .c produce a C file"
+      , "                   Otherwise compile the combinators together with the runtime system to produce a regular executable"
+      , "-a                 Clear package search path"
+      , "-aPATH             Add PATH to package search path"
+      , "-LPKG              List all modules of package PKG"
+      , "-PPKG              Build package PKG"
+      , "-Q PKG [DIR]       Install package PKG"
+      , "-tTARGET           Select target"
+      , "                   Distributed targets: default, emscripten"
+      , "                   Targets can be defined in targets.conf"
+      , "-optc OPTION       Options for the C compiler"
+      , "-ddump-PASS        Debug, print AST after PASS"
+      , "                   Possible passes: parse, typecheck, desugar, toplevel, combinator, all"
+      ]
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
