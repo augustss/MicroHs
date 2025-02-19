@@ -10,9 +10,18 @@ module Foreign.C.String(
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Char_Type
+import Foreign.C.Types (CChar)
 import Foreign.Marshal.Alloc
 
-type CChar = Char
+primNewCAStringLen :: [Char] -> IO (Ptr CChar, Int)
+primNewCAStringLen = _primitive "newCAStringLen"
+
+primPeekCAString :: Ptr CChar -> IO [Char]
+primPeekCAString = _primitive "peekCAString"
+
+primPeekCAStringLen :: Ptr CChar -> Int -> IO [Char]
+primPeekCAStringLen = _primitive "peekCAStringLen"
+
 type CString = Ptr CChar
 type CStringLen = (Ptr CChar, Int)
 
