@@ -5,11 +5,8 @@
 module Text.ParserComb(
   Prsr, runPrsr,
   satisfy, satisfyM,
-  satisfyMany,
-  choice,
-  many, emany, optional, eoptional,
-  some, esome,
-  esepBy, sepBy1, esepBy1,
+  emany, eoptional, esome,
+  esepBy, esepBy1,
   esepEndBy, esepEndBy1,
   (<?>), (<|<),
   --notFollowedBy,
@@ -130,13 +127,6 @@ satisfyM msg f = P $ \ acs ->
     (c, cs) | Just a <- f c -> Many [(a, cs)] noFail
     _ -> Many [] (LastFail (tmLeft acs) (firstToken acs) [msg])
 
-satisfyMany :: forall tm t . TokenMachine tm t => (t -> Bool) -> Prsr tm t [t]
-satisfyMany f = P $ loop []
-  where loop res acs =
-          case tmNextToken acs of
-            (c, cs) | f c -> loop (c:res) cs
-                    | otherwise -> Many [(reverse res, acs)] noFail
-
 infixl 9 <?>
 (<?>) :: forall tm t a . Prsr tm t a -> String -> Prsr tm t a
 (<?>) p e = P $ \ t ->
@@ -190,13 +180,6 @@ esome p = (:) <$> p <*> emany p
 
 eoptional :: forall tm t a . Prsr tm t a -> Prsr tm t (Maybe a)
 eoptional p = (Just <$> p) <|< pure Nothing
-
-choice :: forall tm t a . TokenMachine tm t => [Prsr tm t a] -> Prsr tm t a
-choice [] = empty
-choice ps = foldr1 (<|>) ps
-
-sepBy1 :: forall tm t a sep . TokenMachine tm t => Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
-sepBy1 p sep = (:) <$> p <*> many (sep >> p)
 
 esepBy1 :: forall tm t a sep . Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
 esepBy1 p sep = (:) <$> p <*> emany (sep >> p)

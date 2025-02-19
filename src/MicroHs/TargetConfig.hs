@@ -6,7 +6,6 @@ module MicroHs.TargetConfig(
   , findTarget
   ) where
 import qualified Prelude(); import MHSPrelude hiding(lex)
-import Control.Applicative
 import Data.List
 import Text.ParserComb
 import MicroHs.Ident
@@ -56,7 +55,7 @@ eof = do
     _      -> fail "eof"
 
 nl :: Parser [Token]
-nl = many $ satisfy "\\n" isWhite
+nl = emany $ satisfy "\\n" isWhite
   where isWhite (TIndent _) = True
         isWhite _           = False
 
@@ -91,7 +90,7 @@ target :: Parser Target
 target = Target <$> (targetName <* nl) <*> keyValues
 
 targets :: Parser [Target]
-targets = (target `sepBy1` nl) <* nl <* eof
+targets = (target `esepBy1` nl) <* nl <* eof
 
 formatFailed :: LastFail Token -> String
 formatFailed (LastFail _ ts msgs) =

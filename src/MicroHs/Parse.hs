@@ -3,7 +3,6 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
 module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords, dotDotIdent) where
 import qualified Prelude(); import MHSPrelude hiding ((*>))
-import Control.Applicative hiding ((*>))
 import Control.Monad
 import Control.Monad.Fail
 import Data.Char
@@ -51,7 +50,7 @@ eof = do
   t <- nextToken
   case t of
     TEnd _ -> pure ()
-    _      -> Control.Monad.Fail.fail "expected eof"
+    _      -> Control.Monad.Fail.fail "eof"
 
 pTop :: P EModule
 pTop = (pModule <|< pModuleEmpty) <* eof
@@ -312,7 +311,7 @@ pDef =
   <|< Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSpec '=' *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDerivings
   <|< Type         <$> (pKeyword "type"     *> pLHS) <*> (pSpec '=' *> pType)
   <|< Import       <$> (pKeyword "import"   *> pImportSpec)
-  <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> (pKeyword "ccall" <|> pKeyword "capi")
+  <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> (pKeyword "ccall" <|< pKeyword "capi")
                         *> eoptional (pKeyword "unsafe") *> eoptional pString) <*> pLIdent <*> (dcolon *> pType)
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
@@ -322,7 +321,7 @@ pDef =
   <|< Sign         <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< StandDeriving<$> (pKeyword "deriving" *> pStrat) <*> (pKeyword "instance" *> pType)
   <|< noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
-                                               (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
+                                               (pKeyword "nominal" <|< pKeyword "phantom" <|< pKeyword "representational"))
   where
     pFunDeps = (pSpec '|' *> esepBy1 pFunDep (pSpec ',')) <|< pure []
     pFunDep = (,) <$> esome pLIdent <*> (pSRArrow *> esome pLIdent)
@@ -344,10 +343,10 @@ pPatSyn = do
        guard (isExp p)
        let eqn = eEqn (map (EVar . idKindIdent) vs) p
        pure (lhs, p, Just [eqn])
-   ) <|> (
+   ) <|< (
     do pSymbol "<-"
        p <- pPat
-       meqns <- optional (pKeyword "where" *> pBraces (pEqnsU i))
+       meqns <- eoptional (pKeyword "where" *> pBraces (pEqnsU i))
        pure (lhs, p, fmap snd meqns)
    )
 
@@ -399,11 +398,11 @@ dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
     _ -> errorMessage (E.getSLoc rty) $ "Bad GADT result type" ++ show (rty, tnm, vks)
 
 pDerivings :: P [Deriving]
-pDerivings = many pDeriving
+pDerivings = emany pDeriving
 
 pDeriving :: P Deriving
 pDeriving = pKeyword "deriving" *> (    (flip Deriving <$> pDer <*> pVia)
-                                    <|> (Deriving <$> pSimpleStrat <*> pDer) )
+                                    <|< (Deriving <$> pSimpleStrat <*> pDer) )
   where pDer = zipWith (,) (repeat 0) <$>
                    (    pParens (esepBy pType (pSpec ','))
                     <|< ((:[]) <$> pAType) )
@@ -417,8 +416,8 @@ pSimpleStrat = (DerStock <$ pKeyword "stock") <|< (DerNewtype <$ pKeyword "newty
 pContext :: P [EConstraint]
 pContext = (pCtx <* pDRArrow) <|< pure []
   where
-    pCtx =     ((:[]) <$> pTypeApp)
-           <|> (eq <$> pTypeArg <*> pTilde <*> pTypeArg)   -- A hack to allow   a~b => ...
+    pCtx =     (eq <$> pTypeArg <*> pTilde <*> pTypeArg)   -- A hack to allow   a~b => ...
+           <|< ((:[]) <$> pTypeApp)
     eq t1 i t2 = [eAppI2 i t1 t2]
     pTilde = do i <- pQSymOper; guard (i == mkIdent "~"); return i
 
@@ -432,15 +431,13 @@ pSLArrow :: P ()
 pSLArrow = pSymbol "<-" <|< pSymbol "\x2190"
 
 pConstr :: P Constr
-pConstr = (Constr <$> pForall <*> pContext <*> pUIdentSym <*> pFields)
-      <|> ((\ vs ct t1 c t2 -> Constr vs ct c (Left [t1, t2])) <$>        -- <|> needed
-            pForall <*> pContext <*> pSTypeApp <*> pUSymOper <*> pSTypeApp)
+pConstr = ((\ vs ct t1 c t2 -> Constr vs ct c (Left [t1, t2])) <$> pForall <*> pContext <*> pSTypeApp <*> pUSymOper <*> pSTypeApp)
+      <|< (Constr <$> pForall <*> pContext <*> pUIdentSym <*> pFields)
 
 
 pFields :: P (Either [SType] [(Ident, SType)])
-pFields = Left  <$> emany pSAType
-      -- The <|> is needed because 'emany' can be empty.
-      <|> Right <$> (pSpec '{' *> (concatMap flat <$> esepBy ((,) <$> (esepBy1 pLIdentSym (pSpec ',') <* dcolon) <*> pSType) (pSpec ',') <* pSpec '}'))
+pFields = Right <$> (pSpec '{' *> (concatMap flat <$> esepBy ((,) <$> (esepBy1 pLIdentSym (pSpec ',') <* dcolon) <*> pSType) (pSpec ',') <* pSpec '}'))
+      <|< Left  <$> emany pSAType
   where flat (is, t) = [ (i, t) | i <- is ]
 
 -- XXX This is a mess.
@@ -551,7 +548,7 @@ pAPat =
          i <- pLIdentSym
          (EAt i <$> (pSpec '@' *> pAPat)) <|< pure (EVar i)
       )
-  <|< (evar <$> pUQIdentSym <*> optional pUpdate)
+  <|< (evar <$> pUQIdentSym <*> eoptional pUpdate)
   <|< pLit
   <|< (eTuple <$> (pSpec '(' *> esepBy pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
@@ -616,9 +613,9 @@ pEqn ident oper test = do
 
 pEqnLHS :: P Ident -> P Ident -> P (Ident, [EPat])
 pEqnLHS ident oper =
-  ((,) <$> ident <*> emany pAPat)
-  <|>   -- XXX this <|> causes a slowdown, but is necessary
   pOpLHS
+  <|<
+  ((,) <$> ident <*> emany pAPat)
   <|<
   ((\ (i, ps1) ps2 -> (i, ps1 ++ ps2)) <$> pParens pOpLHS <*> emany pAPat)
   where
@@ -720,8 +717,8 @@ pOperCommaNoMinus = guardM pOperComma (/= mkIdent "-")
 pAExpr :: P Expr
 pAExpr = do
   ee <- pAExpr'
-  us <- many pUpdate
-  ss <- many pSelect
+  us <- emany pUpdate
+  ss <- emany pSelect
   let sel e | null ss = e
             | otherwise = EApp (ESelect ss) e
   pure $ sel (foldl EUpdate ee us)
@@ -730,7 +727,7 @@ pUpdate :: P [EField]
 pUpdate = pSpec '{' *> esepBy pEField (pSpec ',') <* pSpec '}'
   where
     pEField = do
-      fs <- (:) <$> pLIdentSym <*> many pSelect
+      fs <- (:) <$> pLIdentSym <*> emany pSelect
       EField fs <$> (pSpec '=' *> pExpr) <|< pure (EFieldPun fs)
      <|<
       (EFieldWild <$ pSymbol "..")
