@@ -1,7 +1,6 @@
 module Storable(main) where
 import Prelude
 import Data.Word
-import Data.Word8
 import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
 import Foreign.Ptr
