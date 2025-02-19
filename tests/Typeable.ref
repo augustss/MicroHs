@@ -1,6 +1,6 @@
-Char
-IO Char
-(Char,Char)
+Bool
+IO Bool
+(Char,Bool)
 Monad
 T
 P (P T)
