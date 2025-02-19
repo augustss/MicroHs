@@ -166,6 +166,7 @@ import Data.Semigroup
 import Data.String
 import Data.Word (Word8)
 import Foreign.C.String (CString, CStringLen)
+import Foreign.C.Types (CChar)
 import Foreign.Ptr (Ptr)
 import System.IO (Handle, IOMode(..), hClose, openFile, stdin, stdout)
 import qualified System.IO as P
@@ -178,12 +179,12 @@ foreign import ccall "writeb" c_writeb :: CString -> Int -> Ptr BFILE -> IO Int
 
 type StrictByteString = ByteString
 
-primBS2FPtr :: ByteString -> ForeignPtr Char
+primBS2FPtr :: ByteString -> ForeignPtr CChar
 primBS2FPtr = _primitive "bs2fp"
 
 -- Warning: This function modifies the `ForeignPtr`,
 -- avoid using the `ForeignPtr` after calling `primFPtr2BS`.
-primFPtr2BS :: ForeignPtr Char -> Int -> ByteString
+primFPtr2BS :: ForeignPtr CChar -> Int -> ByteString
 primFPtr2BS = _primitive "fp2bs"
 
 bsUnimp :: String -> a

@@ -11,8 +11,8 @@ import System.IO
 import System.IO.Internal
 
 foreign import ccall "openb_wr_buf"          c_openb_wr_buf          :: IO (Ptr BFILE)
-foreign import ccall "openb_rd_buf"          c_openb_rd_buf          :: Ptr Char -> Int -> IO (Ptr BFILE)
-foreign import ccall "get_buf"               c_get_buf               :: Ptr BFILE -> Ptr (Ptr Char) -> Ptr Int -> IO ()
+foreign import ccall "openb_rd_buf"          c_openb_rd_buf          :: CString -> Int -> IO (Ptr BFILE)
+foreign import ccall "get_buf"               c_get_buf               :: Ptr BFILE -> Ptr CString -> Ptr Int -> IO ()
 
 -- Turn all writes to a Handle into a String.
 -- Do not close the Handle in the action

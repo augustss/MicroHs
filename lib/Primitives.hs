@@ -228,15 +228,6 @@ primRnfErr        = _primitive "rnf" (0::Int)
 primRnfNoErr     :: forall a . a -> ()
 primRnfNoErr      = _primitive "rnf" (1::Int)
 
-primNewCAStringLen :: [Char] -> IO (Ptr Char, Int)
-primNewCAStringLen = _primitive "newCAStringLen"
-
-primPeekCAString :: Ptr Char -> IO [Char]
-primPeekCAString = _primitive "peekCAString"
-
-primPeekCAStringLen :: Ptr Char -> Int -> IO [Char]
-primPeekCAStringLen = _primitive "peekCAStringLen"
-
 primWordToPtr :: forall a . Word -> Ptr a
 primWordToPtr = _primitive "toPtr"
 
