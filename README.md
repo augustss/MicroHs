@@ -355,7 +355,7 @@ There is a handful packages that works with mhs out of the box, or have been con
 * `cpphs`
 * `hscolour`
 * `mtl` changes not merged yet, use [github.com/augustss/mtl](https://github.com/augustss/mtl)
-* `parsec` changes not merged yet, use [github.com/augustss/aprsec](https://github.com/augustss/parsec)
+* `parsec` changes not merged yet, use [github.com/augustss/parsec](https://github.com/augustss/parsec)
 * `polyparse`
 * `pretty`
 * `time`
