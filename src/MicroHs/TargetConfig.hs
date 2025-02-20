@@ -55,7 +55,7 @@ eof = do
     _      -> fail "eof"
 
 nl :: Parser [Token]
-nl = emany $ satisfy "\\n" isWhite
+nl = many $ satisfy "\\n" isWhite
   where isWhite (TIndent _) = True
         isWhite _           = False
 
@@ -84,13 +84,13 @@ keyValue :: Parser (String, String)
 keyValue = (,) <$> key <*> (spec '=' *> value)
 
 keyValues :: Parser [(String,String)]
-keyValues = keyValue `esepBy` nl
+keyValues = keyValue `sepBy` nl
 
 target :: Parser Target
 target = Target <$> (targetName <* nl) <*> keyValues
 
 targets :: Parser [Target]
-targets = (target `esepBy1` nl) <* nl <* eof
+targets = (target `sepBy1` nl) <* nl <* eof
 
 formatFailed :: LastFail Token -> String
 formatFailed (LastFail _ ts msgs) =

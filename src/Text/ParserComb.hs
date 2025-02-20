@@ -5,10 +5,10 @@
 module Text.ParserComb(
   Prsr, runPrsr,
   satisfy, satisfyM,
-  emany, eoptional, esome,
-  esepBy, esepBy1,
-  esepEndBy, esepEndBy1,
-  (<?>), (<|<),
+  many, optional, some,
+  sepBy, sepBy1,
+  sepEndBy, sepEndBy1,
+  (<?>),
   --notFollowedBy,
   --lookAhead,
   nextToken,
@@ -93,22 +93,17 @@ instance TokenMachine tm t => MonadFail (Prsr tm t) where
 instance TokenMachine tm t => Alternative (Prsr tm t) where
   empty = P $ \ts -> Failure (LastFail (tmLeft ts) (firstToken ts) ["empty"])
 
-  (<|>) = (<|<)
+  (<|>) p q = P $ \ t ->
+    case runP p t of
+      Failure lfa ->
+        case runP q t of
+          Success b v lfb -> Success b v (longest lfa lfb)
+          Failure lfb -> Failure (longest lfa lfb)
+      r -> r
 
 instance TokenMachine tm t => MonadPlus (Prsr tm t) where
   mzero = empty
   mplus = (<|>)
-
--- Left biased choice
-infixl 3 <|<
-(<|<) :: forall tm t a . Prsr tm t a -> Prsr tm t a -> Prsr tm t a
-(<|<) p q = P $ \ t ->
-  case runP p t of
-    Failure lfa ->
-      case runP q t of
-        Success b v lfb -> Success b v (longest lfa lfb)
-        Failure lfb -> Failure (longest lfa lfb)
-    r -> r
 
 satisfy :: forall tm t . TokenMachine tm t => String -> (t -> Bool) -> Prsr tm t t
 satisfy msg f = P $ \ acs ->
@@ -168,24 +163,14 @@ runPrsr (P p) f =
 
 -------------------------------
 
-emany :: forall tm t a . Prsr tm t a -> Prsr tm t [a]
-emany p = esome p <|< pure []
+sepBy1 :: TokenMachine tm t => Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
+sepBy1 p sep = (:) <$> p <*> many (sep >> p)
 
-esome :: forall tm t a . Prsr tm t a -> Prsr tm t [a]
-esome p = (:) <$> p <*> emany p
+sepBy :: TokenMachine tm t => Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
+sepBy p sep = sepBy1 p sep <|> pure []
 
-eoptional :: forall tm t a . Prsr tm t a -> Prsr tm t (Maybe a)
-eoptional p = (Just <$> p) <|< pure Nothing
+sepEndBy :: TokenMachine tm t => Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
+sepEndBy p sep = sepEndBy1 p sep <|> pure []
 
-esepBy1 :: forall tm t a sep . Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
-esepBy1 p sep = (:) <$> p <*> emany (sep >> p)
-
-esepBy :: forall tm t a sep . Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
-esepBy p sep = esepBy1 p sep <|< pure []
-
-esepEndBy :: forall tm t a sep . Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
-esepEndBy p sep = esepEndBy1 p sep <|< pure []
-
-esepEndBy1 :: forall tm t a sep . Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
-esepEndBy1 p sep = (:) <$> p <*> ((sep >> esepEndBy p sep) <|< pure [])
-
+sepEndBy1 :: TokenMachine tm t => Prsr tm t a -> Prsr tm t sep -> Prsr tm t [a]
+sepEndBy1 p sep = (:) <$> p <*> ((sep >> sepEndBy p sep) <|> pure [])
