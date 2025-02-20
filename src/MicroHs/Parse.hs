@@ -796,9 +796,7 @@ pOperators' oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
 pBind :: P EBind
 pBind =
       pBind'
-  <|< PatBind     <$> pPatNotVar <*> ((pSpec '=' *> pExpr)
-                                      <|<
-                                      (EMultiIf <$> pAlts (pSpec '=')))
+  <|< PatBind     <$> pPatNotVar <*> (EMultiIf <$> pAlts (pSpec '='))
 
 -- Bindings allowed in top level, let, class
 pBind' :: P EBind

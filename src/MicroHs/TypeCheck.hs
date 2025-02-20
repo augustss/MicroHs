@@ -1744,7 +1744,9 @@ tcExprR mt ae =
     -- Translate (if | a1; | a2 ...) into
     --           (case [] of _ | a1; | a2 ...)
     EMultiIf a ->
-      tcExpr mt $ ECase (EListish (LList [])) [(EVar (mkIdent "_"), a)]
+      case a of
+        EAlts [([], e)] [] -> tcExpr mt e
+        _                  -> tcExpr mt $ ECase (EListish (LList [])) [(EVar (mkIdent "_"), a)]
 
     EListish (LList es) -> do
       te <- newUVar
