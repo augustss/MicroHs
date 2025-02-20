@@ -1,11 +1,150 @@
 # Micro Haskell
+## Introduction
 This repository contains an implementation of an extended subset of Haskell.
 It uses combinators for the runtime execution.
 
 The runtime system has minimal dependencies, and can be compiled even for micro-controllers.
-The `boards/` directory contains some samples, e.g., some sample code for an STM32F407G-DISC1 board.
 
-The compiler can compile itself.
+The compiler is self-hosted, i.e., it can compile itself.
+
+Following sections:
+* [Build and Install](#build-and-install)
+* [Using MicroHs](#using-microhs)
+* [Language](#language)
+* [Compiler Internals](#compiler-internals)
+
+## Build and Install
+### Build in-place version
+Building MicroHs is simple.  If you have a C compiler installed, simply do `make`.
+This will generate an executable in `bin/mhs`.  Simply start it to try the interactive version.
+
+### Installing
+To install `mhs` use `make install`.  This will install `mhs` in `~/.mcabal` in the same
+way as `mcabal` (MicroCabal) would have.  It will install a compiler binary and a compiled base package.
+You will have to add `~/.mcabal/bin` to your `PATH`.  After installation you will have the binaries
+for `mhs`, `cpphs`, and `mcabal`.
+
+### Other ways to build
+The different ways to compile MicroHs work by having different directories
+for the compiler dependent modules, `mhs/`, `ghc/`, `hugs/`.
+
+#### GHC, make
+If you have `ghc` installed you can compile MicroHs with is.  Simply do `make bin/gmhs`.
+The `bin/gmhs` binary is excellent for experimentation.
+Using `bin/gmhs` you canb recompile all of MicroHs in under 2s.
+
+#### GHC, cabal
+You can also use `cabal` to build MicroHs.  Just do `cabal build`.
+
+#### Hugs
+It is also possible to compile MicroHs using Hugs, but it is a little more involved.
+Hugs does not support `PatternGuards`, which is used frequently in the MicroHs source.
+There is a branch of MicroHs with the pattern guards removed (it make it less readable and slower).
+
+But still, it is also possible to bootstrap MicroHs using Hugs.  That means that
+MicroHs can be built from scratch in the sense of [bootstrappable.org](https://bootstrappable.org/).
+To compile with Hugs you need [a slightly patched version of Hugs](https://github.com/augustss/hugs98-plus-Sep2006)
+and also the [hugs branch of MicroHs](https://github.com/augustss/MicroHs/tree/hugs).
+
+The patched version of Hugs is needed to work around undefined behavior with arithmatic overflow.
+Hugs provided Linux distribtions or other third party package managers may or may not work.
+
+### Windows
+To compile on Windows make sure `cl` is in the path, and then use `nmake` with `Makefile.windows`.
+
+
+## Using MicroHs
+`mhs` takes a name of a module (or a file name) and compiles to a target (see below).
+This module should contain the function `main` of type `IO ()` and
+it will be the entry point to the program.
+
+### Example
+The file `Example.hs` contains the following:
+```Haskell
+module Example(main) where
+
+fac :: Int -> Int
+fac 0 = 1
+fac n = n * fac(n-1)
+
+main :: IO ()
+main = do
+  let rs = map fac [1,2,3,10]
+  putStrLn "Some factorials"
+  print rs
+```
+
+Compile the file by `mhs Example -oEx` which produces `Ex`.
+Finally, run the binary file by `./Ex`.
+This should produce
+```
+Some factorials
+[1,2,6,3628800]
+```
+
+### Compiler flags
+* `--version` show version number
+* `--numeric-version` show numeric version number
+* `-i` set module search path to empty
+* `-iDIR` append `DIR` to module search path
+* `-oFILE` output file.  If the `FILE` ends in `.comb` it will produce a textual combinator file.  If `FILE` ends in `.c` it will produce a C file with the combinators.  For all other `FILE` it will compile the combinators together with the runtime system to produce a regular executable.
+* `-r` run directly
+* `-v` be more verbose, flag can be repeated
+* `-CW` write compilation cache to `.mhscache` at the end of compilation
+* `-CR` read compilation cache from `.mhscache` at the start of compilation
+* `-C` short for `-CW` and `-CR`
+* `-T` generate dynamic function usage statistics
+* `-z` compress combinator code generated in the `.c` file
+* `-l` show every time a module is loaded
+* `-s` show compilation speed in lines/s
+* `-XCPP` run `cpphs` on source files
+* `-Dxxx` passed to `cpphs`
+* `-Ixxx` passed to `cpphs`
+* `-tTARGET` select target
+* `-a` set package search path to empty
+* `-aDIR` prepend `DIR` to package search path
+* `-PPKG` create package `PKG`
+* `-L[FILE]` list all modules in a package
+* `-Q FILE [DIR]` install package
+* `-ddump-PASS` debug, show AST after `PASS`.  Possible passes `parse`, `typecheck`, `desugar`, `toplevel`, `combinator`, `all`
+*  `--` marks end of compiler arguments
+
+With the `-v` flag the processing time for each module is reported.
+E.g.
+  ```
+  importing done MicroHs.Exp, 284ms (91 + 193)
+  ```
+which means that processing the module `MicroHs.Exp` took 284ms,
+with parsing taking 91ms and typecheck&desugar taking 193ms.
+
+With the `-C` flag the compiler writes out its internal cache of compiled modules to the file `.mhscache`
+at the end of compilation.  At startup it reads this file if it exists, and then validates the contents
+by an MD5 checksum for all the files in the cache.
+This can make compilation much faster since the compiler will not parse and typecheck a module if it is in
+the cache.
+Do **NOT** use `-C` when you are changing the compiler itself; if the cached data types change the compiler will probably just crash.
+
+### Targets
+The configuration file `targets.conf` (in the installation directory) defines how to compile for
+different targets.  As distributed it contains the targets `default` and `emscripten`.
+The first is the normal target to run on the host.
+The `emscripten` target uses `emcc` to generate JavaScript/WASM.
+If you have `emcc` and `node` installed you can do
+```
+mhs -temscripten Example -oout.js; node out.js
+```
+to compile and run the JavaScript.  The generated JavaScript file has some regular JavaScript,
+and also the WASM code embedded as a blob.  Running via JavaScript/WASM is almost as fast as running natively.
+
+### Environment variables
+* `MHSDIR` the directory where `lib/` and `src/` are expected to be.  Defaults to `./`.
+* `MHSCC` command use to compile C file to produce binaries.  Look at the source for more information.
+* `MHSCPPHS` command to use with `-XCPP` flag.  Defaults to `cpphs`.
+* `MHSCONF` which runtime to use, defaults to `unix-32/64` depending on your host's word size
+* `MHSEXTRACCFLAGS` extra flags passed to the C compiler
+
+
+--------------------------------------------------
 
 ## Presentation
 You can find my [presentation from the Haskell Symposium 2024](https://docs.google.com/presentation/d/1WsSiSwypNVTm0oZ3spRYF8gA59wyteOsIkPRjCUAZec/edit?usp=sharing), [video](https://m.youtube.com/watch?v=uMurx1a6Zck&t=36m).
@@ -27,15 +166,10 @@ Note that `mhs` built with ghc does not have all the functionality.
 Also note that there is no need to have a Haskell compiler to run MicroHs.
 All you need is a C compiler, and MicroHs can bootstrap, given the included combinator file.
 
-To install `mhs` use `make minstall`.  This will install `mhs` in `~/.mcabal` in the same
-way as `mcabal` (MicroCabal) would have.  It will install a compiler binary and a compiled base package.
-You will have to add `~/.mcabal/bin` to your `PATH`.
 
 Alternatively, to install `mhs` use `make oldinstall`.  By default this copies the files to `/usr/local`,
 but this can be overridden by `make PREFIX=dir oldinstall`.
 You also need to set the environment variable `MHSDIR`.
-
-To compile on Windows make sure `cl` is in the path, and then use `nmake` with `Makefile.windows`.
 
 The compiler can also be used with emscripten to produce JavaScript/WASM.
 
@@ -114,31 +248,6 @@ Differences:
 
 Mutually recursive modules are allowed the same way as with GHC, using `.hs-boot` files.
 
-## Example
-The file `Example.hs` contains the following:
-```Haskell
-module Example(main) where
-
-fac :: Int -> Int
-fac 0 = 1
-fac n = n * fac(n-1)
-
-main :: IO ()
-main = do
-  let rs = map fac [1,2,3,10]
-  putStrLn "Some factorials"
-  print rs
-```
-
-First, make sure the compiler is built by doing `make`.
-Then compile the file by `bin/mhs Example -oEx` which produces `Ex`.
-Finally, run the binary file by `./Ex`.
-This should produce
-```
-Some factorials
-[1,2,6,3628800]
-```
-
 ## Libraries
 The `Prelude` contains the functions from the Haskell Report and a few extensions,
 with the notable exception that `Foldable` and `Traversable` are not part of the `Prelude`.
@@ -164,70 +273,6 @@ The runtime system knows how lists and booleans are encoded.
 
 ## Compiler
 The compiler is written in Micro Haskell.
-It takes a name of a module (or a file name) and compiles to a target (see below).
-This module should contain the function `main` of type `IO ()` and
-it will be the entry point to the program.
-
-### Compiler flags
-* `--version` show version number
-* `-i` set module search path to empty
-* `-iDIR` append `DIR` to module search path
-* `-oFILE` output file.  If the `FILE` ends in `.comb` it will produce a textual combinator file.  If `FILE` ends in `.c` it will produce a C file with the combinators.  For all other `FILE` it will compile the combinators together with the runtime system to produce a regular executable.
-* `-r` run directly
-* `-v` be more verbose, flag can be repeated
-* `-CW` write compilation cache to `.mhscache` at the end of compilation
-* `-CR` read compilation cache from `.mhscache` at the start of compilation
-* `-C` short for `-CW` and `-CR`
-* `-T` generate dynamic function usage statistics
-* `-z` compress combinator code generated in the `.c` file
-* `-l` show every time a module is loaded
-* `-s` show compilation speed in lines/s
-* `-XCPP` run `cpphs` on source files
-* `-Dxxx` passed to `cpphs`
-* `-Ixxx` passed to `cpphs`
-* `-tTARGET` select target
-* `-a` set package search path to empty
-* `-aDIR` prepend `DIR` to package search path
-* `-PPKG` create package `PKG`
-* `-L[FILE]` list all modules in a package
-* `-Q FILE [DIR]` install package
-* `-ddump-PASS` debug, show AST after `PASS`.  Possible passes `parse`, `typecheck`, `desugar`, `toplevel`, `combinator`, `all`
-*  `--` marks end of compiler arguments
-
-With the `-v` flag the processing time for each module is reported.
-E.g.
-  ```
-  importing done MicroHs.Exp, 284ms (91 + 193)
-  ```
-which means that processing the module `MicroHs.Exp` took 284ms,
-with parsing taking 91ms and typecheck&desugar taking 193ms.
-
-With the `-C` flag the compiler writes out its internal cache of compiled modules to the file `.mhscache`
-at the end of compilation.  At startup it reads this file if it exists, and then validates the contents
-by an MD5 checksum for all the files in the cache.
-This can make compilation much faster since the compiler will not parse and typecheck a module if it is in
-the cache.
-Do **NOT** use `-C` when you are changing the compiler itself; if the cached data types change the compiler will probably just crash.
-
-### Targets
-The configuration file `targets.conf` (in the installation directory) defines how to compile for
-different targets.  As distributed it contains the targets `default` and `emscripten`.
-The first is the normal target to run on the host.
-The `emscripten` target uses `emcc` to generate JavaScript/WASM.
-If you have `emcc` and `node` installed you can do
-  ```
-  mhs -temscripten Example -oout.js; node out.js
-  ```
-to compile and run the JavaScript.  The generated JavaScript file has some regular JavaScript,
-and also the WASM code embedded as a blob.  Running via JavaScript/WASM is almost as fast as running natively.
-
-### Environment variables
-* `MHSDIR` the directory where `lib/` and `src/` are expected to be.  Defaults to `./`.
-* `MHSCC` command use to compile C file to produce binaries.  Look at the source for more information.
-* `MHSCPPHS` command to use with `-XCPP` flag.  Defaults to `cpphs`.
-* `MHSCONF` which runtime to use, defaults to `unix-32/64` depending on your host's word size
-* `MHSEXTRACCFLAGS` extra flags passed to the C compiler
-
 ### Compiler modules
 
 * `Abstract`, combinator bracket abstraction and optimization.
@@ -569,3 +614,7 @@ gay@disroot.org
   * Q: Why is the so much source code?
   * A: I wonder this myself.  10000+ lines of Haskell seems excessive.
        6000+ lines of C is also more than I'd like for such a simple system.
+
+----------
+
+The `boards/` directory contains some samples, e.g., some sample code for an STM32F407G-DISC1 board.
