@@ -34,9 +34,8 @@ parse p fn file =
   let { ts = lexTopLS fn file } in
   case runPrsr p ts of
     Left lf -> Left $ formatFailed lf
-    Right [a] -> Right a
-    Right as -> Left $ "Ambiguous:"
-                       ++ unlines (map show as)
+    Right a -> Right a
+
 guardM :: P a -> (a -> Bool) -> P a
 guardM ma p = do a <- ma; guard (p a); pure a
 

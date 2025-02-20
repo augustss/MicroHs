@@ -104,5 +104,4 @@ parseTargets :: FilePath -> String -> Either String [Target]
 parseTargets fp file =
   case runPrsr targets $ lex (SLoc fp 1 1) file of
     Left lf -> Left $ formatFailed lf
-    Right [a] -> Right a
-    Right as  -> Left $ "Ambiguous:" ++ unlines (map show as)
+    Right a -> Right a
