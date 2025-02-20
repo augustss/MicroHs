@@ -34,7 +34,7 @@ data Word
 data Ptr a
 data ForeignPtr a
 data FunPtr a
-data IOArray a
+data IOVector a   -- boxed array indexed by an Int
 -- (), (,), (,,), etc are built in to the compiler
 
 primIntAdd :: Int -> Int -> Int
@@ -217,7 +217,7 @@ primThen         :: forall a b . IO a -> IO b -> IO b
 primThen          = _primitive "IO.>>"
 primReturn       :: forall a . a -> IO a
 primReturn        = _primitive "IO.return"
-primGetArgRef    :: IO (IOArray [[Char]])
+primGetArgRef    :: IO (IOVector [[Char]])
 primGetArgRef     = _primitive "IO.getArgRef"
 primPerformIO    :: forall a . IO a -> a
 primPerformIO     = _primitive "IO.performIO"
@@ -274,23 +274,23 @@ foreign import ccall "iswindows" c_iswindows :: IO Int
 _isWindows :: Bool
 _isWindows = primPerformIO c_iswindows `primIntEQ` 1
 
-primArrAlloc :: forall a . Int -> a -> IO (IOArray a)
+primArrAlloc :: forall a . Int -> a -> IO (IOVector a)
 primArrAlloc = _primitive "A.alloc"
 
-primArrCopy :: forall a . IOArray a -> IO (IOArray a)
+primArrCopy :: forall a . IOVector a -> IO (IOVector a)
 primArrCopy = _primitive "A.copy"
 
-primArrSize :: forall a . IOArray a -> IO Int
+primArrSize :: forall a . IOVector a -> IO Int
 primArrSize = _primitive "A.size"
 
-primArrRead :: forall a . IOArray a -> Int -> IO a
+primArrRead :: forall a . IOVector a -> Int -> IO a
 primArrRead = _primitive "A.read"
 
-primArrWrite :: forall a . IOArray a -> Int -> a -> IO ()
+primArrWrite :: forall a . IOVector a -> Int -> a -> IO ()
 primArrWrite = _primitive "A.write"
 
 -- Not referentially transparent
-primArrEQ :: forall a . IOArray a -> IOArray a -> Bool
+primArrEQ :: forall a . IOVector a -> IOVector a -> Bool
 primArrEQ = _primitive "A.=="
 
 primGC :: IO ()

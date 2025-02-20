@@ -10,8 +10,8 @@ import Primitives
 import Data.Eq
 import {-# SOURCE #-} Data.Typeable
 
--- An IORef is represented as an IOArray with a single element.
-newtype IORef a = R (IOArray a)
+-- An IORef is represented as an IOVector with a single element.
+newtype IORef a = R (IOVector a)
   deriving (Typeable)
 
 instance Eq (IORef a) where

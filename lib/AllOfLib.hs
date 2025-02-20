@@ -14,6 +14,7 @@ import Control.Monad.Fail
 import Control.Monad.IO.Class
 import Control.Monad.ST
 import Control.Monad.ST_Type
+import Data.Array
 import Data.Bits
 import Data.Bool
 import Data.Bool_Type
@@ -49,7 +50,6 @@ import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Functor.Sum
 import Data.Hashable
-import Data.IOArray
 import Data.IORef
 import Data.Int
 import Data.Int.IntN

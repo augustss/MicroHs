@@ -25,7 +25,7 @@ import Data.Function
 import Data.Functor
 import Data.Int
 import Data.Ix
-import Data.IOArray
+import Data.Array.Internal
 import Data.List
 import Data.Num
 import Data.Ord
@@ -33,9 +33,9 @@ import System.IO
 import Text.Show
 
 data Array i a
-   = Array (i,i)       -- bounds
-           !Int        -- = (rangeSize (l,u))
-           (IOArray a) -- elements
+   = Array (i,i)        -- bounds
+           !Int         -- = (rangeSize (l,u))
+           (IOVector a) -- elements
 
 instance Ix a => Functor (Array a) where
   fmap f a@(Array b _ _) = array b [(i, f (a ! i)) | i <- range b]
@@ -71,7 +71,7 @@ accumArray :: (Ix a) => (b -> c -> b) -> b -> (a,a) -> [(a,c)] -> Array a b
 accumArray f z b = accum f (array b [(i, z) | i <- range b])
 
 (!) :: (Ix a) => Array a b -> a -> b
-(!) (Array b n a) i = primPerformIO $ readIOArray a (safeIndex b n i)
+(!) (Array b n a) i = primPerformIO $ readIOVector a (safeIndex b n i)
 
 bounds :: (Ix a) => Array a b -> (a,a)
 bounds (Array b _ _) = b
@@ -80,7 +80,7 @@ indices :: (Ix a) => Array a b -> [a]
 indices (Array b _ _) = range b
 
 elems :: (Ix a) => Array a b -> [b]
-elems (Array _ _ a) = primPerformIO $ elemsIOArray a
+elems (Array _ _ a) = primPerformIO $ elemsIOVector a
 
 assocs :: (Ix a) => Array a b -> [(a,b)]
 assocs a = zip (indices a) (elems a)
@@ -88,7 +88,7 @@ assocs a = zip (indices a) (elems a)
 (//) :: (Ix a) => Array a b -> [(a,b)] -> Array a b
 (//) (Array b n oa) ies = primPerformIO $ do
   a <- primArrCopy oa
-  let adj (i, e) = writeIOArray a (safeIndex b n i) e
+  let adj (i, e) = writeIOVector a (safeIndex b n i) e
   mapM_ adj ies
   return $ Array b n a
 
@@ -104,16 +104,16 @@ unsafeAccum :: (e -> a -> e) -> Array i e -> [(Int, a)] -> Array i e
 unsafeAccum f (Array b n oa) ies = primPerformIO $ do
   a <- primArrCopy oa
   let adj (i, e) = do
-        x <- readIOArray a i
+        x <- readIOVector a i
         let x' = f x e
-        seq x' (writeIOArray a i x')
+        seq x' (writeIOVector a i x')
   mapM_ adj ies
   return $ Array b n a
 
 unsafeArray' :: (i,i) -> Int -> [(Int, e)] -> Array i e
 unsafeArray' b n ies = primPerformIO $ do
-  a <- newIOArray n arrEleBottom
-  mapM_ (\ (i, e) -> writeIOArray a i e) ies
+  a <- newIOVector n arrEleBottom
+  mapM_ (\ (i, e) -> writeIOVector a i e) ies
   return $ Array b n a
 
 arrEleBottom :: a
@@ -132,7 +132,7 @@ safeRangeSize b =
   let r = rangeSize b
   in  if r < 0 then error "Negative range size" else r
 
-elemsIOArray :: forall a . IOArray a -> IO [a]
-elemsIOArray a = do
-  s <- sizeIOArray a
-  mapM (readIOArray a) [0::Int .. s - 1]
+elemsIOVector :: forall a . IOVector a -> IO [a]
+elemsIOVector a = do
+  s <- sizeIOVector a
+  mapM (readIOVector a) [0::Int .. s - 1]

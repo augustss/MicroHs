@@ -158,7 +158,7 @@ instance Typeable IO          where typeRep = prim                          "IO"
 instance Typeable Ptr         where typeRep = prim                          "Ptr"
 instance Typeable FunPtr      where typeRep = prim                          "FunPtr"
 instance Typeable ForeignPtr  where typeRep = prim                          "ForeignPtr"
-instance Typeable IOArray     where typeRep = prim                          "IOArray"
+instance Typeable IOVector    where typeRep = prim                          "IOVector"
 
 instance Typeable []          where typeRep = nullary "Data.List_Type"      "[]"
 instance Typeable Maybe       where typeRep = nullary "Data.Maybe_Type"     "Maybe"
