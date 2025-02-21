@@ -33,3 +33,4 @@ Bugs:
 * let needs {} in a do with {}
 * export list in -boot doesn't work
 * overloaded PatBind is totally wrong
+* newtype deriving Semigroup is broken
