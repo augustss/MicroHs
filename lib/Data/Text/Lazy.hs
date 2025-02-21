@@ -1,67 +1,82 @@
--- XXX Use coerce of Data.Text
 module Data.Text.Lazy(
   Text,
+  toStrict, toLazy,
   pack, unpack,
   empty,
+  singleton,
   append,
   null,
+  length,
   head,
   tail,
+  cons,
+  snoc,
   uncons,
+  replicate,
+  splitOn,
+  dropWhileEnd,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head)
-import Data.Monoid.Internal
+import Control.DeepSeq.Class
+import Data.Coerce
+import Data.Monoid
 import Data.String
-import qualified Data.ByteString.Internal as BS
+import qualified Data.Text as T
 
-newtype Text = T BS.ByteString
+newtype Text = L T.Text
+  deriving newtype (Eq, Ord, Show, IsString, {-Semigroup,-} Monoid, NFData)
 
-instance Eq Text where
-  (==) = cmp (==)
-  (/=) = cmp (/=)
-
-instance Ord Text where
-  (<)  = cmp (<)
-  (<=) = cmp (<=)
-  (>)  = cmp (>)
-  (>=) = cmp (>=)
-
-cmp :: (BS.ByteString -> BS.ByteString -> Bool) -> (Text -> Text -> Bool)
-cmp op (T x) (T y) = op x y
-
-instance Show Text where
-  showsPrec p = showsPrec p . unpack
-
-instance IsString Text where
-  fromString = pack
-
+-- Bug in newtype deriving
 instance Semigroup Text where
   (<>) = append
 
-instance Monoid Text where
-  mempty = empty
+toStrict :: Text -> T.Text
+toStrict (L t) = t
+
+toLazy :: T.Text -> Text
+toLazy = L
 
 empty :: Text
-empty = pack []
+empty = coerce T.empty
+
+singleton :: Char -> Text
+singleton = coerce T.singleton
 
 pack :: String -> Text
-pack s = T (_primitive "toUTF8" s)
+pack = coerce T.pack
 
 unpack :: Text -> String
-unpack (T t) = _primitive "fromUTF8" t
+unpack = coerce T.unpack
 
 append :: Text -> Text -> Text
-append (T x) (T y) = T (BS.append x y)
+append = coerce T.append
 
 null :: Text -> Bool
-null (T bs) = BS.null bs
+null = coerce T.null
+
+length :: Text -> Int
+length = coerce T.length
 
 head :: Text -> Char
-head (T t) = _primitive "headUTF8" t
+head = coerce T.head
 
 tail :: Text -> Text
-tail (T t) = _primitive "tailUTF8" t
+tail = coerce T.tail
+
+cons :: Char -> Text -> Text
+cons = coerce T.cons
+
+snoc :: Text -> Char -> Text
+snoc = coerce T.snoc
 
 uncons :: Text -> Maybe (Char, Text)
-uncons t | null t    = Nothing
-         | otherwise = Just (head t, tail t)
+uncons = coerce T.uncons
+
+replicate :: Int -> Text -> Text
+replicate n = undefined -- coerce (T.replicate n)
+
+splitOn :: Text -> Text -> [Text]
+splitOn = coerce T.splitOn
+
+dropWhileEnd :: (Char -> Bool) -> Text -> Text
+dropWhileEnd = coerce T.dropWhileEnd

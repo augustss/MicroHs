@@ -97,6 +97,7 @@ library base
         Data.Text
         Data.Text.IO
         Data.Text.Lazy
+        Data.Text.Lazy.Builder
         Data.Text.Lazy.IO
         Data.Traversable
         Data.Tuple

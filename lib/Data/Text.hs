@@ -5,14 +5,18 @@ module Data.Text(
   singleton,
   append,
   null,
+  length,
   head,
   tail,
+  cons,
+  snoc,
   uncons,
   replicate,
   splitOn,
   dropWhileEnd,
+  words,
   ) where
-import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length)
+import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words)
 import Control.DeepSeq.Class
 import qualified Data.List as L
 import Data.Monoid.Internal
@@ -73,6 +77,12 @@ length = L.length . unpack
 head :: Text -> Char
 head (T t) = _primitive "headUTF8" t
 
+cons :: Char -> Text -> Text
+cons c t = singleton c `append` t
+
+snoc :: Text -> Char -> Text
+snoc t c = t `append` singleton c
+
 tail :: Text -> Text
 tail (T t) = _primitive "tailUTF8" t
 
@@ -96,3 +106,6 @@ splitOnList sep = loop []
     loop r  [] = [reverse r]
     loop r  s@(c:cs) | Just t <- L.stripPrefix sep s = reverse r : loop [] t
                      | otherwise = loop (c:r) cs
+
+words :: Text -> [Text]
+words = map pack . L.words . unpack

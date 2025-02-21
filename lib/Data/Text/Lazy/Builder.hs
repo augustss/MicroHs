@@ -10,10 +10,11 @@ module Data.Text.Lazy.Builder
    , fromString
    , flush
    ) where
+import qualified Data.Text as S
 import qualified Data.Text.Lazy as L
 import Data.String
 
-newtype Builder = B Text
+newtype Builder = B L.Text
   deriving newtype (Eq, Ord, {-Semigroup,-} Monoid, Show, IsString)
 
 -- bug in newtype deriving
@@ -32,7 +33,7 @@ singleton :: Char -> Builder
 singleton c = B (L.singleton c)
 
 fromText :: S.Text -> Builder
-fromText t = fromLazyText . L.toLazy
+fromText = fromLazyText . L.toLazy
 
 fromLazyText :: L.Text -> Builder
 fromLazyText t = B t
