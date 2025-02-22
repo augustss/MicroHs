@@ -2222,8 +2222,8 @@ tInferPat = tInfer tcPat
 tcPat :: Expected -> EPat -> T EPatRet
 tcPat mt ae =
   let loc = getSLoc ae
-      lit = tcPat mt (EViewPat (EApp (EVar (mkBuiltin loc "==")) ae) (EVar (mkBuiltin loc "True")))
-      isNeg (EVar i) = i == mkIdent "negate"
+      lit = tcPat mt (EViewPat (EApp (EVar (mkBuiltin loc "==")) ae) (eTrue loc))
+      isNeg (EVar i) = i == mkBuiltin loc "negate"
       isNeg _ = False
   in
   case ae of
