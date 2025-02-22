@@ -3,6 +3,7 @@
 module Mhs.Builtin(
   module Control.Monad,
   module Data.Bool,
+  module Data.Char,
   module Data.Coerce,
   module Data.Enum,
   module Data.Eq,
@@ -28,6 +29,7 @@ import Control.Error(error)
 import Control.Monad(Monad(..))
 import Control.Monad.Fail(MonadFail(..))
 import Data.Bool((&&), Bool(..))
+import Data.Char(Char)
 import Data.Coerce(Coercible, coerce)
 import Data.Enum(Enum(enumFrom, enumFromThen, enumFromTo, enumFromThenTo))
 import Data.Eq(Eq(..))
