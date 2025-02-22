@@ -106,12 +106,14 @@ generated/mhs.c:	bin/mhs src/*/*.hs
 ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/gmhs $(MHSINC) $(MAINMODULE) -ogenerated/mhs.c
 
+# This doesn't keep MicroCabal updated.  I'm not sure how to do it
+#generated/mcabal.c: MicroCabal/.git
+#	bin/mhs -z -iMicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
 #
-generated/mcabal.c: MicroCabal/.git
-	bin/mhs -z -iMicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
-
-MicroCabal/.git:
-	git submodule update --init --depth 1 MicroCabal
+#MicroCabal/.git:
+#	git submodule update --init --depth 1 MicroCabal
+generated/mcabal.c:
+	bin/mhs -z -i../MicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
 
 # Flags to read local file system, generate a single .js file, and to avoid ioctl()
 mhs.js:	src/*/*.hs src/runtime/*.[ch] targets.conf
