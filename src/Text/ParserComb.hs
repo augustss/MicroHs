@@ -91,7 +91,7 @@ instance TokenMachine tm t => MonadFail (Prsr tm t) where
   fail m = P $ \ts -> Failure (LastFail (tmLeft ts) (firstToken ts) [m])
 
 instance TokenMachine tm t => Alternative (Prsr tm t) where
-  empty = P $ \ts -> Failure (LastFail (tmLeft ts) (firstToken ts) ["empty"])
+  empty = fail "empty"
 
   (<|>) p q = P $ \ t ->
     case runP p t of
@@ -102,7 +102,7 @@ instance TokenMachine tm t => Alternative (Prsr tm t) where
       r -> r
 
 instance TokenMachine tm t => MonadPlus (Prsr tm t) where
-  mzero = empty
+  mzero = fail "mzero"
   mplus = (<|>)
 
 satisfy :: forall tm t . TokenMachine tm t => String -> (t -> Bool) -> Prsr tm t t
