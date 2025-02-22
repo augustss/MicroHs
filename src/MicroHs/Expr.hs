@@ -54,6 +54,7 @@ import qualified Prelude(); import MHSPrelude hiding ((<>))
 import Control.Arrow(first)
 import Data.List
 import Data.Maybe
+import MicroHs.Builtin
 import MicroHs.Ident
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
@@ -1052,7 +1053,7 @@ getArrows at =
     Just (t, r) -> first (t:) (getArrows r)
 
 mkEStr :: SLoc -> String -> Expr
-mkEStr loc str = ESign (ELit loc (LStr str)) $ EListish $ LList [EVar $ mkIdentSLoc loc "Char"]
+mkEStr loc str = ESign (ELit loc (LStr str)) $ EListish $ LList [EVar $ mkBuiltin loc "Char"]
 
 -- Make a call to generate an exception with location info
 mkExn :: SLoc -> String -> String -> Expr
