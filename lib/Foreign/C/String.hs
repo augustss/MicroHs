@@ -42,10 +42,10 @@ withCAStringLen s io =
   primReturn a
 
 peekCAString :: CString -> IO String
-peekCAString cstr = primPackCString cstr `primBind` \bs -> primReturn (coerce unpack bs)
+peekCAString cstr = primPackCString cstr `primBind` \bs -> primReturn (primUnsafeCoerce unpack bs)
 
 peekCAStringLen :: CStringLen -> IO String
-peekCAStringLen (cstr, len) = primPackCStringLen cstr len `primBind` \bs -> primReturn (coerce unpack bs)
+peekCAStringLen (cstr, len) = primPackCStringLen cstr len `primBind` \bs -> primReturn (primUnsafeCoerce unpack bs)
 
 ------------------------------------------------------
 -- XXX:  No encoding!
