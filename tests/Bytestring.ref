@@ -5,3 +5,7 @@
 [EQ,LT,GT,LT,GT,EQ,GT,LT,LT,LT,EQ,LT,GT,GT,GT,EQ]
 [97,98,99]
 "****************************************************************"
+("abc","defg")
+("","abcdefg")
+("abcde","fg")
+("abcdefg","")
