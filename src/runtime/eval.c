@@ -4093,10 +4093,13 @@ execio(NODEPTR *np)
           goto start;
         } else {
           /* Normal execution: */
-          execio(&ARG(TOP(1))); /* execute first argument */
+          n = ARG(TOP(1));          /* first argument, should be evaluated (but not overwritten) */
+          PUSH(n);
+          execio(&TOP(0));          /* execute first argument */
           cur_handler = h->hdl_old; /* restore old handler */
           FREE(h);
-          n = ARG(TOP(1));
+          n = TOP(0);
+          POP(1);
           IOASSERT(GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_IO_RETURN, "CATCH");
           RETIO(ARG(n));             /* return result */
         }
