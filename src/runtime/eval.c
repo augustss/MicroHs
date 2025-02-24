@@ -366,7 +366,7 @@ typedef struct node* NODEPTR;
 #define ARR(p) (p)->uarg.uuarray
 #define INDIR(p) ARG(p)
 #define NODE_SIZE sizeof(node)
-#define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
+#define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
