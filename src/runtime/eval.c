@@ -3627,7 +3627,7 @@ evali(NODEPTR an)
     CHECK(1);
     if (doing_rnf) RET;
     execio(&ARG(TOP(0)));       /* run IO action */
-    x = ARG(TOP(0));           /* should be RETURN e */
+    x = ARG(TOP(0));            /* should be RETURN e */
     if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
       ERR("PERFORMIO");
     POP(1);
@@ -3916,13 +3916,22 @@ evali(NODEPTR an)
  * execute it again.
  * To have a cell that is safe to mutate, we allocate a new
  * application on entry to execio().
- * Given the call execio(np) we allocate this graph, top,:
- *   BIND (*np) RETURN
+ * Given the call execio(np) we allocate this graph, top = BIND (*np) RETURN.
+ * I.e.
+ *          @
+ *         / \
+ *        @  RETURN
+ *       / \
+ *    BIND (*np) 
  * and make np point to it.
- * This graph will be updated continuously as we execite IO action.
+ * This graph will be updated continuously as we execute IO actions.
+ *
  * Invariant: the second argument to this BIND is always either RETURN
  * or a C'BIND.  The second argument to C'BIND has the same invariant.
- * This is the cycle:
+ * C'BIND has the reduction rule (which is normally never used): 
+ *   C'BIND x y z = BIND (x z) y
+ *
+ * This is the cycle of the execio loop:
  *  again:
  *   given top = BIND n q
  *   eval(n)
