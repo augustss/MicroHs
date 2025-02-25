@@ -1683,15 +1683,18 @@ tcExprR mt ae =
       earms <- mapM (tcArm tt ta) arms
       return (ECase ea earms)
     ELet bs a -> tcBinds bs $ \ ebs -> do { ea <- tcExpr mt a; return (ELet ebs ea) }
-    ETuple es -> do
-      -- XXX checking if mt is a tuple would give better inference
-      let
-        n = length es
-      (ees, tes) <- fmap unzip (mapM tInferExpr es)
-      let
-        ttup = tApps (tupleConstr loc n) tes
-      munify loc mt ttup
-      return (ETuple ees)
+    ETuple es ->
+      case unTuple mt of
+        Just ts | length ts == length es -> do
+          ees <- zipWithM tCheckExpr ts es
+          return (ETuple ees)
+        _ -> do
+          (ees, tes) <- fmap unzip (mapM tInferExpr es)
+          let
+            n = length es
+            ttup = tApps (tupleConstr loc n) tes
+          munify loc mt ttup
+          return (ETuple ees)
     EParen e -> tcExpr mt e
     EDo mmn ass -> do
       case ass of
@@ -1748,11 +1751,16 @@ tcExprR mt ae =
         EAlts [([], e)] [] -> tcExpr mt e
         _                  -> tcExpr mt $ ECase (EListish (LList [])) [(EVar (mkIdent "_"), a)]
 
-    EListish (LList es) -> do
-      te <- newUVar
-      munify loc mt (tApp (tList loc) te)
-      es' <- mapM (tCheckExpr te) es
-      return (EListish (LList es'))
+    EListish (LList es) ->
+      case unList mt of
+        Just t -> do
+          es' <- mapM (tCheckExpr t) es
+          return (EListish (LList es'))
+        _ -> do
+          te <- newUVar
+          munify loc mt (tApp (tList loc) te)
+          es' <- mapM (tCheckExpr te) es
+          return (EListish (LList es'))
     EListish (LCompr eret ass) -> do
       let
         doStmts :: [EStmt] -> [EStmt] -> T ([EStmt], Typed Expr)
@@ -2066,6 +2074,17 @@ unArrow loc t = do
       r <- newUVar
       unify loc t (tArrow a r)
       return (a, r)
+
+unTuple :: Expected -> Maybe [EType]
+unTuple (Infer _) = Nothing
+unTuple (Check t) = loop [] t
+  where loop ts (EApp f a) = loop (a:ts) f
+        loop ts (EVar i) | Just n <- getTupleConstr i, length ts == n = Just ts
+        loop _ _ = Nothing
+
+unList :: Expected -> Maybe EType
+unList (Check (EApp (EVar i) t)) | i == identList = Just t
+unList _ = Nothing
 
 getFixity :: FixTable -> Ident -> Fixity
 getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
