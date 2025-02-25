@@ -17,6 +17,7 @@ module MicroHs.Ident(
   addIdentSuffix,
   SLoc(..), noSLoc,
   showSLoc, slocFile,
+  isUpperX,
   ) where
 import qualified Prelude(); import MHSPrelude hiding(head)
 import Data.Char
@@ -114,7 +115,7 @@ unQualString :: HasCallStack =>
                 String -> String
 unQualString [] = ""
 unQualString s@(c:_) =
-  if isUpper c then
+  if isUpperX c then
     case dropWhile (/= '.') s of
       "" -> s
       '.':r -> unQualString r
@@ -135,7 +136,7 @@ headIdent (Ident _ i) = head i
 isConIdent :: Ident -> Bool
 isConIdent i@(Ident _ t) =
   let c = headIdent i
-  in  isUpper c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()" || t == pack "->"
+  in  isUpperX c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()" || t == pack "->"
 
 isOperChar :: Char -> Bool
 isOperChar '@' = True
@@ -187,3 +188,8 @@ showSLoc (SLoc fn l c) =
 
 slocFile :: SLoc -> FilePath
 slocFile (SLoc f _ _) = f
+
+isUpperX :: Char -> Bool
+isUpperX '\8658' = False
+isUpperX '\8594' = False
+isUpperX c = isUpper c

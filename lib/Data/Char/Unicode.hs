@@ -10,7 +10,7 @@ module Data.Char.Unicode (
 import qualified Prelude(); import MiniPrelude
 import Primitives(primOrd)
 import Data.Bounded
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Internal as BS
 import System.Compress
 
 data GeneralCategory
@@ -47,13 +47,13 @@ data GeneralCategory
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 isControl :: Char -> Bool
-isControl c =
+isControl c = bomb "isControl" c $
   case generalCategory c of
     Control -> True
     _       -> False
 
 isPrint :: Char -> Bool
-isPrint c =
+isPrint c = bomb "isPrint" c $
   case generalCategory c of
     LineSeparator      -> False
     ParagraphSeparator -> False
@@ -65,23 +65,24 @@ isPrint c =
     _                  -> True
 
 isSpace :: Char -> Bool
-isSpace c = generalCategory c == Space
+isSpace c =  bomb "isSpace" c $
+  generalCategory c == Space
 
 isUpper :: Char -> Bool
-isUpper c =
+isUpper c = bomb "isUpper" c $
   case generalCategory c of
     UppercaseLetter -> True
     TitlecaseLetter -> True
     _               -> False
 
 isLower :: Char -> Bool
-isLower c =
+isLower c = bomb "isLower" c $
   case generalCategory c of
     LowercaseLetter -> True
     _               -> False
 
 isAlpha :: Char -> Bool
-isAlpha c =
+isAlpha c = bomb "isAlpha" c $
   case generalCategory c of
     UppercaseLetter -> True
     LowercaseLetter -> True
@@ -91,7 +92,7 @@ isAlpha c =
     _               -> False
 
 isAlphaNum :: Char -> Bool
-isAlphaNum c =
+isAlphaNum c = bomb "isAlphaNum" c $
   case generalCategory c of
     UppercaseLetter -> True
     LowercaseLetter -> True
@@ -105,7 +106,7 @@ isAlphaNum c =
 
 
 isPunctuation :: Char -> Bool
-isPunctuation c =
+isPunctuation c = bomb "isPunctuation" c $
   case generalCategory c of
     ConnectorPunctuation    -> True
     DashPunctuation         -> True
@@ -117,7 +118,7 @@ isPunctuation c =
     _                       -> False
 
 isSymbol :: Char -> Bool
-isSymbol c =
+isSymbol c = bomb "isSymbol" c $
   case generalCategory c of
     MathSymbol              -> True
     CurrencySymbol          -> True
@@ -126,10 +127,15 @@ isSymbol c =
     _                       -> False
 
 toUpper :: Char -> Char
-toUpper = convLU ucTable
+toUpper c = bomb "toUpper" c $ convLU ucTable c
 
 toLower :: Char -> Char
-toLower = convLU lcTable
+toLower c = bomb "toLower" c $ convLU lcTable c
+
+-- Used to debug unintentional use of Unicode module
+bomb :: String -> Char -> a -> a
+--bomb s c _ = error $ "bomb " ++ s ++ show c
+bomb _ _ a = a
 
 -- XXX We could build a seatch tree and use binary search.
 convLU :: [(Int, Int, Int)] -> Char -> Char
@@ -141,9 +147,11 @@ convLU t c = conv t
 
 generalCategory :: Char -> GeneralCategory
 generalCategory c =
-  case BS.indexMaybe bytestringGCTable (primOrd c) of
-    Nothing -> NotAssigned
-    Just b  -> toEnum (fromEnum b)
+  let i = primOrd c
+  in  if i < 0 || i >= BS.length bytestringGCTable then
+        NotAssigned
+      else
+        toEnum (fromEnum (BS.primBSindex bytestringGCTable i))
 
 bytestringGCTable :: BS.ByteString
 bytestringGCTable = BS.pack $ map (toEnum . fromEnum) charGCTable

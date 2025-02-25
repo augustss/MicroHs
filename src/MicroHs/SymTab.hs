@@ -14,13 +14,13 @@ module MicroHs.SymTab(
   mapMSymTab,
   ) where
 import qualified Prelude(); import MHSPrelude
-import Data.Char
+--import Data.Char
 import Control.Applicative
 import Data.List
 import GHC.Stack
 import MicroHs.Builtin(builtinMdl)
 import MicroHs.Expr(Expr(..), EType, conIdent)
-import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent)
+import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent, isUpperX)
 import MicroHs.List
 import qualified MicroHs.IdentMap as M
 
@@ -139,5 +139,5 @@ stInsertGlbA i as (SymTab l ug qg) | isQual i  = SymTab l ug (M.insertWith union
                                    | otherwise = SymTab l (M.insertWith union i as ug) qg
 
 isQual :: Ident -> Bool
-isQual i = isUpper (head s) && elem '.' s
+isQual i = isUpperX (head s) && elem '.' s
   where s = unIdent i
