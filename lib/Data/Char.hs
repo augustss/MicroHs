@@ -10,6 +10,7 @@ import Control.Error
 import Data.Bool
 import Data.Bounded
 import Data.Char_Type
+import {-# SOURCE #-} qualified Data.Char.Unicode as U
 import Data.Eq
 import Data.Function
 import Data.Int
@@ -40,7 +41,6 @@ instance Ord String where
   x >  y  =  case primStringCompare x y of { GT -> True; _ -> False }
   x >= y  =  case primStringCompare x y of { LT -> False; _ -> True }
 
-
 instance Bounded Char where
   minBound = chr 0
   maxBound = chr 0x10ffff
@@ -52,37 +52,61 @@ ord :: Char -> Int
 ord = primOrd
 
 isLower :: Char -> Bool
-isLower c = (primCharLE 'a' c) && (primCharLE c 'z')
+isLower c =
+  if primCharLE c '\177' then
+     isAsciiLower c
+  else
+     U.isLower c
 
 isAsciiLower :: Char -> Bool
-isAsciiLower = isLower
+isAsciiLower c = 'a' <= c && c <= 'z'
 
 isUpper :: Char -> Bool
-isUpper c = (primCharLE 'A' c) && (primCharLE c 'Z')
+isUpper c =
+  if isAscii c then
+    isAsciiUpper c
+  else
+    U.isUpper c
 
 isAsciiUpper :: Char -> Bool
-isAsciiUpper = isUpper
+isAsciiUpper c = 'A' <= c && c <= 'Z'
 
 isAlpha :: Char -> Bool
-isAlpha c = isLower c || isUpper c
+isAlpha c =
+  if isAscii c then
+    isLower c || isUpper c
+  else
+    U.isAlpha c
 
 isDigit :: Char -> Bool
-isDigit c = (primCharLE '0' c) && (primCharLE c '9')
+isDigit c = '0' <= c && c <= '9'
 
 isOctDigit :: Char -> Bool
-isOctDigit c = (primCharLE '0' c) && (primCharLE c '7')
+isOctDigit c = '0' <= c && c <= '7'
 
 isHexDigit :: Char -> Bool
-isHexDigit c = isDigit c || (primCharLE 'a' c && primCharLE c 'f') || (primCharLE 'A' c && primCharLE c 'F')
+isHexDigit c = isDigit c || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
 
 isAlphaNum :: Char -> Bool
-isAlphaNum c = isAlpha c || isDigit c
+isAlphaNum c =
+  if isAscii c then
+    isAlpha c || isDigit c
+  else
+    U.isAlphaNum c
 
 isPrint :: Char -> Bool
-isPrint c = primCharLE ' ' c && primCharLE c '~'
+isPrint c =
+  if isAscii c then
+    ' ' <= c && c <= '~'
+  else
+    U.isPrint c
 
 isSpace :: Char -> Bool
-isSpace c = c == ' ' || c == '\t' || c == '\n'
+isSpace c =
+  if isAscii c then
+    c == ' ' || c == '\t' || c == '\n'
+  else
+    U.isSpace c
 
 isAscii :: Char -> Bool
 isAscii c = c <= '\127'
@@ -104,12 +128,14 @@ intToDigit i | i < 10 = chr (ord '0' + i)
              | otherwise = chr (ord 'A' - 10 + i)
 
 toLower :: Char -> Char
-toLower c | primCharLE 'A' c && primCharLE c 'Z' = chr (ord c - ord 'A' + ord 'a')
-          | True = c
+toLower c | 'A' <= c && c <= 'Z' = chr (ord c - ord 'A' + ord 'a')
+          | isAscii c = c
+          | True = U.toLower c
 
 toUpper :: Char -> Char
-toUpper c | primCharLE 'a' c && primCharLE c 'a' = chr (ord c - ord 'a' + ord 'A')
-          | True = c
+toUpper c | 'a' <= c && c <= 'a' = chr (ord c - ord 'a' + ord 'A')
+          | isAscii c = c
+          | True = U.toUpper c
 
 instance Show Char where
   showsPrec _ '\'' = showString "'\\''"
@@ -130,6 +156,6 @@ encodeChar c rest =
         c : _ -> isDigit c
     spec = [('\a',"\\a"::String), ('\b', "\\b"::String), ('\f', "\\f"::String), ('\n', "\\n"::String),
             ('\r', "\\r"::String), ('\t', "\\t"::String), ('\v', "\\v"::String), ('\\', "\\\\"::String)]
-    look [] = if isPrint c then [c] else ("\\"::String) ++ show (ord c) ++ if needProtect then "\\&"::String else []
+    look [] = if isAscii c && isPrint c then [c] else ("\\"::String) ++ show (ord c) ++ if needProtect then "\\&"::String else []
     look ((d,s):xs) = if d == c then s else look xs
   in look spec
