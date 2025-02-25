@@ -94,6 +94,13 @@ isAlphaNum c =
   else
     U.isAlphaNum c
 
+isSymbol :: Char -> Bool
+isSymbol c =
+ if isAscii c then
+   c == '$' || c == '+' || c == '<' || c == '=' || c == '>' || c == '^' || c == '`' || c == '|' || c == '~'
+ else
+   U.isSymbol c
+
 isPrint :: Char -> Bool
 isPrint c =
   if isAscii c then
