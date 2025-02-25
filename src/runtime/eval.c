@@ -58,7 +58,7 @@ int num_ffi;
 
 //#include "config.h"
 
-#define VERSION "v7.0\n"
+#define VERSION "v7.1\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -884,7 +884,7 @@ enum node_tag flip_ops[T_LAST_TAG];
 /* These handles are never gc():d. */
 void
 mk_std(NODEPTR n, FILE *f)
-{ 
+{
   struct final *fin = calloc(1, sizeof(struct final));
   struct forptr *fp = calloc(1, sizeof(struct forptr));
   if (!fin || !fp)
@@ -1184,7 +1184,7 @@ mark(NODEPTR *np)
    default:
      goto fin;
   }
-      
+
   if (!is_marked_used(*to_push)) {
     //  mark_depth++;
     PUSH((NODEPTR)to_push);
@@ -1653,7 +1653,7 @@ int
 getNT(BFILE *f)
 {
   int c;
-  
+
   c = getb(f);
   if (c == ' ' || c == '\n') {
     return 0;
@@ -2920,7 +2920,7 @@ bsappenddot(struct bytestring p, struct bytestring q)
   return r;
 }
 
-/* 
+/*
  * Compare bytestrings.
  * We can't use memcmp() directly for two reasons:
  *  - the two strings can have different lengths
@@ -3211,7 +3211,7 @@ evali(NODEPTR an)
   case T_FORPTR: RET;
   case T_ARR:  RET;
   case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
-    
+
   /*
    * Some of these reductions, (e.g., Z x y = K (x y)) are there to avoid
    * that increase in arity that some "optimizations" in Abstract.hs
@@ -3320,7 +3320,7 @@ evali(NODEPTR an)
      *  ----             |
      *  n ---------------|
      *
-     *  ---- 
+     *  ----
      *  n -------> INT(x+y)
      */
   case T_ADD:
@@ -3608,10 +3608,10 @@ evali(NODEPTR an)
       ERR1("mhs error: %s", msg);
 #endif  /* WANT_STDIO */
     }
-    
+
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
-    
+
   case T_EQUAL:
     CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
   case T_COMPARE:
@@ -3668,7 +3668,7 @@ evali(NODEPTR an)
     POP(1);
     n = TOP(-1);
     GOIND(x);
-    
+
 #if WANT_TICK
   case T_TICK:
     xi = GETVALUE(n);
@@ -3691,7 +3691,7 @@ evali(NODEPTR an)
     flt_t xd, yd, rd;
 #endif  /* WANT_FLOAT */
     NODEPTR p;
-    
+
     tag = GETTAG(TOP(0));
     switch (tag) {
     case T_BININT2:
@@ -4284,7 +4284,7 @@ MAIN
   char *outname = 0;
   size_t file_size = 0;
 #endif
-  
+
 #if 0
   /* MINGW doesn't do buffering right */
   setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
