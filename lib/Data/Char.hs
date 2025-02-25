@@ -1,8 +1,19 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Char(
-  module Data.Char,
-  module Data.Char_Type       -- exports Char and String
+  Char, String,
+  chr, ord,
+  isLower, isUpper,
+  isAsciiLower, isAsciiUpper,
+  isAlpha, isAlphaNum,
+  isDigit, isOctDigit, isHexDigit,
+  isSymbol, isPunctuation,
+  isSpace,
+  isControl,
+  isAscii,
+  digitToInt,
+  intToDigit,
+  toLower, toUpper,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -97,9 +108,21 @@ isAlphaNum c =
 isSymbol :: Char -> Bool
 isSymbol c =
  if isAscii c then
-   c == '$' || c == '+' || c == '<' || c == '=' || c == '>' || c == '^' || c == '`' || c == '|' || c == '~'
+   c `xelem` "$+<=>^`|~"
  else
    U.isSymbol c
+
+isPunctuation :: Char -> Bool
+isPunctuation c =
+  if isAscii c then
+    c `xelem` "!\"#%&'()*,-./:;?@[\\]_{}"
+  else
+    U.isPunctuation c
+
+-- Don't want to import Data.List
+xelem :: Char -> [Char] -> Bool
+xelem _ [] = False
+xelem d (c:cs) = d == c || xelem d cs
 
 isPrint :: Char -> Bool
 isPrint c =
@@ -120,9 +143,6 @@ isAscii c = c <= '\127'
 
 isControl :: Char -> Bool
 isControl c = c <= '\31' || c == '\127'
-
-isLetter :: Char -> Bool
-isLetter = isAlpha
 
 digitToInt :: Char -> Int
 digitToInt c | (primCharLE '0' c) && (primCharLE c '9') = ord c - ord '0'
@@ -153,7 +173,6 @@ instance Show Char where
             if c == '"' then showString "\\\"" . f cs
             else showString (encodeChar c cs) . f cs
 
--- XXX should not export this
 encodeChar :: Char -> String -> String
 encodeChar c rest =
   let
