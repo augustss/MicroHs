@@ -498,7 +498,12 @@ isValidUtf8 = validUtf8 . unpack
 breakSubstring :: ByteString -- ^ String to search for
                -> ByteString -- ^ String to search in
                -> (ByteString,ByteString) -- ^ Head and tail of string broken at substring
-breakSubstring pat = bsUnimp "breakSubstring"
+breakSubstring pat str
+  | length pat > length str = (str, empty)
+  | otherwise =
+    case P.findIndex (P.isPrefixOf (unpack pat)) (P.tails (unpack str)) of
+      Nothing -> (str, empty)
+      Just i -> splitAt i str
 
 zip :: ByteString -> ByteString -> [(Word8,Word8)]
 zip ps qs = P.zip (unpack ps) (unpack qs)
@@ -536,10 +541,10 @@ useAsCStringLen bs act =
   withForeignPtr (primBS2FPtr bs) $ \p -> act (p, length bs)
 
 packCString :: CString -> IO ByteString
-packCString cstr = bsUnimp "packCString"
+packCString = primPackCString
 
 packCStringLen :: CStringLen -> IO ByteString
-packCStringLen = bsUnimp "packCStringLen"
+packCStringLen (cstr, len) = primPackCStringLen cstr len
 
 copy :: ByteString -> ByteString
 copy = append empty

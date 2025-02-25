@@ -58,7 +58,7 @@ int num_ffi;
 
 //#include "config.h"
 
-#define VERSION "v7.0\n"
+#define VERSION "v7.1\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -286,7 +286,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
-                T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
+                T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
@@ -320,7 +320,7 @@ static const char* tag_names[] = {
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
   "IO_PERFORMIO", "IO_PRINT", "CATCH",
   "IO_CCALL", "IO_GC", "DYNSYM",
-  "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
+  "NEWCASTRINGLEN", "PACKCSTRING", "PACKCSTRINGLEN",
   "BSFROMUTF8",
   "STR",
   "LAST_TAG",
@@ -867,8 +867,8 @@ struct {
   { "A.==", T_ARR_EQ },
   { "dynsym", T_DYNSYM },
   { "newCAStringLen", T_NEWCASTRINGLEN },
-  { "peekCAString", T_PEEKCASTRING },
-  { "peekCAStringLen", T_PEEKCASTRINGLEN },
+  { "packCString", T_PACKCSTRING },
+  { "packCStringLen", T_PACKCSTRINGLEN },
   { "toPtr", T_TOPTR },
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
@@ -884,7 +884,7 @@ enum node_tag flip_ops[T_LAST_TAG];
 /* These handles are never gc():d. */
 void
 mk_std(NODEPTR n, FILE *f)
-{ 
+{
   struct final *fin = calloc(1, sizeof(struct final));
   struct forptr *fp = calloc(1, sizeof(struct forptr));
   if (!fin || !fp)
@@ -1184,7 +1184,7 @@ mark(NODEPTR *np)
    default:
      goto fin;
   }
-      
+
   if (!is_marked_used(*to_push)) {
     //  mark_depth++;
     PUSH((NODEPTR)to_push);
@@ -1653,7 +1653,7 @@ int
 getNT(BFILE *f)
 {
   int c;
-  
+
   c = getb(f);
   if (c == ' ' || c == '\n') {
     return 0;
@@ -2369,8 +2369,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_ARR_EQ: putsb("A.==", f); break;
   case T_DYNSYM: putsb("dynsym", f); break;
   case T_NEWCASTRINGLEN: putsb("newCAStringLen", f); break;
-  case T_PEEKCASTRING: putsb("peekCAString", f); break;
-  case T_PEEKCASTRINGLEN: putsb("peekCAStringLen", f); break;
+  case T_PACKCSTRING: putsb("packCString", f); break;
+  case T_PACKCSTRINGLEN: putsb("packCStringLen", f); break;
   case T_TOINT: putsb("toInt", f); break;
   case T_TOPTR: putsb("toPtr", f); break;
   case T_TODBL: putsb("toDbl", f); break;
@@ -2920,7 +2920,7 @@ bsappenddot(struct bytestring p, struct bytestring q)
   return r;
 }
 
-/* 
+/*
  * Compare bytestrings.
  * We can't use memcmp() directly for two reasons:
  *  - the two strings can have different lengths
@@ -3211,7 +3211,7 @@ evali(NODEPTR an)
   case T_FORPTR: RET;
   case T_ARR:  RET;
   case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
-    
+
   /*
    * Some of these reductions, (e.g., Z x y = K (x y)) are there to avoid
    * that increase in arity that some "optimizations" in Abstract.hs
@@ -3320,7 +3320,7 @@ evali(NODEPTR an)
      *  ----             |
      *  n ---------------|
      *
-     *  ---- 
+     *  ----
      *  n -------> INT(x+y)
      */
   case T_ADD:
@@ -3608,10 +3608,10 @@ evali(NODEPTR an)
       ERR1("mhs error: %s", msg);
 #endif  /* WANT_STDIO */
     }
-    
+
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
-    
+
   case T_EQUAL:
     CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
   case T_COMPARE:
@@ -3645,8 +3645,8 @@ evali(NODEPTR an)
   case T_IO_CCALL:
   case T_CATCH:
   case T_NEWCASTRINGLEN:
-  case T_PEEKCASTRING:
-  case T_PEEKCASTRINGLEN:
+  case T_PACKCSTRING:
+  case T_PACKCSTRINGLEN:
   case T_ARR_ALLOC:
   case T_ARR_COPY:
   case T_ARR_SIZE:
@@ -3668,7 +3668,7 @@ evali(NODEPTR an)
     POP(1);
     n = TOP(-1);
     GOIND(x);
-    
+
 #if WANT_TICK
   case T_TICK:
     xi = GETVALUE(n);
@@ -3691,7 +3691,7 @@ evali(NODEPTR an)
     flt_t xd, yd, rd;
 #endif  /* WANT_FLOAT */
     NODEPTR p;
-    
+
     tag = GETTAG(TOP(0));
     switch (tag) {
     case T_BININT2:
@@ -3908,7 +3908,7 @@ evali(NODEPTR an)
 }
 
 /* This is the interpreter for the IO monad operations.
- * 
+ *
  * Assuming every graph rewrite is atomic we want the graph
  * to always represent the rest of the program to run.
  * To this end, we need to mutate the graph every time
@@ -3948,7 +3948,7 @@ execio(NODEPTR *np)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR f, x, n, q, r, s, res, top1;
-  char *name;
+  char *cstr;
   struct handler *h;
 #if WANT_STDIO
   void *ptr;
@@ -4124,26 +4124,28 @@ execio(NODEPTR *np)
       RETIO(n);
       }
 
-    case T_PEEKCASTRING:
+    case T_PACKCSTRING:
       {
       size_t size;
       CHECKIO(1);
-      name = evalptr(ARG(TOP(1)));
-      size = strlen(name);
-      GCCHECK(strNodes(size));
-      struct bytestring bs = { size, name };
-      RETIO(mkString(bs));
+      cstr = evalptr(ARG(TOP(1)));
+      size = strlen(cstr);
+      char *str = MALLOC(size);
+      memcpy(str, cstr, size);
+      struct bytestring bs = { size, str };
+      RETIO(mkStrNode(bs));
       }
 
-    case T_PEEKCASTRINGLEN:
+    case T_PACKCSTRINGLEN:
       {
       size_t size;
       CHECKIO(2);
+      cstr = evalptr(ARG(TOP(1)));
       size = evalint(ARG(TOP(2)));
-      name = evalptr(ARG(TOP(1)));
-      GCCHECK(strNodes(size));
-      struct bytestring bs = { size, name };
-      RETIO(mkString(bs));
+      char *str = MALLOC(size);
+      memcpy(str, cstr, size);
+      struct bytestring bs = { size, str };
+      RETIO(mkStrNode(bs));
       }
 
     case T_ARR_ALLOC:
@@ -4294,7 +4296,7 @@ MAIN
   char *outname = 0;
   size_t file_size = 0;
 #endif
-  
+
 #if 0
   /* MINGW doesn't do buffering right */
   setvbuf(stdout, NULL, _IOLBF, BUFSIZ);

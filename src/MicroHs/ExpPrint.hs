@@ -15,7 +15,7 @@ import MicroHs.TypeCheck(isInstId)
 -- Version number of combinator file.
 -- Must match version in eval.c.
 combVersion :: String
-combVersion = "v7.0\n"
+combVersion = "v7.1\n"
 
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- Also check for duplicated instances.

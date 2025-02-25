@@ -1,7 +1,22 @@
 module Data.ByteString.Internal(module Data.ByteString.Internal) where
-import qualified Prelude(); import MiniPrelude hiding(length)
+import qualified Prelude()
+import Primitives
 import Control.DeepSeq.Class
-import Data.Word(Word8)
+import Control.Error
+import Data.Bool
+import Data.Enum
+import Data.Eq
+import Data.Function
+import Data.Int
+import Data.List (map)
+import Data.List_Type
+import Data.Monoid.Internal
+import Data.Num
+import Data.Ord
+import Data.String
+import Data.Word (Word8)
+import Foreign.C.Types (CChar)
+import Text.Show
 
 data ByteString  -- primitive type
 
@@ -33,6 +48,11 @@ primBSindex   :: ByteString -> Int -> Word8
 primBSindex   = _primitive "bsindex"
 primBSreplicate :: Int -> Word8 -> ByteString
 primBSreplicate = _primitive "bsreplicate"
+
+primPackCString :: Ptr CChar -> IO ByteString
+primPackCString = _primitive "packCString"
+primPackCStringLen :: Ptr CChar -> Int -> IO ByteString
+primPackCStringLen = _primitive "packCStringLen"
 
 -----------------------------------------
 
