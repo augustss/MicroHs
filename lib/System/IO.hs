@@ -35,6 +35,7 @@ import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
 import Control.Error
+import Control.Exception.Internal(bracket)
 import Control.Monad
 import Control.Monad.Fail
 import Data.Bool
@@ -281,13 +282,11 @@ hSetEncoding _ _ = return ()
 
 --------
 
--- XXX needs bracket
 withFile :: forall r . FilePath -> IOMode -> (Handle -> IO r) -> IO r
-withFile fn md io = do
-  h <- openFile fn md
-  r <- io h
-  hClose h
-  return r
+withFile fn md io = bracket (openFile fn md) hClose io
+
+withBinaryFile :: forall r . FilePath -> IOMode -> (Handle -> IO r) -> IO r
+withBinaryFile fn md io = bracket (openBinaryFile fn md) hClose io
 
 --------
 
