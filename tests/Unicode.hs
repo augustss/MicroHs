@@ -10,5 +10,5 @@ main = do
   ustr <- readFile "unicode.tmp"
   print $ ustr == "\xe5\&bc"
 
-foo ∷ ∀ a . Eq a ⇒ a → a
+foo ∷ ∀ α . Eq α ⇒ α → α
 foo x = if x == x then x else undefined
