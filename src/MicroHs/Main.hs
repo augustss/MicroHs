@@ -120,7 +120,7 @@ decodeArgs f mdls (arg:args) =
     "-s"        -> decodeArgs f{speed = True} mdls args
     "-CR"       -> decodeArgs f{readCache = True} mdls args
     "-CW"       -> decodeArgs f{writeCache = True} mdls args
-    "-C"        -> decodeArgs f{readCache=True, writeCache = True} mdls args
+    "-C"        -> decodeArgs f{readCache = True, writeCache = True} mdls args
     "-T"        -> decodeArgs f{useTicks = True} mdls args
     "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
     "-z"        -> decodeArgs f{compress = True} mdls args
