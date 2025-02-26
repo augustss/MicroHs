@@ -177,14 +177,6 @@ foreign import ccall "writeb" c_writeb :: CString -> Int -> Ptr BFILE -> IO Int
 
 type StrictByteString = ByteString
 
-primBS2FPtr :: ByteString -> ForeignPtr CChar
-primBS2FPtr = _primitive "bs2fp"
-
--- Warning: This function modifies the `ForeignPtr`,
--- avoid using the `ForeignPtr` after calling `primFPtr2BS`.
-primFPtr2BS :: ForeignPtr CChar -> Int -> ByteString
-primFPtr2BS = _primitive "fp2bs"
-
 bsUnimp :: String -> a
 bsUnimp s = P.error $ "Data.ByteString." P.++ s P.++ " unimplemented"
 

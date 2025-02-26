@@ -99,6 +99,11 @@ namegetField = "getField"
 namesetField :: String
 namesetField = "setField"
 
+nameByteString :: String
+nameByteString = "Data.ByteString.Internal.ByteString"
+identByteString :: Ident
+identByteString = mkIdentB nameByteString
+
 -----
 
 instPrefix :: String

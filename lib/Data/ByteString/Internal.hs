@@ -54,6 +54,14 @@ primPackCString = _primitive "packCString"
 primPackCStringLen :: Ptr CChar -> Int -> IO ByteString
 primPackCStringLen = _primitive "packCStringLen"
 
+primBS2FPtr :: ByteString -> ForeignPtr CChar
+primBS2FPtr = _primitive "bs2fp"
+
+-- Warning: This function modifies the `ForeignPtr`,
+-- avoid using the `ForeignPtr` after calling `primFPtr2BS`.
+primFPtr2BS :: ForeignPtr CChar -> Int -> ByteString
+primFPtr2BS = _primitive "fp2bs"
+
 -----------------------------------------
 
 instance NFData ByteString

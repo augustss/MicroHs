@@ -77,12 +77,12 @@ toStringP ae =
         toStringP (App (Lit (LPrim "fromUTF8")) (Lit (LUStr (utf8encode s))))
       else
         toStringP (encodeString s)
-    Lit (LUStr s) ->
-      (quoteString s ++) . (' ' :)
+    Lit (LUStr s) -> (quoteString s ++) . (' ' :)
+    Lit (LBStr s) -> (quoteString s ++) . (' ' :)
     Lit (LInteger _) -> undefined
     Lit (LRat _) -> undefined
     Lit (LTick s) -> ('!':) . (quoteString s ++) . (' ' :)
-    Lit l   -> (showLit l ++) . (' ' :)
+    Lit l -> (showLit l ++) . (' ' :)
     Lam _x _e -> undefined -- (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     --App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
     App f a -> toStringP f . toStringP a . ("@" ++)

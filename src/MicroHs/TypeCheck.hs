@@ -1662,11 +1662,13 @@ tcExprR mt ae =
                   -- We don't need to check that _at is Rational, it's part of the fromRational type.
                   instSigma loc (EApp f ae) rt mt
             -- This implements OverloadedStrings.  It causes a small slowdown (2%)
-            LStr _ -> do
+            LStr s -> do
               mex <- getExpected mt
               case mex of
                 Just (EApp (EVar lst) (EVar c))
                  | lst == identList && c == identChar -> tcLit mt loc lit
+                Just (EVar bs)
+                 | bs == identByteString -> tcLit mt loc (LBStr s)
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromString"))
                   (_at, rt) <- unArrow loc ft
@@ -2016,6 +2018,7 @@ tcLit mt loc l = do
           LDouble _  -> tConI loc nameFloatW
           LChar _    -> tConI loc nameChar
           LStr _     -> tApp (tList loc) (tConI loc nameChar)
+          LBStr _    -> tConI loc nameByteString
           _          -> impossible
   tcLit' mt loc l t
 
