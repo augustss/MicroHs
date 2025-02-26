@@ -164,7 +164,7 @@ isOperChar '\x21d2' = True  -- =>
 isOperChar '\x2192' = True  -- ->
 isOperChar '\x2190' = True  -- <-
 isOperChar '\x2200' = True  -- forall
-isOperChar _ = False
+isOperChar c = not (isAscii c) && (isSymbol c || isPunctuation c)   -- Unicode operator symbols
 
 isIdentChar :: Char -> Bool
 isIdentChar c = isLower_ c || isUpper c || isDigit c || c == '\''
