@@ -3,8 +3,12 @@ module System.Compress(
   compressRLE, decompressRLE,
   compressBWT, decompressBWT,
   compressBWTRLE, decompressBWTRLE,
+  bsDecompressLZ,
+  bsDecompressRLE,
+  bsDecompressLZRLE,
   ) where
 import qualified Prelude(); import MiniPrelude
+import qualified Data.ByteString as BS
 import Data.Function
 import Foreign.Ptr
 import Foreign.C.String
@@ -57,7 +61,7 @@ withGetTransducer trans file = unsafePerformIO $ do
   h <- mkHandle "withGetTransducer" cbf HRead
   cs <- hGetContents h                         -- get contents
   seq (length cs) (return ())                  -- force it all so ptr is no longer in use
-  hClose h
+  hClose h  -- XXX why?
   return cs
 
 compress :: [Char] -> [Char]
@@ -83,6 +87,23 @@ compressBWTRLE = withPutTransducer (c_add_bwt_compressor <=< c_add_rle_compresso
 
 decompressBWTRLE :: [Char] -> [Char]
 decompressBWTRLE = withGetTransducer (c_add_bwt_decompressor <=< c_add_rle_decompressor <=< c_add_lz77_decompressor)
+
+withGetTransducerBS :: Transducer -> BS.ByteString -> BS.ByteString
+withGetTransducerBS trans bs = unsafePerformIO $
+  BS.useAsCStringLen bs $ \ (ptr, len) -> do
+  bf <- c_openb_rd_buf ptr len                 -- open it for reading
+  cbf <- trans bf                              -- and add transducer (e.g., decompressor)
+  h <- mkHandle "withGetTransducer" cbf HRead
+  BS.hGetContents h
+
+bsCecompressLZ :: BS.ByteString -> BS.ByteString
+bsDecompressLZ = withGetTransducerBS c_add_lz77_decompressor
+
+bsCecompressRLE :: BS.ByteString -> BS.ByteString
+bsDecompressRLE = withGetTransducerBS c_add_lz77_decompressor
+
+bsCecompressLZRLE :: BS.ByteString -> BS.ByteString
+bsDecompressLZRLE = withGetTransducerBS (c_add_rle_decompressor <=< c_add_lz77_decompressor)
 
 {-
 main :: IO ()
