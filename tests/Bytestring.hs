@@ -26,3 +26,9 @@ main = do
   print [ compare x y | x <- [bs1, bs2, bs3, bs4], y <- [bs1, bs2, bs3, bs4] ]
   print $ unpack "abc"
   print $ BS.replicate 64 42
+
+  -- breakSubstring
+  print $ breakSubstring "def" "abcdefg"
+  print $ breakSubstring "abc" "abcdefg"
+  print $ breakSubstring "fg" "abcdefg"
+  print $ breakSubstring "fn" "abcdefg"
