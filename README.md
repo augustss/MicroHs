@@ -104,6 +104,7 @@ Differences:
    * TypeSynonymInstances
    * UndecidableInstances
    * UndecidableSuperClasses
+   * UnicodeSyntax
    * ViewPatterns
  * The only extension that is not always on is `CPP`.
  * `main` in the top module given to `mhs` serves at the program entry point.
