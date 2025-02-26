@@ -46,6 +46,7 @@ library base
         Data.ByteString.Char8
         Data.ByteString.Lazy.Char8
         Data.Char
+        Data.Char.Unicode
         Data.Coerce
         Data.Complex
         Data.Constraint
