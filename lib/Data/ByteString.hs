@@ -152,10 +152,8 @@ module Data.ByteString(
   hPutNonBlocking,
   hPutStr,
   ) where
-import Prelude(Bool(..), Int, Char, Ordering, FilePath, IO, Maybe(..), [](..), String,
-               Eq(..), Ord(..), Show(..), Num(..), Monad(..), Functor(..),
-               (.), ($), Enum(..), (||), (&&), not, otherwise, (!!), fst, snd)
-import qualified Prelude as P
+import qualified Prelude()
+import MiniPrelude as P hiding(null, length)
 import qualified Data.List as P
 import Control.Exception (evaluate)
 import Data.List.NonEmpty (NonEmpty, fromList)
