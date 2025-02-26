@@ -1701,6 +1701,7 @@ parse_double(BFILE *f)
 #endif
 
 struct forptr *mkForPtr(struct bytestring bs);
+NODEPTR mkFunPtr(HsFunPtr p);
 
 /* Create a forptr that has a free() finalizer. */
 struct forptr *
@@ -1932,6 +1933,18 @@ parse(BFILE *f)
         ;
       r = ffiNode(buf);
       PUSH(r);
+      break;
+    case ';':
+      /* <name is a C function pointer to name */
+      for (j = 0; (buf[j] = getNT(f)); j++)
+        ;
+      if (strcmp(buf, "0") == 0) {
+        PUSH(mkFunPtr((HsFunPtr)0));
+      } else if (strcmp(buf, "closeb") == 0) {
+        PUSH(mkFunPtr((HsFunPtr)closeb));
+      } else {
+        ERR1("unknown funptr '%s'", buf);
+      }
       break;
     default:
       buf[0] = c;
@@ -2226,7 +2239,18 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     }
     break;
   case T_FUNPTR:
-      ERR("Cannot serialize function pointers");
+    /* There are a few function pointers that happen without user FFI.
+     * We need to be able to serialize these.
+     * XXX Make a table if we need more.
+     */
+    if (FUNPTR(n) == 0) {
+      putsb(";0 ", f);
+    } else if (FUNPTR(n) == (HsFunPtr)closeb) {
+      putsb(";closeb ", f);
+    } else {
+      ERR1("Cannot serialize function pointers %p", FUNPTR(n));
+    }
+    break;
   case T_FORPTR:
     if (n == comb_stdin)
       putsb("IO.stdin", f);
