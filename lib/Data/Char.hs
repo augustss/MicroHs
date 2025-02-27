@@ -174,14 +174,24 @@ instance Show Char where
             else showString (encodeChar c cs) . f cs
 
 encodeChar :: Char -> String -> String
+encodeChar c _ | isAscii c && isPrint c && c /= '\\' = [c]
 encodeChar c rest =
   let
     needProtect =
       case rest of
         [] -> False
         c : _ -> isDigit c
-    spec = [('\a',"\\a"::String), ('\b', "\\b"::String), ('\f', "\\f"::String), ('\n', "\\n"::String),
-            ('\r', "\\r"::String), ('\t', "\\t"::String), ('\v', "\\v"::String), ('\\', "\\\\"::String)]
-    look [] = if isAscii c && isPrint c then [c] else ("\\"::String) ++ show (ord c) ++ if needProtect then "\\&"::String else []
-    look ((d,s):xs) = if d == c then s else look xs
+    spec :: [(Char, String)]
+    spec = [('\NUL', "NUL"), ('\SOH', "SOH"), ('\STX', "STX"),
+            ('\ETX', "ETX"), ('\EOT', "EOT"), ('\ENQ', "ENQ"), ('\ACK', "ACK"),
+            ('\a', "a"), ('\b', "b"), ('\t', "t"), ('\n', "n"),
+            ('\v', "v"), ('\f', "f"), ('\r', "r"), ('\\', "\\"),
+            ('\SO', "SO"), ('\SI', "SI"), ('\DLE', "DLE"), ('\DC1', "DC1"), ('\DC2', "DC2"),
+            ('\DC3', "DC3"), ('\DC4', "DC4"), ('\NAK', "NAK"), ('\SYN', "SYN"),
+            ('\ETB', "ETB"), ('\CAN', "CAN"), ('\EM', "EM"), ('\SUB', "SUB"),
+            ('\ESC', "ESC"), ('\FS', "FS"), ('\GS', "GS"), ('\RS', "RS"), ('\US', "US"),
+            ('\DEL', "DEL")
+           ]
+    look [] = ("\\"::String) ++ show (ord c) ++ if needProtect then "\\&"::String else ""
+    look ((d,s):xs) = if d == c then '\\':s else look xs
   in look spec
