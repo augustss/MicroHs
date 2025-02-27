@@ -11,6 +11,7 @@ module Data.Char(
   isSpace,
   isControl,
   isAscii,
+  isPrint,
   digitToInt,
   intToDigit,
   toLower, toUpper,
