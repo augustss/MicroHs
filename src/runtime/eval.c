@@ -58,7 +58,7 @@ int num_ffi;
 
 //#include "config.h"
 
-#define VERSION "v7.1\n"
+#define VERSION "v7.2\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -1783,6 +1783,7 @@ parse_string(BFILE *f)
       if (!buffer)
         memerr();
     }
+#if 0
     if (c == '\\') {
       buffer[i++] = (uint8_t)parse_int(f);
       if (!gobble(f, '&'))
@@ -1790,6 +1791,33 @@ parse_string(BFILE *f)
     } else {
       buffer[i++] = c;
     }
+#else
+    /* See src/MicroHs/ExpPrint.hs for how strings are encoded. */
+    switch (c) {
+    case '\\':
+      c = getb(f);
+      if (c == '?')
+        c = 0x7f;
+      else if (c == '_')
+        c = 0xff;
+      break;
+    case '^':
+      c = getb(f);
+      if (c < 0x40)
+        c &= 0x1f;
+      else
+        c = (c & 0x1f) | 0x80;
+      break;
+    case '|':
+      c = getb(f);
+      c |= 0x80;
+      break;
+    default:
+      /* Unencoded */
+      ;
+    }
+    buffer[i++] = c;
+#endif
   }
   buffer[i] = 0;                /* add a trailing 0 in case we need a C string */
   buffer = REALLOC(buffer, i + 1);

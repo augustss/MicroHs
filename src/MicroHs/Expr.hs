@@ -302,7 +302,6 @@ data Lit
   | LRat Rational
   | LChar Char
   | LStr String
-  | LUStr String            -- UTF-8 encoded string
   | LBStr String            -- bytestring
   | LPrim String
   | LExn String             -- exception to raise
@@ -318,7 +317,6 @@ instance NFData Lit where
   rnf (LRat a) = rnf a
   rnf (LChar a) = rnf a
   rnf (LStr a) = rnf a
-  rnf (LUStr a) = rnf a
   rnf (LBStr a) = rnf a
   rnf (LPrim a) = rnf a
   rnf (LExn a) = rnf a
@@ -977,7 +975,6 @@ showLit l =
     LRat r     -> '%' : show r
     LChar c    -> show c
     LStr s     -> show s
-    LUStr s    -> show s
     LBStr s    -> show s
     LPrim s    -> s
     LExn s     -> s
