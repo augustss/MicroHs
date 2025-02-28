@@ -1,4 +1,5 @@
 --module UniParse where
+import Data.Char
 import Data.Maybe
 import Numeric
 import System.Environment
@@ -93,14 +94,19 @@ main = do
   --print gcTable
   --mapM_ print info
   let out = encodeGCInfo info
-      cout = compress $ compressRLE out
-  putStrLn $ "compressedGCTable :: [Char]\ncompressedGCTable =\n  " ++ show cout
+      cout = {-compress $-} compressRLE out
+  putStrLn $ "compressedGCTable :: [Char]\ncompressedGCTable =\n  " ++ showChars cout
   let ucInfo = [(cp, u - cp) | (cp, _, Just u, _) <- info ]
       ucInfoC = compact ucInfo
   putStrLn $ "\nucTable :: [(Int, Int, Int)]\nucTable =\n  " ++ show ucInfoC
   let lcInfo = [(cp, l - cp) | (cp, _, _, Just l) <- info ]
       lcInfoC = compact lcInfo
   putStrLn $ "\nlcTable :: [(Int, Int, Int)]\nlcTable =\n  " ++ show lcInfoC
+
+showChars :: [Char] -> String
+showChars cs = "\"" ++ concatMap char cs ++ "\""
+  where char c | isPrint c && c /= '\\' && c /= '"' = [c]
+               | otherwise = '\\' : show c
 
 type CodePoint = Int
 type Info = (CodePoint, GeneralCategory, Maybe CodePoint, Maybe CodePoint)
