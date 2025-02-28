@@ -2173,6 +2173,7 @@ print_string(BFILE *f, struct bytestring bs)
   putb('"', f);
   for (size_t i = 0; i < bs.size; i++) {
     int c = str[i];
+#if 0
     if (c == '"' || c == '\\' || c < ' ' || c > '~') {
       putb('\\', f);
       putdecb(c, f);
@@ -2180,6 +2181,25 @@ print_string(BFILE *f, struct bytestring bs)
     } else {
       putb(c, f);
     }
+#else
+    if (c < 0 || c > 0xff)
+      ERR("print_string");
+    if (c < 0x20) {
+      putb('^', f); putb(c + 0x20, f);
+    } else if (c == '"' || c == '^' || c == '|' || c == '\\') {
+      putb('\\', f); putb(c, f);
+    } else if (c < 0x7f) {
+      putb(c, f);
+    } else if (c == 0x7f) {
+      putb('\\', f); putb('?', f);
+    } else if (c < 0xa0) {
+      putb('^', f); putb(c - 0x80 + 0x40, f);
+    } else if (c < 0xff) {
+      putb('|', f); putb(c - 0x80, f);
+    } else {                    /* must be c == 0xff */
+      putb('\\', f); putb('_', f);
+    }
+#endif
   }
   putb('"', f);
 }
