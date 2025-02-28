@@ -104,7 +104,7 @@ bsCecompressLZ :: BS.ByteString -> BS.ByteString
 bsDecompressLZ = withGetTransducerBS c_add_lz77_decompressor
 
 bsCecompressRLE :: BS.ByteString -> BS.ByteString
-bsDecompressRLE = withGetTransducerBS c_add_lz77_decompressor
+bsDecompressRLE = withGetTransducerBS c_add_rle_decompressor
 
 bsCecompressLZRLE :: BS.ByteString -> BS.ByteString
 bsDecompressLZRLE = withGetTransducerBS (c_add_rle_decompressor <=< c_add_lz77_decompressor)
