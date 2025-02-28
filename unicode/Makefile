@@ -1,10 +1,12 @@
-UNICODE_VERSION=15.1.0
+UNICODE_VERSION=16.0.0
 .PHONY: clean
 
 all: uni_string
 
 uni_string:	UniParse UnicodeData.txt
-	./UniParse > uni_string
+	echo "unicodeVersion :: Version" > uni_string
+	echo $(UNICODE_VERSION) | sed -e 's/\./,/g' -e 's/^/unicodeVersion = makeVersion [/' -e 's/$$/]/' >> uni_string
+	./UniParse >> uni_string
 
 UniParse: UniParse.hs
 	mhs UniParse.hs -oUniParse
