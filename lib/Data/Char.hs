@@ -178,10 +178,14 @@ encodeChar :: Char -> String -> String
 encodeChar c _ | isAscii c && isPrint c && c /= '\\' = [c]
 encodeChar c rest =
   let
-    needProtect =
+    needDigitProtect =
       case rest of
         [] -> False
         c : _ -> isDigit c
+    needHProtect =
+      case rest of
+        'H' : _ -> True
+        _ -> False
     spec :: [(Char, String)]
     spec = [('\NUL', "NUL"), ('\SOH', "SOH"), ('\STX', "STX"),
             ('\ETX', "ETX"), ('\EOT', "EOT"), ('\ENQ', "ENQ"), ('\ACK', "ACK"),
@@ -193,6 +197,6 @@ encodeChar c rest =
             ('\ESC', "ESC"), ('\FS', "FS"), ('\GS', "GS"), ('\RS', "RS"), ('\US', "US"),
             ('\DEL', "DEL")
            ]
-    look [] = ("\\"::String) ++ show (ord c) ++ if needProtect then "\\&"::String else ""
-    look ((d,s):xs) = if d == c then '\\':s else look xs
+    look [] = ("\\"::String) ++ show (ord c) ++ if needDigitProtect then "\\&"::String else ""
+    look ((d,s):xs) = if d == c then '\\':s ++ (if c == '\SO' && needHProtect then "\\&"::String else "") else look xs
   in look spec
