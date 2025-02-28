@@ -102,7 +102,7 @@ stLookup msg i (SymTab l ug qg) =
 -- unqualified.
 hackBuiltin :: Ident -> Ident
 hackBuiltin i =
-  case stripPrefix builtinMdl (unIdent i) of
+  case stripPrefix (unIdent builtinMdl) (unIdent i) of
     Just ('.':s) -> mkIdentSLoc (slocIdent i) s
     _            -> i
 

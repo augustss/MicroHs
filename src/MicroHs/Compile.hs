@@ -237,9 +237,7 @@ addPreludeImport (EModule mn es ds) =
         isImportPrelude (Import (ImportSpec _ _ i _ _)) = i == idPrelude
         isImportPrelude _ = False
         idPrelude = mkIdent "Prelude"
-        idBuiltin = mkIdent "Mhs.Builtin"
-        idB = mkIdent builtinMdl
-        iblt = Import $ ImportSpec ImpNormal True idBuiltin (Just idB) Nothing
+        iblt = Import $ ImportSpec ImpNormal True builtinMdlQ (Just builtinMdl) Nothing
         ps' =
           case ps of
             [] -> [Import $ ImportSpec ImpNormal False idPrelude Nothing Nothing,      -- no Prelude imports, so add 'import Prelude'
