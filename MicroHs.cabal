@@ -107,6 +107,7 @@ executable mhs
   if impl(ghc)
     hs-source-dirs:    ghc src
     build-depends:     base         >= 4.10 && < 4.30,
+                       bytestring   >= 0.5 && < 0.20,
                        deepseq      >= 1.1 && < 1.8,
                        filepath     >= 1.1 && < 1.8,
                        ghc-prim     >= 0.5 && < 0.15,
