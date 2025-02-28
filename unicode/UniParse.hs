@@ -95,7 +95,7 @@ main = do
   --mapM_ print info
   let out = encodeGCInfo info
       cout = {-compress $-} compressRLE out
-  putStrLn $ "compressedGCTable :: [Char]\ncompressedGCTable =\n  " ++ showChars cout
+  putStrLn $ "compressedGCTable :: ByteString\ncompressedGCTable =\n  " ++ showChars cout
   let ucInfo = [(cp, u - cp) | (cp, _, Just u, _) <- info ]
       ucInfoC = compact ucInfo
   putStrLn $ "\nucTable :: [(Int, Int, Int)]\nucTable =\n  " ++ show ucInfoC
@@ -104,9 +104,12 @@ main = do
   putStrLn $ "\nlcTable :: [(Int, Int, Int)]\nlcTable =\n  " ++ show lcInfoC
 
 showChars :: [Char] -> String
+showChars = show
+{-
 showChars cs = "\"" ++ concatMap char cs ++ "\""
   where char c | isPrint c && c /= '\\' && c /= '"' = [c]
                | otherwise = '\\' : show c
+-}
 
 type CodePoint = Int
 type Info = (CodePoint, GeneralCategory, Maybe CodePoint, Maybe CodePoint)
@@ -164,6 +167,8 @@ encodeGCInfo = enc 0
 
 type Delta = Int
 
+-- XXX This is dodgy if the codepoints are not consequtive.
+-- It mostly works if we do a check for isLower/isUpper before conversion.
 compact :: [(CodePoint, Delta)] -> [(CodePoint, CodePoint, Delta)]
 compact [] = []
 compact ((c, d):cds) =
