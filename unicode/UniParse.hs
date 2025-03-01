@@ -170,11 +170,12 @@ encodeGCInfo = enc 0
 
 type Delta = Int
 
--- XXX This is dodgy if the codepoints are not consequtive.
--- It mostly works if we do a check for isLower/isUpper before conversion.
 compact :: [(CodePoint, Delta)] -> [(CodePoint, CodePoint, Delta)]
 compact [] = []
-compact ((c, d):cds) =
-  case span ((== d) . snd) cds of
-    ([], _) -> (c, c, d) : compact cds
-    (xs, rcds) -> (c, fst (last xs), d) : compact rcds
+compact ((c, d) : cds) =
+  case range c d cds of
+    (c', rcds) -> (c, c', d) : compact rcds
+  where
+    range c d ((c', d') : cds)
+      | c' == c + 1 && d' == d = range c' d cds
+    range c d cds = (c, cds)
