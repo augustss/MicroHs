@@ -1195,14 +1195,17 @@ isDefaultMethodId i = defaultSuffix `isSuffixOf` unIdent i
 defaultSuffix :: String
 defaultSuffix = uniqIdentSep ++ "dflt"
 
-splitInst :: EConstraint -> ([IdKind], [EConstraint], EConstraint)
-splitInst (EForall _ iks t) =
-  case splitInst t of
+-- Split something of the form
+--  forall vs . ctx => t
+-- into (vs, ctx, t)
+splitContext :: EConstraint -> ([IdKind], [EConstraint], EConstraint)
+splitContext (EForall _ iks t) =
+  case splitContext t of
     (iks', ctx, ct) -> (iks ++ iks', ctx, ct)
-splitInst act =
+splitContext act =
   case getImplies act of
     Just (ctx, ct) ->
-      case splitInst ct of
+      case splitContext ct of
         (iks, ctxs, ct') -> (iks, ctx : ctxs, ct')
     _ -> ([], [], act)
 
@@ -1211,7 +1214,7 @@ splitInst act =
 -- whereas value expressions do not.
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance act bs) = do
-  (vks, ctx, cc) <- splitInst <$> expandSyn act
+  (vks, ctx, cc) <- splitContext <$> expandSyn act
   let loc = getSLoc act
       qiCls = getAppCon cc
       iInst = mkInstId loc cc
@@ -2820,7 +2823,7 @@ expandDict edict ct = expandDict' [] [] edict =<< expandSyn ct
 expandDict' :: HasCallStack => [IdKind] -> [EConstraint] -> Expr -> EConstraint -> T [InstDictC]
 expandDict' avks actx edict acc = do
   let
-    (bvks, bctx, cc) = splitInst acc
+    (bvks, bctx, cc) = splitContext acc
     (iCls, args) = getApp cc
     vks = avks ++ bvks
     ctx = actx ++ bctx
@@ -3356,7 +3359,7 @@ deriveDer newt lhs cs (Deriving strat ds) = concat <$> mapM (deriveStrat Nothing
 
 standaloneDeriving :: DerStrategy -> EConstraint -> T [EDef]
 standaloneDeriving str act = do
-  (_vks, _ctx, cc) <- splitInst <$> expandSyn act
+  (_vks, _ctx, cc) <- splitContext <$> expandSyn act
   dtable <- gets dataTable
 --  traceM ("standaloneDeriving 1 " ++ show (ctx, cc))
   (cls, tname) <-
