@@ -96,10 +96,13 @@ main = do
   let out = encodeGCInfo info
       cout = {-compress $-} compressRLE out
   putStrLn $ "compressedGCTable :: ByteString\ncompressedGCTable =\n  " ++ showChars cout
-  let ucInfo = [(cp, u - cp) | (cp, _, Just u, _) <- info ]
+  let tcInfo = [(cp, t - cp) | (cp, _, _, _, Just t) <- info]
+      tcInfoC = compact tcInfo
+  putStrLn $ "\ntcTable :: [(Int, Int, Int)]\ntcTable =\n  " ++ show tcInfoC
+  let ucInfo = [(cp, u - cp) | (cp, _, Just u, _, _) <- info]
       ucInfoC = compact ucInfo
   putStrLn $ "\nucTable :: [(Int, Int, Int)]\nucTable =\n  " ++ show ucInfoC
-  let lcInfo = [(cp, l - cp) | (cp, _, _, Just l) <- info ]
+  let lcInfo = [(cp, l - cp) | (cp, _, _, Just l, _) <- info]
       lcInfoC = compact lcInfo
   putStrLn $ "\nlcTable :: [(Int, Int, Int)]\nlcTable =\n  " ++ show lcInfoC
 
@@ -112,7 +115,7 @@ showChars cs = "\"" ++ concatMap char cs ++ "\""
 -}
 
 type CodePoint = Int
-type Info = (CodePoint, GeneralCategory, Maybe CodePoint, Maybe CodePoint)
+type Info = (CodePoint, GeneralCategory, Maybe CodePoint, Maybe CodePoint, Maybe CodePoint)
 
 parseCodePoint :: String -> Info
 parseCodePoint s =
@@ -132,7 +135,7 @@ parseCodePoint s =
       , uppercaseMapping
       , lowercaseMapping
       , titlecaseMapping
-      ] -> (readHex' codeValue, parseCategory generalCategory, readHexM uppercaseMapping, readHexM lowercaseMapping)
+      ] -> (readHex' codeValue, parseCategory generalCategory, readHexM uppercaseMapping, readHexM lowercaseMapping, readHexM titlecaseMapping)
     _ -> error $ "parseCodePoint: " ++ show s
 
 readHexM :: String -> Maybe Int
@@ -160,8 +163,8 @@ gcTable = [ (show x, x) | x <- [ minBound .. maxBound ] ]
 encodeGCInfo :: [Info] -> [Char]
 encodeGCInfo = enc 0
   where enc  _             []          = []
-        enc li ics@((i, _, _, _):_) | li < i = put Cn : enc (li+1) ics
-        enc  _     ((i, c, _, _):ics)        = put  c : enc ( i+1) ics
+        enc li ics@((i, _, _, _, _):_) | li < i = put Cn : enc (li+1) ics
+        enc  _     ((i, c, _, _, _):ics)        = put  c : enc ( i+1) ics
         put :: GeneralCategory -> Char
         put = toEnum . fromEnum
 
