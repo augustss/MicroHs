@@ -1027,16 +1027,13 @@ tcDefType def = do
     Instance ct m          ->                                            Instance       <$> tCheckTypeTImpl True kConstraint ct <*> return m
     Default mc ts          ->                                            Default (Just c) <$> mapM (tcDefault c) ts
                                                                            where c = fromMaybe num mc
-    -- XXX StandDeriving is wrong
-    StandDeriving st ct    ->                                            StandDeriving  <$> tcStrat st <*> tCheckTypeTImpl False kConstraint ct
+    StandDeriving st ct    ->                                            tcStand st ct
     _                      -> return def
  where
    cm = flip (,)
    tcMethod (Sign    is t) = Sign    is <$> tCheckTypeTImpl False kType t
    tcMethod (DfltSign i t) = DfltSign i <$> tCheckTypeTImpl False kType t
    tcMethod m              = return m
-   tcStrat (DerVia t) = DerVia <$> tCheckTypeT kType t
-   tcStrat s          = return s
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
    num = mkBuiltin noSLoc "Num"
@@ -1044,6 +1041,30 @@ tcDefType def = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
 
+   -- A standalone deriving has a regular instance head.
+   -- If it has a via clause, the via type has to have the same kind
+   -- as the type in the instance head.
+   tcStand st ct = do
+     ct' <- tCheckTypeTImpl True kConstraint ct
+     let viaChk viat = do
+           -- We need the kind of the type in the instance head.
+           -- It has alread been type checked in ct', but there is
+           -- no easy way to extract the kind.  So we retype-check.
+           (vks, _ctx, cty) <- splitContext <$> addForall True ct
+           case cty of
+             EApp _ ty ->
+               withExtTyps vks $ do
+                 kty <- snd <$> tInferTypeT ty   -- kind of instance head type
+                 viat' <- tCheckTypeT kty viat   -- make sure the via type has the same kind
+                 return (DerVia viat')
+             _ -> tcError (getSLoc cty) "Bad instance head"
+     st' <-
+       case st of
+         DerVia t -> viaChk t
+         _ -> return st
+     pure $ StandDeriving st' ct'
+
+-- The type variables vks are already in scope when we get here.
 tcDeriving :: LHS -> Deriving -> T Deriving
 tcDeriving (tyId, vks) (Deriving strat cs) = do
   let tcDerive (_, c) = do
@@ -1500,16 +1521,20 @@ tcPatSyn (Pattern (ip, vks) p me) = do
   return [ Sign [ip] ty3 ]
 tcPatSyn _ = impossible
 
--- Add implicit forall and kind check, in type mode
-tCheckTypeTImpl :: HasCallStack => Bool -> EType -> EType -> T EType
-tCheckTypeTImpl _ tchk t@(EForall _ _ _) = tCheckTypeT tchk t
-tCheckTypeTImpl impl tchk t = do
+-- Add implicit forall
+addForall :: Bool -> EType -> T EType
+addForall _ t@(EForall _ _ _) = return t
+addForall expl t = do
   bvs <- stKeysLcl <$> gets valueTable         -- bound outside
   let fvs = freeTyVars [t]                     -- free variables in t
       -- these are free, and need quantification.  eDummy indicates missing kind
       iks = map (\ i -> IdKind i eDummy) (fvs \\ bvs)
-  --when (not (null iks)) $ tcTrace ("tCheckTypeTImpl: " ++ show (t, eForall iks t))
-  tCheckTypeT tchk (eForall' impl iks t)
+  --when (not (null iks)) $ tcTrace ("addForall: " ++ show (t, eForall iks t))
+  return $ eForall' expl iks t
+
+-- Add implicit forall and kind check, in type mode
+tCheckTypeTImpl :: HasCallStack => Bool -> EType -> EType -> T EType
+tCheckTypeTImpl expl tchk t = tCheckTypeT tchk =<< addForall expl t
 
 tCheckTypeT :: HasCallStack => EType -> EType -> T EType
 tCheckTypeT = tCheck tcTypeT
