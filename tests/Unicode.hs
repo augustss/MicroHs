@@ -16,5 +16,10 @@ main = do
   putStrLn $ map toUpper a
   print $ map isUpper $ map toUpper a
 
+  let printCases c = putStrLn $ toLower c : toTitle c : toUpper c : ""
+  printCases '\x01C4' -- upper
+  printCases '\x01C5' -- title
+  printCases '\x01C6' -- lower
+
 foo ∷ ∀ α . Eq α ⇒ α → α
 foo x = if x == x then x else undefined

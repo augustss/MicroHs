@@ -154,23 +154,29 @@ isSymbol c = bomb "isSymbol" c $
     _                       -> False
 
 toTitle :: Char -> Char
-toTitle c | isLower c = bomb "toTitle" c $ convLU tcTable c
-          | otherwise = c
+toTitle c =
+  case generalCategory c of
+    (LowercaseLetter; UppercaseLetter) -> bomb "toTitle" c $ convLU tcTable c
+    _ -> c
 
 toUpper :: Char -> Char
-toUpper c | isLower c = bomb "toUpper" c $ convLU ucTable c
-          | otherwise = c
+toUpper c =
+  case generalCategory c of
+    (LowercaseLetter; TitlecaseLetter) -> bomb "toUpper" c $ convLU ucTable c
+    _ -> c
 
 toLower :: Char -> Char
-toLower c | isUpper c = bomb "toLower" c $ convLU lcTable c
-          | otherwise = c
+toLower c =
+  case generalCategory c of
+    (UppercaseLetter; TitlecaseLetter) -> bomb "toLower" c $ convLU lcTable c
+    _ -> c
 
 -- Used to debug unintentional use of Unicode module
 bomb :: String -> Char -> a -> a
 --bomb s c _ = error $ "bomb " ++ s ++ show c
 bomb _ _ a = a
 
--- XXX We could build a seatch tree and use binary search.
+-- XXX We could build a search tree and use binary search.
 convLU :: [(Int, Int, Int)] -> Char -> Char
 convLU t c = conv t
   where i = primOrd c
