@@ -1159,12 +1159,21 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
       mkDflt (Sign is t) = concatMap method is
         where method methId = [ Sign [iDflt] $ EForall True vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
                 where ty = fromMaybe t $ lookup methId dflttys
-                      def Nothing = Fcn iDflt $ simpleEqn noDflt
+                      def Nothing = Fcn iDflt $ etaExp ty noDflt
                       def (Just eqns) = Fcn iDflt eqns
                       iDflt = mkDefaultMethodId methId
                       noDflt = mkExn (getSLoc methId) (unIdent methId) "noMethodError"
-
       mkDflt _ = impossible
+      -- The type checker cannot handle something like
+      --   foo :: ((forall a . a -> Int) -> Int) -> Int
+      --   foo = undefined
+      -- but the eta expanded version is acceptable, so we eta expand
+      -- default methods.
+      -- XXX This isn't really enough for complicated nested quantifiers.
+      etaExp t e =
+        let n = length $ fst $ getArrows $ (\ (_,_,x)->x) $ splitContext t
+            vs = replicate n (EVar dummyIdent)
+        in  [Eqn vs $ simpleAlts e]
       dDflts = case impt of
                  ImpNormal -> concatMap mkDflt meths
                  ImpBoot   -> []
