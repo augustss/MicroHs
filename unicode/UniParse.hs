@@ -97,13 +97,13 @@ main = do
       cout = {-compress $-} compressRLE out
   putStrLn $ "compressedGCTable :: ByteString\ncompressedGCTable =\n  " ++ showChars cout
   let tcInfo = [(cp, t - cp) | (cp, _, _, _, Just t) <- info]
-      tcInfoC = compact tcInfo
+      tcInfoC = delta $ compact tcInfo
   putStrLn $ "\ntcTable :: [(Int, Int, Int)]\ntcTable =\n  " ++ show tcInfoC
   let ucInfo = [(cp, u - cp) | (cp, _, Just u, _, _) <- info]
-      ucInfoC = compact ucInfo
+      ucInfoC = delta $ compact ucInfo
   putStrLn $ "\nucTable :: [(Int, Int, Int)]\nucTable =\n  " ++ show ucInfoC
   let lcInfo = [(cp, l - cp) | (cp, _, _, Just l, _) <- info]
-      lcInfoC = compact lcInfo
+      lcInfoC = delta $ compact lcInfo
   putStrLn $ "\nlcTable :: [(Int, Int, Int)]\nlcTable =\n  " ++ show lcInfoC
 
 showChars :: [Char] -> String
@@ -179,3 +179,10 @@ compact ((c, d) : cds) =
     range c d ((c', d') : cds)
       | c' == c + 1 && d' == d = range c' d cds
     range c d cds = (c, cds)
+
+-- Use deltas instead of absolute numbers.
+-- This gives smaller numbers, and also a lot of repetitions (good for LZ encoding).
+delta :: [(CodePoint, CodePoint, Delta)] -> [(Delta, Delta, Delta)]
+delta = loop 0
+  where loop _ [] = []
+        loop o ((l, h, d):xs) = (l - o, h - l, d) : loop l xs
