@@ -1,4 +1,4 @@
-module System.Compress(
+module System.Compress.ByteString(
   decompressLZ,
   decompressRLE,
   decompressLZRLE,
