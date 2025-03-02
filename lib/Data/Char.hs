@@ -5,16 +5,22 @@ module Data.Char(
   chr, ord,
   isLower, isUpper,
   isAsciiLower, isAsciiUpper,
-  isAlpha, isAlphaNum,
+  isAlpha, isLetter, isAlphaNum,
   isDigit, isOctDigit, isHexDigit,
+  isNumber,
   isSymbol, isPunctuation,
   isSpace,
   isControl,
-  isAscii,
+  U.isMark,
+  isSeparator,
+  isAscii, isLatin1,
   isPrint,
+  U.GeneralCategory(..),
+  U.generalCategory,
   digitToInt,
   intToDigit,
-  toLower, toUpper,
+  toLower, toUpper, toTitle,
+  showLitChar, lexLitChar, readLitChar,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -29,6 +35,7 @@ import Data.Int
 import Data.List_Type
 import Data.Num
 import Data.Ord
+import {-# SOURCE #-} Text.Read.Internal (lexLitChar, readLitChar)
 import Text.Show
 
 instance Eq Char where
@@ -54,11 +61,13 @@ instance Ord String where
   x >= y  =  case primStringCompare x y of { LT -> False; _ -> True }
 
 instance Bounded Char where
-  minBound = chr 0
-  maxBound = chr 0x10ffff
+  minBound = primChr 0
+  maxBound = primChr 0x10ffff
 
 chr :: Int -> Char
-chr = primChr
+chr i
+  | primIntToWord i `primWordLE` 0x10ffff = primChr i
+  | otherwise = error "Data.Char.chr: invalid codepoint"
 
 ord :: Char -> Int
 ord = primOrd
@@ -90,6 +99,9 @@ isAlpha c =
   else
     U.isAlpha c
 
+isLetter :: Char -> Bool
+isLetter = isAlpha
+
 isDigit :: Char -> Bool
 isDigit c = '0' <= c && c <= '9'
 
@@ -105,6 +117,13 @@ isAlphaNum c =
     isAlpha c || isDigit c
   else
     U.isAlphaNum c
+
+isNumber :: Char -> Bool
+isNumber c =
+  if isAscii c then
+    isDigit c
+  else
+    U.isNumber c
 
 isSymbol :: Char -> Bool
 isSymbol c =
@@ -135,15 +154,25 @@ isPrint c =
 isSpace :: Char -> Bool
 isSpace c =
   if isAscii c then
-    c == ' ' || c == '\t' || c == '\n'
+    c `xelem` " \t\n\v\f\r"
   else
     U.isSpace c
+
+isControl :: Char -> Bool
+isControl c = c <= '\31' || c == '\127'
+
+isSeparator :: Char -> Bool
+isSeparator c =
+  if isAscii c then
+    c == ' '
+  else
+    U.isSeparator c
 
 isAscii :: Char -> Bool
 isAscii c = c <= '\127'
 
-isControl :: Char -> Bool
-isControl c = c <= '\31' || c == '\127'
+isLatin1 :: Char -> Bool
+isLatin1 c = c <= '\255'
 
 digitToInt :: Char -> Int
 digitToInt c | (primCharLE '0' c) && (primCharLE c '9') = ord c - ord '0'
@@ -152,31 +181,36 @@ digitToInt c | (primCharLE '0' c) && (primCharLE c '9') = ord c - ord '0'
              | otherwise                                = error "digitToInt"
 
 intToDigit :: Int -> Char
-intToDigit i | i < 10 = chr (ord '0' + i)
-             | otherwise = chr (ord 'A' - 10 + i)
+intToDigit i | i < 10 = primChr (ord '0' + i)
+             | otherwise = primChr (ord 'A' - 10 + i)
 
 toLower :: Char -> Char
-toLower c | 'A' <= c && c <= 'Z' = chr (ord c - ord 'A' + ord 'a')
+toLower c | 'A' <= c && c <= 'Z' = primChr (ord c - ord 'A' + ord 'a')
           | isAscii c = c
           | True = U.toLower c
 
 toUpper :: Char -> Char
-toUpper c | 'a' <= c && c <= 'a' = chr (ord c - ord 'a' + ord 'A')
+toUpper c | 'a' <= c && c <= 'a' = primChr (ord c - ord 'a' + ord 'A')
           | isAscii c = c
           | True = U.toUpper c
 
+toTitle :: Char -> Char
+toTitle c | 'a' <= c && c <= 'a' = primChr (ord c - ord 'a' + ord 'A')
+          | isAscii c = c
+          | True = U.toTitle c
+
 instance Show Char where
   showsPrec _ '\'' = showString "'\\''"
-  showsPrec _ c = showChar '\'' . showString (encodeChar c "") . showChar '\''
+  showsPrec _ c = showChar '\'' . showLitChar c . showChar '\''
   showList    s = showChar '"'  . f s
     where f [] = showChar '"'
           f (c:cs) =
             if c == '"' then showString "\\\"" . f cs
-            else showString (encodeChar c cs) . f cs
+            else showLitChar c . f cs
 
-encodeChar :: Char -> String -> String
-encodeChar c _ | isAscii c && isPrint c && c /= '\\' = [c]
-encodeChar c rest =
+showLitChar :: Char -> ShowS
+showLitChar c s | isAscii c && isPrint c && c /= '\\' = c : s
+showLitChar c rest =
   let
     needDigitProtect =
       case rest of
@@ -199,4 +233,4 @@ encodeChar c rest =
            ]
     look [] = ("\\"::String) ++ show (ord c) ++ if needDigitProtect then "\\&"::String else ""
     look ((d,s):xs) = if d == c then '\\':s ++ (if c == '\SO' && needHProtect then "\\&"::String else "") else look xs
-  in look spec
+  in look spec ++ rest
