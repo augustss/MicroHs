@@ -1,4 +1,5 @@
 --module UniParse where
+import Data.Bits
 import Data.Char
 import Data.Maybe
 import Numeric
@@ -182,7 +183,22 @@ compact ((c, d) : cds) =
 
 -- Use deltas instead of absolute numbers.
 -- This gives smaller numbers, and also a lot of repetitions (good for LZ encoding).
+-- Also, use zig-zag encoding for the incoming delta to avoid negative numbers.
+-- Why? Negation makes the type checker slow down a lot. :(
+-- Also, fewer characters in the generated code.
 delta :: [(CodePoint, CodePoint, Delta)] -> [(Delta, Delta, Delta)]
 delta = loop 0
   where loop _ [] = []
-        loop o ((l, h, d):xs) = (l - o, h - l, d) : loop l xs
+        loop o ((l, h, d):xs) = (l - o, h - l, zigZagEncode d) : loop l xs
+
+-- Do
+--   (x >> (n-1)) ^ (x << 1)
+-- this moves the sign bit into the LSB.
+-- Due to the range, we know that the left shift doesn't
+-- shift anything into the sign bit.
+-- E.g., n=8, x=-2=0xfe
+--  (0xfe >> 7) ^ (0xfe << 1) = 0xff ^ 0xfc = 3
+-- E.g. n=8, x=2=0x02
+--  (0x02 >> 7) ^ (0x02 << 1) = 0x00 ^ 0x04 = 4
+zigZagEncode :: Int -> Int
+zigZagEncode x = (x `unsafeShiftR` (_wordSize - 1)) `xor` (x `unsafeShiftL` 1)
