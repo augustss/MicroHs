@@ -596,9 +596,9 @@ add_lz77_compressor(BFILE *file)
 /*
  * Run Length Encoding for ASCII
  * Format
- * c                -  c       one ASCII character
- * 0x80+n c         -  n       repetitions of ASCII character c
- * 0x80+n 0x80+m c  -  n*128+m repetitions of ASCII character c
+ * c                -  c         one ASCII character
+ * 0x80+n c         -  n+1       repetitions of ASCII character c, n>1
+ * 0x80+n 0x80+m c  -  n*128+m+1 repetitions of ASCII character c
  * ... for longer run lengths
  * Non-ASCII (i.e., >= 128) have very poor encoding:
  * 0x81 c-0x80
