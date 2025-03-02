@@ -81,6 +81,7 @@ import Data.Semigroup
 import Data.STRef
 import Data.String
 import Data.Text
+import Data.Text.Encoding
 import Data.Text.IO
 import Data.Text.Lazy
 import Data.Text.Lazy.IO

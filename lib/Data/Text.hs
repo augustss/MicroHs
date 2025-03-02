@@ -75,7 +75,9 @@ length :: Text -> Int
 length = L.length . unpack
 
 head :: Text -> Char
-head (T t) = _primitive "headUTF8" t
+head (T t)
+  | BS.null t = error "Data.Text.head: empty"
+  | otherwise = _primitive "headUTF8" t
 
 cons :: Char -> Text -> Text
 cons c t = singleton c `append` t
@@ -84,7 +86,9 @@ snoc :: Text -> Char -> Text
 snoc t c = t `append` singleton c
 
 tail :: Text -> Text
-tail (T t) = _primitive "tailUTF8" t
+tail (T t)
+  | BS.null t = error "Data.Text.tail: empty"
+  | otherwise = _primitive "tailUTF8" t
 
 uncons :: Text -> Maybe (Char, Text)
 uncons t | null t    = Nothing

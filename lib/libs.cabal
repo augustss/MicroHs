@@ -1,7 +1,7 @@
 cabal-version:  3.0
 name:           libs
 version:        0.12.0.2
-license:        Apache
+license:        Apache-2.0
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net
 synopsis:       Basic libraries
@@ -96,6 +96,7 @@ library base
         Data.Semigroup
         Data.String
         Data.Text
+        Data.Text.Encoding
         Data.Text.IO
         Data.Text.Lazy
         Data.Text.Lazy.Builder
