@@ -136,6 +136,7 @@ library base
         System.Cmd
         System.Console.GetOpt
         System.Compress
+        System.Compress.ByteString
         System.Directory
         System.Environment
         System.Exit
