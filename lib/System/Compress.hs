@@ -3,13 +3,9 @@ module System.Compress(
   compressRLE, decompressRLE,
   compressBWT, decompressBWT,
   compressBWTRLE, decompressBWTRLE,
-  bsDecompressLZ,
-  bsDecompressRLE,
-  bsDecompressLZRLE,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives(primForeignPtrToPtr)
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Internal as BS
 import Data.Function
 import Foreign.Ptr
@@ -89,25 +85,6 @@ compressBWTRLE = withPutTransducer (c_add_bwt_compressor <=< c_add_rle_compresso
 
 decompressBWTRLE :: [Char] -> [Char]
 decompressBWTRLE = withGetTransducer (c_add_bwt_decompressor <=< c_add_rle_decompressor <=< c_add_lz77_decompressor)
-
-withGetTransducerBS :: Transducer -> BS.ByteString -> BS.ByteString
-withGetTransducerBS trans bs = unsafePerformIO $ do
-  let ptr = primForeignPtrToPtr (BS.primBS2FPtr bs)
-      len = BS.length bs
-  bf <- c_openb_rd_buf ptr len                 -- open it for reading
-  cbf <- trans bf                              -- and add transducer (e.g., decompressor)
-  h <- mkHandle "withGetTransducer" cbf HRead
-  seq bs (return ())
-  BS.hGetContents h
-
-bsCecompressLZ :: BS.ByteString -> BS.ByteString
-bsDecompressLZ = withGetTransducerBS c_add_lz77_decompressor
-
-bsCecompressRLE :: BS.ByteString -> BS.ByteString
-bsDecompressRLE = withGetTransducerBS c_add_rle_decompressor
-
-bsCecompressLZRLE :: BS.ByteString -> BS.ByteString
-bsDecompressLZRLE = withGetTransducerBS (c_add_rle_decompressor <=< c_add_lz77_decompressor)
 
 {-
 main :: IO ()

@@ -5,7 +5,7 @@ import Data.Maybe
 import Numeric
 import System.Environment
 import System.IO
-import System.Compress
+import System.Compress.ByteString
 
 {-
 Field  Name  Status Explanation
