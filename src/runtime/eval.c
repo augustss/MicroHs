@@ -3559,7 +3559,7 @@ evali(NODEPTR an)
       /* Zap the pointer to the list so it can be GC:ed.
        * The actual list is protected from GC by evalbytestring().
        */
-      ARG(TOP(0)) = combK;
+      // ARG(TOP(0)) = combK;
       struct bytestring bs = evalstring(n);
       POP(1);
       n = TOP(-1);
@@ -4207,7 +4207,7 @@ execio(NODEPTR *np)
       /* Zap the pointer to the list so it can be GC:ed.
        * The actual list is protected from GC by evalbytestring().
        */
-      ARG(TOP(1)) = combK;
+      // ARG(TOP(1)) = combK;
       struct bytestring bs = evalbytestring(n);
       GCCHECK(4);
       n = new_ap(new_ap(combPair, x = alloc_node(T_PTR)), mkInt(bs.size));
