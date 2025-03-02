@@ -2878,8 +2878,10 @@ evalstring(NODEPTR n)
       if (!buf)
         memerr();
     }
+    PUSH(n);                    /* protect the list from GC */
     n = evali(n);
-    if (GETTAG(n) == T_K)            /* Nil */
+    POP(1);
+    if (GETTAG(n) == T_K)       /* Nil */
       break;
     else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
@@ -2934,8 +2936,10 @@ evalbytestring(NODEPTR n)
       if (!buf)
         memerr();
     }
+    PUSH(n);                    /* protect list from GC */
     n = evali(n);
-    if (GETTAG(n) == T_K)            /* Nil */
+    POP(1);
+    if (GETTAG(n) == T_K)       /* Nil */
       break;
     else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
@@ -3551,7 +3555,12 @@ evali(NODEPTR an)
   case T_BSTOUTF8:
     {
       CHECK(1);
-      struct bytestring bs = evalstring(ARG(TOP(0)));
+      n = ARG(TOP(0));
+      /* Zap the pointer to the list so it can be GC:ed.
+       * The actual list is protected from GC by evalbytestring().
+       */
+      ARG(TOP(0)) = combK;
+      struct bytestring bs = evalstring(n);
       POP(1);
       n = TOP(-1);
       SETBSTR(n, mkForPtrFree(bs));
@@ -3601,7 +3610,12 @@ evali(NODEPTR an)
 
   case T_BSPACK:
     CHECK(1);
-    struct bytestring rbs = evalbytestring(ARG(TOP(0)));
+    n = ARG(TOP(0));
+    /* Zap the pointer to the list so it can be GC:ed.
+     * The actual list is protected from GC by evalbytestring().
+     */
+    ARG(TOP(0)) = combK;
+    struct bytestring rbs = evalbytestring(n);
     POP(1);
     n = TOP(-1);
     SETBSTR(n, mkForPtrFree(rbs));
@@ -4189,7 +4203,12 @@ execio(NODEPTR *np)
     case T_NEWCASTRINGLEN:
       {
       CHECKIO(1);
-      struct bytestring bs = evalbytestring(ARG(TOP(1)));
+      n = ARG(TOP(1));
+      /* Zap the pointer to the list so it can be GC:ed.
+       * The actual list is protected from GC by evalbytestring().
+       */
+      ARG(TOP(1)) = combK;
+      struct bytestring bs = evalbytestring(n);
       GCCHECK(4);
       n = new_ap(new_ap(combPair, x = alloc_node(T_PTR)), mkInt(bs.size));
       PTR(x) = bs.string;
