@@ -13,7 +13,8 @@ import System.IO
 
 ------- Text --------
 
-#if !(MIN_VERSION_base(4,19,2))
+-- base-4.19.2.0 seems to lack this???
+#if 0
 instance NFData Text where
   rnf t = seq t ()
 #endif
