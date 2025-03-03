@@ -60,7 +60,7 @@ hPutStr :: Handle -> Text -> IO ()
 hPutStr h t = BS.hPutStr h (encodeUtf8 t)
 
 hPutStrLn :: Handle -> Text -> IO ()
-hPutStrLn h t = hPutStr h (t `append` pack "\n")
+hPutStrLn h t = hPutStr h t >> hPutStr h (pack "\n")
 
 interact :: (Text -> Text) -> IO ()
 interact f = getContents >>= putStr . f
