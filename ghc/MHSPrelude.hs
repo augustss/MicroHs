@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE CPP #-}
 module MHSPrelude(module Prelude, module Control.DeepSeq, module MHSPrelude, Type) where
 import Prelude
 import Control.DeepSeq
@@ -8,6 +10,13 @@ import Data.Text(Text, append, pack)
 import GHC.Types
 import System.Environment
 import System.IO
+
+------- Text --------
+
+#if !(MIN_VERSION_base(4,19,2))
+instance NFData Text where
+  rnf t = seq t ()
+#endif
 
 ------- List --------
 
