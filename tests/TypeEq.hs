@@ -39,3 +39,6 @@ geval (GIff c e1 e2) = if geval c then geval e1 else geval e2
 
 ge1 :: GExp Int
 ge1 = GIff (GAdd (GInt 1) (GInt 2) `GEqu` GInt 3) (GInt 1) (GInt 999)
+
+data ParenResult a where
+  ParenResult :: a -> (ParenResult a)
