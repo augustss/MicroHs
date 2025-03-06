@@ -793,9 +793,10 @@ extValETop :: HasCallStack =>
 extValETop i t e = do
   mn <- gets moduleName
   venv <- gets valueTable
+  t' <- expandSyn t
   let qi = qualIdent mn i
-      venv'  = stInsertGlbQ qi [Entry e t] venv
-      venv'' = stInsertGlbU  i [Entry e t] venv'
+      venv'  = stInsertGlbQ qi [Entry e t'] venv
+      venv'' = stInsertGlbU  i [Entry e t'] venv'
   putValueTable venv''
 
 -- Extend symbol table with i::t.
