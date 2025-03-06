@@ -184,6 +184,7 @@ pSymOper = do
   let
     is (TIdent loc [] s) | not (isAlpha_ (head s)) && not (elem s reservedOps) = Just (mkIdentSLoc loc s)
     is (TSpec  loc '!') = Just (mkIdentSLoc loc "!")
+    is (TSpec  loc '~') = Just (mkIdentSLoc loc "~")
     is _ = Nothing
   satisfyM "SymOper" is
 

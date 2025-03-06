@@ -19,7 +19,8 @@ data Type
 
 -- Classes
 -- Type equality as a constraint.
--- class a ~ b | a -> b, b -> a
+type (~) :: forall k . k -> k -> Constraint
+class a ~ b | a -> b, b -> a
 -- class KnownNat in Data.TypeLits
 -- class KnownSymbol in Data.TypeLits
 
@@ -295,4 +296,3 @@ primNewForeignPtr = _primitive "fpnew"
 
 primAddFinalizer :: FunPtr (Ptr a -> IO ()) -> ForeignPtr a -> IO ()
 primAddFinalizer = _primitive "fpfin"
-

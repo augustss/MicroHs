@@ -51,7 +51,7 @@ import Debug.Trace
 data GlobTables = GlobTables {
   gSynTable   :: SynTable,        -- type synonyms are needed for expansion
   gDataTable  :: DataTable,       -- data/newtype definitions
-  gClassTable :: ClassTable,      -- classes are neede for superclass expansion
+  gClassTable :: ClassTable,      -- classes are needed for superclass expansion etc
   gInstInfo   :: InstTable        -- instances are implicitely global
   }
 
@@ -403,10 +403,12 @@ addConstraint d ctx = do
 
 withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
 withDicts ds ta = do
+--  tcTrace $ "+++ withDicts enter " ++ show ds
   ct <- gets ctxTables
   mapM_ addDict ds
   a <- ta
   putCtxTables ct
+--  tcTrace $ "--- withDicts leave " ++ show ds
   return a
 
 withDict :: forall a . HasCallStack => Ident -> EConstraint -> T a -> T a
@@ -423,23 +425,26 @@ addDict :: HasCallStack => (Ident, EConstraint) -> T ()
 addDict (i, c) = do
   c' <- expandSyn c >>= derefUVar
   if null (metaTvs [c']) then
-    case c' of
-      (EApp (EApp (EVar eq) t1) t2) | eq == mkIdent nameTypeEq -> addEqDict i t1 t2
-      _ -> addInstDict i c'
+    addInstDict i c'
    else
     -- With constraint variables we might get unification variables.
     -- We stash them away in hope that we will learn more later.
     addMetaDict i c'
 
 addInstDict :: HasCallStack => Ident -> EConstraint -> T ()
-addInstDict i c = do
+addInstDict di c = do
   c' <- expandSyn c
-  ics <- expandDict (EVar i) c'
-  addInstTable ics
-  addArgDict i c
+  ics <- expandDict (EVar di) c'
+  -- Type equalities are handled differently.
+  let addeq [] = return []
+      addeq ((_, _, _, EApp (EApp (EVar eq) t1) t2, _):is) | eq == identTypeEq = do addEqDict t1 t2; addeq is
+      addeq (i:is) = (i :) <$> addeq is
+  ics' <- addeq ics
+  addInstTable ics'
+  addArgDict di c
 
-addEqDict :: Ident -> EType -> EType -> T ()
-addEqDict _i t1 t2 = do
+addEqDict :: EType -> EType -> T ()
+addEqDict t1 t2 = do
   is <- gets typeEqTable
 --  tcTrace ("withEqDict: " ++ show (is, (t1,t2), (addTypeEq t1 t2 is)))
   putTypeEqTable (addTypeEq t1 t2 is)
@@ -2867,11 +2872,7 @@ expandDict' avks actx edict acc = do
     Nothing -> do
       ct <- gets classTable
       case M.lookup iCls ct of
-        Nothing ->
-         -- XXX ~ could be in the symbol table
-         if iCls == mkIdent "Primitives.~" then
-          return []
-         else do
+        Nothing -> do
           -- if iCls is a variable it's not in the class table, otherwise it's an error
           when (isConIdent iCls) $
             --impossible
@@ -2976,11 +2977,11 @@ showInstDef :: InstDef -> String
 showInstDef (cls, InstInfo m ds _) = "instDef " ++ show cls ++ ": "
             ++ show (M.toList m) ++ ", " ++ showListS showInstDict ds
 
-showConstraint :: (Ident, EConstraint) -> String
-showConstraint (i, t) = show i ++ " :: " ++ show t
-
 showMatch :: (Expr, [EConstraint]) -> String
 showMatch (e, ts) = show e ++ " " ++ show ts
+
+showConstraint :: (Ident, EConstraint) -> String
+showConstraint (i, t) = show i ++ " :: " ++ show t
 -}
 
 type Goal = (Ident, EType)     -- What we want to solve

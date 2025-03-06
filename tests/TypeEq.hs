@@ -24,6 +24,7 @@ main = do
   print (foo True)
   print (eval e1)
   print (geval ge1)
+  print (unFoo (Foo (2::Int)))
 
 data GExp a where
   GInt :: Int -> GExp Int
@@ -42,3 +43,9 @@ ge1 = GIff (GAdd (GInt 1) (GInt 2) `GEqu` GInt 3) (GInt 1) (GInt 999)
 
 data ParenResult a where
   ParenResult :: a -> (ParenResult a)
+
+data Foo c a where
+  Foo :: a -> Foo c a
+
+unFoo :: Foo c a -> a
+unFoo (Foo a) = a
