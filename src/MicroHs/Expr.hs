@@ -1066,6 +1066,7 @@ getAppM :: HasCallStack => EType -> Maybe (Ident, [EType])
 getAppM = loop []
   where loop as (EVar i) = Just (i, as)
         loop as (EApp f a) = loop (a:as) f
+        loop as (EParen e) = loop as e
         loop _ _ = Nothing
 
 type TyVar = Ident
