@@ -5,6 +5,8 @@ module Control.DeepSeq (
   ($!!),
   (<$!!>),
   rwhnf,
+  rnf1,
+  rnf2,
 ) where
 import qualified Prelude()
 import Control.Applicative
