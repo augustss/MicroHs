@@ -392,10 +392,16 @@ pGADTconstr = do
 dsGADT :: LHS -> (Ident, [IdKind], [EConstraint], [SType], EType) -> Constr
 dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
   case getAppM rty of
-    Just (tnm', ts) | tnm == tnm' && length vks == length ts -> Constr es' ctx' cnm (Left stys)
+    Just (tnm', ts) | tnm == tnm' && length vks == length ts ->
+        -- Check if we can use a regular constructor
+        case zipWithM mtch vks ts of
+          Just sub | null es && null ctx -> Constr  []   [] cnm (Left $ map (\ (b, t) -> (b, subst sub t)) stys)
+          _                              -> Constr es' ctx' cnm (Left stys)
       where es' = if null es then map (\ i -> IdKind i (EVar dummyIdent)) (freeTyVars (rty : map snd stys)) else es
             ctx' = zipWith (\ (IdKind i _) t -> eq (EVar i) t) vks ts ++ ctx
             eq t1 t2 = EApp (EApp (EVar (mkIdentSLoc (E.getSLoc t1) "~")) t1) t2
+            mtch (IdKind i _) (EVar i') | not (isConIdent i') = Just (i', EVar i)
+            mtch _ _ = Nothing
     _ -> errorMessage (E.getSLoc rty) $ "Bad GADT result type" ++ show (rty, tnm, vks)
 
 pDerivings :: P [Deriving]

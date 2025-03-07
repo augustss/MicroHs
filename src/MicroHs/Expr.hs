@@ -600,7 +600,9 @@ subst s =
 
         ELit _ _ -> ae
         ETuple ts -> ETuple (map sub ts)
-        _ -> error "subst unimplemented"
+        EOper t1 its -> EOper (sub t1) (map (\ (i, t) -> (i, sub t)) its)
+        EParen t -> EParen (sub t)
+        _ -> error $ "subst unimplemented " ++  show ae
   in sub
 
 allBinders :: [Ident] -- a,b,...,z,a1,a2,...
