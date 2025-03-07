@@ -40,6 +40,7 @@ f <$!!> m = m >>= \x -> pure $!! f x
 rwhnf :: a -> ()
 rwhnf a = a `seq` ()
 
+instance NFData Float
 instance NFData Int8
 instance NFData Int16
 instance NFData Int32

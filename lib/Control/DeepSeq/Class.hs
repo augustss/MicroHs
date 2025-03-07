@@ -6,7 +6,6 @@ import Primitives(primSeq)
 import Data.Bool
 import Data.Char
 import Data.Eq
-import Data.Float
 import Data.Double
 import Data.Either
 import Data.Function
@@ -40,7 +39,6 @@ force x = x `deepseq` x
 
 instance NFData Int
 instance NFData Word
-instance NFData Float
 instance NFData Double
 instance NFData Char
 instance NFData Bool
