@@ -395,13 +395,17 @@ dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
     Just (tnm', ts) | tnm == tnm' && length vks == length ts ->
         -- Check if we can use a regular constructor
         case zipWithM mtch vks ts of
-          Just sub | null es && null ctx -> Constr  []   [] cnm (Left $ map (\ (b, t) -> (b, subst sub t)) stys)
-          _                              -> Constr es' ctx' cnm (Left stys)
-      where es' = if null es then map (\ i -> IdKind i (EVar dummyIdent)) (freeTyVars (rty : map snd stys)) else es
+          -- Result type is just type variables, so use it as is
+          Just sub -> Constr es'' ctx  cnm (Left stys')
+                        where stys' = map (\ (b, t) -> (b, subst sub t)) stys
+                              es'' = if null es then kind (freeTyVars (map snd stys) \\ map fst sub) else es
+          _        -> Constr es'  ctx' cnm (Left stys)
+      where es' = if null es then kind (freeTyVars (rty : map snd stys)) else es
             ctx' = zipWith (\ (IdKind i _) t -> eq (EVar i) t) vks ts ++ ctx
             eq t1 t2 = EApp (EApp (EVar (mkIdentSLoc (E.getSLoc t1) "~")) t1) t2
             mtch (IdKind i _) (EVar i') | not (isConIdent i') = Just (i', EVar i)
             mtch _ _ = Nothing
+            kind = map (\ i -> IdKind i (EVar dummyIdent))
     _ -> errorMessage (E.getSLoc rty) $ "Bad GADT result type" ++ show (rty, tnm, vks)
 
 pDerivings :: P [Deriving]
