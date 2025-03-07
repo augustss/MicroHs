@@ -5,7 +5,7 @@ import Data.Maybe
 import Numeric
 import System.Environment
 import System.IO
-import System.Compress.ByteString
+import System.Compress
 
 {-
 Field  Name  Status Explanation
@@ -107,8 +107,21 @@ main = do
       lcInfoC = delta $ compact lcInfo
   putStrLn $ "\nlcTable :: [(Int, Int, Int)]\nlcTable =\n  " ++ show lcInfoC
 
+-- Use numeric codes, it's a little faster to parse
 showChars :: [Char] -> String
-showChars = show
+showChars cs = '"' : foldr show1 "\"" cs
+  where show1 c r | isPrint c && isAscii c =
+                                if c == '\\' || c == '"'
+                                then '\\' : c : r
+                                else c : r
+{-
+                  | c `elem` "\n\a\b\f\r\t\v"
+                    || c >= '\DEL'            = (init $ tail $ show c) ++ r
+-}
+                  | otherwise = '\\' : show (ord c) ++ prot r
+        prot r@(c : _) | isDigit c = '\\' : '&' : r
+        prot r = r
+                  
 {-
 showChars cs = "\"" ++ concatMap char cs ++ "\""
   where char c | isPrint c && c /= '\\' && c /= '"' = [c]
