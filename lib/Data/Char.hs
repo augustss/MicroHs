@@ -20,7 +20,9 @@ module Data.Char(
   digitToInt,
   intToDigit,
   toLower, toUpper, toTitle,
-  showLitChar, lexLitChar, readLitChar,
+  showLitChar,
+  -- lexLitChar, readLitChar,
+  -- XXX For now, don't import Text.Read, it's a bloated beast.
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -35,7 +37,8 @@ import Data.Int
 import Data.List_Type
 import Data.Num
 import Data.Ord
-import {-# SOURCE #-} Text.Read.Internal (lexLitChar, readLitChar)
+--import {-# SOURCE #-} Text.Read.Internal (lexLitChar, readLitChar)
+-- XXX For now, don't import Text.Read, it's a bloated beast.
 import Text.Show
 
 instance Eq Char where
