@@ -1836,7 +1836,7 @@ tcExprR mt ae =
     EListish (LFromThen   e1 e2)    -> tcExpr mt (enum loc "FromThen" [e1,e2])
     EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enum loc "FromThenTo" [e1,e2,e3])
     ESign e t -> do
-      t' <- withTypeTable $ tCheckTypeTImpl False kType t
+      t' <- withTypeTable $ tCheckTypeTImpl False kType t >>= expandSyn
       e' <- instSigma loc e t' mt
       --traceM $ "ESign " ++ show (e, e', t')
       --checkSigma e' t'
