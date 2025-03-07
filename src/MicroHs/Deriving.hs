@@ -267,8 +267,8 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
         eEqn [EVar c] $ ELit loc (LInt i)
       mkTo (Constr _ _ c _) i =
         eEqn [ELit loc (LInt i)] $ EVar c
-      eFirstCon = let Constr _ _ c _ = c0 in tCon c
-      eLastCon = let Constr _ _ c _ = last cs in tCon c
+      eFirstCon = case c0 of Constr _ _ c _ -> tCon c
+      eLastCon = case last cs of Constr _ _ c _ -> tCon c
 
       iFromEnum = mkIdentSLoc loc "fromEnum"
       iToEnum = mkIdentSLoc loc "toEnum"
@@ -289,7 +289,6 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
           x2 = EVar (mkIdentSLoc loc "x2")
         in eEqn [x1, x2] (EIf (eAppI2 (mkBuiltin loc ">=") (EApp (EVar iFromEnum) x2) (EApp (EVar iFromEnum) x1)) (eAppI3 iEnumFromThenTo x1 x2 eLastCon) (eAppI3 iEnumFromThenTo x1 x2 eFirstCon))
       inst = Instance hdr [Fcn iFromEnum fromEqns, Fcn iToEnum toEqns, Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]]
-  --traceM $ showEDefs [inst]
   return [inst]
 derEnum _ _ lhs _ e = cannotDerive lhs e
 
