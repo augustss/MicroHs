@@ -105,7 +105,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \                   Targets can be defined in targets.conf\n\
       \-optc OPTION       Options for the C compiler\n\
       \-ddump-PASS        Debug, print AST after PASS\n\
-      \                   Possible passes: parse, typecheck, desugar, toplevel, combinator, all\n\
+      \                   Possible passes: parse, derive, typecheck, desugar, toplevel, combinator, all\n\
       \"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
