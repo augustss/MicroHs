@@ -1,4 +1,4 @@
-module MicroHs.Interactive(module MicroHs.Interactive) where
+module MicroHs.Interactive(mainInteractive) where
 import qualified Prelude(); import MHSPrelude
 import Data.List
 import Data.Maybe
