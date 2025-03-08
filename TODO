@@ -26,6 +26,11 @@
   - make tables using the Haskell tools
   - read tables lazily when outside ASCII range
 * Add EmptyDataDeriving
+* Implement hSetBuffering
+  Do this by adding a new BFILE type that just buffers:
+   NoBuffering      - flush on every character
+   LineBuffering    - flush on '\n'
+   (BlockBuffering n - accumulate a block before doing a write)
 
 Bugs:
 * Check for escaping skolemized variables

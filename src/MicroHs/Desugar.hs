@@ -561,7 +561,7 @@ checkDup ds =
 -- thus avoiding the extra argument passing.
 -- This gives a small speedup with overloading.
 lazier :: LDef -> LDef
-lazier def@(fcn, l@(Lam _ (Lam _ _))) =
+lazier def@(fcn, l@(Lam _ _)) =
   let fcn' = addIdentSuffix fcn "@"
       vfcn' = Var fcn'
       args :: Exp -> (Exp, [Ident])
