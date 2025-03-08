@@ -22,8 +22,9 @@ import Debug.Trace
 --   constructor names in the derived type unqualified
 --   all other names should be qualified with B@
 
-deriveStrat :: Maybe EConstraint -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
-deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is thge number of arguments that need eta reducing
+deriveStrat :: Maybe (EConstraint, EType) -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
+deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of arguments that need eta reducing
+--  trace ("deriveStrat " ++ show (mctx, newt, lhs, cs, strat, narg, cls)) $
   case strat of
     DerNone | newt && useNewt cls -> newtypeDer  mctx narg lhs (cs!!0) cls Nothing
             | otherwise           -> deriveNoHdr mctx narg lhs cs cls
@@ -37,7 +38,7 @@ deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is thge number of argu
            "Language.Haskell.TH.Syntax.Lift", "Text.Read.Internal.Read", "Text.Show.Show"]
 
 type DeriverT = Int -> LHS -> [Constr] -> EConstraint -> T [EDef]   -- Bool indicates a newtype
-type Deriver = Maybe EConstraint -> DeriverT
+type Deriver = Maybe (EConstraint, EType) -> DeriverT
 
 derivers :: [(String, Deriver)]
 derivers =
@@ -55,8 +56,9 @@ derivers =
   ,("Text.Show.Show",                  derShow)
   ]
 
-deriveNoHdr :: Maybe EConstraint -> DeriverT
+deriveNoHdr :: Maybe (EConstraint, EType) -> DeriverT
 deriveNoHdr mctx narg lhs cs d = do
+--  traceM ("deriveNoHdr " ++ show d)
   case getDeriver d of
     Just f -> f mctx narg lhs cs d
     _      -> cannotDerive lhs d
@@ -168,8 +170,8 @@ decomp t =
 
 -- If there is no mctx we use the default strategy to derive the instance context.
 -- The default strategy basically extracts all subtypes with variables.
-mkHdr :: Maybe EConstraint -> LHS -> [Constr] -> EConstraint -> T EConstraint
-mkHdr (Just ctx) _ _ _ = return ctx
+mkHdr :: Maybe (EConstraint, EType) -> LHS -> [Constr] -> EConstraint -> T EConstraint
+mkHdr (Just (ctx, _)) _ _ _ = return ctx
 mkHdr _ lhs@(_, iks) cs cls = do
   ty <- mkLhsTy lhs
   let ctys :: [EType]  -- All top level types used by the constructors.
@@ -366,13 +368,11 @@ derRead _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 
-newtypeDer :: Maybe EConstraint -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
-newtypeDer Nothing narg (tycon, iks) c cls mvia = do
-  -- XXX mctx
+newtypeDer :: Maybe (EConstraint, EType) -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
+newtypeDer mctx narg (tycon, iks) c cls mvia = do
+--  traceM ("newtypeDer " ++ show (mctx, narg, tycon, iks, c, cls, mvia))
   let loc = getSLoc cls
-      iks' = dropEnd narg iks
-  newty <- mkLhsTy (tycon, iks')         -- the newtype, eta reduced
-  let oldty' =                           -- the underlying type, full
+      oldty' =                           -- the underlying type, full
         case c of
           Constr [] [] _ (Left [(False, t)]) -> t
           Constr [] [] _ (Right [(_, (_, t))]) -> t
@@ -385,15 +385,22 @@ newtypeDer Nothing narg (tycon, iks) c cls mvia = do
         case mvia of
           Just via -> via
           Nothing  -> oldty
-      ctxOld = tApp cls viaty
-      coOldNew = mkCoercible loc oldty newty
-      coOldVia =
-        case mvia of  -- the via type is also eta reduced
-          Just via -> [mkCoercible loc via newty]
-          Nothing  -> []
-      ctx = ctxOld : coOldNew : coOldVia
-      hdr = eForall iks' $ addConstraints ctx $ tApp cls newty
---  traceM ("newtypeDer: " ++ show hdr)
+  (hdr, newty) <-
+    case mctx of
+      Nothing -> do
+        let iks' = dropEnd narg iks
+        newty <- mkLhsTy (tycon, iks')         -- the newtype, eta reduced
+        let ctxOld = tApp cls viaty
+            coOldNew = mkCoercible loc oldty newty
+            coOldVia =
+              case mvia of  -- the via type is also eta reduced
+                Just via -> [mkCoercible loc via newty]
+                Nothing  -> []
+            ctx = filter (not . null . freeTyVars . (:[])) (ctxOld : coOldNew : coOldVia)
+        pure (eForall iks' $ addConstraints ctx $ tApp cls newty, newty)
+      Just (hdr, newty) -> do
+        pure (hdr, newty)
+--  traceM ("newtypeDer: " ++ show (hdr, newty, viaty))
   ----
   let qiCls = getAppCon cls
   ct <- gets classTable
@@ -432,7 +439,7 @@ newtypeDer Nothing narg (tycon, iks) c cls mvia = do
 
   return [Instance hdr body]
 
-newtypeDer _ _ _ _ _ _ = error "standalone newtype deriving not implemented yet"
+--newtypeDer _ _ _ _ _ _ = error "standalone newtype deriving not implemented yet"
 
 dropForall :: EType -> EType
 dropForall (EForall _ _ t) = dropForall t
@@ -458,7 +465,7 @@ etaReduce ais = eta (reverse ais)
   where eta (i:is) (EApp t (EVar i')) | i == i' && i `notElem` freeTyVars [t] = eta is t
         eta is t = (reverse is, t)
 
-anyclassDer :: Maybe EConstraint -> Int -> LHS -> EConstraint -> T [EDef]
+anyclassDer :: Maybe (EConstraint, EType) -> Int -> LHS -> EConstraint -> T [EDef]
 anyclassDer mctx _ lhs cls = do
   hdr <- mkHdr mctx lhs [] cls
   return [Instance hdr []]

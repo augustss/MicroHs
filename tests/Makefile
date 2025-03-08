@@ -92,7 +92,7 @@ test:
 	$(TMHS) Bounded    && $(EVAL) > Bounded.out    && diff Bounded.ref Bounded.out
 	$(TMHS) Typeable   && $(EVAL) > Typeable.out   && diff Typeable.ref Typeable.out
 	$(TMHS) Storable   && $(EVAL) > Storable.out   && diff Storable.ref Storable.out
-#	$(TMHS) StandDer   && $(EVAL) > StandDer.out   && diff StandDer.ref StandDer.out
+	$(TMHS) StandDer   && $(EVAL) > StandDer.out   && diff StandDer.ref StandDer.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

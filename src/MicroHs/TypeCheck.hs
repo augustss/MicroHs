@@ -909,13 +909,20 @@ tcDefsType ds = withTypeTable $ do
 --  vars <- gets uvarSubst
 --  tcTrace $ show vars
   vt <- gets valueTable
-  let ent (Entry i t) = Entry i . mapEType def <$> derefUVar t
-      def (EUVar _) = kType    -- default kind variables to Type
-      def t = t
+  let ent (Entry i k) = Entry i <$> zonk k
+      zonk k = mapEType def <$> derefUVar k
+        where def (EUVar _) = kType    -- default kind variables to Type
+              def t = t
+      derefClass (Class ctx (n, vks) ct ms) = do
+        vks' <- mapM (\ (IdKind i k) -> IdKind i <$> zonk k) vks
+--        traceM("derefClass: " ++ show (n, vks, vks'))
+        pure (Class ctx (n, vks') ct ms)
+      derefClass d = pure d
   vt' <- mapMSymTab ent vt
   putValueTable vt'
+  dst' <- mapM derefClass dst    -- make class definition LHSs have correct kinds
 --  tcTrace $ "tcDefType value table:\n" ++ show vt'
-  return dst
+  return dst'
 
 -- Get all kind signatures, and do sort checking of them.
 getKindSigns :: HasCallStack => [EDef] -> T (M.Map EKind)
@@ -1033,7 +1040,7 @@ tcDefType def = do
     Instance ct m          ->                                            Instance       <$> tCheckTypeTImpl True kConstraint ct <*> return m
     Default mc ts          ->                                            Default (Just c) <$> mapM (tcDefault c) ts
                                                                            where c = fromMaybe num mc
-    StandDeriving st ct    ->                                            tcStand st ct
+    StandDeriving st _ ct  ->                                            tcStand st ct
     _                      -> return def
  where
    cm = flip (,)
@@ -1051,24 +1058,24 @@ tcDefType def = do
    -- If it has a via clause, the via type has to have the same kind
    -- as the type in the instance head.
    tcStand st ct = do
-     ct' <- tCheckTypeTImpl True kConstraint ct
-     let viaChk viat = do
-           -- We need the kind of the type in the instance head.
-           -- It has alread been type checked in ct', but there is
-           -- no easy way to extract the kind.  So we retype-check.
-           (vks, _ctx, cty) <- splitContext <$> addForall True ct
-           case cty of
-             EApp _ ty ->
-               withExtTyps vks $ do
-                 kty <- snd <$> tInferTypeT ty   -- kind of instance head type
-                 viat' <- tCheckTypeT kty viat   -- make sure the via type has the same kind
-                 return (DerVia viat')
-             _ -> tcError (getSLoc cty) "Bad instance head"
+     ct' <- tCheckTypeTImpl True kConstraint ct >>= expandSyn
+     -- We need the kind of the type in the instance head.
+     -- It's needed for the number of arguments to "eta reduce",
+     -- and also for kind checking the via type.
+     -- So find the kind of the last argument to the class
+     kty <- do
+       let (_vks, _ctx, cty) = splitContext ct'
+           cls = fst $ getApp cty
+       ctbl <- gets classTable
+       case M.lookup cls ctbl of
+         Just (ClassInfo vks@(_:_) _ _ _ _) -> case last vks of IdKind _ k -> return k
+         _ -> tcError (getSLoc ct) $ "not a class " ++ showIdent cls
+     let narg = length $ fst $ getArrows kty
      st' <-
        case st of
-         DerVia t -> viaChk t
+         DerVia t -> DerVia <$> tCheckTypeT kty t   -- make sure the via type has the same kind
          _ -> return st
-     pure $ StandDeriving st' ct'
+     pure $ StandDeriving st' narg ct'
 
 -- The type variables vks are already in scope when we get here.
 tcDeriving :: LHS -> Deriving -> T Deriving
@@ -1111,7 +1118,7 @@ withLHS (i, vks) ta = do
   withVks vks $ \ vks' -> do
     (a, kr) <- ta (i, vks')
     let kapp = foldr kArrow kr (map (\ (IdKind _ k) -> k) vks')
-    --unify (getSLoc i) ki kapp
+    -- XXX polykinded definitions don't work properly
     _ <- subsCheckRho (getSLoc i) eCannotHappen ki kapp
     return a
 
@@ -1453,9 +1460,9 @@ addValueClass ctx iCls vks fds ms = do
   let addMethod (Sign is t) = mapM_ method is
         where method i = extValETop i (EForall True vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
       addMethod _ = impossible
---  tcTrace ("addValueClass " ++ showEType (ETuple ctx))
   mapM_ addMethod meths
   -- Update class table, now with actual constructor type.
+--  traceM $ "addValueClass " ++ show (iCls, vks)
   addClassTable qiCls (ClassInfo vks ctx iConTy methIds (mkIFunDeps (map idKindIdent vks) fds))
 
 mkClassConstructor :: Ident -> Ident
@@ -3385,30 +3392,30 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
 -}
 
 doDeriving :: EDef -> T [EDef]
-doDeriving def@(Data    lhs cs ds)  = (def:) . concat <$> mapM (deriveDer False lhs  cs) ds
-doDeriving def@(Newtype lhs  c ds)  = (def:) . concat <$> mapM (deriveDer True  lhs [c]) ds
-doDeriving def@(StandDeriving s ct) = (def:) <$> standaloneDeriving s ct
-doDeriving def                      = return [def]
+doDeriving def@(Data    lhs cs ds)    = (def:) . concat <$> mapM (deriveDer False lhs  cs) ds
+doDeriving def@(Newtype lhs  c ds)    = (def:) . concat <$> mapM (deriveDer True  lhs [c]) ds
+doDeriving def@(StandDeriving s n ct) = (def:) <$> standaloneDeriving s n ct
+doDeriving def                        = return [def]
 
 deriveDer :: Bool -> LHS -> [Constr] -> Deriving -> T [EDef]
 deriveDer newt lhs cs (Deriving strat ds) = concat <$> mapM (deriveStrat Nothing newt lhs cs strat) ds
 
-standaloneDeriving :: DerStrategy -> EConstraint -> T [EDef]
-standaloneDeriving str act = do
-  (_vks, _ctx, cc) <- splitContext <$> expandSyn act
-  dtable <- gets dataTable
---  traceM ("standaloneDeriving 1 " ++ show (ctx, cc))
-  (cls, tname) <-
+standaloneDeriving :: DerStrategy -> Int -> EConstraint -> T [EDef]
+standaloneDeriving str narg act = do
+  let (_vks, _ctx, cc) = splitContext act
+--  traceM ("standaloneDeriving 1 " ++ show (_vks, _ctx, cc))
+  (cls, ts, tname, ty) <-
     case getAppM cc of
       Just (c, ts@(_:_)) |
         let t = last ts,
-        Just (n, _) <- getAppM t -> return (tApps c (init ts), n)
+        Just (n, _) <- getAppM t -> return (c, init ts, n, t)
       _ -> tcError (getSLoc act) "malformed standalone deriving"
 --  traceM ("standaloneDeriving 2 " ++ show (act, cls, tname))
+  dtable <- gets dataTable
   (lhs, newt, cs) <-
     case M.lookup tname dtable of
       Just (Newtype l  c _) -> return (l, True,  [c])
       Just (Data    l xs _) -> return (l, False, xs)
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
-  deriveStrat (Just act) newt lhs cs str (10000, cls)  -- XXX 10000 is totally wrong
+  deriveStrat (Just (act, ty)) newt lhs cs str (narg, tApps cls ts)

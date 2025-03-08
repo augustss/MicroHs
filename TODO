@@ -34,3 +34,5 @@ Bugs:
 * export list in -boot doesn't work
 * overloaded PatBind is totally wrong
 * newtype deriving Semigroup is broken
+* polykinded signatures don't work properly, e.g., ~
+  there is no place to put the forall
