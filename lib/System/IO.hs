@@ -119,7 +119,9 @@ hGetChar h = withHandleRd h $ \ p -> do
   c <- c_getb p
   if c == (-1::Int) then
     ioErrH h EOF "hGetChar"
-   else
+  else if c `primIntAnd` 0x1ff800 == 0xd800 then
+    ioErrH h InvalidArgument "hGetChar: surrogate"
+  else
     return (chr c)
 
 hLookAhead :: Handle -> IO Char
@@ -129,7 +131,10 @@ hLookAhead h = withHandleRd h $ \ p -> do
   return c
 
 hPutChar :: Handle -> Char -> IO ()
-hPutChar h c = withHandleWr h $ c_putb (ord c)
+hPutChar h c
+  | i `primIntAnd` 0x1ff800 == 0xd800 = ioErrH h InvalidArgument "hPutChar: surrogate"
+  | otherwise = withHandleWr h $ c_putb i
+  where i = ord c
 
 openFILEM :: FilePath -> IOMode -> IO (Maybe (Ptr FILE))
 openFILEM p m = do
@@ -239,7 +244,9 @@ hGetContents h = withHandleRd h $ \ p -> do
     hClose h                           -- EOF, so close the handle
     setHandleState h HSemiClosed       -- but still allow a regular close
     return ""
-   else do
+  else if c `primIntAnd` 0x1ff800 == 0xd800 then
+    ioErrH h InvalidArgument "hGetContents: surrogate"
+  else do
     cs <- unsafeInterleaveIO (hGetContents h)
     return (chr c : cs)
 
