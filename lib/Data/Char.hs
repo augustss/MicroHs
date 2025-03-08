@@ -193,12 +193,12 @@ toLower c | 'A' <= c && c <= 'Z' = primChr (ord c - ord 'A' + ord 'a')
           | True = U.toLower c
 
 toUpper :: Char -> Char
-toUpper c | 'a' <= c && c <= 'a' = primChr (ord c - ord 'a' + ord 'A')
+toUpper c | 'a' <= c && c <= 'z' = primChr (ord c - ord 'a' + ord 'A')
           | isAscii c = c
           | True = U.toUpper c
 
 toTitle :: Char -> Char
-toTitle c | 'a' <= c && c <= 'a' = primChr (ord c - ord 'a' + ord 'A')
+toTitle c | 'a' <= c && c <= 'z' = primChr (ord c - ord 'a' + ord 'A')
           | isAscii c = c
           | True = U.toTitle c
 
