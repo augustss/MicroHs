@@ -3,6 +3,7 @@ module Numeric.Natural
   , minusNaturalMaybe
   ) where
 import qualified Prelude(); import MiniPrelude
+import Data.Bits
 import Data.Coerce
 import Data.Integer
 import Data.Real
@@ -46,3 +47,26 @@ instance Real Natural where
 minusNaturalMaybe :: Natural -> Natural -> Maybe Natural
 minusNaturalMaybe x y | x < y = Nothing
                       | otherwise = Just (x - y)
+
+instance Bits Natural where
+  (.&.) = coerce ((.&.) @Integer)
+  (.|.) = coerce ((.|.) @Integer)
+  xor = coerce (xor @Integer)
+  complement _ = error "Bits.complement: Natural complement undefined"
+  shift = coerce (shift @Integer)
+  rotate = coerce (rotate @Integer)
+  zeroBits = coerce (zeroBits @Integer)
+  bit = coerce (bit @Integer)
+  setBit = coerce (setBit @Integer)
+  clearBit = coerce (clearBit @Integer)
+  complementBit = coerce (complementBit @Integer)
+  testBit = coerce (testBit @Integer)
+  shiftL = coerce (shiftL @Integer)
+  unsafeShiftL = coerce (unsafeShiftL @Integer)
+  shiftR = coerce (shiftR @Integer)
+  unsafeShiftR = coerce (unsafeShiftR @Integer)
+  rotateL = coerce (rotateL @Integer)
+  rotateR = coerce (rotateR @Integer)
+  popCount = coerce (popCount @Integer)
+  bitSizeMaybe = coerce (bitSizeMaybe @Integer)
+  bitSize = coerce (bitSize @Integer)
