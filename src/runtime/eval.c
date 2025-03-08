@@ -2887,7 +2887,10 @@ evalstring(NODEPTR n)
       PUSH(n);                  /* protect from GC */
       c = evalint(ARG(x));
       n = POPTOP();
-      /* XXX Encode as UTF8 */
+      if ((c & 0x1ff800) == 0xd800) {
+        // c is a surrogate
+        c = 0xfffd; // replacement character
+      }
       if (c < 0x80) {
         buf[offs++] = (char)c;
       } else if (c < 0x800) {

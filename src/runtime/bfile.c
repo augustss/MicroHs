@@ -1043,7 +1043,7 @@ struct BFILE_utf8 {
   int      unget;
 };
 
-/* This is not right with WORD_SIZE==16 */
+/* XXX: This is not right with WORD_SIZE==16 */
 int
 getb_utf8(BFILE *bp)
 {
@@ -1065,18 +1065,27 @@ getb_utf8(BFILE *bp)
   c2 = getb(p->bfile);
   if (c2 < 0)
     return -1;
-  if ((c1 & 0xe0) == 0xc0)
-    return ((c1 & 0x1f) << 6) | (c2 & 0x3f);
+  if ((c1 & 0xe0) == 0xc0) {
+    int c = ((c1 & 0x1f) << 6) | (c2 & 0x3f);
+    if (c < 0x80) ERR("getb_utf8: overlong encoding");
+    return c;
+  }
   c3 = getb(p->bfile);
   if (c3 < 0)
     return -1;
-  if ((c1 & 0xf0) == 0xe0)
-    return ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
+  if ((c1 & 0xf0) == 0xe0) {
+    int c = ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
+    if (c < 0x800) ERR("getb_utf8: overlong encoding");
+    return c;
+  }
   c4 = getb(p->bfile);
   if (c4 < 0)
     return -1;
-  if ((c1 & 0xf8) == 0xf0)
-    return ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+  if ((c1 & 0xf8) == 0xf0) {
+    int c = ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+    if (c < 0x10000) ERR("getb_utf8: overlong encoding");
+    return c;
+  }
   ERR("getb_utf8");
 }
 
