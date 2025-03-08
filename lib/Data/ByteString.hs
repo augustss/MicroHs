@@ -476,9 +476,9 @@ isValidUtf8 = validUtf8 . unpack
     validUtf8 :: [Word8] -> Bool
     validUtf8 []                                                                                  = True
     validUtf8 (x1                : xs) | mask x1 0x80 0x00                                        = validUtf8 xs
-    validUtf8 (x1 : x2           : xs) | mask x1 0xe0 0xc0 && mask80 x2                           = validUtf8 xs
-    validUtf8 (x1 : x2 : x3      : xs) | mask x1 0xf0 0xe0 && mask80 x2 && mask80 x3              = validUtf8 xs
-    validUtf8 (x1 : x2 : x3 : x4 : xs) | mask x1 0xf8 0xf0 && mask80 x2 && mask80 x3 && mask80 x4 = validUtf8 xs
+    validUtf8 (x1 : x2           : xs) | mask x1 0xe0 0xc0 && mask80 x2                           = x1 > 0xc1 && validUtf8 xs
+    validUtf8 (x1 : x2 : x3      : xs) | mask x1 0xf0 0xe0 && mask80 x2 && mask80 x3              = (x1 > 0xe0 || x2 > 0x9f) && validUtf8 xs
+    validUtf8 (x1 : x2 : x3 : x4 : xs) | mask x1 0xf8 0xf0 && mask80 x2 && mask80 x3 && mask80 x4 = if x1 == 0xf0 then x2 > 0x8f && validUtf8 xs else if x1 < 0xf4 then validUtf8 xs else x1 == 0xf4 && x2 <= 0x8f && validUtf8 xs
     validUtf8 _                                                                                   = False
     mask :: Word8 -> Word8 -> Word8 -> Bool
     mask x m b = x .&. m == b

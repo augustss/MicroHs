@@ -29,3 +29,5 @@ main = do
   print (T.uncons bs1)
   print (T.null bs1)
   print (T.null (pack ""))
+  print (pack "\xD800") -- low surrogate
+  print (pack "\xDFFF") -- high surrogate

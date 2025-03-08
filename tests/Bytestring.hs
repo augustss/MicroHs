@@ -32,3 +32,9 @@ main = do
   print $ breakSubstring "abc" "abcdefg"
   print $ breakSubstring "fg" "abcdefg"
   print $ breakSubstring "fn" "abcdefg"
+
+  -- isValidUtf8
+  print $ isValidUtf8 "\xC1\xB9"
+  print $ isValidUtf8 "\xE0\x8E\xA9"
+  print $ isValidUtf8 "\xF0\x80\x8E\xA9"
+  print $ isValidUtf8 "\xF4\x90\x80\x80"
