@@ -24,6 +24,7 @@ import qualified Data.List as L
 import Data.Monoid.Internal
 import Data.String
 import qualified Data.ByteString.Internal as BS
+import Unsafe.Coerce(unsafeCoerce)
 
 newtype Text = T BS.ByteString
 
@@ -120,4 +121,4 @@ foldr :: (Char -> a -> a) -> a -> Text -> a
 foldr f z = L.foldr f z . unpack
 
 concat :: [Text] -> Text
-concat = pack . L.concatMap unpack
+concat = L.foldr append empty
