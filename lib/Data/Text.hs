@@ -15,6 +15,8 @@ module Data.Text(
   splitOn,
   dropWhileEnd,
   words,
+  foldr,
+  concat,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words)
 import Control.DeepSeq.Class
@@ -113,3 +115,9 @@ splitOnList sep = loop []
 
 words :: Text -> [Text]
 words = map pack . L.words . unpack
+
+foldr :: (Char -> a -> a) -> a -> Text -> a
+foldr f z = L.foldr f z . unpack
+
+concat :: [Text] -> Text
+concat = pack . L.concatMap unpack
