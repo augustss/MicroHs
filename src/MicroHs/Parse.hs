@@ -131,7 +131,7 @@ pUQIdent =
 pLIdent :: P Ident
 pLIdent = do
   let
-    is (TIdent loc [] s) | isLower_ (head s) && not (elem s keywords) = Just (mkIdentSLoc loc s)
+    is (TIdent loc [] s) | isLower_ (head s) && not (isKeyword s) = Just (mkIdentSLoc loc s)
     is _ = Nothing
   satisfyM "LIdent" is
 
@@ -139,7 +139,7 @@ pLIdent = do
 pLQIdent :: P Ident
 pLQIdent = do
   let
-    is (TIdent loc qs s) | isLower_ (head s) && not (elem s keywords) = Just (qualName loc qs s)
+    is (TIdent loc qs s) | isLower_ (head s) && not (isKeyword s) = Just (qualName loc qs s)
     is _ = Nothing
   satisfyM "LQIdent" is
 
@@ -147,11 +147,40 @@ pLQIdent = do
 pTypeIdentSym :: P Ident
 pTypeIdentSym = pUIdent <|> pParens pSymOper
 
+-- A binary search for keywords saves about 1% compared to linear search.
+{-
+isKeyword s = elem s keywords
+-}
+isKeyword :: String -> Bool
+isKeyword s =
+  case compare s "in" of
+    EQ -> True
+    LT -> case compare s "deriving" of
+            EQ -> True
+            LT -> case compare s "class" of
+                    EQ -> True
+                    LT -> s == "_primitive" || s == "case"
+                    GT -> s == "data" || s == "default"
+            GT -> case compare s "forall" of
+                    EQ -> True
+                    LT -> s == "do" || s == "else"
+                    GT -> s == "foreign" || s == "if" || s == "import"
+    GT -> case compare s "newtype" of
+            EQ -> True
+            LT -> case compare s "infixr" of
+                    EQ -> True
+                    LT -> s == "infix" || s == "infixr"
+                    GT -> s == "instance" || s == "let" || s == "module"
+            GT -> case compare s "then" of
+                    EQ -> True
+                    LT -> s == "of" || s == "pattern"
+                    GT -> s == "type" || s == "where"
+
 keywords :: [String]
 keywords =
-  ["case", "class", "data", "default", "deriving", "do", "else", "forall", "foreign", "if",
+  ["_primitive", "case", "class", "data", "default", "deriving", "do", "else", "forall", "foreign", "if",
    "import", "in", "infix", "infixl", "infixr", "instance",
-   "let", "module", "newtype", "of", "pattern", "_primitive", "then", "type", "where"]
+   "let", "module", "newtype", "of", "pattern", "then", "type", "where"]
 
 pSpec :: Char -> P ()
 pSpec c = () <$ satisfy (showToken $ TSpec (SLoc "" 0 0) c) is
