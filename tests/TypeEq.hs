@@ -43,6 +43,12 @@ data Foo c a where
 unFoo :: Foo c a -> a
 unFoo (Foo a) = a
 
+data Bar b a where
+  Bar :: Bar a a
+
+bar :: Bar b a -> a -> b
+bar c x = case c of Bar -> x
+
 data Tree a where
   Leaf :: a -> Tree a
   Branch :: Tree a -> Tree a -> Tree a

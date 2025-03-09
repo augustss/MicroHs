@@ -10,6 +10,7 @@ import Data.Char
 import Data.List
 import Text.ParserComb as P
 import MicroHs.Lex
+import MicroHs.List
 import MicroHs.Expr hiding (getSLoc)
 import qualified MicroHs.Expr as E
 import MicroHs.Ident
@@ -396,10 +397,11 @@ dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
         -- Check if we can use a regular constructor
         case zipWithM mtch vks ts of
           -- Result type is just type variables, so use it as is
-          Just sub -> Constr es'' ctx  cnm (Left stys')
+          Just sub | not (anySame (map fst sub))
+            -> Constr es'' ctx  cnm (Left stys')
                         where stys' = map (\ (b, t) -> (b, subst sub t)) stys
                               es'' = if null es then kind (freeTyVars (map snd stys) \\ map fst sub) else es
-          _        -> Constr es'  ctx' cnm (Left stys)
+          _ -> Constr es'  ctx' cnm (Left stys)
       where es' = if null es then kind (freeTyVars (rty : map snd stys)) else es
             ctx' = zipWith (\ (IdKind i _) t -> eq (EVar i) t) vks ts ++ ctx
             eq t1 t2 = EApp (EApp (EVar (mkIdentSLoc (E.getSLoc t1) "~")) t1) t2
