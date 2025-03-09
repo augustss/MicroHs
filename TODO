@@ -41,4 +41,3 @@ Bugs:
 * newtype deriving Semigroup is broken
 * polykinded signatures don't work properly, e.g., ~
   there is no place to put the forall
-* x = 1 :: Num a => a

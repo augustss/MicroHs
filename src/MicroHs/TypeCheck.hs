@@ -1843,15 +1843,32 @@ tcExprR mt ae =
     EListish (LFromThen   e1 e2)    -> tcExpr mt (enum loc "FromThen" [e1,e2])
     EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enum loc "FromThenTo" [e1,e2,e3])
     ESign e t -> do
+      -- As a hack, translate 'e :: T' to 'let s$999 :: T; s$999 = e in s$999'
+      -- This will ensure that dictinaries are inserted in the right place.
+      i <- newIdent (getSLoc e) "s"
+      tcExpr mt $ ELet [Sign [i] t, Fcn i $ eEqns [] e] (EVar i)
+{-
       t' <- withTypeTable $ tCheckTypeTImpl False kType t >>= expandSyn
-      e' <- instSigma loc e t' mt
-      --traceM $ "ESign " ++ show (e, e', t')
-      --checkSigma e' t'
-      case t' of  -- XXX should skolemize
-        EForall expl iks tt | expl      -> withExtTyps iks $ tCheckExpr tt e'
-                            | otherwise ->                   tCheckExpr tt e'
-        _ -> tCheckExpr t' e'
-
+      case splitContext t' of
+        -- No context
+        (_, [], _) -> do
+          e' <- instSigma loc e t' mt
+          --traceM $ "ESign " ++ show (e, e', t')
+          --checkSigma e' t'
+          case t' of  -- XXX should skolemize
+            EForall expl iks tt | expl      -> withExtTyps iks $ tCheckExpr tt e'
+                                | otherwise ->                   tCheckExpr tt e'
+            _ -> tCheckExpr t' e'
+        _ -> do
+          -- We have a context.  As a hack, translate 'e :: T' to
+          -- let s$ :: T; s$ = e in s$
+          -- This will ensure that dictinaries are insert in the right place.
+          -- XXX Maybe it would be better to have this as part of the code above?
+          -- Or maybe do this rewrite all the time?
+          i <- newIdent (getSLoc e) "s"
+          let et = ELet [Sign [i] t, Fcn i $ eEqns [] e] (EVar i)
+          tcExpr mt et
+-}
     -- Only happens in type&kind checking mode.
     EForall b vks t ->
 --      assertTCMode (==TCType) $
