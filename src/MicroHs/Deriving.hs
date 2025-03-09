@@ -429,11 +429,11 @@ newtypeDer mctx narg (tycon, iks) c cls mvia = do
               case subst [(tv, newty)] mty of
                 EForall _ vks t -> EForall True (map (\ (IdKind i _) -> IdKind i (EVar dummyIdent)) vks) $ qvar t
                 t -> qvar t
-            vty = qvar $ {- dropContext $ -} dropForall $ subst [(tv, viaty)] mty
+
+            vty = qvar $ dropContext $ dropForall $ subst [(tv, viaty)] mty
             msign = Sign [mi] nty
 --            body = Fcn mi [eEqn [] $ eAppI3 (mkBuiltin loc "coerce") (ETypeArg vty) (ETypeArg nty') (EVar mi)]
---            body = Fcn mi [eEqn [] $ eAppI2 (mkBuiltin loc "coerce") (ETypeArg vty) (EVar mi)]
-            body = Fcn mi [eEqn [] $ eAppI (mkBuiltin loc "coerce") (EVar mi `ESign` vty)]
+            body = Fcn mi [eEqn [] $ eAppI2 (mkBuiltin loc "coerce") (ETypeArg vty) (EVar mi)]
         return [msign, body]
   body <- concat <$> mapM mkMethod mis
 
@@ -445,11 +445,9 @@ dropForall :: EType -> EType
 dropForall (EForall _ _ t) = dropForall t
 dropForall t = t
 
-{-
 dropContext :: EType -> EType
 dropContext t | Just (_, t') <- getImplies t = dropContext t'
               | otherwise = t
--}
 
 {-
 freshForall :: EType -> EType
