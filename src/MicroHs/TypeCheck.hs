@@ -1182,11 +1182,10 @@ tcConstr (Constr iks ct c ets) =
 -- Default methods are added as actual definitions.
 -- The constructor and methods are added to the symbol table in addValueType.
 expandClass :: ImpType -> EDef -> T [EDef]
-expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
+expandClass impt dcls@(Class _ctx (iCls, vks) _fds ms) = do
   mn <- gets moduleName
   let
       meths = [ b | b@(Sign _ _) <- ms ]
-      methIds = concatMap (\ (Sign is _) -> is) meths
       mdflts = [ (i, eqns) | Fcn i eqns <- ms ]
       dflttys = [ (i, t) | DfltSign i t <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
@@ -1211,9 +1210,6 @@ expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
       dDflts = case impt of
                  ImpNormal -> concatMap mkDflt meths
                  ImpBoot   -> []
-  -- Add to the class table.  XXX also in addValueClass???
-  addClassTable (qualIdent mn iCls)
-                (ClassInfo vks ctx (EUVar 0) methIds (mkIFunDeps (map idKindIdent vks) fds))   -- Initial entry, no type needed.
   return $ dcls : dDflts
 expandClass _ d = return [d]
 
