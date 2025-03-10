@@ -70,3 +70,4 @@ instance Bits Natural where
   popCount = coerce (popCount @Integer)
   bitSizeMaybe = coerce (bitSizeMaybe @Integer)
   bitSize = coerce (bitSize @Integer)
+  isSigned _ = False
