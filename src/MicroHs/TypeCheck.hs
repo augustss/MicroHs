@@ -616,7 +616,7 @@ expandSyn at = do
         EForall b iks tt | null ts -> EForall b iks <$> expandSyn tt
         ELit _ (LStr _) -> return t
         ELit _ (LInteger _) -> return t
-        _ -> impossible
+        _ -> impossibleShow t
   syn [] at
 
 mapEType :: (EType -> EType) -> EType -> EType
@@ -644,7 +644,8 @@ derefUVar at =
           return t'
     EVar _ -> return at
     ESign t k -> flip ESign k <$> derefUVar t
-    EForall b iks t -> EForall b iks <$> derefUVar t
+    EForall b iks t -> EForall b <$> iks' <*> derefUVar t
+      where iks' = mapM (\ (IdKind i k) -> IdKind i <$> derefUVar k) iks
     ELit _ (LStr _) -> return at
     ELit _ (LInteger _) -> return at
     _ -> impossible
@@ -1541,9 +1542,11 @@ addForall expl t = do
 tCheckTypeTImpl :: HasCallStack => Bool -> EType -> EType -> T EType
 tCheckTypeTImpl expl tchk t = tCheckTypeT tchk =<< addForall expl t
 
+-- Check type in type mode
 tCheckTypeT :: HasCallStack => EType -> EType -> T EType
 tCheckTypeT = tCheck tcTypeT
 
+-- Infer type in type mode
 tInferTypeT :: HasCallStack => EType -> T (EType, EKind)
 tInferTypeT t = tInfer tcTypeT t
 
@@ -1866,7 +1869,7 @@ tcExprR mt ae =
 --      assertTCMode (==TCType) $
       withVks vks $ \ vks' -> do
         tt <- tcExpr mt t
-        return (EForall b vks' tt)
+        derefUVar (EForall b vks' tt)
     EUpdate e flds -> do
       ises <- concat <$> mapM (dsEField e) flds
       me <- dsUpdate unsetField e ises
@@ -1914,8 +1917,8 @@ tcExprAp mt ae args =
 tcExprApFn :: HasCallStack =>
               Expected -> Expr -> EType -> [Expr] -> T Expr
 --tcExprApFn _ fn fnt args | trace ("tcExprApFn: " ++ show (fn, fnt, args)) False = undefined
-tcExprApFn mt fn (EForall {-True-}_ (IdKind i _:iks) ft) (ETypeArg t : args) = do
-  t' <- if t `eqEType` EVar dummyIdent then newUVar else tcType (Check kType) t
+tcExprApFn mt fn (EForall {-True-}_ (IdKind i k:iks) ft) (ETypeArg t : args) = do
+  t' <- if t `eqEType` EVar dummyIdent then newUVar else tcType (Check k) t
   tcExprApFn mt fn (subst [(i, t')] $ eForall iks ft) args
 tcExprApFn mt fn atfn args = do
 --  traceM $ "tcExprApFn: " ++ show (mt, fn, tfn, args)
