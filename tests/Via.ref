@@ -9,4 +9,6 @@ True
 0x20AC
 "S \"hello\""
 P (Just 10)
+M "ababab"
+I 2
 done

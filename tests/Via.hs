@@ -1,4 +1,7 @@
 module Via where
+import Numeric
+import Data.Kind
+import Data.Semigroup
 
 newtype B = B Bool
   deriving newtype Eq
@@ -21,8 +24,6 @@ newtype Id3 a = Id3 a
   deriving newtype Eq
 
 ------
-
-import Numeric
 
 newtype Hex a = Hex a
 
@@ -54,11 +55,46 @@ newtype P a = P (Maybe a)
 
 -------
 
+class (Monoid w, Monad m) => MonadAccum w m | m -> w
+
+newtype MaybeT m a = MaybeT (m (Maybe a))
+--  deriving (MonadAccum w) via (LiftingAccum MaybeT m)
+
+instance Functor (MaybeT m) where fmap = undefined
+instance Applicative (MaybeT m) where pure = undefined; (<*>) = undefined
+instance Monad (MaybeT m) where (>>=) = undefined
+
 newtype LiftingAccum (t :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) (a :: Type)
   = LiftingAccum (t m a)
   deriving
     (Functor, Applicative, Monad)
     via (t m)
+
+{-
+deriving via
+  (LiftingAccum MaybeT m)
+  instance
+    (MonadAccum w m) =>
+    MonadAccum w (MaybeT m)
+-}
+
+-------
+
+newtype M a = M [a]
+  deriving stock Show
+  deriving newtype Semigroup
+
+-------
+
+class C a where
+  mc :: a -> a
+
+instance C Int where
+  mc = succ
+
+newtype I = I Int
+  deriving stock Show
+  deriving newtype C
 
 -------
 
@@ -84,5 +120,9 @@ main = do
   print $ sPpr $ S "hello"
 
   print $ fmap (*5) (P (Just 2))
+
+  print $ stimes 3 (M "ab")
+
+  print $ mc (I 1)
 
   putStrLn "done"
