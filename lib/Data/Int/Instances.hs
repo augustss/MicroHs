@@ -113,6 +113,7 @@ instance Bits Int8 where
   testBit = testBitDefault
   popCount (I8 x) = primIntPopcount (x .&. 0xff)
   zeroBits = 0
+  isSigned _ = True
 
 instance FiniteBits Int8 where
   finiteBitSize _ = 8
@@ -211,6 +212,7 @@ instance Bits Int16 where
   testBit = testBitDefault
   popCount (I16 x) = primIntPopcount (x .&. 0xffff)
   zeroBits = 0
+  isSigned _ = True
 
 instance FiniteBits Int16 where
   finiteBitSize _ = 16
@@ -309,6 +311,7 @@ instance Bits Int32 where
   testBit = testBitDefault
   popCount (I32 x) = primIntPopcount (x .&. 0xffffffff)
   zeroBits = 0
+  isSigned _ = True
 
 instance FiniteBits Int32 where
   finiteBitSize _ = 32
@@ -406,6 +409,7 @@ instance Bits Int64 where
   testBit = testBitDefault
   popCount (I64 x) = primIntPopcount x
   zeroBits = 0
+  isSigned _ = True
 
 instance FiniteBits Int64 where
   finiteBitSize _ = 64

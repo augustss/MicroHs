@@ -133,6 +133,7 @@ instance Bits Word where
   testBit = testBitDefault
   popCount = primWordPopcount
   zeroBits = 0
+  isSigned _ = False
 
 instance FiniteBits Word where
   finiteBitSize _ = _wordSize
@@ -233,6 +234,7 @@ instance Bits Word8 where
   testBit = testBitDefault
   popCount = primWordPopcount . unW8
   zeroBits = 0
+  isSigned _ = False
 
 instance FiniteBits Word8 where
   finiteBitSize _ = 8
@@ -333,6 +335,7 @@ instance Bits Word16 where
   testBit = testBitDefault
   popCount = primWordPopcount . unW16
   zeroBits = 0
+  isSigned _ = False
 
 instance FiniteBits Word16 where
   finiteBitSize _ = 16
@@ -433,6 +436,7 @@ instance Bits Word32 where
   testBit = testBitDefault
   popCount = primWordPopcount . unW32
   zeroBits = 0
+  isSigned _ = False
 
 instance FiniteBits Word32 where
   finiteBitSize _ = 32
@@ -533,6 +537,7 @@ instance Bits Word64 where
   testBit = testBitDefault
   popCount = primWordPopcount . unW64
   zeroBits = 0
+  isSigned _ = False
 
 instance FiniteBits Word64 where
   finiteBitSize _ = 64
