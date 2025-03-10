@@ -96,6 +96,7 @@ instance Bits Integer where
   zeroBits = zeroI
   bitSizeMaybe _ = Nothing
   popCount = popCountI
+  isSigned _ = True
 
 -----------------
 
