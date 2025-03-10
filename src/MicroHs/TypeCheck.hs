@@ -597,19 +597,15 @@ expandSyn at = do
           syns <- gets synTable
           case M.lookup i syns of
             Nothing -> return $ eApps t ts
-            Just (EForall _ avks att) ->
-              -- Eta reduce type synonyms.
-              -- E.g. 'type T a = Maybe a' could be 'type T = Maybe'.
-              -- So change 'forall ... a . T a' into 'forall ... . T', if a does not occur in T.
-              case etaReduce (map idKindIdent avks) att of
-                (is, tt) ->
-                  let s = zip is ts
-                      lis = length is
-                      lts = length ts
-                  in  if lis > lts then
-                        tcError (getSLoc i) $ "bad synonym use"
-                      else
-                        expandSyn $ eApps (subst s tt) (drop lis ts)
+            Just (EForall _ vks tt) ->
+              let is = map idKindIdent vks
+                  s = zip is ts
+                  lis = length is
+                  lts = length ts
+              in  if lis > lts then
+                    tcError (getSLoc i) $ "bad synonym use: " ++ show i
+                  else
+                    expandSyn $ eApps (subst s tt) (drop lis ts)
             Just _ -> impossible
         EUVar _ -> return $ eApps t ts
         ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
@@ -825,10 +821,14 @@ extTyp i t = do
 extTyps :: [(Ident, EType)] -> T ()
 extTyps = mapM_ (uncurry extTyp)
 
-extSyn :: Ident -> EType -> T ()
-extSyn i t = do
-  senv <- gets synTable
-  putSynTable (M.insert i t senv)
+extSyn :: Ident -> [IdKind] -> EType -> T ()
+extSyn i iks t = do
+  -- Eta reduce type synonyms.
+  -- E.g. 'type T a = Maybe a' could be 'type T = Maybe'.
+  case etaReduce iks t of
+    (iks', t') -> do
+      senv <- gets synTable
+      putSynTable (M.insert i (EForall True iks' t') senv)
 
 extData :: Ident -> EDef -> T ()
 extData i d = do
@@ -1022,7 +1022,7 @@ addTypeAndData :: EDef -> T ()
 addTypeAndData adef = do
   mn <- gets moduleName
   case adef of
-    Type    (i, vs) t  -> extSyn  (qualIdent mn i) (EForall True vs t)
+    Type    (i, vs) t  -> extSyn  (qualIdent mn i) vs t
     Data    (i, _) _ _ -> extData (qualIdent mn i) adef
     Newtype (i, _) _ _ -> extData (qualIdent mn i) adef
     _                  -> return ()
@@ -3181,7 +3181,7 @@ extNewtypeSyns = do
           -- it should be visible.
           let t = either (snd . head) (snd . snd . head) et
 --          traceM $ "extNewtypeSyns: " ++ showIdent qi ++ show vs ++ " = " ++ showExprRaw t
-          extSyn qi (EForall True vs t)  -- extend synonym table
+          extSyn qi vs t  -- extend synonym table
       ext _ = return ()
   mapM_ ext $ M.toList dt
 

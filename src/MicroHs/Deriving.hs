@@ -377,7 +377,7 @@ newtypeDer mctx narg (tycon, iks) c cls mvia = do
           Constr [] [] _ (Right [(_, (_, t))]) -> t
           _ -> error "newtypeDer"
   oldty <-
-    case etaReduce (map idKindIdent $ takeEnd narg iks) oldty' of  -- the underlying type, eta reduced
+    case etaReduce (takeEnd narg iks) oldty' of  -- the underlying type, eta reduced
       ([], rt) -> return rt
       _ -> tcError loc "Bad deriving"
   let viaty =
@@ -448,9 +448,9 @@ freshForall t = t
 -- Eta reduce as many of the variables as possible.
 -- E.g. etaReduce [a,b] (T a b) = ([], T)
 --      etaReduce [a,b] (T Int b) = ([a], T Int)
-etaReduce :: [Ident] -> EType -> ([Ident], EType)
+etaReduce :: [IdKind] -> EType -> ([IdKind], EType)
 etaReduce ais = eta (reverse ais)
-  where eta (i:is) (EApp t (EVar i')) | i == i' && i `notElem` freeTyVars [t] = eta is t
+  where eta (IdKind i _ : is) (EApp t (EVar i')) | i == i' && i `notElem` freeTyVars [t] = eta is t
         eta is t = (reverse is, t)
 
 anyclassDer :: Maybe (EConstraint, EType) -> Int -> LHS -> EConstraint -> T [EDef]
