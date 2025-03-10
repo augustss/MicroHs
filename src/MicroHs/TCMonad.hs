@@ -120,8 +120,13 @@ type InstDict   = (Expr, TRef -> ([EConstraint], [EType]))
 -- All known type equalities, normalized into a substitution.
 type TypeEqTable = [(Ident, EType)]
 
-data ClassInfo = ClassInfo [IdKind] [EConstraint] EType [Ident] [IFunDep]  -- class tyvars, superclasses, class constructor type, methods, fundeps
-type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables
+data ClassInfo = ClassInfo
+  [IdKind]         -- class tyvars
+  [EConstraint]    -- superclasses
+  EType            -- class constructor type
+  [(Ident,EType)]  -- methods with their types
+  [IFunDep]        -- fundeps
+type IFunDep = ([Bool], [Bool])           -- invariant: the length of the lists is the number of class tyvars
 
 instance NFData ClassInfo where
   rnf (ClassInfo a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e

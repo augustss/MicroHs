@@ -9,7 +9,6 @@ import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.Names
-import MicroHs.SymTab
 import MicroHs.TCMonad
 import Debug.Trace
 
@@ -403,28 +402,19 @@ newtypeDer mctx narg (tycon, iks) c cls mvia = do
 --  traceM ("newtypeDer: " ++ show (hdr, newty, viaty))
   ----
   let qiCls = getAppCon cls
+      clsQual = qualOf qiCls
   ct <- gets classTable
-  (ClassInfo _ _ _ mis _) <-
+  (ClassInfo _ _ _ mits _) <-
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> return x
 
-  env <- gets valueTable
-  let mkMethod mi = do
+  let mkMethod (mi, amty) = do
         let (tv, mty) =
-              case stLookup "" mi env of
-                Left _ -> impossible
-                Right (Entry _ t) ->
-                  -- The type always has the form
-                  --  forall a . C a => method-type
-                  case t of
-                    EForall _ [(IdKind i _)] (EApp (EApp _implies _Ca) t') -> (i, t')
-                    _ -> impossible
+              case amty of
+                EForall _ [(IdKind i _)] (EApp (EApp _implies _Ca) t) -> (i, t)
+                _ -> impossibleShow amty
             qvar t = EQVar t kType
---            qvar (EVar i) = EVar (unQualIdent i)
---            qvar (EApp a b) = EApp (qvar a) (qvar b)
---            nty = qvar               $ subst [(tv, newty)] mty
---            nty'= qvar $ dropForall  $ subst [(tv, newty)] mty
             nty =
               case subst [(tv, newty)] mty of
                 EForall _ vks t -> EForall True (map (\ (IdKind i _) -> IdKind i (EVar dummyIdent)) vks) $ qvar t
@@ -432,10 +422,10 @@ newtypeDer mctx narg (tycon, iks) c cls mvia = do
 
             vty = qvar $ dropContext $ dropForall $ subst [(tv, viaty)] mty
             msign = Sign [mi] nty
---            body = Fcn mi [eEqn [] $ eAppI3 (mkBuiltin loc "coerce") (ETypeArg vty) (ETypeArg nty') (EVar mi)]
-            body = Fcn mi [eEqn [] $ eAppI2 (mkBuiltin loc "coerce") (ETypeArg vty) (EVar mi)]
+            qmi = EQVar (EVar $ qualIdent clsQual mi) amty   -- Use a qualified name for the method
+            body = Fcn mi [eEqn [] $ eAppI2 (mkBuiltin loc "coerce") (ETypeArg vty) qmi]
         return [msign, body]
-  body <- concat <$> mapM mkMethod mis
+  body <- concat <$> mapM mkMethod mits
 
   return [Instance hdr body]
 

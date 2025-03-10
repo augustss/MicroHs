@@ -1261,7 +1261,7 @@ expandInst dinst@(Instance act bs) = do
 --  (e, _) <- tLookupV iCls
   ct <- gets classTable
 --  let qiCls = getAppCon e
-  (ClassInfo _ supers _ mis fds) <-
+  (ClassInfo _ supers _ mits fds) <-
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> return x
@@ -1269,12 +1269,12 @@ expandInst dinst@(Instance act bs) = do
       addSign i e = maybe e (ESign e) $ lookup i signs
       clsMdl = qualOf qiCls                   -- get class's module name
       ies = [(i, addSign i $ ELam loc qs) | Fcn i qs <- bs]
-      meth i = fromMaybe (ELam loc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
-      meths = map meth mis
+      meth (i, _) = fromMaybe (ELam loc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
+      meths = map meth mits
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
-      instBind (Fcn i _) = i `elem` mis
-      instBind (Sign is _) = all (`elem` mis) is
+      instBind (Fcn i _) = isJust $ lookup i mits
+      instBind (Sign is _) = all (\ i -> isJust $ lookup i mits) is
       instBind _ = False
   case filter (not . instBind) bs of
     [] -> return ()
@@ -1455,7 +1455,7 @@ addValueClass ctx iCls vks fds ms = do
   mapM_ addMethod methIdTys'
   -- Update class table, now with actual constructor type.
 --  traceM $ "addValueClass " ++ show (iCls, vks)
-  addClassTable qiCls (ClassInfo vks ctx iConTy (map fst methIdTys') (mkIFunDeps (map idKindIdent vks) fds))
+  addClassTable qiCls (ClassInfo vks ctx iConTy methIdTys' (mkIFunDeps (map idKindIdent vks) fds))
 
 mkClassConstructor :: Ident -> Ident
 mkClassConstructor i = addIdentSuffix i "$C"
