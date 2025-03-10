@@ -2,6 +2,7 @@ module Via where
 import Numeric
 import Data.Kind
 import Data.Semigroup
+import Data.Coerce
 
 newtype B = B Bool
   deriving newtype Eq
@@ -55,10 +56,10 @@ newtype P a = P (Maybe a)
 
 -------
 
-class (Monoid w, Monad m) => MonadAccum w m | m -> w
+class (Monoid w, Monad m) => MonadAccum w m | m -> w where
+  add :: w -> m ()
 
 newtype MaybeT m a = MaybeT (m (Maybe a))
---  deriving (MonadAccum w) via (LiftingAccum MaybeT m)
 
 instance Functor (MaybeT m) where fmap = undefined
 instance Applicative (MaybeT m) where pure = undefined; (<*>) = undefined
@@ -70,12 +71,40 @@ newtype LiftingAccum (t :: (Type -> Type) -> Type -> Type) (m :: Type -> Type) (
     (Functor, Applicative, Monad)
     via (t m)
 
-{-
+instance (Monad (t m), MonadAccum w m) => MonadAccum w (LiftingAccum t m) where
+  add x = undefined
+
 deriving via
   (LiftingAccum MaybeT m)
   instance
     (MonadAccum w m) =>
     MonadAccum w (MaybeT m)
+
+{-
+hdr = (forall (w::Type) (m::(Type -> Type)) . ((MonadAccum w m) => (MonadAccum w (MaybeT m))))
+newty = (MaybeT m)
+narg=1,
+tycon=MaybeT
+iks=[(m::_a78),(a::_a79)]
+c=Constr [] [] MaybeT (Left [(False,(m (Maybe a)))])
+acls=(MonadAccum w)
+mvis=Just (LiftingAccum MaybeT m)
+oldty'=(m (Maybe a)))
+
+
+newtypeDer: instance (forall (w::Type) (m::(Type -> Type)) . ((MonadAccum w m) => (MonadAccum w (MaybeT m)))) where
+  add :: w -> (MaybeT m ()
+  add = coerce @((w -> (LiftingAccum MaybeT m ()))) add
+
+
+-}
+
+{-
+instance MonadAccum w m => MonadAccum w (MaybeT m) where
+  add = coerce
+          @(w -> LiftingAccum MaybeT m ())
+          @(w -> MaybeT m ())
+          (add @w @(LiftingAccum MaybeT m))
 -}
 
 -------
@@ -95,6 +124,18 @@ instance C Int where
 newtype I = I Int
   deriving stock Show
   deriving newtype C
+
+-------
+
+class CC a b where
+  mm :: b -> a -> b
+
+instance CC a Int where
+  mm x _ = x + 1
+
+newtype II = II Int
+  deriving stock Show
+  deriving newtype (CC a)
 
 -------
 
@@ -124,5 +165,7 @@ main = do
   print $ stimes 3 (M "ab")
 
   print $ mc (I 1)
+
+  print $ mm (II 99) ()
 
   putStrLn "done"

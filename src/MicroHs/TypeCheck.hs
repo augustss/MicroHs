@@ -1054,7 +1054,9 @@ tcDefType def = do
     Instance ct m          ->                                            Instance       <$> tCheckTypeTImpl True kConstraint ct <*> return m
     Default mc ts          ->                                            Default (Just c) <$> mapM (tcDefault c) ts
                                                                            where c = fromMaybe num mc
-    StandDeriving st _ ct  ->                                            tcStand st ct
+-- We cant't do this now, because the classTable has not been fully populated yet.
+-- Instead, we do it in the deriving stage.
+--    StandDeriving st _ ct  ->                                            tcStand st ct
     _                      -> return def
  where
    cm = flip (,)
@@ -1068,26 +1070,28 @@ tcDefType def = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
 
-   -- A standalone deriving has a regular instance head.
-   -- If it has a via clause, the via type has to have the same kind
-   -- as the type in the instance head.
-   tcStand st ct = do
+-- A standalone deriving has a regular instance head.
+-- If it has a via clause, the via type has to have the same kind
+-- as the type in the instance head.
+tcStand :: DerStrategy -> EConstraint -> T EDef
+tcStand st ct = do
      ct' <- tCheckTypeTImpl True kConstraint ct >>= expandSyn
      -- We need the kind of the type in the instance head.
      -- It's needed for the number of arguments to "eta reduce",
      -- and also for kind checking the via type.
      -- So find the kind of the last argument to the class
-     kty <- do
-       let (_vks, _ctx, cty) = splitContext ct'
+     (vks, kty) <- do
+       let (cvks, _ctx, cty) = splitContext ct'
            cls = fst $ getApp cty
        ctbl <- gets classTable
        case M.lookup cls ctbl of
-         Just (ClassInfo vks@(_:_) _ _ _ _) -> case last vks of IdKind _ k -> return k
+         Just (ClassInfo vks@(_:_) _ _ _ _) -> case last vks of IdKind _ k -> return (cvks, k)
          _ -> tcError (getSLoc ct) $ "not a class " ++ showIdent cls
      let narg = length $ fst $ getArrows kty
      st' <-
        case st of
-         DerVia t -> DerVia <$> tCheckTypeT kty t   -- make sure the via type has the same kind
+         DerVia t -> DerVia <$> withExtVals (map (\ (IdKind i k) -> (i, k)) vks)
+                       (tCheckTypeT kty t)   -- make sure the via type has the same kind
          _ -> return st
      pure $ StandDeriving st' narg ct'
 
@@ -1099,7 +1103,9 @@ tcDeriving (tyId, vks) (Deriving strat cs) = do
         -- The kind of c has to be of the form (k1 -> ... kn -> Type) -> Constraint
         -- Check that it is.
         k <- newUVar
-        c' <- tCheckTypeT (k `kArrow` kConstraint) c
+        --traceM $ "tcDerive 1: " ++ show c
+        c' <- tCheckTypeTImpl True (k `kArrow` kConstraint) c
+        --traceM $ "tcDerive 2: " ++ show c
         (ks, _) <- getArrows <$> (expandSyn =<< derefUVar k)  -- get [k1,...,kn] and final kind
         -- Checking that the final kind is Type happens with the tc call below.
         let r = length ks                      -- number of args consumed by c
@@ -1111,14 +1117,13 @@ tcDeriving (tyId, vks) (Deriving strat cs) = do
         -- The generated instance has the form 'instance ... => c ty'.
         -- Check that this has kind Constraint.
         -- Also check that any via type also fulfills this.
-        let tc t = do _ <- tCheckTypeT kConstraint (tApp c t); return ()
+        let tc t = do _ <- tCheckTypeTImpl True kConstraint (tApp c t); return ()
         tc ty
         case strat of
-          DerVia v -> tc v
+          DerVia v -> tc v  -- XXX should this allow implicit quantification?
           _        -> return ()
         return (r, c')
 
-  --traceM $ "tcDerive 1 " ++ show cs
   cs' <- mapM tcDerive cs
   -- Ignore the kind here, it's checked for each derived type
   strat' <- case strat of
@@ -3416,7 +3421,10 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
 doDeriving :: EDef -> T [EDef]
 doDeriving def@(Data    lhs cs ds)    = (def:) . concat <$> mapM (deriveDer False lhs  cs) ds
 doDeriving def@(Newtype lhs  c ds)    = (def:) . concat <$> mapM (deriveDer True  lhs [c]) ds
-doDeriving def@(StandDeriving s n ct) = (def:) <$> standaloneDeriving s n ct
+doDeriving (StandDeriving as _ act) = do
+  -- The StandDeriving has not been typechecked yet, so do it now.
+  def@(StandDeriving s n ct) <- withTypeTable $ tcStand as act
+  (def:) <$> standaloneDeriving s n ct
 doDeriving def                        = return [def]
 
 deriveDer :: Bool -> LHS -> [Constr] -> Deriving -> T [EDef]

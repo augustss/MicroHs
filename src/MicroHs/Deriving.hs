@@ -368,35 +368,39 @@ derRead _ _ lhs _ e = cannotDerive lhs e
 --------------------------------------------
 
 newtypeDer :: Maybe (EConstraint, EType) -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
-newtypeDer mctx narg (tycon, iks) c cls mvia = do
---  traceM ("newtypeDer " ++ show (mctx, narg, tycon, iks, c, cls, mvia))
+newtypeDer mctx narg (tycon, iks) c acls mvia = do
   let loc = getSLoc cls
+      (clsIks, cls) = unForall acls
       oldty' =                           -- the underlying type, full
         case c of
           Constr [] [] _ (Left [(False, t)]) -> t
           Constr [] [] _ (Right [(_, (_, t))]) -> t
           _ -> error "newtypeDer"
-  oldty <-
-    case etaReduce (takeEnd narg iks) oldty' of  -- the underlying type, eta reduced
-      ([], rt) -> return rt
-      _ -> tcError loc "Bad deriving"
-  let viaty =
-        case mvia of
-          Just via -> via
-          Nothing  -> oldty
+--  traceM ("newtypeDer " ++ show (mctx, narg, tycon, iks, c, acls, mvia, oldty'))
+  viaty <-
+    case mvia of
+      Just via -> return via
+      Nothing  ->
+        case etaReduce (takeEnd narg iks) oldty' of  -- the underlying type, eta reduced
+          ([], rt) -> return rt
+          _ -> tcError loc "Bad deriving"
   (hdr, newty) <-
     case mctx of
       Nothing -> do
         let iks' = dropEnd narg iks
         newty <- mkLhsTy (tycon, iks')         -- the newtype, eta reduced
+        -- XXX repeats what we might have done above
+        oldty <- case etaReduce (takeEnd narg iks) oldty' of  -- the underlying type, eta reduced
+                   ([], rt) -> return rt
+                   _ -> tcError loc "Bad deriving"
         let ctxOld = tApp cls viaty
             coOldNew = mkCoercible loc oldty newty
             coOldVia =
               case mvia of  -- the via type is also eta reduced
                 Just via -> [mkCoercible loc via newty]
                 Nothing  -> []
-            ctx = filter (not . null . freeTyVars . (:[])) (ctxOld : coOldNew : coOldVia)
-        pure (eForall iks' $ addConstraints ctx $ tApp cls newty, newty)
+            ctx = {-filter (not . null . freeTyVars . (:[]))-} (ctxOld : coOldNew : coOldVia)
+        pure (eForall (clsIks ++ iks') $ addConstraints ctx $ tApp cls newty, newty)
       Just (hdr, newty) -> do
         pure (hdr, newty)
 --  traceM ("newtypeDer: " ++ show (hdr, newty, viaty))
@@ -412,7 +416,7 @@ newtypeDer mctx narg (tycon, iks) c cls mvia = do
   let mkMethod (mi, amty) = do
         let (tv, mty) =
               case amty of
-                EForall _ [(IdKind i _)] (EApp (EApp _implies _Ca) t) -> (i, t)
+                EForall _ xs@(_:_) (EApp (EApp _implies _Ca) t) | IdKind i _ <- last xs -> (i, t)
                 _ -> impossibleShow amty
             qvar t = EQVar t kType
             nty =
@@ -427,9 +431,8 @@ newtypeDer mctx narg (tycon, iks) c cls mvia = do
         return [msign, body]
   body <- concat <$> mapM mkMethod mits
 
+--  traceM $ "newtypeDer: " ++ show (Instance hdr body)
   return [Instance hdr body]
-
---newtypeDer _ _ _ _ _ _ = error "standalone newtype deriving not implemented yet"
 
 dropForall :: EType -> EType
 dropForall (EForall _ _ t) = dropForall t
