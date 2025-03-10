@@ -587,33 +587,46 @@ expandSyn :: HasCallStack =>
              EType -> T EType
 --expandSyn at | trace ("expandSyn: " ++ show at) False = undefined
 expandSyn at = do
+  syns <- gets synTable
   let
+    esyn = syn []
+    -- Expand synonyms that have enough arguments
     syn ts t =
       case t of
-        EApp f a -> do
-          aa <- expandSyn a
-          syn (aa:ts) f
-        EVar i -> do
-          syns <- gets synTable
+        EApp f a -> syn (esyn a : ts) f
+        EVar i ->
           case M.lookup i syns of
-            Nothing -> return $ eApps t ts
+            Nothing -> eApps t ts
             Just (EForall _ vks tt) ->
               let is = map idKindIdent vks
                   s = zip is ts
                   lis = length is
                   lts = length ts
               in  if lis > lts then
-                    tcError (getSLoc i) $ "bad synonym use: " ++ show i
+                    eApps t ts
                   else
-                    expandSyn $ eApps (subst s tt) (drop lis ts)
+                    -- Too few arguments, just leave it alone
+                    syn (drop lis ts) (subst s tt) 
             Just _ -> impossible
-        EUVar _ -> return $ eApps t ts
-        ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
-        EForall b iks tt | null ts -> EForall b iks <$> expandSyn tt
-        ELit _ (LStr _) -> return t
-        ELit _ (LInteger _) -> return t
+        EUVar _ -> eApps t ts
+        ESign a _ -> syn ts a   -- Throw away signatures, they don't affect unification
+        EForall b iks tt | null ts -> EForall b iks (esyn tt)
+        ELit _ (LStr _) -> t
+        ELit _ (LInteger _) -> t
         _ -> impossibleShow t
-  syn [] at
+    -- Check that there are no unexpanded synonyms left
+    chk (EApp f a) = do chk f; chk a
+    chk (EVar i) =
+      case M.lookup i syns of
+        Nothing -> return ()
+        _ -> tcError (getSLoc i) "bad synonym use"
+    chk (EUVar _) = return ()
+    chk (EForall _ _ t) = chk t
+    chk (ELit _ _) = return ()
+    chk _ = impossible
+    rt = esyn at
+  chk rt
+  return rt
 
 mapEType :: (EType -> EType) -> EType -> EType
 mapEType fn = rec
