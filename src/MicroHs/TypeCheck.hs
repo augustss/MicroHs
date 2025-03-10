@@ -1437,29 +1437,25 @@ addPatSyn at i = do
       mtch = (EVar qip, mkPatSynMatchType qip at)
   extValETop i at $ ECon $ ConSyn qi n mtch
 
--- XXX FunDep
 addValueClass :: [EConstraint] -> Ident -> [IdKind] -> [FunDep] -> [EBind] -> T ()
 addValueClass ctx iCls vks fds ms = do
   mn <- gets moduleName
-  let
-      meths = [ b | b@(Sign _ _) <- ms ]
-      methTys = map (\ (Sign _ t) -> t) meths
-      methIds = concatMap (\ (Sign is _) -> is) meths
+  let methIdTys = [ (i, t) | Sign is t <- ms, i <- is ]
       supTys = ctx  -- XXX should do some checking
-      targs = supTys ++ methTys
+      targs = supTys ++ map snd methIdTys
       qiCls = qualIdent mn iCls
       tret = tApps qiCls (map tVarK vks)
       cti = [ (qualIdent mn iCon, length targs) ]
       iCon = mkClassConstructor iCls
       iConTy = EForall True vks $ foldr tArrow tret targs
+      tvs = map (EVar . idKindIdent) vks
+      methIdTys' = map (\ (i, t) -> (i, EForall True vks $ tApps qiCls tvs `tImplies` t)) methIdTys
+      addMethod (i, t) = extValETop i t (EVar $ qualIdent mn i)
   extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon) [])
-  let addMethod (Sign is t) = mapM_ method is
-        where method i = extValETop i (EForall True vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
-      addMethod _ = impossible
-  mapM_ addMethod meths
+  mapM_ addMethod methIdTys'
   -- Update class table, now with actual constructor type.
 --  traceM $ "addValueClass " ++ show (iCls, vks)
-  addClassTable qiCls (ClassInfo vks ctx iConTy methIds (mkIFunDeps (map idKindIdent vks) fds))
+  addClassTable qiCls (ClassInfo vks ctx iConTy (map fst methIdTys') (mkIFunDeps (map idKindIdent vks) fds))
 
 mkClassConstructor :: Ident -> Ident
 mkClassConstructor i = addIdentSuffix i "$C"
