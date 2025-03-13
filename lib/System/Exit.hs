@@ -6,7 +6,7 @@ module System.Exit(
   die,
   ) where
 import qualified Prelude(); import MiniPrelude
-import Control.Exception
+import Control.Exception.Core
 import Data.Typeable
 import System.IO
 

@@ -1,4 +1,5 @@
 module Data.Tuple.Instances where
+import qualified Prelude(); import MiniPrelude
 
 -- Dubious instances for tuples
 

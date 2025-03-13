@@ -3,7 +3,7 @@ import qualified Prelude(); import MHSPrelude
 import Data.List
 import Data.Maybe
 import Data.Version
-import Control.Exception
+import Control.Exception.Core
 import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)

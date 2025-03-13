@@ -29,6 +29,7 @@ library base
         Control.Error
         Control.Exception
         Control.Exception.Base
+        Control.Exception.Core
         Control.Monad
         Control.Monad.Fail
         Control.Monad.Fix

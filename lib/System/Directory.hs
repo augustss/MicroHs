@@ -13,7 +13,7 @@ module System.Directory(
   getHomeDirectory,
   ) where
 import qualified Prelude(); import MiniPrelude
-import Control.Exception(bracket)
+import Control.Exception.Core(bracket)
 import Control.Monad(when)
 import Foreign.C.String
 import Foreign.Marshal.Alloc
