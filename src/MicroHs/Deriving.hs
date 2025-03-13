@@ -21,7 +21,7 @@ import Debug.Trace
 --   constructor names in the derived type unqualified
 --   all other names should be qualified with B@
 
-deriveStrat :: Maybe (EConstraint, EType) -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
+deriveStrat :: Maybe EConstraint -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
 deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of arguments that need eta reducing
 --  trace ("deriveStrat " ++ show (mctx, newt, lhs, cs, strat, narg, cls)) $
   case strat of
@@ -37,7 +37,7 @@ deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of argum
            "Language.Haskell.TH.Syntax.Lift", "Text.Read.Internal.Read", "Text.Show.Show"]
 
 type DeriverT = Int -> LHS -> [Constr] -> EConstraint -> T [EDef]   -- Bool indicates a newtype
-type Deriver = Maybe (EConstraint, EType) -> DeriverT
+type Deriver = Maybe EConstraint -> DeriverT
 
 derivers :: [(String, Deriver)]
 derivers =
@@ -55,7 +55,7 @@ derivers =
   ,("Text.Show.Show",                  derShow)
   ]
 
-deriveNoHdr :: Maybe (EConstraint, EType) -> DeriverT
+deriveNoHdr :: Maybe EConstraint -> DeriverT
 deriveNoHdr mctx narg lhs cs d = do
 --  traceM ("deriveNoHdr " ++ show d)
   case getDeriver d of
@@ -169,8 +169,8 @@ decomp t =
 
 -- If there is no mctx we use the default strategy to derive the instance context.
 -- The default strategy basically extracts all subtypes with variables.
-mkHdr :: Maybe (EConstraint, EType) -> LHS -> [Constr] -> EConstraint -> T EConstraint
-mkHdr (Just (ctx, _)) _ _ _ = return ctx
+mkHdr :: Maybe EConstraint -> LHS -> [Constr] -> EConstraint -> T EConstraint
+mkHdr (Just ctx) _ _ _ = return ctx
 mkHdr _ lhs@(_, iks) cs cls = do
   ty <- mkLhsTy lhs
   let ctys :: [EType]  -- All top level types used by the constructors.
@@ -367,7 +367,7 @@ derRead _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 
-newtypeDer :: Maybe (EConstraint, EType) -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
+newtypeDer :: Maybe EConstraint -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
 newtypeDer mctx narg (tycon, iks) c acls mvia = do
   let loc = getSLoc cls
       (clsIks, cls) = unForall acls
@@ -384,7 +384,7 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
         case etaReduce (takeEnd narg iks) oldty' of  -- the underlying type, eta reduced
           ([], rt) -> return rt
           _ -> tcError loc "Bad deriving"
-  (hdr, newty) <-
+  hdr <-
     case mctx of
       Nothing -> do
         let iks' = dropEnd narg iks
@@ -399,10 +399,9 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
               case mvia of  -- the via type is also eta reduced
                 Just via -> [mkCoercible loc via newty]
                 Nothing  -> []
-            ctx = {-filter (not . null . freeTyVars . (:[]))-} (ctxOld : coOldNew : coOldVia)
-        pure (eForall (clsIks ++ iks') $ addConstraints ctx $ tApp cls newty, newty)
-      Just (hdr, newty) -> do
-        pure (hdr, newty)
+            ctx = filter (not . null . freeTyVars . (:[])) (ctxOld : coOldNew : coOldVia)
+        pure (eForall (clsIks ++ iks') $ addConstraints ctx $ tApp cls newty)
+      Just hdr -> pure hdr
 --  traceM ("newtypeDer: " ++ show (hdr, newty, viaty))
   ----
   let qiCls = getAppCon cls
@@ -413,18 +412,21 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> return x
 
-  let mkMethod (mi, amty) = do
-        let (tv, mty) =
+  -- hdr looks like forall vs . ctx => C t1 ... tn
+  let (_, newtys) = getApp $ dropContext $ dropForall hdr
+      mkMethod (mi, amty) = do
+        let (tvs, mty) =
               case amty of
-                EForall _ xs@(_:_) (EApp (EApp _implies _Ca) t) | IdKind i _ <- last xs -> (i, t)
+                EForall _ xs (EApp (EApp _implies _Ca) t) -> (map idKindIdent xs, t)
                 _ -> impossibleShow amty
             qvar t = EQVar t kType
             nty =
-              case subst [(tv, newty)] mty of
+              if length tvs /= length newtys then error "mkMethod: arity" else
+              case subst (zip tvs newtys) mty of
                 EForall _ vks t -> EForall True (map (\ (IdKind i _) -> IdKind i (EVar dummyIdent)) vks) $ qvar t
                 t -> qvar t
 
-            vty = qvar $ dropContext $ dropForall $ subst [(tv, viaty)] mty
+            vty = qvar $ dropContext $ dropForall $ subst (zip tvs (init newtys ++ [viaty])) mty
             msign = Sign [mi] nty
             qmi = EQVar (EVar $ qualIdent clsQual mi) amty   -- Use a qualified name for the method
             body = Fcn mi [eEqn [] $ eAppI2 (mkBuiltin loc "coerce") (ETypeArg vty) qmi]
@@ -456,7 +458,7 @@ etaReduce ais = eta (reverse ais)
   where eta (IdKind i _ : is) (EApp t (EVar i')) | i == i' && i `notElem` freeTyVars [t] = eta is t
         eta is t = (reverse is, t)
 
-anyclassDer :: Maybe (EConstraint, EType) -> Int -> LHS -> EConstraint -> T [EDef]
+anyclassDer :: Maybe EConstraint -> Int -> LHS -> EConstraint -> T [EDef]
 anyclassDer mctx _ lhs cls = do
   hdr <- mkHdr mctx lhs [] cls
   return [Instance hdr []]

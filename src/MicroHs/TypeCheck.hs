@@ -3431,11 +3431,9 @@ standaloneDeriving :: DerStrategy -> Int -> EConstraint -> T [EDef]
 standaloneDeriving str narg act = do
   let (_vks, _ctx, cc) = splitContext act
 --  traceM ("standaloneDeriving 1 " ++ show (_vks, _ctx, cc))
-  (cls, ts, tname, ty) <-
+  (cls, ts, tname) <-
     case getAppM cc of
-      Just (c, ts@(_:_)) |
-        let t = last ts,
-        Just (n, _) <- getAppM t -> return (c, init ts, n, t)
+      Just (c, ts@(_:_)) | Just (n, _) <- getAppM (last ts) -> return (c, init ts, n)
       _ -> tcError (getSLoc act) "malformed standalone deriving"
 --  traceM ("standaloneDeriving 2 " ++ show (act, cls, tname))
   dtable <- gets dataTable
@@ -3445,4 +3443,4 @@ standaloneDeriving str narg act = do
       Just (Data    l xs _) -> return (l, False, xs)
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
-  deriveStrat (Just (act, ty)) newt lhs cs str (narg, tApps cls ts)
+  deriveStrat (Just act) newt lhs cs str (narg, tApps cls ts)
