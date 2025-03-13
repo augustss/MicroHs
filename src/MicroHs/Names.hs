@@ -104,6 +104,18 @@ nameByteString = "Data.ByteString.Internal.ByteString"
 identByteString :: Ident
 identByteString = mkIdentB nameByteString
 
+identIO :: Ident
+identIO = mkIdentB "Primitives.IO"
+
+identUnit :: Ident
+identUnit = mkIdentB "()"
+
+identPtr :: Ident
+identPtr = mkIdentB "Primitives.Ptr"
+
+identFunPtr :: Ident
+identFunPtr = mkIdentB "Primitives.FunPtr"
+
 -----
 
 instPrefix :: String

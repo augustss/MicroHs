@@ -46,7 +46,7 @@ module MicroHs.Expr(
   getArrow, getArrows,
   showExprRaw,
   mkEStr, mkExn,
-  getAppM,
+  getAppM, getApp,
   TyVar, freeTyVars,
   getImplies,
   ) where
@@ -1073,6 +1073,9 @@ getAppM = loop []
         loop as (EApp f a) = loop (a:as) f
         loop as (EParen e) = loop as e
         loop _ _ = Nothing
+
+getApp :: HasCallStack => EType -> (Ident, [EType])
+getApp t = fromMaybe (impossibleShow t) $ getAppM t
 
 type TyVar = Ident
 

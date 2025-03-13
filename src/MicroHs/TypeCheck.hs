@@ -203,9 +203,6 @@ tyQIdent _ = error "tyQIdent"
 eVarI :: SLoc -> String -> Expr
 eVarI loc = EVar . mkIdentSLoc loc
 
-getApp :: HasCallStack => EType -> (Ident, [EType])
-getApp t = fromMaybe (impossibleShow t) $ getAppM t
-
 -- Construct a dummy TModule for the currently compiled module.
 -- It has all the relevant export tables.
 -- The value&type export tables will later be filtered through the export list.
