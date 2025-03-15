@@ -606,7 +606,7 @@ expandSyn at = do
     chk (EForall _ _ t) = chk t
     chk (ELit _ _) = return ()
     chk _ = impossible
-  chk rt
+--  chk rt
   return rt
 
 -- Expand with the given synonym table.

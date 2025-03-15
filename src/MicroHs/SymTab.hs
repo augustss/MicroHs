@@ -23,7 +23,6 @@ import MicroHs.Expr(Expr(..), EType, conIdent)
 import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent, isUpperX)
 import MicroHs.List
 import qualified MicroHs.IdentMap as M
-import Debug.Trace
 
 -- Symbol table
 --
@@ -108,9 +107,7 @@ hackBuiltin i =
     _            -> i
 
 stFromList :: [(Ident, [Entry])] -> [(Ident, [Entry])] -> SymTab
-stFromList us qs =
-  xchks (concatMap snd us ++ concatMap snd qs) $
-  SymTab [] (M.fromListWith union us) (M.fromListWith union qs)
+stFromList us qs = SymTab [] (M.fromListWith union us) (M.fromListWith union qs)
 
 stElemsLcl :: SymTab -> [Entry]
 stElemsLcl (SymTab l _ _) = map snd l
@@ -124,31 +121,23 @@ stKeysGlbU (SymTab _ m _) = M.keys m
 stInsertLcl :: HasCallStack => Ident -> Entry -> SymTab -> SymTab
 stInsertLcl i a (SymTab l ug qg)
 {-  | isQual i = error $ "stInsertLcl " ++ showIdent i
-  | otherwise -} = xchk a $ SymTab ((i, a) : l) ug qg
+  | otherwise -} = SymTab ((i, a) : l) ug qg
 
 stInsertGlbU :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
 stInsertGlbU i as (SymTab l ug qg)
 {-  | isQual i = error $ "stInsertGlbU " ++ showIdent i
-  | otherwise -} = xchks as $ SymTab l (M.insert i as ug) qg
+  | otherwise -} = SymTab l (M.insert i as ug) qg
 
 stInsertGlbQ :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
 stInsertGlbQ i as (SymTab l ug qg)
 {-  | not (isQual i) = error $ "stInsertGlbQ " ++ showIdent i
-  | otherwise -} = xchks as $ SymTab l ug (M.insert i as qg)
+  | otherwise -} = SymTab l ug (M.insert i as qg)
 
 -- Pick the correct table to insert in
 stInsertGlbA :: HasCallStack => Ident -> [Entry] -> SymTab -> SymTab
-stInsertGlbA i as (SymTab l ug qg) | isQual i  = xchks as $ SymTab l ug (M.insertWith union i as qg)
-                                   | otherwise = xchks as $ SymTab l (M.insertWith union i as ug) qg
+stInsertGlbA i as (SymTab l ug qg) | isQual i  = SymTab l ug (M.insertWith union i as qg)
+                                   | otherwise = SymTab l (M.insertWith union i as ug) qg
 
 isQual :: Ident -> Bool
 isQual i = isUpperX (head s) && elem '.' s
   where s = unIdent i
-
-xchk :: Entry -> a -> a
-xchk (Entry i t) a | isSuffixOf "mkTyCon" (show i) = trace (show (i, t)) a
-                   | otherwise = a
-
-xchks :: [Entry] -> a -> a
-xchks [] a = a
-xchks (e:es) a = xchk e $ xchks es a
