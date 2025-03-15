@@ -146,7 +146,7 @@ isQual i = isUpperX (head s) && elem '.' s
   where s = unIdent i
 
 xchk :: Entry -> a -> a
-xchk (Entry i t) a | True || isSuffixOf "mkTyCon" (show i) = trace (show (i, t)) a
+xchk (Entry i t) a | isSuffixOf "mkTyCon" (show i) = trace (show (i, t)) a
                    | otherwise = a
 
 xchks :: [Entry] -> a -> a

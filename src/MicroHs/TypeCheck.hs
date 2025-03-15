@@ -231,8 +231,8 @@ mkTModule impt tds tcs =
                 _ -> getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
-    ists <- mapM (\ (is, t) -> (,) is (expandSyn t)) [ (is, t) | Sign is t <- tds ]
-    ves = [ ValueExport i (ventry i t) | (is, t) <- ists, i <- is ]
+    ves = [ ValueExport i (ventry i t') | Sign is t <- tds, i <- is, let t' = expandSyn' st t ]
+      where st = synTable tcs
 
     -- All top level types possible to export.
     tes =
@@ -396,7 +396,7 @@ addInstTable ics = do
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  tcTrace $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
-  ctx' <- expandSyn2 ctx
+  ctx' <- expandSyn1 ctx
   modify $ \ ts -> ts{ constraints = (d, ctx') : constraints ts }
 
 withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
@@ -595,6 +595,25 @@ expandSyn :: HasCallStack =>
 expandSyn at = do
   syns <- gets synTable
   let
+    rt = expandSyn' syns at
+    -- Check that there are no unexpanded synonyms left
+    chk (EApp f a) = do chk f; chk a
+    chk (EVar i) =
+      case M.lookup i syns of
+        Nothing -> return ()
+        _ -> tcError (getSLoc i) "bad synonym use"
+    chk (EUVar _) = return ()
+    chk (EForall _ _ t) = chk t
+    chk (ELit _ _) = return ()
+    chk _ = impossible
+  chk rt
+  return rt
+
+-- Expand with the given synonym table.
+expandSyn' :: HasCallStack =>
+              SynTable -> EType -> EType
+expandSyn' syns = esyn
+  where
     esyn = syn []
     -- Expand synonyms that have enough arguments
     syn ts t =
@@ -612,7 +631,7 @@ expandSyn at = do
                     eApps t ts
                   else
                     -- Too few arguments, just leave it alone
-                    syn (drop lis ts) (subst s tt) 
+                    syn (drop lis ts) (subst s tt)
             Just _ -> impossible
         EUVar _ -> eApps t ts
         ESign a _ -> syn ts a   -- Throw away signatures, they don't affect unification
@@ -620,19 +639,7 @@ expandSyn at = do
         ELit _ (LStr _) -> t
         ELit _ (LInteger _) -> t
         _ -> impossibleShow t
-    -- Check that there are no unexpanded synonyms left
-    chk (EApp f a) = do chk f; chk a
-    chk (EVar i) =
-      case M.lookup i syns of
-        Nothing -> return ()
-        _ -> tcError (getSLoc i) "bad synonym use"
-    chk (EUVar _) = return ()
-    chk (EForall _ _ t) = chk t
-    chk (ELit _ _) = return ()
-    chk _ = impossible
-    rt = esyn at
-  chk rt
-  return rt
+
 
 hasSyn :: HasCallStack => EType -> T ()
 hasSyn ty = do
@@ -830,7 +837,7 @@ extValETop i t e = do
   mn <- gets moduleName
   venv <- gets valueTable
   t' <- expandSyn t                 -- expand type synonyms before entering the symbol table
-  when (show i == "mkTyCon") $ traceM (show "extValETop " ++ show (i, t, t'))
+--  when (show i == "mkTyCon") $ traceM (show "extValETop " ++ show (i, t, t'))
   let qi = qualIdent mn i
       venv'  = stInsertGlbQ qi [Entry e t'] venv
       venv'' = stInsertGlbU  i [Entry e t'] venv'
@@ -1299,7 +1306,7 @@ splitContext act =
 -- whereas value expressions do not.
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance act bs) = do
-  (vks, ctx, cc) <- splitContext <$> expandSyn1 act
+  (vks, ctx, cc) <- splitContext <$> expandSyn act
   let loc = getSLoc act
       qiCls = getAppCon cc
       iInst = mkInstId loc cc
@@ -1955,7 +1962,7 @@ tcExprAp mt ae args = do
            | otherwise -> do
              -- Type checking an expression (or type)
              (fn, t) <- tLookupV i
-             traceM ("tcExprAp " ++ show (fn, t))
+--             traceM ("tcExprAp " ++ show (fn, t))
              hasSyn t
              -- Variables bound in patterns start out with an (EUVar ref) type,
              -- which can be instantiated to a polytype.
@@ -3208,8 +3215,8 @@ solveCoercible :: HasCallStack => SolveOne
 solveCoercible loc _iCls [t1, t2] = do
   st <- gets synTable
   extNewtypeSyns        -- pretend newtypes are type synonyms
-  t1' <- expandSyn1 t1
-  t2' <- expandSyn1 t2
+  t1' <- expandSyn t1
+  t2' <- expandSyn t2
   putSynTable st
   -- walk over the types in parallel,
   -- and generate new Coercible constraints when not equal.
@@ -3497,4 +3504,3 @@ standaloneDeriving str narg act = do
 chksym :: T ()
 chksym = return ()
 --  vt <- gets valueTable
-  
