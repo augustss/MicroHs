@@ -392,6 +392,12 @@ addInstTable ics = do
   it <- gets instTable
   putInstTable $ foldr (uncurry $ M.insertWith mergeInstInfo) it iis
 
+newDict :: SLoc -> EConstraint -> T Expr
+newDict loc ctx = do
+  d <- newDictIdent loc
+  addConstraint d ctx
+  return (EVar d)
+
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  tcTrace $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
@@ -769,9 +775,8 @@ tInst ae at | Just (ctx, t) <- getImplies at = do
     --  (C a => a) -> T `subsCheck` b
     tInst ae t
    else do
-    d <- newDictIdent (getSLoc ae)
-    addConstraint d ctx
-    tInst (EApp ae (EVar d)) t
+    d <- newDict (getSLoc ae) ctx
+    tInst (EApp ae d) t
 tInst ae at = return (ae, at)
 
 tInstForall :: [IdKind] -> EType -> T EType
