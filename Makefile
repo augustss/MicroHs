@@ -171,8 +171,8 @@ bin/umhs: bin/mhs
 
 #
 timecompile: bin/mhs
-	date
-	git rev-parse HEAD
+	@date
+	@git rev-parse HEAD
 	time bin/mhs +RTS -v -RTS -s $(MHSINC) $(MAINMODULE)
 
 #
