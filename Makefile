@@ -182,6 +182,12 @@ timecachecompile: bin/mhs
 	time bin/mhs +RTS -v -RTS -CR -s $(MHSINC) $(MAINMODULE)
 
 #
+timemhscompile:
+	@date
+	@git rev-parse HEAD
+	time mhs +RTS -v -RTS -z -s -imhs -isrc -ipaths $(MAINMODULE)
+
+#
 cachelib:
 	@-rm -f .mhscache
 	bin/mhs -CW AllOfLib
