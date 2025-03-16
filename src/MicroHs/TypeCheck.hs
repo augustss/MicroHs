@@ -396,8 +396,7 @@ addInstTable ics = do
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  tcTrace $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
-  ctx' <- expandSyn1 ctx
-  modify $ \ ts -> ts{ constraints = (d, ctx') : constraints ts }
+  modify $ \ ts -> ts{ constraints = (d, ctx) : constraints ts }
 
 withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
 withDicts ds ta = do
@@ -421,7 +420,7 @@ withDict i c ta = do
 
 addDict :: HasCallStack => (Ident, EConstraint) -> T ()
 addDict (i, c) = do
-  c' <- expandSyn1 c >>= derefUVar
+  c' <- derefUVar c
   if null (metaTvs [c']) then
     addInstDict i c'
    else
@@ -431,8 +430,7 @@ addDict (i, c) = do
 
 addInstDict :: HasCallStack => Ident -> EConstraint -> T ()
 addInstDict di c = do
-  c' <- expandSyn1 c
-  ics <- expandDict (EVar di) c'
+  ics <- expandDict (EVar di) c
   -- Type equalities are handled differently.
   let addeq [] = return []
       addeq ((_, _, _, EApp (EApp (EVar eq) t1) t2, _):is) | eq == identTypeEq = do addEqDict t1 t2; addeq is
@@ -581,12 +579,6 @@ munify :: HasCallStack =>
 munify loc (Infer r) b = tSetRefType loc r b
 munify loc (Check a) b = unify loc a b
 
-expandSyn1 :: EType -> T EType
-expandSyn1 t = return t
-
-expandSyn2 :: EType -> T EType
-expandSyn2 t = expandSyn t
-
 -- Synonyms are expanded after kind checking.
 -- There should be no synonyms in any of the symbol tables (except synTable).
 expandSyn :: HasCallStack =>
@@ -606,7 +598,7 @@ expandSyn at = do
     chk (EForall _ _ t) = chk t
     chk (ELit _ _) = return ()
     chk _ = impossible
---  chk rt
+  chk rt
   return rt
 
 -- Expand with the given synonym table.
@@ -640,21 +632,6 @@ expandSyn' syns = esyn
         ELit _ (LInteger _) -> t
         _ -> impossibleShow t
 
-
-hasSyn :: HasCallStack => EType -> T ()
-hasSyn ty = do
-  syns <- gets synTable
-  let
-    has (EApp f a) =   has f ||   has a
-    has (EVar i) =
-      case M.lookup i syns of
-        Nothing -> False
-        _ -> True
-    has (EUVar _) = False
-    has (EForall _ _ t) =   has t
-    has (ELit _ _) = False
-    has _ = impossible
-  when (has ty) undefined
 
 mapEType :: (EType -> EType) -> EType -> EType
 mapEType fn = rec
@@ -708,10 +685,7 @@ msgTCMode' TCSort = "realm"
 
 unify :: HasCallStack =>
          SLoc -> EType -> EType -> T ()
-unify loc a b = do
-  aa <- expandSyn1 a
-  bb <- expandSyn1 b
-  unifyR loc aa bb
+unify loc a b = unifyR loc a b
 
 unifyR :: HasCallStack =>
           SLoc -> EType -> EType -> T ()
@@ -791,11 +765,9 @@ tLookupV i = do
 tInst :: HasCallStack => Expr -> EType -> T (Expr, EType)
 --tInst ae t | trace ("tInst: " ++ show (ae, t)) False = undefined
 tInst ae (EForall _ vks t) = do
-  hasSyn t
   t' <- tInstForall vks t
   tInst ae t'
 tInst ae at | Just (ctx, t) <- getImplies at = do
-  hasSyn at
   --tcTrace $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
   if eqExpr ae eCannotHappen then
     -- XXX Gruesome hack.  This avoid adding constraints in cases like
@@ -806,7 +778,6 @@ tInst ae at | Just (ctx, t) <- getImplies at = do
     addConstraint d ctx
     tInst (EApp ae (EVar d)) t
 tInst ae at = do
-  hasSyn at
   return (ae, at)
 
 tInstForall :: [IdKind] -> EType -> T EType
@@ -825,7 +796,6 @@ tInst' t = return t
 extValE :: HasCallStack =>
            Ident -> EType -> Expr -> T ()
 extValE i t e = do
-  hasSyn t
   venv <- gets valueTable
   putValueTable (stInsertLcl i (Entry e t) venv)
 
@@ -936,7 +906,7 @@ tcDefs flags impt ds = do
 setDefault :: [EDef] -> T ()
 setDefault defs = do
   tys <- gets typeTable
-  ds <- sequence [ do { ts' <- mapM expandSyn1 ts; return (tyQIdent $ expLookup c tys, ts') }
+  ds <- sequence [ do { ts' <- mapM expandSyn ts; return (tyQIdent $ expLookup c tys, ts') }
                  | Default (Just c) ts <- defs ]
   dflts <- gets defaults
   let dflts' = foldr (uncurry M.insert) dflts ds
@@ -1140,7 +1110,7 @@ tcDeriving (tyId, vks) (Deriving strat cs) = do
         --traceM $ "tcDerive 1: " ++ show c
         c' <- tCheckTypeTImpl True (k `kArrow` kConstraint) c
         --traceM $ "tcDerive 2: " ++ show c
-        (ks, _) <- getArrows <$> (expandSyn1 =<< derefUVar k)  -- get [k1,...,kn] and final kind
+        (ks, _) <- getArrows <$> derefUVar k  -- get [k1,...,kn] and final kind
         -- Checking that the final kind is Type happens with the tc call below.
         let r = length ks                      -- number of args consumed by c
             m = length vks                     -- number of args given to the data type
@@ -1531,14 +1501,13 @@ tcDefValue adef =
   case adef of
     Fcn i eqns -> do
       (_, t) <- tLookup "type signature" i
-      t' <- expandSyn1 t
 --      when (isConIdent i) $ do
---        tcTrace $ "tcDefValue: patsyn\n" ++ show i ++ " :: " ++ show t'
+--        tcTrace $ "tcDefValue: patsyn\n" ++ show i ++ " :: " ++ show t
 --        tcTrace $ "tcDefValue:\n" ++ showEDefs [adef]
 --      tcTrace $ "tcDefValue: ------- start " ++ showIdent i
---      tcTrace $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t'
+--      tcTrace $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t
 --      tcTrace $ "tcDefValue: " ++ showEDefs [adef]
-      teqns <- tcEqns True t' eqns
+      teqns <- tcEqns True t eqns
 --      tcTrace ("tcDefValue: after\n" ++ showEDefs [adef, Fcn i teqns])
 --      cs <- gets constraints
 --      tcTrace $ "tcDefValue: constraints: " ++ show cs
@@ -1707,9 +1676,6 @@ tcExprR :: HasCallStack =>
 tcExprR mt ae = do
   let { loc = getSLoc ae }
 --  trace ("tcExprR " ++ show ae) $
-  case mt of
-    Check t -> hasSyn t
-    _ -> return ()
   case ae of
     EVar i | isIdent dictPrefixDollar i -> do
              -- Magic variable that just becomes the dictionary
@@ -1749,7 +1715,7 @@ tcExprR mt ae = do
             _      -> impossible
         TCExpr -> do
           let getExpected (Infer _) = pure Nothing
-              getExpected (Check t) = Just <$> (derefUVar t >>= expandSyn1)
+              getExpected (Check t) = Just <$> derefUVar t
           case lit of
             LInteger i -> do
               mex <- getExpected mt
@@ -1963,7 +1929,6 @@ tcExprAp mt ae args = do
              -- Type checking an expression (or type)
              (fn, t) <- tLookupV i
 --             traceM ("tcExprAp " ++ show (fn, t))
-             hasSyn t
              -- Variables bound in patterns start out with an (EUVar ref) type,
              -- which can be instantiated to a polytype.
              -- Dereference such a ref.
@@ -2908,8 +2873,7 @@ canonPatSynType at = do
       getImplies' :: EType -> (EConstraint, EType)
       getImplies' ty = fromMaybe (emptyCtx, ty) $ getImplies ty
 
-  at' <- expandSyn1 at
-  case at' of
+  case at of
     EForall False vks t0 -> do
       -- Implicit forall, the xs need to be split between required and provided.
       let (reqCtx, t1) = getImplies' t0
@@ -2945,7 +2909,7 @@ splitPatSynType t = impossibleShow t
 --  * components of a tupled constraint
 --  * superclasses of a constraint
 expandDict :: HasCallStack => Expr -> EConstraint -> T [InstDictC]
-expandDict edict ct = expandDict' [] [] edict =<< expandSyn1 ct
+expandDict edict ct = expandDict' [] [] edict ct
 
 expandDict' :: HasCallStack => [IdKind] -> [EConstraint] -> Expr -> EConstraint -> T [InstDictC]
 expandDict' avks actx edict acc = do
