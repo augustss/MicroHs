@@ -22,6 +22,7 @@ import MicroHs.Exp
 import MicroHs.Flags
 import MicroHs.Graph
 import MicroHs.Ident
+import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.State as S
 import MicroHs.TypeCheck
@@ -155,8 +156,15 @@ dsBinds ads ret =
     gr = map node $ checkDup ds
     asccs = stronglyConnComp gr
     loop _ [] = ret
-    loop vs (AcyclicSCC (i, e) : sccs) =
-      letE i e $ loop vs sccs
+    loop vs (AcyclicSCC ie@(i, e) : sccs) | not (cheap e) = letE i e $ loop vs sccs
+                                          | otherwise = cheapAcyclic 1 [ie] sccs
+      -- With many acyclic cheap definitions we want to do a parallel substitution,
+      -- rather than one by one.
+      where cheapAcyclic n r (AcyclicSCC x@(_, e') : sccs') | cheap e' = cheapAcyclic (n+1 :: Int) (x:r) sccs'
+            cheapAcyclic n r sccs' | n > 50 = substExps r $ loop vs sccs'
+                                   | otherwise =
+                                     --trace (show n) $
+                                     foldl (\ b (i', e') -> letE i' e' b) (loop vs sccs') r
     loop vs (CyclicSCC [(i, e)] : sccs) =
       case lazier (i, e) of
         (i', e')
@@ -170,6 +178,36 @@ dsBinds ads ret =
 letE :: Ident -> Exp -> Exp -> Exp
 letE i e b = eLet i e b          -- do some minor optimizations
              --App (Lam i b) e
+
+substExps :: [(Ident, Exp)] -> Exp -> Exp
+substExps s ae =
+  trace ("substExps " ++ show (length s)) $
+  substExps' (M.fromList s) ae
+
+substExps' :: M.Map Exp -> Exp -> Exp
+substExps' s ae =
+  case ae of
+    Var i -> case M.lookup i s of Nothing -> ae; Just e -> substExps' s e
+    App f a -> App (substExps' s f) (substExps' s a)
+    Lit _ -> ae
+    Lam i e ->
+      let s' = M.delete i s
+      in  if M.null s' then
+            ae
+          else
+            if elem i (concatMap freeVars (M.elems s')) then
+              let
+                fe = allVarsExp e
+                ase = concatMap allVarsExp (M.elems s')
+                j = head [ v | n <- enumFrom (0::Int)
+                         , let { v = mkIdent ("a" ++ show n) }
+                         , not (elem v ase), not (elem v fe)
+                         , isNothing (M.lookup i s') ]
+              in
+                 --trace ("substExps " ++ show [i, j]) $
+                 Lam j (substExps' s' (substExp i (Var j) e))
+          else
+            Lam i (substExps' s' e)
 
 -- Do a single recursive definition 'let i = e in b'
 -- by 'let i = Y (\i.e) in b'
@@ -502,7 +540,10 @@ cheap ae =
 
 eLet :: Ident -> Exp -> Exp -> Exp
 eLet i e b | cheap e = substExp i e b    -- always inline variables and literals
-eLet i e b =
+           | otherwise = eLet' i e b
+
+eLet' :: Ident -> Exp -> Exp -> Exp
+eLet' i e b =
   if i == dummyIdent then
     b
   else
