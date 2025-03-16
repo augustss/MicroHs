@@ -392,6 +392,23 @@ addInstTable ics = do
   it <- gets instTable
   putInstTable $ foldr (uncurry $ M.insertWith mergeInstInfo) it iis
 
+-- Generate a dictionary for the constraint.
+-- Reuse old dictionaries if possible.
+newDict :: SLoc -> EConstraint -> T Expr
+newDict loc ctx = do
+  ctx' <- derefUVar ctx
+  cs <- gets constraints
+  -- Check if there's already an identical constraint.
+  case find (\ (_, c) -> eqEType c ctx') cs of
+    Just (i, _) -> do
+--      traceM ("newDict reuse: " ++ show (i, ctx'))
+      return (EVar i)
+    _ -> do
+      i <- newDictIdent loc
+--      traceM ("newDict: " ++ show (i, ctx', length cs))
+      addConstraint i ctx'
+      return (EVar i)
+
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  tcTrace $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
@@ -764,15 +781,35 @@ tInst ae (EForall _ vks t) = do
   tInst ae t'
 tInst ae at | Just (ctx, t) <- getImplies at = do
   --tcTrace $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
+{-
   if eqExpr ae eCannotHappen then
-    -- XXX Gruesome hack.  This avoid adding constraints in cases like
+    -- XXX Gruesome hack.  This avoids adding constraints in cases like
     --  (C a => a) -> T `subsCheck` b
-    tInst ae t
+    undefined
+    --tInst ae t
    else do
-    d <- newDictIdent (getSLoc ae)
-    addConstraint d ctx
-    tInst (EApp ae (EVar d)) t
+-}
+    d <- newDict (getSLoc ae) ctx
+    tInst (EApp ae d) t
 tInst ae at = return (ae, at)
+
+-- Instantiate a function, but delay generating the dictionaries.
+-- When generating the dictionaries here (like tInst) there
+-- is no type information; just a type variable.
+-- By delaying the dictionary generation we gain more
+-- type information, and can avoid let binding dictionaries by
+--  * finding an already bound dictionary for the same constraint
+--  * solving the constraint early
+tInstDelay :: HasCallStack => EType -> T ([EConstraint], EType)
+--tInstDelay  t | trace ("tInstDelay: " ++ show (ae, t)) False = undefined
+tInstDelay = inst []
+  where
+    inst cs (EForall _ vks t) = do
+      t' <- tInstForall vks t
+      inst cs t'
+    inst cs at | Just (ctx, t) <- getImplies at =
+      inst (ctx:cs) t
+    inst cs at = return (reverse cs, at)
 
 tInstForall :: [IdKind] -> EType -> T EType
 tInstForall vks t =
@@ -1656,7 +1693,7 @@ tcExprR :: HasCallStack =>
            Expected -> Expr -> T Expr
 tcExprR mt ae =
   let { loc = getSLoc ae } in
---  trace ("tcExprR " ++ show ae) $
+--  trace ("tcExprR " ++ show (ae, mt)) $
   case ae of
     EVar i | isIdent dictPrefixDollar i -> do
              -- Magic variable that just becomes the dictionary
@@ -1928,16 +1965,16 @@ tcExprAp mt ae args =
 
 tcExprApFn :: HasCallStack =>
               Expected -> Expr -> EType -> [Expr] -> T Expr
---tcExprApFn _ fn fnt args | trace ("tcExprApFn: " ++ show (fn, fnt, args)) False = undefined
+--tcExprApFn mt fn fnt args | trace ("tcExprApFn: " ++ show (fn, fnt, args, mt)) False = undefined
 tcExprApFn mt fn (EForall {-True-}_ (IdKind i k:iks) ft) (ETypeArg t : args) = do
   t' <- if t `eqEType` EVar dummyIdent then newUVar else tcType (Check k) t
   tcExprApFn mt fn (subst [(i, t')] $ eForall iks ft) args
-tcExprApFn mt fn atfn args = do
---  traceM $ "tcExprApFn: " ++ show (mt, fn, tfn, args)
+tcExprApFn mt fn atfn aargs = do
+--  traceM $ "tcExprApFn: " ++ show (mt, fn, tfn, aargs)
 --  xx <- gets ctxTables
 --  traceM $ "tcExprApFn: ctxTables=" ++ show xx
   let loc = getSLoc fn
-  (fn', tfn') <- tInst fn atfn
+  (ctxs, tfn') <- tInstDelay atfn
 --  traceM $ "tcExprApFn: (fn', tfn') = " ++ show (fn', tfn')
   let loop ats     [] ft = final ats ft
       loop ats as@(_:_) (EForall _ vks ft) = do
@@ -1946,6 +1983,7 @@ tcExprApFn mt fn atfn args = do
       loop ats (a:as) ft = do
         (at, rt) <- unArrow loc ft
         loop ((a, at):ats) as rt
+
       final aats rt = do
 
         -- We want to do the unification of rt ant mt before checking the argument to
@@ -1955,11 +1993,11 @@ tcExprApFn mt fn atfn args = do
             ugly = -1::Int
         etmp' <- instSigma loc etmp rt mt
 
-        let apply f [] = return f
-            apply f ((a,at):ats) = do
-              a' <- checkSigma a at
-              apply (EApp f a') ats
-        res <- apply fn' (reverse aats)
+        args <- mapM (uncurry checkSigma) (reverse aats)
+        dicts <- mapM (newDict loc) ctxs
+        let res = foldl EApp fn (dicts ++ args)
+--        traceM (show res)
+
 --        cc <- gets constraints
 --        traceM $ "tcExprApFn: constraints=" ++ show cc
 
@@ -1969,7 +2007,7 @@ tcExprApFn mt fn atfn args = do
 
         instSigma loc res rt mt
 
-  loop [] args tfn'
+  loop [] aargs tfn'
 
 -- Is a pattern failure free?
 failureFree :: EPat -> T Bool
@@ -2378,9 +2416,17 @@ tcPat mt ae =
       return (sk, d, EAt i p')
 
     EViewPat e p -> do
-      (e', te) <- tInferExpr e
-      (tea, ter) <- unArrow loc te
-      munify loc mt tea
+      (e', ter) <-
+        case mt of
+          Infer _ -> do
+            (e', te) <- tInferExpr e
+            (tea, ter) <- unArrow loc te
+            munify loc mt tea
+            return (e', ter)
+          Check tea -> do
+            ter <- newUVar
+            e' <- tCheckExpr (tea `tArrow` ter) e
+            return (e', ter)
       (sk, d, p') <- tcPat (Check ter) p
       return (sk, d, EViewPat e' p')
 
