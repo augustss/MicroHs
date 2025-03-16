@@ -2383,9 +2383,17 @@ tcPat mt ae =
       return (sk, d, EAt i p')
 
     EViewPat e p -> do
-      (e', te) <- tInferExpr e
-      (tea, ter) <- unArrow loc te
-      munify loc mt tea
+      (e', ter) <-
+        case mt of
+          Infer _ -> do
+            (e', te) <- tInferExpr e
+            (tea, ter) <- unArrow loc te
+            munify loc mt tea
+            return (e', ter)
+          Check tea -> do
+            ter <- newUVar
+            e' <- tCheckExpr (tea `tArrow` ter) e
+            return (e', ter)
       (sk, d, p') <- tcPat (Check ter) p
       return (sk, d, EViewPat e' p')
 
