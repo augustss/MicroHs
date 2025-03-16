@@ -26,6 +26,7 @@ import Data.ByteString.Char8
 import Data.ByteString.Lazy.Char8
 import Data.Char
 import Data.Char_Type
+import Data.Char.Unicode
 import Data.Coerce
 import Data.Complex
 import Data.Constraint
@@ -80,6 +81,7 @@ import Data.Semigroup
 import Data.STRef
 import Data.String
 import Data.Text
+import Data.Text.Encoding
 import Data.Text.IO
 import Data.Text.Lazy
 import Data.Text.Lazy.IO

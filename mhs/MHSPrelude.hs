@@ -34,7 +34,7 @@ module MHSPrelude(
   wantGMP,
   compiledWithMhs,
   ) where
-import Prelude()
+import qualified Prelude()
 --import Primitives(primRnfNoErr, primRnfErr)
 import Control.Applicative(Applicative(..))
 import Control.Error(error, undefined)

@@ -1,5 +1,5 @@
 module Data.Double(Double) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Data.Bool
 import Data.Eq

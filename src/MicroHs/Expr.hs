@@ -6,6 +6,7 @@ module MicroHs.Expr(
   ImportItem(..),
   ImpType(..),
   EDef(..), showEDefs,
+  Deriving(..), DerStrategy(..),
   Expr(..), eLam, eLamWithSLoc, eEqn, eEqns, showExpr, eqExpr,
   Listish(..),
   Lit(..), showLit,
@@ -30,9 +31,9 @@ module MicroHs.Expr(
   Con(..), conIdent, conArity, conFields,
   tupleConstr, getTupleConstr,
   mkTupleSel,
-  eApp2, eAppI2, eApp3, eAppI3, eApps,
+  eAppI, eApp2, eAppI2, eApp3, eAppI3, eApps,
   lhsToType,
-  subst,
+  subst, allBinders,
   allVarsExpr, allVarsBind, allVarsEqns, allVarsPat,
   setSLocExpr,
   errorMessage,
@@ -45,14 +46,15 @@ module MicroHs.Expr(
   getArrow, getArrows,
   showExprRaw,
   mkEStr, mkExn,
-  getAppM,
+  getAppM, getApp,
   TyVar, freeTyVars,
   getImplies,
   ) where
-import Prelude(); import MHSPrelude hiding ((<>))
+import qualified Prelude(); import MHSPrelude hiding ((<>))
 import Control.Arrow(first)
 import Data.List
 import Data.Maybe
+import MicroHs.Builtin
 import MicroHs.Ident
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
@@ -72,8 +74,8 @@ data ExportItem
 --DEBUG  deriving (Show)
 
 data EDef
-  = Data LHS [Constr] Deriving
-  | Newtype LHS Constr Deriving
+  = Data LHS [Constr] [Deriving]
+  | Newtype LHS Constr [Deriving]
   | Type LHS EType
   | Fcn Ident [Eqn]
   | PatBind EPat Expr
@@ -86,7 +88,7 @@ data EDef
   | Instance EConstraint [EBind]
   | Default (Maybe Ident) [EType]
   | Pattern LHS EPat (Maybe [Eqn])
-  | Deriving EConstraint
+  | StandDeriving DerStrategy Int EConstraint
   | DfltSign Ident EType                      -- only in class declarations
 --DEBUG  deriving (Show)
 
@@ -105,7 +107,7 @@ instance NFData EDef where
   rnf (Instance a b) = rnf a `seq` rnf b
   rnf (Default a b) = rnf a `seq` rnf b
   rnf (Pattern a b c) = rnf a `seq` rnf b `seq` rnf c
-  rnf (Deriving a) = rnf a
+  rnf (StandDeriving a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (DfltSign a b) = rnf a `seq` rnf b
 
 data ImpType = ImpNormal | ImpBoot
@@ -130,7 +132,22 @@ instance NFData ImportItem where
   rnf (ImpTypeAll a) = rnf a
   rnf (ImpValue a) = rnf a
 
-type Deriving = [EConstraint]
+data Deriving = Deriving DerStrategy [(Int, EConstraint)] -- The Int is added by the type checker, it indicates how many arguments to keep
+--DEBUG  deriving (Show)
+
+instance NFData Deriving where
+  rnf (Deriving a b) = rnf a `seq` rnf b
+
+data DerStrategy
+  = DerNone
+  | DerStock
+  | DerNewtype
+  | DerAnyClass
+  | DerVia EConstraint
+
+instance NFData DerStrategy where
+  rnf (DerVia a) = rnf a
+  rnf _ = ()
 
 data Expr
   = EVar Ident
@@ -286,7 +303,7 @@ data Lit
   | LRat Rational
   | LChar Char
   | LStr String
-  | LUStr String            -- UTF-8 encoded string
+  | LBStr String            -- bytestring
   | LPrim String
   | LExn String             -- exception to raise
   | LForImp String CType
@@ -301,7 +318,7 @@ instance NFData Lit where
   rnf (LRat a) = rnf a
   rnf (LChar a) = rnf a
   rnf (LStr a) = rnf a
-  rnf (LUStr a) = rnf a
+  rnf (LBStr a) = rnf a
   rnf (LPrim a) = rnf a
   rnf (LExn a) = rnf a
   rnf (LForImp a b) = rnf a `seq` rnf b
@@ -309,8 +326,10 @@ instance NFData Lit where
 
 -- A type of a C FFI function
 newtype CType = CType EType
+
 instance Eq CType where
   _ == _  =  True    -- Just ignore the CType
+
 instance NFData CType where
   rnf (CType t) = rnf t
 
@@ -441,6 +460,9 @@ mkTupleSel :: Int -> Int -> Expr
 mkTupleSel i n = eLam [ETuple [ EVar $ if k == i then x else dummyIdent | k <- [0 .. n - 1] ]] (EVar x)
   where x = mkIdent "$x"
 
+eAppI :: Ident -> Expr -> Expr
+eAppI i a = EApp (EVar i) a
+
 eApp2 :: Expr -> Expr -> Expr -> Expr
 eApp2 a b c = EApp (EApp a b) c
 
@@ -503,7 +525,7 @@ instance HasLoc Expr where
   getSLoc (EViewPat e _) = getSLoc e
   getSLoc (ELazy _ e) = getSLoc e
   getSLoc (EOr es) = getSLoc es
-  getSLoc (EUVar _) = error "getSLoc EUVar"
+  getSLoc (EUVar _) = noSLoc -- error "getSLoc EUVar"
   getSLoc (EQVar e _) = getSLoc e
   getSLoc (ECon c) = getSLoc c
   getSLoc (EForall _ [] e) = getSLoc e
@@ -541,9 +563,8 @@ instance HasLoc Eqn where
 instance HasLoc EAlts where
   getSLoc (EAlts as _) = getSLoc as
 
-instance HasLoc EAlt where
-  getSLoc ([], e) = getSLoc e
-  getSLoc (ss, _) = getSLoc ss
+instance HasLoc a => HasLoc (a, b) where
+  getSLoc (a, _) = getSLoc a
 
 ---------------------------------
 
@@ -568,11 +589,28 @@ subst s =
         EApp f a -> EApp (sub f) (sub a)
         ESign e t -> ESign (sub e) t
         EUVar _ -> ae
-        EForall b iks t -> EForall b iks $ subst [ x | x@(i, _) <- s, not (elem i is) ] t
+        EForall b iks t | null (intersect vs is) -> EForall b iks $ subst s' t
+                        | otherwise ->
+                          -- We need to alpha convert to avoid accidental capture
+                          let used = freeTyVars [t]
+                              new = allBinders \\ (is ++ vs ++ used)
+                              iks'  = zipWith (\ (IdKind _ k) n -> IdKind n k) iks new
+                              alpha = zipWith (\ (IdKind i _) n -> (i, EVar n)) iks new
+                          in  subst s' $ EForall b iks' $ subst alpha t
           where is = map idKindIdent iks
+                s' = [ x | x@(i, _) <- s, not (elem i is) ]
+                vs = freeTyVars (map snd s')    -- these are free in s'
+
         ELit _ _ -> ae
-        _ -> error "subst unimplemented"
+        ETuple ts -> ETuple (map sub ts)
+        EOper t1 its -> EOper (sub t1) (map (\ (i, t) -> (i, sub t)) its)
+        EParen t -> EParen (sub t)
+        _ -> error $ "subst unimplemented " ++  show ae
   in sub
+
+allBinders :: [Ident] -- a,b,...,z,a1,a2,...
+allBinders = [ mkIdent [x] | x <- ['a' .. 'z'] ] ++
+             [ mkIdent ('a' : show i) | i <- [1::Int ..]]
 
 ---------------------------------
 
@@ -753,9 +791,9 @@ ppEBind = ppEDef
 ppEDef :: EDef -> Doc
 ppEDef def =
   case def of
-    Data lhs [] ds -> text "data" <+> ppLHS lhs <+> ppDeriving ds
-    Data lhs cs ds -> text "data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDeriving ds
-    Newtype lhs c ds -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c <+> ppDeriving ds
+    Data lhs [] ds -> text "data" <+> ppLHS lhs <+> ppDerivings ds
+    Data lhs cs ds -> text "data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDerivings ds
+    Newtype lhs c ds -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c <+> ppDerivings ds
     Type lhs t -> text "type" <+> ppLHS lhs <+> text "=" <+> ppEType t
     Fcn i eqns -> ppEqns (ppIdent i) (text "=") eqns
     PatBind p e -> ppEPat p <+> text "=" <+> ppExpr e
@@ -774,12 +812,25 @@ ppEDef def =
     Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default mc ts -> text "default" <+> (maybe empty ppIdent mc) <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
-    Deriving ct -> text "deriving instance" <+> ppEType ct
+    StandDeriving _s _narg ct -> text "deriving instance" <+> ppEType ct
     DfltSign i t -> text "default" <+> ppIdent i <+> text "::" <+> ppEType t
 
+ppDerivings :: [Deriving] -> Doc
+ppDerivings = sep . map ppDeriving
+
 ppDeriving :: Deriving -> Doc
-ppDeriving [] = empty
-ppDeriving ds = text "deriving" <+> parens (hsep $ punctuate (text ",") (map ppExpr ds))
+ppDeriving (Deriving s ds) = text "deriving" <+>
+  case s of
+    DerNone -> empty
+    DerStock -> text "stock"
+    DerNewtype -> text "newtype"
+    DerAnyClass -> text "anyclass"
+    DerVia _ -> empty
+  <+> parens (hsep $ punctuate (text ",") (map (ppExpr . snd) ds))
+  <+>
+  case s of
+    DerVia t -> text "via" <+> ppEType t
+    _ -> empty
 
 ppCtx :: [EConstraint] -> Doc
 ppCtx [] = empty
@@ -874,8 +925,8 @@ ppExprR raw = ppE
         ELazy False p -> text "!" <> ppE p
         EOr ps -> parens $ hsep (punctuate (text ";") (map ppE ps))
         EUVar i -> text ("_a" ++ show i)
-        EQVar e t -> parens $ ppE e <> text "::" <> ppE t
-        ECon c -> text "***" <> ppCon c
+        EQVar e t -> parens $ ppE e <> text ":::" <> ppE t
+        ECon c -> {-text "***" <>-} ppCon c
         EForall _ iks e -> parens $ ppForall iks <+> ppEType e
 
     ppApp :: [Expr] -> Expr -> Doc
@@ -929,7 +980,7 @@ showLit l =
     LRat r     -> '%' : show r
     LChar c    -> show c
     LStr s     -> show s
-    LUStr s    -> show s
+    LBStr s    -> show s
     LPrim s    -> s
     LExn s     -> s
     LForImp s _-> '^' : last (words s)  -- XXX needs improvement
@@ -1007,7 +1058,7 @@ getArrows at =
     Just (t, r) -> first (t:) (getArrows r)
 
 mkEStr :: SLoc -> String -> Expr
-mkEStr loc str = ESign (ELit loc (LStr str)) $ EListish $ LList [EVar $ mkIdentSLoc loc "Char"]
+mkEStr loc str = ESign (ELit loc (LStr str)) $ EListish $ LList [EVar $ mkBuiltin loc "Char"]
 
 -- Make a call to generate an exception with location info
 mkExn :: SLoc -> String -> String -> Expr
@@ -1020,7 +1071,11 @@ getAppM :: HasCallStack => EType -> Maybe (Ident, [EType])
 getAppM = loop []
   where loop as (EVar i) = Just (i, as)
         loop as (EApp f a) = loop (a:as) f
+        loop as (EParen e) = loop as e
         loop _ _ = Nothing
+
+getApp :: HasCallStack => EType -> (Ident, [EType])
+getApp t = fromMaybe (impossibleShow t) $ getAppM t
 
 type TyVar = Ident
 
@@ -1047,6 +1102,7 @@ freeTyVars = foldr (go []) []
     go bound (EListish (LList [e])) acc = go bound e acc
     go bound (ETuple es) acc = goList bound es acc
     go bound (EParen e) acc = go bound e acc
+    go bound (EQVar e _) acc = go bound e acc
     go _ x _ = error ("freeTyVars: " ++ show x) --  impossibleShow x
     goList bound es acc = foldr (go bound) acc es
 

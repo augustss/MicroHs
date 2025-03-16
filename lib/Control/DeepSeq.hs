@@ -5,8 +5,10 @@ module Control.DeepSeq (
   ($!!),
   (<$!!>),
   rwhnf,
+  rnf1,
+  rnf2,
 ) where
-import Prelude()
+import qualified Prelude()
 import Control.Applicative
 import Control.DeepSeq.Class
 import Control.Monad
@@ -38,6 +40,7 @@ f <$!!> m = m >>= \x -> pure $!! f x
 rwhnf :: a -> ()
 rwhnf a = a `seq` ()
 
+instance NFData Float
 instance NFData Int8
 instance NFData Int16
 instance NFData Int32
@@ -49,9 +52,6 @@ instance NFData Word64
 
 instance NFData (Proxy a) where rnf Proxy = ()
 instance NFData1 Proxy where liftRnf _ Proxy = ()
-
-instance NFData a => NFData (Ratio a) where
-  rnf x = rnf (numerator x, denominator x)
 
 instance NFData1 Maybe where
   liftRnf _ Nothing = ()
@@ -130,7 +130,7 @@ instance (NFData1 f, NFData1 g) => NFData1 (Compose f g) where
   liftRnf r = liftRnf (liftRnf r) . getCompose
 
 -- | Note: in @deepseq-1.5.0.0@ this instance's superclasses were changed.
--- 
+--
 -- @since 1.4.3.0
 instance (NFData (f (g a))) => NFData (Compose f g a) where
   rnf (Compose fga) = rnf fga
@@ -141,7 +141,7 @@ instance (NFData1 f, NFData1 g) => NFData1 (Functor.Sum f g) where
   liftRnf rnf0 (Functor.InR r) = liftRnf rnf0 r
 
 -- | Note: in @deepseq-1.5.0.0@ this instance's superclasses were changed.
--- 
+--
 -- @since 1.4.3.0
 instance (NFData (f a), NFData (g a)) => NFData (Functor.Sum f g a) where
   rnf (Functor.InL fa) = rnf fa
@@ -152,7 +152,7 @@ instance (NFData1 f, NFData1 g) => NFData1 (Functor.Product f g) where
   liftRnf rnf0 (Functor.Pair f g) = liftRnf rnf0 f `seq` liftRnf rnf0 g
 
 -- | Note: in @deepseq-1.5.0.0@ this instance's superclasses were changed.
--- 
+--
 -- @since 1.4.3.0
 instance (NFData (f a), NFData (g a)) => NFData (Functor.Product f g a) where
   rnf (Functor.Pair fa ga) = rnf fa `seq` rnf ga
@@ -504,5 +504,3 @@ rnf1 = liftRnf rnf
 
 rnf2 :: (NFData2 p, NFData a, NFData b) => p a b -> ()
 rnf2 = liftRnf2 rnf rnf
-
-

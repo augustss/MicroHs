@@ -13,7 +13,7 @@ module MicroHs.Compile(
   getMhsDir,
   openFilePath,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import Data.Maybe
@@ -84,9 +84,6 @@ maybeSaveCache flags cash =
   when (writeCache flags) $ do
     when (verbosityGT flags 0) $
       putStrLn $ "Saving cache " ++ show mhsCacheName
-    -- This causes all kinds of chaos, probably because there
-    -- will be equality tests of unevaluated thunks.
-    -- () <- seq (rnfNoErr cash) (return ())
     saveCache mhsCacheName cash
 
 compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Symbols, Cache)
@@ -184,7 +181,7 @@ compileModule flags impt mn pathfn file = do
   dumpIf flags Dparse $
     liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
   let mdl@(EModule mnn _ defs) = addPreludeImport pmdl
-  
+
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
   -- TODO: skip test when mn is a file name
@@ -199,21 +196,17 @@ compileModule flags impt mn pathfn file = do
   t3 <- liftIO getTimeMilli
   glob <- gets getCacheTables
   let
-    (tmdl, glob', syms) = typeCheck glob impt (zip specs impMdls) mdl
+    (tmdl, glob', syms) = typeCheck flags glob impt (zip specs impMdls) mdl
   modify $ setCacheTables glob'
   dumpIf flags Dtypecheck $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
-  () <- when False $ do               -- Always forcing is slower.  Maybe add a flag?
-          rnf tmdl `seq` return ()
   let
     dmdl = desugar flags tmdl
-  () <- return $ rnf $ tBindingsOf dmdl
-  t4 <- liftIO getTimeMilli
 
+  t4 <- liftIO getTimeMilli
   let
     cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- tBindingsOf dmdl ]
-  () <- return $ rnf $ tBindingsOf cmdl  -- This makes execution slower, but speeds up GC
---  () <- return $ rnfErr syms same for this, but worse total time
+  () <- return $ rnf cmdl  -- This makes execution slower, but speeds up GC
   t5 <- liftIO getTimeMilli
 
   let tParse = t2 - t1
@@ -244,14 +237,12 @@ addPreludeImport (EModule mn es ds) =
         isImportPrelude (Import (ImportSpec _ _ i _ _)) = i == idPrelude
         isImportPrelude _ = False
         idPrelude = mkIdent "Prelude"
-        idBuiltin = mkIdent "Mhs.Builtin"
-        idB = mkIdent builtinMdl
-        iblt = Import $ ImportSpec ImpNormal True idBuiltin (Just idB) Nothing
+        iblt = Import $ ImportSpec ImpNormal True builtinMdlQ (Just builtinMdl) Nothing
         ps' =
           case ps of
             [] -> [Import $ ImportSpec ImpNormal False idPrelude Nothing Nothing,      -- no Prelude imports, so add 'import Prelude'
-                   iblt]                                                               -- and 'import Mhs.Builtin as @B'
-            [Import (ImportSpec ImpNormal False _ Nothing (Just (False, [])))] -> []   -- exactly 'import Prelude()', so import nothing
+                   iblt]                                                               -- and 'import Mhs.Builtin as B@'
+            [Import (ImportSpec ImpNormal True _ Nothing (Just (False, [])))] -> []    -- exactly 'import qualified Prelude()', so import nothing
             _ -> iblt : ps                                                             -- keep the given Prelude imports, add Builtin
 
 -------------------------------------------

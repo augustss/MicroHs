@@ -1,11 +1,13 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 module MicroHs.Translate(
   translate, translateAndRun
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
+import Data.ByteString.Internal(ByteString)
 import Data.Maybe
-import qualified MicroHs.IdentMap as M
+import Data.String
 import Unsafe.Coerce
 import PrimTable
 
@@ -14,6 +16,7 @@ import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.ExpPrint(encodeString)
 import MicroHs.Ident
+import qualified MicroHs.IdentMap as M
 
 translateAndRun :: (Ident, [LDef]) -> IO ()
 translateAndRun defs = do
@@ -23,9 +26,9 @@ translateAndRun defs = do
 translate :: (Ident, [LDef]) -> AnyType
 translate (mainName, ds) =
   let
-    look m n = fromMaybe (error $ "translate: not found " ++ showIdent n) $ M.lookup n m
-    mp = M.fromList [(n, trans (look mp) d) | (n, d) <- ds ]
-  in look mp mainName
+    look n = fromMaybe (error $ "translate: not found " ++ showIdent n) $ M.lookup n mp
+    mp = M.fromList [(n, trans look d) | (n, d) <- ds ]
+  in look mainName
 
 trans :: (Ident -> AnyType) -> Exp -> AnyType
 trans r ae =
@@ -35,6 +38,7 @@ trans r ae =
     Lit (LInt i) -> unsafeCoerce i
     Lit (LDouble i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
+    Lit (LBStr s) -> unsafeCoerce (Data.String.fromString s :: ByteString)
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
     Lit (LForImp s _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
@@ -131,8 +135,8 @@ primTable = [
   ("catch", _primitive "catch"),
   ("dynsym", _primitive "dynsym"),
   ("newCAStringLen", _primitive "newCAStringLen"),
-  ("peekCAString", _primitive "peekCAString"),
-  ("peekCAStringLen", _primitive "peekCAStringLen"),
+  ("packCString", _primitive "packCString"),
+  ("packCStringLen", _primitive "packCStringLen"),
   ("toInt", _primitive "toInt"),
   ("toPtr", _primitive "toPtr"),
   ("toDbl", _primitive "toDbl"),
@@ -145,7 +149,6 @@ primTable = [
   ("A.==", _primitive "A.=="),
   ("bs++", _primitive "bs++"),
   ("bs++.", _primitive "bs++."),
-  ("bs+++", _primitive "bs+++"),
   ("bs==", _primitive "bs=="),
   ("bs/=", _primitive "bs/="),
   ("bs<", _primitive "bs<"),
@@ -155,8 +158,10 @@ primTable = [
   ("bscmp", _primitive "bscmp"),
   ("bspack", _primitive "bspack"),
   ("bsunpack", _primitive "bsunpack"),
+  ("bsreplicate", _primitive "bsreplicate"),
   ("bslength", _primitive "bslength"),
   ("bssubstr", _primitive "bssubstr"),
+  ("bsindex", _primitive "bsindex"),
   ("fromUTF8", _primitive "fromUTF8"),
   ("toUTF8", _primitive "toUTF8"),
   ("headUTF8", _primitive "headUTF8"),
@@ -164,5 +169,7 @@ primTable = [
   ("fp+", _primitive "fp+"),
   ("fp2p", _primitive "fp2p"),
   ("fpnew", _primitive "fpnew"),
-  ("fpfin", _primitive "fpfin")
+  ("fpfin", _primitive "fpfin"),
+  ("fp2bs", _primitive "fp2bs"),
+  ("bs2fp", _primitive "bs2fp")
   ]

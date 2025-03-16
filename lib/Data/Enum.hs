@@ -1,5 +1,13 @@
-module Data.Enum(module Data.Enum) where
-import Prelude()              -- do not import Prelude
+module Data.Enum (
+  Enum(..),
+  boundedEnumFrom,
+  boundedEnumFromThen,
+  numericEnumFrom,
+  numericEnumFromThen,
+  numericEnumFromTo,
+  numericEnumFromThenTo,
+) where
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bool
@@ -54,41 +62,79 @@ numericEnumFromTo l h = takeWhile (<= h) (numericEnumFrom l)
 
 numericEnumFromThenTo :: (Num a, Ord a) => a -> a -> a -> [a]
 numericEnumFromThenTo l m h =
-    if m > l then
-      takeWhile (<= h) (numericEnumFromThen l m)
-    else
-      takeWhile (>= h) (numericEnumFromThen l m)
+  if m > l then
+    takeWhile (<= h) (numericEnumFromThen l m)
+  else
+    takeWhile (>= h) (numericEnumFromThen l m)
+
+eftInt :: Int -> Int -> [Int]
+eftInt x y = if x `primIntGT` y then [] else go x
+  where
+    go n = n : if n `primIntEQ` y then [] else go (n `primIntAdd` 1)
+
+efttIntUp :: Int -> Int -> Int -> [Int]
+-- x2 >= x1
+efttIntUp x1 x2 y
+  | y `primIntLT` x2 = if y `primIntLT` x1 then [] else [x1]
+  | otherwise =
+    let
+      delta = x2 `primIntSub` x1
+      y' = y `primIntSub` delta
+      go x = if x `primIntGT` y' then [x] else x : go (x `primIntAdd` delta)
+    in x1 : go x2
+
+efttIntDown :: Int -> Int -> Int -> [Int]
+-- x2 <= x1
+efttIntDown x1 x2 y
+  | y `primIntGT` x2 = if y `primIntGT` x1 then [] else [x1]
+  | otherwise =
+    let
+      delta = x2 `primIntSub` x1
+      y' = y `primIntSub` delta
+      go x = if x `primIntLT` y' then [x] else x : go (x `primIntAdd` delta)
+    in x1 : go x2
 
 -- This instance is difficult to put in Data.Int,
 -- so it gets to live here.
 instance Enum Int where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x `primIntEQ` maxBound then error "Int.succ: overflow" else x + 1
+  pred x = if x `primIntEQ` minBound then error "Int.pred: underflow" else x - 1
   toEnum x = x
   fromEnum x = x
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = eftInt n maxBound
+  enumFromThen x1 x2
+    | x2 `primIntGE` x1 = efttIntUp x1 x2 maxBound
+    | otherwise         = efttIntDown x1 x2 minBound
+  enumFromTo = eftInt
+  enumFromThenTo x1 x2 y
+    | x2 `primIntGE` x1 = efttIntUp x1 x2 y
+    | otherwise         = efttIntDown x1 x2 y
 
 -- Likewise for Bool
 instance Enum Bool where
   fromEnum False = 0
   fromEnum True  = 1
-  toEnum i = if primIntEQ i (0::Int) then False else
-             if primIntEQ i (1::Int) then True  else
-             error "Enum.Bool.toEnum: bad arg"
+  toEnum i
+    | i `primIntEQ` 0 = False
+    | i `primIntEQ` 1 = True
+    | otherwise       = error "Enum.Bool.toEnum: bad arg"
+  enumFrom = boundedEnumFrom
+  enumFromThen = boundedEnumFromThen
 
 instance Enum Char where
   fromEnum = primOrd
   toEnum   = primChr
-
+  enumFrom = boundedEnumFrom
+  enumFromThen = boundedEnumFromThen
 
 instance Enum Ordering where
-  fromEnum LT = (0::Int)
-  fromEnum EQ = (1::Int)
-  fromEnum GT = (2::Int)
-  toEnum i =      if i `primIntEQ` 0 then LT
-             else if i `primIntEQ` 1 then EQ
-             else if i `primIntEQ` 2 then GT
-             else error "Ord.toEnum: out of range"
+  fromEnum LT = 0
+  fromEnum EQ = 1
+  fromEnum GT = 2
+  toEnum i
+    | i `primIntEQ` 0 = LT
+    | i `primIntEQ` 1 = EQ
+    | i `primIntEQ` 2 = GT
+    | otherwise       = error "Ord.toEnum: out of range"
+  enumFrom = boundedEnumFrom
+  enumFromThen = boundedEnumFromThen

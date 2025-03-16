@@ -17,7 +17,7 @@ module Text.PrettyPrint.HughesPJLite(
   Style,
   render, renderStyle,
   ) where
-import Prelude(); import MHSPrelude hiding ((<>))
+import qualified Prelude(); import MHSPrelude hiding ((<>))
 
 infixl 6 <>, <+>
 infixl 5 $$, $+$
@@ -305,7 +305,7 @@ fullRender lineLen (num, den) rest doc
 
     ribbonLen   = (lineLen * den) `quot` num
     bestLineLen = lineLen
-                    
+
 display :: Int -> Int -> String -> Doc -> String
 display _page_width _ribbon_width end doc
   = let lay :: Int -> Doc -> String

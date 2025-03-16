@@ -2,13 +2,15 @@
 -- See LICENSE file for full license.
 module Control.Exception.Internal(
   throw, catch,
+  mask,
+  onException, throwIO, bracket,
   Exception(..),
   SomeException(..),
   PatternMatchFail, NoMethodError, RecSelError, RecConError(..),
   patternMatchFail, noMethodError, recSelError, recConError,
   ) where
-import Prelude()
-import Primitives(IO)
+import qualified Prelude()
+import Primitives(IO, primThen, primBind, primReturn)
 import Data.Char_Type
 import Data.List_Type
 import Data.Maybe_Type
@@ -34,6 +36,28 @@ catch io handler = primCatch io handler'
                        Just e' -> handler e'
                        Nothing -> primRaise e
 
+-- Throw an exception when executed, not when evaluated
+throwIO :: forall a e . Exception e => e -> IO a
+throwIO e = bad `primThen` bad   -- we never reach the second 'bad'
+  where bad = throw e
+
+onException :: IO a -> IO b -> IO a
+onException io what =
+  io `catch` \ e -> what `primThen` throwIO (e :: SomeException)
+
+bracket :: IO a -> (a -> IO b) -> (a -> IO c) -> IO c
+bracket before after thing =
+  mask (\ restore ->
+    before `primBind` (\ a ->
+    (restore (thing a) `onException` after a) `primBind` (\ r ->
+    after a `primThen`
+    primReturn r
+    )))
+
+-- XXX we don't have masks yet
+mask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
+mask io = io (\ x -> x)
+
 ------------------
 
 data SomeException = forall e . Exception e => SomeException e
@@ -50,6 +74,17 @@ class (Typeable e, Show e) => Exception e where
     toException = SomeException
     fromException (SomeException e) = cast e
     displayException = show
+
+instance Show SomeException where
+  showsPrec p (SomeException e) = showsPrec p e
+
+-- NOTE: The runtime system knows about this instance.
+-- It uses displayException to show an uncaught exception.
+-- Any changes here must be reflected in eval.c
+instance Exception SomeException where
+  toException se = se
+  fromException = Just
+  displayException (SomeException e) = displayException e
 
 ------------------
 

@@ -13,19 +13,19 @@ module MicroHs.SymTab(
   stInsertLcl,
   mapMSymTab,
   ) where
-import Prelude(); import MHSPrelude
-import Data.Char
+import qualified Prelude(); import MHSPrelude
+--import Data.Char
 import Control.Applicative
 import Data.List
 import GHC.Stack
 import MicroHs.Builtin(builtinMdl)
 import MicroHs.Expr(Expr(..), EType, conIdent)
-import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent)
+import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent, isUpperX)
 import MicroHs.List
 import qualified MicroHs.IdentMap as M
 
 -- Symbol table
--- 
+--
 
 -- Symbol table entry for symbol i.
 data Entry = Entry
@@ -74,7 +74,7 @@ instance Show SymTab where
     ("Locals:"  : map (("  " ++) . show) l) ++
     ("UGlobals:" : map (("  " ++) . show) (M.toList ug)) ++
     ("QGlobals:" : map (("  " ++) . show) (M.toList qg))
-  
+
 mapMSymTab :: forall m . Monad m => (Entry -> m Entry) -> SymTab -> m SymTab
 mapMSymTab f (SymTab l ug qg) = do
   l' <- mapM (\ (i, a) -> f a >>= \ a' -> return (i, a')) l
@@ -97,12 +97,12 @@ stLookup msg i (SymTab l ug qg) =
         Nothing  -> Left $ "undefined " ++ msg ++ ": " ++ showIdent i
                            -- ++ "\n" ++ show lenv ++ "\n" ++ show genv
 
--- When a module uses 'import Prelude()' the Mhs.Builtin (aka B@) will
+-- When a module uses 'import quakified Prelude()' the Mhs.Builtin (aka B@) will
 -- also not be imported.  So as a last recourse, look for the identifier
 -- unqualified.
 hackBuiltin :: Ident -> Ident
 hackBuiltin i =
-  case stripPrefix builtinMdl (unIdent i) of
+  case stripPrefix (unIdent builtinMdl) (unIdent i) of
     Just ('.':s) -> mkIdentSLoc (slocIdent i) s
     _            -> i
 
@@ -139,5 +139,5 @@ stInsertGlbA i as (SymTab l ug qg) | isQual i  = SymTab l ug (M.insertWith union
                                    | otherwise = SymTab l (M.insertWith union i as ug) qg
 
 isQual :: Ident -> Bool
-isQual i = isUpper (head s) && elem '.' s
+isQual i = isUpperX (head s) && elem '.' s
   where s = unIdent i

@@ -2,7 +2,7 @@
 module MicroHs.State(
   module MicroHs.State,
   ) where
-import Prelude(); import MHSPrelude hiding(fail)
+import qualified Prelude(); import MHSPrelude hiding(fail)
 import Control.Monad.Fail
 import Control.Monad
 

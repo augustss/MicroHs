@@ -40,6 +40,14 @@ bfbuffer_init(struct bfbuffer *bf, size_t size)
     ERR("bfbuffer_init");
 }
 
+int
+bfbuffer_get(struct bfbuffer *bf)
+{
+  if (bf->pos >= bf->size)
+    return -1;
+  return bf->buf[bf->pos++];
+}
+
 void
 bfbuffer_snoc(struct bfbuffer *bf, int byte)
 {
@@ -50,6 +58,33 @@ bfbuffer_snoc(struct bfbuffer *bf, int byte)
       ERR("bfbuffer_snoc");
   }
   bf->buf[bf->pos++] = byte;
+}
+
+size_t
+bfbuffer_read(struct bfbuffer *bf, uint8_t *buf, size_t size)
+{
+  if (bf->pos + size > bf->size) {
+    size = bf->size - bf->pos;
+  }
+  memcpy(buf, bf->buf + bf->pos, size);
+  bf->pos += size;
+  return size;
+}
+
+size_t
+bfbuffer_write(struct bfbuffer *bf, const uint8_t *str, size_t size)
+{
+  if (bf->pos + size > bf->size) {
+    do {
+      bf->size *= 2;
+    } while (bf->pos + size > bf->size);
+    bf->buf = REALLOC(bf->buf, bf->size);
+    if (!bf->buf)
+      ERR("bfbuffer_write");
+  }
+  memcpy(bf->buf + bf->pos, str, size);
+  bf->pos += size;
+  return size;
 }
 
 void
@@ -70,7 +105,8 @@ typedef struct BFILE {
   void (*putb)(int, struct BFILE*);
   void (*flushb)(struct BFILE*);
   void (*closeb)(struct BFILE*);
-  size_t (*writeb)(void *, size_t, struct BFILE*); /* optional block write */
+  size_t (*readb)(uint8_t *, size_t, struct BFILE*); /* optional block read */
+  size_t (*writeb)(const uint8_t *, size_t, struct BFILE*); /* optional block write */
 } BFILE;
 
 static INLINE int
@@ -112,31 +148,35 @@ putsb(const char *str, struct BFILE *p)
 }
 
 size_t
-readb(void *abuf, size_t size, BFILE *p)
+readb(uint8_t *buf, size_t size, BFILE *p)
 {
-  uint8_t *buf = abuf;
-  size_t s;
-  for (s = 0; s < size; s++) {
-    int c = getb(p);
-    if (c < 0)
-      break;
-    buf[s] = c;
+  if (p->readb) {
+    /* If there is a read method, use it. */
+    return p->readb(buf, size, p);
+  } else {
+    /* Otherwise, do it byte by byte. */
+    size_t s;
+    for (s = 0; s < size; s++) {
+      int c = getb(p);
+      if (c < 0)
+        break;
+      buf[s] = c;
+    }
+    return s;
   }
-  return s;
 }
 
 size_t
-writeb(void *abuf, size_t size, BFILE *p)
+writeb(const uint8_t *str, size_t size, BFILE *p)
 {
   if (p->writeb) {
     /* If there is a write method, use it. */
-    return p->writeb(abuf, size, p);
+    return p->writeb(str, size, p);
   } else {
     /* Otherwise, do it byte by byte. */
-    uint8_t *buf = abuf;
     size_t s;
     for(s = 0; s < size; s++) {
-      putb(buf[s], p);
+      putb(str[s], p);
     }
     return s;
   }
@@ -186,9 +226,7 @@ getint32(BFILE *p)
 /***************** BFILE from/to memory buffer *******************/
 struct BFILE_buffer {
   BFILE    mets;
-  size_t   b_size;
-  size_t   b_pos;
-  uint8_t  *b_buffer;
+  struct bfbuffer bf;
 };
 
 int
@@ -196,9 +234,8 @@ getb_buf(BFILE *bp)
 {
   struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
   CHECKBFILE(bp, getb_buf);
-  if (p->b_pos >= p->b_size)
-    return -1;
-  return p->b_buffer[p->b_pos++];
+
+  return bfbuffer_get(&p->bf);
 }
 
 void
@@ -206,13 +243,8 @@ putb_buf(int c, BFILE *bp)
 {
   struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
   CHECKBFILE(bp, getb_buf);
-  if (p->b_pos >= p->b_size) {
-    p->b_size *= 2;
-    p->b_buffer = realloc(p->b_buffer, p->b_size);
-    if (!p->b_buffer)
-      ERR("putb_buf");
-  }
-  p->b_buffer[p->b_pos++] = c;
+
+  bfbuffer_snoc(&p->bf, c);
 }
 
 void
@@ -220,9 +252,9 @@ ungetb_buf(int c, BFILE *bp)
 {
   struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
   CHECKBFILE(bp, getb_buf);
-  if (p->b_pos == 0)
+  if (p->bf.pos == 0)
     ERR("ungetb");
-  p->b_buffer[--p->b_pos] = (uint8_t)c;
+  p->bf.buf[--p->bf.pos] = (uint8_t)c;
 }
 
 void
@@ -245,6 +277,24 @@ flushb_buf(BFILE *bp)
   CHECKBFILE(bp, getb_buf);
 }
 
+size_t
+readb_buf(uint8_t *buf, size_t size, BFILE *bp)
+{
+  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
+  CHECKBFILE(bp, getb_buf);
+
+  return bfbuffer_read(&p->bf, buf, size);
+}
+
+size_t
+writeb_buf(const uint8_t *str, size_t size, BFILE *bp)
+{
+  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
+  CHECKBFILE(bp, getb_buf);
+
+  return bfbuffer_write(&p->bf, str, size);
+}
+
 struct BFILE*
 openb_rd_buf(uint8_t *buf, size_t len)
 {
@@ -256,10 +306,11 @@ openb_rd_buf(uint8_t *buf, size_t len)
   p->mets.putb = 0;
   p->mets.flushb = 0;
   p->mets.closeb = closeb_rd_buf;
+  p->mets.readb = readb_buf;
   p->mets.writeb = 0;
-  p->b_size = len;
-  p->b_pos = 0;
-  p->b_buffer = buf;
+  p->bf.size = len;
+  p->bf.pos = 0;
+  p->bf.buf = buf;
   return (struct BFILE*)p;
 }
 
@@ -274,16 +325,13 @@ openb_wr_buf(void)
   p->mets.putb = putb_buf;
   p->mets.flushb = flushb_buf;
   p->mets.closeb = closeb_wr_buf;
-  p->mets.writeb = 0;
-  p->b_size = 1000;
-  p->b_pos = 0;
-  p->b_buffer = malloc(p->b_size);
-  if (!p->b_buffer)
-    ERR("openb_wr_buf");
+  p->mets.readb = 0;
+  p->mets.writeb = writeb_buf;
+  bfbuffer_init(&p->bf, 1000);
   return (struct BFILE*)p;
 }
 
-/* 
+/*
  * Get the buffer used by writing.
  * This should be the last operation before closing,
  * since the buffer can move when writing.
@@ -295,8 +343,8 @@ get_buf(struct BFILE *bp, uint8_t **bufp, size_t *lenp)
 {
   struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
   CHECKBFILE(bp, getb_buf);
-  *bufp = p->b_buffer;
-  *lenp = p->b_pos;
+  *bufp = p->bf.buf;
+  *lenp = p->bf.pos;
 }
 
 #if WANT_STDIO
@@ -356,11 +404,19 @@ freeb_file(BFILE *bp)
 }
 
 size_t
-writeb_file(void *buf, size_t size, BFILE *bp)
+readb_file(uint8_t *buf, size_t size, BFILE *bp)
 {
   struct BFILE_file *p = (struct BFILE_file *)bp;
   CHECKBFILE(bp, getb_file);
-  return fwrite(buf, 1, size, p->file);
+  return fread(buf, 1, size, p->file);
+}
+
+size_t
+writeb_file(const uint8_t *str, size_t size, BFILE *bp)
+{
+  struct BFILE_file *p = (struct BFILE_file *)bp;
+  CHECKBFILE(bp, getb_file);
+  return fwrite(str, 1, size, p->file);
 }
 
 BFILE *
@@ -374,6 +430,7 @@ add_FILE(FILE *f)
   p->mets.putb   = putb_file;
   p->mets.flushb = flushb_file;
   p->mets.closeb = closeb_file;
+  p->mets.readb  = readb_file;
   p->mets.writeb = writeb_file;
   p->file = f;
   return (BFILE*)p;
@@ -396,9 +453,8 @@ getb_lz77(BFILE *bp)
 {
   struct BFILE_lz77 *p = (struct BFILE_lz77*)bp;
   CHECKBFILE(bp, getb_lz77);
-  if (p->bf.pos >= p->bf.size)
-    return -1;
-  return p->bf.buf[p->bf.pos++];
+
+  return bfbuffer_get(&p->bf);
 }
 
 void
@@ -435,7 +491,7 @@ flushb_lz77(BFILE *bp)
   for (size_t i = 0; i < olen; i++) {
     putb(obuf[i], p->bfile);           /* and the data */
   }
-  free(obuf);
+  FREE(obuf);
   p->bf.pos = 0;
   flushb(p->bfile);
 }
@@ -456,6 +512,24 @@ closeb_lz77(BFILE *bp)
   FREE(p);
 }
 
+size_t
+readb_lz77(uint8_t *buf, size_t size, BFILE *bp)
+{
+  struct BFILE_lz77 *p = (struct BFILE_lz77 *)bp;
+  CHECKBFILE(bp, getb_lz77);
+
+  return bfbuffer_read(&p->bf, buf, size);
+}
+
+size_t
+writeb_lz77(const uint8_t *str, size_t size, BFILE *bp)
+{
+  struct BFILE_lz77 *p = (struct BFILE_lz77 *)bp;
+  CHECKBFILE(bp, getb_lz77);
+
+  return bfbuffer_write(&p->bf, str, size);
+}
+
 BFILE *
 add_lz77_decompressor(BFILE *file)
 {
@@ -469,6 +543,7 @@ add_lz77_decompressor(BFILE *file)
   p->mets.putb = 0;
   p->mets.flushb = 0;
   p->mets.closeb = closeb_lz77;
+  p->mets.readb = readb_lz77;
   p->mets.writeb = 0;
   p->read = 1;
   p->bfile = file;
@@ -504,7 +579,8 @@ add_lz77_compressor(BFILE *file)
   p->mets.putb = putb_lz77;
   p->mets.flushb = flushb_lz77;
   p->mets.closeb = closeb_lz77;
-  p->mets.writeb = 0;
+  p->mets.readb = 0;
+  p->mets.writeb = writeb_lz77;
   p->read = 0;
   p->bfile = file;
   p->numflush = 0;
@@ -520,9 +596,9 @@ add_lz77_compressor(BFILE *file)
 /*
  * Run Length Encoding for ASCII
  * Format
- * c                -  c       one ASCII character
- * 0x80+n c         -  n       repetitions of ASCII character c
- * 0x80+n 0x80+m c  -  n*128+m repetitions of ASCII character c
+ * c                -  c         one ASCII character
+ * 0x80+n c         -  n+1       repetitions of ASCII character c, n>1
+ * 0x80+n 0x80+m c  -  n*128+m+1 repetitions of ASCII character c
  * ... for longer run lengths
  * Non-ASCII (i.e., >= 128) have very poor encoding:
  * 0x81 c-0x80
@@ -669,6 +745,7 @@ add_rle_decompressor(BFILE *file)
   p->mets.putb = 0;
   p->mets.flushb = 0;
   p->mets.closeb = closeb_rle;
+  p->mets.readb = 0;
   p->mets.writeb = 0;
   p->count = 0;
   p->unget = -1;
@@ -690,6 +767,7 @@ add_rle_compressor(BFILE *file)
   p->mets.putb = putb_rle;
   p->mets.flushb = flushb_rle;
   p->mets.closeb = closeb_rle;
+  p->mets.readb = 0;
   p->mets.writeb = 0;
   p->count = 0;
   p->byte = -1;
@@ -720,9 +798,8 @@ getb_bwt(BFILE *bp)
 {
   struct BFILE_bwt *p = (struct BFILE_bwt*)bp;
   CHECKBFILE(bp, getb_bwt);
-  if (p->bf.pos >= p->bf.size)
-    return -1;
-  return p->bf.buf[p->bf.pos++];
+
+  return bfbuffer_get(&p->bf);
 }
 
 void
@@ -752,6 +829,24 @@ closeb_bwt(BFILE *bp)
     flushb(bp);
 
   closeb(p->bfile);
+}
+
+size_t
+readb_bwt(uint8_t *buf, size_t size, BFILE *bp)
+{
+  struct BFILE_bwt *p = (struct BFILE_bwt *)bp;
+  CHECKBFILE(bp, getb_bwt);
+
+  return bfbuffer_read(&p->bf, buf, size);
+}
+
+size_t
+writeb_bwt(const uint8_t *str, size_t size, BFILE *bp)
+{
+  struct BFILE_bwt *p = (struct BFILE_bwt *)bp;
+  CHECKBFILE(bp, getb_bwt);
+
+  return bfbuffer_write(&p->bf, str, size);
 }
 
 /* Sort all rotations of buf, and the indices of the sorted strings in res. */
@@ -794,7 +889,7 @@ int compar(const void *pa, const void *pb)
       return r;
     size_t o = a;
     return memcmp(compar_arg + m, compar_arg, o);
-    
+
   }
   return 0;
 }
@@ -812,7 +907,7 @@ sort_buffer(uint8_t *buf, size_t buflen, uint32_t *res)
 uint32_t
 encode_bwt(uint8_t *data, size_t len, uint8_t *last)
 {
-  uint32_t *res = malloc(len * sizeof(uint32_t));
+  uint32_t *res = MALLOC(len * sizeof(uint32_t));
   if (!res)
     ERR("encode_bwt");
   sort_buffer(data, len, res);
@@ -823,6 +918,7 @@ encode_bwt(uint8_t *data, size_t len, uint8_t *last)
     if (offs == 0)
       zero = i;
   }
+  FREE(res);
   return zero;
 }
 
@@ -837,7 +933,7 @@ flushb_bwt(BFILE *bp)
     return;
   putsb("BW1", p->bfile);             /* version no */
   putint32(p->bf.pos, p->bfile);      /* 32 bit length */
-  uint8_t *last = malloc(p->bf.pos);
+  uint8_t *last = MALLOC(p->bf.pos);
   if (!last)
     ERR("flushb_bwt");
   size_t zero = encode_bwt(p->bf.buf, p->bf.pos, last);
@@ -855,7 +951,7 @@ void
 decode_bwt(uint8_t *data, size_t len, uint8_t *odata, size_t zero)
 {
   size_t count[MAXBYTE];
-  uint32_t *pred = malloc(len * sizeof(uint32_t));
+  uint32_t *pred = MALLOC(len * sizeof(uint32_t));
   for(size_t i = 0; i < MAXBYTE; i++) {
     count[i] = 0;
   }
@@ -873,6 +969,7 @@ decode_bwt(uint8_t *data, size_t len, uint8_t *odata, size_t zero)
     odata[j - 1] = data[i];
     i = pred[i] + count[data[i]];
   }
+  FREE(pred);
 }
 
 BFILE *
@@ -888,6 +985,7 @@ add_bwt_decompressor(BFILE *file)
   p->mets.putb = 0;
   p->mets.flushb = 0;
   p->mets.closeb = closeb_bwt;
+  p->mets.readb = readb_bwt;
   p->mets.writeb = 0;
   p->read = 1;
   p->bfile = file;
@@ -925,7 +1023,8 @@ add_bwt_compressor(BFILE *file)
   p->mets.putb = putb_bwt;
   p->mets.flushb = flushb_bwt;
   p->mets.closeb = closeb_bwt;
-  p->mets.writeb = 0;
+  p->mets.readb = 0;
+  p->mets.writeb = writeb_bwt;
   p->read = 0;
   p->bfile = file;
   p->numflush = 0;
@@ -944,7 +1043,7 @@ struct BFILE_utf8 {
   int      unget;
 };
 
-/* This is not right with WORD_SIZE==16 */
+/* XXX: This is not right with WORD_SIZE==16 */
 int
 getb_utf8(BFILE *bp)
 {
@@ -966,18 +1065,27 @@ getb_utf8(BFILE *bp)
   c2 = getb(p->bfile);
   if (c2 < 0)
     return -1;
-  if ((c1 & 0xe0) == 0xc0)
-    return ((c1 & 0x1f) << 6) | (c2 & 0x3f);
+  if ((c1 & 0xe0) == 0xc0) {
+    int c = ((c1 & 0x1f) << 6) | (c2 & 0x3f);
+    if (c < 0x80) ERR("getb_utf8: overlong encoding");
+    return c;
+  }
   c3 = getb(p->bfile);
   if (c3 < 0)
     return -1;
-  if ((c1 & 0xf0) == 0xe0)
-    return ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
+  if ((c1 & 0xf0) == 0xe0) {
+    int c = ((c1 & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
+    if (c < 0x800) ERR("getb_utf8: overlong encoding");
+    return c;
+  }
   c4 = getb(p->bfile);
   if (c4 < 0)
     return -1;
-  if ((c1 & 0xf8) == 0xf0)
-    return ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+  if ((c1 & 0xf8) == 0xf0) {
+    int c = ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+    if (c < 0x10000) ERR("getb_utf8: overlong encoding");
+    return c;
+  }
   ERR("getb_utf8");
 }
 
@@ -1042,11 +1150,29 @@ closeb_utf8(BFILE *bp)
   FREE(p);
 }
 
+size_t
+readb_utf8(uint8_t *buf, size_t size, BFILE *bp)
+{
+  struct BFILE_utf8 *p = (struct BFILE_utf8 *)bp;
+  CHECKBFILE(bp, getb_utf8);
+
+  return readb(buf, size, p->bfile);
+}
+
+size_t
+writeb_utf8(const uint8_t *str, size_t size, BFILE *bp)
+{
+  struct BFILE_utf8 *p = (struct BFILE_utf8 *)bp;
+  CHECKBFILE(bp, getb_utf8);
+
+  return writeb(str, size, p->bfile);
+}
+
 BFILE *
 add_utf8(BFILE *file)
 {
   struct BFILE_utf8 *p = MALLOC(sizeof(struct BFILE_utf8));
-  
+
   if (!p)
     memerr();
   p->mets.getb = getb_utf8;
@@ -1054,7 +1180,8 @@ add_utf8(BFILE *file)
   p->mets.putb = putb_utf8;
   p->mets.flushb = flushb_utf8;
   p->mets.closeb = closeb_utf8;
-  p->mets.writeb = 0;
+  p->mets.readb = readb_utf8;
+  p->mets.writeb = writeb_utf8;
   p->bfile = file;
   p->unget = -1;
 

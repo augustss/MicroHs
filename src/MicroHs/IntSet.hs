@@ -4,7 +4,7 @@ module MicroHs.IntSet(
   IntSet,
   empty, member, insert, fromList, toList
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import qualified MicroHs.IntMap as M
 
 newtype IntSet = I (M.IntMap ())
@@ -26,4 +26,3 @@ fromList is = I (M.fromList (zip is (repeat ())))
 
 toList :: IntSet -> [Int]
 toList (I m) = map fst (M.toList m)
-

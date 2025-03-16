@@ -3,7 +3,7 @@ module MicroHs.Package(
   Package(..),
   forcePackage,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Version
 import MicroHs.Desugar(LDef)
 import MicroHs.Ident(Ident)
@@ -22,7 +22,7 @@ import MicroHs.TypeCheck(TModule, GlobTables)
 --   Foo/Bar.txt
 --   Foo/Baz.txt
 -- The files Foo/Bar.txt and Foo/Baz.txt will contain simply "foo.pkg".
--- 
+--
 
 type IdentPackage = Ident
 

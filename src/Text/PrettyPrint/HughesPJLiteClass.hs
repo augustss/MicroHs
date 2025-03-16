@@ -8,7 +8,7 @@
 -- Stability   :  stable
 -- Portability :  portable
 --
--- Pretty printing class, simlar to 'Show' but nicer looking. 
+-- Pretty printing class, simlar to 'Show' but nicer looking.
 --
 -- Note that the precedence level is a 'Rational' so there is an unlimited
 -- number of levels. This module re-exports 'Text.PrettyPrint.HughesPJ'.
@@ -25,7 +25,7 @@ module Text.PrettyPrint.HughesPJLiteClass (
     -- re-export HughesPJ
     module Text.PrettyPrint.HughesPJ
   ) where
-import Prelude(); import MHSPrelude hiding ((<>))
+import qualified Prelude(); import MHSPrelude hiding ((<>))
 
 import Text.PrettyPrint.HughesPJ
 

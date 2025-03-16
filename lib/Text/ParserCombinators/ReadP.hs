@@ -71,7 +71,7 @@ module Text.ParserCombinators.ReadP
   -- $properties
   )
  where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Control.Applicative hiding (optional, many)
 import Control.Error
@@ -449,4 +449,3 @@ readS_to_P :: ReadS a -> ReadP a
 --   parser, and therefore a possible inefficiency.
 readS_to_P r =
   R (\k -> Look (\s -> final [bs'' | (a,s') <- r s, bs'' <- run (k a) s']))
-

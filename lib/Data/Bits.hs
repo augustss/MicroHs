@@ -1,5 +1,5 @@
 module Data.Bits(module Data.Bits) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bool
@@ -36,6 +36,7 @@ class Eq a => Bits a where
   popCount          :: a -> Int
   bitSizeMaybe      :: a -> Maybe Int
   bitSize           :: a -> Int
+  isSigned          :: a -> Bool
 
   x `shift`   i | i<0       = x `shiftR` (- i)
                 | i>0       = x `shiftL` i
@@ -129,6 +130,7 @@ instance Bits Int where
   testBit = testBitDefault
   popCount = primIntPopcount
   zeroBits = 0
+  isSigned _ = True
 
 instance FiniteBits Int where
   finiteBitSize _ = _wordSize

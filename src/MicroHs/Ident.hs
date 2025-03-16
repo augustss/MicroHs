@@ -17,8 +17,9 @@ module MicroHs.Ident(
   addIdentSuffix,
   SLoc(..), noSLoc,
   showSLoc, slocFile,
+  isUpperX,
   ) where
-import Prelude(); import MHSPrelude hiding(head)
+import qualified Prelude(); import MHSPrelude hiding(head)
 import Data.Char
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
@@ -114,7 +115,7 @@ unQualString :: HasCallStack =>
                 String -> String
 unQualString [] = ""
 unQualString s@(c:_) =
-  if isUpper c then
+  if isUpperX c then
     case dropWhile (/= '.') s of
       "" -> s
       '.':r -> unQualString r
@@ -135,7 +136,7 @@ headIdent (Ident _ i) = head i
 isConIdent :: Ident -> Bool
 isConIdent i@(Ident _ t) =
   let c = headIdent i
-  in  isUpper c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()" || t == pack "->"
+  in  isUpperX c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()" || t == pack "->"
 
 isOperChar :: Char -> Bool
 isOperChar '@' = True
@@ -163,7 +164,7 @@ isOperChar '\x21d2' = True  -- =>
 isOperChar '\x2192' = True  -- ->
 isOperChar '\x2190' = True  -- <-
 isOperChar '\x2200' = True  -- forall
-isOperChar _ = False
+isOperChar c = not (isAscii c) && (isSymbol c || isPunctuation c)   -- Unicode operator symbols
 
 isIdentChar :: Char -> Bool
 isIdentChar c = isLower_ c || isUpper c || isDigit c || c == '\''
@@ -187,3 +188,8 @@ showSLoc (SLoc fn l c) =
 
 slocFile :: SLoc -> FilePath
 slocFile (SLoc f _ _) = f
+
+isUpperX :: Char -> Bool
+isUpperX '\8658' = False
+isUpperX '\8594' = False
+isUpperX c = isUpper c

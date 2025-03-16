@@ -58,7 +58,7 @@ int num_ffi;
 
 //#include "config.h"
 
-#define VERSION "v7.0\n"
+#define VERSION "v7.2\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -134,11 +134,17 @@ FFS(bits_t x)
 }
 #endif  /* !defined(FFS) */
 
+#if defined(__has_builtin)
+
+#if __has_builtin(__builtin_popcountl)
+#define BUILTIN_POPCOUNT
+#endif
+
+#endif
+
 #if !defined(POPCOUNT)
 uvalue_t POPCOUNT(uvalue_t x) {
-#if defined(__GNUC__)
-  return __builtin_popcountl(x);
-#elif defined(__clang__) && __has_builtin(__builtin_popcountl)
+#if defined(BUILTIN_POPCOUNT)
   return __builtin_popcountl(x);
 #else
   uvalue_t count = 0;
@@ -151,12 +157,20 @@ uvalue_t POPCOUNT(uvalue_t x) {
 }
 #endif
 
+#if defined(__GNUC__)
+#define BUILTIN_CLZ
+#elif defined(__clang__)
+
+#if __has_builtin(__builtin_clzl)
+#define BUILTIN_CLZ
+#endif
+
+#endif
+
+
 #if !defined(CLZ)
 uvalue_t CLZ(uvalue_t x) {
-#if defined(__GNUC__)
-  if (x == 0) return WORD_SIZE;
-  return __builtin_clzl(x);
-#elif defined(__clang__) && __has_builtin(__builtin_clzl)
+#if defined(BUILTIN_CLZ)
   if (x == 0) return WORD_SIZE;
   return __builtin_clzl(x);
 #else
@@ -170,12 +184,19 @@ uvalue_t CLZ(uvalue_t x) {
 }
 #endif
 
+#if defined(__has_builtin)
+
+#if __has_builtin(__builtin_ctzl)
+#define BUILTIN_CTZ
+#endif
+
+#endif
+
+
 #if !defined(CTZ)
 uvalue_t CTZ(uvalue_t x) {
   if (x == 0) return WORD_SIZE;
-#if defined(__GNUC__)
-  return __builtin_ctzl(x);
-#elif defined(__clang__) && __has_builtin(__builtin_ctzl)
+#if defined(BUILTIN_CLZ)
   return __builtin_ctzl(x);
 #else
   uvalue_t count = 0;
@@ -238,7 +259,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_BSTR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -247,6 +268,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_POPCOUNT, T_CLZ, T_CTZ,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE, T_ICMP, T_UCMP,
                 T_FPADD, T_FP2P, T_FPNEW, T_FPFIN, // T_FPSTR,
+                T_FP2BS, T_BS2FP,
                 T_TOPTR, T_TOINT, T_TODBL, T_TOFUNPTR,
                 T_BININT2, T_BININT1, T_UNINT1,
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
@@ -264,10 +286,10 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
-                T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
-                T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
-                T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR,
-                T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8,  T_BSTAILUTF8,
+                T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
+                T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
+                T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
+                T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT,
                 T_LAST_TAG,
 };
@@ -298,7 +320,7 @@ static const char* tag_names[] = {
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
   "IO_PERFORMIO", "IO_PRINT", "CATCH",
   "IO_CCALL", "IO_GC", "DYNSYM",
-  "NEWCASTRINGLEN", "PEEKCASTRING", "PEEKCASTRINGLEN",
+  "NEWCASTRINGLEN", "PACKCSTRING", "PACKCSTRINGLEN",
   "BSFROMUTF8",
   "STR",
   "LAST_TAG",
@@ -344,7 +366,7 @@ typedef struct node* NODEPTR;
 #define ARR(p) (p)->uarg.uuarray
 #define INDIR(p) ARG(p)
 #define NODE_SIZE sizeof(node)
-#define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); memset(cells, 0x55, n * sizeof(node)); } while(0)
+#define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
@@ -372,6 +394,12 @@ struct ioarray {
 };
 struct ioarray *array_root = 0; /* root of all allocated arrays, linked by next */
 
+enum fptype {
+  FP_FORPTR = 0,                /* a regular foreign pointer to unknown memory */
+  FP_BSTR,                      /* a bytestring */
+  FP_MPZ,                       /* a GMP MPZ pointer */
+};
+
 /*
  * A Haskell ForeignPtr has a normal pointer, and a finalizer
  * function that is to be called when there are no more references
@@ -392,8 +420,8 @@ struct final {
   size_t         size;      /* size of memory, if known, otherwise NOSIZE */
 #define NOSIZE ~0           /* used as the size in payload for actual foreign pointers */
   struct forptr *back;      /* back pointer to the first forptr */
-  int            marked;    /* mark bit for GC */
-  int            isMPZ;     /* is GMP MPZ pointer */
+  short          marked;    /* mark bit for GC */
+  enum fptype    fptype;    /* what kind of foreign pointer */
 };
 
 /*
@@ -768,20 +796,21 @@ struct {
   { "fread", T_FREAD},
 #endif  /* WANT_FLOAT */
 
-  { "bs++", T_BSAPPEND},
-  { "bs++.", T_BSAPPENDDOT},
-  { "bs+++", T_BSAPPEND3},
-  { "bs==", T_BSEQ, T_BSEQ},
-  { "bs/=", T_BSNE, T_BSNE},
-  { "bs<", T_BSLT},
-  { "bs<=", T_BSLE},
-  { "bs>", T_BSGT},
-  { "bs>=", T_BSGE},
-  { "bscmp", T_BSCMP},
-  { "bspack", T_BSPACK},
-  { "bsunpack", T_BSUNPACK},
-  { "bslength", T_BSLENGTH},
-  { "bssubstr", T_BSSUBSTR},
+  { "bs++", T_BSAPPEND },
+  { "bs++.", T_BSAPPENDDOT },
+  { "bs==", T_BSEQ, T_BSEQ },
+  { "bs/=", T_BSNE, T_BSNE },
+  { "bs<", T_BSLT },
+  { "bs<=", T_BSLE },
+  { "bs>", T_BSGT },
+  { "bs>=", T_BSGE },
+  { "bscmp", T_BSCMP },
+  { "bspack", T_BSPACK },
+  { "bsunpack", T_BSUNPACK },
+  { "bsreplicate", T_BSREPLICATE },
+  { "bslength", T_BSLENGTH },
+  { "bssubstr", T_BSSUBSTR },
+  { "bsindex", T_BSINDEX },
 
   { "ord", T_I },
   { "chr", T_I },
@@ -800,6 +829,8 @@ struct {
   { "fpnew", T_FPNEW },
   { "fpfin", T_FPFIN },
   //  { "fpstr", T_FPSTR },
+  { "fp2bs", T_FP2BS },
+  { "bs2fp", T_BS2FP },
   { "seq", T_SEQ },
   { "equal", T_EQUAL, T_EQUAL },
   { "sequal", T_EQUAL, T_EQUAL },
@@ -836,8 +867,8 @@ struct {
   { "A.==", T_ARR_EQ },
   { "dynsym", T_DYNSYM },
   { "newCAStringLen", T_NEWCASTRINGLEN },
-  { "peekCAString", T_PEEKCASTRING },
-  { "peekCAStringLen", T_PEEKCASTRINGLEN },
+  { "packCString", T_PACKCSTRING },
+  { "packCStringLen", T_PACKCSTRINGLEN },
   { "toPtr", T_TOPTR },
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
@@ -853,7 +884,7 @@ enum node_tag flip_ops[T_LAST_TAG];
 /* These handles are never gc():d. */
 void
 mk_std(NODEPTR n, FILE *f)
-{ 
+{
   struct final *fin = calloc(1, sizeof(struct final));
   struct forptr *fp = calloc(1, sizeof(struct forptr));
   if (!fin || !fp)
@@ -1147,14 +1178,13 @@ mark(NODEPTR *np)
       break;
     }
    case T_FORPTR:
-   case T_BSTR:
      FORPTR(n)->finalizer->marked = 1;
      goto fin;
 
    default:
      goto fin;
   }
-      
+
   if (!is_marked_used(*to_push)) {
     //  mark_depth++;
     PUSH((NODEPTR)to_push);
@@ -1623,7 +1653,7 @@ int
 getNT(BFILE *f)
 {
   int c;
-  
+
   c = getb(f);
   if (c == ' ' || c == '\n') {
     return 0;
@@ -1671,6 +1701,7 @@ parse_double(BFILE *f)
 #endif
 
 struct forptr *mkForPtr(struct bytestring bs);
+NODEPTR mkFunPtr(HsFunPtr p);
 
 /* Create a forptr that has a free() finalizer. */
 struct forptr *
@@ -1684,8 +1715,10 @@ mkForPtrFree(struct bytestring str)
 NODEPTR
 mkStrNode(struct bytestring str)
 {
-  NODEPTR n = alloc_node(T_BSTR);
-  FORPTR(n) = mkForPtrFree(str);
+  NODEPTR n = alloc_node(T_FORPTR);
+  struct forptr *fp = mkForPtrFree(str);
+  FORPTR(n) = fp;
+  fp->finalizer->fptype = FP_BSTR;
   //printf("mkForPtr n=%p fp=%p %d %s payload.string=%p\n", n, fp, (int)FORPTR(n)->payload.size, (char*)FORPTR(n)->payload.string, FORPTR(n)->payload.string);
   return n;
 }
@@ -1750,6 +1783,7 @@ parse_string(BFILE *f)
       if (!buffer)
         memerr();
     }
+#if 0
     if (c == '\\') {
       buffer[i++] = (uint8_t)parse_int(f);
       if (!gobble(f, '&'))
@@ -1757,6 +1791,33 @@ parse_string(BFILE *f)
     } else {
       buffer[i++] = c;
     }
+#else
+    /* See src/MicroHs/ExpPrint.hs for how strings are encoded. */
+    switch (c) {
+    case '\\':
+      c = getb(f);
+      if (c == '?')
+        c = 0x7f;
+      else if (c == '_')
+        c = 0xff;
+      break;
+    case '^':
+      c = getb(f);
+      if (c < 0x40)
+        c &= 0x1f;
+      else
+        c = (c & 0x1f) | 0x80;
+      break;
+    case '|':
+      c = getb(f);
+      c |= 0x80;
+      break;
+    default:
+      /* Unencoded */
+      ;
+    }
+    buffer[i++] = c;
+#endif
   }
   buffer[i] = 0;                /* add a trailing 0 in case we need a C string */
   buffer = REALLOC(buffer, i + 1);
@@ -1900,6 +1961,18 @@ parse(BFILE *f)
         ;
       r = ffiNode(buf);
       PUSH(r);
+      break;
+    case ';':
+      /* <name is a C function pointer to name */
+      for (j = 0; (buf[j] = getNT(f)); j++)
+        ;
+      if (strcmp(buf, "0") == 0) {
+        PUSH(mkFunPtr((HsFunPtr)0));
+      } else if (strcmp(buf, "closeb") == 0) {
+        PUSH(mkFunPtr((HsFunPtr)closeb));
+      } else {
+        ERR1("unknown funptr '%s'", buf);
+      }
       break;
     default:
       buf[0] = c;
@@ -2058,7 +2131,7 @@ find_sharing(struct print_bits *pb, NODEPTR n)
   if (n < cells || n >= cells + heap_size) abort();
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
   tag_t tag = GETTAG(n);
-  if (tag == T_AP || tag == T_ARR || tag == T_BSTR) {
+  if (tag == T_AP || tag == T_ARR || tag == T_FORPTR) {
     if (test_bit(pb->shared_bits, n)) {
       /* Alread marked as shared */
       //PRINT("shared\n");
@@ -2100,6 +2173,7 @@ print_string(BFILE *f, struct bytestring bs)
   putb('"', f);
   for (size_t i = 0; i < bs.size; i++) {
     int c = str[i];
+#if 0
     if (c == '"' || c == '\\' || c < ' ' || c > '~') {
       putb('\\', f);
       putdecb(c, f);
@@ -2107,6 +2181,25 @@ print_string(BFILE *f, struct bytestring bs)
     } else {
       putb(c, f);
     }
+#else
+    if (c < 0 || c > 0xff)
+      ERR("print_string");
+    if (c < 0x20) {
+      putb('^', f); putb(c + 0x20, f);
+    } else if (c == '"' || c == '^' || c == '|' || c == '\\') {
+      putb('\\', f); putb(c, f);
+    } else if (c < 0x7f) {
+      putb(c, f);
+    } else if (c == 0x7f) {
+      putb('\\', f); putb('?', f);
+    } else if (c < 0xa0) {
+      putb('^', f); putb(c - 0x80 + 0x40, f);
+    } else if (c < 0xff) {
+      putb('|', f); putb(c - 0x80, f);
+    } else {                    /* must be c == 0xff */
+      putb('\\', f); putb('_', f);
+    }
+#endif
   }
   putb('"', f);
 }
@@ -2194,7 +2287,18 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     }
     break;
   case T_FUNPTR:
-      ERR("Cannot serialize function pointers");
+    /* There are a few function pointers that happen without user FFI.
+     * We need to be able to serialize these.
+     * XXX Make a table if we need more.
+     */
+    if (FUNPTR(n) == 0) {
+      putsb(";0 ", f);
+    } else if (FUNPTR(n) == (HsFunPtr)closeb) {
+      putsb(";closeb ", f);
+    } else {
+      ERR1("Cannot serialize function pointers %p", FUNPTR(n));
+    }
+    break;
   case T_FORPTR:
     if (n == comb_stdin)
       putsb("IO.stdin", f);
@@ -2203,7 +2307,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     else if (n == comb_stderr)
       putsb("IO.stderr", f);
 #if WANT_GMP
-    else if (FORPTR(n)->finalizer->isMPZ) {
+    else if (FORPTR(n)->finalizer->fptype == FP_MPZ) {
       /* Serialize as %99999" */
       mpz_ptr op = FORPTR(n)->payload.string; /* get the mpz */
       int sz = mpz_sizeinbase(op, 10);        /* maximum length */
@@ -2217,12 +2321,11 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
       free(s);
     }
 #endif  /* WANT_GMP */
-    else {
+    else if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
+      print_string(f, FORPTR(n)->payload);
+    } else {
       ERR("Cannot serialize foreign pointers");
     }
-    break;
-  case T_BSTR:
-    print_string(f, FORPTR(n)->payload);
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
@@ -2282,7 +2385,6 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 #endif
   case T_BSAPPEND: putsb("bs++", f); break;
   case T_BSAPPENDDOT: putsb("bs++.", f); break;
-  case T_BSAPPEND3: putsb("bs+++", f); break;
   case T_BSEQ: putsb("bs==", f); break;
   case T_BSNE: putsb("bs/=", f); break;
   case T_BSLT: putsb("bs<", f); break;
@@ -2292,8 +2394,10 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_BSCMP: putsb("bscmp", f); break;
   case T_BSPACK: putsb("bspack", f); break;
   case T_BSUNPACK: putsb("bsunpack", f); break;
+  case T_BSREPLICATE: putsb("bsreplicate", f); break;
   case T_BSLENGTH: putsb("bslength", f); break;
   case T_BSSUBSTR: putsb("bssubstr", f); break;
+  case T_BSINDEX: putsb("bsindex", f); break;
   case T_EQ: putsb("==", f); break;
   case T_NE: putsb("/=", f); break;
   case T_LT: putsb("<", f); break;
@@ -2311,6 +2415,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_FPNEW: putsb("fpnew", f); break;
   case T_FPFIN: putsb("fpfin", f); break;
     //  case T_FPSTR: putsb("fpstr", f); break;
+  case T_FP2BS: putsb("fp2bs", f); break;
+  case T_BS2FP: putsb("bs2fp", f); break;
   case T_EQUAL: putsb("equal", f); break;
   case T_COMPARE: putsb("compare", f); break;
   case T_RNF: putsb("rnf", f); break;
@@ -2335,8 +2441,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_ARR_EQ: putsb("A.==", f); break;
   case T_DYNSYM: putsb("dynsym", f); break;
   case T_NEWCASTRINGLEN: putsb("newCAStringLen", f); break;
-  case T_PEEKCASTRING: putsb("peekCAString", f); break;
-  case T_PEEKCASTRINGLEN: putsb("peekCAStringLen", f); break;
+  case T_PACKCSTRING: putsb("packCString", f); break;
+  case T_PACKCSTRINGLEN: putsb("packCStringLen", f); break;
   case T_TOINT: putsb("toInt", f); break;
   case T_TOPTR: putsb("toPtr", f); break;
   case T_TODBL: putsb("toDbl", f); break;
@@ -2734,13 +2840,13 @@ evalforptr(NODEPTR n)
   return FORPTR(n);
 }
 
-/* Evaluate to a T_BSTR */
+/* Evaluate to a bytestring */
 struct forptr *
 evalbstr(NODEPTR n)
 {
   n = evali(n);
 #if SANITY
-  if (GETTAG(n) != T_BSTR) {
+  if (GETTAG(n) != T_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR) {
     ERR1("evalbstr, bad tag %d", GETTAG(n));
   }
 #endif
@@ -2772,14 +2878,19 @@ evalstring(NODEPTR n)
       if (!buf)
         memerr();
     }
+    PUSH(n);                    /* protect the list from GC */
     n = evali(n);
-    if (GETTAG(n) == T_K)            /* Nil */
+    POP(1);
+    if (GETTAG(n) == T_K)       /* Nil */
       break;
     else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
       c = evalint(ARG(x));
       n = POPTOP();
-      /* XXX Encode as UTF8 */
+      if ((c & 0x1ff800) == 0xd800) {
+        // c is a surrogate
+        c = 0xfffd; // replacement character
+      }
       if (c < 0x80) {
         buf[offs++] = (char)c;
       } else if (c < 0x800) {
@@ -2828,8 +2939,10 @@ evalbytestring(NODEPTR n)
       if (!buf)
         memerr();
     }
+    PUSH(n);                    /* protect list from GC */
     n = evali(n);
-    if (GETTAG(n) == T_K)            /* Nil */
+    POP(1);
+    if (GETTAG(n) == T_K)       /* Nil */
       break;
     else if (GETTAG(n) == T_AP && GETTAG(x = indir(&FUN(n))) == T_AP && GETTAG(indir(&FUN(x))) == T_O) { /* Cons */
       PUSH(n);                  /* protect from GC */
@@ -2848,12 +2961,20 @@ evalbytestring(NODEPTR n)
 }
 
 struct bytestring
+bsreplicate(size_t size, uint8_t value)
+{
+  struct bytestring bs;
+  bs.size = size;
+  bs.string = MALLOC(size);
+  if (!bs.string)
+    memerr();
+  memset(bs.string, value, size);
+  return bs;
+}
+
+struct bytestring
 bsappend(struct bytestring p, struct bytestring q)
 {
-  if (p.size == 0)
-    return q;
-  if (q.size == 0)
-    return p;
   struct bytestring r;
   r.size = p.size + q.size;
   r.string = MALLOC(r.size);
@@ -2878,7 +2999,7 @@ bsappenddot(struct bytestring p, struct bytestring q)
   return r;
 }
 
-/* 
+/*
  * Compare bytestrings.
  * We can't use memcmp() directly for two reasons:
  *  - the two strings can have different lengths
@@ -3012,7 +3133,7 @@ compare(NODEPTR cmp)
       struct forptr *fp = FORPTR(p);
       struct forptr *fq = FORPTR(q);
 #if WANT_GMP
-      if (fp->finalizer->isMPZ && fq->finalizer->isMPZ) {
+      if (fp->finalizer->fptype == FP_MPZ && fq->finalizer->fptype == FP_MPZ) {
         int i = mpz_cmp(fp->payload.string, fq->payload.string);
         if (i < 0)
           CRET(-1);
@@ -3020,7 +3141,11 @@ compare(NODEPTR cmp)
           CRET(1);
       } else
 #endif
-      {
+      if (fp->finalizer->fptype == FP_BSTR && fq->finalizer->fptype == FP_BSTR) {
+        r = bscompare(BSTR(p), BSTR(q));
+        if (r)
+          CRET(r);
+      } else {
         f = fp->payload.string;
         g = fq->payload.string;
         if (f < g)
@@ -3029,11 +3154,6 @@ compare(NODEPTR cmp)
           CRET(1);
       }
       }
-      break;
-    case T_BSTR:
-      r = bscompare(BSTR(p), BSTR(q));
-      if (r)
-        CRET(r);
       break;
     case T_ARR:
       if (ARR(p) < ARR(q))
@@ -3143,7 +3263,7 @@ evali(NODEPTR an)
 #define SETPTR(n,r)    do { SETTAG((n), T_PTR); PTR(n) = (r); } while(0)
 #define SETFUNPTR(n,r) do { SETTAG((n), T_FUNPTR); FUNPTR(n) = (r); } while(0)
 #define SETFORPTR(n,r) do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); } while(0)
-#define SETBSTR(n,r)   do { SETTAG((n), T_BSTR); FORPTR(n) = (r); } while(0)
+#define SETBSTR(n,r)   do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); FORPTR(n)->finalizer->fptype = FP_BSTR; } while(0)
 #define OPINT1(e)      do { CHECK(1); xi = evalint(ARG(TOP(0)));                            e; POP(1); n = TOP(-1); } while(0);
 #define OPPTR2(e)      do { CHECK(2); xp = evalptr(ARG(TOP(0))); yp = evalptr(ARG(TOP(1))); e; POP(2); n = TOP(-1); } while(0);
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
@@ -3163,7 +3283,6 @@ evali(NODEPTR an)
   ap:
   case T_AP:   PUSH(n); n = FUN(n); goto top;
 
-  case T_BSTR: RET;
   case T_INT:  RET;
   case T_DBL:  RET;
   case T_PTR:  RET;
@@ -3171,7 +3290,7 @@ evali(NODEPTR an)
   case T_FORPTR: RET;
   case T_ARR:  RET;
   case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
-    
+
   /*
    * Some of these reductions, (e.g., Z x y = K (x y)) are there to avoid
    * that increase in arity that some "optimizations" in Abstract.hs
@@ -3280,7 +3399,7 @@ evali(NODEPTR an)
      *  ----             |
      *  n ---------------|
      *
-     *  ---- 
+     *  ----
      *  n -------> INT(x+y)
      */
   case T_ADD:
@@ -3399,11 +3518,31 @@ evali(NODEPTR an)
 #undef CONV
 
   case T_FPADD: CHECK(2); xfp = evalforptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETFORPTR(n, addForPtr(xfp, yi)); RET;
-  case T_FP2P:  CHECK(1);
-    //printf("T_FP2P\n");
-    xfp = evalforptr(ARG(TOP(0))); POP(1); n = TOP(-1);
-    //printf("T_FP2P xfp=%p, payload=%p\n", xfp, xfp->payload);
-    SETPTR(n, xfp->payload.string); RET;
+  case T_FP2P:
+    CHECK(1);
+    xfp = evalforptr(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETPTR(n, xfp->payload.string);
+    RET;
+
+  case T_FP2BS:
+    CHECK(2);
+    xfp = evalforptr(ARG(TOP(0)));
+    xi = evalint(ARG(TOP(1)));
+    POP(2);
+    n = TOP(-1);
+    xfp->payload.size = xi;
+    SETBSTR(n, xfp);
+    RET;
+
+  case T_BS2FP:
+    CHECK(1);
+    xfp = evalbstr(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETFORPTR(n, xfp);
+    RET;
 
   case T_ARR_EQ:
     {
@@ -3419,7 +3558,12 @@ evali(NODEPTR an)
   case T_BSTOUTF8:
     {
       CHECK(1);
-      struct bytestring bs = evalstring(ARG(TOP(0)));
+      n = ARG(TOP(0));
+      /* Zap the pointer to the list so it can be GC:ed.
+       * The actual list is protected from GC by evalbytestring().
+       */
+      // ARG(TOP(0)) = combK;
+      struct bytestring bs = evalstring(n);
       POP(1);
       n = TOP(-1);
       SETBSTR(n, mkForPtrFree(bs));
@@ -3428,21 +3572,18 @@ evali(NODEPTR an)
 
   case T_BSHEADUTF8:
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-    if (GETTAG(x) != T_BSTR) ERR("HEADUTF8");
+    xfp = evalbstr(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    SETINT(n, headutf8(BSTR(x), (void**)0));
+    SETINT(n, headutf8(xfp->payload, (void**)0));
     RET;
 
   case T_BSTAILUTF8:
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-    if (GETTAG(x) != T_BSTR) ERR("TAILUTF8");
+    xfp = evalbstr(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    { xfp = FORPTR(x);                              /* foreign pointer to the string */
-      void *out;
+    { void *out;
       (void)headutf8(xfp->payload, &out);           /* skip one UTF8 character */
       xi = (char*)out - (char*)xfp->payload.string; /* offset */
       yi = xfp->payload.size - xi;                  /* remaining length */
@@ -3453,30 +3594,51 @@ evali(NODEPTR an)
   case T_BSFROMUTF8:
     if (doing_rnf) RET;
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-    if (GETTAG(x) != T_BSTR) ERR("FROMUTF8");
+
+    xfp = evalbstr(ARG(TOP(0)));
+    GCCHECK(strNodes(xfp->payload.size));
     POP(1);
     n = TOP(-1);
-    GCCHECK(strNodes(BSTR(x).size));
     //printf("T_FROMUTF8 x = %p fp=%p payload.string=%p\n", x, x->uarg.uuforptr, x->uarg.uuforptr->payload.string);
-    GOIND(mkStringU(BSTR(x)));
+    GOIND(mkStringU(xfp->payload));
 
   case T_BSUNPACK:
     if (doing_rnf) RET;
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-    if (GETTAG(x) != T_BSTR) ERR("BSUNPACK");
+    struct forptr *xfp = evalbstr(ARG(TOP(0)));
+    GCCHECK(strNodes(xfp->payload.size));
     POP(1);
     n = TOP(-1);
-    GCCHECK(strNodes(BSTR(x).size));
-    GOIND(bsunpack(BSTR(x)));
+    GOIND(bsunpack(xfp->payload));
 
   case T_BSPACK:
     CHECK(1);
-    struct bytestring rbs = evalbytestring(ARG(TOP(0)));
+    n = ARG(TOP(0));
+    /* Zap the pointer to the list so it can be GC:ed.
+     * The actual list is protected from GC by evalbytestring().
+     */
+    ARG(TOP(0)) = combK;
+    struct bytestring rbs = evalbytestring(n);
     POP(1);
     n = TOP(-1);
     SETBSTR(n, mkForPtrFree(rbs));
+    RET;
+
+  case T_BSREPLICATE:
+    CHECK(2);
+    xi = evalint(ARG(TOP(0)));
+    yi = evalint(ARG(TOP(1)));
+    POP(2);
+    n = TOP(-1);
+    SETBSTR(n, mkForPtrFree(bsreplicate(xi, yi)));
+    RET;
+
+  case T_BSLENGTH:
+    CHECK(1);
+    xfp = evalbstr(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, xfp->payload.size);
     RET;
 
   case T_BSSUBSTR:
@@ -3489,12 +3651,13 @@ evali(NODEPTR an)
     SETBSTR(n, bssubstr(xfp, xi, yi));
     RET;
 
-  case T_BSLENGTH:
-    CHECK(1);
+  case T_BSINDEX:
+    CHECK(2);
     xfp = evalbstr(ARG(TOP(0)));
-    POP(1);
+    xi = evalint(ARG(TOP(1)));
+    POP(2);
     n = TOP(-1);
-    SETINT(n, xfp->payload.size);
+    SETINT(n, ((uint8_t *)xfp->payload.string)[xi]);
     RET;
 
   case T_RAISE:
@@ -3534,10 +3697,10 @@ evali(NODEPTR an)
       ERR1("mhs error: %s", msg);
 #endif  /* WANT_STDIO */
     }
-    
+
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
-    
+
   case T_EQUAL:
     CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
   case T_COMPARE:
@@ -3553,7 +3716,7 @@ evali(NODEPTR an)
     CHECK(1);
     if (doing_rnf) RET;
     execio(&ARG(TOP(0)));       /* run IO action */
-    x = ARG(TOP(0));           /* should be RETURN e */
+    x = ARG(TOP(0));            /* should be RETURN e */
     if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
       ERR("PERFORMIO");
     POP(1);
@@ -3571,8 +3734,8 @@ evali(NODEPTR an)
   case T_IO_CCALL:
   case T_CATCH:
   case T_NEWCASTRINGLEN:
-  case T_PEEKCASTRING:
-  case T_PEEKCASTRINGLEN:
+  case T_PACKCSTRING:
+  case T_PACKCSTRINGLEN:
   case T_ARR_ALLOC:
   case T_ARR_COPY:
   case T_ARR_SIZE:
@@ -3594,7 +3757,7 @@ evali(NODEPTR an)
     POP(1);
     n = TOP(-1);
     GOIND(x);
-    
+
 #if WANT_TICK
   case T_TICK:
     xi = GETVALUE(n);
@@ -3617,7 +3780,7 @@ evali(NODEPTR an)
     flt_t xd, yd, rd;
 #endif  /* WANT_FLOAT */
     NODEPTR p;
-    
+
     tag = GETTAG(TOP(0));
     switch (tag) {
     case T_BININT2:
@@ -3785,7 +3948,7 @@ evali(NODEPTR an)
     case T_BINBS1:
       /* First argument */
 #if SANITY
-      if (GETTAG(n) != T_BSTR)
+      if (GETTAG(n) != T_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR)
         ERR("BINBS 0");
 #endif  /* SANITY */
       xbs = BSTR(n);
@@ -3794,7 +3957,7 @@ evali(NODEPTR an)
       while (GETTAG(y) == T_IND)
         y = INDIR(y);
 #if SANITY
-      if (GETTAG(y) != T_BSTR)
+      if (GETTAG(y) != T_FORPTR || FORPTR(y)->finalizer->fptype != FP_BSTR)
         ERR("BINBS 1");
 #endif  /* SANITY */
       ybs = BSTR(y);
@@ -3834,7 +3997,7 @@ evali(NODEPTR an)
 }
 
 /* This is the interpreter for the IO monad operations.
- * 
+ *
  * Assuming every graph rewrite is atomic we want the graph
  * to always represent the rest of the program to run.
  * To this end, we need to mutate the graph every time
@@ -3842,13 +4005,22 @@ evali(NODEPTR an)
  * execute it again.
  * To have a cell that is safe to mutate, we allocate a new
  * application on entry to execio().
- * Given the call execio(np) we allocate this graph, top,:
- *   BIND (*np) RETURN
+ * Given the call execio(np) we allocate this graph, top = BIND (*np) RETURN.
+ * I.e.
+ *          @
+ *         / \
+ *        @  RETURN
+ *       / \
+ *    BIND (*np) 
  * and make np point to it.
- * This graph will be updated continuously as we execite IO action.
+ * This graph will be updated continuously as we execute IO actions.
+ *
  * Invariant: the second argument to this BIND is always either RETURN
  * or a C'BIND.  The second argument to C'BIND has the same invariant.
- * This is the cycle:
+ * C'BIND has the reduction rule (which is normally never used): 
+ *   C'BIND x y z = BIND (x z) y
+ *
+ * This is the cycle of the execio loop:
  *  again:
  *   given top = BIND n q
  *   eval(n)
@@ -3865,7 +4037,7 @@ execio(NODEPTR *np)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR f, x, n, q, r, s, res, top1;
-  char *name;
+  char *cstr;
   struct handler *h;
 #if WANT_STDIO
   void *ptr;
@@ -4019,10 +4191,13 @@ execio(NODEPTR *np)
           goto start;
         } else {
           /* Normal execution: */
-          execio(&ARG(TOP(1))); /* execute first argument */
+          n = ARG(TOP(1));          /* first argument, should be evaluated (but not overwritten) */
+          PUSH(n);
+          execio(&TOP(0));          /* execute first argument */
           cur_handler = h->hdl_old; /* restore old handler */
           FREE(h);
-          n = ARG(TOP(1));
+          n = TOP(0);
+          POP(1);
           IOASSERT(GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_IO_RETURN, "CATCH");
           RETIO(ARG(n));             /* return result */
         }
@@ -4031,33 +4206,40 @@ execio(NODEPTR *np)
     case T_NEWCASTRINGLEN:
       {
       CHECKIO(1);
-      struct bytestring bs = evalbytestring(ARG(TOP(1)));
+      n = ARG(TOP(1));
+      /* Zap the pointer to the list so it can be GC:ed.
+       * The actual list is protected from GC by evalbytestring().
+       */
+      // ARG(TOP(1)) = combK;
+      struct bytestring bs = evalbytestring(n);
       GCCHECK(4);
       n = new_ap(new_ap(combPair, x = alloc_node(T_PTR)), mkInt(bs.size));
       PTR(x) = bs.string;
       RETIO(n);
       }
 
-    case T_PEEKCASTRING:
+    case T_PACKCSTRING:
       {
       size_t size;
       CHECKIO(1);
-      name = evalptr(ARG(TOP(1)));
-      size = strlen(name);
-      GCCHECK(strNodes(size));
-      struct bytestring bs = { size, name };
-      RETIO(mkString(bs));
+      cstr = evalptr(ARG(TOP(1)));
+      size = strlen(cstr);
+      char *str = MALLOC(size);
+      memcpy(str, cstr, size);
+      struct bytestring bs = { size, str };
+      RETIO(mkStrNode(bs));
       }
 
-    case T_PEEKCASTRINGLEN:
+    case T_PACKCSTRINGLEN:
       {
       size_t size;
       CHECKIO(2);
+      cstr = evalptr(ARG(TOP(1)));
       size = evalint(ARG(TOP(2)));
-      name = evalptr(ARG(TOP(1)));
-      GCCHECK(strNodes(size));
-      struct bytestring bs = { size, name };
-      RETIO(mkString(bs));
+      char *str = MALLOC(size);
+      memcpy(str, cstr, size);
+      struct bytestring bs = { size, str };
+      RETIO(mkStrNode(bs));
       }
 
     case T_ARR_ALLOC:
@@ -4208,7 +4390,7 @@ MAIN
   char *outname = 0;
   size_t file_size = 0;
 #endif
-  
+
 #if 0
   /* MINGW doesn't do buffering right */
   setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
@@ -4532,6 +4714,7 @@ void mhs_getbuf(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(
 void mhs_system(int s) { mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
 void mhs_tmpname(int s) { mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 void mhs_unlink(int s) { mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
+void mhs_readb(int s) { mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 void mhs_writeb(int s) { mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 #endif  /* WANT_STDIO */
 
@@ -4655,7 +4838,7 @@ new_mpz(void)
   mpz_init(p);
   struct forptr *fp = mkForPtrP(p);
   fp->finalizer->final = (HsFunPtr)free_mpz;
-  fp->finalizer->isMPZ = 1;
+  fp->finalizer->fptype = FP_MPZ;
   /*  printf("new_mpz %p %p\n", p, fp); */
   return fp;
 }
@@ -4735,6 +4918,7 @@ struct ffi_entry ffi_table[] = {
 { "system", mhs_system},
 { "tmpname", mhs_tmpname},
 { "unlink", mhs_unlink},
+{ "readb", mhs_readb},
 { "writeb", mhs_writeb},
 #endif  /* WANT_STDIO */
 

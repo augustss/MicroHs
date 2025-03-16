@@ -1,5 +1,5 @@
 module Data.Ix(Ix(..)) where
-import Prelude()
+import qualified Prelude()
 import Control.Error
 import Data.Bool
 import Data.Char

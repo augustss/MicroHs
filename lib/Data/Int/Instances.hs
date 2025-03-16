@@ -1,10 +1,11 @@
 module Data.Int.Instances() where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Control.Error
 import Data.Bits
-import Data.Bool_Type
+import Data.Bool
 import Data.Bounded
+import Data.Coerce
 import Data.Enum
 import Data.Eq
 import Data.Function
@@ -69,14 +70,16 @@ instance Read Int8 where
 -}
 
 instance Enum Int8 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int8.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int8.pred: underflow" else x - 1
   toEnum = i8
   fromEnum = unI8
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int8 where
   (==) = cmp8 primIntEQ
@@ -110,6 +113,7 @@ instance Bits Int8 where
   testBit = testBitDefault
   popCount (I8 x) = primIntPopcount (x .&. 0xff)
   zeroBits = 0
+  isSigned _ = True
 
 instance FiniteBits Int8 where
   finiteBitSize _ = 8
@@ -165,14 +169,16 @@ instance Read Int16 where
 -}
 
 instance Enum Int16 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int16.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int16.pred: underflow" else x - 1
   toEnum = i16
   fromEnum = unI16
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int16 where
   (==) = cmp16 primIntEQ
@@ -206,6 +212,7 @@ instance Bits Int16 where
   testBit = testBitDefault
   popCount (I16 x) = primIntPopcount (x .&. 0xffff)
   zeroBits = 0
+  isSigned _ = True
 
 instance FiniteBits Int16 where
   finiteBitSize _ = 16
@@ -261,14 +268,16 @@ instance Read Int32 where
 -}
 
 instance Enum Int32 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int32.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int32.pred: underflow" else x - 1
   toEnum = i32
   fromEnum = unI32
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int32 where
   (==) = cmp32 primIntEQ
@@ -302,6 +311,7 @@ instance Bits Int32 where
   testBit = testBitDefault
   popCount (I32 x) = primIntPopcount (x .&. 0xffffffff)
   zeroBits = 0
+  isSigned _ = True
 
 instance FiniteBits Int32 where
   finiteBitSize _ = 32
@@ -356,14 +366,16 @@ instance Read Int64 where
 -}
 
 instance Enum Int64 where
-  succ x = x + 1
-  pred x = x - 1
+  succ x = if x == maxBound then error "Int64.succ: overflow" else x + 1
+  pred x = if x == minBound then error "Int64.pred: underflow" else x - 1
   toEnum = i64
   fromEnum = unI64
-  enumFrom = numericEnumFrom
-  enumFromThen = numericEnumFromThen
-  enumFromTo = numericEnumFromTo
-  enumFromThenTo = numericEnumFromThenTo
+  enumFrom n = enumFromTo n maxBound
+  enumFromThen n m
+    | m >= n = enumFromThenTo n m maxBound
+    | otherwise = enumFromThenTo n m minBound
+  enumFromTo = coerce (enumFromTo @Int)
+  enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Eq Int64 where
   (==) = cmp64 primIntEQ
@@ -397,6 +409,7 @@ instance Bits Int64 where
   testBit = testBitDefault
   popCount (I64 x) = primIntPopcount x
   zeroBits = 0
+  isSigned _ = True
 
 instance FiniteBits Int64 where
   finiteBitSize _ = 64

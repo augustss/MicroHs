@@ -9,7 +9,7 @@ module Numeric.Read(
   readIntegral,
   readBoundedEnum,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool
 import Data.Bounded
@@ -28,11 +28,11 @@ import Text.Show
 
 type ReadS a = String -> [(a, String)]
 
-readParen :: forall a . Bool -> ReadS a -> ReadS a  
-readParen b g =  if b then mandatory else optional  
-  where optional r  = g r ++ mandatory r  
-        mandatory r = [(x,u) | ("(",s) <- lex r,  
-                               (x,t)   <- optional s,  
+readParen :: forall a . Bool -> ReadS a -> ReadS a
+readParen b g =  if b then mandatory else optional
+  where optional r  = g r ++ mandatory r
+        mandatory r = [(x,u) | ("(",s) <- lex r,
+                               (x,t)   <- optional s,
                                (")",u) <- lex t ]
 
 --------------------------------------------------------
@@ -41,7 +41,7 @@ readInt :: forall a . Num a => a -> (Char -> Bool)  -> (Char -> Int) -> ReadS a
 readInt base isDig valDig cs@(c:_) | isDig c = loop 0 cs
   where loop r (c:cs) | isDig c = loop (r * base + fromIntegral (valDig c)) cs
         loop r ds = [(r, ds)]
-readInt _ _ _ _ = []  
+readInt _ _ _ _ = []
 
 readBin :: forall a . (Num a) => ReadS a
 readBin = readInt 2 isBinDigit digitToInt

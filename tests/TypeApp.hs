@@ -9,3 +9,4 @@ main = do
   print $ read @Int "123"
   let (x, y) = foo @_ @Bool
   print $ typeOf y
+  return @IO ()

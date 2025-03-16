@@ -1,4 +1,4 @@
--- Copyright 2023 Lennart Augustsson
+-- Copyright 2023, 2024, 2025 Lennart Augustsson
 -- See LICENSE file for full license.
 module Prelude(
   module Control.Applicative,
@@ -41,7 +41,7 @@ module Prelude(
   default IsString,
   usingMhs, _wordSize, _isWindows,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Control.Applicative(Applicative(..))
 import Control.Error(error, undefined)
 import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
@@ -79,7 +79,7 @@ import Data.Real(Real(..))
 import Data.RealFloat(RealFloat(..))
 import Data.RealFrac(RealFrac(..))
 import Data.Records  -- XXX redo this somehow
-import Data.Semigroup(Semigroup(..))
+import Data.Semigroup(Semigroup((<>)))
 import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(fst, snd, curry, uncurry)
 import Data.Word(Word)

@@ -130,7 +130,7 @@ module Data.ByteString(
   useAsCStringLen,
 
   -- * I\/O with 'ByteString's
-  
+
   -- ** Standard input and output
   getLine,
   getContents,
@@ -152,27 +152,30 @@ module Data.ByteString(
   hPutNonBlocking,
   hPutStr,
   ) where
-import Prelude(Bool(..), Int, Char, Ordering, FilePath, IO, Maybe(..), [](..), String,
-               Eq(..), Ord(..), Show(..), Num(..), Monad(..), Functor(..),
-               (.), ($), Enum(..), (||), (&&), not, otherwise, (!!), fst, snd)
-import qualified Prelude as P
+import qualified Prelude()
+import MiniPrelude as P hiding(null, length)
 import qualified Data.List as P
-import Data.List.NonEmpty(NonEmpty, fromList)
+import Control.Exception (evaluate)
+import Data.List.NonEmpty (NonEmpty, fromList)
 import Data.Bits
+import Data.Function (($!))
 import Data.Monoid.Internal
 import Data.Semigroup
 import Data.String
-import Data.Word(Word8)
-import Foreign.C.String(CString, CStringLen)
-import System.IO(Handle, IOMode(..), stdin, stdout)
+import Data.Word (Word8)
+import Foreign.C.String (CString, CStringLen)
+import Foreign.C.Types (CChar)
+import Foreign.Ptr (Ptr)
+import System.IO (Handle, IOMode(..), hClose, openFile, stdin, stdout)
 import qualified System.IO as P
+import System.IO.Internal (BFILE, withHandleRd, withHandleWr)
 import Foreign.ForeignPtr
 import Data.ByteString.Internal
 
-type StrictByteString = ByteString
+foreign import ccall "readb" c_readb :: CString -> Int -> Ptr BFILE -> IO Int
+foreign import ccall "writeb" c_writeb :: CString -> Int -> Ptr BFILE -> IO Int
 
-primBS2FPtr   :: ByteString -> ForeignPtr Char
-primBS2FPtr   = _primitive "I"  -- same representation
+type StrictByteString = ByteString
 
 bsUnimp :: String -> a
 bsUnimp s = P.error $ "Data.ByteString." P.++ s P.++ " unimplemented"
@@ -201,7 +204,9 @@ snoc :: ByteString -> Word8 -> ByteString
 snoc bs c = append bs (pack [c])
 
 head :: ByteString -> Word8
-head = P.head . unpack
+head bs
+  | null bs = bsError "head: empty"
+  | otherwise = primBSindex bs 0
 
 tail :: ByteString -> ByteString
 tail bs | sz == 0 = bsError "tail: empty"
@@ -213,7 +218,9 @@ uncons bs | null bs = Nothing
           | otherwise = Just (head bs, tail bs)
 
 last :: ByteString -> Word8
-last = P.last . unpack
+last bs
+  | null bs = bsError "last: empty"
+  | otherwise = primBSindex bs (length bs - 1)
 
 init :: ByteString -> ByteString
 init bs | sz == 0 = bsError "init: empty"
@@ -315,7 +322,7 @@ scanr1 :: (Word8 -> Word8 -> Word8) -> ByteString -> ByteString
 scanr1 f = pack . P.scanr1 f . unpack
 
 replicate :: Int -> Word8 -> ByteString
-replicate w = pack . P.replicate w
+replicate = primBSreplicate
 
 unfoldr :: (a -> Maybe (Word8, a)) -> a -> ByteString
 unfoldr f = pack . P.unfoldr f
@@ -340,7 +347,7 @@ takeEnd n bs
   | otherwise = substr bs (l - n) n
   where l = length bs
 
-drop  :: Int -> ByteString -> ByteString
+drop :: Int -> ByteString -> ByteString
 drop n bs
   | n <= 0    = bs
   | n >= l    = empty
@@ -397,10 +404,15 @@ intercalate :: ByteString -> [ByteString] -> ByteString
 intercalate s = pack . P.intercalate (unpack s) . P.map unpack
 
 index :: ByteString -> Int -> Word8
-index bs n = unpack bs !! n
+index bs i
+  | i < 0          = bsError "index: negative index"
+  | i >= length bs = bsError "index: index too large"
+  | otherwise      = primBSindex bs i
 
 indexMaybe :: ByteString -> Int -> Maybe Word8
-indexMaybe bs n = unpack bs P.!? n
+indexMaybe bs i
+  | i < 0 || i >= length bs = Nothing
+  | otherwise               = Just (primBSindex bs i)
 
 (!?) :: ByteString -> Int -> Maybe Word8
 (!?) = indexMaybe
@@ -462,12 +474,18 @@ isValidUtf8 :: ByteString -> Bool
 isValidUtf8 = validUtf8 . unpack
   where
     validUtf8 :: [Word8] -> Bool
-    validUtf8 []                                                                                  = True
-    validUtf8 (x1                : xs) | mask x1 0x80 0x00                                        = validUtf8 xs
-    validUtf8 (x1 : x2           : xs) | mask x1 0xe0 0xc0 && mask80 x2                           = validUtf8 xs
-    validUtf8 (x1 : x2 : x3      : xs) | mask x1 0xf0 0xe0 && mask80 x2 && mask80 x3              = validUtf8 xs
-    validUtf8 (x1 : x2 : x3 : x4 : xs) | mask x1 0xf8 0xf0 && mask80 x2 && mask80 x3 && mask80 x4 = validUtf8 xs
-    validUtf8 _                                                                                   = False
+    validUtf8 []
+      = True
+    validUtf8 (x1                : xs) | mask x1 0x80 0x00
+      = validUtf8 xs
+    validUtf8 (x1 : x2           : xs) | mask x1 0xe0 0xc0 && mask80 x2
+      = x1 > 0xc1 && validUtf8 xs
+    validUtf8 (x1 : x2 : x3      : xs) | mask x1 0xf0 0xe0 && mask80 x2 && mask80 x3
+      = if x1 == 0xe0 then x2 > 0x9f && validUtf8 xs else if x1 == 0xed then x2 < 0xa0 && validUtf8 xs else validUtf8 xs
+    validUtf8 (x1 : x2 : x3 : x4 : xs) | mask x1 0xf8 0xf0 && mask80 x2 && mask80 x3 && mask80 x4
+      = if x1 == 0xf0 then x2 > 0x8f && validUtf8 xs else if x1 < 0xf4 then validUtf8 xs else x1 == 0xf4 && x2 <= 0x8f && validUtf8 xs
+    validUtf8 _
+      = False
     mask :: Word8 -> Word8 -> Word8 -> Bool
     mask x m b = x .&. m == b
     mask80 :: Word8 -> Bool
@@ -476,7 +494,12 @@ isValidUtf8 = validUtf8 . unpack
 breakSubstring :: ByteString -- ^ String to search for
                -> ByteString -- ^ String to search in
                -> (ByteString,ByteString) -- ^ Head and tail of string broken at substring
-breakSubstring pat = bsUnimp "breakSubstring"
+breakSubstring pat str
+  | length pat > length str = (str, empty)
+  | otherwise =
+    case P.findIndex (P.isPrefixOf (unpack pat)) (P.tails (unpack str)) of
+      Nothing -> (str, empty)
+      Just i -> splitAt i str
 
 zip :: ByteString -> ByteString -> [(Word8,Word8)]
 zip ps qs = P.zip (unpack ps) (unpack qs)
@@ -511,13 +534,13 @@ useAsCString bs act =
 
 useAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
 useAsCStringLen bs act =
-  withForeignPtr (primBS2FPtr bs) $ \ p -> act (p, length bs)
+  withForeignPtr (primBS2FPtr bs) $ \p -> act (p, length bs)
 
 packCString :: CString -> IO ByteString
-packCString cstr = bsUnimp "packCString"
+packCString = primPackCString
 
 packCStringLen :: CStringLen -> IO ByteString
-packCStringLen = bsUnimp "packCStringLen"
+packCStringLen (cstr, len) = primPackCStringLen cstr len
 
 copy :: ByteString -> ByteString
 copy = append empty
@@ -529,7 +552,11 @@ hGetLine :: Handle -> IO ByteString
 hGetLine = fmap fromString . P.hGetLine
 
 hPut :: Handle -> ByteString -> IO ()
-hPut h = P.hPutStr h . toString
+hPut h bs =
+  withHandleWr h $ \bfile ->
+    useAsCStringLen bs $ \(cstr, len) ->
+      () <$ c_writeb cstr len bfile
+      -- XXX: flush if not BlockBuffering
 
 hPutNonBlocking :: Handle -> ByteString -> IO ByteString
 hPutNonBlocking = bsUnimp "hPutNonBlocking"
@@ -541,7 +568,11 @@ putStr :: ByteString -> IO ()
 putStr = hPut stdout
 
 hGet :: Handle -> Int -> IO ByteString
-hGet h i = bsUnimp "hGet"
+hGet h i =
+  withHandleRd h $ \bfile -> do
+    fp <- mallocForeignPtrBytes i
+    bytesRead <- withForeignPtr fp $ \buf -> c_readb buf i bfile
+    return $! primFPtr2BS fp bytesRead
 
 hGetNonBlocking :: Handle -> Int -> IO ByteString
 hGetNonBlocking h i = bsUnimp "hGetNonBlocking"
@@ -550,7 +581,20 @@ hGetSome :: Handle -> Int -> IO ByteString
 hGetSome h i = bsUnimp "hGetSome"
 
 hGetContents :: Handle -> IO ByteString
-hGetContents = fmap fromString . P.hGetContents
+hGetContents h =
+  withHandleRd h $ \bfile -> do
+    let
+      readChunks chunkSize chunks = do
+        fp <- mallocForeignPtrBytes chunkSize
+        bytesRead <- withForeignPtr fp $ \buf -> c_readb buf chunkSize bfile
+        if bytesRead < chunkSize then
+          -- EOF
+          evaluate $ chunks `append` primFPtr2BS fp bytesRead
+        else
+          readChunks (chunkSize * 2) (chunks `append` primFPtr2BS fp bytesRead)
+    bs <- readChunks 1024 empty
+    hClose h
+    return bs
 
 getContents :: IO ByteString
 getContents = hGetContents stdin
@@ -559,10 +603,18 @@ interact :: (ByteString -> ByteString) -> IO ()
 interact transformer = getContents >>= putStr . transformer
 
 readFile :: FilePath -> IO ByteString
-readFile = fmap fromString . P.readFile
+readFile f = do
+  h <- openFile f ReadMode
+  hGetContents h
 
 writeFile :: FilePath -> ByteString -> IO ()
-writeFile f = P.writeFile f . toString
+writeFile f bs = do
+  h <- openFile f WriteMode
+  hPut h bs
+  hClose h
 
 appendFile :: FilePath -> ByteString -> IO ()
-appendFile f = P.appendFile f . toString
+appendFile f bs = do
+  h <- openFile f AppendMode
+  hPut h bs
+  hClose h

@@ -1,5 +1,5 @@
 module Control.Monad.IO.Class (MonadIO(..)) where
-import Prelude()
+import qualified Prelude()
 import Data.Char
 import Control.Applicative
 import Control.Monad

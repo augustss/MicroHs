@@ -1,5 +1,6 @@
 module MicroHs.Fixity(resolveFixity) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
+import MicroHs.Builtin
 import MicroHs.Expr
 import MicroHs.Ident
 
@@ -40,7 +41,7 @@ data FixInput = Rator Fix Expr Fixity | Rand Expr
 --  deriving (Show)
 
 eNeg :: SLoc -> Expr
-eNeg loc = EVar (mkIdentSLoc loc "negate")
+eNeg loc = EVar (mkBuiltin loc "negate")
 
 negFixity :: Fixity
 negFixity = (AssocLeft, 6)

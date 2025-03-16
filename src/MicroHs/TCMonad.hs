@@ -3,7 +3,7 @@ module MicroHs.TCMonad(
   module MicroHs.TCMonad,
   get, put, gets, modify,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Functor.Identity
 import GHC.Stack
 import Control.Applicative
@@ -14,8 +14,10 @@ import MicroHs.Expr
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
+import MicroHs.Names
 import MicroHs.State
 import MicroHs.SymTab
+import System.IO.Unsafe(unsafePerformIO)
 import Debug.Trace
 
 -----------------------------------------------
@@ -38,6 +40,14 @@ tcTrace :: String -> TC s ()
 tcTrace msg = do
   s <- get
   let s' = trace msg s
+  seq s' (put s')
+
+-- trace to stdout
+tcTrace' :: String -> TC s ()
+--tcTrace _ = return ()
+tcTrace' msg = do
+  s <- get
+  let s' = unsafePerformIO $ do putStrLn msg; return s
   seq s' (put s')
 
 -----------------------------------------------
@@ -110,8 +120,13 @@ type InstDict   = (Expr, TRef -> ([EConstraint], [EType]))
 -- All known type equalities, normalized into a substitution.
 type TypeEqTable = [(Ident, EType)]
 
-data ClassInfo = ClassInfo [IdKind] [EConstraint] EKind [Ident] [IFunDep]  -- class tyvars, superclasses, class kind, methods, fundeps
-type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables
+data ClassInfo = ClassInfo
+  [IdKind]         -- class tyvars
+  [EConstraint]    -- superclasses
+  EType            -- class constructor type
+  [(Ident,EType)]  -- methods with their types
+  [IFunDep]        -- fundeps
+type IFunDep = ([Bool], [Bool])           -- invariant: the length of the lists is the number of class tyvars
 
 instance NFData ClassInfo where
   rnf (ClassInfo a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
@@ -134,7 +149,7 @@ data TCState = TC {
                   MetaTable,            -- instances with unification variables
                   TypeEqTable,          -- type equalities
                   ArgDicts              -- dictionary arguments
-                 ),             
+                 ),
   constraints :: Constraints,           -- constraints that have to be solved
   defaults    :: Defaults               -- current defaults
   }
@@ -259,9 +274,6 @@ tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
 
 -----------------------------------------------
 
-builtinLoc :: SLoc
-builtinLoc = SLoc "builtin" 0 0
-
 tConI :: SLoc -> String -> EType
 tConI loc = tCon . mkIdentSLoc loc
 
@@ -278,11 +290,17 @@ tApps :: Ident -> [EType] -> EType
 tApps i ts = eApps (tCon i) ts
 
 tArrow :: EType -> EType -> EType
-tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
+tArrow a r = tApp (tApp (tConI builtinLoc nameArrow) a) r
 
 tImplies :: EType -> EType -> EType
-tImplies a r = tApp (tApp (tConI builtinLoc "Primitives.=>") a) r
+tImplies a r = tApp (tApp (tConI builtinLoc nameImplies) a) r
 
 etImplies :: EType -> EType -> EType
 etImplies (EVar i) t | i == tupleConstr noSLoc 0 = t
 etImplies a t = tImplies a t
+
+mkEqType :: SLoc -> EType -> EType -> EConstraint
+mkEqType loc t1 t2 = eAppI2 (mkIdentSLoc loc nameTypeEq) t1 t2
+
+mkCoercible :: SLoc -> EType -> EType -> EConstraint
+mkCoercible loc t1 t2 = eAppI2 (mkIdentSLoc loc nameCoercible) t1 t2

@@ -5,7 +5,7 @@ module Data.IORef(
   writeIORef,
   modifyIORef,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Eq
 import {-# SOURCE #-} Data.Typeable

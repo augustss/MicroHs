@@ -18,7 +18,7 @@ GHC= ghc
 GHCINCS= -ighc -isrc -ipaths
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -Wno-deprecations
 GHCOPTS= -O
-GHCEXTS= -DNOTCABAL -XScopedTypeVariables -XTypeSynonymInstances -XMultiParamTypeClasses -XFlexibleInstances
+GHCEXTS= -XScopedTypeVariables -XTypeSynonymInstances -XMultiParamTypeClasses -XFlexibleInstances
 GHCPKGS= -package mtl -package pretty -package haskeline -package process -package time -package ghc-prim -package containers -package deepseq -package directory -package text
 GHCTOOL= # -F -pgmF Tools/convertX.sh
 GHCOUTDIR= ghc-out
@@ -43,12 +43,12 @@ MAINMODULE=MicroHs.Main
 all:	bin/mhs bin/cpphs bin/mcabal
 
 targets.conf:
-	echo [default]           > targets.conf
+	echo "[default]"         > targets.conf
 	echo cc = \"$(CC)\"     >> targets.conf
 	echo ccflags = \"$(MHSGMPCCFLAGS)\" >> targets.conf
 	echo conf = \"$(CONF)\" >> targets.conf
 	echo ''                 >> targets.conf
-	echo [emscripten]       >> targets.conf
+	echo "[emscripten]"     >> targets.conf
 	echo cc = \"$(EMCC)\"   >> targets.conf
 	echo conf = \"$(CONF)\" >> targets.conf
 
@@ -69,12 +69,12 @@ bin/mhs:	src/runtime/*.c src/runtime/*.h targets.conf #generated/mhs.c
 	$(CCEVAL) generated/mhs.c -o bin/mhs
 
 # Compile cpphs from distribution, with C compiler
-bin/cpphs:	src/runtime/*.c src/runtime/config*.h generated/cpphs.c
+bin/cpphs:	src/runtime/*.c src/runtime/config*.h #generated/cpphs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/cpphs.c -o bin/cpphs
 
 # Compile mcabal from distribution, with C compiler
-bin/mcabal:	src/runtime/*.c src/runtime/config*.h generated/mcabal.c
+bin/mcabal:	src/runtime/*.c src/runtime/config*.h #generated/mcabal.c
 	@mkdir -p bin
 	$(CCEVAL) generated/mcabal.c -o bin/mcabal
 
@@ -106,7 +106,12 @@ generated/mhs.c:	bin/mhs src/*/*.hs
 ghcgen:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/gmhs $(MHSINC) $(MAINMODULE) -ogenerated/mhs.c
 
+# This doesn't keep MicroCabal updated.  I'm not sure how to do it
+#generated/mcabal.c: MicroCabal/.git
+#	bin/mhs -z -iMicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
 #
+#MicroCabal/.git:
+#	git submodule update --init --depth 1 MicroCabal
 generated/mcabal.c:
 	bin/mhs -z -i../MicroCabal/src -ilib -ogenerated/mcabal.c MicroCabal.Main
 
@@ -136,14 +141,14 @@ bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 	@echo "*** stage2 equal to stage1"
 	$(CCEVAL) generated/mhs-stage2.c -o bin/mhs-stage2
 
-cpphssrc/malcolm-wallace-universe:
-	mkdir -p cpphssrc
-	cd cpphssrc; git clone git@github.com:hackage-trustees/malcolm-wallace-universe.git
+# Fetch cpphs submodule
+cpphssrc/malcolm-wallace-universe/.git:
+	git submodule update --init --depth 1 cpphssrc/malcolm-wallace-universe
 
 # Use this cpphs for bootstrapping
 USECPPHS=bin/cpphs
 
-bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe
+bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe/.git
 	MHSCPPHS=$(USECPPHS) bin/mhs -z -XCPP '-DMIN_VERSION_base(x,y,z)=((x)<4||(x)==4&&(y)<19||(x)==4&&(y)==19&&(z)<=1)' -icpphscompat -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
 # Run test examples with ghc-compiled compiler
@@ -166,6 +171,8 @@ bin/umhs: bin/mhs
 
 #
 timecompile: bin/mhs
+	@date
+	@git rev-parse HEAD
 	time bin/mhs +RTS -v -RTS -s $(MHSINC) $(MAINMODULE)
 
 #
@@ -175,15 +182,23 @@ timecachecompile: bin/mhs
 	time bin/mhs +RTS -v -RTS -CR -s $(MHSINC) $(MAINMODULE)
 
 #
+timemhscompile:
+	@date
+	@git rev-parse HEAD
+	time mhs +RTS -v -RTS -z -s -imhs -isrc -ipaths $(MAINMODULE)
+
+#
 cachelib:
 	@-rm -f .mhscache
 	bin/mhs -CW AllOfLib
 
 #
 clean:
-	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal cpphssrc Interactive.hs .mhsi
+	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache targets.conf .mhscache dist-mcabal Interactive.hs .mhsi
 	cd tests; make clean
 	-cabal clean
+	-git submodule deinit cpphssrc/malcolm-wallace-universe
+	-git submodule deinit MicroCabal
 
 oldinstall:
 	mkdir -p $(PREFIX)/bin
@@ -227,8 +242,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.11.4.2
-HVERSION=0,11,4,2
+VERSION=0.12.3.0
+HVERSION=0,12,3,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
@@ -238,14 +253,17 @@ MDIST=dist-mcabal
 BASE=base-$(VERSION)
 BASEMODULES=Control.Applicative Control.Arrow Control.Category Control.DeepSeq Control.Error Control.Exception Control.Exception.Base Control.Monad Control.Monad.Fail Control.Monad.Fix Control.Monad.IO.Class Control.Monad.ST Control.Monad.Zip Data.Array Data.Bifoldable Data.Bifunctor Data.Bitraversable Data.Bits Data.Bool Data.Bounded Data.ByteString Data.Char Data.Complex Data.Constraint Data.Data Data.Double Data.Dynamic Data.Either Data.Enum Data.Eq Data.Fixed Data.Float Data.FloatW Data.Floating Data.Foldable Data.Foldable1 Data.Fractional Data.Function Data.Functor Data.Functor.Classes Data.Functor.Compose Data.Functor.Const Data.Functor.Contravariant Data.Functor.Identity Data.Functor.Product Data.Functor.Sum Data.Hashable Data.IOArray Data.IORef Data.Int Data.Integer Data.Integral Data.Ix Data.Kind Data.List Data.List.NonEmpty Data.Maybe Data.Monoid Data.Num Data.Ord Data.Proxy Data.Ratio Data.Real Data.RealFloat Data.RealFrac Data.Records Data.STRef Data.Semigroup Data.String Data.Text Data.Traversable Data.Tuple Data.Tuple.Instances Data.Type.Equality Data.TypeLits Data.Typeable Data.Version Data.Void Data.Word Data.ZipList Debug.Trace Foreign Foreign.C Foreign.C.Error Foreign.C.String Foreign.C.Types Foreign.ForeignPtr Foreign.Marshal Foreign.Marshal.Alloc Foreign.Marshal.Array Foreign.Marshal.Error Foreign.Marshal.Utils Foreign.Ptr Foreign.Storable GHC.Generics GHC.Stack GHC.Types Language.Haskell.TH.Syntax Mhs.Builtin Numeric Numeric.FormatFloat Numeric.Natural Prelude System.Cmd System.Console.GetOpt System.Compress System.Directory System.Environment System.Exit System.IO System.IO.Error System.IO.MD5 System.IO.PrintOrRun System.IO.Serialize System.IO.TimeMilli System.IO.Unsafe System.Info System.Process Text.Printf Text.ParserCombinators.ReadP Text.ParserCombinators.ReadPrec Text.Read Text.Read.Lex Text.Show Unsafe.Coerce
 
-$(MCABALBIN)/mhs: bin/mhs src/runtime/*.[ch] targets.conf
+$(MCABALBIN)/mhs: bin/mhs src/runtime/*.[ch] targets.conf $(MDIST)/Paths_MicroHs.hs
 	@mkdir -p $(MCABALBIN)
 	@mkdir -p $(MDIST)
-	@echo 'module Paths_MicroHs where { import Prelude(); import MHSPrelude; import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
 	bin/mhs -z $(MHSINCNP) -i$(MDIST) $(MAINMODULE) -o$(MCABALBIN)/mhs
 	@mkdir -p $(MRUNTIME)
 	cp targets.conf $(MDATA)
 	cp src/runtime/*.[ch] $(MRUNTIME)
+
+$(MDIST)/Paths_MicroHs.hs:
+	@mkdir -p $(MDIST)
+	@echo 'module Paths_MicroHs where { import qualified Prelude(); import MHSPrelude; import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
 
 $(MCABALBIN)/cpphs: bin/cpphs
 	@mkdir -p $(MCABALBIN)
@@ -260,8 +278,8 @@ $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 	bin/mhs -Q $(BASE).pkg $(MCABALMHS)
 	@rm $(BASE).pkg
 
-install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALBIN)/mcabal $(MCABALMHS)/packages/$(BASE).pkg
-	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
+#install: $(MCABALBIN)/mhs $(MCABALBIN)/cpphs $(MCABALBIN)/mcabal $(MCABALMHS)/packages/$(BASE).pkg
+#	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 # mkdir ~/.mcabal/packages/array-0.5.6.0
 
@@ -269,7 +287,8 @@ preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c
 	make generated/mcabal.c
 
-minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
+minstall:	install
+install:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
 	PATH=$(MCABALBIN):"$$PATH" mcabal install

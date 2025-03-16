@@ -1,5 +1,5 @@
 module Data.Coerce(Coercible, coerce) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 
 type Coercible :: forall k . k -> k -> Constraint

@@ -48,10 +48,10 @@ x = 3
 
 =====
 module E() where
-type T a = [a]
+type T a = (a, a)
 data D (f :: Type -> Type) = D (f Int)
 x :: D T
-x = [0]
+x = (0, 0)
 -----
 "../tmp/E.hs": line 5, col 8: bad synonym use
 

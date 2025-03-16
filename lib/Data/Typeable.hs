@@ -17,7 +17,7 @@ module Data.Typeable (
   typeRepTyCon,
   typeRepArgs,
   ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Primitives
 import Data.Double
 import Data.Integer

@@ -51,6 +51,9 @@ Differences:
    * BinaryLiterals
    * ConstraintKinds
    * DefaultSignatures
+   * DeriveAnyClass
+   * DerivingStrategies
+   * DerivingVia
    * DoAndIfThenElse
    * DuplicateRecordFields
    * EmptyCase
@@ -64,11 +67,14 @@ Differences:
    * FunctionalDependencies
    * GADTs
    * GADTsyntax
+   * GeneralizedNewtypeDeriving
    * ImportShadowing
    * ImportQualifiedPost
    * IncoherentInstances
+   * InstanceSigs
    * KindSignatures
    * LambdaCase
+   * LiberalTypesynonyms
    * MonoLocalBinds
    * MultilineStrings
    * MultiParamTypeClasses
@@ -99,6 +105,7 @@ Differences:
    * TypeSynonymInstances
    * UndecidableInstances
    * UndecidableSuperClasses
+   * UnicodeSyntax
    * ViewPatterns
  * The only extension that is not always on is `CPP`.
  * `main` in the top module given to `mhs` serves at the program entry point.
@@ -138,6 +145,12 @@ Some factorials
 The `Prelude` contains the functions from the Haskell Report and a few extensions,
 with the notable exception that `Foldable` and `Traversable` are not part of the `Prelude`.
 They can be imported separately, though.
+
+### Not importing `Prelude`
+To completely avoid importing the prelude (which can be needed in base to
+avoid circular imports) use the incantation `import qualified Prelude()`.
+This will not even try to open `Prelude.hs`.  It also avoids the automagic
+(qualified) import of `Mhs.Builtin` that normally happens.
 
 ## Types
 There are some primitive data types, e.g `Int`, `IO`, `Ptr`, and `Double`.
@@ -180,8 +193,8 @@ it will be the entry point to the program.
 * `-PPKG` create package `PKG`
 * `-L[FILE]` list all modules in a package
 * `-Q FILE [DIR]` install package
-* `-ddump-PASS` debug, show AST after `PASS`.  Possible passes `parse`, `typecheck`, `desugar`, `toplevel`, `combinator`, `all`
-*  `--` marks end of compiler arguments
+* `-ddump-PASS` debug, show AST after `PASS`.  Possible passes `parse`, `derive`, `typecheck`, `desugar`, `toplevel`, `combinator`, `all`
+* `--` marks end of compiler arguments
 
 With the `-v` flag the processing time for each module is reported.
 E.g.
@@ -344,7 +357,7 @@ There is a handful packages that works with mhs out of the box, or have been con
 * `cpphs`
 * `hscolour`
 * `mtl` changes not merged yet, use [github.com/augustss/mtl](https://github.com/augustss/mtl)
-* `parsec` changes not merged yet, use [github.com/augustss/aprsec](https://github.com/augustss/parsec)
+* `parsec` changes not merged yet, use [github.com/augustss/parsec](https://github.com/augustss/parsec)
 * `polyparse`
 * `pretty`
 * `time`
@@ -450,6 +463,9 @@ It is also possible to bootstrap MicroHs using Hugs.  That means that
 MicroHs can be built from scratch in the sense of [bootstrappable.org](https://bootstrappable.org/).
 To compile with Hugs you need [a slightly patched version of Hugs](https://github.com/augustss/hugs98-plus-Sep2006)
 and also the [hugs branch of MicroHs](https://github.com/augustss/MicroHs/tree/hugs).
+
+The patched version of Hugs is needed to work around undefined behavior with arithmatic overflow.
+Hugs provided Linux distribtions or other third party package managers may or may not work.
 
 ## Using GMP for `Integer`
 The default implementation of the `Integer` type is written is Haskell and is quite slow.

@@ -16,7 +16,7 @@ info:
 test:
 	$(TMHS) Hello      && $(EVAL) > Hello.out      && diff Hello.ref Hello.out
 #	$(TMHS) IOTest     && (echo q | $(EVAL) a bb ccc | sed 's/^[0-9]*ms/1ms/' > IOTest.out) && diff IOTest.ref IOTest.out
-#	$(TMHS) Serdes     && $(EVAL) > Serdes.out     && diff Serdes.ref Serdes.out
+	$(TMHS) Serdes     && $(EVAL) > Serdes.out     && diff Serdes.ref Serdes.out
 	$(TMHS) StringTest && $(EVAL) > StringTest.out && diff StringTest.ref StringTest.out
 	$(TMHS) ListTest   && $(EVAL) > ListTest.out   && diff ListTest.ref ListTest.out
 	$(TMHS) Fac        && $(EVAL) > Fac.out        && diff Fac.ref Fac.out
@@ -81,11 +81,18 @@ test:
 	$(TMHS) PatSyn     && $(EVAL) > PatSyn.out     && diff PatSyn.ref PatSyn.out
 	$(TMHS) Coerce     && $(EVAL) > Coerce.out     && diff Coerce.ref Coerce.out
 	$(TMHS) PatBind    && $(EVAL) > PatBind.out    && diff PatBind.ref PatBind.out
-	$(TMHS) EmptyCase  && $(EVAL) > EmptyCase.out
+	$(TMHS) EmptyCase  && $(EVAL)
 	$(TMHS) NumUnder   && $(EVAL) > NumUnder.out   && diff NumUnder.ref NumUnder.out
 	$(TMHS) LocalFix   && $(EVAL) > LocalFix.out   && diff LocalFix.ref LocalFix.out
 	$(TMHS) TypeApp    && $(EVAL) > TypeApp.out    && diff TypeApp.ref TypeApp.out
 	$(TMHS) Do         && $(EVAL) > Do.out         && diff Do.ref Do.out
+	$(TMHS) Via        && $(EVAL) > Via.out        && diff Via.ref Via.out
+	$(TMHS) ByteStringIO && $(EVAL) > ByteStringIO.out && diff ByteStringIO.ref ByteStringIO.out
+	$(TMHS) BitCount   && $(EVAL) > BitCount.out   && diff BitCount.ref BitCount.out
+	$(TMHS) Bounded    && $(EVAL) > Bounded.out    && diff Bounded.ref Bounded.out
+	$(TMHS) Typeable   && $(EVAL) > Typeable.out   && diff Typeable.ref Typeable.out
+	$(TMHS) Storable   && $(EVAL) > Storable.out   && diff Storable.ref Storable.out
+	$(TMHS) StandDer   && $(EVAL) > StandDer.out   && diff StandDer.ref StandDer.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

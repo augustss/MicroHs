@@ -155,18 +155,10 @@ usingMhs :: Bool
 usingMhs = False
 
 _wordSize :: Int
-_wordSize = 64
+_wordSize = 32         -- Hugs has 32 bit Int
 
 _isWindows :: Bool
 _isWindows = False
-
--- This cannot be implemented with Hugs.
-rnfNoErr :: forall a . a -> ()
-rnfNoErr _ = ()
-
--- This cannot be implemented with Hugs.
-rnfErr :: forall a . a -> ()
-rnfErr _ = ()
 
 appendDot :: Text -> Text -> Text
 appendDot x y = x `append` pack "." `append` y

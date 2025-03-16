@@ -7,12 +7,17 @@ module Foreign.C.String(
   peekCString, peekCStringLen,
   withCString, withCStringLen,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
+import Data.ByteString.Internal
 import Data.Char_Type
+import Data.Coerce (coerce)
+import Foreign.C.Types (CChar)
 import Foreign.Marshal.Alloc
 
-type CChar = Char
+primNewCAStringLen :: [Char] -> IO (Ptr CChar, Int)
+primNewCAStringLen = _primitive "newCAStringLen"
+
 type CString = Ptr CChar
 type CStringLen = (Ptr CChar, Int)
 
@@ -37,10 +42,10 @@ withCAStringLen s io =
   primReturn a
 
 peekCAString :: CString -> IO String
-peekCAString = primPeekCAString
+peekCAString cstr = primPackCString cstr `primBind` \bs -> primReturn (primUnsafeCoerce unpack bs)
 
 peekCAStringLen :: CStringLen -> IO String
-peekCAStringLen (p, i) = primPeekCAStringLen p i
+peekCAStringLen (cstr, len) = primPackCStringLen cstr len `primBind` \bs -> primReturn (primUnsafeCoerce unpack bs)
 
 ------------------------------------------------------
 -- XXX:  No encoding!

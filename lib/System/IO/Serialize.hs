@@ -5,7 +5,7 @@ module System.IO.Serialize(
   writeSerialized, writeSerializedCompressed,
   readSerialized,
   ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Primitives(Ptr)
 import System.IO
 import System.IO.Internal

@@ -41,7 +41,7 @@ module Data.Foldable (
     notElem,
     find
     ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative(Applicative(..), Alternative(..))
 import Control.Error
@@ -162,7 +162,7 @@ instance Foldable [] where
     product = List.product
     sum     = List.sum
     toList  = id
-  
+
 instance Foldable (Either a) where
     foldMap _ (Left _) = mempty
     foldMap f (Right y) = f y

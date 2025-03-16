@@ -1,5 +1,5 @@
 module Data.List.NonEmpty_Type(module Data.List.NonEmpty_Type) where
-import Prelude()
+import qualified Prelude()
 
 infixr 5 :|
 

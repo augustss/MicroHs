@@ -22,21 +22,10 @@ module Control.Exception(
   --
   ArithException(..),
   ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Control.Exception.Internal
 import {-# SOURCE #-} Data.Typeable
 import System.IO.Unsafe
-
-instance Show SomeException where
-  showsPrec p (SomeException e) = showsPrec p e
-
--- NOTE: The runtime system knows about this instance.
--- It uses displayException to show an uncaught exception.
--- Any changes here must be reflected in eval.c
-instance Exception SomeException where
-  toException se = se
-  fromException = Just
-  displayException (SomeException e) = displayException e
 
 -- This is the function called by the runtime.
 -- It compiles to
@@ -92,16 +81,7 @@ evaluate a = seq a (return ()) >> return a
 try :: forall a e . Exception e => IO a -> IO (Either e a)
 try ioa = catch (fmap Right ioa) (return . Left)
 
--- Throw an exception when executed, not when evaluated
-throwIO :: forall a e . Exception e => e -> IO a
-throwIO e = bad >> bad   -- we never reacj the second 'bad'
-  where bad = throw e
-
-onException :: IO a -> IO b -> IO a
-onException io what =
-  io `catch` \ e -> do _ <- what
-                       throwIO (e :: SomeException)
-
+{-
 bracket :: IO a -> (a -> IO b) -> (a -> IO c) -> IO c
 bracket before after thing =
   mask $ \ restore -> do
@@ -109,6 +89,7 @@ bracket before after thing =
     r <- restore (thing a) `onException` after a
     _ <- after a
     return r
+-}
 
 finally :: IO a -> IO b -> IO a
 finally a sequel =
@@ -125,10 +106,6 @@ bracketOnError before after thing =
   mask $ \ restore -> do
     a <- before
     restore (thing a) `onException` after a
-
--- XXX we don't have masks yet
-mask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
-mask io = io id
 
 -------------------
 

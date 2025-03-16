@@ -1,9 +1,10 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module System.IO.MD5(MD5CheckSum, md5File, md5Handle, md5String, md5Combine) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Primitives(primPerformIO)
 import Control.DeepSeq.Class
+import Data.Coerce
 import Data.Word
 import Foreign.C.String
 import Foreign.Marshal.Alloc
@@ -59,5 +60,5 @@ md5Combine :: [MD5CheckSum] -> MD5CheckSum
 md5Combine [] = error "md5Combine: empty"
 md5Combine [m] = m
 md5Combine ms = primPerformIO $
-  withArrray [ w | MD5 ws <- ms, w <- ws ] $ \ a -> 
+  withArrray [ w | MD5 ws <- ms, w <- ws ] $ \ a ->
     chksum $ \ w -> c_md5Array a w (length ms * md5Len)

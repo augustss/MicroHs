@@ -6,9 +6,11 @@ module Data.Functor(
   unzip,
   void,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives  -- for fixity
 import Data.Function
+
+infixl 4 <$
 
 class Functor f where
   fmap :: forall a b . (a -> b) -> f a -> f b

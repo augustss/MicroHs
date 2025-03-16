@@ -1,13 +1,27 @@
 module Data.ByteString.Internal(module Data.ByteString.Internal) where
-import Prelude(); import MiniPrelude hiding(length)
-import Data.Word(Word8)
+import qualified Prelude()
+import Primitives
+import Control.DeepSeq.Class
+import Control.Error
+import Data.Bool
+import Data.Enum
+import Data.Eq
+import Data.Function
+import Data.Int
+import Data.List (map)
+import Data.List_Type
+import Data.Monoid.Internal
+import Data.Num
+import Data.Ord
+import Data.String
+import Data.Word (Word8)
+import Foreign.C.Types (CChar)
+import Text.Show
 
 data ByteString  -- primitive type
 
 primBSappend  :: ByteString -> ByteString -> ByteString
 primBSappend  = _primitive "bs++"
-primBSappend3 :: ByteString -> ByteString -> ByteString -> ByteString
-primBSappend3 = _primitive "bs+++"
 primBSEQ      :: ByteString -> ByteString -> Bool
 primBSEQ      = _primitive "bs=="
 primBSNE      :: ByteString -> ByteString -> Bool
@@ -30,8 +44,27 @@ primBSlength  :: ByteString -> Int
 primBSlength  = _primitive "bslength"
 primBSsubstr  :: ByteString -> Int -> Int -> ByteString
 primBSsubstr  = _primitive "bssubstr"
+primBSindex   :: ByteString -> Int -> Word8
+primBSindex   = _primitive "bsindex"
+primBSreplicate :: Int -> Word8 -> ByteString
+primBSreplicate = _primitive "bsreplicate"
+
+primPackCString :: Ptr CChar -> IO ByteString
+primPackCString = _primitive "packCString"
+primPackCStringLen :: Ptr CChar -> Int -> IO ByteString
+primPackCStringLen = _primitive "packCStringLen"
+
+primBS2FPtr :: ByteString -> ForeignPtr CChar
+primBS2FPtr = _primitive "bs2fp"
+
+-- Warning: This function modifies the `ForeignPtr`,
+-- avoid using the `ForeignPtr` after calling `primFPtr2BS`.
+primFPtr2BS :: ForeignPtr CChar -> Int -> ByteString
+primFPtr2BS = _primitive "fp2bs"
 
 -----------------------------------------
+
+instance NFData ByteString
 
 instance Eq ByteString where
   (==) = primBSEQ
@@ -73,8 +106,8 @@ append = primBSappend
 
 substr :: ByteString -> Int -> Int -> ByteString
 substr bs offs len
-  | offs < 0 || offs > sz     = bsError "substr bad offset"
-  | len < 0  || len > sz-offs = bsError "substr bad length"
+  | offs < 0 || offs > sz     = bsError "substr: bad offset"
+  | len < 0  || len > sz-offs = bsError "substr: bad length"
   | otherwise = primBSsubstr bs offs len
   where sz = length bs
 

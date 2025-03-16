@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Integer_Type(module Data.Integer_Type) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import {-# SOURCE #-} Control.Error
 import Data.Bool_Type
@@ -25,13 +25,7 @@ maxD :: Digit
 maxD = 1 `primWordShl` shiftD
 
 shiftD :: Int
-shiftD =
-  if _wordSize `primIntEQ` 64 then
-    (32 :: Int) -- this is used so multiplication of two digits doesn't overflow a 64 bit Word
-  else if _wordSize `primIntEQ` 32 then
-    (16 :: Int) -- this is used so multiplication of two digits doesn't overflow a 32 bit Word
-  else
-    error "Integer: unsupported word size"
+shiftD = _wordSize `primIntShr` 1 -- this is used so multiplication of two digits doesn't overflow a Word
 
 quotMaxD :: Digit -> Digit
 quotMaxD d = d `primWordShr` shiftD

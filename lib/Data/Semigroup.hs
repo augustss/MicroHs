@@ -15,9 +15,10 @@ module Data.Semigroup(
   stimesIdempotent, stimesIdempotentMonoid, stimesMonoid,
   diff, cycle1,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Data.Bool
 import Data.Bounded
+import Data.Coerce
 import Data.Eq
 import Data.Function
 import Data.List.NonEmpty_Type

@@ -3,11 +3,11 @@ module Paths_MicroHs(
   version,
   getDataDir,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Version
 
 getDataDir :: IO FilePath
 getDataDir = return "."
 
 version :: Version
-version = makeVersion [0,11,4,2]
+version = makeVersion [0,12,3,0]

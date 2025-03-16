@@ -1,5 +1,5 @@
 module Data.Ratio_Type(module Data.Ratio_Type) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Integer_Type
 

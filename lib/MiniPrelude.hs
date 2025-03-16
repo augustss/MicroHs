@@ -23,7 +23,7 @@ module MiniPrelude(
   module Text.Show,
   usingMhs, _wordSize, _isWindows,
   ) where
-import Prelude()
+import qualified Prelude()
 import Control.Applicative(Applicative(..))
 import Control.Error
 import Control.Monad

@@ -1,5 +1,5 @@
 module Data.Foldable.Internal(module Data.Foldable.Internal) where
-import Prelude()
+import qualified Prelude()
 import Control.Applicative
 import Control.Monad
 import Data.Bool

@@ -11,7 +11,7 @@ module Data.Monoid(
   First(..),
   Last(..),
   ) where
-import Prelude()
+import qualified Prelude()
 import Data.Maybe_Type
 import Data.Monoid.Internal
 import Data.Records

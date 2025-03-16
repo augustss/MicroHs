@@ -5,7 +5,7 @@ module Foreign.Marshal.Error (
   throwIfNeg_,
   throwIfNull,
 ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Data.Functor(void)
 import Foreign.Ptr
 import System.IO.Error(ioError, userError)

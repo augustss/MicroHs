@@ -8,7 +8,7 @@ module MicroHs.StateIO(
   module Control.Monad,
   module Data.Functor,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Control.Applicative
 import Control.Monad
 import Data.Functor hiding(unzip)

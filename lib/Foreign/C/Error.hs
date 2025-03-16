@@ -81,7 +81,7 @@ module Foreign.C.Error (
   throwErrnoPathIfMinus1,
   throwErrnoPathIfMinus1_,
 ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 
 import Foreign.Ptr
 import Foreign.Marshal.Alloc
@@ -364,7 +364,7 @@ throwErrnoPathIfMinus1_  = throwErrnoPathIf_ (== (-1))
 
 
 foreign import ccall "string.h strerror_r"
-    c_strerror_r :: Int -> Ptr Char -> CSize -> IO Int
+    c_strerror_r :: Int -> CString -> CSize -> IO Int
 
 errnoToString :: Errno -> IO String
 errnoToString (Errno errno) =

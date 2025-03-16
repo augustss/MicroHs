@@ -1,3 +1,3 @@
 module Data.Kind(Type, Constraint) where
-import Prelude()
+import qualified Prelude()
 import Primitives

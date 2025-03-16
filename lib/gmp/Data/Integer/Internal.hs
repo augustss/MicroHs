@@ -14,7 +14,7 @@ module Data.Integer.Internal(
   _integerToInt,
   _wordToInteger,
   ) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Mhs.Builtin
 import Data.Bool

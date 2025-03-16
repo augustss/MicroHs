@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE CPP #-}
 module MHSPrelude(module Prelude, module Control.DeepSeq, module MHSPrelude, Type) where
 import Prelude
 import Control.DeepSeq
@@ -8,6 +10,14 @@ import Data.Text(Text, append, pack)
 import GHC.Types
 import System.Environment
 import System.IO
+
+------- Text --------
+
+-- base-4.19.2.0 seems to lack this???
+#if 0
+instance NFData Text where
+  rnf t = seq t ()
+#endif
 
 ------- List --------
 
@@ -48,14 +58,6 @@ _wordSize = 64
 
 _isWindows :: Bool
 _isWindows = False
-
--- This cannot be implemented with GHC.
-rnfNoErr :: forall a . a -> ()
-rnfNoErr _ = ()
-
--- This cannot be implemented with GHC.
-rnfErr :: forall a . a -> ()
-rnfErr _ = ()
 
 appendDot :: Text -> Text -> Text
 appendDot x y = x `append` pack "." `append` y

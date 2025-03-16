@@ -18,4 +18,4 @@ main = do
       getComb _ = Nothing
       srt = sortBy (compare `on` snd) $ M.toList res
   mapM print srt
-  
+

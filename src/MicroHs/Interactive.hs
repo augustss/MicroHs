@@ -1,5 +1,5 @@
-module MicroHs.Interactive(module MicroHs.Interactive) where
-import Prelude(); import MHSPrelude
+module MicroHs.Interactive(mainInteractive) where
+import qualified Prelude(); import MHSPrelude
 import Data.List
 import Data.Maybe
 import Data.Version
@@ -43,7 +43,7 @@ noSymbols = (stEmpty, stEmpty)
 
 preamble :: String
 preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++
-           ") where\nimport Prelude\nimport System.IO.PrintOrRun\ndefault Num (Integer, Double)\ndefault IsString (String)\ndefault Show (())\n"
+           ") where\nimport System.IO.PrintOrRun\ndefault Num (Integer, Double)\ndefault IsString (String)\ndefault Show (())\n"
 
 start :: I ()
 start = do

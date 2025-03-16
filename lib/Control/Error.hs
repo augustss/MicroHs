@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Control.Error(error, errorWithoutStackTrace, undefined, ErrorCall(..)) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Data.Char_Type
 import Data.List_Type
 import Control.Exception.Internal

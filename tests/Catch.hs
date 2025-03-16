@@ -1,6 +1,7 @@
 module Catch(main) where
 import Prelude
 import Control.Exception
+import System.IO
 
 f :: [Int] -> Int
 f (_:_) = 99
@@ -24,3 +25,15 @@ main = do
   putStrLn $ sshow z
   w <- catch (do { print (m ()); return "www" })  exn
   putStrLn $ sshow w
+  withFile "Catch.in" ReadMode $ \h -> do
+    let ln = hGetLine h
+    a <- ln
+    b <- ln
+    print a
+    print b
+  withFile "Catch.in" ReadMode $ \h -> do
+    let ln = hGetLine h `catch` exn
+    a <- ln
+    b <- ln
+    print a
+    print b

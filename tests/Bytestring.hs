@@ -1,6 +1,6 @@
 module Bytestring where
 import Data.Word
-import Data.ByteString
+import Data.ByteString as BS
 
 bs1 :: ByteString
 bs1 = pack [1,2,3]
@@ -25,3 +25,18 @@ main = do
         ]
   print [ compare x y | x <- [bs1, bs2, bs3, bs4], y <- [bs1, bs2, bs3, bs4] ]
   print $ unpack "abc"
+  print $ BS.replicate 64 42
+
+  -- breakSubstring
+  print $ breakSubstring "def" "abcdefg"
+  print $ breakSubstring "abc" "abcdefg"
+  print $ breakSubstring "fg" "abcdefg"
+  print $ breakSubstring "fn" "abcdefg"
+
+  -- isValidUtf8
+  print $ isValidUtf8 "\xC1\xB9"
+  print $ isValidUtf8 "\xE0\x8E\xA9"
+  print $ isValidUtf8 "\xF0\x80\x8E\xA9"
+  print $ isValidUtf8 "\xF4\x90\x80\x80"
+  print $ isValidUtf8 "\xED\xA0\x80" -- low surrogate
+  print $ isValidUtf8 "\xED\xBF\xBF" -- high surrogate

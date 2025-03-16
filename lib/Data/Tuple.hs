@@ -3,7 +3,7 @@
 module Data.Tuple(
   module Data.Tuple,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Data.Bool
 import Data.Bounded
 import Data.Eq

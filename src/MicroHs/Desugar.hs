@@ -6,7 +6,7 @@ module MicroHs.Desugar(
   LDef, showLDefs,
   encodeInteger,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.Function
 import Data.Integer(_integerToIntList)
@@ -562,7 +562,7 @@ checkDup ds =
 -- thus avoiding the extra argument passing.
 -- This gives a small speedup with overloading.
 lazier :: LDef -> LDef
-lazier def@(fcn, l@(Lam _ (Lam _ _))) =
+lazier def@(fcn, l@(Lam _ _)) =
   let fcn' = addIdentSuffix fcn "@"
       vfcn' = Var fcn'
       args :: Exp -> (Exp, [Ident])

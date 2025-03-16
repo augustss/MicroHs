@@ -3,11 +3,11 @@ module Data.Version(
   showVersion,
   makeVersion
   ) where
-import Prelude(); import MiniPrelude
+import qualified Prelude(); import MiniPrelude
 import Control.DeepSeq.Class
 import Data.List(intercalate)
 
-newtype Version = Version { versionBranch :: [Int] }
+data Version = Version { versionBranch :: [Int] }
   deriving (Show, Eq, Ord)
 
 instance NFData Version where

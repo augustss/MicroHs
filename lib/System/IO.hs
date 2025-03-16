@@ -31,10 +31,11 @@ module System.IO(
   IOException(..),
 
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Applicative
 import Control.Error
+import Control.Exception.Internal(bracket)
 import Control.Monad
 import Control.Monad.Fail
 import Data.Bool
@@ -118,7 +119,9 @@ hGetChar h = withHandleRd h $ \ p -> do
   c <- c_getb p
   if c == (-1::Int) then
     ioErrH h EOF "hGetChar"
-   else
+  else if c `primIntAnd` 0x1ff800 == 0xd800 then
+    ioErrH h InvalidArgument "hGetChar: surrogate"
+  else
     return (chr c)
 
 hLookAhead :: Handle -> IO Char
@@ -128,7 +131,10 @@ hLookAhead h = withHandleRd h $ \ p -> do
   return c
 
 hPutChar :: Handle -> Char -> IO ()
-hPutChar h c = withHandleWr h $ c_putb (ord c)
+hPutChar h c
+  | i `primIntAnd` 0x1ff800 == 0xd800 = ioErrH h InvalidArgument "hPutChar: surrogate"
+  | otherwise = withHandleWr h $ c_putb i
+  where i = ord c
 
 openFILEM :: FilePath -> IOMode -> IO (Maybe (Ptr FILE))
 openFILEM p m = do
@@ -238,10 +244,12 @@ hGetContents h = withHandleRd h $ \ p -> do
     hClose h                           -- EOF, so close the handle
     setHandleState h HSemiClosed       -- but still allow a regular close
     return ""
-   else do
+  else if c `primIntAnd` 0x1ff800 == 0xd800 then
+    ioErrH h InvalidArgument "hGetContents: surrogate"
+  else do
     cs <- unsafeInterleaveIO (hGetContents h)
     return (chr c : cs)
-  
+
 getContents :: IO String
 getContents = hGetContents stdin
 
@@ -281,18 +289,16 @@ hSetEncoding _ _ = return ()
 
 --------
 
--- XXX needs bracket
 withFile :: forall r . FilePath -> IOMode -> (Handle -> IO r) -> IO r
-withFile fn md io = do
-  h <- openFile fn md
-  r <- io h
-  hClose h
-  return r
+withFile fn md io = bracket (openFile fn md) hClose io
+
+withBinaryFile :: forall r . FilePath -> IOMode -> (Handle -> IO r) -> IO r
+withBinaryFile fn md io = bracket (openBinaryFile fn md) hClose io
 
 --------
 
 splitTmp :: String -> (String, String)
-splitTmp tmpl = 
+splitTmp tmpl =
   case span (/= '.') (reverse tmpl) of
     (rsuf, "") -> (tmpl, "")
     (rsuf, _:rpre) -> (reverse rpre, '.':reverse rsuf)

@@ -1,6 +1,6 @@
 module Numeric(
   module Numeric.Show,
-    
+
   readSigned,
   readInt,
   readBin,
@@ -9,6 +9,6 @@ module Numeric(
   readHex,
   readIntegral,
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Numeric.Read
 import Numeric.Show

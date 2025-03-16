@@ -1,7 +1,7 @@
 module Data.RealFloat(
   RealFloat(..),
   ) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool
 import Data.Eq

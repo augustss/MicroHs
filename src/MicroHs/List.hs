@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module MicroHs.List where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.List
 
 -- Various useful list functions.
@@ -102,3 +102,6 @@ findCommonPrefix ((x:xs) : ys) =
 
 dropEnd :: Int -> [a] -> [a]
 dropEnd n = reverse . drop n . reverse
+
+takeEnd :: Int -> [a] -> [a]
+takeEnd n = reverse . take n . reverse

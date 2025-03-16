@@ -5,8 +5,7 @@ module MicroHs.TargetConfig(
   , parseTargets
   , findTarget
   ) where
-import Prelude(); import MHSPrelude hiding(lex)
-import Control.Applicative
+import qualified Prelude(); import MHSPrelude hiding(lex)
 import Data.List
 import Text.ParserComb
 import MicroHs.Ident
@@ -85,7 +84,7 @@ keyValue :: Parser (String, String)
 keyValue = (,) <$> key <*> (spec '=' *> value)
 
 keyValues :: Parser [(String,String)]
-keyValues = keyValue `esepBy` nl
+keyValues = keyValue `sepBy` nl
 
 target :: Parser Target
 target = Target <$> (targetName <* nl) <*> keyValues
@@ -105,5 +104,4 @@ parseTargets :: FilePath -> String -> Either String [Target]
 parseTargets fp file =
   case runPrsr targets $ lex (SLoc fp 1 1) file of
     Left lf -> Left $ formatFailed lf
-    Right [a] -> Right a
-    Right as  -> Left $ "Ambiguous:" ++ unlines (map show as)
+    Right a -> Right a

@@ -32,12 +32,13 @@ module Data.Fixed
     mod',
     divMod'
 ) where
-import Prelude()
+import qualified Prelude()
 import MiniPrelude
 import Data.TypeLits (KnownNat, natVal)
 import Text.Read.Internal
 import Text.ParserCombinators.ReadPrec
 import Text.Read.Lex
+import Data.Coerce
 import Data.Double
 import Data.Floating
 import Data.Fractional
@@ -98,10 +99,10 @@ instance Enum (Fixed a) where
     pred (MkFixed a) = MkFixed (pred a)
     toEnum = MkFixed . toEnum
     fromEnum (MkFixed a) = fromEnum a
-    enumFrom (MkFixed a) = fmap MkFixed (enumFrom a)
-    enumFromThen (MkFixed a) (MkFixed b) = fmap MkFixed (enumFromThen a b)
-    enumFromTo (MkFixed a) (MkFixed b) = fmap MkFixed (enumFromTo a b)
-    enumFromThenTo (MkFixed a) (MkFixed b) (MkFixed c) = fmap MkFixed (enumFromThenTo a b c)
+    enumFrom (MkFixed a) = coerce (enumFrom a)
+    enumFromThen (MkFixed a) (MkFixed b) = coerce (enumFromThen a b)
+    enumFromTo (MkFixed a) (MkFixed b) = coerce (enumFromTo a b)
+    enumFromThenTo (MkFixed a) (MkFixed b) (MkFixed c) = coerce (enumFromThenTo a b c)
 
 instance (HasResolution a) => Num (Fixed a) where
     (MkFixed a) + (MkFixed b) = MkFixed (a + b)

@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.11.4.2
+version:             0.12.3.0
                      -- *** When changing the version number, also
                      -- *** run 'sh updateversion.sh'
                      -- *** Yeah, it stinks.
@@ -77,12 +77,11 @@ executable mhs
                        MicroHs.IdentMap
                        MicroHs.IntMap
                        MicroHs.IntSet
-                       MicroHs.Instances
                        MicroHs.Interactive
                        MicroHs.Lex
                        MicroHs.List
+                       MicroHs.Names
                        MicroHs.MakeCArray
-                       MicroHs.MRnf
                        MicroHs.Package
                        MicroHs.Parse
                        MicroHs.State
@@ -108,6 +107,7 @@ executable mhs
   if impl(ghc)
     hs-source-dirs:    ghc src
     build-depends:     base         >= 4.10 && < 4.30,
+                       bytestring   >= 0.5 && < 0.20,
                        deepseq      >= 1.1 && < 1.8,
                        filepath     >= 1.1 && < 1.8,
                        ghc-prim     >= 0.5 && < 0.15,

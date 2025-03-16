@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Primitives(module Primitives) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Data.Bool_Type
 --import Data.List_Type
 import Data.Ordering_Type
@@ -19,7 +19,8 @@ data Type
 
 -- Classes
 -- Type equality as a constraint.
--- class a ~ b | a -> b, b -> a
+type (~) :: forall k . k -> k -> Constraint
+class a ~ b | a -> b, b -> a
 -- class KnownNat in Data.TypeLits
 -- class KnownSymbol in Data.TypeLits
 
@@ -228,15 +229,6 @@ primRnfErr        = _primitive "rnf" (0::Int)
 primRnfNoErr     :: forall a . a -> ()
 primRnfNoErr      = _primitive "rnf" (1::Int)
 
-primNewCAStringLen :: [Char] -> IO (Ptr Char, Int)
-primNewCAStringLen = _primitive "newCAStringLen"
-
-primPeekCAString :: Ptr Char -> IO [Char]
-primPeekCAString = _primitive "peekCAString"
-
-primPeekCAStringLen :: Ptr Char -> Int -> IO [Char]
-primPeekCAStringLen = _primitive "peekCAStringLen"
-
 primWordToPtr :: forall a . Word -> Ptr a
 primWordToPtr = _primitive "toPtr"
 
@@ -304,4 +296,3 @@ primNewForeignPtr = _primitive "fpnew"
 
 primAddFinalizer :: FunPtr (Ptr a -> IO ()) -> ForeignPtr a -> IO ()
 primAddFinalizer = _primitive "fpfin"
-

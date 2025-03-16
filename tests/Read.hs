@@ -56,6 +56,6 @@ main = do
   print (read "'\\''" :: Char)
   print (read "\"abc\"" :: String)
   print (read "\"a\nc\"" :: String)
-  print (read "\"a\1\&1c\"" :: String)
+  print (read "\"a\1111\&1c\"" :: String)
   print (read "\"\\\"\"" :: String)
   print (read "\"\\\\\"" :: String)

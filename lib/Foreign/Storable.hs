@@ -1,5 +1,5 @@
 module Foreign.Storable(Storable(..)) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error(undefined)
 import Foreign.C.Types
@@ -44,6 +44,12 @@ instance Storable Int where
   alignment _ = wordSizeInBytes
   peek p      = c_peekWord (castPtr p) `primBind` \ w -> primReturn (primWordToInt w)
   poke p w    = c_pokeWord (castPtr p) (primIntToWord w)
+
+instance Storable Char where
+  sizeOf    _ = 4
+  alignment _ = 4
+  peek p      = c_peek_int32 (castPtr p) `primBind` \ i -> primReturn (primChr (primUnsafeCoerce i))
+  poke p c    = c_poke_int32 (castPtr p) (primUnsafeCoerce (primOrd c))
 
 foreign import ccall "peekPtr" c_peekPtr :: Ptr (Ptr ()) -> IO (Ptr ())
 foreign import ccall "pokePtr" c_pokePtr :: Ptr (Ptr ()) -> Ptr () -> IO ()

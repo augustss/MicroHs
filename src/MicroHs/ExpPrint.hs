@@ -1,5 +1,5 @@
 module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Char(ord, chr)
 import qualified MicroHs.IdentMap as M
 import Data.Maybe
@@ -7,14 +7,18 @@ import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..))
-import MicroHs.Ident(Ident, showIdent, mkIdent)
+import MicroHs.Ident(Ident, showIdent, mkIdent, showSLoc)
+import MicroHs.List(groupSort)
 import MicroHs.State
+import MicroHs.TypeCheck(isInstId)
 
 -- Version number of combinator file.
 -- Must match version in eval.c.
 combVersion :: String
-combVersion = "v7.0\n"
+combVersion = "v7.2\n"
 
+-- Rename (to a numbers) top level definitions and remove unused ones.
+-- Also check for duplicated instances.
 toStringCMdl :: (Ident, [LDef]) -> (Int, String)
 toStringCMdl (mainName, ds) =
   let
@@ -49,7 +53,17 @@ toStringCMdl (mainName, ds) =
     def :: (String -> String) -> (Int, Exp) -> (String -> String)
     def r (i, e) =
       ("A " ++) . toStringP (substv e) . ((":" ++ show i ++  " @\n") ++) . r . ("@" ++)
-  in (ndefs, combVersion ++ show ndefs ++ "\n" ++ res " }")
+  in
+    case dupInstances ds of
+      (n1 : n2 : _) : _ -> errorMessage (getSLoc n1) $ "Duplicate instance " ++ unmangleInst (showIdent n1) ++ " at " ++ showSLoc (getSLoc n2)
+      _ -> (ndefs, combVersion ++ show ndefs ++ "\n" ++ res " }")
+
+dupInstances :: [LDef] -> [[Ident]]
+dupInstances = filter ((> 1) . length) . groupSort . filter isInstId . map fst
+
+-- XXX not nice
+unmangleInst :: String -> String
+unmangleInst = map (\ c -> if c == '@' then ' ' else c) . drop 5
 
 -- Avoid quadratic concatenation by using difference lists,
 -- turning concatenation into function composition.
@@ -60,28 +74,52 @@ toStringP ae =
     Lit (LStr s) ->
       -- Encode very short string directly as combinators.
       if length s > 1 then
-        toStringP (App (Lit (LPrim "fromUTF8")) (Lit (LUStr (utf8encode s))))
+        toStringP (App (Lit (LPrim "fromUTF8")) (Lit (LBStr (utf8encode s))))
       else
         toStringP (encodeString s)
-    Lit (LUStr s) ->
-      (quoteString s ++) . (' ' :)
+    Lit (LBStr s) -> (quoteString s ++) . (' ' :)
     Lit (LInteger _) -> undefined
     Lit (LRat _) -> undefined
     Lit (LTick s) -> ('!':) . (quoteString s ++) . (' ' :)
-    Lit l   -> (showLit l ++) . (' ' :)
+    Lit l -> (showLit l ++) . (' ' :)
     Lam _x _e -> undefined -- (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     --App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
     App f a -> toStringP f . toStringP a . ("@" ++)
 
+-- Strings are encoded in a slightly unusal way.
+-- It ensure that (most) printable ASCII only take
+-- up 1 byte, and outside this range, only 2 bytes.
+-- The input should be in the range 0x00-0xff.
+-- '\x00'..'\x1f'  "^\x20".."^\x3f"
+-- '\x20'..'\x7e'  '\x20'..'\x7e', except '^','\\','|','"'
+-- '"'             "\\\""
+-- '^'             "\^"
+-- '|'             "\|"
+-- '\\'            "\\\\"
+-- '\x7f'          "\?"
+-- '\x80'..'\x9f'  "^\x40".."^\x5f"
+-- '\xa0'..'\xfe'  "|\x20".."|\x7e"
+-- '\xff'          "\_'
 quoteString :: String -> String
 quoteString s =
-  let
-    achar c =
-      if c == '"' || c == '\\' || c < ' ' || c > '~' then
-        '\\' : show (ord c) ++ ['&']
-      else
-        [c]
-  in '"' : concatMap achar s ++ ['"']
+  let achar c =
+        if c < '\0' || c > '\xff' then
+          error "quoteString"
+        else if c < '\x20' then
+          ['^', chr (ord c + 0x20)]
+        else if c == '"' || c == '^' || c == '|' || c == '\\' then
+          ['\\', c]
+        else if c < '\x7f' then
+          [c]
+        else if c == '\x7f' then
+          "\\?"
+        else if c < '\xa0' then
+          ['^', chr (ord c - 0x80 + 0x40)]
+        else if c < '\xff' then
+          ['|', chr (ord c - 0x80)]
+        else -- c == '\xff'
+          "\\_"
+  in  '"' : concatMap achar s ++ ['"']
 
 encodeString :: String -> Exp
 encodeString = encList . map (Lit . LInt . ord)

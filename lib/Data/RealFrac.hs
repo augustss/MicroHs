@@ -1,5 +1,5 @@
 module Data.RealFrac(module Data.RealFrac) where
-import Prelude()
+import qualified Prelude()
 import Primitives
 import Data.Ord
 import Data.Fractional
@@ -15,7 +15,7 @@ class  (Ord a, Real a, Fractional a) => RealFrac a  where
   floor          :: (Integral b) => a -> b
 
   truncate x     =  m  where (m,_) = properFraction x
-  
+
   round x        =  let (n,r) = properFraction x
                         m     = if r < 0 then n - 1 else n + 1
                         s     = signum (abs r - 0.5)

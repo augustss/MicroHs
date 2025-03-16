@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.FloatW(FloatW) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bits
@@ -61,7 +61,7 @@ instance Ord FloatW where
   (<=) = primFloatWLE
   (>)  = primFloatWGT
   (>=) = primFloatWGE
-  
+
 -- For now, cheat and call C
 instance Show FloatW where
   show = primFloatWShow -- should be Numeric.FormatFloat.showFloat, but that drags in a lot of stuff

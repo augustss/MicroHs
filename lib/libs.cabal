@@ -1,7 +1,7 @@
 cabal-version:  3.0
 name:           libs
-version:        0.11.4.2
-license:        Apache
+version:        0.12.3.0
+license:        Apache-2.0
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net
 synopsis:       Basic libraries
@@ -25,6 +25,7 @@ library base
         Control.Arrow
         Control.Category
         Control.DeepSeq
+        Control.DeepSeq.Class
         Control.Error
         Control.Exception
         Control.Exception.Base
@@ -45,6 +46,7 @@ library base
         Data.ByteString.Char8
         Data.ByteString.Lazy.Char8
         Data.Char
+        Data.Char.Unicode
         Data.Coerce
         Data.Complex
         Data.Constraint
@@ -94,8 +96,10 @@ library base
         Data.Semigroup
         Data.String
         Data.Text
+        Data.Text.Encoding
         Data.Text.IO
         Data.Text.Lazy
+        Data.Text.Lazy.Builder
         Data.Text.Lazy.IO
         Data.Traversable
         Data.Tuple
@@ -133,6 +137,7 @@ library base
         System.Cmd
         System.Console.GetOpt
         System.Compress
+        System.Compress.ByteString
         System.Directory
         System.Environment
         System.Exit

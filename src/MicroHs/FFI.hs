@@ -1,13 +1,14 @@
 module MicroHs.FFI(makeFFI) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Data.Function
 import Data.List
 import Data.Maybe
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp
 import MicroHs.Expr
-import MicroHs.Ident
 import MicroHs.Flags
+import MicroHs.Ident
+import MicroHs.Names
 
 makeFFI :: Flags -> [LDef] -> String
 makeFFI _ ds =
@@ -70,33 +71,21 @@ mkEntry (ImpStatic _ _ Ptr   f) = "{ \"&" ++ f ++ "\", mhs_addr_" ++ f ++ "},"
 mkEntry (ImpStatic i _ Value _) = "{ \"" ++ f ++ "\", mhs_" ++ f ++ "}," where f = unIdent' i
 mkEntry _ = undefined
 
-iIO :: Ident
-iIO = mkIdent "Primitives.IO"
-
-iUnit :: Ident
-iUnit = mkIdent "()"
-
-iPtr :: Ident
-iPtr = mkIdent "Primitives.Ptr"
-
-iFunPtr :: Ident
-iFunPtr = mkIdent "Primitives.FunPtr"
-
 mkMhsFun :: String -> String -> String
 mkMhsFun fn body = "void mhs_" ++ fn ++ "(int s) { " ++ body ++ "; }"
 
 checkIO :: EType -> EType
 checkIO iot =
-  case getApp iIO iot of
+  case dropApp identIO iot of
     Nothing -> iot -- errorMessage (getSLoc iot) $ "foreign return type must be IO: " ++ showEType iot
     Just t  -> t
 
-getApp :: Ident -> EType -> Maybe EType
-getApp i (EApp (EVar i') t) | i == i' = Just t
-getApp _ _ = Nothing
+dropApp :: Ident -> EType -> Maybe EType
+dropApp i (EApp (EVar i') t) | i == i' = Just t
+dropApp _ _ = Nothing
 
 isUnit :: EType -> Bool
-isUnit (EVar unit) = unit == iUnit
+isUnit (EVar unit) = unit == identUnit
 isUnit _ = False
 
 mkRet :: EType -> Int -> String -> String
@@ -109,10 +98,10 @@ mkHdr :: (ImpEnt, EType) -> String
 mkHdr (ImpStatic _ _ Ptr fn, iot) =
   let r = checkIO iot
       (s, _) =
-        case getApp iPtr r of
+        case dropApp identPtr r of
           Just t  -> ("", t)
           Nothing ->
-            case getApp iFunPtr r of
+            case dropApp identFunPtr r of
               Just t  -> ("(HsFunPtr)", t)
               Nothing -> errorMessage (getSLoc r) $ "foreign & must be Ptr/FunPtr"
       body = mkRet r 0 (s ++ "&" ++ fn)
@@ -138,10 +127,9 @@ unIdent' :: Ident -> String
 unIdent' = unIdent . unQualIdent
 
 cTypeName :: EType -> String
-cTypeName (EApp (EVar ptr) _t) | ptr == iPtr = "Ptr"
-                               | ptr == iFunPtr = "FunPtr"
-cTypeName (EVar i) | isJust mc = fromJust mc
-  where mc = lookup (unIdent i) cTypes
+cTypeName (EApp (EVar ptr) _t) | ptr == identPtr = "Ptr"
+                               | ptr == identFunPtr = "FunPtr"
+cTypeName (EVar i) | Just c <- lookup (unIdent i) cTypes = c
 cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
 cTypes :: [(String, String)]
@@ -178,6 +166,7 @@ runtimeFFI = [
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "iswindows", "log", "malloc",
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove",
   "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "unlink",
+  "readb", "writeb",
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
   "add_lz77_compressor", "add_lz77_decompressor",
   "add_rle_compressor", "add_rle_decompressor",

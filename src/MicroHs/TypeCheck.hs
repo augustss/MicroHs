@@ -1,4 +1,4 @@
--- Copyright 2023 Lennart Augustsson
+-- Copyright 2023-2025 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-unused-do-bind #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -14,8 +14,9 @@ module MicroHs.TypeCheck(
   listPrefix,
   ValueExport(..), TypeExport(..),
   Symbols,
+  isInstId,
   ) where
-import Prelude(); import MHSPrelude
+import qualified Prelude(); import MHSPrelude
 import Control.Applicative
 import Control.Arrow(first)
 import Control.Monad
@@ -27,91 +28,18 @@ import MicroHs.Builtin
 import MicroHs.Deriving
 import MicroHs.Expr
 import MicroHs.Fixity
+import MicroHs.Flags
 import MicroHs.Graph
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
 import MicroHs.List
+import MicroHs.Names
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
 import GHC.Stack
 import Debug.Trace
-
-boolPrefix :: String
-boolPrefix = "Data.Bool_Type."
-
-listPrefix :: String
-listPrefix = "Data.List_Type."
-
-nameList :: String
-nameList = listPrefix ++ "[]"
-identList :: Ident
-identList = mkIdentB nameList
-
-nameInt :: String
-nameInt = "Primitives.Int"
-identInt :: Ident
-identInt = mkIdentB nameInt
-
-nameWord :: String
-nameWord = "Primitives.Word"
-identWord :: Ident
-identWord = mkIdentB nameWord
-
-nameFloatW :: String
-nameFloatW = "Primitives.FloatW"
-identFloatW :: Ident
-identFloatW = mkIdentB nameFloatW
-
-nameChar :: String
-nameChar = "Primitives.Char"
-identChar :: Ident
-identChar = mkIdentB nameChar
-
-nameInteger :: String
-nameInteger = "Data.Integer_Type.Integer"
-identInteger :: Ident
-identInteger = mkIdentB nameInteger
-
-nameTypeEq :: String
-nameTypeEq = "Primitives.~"
-identTypeEq :: Ident
-identTypeEq = mkIdentB nameTypeEq
-
-nameImplies :: String
-nameImplies = "Primitives.=>"
-identImplies :: Ident
-identImplies = mkIdentB nameImplies
-
-nameArrow :: String
-nameArrow = "Primitives.->"
-identArrow :: Ident
-identArrow = mkIdentB nameArrow
-
-nameSymbol :: String
-nameSymbol = "Primitives.Symbol"
-
-nameNat :: String
-nameNat = "Primitives.Nat"
-
-nameType :: String
-nameType = "Primitives.Type"
-
-nameKind :: String
-nameKind = "Primitives.Kind"
-
-nameConstraint :: String
-nameConstraint = "Primitives.Constraint"
-
-nameKnownNat :: String
-nameKnownNat = "Data.TypeLits.KnownNat"
-
-nameKnownSymbol :: String
-nameKnownSymbol = "Data.TypeLits.KnownSymbol"
-
-nameCoercible :: String
-nameCoercible = "Data.Coerce.Coercible"
 
 --primitiveKinds :: [String]
 --primitiveKinds = [nameType, nameConstraint, nameSymbol, nameNat]
@@ -123,7 +51,7 @@ nameCoercible = "Data.Coerce.Coercible"
 data GlobTables = GlobTables {
   gSynTable   :: SynTable,        -- type synonyms are needed for expansion
   gDataTable  :: DataTable,       -- data/newtype definitions
-  gClassTable :: ClassTable,      -- classes are neede for superclass expansion
+  gClassTable :: ClassTable,      -- classes are needed for superclass expansion etc
   gInstInfo   :: InstTable        -- instances are implicitely global
   }
 
@@ -163,13 +91,13 @@ type FixDef = (Ident, Fixity)
 type Sigma = EType
 type Rho   = EType
 
-typeCheck :: forall a . GlobTables -> ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], GlobTables, Symbols)
-typeCheck globs impt aimps (EModule mn exps defs) =
+typeCheck :: Flags -> GlobTables -> ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], GlobTables, Symbols)
+typeCheck flags globs impt aimps (EModule mn exps defs) =
 --  trace (unlines $ map (showTModuleExps . snd) aimps) $
   let
     imps = map filterImports aimps
     tc = mkTCState mn globs imps
-  in case tcRun (tcDefs impt defs) tc of
+  in case tcRun (tcDefs flags impt defs) tc of
        (tds, tcs) ->
          let
            thisMdl = (mn, mkTModule impt tds tcs)
@@ -252,7 +180,7 @@ getTVExps _ tys vals ast (ExpTypeSome ti is) =
   let e = expLookup ti tys
       assc = getAssocs vals ast $ tyQIdent e   -- all associated values
       ves = concatMap one is
-      one i | i == dotDotIdent = assc          -- '..' means all assocaited values
+      one i | i == dotDotIdent = assc          -- '..' means all associated values
             | otherwise =
               case filter (\ (ValueExport i' _) -> i == i') assc of
                 ee : _ -> [ee]                 -- Pick the assocaited value if it exists
@@ -261,7 +189,7 @@ getTVExps _ tys vals ast (ExpTypeSome ti is) =
                                                -- This might accidentally pick up a constructor from
                                                -- another type, but it doesn't really matter.
   in ([TypeExport (unQualIdent ti) e ves], [])
-  
+
 getTVExps _ _ vals _ (ExpValue i) = ([], [ValueExport (unQualIdent i) (expLookup i vals)])
 getTVExps _ _ _ _ (ExpDefault _) = ([], [])
 
@@ -274,9 +202,6 @@ tyQIdent _ = error "tyQIdent"
 
 eVarI :: SLoc -> String -> Expr
 eVarI loc = EVar . mkIdentSLoc loc
-
-getApp :: HasCallStack => EType -> (Ident, [EType])
-getApp t = fromMaybe (impossibleShow t) $ getAppM t
 
 -- Construct a dummy TModule for the currently compiled module.
 -- It has all the relevant export tables.
@@ -299,14 +224,15 @@ mkTModule impt tds tcs =
       case stLookup "" qi vt of
         Right e -> e
         _       -> Entry (EVar qi) t  -- XXX A hack for boot modules
-          
+
     -- Find all value Entry for names associated with a type.
     assoc i = case impt of
                 ImpBoot -> []  -- XXX For boot files the tables are not set up correctly.
                 _ -> getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
-    ves = [ ValueExport i (ventry i t) | Sign is t <- tds, i <- is ]
+    ves = [ ValueExport i (ventry i t') | Sign is t <- tds, i <- is, let t' = expandSyn' st t ]
+      where st = synTable tcs
 
     -- All top level types possible to export.
     tes =
@@ -345,7 +271,7 @@ mkTCState mdlName globs mdls =
           [ (v, [Entry (EVar v) t]) | (i, ClassInfo _ _ t _ _) <- M.toList (gClassTable globs), let { v = mkClassConstructor i } ]
         -- Default methods are always entered with their qualified original name.
         qualIdentD (Entry e _) m i | not (isDefaultMethodId i) = qualIdent m i
-                                   | otherwise = 
+                                   | otherwise =
                                      case e of
                                        EVar qi -> qi
                                        _ -> undefined
@@ -416,9 +342,6 @@ mkInstId :: SLoc -> EType -> Ident
 mkInstId loc ct = mkIdentSLoc loc $ instPrefix ++ uniqIdentSep ++ clsTy
   where clsTy = map (\ c -> if isSpace c then '@' else c) $ showExprRaw ct
 
-instPrefix :: String
-instPrefix = "inst"
-
 --------------------------
 
 -- Use the type table as the value table, and the primKind table as the type table.
@@ -439,7 +362,7 @@ withTypeTable ta = do
   putTypeTable tt'
   putTCMode otcm
   return a
-  
+
 addAssocTable :: Ident -> [ValueExport] -> T ()
 addAssocTable i ids = modify $ \ ts -> ts { assocTable = M.insert i ids (assocTable ts) }
 
@@ -470,18 +393,36 @@ addInstTable ics = do
   it <- gets instTable
   putInstTable $ foldr (uncurry $ M.insertWith mergeInstInfo) it iis
 
+-- Generate a dictionary for the constraint.
+-- Reuse old dictionaries if possible.
+newDict :: SLoc -> EConstraint -> T Expr
+newDict loc ctx = do
+  ctx' <- derefUVar ctx
+  cs <- gets constraints
+  -- Check if there's already an identical constraint.
+  case find (\ (_, c) -> eqEType c ctx') cs of
+    Just (i, _) -> do
+--      traceM ("newDict reuse: " ++ show (i, ctx'))
+      return (EVar i)
+    _ -> do
+      i <- newDictIdent loc
+--      traceM ("newDict: " ++ show (i, ctx', length cs))
+      addConstraint i ctx'
+      return (EVar i)
+
 addConstraint :: Ident -> EConstraint -> T ()
 addConstraint d ctx = do
 --  tcTrace $ "addConstraint: " ++ showIdent d ++ " :: " ++ showEType ctx
-  ctx' <- expandSyn ctx
-  modify $ \ ts -> ts{ constraints = (d, ctx') : constraints ts }
+  modify $ \ ts -> ts{ constraints = (d, ctx) : constraints ts }
 
 withDicts :: forall a . HasCallStack => [(Ident, EConstraint)] -> T a -> T a
 withDicts ds ta = do
+--  tcTrace $ "+++ withDicts enter " ++ show ds
   ct <- gets ctxTables
   mapM_ addDict ds
   a <- ta
   putCtxTables ct
+--  tcTrace $ "--- withDicts leave " ++ show ds
   return a
 
 withDict :: forall a . HasCallStack => Ident -> EConstraint -> T a -> T a
@@ -496,25 +437,27 @@ withDict i c ta = do
 
 addDict :: HasCallStack => (Ident, EConstraint) -> T ()
 addDict (i, c) = do
-  c' <- expandSyn c >>= derefUVar
+  c' <- derefUVar c
   if null (metaTvs [c']) then
-    case c' of
-      (EApp (EApp (EVar eq) t1) t2) | eq == mkIdent nameTypeEq -> addEqDict i t1 t2
-      _ -> addInstDict i c'
+    addInstDict i c'
    else
     -- With constraint variables we might get unification variables.
     -- We stash them away in hope that we will learn more later.
     addMetaDict i c'
 
 addInstDict :: HasCallStack => Ident -> EConstraint -> T ()
-addInstDict i c = do
-  c' <- expandSyn c
-  ics <- expandDict (EVar i) c'
-  addInstTable ics
-  addArgDict i c
+addInstDict di c = do
+  ics <- expandDict (EVar di) c
+  -- Type equalities are handled differently.
+  let addeq [] = return []
+      addeq ((_, _, _, EApp (EApp (EVar eq) t1) t2, _):is) | eq == identTypeEq = do addEqDict t1 t2; addeq is
+      addeq (i:is) = (i :) <$> addeq is
+  ics' <- addeq ics
+  addInstTable ics'
+  addArgDict di c
 
-addEqDict :: Ident -> EType -> EType -> T ()
-addEqDict _i t1 t2 = do
+addEqDict :: EType -> EType -> T ()
+addEqDict t1 t2 = do
   is <- gets typeEqTable
 --  tcTrace ("withEqDict: " ++ show (is, (t1,t2), (addTypeEq t1 t2 is)))
   putTypeEqTable (addTypeEq t1 t2 is)
@@ -549,9 +492,6 @@ kTypeTypeS = kArrow kType kType
 
 kTypeTypeTypeS :: EType
 kTypeTypeTypeS = kArrow kType $ kArrow kType kType
-
-mkIdentB :: String -> Ident
-mkIdentB = mkIdentSLoc builtinLoc
 
 -- E.g.
 --  Kind :: Sort
@@ -656,35 +596,59 @@ munify :: HasCallStack =>
 munify loc (Infer r) b = tSetRefType loc r b
 munify loc (Check a) b = unify loc a b
 
+-- Synonyms are expanded after kind checking.
+-- There should be no synonyms in any of the symbol tables (except synTable).
 expandSyn :: HasCallStack =>
              EType -> T EType
+--expandSyn at | trace ("expandSyn: " ++ show at) False = undefined
 expandSyn at = do
+  syns <- gets synTable
   let
+    rt = expandSyn' syns at
+    -- Check that there are no unexpanded synonyms left
+    chk (EApp f a) = do chk f; chk a
+    chk (EVar i) =
+      case M.lookup i syns of
+        Nothing -> return ()
+        _ -> tcError (getSLoc i) "bad synonym use"
+    chk (EUVar _) = return ()
+    chk (EForall _ _ t) = chk t
+    chk (ELit _ _) = return ()
+    chk _ = impossible
+  chk rt
+  return rt
+
+-- Expand with the given synonym table.
+expandSyn' :: HasCallStack =>
+              SynTable -> EType -> EType
+expandSyn' syns = esyn
+  where
+    esyn = syn []
+    -- Expand synonyms that have enough arguments
     syn ts t =
       case t of
-        EApp f a -> do
-          aa <- expandSyn a
-          syn (aa:ts) f
-        EVar i -> do
-          syns <- gets synTable
+        EApp f a -> syn (esyn a : ts) f
+        EVar i ->
           case M.lookup i syns of
-            Nothing -> return $ eApps t ts
+            Nothing -> eApps t ts
             Just (EForall _ vks tt) ->
-              let s = zip (map idKindIdent vks) ts
-                  lvks = length vks
+              let is = map idKindIdent vks
+                  s = zip is ts
+                  lis = length is
                   lts = length ts
-              in  case compare lvks lts of
-                    LT -> expandSyn $ eApps (subst s tt) (drop lvks ts)
-                    EQ -> expandSyn $ subst s tt
-                    GT -> tcError (getSLoc i) $ "bad synonym use"
+              in  if lis > lts then
+                    eApps t ts
+                  else
+                    -- Too few arguments, just leave it alone
+                    syn (drop lis ts) (subst s tt)
             Just _ -> impossible
-        EUVar _ -> return $ eApps t ts
-        ESign a _ -> expandSyn a   -- Throw away signatures, they don't affect unification
-        EForall b iks tt | null ts -> EForall b iks <$> expandSyn tt
-        ELit _ (LStr _) -> return t
-        ELit _ (LInteger _) -> return t
-        _ -> impossible
-  syn [] at
+        EUVar _ -> eApps t ts
+        ESign a _ -> syn ts a   -- Throw away signatures, they don't affect unification
+        EForall b iks tt | null ts -> EForall b iks (esyn tt)
+        ELit _ (LStr _) -> t
+        ELit _ (LInteger _) -> t
+        _ -> impossibleShow t
+
 
 mapEType :: (EType -> EType) -> EType -> EType
 mapEType fn = rec
@@ -711,7 +675,8 @@ derefUVar at =
           return t'
     EVar _ -> return at
     ESign t k -> flip ESign k <$> derefUVar t
-    EForall b iks t -> EForall b iks <$> derefUVar t
+    EForall b iks t -> EForall b <$> iks' <*> derefUVar t
+      where iks' = mapM (\ (IdKind i k) -> IdKind i <$> derefUVar k) iks
     ELit _ (LStr _) -> return at
     ELit _ (LInteger _) -> return at
     _ -> impossible
@@ -737,10 +702,7 @@ msgTCMode' TCSort = "realm"
 
 unify :: HasCallStack =>
          SLoc -> EType -> EType -> T ()
-unify loc a b = do
-  aa <- expandSyn a
-  bb <- expandSyn b
-  unifyR loc aa bb
+unify loc a b = unifyR loc a b
 
 unifyR :: HasCallStack =>
           SLoc -> EType -> EType -> T ()
@@ -790,9 +752,6 @@ tcReset = modify $ \ ts -> ts{ uvarSubst = IM.empty }
 newUVar :: T EType
 newUVar = EUVar <$> newUniq
 
-uniqIdentSep :: String
-uniqIdentSep = "$"
-
 newIdent :: SLoc -> String -> T Ident
 newIdent loc s = do
   u <- newUniq
@@ -821,22 +780,46 @@ tLookupV i = do
   tLookup (msgTCMode tcm) i
 
 tInst :: HasCallStack => Expr -> EType -> T (Expr, EType)
+--tInst ae t | trace ("tInst: " ++ show (ae, t)) False = undefined
 tInst ae (EForall _ vks t) = do
   t' <- tInstForall vks t
   tInst ae t'
 tInst ae at | isJust mctxt = do
   --tcTrace $ "tInst: addConstraint: " ++ show ae ++ ", " ++ show d ++ " :: " ++ show ctx
-  let (ctx, t) = fromJust mctxt
+    let (ctx, t) = fromJust mctxt
+{-
   if eqExpr ae eCannotHappen then
-    -- XXX Gruesome hack.  This avoid adding constraints in cases like
+    -- XXX Gruesome hack.  This avoids adding constraints in cases like
     --  (C a => a) -> T `subsCheck` b
-    tInst ae t
+    undefined
+    --tInst ae t
    else do
     d <- newDictIdent (getSLoc ae)
     addConstraint d ctx
     tInst (EApp ae (EVar d)) t
+-}
+    d <- newDict (getSLoc ae) ctx
+    tInst (EApp ae d) t
   where mctxt = getImplies at 
 tInst ae at = return (ae, at)
+
+-- Instantiate a function, but delay generating the dictionaries.
+-- When generating the dictionaries here (like tInst) there
+-- is no type information; just a type variable.
+-- By delaying the dictionary generation we gain more
+-- type information, and can avoid let binding dictionaries by
+--  * finding an already bound dictionary for the same constraint
+--  * solving the constraint early
+tInstDelay :: HasCallStack => EType -> T ([EConstraint], EType)
+--tInstDelay  t | trace ("tInstDelay: " ++ show (ae, t)) False = undefined
+tInstDelay = inst []
+  where
+    inst cs (EForall _ vks t) = do
+      t' <- tInstForall vks t
+      inst cs t'
+    inst cs at | Just (ctx, t) <- getImplies at =
+      inst (ctx:cs) t
+    inst cs at = return (reverse cs, at)
 
 tInstForall :: [IdKind] -> EType -> T EType
 tInstForall vks t =
@@ -864,9 +847,11 @@ extValETop :: HasCallStack =>
 extValETop i t e = do
   mn <- gets moduleName
   venv <- gets valueTable
+  t' <- expandSyn t                 -- expand type synonyms before entering the symbol table
+--  when (show i == "mkTyCon") $ traceM (show "extValETop " ++ show (i, t, t'))
   let qi = qualIdent mn i
-      venv'  = stInsertGlbQ qi [Entry e t] venv
-      venv'' = stInsertGlbU  i [Entry e t] venv'
+      venv'  = stInsertGlbQ qi [Entry e t'] venv
+      venv'' = stInsertGlbU  i [Entry e t'] venv'
   putValueTable venv''
 
 -- Extend symbol table with i::t.
@@ -894,10 +879,14 @@ extTyp i t = do
 extTyps :: [(Ident, EType)] -> T ()
 extTyps = mapM_ (uncurry extTyp)
 
-extSyn :: Ident -> EType -> T ()
-extSyn i t = do
-  senv <- gets synTable
-  putSynTable (M.insert i t senv)
+extSyn :: Ident -> [IdKind] -> EType -> T ()
+extSyn i iks t = do
+  -- Eta reduce type synonyms.
+  -- E.g. 'type T a = Maybe a' could be 'type T = Maybe'.
+  case etaReduce iks t of
+    (iks', t') -> do
+      senv <- gets synTable
+      putSynTable (M.insert i (EForall True iks' t') senv)
 
 extData :: Ident -> EDef -> T ()
 extData i d = do
@@ -934,14 +923,17 @@ withExtTyps iks ta = do
   putTypeTable venv
   return a
 
-tcDefs :: ImpType -> [EDef] -> T [EDef]
-tcDefs impt ds = do
+tcDefs :: HasCallStack => Flags -> ImpType -> [EDef] -> T [EDef]
+tcDefs flags impt ds = do
 --  tcTrace ("tcDefs 1:\n" ++ showEDefs ds)
+  -- First, add infix declarations so the operators can be resolved
   mapM_ tcAddInfix ds
   dst <- tcDefsType ds
 --  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeAndData dst
   dste <- tcExpandClassInst impt dst
+  dumpIf flags Dderive $
+    tcTrace' $ "expanded:\n" ++ showEDefs dste
 --  tcTrace ("tcDefs 3:\n" ++ showEDefs dste)
   case impt of
     ImpNormal -> do
@@ -968,7 +960,7 @@ tcAddInfix (Infix fx is) = do
   mapM_ (\ i -> extFix (qualIdent mn i) fx) is
 tcAddInfix _ = return ()
 
--- Check type definitions
+-- Kind check type definitions
 tcDefsType :: HasCallStack => [EDef] -> T [EDef]
 tcDefsType ds = withTypeTable $ do
   kindSigs <- getKindSigns ds
@@ -977,13 +969,20 @@ tcDefsType ds = withTypeTable $ do
 --  vars <- gets uvarSubst
 --  tcTrace $ show vars
   vt <- gets valueTable
-  let ent (Entry i t) = Entry i . mapEType def <$> derefUVar t
-      def (EUVar _) = kType    -- default kind variables to Type
-      def t = t
+  let ent (Entry i k) = Entry i <$> zonk k
+      zonk k = mapEType def <$> (derefUVar k >>= expandSyn)
+        where def (EUVar _) = kType    -- default kind variables to Type
+              def t = t
+      derefClass (Class ctx (n, vks) ct ms) = do
+        vks' <- mapM (\ (IdKind i k) -> IdKind i <$> zonk k) vks
+--        traceM("derefClass: " ++ show (n, vks, vks'))
+        pure (Class ctx (n, vks') ct ms)
+      derefClass d = pure d
   vt' <- mapMSymTab ent vt
   putValueTable vt'
+  dst' <- mapM derefClass dst    -- make class definition LHSs have correct kinds
 --  tcTrace $ "tcDefType value table:\n" ++ show vt'
-  return dst
+  return dst'
 
 -- Get all kind signatures, and do sort checking of them.
 getKindSigns :: HasCallStack => [EDef] -> T (M.Map EKind)
@@ -994,16 +993,15 @@ getKindSigns ds = do
   iks' <- mapM kind iks
   return $ M.fromList iks'
 
--- Expand class and instance definitions (must be done after type synonym processing)
+-- Expand class and instance definitions (must be done after type synonym processing).
 tcExpandClassInst :: ImpType -> [EDef] -> T [EDef]
-tcExpandClassInst impt dst = withTypeTable $ do
-  dsc <- concat <$> mapM (expandClass impt) dst       -- Expand all class definitions
-  dsf <- concat <$> mapM expandField dsc              -- Add HasField instances
---  tcTrace $ showEDefs dsf
-  dsd <- concat <$> mapM doDeriving  dsf              -- Add derived instances
---  tcTrace $ showEDefs dsd
-  dsi <- concat <$> mapM expandInst  dsd              -- Expand all instance definitions
-  return dsi
+tcExpandClassInst impt dst = do
+  dsf <- withTypeTable $ do
+    dsc <- concat <$> mapM (expandClass impt) dst       -- Expand all class definitions
+    concat <$> mapM expandField dsc                     -- Add HasField instances
+  mapM_ addValueTypeClass dsf                           -- Add methods, needed while deriving
+  dsd <- concat <$> mapM doDeriving dsf                 -- Add derived instances
+  concat <$> mapM expandInst dsd                        -- Expand all instance definitions
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
 withVks :: forall a . HasCallStack => [IdKind] -> ([IdKind] -> T a) -> T a
@@ -1047,7 +1045,7 @@ addTypeKind kdefs adef = do
            Nothing -> newUVar
            Just k' -> return k'
       extValQTop i k
-      
+
   case adef of
     Data    lhs _ _ -> addDef lhs
     Newtype lhs _ _ -> addDef lhs
@@ -1056,7 +1054,7 @@ addTypeKind kdefs adef = do
     _               -> return ()
 
 -- Add symbols associated with a type.
-addAssocs :: EDef -> T ()
+addAssocs :: HasCallStack => EDef -> T ()
 addAssocs adef = do
   mn <- gets moduleName
   let
@@ -1078,12 +1076,12 @@ addAssocs adef = do
     Class _ (i, _) _ ms -> addAssoc i [ x | Sign ns _ <- ms, m <- ns, x <- [m, mkDefaultMethodId m] ]
     _                   -> return ()
 
--- Add type synonyms to the synonym table, and data/newtype to the data table
+-- Add type synonyms to the synonym table, and data/newtype to the data table.
 addTypeAndData :: EDef -> T ()
 addTypeAndData adef = do
   mn <- gets moduleName
   case adef of
-    Type    (i, vs) t  -> extSyn  (qualIdent mn i) (EForall True vs t)
+    Type    (i, vs) t  -> extSyn  (qualIdent mn i) vs t
     Data    (i, _) _ _ -> extData (qualIdent mn i) adef
     Newtype (i, _) _ _ -> extData (qualIdent mn i) adef
     _                  -> return ()
@@ -1091,30 +1089,92 @@ addTypeAndData adef = do
 -- Do kind checking of all typeish definitions.
 tcDefType :: HasCallStack => EDef -> T EDef
 tcDefType def = do
-  --tcReset
   case def of
-    Data    lhs cs ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Data    lhs'  <$> mapM tcConstr cs <*> mapM tcDerive ds)
-    Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> flip (,) kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM tcDerive ds)
-    Type    lhs t          -> withLHS lhs $ \ lhs' -> first                    (Type    lhs') <$> tInferTypeT t
-    Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> flip (,) kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
-    Sign      is t         ->                                                  Sign      is   <$> tCheckTypeTImpl False kType t
-    ForImp ie i t          ->                                                  ForImp ie i    <$> tCheckTypeTImpl False kType t
-    Instance ct m          ->                                                  Instance       <$> tCheckTypeTImpl True kConstraint ct <*> return m
-    Default mc ts          ->                                                  Default (Just c) <$> mapM (tcDefault c) ts
-                                                                                 where c = fromMaybe num mc
-    Deriving ct            ->                                                  Deriving       <$> tCheckTypeTImpl False kConstraint ct
+    Data    lhs cs ds      -> withLHS lhs $ \ lhs' -> cm kType       <$> (Data    lhs'  <$> mapM tcConstr cs <*> mapM (tcDeriving lhs') ds)
+    Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> cm kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM (tcDeriving lhs') ds)
+    Type    lhs t          -> withLHS lhs $ \ lhs' -> first              (Type    lhs') <$> tInferTypeT t
+    Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> cm kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
+    Sign      is t         ->                                            Sign      is   <$> tCheckTypeTImpl False kType t
+    ForImp ie i t          ->                                            ForImp ie i    <$> tCheckTypeTImpl False kType t
+    Instance ct m          ->                                            Instance       <$> tCheckTypeTImpl True kConstraint ct <*> return m
+    Default mc ts          ->                                            Default (Just c) <$> mapM (tcDefault c) ts
+                                                                           where c = fromMaybe num mc
+-- We cant't do this now, because the classTable has not been fully populated yet.
+-- Instead, we do it in the deriving stage.
+--    StandDeriving st _ ct  ->                                            tcStand st ct
     _                      -> return def
  where
-   tcMethod (Sign is t) = Sign is <$> tCheckTypeTImpl False kType t
-   tcMethod (DfltSign i t) = DfltSign i <$> tCheckTypeTImpl False kType t
-   tcMethod m = return m
+   cm = flip (,)
+   tcMethod (Sign    is t) = Sign    is <$> (tCheckTypeTImpl False kType t >>= expandSyn)
+   tcMethod (DfltSign i t) = DfltSign i <$> (tCheckTypeTImpl False kType t >>= expandSyn)
+   tcMethod m              = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
-   tcDerive = tCheckTypeT (kType `kArrow` kConstraint)
    num = mkBuiltin noSLoc "Num"
    tcDefault c t = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
+
+-- A standalone deriving has a regular instance head.
+-- If it has a via clause, the via type has to have the same kind
+-- as the type in the instance head.
+tcStand :: DerStrategy -> EConstraint -> T EDef
+tcStand st ct = do
+     ct' <- tCheckTypeTImpl True kConstraint ct
+     -- We need the kind of the type in the instance head.
+     -- It's needed for the number of arguments to "eta reduce",
+     -- and also for kind checking the via type.
+     -- So find the kind of the last argument to the class
+     (vks, kty) <- do
+       let (cvks, _ctx, cty) = splitContext ct'
+           cls = fst $ getApp cty
+       ctbl <- gets classTable
+       case M.lookup cls ctbl of
+         Just (ClassInfo vks@(_:_) _ _ _ _) -> case last vks of IdKind _ k -> return (cvks, k)
+         _ -> tcError (getSLoc ct) $ "not a class " ++ showIdent cls
+     let narg = length $ fst $ getArrows kty
+     st' <-
+       case st of
+         DerVia t -> DerVia <$> withExtVals (map (\ (IdKind i k) -> (i, k)) vks)
+                       (tCheckTypeT kty t)   -- make sure the via type has the same kind
+         _ -> return st
+     pure $ StandDeriving st' narg ct'
+
+-- The type variables vks are already in scope when we get here.
+tcDeriving :: LHS -> Deriving -> T Deriving
+tcDeriving (tyId, vks) (Deriving strat cs) = do
+  let tcDerive (_, c) = do
+        let loc = getSLoc c
+        -- The kind of c has to be of the form (k1 -> ... kn -> Type) -> Constraint
+        -- Check that it is.
+        k <- newUVar
+        --traceM $ "tcDerive 1: " ++ show c
+        c' <- tCheckTypeTImpl True (k `kArrow` kConstraint) c
+        --traceM $ "tcDerive 2: " ++ show c
+        (ks, _) <- getArrows <$> derefUVar k  -- get [k1,...,kn] and final kind
+        -- Checking that the final kind is Type happens with the tc call below.
+        let r = length ks                      -- number of args consumed by c
+            m = length vks                     -- number of args given to the data type
+            i = m - r                          -- keep this many
+            ty = tApps tyId (map (EVar . idKindIdent) (take i vks))
+        when (i < 0) $
+          tcError loc "Bad deriving"
+        -- The generated instance has the form 'instance ... => c ty'.
+        -- Check that this has kind Constraint.
+        -- Also check that any via type also fulfills this.
+        let tc t = do _ <- tCheckTypeTImpl True kConstraint (tApp c t); return ()
+        tc ty
+        case strat of
+          DerVia v -> tc v  -- XXX should this allow implicit quantification?
+          _        -> return ()
+        return (r, c')
+
+  cs' <- mapM tcDerive cs
+  -- Ignore the kind here, it's checked for each derived type
+  strat' <- case strat of
+              DerVia t -> DerVia . fst <$> tInferTypeT t
+              _        -> return strat
+  return $ Deriving strat' cs'
 
 withLHS :: forall a . HasCallStack => LHS -> (LHS -> T (a, EKind)) -> T a
 withLHS (i, vks) ta = do
@@ -1122,7 +1182,7 @@ withLHS (i, vks) ta = do
   withVks vks $ \ vks' -> do
     (a, kr) <- ta (i, vks')
     let kapp = foldr kArrow kr (map (\ (IdKind _ k) -> k) vks')
-    --unify (getSLoc i) ki kapp
+    -- XXX polykinded definitions don't work properly
     _ <- subsCheckRho (getSLoc i) eCannotHappen ki kapp
     return a
 
@@ -1186,29 +1246,34 @@ tcConstr (Constr iks ct c ets) =
 -- Default methods are added as actual definitions.
 -- The constructor and methods are added to the symbol table in addValueType.
 expandClass :: ImpType -> EDef -> T [EDef]
-expandClass impt dcls@(Class ctx (iCls, vks) fds ms) = do
+expandClass impt dcls@(Class _ctx (iCls, vks) _fds ms) = do
   mn <- gets moduleName
   let
       meths = [ b | b@(Sign _ _) <- ms ]
-      methIds = concatMap (\ (Sign is _) -> is) meths
       mdflts = [ (i, eqns) | Fcn i eqns <- ms ]
       dflttys = [ (i, t) | DfltSign i t <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
       mkDflt (Sign is t) = concatMap method is
         where method methId = [ Sign [iDflt] $ EForall True vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
                 where ty = fromMaybe t $ lookup methId dflttys
-                      def Nothing = Fcn iDflt $ simpleEqn noDflt
+                      def Nothing = Fcn iDflt $ etaExp ty noDflt
                       def (Just eqns) = Fcn iDflt eqns
                       iDflt = mkDefaultMethodId methId
                       noDflt = mkExn (getSLoc methId) (unIdent methId) "noMethodError"
-              
       mkDflt _ = impossible
+      -- The type checker cannot handle something like
+      --   foo :: ((forall a . a -> Int) -> Int) -> Int
+      --   foo = undefined
+      -- but the eta expanded version is acceptable, so we eta expand
+      -- default methods.
+      -- XXX This isn't really enough for complicated nested quantifiers.
+      etaExp t e =
+        let n = length $ fst $ getArrows $ (\ (_,_,x)->x) $ splitContext t
+            vs = replicate n (EVar dummyIdent)
+        in  [Eqn vs $ simpleAlts e]
       dDflts = case impt of
                  ImpNormal -> concatMap mkDflt meths
                  ImpBoot   -> []
-  -- Add to the class table.  XXX also in addValueClass???
-  addClassTable (qualIdent mn iCls)
-                (ClassInfo vks ctx (EUVar 0) methIds (mkIFunDeps (map idKindIdent vks) fds))   -- Initial entry, no type needed.
   return $ dcls : dDflts
 expandClass _ d = return [d]
 
@@ -1233,57 +1298,67 @@ isDefaultMethodId i = defaultSuffix `isSuffixOf` unIdent i
 defaultSuffix :: String
 defaultSuffix = uniqIdentSep ++ "dflt"
 
-splitInst :: EConstraint -> ([IdKind], [EConstraint], EConstraint)
-splitInst (EForall _ iks t) =
-  case splitInst t of
+-- Split something of the form
+--  forall vs . ctx => t
+-- into (vs, ctx, t)
+splitContext :: EConstraint -> ([IdKind], [EConstraint], EConstraint)
+splitContext (EForall _ iks t) =
+  case splitContext t of
     (iks', ctx, ct) -> (iks ++ iks', ctx, ct)
-splitInst act =
+splitContext act =
   case getImplies act of
     Just (ctx, ct) ->
-      case splitInst ct of
+      case splitContext ct of
         (iks, ctxs, ct') -> (iks, ctx : ctxs, ct')
     _ -> ([], [], act)
 
+-- expandInst runs when all kind checking has been done, but no value checking.
+-- So any generated type expressions must be kind correct and fully qualified,
+-- whereas value expressions do not.
 expandInst :: EDef -> T [EDef]
 expandInst dinst@(Instance act bs) = do
-  (vks, ctx, cc) <- splitInst <$> expandSyn act
+  (vks, ctx, cc) <- splitContext <$> expandSyn act
   let loc = getSLoc act
       qiCls = getAppCon cc
-  let iInst = mkInstId loc cc
-      sign = Sign [iInst] act
+      iInst = mkInstId loc cc
 --  tcTrace ("expandInst " ++ show iInst)
 --  (e, _) <- tLookupV iCls
   ct <- gets classTable
 --  let qiCls = getAppCon e
-  (ClassInfo _ supers _ mis fds) <-
+  (ClassInfo _ supers _ mits fds) <-
     case M.lookup qiCls ct of
       Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
       Just x -> return x
-  -- XXX this ignores type signatures and other bindings
-  -- XXX should tack on signatures with ESign
-  let clsMdl = qualOf qiCls                   -- get class's module name
-      ies = [(i, ELam noSLoc qs) | Fcn i qs <- bs]
-      meth i = fromMaybe (ELam noSLoc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
-      meths = map meth mis
+  let signs = [ (i, t) | Sign is t <- bs, i <- is ]
+      addSign i e = maybe e (ESign e) $ lookup i signs
+      clsMdl = qualOf qiCls                   -- get class's module name
+      ies = [(i, addSign i $ ELam loc qs) | Fcn i qs <- bs]
+      meth (i, _) = fromMaybe (ELam loc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
+      meths = map meth mits
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
-      instBind (Fcn i _) = i `elem` mis
+      instBind (Fcn i _) = isJust $ lookup i mits
+      instBind (Sign is _) = all (\ i -> isJust $ lookup i mits) is
       instBind _ = False
   case filter (not . instBind) bs of
     [] -> return ()
     b:_ -> tcError (getSLoc b) $ "superflous instance binding"
-  let bind = Fcn iInst $ eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
-  mn <- gets moduleName
-  addInstTable [(EVar $ qualIdent mn iInst, vks, ctx, cc, fds)]
+
+  let body = eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
+      bind = Fcn iInst body
+      sign = Sign [iInst] $ eForall vks $ addConstraints ctx cc
+  addInstTable [(EVar iInst, vks, ctx, cc, fds)]
   return [dinst, sign, bind]
+
 expandInst d = return [d]
 
 ---------------------
 
-tcDefsValue :: [EDef] -> T [EDef]
+tcDefsValue :: HasCallStack => [EDef] -> T [EDef]
 tcDefsValue defs = do
 --  tcTrace $ "tcDefsValue: ------------ start"
   -- Gather up all type signatures, and put them in the environment.
+  -- Definitions with no type signature will be missing.
   mapM_ addValueType defs
   let smap = M.fromList $ [ (i, ()) | Sign is _ <- defs, i <- is ]
       -- Split Fcn into those without and with type signatures
@@ -1315,28 +1390,31 @@ tcDefsValue defs = do
 --  traceM $ showEDefs defs'
 --  tcTrace $ "tcDefsValue: ------------ check"
   --  type check all definitions (the inferred ones will be rechecked)
+  chksym
   defs'' <- mapM (\ d -> do { tcReset; tcDefValue d}) defs'
   let defs''' = concat signDefs ++ defs''
 --  traceM $ "tcDefsValue: ------------ done"
 --  traceM $ showEDefs defs'''
   pure defs'''
 
--- Infer a type for a definition
+-- Infer a type for a strongly connected component of definitions.
+-- Enter the deduced types into the global symbol table and return
+-- signatures with the deduced types.
 tInferDefs :: M.Map () -> [EDef] -> T [EDef]
 tInferDefs smap fcns = do
 --  traceM "tInferDefs"
   tcReset
   -- Invent type variables for the definitions
-  xts <- 
-           let f (Fcn i _)            = do t <- newUVar; pure [(i, t)]
-               f (Pattern (i, _) _ _) = do t <- newUVar; pure [(i, t)]
-               f (PatBind p _)        = concat <$> mapM g (patVars p)
-               f _                    = impossible
-               -- Only add type variables for those variables that don't have a signature
-               g i = case M.lookup i smap of
-                       Nothing -> do t <- newUVar; pure [(i, t)]
-                       _       -> pure []
-           in  concat <$> mapM f fcns
+  xts <-
+       let f (Fcn i _)            = do t <- newUVar; pure [(i, t)]
+           f (Pattern (i, _) _ _) = do t <- newUVar; pure [(i, t)]
+           f (PatBind p _)        = concat <$> mapM g (patVars p)
+           f _                    = impossible
+           -- Only add type variables for those variables that don't have a signature
+           g i = case M.lookup i smap of
+                   Nothing -> do t <- newUVar; pure [(i, t)]
+                   _       -> pure []
+       in  concat <$> mapM f fcns
   --tcTrace $ "tInferDefs: " ++ show (map fst xts)
   -- Temporarily extend the local environment with the type variables
   withExtVals xts $ do
@@ -1411,6 +1489,11 @@ addValueType adef = do
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     _ -> return ()
 
+-- Add methods to symbol table
+addValueTypeClass :: EDef -> T ()
+addValueTypeClass (Class ctx (i, vks) fds ms) = addValueClass ctx i vks fds ms
+addValueTypeClass _ = return ()
+
 -- Add a pattern synonym to the symbol table.
 addPatSyn :: EType -> Ident -> T ()
 addPatSyn at i = do
@@ -1422,29 +1505,32 @@ addPatSyn at i = do
       mtch = (EVar qip, mkPatSynMatchType qip at)
   extValETop i at $ ECon $ ConSyn qi n mtch
 
--- XXX FunDep
+-- Add mathods to the value table.
 addValueClass :: [EConstraint] -> Ident -> [IdKind] -> [FunDep] -> [EBind] -> T ()
 addValueClass ctx iCls vks fds ms = do
   mn <- gets moduleName
-  let
-      meths = [ b | b@(Sign _ _) <- ms ]
-      methTys = map (\ (Sign _ t) -> t) meths
-      methIds = concatMap (\ (Sign is _) -> is) meths
+  let methIdTys = [ (i, t) | Sign is t <- ms, i <- is ]
       supTys = ctx  -- XXX should do some checking
-      targs = supTys ++ methTys
+      targs = supTys ++ map snd methIdTys
       qiCls = qualIdent mn iCls
       tret = tApps qiCls (map tVarK vks)
       cti = [ (qualIdent mn iCon, length targs) ]
       iCon = mkClassConstructor iCls
       iConTy = EForall True vks $ foldr tArrow tret targs
+      tvs = map (EVar . idKindIdent) vks
+      methIdTys' = map (\ (i, t) -> (i, EForall True vks $ tApps qiCls tvs `tImplies` t)) methIdTys
+      addMethod (i, t) = extValETop i t (EVar $ qualIdent mn i)
   extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon) [])
-  let addMethod (Sign is t) = mapM_ method is
-        where method i = extValETop i (EForall True vks $ tApps qiCls (map (EVar . idKindIdent) vks) `tImplies` t) (EVar $ qualIdent mn i)
-      addMethod _ = impossible
---  tcTrace ("addValueClass " ++ showEType (ETuple ctx))
-  mapM_ addMethod meths
+  mapM_ addMethod methIdTys'
   -- Update class table, now with actual constructor type.
-  addClassTable qiCls (ClassInfo vks ctx iConTy methIds (mkIFunDeps (map idKindIdent vks) fds))
+--  traceM $ "addValueClass " ++ show (iCls, vks)
+  -- expand all type synonyms before entering the table
+  info <- ClassInfo vks <$>
+                    mapM expandSyn ctx <*>
+                    expandSyn iConTy <*>
+                    mapM (\ (i, t) -> (,) i <$> expandSyn t) methIdTys' <*>
+                    return (mkIFunDeps (map idKindIdent vks) fds)
+  addClassTable qiCls info
 
 mkClassConstructor :: Ident -> Ident
 mkClassConstructor i = addIdentSuffix i "$C"
@@ -1456,28 +1542,31 @@ tcDefValue adef =
   case adef of
     Fcn i eqns -> do
       (_, t) <- tLookup "type signature" i
-      t' <- expandSyn t
 --      when (isConIdent i) $ do
---        tcTrace $ "tcDefValue: patsyn\n" ++ show i ++ " :: " ++ show t'
+--        tcTrace $ "tcDefValue: patsyn\n" ++ show i ++ " :: " ++ show t
 --        tcTrace $ "tcDefValue:\n" ++ showEDefs [adef]
 --      tcTrace $ "tcDefValue: ------- start " ++ showIdent i
---      tcTrace $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t'
+--      tcTrace $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t
 --      tcTrace $ "tcDefValue: " ++ showEDefs [adef]
-      teqns <- tcEqns True t' eqns
+      teqns <- tcEqns True t eqns
 --      tcTrace ("tcDefValue: after\n" ++ showEDefs [adef, Fcn i teqns])
 --      cs <- gets constraints
 --      tcTrace $ "tcDefValue: constraints: " ++ show cs
       checkConstraints
       mn <- gets moduleName
 --      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
-      return $ Fcn (qualIdent mn i) teqns
+      return $ Fcn (qualIdent' mn i) teqns
     PatBind p e -> tcPatBind PatBind p e
     ForImp ie i t -> do
       mn <- gets moduleName
       t' <- expandSyn t
-      return (ForImp ie (qualIdent mn i) t')
+      return (ForImp ie (qualIdent' mn i) t')
     Pattern _ _ _ -> impossible
     _ -> return adef
+
+qualIdent' :: IdentModule -> Ident -> Ident
+qualIdent' mn i | isInstId i = i
+                | otherwise  = qualIdent mn i
 
 -- This is only used during inference.
 -- When doing type checking the actual Pattern definition will have been
@@ -1511,20 +1600,26 @@ tcPatSyn (Pattern (ip, vks) p me) = do
   return [ Sign [ip] ty3 ]
 tcPatSyn _ = impossible
 
--- Add implicit forall and type check.
-tCheckTypeTImpl :: HasCallStack => Bool -> EType -> EType -> T EType
-tCheckTypeTImpl _ tchk t@(EForall _ _ _) = tCheckTypeT tchk t
-tCheckTypeTImpl impl tchk t = do
+-- Add implicit forall
+addForall :: Bool -> EType -> T EType
+addForall _ t@(EForall _ _ _) = return t
+addForall expl t = do
   bvs <- stKeysLcl <$> gets valueTable         -- bound outside
   let fvs = freeTyVars [t]                     -- free variables in t
       -- these are free, and need quantification.  eDummy indicates missing kind
       iks = map (\ i -> IdKind i eDummy) (fvs \\ bvs)
-  --when (not (null iks)) $ tcTrace ("tCheckTypeTImpl: " ++ show (t, eForall iks t))
-  tCheckTypeT tchk (eForall' impl iks t)
+  --when (not (null iks)) $ tcTrace ("addForall: " ++ show (t, eForall iks t))
+  return $ eForall' expl iks t
 
+-- Add implicit forall and kind check, in type mode
+tCheckTypeTImpl :: HasCallStack => Bool -> EType -> EType -> T EType
+tCheckTypeTImpl expl tchk t = tCheckTypeT tchk =<< addForall expl t
+
+-- Check type in type mode
 tCheckTypeT :: HasCallStack => EType -> EType -> T EType
 tCheckTypeT = tCheck tcTypeT
 
+-- Infer type in type mode
 tInferTypeT :: HasCallStack => EType -> T (EType, EKind)
 tInferTypeT t = tInfer tcTypeT t
 
@@ -1620,7 +1715,7 @@ tcExprR :: HasCallStack =>
            Expected -> Expr -> T Expr
 tcExprR mt ae =
   let { loc = getSLoc ae } in
---  trace ("tcExprR " ++ show ae) $
+--  trace ("tcExprR " ++ show (ae, mt)) $
   case ae of
     EVar i | isIdent dictPrefixDollar i -> do
              -- Magic variable that just becomes the dictionary
@@ -1660,7 +1755,7 @@ tcExprR mt ae =
             _      -> impossible
         TCExpr -> do
           let getExpected (Infer _) = pure Nothing
-              getExpected (Check t) = Just <$> (derefUVar t >>= expandSyn)
+              getExpected (Check t) = Just <$> derefUVar t
           case lit of
             LInteger i -> do
               mex <- getExpected mt
@@ -1686,11 +1781,13 @@ tcExprR mt ae =
                   -- We don't need to check that _at is Rational, it's part of the fromRational type.
                   instSigma loc (EApp f ae) rt mt
             -- This implements OverloadedStrings.  It causes a small slowdown (2%)
-            LStr _ -> do
+            LStr s -> do
               mex <- getExpected mt
               case mex of
                 Just (EApp (EVar lst) (EVar c))
                  | lst == identList && c == identChar -> tcLit mt loc lit
+                Just (EVar bs)
+                 | bs == identByteString -> tcLit mt loc (LBStr s)
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromString"))
                   (_at, rt) <- unArrow loc ft
@@ -1707,15 +1804,18 @@ tcExprR mt ae =
       earms <- mapM (tcArm tt ta) arms
       return (ECase ea earms)
     ELet bs a -> tcBinds bs $ \ ebs -> do { ea <- tcExpr mt a; return (ELet ebs ea) }
-    ETuple es -> do
-      -- XXX checking if mt is a tuple would give better inference
-      let
-        n = length es
-      (ees, tes) <- fmap unzip (mapM tInferExpr es)
-      let
-        ttup = tApps (tupleConstr loc n) tes
-      munify loc mt ttup
-      return (ETuple ees)
+    ETuple es ->
+      case unTuple mt of
+        Just ts | length ts == length es -> do
+          ees <- zipWithM tCheckExpr ts es
+          return (ETuple ees)
+        _ -> do
+          (ees, tes) <- fmap unzip (mapM tInferExpr es)
+          let
+            n = length es
+            ttup = tApps (tupleConstr loc n) tes
+          munify loc mt ttup
+          return (ETuple ees)
     EParen e -> tcExpr mt e
     EDo mmn ass -> do
       case ass of
@@ -1744,7 +1844,7 @@ tcExprR mt ae =
                 ithen = mkBuiltin loc ">>"
                 sthen = maybe ithen (\ mn -> qualIdent mn ithen) mmn
               tcExpr mt (EApp (EApp (EVar sthen) a) (EDo mmn ss))
-                
+
             SLet bs ->
               tcExpr mt (ELet bs (EDo mmn ss))
 
@@ -1768,13 +1868,20 @@ tcExprR mt ae =
     -- Translate (if | a1; | a2 ...) into
     --           (case [] of _ | a1; | a2 ...)
     EMultiIf a ->
-      tcExpr mt $ ECase (EListish (LList [])) [(EVar (mkIdent "_"), a)]
+      case a of
+        EAlts [([], e)] [] -> tcExpr mt e
+        _                  -> tcExpr mt $ ECase (EListish (LList [])) [(EVar (mkIdent "_"), a)]
 
-    EListish (LList es) -> do
-      te <- newUVar
-      munify loc mt (tApp (tList loc) te)
-      es' <- mapM (tCheckExpr te) es
-      return (EListish (LList es'))
+    EListish (LList es) ->
+      case unList mt of
+        Just t -> do
+          es' <- mapM (tCheckExpr t) es
+          return (EListish (LList es'))
+        _ -> do
+          te <- newUVar
+          munify loc mt (tApp (tList loc) te)
+          es' <- mapM (tCheckExpr te) es
+          return (EListish (LList es'))
     EListish (LCompr eret ass) -> do
       let
         doStmts :: [EStmt] -> [EStmt] -> T ([EStmt], Typed Expr)
@@ -1805,15 +1912,35 @@ tcExprR mt ae =
     EListish (LFromThen   e1 e2)    -> tcExpr mt (enum loc "FromThen" [e1,e2])
     EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enum loc "FromThenTo" [e1,e2,e3])
     ESign e t -> do
-      t' <- tcType (Check kType) t
-      e' <- instSigma loc e t' mt
-      checkSigma e' t'
+{-
+      -- As a hack, translate 'e :: T' to 'let s$999 :: T; s$999 = e in s$999'
+      -- This will ensure that dictinaries are inserted in the right place.
+      i <- newIdent (getSLoc e) "s"
+      tcExpr mt $ ELet [Sign [i] t, Fcn i $ eEqns [] e] (EVar i)
+-}
+      -- XXX wrong for kind signatures
+      t' <- withTypeTable $ tCheckTypeTImpl False kType t >>= expandSyn
+      case splitContext t' of
+        -- No context, handle this without a 'let' to avoid bloat.
+        ([], [], _) -> do
+          e' <- instSigma loc e t' mt
+          tCheckExpr t' e'
+        _ -> do
+          -- We have a forall/context.  As a hack, translate 'e :: T' to
+          -- let s$999 :: T; s$999 = e in s$999
+          -- This will ensure that dictinaries are inserted in the right place.
+          -- XXX Maybe it would be better to have this as part of the code above?
+          -- Or maybe do this rewrite all the time?
+          i <- newIdent (getSLoc e) "s"
+          let et = ELet [Sign [i] t, Fcn i $ eEqns [] e] (EVar i)
+          tcExpr mt et
+
     -- Only happens in type&kind checking mode.
     EForall b vks t ->
 --      assertTCMode (==TCType) $
       withVks vks $ \ vks' -> do
         tt <- tcExpr mt t
-        return (EForall b vks' tt)
+        derefUVar (EForall b vks' tt)
     EUpdate e flds -> do
       ises <- concat <$> mapM (dsEField e) flds
       me <- dsUpdate unsetField e ises
@@ -1830,7 +1957,8 @@ tcExprR mt ae =
 
 tcExprAp :: HasCallStack =>
             Expected -> Expr -> [Expr] -> T Expr
-tcExprAp mt ae args =
+--tcExprAp _ ae args | trace ("tcExprAp: " ++ show (ae, args)) False = undefined
+tcExprAp mt ae args = do
   case ae of
     EApp f a -> tcExprAp mt f (a : args)
     EParen f -> tcExprAp mt f args
@@ -1840,6 +1968,7 @@ tcExprAp mt ae args =
            | otherwise -> do
              -- Type checking an expression (or type)
              (fn, t) <- tLookupV i
+--             traceM ("tcExprAp " ++ show (fn, t))
              -- Variables bound in patterns start out with an (EUVar ref) type,
              -- which can be instantiated to a polytype.
              -- Dereference such a ref.
@@ -1859,18 +1988,20 @@ tcExprAp mt ae args =
     _ -> do
       (f, t) <- tInferExpr ae
       tcExprApFn mt f t args
-    
-tcExprApFn :: Expected -> Expr -> EType -> [Expr] -> T Expr
---tcExprApFn _ fn fnt args | trace (show (fn, fnt, args)) False = undefined
-tcExprApFn mt fn (EForall {-True-}_ (IdKind i _:iks) ft) (ETypeArg t : args) = do
-  t' <- if t `eqEType` EVar dummyIdent then newUVar else tcType (Check kType) t
-  tcExprApFn mt fn (eForall iks (subst [(i, t')] ft)) args
-tcExprApFn mt fn tfn args = do
---  traceM $ "tcExprApFn: " ++ show (mt, fn, tfn, args)
+
+tcExprApFn :: HasCallStack =>
+              Expected -> Expr -> EType -> [Expr] -> T Expr
+--tcExprApFn mt fn fnt args | trace ("tcExprApFn: " ++ show (fn, fnt, args, mt)) False = undefined
+tcExprApFn mt fn (EForall {-True-}_ (IdKind i k:iks) ft) (ETypeArg t : args) = do
+  t' <- if t `eqEType` EVar dummyIdent then newUVar else tcType (Check k) t >>= expandSyn
+  tcExprApFn mt fn (subst [(i, t')] $ eForall iks ft) args
+tcExprApFn mt fn atfn aargs = do
+--  traceM $ "tcExprApFn: " ++ show (mt, fn, tfn, aargs)
 --  xx <- gets ctxTables
 --  traceM $ "tcExprApFn: ctxTables=" ++ show xx
   let loc = getSLoc fn
-  (fn', tfn') <- tInst fn tfn
+  (ctxs, tfn') <- tInstDelay atfn
+--  traceM $ "tcExprApFn: (fn', tfn') = " ++ show (fn', tfn')
   let loop ats     [] ft = final ats ft
       loop ats as@(_:_) (EForall _ vks ft) = do
         ft' <- tInstForall vks ft
@@ -1878,6 +2009,7 @@ tcExprApFn mt fn tfn args = do
       loop ats (a:as) ft = do
         (at, rt) <- unArrow loc ft
         loop ((a, at):ats) as rt
+
       final aats rt = do
 
         -- We want to do the unification of rt ant mt before checking the argument to
@@ -1887,11 +2019,11 @@ tcExprApFn mt fn tfn args = do
             ugly = -1::Int
         etmp' <- instSigma loc etmp rt mt
 
-        let apply f [] = return f
-            apply f ((a,at):ats) = do
-              a' <- checkSigma a at
-              apply (EApp f a') ats
-        res <- apply fn' (reverse aats)
+        args <- mapM (uncurry checkSigma) (reverse aats)
+        dicts <- mapM (newDict loc) ctxs
+        let res = foldl EApp fn (dicts ++ args)
+--        traceM (show res)
+
 --        cc <- gets constraints
 --        traceM $ "tcExprApFn: constraints=" ++ show cc
 
@@ -1900,8 +2032,8 @@ tcExprApFn mt fn tfn args = do
           _ -> return $ substEUVar [(ugly, res)] etmp'
 
         instSigma loc res rt mt
-      
-  loop [] args tfn'
+
+  loop [] aargs tfn'
 
 -- Is a pattern failure free?
 failureFree :: EPat -> T Bool
@@ -1929,7 +2061,7 @@ failureFreeAp bs (EVar v) | not (isConIdent v) = return True
                                 _ -> False
 failureFreeAp bs (ESign p _) = failureFreeAp bs p
 failureFreeAp _ _ = return False  -- bad pattern, just ignore
-                           
+
 eSetFields :: EField -> Expr -> Expr
 eSetFields (EField is e) r =
   let loc = getSLoc is
@@ -2024,6 +2156,7 @@ tcLit mt loc l = do
           LDouble _  -> tConI loc nameFloatW
           LChar _    -> tConI loc nameChar
           LStr _     -> tApp (tList loc) (tConI loc nameChar)
+          LBStr _    -> tConI loc nameByteString
           _          -> impossible
   tcLit' mt loc l t
 
@@ -2083,32 +2216,32 @@ unArrow loc t = do
       unify loc t (tArrow a r)
       return (a, r)
 
+unTuple :: Expected -> Maybe [EType]
+unTuple (Infer _) = Nothing
+unTuple (Check t) = loop [] t
+  where loop ts (EApp f a) = loop (a:ts) f
+        loop ts (EVar i) | Just n <- getTupleConstr i, length ts == n = Just ts
+        loop _ _ = Nothing
+
+unList :: Expected -> Maybe EType
+unList (Check (EApp (EVar i) t)) | i == identList = Just t
+unList _ = Nothing
+
 getFixity :: FixTable -> Ident -> Fixity
 getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
-
--- Dictionary argument names
-adictPrefix :: String
-adictPrefix = "adict"
 
 newADictIdent :: SLoc -> T Ident
 newADictIdent loc = newIdent loc adictPrefix
 
--- Needed dictionaries
-dictPrefix :: String
-dictPrefix = "dict"
-
-dictPrefixDollar :: String
-dictPrefixDollar = dictPrefix ++ uniqIdentSep
-
 newDictIdent :: SLoc -> T Ident
 newDictIdent loc = newIdent loc dictPrefix
 
-tcExprLam :: Expected -> SLoc -> [Eqn] -> T Expr
+tcExprLam :: HasCallStack => Expected -> SLoc -> [Eqn] -> T Expr
 tcExprLam mt loc qs = do
   t <- tGetExpType mt
   ELam loc <$> tcEqns False t qs
 
-tcEqns :: Bool -> EType -> [Eqn] -> T [Eqn]
+tcEqns :: HasCallStack => Bool -> EType -> [Eqn] -> T [Eqn]
 --tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (Fcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
 tcEqns top (EForall expl iks t) eqns | expl      = withExtTyps iks $ tcEqns top t eqns
                                      | otherwise =                   tcEqns top t eqns
@@ -2138,7 +2271,7 @@ tcEqns top t eqns = do
         eqn = Eqn [] $ EAlts [([], EVar f)] (bs ++ [Fcn f eqns'])
       return [eqn]
 
-tcEqn :: EType -> Eqn -> T Eqn
+tcEqn :: HasCallStack => EType -> Eqn -> T Eqn
 --tcEqn t eqn | trace ("tcEqn: " ++ show eqn ++ " :: " ++ show t) False = undefined
 tcEqn t eqn =
   case eqn of
@@ -2155,7 +2288,7 @@ tcPats t (p:ps) ta = do
   -- tCheckPatC dicts used in tcAlt solve
   tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
 
-tcAlts :: EType -> EAlts -> T EAlts
+tcAlts :: HasCallStack => EType -> EAlts -> T EAlts
 tcAlts t (EAlts alts bs) =
 --  trace ("tcAlts: bs in " ++ showEBinds bs) $
   tcBinds bs $ \ bs' -> do
@@ -2163,7 +2296,7 @@ tcAlts t (EAlts alts bs) =
     alts' <- mapM (tcAlt t) alts
     return (EAlts alts' bs')
 
-tcAlt :: EType -> EAlt -> T EAlt
+tcAlt :: HasCallStack => EType -> EAlt -> T EAlt
 --tcAlt t (_, rhs) | trace ("tcAlt: " ++ showExpr rhs ++ " :: " ++ showEType t) False = undefined
 tcAlt t (ss, rhs) = tcGuards ss $ \ ss' -> do
   rhs' <- tCheckExprAndSolve t rhs
@@ -2193,7 +2326,7 @@ tcArm t tpat arm =
       alts' <- tcAlts t alts
       return (pp, alts')
 
-tCheckExprAndSolve :: EType -> Expr -> T Expr
+tCheckExprAndSolve :: HasCallStack => EType -> Expr -> T Expr
 tCheckExprAndSolve t e = do
   (e', bs) <- solveLocalConstraints $ tCheckExpr t e
   if null bs then
@@ -2251,8 +2384,8 @@ tInferPat = tInfer tcPat
 tcPat :: Expected -> EPat -> T EPatRet
 tcPat mt ae =
   let loc = getSLoc ae
-      lit = tcPat mt (EViewPat (EApp (EVar (mkBuiltin loc "==")) ae) (EVar (mkBuiltin loc "True")))
-      isNeg (EVar i) = i == mkIdent "negate"
+      lit = tcPat mt (EViewPat (EApp (EVar (mkBuiltin loc "==")) ae) (eTrue loc))
+      isNeg (EVar i) = i == mkBuiltin loc "negate"
       isNeg _ = False
   in
   case ae of
@@ -2297,7 +2430,7 @@ tcPat mt ae =
     ELit _ _ -> lit
 
     ESign e t -> do
-      t' <- tcType (Check kType) t
+      t' <- tcType (Check kType) t >>= expandSyn
       instPatSigma loc t' mt
       tCheckPat t' e
 
@@ -2311,9 +2444,17 @@ tcPat mt ae =
       return (sk, d, EAt i p')
 
     EViewPat e p -> do
-      (e', te) <- tInferExpr e
-      (tea, ter) <- unArrow loc te
-      munify loc mt tea
+      (e', ter) <-
+        case mt of
+          Infer _ -> do
+            (e', te) <- tInferExpr e
+            (tea, ter) <- unArrow loc te
+            munify loc mt tea
+            return (e', ter)
+          Check tea -> do
+            ter <- newUVar
+            e' <- tCheckExpr (tea `tArrow` ter) e
+            return (e', ter)
       (sk, d, p') <- tcPat (Check ter) p
       return (sk, d, EViewPat e' p')
 
@@ -2325,7 +2466,7 @@ tcPat mt ae =
     EUpdate p [] -> do
       (p', _) <- tInferExpr p
       case p' of
-        ECon c -> tcPat mt $ eApps p (replicate (conArity c) eDummy)          
+        ECon c -> tcPat mt $ eApps p (replicate (conArity c) eDummy)
         _      -> impossible
     EUpdate p isps -> do
       me <- dsUpdate (const eDummy) p isps
@@ -2379,7 +2520,7 @@ tcPatApCon mt args con xpt = do
       tcPat mt vp
 
     -- Regular constructor
-    _ -> do 
+    _ -> do
       case xpt of
          -- Sanity check
          EForall _ _ (EForall _ _ _) -> return ()
@@ -2393,7 +2534,7 @@ tcPatApCon mt args con xpt = do
           Just (ctx, pt') -> do
             di <- newADictIdent loc
             return ([(di, ctx)], EApp con (EVar di), pt')
-          
+
       let ary = arity pf
             where arity (ECon c) = conArity c
                   arity (EApp f _) = arity f - 1  -- deal with dictionary added above
@@ -2424,7 +2565,8 @@ multCheck vs =
     let v = head vs
     tcError (getSLoc v) $ "Multiply defined: " ++ showIdent v
 
-tcBinds :: forall a . [EBind] -> ([EBind] -> T a) -> T a
+tcBinds :: HasCallStack =>
+           [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = withFixes [ (i, fx) | Infix fx is <- xbs, i <- is ] $ do
   let
     tmap = M.fromList [ (i, t) | Sign is t <- xbs, i <- is ]
@@ -2435,14 +2577,14 @@ tcBinds xbs ta = withFixes [ (i, fx) | Infix fx is <- xbs, i <- is ] $ do
     nbs <- mapM tcBind xbs
     ta nbs
 
--- Temporarily exten the fixity table
+-- Temporarily extend the fixity table
 withFixes :: [FixDef] -> T a -> T a
 withFixes [] ta = ta
 withFixes fixs ta = do
-  ft <- gets fixTable
-  modify $ \ st -> st{ fixTable = foldr (uncurry M.insert) ft fixs }
+  oft <- gets fixTable
+  modify $ \ st -> st{ fixTable = foldr (uncurry M.insert) oft fixs }
   a <- ta
-  modify $ \ st -> st{ fixTable = ft }
+  modify $ \ st -> st{ fixTable = oft }
   return a
 
 tcBindVarT :: HasCallStack => M.Map EType -> Ident -> T (Ident, EType)
@@ -2452,7 +2594,7 @@ tcBindVarT tmap x = do
       t <- newUVar
       return (x, t)
     Just t -> do
-      tt <- withTypeTable $ tCheckTypeTImpl False kType t
+      tt <- withTypeTable $ tCheckTypeTImpl False kType t >>= expandSyn
       return (x, tt)
 
 tcBind :: EBind -> T EBind
@@ -2489,7 +2631,8 @@ dsType at =
     EForall b iks t -> EForall b iks (dsType t)
     ELit _ (LStr _) -> at
     ELit _ (LInteger _) -> at
-    _ -> impossible
+    EQVar _ _ -> at
+    _ -> impossibleShow at
 
 tListI :: SLoc -> Ident
 tListI loc = mkIdentSLoc loc nameList
@@ -2537,10 +2680,6 @@ quantify tvs ty = do
   ty' <- derefUVar ty
   putUvarSubst osubst  -- reset the setUVar we did above
   return (EForall False newVarsK ty')
-
-allBinders :: [Ident] -- a,b,...,z,a1,a2,...
-allBinders = [ mkIdent [x] | x <- ['a' .. 'z'] ] ++
-             [ mkIdent ('a' : show i) | i <- [1::Int ..]]
 
 -- Skolemize the given variables
 shallowSkolemise :: [IdKind] -> EType -> T ([TyVar], EType)
@@ -2794,8 +2933,7 @@ canonPatSynType at = do
       getImplies' :: EType -> (EConstraint, EType)
       getImplies' ty = fromMaybe (emptyCtx, ty) $ getImplies ty
 
-  at' <- expandSyn at
-  case at' of
+  case at of
     EForall False vks t0 -> do
       -- Implicit forall, the xs need to be split between required and provided.
       let (reqCtx, t1) = getImplies' t0
@@ -2834,12 +2972,12 @@ splitPatSynType t = impossibleShow t
 --  * components of a tupled constraint
 --  * superclasses of a constraint
 expandDict :: HasCallStack => Expr -> EConstraint -> T [InstDictC]
-expandDict edict ct = expandDict' [] [] edict =<< expandSyn ct
+expandDict edict ct = expandDict' [] [] edict ct
 
 expandDict' :: HasCallStack => [IdKind] -> [EConstraint] -> Expr -> EConstraint -> T [InstDictC]
 expandDict' avks actx edict acc = do
   let
-    (bvks, bctx, cc) = splitInst acc
+    (bvks, bctx, cc) = splitContext acc
     (iCls, args) = getApp cc
     vks = avks ++ bvks
     ctx = actx ++ bctx
@@ -2849,19 +2987,15 @@ expandDict' avks actx edict acc = do
     Nothing -> do
       ct <- gets classTable
       case M.lookup iCls ct of
-        Nothing ->
-         -- XXX ~ could be in the symbol table
-         if iCls == mkIdent "Primitives.~" then
-          return []
-         else do
+        Nothing -> do
           -- if iCls is a variable it's not in the class table, otherwise it's an error
           when (isConIdent iCls) $
             --impossible
             -- XXX it seems we can get here, e.g., Control.Monad.Fail without Applicative import
-            error ("expandDict: " ++ showExprRaw acc)
+            impossibleShow (acc, iCls)
           return [(edict, vks, ctx, cc, [])]
         Just (ClassInfo iks sups _ _ fds) -> do
-          let 
+          let
             vs = map idKindIdent iks
             sub = zip vs args
             sups' = map (subst sub) sups
@@ -2959,11 +3093,11 @@ showInstDef :: InstDef -> String
 showInstDef (cls, InstInfo m ds _) = "instDef " ++ show cls ++ ": "
             ++ show (M.toList m) ++ ", " ++ showListS showInstDict ds
 
-showConstraint :: (Ident, EConstraint) -> String
-showConstraint (i, t) = show i ++ " :: " ++ show t
-
 showMatch :: (Expr, [EConstraint]) -> String
 showMatch (e, ts) = show e ++ " " ++ show ts
+
+showConstraint :: (Ident, EConstraint) -> String
+showConstraint (i, t) = show i ++ " :: " ++ show t
 -}
 
 type Goal = (Ident, EType)     -- What we want to solve
@@ -3105,7 +3239,7 @@ solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETupl
       return $ Just (ETuple [], ncs, [])
 solveTypeEq _ _ _ = impossible
 
-solveCoercible :: SolveOne
+solveCoercible :: HasCallStack => SolveOne
 solveCoercible loc _iCls [t1, t2] = do
   st <- gets synTable
   extNewtypeSyns        -- pretend newtypes are type synonyms
@@ -3146,10 +3280,10 @@ extNewtypeSyns = do
           -- it should be visible.
           let t = either (snd . head) (snd . snd . head) et
 --          traceM $ "extNewtypeSyns: " ++ showIdent qi ++ show vs ++ " = " ++ showExprRaw t
-          extSyn qi (EForall True vs t)  -- extend synonym table
+          extSyn qi vs t  -- extend synonym table
       ext _ = return ()
   mapM_ ext $ M.toList dt
-  
+
 
 isEUVar :: EType -> Bool
 isEUVar (EUVar _) = True
@@ -3284,12 +3418,6 @@ addEqConstraint loc t1 t2 = do
   d <- newDictIdent loc
   addConstraint d (mkEqType loc t1 t2)
 
-mkEqType :: SLoc -> EType -> EType -> EConstraint
-mkEqType loc t1 t2 = eAppI2 (mkIdentSLoc loc nameTypeEq) t1 t2
-
-mkCoercible :: SLoc -> EType -> EType -> EConstraint
-mkCoercible loc t1 t2 = eAppI2 (mkIdentSLoc loc nameCoercible) t1 t2
-
 -- Possibly solve a type equality.
 -- Just normalize both types and compare.
 solveEq :: TypeEqTable -> EType -> EType -> Maybe [(EType, EType)]
@@ -3375,27 +3503,37 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
 -}
 
 doDeriving :: EDef -> T [EDef]
-doDeriving def@(Data    lhs cs ds) = (def:) . concat <$> mapM (deriveHdr lhs  cs) ds
-doDeriving def@(Newtype lhs  c ds) = (def:) . concat <$> mapM (deriveHdr lhs [c]) ds
-doDeriving def@(Deriving ct)       = (def:) <$> standaloneDeriving ct
-doDeriving def                     = return [def]
+doDeriving def@(Data    lhs cs ds)    = (def:) . concat <$> mapM (deriveDer False lhs  cs) ds
+doDeriving def@(Newtype lhs  c ds)    = (def:) . concat <$> mapM (deriveDer True  lhs [c]) ds
+doDeriving (StandDeriving as _ act) = do
+  -- The StandDeriving has not been typechecked yet, so do it now.
+  def@(StandDeriving s n ct) <- withTypeTable $ tcStand as act
+  (def:) <$> standaloneDeriving s n ct
+doDeriving def                        = return [def]
 
-standaloneDeriving :: EType -> T [EDef]
-standaloneDeriving act = do
-  (_vks, _ctx, cc) <- splitInst <$> expandSyn act
-  dtable <- gets dataTable
---  traceM ("standaloneDeriving 1 " ++ show (ctx, cc))
-  (cls, tname) <-
+deriveDer :: Bool -> LHS -> [Constr] -> Deriving -> T [EDef]
+deriveDer newt lhs cs (Deriving strat ds) = concat <$> mapM (deriveStrat Nothing newt lhs cs strat) ds
+
+standaloneDeriving :: DerStrategy -> Int -> EConstraint -> T [EDef]
+standaloneDeriving str narg act = do
+  let (_vks, _ctx, cc) = splitContext act
+--  traceM ("standaloneDeriving 1 " ++ show (_vks, _ctx, cc))
+  (cls, ts, tname) <-
     case getAppM cc of
-      Just (c, ts@(_:_)) | isJust mn -> return (tApps c (init ts), n)
+      Just (c, ts@(_:_)) | isJust mn -> return (c, init ts, n)
         where mn = getAppM (last ts)
               (n, _) = fromJust mn
       _ -> tcError (getSLoc act) "malformed standalone deriving"
 --  traceM ("standaloneDeriving 2 " ++ show (act, cls, tname))
-  (lhs, cs) <-
+  dtable <- gets dataTable
+  (lhs, newt, cs) <-
     case M.lookup tname dtable of
-      Just (Newtype l  c _) -> return (l, [c])
-      Just (Data    l xs _) -> return (l, xs)
+      Just (Newtype l  c _) -> return (l, True,  [c])
+      Just (Data    l xs _) -> return (l, False, xs)
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
-  deriveNoHdr act lhs cs cls
+  deriveStrat (Just act) newt lhs cs str (narg, tApps cls ts)
+
+chksym :: T ()
+chksym = return ()
+--  vt <- gets valueTable

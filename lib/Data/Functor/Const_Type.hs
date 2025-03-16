@@ -1,9 +1,10 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 module Data.Functor.Const_Type(Const(..), getConst) where
-import Prelude()              -- do not import Prelude
+import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool
+import Data.Coerce
 import Data.Eq
 import Data.Function
 import Data.Functor
