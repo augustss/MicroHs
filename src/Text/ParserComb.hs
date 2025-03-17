@@ -18,7 +18,7 @@ module Text.ParserComb(
   ) where
 import qualified Prelude(); import MHSPrelude hiding (fail)
 import Control.Applicative
-import Control.Monad.Fail
+import Control.Monad.Fail as F
 import Control.Monad
 import Data.Maybe
 
@@ -92,7 +92,7 @@ instance TokenMachine tm t => MonadFail (Prsr tm t) where
   fail m = P $ \ts -> Failure (LastFail (tmLeft ts) (firstToken ts) [m])
 
 instance TokenMachine tm t => Alternative (Prsr tm t) where
-  empty = fail "empty"
+  empty = F.fail "empty"
 
   (<|>) p q = P $ \ t ->
     case runP p t of
