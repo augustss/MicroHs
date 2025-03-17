@@ -441,8 +441,10 @@ dropForall (EForall _ _ t) = dropForall t
 dropForall t = t
 
 dropContext :: EType -> EType
-dropContext t | Just (_, t') <- getImplies t = dropContext t'
-              | otherwise = t
+dropContext t =
+  case getImplies t of
+    Just (_, t') -> dropContext t'
+    _ -> t
 
 {-
 freshForall :: EType -> EType
