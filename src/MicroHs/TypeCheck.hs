@@ -800,7 +800,7 @@ tInst ae at | isJust mctxt = do
 -}
     d <- newDict (getSLoc ae) ctx
     tInst (EApp ae d) t
-  where mctxt = getImplies at 
+  where mctxt = getImplies at
 tInst ae at = return (ae, at)
 
 -- Instantiate a function, but delay generating the dictionaries.
@@ -817,8 +817,10 @@ tInstDelay = inst []
     inst cs (EForall _ vks t) = do
       t' <- tInstForall vks t
       inst cs t'
-    inst cs at | Just (ctx, t) <- getImplies at =
-      inst (ctx:cs) t
+    inst cs at | isJust mctxt =
+        inst (ctx:cs) t
+      where mctxt = getImplies at
+            Just (ctx, t) = mctxt
     inst cs at = return (reverse cs, at)
 
 tInstForall :: [IdKind] -> EType -> T EType
@@ -2220,7 +2222,9 @@ unTuple :: Expected -> Maybe [EType]
 unTuple (Infer _) = Nothing
 unTuple (Check t) = loop [] t
   where loop ts (EApp f a) = loop (a:ts) f
-        loop ts (EVar i) | Just n <- getTupleConstr i, length ts == n = Just ts
+        loop ts (EVar i) | isJust mn && length ts == n = Just ts
+          where Just n = mn
+                mn = getTupleConstr i
         loop _ _ = Nothing
 
 unList :: Expected -> Maybe EType

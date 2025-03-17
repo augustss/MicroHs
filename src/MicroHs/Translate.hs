@@ -5,9 +5,8 @@ module MicroHs.Translate(
   translate, translateAndRun
   ) where
 import qualified Prelude(); import MHSPrelude
-import Data.ByteString.Internal(ByteString)
+import Data.ByteString.Internal(ByteString, pack)
 import Data.Maybe
-import Data.String
 import Unsafe.Coerce
 import PrimTable
 
@@ -38,7 +37,7 @@ trans r ae =
     Lit (LInt i) -> unsafeCoerce i
     Lit (LDouble i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
-    Lit (LBStr s) -> unsafeCoerce (Data.String.fromString s :: ByteString)
+    Lit (LBStr s) -> unsafeCoerce (pack $ map (toEnum . fromEnum) s)
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
     Lit (LForImp s _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))

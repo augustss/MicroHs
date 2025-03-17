@@ -6,6 +6,7 @@ module MicroHs.TargetConfig(
   , findTarget
   ) where
 import qualified Prelude(); import MHSPrelude hiding(lex)
+import Control.Applicative
 import Data.List
 import Text.ParserComb
 import MicroHs.Ident

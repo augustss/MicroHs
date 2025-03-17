@@ -129,7 +129,9 @@ unIdent' = unIdent . unQualIdent
 cTypeName :: EType -> String
 cTypeName (EApp (EVar ptr) _t) | ptr == identPtr = "Ptr"
                                | ptr == identFunPtr = "FunPtr"
-cTypeName (EVar i) | Just c <- lookup (unIdent i) cTypes = c
+cTypeName (EVar i) | isJust mc = c
+  where Just c = mc
+        mc = lookup (unIdent i) cTypes
 cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
 cTypes :: [(String, String)]
