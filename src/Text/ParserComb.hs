@@ -72,7 +72,13 @@ instance Functor (Prsr tm t) where
 
 instance Applicative (Prsr tm t) where
   pure a = P $ \t -> Success a t noFail
-  (<*>) = ap
+  f <*> a = P $ \t ->
+    case runP f t of
+      Failure lf -> Failure lf
+      Success f' t' lff ->
+        case runP a t' of
+          Failure lfa -> Failure (longest lff lfa)
+          Success a' t'' lfa -> Success (f' a') t'' (longest lff lfa)
 -- Hugs does not have *> here
 --  (*>) p k = p >>= \ _ -> k
 
