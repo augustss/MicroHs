@@ -9,6 +9,7 @@ module Text.ParserComb(
   sepBy, sepBy1,
   sepEndBy, sepEndBy1,
   (<?>),
+  (<<),
   --notFollowedBy,
   --lookAhead,
   nextToken,
@@ -81,6 +82,15 @@ instance Applicative (Prsr tm t) where
           Success a' t'' lfa -> Success (f' a') t'' (longest lff lfa)
 -- Hugs does not have *> here
 --  (*>) p k = p >>= \ _ -> k
+
+(<<) :: Prsr tm t a -> Prsr tm t b -> Prsr tm t a
+(<<) f a = P $ \t ->
+    case runP f t of
+      Failure lf -> Failure lf
+      Success f' t' lff ->
+        case runP a t' of
+          Failure lfa -> Failure (longest lff lfa)
+          Success _ t'' lfa -> Success f' t'' (longest lff lfa)
 
 instance Monad (Prsr tm t) where
   (>>=) p k = P $ \t ->
