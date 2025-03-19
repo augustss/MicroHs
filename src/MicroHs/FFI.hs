@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module MicroHs.FFI(makeFFI) where
 import qualified Prelude(); import MHSPrelude
 import Data.Function
