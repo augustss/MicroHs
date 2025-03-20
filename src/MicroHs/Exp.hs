@@ -5,7 +5,7 @@ module MicroHs.Exp(
   Exp(..),
   PrimOp,
   substExp,
-  app2, app3, cFlip,
+  app2, app3,
   allVarsExp, freeVars,
   lams, apps,
   ) where
@@ -38,12 +38,6 @@ app2 f a1 a2 = App (App f a1) a2
 
 app3 :: Exp -> Exp -> Exp -> Exp -> Exp
 app3 f a1 a2 a3 = App (app2 f a1 a2) a3
-
-cFlip :: Exp
-cFlip = Lit (LPrim "C")
-
---cR :: Exp
---cR = Lit (LPrim "R")
 
 instance Show Exp where
   show = render . ppExp
