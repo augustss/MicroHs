@@ -154,10 +154,10 @@ maximum [] = error "maximum: empty list"
 maximum (x:ys) = foldr (\ y m -> if y > m then y else m) x ys
 
 sum :: forall a . Num a => [a] -> a
-sum = foldr (+) 0
+sum = foldl' (+) 0
 
 product :: forall a . Num a => [a] -> a
-product = foldr (*) 1
+product = foldl' (*) 1
 
 and :: [Bool] -> Bool
 and = foldr (&&) True
