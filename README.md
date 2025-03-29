@@ -394,6 +394,7 @@ the running program.
 * `-rFILE` read combinators from `FILE`, instead of `out.comb`
 * `-v` be more verbose, flag can be repeated
 * `-T` generate profiling stats (if compiled with `-T` as well)
+* `-B` ring the bell on every GC
 * `-oFILE` just read the input, run garbage collection, and write out the resulting graph to file.
 
 For example, `bin/mhseval +RTS -H1M -v -RTS hello` runs `out.comb` and the program gets the argument `hello`,

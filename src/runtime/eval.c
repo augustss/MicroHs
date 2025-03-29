@@ -667,6 +667,7 @@ struct ioarray *argarray;
 #endif  /* WANT_ARGS */
 
 int verbose = 0;
+int gcbell = 0;
 
 static INLINE NODEPTR
 alloc_node(enum node_tag t)
@@ -1295,6 +1296,10 @@ gc(void)
   if (verbose > 1) {
     PRINT("gc done, %"PRIcounter" free\n", num_free);
     //PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
+  }
+  if (gcbell) {
+    fputc('\007', stderr);      /* ring the bell */
+    fflush(stderr);
   }
 #endif  /* !WANT_STDIO */
 
@@ -4426,9 +4431,11 @@ MAIN
 #if WANT_STDIO
         else if (strncmp(p, "-o", 2) == 0)
           outname = &p[2];
+        else if (strcmp(p, "-B") == 0)
+          gcbell++;
 #endif  /* WANT_STDIO */
         else
-          ERR("Usage: eval [+RTS [-v] [-T] [-Hheap-size] [-Kstack-size] [-rFILE] [-oFILE] -RTS] arg ...");
+          ERR("Usage: eval [+RTS [-v] [-B] [-T] [-Hheap-size] [-Kstack-size] [-rFILE] [-oFILE] -RTS] arg ...");
       }
     } else {
       if (strcmp(p, "+RTS") == 0) {
