@@ -1103,7 +1103,7 @@ mark(NODEPTR *np)
       red_int++;
       goto top;
     }
-    break;
+    goto fin;
 #endif  /* INTTABLE */
    case T_AP:
       if (want_gc_red) {
@@ -1174,6 +1174,7 @@ mark(NODEPTR *np)
       // We unmark the array as a whole and push it as long
       // as there's more entries to scan.
       mark_unused(n);
+      num_marked--;
       to_push = np;
       np = &arr->array[arr->marked++];
       break;
