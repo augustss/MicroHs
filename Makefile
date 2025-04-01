@@ -12,6 +12,7 @@ CONF=unix-64
 CCWARNS= -Wall
 CCOPTS= -O3
 CCLIBS= -lm
+CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS)
 #
 GHC= ghc
@@ -61,7 +62,7 @@ newmhsz:	newmhs
 	make generated/mhs.c
 
 sanitizemhs:	ghcgen targets.conf
-	$(CCEVAL) -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract generated/mhs.c -o bin/mhssane
+	$(CCEVAL) $(CCSANITIZE) generated/mhs.c -o bin/mhssane
 
 # Compile mhs from distribution, with C compiler
 bin/mhs:	src/runtime/*.c src/runtime/*.h targets.conf #generated/mhs.c
@@ -87,6 +88,10 @@ bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 bin/mhsevalgdb:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
 	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c -o bin/mhsevalgdb
+
+bin/mhsevalsane:	src/runtime/*.c src/runtime/config*.h
+	@mkdir -p bin
+	$(CCEVAL) $(CCSANITIZE) src/runtime/comb.c -o bin/mhsevalsane
 
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
@@ -158,6 +163,11 @@ runtest:	bin/mhseval bin/gmhs tests/*.hs
 # Run test examples with mhs-compiled compiler
 runtestmhs: bin/mhseval bin/mhs
 	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H4M -RTS -CR" info test errtest
+
+# Run test examples with sanitized mhs-compiled compiler
+runtestsan: bin/mhsevalsane sanitizemhs
+	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CR" cache
+	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CR" EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
 
 # Run test examples going via JavaScript
 runtestemscripten: bin/mhseval bin/mhs bin/cpphs
