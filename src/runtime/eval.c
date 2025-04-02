@@ -676,15 +676,15 @@ alloc_node(enum node_tag t)
   int k;                        /* will contain bit pos + 1 */
   heapoffs_t pos;
   NODEPTR n;
+  heapoffs_t word;
 
   /* This can happen if we run out of memory when parsing. */
   if (num_free <= 0)
     ERR("alloc_node");
 
   for(;;) {
-    heapoffs_t word = free_map[i];
-    k = FFS(word);
-    if (k)
+    word = free_map[i];
+    if (word)
       break;
     i++;
 #if SANITY
@@ -697,9 +697,11 @@ alloc_node(enum node_tag t)
     }
 #endif
   }
+  k = FFS(word);
   pos = i * BITS_PER_WORD + k - 1; /* first free node */
   n = HEAPREF(pos);
-  mark_used(n);
+  // mark_used(n); // equivalent to:
+  free_map[i] = word & (word-1);
   next_scan_index = pos;
 
   SETTAG(n, t);
