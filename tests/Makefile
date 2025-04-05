@@ -93,6 +93,8 @@ test:
 	$(TMHS) Typeable   && $(EVAL) > Typeable.out   && diff Typeable.ref Typeable.out
 	$(TMHS) Storable   && $(EVAL) > Storable.out   && diff Storable.ref Storable.out
 	$(TMHS) StandDer   && $(EVAL) > StandDer.out   && diff StandDer.ref StandDer.out
+	$(TMHS) Cpp        && $(EVAL) > Cpp.out        && diff Cpp.ref Cpp.out
+	$(TMHS) Lit        && $(EVAL) > Lit.out        && diff Lit.ref Lit.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
