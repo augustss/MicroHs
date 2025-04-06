@@ -54,8 +54,8 @@ parseImpEnt i s =
     ["wrapper"] -> ImpWrapper
     "static" : r -> rest r
     r            -> rest r
- where rest (inc : r) | isSuffixOf ".h" inc = rest' (ImpStatic i (Just inc)) r
-       rest r                               = rest' (ImpStatic i Nothing)    r
+ where rest (inc : r) | ".h" `isSuffixOf` inc = rest' (ImpStatic i (Just inc)) r
+       rest r                                 = rest' (ImpStatic i Nothing)    r
        rest' c ("&"     : r) = rest'' (c Ptr) r
        rest' c ['&'     : r] = rest'' (c Ptr) [r]
        rest' c ("value" : r) = rest'' (c Value) [unwords r]
@@ -102,7 +102,7 @@ mkHdr (ImpStatic _ _ Ptr fn, iot) =
           Nothing ->
             case dropApp identFunPtr r of
               Just t  -> ("(HsFunPtr)", t)
-              Nothing -> errorMessage (getSLoc r) $ "foreign & must be Ptr/FunPtr"
+              Nothing -> errorMessage (getSLoc r) "foreign & must be Ptr/FunPtr"
       body = mkRet r 0 (s ++ "&" ++ fn)
   in  mkMhsFun ("addr_" ++ fn) body
 mkHdr (ImpStatic _ _ Func fn, t) =

@@ -46,13 +46,13 @@ reduceDoc (Above  p g q) = above  p g (reduceDoc q)
 reduceDoc p              = p
 
 hcat :: [Doc] -> Doc
-hcat = snd . reduceHoriz . foldr (\p q -> Beside p False q) empty
+hcat = snd . reduceHoriz . foldr (`Beside` False) empty
 
 hsep :: [Doc] -> Doc
-hsep = snd . reduceHoriz . foldr (\p q -> Beside p True q)  empty
+hsep = snd . reduceHoriz . foldr (`Beside` True)  empty
 
 vcat :: [Doc] -> Doc
-vcat = snd . reduceVert . foldr (\p q -> Above p False q) empty
+vcat = snd . reduceVert . foldr (`Above` False) empty
 
 nest :: Int -> Doc -> Doc
 nest k p = mkNest k (reduceDoc p)
@@ -139,9 +139,9 @@ above_ Empty _ q = q
 above_ p g q     = Above p g q
 
 above :: Doc -> Bool -> RDoc -> RDoc
-above (Above p g1 q1)  g2 q2 = above p g1 (above q1 g2 q2)
-above p@(Beside _ _ _) g  q  = aboveNest (reduceDoc p) g 0 (reduceDoc q)
-above p g q                  = aboveNest p             g 0 (reduceDoc q)
+above (Above p g1 q1) g2 q2 = above p g1 (above q1 g2 q2)
+above p@Beside{}      g  q  = aboveNest (reduceDoc p) g 0 (reduceDoc q)
+above p g q                 = aboveNest p             g 0 (reduceDoc q)
 
 -- Specfication: aboveNest p g k q = p $g$ (nest k q)
 aboveNest :: RDoc -> Bool -> Int -> RDoc -> RDoc
@@ -162,8 +162,8 @@ aboveNest (TextBeside s p)    g k q = TextBeside s rest
                                                 Empty -> nilAboveNest g k1 q
                                                 _     -> aboveNest  p g k1 q
 
-aboveNest (Above  _ _ _)      _ _ _ = error "aboveNest Above"
-aboveNest (Beside _ _ _)      _ _ _ = error "aboveNest Beside"
+aboveNest Above{}             _ _ _ = error "aboveNest Above"
+aboveNest Beside{}            _ _ _ = error "aboveNest Beside"
 
 -- Specification: text s <> nilaboveNest g k q
 --              = text s <> (text "" $g$ nest k q)
@@ -199,7 +199,7 @@ beside (Nest k p)          g q   = nest_ k $! beside p g q
 beside p@(Beside p1 g1 q1) g2 q2
          | g1 == g2              = beside p1 g1 $! beside q1 g2 q2
          | otherwise             = beside (reduceDoc p) g2 q2
-beside p@(Above _ _ _)     g q   = let { d = reduceDoc p } in beside d g q
+beside p@Above{}           g q   = let { d = reduceDoc p } in beside d g q
 beside (NilAbove p)        g q   = nilAbove_ $! beside p g q
 beside (TextBeside t p)    g q   = TextBeside t rest
                                where
@@ -242,8 +242,8 @@ sep1 g (Nest n p)          k ys = nest_ n (sep1 g p (k - n) ys)
 sep1 _ (NilAbove p)        k ys = nilAbove_
                                   (aboveNest p False k (reduceDoc (vcat ys)))
 sep1 g (TextBeside s p) k ys    = textBeside_ s (sepNB g p (k - length s) ys)
-sep1 _ (Above _ _ _)       _ _  = error "sep1 Above"
-sep1 _ (Beside _ _ _)      _ _  = error "sep1 Beside"
+sep1 _ Above{}             _ _  = error "sep1 Above"
+sep1 _ Beside{}            _ _  = error "sep1 Beside"
 
 sepNB :: Bool -> Doc -> Int -> [Doc] -> Doc
 sepNB g (Nest _ p) k ys
@@ -258,14 +258,14 @@ sepNB g p k ys
   = sep1 g p k ys
 
 oneLiner :: Doc -> Doc
-oneLiner NoDoc               = NoDoc
-oneLiner Empty               = Empty
-oneLiner (NilAbove _)        = NoDoc
-oneLiner (TextBeside s p)    = textBeside_ s (oneLiner p)
-oneLiner (Nest k p)          = nest_ k (oneLiner p)
-oneLiner (p `Union` _)       = oneLiner p
-oneLiner (Above _ _ _)       = error "oneLiner Above"
-oneLiner (Beside _ _ _)      = error "oneLiner Beside"
+oneLiner NoDoc            = NoDoc
+oneLiner Empty            = Empty
+oneLiner (NilAbove _)     = NoDoc
+oneLiner (TextBeside s p) = textBeside_ s (oneLiner p)
+oneLiner (Nest k p)       = nest_ k (oneLiner p)
+oneLiner (p `Union` _)    = oneLiner p
+oneLiner Above{}          = error "oneLiner Above"
+oneLiner Beside{}         = error "oneLiner Beside"
 
 -- ---------------------------------------------------------------------------
 -- Rendering
@@ -355,7 +355,7 @@ nicest w r = nicest1 w r 0
 nicest1 :: Int -> Int -> Int -> Doc -> Doc -> Doc
 nicest1 w r sl p q | fits (minWR - sl) p = p
                    | otherwise           = q
-  where minWR = if w < r then w else r
+  where minWR = min w r
 
 fits :: Int  -- Space available
      -> Doc
@@ -404,8 +404,8 @@ fill1 g Empty               k ys = mkNest k (fill g ys)
 fill1 g (Nest n p)          k ys = nest_ n (fill1 g p (k - n) ys)
 fill1 g (NilAbove p)        k ys = nilAbove_ (aboveNest p False k (fill g ys))
 fill1 g (TextBeside s p)    k ys = textBeside_ s (fillNB g p k ys)
-fill1 _ (Above _ _ _)       _ _  = error "fill1 Above"
-fill1 _ (Beside _ _ _)      _ _  = error "fill1 Beside"
+fill1 _ Above{}             _ _  = error "fill1 Above"
+fill1 _ Beside{}            _ _  = error "fill1 Beside"
 
 fillNB :: Bool -> Doc -> Int -> [Doc] -> Doc
 fillNB _ _           k _  | k `seq` False = undefined

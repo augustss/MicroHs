@@ -279,7 +279,7 @@ dsPat apat =
     EVar _ -> apat
     ECon _ -> apat
     EApp f a -> EApp (dsPat f) (dsPat a)
-    EListish (LList ps) -> dsPat $ foldr (\ x xs -> EApp (EApp consCon x) xs) nilCon ps
+    EListish (LList ps) -> dsPat $ foldr (EApp . EApp consCon) nilCon ps
     ETuple ps -> dsPat $ foldl EApp (tupleCon (getSLoc apat) (length ps)) ps
     EAt i p -> EAt i (dsPat p)
     ELit loc (LStr cs) | length cs < 2 -> dsPat (EListish (LList (map (ELit loc . LChar) cs)))
@@ -412,7 +412,7 @@ dsMatrix dflt _ [] = return dflt
 dsMatrix dflt []         aarms =
   -- We can have several arms if there are guards.
   -- Combine them in order.
-  return $ foldr (\ (_, rhs) -> rhs) dflt aarms
+  return $ foldr snd dflt aarms
 dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
   case leftMost aarm of
     EVar _ -> do
@@ -596,7 +596,7 @@ lazier def@(fcn, l@(Lam _ _)) =
       repl vs (App f a) = app vs $ App (repl [] f) (repl [] a)
       repl [] (Var v) = Var v
       repl vs (Var v)
-        | v == fcn && take arity vs == drops = app (drop arity vs) $ vfcn'
+        | v == fcn && take arity vs == drops = app (drop arity vs) vfcn'
       repl vs e = app vs e
   in  if arity > 0
       then (fcn, lams drops $ letRecE fcn' (lams keeps (repl [] body)) vfcn')

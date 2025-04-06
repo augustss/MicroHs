@@ -369,7 +369,7 @@ mainInstallPackage flags [pkgfn, dir] = do
   mapM_ mk (pkgExported pkg)
 mainInstallPackage flags [pkgfn] =
   case pkgPath flags of
-    [] -> error $ "pkgPath is empty"
+    [] -> error "pkgPath is empty"
     first:_ -> mainInstallPackage flags [pkgfn, first]
 mainInstallPackage _ _ = error usage
 
@@ -393,4 +393,4 @@ convertToInclude :: String -> FilePath -> FilePath
 convertToInclude inc pkg = dropExtension pkg </> inc
 
 hasTheExtension :: FilePath -> String -> Bool
-hasTheExtension f e = isSuffixOf e f
+hasTheExtension f e = e `isSuffixOf` f

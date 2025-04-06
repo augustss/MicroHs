@@ -1,7 +1,6 @@
 -- Copyright 2023-2025 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-unused-do-bind #-}
-{-# LANGUAGE FlexibleContexts #-}
 module MicroHs.TypeCheck(
   typeCheck,
   TModule(..), showTModule,
@@ -231,7 +230,7 @@ mkTModule impt tds tcs =
                 _ -> getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
-    ves = [ ValueExport i (ventry i t') | Sign is t <- tds, i <- is, let t' = expandSyn' st t ]
+    ves = [ ValueExport i (ventry i t') | Sign is t <- tds, let t' = expandSyn' st t, i <- is ]
       where st = synTable tcs
 
     -- All top level types possible to export.
@@ -293,7 +292,7 @@ mkTCState mdlName globs mdls =
       let assocs (_, TModule _ _ tes _ _ _) = [ (tyQIdent e, cs) | TypeExport _ e cs <- tes ]
       in  M.fromList $ concatMap assocs mdls
 
-    dflts = foldr mergeDefaults M.empty (map (tDefaults . snd) mdls)
+    dflts = foldr (mergeDefaults . tDefaults . snd) M.empty mdls
 
   in TC { moduleName = mdlName,
           unique = 1,
@@ -314,8 +313,8 @@ mkTCState mdlName globs mdls =
 mergeDefaults :: Defaults -> Defaults -> Defaults
 mergeDefaults ds = foldr (uncurry $ M.insertWith mrg) ds . M.toList
   where mrg :: [EType] -> [EType] -> [EType]
-        mrg ts ts' | null (filter (\ t -> not (elemBy eqEType t ts)) ts') = ts
-                   | null (filter (\ t -> not (elemBy eqEType t ts')) ts) = ts'
+        mrg ts ts' | not (any (\ t -> not (elemBy eqEType t ts)) ts') = ts
+                   | not (any (\ t -> not (elemBy eqEType t ts')) ts) = ts'
                    | otherwise = []
 
 mergeInstInfo :: InstInfo -> InstInfo -> InstInfo
@@ -382,8 +381,8 @@ addInstTable ics = do
     mkInstInfo :: InstDictC -> T (Ident, InstInfo)
     mkInstInfo (e, iks, ctx, ct, fds) = do
       case (iks, ctx, getApp ct) of
-        ([], [], (c, [EVar i])) -> return $ (c, InstInfo (M.singleton i e) [] fds)
-        (_,  _,  (c, ts      )) -> return $ (c, InstInfo M.empty [(e, ii)] fds)
+        ([], [], (c, [EVar i])) -> return (c, InstInfo (M.singleton i e) [] fds)
+        (_,  _,  (c, ts      )) -> return (c, InstInfo M.empty [(e, ii)] fds)
           where ii u =
                   let ctx' = map (subst s) ctx
                       ts'  = map (subst s) ts
@@ -740,7 +739,7 @@ unifyUnboundVar loc r1 at2@(EUVar r2) = do
     Just t2 -> unify loc (EUVar r1) t2
 unifyUnboundVar loc r1 t2 = do
   vs <- getMetaTyVars [t2]
-  if elem r1 vs then
+  if r1 `elem` vs then
     tcErrorTK loc $ "cyclic " ++ showExpr (EUVar r1) ++ " = " ++ showExpr t2
    else
     setUVar r1 t2
@@ -975,9 +974,8 @@ tcDefsType ds = withTypeTable $ do
       derefClass d = pure d
   vt' <- mapMSymTab ent vt
   putValueTable vt'
-  dst' <- mapM derefClass dst    -- make class definition LHSs have correct kinds
+  mapM derefClass dst    -- make class definition LHSs have correct kinds
 --  tcTrace $ "tcDefType value table:\n" ++ show vt'
-  return dst'
 
 -- Get all kind signatures, and do sort checking of them.
 getKindSigns :: HasCallStack => [EDef] -> T (M.Map EKind)
@@ -1035,10 +1033,7 @@ addTypeKind :: M.Map EKind -> EDef -> T ()
 addTypeKind kdefs adef = do
   let
     addDef (i, _) = do
-      k <-
-        case M.lookup i kdefs of
-           Nothing -> newUVar
-           Just k' -> return k'
+      k <- maybe newUVar return $ M.lookup i kdefs
       extValQTop i k
 
   case adef of
@@ -1176,7 +1171,7 @@ withLHS (i, vks) ta = do
   (_, ki) <- tLookupV i
   withVks vks $ \ vks' -> do
     (a, kr) <- ta (i, vks')
-    let kapp = foldr kArrow kr (map (\ (IdKind _ k) -> k) vks')
+    let kapp = foldr (kArrow . (\ (IdKind _ k) -> k)) kr vks'
     -- XXX polykinded definitions don't work properly
     _ <- subsCheckRho (getSLoc i) eCannotHappen ki kapp
     return a
@@ -1189,8 +1184,8 @@ tcConstr (Constr iks ct c ets) =
   assertTCMode (==TCType) $
   withVks iks $ \ iks' ->
     Constr iks' <$> tcCtx ct <*> pure c <*>
-      either (\ x -> Left  <$> mapM (\ (s,t)     ->         (,)s  <$> tcTypeT (Check kType) t) x)
-             (\ x -> Right <$> mapM (\ (i,(s,t)) -> ((,)i . (,)s) <$> tcTypeT (Check kType) t) x) ets
+      either (\ x -> Left  <$> mapM (\ (s,t)     ->        (,)s <$> tcTypeT (Check kType) t) x)
+             (\ x -> Right <$> mapM (\ (i,(s,t)) -> (,)i . (,)s <$> tcTypeT (Check kType) t) x) ets
 
 -- Expand a class defintion to
 --  * a "data" type for the dictionary, with kind Constraint
@@ -1337,7 +1332,7 @@ expandInst dinst@(Instance act bs) = do
       instBind _ = False
   case filter (not . instBind) bs of
     [] -> return ()
-    b:_ -> tcError (getSLoc b) $ "superflous instance binding"
+    b:_ -> tcError (getSLoc b) "superflous instance binding"
 
   let body = eEqns [] $ eApps (EVar $ mkClassConstructor qiCls) args
       bind = Fcn iInst body
@@ -1373,7 +1368,7 @@ tcDefsValue defs = do
                    | otherwise = map (\ i -> fromMaybe i $ lookup i sub) x
               -- Map all (bound) identifiers in a PatBind into the first (bound) identifier
               sub = [ (d, i) | PatBind p _ <- unsigned, i:ds <- [patVars p], d <- ds ]
-      tcSCC (AcyclicSCC d@(Pattern _ _ _)) = tcPatSyn d
+      tcSCC (AcyclicSCC d@Pattern{}) = tcPatSyn d
       tcSCC (AcyclicSCC d) = tInferDefs smap [d]
       tcSCC (CyclicSCC ds) = tInferDefs smap ds
   --traceM $ "tcDefsValue: unsigned=" ++ show unsigned
@@ -1428,7 +1423,7 @@ tInferDefs smap fcns = do
       genTop (i, t) = do
         t' <- derefUVar t
         let vs = metaTvs [t']
-            ctx' = filter (\ c -> not (null (intersect vs (metaTvs [c])))) ctx
+            ctx' = filter (\ c -> not (null (vs `intersect` metaTvs [c]))) ctx
             t'' = addConstraints ctx' t'
             vs' = metaTvs [t'']
         t''' <- quantify vs' t''
@@ -1556,7 +1551,7 @@ tcDefValue adef =
       mn <- gets moduleName
       t' <- expandSyn t
       return (ForImp ie (qualIdent' mn i) t')
-    Pattern _ _ _ -> impossible
+    Pattern{} -> impossible
     _ -> return adef
 
 qualIdent' :: IdentModule -> Ident -> Ident
@@ -1597,7 +1592,7 @@ tcPatSyn _ = impossible
 
 -- Add implicit forall
 addForall :: Bool -> EType -> T EType
-addForall _ t@(EForall _ _ _) = return t
+addForall _ t@EForall{} = return t
 addForall expl t = do
   bvs <- stKeysLcl <$> gets valueTable         -- bound outside
   let fvs = freeTyVars [t]                     -- free variables in t
@@ -1671,7 +1666,7 @@ tCheckExpr :: HasCallStack =>
 tCheckExpr t e | Just (ctx, t') <- getImplies t = do
 --  tcTrace $ "tCheckExpr: " ++ show (e, ctx, t')
   xt <- expandSyn t
-  when (not $ eqEType t xt) undefined
+  unless (eqEType t xt) undefined
   d <- newADictIdent (getSLoc e)
   e' <- withDict d ctx $ tCheckExprAndSolve t' e
   return $ eLam [EVar d] e'
@@ -1806,7 +1801,7 @@ tcExprR mt ae =
           ees <- zipWithM tCheckExpr ts es
           return (ETuple ees)
         _ -> do
-          (ees, tes) <- fmap unzip (mapM tInferExpr es)
+          (ees, tes) <- mapAndUnzipM tInferExpr es
           let
             n = length es
             ttup = tApps (tupleConstr loc n) tes
@@ -1819,7 +1814,7 @@ tcExprR mt ae =
         [as] ->
           case as of
             SThen a -> tcExpr mt a
-            _ -> tcError loc $ "bad final do statement"
+            _ -> tcError loc "bad final do statement"
         as : ss -> do
           case as of
             SBind p a -> do
@@ -1947,7 +1942,7 @@ tcExprR mt ae =
         let x = eVarI loc "$x"
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
     ETypeArg _ ->
-        tcError loc $ "Bad type application"
+        tcError loc "Bad type application"
     _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
 
@@ -2341,8 +2336,8 @@ subsCheck loc exp1 sigma1 sigma2 = do -- Rule DEEP-SKOL
   (skol_tvs, rho2) <- skolemise sigma2
   exp1' <- subsCheckRho loc exp1 sigma1 rho2
   esc_tvs <- getFreeTyVars [sigma1,sigma2]
-  let bad_tvs = filter (\ i -> elem i esc_tvs) skol_tvs
-  when (not (null bad_tvs)) $
+  let bad_tvs = filter (`elem` esc_tvs) skol_tvs
+  unless (null bad_tvs) $
     tcErrorTK loc "Subsumption check failed"
   return exp1'
 
@@ -2402,7 +2397,7 @@ tcPat mt ae =
     ETuple es -> do
       let
         n = length es
-      (xs, tes) <- fmap unzip (mapM tInferPat es)
+      (xs, tes) <- mapAndUnzipM tInferPat es
       let
         (sks, ds, ees) = unzip3 xs
         ttup = tApps (tupleConstr loc n) tes
@@ -2494,13 +2489,9 @@ tcPatApCon :: Expected -> [EPat] -> EPat -> EType -> T EPatRet
 tcPatApCon mt args con xpt = do
   let loc = getSLoc con
       nargs = length args
-      checkArity ary =
-        if nargs < ary then
-          tcError loc "too few arguments"
-        else if nargs > ary then
-          tcError loc "too many arguments"
-        else
-          return ()
+      checkArity ary | nargs < ary = tcError loc "too few arguments"
+                     | nargs > ary = tcError loc "too many arguments"
+                     | otherwise   = return ()
   case con of
     -- Pattern synonym
     ECon (ConSyn qi n (e, t)) -> do
@@ -2514,7 +2505,7 @@ tcPatApCon mt args con xpt = do
     _ -> do
       case xpt of
          -- Sanity check
-         EForall _ _ (EForall _ _ _) -> return ()
+         EForall _ _ EForall{} -> return ()
          _ -> impossibleShow con
       EForall _ avs apt <- tInst' xpt
 
@@ -2707,7 +2698,7 @@ metaTvs :: [EType] -> [TRef]
 metaTvs tys = foldr go [] tys
   where
     go (EUVar tv) acc
-      | elem tv acc = acc
+      | tv `elem` acc = acc
       | otherwise = tv : acc
     go (EVar _) acc = acc
     go (EForall _ _ ty) acc = go ty acc
@@ -2739,8 +2730,8 @@ checkSigma expr sigma = do
    else do
     env_tys <- getEnvTypes
     esc_tvs <- getFreeTyVars (sigma : env_tys)
-    let bad_tvs = filter (\ i -> elem i esc_tvs) skol_tvs
-    when (not (null bad_tvs)) $
+    let bad_tvs = filter (`elem` esc_tvs) skol_tvs
+    unless (null bad_tvs) $
       tcErrorTK (getSLoc expr) $ "not polymorphic enough: " ++ unwords (map showIdent bad_tvs)
     return expr'
 
@@ -2752,7 +2743,7 @@ subsCheckRho loc exp1 (EForall _ vs1 t1) (EForall _ vs2 t2) | length vs1 == leng
   let sub = [(v1, EVar v2) | (IdKind v1 _, IdKind v2 _) <- zip vs1 vs2]
   unify loc (subst sub t1) t2
   return exp1
-subsCheckRho loc exp1 sigma1@(EForall _ _ _) rho2 = do -- Rule SPEC
+subsCheckRho loc exp1 sigma1@EForall{} rho2 = do -- Rule SPEC
   (exp1', rho1) <- tInst exp1 sigma1
   subsCheckRho loc exp1' rho1 rho2
 subsCheckRho loc exp1 arho1 rho2 | Just _ <- getImplies arho1 = do
@@ -2889,7 +2880,7 @@ mkMatchDataTypeConstr qi at =
 
       ddata = Data lhs [cm, cn] []
             where lhs = (unQualIdent tycon, vks1)
-                  cm = Constr vks2 (if isEmptyCtx ctx2 then [] else [ctx2]) (unQualIdent mi) (Left $ zip (repeat False) ats)
+                  cm = Constr vks2 (if isEmptyCtx ctx2 then [] else [ctx2]) (unQualIdent mi) (Left $ map ((,) False) ats)
                   cn = Constr []   []                                       (unQualIdent ni) (Left [])
 
   in  -- trace ("M :: " ++ show tm ++ ",  N :: " ++ show tn) $

@@ -191,7 +191,7 @@ compileModule flags impt mn pathfn file = do
     specs = [ s | Import s <- defs ]
     imported = [ (boot, m) | ImportSpec boot _ m _ _ <- specs ]
   t2 <- liftIO getTimeMilli
-  (impMdls, _, tImps) <- fmap unzip3 $ mapM (uncurry $ compileModuleCached flags) imported
+  (impMdls, _, tImps) <- unzip3 <$> mapM (uncurry $ compileModuleCached flags) imported
 
   t3 <- liftIO getTimeMilli
   glob <- gets getCacheTables
@@ -216,7 +216,7 @@ compileModule flags impt mn pathfn file = do
       tImp = sum tImps
 
   dumpIf flags Ddesugar $
-    (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
+    liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl
   when (verbosityGT flags 0) $
     putStrLnInd $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++
             "ms (" ++ show tParse ++ " + " ++ show tTCDesug ++ " + " ++ show tAbstract ++ ")"
@@ -314,7 +314,7 @@ readModulePath flags suf mn = do
               case mhl of
                 Nothing -> do
                   return Nothing
-                Just (fn, h) -> readRest fn =<< (unlit <$> hGetContents h)
+                Just (fn, h) -> readRest fn . unlit =<< hGetContents h
             Just (_fn, _h) -> undefined  -- hsc2hs no implemented yet
         Just (fn, h) -> readRest fn =<< hGetContents h
   where readRest :: FilePath -> String -> IO (Maybe (FilePath, String))
@@ -457,11 +457,7 @@ loadDeps flags pid = do
       loadPkg flags pfn
 
 getMhsDir :: IO FilePath
-getMhsDir = do
-  md <- lookupEnv "MHSDIR"
-  case md of
-    Just d -> return d
-    Nothing -> getDataDir
+getMhsDir = maybe getDataDir return =<< lookupEnv "MHSDIR"
 
 -- Deal with literate Haskell
 unlit :: String -> String

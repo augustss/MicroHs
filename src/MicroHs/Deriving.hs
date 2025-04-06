@@ -111,12 +111,12 @@ genHasField (tycon, iks) cs (fld, fldty) = do
                                    (ELit loc (LStr ufld))
                                    (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
                                    fldty
-      conEqnGet (Constr _ _ c (Left ts))   = eEqn [eApps (EVar c) (map (const eDummy) ts)] $ undef
+      conEqnGet (Constr _ _ c (Left ts))   = eEqn [eApps (EVar c) (map (const eDummy) ts)] undef
       conEqnGet (Constr _ _ c (Right fts)) = eEqn [conApp] $ if fld `elem` fs then rhs else undef
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = eFld
-      conEqnSet (Constr _ _ c (Left ts))   = eEqn [eDummy, eApps (EVar c) (map (const eDummy) ts)] $ undef
+      conEqnSet (Constr _ _ c (Left ts))   = eEqn [eDummy, eApps (EVar c) (map (const eDummy) ts)] undef
       conEqnSet (Constr _ _ c (Right fts)) = eEqn [eDummy, conApp] $ if fld `elem` fs then rhs else undef
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
@@ -124,7 +124,7 @@ genHasField (tycon, iks) cs (fld, fldty) = do
       getName = mkGetName tycon fld
 
       -- XXX A hack, we can't handle forall yet.
-      validType (EForall _ _ _) = False
+      validType EForall{} = False
       validType _ = True
 
   pure $ [ Sign [getName] $ eForall iks $ lhsToType (qtycon, iks) `tArrow` fldty
@@ -157,7 +157,7 @@ derTypeable _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 
-getFieldTys :: (Either [SType] [ConstrField]) -> [EType]
+getFieldTys :: Either [SType] [ConstrField] -> [EType]
 getFieldTys (Left ts) = map snd ts
 getFieldTys (Right ts) = map (snd . snd) ts
 
@@ -224,8 +224,8 @@ derOrd mctx 0 lhs cs@(_:_) eord = do
         let (xp, xs) = mkPat c "x"
             (yp, ys) = mkPat c "y"
         in  [eEqn [xp, yp] $ if null xs then eEQ else foldr1 eComb $ zipWith eCompare xs ys
-            ,eEqn [xp, eDummy] $ eLT
-            ,eEqn [eDummy, yp] $ eGT]
+            ,eEqn [xp, eDummy] eLT
+            ,eEqn [eDummy, yp] eGT]
       eqns = concatMap mkEqn cs
       iCompare = mkIdentSLoc loc "compare"
       eCompare = EApp . EApp (EVar $ mkBuiltin loc "compare")

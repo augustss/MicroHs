@@ -100,7 +100,7 @@ instance Monad (Prsr tm t) where
           Success b v lfb -> Success b v (longest lfa lfb)
           Failure lfb -> Failure (longest lfa lfb)
       Failure lf -> Failure lf
-  (>>) p k = p >>= \ _ -> k
+  (>>) p k = p >>= const k
   return = pure
 
 instance TokenMachine tm t => MonadFail (Prsr tm t) where

@@ -58,7 +58,7 @@ executable mhs
                        -fwrite-ide-info -Wno-deprecations
                        -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
-  default-extensions:  ScopedTypeVariables TypeSynonymInstances MultiParamTypeClasses FlexibleInstances
+  default-extensions:  ScopedTypeVariables TypeSynonymInstances MultiParamTypeClasses FlexibleInstances FlexibleContexts
   other-modules:       MicroHs.Abstract
                        MicroHs.Builtin
                        MicroHs.Compile

@@ -51,7 +51,7 @@ start = do
   is <- get
   liftIO $ maybeSaveCache (isFlags is) (isCache is)
   liftIO $ putStrLn "Type ':quit' to quit, ':help' for help"
-  when (not compiledWithMhs) $
+  unless compiledWithMhs $
     liftIO $ putStrLn "WARNING: Not compiled with mhs, so limited functionality."
   repl
 
@@ -291,7 +291,7 @@ complete mdls (tys, vals) (rpre, _post) =
       allSyms = map unIdent $ stKeysGlbU tys ++ stKeysGlbU vals ++ mdls
       allStrs = allSyms ++ keywords
       real = notElem '$'
-  in  case filter real $ catMaybes $ map (stripPrefix pre) allStrs of
+  in  case filter real $ mapMaybe (stripPrefix pre) allStrs of
         []  -> []
         [s] -> [s ++ " "]
         ss  ->
