@@ -1184,8 +1184,9 @@ tcConstr (Constr iks ct c ets) =
   assertTCMode (==TCType) $
   withVks iks $ \ iks' ->
     Constr iks' <$> tcCtx ct <*> pure c <*>
-      either (\ x -> Left  <$> mapM (\ (s,t)     ->        (,)s <$> tcTypeT (Check kType) t) x)
-             (\ x -> Right <$> mapM (\ (i,(s,t)) -> (,)i . (,)s <$> tcTypeT (Check kType) t) x) ets
+      case ets of
+        Left  x -> Left  <$> mapM (\ (s,t)     ->        (,)s <$> tcTypeT (Check kType) t) x
+        Right x -> Right <$> mapM (\ (i,(s,t)) -> (,)i . (,)s <$> tcTypeT (Check kType) t) x
 
 -- Expand a class defintion to
 --  * a "data" type for the dictionary, with kind Constraint
@@ -1697,11 +1698,11 @@ tGetExpType (Infer r) = tGetRefType r
 
 tcExpr :: HasCallStack =>
           Expected -> Expr -> T Expr
-tcExpr mt ae = do
---  tcTrace ("tcExpr enter: mt=" ++ show mt ++ " ae=" ++ showExpr ae)
+tcExpr mt ae = tcExprR mt ae {-do
+  tcTrace ("tcExpr enter: mt=" ++ show mt ++ " ae=" ++ showExpr ae)
   r <- tcExprR mt ae
---  tcTrace ("tcExpr exit: " ++ showExpr r)
-  return r
+  tcTrace ("tcExpr exit: " ++ showExpr r)
+  return r -}
 tcExprR :: HasCallStack =>
            Expected -> Expr -> T Expr
 tcExprR mt ae =

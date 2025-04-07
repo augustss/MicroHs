@@ -325,7 +325,7 @@ derShow mctx 0 lhs cs@(_:_) eshow = do
 
       showRHSR nm fxs =
         eShowString (unIdentPar nm ++ "{") `ejoin`
-        (eShowL "," $ map fld fxs) `ejoin`
+        eShowL "," (map fld fxs) `ejoin`
         eShowString "}"
           where fld (f, x) = eShowString (unIdentPar f ++ "=") `ejoin` eShowsPrec 0 x
 

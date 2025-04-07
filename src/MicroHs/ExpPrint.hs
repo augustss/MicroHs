@@ -102,23 +102,16 @@ toStringP ae =
 -- '\xff'          "\_'
 quoteString :: String -> String
 quoteString s =
-  let achar c =
-        if c < '\0' || c > '\xff' then
-          error "quoteString"
-        else if c < '\x20' then
-          ['^', chr (ord c + 0x20)]
-        else if c == '"' || c == '^' || c == '|' || c == '\\' then
-          ['\\', c]
-        else if c < '\x7f' then
-          [c]
-        else if c == '\x7f' then
-          "\\?"
-        else if c < '\xa0' then
-          ['^', chr (ord c - 0x80 + 0x40)]
-        else if c < '\xff' then
-          ['|', chr (ord c - 0x80)]
-        else -- c == '\xff'
-          "\\_"
+  let
+    achar c
+      | c < '\0' || c > '\xff' = error "quoteString"
+      | c < '\x20'             = ['^', chr (ord c + 0x20)]
+      | c == '"' || c == '^' || c == '|' || c == '\\' = ['\\', c]
+      | c < '\x7f'             = [c]
+      | c == '\x7f'            = "\\?"
+      | c < '\xa0'             = ['^', chr (ord c - 0x80 + 0x40)]
+      | c < '\xff'             = ['|', chr (ord c - 0x80)]
+      | otherwise              = "\\_"
   in  '"' : concatMap achar s ++ ['"']
 
 encodeString :: String -> Exp
