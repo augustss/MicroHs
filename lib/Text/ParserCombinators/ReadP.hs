@@ -1,9 +1,3 @@
-{-# LANGUAGE Trustworthy #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE DeriveFunctor #-}
-
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  GHC.Internal.Text.ParserCombinators.ReadP

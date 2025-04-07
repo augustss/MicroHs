@@ -65,7 +65,7 @@ withHandle (Handle fp _ _) io = do
 withHandleM :: [HandleState] -> Handle -> (Ptr BFILE -> IO a) -> IO a
 withHandleM ms h@(Handle _ st _) io = do
   m <- readIORef st
-  when (m `notElem` ms) (error "Bad Handle mode")
+  unless (m `elem` ms) (error "Bad Handle mode")
   withHandle h io
 
 withHandleRd :: Handle -> (Ptr BFILE -> IO a) -> IO a

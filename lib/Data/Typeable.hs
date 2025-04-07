@@ -50,8 +50,8 @@ instance Ord TypeRep where
 instance Show TypeRep where
   showsPrec p (TypeRep _ c []) = showsPrec 11 c
   showsPrec p (TypeRep _ c [a,b]) | c == funTc = showParen (p > 5) $ showsPrec 6 a . showString " -> " . showsPrec 5 b
-  showsPrec p (TypeRep _ c [a]) | tyConName c == "[]" = showString "[" . showsPrec 0 a . showString "]"
-  showsPrec p (TypeRep _ c ts) | head (tyConName c) == ',' = showParen True $ comma (map (showsPrec 0) ts)
+  showsPrec p (TypeRep _ c [a]) | tyConName c == "[]" = showString "[" . shows a . showString "]"
+  showsPrec p (TypeRep _ c ts) | head (tyConName c) == ',' = showParen True $ comma (map shows ts)
                                | otherwise = showParen (p > 11) $ showsPrec 11 c . foldr (\ t s -> showChar ' ' . showsPrec 12 t . s) id ts
     where comma [] = undefined
           comma [s] = s

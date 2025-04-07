@@ -95,6 +95,7 @@ module Text.Printf(
 import Data.Char
 import Data.Int
 import Data.List (stripPrefix)
+import Data.Maybe
 import Data.Word
 import Numeric.Show
 import Numeric.FormatFloat(showEFloat, showFFloat, showGFloat, showFFloatAlt, showGFloatAlt)
@@ -596,7 +597,7 @@ formatIntegral m x ufmt0 =
     'u' -> (adjust ufmt (fmtu 10 Nothing prec m x) ++)
     'c' | x >= fromIntegral (ord (minBound :: Char)) &&
           x <= fromIntegral (ord (maxBound :: Char)) &&
-          fmtPrecision ufmt == Nothing &&
+          isNothing (fmtPrecision ufmt) &&
           fmtModifiers ufmt == "" ->
             formatString [chr $ fromIntegral x] (ufmt { fmtChar = 's' })
     'c' -> perror "illegal char conversion"
@@ -729,9 +730,9 @@ fmtu b Nothing prec0 m0 i0 =
   where
     fmtu' :: Maybe Int -> Maybe Integer -> Integer -> Maybe String
     fmtu' prec (Just m) i | i < 0 =
-      fmtu' prec Nothing (-2 * m + i)
+      fmtu' prec Nothing (- (2 * m) + i)
     fmtu' (Just prec) _ i | i >= 0 =
-      fmap (integral_prec (Just prec)) $ fmtu' Nothing Nothing i
+      integral_prec (Just prec) <$> fmtu' Nothing Nothing i
     fmtu' Nothing _ i | i >= 0 =
       Just $ showIntAtBase b intToDigit i ""
     fmtu' _ _ _ = Nothing

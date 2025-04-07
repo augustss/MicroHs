@@ -63,6 +63,7 @@ module System.Console.GetOpt (
 ) where
 
 import Data.List ( isPrefixOf, find )
+import Data.Maybe
 
 -- |What to do with options following non-options
 data ArgOrder a
@@ -214,7 +215,7 @@ longOpt ls rs optDescr = long ads arg rs
          exact     = getWith (==)
          options   = if null exact then getWith isPrefixOf else exact
          ads       = [ ad | Option _ _ ad _ <- options ]
-         optStr    = ("--"++opt)
+         optStr    = "--" ++ opt
 
          long (_:_:_)      _        rest     = (errAmbig options optStr,rest)
          long [NoArg  a  ] []       rest     = (Opt a,rest)

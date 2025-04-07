@@ -27,8 +27,8 @@ _primitive s = fromMaybe (error $ "PrimTable._primitive: " ++ s) $ lookup s prim
 primOps :: [(String, Any)]
 primOps =
   [ comb "S" (\ f g x -> f x (g x))
-  , comb "K" (\ x _y -> x)
-  , comb "I" (\ x -> x)
+  , comb "K" const
+  , comb "I" id
   , comb "B" (\ f g x -> f (g x))
   , comb "C" (\ f g x -> f x g)
   , comb "S'" (\ k f g x -> k (f x) (g x))
@@ -176,7 +176,7 @@ primOps =
     rnf x = seq x ()
 
 fromBool :: Bool -> Any
-fromBool False = unsafeCoerce $ \ x _y -> x
+fromBool False = unsafeCoerce const
 fromBool True  = unsafeCoerce $ \ _x y -> y
 
 fromOrdering :: Ordering -> (Any -> Any -> Any -> Any)
@@ -191,11 +191,11 @@ fromString :: String -> Any
 fromString = fromList . map (unsafeCoerce . ord)
 
 fromList :: [Any] -> Any
-fromList [] = unsafeCoerce $ \ nil _cons -> nil
+fromList [] = unsafeCoerce const
 fromList (x:xs) = unsafeCoerce $ \ _nil cons -> cons (unsafeCoerce x) (fromList xs)
 
 toList :: Any -> [Int]
-toList a = (unsafeCoerce a) [] (\ i is -> i : toList is)
+toList a = unsafeCoerce a [] (\ i is -> i : toList is)
 
 toString :: Any -> String
 toString = map chr . toList
@@ -242,7 +242,7 @@ cops =
     fio f = return . f
 
     fio2 :: (Double -> Double -> Double) -> (Double -> Double -> IO Double)
-    fio2 f = \ x y -> return (f x y)
+    fio2 f x y = return (f x y)
 
     add_FILE :: Handle -> IO Handle
     add_FILE h = return h

@@ -38,7 +38,7 @@ instance MonadFix NonEmpty where
 --    mfix = fixIO
 
 instance MonadFix ((->) r) where
-  mfix f = \ r -> let a = f a r in a
+  mfix f r = let a = f a r in a
 
 instance MonadFix Identity where
   mfix f = let a = f (runIdentity a) in a

@@ -178,27 +178,27 @@ isLatin1 :: Char -> Bool
 isLatin1 c = c <= '\255'
 
 digitToInt :: Char -> Int
-digitToInt c | (primCharLE '0' c) && (primCharLE c '9') = ord c - ord '0'
-             | (primCharLE 'a' c) && (primCharLE c 'f') = ord c - (ord 'a' - 10)
-             | (primCharLE 'A' c) && (primCharLE c 'F') = ord c - (ord 'A' - 10)
-             | otherwise                                = error "digitToInt"
+digitToInt c | primCharLE '0' c && primCharLE c '9' = ord c - ord '0'
+             | primCharLE 'a' c && primCharLE c 'f' = ord c - (ord 'a' - 10)
+             | primCharLE 'A' c && primCharLE c 'F' = ord c - (ord 'A' - 10)
+             | otherwise                            = error "digitToInt"
 
 intToDigit :: Int -> Char
 intToDigit i | i < 10 = primChr (ord '0' + i)
              | otherwise = primChr (ord 'A' - 10 + i)
 
 toLower :: Char -> Char
-toLower c | 'A' <= c && c <= 'Z' = primChr (ord c - ord 'A' + ord 'a')
+toLower c | isAsciiUpper c = primChr (ord c - ord 'A' + ord 'a')
           | isAscii c = c
           | True = U.toLower c
 
 toUpper :: Char -> Char
-toUpper c | 'a' <= c && c <= 'z' = primChr (ord c - ord 'a' + ord 'A')
+toUpper c | isAsciiLower c = primChr (ord c - ord 'a' + ord 'A')
           | isAscii c = c
           | True = U.toUpper c
 
 toTitle :: Char -> Char
-toTitle c | 'a' <= c && c <= 'z' = primChr (ord c - ord 'a' + ord 'A')
+toTitle c | isAsciiLower c = primChr (ord c - ord 'a' + ord 'A')
           | isAscii c = c
           | True = U.toTitle c
 

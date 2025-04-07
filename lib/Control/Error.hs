@@ -24,4 +24,4 @@ undefined = error "undefined"
 
 -- GHC compatibility
 errorWithoutStackTrace :: forall a . String -> a
-errorWithoutStackTrace s = throw (ErrorCall s)
+errorWithoutStackTrace = error

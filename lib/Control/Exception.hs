@@ -46,9 +46,7 @@ catches io handlers = io `catch` catchesHandler handlers
 catchesHandler :: [Handler a] -> SomeException -> IO a
 catchesHandler handlers e = foldr tryHandler (throw e) handlers
     where tryHandler (Handler handler) res
-              = case fromException e of
-                Just e' -> handler e'
-                Nothing -> res
+              = maybe res handler (fromException e)
 
 --------------------------
 
@@ -72,7 +70,7 @@ handleJust p = flip (catchJust p)
 mapException :: (Exception e1, Exception e2) => (e1 -> e2) -> a -> a
 mapException f v =
   unsafePerformIO (catch (evaluate v)
-                         (\x -> throwIO (f x)))
+                         (throwIO . f))
 
 -- Evaluate a when executed, not when evaluated
 evaluate :: a -> IO a

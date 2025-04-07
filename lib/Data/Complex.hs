@@ -97,8 +97,8 @@ instance (RealFloat a) => Floating (Complex a) where
                             u'    = sqrt ((magnitude z + abs x) / 2)
 
     sin (x:+y)     =  sin x * cosh y :+ cos x * sinh y
-    cos (x:+y)     =  cos x * cosh y :+ (- (sin x) * sinh y)
-    tan (x:+y)     =  (sinx*coshy:+cosx*sinhy)/(cosx*coshy:+(- sinx*sinhy))
+    cos (x:+y)     =  cos x * cosh y :+ (- (sin x * sinh y))
+    tan (x:+y)     =  (sinx*coshy :+ cosx*sinhy)/(cosx*coshy :+ (- (sinx*sinhy)))
                       where sinx  = sin x
                             cosx  = cos x
                             sinhy = sinh y
@@ -122,8 +122,8 @@ instance (RealFloat a) => Floating (Complex a) where
 
     asinh z        =  log (z + sqrt (1+z*z))
 
-    acosh z        =  log (z + (sqrt $ z+1) * (sqrt $ z - 1))
-    atanh z        =  0.5 * log ((1.0+z) / (1.0-z))
+    acosh z        =  log (z + sqrt (z + 1) * sqrt (z - 1))
+    atanh z        =  0.5 * log ((1 + z) / (1 - z))
 
     log1p x@(a :+ b)
       | abs a < 0.5 && abs b < 0.5
@@ -134,5 +134,5 @@ instance (RealFloat a) => Floating (Complex a) where
       | a*a + b*b < 1
       , u <- expm1 a
       , v <- sin (b/2)
-      , w <- -2*v*v = (u*w + u + w) :+ (u+1)*sin b
+      , w <- -(2*v*v) = (u*w + u + w) :+ (u+1)*sin b
       | otherwise = exp x - 1

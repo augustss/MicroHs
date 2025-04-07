@@ -23,7 +23,7 @@ main = do
   file <- hGetContents ifile
   let size = length file
       chunks = chunkify 20 file
-  hPutStrLn ofile $ "static unsigned char combexprdata[] = {"
+  hPutStrLn ofile "static unsigned char combexprdata[] = {"
   mapM_ (hPutStrLn ofile . showChunk) chunks
   hPutStrLn ofile "};"
   hPutStrLn ofile "const unsigned char *combexpr = combexprdata;"

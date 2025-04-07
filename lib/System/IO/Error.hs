@@ -321,7 +321,7 @@ ioeSetHandle      ioe hdl      = ioe{ ioe_handle = Just hdl }
 ioeSetFileName    ioe filename = ioe{ ioe_filename = Just filename }
 
 modifyIOError :: (IOError -> IOError) -> IO a -> IO a
-modifyIOError f io = catch io (\e -> ioError (f e))
+modifyIOError f io = catch io (ioError . f)
 
 annotateIOError :: IOError
               -> String

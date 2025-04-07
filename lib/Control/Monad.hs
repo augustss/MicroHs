@@ -55,7 +55,7 @@ infixr 1 <=<, >=>
 class (Applicative m) => Monad m where
   (>>=)  :: forall a b . m a -> (a -> m b) -> m b
   (>>)   :: forall a b . m a -> m b -> m b
-  ma >> mb = ma >>= \ _ -> mb
+  ma >> mb = ma >>= const mb
 
   -- Maybe remove this
   return :: forall a . a -> m a
@@ -135,7 +135,7 @@ foldM :: forall m a b . (Monad m) => (b -> a -> m b) -> b -> [a] -> m b
 foldM = foldlM
 
 foldM_ :: forall m a b . (Monad m) => (b -> a -> m b) -> b -> [a] -> m ()
-foldM_ f a xs  = foldlM f a xs >> return ()
+foldM_ f a xs  = void (foldlM f a xs)
 
 foldlM :: forall m a b . (Monad m) => (b -> a -> m b) -> b -> [a] -> m b
 foldlM _ z [] = pure z
@@ -155,7 +155,7 @@ replicateM_ cnt0 f = loop cnt0
   where
     loop cnt =
       if cnt <= (0::Int) then pure ()
-      else f *> (loop (cnt `primIntSub` 1))
+      else f *> loop (cnt `primIntSub` 1)
 
 -----
 
@@ -168,7 +168,7 @@ unless p ma = if p then pure () else ma
 -----
 
 liftM :: forall m r a1 . (Monad m) => (a1 -> r) -> m a1 -> m r
-liftM f m1 = do { x1 <- m1; return (f x1) }
+liftM f m1 = f <$> m1
 liftM2 :: forall m r a1 a2 . (Monad m) => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
 liftM2 f m1 m2 = do { x1 <- m1; x2 <- m2; return (f x1 x2) }
 liftM3 :: forall m r a1 a2 a3 . (Monad m) => (a1 -> a2 -> a3 -> r) -> m a1 -> m a2 -> m a3 -> m r

@@ -1,6 +1,3 @@
-{-# LANGUAGE Safe #-}
-{-# LANGUAGE TypeOperators #-}
-
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Monad.Zip
@@ -43,10 +40,10 @@ class Monad m => MonadZip m where
     mzip = mzipWith (,)
 
     mzipWith :: (a -> b -> c) -> m a -> m b -> m c
-    mzipWith f ma mb = liftM (uncurry f) (mzip ma mb)
+    mzipWith f ma mb = fmap (uncurry f) (mzip ma mb)
 
     munzip :: m (a,b) -> (m a, m b)
-    munzip mab = (liftM fst mab, liftM snd mab)
+    munzip mab = (fmap fst mab, fmap snd mab)
     -- munzip is a member of the class because sometimes
     -- you can implement it more efficiently than the
     -- above default code.  See #4370 comment by giorgidze

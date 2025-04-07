@@ -84,18 +84,18 @@ instance Show a => Show (Solo a) where
   showsPrec p (MkSolo a) = showParen (p > 10) (showString "MkSolo " . showsPrec 11 a)
 
 instance (Show a, Show b) => Show (a, b) where
-  showsPrec _ (a, b) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b)
+  showsPrec _ (a, b) = showParen True (shows a . showString "," . shows b)
 
 instance (Show a, Show b, Show c) => Show (a, b, c) where
-  showsPrec _ (a, b, c) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b . showString "," . showsPrec 0 c)
+  showsPrec _ (a, b, c) = showParen True (shows a . showString "," . shows b . showString "," . shows c)
 
 instance (Show a, Show b, Show c, Show d) => Show (a, b, c, d) where
-  showsPrec _ (a, b, c, d) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b . showString "," . showsPrec 0 c .
-                                             showString "," . showsPrec 0 d)
+  showsPrec _ (a, b, c, d) = showParen True (shows a . showString "," . shows b . showString "," . shows c .
+                                             showString "," . shows d)
 
 instance (Show a, Show b, Show c, Show d, Show e) => Show (a, b, c, d, e) where
-  showsPrec _ (a, b, c, d, e) = showParen True (showsPrec 0 a . showString "," . showsPrec 0 b . showString "," . showsPrec 0 c .
-                                                showString "," . showsPrec 0 d . showString "," . showsPrec 0 e)
+  showsPrec _ (a, b, c, d, e) = showParen True (shows a . showString "," . shows b . showString "," . shows c .
+                                                showString "," . shows d . showString "," . shows e)
 
 -----------------------------------
 

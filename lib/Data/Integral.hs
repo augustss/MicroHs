@@ -42,7 +42,7 @@ lcm x y =
   if x == 0 || y == 0 then
     0
   else
-    abs ((x `quot` (gcd x y)) * y)
+    abs ((x `quot` gcd x y) * y)
 
 even :: forall a . (Integral a) => a -> Bool
 even n = n `rem` 2 == 0

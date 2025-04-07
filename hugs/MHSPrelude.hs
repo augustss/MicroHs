@@ -69,8 +69,7 @@ void :: Functor f => f a -> f ()
 void = fmap (const ())
 
 asum :: Alternative f => [f a] -> f a
-asum [] = empty
-asum (a:as) = a <|> asum as
+asum = foldr (<|>) empty
 
 
 ------- List --------
@@ -110,7 +109,7 @@ lookupEnv var = do
 
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM path m = do
-  r <- (try $ openFile path m)
+  r <- try $ openFile path m
   case r of
     Left _ -> return Nothing
     Right h -> return (Just h)

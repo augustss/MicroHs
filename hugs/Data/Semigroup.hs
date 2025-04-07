@@ -18,11 +18,11 @@ class Semigroup a where
     | otherwise = f x0 y0
     where
       f x y
-        | y `rem` 2 == 0 = f (x <> x) (y `quot` 2)
+        | even y == 0 = f (x <> x) (y `quot` 2)
         | y == 1 = x
         | otherwise = g (x <> x) (y `quot` 2) x
       g x y z
-        | y `rem` 2 == 0 = g (x <> x) (y `quot` 2) z
+        | even y == 0 = g (x <> x) (y `quot` 2) z
         | y == 1 = x <> z
         | otherwise = g (x <> x) (y `quot` 2) (x <> z)
 
