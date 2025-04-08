@@ -50,6 +50,7 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Fail
 import Data.Char
+import Data.Function
 import Data.Int
 import Data.Num
 import Data.List
@@ -67,7 +68,7 @@ newtype ReadPrec a = P (Prec -> ReadP a)
 -- Functor, Monad, MonadPlus
 
 instance Functor ReadPrec where
-  fmap h (P f) = P (\n -> fmap h (f n))
+  fmap h (P f) = P (fmap h . f)
 
 instance Applicative ReadPrec where
     pure x  = P (\_ -> pure x)
@@ -97,7 +98,7 @@ minPrec = 0
 
 lift :: ReadP a -> ReadPrec a
 -- ^ Lift a precedence-insensitive 'ReadP' to a 'ReadPrec'.
-lift m = P (\_ -> m)
+lift m = P (const m)
 
 step :: ReadPrec a -> ReadPrec a
 -- ^ Increases the precedence context by one.
@@ -160,4 +161,4 @@ readPrec_to_S :: ReadPrec a -> (Int -> ReadS a)
 readPrec_to_S (P f) n = readP_to_S (f n)
 
 readS_to_Prec :: (Int -> ReadS a) -> ReadPrec a
-readS_to_Prec f = P (\n -> readS_to_P (f n))
+readS_to_Prec f = P (readS_to_P . f)

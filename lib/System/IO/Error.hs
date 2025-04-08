@@ -77,6 +77,7 @@ import Data.Char_Type
 import Data.Either
 import Data.Eq
 import Data.Function
+import Data.Functor
 import Data.Int
 import Data.List
 import Data.Maybe
@@ -186,8 +187,7 @@ instance Show IOException where
 -----------
 
 tryIOError     :: IO a -> IO (Either IOError a)
-tryIOError f   =  catch (do r <- f
-                            return (Right r))
+tryIOError f   =  catch (Right <$> f)
                         (return . Left)
 
 mkIOError :: IOErrorType -> String -> Maybe Handle -> Maybe FilePath -> IOError

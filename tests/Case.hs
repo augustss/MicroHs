@@ -3,16 +3,16 @@ import Prelude
 
 main :: IO ()
 main = do
-  putStrLn $ show $ f1 False
-  putStrLn $ show  $ f2 False
-  putStrLn $ show  $ f2 True
---  putStrLn $ showInt  $ f3 False
-  putStrLn $ show $ map f4 [R,G,B]
-  putStrLn $ show $ f5 [(3::Int,4::Int)]
-  --putStrLn $ showInt $ f6 [(3,4)]
-  putStrLn $ show $ [ i | Just i <- [Just (1::Int), Nothing, Just 2] ]
+  print $ f1 False
+  print  $ f2 False
+  print  $ f2 True
+--  printInt  $ f3 False
+  print $ map f4 [R,G,B]
+  print $ f5 [(3::Int,4::Int)]
+  --printInt $ f6 [(3,4)]
+  print $ [ i | Just i <- [Just (1::Int), Nothing, Just 2] ]
   (x,y) <- return (2::Int,3::Int)
-  putStrLn $ show $ x + y
+  print $ x + y
 
 f1 :: Bool -> Bool
 f1 b =

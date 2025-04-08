@@ -28,15 +28,15 @@ main = do
   hin <- openFile "test.tmp" ReadMode
   c1 <- hGetChar hin
   c2 <- hGetChar hin
-  putStrLn $ show (c1, c2)
+  print (c1, c2)
   writeFile "test2.tmp" "more\n"
   s <- readFile "test2.tmp"
-  putStrLn (show s)
+  print s
   foo
-  putStrLn $ show $ trace "tracing" (5::Int)
+  print $ trace "tracing" (5::Int)
   as <- getArgs
-  putStrLn $ show as
-  putStrLn $ show $ seq ((1::Int) + (2::Int)) (5::Int)
-  putStrLn $ show $ seq ((1::Int) + trace "seq" (2::Int)) (5::Int)
+  print as
+  print $ seq ((1::Int) + (2::Int)) (5::Int)
+  print $ seq ((1::Int) + trace "seq" (2::Int)) (5::Int)
   tend <- getTimeMilli
-  putStrLn $ show (tend - tstart) ++ "ms execution time"
+  print (tend - tstart) ++ "ms execution time"

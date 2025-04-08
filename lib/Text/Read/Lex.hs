@@ -176,7 +176,7 @@ lex = skipSpaces >> lexToken
 expect :: Lexeme -> ReadP ()
 expect lexeme = do { skipSpaces
                    ; thing <- lexToken
-                   ; if thing == lexeme then return () else pfail }
+                   ; unless (thing == lexeme) pfail }
 
 hsLex :: ReadP String
 -- ^ Haskell lexer: returns the lexed string, rather than the lexeme
@@ -556,13 +556,13 @@ valDig 2 c
   | otherwise            = Nothing
 
 valDig 8 c
-  | '0' <= c && c <= '7' = Just (ord c - ord '0')
-  | otherwise            = Nothing
+  | isOctDigit c = Just (ord c - ord '0')
+  | otherwise    = Nothing
 
 valDig 10 c = valDecDig c
 
 valDig 16 c
-  | '0' <= c && c <= '9' = Just (ord c - ord '0')
+  | isDigit c            = Just (ord c - ord '0')
   | 'a' <= c && c <= 'f' = Just (ord c - ord 'a' + 10)
   | 'A' <= c && c <= 'F' = Just (ord c - ord 'A' + 10)
   | otherwise            = Nothing
@@ -571,8 +571,8 @@ valDig _ _ = errorWithoutStackTrace "valDig: Bad base"
 
 valDecDig :: Char -> Maybe Int
 valDecDig c
-  | '0' <= c && c <= '9' = Just (ord c - ord '0')
-  | otherwise            = Nothing
+  | isDigit c = Just (ord c - ord '0')
+  | otherwise = Nothing
 
 -- ----------------------------------------------------------------------
 -- other numeric lexing functions
@@ -587,8 +587,8 @@ readIntP base isDigit valDigit =
 readIntP' :: (Eq a, Num a) => a -> ReadP a
 readIntP' base = readIntP base isDigit valDigit
  where
-  isDigit  c = maybe False (const True) (valDig base c)
-  valDigit c = maybe 0     id           (valDig base c)
+  isDigit  c = isJust (valDig base c)
+  valDigit c = fromMaybe 0 (valDig base c)
 {-# SPECIALISE readIntP' :: Integer -> ReadP Integer #-}
 
 readBinP, readOctP, readDecP, readHexP :: (Eq a, Num a) => ReadP a

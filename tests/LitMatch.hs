@@ -26,7 +26,7 @@ s _ = 3
 
 main :: IO ()
 main = do
-  putStrLn $ show [f 0, f 1, f 10, f (-1)]
-  putStrLn $ show [g 1 0, g 1 1, g 2 0, g 2 1, g 2 2]
-  putStrLn $ show [h 'a', h 'b', h 'c']
-  putStrLn $ show [s "aaa", s "apa", s "foo"]
+  print [f 0, f 1, f 10, f (-1)]
+  print [g 1 0, g 1 1, g 2 0, g 2 1, g 2 2]
+  print [h 'a', h 'b', h 'c']
+  print [s "aaa", s "apa", s "foo"]

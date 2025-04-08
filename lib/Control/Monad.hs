@@ -228,8 +228,7 @@ instance MonadPlus [] where
   mplus = (++)
 
 msum :: forall m a . (MonadPlus m) => [m a] -> m a
-msum [] = mzero
-msum (ma:mas) = ma `mplus` msum mas
+msum = foldr mplus mzero
 
 mfilter :: forall m a . (MonadPlus m) => (a -> Bool) -> m a -> m a
 mfilter p ma = do

@@ -43,4 +43,4 @@ main = do
   print $ Alt [True]
 
   print $ fromEnum Y
-  print $ (minBound :: E, maxBound :: E)
+  print (minBound :: E, maxBound :: E)

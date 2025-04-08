@@ -127,11 +127,11 @@ instance MonadPlus P
 
 -- | @since base-2.01
 instance Monad P where
-  (Get f)         >>= k = Get (\c -> f c >>= k)
-  (Look f)        >>= k = Look (\s -> f s >>= k)
+  (Get f)         >>= k = Get (f >=> k)
+  (Look f)        >>= k = Look (f >=> k)
   Fail            >>= _ = Fail
   (Result x p)    >>= k = k x <|> (p >>= k)
-  (Final (r:|rs)) >>= k = final [ys' | (x,s) <- (r:rs), ys' <- run (k x) s]
+  (Final (r:|rs)) >>= k = final [ys' | (x,s) <- r:rs, ys' <- run (k x) s]
 
 -- | @since base-4.9.0.0
 instance MonadFail P where
@@ -192,7 +192,7 @@ instance Monad ReadP where
 
 -- | @since base-4.9.0.0
 instance MonadFail ReadP where
-  fail _    = R (\_ -> Fail)
+  fail _    = R (const Fail)
 
 -- | @since base-4.6.0.0
 instance Alternative ReadP where
@@ -213,7 +213,7 @@ run :: P a -> ReadS a
 run (Get f)         (c:s) = run (f c) s
 run (Look f)        s     = run (f s) s
 run (Result x p)    s     = (x,s) : run p s
-run (Final (r:|rs)) _     = (r:rs)
+run (Final (r:|rs)) _     = r:rs
 run _               _     = []
 
 -- ---------------------------------------------------------------------------
@@ -231,7 +231,7 @@ look = R Look
 
 pfail :: ReadP a
 -- ^ Always fails.
-pfail = R (\_ -> Fail)
+pfail = R (const Fail)
 
 (+++) :: ReadP a -> ReadP a -> ReadP a
 -- ^ Symmetric choice.
@@ -267,7 +267,7 @@ gather (R m)
   gath :: (String -> String) -> P (String -> P b) -> P b
   gath l (Get f)      = Get (\c -> gath (l.(c:)) (f c))
   gath _ Fail         = Fail
-  gath l (Look f)     = Look (\s -> gath l (f s))
+  gath l (Look f)     = Look (gath l . f)
   gath l (Result k p) = k (l []) <|> gath l p
   gath _ (Final _)    = errorWithoutStackTrace "do not use readS_to_P in gather!"
 
@@ -286,8 +286,7 @@ char c = satisfy (c ==)
 eof :: ReadP ()
 -- ^ Succeeds iff we are at the end of input
 eof = do { s <- look
-         ; if null s then return ()
-                     else pfail }
+         ; unless (null s) pfail }
 
 string :: String -> ReadP String
 -- ^ Parses and returns the specified string.
@@ -335,7 +334,7 @@ skipSpaces =
 count :: Int -> ReadP a -> ReadP [a]
 -- ^ @count n p@ parses @n@ occurrences of @p@ in sequence. A list of
 --   results is returned.
-count n p = sequence (replicate n p)
+count n p = replicateM n p
 
 between :: ReadP open -> ReadP close -> ReadP a -> ReadP a
 -- ^ @between open close p@ parses @open@, followed by @p@ and finally
@@ -352,7 +351,7 @@ option x p = p +++ return x
 
 optional :: ReadP a -> ReadP ()
 -- ^ @optional p@ optionally parses @p@ and always returns @()@.
-optional p = (p >> return ()) +++ return ()
+optional p = void p +++ return ()
 
 many :: ReadP a -> ReadP [a]
 -- ^ Parses zero or more occurrences of the given parser.
@@ -364,7 +363,7 @@ many1 p = liftM2 (:) p (many p)
 
 skipMany :: ReadP a -> ReadP ()
 -- ^ Like 'many', but discards the result.
-skipMany p = many p >> return ()
+skipMany p = void (many p)
 
 skipMany1 :: ReadP a -> ReadP ()
 -- ^ Like 'many1', but discards the result.
@@ -425,7 +424,7 @@ manyTill :: ReadP a -> ReadP end -> ReadP [a]
 -- ^ @manyTill p end@ parses zero or more occurrences of @p@, until @end@
 --   succeeds. Returns a list of values returned by @p@.
 manyTill p end = scan
-  where scan = (end >> return []) <++ (liftM2 (:) p scan)
+  where scan = (end >> return []) <++ liftM2 (:) p scan
 
 -- ---------------------------------------------------------------------------
 -- Converting between ReadP and Read

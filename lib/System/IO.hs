@@ -232,9 +232,7 @@ writeFileFast p s = do
 readFile :: FilePath -> IO String
 readFile p = do
   h <- openFile p ReadMode
-  cs <- hGetContents h
-  --hClose h  can't close with lazy hGetContents
-  return cs
+  hGetContents h  --  can't close with lazy hGetContents
 
 -- Lazy hGetContents
 hGetContents :: Handle -> IO String

@@ -43,8 +43,10 @@ module Data.Functor.Contravariant (
 
 import Control.Applicative
 import Control.Category
+import Control.Monad
 import Data.Function (on)
 
+import Data.Functor
 import Data.Functor.Product
 import Data.Functor.Sum
 import Data.Functor.Compose
@@ -110,7 +112,7 @@ class Contravariant f where
 -- 'contramap' f ≡ 'phantom'
 -- @
 phantom :: (Functor f, Contravariant f) => f a -> f b
-phantom x = () <$ x $< ()
+phantom x = void x $< ()
 
 infixl 4 >$, $<, >$<, >$$<
 

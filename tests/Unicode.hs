@@ -14,7 +14,7 @@ main = do
   print $ map isLower a
   print $ map isUpper a
   putStrLn $ map toUpper a
-  print $ map isUpper $ map toUpper a
+  print $ map (isUpper . toUpper) a
 
   let printCases c = putStrLn $ toLower c : toTitle c : toUpper c : ""
   printCases '\x01C4' -- upper

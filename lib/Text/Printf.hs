@@ -302,12 +302,12 @@ instance (a ~ ()) => HPrintfType (IO a) where
 
 -- | @since 2.01
 instance (PrintfArg a, PrintfType r) => PrintfType (a -> r) where
-    spr fmts args = \ a -> spr fmts
+    spr fmts args a = spr fmts
                              ((parseFormat a, formatArg a) : args)
 
 -- | @since 2.01
 instance (PrintfArg a, HPrintfType r) => HPrintfType (a -> r) where
-    hspr hdl fmts args = \ a -> hspr hdl fmts
+    hspr hdl fmts args a = hspr hdl fmts
                                   ((parseFormat a, formatArg a) : args)
 
 -- | Typeclass of 'printf'-formattable values. The 'formatArg' method
@@ -494,9 +494,7 @@ parseIntFormat _ s =
   where
     matchPrefix (p, _) m@(Just (FormatParse p0 _ _))
       | length p0 >= length p = m
-      | otherwise = case getFormat p of
-          Nothing -> m
-          Just fp -> Just fp
+      | otherwise = maybe m Just (getFormat p)
     matchPrefix (p, _) Nothing =
       getFormat p
     getFormat p =
