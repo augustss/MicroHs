@@ -24,4 +24,5 @@ targets.conf
 timing
 mdist/*
 dist-mcabal/
-generated/
+generated/mhs-stage*.c
+
