@@ -277,6 +277,8 @@ mainCompile flags mn = do
   dumpIf flags Dtoplevel $
     mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") allDefs
   if runIt flags then do
+    unless compiledWithMhs $ do
+      error $ "The -r flag currently only works with mhs"
     let
       prg = translateAndRun cmdl
 --    putStrLn "Run:"

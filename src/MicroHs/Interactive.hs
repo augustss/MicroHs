@@ -51,8 +51,9 @@ start = do
   is <- get
   liftIO $ maybeSaveCache (isFlags is) (isCache is)
   liftIO $ putStrLn "Type ':quit' to quit, ':help' for help"
-  unless compiledWithMhs $
-    liftIO $ putStrLn "WARNING: Not compiled with mhs, so limited functionality."
+  unless compiledWithMhs $ do
+    --liftIO $ putStrLn "WARNING: Not compiled with mhs, so limited functionality."
+    error $ "The interactive system currently only works with mhs"
   repl
 
 repl :: I ()
