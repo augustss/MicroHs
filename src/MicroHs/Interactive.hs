@@ -53,7 +53,7 @@ start = do
   liftIO $ putStrLn "Type ':quit' to quit, ':help' for help"
   unless compiledWithMhs $ do
     --liftIO $ putStrLn "WARNING: Not compiled with mhs, so limited functionality."
-    error $ "The interactive system currently only works with mhs"
+    error "The interactive system currently only works with mhs"
   repl
 
 repl :: I ()

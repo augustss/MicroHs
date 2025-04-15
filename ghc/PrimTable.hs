@@ -190,7 +190,7 @@ primOps =
     newIOArray :: Int -> a -> IO (IOArr a)
     newIOArray i arr = newArray (0, i-1) arr
     sizeIOArray :: IOArr a -> IO Int
-    sizeIOArray arr = (pred . snd) <$> getBounds arr
+    sizeIOArray arr = pred . snd <$> getBounds arr
     readIOArray :: IOArr a -> Int -> IO a
     readIOArray arr i = readArray arr i
     writeIOArray :: IOArr a -> Int -> a -> IO ()
