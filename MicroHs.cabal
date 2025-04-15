@@ -116,6 +116,8 @@ executable mhs
                        process      >= 1.6 && < 1.10,
                        directory    >= 1.2 && < 1.6,
                        text         >= 2.0 && < 2.5,
+                       array        >= 0.5 && < 0.6,
+                       ghc-internal >= 9.0 && < 10.0,
 
   if impl(hugs)
     hs-source-dirs:    hugs src
