@@ -138,7 +138,7 @@ helpText = "\
   \:clear     clear all definitions\n\
   \:delete d  delete definition(s) d\n\
   \:type e    show type of e\n\
-  \:kind t    show type of t\n\
+  \:kind t    show kind of t\n\
   \:help      this text\n\
   \expr       evaluate expression\n\
   \defn       add top level definition\n\
