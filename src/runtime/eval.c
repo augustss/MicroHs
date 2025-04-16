@@ -917,46 +917,6 @@ init_nodes(void)
 
   /* Set up permanent nodes */
   heap_start = 0;
-#if !FASTTAGS
-  for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
-    NODEPTR n = HEAPREF(heap_start++);
-    primops[j].node = n;
-    //MARK(n) = MARKED;
-    SETTAG(n, primops[j].tag);
-    switch (primops[j].tag) {
-    case T_K: combK = n; break;
-    case T_A: combTrue = n; break;
-    case T_I: combUnit = n; break;
-    case T_O: combCons = n; break;
-    case T_P: combPair = n; break;
-    case T_CC: combCC = n; break;
-    case T_B: combB = n; break;
-    case T_C: combC = n; break;
-    case T_Z: combZ = n; break;
-    case T_U: combU = n; break;
-    case T_K2: combK2 = n; break;
-    case T_K3: combK3 = n; break;
-    case T_IO_BIND: combIOBIND = n; break;
-    case T_IO_RETURN: combIORETURN = n; break;
-    case T_IO_CCBIND: combIOCCBIND = n; break;
-    case T_BININT1: combBININT1 = n; break;
-    case T_BININT2: combBININT2 = n; break;
-    case T_UNINT1: combUNINT1 = n; break;
-    case T_BINDBL1: combBINDBL1 = n; break;
-    case T_BINDBL2: combBINDBL2 = n; break;
-    case T_UNDBL1: combUNDBL1 = n; break;
-    case T_BINBS1: combBINBS1 = n; break;
-    case T_BINBS2: combBINBS2 = n; break;
-#if WANT_STDIO
-    case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
-    case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
-    case T_IO_STDERR: comb_stderr = n; mk_std(n, stderr); break;
-#endif  /* WANT_STDIO */
-    default:
-      break;
-    }
-  }
-#else
   for(t = T_FREE; t < T_LAST_TAG; t++) {
     NODEPTR n = HEAPREF(heap_start++);
     SETTAG(n, t);
@@ -998,7 +958,7 @@ init_nodes(void)
       }
     }
   }
-#endif
+
 #if GCRED
   for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
     flip_ops[primops[j].tag] = primops[j].flipped;
@@ -3228,9 +3188,7 @@ evali(NODEPTR an)
   flt_t xd, rd;
 #endif  /* WANT_FLOAT */
   char *msg;
-#if FASTTAGS
   heapoffs_t l;
-#endif
   enum node_tag tag;
   struct ioarray *arr;
   struct bytestring xbs, ybs, rbs;
@@ -3278,12 +3236,8 @@ evali(NODEPTR an)
 
  top:
   COUNT(num_reductions);
-#if FASTTAGS
   l = LABEL(n);
   tag = l < T_IO_BIND ? l : GETTAG(n);
-#else   /* FASTTAGS */
-  tag = GETTAG(n);
-#endif  /* FASTTAGS */
   switch (tag) {
   ind:
   case T_IND:  n = INDIR(n); goto top;

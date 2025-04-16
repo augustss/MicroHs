@@ -76,7 +76,6 @@
 /* #define ERR1(s,a) */
 
 #define GCRED    0              /* do some reductions during GC */
-#define FASTTAGS 1              /* compute tag by pointer subtraction */
 #define INTTABLE 0              /* use fixed table of small INT nodes */
 #define SANITY   0              /* do some sanity checks */
 #define STACKOVL 1              /* check for stack overflow */
