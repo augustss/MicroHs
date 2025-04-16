@@ -3210,6 +3210,7 @@ evali(NODEPTR an)
 #define SETIND(n, x) SETINDIR(n, x)
 #define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
 #define GOAP(f,a) do { FUN((n)) = (f); ARG((n)) = (a); goto ap; } while(0)
+#define GOAP2(f,a,b) do { FUN((n)) = new_ap((f), (a)); ARG((n)) = (b); goto ap2; } while(0)
 /* CHKARGN checks that there are at least N arguments.
  * It also
  *  - sets n to the "top" node
@@ -3244,6 +3245,7 @@ evali(NODEPTR an)
   ind:
   case T_IND:  n = GETINDIR(n); goto top;
 
+  ap2:         PUSH(n); n = FUN(n);
   ap:
   case T_AP:   PUSH(n); n = FUN(n); goto top;
 
@@ -3261,8 +3263,8 @@ evali(NODEPTR an)
    * stop reductions from happening.  This can be important for "full laziness".
    * In practice, these reductions almost never happen, but there they are anyway. :)
    */
-  case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
-  case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
+  case T_S:    GCCHECK(2); CHKARG3; GOAP2(x, z, new_ap(y, z));                     /* S x y z = x z (y z) */
+  case T_SS:   GCCHECK(3); CHKARG4; GOAP2(x, new_ap(y, w), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
   case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
   case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
   case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
@@ -3271,17 +3273,17 @@ evali(NODEPTR an)
   case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
   case T_BB:   if (!HASNARGS(4)) {
                GCCHECK(1); CHKARG2; red_bb++; GOAP(combB, new_ap(x, y)); } else {         /* B' x y = B (x y) */
-               GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w)); }                   /* B' x y z w = x y (z w) */
+               GCCHECK(2); CHKARG4; GOAP2(x, y, new_ap(z, w)); }                   /* B' x y z w = x y (z w) */
   case T_Z:    if (!HASNARGS(3)) {
                GCCHECK(1); CHKARG2; red_z++; GOAP(combK, new_ap(x, y)); } else {          /* Z x y = K (x y) */
                            CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
-  case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
-  case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
-  case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
+  case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                /* C x y z = x z y */
+  case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                     /* C' x y z w = x (y w) z */
+  case T_P:    GCCHECK(1); CHKARG3; GOAP2(z, x, y);                                /* P x y z = z x y */
   case T_R:    if(!HASNARGS(3)) {
-               GCCHECK(1); CHKARG2; red_r++; GOAP(new_ap(combC, y), x); } else {          /* R x y = C y x */
-               GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x); }                              /* R x y z = y z x */
-  case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
+               GCCHECK(1); CHKARG2; red_r++; GOAP2(combC, y, x); } else {          /* R x y = C y x */
+               GCCHECK(1); CHKARG3; GOAP2(y, z, x); }                              /* R x y z = y z x */
+  case T_O:    GCCHECK(1); CHKARG4; GOAP2(w, x, y);                                /* O x y z w = w x y */
   case T_K2:   if (!HASNARGS(3)) {
                            CHKARG2; red_k2++; GOAP(combK, x); } else {                    /* K2 x y = K x */
                            CHKARG3; GOIND(x); }                                           /* K2 x y z = *x */
@@ -3292,8 +3294,8 @@ evali(NODEPTR an)
                            CHKARG2; red_k4++; GOAP(combK3, x); } else {                   /* K4 x y = K3 x */
                            CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x); }   /* K4 x y z w v = *x */
   case T_CCB:  if (!HASNARGS(4)) {
-               GCCHECK(2); CHKARG3; red_ccb++; GOAP(new_ap(combB, new_ap(x, z)), y); } else {  /* C'B x y z = B (x z) y */
-               GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w)); }                   /* C'B x y z w = x z (y w) */
+               GCCHECK(2); CHKARG3; red_ccb++; GOAP2(combB, new_ap(x, z), y); } else {  /* C'B x y z = B (x z) y */
+               GCCHECK(2); CHKARG4; GOAP2(x, z, new_ap(y, w)); }                   /* C'B x y z w = x z (y w) */
 
     /*
      * Strict primitives require evaluating the arguments before we can proceed.
