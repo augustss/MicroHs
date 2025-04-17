@@ -13,7 +13,7 @@ import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Data.Array.IO
 import Foreign.Ptr
-import GHC.Internal.ForeignPtr
+import GHC.ForeignPtr
 --import System.Environment
 import System.IO.Unsafe
 --import Debug.Trace
