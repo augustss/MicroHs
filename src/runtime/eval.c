@@ -738,6 +738,9 @@ start_exec(NODEPTR root)
   }
 }
 
+/* This is a yucky hack */
+int doing_rnf = 0;              /* REMOVE */
+
 void
 yield(void)
 {
@@ -2596,10 +2599,10 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_ARR_WRITE: putsb("A.write", f); break;
   case T_ARR_EQ: putsb("A.==", f); break;
   case T_DYNSYM: putsb("dynsym", f); break;
-  case T_IO_FORK: fprintf(f, "IO.fork"); break;
-  case T_IO_NEWMVAR: fprintf(f, "IO.newmvar"); break;
-  case T_IO_TAKEMVAR: fprintf(f, "IO.takemvar"); break;
-  case T_IO_PUTMVAR: fprintf(f, "IO.putmvar"); break;
+  case T_IO_FORK: putsb("IO.fork", f); break;
+  case T_IO_NEWMVAR: putsb("IO.newmvar", f); break;
+  case T_IO_TAKEMVAR: putsb("IO.takemvar", f); break;
+  case T_IO_PUTMVAR: putsb("IO.putmvar", f); break;
   case T_NEWCASTRINGLEN: putsb("newCAStringLen", f); break;
   case T_PACKCSTRING: putsb("packCString", f); break;
   case T_PACKCSTRINGLEN: putsb("packCStringLen", f); break;
@@ -3348,9 +3351,6 @@ rnf_rec(bits_t *done, NODEPTR n)
 /* Used to detect calls to error while we are already in a call to error. */
 int in_raise = 0;
 
-/* This is a yucky hack */
-int doing_rnf = 0;
-
 void
 rnf(value_t noerr, NODEPTR n)
 {
@@ -3430,6 +3430,8 @@ evali(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
  top:
+  if (--glob_slice <= 0)
+    yield();
   COUNT(num_reductions);
   l = LABEL(n);
   tag = l < T_IO_BIND ? l : GETTAG(n);
@@ -3882,7 +3884,13 @@ evali(NODEPTR an)
     n = TOP(-1);
     GOIND(ARG(x));
 
-  case T_IO_CCBIND:           /* We should never have to reduce this */
+  case T_IO_CCBIND:
+    /* Under normal circumstances we will never encounter C'BIND, since it's
+     * local to the top level of execio().  But when a thread yield()s, it will
+     * be left in the graph and encountered later.
+     */
+    GCCHECK(2); CHKARG3; GOAP(new_ap(combIOBIND, new_ap(x, z)), y);                     /* C'BIND x y z = BIND (x z) y */
+
   case T_IO_BIND:
   case T_IO_THEN:
   case T_IO_RETURN:
@@ -4692,6 +4700,8 @@ MAIN
   }
 #endif
   run_time -= GETTIMEMILLI();
+
+#if 0
   PUSH(prog);
   topnode = &TOP(0);
   execio(&TOP(0));
@@ -4703,6 +4713,10 @@ MAIN
   NODEPTR res = evali(ARG(prog));
   if (GETTAG(res) != T_I)
     ERR("main execio I");
+#endif
+#else
+  topnode = &prog;
+  start_exec(prog);
 #endif
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
