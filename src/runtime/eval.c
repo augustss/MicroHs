@@ -1009,9 +1009,9 @@ init_nodes(void)
 }
 
 #if GCRED
-int red_a, red_k, red_i, red_int, red_flip;
+counter_t red_a, red_k, red_i, red_int, red_flip;
 #endif
-int red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
+counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
 //counter_t mark_depth;
 //counter_t max_mark_depth = 0;
@@ -1068,7 +1068,7 @@ mark(NODEPTR *np)
 #if INTTABLE
     if (LOW_INT <= (val = GETVALUE(n)) && val < HIGH_INT) {
       SETINDIR(n, intTable[val - LOW_INT]);
-      red_int++;
+      COUNT(red_int);
       goto top;
     }
     goto fin;
@@ -1080,7 +1080,7 @@ mark(NODEPTR *np)
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
           SETINDIR(n, y);
-          red_a++;
+          COUNT(red_a);
           goto top;
         }
 #if 0
@@ -1089,7 +1089,7 @@ mark(NODEPTR *np)
           /* Do the K x y --> x reduction */
           NODEPTR x = ARG(FUN(n));
           SETINDIR(n, x);
-          red_k++;
+          COUNT(red_k);
           goto top;
         }
 #endif  /* 0 */
@@ -1097,7 +1097,7 @@ mark(NODEPTR *np)
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
           SETINDIR(n, x);
-          red_i++;
+          COUNT(red_i);
           goto top;
         }
 #if 0
@@ -1114,7 +1114,7 @@ mark(NODEPTR *np)
             /* Do the C op --> flip_op reduction */
             // PRINT("%s -> %s\n", tag_names[tt], tag_names[tf]);
             SETINDIR(n, HEAPREF(tf));
-            red_flip++;
+            COUNT(red_flip);
             goto fin;
           }
         }
@@ -1260,7 +1260,8 @@ gc(void)
 #if WANT_STDIO
   if (verbose > 1) {
     PRINT("gc done, %"PRIcounter" free\n", num_free);
-    //PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
+    /*PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter" flip=%"PRIcounter"\n",
+      red_a, red_k, red_i, red_int, red_flip);*/
   }
   if (gcbell) {
     fputc('\007', stderr);      /* ring the bell */
@@ -3203,11 +3204,12 @@ evali(NODEPTR an)
 
 /* Reset stack pointer and return. */
 #define RET do { goto ret; } while(0)
-/* Check that there are at least n arguments, return if not. */
 #define HASNARGS(n) (stack_ptr - stk >= (n))
+/* Check that there are at least n arguments, return if not. */
 #define CHECK(n) do { if (!HASNARGS(n)) RET; } while(0)
 
 #define SETIND(n, x) SETINDIR(n, x)
+  /* #define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0) no noticable speedup */
 #define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
 #define GOAP(f,a) do { FUN((n)) = (f); ARG((n)) = (a); goto ap; } while(0)
 #define GOAP2(f,a,b) do { FUN((n)) = new_ap((f), (a)); ARG((n)) = (b); goto ap2; } while(0)
@@ -3263,8 +3265,8 @@ evali(NODEPTR an)
    * stop reductions from happening.  This can be important for "full laziness".
    * In practice, these reductions almost never happen, but there they are anyway. :)
    */
-  case T_S:    GCCHECK(2); CHKARG3; GOAP2(x, z, new_ap(y, z));                     /* S x y z = x z (y z) */
-  case T_SS:   GCCHECK(3); CHKARG4; GOAP2(x, new_ap(y, w), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
+  case T_S:    GCCHECK(2); CHKARG3; GOAP2(x, z, new_ap(y, z));                            /* S x y z = x z (y z) */
+  case T_SS:   GCCHECK(3); CHKARG4; GOAP2(x, new_ap(y, w), new_ap(z, w));                 /* S' x y z w = x (y w) (z w) */
   case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
   case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
   case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
@@ -3272,30 +3274,30 @@ evali(NODEPTR an)
   case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
   case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
   case T_BB:   if (!HASNARGS(4)) {
-               GCCHECK(1); CHKARG2; red_bb++; GOAP(combB, new_ap(x, y)); } else {         /* B' x y = B (x y) */
-               GCCHECK(2); CHKARG4; GOAP2(x, y, new_ap(z, w)); }                   /* B' x y z w = x y (z w) */
+               GCCHECK(1); CHKARG2; COUNT(red_bb); GOAP(combB, new_ap(x, y)); } else {    /* B' x y = B (x y) */
+               GCCHECK(2); CHKARG4; GOAP2(x, y, new_ap(z, w)); }                          /* B' x y z w = x y (z w) */
   case T_Z:    if (!HASNARGS(3)) {
-               GCCHECK(1); CHKARG2; red_z++; GOAP(combK, new_ap(x, y)); } else {          /* Z x y = K (x y) */
+               GCCHECK(1); CHKARG2; COUNT(red_z); GOAP(combK, new_ap(x, y)); } else {     /* Z x y = K (x y) */
                            CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
-  case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                /* C x y z = x z y */
-  case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                     /* C' x y z w = x (y w) z */
-  case T_P:    GCCHECK(1); CHKARG3; GOAP2(z, x, y);                                /* P x y z = z x y */
+  case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                       /* C x y z = x z y */
+  case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                            /* C' x y z w = x (y w) z */
+  case T_P:    GCCHECK(1); CHKARG3; GOAP2(z, x, y);                                       /* P x y z = z x y */
   case T_R:    if(!HASNARGS(3)) {
-               GCCHECK(1); CHKARG2; red_r++; GOAP2(combC, y, x); } else {          /* R x y = C y x */
-               GCCHECK(1); CHKARG3; GOAP2(y, z, x); }                              /* R x y z = y z x */
-  case T_O:    GCCHECK(1); CHKARG4; GOAP2(w, x, y);                                /* O x y z w = w x y */
+               GCCHECK(1); CHKARG2; COUNT(red_r); GOAP2(combC, y, x); } else {            /* R x y = C y x */
+               GCCHECK(1); CHKARG3; GOAP2(y, z, x); }                                     /* R x y z = y z x */
+  case T_O:    GCCHECK(1); CHKARG4; GOAP2(w, x, y);                                       /* O x y z w = w x y */
   case T_K2:   if (!HASNARGS(3)) {
-                           CHKARG2; red_k2++; GOAP(combK, x); } else {                    /* K2 x y = K x */
+                           CHKARG2; COUNT(red_k2); GOAP(combK, x); } else {               /* K2 x y = K x */
                            CHKARG3; GOIND(x); }                                           /* K2 x y z = *x */
   case T_K3:   if (!HASNARGS(4)) {
-                           CHKARG2; red_k3++; GOAP(combK2, x); } else {                   /* K3 x y = K2 x */
+                           CHKARG2; COUNT(red_k3); GOAP(combK2, x); } else {              /* K3 x y = K2 x */
                            CHKARG4; GOIND(x); }                                           /* K3 x y z w = *x */
   case T_K4:   if (!HASNARGS(5)) {
-                           CHKARG2; red_k4++; GOAP(combK3, x); } else {                   /* K4 x y = K3 x */
+                           CHKARG2; COUNT(red_k4); GOAP(combK3, x); } else {              /* K4 x y = K3 x */
                            CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x); }   /* K4 x y z w v = *x */
   case T_CCB:  if (!HASNARGS(4)) {
-               GCCHECK(2); CHKARG3; red_ccb++; GOAP2(combB, new_ap(x, z), y); } else {  /* C'B x y z = B (x z) y */
-               GCCHECK(2); CHKARG4; GOAP2(x, z, new_ap(y, w)); }                   /* C'B x y z w = x z (y w) */
+               GCCHECK(2); CHKARG3; COUNT(red_ccb); GOAP2(combB, new_ap(x, z), y);} else{ /* C'B x y z = B (x z) y */
+               GCCHECK(2); CHKARG4; GOAP2(x, z, new_ap(y, w)); }                          /* C'B x y z w = x z (y w) */
 
     /*
      * Strict primitives require evaluating the arguments before we can proceed.
@@ -4534,8 +4536,10 @@ MAIN
           (double)gc_mark_time / 1000,
           (double)gc_scan_time / 1000);
 #if GCRED
-    PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
-    PRINT(" special reductions B'=%d K4=%d K3=%d K2=%d C'B=%d, Z=%d, R=%d\n", red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
+    PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter" flip=%"PRIcounter"\n",
+          red_a, red_k, red_i, red_int, red_flip);
+    PRINT(" special reductions B'=%"PRIcounter" K4=%"PRIcounter" K3=%"PRIcounter" K2=%"PRIcounter" C'B=%"PRIcounter", Z=%"PRIcounter", R=%"PRIcounter"\n",
+          red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
 #endif
   }
 #endif  /* WANT_STDIO */
