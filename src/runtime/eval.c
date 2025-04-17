@@ -4733,7 +4733,7 @@ MAIN
     if (verbose > 1) {
       PRINT("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
-    setlocale(LC_NUMERIC, "");  /* Make %' work on platforms that support it */
+    setlocale(LC_NUMERIC, "en_US");  /* Make %' work on platforms that support it */
     PRINT("%"PCOMMA"15"PRIheap" combinator file size\n", (heapoffs_t)file_size);
     PRINT("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
     PRINT("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
@@ -4748,8 +4748,8 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc (max %"PCOMMA""PRIcounter")\n", num_bs_alloc, num_bs_alloc_max);
     PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc bytes (max %"PCOMMA""PRIcounter")\n", num_bs_bytes, num_bs_inuse_max);
     PRINT("%"PCOMMA"15"PRIcounter" bytestring free\n", num_bs_free);
-    PRINT("%"PCOMMA"15"PRIcounter" threads created\n", num_thread_create);
-    PRINT("%"PCOMMA"15"PRIcounter" threads reaped\n", num_thread_reap);
+    PRINT("%"PCOMMA"15"PRIcounter" thread create\n", num_thread_create);
+    PRINT("%"PCOMMA"15"PRIcounter" thread reap\n", num_thread_reap);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
