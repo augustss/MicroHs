@@ -259,7 +259,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -286,6 +286,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
+                T_IO_FORK, T_IO_NEWMVAR, T_IO_TAKEMVAR, T_IO_PUTMVAR,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
@@ -320,6 +321,7 @@ static const char* tag_names[] = {
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
   "IO_PERFORMIO", "IO_PRINT", "CATCH",
   "IO_CCALL", "IO_GC", "DYNSYM",
+  "IO_FORK", "IO_NEWMVAR", "IO_TAKEMVAR", "IO_PUTMVAR",
   "NEWCASTRINGLEN", "PACKCSTRING", "PACKCSTRINGLEN",
   "BSFROMUTF8",
   "STR",
@@ -330,6 +332,7 @@ static const char* tag_names[] = {
 struct ioarray;
 struct bytestring;
 struct forptr;
+struct mthread;
 
 typedef struct node {
   union {
@@ -346,6 +349,7 @@ typedef struct node {
     HsFunPtr        uufunptr;
     struct ioarray *uuarray;
     struct forptr  *uuforptr;      /* foreign pointers and byte arrays */
+    struct mthread *uuthread;
   } uarg;
 } node;
 #define BIT_TAG   1
@@ -370,6 +374,7 @@ typedef struct node* NODEPTR;
 #define FORPTR(p) (p)->uarg.uuforptr
 #define BSTR(p) (p)->uarg.uuforptr->payload
 #define ARR(p) (p)->uarg.uuarray
+#define THR(p) (p)->uarg.uuthread
 #define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
 #define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
 #define NODE_SIZE sizeof(node)
@@ -448,6 +453,8 @@ struct final *final_root = 0;   /* root of all allocated foreign pointers, linke
 counter_t num_reductions = 0;
 counter_t num_alloc = 0;
 counter_t num_gc = 0;
+counter_t num_yield = 0;
+counter_t num_resched = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
@@ -616,7 +623,7 @@ dump_tick_table(FILE *f)
 }
 #endif
 
-/*****************************************************************************/
+/***************** HANDLER *****************/
 
 struct handler {
   jmp_buf         hdl_buf;      /* env storage */
@@ -624,6 +631,141 @@ struct handler {
   stackptr_t      hdl_stack;    /* old stack pointer */
   NODEPTR         hdl_exn;      /* used temporarily to pass the exception value */
 } *cur_handler = 0;
+
+/***************** THREAD ******************/
+
+enum th_state { ts_run, ts_wait, ts_zombie };
+enum th_sched { mt_main = 0, mt_yield = 1 };
+
+struct mthread {
+  enum th_state   mt_state;
+  struct mthread *mt_next;      /* all threads linked together */
+  struct mthread *mt_queue;     /* runq/waitq link */
+  counter_t       mt_slice;     /* reduction steps until yielding */
+  NODEPTR         mt_root;      /* root of the graph to reduce */
+  int             mt_mark;      /* marked as accessible */
+};
+struct mthread  *all_threads = 0;   /* all threads */
+struct mthread  *runq = 0;          /* ready to run */
+struct mthread  *runq_tail = 0;     /* tail of runq, 0 if empty */
+jmp_buf          sched;             /* jump here to yield */
+counter_t        slice = 10000;     /* normal time slice */
+counter_t        glob_slice;
+
+void execio(NODEPTR*);
+
+/* Add the thread to the tail of runq */
+void
+add_runq_tail(struct mthread *mt)
+{
+  if (!runq) {
+    /* runq is empty, so mt goes first */
+    runq = mt;
+  } else {
+    /* link mt to the end of the runq */
+    runq_tail->mt_queue = mt;
+  }
+  runq_tail = mt;             /* mt is now last */
+  mt->mt_queue = 0;           /* mt is last, so no next */
+}
+
+struct mthread*
+remove_runq_head(void)
+{
+  struct mthread *mt = runq;    /* front thread */
+  runq = mt->mt_queue;          /* skip to next thread */
+  if (!runq)
+    runq_tail = 0;              /* runq is now empty */
+  return mt;
+}
+
+struct mthread*
+new_thread(NODEPTR root)
+{
+  struct mthread *mt = MALLOC(sizeof(struct mthread));
+  if (!mt)
+    memerr();
+  mt->mt_state = ts_run;
+  mt->mt_root = root;
+  mt->mt_slice = 0;
+  mt->mt_mark = 0;
+
+  /* add to all_threads */
+  mt->mt_next = all_threads;
+  all_threads = mt;
+
+  /* add to tail of runq */
+  add_runq_tail(mt);
+  return mt;
+}
+
+void
+start_exec(NODEPTR root)
+{
+  struct mthread *mt;
+
+  new_thread(root);
+  switch(setjmp(sched)) {
+  case mt_main:
+    break;
+  case mt_yield:
+    COUNT(num_resched);
+    /* Unlink from runq */
+    mt = remove_runq_head();
+    /* link into back of runq */
+    add_runq_tail(mt);
+    break;
+  }
+  for(;;) {
+    mt = runq;                    /* front thread */
+    //mt->mt_slice = slice;         /* give it a time slice */
+    glob_slice = mt->mt_slice + slice;
+    //printf("slice=%d\n", (int)glob_slice);
+    execio(&mt->mt_root);         /* run it */
+    /* when execio() returns the thread is done */
+    runq = mt->mt_queue;          /* skip this thread */
+
+    mt->mt_state = ts_zombie;
+    mt->mt_root = 0;
+
+    if (!runq) {
+      for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
+        if (mt->mt_state != ts_zombie)
+          ERR("runq empty");          /* XXX should wait for something to happen */
+      }
+      return;                     /* no more runnable threads, so exit */
+    }
+  }
+}
+
+void
+yield(void)
+{
+  COUNT(num_yield);
+  //printf("yield %d\n", (int)stack_ptr);
+  /* if there is nothing after in the runq then there is no need to reschedule */
+  if (!runq->mt_queue) {
+    glob_slice = slice;
+    return;
+  }
+
+  /* We are going to reschedule, so clean up thread state:
+   *  stack pointer
+   *  error handlers
+   */
+  runq->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
+  stack_ptr = -1;               /* reset stack */
+  doing_rnf = 0;
+  /* free all error handlers */
+  for (struct handler *h = cur_handler; h; ) {
+    struct handler *n = h;
+    h = h->hdl_old;
+    free(n);
+  }
+  longjmp(sched, mt_yield);
+}
+
+/***************** GC ******************/
 
 /* Set FREE bit to 0 */
 static INLINE void mark_used(NODEPTR n)
@@ -876,6 +1018,10 @@ struct {
   { "A.write", T_ARR_WRITE },
   { "A.==", T_ARR_EQ },
   { "dynsym", T_DYNSYM },
+  { "IO.fork", T_IO_FORK },
+  { "IO.newmvar", T_IO_NEWMVAR },
+  { "IO.takemvar", T_IO_TAKEMVAR },
+  { "IO.putvar", T_IO_PUTMVAR },
   { "newCAStringLen", T_NEWCASTRINGLEN },
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
@@ -1143,9 +1289,21 @@ mark(NODEPTR *np)
       np = &arr->array[arr->marked++];
       break;
     }
+
    case T_FORPTR:
      FORPTR(n)->finalizer->marked = 1;
      goto fin;
+
+   case T_THID:
+     {
+       struct mthread *mt = THR(n);
+       if (!mt->mt_mark) {
+         mt->mt_mark = 1;
+         if (mt->mt_root)
+           mark(&mt->mt_root);
+       }
+     }
+     break;
 
    default:
      goto fin;
@@ -1184,16 +1342,28 @@ gc(void)
 #endif
   gc_mark_time -= GETTIMEMILLI();
   mark_all_free();
-  // mark everything reachable from the stack
+  /* Mark everything reachable from the stack */
   for (i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
-  // mark everything reachable from permanent array nodes
+
+  /* Mark everything reachable from permanent array nodes */
   for (struct ioarray *arr = array_root; arr; arr = arr->next) {
     if (arr->permanent) {
       for (i = 0; i < arr->size; i++)
         mark(&arr->array[i]);
     }
   }
+
+  /* Mark everything reachable from the threads.
+   * Note, zombie threads have no root so they are not marked.
+   */
+  for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
+    if (mt->mt_root && !mt->mt_mark) {
+      mt->mt_mark = 1;
+      mark(&mt->mt_root);
+    }
+  }
+
   gc_mark_time += GETTIMEMILLI();
 
   if (num_marked > max_num_marked)
@@ -1255,6 +1425,19 @@ gc(void)
       //memset(fin, 0x77, sizeof *fin);
     }
   }
+
+  /* Remove unreferenced zombie threads */
+  for (struct mthread **mtp = &all_threads; *mtp; ) {
+    struct mthread *mt = *mtp;
+    if (mt->mt_state == ts_zombie && !mt->mt_mark) {
+      *mtp = mt->mt_next;
+      free(mt);
+    } else {
+      mt->mt_mark = 0;
+      mtp = &(*mtp)->mt_next;
+    }
+  }
+  
   gc_scan_time += GETTIMEMILLI();
 
 #if WANT_STDIO
@@ -2270,6 +2453,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
       ERR1("Cannot serialize function pointers %p", FUNPTR(n));
     }
     break;
+  case T_THID:
+    ERR("cannot serialize ThreadId yet");
   case T_FORPTR:
     if (n == comb_stdin)
       putsb("IO.stdin", f);
@@ -2411,6 +2596,10 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_ARR_WRITE: putsb("A.write", f); break;
   case T_ARR_EQ: putsb("A.==", f); break;
   case T_DYNSYM: putsb("dynsym", f); break;
+  case T_IO_FORK: fprintf(f, "IO.fork"); break;
+  case T_IO_NEWMVAR: fprintf(f, "IO.newmvar"); break;
+  case T_IO_TAKEMVAR: fprintf(f, "IO.takemvar"); break;
+  case T_IO_PUTMVAR: fprintf(f, "IO.putmvar"); break;
   case T_NEWCASTRINGLEN: putsb("newCAStringLen", f); break;
   case T_PACKCSTRING: putsb("packCString", f); break;
   case T_PACKCSTRINGLEN: putsb("packCStringLen", f); break;
@@ -3068,6 +3257,7 @@ compare(NODEPTR cmp)
       break;
     case T_INT:
     case T_IO_CCALL:
+    case T_THID:
       x = GETVALUE(p);
       y = GETVALUE(q);
       if (x < y)
@@ -3251,12 +3441,13 @@ evali(NODEPTR an)
   ap:
   case T_AP:   PUSH(n); n = FUN(n); goto top;
 
-  case T_INT:  RET;
-  case T_DBL:  RET;
-  case T_PTR:  RET;
+  case T_INT:    RET;
+  case T_DBL:    RET;
+  case T_PTR:    RET;
   case T_FUNPTR: RET;
   case T_FORPTR: RET;
-  case T_ARR:  RET;
+  case T_ARR:    RET;
+  case T_THID:   RET;
   case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
 
   /*
@@ -3713,6 +3904,10 @@ evali(NODEPTR an)
   case T_FPFIN:
     //  case T_FPSTR:
   case T_IO_GC:
+  case T_IO_FORK:
+  case T_IO_NEWMVAR:
+  case T_IO_TAKEMVAR:
+  case T_IO_PUTMVAR:
     RET;
 
   case T_DYNSYM:
@@ -4312,6 +4507,16 @@ execio(NODEPTR *np)
       //printf("gc()\n");
       gc();
       RETIO(combUnit);
+
+    case T_IO_FORK:
+      {
+        GCCHECK(1);
+        struct mthread *mt = new_thread(ARG(TOP(1)));
+        POP(1);
+        n = alloc_node(T_PTR);
+        PTR(n) = (void*)mt;
+        RETIO(n);
+      }
 
     default:
       //printf("bad tag %s\n", tag_names[GETTAG(n)]);
