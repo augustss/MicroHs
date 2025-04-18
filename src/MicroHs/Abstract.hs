@@ -3,10 +3,11 @@ module MicroHs.Abstract(
   -- reduce,
   ) where
 import qualified Prelude(); import MHSPrelude
+import Data.Maybe
 import MicroHs.Ident
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..))
-import Debug.Trace
+--import Debug.Trace
 
 --
 -- Used combinators
@@ -301,20 +302,9 @@ improveT ae =
           in
             if isC ff then
 --              trace ("flip " ++ show (aa, getFlip aa)) $
-              case getFlip aa of
-                Just fl -> fl
-                Nothing -> def
+              fromMaybe def $ getFlip aa
             else
               def
-{-
-            case getApp ff of
-              IsApp xf xa ->
-                if isK xf then
-                  xa
-                else
-                  def
-              NotApp -> def
--}
 
 getFlip :: Exp -> Maybe Exp
 getFlip (Lit (LPrim s)) = Lit . LPrim <$> lookup s flipOps
