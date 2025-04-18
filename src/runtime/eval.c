@@ -286,7 +286,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
-                T_IO_FORK, T_IO_NEWMVAR, T_IO_TAKEMVAR, T_IO_PUTMVAR,
+                T_IO_FORK, T_IO_THID, T_IO_THROWTO, T_IO_YIELD,
+                T_IO_NEWMVAR, T_IO_TAKEMVAR, T_IO_PUTMVAR,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
@@ -321,7 +322,8 @@ static const char* tag_names[] = {
   "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
   "IO_PERFORMIO", "IO_PRINT", "CATCH",
   "IO_CCALL", "IO_GC", "DYNSYM",
-  "IO_FORK", "IO_NEWMVAR", "IO_TAKEMVAR", "IO_PUTMVAR",
+  "IO_FORK", "IO_THID", "IO_THROWTO",
+  "IO_NEWMVAR", "IO_TAKEMVAR", "IO_PUTMVAR",
   "NEWCASTRINGLEN", "PACKCSTRING", "PACKCSTRINGLEN",
   "BSFROMUTF8",
   "STR",
@@ -645,6 +647,7 @@ struct mthread {
   struct mthread *mt_queue;     /* runq/waitq link */
   counter_t       mt_slice;     /* reduction steps until yielding */
   NODEPTR         mt_root;      /* root of the graph to reduce */
+  NODEPTR         mt_thrown;    /* possible thrown exception */
   int             mt_mark;      /* marked as accessible */
 };
 struct mthread  *all_threads = 0;   /* all threads */
@@ -690,6 +693,7 @@ new_thread(NODEPTR root)
     memerr();
   mt->mt_state = ts_run;
   mt->mt_root = root;
+  mt->mt_thrown = NIL;
   mt->mt_slice = 0;
   mt->mt_mark = 0;
 
@@ -729,7 +733,7 @@ start_exec(NODEPTR root)
     runq = mt->mt_queue;          /* skip this thread */
 
     mt->mt_state = ts_zombie;
-    mt->mt_root = 0;
+    mt->mt_root = NIL;
 
     if (!runq) {
       for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
@@ -744,11 +748,17 @@ start_exec(NODEPTR root)
 /* This is a yucky hack */
 int doing_rnf = 0;              /* REMOVE */
 
+void pp(FILE*, NODEPTR);
+
 /*static INLINE*/ void
 yield(void)
 {
+  printf("yield\n");
+  pp(stdout, runq->mt_root);
   COUNT(num_yield);
-  //printf("yield %d\n", (int)stack_ptr);
+  // XXX should check mt_thrown here
+  
+  // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq->mt_queue) {
     glob_slice = slice;
@@ -759,6 +769,7 @@ yield(void)
    *  stack pointer
    *  error handlers
    */
+  // printf("yield %p %d reschedule %p\n", runq, (int)stack_ptr, runq->mt_queue);
   runq->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
   stack_ptr = -1;               /* reset stack */
   doing_rnf = 0;
@@ -1025,6 +1036,9 @@ struct {
   { "A.==", T_ARR_EQ },
   { "dynsym", T_DYNSYM },
   { "IO.fork", T_IO_FORK },
+  { "IO.thid", T_IO_THID },
+  { "IO.throwto", T_IO_THROWTO },
+  { "IO.yield", T_IO_YIELD },
   { "IO.newmvar", T_IO_NEWMVAR },
   { "IO.takemvar", T_IO_TAKEMVAR },
   { "IO.putvar", T_IO_PUTMVAR },
@@ -1305,8 +1319,10 @@ mark(NODEPTR *np)
        struct mthread *mt = THR(n);
        if (!mt->mt_mark) {
          mt->mt_mark = 1;
-         if (mt->mt_root)
+         if (mt->mt_root != NIL)
            mark(&mt->mt_root);
+         if (mt->mt_thrown != NIL)
+           mark(&mt->mt_thrown);         
        }
      }
      break;
@@ -1364,9 +1380,11 @@ gc(void)
    * Note, zombie threads have no root so they are not marked.
    */
   for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
-    if (mt->mt_root && !mt->mt_mark) {
+    if (mt->mt_root != NIL && !mt->mt_mark) {
       mt->mt_mark = 1;
       mark(&mt->mt_root);
+      if (mt->mt_thrown != NIL)
+        mark(&mt->mt_thrown);
     }
   }
 
@@ -2604,6 +2622,9 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_ARR_EQ: putsb("A.==", f); break;
   case T_DYNSYM: putsb("dynsym", f); break;
   case T_IO_FORK: putsb("IO.fork", f); break;
+  case T_IO_THID: putsb("IO.thid", f); break;
+  case T_IO_THROWTO: putsb("IO.throwto", f); break;
+  case T_IO_YIELD: putsb("IO.yield", f); break;
   case T_IO_NEWMVAR: putsb("IO.newmvar", f); break;
   case T_IO_TAKEMVAR: putsb("IO.takemvar", f); break;
   case T_IO_PUTMVAR: putsb("IO.putmvar", f); break;
@@ -2679,17 +2700,15 @@ ppmsg(const char *msg, NODEPTR n)
   pp(stdout, n);
   printf("\n");
 }
-#endif
 
 void
 dump(const char *msg, NODEPTR at)
 {
-#if 0
   atptr = at;
   printf("dump: %s\n", msg);
   pp(stdout, *topnode);
-#endif
 }
+#endif
 
 #else  /* WANT_STDIO */
 NODEPTR
@@ -3018,6 +3037,19 @@ evalbstr(NODEPTR n)
   }
 #endif
   return FORPTR(n);
+}
+
+/* Evaluate to a T_THID */
+struct mthread *
+evalthid(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_THID) {
+    ERR1("evalthid, bad tag %d", GETTAG(n));
+  }
+#endif
+  return THR(n);
 }
 
 /* Evaluate a string, returns a newly allocated buffer.
@@ -3917,6 +3949,9 @@ evali(NODEPTR an)
     //  case T_FPSTR:
   case T_IO_GC:
   case T_IO_FORK:
+  case T_IO_THID:
+  case T_IO_THROWTO:
+  case T_IO_YIELD:
   case T_IO_NEWMVAR:
   case T_IO_TAKEMVAR:
   case T_IO_PUTMVAR:
@@ -4219,7 +4254,8 @@ execio(NODEPTR *np)
   int hdr;
 #endif  /* WANT_STDIO */
   NODEPTR top;
-
+  struct mthread *mt;
+  
 /* IO operations need all arguments, anything else should not happen. */
 #define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*printf("\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
 /* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
@@ -4515,20 +4551,30 @@ execio(NODEPTR *np)
 #endif
 
     case T_IO_GC:
-      CHECKIO(0);
       //printf("gc()\n");
       gc();
       RETIO(combUnit);
 
     case T_IO_FORK:
-      {
-        GCCHECK(1);
-        struct mthread *mt = new_thread(ARG(TOP(1)));
-        POP(1);
-        n = alloc_node(T_PTR);
-        PTR(n) = (void*)mt;
-        RETIO(n);
-      }
+      CHECKIO(1);
+      GCCHECK(1);
+      mt = new_thread(ARG(TOP(1)));
+      n = alloc_node(T_THID);
+      THR(n) = mt;
+      RETIO(n);
+    case T_IO_THID:
+      GCCHECK(1);
+      n = alloc_node(T_THID);
+      THR(n) = runq;            /* head of the run queue is the current thread */
+      RETIO(n);      
+    case T_IO_THROWTO:
+      CHECKIO(2);
+      mt = evalthid(ARG(TOP(1)));
+      mt->mt_thrown = ARG(TOP(2)); /* XXX might overwrite old exception */
+      RETIO(combUnit);
+    case T_IO_YIELD:
+      yield();
+      RETIO(combUnit);
 
     default:
       //printf("bad tag %s\n", tag_names[GETTAG(n)]);

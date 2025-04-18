@@ -19,8 +19,11 @@ module Control.Exception(
   displaySomeException,
   evaluate,
   mapException,
+
+  mask,
   --
   ArithException(..),
+  SomeAsyncException(..), AsyncException(..),
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Exception.Internal
@@ -116,3 +119,38 @@ data ArithException
   | RatioZeroDenominator
   deriving (Eq, Ord, Show, Typeable)
 instance Exception ArithException
+
+-------------------
+
+data SomeAsyncException = forall e . Exception e => SomeAsyncException e
+  deriving (Typeable)
+
+instance Show SomeAsyncException where
+    showsPrec p (SomeAsyncException e) = showsPrec p e
+
+instance Exception SomeAsyncException
+
+asyncExceptionToException :: Exception e => e -> SomeException
+asyncExceptionToException = toException . SomeAsyncException
+
+asyncExceptionFromException :: Exception e => SomeException -> Maybe e
+asyncExceptionFromException x = do
+    SomeAsyncException a <- fromException x
+    cast a
+
+data AsyncException
+  = StackOverflow
+  | HeapOverflow
+  | ThreadKilled
+  | UserInterrupt
+  deriving (Eq, Ord, Typeable)
+
+instance Show AsyncException where
+  showsPrec _ StackOverflow   = showString "stack overflow"
+  showsPrec _ HeapOverflow    = showString "heap overflow"
+  showsPrec _ ThreadKilled    = showString "thread killed"
+  showsPrec _ UserInterrupt   = showString "user interrupt"
+
+instance Exception AsyncException where
+  toException = asyncExceptionToException
+  fromException = asyncExceptionFromException

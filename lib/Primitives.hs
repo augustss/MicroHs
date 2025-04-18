@@ -36,6 +36,7 @@ data Ptr a
 data ForeignPtr a
 data FunPtr a
 data IOArray a
+data ThreadId
 -- (), (,), (,,), etc are built in to the compiler
 
 primIntAdd :: Int -> Int -> Int
@@ -296,3 +297,15 @@ primNewForeignPtr = _primitive "fpnew"
 
 primAddFinalizer :: FunPtr (Ptr a -> IO ()) -> ForeignPtr a -> IO ()
 primAddFinalizer = _primitive "fpfin"
+
+primForkIO :: IO () -> IO ThreadId
+primForkIO = _primitive "IO.fork"
+
+primThreadIdToWord :: forall a . ThreadId -> Word
+primThreadIdToWord = _primitive "toInt"
+
+primMyThreadId :: IO ThreadId
+primMyThreadId = _primitive "IO.thid"
+
+primYield :: IO ()
+primYield = _primitive "IO.yield"
