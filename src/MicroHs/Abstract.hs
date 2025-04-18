@@ -6,6 +6,7 @@ import qualified Prelude(); import MHSPrelude
 import MicroHs.Ident
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..))
+import Debug.Trace
 
 --
 -- Used combinators
@@ -272,33 +273,39 @@ improveT ae =
           aa
 -}
         else if isB ff && isK aa then
-          Lit (LPrim "Z")
+          Lit (LPrim "Z")             -- B K = Z
         else if isC ff && isI aa then
-          Lit (LPrim "U")
+          Lit (LPrim "U")             -- C I = U
         else if isB ff && isB aa then
-          Lit (LPrim "B'")
+          Lit (LPrim "B'")            -- B B = B'
         else if isC ff && isC aa then
-          Lit (LPrim "R")
+          Lit (LPrim "R")             -- C C = R
         else if isCC ff && isB aa then
-          Lit (LPrim "C'B")
+          Lit (LPrim "C'B")           -- C' B = C'B
         else if isZ ff && isK aa then
-          Lit (LPrim "K2")
+          Lit (LPrim "K2")            -- Z K = K2
         else if isZ ff && isK2 aa then
-          Lit (LPrim "K3")
+          Lit (LPrim "K3")            -- Z K2 = K3
         else if isZ ff && isK3 aa then
-          Lit (LPrim "K4")
+          Lit (LPrim "K4")            -- Z K3 = K4
         else
           let
             def =
               case getApp aa of
                 IsApp ck e ->
                   if isY ff && isK ck then
-                    e
+                    e                -- Y (K e) = e
                   else
                     kApp ff aa
                 NotApp -> kApp ff aa
           in
-            def
+            if isC ff then
+--              trace ("flip " ++ show (aa, getFlip aa)) $
+              case getFlip aa of
+                Just fl -> fl
+                Nothing -> def
+            else
+              def
 {-
             case getApp ff of
               IsApp xf xa ->
@@ -309,6 +316,37 @@ improveT ae =
               NotApp -> def
 -}
 
+getFlip :: Exp -> Maybe Exp
+getFlip (Lit (LPrim s)) = Lit . LPrim <$> lookup s flipOps
+getFlip _ = Nothing
+
+flipOps :: [(String, String)]
+flipOps =
+  [ ("+",   "+")
+  , ("*",   "*")
+  , ("-",   "subtract")
+  , ("==",  "==")
+  , ("/=",  "/=")
+  , ("<",   ">")
+  , ("<=",  ">=")
+  , (">",   "<")
+  , (">=",  "<=")
+  , ("u<",  "u>")
+  , ("u<=", "u>=")
+  , ("u>",  "u<")
+  , ("u>=", "u<=")
+  , ("f+",  "f+")
+  , ("f*",  "f*")
+  , ("f==", "f==")
+  , ("f/=", "f/=")
+  , ("f<",  "f>")
+  , ("f<=", "f>=")
+  , ("f>",  "f<")
+  , ("f>=", "f<=")
+  , ("and", "and")
+  , ("or",  "or")
+  , ("xor", "xor")
+  ]
 
 kApp :: Exp -> Exp -> Exp
 kApp (Lit (LPrim "K")) (App (Lit (LPrim ('K':s))) x)
