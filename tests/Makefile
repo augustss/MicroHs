@@ -95,6 +95,7 @@ test:
 	$(TMHS) StandDer   && $(EVAL) > StandDer.out   && diff StandDer.ref StandDer.out
 	MHSCPPHS=../bin/cpphs $(TMHS) Cpp        && $(EVAL) > Cpp.out        && diff Cpp.ref Cpp.out
 	$(TMHS) Lit        && $(EVAL) > Lit.out        && diff Lit.ref Lit.out
+	$(TMHS) TypeOp     && $(EVAL) > TypeOp.out     && diff TypeOp.ref TypeOp.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

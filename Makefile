@@ -20,7 +20,7 @@ GHCINCS= -ighc -isrc -ipaths
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -Wno-deprecations
 GHCOPTS= -O
 GHCEXTS= -XScopedTypeVariables -XTypeSynonymInstances -XMultiParamTypeClasses -XFlexibleInstances
-GHCPKGS= -package mtl -package pretty -package haskeline -package process -package time -package ghc-prim -package containers -package deepseq -package directory -package text -package bytestring -package filepath
+GHCPKGS= -package mtl -package pretty -package haskeline -package process -package time -package ghc-prim -package containers -package deepseq -package directory -package text -package bytestring -package filepath -package array
 GHCTOOL= # -F -pgmF Tools/convertX.sh
 GHCOUTDIR= ghc-out
 GHCOUT= -outputdir $(GHCOUTDIR)
@@ -183,7 +183,7 @@ bin/umhs: bin/mhs
 timecompile: bin/mhs
 	@date
 	@git rev-parse HEAD
-	time bin/mhs +RTS -v -RTS -s $(MHSINC) $(MAINMODULE)
+	time bin/mhs +RTS -v -RTS $(MHSINC) $(MAINMODULE)
 
 #
 timecachecompile: bin/mhs
@@ -258,8 +258,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.12.5.0
-HVERSION=0,12,5,0
+VERSION=0.12.5.1
+HVERSION=0,12,5,1
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data

@@ -295,41 +295,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_BSAPPENDDOT,
                 T_LAST_TAG,
 };
-#if 0
-static const char* tag_names[] = {
-  "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR",
-  "S", "K", "I", "B", "C",
-  "A", "Y", "SS", "BB", "CC", "P", "R", "O", "U", "Z",
-  "K2", "K3", "K4", "CCB",
-  "ADD", "SUB", "MUL", "QUOT", "REM", "SUBR", "UQUOT", "UREM", "NEG",
-  "AND", "OR", "XOR", "INV", "SHL", "SHR", "ASHR",
-  "POPCOUNT", "CLZ", "CTZ",
-  "EQ", "NE", "LT", "LE", "GT", "GE", "ULT", "ULE", "UGT", "UGE",
-  "FPADD", "FP2P", "FPNEW", "FPFIN",
-  "TOPTR", "TOINT", "TODBL", "TOFUNPTR",
-  "BININT2", "BININT1", "UNINT1",
-  "BINDBL2", "BINDBL1", "UNDBL1",
-#if WANT_FLOAT
-  "FADD", "FSUB", "FMUL", "FDIV", "FNEG", "ITOF",
-  "FEQ", "FNE", "FLT", "FLE", "FGT", "FGE", "FSHOW", "FREAD",
-#endif
-  "ARR_ALLOC", "ARR_COPY", "ARR_SIZE", "ARR_READ", "ARR_WRITE", "ARR_EQ",
-  "RAISE", "SEQ", "EQUAL", "COMPARE", "RNF",
-  "TICK",
-  "IO_BIND", "IO_THEN", "IO_RETURN",
-  "C'BIND",
-  "IO_SERIALIZE", "IO_DESERIALIZE",
-  "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
-  "IO_PERFORMIO", "IO_PRINT", "CATCH",
-  "IO_CCALL", "IO_GC", "DYNSYM",
-  "IO_FORK", "IO_THID", "IO_THROWTO",
-  "IO_NEWMVAR", "IO_TAKEMVAR", "IO_PUTMVAR",
-  "NEWCASTRINGLEN", "PACKCSTRING", "PACKCSTRINGLEN",
-  "BSFROMUTF8",
-  "STR",
-  "LAST_TAG",
-};
-#endif
+static const char* tag_names[T_LAST_TAG+1];
 
 struct ioarray;
 struct bytestring;
@@ -950,17 +916,17 @@ struct {
   { "ctz", T_CTZ },
 #if WANT_FLOAT
   { "f+" , T_FADD, T_FADD},
-  { "f-" , T_FSUB, T_FSUB},
+  { "f-" , T_FSUB },
   { "f*" , T_FMUL, T_FMUL},
   { "f/", T_FDIV},
   { "fneg", T_FNEG},
   { "itof", T_ITOF},
   { "f==", T_FEQ, T_FEQ},
   { "f/=", T_FNE, T_FNE},
-  { "f<", T_FLT},
-  { "f<=", T_FLE},
-  { "f>", T_FGT},
-  { "f>=", T_FGE},
+  { "f<", T_FLT, T_FGT},
+  { "f<=", T_FLE, T_GE},
+  { "f>", T_FGT, T_LT},
+  { "f>=", T_FGE, T_FLE},
   { "fshow", T_FSHOW},
   { "fread", T_FREAD},
 #endif  /* WANT_FLOAT */
@@ -969,10 +935,10 @@ struct {
   { "bs++.", T_BSAPPENDDOT },
   { "bs==", T_BSEQ, T_BSEQ },
   { "bs/=", T_BSNE, T_BSNE },
-  { "bs<", T_BSLT },
-  { "bs<=", T_BSLE },
-  { "bs>", T_BSGT },
-  { "bs>=", T_BSGE },
+  { "bs<", T_BSLT, T_BSGT },
+  { "bs<=", T_BSLE, T_BSGE  },
+  { "bs>", T_BSGT, T_BSLT },
+  { "bs>=", T_BSGE, T_BSLE  },
   { "bscmp", T_BSCMP },
   { "bspack", T_BSPACK },
   { "bsunpack", T_BSUNPACK },
@@ -1052,7 +1018,7 @@ struct {
 };
 
 #if GCRED
-enum node_tag flip_ops[T_LAST_TAG];
+enum node_tag flip_ops[T_LAST_TAG+1];
 #endif
 
 #if WANT_STDIO
@@ -1129,6 +1095,7 @@ init_nodes(void)
       if (primops[j].tag == t) {
         primops[j].node = n;
       }
+      tag_names[primops[j].tag] = primops[j].name;
     }
   }
 

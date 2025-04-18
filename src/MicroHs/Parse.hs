@@ -252,8 +252,8 @@ pLSymOper :: P Ident
 pLSymOper = guardM pSymOper (not . isUOper)
 
 reservedOps :: [String]
-reservedOps = ["::", "<-", "..", "->",
-               "\x2237", "\x2192"] -- :: and ->
+reservedOps = ["::", "<-", "..", "->", "=>",
+               "\x2237", "\x2192", "\x21d2"] -- ::, -> and =>
 
 pUQIdentSym :: P Ident
 pUQIdentSym = pUQIdent <|> pParens pUQSymOper
@@ -463,10 +463,7 @@ pSimpleStrat = (DerStock <$ pKeyword "stock") <|> (DerNewtype <$ pKeyword "newty
 pContext :: P [EConstraint]
 pContext = (pCtx <* pDRArrow) <|> pure []
   where
-    pCtx =     (eq <$> pTypeArg <*> pTilde <*> pTypeArg)   -- A hack to allow   a~b => ...
-           <|> ((:[]) <$> pTypeApp)
-    eq t1 i t2 = [eAppI2 i t1 t2]
-    pTilde = do i <- pQSymOper; guard (i == mkIdent "~"); return i
+    pCtx = (:[]) <$> pOperators pOper pTypeArg
 
 pDRArrow :: P ()
 pDRArrow = pSymbol "=>" <|> pSymbol "\x21d2"
