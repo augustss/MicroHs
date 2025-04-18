@@ -857,6 +857,8 @@ struct {
 enum node_tag flip_ops[T_LAST_TAG+1];
 #endif
 
+void pp(FILE *f, NODEPTR n);
+
 #if WANT_STDIO
 /* Create a dummy foreign pointer for the standard stdio handles. */
 /* These handles are never gc():d. */
@@ -992,9 +994,6 @@ mark(NODEPTR *np)
   stackptr_t stk = stack_ptr;
   NODEPTR n;
   NODEPTR *to_push = 0;         /* silence warning by initializing */
-#if GCRED
-  value_t val;
-#endif
   enum node_tag tag;
 
   //  mark_depth++;
@@ -1033,14 +1032,17 @@ mark(NODEPTR *np)
   mark_used(n);
   switch (tag) {
 #if GCRED
-   case T_INT:
+  case T_INT:
 #if INTTABLE
-    if (LOW_INT <= (val = GETVALUE(n)) && val < HIGH_INT) {
-      SETINDIR(n, intTable[val - LOW_INT]);
-      COUNT(red_int);
-      goto top;
-    }
-    goto fin;
+     {
+     value_t val;
+     if (LOW_INT <= (val = GETVALUE(n)) && val < HIGH_INT) {
+       SETINDIR(n, intTable[val - LOW_INT]);
+       COUNT(red_int);
+       goto top;
+     }
+     }
+     goto fin;
 #endif  /* INTTABLE */
    case T_AP:
       if (want_gc_red) {
@@ -1052,7 +1054,6 @@ mark(NODEPTR *np)
           COUNT(red_a);
           goto top;
         }
-#if 0
         /* This never seems to happen */
         if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
           /* Do the K x y --> x reduction */
@@ -1061,19 +1062,18 @@ mark(NODEPTR *np)
           COUNT(red_k);
           goto top;
         }
-#endif  /* 0 */
-        if (GETTAG(FUN(n)) == T_I) {
+        /*
+         * This is mysteriously broken.
+         * Running bin/mhs +RTS -v -RTS -s -i  -imhs -isrc -ilib -ipaths  MicroHs.Main
+         * triggers the bug
+         */
+        if (0 && GETTAG(FUN(n)) == T_I) {
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
           SETINDIR(n, x);
           COUNT(red_i);
           goto top;
         }
-#if 0
-        /* This is broken.
-         * Probably because it can happen in the middle of the C reduction code.
-         */
-        DO NOT ENABLE
         if (GETTAG(FUN(n)) == T_C) {
           NODEPTR q = ARG(n);
           enum node_tag tt, tf;
@@ -1081,13 +1081,12 @@ mark(NODEPTR *np)
             q = GETINDIR(q);
           if ((tf = flip_ops[tt])) {
             /* Do the C op --> flip_op reduction */
-            // PRINT("%s -> %s\n", tag_names[tt], tag_names[tf]);
+            // printf("%s -> %s\n", tag_names[tt], tag_names[tf]);
             SETINDIR(n, HEAPREF(tf));
             COUNT(red_flip);
-            goto fin;
+            goto top;
           }
         }
-#endif
       }
 #else   /* GCRED */
    case T_AP:
@@ -4436,8 +4435,9 @@ MAIN
   PUSH(prog);
   want_gc_red = 1;
   gc();
-  want_gc_red = 0;
+  //want_gc_red = 0;
   prog = POPTOP();
+  /*pp(stdout, prog);*/
 
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
