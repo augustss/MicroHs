@@ -283,7 +283,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_CCBIND,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
-                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGREF,
+                T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
@@ -291,9 +291,11 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT,
+                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_LAST_TAG,
 };
-static const char* tag_names[T_LAST_TAG+1];
+static const char* tag_names[T_LAST_TAG+1] =
+  { "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID" };
 
 struct ioarray;
 struct bytestring;
@@ -338,6 +340,7 @@ typedef struct node* NODEPTR;
 #define FORPTR(p) (p)->uarg.uuforptr
 #define BSTR(p) (p)->uarg.uuforptr->payload
 #define ARR(p) (p)->uarg.uuarray
+#define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
 #define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
 #define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
 #define NODE_SIZE sizeof(node)
@@ -3209,9 +3212,23 @@ evali(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
  top:
-  COUNT(num_reductions);
   l = LABEL(n);
-  tag = l < T_IO_BIND ? l : GETTAG(n);
+  if (l < T_IO_STDIN) {
+    /* The node is one of the permanent nodes; the address offset is the tag */
+    tag = l;
+  } else {
+    /* Heap allocated node */
+    if (ISINDIR(n)) {
+      /* Follow indirections */
+      NODEPTR on = n;
+      do {
+        n = GETINDIR(n);
+      } while(ISINDIR(n));
+      SETINDIR(on, n);          /* and short-circuit them */
+    }
+    tag = GETTAG(n);
+  }
+  COUNT(num_reductions);
   switch (tag) {
   ind:
   case T_IND:  n = GETINDIR(n); goto top;
@@ -3704,7 +3721,7 @@ evali(NODEPTR an)
 #endif
 
   default:
-    ERR1("eval tag %d", GETTAG(n));
+    ERR1("eval tag %s", tag_names[GETTAG(n)]);
   }
 
 
