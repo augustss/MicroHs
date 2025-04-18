@@ -1,3 +1,4 @@
+module TypeOp where
 import Data.Coerce
 
 data a + b = Plus a b
