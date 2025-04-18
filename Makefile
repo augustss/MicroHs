@@ -183,7 +183,7 @@ bin/umhs: bin/mhs
 timecompile: bin/mhs
 	@date
 	@git rev-parse HEAD
-	time bin/mhs +RTS -v -RTS -s $(MHSINC) $(MAINMODULE)
+	time bin/mhs +RTS -v -RTS $(MHSINC) $(MAINMODULE)
 
 #
 timecachecompile: bin/mhs
