@@ -293,9 +293,12 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT,
+                T_IO_PP,           /* for debugging */
                 T_LAST_TAG,
 };
-static const char* tag_names[T_LAST_TAG+1];
+/* Most entries are initialized from the primops table. */
+static const char* tag_names[T_LAST_TAG+1] =
+  { "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID" };
 
 struct ioarray;
 struct bytestring;
@@ -343,6 +346,7 @@ typedef struct node* NODEPTR;
 #define BSTR(p) (p)->uarg.uuforptr->payload
 #define ARR(p) (p)->uarg.uuarray
 #define THR(p) (p)->uarg.uuthread
+#define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
 #define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
 #define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
 #define NODE_SIZE sizeof(node)
@@ -650,27 +654,7 @@ remove_runq_head(void)
   return mt;
 }
 
-struct mthread*
-new_thread(NODEPTR root)
-{
-  COUNT(num_thread_create);
-  struct mthread *mt = MALLOC(sizeof(struct mthread));
-  if (!mt)
-    memerr();
-  mt->mt_state = ts_run;
-  mt->mt_root = root;
-  mt->mt_thrown = NIL;
-  mt->mt_slice = 0;
-  mt->mt_mark = 0;
-
-  /* add to all_threads */
-  mt->mt_next = all_threads;
-  all_threads = mt;
-
-  /* add to tail of runq */
-  add_runq_tail(mt);
-  return mt;
-}
+struct mthread* new_thread(NODEPTR root);
 
 void
 start_exec(NODEPTR root)
@@ -693,7 +677,7 @@ start_exec(NODEPTR root)
     mt = runq;                    /* front thread */
     //mt->mt_slice = slice;         /* give it a time slice */
     glob_slice = mt->mt_slice + slice;
-    //printf("slice=%d\n", (int)glob_slice);
+    /*printf("slice=%d\n", (int)glob_slice);*/
     execio(&mt->mt_root);         /* run it */
     /* when execio() returns the thread is done */
     runq = mt->mt_queue;          /* skip this thread */
@@ -719,14 +703,14 @@ void pp(FILE*, NODEPTR);
 /*static INLINE*/ void
 yield(void)
 {
-  printf("yield\n");
-  pp(stdout, runq->mt_root);
+  //printf("yield stk=%d\n", (int)stack_ptr);
+  //pp(stdout, runq->mt_root);
   COUNT(num_yield);
   // XXX should check mt_thrown here
   
   // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
-  if (!runq->mt_queue) {
+  if (0 && !runq->mt_queue) {
     glob_slice = slice;
     return;
   }
@@ -992,6 +976,7 @@ struct {
   { "IO.getArgRef", T_IO_GETARGREF },
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.gc", T_IO_GC },
+  { "IO.pp", T_IO_PP },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
   { "A.alloc", T_ARR_ALLOC },
@@ -1466,6 +1451,30 @@ gc_check(size_t k)
     PRINT("gc_check: %d\n", (int)k);
 #endif
   gc();
+}
+
+/* See comment for execio() why the root = BIND root RETURN. */
+struct mthread*
+new_thread(NODEPTR root)
+{
+  GCCHECK(2);
+  COUNT(num_thread_create);
+  struct mthread *mt = MALLOC(sizeof(struct mthread));
+  if (!mt)
+    memerr();
+  mt->mt_state = ts_run;
+  mt->mt_root = new_ap(new_ap(combIOBIND, root), combIORETURN);
+  mt->mt_thrown = NIL;
+  mt->mt_slice = 0;
+  mt->mt_mark = 0;
+
+  /* add to all_threads */
+  mt->mt_next = all_threads;
+  all_threads = mt;
+
+  /* add to tail of runq */
+  add_runq_tail(mt);
+  return mt;
 }
 
 static INLINE
@@ -2361,7 +2370,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   int share = 0;
 
   while (GETTAG(n) == T_IND) {
-    //putb('*', f);
+    /*putb('*', f);*/
     n = GETINDIR(n);
   }
 
@@ -2575,6 +2584,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_IO_CCBIND: putsb("IO.C'BIND", f); break;
   case T_IO_SERIALIZE: putsb("IO.serialize", f); break;
   case T_IO_PRINT: putsb("IO.print", f); break;
+  case T_IO_PP: putsb("IO.pp", f); break;
   case T_IO_DESERIALIZE: putsb("IO.deserialize", f); break;
   case T_IO_GETARGREF: putsb("IO.getArgRef", f); break;
   case T_IO_PERFORMIO: putsb("IO.performIO", f); break;
@@ -3435,6 +3445,14 @@ evali(NODEPTR an)
  top:
   if (--glob_slice <= 0)
     yield();
+#define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
+  if (ISINDIR(n)) {
+    NODEPTR on = n;
+    do {
+      n = GETINDIR(n);
+    } while(ISINDIR(n));
+    SETINDIR(on, n);
+  }
   COUNT(num_reductions);
   l = LABEL(n);
   tag = l < T_IO_BIND ? l : GETTAG(n);
@@ -3902,6 +3920,7 @@ evali(NODEPTR an)
   case T_IO_DESERIALIZE:
   case T_IO_GETARGREF:
   case T_IO_CCALL:
+  case T_IO_PP:
   case T_CATCH:
   case T_NEWCASTRINGLEN:
   case T_PACKCSTRING:
@@ -4230,10 +4249,7 @@ execio(NODEPTR *np)
 #define RETIO(p) do { stack_ptr = stk; res = (p); goto rest; } while(0)
 #define IOASSERT(p,s) do { if (!(p)) ERR("IOASSERT " s); } while(0)
 
-  GCCHECK(2);
-  top = new_ap(new_ap(combIOBIND, *np), combIORETURN);
-  *np = top;
-
+  top = *np;
  start:
   //dump("start", top);
   IOASSERT(stack_ptr == stk, "start");
@@ -4285,11 +4301,12 @@ execio(NODEPTR *np)
   PUSH(n);
   for(;;) {
     COUNT(num_reductions);
-    //printf("execute switch %s\n", tag_names[GETTAG(n)]);
+    /*printf("execute switch %s\n", tag_names[GETTAG(n)]);*/
     switch (GETTAG(n)) {
     case T_IND:
       n = GETINDIR(n);
       TOP(0) = n;
+      num_reductions--;
       break;
     case T_AP:
       n = FUN(n);
@@ -4306,6 +4323,9 @@ execio(NODEPTR *np)
       n = ARG(TOP(1));
       RETIO(n);
 #if WANT_STDIO
+    case T_IO_PP:               /* for debugging */
+      pp(stderr, ARG(TOP(1)));
+      RETIO(combUnit);
     case T_IO_PRINT:
       hdr = 0;
       goto ser;
@@ -4545,7 +4565,7 @@ execio(NODEPTR *np)
 
     default:
       //printf("bad tag %s\n", tag_names[GETTAG(n)]);
-      ERR1("execio tag %d", GETTAG(n));
+      ERR1("execio tag %s", tag_names[GETTAG(n)]);
     }
   }
 }
