@@ -3878,6 +3878,8 @@ execio(NODEPTR *np)
   int hdr;
 #endif  /* WANT_STDIO */
   NODEPTR top;
+  enum node_tag tag;
+  heapoffs_t l;
 
 /* IO operations need all arguments, anything else should not happen. */
 #define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*printf("\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
@@ -3942,11 +3944,25 @@ execio(NODEPTR *np)
   for(;;) {
     COUNT(num_reductions);
     //printf("execute switch %s\n", tag_names[GETTAG(n)]);
-    switch (GETTAG(n)) {
-    case T_IND:
-      n = GETINDIR(n);
-      TOP(0) = n;
-      break;
+
+    l = LABEL(n);
+    if (l < T_IO_STDIN) {
+      /* The node is one of the permanent nodes; the address offset is the tag */
+      tag = l;
+    } else {
+      /* Heap allocated node */
+      if (ISINDIR(n)) {
+        /* Follow indirections */
+        NODEPTR on = n;
+        do {
+          n = GETINDIR(n);
+        } while(ISINDIR(n));
+        SETINDIR(on, n);          /* and short-circuit them */
+      }
+      tag = GETTAG(n);
+    }
+
+    switch (tag) {
     case T_AP:
       n = FUN(n);
       PUSH(n);
