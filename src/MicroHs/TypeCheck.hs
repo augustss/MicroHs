@@ -3213,7 +3213,7 @@ solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETupl
 solveTypeEq _ _ _ = impossible
 
 solveCoercible :: HasCallStack => SolveOne
-solveCoercible loc _iCls [t1, t2] = do
+solveCoercible loc iCls [t1, t2] = do
   st <- gets synTable
   extNewtypeSyns        -- pretend newtypes are type synonyms
   t1' <- expandSyn t1
@@ -3223,8 +3223,8 @@ solveCoercible loc _iCls [t1, t2] = do
   -- and generate new Coercible constraints when not equal.
 --  traceM $ "solveCoercible: " ++ showExprRaw t1' ++ " and " ++ showExprRaw t2'
   case genCoerce t1' t2' of
-    Nothing -> return Nothing
-    Just [(u1, u2)] | u1 `eqEType` t1 && u2 `eqEType` t2 -> return Nothing  -- Nothing has improved
+    Nothing -> solveInstCoercible loc iCls t1 t2  -- look for a dict argument
+    Just [(u1, u2)] | u1 `eqEType` t1 && u2 `eqEType` t2 -> solveInstCoercible loc iCls t1 t2  -- look for a dict argument
     Just tts -> do
       let mkCo (u1, u2) = do
             i <- newDictIdent loc
@@ -3241,6 +3241,13 @@ genCoerce t1 t2@(EUVar _) = Just [(t1, t2)]
 genCoerce t1 t2@(EVar _)  = Just [(t1, t2)]
 genCoerce (EApp f1 a1) (EApp f2 a2) = (++) <$> genCoerce f1 f2 <*> genCoerce a1 a2
 genCoerce _ _ = Nothing
+
+solveInstCoercible :: SLoc -> Ident -> EType -> EType -> T (Maybe (Expr, [Goal], [Improve]))
+solveInstCoercible loc iCls t1 t2 = do
+  msol <- solveInst loc iCls [t1, t2]
+  case msol of
+    Nothing -> solveInst loc iCls [t2, t1]
+    Just _ -> pure msol
 
 -- Pretend newtypes are type synonyms.
 -- XXX It's rather inefficient to do this over and over.
