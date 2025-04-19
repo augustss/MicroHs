@@ -192,17 +192,12 @@ primSeq    = _primitive "seq"
 --primEqual  = _primitive "equal"
 
 -- Works for Int, Char, String
-primStringCompare :: [Char] -> [Char] -> Ordering
-primStringCompare  = _primitive "scmp"
 primIntCompare :: Int -> Int -> Ordering
 primIntCompare  = _primitive "icmp"
 primCharCompare :: Char -> Char -> Ordering
 primCharCompare  = _primitive "icmp"
 primWordCompare :: Word -> Word -> Ordering
 primWordCompare  = _primitive "ucmp"
-
-primStringEQ  :: [Char] -> [Char] -> Bool
-primStringEQ  = _primitive "sequal"
 
 primChr :: Int -> Char
 primChr = _primitive "chr"

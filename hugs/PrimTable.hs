@@ -76,9 +76,6 @@ primOps =
   , cmpw "u>=" (>=)
   , comb "icmp" (\ x y -> fromOrdering (compare (x::Int) y))
 
-  , comb "scmp" (\ x y -> fromOrdering (compare (toString x) (toString y)))
-  , comb "sequal" (\ x y -> fromBool (toString x == toString y))
-
   , comb "p==" (\ x y -> fromBool ((x :: Ptr ()) == y))
   , comb "pnull" nullPtr
   , comb "pcast" castPtr
