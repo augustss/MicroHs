@@ -3284,8 +3284,7 @@ evali(NODEPTR an)
 #define CHECK(n) do { if (!HASNARGS(n)) RET; } while(0)
 
 #define SETIND(n, x) SETINDIR(n, x)
-  /* #define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0) no noticable speedup */
-#define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
+#define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0)
 #define GOAP(f,a) do { FUN((n)) = (f); ARG((n)) = (a); goto ap; } while(0)
 #define GOAP2(f,a,b) do { FUN((n)) = new_ap((f), (a)); ARG((n)) = (b); goto ap2; } while(0)
 /* CHKARGN checks that there are at least N arguments.
@@ -3300,6 +3299,7 @@ evali(NODEPTR an)
 #define CHKARG2 do { CHECK(2); POP(2); n = TOP(-1); y = ARG(n); x = ARG(TOP(-2)); } while(0)
 #define CHKARG3 do { CHECK(3); POP(3); n = TOP(-1); z = ARG(n); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
+#define CHKARG5 do { CHECK(5); POP(5); n = TOP(-1); /*v = ARG(n);*/ w = ARG(TOP(-2)); z = ARG(TOP(-3)); y = ARG(TOP(-4)); x = ARG(TOP(-5)); } while(0)
 
 /* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e)   do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
@@ -3343,9 +3343,6 @@ evali(NODEPTR an)
   }
   COUNT(num_reductions);
   switch (tag) {
-  ind:
-  case T_IND:  n = GETINDIR(n); goto top;
-
   ap2:         PUSH(n); n = FUN(n);
   ap:
   case T_AP:   PUSH(n); n = FUN(n); goto top;
@@ -3394,7 +3391,7 @@ evali(NODEPTR an)
                            CHKARG4; GOIND(x); }                                           /* K3 x y z w = *x */
   case T_K4:   if (!HASNARGS(5)) {
                            CHKARG2; COUNT(red_k4); GOAP(combK3, x); } else {              /* K4 x y = K3 x */
-                           CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x); }   /* K4 x y z w v = *x */
+                           CHKARG5; GOIND(x); }                                           /* K4 x y z w v = *x */
   case T_CCB:  if (!HASNARGS(4)) {
                GCCHECK(2); CHKARG3; COUNT(red_ccb); GOAP2(combB, new_ap(x, z), y);} else{ /* C'B x y z = B (x z) y */
                GCCHECK(2); CHKARG4; GOAP2(x, z, new_ap(y, w)); }                          /* C'B x y z w = x z (y w) */
@@ -4127,7 +4124,9 @@ execio(NODEPTR *np, int dowrap)
 #endif  /* WANT_STDIO */
   NODEPTR top;
   struct mthread *mt;
-  
+  enum node_tag tag;
+  heapoffs_t l;
+
 /* IO operations need all arguments, anything else should not happen. */
 #define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*printf("\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
 /* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
@@ -4192,13 +4191,26 @@ execio(NODEPTR *np, int dowrap)
   PUSH(n);
   for(;;) {
     COUNT(num_reductions);
-    /*printf("execute switch %s\n", tag_names[GETTAG(n)]);*/
-    switch (GETTAG(n)) {
-    case T_IND:
-      n = GETINDIR(n);
-      TOP(0) = n;
-      num_reductions--;
-      break;
+    //printf("execute switch %s\n", tag_names[GETTAG(n)]);
+
+    l = LABEL(n);
+    if (l < T_IO_STDIN) {
+      /* The node is one of the permanent nodes; the address offset is the tag */
+      tag = l;
+    } else {
+      /* Heap allocated node */
+      if (ISINDIR(n)) {
+        /* Follow indirections */
+        NODEPTR on = n;
+        do {
+          n = GETINDIR(n);
+        } while(ISINDIR(n));
+        SETINDIR(on, n);          /* and short-circuit them */
+      }
+      tag = GETTAG(n);
+    }
+
+    switch (tag) {
     case T_AP:
       n = FUN(n);
       PUSH(n);
