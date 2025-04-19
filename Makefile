@@ -195,7 +195,7 @@ timecachecompile: bin/mhs
 timemhscompile:
 	@date
 	@git rev-parse HEAD
-	time mhs +RTS -v -RTS -z -s -imhs -isrc -ipaths $(MAINMODULE)
+	time mhs +RTS -v -RTS -z -imhs -isrc -ipaths $(MAINMODULE)
 
 #
 timegmhscompile:
@@ -258,8 +258,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.12.5.1
-HVERSION=0,12,5,1
+VERSION=0.12.5.2
+HVERSION=0,12,5,2
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data

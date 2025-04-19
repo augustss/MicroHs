@@ -2156,6 +2156,7 @@ void
 printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 {
   int share = 0;
+  enum node_tag tag;
 
   while (GETTAG(n) == T_IND) {
     //putb('*', f);
@@ -2185,7 +2186,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   }
 
   //if (n == atptr) putb('@', f);
-  switch (GETTAG(n)) {
+  tag = GETTAG(n);
+  switch (tag) {
   case T_AP:
     if (prefix) {
       putb('(', f);
@@ -2272,133 +2274,14 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
-  case T_S: putsb("S", f); break;
-  case T_K: putsb("K", f); break;
-  case T_I: putsb("I", f); break;
-  case T_C: putsb("C", f); break;
-  case T_B: putsb("B", f); break;
-  case T_A: putsb("A", f); break;
-  case T_U: putsb("U", f); break;
-  case T_Y: putsb("Y", f); break;
-  case T_P: putsb("P", f); break;
-  case T_R: putsb("R", f); break;
-  case T_O: putsb("O", f); break;
-  case T_SS: putsb("S'", f); break;
-  case T_BB: putsb("B'", f); break;
-  case T_Z: putsb("Z", f); break;
-  case T_K2: putsb("K2", f); break;
-  case T_K3: putsb("K3", f); break;
-  case T_K4: putsb("K4", f); break;
-  case T_CC: putsb("C'", f); break;
-  case T_CCB: putsb("C'B", f); break;
-  case T_ADD: putsb("+", f); break;
-  case T_SUB: putsb("-", f); break;
-  case T_MUL: putsb("*", f); break;
-  case T_QUOT: putsb("quot", f); break;
-  case T_REM: putsb("rem", f); break;
-  case T_UQUOT: putsb("uquot", f); break;
-  case T_UREM: putsb("urem", f); break;
-  case T_SUBR: putsb("subtract", f); break;
-  case T_NEG: putsb("neg", f); break;
-  case T_AND: putsb("and", f); break;
-  case T_OR: putsb("or", f); break;
-  case T_XOR: putsb("xor", f); break;
-  case T_INV: putsb("inv", f); break;
-  case T_SHL: putsb("shl", f); break;
-  case T_SHR: putsb("shr", f); break;
-  case T_ASHR: putsb("ashr", f); break;
-  case T_POPCOUNT: putsb("popcount", f); break;
-  case T_CLZ: putsb("clz", f); break;
-  case T_CTZ: putsb("ctz", f); break;
-#if WANT_FLOAT
-  case T_FADD: putsb("f+", f); break;
-  case T_FSUB: putsb("f-", f); break;
-  case T_FMUL: putsb("f*", f); break;
-  case T_FDIV: putsb("f/", f); break;
-  case T_FNEG: putsb("fneg", f); break;
-  case T_ITOF: putsb("itof", f); break;
-  case T_FEQ: putsb("f==", f); break;
-  case T_FNE: putsb("f/=", f); break;
-  case T_FLT: putsb("f<", f); break;
-  case T_FLE: putsb("f<=", f); break;
-  case T_FGT: putsb("f>", f); break;
-  case T_FGE: putsb("f>=", f); break;
-  case T_FSHOW: putsb("fshow", f); break;
-  case T_FREAD: putsb("fread", f); break;
-#endif
-  case T_BSAPPEND: putsb("bs++", f); break;
-  case T_BSAPPENDDOT: putsb("bs++.", f); break;
-  case T_BSEQ: putsb("bs==", f); break;
-  case T_BSNE: putsb("bs/=", f); break;
-  case T_BSLT: putsb("bs<", f); break;
-  case T_BSLE: putsb("bs<=", f); break;
-  case T_BSGT: putsb("bs>", f); break;
-  case T_BSGE: putsb("bs>=", f); break;
-  case T_BSCMP: putsb("bscmp", f); break;
-  case T_BSPACK: putsb("bspack", f); break;
-  case T_BSUNPACK: putsb("bsunpack", f); break;
-  case T_BSREPLICATE: putsb("bsreplicate", f); break;
-  case T_BSLENGTH: putsb("bslength", f); break;
-  case T_BSSUBSTR: putsb("bssubstr", f); break;
-  case T_BSINDEX: putsb("bsindex", f); break;
-  case T_EQ: putsb("==", f); break;
-  case T_NE: putsb("/=", f); break;
-  case T_LT: putsb("<", f); break;
-  case T_LE: putsb("<=", f); break;
-  case T_GT: putsb(">", f); break;
-  case T_GE: putsb(">=", f); break;
-  case T_ULT: putsb("u<", f); break;
-  case T_ULE: putsb("u<=", f); break;
-  case T_UGT: putsb("u>", f); break;
-  case T_UGE: putsb("u>=", f); break;
-  case T_ICMP: putsb("icmp", f); break;
-  case T_UCMP: putsb("ucmp", f); break;
-  case T_FPADD: putsb("fp+", f); break;
-  case T_FP2P: putsb("fp2p", f); break;
-  case T_FPNEW: putsb("fpnew", f); break;
-  case T_FPFIN: putsb("fpfin", f); break;
-    //  case T_FPSTR: putsb("fpstr", f); break;
-  case T_FP2BS: putsb("fp2bs", f); break;
-  case T_BS2FP: putsb("bs2fp", f); break;
-  case T_EQUAL: putsb("equal", f); break;
-  case T_COMPARE: putsb("compare", f); break;
-  case T_RNF: putsb("rnf", f); break;
-  case T_SEQ: putsb("seq", f); break;
-  case T_IO_BIND: putsb("IO.>>=", f); break;
-  case T_IO_THEN: putsb("IO.>>", f); break;
-  case T_IO_RETURN: putsb("IO.return", f); break;
-  case T_IO_CCBIND: putsb("IO.C'BIND", f); break;
-  case T_IO_SERIALIZE: putsb("IO.serialize", f); break;
-  case T_IO_PRINT: putsb("IO.print", f); break;
-  case T_IO_DESERIALIZE: putsb("IO.deserialize", f); break;
-  case T_IO_GETARGREF: putsb("IO.getArgRef", f); break;
-  case T_IO_PERFORMIO: putsb("IO.performIO", f); break;
-  case T_IO_GC: putsb("IO.gc", f); break;
-  case T_RAISE: putsb("raise", f); break;
-  case T_CATCH: putsb("catch", f); break;
-  case T_ARR_ALLOC: putsb("A.alloc", f); break;
-  case T_ARR_COPY: putsb("A.copy", f); break;
-  case T_ARR_SIZE: putsb("A.size", f); break;
-  case T_ARR_READ: putsb("A.read", f); break;
-  case T_ARR_WRITE: putsb("A.write", f); break;
-  case T_ARR_EQ: putsb("A.==", f); break;
-  case T_DYNSYM: putsb("dynsym", f); break;
-  case T_NEWCASTRINGLEN: putsb("newCAStringLen", f); break;
-  case T_PACKCSTRING: putsb("packCString", f); break;
-  case T_PACKCSTRINGLEN: putsb("packCStringLen", f); break;
-  case T_TOINT: putsb("toInt", f); break;
-  case T_TOPTR: putsb("toPtr", f); break;
-  case T_TODBL: putsb("toDbl", f); break;
-  case T_TOFUNPTR: putsb("toFunPtr", f); break;
-  case T_BSFROMUTF8: putsb("fromUTF8", f); break;
-  case T_BSTOUTF8: putsb("toUTF8", f); break;
-  case T_BSHEADUTF8: putsb("headUTF8", f); break;
-  case T_BSTAILUTF8: putsb("tailUTF8", f); break;
+
   case T_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
-  default: ERR("print tag");
+  default:
+    putsb(tag_names[tag], f);
+    break;
   }
   if (!prefix) {
     if (GETTAG(n) != T_AP)
