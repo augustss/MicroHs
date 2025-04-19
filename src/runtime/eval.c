@@ -616,6 +616,7 @@ struct mthread {
   struct mthread *mt_next;      /* all threads linked together */
   struct mthread *mt_queue;     /* runq/waitq link */
   counter_t       mt_slice;     /* reduction steps until yielding */
+  counter_t       mt_num_slices;/* number of slices so far */
   NODEPTR         mt_root;      /* root of the graph to reduce */
   NODEPTR         mt_thrown;    /* possible thrown exception */
   int             mt_mark;      /* marked as accessible */
@@ -627,7 +628,7 @@ jmp_buf          sched;             /* jump here to yield */
 counter_t        slice = 10000;     /* normal time slice */
 counter_t        glob_slice;
 
-void execio(NODEPTR*);
+void execio(NODEPTR*, int);
 
 /* Add the thread to the tail of runq */
 void
@@ -654,7 +655,66 @@ remove_runq_head(void)
   return mt;
 }
 
-struct mthread* new_thread(NODEPTR root);
+/* This is a yucky hack */
+int doing_rnf = 0;              /* REMOVE */
+
+void pp(FILE*, NODEPTR);
+
+/*static INLINE*/ void
+yield(void)
+{
+  //printf("yield stk=%d\n", (int)stack_ptr);
+  //pp(stdout, runq->mt_root);
+  COUNT(num_yield);
+  runq->mt_num_slices++;
+  // XXX should check mt_thrown here
+  
+  // printf("yield %p %d\n", runq, (int)stack_ptr);
+  /* if there is nothing after in the runq then there is no need to reschedule */
+  if (!runq->mt_queue) {
+    glob_slice = slice;
+    return;
+  }
+
+  /* We are going to reschedule, so clean up thread state:
+   *  stack pointer
+   *  error handlers
+   */
+  // printf("yield %p %d reschedule %p\n", runq, (int)stack_ptr, runq->mt_queue);
+  runq->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
+  stack_ptr = -1;               /* reset stack */
+  doing_rnf = 0;
+  /* free all error handlers */
+  for (struct handler *h = cur_handler; h; ) {
+    struct handler *n = h;
+    h = h->hdl_old;
+    free(n);
+  }
+  longjmp(sched, mt_yield);
+}
+
+struct mthread*
+new_thread(NODEPTR root)
+{
+  COUNT(num_thread_create);
+  struct mthread *mt = MALLOC(sizeof(struct mthread));
+  if (!mt)
+    memerr();
+  mt->mt_state = ts_run;
+  mt->mt_root = root;
+  mt->mt_thrown = NIL;
+  mt->mt_slice = 0;
+  mt->mt_mark = 0;
+  mt->mt_num_slices = 0;
+
+  /* add to all_threads */
+  mt->mt_next = all_threads;
+  all_threads = mt;
+
+  /* add to tail of runq */
+  add_runq_tail(mt);
+  return mt;
+}
 
 void
 start_exec(NODEPTR root)
@@ -678,7 +738,7 @@ start_exec(NODEPTR root)
     //mt->mt_slice = slice;         /* give it a time slice */
     glob_slice = mt->mt_slice + slice;
     /*printf("slice=%d\n", (int)glob_slice);*/
-    execio(&mt->mt_root);         /* run it */
+    execio(&mt->mt_root, mt->mt_num_slices == 0);         /* run it */
     /* when execio() returns the thread is done */
     runq = mt->mt_queue;          /* skip this thread */
 
@@ -693,43 +753,6 @@ start_exec(NODEPTR root)
       return;                     /* no more runnable threads, so exit */
     }
   }
-}
-
-/* This is a yucky hack */
-int doing_rnf = 0;              /* REMOVE */
-
-void pp(FILE*, NODEPTR);
-
-/*static INLINE*/ void
-yield(void)
-{
-  //printf("yield stk=%d\n", (int)stack_ptr);
-  //pp(stdout, runq->mt_root);
-  COUNT(num_yield);
-  // XXX should check mt_thrown here
-  
-  // printf("yield %p %d\n", runq, (int)stack_ptr);
-  /* if there is nothing after in the runq then there is no need to reschedule */
-  if (0 && !runq->mt_queue) {
-    glob_slice = slice;
-    return;
-  }
-
-  /* We are going to reschedule, so clean up thread state:
-   *  stack pointer
-   *  error handlers
-   */
-  // printf("yield %p %d reschedule %p\n", runq, (int)stack_ptr, runq->mt_queue);
-  runq->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
-  stack_ptr = -1;               /* reset stack */
-  doing_rnf = 0;
-  /* free all error handlers */
-  for (struct handler *h = cur_handler; h; ) {
-    struct handler *n = h;
-    h = h->hdl_old;
-    free(n);
-  }
-  longjmp(sched, mt_yield);
 }
 
 /***************** GC ******************/
@@ -1451,30 +1474,6 @@ gc_check(size_t k)
     PRINT("gc_check: %d\n", (int)k);
 #endif
   gc();
-}
-
-/* See comment for execio() why the root = BIND root RETURN. */
-struct mthread*
-new_thread(NODEPTR root)
-{
-  GCCHECK(2);
-  COUNT(num_thread_create);
-  struct mthread *mt = MALLOC(sizeof(struct mthread));
-  if (!mt)
-    memerr();
-  mt->mt_state = ts_run;
-  mt->mt_root = new_ap(new_ap(combIOBIND, root), combIORETURN);
-  mt->mt_thrown = NIL;
-  mt->mt_slice = 0;
-  mt->mt_mark = 0;
-
-  /* add to all_threads */
-  mt->mt_next = all_threads;
-  all_threads = mt;
-
-  /* add to tail of runq */
-  add_runq_tail(mt);
-  return mt;
 }
 
 static INLINE
@@ -2351,7 +2350,7 @@ print_string(BFILE *f, struct bytestring bs)
       putb('^', f); putb(c - 0x80 + 0x40, f);
     } else if (c < 0xff) {
       putb('|', f); putb(c - 0x80, f);
-    } else {                    /* must be c == 0xff */
+    } else {                    /* must be< c == 0xff */
       putb('\\', f); putb('_', f);
     }
 #endif
@@ -3379,8 +3378,6 @@ rnf(value_t noerr, NODEPTR n)
   FREE(done);
 }
 
-void execio(NODEPTR *);
-
 /* Evaluate a node, returns when the node is in WHNF. */
 NODEPTR
 evali(NODEPTR an)
@@ -3897,8 +3894,8 @@ evali(NODEPTR an)
   case T_IO_PERFORMIO:
     CHECK(1);
     if (doing_rnf) RET;
-    execio(&ARG(TOP(0)));       /* run IO action */
-    x = ARG(TOP(0));            /* should be RETURN e */
+    execio(&ARG(TOP(0)), 1);       /* run IO action */
+    x = ARG(TOP(0));               /* should be RETURN e */
     if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
       ERR("PERFORMIO");
     POP(1);
@@ -4229,7 +4226,7 @@ evali(NODEPTR an)
  *         C'BIND r s: rewrite to  top := BIND (r res) s; goto again
  */
 void
-execio(NODEPTR *np)
+execio(NODEPTR *np, int dowrap)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR f, x, n, q, r, s, res, top1;
@@ -4249,7 +4246,12 @@ execio(NODEPTR *np)
 #define RETIO(p) do { stack_ptr = stk; res = (p); goto rest; } while(0)
 #define IOASSERT(p,s) do { if (!(p)) ERR("IOASSERT " s); } while(0)
 
-  top = *np;
+  if (dowrap) {
+    GCCHECK(2);
+    *np = top = new_ap(new_ap(combIOBIND, *np), combIORETURN);
+  } else {
+    top = *np;
+  }
  start:
   //dump("start", top);
   IOASSERT(stack_ptr == stk, "start");
@@ -4391,7 +4393,7 @@ execio(NODEPTR *np)
           /* Normal execution: */
           n = ARG(TOP(1));          /* first argument, should be evaluated (but not overwritten) */
           PUSH(n);
-          execio(&TOP(0));          /* execute first argument */
+          execio(&TOP(0), 1);       /* execute first argument */
           cur_handler = h->hdl_old; /* restore old handler */
           FREE(h);
           n = TOP(0);
