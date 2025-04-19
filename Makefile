@@ -9,6 +9,8 @@ PREFIX=/usr/local
 # Unix-like system, 64 bit words
 CONF=unix-64
 #
+# Using GCC enables global register variables on ARM64, which gives a 5-10% speedup.
+#CC=gcc-14
 CCWARNS= -Wall
 CCOPTS= -O3
 CCLIBS= -lm
