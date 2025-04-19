@@ -661,6 +661,7 @@ int doing_rnf = 0;              /* REMOVE */
 
 void pp(FILE*, NODEPTR);
 
+/* Inlining makes very little difference */
 /*static INLINE*/ void
 yield(void)
 {
@@ -3317,14 +3318,6 @@ evali(NODEPTR an)
  top:
   if (--glob_slice <= 0)
     yield();
-  if (ISINDIR(n)) {
-    NODEPTR on = n;
-    do {
-      n = GETINDIR(n);
-    } while(ISINDIR(n));
-    SETINDIR(on, n);
-  }
-  COUNT(num_reductions);
   l = LABEL(n);
   if (l < T_IO_STDIN) {
     /* The node is one of the permanent nodes; the address offset is the tag */
