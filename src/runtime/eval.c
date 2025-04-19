@@ -3064,8 +3064,7 @@ evali(NODEPTR an)
 #define CHECK(n) do { if (!HASNARGS(n)) RET; } while(0)
 
 #define SETIND(n, x) SETINDIR(n, x)
-  /* #define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0) no noticable speedup */
-#define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
+#define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0)
 #define GOAP(f,a) do { FUN((n)) = (f); ARG((n)) = (a); goto ap; } while(0)
 #define GOAP2(f,a,b) do { FUN((n)) = new_ap((f), (a)); ARG((n)) = (b); goto ap2; } while(0)
 /* CHKARGN checks that there are at least N arguments.
@@ -3113,9 +3112,6 @@ evali(NODEPTR an)
   }
   COUNT(num_reductions);
   switch (tag) {
-  ind:
-  case T_IND:  n = GETINDIR(n); goto top;
-
   ap2:         PUSH(n); n = FUN(n);
   ap:
   case T_AP:   PUSH(n); n = FUN(n); goto top;
