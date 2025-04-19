@@ -51,6 +51,12 @@ size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
 size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
 #endif
 
+#if defined(__GNUC__) && __GNUC__ >= 14 && defined(__aarch64__)
+#define REGISTER(dcl, reg) register dcl asm(#reg)
+#else
+#define REGISTER(dcl, reg) dcl
+#endif
+
 #include "mhsffi.h"
 struct ffi_entry ffi_table[];
 int num_ffi;
@@ -423,7 +429,7 @@ struct forptr {
 };
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
 
-counter_t num_reductions = 0;
+REGISTER(counter_t num_reductions,r19);
 counter_t num_alloc = 0;
 counter_t num_gc = 0;
 counter_t num_yield = 0;
@@ -447,8 +453,8 @@ counter_t cur_c_stack = 0;
 NODEPTR *topnode;
 NODEPTR atptr;
 
-NODEPTR *stack;
-stackptr_t stack_ptr = -1;
+REGISTER(NODEPTR *stack,r20);
+REGISTER(stackptr_t stack_ptr,r21);
 #if STACKOVL
 #define PUSH(x) do { if (stack_ptr >= stack_size-1) stackerr(); stack[++stack_ptr] = (x); MAXSTACK; } while(0)
 #else  /* STACKOVL */
@@ -459,9 +465,9 @@ stackptr_t stack_ptr = -1;
 #define POPTOP() stack[stack_ptr--]
 #define GCCHECK(n) gc_check((n))
 
-heapoffs_t heap_size = HEAP_CELLS; /* number of heap cells */
-heapoffs_t heap_start;             /* first location in heap that needs GC */
-stackptr_t stack_size = STACK_SIZE;
+heapoffs_t heap_size;       /* number of heap cells */
+heapoffs_t heap_start;      /* first location in heap that needs GC */
+REGISTER(stackptr_t stack_size,r22);      /* number of stack slots */
 
 counter_t num_marked;
 counter_t max_num_marked = 0;
@@ -4516,6 +4522,9 @@ MAIN
   main_setup(); /* Do platform specific start-up. */
 #endif
 
+  heap_size = HEAP_CELLS;       /* number of heap cells */
+  stack_size = STACK_SIZE;      /* number of stack slots */
+
 #if WANT_ARGS
   progname = argv[0];
   argc--, argv++;
@@ -4565,6 +4574,8 @@ MAIN
   stack = MALLOC(sizeof(NODEPTR) * stack_size);
   if (!stack)
     memerr();
+  stack_ptr = -1;
+  num_reductions = 0;
 
 #if WANT_ARGS
   /* Initialize an IORef (i.e., single element IOArray
