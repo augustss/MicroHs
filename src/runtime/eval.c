@@ -628,6 +628,7 @@ struct mthread  *runq_tail = 0;     /* tail of runq, 0 if empty */
 jmp_buf          sched;             /* jump here to yield */
 counter_t        slice = 10000;     /* normal time slice */
 counter_t        glob_slice;
+//register counter_t glob_slice asm("r20");
 
 void execio(NODEPTR*, int);
 
