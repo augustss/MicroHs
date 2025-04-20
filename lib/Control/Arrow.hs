@@ -93,7 +93,7 @@ instance MonadPlus m => MonadPlus (Kleisli m a) where
 
 instance Monad m => Category (Kleisli m) where
     id = Kleisli return
-    Kleisli f . Kleisli g = Kleisli (g b >=> f)
+    Kleisli f . Kleisli g = Kleisli (g >=> f)
 
 instance Monad m => Arrow (Kleisli m) where
     arr f = Kleisli (return . f)
