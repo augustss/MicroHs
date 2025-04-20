@@ -72,7 +72,7 @@ deriving instance Generic1 (Kleisli m a)
 deriving instance Functor m => Functor (Kleisli m a)
 -}
 instance Functor m => Functor (Kleisli m a) where
-  fmap f k = Kleisli (\ a -> fmap f (runKleisli k a))
+  fmap f k = Kleisli (fmap f . runKleisli k)
 
 instance Applicative m => Applicative (Kleisli m a) where
   pure = Kleisli . const . pure
@@ -93,7 +93,7 @@ instance MonadPlus m => MonadPlus (Kleisli m a) where
 
 instance Monad m => Category (Kleisli m) where
     id = Kleisli return
-    (Kleisli f) . (Kleisli g) = Kleisli (\b -> g b >>= f)
+    Kleisli f . Kleisli g = Kleisli (g b >=> f)
 
 instance Monad m => Arrow (Kleisli m) where
     arr f = Kleisli (return . f)
@@ -119,7 +119,7 @@ class Arrow a => ArrowZero a where
     zeroArrow :: a b c
 
 instance MonadPlus m => ArrowZero (Kleisli m) where
-    zeroArrow = Kleisli (\_ -> mzero)
+    zeroArrow = Kleisli (const mzero)
 
 class ArrowZero a => ArrowPlus a where
     (<+>) :: a b c -> a b c -> a b c
@@ -195,5 +195,5 @@ instance ArrowLoop (->) where
     loop f b = let (c,d) = f (b,d) in c
 
 instance MonadFix m => ArrowLoop (Kleisli m) where
-    loop (Kleisli f) = Kleisli (liftM fst . mfix . f')
+    loop (Kleisli f) = Kleisli (fmap fst . mfix . f')
       where f' x y = f (x, snd y)
