@@ -112,7 +112,7 @@ quoteString s =
       | c < '\xa0'             = ['^', chr (ord c - 0x80 + 0x40)]
       | c < '\xff'             = ['|', chr (ord c - 0x80)]
       | otherwise              = "\\_"
-  in  '"' : concatMap achar s ++ ['"']
+  in  '"' : concatMap (\c -> achar (chr (ord c `rem` 256))) s ++ ['"']
 
 encodeString :: String -> Exp
 encodeString = encList . map (Lit . LInt . ord)
