@@ -10,4 +10,4 @@ getDataDir :: IO FilePath
 getDataDir = return "."
 
 version :: Version
-version = makeVersion [0,12,5,2]
+version = makeVersion [0,12,5,3]
