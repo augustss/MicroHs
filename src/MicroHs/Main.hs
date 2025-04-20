@@ -372,7 +372,7 @@ mainInstallPackage flags [pkgfn, dir] = do
 mainInstallPackage flags [pkgfn] =
   case pkgPath flags of
     [] -> error "pkgPath is empty"
-    first:_ -> mainInstallPackage flags [pkgfn, first]
+    frst:_ -> mainInstallPackage flags [pkgfn, frst]
 mainInstallPackage _ _ = error usage
 
 mainListPackages :: Flags -> IO ()

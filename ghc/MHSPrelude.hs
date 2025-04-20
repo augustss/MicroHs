@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE CPP #-}
-module MHSPrelude(module Prelude, module Control.DeepSeq, module MHSPrelude, Type) where
+module MHSPrelude(module Prelude, module Control.DeepSeq, module Control.Arrow, module MHSPrelude, Type) where
 import Prelude
+import Control.Arrow(first, second)
 import Control.DeepSeq
 import Control.Exception
 import Data.Maybe

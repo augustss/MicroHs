@@ -17,7 +17,6 @@ module MicroHs.TypeCheck(
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Applicative
-import Control.Arrow(first)
 import Control.Monad
 import Data.Char
 import Data.Function
