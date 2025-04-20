@@ -40,3 +40,6 @@ main = do
   print $ isValidUtf8 "\xF4\x90\x80\x80"
   print $ isValidUtf8 "\xED\xA0\x80" -- low surrogate
   print $ isValidUtf8 "\xED\xBF\xBF" -- high surrogate
+
+  -- ByteString literals
+  print ("øßΞóïűæいהłДป็ş" :: ByteString)
