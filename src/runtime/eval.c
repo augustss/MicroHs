@@ -726,6 +726,7 @@ NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
 NODEPTR combBINBS1, combBINBS2;
 NODEPTR comb_stdin, comb_stdout, comb_stderr;
+NODEPTR combS;
 #define combFalse combK
 
 /* One node of each kind for primitives, these are never GCd. */
@@ -928,6 +929,7 @@ init_nodes(void)
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
     case T_B: combB = n; break;
+    case T_S: combS = n; break;
     case T_C: combC = n; break;
     case T_Z: combZ = n; break;
     case T_U: combU = n; break;
@@ -965,6 +967,7 @@ init_nodes(void)
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
     case T_B: combB = n; break;
+    case T_S: combS = n; break;
     case T_C: combC = n; break;
     case T_Z: combZ = n; break;
     case T_U: combU = n; break;
@@ -1041,7 +1044,7 @@ init_nodes(void)
 #if GCRED
 int red_a, red_k, red_i, red_int, red_flip;
 #endif
-int red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
+int red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r, red_sk, red_bk, red_ck, red_sk2, red_cc;
 
 //counter_t mark_depth;
 //counter_t max_mark_depth = 0;
@@ -3297,21 +3300,81 @@ evali(NODEPTR an)
    * stop reductions from happening.  This can be important for "full laziness".
    * In practice, these reductions almost never happen, but there they are anyway. :)
    */
-  case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
+    /*
+      S (K a)   = B a
+      B a (K b) = K (a b)
+      S a (K b) = C a b
+      C (K a) b = K (a b)
+      C (C a)   = a
+
+      C (B f g) x = B (C f x) g
+      C (S f g) x = S (C (B C f) x) g
+
+      -- B C f x y z = C (f x) y z = f x z y
+
+    */
+  case T_S:
+#if 0
+        if (HASNARGS(1) && (x = indir(&ARG(TOP(0))), GETTAG(x) == T_AP && GETTAG(indir(&FUN(x))) == T_K)) {
+                   red_sk++;
+                   n = TOP(0);
+                   POP(1);
+                   GOAP(combB, ARG(x));
+        }
+#endif
+        GCCHECK(2); 
+#if 0
+        if (HASNARGS(2) && (x = indir(&ARG(TOP(1))), GETTAG(x) == T_AP && GETTAG(indir(&FUN(x))) == T_K)) {
+                   red_sk2++;
+                   n = TOP(1);
+                   y = ARG(TOP(0));
+                   POP(2);
+                   GOAP(new_ap(combC, y), ARG(x));
+        }
+#endif
+               CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
   case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
   case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
   case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
   case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
   case T_I:                CHKARG1; GOIND(x);                                             /* I x = *x */
   case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
-  case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
+  case T_B:
+    GCCHECK(1);
+    if (HASNARGS(2) && (x = (ARG(TOP(1)))), GETTAG(x) == T_AP && GETTAG((FUN(x))) == T_K) {
+      red_bk++;
+      n = TOP(1);
+      y = ARG(TOP(0));
+      POP(2);
+      GOAP(combK, new_ap(y, ARG(x)));
+    }
+    CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
   case T_BB:   if (!HASNARGS(4)) {
                GCCHECK(1); CHKARG2; red_bb++; GOAP(combB, new_ap(x, y)); } else {         /* B' x y = B (x y) */
                GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w)); }                   /* B' x y z w = x y (z w) */
   case T_Z:    if (!HASNARGS(3)) {
                GCCHECK(1); CHKARG2; red_z++; GOAP(combK, new_ap(x, y)); } else {          /* Z x y = K (x y) */
                            CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
-  case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
+  case T_C:
+#if 0
+    if (HASNARGS(1) && (x = indir(&ARG(TOP(0)))), GETTAG(x) == T_AP && GETTAG(indir(&FUN(x))) == T_C) {
+      red_cc++;
+      n = TOP(0);
+      POP(1);
+      GOIND(ARG(x));
+    }
+#endif
+    GCCHECK(1);
+#if 0
+    if (0 && HASNARGS(2) && (x = indir(&ARG(TOP(0)))), GETTAG(x) == T_AP && GETTAG(indir(&FUN(x))) == T_K) {
+      red_ck++;
+      n = TOP(1);
+      y = ARG(TOP(1));
+      POP(2);
+      GOAP(combK, new_ap(ARG(x), y));
+    }
+#endif
+    CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
   case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
   case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
   case T_R:    if(!HASNARGS(3)) {
@@ -4567,7 +4630,7 @@ MAIN
           (double)gc_scan_time / 1000);
 #if GCRED
     PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
-    PRINT(" special reductions B'=%d K4=%d K3=%d K2=%d C'B=%d, Z=%d, R=%d\n", red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
+    PRINT(" special reductions B'=%d K4=%d K3=%d K2=%d C'B=%d, Z=%d, R=%d SK=%d BK=%d SK2=%d CK=%d CC=%d\n", red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r, red_sk, red_bk, red_sk2, red_ck, red_cc);
 #endif
   }
 #endif  /* WANT_STDIO */
