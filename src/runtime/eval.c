@@ -265,7 +265,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -293,7 +293,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_IO_THROWTO, T_IO_YIELD,
-                T_IO_NEWMVAR, T_IO_TAKEMVAR, T_IO_PUTMVAR,
+                T_IO_NEWMVAR, T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
@@ -305,7 +305,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
 };
 /* Most entries are initialized from the primops table. */
 static const char* tag_names[T_LAST_TAG+1] =
-  { "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID" };
+  { "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
 
 struct ioarray;
 struct bytestring;
@@ -328,6 +328,7 @@ typedef struct node {
     struct ioarray *uuarray;
     struct forptr  *uuforptr;      /* foreign pointers and byte arrays */
     struct mthread *uuthread;
+    struct mvar    *uumvar;
   } uarg;
 } node;
 #define BIT_TAG   1
@@ -353,6 +354,7 @@ typedef struct node* NODEPTR;
 #define BSTR(p) (p)->uarg.uuforptr->payload
 #define ARR(p) (p)->uarg.uuarray
 #define THR(p) (p)->uarg.uuthread
+#define MVAR(p) (p)->uarg.uumvar
 #define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
 #define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
 #define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
@@ -436,6 +438,8 @@ counter_t num_yield = 0;
 counter_t num_resched = 0;
 counter_t num_thread_create = 0;
 counter_t num_thread_reap = 0;
+counter_t num_mvar_alloc = 0;
+counter_t num_mvar_free = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
@@ -616,7 +620,7 @@ struct handler {
 /***************** THREAD ******************/
 
 enum th_state { ts_run, ts_wait, ts_zombie };
-enum th_sched { mt_main = 0, mt_yield = 1 };
+enum th_sched { mt_main = 0, mt_resched = 1 };
 
 struct mthread {
   enum th_state   mt_state;
@@ -626,11 +630,22 @@ struct mthread {
   counter_t       mt_num_slices;/* number of slices so far */
   NODEPTR         mt_root;      /* root of the graph to reduce */
   NODEPTR         mt_thrown;    /* possible thrown exception */
+  NODEPTR         mt_mvar;      /* filled after waiting for take/read */
   int             mt_mark;      /* marked as accessible */
 };
 struct mthread  *all_threads = 0;   /* all threads */
 struct mthread  *runq = 0;          /* ready to run */
 struct mthread  *runq_tail = 0;     /* tail of runq, 0 if empty */
+
+struct mvar {
+  struct mvar    *mv_next;      /* all mvars linked together */
+  NODEPTR         mv_data;      /* contents of the mvar, or NIL when empty */
+  struct mthread *mv_takeput;   /* queue of threads waiting for take or put, single wakeup */
+  struct mthread *mv_read;      /* queue of threads waiting for read, multiple wakeup */
+  int             mv_mark;      /* marked as accessible */
+};
+struct mvar      *all_mvars = 0;   /* all mvars */
+
 jmp_buf          sched;             /* jump here to yield */
 counter_t        slice = 100000;    /* normal time slice;
                                      * on an M4 Mac this is about 0.3ms */
@@ -667,6 +682,7 @@ remove_runq_head(void)
 int doing_rnf = 0;              /* REMOVE */
 
 void pp(FILE*, NODEPTR);
+void resched(void);
 
 /* Inlining makes very little difference */
 /*static INLINE*/ void
@@ -685,21 +701,11 @@ yield(void)
     return;
   }
 
-  /* We are going to reschedule, so clean up thread state:
-   *  stack pointer
-   *  error handlers
-   */
-  // printf("yield %p %d reschedule %p\n", runq, (int)stack_ptr, runq->mt_queue);
-  runq->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
-  stack_ptr = -1;               /* reset stack */
-  doing_rnf = 0;
-  /* free all error handlers */
-  for (struct handler *h = cur_handler; h; ) {
-    struct handler *n = h;
-    h = h->hdl_old;
-    free(n);
-  }
-  longjmp(sched, mt_yield);
+  /* Unlink from runq */
+  struct mthread *mt = remove_runq_head();
+  /* link into back of runq */
+  add_runq_tail(mt);
+  resched();
 }
 
 struct mthread*
@@ -712,6 +718,7 @@ new_thread(NODEPTR root)
   mt->mt_state = ts_run;
   mt->mt_root = root;
   mt->mt_thrown = NIL;
+  mt->mt_mvar = NIL;
   mt->mt_slice = 0;
   mt->mt_mark = 0;
   mt->mt_num_slices = 0;
@@ -726,6 +733,129 @@ new_thread(NODEPTR root)
 }
 
 void
+resched(void)
+{
+  /* We are going to reschedule, so clean up thread state:
+   *  stack pointer
+   *  error handlers
+   */
+  // printf("yield %p %d reschedule %p\n", runq, (int)stack_ptr, runq->mt_queue);
+  runq->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
+  stack_ptr = -1;               /* reset stack */
+  doing_rnf = 0;
+  /* free all error handlers */
+  for (struct handler *h = cur_handler; h; ) {
+    struct handler *n = h;
+    h = h->hdl_old;
+    free(n);
+  }
+
+  longjmp(sched, mt_resched);
+}
+
+struct mvar*
+new_mvar(void)
+{
+  COUNT(num_mvar_alloc);
+  struct mvar *mv = MALLOC(sizeof(struct mvar));
+  if (!mv)
+    memerr();
+  mv->mv_data = NIL;
+  mv->mv_takeput = 0;
+  mv->mv_read = 0;
+
+  /* add to all_mvars */
+  mv->mv_next = all_mvars;
+  all_mvars = mv;
+  
+  return mv;
+}
+
+NODEPTR
+take_mvar(struct mvar *mv)
+{
+  NODEPTR n;
+  if ((n = runq->mt_mvar)) {
+    /* We have after waking up */
+    runq->mt_mvar = NIL;
+    return n;                   /* returned the stashed data */
+  }
+  if ((n = mv->mv_data)) {
+    /* mvar is full */
+    mv->mv_data = NIL;           /* now empty */
+    /* move all threads waiting to put to the runq */
+    for (struct mthread *mt = mv->mv_takeput; mt; ) {
+      mt = mt->mt_queue;
+      add_runq_tail(mt);
+    }
+    return n;                   /* return the data */
+  } else {
+    /* mvar is empty */
+    runq->mt_queue = mv->mv_takeput;
+    mv->mv_takeput = runq;
+    remove_runq_head();
+    resched();                  /* never returns */
+    return NIL;                 /* we never get here, but make linters happy */
+  }
+}
+
+NODEPTR
+read_mvar(struct mvar *mv)
+{
+  NODEPTR n;
+  if ((n = runq->mt_mvar)) {
+    /* We have after waking up */
+    runq->mt_mvar = NIL;
+    return n;                   /* returned the stashed data */
+  }
+  if ((n = mv->mv_data)) {
+    /* mvar is full */
+    return n;                   /* return the data */
+  } else {
+    /* mvar is empty */
+    runq->mt_queue = mv->mv_read;
+    mv->mv_read = runq;
+    remove_runq_head();
+    resched();                  /* never returns */
+    return NIL;                 /* we never get here, but make linters happy */
+  }
+}
+
+void
+put_mvar(struct mvar *mv, NODEPTR v)
+{
+  if (mv->mv_data != NIL) {
+    /* mvar is full */
+    runq->mt_next = mv->mv_takeput; /* put on mvar queue */
+    mv->mv_takeput = runq;
+    remove_runq_head();
+    resched();                  /* never returns */
+  } else {
+    /* mvar is empty */
+    if (mv->mv_takeput || mv->mv_read) {
+      /* one or more threads are waiting */
+      struct mthread *mt;
+      if ((mt = mv->mv_takeput)) {
+        /* wake up one 'take' */
+        mt->mt_mvar = v;
+        mv->mv_takeput = mt->mt_queue; /* remove first entry */
+        add_runq_tail(mt);             /* and schedule for execution later */
+      }
+      for (mt = mv->mv_read; mt; ) {
+        mt->mt_mvar = v;               /* value for restarted read */
+        mt = mt->mt_queue;             /* next waiter */
+        add_runq_tail(mt);             /* and schedule for execution later */
+      }
+      /* return to caller */
+    } else {
+      /* no threads waiting, so store the value */
+      mv->mv_data = v;
+      /* return to caller */
+    }
+  }
+}
+
+void
 start_exec(NODEPTR root)
 {
   struct mthread *mt;
@@ -734,13 +864,10 @@ start_exec(NODEPTR root)
   switch(setjmp(sched)) {
   case mt_main:
     break;
-  case mt_yield:
+  case mt_resched:
     COUNT(num_resched);
     /* Unlink from runq */
-    mt = remove_runq_head();
-    /* link into back of runq */
-    add_runq_tail(mt);
-    break;
+    (void)remove_runq_head();
   }
   for(;;) {
     mt = runq;                    /* front thread */
@@ -753,6 +880,7 @@ start_exec(NODEPTR root)
 
     mt->mt_state = ts_zombie;
     mt->mt_root = NIL;
+    /* XXX mt_mvar, mt_thrown */
 
     if (!runq) {
       for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
@@ -1166,6 +1294,36 @@ counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 //counter_t mark_depth;
 //counter_t max_mark_depth = 0;
 
+void mark(NODEPTR *np);
+
+void
+mark_thread(struct mthread *mt)
+{
+  if (mt->mt_mark)
+    return;                     /* already marked */
+  mt->mt_mark = 1;
+  if (mt->mt_root != NIL)
+    mark(&mt->mt_root);
+  if (mt->mt_thrown != NIL)
+    mark(&mt->mt_thrown);         
+  if (mt->mt_mvar != NIL)
+    mark(&mt->mt_mvar);
+}
+
+void
+mark_mvar(struct mvar *mv)
+{
+  if (mv->mv_mark)
+    return;
+  mv->mv_mark = 1;
+  if (mv->mv_data)
+    mark(&mv->mv_data);
+  for (struct mthread *mt = mv->mv_takeput; mt; mt = mt->mt_next)
+    mark_thread(mt);
+  for (struct mthread *mt = mv->mv_read; mt; mt = mt->mt_next)
+    mark_thread(mt);
+}
+
 /* Mark all used nodes reachable from *np, updating *np. */
 void
 mark(NODEPTR *np)
@@ -1299,16 +1457,7 @@ mark(NODEPTR *np)
      goto fin;
 
    case T_THID:
-     {
-       struct mthread *mt = THR(n);
-       if (!mt->mt_mark) {
-         mt->mt_mark = 1;
-         if (mt->mt_root != NIL)
-           mark(&mt->mt_root);
-         if (mt->mt_thrown != NIL)
-           mark(&mt->mt_thrown);         
-       }
-     }
+     mark_thread(THR(n));
      break;
 
    default:
@@ -1364,12 +1513,8 @@ gc(void)
    * Note, zombie threads have no root so they are not marked.
    */
   for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
-    if (mt->mt_root != NIL && !mt->mt_mark) {
-      mt->mt_mark = 1;
-      mark(&mt->mt_root);
-      if (mt->mt_thrown != NIL)
-        mark(&mt->mt_thrown);
-    }
+    if (mt->mt_root != NIL)
+      mark_thread(mt);
   }
 
   gc_mark_time += GETTIMEMILLI();
@@ -1443,10 +1588,23 @@ gc(void)
       free(mt);
     } else {
       mt->mt_mark = 0;
-      mtp = &(*mtp)->mt_next;
+      mtp = &mt->mt_next;
     }
   }
   
+  /* Remove unreferences mvars */
+  for (struct mvar **mvp = &all_mvars; *mvp; ) {
+    struct mvar *mv = *mvp;
+    if (!mv->mv_mark) {
+      COUNT(num_mvar_free);
+      *mvp = mv->mv_next;
+      free(mv);
+    } else {
+      mv->mv_mark = 0;
+      mvp = &mv->mv_next;
+    }
+  }
+
   gc_scan_time += GETTIMEMILLI();
 
 #if WANT_STDIO
@@ -2911,6 +3069,19 @@ evalthid(NODEPTR n)
   return THR(n);
 }
 
+/* Evaluate to a T_MVAR */
+struct mvar *
+evalmvar(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_MVAR) {
+    ERR1("evalmvar, bad tag %d", GETTAG(n));
+  }
+#endif
+  return MVAR(n);
+}
+
 /* Evaluate a string, returns a newly allocated buffer.
  * XXX this is cheating, should use continuations.
  * XXX the malloc()ed string is leaked if we yield in here.
@@ -3823,6 +3994,7 @@ evali(NODEPTR an)
   case T_IO_YIELD:
   case T_IO_NEWMVAR:
   case T_IO_TAKEMVAR:
+  case T_IO_READMVAR:
   case T_IO_PUTMVAR:
     RET;
 
@@ -4124,6 +4296,7 @@ execio(NODEPTR *np, int dowrap)
 #endif  /* WANT_STDIO */
   NODEPTR top;
   struct mthread *mt;
+  struct mvar *mv;
   enum node_tag tag;
   heapoffs_t l;
 
@@ -4465,6 +4638,24 @@ execio(NODEPTR *np, int dowrap)
     case T_IO_YIELD:
       yield();
       RETIO(combUnit);
+    case T_IO_TAKEMVAR:
+      CHECKIO(1);
+      n = take_mvar(evalmvar(ARG(TOP(1))));         /* never returns if it blocks */
+      RETIO(n);
+    case T_IO_READMVAR:
+      CHECKIO(1);
+      n = take_mvar(evalmvar(ARG(TOP(1))));         /* never returns if it blocks */
+      RETIO(n);
+    case T_IO_PUTMVAR:
+      CHECKIO(2);
+      put_mvar(evalmvar(ARG(TOP(1))), ARG(TOP(2))); /* never returns if it blocks */
+      RETIO(combUnit);
+    case T_IO_NEWMVAR:
+      mv = new_mvar();
+      GCCHECK(1);
+      n = alloc_node(T_MVAR);
+      MVAR(n) = mv;
+      RETIO(n);
 
     default:
       //printf("bad tag %s\n", tag_names[GETTAG(n)]);
