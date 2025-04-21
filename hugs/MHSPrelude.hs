@@ -4,6 +4,7 @@ module MHSPrelude(
   module Prelude,
   module MHSPrelude,
 --  module Control.Monad.Fail,
+  module Control.Arrow,
   module Data.Monoid,
   module Data.Semigroup,
   (<$>), Applicative(..), (*>),
@@ -11,6 +12,7 @@ module MHSPrelude(
 import Hugs.Prelude()
 import Prelude hiding(fail)
 import qualified Prelude
+import Control.Arrow(first, second)
 import Control.Applicative
 import Control.Exception(Exception, try)
 --import Control.Monad.Fail

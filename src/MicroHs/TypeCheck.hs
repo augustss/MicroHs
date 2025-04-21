@@ -17,7 +17,6 @@ module MicroHs.TypeCheck(
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Applicative
-import Control.Arrow(first)
 import Control.Monad
 import Data.Char
 import Data.Function
@@ -42,6 +41,9 @@ import Debug.Trace
 
 --primitiveKinds :: [String]
 --primitiveKinds = [nameType, nameConstraint, nameSymbol, nameNat]
+
+maxTuple :: Int
+maxTuple = 15
 
 ----------------------
 
@@ -559,7 +561,7 @@ primTypes =
        (mkIdentB "\x2192",       [entry identArrow    kTypeTypeTypeS]),  -- ->
        (mkIdentB "\x21d2",       [entry identImplies  kImplies])         -- =>
       ] ++
-      map tuple (0 : enumFromTo 2 10)
+      map tuple (0 : enumFromTo 2 maxTuple)
 
 -- E.g.
 --  True :: Bool
@@ -576,7 +578,7 @@ primValues =
         ts = map tVarK vks
         r = tApps c ts
       in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall True vks $ EForall True [] $ foldr tArrow r ts ])
-  in  map tuple (0 : enumFromTo 2 10)
+  in  map tuple (0 : enumFromTo 2 maxTuple)
 
 kArrow :: EKind -> EKind -> EKind
 kArrow = tArrow
@@ -2195,7 +2197,13 @@ tcRSect op e = do
 
 unArrow :: HasCallStack =>
            SLoc -> EType -> T (EType, EType)
---unArrow loc t@(EForall _ _ _) | trace ("unArrow: " ++ show t) False = undefined
+--unArrow _ t | trace ("unArrow: " ++ show t) False = undefined
+unArrow loc (EForall _ iks t) = do
+  -- Found forall in a co-variant position.
+  -- Make new unique tyvars in case of clashes.
+  -- XXX Is this correct?
+  (_, t') <- shallowSkolemise iks t
+  unArrow loc t'
 unArrow loc t = do
   case getArrow t of
     Just ar -> return ar
@@ -2268,7 +2276,8 @@ tcEqn t eqn =
       return (Eqn ps' alts')
 
 -- Only used above
-tcPats :: EType -> [EPat] -> (EType -> [EPat] -> T Eqn) -> T Eqn
+tcPats :: HasCallStack =>
+          EType -> [EPat] -> (EType -> [EPat] -> T Eqn) -> T Eqn
 tcPats t [] ta = ta t []
 tcPats t (p:ps) ta = do
   (tp, tr) <- unArrow (getSLoc p) t
@@ -2770,9 +2779,10 @@ subsCheckFun loc e1 a1 r1 a2 r2 = do
 instSigma :: HasCallStack =>
              SLoc -> Expr -> Sigma -> Expected -> T Expr
 instSigma loc e1 t1 (Check t2) = do
---  tcTrace ("instSigma: Check " ++ showEType t1 ++ " = " ++ showEType t2)
+  --tcTrace ("instSigma: Check e1=" ++ show e1 ++ " t1=" ++ showEType t1 ++ " t2=" ++ showEType t2)
   subsCheckRho loc e1 t1 t2
 instSigma loc e1 t1 (Infer r) = do
+  --tcTrace ("instSigma: Infer e1=" ++ show e1 ++ " t1=" ++ showEType t1 ++ " r=" ++ show r)
   (e1', t1') <- tInst e1 t1
   --tcTrace ("instSigma: Infer " ++ showEType t1 ++ " ==> " ++ showEType t1')
   tSetRefType loc r t1'

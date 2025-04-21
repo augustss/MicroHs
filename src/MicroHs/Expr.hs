@@ -51,7 +51,6 @@ module MicroHs.Expr(
   getImplies,
   ) where
 import qualified Prelude(); import MHSPrelude hiding ((<>))
-import Control.Arrow(first, second)
 import Data.List
 import Data.Maybe
 import MicroHs.Builtin
