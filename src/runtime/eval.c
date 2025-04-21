@@ -346,6 +346,8 @@ typedef struct node* NODEPTR;
 #define FORPTR(p) (p)->uarg.uuforptr
 #define BSTR(p) (p)->uarg.uuforptr->payload
 #define ARR(p) (p)->uarg.uuarray
+#define ISAP(p) (!((p)->ufun.uuifun & BIT_NOTAP))
+#define ISCOMB(p,t) (LABEL(p) == (t))
 #define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
 #define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
 #define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
@@ -3140,7 +3142,7 @@ evali(NODEPTR an)
    * In practice, these reductions almost never happen, but there they are anyway. :)
    */
 
-  /*
+  /* Extra reduction (from John Hughes), sadly they slow things down.
       S (K a)   = B a
       S a (K b) = C a b
       B a (K b) = K (a b)
@@ -3150,27 +3152,27 @@ evali(NODEPTR an)
       C (B f g) x = B (C f x) g
       C (S f g) x = S (C (B C f) x) g
 
-      -- B C f x y z = C (f x) y z = f x z y
+      B C f x y z = C (f x) y z = f x z y
 
   */
   case T_S:
 #if 0
-        if (HASNARGS(1) && (x = indir(&ARG(TOP(0))), GETTAG(x) == T_AP && GETTAG(indir(&FUN(x))) == T_K)) {
-                   red_sk++;
-                   n = TOP(0);
-                   POP(1);
-                   GOAP(combB, ARG(x));
-        }
+            /* Extremely rare reduction */
+            if (HASNARGS(1) && (x = ARG(TOP(0)), ISAP(x)) && ISCOMB(FUN(x), T_K)) {
+                   red_sk++; n = TOP(0); POP(1);
+                                    GOAP(combB, ARG(x));                                  /* S (K a) = B a */
+            }
 #endif
-        GCCHECK(2); 
+               GCCHECK(2); 
 #if 0
-        if (HASNARGS(2) && (x = indir(&ARG(TOP(1))), GETTAG(x) == T_AP && GETTAG(indir(&FUN(x))) == T_K)) {
+            /* Extremely rare reduction */
+            if (HASNARGS(2) && (x = indir(&ARG(TOP(1))), GETTAG(x) == T_AP && GETTAG(indir(&FUN(x))) == T_K)) {
                    red_sk2++;
                    n = TOP(1);
                    y = ARG(TOP(0));
                    POP(2);
                    GOAP(new_ap(combC, y), ARG(x));
-        }
+            }
 #endif
                            CHKARG3; GOAP2(x, z, new_ap(y, z));                            /* S x y z = x z (y z) */
   case T_SS:   GCCHECK(3); CHKARG4; GOAP2(x, new_ap(y, w), new_ap(z, w));                 /* S' x y z w = x (y w) (z w) */
@@ -3182,13 +3184,11 @@ evali(NODEPTR an)
   case T_B:
     GCCHECK(1);
 #if 0
-    if (HASNARGS(2) && (x = (ARG(TOP(1)))), GETTAG(x) == T_AP && GETTAG((FUN(x))) == T_K) {
-      red_bk++;
-      n = TOP(1);
-      y = ARG(TOP(0));
-      POP(2);
-      GOAP(combK, new_ap(y, ARG(x)));
-    }
+            /* This happens 16k compiling the compiler, but slows down wall clock time */
+            if (HASNARGS(2) && (x = ARG(TOP(1)), ISAP(x)) && ISCOMB(FUN(x), T_K)) {
+              red_bk++; n = TOP(1); y = ARG(TOP(0)); POP(2);
+                                    GOAP(combK, new_ap(y, ARG(x)));                       /* B a (K b) = K (a b) */
+            }
 #endif
                            CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
   case T_BB:   if (!HASNARGS(4)) {
@@ -3199,22 +3199,19 @@ evali(NODEPTR an)
                            CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
   case T_C:
 #if 0
-    if (HASNARGS(1) && (x = indir(&ARG(TOP(0)))), GETTAG(x) == T_AP && GETTAG(indir(&FUN(x))) == T_C) {
-      red_cc++;
-      n = TOP(0);
-      POP(1);
-      GOIND(ARG(x));
-    }
+             /* This happens 23 times recompiling the compiler.  Not worth it */
+             if (HASNARGS(1) && (x = ARG(TOP(0))), ISAP(x) && ISCOMB(FUN(x), T_C)) {
+               red_cc++; n = TOP(0); POP(1);
+                                    GOIND(ARG(x));                                        /* C (C a) = a */
+             }
 #endif
-    GCCHECK(1);
+               GCCHECK(1);
 #if 0
-    if (0 && HASNARGS(2) && (x = indir(&ARG(TOP(0)))), GETTAG(x) == T_AP && GETTAG(indir(&FUN(x))) == T_K) {
-      red_ck++;
-      n = TOP(1);
-      y = ARG(TOP(1));
-      POP(2);
-      GOAP(combK, new_ap(ARG(x), y));
-    }
+             /* This happens 1378 times recompiling the compiler.  Not worth it */
+             if (HASNARGS(2) && (x = ARG(TOP(0))), ISAP(x) && ISCOMB(FUN(x), T_K)) {
+               red_ck++; n = TOP(1); y = ARG(TOP(1)); POP(2);
+                                    GOAP(combK, new_ap(ARG(x), y));                       /* C (K a) b = K (a b) */
+             }
 #endif
                            CHKARG3; GOAP2(x, z, y);                                       /* C x y z = x z y */
   case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                            /* C' x y z w = x (y w) z */
