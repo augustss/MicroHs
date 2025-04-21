@@ -88,8 +88,8 @@ instance (Ix a1, Ix a2, Ix a3) => Ix (a1,a2,a3)  where
 
   unsafeIndex ((l1,l2,l3),(u1,u2,u3)) (i1,i2,i3) =
     unsafeIndex (l3,u3) i3 + unsafeRangeSize (l3,u3) * (
-    unsafeIndex (l2,u2) i2 + unsafeRangeSize (l2,u2) * (
-    unsafeIndex (l1,u1) i1))
+    unsafeIndex (l2,u2) i2 + unsafeRangeSize (l2,u2) * 
+                             unsafeIndex (l1,u1) i1)
 
   inRange ((l1,l2,l3),(u1,u2,u3)) (i1,i2,i3) =
     inRange (l1,u1) i1 && inRange (l2,u2) i2 &&
@@ -105,8 +105,8 @@ instance (Ix a1, Ix a2, Ix a3, Ix a4) => Ix (a1,a2,a3,a4)  where
   unsafeIndex ((l1,l2,l3,l4),(u1,u2,u3,u4)) (i1,i2,i3,i4) =
     unsafeIndex (l4,u4) i4 + unsafeRangeSize (l4,u4) * (
     unsafeIndex (l3,u3) i3 + unsafeRangeSize (l3,u3) * (
-    unsafeIndex (l2,u2) i2 + unsafeRangeSize (l2,u2) * (
-    unsafeIndex (l1,u1) i1)))
+    unsafeIndex (l2,u2) i2 + unsafeRangeSize (l2,u2) *
+                             unsafeIndex (l1,u1) i1))
 
   inRange ((l1,l2,l3,l4),(u1,u2,u3,u4)) (i1,i2,i3,i4) =
     inRange (l1,u1) i1 && inRange (l2,u2) i2 &&

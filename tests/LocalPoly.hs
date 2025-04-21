@@ -3,7 +3,7 @@ import Prelude
 
 main :: IO ()
 main = do
-  putStrLn $ show $ f 1 ("a"::String)
+  print $ f 1 ("a"::String)
 
 f :: forall b . Int -> b -> ((Int, b), (b, b))
 f x b = (i x, i b)

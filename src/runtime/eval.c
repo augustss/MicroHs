@@ -1,4 +1,4 @@
-/* Copyright 2023 Lennart Augustsson
+/* Copyright 2023,2024,2025 Lennart Augustsson
  * See LICENSE file for full license.
  */
 #if !defined(WANT_GMP)
@@ -49,6 +49,12 @@
 #if WANT_LZ77
 size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
 size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
+#endif
+
+#if defined(__GNUC__) && __GNUC__ >= 14 && defined(__aarch64__)
+#define REGISTER(dcl, reg) register dcl asm(#reg)
+#else
+#define REGISTER(dcl, reg) dcl
 #endif
 
 #include "mhsffi.h"
@@ -283,7 +289,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_CCBIND,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
-                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR, T_IO_GETARGREF,
+                T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
@@ -291,41 +297,11 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT,
+                T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_LAST_TAG,
 };
-#if 0
-static const char* tag_names[] = {
-  "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR",
-  "S", "K", "I", "B", "C",
-  "A", "Y", "SS", "BB", "CC", "P", "R", "O", "U", "Z",
-  "K2", "K3", "K4", "CCB",
-  "ADD", "SUB", "MUL", "QUOT", "REM", "SUBR", "UQUOT", "UREM", "NEG",
-  "AND", "OR", "XOR", "INV", "SHL", "SHR", "ASHR",
-  "POPCOUNT", "CLZ", "CTZ",
-  "EQ", "NE", "LT", "LE", "GT", "GE", "ULT", "ULE", "UGT", "UGE",
-  "FPADD", "FP2P", "FPNEW", "FPFIN",
-  "TOPTR", "TOINT", "TODBL", "TOFUNPTR",
-  "BININT2", "BININT1", "UNINT1",
-  "BINDBL2", "BINDBL1", "UNDBL1",
-#if WANT_FLOAT
-  "FADD", "FSUB", "FMUL", "FDIV", "FNEG", "ITOF",
-  "FEQ", "FNE", "FLT", "FLE", "FGT", "FGE", "FSHOW", "FREAD",
-#endif
-  "ARR_ALLOC", "ARR_COPY", "ARR_SIZE", "ARR_READ", "ARR_WRITE", "ARR_EQ",
-  "RAISE", "SEQ", "EQUAL", "COMPARE", "RNF",
-  "TICK",
-  "IO_BIND", "IO_THEN", "IO_RETURN",
-  "C'BIND",
-  "IO_SERIALIZE", "IO_DESERIALIZE",
-  "IO_STDIN", "IO_STDOUT", "IO_STDERR", "IO_GETARGREF",
-  "IO_PERFORMIO", "IO_PRINT", "CATCH",
-  "IO_CCALL", "IO_GC", "DYNSYM",
-  "NEWCASTRINGLEN", "PACKCSTRING", "PACKCSTRINGLEN",
-  "BSFROMUTF8",
-  "STR",
-  "LAST_TAG",
-};
-#endif
+static const char* tag_names[T_LAST_TAG+1] =
+  { "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID" };
 
 struct ioarray;
 struct bytestring;
@@ -334,6 +310,7 @@ struct forptr;
 typedef struct node {
   union {
     struct node *uufun;
+    intptr_t     uuifun;
     tag_t        uutag;             /* LSB=1 indicates that this is a tag, LSB=0 that this is a T_AP node */
   } ufun;
   union {
@@ -347,11 +324,16 @@ typedef struct node {
     struct forptr  *uuforptr;      /* foreign pointers and byte arrays */
   } uarg;
 } node;
+#define BIT_TAG   1
+#define BIT_IND   2
+#define BIT_NOTAP (BIT_TAG | BIT_IND)
+#define TAG_SHIFT 2
+
 typedef struct node* NODEPTR;
 #define NIL 0
 #define HEAPREF(i) &cells[(i)]
-#define GETTAG(p) ((p)->ufun.uutag & 1 ? (int)((p)->ufun.uutag >> 1) : T_AP)
-#define SETTAG(p,t) do { if (t != T_AP) (p)->ufun.uutag = ((t) << 1) + 1; } while(0)
+#define GETTAG(p) ((p)->ufun.uutag & BIT_NOTAP ? ( (p)->ufun.uutag & BIT_IND ? T_IND : (int)((p)->ufun.uutag >> TAG_SHIFT) ) : T_AP)
+#define SETTAG(p,t) do { if (t != T_AP) { if (t == T_IND) { (p)->ufun.uutag = BIT_IND; } else { (p)->ufun.uutag = ((t) << TAG_SHIFT) | BIT_TAG; } } } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
 #define GETDBLVALUE(p) (p)->uarg.uufloatvalue
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
@@ -364,7 +346,9 @@ typedef struct node* NODEPTR;
 #define FORPTR(p) (p)->uarg.uuforptr
 #define BSTR(p) (p)->uarg.uuforptr->payload
 #define ARR(p) (p)->uarg.uuarray
-#define INDIR(p) ARG(p)
+#define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
+#define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
+#define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
@@ -438,7 +422,7 @@ struct forptr {
 };
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
 
-counter_t num_reductions = 0;
+REGISTER(counter_t num_reductions,r19);
 counter_t num_alloc = 0;
 counter_t num_gc = 0;
 uintptr_t gc_mark_time = 0;
@@ -458,8 +442,8 @@ counter_t cur_c_stack = 0;
 NODEPTR *topnode;
 NODEPTR atptr;
 
-NODEPTR *stack;
-stackptr_t stack_ptr = -1;
+REGISTER(NODEPTR *stack,r20);
+REGISTER(stackptr_t stack_ptr,r21);
 #if STACKOVL
 #define PUSH(x) do { if (stack_ptr >= stack_size-1) stackerr(); stack[++stack_ptr] = (x); MAXSTACK; } while(0)
 #else  /* STACKOVL */
@@ -470,9 +454,9 @@ stackptr_t stack_ptr = -1;
 #define POPTOP() stack[stack_ptr--]
 #define GCCHECK(n) gc_check((n))
 
-heapoffs_t heap_size = HEAP_CELLS; /* number of heap cells */
-heapoffs_t heap_start;             /* first location in heap that needs GC */
-stackptr_t stack_size = STACK_SIZE;
+heapoffs_t heap_size;       /* number of heap cells */
+heapoffs_t heap_start;      /* first location in heap that needs GC */
+REGISTER(stackptr_t stack_size,r22);      /* number of stack slots */
 
 counter_t num_marked;
 counter_t max_num_marked = 0;
@@ -667,6 +651,7 @@ struct ioarray *argarray;
 #endif  /* WANT_ARGS */
 
 int verbose = 0;
+int gcbell = 0;
 
 static INLINE NODEPTR
 alloc_node(enum node_tag t)
@@ -675,15 +660,15 @@ alloc_node(enum node_tag t)
   int k;                        /* will contain bit pos + 1 */
   heapoffs_t pos;
   NODEPTR n;
+  heapoffs_t word;
 
   /* This can happen if we run out of memory when parsing. */
   if (num_free <= 0)
     ERR("alloc_node");
 
   for(;;) {
-    heapoffs_t word = free_map[i];
-    k = FFS(word);
-    if (k)
+    word = free_map[i];
+    if (word)
       break;
     i++;
 #if SANITY
@@ -696,9 +681,11 @@ alloc_node(enum node_tag t)
     }
 #endif
   }
+  k = FFS(word);
   pos = i * BITS_PER_WORD + k - 1; /* first free node */
   n = HEAPREF(pos);
-  mark_used(n);
+  // mark_used(n); // equivalent to:
+  free_map[i] = word & (word-1);
   next_scan_index = pos;
 
   SETTAG(n, t);
@@ -781,17 +768,17 @@ struct {
   { "ctz", T_CTZ },
 #if WANT_FLOAT
   { "f+" , T_FADD, T_FADD},
-  { "f-" , T_FSUB, T_FSUB},
+  { "f-" , T_FSUB },
   { "f*" , T_FMUL, T_FMUL},
   { "f/", T_FDIV},
   { "fneg", T_FNEG},
   { "itof", T_ITOF},
   { "f==", T_FEQ, T_FEQ},
   { "f/=", T_FNE, T_FNE},
-  { "f<", T_FLT},
-  { "f<=", T_FLE},
-  { "f>", T_FGT},
-  { "f>=", T_FGE},
+  { "f<", T_FLT, T_FGT},
+  { "f<=", T_FLE, T_FGE},
+  { "f>", T_FGT, T_FLT},
+  { "f>=", T_FGE, T_FLE},
   { "fshow", T_FSHOW},
   { "fread", T_FREAD},
 #endif  /* WANT_FLOAT */
@@ -800,10 +787,10 @@ struct {
   { "bs++.", T_BSAPPENDDOT },
   { "bs==", T_BSEQ, T_BSEQ },
   { "bs/=", T_BSNE, T_BSNE },
-  { "bs<", T_BSLT },
-  { "bs<=", T_BSLE },
-  { "bs>", T_BSGT },
-  { "bs>=", T_BSGE },
+  { "bs<", T_BSLT, T_BSGT },
+  { "bs<=", T_BSLE, T_BSGE  },
+  { "bs>", T_BSGT, T_BSLT },
+  { "bs>=", T_BSGE, T_BSLE  },
   { "bscmp", T_BSCMP },
   { "bspack", T_BSPACK },
   { "bsunpack", T_BSUNPACK },
@@ -876,7 +863,7 @@ struct {
 };
 
 #if GCRED
-enum node_tag flip_ops[T_LAST_TAG];
+enum node_tag flip_ops[T_LAST_TAG+1];
 #endif
 
 #if WANT_STDIO
@@ -914,46 +901,6 @@ init_nodes(void)
 
   /* Set up permanent nodes */
   heap_start = 0;
-#if !FASTTAGS
-  for (int j = 0; j < sizeof primops / sizeof primops[0]; j++) {
-    NODEPTR n = HEAPREF(heap_start++);
-    primops[j].node = n;
-    //MARK(n) = MARKED;
-    SETTAG(n, primops[j].tag);
-    switch (primops[j].tag) {
-    case T_K: combK = n; break;
-    case T_A: combTrue = n; break;
-    case T_I: combUnit = n; break;
-    case T_O: combCons = n; break;
-    case T_P: combPair = n; break;
-    case T_CC: combCC = n; break;
-    case T_B: combB = n; break;
-    case T_C: combC = n; break;
-    case T_Z: combZ = n; break;
-    case T_U: combU = n; break;
-    case T_K2: combK2 = n; break;
-    case T_K3: combK3 = n; break;
-    case T_IO_BIND: combIOBIND = n; break;
-    case T_IO_RETURN: combIORETURN = n; break;
-    case T_IO_CCBIND: combIOCCBIND = n; break;
-    case T_BININT1: combBININT1 = n; break;
-    case T_BININT2: combBININT2 = n; break;
-    case T_UNINT1: combUNINT1 = n; break;
-    case T_BINDBL1: combBINDBL1 = n; break;
-    case T_BINDBL2: combBINDBL2 = n; break;
-    case T_UNDBL1: combUNDBL1 = n; break;
-    case T_BINBS1: combBINBS1 = n; break;
-    case T_BINBS2: combBINBS2 = n; break;
-#if WANT_STDIO
-    case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
-    case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
-    case T_IO_STDERR: comb_stderr = n; mk_std(n, stderr); break;
-#endif  /* WANT_STDIO */
-    default:
-      break;
-    }
-  }
-#else
   for(t = T_FREE; t < T_LAST_TAG; t++) {
     NODEPTR n = HEAPREF(heap_start++);
     SETTAG(n, t);
@@ -993,9 +940,10 @@ init_nodes(void)
       if (primops[j].tag == t) {
         primops[j].node = n;
       }
+      tag_names[primops[j].tag] = primops[j].name;
     }
   }
-#endif
+
 #if GCRED
   for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
     flip_ops[primops[j].tag] = primops[j].flipped;
@@ -1039,9 +987,9 @@ init_nodes(void)
 }
 
 #if GCRED
-int red_a, red_k, red_i, red_int, red_flip;
+counter_t red_a, red_k, red_i, red_int, red_flip;
 #endif
-int red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
+counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
 //counter_t mark_depth;
 //counter_t max_mark_depth = 0;
@@ -1070,9 +1018,9 @@ mark(NODEPTR *np)
     /* Skip indirections, and redirect start pointer */
     while ((tag = GETTAG(n)) == T_IND) {
       //      PRINT("*"); fflush(stdout);
-      n = INDIR(n);
+      n = GETINDIR(n);
       if (loop++ > 10000000) {
-        //PRINT("%p %p %p\n", n, INDIR(n), INDIR(INDIR(n)));
+        //PRINT("%p %p %p\n", n, GETINDIR(n), GETINDIR(GETINDIR(n)));
         ERR("IND loop");
       }
     }
@@ -1080,7 +1028,7 @@ mark(NODEPTR *np)
     //      PRINT("\n");
 #else  /* SANITY */
     while ((tag = GETTAG(n)) == T_IND) {
-      n = INDIR(n);
+      n = GETINDIR(n);
     }
 #endif  /* SANITY */
     *np = n;
@@ -1097,12 +1045,11 @@ mark(NODEPTR *np)
    case T_INT:
 #if INTTABLE
     if (LOW_INT <= (val = GETVALUE(n)) && val < HIGH_INT) {
-      SETTAG(n, T_IND);
-      INDIR(n) = intTable[val - LOW_INT];
-      red_int++;
+      SETINDIR(n, intTable[val - LOW_INT]);
+      COUNT(red_int);
       goto top;
     }
-    break;
+    goto fin;
 #endif  /* INTTABLE */
    case T_AP:
       if (want_gc_red) {
@@ -1110,9 +1057,8 @@ mark(NODEPTR *np)
         if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
-          SETTAG(n, T_IND);
-          INDIR(n) = y;
-          red_a++;
+          SETINDIR(n, y);
+          COUNT(red_a);
           goto top;
         }
 #if 0
@@ -1120,18 +1066,16 @@ mark(NODEPTR *np)
         if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
           /* Do the K x y --> x reduction */
           NODEPTR x = ARG(FUN(n));
-          SETTAG(n, T_IND);
-          INDIR(n) = x;
-          red_k++;
+          SETINDIR(n, x);
+          COUNT(red_k);
           goto top;
         }
 #endif  /* 0 */
         if (GETTAG(FUN(n)) == T_I) {
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
-          SETTAG(n, T_IND);
-          INDIR(n) = x;
-          red_i++;
+          SETINDIR(n, x);
+          COUNT(red_i);
           goto top;
         }
 #if 0
@@ -1143,13 +1087,12 @@ mark(NODEPTR *np)
           NODEPTR q = ARG(n);
           enum node_tag tt, tf;
           while ((tt = GETTAG(q)) == T_IND)
-            q = INDIR(q);
+            q = GETINDIR(q);
           if ((tf = flip_ops[tt])) {
             /* Do the C op --> flip_op reduction */
             // PRINT("%s -> %s\n", tag_names[tt], tag_names[tf]);
-            SETTAG(n, T_IND);
-            INDIR(n) = HEAPREF(tf);
-            red_flip++;
+            SETINDIR(n, HEAPREF(tf));
+            COUNT(red_flip);
             goto fin;
           }
         }
@@ -1173,6 +1116,7 @@ mark(NODEPTR *np)
       // We unmark the array as a whole and push it as long
       // as there's more entries to scan.
       mark_unused(n);
+      num_marked--;
       to_push = np;
       np = &arr->array[arr->marked++];
       break;
@@ -1294,7 +1238,12 @@ gc(void)
 #if WANT_STDIO
   if (verbose > 1) {
     PRINT("gc done, %"PRIcounter" free\n", num_free);
-    //PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
+    /*PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter" flip=%"PRIcounter"\n",
+      red_a, red_k, red_i, red_int, red_flip);*/
+  }
+  if (gcbell) {
+    fputc('\007', stderr);      /* ring the bell */
+    fflush(stderr);
   }
 #endif  /* !WANT_STDIO */
 
@@ -1919,8 +1868,8 @@ parse(BFILE *f)
       nodep = find_label(l);
       if (*nodep == NIL) {
         /* Not yet defined, so make it an indirection */
-        *nodep = alloc_node(T_IND);
-        INDIR(*nodep) = NIL;
+        *nodep = alloc_node(T_FREE);
+        SETINDIR(*nodep, NIL);
       }
       PUSH(*nodep);
       break;
@@ -1935,8 +1884,8 @@ parse(BFILE *f)
         *nodep = x;
       } else {
         /* Sanity check */
-        if (INDIR(*nodep) != NIL) ERR("shared != NIL");
-        INDIR(*nodep) = x;
+        if (GETTAG(*nodep) != T_IND || GETINDIR(*nodep) != NIL) ERR("shared != NIL");
+        SETINDIR(*nodep, x);
       }
       break;
     case '"':
@@ -2126,7 +2075,7 @@ find_sharing(struct print_bits *pb, NODEPTR n)
 {
  top:
   while (GETTAG(n) == T_IND) {
-    n = INDIR(n);
+    n = GETINDIR(n);
   }
   if (n < cells || n >= cells + heap_size) abort();
   //PRINT("find_sharing %p %llu ", n, LABEL(n));
@@ -2213,10 +2162,11 @@ void
 printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 {
   int share = 0;
+  enum node_tag tag;
 
   while (GETTAG(n) == T_IND) {
     //putb('*', f);
-    n = INDIR(n);
+    n = GETINDIR(n);
   }
 
   if (test_bit(pb->shared_bits, n)) {
@@ -2242,7 +2192,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   }
 
   //if (n == atptr) putb('@', f);
-  switch (GETTAG(n)) {
+  tag = GETTAG(n);
+  switch (tag) {
   case T_AP:
     if (prefix) {
       putb('(', f);
@@ -2329,133 +2280,14 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
-  case T_S: putsb("S", f); break;
-  case T_K: putsb("K", f); break;
-  case T_I: putsb("I", f); break;
-  case T_C: putsb("C", f); break;
-  case T_B: putsb("B", f); break;
-  case T_A: putsb("A", f); break;
-  case T_U: putsb("U", f); break;
-  case T_Y: putsb("Y", f); break;
-  case T_P: putsb("P", f); break;
-  case T_R: putsb("R", f); break;
-  case T_O: putsb("O", f); break;
-  case T_SS: putsb("S'", f); break;
-  case T_BB: putsb("B'", f); break;
-  case T_Z: putsb("Z", f); break;
-  case T_K2: putsb("K2", f); break;
-  case T_K3: putsb("K3", f); break;
-  case T_K4: putsb("K4", f); break;
-  case T_CC: putsb("C'", f); break;
-  case T_CCB: putsb("C'B", f); break;
-  case T_ADD: putsb("+", f); break;
-  case T_SUB: putsb("-", f); break;
-  case T_MUL: putsb("*", f); break;
-  case T_QUOT: putsb("quot", f); break;
-  case T_REM: putsb("rem", f); break;
-  case T_UQUOT: putsb("uquot", f); break;
-  case T_UREM: putsb("urem", f); break;
-  case T_SUBR: putsb("subtract", f); break;
-  case T_NEG: putsb("neg", f); break;
-  case T_AND: putsb("and", f); break;
-  case T_OR: putsb("or", f); break;
-  case T_XOR: putsb("xor", f); break;
-  case T_INV: putsb("inv", f); break;
-  case T_SHL: putsb("shl", f); break;
-  case T_SHR: putsb("shr", f); break;
-  case T_ASHR: putsb("ashr", f); break;
-  case T_POPCOUNT: putsb("popcount", f); break;
-  case T_CLZ: putsb("clz", f); break;
-  case T_CTZ: putsb("ctz", f); break;
-#if WANT_FLOAT
-  case T_FADD: putsb("f+", f); break;
-  case T_FSUB: putsb("f-", f); break;
-  case T_FMUL: putsb("f*", f); break;
-  case T_FDIV: putsb("f/", f); break;
-  case T_FNEG: putsb("fneg", f); break;
-  case T_ITOF: putsb("itof", f); break;
-  case T_FEQ: putsb("f==", f); break;
-  case T_FNE: putsb("f/=", f); break;
-  case T_FLT: putsb("f<", f); break;
-  case T_FLE: putsb("f<=", f); break;
-  case T_FGT: putsb("f>", f); break;
-  case T_FGE: putsb("f>=", f); break;
-  case T_FSHOW: putsb("fshow", f); break;
-  case T_FREAD: putsb("fread", f); break;
-#endif
-  case T_BSAPPEND: putsb("bs++", f); break;
-  case T_BSAPPENDDOT: putsb("bs++.", f); break;
-  case T_BSEQ: putsb("bs==", f); break;
-  case T_BSNE: putsb("bs/=", f); break;
-  case T_BSLT: putsb("bs<", f); break;
-  case T_BSLE: putsb("bs<=", f); break;
-  case T_BSGT: putsb("bs>", f); break;
-  case T_BSGE: putsb("bs>=", f); break;
-  case T_BSCMP: putsb("bscmp", f); break;
-  case T_BSPACK: putsb("bspack", f); break;
-  case T_BSUNPACK: putsb("bsunpack", f); break;
-  case T_BSREPLICATE: putsb("bsreplicate", f); break;
-  case T_BSLENGTH: putsb("bslength", f); break;
-  case T_BSSUBSTR: putsb("bssubstr", f); break;
-  case T_BSINDEX: putsb("bsindex", f); break;
-  case T_EQ: putsb("==", f); break;
-  case T_NE: putsb("/=", f); break;
-  case T_LT: putsb("<", f); break;
-  case T_LE: putsb("<=", f); break;
-  case T_GT: putsb(">", f); break;
-  case T_GE: putsb(">=", f); break;
-  case T_ULT: putsb("u<", f); break;
-  case T_ULE: putsb("u<=", f); break;
-  case T_UGT: putsb("u>", f); break;
-  case T_UGE: putsb("u>=", f); break;
-  case T_ICMP: putsb("icmp", f); break;
-  case T_UCMP: putsb("ucmp", f); break;
-  case T_FPADD: putsb("fp+", f); break;
-  case T_FP2P: putsb("fp2p", f); break;
-  case T_FPNEW: putsb("fpnew", f); break;
-  case T_FPFIN: putsb("fpfin", f); break;
-    //  case T_FPSTR: putsb("fpstr", f); break;
-  case T_FP2BS: putsb("fp2bs", f); break;
-  case T_BS2FP: putsb("bs2fp", f); break;
-  case T_EQUAL: putsb("equal", f); break;
-  case T_COMPARE: putsb("compare", f); break;
-  case T_RNF: putsb("rnf", f); break;
-  case T_SEQ: putsb("seq", f); break;
-  case T_IO_BIND: putsb("IO.>>=", f); break;
-  case T_IO_THEN: putsb("IO.>>", f); break;
-  case T_IO_RETURN: putsb("IO.return", f); break;
-  case T_IO_CCBIND: putsb("IO.C'BIND", f); break;
-  case T_IO_SERIALIZE: putsb("IO.serialize", f); break;
-  case T_IO_PRINT: putsb("IO.print", f); break;
-  case T_IO_DESERIALIZE: putsb("IO.deserialize", f); break;
-  case T_IO_GETARGREF: putsb("IO.getArgRef", f); break;
-  case T_IO_PERFORMIO: putsb("IO.performIO", f); break;
-  case T_IO_GC: putsb("IO.gc", f); break;
-  case T_RAISE: putsb("raise", f); break;
-  case T_CATCH: putsb("catch", f); break;
-  case T_ARR_ALLOC: putsb("A.alloc", f); break;
-  case T_ARR_COPY: putsb("A.copy", f); break;
-  case T_ARR_SIZE: putsb("A.size", f); break;
-  case T_ARR_READ: putsb("A.read", f); break;
-  case T_ARR_WRITE: putsb("A.write", f); break;
-  case T_ARR_EQ: putsb("A.==", f); break;
-  case T_DYNSYM: putsb("dynsym", f); break;
-  case T_NEWCASTRINGLEN: putsb("newCAStringLen", f); break;
-  case T_PACKCSTRING: putsb("packCString", f); break;
-  case T_PACKCSTRINGLEN: putsb("packCStringLen", f); break;
-  case T_TOINT: putsb("toInt", f); break;
-  case T_TOPTR: putsb("toPtr", f); break;
-  case T_TODBL: putsb("toDbl", f); break;
-  case T_TOFUNPTR: putsb("toFunPtr", f); break;
-  case T_BSFROMUTF8: putsb("fromUTF8", f); break;
-  case T_BSTOUTF8: putsb("toUTF8", f); break;
-  case T_BSHEADUTF8: putsb("headUTF8", f); break;
-  case T_BSTAILUTF8: putsb("tailUTF8", f); break;
+
   case T_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
-  default: ERR("print tag");
+  default:
+    putsb(tag_names[tag], f);
+    break;
   }
   if (!prefix) {
     if (GETTAG(n) != T_AP)
@@ -2770,7 +2602,7 @@ indir(NODEPTR *np)
 {
   NODEPTR n = *np;
   while (GETTAG(n) == T_IND)
-    n = INDIR(n);
+    n = GETINDIR(n);
   *np = n;
   return n;
 }
@@ -3220,9 +3052,7 @@ evali(NODEPTR an)
   flt_t xd, rd;
 #endif  /* WANT_FLOAT */
   char *msg;
-#if FASTTAGS
   heapoffs_t l;
-#endif
   enum node_tag tag;
   struct ioarray *arr;
   struct bytestring xbs, ybs, rbs;
@@ -3235,13 +3065,14 @@ evali(NODEPTR an)
 
 /* Reset stack pointer and return. */
 #define RET do { goto ret; } while(0)
-/* Check that there are at least n arguments, return if not. */
 #define HASNARGS(n) (stack_ptr - stk >= (n))
+/* Check that there are at least n arguments, return if not. */
 #define CHECK(n) do { if (!HASNARGS(n)) RET; } while(0)
 
-#define SETIND(n, x) do { SETTAG((n), T_IND); INDIR((n)) = (x); } while(0)
-#define GOIND(x) do { SETIND(n, (x)); goto ind; } while(0)
+#define SETIND(n, x) SETINDIR(n, x)
+#define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0)
 #define GOAP(f,a) do { FUN((n)) = (f); ARG((n)) = (a); goto ap; } while(0)
+#define GOAP2(f,a,b) do { FUN((n)) = new_ap((f), (a)); ARG((n)) = (b); goto ap2; } while(0)
 /* CHKARGN checks that there are at least N arguments.
  * It also
  *  - sets n to the "top" node
@@ -3254,6 +3085,7 @@ evali(NODEPTR an)
 #define CHKARG2 do { CHECK(2); POP(2); n = TOP(-1); y = ARG(n); x = ARG(TOP(-2)); } while(0)
 #define CHKARG3 do { CHECK(3); POP(3); n = TOP(-1); z = ARG(n); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
+#define CHKARG5 do { CHECK(5); POP(5); n = TOP(-1); /*v = ARG(n);*/ w = ARG(TOP(-2)); z = ARG(TOP(-3)); y = ARG(TOP(-4)); x = ARG(TOP(-5)); } while(0)
 
 /* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e)   do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
@@ -3269,17 +3101,25 @@ evali(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
  top:
-  COUNT(num_reductions);
-#if FASTTAGS
   l = LABEL(n);
-  tag = l < T_IO_BIND ? l : GETTAG(n);
-#else   /* FASTTAGS */
-  tag = GETTAG(n);
-#endif  /* FASTTAGS */
+  if (l < T_IO_STDIN) {
+    /* The node is one of the permanent nodes; the address offset is the tag */
+    tag = l;
+  } else {
+    /* Heap allocated node */
+    if (ISINDIR(n)) {
+      /* Follow indirections */
+      NODEPTR on = n;
+      do {
+        n = GETINDIR(n);
+      } while(ISINDIR(n));
+      SETINDIR(on, n);          /* and short-circuit them */
+    }
+    tag = GETTAG(n);
+  }
+  COUNT(num_reductions);
   switch (tag) {
-  ind:
-  case T_IND:  n = INDIR(n); goto top;
-
+  ap2:         PUSH(n); n = FUN(n);
   ap:
   case T_AP:   PUSH(n); n = FUN(n); goto top;
 
@@ -3297,8 +3137,8 @@ evali(NODEPTR an)
    * stop reductions from happening.  This can be important for "full laziness".
    * In practice, these reductions almost never happen, but there they are anyway. :)
    */
-  case T_S:    GCCHECK(2); CHKARG3; GOAP(new_ap(x, z), new_ap(y, z));                     /* S x y z = x z (y z) */
-  case T_SS:   GCCHECK(3); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), new_ap(z, w));          /* S' x y z w = x (y w) (z w) */
+  case T_S:    GCCHECK(2); CHKARG3; GOAP2(x, z, new_ap(y, z));                            /* S x y z = x z (y z) */
+  case T_SS:   GCCHECK(3); CHKARG4; GOAP2(x, new_ap(y, w), new_ap(z, w));                 /* S' x y z w = x (y w) (z w) */
   case T_K:                CHKARG2; GOIND(x);                                             /* K x y = *x */
   case T_A:                CHKARG2; GOIND(y);                                             /* A x y = *y */
   case T_U:                CHKARG2; GOAP(y, x);                                           /* U x y = y x */
@@ -3306,30 +3146,30 @@ evali(NODEPTR an)
   case T_Y:                CHKARG1; GOAP(x, n);                                           /* n@(Y x) = x n */
   case T_B:    GCCHECK(1); CHKARG3; GOAP(x, new_ap(y, z));                                /* B x y z = x (y z) */
   case T_BB:   if (!HASNARGS(4)) {
-               GCCHECK(1); CHKARG2; red_bb++; GOAP(combB, new_ap(x, y)); } else {         /* B' x y = B (x y) */
-               GCCHECK(2); CHKARG4; GOAP(new_ap(x, y), new_ap(z, w)); }                   /* B' x y z w = x y (z w) */
+               GCCHECK(1); CHKARG2; COUNT(red_bb); GOAP(combB, new_ap(x, y)); } else {    /* B' x y = B (x y) */
+               GCCHECK(2); CHKARG4; GOAP2(x, y, new_ap(z, w)); }                          /* B' x y z w = x y (z w) */
   case T_Z:    if (!HASNARGS(3)) {
-               GCCHECK(1); CHKARG2; red_z++; GOAP(combK, new_ap(x, y)); } else {          /* Z x y = K (x y) */
+               GCCHECK(1); CHKARG2; COUNT(red_z); GOAP(combK, new_ap(x, y)); } else {     /* Z x y = K (x y) */
                            CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
-  case T_C:    GCCHECK(1); CHKARG3; GOAP(new_ap(x, z), y);                                /* C x y z = x z y */
-  case T_CC:   GCCHECK(2); CHKARG4; GOAP(new_ap(x, new_ap(y, w)), z);                     /* C' x y z w = x (y w) z */
-  case T_P:    GCCHECK(1); CHKARG3; GOAP(new_ap(z, x), y);                                /* P x y z = z x y */
+  case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                       /* C x y z = x z y */
+  case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                            /* C' x y z w = x (y w) z */
+  case T_P:    GCCHECK(1); CHKARG3; GOAP2(z, x, y);                                       /* P x y z = z x y */
   case T_R:    if(!HASNARGS(3)) {
-               GCCHECK(1); CHKARG2; red_r++; GOAP(new_ap(combC, y), x); } else {          /* R x y = C y x */
-               GCCHECK(1); CHKARG3; GOAP(new_ap(y, z), x); }                              /* R x y z = y z x */
-  case T_O:    GCCHECK(1); CHKARG4; GOAP(new_ap(w, x), y);                                /* O x y z w = w x y */
+               GCCHECK(1); CHKARG2; COUNT(red_r); GOAP2(combC, y, x); } else {            /* R x y = C y x */
+               GCCHECK(1); CHKARG3; GOAP2(y, z, x); }                                     /* R x y z = y z x */
+  case T_O:    GCCHECK(1); CHKARG4; GOAP2(w, x, y);                                       /* O x y z w = w x y */
   case T_K2:   if (!HASNARGS(3)) {
-                           CHKARG2; red_k2++; GOAP(combK, x); } else {                    /* K2 x y = K x */
+                           CHKARG2; COUNT(red_k2); GOAP(combK, x); } else {               /* K2 x y = K x */
                            CHKARG3; GOIND(x); }                                           /* K2 x y z = *x */
   case T_K3:   if (!HASNARGS(4)) {
-                           CHKARG2; red_k3++; GOAP(combK2, x); } else {                   /* K3 x y = K2 x */
+                           CHKARG2; COUNT(red_k3); GOAP(combK2, x); } else {              /* K3 x y = K2 x */
                            CHKARG4; GOIND(x); }                                           /* K3 x y z w = *x */
   case T_K4:   if (!HASNARGS(5)) {
-                           CHKARG2; red_k4++; GOAP(combK3, x); } else {                   /* K4 x y = K3 x */
-                           CHECK(5); POP(5); n = TOP(-1); x = ARG(TOP(-5)); GOIND(x); }   /* K4 x y z w v = *x */
+                           CHKARG2; COUNT(red_k4); GOAP(combK3, x); } else {              /* K4 x y = K3 x */
+                           CHKARG5; GOIND(x); }                                           /* K4 x y z w v = *x */
   case T_CCB:  if (!HASNARGS(4)) {
-               GCCHECK(2); CHKARG3; red_ccb++; GOAP(new_ap(combB, new_ap(x, z)), y); } else {  /* C'B x y z = B (x z) y */
-               GCCHECK(2); CHKARG4; GOAP(new_ap(x, z), new_ap(y, w)); }                   /* C'B x y z w = x z (y w) */
+               GCCHECK(2); CHKARG3; COUNT(red_ccb); GOAP2(combB, new_ap(x, z), y);} else{ /* C'B x y z = B (x z) y */
+               GCCHECK(2); CHKARG4; GOAP2(x, z, new_ap(y, w)); }                          /* C'B x y z w = x z (y w) */
 
     /*
      * Strict primitives require evaluating the arguments before we can proceed.
@@ -3767,7 +3607,7 @@ evali(NODEPTR an)
 #endif
 
   default:
-    ERR1("eval tag %d", GETTAG(n));
+    ERR1("eval tag %s", tag_names[GETTAG(n)]);
   }
 
 
@@ -3799,7 +3639,7 @@ evali(NODEPTR an)
       /* Second argument */
       y = ARG(TOP(2));
       while (GETTAG(y) == T_IND)
-        y = INDIR(y);
+        y = GETINDIR(y);
 #if SANITY
       if (GETTAG(y) != T_INT)
         ERR("BININT 1");
@@ -3810,7 +3650,7 @@ evali(NODEPTR an)
       n = TOP(-1);
     binint:
       switch (GETTAG(p)) {
-      case T_IND:   p = INDIR(p); goto binint;
+      case T_IND:   p = GETINDIR(p); goto binint;
       case T_ADD:   ru = xu + yu; break;
       case T_SUB:   ru = xu - yu; break;
       case T_MUL:   ru = xu * yu; break;
@@ -3858,7 +3698,7 @@ evali(NODEPTR an)
       n = TOP(-1);
     unint:
       switch (GETTAG(p)) {
-      case T_IND:      p = INDIR(p); goto unint;
+      case T_IND:      p = GETINDIR(p); goto unint;
       case T_NEG:      ru = -xu; break;
       case T_INV:      ru = ~xu; break;
       case T_POPCOUNT: ru = POPCOUNT(xu); break;
@@ -3887,7 +3727,7 @@ evali(NODEPTR an)
       /* Second argument */
       y = ARG(TOP(2));
       while (GETTAG(y) == T_IND)
-        y = INDIR(y);
+        y = GETINDIR(y);
 #if SANITY
       if (GETTAG(y) != T_DBL)
         ERR("BINDBL 1");
@@ -3898,7 +3738,7 @@ evali(NODEPTR an)
       n = TOP(-1);
     bindbl:
       switch (GETTAG(p)) {
-      case T_IND:   p = INDIR(p); goto bindbl;
+      case T_IND:   p = GETINDIR(p); goto bindbl;
       case T_FADD:  rd = xd + yd; break;
       case T_FSUB:  rd = xd - yd; break;
       case T_FMUL:  rd = xd * yd; break;
@@ -3930,7 +3770,7 @@ evali(NODEPTR an)
       n = TOP(-1);
     undbl:
       switch (GETTAG(p)) {
-      case T_IND:   p = INDIR(p); goto undbl;
+      case T_IND:   p = GETINDIR(p); goto undbl;
       case T_FNEG:  rd = -xd; break;
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
@@ -3955,7 +3795,7 @@ evali(NODEPTR an)
       /* Second argument */
       y = ARG(TOP(2));
       while (GETTAG(y) == T_IND)
-        y = INDIR(y);
+        y = GETINDIR(y);
 #if SANITY
       if (GETTAG(y) != T_FORPTR || FORPTR(y)->finalizer->fptype != FP_BSTR)
         ERR("BINBS 1");
@@ -3966,7 +3806,7 @@ evali(NODEPTR an)
       n = TOP(-1);
     binbs:
       switch (GETTAG(p)) {
-      case T_IND:    p = INDIR(p); goto binbs;
+      case T_IND:    p = GETINDIR(p); goto binbs;
 
       case T_BSAPPEND: rbs = bsappend(xbs, ybs); break;
       case T_BSAPPENDDOT: rbs = bsappenddot(xbs, ybs); break;
@@ -4044,6 +3884,8 @@ execio(NODEPTR *np)
   int hdr;
 #endif  /* WANT_STDIO */
   NODEPTR top;
+  enum node_tag tag;
+  heapoffs_t l;
 
 /* IO operations need all arguments, anything else should not happen. */
 #define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*printf("\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
@@ -4108,11 +3950,25 @@ execio(NODEPTR *np)
   for(;;) {
     COUNT(num_reductions);
     //printf("execute switch %s\n", tag_names[GETTAG(n)]);
-    switch (GETTAG(n)) {
-    case T_IND:
-      n = INDIR(n);
-      TOP(0) = n;
-      break;
+
+    l = LABEL(n);
+    if (l < T_IO_STDIN) {
+      /* The node is one of the permanent nodes; the address offset is the tag */
+      tag = l;
+    } else {
+      /* Heap allocated node */
+      if (ISINDIR(n)) {
+        /* Follow indirections */
+        NODEPTR on = n;
+        do {
+          n = GETINDIR(n);
+        } while(ISINDIR(n));
+        SETINDIR(on, n);          /* and short-circuit them */
+      }
+      tag = GETTAG(n);
+    }
+
+    switch (tag) {
     case T_AP:
       n = FUN(n);
       PUSH(n);
@@ -4401,6 +4257,9 @@ MAIN
   main_setup(); /* Do platform specific start-up. */
 #endif
 
+  heap_size = HEAP_CELLS;       /* number of heap cells */
+  stack_size = STACK_SIZE;      /* number of stack slots */
+
 #if WANT_ARGS
   progname = argv[0];
   argc--, argv++;
@@ -4426,9 +4285,11 @@ MAIN
 #if WANT_STDIO
         else if (strncmp(p, "-o", 2) == 0)
           outname = &p[2];
+        else if (strcmp(p, "-B") == 0)
+          gcbell++;
 #endif  /* WANT_STDIO */
         else
-          ERR("Usage: eval [+RTS [-v] [-T] [-Hheap-size] [-Kstack-size] [-rFILE] [-oFILE] -RTS] arg ...");
+          ERR("Usage: eval [+RTS [-v] [-B] [-T] [-Hheap-size] [-Kstack-size] [-rFILE] [-oFILE] -RTS] arg ...");
       }
     } else {
       if (strcmp(p, "+RTS") == 0) {
@@ -4448,6 +4309,8 @@ MAIN
   stack = MALLOC(sizeof(NODEPTR) * stack_size);
   if (!stack)
     memerr();
+  stack_ptr = -1;
+  num_reductions = 0;
 
 #if WANT_ARGS
   /* Initialize an IORef (i.e., single element IOArray
@@ -4566,8 +4429,10 @@ MAIN
           (double)gc_mark_time / 1000,
           (double)gc_scan_time / 1000);
 #if GCRED
-    PRINT(" GC reductions A=%d, K=%d, I=%d, int=%d flip=%d\n", red_a, red_k, red_i, red_int, red_flip);
-    PRINT(" special reductions B'=%d K4=%d K3=%d K2=%d C'B=%d, Z=%d, R=%d\n", red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
+    PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter" flip=%"PRIcounter"\n",
+          red_a, red_k, red_i, red_int, red_flip);
+    PRINT(" special reductions B'=%"PRIcounter" K4=%"PRIcounter" K3=%"PRIcounter" K2=%"PRIcounter" C'B=%"PRIcounter", Z=%"PRIcounter", R=%"PRIcounter"\n",
+          red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
 #endif
   }
 #endif  /* WANT_STDIO */

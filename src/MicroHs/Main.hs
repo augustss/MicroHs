@@ -277,6 +277,8 @@ mainCompile flags mn = do
   dumpIf flags Dtoplevel $
     mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") allDefs
   if runIt flags then do
+    unless compiledWithMhs $ do
+      error "The -r flag currently only works with mhs"
     let
       prg = translateAndRun cmdl
 --    putStrLn "Run:"
@@ -369,8 +371,8 @@ mainInstallPackage flags [pkgfn, dir] = do
   mapM_ mk (pkgExported pkg)
 mainInstallPackage flags [pkgfn] =
   case pkgPath flags of
-    [] -> error $ "pkgPath is empty"
-    first:_ -> mainInstallPackage flags [pkgfn, first]
+    [] -> error "pkgPath is empty"
+    frst:_ -> mainInstallPackage flags [pkgfn, frst]
 mainInstallPackage _ _ = error usage
 
 mainListPackages :: Flags -> IO ()
@@ -393,4 +395,4 @@ convertToInclude :: String -> FilePath -> FilePath
 convertToInclude inc pkg = dropExtension pkg </> inc
 
 hasTheExtension :: FilePath -> String -> Bool
-hasTheExtension f e = isSuffixOf e f
+hasTheExtension f e = e `isSuffixOf` f

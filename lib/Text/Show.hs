@@ -15,7 +15,7 @@ class Show a where
   showList  :: [a] -> ShowS
 
   showsPrec _ x s = show x ++ s
-  show x          = showsPrec 0 x ""
+  show x          = shows x ""
   showList        = showListWith shows
 
 shows :: forall a . Show a => a -> ShowS

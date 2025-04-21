@@ -58,13 +58,13 @@ substExp si se ae =
     App f a -> App (substExp si se f) (substExp si se a)
     Lam i e -> if si == i then
                  ae
-               else if elem i (freeVars se) then
+               else if i `elem` freeVars se then
                  let
                    fe = allVarsExp e
                    ase = allVarsExp se
                    j = head [ v | n <- enumFrom (0::Int),
                               let { v = mkIdent ("a" ++ show n) },
-                              not (elem v ase), not (elem v fe), v /= si ]
+                              v `notElem` ase, v `notElem` fe, v /= si ]
                  in
                    --trace ("substExp " ++ show [si, i, j]) $
                    Lam j (substExp si se (substExp i (Var j) e))

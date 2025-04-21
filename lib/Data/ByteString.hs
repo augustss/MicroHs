@@ -555,7 +555,7 @@ hPut :: Handle -> ByteString -> IO ()
 hPut h bs =
   withHandleWr h $ \bfile ->
     useAsCStringLen bs $ \(cstr, len) ->
-      () <$ c_writeb cstr len bfile
+      void (c_writeb cstr len bfile)
       -- XXX: flush if not BlockBuffering
 
 hPutNonBlocking :: Handle -> ByteString -> IO ByteString

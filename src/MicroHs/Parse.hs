@@ -187,13 +187,13 @@ keywords =
    "let", "module", "newtype", "of", "pattern", "then", "type", "where"]
 
 pSpec :: Char -> P ()
-pSpec c = () <$ satisfy (showToken $ TSpec (SLoc "" 0 0) c) is
+pSpec c = void (satisfy (showToken $ TSpec (SLoc "" 0 0) c) is)
   where
     is (TSpec _ d) = c == d
     is _ = False
 
 pSymbol :: String -> P ()
-pSymbol sym = () <$ satisfy sym is
+pSymbol sym = void (satisfy sym is)
   where
     is (TIdent _ [] s) = s == sym
     is _ = False
@@ -207,7 +207,7 @@ pUOper = pUQSymOper <|> (pSpec '`' *> pUQIdent <* pSpec '`')
 pQSymOper :: P Ident
 pQSymOper = do
   let
-    is (TIdent loc qs s) | not (isAlpha_ (head s)) && not (elem s reservedOps) = Just (qualName loc qs s)
+    is (TIdent loc qs s) | not (isAlpha_ (head s)) && s `notElem` reservedOps = Just (qualName loc qs s)
     is (TSpec  loc '!') = Just (mkIdentSLoc loc "!")
     is (TSpec  loc '~') = Just (mkIdentSLoc loc "~")
     is _ = Nothing
@@ -216,7 +216,7 @@ pQSymOper = do
 pSymOper :: P Ident
 pSymOper = do
   let
-    is (TIdent loc [] s) | not (isAlpha_ (head s)) && not (elem s reservedOps) = Just (mkIdentSLoc loc s)
+    is (TIdent loc [] s) | not (isAlpha_ (head s)) && s `notElem` reservedOps = Just (mkIdentSLoc loc s)
     is (TSpec  loc '!') = Just (mkIdentSLoc loc "!")
     is (TSpec  loc '~') = Just (mkIdentSLoc loc "~")
     is _ = Nothing
@@ -251,8 +251,8 @@ pLSymOper :: P Ident
 pLSymOper = guardM pSymOper (not . isUOper)
 
 reservedOps :: [String]
-reservedOps = ["::", "<-", "..", "->",
-               "\x2237", "\x2192"] -- :: and ->
+reservedOps = ["::", "<-", "..", "->", "=>",
+               "\x2237", "\x2192", "\x21d2"] -- ::, -> and =>
 
 pUQIdentSym :: P Ident
 pUQIdentSym = pUQIdent <|> pParens pUQSymOper
@@ -301,13 +301,13 @@ pExportItem =
   <|> ExpDefault  <$> (pKeyword "default" *> pUQIdentSym)
 
 pKeyword :: String -> P ()
-pKeyword kw = () <$ satisfy kw is
+pKeyword kw = void (satisfy kw is)
   where
     is (TIdent _ [] s) = kw == s
     is _ = False
 
 pPragma :: String -> P ()
-pPragma kw = () <$ satisfy kw is
+pPragma kw = void (satisfy kw is)
   where
     is (TPragma _ s) = kw == s
     is _ = False
@@ -353,7 +353,7 @@ pDef =
   <|> Default      <$> (pKeyword "default"  *> optional clsSym) <*> pParens (sepBy pType (pSpec ','))
   <|> KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (dcolon *> pKind)
   <|> mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
-  <|> Sign         <$> (pKeyword "pattern"  *> (sepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|> Sign         <$> (pKeyword "pattern"  *> sepBy1 pUIdentSym (pSpec ',') <* dcolon) <*> pType
   <|> StandDeriving<$> (pKeyword "deriving" *> pStrat) <*> pure 0 <*> (pKeyword "instance" *> pType)
   <|> noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
@@ -432,7 +432,7 @@ dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
           -- Result type is just type variables, so use it as is
           Just sub | not (anySame (map fst sub))
             -> Constr es'' ctx  cnm (Left stys')
-                        where stys' = map (\ (b, t) -> (b, subst sub t)) stys
+                        where stys' = map (second $ subst sub) stys
                               es'' = if null es then kind (freeTyVars (map snd stys) \\ map fst sub) else es
           _ -> Constr es'  ctx' cnm (Left stys)
       where es' = if null es then kind (freeTyVars (rty : map snd stys)) else es
@@ -449,7 +449,7 @@ pDerivings = many pDeriving
 pDeriving :: P Deriving
 pDeriving = pKeyword "deriving" *> (    (flip Deriving <$> pDer <*> pVia)
                                     <|> (Deriving <$> pSimpleStrat <*> pDer) )
-  where pDer = zipWith (,) (repeat 0) <$>
+  where pDer = map ((,) 0) <$>
                    (    pParens (sepBy pType (pSpec ','))
                     <|> ((:[]) <$> pAType) )
         pVia = DerVia <$> (pKeyword "via" *> pAType)
@@ -462,10 +462,7 @@ pSimpleStrat = (DerStock <$ pKeyword "stock") <|> (DerNewtype <$ pKeyword "newty
 pContext :: P [EConstraint]
 pContext = (pCtx <* pDRArrow) <|> pure []
   where
-    pCtx =     (eq <$> pTypeArg <*> pTilde <*> pTypeArg)   -- A hack to allow   a~b => ...
-           <|> ((:[]) <$> pTypeApp)
-    eq t1 i t2 = [eAppI2 i t1 t2]
-    pTilde = do i <- pQSymOper; guard (i == mkIdent "~"); return i
+    pCtx = (:[]) <$> pOperators pOper pTypeArg
 
 pDRArrow :: P ()
 pDRArrow = pSymbol "=>" <|> pSymbol "\x21d2"
@@ -784,7 +781,7 @@ pSelect :: P Ident
 pSelect = pSpec '.' *> pLIdent
 
 pAExpr' :: P Expr
-pAExpr' = (
+pAExpr' =
       (EVar   <$> pLQIdentSym)
   <|> (EVar   <$> pUQIdentSym)
   <|> pLit
@@ -795,7 +792,6 @@ pAExpr' = (
   <|> (ESelect <$> (pSpec '(' *> some pSelect <* pSpec ')'))
   <|> (ELit noSLoc . LPrim <$> (pKeyword "_primitive" *> pString))
   <|> (ETypeArg <$> (pSpec '@' *> pAType))
-  )
   -- This weirdly slows down parsing
   -- <?> "aexpr"
 
@@ -847,7 +843,7 @@ pBind =
 pBind' :: P EBind
 pBind' =
       uncurry Fcn <$> pEqns
-  <|> Sign        <$> ((sepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|> Sign        <$> (sepBy1 pLIdentSym (pSpec ',') <* dcolon) <*> pType
   <|> Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> sepBy1 pTypeOper (pSpec ',')
   where
     pAssoc = (AssocLeft <$ pKeyword "infixl") <|> (AssocRight <$ pKeyword "infixr") <|> (AssocNone <$ pKeyword "infix")
@@ -865,7 +861,7 @@ pClsBind =
 pInstBind :: P EBind
 pInstBind =
       uncurry Fcn <$> pEqns
-  <|> Sign        <$> ((sepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|> Sign        <$> (sepBy1 pLIdentSym (pSpec ',') <* dcolon) <*> pType
 
 -------------
 

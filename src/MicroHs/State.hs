@@ -40,7 +40,7 @@ modify :: forall s . (s -> s) -> State s ()
 modify f = S $ \ s -> ((), f s)
 
 put :: forall s . s -> State s ()
-put s = S $ \ _ -> ((), s)
+put s = S $ const ((), s)
 
 get :: forall s . State s s
 get = S $ \ s -> (s, s)

@@ -51,7 +51,6 @@ module MicroHs.Expr(
   getImplies,
   ) where
 import qualified Prelude(); import MHSPrelude hiding ((<>))
-import Control.Arrow(first)
 import Data.List
 import Data.Maybe
 import MicroHs.Builtin
@@ -288,7 +287,7 @@ conArity (ConSyn _ n _) = n
 conFields :: Con -> [FieldName]
 conFields (ConData _ _ fs) = fs
 conFields (ConNew _ fs) = fs
-conFields (ConSyn _ _ _) = []
+conFields ConSyn{} = []
 
 instance Eq Con where
   (==) (ConData _ i _)   (ConData _ j _)   = i == j
@@ -589,7 +588,7 @@ subst s =
         EApp f a -> EApp (sub f) (sub a)
         ESign e t -> ESign (sub e) t
         EUVar _ -> ae
-        EForall b iks t | null (intersect vs is) -> EForall b iks $ subst s' t
+        EForall b iks t | null (vs `intersect` is) -> EForall b iks $ subst s' t
                         | otherwise ->
                           -- We need to alpha convert to avoid accidental capture
                           let used = freeTyVars [t]
@@ -598,12 +597,12 @@ subst s =
                               alpha = zipWith (\ (IdKind i _) n -> (i, EVar n)) iks new
                           in  subst s' $ EForall b iks' $ subst alpha t
           where is = map idKindIdent iks
-                s' = [ x | x@(i, _) <- s, not (elem i is) ]
+                s' = [ x | x@(i, _) <- s, i `notElem` is ]
                 vs = freeTyVars (map snd s')    -- these are free in s'
 
         ELit _ _ -> ae
         ETuple ts -> ETuple (map sub ts)
-        EOper t1 its -> EOper (sub t1) (map (\ (i, t) -> (i, sub t)) its)
+        EOper t1 its -> EOper (sub t1) (map (second sub) its)
         EParen t -> EParen (sub t)
         _ -> error $ "subst unimplemented " ++  show ae
   in sub
@@ -810,7 +809,7 @@ ppEDef def =
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
     Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
-    Default mc ts -> text "default" <+> (maybe empty ppIdent mc) <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
+    Default mc ts -> text "default" <+> maybe empty ppIdent mc <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
     StandDeriving _s _narg ct -> text "deriving instance" <+> ppEType ct
     DfltSign i t -> text "default" <+> ppIdent i <+> text "::" <+> ppEType t
@@ -1088,8 +1087,8 @@ freeTyVars = foldr (go []) []
        -> [TyVar] -- Accumulates result
        -> [TyVar]
     go bound (EVar tv) acc
-      | elem tv bound = acc
-      | elem tv acc = acc
+      | tv `elem` bound = acc
+      | tv `elem` acc = acc
       | isConIdent tv = acc
       | otherwise = tv : acc
     go bound (EForall _ tvs ty) acc = go (map idKindIdent tvs ++ bound) ty acc

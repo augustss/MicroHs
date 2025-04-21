@@ -1,12 +1,12 @@
 module HigherKind(main) where
 import Prelude
 
-data T f = C (f Int)
+newtype T f = C (f Int)
 
 showT :: forall f . (f Int -> String) -> T f -> String
 showT f (C x) = "(C " ++ f x ++ ")"
 
-data TT f a = CC (f a)
+newtype TT f a = CC (f a)
 
 showTT :: forall f a . (f a -> String) -> TT f a -> String
 showTT f (CC x) = "(CC " ++ f x ++ ")"

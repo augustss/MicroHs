@@ -207,7 +207,6 @@ tmpname(const char* pre, const char* suf)
 /* #define ERR1(s,a) */
 
 #define GCRED    1              /* do some reductions during GC */
-#define FASTTAGS 1              /* compute tag by pointer subtraction */
 #define INTTABLE 1              /* use fixed table of small INT nodes */
 #define SANITY   1              /* do some sanity checks */
 #define STACKOVL 1              /* check for stack overflow */

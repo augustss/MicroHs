@@ -29,6 +29,7 @@ import Data.IOArray
 import Data.List
 import Data.Num
 import Data.Ord
+import Data.Tuple
 import System.IO
 import Text.Show
 
@@ -113,7 +114,7 @@ unsafeAccum f (Array b n oa) ies = primPerformIO $ do
 unsafeArray' :: (i,i) -> Int -> [(Int, e)] -> Array i e
 unsafeArray' b n ies = primPerformIO $ do
   a <- newIOArray n arrEleBottom
-  mapM_ (\ (i, e) -> writeIOArray a i e) ies
+  mapM_ (uncurry (writeIOArray a)) ies
   return $ Array b n a
 
 arrEleBottom :: a

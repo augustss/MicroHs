@@ -1,8 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE Safe #-}
-{-# LANGUAGE StandaloneDeriving #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Data.Functor.Product

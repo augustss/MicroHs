@@ -17,6 +17,18 @@ toInts = coerce
 casbs :: (Coercible a b) => [a] -> [b]
 casbs = coerce
 
+class Coercible a b => MyCoercible a b
+instance Coercible a b => MyCoercible a b
+
+f :: MyCoercible a b => a -> b
+f = coerce
+
+g :: MyCoercible a Int => a -> Int
+g = coerce
+
+h :: MyCoercible b a => a -> b
+h = coerce
+
 main :: IO ()
 main = do
   print (toInt (NT 5))
@@ -26,3 +38,6 @@ main = do
   print (coerce (List [NT 5, NT 6]) :: [NT])
   print (coerce (List [NT 7, NT 8]) :: [Int])
   print (coerce "hello" :: [Word8])
+  print (f (NT 12) :: Int)
+  print (g (NT 42))
+  print (h (NT 24) :: Int)

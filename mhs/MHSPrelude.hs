@@ -29,6 +29,7 @@ module MHSPrelude(
   module Data.Tuple,
   module System.IO,
   module Text.Show,
+  first, second,
   usingMhs, _wordSize, _isWindows,
   appendDot,
   wantGMP,
@@ -101,3 +102,9 @@ compiledWithMhs = True
 
 instance NFData (a -> b) where
   rnf f = seq f ()
+
+first :: forall a b c . (a -> c) -> (a, b) -> (c, b)
+first f (a, b) = (f a, b)
+
+second :: forall a b c . (b -> c) -> (a, b) -> (a, c)
+second f (a, b) = (a, f b)

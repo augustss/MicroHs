@@ -110,7 +110,7 @@ Differences:
  * The only extension that is not always on is `CPP`.
  * `main` in the top module given to `mhs` serves at the program entry point.
  * Many things that should be an error (but which are mostly harmless) are not reported.
- * Text file I/O uses UTF8, but the source code does not allow Unicode.
+ * Text file I/O always uses UTF8, as does the source code.
  * The `BangPatterns` extension is parsed, but only effective at the a top level `let`/`where`.
  * More differences that I don't remember right now.
 
@@ -394,6 +394,7 @@ the running program.
 * `-rFILE` read combinators from `FILE`, instead of `out.comb`
 * `-v` be more verbose, flag can be repeated
 * `-T` generate profiling stats (if compiled with `-T` as well)
+* `-B` ring the bell on every GC
 * `-oFILE` just read the input, run garbage collection, and write out the resulting graph to file.
 
 For example, `bin/mhseval +RTS -H1M -v -RTS hello` runs `out.comb` and the program gets the argument `hello`,

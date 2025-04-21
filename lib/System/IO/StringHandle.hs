@@ -1,6 +1,5 @@
 module System.IO.StringHandle(handleWriteToString, stringToHandle) where
 import Prelude; import MiniPrelude
-import Foreign.Ptr
 import Foreign.C.String
 import Foreign.C.Types
 import Foreign.Marshal.Alloc

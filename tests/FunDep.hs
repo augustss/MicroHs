@@ -31,7 +31,7 @@ instance Iso Char Int where
   isoL = ord
   isoR = chr
 
-data T a = T a
+newtype T a = T a
 
 instance C a b => C (T a) b where
   f (T a) = f a

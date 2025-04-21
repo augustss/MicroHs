@@ -64,9 +64,9 @@ resolveFixity ae oes =
 
       resolve [e] []             [] = Right e
       resolve _   []             [] = undefined
-      resolve es  []             (ox@(Rator _    _    _) : is) = resolve          es  [ox] is
-      resolve es     (oy:os)     []                            = resolve (oper oy es)  os  []
-      resolve es aos             (    Rand e             : is) = resolve       (e:es) aos  is
+      resolve es  []             (ox@Rator{} : is) = resolve          es  [ox] is
+      resolve es     (oy:os)     []                = resolve (oper oy es)  os  []
+      resolve es aos             (   Rand e  : is) = resolve       (e:es) aos  is
       resolve es aos@(oy:os) ais@(ox@(Rator FixIn func _) : is)
         | prec ox == prec oy && (assoc ox /= assoc oy || assoc ox == AssocNone) =
           Left (getSLoc func, "ambiguous operator expression")

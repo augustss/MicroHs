@@ -22,6 +22,7 @@ module Data.Functor.Classes (
 
 import Control.Applicative (Alternative((<|>)), Const(Const))
 import Data.Functor.Identity (Identity(Identity))
+import Data.Functor (($>))
 import Data.Proxy (Proxy(Proxy))
 import Data.List.NonEmpty (NonEmpty(..))
 --import Data.Ord (Down(Down))
@@ -165,7 +166,7 @@ instance Ord1 Maybe where
 
 instance Read1 Maybe where
     liftReadPrec rp _ =
-        parens (expectP (Ident "Nothing") *> pure Nothing)
+        parens (expectP (Ident "Nothing") $> Nothing)
         <|>
         readData (readUnaryWith rp "Just" Just)
 
@@ -288,7 +289,7 @@ instance Read a => Read2 ((,,) a) where
 
 instance Show a => Show2 ((,,) a) where
     liftShowsPrec2 sp1 _ sp2 _ _ (x1,y1,y2)
-        = showChar '(' . showsPrec 0 x1
+        = showChar '(' . shows x1
         . showChar ',' . sp1 0 y1
         . showChar ',' . sp2 0 y2
         . showChar ')'
@@ -336,8 +337,8 @@ instance (Read a, Read b) => Read2 ((,,,) a b) where
 
 instance (Show a, Show b) => Show2 ((,,,) a b) where
     liftShowsPrec2 sp1 _ sp2 _ _ (x1,x2,y1,y2)
-        = showChar '(' . showsPrec 0 x1
-        . showChar ',' . showsPrec 0 x2
+        = showChar '(' . shows x1
+        . showChar ',' . shows x2
         . showChar ',' . sp1 0 y1
         . showChar ',' . sp2 0 y2
         . showChar ')'

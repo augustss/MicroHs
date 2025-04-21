@@ -120,7 +120,7 @@ lex loc ('\'':cs) = lexLitStr loc (addCol loc 1) tchar isSQuote id cs
   where isSQuote ('\'':_) = Just 1
         isSQuote _ = Nothing
         tchar [c] = TChar loc c
-        tchar _   = TError loc $ "Illegal Char literal"
+        tchar _   = TError loc "Illegal Char literal"
 
 lex loc (d:_) = [TError loc $ "Unrecognized input: " ++ show d]
 lex loc [] = [TEnd loc]
@@ -251,7 +251,7 @@ decodeEsc ('&':cs) = decodeEscs cs
 decodeEsc ('x':cs) = conv 16 0 cs
 decodeEsc ('o':cs) = conv 8 0 cs
 decodeEsc ('^':c:cs) | '@' <= c && c <= '_' = chr (ord c - ord '@') : decodeEscs cs
-decodeEsc (cs@(c:_)) | isDigit c = conv 10 0 cs
+decodeEsc cs@(c:_) | isDigit c = conv 10 0 cs
 decodeEsc (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = c : decodeEscs cs
 decodeEsc (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = c : decodeEscs cs
 decodeEsc (c  :cs) = c : decodeEscs cs
