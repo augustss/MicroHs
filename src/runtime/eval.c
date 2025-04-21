@@ -1893,9 +1893,7 @@ parse(BFILE *f)
       }
       break;
     case '"':
-      /* Everything up to the next " is a string.
-       * Special characters are encoded as \NNN&,
-       * where NNN is the decimal value of the character */
+      /* Everything up to the next " is a string. */
       PUSH(mkStrNode(parse_string(f)));
       break;
 #if WANT_TICK
@@ -1916,7 +1914,7 @@ parse(BFILE *f)
       PUSH(r);
       break;
     case ';':
-      /* <name is a C function pointer to name */
+      /* name is a C function pointer to name */
       for (j = 0; (buf[j] = getNT(f)); j++)
         ;
       if (strcmp(buf, "0") == 0) {
@@ -2119,6 +2117,7 @@ find_sharing(struct print_bits *pb, NODEPTR n)
   }
 }
 
+/* See src/MicroHs/ExpPrint.hs for encoding */
 void
 print_string(BFILE *f, struct bytestring bs)
 {
@@ -2126,15 +2125,6 @@ print_string(BFILE *f, struct bytestring bs)
   putb('"', f);
   for (size_t i = 0; i < bs.size; i++) {
     int c = str[i];
-#if 0
-    if (c == '"' || c == '\\' || c < ' ' || c > '~') {
-      putb('\\', f);
-      putdecb(c, f);
-      putb('&', f);
-    } else {
-      putb(c, f);
-    }
-#else
     if (c < 0 || c > 0xff)
       ERR("print_string");
     if (c < 0x20) {
@@ -2152,7 +2142,6 @@ print_string(BFILE *f, struct bytestring bs)
     } else {                    /* must be c == 0xff */
       putb('\\', f); putb('_', f);
     }
-#endif
   }
   putb('"', f);
 }
@@ -2488,7 +2477,7 @@ mkCons(NODEPTR x, NODEPTR xs)
 size_t
 strNodes(size_t len)
 {
-  /* Each character will need a CHAR node and a CONS node, a CONS uses 2 T_AP nodes */
+  /* Each character will need a INT(=CHAR) node and a CONS node, a CONS uses 2 T_AP nodes */
   len *= (1 + 2);
   /* And each string will need a NIL */
   len += 1;
