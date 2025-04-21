@@ -81,7 +81,7 @@ getWorking = working
 addWorking :: IdentModule -> Cache -> Cache
 addWorking mn c =
   let ws = working c
-  in  if elem mn ws then
+  in  if mn `elem` ws then
         error $ "recursive module: " ++ showIdent mn ++ ", import chain: " ++ unwords (map showIdent ws)
       else
         c{ working = mn : ws }
@@ -98,7 +98,7 @@ cachedModuleNames :: Cache -> [IdentModule]
 cachedModuleNames = M.keys . cache
 
 cachedNonPkgModuleNames :: Cache -> [IdentModule]
-cachedNonPkgModuleNames c = [ i | (i, CompMdl _ _ _) <- M.toList (cache c) ]
+cachedNonPkgModuleNames c = [ i | (i, CompMdl{}) <- M.toList (cache c) ]
 
 lookupCache :: IdentModule -> Cache -> Maybe (TModule [LDef])
 lookupCache mn c = tModuleOf <$> M.lookup mn (cache c)

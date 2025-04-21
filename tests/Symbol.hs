@@ -1,7 +1,7 @@
 module Symbol(main) where
 import Prelude
 
-data T (s::Symbol) = A Int
+newtype T (s::Symbol) = A Int
 
 class C a where
   m :: a -> Int

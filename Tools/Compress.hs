@@ -72,6 +72,6 @@ main = do
     error "Non-printable ASCII in input"
   let bs = compress initTable f []
   ofile <- openBinaryFile ofn WriteMode
-  hPutStr ofile $ 'Z' : (map chr $ toBytes bs)
+  hPutStr ofile $ 'Z' : map chr (toBytes bs)
   hClose ifile
   hClose ofile

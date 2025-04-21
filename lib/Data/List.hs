@@ -66,8 +66,8 @@ instance Functor [] where
 
 instance Applicative [] where
   pure a = [a]
-  fs <*> xs = concatMap (\f -> map f xs) fs
-  xs *> ys = concatMap (\_ -> ys) xs
+  fs <*> xs = concatMap (`map` xs) fs
+  xs *> ys = concatMap (const ys) xs
   liftA2 f xs ys = concatMap (\x -> map (f x) ys) xs
 
 instance Show a => Show [a] where
@@ -147,17 +147,17 @@ foldl1' f (x : xs) = foldl' f x xs
 
 minimum :: forall a . Ord a => [a] -> a
 minimum [] = error "minimum: empty list"
-minimum (x:ys) = foldr (\ y m -> if y < m then y else m) x ys
+minimum (x:ys) = foldr min x ys
 
 maximum :: forall a . Ord a => [a] -> a
 maximum [] = error "maximum: empty list"
-maximum (x:ys) = foldr (\ y m -> if y > m then y else m) x ys
+maximum (x:ys) = foldr max x ys
 
 sum :: forall a . Num a => [a] -> a
-sum = foldr (+) 0
+sum = foldl' (+) 0
 
 product :: forall a . Num a => [a] -> a
-product = foldr (*) 1
+product = foldl' (*) 1
 
 and :: [Bool] -> Bool
 and = foldr (&&) True
@@ -200,22 +200,22 @@ length =
   in rec (0::Int)
 
 zip :: forall a b . [a] -> [b] -> [(a, b)]
-zip = zipWith (\ x y -> (x, y))
+zip = zipWith (,)
 
 zip3 :: forall a b c . [a] -> [b] -> [c] -> [(a, b, c)]
-zip3 = zipWith3 (\ x y z -> (x, y, z))
+zip3 = zipWith3 (,,)
 
 zip4 :: forall a b c d . [a] -> [b] -> [c] -> [d] -> [(a, b, c, d)]
-zip4 = zipWith4 (\ x y z w -> (x, y, z, w))
+zip4 = zipWith4 (,,,)
 
 zip5 :: forall a b c d e . [a] -> [b] -> [c] -> [d] -> [e] -> [(a, b, c, d, e)]
-zip5 = zipWith5 (\ x y z w u -> (x, y, z, w, u))
+zip5 = zipWith5 (,,,,)
 
 zip6 :: forall a b c d e f . [a] -> [b] -> [c] -> [d] -> [e] -> [f] -> [(a, b, c, d, e, f)]
-zip6 = zipWith6 (\ x y z w u v -> (x, y, z, w, u, v))
+zip6 = zipWith6 (,,,,,)
 
 zip7 :: forall a b c d e f g . [a] -> [b] -> [c] -> [d] -> [e] -> [f] -> [g] -> [(a, b, c, d, e, f, g)]
-zip7 = zipWith7 (\ x y z w u v t -> (x, y, z, w, u, v, t))
+zip7 = zipWith7 (,,,,,,)
 
 zipWith :: forall a b r . (a -> b -> r) -> [a] -> [b] -> [r]
 zipWith f (x:xs) (y:ys) = f x y : zipWith f xs ys
@@ -318,7 +318,7 @@ isPrefixOf [] _ = True
 isPrefixOf _  _ = False
 
 isSuffixOf :: forall a . Eq a => [a] -> [a] -> Bool
-isSuffixOf n h = isPrefixOf (reverse n) (reverse h)
+isSuffixOf n h = reverse n `isPrefixOf` reverse h
 
 isInfixOf :: forall a . Eq a => [a] -> [a] -> Bool
 isInfixOf cs ds = any (isPrefixOf cs) (tails ds)
@@ -415,7 +415,7 @@ elem :: forall a . (Eq a) => a -> [a] -> Bool
 elem a = any (a ==)
 
 notElem :: forall a . (Eq a) => a -> [a] -> Bool
-notElem a as = not (elem a as)
+notElem a as = not (a `elem` as)
 
 find :: forall a . (a -> Bool) -> [a] -> Maybe a
 find p [] = Nothing
@@ -458,7 +458,7 @@ nub = nubBy (==)
 
 nubBy :: forall a . (a -> a -> Bool) -> [a] -> [a]
 nubBy _ [] = []
-nubBy eq (x:xs) = x : nubBy eq (filter (\ y -> not (eq x y)) xs)
+nubBy eq (x:xs) = x : nubBy eq (filter (not . eq x) xs)
 
 replicate :: forall a . Int -> a -> [a]
 replicate n x = take n (repeat x)

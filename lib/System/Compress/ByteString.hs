@@ -7,7 +7,6 @@ import qualified Prelude(); import MiniPrelude
 import Primitives(primForeignPtrToPtr)
 import qualified Data.ByteString as BS
 import Data.Function
-import Foreign.Ptr
 import Foreign.C.String
 import Foreign.C.Types
 import Foreign.Marshal.Alloc

@@ -31,7 +31,7 @@ class Enum a where
   enumFromThenTo :: a -> a -> a -> [a]
 
   succ                   = toEnum . (+ 1) . fromEnum
-  pred                   = toEnum . (subtract 1) . fromEnum
+  pred                   = toEnum . subtract 1 . fromEnum
   enumFrom x             = map toEnum [fromEnum x ..]
   enumFromThen x y       = map toEnum [fromEnum x, fromEnum y ..]
   enumFromTo x y         = map toEnum [fromEnum x .. fromEnum y]

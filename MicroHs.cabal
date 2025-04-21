@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.12.3.0
+version:             0.12.5.4
                      -- *** When changing the version number, also
                      -- *** run 'sh updateversion.sh'
                      -- *** Yeah, it stinks.
@@ -58,7 +58,7 @@ executable mhs
                        -fwrite-ide-info -Wno-deprecations
                        -main-is MicroHs.Main
   main-is:             MicroHs/Main.hs
-  default-extensions:  ScopedTypeVariables TypeSynonymInstances MultiParamTypeClasses FlexibleInstances
+  default-extensions:  ScopedTypeVariables TypeSynonymInstances MultiParamTypeClasses FlexibleInstances FlexibleContexts
   other-modules:       MicroHs.Abstract
                        MicroHs.Builtin
                        MicroHs.Compile
@@ -116,6 +116,8 @@ executable mhs
                        process      >= 1.6 && < 1.10,
                        directory    >= 1.2 && < 1.6,
                        text         >= 2.0 && < 2.5,
+                       array        >= 0.5 && < 0.6,
+                       ghc-internal >= 9.0 && < 10.0,
 
   if impl(hugs)
     hs-source-dirs:    hugs src

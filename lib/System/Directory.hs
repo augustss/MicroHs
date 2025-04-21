@@ -49,7 +49,6 @@ doesFileExist fn = do
 doesDirectoryExist :: FilePath -> IO Bool
 doesDirectoryExist fn = withCAString fn $ \ cfn -> do
   dp <- c_opendir cfn
-  return False
   if dp == nullPtr then
     return False
    else do

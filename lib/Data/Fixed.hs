@@ -50,14 +50,14 @@ import Data.Typeable
 default () -- avoid any defaulting shenanigans
 
 div' :: (Real a,Integral b) => a -> a -> b
-div' n d = floor ((toRational n) / (toRational d))
+div' n d = floor (toRational n / toRational d)
 
 divMod' :: (Real a,Integral b) => a -> a -> (b,a)
-divMod' n d = (f,n - (fromIntegral f) * d) where
+divMod' n d = (f,n - fromIntegral f * d) where
     f = div' n d
 
 mod' :: (Real a) => a -> a -> a
-mod' n d = n - (fromInteger f) * d where
+mod' n d = n - fromInteger f * d where
     f = div' n d
 
 type Fixed :: forall k . k -> Type
@@ -114,16 +114,16 @@ instance (HasResolution a) => Num (Fixed a) where
     fromInteger i = withResolution (\res -> MkFixed (i * res))
 
 instance (HasResolution a) => Real (Fixed a) where
-    toRational fa@(MkFixed a) = (toRational a) / (toRational (resolution fa))
+    toRational fa@(MkFixed a) = toRational a / toRational (resolution fa)
 
 instance (HasResolution a) => Fractional (Fixed a) where
-    fa@(MkFixed a) / (MkFixed b) = MkFixed (div (a * (resolution fa)) b)
+    fa@(MkFixed a) / (MkFixed b) = MkFixed (div (a * resolution fa) b)
     recip fa@(MkFixed a) = MkFixed (div (res * res) a) where
         res = resolution fa
-    fromRational r = withResolution (\res -> MkFixed (floor (r * (toRational res))))
+    fromRational r = withResolution (\res -> MkFixed (floor (r * toRational res)))
 
 instance (HasResolution a) => RealFrac (Fixed a) where
-    properFraction a = (i,a - (fromIntegral i)) where
+    properFraction a = (i,a - fromIntegral i) where
         i = truncate a
     truncate f = truncate (toRational f)
     round f = round (toRational f)
@@ -146,8 +146,8 @@ withDot "" = ""
 withDot s = '.':s
 
 showFixed :: (HasResolution a) => Bool -> Fixed a -> String
-showFixed chopTrailingZeros fa@(MkFixed a) | a < 0 = "-" ++ (showFixed chopTrailingZeros (asTypeOf (MkFixed (negate a)) fa))
-showFixed chopTrailingZeros fa@(MkFixed a) = (show i) ++ (withDot (showIntegerZeros chopTrailingZeros digits fracNum)) where
+showFixed chopTrailingZeros fa@(MkFixed a) | a < 0 = "-" ++ showFixed chopTrailingZeros (asTypeOf (MkFixed (negate a)) fa)
+showFixed chopTrailingZeros fa@(MkFixed a) = show i ++ withDot (showIntegerZeros chopTrailingZeros digits fracNum) where
     res = resolution fa
     (i,d) = divMod a res
     -- enough digits to be unambiguous

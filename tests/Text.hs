@@ -1,5 +1,6 @@
 module Text where
 import Data.Text as T
+import Data.Text.Encoding
 
 bs1 :: Text
 bs1 = pack "abc"
@@ -31,3 +32,18 @@ main = do
   print (T.null (pack ""))
   print (pack "\xD800") -- low surrogate
   print (pack "\xDFFF") -- high surrogate
+
+  -- Data.Text.Encoding
+  print $ decodeLatin1 "äöüß"
+
+  let text = "øßΞóïűæいהłДป็ş" :: Text
+  print $ encodeUtf8 text
+  print $ encodeUtf16LE text
+  print $ encodeUtf16BE text
+  print $ encodeUtf32LE text
+  print $ encodeUtf32BE text
+  print $ decodeUtf8 (encodeUtf8 text) == text
+  print $ decodeUtf16LE (encodeUtf16LE text) == text
+  print $ decodeUtf16BE (encodeUtf16BE text) == text
+  print $ decodeUtf32LE (encodeUtf32LE text) == text
+  print $ decodeUtf32BE (encodeUtf32BE text) == text

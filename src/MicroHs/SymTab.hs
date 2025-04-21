@@ -34,7 +34,7 @@ data Entry = Entry
 --  deriving(Show)
 
 instance Show Entry where
-  showsPrec _ (Entry e t) = showsPrec 0 e . showString " :: " . showsPrec 0 t
+  showsPrec _ (Entry e t) = shows e . showString " :: " . shows t
 
 instance Eq Entry where
   Entry x _ == Entry y _  =  getIdent x == getIdent y

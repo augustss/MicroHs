@@ -11,13 +11,17 @@ import GHC.Types(Any)
 import Foreign.C.String
 import Foreign.C.Types
 import Foreign.Marshal.Alloc
+import Data.Array.IO
 import Foreign.Ptr
+import GHC.ForeignPtr
 --import System.Environment
 import System.IO.Unsafe
 --import Debug.Trace
 
 
 type AnyType = Any
+
+type IOArr a = IOArray Int a
 
 _primitive :: String -> Any
 --_primitive s | trace ("_primitive " ++ show s) False = undefined
@@ -27,8 +31,8 @@ _primitive s = fromMaybe (error $ "PrimTable._primitive: " ++ s) $ lookup s prim
 primOps :: [(String, Any)]
 primOps =
   [ comb "S" (\ f g x -> f x (g x))
-  , comb "K" (\ x _y -> x)
-  , comb "I" (\ x -> x)
+  , comb "K" const
+  , comb "I" id
   , comb "B" (\ f g x -> f (g x))
   , comb "C" (\ f g x -> f x g)
   , comb "S'" (\ k f g x -> k (f x) (g x))
@@ -76,6 +80,7 @@ primOps =
   , cmpw "u>"  (>)
   , cmpw "u>=" (>=)
   , comb "icmp" (\ x y -> fromOrdering (compare (x::Int) y))
+  , comb "ucmp" (\ x y -> fromOrdering (compare (x::Word) y))
 
   , comb "scmp" (\ x y -> fromOrdering (compare (toString x) (toString y)))
   , comb "sequal" (\ x y -> fromBool (toString x == toString y))
@@ -85,6 +90,13 @@ primOps =
   , comb "pcast" castPtr
   , comb "p+" plusPtr
   , comb "p-" minusPtr
+  , comb "fp2p" unsafeForeignPtrToPtr
+
+  , comb "A.alloc" newIOArray
+  , comb "A.size" sizeIOArray
+  , comb "A.read" readIOArray
+  , comb "A.write" writeIOArray
+--  , comb "A.==" eqIOArray
 
   , farith "f+" (+)
   , farith "f-" (-)
@@ -175,8 +187,19 @@ primOps =
     rnf :: a -> ()
     rnf x = seq x ()
 
+    newIOArray :: Int -> a -> IO (IOArr a)
+    newIOArray i arr = newArray (0, i-1) arr
+    sizeIOArray :: IOArr a -> IO Int
+    sizeIOArray arr = pred . snd <$> getBounds arr
+    readIOArray :: IOArr a -> Int -> IO a
+    readIOArray arr i = readArray arr i
+    writeIOArray :: IOArr a -> Int -> a -> IO ()
+    writeIOArray arr i a = writeArray arr i a
+--    eqIOArray :: IOArr a -> IOArr a -> IO Bool
+
+
 fromBool :: Bool -> Any
-fromBool False = unsafeCoerce $ \ x _y -> x
+fromBool False = unsafeCoerce const
 fromBool True  = unsafeCoerce $ \ _x y -> y
 
 fromOrdering :: Ordering -> (Any -> Any -> Any -> Any)
@@ -191,11 +214,11 @@ fromString :: String -> Any
 fromString = fromList . map (unsafeCoerce . ord)
 
 fromList :: [Any] -> Any
-fromList [] = unsafeCoerce $ \ nil _cons -> nil
+fromList [] = unsafeCoerce const
 fromList (x:xs) = unsafeCoerce $ \ _nil cons -> cons (unsafeCoerce x) (fromList xs)
 
 toList :: Any -> [Int]
-toList a = (unsafeCoerce a) [] (\ i is -> i : toList is)
+toList a = unsafeCoerce a [] (\ i is -> i : toList is)
 
 toString :: Any -> String
 toString = map chr . toList
@@ -242,7 +265,7 @@ cops =
     fio f = return . f
 
     fio2 :: (Double -> Double -> Double) -> (Double -> Double -> IO Double)
-    fio2 f = \ x y -> return (f x y)
+    fio2 f x y = return (f x y)
 
     add_FILE :: Handle -> IO Handle
     add_FILE h = return h

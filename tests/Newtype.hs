@@ -15,5 +15,5 @@ showM sh (M x) = "(M " ++ sh x ++ ")"
 
 main :: IO ()
 main = do
-  putStrLn $ show [f (N 1), f (N 2)]
+  print [f (N 1), f (N 2)]
   putStrLn $ showM show (g (M (3,4)))

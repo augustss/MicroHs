@@ -124,7 +124,7 @@ compileModuleCached flags impt mn = do
             ms <- gets getWorking
             putStrLnInd $ "[from " ++ head (map showIdent ms ++ ["-"]) ++ "]"
             putStrInd $ "importing " ++ showIdent mn
-          mres <- liftIO (readModulePath flags ".hs" mn)
+          mres <- liftIO (readModulePath flags "hs" mn)
           case mres of
             Nothing -> do
               (fn, res) <- findPkgModule flags mn
@@ -191,7 +191,7 @@ compileModule flags impt mn pathfn file = do
     specs = [ s | Import s <- defs ]
     imported = [ (boot, m) | ImportSpec boot _ m _ _ <- specs ]
   t2 <- liftIO getTimeMilli
-  (impMdls, _, tImps) <- fmap unzip3 $ mapM (uncurry $ compileModuleCached flags) imported
+  (impMdls, _, tImps) <- unzip3 <$> mapM (uncurry $ compileModuleCached flags) imported
 
   t3 <- liftIO getTimeMilli
   glob <- gets getCacheTables
@@ -216,7 +216,7 @@ compileModule flags impt mn pathfn file = do
       tImp = sum tImps
 
   dumpIf flags Ddesugar $
-    (liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl)
+    liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl
   when (verbosityGT flags 0) $
     putStrLnInd $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++
             "ms (" ++ show tParse ++ " + " ++ show tTCDesug ++ " + " ++ show tAbstract ++ ")"
@@ -302,26 +302,30 @@ readModulePath flags suf mn = do
       mh <- openFileM fn ReadMode
       case mh of
         Nothing -> errorMessage (getSLoc mn) $ "File not found: " ++ show fn
-        Just h  -> readRest fn h
+        Just h  -> readRest fn =<< hGetContents h
     _ -> do
       mh <- findModulePath flags suf mn
       case mh of
         Nothing -> do
           mhc <- findModulePath flags (suf ++ "c") mn  -- look for hsc file
           case mhc of
-            Nothing -> return Nothing
+            Nothing -> do
+              mhl <- findModulePath flags ("l" ++ suf) mn  -- look for lhs file
+              case mhl of
+                Nothing -> do
+                  return Nothing
+                Just (fn, h) -> readRest fn . unlit =<< hGetContents h
             Just (_fn, _h) -> undefined  -- hsc2hs no implemented yet
-        Just (fn, h) -> readRest fn h
-  where readRest :: FilePath -> Handle -> IO (Maybe (FilePath, String))
-        readRest fn h = do
+        Just (fn, h) -> readRest fn =<< hGetContents h
+  where readRest :: FilePath -> String -> IO (Maybe (FilePath, String))
+        readRest fn file = do
           hasCPP <- hasLangCPP fn
-          file <-
+          file' <-
             if hasCPP || doCPP flags then do
-              hClose h
-              runCPPTmp flags fn
+              runCPPString flags file
             else
-              hGetContents h
-          return (Just (fn, file))
+              return file
+          return (Just (fn, file'))
 
 -- Check if the file contains {-# LANGUAGE ... CPP ... #-}
 -- XXX This is pretty hacky and not really correct.
@@ -358,13 +362,17 @@ openFilePath adirs fileName =
         Nothing -> openFilePath dirs fileName -- If opening failed, try the next directory
         Just hdl -> return (Just (path, hdl))
 
-runCPPTmp :: Flags -> FilePath -> IO String
-runCPPTmp flags infile = do
-  (fn, h) <- openTmpFile "mhscpp.hs"
-  runCPP flags infile fn
-  file <- hGetContents h
-  removeFile fn
-  return file
+runCPPString :: Flags -> String -> IO String
+runCPPString flags ifile = do
+  (fni, hi) <- openTmpFile "mhsin.hs"
+  hClose hi
+  writeFile fni ifile
+  (fno, ho) <- openTmpFile "mhsout.hs"
+  runCPP flags fni fno
+  ofile <- hGetContents ho
+  removeFile fni
+  removeFile fno
+  return ofile
 
 mhsDefines :: [String]
 mhsDefines =
@@ -449,8 +457,20 @@ loadDeps flags pid = do
       loadPkg flags pfn
 
 getMhsDir :: IO FilePath
-getMhsDir = do
-  md <- lookupEnv "MHSDIR"
-  case md of
-    Just d -> return d
-    Nothing -> getDataDir
+getMhsDir = maybe getDataDir return =<< lookupEnv "MHSDIR"
+
+-- Deal with literate Haskell
+unlit :: String -> String
+unlit = unlines . un True . lines
+  where
+    un _ [] = []
+    un _ (l:ls) | all isSpace l = un True ls
+    un _ ("\\begin{code}":ls) = "" : code ls
+    un spc (l@('#':'!':_) : ls) = l : un spc ls
+    un spc (('>':l):ls) | spc = (' ':l) : un True ls
+                        | otherwise = error "unlit: missing blank before >"
+    un _ (_:ls) = un False ls
+    -- We allow non-blank to follow directly after >
+    code ("\\end{code}":ls) = "" : un False ls
+    code (l : ls) = l : code ls
+    code [] = error "unlit: missing \\end{code}"

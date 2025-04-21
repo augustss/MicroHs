@@ -158,7 +158,7 @@ shiftRI :: Integer -> Int -> Integer
 shiftRI x i = unop (\ pz px -> mpz_fdiv_q_2exp pz px i) x
 
 popCountI :: Integer -> Int
-popCountI (I x) = unsafePerformIO $ withForeignPtr x $ mpz_popcount
+popCountI (I x) = unsafePerformIO $ withForeignPtr x mpz_popcount
 
 ---------------------------------
 {-

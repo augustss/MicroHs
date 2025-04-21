@@ -32,5 +32,5 @@ uname flag = unsafePerformIO $ do
   res <- readFile fn
   removeFile fn
   when (rc /= ExitSuccess) $
-    error $ "System.Into: uname failed"
+    error "System.Into: uname failed"
   return $ map toLower $ filter (not . isSpace) res

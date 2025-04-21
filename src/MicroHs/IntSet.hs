@@ -22,7 +22,7 @@ insert :: Int -> IntSet -> IntSet
 insert k (I m) = I (M.insert k () m)
 
 fromList :: [Int] -> IntSet
-fromList is = I (M.fromList (zip is (repeat ())))
+fromList is = I $ M.fromList (map (\ x -> (x, ())) is)
 
 toList :: IntSet -> [Int]
 toList (I m) = map fst (M.toList m)

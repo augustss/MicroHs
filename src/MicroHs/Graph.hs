@@ -61,7 +61,7 @@ stronglyConnCompR le edges0
   where
     (graph, vertex_fn) = graphFromEdges le edges0
     forest             = scc graph
-    mentions_itself v = elem v (graph IM.! v)
+    mentions_itself v = v `elem` (graph IM.! v)
     decode (Node v []) | mentions_itself v = CyclicSCC [vertex_fn v]
                        | otherwise         = AcyclicSCC (vertex_fn v)
     decode other = CyclicSCC (dec other [])
@@ -80,7 +80,7 @@ edges g = [ (v, w) | v <- vertices g, w <- g IM.! v ]
 
 buildG :: [Vertex] -> [Edge] -> Graph
 buildG vs es =
-  let mt = IM.fromList (zip vs (repeat []))
+  let mt = IM.fromList (map (\ x -> (x, [])) vs)
   in  foldr (\ (v, w) -> IM.insertWith (++) v [w]) mt es
 
 transposeG  :: Graph -> Graph
@@ -95,7 +95,7 @@ graphFromEdges
         -> [(node, key, [key])]
         -> (Graph, Vertex -> (node, key, [key]))
 graphFromEdges le edges0
-  = (graph, \v -> vertex_map IM.! v)
+  = (graph, (vertex_map IM.!))
   where
     lek (_,k1,_) (_,k2,_) = le k1 k2
 
@@ -147,7 +147,7 @@ postorder :: forall a . Tree a -> [a] -> [a]
 postorder (Node a ts) = postorderF ts . (a :)
 
 postorderF :: forall a . [Tree a] -> [a] -> [a]
-postorderF ts = foldr (.) id $ map postorder ts
+postorderF = foldr ((.) . postorder) id
 
 postOrd :: Graph -> [Vertex]
 postOrd g = postorderF (dff g) []

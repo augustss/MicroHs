@@ -142,7 +142,7 @@ data TCState = TC {
   dataTable   :: DataTable,             -- data/newtype definitions
   valueTable  :: ValueTable,            -- value symbol table
   assocTable  :: AssocTable,            -- values associated with a type, indexed by QIdent
-  uvarSubst   :: (IM.IntMap EType),     -- mapping from unique id to type
+  uvarSubst   :: IM.IntMap EType,       -- mapping from unique id to type
   tcMode      :: TCMode,                -- pattern, value, or type
   classTable  :: ClassTable,            -- class info, indexed by QIdent
   ctxTables   :: (InstTable,            -- instances

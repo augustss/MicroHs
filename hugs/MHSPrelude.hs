@@ -4,6 +4,7 @@ module MHSPrelude(
   module Prelude,
   module MHSPrelude,
 --  module Control.Monad.Fail,
+  module Control.Arrow,
   module Data.Monoid,
   module Data.Semigroup,
   (<$>), Applicative(..), (*>),
@@ -11,6 +12,7 @@ module MHSPrelude(
 import Hugs.Prelude()
 import Prelude hiding(fail)
 import qualified Prelude
+import Control.Arrow(first, second)
 import Control.Applicative
 import Control.Exception(Exception, try)
 --import Control.Monad.Fail
@@ -69,8 +71,7 @@ void :: Functor f => f a -> f ()
 void = fmap (const ())
 
 asum :: Alternative f => [f a] -> f a
-asum [] = empty
-asum (a:as) = a <|> asum as
+asum = foldr (<|>) empty
 
 
 ------- List --------
@@ -110,7 +111,7 @@ lookupEnv var = do
 
 openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
 openFileM path m = do
-  r <- (try $ openFile path m)
+  r <- try $ openFile path m
   case r of
     Left _ -> return Nothing
     Right h -> return (Just h)

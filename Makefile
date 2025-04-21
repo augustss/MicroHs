@@ -9,9 +9,12 @@ PREFIX=/usr/local
 # Unix-like system, 64 bit words
 CONF=unix-64
 #
+# Using GCC enables global register variables on ARM64, which gives a 5-10% speedup.
+#CC=gcc-14
 CCWARNS= -Wall
 CCOPTS= -O3
 CCLIBS= -lm
+CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
 CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS)
 #
 GHC= ghc
@@ -19,7 +22,7 @@ GHCINCS= -ighc -isrc -ipaths
 GHCWARNS= -Wall -Wno-unrecognised-warning-flags -Wno-x-partial -Wno-deprecations
 GHCOPTS= -O
 GHCEXTS= -XScopedTypeVariables -XTypeSynonymInstances -XMultiParamTypeClasses -XFlexibleInstances
-GHCPKGS= -package mtl -package pretty -package haskeline -package process -package time -package ghc-prim -package containers -package deepseq -package directory -package text
+GHCPKGS= -package mtl -package pretty -package haskeline -package process -package time -package ghc-prim -package containers -package deepseq -package directory -package text -package bytestring -package filepath -package array
 GHCTOOL= # -F -pgmF Tools/convertX.sh
 GHCOUTDIR= ghc-out
 GHCOUT= -outputdir $(GHCOUTDIR)
@@ -61,7 +64,7 @@ newmhsz:	newmhs
 	make generated/mhs.c
 
 sanitizemhs:	ghcgen targets.conf
-	$(CCEVAL) -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract generated/mhs.c -o bin/mhssane
+	$(CCEVAL) $(CCSANITIZE) generated/mhs.c -o bin/mhssane
 
 # Compile mhs from distribution, with C compiler
 bin/mhs:	src/runtime/*.c src/runtime/*.h targets.conf #generated/mhs.c
@@ -87,6 +90,10 @@ bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 bin/mhsevalgdb:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
 	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c -o bin/mhsevalgdb
+
+bin/mhsevalsane:	src/runtime/*.c src/runtime/config*.h
+	@mkdir -p bin
+	$(CCEVAL) $(CCSANITIZE) src/runtime/comb.c -o bin/mhsevalsane
 
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
@@ -159,8 +166,13 @@ runtest:	bin/mhseval bin/gmhs tests/*.hs
 runtestmhs: bin/mhseval bin/mhs
 	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H4M -RTS -CR" info test errtest
 
+# Run test examples with sanitized mhs-compiled compiler
+runtestsan: bin/mhsevalsane sanitizemhs
+	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CR" cache
+	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CR" EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
+
 # Run test examples going via JavaScript
-runtestemscripten: bin/mhseval bin/mhs
+runtestemscripten: bin/mhseval bin/mhs bin/cpphs
 	cd tests; make MHS=../bin/mhs cache; MHSDIR=.. make MHS="../bin/mhs -CR -temscripten -oout.js" EVAL="node out.js" info test errtest
 
 
@@ -173,7 +185,7 @@ bin/umhs: bin/mhs
 timecompile: bin/mhs
 	@date
 	@git rev-parse HEAD
-	time bin/mhs +RTS -v -RTS -s $(MHSINC) $(MAINMODULE)
+	time bin/mhs +RTS -v -RTS $(MHSINC) $(MAINMODULE)
 
 #
 timecachecompile: bin/mhs
@@ -185,7 +197,7 @@ timecachecompile: bin/mhs
 timemhscompile:
 	@date
 	@git rev-parse HEAD
-	time mhs +RTS -v -RTS -z -s -imhs -isrc -ipaths $(MAINMODULE)
+	time mhs +RTS -v -RTS -z -imhs -isrc -ipaths $(MAINMODULE)
 
 #
 timegmhscompile:
@@ -248,8 +260,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.12.3.0
-HVERSION=0,12,3,0
+VERSION=0.12.5.4
+HVERSION=0,12,5,4
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data

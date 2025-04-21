@@ -51,8 +51,9 @@ start = do
   is <- get
   liftIO $ maybeSaveCache (isFlags is) (isCache is)
   liftIO $ putStrLn "Type ':quit' to quit, ':help' for help"
-  when (not compiledWithMhs) $
-    liftIO $ putStrLn "WARNING: Not compiled with mhs, so limited functionality."
+  unless compiledWithMhs $ do
+    --liftIO $ putStrLn "WARNING: Not compiled with mhs, so limited functionality."
+    error "The interactive system currently only works with mhs"
   repl
 
 repl :: I ()
@@ -137,7 +138,7 @@ helpText = "\
   \:clear     clear all definitions\n\
   \:delete d  delete definition(s) d\n\
   \:type e    show type of e\n\
-  \:kind t    show type of t\n\
+  \:kind t    show kind of t\n\
   \:help      this text\n\
   \expr       evaluate expression\n\
   \defn       add top level definition\n\
@@ -291,7 +292,7 @@ complete mdls (tys, vals) (rpre, _post) =
       allSyms = map unIdent $ stKeysGlbU tys ++ stKeysGlbU vals ++ mdls
       allStrs = allSyms ++ keywords
       real = notElem '$'
-  in  case filter real $ catMaybes $ map (stripPrefix pre) allStrs of
+  in  case filter real $ mapMaybe (stripPrefix pre) allStrs of
         []  -> []
         [s] -> [s ++ " "]
         ss  ->

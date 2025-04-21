@@ -225,7 +225,7 @@ class Read a where
   readsPrec    = readPrec_to_S readPrec
   readList     = readPrec_to_S (list readPrec) 0
   readPrec     = readS_to_Prec readsPrec
-  readListPrec = readS_to_Prec (\_ -> readList)
+  readListPrec = readS_to_Prec (const readList)
 
 readListDefault :: Read a => ReadS [a]
 -- ^ A possible replacement definition for the 'readList' method (GHC only).
@@ -339,7 +339,7 @@ list :: ReadPrec a -> ReadPrec [a]
 list readx =
   parens
   ( do expectP (L.Punc "[")
-       (listRest False +++ listNext)
+       listRest False +++ listNext
   )
  where
   listRest started =
@@ -636,7 +636,7 @@ instance Read Integer where
 -- | @since base-4.8.0.0
 instance Read Natural where
   readsPrec d = map (\(n, s) -> (fromInteger n, s))
-                  . filter ((>= 0) . (\(x,_)->x)) . readsPrec d
+                  . filter ((>= 0) . fst) . readsPrec d
   readListPrec = readListPrecDefault
   readList     = readListDefault
 

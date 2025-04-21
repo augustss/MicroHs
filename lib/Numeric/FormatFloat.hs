@@ -63,7 +63,7 @@ formatRealFloatAlt fmt decs alt x
        Just dec ->
         let dec' = max dec 1 in
         case is of
-         [0] -> '0' :'.' : take dec' (repeat '0') ++ "e0"
+         [0] -> '0' :'.' : replicate dec' '0' ++ "e0"
          _ ->
           let
            (ei,is') = roundTo base (dec'+1) is
@@ -150,7 +150,7 @@ floatToDigits base x =
   -- will have an impossibly low exponent.  Adjust for this.
   (f, e) =
    let n = minExp - e0 in
-   if n > 0 then (f0 `quot` (expt b n), e0+n) else (f0, e0)
+   if n > 0 then (f0 `quot` expt b n, e0+n) else (f0, e0)
   (r, s, mUp, mDn) =
    if e >= 0 then
     let be = expt b e in

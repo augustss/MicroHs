@@ -33,13 +33,10 @@ noFail :: forall t . LastFail t
 noFail = LastFail maxInt [] []
 
 longest :: forall t . LastFail t -> LastFail t -> LastFail t
-longest lf1@(LastFail l1 t1 x1) lf2@(LastFail l2 _ x2) =
-  if l1 < l2 then
-    lf1
-  else if l2 < l1 then
-    lf2
-  else
-    LastFail l1 t1 (x1 ++ x2)
+longest lf1@(LastFail l1 t1 x1) lf2@(LastFail l2 _ x2)
+  | l1 < l2   = lf1
+  | l2 < l1   = lf2
+  | otherwise = LastFail l1 t1 (x1 ++ x2)
 
 class TokenMachine tm t | tm -> t where
   tmNextToken :: tm -> (t, tm)
@@ -100,7 +97,7 @@ instance Monad (Prsr tm t) where
           Success b v lfb -> Success b v (longest lfa lfb)
           Failure lfb -> Failure (longest lfa lfb)
       Failure lf -> Failure lf
-  (>>) p k = p >>= \ _ -> k
+  (>>) p k = p >>= const k
   return = pure
 
 instance TokenMachine tm t => MonadFail (Prsr tm t) where

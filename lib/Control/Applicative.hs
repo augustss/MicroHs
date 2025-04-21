@@ -29,7 +29,7 @@ class Functor f => Applicative f where
   liftA2 f a b = f <$> a <*> b
 
 liftA :: forall f a b . Applicative f => (a -> b) -> f a -> f b
-liftA f a = pure f <*> a
+liftA f a = f <$> a
 
 liftA3 :: forall f a b c d . Applicative f => (a -> b -> c -> d) -> f a -> f b -> f c -> f d
 liftA3 f a b c = f <$> a <*> b <*> c

@@ -80,16 +80,16 @@ class Foldable (t :: Type -> Type) where
     foldr f z t = appEndo (foldMap (Endo . f) t) z
 
     foldr' :: forall a b . (a -> b -> b) -> b -> t a -> b
-    foldr' f z0 = \ xs ->
-        foldl (\ k x -> {-oneShot-} (\ z -> z `seq` k (f x z)))
+    foldr' f z0 xs =
+        foldl (\ k x z -> z `seq` k (f x z))
               id xs z0
 
     foldl :: forall a b . (b -> a -> b) -> b -> t a -> b
     foldl f z t = appEndo (getDual (foldMap (Dual . Endo . flip f) t)) z
 
     foldl' :: forall a b . (b -> a -> b) -> b -> t a -> b
-    foldl' f z0 = \ xs ->
-        foldr (\ x k -> {-oneShot-} (\ z -> z `seq` k (f z x)))
+    foldl' f z0 xs =
+        foldr (\ x k z -> z `seq` k (f z x))
               id xs z0
 
     foldr1 :: forall a . (a -> a -> a) -> t a -> a
@@ -409,7 +409,7 @@ msum :: forall (t :: Type -> Type) (m :: Type -> Type) a . (Foldable t, Alternat
 msum = asum
 
 concat :: forall (t :: Type -> Type) a . Foldable t => t [a] -> [a]
-concat xs = foldr (\x y -> foldr (:) y x) [] xs
+concat xs = foldr (flip (foldr (:))) [] xs
 
 concatMap :: forall (t :: Type -> Type) a b . Foldable t => (a -> [b]) -> t a -> [b]
 concatMap f xs = foldr (\x b -> foldr (:) b (f x)) [] xs
