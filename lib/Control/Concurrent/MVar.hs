@@ -21,6 +21,7 @@ module Control.Concurrent.MVar(
   ) where
 import Primitives
 import Control.Exception
+import Data.Maybe(isNothing)
 
 instance Eq (MVar a) where
   mv1 == mv2  =  primMVarToWord mv1 == primMVarToWord mv2

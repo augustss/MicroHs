@@ -632,6 +632,7 @@ struct mthread {
   NODEPTR         mt_thrown;    /* possible thrown exception */
   NODEPTR         mt_mvar;      /* filled after waiting for take/read */
   int             mt_mark;      /* marked as accessible */
+  counter_t       mt_id;
 };
 struct mthread  *all_threads = 0;   /* all threads */
 struct mthread  *runq = 0;          /* ready to run */
@@ -710,6 +711,18 @@ cleanup(void)
   }
 }
 
+const int thread_trace = 0;
+
+void
+dump_runq(void)
+{
+  printf("runq=[");
+  for(struct mthread *mt = runq; mt; mt = mt->mt_queue) {
+    printf("%d ", (int)mt->mt_id);
+  }
+  printf("]\n");
+}
+
 /* Inlining makes very little difference */
 /*static INLINE*/ void
 yield(void)
@@ -733,6 +746,10 @@ yield(void)
   struct mthread *mt = remove_runq_head();
   /* link into back of runq */
   add_runq_tail(mt);
+  if (thread_trace) {
+    printf("yield: resched %d\n", (int)mt->mt_id);
+    dump_runq();
+  }
   resched();
 }
 
@@ -750,6 +767,7 @@ new_thread(NODEPTR root)
   mt->mt_slice = 0;
   mt->mt_mark = 0;
   mt->mt_num_slices = 0;
+  mt->mt_id = num_thread_create;
 
   /* add to all_threads */
   mt->mt_next = all_threads;
@@ -757,6 +775,8 @@ new_thread(NODEPTR root)
 
   /* add to tail of runq */
   add_runq_tail(mt);
+  if (thread_trace)
+    printf("new_thread: add %d to runq tail\n", (int)mt->mt_id);
   return mt;
 }
 
@@ -792,17 +812,25 @@ take_mvar(struct mvar *mv)
     mv->mv_data = NIL;           /* now empty */
     /* move all threads waiting to put to the runq */
     for (struct mthread *mt = mv->mv_takeput; mt; ) {
+      if (thread_trace) {
+        printf("take_mvar: wake %d\n", (int)mt->mt_id);
+        dump_runq();
+      }
       mt = mt->mt_queue;
       add_runq_tail(mt);
     }
     return n;                   /* return the data */
   } else {
     /* mvar is empty */
+    if (thread_trace) {
+      printf("take_mvar: suspend %d\n", (int)runq->mt_id);
+      dump_runq();
+    }
     cleanup();
+    struct mthread *mt = remove_runq_head();
     runq->mt_queue = mv->mv_takeput;
-    mv->mv_takeput = runq;
+    mv->mv_takeput = mt;
     /* Unlink from runq */
-    (void)remove_runq_head();
     resched();                  /* never returns */
     return NIL;                 /* we never get here, but make linters happy */
   }
@@ -822,6 +850,10 @@ read_mvar(struct mvar *mv)
     return n;                   /* return the data */
   } else {
     /* mvar is empty */
+    if (thread_trace) {
+      printf("read_mvar: suspend %d\n", (int)runq->mt_id);
+      dump_runq();
+    }
     runq->mt_queue = mv->mv_read;
     mv->mv_read = runq;
     remove_runq_head();
@@ -834,6 +866,10 @@ void
 put_mvar(struct mvar *mv, NODEPTR v)
 {
   if (mv->mv_data != NIL) {
+    if (thread_trace) {
+      printf("put_mvar: suspend %d\n", (int)runq->mt_id);
+      dump_runq();
+    }
     /* mvar is full */
     runq->mt_next = mv->mv_takeput; /* put on mvar queue */
     mv->mv_takeput = runq;
@@ -846,15 +882,21 @@ put_mvar(struct mvar *mv, NODEPTR v)
       struct mthread *mt;
       if ((mt = mv->mv_takeput)) {
         /* wake up one 'take' */
+        if (thread_trace)
+          printf("put_mvar: wake 1 %d\n", (int)mt->mt_id);
         mt->mt_mvar = v;
         mv->mv_takeput = mt->mt_queue; /* remove first entry */
         add_runq_tail(mt);             /* and schedule for execution later */
       }
       for (mt = mv->mv_read; mt; ) {
+        if (thread_trace)
+          printf("put_mvar: wake N %d\n", (int)mt->mt_id);
         mt->mt_mvar = v;               /* value for restarted read */
         mt = mt->mt_queue;             /* next waiter */
         add_runq_tail(mt);             /* and schedule for execution later */
       }
+      if (thread_trace)
+        dump_runq();
       /* return to caller */
     } else {
       /* no threads waiting, so store the value */
@@ -877,11 +919,19 @@ start_exec(NODEPTR root)
     COUNT(num_resched);
     break;
   }
+  if (thread_trace) {
+    printf("start_exec:\n");
+    dump_runq();
+  }
+  if (!runq)
+    ERR("no threads");
   for(;;) {
     mt = runq;                      /* front thread */
     //mt->mt_slice = slice;         /* give it a time slice */
     glob_slice = mt->mt_slice + slice;
     /*printf("slice=%d\n", (int)glob_slice);*/
+    if (thread_trace)
+      printf("start_exec: start %d\n", (int)mt->mt_id);
     execio(&mt->mt_root, mt->mt_num_slices == 0);         /* run it */
     /* when execio() returns the thread is done */
     runq = mt->mt_queue;            /* skip this thread */
