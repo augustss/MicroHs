@@ -875,15 +875,16 @@ start_exec(NODEPTR root)
     break;
   case mt_resched:
     COUNT(num_resched);
+    break;
   }
   for(;;) {
-    mt = runq;                    /* front thread */
+    mt = runq;                      /* front thread */
     //mt->mt_slice = slice;         /* give it a time slice */
     glob_slice = mt->mt_slice + slice;
     /*printf("slice=%d\n", (int)glob_slice);*/
     execio(&mt->mt_root, mt->mt_num_slices == 0);         /* run it */
     /* when execio() returns the thread is done */
-    runq = mt->mt_queue;          /* skip this thread */
+    runq = mt->mt_queue;            /* skip this thread */
 
     mt->mt_state = ts_zombie;
     mt->mt_root = NIL;

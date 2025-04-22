@@ -53,7 +53,7 @@ tryReadMVar :: MVar a -> IO (Maybe a)
 tryReadMVar = error "tryReadMVar"
 
 isEmptyMVar :: MVar a -> IO Bool
-isEmptyMVar mv = maybe True (const False) <$> tryReadMVar mv
+isEmptyMVar mv = isNothing <$> tryReadMVar mv
 
 swapMVar :: MVar a -> a -> IO a
 swapMVar mvar new =
