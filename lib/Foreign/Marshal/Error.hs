@@ -4,6 +4,7 @@ module Foreign.Marshal.Error (
   throwIfNeg,
   throwIfNeg_,
   throwIfNull,
+  void,
 ) where
 import qualified Prelude(); import MiniPrelude
 import Data.Functor(void)
