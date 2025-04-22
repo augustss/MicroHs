@@ -20,7 +20,7 @@ module Control.Exception(
   evaluate,
   mapException,
 
-  mask,
+  mask, mask_,
   --
   ArithException(..),
   SomeAsyncException(..), AsyncException(..),
@@ -91,6 +91,9 @@ bracket before after thing =
     _ <- after a
     return r
 -}
+
+mask_ :: IO a -> IO a
+mask_ io = mask $ const io
 
 finally :: IO a -> IO b -> IO a
 finally a sequel =

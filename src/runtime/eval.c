@@ -1159,7 +1159,8 @@ struct {
   { "IO.yield", T_IO_YIELD },
   { "IO.newmvar", T_IO_NEWMVAR },
   { "IO.takemvar", T_IO_TAKEMVAR },
-  { "IO.putvar", T_IO_PUTMVAR },
+  { "IO.putmvar", T_IO_PUTMVAR },
+  { "IO.readmvar", T_IO_READMVAR },
   { "newCAStringLen", T_NEWCASTRINGLEN },
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
@@ -3532,6 +3533,7 @@ evali(NODEPTR an)
   case T_FORPTR: RET;
   case T_ARR:    RET;
   case T_THID:   RET;
+  case T_MVAR:   RET;
   case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
 
   /*
