@@ -682,7 +682,33 @@ remove_runq_head(void)
 int doing_rnf = 0;              /* REMOVE */
 
 void pp(FILE*, NODEPTR);
-void resched(void);
+
+/* reschedule, does not return */
+void
+resched(void)
+{
+  longjmp(sched, mt_resched);
+}
+
+/* clean up temporary globals to prepare for rescheduling */
+void
+cleanup(void)
+{
+  /* We are going to reschedule, so clean up thread state:
+   *  stack pointer
+   *  error handlers
+   */
+  /* printf("yield %p %d reschedule %p\n", runq, (int)stack_ptr, runq->mt_queue); */
+  runq->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
+  stack_ptr = -1;               /* reset stack */
+  doing_rnf = 0;
+  /* free all error handlers */
+  for (struct handler *h = cur_handler; h; ) {
+    struct handler *n = h;
+    h = h->hdl_old;
+    free(n);
+  }
+}
 
 /* Inlining makes very little difference */
 /*static INLINE*/ void
@@ -701,6 +727,8 @@ yield(void)
     return;
   }
 
+  /* Clean up temporary stuff of this thread */
+  cleanup();
   /* Unlink from runq */
   struct mthread *mt = remove_runq_head();
   /* link into back of runq */
@@ -730,27 +758,6 @@ new_thread(NODEPTR root)
   /* add to tail of runq */
   add_runq_tail(mt);
   return mt;
-}
-
-void
-resched(void)
-{
-  /* We are going to reschedule, so clean up thread state:
-   *  stack pointer
-   *  error handlers
-   */
-  // printf("yield %p %d reschedule %p\n", runq, (int)stack_ptr, runq->mt_queue);
-  runq->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
-  stack_ptr = -1;               /* reset stack */
-  doing_rnf = 0;
-  /* free all error handlers */
-  for (struct handler *h = cur_handler; h; ) {
-    struct handler *n = h;
-    h = h->hdl_old;
-    free(n);
-  }
-
-  longjmp(sched, mt_resched);
 }
 
 struct mvar*
@@ -791,9 +798,11 @@ take_mvar(struct mvar *mv)
     return n;                   /* return the data */
   } else {
     /* mvar is empty */
+    cleanup();
     runq->mt_queue = mv->mv_takeput;
     mv->mv_takeput = runq;
-    remove_runq_head();
+    /* Unlink from runq */
+    (void)remove_runq_head();
     resched();                  /* never returns */
     return NIL;                 /* we never get here, but make linters happy */
   }
@@ -866,8 +875,6 @@ start_exec(NODEPTR root)
     break;
   case mt_resched:
     COUNT(num_resched);
-    /* Unlink from runq */
-    (void)remove_runq_head();
   }
   for(;;) {
     mt = runq;                    /* front thread */
