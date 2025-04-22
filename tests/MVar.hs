@@ -20,9 +20,18 @@ main = do
   putStrLn "main A"
   mvar <- newEmptyMVar
   forkIO (fun mvar)
-  delay 100000
   putStrLn "main B"
-  putMVar mvar 999
-  putStrLn "main C"
   delay 100000
+  putStrLn "main C"
+  putMVar mvar 999
+  putStrLn "main D"
+  putMVar mvar 888
+  putStrLn "main E"
+  forkIO (delay 100000 >> fun mvar)
+  putMVar mvar 777
+  putStrLn "main F"
+  delay 100000
+  fun mvar
+  delay 100000
+  putStrLn "main G"
 

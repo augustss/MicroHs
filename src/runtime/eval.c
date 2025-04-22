@@ -714,10 +714,10 @@ cleanup(void)
 const int thread_trace = 0;
 
 void
-dump_runq(void)
+dump_q(const char *s, struct mthread *mt)
 {
-  printf("runq=[");
-  for(struct mthread *mt = runq; mt; mt = mt->mt_queue) {
+  printf("%s=[", s);
+  for( ; mt; mt = mt->mt_queue) {
     printf("%d ", (int)mt->mt_id);
   }
   printf("]\n");
@@ -748,7 +748,7 @@ yield(void)
   add_runq_tail(mt);
   if (thread_trace) {
     printf("yield: resched %d\n", (int)mt->mt_id);
-    dump_runq();
+    dump_q("runq", runq);
   }
   resched();
 }
@@ -795,41 +795,55 @@ new_mvar(void)
   mv->mv_next = all_mvars;
   all_mvars = mv;
   
+  if (thread_trace)
+    printf("new_mvar: mvar=%p\n", mv);
   return mv;
 }
 
 NODEPTR
 take_mvar(struct mvar *mv)
 {
+  if (thread_trace) {
+    printf("take_mvar: mvar=%p\n", mv);
+    dump_q("takeput", mv->mv_takeput);
+  }
   NODEPTR n;
   if ((n = runq->mt_mvar)) {
+    if (thread_trace)
+      printf("take_mvar: mvar=%p got data %d\n", mv, (int)runq->mt_id);
     /* We have after waking up */
     runq->mt_mvar = NIL;
     return n;                   /* returned the stashed data */
   }
   if ((n = mv->mv_data)) {
+    if (thread_trace)
+      printf("take_mvar: mvar=%p full\n", mv);
     /* mvar is full */
     mv->mv_data = NIL;           /* now empty */
     /* move all threads waiting to put to the runq */
     for (struct mthread *mt = mv->mv_takeput; mt; ) {
       if (thread_trace) {
-        printf("take_mvar: wake %d\n", (int)mt->mt_id);
-        dump_runq();
+        printf("take_mvar: mvar=%p wake %d\n", mv, (int)mt->mt_id);
+        dump_q("runq", runq);
       }
-      mt = mt->mt_queue;
+      struct mthread *nt = mt->mt_queue;
       add_runq_tail(mt);
+      mt = nt;
     }
     return n;                   /* return the data */
   } else {
+    if (thread_trace)
+      printf("take_mvar: mvar=%p empty\n", mv);
     /* mvar is empty */
-    if (thread_trace) {
-      printf("take_mvar: suspend %d\n", (int)runq->mt_id);
-      dump_runq();
-    }
     cleanup();
     struct mthread *mt = remove_runq_head();
-    runq->mt_queue = mv->mv_takeput;
+    mt->mt_queue = mv->mv_takeput;
     mv->mv_takeput = mt;
+    if (thread_trace) {
+      printf("take_mvar: mvar=%p suspend %d\n", mv, (int)mt->mt_id);
+      dump_q("runq", runq);
+      dump_q("takeput", mv->mv_takeput);
+    }
     /* Unlink from runq */
     resched();                  /* never returns */
     return NIL;                 /* we never get here, but make linters happy */
@@ -852,7 +866,7 @@ read_mvar(struct mvar *mv)
     /* mvar is empty */
     if (thread_trace) {
       printf("read_mvar: suspend %d\n", (int)runq->mt_id);
-      dump_runq();
+      dump_q("runq", runq);
     }
     runq->mt_queue = mv->mv_read;
     mv->mv_read = runq;
@@ -865,17 +879,27 @@ read_mvar(struct mvar *mv)
 void
 put_mvar(struct mvar *mv, NODEPTR v)
 {
+  if (thread_trace) {
+    printf("put_mvar: mvar=%p\n", mv);
+    dump_q("takeput", mv->mv_takeput);
+    dump_q("read", mv->mv_read);
+  }
   if (mv->mv_data != NIL) {
-    if (thread_trace) {
-      printf("put_mvar: suspend %d\n", (int)runq->mt_id);
-      dump_runq();
-    }
+    if (thread_trace)
+      printf("put_mvar: mvar=%p full\n", mv);
     /* mvar is full */
-    runq->mt_next = mv->mv_takeput; /* put on mvar queue */
-    mv->mv_takeput = runq;
-    remove_runq_head();
+    struct mthread *mt = remove_runq_head();
+    mt->mt_queue = mv->mv_takeput; /* put on mvar queue */
+    mv->mv_takeput = mt;
+    if (thread_trace) {
+      printf("put_mvar: suspend %d\n", (int)mt->mt_id);
+      dump_q("runq", runq);
+      dump_q("takeput", mv->mv_takeput);
+    }
     resched();                  /* never returns */
   } else {
+    if (thread_trace)
+      printf("put_mvar: mvar=%p empty\n", mv);
     /* mvar is empty */
     if (mv->mv_takeput || mv->mv_read) {
       /* one or more threads are waiting */
@@ -883,22 +907,24 @@ put_mvar(struct mvar *mv, NODEPTR v)
       if ((mt = mv->mv_takeput)) {
         /* wake up one 'take' */
         if (thread_trace)
-          printf("put_mvar: wake 1 %d\n", (int)mt->mt_id);
+          printf("put_mvar: wake-1 %d\n", (int)mt->mt_id);
         mt->mt_mvar = v;
         mv->mv_takeput = mt->mt_queue; /* remove first entry */
         add_runq_tail(mt);             /* and schedule for execution later */
       }
       for (mt = mv->mv_read; mt; ) {
         if (thread_trace)
-          printf("put_mvar: wake N %d\n", (int)mt->mt_id);
+          printf("put_mvar: wake-N %d\n", (int)mt->mt_id);
         mt->mt_mvar = v;               /* value for restarted read */
         mt = mt->mt_queue;             /* next waiter */
         add_runq_tail(mt);             /* and schedule for execution later */
       }
       if (thread_trace)
-        dump_runq();
+        dump_q("runq", runq);
       /* return to caller */
     } else {
+    if (thread_trace)
+      printf("put_mvar: mvar=%p no waiters\n", mv);
       /* no threads waiting, so store the value */
       mv->mv_data = v;
       /* return to caller */
@@ -921,7 +947,7 @@ start_exec(NODEPTR root)
   }
   if (thread_trace) {
     printf("start_exec:\n");
-    dump_runq();
+    dump_q("runq", runq);
   }
   if (!runq)
     ERR("no threads");
