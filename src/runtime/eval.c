@@ -3594,7 +3594,7 @@ evali(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
  top:
-  if (--glob_slice <= 0)
+  if (glob_slice-- <= 0)
     yield();
   l = LABEL(n);
   if (l < T_IO_STDIN) {
@@ -4974,6 +4974,7 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
     PRINT("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
+    PRINT("%"PCOMMA"15"PRIcounter" yields (%"PCOMMA""PRIcounter" resched)\n", num_yield, num_resched);
     PRINT("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
     PRINT("%"PCOMMA"15"PRIcounter" foreign alloc\n", num_fin_alloc);
