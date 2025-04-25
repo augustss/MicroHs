@@ -24,6 +24,8 @@ library base
         Control.Applicative
         Control.Arrow
         Control.Category
+        Control.Concurrent
+        Control.Concurrent.MVar
         Control.DeepSeq
         Control.DeepSeq.Class
         Control.Error
