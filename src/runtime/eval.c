@@ -431,7 +431,8 @@ struct forptr {
 };
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
 
-REGISTER(counter_t num_reductions,r19);
+//REGISTER(counter_t num_reductions,r19);
+counter_t num_reductions = 0;
 counter_t num_alloc = 0;
 counter_t num_gc = 0;
 counter_t num_yield = 0;
@@ -747,6 +748,7 @@ yield(void)
       dump_q("runq", runq);
     }
     glob_slice = slice;
+    num_reductions += glob_slice;
     return;
   }
 
@@ -969,7 +971,9 @@ start_exec(NODEPTR root)
     /*printf("slice=%d\n", (int)glob_slice);*/
     if (thread_trace)
       printf("start_exec: start %d\n", (int)mt->mt_id);
+    num_reductions += glob_slice;
     execio(&mt->mt_root, mt->mt_num_slices == 0);         /* run it */
+    num_reductions -= glob_slice;
     /* when execio() returns the thread is done */
     (void)remove_q_head(&runq);                      /* remove front thread */
 
@@ -3608,7 +3612,7 @@ evali(NODEPTR an)
     }
     tag = GETTAG(n);
   }
-  COUNT(num_reductions);
+  //COUNT(num_reductions);
   switch (tag) {
   ap2:         PUSH(n); n = FUN(n);
   ap:
