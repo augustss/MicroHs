@@ -267,7 +267,7 @@ iswindows(void)
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR,
                 T_S, T_K, T_I, T_B, T_C,
-                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z,
+                T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
                 T_K2, T_K3, T_K4, T_CCB,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
@@ -1133,6 +1133,7 @@ struct {
   { "Y", T_Y },
   { "B'", T_BB },
   { "Z", T_Z },
+  /*  { "J", T_J },*/
   { "K2", T_K2 },
   { "K3", T_K3 },
   { "K4", T_K4 },
@@ -3280,6 +3281,7 @@ evalbytestring(NODEPTR n)
       buf[offs++] = c;
       n = ARG(n);
     } else {
+      pp(stdout, n);
       ERR("evalbytestring not Nil/Cons");
     }
   }
@@ -3648,6 +3650,7 @@ evali(NODEPTR an)
   case T_Z:    if (!HASNARGS(3)) {
                GCCHECK(1); CHKARG2; COUNT(red_z); GOAP(combK, new_ap(x, y)); } else {     /* Z x y = K (x y) */
                            CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
+//case T_J:                CHKARG3; GOAP(z, x);                                           /* J x y z = z x */
   case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                       /* C x y z = x z y */
   case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                            /* C' x y z w = x (y w) z */
   case T_P:    GCCHECK(1); CHKARG3; GOAP2(z, x, y);                                       /* P x y z = z x y */
