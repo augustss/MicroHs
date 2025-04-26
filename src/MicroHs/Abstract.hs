@@ -70,6 +70,9 @@ isP = isPrim "P"
 isZ :: Exp -> Bool
 isZ = isPrim "Z"
 
+isU :: Exp -> Bool
+isU = isPrim "U"
+
 isK2 :: Exp -> Bool
 isK2 = isPrim "K2"
 
@@ -286,6 +289,11 @@ improveT ae =
           Lit (LPrim "C'B")
         else if isZ ff && isK aa then
           Lit (LPrim "K2")
+{-
+-- Using J is a very minor improvement
+        else if False && isZ ff && isU aa then
+          Lit (LPrim "J")
+-}
         else if isZ ff && isK2 aa then
           Lit (LPrim "K3")
         else if isZ ff && isK3 aa then

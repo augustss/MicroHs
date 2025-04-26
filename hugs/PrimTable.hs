@@ -37,6 +37,7 @@ primOps =
   , comb "U" (\ x y -> y x)
   , comb "Y" (\ f -> let r = f r in r)
   , comb "Z" (\ f g _x -> f g)
+  , comb "J" (\ x _y z -> z x)
   , comb "P" (\ x y f -> f x y)
   , comb "R" (\ x y f -> y f x)
   , comb "O" (\ x y _g f -> f x y)
