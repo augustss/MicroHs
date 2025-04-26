@@ -4814,6 +4814,10 @@ MAIN
   main_setup(); /* Do platform specific start-up. */
 #endif
 
+#ifdef CLOCK_INIT
+  CLOCK_INIT();
+#endif
+
   heap_size = HEAP_CELLS;       /* number of heap cells */
   stack_size = STACK_SIZE;      /* number of stack slots */
 
