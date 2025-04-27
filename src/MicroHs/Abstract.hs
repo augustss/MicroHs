@@ -70,8 +70,10 @@ isP = isPrim "P"
 isZ :: Exp -> Bool
 isZ = isPrim "Z"
 
+{-
 isU :: Exp -> Bool
 isU = isPrim "U"
+-}
 
 isK2 :: Exp -> Bool
 isK2 = isPrim "K2"
