@@ -31,13 +31,13 @@ import Control.Exception
 import Data.Word
 
 instance Show ThreadId where
-  show i = "ThreadId#" ++ show (primThreadIdToWord i)
+  show i = "ThreadId#" ++ show (primThreadNum i)
 
 instance Eq ThreadId where
-  i == i'  =  primThreadIdToWord i == primThreadIdToWord i'
+  i == i'  =  primThreadNum i == primThreadNum i'
 
 instance Ord ThreadId where
-  i `compare` i'  =  primThreadIdToWord i `compare` primThreadIdToWord i'
+  i `compare` i'  =  primThreadNum i `compare` primThreadNum i'
 
 forkIO :: IO () -> IO ThreadId
 forkIO io = primForkIO io

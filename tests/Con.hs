@@ -9,6 +9,11 @@ delay i = loop i `seq` return ()
 loop :: Int -> Int
 loop i = if i == 0 then 0 else loop (i-1)
 
+showId :: String -> IO ()
+showId s = do
+  i <- myThreadId
+  putStrLn $ "thread " ++ show i ++ ": " ++ show s
+
 run :: Int -> String -> IO ()
 run 0 _ = return ()
 run i s = do
@@ -20,8 +25,7 @@ run i s = do
 xrun :: Int -> String -> IO ()
 xrun i s = do
   delay i
-  i <- myThreadId
-  putStrLn $ "thread " ++ show i ++ ": " ++ show s
+  showId s
   delay 2000
   run 1000 s
 

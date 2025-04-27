@@ -292,8 +292,10 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
-                T_IO_FORK, T_IO_THID, T_IO_THROWTO, T_IO_YIELD,
-                T_IO_NEWMVAR, T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
+                T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
+                T_IO_NEWMVAR,
+                T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
+                T_IO_TRYTAKEMVAR, T_IO_TRYPUTMVAR, T_IO_TRYREADMVAR,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
@@ -633,7 +635,7 @@ struct mthread {
   NODEPTR         mt_thrown;    /* possible thrown exception */
   NODEPTR         mt_mvar;      /* filled after waiting for take/read */
   int             mt_mark;      /* marked as accessible */
-  counter_t       mt_id;
+  uvalue_t        mt_id;        /* thread number */
 };
 struct mthread  *all_threads = 0;   /* all threads */
 
@@ -817,7 +819,7 @@ new_mvar(void)
 }
 
 NODEPTR
-take_mvar(struct mvar *mv)
+take_mvar(int try, struct mvar *mv)
 {
   if (thread_trace) {
     printf("take_mvar: mvar=%p\n", mv);
@@ -851,6 +853,8 @@ take_mvar(struct mvar *mv)
     if (thread_trace)
       printf("take_mvar: mvar=%p empty\n", mv);
     /* mvar is empty */
+    if (try)
+      return NIL;
     cleanup();
     struct mthread *mt = remove_q_head(&runq);
     add_q_tail(&mv->mv_takeput, mt);
@@ -866,7 +870,7 @@ take_mvar(struct mvar *mv)
 }
 
 NODEPTR
-read_mvar(struct mvar *mv)
+read_mvar(int try, struct mvar *mv)
 {
   NODEPTR n;
   if ((n = runq.mq_head->mt_mvar)) {
@@ -879,6 +883,8 @@ read_mvar(struct mvar *mv)
     return n;                   /* return the data */
   } else {
     /* mvar is empty */
+    if (try)
+      return NIL;
     if (thread_trace) {
       printf("read_mvar: suspend %d\n", (int)runq.mq_head->mt_id);
       dump_q("runq", runq);
@@ -890,8 +896,8 @@ read_mvar(struct mvar *mv)
   }
 }
 
-void
-put_mvar(struct mvar *mv, NODEPTR v)
+int
+put_mvar(int try, struct mvar *mv, NODEPTR v)
 {
   if (thread_trace) {
     printf("put_mvar: mvar=%p\n", mv);
@@ -902,6 +908,8 @@ put_mvar(struct mvar *mv, NODEPTR v)
     if (thread_trace)
       printf("put_mvar: mvar=%p full\n", mv);
     /* mvar is full */
+    if (try)
+      return 0;
     struct mthread *mt = remove_q_head(&runq);
     add_q_tail(&mv->mv_takeput, mt); /* put on mvar queue */
     if (thread_trace) {
@@ -910,6 +918,7 @@ put_mvar(struct mvar *mv, NODEPTR v)
       dump_q("takeput", mv->mv_takeput);
     }
     resched();                  /* never returns */
+    return 0;                   /* make the compiler happy */
   } else {
     if (thread_trace)
       printf("put_mvar: mvar=%p empty\n", mv);
@@ -943,6 +952,7 @@ put_mvar(struct mvar *mv, NODEPTR v)
       /* return to caller */
     }
   }
+  return 1;
 }
 
 void
@@ -1104,7 +1114,10 @@ NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
 NODEPTR combBINBS1, combBINBS2;
 NODEPTR comb_stdin, comb_stdout, comb_stderr;
+NODEPTR combJust;
 #define combFalse combK
+#define combNothing combK
+
 
 /* One node of each kind for primitives, these are never GCd. */
 /* We use linear search in this, because almost all lookups
@@ -1248,12 +1261,16 @@ struct {
   { "dynsym", T_DYNSYM },
   { "IO.fork", T_IO_FORK },
   { "IO.thid", T_IO_THID },
+  { "thnum", T_THNUM },
   { "IO.throwto", T_IO_THROWTO },
   { "IO.yield", T_IO_YIELD },
   { "IO.newmvar", T_IO_NEWMVAR },
   { "IO.takemvar", T_IO_TAKEMVAR },
   { "IO.putmvar", T_IO_PUTMVAR },
   { "IO.readmvar", T_IO_READMVAR },
+  { "IO.trytakemvar", T_IO_TRYTAKEMVAR },
+  { "IO.tryputmvar", T_IO_TRYPUTMVAR },
+  { "IO.tryreadmvar", T_IO_TRYREADMVAR },
   { "newCAStringLen", T_NEWCASTRINGLEN },
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
@@ -1261,6 +1278,7 @@ struct {
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
   { "toFunPtr", T_TOFUNPTR },
+  { "IO.ccall", T_IO_CCALL },
 };
 
 #if GCRED
@@ -1302,7 +1320,7 @@ init_nodes(void)
 
   /* Set up permanent nodes */
   heap_start = 0;
-  for(t = T_FREE; t < T_LAST_TAG; t++) {
+  for(t = T_FREE; t <= T_LAST_TAG; t++) {
     NODEPTR n = HEAPREF(heap_start++);
     SETTAG(n, t);
     switch (t) {
@@ -1367,6 +1385,7 @@ init_nodes(void)
     NEWAP(x, combU, x);                /* (U (K2 A)) */
     NEWAP(combShowExn, combU, x);      /* (U (U (K2 A))) */
   }
+  NEWAP(combJust, combZ, combU);       /* (Z U) */
 #undef NEWAP
 
 #if INTTABLE
@@ -4100,7 +4119,20 @@ evali(NODEPTR an)
   case T_IO_TAKEMVAR:
   case T_IO_READMVAR:
   case T_IO_PUTMVAR:
+  case T_IO_TRYTAKEMVAR:
+  case T_IO_TRYREADMVAR:
+  case T_IO_TRYPUTMVAR:
     RET;
+
+  case T_THNUM:
+    {
+    CHECK(1);
+    struct mthread *mt = evalthid(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, (uvalue_t)mt->mt_id);
+    RET;
+    }
 
   case T_DYNSYM:
     /* A dynamic FFI lookup */
@@ -4744,15 +4776,38 @@ execio(NODEPTR *np, int dowrap)
       RETIO(combUnit);
     case T_IO_TAKEMVAR:
       CHECKIO(1);
-      n = take_mvar(evalmvar(ARG(TOP(1))));         /* never returns if it blocks */
+      n = take_mvar(0, evalmvar(ARG(TOP(1))));         /* never returns if it blocks */
       RETIO(n);
     case T_IO_READMVAR:
       CHECKIO(1);
-      n = take_mvar(evalmvar(ARG(TOP(1))));         /* never returns if it blocks */
+      n = read_mvar(0, evalmvar(ARG(TOP(1))));         /* never returns if it blocks */
       RETIO(n);
     case T_IO_PUTMVAR:
       CHECKIO(2);
-      put_mvar(evalmvar(ARG(TOP(1))), ARG(TOP(2))); /* never returns if it blocks */
+      (void)put_mvar(0, evalmvar(ARG(TOP(1))), ARG(TOP(2))); /* never returns if it blocks */
+      RETIO(combUnit);
+    case T_IO_TRYTAKEMVAR:
+      GCCHECK(1);
+      CHECKIO(1);
+      n = take_mvar(1, evalmvar(ARG(TOP(1))));
+      if (n != NIL)
+        RETIO(new_ap(combJust, n));
+      else
+        RETIO(combNothing);
+    case T_IO_TRYREADMVAR:
+      GCCHECK(1);
+      CHECKIO(1);
+      n = read_mvar(1, evalmvar(ARG(TOP(1))));
+      if (n != NIL)
+        RETIO(new_ap(combJust, n));
+      else
+        RETIO(combK);
+    case T_IO_TRYPUTMVAR:
+      CHECKIO(2);
+      if (put_mvar(1, evalmvar(ARG(TOP(1))), ARG(TOP(2))))
+        RETIO(combTrue);
+      else
+        RETIO(combFalse);
       RETIO(combUnit);
     case T_IO_NEWMVAR:
       mv = new_mvar();

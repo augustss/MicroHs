@@ -1,16 +1,25 @@
-main A
-main B
+test1 A
+test1 B
 fun A
-main C
-main D
-main E
+test1 C
+test1 D
+test1 E
 999
 fun B
 fun A
 888
 fun B
-main F
+test1 F
 fun A
 777
 fun B
-main G
+test1 G
+---
+Nothing
+test2 A
+test2 B
+False
+Just 111
+True
+Just 333
+Just 333

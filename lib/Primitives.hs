@@ -302,11 +302,10 @@ primAddFinalizer = _primitive "fpfin"
 primForkIO :: IO () -> IO ThreadId
 primForkIO = _primitive "IO.fork"
 
-primThreadIdToWord :: ThreadId -> Word
-primThreadIdToWord = _primitive "toInt"
-
 primMyThreadId :: IO ThreadId
 primMyThreadId = _primitive "IO.thid"
+primThreadNum :: ThreadId -> Word
+primThreadNum = _primitive "thnum"
 
 primYield :: IO ()
 primYield = _primitive "IO.yield"
@@ -316,12 +315,15 @@ primMVarToWord = _primitive "toInt"
 
 primNewEmptyMVar :: forall a . IO (MVar a)
 primNewEmptyMVar = _primitive "IO.newmvar"
-
 primTakeMVar :: forall a . MVar a -> IO a
 primTakeMVar = _primitive "IO.takemvar"
-
 primReadMVar :: forall a . MVar a -> IO a
 primReadMVar = _primitive "IO.readmvar"
-
 primPutMVar :: forall a . MVar a -> a -> IO ()
 primPutMVar = _primitive "IO.putmvar"
+primTryTakeMVar :: MVar a -> IO b {-(Maybe a)-}
+primTryTakeMVar = _primitive "IO.trytakemvar"
+primTryPutMVar :: MVar a -> a -> IO Bool
+primTryPutMVar = _primitive "IO.tryputmvar"
+primTryReadMVar :: MVar a -> IO b {-(Maybe a)-}
+primTryReadMVar = _primitive "IO.tryreadmvar"

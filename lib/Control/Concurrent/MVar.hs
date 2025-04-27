@@ -45,13 +45,13 @@ putMVar :: MVar a -> a -> IO ()
 putMVar = primPutMVar
 
 tryTakeMVar :: MVar a -> IO (Maybe a)
-tryTakeMVar = error "tryTakeMVar"
+tryTakeMVar = primTryTakeMVar
 
 tryPutMVar :: MVar a -> a -> IO Bool
-tryPutMVar = error "tryPutMVar"
+tryPutMVar = primTryPutMVar
 
 tryReadMVar :: MVar a -> IO (Maybe a)
-tryReadMVar = error "tryReadMVar"
+tryReadMVar = primTryReadMVar
 
 isEmptyMVar :: MVar a -> IO Bool
 isEmptyMVar mv = isNothing <$> tryReadMVar mv
