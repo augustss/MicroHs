@@ -2784,7 +2784,7 @@ evalbytestring(NODEPTR n)
       buf[offs++] = c;
       n = ARG(n);
     } else {
-      pp(stdout, n);
+      //pp(stdout, n);
       ERR("evalbytestring not Nil/Cons");
     }
   }
