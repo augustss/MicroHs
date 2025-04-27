@@ -296,6 +296,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_NEWMVAR,
                 T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
                 T_IO_TRYTAKEMVAR, T_IO_TRYPUTMVAR, T_IO_TRYREADMVAR,
+                T_IO_THREADDELAY,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
@@ -439,13 +440,15 @@ counter_t num_alloc = 0;
 counter_t num_gc = 0;
 counter_t num_yield = 0;
 counter_t num_resched = 0;
-counter_t num_thread_create = 0;
 counter_t num_thread_reap = 0;
 counter_t num_mvar_alloc = 0;
 counter_t num_mvar_free = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
+
+#define MAIN_THREAD 1
+uvalue_t num_thread_create = MAIN_THREAD;
 
 #define MAXSTACKDEPTH 0
 #if MAXSTACKDEPTH
@@ -622,7 +625,7 @@ struct handler {
 
 /***************** THREAD ******************/
 
-enum th_state { ts_run, ts_wait, ts_zombie };
+enum th_state { ts_run, ts_waitmvar, ts_waittime, ts_zombie };
 enum th_sched { mt_main = 0, mt_resched = 1 };
 
 struct mthread {
@@ -635,7 +638,10 @@ struct mthread {
   NODEPTR         mt_thrown;    /* possible thrown exception */
   NODEPTR         mt_mvar;      /* filled after waiting for take/read */
   int             mt_mark;      /* marked as accessible */
-  uvalue_t        mt_id;        /* thread number */
+  uvalue_t        mt_id;        /* thread number, thread 1 is the main thread */
+#if defined CLOCK_INIT
+  CLOCK_T         mt_at;        /* time to wake up when in threadDelay */
+#endif
 };
 struct mthread  *all_threads = 0;   /* all threads */
 
@@ -644,6 +650,7 @@ struct mqueue {
   struct mthread *mq_tail;
 };
 struct mqueue runq = { 0, 0 };;
+struct mqueue timeq = { 0, 0 };
 
 struct mvar {
   struct mvar    *mv_next;      /* all mvars linked together */
@@ -694,7 +701,7 @@ int doing_rnf = 0;              /* REMOVE */
 void pp(FILE*, NODEPTR);
 
 /* reschedule, does not return */
-void
+_Noreturn void
 resched(void)
 {
   longjmp(sched, mt_resched);
@@ -732,6 +739,20 @@ dump_q(const char *s, struct mqueue q)
   printf("]\n");
 }
 
+/* Check if its time to wake up some threads waiting for a time. */
+void
+check_timeq(void)
+{
+  CLOCK_T now = CLOCK_GET();
+  while (timeq.mq_head && timeq.mq_head->mt_at <= now) {
+    struct mthread *mt = remove_q_head(&timeq);
+    add_q_tail(&runq, mt);
+    mt->mt_at = -1;             /* indicate that the delay has expired */
+    if (thread_trace)
+      printf("check_timeq: %d done\n", (int)mt->mt_id);
+  }
+}
+
 /* Inlining makes very little difference */
 /*static INLINE*/ void
 yield(void)
@@ -742,6 +763,8 @@ yield(void)
   runq.mq_head->mt_num_slices++;
   // XXX should check mt_thrown here
   
+  if (timeq.mq_head)
+    check_timeq();
   // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq.mq_head->mt_queue) {
@@ -750,7 +773,7 @@ yield(void)
       dump_q("runq", runq);
     }
     glob_slice = slice;
-    num_reductions += glob_slice;
+    num_reductions += glob_slice-1;
     return;
   }
 
@@ -770,7 +793,6 @@ yield(void)
 struct mthread*
 new_thread(NODEPTR root)
 {
-  COUNT(num_thread_create);
   struct mthread *mt = MALLOC(sizeof(struct mthread));
   if (!mt)
     memerr();
@@ -781,7 +803,8 @@ new_thread(NODEPTR root)
   mt->mt_slice = 0;
   mt->mt_mark = 0;
   mt->mt_num_slices = 0;
-  mt->mt_id = num_thread_create;
+  mt->mt_id = num_thread_create++;
+  mt->mt_at = 0;                /* delay has not expired */
 
   /* add to all_threads */
   mt->mt_next = all_threads;
@@ -865,7 +888,7 @@ take_mvar(int try, struct mvar *mv)
     }
     /* Unlink from runq */
     resched();                  /* never returns */
-    return NIL;                 /* we never get here, but make linters happy */
+    //return NIL;                 /* we never get here, but make linters happy */
   }
 }
 
@@ -918,7 +941,7 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
       dump_q("takeput", mv->mv_takeput);
     }
     resched();                  /* never returns */
-    return 0;                   /* make the compiler happy */
+    //return 0;                   /* make the compiler happy */
   } else {
     if (thread_trace)
       printf("put_mvar: mvar=%p empty\n", mv);
@@ -955,6 +978,47 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
   return 1;
 }
 
+_Noreturn void
+thread_delay(uvalue_t usecs)
+{
+#if !defined(CLOCK_INIT)
+  ERR("thread_delay: no clock");
+#else
+  struct mthread *mt = remove_q_head(&runq);
+  mt->mt_at = CLOCK_GET() + usecs; /* wakeup time */
+  if (thread_trace)
+    printf("thread_delay: id=%d usecs=%ld\n", (int)mt->mt_id, usecs);
+  /* insert in delayq which is kept sorted in time order */
+  struct mthread **tq;
+  for (tq = &timeq.mq_head; *tq; tq = &(*tq)->mt_queue) {
+    if (mt->mt_at <= (*tq)->mt_at)
+      break;
+  }
+  mt->mt_queue = *tq;           /* forward link */
+  *tq = mt;                     /* and put mt in place */
+  if (!mt->mt_queue)            /* no forward link */
+    timeq.mq_tail = mt;
+  resched();
+#endif  
+}
+
+/* Pause execution if something might still happen */
+/* XXX should throw async to main thread if deadlocked */
+void
+pause_exec(void)
+{
+  struct mthread *mt = timeq.mq_head;
+  if (mt) {
+    /* We are waiting for a delay to expire, so sleep a while */
+    CLOCK_T now = CLOCK_GET();
+    if (mt->mt_at > now)
+      usleep((useconds_t)(mt->mt_at - now));
+    check_timeq();
+  } else {
+    ERR("deadlock");
+  }
+}
+
 void
 start_exec(NODEPTR root)
 {
@@ -972,16 +1036,17 @@ start_exec(NODEPTR root)
     printf("start_exec:\n");
     dump_q("runq", runq);
   }
-  if (!runq.mq_head)
-    ERR("no threads");
   for(;;) {
-    mt = runq.mq_head;                      /* front thread */
-    //mt->mt_slice = slice;         /* give it a time slice */
+    if (!runq.mq_head)
+      pause_exec();
+    mt = runq.mq_head;          /* front thread */
+    if (!mt)                    /* this should never happen */
+      ERR("no threads");
+
     glob_slice = mt->mt_slice + slice;
-    /*printf("slice=%d\n", (int)glob_slice);*/
     if (thread_trace)
-      printf("start_exec: start %d\n", (int)mt->mt_id);
-    num_reductions += glob_slice;
+      printf("start_exec: start %d, slice=%d\n", (int)mt->mt_id, (int)glob_slice);
+    num_reductions += glob_slice-1;
     execio(&mt->mt_root, mt->mt_num_slices == 0);         /* run it */
     num_reductions -= glob_slice;
     /* when execio() returns the thread is done */
@@ -991,13 +1056,8 @@ start_exec(NODEPTR root)
     mt->mt_root = NIL;
     /* XXX mt_mvar, mt_thrown */
 
-    if (!runq.mq_head) {
-      for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
-        if (mt->mt_state != ts_zombie)
-          ERR("runq empty");          /* XXX should wait for something to happen */
-      }
-      return;                     /* no more runnable threads, so exit */
-    }
+    if (mt->mt_id == MAIN_THREAD)
+      return;                   /* when the main thread dies it's all over */
   }
 }
 
@@ -1271,6 +1331,7 @@ struct {
   { "IO.trytakemvar", T_IO_TRYTAKEMVAR },
   { "IO.tryputmvar", T_IO_TRYPUTMVAR },
   { "IO.tryreadmvar", T_IO_TRYREADMVAR },
+  { "IO.threaddelay", T_IO_THREADDELAY },
   { "newCAStringLen", T_NEWCASTRINGLEN },
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
@@ -3625,7 +3686,7 @@ evali(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
  top:
-  if (glob_slice-- <= 0)
+  if (--glob_slice == 0)
     yield();
   l = LABEL(n);
   if (l < T_IO_STDIN) {
@@ -4132,6 +4193,7 @@ evali(NODEPTR an)
   case T_IO_TRYTAKEMVAR:
   case T_IO_TRYREADMVAR:
   case T_IO_TRYPUTMVAR:
+  case T_IO_THREADDELAY:
     RET;
 
   case T_THNUM:
@@ -4825,6 +4887,16 @@ execio(NODEPTR *np, int dowrap)
       n = alloc_node(T_MVAR);
       MVAR(n) = mv;
       RETIO(n);
+    case T_IO_THREADDELAY:
+      if (runq.mq_head->mt_at == -1) {
+        /* delay has alread expired, so just return */
+        runq.mq_head->mt_at = 0;
+        RETIO(combUnit);
+      } else {
+        CHECKIO(1);
+        thread_delay(evalint(ARG(TOP(1)))); /* never returns */
+      }
+      break;
 
     default:
       //printf("bad tag %s\n", tag_names[GETTAG(n)]);

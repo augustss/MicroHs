@@ -208,9 +208,11 @@ tmpname(const char* pre, const char* suf)
  */
 #define CLOCK_INIT() do { } while(0)
 /* CLOCK_T is the type of the clock values. */
-#define CLOCK_T uint64_t       /* large enough for 580Myears */
+#define CLOCK_T int64_t       /* large enough for 290Myears */
 /* CLOCK_GET returns the current clock in microseconds. */
 #define CLOCK_GET clock_get
+/* CLOCK_SLEEP sleeps some number of microseconds */
+#define CLOCK_SLEEP usleep
 CLOCK_T CLOCK_GET(void)
 {
   struct timeval tv;

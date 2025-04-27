@@ -100,6 +100,7 @@ test:
 	$(TMHS) Forall     && $(EVAL) > Forall.out     && diff Forall.ref Forall.out
 	$(TMHS) Con        && $(EVAL) > Con.out        && diff Con.ref Con.out
 	$(TMHS) MVar       && $(EVAL) > MVar.out       && diff MVar.ref MVar.out
+	$(TMHS) Delay      && $(EVAL) > Delay.out      && diff Delay.ref Delay.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

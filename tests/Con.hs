@@ -35,5 +35,5 @@ main = do
   forkIO $ xrun 1000 "b"
   forkIO $ xrun 2000 "c"
   xrun 0 "a"
-  delay 3000
+  delay 100000
   putStrLn "\ndone"

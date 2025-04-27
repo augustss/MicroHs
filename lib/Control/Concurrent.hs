@@ -66,7 +66,7 @@ yield :: IO ()
 yield = primYield
 
 threadDelay :: Int -> IO ()
-threadDelay = error "unimplemented threadDelay"
+threadDelay = primThreadDelay
 
 --------------------
 -- Not yet implemented
