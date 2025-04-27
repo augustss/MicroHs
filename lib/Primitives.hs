@@ -330,3 +330,6 @@ primTryReadMVar = _primitive "IO.tryreadmvar"
 
 primThreadDelay :: Int -> IO ()
 primThreadDelay = _primitive "IO.threaddelay"
+
+primThreadStatus :: ThreadId -> IO Int
+primThreadStatus = _primitive "IO.threadstatus"

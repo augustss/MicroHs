@@ -25,6 +25,9 @@ module Control.Concurrent (
 
   mkWeakThreadId,
 -}
+  threadStatus,
+  ThreadStatus(..),
+  BlockReason(..),
   ) where
 import Primitives
 import Control.Exception
@@ -67,6 +70,36 @@ yield = primYield
 
 threadDelay :: Int -> IO ()
 threadDelay = primThreadDelay
+
+---------------------------------------
+
+data BlockReason
+  = BlockedOnMVar
+  | BlockedOnBlackHole
+  | BlockedOnException
+  | BlockedOnSTM
+  | BlockedOnForeignCall
+  | BlockedOnOther
+  deriving (Eq, Ord, Show)
+
+data ThreadStatus
+  = ThreadRunning
+  | ThreadFinished
+  | ThreadBlocked  BlockReason
+  | ThreadDied
+  deriving (Eq, Ord, Show)
+
+-- XXX Does not do BlockedOnException correctly
+threadStatus :: ThreadId -> IO ThreadStatus
+threadStatus thr = do
+  st <- primThreadStatus thr
+  return $
+    case st of
+      0 -> ThreadRunning                 -- ts_runnable
+      1 -> ThreadBlocked BlockedOnMVar   -- ts_wait_mvar
+      2 -> ThreadBlocked BlockedOnOther  -- ts_wait_time
+      3 -> ThreadFinished                -- ts_finished
+      4 -> ThreadDied                    -- ts_died
 
 --------------------
 -- Not yet implemented
