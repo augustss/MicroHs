@@ -713,6 +713,29 @@ remove_q_head(struct mqueue *q)
   return mt;
 }
 
+int
+find_and_unlink(struct mqueue *mq, struct mthread *mt)
+{
+  struct mthread **mtp;
+  
+  for(mtp = &mq->mq_head; *mtp && *mtp != mt; mtp = &(*mtp)->mt_queue)
+    ;
+  if (!*mtp)
+    return 0;                   /* not found */
+  *mtp = mt->mt_queue;          /* unlink */
+  if (*mtp)
+    return 1;                   /* the unlinked thread was not the tail */
+  if (mq->mq_head) {
+    for (mt = mq->mq_head; mt->mt_queue; mt = mt->mt_queue)
+      ;                         /* find the last element */
+    mq->mq_tail = mt;
+  } else {
+    /* q is empty */
+    mq->mq_tail = 0;
+  }
+  return 1;
+}
+
 /* This is a yucky hack */
 int doing_rnf = 0;              /* REMOVE */
 const int thread_trace = 0;
@@ -726,7 +749,7 @@ cleanup(struct mthread *mt, enum th_state ts)
    *  error handlers
    */
   if (thread_trace)
-    printf("cleanup: %d\n state=%d", (int)mt->mt_id, ts);
+    printf("cleanup: %d state=%d\n", (int)mt->mt_id, ts);
   mt->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
   mt->mt_state = ts;
   stack_ptr = -1;               /* reset stack */
@@ -737,6 +760,7 @@ cleanup(struct mthread *mt, enum th_state ts)
     h = h->hdl_old;
     free(n);
   }
+  cur_handler = 0;
 }
 
 /* reschedule, does not return */
@@ -771,6 +795,18 @@ check_timeq(void)
   }
 }
 
+void
+check_thrown(void)
+{
+  if (runq.mq_head->mt_exn->mv_data == NIL)
+    return;            /* no thrown exception */
+  /* the current thread has an async exception */
+  if (thread_trace)
+    printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
+  NODEPTR exn = take_mvar(0, runq.mq_head->mt_exn); /* get the exception */
+  raise_exn(exn);
+}
+
 /* Inlining makes very little difference */
 /*static INLINE*/ void
 yield(void)
@@ -783,11 +819,7 @@ yield(void)
   
   if (timeq.mq_head)
     check_timeq();
-  if (runq.mq_head->mt_exn->mv_data != NIL) {
-    /* the current thread has an async exception */
-    NODEPTR exn = take_mvar(0, runq.mq_head->mt_exn); /* get the exception */
-    raise_exn(exn);
-  }
+  check_thrown();
   // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq.mq_head->mt_queue) {
@@ -1000,6 +1032,7 @@ thread_delay(uvalue_t usecs)
 #if !defined(CLOCK_INIT)
   ERR("thread_delay: no clock");
 #else
+  /* XXX should check if there is already a throw exn */
   struct mthread *mt = remove_q_head(&runq);
   mt->mt_at = CLOCK_GET() + usecs; /* wakeup time */
   if (thread_trace)
@@ -1031,6 +1064,45 @@ pause_exec(void)
     check_timeq();
   } else {
     ERR("deadlock");            /* XXX throw async to main thread */
+  }
+}
+
+/* Interrupt a sleeping thread in a throwTo */
+void
+thread_intr(struct mthread *mt)
+{
+  if (thread_trace)
+    printf("thread_intr: id=%d state=%d\n", (int)mt->mt_id, mt->mt_state);
+  switch(mt->mt_state) {
+  case ts_runnable:
+    break;                      /* already on runq */
+  case ts_wait_mvar:
+    /* we don't know which mvar we are waiting on, so look at all of them */
+    /* XXX should add a pointer in mthread to the mvar */
+    for (struct mvar *mv = all_mvars; mv; mv = mv->mv_next) {
+      if (find_and_unlink(&mv->mv_takeput, mt))
+          goto found;
+      if (find_and_unlink(&mv->mv_read, mt))
+          goto found;
+    }
+    ERR("thread_intr: mvar");
+  found:
+    mt->mt_at = -1;             /* don't wait again */
+    add_runq_tail(mt);
+    break;
+  case ts_wait_time:
+    /* find thread in timeq */
+    if (!find_and_unlink(&timeq, mt))
+      ERR("thread_intr: timeq");
+    /* XXX should adjust mq_tail */
+    add_runq_tail(mt);
+    break;
+  case ts_finished:
+  case ts_died:
+    (void)take_mvar(0, mt->mt_exn); /* ignore exception */
+    break;
+  default:
+    ERR("thread_intr");
   }
 }
 
@@ -4854,21 +4926,27 @@ execio(NODEPTR *np, int dowrap)
     case T_IO_THROWTO:
       CHECKIO(2);
       mt = evalthid(ARG(TOP(1)));
-      (void)put_mvar(0, mt->mt_exn, ARG(TOP(2))); /* never returns if it blocks */
+      thread_intr(mt);
+      if (mt->mt_state != ts_died && mt->mt_state != ts_finished) {
+        (void)put_mvar(0, mt->mt_exn, ARG(TOP(2))); /* never returns if it blocks */
+      }
       RETIO(combUnit);
     case T_IO_YIELD:
       yield();
       RETIO(combUnit);
     case T_IO_TAKEMVAR:
       CHECKIO(1);
+      check_thrown();           /* check if we have a thrown exception */
       n = take_mvar(0, evalmvar(ARG(TOP(1))));         /* never returns if it blocks */
       RETIO(n);
     case T_IO_READMVAR:
       CHECKIO(1);
+      check_thrown();           /* check if we have a thrown exception */
       n = read_mvar(0, evalmvar(ARG(TOP(1))));         /* never returns if it blocks */
       RETIO(n);
     case T_IO_PUTMVAR:
       CHECKIO(2);
+      check_thrown();           /* check if we have a thrown exception */
       (void)put_mvar(0, evalmvar(ARG(TOP(1))), ARG(TOP(2))); /* never returns if it blocks */
       RETIO(combUnit);
     case T_IO_TRYTAKEMVAR:
@@ -4901,12 +4979,13 @@ execio(NODEPTR *np, int dowrap)
       MVAR(n) = mv;
       RETIO(n);
     case T_IO_THREADDELAY:
+      CHECKIO(1);
+      check_thrown();           /* check if we have a thrown exception */
       if (runq.mq_head->mt_at == -1) {
         /* delay has alread expired, so just return */
         runq.mq_head->mt_at = 0;
         RETIO(combUnit);
       } else {
-        CHECKIO(1);
         thread_delay(evalint(ARG(TOP(1)))); /* never returns */
       }
       break;
@@ -5180,7 +5259,7 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc (max %"PCOMMA""PRIcounter")\n", num_bs_alloc, num_bs_alloc_max);
     PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc bytes (max %"PCOMMA""PRIcounter")\n", num_bs_bytes, num_bs_inuse_max);
     PRINT("%"PCOMMA"15"PRIcounter" bytestring free\n", num_bs_free);
-    PRINT("%"PCOMMA"15"PRIcounter" thread create\n", num_thread_create);
+    PRINT("%"PCOMMA"15"PRIcounter" thread create\n", num_thread_create-1);
     PRINT("%"PCOMMA"15"PRIcounter" thread reap\n", num_thread_reap);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
