@@ -1580,6 +1580,10 @@ mark(NODEPTR *np)
      mark_thread(THR(n));
      break;
 
+   case T_MVAR:
+     mark_mvar(MVAR(n));
+     break;
+
    default:
      goto fin;
   }
