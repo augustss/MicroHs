@@ -314,6 +314,7 @@ struct ioarray;
 struct bytestring;
 struct forptr;
 struct mthread;
+struct mvar;
 
 typedef struct node {
   union {
@@ -626,7 +627,7 @@ struct handler {
 /***************** THREAD ******************/
 
 enum th_state { ts_run, ts_waitmvar, ts_waittime, ts_zombie };
-enum th_sched { mt_main = 0, mt_resched = 1 };
+enum th_sched { mt_main, mt_resched, mt_raise };
 
 struct mthread {
   enum th_state   mt_state;
@@ -635,8 +636,8 @@ struct mthread {
   counter_t       mt_slice;     /* reduction steps until yielding */
   counter_t       mt_num_slices;/* number of slices so far */
   NODEPTR         mt_root;      /* root of the graph to reduce */
-  NODEPTR         mt_thrown;    /* possible thrown exception */
-  NODEPTR         mt_mvar;      /* filled after waiting for take/read */
+  struct mvar    *mt_exn;       /* possible thrown exception */
+  NODEPTR         mt_mval;      /* filled after waiting for take/read */
   int             mt_mark;      /* marked as accessible */
   uvalue_t        mt_id;        /* thread number, thread 1 is the main thread */
 #if defined CLOCK_INIT
@@ -666,7 +667,17 @@ counter_t        slice = 100000;    /* normal time slice;
                                      * on an M4 Mac this is about 0.3ms */
 REGISTER(counter_t glob_slice,r23);
 
+NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(sched, mt_raise) */
+
 void execio(NODEPTR*, int);
+_Noreturn void raise_exn(NODEPTR exn);
+struct mvar* new_mvar(void);
+NODEPTR take_mvar(int try, struct mvar *mv);
+_Noreturn void die_exn(NODEPTR exn);
+
+#if WANT_STDIO
+void pp(FILE*, NODEPTR);
+#endif
 
 /* Add the thread to the tail of runq */
 void
@@ -697,26 +708,19 @@ remove_q_head(struct mqueue *q)
 
 /* This is a yucky hack */
 int doing_rnf = 0;              /* REMOVE */
-
-void pp(FILE*, NODEPTR);
-
-/* reschedule, does not return */
-_Noreturn void
-resched(void)
-{
-  longjmp(sched, mt_resched);
-}
+const int thread_trace = 0;
 
 /* clean up temporary globals to prepare for rescheduling */
 void
-cleanup(void)
+cleanup(struct mthread *mt)
 {
   /* We are going to reschedule, so clean up thread state:
    *  stack pointer
    *  error handlers
    */
-  /* printf("yield %p %d reschedule %p\n", runq, (int)stack_ptr, runq->mt_queue); */
-  runq.mq_head->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
+  if (thread_trace)
+    printf("cleanup: %d\n", (int)mt->mt_id);
+  mt->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
   stack_ptr = -1;               /* reset stack */
   doing_rnf = 0;
   /* free all error handlers */
@@ -727,7 +731,13 @@ cleanup(void)
   }
 }
 
-const int thread_trace = 0;
+/* reschedule, does not return */
+_Noreturn void
+resched(struct mthread *mt)
+{
+  cleanup(mt);
+  longjmp(sched, mt_resched);
+}
 
 void
 dump_q(const char *s, struct mqueue q)
@@ -765,6 +775,11 @@ yield(void)
   
   if (timeq.mq_head)
     check_timeq();
+  if (runq.mq_head->mt_exn->mv_data != NIL) {
+    /* the current thread has an async exception */
+    NODEPTR exn = take_mvar(0, runq.mq_head->mt_exn); /* get the exception */
+    raise_exn(exn);
+  }
   // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq.mq_head->mt_queue) {
@@ -777,8 +792,6 @@ yield(void)
     return;
   }
 
-  /* Clean up temporary stuff of this thread */
-  cleanup();
   /* Unlink from runq */
   struct mthread *mt = remove_q_head(&runq);
   /* link into back of runq */
@@ -787,7 +800,7 @@ yield(void)
     printf("yield: resched %d\n", (int)mt->mt_id);
     dump_q("runq", runq);
   }
-  resched();
+  resched(mt);
 }
 
 struct mthread*
@@ -798,8 +811,8 @@ new_thread(NODEPTR root)
     memerr();
   mt->mt_state = ts_run;
   mt->mt_root = root;
-  mt->mt_thrown = NIL;
-  mt->mt_mvar = NIL;
+  mt->mt_exn = new_mvar();
+  mt->mt_mval = NIL;
   mt->mt_slice = 0;
   mt->mt_mark = 0;
   mt->mt_num_slices = 0;
@@ -849,11 +862,11 @@ take_mvar(int try, struct mvar *mv)
     dump_q("takeput", mv->mv_takeput);
   }
   NODEPTR n;
-  if ((n = runq.mq_head->mt_mvar)) {
+  if ((n = runq.mq_head->mt_mval) != NIL) {
     if (thread_trace)
       printf("take_mvar: mvar=%p got data %d\n", mv, (int)runq.mq_head->mt_id);
     /* We have after waking up */
-    runq.mq_head->mt_mvar = NIL;
+    runq.mq_head->mt_mval = NIL;
     return n;                   /* returned the stashed data */
   }
   if ((n = mv->mv_data)) {
@@ -878,7 +891,6 @@ take_mvar(int try, struct mvar *mv)
     /* mvar is empty */
     if (try)
       return NIL;
-    cleanup();
     struct mthread *mt = remove_q_head(&runq);
     add_q_tail(&mv->mv_takeput, mt);
     if (thread_trace) {
@@ -887,7 +899,7 @@ take_mvar(int try, struct mvar *mv)
       dump_q("takeput", mv->mv_takeput);
     }
     /* Unlink from runq */
-    resched();                  /* never returns */
+    resched(mt);                  /* never returns */
     //return NIL;                 /* we never get here, but make linters happy */
   }
 }
@@ -896,9 +908,9 @@ NODEPTR
 read_mvar(int try, struct mvar *mv)
 {
   NODEPTR n;
-  if ((n = runq.mq_head->mt_mvar)) {
+  if ((n = runq.mq_head->mt_mval) != NIL) {
     /* We have after waking up */
-    runq.mq_head->mt_mvar = NIL;
+    runq.mq_head->mt_mval = NIL;
     return n;                   /* returned the stashed data */
   }
   if ((n = mv->mv_data)) {
@@ -914,8 +926,7 @@ read_mvar(int try, struct mvar *mv)
     }
     struct mthread *mt = remove_q_head(&runq);
     add_q_tail(&mv->mv_read, mt);
-    resched();                  /* never returns */
-    return NIL;                 /* we never get here, but make linters happy */
+    resched(mt);                /* never returns */
   }
 }
 
@@ -940,8 +951,7 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
       dump_q("runq", runq);
       dump_q("takeput", mv->mv_takeput);
     }
-    resched();                  /* never returns */
-    //return 0;                   /* make the compiler happy */
+    resched(mt);                  /* never returns */
   } else {
     if (thread_trace)
       printf("put_mvar: mvar=%p empty\n", mv);
@@ -955,12 +965,12 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
         if (thread_trace)
           printf("put_mvar: wake-1 %d\n", (int)mt->mt_id);
         add_q_tail(&runq, mt);             /* and schedule for execution later */
-        mt->mt_mvar = v;
+        mt->mt_mval = v;
       }
       for (mt = mv->mv_read.mq_head; mt; ) { /* XXX use q primitives */
         if (thread_trace)
           printf("put_mvar: wake-N %d\n", (int)mt->mt_id);
-        mt->mt_mvar = v;               /* value for restarted read */
+        mt->mt_mval = v;               /* value for restarted read */
         mt = mt->mt_queue;             /* next waiter */
         add_q_tail(&runq, mt);             /* and schedule for execution later */
       }
@@ -998,12 +1008,11 @@ thread_delay(uvalue_t usecs)
   *tq = mt;                     /* and put mt in place */
   if (!mt->mt_queue)            /* no forward link */
     timeq.mq_tail = mt;
-  resched();
+  resched(mt);
 #endif  
 }
 
 /* Pause execution if something might still happen */
-/* XXX should throw async to main thread if deadlocked */
 void
 pause_exec(void)
 {
@@ -1015,7 +1024,7 @@ pause_exec(void)
       usleep((useconds_t)(mt->mt_at - now));
     check_timeq();
   } else {
-    ERR("deadlock");
+    ERR("deadlock");            /* XXX throw async to main thread */
   }
 }
 
@@ -1031,6 +1040,21 @@ start_exec(NODEPTR root)
   case mt_resched:
     COUNT(num_resched);
     break;
+  case mt_raise:
+    /* We have an uncaught exception.
+     * If it's the main thread, this kills the program.
+     * Otherwise, it just kills the thread.
+     */
+    mt = remove_q_head(&runq);
+    if (mt->mt_id == MAIN_THREAD) {
+      die_exn(the_exn);
+    } else {
+      if (thread_trace) {
+        printf("start_exec: %d died from exn\n", (int)mt->mt_id);
+      }
+      mt->mt_state = ts_zombie;
+      mt->mt_root = NIL;
+    }
   }
   if (thread_trace) {
     printf("start_exec:\n");
@@ -1054,10 +1078,24 @@ start_exec(NODEPTR root)
 
     mt->mt_state = ts_zombie;
     mt->mt_root = NIL;
-    /* XXX mt_mvar, mt_thrown */
+    /* XXX mt_mval, mt_thrown */
 
     if (mt->mt_id == MAIN_THREAD)
       return;                   /* when the main thread dies it's all over */
+  }
+}
+
+_Noreturn void
+raise_exn(NODEPTR exn)
+{
+  if (cur_handler) {
+    /* Pass the exception to the handler */
+    cur_handler->hdl_exn = exn;
+    longjmp(cur_handler->hdl_buf, 1);
+  } else {
+    /* No exception handler, jump to the scheduler */
+    the_exn = exn;
+    longjmp(sched, mt_raise);
   }
 }
 
@@ -1476,6 +1514,7 @@ counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 //counter_t max_mark_depth = 0;
 
 void mark(NODEPTR *np);
+void mark_mvar(struct mvar *mv);
 
 void
 mark_thread(struct mthread *mt)
@@ -1485,10 +1524,9 @@ mark_thread(struct mthread *mt)
   mt->mt_mark = 1;
   if (mt->mt_root != NIL)
     mark(&mt->mt_root);
-  if (mt->mt_thrown != NIL)
-    mark(&mt->mt_thrown);         
-  if (mt->mt_mvar != NIL)
-    mark(&mt->mt_mvar);
+  mark_mvar(mt->mt_exn);         
+  if (mt->mt_mval != NIL)
+    mark(&mt->mt_mval);
 }
 
 void
@@ -4092,42 +4130,9 @@ evali(NODEPTR an)
 
   case T_RAISE:
     if (doing_rnf) RET;
-    if (cur_handler) {
-      /* Pass the exception to the handler */
-      CHKARG1;
-      cur_handler->hdl_exn = x;
-      longjmp(cur_handler->hdl_buf, 1);
-    } else {
-      /* No handler:
-       * First convert the exception to a string by calling displaySomeException.
-       * The display function compiles to combShowExn, so we need to build
-       * (combShowExn x) and evaluate it.
-       */
-      if (in_raise) {
-        ERR("recursive error");
-        EXIT(1);
-      }
-      in_raise = 1;
-      CHECK(1);
-      GCCHECK(1);
-      //TOP(0) = new_ap(combShowExn, TOP(0));
-      FUN(TOP(0)) = combShowExn; /* TOP(0) = (combShowExn exn) */
-      x = evali(TOP(0));        /* evaluate it */
-      msg = evalstring(x).string;   /* and convert to a C string */
-      POP(1);
-#if WANT_STDIO
-      /* A horrible hack until we get proper exceptions */
-      if (strcmp(msg, "ExitSuccess") == 0) {
-        EXIT(0);
-      } else {
-        fprintf(stderr, "mhs: %s\n", msg);
-        EXIT(1);
-      }
-#else  /* WANT_STDIO */
-      ERR1("mhs error: %s", msg);
-#endif  /* WANT_STDIO */
-    }
-
+    CHKARG1;
+    raise_exn(x);               /* never returns */
+    
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
@@ -4841,7 +4846,7 @@ execio(NODEPTR *np, int dowrap)
     case T_IO_THROWTO:
       CHECKIO(2);
       mt = evalthid(ARG(TOP(1)));
-      mt->mt_thrown = ARG(TOP(2)); /* XXX might overwrite old exception */
+      (void)put_mvar(0, mt->mt_exn, ARG(TOP(2))); /* never returns if it blocks */
       RETIO(combUnit);
     case T_IO_YIELD:
       yield();
@@ -4903,6 +4908,42 @@ execio(NODEPTR *np, int dowrap)
       ERR1("execio tag %s", tag_names[GETTAG(n)]);
     }
   }
+}
+
+_Noreturn void
+die_exn(NODEPTR exn)
+{
+  /* No handler:
+   * First convert the exception to a string by calling displaySomeException.
+   * The display function compiles to combShowExn, so we need to build
+   * (combShowExn exn) and evaluate it.
+   */
+  NODEPTR x;
+  char *msg;
+
+  if (in_raise) {
+    ERR("recursive error");
+    EXIT(1);
+  }
+  in_raise = 1;
+
+  /* just overwrite the top stack element, we don't need it */
+  FUN(TOP(0)) = combShowExn; /* TOP(0) = (combShowExn exn) */
+  ARG(TOP(0)) = exn;
+  x = evali(TOP(0));         /* evaluate it */
+  msg = evalstring(x).string;   /* and convert to a C string */
+  POP(1);
+#if WANT_STDIO
+  /* A horrible hack until we get proper exceptions */
+  if (strcmp(msg, "ExitSuccess") == 0) {
+    EXIT(0);
+  } else {
+    fprintf(stderr, "mhs: %s\n", msg);
+    EXIT(1);
+  }
+#else  /* WANT_STDIO */
+  ERR1("mhs error: %s", msg);
+#endif  /* WANT_STDIO */
 }
 
 #if WANT_ARGS
