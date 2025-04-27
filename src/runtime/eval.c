@@ -1606,7 +1606,13 @@ mark(NODEPTR *np)
 }
 
 /* Perform a garbage collection:
-   - First mark from all roots; roots are on the stack.
+   - Mark nodes from the stack
+   - Mark permanent arrays
+   - Mark threads that have a root
+   - Scan and free arrays
+   - Scan and free foreign pointers and run finalizers
+   - Scan and free threads
+   - Scan and free mvars
 */
 void
 gc(void)
