@@ -1018,8 +1018,9 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
         dump_q("runq", runq);
       /* return to caller */
     } else {
-    if (thread_trace)
-      printf("put_mvar: mvar=%p no waiters\n", mv);
+      if (thread_trace) {
+        printf("put_mvar: mvar=%p no waiters\n", mv);
+      }
       /* no threads waiting, so store the value */
       mv->mv_data = v;
       /* return to caller */
@@ -4373,15 +4374,27 @@ evali(NODEPTR an)
       case T_ADD:   ru = xu + yu; break;
       case T_SUB:   ru = xu - yu; break;
       case T_MUL:   ru = xu * yu; break;
-      case T_QUOT:  if (yu == 0) raise_rts(exn_dividebyzero); else
-                    ru = (uvalue_t)((value_t)xu / (value_t)yu); break;
-      case T_REM:   if (yu == 0) raise_rts(exn_dividebyzero); else
-                    ru = (uvalue_t)((value_t)xu % (value_t)yu); break;
       case T_SUBR:  ru = yu - xu; break;
-      case T_UQUOT: if (yu == 0) raise_rts(exn_dividebyzero); else
-                    ru = xu / yu; break;
-      case T_UREM:  if (yu == 0) raise_rts(exn_dividebyzero); else
-                    ru = xu % yu; break;
+      case T_QUOT:  if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      ru = (uvalue_t)((value_t)xu / (value_t)yu);
+                    break;
+      case T_REM:   if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      ru = (uvalue_t)((value_t)xu % (value_t)yu);
+                    break;
+      case T_UQUOT: if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      ru = xu / yu;
+                    break;
+      case T_UREM:  if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      ru = xu % yu;
+                    break;
       case T_AND:   ru = xu & yu; break;
       case T_OR:    ru = xu | yu; break;
       case T_XOR:   ru = xu ^ yu; break;
