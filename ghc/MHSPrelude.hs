@@ -68,3 +68,6 @@ wantGMP = False
 
 compiledWithMhs :: Bool
 compiledWithMhs = False
+
+_installRTSExns :: IO ()
+_installRTSExns = return ()
