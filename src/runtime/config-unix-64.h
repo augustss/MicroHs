@@ -221,6 +221,11 @@ CLOCK_T CLOCK_GET(void)
 }
 
 /*
+ * We want a signal handler for SIGINT.
+ */
+#define WANT_SIGINT 1
+
+/*
  * The ERR macro should report an error and exit.
  * If not defined, a generic one will be used.
  */

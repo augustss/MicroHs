@@ -29,6 +29,9 @@
 #if WANT_GMP
 #include <gmp.h>
 #endif
+#if WANT_SIGINT
+#include <signal.h>
+#endif
 
 #if WANT_MD5
 #include "md5.h"
@@ -667,15 +670,29 @@ struct mvar      *all_mvars = 0;   /* all mvars */
 jmp_buf          sched;             /* jump here to yield */
 counter_t        slice = 100000;    /* normal time slice;
                                      * on an M4 Mac this is about 0.3ms */
-REGISTER(counter_t glob_slice,r23);
+//REGISTER(counter_t glob_slice,r23);
+REGISTER(int glob_slice,r23);
 
 NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(sched, mt_raise) */
+
+struct ioarray *rts_exn_array = 0;
+/* The order of these must be kept in sync with Control.Exception.Internal.rtsExns */
+enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
+
+volatile int has_sigint = 0;
+void
+handle_sigint(int s)
+{
+  has_sigint = 1;
+}
 
 void execio(NODEPTR*, int);
 _Noreturn void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
 NODEPTR take_mvar(int try, struct mvar *mv);
 _Noreturn void die_exn(NODEPTR exn);
+void thread_intr(struct mthread *mt);
+int put_mvar(int try, struct mvar *mv, NODEPTR v);
 
 #if WANT_STDIO
 void pp(FILE*, NODEPTR);
@@ -798,6 +815,15 @@ check_timeq(void)
 }
 
 void
+throwto(struct mthread *mt, NODEPTR exn)
+{
+  thread_intr(mt);
+  if (mt->mt_state != ts_died && mt->mt_state != ts_finished) {
+    (void)put_mvar(0, mt->mt_exn, exn); /* never returns if it blocks */
+  }
+}
+
+void
 check_thrown(void)
 {
   if (runq.mq_head->mt_exn->mv_data == NIL)
@@ -807,6 +833,24 @@ check_thrown(void)
     printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
   NODEPTR exn = take_mvar(0, runq.mq_head->mt_exn); /* get the exception */
   raise_exn(exn);
+}
+
+void
+check_sigint(void)
+{
+#if WANT_SIGINT
+  if (has_sigint) {
+    /* We have a signal, so send an async exception  to the main thread */
+    has_sigint = 0;
+    for(struct mthread *mt= all_threads; mt; mt = mt->mt_next) {
+      if (mt->mt_id == MAIN_THREAD) {
+        if (thread_trace)
+          printf("sending signal to main\n");
+        throwto(mt, rts_exn_array->array[exn_userinterrupt]);
+      }
+    }
+  }
+#endif
 }
 
 /* Inlining makes very little difference */
@@ -822,6 +866,7 @@ yield(void)
   if (timeq.mq_head)
     check_timeq();
   check_thrown();
+  check_sigint();
   // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq.mq_head->mt_queue) {
@@ -1179,10 +1224,6 @@ raise_exn(NODEPTR exn)
     longjmp(sched, mt_raise);
   }
 }
-
-struct ioarray *rts_exn_array = 0;
-/* The order of these must be kept in sync with Control.Exception.Internal.rtsExns */
-enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
 
 _Noreturn void
 raise_rts(enum rts_exn exn) {
@@ -3818,7 +3859,7 @@ evali(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
  top:
-  if (--glob_slice == 0)
+  if (--glob_slice <= 0)
     yield();
   l = LABEL(n);
   if (l < T_IO_STDIN) {
@@ -4967,10 +5008,7 @@ execio(NODEPTR *np, int dowrap)
     case T_IO_THROWTO:
       CHECKIO(2);
       mt = evalthid(ARG(TOP(1)));
-      thread_intr(mt);
-      if (mt->mt_state != ts_died && mt->mt_state != ts_finished) {
-        (void)put_mvar(0, mt->mt_exn, ARG(TOP(2))); /* never returns if it blocks */
-      }
+      throwto(mt, ARG(TOP(2)));
       RETIO(combUnit);
     case T_IO_YIELD:
       yield();
@@ -5131,6 +5169,10 @@ MAIN
 
 #ifdef CLOCK_INIT
   CLOCK_INIT();
+#endif
+
+#if WANT_SIGINT
+  (void)signal(SIGINT, handle_sigint);
 #endif
 
   heap_size = HEAP_CELLS;       /* number of heap cells */
