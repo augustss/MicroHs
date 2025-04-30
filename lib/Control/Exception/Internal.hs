@@ -8,9 +8,14 @@ module Control.Exception.Internal(
   SomeException(..),
   PatternMatchFail, NoMethodError, RecSelError, RecConError(..),
   patternMatchFail, noMethodError, recSelError, recConError,
+  AsyncException(..),
+  ArithException(..),
+  SomeAsyncException,
+  _installRTSExns,
+  rtsExns,
   ) where
 import qualified Prelude()
-import Primitives(IO, primThen, primBind, primReturn)
+import Primitives
 import Data.Char_Type
 import Data.List_Type
 import Data.Maybe_Type
@@ -116,3 +121,77 @@ noMethodError    s = throw (NoMethodError    s)
 patternMatchFail s = throw (PatternMatchFail s)
 recSelError      s = throw (RecSelError      s)
 recConError      s = throw (RecConError      s)
+
+-------------------
+
+data ArithException
+  = Overflow
+  | Underflow
+  | LossOfPrecision
+  | DivideByZero
+  | Denormal
+  | RatioZeroDenominator
+  deriving ({-Eq, Ord,-} Show, Typeable)  -- Eq, Ord in Exception module
+instance Exception ArithException
+
+-------------------
+
+data AsyncException
+  = StackOverflow
+  | HeapOverflow
+  | ThreadKilled
+  | UserInterrupt
+  deriving ({-Eq, Ord,-} Typeable)  -- Eq, Ord in Exception module
+
+instance Show AsyncException where
+  showsPrec _ StackOverflow   = showString "stack overflow"
+  showsPrec _ HeapOverflow    = showString "heap overflow"
+  showsPrec _ ThreadKilled    = showString "thread killed"
+  showsPrec _ UserInterrupt   = showString "user interrupt"
+
+instance Exception AsyncException where
+  toException = asyncExceptionToException
+  fromException = asyncExceptionFromException
+
+data SomeAsyncException = forall e . Exception e => SomeAsyncException e
+  deriving (Typeable)
+
+instance Show SomeAsyncException where
+    showsPrec p (SomeAsyncException e) = showsPrec p e
+
+instance Exception SomeAsyncException
+
+asyncExceptionToException :: Exception e => e -> SomeException
+asyncExceptionToException e = toException (SomeAsyncException e)
+
+asyncExceptionFromException :: Exception e => SomeException -> Maybe e
+asyncExceptionFromException x =
+  case fromException x of
+    Just (SomeAsyncException a) -> cast a
+    Nothing -> Nothing
+
+-------------------
+
+-- YUCK!  So messy
+mkArray :: [a] -> IO (IOArray a)
+mkArray es =
+  let length [] = 0::Int
+      length (_:xs) = (1::Int) `primIntAdd` length xs
+  in  primUnsafeCoerce (primArrAlloc (length es) (0::Int)) `primBind` \ a ->
+      let set _ [] = primReturn a
+          set i (x:xs) = primArrWrite a i x `primThen` set (i `primIntAdd` 1) xs
+      in  set (0::Int) es
+
+-- Exceptions needed by the runtime system
+rtsExns :: IO (IOArray SomeException)
+rtsExns = mkArray
+  [ toException StackOverflow
+  , toException HeapOverflow
+  , toException ThreadKilled
+  , toException UserInterrupt
+  , toException DivideByZero
+  ]
+
+-- Tell the RTS about exceptions
+_installRTSExns :: IO ()
+_installRTSExns = rtsExns `primBind` primInstallRTSExns

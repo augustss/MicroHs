@@ -291,6 +291,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
+                T_IO_INSTALLRTSEXNS,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
@@ -475,6 +476,7 @@ REGISTER(stackptr_t stack_ptr,r21);
 #define POP(n) stack_ptr -= (n)
 #define POPTOP() stack[stack_ptr--]
 #define GCCHECK(n) gc_check((n))
+#define CLEARSTK() do { stack_ptr = -1; } while(0)
 
 heapoffs_t heap_size;       /* number of heap cells */
 heapoffs_t heap_start;      /* first location in heap that needs GC */
@@ -752,7 +754,7 @@ cleanup(struct mthread *mt, enum th_state ts)
     printf("cleanup: %d state=%d\n", (int)mt->mt_id, ts);
   mt->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
   mt->mt_state = ts;
-  stack_ptr = -1;               /* reset stack */
+  CLEARSTK();                 /* reset stack */
   doing_rnf = 0;
   /* free all error handlers */
   for (struct handler *h = cur_handler; h; ) {
@@ -1177,6 +1179,17 @@ raise_exn(NODEPTR exn)
   }
 }
 
+struct ioarray *rts_exn_array = 0;
+/* The order of these must be kept in sync with Control.Exception.Internal.rtsExns */
+enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
+
+_Noreturn void
+raise_rts(enum rts_exn exn) {
+  if (!rts_exn_array)
+    ERR1("runtime exn %d", (int)exn);
+  raise_exn(rts_exn_array->array[exn]);
+}
+
 /***************** GC ******************/
 
 /* Set FREE bit to 0 */
@@ -1428,6 +1441,7 @@ struct {
   { "IO.pp", T_IO_PP },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
+  { "IO.installrtsexns", T_IO_INSTALLRTSEXNS },
   { "A.alloc", T_ARR_ALLOC },
   { "A.copy", T_ARR_COPY },
   { "A.size", T_ARR_SIZE },
@@ -4254,6 +4268,7 @@ evali(NODEPTR an)
   case T_IO_CCALL:
   case T_IO_PP:
   case T_CATCH:
+  case T_IO_INSTALLRTSEXNS:
   case T_NEWCASTRINGLEN:
   case T_PACKCSTRING:
   case T_PACKCSTRINGLEN:
@@ -4358,11 +4373,15 @@ evali(NODEPTR an)
       case T_ADD:   ru = xu + yu; break;
       case T_SUB:   ru = xu - yu; break;
       case T_MUL:   ru = xu * yu; break;
-      case T_QUOT:  ru = (uvalue_t)((value_t)xu / (value_t)yu); break;
-      case T_REM:   ru = (uvalue_t)((value_t)xu % (value_t)yu); break;
+      case T_QUOT:  if (yu == 0) raise_rts(exn_dividebyzero); else
+                    ru = (uvalue_t)((value_t)xu / (value_t)yu); break;
+      case T_REM:   if (yu == 0) raise_rts(exn_dividebyzero); else
+                    ru = (uvalue_t)((value_t)xu % (value_t)yu); break;
       case T_SUBR:  ru = yu - xu; break;
-      case T_UQUOT: ru = xu / yu; break;
-      case T_UREM:  ru = xu % yu; break;
+      case T_UQUOT: if (yu == 0) raise_rts(exn_dividebyzero); else
+                    ru = xu / yu; break;
+      case T_UREM:  if (yu == 0) raise_rts(exn_dividebyzero); else
+                    ru = xu % yu; break;
       case T_AND:   ru = xu & yu; break;
       case T_OR:    ru = xu | yu; break;
       case T_XOR:   ru = xu ^ yu; break;
@@ -4770,6 +4789,15 @@ execio(NODEPTR *np, int dowrap)
         }
       }
 
+    case T_IO_INSTALLRTSEXNS:
+      CHECKIO(1);
+      n = evali(ARG(TOP(1)));
+      if (GETTAG(n) != T_ARR)
+        ERR("bad ARR tag");
+      rts_exn_array = ARR(n);
+      rts_exn_array->permanent = 1;    /* Don't GC this, we may need it */
+      RETIO(combUnit);
+
     case T_NEWCASTRINGLEN:
       {
       CHECKIO(1);
@@ -5020,8 +5048,9 @@ die_exn(NODEPTR exn)
   in_raise = 1;
 
   /* just overwrite the top stack element, we don't need it */
-  FUN(TOP(0)) = combShowExn; /* TOP(0) = (combShowExn exn) */
-  ARG(TOP(0)) = exn;
+  CLEARSTK();
+  GCCHECK(1);
+  PUSH(new_ap(combShowExn, exn));/* TOP(0) = (combShowExn exn) */
   x = evali(TOP(0));         /* evaluate it */
   msg = evalstring(x).string;   /* and convert to a C string */
   POP(1);
@@ -5143,7 +5172,7 @@ MAIN
   stack = MALLOC(sizeof(NODEPTR) * stack_size);
   if (!stack)
     memerr();
-  stack_ptr = -1;
+  CLEARSTK();
   num_reductions = 0;
 
 #if WANT_ARGS

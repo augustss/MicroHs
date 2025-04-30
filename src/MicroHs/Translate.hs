@@ -186,5 +186,6 @@ primTable = [
   ("IO.tryputmvar", _primitive "IO.tryputmvar"),
   ("IO.tryreadmvar", _primitive "IO.tryreadmvar"),
   ("IO.threaddelay", _primitive "IO.threaddelay"),
-  ("IO.threadstatus", _primitive "IO.threadstatus")
+  ("IO.threadstatus", _primitive "IO.threadstatus"),
+  ("IO.installrtsexns", _primitive "IO.installrtsexns")
   ]
