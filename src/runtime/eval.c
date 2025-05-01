@@ -937,7 +937,7 @@ init_nodes(void)
     default:
       break;
     }
-    for (j = 0; j < sizeof primops / sizeof primops[0];j++) {
+    for (j = sizeof primops / sizeof primops[0]; j-- > 0; ) {
       if (primops[j].tag == t) {
         primops[j].node = n;
       }
