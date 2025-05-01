@@ -1,4 +1,4 @@
--- Copyright 2024 Lennart Augustsson
+-- Copyright 2024,2025 Lennart Augustsson
 -- See LICENSE file for full license.
 module Control.Exception.Internal(
   throw, catch,
@@ -39,24 +39,24 @@ catch io handler = primCatch io handler'
                        Just e' -> handler e'
                        Nothing -> primRaise e
 
--- The runtime system sometimes needs to generate exception.
+-- The runtime system sometimes needs to generate exceptions.
 -- It is quite difficult to create SomeException value since
 -- it involves an existential data type with several dictionaries.
--- So, instead, the runtime with use an INT value to convey that
+-- So, instead, the runtime uses an INT value to convey that
 -- RTS exception has happened.  So the incoming SomeException
 -- is sometimes just a regular Int.  Here is where we translate that
 -- back to a real SomeException.
--- The translation here has to ebe kept in sync with the enum rts_exn
+-- The translation here has to be kept in sync with the enum rts_exn
 -- in eval.c.
--- The magic primitive returns the Int if it is one, otherwise -1.
+-- The magic primIsInt primitive returns the Int if it is one, otherwise -1.
 rtsExn :: SomeException -> SomeException
 rtsExn e =
   let n = primIsInt e
-  in       if primIntEQ n (0::Int) then toException StackOverflow
-      else if primIntEQ n (1::Int) then toException HeapOverflow
-      else if primIntEQ n (2::Int) then toException ThreadKilled
-      else if primIntEQ n (3::Int) then toException UserInterrupt
-      else if primIntEQ n (4::Int) then toException DivideByZero
+  in       if primIntEQ n (0::Int) then SomeException StackOverflow
+      else if primIntEQ n (1::Int) then SomeException HeapOverflow
+      else if primIntEQ n (2::Int) then SomeException ThreadKilled
+      else if primIntEQ n (3::Int) then SomeException UserInterrupt
+      else if primIntEQ n (4::Int) then SomeException DivideByZero
       else e
 
 -- Throw an exception when executed, not when evaluated
