@@ -35,7 +35,6 @@ import Paths_MicroHs(getDataDir)
 
 main :: IO ()
 main = do
-  _installRTSExns
   args <- getArgs
   dir <- getMhsDir
   dataDir <- getDataDir

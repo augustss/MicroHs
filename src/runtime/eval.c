@@ -282,6 +282,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_BININT2, T_BININT1, T_UNINT1,
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
                 T_BINBS2, T_BINBS1,
+                T_ISINT,
 #if WANT_FLOAT
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
@@ -294,7 +295,6 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
-                T_IO_INSTALLRTSEXNS,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
@@ -675,16 +675,8 @@ REGISTER(int glob_slice,r23);
 
 NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(sched, mt_raise) */
 
-struct ioarray *rts_exn_array = 0;
-/* The order of these must be kept in sync with Control.Exception.Internal.rtsExns */
+/* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
-
-volatile int has_sigint = 0;
-void
-handle_sigint(int s)
-{
-  has_sigint = 1;
-}
 
 void execio(NODEPTR*, int);
 _Noreturn void raise_exn(NODEPTR exn);
@@ -693,9 +685,21 @@ NODEPTR take_mvar(int try, struct mvar *mv);
 _Noreturn void die_exn(NODEPTR exn);
 void thread_intr(struct mthread *mt);
 int put_mvar(int try, struct mvar *mv, NODEPTR v);
+NODEPTR mkInt(value_t i);
+NODEPTR mkFlt(flt_t d);
+NODEPTR mkPtr(void* p);
 
 #if WANT_STDIO
 void pp(FILE*, NODEPTR);
+#endif
+
+#if WANT_SIGINT
+volatile int has_sigint = 0;
+void
+handle_sigint(int s)
+{
+  has_sigint = 1;
+}
 #endif
 
 /* Add the thread to the tail of runq */
@@ -846,7 +850,7 @@ check_sigint(void)
       if (mt->mt_id == MAIN_THREAD) {
         if (thread_trace)
           printf("sending signal to main\n");
-        throwto(mt, rts_exn_array->array[exn_userinterrupt]);
+        throwto(mt, mkInt(exn_userinterrupt));
       }
     }
   }
@@ -1227,9 +1231,7 @@ raise_exn(NODEPTR exn)
 
 _Noreturn void
 raise_rts(enum rts_exn exn) {
-  if (!rts_exn_array)
-    ERR1("runtime exn %d", (int)exn);
-  raise_exn(rts_exn_array->array[exn]);
+  raise_exn(mkInt(exn));
 }
 
 /***************** GC ******************/
@@ -1483,7 +1485,6 @@ struct {
   { "IO.pp", T_IO_PP },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
-  { "IO.installrtsexns", T_IO_INSTALLRTSEXNS },
   { "A.alloc", T_ARR_ALLOC },
   { "A.copy", T_ARR_COPY },
   { "A.size", T_ARR_SIZE },
@@ -1513,6 +1514,7 @@ struct {
   { "toDbl", T_TODBL },
   { "toFunPtr", T_TOFUNPTR },
   { "IO.ccall", T_IO_CCALL },
+  { "isint", T_ISINT },
 };
 
 #if GCRED
@@ -2407,10 +2409,6 @@ mkStrNode(struct bytestring str)
   //printf("mkForPtr n=%p fp=%p %d %s payload.string=%p\n", n, fp, (int)FORPTR(n)->payload.size, (char*)FORPTR(n)->payload.string, FORPTR(n)->payload.string);
   return n;
 }
-
-NODEPTR mkInt(value_t i);
-NODEPTR mkFlt(flt_t d);
-NODEPTR mkPtr(void* p);
 
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
@@ -4098,6 +4096,14 @@ evali(NODEPTR an)
     GOIND(dblToString(xd));
 #endif  /* WANT_FLOAT */
 
+  case T_ISINT:
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, GETTAG(x) == T_INT ? GETVALUE(x) : -1);
+    RET;
+
   case T_BSAPPEND:
   case T_BSAPPENDDOT:
   case T_BSEQ:
@@ -4310,7 +4316,6 @@ evali(NODEPTR an)
   case T_IO_CCALL:
   case T_IO_PP:
   case T_CATCH:
-  case T_IO_INSTALLRTSEXNS:
   case T_NEWCASTRINGLEN:
   case T_PACKCSTRING:
   case T_PACKCSTRINGLEN:
@@ -4842,15 +4847,6 @@ execio(NODEPTR *np, int dowrap)
           RETIO(ARG(n));             /* return result */
         }
       }
-
-    case T_IO_INSTALLRTSEXNS:
-      CHECKIO(1);
-      n = evali(ARG(TOP(1)));
-      if (GETTAG(n) != T_ARR)
-        ERR("bad ARR tag");
-      rts_exn_array = ARR(n);
-      rts_exn_array->permanent = 1;    /* Don't GC this, we may need it */
-      RETIO(combUnit);
 
     case T_NEWCASTRINGLEN:
       {

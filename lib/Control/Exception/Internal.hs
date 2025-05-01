@@ -11,8 +11,6 @@ module Control.Exception.Internal(
   AsyncException(..),
   ArithException(..),
   SomeAsyncException,
-  _installRTSExns,
-  rtsExns,
   ) where
 import qualified Prelude()
 import Primitives
@@ -37,9 +35,29 @@ catch   :: forall e a .
         -> (e -> IO a)
         -> IO a
 catch io handler = primCatch io handler'
-    where handler' e = case fromException e of
+    where handler' e = case fromException (rtsExn e) of
                        Just e' -> handler e'
                        Nothing -> primRaise e
+
+-- The runtime system sometimes needs to generate exception.
+-- It is quite difficult to create SomeException value since
+-- it involves an existential data type with several dictionaries.
+-- So, instead, the runtime with use an INT value to convey that
+-- RTS exception has happened.  So the incoming SomeException
+-- is sometimes just a regular Int.  Here is where we translate that
+-- back to a real SomeException.
+-- The translation here has to ebe kept in sync with the enum rts_exn
+-- in eval.c.
+-- The magic primitive returns the Int if it is one, otherwise -1.
+rtsExn :: SomeException -> SomeException
+rtsExn e =
+  let n = primIsInt e
+  in       if primIntEQ n (0::Int) then toException StackOverflow
+      else if primIntEQ n (1::Int) then toException HeapOverflow
+      else if primIntEQ n (2::Int) then toException ThreadKilled
+      else if primIntEQ n (3::Int) then toException UserInterrupt
+      else if primIntEQ n (4::Int) then toException DivideByZero
+      else e
 
 -- Throw an exception when executed, not when evaluated
 throwIO :: forall a e . Exception e => e -> IO a
@@ -169,29 +187,3 @@ asyncExceptionFromException x =
   case fromException x of
     Just (SomeAsyncException a) -> cast a
     Nothing -> Nothing
-
--------------------
-
--- YUCK!  So messy
-mkArray :: [a] -> IO (IOArray a)
-mkArray es =
-  let length [] = 0::Int
-      length (_:xs) = (1::Int) `primIntAdd` length xs
-  in  primUnsafeCoerce (primArrAlloc (length es) (0::Int)) `primBind` \ a ->
-      let set _ [] = primReturn a
-          set i (x:xs) = primArrWrite a i x `primThen` set (i `primIntAdd` 1) xs
-      in  set (0::Int) es
-
--- Exceptions needed by the runtime system
-rtsExns :: IO (IOArray SomeException)
-rtsExns = mkArray
-  [ toException StackOverflow
-  , toException HeapOverflow
-  , toException ThreadKilled
-  , toException UserInterrupt
-  , toException DivideByZero
-  ]
-
--- Tell the RTS about exceptions
-_installRTSExns :: IO ()
-_installRTSExns = rtsExns `primBind` primInstallRTSExns

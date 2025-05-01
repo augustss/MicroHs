@@ -223,6 +223,3 @@ instance (NFData a, NFData b) => NFData (a, b) where
 instance NFData (a -> b)
 instance NFData Version
 instance NFData MD5CheckSum
-
-_installRTSExns :: IO ()
-_installRTSExns = return ()

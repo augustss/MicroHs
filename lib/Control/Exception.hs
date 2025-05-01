@@ -24,8 +24,6 @@ module Control.Exception(
   --
   ArithException(..),
   SomeAsyncException(..), AsyncException(..),
-
-  _installRTSExns,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Exception.Internal

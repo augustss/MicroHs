@@ -34,14 +34,12 @@ module MHSPrelude(
   appendDot,
   wantGMP,
   compiledWithMhs,
-  _installRTSExns,
   ) where
 import qualified Prelude()
 --import Primitives(primRnfNoErr, primRnfErr)
 import Control.Applicative(Applicative(..))
 import Control.DeepSeq.Class
 import Control.Error(error, undefined)
-import Control.Exception.Internal(_installRTSExns)
 import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
 import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)

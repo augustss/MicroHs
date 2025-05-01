@@ -334,5 +334,5 @@ primThreadDelay = _primitive "IO.threaddelay"
 primThreadStatus :: ThreadId -> IO Int
 primThreadStatus = _primitive "IO.threadstatus"
 
-primInstallRTSExns :: IOArray a -> IO ()
-primInstallRTSExns = _primitive "IO.installrtsexns"
+primIsInt :: a -> Int
+primIsInt = _primitive "isint"
