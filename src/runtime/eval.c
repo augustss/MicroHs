@@ -5094,19 +5094,31 @@ die_exn(NODEPTR exn)
   }
   in_raise = 1;
 
-  /* just overwrite the top stack element, we don't need it */
-  CLEARSTK();
-  GCCHECK(1);
-  PUSH(new_ap(combShowExn, exn));/* TOP(0) = (combShowExn exn) */
-  x = evali(TOP(0));         /* evaluate it */
-  msg = evalstring(x).string;   /* and convert to a C string */
-  POP(1);
+  if (GETTAG(exn) == T_INT) {
+    /* This is the special hack for RTS generated exception, represented by a T_INT */
+    switch(GETVALUE(exn)) {
+    case 0: msg = "stack overflow"; break;
+    case 1: msg = "heap overflow"; break;
+    case 2: msg = "thread killed"; break;
+    case 3: msg = "user interrupt"; break;
+    case 4: msg = "DivideByZero"; break;
+    default: msg = "unknown"; break;
+    }
+  } else {
+    /* just overwrite the top stack element, we don't need it */
+    CLEARSTK();
+    GCCHECK(1);
+    PUSH(new_ap(combShowExn, exn));/* TOP(0) = (combShowExn exn) */
+    x = evali(TOP(0));         /* evaluate it */
+    msg = evalstring(x).string;   /* and convert to a C string */
+    POP(1);
+  }
 #if WANT_STDIO
   /* A horrible hack until we get proper exceptions */
   if (strcmp(msg, "ExitSuccess") == 0) {
     EXIT(0);
   } else {
-    fprintf(stderr, "mhs: %s\n", msg);
+    fprintf(stderr, "\nmhs: uncaught exception: %s\n", msg);
     EXIT(1);
   }
 #else  /* WANT_STDIO */
