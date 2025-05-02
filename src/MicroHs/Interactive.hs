@@ -116,6 +116,10 @@ commands =
       showKind line
       return True
     )
+  , ("main", \ line -> do
+      runMain line
+      return True
+    )
   , ("help", \ _ -> do
       liftIO $ putStrLn helpText
       return True
@@ -139,6 +143,7 @@ helpText = "\
   \:delete d  delete definition(s) d\n\
   \:type e    show type of e\n\
   \:kind t    show kind of t\n\
+  \:main args run main with arguments\n\
   \:help      this text\n\
   \expr       evaluate expression\n\
   \defn       add top level definition\n\
@@ -264,6 +269,9 @@ showKind line = do
       liftIO $ putStrLn $ showEType t
     Left  e ->
       liftIO $ err e
+
+runMain :: String -> I ()
+runMain line = oneline $ "_withArgs " ++ show (words line) ++ " main"
 
 getCModule :: Cache -> TModule [LDef]
 getCModule cash =
