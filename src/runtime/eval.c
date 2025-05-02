@@ -688,10 +688,37 @@ int put_mvar(int try, struct mvar *mv, NODEPTR v);
 NODEPTR mkInt(value_t i);
 NODEPTR mkFlt(flt_t d);
 NODEPTR mkPtr(void* p);
+struct mthread* new_thread(NODEPTR root);
+void gc(void);
+void async_throwto(struct mthread*, NODEPTR);
 
 #if WANT_STDIO
 void pp(FILE*, NODEPTR);
 #endif
+
+/* Needed during reduction */
+NODEPTR intTable[HIGH_INT - LOW_INT];
+NODEPTR combK, combTrue, combUnit, combCons, combPair;
+NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND, combB, combC;
+NODEPTR combLT, combEQ, combGT;
+NODEPTR combShowExn, combU, combK2, combK3;
+NODEPTR combBININT1, combBININT2, combUNINT1;
+NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
+NODEPTR combBINBS1, combBINBS2;
+NODEPTR comb_stdin, comb_stdout, comb_stderr;
+NODEPTR combJust;
+NODEPTR combTHROWTO;
+#define combFalse combK
+#define combNothing combK
+
+#if WANT_ARGS
+/* This single element array hold a list of the program arguments. */
+struct ioarray *argarray;
+#endif  /* WANT_ARGS */
+
+int verbose = 0;
+int gcbell = 0;
+
 
 #if WANT_SIGINT
 volatile int has_sigint = 0;
@@ -701,6 +728,19 @@ handle_sigint(int s)
   has_sigint = 1;
 }
 #endif
+
+/* Check that there are k nodes available, if not then GC. */
+static INLINE void
+gc_check(size_t k)
+{
+  if (k < num_free)
+    return;
+#if WANT_STDIO
+  if (verbose > 1)
+    PRINT("gc_check: %d\n", (int)k);
+#endif
+  gc();
+}
 
 /* Add the thread to the tail of runq */
 void
@@ -850,7 +890,8 @@ check_sigint(void)
       if (mt->mt_id == MAIN_THREAD) {
         if (thread_trace)
           printf("sending signal to main\n");
-        throwto(mt, mkInt(exn_userinterrupt));
+        async_throwto(mt, mkInt(exn_userinterrupt));
+        break;
       }
     }
   }
@@ -1279,14 +1320,6 @@ static INLINE void mark_all_free(void)
   next_scan_index = heap_start;
 }
 
-#if WANT_ARGS
-/* This single element array hold a list of the program arguments. */
-struct ioarray *argarray;
-#endif  /* WANT_ARGS */
-
-int verbose = 0;
-int gcbell = 0;
-
 static INLINE NODEPTR
 alloc_node(enum node_tag t)
 {
@@ -1336,21 +1369,6 @@ new_ap(NODEPTR f, NODEPTR a)
   ARG(n) = a;
   return n;
 }
-
-/* Needed during reduction */
-NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combK, combTrue, combUnit, combCons, combPair;
-NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND, combB, combC;
-NODEPTR combLT, combEQ, combGT;
-NODEPTR combShowExn, combU, combK2, combK3;
-NODEPTR combBININT1, combBININT2, combUNINT1;
-NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
-NODEPTR combBINBS1, combBINBS2;
-NODEPTR comb_stdin, comb_stdout, comb_stderr;
-NODEPTR combJust;
-#define combFalse combK
-#define combNothing combK
-
 
 /* One node of each kind for primitives, these are never GCd. */
 /* We use linear search in this, because almost all lookups
@@ -1583,6 +1601,7 @@ init_nodes(void)
     case T_UNDBL1: combUNDBL1 = n; break;
     case T_BINBS1: combBINBS1 = n; break;
     case T_BINBS2: combBINBS2 = n; break;
+    case T_IO_THROWTO: combTHROWTO = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
     case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
@@ -1652,6 +1671,22 @@ counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
 void mark(NODEPTR *np);
 void mark_mvar(struct mvar *mv);
+
+/* Throwing, e.g., a UserInterrupt exception to the main thread
+ * it can happen from any thread (the one that happens to poll).
+ * Throwing an exception can block, so we can't throw it from
+ * the current thread.  Instead, we spawn a new thread, whose
+ * only job it is to throw the exception.
+ */
+void
+async_throwto(struct mthread *mt, NODEPTR exn)
+{
+  GCCHECK(3);
+  NODEPTR thid = alloc_node(T_THID);
+  THR(thid) = mt;
+  NODEPTR root = new_ap(new_ap(combTHROWTO, thid), exn);
+  (void)new_thread(root);       /* spawn and put on runq */
+}
 
 void
 mark_thread(struct mthread *mt)
@@ -1994,19 +2029,6 @@ gc(void)
     }
   }
 #endif
-}
-
-/* Check that there are k nodes available, if not then GC. */
-static INLINE void
-gc_check(size_t k)
-{
-  if (k < num_free)
-    return;
-#if WANT_STDIO
-  if (verbose > 1)
-    PRINT("gc_check: %d\n", (int)k);
-#endif
-  gc();
 }
 
 static INLINE
