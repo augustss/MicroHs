@@ -11,6 +11,12 @@ module Control.Exception.Internal(
   AsyncException(..),
   ArithException(..),
   SomeAsyncException,
+
+  uninterruptibleMask,
+  uninterruptibleMask_,
+  MaskingState(..),
+  getMaskingState,
+  interruptible,
   ) where
 import qualified Prelude()
 import Primitives
@@ -76,10 +82,6 @@ bracket before after thing =
     after a `primThen`
     primReturn r
     )))
-
--- XXX we don't have masks yet
-mask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
-mask io = io (\ x -> x)
 
 ------------------
 
@@ -187,3 +189,58 @@ asyncExceptionFromException x =
   case fromException x of
     Just (SomeAsyncException a) -> cast a
     Nothing -> Nothing
+
+---------
+
+data MaskingState
+  = Unmasked
+  | MaskedInterruptible
+  | MaskedUninterruptible
+--  deriving (Eq, Show)  in Control.Exception
+
+getMaskingState :: IO MaskingState
+getMaskingState  =
+  primGetMaskingState `primBind` \ s ->
+  primReturn (if s `primIntEQ` 0 then Unmasked
+         else if s `primIntEQ` 1 then MaskedUninterruptible
+         else                         MaskedInterruptible)
+
+mask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
+mask io =
+  getMaskingState `primBind` \ b ->
+  case b of
+    Unmasked              -> block (io unblock)
+    MaskedInterruptible   -> io block
+    MaskedUninterruptible -> io blockUninterruptible
+
+uninterruptibleMask :: forall a . IO a -> IO a
+uninterruptibleMask_ io = uninterruptibleMask (\ _ -> io)
+
+uninterruptibleMask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
+uninterruptibleMask io =
+  getMaskingState `primBind` \ b ->
+  case b of
+    Unmasked              -> blockUninterruptible (io unblock)
+    MaskedInterruptible   -> blockUninterruptible (io block)
+    MaskedUninterruptible -> io blockUninterruptible
+
+block :: IO a -> IO a
+block = primMaskAsync
+
+unblock :: IO a -> IO a
+unblock = unsafeUnmask
+
+unsafeUnmask :: IO a -> IO a
+unsafeUnmask = primUnmaskAsync
+
+interruptible :: IO a -> IO a
+interruptible :: forall a. IO a -> IO a
+interruptible act =
+  getMaskingState `primBind` \ b ->
+  case b of
+    Unmasked              -> act
+    MaskedInterruptible   -> unsafeUnmask act
+    MaskedUninterruptible -> act
+
+blockUninterruptible :: IO a -> IO a
+blockUninterruptible = primMaskUnintr

@@ -301,6 +301,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
                 T_IO_TRYTAKEMVAR, T_IO_TRYPUTMVAR, T_IO_TRYREADMVAR,
                 T_IO_THREADDELAY, T_IO_THREADSTATUS,
+                T_IO_GETMASKINGSTATE, T_IO_MASKASYNC, T_IO_UNMASKASYNC, T_IO_MASKUNINTR,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
@@ -631,22 +632,25 @@ struct handler {
 
 /***************** THREAD ******************/
 
-enum th_state { ts_runnable, ts_wait_mvar, ts_wait_time, ts_finished, ts_died };
 enum th_sched { mt_main, mt_resched, mt_raise };
+/* The two enums below are known by the Haskell code.  Do not change order */
+enum th_state { ts_runnable, ts_wait_mvar, ts_wait_time, ts_finished, ts_died };
+enum mask_state { mask_unmasked, mask_interruptible, mask_uninterruptible };
 
 struct mthread {
-  enum th_state   mt_state;
-  struct mthread *mt_next;      /* all threads linked together */
-  struct mthread *mt_queue;     /* runq/waitq link */
-  counter_t       mt_slice;     /* reduction steps until yielding */
-  counter_t       mt_num_slices;/* number of slices so far */
-  NODEPTR         mt_root;      /* root of the graph to reduce */
-  struct mvar    *mt_exn;       /* possible thrown exception */
-  NODEPTR         mt_mval;      /* filled after waiting for take/read */
-  int             mt_mark;      /* marked as accessible */
-  uvalue_t        mt_id;        /* thread number, thread 1 is the main thread */
+  enum th_state   mt_state;      /* thread state */
+  enum mask_state mt_mask;       /* making state. */
+  struct mthread *mt_next;       /* all threads linked together */
+  struct mthread *mt_queue;      /* runq/waitq link */
+  counter_t       mt_slice;      /* reduction steps until yielding */
+  counter_t       mt_num_slices; /* number of slices so far */
+  NODEPTR         mt_root;       /* root of the graph to reduce */
+  struct mvar    *mt_exn;        /* possible thrown exception */
+  NODEPTR         mt_mval;       /* filled after waiting for take/read */
+  int             mt_mark;       /* marked as accessible */
+  uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
 #if defined CLOCK_INIT
-  CLOCK_T         mt_at;        /* time to wake up when in threadDelay */
+  CLOCK_T         mt_at;         /* time to wake up when in threadDelay */
 #endif
 };
 struct mthread  *all_threads = 0;   /* all threads */
@@ -872,6 +876,8 @@ check_thrown(void)
 {
   if (runq.mq_head->mt_exn->mv_data == NIL)
     return;            /* no thrown exception */
+  if (runq.mq_head->mt_mask != mask_unmasked)
+    return;            /* interrupts are masked, so don't throw */
   /* the current thread has an async exception */
   if (thread_trace)
     printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
@@ -941,6 +947,7 @@ new_thread(NODEPTR root)
   struct mthread *mt = MALLOC(sizeof(struct mthread));
   if (!mt)
     memerr();
+  mt->mt_mask = mask_unmasked;
   mt->mt_root = root;
   mt->mt_exn = new_mvar();
   mt->mt_mval = NIL;
@@ -955,7 +962,7 @@ new_thread(NODEPTR root)
   all_threads = mt;
 
   /* add to tail of runq */
-  add_runq_tail(mt);
+  add_runq_tail(mt);            /* sets runnable */
   if (thread_trace) {
     printf("new_thread: add %d to runq tail\n", (int)mt->mt_id);
     dump_q("runq", runq);
@@ -1170,6 +1177,8 @@ thread_intr(struct mthread *mt)
   case ts_runnable:
     break;                      /* already on runq */
   case ts_wait_mvar:
+    if (mt->mt_mask == mask_uninterruptible) /* uninterruptible */
+      break;
     /* we don't know which mvar we are waiting on, so look at all of them */
     /* XXX should add a pointer in mthread to the mvar */
     for (struct mvar *mv = all_mvars; mv; mv = mv->mv_next) {
@@ -1184,6 +1193,8 @@ thread_intr(struct mthread *mt)
     add_runq_tail(mt);
     break;
   case ts_wait_time:
+    if (mt->mt_mask == mask_uninterruptible) /* uninterruptible */
+      break;
     /* find thread in timeq */
     if (!find_and_unlink(&timeq, mt))
       ERR("thread_intr: timeq");
@@ -1524,6 +1535,10 @@ struct {
   { "IO.tryreadmvar", T_IO_TRYREADMVAR },
   { "IO.threaddelay", T_IO_THREADDELAY },
   { "IO.threadstatus", T_IO_THREADSTATUS },
+  { "IO.getmaskingstate", T_IO_GETMASKINGSTATE },
+  { "IO.maskasync", T_IO_MASKASYNC },
+  { "IO.unmaskasync", T_IO_UNMASKASYNC },
+  { "IO.maskunintr", T_IO_MASKUNINTR },
   { "newCAStringLen", T_NEWCASTRINGLEN },
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
@@ -4363,6 +4378,10 @@ evali(NODEPTR an)
   case T_IO_TRYPUTMVAR:
   case T_IO_THREADDELAY:
   case T_IO_THREADSTATUS:
+  case T_IO_GETMASKINGSTATE:
+  case T_IO_MASKASYNC:
+  case T_IO_UNMASKASYNC:
+  case T_IO_MASKUNINTR:
     RET;
 
   case T_THNUM:
@@ -4640,6 +4659,25 @@ evali(NODEPTR an)
   return n;
 }
 
+/* Run computation with a given mask, restoring the old mask after. */
+NODEPTR
+with_mask(enum mask_state mask)
+{
+  enum mask_state old_mask = runq.mq_head->mt_mask;
+  runq.mq_head->mt_mask = mask;
+  //fprintf(stderr, "with_mask in %d\n", (int)stack_ptr);
+  NODEPTR x = ARG(TOP(1));
+  PUSH(x);
+  execio(&TOP(0), 1);
+  runq.mq_head->mt_mask = old_mask;
+  x = TOP(0);                   /* should be a RETURN e */
+  if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
+    ERR("with_mask");
+  //fprintf(stderr, "with_mask out %d\n", (int)stack_ptr);
+  return ARG(x);
+}
+
+
 /* This is the interpreter for the IO monad operations.
  *
  * Assuming every graph rewrite is atomic we want the graph
@@ -4694,11 +4732,13 @@ execio(NODEPTR *np, int dowrap)
   heapoffs_t l;
 
 /* IO operations need all arguments, anything else should not happen. */
-#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*printf("\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
+#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*fprintf(stderr, "\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
 /* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
 #define GCCHECKSAVE(p, n) do { PUSH(p); GCCHECK(n); (p) = TOP(0); POP(1); } while(0)
-#define RETIO(p) do { stack_ptr = stk; res = (p); goto rest; } while(0)
+#define RETIO(p) do { res = (p); stack_ptr = stk; goto rest; } while(0)
 #define IOASSERT(p,s) do { if (!(p)) ERR("IOASSERT " s); } while(0)
+
+  //fprintf(stderr, "execio enter %d\n", (int)stack_ptr);
 
   if (dowrap) {
     GCCHECK(2);
@@ -4738,6 +4778,7 @@ execio(NODEPTR *np, int dowrap)
   q = ARG(top);
   //ppmsg("q=", q);
   if (GETTAG(q) == T_IO_RETURN) {
+    //fprintf(stderr, "execio return %d\n", (int)stack_ptr);
     /* execio is done */
     FUN(top) = combIORETURN;
     ARG(top) = res;
@@ -4776,6 +4817,7 @@ execio(NODEPTR *np, int dowrap)
       tag = GETTAG(n);
     }
 
+    //fprintf(stderr, "execio %s %d\n", tag_names[tag], (int)stack_ptr);
     switch (tag) {
     case T_AP:
       n = FUN(n);
@@ -5015,6 +5057,7 @@ execio(NODEPTR *np, int dowrap)
       CHECKIO(1);
       GCCHECK(1);
       mt = new_thread(ARG(TOP(1)));
+      mt->mt_mask = runq.mq_head->mt_mask; /* inherit masking state */
       n = alloc_node(T_THID);
       THR(n) = mt;
       RETIO(n);
@@ -5091,6 +5134,18 @@ execio(NODEPTR *np, int dowrap)
       mt = evalthid(ARG(TOP(1)));
       GCCHECK(1);
       RETIO(mkInt(mt->mt_state));
+    case T_IO_GETMASKINGSTATE:
+      GCCHECK(1);
+      RETIO(mkInt(runq.mq_head->mt_mask));
+    case T_IO_MASKASYNC:
+      CHECKIO(1);
+      RETIO(with_mask(mask_interruptible));
+    case T_IO_UNMASKASYNC:
+      CHECKIO(1);
+      RETIO(with_mask(mask_unmasked));
+    case T_IO_MASKUNINTR:
+      CHECKIO(1);
+      RETIO(with_mask(mask_uninterruptible));
 
     default:
       //printf("bad tag %s\n", tag_names[GETTAG(n)]);
@@ -5131,8 +5186,8 @@ die_exn(NODEPTR exn)
     CLEARSTK();
     GCCHECK(1);
     PUSH(new_ap(combShowExn, exn));/* TOP(0) = (combShowExn exn) */
-    x = evali(TOP(0));         /* evaluate it */
-    msg = evalstring(x).string;   /* and convert to a C string */
+    x = evali(TOP(0));             /* evaluate it */
+    msg = evalstring(x).string;    /* and convert to a C string */
     POP(1);
   }
 #if WANT_STDIO

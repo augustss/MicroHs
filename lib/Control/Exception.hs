@@ -21,6 +21,17 @@ module Control.Exception(
   mapException,
 
   mask, mask_,
+
+  allowInterrupt,
+
+  {- Not exportyed by GHC
+  uninterruptibleMask,
+  uninterruptibleMask_,
+  MaskingState(..),
+  getMaskingState,
+  interruptible,
+  -}
+  
   --
   ArithException(..),
   SomeAsyncException(..), AsyncException(..),
@@ -102,18 +113,24 @@ finally a sequel =
     _ <- sequel
     return r
 
-bracket_ :: IO a -> IO b -> IO c -> IO c
-bracket_ before after thing = bracket before (const after) (const thing)
-
 bracketOnError :: IO a -> (a -> IO b) -> (a -> IO c) -> IO c
 bracketOnError before after thing =
   mask $ \ restore -> do
     a <- before
     restore (thing a) `onException` after a
 
+allowInterrupt :: IO ()
+allowInterrupt = interruptible $ return ()
+
+bracket_ :: IO a -> IO b -> IO c -> IO c
+bracket_ :: forall a b c. IO a -> IO b -> IO c -> IO c
+bracket_ before after thing = bracket before (const after) (const thing)
+
 -------------------
 
-deriving instance Eq  ArithException
-deriving instance Ord ArithException
-deriving instance Eq  AsyncException
-deriving instance Ord AsyncException
+deriving instance Eq   ArithException
+deriving instance Ord  ArithException
+deriving instance Eq   AsyncException
+deriving instance Ord  AsyncException
+deriving instance Eq   MaskingState
+deriving instance Show MaskingState
