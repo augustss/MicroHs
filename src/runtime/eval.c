@@ -1591,7 +1591,7 @@ init_nodes(void)
     default:
       break;
     }
-    for (j = 0; j < sizeof primops / sizeof primops[0];j++) {
+    for (j = sizeof primops / sizeof primops[0]; j-- > 0; ) {
       if (primops[j].tag == t) {
         primops[j].node = n;
       }
@@ -2965,7 +2965,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     break;
   case T_PTR:
     if (prefix) {
-      char b[200]; sprintf(b,"PTR<%p>",PTR(n));
+      char b[200]; snprintf(b,200,"PTR<%p>",PTR(n));
       putsb(b, f);
     } else {
       ERR("Cannot serialize pointers");
