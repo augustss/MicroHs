@@ -11,6 +11,8 @@ module Control.Exception.Internal(
   AsyncException(..),
   ArithException(..),
   SomeAsyncException,
+  asyncExceptionToException,
+  asyncExceptionFromException,
 
   uninterruptibleMask,
   uninterruptibleMask_,

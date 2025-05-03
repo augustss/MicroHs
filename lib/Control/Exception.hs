@@ -24,17 +24,17 @@ module Control.Exception(
 
   allowInterrupt,
 
-  {- Not exportyed by GHC
   uninterruptibleMask,
   uninterruptibleMask_,
+  interruptible,
   MaskingState(..),
   getMaskingState,
-  interruptible,
-  -}
   
   --
   ArithException(..),
   SomeAsyncException(..), AsyncException(..),
+  asyncExceptionToException,
+  asyncExceptionFromException,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Exception.Internal
