@@ -137,4 +137,4 @@ getChanContents ch
 
 -- |Write an entire list of items to a 'Chan'.
 writeList2Chan :: Chan a -> [a] -> IO ()
-writeList2Chan ch ls = sequence_ (map (writeChan ch) ls)
+writeList2Chan ch ls = mapM_ (writeChan ch) ls

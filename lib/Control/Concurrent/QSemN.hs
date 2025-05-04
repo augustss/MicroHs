@@ -41,7 +41,7 @@ import System.IO.Unsafe (unsafePerformIO)
 --
 -- is safe; it never loses any of the resource.
 --
-data QSemN = QSemN !(IORef (Int, [(Int, MVar ())], [(Int, MVar ())]))
+newtype QSemN = QSemN (IORef (Int, [(Int, MVar ())], [(Int, MVar ())]))
 
 -- The semaphore state (i, xs, ys):
 --

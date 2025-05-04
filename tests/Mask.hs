@@ -1,4 +1,4 @@
-module Main where
+module Mask where
 import Control.Concurrent
 import Control.Exception
 
@@ -18,4 +18,3 @@ main = do
             printMaskingState "handler "
         )
   printMaskingState "end "
-  

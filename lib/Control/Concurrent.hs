@@ -30,6 +30,10 @@ module Control.Concurrent (
   BlockReason(..),
   ) where
 import Primitives
+import Control.Concurrent.MVar
+import Control.Concurrent.Chan
+import Control.Concurrent.QSem
+import Control.Concurrent.QSemN
 import Control.Exception
 import Control.Exception.Internal(unsafeUnmask)
 import Data.Word
