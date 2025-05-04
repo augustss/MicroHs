@@ -19,6 +19,8 @@ module Control.Exception.Internal(
   MaskingState(..),
   getMaskingState,
   interruptible,
+
+  unsafeUnmask,
   ) where
 import qualified Prelude()
 import Primitives

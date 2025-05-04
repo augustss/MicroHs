@@ -31,6 +31,7 @@ module Control.Concurrent (
   ) where
 import Primitives
 import Control.Exception
+import Control.Exception.Internal(unsafeUnmask)
 import Data.Word
 
 instance Show ThreadId where
@@ -100,9 +101,3 @@ threadStatus thr = do
       2 -> ThreadBlocked BlockedOnOther  -- ts_wait_time
       3 -> ThreadFinished                -- ts_finished
       4 -> ThreadDied                    -- ts_died
-
---------------------
--- Not yet implemented
-
-unsafeUnmask :: IO a -> IO a
-unsafeUnmask io = io
