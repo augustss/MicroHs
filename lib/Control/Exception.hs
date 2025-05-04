@@ -29,12 +29,15 @@ module Control.Exception(
   interruptible,
   MaskingState(..),
   getMaskingState,
-  
+
   --
   ArithException(..),
   SomeAsyncException(..), AsyncException(..),
   asyncExceptionToException,
   asyncExceptionFromException,
+
+  --
+  BlockedIndefinitelyOnMVar(..),
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Exception.Internal
@@ -134,3 +137,15 @@ deriving instance Eq   AsyncException
 deriving instance Ord  AsyncException
 deriving instance Eq   MaskingState
 deriving instance Show MaskingState
+
+--------------------
+
+data BlockedIndefinitelyOnMVar = BlockedIndefinitelyOnMVar
+  deriving (Typeable)
+
+instance Exception BlockedIndefinitelyOnMVar
+
+instance Show BlockedIndefinitelyOnMVar where
+    showsPrec _ BlockedIndefinitelyOnMVar = showString "thread blocked indefinitely in an MVar operation"
+
+-----

@@ -44,7 +44,18 @@ instance Ord ThreadId where
   i `compare` i'  =  primThreadNum i `compare` primThreadNum i'
 
 forkIO :: IO () -> IO ThreadId
-forkIO io = primForkIO io
+forkIO action = --primForkIO (catch action childHandler)
+  primForkIO action
+
+childHandler :: SomeException -> IO ()
+childHandler err = catch (realHandler err) childHandler
+
+realHandler :: SomeException -> IO ()
+realHandler se
+  | Just BlockedIndefinitelyOnMVar <- fromException se  =  return ()
+--  | Just BlockedIndefinitelyOnSTM  <- fromException se  =  return ()
+  | Just ThreadKilled              <- fromException se  =  return ()
+  | otherwise                                           =  throw se
 
 myThreadId :: IO ThreadId
 myThreadId = primMyThreadId
