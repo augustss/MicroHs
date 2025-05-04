@@ -25,7 +25,10 @@ library base
         Control.Arrow
         Control.Category
         Control.Concurrent
+        Control.Concurrent.Chan
         Control.Concurrent.MVar
+        Control.Concurrent.QSem
+        Control.Concurrent.QSemN
         Control.DeepSeq
         Control.DeepSeq.Class
         Control.Error

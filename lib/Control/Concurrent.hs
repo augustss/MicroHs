@@ -12,10 +12,10 @@ module Control.Concurrent (
 --  threadWaitRead, threadWaitWrite,
 --  threadWaitReadSTM, threadWaitWriteSTM,
 
---  module GHC.Internal.Control.Concurrent.MVar,
---  module Control.Concurrent.Chan,
---  module Control.Concurrent.QSem,
---  module Control.Concurrent.QSemN,
+  module Control.Concurrent.MVar,
+  module Control.Concurrent.Chan,
+  module Control.Concurrent.QSem,
+  module Control.Concurrent.QSemN,
 
 {-
   rtsSupportsBoundThreads,
