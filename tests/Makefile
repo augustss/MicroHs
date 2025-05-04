@@ -104,6 +104,7 @@ test:
 	$(TMHS) ThrSt      && $(EVAL) > ThrSt.out      && diff ThrSt.ref ThrSt.out
 	$(TMHS) Throw      && $(EVAL) > Throw.out      && diff Throw.ref Throw.out
 	$(TMHS) RtsExn     && $(EVAL) > RtsExn.out     && diff RtsExn.ref RtsExn.out
+	$(TMHS) Mask       && $(EVAL) > Mask.out       && diff Mask.ref Mask.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

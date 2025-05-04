@@ -204,8 +204,8 @@ getMaskingState :: IO MaskingState
 getMaskingState  =
   primGetMaskingState `primBind` \ s ->
   primReturn (if s `primIntEQ` 0 then Unmasked
-         else if s `primIntEQ` 1 then MaskedUninterruptible
-         else                         MaskedInterruptible)
+         else if s `primIntEQ` 1 then MaskedInterruptible
+         else                         MaskedUninterruptible)
 
 mask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
 mask io =

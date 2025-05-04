@@ -621,21 +621,22 @@ dump_tick_table(FILE *f)
 }
 #endif
 
+enum th_sched { mt_main, mt_resched, mt_raise };
+/* The two enums below are known by the Haskell code.  Do not change order */
+enum th_state { ts_runnable, ts_wait_mvar, ts_wait_time, ts_finished, ts_died };
+enum mask_state { mask_unmasked, mask_interruptible, mask_uninterruptible };
+
 /***************** HANDLER *****************/
 
 struct handler {
   jmp_buf         hdl_buf;      /* env storage */
   struct handler *hdl_old;      /* old handler */
   stackptr_t      hdl_stack;    /* old stack pointer */
+  enum mask_state hdl_mask;     /* old mask */
   NODEPTR         hdl_exn;      /* used temporarily to pass the exception value */
 } *cur_handler = 0;
 
 /***************** THREAD ******************/
-
-enum th_sched { mt_main, mt_resched, mt_raise };
-/* The two enums below are known by the Haskell code.  Do not change order */
-enum th_state { ts_runnable, ts_wait_mvar, ts_wait_time, ts_finished, ts_died };
-enum mask_state { mask_unmasked, mask_interruptible, mask_uninterruptible };
 
 struct mthread {
   enum th_state   mt_state;      /* thread state */
@@ -712,6 +713,7 @@ NODEPTR combBINBS1, combBINBS2;
 NODEPTR comb_stdin, comb_stdout, comb_stderr;
 NODEPTR combJust;
 NODEPTR combTHROWTO;
+NODEPTR combMASK;
 #define combFalse combK
 #define combNothing combK
 
@@ -1617,6 +1619,7 @@ init_nodes(void)
     case T_BINBS1: combBINBS1 = n; break;
     case T_BINBS2: combBINBS2 = n; break;
     case T_IO_THROWTO: combTHROWTO = n; break;
+    case T_IO_MASKASYNC: combMASK = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
     case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
@@ -4885,14 +4888,16 @@ execio(NODEPTR *np, int dowrap)
         CHECKIO(2);
         h->hdl_old = cur_handler;
         h->hdl_stack = stack_ptr;
+        h->hdl_mask = runq.mq_head->mt_mask;
         cur_handler = h;
         if (setjmp(h->hdl_buf)) {
           /* An exception occurred: */
           stack_ptr = h->hdl_stack;
+          runq.mq_head->mt_mask = h->hdl_mask;
           x = h->hdl_exn;       /* exception value */
-          GCCHECKSAVE(x, 1);
+          GCCHECKSAVE(x, 2);
           f = ARG(TOP(2));      /* second argument, handler */
-          n = new_ap(f, x);
+          n = new_ap(combMASK, new_ap(f, x));
           cur_handler = h->hdl_old;
           FREE(h);
           POP(3);
