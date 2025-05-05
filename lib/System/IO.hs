@@ -104,7 +104,7 @@ hCloseReal :: Handle -> IO ()
 hCloseReal h = do
   m <- getHandleState h
   case m of
-    HClosed -> ioErrH h OtherError "hClose: Handle already closed"
+    HClosed -> return ()
     HSemiClosed -> return ()
     _ -> do
       killHandle h
