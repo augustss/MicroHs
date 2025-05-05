@@ -4,13 +4,12 @@ module Control.Concurrent (
   forkIO, forkFinally, forkIOWithUnmask,
   killThread, throwTo,
 
---  forkOn, forkOnWithUnmask, getNumCapabilities, setNumCapabilities, threadCapability,
-
   yield,
-
   threadDelay,
---  threadWaitRead, threadWaitWrite,
---  threadWaitReadSTM, threadWaitWriteSTM,
+
+  threadStatus,
+  ThreadStatus(..),
+  BlockReason(..),
 
   module Control.Concurrent.MVar,
   module Control.Concurrent.Chan,
@@ -18,16 +17,15 @@ module Control.Concurrent (
   module Control.Concurrent.QSemN,
 
 {-
+  forkOn, forkOnWithUnmask, getNumCapabilities, setNumCapabilities, threadCapability,
+  threadWaitRead, threadWaitWrite,
+  threadWaitReadSTM, threadWaitWriteSTM,
   rtsSupportsBoundThreads,
   forkOS, forkOSWithUnmask,
   isCurrentThreadBound,
   runInBoundThread, runInUnboundThread,
-
   mkWeakThreadId,
 -}
-  threadStatus,
-  ThreadStatus(..),
-  BlockReason(..),
   ) where
 import Primitives
 import Control.Concurrent.MVar
