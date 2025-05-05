@@ -988,12 +988,23 @@ init_nodes(void)
 }
 
 #if GCRED
-counter_t red_a, red_k, red_i, red_int, red_flip;
+counter_t red_a, red_k, red_i, red_int, red_flip, red_bi;
 #endif
 counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
 //counter_t mark_depth;
 //counter_t max_mark_depth = 0;
+
+/* Follow indirections */
+static INLINE NODEPTR
+indir(NODEPTR *np)
+{
+  NODEPTR n = *np;
+  while (GETTAG(n) == T_IND)
+    n = GETINDIR(n);
+  *np = n;
+  return n;
+}
 
 /* Mark all used nodes reachable from *np, updating *np. */
 void
@@ -1054,31 +1065,41 @@ mark(NODEPTR *np)
 #endif  /* INTTABLE */
    case T_AP:
       if (want_gc_red) {
+        enum node_tag funt = GETTAG(indir(&FUN(n)));
+        enum node_tag argt = GETTAG(indir(&ARG(n)));
+
         /* This is really only fruitful just after parsing.  It can be removed. */
-        if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
+        if (funt == T_AP && GETTAG(indir(&FUN(FUN(n)))) == T_A) {
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
           SETINDIR(n, y);
           COUNT(red_a);
           goto top;
         }
-#if 0
-        /* This never seems to happen */
-        if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
+
+        if (funt == T_AP && GETTAG(indir(&FUN(FUN(n)))) == T_K) {
           /* Do the K x y --> x reduction */
           NODEPTR x = ARG(FUN(n));
           SETINDIR(n, x);
           COUNT(red_k);
           goto top;
         }
-#endif  /* 0 */
-        if (GETTAG(FUN(n)) == T_I) {
+
+        if (funt == T_I) {
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
           SETINDIR(n, x);
           COUNT(red_i);
           goto top;
         }
+
+        if(funt == T_B && argt == T_I) { 
+          /* B I --> I */
+          SETTAG(n, T_I);
+          COUNT(red_bi);
+          goto top;
+        }
+
 #if 0
         /* This is broken.
          * Probably because it can happen in the middle of the C reduction code.
@@ -2596,17 +2617,6 @@ headutf8(struct bytestring bs, void **ret)
 }
 
 NODEPTR evali(NODEPTR n);
-
-/* Follow indirections */
-static INLINE NODEPTR
-indir(NODEPTR *np)
-{
-  NODEPTR n = *np;
-  while (GETTAG(n) == T_IND)
-    n = GETINDIR(n);
-  *np = n;
-  return n;
-}
 
 /* Evaluate to an INT */
 static INLINE value_t
@@ -4363,6 +4373,7 @@ MAIN
   PUSH(prog);
   want_gc_red = 1;
   gc();
+  gc();                         /* this finds some more GC reductions */
   want_gc_red = 0;
   prog = POPTOP();
 
@@ -4432,8 +4443,8 @@ MAIN
           (double)gc_mark_time / 1000,
           (double)gc_scan_time / 1000);
 #if GCRED
-    PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter" flip=%"PRIcounter"\n",
-          red_a, red_k, red_i, red_int, red_flip);
+    PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter", flip=%"PRIcounter", BI=%"PRIcounter"\n",
+          red_a, red_k, red_i, red_int, red_flip, red_bi);
     PRINT(" special reductions B'=%"PRIcounter" K4=%"PRIcounter" K3=%"PRIcounter" K2=%"PRIcounter" C'B=%"PRIcounter", Z=%"PRIcounter", R=%"PRIcounter"\n",
           red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
 #endif
