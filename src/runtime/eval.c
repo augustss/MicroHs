@@ -1118,6 +1118,32 @@ mark(NODEPTR *np)
         }
 
 #if 0
+        /* Very rare */
+        if (funt == T_S && argt == T_AP && GETTAG(indir(&FUN(ARG(n)))) == T_K) {
+          /* S (K x) --> B x */
+          printf("SK"); fflush(stdout);
+        }
+#endif
+
+#if 0
+        /* Happens very rarely */
+        if (funt == T_C && argt == T_AP && GETTAG(indir(&FUN(ARG(n)))) == T_C) {
+          /* C (C a) --> a */
+          NODEPTR x = ARG(ARG(n));
+          SETINDIR(n, x);
+          //COUNT(red_cc);
+          goto top;
+        }
+#endif
+#if 0
+        /* Fairly frequent, but needs allocation */
+        if (funfunt == T_B && argt == T_AP && GETTAG(indir(&FUN(ARG(n)))) == T_K) {
+          /* B x (K y) --> K x y */
+          printf("BxK\n");
+        }
+#endif
+
+#if 0
         /* This is broken.
          * Probably because it can happen in the middle of the C reduction code.
          */
