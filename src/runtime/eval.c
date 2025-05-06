@@ -988,7 +988,7 @@ init_nodes(void)
 }
 
 #if GCRED
-counter_t red_a, red_k, red_i, red_int, red_flip, red_bi;
+counter_t red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi;
 #endif
 counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
@@ -1067,9 +1067,10 @@ mark(NODEPTR *np)
       if (want_gc_red) {
         enum node_tag funt = GETTAG(indir(&FUN(n)));
         enum node_tag argt = GETTAG(indir(&ARG(n)));
+        enum node_tag funfunt = funt == T_AP ? GETTAG(indir(&FUN(FUN(n)))) : T_FREE;
 
         /* This is really only fruitful just after parsing.  It can be removed. */
-        if (funt == T_AP && GETTAG(indir(&FUN(FUN(n)))) == T_A) {
+        if (funfunt == T_A) {
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
           SETINDIR(n, y);
@@ -1077,7 +1078,7 @@ mark(NODEPTR *np)
           goto top;
         }
 
-        if (funt == T_AP && GETTAG(indir(&FUN(FUN(n)))) == T_K) {
+        if (funfunt == T_K) {
           /* Do the K x y --> x reduction */
           NODEPTR x = ARG(FUN(n));
           SETINDIR(n, x);
@@ -1097,6 +1098,22 @@ mark(NODEPTR *np)
           /* B I --> I */
           SETTAG(n, T_I);
           COUNT(red_bi);
+          goto top;
+        }
+
+        if(funfunt == T_B && argt == T_I) { 
+          /* B x I --> x */
+          NODEPTR x = ARG(FUN(n));
+          SETINDIR(n, x);
+          COUNT(red_bxi);
+          goto top;
+        }
+
+        if(funfunt == T_CCB && argt == T_I) { 
+          /* C'B x I --> x */
+          NODEPTR x = ARG(FUN(n));
+          SETINDIR(n, x);
+          COUNT(red_ccbi);
           goto top;
         }
 
@@ -4443,8 +4460,8 @@ MAIN
           (double)gc_mark_time / 1000,
           (double)gc_scan_time / 1000);
 #if GCRED
-    PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter", flip=%"PRIcounter", BI=%"PRIcounter"\n",
-          red_a, red_k, red_i, red_int, red_flip, red_bi);
+    PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter", flip=%"PRIcounter", BI=%"PRIcounter", BxI=%"PRIcounter", C'BxI=%"PRIcounter"\n",
+          red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi);
     PRINT(" special reductions B'=%"PRIcounter" K4=%"PRIcounter" K3=%"PRIcounter" K2=%"PRIcounter" C'B=%"PRIcounter", Z=%"PRIcounter", R=%"PRIcounter"\n",
           red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
 #endif
