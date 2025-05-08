@@ -224,7 +224,7 @@ uvalue_t CTZ(uvalue_t x) {
 #endif  /* !define(INLINE) */
 
 #if !defined(NORETURN)
-#define NORETURN __attribute__ ((noreturn))
+#define NORETURN [[noreturn]]
 #endif /* !defined(NORETURN) */
 
 #if !defined(COUNT)
