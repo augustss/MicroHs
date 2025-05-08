@@ -684,10 +684,10 @@ NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(s
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
 
 void execio(NODEPTR*, int);
-_Noreturn void raise_exn(NODEPTR exn);
+NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
 NODEPTR take_mvar(int try, struct mvar *mv);
-_Noreturn void die_exn(NODEPTR exn);
+NORETURN void die_exn(NODEPTR exn);
 void thread_intr(struct mthread *mt);
 int put_mvar(int try, struct mvar *mv, NODEPTR v);
 NODEPTR mkInt(value_t i);
@@ -833,7 +833,7 @@ cleanup(struct mthread *mt, enum th_state ts)
 }
 
 /* reschedule, does not return */
-_Noreturn void
+NORETURN void
 resched(struct mthread *mt, enum th_state ts)
 {
   cleanup(mt, ts);
@@ -1128,7 +1128,7 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
   return 1;
 }
 
-_Noreturn void
+NORETURN void
 thread_delay(uvalue_t usecs)
 {
 #if !defined(CLOCK_INIT)
@@ -1269,7 +1269,7 @@ start_exec(NODEPTR root)
   }
 }
 
-_Noreturn void
+NORETURN void
 raise_exn(NODEPTR exn)
 {
   if (cur_handler) {
@@ -1283,7 +1283,7 @@ raise_exn(NODEPTR exn)
   }
 }
 
-_Noreturn void
+NORETURN void
 raise_rts(enum rts_exn exn) {
   raise_exn(mkInt(exn));
 }
@@ -1731,7 +1731,8 @@ mark_mvar(struct mvar *mv)
     mark_thread(mt);
   for (struct mthread *mt = mv->mv_read.mq_head; mt; mt = mt->mt_next)
     mark_thread(mt);
-
+}
+  
 /* Follow indirections */
 static INLINE NODEPTR
 indir(NODEPTR *np)
@@ -5218,7 +5219,7 @@ execio(NODEPTR *np, int dowrap)
   }
 }
 
-_Noreturn void
+NORETURN void
 die_exn(NODEPTR exn)
 {
   /* No handler:
