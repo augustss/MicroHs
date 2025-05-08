@@ -90,6 +90,10 @@ typedef uintptr_t bits_t;       /* One word of bits */
 #define REALLOC realloc
 #endif
 
+#if !defined(CALLOC)
+#define CALLOC calloc
+#endif
+
 #if !defined(FREE)
 #define FREE free
 #endif
@@ -118,10 +122,47 @@ int GETRAW(void) { return -1; }
 value_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(GETTIMEMILLI) */
 
+#if !defined(INLINE)
+#define INLINE inline
+#endif  /* !define(INLINE) */
+
+#if !defined(NORETURN)
+#define NORETURN [[noreturn]]
+#endif /* !defined(NORETURN) */
+
+NORETURN void memerr(void);
+
+void *
+mmalloc(size_t s)
+{
+  void *p = MALLOC(s);
+  if (!p)
+    memerr();
+  return p;
+}
+
+void *
+mrealloc(void *q, size_t s)
+{
+  void *p = REALLOC(q, s);
+  if (!p)
+    memerr();
+  return p;
+}
+
+void *
+mcalloc(size_t n, size_t s)
+{
+  void *p = CALLOC(n, s);
+  if (!p)
+    memerr();
+  return p;
+}
+
 #if !defined(TMPNAME)
 /* This is a really bad implementation, since it doesn't check for anything. */
 char* TMPNAME(const char* pre, const char* post) {
-  char *s = MALLOC(strlen(pre) + 3 + strlen(post) + 1);
+  char *s = mmalloc(strlen(pre) + 3 + strlen(post) + 1);
   strcpy(s, pre);
   strcat(s, "TMP");
   strcat(s, post);
@@ -221,14 +262,6 @@ uvalue_t CTZ(uvalue_t x) {
 #if !defined(WANT_ARGS)
 #define WANT_ARGS 1
 #endif
-
-#if !defined(INLINE)
-#define INLINE inline
-#endif  /* !define(INLINE) */
-
-#if !defined(NORETURN)
-#define NORETURN [[noreturn]]
-#endif /* !defined(NORETURN) */
 
 #if !defined(COUNT)
 #define COUNT(n) ++(n)
@@ -368,7 +401,7 @@ typedef struct node* NODEPTR;
 #define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
 #define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
 #define NODE_SIZE sizeof(node)
-#define ALLOC_HEAP(n) do { cells = MALLOC(n * sizeof(node)); } while(0)
+#define ALLOC_HEAP(n) do { cells = mmalloc(n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
 node *cells;                 /* All cells */
 
@@ -381,7 +414,7 @@ struct bytestring {
 };
 
 /*
- * Arrays are allocated with MALLOC()/FREE().
+ * Arrays are allocated with malloc()/free().
  * During GC they are marked, and all elements in the array are
  * recursively marked.
  * At the end of the the mark phase there is a scan of all
@@ -507,8 +540,7 @@ heapoffs_t next_scan_index;
 
 int want_gc_red = 0;
 
-NORETURN
-void
+NORETURN void
 memerr(void)
 {
   ERR("Out of memory");
@@ -532,11 +564,9 @@ stackerr(void)
 struct ioarray*
 arr_alloc(size_t sz, NODEPTR e)
 {
-  struct ioarray *arr = MALLOC(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
+  struct ioarray *arr = mmalloc(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
   size_t i;
 
-  if (!arr)
-    memerr();
   arr->next = array_root;
   array_root = arr;
   arr->marked = 0;
@@ -553,10 +583,8 @@ struct ioarray*
 arr_copy(struct ioarray *oarr)
 {
   size_t sz = oarr->size;
-  struct ioarray *arr = MALLOC(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
+  struct ioarray *arr = mmalloc(sizeof(struct ioarray) + (sz-1) * sizeof(NODEPTR));
 
-  if (!arr)
-    memerr();
   arr->next = array_root;
   array_root = arr;
   arr->marked = 0;
@@ -583,16 +611,12 @@ add_tick_table(struct bytestring name)
 {
   if (!tick_table) {
     tick_table_size = 100;
-    tick_table = malloc(tick_table_size * sizeof(struct tick_entry));
-    if (!tick_table)
-      memerr();
+    tick_table = mmalloc(tick_table_size * sizeof(struct tick_entry));
     tick_index = 0;
   }
   if (tick_index >= tick_table_size) {
     tick_table_size *= 2;
-    tick_table = REALLOC(tick_table, tick_table_size * sizeof(struct tick_entry));
-    if (!tick_table)
-      memerr();
+    tick_table = mrealloc(tick_table, tick_table_size * sizeof(struct tick_entry));
   }
   tick_table[tick_index].tick_name = name;
   tick_table[tick_index].tick_count = 0;
@@ -1562,10 +1586,8 @@ enum node_tag flip_ops[T_LAST_TAG+1];
 void
 mk_std(NODEPTR n, FILE *f)
 {
-  struct final *fin = calloc(1, sizeof(struct final));
-  struct forptr *fp = calloc(1, sizeof(struct forptr));
-  if (!fin || !fp)
-    memerr();
+  struct final *fin = mcalloc(1, sizeof(struct final));
+  struct forptr *fp = mcalloc(1, sizeof(struct forptr));
   BFILE *bf = add_utf8(add_FILE(f));
   SETTAG(n, T_FORPTR);
   FORPTR(n) = fp;
@@ -1585,9 +1607,7 @@ init_nodes(void)
 
   ALLOC_HEAP(heap_size);
   free_map_nwords = (heap_size + BITS_PER_WORD - 1) / BITS_PER_WORD; /* bytes needed for free map */
-  free_map = MALLOC(free_map_nwords * sizeof(bits_t));
-  if (!free_map)
-    memerr();
+  free_map = mmalloc(free_map_nwords * sizeof(bits_t));
 
   /* Set up permanent nodes */
   heap_start = 0;
@@ -2423,7 +2443,7 @@ ffiNode(const char *buf)
   if (i < 0) {
     /* lookup failed, generate a node that will dynamically generate an error */
     r = alloc_node(T_BADDYN);
-    fun = MALLOC(strlen(buf) + 1);
+    fun = mmalloc(strlen(buf) + 1);
     strcpy(fun, buf);
     CSTR(r) = fun;
   } else {
@@ -2561,21 +2581,17 @@ parse_string(BFILE *f)
 {
   struct bytestring bs;
   size_t sz = 20;
-  uint8_t *buffer = MALLOC(sz);
+  uint8_t *buffer = mmalloc(sz);
   size_t i;
   int c;
 
-  if (!buffer)
-    memerr();
   for(i = 0;;) {
     c = getb(f);
     if (c == '"')
       break;
     if (i >= sz - 1) {
       sz *= 2;
-      buffer = REALLOC(buffer, sz);
-      if (!buffer)
-        memerr();
+      buffer = mrealloc(buffer, sz);
     }
 #if 0
     if (c == '\\') {
@@ -2614,7 +2630,7 @@ parse_string(BFILE *f)
 #endif
   }
   buffer[i] = 0;                /* add a trailing 0 in case we need a C string */
-  buffer = REALLOC(buffer, i + 1);
+  buffer = mrealloc(buffer, i + 1);
 
   bs.size = i;
   bs.string = buffer;
@@ -2813,9 +2829,7 @@ parse_top(BFILE *f)
     ERR("size parse");
   gobble(f, '\r');                 /* allow extra CR */
   shared_table_size = 3 * numLabels; /* sparsely populated hashtable */
-  shared_table = MALLOC(shared_table_size * sizeof(struct shared_entry));
-  if (!shared_table)
-    memerr();
+  shared_table = mmalloc(shared_table_size * sizeof(struct shared_entry));
   for(i = 0; i < shared_table_size; i++)
     shared_table[i].node = NIL;
   n = parse(f);
@@ -3109,9 +3123,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
       /* Serialize as %99999" */
       mpz_ptr op = FORPTR(n)->payload.string; /* get the mpz */
       int sz = mpz_sizeinbase(op, 10);        /* maximum length */
-      char *s = malloc(sz + 2);
-      if (!s)
-        memerr();
+      char *s = mmalloc(sz + 2);
       (void)mpz_get_str(s, 10, op);           /* convert to a string */
       putsb("%", f);
       putsb(s, f);
@@ -3152,12 +3164,8 @@ printb(BFILE *f, NODEPTR n, int header)
 {
   struct print_bits pb;
   num_shared = 0;
-  pb.marked_bits = calloc(free_map_nwords, sizeof(bits_t));
-  if (!pb.marked_bits)
-    memerr();
-  pb.shared_bits = calloc(free_map_nwords, sizeof(bits_t));
-  if (!pb.shared_bits)
-    memerr();
+  pb.marked_bits = mcalloc(free_map_nwords, sizeof(bits_t));
+  pb.shared_bits = mcalloc(free_map_nwords, sizeof(bits_t));
   find_sharing(&pb, n);
   if (header) {
     putsb(VERSION, f);
@@ -3254,10 +3262,8 @@ mkFunPtr(void (*p)(void))
 struct forptr*
 mkForPtr(struct bytestring bs)
 {
-  struct final *fin = calloc(1, sizeof(struct final));
-  struct forptr *fp = calloc(1, sizeof(struct forptr));
-  if (!fin || !fp)
-    memerr();
+  struct final *fin = mcalloc(1, sizeof(struct final));
+  struct forptr *fp = mcalloc(1, sizeof(struct forptr));
   if (bs.size == NOSIZE) {
     num_fin_alloc++;
   } else {
@@ -3292,10 +3298,9 @@ mkForPtrP(void *p)
 struct forptr*
 addForPtr(struct forptr *ofp, int s)
 {
-  struct forptr *fp = malloc(sizeof(struct forptr));
+  struct forptr *fp = mmalloc(sizeof(struct forptr));
   struct final *fin = ofp->finalizer;
-  if (!fp)
-    memerr();
+
   fp->next = ofp;
   fin->back = fp;
   if (ofp->payload.size != NOSIZE)
@@ -3554,20 +3559,16 @@ struct bytestring
 evalstring(NODEPTR n)
 {
   size_t sz = 100;
-  char *buf = MALLOC(sz);
+  char *buf = mmalloc(sz);
   size_t offs;
   uvalue_t c;
   NODEPTR x;
   struct bytestring bs;
 
-  if (!buf)
-    memerr();
   for (offs = 0;;) {
     if (offs >= sz - 4) {
       sz *= 2;
-      buf = REALLOC(buf, sz);
-      if (!buf)
-        memerr();
+      buf = mrealloc(buf, sz);
     }
     PUSH(n);                    /* protect the list from GC */
     n = evali(n);
@@ -3615,20 +3616,16 @@ struct bytestring
 evalbytestring(NODEPTR n)
 {
   size_t sz = 100;
-  uint8_t *buf = MALLOC(sz);
+  uint8_t *buf = mmalloc(sz);
   size_t offs;
   uvalue_t c;
   NODEPTR x;
   struct bytestring bs;
 
-  if (!buf)
-    memerr();
   for (offs = 0;;) {
     if (offs >= sz - 1) {
       sz *= 2;
-      buf = REALLOC(buf, sz);
-      if (!buf)
-        memerr();
+      buf = mrealloc(buf, sz);
     }
     PUSH(n);                    /* protect list from GC */
     n = evali(n);
@@ -3657,9 +3654,7 @@ bsreplicate(size_t size, uint8_t value)
 {
   struct bytestring bs;
   bs.size = size;
-  bs.string = MALLOC(size);
-  if (!bs.string)
-    memerr();
+  bs.string = mmalloc(size);
   memset(bs.string, value, size);
   return bs;
 }
@@ -3669,9 +3664,7 @@ bsappend(struct bytestring p, struct bytestring q)
 {
   struct bytestring r;
   r.size = p.size + q.size;
-  r.string = MALLOC(r.size);
-  if (!r.string)
-    memerr();
+  r.string = mmalloc(r.size);
   memcpy(r.string, p.string, p.size);
   memcpy((uint8_t *)r.string + p.size, q.string, q.size);
   return r;
@@ -3682,9 +3675,7 @@ bsappenddot(struct bytestring p, struct bytestring q)
 {
   struct bytestring r;
   r.size = p.size + q.size + 1;
-  r.string = MALLOC(r.size);
-  if (!r.string)
-    memerr();
+  r.string = mmalloc(r.size);
   memcpy(r.string, p.string, p.size);
   memcpy((uint8_t *)r.string + p.size, ".", 1);
   memcpy((uint8_t *)r.string + p.size + 1, q.string, q.size);
@@ -3884,9 +3875,7 @@ void
 rnf(value_t noerr, NODEPTR n)
 {
   /* Mark visited nodes to avoid getting stuck in loops. */
-  bits_t *done = calloc(free_map_nwords, sizeof(bits_t));
-  if (!done)
-    memerr();
+  bits_t *done = mcalloc(free_map_nwords, sizeof(bits_t));
   if (doing_rnf)
     ERR("recursive rnf()");
   doing_rnf = (int)noerr;
@@ -4942,9 +4931,7 @@ execio(NODEPTR *np, int dowrap)
 
     case T_CATCH:
       {
-        h = MALLOC(sizeof *h);
-        if (!h)
-          memerr();
+        h = mmalloc(sizeof *h);
         CHECKIO(2);
         h->hdl_old = cur_handler;
         h->hdl_stack = stack_ptr;
@@ -4998,7 +4985,7 @@ execio(NODEPTR *np, int dowrap)
       CHECKIO(1);
       cstr = evalptr(ARG(TOP(1)));
       size = strlen(cstr);
-      char *str = MALLOC(size);
+      char *str = mmalloc(size);
       memcpy(str, cstr, size);
       struct bytestring bs = { size, str };
       RETIO(mkStrNode(bs));
@@ -5010,7 +4997,7 @@ execio(NODEPTR *np, int dowrap)
       CHECKIO(2);
       cstr = evalptr(ARG(TOP(1)));
       size = evalint(ARG(TOP(2)));
-      char *str = MALLOC(size);
+      char *str = mmalloc(size);
       memcpy(str, cstr, size);
       struct bytestring bs = { size, str };
       RETIO(mkStrNode(bs));
@@ -5374,9 +5361,7 @@ MAIN
 #endif
 
   init_nodes();
-  stack = MALLOC(sizeof(NODEPTR) * stack_size);
-  if (!stack)
-    memerr();
+  stack = mmalloc(sizeof(NODEPTR) * stack_size);
   CLEARSTK();
   num_reductions = 0;
 
@@ -5775,9 +5760,7 @@ new_mpz(void)
     }
   }
 #endif
-  mpz_ptr p = MALLOC(sizeof(*p));
-  if (!p)
-    memerr();
+  mpz_ptr p = mmalloc(sizeof(*p));
   mpz_init(p);
   struct forptr *fp = mkForPtrP(p);
   fp->finalizer->final = (HsFunPtr)free_mpz;
