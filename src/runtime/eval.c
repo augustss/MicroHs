@@ -970,9 +970,8 @@ yield(void)
 struct mthread*
 new_thread(NODEPTR root)
 {
-  struct mthread *mt = MALLOC(sizeof(struct mthread));
-  if (!mt)
-    memerr();
+  struct mthread *mt = mmalloc(sizeof(struct mthread));
+
   mt->mt_mask = mask_unmasked;
   mt->mt_root = root;
   mt->mt_exn = new_mvar();
@@ -1000,9 +999,8 @@ struct mvar*
 new_mvar(void)
 {
   COUNT(num_mvar_alloc);
-  struct mvar *mv = MALLOC(sizeof(struct mvar));
-  if (!mv)
-    memerr();
+  struct mvar *mv = mmalloc(sizeof(struct mvar));
+
   mv->mv_data = NIL;
   mv->mv_takeput.mq_head = 0;
   mv->mv_takeput.mq_tail = 0;
