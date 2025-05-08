@@ -227,7 +227,7 @@ uvalue_t CTZ(uvalue_t x) {
 #endif  /* !define(INLINE) */
 
 #if !defined(NORETURN)
-#define NORETURN __attribute__ ((noreturn))
+#define NORETURN [[noreturn]]
 #endif /* !defined(NORETURN) */
 
 #if !defined(COUNT)
@@ -1680,7 +1680,7 @@ init_nodes(void)
 }
 
 #if GCRED
-counter_t red_a, red_k, red_i, red_int, red_flip;
+counter_t red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi, red_cc;
 #endif
 counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
@@ -1731,6 +1731,16 @@ mark_mvar(struct mvar *mv)
     mark_thread(mt);
   for (struct mthread *mt = mv->mv_read.mq_head; mt; mt = mt->mt_next)
     mark_thread(mt);
+
+/* Follow indirections */
+static INLINE NODEPTR
+indir(NODEPTR *np)
+{
+  NODEPTR n = *np;
+  while (GETTAG(n) == T_IND)
+    n = GETINDIR(n);
+  *np = n;
+  return n;
 }
 
 /* Mark all used nodes reachable from *np, updating *np. */
@@ -1792,31 +1802,91 @@ mark(NODEPTR *np)
 #endif  /* INTTABLE */
    case T_AP:
       if (want_gc_red) {
+        enum node_tag funt = GETTAG(indir(&FUN(n)));
+        enum node_tag argt = GETTAG(indir(&ARG(n)));
+        enum node_tag funfunt = funt == T_AP ? GETTAG(indir(&FUN(FUN(n)))) : T_FREE;
+
         /* This is really only fruitful just after parsing.  It can be removed. */
-        if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_A) {
+        if (funfunt == T_A) {
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
           SETINDIR(n, y);
           COUNT(red_a);
           goto top;
         }
-#if 0
-        /* This never seems to happen */
-        if (GETTAG(FUN(n)) == T_AP && GETTAG(FUN(FUN(n))) == T_K) {
+
+        if (funfunt == T_K) {
           /* Do the K x y --> x reduction */
           NODEPTR x = ARG(FUN(n));
           SETINDIR(n, x);
           COUNT(red_k);
           goto top;
         }
-#endif  /* 0 */
-        if (GETTAG(FUN(n)) == T_I) {
+
+        if (funt == T_I) {
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
           SETINDIR(n, x);
           COUNT(red_i);
           goto top;
         }
+
+        if(funt == T_B && argt == T_I) { 
+          /* B I --> I */
+          SETTAG(n, T_I);
+          COUNT(red_bi);
+          goto top;
+        }
+
+        if(funfunt == T_B && argt == T_I) { 
+          /* B x I --> x */
+          NODEPTR x = ARG(FUN(n));
+          SETINDIR(n, x);
+          COUNT(red_bxi);
+          goto top;
+        }
+
+        if(funfunt == T_CCB && argt == T_I) { 
+          /* C'B x I --> x */
+          NODEPTR x = ARG(FUN(n));
+          SETINDIR(n, x);
+          COUNT(red_ccbi);
+          goto top;
+        }
+
+        if(funt == T_C && argt == T_C) { 
+          /* C C --> I */
+          SETTAG(n, T_I);
+          COUNT(red_cc);
+          goto top;
+        }
+
+#if 0
+        /* Very rare */
+        if (funt == T_S && argt == T_AP && GETTAG(indir(&FUN(ARG(n)))) == T_K) {
+          /* S (K x) --> B x */
+          printf("SK"); fflush(stdout);
+        }
+#endif
+
+#if 0
+        /* Happens very rarely */
+        if (funt == T_C && argt == T_AP && GETTAG(indir(&FUN(ARG(n)))) == T_C) {
+          /* C (C a) --> a */
+          NODEPTR x = ARG(ARG(n));
+          SETINDIR(n, x);
+          //COUNT(red_cc);
+          goto top;
+        }
+#endif
+#if 0
+        /* Fairly frequent, but needs allocation */
+        if (funfunt == T_B && argt == T_AP && GETTAG(indir(&FUN(ARG(n)))) == T_K) {
+          /* B x (K y) --> K x y */
+          printf("BxK\n");
+        }
+#endif
+
 #if 0
         /* This is broken.
          * Probably because it can happen in the middle of the C reduction code.
@@ -3368,17 +3438,6 @@ headutf8(struct bytestring bs, void **ret)
 }
 
 NODEPTR evali(NODEPTR n);
-
-/* Follow indirections */
-static INLINE NODEPTR
-indir(NODEPTR *np)
-{
-  NODEPTR n = *np;
-  while (GETTAG(n) == T_IND)
-    n = GETINDIR(n);
-  *np = n;
-  return n;
-}
 
 /* Evaluate to an INT */
 static INLINE value_t
@@ -5368,6 +5427,7 @@ MAIN
   PUSH(prog);
   want_gc_red = 1;
   gc();
+  gc();                         /* this finds some more GC reductions */
   want_gc_red = 0;
   prog = POPTOP();
 
@@ -5446,8 +5506,8 @@ MAIN
           (double)gc_mark_time / 1000,
           (double)gc_scan_time / 1000);
 #if GCRED
-    PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter" flip=%"PRIcounter"\n",
-          red_a, red_k, red_i, red_int, red_flip);
+    PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter", flip=%"PRIcounter", BI=%"PRIcounter", BxI=%"PRIcounter", C'BxI=%"PRIcounter", CC=%"PRIcounter"\n",
+          red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi, red_cc);
     PRINT(" special reductions B'=%"PRIcounter" K4=%"PRIcounter" K3=%"PRIcounter" K2=%"PRIcounter" C'B=%"PRIcounter", Z=%"PRIcounter", R=%"PRIcounter"\n",
           red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
 #endif

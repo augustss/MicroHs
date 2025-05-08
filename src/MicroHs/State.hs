@@ -9,9 +9,12 @@ import Control.Monad
 newtype State s a = S (s -> (a, s))
 
 instance Functor (State s) where
+{-
   fmap f sa = S $ \ s ->
     case runState sa s of
       (a, ss) -> (f a, ss)
+-}
+  fmap f sa = sa >>= (return . f)  -- slightly faster
 
 instance Applicative (State s) where
   pure a = S $ \ s -> (a, s)
