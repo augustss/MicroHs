@@ -199,11 +199,15 @@ timemhscompile:
 	@git rev-parse HEAD
 	time mhs +RTS -v -RTS -z -imhs -isrc -ipaths $(MAINMODULE)
 
-#
 timegmhscompile:
 	@date
 	@git rev-parse HEAD
-	time bin/gmhs -s -imhs -isrc -ipaths $(MAINMODULE)
+	time bin/gmhs -imhs -isrc -ipaths $(MAINMODULE)
+
+timeghccompile:
+	@date
+	@git rev-parse HEAD
+	time $(GHC) -fforce-recomp $(GHCFLAGS) -O0 $(MAINMODULE) -o bin/gmhs
 
 #
 cachelib:
