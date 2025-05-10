@@ -171,7 +171,12 @@ getChar :: IO Char
 getChar = hGetChar stdin
 
 cprint :: forall a . a -> IO ()
-cprint a = withHandleWr stdout $ \ p -> primRnfNoErr a `seq` primHPrint p a
+cprint a = withHandleWr stdout $ \ p ->
+  primRnfNoErr a `seq`
+  primGC `primThen`     -- Do GC reductions
+  primGC `primThen`
+  primGC `primThen`
+  primHPrint p a
 
 cuprint :: forall a . a -> IO ()
 cuprint a = withHandleWr stdout $ \ p -> primHPrint p a
