@@ -753,10 +753,10 @@ struct {
   /* sorted by frequency in a typical program */
   { "B", T_B },
   { "O", T_O },
-  { "K", T_K },
+  { "K", T_K, T_A },
   { "C'", T_CC },
   { "C", T_C },
-  { "A", T_A },
+  { "A", T_A, T_K },
   { "S'", T_SS },
   { "P", T_P },
   { "R", T_R },
@@ -1074,6 +1074,7 @@ mark(NODEPTR *np)
   mark_used(n);
   switch (tag) {
 #if GCRED
+#define GCREDIND(x) do { NODEPTR nn = (x); mark(&nn); SETINDIR(n, nn); goto fin; } while(0)
    case T_INT:
 #if INTTABLE
     if (LOW_INT <= (val = GETVALUE(n)) && val < HIGH_INT) {
@@ -1088,30 +1089,28 @@ mark(NODEPTR *np)
         enum node_tag funt = GETTAG(indir(&FUN(n)));
         enum node_tag argt = GETTAG(indir(&ARG(n)));
         enum node_tag funfunt = funt == T_AP ? GETTAG(indir(&FUN(FUN(n)))) : T_FREE;
+        enum node_tag funargt = argt == T_AP ? GETTAG(indir(&FUN(ARG(n)))) : T_FREE;
 
         /* This is really only fruitful just after parsing.  It can be removed. */
         if (funfunt == T_A) {
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
-          SETINDIR(n, y);
           COUNT(red_a);
-          goto top;
+          GCREDIND(y);
         }
 
         if (funfunt == T_K) {
           /* Do the K x y --> x reduction */
           NODEPTR x = ARG(FUN(n));
-          SETINDIR(n, x);
           COUNT(red_k);
-          goto top;
+          GCREDIND(x);
         }
 
         if (funt == T_I) {
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
-          SETINDIR(n, x);
           COUNT(red_i);
-          goto top;
+          GCREDIND(x);
         }
 
         if(funt == T_B && argt == T_I) { 
@@ -1124,68 +1123,48 @@ mark(NODEPTR *np)
         if(funfunt == T_B && argt == T_I) { 
           /* B x I --> x */
           NODEPTR x = ARG(FUN(n));
-          SETINDIR(n, x);
           COUNT(red_bxi);
-          goto top;
+          GCREDIND(x);
         }
 
         if(funfunt == T_CCB && argt == T_I) { 
           /* C'B x I --> x */
           NODEPTR x = ARG(FUN(n));
-          SETINDIR(n, x);
           COUNT(red_ccbi);
-          goto top;
+          GCREDIND(x);
         }
 
-        if(funt == T_C && argt == T_C) { 
-          /* C C --> I */
-          SETTAG(n, T_I);
+        if(funt == T_C && funargt == T_C) { 
+          /* C (C x) --> x */
+          NODEPTR x = ARG(ARG(n));
           COUNT(red_cc);
-          goto top;
+          GCREDIND(x);
         }
 
 #if 0
         /* Very rare */
-        if (funt == T_S && argt == T_AP && GETTAG(indir(&FUN(ARG(n)))) == T_K) {
+        if (funt == T_S && funargt == T_K) {
           /* S (K x) --> B x */
           printf("SK"); fflush(stdout);
         }
 #endif
 
 #if 0
-        /* Happens very rarely */
-        if (funt == T_C && argt == T_AP && GETTAG(indir(&FUN(ARG(n)))) == T_C) {
-          /* C (C a) --> a */
-          NODEPTR x = ARG(ARG(n));
-          SETINDIR(n, x);
-          //COUNT(red_cc);
-          goto top;
-        }
-#endif
-#if 0
         /* Fairly frequent, but needs allocation */
-        if (funfunt == T_B && argt == T_AP && GETTAG(indir(&FUN(ARG(n)))) == T_K) {
+        if (funfunt == T_B && funargt == T_K) {
           /* B x (K y) --> K x y */
           printf("BxK\n");
         }
 #endif
 
-#if 0
-        /* This is broken.
-         * Probably because it can happen in the middle of the C reduction code.
-         */
-        DO NOT ENABLE
-        if (GETTAG(FUN(n)) == T_C) {
-          NODEPTR q = ARG(n);
-          enum node_tag tt, tf;
-          while ((tt = GETTAG(q)) == T_IND)
-            q = GETINDIR(q);
-          if ((tf = flip_ops[tt])) {
+#if 1
+        if (funt == T_C) {
+          enum node_tag tf;
+          if ((tf = flip_ops[argt])) {
             /* Do the C op --> flip_op reduction */
             // PRINT("%s -> %s\n", tag_names[tt], tag_names[tf]);
-            SETINDIR(n, HEAPREF(tf));
             COUNT(red_flip);
-            goto fin;
+            GCREDIND(HEAPREF(tf));
           }
         }
 #endif
@@ -4043,10 +4022,11 @@ execio(NODEPTR *np)
       hdr = 1;
     ser:
       CHECKIO(2);
+#if 0
       gc();                     /* DUBIOUS: do a GC to get possible GC reductions */
+#endif
       ptr = (struct BFILE*)evalptr(ARG(TOP(1)));
       x = evali(ARG(TOP(2)));
-      //x = ARG(TOP(1));
       printb(ptr, x, hdr);
       putb('\n', ptr);
       RETIO(combUnit);
@@ -4409,7 +4389,7 @@ MAIN
   want_gc_red = 1;
   gc();
   gc();                         /* this finds some more GC reductions */
-  want_gc_red = 0;
+  /* want_gc_red = 0;*/
   prog = POPTOP();
 
 #if WANT_STDIO
