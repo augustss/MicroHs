@@ -199,11 +199,15 @@ timemhscompile:
 	@git rev-parse HEAD
 	time mhs +RTS -v -RTS -z -imhs -isrc -ipaths $(MAINMODULE)
 
-#
 timegmhscompile:
 	@date
 	@git rev-parse HEAD
-	time bin/gmhs -s -imhs -isrc -ipaths $(MAINMODULE)
+	time bin/gmhs -imhs -isrc -ipaths $(MAINMODULE)
+
+timeghccompile:
+	@date
+	@git rev-parse HEAD
+	time $(GHC) -fforce-recomp $(GHCFLAGS) -O0 $(MAINMODULE) -o bin/gmhs
 
 #
 cachelib:
@@ -245,6 +249,11 @@ exampletest:	bin/mhs bin/mhseval Example.hs
 	bin/mhs Example && bin/mhseval
 	bin/mhs Example -oEx && ./Ex && rm Ex
 
+examplejs: bin/mhs Example.hs
+	bin/mhs -temscripten Example -oEx.js
+	node Ex.js
+	rm Ex.js
+
 info:	bin/mhs
 	bin/mhs -r -itests Info
 
@@ -260,8 +269,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.12.6.1
-HVERSION=0,12,6,1
+VERSION=0.12.7.0
+HVERSION=0,12,7,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
