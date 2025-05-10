@@ -124,7 +124,8 @@ value_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(INLINE) */
 
 #if !defined(NORETURN)
-#define NORETURN [[noreturn]]
+/*#define NORETURN [[noreturn]]*/
+#define NORETURN _Noreturn
 #endif /* !defined(NORETURN) */
 
 NORETURN void memerr(void);
