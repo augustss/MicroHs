@@ -249,6 +249,11 @@ exampletest:	bin/mhs bin/mhseval Example.hs
 	bin/mhs Example && bin/mhseval
 	bin/mhs Example -oEx && ./Ex && rm Ex
 
+examplejs: bin/mhs Example.hs
+	bin/mhs -temscripten Example -oEx.js
+	node Ex.js
+	rm Ex.js
+
 info:	bin/mhs
 	bin/mhs -r -itests Info
 
