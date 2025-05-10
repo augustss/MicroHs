@@ -1008,7 +1008,7 @@ init_nodes(void)
 }
 
 #if GCRED
-counter_t red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi, red_cc;
+counter_t red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi, red_cc, red_cci;
 #endif
 counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
@@ -1111,6 +1111,13 @@ mark(NODEPTR *np)
           NODEPTR x = ARG(n);
           COUNT(red_i);
           GCREDIND(x);
+        }
+
+        if(funt == T_CC && argt == T_I) { 
+          /* C' I --> C */
+          SETTAG(n, T_C);
+          COUNT(red_cci);
+          goto top;
         }
 
         if(funt == T_B && argt == T_I) { 
@@ -4458,8 +4465,9 @@ MAIN
           (double)gc_mark_time / 1000,
           (double)gc_scan_time / 1000);
 #if GCRED
-    PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter", flip=%"PRIcounter", BI=%"PRIcounter", BxI=%"PRIcounter", C'BxI=%"PRIcounter", CC=%"PRIcounter"\n",
-          red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi, red_cc);
+    PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter", flip=%"PRIcounter","
+          "BI=%"PRIcounter", BxI=%"PRIcounter", C'BxI=%"PRIcounter", CC=%"PRIcounter", C'I=%"PRIcounter"\n",
+          red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi, red_cc, red_cci);
     PRINT(" special reductions B'=%"PRIcounter" K4=%"PRIcounter" K3=%"PRIcounter" K2=%"PRIcounter" C'B=%"PRIcounter", Z=%"PRIcounter", R=%"PRIcounter"\n",
           red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
 #endif
