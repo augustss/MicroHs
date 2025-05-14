@@ -1009,7 +1009,7 @@ init_nodes(void)
 }
 
 #if GCRED
-counter_t red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi, red_cc, red_cci;
+counter_t red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi, red_cc, red_cci, red_ccbbcp;
 #endif
 counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
@@ -1087,10 +1087,12 @@ mark(NODEPTR *np)
 #endif  /* INTTABLE */
    case T_AP:
       if (want_gc_red) {
-        enum node_tag funt = GETTAG(indir(&FUN(n)));
-        enum node_tag argt = GETTAG(indir(&ARG(n)));
-        enum node_tag funfunt = funt == T_AP ? GETTAG(indir(&FUN(FUN(n)))) : T_FREE;
-        enum node_tag funargt = argt == T_AP ? GETTAG(indir(&FUN(ARG(n)))) : T_FREE;
+        NODEPTR fun = indir(&FUN(n));
+        NODEPTR arg = indir(&ARG(n));
+        enum node_tag funt = GETTAG(fun);
+        enum node_tag argt = GETTAG(arg);
+        enum node_tag funfunt = funt == T_AP ? GETTAG(indir(&FUN(fun))) : T_FREE;
+        enum node_tag funargt = argt == T_AP ? GETTAG(indir(&FUN(arg))) : T_FREE;
 
         /* This is really only fruitful just after parsing.  It can be removed. */
         if (funfunt == T_A) {
@@ -1119,6 +1121,19 @@ mark(NODEPTR *np)
           SETTAG(n, T_C);
           COUNT(red_cci);
           goto top;
+        }
+
+        if(funt == T_CCB && argt == T_AP) {
+          NODEPTR funarg = indir(&FUN(arg));
+          NODEPTR argarg = indir(&ARG(arg));
+          if (GETTAG(argarg) == T_P && GETTAG(funarg) == T_AP) {
+            if (GETTAG(indir(&FUN(funarg))) == T_B && GETTAG(indir(&ARG(funarg))) == T_C) { 
+              /* C'B ((B C) P) --> C */
+              SETTAG(n, T_C);
+              COUNT(red_ccbbcp);
+              goto top;
+            }
+          }
         }
 
         if(funt == T_B && argt == T_I) { 
@@ -4467,8 +4482,8 @@ MAIN
           (double)gc_scan_time / 1000);
 #if GCRED
     PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter", flip=%"PRIcounter","
-          "BI=%"PRIcounter", BxI=%"PRIcounter", C'BxI=%"PRIcounter", CC=%"PRIcounter", C'I=%"PRIcounter"\n",
-          red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi, red_cc, red_cci);
+          " BI=%"PRIcounter", BxI=%"PRIcounter", C'BxI=%"PRIcounter", CC=%"PRIcounter", C'I=%"PRIcounter", C'BBCP=%"PRIcounter"\n",
+          red_a, red_k, red_i, red_int, red_flip, red_bi, red_bxi, red_ccbi, red_cc, red_cci, red_ccbbcp);
     PRINT(" special reductions B'=%"PRIcounter" K4=%"PRIcounter" K3=%"PRIcounter" K2=%"PRIcounter" C'B=%"PRIcounter", Z=%"PRIcounter", R=%"PRIcounter"\n",
           red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r);
 #endif
