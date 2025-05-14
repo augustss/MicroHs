@@ -5,11 +5,11 @@ import Data.Char
 import Data.Data(Data)
 import Data.Generics.Uniplate.Data
 
-infix :@
+infixl :@
 data Exp
   = S | S' | K | A | U | I | Y | B | B' | Z | C | C' | P | R | O | K2 | K3 | K4 | C'B
   | Add | Sub | Lt
-  | Exp :@ Exp | Int Integer | Label Int Exp | Ref Int | Tick String | Vx
+  | Exp :@ Exp | Int Integer | Label Int Exp | Ref Int | Tick String | Vx | Vy | Vz | Vw
   deriving (Show, Read, Data, Eq, Ord)
 
 reduce :: Exp -> Exp
