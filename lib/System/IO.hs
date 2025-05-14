@@ -176,6 +176,9 @@ cprint a = withHandleWr stdout $ \ p ->
   primGC `primThen`     -- Do GC reductions
   primGC `primThen`
   primGC `primThen`
+  primGC `primThen`
+  primGC `primThen`
+  primGC `primThen`
   primHPrint p a
 
 cuprint :: forall a . a -> IO ()
