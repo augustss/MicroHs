@@ -739,6 +739,8 @@ NODEPTR comb_stdin, comb_stdout, comb_stderr;
 NODEPTR combJust;
 NODEPTR combTHROWTO;
 NODEPTR combMASK;
+NODEPTR combPairUnit;
+NODEPTR combWorld;
 #define combFalse combK
 #define combNothing combK
 
@@ -1667,6 +1669,7 @@ init_nodes(void)
    * But we can make compound one, since they are irreducible.
    */
 #define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
+#define MKINT(c, i) do { n = HEAPREF(heap_start++); SETTAG(n, T_INT); SETVALUE(n, i); (c) = n; } while(0)
   NEWAP(combLT, combZ,     combFalse);  /* Z B */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
@@ -1678,6 +1681,8 @@ init_nodes(void)
     NEWAP(combShowExn, combU, x);      /* (U (U (K2 A))) */
   }
   NEWAP(combJust, combZ, combU);       /* (Z U) */
+  MKINT(combWorld, 99999);
+  NEWAP(combPairUnit, combPair, combUnit);
 #undef NEWAP
 
 #if INTTABLE
@@ -3167,6 +3172,12 @@ printb(BFILE *f, NODEPTR n, int header)
 
 /* Show a graph. */
 void
+pps(NODEPTR n)
+{
+  pp(stdout, n);
+}
+
+void
 pp(FILE *f, NODEPTR n)
 {
   BFILE *bf = add_FILE(f);
@@ -3886,6 +3897,10 @@ evali(NODEPTR an)
   enum node_tag tag;
   struct ioarray *arr;
   struct bytestring xbs, ybs, rbs;
+#if WANT_STDIO
+  void *bfile;
+  int hdr;
+#endif  /* WANT_STDIO */
 
 #if MAXSTACKDEPTH
   counter_t old_cur_c_stack = cur_c_stack;
@@ -3901,8 +3916,10 @@ evali(NODEPTR an)
 
 #define SETIND(n, x) SETINDIR(n, x)
 #define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0)
-#define GOAP(f,a) do { FUN((n)) = (f); ARG((n)) = (a); goto ap; } while(0)
-#define GOAP2(f,a,b) do { FUN((n)) = new_ap((f), (a)); ARG((n)) = (b); goto ap2; } while(0)
+#define GOAP(f,a) do { FUN(n) = (f); ARG(n) = (a); goto ap; } while(0)
+#define GOAP2(f,a,b) do { FUN(n) = new_ap((f), (a)); ARG(n) = (b); goto ap2; } while(0)
+#define GOPAIR(a) do { FUN(n) = new_ap(combPair, (a)); goto ap; } while(0)
+#define GOPAIRUNIT do { FUN(n) = combPairUnit; goto ap; } while(0)
 /* CHKARGN checks that there are at least N arguments.
  * It also
  *  - sets n to the "top" node
@@ -3916,6 +3933,10 @@ evali(NODEPTR an)
 #define CHKARG3 do { CHECK(3); POP(3); n = TOP(-1); z = ARG(n); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
 #define CHKARG5 do { CHECK(5); POP(5); n = TOP(-1); /*v = ARG(n);*/ w = ARG(TOP(-2)); z = ARG(TOP(-3)); y = ARG(TOP(-4)); x = ARG(TOP(-5)); } while(0)
+/* Non-popping versions */
+#define CHKARG1NP do { CHECK(1); n = TOP(0);                              x = ARG(n);      } while(0)
+#define CHKARG2NP do { CHECK(2); n = TOP(1);             y = ARG(n);      x = ARG(TOP(0)); } while(0)
+#define CHKARG3NP do { CHECK(3); n = TOP(2); z = ARG(n); y = ARG(TOP(1)); x = ARG(TOP(0)); } while(0)
 
 /* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e)   do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
@@ -3931,6 +3952,7 @@ evali(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
  top:
+  /*pp(stdout, an);*/
   if (--glob_slice <= 0)
     yield();
   l = LABEL(n);
@@ -3986,8 +4008,10 @@ evali(NODEPTR an)
                GCCHECK(1); CHKARG2; COUNT(red_z); GOAP(combK, new_ap(x, y)); } else {     /* Z x y = K (x y) */
                            CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
 //case T_J:                CHKARG3; GOAP(z, x);                                           /* J x y z = z x */
+  t_c:
   case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                       /* C x y z = x z y */
   case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                            /* C' x y z w = x (y w) z */
+  t_p:
   case T_P:    GCCHECK(1); CHKARG3; GOAP2(z, x, y);                                       /* P x y z = z x y */
   case T_R:    if(!HASNARGS(3)) {
                GCCHECK(1); CHKARG2; COUNT(red_r); GOAP2(combC, y, x); } else {            /* R x y = C y x */
@@ -4381,14 +4405,61 @@ evali(NODEPTR an)
     GCCHECK(2); CHKARG3; GOAP(new_ap(combIOBIND, new_ap(x, z)), y);                     /* C'BIND x y z = BIND (x z) y */
 
   case T_IO_BIND:
-  case T_IO_THEN:
+    goto t_c;
   case T_IO_RETURN:
-  case T_IO_SERIALIZE:
-  case T_IO_PRINT:
-  case T_IO_DESERIALIZE:
-  case T_IO_GETARGREF:
-  case T_IO_CCALL:
+    goto t_p;
+  case T_IO_THEN:
+    GCCHECK(2); CHKARG2; GOAP2(combIOBIND, x, new_ap(combK, y));
+#if WANT_STDIO
   case T_IO_PP:
+    CHKARG2;
+    pp(stderr, x);
+    GOPAIRUNIT;
+  case T_IO_PRINT:
+    hdr = 0;
+    goto ser;
+  case T_IO_SERIALIZE:
+    hdr = 1;
+  ser:
+#if 0
+    gc();                     /* DUBIOUS: do a GC to get possible GC reductions */
+#endif
+    CHKARG3NP;
+    bfile = (struct BFILE*)evalptr(ARG(x));
+    printb(bfile, evali(ARG(y)), hdr);
+    putb('\n', bfile);
+    POP(3);
+    GOPAIRUNIT;
+  case T_IO_DESERIALIZE:
+    CHKARG2NP;
+    bfile = (struct BFILE*)evalptr(ARG(x));
+    gc();                     /* make sure we have room.  GC during parse is dodgy. */
+    x = parse_top(bfile);
+    POP(2);
+    GOPAIR(x);                /* allocates a cell, but we did a GC above */
+#endif
+#if WANT_ARGS
+  case T_IO_GETARGREF:
+    GCCHECK(2);
+    CHKARG1;
+    x = alloc_node(T_ARR);
+    ARR(x) = argarray;
+    GOPAIR(x);
+#endif
+  case T_IO_CCALL:
+    {
+      GCCHECK(1);                 /* room for placeholder */
+      int a = (int)GETVALUE(n);   /* function number */
+      funptr_t f = FFI_IX(a).ffi_fun;
+      PUSH(mkFlt(0.0));           /* placeholder for result, protected from GC */
+      f(stk);                     /* call FFI function */
+      GCCHECK(1);                 /* room for pair */
+      x = POPTOP();               /* pop actual result */
+      n = POPTOP();               /* node to update */
+      GOPAIR(x);                  /* and this is the result */
+    }
+
+
   case T_CATCH:
   case T_NEWCASTRINGLEN:
   case T_PACKCSTRING:
@@ -4419,7 +4490,7 @@ evali(NODEPTR an)
   case T_IO_MASKASYNC:
   case T_IO_UNMASKASYNC:
   case T_IO_MASKUNINTR:
-    RET;
+    ERR1("eval IO tag %s", tag_names[GETTAG(n)]);
 
   case T_THNUM:
     {
@@ -4754,6 +4825,14 @@ with_mask(enum mask_state mask)
 void
 execio(NODEPTR *np, int dowrap)
 {
+#if 1
+  if (dowrap) {
+    GCCHECK(1);
+    *np = new_ap(*np, combWorld);
+  }
+  (void)evali(*np);
+#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*fprintf(stderr, "\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
+#else
   stackptr_t stk = stack_ptr;
   NODEPTR f, x, n, q, r, s, res, top1;
   char *cstr;
@@ -5190,6 +5269,7 @@ execio(NODEPTR *np, int dowrap)
       ERR1("execio tag %s", tag_names[GETTAG(n)]);
     }
   }
+#endif
 }
 
 NORETURN void
@@ -5510,13 +5590,16 @@ MAIN
 /*********************/
 /* FFI adapters      */
 
+#define POPIO(n) do { if (stack_ptr - stk < (n)+2) {fprintf(stderr, "\nLINE=%d\n", __LINE__); ERR("POPIO"); }; POP((n)+2); } while(0)
+
 #define MHS_FROM(name, set, type) \
 void \
 name(stackptr_t stk, int n, type x) \
 { \
   NODEPTR r = TOP(0);           /* The pre-allocated cell for the result, */ \
-  CHECKIO(n+1);                 /* Check that we actually had the right number of arguments. */ \
+  POPIO(n);                     /* Check that we actually had the right number of arguments. */ \
   set(r, x);                    /* Put result in pre-allocated cell. */ \
+  PUSH(r);                      /* Push the result cell. */ \
 }
 MHS_FROM(mhs_from_FloatW, SETDBL, flt_t);
 MHS_FROM(mhs_from_Int, SETINT, value_t);
@@ -5546,14 +5629,18 @@ MHS_FROM(mhs_from_CUIntPtr, SETINT, uintptr_t);
 void
 mhs_from_Unit(stackptr_t stk, int n)
 {
-  CHECKIO(n+1);                 /* Check that we actually had the right number of arguments. */
-  TOP(0) = combUnit;            /* Put result on top of stack */
+  if (stack_ptr - stk < (n)+2) {
+    fprintf(stderr, "\nLINE=%d\n", __LINE__); ERR("POPIO");
+  };
+  POP((n)+1);
+  //  POPIO(n);                   /* Check that we actually had the right number of arguments. */
+  PUSH(combUnit);             /* Push the result */
 }
 
 #define MHS_TO(name, eval, type) \
 type name(stackptr_t stk, int n) \
 { \
-  return eval(ARG(TOP(n+2)));                /* The stack has a reserved cell, and the FFI node on top of the arguments */ \
+  return eval(ARG(TOP(n+1)));                /* The stack has a reserved cell on top of the arguments */ \
 }
 MHS_TO(mhs_to_FloatW, evaldbl, flt_t);
 MHS_TO(mhs_to_Int, evalint, value_t);
@@ -5798,6 +5885,7 @@ void mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mh
 void mhs_mpz_tstbit(int s) { mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 void mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
 #endif  /* WANT_GMP */
+void mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); mhs_from_Unit(s, 1); }
 
 struct ffi_entry ffi_table[] = {
 { "GETRAW", mhs_GETRAW},
@@ -5946,6 +6034,7 @@ struct ffi_entry ffi_table[] = {
 { "mpz_tstbit", mhs_mpz_tstbit},
 { "mpz_xor", mhs_mpz_xor},
 #endif  /* WANT_GMP */
+{ "putchar", mhs_putchar},
 { 0,0 }
 };
 
