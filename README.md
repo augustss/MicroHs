@@ -95,6 +95,7 @@ Differences:
    * PolymorphicComponents
    * RankNTypes
    * RecordWildCards
+   * RequiredTypeArguments
    * QualifiedDo
    * ScopedTypeVariables
    * StandaloneDeriving

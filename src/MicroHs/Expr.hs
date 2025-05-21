@@ -8,6 +8,7 @@ module MicroHs.Expr(
   EDef(..), showEDefs,
   Deriving(..), DerStrategy(..),
   Expr(..), eLam, eLamWithSLoc, eEqn, eEqns, showExpr, eqExpr,
+  QForm(..), qIsExpl,
   Listish(..),
   Lit(..), showLit,
   CType(..),
@@ -175,7 +176,7 @@ data Expr
   | ELazy Bool EPat           -- True indicates ~p, False indicates !p
   | EOr [EPat]
   -- only in types
-  | EForall Bool [IdKind] EType  -- True indicates explicit forall in the code
+  | EForall QForm [IdKind] EType
   -- only while type checking
   | EUVar Int
   | EQVar Expr EType             -- already resolved identifier
@@ -213,6 +214,15 @@ instance NFData Expr where
   rnf (EQVar a b) = rnf a `seq` rnf b
   rnf (ECon a) = rnf a
 
+data QForm = QImpl | QExpl | QReqd
+
+qIsExpl :: QForm -> Bool
+qIsExpl QImpl = False
+qIsExpl QExpl = True
+qIsExpl QReqd = True
+
+instance NFData QForm where
+  rnf q = seq q ()
 
 data EField
   = EField [Ident] Expr     -- a.b = e
@@ -844,7 +854,7 @@ ppEqns :: Doc -> Doc -> [Eqn] -> Doc
 ppEqns name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map ppEPat ps), ppAlts sepr alts])
 
 ppConstr :: Constr -> Doc
-ppConstr (Constr iks ct c cs) = ppForall iks <+> ppCtx ct <+> ppIdent c <+> ppCs cs
+ppConstr (Constr iks ct c cs) = ppForall QImpl iks <+> ppCtx ct <+> ppIdent c <+> ppCs cs
   where ppCs (Left  ts) = hsep (map ppSType ts)
         ppCs (Right fs) = braces (hsep $ map f fs)
           where f (i, t) = ppIdent i <+> text "::" <+> ppSType t <> text ","
@@ -926,7 +936,7 @@ ppExprR raw = ppE
         EUVar i -> text ("_a" ++ show i)
         EQVar e t -> parens $ ppE e <> text ":::" <> ppE t
         ECon c -> {-text "***" <>-} ppCon c
-        EForall _ iks e -> parens $ ppForall iks <+> ppEType e
+        EForall q iks e -> parens $ ppForall q iks <+> ppEType e
 
     ppApp :: [Expr] -> Expr -> Doc
     ppApp as (EApp f a) = ppApp (a:as) f
@@ -946,9 +956,10 @@ ppField (EField is e) = hcat (punctuate (text ".") (map ppIdent is)) <+> text "=
 ppField (EFieldPun is) = hcat (punctuate (text ".") (map ppIdent is))
 ppField EFieldWild = text ".."
 
-ppForall :: [IdKind] -> Doc
+ppForall :: QForm -> [IdKind] -> Doc
 --ppForall [] = empty
-ppForall iks = text "forall" <+> hsep (map ppIdKind iks) <+> text "."
+ppForall q iks = text "forall" <+> hsep (map ppIdKind iks) <+> text qs
+  where qs = case q of QReqd -> "->"; _ -> "."
 
 ppListish :: Listish -> Doc
 ppListish (LList es) = ppList ppExpr es
@@ -1020,9 +1031,9 @@ getBindsVars :: [EBind] -> [Ident]
 getBindsVars = concatMap getBindVars
 
 eForall :: [IdKind] -> EType -> EType
-eForall = eForall' True
+eForall = eForall' QExpl
 
-eForall' :: Bool -> [IdKind] -> EType -> EType
+eForall' :: QForm -> [IdKind] -> EType -> EType
 eForall' _ [] t = t
 eForall' b vs t = EForall b vs t
 

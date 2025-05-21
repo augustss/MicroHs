@@ -543,11 +543,11 @@ primTypes =
     tuple n =
       let
         i = tupleConstr builtinLoc n
-      in  (i, [entry i $ EForall True [kk] $ foldr kArrow kv (replicate n kv)])
+      in  (i, [entry i $ EForall QExpl [kk] $ foldr kArrow kv (replicate n kv)])
     -- (=>) :: forall k . Constraint -> k -> k
-    kImplies = EForall True [kk] $ kConstraint `kArrow` (kv `kArrow` kv)
+    kImplies = EForall QExpl [kk] $ kConstraint `kArrow` (kv `kArrow` kv)
     -- (~) :: forall k . k -> k -> Constraint
-    kTypeEqual = EForall True [kk] $ kv `kArrow` (kv `kArrow` kConstraint)
+    kTypeEqual = EForall QExpl [kk] $ kv `kArrow` (kv `kArrow` kConstraint)
   in
       [
        -- The function arrow et al are bothersome to define in Primitives, so keep them here.
@@ -577,7 +577,7 @@ primValues =
         vks = [IdKind (mkIdent ("a" ++ show i)) kType | i <- enumFromTo 1 n]
         ts = map tVarK vks
         r = tApps c ts
-      in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall True vks $ EForall True [] $ foldr tArrow r ts ])
+      in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall QExpl vks $ EForall QExpl [] $ foldr tArrow r ts ])
   in  map tuple (0 : enumFromTo 2 maxTuple)
 
 kArrow :: EKind -> EKind -> EKind
@@ -882,7 +882,7 @@ extSyn i iks t = do
   case etaReduce iks t of
     (iks', t') -> do
       senv <- gets synTable
-      putSynTable (M.insert i (EForall True iks' t') senv)
+      putSynTable (M.insert i (EForall QExpl iks' t') senv)
 
 extData :: Ident -> EDef -> T ()
 extData i d = do
@@ -1086,9 +1086,9 @@ tcDefType def = do
     Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> cm kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM (tcDeriving lhs') ds)
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first              (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> cm kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
-    Sign      is t         ->                                            Sign      is   <$> tCheckTypeTImpl False kType t
-    ForImp ie i t          ->                                            ForImp ie i    <$> tCheckTypeTImpl False kType t
-    Instance ct m          ->                                            Instance       <$> tCheckTypeTImpl True kConstraint ct <*> return m
+    Sign      is t         ->                                            Sign      is   <$> tCheckTypeTImpl QImpl kType t
+    ForImp ie i t          ->                                            ForImp ie i    <$> tCheckTypeTImpl QImpl kType t
+    Instance ct m          ->                                            Instance       <$> tCheckTypeTImpl QExpl kConstraint ct <*> return m
     Default mc ts          ->                                            Default (Just c) <$> mapM (tcDefault c) ts
                                                                            where c = fromMaybe num mc
 -- We cant't do this now, because the classTable has not been fully populated yet.
@@ -1097,8 +1097,8 @@ tcDefType def = do
     _                      -> return def
  where
    cm = flip (,)
-   tcMethod (Sign    is t) = Sign    is <$> (tCheckTypeTImpl False kType t >>= expandSyn)
-   tcMethod (DfltSign i t) = DfltSign i <$> (tCheckTypeTImpl False kType t >>= expandSyn)
+   tcMethod (Sign    is t) = Sign    is <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
+   tcMethod (DfltSign i t) = DfltSign i <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
    tcMethod m              = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
@@ -1112,7 +1112,7 @@ tcDefType def = do
 -- as the type in the instance head.
 tcStand :: DerStrategy -> EConstraint -> T EDef
 tcStand st ct = do
-     ct' <- tCheckTypeTImpl True kConstraint ct
+     ct' <- tCheckTypeTImpl QExpl kConstraint ct
      -- We need the kind of the type in the instance head.
      -- It's needed for the number of arguments to "eta reduce",
      -- and also for kind checking the via type.
@@ -1141,7 +1141,7 @@ tcDeriving (tyId, vks) (Deriving strat cs) = do
         -- Check that it is.
         k <- newUVar
         --traceM $ "tcDerive 1: " ++ show c
-        c' <- tCheckTypeTImpl True (k `kArrow` kConstraint) c
+        c' <- tCheckTypeTImpl QExpl (k `kArrow` kConstraint) c
         --traceM $ "tcDerive 2: " ++ show c
         (ks, _) <- getArrows <$> derefUVar k  -- get [k1,...,kn] and final kind
         -- Checking that the final kind is Type happens with the tc call below.
@@ -1154,7 +1154,7 @@ tcDeriving (tyId, vks) (Deriving strat cs) = do
         -- The generated instance has the form 'instance ... => c ty'.
         -- Check that this has kind Constraint.
         -- Also check that any via type also fulfills this.
-        let tc t = do _ <- tCheckTypeTImpl True kConstraint (tApp c t); return ()
+        let tc t = do _ <- tCheckTypeTImpl QExpl kConstraint (tApp c t); return ()
         tc ty
         case strat of
           DerVia v -> tc v  -- XXX should this allow implicit quantification?
@@ -1247,7 +1247,7 @@ expandClass impt dcls@(Class _ctx (iCls, vks) _fds ms) = do
       dflttys = [ (i, t) | DfltSign i t <- ms ]
       tCtx = tApps (qualIdent mn iCls) (map (EVar . idKindIdent) vks)
       mkDflt (Sign is t) = concatMap method is
-        where method methId = [ Sign [iDflt] $ EForall True vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
+        where method methId = [ Sign [iDflt] $ EForall QExpl vks $ tCtx `tImplies` ty, def $ lookup methId mdflts ]
                 where ty = fromMaybe t $ lookup methId dflttys
                       def Nothing = Fcn iDflt $ etaExp ty noDflt
                       def (Just eqns) = Fcn iDflt eqns
@@ -1466,7 +1466,7 @@ addValueType adef = do
         tret = tApps (qualIdent mn tycon) (map tVarK vks)
         addCon (Constr evks ectx c ets) = do
           let ts = either id (map snd) ets
-              cty = EForall True vks $ EForall True evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
+              cty = EForall QExpl vks $ EForall QExpl evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
               fs = either (const []) (map fst) ets
           extValETop c cty (ECon $ ConData cti (qualIdent mn c) fs)
       mapM_ addCon cs
@@ -1476,7 +1476,7 @@ addValueType adef = do
         t = snd $ head $ either id (map snd) ets
         tret = tApps (qualIdent mn tycon) (map tVarK vks)
         fs = either (const []) (map fst) ets
-      extValETop c (EForall True vks $ EForall True [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
+      extValETop c (EForall QExpl vks $ EForall QExpl [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
       addConFields tycon con
     ForImp _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
@@ -1509,9 +1509,9 @@ addValueClass ctx iCls vks fds ms = do
       tret = tApps qiCls (map tVarK vks)
       cti = [ (qualIdent mn iCon, length targs) ]
       iCon = mkClassConstructor iCls
-      iConTy = EForall True vks $ foldr tArrow tret targs
+      iConTy = EForall QExpl vks $ foldr tArrow tret targs
       tvs = map (EVar . idKindIdent) vks
-      methIdTys' = map (\ (i, t) -> (i, EForall True vks $ tApps qiCls tvs `tImplies` t)) methIdTys
+      methIdTys' = map (\ (i, t) -> (i, EForall QExpl vks $ tApps qiCls tvs `tImplies` t)) methIdTys
       addMethod (i, t) = extValETop i t (EVar $ qualIdent mn i)
   extValETop iCon iConTy (ECon $ ConData cti (qualIdent mn iCon) [])
   mapM_ addMethod methIdTys'
@@ -1585,7 +1585,7 @@ tcPatSyn (Pattern (ip, vks) p me) = do
       ty1 = subst sub ty0                        --    into rigid tyvars
   ty2 <- quantify (metaTvs [ty1]) (addConstraints ctx1' ty1)
   let (vs, ty3) = unForall ty2
-      ty4 = eForall' False (sks' ++ vs) ty3      -- add the skolems tyvars
+      ty4 = eForall' QImpl (sks' ++ vs) ty3      -- add the skolems tyvars
   ty5 <- canonPatSynType ty4
 --  traceM $ "tcPatSyn: tys " ++ show (ty0, ty1, ty2, ty3, ty4, ty5)
   addPatSyn ty5 ip
@@ -1594,7 +1594,7 @@ tcPatSyn (Pattern (ip, vks) p me) = do
 tcPatSyn _ = impossible
 
 -- Add implicit forall
-addForall :: Bool -> EType -> T EType
+addForall :: QForm -> EType -> T EType
 addForall _ t@EForall{} = return t
 addForall expl t = do
   bvs <- stKeysLcl <$> gets valueTable         -- bound outside
@@ -1605,7 +1605,7 @@ addForall expl t = do
   return $ eForall' expl iks t
 
 -- Add implicit forall and kind check, in type mode
-tCheckTypeTImpl :: HasCallStack => Bool -> EType -> EType -> T EType
+tCheckTypeTImpl :: HasCallStack => QForm -> EType -> EType -> T EType
 tCheckTypeTImpl expl tchk t = tCheckTypeT tchk =<< addForall expl t
 
 -- Check type in type mode
@@ -1913,7 +1913,7 @@ tcExprR mt ae =
       tcExpr mt $ ELet [Sign [i] t, Fcn i $ eEqns [] e] (EVar i)
 -}
       -- XXX wrong for kind signatures
-      t' <- withTypeTable $ tCheckTypeTImpl False kType t >>= expandSyn
+      t' <- withTypeTable $ tCheckTypeTImpl QImpl kType t >>= expandSyn
       case splitContext t' of
         -- No context, handle this without a 'let' to avoid bloat.
         ([], [], _) -> do
@@ -1983,9 +1983,14 @@ tcExprAp mt ae args = do
 tcExprApFn :: HasCallStack =>
               Expected -> Expr -> EType -> [Expr] -> T Expr
 --tcExprApFn mt fn fnt args | trace ("tcExprApFn: " ++ show (fn, fnt, args, mt)) False = undefined
-tcExprApFn mt fn (EForall {-True-}_ (IdKind i k:iks) ft) (ETypeArg t : args) = do
-  t' <- if t `eqEType` EVar dummyIdent then newUVar else tcType (Check k) t >>= expandSyn
-  tcExprApFn mt fn (subst [(i, t')] $ eForall iks ft) args
+tcExprApFn mt fn (EForall q (IdKind i k:iks) ft) (arg : args) | Just t <- qarg q arg = do
+  t' <- if t `eqEType` EVar dummyIdent
+        then newUVar
+        else tcType (Check k) t >>= expandSyn
+  tcExprApFn mt fn (subst [(i, t')] $ eForall' q iks ft) args
+ where qarg QReqd t            = Just t
+       qarg _     (ETypeArg t) = Just t
+       qarg _     _            = Nothing
 tcExprApFn mt fn atfn aargs = do
 --  traceM $ "tcExprApFn: " ++ show (mt, fn, tfn, aargs)
 --  xx <- gets ctxTables
@@ -2240,8 +2245,8 @@ tcExprLam mt loc qs = do
 
 tcEqns :: HasCallStack => Bool -> EType -> [Eqn] -> T [Eqn]
 --tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (Fcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
-tcEqns top (EForall expl iks t) eqns | expl      = withExtTyps iks $ tcEqns top t eqns
-                                     | otherwise =                   tcEqns top t eqns
+tcEqns top (EForall q iks t) eqns | qIsExpl q = withExtTyps iks $ tcEqns top t eqns
+                                  | otherwise =                   tcEqns top t eqns
 tcEqns top t eqns | Just (ctx, t') <- getImplies t = do
   let loc = getSLoc eqns
   d <- newADictIdent loc
@@ -2586,7 +2591,7 @@ tcBindVarT tmap x = do
       t <- newUVar
       return (x, t)
     Just t -> do
-      tt <- withTypeTable $ tCheckTypeTImpl False kType t >>= expandSyn
+      tt <- withTypeTable $ tCheckTypeTImpl QImpl kType t >>= expandSyn
       return (x, tt)
 
 tcBind :: EBind -> T EBind
@@ -2671,7 +2676,7 @@ quantify tvs ty = do
   mapM_ (uncurry setUVar) sub
   ty' <- derefUVar ty
   putUvarSubst osubst  -- reset the setUVar we did above
-  return (EForall False newVarsK ty')
+  return (EForall QImpl newVarsK ty')
 
 -- Skolemize the given variables
 shallowSkolemise :: [IdKind] -> EType -> T ([TyVar], EType)
@@ -2886,8 +2891,8 @@ mkMatchDataTypeConstr qi at =
       conn = ConData cti ni []
       tycon = mkMatchDataTypeName qi
       tr = tApps tycon $ map (EVar . idKindIdent) vks1
-      tn = EForall True vks1 $ EForall True [] tr
-      tm = EForall True vks1 $ EForall True vks2 $ etImplies ctx2 $ foldr tArrow tr ats
+      tn = EForall QExpl vks1 $ EForall QExpl [] tr
+      tm = EForall QExpl vks1 $ EForall QExpl vks2 $ etImplies ctx2 $ foldr tArrow tr ats
 
       ddata = Data lhs [cm, cn] []
             where lhs = (unQualIdent tycon, vks1)
@@ -2915,13 +2920,13 @@ isMatchDataTypeName = isSuffixOf "%T" . unIdent
 canonPatSynType :: EType -> T EType
 canonPatSynType at = do
   let mkTyp rVks rCtx pVks pCtx ty =
-        EForall True rVks $ tImplies rCtx $
-        EForall True pVks $ tImplies pCtx ty
+        EForall QExpl rVks $ tImplies rCtx $
+        EForall QExpl pVks $ tImplies pCtx ty
       getImplies' :: EType -> (EConstraint, EType)
       getImplies' ty = fromMaybe (emptyCtx, ty) $ getImplies ty
 
   case at of
-    EForall False vks t0 -> do
+    EForall QImpl vks t0 -> do
       -- Implicit forall, the xs need to be split between required and provided.
       let (reqCtx, t1) = getImplies' t0
           (proCtx, t2) = getImplies' t1
@@ -2930,7 +2935,7 @@ canonPatSynType at = do
 --      traceM "%%% implicit"
       pure $ mkTyp reqVks reqCtx proVks proCtx t2
 
-    EForall True reqVks t0 -> do
+    EForall _ reqVks t0 -> do   -- QExpl/QReqd
       -- Explicit forall
       let (reqCtx, t1) = getImplies' t0
           (proVks, t2) = unForall t1

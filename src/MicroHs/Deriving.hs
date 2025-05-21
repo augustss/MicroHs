@@ -423,7 +423,7 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
             nty =
               if length tvs /= length newtys then error "mkMethod: arity" else
               case subst (zip tvs newtys) mty of
-                EForall _ vks t -> EForall True (map (\ (IdKind i _) -> IdKind i (EVar dummyIdent)) vks) $ qvar t
+                EForall q vks t -> EForall q (map (\ (IdKind i _) -> IdKind i (EVar dummyIdent)) vks) $ qvar t
                 t -> qvar t
 
             vty = qvar $ dropContext $ dropForall $ subst (zip tvs (init newtys ++ [viaty])) mty
