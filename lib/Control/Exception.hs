@@ -35,13 +35,15 @@ module Control.Exception(
   SomeAsyncException(..), AsyncException(..),
   asyncExceptionToException,
   asyncExceptionFromException,
-
   --
   BlockedIndefinitelyOnMVar(..),
+  --
+  ioError, IOException,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Exception.Internal
 import {-# SOURCE #-} Data.Typeable
+import System.IO.Error(ioError, IOException)
 import System.IO.Unsafe
 
 -- This is the function called by the runtime.
