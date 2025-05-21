@@ -1,7 +1,7 @@
 module System.Info(os, arch, compilerName, compilerVersion, fullCompilerVersion) where
 import Control.Monad
 import Data.Char
-import Data.Version(Version(..))
+import Data.Version
 import System.Cmd
 import System.Directory
 import System.Exit
@@ -18,10 +18,7 @@ compilerName :: String
 compilerName = "mhs"
 
 compilerVersion :: Version
-compilerVersion = Version [0,9]
-
-fullCompilerVersion :: Version
-fullCompilerVersion = Version [0,9,0]
+compilerVersion = fullCompilerVersion { versionBranch = take 2 (versionBranch fullCompilerVersion) }
 
 -- Assume the system has an uname command
 uname :: String -> String
@@ -34,3 +31,6 @@ uname flag = unsafePerformIO $ do
   when (rc /= ExitSuccess) $
     error "System.Into: uname failed"
   return $ map toLower $ filter (not . isSpace) res
+
+fullCompilerVersion :: Version
+fullCompilerVersion = makeVersion [0,12,8,0]
