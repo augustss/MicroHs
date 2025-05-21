@@ -42,8 +42,11 @@ noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
 
 preamble :: String
-preamble = "module " ++ interactiveName ++ "(module " ++ interactiveName ++
-           ") where\nimport System.IO.PrintOrRun\ndefault Num (Integer, Double)\ndefault IsString (String)\ndefault Show (())\n"
+preamble = "module " ++ interactiveName ++ " where\n\
+           \import System.IO.PrintOrRun\n\
+           \default Num (Integer, Double)\n\
+           \default IsString (String)\n\
+           \default Show (())\n"
 
 start :: I ()
 start = do
