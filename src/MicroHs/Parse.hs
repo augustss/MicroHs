@@ -549,8 +549,7 @@ pType =
     do
       vs <- pForall'
       q <- (QExpl <$ pSymbol ".") <|> (QReqd <$ pSymbol "->")
-      t <- pTypeOp
-      pure $ EForall q vs t
+      EForall q vs <$> pTypeOp
   <|>
     pTypeOp
 
