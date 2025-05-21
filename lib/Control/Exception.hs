@@ -21,10 +21,13 @@ module Control.Exception(
   mapException,
   --
   ArithException(..),
+  --
+  ioError, IOException,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Exception.Internal
 import {-# SOURCE #-} Data.Typeable
+import System.IO.Error(ioError, IOException)
 import System.IO.Unsafe
 
 -- This is the function called by the runtime.
