@@ -130,7 +130,7 @@ commands =
       return True
     )
   , ("help      this text", const $ do
-      liftIO $ putStrLn $ helpText ++ unlines (map (((':'):) . fst) commands)
+      liftIO $ putStrLn $ helpText ++ unlines (map ((':' :) . fst) commands)
       return True
     )
   ]
