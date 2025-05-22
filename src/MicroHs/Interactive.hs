@@ -81,7 +81,7 @@ command s =
   case words s of
     [] -> return True
     c : ws ->
-      case filter (isPrefixOf c . fst) commands of
+      case filter (isPrefixOf c . (!!0) . words . fst) commands of
         [] -> do
           liftIO $ putStrLn "Unrecognized command"
           return True
@@ -93,13 +93,15 @@ command s =
 
 commands :: [(String, String -> I Bool)]
 commands =
-  [ ("quit", const $ return False)
-  , ("clear", const $ do
+  [ ("quit      quit MicroHs",
+     const $ return False
+    )
+  , ("clear     clear all definitions", const $ do
       updateLines (const preamble)
       modify $ \ is -> is{ isCache = emptyCache, isSymbols = noSymbols }
       return True
     )
-  , ("reload", const $ do
+  , ("reload    reload modules", const $ do
       flgs <- gets isFlags
       cash <- gets isCache
       cash' <- liftIO $ validateCache flgs cash
@@ -107,24 +109,24 @@ commands =
       reload
       return True
     )
-  , ("delete", \ del -> do
-      updateLines (unlines . filter (not . isPrefixOf del) . lines)
+  , ("delete d  delete definition(s) d", \ line -> do
+      updateLines (unlines . filter (not . isPrefixOf line) . lines)
       return True
     )
-  , ("type", \ line -> do
+  , ("type e    show type of e", \ line -> do
       showType line
       return True
     )
-  , ("kind", \ line -> do
+  , ("kind t    show kind of t", \ line -> do
       showKind line
       return True
     )
-  , ("main", \ line -> do
+  , ("main args run main with arguments", \ line -> do
       runMain line
       return True
     )
-  , ("help", \ _ -> do
-      liftIO $ putStrLn helpText
+  , ("help      this text", const $ do
+      liftIO $ putStrLn $ helpText ++ unlines (map (((':'):) . fst) commands)
       return True
     )
   ]
@@ -140,14 +142,6 @@ reload = do
 helpText :: String
 helpText = "\
   \Commands:\n\
-  \:quit      quit MicroHs\n\
-  \:reload    reload modules\n\
-  \:clear     clear all definitions\n\
-  \:delete d  delete definition(s) d\n\
-  \:type e    show type of e\n\
-  \:kind t    show kind of t\n\
-  \:main args run main with arguments\n\
-  \:help      this text\n\
   \expr       evaluate expression\n\
   \defn       add top level definition\n\
   \"
