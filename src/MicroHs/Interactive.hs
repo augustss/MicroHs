@@ -125,6 +125,10 @@ commands =
       runMain line
       return True
     )
+  , ("defs      show current definitions", const $ do
+      showDefs
+      return True
+    )
   , ("help      this text", const $ do
       liftIO $ putStrLn $ helpText ++ unlines (map (((':'):) . fst) commands)
       return True
@@ -269,6 +273,11 @@ showKind line = do
 
 runMain :: String -> I ()
 runMain line = oneline $ "_withArgs " ++ show (words line) ++ " main"
+
+showDefs :: I ()
+showDefs = do
+  ls <- gets isLines
+  liftIO $ putStrLn ls
 
 getCModule :: Cache -> TModule [LDef]
 getCModule cash =
