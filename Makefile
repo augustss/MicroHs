@@ -316,6 +316,16 @@ preparedist:	newmhsz bootstrapcpphs
 
 minstall:	install
 install:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
+	@echo '***************************************************'
+	@echo '* Installing MicroHs'
+	@echo '*  Binaries:'
+	@echo '*    mhs     - MicroHs compiler'
+	@echo '*    cpphs   - C preprocessor'
+	@echo '*    mcabal  - cabal for MicroHs'
+	@echo '*  Libraries:'
+	@echo '*    base (bytestring, directory, filepath, text)'
+	@echo '***************************************************'
+	@echo ''
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
 # We don't really need to rebuild mhs
