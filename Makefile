@@ -41,7 +41,7 @@ MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib
 MHSINC=$(MHSINCNP) -ipaths 
 MAINMODULE=MicroHs.Main
 #
-.PHONY:	clean bootstrap install ghcgen newmhs newmhsz cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info
+.PHONY:	clean bootstrap install ghcgen newmhs newmhsz cachelib timecompile exampletest cachetest runtest runtestmhs everytest everytestmhs nfibtest info install minstall installmsg
 
 all:	bin/mhs bin/cpphs bin/mcabal
 
@@ -314,10 +314,12 @@ preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c
 	make generated/mcabal.c
 
-install:	minstall
+install:	installmsg minstall
+
+installmsg:
 	@echo '***************************************************'
 	@echo '* Installing MicroHs'
-	@echo '*  Binaries:'
+	@echo "*  Binaries (in $(MCABALBIN)):"
 	@echo '*    mhs     - MicroHs compiler'
 	@echo '*    cpphs   - C preprocessor'
 	@echo '*    mcabal  - cabal for MicroHs'
@@ -325,6 +327,7 @@ install:	minstall
 	@echo '*    base (bytestring, directory, filepath, text)'
 	@echo '***************************************************'
 	@echo ''
+
 minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
