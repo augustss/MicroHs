@@ -3429,10 +3429,10 @@ solveEq eqs t1 t2 | normTypeEq eqs t1 `eqEType` normTypeEq eqs t2 = Just []
 --   v -> rhs
 -- where v is a type variable (rigid or skolem), and the rhs contains
 -- only type constructors and type variables that are not the LHS of any rule.
--- To find out if two type are equal according to the known equalites,
+-- To find out if two types are equal according to the known equalites,
 -- we just normalize both type using the rewrite rules (which is just a substitution).
 -- When we get TypeFamilies the LHS has to be a type expression as well.
--- And the rewrite rules can probably be obtained with Knuth-Bendix completion
+-- And then rewrite rules can probably be obtained with Knuth-Bendix completion
 -- of the equalities.
 -- Note: there should be no meta variables in t1 and t2.
 -- XXX This guaranteed by how it's called, but I'm not sure it always works properly.
@@ -3453,7 +3453,7 @@ addTypeEq t1 t2 aeqs =
         (_, EVar i2) | isVar i2 -> (i2, t1') : aeqs
         (EApp f1 a1, EApp f2 a2) -> addTypeEq f1 f2 (addTypeEq a1 a2 aeqs)
         _ | t1' `eqEType` t2 -> aeqs
-        _ -> errorMessage (getSLoc t1) $ "inconsisten type equality " ++ showEType t1' ++ " ~ " ++ showEType t2'
+        _ -> errorMessage (getSLoc t1) $ "inconsistent type equality " ++ showEType t1' ++ " ~ " ++ showEType t2'
 
 -- Normalize a type with the known type equalties.
 -- For now, it's just substitution.
