@@ -318,7 +318,8 @@ minstall:	install
 install:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs
 	cp bin/cpphs bin/mcabal $(MCABALBIN)
 	cd lib; PATH=$(MCABALBIN):"$$PATH" mcabal $(MCABALGMP) install
-	PATH=$(MCABALBIN):"$$PATH" mcabal install
+# We don't really need to rebuild mhs
+#	PATH=$(MCABALBIN):"$$PATH" mcabal install
 	@echo $$PATH | tr ':' '\012' | grep -q $(MCABALBIN) || echo '***' Add $(MCABALBIN) to the PATH
 
 #####
