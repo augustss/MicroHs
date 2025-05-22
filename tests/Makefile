@@ -98,6 +98,7 @@ test:
 	$(TMHS) Lit        && $(EVAL) > Lit.out        && diff Lit.ref Lit.out
 	$(TMHS) TypeOp     && $(EVAL) > TypeOp.out     && diff TypeOp.ref TypeOp.out
 	$(TMHS) Forall     && $(EVAL) > Forall.out     && diff Forall.ref Forall.out
+	$(TMHS) Block      && $(EVAL) > Block.out      && diff Block.ref Block.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

@@ -712,8 +712,11 @@ pExprArg = pExprApp <|> pLam <|> pCase <|> pLet <|> pIf <|> pDo
 pExprApp :: P Expr
 pExprApp = do
   f <- pAExpr
-  as <- many pAExpr
+  as <- many pAExprArg
   pure $ foldl EApp f as
+
+pAExprArg :: P Expr
+pAExprArg = pAExpr <|> pLam <|> pCase <|> pLet <|> pIf <|> pDo
 
 pLam :: P Expr
 pLam = do
