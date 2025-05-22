@@ -4397,7 +4397,7 @@ MAIN
   want_gc_red = 1;
   gc();
   gc();                         /* this finds some more GC reductions */
-  /* want_gc_red = 0;*/
+  want_gc_red = 0;
   prog = POPTOP();
 
 #if WANT_STDIO
