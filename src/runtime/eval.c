@@ -515,6 +515,7 @@ REGISTER(stackptr_t stack_ptr,r21);
 #define POPTOP() stack[stack_ptr--]
 #define GCCHECK(n) gc_check((n))
 #define CLEARSTK() do { stack_ptr = -1; } while(0)
+#define GCCHECKSAVE(p, n) do { PUSH(p); GCCHECK(n); (p) = TOP(0); POP(1); } while(0)
 
 heapoffs_t heap_size;       /* number of heap cells */
 heapoffs_t heap_start;      /* first location in heap that needs GC */
@@ -3934,9 +3935,10 @@ evali(NODEPTR an)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
 #define CHKARG5 do { CHECK(5); POP(5); n = TOP(-1); /*v = ARG(n);*/ w = ARG(TOP(-2)); z = ARG(TOP(-3)); y = ARG(TOP(-4)); x = ARG(TOP(-5)); } while(0)
 /* Non-popping versions */
-#define CHKARG1NP do { CHECK(1); n = TOP(0);                              x = ARG(n);      } while(0)
-#define CHKARG2NP do { CHECK(2); n = TOP(1);             y = ARG(n);      x = ARG(TOP(0)); } while(0)
-#define CHKARG3NP do { CHECK(3); n = TOP(2); z = ARG(n); y = ARG(TOP(1)); x = ARG(TOP(0)); } while(0)
+#define CHKARG1NP do { CHECK(1); n = TOP(0);                                               x = ARG(n);      } while(0)
+#define CHKARG2NP do { CHECK(2); n = TOP(1);                              y = ARG(n);      x = ARG(TOP(0)); } while(0)
+#define CHKARG3NP do { CHECK(3); n = TOP(2);             z = ARG(n);      y = ARG(TOP(1)); x = ARG(TOP(0)); } while(0)
+#define CHKARG4NP do { CHECK(4); n = TOP(3); w = ARG(n); z = ARG(TOP(2)); y = ARG(TOP(1)); x = ARG(TOP(0)); } while(0)
 
 /* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e)   do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
@@ -4390,19 +4392,22 @@ evali(NODEPTR an)
     CHECK(1);
     if (doing_rnf) RET;
     execio(&ARG(TOP(0)), 1);       /* run IO action */
-    x = ARG(TOP(0));               /* should be RETURN e */
-    if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
+    x = ARG(TOP(0));               /* should be P v ST */
+    if (GETTAG(x) != T_AP || GETTAG(indir(&FUN(x))) != T_AP ||
+        (GETTAG(indir(&FUN(FUN(x)))) != T_P && GETTAG(FUN(FUN(x))) != T_IO_RETURN))
       ERR("PERFORMIO");
     POP(1);
     n = TOP(-1);
-    GOIND(ARG(x));
+    GOIND(ARG(FUN(x)));
 
+#if 0
   case T_IO_CCBIND:
     /* Under normal circumstances we will never encounter C'BIND, since it's
      * local to the top level of execio().  But when a thread yield()s, it will
      * be left in the graph and encountered later.
      */
     GCCHECK(2); CHKARG3; GOAP(new_ap(combIOBIND, new_ap(x, z)), y);                     /* C'BIND x y z = BIND (x z) y */
+#endif
 
   case T_IO_BIND:
     goto t_c;
@@ -4459,38 +4464,324 @@ evali(NODEPTR an)
       GOPAIR(x);                  /* and this is the result */
     }
 
-
-  case T_CATCH:
   case T_NEWCASTRINGLEN:
+    {
+      CHKARG2NP;                /* set x,y,n */
+      struct bytestring bs = evalbytestring(x);
+      GCCHECK(5);
+      NODEPTR cs = alloc_node(T_PTR);
+      PTR(cs) = bs.string;
+      NODEPTR res = new_ap(new_ap(combPair, cs), mkInt(bs.size));
+      POP(2);
+      GOPAIR(res);
+    }
   case T_PACKCSTRING:
+    {
+      CHKARG2NP;                  /* sets x, y, n */
+      char *cstr = evalptr(x);
+      size_t size = strlen(cstr);
+      char *str = mmalloc(size);
+      memcpy(str, cstr, size);
+      struct bytestring bs = { size, str };
+      NODEPTR res = mkStrNode(bs);
+      GCCHECKSAVE(res, 1);
+      POP(2);
+      GOPAIR(res);
+    }
   case T_PACKCSTRINGLEN:
+    {
+      CHKARG3NP;                /* sets x,y,z,n */
+      char *cstr = evalptr(x);
+      size_t size = evalint(y);
+      char *str = mmalloc(size);
+      memcpy(str, cstr, size);
+      struct bytestring bs = { size, str };
+      NODEPTR res = mkStrNode(bs);
+      POP(3);
+      GCCHECKSAVE(res, 1);
+      GOPAIR(res);
+    }
+
   case T_ARR_ALLOC:
+    {
+      CHKARG3NP;                /* sets x,y,z,n */
+      size_t size = evalint(x);
+      struct ioarray *arr = arr_alloc(size, y);
+      GCCHECK(2);
+      NODEPTR res = alloc_node(T_ARR);
+      ARR(res) = arr;
+      POP(3);
+      GOPAIR(res);
+    }
   case T_ARR_COPY:
+    {
+      CHKARG2NP;
+      NODEPTR a = evali(x);
+      if (GETTAG(a) != T_ARR)
+        ERR("T_ARR_COPY tag");
+      struct ioarray *arr = arr_copy(ARR(n));
+      GCCHECK(2);
+      NODEPTR res = alloc_node(T_ARR);
+      ARR(res) = arr;
+      POP(2);
+      GOPAIR(res);
+    }
   case T_ARR_SIZE:
+    {
+      CHKARG2NP;
+      NODEPTR a = evali(x);
+      if (GETTAG(a) != T_ARR)
+        ERR("bad ARR tag");
+      GCCHECK(2);
+      NODEPTR res = mkInt(ARR(a)->size);
+      POP(2);
+      GOPAIR(res);
+    }
   case T_ARR_READ:
+    {
+      CHKARG3NP;                /* sets x,y,n */
+      size_t i = evalint(y);
+      NODEPTR a = evali(x);
+      if (GETTAG(a) != T_ARR)
+        ERR("bad ARR tag");
+      if (i >= ARR(a)->size)
+        ERR("ARR_READ");
+      GCCHECK(1);
+      NODEPTR res = ARR(a)->array[i];
+      POP(3);
+      GOPAIR(res);
+    }
   case T_ARR_WRITE:
+    {
+      CHKARG4NP;                /* sets x,y,z,w,n */
+      size_t i = evalint(y);
+      NODEPTR a = evali(x);
+      if (GETTAG(a) != T_ARR)
+        ERR("bad ARR tag");
+      if (i >= ARR(a)->size) {
+        ERR("ARR_WRITE");
+      }
+      ARR(a)->array[i] = z;
+      GOPAIRUNIT;
+      }
+
   case T_FPNEW:
+    {
+      CHKARG2NP;
+      //printf("T_FPNEW\n");
+      void *xp = evalptr(x);
+      //printf("T_FPNEW xp=%p\n", xp);
+      GCCHECK(2);
+      NODEPTR res = alloc_node(T_FORPTR);
+      SETFORPTR(res, mkForPtrP(xp));
+      POP(2);
+      GOPAIR(res);
+    }
   case T_FPFIN:
-    //  case T_FPSTR:
+    {
+      CHKARG3NP;
+      //printf("T_FPFIN\n");
+      struct forptr *xfp = evalforptr(y);
+      //printf("T_FPFIN xfp=%p\n", xfp);
+      HsFunPtr xp = evalfunptr(x);
+      //printf("T_FPFIN yp=%p\n", yp);
+      xfp->finalizer->final = xp;
+      POP(3);
+      GOPAIRUNIT;
+    }
   case T_IO_GC:
+    //printf("gc()\n");
+    CHKARG1;
+    gc();
+    POP(1);
+    GOPAIRUNIT;
+
   case T_IO_FORK:
+    {
+      CHKARG2NP;                /* set x,y,n */
+      GCCHECK(3);
+      struct mthread *mt = new_thread(new_ap(x, y)); /* copy the world */
+      mt->mt_mask = runq.mq_head->mt_mask; /* inherit masking state */
+      NODEPTR res = alloc_node(T_THID);
+      THR(res) = mt;
+      POP(2);
+      GOPAIR(res);
+    }
+
   case T_IO_THID:
+    {
+      CHKARG1NP;
+      GCCHECK(2);
+      NODEPTR res = alloc_node(T_THID);
+      THR(res) = runq.mq_head;            /* head of the run queue is the current thread */
+      POP(1);
+      GOPAIR(res);
+    }
   case T_IO_THROWTO:
+    {
+      CHKARG2NP;
+      struct mthread *mt = evalthid(x);
+      throwto(mt, y);
+      POP(2);
+      GOPAIRUNIT;
+    }
   case T_IO_YIELD:
+    CHKARG1NP;
+    yield();
+    POP(1);
+    GOPAIRUNIT;
+
   case T_IO_NEWMVAR:
+    {
+      CHKARG1NP;
+      struct mvar *mv = new_mvar();
+      GCCHECK(2);
+      NODEPTR res = alloc_node(T_MVAR);
+      MVAR(res) = mv;
+      POP(1);
+      GOPAIR(res);
+    }
   case T_IO_TAKEMVAR:
+    {
+      CHKARG2NP;
+      check_thrown();           /* check if we have a thrown exception */
+      NODEPTR res = take_mvar(0, evalmvar(x));         /* never returns if it blocks */
+      GCCHECKSAVE(res, 1);
+      POP(1);
+      GOPAIR(res);
+    }
   case T_IO_READMVAR:
+    {
+      CHKARG2NP;
+      check_thrown();           /* check if we have a thrown exception */
+      NODEPTR res = read_mvar(0, evalmvar(x));         /* never returns if it blocks */
+      GCCHECKSAVE(res, 1);
+      POP(1);
+      GOPAIR(res);
+    }
   case T_IO_PUTMVAR:
+    {
+      CHKARG3NP;
+      check_thrown();           /* check if we have a thrown exception */
+      (void)put_mvar(0, evalmvar(x), y); /* never returns if it blocks */
+      POP(3);
+      GOPAIRUNIT;
+    }
   case T_IO_TRYTAKEMVAR:
+    {
+      CHKARG2NP;
+      NODEPTR res = take_mvar(1, evalmvar(x));
+      GCCHECKSAVE(res, 2);
+      if (res != NIL)
+        res = new_ap(combJust, res);
+      else
+        res = combNothing;
+      POP(2);
+      GOPAIR(res);
+    }
   case T_IO_TRYREADMVAR:
+    {
+      CHKARG2NP;
+      NODEPTR res = read_mvar(1, evalmvar(x));
+      GCCHECKSAVE(res, 2);
+      if (res != NIL)
+        res = new_ap(combJust, res);
+      else
+        res = combNothing;
+      POP(2);
+      GOPAIR(res);
+    }
   case T_IO_TRYPUTMVAR:
+    {
+      CHKARG3NP;
+      NODEPTR res = put_mvar(1, evalmvar(x), y) ? combTrue : combFalse;
+      GCCHECK(1);
+      POP(3);
+      GOPAIR(res);
+    }
   case T_IO_THREADDELAY:
+    {
+      CHKARG2NP;
+      check_thrown();           /* check if we have a thrown exception */
+      if (runq.mq_head->mt_at == -1) {
+        /* delay has alread expired, so just return */
+        runq.mq_head->mt_at = 0;
+        POP(2);
+        GOPAIRUNIT;
+      } else {
+        thread_delay(evalint(x)); /* never returns */
+      }
+    }
   case T_IO_THREADSTATUS:
+    {
+      CHKARG2NP;
+      struct mthread *mt = evalthid(x);
+      GCCHECK(2);
+      POP(2);
+      GOPAIR(mkInt(mt->mt_state));
+    }
   case T_IO_GETMASKINGSTATE:
+    CHKARG1NP;
+    POP(1);
+    GOPAIR(mkInt(runq.mq_head->mt_mask));
+
   case T_IO_MASKASYNC:
+    {
+      CHKARG1NP;
+      NODEPTR res = with_mask(mask_interruptible);
+      GCCHECKSAVE(res, 1);
+      POP(1);
+      GOPAIR(res);
+    }
   case T_IO_UNMASKASYNC:
+    {
+      CHKARG1NP;
+      NODEPTR res = with_mask(mask_unmasked);
+      GCCHECKSAVE(res, 1);
+      POP(1);
+      GOPAIR(res);
+    }
   case T_IO_MASKUNINTR:
-    ERR1("eval IO tag %s", tag_names[GETTAG(n)]);
+    {
+      CHKARG1NP;
+      NODEPTR res = with_mask(mask_uninterruptible);
+      GCCHECKSAVE(res, 1);
+      POP(1);
+      GOPAIR(res);
+    }
+  case T_CATCH:
+    {
+      CHKARG3NP;
+      h = mmalloc(sizeof *h);
+      h->hdl_old = cur_handler;
+      h->hdl_stack = stack_ptr;
+      h->hdl_mask = runq.mq_head->mt_mask;
+      cur_handler = h;
+      if (setjmp(h->hdl_buf)) {
+        /* An exception occurred: */
+        stack_ptr = h->hdl_stack;
+        runq.mq_head->mt_mask = h->hdl_mask;
+        NODEPTR exn = h->hdl_exn;       /* exception value */
+        GCCHECKSAVE(exn, 3);
+        f = ARG(y);      /* second argument, handler */
+        NODEPTR res = new_ap(combMASK, new_ap(f, exn));
+        cur_handler = h->hdl_old;
+        FREE(h);
+        POP(3);
+        ARG(FUN(top)) = n;      /* XXXX */
+        goto start;
+      } else {
+        /* Normal execution: */
+        PUSH(x);
+        execio(&TOP(0), 1);       /* execute first argument */
+        cur_handler = h->hdl_old; /* restore old handler */
+        FREE(h);
+        n = TOP(0);
+        POP(1);
+        IOASSERT(GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_IO_RETURN, "CATCH");
+        RETIO(ARG(n));             /* return result */
+      }
+    }
 
   case T_THNUM:
     {
