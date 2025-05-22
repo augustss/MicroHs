@@ -64,7 +64,7 @@ r :: Int -> (Int -> Int -> Int) -> Int -> Int
 r x y z = y z x
 
 fr :: Int -> Int
-fr = r 22 primIntAdd
+fr = r 22 primIntQuot
 
 main :: IO ()
 main = do

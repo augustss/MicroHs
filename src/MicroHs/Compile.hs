@@ -322,7 +322,7 @@ readModulePath flags suf mn = do
           hasCPP <- hasLangCPP fn
           file' <-
             if hasCPP || doCPP flags then do
-              runCPPString flags file
+              runCPPString flags fn file
             else
               return file
           return (Just (fn, file'))
@@ -362,11 +362,11 @@ openFilePath adirs fileName =
         Nothing -> openFilePath dirs fileName -- If opening failed, try the next directory
         Just hdl -> return (Just (path, hdl))
 
-runCPPString :: Flags -> String -> IO String
-runCPPString flags ifile = do
+runCPPString :: Flags -> FilePath -> String -> IO String
+runCPPString flags fn ifile = do
   (fni, hi) <- openTmpFile "mhsin.hs"
   hClose hi
-  writeFile fni ifile
+  writeFile fni $ "#line 1 \"" ++ fn ++ "\"\n" ++ ifile
   (fno, ho) <- openTmpFile "mhsout.hs"
   runCPP flags fni fno
   ofile <- hGetContents ho

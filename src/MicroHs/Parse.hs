@@ -545,14 +545,20 @@ pKind = pType
 -- Including '->' in pExprOp interacts poorly with '->'
 -- in lambda and 'case'.
 pType :: P EType
-pType = do
-  vs <- pForall
-  t <- pTypeOp
-  pure $ if null vs then t else EForall True vs t
+pType =
+    do
+      vs <- pForall'
+      q <- (QExpl <$ pSymbol ".") <|> (QReqd <$ pSymbol "->")
+      EForall q vs <$> pTypeOp
+  <|>
+    pTypeOp
+
+pForall' :: P [IdKind]
+pForall' = forallKW *> some pIdKind
+  where forallKW = pKeyword "forall" <|> pSymbol "\x2200"
 
 pForall :: P [IdKind]
-pForall = (forallKW *> some pIdKind <* pSymbol ".") <|> pure []
-  where forallKW = pKeyword "forall" <|> pSymbol "\x2200"
+pForall = (pForall' <* pSymbol ".") <|> pure []
 
 pTypeOp :: P EType
 pTypeOp = pOperators pTypeOper pTypeArg
