@@ -49,6 +49,7 @@ Differences:
    * AllowAmbiguousTypes
    * BangPatterns
    * BinaryLiterals
+   * BlockArguments
    * ConstraintKinds
    * DefaultSignatures
    * DeriveAnyClass
