@@ -8,7 +8,7 @@ module MicroHs.Expr(
   EDef(..), showEDefs,
   Deriving(..), DerStrategy(..),
   Expr(..), eLam, eLamWithSLoc, eEqn, eEqns, showExpr, eqExpr,
-  QForm(..), qIsExpl,
+  QForm(..),
   Listish(..),
   Lit(..), showLit,
   CType(..),
@@ -215,11 +215,6 @@ instance NFData Expr where
   rnf (ECon a) = rnf a
 
 data QForm = QImpl | QExpl | QReqd
-
-qIsExpl :: QForm -> Bool
-qIsExpl QImpl = False
-qIsExpl QExpl = True
-qIsExpl QReqd = True
 
 instance NFData QForm where
   rnf q = seq q ()
