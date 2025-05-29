@@ -5,7 +5,7 @@ foo :: forall a b . (a, b)
 foo = (undefined, undefined)
 
 xread :: forall a -> Read a => String -> a
-xread = read
+xread t s = read s :: t
 
 main :: IO ()
 main = do

@@ -2244,24 +2244,28 @@ tcExprLam mt loc qs = do
   ELam loc <$> tcEqns False t qs
 
 tcEqns :: HasCallStack => Bool -> EType -> [Eqn] -> T [Eqn]
+tcEqns top t eqns = tcEqns' top t [] eqns
+
+tcEqns' :: HasCallStack => Bool -> EType -> [IdKind] -> [Eqn] -> T [Eqn]
 --tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (Fcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
-tcEqns top (EForall q iks t) eqns | qIsExpl q = withExtTyps iks $ tcEqns top t eqns
-                                  | otherwise =                   tcEqns top t eqns
-tcEqns top t eqns | Just (ctx, t') <- getImplies t = do
+tcEqns' top (EForall QExpl iks t) reqd eqns = withExtTyps iks $ tcEqns' top t reqd eqns
+tcEqns' top (EForall QImpl   _ t) reqd eqns =                   tcEqns' top t reqd eqns
+tcEqns' top (EForall QReqd iks t) reqd eqns =                   tcEqns' top t (reqd ++ iks) eqns
+tcEqns' top t reqd eqns | Just (ctx, t') <- getImplies t = do
   let loc = getSLoc eqns
   d <- newADictIdent loc
   f <- newIdent loc "fcnD"
   withDict d ctx $ do
-    eqns' <- tcEqns top t' eqns
+    eqns' <- tcEqns' top t' reqd eqns
     let eqn =
           case eqns' of
             [Eqn [] alts] -> Eqn [EVar d] alts
             _             -> Eqn [EVar d] $ EAlts [([], EVar f)] [Fcn f eqns']
     return [eqn]
-tcEqns top t eqns = do
+tcEqns' top t reqd eqns = do
   let loc = getSLoc eqns
   f <- newIdent loc "fcnS"
-  (eqns', ds) <- solveAndDefault top $ mapM (tcEqn t) eqns
+  (eqns', ds) <- solveAndDefault top $ mapM (tcEqn t reqd) eqns
 --  tcTrace $ "tcEqns done: " ++ showEBind (Fcn dummyIdent eqns')
   case ds of
     [] -> return eqns'
@@ -2271,14 +2275,19 @@ tcEqns top t eqns = do
         eqn = Eqn [] $ EAlts [([], EVar f)] (bs ++ [Fcn f eqns'])
       return [eqn]
 
-tcEqn :: HasCallStack => EType -> Eqn -> T Eqn
+tcEqn :: HasCallStack => EType -> [IdKind] -> Eqn -> T Eqn
 --tcEqn t eqn | trace ("tcEqn: " ++ show eqn ++ " :: " ++ show t) False = undefined
-tcEqn t eqn =
-  case eqn of
-    Eqn ps alts -> tcPats t ps $ \ t' ps' -> do
+tcEqn t (IdKind a k : iks) eqn@(Eqn ps alts) =
+  case ps of
+    EVar i : ps' -> withExtTyps [IdKind i k] $ do
+      addEqDict (EVar a) (EVar i)     -- This bound type variable is actually equal to the one in the signature
+      tcEqn t iks (Eqn ps' alts)
+    _ -> tcError (getSLoc eqn) "Bad required type argument"
+tcEqn t [] (Eqn ps alts) =
+  tcPats t ps $ \ t' ps' -> do
 --      tcTrace $ "tcEqn " ++ show ps ++ " ---> " ++ show ps'
-      alts' <- tcAlts t' alts
-      return (Eqn ps' alts')
+    alts' <- tcAlts t' alts
+    return (Eqn ps' alts')
 
 -- Only used above
 tcPats :: HasCallStack =>
