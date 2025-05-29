@@ -506,7 +506,7 @@ NODEPTR atptr;
 REGISTER(NODEPTR *stack,r20);
 REGISTER(stackptr_t stack_ptr,r21);
 #if STACKOVL
-#define PUSH(x) do { if (stack_ptr >= stack_size-1) stackerr(); stack[++stack_ptr] = (x); MAXSTACK; } while(0)
+#define PUSH(x) do { if (stack_ptr >= stack_size-2) stackerr(); stack[++stack_ptr] = (x); MAXSTACK; } while(0)
 #else  /* STACKOVL */
 #define PUSH(x) do {                                            stack[++stack_ptr] = (x); MAXSTACK; } while(0)
 #endif  /* STACKOVL */
@@ -4000,11 +4000,14 @@ evali(NODEPTR an)
     tag = GETTAG(n);
   }
   //COUNT(num_reductions);
-  //printf("%s\n", tag_names[tag]);
+  //  printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  if (stack_ptr < -1)
+    ERR("stack_ptr");
   switch (tag) {
   ap2:         PUSH(n); n = FUN(n);
   ap:
-  case T_AP:   PUSH(n); n = FUN(n); goto top;
+  case T_AP:   PUSH(n);
+    n = FUN(n); goto top;
 
   case T_INT:    RET;
   case T_DBL:    RET;
@@ -4545,7 +4548,7 @@ evali(NODEPTR an)
       NODEPTR a = evali(x);
       if (GETTAG(a) != T_ARR)
         ERR("T_ARR_COPY tag");
-      struct ioarray *arr = arr_copy(ARR(n));
+      struct ioarray *arr = arr_copy(ARR(a));
       GCCHECK(2);
       NODEPTR res = alloc_node(T_ARR);
       ARR(res) = arr;
@@ -4620,7 +4623,6 @@ evali(NODEPTR an)
     //printf("gc()\n");
     CHKARG1;
     gc();
-    POP(1);
     GOPAIRUNIT;
 
   case T_IO_FORK:
@@ -5802,7 +5804,7 @@ MAIN
   want_gc_red = 1;
   gc();
   gc();                         /* this finds some more GC reductions */
-  want_gc_red = 0;
+  want_gc_red = 0;              /* disabled due to UBXXS */
   prog = POPTOP();
 
 #if WANT_STDIO
