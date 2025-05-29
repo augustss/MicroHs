@@ -71,7 +71,7 @@ mkEntry (ImpStatic i _ Value _) = "{ \"" ++ f ++ "\", mhs_" ++ f ++ "}," where f
 mkEntry _ = undefined
 
 mkMhsFun :: String -> String -> String
-mkMhsFun fn body = "void mhs_" ++ fn ++ "(int s) { " ++ body ++ "; }"
+mkMhsFun fn body = "from_t mhs_" ++ fn ++ "(int s) { " ++ body ++ "; }"
 
 checkIO :: EType -> EType
 checkIO iot =
@@ -112,9 +112,9 @@ mkHdr (ImpStatic _ _ Func fn, t) =
       call = fn ++ "(" ++ intercalate ", " (zipWith mkArg as [0..]) ++ ")"
       fcall =
         if isUnit r then
-          call ++ "; mhs_from_Unit(s, " ++ show n ++ ")"
+          call ++ "; return mhs_from_Unit(s, " ++ show n ++ ")"
         else
-          mkRet r n call
+          "return " ++ mkRet r n call
   in  mkMhsFun fn fcall
 mkHdr (ImpStatic i _ Value val, iot) =
   let r = checkIO iot

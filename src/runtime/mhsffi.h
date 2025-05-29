@@ -24,37 +24,38 @@ typedef uint16_t flt_t;         /* No floats, but we need something */
 
 typedef void (*HsFunPtr)(void);
 
-typedef void (*funptr_t)(int);
+typedef int from_t;
+typedef from_t (*funptr_t)(int);
 struct ffi_entry {
   const char *ffi_name;
   funptr_t    ffi_fun;
 };
 extern struct ffi_entry *xffi_table;
 
-void mhs_from_Double(intptr_t, int, flt_t);
-void mhs_from_FloatW(intptr_t, int, flt_t);
-void mhs_from_Int(intptr_t, int, intptr_t);
-void mhs_from_Word(intptr_t, int, uintptr_t);
-void mhs_from_Word8(intptr_t, int, uintptr_t);
-void mhs_from_Ptr(intptr_t, int, void *);
-void mhs_from_FunPtr(intptr_t, int, HsFunPtr);
-void mhs_from_CChar(intptr_t, int, char);
-void mhs_from_CSChar(intptr_t, int, signed char);
-void mhs_from_CUChar(intptr_t, int, unsigned char);
-void mhs_from_CShort(intptr_t, int, short);
-void mhs_from_CUShort(intptr_t, int, unsigned short);
-void mhs_from_CInt(intptr_t, int, int);
-void mhs_from_CUInt(intptr_t, int, unsigned int);
-void mhs_from_CLong(intptr_t, int, long);
-void mhs_from_CULong(intptr_t, int, unsigned long);
-void mhs_from_CLLong(intptr_t, int, long long);
-void mhs_from_CULLong(intptr_t, int, unsigned long long);
-void mhs_from_CSize(intptr_t, int, size_t);
-void mhs_from_CTime(intptr_t, int, time_t); /* XXX wrong */
+from_t mhs_from_Double(intptr_t, int, flt_t);
+from_t mhs_from_FloatW(intptr_t, int, flt_t);
+from_t mhs_from_Int(intptr_t, int, intptr_t);
+from_t mhs_from_Word(intptr_t, int, uintptr_t);
+from_t mhs_from_Word8(intptr_t, int, uintptr_t);
+from_t mhs_from_Ptr(intptr_t, int, void *);
+from_t mhs_from_FunPtr(intptr_t, int, HsFunPtr);
+from_t mhs_from_CChar(intptr_t, int, char);
+from_t mhs_from_CSChar(intptr_t, int, signed char);
+from_t mhs_from_CUChar(intptr_t, int, unsigned char);
+from_t mhs_from_CShort(intptr_t, int, short);
+from_t mhs_from_CUShort(intptr_t, int, unsigned short);
+from_t mhs_from_CInt(intptr_t, int, int);
+from_t mhs_from_CUInt(intptr_t, int, unsigned int);
+from_t mhs_from_CLong(intptr_t, int, long);
+from_t mhs_from_CULong(intptr_t, int, unsigned long);
+from_t mhs_from_CLLong(intptr_t, int, long long);
+from_t mhs_from_CULLong(intptr_t, int, unsigned long long);
+from_t mhs_from_CSize(intptr_t, int, size_t);
+from_t mhs_from_CTime(intptr_t, int, time_t); /* XXX wrong */
 // not on MacOS void mhs_from_CSSize(intptr_t, int, ssize_t);
-void mhs_from_CIntPtr(intptr_t, int, intptr_t);
-void mhs_from_CUIntPtr(intptr_t, int, uintptr_t);
-void mhs_from_Unit(intptr_t, int);
+from_t mhs_from_CIntPtr(intptr_t, int, intptr_t);
+from_t mhs_from_CUIntPtr(intptr_t, int, uintptr_t);
+from_t mhs_from_Unit(intptr_t, int);
 
 flt_t              mhs_to_Double(intptr_t, int);
 flt_t              mhs_to_FloatW(intptr_t, int);

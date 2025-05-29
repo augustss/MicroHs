@@ -3028,6 +3028,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 {
   int share = 0;
   enum node_tag tag;
+  char prbuf[30];
 
   while (GETTAG(n) == T_IND) {
     /*putb('*', f);*/
@@ -3096,8 +3097,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     break;
   case T_PTR:
     if (prefix) {
-      char b[200]; snprintf(b,200,"PTR<%p>",PTR(n));
-      putsb(b, f);
+      snprintf(prbuf, sizeof prbuf, "PTR<%p>",PTR(n));
+      putsb(prbuf, f);
     } else {
       ERR("Cannot serialize pointers");
     }
@@ -3111,12 +3112,19 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
       putsb(";0 ", f);
     } else if (FUNPTR(n) == (HsFunPtr)closeb) {
       putsb(";closeb ", f);
+    } else if (prefix) {
+      snprintf(prbuf, sizeof prbuf, "FUNPTR<%p>",FUNPTR(n));
+      putsb(prbuf, f);
     } else {
       ERR1("Cannot serialize function pointers %p", FUNPTR(n));
     }
     break;
   case T_THID:
-    ERR("cannot serialize ThreadId yet");
+    if (prefix) {
+      snprintf(prbuf, sizeof prbuf, "FUNPTR<%d>",(int)THR(n)->mt_id);
+    } else {
+      ERR("cannot serialize ThreadId yet");
+    }
   case T_FORPTR:
     if (n == comb_stdin)
       putsb("IO.stdin", f);
@@ -3139,6 +3147,9 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 #endif  /* WANT_GMP */
     else if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
       print_string(f, FORPTR(n)->payload);
+    } else if (prefix) {
+      snprintf(prbuf, sizeof prbuf, "FORPTR<%p>",FORPTR(n));
+      putsb(prbuf, f);
     } else {
       ERR("Cannot serialize foreign pointers");
     }
@@ -3989,6 +4000,7 @@ evali(NODEPTR an)
     tag = GETTAG(n);
   }
   //COUNT(num_reductions);
+  //printf("%s\n", tag_names[tag]);
   switch (tag) {
   ap2:         PUSH(n); n = FUN(n);
   ap:
@@ -4404,16 +4416,12 @@ evali(NODEPTR an)
     rnf(xi, ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(combUnit);
 
   case T_IO_PERFORMIO:
-    CHECK(1);
+    GCCHECK(2);
     if (doing_rnf) RET;
-    execio(&ARG(TOP(0)), 1);       /* run IO action */
-    x = ARG(TOP(0));               /* should be P v ST */
-    if (GETTAG(x) != T_AP || GETTAG(indir(&FUN(x))) != T_AP ||
-        (GETTAG(indir(&FUN(FUN(x)))) != T_P && GETTAG(FUN(FUN(x))) != T_IO_RETURN))
-      ERR("PERFORMIO");
-    POP(1);
-    n = TOP(-1);
-    GOIND(ARG(FUN(x)));
+    CHKARG1;
+    /* Conjure up a new world and evaluate the io with that world, finally selecting the result */
+    /* PERFORMIO io  -->  io World K */
+    GOAP2(x, combWorld, combK);
 
 #if 0
   case T_IO_CCBIND:
@@ -4445,14 +4453,14 @@ evali(NODEPTR an)
     gc();                     /* DUBIOUS: do a GC to get possible GC reductions */
 #endif
     CHKARG3NP;
-    bfile = (struct BFILE*)evalptr(ARG(x));
-    printb(bfile, evali(ARG(y)), hdr);
+    bfile = (struct BFILE*)evalptr(x);
+    printb(bfile, evali(y), hdr);
     putb('\n', bfile);
     POP(3);
     GOPAIRUNIT;
   case T_IO_DESERIALIZE:
     CHKARG2NP;
-    bfile = (struct BFILE*)evalptr(ARG(x));
+    bfile = (struct BFILE*)evalptr(x);
     gc();                     /* make sure we have room.  GC during parse is dodgy. */
     x = parse_top(bfile);
     POP(2);
@@ -4472,9 +4480,12 @@ evali(NODEPTR an)
       int a = (int)GETVALUE(n);   /* function number */
       funptr_t f = FFI_IX(a).ffi_fun;
       PUSH(mkFlt(0.0));           /* placeholder for result, protected from GC */
-      f(stk);                     /* call FFI function */
+      int k = f(stk);             /* call FFI function, return number of arguments */
       GCCHECK(1);                 /* room for pair */
       x = POPTOP();               /* pop actual result */
+      POP(k);                     /* pop the pushed arguments */
+      if (stack_ptr < 0)
+        ERR("CCALL POP");
       n = POPTOP();               /* node to update */
       GOPAIR(x);                  /* and this is the result */
     }
@@ -4568,7 +4579,7 @@ evali(NODEPTR an)
     }
   case T_ARR_WRITE:
     {
-      CHKARG4NP;                /* sets x,y,z,w,n */
+      CHKARG4NP;                /* sets x,y,z,n */
       size_t i = evalint(y);
       NODEPTR a = evali(x);
       if (GETTAG(a) != T_ARR)
@@ -4577,6 +4588,7 @@ evali(NODEPTR an)
         ERR("ARR_WRITE");
       }
       ARR(a)->array[i] = z;
+      POP(4);
       GOPAIRUNIT;
       }
 
@@ -4740,6 +4752,7 @@ evali(NODEPTR an)
     POP(1);
     GOPAIR(mkInt(runq.mq_head->mt_mask));
 
+#if 0
   case T_IO_MASKASYNC:
     {
       CHKARG1NP;
@@ -4764,10 +4777,12 @@ evali(NODEPTR an)
       POP(1);
       GOPAIR(res);
     }
+#endif
+#if 0
   case T_CATCH:
     {
       CHKARG3NP;
-      h = mmalloc(sizeof *h);
+      struct handler *h = mmalloc(sizeof *h);
       h->hdl_old = cur_handler;
       h->hdl_stack = stack_ptr;
       h->hdl_mask = runq.mq_head->mt_mask;
@@ -4778,8 +4793,8 @@ evali(NODEPTR an)
         runq.mq_head->mt_mask = h->hdl_mask;
         NODEPTR exn = h->hdl_exn;       /* exception value */
         GCCHECKSAVE(exn, 3);
-        f = ARG(y);      /* second argument, handler */
-        NODEPTR res = new_ap(combMASK, new_ap(f, exn));
+        NODEPTR hdl = ARG(y);       /* second argument, handler */
+        NODEPTR res = new_ap(combMASK, new_ap(hdl, exn));
         cur_handler = h->hdl_old;
         FREE(h);
         POP(3);
@@ -4797,6 +4812,7 @@ evali(NODEPTR an)
         RETIO(ARG(n));             /* return result */
       }
     }
+#endif
 
   case T_THNUM:
     {
@@ -5896,16 +5912,13 @@ MAIN
 /*********************/
 /* FFI adapters      */
 
-#define POPIO(n) do { if (stack_ptr - stk < (n)+2) {fprintf(stderr, "\nLINE=%d\n", __LINE__); ERR("POPIO"); }; POP((n)+2); } while(0)
-
 #define MHS_FROM(name, set, type) \
-void \
+from_t \
 name(stackptr_t stk, int n, type x) \
 { \
   NODEPTR r = TOP(0);           /* The pre-allocated cell for the result, */ \
-  POPIO(n);                     /* Check that we actually had the right number of arguments. */ \
   set(r, x);                    /* Put result in pre-allocated cell. */ \
-  PUSH(r);                      /* Push the result cell. */ \
+  return n;                     /* return arity */ \
 }
 MHS_FROM(mhs_from_FloatW, SETDBL, flt_t);
 MHS_FROM(mhs_from_Int, SETINT, value_t);
@@ -5932,15 +5945,12 @@ MHS_FROM(mhs_from_CTime, SETINT, time_t);
 // MHS_FROM(mhs_from_CSSize, SETINT, ssize_t);
 MHS_FROM(mhs_from_CIntPtr, SETINT, intptr_t);
 MHS_FROM(mhs_from_CUIntPtr, SETINT, uintptr_t);
-void
+from_t
 mhs_from_Unit(stackptr_t stk, int n)
 {
-  if (stack_ptr - stk < (n)+2) {
-    fprintf(stderr, "\nLINE=%d\n", __LINE__); ERR("POPIO");
-  };
-  POP((n)+1);
-  //  POPIO(n);                   /* Check that we actually had the right number of arguments. */
-  PUSH(combUnit);             /* Push the result */
+  POP(1);                       /* return value cell */
+  PUSH(combUnit);               /* push unit instead */
+  return n;
 }
 
 #define MHS_TO(name, eval, type) \
@@ -5975,148 +5985,148 @@ MHS_TO(mhs_to_CUIntPtr, evalint, uintptr_t);
 
 
 /* The rest of this file was generated by the compiler, with some minor edits with #if. */
-void mhs_GETRAW(int s) { mhs_from_Int(s, 0, GETRAW()); }
-void mhs_GETTIMEMILLI(int s) { mhs_from_Int(s, 0, GETTIMEMILLI()); }
+from_t mhs_GETRAW(int s) { return  mhs_from_Int(s, 0, GETRAW()); }
+from_t mhs_GETTIMEMILLI(int s) { return  mhs_from_Int(s, 0, GETTIMEMILLI()); }
 #if WANT_MATH
 #if WORD_SIZE == 64
-void mhs_acos(int s) { mhs_from_FloatW(s, 1, acos(mhs_to_FloatW(s, 0))); }
-void mhs_asin(int s) { mhs_from_FloatW(s, 1, asin(mhs_to_FloatW(s, 0))); }
-void mhs_atan(int s) { mhs_from_FloatW(s, 1, atan(mhs_to_FloatW(s, 0))); }
-void mhs_atan2(int s) { mhs_from_FloatW(s, 2, atan2(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
-void mhs_cos(int s) { mhs_from_FloatW(s, 1, cos(mhs_to_FloatW(s, 0))); }
-void mhs_exp(int s) { mhs_from_FloatW(s, 1, exp(mhs_to_FloatW(s, 0))); }
-void mhs_log(int s) { mhs_from_FloatW(s, 1, log(mhs_to_FloatW(s, 0))); }
-void mhs_sin(int s) { mhs_from_FloatW(s, 1, sin(mhs_to_FloatW(s, 0))); }
-void mhs_sqrt(int s) { mhs_from_FloatW(s, 1, sqrt(mhs_to_FloatW(s, 0))); }
-void mhs_tan(int s) { mhs_from_FloatW(s, 1, tan(mhs_to_FloatW(s, 0))); }
+from_t mhs_acos(int s) { return mhs_from_FloatW(s, 1, acos(mhs_to_FloatW(s, 0))); }
+from_t mhs_asin(int s) { return mhs_from_FloatW(s, 1, asin(mhs_to_FloatW(s, 0))); }
+from_t mhs_atan(int s) { return mhs_from_FloatW(s, 1, atan(mhs_to_FloatW(s, 0))); }
+from_t mhs_atan2(int s) { return mhs_from_FloatW(s, 2, atan2(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
+from_t mhs_cos(int s) { return mhs_from_FloatW(s, 1, cos(mhs_to_FloatW(s, 0))); }
+from_t mhs_exp(int s) { return mhs_from_FloatW(s, 1, exp(mhs_to_FloatW(s, 0))); }
+from_t mhs_log(int s) { return mhs_from_FloatW(s, 1, log(mhs_to_FloatW(s, 0))); }
+from_t mhs_sin(int s) { return mhs_from_FloatW(s, 1, sin(mhs_to_FloatW(s, 0))); }
+from_t mhs_sqrt(int s) { return mhs_from_FloatW(s, 1, sqrt(mhs_to_FloatW(s, 0))); }
+from_t mhs_tan(int s) { return mhs_from_FloatW(s, 1, tan(mhs_to_FloatW(s, 0))); }
 #elif WORD_SIZE == 32  /* WORD_SIZE */
-void mhs_acos(int s) { mhs_from_FloatW(s, 1, acosf(mhs_to_FloatW(s, 0))); }
-void mhs_asin(int s) { mhs_from_FloatW(s, 1, asinf(mhs_to_FloatW(s, 0))); }
-void mhs_atan(int s) { mhs_from_FloatW(s, 1, atanf(mhs_to_FloatW(s, 0))); }
-void mhs_atan2(int s) { mhs_from_FloatW(s, 2, atan2f(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
-void mhs_cos(int s) { mhs_from_FloatW(s, 1, cosf(mhs_to_FloatW(s, 0))); }
-void mhs_exp(int s) { mhs_from_FloatW(s, 1, expf(mhs_to_FloatW(s, 0))); }
-void mhs_log(int s) { mhs_from_FloatW(s, 1, logf(mhs_to_FloatW(s, 0))); }
-void mhs_sin(int s) { mhs_from_FloatW(s, 1, sinf(mhs_to_FloatW(s, 0))); }
-void mhs_sqrt(int s) { mhs_from_FloatW(s, 1, sqrtf(mhs_to_FloatW(s, 0))); }
-void mhs_tan(int s) { mhs_from_FloatW(s, 1, tanf(mhs_to_FloatW(s, 0))); }
+from_t mhs_acos(int s) { return mhs_from_FloatW(s, 1, acosf(mhs_to_FloatW(s, 0))); }
+from_t mhs_asin(int s) { return mhs_from_FloatW(s, 1, asinf(mhs_to_FloatW(s, 0))); }
+from_t mhs_atan(int s) { return mhs_from_FloatW(s, 1, atanf(mhs_to_FloatW(s, 0))); }
+from_t mhs_atan2(int s) { return mhs_from_FloatW(s, 2, atan2f(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
+from_t mhs_cos(int s) { return mhs_from_FloatW(s, 1, cosf(mhs_to_FloatW(s, 0))); }
+from_t mhs_exp(int s) { return mhs_from_FloatW(s, 1, expf(mhs_to_FloatW(s, 0))); }
+from_t mhs_log(int s) { return mhs_from_FloatW(s, 1, logf(mhs_to_FloatW(s, 0))); }
+from_t mhs_sin(int s) { return mhs_from_FloatW(s, 1, sinf(mhs_to_FloatW(s, 0))); }
+from_t mhs_sqrt(int s) { return mhs_from_FloatW(s, 1, sqrtf(mhs_to_FloatW(s, 0))); }
+from_t mhs_tan(int s) { return mhs_from_FloatW(s, 1, tanf(mhs_to_FloatW(s, 0))); }
 #else
 #error Unknown WORD_SIZE
 #endif  /* WORD_SIZE */
 #endif  /* WANT_MATH */
 
 #if WANT_STDIO
-void mhs_add_FILE(int s) { mhs_from_Ptr(s, 1, add_FILE(mhs_to_Ptr(s, 0))); }
-void mhs_add_utf8(int s) { mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
-void mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
-void mhs_addr_closeb(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
-void mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
-void mhs_fopen(int s) { mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+from_t mhs_add_FILE(int s) { return mhs_from_Ptr(s, 1, add_FILE(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_utf8(int s) { return mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
+from_t mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_addr_closeb(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
+from_t mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_fopen(int s) { return mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 
-void mhs_getb(int s) { mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
-void mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_openwrbuf(int s) { mhs_from_Ptr(s, 0, openb_wr_buf()); }
-void mhs_openrdbuf(int s) { mhs_from_Ptr(s, 2, openb_rd_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
-void mhs_getbuf(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  mhs_from_Unit(s, 3); }
-void mhs_system(int s) { mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
-void mhs_tmpname(int s) { mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-void mhs_unlink(int s) { mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
-void mhs_readb(int s) { mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
-void mhs_writeb(int s) { mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_getb(int s) { return mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
+from_t mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_openwrbuf(int s) { return mhs_from_Ptr(s, 0, openb_wr_buf()); }
+from_t mhs_openrdbuf(int s) { return mhs_from_Ptr(s, 2, openb_rd_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_getbuf(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  return mhs_from_Unit(s, 3); }
+from_t mhs_system(int s) { return mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
+from_t mhs_tmpname(int s) { return mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
+from_t mhs_readb(int s) { return mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_writeb(int s) { return mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 #endif  /* WANT_STDIO */
 
 #if WANT_MD5
-void mhs_md5Array(int s) { md5Array(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_md5BFILE(int s) { md5BFILE(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_md5String(int s) { md5String(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_md5Array(int s) { md5Array(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_md5BFILE(int s) { md5BFILE(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_md5String(int s) { md5String(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WANT_MD5 */
 
 #if WANT_LZ77
-void mhs_add_lz77_compressor(int s) { mhs_from_Ptr(s, 1, add_lz77_compressor(mhs_to_Ptr(s, 0))); }
-void mhs_add_lz77_decompressor(int s) { mhs_from_Ptr(s, 1, add_lz77_decompressor(mhs_to_Ptr(s, 0))); }
-void mhs_lz77c(int s) { mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_add_lz77_compressor(int s) { return mhs_from_Ptr(s, 1, add_lz77_compressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_lz77_decompressor(int s) { return mhs_from_Ptr(s, 1, add_lz77_decompressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_lz77c(int s) { return mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1), mhs_to_Ptr(s, 2))); }
 #endif  /* WANT_LZ77 */
 
 #if WANT_RLE
-void mhs_add_rle_compressor(int s) { mhs_from_Ptr(s, 1, add_rle_compressor(mhs_to_Ptr(s, 0))); }
-void mhs_add_rle_decompressor(int s) { mhs_from_Ptr(s, 1, add_rle_decompressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_rle_compressor(int s) { return mhs_from_Ptr(s, 1, add_rle_compressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_rle_decompressor(int s) { return mhs_from_Ptr(s, 1, add_rle_decompressor(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_RLE */
 
 #if WANT_BWT
-void mhs_add_bwt_compressor(int s) { mhs_from_Ptr(s, 1, add_bwt_compressor(mhs_to_Ptr(s, 0))); }
-void mhs_add_bwt_decompressor(int s) { mhs_from_Ptr(s, 1, add_bwt_decompressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_bwt_compressor(int s) { return mhs_from_Ptr(s, 1, add_bwt_compressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_bwt_decompressor(int s) { return mhs_from_Ptr(s, 1, add_bwt_decompressor(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_BWT */
 
-void mhs_calloc(int s) { mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
-void mhs_free(int s) { free(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
-void mhs_addr_free(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
-void mhs_getenv(int s) { mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
-void mhs_iswindows(int s) { mhs_from_Int(s, 0, iswindows()); }
-void mhs_malloc(int s) { mhs_from_Ptr(s, 1, MALLOC(mhs_to_CSize(s, 0))); }
-void mhs_memcpy(int s) { memcpy(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_memmove(int s) { memmove(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_peekPtr(int s) { mhs_from_Ptr(s, 1, peekPtr(mhs_to_Ptr(s, 0))); }
-void mhs_peekWord(int s) { mhs_from_Word(s, 1, peekWord(mhs_to_Ptr(s, 0))); }
-void mhs_pokePtr(int s) { pokePtr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_pokeWord(int s) { pokeWord(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
+from_t mhs_free(int s) { free(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
+from_t mhs_getenv(int s) { return mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
+from_t mhs_iswindows(int s) { return mhs_from_Int(s, 0, iswindows()); }
+from_t mhs_malloc(int s) { return mhs_from_Ptr(s, 1, MALLOC(mhs_to_CSize(s, 0))); }
+from_t mhs_memcpy(int s) { memcpy(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_memmove(int s) { memmove(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_peekPtr(int s) { return mhs_from_Ptr(s, 1, peekPtr(mhs_to_Ptr(s, 0))); }
+from_t mhs_peekWord(int s) { return mhs_from_Word(s, 1, peekWord(mhs_to_Ptr(s, 0))); }
+from_t mhs_pokePtr(int s) { pokePtr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_pokeWord(int s) { pokeWord(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 
-void mhs_peek_uint8(int s) { mhs_from_Word(s, 1, peek_uint8(mhs_to_Ptr(s, 0))); }
-void mhs_poke_uint8(int s) { poke_uint8(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_peek_uint16(int s) { mhs_from_Word(s, 1, peek_uint16(mhs_to_Ptr(s, 0))); }
-void mhs_poke_uint16(int s) { poke_uint16(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint8(int s) { return mhs_from_Word(s, 1, peek_uint8(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint8(int s) { poke_uint8(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint16(int s) { return mhs_from_Word(s, 1, peek_uint16(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint16(int s) { poke_uint16(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 #if WORD_SIZE >= 32
-void mhs_peek_uint32(int s) { mhs_from_Word(s, 1, peek_uint32(mhs_to_Ptr(s, 0))); }
-void mhs_poke_uint32(int s) { poke_uint32(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint32(int s) { return mhs_from_Word(s, 1, peek_uint32(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint32(int s) { poke_uint32(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WORD_SIZE */
 #if WORD_SIZE >= 64
-void mhs_peek_uint64(int s) { mhs_from_Word(s, 1, peek_uint64(mhs_to_Ptr(s, 0))); }
-void mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint64(int s) { return mhs_from_Word(s, 1, peek_uint64(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WORD_SIZE */
-void mhs_peek_uint(int s) { mhs_from_Word(s, 1, peek_uint(mhs_to_Ptr(s, 0))); }
-void mhs_poke_uint(int s) { poke_uint(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint(int s) { return mhs_from_Word(s, 1, peek_uint(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint(int s) { poke_uint(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 
-void mhs_peek_int8(int s) { mhs_from_Int(s, 1, peek_int8(mhs_to_Ptr(s, 0))); }
-void mhs_poke_int8(int s) { poke_int8(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_peek_int16(int s) { mhs_from_Int(s, 1, peek_int16(mhs_to_Ptr(s, 0))); }
-void mhs_poke_int16(int s) { poke_int16(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_int8(int s) { return mhs_from_Int(s, 1, peek_int8(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int8(int s) { poke_int8(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_int16(int s) { return mhs_from_Int(s, 1, peek_int16(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int16(int s) { poke_int16(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 #if WORD_SIZE >= 32
-void mhs_peek_int32(int s) { mhs_from_Int(s, 1, peek_int32(mhs_to_Ptr(s, 0))); }
-void mhs_poke_int32(int s) { poke_int32(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_int32(int s) { return mhs_from_Int(s, 1, peek_int32(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int32(int s) { poke_int32(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WORD_SIZE */
 #if WORD_SIZE >= 64
-void mhs_peek_int64(int s) { mhs_from_Int(s, 1, peek_int64(mhs_to_Ptr(s, 0))); }
-void mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_int64(int s) { return mhs_from_Int(s, 1, peek_int64(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WORD_SIZE */
-void mhs_peek_int(int s) { mhs_from_Int(s, 1, peek_int(mhs_to_Ptr(s, 0))); }
-void mhs_poke_int(int s) { poke_int(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_peek_llong(int s) { mhs_from_CLLong(s, 1, peek_llong(mhs_to_Ptr(s, 0))); }
-void mhs_peek_long(int s) { mhs_from_CLong(s, 1, peek_long(mhs_to_Ptr(s, 0))); }
-void mhs_peek_ullong(int s) { mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
-void mhs_peek_ulong(int s) { mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
-void mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_int(int s) { return mhs_from_Int(s, 1, peek_int(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int(int s) { poke_int(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_llong(int s) { return mhs_from_CLLong(s, 1, peek_llong(mhs_to_Ptr(s, 0))); }
+from_t mhs_peek_long(int s) { return mhs_from_CLong(s, 1, peek_long(mhs_to_Ptr(s, 0))); }
+from_t mhs_peek_ullong(int s) { return mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
+from_t mhs_peek_ulong(int s) { return mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); return mhs_from_Unit(s, 2); }
 #if WANT_FLOAT
-void mhs_peek_flt(int s) { mhs_from_FloatW(s, 1, peek_flt(mhs_to_Ptr(s, 0))); }
-void mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_flt(int s) { return mhs_from_FloatW(s, 1, peek_flt(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WANT_FLOAT */
-void mhs_sizeof_int(int s) { mhs_from_Int(s, 0, sizeof(int)); }
-void mhs_sizeof_llong(int s) { mhs_from_Int(s, 0, sizeof(long long)); }
-void mhs_sizeof_long(int s) { mhs_from_Int(s, 0, sizeof(long)); }
+from_t mhs_sizeof_int(int s) { return mhs_from_Int(s, 0, sizeof(int)); }
+from_t mhs_sizeof_llong(int s) { return mhs_from_Int(s, 0, sizeof(long long)); }
+from_t mhs_sizeof_long(int s) { return mhs_from_Int(s, 0, sizeof(long)); }
 #if WANT_DIR
-void mhs_closedir(int s) { mhs_from_Int(s, 1, closedir(mhs_to_Ptr(s, 0))); }
-void mhs_opendir(int s) { mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0))); }
-void mhs_readdir(int s) { mhs_from_Ptr(s, 1, readdir(mhs_to_Ptr(s, 0))); }
-void mhs_c_d_name(int s) { mhs_from_Ptr(s, 1, ((struct dirent *)(mhs_to_Ptr(s, 0)))->d_name); }
-void mhs_chdir(int s) { mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
-void mhs_mkdir(int s) { mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
-void mhs_getcwd(int s) { mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_closedir(int s) { return mhs_from_Int(s, 1, closedir(mhs_to_Ptr(s, 0))); }
+from_t mhs_opendir(int s) { return mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0))); }
+from_t mhs_readdir(int s) { return mhs_from_Ptr(s, 1, readdir(mhs_to_Ptr(s, 0))); }
+from_t mhs_c_d_name(int s) { return mhs_from_Ptr(s, 1, ((struct dirent *)(mhs_to_Ptr(s, 0)))->d_name); }
+from_t mhs_chdir(int s) { return mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
+from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
 
 /* Use this to detect if we have (and want) GMP or not. */
-void mhs_want_gmp(int s) { mhs_from_Int(s, 0, WANT_GMP); }
+from_t mhs_want_gmp(int s) { return mhs_from_Int(s, 0, WANT_GMP); }
 
 #if WANT_GMP
 void
@@ -6157,41 +6167,42 @@ print_mpz(mpz_ptr p)
 }
 #endif
 
-void mhs_new_mpz(int s) { mhs_from_ForPtr(s, 0, new_mpz()); }
+from_t mhs_new_mpz(int s) { mhs_from_ForPtr(s, 0, new_mpz()); }
 
 /* Stubs for GMP functions */
-void mhs_mpz_abs(int s) { mpz_abs(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_mpz_add(int s) { mpz_add(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_and(int s) { mpz_and(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_cmp(int s) { mhs_from_Int(s, 2, mpz_cmp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-void mhs_mpz_get_d(int s) { mhs_from_FloatW(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
-void mhs_mpz_get_si(int s) { mhs_from_Int(s, 1, mpz_get_si(mhs_to_Ptr(s, 0))); }
-void mhs_mpz_get_ui(int s) { mhs_from_Word(s, 1, mpz_get_ui(mhs_to_Ptr(s, 0))); }
-void mhs_mpz_init_set_si(int s) { mpz_init_set_si(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_mpz_init_set_ui(int s) { mpz_init_set_ui(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_mpz_ior(int s) { mpz_ior(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_mul(int s) { mpz_mul(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_mul_2exp(int s) { mpz_mul_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_neg(int s) { mpz_neg(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_mpz_popcount(int s) {
+from_t mhs_mpz_abs(int s) { mpz_abs(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_mpz_add(int s) { mpz_add(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_and(int s) { mpz_and(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_cmp(int s) { return mhs_from_Int(s, 2, mpz_cmp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+from_t mhs_mpz_get_d(int s) { return mhs_from_FloatW(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_get_si(int s) { return mhs_from_Int(s, 1, mpz_get_si(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_get_ui(int s) { return mhs_from_Word(s, 1, mpz_get_ui(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_init_set_si(int s) { mpz_init_set_si(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_mpz_init_set_ui(int s) { mpz_init_set_ui(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_mpz_ior(int s) { mpz_ior(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_mul(int s) { mpz_mul(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_mul_2exp(int s) { mpz_mul_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_neg(int s) { mpz_neg(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_mpz_popcount(int s) {
   mpz_ptr a = mhs_to_Ptr(s, 0);
   if (mpz_sgn(a) < 0) {
     mpz_t neg_a;
     mpz_init(neg_a);
     mpz_neg(neg_a, a);
-    mhs_from_Int(s, 1, -mpz_popcount(neg_a));
+    (void)mhs_from_Int(s, 1, -mpz_popcount(neg_a));
     mpz_clear(neg_a);
   } else {
-    mhs_from_Int(s, 1, mpz_popcount(a));
+    (void)mhs_from_Int(s, 1, mpz_popcount(a));
   }
+  return 1;
 }
-void mhs_mpz_sub(int s) { mpz_sub(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_fdiv_q_2exp(int s) { mpz_fdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2), mhs_to_Ptr(s, 3)); mhs_from_Unit(s, 4); }
-void mhs_mpz_tstbit(int s) { mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
-void mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
+from_t mhs_mpz_sub(int s) { mpz_sub(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_fdiv_q_2exp(int s) { mpz_fdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2), mhs_to_Ptr(s, 3)); return mhs_from_Unit(s, 4); }
+from_t mhs_mpz_tstbit(int s) { mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 #endif  /* WANT_GMP */
-void mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); mhs_from_Unit(s, 1); }
+from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); }
 
 struct ffi_entry ffi_table[] = {
 { "GETRAW", mhs_GETRAW},
