@@ -36,31 +36,31 @@ newtype CSChar   = CSChar   Int
 newtype CUChar   = CUChar   Word
   deriving (Eq, Ord, Enum)
 newtype CShort   = CShort   Int
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CUShort  = CUShort  Word
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CInt     = CInt     Int
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CUInt    = CUInt    Word
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CLong    = CLong    Int
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CULong   = CULong   Word
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CPtrdiff = CPtrdiff Word
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CSize    = CSize    Word
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CSSize   = CSSize   Int
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CLLong   = CLLong   Int
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CULLong  = CULLong  Word
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CIntPtr  = CIntPtr  Int
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CUIntPtr = CUIntPtr Word
-  deriving (Eq, Ord, Enum, Num)
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
 
 -- XXX This is really platform specific
 newtype CTime = CTime Int
