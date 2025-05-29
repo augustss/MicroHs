@@ -5,6 +5,7 @@ import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
 import Data.Bool
+import Data.Enum_Class
 import Data.Eq
 import Data.Integer_Type
 import Data.Num
@@ -16,7 +17,7 @@ infixl 7 `div`,`mod`
 
 -- XXX Importing Data.Enum causes an import cycle.
 --     I don't really see the point of Enum as a superclass.
-class (Real a{-, Enum a-}) => Integral a where
+class (Real a, Enum a) => Integral a where
   quot      :: a -> a -> a
   rem       :: a -> a -> a
   div       :: a -> a -> a

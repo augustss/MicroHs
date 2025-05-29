@@ -16,6 +16,7 @@ import qualified Prelude()
 import Primitives
 import Data.Bool
 import Data.Coerce
+import Data.Enum
 import Data.Eq
 import Data.Int
 import Data.Integral
@@ -29,64 +30,47 @@ import Data.FloatW
 -- it is the same as the pointer difference type.
 -- And Int is the natural signed word size.
 newtype CChar    = CChar    Char
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum)
 newtype CSChar   = CSChar   Int
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum)
 newtype CUChar   = CUChar   Word
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum)
 newtype CShort   = CShort   Int
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CUShort  = CUShort  Word
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CInt     = CInt     Int
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CUInt    = CUInt    Word
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CLong    = CLong    Int
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CULong   = CULong   Word
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CPtrdiff = CPtrdiff Word
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CSize    = CSize    Word
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CSSize   = CSSize   Int
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CLLong   = CLLong   Int
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CULLong  = CULLong  Word
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CIntPtr  = CIntPtr  Int
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 newtype CUIntPtr = CUIntPtr Word
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum, Num)
 
 -- XXX This is really platform specific
 newtype CTime = CTime Int
   deriving (Eq, Ord)
 
--- XXX We really need GND
-instance Num CInt where
-  CInt x + CInt y = CInt (x + y)
-  CInt x - CInt y = CInt (x - y)
-  CInt x * CInt y = CInt (x * y)
-  fromInteger x = CInt (fromInteger x)
-instance Num CLong where
-  CLong x + CLong y = CLong (x + y)
-  CLong x - CLong y = CLong (x - y)
-  CLong x * CLong y = CLong (x * y)
-  fromInteger x = CLong (fromInteger x)
-instance Integral CLong where
-  quotRem (CLong x) (CLong y) = (CLong q, CLong r) where (q, r) = quotRem q r
-  toInteger (CLong x) = toInteger x
-instance Real CLong where
-  toRational (CLong x) = toRational x
-
 -- XXX only one of these is actually correct
 newtype CFloat   = CFloat   FloatW
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Num)
 newtype CDouble  = CDouble  FloatW
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Num)
 
 -- Temporary conversion functions.
 intToCSize :: Int -> CSize
