@@ -42,7 +42,7 @@ type Deriver = Maybe EConstraint -> DeriverT
 derivers :: [(String, Deriver)]
 derivers =
   [("Data.Bounded.Bounded",            derBounded)
-  ,("Data.Enum.Enum",                  derEnum)
+  ,("Data.Enum_Class.Enum",            derEnum)
   ,("Data.Data.Data",                  derData)
   ,("Data.Eq.Eq",                      derEq)
   ,("Data.Functor.Functor",            derNotYet) -- derFunctor)
