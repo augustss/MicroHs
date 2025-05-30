@@ -1,6 +1,3 @@
-{-# LANGUAGE Trustworthy #-}
-{-# LANGUAGE CPP #-}
-
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Control.Concurrent.Chan

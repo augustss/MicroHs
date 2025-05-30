@@ -673,7 +673,7 @@ struct mthread {
   NODEPTR         mt_mval;       /* filled after waiting for take/read */
   int             mt_mark;       /* marked as accessible */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
-#if defined CLOCK_INIT
+#if defined(CLOCK_INIT)
   CLOCK_T         mt_at;         /* time to wake up when in threadDelay */
 #endif
 };
@@ -879,6 +879,7 @@ dump_q(const char *s, struct mqueue q)
 void
 check_timeq(void)
 {
+#if defined(CLOCK_INIT)
   CLOCK_T now = CLOCK_GET();
   while (timeq.mq_head && timeq.mq_head->mt_at <= now) {
     struct mthread *mt = remove_q_head(&timeq);
@@ -887,6 +888,7 @@ check_timeq(void)
     if (thread_trace)
       printf("check_timeq: %d done\n", (int)mt->mt_id);
   }
+#endif
 }
 
 void
@@ -1197,10 +1199,14 @@ pause_exec(void)
   struct mthread *mt = timeq.mq_head;
   if (mt) {
     /* We are waiting for a delay to expire, so sleep a while */
+#if defined(CLOCK_INIT)
     CLOCK_T now = CLOCK_GET();
     if (mt->mt_at > now)
       usleep((useconds_t)(mt->mt_at - now));
     check_timeq();
+#else  /* CLOCK_INIT */
+    ERR("no clock"
+#endif  /* CLOCK_INIT */
   } else {
     ERR("deadlock");            /* XXX throw async to main thread */
   }

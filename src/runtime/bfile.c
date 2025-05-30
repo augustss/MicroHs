@@ -945,21 +945,21 @@ flushb_bwt(BFILE *bp)
   flushb(p->bfile);
 }
 
-#define MAXBYTE 256
+#define MAX_BYTE 256
 
 void
 decode_bwt(uint8_t *data, size_t len, uint8_t *odata, size_t zero)
 {
-  size_t count[MAXBYTE];
+  size_t count[MAX_BYTE];
   uint32_t *pred = MALLOC(len * sizeof(uint32_t));
-  for(size_t i = 0; i < MAXBYTE; i++) {
+  for(size_t i = 0; i < MAX_BYTE; i++) {
     count[i] = 0;
   }
   for(size_t i = 0; i < len; i++) {
     pred[i] = count[data[i]]++;
   }
   size_t sum = 0;
-  for(size_t i = 0; i < MAXBYTE; i++) {
+  for(size_t i = 0; i < MAX_BYTE; i++) {
     size_t s = count[i];
     count[i] = sum;
     sum += s;
