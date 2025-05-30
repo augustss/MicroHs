@@ -1,4 +1,4 @@
-module Con(main) where
+module Concur(main) where
 import Prelude
 import Control.Concurrent
 import System.IO
