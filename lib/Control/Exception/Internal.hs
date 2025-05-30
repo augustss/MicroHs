@@ -24,7 +24,7 @@ module Control.Exception.Internal(
   ) where
 import qualified Prelude()
 import Primitives
-import Data.Bool_Type
+import Data.Bool
 import Data.Char_Type
 import Data.List_Type
 import Data.Maybe_Type
@@ -213,7 +213,7 @@ fromEnum _ = 2
 toEnum :: Int -> MaskingState
 toEnum i | i `primIntEQ` 0 = Unmasked
          | i `primIntEQ` 1 = MaskedInterruptible
-         | True            = MaskedUninterruptible
+         | otherwise       = MaskedUninterruptible
 
 getMaskingState :: IO MaskingState
 getMaskingState = primGetMaskingState `primBind` \ s -> primReturn (toEnum s)
