@@ -35,9 +35,7 @@ instance Eq Handle where
     pure (p == p')
 
 instance Show Handle where
-  show h = unsafePerformIO $
-    withHandleAny h $ \ p ->
-      return $ "Handle-" ++ show p
+  show (Handle _ _ s) = "Handle(" ++ s ++ ")"
 
 -----
 
