@@ -325,7 +325,6 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_RAISE, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
-                T_IO_CCBIND,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH, T_CATCHR,
@@ -728,7 +727,8 @@ void pp(FILE*, NODEPTR);
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
 NODEPTR combK, combTrue, combUnit, combCons, combPair;
-NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND, combB, combC;
+NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combBB;
+NODEPTR combSETMASKINGSTATE;
 NODEPTR combLT, combEQ, combGT;
 NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
@@ -1527,7 +1527,6 @@ struct {
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
   { "IO.return", T_IO_RETURN },
-  { "IO.C'BIND", T_IO_CCBIND },
   { "IO.serialize", T_IO_SERIALIZE },
   { "IO.print", T_IO_PRINT },
   { "IO.deserialize", T_IO_DESERIALIZE },
@@ -1620,6 +1619,7 @@ init_nodes(void)
     case T_O: combCons = n; break;
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
+    case T_BB: combBB = n; break;
     case T_B: combB = n; break;
     case T_C: combC = n; break;
     case T_Z: combZ = n; break;
@@ -1627,8 +1627,9 @@ init_nodes(void)
     case T_K2: combK2 = n; break;
     case T_K3: combK3 = n; break;
     case T_IO_BIND: combIOBIND = n; break;
+    case T_IO_THEN: combIOTHEN = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
-    case T_IO_CCBIND: combIOCCBIND = n; break;
+    case T_IO_SETMASKINGSTATE: combSETMASKINGSTATE = n; break;
     case T_BININT1: combBININT1 = n; break;
     case T_BININT2: combBININT2 = n; break;
     case T_UNINT1: combUNINT1 = n; break;
@@ -4423,15 +4424,6 @@ evali(NODEPTR an)
     /* PERFORMIO io  -->  io World K */
     GOAP2(x, combWorld, combK);
 
-#if 0
-  case T_IO_CCBIND:
-    /* Under normal circumstances we will never encounter C'BIND, since it's
-     * local to the top level of execio().  But when a thread yield()s, it will
-     * be left in the graph and encountered later.
-     */
-    GCCHECK(2); CHKARG3; GOAP(new_ap(combIOBIND, new_ap(x, z)), y);                     /* C'BIND x y z = BIND (x z) y */
-#endif
-
   case T_IO_BIND:
     goto t_c;
   case T_IO_RETURN:
@@ -4767,18 +4759,27 @@ evali(NODEPTR an)
       h->hdl_old = cur_handler;
       cur_handler = h;
       stackptr_t ostack = stack_ptr;;    /* old stack pointer */
-      //      enum mask_state omask = runq.mq_head->mt_mask;     /* old mask */
+      enum mask_state omask = runq.mq_head->mt_mask;     /* old mask */
       if (setjmp(h->hdl_buf)) {
         /* An exception occurred: */
         stack_ptr = ostack;
         runq.mq_head->mt_mask = mask_interruptible; /* evaluate with mask */
         NODEPTR exn = h->hdl_exn;       /* exception value */
-        cur_handler = h->hdl_old;
+        cur_handler = h->hdl_old;       /* reset handler */
         FREE(h);
-        GCCHECK(3);
+        GCCHECK(8);
         POP(3);
-        GOAP2(y, exn, z);
-        // runq.mq_head->mt_mask = omask;  XXXX
+        /*
+         * Run:
+         *  hdl exn `primBind` \ r ->
+         *  primSetMaskingState omask `primThen`
+         *  primReturn r
+         * i.e.,
+         *  primBind (hdl exn) (B' primThen (primSetMaskingState omask) primReturn)
+         */
+        NODEPTR p = new_ap(combIOBIND, new_ap(y, exn));
+        NODEPTR q = new_ap(new_ap(new_ap(combBB, combIOTHEN), new_ap(combSETMASKINGSTATE, mkInt(omask))), combIORETURN);
+        GOAP2(p, q, z);
       } else {
         /* Normal execution: */
         PUSH(x);
