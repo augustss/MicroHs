@@ -67,7 +67,7 @@ int num_ffi;
 
 //#include "config.h"
 
-#define VERSION "v7.2\n"
+#define VERSION "v8.0\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
