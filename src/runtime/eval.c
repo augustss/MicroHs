@@ -706,7 +706,6 @@ NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(s
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
 
-void execio(NODEPTR*, int);
 NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
 NODEPTR take_mvar(int try, struct mvar *mv);
@@ -1236,63 +1235,6 @@ thread_intr(struct mthread *mt)
   }
 }
 
-void
-start_exec(NODEPTR root)
-{
-  struct mthread *mt;
-
-  new_thread(root);
-  switch(setjmp(sched)) {
-  case mt_main:
-    break;
-  case mt_resched:
-    COUNT(num_resched);
-    break;
-  case mt_raise:
-    /* We have an uncaught exception.
-     * If it's the main thread, this kills the program.
-     * Otherwise, it just kills the thread.
-     */
-    mt = remove_q_head(&runq);
-    if (mt->mt_id == MAIN_THREAD) {
-      die_exn(the_exn);
-    } else {
-      if (thread_trace) {
-        printf("start_exec: %d died from exn\n", (int)mt->mt_id);
-      }
-      mt->mt_state = ts_died;
-      mt->mt_root = NIL;
-    }
-  }
-  if (thread_trace) {
-    printf("start_exec:\n");
-    dump_q("runq", runq);
-  }
-  for(;;) {
-    if (!runq.mq_head)
-      pause_exec();
-    mt = runq.mq_head;          /* front thread */
-    if (!mt)                    /* this should never happen */
-      ERR("no threads");
-
-    glob_slice = mt->mt_slice + slice;
-    if (thread_trace)
-      printf("start_exec: start %d, slice=%d\n", (int)mt->mt_id, (int)glob_slice);
-    num_reductions += glob_slice-1;
-    execio(&mt->mt_root, mt->mt_num_slices == 0);         /* run it */
-    num_reductions -= glob_slice;
-    /* when execio() returns the thread is done */
-    (void)remove_q_head(&runq);                      /* remove front thread */
-
-    mt->mt_state = ts_finished;
-    mt->mt_root = NIL;
-    /* XXX mt_mval, mt_thrown */
-
-    if (mt->mt_id == MAIN_THREAD)
-      return;                   /* when the main thread dies it's all over */
-  }
-}
-
 NORETURN void
 raise_exn(NODEPTR exn)
 {
@@ -1405,6 +1347,66 @@ new_ap(NODEPTR f, NODEPTR a)
   FUN(n) = f;
   ARG(n) = a;
   return n;
+}
+
+NODEPTR evali(NODEPTR n);
+
+void
+start_exec(NODEPTR root)
+{
+  struct mthread *mt;
+
+  new_thread(new_ap(root, combWorld)); /* main thread */
+
+  switch(setjmp(sched)) {
+  case mt_main:
+    break;
+  case mt_resched:
+    COUNT(num_resched);
+    break;
+  case mt_raise:
+    /* We have an uncaught exception.
+     * If it's the main thread, this kills the program.
+     * Otherwise, it just kills the thread.
+     */
+    mt = remove_q_head(&runq);
+    if (mt->mt_id == MAIN_THREAD) {
+      die_exn(the_exn);
+    } else {
+      if (thread_trace) {
+        printf("start_exec: %d died from exn\n", (int)mt->mt_id);
+      }
+      mt->mt_state = ts_died;
+      mt->mt_root = NIL;
+    }
+  }
+  if (thread_trace) {
+    printf("start_exec:\n");
+    dump_q("runq", runq);
+  }
+  for(;;) {
+    if (!runq.mq_head)
+      pause_exec();
+    mt = runq.mq_head;          /* front thread */
+    if (!mt)                    /* this should never happen */
+      ERR("no threads");
+
+    glob_slice = mt->mt_slice + slice;
+    if (thread_trace)
+      printf("start_exec: start %d, slice=%d\n", (int)mt->mt_id, (int)glob_slice);
+    num_reductions += glob_slice-1;
+    (void)evali(mt->mt_root);         /* run it */
+    num_reductions -= glob_slice;
+    /* when evali() returns the thread is done */
+    (void)remove_q_head(&runq);                      /* remove front thread */
+
+    mt->mt_state = ts_finished;
+    mt->mt_root = NIL;
+    /* XXX mt_mval, mt_thrown */
+
+    if (mt->mt_id == MAIN_THREAD)
+      return;                   /* when the main thread dies it's all over */
+  }
 }
 
 /* One node of each kind for primitives, these are never GCd. */
@@ -3464,8 +3466,6 @@ headutf8(struct bytestring bs, void **ret)
   ERR("headUTF8 4");
 }
 
-NODEPTR evali(NODEPTR n);
-
 /* Evaluate to an INT */
 static INLINE value_t
 evalint(NODEPTR n)
@@ -4616,23 +4616,21 @@ evali(NODEPTR an)
 
   case T_IO_FORK:
     {
-      CHKARG2NP;                /* set x,y,n */
       GCCHECK(3);
+      CHKARG2;                /* set x=io, y=ST, n */
       struct mthread *mt = new_thread(new_ap(x, y)); /* copy the world */
       mt->mt_mask = runq.mq_head->mt_mask; /* inherit masking state */
       NODEPTR res = alloc_node(T_THID);
       THR(res) = mt;
-      POP(2);
       GOPAIR(res);
     }
 
   case T_IO_THID:
     {
-      CHKARG1NP;
       GCCHECK(2);
+      CHKARG1;
       NODEPTR res = alloc_node(T_THID);
       THR(res) = runq.mq_head;            /* head of the run queue is the current thread */
-      POP(1);
       GOPAIR(res);
     }
   case T_IO_THROWTO:
@@ -4782,11 +4780,10 @@ evali(NODEPTR an)
         GOAP2(p, q, z);
       } else {
         /* Normal execution: */
-        PUSH(x);
-        execio(&TOP(0), 0);       /* execute first argument */
+        x = evali(x);             /* execute first argument */
+        /* No exception occurred */
         cur_handler = h->hdl_old; /* restore old handler */
         FREE(h);
-        x = POPTOP();
         POP(3);
         GOIND(x);
       }
@@ -5067,16 +5064,6 @@ evali(NODEPTR an)
   return n;
 }
 
-void
-execio(NODEPTR *np, int dowrap)
-{
-  if (dowrap) {
-    GCCHECK(1);
-    *np = new_ap(*np, combWorld);
-  }
-  (void)evali(*np);
-}
-
 NORETURN void
 die_exn(NODEPTR exn)
 {
@@ -5306,23 +5293,8 @@ MAIN
 #endif
   run_time -= GETTIMEMILLI();
 
-#if 0
-  PUSH(prog);
-  topnode = &TOP(0);
-  execio(&TOP(0));
-  prog = TOP(0);
-  POP(1);
-#if SANITY
-  if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
-    ERR("main execio");
-  NODEPTR res = evali(ARG(prog));
-  if (GETTAG(res) != T_I)
-    ERR("main execio I");
-#endif
-#else
   topnode = &prog;
   start_exec(prog);
-#endif
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
   flushb((BFILE*)FORPTR(comb_stderr)->payload.string);
