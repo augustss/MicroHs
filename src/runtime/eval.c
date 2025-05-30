@@ -937,10 +937,15 @@ check_sigint(void)
 #endif
 }
 
+/* Used to detect calls to error while we are already in a call to error. */
+int in_raise = 0;
+
 /* Inlining makes very little difference */
 /*static INLINE*/ void
 yield(void)
 {
+  if (in_raise)                 /* don't context switch when we are dying */
+    return;
   //printf("yield stk=%d\n", (int)stack_ptr);
   //pp(stdout, runq.mt_root);
   COUNT(num_yield);
@@ -3905,9 +3910,6 @@ rnf_rec(bits_t *done, NODEPTR n)
   }
 }
 
-/* Used to detect calls to error while we are already in a call to error. */
-int in_raise = 0;
-
 void
 rnf(value_t noerr, NODEPTR n)
 {
@@ -5126,7 +5128,7 @@ die_exn(NODEPTR exn)
   if (strcmp(msg, "ExitSuccess") == 0) {
     EXIT(0);
   } else {
-    fprintf(stderr, "\nmhs: Uncaught exception: %s\n", msg);
+    fprintf(stderr, "\nmhs: uncaught exception: %s\n", msg);
     EXIT(1);
   }
 #else  /* WANT_STDIO */

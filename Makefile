@@ -260,7 +260,7 @@ examplejs: bin/mhs Example.hs
 info:	bin/mhs
 	bin/mhs -r -itests Info
 
-cachetest:	bin/mhs bin/mhseval Example.hs
+cachetest:	bin/mhs bin/cpphs bin/mhseval Example.hs
 	rm -f .mhscache
 	bin/mhs -CW AllOfLib
 	bin/mhs -CR Example && bin/mhseval
