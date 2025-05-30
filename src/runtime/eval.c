@@ -4486,12 +4486,18 @@ evali(NODEPTR an)
     {
       GCCHECK(1);                 /* room for placeholder */
       int a = (int)GETVALUE(n);   /* function number */
+      int arity = FFI_IX(a).ffi_arity;
+      CHECK(arity);
       funptr_t f = FFI_IX(a).ffi_fun;
       PUSH(mkFlt(0.0));           /* placeholder for result, protected from GC */
       int k = f(stk);             /* call FFI function, return number of arguments */
+      if (k != arity) {
+        fprintf(stderr, "ccall arity %s %d!=%d\n", FFI_IX(a).ffi_name, arity, k);
+        ERR("ccall arity");     /* temporary sanity check */
+      }
       GCCHECK(1);                 /* room for pair */
       x = POPTOP();               /* pop actual result */
-      POP(k);                     /* pop the pushed arguments */
+      POP(arity);                 /* pop the pushed arguments */
       if (stack_ptr < 0)
         ERR("CCALL POP");
       n = POPTOP();               /* node to update */
@@ -5594,6 +5600,7 @@ from_t mhs_chdir(int s) { return mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
 from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
+from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); } /* for debugging */
 
 /* Use this to detect if we have (and want) GMP or not. */
 from_t mhs_want_gmp(int s) { return mhs_from_Int(s, 0, WANT_GMP); }
@@ -5672,157 +5679,156 @@ from_t mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), 
 from_t mhs_mpz_tstbit(int s) { mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 #endif  /* WANT_GMP */
-from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); }
 
 struct ffi_entry ffi_table[] = {
-{ "GETRAW", mhs_GETRAW},
-{ "GETTIMEMILLI", mhs_GETTIMEMILLI},
+  { "GETRAW", 0, mhs_GETRAW},
+  { "GETTIMEMILLI", 0, mhs_GETTIMEMILLI},
 #if WANT_MATH
-{ "acos", mhs_acos},
-{ "asin", mhs_asin},
-{ "atan", mhs_atan},
-{ "atan2", mhs_atan2},
-{ "cos", mhs_cos},
-{ "exp", mhs_exp},
-{ "log", mhs_log},
-{ "sin", mhs_sin},
-{ "sqrt", mhs_sqrt},
-{ "tan", mhs_tan},
+  { "acos", 1, mhs_acos},
+  { "asin", 1, mhs_asin},
+  { "atan", 1, mhs_atan},
+  { "atan2", 2, mhs_atan2},
+  { "cos", 1, mhs_cos},
+  { "exp", 1, mhs_exp},
+  { "log", 1, mhs_log},
+  { "sin", 1, mhs_sin},
+  { "sqrt", 1, mhs_sqrt},
+  { "tan", 1, mhs_tan},
 #endif  /* WANT_MATH */
 
 #if WANT_STDIO
-{ "add_FILE", mhs_add_FILE},
-{ "add_utf8", mhs_add_utf8},
-{ "closeb", mhs_closeb},
-{ "&closeb", mhs_addr_closeb},
-{ "flushb", mhs_flushb},
-{ "fopen", mhs_fopen},
-{ "getb", mhs_getb},
-{ "putb", mhs_putb},
-{ "ungetb", mhs_ungetb},
-{ "openb_wr_buf", mhs_openwrbuf},
-{ "openb_rd_buf", mhs_openrdbuf},
-{ "get_buf", mhs_getbuf},
-{ "system", mhs_system},
-{ "tmpname", mhs_tmpname},
-{ "unlink", mhs_unlink},
-{ "readb", mhs_readb},
-{ "writeb", mhs_writeb},
+  { "add_FILE", 1, mhs_add_FILE},
+  { "add_utf8", 1, mhs_add_utf8},
+  { "closeb", 1, mhs_closeb},
+  { "&closeb", 0, mhs_addr_closeb},
+  { "flushb", 1, mhs_flushb},
+  { "fopen", 2, mhs_fopen},
+  { "getb", 1, mhs_getb},
+  { "putb", 2, mhs_putb},
+  { "ungetb", 2, mhs_ungetb},
+  { "openb_wr_buf", 0, mhs_openwrbuf},
+  { "openb_rd_buf", 2, mhs_openrdbuf},
+  { "get_buf", 3, mhs_getbuf},
+  { "system", 1, mhs_system},
+  { "tmpname", 2, mhs_tmpname},
+  { "unlink", 1, mhs_unlink},
+  { "readb", 3, mhs_readb},
+  { "writeb", 3, mhs_writeb},
 #endif  /* WANT_STDIO */
 
 #if WANT_MD5
-{ "md5Array", mhs_md5Array},
-{ "md5BFILE", mhs_md5BFILE},
-{ "md5String", mhs_md5String},
+  { "md5Array", 3, mhs_md5Array},
+  { "md5BFILE", 2, mhs_md5BFILE},
+  { "md5String", 2, mhs_md5String},
 #endif  /* WANT_MD5 */
 
 #if WANT_LZ77
-{ "add_lz77_compressor", mhs_add_lz77_compressor},
-{ "add_lz77_decompressor", mhs_add_lz77_decompressor},
-{ "lz77c", mhs_lz77c},
+  { "add_lz77_compressor", 1, mhs_add_lz77_compressor},
+  { "add_lz77_decompressor", 1, mhs_add_lz77_decompressor},
+  { "lz77c", 3, mhs_lz77c},
 #endif  /* WANT_LZ77 */
 
 #if WANT_RLE
-{ "add_rle_compressor", mhs_add_rle_compressor},
-{ "add_rle_decompressor", mhs_add_rle_decompressor},
+  { "add_rle_compressor", 1, mhs_add_rle_compressor},
+  { "add_rle_decompressor", 1, mhs_add_rle_decompressor},
 #endif  /* WANT_RLE */
 
 #if WANT_BWT
-{ "add_bwt_compressor", mhs_add_bwt_compressor},
-{ "add_bwt_decompressor", mhs_add_bwt_decompressor},
+  { "add_bwt_compressor", 1, mhs_add_bwt_compressor},
+  { "add_bwt_decompressor", 1, mhs_add_bwt_decompressor},
 #endif  /* WANT_RLE */
 
-{ "calloc", mhs_calloc},
-{ "free", mhs_free},
-{ "&free", mhs_addr_free},
-{ "getenv", mhs_getenv},
-{ "iswindows", mhs_iswindows},
-{ "malloc", mhs_malloc},
-{ "memcpy", mhs_memcpy},
-{ "memmove", mhs_memmove},
-{ "peekPtr", mhs_peekPtr},
-{ "peekWord", mhs_peekWord},
-{ "pokePtr", mhs_pokePtr},
-{ "pokeWord", mhs_pokeWord},
+  { "calloc", 2, mhs_calloc},
+  { "free", 1, mhs_free},
+  { "&free", 0, mhs_addr_free},
+  { "getenv", 1, mhs_getenv},
+  { "iswindows", 0, mhs_iswindows},
+  { "malloc", 1, mhs_malloc},
+  { "memcpy", 3, mhs_memcpy},
+  { "memmove", 3, mhs_memmove},
+  { "peekPtr", 1, mhs_peekPtr},
+  { "peekWord", 1, mhs_peekWord},
+  { "pokePtr", 2, mhs_pokePtr},
+  { "pokeWord", 2, mhs_pokeWord},
 
-{ "peek_uint8", mhs_peek_uint8},
-{ "poke_uint8", mhs_poke_uint8},
-{ "peek_uint16", mhs_peek_uint16},
-{ "poke_uint16", mhs_poke_uint16},
+  { "peek_uint8", 1, mhs_peek_uint8},
+  { "poke_uint8", 2, mhs_poke_uint8},
+  { "peek_uint16", 1, mhs_peek_uint16},
+  { "poke_uint16", 2, mhs_poke_uint16},
 #if WORD_SIZE >= 32
-{ "peek_uint32", mhs_peek_uint32},
-{ "poke_uint32", mhs_poke_uint32},
+  { "peek_uint32", 1, mhs_peek_uint32},
+  { "poke_uint32", 2, mhs_poke_uint32},
 #endif  /* WORD_SIZE >= 32 */
 #if WORD_SIZE >= 64
-{ "peek_uint64", mhs_peek_uint64},
-{ "poke_uint64", mhs_poke_uint64},
+  { "peek_uint64", 1, mhs_peek_uint64},
+  { "poke_uint64", 2, mhs_poke_uint64},
 #endif  /* WORD_SIZE >= 64 */
-{ "peek_uint", mhs_peek_uint},
-{ "poke_uint", mhs_poke_uint},
+  { "peek_uint", 1, mhs_peek_uint},
+  { "poke_uint", 2, mhs_poke_uint},
 
-{ "peek_int8", mhs_peek_int8},
-{ "poke_int8", mhs_poke_int8},
-{ "peek_int16", mhs_peek_int16},
-{ "poke_int16", mhs_poke_int16},
+  { "peek_int8", 1, mhs_peek_int8},
+  { "poke_int8", 2, mhs_poke_int8},
+  { "peek_int16", 1, mhs_peek_int16},
+  { "poke_int16", 2, mhs_poke_int16},
 #if WORD_SIZE >= 32
-{ "peek_int32", mhs_peek_int32},
-{ "poke_int32", mhs_poke_int32},
+  { "peek_int32", 1, mhs_peek_int32},
+  { "poke_int32", 2, mhs_poke_int32},
 #endif  /* WORD_SIZE >= 32 */
 #if WORD_SIZE >= 64
-{ "peek_int64", mhs_peek_int64},
-{ "poke_int64", mhs_poke_int64},
+  { "peek_int64", 1, mhs_peek_int64},
+  { "poke_int64", 2, mhs_poke_int64},
 #endif  /* WORD_SIZE >= 64 */
-{ "peek_int", mhs_peek_int},
-{ "poke_int", mhs_poke_int},
-{ "peek_llong", mhs_peek_llong},
-{ "peek_long", mhs_peek_long},
-{ "peek_ullong", mhs_peek_ullong},
-{ "peek_ulong", mhs_peek_ulong},
-{ "poke_llong", mhs_poke_llong},
-{ "poke_long", mhs_poke_long},
-{ "poke_ullong", mhs_poke_ullong},
-{ "poke_ulong", mhs_poke_ulong},
+  { "peek_int", 1, mhs_peek_int},
+  { "poke_int", 2, mhs_poke_int},
+  { "peek_llong", 1, mhs_peek_llong},
+  { "peek_long", 1, mhs_peek_long},
+  { "peek_ullong", 1, mhs_peek_ullong},
+  { "peek_ulong", 1, mhs_peek_ulong},
+  { "poke_llong", 2, mhs_poke_llong},
+  { "poke_long", 2, mhs_poke_long},
+  { "poke_ullong", 2, mhs_poke_ullong},
+  { "poke_ulong", 2, mhs_poke_ulong},
 #if WANT_FLOAT
-{ "poke_flt", mhs_poke_flt},
-{ "poke_flt", mhs_poke_flt},
+  { "peek_flt", 1, mhs_peek_flt},
+  { "poke_flt", 2, mhs_poke_flt},
 #endif  /* WANT_FLOAT */
-{ "sizeof_int", mhs_sizeof_int},
-{ "sizeof_llong", mhs_sizeof_llong},
-{ "sizeof_long", mhs_sizeof_long},
+  { "sizeof_int", 0, mhs_sizeof_int},
+  { "sizeof_llong", 0, mhs_sizeof_llong},
+  { "sizeof_long", 0, mhs_sizeof_long},
 #if WANT_DIR
-{ "c_d_name", mhs_c_d_name},
-{ "closedir", mhs_closedir},
-{ "opendir", mhs_opendir},
-{ "readdir", mhs_readdir},
-{ "chdir", mhs_chdir},
-{ "mkdir", mhs_mkdir},
-{ "getcwd", mhs_getcwd},
+  { "c_d_name", 1, mhs_c_d_name},
+  { "closedir", 1, mhs_closedir},
+  { "opendir", 1, mhs_opendir},
+  { "readdir", 1, mhs_readdir},
+  { "chdir", 1, mhs_chdir},
+  { "mkdir", 2, mhs_mkdir},
+  { "getcwd", 2, mhs_getcwd},
 #endif  /* WANT_DIR */
-{ "want_gmp", mhs_want_gmp},
+  { "want_gmp", 0, mhs_want_gmp},
+  { "putchar", 1, mhs_putchar},
 #if WANT_GMP
-{ "new_mpz", mhs_new_mpz},
-{ "mpz_abs", mhs_mpz_abs},
-{ "mpz_add", mhs_mpz_add},
-{ "mpz_and", mhs_mpz_and},
-{ "mpz_cmp", mhs_mpz_cmp},
-{ "mpz_get_d", mhs_mpz_get_d},
-{ "mpz_get_si", mhs_mpz_get_si},
-{ "mpz_get_ui", mhs_mpz_get_ui},
-{ "mpz_init_set_si", mhs_mpz_init_set_si},
-{ "mpz_init_set_ui", mhs_mpz_init_set_ui},
-{ "mpz_ior", mhs_mpz_ior},
-{ "mpz_mul", mhs_mpz_mul},
-{ "mpz_mul_2exp", mhs_mpz_mul_2exp},
-{ "mpz_neg", mhs_mpz_neg},
-{ "mpz_popcount", mhs_mpz_popcount},
-{ "mpz_sub", mhs_mpz_sub},
-{ "mpz_fdiv_q_2exp", mhs_mpz_fdiv_q_2exp},
-{ "mpz_tdiv_qr", mhs_mpz_tdiv_qr},
-{ "mpz_tstbit", mhs_mpz_tstbit},
-{ "mpz_xor", mhs_mpz_xor},
+  { "new_mpz", 0, mhs_new_mpz},
+  { "mpz_abs", 2, mhs_mpz_abs},
+  { "mpz_add", 3, mhs_mpz_add},
+  { "mpz_and", 3, mhs_mpz_and},
+  { "mpz_cmp", 2, mhs_mpz_cmp},
+  { "mpz_get_d", 1, mhs_mpz_get_d},
+  { "mpz_get_si", 1, mhs_mpz_get_si},
+  { "mpz_get_ui", 1, mhs_mpz_get_ui},
+  { "mpz_init_set_si", 2, mhs_mpz_init_set_si},
+  { "mpz_init_set_ui", 2, mhs_mpz_init_set_ui},
+  { "mpz_ior", 3, mhs_mpz_ior},
+  { "mpz_mul", 3, mhs_mpz_mul},
+  { "mpz_mul_2exp", 3, mhs_mpz_mul_2exp},
+  { "mpz_neg", 2, mhs_mpz_neg},
+  { "mpz_popcount", 1, mhs_mpz_popcount},
+  { "mpz_sub", 3, mhs_mpz_sub},
+  { "mpz_fdiv_q_2exp", 3, mhs_mpz_fdiv_q_2exp},
+  { "mpz_tdiv_qr", 4, mhs_mpz_tdiv_qr},
+  { "mpz_tstbit", 2, mhs_mpz_tstbit},
+  { "mpz_xor", 3, mhs_mpz_xor},
 #endif  /* WANT_GMP */
-{ "putchar", mhs_putchar},
-{ 0,0 }
+  { 0,0 }
 };
 
 int num_ffi = sizeof(ffi_table) / sizeof(ffi_table[0]);

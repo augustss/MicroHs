@@ -28,6 +28,7 @@ typedef int from_t;
 typedef from_t (*funptr_t)(int);
 struct ffi_entry {
   const char *ffi_name;
+  int         ffi_arity;
   funptr_t    ffi_fun;
 };
 extern struct ffi_entry *xffi_table;

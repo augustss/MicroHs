@@ -24,7 +24,7 @@ makeFFI _ ds =
       map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
       map mkHdr imps ++
       ["static struct ffi_entry table[] = {"] ++
-      map (mkEntry . fst) imps ++
+      map mkEntry imps ++
       ["{ 0,0 }",
        "};",
        "struct ffi_entry *xffi_table = table;"
@@ -64,10 +64,10 @@ parseImpEnt i s =
        rest'' _ _ = errorMessage loc $ "bad foreign import " ++ show s
        loc = getSLoc i
 
-mkEntry :: ImpEnt -> String
-mkEntry (ImpStatic _ _ Func  f) = "{ \"" ++ f ++ "\", mhs_" ++ f ++ "},"
-mkEntry (ImpStatic _ _ Ptr   f) = "{ \"&" ++ f ++ "\", mhs_addr_" ++ f ++ "},"
-mkEntry (ImpStatic i _ Value _) = "{ \"" ++ f ++ "\", mhs_" ++ f ++ "}," where f = unIdent' i
+mkEntry :: (ImpEnt, EType) -> String
+mkEntry (ImpStatic _ _ Func  f, t) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
+mkEntry (ImpStatic _ _ Ptr   f, _) = "{ \"&" ++ f ++ "\", 0, mhs_addr_" ++ f ++ "},"
+mkEntry (ImpStatic i _ Value _, _) = "{ \"" ++ f ++ "\", 0, mhs_" ++ f ++ "}," where f = unIdent' i
 mkEntry _ = undefined
 
 mkMhsFun :: String -> String -> String
@@ -121,6 +121,9 @@ mkHdr (ImpStatic i _ Value val, iot) =
       body = mkRet r 0 val
   in  mkMhsFun (unIdent' i) body
 mkHdr _ = undefined
+
+arity :: EType -> Int
+arity = length . fst . getArrows
 
 unIdent' :: Ident -> String
 unIdent' = unIdent . unQualIdent
