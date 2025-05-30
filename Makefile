@@ -168,8 +168,11 @@ runtestmhs: bin/mhseval bin/mhs
 
 # Run test examples with sanitized mhs-compiled compiler
 runtestsan: bin/mhsevalsane sanitizemhs
-	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CR" cache
+	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CW" cache
 	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CR" EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
+
+runtestgsan: bin/mhsevalsane bin/gmhs
+	cd tests; make EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
 
 # Run test examples going via JavaScript
 runtestemscripten: bin/mhseval bin/mhs bin/cpphs
