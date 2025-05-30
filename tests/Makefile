@@ -94,11 +94,12 @@ test:
 	$(TMHS) Storable   && $(EVAL) > Storable.out   && diff Storable.ref Storable.out
 	$(TMHS) StandDer   && $(EVAL) > StandDer.out   && diff StandDer.ref StandDer.out
 	MHSCPPHS=../bin/cpphs \
-        $(TMHS) Cpp        && $(EVAL) > Cpp.out        && diff Cpp.ref Cpp.out
+	$(TMHS) Cpp        && $(EVAL) > Cpp.out        && diff Cpp.ref Cpp.out
 	$(TMHS) Lit        && $(EVAL) > Lit.out        && diff Lit.ref Lit.out
 	$(TMHS) TypeOp     && $(EVAL) > TypeOp.out     && diff TypeOp.ref TypeOp.out
 	$(TMHS) Forall     && $(EVAL) > Forall.out     && diff Forall.ref Forall.out
 	$(TMHS) Block      && $(EVAL) > Block.out      && diff Block.ref Block.out
+	$(TMHS) Fork       && $(EVAL) > Fork.out       && diff Fork.ref Fork.out
 	$(TMHS) Con        && $(EVAL) > Con.out        && diff Con.ref Con.out
 	$(TMHS) MVar       && $(EVAL) > MVar.out       && diff MVar.ref MVar.out
 	$(TMHS) Delay      && $(EVAL) > Delay.out      && diff Delay.ref Delay.out

@@ -892,8 +892,14 @@ check_timeq(void)
 void
 throwto(struct mthread *mt, NODEPTR exn)
 {
+  if (thread_trace) {
+    printf("throwto: id=%d\n", (int)mt->mt_id);
+  }
   thread_intr(mt);
   if (mt->mt_state != ts_died && mt->mt_state != ts_finished) {
+    if (thread_trace) {
+      printf("throwto: id=%d put_mvar exn\n", (int)mt->mt_id);
+    }
     (void)put_mvar(0, mt->mt_exn, exn); /* never returns if it blocks */
   }
 }
@@ -973,6 +979,9 @@ new_thread(NODEPTR root)
 {
   struct mthread *mt = mmalloc(sizeof(struct mthread));
 
+  if (thread_trace) {
+    printf("new_thread: root=%p\n", root);
+  }
   mt->mt_mask = mask_unmasked;
   mt->mt_root = root;
   mt->mt_exn = new_mvar();
@@ -1192,7 +1201,7 @@ pause_exec(void)
   }
 }
 
-/* Interrupt a sleeping thread in a throwTo */
+/* Interrupt a sleeping thread in a throwTo/threadDelay */
 void
 thread_intr(struct mthread *mt)
 {
@@ -1218,6 +1227,9 @@ thread_intr(struct mthread *mt)
     add_runq_tail(mt);
     break;
   case ts_wait_time:
+    if (thread_trace) {
+      printf("thread_intr: ts_wait_time mask=%d\n", (int)mt->mt_mask);
+    }
     if (mt->mt_mask == mask_uninterruptible) /* uninterruptible */
       break;
     /* find thread in timeq */
@@ -1232,6 +1244,10 @@ thread_intr(struct mthread *mt)
     break;
   default:
     ERR("thread_intr");
+  }
+  if (thread_trace) {
+    printf("thread_intr: done\n");
+    dump_q("runq", runq);
   }
 }
 
@@ -1724,10 +1740,10 @@ void mark_mvar(struct mvar *mv);
 void
 async_throwto(struct mthread *mt, NODEPTR exn)
 {
-  GCCHECK(3);
+  GCCHECK(4);
   NODEPTR thid = alloc_node(T_THID);
   THR(thid) = mt;
-  NODEPTR root = new_ap(new_ap(combTHROWTO, thid), exn);
+  NODEPTR root = new_ap(new_ap(new_ap(combTHROWTO, thid), exn), combWorld);
   (void)new_thread(root);       /* spawn and put on runq */
 }
 
@@ -3999,8 +4015,8 @@ evali(NODEPTR an)
   }
   //COUNT(num_reductions);
   //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
-  if (stack_ptr < -1)
-    ERR("stack_ptr");
+  //if (stack_ptr < -1)
+  //  ERR("stack_ptr");
   switch (tag) {
   ap2:         PUSH(n); n = FUN(n);
   ap:
@@ -4635,35 +4651,33 @@ evali(NODEPTR an)
     }
   case T_IO_THROWTO:
     {
-      CHKARG2NP;
+      CHKARG3NP;                /* x=this, y=exn, z=ST */
       struct mthread *mt = evalthid(x);
       throwto(mt, y);
-      POP(2);
+      POP(3);
       GOPAIRUNIT;
     }
   case T_IO_YIELD:
-    CHKARG1NP;
+    CHKARG1;
     yield();
-    POP(1);
     GOPAIRUNIT;
 
   case T_IO_NEWMVAR:
     {
-      CHKARG1NP;
-      struct mvar *mv = new_mvar();
       GCCHECK(2);
+      CHKARG1;
+      struct mvar *mv = new_mvar();
       NODEPTR res = alloc_node(T_MVAR);
       MVAR(res) = mv;
-      POP(1);
       GOPAIR(res);
     }
   case T_IO_TAKEMVAR:
     {
-      CHKARG2NP;
-      check_thrown();           /* check if we have a thrown exception */
+      CHKARG2NP;             /* set x=mvar, y=ST */
+      check_thrown();        /* check if we have a thrown exception */
       NODEPTR res = take_mvar(0, evalmvar(x));         /* never returns if it blocks */
       GCCHECKSAVE(res, 1);
-      POP(1);
+      POP(2);
       GOPAIR(res);
     }
   case T_IO_READMVAR:
@@ -4672,13 +4686,13 @@ evali(NODEPTR an)
       check_thrown();           /* check if we have a thrown exception */
       NODEPTR res = read_mvar(0, evalmvar(x));         /* never returns if it blocks */
       GCCHECKSAVE(res, 1);
-      POP(1);
+      POP(2);
       GOPAIR(res);
     }
   case T_IO_PUTMVAR:
     {
-      CHKARG3NP;
-      check_thrown();           /* check if we have a thrown exception */
+      CHKARG3NP;             /* set x=mvar, y=value, z=ST */
+      check_thrown();        /* check if we have a thrown exception */
       (void)put_mvar(0, evalmvar(x), y); /* never returns if it blocks */
       POP(3);
       GOPAIRUNIT;
@@ -4699,11 +4713,12 @@ evali(NODEPTR an)
     {
       CHKARG2NP;
       NODEPTR res = read_mvar(1, evalmvar(x));
-      GCCHECKSAVE(res, 2);
-      if (res != NIL)
+      if (res != NIL) {
+        GCCHECKSAVE(res, 2);
         res = new_ap(combJust, res);
-      else
+      } else {
         res = combNothing;
+      }
       POP(2);
       GOPAIR(res);
     }
@@ -4711,7 +4726,7 @@ evali(NODEPTR an)
     {
       CHKARG3NP;
       NODEPTR res = put_mvar(1, evalmvar(x), y) ? combTrue : combFalse;
-      GCCHECK(1);
+      GCCHECKSAVE(res, 1);
       POP(3);
       GOPAIR(res);
     }
@@ -4720,7 +4735,7 @@ evali(NODEPTR an)
       CHKARG2NP;
       check_thrown();           /* check if we have a thrown exception */
       if (runq.mq_head->mt_at == -1) {
-        /* delay has alread expired, so just return */
+        /* delay has already expired, so just return */
         runq.mq_head->mt_at = 0;
         POP(2);
         GOPAIRUNIT;
@@ -4737,18 +4752,18 @@ evali(NODEPTR an)
       GOPAIR(mkInt(mt->mt_state));
     }
   case T_IO_GETMASKINGSTATE:
-    CHKARG1;
+    CHKARG1;                    /* x = ST */
     GOPAIR(mkInt(runq.mq_head->mt_mask));
 
   case T_IO_SETMASKINGSTATE:
-    CHKARG2;                  /* x = level, y = ST */
+    CHKARG2;                    /* x = level, y = ST */
     runq.mq_head->mt_mask = evalint(x);
     GOPAIRUNIT;
 
   case T_CATCH:
     /* CATCH x y z --> CATCHR (x z) y z */
     GCCHECK(3);
-    CHKARG3;
+    CHKARG3;                    /* x=io, y=hdl, z=ST */
     GOAP(new_ap(new_ap(combCATCHR, new_ap(x, z)), y), z);
   case T_CATCHR:
     {
