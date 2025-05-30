@@ -67,6 +67,12 @@ int num_ffi;
 
 //#include "config.h"
 
+#if WANT_STDIO
+#define THREAD_DEBUG 1
+#else
+#define THREAD_DEBUG 0
+#endif
+
 #define VERSION "v8.0\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
@@ -832,7 +838,9 @@ find_and_unlink(struct mqueue *mq, struct mthread *mt)
 
 /* This is a yucky hack */
 int doing_rnf = 0;              /* REMOVE */
+#if THREAD_DEBUG
 const int thread_trace = 0;
+#endif  /* THREAD_DEBUG */
 
 /* clean up temporary globals to prepare for rescheduling */
 void
@@ -842,8 +850,10 @@ cleanup(struct mthread *mt, enum th_state ts)
    *  stack pointer
    *  error handlers
    */
+#if THREAD_DEBUG
   if (thread_trace)
     printf("cleanup: %d state=%d\n", (int)mt->mt_id, ts);
+#endif  /* THREAD_DEBUG */
   mt->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
   mt->mt_state = ts;
   CLEARSTK();                 /* reset stack */
@@ -865,6 +875,7 @@ resched(struct mthread *mt, enum th_state ts)
   longjmp(sched, mt_resched);
 }
 
+#if THREAD_DEBUG
 void
 dump_q(const char *s, struct mqueue q)
 {
@@ -874,6 +885,7 @@ dump_q(const char *s, struct mqueue q)
   }
   printf("]\n");
 }
+#endif  /* THREAD_DEBUG */
 
 /* Check if its time to wake up some threads waiting for a time. */
 void
@@ -885,8 +897,10 @@ check_timeq(void)
     struct mthread *mt = remove_q_head(&timeq);
     add_runq_tail(mt);
     mt->mt_at = -1;             /* indicate that the delay has expired */
+#if THREAD_DEBUG
     if (thread_trace)
       printf("check_timeq: %d done\n", (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
   }
 #endif
 }
@@ -894,14 +908,18 @@ check_timeq(void)
 void
 throwto(struct mthread *mt, NODEPTR exn)
 {
+#if THREAD_DEBUG
   if (thread_trace) {
     printf("throwto: id=%d\n", (int)mt->mt_id);
   }
+#endif  /* THREAD_DEBUG */
   thread_intr(mt);
   if (mt->mt_state != ts_died && mt->mt_state != ts_finished) {
+#if THREAD_DEBUG
     if (thread_trace) {
       printf("throwto: id=%d put_mvar exn\n", (int)mt->mt_id);
     }
+#endif  /* THREAD_DEBUG */
     (void)put_mvar(0, mt->mt_exn, exn); /* never returns if it blocks */
   }
 }
@@ -914,8 +932,10 @@ check_thrown(void)
   if (runq.mq_head->mt_mask != mask_unmasked)
     return;            /* interrupts are masked, so don't throw */
   /* the current thread has an async exception */
+#if THREAD_DEBUG
   if (thread_trace)
     printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
+#endif  /* THREAD_DEBUG */
   NODEPTR exn = take_mvar(0, runq.mq_head->mt_exn); /* get the exception */
   raise_exn(exn);
 }
@@ -929,8 +949,10 @@ check_sigint(void)
     has_sigint = 0;
     for(struct mthread *mt= all_threads; mt; mt = mt->mt_next) {
       if (mt->mt_id == MAIN_THREAD) {
+#if THREAD_DEBUG
         if (thread_trace)
           printf("sending signal to main\n");
+#endif  /* THREAD_DEBUG */
         async_throwto(mt, mkInt(exn_userinterrupt));
         break;
       }
@@ -961,10 +983,12 @@ yield(void)
   // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
   if (!runq.mq_head->mt_queue) {
+#if THREAD_DEBUG
     if (thread_trace) {
       printf("yield: %d no other threads\n", (int)runq.mq_head->mt_id);
       dump_q("runq", runq);
     }
+#endif  /* THREAD_DEBUG */
     glob_slice = slice;
     num_reductions += glob_slice-1;
     return;
@@ -974,10 +998,12 @@ yield(void)
   struct mthread *mt = remove_q_head(&runq);
   /* link into back of runq */
   add_runq_tail(mt);
+#if THREAD_DEBUG
   if (thread_trace) {
     printf("yield: resched %d\n", (int)mt->mt_id);
     dump_q("runq", runq);
   }
+#endif  /* THREAD_DEBUG */
   resched(mt, ts_runnable);
 }
 
@@ -986,9 +1012,11 @@ new_thread(NODEPTR root)
 {
   struct mthread *mt = mmalloc(sizeof(struct mthread));
 
+#if THREAD_DEBUG
   if (thread_trace) {
     printf("new_thread: root=%p\n", root);
   }
+#endif  /* THREAD_DEBUG */
   mt->mt_mask = mask_unmasked;
   mt->mt_root = root;
   mt->mt_exn = new_mvar();
@@ -1005,10 +1033,12 @@ new_thread(NODEPTR root)
 
   /* add to tail of runq */
   add_runq_tail(mt);            /* sets runnable */
+#if THREAD_DEBUG
   if (thread_trace) {
     printf("new_thread: add %d to runq tail\n", (int)mt->mt_id);
     dump_q("runq", runq);
   }
+#endif  /* THREAD_DEBUG */
   return mt;
 }
 
@@ -1028,55 +1058,69 @@ new_mvar(void)
   mv->mv_next = all_mvars;
   all_mvars = mv;
   
+#if THREAD_DEBUG
   if (thread_trace)
     printf("new_mvar: mvar=%p\n", mv);
+#endif  /* THREAD_DEBUG */
   return mv;
 }
 
 NODEPTR
 take_mvar(int try, struct mvar *mv)
 {
+#if THREAD_DEBUG
   if (thread_trace) {
     printf("take_mvar: mvar=%p\n", mv);
     dump_q("takeput", mv->mv_takeput);
   }
+#endif  /* THREAD_DEBUG */
   NODEPTR n;
   if ((n = runq.mq_head->mt_mval) != NIL) {
+#if THREAD_DEBUG
     if (thread_trace)
       printf("take_mvar: mvar=%p got data %d\n", mv, (int)runq.mq_head->mt_id);
+#endif  /* THREAD_DEBUG */
     /* We have after waking up */
     runq.mq_head->mt_mval = NIL;
     return n;                   /* returned the stashed data */
   }
   if ((n = mv->mv_data)) {
+#if THREAD_DEBUG
     if (thread_trace)
       printf("take_mvar: mvar=%p full\n", mv);
+#endif  /* THREAD_DEBUG */
     /* mvar is full */
     mv->mv_data = NIL;           /* now empty */
     /* move all threads waiting to put to the runq */
     for (struct mthread *mt = mv->mv_takeput.mq_head; mt; ) {
+#if THREAD_DEBUG
       if (thread_trace) {
         printf("take_mvar: mvar=%p wake %d\n", mv, (int)mt->mt_id);
         dump_q("runq", runq);
       }
+#endif  /* THREAD_DEBUG */
       struct mthread *nt = mt->mt_queue;
       add_runq_tail(mt);
       mt = nt;
     }
     return n;                   /* return the data */
   } else {
+#if THREAD_DEBUG
     if (thread_trace)
       printf("take_mvar: mvar=%p empty\n", mv);
+#endif  /* THREAD_DEBUG */
     /* mvar is empty */
     if (try)
       return NIL;
     struct mthread *mt = remove_q_head(&runq);
     add_q_tail(&mv->mv_takeput, mt);
+#if THREAD_DEBUG
     if (thread_trace) {
       printf("take_mvar: mvar=%p suspend %d\n", mv, (int)mt->mt_id);
       dump_q("runq", runq);
       dump_q("takeput", mv->mv_takeput);
     }
+#endif  /* THREAD_DEBUG */
     /* Unlink from runq */
     resched(mt, ts_wait_mvar);    /* never returns */
   }
@@ -1098,10 +1142,12 @@ read_mvar(int try, struct mvar *mv)
     /* mvar is empty */
     if (try)
       return NIL;
+#if THREAD_DEBUG
     if (thread_trace) {
       printf("read_mvar: suspend %d\n", (int)runq.mq_head->mt_id);
       dump_q("runq", runq);
     }
+#endif  /* THREAD_DEBUG */
     struct mthread *mt = remove_q_head(&runq);
     add_q_tail(&mv->mv_read, mt);
     resched(mt, ts_wait_mvar);                /* never returns */
@@ -1111,28 +1157,36 @@ read_mvar(int try, struct mvar *mv)
 int
 put_mvar(int try, struct mvar *mv, NODEPTR v)
 {
+#if THREAD_DEBUG
   if (thread_trace) {
     printf("put_mvar: mvar=%p\n", mv);
     dump_q("takeput", mv->mv_takeput);
     dump_q("read", mv->mv_read);
   }
+#endif  /* THREAD_DEBUG */
   if (mv->mv_data != NIL) {
+#if THREAD_DEBUG
     if (thread_trace)
       printf("put_mvar: mvar=%p full\n", mv);
+#endif  /* THREAD_DEBUG */
     /* mvar is full */
     if (try)
       return 0;
     struct mthread *mt = remove_q_head(&runq);
     add_q_tail(&mv->mv_takeput, mt); /* put on mvar queue */
+#if THREAD_DEBUG
     if (thread_trace) {
       printf("put_mvar: suspend %d\n", (int)mt->mt_id);
       dump_q("runq", runq);
       dump_q("takeput", mv->mv_takeput);
     }
+#endif  /* THREAD_DEBUG */
     resched(mt, ts_wait_mvar);                  /* never returns */
   } else {
+#if THREAD_DEBUG
     if (thread_trace)
       printf("put_mvar: mvar=%p empty\n", mv);
+#endif  /* THREAD_DEBUG */
     /* mvar is empty */
     if (mv->mv_takeput.mq_head || mv->mv_read.mq_head) {
       /* one or more threads are waiting */
@@ -1140,25 +1194,33 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
       if (mv->mv_takeput.mq_head) {
         /* wake up one 'take' */
         mt = remove_q_head(&mv->mv_takeput);
+#if THREAD_DEBUG
         if (thread_trace)
           printf("put_mvar: wake-1 %d\n", (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
         add_runq_tail(mt);             /* and schedule for execution later */
         mt->mt_mval = v;
       }
       for (mt = mv->mv_read.mq_head; mt; ) { /* XXX use q primitives */
+#if THREAD_DEBUG
         if (thread_trace)
           printf("put_mvar: wake-N %d\n", (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
         mt->mt_mval = v;               /* value for restarted read */
         mt = mt->mt_queue;             /* next waiter */
         add_runq_tail(mt);             /* and schedule for execution later */
       }
+#if THREAD_DEBUG
       if (thread_trace)
         dump_q("runq", runq);
+#endif  /* THREAD_DEBUG */
       /* return to caller */
     } else {
+#if THREAD_DEBUG
       if (thread_trace) {
         printf("put_mvar: mvar=%p no waiters\n", mv);
       }
+#endif  /* THREAD_DEBUG */
       /* no threads waiting, so store the value */
       mv->mv_data = v;
       /* return to caller */
@@ -1176,8 +1238,10 @@ thread_delay(uvalue_t usecs)
   /* XXX should check if there is already a throw exn */
   struct mthread *mt = remove_q_head(&runq);
   mt->mt_at = CLOCK_GET() + usecs; /* wakeup time */
+#if THREAD_DEBUG
   if (thread_trace)
     printf("thread_delay: id=%d usecs=%ld\n", (int)mt->mt_id, usecs);
+#endif  /* THREAD_DEBUG */
   /* insert in delayq which is kept sorted in time order */
   struct mthread **tq;
   for (tq = &timeq.mq_head; *tq; tq = &(*tq)->mt_queue) {
@@ -1205,7 +1269,7 @@ pause_exec(void)
       usleep((useconds_t)(mt->mt_at - now));
     check_timeq();
 #else  /* CLOCK_INIT */
-    ERR("no clock"
+    ERR("no clock");
 #endif  /* CLOCK_INIT */
   } else {
     ERR("deadlock");            /* XXX throw async to main thread */
@@ -1216,8 +1280,10 @@ pause_exec(void)
 void
 thread_intr(struct mthread *mt)
 {
+#if THREAD_DEBUG
   if (thread_trace)
     printf("thread_intr: id=%d state=%d\n", (int)mt->mt_id, mt->mt_state);
+#endif  /* THREAD_DEBUG */
   switch(mt->mt_state) {
   case ts_runnable:
     break;                      /* already on runq */
@@ -1238,9 +1304,11 @@ thread_intr(struct mthread *mt)
     add_runq_tail(mt);
     break;
   case ts_wait_time:
+#if THREAD_DEBUG
     if (thread_trace) {
       printf("thread_intr: ts_wait_time mask=%d\n", (int)mt->mt_mask);
     }
+#endif  /* THREAD_DEBUG */
     if (mt->mt_mask == mask_uninterruptible) /* uninterruptible */
       break;
     /* find thread in timeq */
@@ -1256,10 +1324,12 @@ thread_intr(struct mthread *mt)
   default:
     ERR("thread_intr");
   }
+#if THREAD_DEBUG
   if (thread_trace) {
     printf("thread_intr: done\n");
     dump_q("runq", runq);
   }
+#endif  /* THREAD_DEBUG */
 }
 
 NORETURN void
@@ -1400,17 +1470,21 @@ start_exec(NODEPTR root)
     if (mt->mt_id == MAIN_THREAD) {
       die_exn(the_exn);
     } else {
+#if THREAD_DEBUG
       if (thread_trace) {
         printf("start_exec: %d died from exn\n", (int)mt->mt_id);
       }
+#endif  /* THREAD_DEBUG */
       mt->mt_state = ts_died;
       mt->mt_root = NIL;
     }
   }
+#if THREAD_DEBUG
   if (thread_trace) {
     printf("start_exec:\n");
     dump_q("runq", runq);
   }
+#endif  /* THREAD_DEBUG */
   for(;;) {
     if (!runq.mq_head)
       pause_exec();
@@ -1419,8 +1493,10 @@ start_exec(NODEPTR root)
       ERR("no threads");
 
     glob_slice = mt->mt_slice + slice;
+#if THREAD_DEBUG
     if (thread_trace)
       printf("start_exec: start %d, slice=%d\n", (int)mt->mt_id, (int)glob_slice);
+#endif  /* THREAD_DEBUG */
     num_reductions += glob_slice-1;
     (void)evali(mt->mt_root);         /* run it */
     num_reductions -= glob_slice;
