@@ -328,14 +328,14 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_CCBIND,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
-                T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
+                T_IO_PERFORMIO, T_IO_PRINT, T_CATCH, T_CATCHR,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
                 T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
                 T_IO_TRYTAKEMVAR, T_IO_TRYPUTMVAR, T_IO_TRYREADMVAR,
                 T_IO_THREADDELAY, T_IO_THREADSTATUS,
-                T_IO_GETMASKINGSTATE, T_IO_MASKASYNC, T_IO_UNMASKASYNC, T_IO_MASKUNINTR,
+                T_IO_GETMASKINGSTATE, T_IO_SETMASKINGSTATE,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
@@ -657,8 +657,6 @@ enum mask_state { mask_unmasked, mask_interruptible, mask_uninterruptible };
 struct handler {
   jmp_buf         hdl_buf;      /* env storage */
   struct handler *hdl_old;      /* old handler */
-  stackptr_t      hdl_stack;    /* old stack pointer */
-  enum mask_state hdl_mask;     /* old mask */
   NODEPTR         hdl_exn;      /* used temporarily to pass the exception value */
 } *cur_handler = 0;
 
@@ -739,9 +737,9 @@ NODEPTR combBINBS1, combBINBS2;
 NODEPTR comb_stdin, comb_stdout, comb_stderr;
 NODEPTR combJust;
 NODEPTR combTHROWTO;
-NODEPTR combMASK;
 NODEPTR combPairUnit;
 NODEPTR combWorld;
+NODEPTR combCATCHR;
 #define combFalse combK
 #define combNothing combK
 
@@ -1542,6 +1540,7 @@ struct {
   { "IO.pp", T_IO_PP },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
+  { "catchr", T_CATCHR },
   { "A.alloc", T_ARR_ALLOC },
   { "A.copy", T_ARR_COPY },
   { "A.size", T_ARR_SIZE },
@@ -1564,9 +1563,7 @@ struct {
   { "IO.threaddelay", T_IO_THREADDELAY },
   { "IO.threadstatus", T_IO_THREADSTATUS },
   { "IO.getmaskingstate", T_IO_GETMASKINGSTATE },
-  { "IO.maskasync", T_IO_MASKASYNC },
-  { "IO.unmaskasync", T_IO_UNMASKASYNC },
-  { "IO.maskunintr", T_IO_MASKUNINTR },
+  { "IO.setmaskingstate", T_IO_SETMASKINGSTATE },
   { "newCAStringLen", T_NEWCASTRINGLEN },
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
@@ -1641,7 +1638,7 @@ init_nodes(void)
     case T_BINBS1: combBINBS1 = n; break;
     case T_BINBS2: combBINBS2 = n; break;
     case T_IO_THROWTO: combTHROWTO = n; break;
-    case T_IO_MASKASYNC: combMASK = n; break;
+    case T_CATCHR: combCATCHR = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
     case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
@@ -4000,7 +3997,7 @@ evali(NODEPTR an)
     tag = GETTAG(n);
   }
   //COUNT(num_reductions);
-  //  printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   if (stack_ptr < -1)
     ERR("stack_ptr");
   switch (tag) {
@@ -4750,71 +4747,49 @@ evali(NODEPTR an)
       GOPAIR(mkInt(mt->mt_state));
     }
   case T_IO_GETMASKINGSTATE:
-    CHKARG1NP;
-    POP(1);
+    CHKARG1;
     GOPAIR(mkInt(runq.mq_head->mt_mask));
 
-#if 0
-  case T_IO_MASKASYNC:
-    {
-      CHKARG1NP;
-      NODEPTR res = with_mask(mask_interruptible);
-      GCCHECKSAVE(res, 1);
-      POP(1);
-      GOPAIR(res);
-    }
-  case T_IO_UNMASKASYNC:
-    {
-      CHKARG1NP;
-      NODEPTR res = with_mask(mask_unmasked);
-      GCCHECKSAVE(res, 1);
-      POP(1);
-      GOPAIR(res);
-    }
-  case T_IO_MASKUNINTR:
-    {
-      CHKARG1NP;
-      NODEPTR res = with_mask(mask_uninterruptible);
-      GCCHECKSAVE(res, 1);
-      POP(1);
-      GOPAIR(res);
-    }
-#endif
-#if 0
+  case T_IO_SETMASKINGSTATE:
+    CHKARG2;                  /* x = level, y = ST */
+    runq.mq_head->mt_mask = evalint(x);
+    GOPAIRUNIT;
+
   case T_CATCH:
+    /* CATCH x y z --> CATCHR (x z) y z */
+    GCCHECK(3);
+    CHKARG3;
+    GOAP(new_ap(new_ap(combCATCHR, new_ap(x, z)), y), z);
+  case T_CATCHR:
     {
-      CHKARG3NP;
+      CHKARG3NP;                /* x = (io st), y = hdl, z = st, n = (CATCHR (io st)) h */
       struct handler *h = mmalloc(sizeof *h);
       h->hdl_old = cur_handler;
-      h->hdl_stack = stack_ptr;
-      h->hdl_mask = runq.mq_head->mt_mask;
       cur_handler = h;
+      stackptr_t ostack = stack_ptr;;    /* old stack pointer */
+      //      enum mask_state omask = runq.mq_head->mt_mask;     /* old mask */
       if (setjmp(h->hdl_buf)) {
         /* An exception occurred: */
-        stack_ptr = h->hdl_stack;
-        runq.mq_head->mt_mask = h->hdl_mask;
+        stack_ptr = ostack;
+        runq.mq_head->mt_mask = mask_interruptible; /* evaluate with mask */
         NODEPTR exn = h->hdl_exn;       /* exception value */
-        GCCHECKSAVE(exn, 3);
-        NODEPTR hdl = ARG(y);       /* second argument, handler */
-        NODEPTR res = new_ap(combMASK, new_ap(hdl, exn));
         cur_handler = h->hdl_old;
         FREE(h);
+        GCCHECK(3);
         POP(3);
-        ARG(FUN(top)) = n;      /* XXXX */
-        goto start;
+        GOAP2(y, exn, z);
+        // runq.mq_head->mt_mask = omask;  XXXX
       } else {
         /* Normal execution: */
         PUSH(x);
-        execio(&TOP(0), 1);       /* execute first argument */
+        execio(&TOP(0), 0);       /* execute first argument */
         cur_handler = h->hdl_old; /* restore old handler */
         FREE(h);
-        n = TOP(0);
-        POP(1);
-        IOASSERT(GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_IO_RETURN, "CATCH");
-        RETIO(ARG(n));             /* return result */
+        x = POPTOP();
+        POP(3);
+        GOIND(x);
       }
     }
-#endif
 
   case T_THNUM:
     {
@@ -5091,509 +5066,14 @@ evali(NODEPTR an)
   return n;
 }
 
-/* Run computation with a given mask, restoring the old mask after. */
-NODEPTR
-with_mask(enum mask_state mask)
-{
-  enum mask_state old_mask = runq.mq_head->mt_mask;
-  runq.mq_head->mt_mask = mask;
-  //fprintf(stderr, "with_mask in %d\n", (int)stack_ptr);
-  NODEPTR x = ARG(TOP(1));
-  PUSH(x);
-  execio(&TOP(0), 1);
-  runq.mq_head->mt_mask = old_mask;
-  x = TOP(0);                   /* should be a RETURN e */
-  if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
-    ERR("with_mask");
-  //fprintf(stderr, "with_mask out %d\n", (int)stack_ptr);
-  return ARG(x);
-}
-
-
-/* This is the interpreter for the IO monad operations.
- *
- * Assuming every graph rewrite is atomic we want the graph
- * to always represent the rest of the program to run.
- * To this end, we need to mutate the graph every time
- * an IO operation has been performed to make sure we don't
- * execute it again.
- * To have a cell that is safe to mutate, we allocate a new
- * application on entry to execio().
- * Given the call execio(np) we allocate this graph, top = BIND (*np) RETURN.
- * I.e.
- *          @
- *         / \
- *        @  RETURN
- *       / \
- *    BIND (*np) 
- * and make np point to it.
- * This graph will be updated continuously as we execute IO actions.
- *
- * Invariant: the second argument to this BIND is always either RETURN
- * or a C'BIND.  The second argument to C'BIND has the same invariant.
- * C'BIND has the reduction rule (which is normally never used): 
- *   C'BIND x y z = BIND (x z) y
- *
- * This is the cycle of the execio loop:
- *  again:
- *   given top = BIND n q
- *   eval(n)
- *   case n
- *     BIND r s:  rewrite to top := BIND r (C'BIND s q)  -- (r >>= s) >>= q  -->  r >>= (\ x -> s x >>= q)
- *     THEN r s:  ... K s ...
- *     otherwise: res = execute n
- *       case q
- *         RETURN:     rewrite to  top := RETURN res;  return to caller
- *         C'BIND r s: rewrite to  top := BIND (r res) s; goto again
- */
 void
 execio(NODEPTR *np, int dowrap)
 {
-#if 1
   if (dowrap) {
     GCCHECK(1);
     *np = new_ap(*np, combWorld);
   }
   (void)evali(*np);
-#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*fprintf(stderr, "\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
-#else
-  stackptr_t stk = stack_ptr;
-  NODEPTR f, x, n, q, r, s, res, top1;
-  char *cstr;
-  struct handler *h;
-#if WANT_STDIO
-  void *ptr;
-  int hdr;
-#endif  /* WANT_STDIO */
-  NODEPTR top;
-  struct mthread *mt;
-  struct mvar *mv;
-  enum node_tag tag;
-  heapoffs_t l;
-
-/* IO operations need all arguments, anything else should not happen. */
-#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*fprintf(stderr, "\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
-/* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
-#define GCCHECKSAVE(p, n) do { PUSH(p); GCCHECK(n); (p) = TOP(0); POP(1); } while(0)
-#define RETIO(p) do { res = (p); stack_ptr = stk; goto rest; } while(0)
-#define IOASSERT(p,s) do { if (!(p)) ERR("IOASSERT " s); } while(0)
-
-  //fprintf(stderr, "execio enter %d\n", (int)stack_ptr);
-
-  if (dowrap) {
-    GCCHECK(2);
-    *np = top = new_ap(new_ap(combIOBIND, *np), combIORETURN);
-  } else {
-    top = *np;
-  }
- start:
-  //dump("start", top);
-  IOASSERT(stack_ptr == stk, "start");
-  //ppmsg("n before = ", ARG(FUN(top)));
-  n = evali(ARG(FUN(top)));     /* eval(n) */
-  //ppmsg("n after  = ", n);
-  if (GETTAG(n) == T_AP && GETTAG(top1 = indir(&FUN(n))) == T_AP) {
-    switch (GETTAG(indir(&FUN(top1)))) {
-    case T_IO_BIND:
-      GCCHECKSAVE(n, 2);
-      s = ARG(n);
-    bind:
-      q = ARG(top);
-      r = ARG(top1);
-      ARG(FUN(top)) = r;
-      ARG(top) = x = new_ap(new_ap(combIOCCBIND, s), q);
-      goto start;
-    case T_IO_THEN:
-      GCCHECKSAVE(n, 3);
-      s = new_ap(combFalse, ARG(n));
-      goto bind;
-    default:
-      break;
-    }
-  }
-  goto execute;
-
- rest:                          /* result is in res */
-  //ppmsg("res=", res);
-  q = ARG(top);
-  //ppmsg("q=", q);
-  if (GETTAG(q) == T_IO_RETURN) {
-    //fprintf(stderr, "execio return %d\n", (int)stack_ptr);
-    /* execio is done */
-    FUN(top) = combIORETURN;
-    ARG(top) = res;
-    IOASSERT(stack_ptr == stk, "stk");
-    return;
-  }
-  /* not done, it must be a C'BIND */
-  GCCHECKSAVE(res, 1);
-  IOASSERT(GETTAG(q) == T_AP && GETTAG(FUN(q)) == T_AP && GETTAG(FUN(FUN(q))) == T_IO_CCBIND, "rest-AP");
-  r = ARG(FUN(q));
-  s = ARG(q);
-  ARG(FUN(top)) = new_ap(r, res);
-  ARG(top) = s;
-  goto start;
-
- execute:
-  PUSH(n);
-  for(;;) {
-    COUNT(num_reductions);
-    //printf("execute switch %s\n", tag_names[GETTAG(n)]);
-
-    l = LABEL(n);
-    if (l < T_IO_STDIN) {
-      /* The node is one of the permanent nodes; the address offset is the tag */
-      tag = l;
-    } else {
-      /* Heap allocated node */
-      if (ISINDIR(n)) {
-        /* Follow indirections */
-        NODEPTR on = n;
-        do {
-          n = GETINDIR(n);
-        } while(ISINDIR(n));
-        SETINDIR(on, n);          /* and short-circuit them */
-      }
-      tag = GETTAG(n);
-    }
-
-    //fprintf(stderr, "execio %s %d\n", tag_names[tag], (int)stack_ptr);
-    switch (tag) {
-    case T_AP:
-      n = FUN(n);
-      PUSH(n);
-      break;
-    case T_IO_BIND:
-      ERR("T_IO_BIND");
-    case T_IO_THEN:
-      ERR("T_IO_THEN");
-    case T_IO_CCBIND:
-      ERR("T_IO_CCBIND");
-    case T_IO_RETURN:
-      CHECKIO(1);
-      n = ARG(TOP(1));
-      RETIO(n);
-#if WANT_STDIO
-    case T_IO_PP:               /* for debugging */
-      pp(stderr, ARG(TOP(1)));
-      RETIO(combUnit);
-    case T_IO_PRINT:
-      hdr = 0;
-      goto ser;
-    case T_IO_SERIALIZE:
-      hdr = 1;
-    ser:
-      CHECKIO(2);
-#if 0
-      gc();                     /* DUBIOUS: do a GC to get possible GC reductions */
-#endif
-      ptr = (struct BFILE*)evalptr(ARG(TOP(1)));
-      x = evali(ARG(TOP(2)));
-      printb(ptr, x, hdr);
-      putb('\n', ptr);
-      RETIO(combUnit);
-    case T_IO_DESERIALIZE:
-      CHECKIO(1);
-      ptr = (struct BFILE*)evalptr(ARG(TOP(1)));
-      gc();                     /* make sure we have room.  GC during parse is dodgy. */
-      n = parse_top(ptr);
-      RETIO(n);
-#endif
-#if WANT_ARGS
-    case T_IO_GETARGREF:
-      CHECKIO(0);
-      n = alloc_node(T_ARR);
-      ARR(n) = argarray;
-      RETIO(n);
-#endif
-
-    case T_IO_CCALL:
-      {
-        int a = (int)GETVALUE(n);
-        funptr_t f = FFI_IX(a).ffi_fun;
-        GCCHECK(1);             /* room for placeholder */
-        PUSH(mkFlt(0.0));       /* placeholder for result, protected from GC */
-        f(stk);                 /* call FFI function */
-        n = TOP(0);             /* pop actual result */
-        RETIO(n);               /* and this is the result */
-      }
-
-    case T_CATCH:
-      {
-        h = mmalloc(sizeof *h);
-        CHECKIO(2);
-        h->hdl_old = cur_handler;
-        h->hdl_stack = stack_ptr;
-        h->hdl_mask = runq.mq_head->mt_mask;
-        cur_handler = h;
-        if (setjmp(h->hdl_buf)) {
-          /* An exception occurred: */
-          stack_ptr = h->hdl_stack;
-          runq.mq_head->mt_mask = h->hdl_mask;
-          x = h->hdl_exn;       /* exception value */
-          GCCHECKSAVE(x, 2);
-          f = ARG(TOP(2));      /* second argument, handler */
-          n = new_ap(combMASK, new_ap(f, x));
-          cur_handler = h->hdl_old;
-          FREE(h);
-          POP(3);
-          ARG(FUN(top)) = n;
-          goto start;
-        } else {
-          /* Normal execution: */
-          n = ARG(TOP(1));          /* first argument, should be evaluated (but not overwritten) */
-          PUSH(n);
-          execio(&TOP(0), 1);       /* execute first argument */
-          cur_handler = h->hdl_old; /* restore old handler */
-          FREE(h);
-          n = TOP(0);
-          POP(1);
-          IOASSERT(GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_IO_RETURN, "CATCH");
-          RETIO(ARG(n));             /* return result */
-        }
-      }
-
-    case T_NEWCASTRINGLEN:
-      {
-      CHECKIO(1);
-      n = ARG(TOP(1));
-      /* Zap the pointer to the list so it can be GC:ed.
-       * The actual list is protected from GC by evalbytestring().
-       */
-      // ARG(TOP(1)) = combK;
-      struct bytestring bs = evalbytestring(n);
-      GCCHECK(4);
-      n = new_ap(new_ap(combPair, x = alloc_node(T_PTR)), mkInt(bs.size));
-      PTR(x) = bs.string;
-      RETIO(n);
-      }
-
-    case T_PACKCSTRING:
-      {
-      size_t size;
-      CHECKIO(1);
-      cstr = evalptr(ARG(TOP(1)));
-      size = strlen(cstr);
-      char *str = mmalloc(size);
-      memcpy(str, cstr, size);
-      struct bytestring bs = { size, str };
-      RETIO(mkStrNode(bs));
-      }
-
-    case T_PACKCSTRINGLEN:
-      {
-      size_t size;
-      CHECKIO(2);
-      cstr = evalptr(ARG(TOP(1)));
-      size = evalint(ARG(TOP(2)));
-      char *str = mmalloc(size);
-      memcpy(str, cstr, size);
-      struct bytestring bs = { size, str };
-      RETIO(mkStrNode(bs));
-      }
-
-    case T_ARR_ALLOC:
-      {
-      size_t size;
-      NODEPTR elem;
-      struct ioarray *arr;
-      CHECKIO(2);
-      GCCHECK(1);
-      size = evalint(ARG(TOP(1)));
-      elem = ARG(TOP(2));
-      arr = arr_alloc(size, elem);
-      n = alloc_node(T_ARR);
-      ARR(n) = arr;
-      RETIO(n);
-      }
-    case T_ARR_COPY:
-      {
-      struct ioarray *arr;
-      CHECKIO(1);
-      GCCHECK(1);
-      n = evali(ARG(TOP(1)));
-      if (GETTAG(n) != T_ARR)
-        ERR("T_ARR_COPY tag");
-      arr = arr_copy(ARR(n));
-      n = alloc_node(T_ARR);
-      ARR(n) = arr;
-      RETIO(n);
-      }
-    case T_ARR_SIZE:
-      CHECKIO(1);
-      n = evali(ARG(TOP(1)));
-      if (GETTAG(n) != T_ARR)
-        ERR("bad ARR tag");
-      RETIO(mkInt(ARR(n)->size));
-    case T_ARR_READ:
-      {
-      size_t i;
-      CHECKIO(2);
-      i = evalint(ARG(TOP(2)));
-      n = evali(ARG(TOP(1)));
-      if (GETTAG(n) != T_ARR)
-        ERR("bad ARR tag");
-      if (i >= ARR(n)->size)
-        ERR("ARR_READ");
-      RETIO(ARR(n)->array[i]);
-      }
-    case T_ARR_WRITE:
-      {
-      size_t i;
-      CHECKIO(3);
-      i = evalint(ARG(TOP(2)));
-      n = evali(ARG(TOP(1)));
-      if (GETTAG(n) != T_ARR)
-        ERR("bad ARR tag");
-      if (i >= ARR(n)->size) {
-        //PRINT("%d %p %d\n", (int)i, ARR(n), (int)ARR(n)->size);
-        ERR("ARR_WRITE");
-      }
-      ARR(n)->array[i] = ARG(TOP(3));
-      RETIO(combUnit);
-      }
-
-    case T_FPNEW:
-      {
-        CHECKIO(1);
-        //printf("T_FPNEW\n");
-        void *xp = evalptr(ARG(TOP(1)));
-        //printf("T_FPNEW xp=%p\n", xp);
-        n = alloc_node(T_FORPTR);
-        SETFORPTR(n, mkForPtrP(xp));
-        RETIO(n);
-      }
-    case T_FPFIN:
-      {
-        CHECKIO(2);
-        //printf("T_FPFIN\n");
-        struct forptr *xfp = evalforptr(ARG(TOP(2)));
-        //printf("T_FPFIN xfp=%p\n", xfp);
-        HsFunPtr yp = evalfunptr(ARG(TOP(1)));
-        //printf("T_FPFIN yp=%p\n", yp);
-        xfp->finalizer->final = yp;
-        RETIO(combUnit);
-      }
-
-#if 0
-    case T_FPSTR:
-      {
-        CHECKIO(2);
-        //printf("T_FPFIN\n");
-        struct forptr *xfp = evalforptr(ARG(TOP(2)));
-        //printf("T_FPFIN xfp=%p\n", xfp);
-        struct bytestring bs = evalstring(ARG(TOP(1)));
-        //printf("T_FPFIN yp=%p\n", yp);
-        xfp->desc = bs.string;
-        RETIO(combUnit);
-      }
-#endif
-
-    case T_IO_GC:
-      //printf("gc()\n");
-      gc();
-      RETIO(combUnit);
-
-    case T_IO_FORK:
-      CHECKIO(1);
-      GCCHECK(1);
-      mt = new_thread(ARG(TOP(1)));
-      mt->mt_mask = runq.mq_head->mt_mask; /* inherit masking state */
-      n = alloc_node(T_THID);
-      THR(n) = mt;
-      RETIO(n);
-    case T_IO_THID:
-      GCCHECK(1);
-      n = alloc_node(T_THID);
-      THR(n) = runq.mq_head;            /* head of the run queue is the current thread */
-      RETIO(n);      
-    case T_IO_THROWTO:
-      CHECKIO(2);
-      mt = evalthid(ARG(TOP(1)));
-      throwto(mt, ARG(TOP(2)));
-      RETIO(combUnit);
-    case T_IO_YIELD:
-      yield();
-      RETIO(combUnit);
-    case T_IO_TAKEMVAR:
-      CHECKIO(1);
-      check_thrown();           /* check if we have a thrown exception */
-      n = take_mvar(0, evalmvar(ARG(TOP(1))));         /* never returns if it blocks */
-      RETIO(n);
-    case T_IO_READMVAR:
-      CHECKIO(1);
-      check_thrown();           /* check if we have a thrown exception */
-      n = read_mvar(0, evalmvar(ARG(TOP(1))));         /* never returns if it blocks */
-      RETIO(n);
-    case T_IO_PUTMVAR:
-      CHECKIO(2);
-      check_thrown();           /* check if we have a thrown exception */
-      (void)put_mvar(0, evalmvar(ARG(TOP(1))), ARG(TOP(2))); /* never returns if it blocks */
-      RETIO(combUnit);
-    case T_IO_TRYTAKEMVAR:
-      GCCHECK(1);
-      CHECKIO(1);
-      n = take_mvar(1, evalmvar(ARG(TOP(1))));
-      if (n != NIL)
-        RETIO(new_ap(combJust, n));
-      else
-        RETIO(combNothing);
-    case T_IO_TRYREADMVAR:
-      GCCHECK(1);
-      CHECKIO(1);
-      n = read_mvar(1, evalmvar(ARG(TOP(1))));
-      if (n != NIL)
-        RETIO(new_ap(combJust, n));
-      else
-        RETIO(combK);
-    case T_IO_TRYPUTMVAR:
-      CHECKIO(2);
-      if (put_mvar(1, evalmvar(ARG(TOP(1))), ARG(TOP(2))))
-        RETIO(combTrue);
-      else
-        RETIO(combFalse);
-      RETIO(combUnit);
-    case T_IO_NEWMVAR:
-      mv = new_mvar();
-      GCCHECK(1);
-      n = alloc_node(T_MVAR);
-      MVAR(n) = mv;
-      RETIO(n);
-    case T_IO_THREADDELAY:
-      CHECKIO(1);
-      check_thrown();           /* check if we have a thrown exception */
-      if (runq.mq_head->mt_at == -1) {
-        /* delay has alread expired, so just return */
-        runq.mq_head->mt_at = 0;
-        RETIO(combUnit);
-      } else {
-        thread_delay(evalint(ARG(TOP(1)))); /* never returns */
-      }
-      break;
-    case T_IO_THREADSTATUS:
-      CHECKIO(1);
-      mt = evalthid(ARG(TOP(1)));
-      GCCHECK(1);
-      RETIO(mkInt(mt->mt_state));
-    case T_IO_GETMASKINGSTATE:
-      GCCHECK(1);
-      RETIO(mkInt(runq.mq_head->mt_mask));
-    case T_IO_MASKASYNC:
-      CHECKIO(1);
-      RETIO(with_mask(mask_interruptible));
-    case T_IO_UNMASKASYNC:
-      CHECKIO(1);
-      RETIO(with_mask(mask_unmasked));
-    case T_IO_MASKUNINTR:
-      CHECKIO(1);
-      RETIO(with_mask(mask_uninterruptible));
-
-    default:
-      //printf("bad tag %s\n", tag_names[GETTAG(n)]);
-      ERR1("execio tag %s", tag_names[GETTAG(n)]);
-    }
-  }
-#endif
 }
 
 NORETURN void

@@ -24,6 +24,7 @@ module Control.Exception.Internal(
   ) where
 import qualified Prelude()
 import Primitives
+import Data.Bool_Type
 import Data.Char_Type
 import Data.List_Type
 import Data.Maybe_Type
@@ -196,18 +197,34 @@ asyncExceptionFromException x =
 
 ---------
 
+-- Must be in the same order as enum mask_state in eval.c.
 data MaskingState
   = Unmasked
   | MaskedInterruptible
   | MaskedUninterruptible
+--  deriving (Enum) causes circular import
 --  deriving (Eq, Show)  in Control.Exception
 
+fromEnum :: MaskingState -> Int
+fromEnum Unmasked = 0
+fromEnum MaskedInterruptible = 1
+fromEnum _ = 2
+
+toEnum :: Int -> MaskingState
+toEnum i | i `primIntEQ` 0 = Unmasked
+         | i `primIntEQ` 1 = MaskedInterruptible
+         | True            = MaskedUninterruptible
+
 getMaskingState :: IO MaskingState
-getMaskingState  =
-  primGetMaskingState `primBind` \ s ->
-  primReturn (if s `primIntEQ` 0 then Unmasked
-         else if s `primIntEQ` 1 then MaskedInterruptible
-         else                         MaskedUninterruptible)
+getMaskingState = primGetMaskingState `primBind` \ s -> primReturn (toEnum s)
+
+withMaskingState :: MaskingState -> IO a -> IO a
+withMaskingState s io =
+  primGetMaskingState `primBind` \ os ->
+  primSetMaskingState (fromEnum s) `primThen`
+  io `primBind` \ a ->
+  primSetMaskingState os `primThen`
+  primReturn a
 
 mask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
 mask io =
@@ -228,14 +245,17 @@ uninterruptibleMask io =
     MaskedInterruptible   -> blockUninterruptible (io block)
     MaskedUninterruptible -> io blockUninterruptible
 
+unsafeUnmask :: IO a -> IO a
+unsafeUnmask = withMaskingState Unmasked
+
 block :: IO a -> IO a
-block = primMaskAsync
+block = withMaskingState MaskedInterruptible
+
+blockUninterruptible :: IO a -> IO a
+blockUninterruptible = withMaskingState MaskedUninterruptible
 
 unblock :: IO a -> IO a
 unblock = unsafeUnmask
-
-unsafeUnmask :: IO a -> IO a
-unsafeUnmask = primUnmaskAsync
 
 interruptible :: IO a -> IO a
 interruptible :: forall a. IO a -> IO a
@@ -245,6 +265,3 @@ interruptible act =
     Unmasked              -> act
     MaskedInterruptible   -> unsafeUnmask act
     MaskedUninterruptible -> act
-
-blockUninterruptible :: IO a -> IO a
-blockUninterruptible = primMaskUnintr

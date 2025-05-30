@@ -339,9 +339,5 @@ primIsInt = _primitive "isint"
 
 primGetMaskingState :: IO Int
 primGetMaskingState = _primitive "IO.getmaskingstate"
-primMaskAsync :: IO a -> IO a
-primMaskAsync = _primitive "IO.maskasync"
-primUnmaskAsync :: IO a -> IO a
-primUnmaskAsync = _primitive "IO.unmaskasync"
-primMaskUnintr :: IO a -> IO a
-primMaskUnintr = _primitive "IO.maskunintr"
+primSetMaskingState :: Int -> IO ()
+primSetMaskingState = _primitive "IO.setmaskingstate"
