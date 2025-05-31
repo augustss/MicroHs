@@ -1272,20 +1272,25 @@ thread_delay(uvalue_t usecs)
 void
 pause_exec(void)
 {
-  struct mthread *mt = timeq.mq_head;
-  if (mt) {
-    /* We are waiting for a delay to expire, so sleep a while */
 #if defined(CLOCK_INIT)
-    CLOCK_T now = CLOCK_GET();
-    if (mt->mt_at > now)
-      usleep((useconds_t)(mt->mt_at - now));
-    check_timeq();
-#else  /* CLOCK_INIT */
-    ERR("no clock");
-#endif  /* CLOCK_INIT */
+  if (timeq.mq_head) {
+    struct mthread *mt;
+    while (!runq.mq_head && (mt = timeq.mq_head)) {
+      /* We are waiting for a delay to expire, so sleep a while */
+      CLOCK_T dly = mt->mt_at - CLOCK_GET();
+      if (dly > 0) {
+        /* usleep() can be unreliable, so sleep shorter than the delay */
+        dly /= 2;
+        usleep((useconds_t)dly);
+      }
+      check_timeq();
+    }
   } else {
     ERR("deadlock");            /* XXX throw async to main thread */
   }
+#else  /* CLOCK_INIT */
+  ERR("no clock");
+#endif  /* CLOCK_INIT */
 }
 
 /* Interrupt a sleeping thread in a throwTo/threadDelay */
