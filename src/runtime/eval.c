@@ -1056,6 +1056,7 @@ new_mvar(void)
 
   /* add to all_mvars */
   mv->mv_next = all_mvars;
+  mv->mv_mark = 0;
   all_mvars = mv;
   
 #if THREAD_DEBUG
