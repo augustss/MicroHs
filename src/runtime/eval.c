@@ -1025,7 +1025,9 @@ new_thread(NODEPTR root)
   mt->mt_mark = 0;
   mt->mt_num_slices = 0;
   mt->mt_id = num_thread_create++;
+#if defined(CLOCK_INIT)
   mt->mt_at = 0;                /* delay has not expired */
+#endif
 
   /* add to all_threads */
   mt->mt_next = all_threads;
@@ -1310,7 +1312,9 @@ thread_intr(struct mthread *mt)
     }
     ERR("thread_intr: mvar");
   found:
+#if defined(CLOCK_INIT)
     mt->mt_at = -1;             /* don't wait again */
+#endif
     add_runq_tail(mt);
     break;
   case ts_wait_time:
@@ -4609,7 +4613,9 @@ evali(NODEPTR an)
       PUSH(mkFlt(0.0));           /* placeholder for result, protected from GC */
       int k = f(stk);             /* call FFI function, return number of arguments */
       if (k != arity) {
+#if WANT_STDIO
         fprintf(stderr, "ccall arity %s %d!=%d\n", FFI_IX(a).ffi_name, arity, k);
+#endif
         ERR("ccall arity");     /* temporary sanity check */
       }
       GCCHECK(1);                 /* room for pair */
@@ -4856,6 +4862,7 @@ evali(NODEPTR an)
   case T_IO_THREADDELAY:
     {
       CHKARG2NP;
+#if defined(CLOCK_INIT)
       check_thrown();           /* check if we have a thrown exception */
       if (runq.mq_head->mt_at == -1) {
         /* delay has already expired, so just return */
@@ -4865,6 +4872,9 @@ evali(NODEPTR an)
       } else {
         thread_delay(evalint(x)); /* never returns */
       }
+#else
+      ERR("threadDelay: no clock");
+#endif
     }
   case T_IO_THREADSTATUS:
     {
@@ -5627,6 +5637,7 @@ from_t mhs_tmpname(int s) { return mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), 
 from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
 from_t mhs_readb(int s) { return mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 from_t mhs_writeb(int s) { return mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); } /* for debugging */
 #endif  /* WANT_STDIO */
 
 #if WANT_MD5
@@ -5717,7 +5728,6 @@ from_t mhs_chdir(int s) { return mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
 from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
-from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); } /* for debugging */
 
 /* Use this to detect if we have (and want) GMP or not. */
 from_t mhs_want_gmp(int s) { return mhs_from_Int(s, 0, WANT_GMP); }
@@ -5831,6 +5841,7 @@ struct ffi_entry ffi_table[] = {
   { "unlink", 1, mhs_unlink},
   { "readb", 3, mhs_readb},
   { "writeb", 3, mhs_writeb},
+  { "putchar", 1, mhs_putchar},
 #endif  /* WANT_STDIO */
 
 #if WANT_MD5
@@ -5922,7 +5933,6 @@ struct ffi_entry ffi_table[] = {
   { "getcwd", 2, mhs_getcwd},
 #endif  /* WANT_DIR */
   { "want_gmp", 0, mhs_want_gmp},
-  { "putchar", 1, mhs_putchar},
 #if WANT_GMP
   { "new_mpz", 0, mhs_new_mpz},
   { "mpz_abs", 2, mhs_mpz_abs},
