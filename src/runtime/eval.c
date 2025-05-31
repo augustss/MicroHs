@@ -1014,7 +1014,7 @@ new_thread(NODEPTR root)
 
 #if THREAD_DEBUG
   if (thread_trace) {
-    printf("new_thread: root=%p\n", root);
+    printf("new_thread: mt=%p root=%p\n", mt, root);
   }
 #endif  /* THREAD_DEBUG */
   mt->mt_mask = mask_unmasked;
@@ -1085,7 +1085,7 @@ take_mvar(int try, struct mvar *mv)
     runq.mq_head->mt_mval = NIL;
     return n;                   /* returned the stashed data */
   }
-  if ((n = mv->mv_data)) {
+  if ((n = mv->mv_data) != NIL) {
 #if THREAD_DEBUG
     if (thread_trace)
       printf("take_mvar: mvar=%p full\n", mv);
@@ -1097,13 +1097,22 @@ take_mvar(int try, struct mvar *mv)
 #if THREAD_DEBUG
       if (thread_trace) {
         printf("take_mvar: mvar=%p wake %d\n", mv, (int)mt->mt_id);
-        dump_q("runq", runq);
       }
 #endif  /* THREAD_DEBUG */
       struct mthread *nt = mt->mt_queue;
       add_runq_tail(mt);
+#if THREAD_DEBUG
+      if (thread_trace) {
+        dump_q("runq", runq);
+      }
+#endif  /* THREAD_DEBUG */
       mt = nt;
     }
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("take_mvar: mvar=%p return %p\n", mv, n);
+    }
+#endif  /* THREAD_DEBUG */
     return n;                   /* return the data */
   } else {
 #if THREAD_DEBUG
@@ -1136,7 +1145,7 @@ read_mvar(int try, struct mvar *mv)
     runq.mq_head->mt_mval = NIL;
     return n;                   /* returned the stashed data */
   }
-  if ((n = mv->mv_data)) {
+  if ((n = mv->mv_data) != NIL) {
     /* mvar is full */
     return n;                   /* return the data */
   } else {
@@ -1473,7 +1482,7 @@ start_exec(NODEPTR root)
     } else {
 #if THREAD_DEBUG
       if (thread_trace) {
-        printf("start_exec: %d died from exn\n", (int)mt->mt_id);
+        printf("start_exec: mt=%p id=%d died from exn\n", mt, (int)mt->mt_id);
       }
 #endif  /* THREAD_DEBUG */
       mt->mt_state = ts_died;
@@ -1504,6 +1513,11 @@ start_exec(NODEPTR root)
     /* when evali() returns the thread is done */
     (void)remove_q_head(&runq);                      /* remove front thread */
 
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("start_exec: mt=%p id=%d finished\n", mt, (int)mt->mt_id);
+    }
+#endif  /* THREAD_DEBUG */
     mt->mt_state = ts_finished;
     mt->mt_root = NIL;
     /* XXX mt_mval, mt_thrown */
@@ -1678,6 +1692,14 @@ struct {
   { "toFunPtr", T_TOFUNPTR },
   { "IO.ccall", T_IO_CCALL },
   { "isint", T_ISINT },
+  { "binint2", T_BININT2 },
+  { "binint1", T_BININT1 },
+  { "bindbl2", T_BINDBL2 },
+  { "bindbl1", T_BINDBL1 },
+  { "binbs2", T_BINBS2 },
+  { "binbs1", T_BINBS1 },
+  { "unint1", T_UNINT1 },
+  { "undbl1", T_UNDBL1 },
 };
 
 #if GCRED
@@ -1854,7 +1876,7 @@ mark_mvar(struct mvar *mv)
   if (mv->mv_mark)
     return;
   mv->mv_mark = 1;
-  if (mv->mv_data)
+  if (mv->mv_data != NIL)
     mark(&mv->mv_data);
   for (struct mthread *mt = mv->mv_takeput.mq_head; mt; mt = mt->mt_next)
     mark_thread(mt);
@@ -3265,7 +3287,17 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
   default:
-    putsb(tag_names[tag], f);
+    if (0 <= tag && tag <= T_LAST_TAG)
+      if (tag_names[tag])
+        putsb(tag_names[tag], f);
+      else {
+        snprintf(prbuf, sizeof prbuf, "TAG=%d", (int)tag);
+        putsb(prbuf, f);
+      }
+    else {
+      snprintf(prbuf, sizeof prbuf, "BADTAG(%d)", (int)tag);
+      putsb(prbuf, f);
+    }
     break;
   }
   if (!prefix) {
