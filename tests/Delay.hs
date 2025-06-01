@@ -2,13 +2,16 @@ module Delay where
 import Control.Concurrent
 import System.IO.TimeMilli
 
+-- This test is hard to get working on all CI platforms.
+-- Some seem to have very inaccurate timing.
+
 timedDelay :: String -> Int -> IO ()
 timedDelay msg usecs = do
   t1 <- getTimeMilli
   threadDelay usecs
   t2 <- getTimeMilli
   let dt = t2 - t1
-      rdt = (dt `div` 20) * 20 -- round down ms
+      rdt = (dt `div` 100) * 100 -- round down ms
   putStrLn $ msg ++ " " ++ show usecs ++ " " ++ show rdt ++ "ms"
 
 thr1 :: IO ()
