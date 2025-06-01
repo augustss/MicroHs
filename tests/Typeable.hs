@@ -1,5 +1,4 @@
 module Typeable(main) where
-import Prelude
 import Data.Proxy
 import Data.Typeable
 

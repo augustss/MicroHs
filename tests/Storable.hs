@@ -1,5 +1,4 @@
 module Storable(main) where
-import Prelude
 import Data.Word
 import Foreign.Marshal.Array
 import Foreign.Marshal.Utils

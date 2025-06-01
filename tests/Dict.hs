@@ -1,5 +1,4 @@
 module Dict(module Dict) where
-import Prelude
 import Data.Constraint
 
 fac :: forall a . (Num a, Eq a) => a -> a

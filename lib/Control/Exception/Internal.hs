@@ -1,4 +1,4 @@
--- Copyright 2024 Lennart Augustsson
+-- Copyright 2024,2025 Lennart Augustsson
 -- See LICENSE file for full license.
 module Control.Exception.Internal(
   throw, catch,
@@ -8,9 +8,23 @@ module Control.Exception.Internal(
   SomeException(..),
   PatternMatchFail, NoMethodError, RecSelError, RecConError(..),
   patternMatchFail, noMethodError, recSelError, recConError,
+  AsyncException(..),
+  ArithException(..),
+  SomeAsyncException,
+  asyncExceptionToException,
+  asyncExceptionFromException,
+
+  uninterruptibleMask,
+  uninterruptibleMask_,
+  MaskingState(..),
+  getMaskingState,
+  interruptible,
+
+  unsafeUnmask,
   ) where
 import qualified Prelude()
-import Primitives(IO, primThen, primBind, primReturn)
+import Primitives
+import Data.Bool
 import Data.Char_Type
 import Data.List_Type
 import Data.Maybe_Type
@@ -32,9 +46,29 @@ catch   :: forall e a .
         -> (e -> IO a)
         -> IO a
 catch io handler = primCatch io handler'
-    where handler' e = case fromException e of
+    where handler' e = case fromException (rtsExn e) of
                        Just e' -> handler e'
                        Nothing -> primRaise e
+
+-- The runtime system sometimes needs to generate exceptions.
+-- It is quite difficult to create SomeException value since
+-- it involves an existential data type with several dictionaries.
+-- So, instead, the runtime uses an INT value to convey that
+-- RTS exception has happened.  So the incoming SomeException
+-- is sometimes just a regular Int.  Here is where we translate that
+-- back to a real SomeException.
+-- The translation here has to be kept in sync with the enum rts_exn
+-- in eval.c.
+-- The magic primIsInt primitive returns the Int if it is one, otherwise -1.
+rtsExn :: SomeException -> SomeException
+rtsExn e =
+  let n = primIsInt e
+  in       if primIntEQ n (0::Int) then SomeException StackOverflow
+      else if primIntEQ n (1::Int) then SomeException HeapOverflow
+      else if primIntEQ n (2::Int) then SomeException ThreadKilled
+      else if primIntEQ n (3::Int) then SomeException UserInterrupt
+      else if primIntEQ n (4::Int) then SomeException DivideByZero
+      else e
 
 -- Throw an exception when executed, not when evaluated
 throwIO :: forall a e . Exception e => e -> IO a
@@ -53,10 +87,6 @@ bracket before after thing =
     after a `primThen`
     primReturn r
     )))
-
--- XXX we don't have masks yet
-mask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
-mask io = io (\ x -> x)
 
 ------------------
 
@@ -116,3 +146,122 @@ noMethodError    s = throw (NoMethodError    s)
 patternMatchFail s = throw (PatternMatchFail s)
 recSelError      s = throw (RecSelError      s)
 recConError      s = throw (RecConError      s)
+
+-------------------
+
+data ArithException
+  = Overflow
+  | Underflow
+  | LossOfPrecision
+  | DivideByZero
+  | Denormal
+  | RatioZeroDenominator
+  deriving ({-Eq, Ord,-} Show, Typeable)  -- Eq, Ord in Exception module
+instance Exception ArithException
+
+-------------------
+
+data AsyncException
+  = StackOverflow
+  | HeapOverflow
+  | ThreadKilled
+  | UserInterrupt
+  deriving ({-Eq, Ord,-} Typeable)  -- Eq, Ord in Exception module
+
+instance Show AsyncException where
+  showsPrec _ StackOverflow   = showString "stack overflow"
+  showsPrec _ HeapOverflow    = showString "heap overflow"
+  showsPrec _ ThreadKilled    = showString "thread killed"
+  showsPrec _ UserInterrupt   = showString "user interrupt"
+
+instance Exception AsyncException where
+  toException = asyncExceptionToException
+  fromException = asyncExceptionFromException
+
+data SomeAsyncException = forall e . Exception e => SomeAsyncException e
+  deriving (Typeable)
+
+instance Show SomeAsyncException where
+    showsPrec p (SomeAsyncException e) = showsPrec p e
+
+instance Exception SomeAsyncException
+
+asyncExceptionToException :: Exception e => e -> SomeException
+asyncExceptionToException e = toException (SomeAsyncException e)
+
+asyncExceptionFromException :: Exception e => SomeException -> Maybe e
+asyncExceptionFromException x =
+  case fromException x of
+    Just (SomeAsyncException a) -> cast a
+    Nothing -> Nothing
+
+---------
+
+-- Must be in the same order as enum mask_state in eval.c.
+data MaskingState
+  = Unmasked
+  | MaskedInterruptible
+  | MaskedUninterruptible
+--  deriving (Enum) causes circular import
+--  deriving (Eq, Show)  in Control.Exception
+
+fromEnum :: MaskingState -> Int
+fromEnum Unmasked = 0
+fromEnum MaskedInterruptible = 1
+fromEnum _ = 2
+
+toEnum :: Int -> MaskingState
+toEnum i | i `primIntEQ` 0 = Unmasked
+         | i `primIntEQ` 1 = MaskedInterruptible
+         | otherwise       = MaskedUninterruptible
+
+getMaskingState :: IO MaskingState
+getMaskingState = primGetMaskingState `primBind` \ s -> primReturn (toEnum s)
+
+withMaskingState :: MaskingState -> IO a -> IO a
+withMaskingState s io =
+  primGetMaskingState `primBind` \ os ->
+  primSetMaskingState (fromEnum s) `primThen`
+  io `primBind` \ a ->
+  primSetMaskingState os `primThen`
+  primReturn a
+
+mask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
+mask io =
+  getMaskingState `primBind` \ b ->
+  case b of
+    Unmasked              -> block (io unblock)
+    MaskedInterruptible   -> io block
+    MaskedUninterruptible -> io blockUninterruptible
+
+uninterruptibleMask :: forall a . IO a -> IO a
+uninterruptibleMask_ io = uninterruptibleMask (\ _ -> io)
+
+uninterruptibleMask :: ((forall a. IO a -> IO a) -> IO b) -> IO b
+uninterruptibleMask io =
+  getMaskingState `primBind` \ b ->
+  case b of
+    Unmasked              -> blockUninterruptible (io unblock)
+    MaskedInterruptible   -> blockUninterruptible (io block)
+    MaskedUninterruptible -> io blockUninterruptible
+
+unsafeUnmask :: IO a -> IO a
+unsafeUnmask = withMaskingState Unmasked
+
+block :: IO a -> IO a
+block = withMaskingState MaskedInterruptible
+
+blockUninterruptible :: IO a -> IO a
+blockUninterruptible = withMaskingState MaskedUninterruptible
+
+unblock :: IO a -> IO a
+unblock = unsafeUnmask
+
+interruptible :: IO a -> IO a
+interruptible :: forall a. IO a -> IO a
+interruptible act =
+  getMaskingState `primBind` \ b ->
+  case b of
+    Unmasked              -> act
+    MaskedInterruptible   -> unsafeUnmask act
+    MaskedUninterruptible -> act

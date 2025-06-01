@@ -1,5 +1,4 @@
 module LocalPoly(main) where
-import Prelude
 
 main :: IO ()
 main = do

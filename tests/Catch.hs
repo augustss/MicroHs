@@ -1,5 +1,4 @@
 module Catch(main) where
-import Prelude
 import Control.Exception
 import System.IO
 
@@ -35,5 +34,7 @@ main = do
     let ln = hGetLine h `catch` exn
     a <- ln
     b <- ln
+    c <- ln
     print a
     print b
+    print c

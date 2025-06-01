@@ -29,6 +29,9 @@
 #if WANT_GMP
 #include <gmp.h>
 #endif
+#if WANT_SIGINT
+#include <signal.h>
+#endif
 
 #if WANT_MD5
 #include "md5.h"
@@ -64,7 +67,13 @@ int num_ffi;
 
 //#include "config.h"
 
-#define VERSION "v7.2\n"
+#if WANT_STDIO
+#define THREAD_DEBUG 1
+#else
+#define THREAD_DEBUG 0
+#endif
+
+#define VERSION "v8.0\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -299,7 +308,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -313,6 +322,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_BININT2, T_BININT1, T_UNINT1,
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
                 T_BINBS2, T_BINBS1,
+                T_ISINT,
 #if WANT_FLOAT
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
@@ -321,25 +331,34 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_RAISE, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
-                T_IO_CCBIND,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
-                T_IO_PERFORMIO, T_IO_PRINT, T_CATCH,
+                T_IO_PERFORMIO, T_IO_PRINT, T_CATCH, T_CATCHR,
                 T_IO_CCALL, T_IO_GC, T_DYNSYM,
+                T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
+                T_IO_NEWMVAR,
+                T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
+                T_IO_TRYTAKEMVAR, T_IO_TRYPUTMVAR, T_IO_TRYREADMVAR,
+                T_IO_THREADDELAY, T_IO_THREADSTATUS,
+                T_IO_GETMASKINGSTATE, T_IO_SETMASKINGSTATE,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT,
+                T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_LAST_TAG,
 };
+/* Most entries are initialized from the primops table. */
 static const char* tag_names[T_LAST_TAG+1] =
-  { "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID" };
+  { "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
 
 struct ioarray;
 struct bytestring;
 struct forptr;
+struct mthread;
+struct mvar;
 
 typedef struct node {
   union {
@@ -356,6 +375,8 @@ typedef struct node {
     HsFunPtr        uufunptr;
     struct ioarray *uuarray;
     struct forptr  *uuforptr;      /* foreign pointers and byte arrays */
+    struct mthread *uuthread;
+    struct mvar    *uumvar;
   } uarg;
 } node;
 #define BIT_TAG   1
@@ -380,6 +401,8 @@ typedef struct node* NODEPTR;
 #define FORPTR(p) (p)->uarg.uuforptr
 #define BSTR(p) (p)->uarg.uuforptr->payload
 #define ARR(p) (p)->uarg.uuarray
+#define THR(p) (p)->uarg.uuthread
+#define MVAR(p) (p)->uarg.uumvar
 #define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
 #define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
 #define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
@@ -456,12 +479,21 @@ struct forptr {
 };
 struct final *final_root = 0;   /* root of all allocated foreign pointers, linked by next */
 
-REGISTER(counter_t num_reductions,r19);
+//REGISTER(counter_t num_reductions,r19);
+counter_t num_reductions = 0;
 counter_t num_alloc = 0;
 counter_t num_gc = 0;
+counter_t num_yield = 0;
+counter_t num_resched = 0;
+counter_t num_thread_reap = 0;
+counter_t num_mvar_alloc = 0;
+counter_t num_mvar_free = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
+
+#define MAIN_THREAD 1
+uvalue_t num_thread_create = MAIN_THREAD;
 
 #define MAXSTACKDEPTH 0
 #if MAXSTACKDEPTH
@@ -479,7 +511,7 @@ NODEPTR atptr;
 REGISTER(NODEPTR *stack,r20);
 REGISTER(stackptr_t stack_ptr,r21);
 #if STACKOVL
-#define PUSH(x) do { if (stack_ptr >= stack_size-1) stackerr(); stack[++stack_ptr] = (x); MAXSTACK; } while(0)
+#define PUSH(x) do { if (stack_ptr >= stack_size-2) stackerr(); stack[++stack_ptr] = (x); MAXSTACK; } while(0)
 #else  /* STACKOVL */
 #define PUSH(x) do {                                            stack[++stack_ptr] = (x); MAXSTACK; } while(0)
 #endif  /* STACKOVL */
@@ -487,6 +519,8 @@ REGISTER(stackptr_t stack_ptr,r21);
 #define POP(n) stack_ptr -= (n)
 #define POPTOP() stack[stack_ptr--]
 #define GCCHECK(n) gc_check((n))
+#define CLEARSTK() do { stack_ptr = -1; } while(0)
+#define GCCHECKSAVE(p, n) do { PUSH(p); GCCHECK(n); (p) = TOP(0); POP(1); } while(0)
 
 heapoffs_t heap_size;       /* number of heap cells */
 heapoffs_t heap_start;      /* first location in heap that needs GC */
@@ -618,14 +652,726 @@ dump_tick_table(FILE *f)
 }
 #endif
 
-/*****************************************************************************/
+enum th_sched { mt_main, mt_resched, mt_raise };
+/* The two enums below are known by the Haskell code.  Do not change order */
+enum th_state { ts_runnable, ts_wait_mvar, ts_wait_time, ts_finished, ts_died };
+enum mask_state { mask_unmasked, mask_interruptible, mask_uninterruptible };
+
+/***************** HANDLER *****************/
 
 struct handler {
   jmp_buf         hdl_buf;      /* env storage */
   struct handler *hdl_old;      /* old handler */
-  stackptr_t      hdl_stack;    /* old stack pointer */
   NODEPTR         hdl_exn;      /* used temporarily to pass the exception value */
 } *cur_handler = 0;
+
+/***************** THREAD ******************/
+
+struct mthread {
+  enum th_state   mt_state;      /* thread state */
+  enum mask_state mt_mask;       /* making state. */
+  struct mthread *mt_next;       /* all threads linked together */
+  struct mthread *mt_queue;      /* runq/waitq link */
+  counter_t       mt_slice;      /* reduction steps until yielding */
+  counter_t       mt_num_slices; /* number of slices so far */
+  NODEPTR         mt_root;       /* root of the graph to reduce */
+  struct mvar    *mt_exn;        /* possible thrown exception */
+  NODEPTR         mt_mval;       /* filled after waiting for take/read */
+  int             mt_mark;       /* marked as accessible */
+  uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
+#if defined(CLOCK_INIT)
+  CLOCK_T         mt_at;         /* time to wake up when in threadDelay */
+#endif
+};
+struct mthread  *all_threads = 0;   /* all threads */
+
+struct mqueue {
+  struct mthread *mq_head;
+  struct mthread *mq_tail;
+};
+struct mqueue runq = { 0, 0 };;
+struct mqueue timeq = { 0, 0 };
+
+struct mvar {
+  struct mvar    *mv_next;      /* all mvars linked together */
+  NODEPTR         mv_data;      /* contents of the mvar, or NIL when empty */
+  struct mqueue   mv_takeput;   /* queue of threads waiting for take or put, single wakeup */
+  struct mqueue   mv_read;      /* queue of threads waiting for read, multiple wakeup */
+  int             mv_mark;      /* marked as accessible */
+};
+struct mvar      *all_mvars = 0;   /* all mvars */
+
+jmp_buf          sched;             /* jump here to yield */
+counter_t        slice = 100000;    /* normal time slice;
+                                     * on an M4 Mac this is about 0.3ms */
+//REGISTER(counter_t glob_slice,r23);
+REGISTER(int glob_slice,r23);
+
+NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(sched, mt_raise) */
+
+/* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
+enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
+
+NORETURN void raise_exn(NODEPTR exn);
+struct mvar* new_mvar(void);
+NODEPTR take_mvar(int try, struct mvar *mv);
+NORETURN void die_exn(NODEPTR exn);
+void thread_intr(struct mthread *mt);
+int put_mvar(int try, struct mvar *mv, NODEPTR v);
+NODEPTR mkInt(value_t i);
+NODEPTR mkFlt(flt_t d);
+NODEPTR mkPtr(void* p);
+struct mthread* new_thread(NODEPTR root);
+void gc(void);
+void async_throwto(struct mthread*, NODEPTR);
+
+#if WANT_STDIO
+void pp(FILE*, NODEPTR);
+#endif
+
+/* Needed during reduction */
+NODEPTR intTable[HIGH_INT - LOW_INT];
+NODEPTR combK, combTrue, combUnit, combCons, combPair;
+NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combBB;
+NODEPTR combSETMASKINGSTATE;
+NODEPTR combLT, combEQ, combGT;
+NODEPTR combShowExn, combU, combK2, combK3;
+NODEPTR combBININT1, combBININT2, combUNINT1;
+NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
+NODEPTR combBINBS1, combBINBS2;
+NODEPTR comb_stdin, comb_stdout, comb_stderr;
+NODEPTR combJust;
+NODEPTR combTHROWTO;
+NODEPTR combPairUnit;
+NODEPTR combWorld;
+NODEPTR combCATCHR;
+#define combFalse combK
+#define combNothing combK
+
+#if WANT_ARGS
+/* This single element array hold a list of the program arguments. */
+struct ioarray *argarray;
+#endif  /* WANT_ARGS */
+
+int verbose = 0;
+int gcbell = 0;
+
+
+#if WANT_SIGINT
+volatile int has_sigint = 0;
+void
+handle_sigint(int s)
+{
+  has_sigint = 1;
+}
+#endif
+
+/* Check that there are k nodes available, if not then GC. */
+static INLINE void
+gc_check(size_t k)
+{
+  if (k < num_free)
+    return;
+#if WANT_STDIO
+  if (verbose > 1)
+    PRINT("gc_check: %d\n", (int)k);
+#endif
+  gc();
+}
+
+/* Add the thread to the tail of runq */
+void
+add_q_tail(struct mqueue *q, struct mthread *mt)
+{
+  if (!q->mq_head) {
+    /* q is empty, so mt goes first */
+    q->mq_head = mt;
+  } else {
+    /* link mt to the end of the runq */
+    q->mq_tail->mt_queue = mt;
+  }
+  q->mq_tail = mt;               /* mt is now last */
+  mt->mt_queue = 0;           /* mt is last, so no next */
+}
+
+void
+add_runq_tail(struct mthread *mt)
+{
+  mt->mt_state = ts_runnable;
+  add_q_tail(&runq, mt);
+}
+
+struct mthread*
+remove_q_head(struct mqueue *q)
+{
+  struct mthread *mt = q->mq_head; /* front thread */
+  if (!mt)
+    return 0;
+  q->mq_head = mt->mt_queue;       /* skip to next thread */
+  if (!q->mq_head)
+    q->mq_tail = 0;                /* q is now empty */
+  return mt;
+}
+
+int
+find_and_unlink(struct mqueue *mq, struct mthread *mt)
+{
+  struct mthread **mtp;
+  
+  for(mtp = &mq->mq_head; *mtp && *mtp != mt; mtp = &(*mtp)->mt_queue)
+    ;
+  if (!*mtp)
+    return 0;                   /* not found */
+  *mtp = mt->mt_queue;          /* unlink */
+  if (*mtp)
+    return 1;                   /* the unlinked thread was not the tail */
+  if (mq->mq_head) {
+    for (mt = mq->mq_head; mt->mt_queue; mt = mt->mt_queue)
+      ;                         /* find the last element */
+    mq->mq_tail = mt;
+  } else {
+    /* q is empty */
+    mq->mq_tail = 0;
+  }
+  return 1;
+}
+
+/* This is a yucky hack */
+int doing_rnf = 0;              /* REMOVE */
+#if THREAD_DEBUG
+const int thread_trace = 0;
+#endif  /* THREAD_DEBUG */
+
+/* clean up temporary globals to prepare for rescheduling */
+void
+cleanup(struct mthread *mt, enum th_state ts)
+{
+  /* We are going to reschedule, so clean up thread state:
+   *  stack pointer
+   *  error handlers
+   */
+#if THREAD_DEBUG
+  if (thread_trace)
+    printf("cleanup: %d state=%d\n", (int)mt->mt_id, ts);
+#endif  /* THREAD_DEBUG */
+  mt->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
+  mt->mt_state = ts;
+  CLEARSTK();                 /* reset stack */
+  doing_rnf = 0;
+  /* free all error handlers */
+  for (struct handler *h = cur_handler; h; ) {
+    struct handler *n = h;
+    h = h->hdl_old;
+    free(n);
+  }
+  cur_handler = 0;
+}
+
+/* reschedule, does not return */
+NORETURN void
+resched(struct mthread *mt, enum th_state ts)
+{
+  cleanup(mt, ts);
+  longjmp(sched, mt_resched);
+}
+
+#if THREAD_DEBUG
+void
+dump_q(const char *s, struct mqueue q)
+{
+  printf("%s=[", s);
+  for(struct mthread *mt = q.mq_head; mt; mt = mt->mt_queue) {
+    printf("%d ", (int)mt->mt_id);
+  }
+  printf("]\n");
+}
+#endif  /* THREAD_DEBUG */
+
+/* Check if its time to wake up some threads waiting for a time. */
+void
+check_timeq(void)
+{
+#if defined(CLOCK_INIT)
+  CLOCK_T now = CLOCK_GET();
+  while (timeq.mq_head && timeq.mq_head->mt_at <= now) {
+    struct mthread *mt = remove_q_head(&timeq);
+    add_runq_tail(mt);
+    mt->mt_at = -1;             /* indicate that the delay has expired */
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("check_timeq: %d done\n", (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
+  }
+#endif
+}
+
+void
+throwto(struct mthread *mt, NODEPTR exn)
+{
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("throwto: id=%d\n", (int)mt->mt_id);
+  }
+#endif  /* THREAD_DEBUG */
+  thread_intr(mt);
+  if (mt->mt_state != ts_died && mt->mt_state != ts_finished) {
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("throwto: id=%d put_mvar exn\n", (int)mt->mt_id);
+    }
+#endif  /* THREAD_DEBUG */
+    (void)put_mvar(0, mt->mt_exn, exn); /* never returns if it blocks */
+  }
+}
+
+void
+check_thrown(void)
+{
+  if (runq.mq_head->mt_exn->mv_data == NIL)
+    return;            /* no thrown exception */
+  if (runq.mq_head->mt_mask != mask_unmasked)
+    return;            /* interrupts are masked, so don't throw */
+  /* the current thread has an async exception */
+#if THREAD_DEBUG
+  if (thread_trace)
+    printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
+#endif  /* THREAD_DEBUG */
+  NODEPTR exn = take_mvar(0, runq.mq_head->mt_exn); /* get the exception */
+  raise_exn(exn);
+}
+
+void
+check_sigint(void)
+{
+#if WANT_SIGINT
+  if (has_sigint) {
+    /* We have a signal, so send an async exception  to the main thread */
+    has_sigint = 0;
+    for(struct mthread *mt= all_threads; mt; mt = mt->mt_next) {
+      if (mt->mt_id == MAIN_THREAD) {
+#if THREAD_DEBUG
+        if (thread_trace)
+          printf("sending signal to main\n");
+#endif  /* THREAD_DEBUG */
+        async_throwto(mt, mkInt(exn_userinterrupt));
+        break;
+      }
+    }
+  }
+#endif
+}
+
+/* Used to detect calls to error while we are already in a call to error. */
+int in_raise = 0;
+
+/* Inlining makes very little difference */
+/*static INLINE*/ void
+yield(void)
+{
+  if (in_raise)                 /* don't context switch when we are dying */
+    return;
+  //printf("yield stk=%d\n", (int)stack_ptr);
+  //pp(stdout, runq.mt_root);
+  COUNT(num_yield);
+  runq.mq_head->mt_num_slices++;
+  // XXX should check mt_thrown here
+  
+  if (timeq.mq_head)
+    check_timeq();
+  check_thrown();
+  check_sigint();
+  // printf("yield %p %d\n", runq, (int)stack_ptr);
+  /* if there is nothing after in the runq then there is no need to reschedule */
+  if (!runq.mq_head->mt_queue) {
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("yield: %d no other threads\n", (int)runq.mq_head->mt_id);
+      dump_q("runq", runq);
+    }
+#endif  /* THREAD_DEBUG */
+    glob_slice = slice;
+    num_reductions += glob_slice-1;
+    return;
+  }
+
+  /* Unlink from runq */
+  struct mthread *mt = remove_q_head(&runq);
+  /* link into back of runq */
+  add_runq_tail(mt);
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("yield: resched %d\n", (int)mt->mt_id);
+    dump_q("runq", runq);
+  }
+#endif  /* THREAD_DEBUG */
+  resched(mt, ts_runnable);
+}
+
+struct mthread*
+new_thread(NODEPTR root)
+{
+  struct mthread *mt = mmalloc(sizeof(struct mthread));
+
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("new_thread: mt=%p root=%p\n", mt, root);
+  }
+#endif  /* THREAD_DEBUG */
+  mt->mt_mask = mask_unmasked;
+  mt->mt_root = root;
+  mt->mt_exn = new_mvar();
+  mt->mt_mval = NIL;
+  mt->mt_slice = 0;
+  mt->mt_mark = 0;
+  mt->mt_num_slices = 0;
+  mt->mt_id = num_thread_create++;
+#if defined(CLOCK_INIT)
+  mt->mt_at = 0;                /* delay has not expired */
+#endif
+
+  /* add to all_threads */
+  mt->mt_next = all_threads;
+  all_threads = mt;
+
+  /* add to tail of runq */
+  add_runq_tail(mt);            /* sets runnable */
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("new_thread: add %d to runq tail\n", (int)mt->mt_id);
+    dump_q("runq", runq);
+  }
+#endif  /* THREAD_DEBUG */
+  return mt;
+}
+
+struct mvar*
+new_mvar(void)
+{
+  COUNT(num_mvar_alloc);
+  struct mvar *mv = mmalloc(sizeof(struct mvar));
+
+  mv->mv_data = NIL;
+  mv->mv_takeput.mq_head = 0;
+  mv->mv_takeput.mq_tail = 0;
+  mv->mv_read.mq_head = 0;
+  mv->mv_read.mq_tail = 0;
+
+  /* add to all_mvars */
+  mv->mv_next = all_mvars;
+  mv->mv_mark = 0;
+  all_mvars = mv;
+  
+#if THREAD_DEBUG
+  if (thread_trace)
+    printf("new_mvar: mvar=%p\n", mv);
+#endif  /* THREAD_DEBUG */
+  return mv;
+}
+
+NODEPTR
+take_mvar(int try, struct mvar *mv)
+{
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("take_mvar: mvar=%p\n", mv);
+    dump_q("takeput", mv->mv_takeput);
+  }
+#endif  /* THREAD_DEBUG */
+  NODEPTR n;
+  if ((n = runq.mq_head->mt_mval) != NIL) {
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("take_mvar: mvar=%p got data %d\n", mv, (int)runq.mq_head->mt_id);
+#endif  /* THREAD_DEBUG */
+    /* We have after waking up */
+    runq.mq_head->mt_mval = NIL;
+    return n;                   /* returned the stashed data */
+  }
+  if ((n = mv->mv_data) != NIL) {
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("take_mvar: mvar=%p full\n", mv);
+#endif  /* THREAD_DEBUG */
+    /* mvar is full */
+    mv->mv_data = NIL;           /* now empty */
+    /* move all threads waiting to put to the runq */
+    for (struct mthread *mt = mv->mv_takeput.mq_head; mt; ) {
+#if THREAD_DEBUG
+      if (thread_trace) {
+        printf("take_mvar: mvar=%p wake %d\n", mv, (int)mt->mt_id);
+      }
+#endif  /* THREAD_DEBUG */
+      struct mthread *nt = mt->mt_queue;
+      add_runq_tail(mt);
+#if THREAD_DEBUG
+      if (thread_trace) {
+        dump_q("runq", runq);
+      }
+#endif  /* THREAD_DEBUG */
+      mt = nt;
+    }
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("take_mvar: mvar=%p return %p\n", mv, n);
+    }
+#endif  /* THREAD_DEBUG */
+    return n;                   /* return the data */
+  } else {
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("take_mvar: mvar=%p empty\n", mv);
+#endif  /* THREAD_DEBUG */
+    /* mvar is empty */
+    if (try)
+      return NIL;
+    struct mthread *mt = remove_q_head(&runq);
+    add_q_tail(&mv->mv_takeput, mt);
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("take_mvar: mvar=%p suspend %d\n", mv, (int)mt->mt_id);
+      dump_q("runq", runq);
+      dump_q("takeput", mv->mv_takeput);
+    }
+#endif  /* THREAD_DEBUG */
+    /* Unlink from runq */
+    resched(mt, ts_wait_mvar);    /* never returns */
+  }
+}
+
+NODEPTR
+read_mvar(int try, struct mvar *mv)
+{
+  NODEPTR n;
+  if ((n = runq.mq_head->mt_mval) != NIL) {
+    /* We have after waking up */
+    runq.mq_head->mt_mval = NIL;
+    return n;                   /* returned the stashed data */
+  }
+  if ((n = mv->mv_data) != NIL) {
+    /* mvar is full */
+    return n;                   /* return the data */
+  } else {
+    /* mvar is empty */
+    if (try)
+      return NIL;
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("read_mvar: suspend %d\n", (int)runq.mq_head->mt_id);
+      dump_q("runq", runq);
+    }
+#endif  /* THREAD_DEBUG */
+    struct mthread *mt = remove_q_head(&runq);
+    add_q_tail(&mv->mv_read, mt);
+    resched(mt, ts_wait_mvar);                /* never returns */
+  }
+}
+
+int
+put_mvar(int try, struct mvar *mv, NODEPTR v)
+{
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("put_mvar: mvar=%p\n", mv);
+    dump_q("takeput", mv->mv_takeput);
+    dump_q("read", mv->mv_read);
+  }
+#endif  /* THREAD_DEBUG */
+  if (mv->mv_data != NIL) {
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("put_mvar: mvar=%p full\n", mv);
+#endif  /* THREAD_DEBUG */
+    /* mvar is full */
+    if (try)
+      return 0;
+    struct mthread *mt = remove_q_head(&runq);
+    add_q_tail(&mv->mv_takeput, mt); /* put on mvar queue */
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("put_mvar: suspend %d\n", (int)mt->mt_id);
+      dump_q("runq", runq);
+      dump_q("takeput", mv->mv_takeput);
+    }
+#endif  /* THREAD_DEBUG */
+    resched(mt, ts_wait_mvar);                  /* never returns */
+  } else {
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("put_mvar: mvar=%p empty\n", mv);
+#endif  /* THREAD_DEBUG */
+    /* mvar is empty */
+    if (mv->mv_takeput.mq_head || mv->mv_read.mq_head) {
+      /* one or more threads are waiting */
+      struct mthread *mt;
+      if (mv->mv_takeput.mq_head) {
+        /* wake up one 'take' */
+        mt = remove_q_head(&mv->mv_takeput);
+#if THREAD_DEBUG
+        if (thread_trace)
+          printf("put_mvar: wake-1 %d\n", (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
+        add_runq_tail(mt);             /* and schedule for execution later */
+        mt->mt_mval = v;
+      }
+      for (mt = mv->mv_read.mq_head; mt; ) { /* XXX use q primitives */
+#if THREAD_DEBUG
+        if (thread_trace)
+          printf("put_mvar: wake-N %d\n", (int)mt->mt_id);
+#endif  /* THREAD_DEBUG */
+        mt->mt_mval = v;               /* value for restarted read */
+        mt = mt->mt_queue;             /* next waiter */
+        add_runq_tail(mt);             /* and schedule for execution later */
+      }
+#if THREAD_DEBUG
+      if (thread_trace)
+        dump_q("runq", runq);
+#endif  /* THREAD_DEBUG */
+      /* return to caller */
+    } else {
+#if THREAD_DEBUG
+      if (thread_trace) {
+        printf("put_mvar: mvar=%p no waiters\n", mv);
+      }
+#endif  /* THREAD_DEBUG */
+      /* no threads waiting, so store the value */
+      mv->mv_data = v;
+      /* return to caller */
+    }
+  }
+  return 1;
+}
+
+NORETURN void
+thread_delay(uvalue_t usecs)
+{
+#if !defined(CLOCK_INIT)
+  ERR("thread_delay: no clock");
+#else
+  /* XXX should check if there is already a throw exn */
+  struct mthread *mt = remove_q_head(&runq);
+  mt->mt_at = CLOCK_GET() + usecs; /* wakeup time */
+#if THREAD_DEBUG
+  if (thread_trace)
+    printf("thread_delay: id=%d usecs=%ld\n", (int)mt->mt_id, (long)usecs);
+#endif  /* THREAD_DEBUG */
+  /* insert in delayq which is kept sorted in time order */
+  struct mthread **tq;
+  for (tq = &timeq.mq_head; *tq; tq = &(*tq)->mt_queue) {
+    if (mt->mt_at <= (*tq)->mt_at)
+      break;
+  }
+  mt->mt_queue = *tq;           /* forward link */
+  *tq = mt;                     /* and put mt in place */
+  if (!mt->mt_queue)            /* no forward link */
+    timeq.mq_tail = mt;
+  resched(mt, ts_wait_time);
+#endif  
+}
+
+/* Pause execution if something might still happen */
+void
+pause_exec(void)
+{
+#if defined(CLOCK_INIT)
+  if (timeq.mq_head) {
+    struct mthread *mt;
+    while (!runq.mq_head && (mt = timeq.mq_head)) {
+      /* We are waiting for a delay to expire, so sleep a while */
+      CLOCK_T dly = mt->mt_at - CLOCK_GET();
+      if (dly > 0) {
+        /* usleep() can be unreliable, so sleep shorter than the delay */
+        dly /= 4;
+        if (dly < 50) dly = 50;
+        CLOCK_SLEEP((useconds_t)dly);
+      }
+      check_timeq();
+    }
+  } else {
+    ERR("deadlock");            /* XXX throw async to main thread */
+  }
+#else  /* CLOCK_INIT */
+  ERR("no clock");
+#endif  /* CLOCK_INIT */
+}
+
+/* Interrupt a sleeping thread in a throwTo/threadDelay */
+void
+thread_intr(struct mthread *mt)
+{
+#if THREAD_DEBUG
+  if (thread_trace)
+    printf("thread_intr: id=%d state=%d\n", (int)mt->mt_id, mt->mt_state);
+#endif  /* THREAD_DEBUG */
+  switch(mt->mt_state) {
+  case ts_runnable:
+    break;                      /* already on runq */
+  case ts_wait_mvar:
+    if (mt->mt_mask == mask_uninterruptible) /* uninterruptible */
+      break;
+    /* we don't know which mvar we are waiting on, so look at all of them */
+    /* XXX should add a pointer in mthread to the mvar */
+    for (struct mvar *mv = all_mvars; mv; mv = mv->mv_next) {
+      if (find_and_unlink(&mv->mv_takeput, mt))
+          goto found;
+      if (find_and_unlink(&mv->mv_read, mt))
+          goto found;
+    }
+    ERR("thread_intr: mvar");
+  found:
+#if defined(CLOCK_INIT)
+    mt->mt_at = -1;             /* don't wait again */
+#endif
+    add_runq_tail(mt);
+    break;
+  case ts_wait_time:
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("thread_intr: ts_wait_time mask=%d\n", (int)mt->mt_mask);
+    }
+#endif  /* THREAD_DEBUG */
+    if (mt->mt_mask == mask_uninterruptible) /* uninterruptible */
+      break;
+    /* find thread in timeq */
+    if (!find_and_unlink(&timeq, mt))
+      ERR("thread_intr: timeq");
+    /* XXX should adjust mq_tail */
+    add_runq_tail(mt);
+    break;
+  case ts_finished:
+  case ts_died:
+    (void)take_mvar(0, mt->mt_exn); /* ignore exception */
+    break;
+  default:
+    ERR("thread_intr");
+  }
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("thread_intr: done\n");
+    dump_q("runq", runq);
+  }
+#endif  /* THREAD_DEBUG */
+}
+
+NORETURN void
+raise_exn(NODEPTR exn)
+{
+  if (cur_handler) {
+    /* Pass the exception to the handler */
+    cur_handler->hdl_exn = exn;
+    longjmp(cur_handler->hdl_buf, 1);
+  } else {
+    /* No exception handler, jump to the scheduler */
+    the_exn = exn;
+    longjmp(sched, mt_raise);
+  }
+}
+
+NORETURN void
+raise_rts(enum rts_exn exn) {
+  raise_exn(mkInt(exn));
+}
+
+/***************** GC ******************/
 
 /* Set FREE bit to 0 */
 static INLINE void mark_used(NODEPTR n)
@@ -669,14 +1415,6 @@ static INLINE void mark_all_free(void)
   memset(free_map, ~0, free_map_nwords * sizeof(bits_t));
   next_scan_index = heap_start;
 }
-
-#if WANT_ARGS
-/* This single element array hold a list of the program arguments. */
-struct ioarray *argarray;
-#endif  /* WANT_ARGS */
-
-int verbose = 0;
-int gcbell = 0;
 
 static INLINE NODEPTR
 alloc_node(enum node_tag t)
@@ -728,17 +1466,76 @@ new_ap(NODEPTR f, NODEPTR a)
   return n;
 }
 
-/* Needed during reduction */
-NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combK, combTrue, combUnit, combCons, combPair;
-NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOCCBIND, combB, combC;
-NODEPTR combLT, combEQ, combGT;
-NODEPTR combShowExn, combU, combK2, combK3;
-NODEPTR combBININT1, combBININT2, combUNINT1;
-NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
-NODEPTR combBINBS1, combBINBS2;
-NODEPTR comb_stdin, comb_stdout, comb_stderr;
-#define combFalse combK
+NODEPTR evali(NODEPTR n);
+
+void
+start_exec(NODEPTR root)
+{
+  struct mthread *mt;
+
+  new_thread(new_ap(root, combWorld)); /* main thread */
+
+  switch(setjmp(sched)) {
+  case mt_main:
+    break;
+  case mt_resched:
+    COUNT(num_resched);
+    break;
+  case mt_raise:
+    /* We have an uncaught exception.
+     * If it's the main thread, this kills the program.
+     * Otherwise, it just kills the thread.
+     */
+    mt = remove_q_head(&runq);
+    if (mt->mt_id == MAIN_THREAD) {
+      die_exn(the_exn);
+    } else {
+#if THREAD_DEBUG
+      if (thread_trace) {
+        printf("start_exec: mt=%p id=%d died from exn\n", mt, (int)mt->mt_id);
+      }
+#endif  /* THREAD_DEBUG */
+      mt->mt_state = ts_died;
+      mt->mt_root = NIL;
+    }
+  }
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("start_exec:\n");
+    dump_q("runq", runq);
+  }
+#endif  /* THREAD_DEBUG */
+  for(;;) {
+    if (!runq.mq_head)
+      pause_exec();
+    mt = runq.mq_head;          /* front thread */
+    if (!mt)                    /* this should never happen */
+      ERR("no threads");
+
+    glob_slice = mt->mt_slice + slice;
+#if THREAD_DEBUG
+    if (thread_trace)
+      printf("start_exec: start %d, slice=%d\n", (int)mt->mt_id, (int)glob_slice);
+#endif  /* THREAD_DEBUG */
+    num_reductions += glob_slice-1;
+    (void)evali(mt->mt_root);         /* run it */
+    num_reductions -= glob_slice;
+    /* when evali() returns the thread is done */
+    (void)remove_q_head(&runq);                      /* remove front thread */
+
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("start_exec: mt=%p id=%d finished\n", mt, (int)mt->mt_id);
+    }
+#endif  /* THREAD_DEBUG */
+    mt->mt_state = ts_finished;
+    mt->mt_root = NIL;
+    /* XXX mt_mval, mt_thrown */
+
+    if (mt->mt_id == MAIN_THREAD)
+      return;                   /* when the main thread dies it's all over */
+  }
+}
 
 /* One node of each kind for primitives, these are never GCd. */
 /* We use linear search in this, because almost all lookups
@@ -860,7 +1657,6 @@ struct {
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
   { "IO.return", T_IO_RETURN },
-  { "IO.C'BIND", T_IO_CCBIND },
   { "IO.serialize", T_IO_SERIALIZE },
   { "IO.print", T_IO_PRINT },
   { "IO.deserialize", T_IO_DESERIALIZE },
@@ -870,8 +1666,10 @@ struct {
   { "IO.getArgRef", T_IO_GETARGREF },
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.gc", T_IO_GC },
+  { "IO.pp", T_IO_PP },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
+  { "catchr", T_CATCHR },
   { "A.alloc", T_ARR_ALLOC },
   { "A.copy", T_ARR_COPY },
   { "A.size", T_ARR_SIZE },
@@ -879,6 +1677,22 @@ struct {
   { "A.write", T_ARR_WRITE },
   { "A.==", T_ARR_EQ },
   { "dynsym", T_DYNSYM },
+  { "IO.fork", T_IO_FORK },
+  { "IO.thid", T_IO_THID },
+  { "thnum", T_THNUM },
+  { "IO.throwto", T_IO_THROWTO },
+  { "IO.yield", T_IO_YIELD },
+  { "IO.newmvar", T_IO_NEWMVAR },
+  { "IO.takemvar", T_IO_TAKEMVAR },
+  { "IO.putmvar", T_IO_PUTMVAR },
+  { "IO.readmvar", T_IO_READMVAR },
+  { "IO.trytakemvar", T_IO_TRYTAKEMVAR },
+  { "IO.tryputmvar", T_IO_TRYPUTMVAR },
+  { "IO.tryreadmvar", T_IO_TRYREADMVAR },
+  { "IO.threaddelay", T_IO_THREADDELAY },
+  { "IO.threadstatus", T_IO_THREADSTATUS },
+  { "IO.getmaskingstate", T_IO_GETMASKINGSTATE },
+  { "IO.setmaskingstate", T_IO_SETMASKINGSTATE },
   { "newCAStringLen", T_NEWCASTRINGLEN },
   { "packCString", T_PACKCSTRING },
   { "packCStringLen", T_PACKCSTRINGLEN },
@@ -886,6 +1700,16 @@ struct {
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
   { "toFunPtr", T_TOFUNPTR },
+  { "IO.ccall", T_IO_CCALL },
+  { "isint", T_ISINT },
+  { "binint2", T_BININT2 },
+  { "binint1", T_BININT1 },
+  { "bindbl2", T_BINDBL2 },
+  { "bindbl1", T_BINDBL1 },
+  { "binbs2", T_BINBS2 },
+  { "binbs1", T_BINBS1 },
+  { "unint1", T_UNINT1 },
+  { "undbl1", T_UNDBL1 },
 };
 
 #if GCRED
@@ -923,7 +1747,7 @@ init_nodes(void)
 
   /* Set up permanent nodes */
   heap_start = 0;
-  for(t = T_FREE; t < T_LAST_TAG; t++) {
+  for(t = T_FREE; t <= T_LAST_TAG; t++) {
     NODEPTR n = HEAPREF(heap_start++);
     SETTAG(n, t);
     switch (t) {
@@ -933,6 +1757,7 @@ init_nodes(void)
     case T_O: combCons = n; break;
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
+    case T_BB: combBB = n; break;
     case T_B: combB = n; break;
     case T_C: combC = n; break;
     case T_Z: combZ = n; break;
@@ -940,8 +1765,9 @@ init_nodes(void)
     case T_K2: combK2 = n; break;
     case T_K3: combK3 = n; break;
     case T_IO_BIND: combIOBIND = n; break;
+    case T_IO_THEN: combIOTHEN = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
-    case T_IO_CCBIND: combIOCCBIND = n; break;
+    case T_IO_SETMASKINGSTATE: combSETMASKINGSTATE = n; break;
     case T_BININT1: combBININT1 = n; break;
     case T_BININT2: combBININT2 = n; break;
     case T_UNINT1: combUNINT1 = n; break;
@@ -950,6 +1776,8 @@ init_nodes(void)
     case T_UNDBL1: combUNDBL1 = n; break;
     case T_BINBS1: combBINBS1 = n; break;
     case T_BINBS2: combBINBS2 = n; break;
+    case T_IO_THROWTO: combTHROWTO = n; break;
+    case T_CATCHR: combCATCHR = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
     case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
@@ -978,6 +1806,7 @@ init_nodes(void)
    * But we can make compound one, since they are irreducible.
    */
 #define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
+#define MKINT(c, i) do { n = HEAPREF(heap_start++); SETTAG(n, T_INT); SETVALUE(n, i); (c) = n; } while(0)
   NEWAP(combLT, combZ,     combFalse);  /* Z B */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
@@ -988,6 +1817,9 @@ init_nodes(void)
     NEWAP(x, combU, x);                /* (U (K2 A)) */
     NEWAP(combShowExn, combU, x);      /* (U (U (K2 A))) */
   }
+  NEWAP(combJust, combZ, combU);       /* (Z U) */
+  MKINT(combWorld, 99999);
+  NEWAP(combPairUnit, combPair, combUnit);
 #undef NEWAP
 
 #if INTTABLE
@@ -1016,6 +1848,52 @@ counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 //counter_t mark_depth;
 //counter_t max_mark_depth = 0;
 
+void mark(NODEPTR *np);
+void mark_mvar(struct mvar *mv);
+
+/* Throwing, e.g., a UserInterrupt exception to the main thread
+ * it can happen from any thread (the one that happens to poll).
+ * Throwing an exception can block, so we can't throw it from
+ * the current thread.  Instead, we spawn a new thread, whose
+ * only job it is to throw the exception.
+ */
+void
+async_throwto(struct mthread *mt, NODEPTR exn)
+{
+  GCCHECK(4);
+  NODEPTR thid = alloc_node(T_THID);
+  THR(thid) = mt;
+  NODEPTR root = new_ap(new_ap(new_ap(combTHROWTO, thid), exn), combWorld);
+  (void)new_thread(root);       /* spawn and put on runq */
+}
+
+void
+mark_thread(struct mthread *mt)
+{
+  if (mt->mt_mark)
+    return;                     /* already marked */
+  mt->mt_mark = 1;
+  if (mt->mt_root != NIL)
+    mark(&mt->mt_root);
+  mark_mvar(mt->mt_exn);         
+  if (mt->mt_mval != NIL)
+    mark(&mt->mt_mval);
+}
+
+void
+mark_mvar(struct mvar *mv)
+{
+  if (mv->mv_mark)
+    return;
+  mv->mv_mark = 1;
+  if (mv->mv_data != NIL)
+    mark(&mv->mv_data);
+  for (struct mthread *mt = mv->mv_takeput.mq_head; mt; mt = mt->mt_next)
+    mark_thread(mt);
+  for (struct mthread *mt = mv->mv_read.mq_head; mt; mt = mt->mt_next)
+    mark_thread(mt);
+}
+  
 /* Follow indirections */
 static INLINE NODEPTR
 indir(NODEPTR *np)
@@ -1215,9 +2093,18 @@ mark(NODEPTR *np)
       np = &arr->array[arr->marked++];
       break;
     }
+
    case T_FORPTR:
      FORPTR(n)->finalizer->marked = 1;
      goto fin;
+
+   case T_THID:
+     mark_thread(THR(n));
+     break;
+
+   case T_MVAR:
+     mark_mvar(MVAR(n));
+     break;
 
    default:
      goto fin;
@@ -1241,7 +2128,13 @@ mark(NODEPTR *np)
 }
 
 /* Perform a garbage collection:
-   - First mark from all roots; roots are on the stack.
+   - Mark nodes from the stack
+   - Mark permanent arrays
+   - Mark threads that have a root
+   - Scan and free arrays
+   - Scan and free foreign pointers and run finalizers
+   - Scan and free threads
+   - Scan and free mvars
 */
 void
 gc(void)
@@ -1256,16 +2149,26 @@ gc(void)
 #endif
   gc_mark_time -= GETTIMEMILLI();
   mark_all_free();
-  // mark everything reachable from the stack
+  /* Mark everything reachable from the stack */
   for (i = 0; i <= stack_ptr; i++)
     mark(&stack[i]);
-  // mark everything reachable from permanent array nodes
+
+  /* Mark everything reachable from permanent array nodes */
   for (struct ioarray *arr = array_root; arr; arr = arr->next) {
     if (arr->permanent) {
       for (i = 0; i < arr->size; i++)
         mark(&arr->array[i]);
     }
   }
+
+  /* Mark everything reachable from the threads.
+   * Note, zombie threads have no root so they are not marked.
+   */
+  for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
+    if (mt->mt_root != NIL)
+      mark_thread(mt);
+  }
+
   gc_mark_time += GETTIMEMILLI();
 
   if (num_marked > max_num_marked)
@@ -1327,6 +2230,33 @@ gc(void)
       //memset(fin, 0x77, sizeof *fin);
     }
   }
+
+  /* Remove unreferenced zombie threads */
+  for (struct mthread **mtp = &all_threads; *mtp; ) {
+    struct mthread *mt = *mtp;
+    if ((mt->mt_state == ts_died || mt->mt_state == ts_finished) && !mt->mt_mark) {
+      COUNT(num_thread_reap);
+      *mtp = mt->mt_next;
+      free(mt);
+    } else {
+      mt->mt_mark = 0;
+      mtp = &mt->mt_next;
+    }
+  }
+  
+  /* Remove unreferences mvars */
+  for (struct mvar **mvp = &all_mvars; *mvp; ) {
+    struct mvar *mv = *mvp;
+    if (!mv->mv_mark) {
+      COUNT(num_mvar_free);
+      *mvp = mv->mv_next;
+      free(mv);
+    } else {
+      mv->mv_mark = 0;
+      mvp = &mv->mv_next;
+    }
+  }
+
   gc_scan_time += GETTIMEMILLI();
 
 #if WANT_STDIO
@@ -1350,19 +2280,6 @@ gc(void)
     }
   }
 #endif
-}
-
-/* Check that there are k nodes available, if not then GC. */
-static INLINE void
-gc_check(size_t k)
-{
-  if (k < num_free)
-    return;
-#if WANT_STDIO
-  if (verbose > 1)
-    PRINT("gc_check: %d\n", (int)k);
-#endif
-  gc();
 }
 
 static INLINE
@@ -1765,10 +2682,6 @@ mkStrNode(struct bytestring str)
   //printf("mkForPtr n=%p fp=%p %d %s payload.string=%p\n", n, fp, (int)FORPTR(n)->payload.size, (char*)FORPTR(n)->payload.string, FORPTR(n)->payload.string);
   return n;
 }
-
-NODEPTR mkInt(value_t i);
-NODEPTR mkFlt(flt_t d);
-NODEPTR mkPtr(void* p);
 
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
@@ -2233,7 +3146,7 @@ print_string(BFILE *f, struct bytestring bs)
       putb('^', f); putb(c - 0x80 + 0x40, f);
     } else if (c < 0xff) {
       putb('|', f); putb(c - 0x80, f);
-    } else {                    /* must be c == 0xff */
+    } else {                    /* must be< c == 0xff */
       putb('\\', f); putb('_', f);
     }
 #endif
@@ -2251,9 +3164,10 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 {
   int share = 0;
   enum node_tag tag;
+  char prbuf[30];
 
   while (GETTAG(n) == T_IND) {
-    //putb('*', f);
+    /*putb('*', f);*/
     n = GETINDIR(n);
   }
 
@@ -2319,8 +3233,8 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     break;
   case T_PTR:
     if (prefix) {
-      char b[200]; snprintf(b,200,"PTR<%p>",PTR(n));
-      putsb(b, f);
+      snprintf(prbuf, sizeof prbuf, "PTR<%p>",PTR(n));
+      putsb(prbuf, f);
     } else {
       ERR("Cannot serialize pointers");
     }
@@ -2334,10 +3248,19 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
       putsb(";0 ", f);
     } else if (FUNPTR(n) == (HsFunPtr)closeb) {
       putsb(";closeb ", f);
+    } else if (prefix) {
+      snprintf(prbuf, sizeof prbuf, "FUNPTR<%p>",FUNPTR(n));
+      putsb(prbuf, f);
     } else {
       ERR1("Cannot serialize function pointers %p", FUNPTR(n));
     }
     break;
+  case T_THID:
+    if (prefix) {
+      snprintf(prbuf, sizeof prbuf, "FUNPTR<%d>",(int)THR(n)->mt_id);
+    } else {
+      ERR("cannot serialize ThreadId yet");
+    }
   case T_FORPTR:
     if (n == comb_stdin)
       putsb("IO.stdin", f);
@@ -2360,19 +3283,31 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 #endif  /* WANT_GMP */
     else if (FORPTR(n)->finalizer->fptype == FP_BSTR) {
       print_string(f, FORPTR(n)->payload);
+    } else if (prefix) {
+      snprintf(prbuf, sizeof prbuf, "FORPTR<%p>",FORPTR(n));
+      putsb(prbuf, f);
     } else {
       ERR("Cannot serialize foreign pointers");
     }
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
-
   case T_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
   default:
-    putsb(tag_names[tag], f);
+    if (0 <= tag && tag <= T_LAST_TAG)
+      if (tag_names[tag])
+        putsb(tag_names[tag], f);
+      else {
+        snprintf(prbuf, sizeof prbuf, "TAG=%d", (int)tag);
+        putsb(prbuf, f);
+      }
+    else {
+      snprintf(prbuf, sizeof prbuf, "BADTAG(%d)", (int)tag);
+      putsb(prbuf, f);
+    }
     break;
   }
   if (!prefix) {
@@ -2410,6 +3345,12 @@ printb(BFILE *f, NODEPTR n, int header)
 
 /* Show a graph. */
 void
+pps(NODEPTR n)
+{
+  pp(stdout, n);
+}
+
+void
 pp(FILE *f, NODEPTR n)
 {
   BFILE *bf = add_FILE(f);
@@ -2426,17 +3367,15 @@ ppmsg(const char *msg, NODEPTR n)
   pp(stdout, n);
   printf("\n");
 }
-#endif
 
 void
 dump(const char *msg, NODEPTR at)
 {
-#if 0
   atptr = at;
   printf("dump: %s\n", msg);
   pp(stdout, *topnode);
-#endif
 }
+#endif
 
 #else  /* WANT_STDIO */
 NODEPTR
@@ -2673,8 +3612,6 @@ headutf8(struct bytestring bs, void **ret)
   ERR("headUTF8 4");
 }
 
-NODEPTR evali(NODEPTR n);
-
 /* Evaluate to an INT */
 static INLINE value_t
 evalint(NODEPTR n)
@@ -2751,6 +3688,32 @@ evalbstr(NODEPTR n)
   }
 #endif
   return FORPTR(n);
+}
+
+/* Evaluate to a T_THID */
+struct mthread *
+evalthid(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_THID) {
+    ERR1("evalthid, bad tag %d", GETTAG(n));
+  }
+#endif
+  return THR(n);
+}
+
+/* Evaluate to a T_MVAR */
+struct mvar *
+evalmvar(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_MVAR) {
+    ERR1("evalmvar, bad tag %d", GETTAG(n));
+  }
+#endif
+  return MVAR(n);
 }
 
 /* Evaluate a string, returns a newly allocated buffer.
@@ -2984,6 +3947,7 @@ compare(NODEPTR cmp)
       break;
     case T_INT:
     case T_IO_CCALL:
+    case T_THID:
       x = GETVALUE(p);
       y = GETVALUE(q);
       if (x < y)
@@ -3071,12 +4035,6 @@ rnf_rec(bits_t *done, NODEPTR n)
   }
 }
 
-/* Used to detect calls to error while we are already in a call to error. */
-int in_raise = 0;
-
-/* This is a yucky hack */
-int doing_rnf = 0;
-
 void
 rnf(value_t noerr, NODEPTR n)
 {
@@ -3089,8 +4047,6 @@ rnf(value_t noerr, NODEPTR n)
   doing_rnf = 0;
   FREE(done);
 }
-
-void execio(NODEPTR *);
 
 /* Evaluate a node, returns when the node is in WHNF. */
 NODEPTR
@@ -3109,6 +4065,10 @@ evali(NODEPTR an)
   enum node_tag tag;
   struct ioarray *arr;
   struct bytestring xbs, ybs, rbs;
+#if WANT_STDIO
+  void *bfile;
+  int hdr;
+#endif  /* WANT_STDIO */
 
 #if MAXSTACKDEPTH
   counter_t old_cur_c_stack = cur_c_stack;
@@ -3124,8 +4084,10 @@ evali(NODEPTR an)
 
 #define SETIND(n, x) SETINDIR(n, x)
 #define GOIND(x) do { NODEPTR _x = (x); SETIND(n, _x); n = _x; goto top; } while(0)
-#define GOAP(f,a) do { FUN((n)) = (f); ARG((n)) = (a); goto ap; } while(0)
-#define GOAP2(f,a,b) do { FUN((n)) = new_ap((f), (a)); ARG((n)) = (b); goto ap2; } while(0)
+#define GOAP(f,a) do { FUN(n) = (f); ARG(n) = (a); goto ap; } while(0)
+#define GOAP2(f,a,b) do { FUN(n) = new_ap((f), (a)); ARG(n) = (b); goto ap2; } while(0)
+#define GOPAIR(a) do { FUN(n) = new_ap(combPair, (a)); goto ap; } while(0)
+#define GOPAIRUNIT do { FUN(n) = combPairUnit; goto ap; } while(0)
 /* CHKARGN checks that there are at least N arguments.
  * It also
  *  - sets n to the "top" node
@@ -3139,6 +4101,11 @@ evali(NODEPTR an)
 #define CHKARG3 do { CHECK(3); POP(3); n = TOP(-1); z = ARG(n); y = ARG(TOP(-2)); x = ARG(TOP(-3)); } while(0)
 #define CHKARG4 do { CHECK(4); POP(4); n = TOP(-1); w = ARG(n); z = ARG(TOP(-2)); y = ARG(TOP(-3)); x = ARG(TOP(-4)); } while(0)
 #define CHKARG5 do { CHECK(5); POP(5); n = TOP(-1); /*v = ARG(n);*/ w = ARG(TOP(-2)); z = ARG(TOP(-3)); y = ARG(TOP(-4)); x = ARG(TOP(-5)); } while(0)
+/* Non-popping versions */
+#define CHKARG1NP do { CHECK(1); n = TOP(0);                                               x = ARG(n);      } while(0)
+#define CHKARG2NP do { CHECK(2); n = TOP(1);                              y = ARG(n);      x = ARG(TOP(0)); } while(0)
+#define CHKARG3NP do { CHECK(3); n = TOP(2);             z = ARG(n);      y = ARG(TOP(1)); x = ARG(TOP(0)); } while(0)
+#define CHKARG4NP do { CHECK(4); n = TOP(3); w = ARG(n); z = ARG(TOP(2)); y = ARG(TOP(1)); x = ARG(TOP(0)); } while(0)
 
 /* Alloc a possible GC action, e, between setting x and popping */
 #define CHKARGEV1(e)   do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
@@ -3154,6 +4121,9 @@ evali(NODEPTR an)
 #define CMPP(op)       do { OPPTR2(r = xp op yp); GOIND(r ? combTrue : combFalse); } while(0)
 
  top:
+  /*pp(stdout, an);*/
+  if (--glob_slice <= 0)
+    yield();
   l = LABEL(n);
   if (l < T_IO_STDIN) {
     /* The node is one of the permanent nodes; the address offset is the tag */
@@ -3170,18 +4140,24 @@ evali(NODEPTR an)
     }
     tag = GETTAG(n);
   }
-  COUNT(num_reductions);
+  //COUNT(num_reductions);
+  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  //if (stack_ptr < -1)
+  //  ERR("stack_ptr");
   switch (tag) {
   ap2:         PUSH(n); n = FUN(n);
   ap:
-  case T_AP:   PUSH(n); n = FUN(n); goto top;
+  case T_AP:   PUSH(n);
+    n = FUN(n); goto top;
 
-  case T_INT:  RET;
-  case T_DBL:  RET;
-  case T_PTR:  RET;
+  case T_INT:    RET;
+  case T_DBL:    RET;
+  case T_PTR:    RET;
   case T_FUNPTR: RET;
   case T_FORPTR: RET;
-  case T_ARR:  RET;
+  case T_ARR:    RET;
+  case T_THID:   RET;
+  case T_MVAR:   RET;
   case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
 
   /*
@@ -3205,8 +4181,10 @@ evali(NODEPTR an)
                GCCHECK(1); CHKARG2; COUNT(red_z); GOAP(combK, new_ap(x, y)); } else {     /* Z x y = K (x y) */
                            CHKARG3; GOAP(x, y); }                                         /* Z x y z = x y */
 //case T_J:                CHKARG3; GOAP(z, x);                                           /* J x y z = z x */
+  t_c:
   case T_C:    GCCHECK(1); CHKARG3; GOAP2(x, z, y);                                       /* C x y z = x z y */
   case T_CC:   GCCHECK(2); CHKARG4; GOAP2(x, new_ap(y, w), z);                            /* C' x y z w = x (y w) z */
+  t_p:
   case T_P:    GCCHECK(1); CHKARG3; GOAP2(z, x, y);                                       /* P x y z = z x y */
   case T_R:    if(!HASNARGS(3)) {
                GCCHECK(1); CHKARG2; COUNT(red_r); GOAP2(combC, y, x); } else {            /* R x y = C y x */
@@ -3389,6 +4367,14 @@ evali(NODEPTR an)
     GOIND(dblToString(xd));
 #endif  /* WANT_FLOAT */
 
+  case T_ISINT:
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, GETTAG(x) == T_INT ? GETVALUE(x) : -1);
+    RET;
+
   case T_BSAPPEND:
   case T_BSAPPENDDOT:
   case T_BSEQ:
@@ -3556,42 +4542,9 @@ evali(NODEPTR an)
 
   case T_RAISE:
     if (doing_rnf) RET;
-    if (cur_handler) {
-      /* Pass the exception to the handler */
-      CHKARG1;
-      cur_handler->hdl_exn = x;
-      longjmp(cur_handler->hdl_buf, 1);
-    } else {
-      /* No handler:
-       * First convert the exception to a string by calling displaySomeException.
-       * The display function compiles to combShowExn, so we need to build
-       * (combShowExn x) and evaluate it.
-       */
-      if (in_raise) {
-        ERR("recursive error");
-        EXIT(1);
-      }
-      in_raise = 1;
-      CHECK(1);
-      GCCHECK(1);
-      //TOP(0) = new_ap(combShowExn, TOP(0));
-      FUN(TOP(0)) = combShowExn; /* TOP(0) = (combShowExn exn) */
-      x = evali(TOP(0));        /* evaluate it */
-      msg = evalstring(x).string;   /* and convert to a C string */
-      POP(1);
-#if WANT_STDIO
-      /* A horrible hack until we get proper exceptions */
-      if (strcmp(msg, "ExitSuccess") == 0) {
-        EXIT(0);
-      } else {
-        fprintf(stderr, "mhs: %s\n", msg);
-        EXIT(1);
-      }
-#else  /* WANT_STDIO */
-      ERR1("mhs error: %s", msg);
-#endif  /* WANT_STDIO */
-    }
-
+    CHKARG1;
+    raise_exn(x);               /* never returns */
+    
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
@@ -3607,39 +4560,398 @@ evali(NODEPTR an)
     rnf(xi, ARG(TOP(1))); POP(2); n = TOP(-1); GOIND(combUnit);
 
   case T_IO_PERFORMIO:
-    CHECK(1);
+    GCCHECK(2);
     if (doing_rnf) RET;
-    execio(&ARG(TOP(0)));       /* run IO action */
-    x = ARG(TOP(0));            /* should be RETURN e */
-    if (GETTAG(x) != T_AP || GETTAG(FUN(x)) != T_IO_RETURN)
-      ERR("PERFORMIO");
+    CHKARG1;
+    /* Conjure up a new world and evaluate the io with that world, finally selecting the result */
+    /* PERFORMIO io  -->  io World K */
+    GOAP2(x, combWorld, combK);
+
+  case T_IO_BIND:
+    goto t_c;
+  case T_IO_RETURN:
+    goto t_p;
+  case T_IO_THEN:
+    GCCHECK(2); CHKARG2; GOAP2(combIOBIND, x, new_ap(combK, y));
+#if WANT_STDIO
+  case T_IO_PP:
+    CHKARG2;
+    pp(stderr, x);
+    GOPAIRUNIT;
+  case T_IO_PRINT:
+    hdr = 0;
+    goto ser;
+  case T_IO_SERIALIZE:
+    hdr = 1;
+  ser:
+#if 0
+    gc();                     /* DUBIOUS: do a GC to get possible GC reductions */
+#endif
+    CHKARG3NP;
+    bfile = (struct BFILE*)evalptr(x);
+    printb(bfile, evali(y), hdr);
+    putb('\n', bfile);
+    POP(3);
+    GOPAIRUNIT;
+  case T_IO_DESERIALIZE:
+    CHKARG2NP;
+    bfile = (struct BFILE*)evalptr(x);
+    gc();                     /* make sure we have room.  GC during parse is dodgy. */
+    x = parse_top(bfile);
+    POP(2);
+    GOPAIR(x);                /* allocates a cell, but we did a GC above */
+#endif
+#if WANT_ARGS
+  case T_IO_GETARGREF:
+    GCCHECK(2);
+    CHKARG1;
+    x = alloc_node(T_ARR);
+    ARR(x) = argarray;
+    GOPAIR(x);
+#endif
+  case T_IO_CCALL:
+    {
+      GCCHECK(1);                 /* room for placeholder */
+      int a = (int)GETVALUE(n);   /* function number */
+      int arity = FFI_IX(a).ffi_arity;
+      CHECK(arity);
+      funptr_t f = FFI_IX(a).ffi_fun;
+      PUSH(mkFlt(0.0));           /* placeholder for result, protected from GC */
+      int k = f(stk);             /* call FFI function, return number of arguments */
+      if (k != arity) {
+#if WANT_STDIO
+        fprintf(stderr, "ccall arity %s %d!=%d\n", FFI_IX(a).ffi_name, arity, k);
+#endif
+        ERR("ccall arity");     /* temporary sanity check */
+      }
+      GCCHECK(1);                 /* room for pair */
+      x = POPTOP();               /* pop actual result */
+      POP(arity);                 /* pop the pushed arguments */
+      if (stack_ptr < 0)
+        ERR("CCALL POP");
+      n = POPTOP();               /* node to update */
+      GOPAIR(x);                  /* and this is the result */
+    }
+
+  case T_NEWCASTRINGLEN:
+    {
+      CHKARG2NP;                /* set x,y,n */
+      struct bytestring bs = evalbytestring(x);
+      GCCHECK(5);
+      NODEPTR cs = alloc_node(T_PTR);
+      PTR(cs) = bs.string;
+      NODEPTR res = new_ap(new_ap(combPair, cs), mkInt(bs.size));
+      POP(2);
+      GOPAIR(res);
+    }
+  case T_PACKCSTRING:
+    {
+      CHKARG2NP;                  /* sets x, y, n */
+      char *cstr = evalptr(x);
+      size_t size = strlen(cstr);
+      char *str = mmalloc(size);
+      memcpy(str, cstr, size);
+      struct bytestring bs = { size, str };
+      NODEPTR res = mkStrNode(bs);
+      GCCHECKSAVE(res, 1);
+      POP(2);
+      GOPAIR(res);
+    }
+  case T_PACKCSTRINGLEN:
+    {
+      CHKARG3NP;                /* sets x,y,z,n */
+      char *cstr = evalptr(x);
+      size_t size = evalint(y);
+      char *str = mmalloc(size);
+      memcpy(str, cstr, size);
+      struct bytestring bs = { size, str };
+      NODEPTR res = mkStrNode(bs);
+      POP(3);
+      GCCHECKSAVE(res, 1);
+      GOPAIR(res);
+    }
+
+  case T_ARR_ALLOC:
+    {
+      CHKARG3NP;                /* sets x,y,z,n */
+      size_t size = evalint(x);
+      struct ioarray *arr = arr_alloc(size, y);
+      GCCHECK(2);
+      NODEPTR res = alloc_node(T_ARR);
+      ARR(res) = arr;
+      POP(3);
+      GOPAIR(res);
+    }
+  case T_ARR_COPY:
+    {
+      CHKARG2NP;
+      NODEPTR a = evali(x);
+      if (GETTAG(a) != T_ARR)
+        ERR("T_ARR_COPY tag");
+      struct ioarray *arr = arr_copy(ARR(a));
+      GCCHECK(2);
+      NODEPTR res = alloc_node(T_ARR);
+      ARR(res) = arr;
+      POP(2);
+      GOPAIR(res);
+    }
+  case T_ARR_SIZE:
+    {
+      CHKARG2NP;
+      NODEPTR a = evali(x);
+      if (GETTAG(a) != T_ARR)
+        ERR("bad ARR tag");
+      GCCHECK(2);
+      NODEPTR res = mkInt(ARR(a)->size);
+      POP(2);
+      GOPAIR(res);
+    }
+  case T_ARR_READ:
+    {
+      CHKARG3NP;                /* sets x,y,n */
+      size_t i = evalint(y);
+      NODEPTR a = evali(x);
+      if (GETTAG(a) != T_ARR)
+        ERR("bad ARR tag");
+      if (i >= ARR(a)->size)
+        ERR("ARR_READ");
+      GCCHECK(1);
+      NODEPTR res = ARR(a)->array[i];
+      POP(3);
+      GOPAIR(res);
+    }
+  case T_ARR_WRITE:
+    {
+      CHKARG4NP;                /* sets x,y,z,n */
+      size_t i = evalint(y);
+      NODEPTR a = evali(x);
+      if (GETTAG(a) != T_ARR)
+        ERR("bad ARR tag");
+      if (i >= ARR(a)->size) {
+        ERR("ARR_WRITE");
+      }
+      ARR(a)->array[i] = z;
+      POP(4);
+      GOPAIRUNIT;
+      }
+
+  case T_FPNEW:
+    {
+      CHKARG2NP;
+      //printf("T_FPNEW\n");
+      void *xp = evalptr(x);
+      //printf("T_FPNEW xp=%p\n", xp);
+      GCCHECK(2);
+      NODEPTR res = alloc_node(T_FORPTR);
+      SETFORPTR(res, mkForPtrP(xp));
+      POP(2);
+      GOPAIR(res);
+    }
+  case T_FPFIN:
+    {
+      CHKARG3NP;
+      //printf("T_FPFIN\n");
+      struct forptr *xfp = evalforptr(y);
+      //printf("T_FPFIN xfp=%p\n", xfp);
+      HsFunPtr xp = evalfunptr(x);
+      //printf("T_FPFIN yp=%p\n", yp);
+      xfp->finalizer->final = xp;
+      POP(3);
+      GOPAIRUNIT;
+    }
+  case T_IO_GC:
+    //printf("gc()\n");
+    CHKARG1;
+    gc();
+    GOPAIRUNIT;
+
+  case T_IO_FORK:
+    {
+      GCCHECK(3);
+      CHKARG2;                /* set x=io, y=ST, n */
+      struct mthread *mt = new_thread(new_ap(x, y)); /* copy the world */
+      mt->mt_mask = runq.mq_head->mt_mask; /* inherit masking state */
+      NODEPTR res = alloc_node(T_THID);
+      THR(res) = mt;
+      GOPAIR(res);
+    }
+
+  case T_IO_THID:
+    {
+      GCCHECK(2);
+      CHKARG1;
+      NODEPTR res = alloc_node(T_THID);
+      THR(res) = runq.mq_head;            /* head of the run queue is the current thread */
+      GOPAIR(res);
+    }
+  case T_IO_THROWTO:
+    {
+      CHKARG3NP;                /* x=this, y=exn, z=ST */
+      struct mthread *mt = evalthid(x);
+      throwto(mt, y);
+      POP(3);
+      GOPAIRUNIT;
+    }
+  case T_IO_YIELD:
+    CHKARG1;
+    yield();
+    GOPAIRUNIT;
+
+  case T_IO_NEWMVAR:
+    {
+      GCCHECK(2);
+      CHKARG1;
+      struct mvar *mv = new_mvar();
+      NODEPTR res = alloc_node(T_MVAR);
+      MVAR(res) = mv;
+      GOPAIR(res);
+    }
+  case T_IO_TAKEMVAR:
+    {
+      CHKARG2NP;             /* set x=mvar, y=ST */
+      check_thrown();        /* check if we have a thrown exception */
+      NODEPTR res = take_mvar(0, evalmvar(x));         /* never returns if it blocks */
+      GCCHECKSAVE(res, 1);
+      POP(2);
+      GOPAIR(res);
+    }
+  case T_IO_READMVAR:
+    {
+      CHKARG2NP;
+      check_thrown();           /* check if we have a thrown exception */
+      NODEPTR res = read_mvar(0, evalmvar(x));         /* never returns if it blocks */
+      GCCHECKSAVE(res, 1);
+      POP(2);
+      GOPAIR(res);
+    }
+  case T_IO_PUTMVAR:
+    {
+      CHKARG3NP;             /* set x=mvar, y=value, z=ST */
+      check_thrown();        /* check if we have a thrown exception */
+      (void)put_mvar(0, evalmvar(x), y); /* never returns if it blocks */
+      POP(3);
+      GOPAIRUNIT;
+    }
+  case T_IO_TRYTAKEMVAR:
+    {
+      CHKARG2NP;
+      NODEPTR res = take_mvar(1, evalmvar(x));
+      GCCHECKSAVE(res, 2);
+      if (res != NIL)
+        res = new_ap(combJust, res);
+      else
+        res = combNothing;
+      POP(2);
+      GOPAIR(res);
+    }
+  case T_IO_TRYREADMVAR:
+    {
+      CHKARG2NP;
+      NODEPTR res = read_mvar(1, evalmvar(x));
+      if (res != NIL) {
+        GCCHECKSAVE(res, 2);
+        res = new_ap(combJust, res);
+      } else {
+        res = combNothing;
+      }
+      POP(2);
+      GOPAIR(res);
+    }
+  case T_IO_TRYPUTMVAR:
+    {
+      CHKARG3NP;
+      NODEPTR res = put_mvar(1, evalmvar(x), y) ? combTrue : combFalse;
+      GCCHECKSAVE(res, 1);
+      POP(3);
+      GOPAIR(res);
+    }
+  case T_IO_THREADDELAY:
+    {
+      CHKARG2NP;
+#if defined(CLOCK_INIT)
+      check_thrown();           /* check if we have a thrown exception */
+      if (runq.mq_head->mt_at == -1) {
+        /* delay has already expired, so just return */
+        runq.mq_head->mt_at = 0;
+        POP(2);
+        GOPAIRUNIT;
+      } else {
+        thread_delay(evalint(x)); /* never returns */
+      }
+#else
+      ERR("threadDelay: no clock");
+#endif
+    }
+  case T_IO_THREADSTATUS:
+    {
+      CHKARG2NP;
+      struct mthread *mt = evalthid(x);
+      GCCHECK(2);
+      POP(2);
+      GOPAIR(mkInt(mt->mt_state));
+    }
+  case T_IO_GETMASKINGSTATE:
+    CHKARG1;                    /* x = ST */
+    GOPAIR(mkInt(runq.mq_head->mt_mask));
+
+  case T_IO_SETMASKINGSTATE:
+    CHKARG2;                    /* x = level, y = ST */
+    runq.mq_head->mt_mask = evalint(x);
+    GOPAIRUNIT;
+
+  case T_CATCH:
+    /* CATCH x y z --> CATCHR (x z) y z */
+    GCCHECK(3);
+    CHKARG3;                    /* x=io, y=hdl, z=ST */
+    GOAP(new_ap(new_ap(combCATCHR, new_ap(x, z)), y), z);
+  case T_CATCHR:
+    {
+      CHKARG3NP;                /* x = (io st), y = hdl, z = st, n = (CATCHR (io st)) h */
+      struct handler *h = mmalloc(sizeof *h);
+      h->hdl_old = cur_handler;
+      cur_handler = h;
+      stackptr_t ostack = stack_ptr;;    /* old stack pointer */
+      enum mask_state omask = runq.mq_head->mt_mask;     /* old mask */
+      if (setjmp(h->hdl_buf)) {
+        /* An exception occurred: */
+        stack_ptr = ostack;
+        runq.mq_head->mt_mask = mask_interruptible; /* evaluate with mask */
+        NODEPTR exn = h->hdl_exn;       /* exception value */
+        cur_handler = h->hdl_old;       /* reset handler */
+        FREE(h);
+        GCCHECK(8);
+        POP(3);
+        /*
+         * Run:
+         *  hdl exn `primBind` \ r ->
+         *  primSetMaskingState omask `primThen`
+         *  primReturn r
+         * i.e.,
+         *  primBind (hdl exn) (B' primThen (primSetMaskingState omask) primReturn)
+         */
+        NODEPTR p = new_ap(combIOBIND, new_ap(y, exn));
+        NODEPTR q = new_ap(new_ap(new_ap(combBB, combIOTHEN), new_ap(combSETMASKINGSTATE, mkInt(omask))), combIORETURN);
+        GOAP2(p, q, z);
+      } else {
+        /* Normal execution: */
+        x = evali(x);             /* execute first argument */
+        /* No exception occurred */
+        cur_handler = h->hdl_old; /* restore old handler */
+        FREE(h);
+        POP(3);
+        GOIND(x);
+      }
+    }
+
+  case T_THNUM:
+    {
+    CHECK(1);
+    struct mthread *mt = evalthid(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
-    GOIND(ARG(x));
-
-  case T_IO_CCBIND:           /* We should never have to reduce this */
-  case T_IO_BIND:
-  case T_IO_THEN:
-  case T_IO_RETURN:
-  case T_IO_SERIALIZE:
-  case T_IO_PRINT:
-  case T_IO_DESERIALIZE:
-  case T_IO_GETARGREF:
-  case T_IO_CCALL:
-  case T_CATCH:
-  case T_NEWCASTRINGLEN:
-  case T_PACKCSTRING:
-  case T_PACKCSTRINGLEN:
-  case T_ARR_ALLOC:
-  case T_ARR_COPY:
-  case T_ARR_SIZE:
-  case T_ARR_READ:
-  case T_ARR_WRITE:
-  case T_FPNEW:
-  case T_FPFIN:
-    //  case T_FPSTR:
-  case T_IO_GC:
+    SETINT(n, (uvalue_t)mt->mt_id);
     RET;
+    }
 
   case T_DYNSYM:
     /* A dynamic FFI lookup */
@@ -3708,11 +5020,27 @@ evali(NODEPTR an)
       case T_ADD:   ru = xu + yu; break;
       case T_SUB:   ru = xu - yu; break;
       case T_MUL:   ru = xu * yu; break;
-      case T_QUOT:  ru = (uvalue_t)((value_t)xu / (value_t)yu); break;
-      case T_REM:   ru = (uvalue_t)((value_t)xu % (value_t)yu); break;
       case T_SUBR:  ru = yu - xu; break;
-      case T_UQUOT: ru = xu / yu; break;
-      case T_UREM:  ru = xu % yu; break;
+      case T_QUOT:  if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      ru = (uvalue_t)((value_t)xu / (value_t)yu);
+                    break;
+      case T_REM:   if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      ru = (uvalue_t)((value_t)xu % (value_t)yu);
+                    break;
+      case T_UQUOT: if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      ru = xu / yu;
+                    break;
+      case T_UREM:  if (yu == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      ru = xu % yu;
+                    break;
       case T_AND:   ru = xu & yu; break;
       case T_OR:    ru = xu | yu; break;
       case T_XOR:   ru = xu ^ yu; break;
@@ -3890,375 +5218,53 @@ evali(NODEPTR an)
   return n;
 }
 
-/* This is the interpreter for the IO monad operations.
- *
- * Assuming every graph rewrite is atomic we want the graph
- * to always represent the rest of the program to run.
- * To this end, we need to mutate the graph every time
- * an IO operation has been performed to make sure we don't
- * execute it again.
- * To have a cell that is safe to mutate, we allocate a new
- * application on entry to execio().
- * Given the call execio(np) we allocate this graph, top = BIND (*np) RETURN.
- * I.e.
- *          @
- *         / \
- *        @  RETURN
- *       / \
- *    BIND (*np) 
- * and make np point to it.
- * This graph will be updated continuously as we execute IO actions.
- *
- * Invariant: the second argument to this BIND is always either RETURN
- * or a C'BIND.  The second argument to C'BIND has the same invariant.
- * C'BIND has the reduction rule (which is normally never used): 
- *   C'BIND x y z = BIND (x z) y
- *
- * This is the cycle of the execio loop:
- *  again:
- *   given top = BIND n q
- *   eval(n)
- *   case n
- *     BIND r s:  rewrite to top := BIND r (C'BIND s q)  -- (r >>= s) >>= q  -->  r >>= (\ x -> s x >>= q)
- *     THEN r s:  ... K s ...
- *     otherwise: res = execute n
- *       case q
- *         RETURN:     rewrite to  top := RETURN res;  return to caller
- *         C'BIND r s: rewrite to  top := BIND (r res) s; goto again
- */
-void
-execio(NODEPTR *np)
+NORETURN void
+die_exn(NODEPTR exn)
 {
-  stackptr_t stk = stack_ptr;
-  NODEPTR f, x, n, q, r, s, res, top1;
-  char *cstr;
-  struct handler *h;
+  /* No handler:
+   * First convert the exception to a string by calling displaySomeException.
+   * The display function compiles to combShowExn, so we need to build
+   * (combShowExn exn) and evaluate it.
+   */
+  NODEPTR x;
+  char *msg;
+
+  if (in_raise) {
+    ERR("recursive error");
+    EXIT(1);
+  }
+  in_raise = 1;
+
+  if (GETTAG(exn) == T_INT) {
+    /* This is the special hack for RTS generated exception, represented by a T_INT */
+    switch(GETVALUE(exn)) {
+    case 0: msg = "stack overflow"; break;
+    case 1: msg = "heap overflow"; break;
+    case 2: msg = "thread killed"; break;
+    case 3: msg = "user interrupt"; break;
+    case 4: msg = "DivideByZero"; break;
+    default: msg = "unknown"; break;
+    }
+  } else {
+    /* just overwrite the top stack element, we don't need it */
+    CLEARSTK();
+    GCCHECK(1);
+    PUSH(new_ap(combShowExn, exn));/* TOP(0) = (combShowExn exn) */
+    x = evali(TOP(0));             /* evaluate it */
+    msg = evalstring(x).string;    /* and convert to a C string */
+    POP(1);
+  }
 #if WANT_STDIO
-  void *ptr;
-  int hdr;
+  /* A horrible hack until we get proper exceptions */
+  if (strcmp(msg, "ExitSuccess") == 0) {
+    EXIT(0);
+  } else {
+    fprintf(stderr, "\nmhs: uncaught exception: %s\n", msg);
+    EXIT(1);
+  }
+#else  /* WANT_STDIO */
+  ERR1("mhs error: %s", msg);
 #endif  /* WANT_STDIO */
-  NODEPTR top;
-  enum node_tag tag;
-  heapoffs_t l;
-
-/* IO operations need all arguments, anything else should not happen. */
-#define CHECKIO(n) do { if (stack_ptr - stk != (n)+1) {/*printf("\nLINE=%d\n", __LINE__);*/ ERR("CHECKIO");}; } while(0)
-/* #define RETIO(p) do { stack_ptr = stk; return (p); } while(0)*/
-#define GCCHECKSAVE(p, n) do { PUSH(p); GCCHECK(n); (p) = TOP(0); POP(1); } while(0)
-#define RETIO(p) do { stack_ptr = stk; res = (p); goto rest; } while(0)
-#define IOASSERT(p,s) do { if (!(p)) ERR("IOASSERT " s); } while(0)
-
-  GCCHECK(2);
-  top = new_ap(new_ap(combIOBIND, *np), combIORETURN);
-  *np = top;
-
- start:
-  //dump("start", top);
-  IOASSERT(stack_ptr == stk, "start");
-  //ppmsg("n before = ", ARG(FUN(top)));
-  n = evali(ARG(FUN(top)));     /* eval(n) */
-  //ppmsg("n after  = ", n);
-  if (GETTAG(n) == T_AP && GETTAG(top1 = indir(&FUN(n))) == T_AP) {
-    switch (GETTAG(indir(&FUN(top1)))) {
-    case T_IO_BIND:
-      GCCHECKSAVE(n, 2);
-      s = ARG(n);
-    bind:
-      q = ARG(top);
-      r = ARG(top1);
-      ARG(FUN(top)) = r;
-      ARG(top) = x = new_ap(new_ap(combIOCCBIND, s), q);
-      goto start;
-    case T_IO_THEN:
-      GCCHECKSAVE(n, 3);
-      s = new_ap(combFalse, ARG(n));
-      goto bind;
-    default:
-      break;
-    }
-  }
-  goto execute;
-
- rest:                          /* result is in res */
-  //ppmsg("res=", res);
-  q = ARG(top);
-  //ppmsg("q=", q);
-  if (GETTAG(q) == T_IO_RETURN) {
-    /* execio is done */
-    FUN(top) = combIORETURN;
-    ARG(top) = res;
-    IOASSERT(stack_ptr == stk, "stk");
-    return;
-  }
-  /* not done, it must be a C'BIND */
-  GCCHECKSAVE(res, 1);
-  IOASSERT(GETTAG(q) == T_AP && GETTAG(FUN(q)) == T_AP && GETTAG(FUN(FUN(q))) == T_IO_CCBIND, "rest-AP");
-  r = ARG(FUN(q));
-  s = ARG(q);
-  ARG(FUN(top)) = new_ap(r, res);
-  ARG(top) = s;
-  goto start;
-
- execute:
-  PUSH(n);
-  for(;;) {
-    COUNT(num_reductions);
-    //printf("execute switch %s\n", tag_names[GETTAG(n)]);
-
-    l = LABEL(n);
-    if (l < T_IO_STDIN) {
-      /* The node is one of the permanent nodes; the address offset is the tag */
-      tag = l;
-    } else {
-      /* Heap allocated node */
-      if (ISINDIR(n)) {
-        /* Follow indirections */
-        NODEPTR on = n;
-        do {
-          n = GETINDIR(n);
-        } while(ISINDIR(n));
-        SETINDIR(on, n);          /* and short-circuit them */
-      }
-      tag = GETTAG(n);
-    }
-
-    switch (tag) {
-    case T_AP:
-      n = FUN(n);
-      PUSH(n);
-      break;
-    case T_IO_BIND:
-      ERR("T_IO_BIND");
-    case T_IO_THEN:
-      ERR("T_IO_THEN");
-    case T_IO_CCBIND:
-      ERR("T_IO_CCBIND");
-    case T_IO_RETURN:
-      CHECKIO(1);
-      n = ARG(TOP(1));
-      RETIO(n);
-#if WANT_STDIO
-    case T_IO_PRINT:
-      hdr = 0;
-      goto ser;
-    case T_IO_SERIALIZE:
-      hdr = 1;
-    ser:
-      CHECKIO(2);
-#if 0
-      gc();                     /* DUBIOUS: do a GC to get possible GC reductions */
-#endif
-      ptr = (struct BFILE*)evalptr(ARG(TOP(1)));
-      x = evali(ARG(TOP(2)));
-      printb(ptr, x, hdr);
-      putb('\n', ptr);
-      RETIO(combUnit);
-    case T_IO_DESERIALIZE:
-      CHECKIO(1);
-      ptr = (struct BFILE*)evalptr(ARG(TOP(1)));
-      gc();                     /* make sure we have room.  GC during parse is dodgy. */
-      n = parse_top(ptr);
-      RETIO(n);
-#endif
-#if WANT_ARGS
-    case T_IO_GETARGREF:
-      CHECKIO(0);
-      n = alloc_node(T_ARR);
-      ARR(n) = argarray;
-      RETIO(n);
-#endif
-
-    case T_IO_CCALL:
-      {
-        int a = (int)GETVALUE(n);
-        funptr_t f = FFI_IX(a).ffi_fun;
-        GCCHECK(1);             /* room for placeholder */
-        PUSH(mkFlt(0.0));       /* placeholder for result, protected from GC */
-        f(stk);                 /* call FFI function */
-        n = TOP(0);             /* pop actual result */
-        RETIO(n);               /* and this is the result */
-      }
-
-    case T_CATCH:
-      {
-        h = mmalloc(sizeof *h);
-        CHECKIO(2);
-        h->hdl_old = cur_handler;
-        h->hdl_stack = stack_ptr;
-        cur_handler = h;
-        if (setjmp(h->hdl_buf)) {
-          /* An exception occurred: */
-          stack_ptr = h->hdl_stack;
-          x = h->hdl_exn;       /* exception value */
-          GCCHECKSAVE(x, 1);
-          f = ARG(TOP(2));      /* second argument, handler */
-          n = new_ap(f, x);
-          cur_handler = h->hdl_old;
-          FREE(h);
-          POP(3);
-          ARG(FUN(top)) = n;
-          goto start;
-        } else {
-          /* Normal execution: */
-          n = ARG(TOP(1));          /* first argument, should be evaluated (but not overwritten) */
-          PUSH(n);
-          execio(&TOP(0));          /* execute first argument */
-          cur_handler = h->hdl_old; /* restore old handler */
-          FREE(h);
-          n = TOP(0);
-          POP(1);
-          IOASSERT(GETTAG(n) == T_AP && GETTAG(FUN(n)) == T_IO_RETURN, "CATCH");
-          RETIO(ARG(n));             /* return result */
-        }
-      }
-
-    case T_NEWCASTRINGLEN:
-      {
-      CHECKIO(1);
-      n = ARG(TOP(1));
-      /* Zap the pointer to the list so it can be GC:ed.
-       * The actual list is protected from GC by evalbytestring().
-       */
-      // ARG(TOP(1)) = combK;
-      struct bytestring bs = evalbytestring(n);
-      GCCHECK(4);
-      n = new_ap(new_ap(combPair, x = alloc_node(T_PTR)), mkInt(bs.size));
-      PTR(x) = bs.string;
-      RETIO(n);
-      }
-
-    case T_PACKCSTRING:
-      {
-      size_t size;
-      CHECKIO(1);
-      cstr = evalptr(ARG(TOP(1)));
-      size = strlen(cstr);
-      char *str = mmalloc(size);
-      memcpy(str, cstr, size);
-      struct bytestring bs = { size, str };
-      RETIO(mkStrNode(bs));
-      }
-
-    case T_PACKCSTRINGLEN:
-      {
-      size_t size;
-      CHECKIO(2);
-      cstr = evalptr(ARG(TOP(1)));
-      size = evalint(ARG(TOP(2)));
-      char *str = mmalloc(size);
-      memcpy(str, cstr, size);
-      struct bytestring bs = { size, str };
-      RETIO(mkStrNode(bs));
-      }
-
-    case T_ARR_ALLOC:
-      {
-      size_t size;
-      NODEPTR elem;
-      struct ioarray *arr;
-      CHECKIO(2);
-      GCCHECK(1);
-      size = evalint(ARG(TOP(1)));
-      elem = ARG(TOP(2));
-      arr = arr_alloc(size, elem);
-      n = alloc_node(T_ARR);
-      ARR(n) = arr;
-      RETIO(n);
-      }
-    case T_ARR_COPY:
-      {
-      struct ioarray *arr;
-      CHECKIO(1);
-      GCCHECK(1);
-      n = evali(ARG(TOP(1)));
-      if (GETTAG(n) != T_ARR)
-        ERR("T_ARR_COPY tag");
-      arr = arr_copy(ARR(n));
-      n = alloc_node(T_ARR);
-      ARR(n) = arr;
-      RETIO(n);
-      }
-    case T_ARR_SIZE:
-      CHECKIO(1);
-      n = evali(ARG(TOP(1)));
-      if (GETTAG(n) != T_ARR)
-        ERR("bad ARR tag");
-      RETIO(mkInt(ARR(n)->size));
-    case T_ARR_READ:
-      {
-      size_t i;
-      CHECKIO(2);
-      i = evalint(ARG(TOP(2)));
-      n = evali(ARG(TOP(1)));
-      if (GETTAG(n) != T_ARR)
-        ERR("bad ARR tag");
-      if (i >= ARR(n)->size)
-        ERR("ARR_READ");
-      RETIO(ARR(n)->array[i]);
-      }
-    case T_ARR_WRITE:
-      {
-      size_t i;
-      CHECKIO(3);
-      i = evalint(ARG(TOP(2)));
-      n = evali(ARG(TOP(1)));
-      if (GETTAG(n) != T_ARR)
-        ERR("bad ARR tag");
-      if (i >= ARR(n)->size) {
-        //PRINT("%d %p %d\n", (int)i, ARR(n), (int)ARR(n)->size);
-        ERR("ARR_WRITE");
-      }
-      ARR(n)->array[i] = ARG(TOP(3));
-      RETIO(combUnit);
-      }
-
-    case T_FPNEW:
-      {
-        CHECKIO(1);
-        //printf("T_FPNEW\n");
-        void *xp = evalptr(ARG(TOP(1)));
-        //printf("T_FPNEW xp=%p\n", xp);
-        n = alloc_node(T_FORPTR);
-        SETFORPTR(n, mkForPtrP(xp));
-        RETIO(n);
-      }
-    case T_FPFIN:
-      {
-        CHECKIO(2);
-        //printf("T_FPFIN\n");
-        struct forptr *xfp = evalforptr(ARG(TOP(2)));
-        //printf("T_FPFIN xfp=%p\n", xfp);
-        HsFunPtr yp = evalfunptr(ARG(TOP(1)));
-        //printf("T_FPFIN yp=%p\n", yp);
-        xfp->finalizer->final = yp;
-        RETIO(combUnit);
-      }
-
-#if 0
-    case T_FPSTR:
-      {
-        CHECKIO(2);
-        //printf("T_FPFIN\n");
-        struct forptr *xfp = evalforptr(ARG(TOP(2)));
-        //printf("T_FPFIN xfp=%p\n", xfp);
-        struct bytestring bs = evalstring(ARG(TOP(1)));
-        //printf("T_FPFIN yp=%p\n", yp);
-        xfp->desc = bs.string;
-        RETIO(combUnit);
-      }
-#endif
-
-    case T_IO_GC:
-      CHECKIO(0);
-      //printf("gc()\n");
-      gc();
-      RETIO(combUnit);
-
-    default:
-      //printf("bad tag %s\n", tag_names[GETTAG(n)]);
-      ERR1("execio tag %d", GETTAG(n));
-    }
-  }
 }
 
 #if WANT_ARGS
@@ -4308,6 +5314,14 @@ MAIN
 
 #ifdef INITIALIZATION
   main_setup(); /* Do platform specific start-up. */
+#endif
+
+#ifdef CLOCK_INIT
+  CLOCK_INIT();
+#endif
+
+#if WANT_SIGINT
+  (void)signal(SIGINT, handle_sigint);
 #endif
 
   heap_size = HEAP_CELLS;       /* number of heap cells */
@@ -4360,7 +5374,7 @@ MAIN
 
   init_nodes();
   stack = mmalloc(sizeof(NODEPTR) * stack_size);
-  stack_ptr = -1;
+  CLEARSTK();
   num_reductions = 0;
 
 #if WANT_ARGS
@@ -4412,7 +5426,7 @@ MAIN
   want_gc_red = 1;
   gc();
   gc();                         /* this finds some more GC reductions */
-  want_gc_red = 0;
+  want_gc_red = 0;              /* disabled due to UB */
   prog = POPTOP();
 
 #if WANT_STDIO
@@ -4432,18 +5446,9 @@ MAIN
   }
 #endif
   run_time -= GETTIMEMILLI();
-  PUSH(prog);
-  topnode = &TOP(0);
-  execio(&TOP(0));
-  prog = TOP(0);
-  POP(1);
-#if SANITY
-  if (GETTAG(prog) != T_AP || GETTAG(FUN(prog)) != T_IO_RETURN)
-    ERR("main execio");
-  NODEPTR res = evali(ARG(prog));
-  if (GETTAG(res) != T_I)
-    ERR("main execio I");
-#endif
+
+  topnode = &prog;
+  start_exec(prog);
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
   flushb((BFILE*)FORPTR(comb_stderr)->payload.string);
@@ -4455,7 +5460,7 @@ MAIN
     if (verbose > 1) {
       PRINT("node size=%"PRIheap", heap size bytes=%"PRIheap"\n", (heapoffs_t)NODE_SIZE, heap_size * NODE_SIZE);
     }
-    setlocale(LC_NUMERIC, "");  /* Make %' work on platforms that support it */
+    setlocale(LC_NUMERIC, "en_US");  /* Make %' work on platforms that support it */
     PRINT("%"PCOMMA"15"PRIheap" combinator file size\n", (heapoffs_t)file_size);
     PRINT("%"PCOMMA"15"PRIheap" cells at start\n", start_size);
     PRINT("%"PCOMMA"15"PRIheap" cells heap size (%"PCOMMA""PRIheap" bytes)\n", heap_size, heap_size * NODE_SIZE);
@@ -4463,6 +5468,7 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" GCs\n", num_gc);
     PRINT("%"PCOMMA"15"PRIcounter" max cells used\n", max_num_marked);
     PRINT("%"PCOMMA"15"PRIcounter" reductions (%"PCOMMA".1f Mred/s)\n", num_reductions, num_reductions / ((double)run_time / 1000) / 1000000);
+    PRINT("%"PCOMMA"15"PRIcounter" yields (%"PCOMMA""PRIcounter" resched)\n", num_yield, num_resched);
     PRINT("%"PCOMMA"15"PRIcounter" array alloc\n", num_arr_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" array free\n", num_arr_free);
     PRINT("%"PCOMMA"15"PRIcounter" foreign alloc\n", num_fin_alloc);
@@ -4470,6 +5476,8 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc (max %"PCOMMA""PRIcounter")\n", num_bs_alloc, num_bs_alloc_max);
     PRINT("%"PCOMMA"15"PRIcounter" bytestring alloc bytes (max %"PCOMMA""PRIcounter")\n", num_bs_bytes, num_bs_inuse_max);
     PRINT("%"PCOMMA"15"PRIcounter" bytestring free\n", num_bs_free);
+    PRINT("%"PCOMMA"15"PRIcounter" thread create\n", num_thread_create-1);
+    PRINT("%"PCOMMA"15"PRIcounter" thread reap\n", num_thread_reap);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
@@ -4514,12 +5522,12 @@ MAIN
 /* FFI adapters      */
 
 #define MHS_FROM(name, set, type) \
-void \
+from_t \
 name(stackptr_t stk, int n, type x) \
 { \
   NODEPTR r = TOP(0);           /* The pre-allocated cell for the result, */ \
-  CHECKIO(n+1);                 /* Check that we actually had the right number of arguments. */ \
   set(r, x);                    /* Put result in pre-allocated cell. */ \
+  return n;                     /* return arity */ \
 }
 MHS_FROM(mhs_from_FloatW, SETDBL, flt_t);
 MHS_FROM(mhs_from_Int, SETINT, value_t);
@@ -4546,17 +5554,18 @@ MHS_FROM(mhs_from_CTime, SETINT, time_t);
 // MHS_FROM(mhs_from_CSSize, SETINT, ssize_t);
 MHS_FROM(mhs_from_CIntPtr, SETINT, intptr_t);
 MHS_FROM(mhs_from_CUIntPtr, SETINT, uintptr_t);
-void
+from_t
 mhs_from_Unit(stackptr_t stk, int n)
 {
-  CHECKIO(n+1);                 /* Check that we actually had the right number of arguments. */
-  TOP(0) = combUnit;            /* Put result on top of stack */
+  POP(1);                       /* return value cell */
+  PUSH(combUnit);               /* push unit instead */
+  return n;
 }
 
 #define MHS_TO(name, eval, type) \
 type name(stackptr_t stk, int n) \
 { \
-  return eval(ARG(TOP(n+2)));                /* The stack has a reserved cell, and the FFI node on top of the arguments */ \
+  return eval(ARG(TOP(n+1)));                /* The stack has a reserved cell on top of the arguments */ \
 }
 MHS_TO(mhs_to_FloatW, evaldbl, flt_t);
 MHS_TO(mhs_to_Int, evalint, value_t);
@@ -4585,148 +5594,149 @@ MHS_TO(mhs_to_CUIntPtr, evalint, uintptr_t);
 
 
 /* The rest of this file was generated by the compiler, with some minor edits with #if. */
-void mhs_GETRAW(int s) { mhs_from_Int(s, 0, GETRAW()); }
-void mhs_GETTIMEMILLI(int s) { mhs_from_Int(s, 0, GETTIMEMILLI()); }
+from_t mhs_GETRAW(int s) { return  mhs_from_Int(s, 0, GETRAW()); }
+from_t mhs_GETTIMEMILLI(int s) { return  mhs_from_Int(s, 0, GETTIMEMILLI()); }
 #if WANT_MATH
 #if WORD_SIZE == 64
-void mhs_acos(int s) { mhs_from_FloatW(s, 1, acos(mhs_to_FloatW(s, 0))); }
-void mhs_asin(int s) { mhs_from_FloatW(s, 1, asin(mhs_to_FloatW(s, 0))); }
-void mhs_atan(int s) { mhs_from_FloatW(s, 1, atan(mhs_to_FloatW(s, 0))); }
-void mhs_atan2(int s) { mhs_from_FloatW(s, 2, atan2(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
-void mhs_cos(int s) { mhs_from_FloatW(s, 1, cos(mhs_to_FloatW(s, 0))); }
-void mhs_exp(int s) { mhs_from_FloatW(s, 1, exp(mhs_to_FloatW(s, 0))); }
-void mhs_log(int s) { mhs_from_FloatW(s, 1, log(mhs_to_FloatW(s, 0))); }
-void mhs_sin(int s) { mhs_from_FloatW(s, 1, sin(mhs_to_FloatW(s, 0))); }
-void mhs_sqrt(int s) { mhs_from_FloatW(s, 1, sqrt(mhs_to_FloatW(s, 0))); }
-void mhs_tan(int s) { mhs_from_FloatW(s, 1, tan(mhs_to_FloatW(s, 0))); }
+from_t mhs_acos(int s) { return mhs_from_FloatW(s, 1, acos(mhs_to_FloatW(s, 0))); }
+from_t mhs_asin(int s) { return mhs_from_FloatW(s, 1, asin(mhs_to_FloatW(s, 0))); }
+from_t mhs_atan(int s) { return mhs_from_FloatW(s, 1, atan(mhs_to_FloatW(s, 0))); }
+from_t mhs_atan2(int s) { return mhs_from_FloatW(s, 2, atan2(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
+from_t mhs_cos(int s) { return mhs_from_FloatW(s, 1, cos(mhs_to_FloatW(s, 0))); }
+from_t mhs_exp(int s) { return mhs_from_FloatW(s, 1, exp(mhs_to_FloatW(s, 0))); }
+from_t mhs_log(int s) { return mhs_from_FloatW(s, 1, log(mhs_to_FloatW(s, 0))); }
+from_t mhs_sin(int s) { return mhs_from_FloatW(s, 1, sin(mhs_to_FloatW(s, 0))); }
+from_t mhs_sqrt(int s) { return mhs_from_FloatW(s, 1, sqrt(mhs_to_FloatW(s, 0))); }
+from_t mhs_tan(int s) { return mhs_from_FloatW(s, 1, tan(mhs_to_FloatW(s, 0))); }
 #elif WORD_SIZE == 32  /* WORD_SIZE */
-void mhs_acos(int s) { mhs_from_FloatW(s, 1, acosf(mhs_to_FloatW(s, 0))); }
-void mhs_asin(int s) { mhs_from_FloatW(s, 1, asinf(mhs_to_FloatW(s, 0))); }
-void mhs_atan(int s) { mhs_from_FloatW(s, 1, atanf(mhs_to_FloatW(s, 0))); }
-void mhs_atan2(int s) { mhs_from_FloatW(s, 2, atan2f(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
-void mhs_cos(int s) { mhs_from_FloatW(s, 1, cosf(mhs_to_FloatW(s, 0))); }
-void mhs_exp(int s) { mhs_from_FloatW(s, 1, expf(mhs_to_FloatW(s, 0))); }
-void mhs_log(int s) { mhs_from_FloatW(s, 1, logf(mhs_to_FloatW(s, 0))); }
-void mhs_sin(int s) { mhs_from_FloatW(s, 1, sinf(mhs_to_FloatW(s, 0))); }
-void mhs_sqrt(int s) { mhs_from_FloatW(s, 1, sqrtf(mhs_to_FloatW(s, 0))); }
-void mhs_tan(int s) { mhs_from_FloatW(s, 1, tanf(mhs_to_FloatW(s, 0))); }
+from_t mhs_acos(int s) { return mhs_from_FloatW(s, 1, acosf(mhs_to_FloatW(s, 0))); }
+from_t mhs_asin(int s) { return mhs_from_FloatW(s, 1, asinf(mhs_to_FloatW(s, 0))); }
+from_t mhs_atan(int s) { return mhs_from_FloatW(s, 1, atanf(mhs_to_FloatW(s, 0))); }
+from_t mhs_atan2(int s) { return mhs_from_FloatW(s, 2, atan2f(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
+from_t mhs_cos(int s) { return mhs_from_FloatW(s, 1, cosf(mhs_to_FloatW(s, 0))); }
+from_t mhs_exp(int s) { return mhs_from_FloatW(s, 1, expf(mhs_to_FloatW(s, 0))); }
+from_t mhs_log(int s) { return mhs_from_FloatW(s, 1, logf(mhs_to_FloatW(s, 0))); }
+from_t mhs_sin(int s) { return mhs_from_FloatW(s, 1, sinf(mhs_to_FloatW(s, 0))); }
+from_t mhs_sqrt(int s) { return mhs_from_FloatW(s, 1, sqrtf(mhs_to_FloatW(s, 0))); }
+from_t mhs_tan(int s) { return mhs_from_FloatW(s, 1, tanf(mhs_to_FloatW(s, 0))); }
 #else
 #error Unknown WORD_SIZE
 #endif  /* WORD_SIZE */
 #endif  /* WANT_MATH */
 
 #if WANT_STDIO
-void mhs_add_FILE(int s) { mhs_from_Ptr(s, 1, add_FILE(mhs_to_Ptr(s, 0))); }
-void mhs_add_utf8(int s) { mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
-void mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
-void mhs_addr_closeb(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
-void mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
-void mhs_fopen(int s) { mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+from_t mhs_add_FILE(int s) { return mhs_from_Ptr(s, 1, add_FILE(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_utf8(int s) { return mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
+from_t mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_addr_closeb(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
+from_t mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_fopen(int s) { return mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 
-void mhs_getb(int s) { mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
-void mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_openwrbuf(int s) { mhs_from_Ptr(s, 0, openb_wr_buf()); }
-void mhs_openrdbuf(int s) { mhs_from_Ptr(s, 2, openb_rd_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
-void mhs_getbuf(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  mhs_from_Unit(s, 3); }
-void mhs_system(int s) { mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
-void mhs_tmpname(int s) { mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-void mhs_unlink(int s) { mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
-void mhs_readb(int s) { mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
-void mhs_writeb(int s) { mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_getb(int s) { return mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
+from_t mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_openwrbuf(int s) { return mhs_from_Ptr(s, 0, openb_wr_buf()); }
+from_t mhs_openrdbuf(int s) { return mhs_from_Ptr(s, 2, openb_rd_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_getbuf(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  return mhs_from_Unit(s, 3); }
+from_t mhs_system(int s) { return mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
+from_t mhs_tmpname(int s) { return mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
+from_t mhs_readb(int s) { return mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_writeb(int s) { return mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); } /* for debugging */
 #endif  /* WANT_STDIO */
 
 #if WANT_MD5
-void mhs_md5Array(int s) { md5Array(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_md5BFILE(int s) { md5BFILE(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_md5String(int s) { md5String(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_md5Array(int s) { md5Array(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_md5BFILE(int s) { md5BFILE(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_md5String(int s) { md5String(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WANT_MD5 */
 
 #if WANT_LZ77
-void mhs_add_lz77_compressor(int s) { mhs_from_Ptr(s, 1, add_lz77_compressor(mhs_to_Ptr(s, 0))); }
-void mhs_add_lz77_decompressor(int s) { mhs_from_Ptr(s, 1, add_lz77_decompressor(mhs_to_Ptr(s, 0))); }
-void mhs_lz77c(int s) { mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1), mhs_to_Ptr(s, 2))); }
+from_t mhs_add_lz77_compressor(int s) { return mhs_from_Ptr(s, 1, add_lz77_compressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_lz77_decompressor(int s) { return mhs_from_Ptr(s, 1, add_lz77_decompressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_lz77c(int s) { return mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1), mhs_to_Ptr(s, 2))); }
 #endif  /* WANT_LZ77 */
 
 #if WANT_RLE
-void mhs_add_rle_compressor(int s) { mhs_from_Ptr(s, 1, add_rle_compressor(mhs_to_Ptr(s, 0))); }
-void mhs_add_rle_decompressor(int s) { mhs_from_Ptr(s, 1, add_rle_decompressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_rle_compressor(int s) { return mhs_from_Ptr(s, 1, add_rle_compressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_rle_decompressor(int s) { return mhs_from_Ptr(s, 1, add_rle_decompressor(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_RLE */
 
 #if WANT_BWT
-void mhs_add_bwt_compressor(int s) { mhs_from_Ptr(s, 1, add_bwt_compressor(mhs_to_Ptr(s, 0))); }
-void mhs_add_bwt_decompressor(int s) { mhs_from_Ptr(s, 1, add_bwt_decompressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_bwt_compressor(int s) { return mhs_from_Ptr(s, 1, add_bwt_compressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_bwt_decompressor(int s) { return mhs_from_Ptr(s, 1, add_bwt_decompressor(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_BWT */
 
-void mhs_calloc(int s) { mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
-void mhs_free(int s) { free(mhs_to_Ptr(s, 0)); mhs_from_Unit(s, 1); }
-void mhs_addr_free(int s) { mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
-void mhs_getenv(int s) { mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
-void mhs_iswindows(int s) { mhs_from_Int(s, 0, iswindows()); }
-void mhs_malloc(int s) { mhs_from_Ptr(s, 1, MALLOC(mhs_to_CSize(s, 0))); }
-void mhs_memcpy(int s) { memcpy(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_memmove(int s) { memmove(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_peekPtr(int s) { mhs_from_Ptr(s, 1, peekPtr(mhs_to_Ptr(s, 0))); }
-void mhs_peekWord(int s) { mhs_from_Word(s, 1, peekWord(mhs_to_Ptr(s, 0))); }
-void mhs_pokePtr(int s) { pokePtr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_pokeWord(int s) { pokeWord(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
+from_t mhs_free(int s) { free(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
+from_t mhs_getenv(int s) { return mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
+from_t mhs_iswindows(int s) { return mhs_from_Int(s, 0, iswindows()); }
+from_t mhs_malloc(int s) { return mhs_from_Ptr(s, 1, MALLOC(mhs_to_CSize(s, 0))); }
+from_t mhs_memcpy(int s) { memcpy(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_memmove(int s) { memmove(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_CSize(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_peekPtr(int s) { return mhs_from_Ptr(s, 1, peekPtr(mhs_to_Ptr(s, 0))); }
+from_t mhs_peekWord(int s) { return mhs_from_Word(s, 1, peekWord(mhs_to_Ptr(s, 0))); }
+from_t mhs_pokePtr(int s) { pokePtr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_pokeWord(int s) { pokeWord(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 
-void mhs_peek_uint8(int s) { mhs_from_Word(s, 1, peek_uint8(mhs_to_Ptr(s, 0))); }
-void mhs_poke_uint8(int s) { poke_uint8(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_peek_uint16(int s) { mhs_from_Word(s, 1, peek_uint16(mhs_to_Ptr(s, 0))); }
-void mhs_poke_uint16(int s) { poke_uint16(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint8(int s) { return mhs_from_Word(s, 1, peek_uint8(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint8(int s) { poke_uint8(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint16(int s) { return mhs_from_Word(s, 1, peek_uint16(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint16(int s) { poke_uint16(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 #if WORD_SIZE >= 32
-void mhs_peek_uint32(int s) { mhs_from_Word(s, 1, peek_uint32(mhs_to_Ptr(s, 0))); }
-void mhs_poke_uint32(int s) { poke_uint32(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint32(int s) { return mhs_from_Word(s, 1, peek_uint32(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint32(int s) { poke_uint32(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WORD_SIZE */
 #if WORD_SIZE >= 64
-void mhs_peek_uint64(int s) { mhs_from_Word(s, 1, peek_uint64(mhs_to_Ptr(s, 0))); }
-void mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint64(int s) { return mhs_from_Word(s, 1, peek_uint64(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WORD_SIZE */
-void mhs_peek_uint(int s) { mhs_from_Word(s, 1, peek_uint(mhs_to_Ptr(s, 0))); }
-void mhs_poke_uint(int s) { poke_uint(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint(int s) { return mhs_from_Word(s, 1, peek_uint(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint(int s) { poke_uint(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 
-void mhs_peek_int8(int s) { mhs_from_Int(s, 1, peek_int8(mhs_to_Ptr(s, 0))); }
-void mhs_poke_int8(int s) { poke_int8(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_peek_int16(int s) { mhs_from_Int(s, 1, peek_int16(mhs_to_Ptr(s, 0))); }
-void mhs_poke_int16(int s) { poke_int16(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_int8(int s) { return mhs_from_Int(s, 1, peek_int8(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int8(int s) { poke_int8(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_int16(int s) { return mhs_from_Int(s, 1, peek_int16(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int16(int s) { poke_int16(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 #if WORD_SIZE >= 32
-void mhs_peek_int32(int s) { mhs_from_Int(s, 1, peek_int32(mhs_to_Ptr(s, 0))); }
-void mhs_poke_int32(int s) { poke_int32(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_int32(int s) { return mhs_from_Int(s, 1, peek_int32(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int32(int s) { poke_int32(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WORD_SIZE */
 #if WORD_SIZE >= 64
-void mhs_peek_int64(int s) { mhs_from_Int(s, 1, peek_int64(mhs_to_Ptr(s, 0))); }
-void mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_int64(int s) { return mhs_from_Int(s, 1, peek_int64(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WORD_SIZE */
-void mhs_peek_int(int s) { mhs_from_Int(s, 1, peek_int(mhs_to_Ptr(s, 0))); }
-void mhs_poke_int(int s) { poke_int(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_peek_llong(int s) { mhs_from_CLLong(s, 1, peek_llong(mhs_to_Ptr(s, 0))); }
-void mhs_peek_long(int s) { mhs_from_CLong(s, 1, peek_long(mhs_to_Ptr(s, 0))); }
-void mhs_peek_ullong(int s) { mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
-void mhs_peek_ulong(int s) { mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
-void mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_int(int s) { return mhs_from_Int(s, 1, peek_int(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int(int s) { poke_int(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_llong(int s) { return mhs_from_CLLong(s, 1, peek_llong(mhs_to_Ptr(s, 0))); }
+from_t mhs_peek_long(int s) { return mhs_from_CLong(s, 1, peek_long(mhs_to_Ptr(s, 0))); }
+from_t mhs_peek_ullong(int s) { return mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
+from_t mhs_peek_ulong(int s) { return mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); return mhs_from_Unit(s, 2); }
 #if WANT_FLOAT
-void mhs_peek_flt(int s) { mhs_from_FloatW(s, 1, peek_flt(mhs_to_Ptr(s, 0))); }
-void mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); mhs_from_Unit(s, 2); }
+from_t mhs_peek_flt(int s) { return mhs_from_FloatW(s, 1, peek_flt(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WANT_FLOAT */
-void mhs_sizeof_int(int s) { mhs_from_Int(s, 0, sizeof(int)); }
-void mhs_sizeof_llong(int s) { mhs_from_Int(s, 0, sizeof(long long)); }
-void mhs_sizeof_long(int s) { mhs_from_Int(s, 0, sizeof(long)); }
+from_t mhs_sizeof_int(int s) { return mhs_from_Int(s, 0, sizeof(int)); }
+from_t mhs_sizeof_llong(int s) { return mhs_from_Int(s, 0, sizeof(long long)); }
+from_t mhs_sizeof_long(int s) { return mhs_from_Int(s, 0, sizeof(long)); }
 #if WANT_DIR
-void mhs_closedir(int s) { mhs_from_Int(s, 1, closedir(mhs_to_Ptr(s, 0))); }
-void mhs_opendir(int s) { mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0))); }
-void mhs_readdir(int s) { mhs_from_Ptr(s, 1, readdir(mhs_to_Ptr(s, 0))); }
-void mhs_c_d_name(int s) { mhs_from_Ptr(s, 1, ((struct dirent *)(mhs_to_Ptr(s, 0)))->d_name); }
-void mhs_chdir(int s) { mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
-void mhs_mkdir(int s) { mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
-void mhs_getcwd(int s) { mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_closedir(int s) { return mhs_from_Int(s, 1, closedir(mhs_to_Ptr(s, 0))); }
+from_t mhs_opendir(int s) { return mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0))); }
+from_t mhs_readdir(int s) { return mhs_from_Ptr(s, 1, readdir(mhs_to_Ptr(s, 0))); }
+from_t mhs_c_d_name(int s) { return mhs_from_Ptr(s, 1, ((struct dirent *)(mhs_to_Ptr(s, 0)))->d_name); }
+from_t mhs_chdir(int s) { return mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
+from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
 
 /* Use this to detect if we have (and want) GMP or not. */
-void mhs_want_gmp(int s) { mhs_from_Int(s, 0, WANT_GMP); }
+from_t mhs_want_gmp(int s) { return mhs_from_Int(s, 0, WANT_GMP); }
 
 #if WANT_GMP
 void
@@ -4767,189 +5777,191 @@ print_mpz(mpz_ptr p)
 }
 #endif
 
-void mhs_new_mpz(int s) { mhs_from_ForPtr(s, 0, new_mpz()); }
+from_t mhs_new_mpz(int s) { mhs_from_ForPtr(s, 0, new_mpz()); }
 
 /* Stubs for GMP functions */
-void mhs_mpz_abs(int s) { mpz_abs(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_mpz_add(int s) { mpz_add(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_and(int s) { mpz_and(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_cmp(int s) { mhs_from_Int(s, 2, mpz_cmp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-void mhs_mpz_get_d(int s) { mhs_from_FloatW(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
-void mhs_mpz_get_si(int s) { mhs_from_Int(s, 1, mpz_get_si(mhs_to_Ptr(s, 0))); }
-void mhs_mpz_get_ui(int s) { mhs_from_Word(s, 1, mpz_get_ui(mhs_to_Ptr(s, 0))); }
-void mhs_mpz_init_set_si(int s) { mpz_init_set_si(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_mpz_init_set_ui(int s) { mpz_init_set_ui(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_mpz_ior(int s) { mpz_ior(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_mul(int s) { mpz_mul(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_mul_2exp(int s) { mpz_mul_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_neg(int s) { mpz_neg(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); mhs_from_Unit(s, 2); }
-void mhs_mpz_popcount(int s) {
+from_t mhs_mpz_abs(int s) { mpz_abs(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_mpz_add(int s) { mpz_add(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_and(int s) { mpz_and(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_cmp(int s) { return mhs_from_Int(s, 2, mpz_cmp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+from_t mhs_mpz_get_d(int s) { return mhs_from_FloatW(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_get_si(int s) { return mhs_from_Int(s, 1, mpz_get_si(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_get_ui(int s) { return mhs_from_Word(s, 1, mpz_get_ui(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_init_set_si(int s) { mpz_init_set_si(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_mpz_init_set_ui(int s) { mpz_init_set_ui(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_mpz_ior(int s) { mpz_ior(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_mul(int s) { mpz_mul(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_mul_2exp(int s) { mpz_mul_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_neg(int s) { mpz_neg(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_mpz_popcount(int s) {
   mpz_ptr a = mhs_to_Ptr(s, 0);
   if (mpz_sgn(a) < 0) {
     mpz_t neg_a;
     mpz_init(neg_a);
     mpz_neg(neg_a, a);
-    mhs_from_Int(s, 1, -mpz_popcount(neg_a));
+    (void)mhs_from_Int(s, 1, -mpz_popcount(neg_a));
     mpz_clear(neg_a);
   } else {
-    mhs_from_Int(s, 1, mpz_popcount(a));
+    (void)mhs_from_Int(s, 1, mpz_popcount(a));
   }
+  return 1;
 }
-void mhs_mpz_sub(int s) { mpz_sub(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_fdiv_q_2exp(int s) { mpz_fdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); mhs_from_Unit(s, 3); }
-void mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2), mhs_to_Ptr(s, 3)); mhs_from_Unit(s, 4); }
-void mhs_mpz_tstbit(int s) { mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
-void mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); mhs_from_Unit(s, 3); }
+from_t mhs_mpz_sub(int s) { mpz_sub(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_fdiv_q_2exp(int s) { mpz_fdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
+from_t mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2), mhs_to_Ptr(s, 3)); return mhs_from_Unit(s, 4); }
+from_t mhs_mpz_tstbit(int s) { mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 #endif  /* WANT_GMP */
 
 struct ffi_entry ffi_table[] = {
-{ "GETRAW", mhs_GETRAW},
-{ "GETTIMEMILLI", mhs_GETTIMEMILLI},
+  { "GETRAW", 0, mhs_GETRAW},
+  { "GETTIMEMILLI", 0, mhs_GETTIMEMILLI},
 #if WANT_MATH
-{ "acos", mhs_acos},
-{ "asin", mhs_asin},
-{ "atan", mhs_atan},
-{ "atan2", mhs_atan2},
-{ "cos", mhs_cos},
-{ "exp", mhs_exp},
-{ "log", mhs_log},
-{ "sin", mhs_sin},
-{ "sqrt", mhs_sqrt},
-{ "tan", mhs_tan},
+  { "acos", 1, mhs_acos},
+  { "asin", 1, mhs_asin},
+  { "atan", 1, mhs_atan},
+  { "atan2", 2, mhs_atan2},
+  { "cos", 1, mhs_cos},
+  { "exp", 1, mhs_exp},
+  { "log", 1, mhs_log},
+  { "sin", 1, mhs_sin},
+  { "sqrt", 1, mhs_sqrt},
+  { "tan", 1, mhs_tan},
 #endif  /* WANT_MATH */
 
 #if WANT_STDIO
-{ "add_FILE", mhs_add_FILE},
-{ "add_utf8", mhs_add_utf8},
-{ "closeb", mhs_closeb},
-{ "&closeb", mhs_addr_closeb},
-{ "flushb", mhs_flushb},
-{ "fopen", mhs_fopen},
-{ "getb", mhs_getb},
-{ "putb", mhs_putb},
-{ "ungetb", mhs_ungetb},
-{ "openb_wr_buf", mhs_openwrbuf},
-{ "openb_rd_buf", mhs_openrdbuf},
-{ "get_buf", mhs_getbuf},
-{ "system", mhs_system},
-{ "tmpname", mhs_tmpname},
-{ "unlink", mhs_unlink},
-{ "readb", mhs_readb},
-{ "writeb", mhs_writeb},
+  { "add_FILE", 1, mhs_add_FILE},
+  { "add_utf8", 1, mhs_add_utf8},
+  { "closeb", 1, mhs_closeb},
+  { "&closeb", 0, mhs_addr_closeb},
+  { "flushb", 1, mhs_flushb},
+  { "fopen", 2, mhs_fopen},
+  { "getb", 1, mhs_getb},
+  { "putb", 2, mhs_putb},
+  { "ungetb", 2, mhs_ungetb},
+  { "openb_wr_buf", 0, mhs_openwrbuf},
+  { "openb_rd_buf", 2, mhs_openrdbuf},
+  { "get_buf", 3, mhs_getbuf},
+  { "system", 1, mhs_system},
+  { "tmpname", 2, mhs_tmpname},
+  { "unlink", 1, mhs_unlink},
+  { "readb", 3, mhs_readb},
+  { "writeb", 3, mhs_writeb},
+  { "putchar", 1, mhs_putchar},
 #endif  /* WANT_STDIO */
 
 #if WANT_MD5
-{ "md5Array", mhs_md5Array},
-{ "md5BFILE", mhs_md5BFILE},
-{ "md5String", mhs_md5String},
+  { "md5Array", 3, mhs_md5Array},
+  { "md5BFILE", 2, mhs_md5BFILE},
+  { "md5String", 2, mhs_md5String},
 #endif  /* WANT_MD5 */
 
 #if WANT_LZ77
-{ "add_lz77_compressor", mhs_add_lz77_compressor},
-{ "add_lz77_decompressor", mhs_add_lz77_decompressor},
-{ "lz77c", mhs_lz77c},
+  { "add_lz77_compressor", 1, mhs_add_lz77_compressor},
+  { "add_lz77_decompressor", 1, mhs_add_lz77_decompressor},
+  { "lz77c", 3, mhs_lz77c},
 #endif  /* WANT_LZ77 */
 
 #if WANT_RLE
-{ "add_rle_compressor", mhs_add_rle_compressor},
-{ "add_rle_decompressor", mhs_add_rle_decompressor},
+  { "add_rle_compressor", 1, mhs_add_rle_compressor},
+  { "add_rle_decompressor", 1, mhs_add_rle_decompressor},
 #endif  /* WANT_RLE */
 
 #if WANT_BWT
-{ "add_bwt_compressor", mhs_add_bwt_compressor},
-{ "add_bwt_decompressor", mhs_add_bwt_decompressor},
+  { "add_bwt_compressor", 1, mhs_add_bwt_compressor},
+  { "add_bwt_decompressor", 1, mhs_add_bwt_decompressor},
 #endif  /* WANT_RLE */
 
-{ "calloc", mhs_calloc},
-{ "free", mhs_free},
-{ "&free", mhs_addr_free},
-{ "getenv", mhs_getenv},
-{ "iswindows", mhs_iswindows},
-{ "malloc", mhs_malloc},
-{ "memcpy", mhs_memcpy},
-{ "memmove", mhs_memmove},
-{ "peekPtr", mhs_peekPtr},
-{ "peekWord", mhs_peekWord},
-{ "pokePtr", mhs_pokePtr},
-{ "pokeWord", mhs_pokeWord},
+  { "calloc", 2, mhs_calloc},
+  { "free", 1, mhs_free},
+  { "&free", 0, mhs_addr_free},
+  { "getenv", 1, mhs_getenv},
+  { "iswindows", 0, mhs_iswindows},
+  { "malloc", 1, mhs_malloc},
+  { "memcpy", 3, mhs_memcpy},
+  { "memmove", 3, mhs_memmove},
+  { "peekPtr", 1, mhs_peekPtr},
+  { "peekWord", 1, mhs_peekWord},
+  { "pokePtr", 2, mhs_pokePtr},
+  { "pokeWord", 2, mhs_pokeWord},
 
-{ "peek_uint8", mhs_peek_uint8},
-{ "poke_uint8", mhs_poke_uint8},
-{ "peek_uint16", mhs_peek_uint16},
-{ "poke_uint16", mhs_poke_uint16},
+  { "peek_uint8", 1, mhs_peek_uint8},
+  { "poke_uint8", 2, mhs_poke_uint8},
+  { "peek_uint16", 1, mhs_peek_uint16},
+  { "poke_uint16", 2, mhs_poke_uint16},
 #if WORD_SIZE >= 32
-{ "peek_uint32", mhs_peek_uint32},
-{ "poke_uint32", mhs_poke_uint32},
+  { "peek_uint32", 1, mhs_peek_uint32},
+  { "poke_uint32", 2, mhs_poke_uint32},
 #endif  /* WORD_SIZE >= 32 */
 #if WORD_SIZE >= 64
-{ "peek_uint64", mhs_peek_uint64},
-{ "poke_uint64", mhs_poke_uint64},
+  { "peek_uint64", 1, mhs_peek_uint64},
+  { "poke_uint64", 2, mhs_poke_uint64},
 #endif  /* WORD_SIZE >= 64 */
-{ "peek_uint", mhs_peek_uint},
-{ "poke_uint", mhs_poke_uint},
+  { "peek_uint", 1, mhs_peek_uint},
+  { "poke_uint", 2, mhs_poke_uint},
 
-{ "peek_int8", mhs_peek_int8},
-{ "poke_int8", mhs_poke_int8},
-{ "peek_int16", mhs_peek_int16},
-{ "poke_int16", mhs_poke_int16},
+  { "peek_int8", 1, mhs_peek_int8},
+  { "poke_int8", 2, mhs_poke_int8},
+  { "peek_int16", 1, mhs_peek_int16},
+  { "poke_int16", 2, mhs_poke_int16},
 #if WORD_SIZE >= 32
-{ "peek_int32", mhs_peek_int32},
-{ "poke_int32", mhs_poke_int32},
+  { "peek_int32", 1, mhs_peek_int32},
+  { "poke_int32", 2, mhs_poke_int32},
 #endif  /* WORD_SIZE >= 32 */
 #if WORD_SIZE >= 64
-{ "peek_int64", mhs_peek_int64},
-{ "poke_int64", mhs_poke_int64},
+  { "peek_int64", 1, mhs_peek_int64},
+  { "poke_int64", 2, mhs_poke_int64},
 #endif  /* WORD_SIZE >= 64 */
-{ "peek_int", mhs_peek_int},
-{ "poke_int", mhs_poke_int},
-{ "peek_llong", mhs_peek_llong},
-{ "peek_long", mhs_peek_long},
-{ "peek_ullong", mhs_peek_ullong},
-{ "peek_ulong", mhs_peek_ulong},
-{ "poke_llong", mhs_poke_llong},
-{ "poke_long", mhs_poke_long},
-{ "poke_ullong", mhs_poke_ullong},
-{ "poke_ulong", mhs_poke_ulong},
+  { "peek_int", 1, mhs_peek_int},
+  { "poke_int", 2, mhs_poke_int},
+  { "peek_llong", 1, mhs_peek_llong},
+  { "peek_long", 1, mhs_peek_long},
+  { "peek_ullong", 1, mhs_peek_ullong},
+  { "peek_ulong", 1, mhs_peek_ulong},
+  { "poke_llong", 2, mhs_poke_llong},
+  { "poke_long", 2, mhs_poke_long},
+  { "poke_ullong", 2, mhs_poke_ullong},
+  { "poke_ulong", 2, mhs_poke_ulong},
 #if WANT_FLOAT
-{ "poke_flt", mhs_poke_flt},
-{ "poke_flt", mhs_poke_flt},
+  { "peek_flt", 1, mhs_peek_flt},
+  { "poke_flt", 2, mhs_poke_flt},
 #endif  /* WANT_FLOAT */
-{ "sizeof_int", mhs_sizeof_int},
-{ "sizeof_llong", mhs_sizeof_llong},
-{ "sizeof_long", mhs_sizeof_long},
+  { "sizeof_int", 0, mhs_sizeof_int},
+  { "sizeof_llong", 0, mhs_sizeof_llong},
+  { "sizeof_long", 0, mhs_sizeof_long},
 #if WANT_DIR
-{ "c_d_name", mhs_c_d_name},
-{ "closedir", mhs_closedir},
-{ "opendir", mhs_opendir},
-{ "readdir", mhs_readdir},
-{ "chdir", mhs_chdir},
-{ "mkdir", mhs_mkdir},
-{ "getcwd", mhs_getcwd},
+  { "c_d_name", 1, mhs_c_d_name},
+  { "closedir", 1, mhs_closedir},
+  { "opendir", 1, mhs_opendir},
+  { "readdir", 1, mhs_readdir},
+  { "chdir", 1, mhs_chdir},
+  { "mkdir", 2, mhs_mkdir},
+  { "getcwd", 2, mhs_getcwd},
 #endif  /* WANT_DIR */
-{ "want_gmp", mhs_want_gmp},
+  { "want_gmp", 0, mhs_want_gmp},
 #if WANT_GMP
-{ "new_mpz", mhs_new_mpz},
-{ "mpz_abs", mhs_mpz_abs},
-{ "mpz_add", mhs_mpz_add},
-{ "mpz_and", mhs_mpz_and},
-{ "mpz_cmp", mhs_mpz_cmp},
-{ "mpz_get_d", mhs_mpz_get_d},
-{ "mpz_get_si", mhs_mpz_get_si},
-{ "mpz_get_ui", mhs_mpz_get_ui},
-{ "mpz_init_set_si", mhs_mpz_init_set_si},
-{ "mpz_init_set_ui", mhs_mpz_init_set_ui},
-{ "mpz_ior", mhs_mpz_ior},
-{ "mpz_mul", mhs_mpz_mul},
-{ "mpz_mul_2exp", mhs_mpz_mul_2exp},
-{ "mpz_neg", mhs_mpz_neg},
-{ "mpz_popcount", mhs_mpz_popcount},
-{ "mpz_sub", mhs_mpz_sub},
-{ "mpz_fdiv_q_2exp", mhs_mpz_fdiv_q_2exp},
-{ "mpz_tdiv_qr", mhs_mpz_tdiv_qr},
-{ "mpz_tstbit", mhs_mpz_tstbit},
-{ "mpz_xor", mhs_mpz_xor},
+  { "new_mpz", 0, mhs_new_mpz},
+  { "mpz_abs", 2, mhs_mpz_abs},
+  { "mpz_add", 3, mhs_mpz_add},
+  { "mpz_and", 3, mhs_mpz_and},
+  { "mpz_cmp", 2, mhs_mpz_cmp},
+  { "mpz_get_d", 1, mhs_mpz_get_d},
+  { "mpz_get_si", 1, mhs_mpz_get_si},
+  { "mpz_get_ui", 1, mhs_mpz_get_ui},
+  { "mpz_init_set_si", 2, mhs_mpz_init_set_si},
+  { "mpz_init_set_ui", 2, mhs_mpz_init_set_ui},
+  { "mpz_ior", 3, mhs_mpz_ior},
+  { "mpz_mul", 3, mhs_mpz_mul},
+  { "mpz_mul_2exp", 3, mhs_mpz_mul_2exp},
+  { "mpz_neg", 2, mhs_mpz_neg},
+  { "mpz_popcount", 1, mhs_mpz_popcount},
+  { "mpz_sub", 3, mhs_mpz_sub},
+  { "mpz_fdiv_q_2exp", 3, mhs_mpz_fdiv_q_2exp},
+  { "mpz_tdiv_qr", 4, mhs_mpz_tdiv_qr},
+  { "mpz_tstbit", 2, mhs_mpz_tstbit},
+  { "mpz_xor", 3, mhs_mpz_xor},
 #endif  /* WANT_GMP */
-{ 0,0 }
+  { 0,0 }
 };
 
 int num_ffi = sizeof(ffi_table) / sizeof(ffi_table[0]);

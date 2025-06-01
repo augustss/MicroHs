@@ -4,6 +4,7 @@ module Data.IORef(
   readIORef,
   writeIORef,
   modifyIORef,
+  atomicModifyIORef,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -28,3 +29,7 @@ writeIORef (R p) a = primArrWrite p 0 a
 
 modifyIORef :: forall a . IORef a -> (a -> a) -> IO ()
 modifyIORef (R p) f = primArrRead p 0 `primBind` \ a -> primArrWrite p 0 (f a)
+
+-- XXX WRONG
+atomicModifyIORef :: forall a b . IORef a -> (a -> (a, b)) -> IO b
+atomicModifyIORef r f = readIORef r `primBind` \ a -> let (a', b) = f a in writeIORef r a' `primThen` primReturn b

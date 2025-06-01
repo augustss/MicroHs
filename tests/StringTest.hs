@@ -1,5 +1,4 @@
 module StringTest(module StringTest) where
-import Prelude
 default (String)
 
 main :: IO ()

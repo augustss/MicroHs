@@ -1,5 +1,4 @@
 module Info(main) where
-import Prelude
 import Foreign.Storable
 import Foreign.Marshal.Utils
 import Foreign.Ptr

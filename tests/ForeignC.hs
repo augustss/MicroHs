@@ -1,19 +1,15 @@
 module ForeignC(main) where
-import Prelude
 import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.Storable
 
-foreign import ccall "llabs" iabs :: Int -> IO Int
 foreign import ccall "sys/errno.h &errno" cerrno :: IO (Ptr CInt)
-foreign import ccall "&llabs" pabs :: IO (FunPtr (Int -> IO Int))
+foreign import ccall "unistd.h getpid" getpid :: IO CInt
 
 main :: IO ()
 main = do
-  x1 <- iabs (3 - 8)
-  print x1
-  x2 <- iabs (10 - 8)
-  print x2
+  CInt pid <- getpid
+  print (pid /= 0)
   p <- cerrno
   CInt e <- peek p
   print e

@@ -38,8 +38,8 @@ module MHSPrelude(
 import qualified Prelude()
 --import Primitives(primRnfNoErr, primRnfErr)
 import Control.Applicative(Applicative(..))
-import Control.Error(error, undefined)
 import Control.DeepSeq.Class
+import Control.Error(error, undefined)
 import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
 import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)

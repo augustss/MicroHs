@@ -1,5 +1,4 @@
 module View(main) where
-import Prelude
 
 f :: Int -> Int
 f ((> 10) -> True) = 1

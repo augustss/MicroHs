@@ -32,5 +32,4 @@ uname flag = unsafePerformIO $ do
     error "System.Into: uname failed"
   return $ map toLower $ filter (not . isSpace) res
 
-fullCompilerVersion :: Version
-fullCompilerVersion = makeVersion [0,12,10,0]
+fullCompilerVersion = makeVersion [0,13,0,0]

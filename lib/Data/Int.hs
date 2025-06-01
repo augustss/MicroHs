@@ -54,26 +54,24 @@ instance Ord Int where
   (>=) = primIntGE
 
 instance Show Int where
-  show = showInt_
-
--- XXX these should not be exported
-showInt_ :: Int -> String
-showInt_ n =
-  if n < 0 then
-    '-' : _showUnsignedNegInt n
-  else
-    _showUnsignedNegInt (- n)
+  showsPrec p n r =
+    if n < (0::Int) then
+      if p > (6::Int) then
+        '(' : '-' : showUnsignedNegInt n (')' : r)
+      else
+        '-' : showUnsignedNegInt n r
+    else
+      showUnsignedNegInt (- n) r
 
 -- Some trickery to show minBound correctly.
 -- To print the number n, pass -n.
-_showUnsignedNegInt :: Int -> String
-_showUnsignedNegInt n =
-  let
-    c = primChr (primOrd '0' - rem n 10)
-  in  if n > -10 then
-        [c]
+showUnsignedNegInt :: Int -> ShowS
+showUnsignedNegInt n r =
+  let c = primChr (primOrd '0' - rem n (10::Int))
+  in  if n > -(10::Int) then
+        c : r
       else
-        _showUnsignedNegInt (quot n 10) ++ [c]
+        showUnsignedNegInt (quot n (10::Int)) (c : r)
 
 --------------------------------
 

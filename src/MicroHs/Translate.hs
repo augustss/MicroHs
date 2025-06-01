@@ -172,5 +172,20 @@ primTable = [
   ("fpnew", _primitive "fpnew"),
   ("fpfin", _primitive "fpfin"),
   ("fp2bs", _primitive "fp2bs"),
-  ("bs2fp", _primitive "bs2fp")
+  ("bs2fp", _primitive "bs2fp"),
+  ("IO.fork", _primitive "IO.fork"),
+  ("IO.thid", _primitive "IO.thid"),
+  ("thnum", _primitive "thnum"),
+  ("IO.throwto", _primitive "IO.throwto"),
+  ("IO.yield", _primitive "IO.yield"),
+  ("IO.newmvar", _primitive "IO.newmvar"),
+  ("IO.takemvar", _primitive "IO.takemvar"),
+  ("IO.putmvar", _primitive "IO.putmvar"),
+  ("IO.readmvar", _primitive "IO.readmvar"),
+  ("IO.trytakemvar", _primitive "IO.trytakemvar"),
+  ("IO.tryputmvar", _primitive "IO.tryputmvar"),
+  ("IO.tryreadmvar", _primitive "IO.tryreadmvar"),
+  ("IO.threaddelay", _primitive "IO.threaddelay"),
+  ("IO.threadstatus", _primitive "IO.threadstatus"),
+  ("isint", _primitive "isint")
   ]

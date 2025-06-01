@@ -36,6 +36,8 @@ data Ptr a
 data ForeignPtr a
 data FunPtr a
 data IOArray a
+data ThreadId
+data MVar a
 -- (), (,), (,,), etc are built in to the compiler
 
 primIntAdd :: Int -> Int -> Int
@@ -296,3 +298,46 @@ primNewForeignPtr = _primitive "fpnew"
 
 primAddFinalizer :: FunPtr (Ptr a -> IO ()) -> ForeignPtr a -> IO ()
 primAddFinalizer = _primitive "fpfin"
+
+primForkIO :: IO () -> IO ThreadId
+primForkIO = _primitive "IO.fork"
+
+primMyThreadId :: IO ThreadId
+primMyThreadId = _primitive "IO.thid"
+primThreadNum :: ThreadId -> Word
+primThreadNum = _primitive "thnum"
+
+primYield :: IO ()
+primYield = _primitive "IO.yield"
+
+primMVarToWord :: forall a . MVar a -> Word
+primMVarToWord = _primitive "toInt"
+
+primNewEmptyMVar :: forall a . IO (MVar a)
+primNewEmptyMVar = _primitive "IO.newmvar"
+primTakeMVar :: forall a . MVar a -> IO a
+primTakeMVar = _primitive "IO.takemvar"
+primReadMVar :: forall a . MVar a -> IO a
+primReadMVar = _primitive "IO.readmvar"
+primPutMVar :: forall a . MVar a -> a -> IO ()
+primPutMVar = _primitive "IO.putmvar"
+primTryTakeMVar :: MVar a -> IO b {-(Maybe a)-}
+primTryTakeMVar = _primitive "IO.trytakemvar"
+primTryPutMVar :: MVar a -> a -> IO Bool
+primTryPutMVar = _primitive "IO.tryputmvar"
+primTryReadMVar :: MVar a -> IO b {-(Maybe a)-}
+primTryReadMVar = _primitive "IO.tryreadmvar"
+
+primThreadDelay :: Int -> IO ()
+primThreadDelay = _primitive "IO.threaddelay"
+
+primThreadStatus :: ThreadId -> IO Int
+primThreadStatus = _primitive "IO.threadstatus"
+
+primIsInt :: a -> Int
+primIsInt = _primitive "isint"
+
+primGetMaskingState :: IO Int
+primGetMaskingState = _primitive "IO.getmaskingstate"
+primSetMaskingState :: Int -> IO ()
+primSetMaskingState = _primitive "IO.setmaskingstate"

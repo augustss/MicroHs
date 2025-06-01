@@ -1,5 +1,4 @@
 module Case(module Case) where
-import Prelude
 
 main :: IO ()
 main = do

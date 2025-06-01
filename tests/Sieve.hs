@@ -1,5 +1,4 @@
 module Sieve(main) where
-import Prelude
 
 primes :: [Integer]
 primes =

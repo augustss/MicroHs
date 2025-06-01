@@ -1,5 +1,4 @@
 module Multi(main) where
-import Prelude
 import Data.Char
 
 class C a b where

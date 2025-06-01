@@ -1,5 +1,4 @@
 module IOTest(module IOTest) where
-import Prelude
 import System.IO as IO
 import System.IO.TimeMilli
 import System.Environment

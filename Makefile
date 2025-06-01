@@ -168,8 +168,11 @@ runtestmhs: bin/mhseval bin/mhs
 
 # Run test examples with sanitized mhs-compiled compiler
 runtestsan: bin/mhsevalsane sanitizemhs
-	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CR" cache
+	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CW" cache
 	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CR" EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
+
+runtestgsan: bin/mhsevalsane bin/gmhs
+	cd tests; make EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
 
 # Run test examples going via JavaScript
 runtestemscripten: bin/mhseval bin/mhs bin/cpphs
@@ -257,7 +260,7 @@ examplejs: bin/mhs Example.hs
 info:	bin/mhs
 	bin/mhs -r -itests Info
 
-cachetest:	bin/mhs bin/mhseval Example.hs
+cachetest:	bin/mhs bin/cpphs bin/mhseval Example.hs
 	rm -f .mhscache
 	bin/mhs -CW AllOfLib
 	bin/mhs -CR Example && bin/mhseval
@@ -269,8 +272,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.12.10.0
-HVERSION=0,12,10,0
+VERSION=0.13.0.0
+HVERSION=0,13,0,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
@@ -318,7 +321,7 @@ install:	installmsg minstall
 
 installmsg:
 	@echo '***************************************************'
-	@echo '* Installing MicroHs'
+	@echo "* Installing MicroHs $(VERSION)"
 	@echo "*  Binaries (in $(MCABALBIN)):"
 	@echo '*    mhs     - MicroHs compiler'
 	@echo '*    cpphs   - C preprocessor'

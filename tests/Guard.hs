@@ -1,5 +1,4 @@
 module Guard(main) where
-import Prelude
 
 f :: [Int] -> Int
 f [x] | x < 0 = - x

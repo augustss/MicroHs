@@ -1,5 +1,4 @@
 module Rank2(main) where
-import Prelude
 
 f :: (forall a . a -> a) -> (Int, Bool)
 f i = (i (1::Int), i True)

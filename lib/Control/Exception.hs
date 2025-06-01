@@ -19,8 +19,24 @@ module Control.Exception(
   displaySomeException,
   evaluate,
   mapException,
+
+  mask, mask_,
+
+  allowInterrupt,
+
+  uninterruptibleMask,
+  uninterruptibleMask_,
+  interruptible,
+  MaskingState(..),
+  getMaskingState,
+
   --
   ArithException(..),
+  SomeAsyncException(..), AsyncException(..),
+  asyncExceptionToException,
+  asyncExceptionFromException,
+  --
+  BlockedIndefinitelyOnMVar(..),
   --
   ioError, IOException,
   ) where
@@ -92,6 +108,9 @@ bracket before after thing =
     return r
 -}
 
+mask_ :: IO a -> IO a
+mask_ io = mask $ const io
+
 finally :: IO a -> IO b -> IO a
 finally a sequel =
   mask $ \ restore -> do
@@ -99,23 +118,36 @@ finally a sequel =
     _ <- sequel
     return r
 
-bracket_ :: IO a -> IO b -> IO c -> IO c
-bracket_ before after thing = bracket before (const after) (const thing)
-
 bracketOnError :: IO a -> (a -> IO b) -> (a -> IO c) -> IO c
 bracketOnError before after thing =
   mask $ \ restore -> do
     a <- before
     restore (thing a) `onException` after a
 
+allowInterrupt :: IO ()
+allowInterrupt = interruptible $ return ()
+
+bracket_ :: IO a -> IO b -> IO c -> IO c
+bracket_ :: forall a b c. IO a -> IO b -> IO c -> IO c
+bracket_ before after thing = bracket before (const after) (const thing)
+
 -------------------
 
-data ArithException
-  = Overflow
-  | Underflow
-  | LossOfPrecision
-  | DivideByZero
-  | Denormal
-  | RatioZeroDenominator
-  deriving (Eq, Ord, Show, Typeable)
-instance Exception ArithException
+deriving instance Eq   ArithException
+deriving instance Ord  ArithException
+deriving instance Eq   AsyncException
+deriving instance Ord  AsyncException
+deriving instance Eq   MaskingState
+deriving instance Show MaskingState
+
+--------------------
+
+data BlockedIndefinitelyOnMVar = BlockedIndefinitelyOnMVar
+  deriving (Typeable)
+
+instance Exception BlockedIndefinitelyOnMVar
+
+instance Show BlockedIndefinitelyOnMVar where
+    showsPrec _ BlockedIndefinitelyOnMVar = showString "thread blocked indefinitely in an MVar operation"
+
+-----

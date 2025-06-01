@@ -29,7 +29,6 @@ test:
 	$(TMHS) Word       && $(EVAL) > Word.out       && diff Word.ref Word.out
 	$(TMHS) Integer    && $(EVAL) > Integer.out    && diff Integer.ref Integer.out
 	$(TMHS) Enum       && $(EVAL) > Enum.out       && diff Enum.ref Enum.out
-#	$(TMHS) ForeignC   && $(EVAL) > ForeignC.out   && diff ForeignC.ref ForeignC.out
 	$(TMHS) MutRec     && $(EVAL) > MutRec.out     && diff MutRec.ref MutRec.out
 	$(TMHS) LocalPoly  && $(EVAL) > LocalPoly.out  && diff LocalPoly.ref LocalPoly.out
 	$(TMHS) Rank2      && $(EVAL) > Rank2.out      && diff Rank2.ref Rank2.out
@@ -94,11 +93,23 @@ test:
 	$(TMHS) Storable   && $(EVAL) > Storable.out   && diff Storable.ref Storable.out
 	$(TMHS) StandDer   && $(EVAL) > StandDer.out   && diff StandDer.ref StandDer.out
 	MHSCPPHS=../bin/cpphs \
-        $(TMHS) Cpp        && $(EVAL) > Cpp.out        && diff Cpp.ref Cpp.out
+	$(TMHS) Cpp        && $(EVAL) > Cpp.out        && diff Cpp.ref Cpp.out
 	$(TMHS) Lit        && $(EVAL) > Lit.out        && diff Lit.ref Lit.out
 	$(TMHS) TypeOp     && $(EVAL) > TypeOp.out     && diff TypeOp.ref TypeOp.out
 	$(TMHS) Forall     && $(EVAL) > Forall.out     && diff Forall.ref Forall.out
 	$(TMHS) Block      && $(EVAL) > Block.out      && diff Block.ref Block.out
+	$(TMHS) Fork       && $(EVAL) > Fork.out       && diff Fork.ref Fork.out
+	$(TMHS) Concur     && $(EVAL) > Concur.out     && diff Concur.ref Concur.out
+	$(TMHS) MVar       && $(EVAL) > MVar.out       && diff MVar.ref MVar.out
+	$(TMHS) Delay      && $(EVAL) > Delay.out      && diff Delay.ref Delay.out
+	$(TMHS) ThrSt      && $(EVAL) > ThrSt.out      && diff ThrSt.ref ThrSt.out
+	$(TMHS) Throw      && $(EVAL) > Throw.out      && diff Throw.ref Throw.out
+	$(TMHS) RtsExn     && $(EVAL) > RtsExn.out     && diff RtsExn.ref RtsExn.out
+	$(TMHS) Mask       && $(EVAL) > Mask.out       && diff Mask.ref Mask.out
+
+# BROKEN: cannot compile binaries here
+testforeign:
+	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out  && diff ForeignC.ref ForeignC.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
@@ -110,4 +121,4 @@ nfib:
 	$(TMHS) Nfib && $(EVAL)
 
 clean:
-	rm -f *.out *.tmp *.js
+	rm -f *.out *.tmp *.js *.exe

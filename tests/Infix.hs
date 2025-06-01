@@ -1,5 +1,4 @@
 module Infix(main) where
-import Prelude
 
 infix 1 ===
 infixl 2 +++

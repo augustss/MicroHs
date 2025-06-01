@@ -200,6 +200,32 @@ tmpname(const char* pre, const char* suf)
 #define TMPNAME tmpname
 
 /*
+ * Define CLOCK_INIT is there is a ticking clock.
+ * CLOCK_INIT will be called for initializing the clock
+ */
+/* On Unix we just use gettimeofday() to get the clock,
+ * so no initialization is needed.
+ */
+#define CLOCK_INIT() do { } while(0)
+/* CLOCK_T is the type of the clock values. */
+#define CLOCK_T int64_t       /* large enough for 290Myears */
+/* CLOCK_GET returns the current clock in microseconds. */
+#define CLOCK_GET clock_get
+/* CLOCK_SLEEP sleeps some number of microseconds */
+#define CLOCK_SLEEP usleep
+CLOCK_T CLOCK_GET(void)
+{
+  struct timeval tv;
+  (void)gettimeofday(&tv, 0);   /* this is very fast, about 16ns on an M4 MacMini */
+  return (uint64_t)(tv.tv_sec * 1000000 + tv.tv_usec);
+}
+
+/*
+ * We want a signal handler for SIGINT.
+ */
+#define WANT_SIGINT 1
+
+/*
  * The ERR macro should report an error and exit.
  * If not defined, a generic one will be used.
  */
