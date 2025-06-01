@@ -57,9 +57,9 @@ instance Show Int where
   showsPrec p n r =
     if n < (0::Int) then
       if p > (6::Int) then
-        '-' : showUnsignedNegInt n r
-      else
         '(' : '-' : showUnsignedNegInt n (')' : r)
+      else
+        '-' : showUnsignedNegInt n r
     else
       showUnsignedNegInt (- n) r
 
