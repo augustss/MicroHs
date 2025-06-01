@@ -1,5 +1,4 @@
 module Exists(main) where
-import Prelude
 
 data E = forall a . Show a => C a
 

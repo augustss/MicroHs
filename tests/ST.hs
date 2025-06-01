@@ -1,5 +1,4 @@
 module ST(main) where
-import Prelude
 import Control.Monad.ST
 import Data.STRef
 import Debug.Trace

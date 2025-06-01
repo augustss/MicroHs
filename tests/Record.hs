@@ -1,5 +1,4 @@
 module Record(main) where
-import Prelude
 
 -- HasField instances are derived automatically
 

@@ -1,5 +1,4 @@
 module IOArray(main) where
-import Prelude
 import Data.IOArray
 import Data.IORef
 import System.IO

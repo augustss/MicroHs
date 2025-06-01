@@ -1,5 +1,4 @@
 module PolyKind(main) where
-import Prelude
 
 type XProxy :: forall (k::Kind) . k -> Type
 data XProxy a = XProxy

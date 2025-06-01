@@ -1,5 +1,4 @@
 module Readline(main) where
-import Prelude
 import System.Console.SimpleReadline
 
 main :: IO ()

@@ -1,5 +1,4 @@
 module LitMatch(main) where
-import Prelude
 
 f :: Int -> Int
 f 0 = 10

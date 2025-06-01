@@ -1,5 +1,4 @@
 module TypeEq(main) where
-import Prelude
 
 foo :: forall a . (a ~ Bool) => a -> a
 foo = not

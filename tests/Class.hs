@@ -1,6 +1,5 @@
 module Class(main) where
 import Primitives
-import Prelude
 
 class Eqq a where
   (===) :: a -> a -> Bool

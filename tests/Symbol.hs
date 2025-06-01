@@ -1,5 +1,4 @@
 module Symbol(main) where
-import Prelude
 
 newtype T (s::Symbol) = A Int
 

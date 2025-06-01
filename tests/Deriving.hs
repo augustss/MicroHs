@@ -1,5 +1,4 @@
 module Deriving(main) where
-import Prelude
 
 data T a b c = A a | B b | C a Int | D
   deriving (Eq, Ord, Show)

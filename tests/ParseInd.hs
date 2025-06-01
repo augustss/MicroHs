@@ -1,5 +1,4 @@
 module ParseInd(main) where
-import Prelude
 
 -- The parse error generateing a '}'
 

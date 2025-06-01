@@ -109,7 +109,7 @@ test:
 
 # BROKEN: cannot compile binaries here
 testforeign:
-	$(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out  && diff ForeignC.ref ForeignC.out
+	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out  && diff ForeignC.ref ForeignC.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

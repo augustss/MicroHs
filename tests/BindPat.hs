@@ -1,5 +1,4 @@
 module BindPat(main) where
-import Prelude
 
 foo :: [Int] -> [Int]
 foo xs = do

@@ -1,5 +1,4 @@
 module ForeignC(main) where
-import Prelude
 import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.Storable

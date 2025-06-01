@@ -1,5 +1,4 @@
 module Newtype(main) where
-import Prelude
 
 newtype N = N Int
 newtype M a = M a

@@ -1,5 +1,4 @@
 module Read(main) where
-import Prelude
 import Text.Read
 
 main :: IO ()

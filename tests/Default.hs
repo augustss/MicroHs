@@ -1,5 +1,4 @@
 module Default(main) where
-import Prelude
 default Num (Int, Double)
 default IsString (String)
 default Show (())

@@ -1,5 +1,4 @@
 module TypeLits(main) where
-import Prelude
 import Data.TypeLits
 
 data PS (s :: Symbol) = PS

@@ -1,5 +1,4 @@
 module FArith(module FArith) where
-import Prelude
 
 readDouble :: String -> Double
 readDouble = read

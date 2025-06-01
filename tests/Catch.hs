@@ -1,5 +1,4 @@
 module Catch(main) where
-import Prelude
 import Control.Exception
 import System.IO
 

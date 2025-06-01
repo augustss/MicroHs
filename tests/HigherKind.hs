@@ -1,5 +1,4 @@
 module HigherKind(main) where
-import Prelude
 
 newtype T f = C (f Int)
 

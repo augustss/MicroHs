@@ -1,5 +1,4 @@
 module ListCompr(main) where
-import Prelude
 default (Int)
 
 main :: IO ()

@@ -1,5 +1,4 @@
 module Arith(module Arith) where
-import Prelude
 
 vals :: [Int]
 vals = [-5, -2, -1, 0, 1, 2, 5]

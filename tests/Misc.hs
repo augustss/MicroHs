@@ -1,5 +1,4 @@
 module Misc(module Misc) where
-import Prelude
 
 first :: forall a b . (a, b) -> a
 first ab =
