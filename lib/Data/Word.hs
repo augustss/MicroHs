@@ -45,7 +45,16 @@ instance Real Word where
   toRational i = _integerToRational (_wordToInteger i)
 
 instance Show Word where
-  showsPrec = showIntegral
+  showsPrec _ = showUnsigned
+
+-- Avoid showIntegral to avoid Integer
+showUnsigned :: Word -> ShowS
+showUnsigned n r =
+  let c = primChr (primOrd '0' + primWordToInt (rem n (10::Word)))
+  in  if n < (10::Word) then
+        c : r
+      else
+        showUnsigned (quot n (10::Word)) (c : r)
 
 {- in Text.Read.Internal
 instance Read Word where
