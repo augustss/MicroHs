@@ -1280,8 +1280,9 @@ pause_exec(void)
       CLOCK_T dly = mt->mt_at - CLOCK_GET();
       if (dly > 0) {
         /* usleep() can be unreliable, so sleep shorter than the delay */
-        dly /= 2;
-        usleep((useconds_t)dly);
+        dly /= 4;
+        if (dly < 50) dly = 50;
+        CLOCK_SLEEP((useconds_t)dly);
       }
       check_timeq();
     }
