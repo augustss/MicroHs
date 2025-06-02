@@ -2085,6 +2085,10 @@ eProxy i = ESign proxy (EApp proxy (ELit loc (LStr (unIdent i))))
   where proxy = EVar $ mkBuiltin loc "Proxy"
         loc = getSLoc i
 
+dsEFieldsBind :: EBind -> T EBind
+dsEFieldsBind (PatBind p e) = PatBind <$> dsEFields p <*> return e
+dsEFieldsBind b = return b
+
 dsEField :: Expr -> EField -> T [EField]
 dsEField _ e@(EField _ _) = return [e]
 dsEField _ (EFieldPun is) = return [EField is $ EVar (last is)]
@@ -2574,13 +2578,14 @@ multCheck vs =
 tcBinds :: HasCallStack =>
            [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = withFixes [ (i, fx) | Infix fx is <- xbs, i <- is ] $ do
+  xbs' <- mapM dsEFieldsBind xbs
   let
-    tmap = M.fromList [ (i, t) | Sign is t <- xbs, i <- is ]
-    xs = getBindsVars xbs
+    tmap = M.fromList [ (i, t) | Sign is t <- xbs', i <- is ]
+    xs = getBindsVars xbs'
   multCheck xs
   xts <- mapM (tcBindVarT tmap) xs
   withExtVals xts $ do
-    nbs <- mapM tcBind xbs
+    nbs <- mapM tcBind xbs'
     ta nbs
 
 -- Temporarily extend the fixity table

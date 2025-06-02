@@ -1015,14 +1015,14 @@ ppEKind = ppEType
 ppList :: forall a . (a -> Doc) -> [a] -> Doc
 ppList pp xs = brackets $ hsep $ punctuate (text ",") (map pp xs)
 
-getBindVars :: EBind -> [Ident]
+getBindVars :: HasCallStack => EBind -> [Ident]
 getBindVars abind =
   case abind of
     Fcn i _  -> [i]
     PatBind p _  -> patVars p
     _ -> []
 
-getBindsVars :: [EBind] -> [Ident]
+getBindsVars :: HasCallStack => [EBind] -> [Ident]
 getBindsVars = concatMap getBindVars
 
 eForall :: [IdKind] -> EType -> EType
