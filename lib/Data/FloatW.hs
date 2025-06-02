@@ -7,6 +7,7 @@ import Control.Error
 import Data.Bits
 import Data.Bool
 import Data.Char
+import Data.Enum
 import Data.Eq
 import Data.Floating
 import Data.Fractional
@@ -70,6 +71,16 @@ instance Show FloatW where
 instance Read FloatW where
   readsPrec _ = readSigned $ \ r -> [ (primFloatWRead s, t) | (s@(c:_), t) <- lex r, isDigit c ]
 -}
+
+instance Enum FloatW where
+  succ x = x + 1
+  pred x = x - 1
+  toEnum n = fromIntegral n
+  fromEnum = fromInteger . truncate
+  enumFrom = numericEnumFrom
+  enumFromThen = numericEnumFromThen
+  enumFromTo = numericEnumFromTo
+  enumFromThenTo = numericEnumFromThenTo
 
 instance Real FloatW where
   toRational x | isNaN x = rationalNaN
