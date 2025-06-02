@@ -60,6 +60,7 @@ library base
         Data.Dynamic
         Data.Either
         Data.Enum
+        Data.Enum_Class
         Data.Eq
         Data.Fixed
         Data.Float
