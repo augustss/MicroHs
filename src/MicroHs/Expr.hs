@@ -582,7 +582,7 @@ instance NFData Assoc where rnf x = x `seq` ()
 
 ---------------------------------
 
--- Enough to handle subsitution in types
+-- Enough to handle subsitution in (undesguared) types
 subst :: [(Ident, Expr)] -> Expr -> Expr
 subst [] = id
 subst s =
@@ -608,6 +608,7 @@ subst s =
         ELit _ _ -> ae
         ETuple ts -> ETuple (map sub ts)
         EOper t1 its -> EOper (sub t1) (map (second sub) its)
+        EListish (LList [t]) -> EListish (LList [sub t])
         EParen t -> EParen (sub t)
         _ -> error $ "subst unimplemented " ++  show ae
   in sub
