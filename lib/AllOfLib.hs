@@ -127,6 +127,7 @@ import System.Directory
 import System.Environment
 import System.Exit
 import System.IO
+import System.IO.Base
 import System.IO_Handle
 import System.IO.Error
 import System.IO.MD5

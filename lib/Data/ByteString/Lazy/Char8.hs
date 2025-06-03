@@ -4,7 +4,7 @@ import Data.Coerce
 import Data.List.NonEmpty
 import Data.Word(Word8)
 import Foreign.C.String(CString, CStringLen)
-import System.IO(Handle)
+import System.IO.Base(Handle)
 
 newtype ByteString = BS B.ByteString
   deriving (Eq, Ord)

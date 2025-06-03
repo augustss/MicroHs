@@ -19,7 +19,7 @@ module MiniPrelude(
   module Data.Records,
   module Data.String,
   module Data.Tuple,
-  module System.IO,
+  module System.IO.Base,
   module Text.Show,
   usingMhs, _wordSize, _isWindows,
   ) where
@@ -50,9 +50,9 @@ import Data.Num
 import Data.Records
 import Data.String
 import Data.Tuple
-import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
-                 FilePath, readFile, writeFile, appendFile,
-                 cprint, cuprint)
+import System.IO.Base(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
+                      FilePath, readFile, writeFile, appendFile,
+                      cprint, cuprint)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Text.Show
 import Primitives(_wordSize, _isWindows)

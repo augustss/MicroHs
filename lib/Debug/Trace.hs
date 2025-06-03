@@ -1,6 +1,6 @@
 module Debug.Trace(module Debug.Trace) where
 import qualified Prelude(); import MiniPrelude
-import System.IO(hPutStrLn, stderr)
+import System.IO.Base(hPutStrLn, stderr)
 import Primitives
 
 trace :: forall a . String -> a -> a

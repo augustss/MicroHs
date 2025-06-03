@@ -90,7 +90,7 @@ import Foreign.C.String
 import Foreign.Storable
 import Data.Functor(void)
 import Data.Maybe
-import System.IO(Handle)
+import System.IO.Base(Handle)
 import System.IO.Error
 import System.IO.Unsafe(unsafePerformIO)
 
