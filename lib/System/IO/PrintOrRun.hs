@@ -1,9 +1,9 @@
 -- Copyright 2023-2025 Lennart Augustsson
 -- See LICENSE file for full license.
 module System.IO.PrintOrRun(PrintOrRun(..), _withArgs) where
-import Primitives(primNumAlloc)
 import System.Environment
 import System.IO.TimeMilli
+import System.RTS
 
 -- Helper for interactive system
 class PrintOrRun a where
@@ -14,11 +14,13 @@ instance PrintOrRun (IO ()) where
   _printOrRun a = a
   _printOrRunStats a = do
     t1 <- getTimeMilli
-    a1 <- primNumAlloc
+    s1 <- getStats
     r <- a
-    a2 <- primNumAlloc
+    s2 <- getStats
     t2 <- getTimeMilli
-    putStrLn $ "(" ++ show (t2 - t1) ++ "ms, " ++ show (a2 - a1) ++ " cells)"
+    putStrLn $ "(" ++ show (t2 - t1) ++ "ms, " ++
+                show (reductions s2 - reductions s1) ++ " reds, " ++
+                show (cellsAllocated s2 - cellsAllocated s1) ++ " cells)"
     return r;
 
 {-  Resolution of overlapping instances is not good enough for this.  Yet.

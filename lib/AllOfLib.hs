@@ -136,6 +136,7 @@ import System.IO.StringHandle
 import System.IO.TimeMilli
 import System.Info
 import System.Process
+import System.RTS
 import Text.Printf
 import Text.Read
 import Text.Show

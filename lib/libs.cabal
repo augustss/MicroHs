@@ -157,6 +157,7 @@ library base
         System.IO.Unsafe
         System.Info
         System.Process
+        System.RTS
         Text.Printf
         Text.ParserCombinators.ReadP
         Text.ParserCombinators.ReadPrec

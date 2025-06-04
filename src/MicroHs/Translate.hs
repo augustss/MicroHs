@@ -20,7 +20,7 @@ import qualified MicroHs.IdentMap as M
 
 translateAndRun :: (Ident, [LDef]) -> IO ()
 translateAndRun defs = do
-  let prog = unsafeCoerce $ translate defs
+  let prog = unsafeCoerce (translate defs)
   prog
 
 translate :: (Ident, [LDef]) -> AnyType
@@ -132,7 +132,7 @@ primTable = [
   ("IO.getArgRef", _primitive "IO.getArgRef"),
   ("IO.performIO", _primitive "IO.performIO"),
   ("IO.gc", _primitive "IO.gc"),
-  ("IO.numalloc", _primitive "IO.numalloc"),
+  ("IO.stats", _primitive "IO.stats"),
   ("raise", _primitive "raise"),
   ("catch", _primitive "catch"),
   ("dynsym", _primitive "dynsym"),

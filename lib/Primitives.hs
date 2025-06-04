@@ -342,5 +342,5 @@ primGetMaskingState = _primitive "IO.getmaskingstate"
 primSetMaskingState :: Int -> IO ()
 primSetMaskingState = _primitive "IO.setmaskingstate"
 
-primNumAlloc :: IO Word
-primNumAlloc = _primitive "IO.numalloc"
+primStats :: IO (Word, Word)
+primStats = _primitive "IO.stats"
