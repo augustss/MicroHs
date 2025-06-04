@@ -1807,7 +1807,7 @@ init_nodes(void)
    */
 #define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
 #define MKINT(c, i) do { n = HEAPREF(heap_start++); SETTAG(n, T_INT); SETVALUE(n, i); (c) = n; } while(0)
-  NEWAP(combLT, combZ,     combFalse);  /* Z B */
+  NEWAP(combLT, combZ,     combFalse);  /* Z K */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
   {
