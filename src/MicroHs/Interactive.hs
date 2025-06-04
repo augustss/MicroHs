@@ -24,7 +24,8 @@ data IState = IState {
   isLines   :: String,
   isFlags   :: Flags,
   isCache   :: Cache,
-  isSymbols :: Symbols
+  isSymbols :: Symbols,
+  isStats   :: Bool
   }
 
 type I a = StateIO IState a
@@ -35,7 +36,7 @@ mainInteractive flags = do
   when wantGMP $ putStrLn "Using GMP"
   let flags' = flags{ loading = True }
   cash <- getCached flags'
-  _ <- runStateIO start $ IState preamble flags' cash noSymbols
+  _ <- runStateIO start $ IState preamble flags' cash noSymbols False
   return ()
 
 noSymbols :: Symbols
@@ -133,7 +134,23 @@ commands =
       liftIO $ putStrLn $ helpText ++ unlines (map ((':' :) . fst) commands)
       return True
     )
+  , ("set f     (un)set flag", \ line -> do
+      setFlags line
+      return True
+    )
   ]
+
+setFlags :: String -> I ()
+setFlags "" = do
+  stats <- gets isStats
+  liftIO $ putStrLn "Current flags: (use + to set and - to unset)"
+  liftIO $ putStrLn $ "  " ++ (if stats then "+" else "-") ++ "s"
+setFlags "+s" = do
+  modify $ \ is -> is{ isStats = True }
+setFlags "-s" = do
+  modify $ \ is -> is{ isStats = False }
+setFlags _ =
+  liftIO $ putStrLn "Unknown flag.  Known flags: s"
 
 reload :: I ()
 reload = do
@@ -178,10 +195,11 @@ mkIt :: String -> String
 mkIt l =
   itName ++ " = " ++ l ++ "\n"
 
-mkItIO :: String -> String
-mkItIO l =
-  mkIt l ++
-  itIOName ++ " = printOrRun " ++ itName ++ "\n"
+mkItIO :: Bool -> String -> String
+mkItIO stats l =
+  let prt = if stats then "_printOrRunStats" else "_printOrRun"
+  in  mkIt l ++
+      itIOName ++ " = " ++ prt ++ " " ++ itName ++ "\n"
 
 mkTypeIt :: String -> String
 mkTypeIt l =
@@ -196,6 +214,7 @@ err' s = putStrLn $ "*** Exception: " ++ s
 oneline :: String -> I ()
 oneline line = do
   ls <- gets isLines
+  stats <- gets isStats
   let lls = ls ++ line ++ "\n"
       def = do
         defTest <- tryCompile lls
@@ -203,7 +222,7 @@ oneline line = do
           Right _ -> updateLines (const lls)
           Left  e -> liftIO $ err e
       expr = do
-        exprTest <- tryCompile (ls ++ "\n" ++ mkItIO line)
+        exprTest <- tryCompile (ls ++ "\n" ++ mkItIO stats line)
         case exprTest of
           Right m -> evalExpr m
           Left  e -> liftIO $ err e

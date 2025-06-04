@@ -277,6 +277,7 @@ Available commands:
 * `:reload` Reload all modules
 * `:type EXPR` Show type of `EXPR`
 * `:kind TYPE` Show kind of `TYPE`
+* `:set FLAG` Set flag
 * `expr` Evaluate expression.
 * `defn` Add definition (can also be an `import`)
 

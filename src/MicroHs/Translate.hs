@@ -132,6 +132,7 @@ primTable = [
   ("IO.getArgRef", _primitive "IO.getArgRef"),
   ("IO.performIO", _primitive "IO.performIO"),
   ("IO.gc", _primitive "IO.gc"),
+  ("IO.numalloc", _primitive "IO.numalloc"),
   ("raise", _primitive "raise"),
   ("catch", _primitive "catch"),
   ("dynsym", _primitive "dynsym"),

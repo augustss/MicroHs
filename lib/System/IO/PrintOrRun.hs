@@ -1,19 +1,25 @@
 -- Copyright 2023-2025 Lennart Augustsson
 -- See LICENSE file for full license.
 module System.IO.PrintOrRun(PrintOrRun(..), _withArgs) where
-import qualified Prelude()              -- do not import Prelude
-import Primitives
-import Data.Char(String)
+import Primitives(primNumAlloc)
 import System.Environment
-import System.IO
-import Text.Show
+import System.IO.TimeMilli
 
 -- Helper for interactive system
 class PrintOrRun a where
-  printOrRun :: a -> IO ()
+  _printOrRun :: a -> IO ()
+  _printOrRunStats :: a -> IO ()
 
 instance PrintOrRun (IO ()) where
-  printOrRun a = a
+  _printOrRun a = a
+  _printOrRunStats a = do
+    t1 <- getTimeMilli
+    a1 <- primNumAlloc
+    r <- a
+    a2 <- primNumAlloc
+    t2 <- getTimeMilli
+    putStrLn $ "(" ++ show (t2 - t1) ++ "ms, " ++ show (a2 - a1) ++ " cells)"
+    return r;
 
 {-  Resolution of overlapping instances is not good enough for this.  Yet.
 instance Show a => PrintOrRun (IO a) where
@@ -21,7 +27,8 @@ instance Show a => PrintOrRun (IO a) where
 -}
 
 instance Show a => PrintOrRun a where
-  printOrRun = print
+  _printOrRun = print
+  _printOrRunStats a = _printOrRunStats (print a)
 
 _withArgs :: [String] -> IO () -> IO ()
 _withArgs = withArgs

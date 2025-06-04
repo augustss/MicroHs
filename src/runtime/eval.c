@@ -334,7 +334,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH, T_CATCHR,
-                T_IO_CCALL, T_IO_GC, T_DYNSYM,
+                T_IO_CCALL,
+                T_IO_GC, T_IO_NUMALLOC,
+                T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
                 T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
@@ -1666,6 +1668,7 @@ struct {
   { "IO.getArgRef", T_IO_GETARGREF },
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.gc", T_IO_GC },
+  { "IO.numalloc", T_IO_NUMALLOC },
   { "IO.pp", T_IO_PP },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
@@ -4764,6 +4767,14 @@ evali(NODEPTR an)
     CHKARG1;
     gc();
     GOPAIRUNIT;
+
+  case T_IO_NUMALLOC:
+    {
+    GCCHECK(1);
+    CHKARG1;
+    NODEPTR res = mkInt((uvalue_t)num_alloc);
+    GOPAIR(res);
+    }
 
   case T_IO_FORK:
     {
