@@ -17,6 +17,7 @@ module Data.Bifunctor
   ( Bifunctor(..)
   ) where
 import Control.Applicative  ( Const(..) )
+import Data.Tuple.Instances
 
 -- $setup
 -- >>> import Prelude
@@ -141,7 +142,6 @@ class (forall a. Functor (p a)) => Bifunctor p where
 --
 -- @since 4.8.0.0
 
-{-
 instance Bifunctor (,) where
     bimap f g ~(a, b) = (f a, g b)
 
@@ -153,6 +153,7 @@ instance Bifunctor ((,,) x1) where
 instance Bifunctor ((,,,) x1 x2) where
     bimap f g ~(x1, x2, a, b) = (x1, x2, f a, g b)
 
+{-
 -- | @since 4.8.0.0
 instance Bifunctor ((,,,,) x1 x2 x3) where
     bimap f g ~(x1, x2, x3, a, b) = (x1, x2, x3, f a, g b)
