@@ -84,7 +84,7 @@ import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(fst, snd, curry, uncurry)
 import Data.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
-                 FilePath, readFile, writeFile, appendFile,
+                 FilePath, readFile, writeFile, appendFile, readLn, readIO,
                  cprint, cuprint)
 import System.IO.Error(IOError)
 import Text.Read(ReadS, Read(..), read, reads, readParen, lex)

@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module Mhs.Builtin(
   module Control.Monad,
+  module Control.Monad.Fail,
   module Data.Bool,
   module Data.Char,
   module Data.Coerce,

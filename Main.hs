@@ -77,9 +77,9 @@ diningPhilosophers i = do
 philosopher 0 n i forks = return ()
 philosopher r n i forks = do
   getForks (forks!!i) (forks!!((i+1) `mod` n))
-  sPutStrLn $ "philosopher " ++ show i ++ " eats ..."
+--  sPutStrLn $ "philosopher " ++ show i ++ " eats ..."
   releaseForks (forks!!i) (forks!!((i+1) `mod` n))
-  sPutStrLn $ "philosopher " ++ show i ++ " thinks ..."
+--  sPutStrLn $ "philosopher " ++ show i ++ " thinks ..."
   someDelay
   philosopher (r-1) n i forks  
      
@@ -352,5 +352,5 @@ testm =
                    )
     print xs
                   
-randomRIO :: ()
-randomRIO = undefined
+randomRIO :: Integral a => (a, a) -> IO a
+randomRIO (l, h) = return $ (l + h) `div` 2

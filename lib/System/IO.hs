@@ -1,12 +1,15 @@
 -- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
 module System.IO(
-  module System.IO.Base
+  module System.IO.Base,
   readIO,
   readLn,
   ) where
 import qualified Prelude()              -- do not import Prelude
+import MiniPrelude
+import Mhs.Builtin
 import System.IO.Base
+import System.IO.Error
 import Text.Read
 
 readLn :: Read a => IO a
