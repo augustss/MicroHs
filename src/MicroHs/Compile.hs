@@ -440,16 +440,16 @@ loadDependencies flags = do
   loadedPkgs <- gets getPkgs
   let deps = concatMap pkgDepends loadedPkgs
       loaded = map pkgName loadedPkgs
-      deps' = [ p | (p, _v) <- deps, p `notElem` loaded ]
+      deps' = [ pv | pv@(p, _v) <- deps, p `notElem` loaded ]
   if null deps' then
     return ()
    else do
     mapM_ (loadDeps flags) deps'
     loadDependencies flags  -- loadDeps can add new dependencies
 
-loadDeps :: Flags -> IdentPackage -> CM ()
-loadDeps flags pid = do
-  mres <- liftIO $ openFilePath (pkgPath flags) (packageDir </> unIdent pid <.> packageSuffix)
+loadDeps :: Flags -> (IdentPackage, Version) -> CM ()
+loadDeps flags (pid, pver) = do
+  mres <- liftIO $ openFilePath (pkgPath flags) (packageDir </> unIdent pid ++ "-" ++ showVersion pver <.> packageSuffix)
   case mres of
     Nothing -> error $ "Cannot find package " ++ showIdent pid
     Just (pfn, hdl) -> do
