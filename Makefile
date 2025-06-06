@@ -1,6 +1,7 @@
 # Define these 3 lines to use GMP for Integer.
 # For MacOS with homebrew:
-#MHSGMPCCFLAGS=-DWANT_GMP=1 -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
+#MHSGMPCCFLAGS=-DWANT_GMP=1
+#MHSGMPCCLIBS= -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
 #MHSGMP=-ilib/gmp
 #MCABALGMP=-fgmp
 #
@@ -15,7 +16,7 @@ CCWARNS= -Wall
 CCOPTS= -O3
 CCLIBS= -lm
 CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
-CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS)
+CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) $(MHSGMPCCLIBS)
 #
 GHC= ghc
 GHCINCS= -ighc -isrc -ipaths
@@ -49,6 +50,7 @@ targets.conf:
 	echo "[default]"         > targets.conf
 	echo cc = \"$(CC)\"     >> targets.conf
 	echo ccflags = \"$(MHSGMPCCFLAGS)\" >> targets.conf
+	echo cclibs = \"$(MHSGMPCCLIBS)\" >> targets.conf
 	echo conf = \"$(CONF)\" >> targets.conf
 	echo ''                 >> targets.conf
 	echo "[emscripten]"     >> targets.conf
@@ -57,7 +59,7 @@ targets.conf:
 
 newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c -o bin/mhs
-	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c -o bin/mhsgdb
+	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c $(MHSGMPCCLIBS) -o bin/mhsgdb
 
 newmhsz:	newmhs
 	rm generated/mhs.c
@@ -89,7 +91,7 @@ bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 
 bin/mhsevalgdb:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
-	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c -o bin/mhsevalgdb
+	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c $(MHSGMPCCLIBS( -o bin/mhsevalgdb
 
 bin/mhsevalsane:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
@@ -272,8 +274,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.13.1.0
-HVERSION=0,13,1,0
+VERSION=0.13.2.0
+HVERSION=0,13,2,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
