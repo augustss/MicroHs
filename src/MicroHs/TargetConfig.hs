@@ -27,6 +27,7 @@ data TTarget = TTarget
   { tName    :: String
   , tCC      :: String
   , tCCFlags :: String
+  , tLibs    :: String
   , tConf    :: String
   }
 

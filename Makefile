@@ -50,6 +50,7 @@ targets.conf:
 	echo "[default]"         > targets.conf
 	echo cc = \"$(CC)\"     >> targets.conf
 	echo ccflags = \"$(MHSGMPCCFLAGS)\" >> targets.conf
+	echo libs = \"$(MHSGMPLIBS)\" >> targets.conf
 	echo conf = \"$(CONF)\" >> targets.conf
 	echo ''                 >> targets.conf
 	echo "[emscripten]"     >> targets.conf

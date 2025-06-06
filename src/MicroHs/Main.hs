@@ -174,6 +174,7 @@ readTarget flags dir = do
   targets  <- readTargets flags dir
   compiler <- lookupEnv "CC"
   ccflags  <- lookupEnv "MHSCCFLAGS"
+  libs     <- lookupEnv "MHSLIBS"
   conf     <- lookupEnv "MHSCONF"
   let dConf = "unix-" ++ show _wordSize
   case findTarget (target flags) targets of
@@ -183,6 +184,7 @@ readTarget flags dir = do
       return TTarget { tName    = "default"
                      , tCC      = fromMaybe "cc" compiler
                      , tCCFlags = fromMaybe "" ccflags
+                     , tLibs    = fromMaybe "" libs
                      , tConf    = fromMaybe dConf conf
                      }
     Just (Target n cs) -> do
@@ -191,6 +193,7 @@ readTarget flags dir = do
       return TTarget { tName    = n
                      , tCC      = fromMaybe "cc"  $ compiler <|> lookup "cc"      cs
                      , tCCFlags = fromMaybe ""    $ ccflags  <|> lookup "ccflags" cs
+                     , tLibs    = fromMaybe ""    $ libs     <|> lookup "libs"    cs
                      , tConf    = fromMaybe dConf $ conf     <|> lookup "conf"    cs
                      }
 
@@ -329,7 +332,7 @@ mainCompileC flags ppkgs infile = do
   let incs = unwords $ map ("-I" ++) incDirs'
       defs = "-D__MHS__"
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
-  TTarget _ compiler ccflags conf <- readTarget flags dir
+  TTarget _ compiler ccflags libs conf <- readTarget flags dir
   extra <- fromMaybe "" <$> lookupEnv "MHSEXTRACCFLAGS"
   let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
                         ccflags ++ " " ++
@@ -340,7 +343,7 @@ mainCompileC flags ppkgs infile = do
                         dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
                         unwords (cArgs flags) ++
                         unwords (map (++ "/*.c") cDirs') ++
-                        " $IN -lm -o $OUT"
+                        " $IN " ++ libs ++ " -lm -o $OUT"
       cc = fromMaybe dcc mcc
       cmd = substString "$IN" infile $ substString "$OUT" outFile cc
   when (verbosityGT flags 0) $
