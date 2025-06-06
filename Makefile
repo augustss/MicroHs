@@ -36,7 +36,8 @@ FFIHUGS= ffihugs
 HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
 
 #
-EMCC=emcc -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW
+EMCC=emcc
+EMCCFLAGS=-sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW
 #
 MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib
 MHSINC=$(MHSINCNP) -ipaths 
@@ -47,15 +48,16 @@ MAINMODULE=MicroHs.Main
 all:	bin/mhs bin/cpphs bin/mcabal
 
 targets.conf:
-	echo "[default]"         > targets.conf
-	echo cc = \"$(CC)\"     >> targets.conf
+	echo "[default]"                     > targets.conf
+	echo cc = \"$(CC)\"                 >> targets.conf
 	echo ccflags = \"$(MHSGMPCCFLAGS)\" >> targets.conf
-	echo cclibs = \"$(MHSGMPCCLIBS)\" >> targets.conf
-	echo conf = \"$(CONF)\" >> targets.conf
-	echo ''                 >> targets.conf
-	echo "[emscripten]"     >> targets.conf
-	echo cc = \"$(EMCC)\"   >> targets.conf
-	echo conf = \"$(CONF)\" >> targets.conf
+	echo cclibs = \"$(MHSGMPCCLIBS)\"   >> targets.conf
+	echo conf = \"$(CONF)\"             >> targets.conf
+	echo ''                             >> targets.conf
+	echo "[emscripten]"                 >> targets.conf
+	echo cc = \"$(EMCC)\"               >> targets.conf
+	echo ccflags = \"$(EMCCFLAGS)\"     >> targets.conf
+	echo conf = \"$(CONF)\"             >> targets.conf
 
 newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c -o bin/mhs
