@@ -19,6 +19,7 @@ import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..), Symbols)
 import Unsafe.Coerce
 import System.Console.SimpleReadline
 import Paths_MicroHs(version)
+import System.IO
 
 data IState = IState {
   isLines   :: String,
@@ -64,15 +65,27 @@ repl :: I ()
 repl = do
   mdls <- gets (cachedModuleNames . isCache)
   syms <- gets isSymbols
-  ms <- liftIO $ getInputLineHistComp (return . complete mdls syms) ".mhsi" "> "
+  stdinFlag <- gets (useStdin . isFlags)
+  ms <- liftIO $
+    if stdinFlag then do
+      putStr "> "
+      hFlush stdout
+      es <- try getLine
+      case es of
+        Left  (_::SomeException) -> return Nothing
+        Right s                  -> return (Just s)
+    else do
+      ms <- getInputLineHistComp (return . complete mdls syms) ".mhsi" "> "
+      return (ms <|> Just "")  -- ignore ^D
+  let bye = liftIO $ putStrLn "Bye"
   case ms of
-    Nothing -> repl
+    Nothing -> bye
     Just s ->
       case s of
         [] -> repl
         ':':r -> do
           c <- command r
-          if c then repl else liftIO $ putStrLn "Bye"
+          if c then repl else bye
         _ -> do
           oneline s
           repl
