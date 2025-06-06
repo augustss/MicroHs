@@ -59,7 +59,7 @@ targets.conf:
 
 newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs
-	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g -Isrc/runtime src/runtime/eval-$(CONF).c generated/mhs.c $(MHSGMPLIBS) -o bin/mhsgdb
+	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g -Isrc/runtime src/runtime/eval-$(CONF).c generated/mhs.c $(CCLIBS) -o bin/mhsgdb
 
 newmhsz:	newmhs
 	rm generated/mhs.c
