@@ -104,6 +104,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \                   Distributed targets: default, emscripten\n\
       \                   Targets can be defined in targets.conf\n\
       \-optc OPTION       Options for the C compiler\n\
+      \--stdin            Use stdin in interactive system\n\
       \-ddump-PASS        Debug, print AST after PASS\n\
       \                   Possible passes: parse, derive, typecheck, desugar, toplevel, combinator, all\n\
       \"
@@ -141,6 +142,7 @@ decodeArgs f mdls (arg:args) =
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
     '-':'d':'d':'u':'m':'p':'-':r | Just d <- lookup r dumpFlagTable ->
                    decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
+    "--stdin"   -> decodeArgs f{useStdin = True} mdls args
     '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"
                 -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args
