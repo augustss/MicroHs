@@ -129,7 +129,7 @@ value_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(GETTIMEMILLI) */
 
 #if !defined(GETCPUTIME)
-void GETCPUTIME(long *, long*) { return 0; }
+void GETCPUTIME(long *sec, long *usec) { return 0; }
 #endif  /* !define(GETCPUTIME) */
 
 #if !defined(INLINE)
