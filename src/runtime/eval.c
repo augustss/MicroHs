@@ -2549,6 +2549,20 @@ poke_ullong(unsigned long long *p, value_t w)
   *p = (unsigned long long)w;
 }
 
+static INLINE
+value_t
+peek_size_t(size_t *p)
+{
+  return *p;
+}
+
+static INLINE
+void
+poke_size_t(size_t *p, value_t w)
+{
+  *p = (size_t)w;
+}
+
 #if WANT_FLOAT
 static INLINE
 flt_t
@@ -5729,10 +5743,12 @@ from_t mhs_peek_llong(int s) { return mhs_from_CLLong(s, 1, peek_llong(mhs_to_Pt
 from_t mhs_peek_long(int s) { return mhs_from_CLong(s, 1, peek_long(mhs_to_Ptr(s, 0))); }
 from_t mhs_peek_ullong(int s) { return mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
 from_t mhs_peek_ulong(int s) { return mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
+from_t mhs_peek_size_t(int s) { return mhs_from_CSize(s, 1, peek_size_t(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_poke_size_t(int s) { poke_size_t(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1)); return mhs_from_Unit(s, 2); }
 #if WANT_FLOAT
 from_t mhs_peek_flt(int s) { return mhs_from_FloatW(s, 1, peek_flt(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); return mhs_from_Unit(s, 2); }
@@ -5740,6 +5756,7 @@ from_t mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); re
 from_t mhs_sizeof_int(int s) { return mhs_from_Int(s, 0, sizeof(int)); }
 from_t mhs_sizeof_llong(int s) { return mhs_from_Int(s, 0, sizeof(long long)); }
 from_t mhs_sizeof_long(int s) { return mhs_from_Int(s, 0, sizeof(long)); }
+from_t mhs_sizeof_size_t(int s) { return mhs_from_Int(s, 0, sizeof(size_t)); }
 #if WANT_DIR
 from_t mhs_closedir(int s) { return mhs_from_Int(s, 1, closedir(mhs_to_Ptr(s, 0))); }
 from_t mhs_opendir(int s) { return mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0))); }
@@ -5934,10 +5951,12 @@ struct ffi_entry ffi_table[] = {
   { "peek_long", 1, mhs_peek_long},
   { "peek_ullong", 1, mhs_peek_ullong},
   { "peek_ulong", 1, mhs_peek_ulong},
+  { "peek_size_t", 1, mhs_peek_size_t},
   { "poke_llong", 2, mhs_poke_llong},
   { "poke_long", 2, mhs_poke_long},
   { "poke_ullong", 2, mhs_poke_ullong},
   { "poke_ulong", 2, mhs_poke_ulong},
+  { "poke_size_t", 2, mhs_poke_size_t},
 #if WANT_FLOAT
   { "peek_flt", 1, mhs_peek_flt},
   { "poke_flt", 2, mhs_poke_flt},
@@ -5945,6 +5964,7 @@ struct ffi_entry ffi_table[] = {
   { "sizeof_int", 0, mhs_sizeof_int},
   { "sizeof_llong", 0, mhs_sizeof_llong},
   { "sizeof_long", 0, mhs_sizeof_long},
+  { "sizeof_size_t", 0, mhs_sizeof_size_t},
 #if WANT_DIR
   { "c_d_name", 1, mhs_c_d_name},
   { "closedir", 1, mhs_closedir},
