@@ -5441,7 +5441,7 @@ MAIN
   want_gc_red = 1;
   gc();
   gc();                         /* this finds some more GC reductions */
-  want_gc_red = 1;              /* disabled due to UB */
+  want_gc_red = 0;              /* disabled due to UB */
   prog = POPTOP();
 
 #if WANT_STDIO
