@@ -3,11 +3,12 @@ import qualified Prelude()
 import MiniPrelude
 import Data.Integer
 import Data.Word
+import Foreign.C.Types
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
 
-foreign import ccall getcpu :: Ptr Word -> Ptr Word -> IO ()
+foreign import ccall getcpu :: Ptr CULong -> Ptr CULong -> IO ()
 
 getCPUTime :: IO Integer
 getCPUTime = do
