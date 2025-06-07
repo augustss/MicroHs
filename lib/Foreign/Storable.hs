@@ -186,6 +186,15 @@ instance Storable CULLong where
   peek p      = c_peek_ullong p
   poke p w    = c_poke_ullong p w
 
+foreign import ccall "peek_size_t" c_peek_size_t :: Ptr CSize -> IO CSize
+foreign import ccall "poke_size_t" c_poke_size_t :: Ptr CSize -> CSize -> IO ()
+
+instance Storable CSize where
+  sizeOf    _ = sizeTSize
+  alignment _ = sizeTSize
+  peek p      = c_peek_size_t p
+  poke p w    = c_poke_size_t p w
+
 foreign import ccall "peek_flt" c_peek_flt :: Ptr FloatW -> IO FloatW
 foreign import ccall "poke_flt" c_poke_flt :: Ptr FloatW -> FloatW -> IO ()
 
@@ -198,9 +207,12 @@ instance Storable FloatW where
 foreign import ccall "sizeof_int" c_sizeof_int :: IO Int
 foreign import ccall "sizeof_long" c_sizeof_long :: IO Int
 foreign import ccall "sizeof_llong" c_sizeof_llong :: IO Int
+foreign import ccall "sizeof_size_t" c_sizeof_size_t :: IO Int
 intSize :: Int
 intSize = primPerformIO c_sizeof_int
 longSize :: Int
 longSize = primPerformIO c_sizeof_long
 llongSize :: Int
 llongSize = primPerformIO c_sizeof_llong
+sizeTSize :: Int
+sizeTSize = primPerformIO c_sizeof_size_t
