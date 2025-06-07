@@ -226,7 +226,8 @@ getcputime(long *sec, long *nsec)
 #if WANT_TIME
   struct timespec ts;
   
-  if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
+  //if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
+  if(0) {
     *sec = ts.tv_sec;
     *nsec = ts.tv_nsec;
     return;
