@@ -182,6 +182,7 @@ runtimeFFI = [
   "peek_flt", "poke_flt",
   "sizeof_int", "sizeof_long", "sizeof_llong",
   "opendir", "closedir", "readdir", "c_d_name", "chdir", "mkdir", "getcwd",
+  "getcpu",
   "get_buf", "openb_rd_buf", "openb_wr_buf",
   "new_mpz", "mpz_abs", "mpz_add", "mpz_and", "mpz_cmp", "mpz_get_d",
   "mpz_get_si", "mpz_get_ui", "mpz_init_set_si", "mpz_init_set_ui", "mpz_ior",
