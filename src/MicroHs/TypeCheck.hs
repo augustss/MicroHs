@@ -1383,7 +1383,6 @@ tcDefsValue defs = do
 --  traceM $ showEDefs defs'
 --  tcTrace $ "tcDefsValue: ------------ check"
   --  type check all definitions (the inferred ones will be rechecked)
-  chksym
   defs'' <- mapM (\ d -> do { tcReset; tcDefValue d}) defs'
   let defs''' = concat signDefs ++ defs''
 --  traceM $ "tcDefsValue: ------------ done"
@@ -3537,7 +3536,3 @@ standaloneDeriving str narg act = do
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
   deriveStrat (Just act) newt lhs cs str (narg, tApps cls ts)
-
-chksym :: T ()
-chksym = return ()
---  vt <- gets valueTable
