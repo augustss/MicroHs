@@ -128,6 +128,10 @@ int GETRAW(void) { return -1; }
 value_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(GETTIMEMILLI) */
 
+#if !defined(GETCPUTIME)
+value_t GETCPUTIME(void) { return 0; }
+#endif  /* !define(GETCPUTIME) */
+
 #if !defined(INLINE)
 #define INLINE inline
 #endif  /* !define(INLINE) */
