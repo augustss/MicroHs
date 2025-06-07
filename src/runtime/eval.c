@@ -5437,7 +5437,7 @@ MAIN
   want_gc_red = 1;
   gc();
   gc();                         /* this finds some more GC reductions */
-  want_gc_red = 0;              /* disabled due to UB */
+  want_gc_red = 1;              /* disabled due to UB */
   prog = POPTOP();
 
 #if WANT_STDIO
@@ -5745,6 +5745,7 @@ from_t mhs_chdir(int s) { return mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
 from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
+from_t mhs_getcputime(int s) { GETCPUTIME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
 
 /* Use this to detect if we have (and want) GMP or not. */
 from_t mhs_want_gmp(int s) { return mhs_from_Int(s, 0, WANT_GMP); }
@@ -5949,6 +5950,7 @@ struct ffi_entry ffi_table[] = {
   { "mkdir", 2, mhs_mkdir},
   { "getcwd", 2, mhs_getcwd},
 #endif  /* WANT_DIR */
+  { "getcputime", 2, mhs_getcputime},
   { "want_gmp", 0, mhs_want_gmp},
 #if WANT_GMP
   { "new_mpz", 0, mhs_new_mpz},

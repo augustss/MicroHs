@@ -93,7 +93,7 @@ bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 
 bin/mhsevalgdb:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
-	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c $(MHSGMPCCLIBS( -o bin/mhsevalgdb
+	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c $(MHSGMPCCLIBS) -o bin/mhsevalgdb
 
 bin/mhsevalsane:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin

@@ -41,3 +41,6 @@ Bugs:
 * newtype deriving Semigroup is broken
 * polykinded signatures don't work properly, e.g., ~
   there is no place to put the forall
+* tr :: forall t -> Typeable t => TypeRep
+  tr a = typeRep (Proxy :: Proxy a)
+* cannot parse (a -> b) as an expression

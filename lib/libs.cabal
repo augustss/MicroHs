@@ -144,6 +144,7 @@ library base
         System.Console.GetOpt
         System.Compress
         System.Compress.ByteString
+        System.CPUTime
         System.Directory
         System.Environment
         System.Exit
