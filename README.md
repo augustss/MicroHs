@@ -471,6 +471,21 @@ and also the [hugs branch of MicroHs](https://github.com/augustss/MicroHs/tree/h
 The patched version of Hugs is needed to work around undefined behavior with arithmatic overflow.
 Hugs provided Linux distribtions or other third party package managers may or may not work.
 
+### Bootstrapping with TCC
+It is also possible to bootstrap MicroHs using [TinyCC](https://bellard.org/tcc/).
+A slowdown of >4x when using tcc instead of gcc is expected.
+
+```bash
+# Build generated/mhs-stage{1,2}.c and copy the result to generated/mhs.c
+make bootstrap_tcc
+
+# Build bin/mhs_tcc executable
+make bin/mhs_tcc
+
+# Build bin/mhs_tcc.sh script, which always uses the current generated/mhs.c
+make bin/mhs_tcc.sh
+```
+
 ## Using GMP for `Integer`
 The default implementation of the `Integer` type is written is Haskell and is quite slow.
 It is possible to use the [GMP](https://gmplib.org/) library instead.

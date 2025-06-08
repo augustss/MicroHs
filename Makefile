@@ -16,7 +16,8 @@ CCWARNS= -Wall
 CCOPTS= -O3
 CCLIBS= -lm
 CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
-CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) $(MHSGMPCCLIBS)
+CCARGS= $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) $(MHSGMPCCLIBS)
+CCEVAL= $(CC) $(CCARGS)
 #
 GHC= ghc
 GHCINCS= -ighc -isrc -ipaths
@@ -354,3 +355,48 @@ generated/hmhs.c:
 bin/hmhs: generated/hmhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/hmhs.c -o bin/hmhs
+
+#####
+# TinyCC
+
+MHS_C ?= "generated/mhs.c"
+
+# Compile mhs with tcc
+bin/mhs_tcc:
+	@mkdir -p bin
+	tcc $(CCARGS) $(MHS_C) -o $@
+
+# Create a wrapper script that runs mhs with tcc.
+# You can still select other mhs.c files via $MHS_C
+bin/mhs_tcc.sh:
+	@mkdir -p bin
+	echo "#!/usr/bin/env sh" > $@
+	echo "MHS_C=\$${MHS_C-\"generated/mhs.c\"}" >> $@
+	echo "tcc $(CCARGS) -run \"\$$MHS_C\" \"\$$@\"" >> $@
+	chmod +x $@
+
+run_mhs_interpreted:
+	tcc $(CCARGS) -run $(MHS_C) $(MHS_ARGS) 
+
+# Make sure boottrapping works
+bootstrap_tcc:
+	$(MAKE) mhs_tcc_bootstrap-stage1
+	$(MAKE) mhs_tcc_bootstrap-stage2
+	@echo "*** copy stage2 to bin/mhs"
+	cp bin/mhs_tcc-stage2 bin/mhs_tcc
+	cp generated/mhs-stage2.c generated/mhs.c 
+	
+mhs_tcc_bootstrap-stage1:
+	@mkdir -p generated
+	@echo "*** Build stage1 compiler, using bin/mhs"
+	$(MAKE) \
+		MHS_ARGS="-z $(MHSINC) $(MAINMODULE) -ogenerated/mhs-stage1.c" \
+		run_mhs_interpreted 
+
+mhs_tcc_bootstrap-stage2:
+	@mkdir -p generated
+	@echo "*** Build stage2 compiler, with stage1 compiler"
+	$(MAKE) \
+		MHS_C="generated/mhs-stage1.c" \
+		MHS_ARGS="-z $(MHSINC) $(MAINMODULE) -ogenerated/mhs-stage2.c" \
+		run_mhs_interpreted 
