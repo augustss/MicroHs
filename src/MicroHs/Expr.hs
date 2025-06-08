@@ -83,6 +83,7 @@ data EDef
   | KindSign Ident EKind
   | Import ImportSpec
   | ForImp (Maybe String) Ident EType
+  | ForExp (Maybe String) Ident EType
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance EConstraint [EBind]
@@ -102,6 +103,7 @@ instance NFData EDef where
   rnf (KindSign a b) = rnf a `seq` rnf b
   rnf (Import a) = rnf a
   rnf (ForImp a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (ForExp a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (Infix a b) = rnf a `seq` rnf b
   rnf (Class a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
   rnf (Instance a b) = rnf a `seq` rnf b
@@ -811,6 +813,7 @@ ppEDef def =
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ",") (map ppImportItem is))
     ForImp ie i t -> text "foreign import ccall" <+> maybe empty (text . show) ie <+> ppIdent i <+> text "::" <+> ppEType t
+    ForExp ie i t -> text "foreign export ccall" <+> maybe empty (text . show) ie <+> ppIdent i <+> text "::" <+> ppEType t
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
