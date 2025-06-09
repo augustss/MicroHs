@@ -912,7 +912,7 @@ withExtVals env ta = do
 
 withExtTyps :: forall a . [IdKind] -> T a -> T a
 withExtTyps iks ta = do
-  let env = map (\ (IdKind v k) -> (v, k)) iks
+  let env = [ (v, k) | IdKind v k <- iks, not (isDummyIdent v) ]
   venv <- gets typeTable
   extTyps env
   a <- ta
@@ -2283,7 +2283,8 @@ tcEqn :: HasCallStack => EType -> [IdKind] -> Eqn -> T Eqn
 tcEqn t (IdKind a k : iks) eqn@(Eqn ps alts) =
   case ps of
     EVar i : ps' -> withExtTyps [IdKind i k] $ do
-      addEqDict (EVar a) (EVar i)     -- This bound type variable is actually equal to the one in the signature
+      unless (isDummyIdent i) $
+        addEqDict (EVar a) (EVar i)     -- This bound type variable is actually equal to the one in the signature
       tcEqn t iks (Eqn ps' alts)
     _ -> tcError (getSLoc eqn) "Bad required type argument"
 tcEqn t [] (Eqn ps alts) =
