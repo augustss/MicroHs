@@ -3,7 +3,7 @@ TMHS=$(MHS) -i../lib
 EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache info
 
-alltest:	info test errtest
+alltest:	info test errtest ffitest
 # interactivetest
 
 cache:
@@ -110,6 +110,9 @@ test:
 # BROKEN: cannot compile binaries here
 testforeign:
 	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out  && diff ForeignC.ref ForeignC.out
+
+ffitest:
+	$(TMHS) -shared ForExp # && $(CC) -lForExp ForExp.c -o ForExp && ./ForExp > ForExp.out && diff ForExp.ref ForExp.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

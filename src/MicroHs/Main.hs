@@ -59,14 +59,16 @@ main = do
             Nothing ->
               if installPkg flags then mainInstallPackage flags mdls else
               withArgs rargs $ do
+                let iarg = mkIdentSLoc (SLoc "command-line" 0 0)
                 case mdls of
                   []  | null (cArgs flags) -> mainInteractive flags
                       | otherwise -> mainCompileC flags [] ""
-                  [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+                  [s] | shared flags -> sharedCompile flags (iarg s)
+                      | otherwise -> mainCompile flags (iarg s)
                   _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-shared] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -117,6 +119,7 @@ decodeArgs f mdls (arg:args) =
     "-v"        -> decodeArgs f{verbose = verbose f + 1} mdls args
     "-q"        -> decodeArgs f{verbose = -1} mdls args
     "-r"        -> decodeArgs f{runIt = True} mdls args
+    "-shared"   -> decodeArgs f{shared = True} mdls args
     "-l"        -> decodeArgs f{loading = True} mdls args
     "-s"        -> decodeArgs f{speed = True} mdls args
     "-CR"       -> decodeArgs f{readCache = True} mdls args
@@ -261,6 +264,17 @@ mainListPkg' _flags pkgfn = do
   list (pkgExported pkg)
   putStrLn "other-modules:"
   list (pkgOther pkg)
+
+sharedCompile :: Flags -> Ident -> IO ()
+sharedCompile flags mn = do
+  _t0 <- getTimeMilli
+  (_cash, (_rmn, _allDefs)) <- do
+    cash <- getCached flags
+    (rds, _, cash') <- compileCacheTop flags mn cash
+    maybeSaveCache flags cash'
+    return (cash', rds)
+  _t1 <- getTimeMilli
+  putStrLn "TODO!"
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
