@@ -184,7 +184,6 @@ compileModule flags impt mn pathfn file = do
 
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
-  -- TODO: skip test when mn is a file name
   when (isNothing (getFileName mn) && mn /= mnn) $
     error $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
   let
@@ -291,9 +290,14 @@ invertGraph = foldr ins M.empty
 
 -- Is the module name actually a file name?
 getFileName :: IdentModule -> Maybe String
-getFileName m | ".hs" `isSuffixOf` s = Just s
+getFileName m | ".hs" `isSuffixOf` s || not (validModuleName s) = Just s
               | otherwise = Nothing
   where s = unIdent m
+
+-- A hack to allow files that don't end in .hs
+validModuleName :: String -> Bool
+validModuleName (uc:s) = isUpper uc && all (\ c -> isAlphaNum c || c == '.' || c == '_' || c == '\'') s
+validModuleName _ = False
 
 readModulePath :: Flags -> String -> IdentModule -> IO (Maybe (FilePath, String))
 readModulePath flags suf mn = do
