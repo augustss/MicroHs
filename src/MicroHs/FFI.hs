@@ -18,6 +18,7 @@ makeFFI _ ds =
       dynamics = [ t | (ImpDynamic, t) <- ffiImports]
       imps     = uniqName $ filter ((`notElem` runtimeFFI) . impName) ffiImports
       includes = "mhsffi.h" : nub [ inc | (ImpStatic _ (Just inc) _ _, _) <- imps ]
+      exps     = filter (\(i, _) -> "$exp$" `isPrefixOf` unIdent i) ds
   in
     if not (null wrappers) || not (null dynamics) then error "Unimplemented FFI feature" else
     unlines $
@@ -30,11 +31,34 @@ makeFFI _ ds =
        "struct ffi_entry *xffi_table = imp_table;"
       ] ++
       ["static struct ffe_entry exp_table[] = {"] ++
-      -- something that generated exported function entries
+      map mkExport exps ++
       ["{ 0,0 }",
        "};",
-       "struct ffe_entry *xffe_table = exp_table;"
-      ]      
+       "struct ffe_entry *xffe_table = exp_table;",
+       "\n// Foreign export wrappers:"
+      ] ++ map mkExportWrapper exps
+
+mkExport :: LDef -> String
+mkExport (_, e) = "  { \"" ++ exportDeclName e ++ "\", 0 }"
+
+-- | Get the foreign export declaration name, when showed it is: 'ForExp.ofuncName'
+exportDeclName :: Exp -> String
+exportDeclName e = drop (length @[] "ForExp.") (show e)
+
+mkExportWrapper :: LDef -> String
+mkExportWrapper (i, e) = unlines $
+  [outT ++ " " ++ name ++ "(" ++ inputs ++ ") {"] ++
+  map (mappend "  ") body ++
+  ["}"]
+  where
+    name = drop (length @[] "$exp$") (unIdent i)
+    outT = "int"
+    inputs = "int i"
+    body = [
+      "push(i);",
+      "fcall(\"" ++ exportDeclName e ++ "\");",
+      "return pop();"
+      ]
 
 uniqName :: [(ImpEnt, EType)] -> [(ImpEnt, EType)]
 uniqName = map head . groupBy ((==) `on` impName) . sortBy (compare `on` impName)

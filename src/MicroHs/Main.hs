@@ -268,13 +268,14 @@ mainListPkg' _flags pkgfn = do
 sharedCompile :: Flags -> Ident -> IO ()
 sharedCompile flags mn = do
   _t0 <- getTimeMilli
-  (_cash, (_rmn, _allDefs)) <- do
+  (_cash, (_rmn, allDefs)) <- do
     cash <- getCached flags
     (rds, _, cash') <- compileCacheTop flags mn cash
     maybeSaveCache flags cash'
     return (cash', rds)
   _t1 <- getTimeMilli
-  putStrLn "TODO!"
+  let cCode = makeFFI flags allDefs
+  putStrLn cCode
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
