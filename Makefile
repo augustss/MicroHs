@@ -48,16 +48,23 @@ MAINMODULE=MicroHs.Main
 all:	bin/mhs bin/cpphs bin/mcabal
 
 targets.conf:
-	echo "[default]"                     > targets.conf
-	echo cc = \"$(CC)\"                 >> targets.conf
-	echo ccflags = \"$(MHSGMPCCFLAGS)\" >> targets.conf
-	echo cclibs = \"$(MHSGMPCCLIBS)\"   >> targets.conf
-	echo conf = \"$(CONF)\"             >> targets.conf
-	echo ''                             >> targets.conf
-	echo "[emscripten]"                 >> targets.conf
-	echo cc = \"$(EMCC)\"               >> targets.conf
-	echo ccflags = \"$(EMCCFLAGS)\"     >> targets.conf
-	echo conf = \"$(CONF)\"             >> targets.conf
+	echo "[default]"                        > targets.conf
+	echo cc = \"$(CC)\"                    >> targets.conf
+	echo ccflags = \"$(MHSGMPCCFLAGS)\"    >> targets.conf
+	echo cclibs = \"$(MHSGMPCCLIBS) -lm\"  >> targets.conf
+	echo conf = \"$(CONF)\"                >> targets.conf
+	echo ''                                >> targets.conf
+	echo "[emscripten]"                    >> targets.conf
+	echo cc = \"$(EMCC)\"                  >> targets.conf
+	echo ccflags = \"$(EMCCFLAGS)\"        >> targets.conf
+	echo cclibs = \"-lm\"                  >> targets.conf
+	echo conf = \"$(CONF)\"                >> targets.conf
+	echo ''                                >> targets.conf
+	echo "[tcc]"                           >> targets.conf
+	echo cc = \"tcc\"                      >> targets.conf
+	echo ccflags = \"\"                    >> targets.conf
+	echo cclibs = \"-lm\"                  >> targets.conf
+	echo conf = \"$(CONF)\"                >> targets.conf
 
 newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c -o bin/mhs

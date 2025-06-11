@@ -347,7 +347,7 @@ mainCompileC flags ppkgs infile = do
                         unwords (map (++ "/*.c") cDirs') ++
                         " $IN " ++
                         cclibs ++
-                        " -lm -o $OUT"
+                        " -o $OUT"
       cc = fromMaybe dcc mcc
       cmd = substString "$IN" infile $ substString "$OUT" outFile cc
   when (verbosityGT flags 0) $
