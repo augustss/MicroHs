@@ -83,7 +83,7 @@ data EDef
   | KindSign Ident EKind
   | Import ImportSpec
   | ForImp (Maybe String) Ident EType
-  | ForExp (Maybe String) Ident EType
+  | ForExp (Maybe String) Expr EType
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance EConstraint [EBind]
@@ -184,6 +184,7 @@ data Expr
   | EQVar Expr EType             -- already resolved identifier
   -- only after type checking
   | ECon Con
+  | EForExp (Maybe String) Expr EType
 --DEBUG  deriving (Show)
 
 instance NFData Expr where
@@ -215,6 +216,7 @@ instance NFData Expr where
   rnf (EUVar a) = rnf a
   rnf (EQVar a b) = rnf a `seq` rnf b
   rnf (ECon a) = rnf a
+  rnf (EForExp a b c) = rnf a `seq` rnf b `seq` rnf c
 
 data QForm = QImpl | QExpl | QReqd
 
@@ -534,6 +536,7 @@ instance HasLoc Expr where
   getSLoc (EUVar _) = noSLoc -- error "getSLoc EUVar"
   getSLoc (EQVar e _) = getSLoc e
   getSLoc (ECon c) = getSLoc c
+  getSLoc (EForExp _ e _) = getSLoc e
   getSLoc (EForall _ [] e) = getSLoc e
   getSLoc (EForall _ iks _) = getSLoc iks
 
@@ -708,6 +711,7 @@ allVarsExpr' aexpr =
     EUVar _ -> id
     EQVar e _ -> allVarsExpr' e
     ECon c -> (conIdent c :)
+    EForExp _ _ _ -> id -- should this use allVarsExpr' ?
     EForall _ iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
   where field (EField _ e) = allVarsExpr' e
         field (EFieldPun is) = (last is :)
@@ -813,7 +817,7 @@ ppEDef def =
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ",") (map ppImportItem is))
     ForImp ie i t -> text "foreign import ccall" <+> maybe empty (text . show) ie <+> ppIdent i <+> text "::" <+> ppEType t
-    ForExp ie i t -> text "foreign export ccall" <+> maybe empty (text . show) ie <+> ppIdent i <+> text "::" <+> ppEType t
+    ForExp ie e t -> text "foreign export ccall" <+> maybe empty (text . show) ie <+> ppExpr e <+> text "::" <+> ppEType t
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
@@ -935,6 +939,7 @@ ppExprR raw = ppE
         EUVar i -> text ("_a" ++ show i)
         EQVar e t -> parens $ ppE e <> text ":::" <> ppE t
         ECon c -> {-text "***" <>-} ppCon c
+        EForExp ms e t -> {-text "after tc" <>-} ppEDef (ForExp ms e t)
         EForall q iks e -> parens $ ppForall q iks <+> ppEType e
 
     ppApp :: [Expr] -> Expr -> Doc
