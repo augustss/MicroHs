@@ -1553,20 +1553,18 @@ tcDefValue adef =
       mn <- gets moduleName
       t' <- expandSyn t
       return (ForImp ie (qualIdent' mn i) t')
-    ForExp ie e t -> do
-      -- Get the expanded type of the foreign export declaration
-      (_, t') <- tInferExpr (ESign e t)
-      xt <- expandSyn t'
-      -- Get the expanded type of the matching function declaration (e is a EVar, see the ForExp parser)
-      (_, et) <- tInferExpr e
-      xet <- expandSyn et
-      -- Compare the types thanks to expandSyn
-      unless (eqEType xt xet) $
-        tcError (getSLoc t) $ "Foreign export does not match declaration " ++ show e ++ " :: " ++ show xet
-      let e' = EForExp (Just $ fromMaybe (show e) ie) e t
-      return $ ForExp ie e' t
+    ForExp{} -> tCheckForeignDecl adef
     Pattern{} -> impossible
     _ -> return adef
+
+-- Check that a foreign export match the declaration type.
+-- Note that it is a bit odd that the type is repeated, but it is what it is.
+tCheckForeignDecl :: HasCallStack => EDef -> T EDef
+tCheckForeignDecl (ForExp ms e t) = do
+  ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
+  let e'' = eLetB (eBinds ds) e'
+  pure $ ForExp (Just $ fromMaybe (show e) ms) e'' t'
+tCheckForeignDecl _ = impossible
 
 qualIdent' :: IdentModule -> Ident -> Ident
 qualIdent' mn i | isInstId i = i

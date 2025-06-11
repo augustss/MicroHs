@@ -33,6 +33,7 @@ module MicroHs.Expr(
   tupleConstr, getTupleConstr,
   mkTupleSel,
   eAppI, eApp2, eAppI2, eApp3, eAppI3, eApps,
+  eLetB,
   lhsToType,
   subst, allBinders,
   allVarsExpr, allVarsBind, allVarsEqns, allVarsPat,
@@ -485,6 +486,10 @@ eAppI3 a b c d = EApp (eAppI2 a b c) d
 
 eApps :: Expr -> [Expr] -> Expr
 eApps = foldl EApp
+
+eLetB :: [EBind] -> Expr -> Expr
+eLetB [] e = e
+eLetB bs e = ELet bs e
 
 lhsToType :: LHS -> EType
 lhsToType (i, iks) = eApps (EVar i) $ map (EVar . idKindIdent) iks
