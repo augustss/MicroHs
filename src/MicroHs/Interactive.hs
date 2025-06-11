@@ -163,7 +163,7 @@ setFlags "+s" = do
 setFlags "-s" = do
   modify $ \ is -> is{ isStats = False }
 setFlags _ =
-  liftIO $ putStrLn "Unknown flag.  Known flags: s"
+  liftIO $ putStrLn "Unknown flag.  Known flags: +s, -s"
 
 reload :: I ()
 reload = do
