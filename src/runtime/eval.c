@@ -352,6 +352,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT,
+                T_SPNEW, T_SPDEREF, T_SPFREE,
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_LAST_TAG,
@@ -714,6 +715,9 @@ counter_t        slice = 100000;    /* normal time slice;
 REGISTER(int glob_slice,r23);
 
 NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(sched, mt_raise) */
+
+size_t sp_capacity = 10;        /* size of stable pointer table */
+NODEPTR *sp_table;              /* stable pointer table */
 
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
@@ -1709,6 +1713,9 @@ struct {
   { "toFunPtr", T_TOFUNPTR },
   { "IO.ccall", T_IO_CCALL },
   { "isint", T_ISINT },
+  { "SPnew", T_SPNEW },
+  { "SPderef", T_SPDEREF },
+  { "SPfree", T_SPFREE },
   { "binint2", T_BININT2 },
   { "binint1", T_BININT1 },
   { "bindbl2", T_BINDBL2 },
@@ -2179,8 +2186,14 @@ gc(void)
   /* Mark all FFI exports */
   if (xffe_table) {
     for(struct ffe_entry *f = xffe_table; f->ffe_name; f++) {
-      mark(f->ffe_fun);
+      mark((NODEPTR*)&f->ffe_fun);
     }
+  }
+
+  /* Mark used stable pointers */
+  for (size_t i = 0; i < sp_capacity; i++) {
+    if (sp_table[i] != NIL)
+      mark(&sp_table[i]);
   }
 
   gc_mark_time += GETTIMEMILLI();
@@ -5417,6 +5430,10 @@ MAIN
   init_nodes();
   stack = mmalloc(sizeof(NODEPTR) * stack_size);
   CLEARSTK();
+  sp_table = mmalloc(sp_capacity * sizeof(NODEPTR)); /* stable pointer table, all free */
+  for (size_t i = 0; i < sp_capacity; i++)
+    sp_table[i] = NIL;
+
   num_reductions = 0;
 
 #if WANT_ARGS

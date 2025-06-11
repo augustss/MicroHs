@@ -188,5 +188,8 @@ primTable = [
   ("IO.tryreadmvar", _primitive "IO.tryreadmvar"),
   ("IO.threaddelay", _primitive "IO.threaddelay"),
   ("IO.threadstatus", _primitive "IO.threadstatus"),
-  ("isint", _primitive "isint")
+  ("isint", _primitive "isint"),
+  ("SPnew", _primitive "SPnew"),
+  ("SPderef", _primitive "SPderef"),
+  ("SPfree", _primitive "SPfree")
   ]
