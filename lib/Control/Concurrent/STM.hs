@@ -13,8 +13,6 @@
 -----------------------------------------------------------------------------
 
 
-{-# OPTIONS_GHC -XDeriveDataTypeable -XExistentialQuantification #-}
-
 module Control.Concurrent.STM (
   -- * Types
   STM,
@@ -30,8 +28,6 @@ module Control.Concurrent.STM (
   newTVarIO
   ) where
 
-import Data.Maybe
-import Control.Exception
 import Prelude hiding(catch)
 import System.IO.Unsafe
 import Data.IORef
@@ -74,10 +70,10 @@ instance Monad STM where
     case m of
       Return x -> f x
       Retry  -> Retry
-      NewTVar x cont -> NewTVar x (\i -> (cont i >>= f)) 
-      ReadTVar x cont -> ReadTVar x (\i -> (cont i >>= f))
+      NewTVar x cont -> NewTVar x (cont >=> f)
+      ReadTVar x cont -> ReadTVar x (cont >=> f)
       WriteTVar v x cont -> WriteTVar v x (cont >>= f)
-      OrElse a1 a2 cont -> OrElse a1 a2 (\i -> cont i >>= f)
+      OrElse a1 a2 cont -> OrElse a1 a2 (cont >=> f)
       
 
 -- | 'newTVar' creates a new 'TVar' in the 'STM' monad
@@ -175,7 +171,7 @@ performSTM tlog act =
                                             orRetryWithLog tlog
                                             performSTM tlog (act2 >>= cont) 
                                 
-performOrElseLeft :: (TLOG) -> STM a -> IO (Maybe a)
+performOrElseLeft :: TLOG -> STM a -> IO (Maybe a)
 performOrElseLeft tlog  act = 
    case act of 
     Return a -> do

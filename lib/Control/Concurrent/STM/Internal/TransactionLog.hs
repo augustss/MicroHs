@@ -46,7 +46,7 @@ data Log  =
  
 -- | 'emptyTLOG' constructs an empty transaction log of type 'TLOG'
 
-emptyTLOG :: IO (TLOG)
+emptyTLOG :: IO TLOG
 emptyTLOG =
   do p <-  newIORef (Log Set.empty [(Set.empty,Set.empty,Set.empty)] Set.empty)
      return (TLOG p)
