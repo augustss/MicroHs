@@ -20,6 +20,8 @@ module Data.Typeable (
 import qualified Prelude(); import MiniPrelude
 import Primitives
 import Data.Double
+import Data.Float
+import Data.FloatW
 import Data.Integer
 import Data.Proxy
 import Data.Ratio
@@ -144,9 +146,11 @@ instance Typeable ()          where typeRep = nullary "Data.Tuple"          "()"
 instance Typeable AnyType     where typeRep = prim                          "AnyType"
 instance Typeable Bool        where typeRep = nullary "Data.Bool_Type"      "Bool"
 instance Typeable Char        where typeRep = prim                          "Char"
+instance Typeable Double      where typeRep = nullary "Data.Double"         "Double"
+instance Typeable Float       where typeRep = nullary "Data.Float"          "Float"
+instance Typeable FloatW      where typeRep = prim                          "FloatW"
 instance Typeable Int         where typeRep = prim                          "Int"
 instance Typeable Integer     where typeRep = nullary "Data.Integer_Type"   "Integer"
-instance Typeable Double      where typeRep = prim                          "Double"
 instance Typeable Void        where typeRep = nullary "Data.Void"           "Void"
 instance Typeable Word        where typeRep = prim                          "Word"
 instance Typeable Word8       where typeRep = nullary "Data.Word8"          "Word8"
