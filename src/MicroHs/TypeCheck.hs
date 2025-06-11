@@ -1553,6 +1553,18 @@ tcDefValue adef =
       mn <- gets moduleName
       t' <- expandSyn t
       return (ForImp ie (qualIdent' mn i) t')
+    ForExp ie e t -> do
+      -- Get the expanded type of the foreign export declaration
+      (_, t') <- tInferExpr (ESign e t)
+      xt <- expandSyn t'
+      -- Get the expanded type of the matching function declaration (e is a EVar, see the ForExp parser)
+      (_, et) <- tInferExpr e
+      xet <- expandSyn et
+      -- Compare the types thanks to expandSyn
+      unless (eqEType xt xet) $
+        tcError (getSLoc t) $ "Foreign export does not match declaration " ++ show e ++ " :: " ++ show xet
+      let e' = EForExp (Just $ fromMaybe (show e) ie) e t
+      return $ ForExp ie e' t
     Pattern{} -> impossible
     _ -> return adef
 
