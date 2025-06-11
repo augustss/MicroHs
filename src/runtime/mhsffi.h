@@ -33,6 +33,12 @@ struct ffi_entry {
 };
 extern struct ffi_entry *xffi_table;
 
+struct ffe_entry {
+  const char *ffe_name;
+  void       *ffe_fun;          /* really a NODEPTR */
+};
+extern struct ffe_entry *xffe_table;
+
 from_t mhs_from_Double(intptr_t, int, flt_t);
 from_t mhs_from_FloatW(intptr_t, int, flt_t);
 from_t mhs_from_Int(intptr_t, int, intptr_t);

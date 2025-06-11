@@ -73,7 +73,7 @@ int num_ffi;
 #define THREAD_DEBUG 0
 #endif
 
-#define VERSION "v8.0\n"
+#define VERSION "v8.1\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -2176,6 +2176,13 @@ gc(void)
       mark_thread(mt);
   }
 
+  /* Mark all FFI exports */
+  if (xffe_table) {
+    for(struct ffe_entry *f = xffe_table; f->ffe_name; f++) {
+      mark(f->ffe_fun);
+    }
+  }
+
   gc_mark_time += GETTIMEMILLI();
 
   if (num_marked > max_num_marked)
@@ -2982,7 +2989,7 @@ checkversion(BFILE *f)
 
 /* Parse a file */
 NODEPTR
-parse_top(BFILE *f)
+parse_top(BFILE *f, struct ffe_entry *ffe)
 {
   heapoffs_t numLabels, i;
   NODEPTR n;
@@ -2996,6 +3003,12 @@ parse_top(BFILE *f)
   for(i = 0; i < shared_table_size; i++)
     shared_table[i].node = NIL;
   n = parse(f);
+  if (ffe) {
+    for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
+      heapoffs_t l = atoi(f->ffe_name); /* the name must be numerical */
+      f->ffe_fun = find_label(l);
+    }
+  }
   FREE(shared_table);
   return n;
 }
@@ -3010,7 +3023,7 @@ parse_file(const char *fn, size_t *psize)
 
   /* And parse it */
   BFILE *p = add_FILE(f);
-  NODEPTR n = parse_top(p);
+  NODEPTR n = parse_top(p, 0);
   *psize = ftell(f);
   closeb(p);
   return n;
@@ -4618,7 +4631,7 @@ evali(NODEPTR an)
     CHKARG2NP;
     bfile = (struct BFILE*)evalptr(x);
     gc();                     /* make sure we have room.  GC during parse is dodgy. */
-    x = parse_top(bfile);
+    x = parse_top(bfile, 0);
     POP(2);
     GOPAIR(x);                /* allocates a cell, but we did a GC above */
 #endif
@@ -5437,7 +5450,7 @@ MAIN
       /* put it back, we need it */
       ungetb(c, bf);
     }
-    prog = parse_top(bf);
+    prog = parse_top(bf, xffe_table);
     closeb(bf);
 #if WANT_STDIO
     file_size = combexprlen;
