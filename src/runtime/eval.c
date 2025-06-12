@@ -495,6 +495,8 @@ counter_t num_resched = 0;
 counter_t num_thread_reap = 0;
 counter_t num_mvar_alloc = 0;
 counter_t num_mvar_free = 0;
+counter_t num_stable_alloc = 0;
+counter_t num_stable_free = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
@@ -733,6 +735,8 @@ static uvalue_t
 new_stableptr(NODEPTR n)
 {
   size_t i;
+
+  COUNT(num_stable_alloc);
   /* Linear search for an empty slot. */
   /* Not ideal, but fine for a small number of StablePtr. */
   for(i = 1; i < sp_capacity; i++) { /* index 0 reserved according to the spec */
@@ -763,6 +767,7 @@ free_stableptr(uvalue_t sp)
 {
   if (sp_table[sp] == NIL || sp >= sp_capacity)
     ERR("free_stableptr");
+  COUNT(num_stable_free);
   sp_table[sp] = NIL;
 }
 
@@ -5600,6 +5605,8 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" bytestring free\n", num_bs_free);
     PRINT("%"PCOMMA"15"PRIcounter" thread create\n", num_thread_create-1);
     PRINT("%"PCOMMA"15"PRIcounter" thread reap\n", num_thread_reap);
+    PRINT("%"PCOMMA"15"PRIcounter" stableptr alloc\n", num_stable_alloc);
+    PRINT("%"PCOMMA"15"PRIcounter" stableptr free\n", num_stable_free);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
