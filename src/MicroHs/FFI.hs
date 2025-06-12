@@ -43,7 +43,7 @@ mkExport (_, e) = "  { \"" ++ exportDeclName e ++ "\", 0 }"
 
 -- | Get the foreign export declaration name, when showed it is: 'ForExp.ofuncName'
 exportDeclName :: Exp -> String
-exportDeclName e = drop (length @[] "ForExp.") (show e)
+exportDeclName e = drop (length "ForExp.") (show e)
 
 mkExportWrapper :: LDef -> String
 mkExportWrapper (i, e) = unlines $
@@ -51,7 +51,7 @@ mkExportWrapper (i, e) = unlines $
   map (mappend "  ") body ++
   ["}"]
   where
-    name = drop (length @[] "$exp$") (unIdent i)
+    name = drop (length "$exp$") (unIdent i)
     outT = "int"
     inputs = "int i"
     body = [

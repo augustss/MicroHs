@@ -185,7 +185,6 @@ data Expr
   | EQVar Expr EType             -- already resolved identifier
   -- only after type checking
   | ECon Con
-  | EForExp (Maybe String) Expr EType
 --DEBUG  deriving (Show)
 
 instance NFData Expr where
@@ -217,7 +216,6 @@ instance NFData Expr where
   rnf (EUVar a) = rnf a
   rnf (EQVar a b) = rnf a `seq` rnf b
   rnf (ECon a) = rnf a
-  rnf (EForExp a b c) = rnf a `seq` rnf b `seq` rnf c
 
 data QForm = QImpl | QExpl | QReqd
 
@@ -541,7 +539,6 @@ instance HasLoc Expr where
   getSLoc (EUVar _) = noSLoc -- error "getSLoc EUVar"
   getSLoc (EQVar e _) = getSLoc e
   getSLoc (ECon c) = getSLoc c
-  getSLoc (EForExp _ e _) = getSLoc e
   getSLoc (EForall _ [] e) = getSLoc e
   getSLoc (EForall _ iks _) = getSLoc iks
 
@@ -716,7 +713,6 @@ allVarsExpr' aexpr =
     EUVar _ -> id
     EQVar e _ -> allVarsExpr' e
     ECon c -> (conIdent c :)
-    EForExp _ _ _ -> id -- should this use allVarsExpr' ?
     EForall _ iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
   where field (EField _ e) = allVarsExpr' e
         field (EFieldPun is) = (last is :)
@@ -944,7 +940,6 @@ ppExprR raw = ppE
         EUVar i -> text ("_a" ++ show i)
         EQVar e t -> parens $ ppE e <> text ":::" <> ppE t
         ECon c -> {-text "***" <>-} ppCon c
-        EForExp ms e t -> {-text "after tc" <>-} ppEDef (ForExp ms e t)
         EForall q iks e -> parens $ ppForall q iks <+> ppEType e
 
     ppApp :: [Expr] -> Expr -> Doc

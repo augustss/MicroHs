@@ -68,7 +68,7 @@ main = do
                   _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-shared] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [--shared] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -119,7 +119,8 @@ decodeArgs f mdls (arg:args) =
     "-v"        -> decodeArgs f{verbose = verbose f + 1} mdls args
     "-q"        -> decodeArgs f{verbose = -1} mdls args
     "-r"        -> decodeArgs f{runIt = True} mdls args
-    "-shared"   -> decodeArgs f{shared = True} mdls args
+    "-shared"   -> decodeArgs f{shared = True} mdls args -- for GHC compat
+    "--shared"  -> decodeArgs f{shared = True} mdls args
     "-l"        -> decodeArgs f{loading = True} mdls args
     "-s"        -> decodeArgs f{speed = True} mdls args
     "-CR"       -> decodeArgs f{readCache = True} mdls args

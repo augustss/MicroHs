@@ -1558,7 +1558,8 @@ tcDefValue adef =
     _ -> return adef
 
 -- Check that a foreign export match the declaration type.
--- Note that it is a bit odd that the type is repeated, but it is what it is.
+-- In most cases the types will be the same, but the declaration can be overloaded
+-- so we need to ensure that it is compatible with the export definition.
 tCheckForeignDecl :: HasCallStack => EDef -> T EDef
 tCheckForeignDecl (ForExp ms e t) = do
   ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
