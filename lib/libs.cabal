@@ -130,6 +130,7 @@ library base
         Foreign.Marshal.Error
         Foreign.Marshal.Utils
         Foreign.Ptr
+        Foreign.StablePtr
         Foreign.Storable
         GHC.Generics
         GHC.Stack

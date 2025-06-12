@@ -21,7 +21,7 @@ instance Show (StablePtr a) where
   show (StablePtr sp) = "StablePtr#" ++ show sp
 
 newStablePtr :: a -> IO (StablePtr a)
-newStablePtr a = fmap StablePtr $ primNewStablePtr a
+newStablePtr a = StablePtr <$> primNewStablePtr a
 
 deRefStablePtr :: StablePtr a -> IO a
 deRefStablePtr (StablePtr sp) = primDeRefStablePtr sp
