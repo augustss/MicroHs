@@ -716,8 +716,55 @@ REGISTER(int glob_slice,r23);
 
 NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(sched, mt_raise) */
 
-size_t sp_capacity = 10;        /* size of stable pointer table */
+/****** StablePtr ******/
+
+size_t sp_capacity = 4;         /* size of stable pointer table */
 NODEPTR *sp_table;              /* stable pointer table */
+
+static void
+init_stableptr(void)
+{
+  sp_table = mmalloc(sp_capacity * sizeof(NODEPTR)); /* stable pointer table, all free */
+  for (size_t i = 0; i < sp_capacity; i++)
+    sp_table[i] = NIL;
+}  
+
+static uvalue_t
+new_stableptr(NODEPTR n)
+{
+  size_t i;
+  /* Linear search for an empty slot. */
+  /* Not ideal, but fine for a small number of StablePtr. */
+  for(i = 1; i < sp_capacity; i++) { /* index 0 reserved according to the spec */
+    if (sp_table[i] == NIL)
+      break;
+  }
+  if (i == sp_capacity) {
+    /* table is full, so double its size */
+    sp_capacity *= 2;
+    sp_table = mrealloc(sp_table, sp_capacity * sizeof(NODEPTR));
+    for(size_t j = i; j < sp_capacity; j++)
+      sp_table[j] = NIL;
+  }
+  sp_table[i] = n;
+  return (uvalue_t)i;
+}
+
+static NODEPTR
+deref_stableptr(uvalue_t sp)
+{
+  if (sp_table[sp] == NIL || sp >= sp_capacity)
+    ERR("deref_stableptr");
+  return sp_table[sp];
+}
+
+static void
+free_stableptr(uvalue_t sp)
+{
+  if (sp_table[sp] == NIL || sp >= sp_capacity)
+    ERR("free_stableptr");
+  sp_table[sp] = NIL;
+}
 
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
@@ -4592,6 +4639,22 @@ evali(NODEPTR an)
     CHKARG1;
     raise_exn(x);               /* never returns */
     
+  case T_SPNEW:
+    GCCHECK(1);
+    CHKARG2;
+    xi = new_stableptr(x);
+    GOPAIR(mkInt(xi));
+  case T_SPDEREF:
+    CHKARG2NP;
+    xi = evalint(x);
+    POP(2);
+    GOPAIR(deref_stableptr(xi));
+  case T_SPFREE:
+    CHKARG2NP;
+    xi = evalint(x);
+    free_stableptr(xi);
+    POP(2);
+    GOPAIRUNIT;
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
@@ -4619,7 +4682,9 @@ evali(NODEPTR an)
   case T_IO_RETURN:
     goto t_p;
   case T_IO_THEN:
-    GCCHECK(2); CHKARG2; GOAP2(combIOBIND, x, new_ap(combK, y));
+    GCCHECK(2);
+    CHKARG2;
+    GOAP2(combIOBIND, x, new_ap(combK, y));
 #if WANT_STDIO
   case T_IO_PP:
     CHKARG2;
@@ -5430,9 +5495,7 @@ MAIN
   init_nodes();
   stack = mmalloc(sizeof(NODEPTR) * stack_size);
   CLEARSTK();
-  sp_table = mmalloc(sp_capacity * sizeof(NODEPTR)); /* stable pointer table, all free */
-  for (size_t i = 0; i < sp_capacity; i++)
-    sp_table[i] = NIL;
+  init_stableptr();
 
   num_reductions = 0;
 

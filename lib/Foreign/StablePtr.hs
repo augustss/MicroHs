@@ -12,13 +12,16 @@ import Primitives
 import Data.Typeable
 
 newtype StablePtr a = StablePtr Word
-  deriving (Eq, Typeable)
+  deriving (Typeable)
+
+instance Eq (StablePtr a) where
+  StablePtr a == StablePtr a'  =  a == a'
 
 instance Show (StablePtr a) where
   show (StablePtr sp) = "StablePtr#" ++ show sp
 
 newStablePtr :: a -> IO (StablePtr a)
-newStablePtr = StablePtr . primNewStablePtr
+newStablePtr a = fmap StablePtr $ primNewStablePtr a
 
 deRefStablePtr :: StablePtr a -> IO a
 deRefStablePtr (StablePtr sp) = primDeRefStablePtr sp
