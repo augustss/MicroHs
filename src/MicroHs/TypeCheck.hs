@@ -1553,8 +1553,19 @@ tcDefValue adef =
       mn <- gets moduleName
       t' <- expandSyn t
       return (ForImp ie (qualIdent' mn i) t')
+    ForExp{} -> tCheckForeignDecl adef
     Pattern{} -> impossible
     _ -> return adef
+
+-- Check that a foreign export match the declaration type.
+-- In most cases the types will be the same, but the declaration can be overloaded
+-- so we need to ensure that it is compatible with the export definition.
+tCheckForeignDecl :: HasCallStack => EDef -> T EDef
+tCheckForeignDecl (ForExp ms e t) = do
+  ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
+  let e'' = eLetB (eBinds ds) e'
+  pure $ ForExp (Just $ fromMaybe (show e) ms) e'' t'
+tCheckForeignDecl _ = impossible
 
 qualIdent' :: IdentModule -> Ident -> Ident
 qualIdent' mn i | isInstId i = i

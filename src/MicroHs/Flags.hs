@@ -10,6 +10,7 @@ data Flags = Flags {
   mhsdir     :: FilePath,   -- where MHS files live
   paths      :: [FilePath], -- module search path
   output     :: String,     -- output file
+  shared     :: Bool,
   loading    :: Bool,       -- show loading message
   speed      :: Bool,       -- show lines/s
   readCache  :: Bool,       -- read and use cache
@@ -38,6 +39,7 @@ defaultFlags dir = Flags {
   runIt      = False,
   mhsdir     = dir,
   paths      = ["."] ++ gmp ++ [dir ++ "/lib"],
+  shared     = False,
   output     = "out.comb",
   loading    = False,
   speed      = False,
