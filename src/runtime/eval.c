@@ -964,6 +964,12 @@ check_timeq(void)
       printf("check_timeq: %d done\n", (int)mt->mt_id);
 #endif  /* THREAD_DEBUG */
   }
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("check_timeq: exit\n");
+    dump_q("runq", runq);
+  }
+#endif  /* THREAD_DEBUG */
 #endif
 }
 
@@ -1135,7 +1141,7 @@ take_mvar(int try, struct mvar *mv)
 {
 #if THREAD_DEBUG
   if (thread_trace) {
-    printf("take_mvar: mvar=%p\n", mv);
+    printf("take_mvar: start mvar=%p\n", mv);
     dump_q("takeput", mv->mv_takeput);
   }
 #endif  /* THREAD_DEBUG */
@@ -1143,9 +1149,9 @@ take_mvar(int try, struct mvar *mv)
   if ((n = runq.mq_head->mt_mval) != NIL) {
 #if THREAD_DEBUG
     if (thread_trace)
-      printf("take_mvar: mvar=%p got data %d\n", mv, (int)runq.mq_head->mt_id);
+      printf("take_mvar: end mvar=%p got data %d\n", mv, (int)runq.mq_head->mt_id);
 #endif  /* THREAD_DEBUG */
-    /* We have after waking up */
+    /* We have no data after waking up */
     runq.mq_head->mt_mval = NIL;
     return n;                   /* returned the stashed data */
   }
@@ -1157,24 +1163,25 @@ take_mvar(int try, struct mvar *mv)
     /* mvar is full */
     mv->mv_data = NIL;           /* now empty */
     /* move all threads waiting to put to the runq */
-    for (struct mthread *mt = mv->mv_takeput.mq_head; mt; ) {
+    for(;;) {
+      struct mthread *mt = remove_q_head(&mv->mv_takeput);
+      if (!mt)
+        break;
 #if THREAD_DEBUG
       if (thread_trace) {
         printf("take_mvar: mvar=%p wake %d\n", mv, (int)mt->mt_id);
       }
 #endif  /* THREAD_DEBUG */
-      struct mthread *nt = mt->mt_queue;
       add_runq_tail(mt);
 #if THREAD_DEBUG
       if (thread_trace) {
         dump_q("runq", runq);
       }
 #endif  /* THREAD_DEBUG */
-      mt = nt;
     }
 #if THREAD_DEBUG
     if (thread_trace) {
-      printf("take_mvar: mvar=%p return %p\n", mv, n);
+      printf("take_mvar: end mvar=%p return %p\n", mv, n);
     }
 #endif  /* THREAD_DEBUG */
     return n;                   /* return the data */
@@ -1190,7 +1197,7 @@ take_mvar(int try, struct mvar *mv)
     add_q_tail(&mv->mv_takeput, mt);
 #if THREAD_DEBUG
     if (thread_trace) {
-      printf("take_mvar: mvar=%p suspend %d\n", mv, (int)mt->mt_id);
+      printf("take_mvar: end mvar=%p suspend %d\n", mv, (int)mt->mt_id);
       dump_q("runq", runq);
       dump_q("takeput", mv->mv_takeput);
     }
@@ -1205,7 +1212,7 @@ read_mvar(int try, struct mvar *mv)
 {
   NODEPTR n;
   if ((n = runq.mq_head->mt_mval) != NIL) {
-    /* We have after waking up */
+    /* We have no data after waking up */
     runq.mq_head->mt_mval = NIL;
     return n;                   /* returned the stashed data */
   }
@@ -1265,9 +1272,8 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
     if (mv->mv_takeput.mq_head || mv->mv_read.mq_head) {
       /* one or more threads are waiting */
       struct mthread *mt;
-      if (mv->mv_takeput.mq_head) {
+      if ((mt = remove_q_head(&mv->mv_takeput))) {
         /* wake up one 'take' */
-        mt = remove_q_head(&mv->mv_takeput);
 #if THREAD_DEBUG
         if (thread_trace)
           printf("put_mvar: wake-1 %d\n", (int)mt->mt_id);
@@ -1275,18 +1281,22 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
         add_runq_tail(mt);             /* and schedule for execution later */
         mt->mt_mval = v;
       }
-      for (mt = mv->mv_read.mq_head; mt; ) { /* XXX use q primitives */
+      for(;;) {
+        mt = remove_q_head(&mv->mv_takeput);
+        if (!mt)
+          break;
 #if THREAD_DEBUG
         if (thread_trace)
           printf("put_mvar: wake-N %d\n", (int)mt->mt_id);
 #endif  /* THREAD_DEBUG */
         mt->mt_mval = v;               /* value for restarted read */
-        mt = mt->mt_queue;             /* next waiter */
         add_runq_tail(mt);             /* and schedule for execution later */
       }
 #if THREAD_DEBUG
-      if (thread_trace)
+      if (thread_trace) {
+        printf("put_mvar: end\n");
         dump_q("runq", runq);
+      }
 #endif  /* THREAD_DEBUG */
       /* return to caller */
     } else {
@@ -2206,6 +2216,7 @@ void
 gc(void)
 {
   stackptr_t i;
+  /*printf("****** GC ********\n");*/
 
   num_gc++;
   num_marked = 0;
