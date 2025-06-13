@@ -171,7 +171,10 @@ library base
 
     other-modules:
         Control.Concurrent.STM.Internal
-        Control.Concurrent.STM.Internal
+        Control.Concurrent.STM.Internal.Map
+        Control.Concurrent.STM.Internal.Set
+        Control.Concurrent.STM.Internal.TVar
+        Control.Concurrent.STM.Internal.TransactionLog
         Control.Exception.Internal
         Control.Exception.Internal.Map
         Control.Exception.Internal.Set
@@ -198,6 +201,7 @@ library base
         Numeric.Read
         Numeric.Show
         Primitives
+        System.IO.Base
         System.IO.Internal
         System.IO_Handle
         Text.Read.Internal
