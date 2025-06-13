@@ -5613,8 +5613,9 @@ MAIN
 #endif
     // PRINT("%"PCOMMA"15"PRIcounter" max mark depth\n", max_mark_depth);
     PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
-    PRINT("%15.2fs total gc time (%.2f + %.2f)\n",
+    PRINT("%15.2fs gc expired time = %3.1f%% (%.2fs mark + %.2fs scan)\n",
           (double)(gc_mark_time + gc_scan_time) / 1000,
+          (double)(gc_mark_time + gc_scan_time) / (double)run_time * 100,
           (double)gc_mark_time / 1000,
           (double)gc_scan_time / 1000);
 #if GCRED
