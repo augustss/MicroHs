@@ -1359,6 +1359,14 @@ pause_exec(void)
       check_timeq();
     }
   } else {
+#if THREAD_DEBUG
+    dump_q("runq", runq);
+    dump_q("timeq", timeq);
+    for(struct mvar *mv = all_mvars; mv; mv = mv->mv_next) {
+      printf("mvar %p, data=%p\n", mv, mv->mv_data);
+      dump_q("takeput", mv->mv_takeput);
+    }
+#endif               /* THREAD_DEBUG */
     ERR("deadlock");            /* XXX throw async to main thread */
   }
 #else  /* CLOCK_INIT */
