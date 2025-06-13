@@ -112,6 +112,7 @@ import Foreign.Marshal.Array
 import Foreign.Marshal.Error
 import Foreign.Marshal.Utils
 import Foreign.Ptr
+import Foreign.StablePtr
 import Foreign.Storable
 import GHC.Stack
 import GHC.Types
@@ -137,6 +138,7 @@ import System.IO.StringHandle
 import System.IO.TimeMilli
 import System.Info
 import System.Process
+import System.RTS
 import Text.Printf
 import Text.Read
 import Text.Show

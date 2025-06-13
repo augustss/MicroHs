@@ -20,13 +20,13 @@ import qualified MicroHs.IdentMap as M
 
 translateAndRun :: (Ident, [LDef]) -> IO ()
 translateAndRun defs = do
-  let prog = unsafeCoerce $ translate defs
+  let prog = unsafeCoerce (translate defs)
   prog
 
 translate :: (Ident, [LDef]) -> AnyType
 translate (mainName, ds) =
   let
-    look n = fromMaybe (error $ "translate: not found " ++ showIdent n) $ M.lookup n mp
+    look n = fromMaybe (errorMessage (getSLoc n) $ "translate: not found " ++ showIdent n) $ M.lookup n mp
     mp = M.fromList [(n, trans look d) | (n, d) <- ds ]
   in look mainName
 
@@ -132,6 +132,7 @@ primTable = [
   ("IO.getArgRef", _primitive "IO.getArgRef"),
   ("IO.performIO", _primitive "IO.performIO"),
   ("IO.gc", _primitive "IO.gc"),
+  ("IO.stats", _primitive "IO.stats"),
   ("raise", _primitive "raise"),
   ("catch", _primitive "catch"),
   ("dynsym", _primitive "dynsym"),
@@ -187,5 +188,8 @@ primTable = [
   ("IO.tryreadmvar", _primitive "IO.tryreadmvar"),
   ("IO.threaddelay", _primitive "IO.threaddelay"),
   ("IO.threadstatus", _primitive "IO.threadstatus"),
-  ("isint", _primitive "isint")
+  ("isint", _primitive "isint"),
+  ("SPnew", _primitive "SPnew"),
+  ("SPderef", _primitive "SPderef"),
+  ("SPfree", _primitive "SPfree")
   ]

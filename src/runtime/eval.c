@@ -73,7 +73,7 @@ int num_ffi;
 #define THREAD_DEBUG 0
 #endif
 
-#define VERSION "v8.0\n"
+#define VERSION "v8.1\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -127,6 +127,10 @@ int GETRAW(void) { return -1; }
 #if !defined(GETTIMEMILLI)
 value_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(GETTIMEMILLI) */
+
+#if !defined(GETCPUTIME)
+void GETCPUTIME(long *sec, long *usec) { return 0; }
+#endif  /* !define(GETCPUTIME) */
 
 #if !defined(INLINE)
 #define INLINE inline
@@ -334,7 +338,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
                 T_IO_GETARGREF,
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH, T_CATCHR,
-                T_IO_CCALL, T_IO_GC, T_DYNSYM,
+                T_IO_CCALL,
+                T_IO_GC, T_IO_STATS,
+                T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
                 T_IO_TAKEMVAR, T_IO_PUTMVAR, T_IO_READMVAR,
@@ -346,6 +352,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT,
+                T_SPNEW, T_SPDEREF, T_SPFREE,
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_LAST_TAG,
@@ -488,6 +495,8 @@ counter_t num_resched = 0;
 counter_t num_thread_reap = 0;
 counter_t num_mvar_alloc = 0;
 counter_t num_mvar_free = 0;
+counter_t num_stable_alloc = 0;
+counter_t num_stable_free = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
@@ -708,6 +717,59 @@ counter_t        slice = 100000;    /* normal time slice;
 REGISTER(int glob_slice,r23);
 
 NODEPTR          the_exn;       /* Used to propagate the exception for longjmp(sched, mt_raise) */
+
+/****** StablePtr ******/
+
+size_t sp_capacity = 4;         /* size of stable pointer table */
+NODEPTR *sp_table;              /* stable pointer table */
+
+static void
+init_stableptr(void)
+{
+  sp_table = mmalloc(sp_capacity * sizeof(NODEPTR)); /* stable pointer table, all free */
+  for (size_t i = 0; i < sp_capacity; i++)
+    sp_table[i] = NIL;
+}  
+
+static uvalue_t
+new_stableptr(NODEPTR n)
+{
+  size_t i;
+
+  COUNT(num_stable_alloc);
+  /* Linear search for an empty slot. */
+  /* Not ideal, but fine for a small number of StablePtr. */
+  for(i = 1; i < sp_capacity; i++) { /* index 0 reserved according to the spec */
+    if (sp_table[i] == NIL)
+      break;
+  }
+  if (i == sp_capacity) {
+    /* table is full, so double its size */
+    sp_capacity *= 2;
+    sp_table = mrealloc(sp_table, sp_capacity * sizeof(NODEPTR));
+    for(size_t j = i; j < sp_capacity; j++)
+      sp_table[j] = NIL;
+  }
+  sp_table[i] = n;
+  return (uvalue_t)i;
+}
+
+static NODEPTR
+deref_stableptr(uvalue_t sp)
+{
+  if (sp_table[sp] == NIL || sp >= sp_capacity)
+    ERR("deref_stableptr");
+  return sp_table[sp];
+}
+
+static void
+free_stableptr(uvalue_t sp)
+{
+  if (sp_table[sp] == NIL || sp >= sp_capacity)
+    ERR("free_stableptr");
+  COUNT(num_stable_free);
+  sp_table[sp] = NIL;
+}
 
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
 enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
@@ -1666,6 +1728,7 @@ struct {
   { "IO.getArgRef", T_IO_GETARGREF },
   { "IO.performIO", T_IO_PERFORMIO },
   { "IO.gc", T_IO_GC },
+  { "IO.stats", T_IO_STATS },
   { "IO.pp", T_IO_PP },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
@@ -1702,6 +1765,9 @@ struct {
   { "toFunPtr", T_TOFUNPTR },
   { "IO.ccall", T_IO_CCALL },
   { "isint", T_ISINT },
+  { "SPnew", T_SPNEW },
+  { "SPderef", T_SPDEREF },
+  { "SPfree", T_SPFREE },
   { "binint2", T_BININT2 },
   { "binint1", T_BININT1 },
   { "bindbl2", T_BINDBL2 },
@@ -1807,7 +1873,7 @@ init_nodes(void)
    */
 #define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
 #define MKINT(c, i) do { n = HEAPREF(heap_start++); SETTAG(n, T_INT); SETVALUE(n, i); (c) = n; } while(0)
-  NEWAP(combLT, combZ,     combFalse);  /* Z B */
+  NEWAP(combLT, combZ,     combFalse);  /* Z K */
   NEWAP(combEQ, combFalse, combFalse);  /* K K */
   NEWAP(combGT, combFalse, combTrue);   /* K A */
   {
@@ -2167,6 +2233,19 @@ gc(void)
   for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
     if (mt->mt_root != NIL)
       mark_thread(mt);
+  }
+
+  /* Mark all FFI exports */
+  if (xffe_table) {
+    for(struct ffe_entry *f = xffe_table; f->ffe_name; f++) {
+      mark((NODEPTR*)&f->ffe_fun);
+    }
+  }
+
+  /* Mark used stable pointers */
+  for (size_t i = 0; i < sp_capacity; i++) {
+    if (sp_table[i] != NIL)
+      mark(&sp_table[i]);
   }
 
   gc_mark_time += GETTIMEMILLI();
@@ -2540,6 +2619,20 @@ void
 poke_ullong(unsigned long long *p, value_t w)
 {
   *p = (unsigned long long)w;
+}
+
+static INLINE
+value_t
+peek_size_t(size_t *p)
+{
+  return *p;
+}
+
+static INLINE
+void
+poke_size_t(size_t *p, value_t w)
+{
+  *p = (size_t)w;
 }
 
 #if WANT_FLOAT
@@ -2961,7 +3054,7 @@ checkversion(BFILE *f)
 
 /* Parse a file */
 NODEPTR
-parse_top(BFILE *f)
+parse_top(BFILE *f, struct ffe_entry *ffe)
 {
   heapoffs_t numLabels, i;
   NODEPTR n;
@@ -2975,6 +3068,12 @@ parse_top(BFILE *f)
   for(i = 0; i < shared_table_size; i++)
     shared_table[i].node = NIL;
   n = parse(f);
+  if (ffe) {
+    for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
+      heapoffs_t l = atoi(f->ffe_name); /* the name must be numerical */
+      f->ffe_fun = find_label(l);
+    }
+  }
   FREE(shared_table);
   return n;
 }
@@ -2989,7 +3088,7 @@ parse_file(const char *fn, size_t *psize)
 
   /* And parse it */
   BFILE *p = add_FILE(f);
-  NODEPTR n = parse_top(p);
+  NODEPTR n = parse_top(p, 0);
   *psize = ftell(f);
   closeb(p);
   return n;
@@ -4545,6 +4644,22 @@ evali(NODEPTR an)
     CHKARG1;
     raise_exn(x);               /* never returns */
     
+  case T_SPNEW:
+    GCCHECK(1);
+    CHKARG2;
+    xi = new_stableptr(x);
+    GOPAIR(mkInt(xi));
+  case T_SPDEREF:
+    CHKARG2NP;
+    xi = evalint(x);
+    POP(2);
+    GOPAIR(deref_stableptr(xi));
+  case T_SPFREE:
+    CHKARG2NP;
+    xi = evalint(x);
+    free_stableptr(xi);
+    POP(2);
+    GOPAIRUNIT;
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
 
@@ -4572,7 +4687,9 @@ evali(NODEPTR an)
   case T_IO_RETURN:
     goto t_p;
   case T_IO_THEN:
-    GCCHECK(2); CHKARG2; GOAP2(combIOBIND, x, new_ap(combK, y));
+    GCCHECK(2);
+    CHKARG2;
+    GOAP2(combIOBIND, x, new_ap(combK, y));
 #if WANT_STDIO
   case T_IO_PP:
     CHKARG2;
@@ -4597,7 +4714,7 @@ evali(NODEPTR an)
     CHKARG2NP;
     bfile = (struct BFILE*)evalptr(x);
     gc();                     /* make sure we have room.  GC during parse is dodgy. */
-    x = parse_top(bfile);
+    x = parse_top(bfile, 0);
     POP(2);
     GOPAIR(x);                /* allocates a cell, but we did a GC above */
 #endif
@@ -4764,6 +4881,14 @@ evali(NODEPTR an)
     CHKARG1;
     gc();
     GOPAIRUNIT;
+
+  case T_IO_STATS:
+    {
+    GCCHECK(4);
+    CHKARG1;
+    NODEPTR res = new_ap(new_ap(combPair, mkInt((uvalue_t)num_alloc)), mkInt((uvalue_t)(num_reductions - glob_slice)));
+    GOPAIR(res);
+    }
 
   case T_IO_FORK:
     {
@@ -5375,6 +5500,8 @@ MAIN
   init_nodes();
   stack = mmalloc(sizeof(NODEPTR) * stack_size);
   CLEARSTK();
+  init_stableptr();
+
   num_reductions = 0;
 
 #if WANT_ARGS
@@ -5408,7 +5535,7 @@ MAIN
       /* put it back, we need it */
       ungetb(c, bf);
     }
-    prog = parse_top(bf);
+    prog = parse_top(bf, xffe_table);
     closeb(bf);
 #if WANT_STDIO
     file_size = combexprlen;
@@ -5478,14 +5605,17 @@ MAIN
     PRINT("%"PCOMMA"15"PRIcounter" bytestring free\n", num_bs_free);
     PRINT("%"PCOMMA"15"PRIcounter" thread create\n", num_thread_create-1);
     PRINT("%"PCOMMA"15"PRIcounter" thread reap\n", num_thread_reap);
+    PRINT("%"PCOMMA"15"PRIcounter" stableptr alloc\n", num_stable_alloc);
+    PRINT("%"PCOMMA"15"PRIcounter" stableptr free\n", num_stable_free);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
 #endif
     // PRINT("%"PCOMMA"15"PRIcounter" max mark depth\n", max_mark_depth);
     PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
-    PRINT("%15.2fs total gc time (%.2f + %.2f)\n",
+    PRINT("%15.2fs gc expired time = %3.1f%% (%.2fs mark + %.2fs scan)\n",
           (double)(gc_mark_time + gc_scan_time) / 1000,
+          (double)(gc_mark_time + gc_scan_time) / (double)run_time * 100,
           (double)gc_mark_time / 1000,
           (double)gc_scan_time / 1000);
 #if GCRED
@@ -5714,10 +5844,12 @@ from_t mhs_peek_llong(int s) { return mhs_from_CLLong(s, 1, peek_llong(mhs_to_Pt
 from_t mhs_peek_long(int s) { return mhs_from_CLong(s, 1, peek_long(mhs_to_Ptr(s, 0))); }
 from_t mhs_peek_ullong(int s) { return mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
 from_t mhs_peek_ulong(int s) { return mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
+from_t mhs_peek_size_t(int s) { return mhs_from_CSize(s, 1, peek_size_t(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_poke_size_t(int s) { poke_size_t(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1)); return mhs_from_Unit(s, 2); }
 #if WANT_FLOAT
 from_t mhs_peek_flt(int s) { return mhs_from_FloatW(s, 1, peek_flt(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); return mhs_from_Unit(s, 2); }
@@ -5725,6 +5857,7 @@ from_t mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); re
 from_t mhs_sizeof_int(int s) { return mhs_from_Int(s, 0, sizeof(int)); }
 from_t mhs_sizeof_llong(int s) { return mhs_from_Int(s, 0, sizeof(long long)); }
 from_t mhs_sizeof_long(int s) { return mhs_from_Int(s, 0, sizeof(long)); }
+from_t mhs_sizeof_size_t(int s) { return mhs_from_Int(s, 0, sizeof(size_t)); }
 #if WANT_DIR
 from_t mhs_closedir(int s) { return mhs_from_Int(s, 1, closedir(mhs_to_Ptr(s, 0))); }
 from_t mhs_opendir(int s) { return mhs_from_Ptr(s, 1, opendir(mhs_to_Ptr(s, 0))); }
@@ -5734,6 +5867,7 @@ from_t mhs_chdir(int s) { return mhs_from_Int(s, 1, chdir(mhs_to_Ptr(s, 0))); }
 from_t mhs_mkdir(int s) { return mhs_from_Int(s, 2, mkdir(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_getcwd(int s) { return mhs_from_Ptr(s, 2, getcwd(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 #endif  /* WANT_DIR */
+from_t mhs_getcpu(int s) { GETCPUTIME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
 
 /* Use this to detect if we have (and want) GMP or not. */
 from_t mhs_want_gmp(int s) { return mhs_from_Int(s, 0, WANT_GMP); }
@@ -5777,7 +5911,7 @@ print_mpz(mpz_ptr p)
 }
 #endif
 
-from_t mhs_new_mpz(int s) { mhs_from_ForPtr(s, 0, new_mpz()); }
+from_t mhs_new_mpz(int s) { return mhs_from_ForPtr(s, 0, new_mpz()); }
 
 /* Stubs for GMP functions */
 from_t mhs_mpz_abs(int s) { mpz_abs(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
@@ -5809,7 +5943,7 @@ from_t mhs_mpz_popcount(int s) {
 from_t mhs_mpz_sub(int s) { mpz_sub(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_fdiv_q_2exp(int s) { mpz_fdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_tdiv_qr(int s) { mpz_tdiv_qr(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2), mhs_to_Ptr(s, 3)); return mhs_from_Unit(s, 4); }
-from_t mhs_mpz_tstbit(int s) { mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_mpz_tstbit(int s) { return mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 from_t mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 #endif  /* WANT_GMP */
 
@@ -5918,10 +6052,12 @@ struct ffi_entry ffi_table[] = {
   { "peek_long", 1, mhs_peek_long},
   { "peek_ullong", 1, mhs_peek_ullong},
   { "peek_ulong", 1, mhs_peek_ulong},
+  { "peek_size_t", 1, mhs_peek_size_t},
   { "poke_llong", 2, mhs_poke_llong},
   { "poke_long", 2, mhs_poke_long},
   { "poke_ullong", 2, mhs_poke_ullong},
   { "poke_ulong", 2, mhs_poke_ulong},
+  { "poke_size_t", 2, mhs_poke_size_t},
 #if WANT_FLOAT
   { "peek_flt", 1, mhs_peek_flt},
   { "poke_flt", 2, mhs_poke_flt},
@@ -5929,6 +6065,7 @@ struct ffi_entry ffi_table[] = {
   { "sizeof_int", 0, mhs_sizeof_int},
   { "sizeof_llong", 0, mhs_sizeof_llong},
   { "sizeof_long", 0, mhs_sizeof_long},
+  { "sizeof_size_t", 0, mhs_sizeof_size_t},
 #if WANT_DIR
   { "c_d_name", 1, mhs_c_d_name},
   { "closedir", 1, mhs_closedir},
@@ -5938,6 +6075,7 @@ struct ffi_entry ffi_table[] = {
   { "mkdir", 2, mhs_mkdir},
   { "getcwd", 2, mhs_getcwd},
 #endif  /* WANT_DIR */
+  { "getcpu", 2, mhs_getcpu},
   { "want_gmp", 0, mhs_want_gmp},
 #if WANT_GMP
   { "new_mpz", 0, mhs_new_mpz},

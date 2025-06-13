@@ -11,8 +11,15 @@ import Data.Maybe
 import Data.Proxy
 import Data.Typeable
 import Unsafe.Coerce
+import Control.Exception
 
 data Dynamic = D TypeRep AnyType
+  deriving Typeable
+
+instance Exception Dynamic
+
+instance Show Dynamic where
+  show (D t _) = "<<" ++ show t ++ ">>"
 
 toDyn :: forall a . Typeable a => a -> Dynamic
 toDyn a = D (typeOf a) (unsafeCoerce a)

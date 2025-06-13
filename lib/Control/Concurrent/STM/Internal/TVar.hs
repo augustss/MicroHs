@@ -13,8 +13,6 @@
 -----------------------------------------------------------------------------
 
 
-{-# OPTIONS_GHC -XDeriveDataTypeable -XExistentialQuantification #-}
-
 module Control.Concurrent.STM.Internal.TVar (
   -- * Types
   TVar(..),
@@ -26,8 +24,6 @@ module Control.Concurrent.STM.Internal.TVar (
   nextCounter
   ) where
 
-import Data.Maybe
-import Control.Exception
 import Prelude hiding(catch)
 import System.IO.Unsafe
 import Data.IORef

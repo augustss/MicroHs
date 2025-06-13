@@ -13,8 +13,6 @@
 -----------------------------------------------------------------------------
 
 
-{-# OPTIONS_GHC -XDeriveDataTypeable -XExistentialQuantification #-}
-
 module Control.Concurrent.STM (
   -- * Types
   STM,
@@ -30,8 +28,6 @@ module Control.Concurrent.STM (
   newTVarIO
   ) where
 
-import Data.Maybe
-import Control.Exception
 import Prelude hiding(catch)
 import System.IO.Unsafe
 import Data.IORef
@@ -175,7 +171,7 @@ performSTM tlog act =
                                             orRetryWithLog tlog
                                             performSTM tlog (act2 >>= cont) 
                                 
-performOrElseLeft :: (TLOG) -> STM a -> IO (Maybe a)
+performOrElseLeft :: TLOG -> STM a -> IO (Maybe a)
 performOrElseLeft tlog  act = 
    case act of 
     Return a -> do

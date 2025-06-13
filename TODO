@@ -41,3 +41,16 @@ Bugs:
 * newtype deriving Semigroup is broken
 * polykinded signatures don't work properly, e.g., ~
   there is no place to put the forall
+* tr :: forall t -> Typeable t => TypeRep
+  tr a = typeRep (Proxy :: Proxy a)
+* cannot parse (a -> b) as an expression
+
+Wishlist:
+* foreign import javascript (dmjio)
+* DeriveDataTypeable (claudeha)
+    Only Data is missing die to a type checker bug
+* DeriveGeneric (clauseha)
+    Needs TypeFamilies
+* DeriveFunctor (clauseha)
+* Better interactive performance (claudeha)
+* Polymorphic record update (claudeha)

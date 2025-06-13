@@ -23,12 +23,18 @@ makeFFI _ ds =
     unlines $
       map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
       map mkHdr imps ++
-      ["static struct ffi_entry table[] = {"] ++
+      ["static struct ffi_entry imp_table[] = {"] ++
       map mkEntry imps ++
       ["{ 0,0 }",
        "};",
-       "struct ffi_entry *xffi_table = table;"
-      ]
+       "struct ffi_entry *xffi_table = imp_table;"
+      ] ++
+      ["static struct ffe_entry exp_table[] = {"] ++
+      -- something that generated exported function entries
+      ["{ 0,0 }",
+       "};",
+       "struct ffe_entry *xffe_table = exp_table;"
+      ]      
 
 uniqName :: [(ImpEnt, EType)] -> [(ImpEnt, EType)]
 uniqName = map head . groupBy ((==) `on` impName) . sortBy (compare `on` impName)
@@ -179,9 +185,11 @@ runtimeFFI = [
   "peek_uint", "poke_uint", "peek_int", "poke_int",
   "peek_ulong", "poke_ulong", "peek_long", "poke_long",
   "peek_ullong", "poke_ullong", "peek_llong", "poke_llong",
+  "peek_size_t", "poke_size_t",
   "peek_flt", "poke_flt",
-  "sizeof_int", "sizeof_long", "sizeof_llong",
+  "sizeof_int", "sizeof_long", "sizeof_llong", "sizeof_size_t",
   "opendir", "closedir", "readdir", "c_d_name", "chdir", "mkdir", "getcwd",
+  "getcpu",
   "get_buf", "openb_rd_buf", "openb_wr_buf",
   "new_mpz", "mpz_abs", "mpz_add", "mpz_and", "mpz_cmp", "mpz_get_d",
   "mpz_get_si", "mpz_get_ui", "mpz_init_set_si", "mpz_init_set_ui", "mpz_ior",

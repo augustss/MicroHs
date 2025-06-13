@@ -220,6 +220,24 @@ CLOCK_T CLOCK_GET(void)
   return (uint64_t)(tv.tv_sec * 1000000 + tv.tv_usec);
 }
 
+#include <time.h>
+void
+getcputime(long *sec, long *nsec)
+{
+#if WANT_TIME
+  struct timespec ts;
+  
+  if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == 0) {
+    *sec = ts.tv_sec;
+    *nsec = ts.tv_nsec;
+    return;
+  }
+#endif
+  *sec = 0;
+  *nsec = 0;
+}
+#define GETCPUTIME getcputime
+
 /*
  * We want a signal handler for SIGINT.
  */
