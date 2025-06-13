@@ -29,6 +29,7 @@ library base
         Control.Concurrent.MVar
         Control.Concurrent.QSem
         Control.Concurrent.QSemN
+        Control.Concurrent.STM
         Control.DeepSeq
         Control.DeepSeq.Class
         Control.Error
@@ -169,7 +170,13 @@ library base
         Unsafe.Coerce
 
     other-modules:
+        Control.Concurrent.STM.Internal
+        Control.Concurrent.STM.Internal
         Control.Exception.Internal
+        Control.Exception.Internal.Map
+        Control.Exception.Internal.Set
+        Control.Exception.Internal.TVar
+        Control.Exception.Internal.TransactionLog
         Control.Monad.ST_Type
         Data.Bool_Type
         Data.ByteString.Internal

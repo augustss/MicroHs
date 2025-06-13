@@ -70,10 +70,10 @@ instance Monad STM where
     case m of
       Return x -> f x
       Retry  -> Retry
-      NewTVar x cont -> NewTVar x (\i -> (cont i >>= f)) 
-      ReadTVar x cont -> ReadTVar x (\i -> (cont i >>= f))
+      NewTVar x cont -> NewTVar x (cont >=> f)
+      ReadTVar x cont -> ReadTVar x (cont >=> f)
       WriteTVar v x cont -> WriteTVar v x (cont >>= f)
-      OrElse a1 a2 cont -> OrElse a1 a2 (\i -> cont i >>= f)
+      OrElse a1 a2 cont -> OrElse a1 a2 (cont >=> f)
       
 
 -- | 'newTVar' creates a new 'TVar' in the 'STM' monad
