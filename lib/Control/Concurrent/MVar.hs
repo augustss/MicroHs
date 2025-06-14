@@ -22,9 +22,13 @@ module Control.Concurrent.MVar(
 import Primitives
 import Control.Exception
 import Data.Maybe(isNothing)
+import Numeric.Show
 
 instance Eq (MVar a) where
   mv1 == mv2  =  primMVarToWord mv1 == primMVarToWord mv2
+
+instance Show (MVar a) where
+  show mv = "MVar#" ++ showHex (primMVarToWord mv) ""
 
 newEmptyMVar :: IO (MVar a)
 newEmptyMVar = primNewEmptyMVar
