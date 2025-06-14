@@ -2193,11 +2193,11 @@ mark(NODEPTR *np)
 
    case T_THID:
      mark_thread(THR(n));
-     break;
+     goto fin;
 
    case T_MVAR:
      mark_mvar(MVAR(n));
-     break;
+     goto fin;
 
    default:
      goto fin;
