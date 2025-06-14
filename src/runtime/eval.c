@@ -1367,11 +1367,20 @@ pause_exec(void)
     }
   } else {
 #if THREAD_DEBUG
-    dump_q("runq", runq);
-    dump_q("timeq", timeq);
-    for(struct mvar *mv = all_mvars; mv; mv = mv->mv_next) {
-      printf("mvar %p, data=%p\n", mv, mv->mv_data);
-      dump_q("takeput", mv->mv_takeput);
+    if (0) {
+      dump_q("runq", runq);
+      dump_q("timeq", timeq);
+      if (0) {
+        for(struct mvar *mv = all_mvars; mv; mv = mv->mv_next) {
+          printf("mvar %p, data=%p\n", mv, mv->mv_data);
+          dump_q("takeput", mv->mv_takeput);
+        }
+      }
+      for(struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
+        if (mt->mt_exn->mv_data != NIL) {
+          printf("### bad thread ThreadId#%d mask=%d state=%d\n", (int)mt->mt_id, mt->mt_mask, mt->mt_state);
+        }
+      }
     }
 #endif               /* THREAD_DEBUG */
     ERR("deadlock");            /* XXX throw async to main thread */
