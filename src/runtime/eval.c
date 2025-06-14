@@ -4711,7 +4711,21 @@ evali(NODEPTR an)
     CHKARG1;
     /* Conjure up a new world and evaluate the io with that world, finally selecting the result */
     /* PERFORMIO io  -->  io World K */
+#if 0
     GOAP2(x, combWorld, combK);
+#else
+    {
+      /* Don't count performio reductions. */
+      /* Useful when Debug.Trace.trace should have zero cost */
+      NODEPTR p1 = new_ap(x, combWorld);
+      NODEPTR p2 = new_ap(p1, combK);
+      counter_t s = glob_slice;
+      glob_slice = 1000000000;
+      NODEPTR p3 = evali(p2);
+      glob_slice = s;
+      GOIND(p3);
+    }
+#endif
 
   case T_IO_BIND:
     goto t_c;
