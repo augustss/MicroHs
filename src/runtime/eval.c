@@ -946,7 +946,7 @@ resched(struct mthread *mt, enum th_state ts)
 void
 dump_q(const char *s, struct mqueue q)
 {
-  printf("%s=[", s);
+  printf("   %s=[", s);
   for(struct mthread *mt = q.mq_head; mt; mt = mt->mt_queue) {
     printf("%d ", (int)mt->mt_id);
   }
@@ -1045,8 +1045,6 @@ yield(void)
 {
   if (in_raise)                 /* don't context switch when we are dying */
     return;
-  //printf("yield stk=%d\n", (int)stack_ptr);
-  //pp(stdout, runq.mt_root);
   COUNT(num_yield);
   runq.mq_head->mt_num_slices++;
   // XXX should check mt_thrown here
@@ -1428,7 +1426,11 @@ thread_intr(struct mthread *mt)
     break;
   case ts_finished:
   case ts_died:
-    (void)take_mvar(0, mt->mt_exn); /* ignore exception */
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("thread_intr: finished/died\n");
+    }
+#endif  /* THREAD_DEBUG */
     break;
   default:
     ERR("thread_intr");
