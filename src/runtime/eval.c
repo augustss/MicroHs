@@ -998,12 +998,14 @@ throwto(struct mthread *mt, NODEPTR exn)
 }
 
 void
-check_thrown(void)
+check_thrown(int intr)
 {
   if (runq.mq_head->mt_exn->mv_data == NIL)
     return;            /* no thrown exception */
-  if (runq.mq_head->mt_mask != mask_unmasked)
+  if (runq.mq_head->mt_mask == mask_uninterruptible ||
+      (!intr && runq.mq_head->mt_mask == mask_interruptible)) {
     return;            /* interrupts are masked, so don't throw */
+  }
   /* the current thread has an async exception */
 #if THREAD_DEBUG
   if (thread_trace)
@@ -1051,7 +1053,7 @@ yield(void)
   
   if (timeq.mq_head)
     check_timeq();
-  check_thrown();
+  check_thrown(0);
   check_sigint();
   // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
@@ -4939,6 +4941,7 @@ evali(NODEPTR an)
   case T_IO_THROWTO:
     {
       CHKARG3NP;                /* x=this, y=exn, z=ST */
+      check_thrown(1);           /* check if we have a thrown exception */
       struct mthread *mt = evalthid(x);
       throwto(mt, y);
       POP(3);
@@ -4961,7 +4964,7 @@ evali(NODEPTR an)
   case T_IO_TAKEMVAR:
     {
       CHKARG2NP;             /* set x=mvar, y=ST */
-      check_thrown();        /* check if we have a thrown exception */
+      check_thrown(1);        /* check if we have a thrown exception */
       NODEPTR res = take_mvar(0, evalmvar(x));         /* never returns if it blocks */
       GCCHECKSAVE(res, 1);
       POP(2);
@@ -4970,7 +4973,7 @@ evali(NODEPTR an)
   case T_IO_READMVAR:
     {
       CHKARG2NP;
-      check_thrown();           /* check if we have a thrown exception */
+      check_thrown(1);           /* check if we have a thrown exception */
       NODEPTR res = read_mvar(0, evalmvar(x));         /* never returns if it blocks */
       GCCHECKSAVE(res, 1);
       POP(2);
@@ -4979,7 +4982,7 @@ evali(NODEPTR an)
   case T_IO_PUTMVAR:
     {
       CHKARG3NP;             /* set x=mvar, y=value, z=ST */
-      check_thrown();        /* check if we have a thrown exception */
+      check_thrown(1);        /* check if we have a thrown exception */
       (void)put_mvar(0, evalmvar(x), y); /* never returns if it blocks */
       POP(3);
       GOPAIRUNIT;
@@ -5021,7 +5024,7 @@ evali(NODEPTR an)
     {
       CHKARG2NP;
 #if defined(CLOCK_INIT)
-      check_thrown();           /* check if we have a thrown exception */
+      check_thrown(1);           /* check if we have a thrown exception */
       if (runq.mq_head->mt_at == -1) {
         /* delay has already expired, so just return */
         runq.mq_head->mt_at = 0;
