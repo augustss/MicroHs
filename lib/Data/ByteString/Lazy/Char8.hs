@@ -111,6 +111,12 @@ scanr1 = coerce B.scanr1
 replicate :: Int -> Char -> ByteString
 replicate = coerce B.replicate
 
+pack :: String -> ByteString
+pack = coerce B.pack
+
+unpack :: ByteString -> String
+unpack = coerce B.unpack
+
 unfoldr :: (a -> Maybe (Char, a)) -> a -> ByteString
 unfoldr f a = coerce (B.unfoldr (coerce f) a)
 

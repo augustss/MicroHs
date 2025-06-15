@@ -111,6 +111,15 @@ scanr1 = coerce B.scanr1
 replicate :: Int -> Char -> ByteString
 replicate = coerce B.replicate
 
+pack :: String -> ByteString
+pack = unfoldr go
+  where
+    go (x:xs) = Just (x, xs)
+    go [] = Nothing
+
+unpack :: ByteString -> String
+unpack = foldl (\acc c -> c:acc) [] . reverse
+
 unfoldr :: (a -> Maybe (Char, a)) -> a -> ByteString
 unfoldr f a = coerce (B.unfoldr (coerce f) a)
 
