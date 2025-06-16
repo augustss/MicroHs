@@ -4720,7 +4720,7 @@ evali(NODEPTR an)
     CHKARG1;
     /* Conjure up a new world and evaluate the io with that world, finally selecting the result */
     /* PERFORMIO io  -->  io World K */
-#if 0
+#if 1
     GOAP2(x, combWorld, combK);
 #else
     {
