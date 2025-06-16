@@ -5,6 +5,7 @@ module MicroHs.Main(main) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
+import Data.Maybe (fromMaybe)
 import Data.Version
 import Control.Monad
 import Control.Applicative
@@ -20,7 +21,7 @@ import MicroHs.Lex(readInt)
 import MicroHs.List
 import MicroHs.Package
 import MicroHs.Translate
-import MicroHs.TypeCheck(tModuleName)
+import MicroHs.TypeCheck(tExports, tModuleName)
 import MicroHs.Interactive
 import MicroHs.MakeCArray
 import System.Cmd
@@ -269,13 +270,14 @@ mainListPkg' _flags pkgfn = do
 sharedCompile :: Flags -> Ident -> IO ()
 sharedCompile flags mn = do
   _t0 <- getTimeMilli
-  (_cash, (_rmn, allDefs)) <- do
+  (cash, (_rmn, allDefs)) <- do
     cash <- getCached flags
     (rds, _, cash') <- compileCacheTop flags mn cash
     maybeSaveCache flags cash'
     return (cash', rds)
   _t1 <- getTimeMilli
-  let cCode = makeFFI flags allDefs
+  let tmod = fromMaybe (error $ "Can't find the module " <> show mn) $ lookupCache mn cash
+  let cCode = makeFFI flags (tExports tmod) allDefs
   putStrLn cCode
 
 mainCompile :: Flags -> Ident -> IO ()
@@ -317,7 +319,7 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    let cCode = makeCArray flags outData ++ makeFFI flags allDefs
+    let cCode = makeCArray flags outData ++ makeFFI flags [] allDefs
 
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
