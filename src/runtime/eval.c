@@ -302,6 +302,13 @@ iswindows(void)
 #define STACK_SIZE 100000
 #endif
 
+/* tcc doesn't understand noreturn attribute */
+#if defined(__TCC__)
+#define NOTREACHED return 0
+#else
+#define NOTREACHED
+#endif
+
 #if !defined(ERR)
 #if WANT_STDIO
 #define ERR(s)    do { fprintf(stderr,"ERR: "s"\n");   EXIT(1); } while(0)
@@ -560,7 +567,6 @@ NORETURN void
 memerr(void)
 {
   ERR("Out of memory");
-  EXIT(1);
 }
 
 NORETURN
@@ -568,7 +574,6 @@ void
 stackerr(void)
 {
   ERR("stack overflow");
-  EXIT(1);
 }
 
 /***************************************/
@@ -1204,6 +1209,7 @@ take_mvar(int try, struct mvar *mv)
 #endif  /* THREAD_DEBUG */
     /* Unlink from runq */
     resched(mt, ts_wait_mvar);    /* never returns */
+    NOTREACHED;
   }
 }
 
@@ -1232,6 +1238,7 @@ read_mvar(int try, struct mvar *mv)
     struct mthread *mt = remove_q_head(&runq);
     add_q_tail(&mv->mv_read, mt);
     resched(mt, ts_wait_mvar);                /* never returns */
+    NOTREACHED;
   }
 }
 
@@ -3728,6 +3735,7 @@ headutf8(struct bytestring bs, void **ret)
     return ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
   }
   ERR("headUTF8 4");
+  NOTREACHED;
 }
 
 /* Evaluate to an INT */

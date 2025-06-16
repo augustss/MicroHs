@@ -1,5 +1,7 @@
+MHSTARGET=
+MHSOUTPUT=
 MHS=../bin/gmhs
-TMHS=$(MHS) -i../lib
+TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT) -i../lib
 EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache info
 
@@ -121,4 +123,4 @@ nfib:
 	$(TMHS) Nfib && $(EVAL)
 
 clean:
-	rm -f *.out *.tmp *.js *.exe
+	rm -f *.out *.tmp *.js *.exe a.out

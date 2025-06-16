@@ -1087,6 +1087,7 @@ getb_utf8(BFILE *bp)
     return c;
   }
   ERR("getb_utf8");
+  NOTREACHED;
 }
 
 void
