@@ -8,10 +8,10 @@ import MicroHs.Expr
 import MicroHs.Flags
 import MicroHs.Ident
 import MicroHs.Names
-import Debug.Trace
+--import Debug.Trace
 
-makeFFI :: Flags -> [LDef] -> String
-makeFFI _ ds =
+makeFFI :: Flags -> [Ident] -> [LDef] -> String
+makeFFI _ iexps ds =
   let ffiImports = [ (parseImpEnt i f, t) | (i, d) <- ds, Lit (LForImp f (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
@@ -32,19 +32,18 @@ makeFFI _ ds =
        "struct ffi_entry *xffi_table = imp_table;"
       ] ++
       ["static struct ffe_entry exp_table[] = {"] ++
-      map mkExport exps ++
+      map mkExport iexps ++
       ["{ 0,0 }",
        "};",
        "struct ffe_entry *xffe_table = exp_table;",
        "\n// Foreign export wrappers:"
       ] ++ zipWith mkExportWrapper [0..] exps
 
-mkExport :: (Ident, CType) -> String
-mkExport (i, _) = "  { \"" ++ unIdent i ++ "\", 0 }"
+mkExport :: Ident -> String
+mkExport i = "  { \"" ++ unIdent i ++ "\", 0 }"
 
 mkExportWrapper :: Int -> (Ident, CType) -> String
 mkExportWrapper no (n, CType t) = unlines $
-  trace (show t) $
   let (as, ior) = getArrows t
       r = checkIO ior
       outT = cTypeName r
@@ -53,7 +52,7 @@ mkExportWrapper no (n, CType t) = unlines $
   in  [outT ++ " " ++ unIdent n ++ "(" ++ intercalate ", " ins ++ ") {",
        "  ffe_push(xffe_table[" ++ show no ++ "].ffe_value);" ]
       ++ zipWith arg [1::Int ..] as ++
-      ["  int r = " ++ if eqEType r ior then "ffe_eval();" else "ffe_exec();",
+      ["  intptr_t r = " ++ if eqEType r ior then "ffe_eval();" else "ffe_exec();",
        "  return" ++ if isUnit r then ";" else " mhs_to_" ++ cTypeHsName r ++ "(r, 0);",
        "}"]
 
@@ -196,7 +195,7 @@ cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 cTypes :: [(String, String)]
 cTypes =
   -- These are temporary
-  [ ("Primitives.FloatW", "double")
+  [ ("Primitives.FloatW", "flt_t")
   , ("Primitives.Int",    "intptr_t")
   , ("Primitives.Word",   "uintptr_t")
   , ("Data.Word.Word8",   "uint8_t")

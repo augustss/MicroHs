@@ -33,9 +33,11 @@ struct ffi_entry {
 };
 extern struct ffi_entry *xffi_table;
 
+struct node;
+
 struct ffe_entry {
-  const char *ffe_name;
-  void       *ffe_fun;          /* really a NODEPTR */
+  const char  *ffe_name;
+  struct node *ffe_value;
 };
 extern struct ffe_entry *xffe_table;
 
@@ -87,3 +89,9 @@ time_t             mhs_to_CTime(intptr_t, int); /* XXX wrong */
 // ssize_t            mhs_to_CSSize(intptr_t, int);
 intptr_t           mhs_to_CIntPtr(intptr_t, int);
 uintptr_t          mhs_to_CUIntPtr(intptr_t, int);
+
+void     ffe_push(struct node *);
+intptr_t ffe_alloc(void);
+void     ffe_apply(void);
+intptr_t ffe_eval(void);
+intptr_t ffe_exec(void);

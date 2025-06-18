@@ -277,7 +277,7 @@ sharedCompile flags mn = do
     return (cash', rds)
   _t1 <- getTimeMilli
 --  let tmod = fromMaybe (error $ "Can't find the module " <> show mn) $ lookupCache mn cash
-  let cCode = makeFFI flags allDefs
+  let cCode = makeFFI flags [] allDefs
   putStrLn cCode
 
 
@@ -294,7 +294,7 @@ mainCompile flags mn = do
   let
     mainName = qualIdent rmn (mkIdent "main")
     cmdl = (mainName, allDefs)
-    (numOutDefs, outData) = toStringCMdl cmdl
+    (numOutDefs, exps, outData) = toStringCMdl cmdl
     numDefs = length allDefs
   when (verbosityGT flags 0) $
     putStrLn $ "top level defns:      " ++ padLeft 6 (show numOutDefs) ++ " (unpruned " ++ show numDefs ++ ")"
@@ -320,7 +320,7 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    let cCode = makeCArray flags outData ++ makeFFI flags allDefs
+    let cCode = makeCArray flags outData ++ makeFFI flags exps allDefs
 
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
