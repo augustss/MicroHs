@@ -1,5 +1,5 @@
 static unsigned char data[] = {
-122,76,90,49,19,187,0,0,22,118,56,46,48,10,49,49,50,51,10,65,
+122,76,90,49,19,187,0,0,22,118,56,46,49,10,49,49,50,51,10,65,
 32,95,48,32,95,50,51,32,64,95,50,53,160,8,2,55,57,50,96,5,
 26,54,32,64,64,85,32,66,32,80,32,95,56,48,52,32,64,64,66,32,
 83,32,67,39,32,83,39,32,96,10,31,64,95,50,54,32,95,51,50,32,
@@ -2398,7 +2398,11 @@ static unsigned char data[] = {
 unsigned char *combexpr = data;
 int combexprlen = 47899;
 #include "mhsffi.h"
-static struct ffi_entry table[] = {
+static struct ffi_entry imp_table[] = {
 { 0,0 }
 };
-struct ffi_entry *xffi_table = table;
+struct ffi_entry *xffi_table = imp_table;
+static struct ffe_entry exp_table[] = {
+{ 0,0 }
+};
+struct ffe_entry *xffe_table = exp_table;

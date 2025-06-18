@@ -30,7 +30,7 @@ import Data.List
 import Data.Num
 import Data.Ord
 import Data.Tuple
-import System.IO
+import System.IO.Base
 import Text.Show
 
 data Array i a

@@ -631,6 +631,7 @@ eqExpr (EVar i) (EVar i') = i == i'
 eqExpr (ELit _ l) (ELit _ l') = l == l'
 eqExpr (EApp f a) (EApp f' a') = eqExpr f f' && eqExpr a a'
 eqExpr (EUVar r) (EUVar r') = r == r'
+eqExpr (EForall _ iks t) (EForall _ iks' t') = map idKindIdent iks == map idKindIdent iks' && eqExpr t t'
 eqExpr _ _ = False -- XXX good enough for instances
 --eqExpr e1 e2 = error $ "eqExpr: unimplemented " ++ showExpr e1 ++ " == " ++ showExpr e2
 

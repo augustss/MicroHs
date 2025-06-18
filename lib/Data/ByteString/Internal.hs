@@ -4,6 +4,7 @@ import Primitives
 import Control.DeepSeq.Class
 import Control.Error
 import Data.Bool
+import Data.Coerce
 import Data.Enum
 import Data.Eq
 import Data.Function
@@ -81,7 +82,7 @@ instance Show ByteString where
   showsPrec p bs = showsPrec p (toString bs)
 
 instance IsString ByteString where
-  fromString = pack . map (toEnum . fromEnum)
+  fromString = coerce pack
 
 instance Semigroup ByteString where
   (<>) = append
@@ -90,7 +91,7 @@ instance Monoid ByteString where
   mempty = empty
 
 toString :: ByteString -> String
-toString = map (toEnum . fromEnum) . unpack
+toString = coerce unpack
 
 empty :: ByteString
 empty = pack []

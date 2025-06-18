@@ -166,9 +166,9 @@ import Data.Word (Word8)
 import Foreign.C.String (CString, CStringLen)
 import Foreign.C.Types (CChar)
 import Foreign.Ptr (Ptr)
-import System.IO (Handle, IOMode(..), hClose, openFile, stdin, stdout)
-import qualified System.IO as P
-import System.IO.Internal (BFILE, withHandleRd, withHandleWr)
+import System.IO.Base(Handle, IOMode(..), hClose, openFile, stdin, stdout)
+import qualified System.IO.Base as P
+import System.IO.Internal(BFILE, withHandleRd, withHandleWr)
 import Foreign.ForeignPtr
 import Data.ByteString.Internal
 

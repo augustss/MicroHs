@@ -4,10 +4,19 @@ import Data.Coerce
 import Data.List.NonEmpty
 import Data.Word(Word8)
 import Foreign.C.String(CString, CStringLen)
-import System.IO(Handle)
+import System.IO.Base(Handle)
 
 newtype ByteString = BS B.ByteString
   deriving (Eq, Ord)
+
+instance IsString ByteString where
+  fromString = pack
+
+pack :: String -> ByteString
+pack = coerce B.pack
+
+unpack :: ByteString -> String
+unpack = coerce B.unpack
 
 fromFilePath :: FilePath -> IO ByteString
 fromFilePath = coerce B.fromFilePath

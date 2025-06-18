@@ -109,7 +109,7 @@ mkHdr (ImpStatic _ _ Ptr fn, iot) =
             case dropApp identFunPtr r of
               Just t  -> ("(HsFunPtr)", t)
               Nothing -> errorMessage (getSLoc r) "foreign & must be Ptr/FunPtr"
-      body = mkRet r 0 (s ++ "&" ++ fn)
+      body = "return " ++ mkRet r 0 (s ++ "&" ++ fn)
   in  mkMhsFun ("addr_" ++ fn) body
 mkHdr (ImpStatic _ _ Func fn, t) =
   let (as, ior) = getArrows t
@@ -124,7 +124,7 @@ mkHdr (ImpStatic _ _ Func fn, t) =
   in  mkMhsFun fn fcall
 mkHdr (ImpStatic i _ Value val, iot) =
   let r = checkIO iot
-      body = mkRet r 0 val
+      body = "return " ++ mkRet r 0 val
   in  mkMhsFun (unIdent' i) body
 mkHdr _ = undefined
 

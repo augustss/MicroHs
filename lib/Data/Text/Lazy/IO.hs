@@ -2,7 +2,7 @@ module Data.Text.Lazy.IO(readFile, writeFile, hPutStr) where
 import Prelude hiding (readFile, writeFile)
 import qualified Prelude as P
 import Data.Text.Lazy
-import qualified System.IO as IO
+import qualified System.IO.Base as IO
 
 readFile :: FilePath -> IO Text
 readFile fn = pack <$> P.readFile fn

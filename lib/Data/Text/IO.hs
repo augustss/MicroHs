@@ -23,8 +23,8 @@ import Control.Exception (evaluate)
 import qualified Data.ByteString as BS
 import Data.Text
 import Data.Text.Encoding
-import System.IO (Handle, IOMode(..), hClose, openFile, stdin, stdout)
-import qualified System.IO as IO
+import System.IO.Base(Handle, IOMode(..), hClose, openFile, stdin, stdout)
+import qualified System.IO.Base as IO
 
 readFile :: FilePath -> IO Text
 readFile f = do

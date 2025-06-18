@@ -7,7 +7,7 @@
 #
 # installation prefix
 PREFIX=/usr/local
-# Unix-like system, 64 bit words
+# Unix-like system, 32/64 bit words
 CONF=unix-64
 #
 # Using GCC enables global register variables on ARM64, which gives a 5-10% speedup.
@@ -62,7 +62,7 @@ targets.conf:
 	echo ''                                >> targets.conf
 	echo "[tcc]"                           >> targets.conf
 	echo cc = \"tcc\"                      >> targets.conf
-	echo ccflags = \"\"                    >> targets.conf
+	echo ccflags = \"-D__TCC__=1\"         >> targets.conf
 	echo cclibs = \"-lm\"                  >> targets.conf
 	echo conf = \"$(CONF)\"                >> targets.conf
 
@@ -187,7 +187,11 @@ runtestgsan: bin/mhsevalsane bin/gmhs
 
 # Run test examples going via JavaScript
 runtestemscripten: bin/mhseval bin/mhs bin/cpphs
-	cd tests; make MHS=../bin/mhs cache; MHSDIR=.. make MHS="../bin/mhs -CR -temscripten -oout.js" EVAL="node out.js" info test errtest
+	cd tests; make MHS=../bin/mhs cache; MHSDIR=.. make MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="node out.js" info test errtest
+
+# Run test examples going with tcc
+runtesttcc: bin/mhseval bin/mhs bin/cpphs
+	cd tests; MHSDIR=.. make MHSTARGET="-ttcc" MHSOUTPUT="-oa.out" EVAL="./a.out" info test errtest
 
 
 # Compress the binary (broken on MacOS)

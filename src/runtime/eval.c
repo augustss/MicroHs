@@ -302,6 +302,13 @@ iswindows(void)
 #define STACK_SIZE 100000
 #endif
 
+/* tcc doesn't understand noreturn attribute */
+#if defined(__TCC__)
+#define NOTREACHED return 0
+#else
+#define NOTREACHED
+#endif
+
 #if !defined(ERR)
 #if WANT_STDIO
 #define ERR(s)    do { fprintf(stderr,"ERR: "s"\n");   EXIT(1); } while(0)
@@ -560,7 +567,6 @@ NORETURN void
 memerr(void)
 {
   ERR("Out of memory");
-  EXIT(1);
 }
 
 NORETURN
@@ -568,7 +574,6 @@ void
 stackerr(void)
 {
   ERR("stack overflow");
-  EXIT(1);
 }
 
 /***************************************/
@@ -941,7 +946,7 @@ resched(struct mthread *mt, enum th_state ts)
 void
 dump_q(const char *s, struct mqueue q)
 {
-  printf("%s=[", s);
+  printf("   %s=[", s);
   for(struct mthread *mt = q.mq_head; mt; mt = mt->mt_queue) {
     printf("%d ", (int)mt->mt_id);
   }
@@ -964,6 +969,12 @@ check_timeq(void)
       printf("check_timeq: %d done\n", (int)mt->mt_id);
 #endif  /* THREAD_DEBUG */
   }
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("check_timeq: exit\n");
+    dump_q("runq", runq);
+  }
+#endif  /* THREAD_DEBUG */
 #endif
 }
 
@@ -987,12 +998,14 @@ throwto(struct mthread *mt, NODEPTR exn)
 }
 
 void
-check_thrown(void)
+check_thrown(int intr)
 {
   if (runq.mq_head->mt_exn->mv_data == NIL)
     return;            /* no thrown exception */
-  if (runq.mq_head->mt_mask != mask_unmasked)
+  if (runq.mq_head->mt_mask == mask_uninterruptible ||
+      (!intr && runq.mq_head->mt_mask == mask_interruptible)) {
     return;            /* interrupts are masked, so don't throw */
+  }
   /* the current thread has an async exception */
 #if THREAD_DEBUG
   if (thread_trace)
@@ -1032,15 +1045,13 @@ yield(void)
 {
   if (in_raise)                 /* don't context switch when we are dying */
     return;
-  //printf("yield stk=%d\n", (int)stack_ptr);
-  //pp(stdout, runq.mt_root);
   COUNT(num_yield);
   runq.mq_head->mt_num_slices++;
   // XXX should check mt_thrown here
   
   if (timeq.mq_head)
     check_timeq();
-  check_thrown();
+  check_thrown(0);
   check_sigint();
   // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
@@ -1135,7 +1146,7 @@ take_mvar(int try, struct mvar *mv)
 {
 #if THREAD_DEBUG
   if (thread_trace) {
-    printf("take_mvar: mvar=%p\n", mv);
+    printf("take_mvar: start mvar=%p\n", mv);
     dump_q("takeput", mv->mv_takeput);
   }
 #endif  /* THREAD_DEBUG */
@@ -1143,9 +1154,9 @@ take_mvar(int try, struct mvar *mv)
   if ((n = runq.mq_head->mt_mval) != NIL) {
 #if THREAD_DEBUG
     if (thread_trace)
-      printf("take_mvar: mvar=%p got data %d\n", mv, (int)runq.mq_head->mt_id);
+      printf("take_mvar: end mvar=%p got data %d\n", mv, (int)runq.mq_head->mt_id);
 #endif  /* THREAD_DEBUG */
-    /* We have after waking up */
+    /* We have no data after waking up */
     runq.mq_head->mt_mval = NIL;
     return n;                   /* returned the stashed data */
   }
@@ -1157,24 +1168,25 @@ take_mvar(int try, struct mvar *mv)
     /* mvar is full */
     mv->mv_data = NIL;           /* now empty */
     /* move all threads waiting to put to the runq */
-    for (struct mthread *mt = mv->mv_takeput.mq_head; mt; ) {
+    for(;;) {
+      struct mthread *mt = remove_q_head(&mv->mv_takeput);
+      if (!mt)
+        break;
 #if THREAD_DEBUG
       if (thread_trace) {
         printf("take_mvar: mvar=%p wake %d\n", mv, (int)mt->mt_id);
       }
 #endif  /* THREAD_DEBUG */
-      struct mthread *nt = mt->mt_queue;
       add_runq_tail(mt);
 #if THREAD_DEBUG
       if (thread_trace) {
         dump_q("runq", runq);
       }
 #endif  /* THREAD_DEBUG */
-      mt = nt;
     }
 #if THREAD_DEBUG
     if (thread_trace) {
-      printf("take_mvar: mvar=%p return %p\n", mv, n);
+      printf("take_mvar: end mvar=%p return %p\n", mv, n);
     }
 #endif  /* THREAD_DEBUG */
     return n;                   /* return the data */
@@ -1190,13 +1202,14 @@ take_mvar(int try, struct mvar *mv)
     add_q_tail(&mv->mv_takeput, mt);
 #if THREAD_DEBUG
     if (thread_trace) {
-      printf("take_mvar: mvar=%p suspend %d\n", mv, (int)mt->mt_id);
+      printf("take_mvar: end mvar=%p suspend %d\n", mv, (int)mt->mt_id);
       dump_q("runq", runq);
       dump_q("takeput", mv->mv_takeput);
     }
 #endif  /* THREAD_DEBUG */
     /* Unlink from runq */
     resched(mt, ts_wait_mvar);    /* never returns */
+    NOTREACHED;
   }
 }
 
@@ -1205,7 +1218,7 @@ read_mvar(int try, struct mvar *mv)
 {
   NODEPTR n;
   if ((n = runq.mq_head->mt_mval) != NIL) {
-    /* We have after waking up */
+    /* We have no data after waking up */
     runq.mq_head->mt_mval = NIL;
     return n;                   /* returned the stashed data */
   }
@@ -1225,6 +1238,7 @@ read_mvar(int try, struct mvar *mv)
     struct mthread *mt = remove_q_head(&runq);
     add_q_tail(&mv->mv_read, mt);
     resched(mt, ts_wait_mvar);                /* never returns */
+    NOTREACHED;
   }
 }
 
@@ -1265,9 +1279,8 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
     if (mv->mv_takeput.mq_head || mv->mv_read.mq_head) {
       /* one or more threads are waiting */
       struct mthread *mt;
-      if (mv->mv_takeput.mq_head) {
+      if ((mt = remove_q_head(&mv->mv_takeput))) {
         /* wake up one 'take' */
-        mt = remove_q_head(&mv->mv_takeput);
 #if THREAD_DEBUG
         if (thread_trace)
           printf("put_mvar: wake-1 %d\n", (int)mt->mt_id);
@@ -1275,18 +1288,22 @@ put_mvar(int try, struct mvar *mv, NODEPTR v)
         add_runq_tail(mt);             /* and schedule for execution later */
         mt->mt_mval = v;
       }
-      for (mt = mv->mv_read.mq_head; mt; ) { /* XXX use q primitives */
+      for(;;) {
+        mt = remove_q_head(&mv->mv_takeput);
+        if (!mt)
+          break;
 #if THREAD_DEBUG
         if (thread_trace)
           printf("put_mvar: wake-N %d\n", (int)mt->mt_id);
 #endif  /* THREAD_DEBUG */
         mt->mt_mval = v;               /* value for restarted read */
-        mt = mt->mt_queue;             /* next waiter */
         add_runq_tail(mt);             /* and schedule for execution later */
       }
 #if THREAD_DEBUG
-      if (thread_trace)
+      if (thread_trace) {
+        printf("put_mvar: end\n");
         dump_q("runq", runq);
+      }
 #endif  /* THREAD_DEBUG */
       /* return to caller */
     } else {
@@ -1349,6 +1366,23 @@ pause_exec(void)
       check_timeq();
     }
   } else {
+#if THREAD_DEBUG
+    if (0) {
+      dump_q("runq", runq);
+      dump_q("timeq", timeq);
+      if (0) {
+        for(struct mvar *mv = all_mvars; mv; mv = mv->mv_next) {
+          printf("mvar %p, data=%p\n", mv, mv->mv_data);
+          dump_q("takeput", mv->mv_takeput);
+        }
+      }
+      for(struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
+        if (mt->mt_exn->mv_data != NIL) {
+          printf("### bad thread ThreadId#%d mask=%d state=%d\n", (int)mt->mt_id, mt->mt_mask, mt->mt_state);
+        }
+      }
+    }
+#endif               /* THREAD_DEBUG */
     ERR("deadlock");            /* XXX throw async to main thread */
   }
 #else  /* CLOCK_INIT */
@@ -1401,7 +1435,11 @@ thread_intr(struct mthread *mt)
     break;
   case ts_finished:
   case ts_died:
-    (void)take_mvar(0, mt->mt_exn); /* ignore exception */
+#if THREAD_DEBUG
+    if (thread_trace) {
+      printf("thread_intr: finished/died\n");
+    }
+#endif  /* THREAD_DEBUG */
     break;
   default:
     ERR("thread_intr");
@@ -2166,11 +2204,11 @@ mark(NODEPTR *np)
 
    case T_THID:
      mark_thread(THR(n));
-     break;
+     goto fin;
 
    case T_MVAR:
      mark_mvar(MVAR(n));
-     break;
+     goto fin;
 
    default:
      goto fin;
@@ -2206,6 +2244,7 @@ void
 gc(void)
 {
   stackptr_t i;
+  /*printf("****** GC ********\n");*/
 
   num_gc++;
   num_marked = 0;
@@ -3709,6 +3748,7 @@ headutf8(struct bytestring bs, void **ret)
     return ((c1 & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
   }
   ERR("headUTF8 4");
+  NOTREACHED;
 }
 
 /* Evaluate to an INT */
@@ -4680,7 +4720,21 @@ evali(NODEPTR an)
     CHKARG1;
     /* Conjure up a new world and evaluate the io with that world, finally selecting the result */
     /* PERFORMIO io  -->  io World K */
+#if 1
     GOAP2(x, combWorld, combK);
+#else
+    {
+      /* Don't count performio reductions. */
+      /* Useful when Debug.Trace.trace should have zero cost */
+      NODEPTR p1 = new_ap(x, combWorld);
+      NODEPTR p2 = new_ap(p1, combK);
+      counter_t s = glob_slice;
+      glob_slice = 1000000000;
+      NODEPTR p3 = evali(p2);
+      glob_slice = s;
+      GOIND(p3);
+    }
+#endif
 
   case T_IO_BIND:
     goto t_c;
@@ -4912,6 +4966,7 @@ evali(NODEPTR an)
   case T_IO_THROWTO:
     {
       CHKARG3NP;                /* x=this, y=exn, z=ST */
+      check_thrown(1);           /* check if we have a thrown exception */
       struct mthread *mt = evalthid(x);
       throwto(mt, y);
       POP(3);
@@ -4934,7 +4989,7 @@ evali(NODEPTR an)
   case T_IO_TAKEMVAR:
     {
       CHKARG2NP;             /* set x=mvar, y=ST */
-      check_thrown();        /* check if we have a thrown exception */
+      check_thrown(1);        /* check if we have a thrown exception */
       NODEPTR res = take_mvar(0, evalmvar(x));         /* never returns if it blocks */
       GCCHECKSAVE(res, 1);
       POP(2);
@@ -4943,7 +4998,7 @@ evali(NODEPTR an)
   case T_IO_READMVAR:
     {
       CHKARG2NP;
-      check_thrown();           /* check if we have a thrown exception */
+      check_thrown(1);           /* check if we have a thrown exception */
       NODEPTR res = read_mvar(0, evalmvar(x));         /* never returns if it blocks */
       GCCHECKSAVE(res, 1);
       POP(2);
@@ -4952,7 +5007,7 @@ evali(NODEPTR an)
   case T_IO_PUTMVAR:
     {
       CHKARG3NP;             /* set x=mvar, y=value, z=ST */
-      check_thrown();        /* check if we have a thrown exception */
+      check_thrown(1);        /* check if we have a thrown exception */
       (void)put_mvar(0, evalmvar(x), y); /* never returns if it blocks */
       POP(3);
       GOPAIRUNIT;
@@ -4994,7 +5049,7 @@ evali(NODEPTR an)
     {
       CHKARG2NP;
 #if defined(CLOCK_INIT)
-      check_thrown();           /* check if we have a thrown exception */
+      check_thrown(1);           /* check if we have a thrown exception */
       if (runq.mq_head->mt_at == -1) {
         /* delay has already expired, so just return */
         runq.mq_head->mt_at = 0;
