@@ -319,7 +319,7 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    let cCode = makeCArray flags outData ++ makeFFI flags [] allDefs
+    let cCode = makeCArray flags outData ++ makeFFI flags allDefs
 
     -- Decode what to do:
     --  * file ends in .comb: write combinator file

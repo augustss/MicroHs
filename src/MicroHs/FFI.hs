@@ -8,9 +8,11 @@ import MicroHs.Expr
 import MicroHs.Flags
 import MicroHs.Ident
 import MicroHs.Names
+import Debug.Trace
 
 makeFFI :: Flags -> [EType] -> [LDef] -> String
-makeFFI _ es ds =
+makeFFI _ ts _ | trace ("makeFFI " ++ show ts) False = undefined
+makeFFI _ ts ds =
   let ffiImports = [ (parseImpEnt i f, t) | (i, d) <- ds, Lit (LForImp f (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
@@ -36,7 +38,7 @@ makeFFI _ es ds =
        "};",
        "struct ffe_entry *xffe_table = exp_table;",
        "\n// Foreign export wrappers:"
-      ] ++ map mkExportWrapper (zip es exps)
+      ] ++ map mkExportWrapper (zip ts exps)
 
 mkExport :: LDef -> String
 mkExport (_, e) = "  { \"" ++ exportDeclName e ++ "\", 0 }"
