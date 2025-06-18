@@ -36,7 +36,7 @@ makeFFI _ es ds =
        "};",
        "struct ffe_entry *xffe_table = exp_table;",
        "\n// Foreign export wrappers:"
-      ] ++ map mkExportWrapper (zip es exps)
+      ] ++ map mkExportWrapper (zip3 [0..] es exps)
 
 mkExport :: LDef -> String
 mkExport (_, e) = "  { \"" ++ exportDeclName e ++ "\", 0 }"
@@ -45,19 +45,41 @@ mkExport (_, e) = "  { \"" ++ exportDeclName e ++ "\", 0 }"
 exportDeclName :: Exp -> String
 exportDeclName e = drop (length "ForExp.") (show e)
 
-mkExportWrapper :: (EType, LDef) -> String
-mkExportWrapper (t, (i, e)) = unlines $
-  [outT ++ " " ++ name ++ "(" ++ inputs ++ ") { // " ++ show t] ++
+exportDeclHeader :: Ident -> EType -> String
+exportDeclHeader i t = output ++ " " ++ name ++ "(" ++ inputs ++ ")"
+  where
+    (inputsE, outputE) = getArrowsOper t
+    output = cfTypeName (checkIO outputE)
+    inputs = intercalate ", " (zipWith mkParam inputsE [0..])
+    name = drop (length "$exp$") (unIdent i)
+
+-- TODO: we should be using getArrows, but the expr we have for foreign export is an EOper.
+getArrowsOper :: EType -> ([EType], EType)
+getArrowsOper (EOper x xs) = (init args, last args)
+  where
+    args = x : [e | (ap, e) <- xs, isIdent "->" ap]
+getArrowsOper x = ([], x)
+
+mkExportWrapper :: (Int, EType, LDef) -> String
+mkExportWrapper (k, t, (i, e)) = unlines $
+  [exportDeclHeader i t ++ " { // " ++ show t] ++
   map (mappend "  ") body ++
   ["}"]
   where
-    name = drop (length "$exp$") (unIdent i)
-    outT = "int"
-    inputs = "int i"
-    body = [
-      "push(i);",
-      "fcall(\"" ++ exportDeclName e ++ "\");",
-      "return pop();"
+    (inputsE, outputE) = getArrowsOper t
+    output = cTypeName' (checkIO outputE)
+    args = zipWith mkArgNode inputsE [0..]
+    inputCount = length inputsE
+    aps = take inputCount $ map (mkApNode k) [0..]
+    (finalCount, performio) = case dropApp identIO outputE of
+      Nothing -> (inputCount, [])
+      Just _ -> (inputCount + 1, ["NODEPTR " ++ last_ap ++ " = new_app(alloc_node(T_PERFORMIO), p2);"])
+    last_ap = "p" ++ show (inputCount - 1)
+    body = args ++ aps ++ performio ++
+      ["push(" ++ last_ap ++ ");",
+       "NODEPTR res = evali(" ++ last_ap ++ ");",
+       "pop(1); /* maybe, I'm not sure */",
+       "return mhs_to_" ++ output ++ "(res);"
       ]
 
 uniqName :: [(ImpEnt, EType)] -> [(ImpEnt, EType)]
@@ -123,6 +145,16 @@ mkRet t n call = "mhs_from_" ++ cTypeName t ++ "(s, " ++ show n ++ ", " ++ call 
 mkArg :: EType -> Int -> String
 mkArg t i = "mhs_to_" ++ cTypeName t ++ "(s, " ++ show i ++ ")"
 
+mkParam :: EType -> Int -> String
+mkParam t i = cfTypeName t ++ " a" ++ show i
+
+mkArgNode :: EType -> Int -> String
+mkArgNode t i = "NODEPTR arg" ++ show i ++ " = mfs_from_" ++ cTypeName' t ++ "(s, 1, a" ++ show i ++ ");"
+
+mkApNode :: Int -> Int -> String
+mkApNode k 0 = "NODEPTR p0 = new_app(xffe_table[" ++ show k ++ "], arg0);"
+mkApNode _ i = "NODEPTR p" ++ show i ++ " = new_app(p" ++ show (i - 1) ++ ", arg" ++ show i ++ ");"
+
 mkHdr :: (ImpEnt, EType) -> String
 mkHdr (ImpStatic _ _ Ptr fn, iot) =
   let r = checkIO iot
@@ -157,6 +189,24 @@ arity = length . fst . getArrows
 
 unIdent' :: Ident -> String
 unIdent' = unIdent . unQualIdent
+
+cfTypeName :: EType -> String
+cfTypeName (EVar i) | Just c <- lookup (unIdent i) cfTypes = c
+cfTypeName (ETuple []) = "void"
+cfTypeName t = errorMessage (getSLoc t) $ "Not a valid foreign C type: " ++ showEType t
+
+-- TODO: the foreign expr type are not fully qualified, e.g. Int is not Primitives.Int
+cfTypes :: [(String, String)]
+cfTypes =
+  [ ("Int", "int")
+  , ("Bool", "bool")
+  ]
+
+-- TODO: use cTypeName once foreign expr type are fully qualified
+cTypeName' :: EType -> String
+cTypeName' (EVar i) = unIdent i
+cTypeName' (ETuple []) = "Unit"
+cTypeName' _ = error "TODO!"
 
 cTypeName :: EType -> String
 cTypeName (EApp (EVar ptr) _t) | ptr == identPtr = "Ptr"
