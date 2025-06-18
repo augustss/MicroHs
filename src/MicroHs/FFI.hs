@@ -23,12 +23,18 @@ makeFFI _ ds =
     unlines $
       map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
       map mkHdr imps ++
-      ["static struct ffi_entry table[] = {"] ++
+      ["static struct ffi_entry imp_table[] = {"] ++
       map mkEntry imps ++
       ["{ 0,0 }",
        "};",
-       "struct ffi_entry *xffi_table = table;"
-      ]
+       "struct ffi_entry *xffi_table = imp_table;"
+      ] ++
+      ["static struct ffe_entry exp_table[] = {"] ++
+      -- something that generated exported function entries
+      ["{ 0,0 }",
+       "};",
+       "struct ffe_entry *xffe_table = exp_table;"
+      ]      
 
 uniqName :: [(ImpEnt, EType)] -> [(ImpEnt, EType)]
 uniqName = map head . groupBy ((==) `on` impName) . sortBy (compare `on` impName)

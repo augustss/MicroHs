@@ -26,7 +26,7 @@ translateAndRun defs = do
 translate :: (Ident, [LDef]) -> AnyType
 translate (mainName, ds) =
   let
-    look n = fromMaybe (error $ "translate: not found " ++ showIdent n) $ M.lookup n mp
+    look n = fromMaybe (errorMessage (getSLoc n) $ "translate: not found " ++ showIdent n) $ M.lookup n mp
     mp = M.fromList [(n, trans look d) | (n, d) <- ds ]
   in look mainName
 
@@ -188,5 +188,8 @@ primTable = [
   ("IO.tryreadmvar", _primitive "IO.tryreadmvar"),
   ("IO.threaddelay", _primitive "IO.threaddelay"),
   ("IO.threadstatus", _primitive "IO.threadstatus"),
-  ("isint", _primitive "isint")
+  ("isint", _primitive "isint"),
+  ("SPnew", _primitive "SPnew"),
+  ("SPderef", _primitive "SPderef"),
+  ("SPfree", _primitive "SPfree")
   ]

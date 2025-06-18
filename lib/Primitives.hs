@@ -344,3 +344,10 @@ primSetMaskingState = _primitive "IO.setmaskingstate"
 
 primStats :: IO (Word, Word)
 primStats = _primitive "IO.stats"
+
+primNewStablePtr :: a -> IO Word
+primNewStablePtr = _primitive "SPnew"
+primDeRefStablePtr :: Word -> IO a
+primDeRefStablePtr = _primitive "SPderef"
+primFreeStablePtr :: Word -> IO ()
+primFreeStablePtr = _primitive "SPfree"

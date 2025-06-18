@@ -112,6 +112,7 @@ import Foreign.Marshal.Array
 import Foreign.Marshal.Error
 import Foreign.Marshal.Utils
 import Foreign.Ptr
+import Foreign.StablePtr
 import Foreign.Storable
 import GHC.Stack
 import GHC.Types

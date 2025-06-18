@@ -1,6 +1,6 @@
 cabal-version:  3.0
 name:           libs
-version:        0.13.2.0
+version:        0.13.3.0
 license:        Apache-2.0
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net
@@ -130,6 +130,7 @@ library base
         Foreign.Marshal.Error
         Foreign.Marshal.Utils
         Foreign.Ptr
+        Foreign.StablePtr
         Foreign.Storable
         GHC.Generics
         GHC.Stack
