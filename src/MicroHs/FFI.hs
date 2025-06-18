@@ -9,8 +9,8 @@ import MicroHs.Flags
 import MicroHs.Ident
 import MicroHs.Names
 
-makeFFI :: Flags -> [EType] -> [LDef] -> String
-makeFFI _ es ds =
+makeFFI :: Flags -> [LDef] -> String
+makeFFI _ ds =
   let ffiImports = [ (parseImpEnt i f, t) | (i, d) <- ds, Lit (LForImp f (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
@@ -18,7 +18,6 @@ makeFFI _ es ds =
       dynamics = [ t | (ImpDynamic, t) <- ffiImports]
       imps     = uniqName $ filter ((`notElem` runtimeFFI) . impName) ffiImports
       includes = "mhsffi.h" : nub [ inc | (ImpStatic _ (Just inc) _ _, _) <- imps ]
-      exps     = filter (\(i, _) -> "$exp$" `isPrefixOf` unIdent i) ds
   in
     if not (null wrappers) || not (null dynamics) then error "Unimplemented FFI feature" else
     unlines $
@@ -31,34 +30,11 @@ makeFFI _ es ds =
        "struct ffi_entry *xffi_table = imp_table;"
       ] ++
       ["static struct ffe_entry exp_table[] = {"] ++
-      map mkExport exps ++
+      -- something that generated exported function entries
       ["{ 0,0 }",
        "};",
-       "struct ffe_entry *xffe_table = exp_table;",
-       "\n// Foreign export wrappers:"
-      ] ++ map mkExportWrapper (zip es exps)
-
-mkExport :: LDef -> String
-mkExport (_, e) = "  { \"" ++ exportDeclName e ++ "\", 0 }"
-
--- | Get the foreign export declaration name, when showed it is: 'ForExp.ofuncName'
-exportDeclName :: Exp -> String
-exportDeclName e = drop (length "ForExp.") (show e)
-
-mkExportWrapper :: (EType, LDef) -> String
-mkExportWrapper (t, (i, e)) = unlines $
-  [outT ++ " " ++ name ++ "(" ++ inputs ++ ") { // " ++ show t] ++
-  map (mappend "  ") body ++
-  ["}"]
-  where
-    name = drop (length "$exp$") (unIdent i)
-    outT = "int"
-    inputs = "int i"
-    body = [
-      "push(i);",
-      "fcall(\"" ++ exportDeclName e ++ "\");",
-      "return pop();"
-      ]
+       "struct ffe_entry *xffe_table = exp_table;"
+      ]      
 
 uniqName :: [(ImpEnt, EType)] -> [(ImpEnt, EType)]
 uniqName = map head . groupBy ((==) `on` impName) . sortBy (compare `on` impName)
