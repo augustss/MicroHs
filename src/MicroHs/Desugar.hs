@@ -58,6 +58,7 @@ dsDef flags mn adef =
             isIO x | Just (_, r) <- getArrow x = isIO r
             isIO (EApp (EVar io) _) = io == mkIdent "Primitives.IO"
             isIO _ = False
+    ForExp (Just s) e _ ->  [(mkIdent ("$exp$" ++ s), dsExpr e)]
     Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"
           meths :: [Ident]

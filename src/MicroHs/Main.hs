@@ -5,6 +5,7 @@ module MicroHs.Main(main) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
+import Data.Maybe (fromMaybe)
 import Data.Version
 import Control.Monad
 import Control.Applicative
@@ -20,7 +21,7 @@ import MicroHs.Lex(readInt)
 import MicroHs.List
 import MicroHs.Package
 import MicroHs.Translate
-import MicroHs.TypeCheck(tModuleName)
+import MicroHs.TypeCheck(tExports, tModuleName)
 import MicroHs.Interactive
 import MicroHs.MakeCArray
 import System.Cmd
@@ -59,14 +60,16 @@ main = do
             Nothing ->
               if installPkg flags then mainInstallPackage flags mdls else
               withArgs rargs $ do
+                let iarg = mkIdentSLoc (SLoc "command-line" 0 0)
                 case mdls of
                   []  | null (cArgs flags) -> mainInteractive flags
                       | otherwise -> mainCompileC flags [] ""
-                  [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+                  [s] | shared flags -> sharedCompile flags (iarg s)
+                      | otherwise -> mainCompile flags (iarg s)
                   _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [--shared] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -117,6 +120,8 @@ decodeArgs f mdls (arg:args) =
     "-v"        -> decodeArgs f{verbose = verbose f + 1} mdls args
     "-q"        -> decodeArgs f{verbose = -1} mdls args
     "-r"        -> decodeArgs f{runIt = True} mdls args
+    "-shared"   -> decodeArgs f{shared = True} mdls args -- for GHC compat
+    "--shared"  -> decodeArgs f{shared = True} mdls args
     "-l"        -> decodeArgs f{loading = True} mdls args
     "-s"        -> decodeArgs f{speed = True} mdls args
     "-CR"       -> decodeArgs f{readCache = True} mdls args
@@ -262,6 +267,19 @@ mainListPkg' _flags pkgfn = do
   putStrLn "other-modules:"
   list (pkgOther pkg)
 
+sharedCompile :: Flags -> Ident -> IO ()
+sharedCompile flags mn = do
+  _t0 <- getTimeMilli
+  (cash, (_rmn, allDefs)) <- do
+    cash <- getCached flags
+    (rds, _, cash') <- compileCacheTop flags mn cash
+    maybeSaveCache flags cash'
+    return (cash', rds)
+  _t1 <- getTimeMilli
+  let tmod = fromMaybe (error $ "Can't find the module " <> show mn) $ lookupCache mn cash
+  let cCode = makeFFI flags (tExports tmod) allDefs
+  putStrLn cCode
+
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
   t0 <- getTimeMilli
@@ -301,7 +319,7 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    let cCode = makeCArray flags outData ++ makeFFI flags allDefs
+    let cCode = makeCArray flags outData ++ makeFFI flags [] allDefs
 
     -- Decode what to do:
     --  * file ends in .comb: write combinator file

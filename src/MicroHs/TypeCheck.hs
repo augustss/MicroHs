@@ -77,15 +77,16 @@ data TModule a = TModule {
   tTypeExps   :: [TypeExport],    -- exported types
   tValueExps  :: [ValueExport],   -- exported values (including from T(..))
   tDefaults   :: Defaults,        -- exported defaults
+  tExports    :: [EType],         -- exported declaration types to generate FFI wrapper
   tBindingsOf :: a                -- bindings
   }
 --  deriving (Show)
 
 instance NFData a => NFData (TModule a) where
-  rnf (TModule a b c d e f) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f
+  rnf (TModule a b c d e f g) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f `seq` rnf g
 
 setBindings :: TModule b -> a -> TModule a
-setBindings (TModule x y z w v _) a = TModule x y z w v a
+setBindings (TModule x y z w v u _) a = TModule x y z w v u a
 
 type FixDef = (Ident, Fixity)
 
@@ -110,21 +111,22 @@ typeCheck flags globs impt aimps (EModule mn exps defs) =
            sexps = synTable tcs
            dexps = dataTable tcs
            iexps = instTable tcs
+           forexps = [ft | ForExp _ _ ft <- defs]
            ctbl  = classTable tcs
            dflts = M.fromList $ filter ((`elem` ds) . fst) $ M.toList $ defaults tcs
                  where ds = [ tyQIdent $ expLookup ti (typeTable tcs) | ExpDefault ti <- exps ]
-         in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) (concat vexps) dflts tds
+         in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) (concat vexps) dflts forexps tds
              , GlobTables { gSynTable = sexps, gDataTable = dexps, gClassTable = ctbl, gInstInfo = iexps }
              , (typeTable tcs, valueTable tcs)
              )
 
 -- A hack to force evaluation of errors.
 -- This should be redone to all happen in the T monad.
-tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [ValueExport] -> Defaults -> [EDef] ->
+tModule :: IdentModule -> [FixDef] -> [TypeExport] -> [ValueExport] -> Defaults -> [EType] -> [EDef] ->
            TModule [EDef]
-tModule mn fs ts vs ds bs =
+tModule mn fs ts vs ds es bs =
 --  trace ("tmodule " ++ showIdent mn ++ ":\n" ++ show vs) $
-  tseq ts `seq` vseq vs `seq` ds `seq` TModule mn fs ts vs ds bs
+  tseq ts `seq` vseq vs `seq` es `seq` ds `seq` TModule mn fs ts vs ds es bs -- Not sure it is important to seq es here.
   where
     tseq [] = ()
     tseq (TypeExport _ e _:xs) = e `seq` tseq xs
@@ -133,7 +135,7 @@ tModule mn fs ts vs ds bs =
 
 filterImports :: forall a . (ImportSpec, TModule a) -> (ImportSpec, TModule a)
 filterImports it@(ImportSpec _ _ _ _ Nothing, _) = it
-filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs ds a) =
+filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs ds fs a) =
   let
     keep x xs = elem x xs /= hide
     ivs  = [ i | ImpValue i <- is ]
@@ -163,7 +165,7 @@ filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs d
        checkBad msg (ivs \\ allVs) .
        checkBad msg (its \\ allTs))
     --trace (show (ts, vs)) $
-    (imp, TModule mn fx ts' vs' ds a)
+    (imp, TModule mn fx ts' vs' ds fs a)
 
 checkBad :: forall a . String -> [Ident] -> a -> a
 checkBad _ [] a = a
@@ -175,7 +177,7 @@ getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTab
              ([TypeExport], [ValueExport])
 getTVExps impMap _ _ _ (ExpModule m) =
   case M.lookup m impMap of
-    Just (TModule _ _ te ve _ _) -> (te, ve)
+    Just (TModule _ _ te ve _ _ _) -> (te, ve)
     _ -> errorMessage (getSLoc m) $ "undefined module: " ++ showIdent m
 getTVExps _ tys vals ast (ExpTypeSome ti is) =
   let e = expLookup ti tys
@@ -248,7 +250,7 @@ mkTModule impt tds tcs =
     -- All defaults
     des = defaults tcs
 
-  in  TModule mn fes tes ves des impossible
+  in  TModule mn fes tes ves des impossible impossible
 
 -- Find all value Entry for names associated with a type.
 -- XXX join stLookup code with tentry
@@ -261,11 +263,11 @@ mkTCState mdlName globs mdls =
     allValues :: ValueTable
     allValues =
       let
-        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes ves _ _) =
+        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes ves _ _ _) =
           if qual then [] else
           [ (i, [e]) | ValueExport i e    <- ves, not (isInstId i)  ] ++
           [ (i, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, not (isDefaultMethodId i) ]
-        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes ves _ _) =
+        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes ves _ _ _) =
           let m = fromMaybe mn mas in
           [ (v, [e]) | ValueExport i e    <- ves,                        let { v = qualIdent    m i } ] ++
           [ (v, [e]) | TypeExport  _ _ cs <- tes, ValueExport i e <- cs, let { v = qualIdentD e m i } ] ++
@@ -280,9 +282,9 @@ mkTCState mdlName globs mdls =
     allTypes :: TypeTable
     allTypes =
       let
-        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _) =
+        usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _ _) =
           if qual then [] else [ (i, [e]) | TypeExport i e _ <- tes ]
-        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _) =
+        qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _ _) =
           let m = fromMaybe mn mas in
           [ (qualIdent m i, [e]) | TypeExport i e _ <- tes ]
       in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
@@ -291,7 +293,7 @@ mkTCState mdlName globs mdls =
     allFixes = M.fromList (concatMap (tFixDefs . snd) mdls)
     allAssocs :: AssocTable
     allAssocs =
-      let assocs (_, TModule _ _ tes _ _ _) = [ (tyQIdent e, cs) | TypeExport _ e cs <- tes ]
+      let assocs (_, TModule _ _ tes _ _ _ _) = [ (tyQIdent e, cs) | TypeExport _ e cs <- tes ]
       in  M.fromList $ concatMap assocs mdls
 
     dflts = foldr (mergeDefaults . tDefaults . snd) M.empty mdls
@@ -1553,8 +1555,19 @@ tcDefValue adef =
       mn <- gets moduleName
       t' <- expandSyn t
       return (ForImp ie (qualIdent' mn i) t')
+    ForExp{} -> tCheckForeignDecl adef
     Pattern{} -> impossible
     _ -> return adef
+
+-- Check that a foreign export match the declaration type.
+-- In most cases the types will be the same, but the declaration can be overloaded
+-- so we need to ensure that it is compatible with the export definition.
+tCheckForeignDecl :: HasCallStack => EDef -> T EDef
+tCheckForeignDecl (ForExp ms e t) = do
+  ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
+  let e'' = eLetB (eBinds ds) e'
+  pure $ ForExp (Just $ fromMaybe (show e) ms) e'' t'
+tCheckForeignDecl _ = impossible
 
 qualIdent' :: IdentModule -> Ident -> Ident
 qualIdent' mn i | isInstId i = i
