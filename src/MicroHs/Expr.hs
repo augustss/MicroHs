@@ -314,6 +314,7 @@ data Lit
   | LPrim String
   | LExn String             -- exception to raise
   | LForImp String CType
+  | LCType CType            -- used for foreign export
   | LTick String
 --DEBUG  deriving (Show)
   deriving (Eq)
@@ -329,6 +330,7 @@ instance NFData Lit where
   rnf (LPrim a) = rnf a
   rnf (LExn a) = rnf a
   rnf (LForImp a b) = rnf a `seq` rnf b
+  rnf (LCType e) = rnf e
   rnf (LTick a) = rnf a
 
 -- A type of a C FFI function
@@ -899,7 +901,7 @@ ppExprRaw :: Expr -> Doc
 ppExprRaw = ppExprR True
 
 ppExpr :: Expr -> Doc
-ppExpr = ppExprR False
+ppExpr = ppExprR True -- False
 
 ppExprR :: Bool -> Expr -> Doc
 ppExprR raw = ppE
@@ -999,6 +1001,7 @@ showLit l =
     LPrim s    -> s
     LExn s     -> s
     LForImp s _-> '^' : last (words s)  -- XXX needs improvement
+    LCType (CType t) -> show t
     LTick s    -> '!' : s
 
 ppEStmt :: EStmt -> Doc

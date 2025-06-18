@@ -58,7 +58,18 @@ dsDef flags mn adef =
             isIO x | Just (_, r) <- getArrow x = isIO r
             isIO (EApp (EVar io) _) = io == mkIdent "Primitives.IO"
             isIO _ = False
-    ForExp (Just s) e _ ->  [(mkIdent ("$exp$" ++ s), dsExpr e)]
+    -- Foreign exports don't fit very well into the desugared syntax.
+    -- We represent
+    --   foreign export "foo" bar :: ty
+    -- with
+    --   foo = FE bar' ty'
+    -- where bar' is the desugared expression for bar, and ty' is the C type
+    -- (currently just a newtype of an EType).
+    ForExp (Just s) e t ->  [(mkIdentSLoc l s, app2 cfe e' cty)]
+      where l = getSLoc e
+            e' = dsExpr e
+            cty = Lit $ LCType $ CType t
+            cfe = Lit $ LPrim "FE"
     Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"
           meths :: [Ident]

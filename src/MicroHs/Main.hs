@@ -21,7 +21,7 @@ import MicroHs.Lex(readInt)
 import MicroHs.List
 import MicroHs.Package
 import MicroHs.Translate
-import MicroHs.TypeCheck(tExports, tModuleName)
+import MicroHs.TypeCheck(tModuleName)
 import MicroHs.Interactive
 import MicroHs.MakeCArray
 import System.Cmd
@@ -270,15 +270,16 @@ mainListPkg' _flags pkgfn = do
 sharedCompile :: Flags -> Ident -> IO ()
 sharedCompile flags mn = do
   _t0 <- getTimeMilli
-  (cash, (_rmn, allDefs)) <- do
+  (_cash, (_rmn, allDefs)) <- do
     cash <- getCached flags
     (rds, _, cash') <- compileCacheTop flags mn cash
     maybeSaveCache flags cash'
     return (cash', rds)
   _t1 <- getTimeMilli
-  let tmod = fromMaybe (error $ "Can't find the module " <> show mn) $ lookupCache mn cash
-  let cCode = makeFFI flags (tExports tmod) allDefs
+--  let tmod = fromMaybe (error $ "Can't find the module " <> show mn) $ lookupCache mn cash
+  let cCode = makeFFI flags allDefs
   putStrLn cCode
+
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
