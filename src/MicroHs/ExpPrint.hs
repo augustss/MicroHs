@@ -16,7 +16,32 @@ import MicroHs.TypeCheck(isInstId)
 -- Version number of combinator file.
 -- Must match version in eval.c.
 combVersion :: String
-combVersion = "v8.1\n"
+combVersion = "v9.0\n"
+
+-- Remove unused definitions.  The first argument are the
+-- definitions used externally.
+-- Also check for duplicated instances.
+-- This is the "linking" of the program.
+removeUnused :: [Ident] -> [LDef] -> [LDef]
+removeUnused roots ds =
+  let
+    dMap = M.fromList ds
+
+    findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
+                      M.lookup n m
+
+    bfs :: [Ident] -> M.Map () -> [LDef]
+    bfs [] _ = []
+    bfs (n : work) seen | isJust (M.lookup n seen) = bfs work seen
+                        | otherwise =
+      let seen' = M.insert n () seen
+          work' = freeVars e ++ work
+          e = findIdentIn n dMap
+      in  (n, e) : bfs work' seen'
+  in
+    case dupInstances ds of
+      (n1 : n2 : _) : _ -> errorMessage (getSLoc n1) $ "Duplicate instance " ++ unmangleInst (showIdent n1) ++ " at " ++ showSLoc (getSLoc n2)
+      _ -> bfs roots M.empty
 
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- Also check for duplicated instances.
@@ -59,9 +84,10 @@ renumberCMdl (mainName, ds) =
 
 
 toStringCMdl :: (Ident, [LDef]) -> (Int, String)
-toStringCMdl mds =
+toStringCMdl (emain, ads) =
   let
-    (ndefs, (emain, ds)) = renumberCMdl mds
+    ds = removeUnused [emain] ads
+    ndefs = length ds
 
     def :: (Ident, Exp) -> (String -> String) -> (String -> String)
     def (i, e) r =
@@ -85,7 +111,7 @@ unmangleInst = map (\ c -> if c == '@' then ' ' else c) . drop 5
 toStringP :: Exp -> (String -> String)
 toStringP ae =
   case ae of
-    Var x   -> (showIdent x ++) . (' ' :)
+    Var x   -> ('_' :) . (showIdent x ++) . (' ' :)
     Lit (LStr s) ->
       -- Encode very short string directly as combinators.
       if length s > 1 then
