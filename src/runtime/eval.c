@@ -2277,7 +2277,7 @@ gc(void)
   /* Mark all FFI exports */
   if (xffe_table) {
     for(struct ffe_entry *f = xffe_table; f->ffe_name; f++) {
-      mark((NODEPTR*)&f->ffe_fun);
+      mark((NODEPTR*)&f->ffe_value);
     }
   }
 
@@ -3110,7 +3110,7 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
   if (ffe) {
     for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
       heapoffs_t l = atoi(f->ffe_name); /* the name must be numerical */
-      f->ffe_fun = find_label(l);
+      f->ffe_value = *find_label(l);
     }
   }
   FREE(shared_table);
