@@ -43,6 +43,7 @@ removeUnused roots ds =
       (n1 : n2 : _) : _ -> errorMessage (getSLoc n1) $ "Duplicate instance " ++ unmangleInst (showIdent n1) ++ " at " ++ showSLoc (getSLoc n2)
       _ -> bfs roots M.empty
 
+{-
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- Also check for duplicated instances.
 -- This is the "linking" of the program.
@@ -81,7 +82,7 @@ renumberCMdl (mainName, ds) =
     case dupInstances ds of
       (n1 : n2 : _) : _ -> errorMessage (getSLoc n1) $ "Duplicate instance " ++ unmangleInst (showIdent n1) ++ " at " ++ showSLoc (getSLoc n2)
       _ -> (ndefs, (emain, res))
-
+-}
 
 toStringCMdl :: (Ident, [LDef]) -> (Int, String)
 toStringCMdl (emain, ads) =
