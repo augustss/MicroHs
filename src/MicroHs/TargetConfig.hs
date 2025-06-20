@@ -101,8 +101,14 @@ formatFailed (LastFail _ ts msgs) =
           ]
   where sloc = tokensLoc ts
 
+-- Remove # comments, i.e., line that start with #
+removeHash :: String -> String
+removeHash = unlines . map f . lines
+  where f ('#':_) = ""
+        f s = s
+
 parseTargets :: FilePath -> String -> Either String [Target]
 parseTargets fp file =
-  case runPrsr targets $ lex (SLoc fp 1 1) file of
+  case runPrsr targets $ lex (SLoc fp 1 1) $ removeHash file of
     Left lf -> Left $ formatFailed lf
     Right a -> Right a

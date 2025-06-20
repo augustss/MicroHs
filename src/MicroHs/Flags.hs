@@ -10,7 +10,6 @@ data Flags = Flags {
   mhsdir     :: FilePath,   -- where MHS files live
   paths      :: [FilePath], -- module search path
   output     :: String,     -- output file
-  shared     :: Bool,
   loading    :: Bool,       -- show loading message
   speed      :: Bool,       -- show lines/s
   readCache  :: Bool,       -- read and use cache
@@ -26,7 +25,8 @@ data Flags = Flags {
   installPkg :: Bool,       -- install a package
   target     :: String,     -- Compile target defined in target.conf
   dumpFlags  :: [DumpFlag], -- For debugging,
-  useStdin   :: Bool        -- Use stdin in interactive system
+  useStdin   :: Bool,       -- Use stdin in interactive system
+  noLink     :: Bool        -- Just generate an unlinked object file
   }
   deriving (Show)
 
@@ -39,7 +39,6 @@ defaultFlags dir = Flags {
   runIt      = False,
   mhsdir     = dir,
   paths      = ["."] ++ gmp ++ [dir ++ "/lib"],
-  shared     = False,
   output     = "out.comb",
   loading    = False,
   speed      = False,
@@ -56,7 +55,8 @@ defaultFlags dir = Flags {
   installPkg = False,
   target     = "default",
   dumpFlags  = [],
-  useStdin   = False
+  useStdin   = False,
+  noLink     = False
   }
   -- This is a hack so that the in-place mhs picks up GMP.
   where gmp | dir == "." && wantGMP = ["lib/gmp"]

@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion) where
+module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, checkDupInstances) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char(ord, chr)
 import qualified MicroHs.IdentMap as M
@@ -21,11 +21,11 @@ combVersion = "v8.1\n"
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- Also check for duplicated instances.
 -- This is the "linking" of the program.
-renumberCMdl :: (Ident, [LDef]) -> (Int, ([Ident], [LDef]))
-renumberCMdl (mainName, ds) =
+renumberCMdl :: ([LDef], Exp) -> (Int, [Ident], [LDef], Exp)
+renumberCMdl (ds, emain) =
   let
     fexps = [ i | (i, App (App (Lit (LPrim "FE")) _) _) <- ds ]
-    roots = mainName : fexps
+    roots = freeVars emain ++ fexps
     dMap = M.fromList ds
     -- Shake the tree bottom-up, renaming identifiers as we go along.
     -- This is much faster than (say) computing the sccs and walking that.
@@ -57,15 +57,14 @@ renumberCMdl (mainName, ds) =
       where unVar (Var n) = n
             unVar _ = undefined
   in
-    case dupInstances ds of
-      (n1 : n2 : _) : _ -> errorMessage (getSLoc n1) $ "Duplicate instance " ++ unmangleInst (showIdent n1) ++ " at " ++ showSLoc (getSLoc n2)
-      _ -> (ndefs, (roots', res))
+    (ndefs, roots', res, substv emain)
 
-
-toStringCMdl :: (Ident, [LDef]) -> (Int, [Ident], String)
+-- The argument is all definitions and the main expression.
+-- The result is the number of definitions, all foreign export identifiers, and the program as a string.
+toStringCMdl :: ([LDef], Exp) -> (Int, [Ident], String)
 toStringCMdl mds =
   let
-    (ndefs, (emain:exps, ds)) = renumberCMdl mds
+    (ndefs, exps, ds, emain) = renumberCMdl mds
 
     def :: (Ident, Exp) -> (String -> String) -> (String -> String)
     def (i, App (App (Lit (LPrim "FE")) e) _) r = def (i, e) r
@@ -73,10 +72,17 @@ toStringCMdl mds =
       ("A " ++) . toStringP e . ((":" ++ showIdent i ++  " @\n") ++) . r . ("@" ++)
 
     res :: String -> String
-    res = foldr def ((showIdent emain ++ " ") ++) ds
+    res = foldr def (toStringP emain) ds
 
   in
     (ndefs, exps, combVersion ++ show ndefs ++ "\n" ++ res " }")
+
+checkDupInstances :: [LDef] -> [LDef]
+checkDupInstances ds =
+  case dupInstances ds of
+    (n1 : n2 : _) : _ ->
+      errorMessage (getSLoc n1) $ "Duplicate instance " ++ unmangleInst (showIdent n1) ++ " at " ++ showSLoc (getSLoc n2)
+    _ -> ds
 
 dupInstances :: [LDef] -> [[Ident]]
 dupInstances = filter ((> 1) . length) . groupSort . filter isInstId . map fst

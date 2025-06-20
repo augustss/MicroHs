@@ -75,14 +75,11 @@ int num_ffi;
 
 #define VERSION "v8.1\n"
 
-typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
-typedef uintptr_t uvalue_t;     /* Make unsigned value the same size as pointers, since they are in a union */
 #define PRIuvalue PRIuPTR
 typedef uintptr_t heapoffs_t;   /* Heap offsets */
 #define PRIheap PRIuPTR
 typedef uintptr_t tag_t;        /* Room for tag, low order bit indicates AP/not-AP */
-typedef intptr_t stackptr_t;    /* Index into stack */
 
 typedef uintptr_t counter_t;    /* Statistics counter, can be smaller since overflow doesn't matter */
 #define PRIcounter PRIuPTR
@@ -398,7 +395,6 @@ typedef struct node {
 #define BIT_NOTAP (BIT_TAG | BIT_IND)
 #define TAG_SHIFT 2
 
-typedef struct node* NODEPTR;
 #define NIL 0
 #define HEAPREF(i) &cells[(i)]
 #define GETTAG(p) ((p)->ufun.uutag & BIT_NOTAP ? ( (p)->ufun.uutag & BIT_IND ? T_IND : (int)((p)->ufun.uutag >> TAG_SHIFT) ) : T_AP)
@@ -798,10 +794,11 @@ void pp(FILE*, NODEPTR);
 
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combK, combTrue, combUnit, combCons, combPair;
+NODEPTR combK, combTrue, combI, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combBB;
 NODEPTR combSETMASKINGSTATE;
 NODEPTR combLT, combEQ, combGT;
+NODEPTR combPERFORMIO;
 NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
@@ -814,6 +811,7 @@ NODEPTR combWorld;
 NODEPTR combCATCHR;
 #define combFalse combK
 #define combNothing combK
+#define combUnit combI
 
 #if WANT_ARGS
 /* This single element array hold a list of the program arguments. */
@@ -834,7 +832,7 @@ handle_sigint(int s)
 #endif
 
 /* Check that there are k nodes available, if not then GC. */
-static INLINE void
+INLINE void
 gc_check(size_t k)
 {
   if (k < num_free)
@@ -1857,7 +1855,7 @@ init_nodes(void)
     switch (t) {
     case T_K: combK = n; break;
     case T_A: combTrue = n; break;
-    case T_I: combUnit = n; break;
+    case T_I: combI = n; break;
     case T_O: combCons = n; break;
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
@@ -1872,6 +1870,7 @@ init_nodes(void)
     case T_IO_THEN: combIOTHEN = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_SETMASKINGSTATE: combSETMASKINGSTATE = n; break;
+    case T_IO_PERFORMIO: combPERFORMIO = n; break;
     case T_BININT1: combBININT1 = n; break;
     case T_BININT2: combBININT2 = n; break;
     case T_UNINT1: combUNINT1 = n; break;
@@ -5630,6 +5629,10 @@ MAIN
   run_time -= GETTIMEMILLI();
 
   topnode = &prog;
+  {
+    extern value_t funcName(value_t);
+    funcName(5);
+  }
   start_exec(prog);
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
@@ -5702,6 +5705,50 @@ MAIN
 #if WANT_LZ77
 #include "lz77.c"
 #endif
+
+/***************************/
+/* Foreign export helpers  */
+
+void
+ffe_push(NODEPTR n)
+{
+  PUSH(n);
+}
+
+/* Allocate a new node (will be overwritten) */
+stackptr_t
+ffe_alloc(void)
+{
+  PUSH(alloc_node(T_DBL));
+  return stack_ptr;
+}
+
+void
+ffe_apply(void)
+{
+  NODEPTR arg = POPTOP();
+  NODEPTR fun = POPTOP();
+  PUSH(new_ap(fun, arg));
+}
+
+stackptr_t
+ffe_eval(void)
+{
+  NODEPTR n = evali(TOP(0));
+  /* The mhs_to_xxx functions bizarrely return the ARG(TOP(n+1)) value.
+   * The wrapper will call with n=-1, so we need to put the result at ARG(TOP(0))
+   */
+  TOP(0) = new_ap(combI, n);
+  return stack_ptr;
+}
+
+stackptr_t
+ffe_exec(void)
+{
+  NODEPTR n = POPTOP();
+  PUSH(new_ap(combPERFORMIO, n));
+  return ffe_eval();
+}
 
 /*********************/
 /* FFI adapters      */

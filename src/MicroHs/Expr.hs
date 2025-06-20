@@ -901,7 +901,7 @@ ppExprRaw :: Expr -> Doc
 ppExprRaw = ppExprR True
 
 ppExpr :: Expr -> Doc
-ppExpr = ppExprR True -- False
+ppExpr = ppExprR False
 
 ppExprR :: Bool -> Expr -> Doc
 ppExprR raw = ppE

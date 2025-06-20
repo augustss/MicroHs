@@ -50,13 +50,13 @@ all:	bin/mhs bin/cpphs bin/mcabal
 targets.conf:
 	echo "[default]"                        > targets.conf
 	echo cc = \"$(CC)\"                    >> targets.conf
-	echo ccflags = \"$(MHSGMPCCFLAGS)\"    >> targets.conf
+	echo ccflags = \"-w -Wall -O3 $(MHSGMPCCFLAGS)\"    >> targets.conf
 	echo cclibs = \"$(MHSGMPCCLIBS) -lm\"  >> targets.conf
 	echo conf = \"$(CONF)\"                >> targets.conf
 	echo ''                                >> targets.conf
 	echo "[emscripten]"                    >> targets.conf
 	echo cc = \"$(EMCC)\"                  >> targets.conf
-	echo ccflags = \"$(EMCCFLAGS)\"        >> targets.conf
+	echo ccflags = \"-O3 $(EMCCFLAGS)\"    >> targets.conf
 	echo cclibs = \"-lm\"                  >> targets.conf
 	echo conf = \"$(CONF)\"                >> targets.conf
 	echo ''                                >> targets.conf

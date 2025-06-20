@@ -11,7 +11,7 @@ import MicroHs.Names
 --import Debug.Trace
 
 makeFFI :: Flags -> [Ident] -> [LDef] -> String
-makeFFI _ iexps ds =
+makeFFI _ forExps ds =
   let ffiImports = [ (parseImpEnt i f, t) | (i, d) <- ds, Lit (LForImp f (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
@@ -32,15 +32,15 @@ makeFFI _ iexps ds =
        "struct ffi_entry *xffi_table = imp_table;"
       ] ++
       ["static struct ffe_entry exp_table[] = {"] ++
-      map mkExport iexps ++
-      ["{ 0,0 }",
+      map mkExport forExps ++
+      ["  { 0,0 }",
        "};",
        "struct ffe_entry *xffe_table = exp_table;",
-       "\n// Foreign export wrappers:"
+       "\n"
       ] ++ zipWith mkExportWrapper [0..] exps
 
 mkExport :: Ident -> String
-mkExport i = "  { \"" ++ unIdent i ++ "\", 0 }"
+mkExport i = "  { \"" ++ unIdent i ++ "\", 0 },"
 
 mkExportWrapper :: Int -> (Ident, CType) -> String
 mkExportWrapper no (n, CType t) = unlines $
@@ -48,12 +48,13 @@ mkExportWrapper no (n, CType t) = unlines $
       r = checkIO ior
       outT = cTypeName r
       ins = zipWith (\ i a -> cTypeName a ++ " x" ++ show i) [1::Int ..] as
-      arg k a = "  mhs_from" ++ cTypeHsName a ++ "(ffe_alloc(), 0, x" ++ show k ++ "); ffe_apply();"
+      arg k a = "  mhs_from_" ++ cTypeHsName a ++ "(ffe_alloc(), 0, x" ++ show k ++ "); ffe_apply();"
   in  [outT ++ " " ++ unIdent n ++ "(" ++ intercalate ", " ins ++ ") {",
+       "  gc_check(" ++ show (2 * length as + 4) ++ ");",
        "  ffe_push(xffe_table[" ++ show no ++ "].ffe_value);" ]
       ++ zipWith arg [1::Int ..] as ++
-      ["  intptr_t r = " ++ if eqEType r ior then "ffe_eval();" else "ffe_exec();",
-       "  return" ++ if isUnit r then ";" else " mhs_to_" ++ cTypeHsName r ++ "(r, 0);",
+      ["  return" ++ if isUnit r then ";" else " mhs_to_" ++ cTypeHsName r ++ "(" ++
+        (if eqEType r ior then "ffe_eval()" else "ffe_exec()") ++ ", -1);",
        "}"]
 
 uniqName :: [(ImpEnt, EType)] -> [(ImpEnt, EType)]
@@ -196,8 +197,8 @@ cTypes :: [(String, String)]
 cTypes =
   -- These are temporary
   [ ("Primitives.FloatW", "flt_t")
-  , ("Primitives.Int",    "intptr_t")
-  , ("Primitives.Word",   "uintptr_t")
+  , ("Primitives.Int",    "value_t")
+  , ("Primitives.Word",   "uvalue_t")
   , ("Data.Word.Word8",   "uint8_t")
   , ("()",                "void")
   , ("System.IO.Handle",  "void*")

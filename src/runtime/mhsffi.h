@@ -22,6 +22,11 @@ typedef uint16_t flt_t;         /* No floats, but we need something */
 #error Unknown WORD_SIZE
 #endif
 
+struct node;
+typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
+typedef uintptr_t uvalue_t;     /* Make unsigned value the same size as pointers, since they are in a union */
+typedef intptr_t stackptr_t;    /* Index into stack */
+typedef struct node* NODEPTR;
 typedef void (*HsFunPtr)(void);
 
 typedef int from_t;
@@ -33,11 +38,9 @@ struct ffi_entry {
 };
 extern struct ffi_entry *xffi_table;
 
-struct node;
-
 struct ffe_entry {
   const char  *ffe_name;
-  struct node *ffe_value;
+  NODEPTR      ffe_value;
 };
 extern struct ffe_entry *xffe_table;
 
@@ -90,8 +93,9 @@ time_t             mhs_to_CTime(intptr_t, int); /* XXX wrong */
 intptr_t           mhs_to_CIntPtr(intptr_t, int);
 uintptr_t          mhs_to_CUIntPtr(intptr_t, int);
 
-void     ffe_push(struct node *);
-intptr_t ffe_alloc(void);
-void     ffe_apply(void);
-intptr_t ffe_eval(void);
-intptr_t ffe_exec(void);
+void       ffe_push(NODEPTR);
+stackptr_t ffe_alloc(void);
+void       ffe_apply(void);
+stackptr_t ffe_eval(void);
+stackptr_t ffe_exec(void);
+void       gc_check(size_t);

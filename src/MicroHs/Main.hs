@@ -5,7 +5,6 @@ module MicroHs.Main(main) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
-import Data.Maybe (fromMaybe)
 import Data.Version
 import Control.Monad
 import Control.Applicative
@@ -13,6 +12,8 @@ import Data.Maybe
 import System.Environment
 import MicroHs.Compile
 import MicroHs.CompileCache
+import MicroHs.Exp(Exp(Var, Lit))
+import MicroHs.Expr(Lit(LInt))
 import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
@@ -60,16 +61,14 @@ main = do
             Nothing ->
               if installPkg flags then mainInstallPackage flags mdls else
               withArgs rargs $ do
-                let iarg = mkIdentSLoc (SLoc "command-line" 0 0)
                 case mdls of
                   []  | null (cArgs flags) -> mainInteractive flags
                       | otherwise -> mainCompileC flags [] ""
-                  [s] | shared flags -> sharedCompile flags (iarg s)
-                      | otherwise -> mainCompile flags (iarg s)
+                  [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
                   _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [--shared] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -85,6 +84,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-l                 Show every time a module is loaded\n\
       \-s                 Show compilation speed in lines/s\n\
       \-r                 Run directly\n\
+      \-c                 Don not generate executable\n\
       \-CR                Read compilation cache\n\
       \-CW                Write compilation cache\n\
       \-C                 Read and write compilation cache\n\
@@ -120,10 +120,9 @@ decodeArgs f mdls (arg:args) =
     "-v"        -> decodeArgs f{verbose = verbose f + 1} mdls args
     "-q"        -> decodeArgs f{verbose = -1} mdls args
     "-r"        -> decodeArgs f{runIt = True} mdls args
-    "-shared"   -> decodeArgs f{shared = True} mdls args -- for GHC compat
-    "--shared"  -> decodeArgs f{shared = True} mdls args
     "-l"        -> decodeArgs f{loading = True} mdls args
     "-s"        -> decodeArgs f{speed = True} mdls args
+    "-c"        -> decodeArgs f{noLink = True} mdls args
     "-CR"       -> decodeArgs f{readCache = True} mdls args
     "-CW"       -> decodeArgs f{writeCache = True} mdls args
     "-C"        -> decodeArgs f{readCache = True, writeCache = True} mdls args
@@ -267,20 +266,6 @@ mainListPkg' _flags pkgfn = do
   putStrLn "other-modules:"
   list (pkgOther pkg)
 
-sharedCompile :: Flags -> Ident -> IO ()
-sharedCompile flags mn = do
-  _t0 <- getTimeMilli
-  (_cash, (_rmn, allDefs)) <- do
-    cash <- getCached flags
-    (rds, _, cash') <- compileCacheTop flags mn cash
-    maybeSaveCache flags cash'
-    return (cash', rds)
-  _t1 <- getTimeMilli
---  let tmod = fromMaybe (error $ "Can't find the module " <> show mn) $ lookupCache mn cash
-  let cCode = makeFFI flags [] allDefs
-  putStrLn cCode
-
-
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
   t0 <- getTimeMilli
@@ -293,8 +278,8 @@ mainCompile flags mn = do
   t1 <- getTimeMilli
   let
     mainName = qualIdent rmn (mkIdent "main")
-    cmdl = (mainName, allDefs)
-    (numOutDefs, exps, outData) = toStringCMdl cmdl
+    cmdl = (allDefs, if noLink flags then Lit (LInt 0) else Var mainName)
+    (numOutDefs, forExps, outData) = toStringCMdl cmdl
     numDefs = length allDefs
   when (verbosityGT flags 0) $
     putStrLn $ "top level defns:      " ++ padLeft 6 (show numOutDefs) ++ " (unpruned " ++ show numDefs ++ ")"
@@ -320,7 +305,7 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    let cCode = makeCArray flags outData ++ makeFFI flags exps allDefs
+    let cCode = makeCArray flags outData ++ makeFFI flags forExps allDefs
 
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
@@ -355,18 +340,20 @@ mainCompileC flags ppkgs infile = do
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
   TTarget _ compiler ccflags cclibs conf <- readTarget flags dir
   extra <- fromMaybe "" <$> lookupEnv "MHSEXTRACCFLAGS"
-  let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
-                        ccflags ++ " " ++
-                        incs ++ " " ++
-                        defs ++ " " ++
-                        extra ++ " " ++
-                        cpps ++
-                        dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
-                        unwords (cArgs flags) ++
-                        unwords (map (++ "/*.c") cDirs') ++
-                        " $IN " ++
-                        cclibs ++
-                        " -o $OUT"
+  let dcc = unwords $ [compiler,
+                       ccflags,
+                       "-I" ++ dir ++ "/src/runtime",
+                       incs,
+                       defs,
+                       extra,
+                       cpps,
+                       dir ++ "/src/runtime/eval-" ++ conf ++ ".c"] ++
+                       cArgs flags ++
+                       map (++ "/*.c") cDirs' ++
+                      ["$IN",
+                       cclibs,
+                       "-o $OUT"
+                      ]
       cc = fromMaybe dcc mcc
       cmd = substString "$IN" infile $ substString "$OUT" outFile cc
   when (verbosityGT flags 0) $
