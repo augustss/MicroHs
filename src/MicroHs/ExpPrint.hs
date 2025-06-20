@@ -94,7 +94,7 @@ toStringCMdl (emain, ads) =
       ("A " ++) . toStringP e . ((":" ++ showIdent i ++  " @\n") ++) . r . ("@" ++)
 
     res :: String -> String
-    res = foldr def ((showIdent emain ++ " ") ++) ds
+    res = foldr def (("_" ++ showIdent emain ++ " ") ++) ds
 
   in
     (ndefs, combVersion ++ show ndefs ++ "\n" ++ res " }")

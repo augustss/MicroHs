@@ -73,7 +73,7 @@ int num_ffi;
 #define THREAD_DEBUG 0
 #endif
 
-#define VERSION "v8.1\n"
+#define VERSION "v9.0\n"
 
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
@@ -2817,31 +2817,48 @@ mkStrNode(struct bytestring str)
 
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
-  heapoffs_t label;
+  char *label;
   NODEPTR node;                 /* NIL indicates unused */
 } *shared_table;
 heapoffs_t shared_table_size;
 
+/* Den Bernstein's djb2 */
+size_t
+hash_label(const char *label)
+{
+  size_t hash = 5381;
+  const unsigned char *str = (const unsigned char*)label;
+  int c;
+
+  while ((c = *str++))
+    hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+
+  return hash;
+}
+
 /* Look for the label in the table.
  * If it's found, return the node.
- * If not found, return the first empty entry.
+ * If not found, return the first empty entry, now filled.
 */
 NODEPTR *
-find_label(heapoffs_t label)
+find_label(const char *label)
 {
-  int i;
+  size_t i;
 
-  for(i = (int)label; ; i++) {
+  for(i = hash_label(label); ; i++) {
     i %= shared_table_size;
     if (shared_table[i].node == NIL) {
       /* The slot is empty, so claim and return it */
-      shared_table[i].label = label;
+      shared_table[i].label = mmalloc(strlen(label)+1);
+      strcpy(shared_table[i].label, label);
       return &shared_table[i].node;
-    } else if (shared_table[i].label == label) {
+    } else if (strcmp(shared_table[i].label, label) == 0) {
       /* Found the label, so return it. */
       return &shared_table[i].node;
     }
-    /* Not empty and not found, try next. */
+    /* Not empty and not found, try next.
+     * There will be an empty slot sooner or later since
+     * the table is 3x the number of entries */
   }
 }
 
@@ -2914,17 +2931,36 @@ parse_string(BFILE *f)
 
 struct forptr *new_mpz(void);
 
+void
+parse_label(BFILE *f, char *label, size_t labelsz)
+{
+  int c;
+  size_t i = 0;
+
+  labelsz--;                    /* room for the 0 */
+  for(;;) {
+    c = getNT(f);
+    if (!c)
+      break;
+    if (i >= labelsz) {
+      label[i] = 0;
+      ERR1("parse_label overflow: %s", label);
+    }
+    label[i++] = c;
+  }
+  label[i] = 0;
+}
+
 NODEPTR
 parse(BFILE *f)
 {
   stackptr_t stk = stack_ptr;
   NODEPTR r, x, y;
   NODEPTR *nodep;
-  heapoffs_t l;
   value_t i;
   int c;
   size_t j;
-  char buf[80];                 /* store names of primitives. */
+  char buf[1000];                 /* store names of primitives. */
 
   for(;;) {
     c = getb(f);
@@ -2999,8 +3035,8 @@ parse(BFILE *f)
       }
     case '_':
       /* Reference to a shared value: _label */
-      l = parse_int(f);  /* The label */
-      nodep = find_label(l);
+      parse_label(f, buf, sizeof buf);  /* The label */
+      nodep = find_label(buf);
       if (*nodep == NIL) {
         /* Not yet defined, so make it an indirection */
         *nodep = alloc_node(T_FREE);
@@ -3010,9 +3046,8 @@ parse(BFILE *f)
       break;
     case ':':
       /* Define a shared expression: :label e */
-      l = parse_int(f);  /* The label */
-      if (!gobble(f, ' ')) ERR("parse ' '");
-      nodep = find_label(l);
+      parse_label(f, buf, sizeof buf);  /* The label */
+      nodep = find_label(buf);
       x = TOP(0);
       if (*nodep == NIL) {
         /* not referenced yet, so add a direct reference */
@@ -3041,15 +3076,13 @@ parse(BFILE *f)
 #endif
     case '^':
       /* An FFI name */
-      for (j = 0; (buf[j] = getNT(f)); j++)
-        ;
+      parse_label(f, buf, sizeof buf);
       r = ffiNode(buf);
       PUSH(r);
       break;
     case ';':
-      /* <name is a C function pointer to name */
-      for (j = 0; (buf[j] = getNT(f)); j++)
-        ;
+      /* ;name is a C function pointer to name */
+      parse_label(f, buf, sizeof buf);
       if (strcmp(buf, "0") == 0) {
         PUSH(mkFunPtr((HsFunPtr)0));
       } else if (strcmp(buf, "closeb") == 0) {
@@ -3061,8 +3094,7 @@ parse(BFILE *f)
     default:
       buf[0] = c;
       /* A primitive, keep getting char's until end */
-      for (j = 1; (buf[j] = getNT(f)); j++)
-        ;
+      parse_label(f, buf+1, sizeof buf - 1);
       /* Look up the primop and use the preallocated node. */
       for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
         if (strcmp(primops[j].name, buf) == 0) {
@@ -3097,6 +3129,7 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
 {
   heapoffs_t numLabels, i;
   NODEPTR n;
+
   checkversion(f);
   numLabels = parse_int(f);
   if (!gobble(f, '\n'))
@@ -3109,9 +3142,12 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
   n = parse(f);
   if (ffe) {
     for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
-      heapoffs_t l = atoi(f->ffe_name); /* the name must be numerical */
-      f->ffe_fun = find_label(l);
+      f->ffe_fun = find_label(f->ffe_name);
     }
+  }
+  for(i = 0; i < shared_table_size; i++) {
+    if (shared_table[i].node != NIL)
+      FREE(shared_table[i].label);
   }
   FREE(shared_table);
   return n;
