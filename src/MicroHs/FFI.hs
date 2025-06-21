@@ -19,7 +19,7 @@ makeFFI _ incs forExps ds =
       dynamics = [ t | (ImpDynamic, t) <- ffiImports]
       imps     = uniqName $ filter ((`notElem` runtimeFFI) . impName) ffiImports
       includes = incs ++ nub [ inc | (ImpStatic _ (Just inc) _ _, _) <- imps ]
-      exps     = [ (i, t) | (i, App (App (Lit (LPrim "FE")) _) (Lit (LCType t))) <- ds ]
+      exps     = [ (i, t) | (i, e) <- ds, Just (_, t) <- [getForExp e] ]
   in
     if not (null wrappers) || not (null dynamics) then error "Unimplemented FFI feature" else
     unlines $

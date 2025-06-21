@@ -8,12 +8,13 @@ module MicroHs.Exp(
   app2, app3,
   allVarsExp, freeVars,
   lams, apps,
+  mkForExp, getForExp,
   ) where
 import qualified Prelude(); import MHSPrelude hiding((<>))
 import Data.Char
 import Data.List
 import MicroHs.Ident
-import MicroHs.Expr(Lit(..), showLit)
+import MicroHs.Expr(Lit(..), showLit, CType(..))
 import MicroHs.List
 import Text.PrettyPrint.HughesPJLite
 import Debug.Trace
@@ -95,3 +96,12 @@ lams xs e = foldr Lam e xs
 apps :: Exp -> [Exp] -> Exp
 apps f = foldl App f
 
+-- Encoding for 'foreign export' definitions.
+mkForExp :: Exp -> CType -> Exp
+mkForExp e t = app2 cfe e cty
+  where cty = Lit $ LCType t
+        cfe = Lit $ LPrim "FE"
+
+getForExp :: Exp -> Maybe (Exp, CType)
+getForExp (App (App (Lit (LPrim "FE")) e) (Lit (LCType t))) = Just (e, t)
+getForExp _ = Nothing
