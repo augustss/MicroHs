@@ -10,7 +10,7 @@ import MicroHs.Ident
 import MicroHs.Names
 --import Debug.Trace
 
-makeFFI :: Flags -> [String] -> [Ident] -> [LDef] -> String
+makeFFI :: Flags -> [String] -> [Ident] -> [LDef] -> (String, String)
 makeFFI _ incs forExps ds =
   let ffiImports = [ (parseImpEnt cc i f, t) | (i, d) <- ds, Lit (LForImp cc f (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
@@ -20,9 +20,23 @@ makeFFI _ incs forExps ds =
       imps     = uniqName $ filter ((`notElem` runtimeFFI) . impName) ffiImports
       includes = incs ++ nub [ inc | (ImpStatic _ (Just inc) _ _, _) <- imps ]
       exps     = [ (i, t) | (i, e) <- ds, Just (_, t) <- [getForExp e] ]
+      mkSig (i, CType t) = let (as, ior) = getArrows t in mkExportSig i as ior ++ ";"
+      header = unlines
+        ["#include <stdint.h>",
+         "#include <stdio.h>",
+         "#if defined(__cplusplus)",
+         "extern \"C\" {",
+         "#endif",
+         "typedef intptr_t value_t;",
+         "void mhs_init(void);",
+         intercalate "\n" $ map mkSig exps,
+         "#if defined(__cplusplus)",
+         "}",
+         "#endif"
+        ]
   in
     if not (null wrappers) || not (null dynamics) then error "Unimplemented FFI feature" else
-    unlines $
+    (unlines $
       map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
       map mkHdr imps ++
       ["static struct ffi_entry imp_table[] = {"] ++
@@ -38,6 +52,13 @@ makeFFI _ incs forExps ds =
        "struct ffe_entry *xffe_table = exp_table;",
        "\n"
       ] ++ zipWith mkExportWrapper [0..] exps
+    , header)
+
+mkExportSig :: Ident -> [EType] -> EType -> String
+mkExportSig n as ior =
+  let outT = cTypeName $ checkIO ior
+      ins = zipWith (\ i a -> cTypeName a ++ " _x" ++ show i) [1::Int ..] as
+   in outT ++ " " ++ unIdent n ++ "(" ++ intercalate ", " ins ++ ")"
 
 mkExport :: Ident -> String
 mkExport i = "  { \"" ++ unIdent i ++ "\", 0 },"
@@ -47,11 +68,9 @@ mkExportWrapper no (n, CType t) = unlines $
   let (as, ior) = getArrows t
       r = checkIO ior
       outT = cTypeName r
-      ins = zipWith (\ i a -> cTypeName a ++ " _x" ++ show i) [1::Int ..] as
       arg k a = "  mhs_from_" ++ cTypeHsName a ++ "(ffe_alloc(), 0, _x" ++ show k ++ "); ffe_apply();"
       eval = if eqEType r ior then "ffe_eval()" else "ffe_exec()"
-      sign = outT ++ " " ++ unIdent n ++ "(" ++ intercalate ", " ins ++ ")"
-  in  [sign ++ " {",
+  in  [mkExportSig n as ior ++ " {",
        "  gc_check(" ++ show (2 * length as + 4) ++ ");",
        "  ffe_push(xffe_table[" ++ show no ++ "].ffe_value);" ]
       ++ zipWith arg [1::Int ..] as ++
