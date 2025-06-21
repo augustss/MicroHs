@@ -5,6 +5,7 @@
 bin/*
 tests/*.tmp
 tests/*.out
+tests/*.h
 old/*
 tmp/*
 a.out
@@ -25,4 +26,3 @@ timing
 mdist/*
 dist-mcabal/
 generated/mhs-stage*.c
-
