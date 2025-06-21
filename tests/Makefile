@@ -5,7 +5,7 @@ TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT) -i../lib
 EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache info
 
-alltest:	info test errtest
+alltest:	info test errtest ffitest
 # interactivetest
 
 cache:
