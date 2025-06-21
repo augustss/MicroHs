@@ -306,8 +306,8 @@ mainCompile flags mn = do
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
     target <- readTarget flags (mhsdir flags)
-    let cCode = makeCArray flags outData ++
-                makeFFI flags ["eval-" ++ tConf target ++ ".c"] forExps allDefs
+    let (cFFI, hFFI) = makeFFI flags ["eval-" ++ tConf target ++ ".c"] forExps allDefs
+        cCode = makeCArray flags outData ++ cFFI
 
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
@@ -325,6 +325,8 @@ mainCompile flags mn = do
        hClose h
        mainCompileC flags ppkgs fn
        removeFile fn
+    unless (null forExps) $
+       writeFile (takeDirectory outFile </> showIdent mn ++ "_stub.h") hFFI
 
 mainCompileC :: Flags -> [FilePath] -> FilePath -> IO ()
 mainCompileC flags ppkgs infile = do
