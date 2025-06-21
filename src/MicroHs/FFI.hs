@@ -8,16 +8,18 @@ import MicroHs.Expr
 import MicroHs.Flags
 import MicroHs.Ident
 import MicroHs.Names
+--import Debug.Trace
 
-makeFFI :: Flags -> [LDef] -> String
-makeFFI _ ds =
-  let ffiImports = [ (parseImpEnt i f, t) | (i, d) <- ds, Lit (LForImp f (CType t)) <- [get d] ]
+makeFFI :: Flags -> [String] -> [Ident] -> [LDef] -> String
+makeFFI _ incs forExps ds =
+  let ffiImports = [ (parseImpEnt cc i f, t) | (i, d) <- ds, Lit (LForImp cc f (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
       wrappers = [ t | (ImpWrapper, t) <- ffiImports]
       dynamics = [ t | (ImpDynamic, t) <- ffiImports]
       imps     = uniqName $ filter ((`notElem` runtimeFFI) . impName) ffiImports
-      includes = "mhsffi.h" : nub [ inc | (ImpStatic _ (Just inc) _ _, _) <- imps ]
+      includes = incs ++ nub [ inc | (ImpStatic _ (Just inc) _ _, _) <- imps ]
+      exps     = [ (i, t) | (i, App (App (Lit (LPrim "FE")) _) (Lit (LCType t))) <- ds ]
   in
     if not (null wrappers) || not (null dynamics) then error "Unimplemented FFI feature" else
     unlines $
@@ -30,11 +32,40 @@ makeFFI _ ds =
        "struct ffi_entry *xffi_table = imp_table;"
       ] ++
       ["static struct ffe_entry exp_table[] = {"] ++
-      -- something that generated exported function entries
-      ["{ 0,0 }",
+      map mkExport forExps ++
+      ["  { 0,0 }",
        "};",
-       "struct ffe_entry *xffe_table = exp_table;"
-      ]      
+       "struct ffe_entry *xffe_table = exp_table;",
+       "\n"
+      ] ++ zipWith mkExportWrapper [0..] exps
+
+mkExport :: Ident -> String
+mkExport i = "  { \"" ++ unIdent i ++ "\", 0 },"
+
+mkExportWrapper :: Int -> (Ident, CType) -> String
+mkExportWrapper no (n, CType t) = unlines $
+  let (as, ior) = getArrows t
+      r = checkIO ior
+      outT = cTypeName r
+      ins = zipWith (\ i a -> cTypeName a ++ " _x" ++ show i) [1::Int ..] as
+      arg k a = "  mhs_from_" ++ cTypeHsName a ++ "(ffe_alloc(), 0, _x" ++ show k ++ "); ffe_apply();"
+      eval = if eqEType r ior then "ffe_eval()" else "ffe_exec()"
+      sign = outT ++ " " ++ unIdent n ++ "(" ++ intercalate ", " ins ++ ")"
+  in  [sign ++ " {",
+       "  gc_check(" ++ show (2 * length as + 4) ++ ");",
+       "  ffe_push(xffe_table[" ++ show no ++ "].ffe_value);" ]
+      ++ zipWith arg [1::Int ..] as ++
+      if isUnit r then
+        [ "  (void)" ++ eval ++ ";",
+          "  ffe_pop();",
+          "}"
+        ]
+       else
+        [ "  " ++ outT ++ " _res = mhs_to_" ++ cTypeHsName r ++ "(" ++ eval ++ ", -1);",
+          "  ffe_pop();",
+          "  return _res;",
+          "}"
+        ]
 
 uniqName :: [(ImpEnt, EType)] -> [(ImpEnt, EType)]
 uniqName = map head . groupBy ((==) `on` impName) . sortBy (compare `on` impName)
@@ -53,8 +84,8 @@ data Imp = Ptr | Value | Func
 -- "[static] [name.h] [&] [name]"
 -- "dynamic"
 -- "wrapper"
-parseImpEnt :: Ident -> String -> ImpEnt
-parseImpEnt i s =
+parseImpEnt :: CallConv -> Ident -> String -> ImpEnt
+parseImpEnt _cc i s =
   case words s of
     ["dynamic"] -> ImpDynamic
     ["wrapper"] -> ImpWrapper
@@ -94,10 +125,10 @@ isUnit (EVar unit) = unit == identUnit
 isUnit _ = False
 
 mkRet :: EType -> Int -> String -> String
-mkRet t n call = "mhs_from_" ++ cTypeName t ++ "(s, " ++ show n ++ ", " ++ call ++ ")"
+mkRet t n call = "mhs_from_" ++ cTypeHsName t ++ "(s, " ++ show n ++ ", " ++ call ++ ")"
 
 mkArg :: EType -> Int -> String
-mkArg t i = "mhs_to_" ++ cTypeName t ++ "(s, " ++ show i ++ ")"
+mkArg t i = "mhs_to_" ++ cTypeHsName t ++ "(s, " ++ show i ++ ")"
 
 mkHdr :: (ImpEnt, EType) -> String
 mkHdr (ImpStatic _ _ Ptr fn, iot) =
@@ -134,14 +165,14 @@ arity = length . fst . getArrows
 unIdent' :: Ident -> String
 unIdent' = unIdent . unQualIdent
 
-cTypeName :: EType -> String
-cTypeName (EApp (EVar ptr) _t) | ptr == identPtr = "Ptr"
+cTypeHsName :: EType -> String
+cTypeHsName (EApp (EVar ptr) _t) | ptr == identPtr = "Ptr"
                                | ptr == identFunPtr = "FunPtr"
-cTypeName (EVar i) | Just c <- lookup (unIdent i) cTypes = c
-cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
+cTypeHsName (EVar i) | Just c <- lookup (unIdent i) cHsTypes = c
+cTypeHsName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
-cTypes :: [(String, String)]
-cTypes =
+cHsTypes :: [(String, String)]
+cHsTypes =
   -- These are temporary
   [ ("Primitives.FloatW", "FloatW")
   , ("Primitives.Int",    "Int")
@@ -165,6 +196,38 @@ cTypes =
     "CLLong",
     "CULLong",
     "CTime"
+  ]
+
+cTypeName :: EType -> String
+cTypeName (EApp (EVar ptr) t) | ptr == identPtr = cTypeName t ++ "*"
+cTypeName (EVar i) | Just c <- lookup (unIdent i) cTypes = c
+cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
+
+cTypes :: [(String, String)]
+cTypes =
+  -- These are temporary
+  [ ("Primitives.FloatW", "flt_t")
+  , ("Primitives.Int",    "intptr_t")   -- value_t
+  , ("Primitives.Word",   "uintptr_t")  -- uvalue_t
+  , ("Data.Word.Word8",   "uint8_t")
+  , ("()",                "void")
+  , ("System.IO.Handle",  "void*")
+  ] ++ map (first ("Foreign.C.Types." ++))
+  [ ("CChar", "char"),
+    ("CSChar", "signed char"),
+    ("CUChar", "unsigned char"),
+    ("CShort", "short"),
+    ("CUShort", "unsigned short"),
+    ("CInt", "int"),
+    ("CUInt", "unsigned int"),
+    ("CLong", "long"),
+    ("CULong", "unsigned long"),
+    ("CPtrdiff", "ptrdiff_t"),
+    ("CSize", "size_t"),
+    ("CSSize", "ssize_t"),
+    ("CLLong", "long long"),
+    ("CULLong", "unsigned long long"),
+    ("CTime", "time_t")
   ]
 
 -- These are already in the runtime

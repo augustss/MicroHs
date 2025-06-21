@@ -12,6 +12,8 @@ import Data.Maybe
 import System.Environment
 import MicroHs.Compile
 import MicroHs.CompileCache
+import MicroHs.Exp(Exp(Var, Lit))
+import MicroHs.Expr(Lit(LInt))
 import MicroHs.ExpPrint
 import MicroHs.FFI
 import MicroHs.Flags
@@ -82,6 +84,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-l                 Show every time a module is loaded\n\
       \-s                 Show compilation speed in lines/s\n\
       \-r                 Run directly\n\
+      \-c                 Don not generate executable\n\
       \-CR                Read compilation cache\n\
       \-CW                Write compilation cache\n\
       \-C                 Read and write compilation cache\n\
@@ -119,6 +122,7 @@ decodeArgs f mdls (arg:args) =
     "-r"        -> decodeArgs f{runIt = True} mdls args
     "-l"        -> decodeArgs f{loading = True} mdls args
     "-s"        -> decodeArgs f{speed = True} mdls args
+    "-c"        -> decodeArgs f{noLink = True} mdls args
     "-CR"       -> decodeArgs f{readCache = True} mdls args
     "-CW"       -> decodeArgs f{writeCache = True} mdls args
     "-C"        -> decodeArgs f{readCache = True, writeCache = True} mdls args
@@ -274,8 +278,8 @@ mainCompile flags mn = do
   t1 <- getTimeMilli
   let
     mainName = qualIdent rmn (mkIdent "main")
-    cmdl = (mainName, allDefs)
-    (numOutDefs, outData) = toStringCMdl cmdl
+    cmdl = (allDefs, if noLink flags then Lit (LInt 0) else Var mainName)
+    (numOutDefs, forExps, outData) = toStringCMdl cmdl
     numDefs = length allDefs
   when (verbosityGT flags 0) $
     putStrLn $ "top level defns:      " ++ padLeft 6 (show numOutDefs) ++ " (unpruned " ++ show numDefs ++ ")"
@@ -301,7 +305,9 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    let cCode = makeCArray flags outData ++ makeFFI flags allDefs
+    target <- readTarget flags (mhsdir flags)
+    let cCode = makeCArray flags outData ++
+                makeFFI flags ["eval-" ++ tConf target ++ ".c"] forExps allDefs
 
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
@@ -334,20 +340,23 @@ mainCompileC flags ppkgs infile = do
   let incs = unwords $ map ("-I" ++) incDirs'
       defs = "-D__MHS__"
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
-  TTarget _ compiler ccflags cclibs conf <- readTarget flags dir
+      rtdir = dir ++ "/src/runtime"
+  TTarget _ compiler ccflags cclibs _ <- readTarget flags dir
   extra <- fromMaybe "" <$> lookupEnv "MHSEXTRACCFLAGS"
-  let dcc = compiler ++ " -w -Wall -O3 -I" ++ dir ++ "/src/runtime " ++
-                        ccflags ++ " " ++
-                        incs ++ " " ++
-                        defs ++ " " ++
-                        extra ++ " " ++
-                        cpps ++
-                        dir ++ "/src/runtime/eval-" ++ conf ++ ".c " ++
-                        unwords (cArgs flags) ++
-                        unwords (map (++ "/*.c") cDirs') ++
-                        " $IN " ++
-                        cclibs ++
-                        " -o $OUT"
+  let dcc = unwords $ [compiler,
+                       ccflags,
+                       "-I" ++ rtdir,
+                       incs,
+                       defs,
+                       extra,
+                       cpps] ++
+                       cArgs flags ++
+                       map (++ "/*.c") cDirs' ++
+                      [ rtdir ++ "/main.c" | not (noLink flags) ] ++
+                      ["$IN",
+                       cclibs,
+                       "-o $OUT"
+                      ]
       cc = fromMaybe dcc mcc
       cmd = substString "$IN" infile $ substString "$OUT" outFile cc
   when (verbosityGT flags 0) $

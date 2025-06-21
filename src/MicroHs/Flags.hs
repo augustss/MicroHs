@@ -25,7 +25,8 @@ data Flags = Flags {
   installPkg :: Bool,       -- install a package
   target     :: String,     -- Compile target defined in target.conf
   dumpFlags  :: [DumpFlag], -- For debugging,
-  useStdin   :: Bool        -- Use stdin in interactive system
+  useStdin   :: Bool,       -- Use stdin in interactive system
+  noLink     :: Bool        -- Just generate an unlinked object file
   }
   deriving (Show)
 
@@ -54,7 +55,8 @@ defaultFlags dir = Flags {
   installPkg = False,
   target     = "default",
   dumpFlags  = [],
-  useStdin   = False
+  useStdin   = False,
+  noLink     = False
   }
   -- This is a hack so that the in-place mhs picks up GMP.
   where gmp | dir == "." && wantGMP = ["lib/gmp"]

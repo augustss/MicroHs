@@ -18,17 +18,17 @@ import MicroHs.ExpPrint(encodeString)
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 
-translateAndRun :: (Ident, [LDef]) -> IO ()
+translateAndRun :: ([LDef], Exp) -> IO ()
 translateAndRun defs = do
   let prog = unsafeCoerce (translate defs)
   prog
 
-translate :: (Ident, [LDef]) -> AnyType
-translate (mainName, ds) =
+translate :: ([LDef], Exp) -> AnyType
+translate (ds, emain) =
   let
     look n = fromMaybe (errorMessage (getSLoc n) $ "translate: not found " ++ showIdent n) $ M.lookup n mp
     mp = M.fromList [(n, trans look d) | (n, d) <- ds ]
-  in look mainName
+  in trans look emain
 
 trans :: (Ident -> AnyType) -> Exp -> AnyType
 trans r ae =
@@ -41,7 +41,7 @@ trans r ae =
     Lit (LBStr s) -> unsafeCoerce (Data.String.fromString s :: ByteString)
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
-    Lit (LForImp s _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
+    Lit (LForImp _ s _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
     _ -> error $ "trans: impossible: " ++ show ae
 
 -- Use linear search in this table.

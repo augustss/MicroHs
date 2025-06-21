@@ -75,14 +75,11 @@ int num_ffi;
 
 #define VERSION "v8.1\n"
 
-typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
 #define PRIvalue PRIdPTR
-typedef uintptr_t uvalue_t;     /* Make unsigned value the same size as pointers, since they are in a union */
 #define PRIuvalue PRIuPTR
 typedef uintptr_t heapoffs_t;   /* Heap offsets */
 #define PRIheap PRIuPTR
 typedef uintptr_t tag_t;        /* Room for tag, low order bit indicates AP/not-AP */
-typedef intptr_t stackptr_t;    /* Index into stack */
 
 typedef uintptr_t counter_t;    /* Statistics counter, can be smaller since overflow doesn't matter */
 #define PRIcounter PRIuPTR
@@ -398,7 +395,6 @@ typedef struct node {
 #define BIT_NOTAP (BIT_TAG | BIT_IND)
 #define TAG_SHIFT 2
 
-typedef struct node* NODEPTR;
 #define NIL 0
 #define HEAPREF(i) &cells[(i)]
 #define GETTAG(p) ((p)->ufun.uutag & BIT_NOTAP ? ( (p)->ufun.uutag & BIT_IND ? T_IND : (int)((p)->ufun.uutag >> TAG_SHIFT) ) : T_AP)
@@ -521,7 +517,6 @@ counter_t cur_c_stack = 0;
 #define MAXSTACK
 #endif
 
-NODEPTR *topnode;
 NODEPTR atptr;
 
 REGISTER(NODEPTR *stack,r20);
@@ -798,10 +793,11 @@ void pp(FILE*, NODEPTR);
 
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combK, combTrue, combUnit, combCons, combPair;
+NODEPTR combK, combTrue, combI, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combBB;
 NODEPTR combSETMASKINGSTATE;
 NODEPTR combLT, combEQ, combGT;
+NODEPTR combPERFORMIO;
 NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
@@ -814,6 +810,7 @@ NODEPTR combWorld;
 NODEPTR combCATCHR;
 #define combFalse combK
 #define combNothing combK
+#define combUnit combI
 
 #if WANT_ARGS
 /* This single element array hold a list of the program arguments. */
@@ -834,7 +831,7 @@ handle_sigint(int s)
 #endif
 
 /* Check that there are k nodes available, if not then GC. */
-static INLINE void
+INLINE void
 gc_check(size_t k)
 {
   if (k < num_free)
@@ -1573,7 +1570,8 @@ start_exec(NODEPTR root)
 {
   struct mthread *mt;
 
-  new_thread(new_ap(root, combWorld)); /* main thread */
+  mt = new_thread(new_ap(root, combWorld)); /* main thread */
+  mt->mt_id = MAIN_THREAD;                  /* make it the main thread in case this is foreign export calling */
 
   switch(setjmp(sched)) {
   case mt_main:
@@ -1857,7 +1855,7 @@ init_nodes(void)
     switch (t) {
     case T_K: combK = n; break;
     case T_A: combTrue = n; break;
-    case T_I: combUnit = n; break;
+    case T_I: combI = n; break;
     case T_O: combCons = n; break;
     case T_P: combPair = n; break;
     case T_CC: combCC = n; break;
@@ -1872,6 +1870,7 @@ init_nodes(void)
     case T_IO_THEN: combIOTHEN = n; break;
     case T_IO_RETURN: combIORETURN = n; break;
     case T_IO_SETMASKINGSTATE: combSETMASKINGSTATE = n; break;
+    case T_IO_PERFORMIO: combPERFORMIO = n; break;
     case T_BININT1: combBININT1 = n; break;
     case T_BININT2: combBININT2 = n; break;
     case T_UNINT1: combUNINT1 = n; break;
@@ -2277,7 +2276,7 @@ gc(void)
   /* Mark all FFI exports */
   if (xffe_table) {
     for(struct ffe_entry *f = xffe_table; f->ffe_name; f++) {
-      mark((NODEPTR*)&f->ffe_fun);
+      mark((NODEPTR*)&f->ffe_value);
     }
   }
 
@@ -3109,8 +3108,8 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
   n = parse(f);
   if (ffe) {
     for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
-      heapoffs_t l = atoi(f->ffe_name); /* the name must be numerical */
-      f->ffe_fun = find_label(l);
+      heapoffs_t l = atoi(f->ffe_name+1); /* the name must be numerical */
+      f->ffe_value = *find_label(l);
     }
   }
   FREE(shared_table);
@@ -3498,6 +3497,8 @@ pp(FILE *f, NODEPTR n)
 }
 
 #if 0
+NODEPTR *topnode;
+
 void
 ppmsg(const char *msg, NODEPTR n)
 {
@@ -5467,7 +5468,20 @@ memsize(const char *p)
 extern uint8_t *combexpr;
 extern int combexprlen;
 
-MAIN
+#if WANT_TICK
+int dump_ticks = 0;
+#endif
+
+NODEPTR
+mhs_init_args(
+#if WANT_ARGS
+              int argc, char **argv,
+#endif
+#if WANT_STDIO
+              char **outnamep,
+              size_t *file_sizep
+#endif
+)
 {
   NODEPTR prog;
 #if WANT_ARGS
@@ -5477,13 +5491,6 @@ MAIN
   char **gargv;
   int gargc;
   int inrts;
-#if WANT_TICK
-  int dump_ticks = 0;
-#endif
-#endif
-#if WANT_STDIO
-  char *outname = 0;
-  size_t file_size = 0;
 #endif
 
 #if 0
@@ -5531,7 +5538,7 @@ MAIN
           inname = &p[2];
 #if WANT_STDIO
         else if (strncmp(p, "-o", 2) == 0)
-          outname = &p[2];
+          *outnamep = &p[2];
         else if (strcmp(p, "-B") == 0)
           gcbell++;
 #endif  /* WANT_STDIO */
@@ -5593,11 +5600,11 @@ MAIN
     prog = parse_top(bf, xffe_table);
     closeb(bf);
 #if WANT_STDIO
-    file_size = combexprlen;
+    *file_sizep = combexprlen;
 #endif
   } else {
 #if WANT_STDIO
-    prog = parse_file(inname, &file_size);
+    prog = parse_file(inname, file_sizep);
 #else
     ERR("no stdio");
 #endif
@@ -5610,6 +5617,28 @@ MAIN
   gc();                         /* this finds some more GC reductions */
   want_gc_red = 0;              /* disabled due to UB */
   prog = POPTOP();
+  return prog;
+}  
+
+void
+mhs_init(void)
+{
+  char *args[2] = { "<mhs_init>", 0 };
+  char *outname;
+  size_t file_size;
+  (void)mhs_init_args(1, args, &outname, &file_size);
+}
+
+int
+mhs_main(int argc, char **argv)
+{
+  NODEPTR prog;
+#if WANT_STDIO
+  char *outname = 0;
+  size_t file_size = 0;
+#endif
+
+  prog = mhs_init_args(argc, argv, &outname, &file_size);
 
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
@@ -5629,7 +5658,9 @@ MAIN
 #endif
   run_time -= GETTIMEMILLI();
 
+#if 0
   topnode = &prog;
+#endif
   start_exec(prog);
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
@@ -5702,6 +5733,57 @@ MAIN
 #if WANT_LZ77
 #include "lz77.c"
 #endif
+
+/***************************/
+/* Foreign export helpers  */
+
+void
+ffe_push(NODEPTR n)
+{
+  PUSH(n);
+}
+
+void
+ffe_pop(void)
+{
+  POP(1);
+}
+
+/* Allocate a new node (will be overwritten) */
+stackptr_t
+ffe_alloc(void)
+{
+  PUSH(alloc_node(T_DBL));
+  return stack_ptr;
+}
+
+void
+ffe_apply(void)
+{
+  NODEPTR arg = POPTOP();
+  NODEPTR fun = POPTOP();
+  PUSH(new_ap(fun, arg));
+}
+
+/* XXX This is not quite right.  The surrounding mhs_to_xxx should be in the thread. */
+stackptr_t
+ffe_eval(void)
+{
+  start_exec(TOP(0));                /* start up the threading to evaluate the node */
+  /* The mhs_to_xxx functions bizarrely return the ARG(TOP(n+1)) value.
+   * The wrapper will call with n=-1, so we need to put the result at ARG(TOP(0))
+   */
+  TOP(0) = new_ap(combI, TOP(0));
+  return stack_ptr;
+}
+
+stackptr_t
+ffe_exec(void)
+{
+  NODEPTR n = POPTOP();
+  PUSH(new_ap(combPERFORMIO, n));
+  return ffe_eval();
+}
 
 /*********************/
 /* FFI adapters      */

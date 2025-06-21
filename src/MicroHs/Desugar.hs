@@ -51,13 +51,25 @@ dsDef flags mn adef =
         [] -> []    -- no bound variable, just throw it away
         -- Create a unique varible by adding a "$g" suffix to one of the bound variables.
         v : _ -> dsPatBind (addIdentSuffix v "$g") p e
-    ForImp ie i t -> [(i, if isIO t then frgn else App perf frgn)]
-      where frgn = Lit $ LForImp (fromMaybe (unIdent (unQualIdent i)) ie) cty
+    ForImp cc ie i t -> [(i, if isIO t then frgn else App perf frgn)]
+      where frgn = Lit $ LForImp cc (fromMaybe (unIdent (unQualIdent i)) ie) cty
             cty = CType t
             perf = Lit $ LPrim "IO.performIO"
             isIO x | Just (_, r) <- getArrow x = isIO r
             isIO (EApp (EVar io) _) = io == mkIdent "Primitives.IO"
             isIO _ = False
+    -- Foreign exports don't fit very well into the desugared syntax.
+    -- We represent
+    --   foreign export "foo" bar :: ty
+    -- with
+    --   foo = FE bar' ty'
+    -- where bar' is the desugared expression for bar, and ty' is the C type
+    -- (currently just a newtype of an EType).
+    ForExp _ (Just s) e t ->  [(mkIdentSLoc l s, app2 cfe e' cty)]
+      where l = getSLoc e
+            e' = dsExpr e
+            cty = Lit $ LCType $ CType t
+            cfe = Lit $ LPrim "FE"
     Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"
           meths :: [Ident]

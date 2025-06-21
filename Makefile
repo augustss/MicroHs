@@ -12,11 +12,13 @@ CONF=unix-64
 #
 # Using GCC enables global register variables on ARM64, which gives a 5-10% speedup.
 #CC=gcc-14
+MAINC= src/runtime/main.c
+#
 CCWARNS= -Wall
 CCOPTS= -O3
-CCLIBS= -lm
+CCLIBS= -lm $(MHSGMPCCLIBS)
 CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
-CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) $(MHSGMPCCLIBS)
+CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime $(MAINC)
 #
 GHC= ghc
 GHCINCS= -ighc -isrc -ipaths
@@ -50,13 +52,13 @@ all:	bin/mhs bin/cpphs bin/mcabal
 targets.conf:
 	echo "[default]"                        > targets.conf
 	echo cc = \"$(CC)\"                    >> targets.conf
-	echo ccflags = \"$(MHSGMPCCFLAGS)\"    >> targets.conf
+	echo ccflags = \"-w -Wall -O3 $(MHSGMPCCFLAGS)\"    >> targets.conf
 	echo cclibs = \"$(MHSGMPCCLIBS) -lm\"  >> targets.conf
 	echo conf = \"$(CONF)\"                >> targets.conf
 	echo ''                                >> targets.conf
 	echo "[emscripten]"                    >> targets.conf
 	echo cc = \"$(EMCC)\"                  >> targets.conf
-	echo ccflags = \"$(EMCCFLAGS)\"        >> targets.conf
+	echo ccflags = \"-O3 $(EMCCFLAGS)\"    >> targets.conf
 	echo cclibs = \"-lm\"                  >> targets.conf
 	echo conf = \"$(CONF)\"                >> targets.conf
 	echo ''                                >> targets.conf
@@ -67,44 +69,44 @@ targets.conf:
 	echo conf = \"$(CONF)\"                >> targets.conf
 
 newmhs:	ghcgen targets.conf
-	$(CCEVAL) generated/mhs.c -o bin/mhs
-	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c $(MHSGMPCCLIBS) -o bin/mhsgdb
+	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs
+	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g -Isrc/runtime $(MAINC) generated/mhs.c $(CCLIBS) -o bin/mhsgdb
 
 newmhsz:	newmhs
 	rm generated/mhs.c
 	make generated/mhs.c
 
 sanitizemhs:	ghcgen targets.conf
-	$(CCEVAL) $(CCSANITIZE) generated/mhs.c -o bin/mhssane
+	$(CCEVAL) $(CCSANITIZE) generated/mhs.c $(CCLIBS) -o bin/mhssane
 
 # Compile mhs from distribution, with C compiler
 bin/mhs:	src/runtime/*.c src/runtime/*.h targets.conf #generated/mhs.c
 	@mkdir -p bin
-	$(CCEVAL) generated/mhs.c -o bin/mhs
+	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs
 
 # Compile cpphs from distribution, with C compiler
 bin/cpphs:	src/runtime/*.c src/runtime/config*.h #generated/cpphs.c
 	@mkdir -p bin
-	$(CCEVAL) generated/cpphs.c -o bin/cpphs
+	$(CCEVAL) generated/cpphs.c $(CCLIBS) -o bin/cpphs
 
 # Compile mcabal from distribution, with C compiler
 bin/mcabal:	src/runtime/*.c src/runtime/config*.h #generated/mcabal.c
 	@mkdir -p bin
-	$(CCEVAL) generated/mcabal.c -o bin/mcabal
+	$(CCEVAL) generated/mcabal.c $(CCLIBS) -o bin/mcabal
 
 # Compile combinator evaluator
 bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
-	$(CCEVAL) src/runtime/comb.c -o bin/mhseval
+	$(CCEVAL) src/runtime/comb.c src/runtime/eval-$(CONF).c $(CCLIBS) -o bin/mhseval
 	size bin/mhseval
 
 bin/mhsevalgdb:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
-	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c $(MHSGMPCCLIBS) -o bin/mhsevalgdb
+	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c src/runtime/comb.c $(MAINC) $(CCLIBS) -o bin/mhsevalgdb
 
 bin/mhsevalsane:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
-	$(CCEVAL) $(CCSANITIZE) src/runtime/comb.c -o bin/mhsevalsane
+	$(CCEVAL) $(CCSANITIZE) src/runtime/eval-$(CONF).c src/runtime/comb.c $(CCLIBS) -o bin/mhsevalsane
 
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
@@ -148,7 +150,7 @@ bin/mhs-stage1:	bin/mhs src/*/*.hs
 	@mkdir -p generated
 	@echo "*** Build stage1 compiler, using bin/mhs"
 	bin/mhs -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs-stage1.c
-	$(CCEVAL) generated/mhs-stage1.c -o bin/mhs-stage1
+	$(CCEVAL) generated/mhs-stage1.c $(CCLIBS) -o bin/mhs-stage1
 
 # Build stage2 compiler with stage1 compiler, and compare
 bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
@@ -157,7 +159,7 @@ bin/mhs-stage2:	bin/mhs-stage1 src/*/*.hs
 	bin/mhs-stage1 -z $(MHSINC) $(MAINMODULE) -ogenerated/mhs-stage2.c
 	cmp generated/mhs-stage1.c generated/mhs-stage2.c
 	@echo "*** stage2 equal to stage1"
-	$(CCEVAL) generated/mhs-stage2.c -o bin/mhs-stage2
+	$(CCEVAL) generated/mhs-stage2.c $(CCLIBS) -o bin/mhs-stage2
 
 # Fetch cpphs submodule
 cpphssrc/malcolm-wallace-universe/.git:
@@ -287,8 +289,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.13.3.0
-HVERSION=0,13,3,0
+VERSION=0.14.0.0
+HVERSION=0,14,0,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
@@ -364,4 +366,4 @@ generated/hmhs.c:
 
 bin/hmhs: generated/hmhs.c
 	@mkdir -p bin
-	$(CCEVAL) generated/hmhs.c -o bin/hmhs
+	$(CCEVAL) generated/hmhs.c $(CCLIBS) -o bin/hmhs

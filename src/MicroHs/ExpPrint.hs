@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion) where
+module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, checkDupInstances) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char(ord, chr)
 import qualified MicroHs.IdentMap as M
@@ -21,9 +21,11 @@ combVersion = "v8.1\n"
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- Also check for duplicated instances.
 -- This is the "linking" of the program.
-renumberCMdl :: (Ident, [LDef]) -> (Int, (Ident, [LDef]))
-renumberCMdl (mainName, ds) =
+renumberCMdl :: ([LDef], Exp) -> (Int, [Ident], [LDef], Exp)
+renumberCMdl (ds, emain) =
   let
+    fexps = [ i | (i, App (App (Lit (LPrim "FE")) _) _) <- ds ]
+    roots = freeVars emain ++ fexps
     dMap = M.fromList ds
     -- Shake the tree bottom-up, renaming identifiers as we go along.
     -- This is much faster than (say) computing the sccs and walking that.
@@ -41,7 +43,7 @@ renumberCMdl (mainName, ds) =
           -- Now that n's children are done, compute its actual entry.
           (i', seen', r') <- get
           put (i'+1, M.insert n (ref i') seen', (mkIdent $ show i', substv e) : r')
-    (_,(ndefs, defs, res)) = runState (dfs mainName) (0, M.empty, [])
+    (_,(ndefs, defs, res)) = runState (mapM_ dfs roots) (0, M.empty, [])
     ref i = Var $ mkIdent $ "_" ++ show i
     findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
                       M.lookup n m
@@ -51,27 +53,36 @@ renumberCMdl (mainName, ds) =
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-    Var emain = findIdent mainName
+    fexps' = map (unVar . findIdent) fexps
+      where unVar (Var n) = n
+            unVar _ = undefined
   in
-    case dupInstances ds of
-      (n1 : n2 : _) : _ -> errorMessage (getSLoc n1) $ "Duplicate instance " ++ unmangleInst (showIdent n1) ++ " at " ++ showSLoc (getSLoc n2)
-      _ -> (ndefs, (emain, res))
+    (ndefs, fexps', res, substv emain)
 
-
-toStringCMdl :: (Ident, [LDef]) -> (Int, String)
+-- The argument is all definitions and the main expression.
+-- The result is the number of definitions, all foreign export identifiers, and the program as a string.
+toStringCMdl :: ([LDef], Exp) -> (Int, [Ident], String)
 toStringCMdl mds =
   let
-    (ndefs, (emain, ds)) = renumberCMdl mds
+    (ndefs, exps, ds, emain) = renumberCMdl mds
 
     def :: (Ident, Exp) -> (String -> String) -> (String -> String)
+    def (i, App (App (Lit (LPrim "FE")) e) _) r = def (i, e) r
     def (i, e) r =
       ("A " ++) . toStringP e . ((":" ++ showIdent i ++  " @\n") ++) . r . ("@" ++)
 
     res :: String -> String
-    res = foldr def ((showIdent emain ++ " ") ++) ds
+    res = foldr def (toStringP emain) ds
 
   in
-    (ndefs, combVersion ++ show ndefs ++ "\n" ++ res " }")
+    (ndefs, exps, combVersion ++ show ndefs ++ "\n" ++ res " }")
+
+checkDupInstances :: [LDef] -> [LDef]
+checkDupInstances ds =
+  case dupInstances ds of
+    (n1 : n2 : _) : _ ->
+      errorMessage (getSLoc n1) $ "Duplicate instance " ++ unmangleInst (showIdent n1) ++ " at " ++ showSLoc (getSLoc n2)
+    _ -> ds
 
 dupInstances :: [LDef] -> [[Ident]]
 dupInstances = filter ((> 1) . length) . groupSort . filter isInstId . map fst

@@ -2199,12 +2199,14 @@ static unsigned char data[] = {
 };
 unsigned char *combexpr = data;
 int combexprlen = 43930;
-#include "mhsffi.h"
+#include "eval-unix-64.c"
 static struct ffi_entry imp_table[] = {
 { 0,0 }
 };
 struct ffi_entry *xffi_table = imp_table;
 static struct ffe_entry exp_table[] = {
-{ 0,0 }
+  { 0,0 }
 };
 struct ffe_entry *xffe_table = exp_table;
+
+

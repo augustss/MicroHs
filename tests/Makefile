@@ -113,6 +113,9 @@ test:
 testforeign:
 	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out  && diff ForeignC.ref ForeignC.out
 
+ffitest:
+	MHSDIR=.. $(TMHS) -c -optc --shared ForExp -oForExpHs.so && $(CC) ForExp.c ForExpHs.so -o ForExp && ./ForExp > ForExp.out && diff ForExp.ref ForExp.out
+
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
 
