@@ -23,11 +23,9 @@ makeFFI _ incs forExps ds =
       mkSig (i, CType t) = let (as, ior) = getArrows t in mkExportSig i as ior ++ ";"
       header = unlines
         ["#include <stdint.h>",
-         "#include <stdio.h>",
          "#if defined(__cplusplus)",
          "extern \"C\" {",
          "#endif",
-         "typedef intptr_t value_t;",
          "void mhs_init(void);",
          intercalate "\n" $ map mkSig exps,
          "#if defined(__cplusplus)",
