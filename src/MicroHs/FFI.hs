@@ -212,7 +212,7 @@ cTypes =
   , ("Data.Word.Word8",   "uint8_t")
   , ("()",                "void")
   , ("System.IO.Handle",  "void*")
-  ] ++ map (\ (t, ct) -> ("Foreign.C.Types." ++ t, ct))
+  ] ++ map (first ("Foreign.C.Types." ++))
   [ ("CChar", "char"),
     ("CSChar", "signed char"),
     ("CUChar", "unsigned char"),
