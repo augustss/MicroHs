@@ -53,11 +53,11 @@ renumberCMdl (ds, emain) =
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-    roots' = map (unVar . findIdent) roots
+    fexps' = map (unVar . findIdent) fexps
       where unVar (Var n) = n
             unVar _ = undefined
   in
-    (ndefs, roots', res, substv emain)
+    (ndefs, fexps', res, substv emain)
 
 -- The argument is all definitions and the main expression.
 -- The result is the number of definitions, all foreign export identifiers, and the program as a string.

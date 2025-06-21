@@ -12,11 +12,13 @@ CONF=unix-64
 #
 # Using GCC enables global register variables on ARM64, which gives a 5-10% speedup.
 #CC=gcc-14
+MAINC= src/runtime/main.c
+#
 CCWARNS= -Wall
 CCOPTS= -O3
 CCLIBS= -lm
 CCSANITIZE= -fsanitize=undefined -fsanitize=address -fsanitize=pointer-compare -fsanitize=pointer-subtract
-CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) $(MHSGMPCCLIBS)
+CCEVAL= $(CC) $(CCWARNS) $(CCOPTS) $(MHSGMPCCFLAGS) -Isrc/runtime $(MAINC) $(CCLIBS) $(MHSGMPCCLIBS)
 #
 GHC= ghc
 GHCINCS= -ighc -isrc -ipaths
@@ -68,7 +70,7 @@ targets.conf:
 
 newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c -o bin/mhs
-	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g -Isrc/runtime src/runtime/eval-$(CONF).c $(CCLIBS) generated/mhs.c $(MHSGMPCCLIBS) -o bin/mhsgdb
+	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g -Isrc/runtime $(MAINC) $(CCLIBS) generated/mhs.c $(MHSGMPCCLIBS) -o bin/mhsgdb
 
 newmhsz:	newmhs
 	rm generated/mhs.c
@@ -95,16 +97,16 @@ bin/mcabal:	src/runtime/*.c src/runtime/config*.h #generated/mcabal.c
 # Compile combinator evaluator
 bin/mhseval:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
-	$(CCEVAL) src/runtime/comb.c -o bin/mhseval
+	$(CCEVAL) src/runtime/comb.c src/runtime/eval-$(CONF).c -o bin/mhseval
 	size bin/mhseval
 
 bin/mhsevalgdb:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
-	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c $(MHSGMPCCLIBS) -o bin/mhsevalgdb
+	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g src/runtime/eval-$(CONF).c $(CCLIBS) src/runtime/comb.c $(MAINC) $(MHSGMPCCLIBS) -o bin/mhsevalgdb
 
 bin/mhsevalsane:	src/runtime/*.c src/runtime/config*.h
 	@mkdir -p bin
-	$(CCEVAL) $(CCSANITIZE) src/runtime/comb.c -o bin/mhsevalsane
+	$(CCEVAL) $(CCSANITIZE) src/runtime/comb.c $(MAINC) -o bin/mhsevalsane
 
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
@@ -287,8 +289,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.13.3.0
-HVERSION=0,13,3,0
+VERSION=0.14.0.0
+HVERSION=0,14,0,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data

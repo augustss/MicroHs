@@ -10,15 +10,15 @@ import MicroHs.Ident
 import MicroHs.Names
 --import Debug.Trace
 
-makeFFI :: Flags -> [Ident] -> [LDef] -> String
-makeFFI _ forExps ds =
+makeFFI :: Flags -> [String] -> [Ident] -> [LDef] -> String
+makeFFI _ incs forExps ds =
   let ffiImports = [ (parseImpEnt i f, t) | (i, d) <- ds, Lit (LForImp f (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
       wrappers = [ t | (ImpWrapper, t) <- ffiImports]
       dynamics = [ t | (ImpDynamic, t) <- ffiImports]
       imps     = uniqName $ filter ((`notElem` runtimeFFI) . impName) ffiImports
-      includes = "mhsffi.h" : nub [ inc | (ImpStatic _ (Just inc) _ _, _) <- imps ]
+      includes = incs ++ nub [ inc | (ImpStatic _ (Just inc) _ _, _) <- imps ]
       exps     = [ (i, t) | (i, App (App (Lit (LPrim "FE")) _) (Lit (LCType t))) <- ds ]
   in
     if not (null wrappers) || not (null dynamics) then error "Unimplemented FFI feature" else
@@ -47,15 +47,25 @@ mkExportWrapper no (n, CType t) = unlines $
   let (as, ior) = getArrows t
       r = checkIO ior
       outT = cTypeName r
-      ins = zipWith (\ i a -> cTypeName a ++ " x" ++ show i) [1::Int ..] as
-      arg k a = "  mhs_from_" ++ cTypeHsName a ++ "(ffe_alloc(), 0, x" ++ show k ++ "); ffe_apply();"
-  in  [outT ++ " " ++ unIdent n ++ "(" ++ intercalate ", " ins ++ ") {",
+      ins = zipWith (\ i a -> cTypeName a ++ " _x" ++ show i) [1::Int ..] as
+      arg k a = "  mhs_from_" ++ cTypeHsName a ++ "(ffe_alloc(), 0, _x" ++ show k ++ "); ffe_apply();"
+      eval = if eqEType r ior then "ffe_eval()" else "ffe_exec()"
+      sign = outT ++ " " ++ unIdent n ++ "(" ++ intercalate ", " ins ++ ")"
+  in  [sign ++ " {",
        "  gc_check(" ++ show (2 * length as + 4) ++ ");",
        "  ffe_push(xffe_table[" ++ show no ++ "].ffe_value);" ]
       ++ zipWith arg [1::Int ..] as ++
-      ["  return" ++ if isUnit r then ";" else " mhs_to_" ++ cTypeHsName r ++ "(" ++
-        (if eqEType r ior then "ffe_eval()" else "ffe_exec()") ++ ", -1);",
-       "}"]
+      if isUnit r then
+        [ "  (void)" ++ eval ++ ";",
+          "  ffe_pop();",
+          "}"
+        ]
+       else
+        [ "  " ++ outT ++ " _res = mhs_to_" ++ cTypeHsName r ++ "(" ++ eval ++ ", -1);",
+          "  ffe_pop();",
+          "  return _res;",
+          "}"
+        ]
 
 uniqName :: [(ImpEnt, EType)] -> [(ImpEnt, EType)]
 uniqName = map head . groupBy ((==) `on` impName) . sortBy (compare `on` impName)
@@ -197,8 +207,8 @@ cTypes :: [(String, String)]
 cTypes =
   -- These are temporary
   [ ("Primitives.FloatW", "flt_t")
-  , ("Primitives.Int",    "value_t")
-  , ("Primitives.Word",   "uvalue_t")
+  , ("Primitives.Int",    "intptr_t")   -- value_t
+  , ("Primitives.Word",   "uintptr_t")  -- uvalue_t
   , ("Data.Word.Word8",   "uint8_t")
   , ("()",                "void")
   , ("System.IO.Handle",  "void*")

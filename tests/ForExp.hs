@@ -1,9 +1,5 @@
 module ForExp where
 
--- Dummy main
-main :: IO ()
-main = return ()
-
 foreign export ccall funcName :: Int -> IO Int
 foreign export ccall "other" ofuncName :: Int -> Int -> Int
 

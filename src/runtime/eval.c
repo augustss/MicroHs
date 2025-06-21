@@ -517,7 +517,6 @@ counter_t cur_c_stack = 0;
 #define MAXSTACK
 #endif
 
-NODEPTR *topnode;
 NODEPTR atptr;
 
 REGISTER(NODEPTR *stack,r20);
@@ -1571,7 +1570,8 @@ start_exec(NODEPTR root)
 {
   struct mthread *mt;
 
-  new_thread(new_ap(root, combWorld)); /* main thread */
+  mt = new_thread(new_ap(root, combWorld)); /* main thread */
+  mt->mt_id = MAIN_THREAD;                  /* make it the main thread in case this is foreign export calling */
 
   switch(setjmp(sched)) {
   case mt_main:
@@ -3108,7 +3108,7 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
   n = parse(f);
   if (ffe) {
     for(struct ffe_entry *f = ffe; f->ffe_name; f++) {
-      heapoffs_t l = atoi(f->ffe_name); /* the name must be numerical */
+      heapoffs_t l = atoi(f->ffe_name+1); /* the name must be numerical */
       f->ffe_value = *find_label(l);
     }
   }
@@ -3497,6 +3497,8 @@ pp(FILE *f, NODEPTR n)
 }
 
 #if 0
+NODEPTR *topnode;
+
 void
 ppmsg(const char *msg, NODEPTR n)
 {
@@ -5466,7 +5468,20 @@ memsize(const char *p)
 extern uint8_t *combexpr;
 extern int combexprlen;
 
-MAIN
+#if WANT_TICK
+int dump_ticks = 0;
+#endif
+
+NODEPTR
+mhs_init_args(
+#if WANT_ARGS
+              int argc, char **argv,
+#endif
+#if WANT_STDIO
+              char **outnamep,
+              size_t *file_sizep
+#endif
+)
 {
   NODEPTR prog;
 #if WANT_ARGS
@@ -5476,13 +5491,6 @@ MAIN
   char **gargv;
   int gargc;
   int inrts;
-#if WANT_TICK
-  int dump_ticks = 0;
-#endif
-#endif
-#if WANT_STDIO
-  char *outname = 0;
-  size_t file_size = 0;
 #endif
 
 #if 0
@@ -5530,7 +5538,7 @@ MAIN
           inname = &p[2];
 #if WANT_STDIO
         else if (strncmp(p, "-o", 2) == 0)
-          outname = &p[2];
+          *outnamep = &p[2];
         else if (strcmp(p, "-B") == 0)
           gcbell++;
 #endif  /* WANT_STDIO */
@@ -5592,11 +5600,11 @@ MAIN
     prog = parse_top(bf, xffe_table);
     closeb(bf);
 #if WANT_STDIO
-    file_size = combexprlen;
+    *file_sizep = combexprlen;
 #endif
   } else {
 #if WANT_STDIO
-    prog = parse_file(inname, &file_size);
+    prog = parse_file(inname, file_sizep);
 #else
     ERR("no stdio");
 #endif
@@ -5609,6 +5617,28 @@ MAIN
   gc();                         /* this finds some more GC reductions */
   want_gc_red = 0;              /* disabled due to UB */
   prog = POPTOP();
+  return prog;
+}  
+
+void
+mhs_init(void)
+{
+  char *args[2] = { "<mhs_init>", 0 };
+  char *outname;
+  size_t file_size;
+  (void)mhs_init_args(1, args, &outname, &file_size);
+}
+
+int
+mhs_main(int argc, char **argv)
+{
+  NODEPTR prog;
+#if WANT_STDIO
+  char *outname = 0;
+  size_t file_size = 0;
+#endif
+
+  prog = mhs_init_args(argc, argv, &outname, &file_size);
 
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
@@ -5628,11 +5658,9 @@ MAIN
 #endif
   run_time -= GETTIMEMILLI();
 
+#if 0
   topnode = &prog;
-  {
-    extern value_t funcName(value_t);
-    funcName(5);
-  }
+#endif
   start_exec(prog);
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
@@ -5715,6 +5743,12 @@ ffe_push(NODEPTR n)
   PUSH(n);
 }
 
+void
+ffe_pop(void)
+{
+  POP(1);
+}
+
 /* Allocate a new node (will be overwritten) */
 stackptr_t
 ffe_alloc(void)
@@ -5731,14 +5765,15 @@ ffe_apply(void)
   PUSH(new_ap(fun, arg));
 }
 
+/* XXX This is not quite right.  The surrounding mhs_to_xxx should be in the thread. */
 stackptr_t
 ffe_eval(void)
 {
-  NODEPTR n = evali(TOP(0));
+  start_exec(TOP(0));                /* start up the threading to evaluate the node */
   /* The mhs_to_xxx functions bizarrely return the ARG(TOP(n+1)) value.
    * The wrapper will call with n=-1, so we need to put the result at ARG(TOP(0))
    */
-  TOP(0) = new_ap(combI, n);
+  TOP(0) = new_ap(combI, TOP(0));
   return stack_ptr;
 }
 

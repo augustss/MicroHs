@@ -94,6 +94,7 @@ intptr_t           mhs_to_CIntPtr(intptr_t, int);
 uintptr_t          mhs_to_CUIntPtr(intptr_t, int);
 
 void       ffe_push(NODEPTR);
+void       ffe_pop(void);
 stackptr_t ffe_alloc(void);
 void       ffe_apply(void);
 stackptr_t ffe_eval(void);

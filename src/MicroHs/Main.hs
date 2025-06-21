@@ -305,7 +305,9 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    let cCode = makeCArray flags outData ++ makeFFI flags forExps allDefs
+    target <- readTarget flags (mhsdir flags)
+    let cCode = makeCArray flags outData ++
+                makeFFI flags ["eval-" ++ tConf target ++ ".c"] forExps allDefs
 
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
@@ -338,18 +340,19 @@ mainCompileC flags ppkgs infile = do
   let incs = unwords $ map ("-I" ++) incDirs'
       defs = "-D__MHS__"
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
-  TTarget _ compiler ccflags cclibs conf <- readTarget flags dir
+      rtdir = dir ++ "/src/runtime"
+  TTarget _ compiler ccflags cclibs _ <- readTarget flags dir
   extra <- fromMaybe "" <$> lookupEnv "MHSEXTRACCFLAGS"
   let dcc = unwords $ [compiler,
                        ccflags,
-                       "-I" ++ dir ++ "/src/runtime",
+                       "-I" ++ rtdir,
                        incs,
                        defs,
                        extra,
-                       cpps,
-                       dir ++ "/src/runtime/eval-" ++ conf ++ ".c"] ++
+                       cpps] ++
                        cArgs flags ++
                        map (++ "/*.c") cDirs' ++
+                      [ rtdir ++ "/main.c" | not (noLink flags) ] ++
                       ["$IN",
                        cclibs,
                        "-o $OUT"
