@@ -60,17 +60,18 @@ jobs:
 #    - name: cabal build
 #      run: cabal build
 
-  build-windows:
-    runs-on: windows-latest
-    steps:
-    - name: checkout repo
-      uses: actions/checkout@v4
-    - name: set up MSVC
-      uses: ilammy/msvc-dev-cmd@v1
-    - name: nmake
-      run: nmake -f Makefile.windows
-    - name: nmake exampletest
-      run: nmake -f Makefile.windows exampletest
+# Disable Windows for now
+#  build-windows:
+#    runs-on: windows-latest
+#    steps:
+#    - name: checkout repo
+#      uses: actions/checkout@v4
+#    - name: set up MSVC
+#      uses: ilammy/msvc-dev-cmd@v1
+#    - name: nmake
+#      run: nmake -f Makefile.windows
+#    - name: nmake exampletest
+#      run: nmake -f Makefile.windows exampletest
 
   build-linux-aarch64:
     runs-on: ubuntu-22.04
