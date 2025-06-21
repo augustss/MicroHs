@@ -41,7 +41,7 @@ trans r ae =
     Lit (LBStr s) -> unsafeCoerce (Data.String.fromString s :: ByteString)
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
-    Lit (LForImp s _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
+    Lit (LForImp _ s _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
     _ -> error $ "trans: impossible: " ++ show ae
 
 -- Use linear search in this table.

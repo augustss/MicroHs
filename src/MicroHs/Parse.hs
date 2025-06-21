@@ -346,10 +346,10 @@ pDef =
   <|> Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSpec '=' *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDerivings
   <|> Type         <$> (pKeyword "type"     *> pLHS) <*> (pSpec '=' *> pType)
   <|> Import       <$> (pKeyword "import"   *> pImportSpec)
-  <|> ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> (pKeyword "ccall" <|> pKeyword "capi")
-                        *> optional (pKeyword "unsafe") *> optional pString) <*> pLIdent <*> (dcolon *> pType)
-  <|> ForExp       <$> (pKeyword "foreign"  *> pKeyword "export" *> (pKeyword "ccall" <|> pKeyword "capi")
-                        *> optional pString) <*> pFExpr <*> (dcolon *> pType)
+  <|> ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> pCallConv)
+                        <*> (optional (pKeyword "unsafe") *> optional pString) <*> pLIdent <*> (dcolon *> pType)
+  <|> ForExp       <$> (pKeyword "foreign"  *> pKeyword "export" *> pCallConv)
+                        <*> optional pString <*> pFExpr <*> (dcolon *> pType)
   <|> Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|> Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
   <|> Default      <$> (pKeyword "default"  *> optional clsSym) <*> pParens (sepBy pType (pSpec ','))
@@ -372,6 +372,9 @@ pDef =
     pStrat = (DerVia <$> (pKeyword "via" *> pAType)) <|> pSimpleStrat
 
     pFExpr = EVar <$> pLIdent
+
+pCallConv :: P CallConv
+pCallConv = (Cccall <$ pKeyword "ccall") <|> (Ccapi <$ pKeyword "capi") <|> (Cjavascript <$ pKeyword "javascript")
 
 pPatSyn :: P (LHS, EPat, Maybe [Eqn])
 pPatSyn = do

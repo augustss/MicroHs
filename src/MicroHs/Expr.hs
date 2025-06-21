@@ -8,6 +8,7 @@ module MicroHs.Expr(
   EDef(..), showEDefs,
   Deriving(..), DerStrategy(..),
   Expr(..), eLam, eLamWithSLoc, eEqn, eEqns, showExpr, eqExpr,
+  CallConv(..),
   QForm(..),
   Listish(..),
   Lit(..), showLit,
@@ -83,8 +84,8 @@ data EDef
   | Sign [Ident] EType
   | KindSign Ident EKind
   | Import ImportSpec
-  | ForImp (Maybe String) Ident EType
-  | ForExp (Maybe String) Expr EType
+  | ForImp CallConv (Maybe String) Ident EType
+  | ForExp CallConv (Maybe String) Expr EType
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
   | Instance EConstraint [EBind]
@@ -103,8 +104,8 @@ instance NFData EDef where
   rnf (Sign a b) = rnf a `seq` rnf b
   rnf (KindSign a b) = rnf a `seq` rnf b
   rnf (Import a) = rnf a
-  rnf (ForImp a b c) = rnf a `seq` rnf b `seq` rnf c
-  rnf (ForExp a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (ForImp a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
+  rnf (ForExp a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
   rnf (Infix a b) = rnf a `seq` rnf b
   rnf (Class a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
   rnf (Instance a b) = rnf a `seq` rnf b
@@ -117,6 +118,11 @@ data ImpType = ImpNormal | ImpBoot
   deriving (Eq)
 
 instance NFData ImpType where rnf x = x `seq` ()
+
+data CallConv = Cccall | Ccapi | Cjavascript
+  deriving (Eq, Show)
+
+instance NFData CallConv where rnf x = x `seq` ()
 
 data ImportSpec = ImportSpec ImpType Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
 --DEBUG  deriving (Show)
@@ -313,7 +319,7 @@ data Lit
   | LBStr String            -- bytestring
   | LPrim String
   | LExn String             -- exception to raise
-  | LForImp String CType
+  | LForImp CallConv String CType
   | LCType CType            -- used for foreign export
   | LTick String
 --DEBUG  deriving (Show)
@@ -329,7 +335,7 @@ instance NFData Lit where
   rnf (LBStr a) = rnf a
   rnf (LPrim a) = rnf a
   rnf (LExn a) = rnf a
-  rnf (LForImp a b) = rnf a `seq` rnf b
+  rnf (LForImp a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (LCType e) = rnf e
   rnf (LTick a) = rnf a
 
@@ -820,8 +826,8 @@ ppEDef def =
       case mis of
         Nothing -> empty
         Just (h, is) -> text (if h then " hiding" else "") <> parens (hsep $ punctuate (text ",") (map ppImportItem is))
-    ForImp ie i t -> text "foreign import ccall" <+> maybe empty (text . show) ie <+> ppIdent i <+> text "::" <+> ppEType t
-    ForExp ie e t -> text "foreign export ccall" <+> maybe empty (text . show) ie <+> ppExpr e <+> text "::" <+> ppEType t
+    ForImp cc ie i t -> text "foreign import" <+> text (drop 1 $ show cc) <+> maybe empty (text . show) ie <+> ppIdent i <+> text "::" <+> ppEType t
+    ForExp cc ie e t -> text "foreign export" <+> text (drop 1 $ show cc) <+> maybe empty (text . show) ie <+> ppExpr e <+> text "::" <+> ppEType t
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
@@ -1000,7 +1006,7 @@ showLit l =
     LBStr s    -> show s
     LPrim s    -> s
     LExn s     -> s
-    LForImp s _-> '^' : last (words s)  -- XXX needs improvement
+    LForImp _ s _-> '^' : last (words s)  -- XXX needs improvement
     LCType (CType t) -> show t
     LTick s    -> '!' : s
 

@@ -12,7 +12,7 @@ import MicroHs.Names
 
 makeFFI :: Flags -> [String] -> [Ident] -> [LDef] -> String
 makeFFI _ incs forExps ds =
-  let ffiImports = [ (parseImpEnt i f, t) | (i, d) <- ds, Lit (LForImp f (CType t)) <- [get d] ]
+  let ffiImports = [ (parseImpEnt cc i f, t) | (i, d) <- ds, Lit (LForImp cc f (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
       wrappers = [ t | (ImpWrapper, t) <- ffiImports]
@@ -84,8 +84,8 @@ data Imp = Ptr | Value | Func
 -- "[static] [name.h] [&] [name]"
 -- "dynamic"
 -- "wrapper"
-parseImpEnt :: Ident -> String -> ImpEnt
-parseImpEnt i s =
+parseImpEnt :: CallConv -> Ident -> String -> ImpEnt
+parseImpEnt _cc i s =
   case words s of
     ["dynamic"] -> ImpDynamic
     ["wrapper"] -> ImpWrapper

@@ -1087,7 +1087,7 @@ tcDefType def = do
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first              (Type    lhs') <$> tInferTypeT t
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> cm kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
     Sign      is t         ->                                            Sign      is   <$> tCheckTypeTImpl QImpl kType t
-    ForImp ie i t          ->                                            ForImp ie i    <$> tCheckTypeTImpl QImpl kType t
+    ForImp cc ie i t       ->                                            ForImp cc ie i <$> tCheckTypeTImpl QImpl kType t
     Instance ct m          ->                                            Instance       <$> tCheckTypeTImpl QExpl kConstraint ct <*> return m
     Default mc ts          ->                                            Default (Just c) <$> mapM (tcDefault c) ts
                                                                            where c = fromMaybe num mc
@@ -1477,7 +1477,7 @@ addValueType adef = do
         fs = either (const []) (map fst) ets
       extValETop c (EForall QExpl vks $ EForall QExpl [] $ tArrow t tret) (ECon $ ConNew (qualIdent mn c) fs)
       addConFields tycon con
-    ForImp _ i t -> extValQTop i t
+    ForImp _ _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     _ -> return ()
 
@@ -1549,10 +1549,10 @@ tcDefValue adef =
 --      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
       return $ Fcn (qualIdent' mn i) teqns
     PatBind p e -> tcPatBind PatBind p e
-    ForImp ie i t -> do
+    ForImp cc ie i t -> do
       mn <- gets moduleName
       t' <- expandSyn t
-      return (ForImp ie (qualIdent' mn i) t')
+      return (ForImp cc ie (qualIdent' mn i) t')
     ForExp{} -> tCheckForeignDecl adef
     Pattern{} -> impossible
     _ -> return adef
@@ -1561,10 +1561,10 @@ tcDefValue adef =
 -- In most cases the types will be the same, but the declaration can be overloaded
 -- so we need to ensure that it is compatible with the export definition.
 tCheckForeignDecl :: HasCallStack => EDef -> T EDef
-tCheckForeignDecl (ForExp ms e t) = do
+tCheckForeignDecl (ForExp cc ms e t) = do
   ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
   let e'' = eLetB (eBinds ds) e'
-  pure $ ForExp (Just $ fromMaybe (show e) ms) e'' t'
+  pure $ ForExp cc (Just $ fromMaybe (show e) ms) e'' t'
 tCheckForeignDecl _ = impossible
 
 qualIdent' :: IdentModule -> Ident -> Ident
