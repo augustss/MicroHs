@@ -177,7 +177,7 @@ runtest:	bin/mhseval bin/gmhs tests/*.hs
 
 # Run test examples with mhs-compiled compiler
 runtestmhs: bin/mhseval bin/mhs
-	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H4M -RTS -CR" info test errtest
+	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H4M -RTS -CR" alltest
 
 # Run test examples with sanitized mhs-compiled compiler
 runtestsan: bin/mhsevalsane sanitizemhs
