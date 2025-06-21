@@ -5,7 +5,7 @@ TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT) -i../lib
 EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache info
 
-alltest:	info test errtest
+alltest:	info test errtest testforimp testforexp
 # interactivetest
 
 cache:
@@ -110,11 +110,11 @@ test:
 	$(TMHS) Mask       && $(EVAL) > Mask.out       && diff Mask.ref Mask.out
 
 # BROKEN: cannot compile binaries here
-testforeign:
+testforimp:
 	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out  && diff ForeignC.ref ForeignC.out
 
-ffitest:
-	MHSDIR=.. $(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp && ./ForExp > ForExp.out && diff ForExp.ref ForExp.out
+testforexp:
+	MHSDIR=.. $(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp.exe && ./ForExp.exe > ForExp.out && diff ForExp.ref ForExp.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
