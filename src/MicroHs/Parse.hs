@@ -98,7 +98,7 @@ pUIdentA = do
     is _ = Nothing
   satisfyM "UIdent" is
 
--- Upper case, unqualified, identifier
+-- Upper case, unqualified identifier
 pUIdent :: P Ident
 pUIdent =
       pUIdentA
@@ -371,7 +371,7 @@ pDef =
 
     pStrat = (DerVia <$> (pKeyword "via" *> pAType)) <|> pSimpleStrat
 
-    pFExpr = EVar <$> pLIdent
+    pFExpr = EVar <$> (pLQIdentSym <|> pUQIdentSym)
 
 pCallConv :: P CallConv
 pCallConv = (Cccall <$ pKeyword "ccall") <|> (Ccapi <$ pKeyword "capi") <|> (Cjavascript <$ pKeyword "javascript")

@@ -24,7 +24,7 @@ combVersion = "v8.1\n"
 renumberCMdl :: ([LDef], Exp) -> (Int, [Ident], [LDef], Exp)
 renumberCMdl (ds, emain) =
   let
-    fexps = [ i | (i, App (App (Lit (LPrim "FE")) _) _) <- ds ]
+    fexps = [ i | (i, e) <- ds, isJust $ getForExp e ]
     roots = freeVars emain ++ fexps
     dMap = M.fromList ds
     -- Shake the tree bottom-up, renaming identifiers as we go along.
@@ -67,7 +67,7 @@ toStringCMdl mds =
     (ndefs, exps, ds, emain) = renumberCMdl mds
 
     def :: (Ident, Exp) -> (String -> String) -> (String -> String)
-    def (i, App (App (Lit (LPrim "FE")) e) _) r = def (i, e) r
+    def (i, e) r | Just (e', _) <- getForExp e = def (i, e') r
     def (i, e) r =
       ("A " ++) . toStringP e . ((":" ++ showIdent i ++  " @\n") ++) . r . ("@" ++)
 

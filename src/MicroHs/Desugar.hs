@@ -65,11 +65,9 @@ dsDef flags mn adef =
     --   foo = FE bar' ty'
     -- where bar' is the desugared expression for bar, and ty' is the C type
     -- (currently just a newtype of an EType).
-    ForExp _ (Just s) e t ->  [(mkIdentSLoc l s, app2 cfe e' cty)]
+    ForExp _ (Just s) e t ->  [(mkIdentSLoc l s, mkForExp e' (CType t))]
       where l = getSLoc e
             e' = dsExpr e
-            cty = Lit $ LCType $ CType t
-            cfe = Lit $ LPrim "FE"
     Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"
           meths :: [Ident]
