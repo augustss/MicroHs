@@ -18,7 +18,10 @@ makeFFI _ incs forExps ds =
       wrappers = [ t | (ImpWrapper, _, t) <- ffiImports]
       dynamics = [ t | (ImpDynamic, _, t) <- ffiImports]
       imps     = filter ((`notElem` runtimeFFI) . impName) ffiImports
-      includes = incs ++ nub [ inc | (ImpStatic iincs _ _, _, _) <- imps, inc <- iincs ]
+      includes = incs ++ jsincs ++ nub [ inc | (ImpStatic iincs _ _, _, _) <- imps, inc <- iincs ]
+      jsincs   = if any isJS ffiImports then ["emscripten.h"] else []
+        where isJS (ImpJS _, _, _) = True
+              isJS _ = False
       exps     = [ (i, t) | (i, e) <- ds, Just (_, t) <- [getForExp e] ]
       mkSig (i, CType t) = let (as, ior) = getArrows t in mkExportSig i as ior ++ ";"
       header = unlines
@@ -91,6 +94,7 @@ mkEntry :: (ImpEnt, String, EType) -> String
 mkEntry (ImpStatic _ IFunc  _, f, t) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
 mkEntry (ImpStatic _ IPtr   _, f, _) = "{ \"&" ++ f ++ "\", 0, mhs_addr_" ++ f ++ "},"
 mkEntry (ImpStatic _ IValue _, f, _) = "{ \"" ++ f ++ "\", 0, mhs_" ++ f ++ "},"
+mkEntry (ImpJS _,              f, t) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
 mkEntry _ = undefined
 
 mkMhsFun :: String -> String -> String
@@ -115,6 +119,9 @@ mkRet t n call = "mhs_from_" ++ cTypeHsName t ++ "(s, " ++ show n ++ ", " ++ cal
 
 mkArg :: EType -> Int -> String
 mkArg t i = "mhs_to_" ++ cTypeHsName t ++ "(s, " ++ show i ++ ")"
+
+mkJSArg :: EType -> Int -> String
+mkJSArg t i = "mhs_to_" ++ jsTypeName t ++ "(s, " ++ show i ++ ")"
 
 mkHdr :: (ImpEnt, String, EType) -> String
 mkHdr (ImpStatic _ IPtr fn, f, iot) =
@@ -143,6 +150,22 @@ mkHdr (ImpStatic _ IValue val, f, iot) =
   let r = checkIO iot
       body = "return " ++ mkRet r 0 val
   in  mkMhsFun f body
+mkHdr (ImpJS s, f, ty) =
+  let (as, ior) = getArrows ty
+      rt = checkIO ior
+      jsr = jsTypeNameR rt
+      n = length as
+      args = concat $ zipWith arg as [0..]
+      arg t i = ", " ++ mkJSArg t i
+      call = "EM_ASM" ++
+             (if isUnit rt then "" else '_':jsr) ++
+             "({ " ++ s ++ " }" ++ args ++ ")"
+      fcall =
+        if isUnit rt then
+          call ++ "; return mhs_from_Unit(s, " ++ show n ++ ")"
+        else
+          "return " ++ mkRet rt n call
+  in  mkMhsFun f fcall
 mkHdr _ = undefined
 
 arity :: EType -> Int
@@ -218,6 +241,29 @@ cTypes =
     ("CLLong", "long long"),
     ("CULLong", "unsigned long long"),
     ("CTime", "time_t")
+  ]
+
+jsTypeNameR :: EType -> String
+jsTypeNameR (EApp (EVar ptr) _) | ptr == identPtr = "PTR"
+jsTypeNameR (EVar i) | Just c <- lookup (unIdent i) jsTypesR = c
+jsTypeNameR t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: " ++ showEType t
+
+jsTypesR :: [(String, String)]
+jsTypesR =
+  [ ("Primitives.Int",    "INT")
+  , ("Primitives.FloatW", "DOUBLE")
+  ]
+
+jsTypeName :: EType -> String
+jsTypeName (EApp (EVar ptr) _) | ptr == identPtr = "Ptr"
+jsTypeName (EVar i) | Just c <- lookup (unIdent i) jsTypes = c
+jsTypeName t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: " ++ showEType t
+
+jsTypes :: [(String, String)]
+jsTypes =
+  [ ("Primitives.Int",    "Int")
+  , ("Primitives.FloatW", "FloatW")
+  , ("Data.Text.Text",    "Text")
   ]
 
 -- These are already in the runtime
