@@ -1,7 +1,7 @@
 module MicroHs.FFI(makeFFI) where
 import qualified Prelude(); import MHSPrelude
-import Data.Function
 import Data.List
+import GHC.Stack
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp
 import MicroHs.Expr
@@ -12,13 +12,13 @@ import MicroHs.Names
 
 makeFFI :: Flags -> [String] -> [Ident] -> [LDef] -> (String, String)
 makeFFI _ incs forExps ds =
-  let ffiImports = [ (parseImpEnt cc i f, t) | (i, d) <- ds, Lit (LForImp cc f (CType t)) <- [get d] ]
+  let ffiImports = [ (ie, n, t) | (_, d) <- ds, Lit (LForImp ie n (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
-      wrappers = [ t | (ImpWrapper, t) <- ffiImports]
-      dynamics = [ t | (ImpDynamic, t) <- ffiImports]
-      imps     = uniqName $ filter ((`notElem` runtimeFFI) . impName) ffiImports
-      includes = incs ++ nub [ inc | (ImpStatic _ (Just inc) _ _, _) <- imps ]
+      wrappers = [ t | (ImpWrapper, _, t) <- ffiImports]
+      dynamics = [ t | (ImpDynamic, _, t) <- ffiImports]
+      imps     = filter ((`notElem` runtimeFFI) . impName) ffiImports
+      includes = incs ++ nub [ inc | (ImpStatic iincs _ _, _, _) <- imps, inc <- iincs ]
       exps     = [ (i, t) | (i, e) <- ds, Just (_, t) <- [getForExp e] ]
       mkSig (i, CType t) = let (as, ior) = getArrows t in mkExportSig i as ior ++ ";"
       header = unlines
@@ -84,44 +84,13 @@ mkExportWrapper no (n, CType t) = unlines $
           "}"
         ]
 
-uniqName :: [(ImpEnt, EType)] -> [(ImpEnt, EType)]
-uniqName = map head . groupBy ((==) `on` impName) . sortBy (compare `on` impName)
+impName :: (ImpEnt, String, EType) -> String
+impName (_, s, _) = s
 
-data ImpEnt = ImpStatic Ident (Maybe String) Imp String | ImpDynamic | ImpWrapper
---  deriving (Show)
-
-impName :: (ImpEnt, EType) -> String
-impName (ImpStatic i _ Value _, _) = unIdent' i
-impName (ImpStatic _ _ _ s, _) = s
-impName _ = undefined
-
-data Imp = Ptr | Value | Func
---  deriving (Show)
-
--- "[static] [name.h] [&] [name]"
--- "dynamic"
--- "wrapper"
-parseImpEnt :: CallConv -> Ident -> String -> ImpEnt
-parseImpEnt _cc i s =
-  case words s of
-    ["dynamic"] -> ImpDynamic
-    ["wrapper"] -> ImpWrapper
-    "static" : r -> rest r
-    r            -> rest r
- where rest (inc : r) | ".h" `isSuffixOf` inc = rest' (ImpStatic i (Just inc)) r
-       rest r                                 = rest' (ImpStatic i Nothing)    r
-       rest' c ("&"     : r) = rest'' (c Ptr) r
-       rest' c ['&'     : r] = rest'' (c Ptr) [r]
-       rest' c ("value" : r) = rest'' (c Value) [unwords r]
-       rest' c r             = rest'' (c Func) r
-       rest'' c [n] = c n
-       rest'' _ _ = errorMessage loc $ "bad foreign import " ++ show s
-       loc = getSLoc i
-
-mkEntry :: (ImpEnt, EType) -> String
-mkEntry (ImpStatic _ _ Func  f, t) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
-mkEntry (ImpStatic _ _ Ptr   f, _) = "{ \"&" ++ f ++ "\", 0, mhs_addr_" ++ f ++ "},"
-mkEntry (ImpStatic i _ Value _, _) = "{ \"" ++ f ++ "\", 0, mhs_" ++ f ++ "}," where f = unIdent' i
+mkEntry :: (ImpEnt, String, EType) -> String
+mkEntry (ImpStatic _ IFunc  _, f, t) = "{ \"" ++ f ++ "\", " ++ show (arity t) ++ ", mhs_" ++ f ++ "},"
+mkEntry (ImpStatic _ IPtr   _, f, _) = "{ \"&" ++ f ++ "\", 0, mhs_addr_" ++ f ++ "},"
+mkEntry (ImpStatic _ IValue _, f, _) = "{ \"" ++ f ++ "\", 0, mhs_" ++ f ++ "},"
 mkEntry _ = undefined
 
 mkMhsFun :: String -> String -> String
@@ -141,14 +110,14 @@ isUnit :: EType -> Bool
 isUnit (EVar unit) = unit == identUnit
 isUnit _ = False
 
-mkRet :: EType -> Int -> String -> String
+mkRet :: HasCallStack => EType -> Int -> String -> String
 mkRet t n call = "mhs_from_" ++ cTypeHsName t ++ "(s, " ++ show n ++ ", " ++ call ++ ")"
 
 mkArg :: EType -> Int -> String
 mkArg t i = "mhs_to_" ++ cTypeHsName t ++ "(s, " ++ show i ++ ")"
 
-mkHdr :: (ImpEnt, EType) -> String
-mkHdr (ImpStatic _ _ Ptr fn, iot) =
+mkHdr :: (ImpEnt, String, EType) -> String
+mkHdr (ImpStatic _ IPtr fn, f, iot) =
   let r = checkIO iot
       (s, _) =
         case dropApp identPtr r of
@@ -158,8 +127,8 @@ mkHdr (ImpStatic _ _ Ptr fn, iot) =
               Just t  -> ("(HsFunPtr)", t)
               Nothing -> errorMessage (getSLoc r) "foreign & must be Ptr/FunPtr"
       body = "return " ++ mkRet r 0 (s ++ "&" ++ fn)
-  in  mkMhsFun ("addr_" ++ fn) body
-mkHdr (ImpStatic _ _ Func fn, t) =
+  in  mkMhsFun ("addr_" ++ f) body
+mkHdr (ImpStatic _ IFunc fn, f, t) =
   let (as, ior) = getArrows t
       r = checkIO ior
       n = length as
@@ -169,20 +138,17 @@ mkHdr (ImpStatic _ _ Func fn, t) =
           call ++ "; return mhs_from_Unit(s, " ++ show n ++ ")"
         else
           "return " ++ mkRet r n call
-  in  mkMhsFun fn fcall
-mkHdr (ImpStatic i _ Value val, iot) =
+  in  mkMhsFun f fcall
+mkHdr (ImpStatic _ IValue val, f, iot) =
   let r = checkIO iot
       body = "return " ++ mkRet r 0 val
-  in  mkMhsFun (unIdent' i) body
+  in  mkMhsFun f body
 mkHdr _ = undefined
 
 arity :: EType -> Int
 arity = length . fst . getArrows
 
-unIdent' :: Ident -> String
-unIdent' = unIdent . unQualIdent
-
-cTypeHsName :: EType -> String
+cTypeHsName :: HasCallStack => EType -> String
 cTypeHsName (EApp (EVar ptr) _t) | ptr == identPtr = "Ptr"
                                | ptr == identFunPtr = "FunPtr"
 cTypeHsName (EVar i) | Just c <- lookup (unIdent i) cHsTypes = c
@@ -195,6 +161,13 @@ cHsTypes =
   , ("Primitives.Int",    "Int")
   , ("Primitives.Word",   "Word")
   , ("Data.Word.Word8",   "Word8")
+  , ("Data.Word.Word16",  "Word16")
+  , ("Data.Word.Word32",  "Word32")
+  , ("Data.Word.Word64",  "Word64")
+  , ("Data.Int.IntN.Int8","Int8")
+  , ("Data.Int.IntN.Int16","Int16")
+  , ("Data.Int.IntN.Int32","Int32")
+  , ("Data.Int.IntN.Int64","Int64")
   , ("()",                "Unit")
   , ("System.IO.Handle",  "Ptr")
   ] ++ map (\ t -> ("Foreign.C.Types." ++ t, t))

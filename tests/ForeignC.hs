@@ -5,6 +5,7 @@ import Foreign.Storable
 
 foreign import ccall "sys/errno.h &errno" cerrno :: IO (Ptr CInt)
 foreign import ccall "unistd.h getpid" getpid :: IO CInt
+foreign import capi  "value 3+4" seven :: CInt
 
 main :: IO ()
 main = do
@@ -13,3 +14,4 @@ main = do
   p <- cerrno
   CInt e <- peek p
   print e
+  print (let CInt x = seven in x)

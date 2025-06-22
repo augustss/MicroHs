@@ -12,6 +12,7 @@ module MicroHs.Expr(
   QForm(..),
   Listish(..),
   Lit(..), showLit,
+  ImpEnt(..), ImpVal(..),
   CType(..),
   EBind, showEBind, showEBinds,
   Eqn(..),
@@ -319,7 +320,7 @@ data Lit
   | LBStr String            -- bytestring
   | LPrim String
   | LExn String             -- exception to raise
-  | LForImp CallConv String CType
+  | LForImp ImpEnt String CType
   | LCType CType            -- used for foreign export
   | LTick String
 --DEBUG  deriving (Show)
@@ -347,6 +348,27 @@ instance Eq CType where
 
 instance NFData CType where
   rnf (CType t) = rnf t
+
+data ImpEnt
+  = ImpStatic [String] ImpVal String   -- includes, type of value, C name/expr
+  | ImpDynamic
+  | ImpWrapper
+  | ImpJS String
+  deriving (Eq)
+
+instance NFData ImpEnt where
+  rnf (ImpStatic a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf ImpDynamic = ()
+  rnf ImpWrapper = ()
+  rnf (ImpJS s) = rnf s
+
+data ImpVal = IPtr | IValue | IFunc
+  deriving (Eq)
+
+instance NFData ImpVal where
+  rnf a = seq a ()
+
+---------------
 
 type ECaseArm = (EPat, EAlts)
 
@@ -1006,7 +1028,8 @@ showLit l =
     LBStr s    -> show s
     LPrim s    -> s
     LExn s     -> s
-    LForImp _ s _-> '^' : last (words s)  -- XXX needs improvement
+    LForImp ie s _-> '^' : if isPtr then '&':s else s
+      where isPtr = case ie of ImpStatic _ IPtr _ -> True; _ -> False
     LCType (CType t) -> show t
     LTick s    -> '!' : s
 

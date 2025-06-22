@@ -30,10 +30,10 @@ type LDef = (Ident, Exp)
 
 desugar :: Flags -> TModule [EDef] -> TModule [LDef]
 desugar flags tm =
-  setBindings tm (map lazier $ checkDup $ concatMap (dsDef flags (tModuleName tm)) (tBindingsOf tm))
+  setBindings tm $ map lazier $ checkDup $ concat $ zipWith (dsDef flags (tModuleName tm)) [1..] (tBindingsOf tm)
 
-dsDef :: Flags -> IdentModule -> EDef -> [LDef]
-dsDef flags mn adef =
+dsDef :: Flags -> IdentModule -> Int -> EDef -> [LDef]
+dsDef flags mn ffiNo adef =
   case adef of
     Data _ cs _ ->
       let
@@ -52,8 +52,7 @@ dsDef flags mn adef =
         -- Create a unique varible by adding a "$g" suffix to one of the bound variables.
         v : _ -> dsPatBind (addIdentSuffix v "$g") p e
     ForImp cc ie i t -> [(i, if isIO t then frgn else App perf frgn)]
-      where frgn = Lit $ LForImp cc (fromMaybe (unIdent (unQualIdent i)) ie) cty
-            cty = CType t
+      where frgn = Lit $ mkForImp ffiNo cc ie i t
             perf = Lit $ LPrim "IO.performIO"
             isIO x | Just (_, r) <- getArrow x = isIO r
             isIO (EApp (EVar io) _) = io == mkIdent "Primitives.IO"
@@ -612,3 +611,51 @@ lazier def@(fcn, l@(Lam _ _)) =
       then (fcn, lams drops $ letRecE fcn' (lams keeps (repl [] body)) vfcn')
       else def
 lazier def = def
+
+---------
+
+-- "[static] [name.h] [&] [expr]"
+-- "[static] [name.h] value [expr]"
+-- "dynamic"
+-- "wrapper"
+-- When the calling convention is ccall the 'expr' has to be a name,
+-- with capi it can be any C expression.
+parseImpEnt :: SLoc -> CallConv -> String -> ImpEnt
+parseImpEnt _ Cjavascript s = ImpJS s
+parseImpEnt loc _cc s =
+  case words s of
+    ["dynamic"] -> ImpDynamic
+    ["wrapper"] -> ImpWrapper
+    "static" : r -> rest r
+    r            -> rest r
+ where rest (inc : r) | ".h" `isSuffixOf` inc = rest' (ImpStatic [inc]) r
+       rest r                                 = rest' (ImpStatic [])    r
+       rest' c ("&"     : r) = rest'' (c IPtr) r
+       rest' c ['&'     : r] = rest'' (c IPtr) [r]
+       rest' c ("value" : r) = rest'' (c IValue) [unwords r]
+       rest' c r             = rest'' (c IFunc) r
+       rest'' c [n] = c n
+       rest'' _ _ = badForImp loc
+
+badForImp :: SLoc -> a
+badForImp loc = errorMessage loc $ "bad foreign import"
+
+mkForImp :: Int -> CallConv -> Maybe String -> Ident -> EType -> Lit
+mkForImp _ Cjavascript Nothing i _ = badForImp (getSLoc i)
+mkForImp no cc ms i ty =
+  let cty = CType ty
+      loc = getSLoc i
+      ui  = unIdent (unQualIdent i)
+      isValidC (c:cs) = isAlpha c && all (\ d -> isAlphaNum d || d == '_') cs
+      isValidC _ = False
+  in  case ms of
+        Nothing -> LForImp (ImpStatic [] IFunc ui) ui cty
+        Just s  ->
+          let impent = parseImpEnt loc cc s
+              fno = show no
+              cid =
+                case impent of
+                  ImpStatic _ _ n ->
+                    if isValidC n then n else fno
+                  _ -> fno
+          in  LForImp impent cid cty
