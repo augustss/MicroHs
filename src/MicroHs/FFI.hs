@@ -15,7 +15,7 @@ makeFFI _ incs forExps ds =
   let ffiImports = nubBy eq [ (ie, n, t) | (_, d) <- ds, Lit (LForImp ie n (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
-                       eq (ie, _, _) (ie', _, _) = ie == ie'
+                       eq (_, n, _) (_, n', _) = n == n'
       wrappers = [ t | (ImpWrapper, _, t) <- ffiImports]
       dynamics = [ t | (ImpDynamic, _, t) <- ffiImports]
       imps     = filter ((`notElem` runtimeFFI) . impName) ffiImports
