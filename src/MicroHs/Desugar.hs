@@ -638,7 +638,7 @@ parseImpEnt loc _cc s =
        rest'' _ _ = badForImp loc
 
 badForImp :: SLoc -> a
-badForImp loc = errorMessage loc $ "bad foreign import"
+badForImp loc = errorMessage loc "bad foreign import"
 
 mkForImp :: Int -> CallConv -> Maybe String -> Ident -> EType -> Lit
 mkForImp _ Cjavascript Nothing i _ = badForImp (getSLoc i)
