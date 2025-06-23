@@ -2814,6 +2814,15 @@ mkStrNode(struct bytestring str)
   return n;
 }
 
+NODEPTR
+mkCStrNode(const char *s)
+{
+  struct bytestring str;
+  str.string = s;
+  str.size = strlen(s);
+  return mkStrNode(str);
+}
+
 /* Table of labelled nodes for sharing during parsing. */
 struct shared_entry {
   heapoffs_t label;

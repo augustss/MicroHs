@@ -39,9 +39,9 @@ HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
 
 #
 EMCC=emcc
-EMCCFLAGS=-sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME
+EMCCFLAGS=-O3 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME
 NODE=node
-NODEFLAGS=--stack_size=8192
+#NODEFLAGS=--stack_size=8192
 #
 MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib
 MHSINC=$(MHSINCNP) -ipaths 
@@ -60,7 +60,7 @@ targets.conf:
 	echo ''                                >> targets.conf
 	echo "[emscripten]"                    >> targets.conf
 	echo cc = \"$(EMCC)\"                  >> targets.conf
-	echo ccflags = \"-O3 $(EMCCFLAGS)\"    >> targets.conf
+	echo ccflags = \"$(EMCCFLAGS)\"        >> targets.conf
 	echo cclibs = \"-lm\"                  >> targets.conf
 	echo conf = \"$(CONF)\"                >> targets.conf
 	echo ''                                >> targets.conf
