@@ -2815,7 +2815,7 @@ mkStrNode(struct bytestring str)
 }
 
 NODEPTR
-mkCStrNode(const char *s)
+mkCStrNode(char *s)
 {
   struct bytestring str;
   str.string = s;
