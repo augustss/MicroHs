@@ -2,7 +2,7 @@ module ForImpJS where
 import Data.Text
 
 foreign import javascript "console.log('log: ' + UTF8ToString($0))" clog :: Text -> IO ()
-foreign import javascript "$1 + $2"                                  add :: Int -> Int -> Int
+foreign import javascript "return $1 + $2"                           add :: Int -> Int -> Int
 
 main :: IO ()
 main = do
