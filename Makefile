@@ -39,7 +39,9 @@ HUGSINCS= '+Phugs:mhs:src:paths:{Hugs}/packages/*:hugs/obj' -98 +o +w
 
 #
 EMCC=emcc
-EMCCFLAGS=-sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW
+EMCCFLAGS=-sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sNODERAWFS -sSINGLE_FILE -DUSE_SYSTEM_RAW -sEXIT_RUNTIME
+NODE=node
+NODEFLAGS=--stack_size=8192
 #
 MHSINCNP= -i $(MHSGMP) -imhs -isrc -ilib
 MHSINC=$(MHSINCNP) -ipaths 
@@ -189,7 +191,7 @@ runtestgsan: bin/mhsevalsane bin/gmhs
 
 # Run test examples going via JavaScript
 runtestemscripten: bin/mhseval bin/mhs bin/cpphs
-	cd tests; make MHS=../bin/mhs cache; MHSDIR=.. make MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="node out.js" info test errtest
+	cd tests; make MHS=../bin/mhs cache; MHSDIR=.. make MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" info test errtest
 
 # Run test examples going with tcc
 runtesttcc: bin/mhseval bin/mhs bin/cpphs
@@ -271,7 +273,7 @@ exampletest:	bin/mhs bin/mhseval Example.hs
 
 examplejs: bin/mhs Example.hs
 	bin/mhs -temscripten Example -oEx.js
-	node Ex.js
+	$(NODE) $(NODEFLAGS) Ex.js
 	rm Ex.js
 
 info:	bin/mhs
