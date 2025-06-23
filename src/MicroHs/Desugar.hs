@@ -23,6 +23,7 @@ import MicroHs.Flags
 import MicroHs.Graph
 import MicroHs.Ident
 import MicroHs.List
+import MicroHs.Names(identIO)
 import MicroHs.State as S
 import MicroHs.TypeCheck
 
@@ -51,12 +52,7 @@ dsDef flags mn ffiNo adef =
         [] -> []    -- no bound variable, just throw it away
         -- Create a unique varible by adding a "$g" suffix to one of the bound variables.
         v : _ -> dsPatBind (addIdentSuffix v "$g") p e
-    ForImp cc ie i t -> [(i, if isIO t then frgn else App perf frgn)]
-      where frgn = Lit $ mkForImp ffiNo cc ie i t
-            perf = Lit $ LPrim "IO.performIO"
-            isIO x | Just (_, r) <- getArrow x = isIO r
-            isIO (EApp (EVar io) _) = io == mkIdent "Primitives.IO"
-            isIO _ = False
+    ForImp cc ie i t -> [(i, ccall t $ Lit $ mkForImp ffiNo cc ie i t)]
     -- Foreign exports don't fit very well into the desugared syntax.
     -- We represent
     --   foreign export "foo" bar :: ty
@@ -77,6 +73,21 @@ dsDef flags mn ffiNo adef =
       in  (qualIdent mn $ mkClassConstructor c, lams xs $ Lam f $ apps (Var f) (map Var xs)) :
           zipWith (\ i x -> (i, Lam f $ App (Var f) (lams xs $ Var x))) (supers ++ meths) xs
     _ -> []
+
+-- Code for a 'foreign import'.
+-- If the function is impure then wrap a performIO around the call.
+ccall :: EType -> Exp -> Exp
+ccall t f =
+  case getArrows t of
+    (_, EApp (EVar io) _) | io == identIO ->
+      f
+    (as, _) ->
+      -- pure function, need a performIO.
+      --   ^f  -->  \ x1 ... xn -> performIO (^f x1 ... xn)
+      let xs = map (\ i -> mkIdent $ '_' : show i) [1..length as]
+          perf = Lit $ LPrim "IO.performIO"
+          call = App perf $ apps f (map Var xs)
+      in  foldr Lam call xs
 
 wrapTick :: Bool -> Ident -> Exp -> Exp
 wrapTick False _ ee = ee
