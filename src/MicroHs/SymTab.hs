@@ -30,7 +30,7 @@ import qualified MicroHs.IdentMap as M
 -- Symbol table entry for symbol i.
 data Entry = Entry
   Expr             -- convert (EVar i) to this expression; sometimes just (EVar i)
-  EType            -- type/kind of identifier
+  EType            -- type/kind/sort of identifier
 --  deriving(Show)
 
 instance Show Entry where

@@ -137,6 +137,7 @@ data TCState = TC {
   moduleName  :: IdentModule,           -- current module name
   unique      :: Int,                   -- unique number
   fixTable    :: FixTable,              -- fixities, indexed by QIdent
+  kindTable   :: KindTable,             -- kind symbol table
   typeTable   :: TypeTable,             -- type symbol table
   synTable    :: SynTable,              -- synonyms, indexed by QIdent
   dataTable   :: DataTable,             -- data/newtype definitions
@@ -172,6 +173,9 @@ putValueTable venv = modify $ \ ts -> ts{ valueTable = venv }
 
 putTypeTable :: TypeTable -> T ()
 putTypeTable tenv = modify $ \ ts -> ts{ typeTable = tenv }
+
+putKindTable :: KindTable -> T ()
+putKindTable kenv = modify $ \ ts -> ts{ kindTable = kenv }
 
 putSynTable :: SynTable -> T ()
 putSynTable senv = modify $ \ ts -> ts{ synTable = senv }

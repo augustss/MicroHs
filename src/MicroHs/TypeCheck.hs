@@ -352,15 +352,18 @@ withTypeTable ta = do
   vt <- gets valueTable
   tt <- gets typeTable
   putValueTable tt            -- use type table as value table
+  kt <- gets kindTable
+  putTypeTable kt             -- use kind table as type table
   let
     tcm = succ otcm
-    next = case tcm of { TCType -> primKindTable; TCKind -> primSortTable; _ -> undefined }
-  putTypeTable next           -- use kind/sort table as type table
+    next = case tcm of { TCKind -> primSortTable; _ -> undefined }
+  putKindTable next           -- use kind/sort table as type table
   putTCMode tcm
   a <- ta
   tt' <- gets valueTable
-  putValueTable vt
+  putKindTable kt
   putTypeTable tt'
+  putValueTable vt
   putTCMode otcm
   return a
 
@@ -515,11 +518,13 @@ primKindTable =
   let
     entry i k = Entry (EVar (mkIdentB i)) k
     qkinds = [
+{-
        -- The kinds are wired in (for now)
        (mkIdentB nameType,       [entry nameType sKind]),
        (mkIdentB nameConstraint, [entry nameConstraint sKind]),
        (mkIdentB nameSymbol,     [entry nameSymbol sKind]),
        (mkIdentB nameNat,        [entry nameNat sKind]),
+-}
        (identArrow,              [entry nameArrow sKindKindKind])
        ]
   in stFromList (map (first unQualIdent) qkinds) qkinds

@@ -359,6 +359,7 @@ pDef =
   <|> StandDeriving<$> (pKeyword "deriving" *> pStrat) <*> pure 0 <*> (pKeyword "instance" *> pType)
   <|> noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
+  <|> uncurry TypeData <$> (pKeyword "type" *> pKeyword "data" *> pData)
   where
     pFunDeps = (pSpec '|' *> sepBy1 pFunDep (pSpec ',')) <|> pure []
     pFunDep = (,) <$> some pLIdent <*> (pSRArrow *> some pLIdent)

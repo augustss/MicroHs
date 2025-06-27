@@ -78,6 +78,7 @@ data ExportItem
 
 data EDef
   = Data LHS [Constr] [Deriving]
+  | TypeData LHS [Constr]
   | Newtype LHS Constr [Deriving]
   | Type LHS EType
   | Fcn Ident [Eqn]
@@ -98,6 +99,7 @@ data EDef
 
 instance NFData EDef where
   rnf (Data a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (TypeData a b) = rnf a `seq` rnf b
   rnf (Newtype a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (Type a b) = rnf a `seq` rnf b
   rnf (Fcn a b) = rnf a `seq` rnf b
@@ -836,6 +838,8 @@ ppEDef def =
   case def of
     Data lhs [] ds -> text "data" <+> ppLHS lhs <+> ppDerivings ds
     Data lhs cs ds -> text "data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDerivings ds
+    TypeData lhs [] -> text "type data" <+> ppLHS lhs
+    TypeData lhs cs -> text "type data" <+> ppLHS lhs <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs))
     Newtype lhs c ds -> text "newtype" <+> ppLHS lhs <+> text "=" <+> ppConstr c <+> ppDerivings ds
     Type lhs t -> text "type" <+> ppLHS lhs <+> text "=" <+> ppEType t
     Fcn i eqns -> ppEqns (ppIdent i) (text "=") eqns
