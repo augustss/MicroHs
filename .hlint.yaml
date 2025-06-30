@@ -69,3 +69,4 @@
     - --ignore-glob=tests/MultiIf.hs
     - --ignore-glob=tests/Record.hs
     - --ignore-glob=tests/ForeignC.hs
+    - --ignore-glob=tests/ForImpJS.hs
