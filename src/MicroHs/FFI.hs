@@ -184,6 +184,7 @@ cHsTypes =
   [ ("Primitives.FloatW", "FloatW")
   , ("Primitives.Int",    "Int")
   , ("Primitives.Word",   "Word")
+  , ("Data.Double.Double","FloatW")
   , ("Data.Word.Word8",   "Word8")
   , ("Data.Word.Word16",  "Word16")
   , ("Data.Word.Word32",  "Word32")
@@ -253,6 +254,7 @@ jsTypesR :: [(String, String)]
 jsTypesR =
   [ ("Primitives.Int",    "INT")
   , ("Primitives.FloatW", "DOUBLE")
+  , ("Data.Double.Double","DOUBLE")
   ]
 
 jsTypeName :: EType -> String
@@ -264,6 +266,7 @@ jsTypes :: [(String, String)]
 jsTypes =
   [ ("Primitives.Int",    "Int")
   , ("Primitives.FloatW", "FloatW")
+  , ("Data.Double.Double","FloatW")
   ]
 
 -- These are already in the runtime
