@@ -17,13 +17,17 @@ module Data.Text(
   words,
   foldr,
   concat,
+  useAsCString,
+  grabCString,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words)
+import Primitives(Ptr)
 import Control.DeepSeq.Class
 import qualified Data.List as L
 import Data.Monoid.Internal
 import Data.String
 import qualified Data.ByteString.Internal as BS
+import Foreign.C.Types(CChar)
 import Unsafe.Coerce(unsafeCoerce)
 
 newtype Text = T BS.ByteString
@@ -122,3 +126,16 @@ foldr f z = L.foldr f z . unpack
 
 concat :: [Text] -> Text
 concat = L.foldr append empty
+
+-- Get a C string of a Text.  The C string is encoded with
+-- modified UTF-8 (so no embedded NULs) and NUL terminated.
+-- The RTS retains ownership of the string, and the pointer
+-- should not be used after the subcomputations finishes.
+useAsCString :: Text -> (Ptr CChar -> IO a) -> IO a
+useAsCString (T bs) act = BS.useAsCString bs act
+
+-- Take a C string encoded with modified UTF-8 and turn it into Text.
+-- This will take ownership of the memory which will eventually
+-- be free()d.  The pointer should not be used by the caller after this call.
+grabCString :: Ptr CChar -> IO Text
+grabCString p = T <$> BS.grabCString p

@@ -1,17 +1,17 @@
 -- Types used for C FFI.
 module Foreign.C.Types(
- CChar(..),  CSChar(..),  CUChar(..),
- CShort(..), CUShort(..),
- CInt(..),   CUInt(..),
- CLong(..),  CULong(..),
- CPtrdiff(..),
- CSize(..),  CSSize(..),
- CLLong(..), CULLong(..),
- CIntPtr(..), CUIntPtr(..),
- CFloat(..), CDouble(..),
- CTime(..),
- intToCSize, cSizeToInt,
- ) where
+  CChar(..),  CSChar(..),  CUChar(..),
+  CShort(..), CUShort(..),
+  CInt(..),   CUInt(..),
+  CLong(..),  CULong(..),
+  CPtrdiff(..),
+  CSize(..),  CSSize(..),
+  CLLong(..), CULLong(..),
+  CIntPtr(..), CUIntPtr(..),
+  CFloat(..), CDouble(..),
+  CTime(..),
+  intToCSize, cSizeToInt,
+  ) where
 import qualified Prelude()
 import Primitives
 import Data.Bool

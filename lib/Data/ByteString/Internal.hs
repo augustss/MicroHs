@@ -15,8 +15,8 @@ import Data.Monoid.Internal
 import Data.Num
 import Data.Ord
 import Data.String
-import Data.Word (Word8)
-import Foreign.C.Types (CChar)
+import Data.Word(Word8)
+import Foreign.C.Types(CChar)
 import Text.Show
 
 data ByteString  -- primitive type
@@ -62,6 +62,9 @@ primBS2FPtr = _primitive "bs2fp"
 -- avoid using the `ForeignPtr` after calling `primFPtr2BS`.
 primFPtr2BS :: ForeignPtr CChar -> Int -> ByteString
 primFPtr2BS = _primitive "fp2bs"
+
+primBSgrab :: Ptr CChar -> IO ByteString
+primBSgrab = _primitive "bsgrab"
 
 -----------------------------------------
 
@@ -123,3 +126,15 @@ unpack = primBSunpack
 
 null :: ByteString -> Bool
 null bs = length bs == 0
+
+-- Get actual data pointer out of a ByteString.  There is no copying involved.
+useAsCString :: ByteString -> (Ptr CChar -> IO a) -> IO a
+useAsCString bs act =
+  act (primForeignPtrToPtr (primBS2FPtr bs)) `primBind` \ a ->
+  seq bs (primReturn a)
+
+-- Take a C string and turn it into a ByteString.
+-- This will take ownership of the memory which will eventually
+-- be free()d.  The pointer should not be used by the caller after this call.
+grabCString :: Ptr CChar -> IO ByteString
+grabCString = primBSgrab

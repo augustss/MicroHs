@@ -11,15 +11,15 @@ import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.ByteString.Internal
 import Data.Char_Type
-import Data.Coerce (coerce)
-import Foreign.C.Types (CChar)
+import Data.Coerce(coerce)
+import Foreign.C.Types(CChar)
 import Foreign.Marshal.Alloc
-
-primNewCAStringLen :: [Char] -> IO (Ptr CChar, Int)
-primNewCAStringLen = _primitive "newCAStringLen"
 
 type CString = Ptr CChar
 type CStringLen = (Ptr CChar, Int)
+
+primNewCAStringLen :: [Char] -> IO (Ptr CChar, Int)
+primNewCAStringLen = _primitive "newCAStringLen"
 
 newCAString :: String -> IO CString
 newCAString s = primNewCAStringLen s `primBind` \ (s, _) -> primReturn s

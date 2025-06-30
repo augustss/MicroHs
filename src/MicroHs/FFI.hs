@@ -264,7 +264,6 @@ jsTypes :: [(String, String)]
 jsTypes =
   [ ("Primitives.Int",    "Int")
   , ("Primitives.FloatW", "FloatW")
-  , ("Data.Text.Text",    "Text")
   ]
 
 -- These are already in the runtime

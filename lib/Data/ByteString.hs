@@ -528,9 +528,11 @@ tailsNE = fromList . tails
 sort :: ByteString -> ByteString
 sort = pack . P.sort . unpack
 
+{-
 useAsCString :: ByteString -> (CString -> IO a) -> IO a
 useAsCString bs act =
   withForeignPtr (primBS2FPtr bs) act
+-}
 
 useAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
 useAsCStringLen bs act =
