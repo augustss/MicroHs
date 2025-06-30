@@ -1067,7 +1067,8 @@ getb_utf8(BFILE *bp)
     return -1;
   if ((c1 & 0xe0) == 0xc0) {
     int c = ((c1 & 0x1f) << 6) | (c2 & 0x3f);
-    if (c < 0x80) ERR("getb_utf8: overlong encoding");
+    /* accept overlong encoding of 0, modified UTF-8 uses that */
+    if (0 < c && c < 0x80) ERR("getb_utf8: overlong encoding");
     return c;
   }
   c3 = getb(p->bfile);
@@ -1107,7 +1108,7 @@ putb_utf8(int c, BFILE *bp)
   CHECKBFILE(bp, getb_utf8);
   if (c < 0)
     ERR("putb_utf8: < 0");
-  if (c < 0x80) {
+  if (0 < c && c < 0x80) {      /* modified UTF-8 avoids 0 */
     putb(c, p->bfile);
     return;
   }

@@ -3721,6 +3721,8 @@ bsunpack(struct bytestring bs)
 }
 
 /* XXX This should somehow be merged with other utf8 decoders */
+/* Decode first character of a string and optionally return the rest of the string. */
+/* Handles regular and modified UTF-8. */
 value_t
 headutf8(struct bytestring bs, void **ret)
 {
@@ -3869,7 +3871,7 @@ evalmvar(NODEPTR n)
  * XXX this is cheating, should use continuations.
  * XXX the malloc()ed string is leaked if we yield in here.
  * Caller is responsible to free().
- * Does UTF-8 encoding.
+ * Does modified UTF-8 encoding.
  */
 struct bytestring
 evalstring(NODEPTR n)
@@ -3899,7 +3901,7 @@ evalstring(NODEPTR n)
         // c is a surrogate
         c = 0xfffd; // replacement character
       }
-      if (c < 0x80) {
+      if (0 <c && c < 0x80) {   /* exclude 0, since this is modified UTF-8 */
         buf[offs++] = (char)c;
       } else if (c < 0x800) {
         buf[offs++] = ((c >> 6 )       ) | 0xc0;
