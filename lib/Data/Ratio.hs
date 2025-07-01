@@ -5,7 +5,7 @@ module Data.Ratio(
   approxRational,
   rationalInfinity,
   rationalNaN,
-  rationalMinusZero,
+  rationalNegativeZero,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Data.Bool
@@ -94,8 +94,8 @@ rationalInfinity = 1 :% 0
 rationalNaN :: Rational
 rationalNaN = 0 :% 0
 
-rationalMinusZero :: Rational
-rationalMinusZero = 0 :% (-1)
+rationalNegativeZero :: Rational
+rationalNegativeZero = 0 :% (-1)
 
 infixl 7 %
 (%) :: forall a . (Integral a, Ord a) => a -> a -> Ratio a

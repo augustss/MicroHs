@@ -47,11 +47,14 @@ instance Fractional FloatW where
   -- This version of fromRational can go horribly wrong
   -- if the integers are bigger than can be represented in a FloatW.
   -- It'll do for now.
-  fromRational x | x == rationalNaN = 0/0
+  fromRational x
+    {- These are not needed.  The division does the right thing.
+    | x == rationalNaN = 0/0
                  | x == rationalInfinity = 1/0
                  | x == -rationalInfinity = (-1)/0
                  | otherwise =
-    fromInteger (numerator x) / fromInteger (denominator x)
+    -}
+     = fromInteger (numerator x) / fromInteger (denominator x)
 
 instance Eq FloatW where
   (==) = primFloatWEQ
@@ -85,6 +88,7 @@ instance Enum FloatW where
 instance Real FloatW where
   toRational x | isNaN x = rationalNaN
                | isInfinite x = if x < 0 then -rationalInfinity else rationalInfinity
+               | isNegativeZero x = rationalNegativeZero
                | otherwise =
     case decodeFloat x of
       (m, e) -> toRational m * 2^^e
