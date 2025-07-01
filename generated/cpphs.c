@@ -1,3 +1,4 @@
+#include "mhsffi.h"
 static unsigned char data[] = {
 122,76,90,49,146,171,0,0,31,118,56,46,50,10,57,55,51,10,65,32,
 95,48,32,95,50,52,32,64,95,50,53,32,95,51,53,32,64,95,51,55,
@@ -2199,7 +2200,6 @@ static unsigned char data[] = {
 };
 unsigned char *combexpr = data;
 int combexprlen = 43930;
-#include "eval-unix-64.c"
 static struct ffi_entry imp_table[] = {
 { 0,0 }
 };

@@ -305,9 +305,8 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    target <- readTarget flags (mhsdir flags)
-    let (cFFI, hFFI) = makeFFI flags ["eval-" ++ tConf target ++ ".c"] forExps allDefs
-        cCode = makeCArray flags outData ++ cFFI
+    let (cFFI, hFFI) = makeFFI flags forExps allDefs
+        cCode = "#include \"mhsffi.h\"\n" ++ makeCArray flags outData ++ cFFI
 
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
@@ -343,21 +342,23 @@ mainCompileC flags ppkgs infile = do
       defs = "-D__MHS__"
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
       rtdir = dir ++ "/src/runtime"
-  TTarget _ compiler ccflags cclibs _ <- readTarget flags dir
+  tgt <- readTarget flags dir
   extra <- fromMaybe "" <$> lookupEnv "MHSEXTRACCFLAGS"
-  let dcc = unwords $ [compiler,
-                       ccflags,
+  let dcc = unwords $ [tCC tgt,
+                       tCCFlags tgt,
                        "-I" ++ rtdir,
+                       "-I" ++ rtdir </> tConf tgt,
                        incs,
                        defs,
                        extra,
                        cpps] ++
                        cArgs flags ++
                        map (++ "/*.c") cDirs' ++
-                      [ rtdir ++ "/main.c" | not (noLink flags) ] ++
-                      ["$IN",
-                       cclibs,
-                       "-o $OUT"
+                      [ rtdir </> "main.c" | not (noLink flags) ] ++
+                      [ rtdir </> "eval.c",
+                        "$IN",
+                        tCCLibs tgt,
+                        "-o $OUT"
                       ]
       cc = fromMaybe dcc mcc
       cmd = substString "$IN" infile $ substString "$OUT" outFile cc

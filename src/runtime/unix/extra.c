@@ -1,53 +1,6 @@
-/* Copyright 2023 Lennart Augustsson
+/* Copyright 2025 Lennart Augustsson
  * See LICENSE file for full license.
  */
-
-/*
- * Various platform specific configuration.
- */
-/*
- * Include stdio functions.
- * Without this none of the file I/O in System.IO is available.
- */
-#define WANT_STDIO 1
-
-/*
- * Include ops for floating point arithmetic.
- * Without this +,-,* etc will not be available for the Double type.
- */
-#define WANT_FLOAT 1
-
-/*
- * Include <math.h>
- * Without this exp,sin,sqrt etc will not be available.
- */
-#define WANT_MATH 1
-
-/*
- * Include MD5 checksumming code
- */
-#define WANT_MD5 1
-
-/*
- * Include profiling code
- */
-#define WANT_TICK 1
-
-/*
- * Include directory manipulation
- */
-#define WANT_DIR 1
-
-/*
- * Include time_t type
- */
-#define WANT_TIME 1
-
-/*
- * Number of bits in a word.  Only 32 and 64 are supported.
- * WORD_SIZE set in mhsffi.h
- */
-//#define WORD_SIZE 64
 
 /*
  * Find First Set
@@ -55,34 +8,24 @@
  * It returns the number of the least significant bit that is set.
  * Numberings starts from 1.  If no bit is set, it should return 0.
  */
+#if INTPTR_MAX == 0x7fffffff
+/* 32 bit platform */
+#if _POSIX_VERSION >= 200112L
+#define FFS ffs
+#endif  /* _POSIX_VERSION */
+
+#else  /* INTPTR_MAX == 0x7fffffff */
+/* 64 bit platform */
 #if defined(__gnu_linux__) || defined(__APPLE__) || defined(__FreeBSD__)
 /* Only some platforms have 64 bit ffsl function directly. */
 #define FFS ffsl
-#elif defined(__has_builtin)
 
+#elif defined(__has_builtin)
 #if __has_builtin(__builtin__ffsl)
 #define FFS __builtin_ffsl
-#endif
-
-#endif
-
-/*
- * This is the character used for comma-separation in printf.
- * Defaults to "'".
- */
-/* #define PCOMMA "'" */
-
-#include <inttypes.h>
-#include <termios.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <errno.h>
-#if WANT_STDIO
-#include <stdio.h>
-#endif  /* WANT_STDIO */
+#endif  /* __has_builtin(__builtin_ffsl) */
+#endif  /* if defined(...) */
+#endif  /* INTPTR_MAX == 0x7fffffff */
 
 /*
  * Set the terminal in raw mode and read a single character.
@@ -151,7 +94,6 @@ getraw(void)
 /*
  * Get time since some epoch in milliseconds.
  */
-#include <sys/time.h>
 uintptr_t
 gettimemilli(void)
 {
@@ -220,7 +162,6 @@ CLOCK_T CLOCK_GET(void)
   return (uint64_t)(tv.tv_sec * 1000000 + tv.tv_usec);
 }
 
-#include <time.h>
 void
 getcputime(long *sec, long *nsec)
 {
@@ -237,20 +178,3 @@ getcputime(long *sec, long *nsec)
   *nsec = 0;
 }
 #define GETCPUTIME getcputime
-
-/*
- * We want a signal handler for SIGINT.
- */
-#define WANT_SIGINT 1
-
-/*
- * The ERR macro should report an error and exit.
- * If not defined, a generic one will be used.
- */
-/* #define ERR(s) */
-/* #define ERR1(s,a) */
-
-#define GCRED    1              /* do some reductions during GC */
-#define INTTABLE 1              /* use fixed table of small INT nodes */
-#define SANITY   1              /* do some sanity checks */
-#define STACKOVL 1              /* check for stack overflow */

@@ -1,15 +1,13 @@
 /* Copyright 2023,2024,2025 Lennart Augustsson
  * See LICENSE file for full license.
  */
+#include "mhsffi.h"  /* this includes config.h */
+#include "extra.c"
+
 #if !defined(WANT_GMP)
 #define WANT_GMP 0
-#endif
+#endif /* defined(WANT_GMP) */
 
-#include <inttypes.h>
-#if WANT_STDIO
-#include <stdio.h>
-#include <locale.h>
-#endif  /* WANT_STDIO */
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -60,12 +58,9 @@ size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
 #define REGISTER(dcl, reg) dcl
 #endif
 
-#include "mhsffi.h"
 struct ffi_entry ffi_table[];
 int num_ffi;
 #define FFI_IX(i) ((i) < num_ffi ? ffi_table[i] : xffi_table[i - num_ffi])
-
-//#include "config.h"
 
 #if WANT_STDIO
 #define THREAD_DEBUG 1
@@ -5978,6 +5973,10 @@ from_t mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1))
 #endif  /* WORD_SIZE */
 from_t mhs_peek_uint(int s) { return mhs_from_Word(s, 1, peek_uint(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_uint(int s) { poke_uint(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_short(int s) { return mhs_from_Int(s, 1, peek_short(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_short(int s) { poke_short(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_ushort(int s) { return mhs_from_Word(s, 1, peek_ushort(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_ushort(int s) { poke_ushort(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 
 from_t mhs_peek_int8(int s) { return mhs_from_Int(s, 1, peek_int8(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_int8(int s) { poke_int8(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }

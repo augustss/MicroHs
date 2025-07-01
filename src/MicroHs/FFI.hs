@@ -10,8 +10,8 @@ import MicroHs.Ident
 import MicroHs.Names
 --import Debug.Trace
 
-makeFFI :: Flags -> [String] -> [Ident] -> [LDef] -> (String, String)
-makeFFI _ incs forExps ds =
+makeFFI :: Flags -> [Ident] -> [LDef] -> (String, String)
+makeFFI _ forExps ds =
   let ffiImports = nubBy eq [ (ie, n, t) | (_, d) <- ds, Lit (LForImp ie n (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
                        get a = a
@@ -19,7 +19,7 @@ makeFFI _ incs forExps ds =
       wrappers = [ t | (ImpWrapper, _, t) <- ffiImports]
       dynamics = [ t | (ImpDynamic, _, t) <- ffiImports]
       imps     = filter ((`notElem` runtimeFFI) . impName) ffiImports
-      includes = incs ++ jsincs ++ nub [ inc | (ImpStatic iincs _ _, _, _) <- imps, inc <- iincs ]
+      includes = jsincs ++ nub [ inc | (ImpStatic iincs _ _, _, _) <- imps, inc <- iincs ]
       jsincs   = if any isJS ffiImports then ["emscripten.h"] else []
         where isJS (ImpJS _, _, _) = True
               isJS _ = False
