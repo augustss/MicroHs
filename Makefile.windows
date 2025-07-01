@@ -14,8 +14,8 @@ bin/mhseval.exe:	src/runtime/*.c src/runtime/windows/* src/runtime/comb.c
 	cl -O2 -Isrc/runtime -Isrc/runtime/windows src/runtime/main.c src/runtime/eval.c src/runtime/comb.c -Febin/mhseval.exe
 
 exampletest:	bin/mhs.exe bin/mhseval.exe Example.hs
-	bin\mhs -r Example
-	bin\mhs Example && bin\mhseval
-#	bin\mhs Example -oEx.exe && Ex && rm Ex.exe
-        bin\mhs -itests Nfib && bin\mhseval
-	bin\mhs -r -itests Info
+	bin/mhs -r Example
+	bin/mhs Example && bin/mhseval
+        bin/mhs -itests Nfib && bin/mhseval
+	bin/mhs -r -itests Info
+	bin/mhs -twindows Example -oEx.exe && ./Ex && rm Ex.exe

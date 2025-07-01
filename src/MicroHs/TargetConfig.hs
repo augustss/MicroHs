@@ -29,6 +29,7 @@ data TTarget = TTarget
   , tCCFlags :: String
   , tCCLibs  :: String
   , tConf    :: String
+  , tOut     :: String  -- flag to set output file
   }
 
 findTarget :: String -> [Target] -> Maybe Target

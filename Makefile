@@ -71,6 +71,13 @@ targets.conf:
 	echo ccflags = \"-D__TCC__=1\"         >> targets.conf
 	echo cclibs = \"-lm\"                  >> targets.conf
 	echo conf = \"$(CONF)\"                >> targets.conf
+	echo ''                                >> targets.conf
+	echo "[windows]"                       >> targets.conf
+	echo cc = \"cl\"                       >> targets.conf
+	echo ccflags = \"-O2\"                 >> targets.conf
+	echo cclibs = \"\"                     >> targets.conf
+	echo conf = \"windows\"                >> targets.conf
+	echo cout = \"-Fe\"                    >> targets.conf
 
 newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs

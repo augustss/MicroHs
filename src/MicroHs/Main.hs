@@ -192,6 +192,7 @@ readTarget flags dir = do
                      , tCCFlags = fromMaybe "" ccflags
                      , tCCLibs  = fromMaybe "" cclibs
                      , tConf    = fromMaybe dConf conf
+                     , tOut     = "-o"
                      }
     Just (Target n cs) -> do
       when (verbose flags > 0) $
@@ -201,6 +202,7 @@ readTarget flags dir = do
                      , tCCFlags = fromMaybe ""    $ ccflags  <|> lookup "ccflags" cs
                      , tCCLibs  = fromMaybe ""    $ cclibs   <|> lookup "cclibs"  cs
                      , tConf    = fromMaybe dConf $ conf     <|> lookup "conf"    cs
+                     , tOut     = fromMaybe "-o"  $              lookup "cout"    cs
                      }
 
 
@@ -358,7 +360,7 @@ mainCompileC flags ppkgs infile = do
                       [ rtdir </> "eval.c",
                         "$IN",
                         tCCLibs tgt,
-                        "-o $OUT"
+                        tOut tgt ++ "$OUT"
                       ]
       cc = fromMaybe dcc mcc
       cmd = substString "$IN" infile $ substString "$OUT" outFile cc

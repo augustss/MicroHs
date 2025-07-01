@@ -20,7 +20,6 @@ Interactive.hs
 /tags
 .hpc/*
 *.pkg
-targets.conf
 *.bak
 timing
 mdist/*
