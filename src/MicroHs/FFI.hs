@@ -274,7 +274,7 @@ runtimeFFI :: [String]
 runtimeFFI = [
   "GETRAW", "GETTIMEMILLI", "acos", "add_FILE", "add_utf8", "asin", "atan", "atan2", "calloc", "closeb",
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "iswindows", "log", "malloc",
-  "md5Array", "md5BFILE", "md5String", "memcpy", "memmove",
+  "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", "strlen", "strcpy",
   "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "unlink",
   "readb", "writeb",
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
