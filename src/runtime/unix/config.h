@@ -79,8 +79,6 @@
 #include <errno.h>
 #include <time.h>
 #include <sys/time.h>
-#if WANT_STDIO
 #include <stdio.h>
 #include <locale.h>
-#endif  /* WANT_STDIO */
 

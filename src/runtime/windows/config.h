@@ -44,10 +44,14 @@
 #include <Windows.h>
 #include <intrin.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <locale.h>
+#include <string.h>
+#include <errno.h>
 
-/* Make this empty */
+/* Make these empty */
 #define NORETURN
-
+#define PACKED
 
 /*
  * The ERR macro should report an error and exit.
