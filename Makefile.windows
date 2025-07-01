@@ -4,12 +4,12 @@
 all:    bin/mhs.exe bin/mhseval.exe
 
 # Compile mhs from distribution, with C compiler
-bin/mhs.exe:	src/runtime/*.c src/runtime/config*.h #generated/mhs.c
+bin/mhs.exe:	src/runtime/*.c  src/runtime/windows/*.[ch] #generated/mhs.c
 	@-mkdir bin
 	cl /O2 /Isrc/runtime /Isrc/runtime/windows src/runtime/eval.c generated/mhs.c /Febin/mhs.exe
 
 # Compile combinator evaluator
-bin/mhseval.exe:	src/runtime/*.c src/runtime/config*.h src/runtime/comb.c
+bin/mhseval.exe:	src/runtime/*.c src/runtime/windows/*.[ch] src/runtime/comb.c
 	@-mkdir bin
 	cl /O2 /Isrc/runtime /Isrc/runtime/windows src/runtime/eval.c src/runtime/comb.c /Febin/mhseval.exe
 
