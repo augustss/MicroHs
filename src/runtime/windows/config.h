@@ -43,9 +43,11 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <intrin.h>
+#include <stdlib.h>
 
 /* Make this empty */
 #define NORETURN
+
 
 /*
  * The ERR macro should report an error and exit.

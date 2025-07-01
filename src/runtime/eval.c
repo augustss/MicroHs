@@ -121,7 +121,7 @@ value_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(GETTIMEMILLI) */
 
 #if !defined(GETCPUTIME)
-void GETCPUTIME(long *sec, long *usec) { return 0; }
+void GETCPUTIME(long *sec, long *usec) { }
 #endif  /* !define(GETCPUTIME) */
 
 #if !defined(INLINE)
@@ -5643,10 +5643,8 @@ int
 mhs_main(int argc, char **argv)
 {
   NODEPTR prog;
-#if WANT_STDIO
   char *outname = 0;
   size_t file_size = 0;
-#endif
 
   prog = mhs_init_args(argc, argv, &outname, &file_size);
 
