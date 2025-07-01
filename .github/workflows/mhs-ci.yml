@@ -45,7 +45,7 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
-      run: make CONF=micro-64
+      run: make CONF=micro
 
   build-macos:
     runs-on: macos-latest
@@ -127,10 +127,10 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
-      run: make CONF=unix-32
+      run: make CONF=unix
       shell: alpine.sh {0}
     - name: make everytestmhs
-      run: make CONF=unix-32 everytestmhs
+      run: make CONF=unix everytestmhs
       shell: alpine.sh {0}
 
   build-linux-armv7:
@@ -147,10 +147,10 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
-      run: make CONF=unix-32
+      run: make CONF=unix
       shell: alpine.sh {0}
     - name: make everytestmhs
-      run: make CONF=unix-32 everytestmhs
+      run: make CONF=unix everytestmhs
       shell: alpine.sh {0}
 
   build-linux-riscv64:
@@ -167,10 +167,10 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
-      run: make CONF=unix-64
+      run: make CONF=unix
       shell: alpine.sh {0}
     - name: make everytestmhs
-      run: make CONF=unix-64 everytestmhs
+      run: make CONF=unix everytestmhs
       shell: alpine.sh {0}
 
   build-linux-ppc64le:
@@ -187,10 +187,10 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
-      run: make CONF=unix-64
+      run: make CONF=unix
       shell: alpine.sh {0}
     - name: make everytestmhs
-      run: make CONF=unix-64 everytestmhs
+      run: make CONF=unix everytestmhs
       shell: alpine.sh {0}
 
 #  build-linux-ppc64be:
@@ -207,10 +207,10 @@ jobs:
 #    - name: checkout repo
 #      uses: actions/checkout@v4
 #    - name: make
-#      run: make CONF=unix-64
+#      run: make CONF=unix
 #      shell: alpine.sh {0}
 #    - name: make everytestmhs
-#      run: make CONF=unix-64 everytestmhs
+#      run: make CONF=unix everytestmhs
 #      shell: alpine.sh {0}
 
   build-linux-emscripten:
