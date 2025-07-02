@@ -13,15 +13,29 @@
 
 /*
  * Include ops for floating point arithmetic.
- * Without this +,-,* etc will not be available for the Double type.
+ * Without this +,-,* etc will not be available for the Float type.
  */
-#define WANT_FLOAT 1
+#define WANT_FLOAT32 1
+
+/*
+ * Include ops for floating point arithmetic.
+ * Without this +,-,* etc will not be available for the Double type.
+ * Using this on a 32 bit platform will make cells be 12 bytes instead of 8,
+ */
+#define WANT_FLOAT64 1
 
 /*
  * Include <math.h>
  * Without this exp,sin,sqrt etc will not be available.
  */
 #define WANT_MATH 1
+
+/*
+ * Include ops for 64 bit integer arithmetic.
+ * Using this on a 32 bit platform will make cells be 12 bytes instead of 8.
+ * On 64 bit platforms there is always 64 bit arithmetic.
+ */
+#define WANT_INT64 1
 
 /*
  * Include MD5 checksumming code

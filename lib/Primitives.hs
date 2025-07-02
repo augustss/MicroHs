@@ -29,7 +29,8 @@ data AnyType
 --data Char
 newtype Char = Char Word
 data Int
-data FloatW
+data Float
+data Double
 data IO a
 data Word
 data Ptr a
@@ -68,35 +69,61 @@ primIntGT   = _primitive ">"
 primIntGE   :: Int -> Int -> Bool
 primIntGE   = _primitive ">="
 
-primFloatWAdd :: FloatW -> FloatW -> FloatW
-primFloatWAdd  = _primitive "f+"
-primFloatWSub :: FloatW -> FloatW -> FloatW
-primFloatWSub  = _primitive "f-"
-primFloatWMul :: FloatW -> FloatW -> FloatW
-primFloatWMul  = _primitive "f*"
-primFloatWDiv :: FloatW -> FloatW -> FloatW
-primFloatWDiv = _primitive "f/"
-primFloatWNeg :: FloatW -> FloatW
-primFloatWNeg = _primitive "fneg"
+primFloatAdd :: Float -> Float -> Float
+primFloatAdd  = _primitive "f+"
+primFloatSub :: Float -> Float -> Float
+primFloatSub  = _primitive "f-"
+primFloatMul :: Float -> Float -> Float
+primFloatMul  = _primitive "f*"
+primFloatDiv :: Float -> Float -> Float
+primFloatDiv = _primitive "f/"
+primFloatNeg :: Float -> Float
+primFloatNeg = _primitive "fneg"
 
-primFloatWEQ :: FloatW -> FloatW -> Bool
-primFloatWEQ = _primitive "f=="
-primFloatWNE :: FloatW -> FloatW -> Bool
-primFloatWNE = _primitive "f/="
-primFloatWLT :: FloatW -> FloatW -> Bool
-primFloatWLT = _primitive "f<"
-primFloatWLE :: FloatW -> FloatW -> Bool
-primFloatWLE = _primitive "f<="
-primFloatWGT :: FloatW -> FloatW -> Bool
-primFloatWGT = _primitive "f>"
-primFloatWGE :: FloatW -> FloatW -> Bool
-primFloatWGE = _primitive "f>="
-primFloatWShow :: FloatW -> [Char]
-primFloatWShow = _primitive "fshow"
-primFloatWRead :: [Char] -> FloatW
-primFloatWRead = _primitive "fread"
-primFloatWFromInt :: Int -> FloatW
-primFloatWFromInt = _primitive "itof"
+primFloatEQ :: Float -> Float -> Bool
+primFloatEQ = _primitive "f=="
+primFloatNE :: Float -> Float -> Bool
+primFloatNE = _primitive "f/="
+primFloatLT :: Float -> Float -> Bool
+primFloatLT = _primitive "f<"
+primFloatLE :: Float -> Float -> Bool
+primFloatLE = _primitive "f<="
+primFloatGT :: Float -> Float -> Bool
+primFloatGT = _primitive "f>"
+primFloatGE :: Float -> Float -> Bool
+primFloatGE = _primitive "f>="
+primFloatShow :: Float -> [Char]
+primFloatShow = _primitive "fshow"
+primFloatFromInt :: Int -> Float
+primFloatFromInt = _primitive "itof"
+
+primDoubleAdd :: Double -> Double -> Double
+primDoubleAdd  = _primitive "d+"
+primDoubleSub :: Double -> Double -> Double
+primDoubleSub  = _primitive "d-"
+primDoubleMul :: Double -> Double -> Double
+primDoubleMul  = _primitive "d*"
+primDoubleDiv :: Double -> Double -> Double
+primDoubleDiv = _primitive "d/"
+primDoubleNeg :: Double -> Double
+primDoubleNeg = _primitive "dneg"
+
+primDoubleEQ :: Double -> Double -> Bool
+primDoubleEQ = _primitive "d=="
+primDoubleNE :: Double -> Double -> Bool
+primDoubleNE = _primitive "d/="
+primDoubleLT :: Double -> Double -> Bool
+primDoubleLT = _primitive "d<"
+primDoubleLE :: Double -> Double -> Bool
+primDoubleLE = _primitive "d<="
+primDoubleGT :: Double -> Double -> Bool
+primDoubleGT = _primitive "d>"
+primDoubleGE :: Double -> Double -> Bool
+primDoubleGE = _primitive "d>="
+primDoubleShow :: Double -> [Char]
+primDoubleShow = _primitive "dshow"
+primDoubleRead :: [Char] -> Double
+primDoubleFromInt = _primitive "itod"
 
 primWordAdd :: Word -> Word -> Word
 primWordAdd  = _primitive "+"
@@ -128,10 +155,14 @@ primWordClz :: Word -> Int
 primWordClz = _primitive "clz"
 primWordCtz :: Word -> Int
 primWordCtz = _primitive "ctz"
-primWordToFloatWRaw :: Word -> FloatW
-primWordToFloatWRaw = _primitive "toDbl"
-primWordFromFloatWRaw :: FloatW -> Word
-primWordFromFloatWRaw = _primitive "toInt"
+primWordToFloatRaw :: Word -> Float
+primWordToFloatRaw = _primitive "toFlt"
+primWordToDoubleRaw :: Word -> Double
+primWordToDoubleRaw = _primitive "toDbl"
+primWordFromFloatRaw :: Float -> Word
+primWordFromFloatRaw = _primitive "fromFlt"
+primWordFromDoubleRaw :: Double -> Word
+primWordFromDoubleRaw = _primitive "fromDbl"
 
 primIntAnd :: Int -> Int -> Int
 primIntAnd  = _primitive "and"

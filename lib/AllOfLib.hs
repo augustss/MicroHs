@@ -35,12 +35,13 @@ import Data.Char.Unicode
 import Data.Coerce
 import Data.Complex
 import Data.Constraint
+import Data.Double
 import Data.Dynamic
 import Data.Either
 import Data.Enum
 import Data.Eq
 import Data.Fixed
-import Data.FloatW
+import Data.Float
 import Data.Floating
 import Data.Foldable
 import Data.Foldable1

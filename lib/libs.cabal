@@ -1,6 +1,6 @@
 cabal-version:  3.0
 name:           libs
-version:        0.14.4.0
+version:        0.14.5.0
 license:        Apache-2.0
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net
@@ -65,7 +65,7 @@ library base
         Data.Eq
         Data.Fixed
         Data.Float
-        Data.FloatW
+        Data.Float
         Data.Floating
         Data.Foldable
         Data.Foldable1

@@ -473,9 +473,6 @@ addArgDict i c = do
   ads <- gets argDicts
   putArgDicts ((i,c) : ads)
 
---stdDefaults :: [EType]
---stdDefaults = [EVar identInteger, EVar identFloatW, EApp (EVar identList) (EVar identChar)]
-
 addPrimFixs :: FixTable -> FixTable
 addPrimFixs =
   M.insert (mkIdent "Primitives.->") (AssocRight, -1) .
@@ -1768,7 +1765,8 @@ tcExprR mt ae =
                 -- (which is not always in scope).
                 Just (EVar v) | v == identInt     -> tcLit  mt loc (LInt (fromInteger i))
                               | v == identWord    -> tcLit' mt loc (LInt (fromInteger i)) (tConI loc nameWord)
-                              | v == identFloatW  -> tcLit  mt loc (LDouble (fromInteger i))
+                              | v == identDouble  -> tcLit  mt loc (LDouble (fromInteger i))
+                              | v == identFloat   -> tcLit  mt loc (LFloat (fromInteger i))
                               | v == identInteger -> tcLit  mt loc lit
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromInteger"))
@@ -1778,7 +1776,8 @@ tcExprR mt ae =
             LRat r -> do
               mex <- getExpected mt
               case mex of
-                Just (EVar v) | v == mkIdent nameFloatW -> tcLit mt loc (LDouble (fromRational r))
+                Just (EVar v) | v == mkIdent nameDouble -> tcLit mt loc (LDouble (fromRational r))
+                              | v == mkIdent nameFloat  -> tcLit mt loc (LFloat (fromRational r))
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromRational"))
                   (_at, rt) <- unArrow loc ft
@@ -2163,7 +2162,8 @@ tcLit mt loc l = do
         case l of
           LInt _     -> tConI loc nameInt
           LInteger _ -> tConI loc nameInteger
-          LDouble _  -> tConI loc nameFloatW
+          LDouble _  -> tConI loc nameDouble
+          LFloat _   -> tConI loc nameFloat
           LChar _    -> tConI loc nameChar
           LStr _     -> tApp (tList loc) (tConI loc nameChar)
           LBStr _    -> tConI loc nameByteString

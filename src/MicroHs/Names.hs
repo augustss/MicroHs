@@ -33,10 +33,15 @@ nameWord = "Primitives.Word"
 identWord :: Ident
 identWord = mkIdentB nameWord
 
-nameFloatW :: String
-nameFloatW = "Primitives.FloatW"
-identFloatW :: Ident
-identFloatW = mkIdentB nameFloatW
+nameFloat :: String
+nameFloat = "Primitives.Float"
+identFloat :: Ident
+identFloat = mkIdentB nameFloat
+
+nameDouble :: String
+nameDouble = "Primitives.Double"
+identDouble :: Ident
+identDouble = mkIdentB nameDouble
 
 nameChar :: String
 nameChar = "Primitives.Char"

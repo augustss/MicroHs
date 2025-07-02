@@ -71,12 +71,22 @@ _integerToWord (I sign ds) =
         [d1]        -> d1
         d1 : d2 : _ -> d1 `primWordAdd` (d2 `primWordShl` shiftD)
 
-_integerToFloatW :: Integer -> FloatW
-_integerToFloatW (I sign ds) = s `primFloatWMul` loop ds
+_integerToFloat :: Integer -> Float
+_integerToFloat (I sign ds) = sgn (loop ds)
   where
-    loop [] = 0.0 :: FloatW
-    loop (d : ds) = primFloatWFromInt (primWordToInt d) `primFloatWAdd` (primFloatWFromInt (primWordToInt maxD) `primFloatWMul` loop ds)
-    s =
+    loop [] = 0.0 :: Float
+    loop (d : ds) = primFloatFromInt (primWordToInt d) `primFloatAdd` (primFloatFromInt (primWordToInt maxD) `primFloatMul` loop ds)
+    sgn x =
       case sign of
-        Plus  -> 1.0 :: FloatW
-        Minus -> 0.0 `primFloatWSub` 1.0
+        Plus  -> x
+        Minus -> primFloatNeg x
+
+_integerToDouble :: Integer -> Double
+_integerToDouble (I sign ds) = sgn (loop ds)
+  where
+    loop [] = 0.0 :: Double
+    loop (d : ds) = primDoubleFromInt (primWordToInt d) `primDoubleAdd` (primDoubleFromInt (primWordToInt maxD) `primDoubleMul` loop ds)
+    sgn x =
+      case sign of
+        Plus  -> x
+        Minus -> primDoubleNeg x

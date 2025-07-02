@@ -8,6 +8,7 @@ import Data.Char
 import Data.Eq
 import Data.Double
 import Data.Either
+import Data.Float
 import Data.Function
 import Data.Int
 import Data.Integer
@@ -40,6 +41,7 @@ force x = x `deepseq` x
 instance NFData Int
 instance NFData Word
 instance NFData Double
+instance NFData Float
 instance NFData Char
 instance NFData Bool
 instance NFData Ordering

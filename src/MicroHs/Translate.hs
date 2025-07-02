@@ -37,6 +37,7 @@ trans r ae =
     App f a -> unsafeCoerce (trans r f) (trans r a)
     Lit (LInt i) -> unsafeCoerce i
     Lit (LDouble i) -> unsafeCoerce i
+    Lit (LFloat i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
     Lit (LBStr s) -> unsafeCoerce (Data.String.fromString s :: ByteString)
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
@@ -111,8 +112,20 @@ primTable = [
   ("f>=", _primitive "f>="),
   ("fneg", _primitive "fneg"),
   ("fshow", _primitive "fshow"),
-  ("fread", _primitive "fread"),
   ("itof", _primitive "itof"),
+  ("d+", _primitive "d+"),
+  ("d-", _primitive "d-"),
+  ("d*", _primitive "d*"),
+  ("d/", _primitive "d/"),
+  ("d==", _primitive "d=="),
+  ("d/=", _primitive "d/="),
+  ("d<", _primitive "d<"),
+  ("d<=", _primitive "d<="),
+  ("d>", _primitive "d>"),
+  ("d>=", _primitive "d>="),
+  ("dneg", _primitive "dneg"),
+  ("dshow", _primitive "dshow"),
+  ("itod", _primitive "itod"),
   ("seq", _primitive "seq"),
   ("sequal", _primitive "sequal"),
   ("equal", _primitive "equal"),
@@ -142,6 +155,9 @@ primTable = [
   ("toInt", _primitive "toInt"),
   ("toPtr", _primitive "toPtr"),
   ("toDbl", _primitive "toDbl"),
+  ("toFlt", _primitive "toFlt"),
+  ("fromDbl", _primitive "fromDbl"),
+  ("fromFlt", _primitive "fromFlt"),
   ("toFunPtr", _primitive "toFunPtr"),
   ("A.alloc", _primitive "A.alloc"),
   ("A.copy", _primitive "A.copy"),

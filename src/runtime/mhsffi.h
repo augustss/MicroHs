@@ -3,6 +3,9 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <time.h>
+#if WANT_MATH
+#include <math.h>
+#endif  /* WANT_MATH */
 
 #if INTPTR_MAX == 0x7fff
 #define WORD_SIZE 16
@@ -14,15 +17,8 @@
 #error Unknown WORD_SIZE
 #endif
 
-#if WORD_SIZE == 64
-typedef double flt_t;
-#elif WORD_SIZE == 32
-typedef float flt_t;
-#elif WORD_SIZE == 16
-typedef uint16_t flt_t;         /* No floats, but we need something */
-#else
-#error Unknown WORD_SIZE
-#endif
+typedef double flt64_t;
+typedef float flt32_t;
 
 struct node;
 typedef intptr_t value_t;       /* Make value the same size as pointers, since they are in a union */
@@ -46,8 +42,8 @@ struct ffe_entry {
 };
 extern struct ffe_entry *xffe_table;
 
-from_t mhs_from_Double(intptr_t, int, flt_t);
-from_t mhs_from_FloatW(intptr_t, int, flt_t);
+from_t mhs_from_Double(intptr_t, int, flt64_t);
+from_t mhs_from_Float(intptr_t, int, flt32_t);
 from_t mhs_from_Int(intptr_t, int, intptr_t);
 from_t mhs_from_Word(intptr_t, int, uintptr_t);
 from_t mhs_from_Word8(intptr_t, int, uintptr_t);
@@ -71,8 +67,8 @@ from_t mhs_from_CIntPtr(intptr_t, int, intptr_t);
 from_t mhs_from_CUIntPtr(intptr_t, int, uintptr_t);
 from_t mhs_from_Unit(intptr_t, int);
 
-flt_t              mhs_to_Double(intptr_t, int);
-flt_t              mhs_to_FloatW(intptr_t, int);
+flt64_t            mhs_to_Double(intptr_t, int);
+flt32_t            mhs_to_Float(intptr_t, int);
 intptr_t           mhs_to_Int(intptr_t, int);
 uintptr_t          mhs_to_Word(intptr_t, int);
 uint8_t            mhs_to_Word8(intptr_t, int);

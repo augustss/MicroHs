@@ -11,6 +11,7 @@ module MHSPrelude(
   module Data.Either,
   module Data.Enum,
   module Data.Eq,
+  module Data.Float,
   module Data.Fractional,
   module Data.Function,
   module Data.Functor,
@@ -49,6 +50,7 @@ import Data.Double(Double)
 import Data.Either(Either(..), either)
 import Data.Enum(Enum(..))
 import Data.Eq(Eq(..))
+import Data.Float(Float)
 import Data.Fractional(Fractional(..), (^^), realToFrac)
 import Data.Function(id, const, (.), flip, ($), seq, ($!), until, asTypeOf)
 import Data.Functor(Functor(..), (<$>))

@@ -35,6 +35,7 @@ test:
 	$(TMHS) LocalPoly  && $(EVAL) > LocalPoly.out  && diff LocalPoly.ref LocalPoly.out
 	$(TMHS) Rank2      && $(EVAL) > Rank2.out      && diff Rank2.ref Rank2.out
 	$(TMHS) Catch      && $(EVAL) > Catch.out      && diff Catch.ref Catch.out
+	$(TMHS) DArith     && $(EVAL) > DArith.out     && diff DArith.ref DArith.out
 	$(TMHS) FArith     && $(EVAL) > FArith.out     && diff FArith.ref FArith.out
 	$(TMHS) Infix      && $(EVAL) > Infix.out      && diff Infix.ref Infix.out
 	$(TMHS) Class      && $(EVAL) > Class.out      && diff Class.ref Class.out

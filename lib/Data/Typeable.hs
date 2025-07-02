@@ -21,7 +21,6 @@ import qualified Prelude(); import MiniPrelude
 import Primitives
 import Data.Double
 import Data.Float
-import Data.FloatW
 import Data.Integer
 import Data.Proxy
 import Data.Ratio
@@ -148,7 +147,6 @@ instance Typeable Bool        where typeRep = nullary "Data.Bool_Type"      "Boo
 instance Typeable Char        where typeRep = prim                          "Char"
 instance Typeable Double      where typeRep = nullary "Data.Double"         "Double"
 instance Typeable Float       where typeRep = nullary "Data.Float"          "Float"
-instance Typeable FloatW      where typeRep = prim                          "FloatW"
 instance Typeable Int         where typeRep = prim                          "Int"
 instance Typeable Integer     where typeRep = nullary "Data.Integer_Type"   "Integer"
 instance Typeable Void        where typeRep = nullary "Data.Void"           "Void"
