@@ -18,6 +18,7 @@ module Data.Integer.Internal(
 import qualified Prelude()              -- do not import Prelude
 --import Primitives
 import Control.Error
+import Control.Exception.Internal
 import Data.Bits
 import Data.Bool
 import Data.Enum
@@ -139,7 +140,7 @@ mulM xs ys =
 --  - +  -> (-,-)
 --  - -  -> (+,-)
 quotRemI :: Integer -> Integer -> (Integer, Integer)
-quotRemI _         (I _  [])  = error "Integer: division by 0" -- n / 0
+quotRemI _         (I _  [])  = throw DivideByZero             -- n / 0
 quotRemI (I _  [])          _ = (I Plus [], I Plus [])         -- 0 / n
 quotRemI (I sx xs) (I sy ys) | Just (y, n) <- msd ys =
   -- All but the MSD are 0.  Scale numerator accordingly and divide.

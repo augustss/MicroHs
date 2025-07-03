@@ -156,7 +156,16 @@ data ArithException
   | DivideByZero
   | Denormal
   | RatioZeroDenominator
-  deriving ({-Eq, Ord,-} Show, Typeable)  -- Eq, Ord in Exception module
+  deriving ({-Eq, Ord,-} Typeable)  -- Eq, Ord in Exception module
+
+instance Show ArithException where
+  show Overflow             = "arithmetic overflow"
+  show Underflow            = "arithmetic underflow"
+  show LossOfPrecision      = "loss of precision"
+  show DivideByZero         = "divide by zero"
+  show Denormal             = "denormal"
+  show RatioZeroDenominator = "Ratio has zero denominator"
+
 instance Exception ArithException
 
 -------------------
