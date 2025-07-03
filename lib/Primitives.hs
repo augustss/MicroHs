@@ -92,8 +92,6 @@ primFloatGT :: Float -> Float -> Bool
 primFloatGT = _primitive "f>"
 primFloatGE :: Float -> Float -> Bool
 primFloatGE = _primitive "f>="
-primFloatShow :: Float -> [Char]
-primFloatShow = _primitive "fshow"
 primFloatFromInt :: Int -> Float
 primFloatFromInt = _primitive "itof"
 
@@ -120,8 +118,6 @@ primDoubleGT :: Double -> Double -> Bool
 primDoubleGT = _primitive "d>"
 primDoubleGE :: Double -> Double -> Bool
 primDoubleGE = _primitive "d>="
-primDoubleShow :: Double -> [Char]
-primDoubleShow = _primitive "dshow"
 primDoubleRead :: [Char] -> Double
 primDoubleFromInt = _primitive "itod"
 

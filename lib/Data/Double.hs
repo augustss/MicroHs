@@ -23,6 +23,8 @@ import Data.RealFloat
 import Data.RealFrac
 import Data.Num
 import Data.Word
+import {-# SOURCE #-} Numeric.FormatFloat(showFloat)
+import Numeric.Show(showSigned)
 import Text.Show
 
 --
@@ -71,9 +73,8 @@ instance Ord Double where
   (>)  = primDoubleGT
   (>=) = primDoubleGE
 
--- For now, cheat and call C
 instance Show Double where
-  show = primDoubleShow -- should be Numeric.FormatFloat.showFloat, but that drags in a lot of stuff
+  showsPrec = showSigned showFloat
 
 {- in Text.Read.Internal
 instance Read Double where

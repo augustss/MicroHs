@@ -97,7 +97,6 @@ primOps =
   , fcmp "f<=" (<=)
   , fcmp "f>" (>)
   , fcmp "f>=" (>=)
-  , comb "fshow" (fromString . (show :: Double -> String))
   , comb "itof" (fromIntegral :: Int -> Double)
 
   , comb "seq" seq

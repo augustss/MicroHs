@@ -20,7 +20,7 @@ import Data.Num
 import Data.Ord
 import Text.Show(ShowS, showChar)
 
-showSigned :: forall a . (Ord a, Integral a) => (a -> ShowS) -> Int -> a -> ShowS
+showSigned :: forall a . (Ord a, Num a) => (a -> ShowS) -> Int -> a -> ShowS
 showSigned showPos p n r
     | n < 0 =
       if p > (6::Int) then

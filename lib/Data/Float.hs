@@ -23,6 +23,8 @@ import Data.RealFloat
 import Data.RealFrac
 import Data.Num
 import Data.Word
+import {-# SOURCE #-} Numeric.FormatFloat(showFloat)
+import Numeric.Show(showSigned)
 import Text.Show
 
 instance Num Float where
@@ -67,9 +69,8 @@ instance Ord Float where
   (>)  = primFloatGT
   (>=) = primFloatGE
 
--- For now, cheat and call C
 instance Show Float where
-  show = primFloatShow -- should be Numeric.FormatFloat.showFloat, but that drags in a lot of stuff
+  showsPrec = showSigned showFloat
 
 {- in Text.Read.Internal
 instance Read Float where

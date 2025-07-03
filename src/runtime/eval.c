@@ -333,9 +333,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_F
                 T_BINBS2, T_BINBS1,
                 T_ISINT,
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
-                T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW,
+                T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE,
                 T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD,
-                T_DEQ, T_DNE, T_DLT, T_DLE, T_DGT, T_DGE, T_DSHOW,
+                T_DEQ, T_DNE, T_DLT, T_DLE, T_DGT, T_DGE,
                 T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
                 T_RAISE, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_TICK,
@@ -1710,7 +1710,6 @@ struct {
   { "d<=", T_DLE, T_DGE},
   { "d>", T_DGT, T_DLT},
   { "d>=", T_DGE, T_DLE},
-  { "dshow", T_DSHOW},
 #endif  /* WANT_FLOAT64 */
 #if WANT_FLOAT32
   { "f+" , T_FADD, T_FADD},
@@ -1725,7 +1724,6 @@ struct {
   { "f<=", T_FLE, T_FGE},
   { "f>", T_FGT, T_FLT},
   { "f>=", T_FGE, T_FLE},
-  { "fshow", T_FSHOW},
 #endif  /* WANT_FLOAT32 */
 
   { "bs++", T_BSAPPEND },
@@ -3226,26 +3224,6 @@ convdbl(char *str, char *fmt, flt64_t x)
   }
 }
 
-NODEPTR
-dblToString(flt64_t x)
-{
-  char str[30];
-  convdbl(str, "%.16g", x);
-  // turn it into a mhs string
-  GCCHECK(strNodes(strlen(str)));
-  return mkStringC(str);
-}
-
-NODEPTR
-fltToString(flt32_t x)
-{
-  char str[30];
-  convdbl(str, "%.8g", x);
-  // turn it into a mhs string
-  GCCHECK(strNodes(strlen(str)));
-  return mkStringC(str);
-}
-
 void
 putdblb(flt64_t x, BFILE *p)
 {
@@ -3565,18 +3543,6 @@ dump(const char *msg, NODEPTR at)
   pp(stdout, *topnode);
 }
 #endif
-
-#else  /* WANT_STDIO */
-NODEPTR
-dblToString(flt64_t x)
-{
-  return mkStringC("no dblToString");
-}
-
-fltToString(flt32_t x)
-{
-  return mkStringC("no dblToString");
-}
 
 #endif  /* WANT_STDIO */
 
@@ -4286,11 +4252,8 @@ evali(NODEPTR an)
   value_t xi, yi, r;
   struct forptr *xfp;
 #if WANT_FLOAT64
-  flt64_t xd, rd;
+  flt64_t rd;
 #endif  /* WANT_FLOAT64 */
-#if WANT_FLOAT32
-  flt32_t xf;
-#endif  /* WANT_FLOAT32 */
   char *msg;
   heapoffs_t l;
   enum node_tag tag;
@@ -4577,12 +4540,6 @@ evali(NODEPTR an)
 
   case T_ITOF: OPINT1(rd = (flt32_t)xi); SETFLT(n, rd); RET;
 
-  case T_FSHOW:
-    CHECK(1);
-    xf = evalflt(ARG(TOP(0)));
-    POP(1);
-    n = TOP(-1);
-    GOIND(fltToString(xf));
 #endif  /* WANT_FLOAT32 */
 
 #if WANT_FLOAT64
@@ -4608,12 +4565,6 @@ evali(NODEPTR an)
 
   case T_ITOD: OPINT1(rd = (flt64_t)xi); SETDBL(n, rd); RET;
 
-  case T_DSHOW:
-    CHECK(1);
-    xd = evaldbl(ARG(TOP(0)));
-    POP(1);
-    n = TOP(-1);
-    GOIND(dblToString(xd));
 #endif  /* WANT_FLOAT64 */
 
   case T_ISINT:
