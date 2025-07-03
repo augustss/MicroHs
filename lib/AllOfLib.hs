@@ -59,8 +59,10 @@ import Data.Hashable
 import Data.IOArray
 import Data.IORef
 import Data.Int
-import Data.Int.IntN
-import Data.Int.Instances
+import Data.Int.Int8
+import Data.Int.Int16
+import Data.Int.Int32
+import Data.Int.Int64
 import Data.Integer
 import Data.Integer_Type
 import Data.Integral
@@ -99,6 +101,10 @@ import Data.TypeLits
 import Data.Version
 import Data.Void
 import Data.Word
+import Data.Word.Word8
+import Data.Word.Word16
+import Data.Word.Word32
+import Data.Word.Word64
 import Data.ZipList
 import Debug.Trace
 import Foreign

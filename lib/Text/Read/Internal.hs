@@ -57,7 +57,7 @@ import Data.Float
 import Data.Fractional
 import Data.Function
 import Data.Maybe
-import Data.Int
+import Data.Int.Int
 import Data.Integer
 import Data.Integral
 import Data.Ix

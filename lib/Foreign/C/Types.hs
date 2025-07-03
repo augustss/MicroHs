@@ -18,12 +18,12 @@ import Data.Bool
 import Data.Coerce
 import Data.Enum
 import Data.Eq
-import Data.Int
+import Data.Int.Int
 import Data.Integral
 import Data.Num
 import Data.Ord
 import Data.Real
-import Data.Word
+import Data.Word.Word
 import Data.Float
 import Data.Double
 

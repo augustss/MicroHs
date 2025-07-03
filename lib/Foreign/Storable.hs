@@ -5,7 +5,6 @@ import Control.Error(undefined)
 import Foreign.C.Types
 import Foreign.Ptr
 import Data.Int
-import Data.Int.Instances
 import Data.Word
 
 class Storable a where

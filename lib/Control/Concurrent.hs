@@ -34,7 +34,7 @@ import Control.Concurrent.QSem
 import Control.Concurrent.QSemN
 import Control.Exception
 import Control.Exception.Internal(unsafeUnmask)
-import Data.Word
+import Data.Word.Word
 
 instance Show ThreadId where
   show i = "ThreadId#" ++ show (primThreadNum i)

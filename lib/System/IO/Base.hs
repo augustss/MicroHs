@@ -42,7 +42,7 @@ import Data.Char
 import Data.Eq
 import Data.Function
 import Data.Functor
-import Data.Int
+import Data.Int.Int
 import Data.List
 import Data.Maybe
 import Data.Num

@@ -312,6 +312,7 @@ instance Eq Con where
 
 data Lit
   = LInt Int
+  | LInt64 Int64
   | LInteger Integer
   | LDouble Double
   | LFloat Float
@@ -329,6 +330,7 @@ data Lit
 
 instance NFData Lit where
   rnf (LInt a) = rnf a
+  rnf (LInt64 a) = rnf a
   rnf (LInteger a) = rnf a
   rnf (LDouble a) = rnf a
   rnf (LFloat a) = rnf a
@@ -1013,7 +1015,10 @@ ppCon (ConSyn s _ _) = ppIdent s
 
 -- Literals are tagged the way they appear in the combinator file:
 --  #   Int
---  %   Double
+--  ##  Int64
+--  %   Integer
+--  &   Double
+--  &&  Float
 --  '   Char    (not in file)
 --  "   String
 --  ^   FFI function
@@ -1022,7 +1027,8 @@ showLit :: Lit -> String
 showLit l =
   case l of
     LInt i     -> '#' : show i
-    LInteger i -> '#' : '#' : show i
+    LInt64 i   -> '#' : '#' : show i
+    LInteger i -> '%' : show i
     LDouble d  -> '&' : show d
     LFloat d   -> '&' : '&' : show d
     LRat r     -> '%' : show r

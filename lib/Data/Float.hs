@@ -22,7 +22,7 @@ import Data.Real
 import Data.RealFloat
 import Data.RealFrac
 import Data.Num
-import Data.Word
+import Data.Word.Word
 import {-# SOURCE #-} Numeric.FormatFloat(showFloat)
 import Numeric.Show(showSigned)
 import Text.Show

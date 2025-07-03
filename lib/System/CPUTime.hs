@@ -2,7 +2,6 @@ module System.CPUTime(getCPUTime) where
 import qualified Prelude()
 import MiniPrelude
 import Data.Integer
-import Data.Word
 import Foreign.C.Types
 import Foreign.Marshal.Utils
 import Foreign.Ptr

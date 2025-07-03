@@ -8,7 +8,7 @@ import Data.Bool_Type
 import Data.List_Type
 
 --
--- The Integer is stored in sign-magnitude format with digits in base maxD (2^32)
+-- The Integer is stored in sign-magnitude format with digits in base maxD (2^31)
 -- It has the following invariants:
 --  * each digit is >= 0 and < maxD
 --  * least significant digits first, most significant last
@@ -19,63 +19,75 @@ data Integer = I Sign [Digit]
 
 data Sign = Plus | Minus
 
-type Digit = Word
+type Digit = Word64
 
 maxD :: Digit
-maxD = 1 `primWordShl` shiftD
+maxD = 1 `primWord64Shl` shiftD
 
 shiftD :: Int
-shiftD = _wordSize `primIntShr` 1 -- this is used so multiplication of two digits doesn't overflow a Word
+shiftD = 31 -- this is used so multiplication of two digits doesn't overflow a Word
 
 quotMaxD :: Digit -> Digit
-quotMaxD d = d `primWordShr` shiftD
+quotMaxD d = d `primWord64Shr` shiftD
 
 remMaxD :: Digit -> Digit
-remMaxD d = d `primWordAnd` (maxD `primWordSub` 1)
+remMaxD d = d `primWord64And` (maxD `primWord64Sub` 1)
 
 -- Sadly, we also need a bunch of functions.
 
 _intToInteger :: Int -> Integer
-_intToInteger i
-  | i `primIntEQ` 0 = I Plus []
-  | i `primIntGE` 0 = f Plus (primIntToWord i)
-  | True            = f Minus (primIntToWord (0 `primIntSub` i))
+_intToInteger x = _int64ToInteger (primIntToInt64 x)
+
+_int64ToInteger :: Int64 -> Integer
+_int64ToInteger i
+  | i `primInt64EQ` 0 = I Plus []
+  | i `primInt64GE` 0 = f Plus (primInt64ToWord64 i)
+  | True              = f Minus (primInt64ToWord64 (0 `primInt64Sub` i))
   where
     f sign i =
       let
         high = quotMaxD i
         low = remMaxD i
-      in if high `primWordEQ` 0 then I sign [low] else I sign [low, high]
+      in if high `primWord64EQ` 0 then I sign [low] else I sign [low, high]
 
 _integerToInt :: Integer -> Int
-_integerToInt x = primWordToInt (_integerToWord x)
+_integerToInt x = primInt64ToInt (_integerToInt64 x)
+
+_integerToInt64 :: Integer -> Int64
+_integerToInt64 x = primWord64ToInt64 (_integerToWord64 x)
 
 _wordToInteger :: Word -> Integer
-_wordToInteger i
-  | i    `primWordEQ` 0 = I Plus []
-  | high `primWordEQ` 0 = I Plus [low]
+_wordToInteger x = _word64ToInteger (primWordToWord64 x)
+
+_word64ToInteger :: Word64 -> Integer
+_word64ToInteger i
+  | i    `primWord64EQ` 0 = I Plus []
+  | high `primWord64EQ` 0 = I Plus [low]
   | True                = I Plus [low, high]
   where
     high = quotMaxD i
     low = remMaxD i
 
 _integerToWord :: Integer -> Word
-_integerToWord (I sign ds) =
+_integerToWord x = primWord64ToWord (_integerToWord64 x)
+
+_integerToWord64 :: Integer -> Word64
+_integerToWord64 (I sign ds) =
   case sign of
     Plus  -> i
-    Minus -> 0 `primWordSub` i
+    Minus -> 0 `primWord64Sub` i
   where
     i =
       case ds of
-        []          -> 0 :: Word
+        []          -> 0 :: Word64
         [d1]        -> d1
-        d1 : d2 : _ -> d1 `primWordAdd` (d2 `primWordShl` shiftD)
+        d1 : d2 : _ -> d1 `primWord64Add` (d2 `primWord64Shl` shiftD)
 
 _integerToFloat :: Integer -> Float
 _integerToFloat (I sign ds) = sgn (loop ds)
   where
     loop [] = 0.0 :: Float
-    loop (d : ds) = primFloatFromInt (primWordToInt d) `primFloatAdd` (primFloatFromInt (primWordToInt maxD) `primFloatMul` loop ds)
+    loop (d : ds) = primFloatFromInt64 (primWord64ToInt64 d) `primFloatAdd` (primFloatFromInt64 (primWord64ToInt64 maxD) `primFloatMul` loop ds)
     sgn x =
       case sign of
         Plus  -> x
@@ -85,7 +97,7 @@ _integerToDouble :: Integer -> Double
 _integerToDouble (I sign ds) = sgn (loop ds)
   where
     loop [] = 0.0 :: Double
-    loop (d : ds) = primDoubleFromInt (primWordToInt d) `primDoubleAdd` (primDoubleFromInt (primWordToInt maxD) `primDoubleMul` loop ds)
+    loop (d : ds) = primDoubleFromInt64 (primWord64ToInt64 d) `primDoubleAdd` (primDoubleFromInt64 (primWord64ToInt64 maxD) `primDoubleMul` loop ds)
     sgn x =
       case sign of
         Plus  -> x

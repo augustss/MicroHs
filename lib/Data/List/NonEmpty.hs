@@ -109,7 +109,7 @@ import Data.Foldable hiding (length, toList)
 import qualified Data.Foldable as Foldable
 import Data.Function
 import Data.Functor hiding(unzip)
-import Data.Int
+import Data.Int.Int
 import qualified Data.List as List
 import Data.List_Type
 import Data.List.NonEmpty_Type

@@ -315,7 +315,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -323,6 +323,11 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_F
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_POPCOUNT, T_CLZ, T_CTZ,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE, T_ICMP, T_UCMP,
+                T_ADD64, T_SUB64, T_MUL64, T_QUOT64, T_REM64, T_SUBR64, T_UQUOT64, T_UREM64, T_NEG64,
+                T_AND64, T_OR64, T_XOR64, T_INV64, T_SHL64, T_SHR64, T_ASHR64,
+                T_POPCOUNT64, T_CLZ64, T_CTZ64,
+                T_EQ64, T_NE64, T_LT64, T_LE64, T_GT64, T_GE64, T_ULT64, T_ULE64, T_UGT64, T_UGE64, T_ICMP64, T_UCMP64,
+                T_ITOI64, T_I64TOI, T_UTOU64, T_U64TOU,
                 T_FPADD, T_FP2P, T_FPNEW, T_FPFIN, // T_FPSTR,
                 T_FP2BS, T_BS2FP,
                 T_TOPTR, T_TOINT, T_TODBL, T_TOFLT, T_TOFUNPTR,
@@ -364,7 +369,14 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_F
 };
 /* Most entries are initialized from the primops table. */
 static const char* tag_names[T_LAST_TAG+1] =
-  { "FREE", "IND", "AP", "INT", "DBL", "FLT32", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
+  { "FREE", "IND", "AP", "INT", "DBL", "FLT32", "INT64", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
+
+/* On 64 bit platforms there is no special type for Int64 */
+#if WORD_SIZE == 64
+#define T_INT64 T_INT
+#else
+#define T_INT64 T_INT64X
+#endif  /* WORD_SIZE == 64 */
 
 struct ioarray;
 struct bytestring;
@@ -387,6 +399,9 @@ typedef struct PACKED node {
 #if WANT_FLOAT64
     flt64_t         uuflt64value;
 #endif  /* WANT_FLOAT32 */
+#if WANT_INT64
+    int64_t         uuint64value;
+#endif  /* WANT_INT64 */
     const char     *uucstring;
     void           *uuptr;
     HsFunPtr        uufunptr;
@@ -406,9 +421,11 @@ typedef struct PACKED node {
 #define GETTAG(p) ((p)->ufun.uutag & BIT_NOTAP ? ( (p)->ufun.uutag & BIT_IND ? T_IND : (int)((p)->ufun.uutag >> TAG_SHIFT) ) : T_AP)
 #define SETTAG(p,t) do { if (t != T_AP) { if (t == T_IND) { (p)->ufun.uutag = BIT_IND; } else { (p)->ufun.uutag = ((t) << TAG_SHIFT) | BIT_TAG; } } } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
+#define GETINT64VALUE(p) (p)->uarg.uuint64value
 #define GETFLTVALUE(p) (p)->uarg.uuflt32value
 #define GETDBLVALUE(p) (p)->uarg.uuflt64value
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
+#define SETINT64VALUE(p,v) (p)->uarg.uuint64value = v
 #define SETFLTVALUE(p,v) (p)->uarg.uuflt32value = v
 #define SETDBLVALUE(p,v) (p)->uarg.uuflt64value = v
 #define FUN(p) (p)->ufun.uufun
@@ -789,6 +806,7 @@ NORETURN void die_exn(NODEPTR exn);
 void thread_intr(struct mthread *mt);
 int put_mvar(int try, struct mvar *mv, NODEPTR v);
 NODEPTR mkInt(value_t i);
+NODEPTR mkInt64(int64_t i);
 NODEPTR mkFlt32(flt32_t d);
 NODEPTR mkFlt64(flt64_t d);
 NODEPTR mkPtr(void* p);
@@ -1838,6 +1856,82 @@ struct {
   { "binbs1", T_BINBS1 },
   { "unint1", T_UNINT1 },
   { "undbl1", T_UNDBL1 },
+#if WANT_INT64
+#if WORD_SIZE == 64
+  { "I+", T_ADD, T_ADD },
+  { "I-", T_SUB, T_SUBR },
+  { "I*", T_MUL, T_MUL },
+  { "Iquot", T_QUOT },
+  { "Irem", T_REM },
+  { "Iuquot", T_UQUOT },
+  { "Iurem", T_UREM },
+  { "Isubtract", T_SUBR, T_SUB },
+  { "Ineg", T_NEG },
+  { "Iand", T_AND, T_AND },
+  { "Ior", T_OR, T_OR },
+  { "Ixor", T_XOR, T_XOR },
+  { "Iinv", T_INV },
+  { "Ishl", T_SHL },
+  { "Ishr", T_SHR },
+  { "Iashr", T_ASHR },
+  { "Ipopcount", T_POPCOUNT },
+  { "Iclz", T_CLZ },
+  { "Ictz", T_CTZ },
+  { "I==", T_EQ, T_EQ },
+  { "I/=", T_NE, T_NE },
+  { "I<", T_LT, T_GT },
+  { "Iu<", T_ULT, T_UGT },
+  { "Iu<=", T_ULE, T_UGE },
+  { "Iu>", T_UGT, T_ULT },
+  { "Iu>=", T_UGE, T_ULE },
+  { "I<=", T_LE, T_GE },
+  { "I>", T_GT, T_LT },
+  { "I>=", T_GE, T_LE },
+  { "Iicmp", T_ICMP },
+  { "Iucmp", T_UCMP },
+  { "Itoi", T_I },
+  { "itoI", T_I },
+  { "Utou", T_I },
+  { "utoU", T_I },
+#else  /* WORD_SIZE == 64 */
+  /* WORD_SIZE == 32 */
+  { "I+", T_ADD64, T_ADD64 },
+  { "I-", T_SUB64, T_SUBR64 },
+  { "I*", T_MUL64, T_MUL64 },
+  { "Iquot", T_QUOT64 },
+  { "Irem", T_REM64 },
+  { "Iuquot", T_UQUOT64 },
+  { "Iurem", T_UREM64 },
+  { "Isubtract", T_SUBR64, T_SUB64 },
+  { "Ineg", T_NEG64 },
+  { "Iand", T_AND64, T_AND64 },
+  { "Ior", T_OR64, T_OR64 },
+  { "Ixor", T_XOR64, T_XOR64 },
+  { "Iinv", T_INV64 },
+  { "Ishl", T_SHL64 },
+  { "Ishr", T_SHR64 },
+  { "Iashr", T_ASHR64 },
+  { "Ipopcount", T_POPCOUNT64 },
+  { "Iclz", T_CLZ64 },
+  { "Ictz", T_CTZ64 },
+  { "I==", T_EQ64, T_EQ64 },
+  { "I/=", T_NE64, T_NE64 },
+  { "I<", T_LT64, T_GT64 },
+  { "Iu<", T_ULT64, T_UGT64 },
+  { "Iu<=", T_ULE64, T_UGE64 },
+  { "Iu>", T_UGT64, T_ULT64 },
+  { "Iu>=", T_UGE64, T_ULE64 },
+  { "I<=", T_LE64, T_GE64 },
+  { "I>", T_GT64, T_LT64 },
+  { "I>=", T_GE64, T_LE64 },
+  { "Iicmp", T_ICMP64 },
+  { "Iucmp", T_UCMP64 },
+  { "itoI", T_ITOI64 },
+  { "Itoi", T_I64TOI },
+  { "utoU", T_UTOU64 },
+  { "Utou", T_U64TOU },
+#endif /* WORD_SIZE == 64 */
+#endif  /* WANT_INT64 */
 };
 
 #if GCRED
@@ -2798,11 +2892,11 @@ getNT(BFILE *f)
   }
 }
 
-value_t
+int64_t
 parse_int(BFILE *f)
 {
   // Parse using uvalue_t, which wraps on overflow.
-  uvalue_t i = 0;
+  uint64_t i = 0;
   int neg = 1;
   int c = getb(f);
   if (c == '-') {
@@ -2818,7 +2912,7 @@ parse_int(BFILE *f)
     }
   }
   // Multiply by neg without triggering undefined behavior.
-  return (value_t)(((uvalue_t)neg) * i);
+  return (int64_t)(((uint64_t)neg) * i);
 }
 
 struct forptr *mkForPtr(struct bytestring bs);
@@ -3017,9 +3111,20 @@ parse(BFILE *f)
         break;
       }
     case '#':
-      i = parse_int(f);
-      r = mkInt(i);
-      PUSH(r);
+      {
+        int is64 = gobble(f, '#');
+        int64_t i64 = parse_int(f);
+        if (WORD_SIZE != 64 && is64) {
+#if WANT_INT64
+          r = mkInt64(i64);
+#else
+          ERR("No Int64");
+#endif
+        } else {
+          r = mkInt((value_t)i64);
+        }
+        PUSH(r);
+      }
       break;
     case '[':
       {
@@ -3560,6 +3665,17 @@ mkInt(value_t i)
   SETVALUE(n, i);
   return n;
 }
+
+#if WANT_INT64 && WORD_SIZE != 64
+NODEPTR
+mkInt64(int64_t i)
+{
+  NODEPTR n;
+  n = alloc_node(T_INT64);
+  SETINT64(n, i);
+  return n;
+}
+#endif
 
 NODEPTR
 mkFlt32(flt32_t d)
@@ -4305,6 +4421,7 @@ evali(NODEPTR an)
 #define CHKARGEV1(e)   do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
 
 #define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
+#define SETINT64(n,r)  do { SETTAG((n), T_INT64); SETINT64VALUE((n), (r)); } while(0)
 #define SETDBL(n,d)    do { SETTAG((n), T_DBL); SETDBLVALUE((n), (d)); } while(0)
 #define SETFLT(n,d)    do { SETTAG((n), T_FLT32); SETFLTVALUE((n), (d)); } while(0)
 #define SETPTR(n,r)    do { SETTAG((n), T_PTR); PTR(n) = (r); } while(0)

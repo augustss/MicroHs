@@ -2,7 +2,7 @@ module Data.ByteString.Lazy.Char8(module Data.ByteString.Lazy.Char8) where
 import qualified Data.ByteString as B
 import Data.Coerce
 import Data.List.NonEmpty
-import Data.Word(Word8)
+import Data.Word.Word8(Word8)
 import Foreign.C.String(CString, CStringLen)
 import System.IO.Base(Handle)
 

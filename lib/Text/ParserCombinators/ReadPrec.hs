@@ -51,7 +51,7 @@ import Control.Monad
 import Control.Monad.Fail
 import Data.Char
 import Data.Function
-import Data.Int
+import Data.Int.Int
 import Data.Num
 import Data.List
 import Data.Ord

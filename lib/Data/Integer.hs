@@ -10,7 +10,7 @@ import Data.Bits
 import Data.Bool
 import Data.Enum
 import Data.Eq
-import Data.Int
+import Data.Int.Int
 import Data.Integer.Internal
 import Data.Integral
 import Data.List

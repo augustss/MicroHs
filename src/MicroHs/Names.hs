@@ -28,10 +28,20 @@ nameInt = "Primitives.Int"
 identInt :: Ident
 identInt = mkIdentB nameInt
 
+nameInt64 :: String
+nameInt64 = "Primitives.Int64"
+identInt64 :: Ident
+identInt64 = mkIdentB nameInt64
+
 nameWord :: String
 nameWord = "Primitives.Word"
 identWord :: Ident
 identWord = mkIdentB nameWord
+
+nameWord64 :: String
+nameWord64 = "Primitives.Word64"
+identWord64 :: Ident
+identWord64 = mkIdentB nameWord64
 
 nameFloat :: String
 nameFloat = "Primitives.Float"

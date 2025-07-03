@@ -5,7 +5,7 @@ module Foreign.Ptr(
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
-import Data.Word
+import Data.Word.Word
 import Data.Eq
 import Data.Function
 import Data.Ord

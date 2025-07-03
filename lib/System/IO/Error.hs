@@ -78,7 +78,7 @@ import Data.Either
 import Data.Eq
 import Data.Function
 import Data.Functor
-import Data.Int
+import Data.Int.Int
 import Data.List
 import Data.Maybe
 import Data.Records   -- needed since we don't import Mhs.Builtin

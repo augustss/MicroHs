@@ -2,15 +2,13 @@
 -- See LICENSE file for full license.
 module Control.DeepSeq.Class(module Control.DeepSeq.Class) where
 import qualified Prelude()
-import Primitives(primSeq)
+import Primitives
 import Data.Bool
 import Data.Char
 import Data.Eq
-import Data.Double
 import Data.Either
-import Data.Float
 import Data.Function
-import Data.Int
+--import Data.Int.Int
 import Data.Integer
 import Data.Integral
 import Data.List_Type
@@ -18,7 +16,7 @@ import Data.Maybe_Type
 import Data.Ord
 import Data.Ratio
 import Data.Tuple
-import Data.Word
+--import Data.Word.Word
 import Mhs.Builtin
 
 -- NFData class and instances for primitive types.
@@ -40,6 +38,8 @@ force x = x `deepseq` x
 
 instance NFData Int
 instance NFData Word
+instance NFData Int64
+instance NFData Word64
 instance NFData Double
 instance NFData Float
 instance NFData Char

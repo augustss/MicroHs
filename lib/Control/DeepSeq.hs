@@ -40,15 +40,12 @@ f <$!!> m = m >>= \x -> pure $!! f x
 rwhnf :: a -> ()
 rwhnf a = a `seq` ()
 
-instance NFData Float
 instance NFData Int8
 instance NFData Int16
 instance NFData Int32
-instance NFData Int64
 instance NFData Word8
 instance NFData Word16
 instance NFData Word32
-instance NFData Word64
 
 instance NFData (Proxy a) where rnf Proxy = ()
 instance NFData1 Proxy where liftRnf _ Proxy = ()

@@ -19,14 +19,11 @@ module Data.Typeable (
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives
-import Data.Double
-import Data.Float
 import Data.Integer
 import Data.Proxy
 import Data.Ratio
 import Data.Type.Equality
 import Data.Void
-import Data.Word
 import System.IO.MD5
 import Unsafe.Coerce
 
@@ -148,10 +145,11 @@ instance Typeable Char        where typeRep = prim                          "Cha
 instance Typeable Double      where typeRep = nullary "Data.Double"         "Double"
 instance Typeable Float       where typeRep = nullary "Data.Float"          "Float"
 instance Typeable Int         where typeRep = prim                          "Int"
+instance Typeable Int64       where typeRep = prim                          "Int64"
 instance Typeable Integer     where typeRep = nullary "Data.Integer_Type"   "Integer"
 instance Typeable Void        where typeRep = nullary "Data.Void"           "Void"
 instance Typeable Word        where typeRep = prim                          "Word"
-instance Typeable Word8       where typeRep = nullary "Data.Word8"          "Word8"
+instance Typeable Word64      where typeRep = prim                          "Word64"
 
 instance Typeable TypeRep     where typeRep = nullary "Data.Typeable"       "TypeRep"
 instance Typeable TyCon       where typeRep = nullary "Data.Typeable"       "TyCon"
@@ -161,6 +159,8 @@ instance Typeable Ptr         where typeRep = prim                          "Ptr
 instance Typeable FunPtr      where typeRep = prim                          "FunPtr"
 instance Typeable ForeignPtr  where typeRep = prim                          "ForeignPtr"
 instance Typeable IOArray     where typeRep = prim                          "IOArray"
+instance Typeable MVar        where typeRep = prim                          "MVar"
+instance Typeable ThreadId    where typeRep = prim                          "ThreadId"
 
 instance Typeable []          where typeRep = nullary "Data.List_Type"      "[]"
 instance Typeable Maybe       where typeRep = nullary "Data.Maybe_Type"     "Maybe"

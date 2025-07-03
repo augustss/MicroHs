@@ -15,7 +15,7 @@ import Data.Char_Type
 import Data.Bounded
 import Data.Enum_Class
 import Data.Function
-import Data.Int
+import Data.Int.Int
 import Data.List
 import Data.Num
 import Data.Ord

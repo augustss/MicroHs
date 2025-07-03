@@ -7,7 +7,7 @@ import Data.Bool
 import Data.Eq
 import Data.Floating
 import Data.Fractional
-import Data.Int
+import Data.Int.Int
 import Data.Integer
 import Data.Num
 import Data.Ord

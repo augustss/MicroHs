@@ -22,7 +22,7 @@ import Data.Real
 import Data.RealFloat
 import Data.RealFrac
 import Data.Num
-import Data.Word
+import Data.Word.Word64
 import {-# SOURCE #-} Numeric.FormatFloat(showFloat)
 import Numeric.Show(showSigned)
 import Text.Show
@@ -148,7 +148,7 @@ instance RealFloat Double where
 
 decodeFloat64 :: Double -> (Integer, Int)
 decodeFloat64 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWord64FromDoubleRaw x
       sign =  xw .&. 0x8000000000000000
       expn = (xw .&. 0x7fffffffffffffff) `shiftR` 52
       mant =  xw .&. 0x000fffffffffffff
@@ -161,7 +161,7 @@ decodeFloat64 x =
         if mant == 0 then
           (0, 0)  -- 0
         else
-          adjDenorm (neg (_wordToInteger mant)) (-1074)  -- denormalized
+          adjDenorm (neg (_word64ToInteger mant)) (-1074)  -- denormalized
       else if expn == 0x7ff then
         -- infinity or NaN
         --(0, 0)
@@ -169,33 +169,33 @@ decodeFloat64 x =
       else
         -- ordinary number, add hidden bit
         -- mant is offset-1023, and assumes scaled mantissa (thus -52)
-        (neg (_wordToInteger (mant .|. 0x0010000000000000)),
-         primWordToInt expn - 1023 - 52)
+        (neg (_word64ToInteger (mant .|. 0x0010000000000000)),
+         primWordToInt (primWord64ToWord expn) - 1023 - 52)
 
 isNaNFloat64 :: Double -> Bool
 isNaNFloat64 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWord64FromDoubleRaw x
       expn = (xw .&. 0x7fffffffffffffff) `shiftR` 52
       mant =  xw .&. 0x000fffffffffffff
   in  expn == 0x7ff && mant /= 0
 
 isInfFloat64 :: Double -> Bool
 isInfFloat64 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWord64FromDoubleRaw x
       expn = (xw .&. 0x7fffffffffffffff) `shiftR` 52
       mant =  xw .&. 0x000fffffffffffff
   in  expn == 0x7ff && mant == 0
 
 isDenFloat64 :: Double -> Bool
 isDenFloat64 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWord64FromDoubleRaw x
       expn = (xw .&. 0x7fffffffffffffff) `shiftR` 52
       mant =  xw .&. 0x000fffffffffffff
   in  expn == 0 && mant /= 0
 
 isNegZeroFloat64 :: Double -> Bool
 isNegZeroFloat64 x =
-  let xw   = primWordFromDoubleRaw x
+  let xw   = primWord64FromDoubleRaw x
       sign = xw .&. 0x8000000000000000
       rest = xw .&. 0x7fffffffffffffff
   in  sign /= 0 && rest == 0

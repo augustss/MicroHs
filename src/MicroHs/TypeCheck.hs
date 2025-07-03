@@ -1763,10 +1763,12 @@ tcExprR mt ae =
               case mex of
                 -- Convert to Int in the compiler, that way (99::Int) will never involve fromInteger
                 -- (which is not always in scope).
-                Just (EVar v) | v == identInt     -> tcLit  mt loc (LInt (fromInteger i))
-                              | v == identWord    -> tcLit' mt loc (LInt (fromInteger i)) (tConI loc nameWord)
+                Just (EVar v) | v == identInt     -> tcLit  mt loc (LInt    (fromInteger i))
+                              | v == identInt64   -> tcLit  mt loc (LInt64  (fromInteger i))
+                              | v == identWord    -> tcLit' mt loc (LInt    (fromInteger i)) (tConI loc nameWord)
+                              | v == identWord64  -> tcLit' mt loc (LInt64  (fromInteger i)) (tConI loc nameWord64)
                               | v == identDouble  -> tcLit  mt loc (LDouble (fromInteger i))
-                              | v == identFloat   -> tcLit  mt loc (LFloat (fromInteger i))
+                              | v == identFloat   -> tcLit  mt loc (LFloat  (fromInteger i))
                               | v == identInteger -> tcLit  mt loc lit
                 _ -> do
                   (f, ft) <- tInferExpr (EVar (mkBuiltin loc "fromInteger"))
@@ -2161,6 +2163,7 @@ tcLit mt loc l = do
   let t =
         case l of
           LInt _     -> tConI loc nameInt
+          LInt64 _   -> tConI loc nameInt64
           LInteger _ -> tConI loc nameInteger
           LDouble _  -> tConI loc nameDouble
           LFloat _   -> tConI loc nameFloat

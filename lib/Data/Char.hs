@@ -33,7 +33,7 @@ import Data.Char_Type
 import {-# SOURCE #-} qualified Data.Char.Unicode as U
 import Data.Eq
 import Data.Function
-import Data.Int
+import Data.Int.Int
 import Data.List_Type
 import Data.Num
 import Data.Ord
