@@ -34,20 +34,10 @@ class Eq a => Ord a where
   min x y = if x <= y then x else y
   max x y = if x <= y then y else x
 
-instance Eq Ordering where
-  LT == LT  =  True
-  EQ == EQ  =  True
-  GT == GT  =  True
-  _  == _   =  False
-
-instance Show Ordering where
-  showsPrec _ LT = showString "LT"
-  showsPrec _ EQ = showString "EQ"
-  showsPrec _ GT = showString "GT"
-
-instance Bounded Ordering where
-  minBound = LT
-  maxBound = GT
+deriving instance Eq Ordering
+deriving instance Ord Ordering
+deriving instance Show Ordering
+deriving instance Bounded Ordering
 
 comparing :: (Ord b) => (a -> b) -> a -> a -> Ordering
 comparing f x y = compare (f x) (f y)
