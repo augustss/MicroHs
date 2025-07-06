@@ -290,7 +290,8 @@ invertGraph = foldr ins M.empty
 
 -- Is the module name actually a file name?
 getFileName :: IdentModule -> Maybe String
-getFileName m | ".hs" `isSuffixOf` s || not (validModuleName s) = Just s
+getFileName m | ".hs" `isSuffixOf` s || ".lhs" `isSuffixOf` s ||
+                not (validModuleName s) = Just s
               | otherwise = Nothing
   where s = unIdent m
 
