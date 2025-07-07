@@ -425,6 +425,8 @@ layoutLS                        ts          mms  Pop        =
 layoutLS tts@(TIndent x       : ts) mms@(m : ms) _ | n == m = (TSpec (tokensLoc ts) ';', LS $ layoutLS  ts    mms )
                                                    | n <  m = (TSpec (tokensLoc ts) '>', LS $ layoutLS tts     ms ) where {n = getCol x}
 layoutLS     (TIndent _       : ts)          ms  _          =                                 layoutLS  ts     ms  Next
+layoutLS     (t@(TIdent _ _ "do") :  -- for NondecreasingIndentation
+              TBrace x        : ts) mms@(m :  _) _ | n >= m = (t                       , LS $ layoutLS  (TSpec (tokensLoc ts) '<' : ts) (n:mms)) where {n = getCol x}
 layoutLS     (TBrace x        : ts) mms@(m :  _) _ | n > m  = (TSpec (tokensLoc ts) '<', LS $ layoutLS  ts (n:mms)) where {n = getCol x}
 layoutLS     (TBrace x        : ts)          []  _ | n > 0  = (TSpec (tokensLoc ts) '<', LS $ layoutLS  ts     [n]) where {n = getCol x}
 layoutLS     (TBrace x        : ts)          ms  _          = (TSpec (tokensLoc ts) '<', LS $ layoutLS  (TSpec (tokensLoc ts) '>' : TIndent x : ts) ms)
