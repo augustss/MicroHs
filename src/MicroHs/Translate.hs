@@ -36,6 +36,7 @@ trans r ae =
     Var n -> r n
     App f a -> unsafeCoerce (trans r f) (trans r a)
     Lit (LInt i) -> unsafeCoerce i
+    Lit (LInt64 i) -> unsafeCoerce i
     Lit (LDouble i) -> unsafeCoerce i
     Lit (LFloat i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
@@ -205,5 +206,36 @@ primTable = [
   ("isint", _primitive "isint"),
   ("SPnew", _primitive "SPnew"),
   ("SPderef", _primitive "SPderef"),
-  ("SPfree", _primitive "SPfree")
+  ("SPfree", _primitive "SPfree"),
+  ("I+", _primitive "I+"),
+  ("I-", _primitive "I-"),
+  ("I*", _primitive "I*"),
+  ("Iquot", _primitive "Iquot"),
+  ("Irem", _primitive "Irem"),
+  ("Iuquot", _primitive "Iuquot"),
+  ("Iurem", _primitive "Iurem"),
+  ("Iand", _primitive "Iand"),
+  ("Ior", _primitive "Ior"),
+  ("Ixor", _primitive "Ixor"),
+  ("Ishl", _primitive "Ishl"),
+  ("Ishr", _primitive "Ishr"),
+  ("Iashr", _primitive "Iashr"),
+  ("Iinv", _primitive "Iinv"),
+  ("Ipopcount", _primitive "Ipopcount"),
+  ("Iclz", _primitive "Iclz"),
+  ("Ictz", _primitive "Ictz"),
+  ("I==", _primitive "I=="),
+  ("I/=", _primitive "I/="),
+  ("I<", _primitive "I<"),
+  ("I<=", _primitive "I<="),
+  ("I>", _primitive "I>"),
+  ("I>=", _primitive "I>="),
+  ("Iu<", _primitive "Iu<"),
+  ("Iu<=", _primitive "Iu<="),
+  ("Iu>", _primitive "Iu>"),
+  ("Iu>=", _primitive "Iu>="),
+  ("itoI", _primitive "itoI"),
+  ("Itoi", _primitive "Itoi"),
+  ("utoU", _primitive "utoU"),
+  ("Utou", _primitive "Utou")
   ]
