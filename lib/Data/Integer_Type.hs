@@ -25,7 +25,7 @@ maxD :: Digit
 maxD = 1 `primWord64Shl` shiftD
 
 shiftD :: Int
-shiftD = 31 -- this is used so multiplication of two digits doesn't overflow a Word
+shiftD = 32 -- this is used so multiplication of two digits doesn't overflow a Word64
 
 quotMaxD :: Digit -> Digit
 quotMaxD d = d `primWord64Shr` shiftD
