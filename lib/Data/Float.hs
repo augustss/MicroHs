@@ -190,10 +190,7 @@ isDenFloat32 x =
 
 isNegZeroFloat32 :: Float -> Bool
 isNegZeroFloat32 x =
-  let xw   = primWordFromFloatRaw x
-      sign = xw .&. 0x80000000
-      rest = xw .&. 0x7fffffff
-  in  sign /= 0 && rest == 0
+  primWordFromFloatRaw x == 0x80000000
 
 scaleFloat32 :: Int -> Float -> Float
 scaleFloat32 n x = cscalbn x n

@@ -195,10 +195,7 @@ isDenFloat64 x =
 
 isNegZeroFloat64 :: Double -> Bool
 isNegZeroFloat64 x =
-  let xw   = primWord64FromDoubleRaw x
-      sign = xw .&. 0x8000000000000000
-      rest = xw .&. 0x7fffffffffffffff
-  in  sign /= 0 && rest == 0
+  primWord64FromDoubleRaw x == 0x8000000000000000
 
 scaleFloat64 :: Int -> Double -> Double
 scaleFloat64 n x = cscalbn x n
