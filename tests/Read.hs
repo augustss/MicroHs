@@ -1,5 +1,6 @@
 module Read(main) where
 import Text.Read
+import Data.Int
 
 main :: IO ()
 main = do
@@ -13,12 +14,8 @@ main = do
   print (read "0b01111011" :: Int)
   print (read "2147483647" :: Int)
   print (read "-2147483648" :: Int)
-  if _wordSize == 64 then do
-    print (read "9223372036854775807" :: Int)
-    print (read "-9223372036854775808" :: Int)
-   else do
-    putStrLn "9223372036854775807"
-    putStrLn "-9223372036854775808"
+  print (read "9223372036854775807" :: Int64)
+  print (read "-9223372036854775808" :: Int64)
   print (read "123"   :: Integer)
   print (read " 123"  :: Integer)
   print (read "123 "  :: Integer)
