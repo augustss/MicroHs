@@ -60,6 +60,11 @@ instance Ord Int64 where
 instance Show Int64 where
   showsPrec = showIntegral
 
+{- in Text.Read.Internal
+instance Read Int32 where
+  readsPrec = readIntegral
+-}
+
 instance Enum Int64 where
   succ x = if x == maxBound then error "Int64.succ: overflow" else x + 1
   pred x = if x == minBound then error "Int64.pred: underflow" else x - 1
