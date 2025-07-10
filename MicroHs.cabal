@@ -103,6 +103,7 @@ executable mhs
                        System.IO.TimeMilli
                        System.Compress
                        Paths_MicroHs
+
   autogen-modules:     Paths_MicroHs
   if impl(ghc)
     hs-source-dirs:    ghc src
@@ -116,8 +117,7 @@ executable mhs
                        process      >= 1.6 && < 1.10,
                        directory    >= 1.2 && < 1.6,
                        text         >= 2.0 && < 2.5,
-                       array        >= 0.5 && < 0.6,
-                       ghc-internal >= 9.0 && < 10.0,
+                       array        >= 0.5 && < 0.6
 
   if impl(hugs)
     hs-source-dirs:    hugs src
@@ -126,3 +126,75 @@ executable mhs
     hs-source-dirs:    mhs src
     build-depends:     base         >= 0.1 && < 10.0,
 
+library
+  default-language:    Haskell2010
+  default-extensions:  ScopedTypeVariables TypeSynonymInstances MultiParamTypeClasses FlexibleInstances FlexibleContexts
+  ghc-options:         -Wall -Wno-unrecognised-warning-flags -Wno-x-partial
+                       -fwrite-ide-info -Wno-deprecations
+  autogen-modules:     Paths_MicroHs
+  exposed-modules:
+                        MicroHs.Abstract 
+                        MicroHs.Builtin 
+                        MicroHs.Compile 
+                        MicroHs.CompileCache 
+                        MicroHs.Deriving 
+                        MicroHs.Desugar 
+                        MicroHs.EncodeData 
+                        MicroHs.Exp 
+                        MicroHs.ExpPrint 
+                        MicroHs.Expr 
+                        MicroHs.FFI 
+                        MicroHs.Fixity 
+                        MicroHs.Flags 
+                        MicroHs.Graph 
+                        MicroHs.Ident 
+                        MicroHs.IdentMap 
+                        MicroHs.Interactive 
+                        MicroHs.IntMap 
+                        MicroHs.IntSet 
+                        MicroHs.Lex 
+                        MicroHs.List 
+                        MicroHs.Main 
+                        MicroHs.MakeCArray 
+                        MicroHs.Names 
+                        MicroHs.Package 
+                        MicroHs.Parse 
+                        MicroHs.State 
+                        MicroHs.StateIO 
+                        MicroHs.SymTab 
+                        MicroHs.TargetConfig 
+                        MicroHs.TCMonad 
+                        MicroHs.Translate 
+                        MicroHs.TypeCheck
+
+  other-modules:        MHSPrelude
+                        Text.ParserComb
+                        Text.PrettyPrint.HughesPJLite
+                        Data.Integer
+                        Paths_MicroHs
+                        PrimTable
+                        System.Compress
+                        System.Console.SimpleReadline
+                        System.IO.MD5
+                        System.IO.Serialize
+                        System.IO.TimeMilli
+  if impl(ghc)
+    hs-source-dirs:     ghc src
+    build-depends:      base         >= 4.10 && < 4.30,
+                        bytestring   >= 0.5 && < 0.20,
+                        deepseq      >= 1.1 && < 1.8,
+                        filepath     >= 1.1 && < 1.8,
+                        ghc-prim     >= 0.5 && < 0.15,
+                        haskeline    >= 0.8 && < 0.10,
+                        time         >= 1.1 && < 1.20,
+                        process      >= 1.6 && < 1.10,
+                        directory    >= 1.2 && < 1.6,
+                        text         >= 2.0 && < 2.5,
+                        array        >= 0.5 && < 0.6
+
+  if impl(hugs)
+    hs-source-dirs:     hugs src
+
+  if impl(mhs)
+    hs-source-dirs:     mhs src
+    build-depends:      base         >= 0.1 && < 10.0,
