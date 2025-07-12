@@ -57,8 +57,8 @@ lengthArray0 marker ptr = loop 0
         val <- peekElemOff ptr i
         if val == marker then return i else loop (i+1)
 
-withArrray :: forall a b . Storable a => [a] -> (Ptr a -> IO b) -> IO b
-withArrray vals iob = do
+withArray :: forall a b . Storable a => [a] -> (Ptr a -> IO b) -> IO b
+withArray vals iob = do
   ptr <- newArray vals
   b <- iob ptr
   free ptr

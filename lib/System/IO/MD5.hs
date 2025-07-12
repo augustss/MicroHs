@@ -60,5 +60,5 @@ md5Combine :: [MD5CheckSum] -> MD5CheckSum
 md5Combine [] = error "md5Combine: empty"
 md5Combine [m] = m
 md5Combine ms = primPerformIO $
-  withArrray [ w | MD5 ws <- ms, w <- ws ] $ \ a ->
+  withArray [ w | MD5 ws <- ms, w <- ws ] $ \ a ->
     chksum $ \ w -> c_md5Array a w (length ms * md5Len)
