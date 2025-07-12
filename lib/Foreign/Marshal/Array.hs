@@ -3,6 +3,7 @@ import qualified Prelude(); import MiniPrelude
 import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Alloc
+import Foreign.Marshal.Utils (copyBytes)
 
 mallocArray :: forall a . Storable a => Int -> IO (Ptr a)
 mallocArray size = mallocBytes (size * sizeOf (undefined :: a))
@@ -57,9 +58,19 @@ lengthArray0 marker ptr = loop 0
         val <- peekElemOff ptr i
         if val == marker then return i else loop (i+1)
 
-withArrray :: forall a b . Storable a => [a] -> (Ptr a -> IO b) -> IO b
-withArrray vals iob = do
+withArray :: forall a b . Storable a => [a] -> (Ptr a -> IO b) -> IO b
+withArray vals iob = do
   ptr <- newArray vals
   b <- iob ptr
   free ptr
   return b
+
+
+advancePtr :: forall a. (Storable a) => Ptr a -> Int -> Ptr a
+advancePtr p n = plusPtr p (n * sizeOf (error "advancePtr" :: a))
+
+allocaArray :: forall a b. (Storable a) => Int -> (Ptr a -> IO b) -> IO b
+allocaArray n = allocaBytes (n * sizeOf (error "allocaArray" :: a))
+
+copyArray :: forall a. Storable a => Ptr a -> Ptr a -> Int -> IO ()
+copyArray dest src n = copyBytes dest src (n * sizeOf (error "copyArray" :: a))
