@@ -16,6 +16,7 @@ module Foreign.ForeignPtr (
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives
+import Foreign.ForeignPtr_Type
 import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Alloc
@@ -33,32 +34,25 @@ instance Show (ForeignPtr a) where
 unsafeForeignPtrToPtr :: ForeignPtr a -> Ptr a
 unsafeForeignPtrToPtr = primForeignPtrToPtr
 
-type FinalizerPtr a = FunPtr (Ptr a -> IO ())
-
-foreign import ccall "&free" c_freefun_io :: IO (FinalizerPtr ())
-
-c_freefun :: forall a . FinalizerPtr a
-c_freefun = primUnsafeCoerce (primPerformIO c_freefun_io)
-
 mallocForeignPtr :: Storable a => IO (ForeignPtr a)
 mallocForeignPtr = do
   ptr <- malloc
-  newForeignPtr c_freefun ptr
+  newForeignPtr finalizerFree ptr
 
 mallocForeignPtrBytes :: Int -> IO (ForeignPtr a)
 mallocForeignPtrBytes size = do
   ptr <- mallocBytes size
-  newForeignPtr c_freefun ptr
+  newForeignPtr finalizerFree ptr
 
 mallocForeignPtrArray :: Storable a => Int -> IO (ForeignPtr a)
 mallocForeignPtrArray size = do
   ptr <- mallocArray size
-  newForeignPtr c_freefun ptr
+  newForeignPtr finalizerFree ptr
 
 mallocForeignPtrArray0 :: Storable a => Int -> IO (ForeignPtr a)
 mallocForeignPtrArray0 size = do
   ptr <- mallocArray0 size
-  newForeignPtr c_freefun ptr
+  newForeignPtr finalizerFree ptr
 
 addForeignPtrFinalizer :: FinalizerPtr a -> ForeignPtr a -> IO ()
 addForeignPtrFinalizer = primAddFinalizer

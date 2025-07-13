@@ -197,6 +197,7 @@ library base
         Data.List_Type
         Data.Maybe_Type
         Data.Ratio_Type
+        Foreign.ForeignPtr_Type
         MiniPrelude
         Numeric.Read
         Numeric.Show

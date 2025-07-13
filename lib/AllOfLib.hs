@@ -106,6 +106,7 @@ import Foreign.C.Error
 import Foreign.C.String
 import Foreign.C.Types
 import Foreign.ForeignPtr
+import Foreign.ForeignPtr_Type
 import Foreign.Marshal
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
