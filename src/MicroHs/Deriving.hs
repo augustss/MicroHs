@@ -161,20 +161,17 @@ getFieldTys :: Either [SType] [ConstrField] -> [EType]
 getFieldTys (Left ts) = map snd ts
 getFieldTys (Right ts) = map (snd . snd) ts
 
-decomp :: EType -> [EType]
-decomp t =
-  case getAppM t of
-    Just (c, ts) | isConIdent c -> concatMap decomp ts
-    _                           -> [t]
-
 -- If there is no mctx we use the default strategy to derive the instance context.
--- The default strategy basically extracts all subtypes with variables.
+-- The default strategy basically to require the class constraint for every
+-- constructor argument (except direct recursion) with free type variables.
+-- E.g.  data T = C a | D (a, Int) deriving Eq
+-- will get context  (Eq a, Eq (a, Int))
 mkHdr :: Maybe EConstraint -> LHS -> [Constr] -> EConstraint -> T EConstraint
 mkHdr (Just ctx) _ _ _ = return ctx
 mkHdr _ lhs@(_, iks) cs cls = do
   ty <- mkLhsTy lhs
   let ctys :: [EType]  -- All top level types used by the constructors.
-      ctys = nubBy eqEType [ tt | Constr evs _ _ flds <- cs, ft <- getFieldTys flds, tt <- decomp ft,
+      ctys = nubBy eqEType [ tt | Constr evs _ _ flds <- cs, tt <- getFieldTys flds,
                             not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
   pure $ eForall iks $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
 
