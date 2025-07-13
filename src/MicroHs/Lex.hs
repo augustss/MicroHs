@@ -54,8 +54,9 @@ incrLine (SLoc f l _) = let l' = l+1 in seq l' (SLoc f l' 1)
 addCol :: SLoc -> Int -> SLoc
 addCol (SLoc f l c) i = let c' = c+i in seq c' (SLoc f l c')
 
+-- Columns are numbered from 1, so tabs stop are 1, 9, 17, ...
 tabCol :: SLoc -> SLoc
-tabCol (SLoc f l c) = SLoc f l (((c + 7) `quot` 8) * 8)
+tabCol (SLoc f l c) = SLoc f l (((c + 7) `quot` 8) * 8 + 1)
 
 mkLocEOF :: SLoc
 mkLocEOF = SLoc "" (-1) 0
