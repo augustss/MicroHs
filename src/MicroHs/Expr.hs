@@ -1153,7 +1153,7 @@ freeTyVars = foldr (go []) []
     go _ x _ = error ("freeTyVars: " ++ show x) --  impossibleShow x
     goList bound es acc = foldr (go bound) acc es
 
-getImplies :: EType -> Maybe (EType, EType)
+getImplies :: EType -> Maybe (EConstraint, EType)
 getImplies (EApp (EApp (EVar n) a) b) =
   if isIdent "=>" n || isIdent "Primitives.=>" n then Just (a, b) else Nothing
 getImplies _ = Nothing
