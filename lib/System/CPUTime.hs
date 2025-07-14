@@ -1,4 +1,4 @@
-module System.CPUTime(getCPUTime) where
+module System.CPUTime(getCPUTime, cpuTimePrecision) where
 import qualified Prelude()
 import MiniPrelude
 import Data.Integer
@@ -18,3 +18,9 @@ getCPUTime = do
   sec <- peek psec
   nsec <- peek pnsec
   return $ toInteger sec * 1000_000_000_000 + toInteger nsec * 1000
+
+-- Arbitrarily set it to  1us.
+-- Using the system call clock_getres() will not give an accurate
+-- result anyway.
+cpuTimePrecision :: Integer
+cpuTimePrecision = 1_000_000
