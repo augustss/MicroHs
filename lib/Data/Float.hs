@@ -24,7 +24,7 @@ import Data.RealFrac
 import Data.Num
 import Data.Word.Word
 import {-# SOURCE #-} Numeric.FormatFloat(showFloat)
-import Numeric.Show(showSigned)
+import Numeric.Show(showSignedNeg)
 import Text.Show
 
 instance Num Float where
@@ -70,7 +70,7 @@ instance Ord Float where
   (>=) = primFloatGE
 
 instance Show Float where
-  showsPrec = showSigned showFloat
+  showsPrec = showSignedNeg (\ x -> x < 0 || isNegZeroFloat32 x) showFloat
 
 {- in Text.Read.Internal
 instance Read Float where
