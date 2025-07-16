@@ -598,6 +598,7 @@ lazier def@(fcn, l@(Lam _ _)) =
       minn a 0 = a
       minn a b = min a b
       minMatch :: [Ident] -> Exp -> Int
+      minMatch _ (Lam i _) | i `elem` as = 0   -- name capture, so ignore matches
       minMatch _ (Lam _ e) = minMatch [] e
       minMatch vs (App f (Var v)) = minMatch (v:vs) f
       minMatch _ (App f a) = minMatch [] f `minn` minMatch [] a

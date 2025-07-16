@@ -1,4 +1,16 @@
-module Foreign.Marshal.Utils(module Foreign.Marshal.Utils) where
+module Foreign.Marshal.Utils (
+  with,
+  new,
+  fromBool,
+  toBool,
+  maybeNew,
+  maybeWith,
+  maybePeek,
+  withMany,
+  copyBytes,
+  moveBytes,
+) where
+
 import qualified Prelude(); import MiniPrelude
 import Foreign.Marshal.Alloc
 import Foreign.C.Types

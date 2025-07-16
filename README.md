@@ -84,6 +84,7 @@ Differences:
    * NamedFieldPuns
    * NegativeLiterals
    * NoMonomorphismRestriction
+   * NondecreasingIndentation
    * NoStarIsType
    * NumericUnderscores
    * OrPatterns

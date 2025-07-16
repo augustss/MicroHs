@@ -12,7 +12,7 @@ on:
 
 jobs:
   build-linux-x86_64:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
@@ -21,6 +21,21 @@ jobs:
     - name: make everytestmhs
       run: make everytestmhs
 
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v4
+    - name: make
+      run: make
+    - name: make everytestmhs
+      run: make everytestmhs
+
+  build-linux-x86_64-cabal:
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v4
     - name: Cabal cache
       uses: actions/cache@v3
       env:
@@ -40,25 +55,12 @@ jobs:
       run: cabal build
 
   build-linux-micro-x86_64:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
       run: make CONF=micro
-
-  build-macos:
-    runs-on: macos-latest
-    steps:
-    - name: checkout repo
-      uses: actions/checkout@v4
-    - name: make
-      run: make
-    - name: make everytestmhs
-      run: make everytestmhs
-# cabal is missing
-#    - name: cabal build
-#      run: cabal build
 
   build-windows:
     runs-on: windows-latest
@@ -73,7 +75,7 @@ jobs:
       run: nmake -f Makefile.windows exampletest
 
   build-linux-aarch64:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -89,11 +91,9 @@ jobs:
       run: make
     - name: make everytestmhs
       run: make everytestmhs
-#    - name: cabal build
-#      run: cabal build
 
   build-linux-s390x:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -109,8 +109,6 @@ jobs:
       run: make
     - name: make everytestmhs
       run: make everytestmhs
-#    - name: cabal build
-#      run: cabal build
 
   build-linux-x86:
     runs-on: ubuntu-latest
@@ -126,14 +124,14 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
-      run: make CONF=unix
+      run: make
       shell: alpine.sh {0}
     - name: make everytestmhs
-      run: make CONF=unix everytestmhs
+      run: make everytestmhs
       shell: alpine.sh {0}
 
   build-linux-armv7:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -146,14 +144,14 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
-      run: make CONF=unix
+      run: make
       shell: alpine.sh {0}
     - name: make everytestmhs
-      run: make CONF=unix everytestmhs
+      run: make everytestmhs
       shell: alpine.sh {0}
 
   build-linux-riscv64:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -173,7 +171,7 @@ jobs:
       shell: alpine.sh {0}
 
   build-linux-ppc64le:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: jirutka/setup-alpine@v1
       with:
@@ -186,14 +184,14 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
-      run: make CONF=unix
+      run: make
       shell: alpine.sh {0}
     - name: make everytestmhs
-      run: make CONF=unix everytestmhs
+      run: make everytestmhs
       shell: alpine.sh {0}
 
 #  build-linux-ppc64be:
-#    runs-on: ubuntu-22.04
+#    runs-on: ubuntu-latest
 #    steps:
 #    - uses: jirutka/setup-alpine@v1
 #      with:
@@ -212,22 +210,11 @@ jobs:
 #      run: make CONF=unix everytestmhs
 #      shell: alpine.sh {0}
 
-  build-linux-emscripten:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: mymindstorm/setup-emsdk@v13
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 20
-    - uses: haskell-actions/setup@v2
-    - name: make newmhs
-      run: make newmhs
-    - name: run emscripten tests
-      run: make runtestemscripten
-
-  build-macos-emscripten:
-    runs-on: macos-latest
+  build-emscripten:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
     - uses: mymindstorm/setup-emsdk@v13

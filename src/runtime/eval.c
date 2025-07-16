@@ -121,7 +121,7 @@ value_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(GETTIMEMILLI) */
 
 #if !defined(GETCPUTIME)
-void GETCPUTIME(long *sec, long *usec) { }
+void GETCPUTIME(long *sec, long *nsec) { sec = 0; nsec = 0; }
 #endif  /* !define(GETCPUTIME) */
 
 #if !defined(INLINE)
@@ -6201,6 +6201,7 @@ from_t mhs_add_bwt_decompressor(int s) { return mhs_from_Ptr(s, 1, add_bwt_decom
 #endif  /* WANT_BWT */
 
 from_t mhs_calloc(int s) { return mhs_from_Ptr(s, 2, calloc(mhs_to_CSize(s, 0), mhs_to_CSize(s, 1))); }
+from_t mhs_realloc(int s) { return mhs_from_Ptr(s, 2, realloc(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1))); }
 from_t mhs_free(int s) { free(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
 from_t mhs_getenv(int s) { return mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
@@ -6436,6 +6437,7 @@ struct ffi_entry ffi_table[] = {
 #endif  /* WANT_RLE */
 
   { "calloc", 2, mhs_calloc},
+  { "realloc", 2, mhs_realloc},
   { "free", 1, mhs_free},
   { "&free", 0, mhs_addr_free},
   { "getenv", 1, mhs_getenv},

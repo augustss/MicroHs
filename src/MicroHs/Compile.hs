@@ -138,6 +138,8 @@ compileModuleCached flags impt mn = do
                 when (verbosityGT flags 2) $
                   putStrLn $ " (" ++ show pathfn ++ ")"
                 putStrLn ""
+              dumpIf flags Dpreproc $
+                liftIO $ putStrLn $ "preprocessed:\n" ++ file
               modify $ addWorking mn
               compileModule flags ImpNormal mn pathfn file
     Just tm -> do
@@ -166,6 +168,8 @@ compileBootModule flags mn = do
   case mres of
     Nothing -> error $ "boot module not found: " ++ showIdent mn
     Just (pathfn, file) -> do
+      dumpIf flags Dpreproc $
+        liftIO $ putStrLn $ "preprocessed:\n" ++ file
       modify $ addBoot mn
       compileModule flags ImpBoot mn pathfn file
 
@@ -290,7 +294,8 @@ invertGraph = foldr ins M.empty
 
 -- Is the module name actually a file name?
 getFileName :: IdentModule -> Maybe String
-getFileName m | ".hs" `isSuffixOf` s || not (validModuleName s) = Just s
+getFileName m | ".hs" `isSuffixOf` s || ".lhs" `isSuffixOf` s ||
+                not (validModuleName s) = Just s
               | otherwise = Nothing
   where s = unIdent m
 
@@ -318,7 +323,7 @@ readModulePath flags suf mn = do
               case mhl of
                 Nothing -> do
                   return Nothing
-                Just (fn, h) -> readRest fn . unlit =<< hGetContents h
+                Just (fn, h) -> readRest fn . unlit fn =<< hGetContents h
             Just (_fn, _h) -> undefined  -- hsc2hs no implemented yet
         Just (fn, h) -> readRest fn =<< hGetContents h
   where readRest :: FilePath -> String -> IO (Maybe (FilePath, String))
@@ -464,17 +469,21 @@ getMhsDir :: IO FilePath
 getMhsDir = maybe getDataDir return =<< lookupEnv "MHSDIR"
 
 -- Deal with literate Haskell
-unlit :: String -> String
-unlit = unlines . un True . lines
+unlit :: FilePath -> String -> String
+unlit fn = unlines . un 1 True . lines
   where
-    un _ [] = []
-    un _ (l:ls) | all isSpace l = un True ls
-    un _ ("\\begin{code}":ls) = "" : code ls
-    un spc (l@('#':'!':_) : ls) = l : un spc ls
-    un spc (('>':l):ls) | spc = (' ':l) : un True ls
-                        | otherwise = error "unlit: missing blank before >"
-    un _ (_:ls) = un False ls
+    un :: Int -> Bool -> [String] -> [String]
+    un _ _ [] = []
+    un n _ (l:ls) | all isSpace l = un (n+1) True ls
+    un n _ ("\\begin{code}":ls) = "" : code (n+1) ls
+    un n spc (l@('#':_) : ls) = l : un (n+1) spc ls
+    un n spc (('>':l):ls) | spc = (' ':l) : un (n+1) True ls
+                          | otherwise = err n "missing blank before >"
+    un n _ (_:ls) = un (n+1) False ls
     -- We allow non-blank to follow directly after >
-    code ("\\end{code}":ls) = "" : un False ls
-    code (l : ls) = l : code ls
-    code [] = error "unlit: missing \\end{code}"
+    code :: Int -> [String] -> [String]
+    code n ("\\end{code}":ls) = "" : un (n+1) False ls
+    code n (l : ls) = l : code (n+1) ls
+    code n [] = err n "unlit: missing \\end{code}"
+    err :: Int -> String -> a
+    err n s = error $ "unlit: " ++ fn ++ ":" ++ show n ++ ": " ++ s

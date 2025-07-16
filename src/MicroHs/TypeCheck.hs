@@ -3164,11 +3164,13 @@ solvers =
   ]
 
 -- Examine each goal, either solve it (possibly producing new goals) or let it remain unsolved.
-solveMany :: [Goal] -> [UGoal] -> [Soln] -> [Improve] -> T ([UGoal], [Soln], [Improve])
-solveMany [] uns sol imp = return (uns, sol, imp)
+solveMany :: [Goal] -> [UGoal] -> [(EType, Soln)] -> [Improve] -> T ([UGoal], [Soln], [Improve])
+solveMany [] uns sol imp = return (uns, map snd sol, imp)
+solveMany ((di, ct) : cnss) uns sol imp | Just (_, (dd, _)) <- find (eqEType ct . fst) sol =
+  solveMany cnss uns ((ct, (di, EVar dd)) : sol) imp
 -- Need to handle ct of the form C => T, and forall a . T
 solveMany (cns@(di, ct) : cnss) uns sol imp = do
---  tcTrace ("trying " ++ showEType ct)
+  -- tcTrace ("solveMany: trying " ++ showEType ct)
   let loc = getSLoc di
       (iCls, cts) = getApp ct
       solver = head [ s | (p, s) <- solvers, p iCls ]
@@ -3178,12 +3180,13 @@ solveMany (cns@(di, ct) : cnss) uns sol imp = do
   case [ ai | (ai, act) <- ads, ct `eqEType` act ] of
     ai : _ -> do
       --tcTrace $ "solve with arg " ++ show ct
-      solveMany cnss uns ((di, EVar ai) : sol) imp
+      solveMany cnss uns ((ct, (di, EVar ai)) : sol) imp
     [] -> do
       msol <- solver loc iCls cts
+      --tcTrace ("solveMany msol=" ++ show msol)
       case msol of
-        Nothing           -> solveMany        cnss  (cns : uns)            sol         imp
-        Just (de, gs, is) -> solveMany (gs ++ cnss)        uns ((di, de) : sol) (is ++ imp)
+        Nothing           -> solveMany        cnss  (cns : uns)                  sol         imp
+        Just (de, gs, is) -> solveMany (gs ++ cnss)        uns ((ct, (di, de)) : sol) (is ++ imp)
 
 solveInst :: SolveOne
 solveInst loc iCls cts = do
