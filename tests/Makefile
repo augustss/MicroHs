@@ -25,6 +25,7 @@ test:
 	$(TMHS) Misc       && $(EVAL) > Misc.out       && diff Misc.ref Misc.out
 	$(TMHS) Case       && $(EVAL) > Case.out       && diff Case.ref Case.out
 	$(TMHS) Arith      && $(EVAL) > Arith.out      && diff Arith.ref Arith.out
+	$(TMHS) Arith64    && $(EVAL) > Arith64.out    && diff Arith64.ref Arith64.out
 	$(TMHS) Guard      && $(EVAL) > Guard.out      && diff Guard.ref Guard.out
 	$(TMHS) Newtype    && $(EVAL) > Newtype.out    && diff Newtype.ref Newtype.out
 	$(TMHS) LitMatch   && $(EVAL) > LitMatch.out   && diff LitMatch.ref LitMatch.out

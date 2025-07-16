@@ -47,6 +47,8 @@
 #define WANT_BWT 1
 #endif
 
+#define NEED_INT64 (WANT_INT64 && WORD_SIZE == 32)
+
 #if WANT_LZ77
 size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
 size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
@@ -203,21 +205,43 @@ FFS(bits_t x)
 
 #endif
 
+/***** popcount *****/
 #if !defined(POPCOUNT)
 uvalue_t POPCOUNT(uvalue_t x) {
 #if defined(BUILTIN_POPCOUNT)
+#if WORD_SIZE == 64
   return __builtin_popcountl(x);
-#else
+#else  /* WORD_SIZE == 64 */
+  return __builtin_popcount(x);
+#endif  /* WORD_SIZE == 64 */
+#else   /* !defined(BUILTIN_POPCOUNT) */
   uvalue_t count = 0;
   while (x) {
     x = x & (x - 1); // clear lowest 1 bit
-    count += 1;
+    count++;
   }
   return count;
-#endif
+#endif   /* !defined(BUILTIN_POPCOUNT) */
 }
-#endif
+#endif  /* !defined(POPCOUNT) */
 
+#if !defined(POPCOUNT64)
+uvalue_t POPCOUNT64(uint64_t x) {
+#if defined(BUILTIN_POPCOUNT)
+  return __builtin_popcountl(x);
+#else   /* !defined(BUILTIN_POPCOUNT) */
+  uvalue_t count = 0;
+  while (x) {
+    x = x & (x - 1); // clear lowest 1 bit
+    count++;
+  }
+  return count;
+#endif   /* !defined(BUILTIN_POPCOUNT) */
+}
+#endif  /* !defined(POPCOUNT64) */
+/***** end popcount *****/
+
+/***** clz *****/
 #if defined(__GNUC__)
 #define BUILTIN_CLZ
 #elif defined(__clang__)
@@ -233,42 +257,86 @@ uvalue_t POPCOUNT(uvalue_t x) {
 uvalue_t CLZ(uvalue_t x) {
 #if defined(BUILTIN_CLZ)
   if (x == 0) return WORD_SIZE;
+#if WORD_SIZE == 64
   return __builtin_clzl(x);
-#else
+#else  /* WORD_SIZE == 64 */
+  return __builtin_clz(x);
+#endif  /* WORD_SIZE == 64 */
+#else   /* defined(BUILTIN_CLZ) */
   value_t count = WORD_SIZE;
   while (x) {
     x = x >> 1;
-    count -= 1;
+    count--;
   }
   return count;
-#endif
+#endif  /* defined(BUILTIN_CLZ) */
 }
-#endif
+#endif  /* !defined(CLZ) */
 
+#if !defined(CLZ64)
+uvalue_t CLZ64(uint64_t x) {
+#if defined(BUILTIN_CLZ)
+  if (x == 0) return WORD_SIZE;
+  return __builtin_clzl(x);
+#else   /* defined(BUILTIN_CLZ) */
+  value_t count = WORD_SIZE;
+  while (x) {
+    x = x >> 1;
+    count--;
+  }
+  return count;
+#endif  /* defined(BUILTIN_CLZ) */
+}
+#endif  /* !defined(CLZ64) */
+/***** end clz *****/
+
+/***** ctz *****/
 #if defined(__has_builtin)
 
 #if __has_builtin(__builtin_ctzl)
 #define BUILTIN_CTZ
 #endif
 
-#endif
+#endif  /* defined(__has_builtin) */
 
 
 #if !defined(CTZ)
 uvalue_t CTZ(uvalue_t x) {
   if (x == 0) return WORD_SIZE;
-#if defined(BUILTIN_CLZ)
+#if defined(BUILTIN_CTZ)
+#if WORD_SIZE == 64
   return __builtin_ctzl(x);
-#else
+#else  /* WORD_SIZE == 64 */
+  return __builtin_ctz(x);
+#endif  /* WORD_SIZE == 64 */
+#else  /* defined(BUILTIN_CTZ) */
   uvalue_t count = 0;
   while ((x & 1) == 0) {
     x = x >> 1;
     count += 1;
   }
   return count;
-#endif
+#endif  /* defined(BUILTIN_CTZ) */
 }
-#endif
+#endif  /* !defined(CTZ) */
+
+#if !defined(CTZ64)
+uvalue_t CTZ64(uint64_t x) {
+  if (x == 0) return WORD_SIZE;
+#if defined(BUILTIN_CTZ)
+  return __builtin_ctzl(x);
+#else  /* defined(BUILTIN_CTZ) */
+  uvalue_t count = 0;
+  while ((x & 1) == 0) {
+    x = x >> 1;
+    count++;
+  }
+  return count;
+#endif  /* defined(BUILTIN_CTZ) */
+}
+#endif  /* !defined(CTZ) */
+
+/***** end ctz *****/
 
 #if !defined(COUNT)
 #define COUNT(n) ++(n)
@@ -328,11 +396,12 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_POPCOUNT64, T_CLZ64, T_CTZ64,
                 T_EQ64, T_NE64, T_LT64, T_LE64, T_GT64, T_GE64, T_ULT64, T_ULE64, T_UGT64, T_UGE64, T_ICMP64, T_UCMP64,
                 T_ITOI64, T_I64TOI, T_UTOU64, T_U64TOU,
-                T_FPADD, T_FP2P, T_FPNEW, T_FPFIN, // T_FPSTR,
+                T_FPADD, T_FP2P, T_FPNEW, T_FPFIN,
                 T_FP2BS, T_BS2FP,
                 T_TOPTR, T_TOINT, T_TODBL, T_TOFLT, T_TOFUNPTR,
                 T_FROMDBL, T_FROMFLT,
                 T_BININT2, T_BININT1, T_UNINT1,
+                T_BININT64_2, T_BININT64_1, T_UNINT64_1,
                 T_BINFLT2, T_BINFLT1, T_UNFLT1,
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
                 T_BINBS2, T_BINBS1,
@@ -369,13 +438,13 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
 };
 /* Most entries are initialized from the primops table. */
 static const char* tag_names[T_LAST_TAG+1] =
-  { "FREE", "IND", "AP", "INT", "DBL", "FLT32", "INT64", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
+  { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "INT64", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
 
 /* On 64 bit platforms there is no special type for Int64 */
-#if WORD_SIZE == 64
-#define T_INT64 T_INT
-#else
+#if NEED_INT64
 #define T_INT64 T_INT64X
+#else
+#define T_INT64 T_INT
 #endif  /* WORD_SIZE == 64 */
 
 struct ioarray;
@@ -395,6 +464,7 @@ typedef struct PACKED node {
     value_t         uuvalue;
 #if WANT_FLOAT32
     flt32_t         uuflt32value;
+    uint32_t        uuint32value;
 #endif  /* WANT_FLOAT32 */
 #if WANT_FLOAT64
     flt64_t         uuflt64value;
@@ -422,10 +492,12 @@ typedef struct PACKED node {
 #define SETTAG(p,t) do { if (t != T_AP) { if (t == T_IND) { (p)->ufun.uutag = BIT_IND; } else { (p)->ufun.uutag = ((t) << TAG_SHIFT) | BIT_TAG; } } } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
 #define GETINT64VALUE(p) (p)->uarg.uuint64value
+#define GETINT32VALUE(p) (p)->uarg.uuint32value
 #define GETFLTVALUE(p) (p)->uarg.uuflt32value
 #define GETDBLVALUE(p) (p)->uarg.uuflt64value
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
 #define SETINT64VALUE(p,v) (p)->uarg.uuint64value = v
+#define SETINT32VALUE(p,v) (p)->uarg.uuint32value = v
 #define SETFLTVALUE(p,v) (p)->uarg.uuflt32value = v
 #define SETDBLVALUE(p,v) (p)->uarg.uuflt64value = v
 #define FUN(p) (p)->ufun.uufun
@@ -827,6 +899,7 @@ NODEPTR combLT, combEQ, combGT;
 NODEPTR combPERFORMIO;
 NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
+NODEPTR combBININT64_1, combBININT64_2, combUNINT64_1;
 NODEPTR combBINFLT1, combBINFLT2, combUNFLT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
 NODEPTR combBINBS1, combBINBS2;
@@ -1857,7 +1930,7 @@ struct {
   { "unint1", T_UNINT1 },
   { "undbl1", T_UNDBL1 },
 #if WANT_INT64
-#if WORD_SIZE == 64
+#if !NEED_INT64
   { "I+", T_ADD, T_ADD },
   { "I-", T_SUB, T_SUBR },
   { "I*", T_MUL, T_MUL },
@@ -1994,6 +2067,9 @@ init_nodes(void)
     case T_BININT1: combBININT1 = n; break;
     case T_BININT2: combBININT2 = n; break;
     case T_UNINT1: combUNINT1 = n; break;
+    case T_BININT64_1: combBININT64_1 = n; break;
+    case T_BININT64_2: combBININT64_2 = n; break;
+    case T_UNINT64_1: combUNINT64_1 = n; break;
     case T_BINDBL1: combBINDBL1 = n; break;
     case T_BINDBL2: combBINDBL2 = n; break;
     case T_UNDBL1: combUNDBL1 = n; break;
@@ -2077,8 +2153,8 @@ counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 void mark(NODEPTR *np);
 void mark_mvar(struct mvar *mv);
 
-/* Throwing, e.g., a UserInterrupt exception to the main thread
- * it can happen from any thread (the one that happens to poll).
+/* Throwing, e.g., a UserInterrupt exception, to the main thread
+ * can happen from any thread (the one that happens to poll).
  * Throwing an exception can block, so we can't throw it from
  * the current thread.  Instead, we spawn a new thread, whose
  * only job it is to throw the exception.
@@ -2892,12 +2968,12 @@ getNT(BFILE *f)
   }
 }
 
-int64_t
+value_t
 parse_int(BFILE *f)
 {
   // Parse using uvalue_t, which wraps on overflow.
-  uint64_t i = 0;
-  int neg = 1;
+  uvalue_t i = 0;
+  uvalue_t neg = 1;
   int c = getb(f);
   if (c == '-') {
     neg = -1;
@@ -2912,8 +2988,33 @@ parse_int(BFILE *f)
     }
   }
   // Multiply by neg without triggering undefined behavior.
-  return (int64_t)(((uint64_t)neg) * i);
+  return (value_t)(neg * i);
 }
+
+#if NEED_INT64
+int64_t
+parse_int64(BFILE *f)
+{
+  // Parse using uint64_t, which wraps on overflow.
+  uint64_t i = 0;
+  uint64_t neg = 1;
+  int c = getb(f);
+  if (c == '-') {
+    neg = -1;
+    c = getb(f);
+  }
+  for(;;) {
+    i = i * 10 + (c - '0');
+    c = getb(f);
+    if (c < '0' || c > '9') {
+      ungetb(c, f);
+      break;
+    }
+  }
+  // Multiply by neg without triggering undefined behavior.
+  return (int64_t)(neg * i);
+}
+#endif  /* NEED_INT64 */
 
 struct forptr *mkForPtr(struct bytestring bs);
 NODEPTR mkFunPtr(HsFunPtr p);
@@ -3111,20 +3212,17 @@ parse(BFILE *f)
         break;
       }
     case '#':
-      {
-        int is64 = gobble(f, '#');
-        int64_t i64 = parse_int(f);
-        if (WORD_SIZE != 64 && is64) {
-#if WANT_INT64
-          r = mkInt64(i64);
-#else
-          ERR("No Int64");
-#endif
-        } else {
-          r = mkInt((value_t)i64);
-        }
-        PUSH(r);
+#if NEED_INT64
+      if (gobble(f, '#')) {
+        r = mkInt64(parse_int64(f));
+      } else {
+        r = mkInt(parse_int(f));
       }
+#else  /* NEED_INT64 */
+      gobble(f, '#');
+      r = mkInt(parse_int(f));
+#endif /* NEED_INT64 */
+      PUSH(r);
       break;
     case '[':
       {
@@ -3479,6 +3577,9 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     }
     break;
   case T_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
+#if NEED_INT64
+  case T_INT64: putb('#', f); putb('#', f); putdecb64(GETVALUE(n), f); break;
+#endif  /* NEED_INT64 */
   case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
   case T_FLT32: putb('&', f); putb('&', f); putdblb((double)GETFLTVALUE(n), f); break;
   case T_ARR:
@@ -3666,13 +3767,13 @@ mkInt(value_t i)
   return n;
 }
 
-#if WANT_INT64 && WORD_SIZE != 64
+#if NEED_INT64
 NODEPTR
 mkInt64(int64_t i)
 {
   NODEPTR n;
   n = alloc_node(T_INT64);
-  SETINT64(n, i);
+  SETINT64VALUE(n, i);
   return n;
 }
 #endif
@@ -4247,6 +4348,9 @@ compare(NODEPTR cmp)
       PUSH(FUN(p));             /* compare fun part now */
       PUSH(FUN(q));
       break;
+#if NEED_INT64
+    case T_INT64: ERR("compare int64");
+#endif
     case T_INT:
     case T_IO_CCALL:
     case T_THID:
@@ -4452,8 +4556,7 @@ evali(NODEPTR an)
     }
     tag = GETTAG(n);
   }
-  //COUNT(num_reductions);
-  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  // printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {
@@ -4464,6 +4567,9 @@ evali(NODEPTR an)
 
   case T_INT:    RET;
   case T_DBL:    RET;
+#if NEED_INT64
+  case T_INT64:  RET;
+#endif  /* NEED_INT64 */
   case T_FLT32:  RET;
   case T_PTR:    RET;
   case T_FUNPTR: RET;
@@ -4706,16 +4812,70 @@ evali(NODEPTR an)
     PUSH(combBINBS2);
     goto top;
 
+#if NEED_INT64
+  case T_ADD64:
+  case T_SUB64:
+  case T_MUL64:
+  case T_QUOT64:
+  case T_REM64:
+  case T_SUBR64:
+  case T_UQUOT64:
+  case T_UREM64:
+  case T_AND64:
+  case T_OR64:
+  case T_XOR64:
+  case T_SHL64:
+  case T_SHR64:
+  case T_ASHR64:
+  case T_EQ64:
+  case T_NE64:
+  case T_LT64:
+  case T_LE64:
+  case T_GT64:
+  case T_GE64:
+  case T_ICMP64:
+  case T_ULT64:
+  case T_ULE64:
+  case T_UGT64:
+  case T_UGE64:
+  case T_UCMP64:
+    CHECK(2);
+    n = ARG(TOP(1));
+    if (GETTAG(n) == T_INT64) {
+      n = ARG(TOP(0));
+      PUSH(combBININT64_1);
+      if (GETTAG(n) == T_INT64)
+        goto binint64_1;
+    } else {
+      PUSH(combBININT64_2);
+    }
+    goto top;
+  case T_NEG64:
+  case T_INV64:
+  case T_POPCOUNT64:
+  case T_CLZ64:
+  case T_CTZ64:
+    CHECK(1);
+    n = ARG(TOP(0));
+    PUSH(combUNINT64_1);
+    goto top;
+#endif  /* NEED_INT64 */
+
+
   /* XXX This needs redoing with Int64 */
   /* Retag a word sized value, keeping the value bits */
-#define CONV(t) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, t); SETVALUE(n, GETVALUE(x)); RET; } while(0)
-  case T_TODBL: CONV(T_DBL);
-  case T_TOFLT: CONV(T_FLT32);
-  case T_TOINT: CONV(T_INT);
-  case T_TOPTR: CONV(T_PTR);
-  case T_TOFUNPTR: CONV(T_FUNPTR);
-  case T_FROMFLT: CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, T_INT); SETVALUE(n, (uint32_t)GETVALUE(x)); RET;
-  case T_FROMDBL: CONV(T_INT);
+#define CONV(t, set, get) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, t); set(n, get(x)); RET; } while(0)
+  case T_TODBL:    CONV(T_DBL,    SETINT64VALUE, GETINT64VALUE); /* raw int64_t -> double */
+  case T_TOFLT:    CONV(T_FLT32,  SETINT32VALUE, GETINT32VALUE);
+  case T_TOINT:    CONV(T_INT,    SETVALUE,      GETVALUE);
+  case T_TOPTR:    CONV(T_PTR,    SETVALUE,      GETVALUE);
+  case T_TOFUNPTR: CONV(T_FUNPTR, SETVALUE,      GETVALUE);
+  case T_FROMFLT:  CONV(T_INT,    SETVALUE,      GETINT32VALUE);
+  case T_FROMDBL:  CONV(T_INT64,  SETINT64VALUE, GETINT64VALUE);
+  case T_ITOI64:   CONV(T_INT64,  SETINT64VALUE, GETVALUE);
+  case T_UTOU64:   CONV(T_INT64,  SETINT64VALUE, (uint64_t)GETVALUE);
+  case T_I64TOI:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
+  case T_U64TOU:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
 #undef CONV
 
   case T_FPADD: CHECK(2); xfp = evalforptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETFORPTR(n, addForPtr(xfp, yi)); RET;
@@ -5356,6 +5516,9 @@ evali(NODEPTR an)
     // In this case, n was an AP that got pushed and potentially
     // updated.
     uvalue_t xu, yu, ru;
+#if NEED_INT64
+    uint64_t x64u, y64u, r64u;
+#endif  /* NEED_INT64 */
 #if WANT_FLOAT32
     flt32_t xf, yf, rf;
 #endif  /* WANT_FLOAT32 */
@@ -5469,6 +5632,114 @@ evali(NODEPTR an)
       }
       SETINT(n, (value_t)ru);
       goto ret;
+
+#if NEED_INT64
+    case T_BININT64_2:
+      n = ARG(TOP(1));
+      TOP(0) = combBININT64_1;
+      goto top;
+
+    case T_BININT64_1:
+      /* First argument */
+#if SANITY
+      if (GETTAG(n) != T_INT64)
+        ERR("BININT64 0");
+#endif  /* SANITY */
+    binint64_1:
+      x64u = (uint64_t)GETINT64VALUE(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (GETTAG(y) == T_IND)
+        y = GETINDIR(y);
+      /* The second argument to the shift ops is an int, so use a hack for that */
+      if (GETTAG(y) == T_INT64)
+        y64u = (uint64_t)GETINT64VALUE(y);
+      else if (GETTAG(y) == T_INT)
+        yu = (uvalue_t)GETVALUE(y);
+      else
+        ERR("BININT64 1");
+      p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
+    binint64:
+      switch (GETTAG(p)) {
+      case T_IND:   p = GETINDIR(p); goto binint64;
+      case T_ADD64: r64u = x64u + y64u; break;
+      case T_SUB64: r64u = x64u - y64u; break;
+      case T_MUL64: r64u = x64u * y64u; break;
+      case T_SUBR64:r64u = y64u - x64u; break;
+      case T_QUOT64:if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      r64u = (uint64_t)((int64_t)x64u / (int64_t)y64u);
+                    break;
+      case T_REM64: if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      r64u = (uint64_t)((int64_t)x64u % (int64_t)y64u);
+                    break;
+      case T_UQUOT64:if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      r64u = x64u / y64u;
+                    break;
+      case T_UREM64:if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      r64u = x64u % y64u;
+                    break;
+      case T_AND64: r64u = x64u & y64u; break;
+      case T_OR64:  r64u = x64u | y64u; break;
+      case T_XOR64: r64u = x64u ^ y64u; break;
+      case T_SHL64: r64u = x64u << yu; break;
+      case T_SHR64: r64u = x64u >> yu; break;
+      case T_ASHR64:r64u = (uint64_t)((int64_t)x64u >> yu); break;
+
+      case T_EQ64:  GOIND(x64u == y64u ? combTrue : combFalse);
+      case T_NE64:  GOIND(x64u != y64u ? combTrue : combFalse);
+      case T_ULT64: GOIND(x64u <  y64u ? combTrue : combFalse);
+      case T_ULE64: GOIND(x64u <= y64u ? combTrue : combFalse);
+      case T_UGT64: GOIND(x64u >  y64u ? combTrue : combFalse);
+      case T_UGE64: GOIND(x64u >= y64u ? combTrue : combFalse);
+      case T_UCMP64:GOIND(x64u <  y64u ? combLT   : x64u > y64u ? combGT : combEQ);
+      case T_LT64:  GOIND((int64_t)x64u <  (int64_t)y64u ? combTrue : combFalse);
+      case T_LE64:  GOIND((int64_t)x64u <= (int64_t)y64u ? combTrue : combFalse);
+      case T_GT64:  GOIND((int64_t)x64u >  (int64_t)y64u ? combTrue : combFalse);
+      case T_GE64:  GOIND((int64_t)x64u >= (int64_t)y64u ? combTrue : combFalse);
+      case T_ICMP64:GOIND((int64_t)x64u <  (int64_t)y64u ? combLT   : (int64_t)x64u > (int64_t)y64u ? combGT : combEQ);
+
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("BININT64");
+      }
+      SETINT64(n, (value_t)r64u);
+      goto ret;
+
+    case T_UNINT64_1:
+      /* The argument */
+#if SANITY
+      if (GETTAG(n) != T_INT64)
+        ERR("UNINT64 0");
+#endif
+      x64u = (uvalue_t)GETINT64VALUE(n);
+      p = FUN(TOP(1));
+      POP(2);
+      n = TOP(-1);
+    unint64:
+      switch (GETTAG(p)) {
+      case T_IND:        p = GETINDIR(p); goto unint64;
+      case T_NEG64:      r64u = -x64u; break;
+      case T_INV64:      r64u = ~x64u; break;
+      case T_POPCOUNT64: ru = POPCOUNT64(x64u); SETINT(n, (value_t)ru); goto ret;
+      case T_CLZ64:      ru = CLZ64(x64u); SETINT(n, (value_t)ru); goto ret;
+      case T_CTZ64:      ru = CTZ64(x64u); SETINT(n, (value_t)ru); goto ret;
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("UNINT64");
+      }
+      SETINT64(n, (int64_t)r64u);
+      goto ret;
+#endif  /* NEED_INT64 */
 
 #if WANT_FLOAT32
     case T_BINFLT2:

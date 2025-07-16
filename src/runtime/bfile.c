@@ -204,6 +204,29 @@ putdecb(value_t n, BFILE *p)
   }
 }
 
+#if NEED_INT64
+void
+putnegb64(int64_t n, BFILE *p)
+{
+  int c = '0' - n % 10;
+  if (n <= -10) {
+    putnegb64(n / 10, p);
+  }
+  putb(c, p);
+}
+
+void
+putdecb64(int64_t n, BFILE *p)
+{
+  if (n < 0) {
+    putb('-', p);
+    putnegb64(n, p);
+  } else {
+    putnegb64(-n, p);
+  }
+}
+#endif  /* NEED_INT64 */
+
 void
 putint32(value_t n, BFILE *p)
 {
