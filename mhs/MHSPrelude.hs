@@ -38,7 +38,6 @@ module MHSPrelude(
   Int64,
   ) where
 import qualified Prelude()
-import Primitives(Int64)
 --import Primitives(primRnfNoErr, primRnfErr)
 import Control.Applicative(Applicative(..))
 import Control.DeepSeq.Class
@@ -57,6 +56,7 @@ import Data.Fractional(Fractional(..), (^^), realToFrac)
 import Data.Function(id, const, (.), flip, ($), seq, ($!), until, asTypeOf)
 import Data.Functor(Functor(..), (<$>))
 import Data.Int.Int(Int)
+import Data.Int.Int64(Int64)
 import Data.Integer(Integer)
 import Data.Integral(Integral(..), fromIntegral, gcd, lcm, even, odd, (^))
 import Data.List([](..), map, (++), filter, head, last, tail, init, null, length, (!!),
