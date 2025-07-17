@@ -18,13 +18,14 @@ import Data.Bool
 import Data.Coerce
 import Data.Enum
 import Data.Eq
-import Data.Int
+import Data.Int.Int
 import Data.Integral
 import Data.Num
 import Data.Ord
 import Data.Real
-import Data.Word
-import Data.FloatW
+import Data.Word.Word
+import Data.Float
+import Data.Double
 
 -- The MicroHs Word type is the "natural" architecture word size;
 -- it is the same as the pointer difference type.
@@ -67,9 +68,9 @@ newtype CTime = CTime Int
   deriving (Eq, Ord)
 
 -- XXX only one of these is actually correct
-newtype CFloat   = CFloat   FloatW
+newtype CFloat   = CFloat   Float
   deriving (Eq, Ord, Num)
-newtype CDouble  = CDouble  FloatW
+newtype CDouble  = CDouble  Double
   deriving (Eq, Ord, Num)
 
 -- Temporary conversion functions.

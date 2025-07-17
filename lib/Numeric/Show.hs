@@ -1,5 +1,6 @@
 module Numeric.Show(
   showSigned,
+  showSignedNeg,
   showIntAtBase,
   showInt,
   showBin,
@@ -20,9 +21,12 @@ import Data.Num
 import Data.Ord
 import Text.Show(ShowS, showChar)
 
-showSigned :: forall a . (Ord a, Integral a) => (a -> ShowS) -> Int -> a -> ShowS
-showSigned showPos p n r
-    | n < 0 =
+showSigned :: forall a . (Ord a, Num a) => (a -> ShowS) -> Int -> a -> ShowS
+showSigned = showSignedNeg (< 0)
+
+showSignedNeg :: forall a . (Ord a, Num a) => (a -> Bool) -> (a -> ShowS) -> Int -> a -> ShowS
+showSignedNeg isNeg showPos p n r
+    | isNeg n =
       if p > (6::Int) then
         '(' : '-' : showPos (-n) (')' : r)
       else

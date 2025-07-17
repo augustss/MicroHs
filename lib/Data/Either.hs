@@ -9,7 +9,7 @@ import Data.Bool
 import Data.Eq
 import Data.Function
 import Data.Functor
-import Data.Int
+import Data.Int.Int
 import Data.Ord
 import Text.Show
 

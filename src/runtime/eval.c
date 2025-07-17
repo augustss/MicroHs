@@ -47,6 +47,8 @@
 #define WANT_BWT 1
 #endif
 
+#define NEED_INT64 (WANT_INT64 && WORD_SIZE == 32)
+
 #if WANT_LZ77
 size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
 size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
@@ -80,6 +82,10 @@ typedef uintptr_t counter_t;    /* Statistics counter, can be smaller since over
 #define PRIcounter PRIuPTR
 typedef uintptr_t bits_t;       /* One word of bits */
 
+#if !defined(WANT_ARGS)
+#define WANT_ARGS 1
+#endif
+
 #if !defined(MALLOC)
 #define MALLOC malloc
 #endif
@@ -104,17 +110,13 @@ typedef uintptr_t bits_t;       /* One word of bits */
 #define PRINT printf
 #endif
 
-#if !defined(MAIN)
-#define MAIN int main(int argc, char **argv)
-#endif
-
 #if !defined(PCOMMA)
 #define PCOMMA "'"
 #endif  /* !defined(PCOMMA) */
 
 #if !defined(GETRAW)
 int GETRAW(void) { return -1; }
-#endif  /* !defined(getraw) */
+#endif  /* !defined(GETRAW) */
 
 #if !defined(GETTIMEMILLI)
 value_t GETTIMEMILLI(void) { return 0; }
@@ -132,6 +134,14 @@ void GETCPUTIME(long *sec, long *nsec) { sec = 0; nsec = 0; }
 /*#define NORETURN [[noreturn]]*/
 #define NORETURN _Noreturn
 #endif /* !defined(NORETURN) */
+
+#if !defined(PACKED)
+#if WORD_SIZE == 32
+#define PACKED __attribute__((packed))
+#else
+#define PACKED
+#endif  /* WORD_SIZE == 32 */
+#endif  /* !defined(PACKED) */
 
 NORETURN void memerr(void);
 
@@ -195,21 +205,43 @@ FFS(bits_t x)
 
 #endif
 
+/***** popcount *****/
 #if !defined(POPCOUNT)
 uvalue_t POPCOUNT(uvalue_t x) {
 #if defined(BUILTIN_POPCOUNT)
+#if WORD_SIZE == 64
   return __builtin_popcountl(x);
-#else
+#else  /* WORD_SIZE == 64 */
+  return __builtin_popcount(x);
+#endif  /* WORD_SIZE == 64 */
+#else   /* !defined(BUILTIN_POPCOUNT) */
   uvalue_t count = 0;
   while (x) {
     x = x & (x - 1); // clear lowest 1 bit
-    count += 1;
+    count++;
   }
   return count;
-#endif
+#endif   /* !defined(BUILTIN_POPCOUNT) */
 }
-#endif
+#endif  /* !defined(POPCOUNT) */
 
+#if !defined(POPCOUNT64)
+uvalue_t POPCOUNT64(uint64_t x) {
+#if defined(BUILTIN_POPCOUNT)
+  return __builtin_popcountl(x);
+#else   /* !defined(BUILTIN_POPCOUNT) */
+  uvalue_t count = 0;
+  while (x) {
+    x = x & (x - 1); // clear lowest 1 bit
+    count++;
+  }
+  return count;
+#endif   /* !defined(BUILTIN_POPCOUNT) */
+}
+#endif  /* !defined(POPCOUNT64) */
+/***** end popcount *****/
+
+/***** clz *****/
 #if defined(__GNUC__)
 #define BUILTIN_CLZ
 #elif defined(__clang__)
@@ -225,46 +257,86 @@ uvalue_t POPCOUNT(uvalue_t x) {
 uvalue_t CLZ(uvalue_t x) {
 #if defined(BUILTIN_CLZ)
   if (x == 0) return WORD_SIZE;
+#if WORD_SIZE == 64
   return __builtin_clzl(x);
-#else
+#else  /* WORD_SIZE == 64 */
+  return __builtin_clz(x);
+#endif  /* WORD_SIZE == 64 */
+#else   /* defined(BUILTIN_CLZ) */
   value_t count = WORD_SIZE;
   while (x) {
     x = x >> 1;
-    count -= 1;
+    count--;
   }
   return count;
-#endif
+#endif  /* defined(BUILTIN_CLZ) */
 }
-#endif
+#endif  /* !defined(CLZ) */
 
+#if !defined(CLZ64)
+uvalue_t CLZ64(uint64_t x) {
+#if defined(BUILTIN_CLZ)
+  if (x == 0) return WORD_SIZE;
+  return __builtin_clzl(x);
+#else   /* defined(BUILTIN_CLZ) */
+  value_t count = WORD_SIZE;
+  while (x) {
+    x = x >> 1;
+    count--;
+  }
+  return count;
+#endif  /* defined(BUILTIN_CLZ) */
+}
+#endif  /* !defined(CLZ64) */
+/***** end clz *****/
+
+/***** ctz *****/
 #if defined(__has_builtin)
 
 #if __has_builtin(__builtin_ctzl)
 #define BUILTIN_CTZ
 #endif
 
-#endif
+#endif  /* defined(__has_builtin) */
 
 
 #if !defined(CTZ)
 uvalue_t CTZ(uvalue_t x) {
   if (x == 0) return WORD_SIZE;
-#if defined(BUILTIN_CLZ)
+#if defined(BUILTIN_CTZ)
+#if WORD_SIZE == 64
   return __builtin_ctzl(x);
-#else
+#else  /* WORD_SIZE == 64 */
+  return __builtin_ctz(x);
+#endif  /* WORD_SIZE == 64 */
+#else  /* defined(BUILTIN_CTZ) */
   uvalue_t count = 0;
   while ((x & 1) == 0) {
     x = x >> 1;
     count += 1;
   }
   return count;
-#endif
+#endif  /* defined(BUILTIN_CTZ) */
 }
-#endif
+#endif  /* !defined(CTZ) */
 
-#if !defined(WANT_ARGS)
-#define WANT_ARGS 1
-#endif
+#if !defined(CTZ64)
+uvalue_t CTZ64(uint64_t x) {
+  if (x == 0) return WORD_SIZE;
+#if defined(BUILTIN_CTZ)
+  return __builtin_ctzl(x);
+#else  /* defined(BUILTIN_CTZ) */
+  uvalue_t count = 0;
+  while ((x & 1) == 0) {
+    x = x >> 1;
+    count++;
+  }
+  return count;
+#endif  /* defined(BUILTIN_CTZ) */
+}
+#endif  /* !defined(CTZ) */
+
+/***** end ctz *****/
 
 #if !defined(COUNT)
 #define COUNT(n) ++(n)
@@ -311,7 +383,7 @@ iswindows(void)
 #endif  /* WANT_STDIO */
 #endif  /* !define(ERR) */
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -319,17 +391,25 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_POPCOUNT, T_CLZ, T_CTZ,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE, T_ICMP, T_UCMP,
-                T_FPADD, T_FP2P, T_FPNEW, T_FPFIN, // T_FPSTR,
+                T_ADD64, T_SUB64, T_MUL64, T_QUOT64, T_REM64, T_SUBR64, T_UQUOT64, T_UREM64, T_NEG64,
+                T_AND64, T_OR64, T_XOR64, T_INV64, T_SHL64, T_SHR64, T_ASHR64,
+                T_POPCOUNT64, T_CLZ64, T_CTZ64,
+                T_EQ64, T_NE64, T_LT64, T_LE64, T_GT64, T_GE64, T_ULT64, T_ULE64, T_UGT64, T_UGE64, T_ICMP64, T_UCMP64,
+                T_ITOI64, T_I64TOI, T_UTOU64, T_U64TOU,
+                T_FPADD, T_FP2P, T_FPNEW, T_FPFIN,
                 T_FP2BS, T_BS2FP,
-                T_TOPTR, T_TOINT, T_TODBL, T_TOFUNPTR,
+                T_TOPTR, T_TOINT, T_TODBL, T_TOFLT, T_TOFUNPTR,
+                T_FROMDBL, T_FROMFLT,
                 T_BININT2, T_BININT1, T_UNINT1,
+                T_BININT64_2, T_BININT64_1, T_UNINT64_1,
+                T_BINFLT2, T_BINFLT1, T_UNFLT1,
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
                 T_BINBS2, T_BINBS1,
                 T_ISINT,
-#if WANT_FLOAT
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
-                T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE, T_FSHOW, T_FREAD,
-#endif
+                T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE,
+                T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD,
+                T_DEQ, T_DNE, T_DLT, T_DLE, T_DGT, T_DGE,
                 T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
                 T_RAISE, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
                 T_TICK,
@@ -358,7 +438,14 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
 };
 /* Most entries are initialized from the primops table. */
 static const char* tag_names[T_LAST_TAG+1] =
-  { "FREE", "IND", "AP", "INT", "DBL", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
+  { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "INT64", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
+
+/* On 64 bit platforms there is no special type for Int64 */
+#if NEED_INT64
+#define T_INT64 T_INT64X
+#else
+#define T_INT64 T_INT
+#endif  /* WORD_SIZE == 64 */
 
 struct ioarray;
 struct bytestring;
@@ -366,7 +453,7 @@ struct forptr;
 struct mthread;
 struct mvar;
 
-typedef struct node {
+typedef struct PACKED node {
   union {
     struct node *uufun;
     intptr_t     uuifun;
@@ -375,7 +462,16 @@ typedef struct node {
   union {
     struct node    *uuarg;
     value_t         uuvalue;
-    flt_t           uufloatvalue;
+#if WANT_FLOAT32
+    flt32_t         uuflt32value;
+    uint32_t        uuint32value;
+#endif  /* WANT_FLOAT32 */
+#if WANT_FLOAT64
+    flt64_t         uuflt64value;
+#endif  /* WANT_FLOAT32 */
+#if WANT_INT64
+    int64_t         uuint64value;
+#endif  /* WANT_INT64 */
     const char     *uucstring;
     void           *uuptr;
     HsFunPtr        uufunptr;
@@ -395,9 +491,15 @@ typedef struct node {
 #define GETTAG(p) ((p)->ufun.uutag & BIT_NOTAP ? ( (p)->ufun.uutag & BIT_IND ? T_IND : (int)((p)->ufun.uutag >> TAG_SHIFT) ) : T_AP)
 #define SETTAG(p,t) do { if (t != T_AP) { if (t == T_IND) { (p)->ufun.uutag = BIT_IND; } else { (p)->ufun.uutag = ((t) << TAG_SHIFT) | BIT_TAG; } } } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
-#define GETDBLVALUE(p) (p)->uarg.uufloatvalue
+#define GETINT64VALUE(p) (p)->uarg.uuint64value
+#define GETINT32VALUE(p) (p)->uarg.uuint32value
+#define GETFLTVALUE(p) (p)->uarg.uuflt32value
+#define GETDBLVALUE(p) (p)->uarg.uuflt64value
 #define SETVALUE(p,v) (p)->uarg.uuvalue = v
-#define SETDBLVALUE(p,v) (p)->uarg.uufloatvalue = v
+#define SETINT64VALUE(p,v) (p)->uarg.uuint64value = v
+#define SETINT32VALUE(p,v) (p)->uarg.uuint32value = v
+#define SETFLTVALUE(p,v) (p)->uarg.uuflt32value = v
+#define SETDBLVALUE(p,v) (p)->uarg.uuflt64value = v
 #define FUN(p) (p)->ufun.uufun
 #define ARG(p) (p)->uarg.uuarg
 #define CSTR(p) (p)->uarg.uucstring
@@ -776,7 +878,9 @@ NORETURN void die_exn(NODEPTR exn);
 void thread_intr(struct mthread *mt);
 int put_mvar(int try, struct mvar *mv, NODEPTR v);
 NODEPTR mkInt(value_t i);
-NODEPTR mkFlt(flt_t d);
+NODEPTR mkInt64(int64_t i);
+NODEPTR mkFlt32(flt32_t d);
+NODEPTR mkFlt64(flt64_t d);
 NODEPTR mkPtr(void* p);
 struct mthread* new_thread(NODEPTR root);
 void gc(void);
@@ -795,6 +899,8 @@ NODEPTR combLT, combEQ, combGT;
 NODEPTR combPERFORMIO;
 NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
+NODEPTR combBININT64_1, combBININT64_2, combUNINT64_1;
+NODEPTR combBINFLT1, combBINFLT2, combUNFLT1;
 NODEPTR combBINDBL1, combBINDBL2, combUNDBL1;
 NODEPTR combBINBS1, combBINBS2;
 NODEPTR comb_stdin, comb_stdout, comb_stderr;
@@ -1682,7 +1788,21 @@ struct {
   { "popcount", T_POPCOUNT },
   { "clz", T_CLZ },
   { "ctz", T_CTZ },
-#if WANT_FLOAT
+#if WANT_FLOAT64
+  { "d+" , T_DADD, T_DADD},
+  { "d-" , T_DSUB },
+  { "d*" , T_DMUL, T_DMUL},
+  { "d/", T_DDIV},
+  { "dneg", T_DNEG},
+  { "itod", T_ITOD},
+  { "d==", T_DEQ, T_DEQ},
+  { "d/=", T_DNE, T_DNE},
+  { "d<", T_DLT, T_DGT},
+  { "d<=", T_DLE, T_DGE},
+  { "d>", T_DGT, T_DLT},
+  { "d>=", T_DGE, T_DLE},
+#endif  /* WANT_FLOAT64 */
+#if WANT_FLOAT32
   { "f+" , T_FADD, T_FADD},
   { "f-" , T_FSUB },
   { "f*" , T_FMUL, T_FMUL},
@@ -1695,9 +1815,7 @@ struct {
   { "f<=", T_FLE, T_FGE},
   { "f>", T_FGT, T_FLT},
   { "f>=", T_FGE, T_FLE},
-  { "fshow", T_FSHOW},
-  { "fread", T_FREAD},
-#endif  /* WANT_FLOAT */
+#endif  /* WANT_FLOAT32 */
 
   { "bs++", T_BSAPPEND },
   { "bs++.", T_BSAPPENDDOT },
@@ -1794,6 +1912,9 @@ struct {
   { "toPtr", T_TOPTR },
   { "toInt", T_TOINT },
   { "toDbl", T_TODBL },
+  { "toFlt", T_TOFLT },
+  { "fromDbl", T_FROMDBL },
+  { "fromFlt", T_FROMFLT },
   { "toFunPtr", T_TOFUNPTR },
   { "IO.ccall", T_IO_CCALL },
   { "isint", T_ISINT },
@@ -1808,6 +1929,82 @@ struct {
   { "binbs1", T_BINBS1 },
   { "unint1", T_UNINT1 },
   { "undbl1", T_UNDBL1 },
+#if WANT_INT64
+#if !NEED_INT64
+  { "I+", T_ADD, T_ADD },
+  { "I-", T_SUB, T_SUBR },
+  { "I*", T_MUL, T_MUL },
+  { "Iquot", T_QUOT },
+  { "Irem", T_REM },
+  { "Iuquot", T_UQUOT },
+  { "Iurem", T_UREM },
+  { "Isubtract", T_SUBR, T_SUB },
+  { "Ineg", T_NEG },
+  { "Iand", T_AND, T_AND },
+  { "Ior", T_OR, T_OR },
+  { "Ixor", T_XOR, T_XOR },
+  { "Iinv", T_INV },
+  { "Ishl", T_SHL },
+  { "Ishr", T_SHR },
+  { "Iashr", T_ASHR },
+  { "Ipopcount", T_POPCOUNT },
+  { "Iclz", T_CLZ },
+  { "Ictz", T_CTZ },
+  { "I==", T_EQ, T_EQ },
+  { "I/=", T_NE, T_NE },
+  { "I<", T_LT, T_GT },
+  { "Iu<", T_ULT, T_UGT },
+  { "Iu<=", T_ULE, T_UGE },
+  { "Iu>", T_UGT, T_ULT },
+  { "Iu>=", T_UGE, T_ULE },
+  { "I<=", T_LE, T_GE },
+  { "I>", T_GT, T_LT },
+  { "I>=", T_GE, T_LE },
+  { "Iicmp", T_ICMP },
+  { "Iucmp", T_UCMP },
+  { "Itoi", T_I },
+  { "itoI", T_I },
+  { "Utou", T_I },
+  { "utoU", T_I },
+#else  /* WORD_SIZE == 64 */
+  /* WORD_SIZE == 32 */
+  { "I+", T_ADD64, T_ADD64 },
+  { "I-", T_SUB64, T_SUBR64 },
+  { "I*", T_MUL64, T_MUL64 },
+  { "Iquot", T_QUOT64 },
+  { "Irem", T_REM64 },
+  { "Iuquot", T_UQUOT64 },
+  { "Iurem", T_UREM64 },
+  { "Isubtract", T_SUBR64, T_SUB64 },
+  { "Ineg", T_NEG64 },
+  { "Iand", T_AND64, T_AND64 },
+  { "Ior", T_OR64, T_OR64 },
+  { "Ixor", T_XOR64, T_XOR64 },
+  { "Iinv", T_INV64 },
+  { "Ishl", T_SHL64 },
+  { "Ishr", T_SHR64 },
+  { "Iashr", T_ASHR64 },
+  { "Ipopcount", T_POPCOUNT64 },
+  { "Iclz", T_CLZ64 },
+  { "Ictz", T_CTZ64 },
+  { "I==", T_EQ64, T_EQ64 },
+  { "I/=", T_NE64, T_NE64 },
+  { "I<", T_LT64, T_GT64 },
+  { "Iu<", T_ULT64, T_UGT64 },
+  { "Iu<=", T_ULE64, T_UGE64 },
+  { "Iu>", T_UGT64, T_ULT64 },
+  { "Iu>=", T_UGE64, T_ULE64 },
+  { "I<=", T_LE64, T_GE64 },
+  { "I>", T_GT64, T_LT64 },
+  { "I>=", T_GE64, T_LE64 },
+  { "Iicmp", T_ICMP64 },
+  { "Iucmp", T_UCMP64 },
+  { "itoI", T_ITOI64 },
+  { "Itoi", T_I64TOI },
+  { "utoU", T_UTOU64 },
+  { "Utou", T_U64TOU },
+#endif /* WORD_SIZE == 64 */
+#endif  /* WANT_INT64 */
 };
 
 #if GCRED
@@ -1870,9 +2067,15 @@ init_nodes(void)
     case T_BININT1: combBININT1 = n; break;
     case T_BININT2: combBININT2 = n; break;
     case T_UNINT1: combUNINT1 = n; break;
+    case T_BININT64_1: combBININT64_1 = n; break;
+    case T_BININT64_2: combBININT64_2 = n; break;
+    case T_UNINT64_1: combUNINT64_1 = n; break;
     case T_BINDBL1: combBINDBL1 = n; break;
     case T_BINDBL2: combBINDBL2 = n; break;
     case T_UNDBL1: combUNDBL1 = n; break;
+    case T_BINFLT1: combBINFLT1 = n; break;
+    case T_BINFLT2: combBINFLT2 = n; break;
+    case T_UNFLT1: combUNFLT1 = n; break;
     case T_BINBS1: combBINBS1 = n; break;
     case T_BINBS2: combBINBS2 = n; break;
     case T_IO_THROWTO: combTHROWTO = n; break;
@@ -1950,8 +2153,8 @@ counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 void mark(NODEPTR *np);
 void mark_mvar(struct mvar *mv);
 
-/* Throwing, e.g., a UserInterrupt exception to the main thread
- * it can happen from any thread (the one that happens to poll).
+/* Throwing, e.g., a UserInterrupt exception, to the main thread
+ * can happen from any thread (the one that happens to poll).
  * Throwing an exception can block, so we can't throw it from
  * the current thread.  Instead, we spawn a new thread, whose
  * only job it is to throw the exception.
@@ -2669,21 +2872,37 @@ poke_size_t(size_t *p, value_t w)
   *p = (size_t)w;
 }
 
-#if WANT_FLOAT
+#if WANT_FLOAT32
 static INLINE
-flt_t
-peek_flt(flt_t *p)
+flt32_t
+peek_flt32(flt32_t *p)
 {
   return *p;
 }
 
 static INLINE
 void
-poke_flt(flt_t *p, flt_t w)
+poke_flt32(flt32_t *p, flt32_t w)
 {
   *p = w;
 }
-#endif  /* WANT_FLOAT */
+#endif  /* WANT_FLOAT32 */
+
+#if WANT_FLOAT64
+static INLINE
+flt64_t
+peek_flt64(flt64_t *p)
+{
+  return *p;
+}
+
+static INLINE
+void
+poke_flt64(flt64_t *p, flt64_t w)
+{
+  *p = w;
+}
+#endif  /* WANT_FLOAT64 */
 
 /* Look up an FFI function by name */
 value_t
@@ -2754,7 +2973,7 @@ parse_int(BFILE *f)
 {
   // Parse using uvalue_t, which wraps on overflow.
   uvalue_t i = 0;
-  int neg = 1;
+  uvalue_t neg = 1;
   int c = getb(f);
   if (c == '-') {
     neg = -1;
@@ -2769,23 +2988,33 @@ parse_int(BFILE *f)
     }
   }
   // Multiply by neg without triggering undefined behavior.
-  return (value_t)(((uvalue_t)neg) * i);
+  return (value_t)(neg * i);
 }
 
-#if WANT_FLOAT
-flt_t
-parse_double(BFILE *f)
+#if NEED_INT64
+int64_t
+parse_int64(BFILE *f)
 {
-  // apparently longest float, when rendered, takes up 24 characters. We add one more for a potential
-  // minus sign, and another one for the final null terminator.
-  // https://stackoverflow.com/questions/1701055/what-is-the-maximum-length-in-chars-needed-to-represent-any-double-value
-  char buf[26];
-  for(int j = 0; (buf[j] = getNT(f)); j++)
-    ;
-
-  return strtod(buf, NULL);
+  // Parse using uint64_t, which wraps on overflow.
+  uint64_t i = 0;
+  uint64_t neg = 1;
+  int c = getb(f);
+  if (c == '-') {
+    neg = -1;
+    c = getb(f);
+  }
+  for(;;) {
+    i = i * 10 + (c - '0');
+    c = getb(f);
+    if (c < '0' || c > '9') {
+      ungetb(c, f);
+      break;
+    }
+  }
+  // Multiply by neg without triggering undefined behavior.
+  return (int64_t)(neg * i);
 }
-#endif
+#endif  /* NEED_INT64 */
 
 struct forptr *mkForPtr(struct bytestring bs);
 NODEPTR mkFunPtr(HsFunPtr p);
@@ -2916,7 +3145,6 @@ parse(BFILE *f)
   NODEPTR r, x, y;
   NODEPTR *nodep;
   heapoffs_t l;
-  value_t i;
   int c;
   size_t j;
   char buf[80];                 /* store names of primitives. */
@@ -2960,19 +3188,39 @@ parse(BFILE *f)
       }
 #endif
     case '&':
-#if WANT_FLOAT
-      r = mkFlt(parse_double(f));
+      {
+        int is32 = gobble(f, '&');
+        for (j = 0; (buf[j] = getNT(f)); j++)
+          ;
+        if (is32) {
+#if WANT_FLOAT32
+          r = mkFlt32(strtof(buf, NULL));
 #else
-      while (getNT(f))          /* skip the float constant */
-        ;
-      r = alloc_node(T_DBL);
-      SETVALUE(r, 0);
+          r = alloc_node(T_FLT32);
+          SETVALUE(r, 0);
 #endif
-      PUSH(r);
-      break;
+        } else {
+#if WANT_FLOAT64
+          r = mkFlt64(strtod(buf, NULL));
+#else
+          r = alloc_node(T_DBL);
+          SETVALUE(r, 0);
+#endif
+        }
+        PUSH(r);
+        break;
+      }
     case '#':
-      i = parse_int(f);
-      r = mkInt(i);
+#if NEED_INT64
+      if (gobble(f, '#')) {
+        r = mkInt64(parse_int64(f));
+      } else {
+        r = mkInt(parse_int(f));
+      }
+#else  /* NEED_INT64 */
+      gobble(f, '#');
+      r = mkInt(parse_int(f));
+#endif /* NEED_INT64 */
       PUSH(r);
       break;
     case '[':
@@ -3028,9 +3276,8 @@ parse(BFILE *f)
     case '!':
       if (!gobble(f, '"'))
         ERR("parse !");
-      i = add_tick_table(parse_string(f));
       r = alloc_node(T_TICK);
-      SETVALUE(r, (value_t)i);
+      SETVALUE(r, (value_t)add_tick_table(parse_string(f)););
       PUSH(r);
       break;
 #endif
@@ -3163,18 +3410,13 @@ size_t strNodes(size_t len);
 NODEPTR mkStringC(char *str);
 
 #if WANT_STDIO
-#if WORD_SIZE == 64
-#define CONVDBL "%.16g"
-#elif WORD_SIZE == 32
-#define CONVDBL "%.8g"
-#endif
 void
-convdbl(char *str, flt_t x)
+convdbl(char *str, char *fmt, flt64_t x)
 {
   /* Using 16 decimals will lose some precision.
    * 17 would keep the precision, but it frequently looks very ugly.
    */
-  (void)snprintf(str, 25, CONVDBL, x);
+  (void)snprintf(str, 25, fmt, x);
   if (strcmp(str, "nan") != 0 && strcmp(str, "-nan") != 0 &&
       strcmp(str, "inf") != 0 && strcmp(str, "-inf") != 0 &&
       !strchr(str, '.') && !strchr(str, 'e') && !strchr(str, 'E')) {
@@ -3183,21 +3425,11 @@ convdbl(char *str, flt_t x)
   }
 }
 
-NODEPTR
-dblToString(flt_t x)
-{
-  char str[30];
-  convdbl(str, x);
-  // turn it into a mhs string
-  GCCHECK(strNodes(strlen(str)));
-  return mkStringC(str);
-}
-
 void
-putdblb(flt_t x, BFILE *p)
+putdblb(flt64_t x, BFILE *p)
 {
   char str[30];
-  convdbl(str, x);
+  convdbl(str, "%.16g", x);
   putsb(str, p);
 }
 
@@ -3343,7 +3575,11 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     }
     break;
   case T_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
+#if NEED_INT64
+  case T_INT64: putb('#', f); putb('#', f); putdecb64(GETINT64VALUE(n), f); break;
+#endif  /* NEED_INT64 */
   case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
+  case T_FLT32: putb('&', f); putb('&', f); putdblb((double)GETFLTVALUE(n), f); break;
   case T_ARR:
     if (prefix) {
       /* Arrays serialize as '[sz] e_1 ... e_sz' */
@@ -3512,13 +3748,6 @@ dump(const char *msg, NODEPTR at)
 }
 #endif
 
-#else  /* WANT_STDIO */
-NODEPTR
-dblToString(flt_t x)
-{
-  return mkStringC("no dblToString");
-}
-
 #endif  /* WANT_STDIO */
 
 NODEPTR
@@ -3536,14 +3765,38 @@ mkInt(value_t i)
   return n;
 }
 
+#if NEED_INT64
 NODEPTR
-mkFlt(flt_t d)
+mkInt64(int64_t i)
+{
+  NODEPTR n;
+  n = alloc_node(T_INT64);
+  SETINT64VALUE(n, i);
+  return n;
+}
+#endif
+
+#if WANT_FLOAT32
+NODEPTR
+mkFlt32(flt32_t d)
+{
+  NODEPTR n;
+  n = alloc_node(T_FLT32);
+  SETFLTVALUE(n, d);
+  return n;
+}
+#endif  /* WANT_FLOAT32 */
+
+#if WANT_FLOAT64
+NODEPTR
+mkFlt64(flt64_t d)
 {
   NODEPTR n;
   n = alloc_node(T_DBL);
   SETDBLVALUE(n, d);
   return n;
 }
+#endif  /* WANT_FLOAT64 */
 
 NODEPTR
 mkPtr(void* p)
@@ -3763,8 +4016,9 @@ evalint(NODEPTR n)
   return GETVALUE(n);
 }
 
-/* Evaluate to a Flt_T */
-static INLINE flt_t
+#if WANT_FLOAT64
+/* Evaluate to a flt64_t */
+static INLINE flt64_t
 evaldbl(NODEPTR n)
 {
   n = evali(n);
@@ -3775,6 +4029,22 @@ evaldbl(NODEPTR n)
 #endif
   return GETDBLVALUE(n);
 }
+#endif  /* WANT_FLOAT64 */
+
+#if WANT_FLOAT32
+/* Evaluate to a flt32_t */
+static INLINE flt32_t
+evalflt(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_FLT32) {
+    ERR1("evaldbl, bad tag %d", GETTAG(n));
+  }
+#endif
+  return GETFLTVALUE(n);
+}
+#endif  /* WANT_FLOAT32 */
 
 /* Evaluate to a T_PTR */
 void *
@@ -4038,7 +4308,12 @@ compare(NODEPTR cmp)
   stackptr_t stk = stack_ptr;
 #define CRET(x) do { stack_ptr = stk; return (x); } while(0)
   value_t x, y;
-  flt_t xd, yd;
+#if WANT_FLOAT32
+  flt32_t xf, yf;
+#endif
+#if WANT_FLOAT64
+  flt64_t xd, yd;
+#endif
   void *f, *g;
   void (*ff)(void), (*fg)(void);
   NODEPTR p, q;
@@ -4083,6 +4358,9 @@ compare(NODEPTR cmp)
       PUSH(FUN(p));             /* compare fun part now */
       PUSH(FUN(q));
       break;
+#if NEED_INT64
+    case T_INT64: ERR("compare int64");
+#endif
     case T_INT:
     case T_IO_CCALL:
     case T_THID:
@@ -4093,6 +4371,7 @@ compare(NODEPTR cmp)
       if (x > y)
         CRET(1);
       break;
+#if WANT_FLOAT64
     case T_DBL:
       xd = GETDBLVALUE(p);
       yd = GETDBLVALUE(q);
@@ -4101,6 +4380,17 @@ compare(NODEPTR cmp)
       if (xd > yd)
         CRET(1);
       break;
+#endif  /* WANT_FLOAT64 */
+#if WANT_FLOAT32
+    case T_FLT32:
+      xf = GETFLTVALUE(p);
+      yf = GETFLTVALUE(q);
+      if (xf < yf)
+        CRET(-1);
+      if (xf > yf)
+        CRET(1);
+      break;
+#endif  /* WANT_FLOAT32 */
     case T_PTR:
       f = PTR(p);
       g = PTR(q);
@@ -4195,9 +4485,9 @@ evali(NODEPTR an)
   NODEPTR x, y, z, w;
   value_t xi, yi, r;
   struct forptr *xfp;
-#if WANT_FLOAT
-  flt_t xd, rd;
-#endif  /* WANT_FLOAT */
+#if WANT_FLOAT64
+  flt64_t rd;
+#endif  /* WANT_FLOAT64 */
   char *msg;
   heapoffs_t l;
   enum node_tag tag;
@@ -4249,7 +4539,9 @@ evali(NODEPTR an)
 #define CHKARGEV1(e)   do { CHECK(1); x = ARG(TOP(0)); e; POP(1); n = TOP(-1); } while(0)
 
 #define SETINT(n,r)    do { SETTAG((n), T_INT); SETVALUE((n), (r)); } while(0)
+#define SETINT64(n,r)  do { SETTAG((n), T_INT64); SETINT64VALUE((n), (r)); } while(0)
 #define SETDBL(n,d)    do { SETTAG((n), T_DBL); SETDBLVALUE((n), (d)); } while(0)
+#define SETFLT(n,d)    do { SETTAG((n), T_FLT32); SETFLTVALUE((n), (d)); } while(0)
 #define SETPTR(n,r)    do { SETTAG((n), T_PTR); PTR(n) = (r); } while(0)
 #define SETFUNPTR(n,r) do { SETTAG((n), T_FUNPTR); FUNPTR(n) = (r); } while(0)
 #define SETFORPTR(n,r) do { SETTAG((n), T_FORPTR); FORPTR(n) = (r); } while(0)
@@ -4278,8 +4570,7 @@ evali(NODEPTR an)
     }
     tag = GETTAG(n);
   }
-  //COUNT(num_reductions);
-  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  // printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {
@@ -4290,6 +4581,10 @@ evali(NODEPTR an)
 
   case T_INT:    RET;
   case T_DBL:    RET;
+#if NEED_INT64
+  case T_INT64:  RET;
+#endif  /* NEED_INT64 */
+  case T_FLT32:  RET;
   case T_PTR:    RET;
   case T_FUNPTR: RET;
   case T_FORPTR: RET;
@@ -4459,7 +4754,7 @@ evali(NODEPTR an)
     PUSH(combUNINT1);
     goto top;
 
-#if WANT_FLOAT
+#if WANT_FLOAT32
   case T_FADD:
   case T_FSUB:
   case T_FMUL:
@@ -4472,38 +4767,64 @@ evali(NODEPTR an)
   case T_FGE:
     CHECK(2);
     n = ARG(TOP(1));
-    PUSH(combBINDBL2);
+    PUSH(combBINFLT2);
     goto top;
   case T_FNEG:
+    CHECK(1);
+    n = ARG(TOP(0));
+    PUSH(combUNFLT1);
+    goto top;
+
+  case T_ITOF:
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+#if SANITY
+    if (GETTAG(x) != T_INT64)
+      ERR("itod tag");
+#endif
+    rd = (flt32_t)GETINT64VALUE(x);
+    POP(1);
+    n = TOP(-1);
+    SETFLT(n, rd);
+    RET;
+
+#endif  /* WANT_FLOAT32 */
+
+#if WANT_FLOAT64
+  case T_DADD:
+  case T_DSUB:
+  case T_DMUL:
+  case T_DDIV:
+  case T_DEQ:
+  case T_DNE:
+  case T_DLT:
+  case T_DLE:
+  case T_DGT:
+  case T_DGE:
+    CHECK(2);
+    n = ARG(TOP(1));
+    PUSH(combBINDBL2);
+    goto top;
+  case T_DNEG:
     CHECK(1);
     n = ARG(TOP(0));
     PUSH(combUNDBL1);
     goto top;
 
-  case T_ITOF: OPINT1(rd = (flt_t)xi); SETDBL(n, rd); RET;
-  case T_FREAD:
+  case T_ITOD:
     CHECK(1);
-    msg = evalstring(ARG(TOP(0))).string;
-#if WORD_SIZE == 64
-    xd = strtod(msg, NULL);
-#elif WORD_SIZE == 32
-    xd = strtof(msg, NULL);
-#else  /* WORD_SIZE */
-#error Unknown WORD_SIZE
-#endif  /* WORD_SIZE */
-    FREE(msg);
+    x = evali(ARG(TOP(0)));
+#if SANITY
+    if (GETTAG(x) != T_INT64)
+      ERR("itod tag");
+#endif
+    rd = (flt64_t)GETINT64VALUE(x);
     POP(1);
     n = TOP(-1);
-    SETDBL(n, xd);
+    SETDBL(n, rd);
     RET;
 
-  case T_FSHOW:
-    CHECK(1);
-    xd = evaldbl(ARG(TOP(0)));
-    POP(1);
-    n = TOP(-1);
-    GOIND(dblToString(xd));
-#endif  /* WANT_FLOAT */
+#endif  /* WANT_FLOAT64 */
 
   case T_ISINT:
     CHECK(1);
@@ -4527,12 +4848,74 @@ evali(NODEPTR an)
     PUSH(combBINBS2);
     goto top;
 
+#if NEED_INT64
+  case T_ADD64:
+  case T_SUB64:
+  case T_MUL64:
+  case T_QUOT64:
+  case T_REM64:
+  case T_SUBR64:
+  case T_UQUOT64:
+  case T_UREM64:
+  case T_AND64:
+  case T_OR64:
+  case T_XOR64:
+  case T_SHL64:
+  case T_SHR64:
+  case T_ASHR64:
+  case T_EQ64:
+  case T_NE64:
+  case T_LT64:
+  case T_LE64:
+  case T_GT64:
+  case T_GE64:
+  case T_ICMP64:
+  case T_ULT64:
+  case T_ULE64:
+  case T_UGT64:
+  case T_UGE64:
+  case T_UCMP64:
+    CHECK(2);
+    n = ARG(TOP(1));
+    if (GETTAG(n) == T_INT64) {
+      n = ARG(TOP(0));
+      PUSH(combBININT64_1);
+      if (GETTAG(n) == T_INT64)
+        goto binint64_1;
+    } else {
+      PUSH(combBININT64_2);
+    }
+    goto top;
+  case T_NEG64:
+  case T_INV64:
+  case T_POPCOUNT64:
+  case T_CLZ64:
+  case T_CTZ64:
+    CHECK(1);
+    n = ARG(TOP(0));
+    PUSH(combUNINT64_1);
+    goto top;
+#endif  /* NEED_INT64 */
+
+
+  /* XXX This needs redoing with Int64 */
   /* Retag a word sized value, keeping the value bits */
-#define CONV(t) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, t); SETVALUE(n, GETVALUE(x)); RET; } while(0)
-  case T_TODBL: CONV(T_DBL);
-  case T_TOINT: CONV(T_INT);
-  case T_TOPTR: CONV(T_PTR);
-  case T_TOFUNPTR: CONV(T_FUNPTR);
+#define CONV(t, set, get) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, t); set(n, get(x)); RET; } while(0)
+#if WANT_INT64
+  case T_TODBL:    CONV(T_DBL,    SETINT64VALUE, GETINT64VALUE); /* raw int64_t -> double */
+  case T_FROMDBL:  CONV(T_INT64,  SETINT64VALUE, GETINT64VALUE);
+  case T_ITOI64:   CONV(T_INT64,  SETINT64VALUE, GETVALUE);
+  case T_UTOU64:   CONV(T_INT64,  SETINT64VALUE, (uint64_t)GETVALUE);
+  case T_I64TOI:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
+  case T_U64TOU:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
+#endif
+#if WANT_FLOAT32
+  case T_TOFLT:    CONV(T_FLT32,  SETINT32VALUE, GETINT32VALUE);
+  case T_FROMFLT:  CONV(T_INT,    SETVALUE,      GETINT32VALUE);
+#endif
+  case T_TOINT:    CONV(T_INT,    SETVALUE,      GETVALUE);
+  case T_TOPTR:    CONV(T_PTR,    SETVALUE,      GETVALUE);
+  case T_TOFUNPTR: CONV(T_FUNPTR, SETVALUE,      GETVALUE);
 #undef CONV
 
   case T_FPADD: CHECK(2); xfp = evalforptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETFORPTR(n, addForPtr(xfp, yi)); RET;
@@ -4787,7 +5170,7 @@ evali(NODEPTR an)
       int arity = FFI_IX(a).ffi_arity;
       CHECK(arity);
       funptr_t f = FFI_IX(a).ffi_fun;
-      PUSH(mkFlt(0.0));           /* placeholder for result, protected from GC */
+      PUSH(mkPtr(0));             /* placeholder for result, protected from GC */
       int k = f(stk);             /* call FFI function, return number of arguments */
       if (k != arity) {
 #if WANT_STDIO
@@ -5173,9 +5556,15 @@ evali(NODEPTR an)
     // In this case, n was an AP that got pushed and potentially
     // updated.
     uvalue_t xu, yu, ru;
-#if WANT_FLOAT
-    flt_t xd, yd, rd;
-#endif  /* WANT_FLOAT */
+#if NEED_INT64
+    uint64_t x64u, y64u, r64u;
+#endif  /* NEED_INT64 */
+#if WANT_FLOAT32
+    flt32_t xf, yf, rf;
+#endif  /* WANT_FLOAT32 */
+#if WANT_FLOAT64
+    flt64_t xd, yd, rd;
+#endif  /* WANT_FLOAT64 */
     NODEPTR p;
 
     tag = GETTAG(TOP(0));
@@ -5284,7 +5673,184 @@ evali(NODEPTR an)
       SETINT(n, (value_t)ru);
       goto ret;
 
-#if WANT_FLOAT
+#if NEED_INT64
+    case T_BININT64_2:
+      n = ARG(TOP(1));
+      TOP(0) = combBININT64_1;
+      goto top;
+
+    case T_BININT64_1:
+      /* First argument */
+#if SANITY
+      if (GETTAG(n) != T_INT64)
+        ERR("BININT64 0");
+#endif  /* SANITY */
+    binint64_1:
+      x64u = (uint64_t)GETINT64VALUE(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (GETTAG(y) == T_IND)
+        y = GETINDIR(y);
+      /* The second argument to the shift ops is an int, so use a hack for that */
+      if (GETTAG(y) == T_INT64)
+        y64u = (uint64_t)GETINT64VALUE(y);
+      else if (GETTAG(y) == T_INT)
+        yu = (uvalue_t)GETVALUE(y);
+      else
+        ERR("BININT64 1");
+      p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
+    binint64:
+      switch (GETTAG(p)) {
+      case T_IND:   p = GETINDIR(p); goto binint64;
+      case T_ADD64: r64u = x64u + y64u; break;
+      case T_SUB64: r64u = x64u - y64u; break;
+      case T_MUL64: r64u = x64u * y64u; break;
+      case T_SUBR64:r64u = y64u - x64u; break;
+      case T_QUOT64:if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      r64u = (uint64_t)((int64_t)x64u / (int64_t)y64u);
+                    break;
+      case T_REM64: if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      r64u = (uint64_t)((int64_t)x64u % (int64_t)y64u);
+                    break;
+      case T_UQUOT64:if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      r64u = x64u / y64u;
+                    break;
+      case T_UREM64:if (y64u == 0)
+                      raise_rts(exn_dividebyzero);
+                    else
+                      r64u = x64u % y64u;
+                    break;
+      case T_AND64: r64u = x64u & y64u; break;
+      case T_OR64:  r64u = x64u | y64u; break;
+      case T_XOR64: r64u = x64u ^ y64u; break;
+      case T_SHL64: r64u = x64u << yu; break;
+      case T_SHR64: r64u = x64u >> yu; break;
+      case T_ASHR64:r64u = (uint64_t)((int64_t)x64u >> yu); break;
+
+      case T_EQ64:  GOIND(x64u == y64u ? combTrue : combFalse);
+      case T_NE64:  GOIND(x64u != y64u ? combTrue : combFalse);
+      case T_ULT64: GOIND(x64u <  y64u ? combTrue : combFalse);
+      case T_ULE64: GOIND(x64u <= y64u ? combTrue : combFalse);
+      case T_UGT64: GOIND(x64u >  y64u ? combTrue : combFalse);
+      case T_UGE64: GOIND(x64u >= y64u ? combTrue : combFalse);
+      case T_UCMP64:GOIND(x64u <  y64u ? combLT   : x64u > y64u ? combGT : combEQ);
+      case T_LT64:  GOIND((int64_t)x64u <  (int64_t)y64u ? combTrue : combFalse);
+      case T_LE64:  GOIND((int64_t)x64u <= (int64_t)y64u ? combTrue : combFalse);
+      case T_GT64:  GOIND((int64_t)x64u >  (int64_t)y64u ? combTrue : combFalse);
+      case T_GE64:  GOIND((int64_t)x64u >= (int64_t)y64u ? combTrue : combFalse);
+      case T_ICMP64:GOIND((int64_t)x64u <  (int64_t)y64u ? combLT   : (int64_t)x64u > (int64_t)y64u ? combGT : combEQ);
+
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("BININT64");
+      }
+      SETINT64(n, (int64_t)r64u);
+      goto ret;
+
+    case T_UNINT64_1:
+      /* The argument */
+#if SANITY
+      if (GETTAG(n) != T_INT64)
+        ERR("UNINT64 0");
+#endif
+      x64u = (uint64_t)GETINT64VALUE(n);
+      p = FUN(TOP(1));
+      POP(2);
+      n = TOP(-1);
+    unint64:
+      switch (GETTAG(p)) {
+      case T_IND:        p = GETINDIR(p); goto unint64;
+      case T_NEG64:      r64u = -x64u; break;
+      case T_INV64:      r64u = ~x64u; break;
+      case T_POPCOUNT64: ru = POPCOUNT64(x64u); SETINT(n, (value_t)ru); goto ret;
+      case T_CLZ64:      ru = CLZ64(x64u); SETINT(n, (value_t)ru); goto ret;
+      case T_CTZ64:      ru = CTZ64(x64u); SETINT(n, (value_t)ru); goto ret;
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("UNINT64");
+      }
+      SETINT64(n, (int64_t)r64u);
+      goto ret;
+#endif  /* NEED_INT64 */
+
+#if WANT_FLOAT32
+    case T_BINFLT2:
+      n = ARG(TOP(1));
+      TOP(0) = combBINFLT1;
+      goto top;
+
+    case T_BINFLT1:
+      /* First argument */
+#if SANITY
+      if (GETTAG(n) != T_FLT32)
+        ERR("BINDBL 0");
+#endif  /* SANITY */
+      xf = GETFLTVALUE(n);
+      /* Second argument */
+      y = ARG(TOP(2));
+      while (GETTAG(y) == T_IND)
+        y = GETINDIR(y);
+#if SANITY
+      if (GETTAG(y) != T_FLT32)
+        ERR("BINDBL 1");
+#endif  /* SANITY */
+      yf = GETFLTVALUE(y);
+      p = FUN(TOP(1));
+      POP(3);
+      n = TOP(-1);
+    binflt:
+      switch (GETTAG(p)) {
+      case T_IND:   p = GETINDIR(p); goto binflt;
+      case T_FADD:  rf = xf + yf; break;
+      case T_FSUB:  rf = xf - yf; break;
+      case T_FMUL:  rf = xf * yf; break;
+      case T_FDIV:  rf = xf / yf; break;
+
+      case T_FEQ:   GOIND(xf == yf ? combTrue : combFalse);
+      case T_FNE:   GOIND(xf != yf ? combTrue : combFalse);
+      case T_FLT:   GOIND(xf <  yf ? combTrue : combFalse);
+      case T_FLE:   GOIND(xf <= yf ? combTrue : combFalse);
+      case T_FGT:   GOIND(xf >  yf ? combTrue : combFalse);
+      case T_FGE:   GOIND(xf >= yf ? combTrue : combFalse);
+
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("BINFLT");
+      }
+      SETFLT(n, rf);
+      goto ret;
+
+    case T_UNFLT1:
+      /* The argument */
+#if SANITY
+      if (GETTAG(n) != T_FLT32)
+        ERR("UNFLT 0");
+#endif
+      xf = GETFLTVALUE(n);
+      p = FUN(TOP(1));
+      POP(2);
+      n = TOP(-1);
+    unflt:
+      switch (GETTAG(p)) {
+      case T_IND:   p = GETINDIR(p); goto unflt;
+      case T_FNEG:  rf = -xf; break;
+      default:
+        //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
+        ERR("UNFLT");
+      }
+      SETFLT(n, rf);
+      goto ret;
+#endif  /* WANT_FLOAT32 */
+
+#if WANT_FLOAT64
     case T_BINDBL2:
       n = ARG(TOP(1));
       TOP(0) = combBINDBL1;
@@ -5312,17 +5878,17 @@ evali(NODEPTR an)
     bindbl:
       switch (GETTAG(p)) {
       case T_IND:   p = GETINDIR(p); goto bindbl;
-      case T_FADD:  rd = xd + yd; break;
-      case T_FSUB:  rd = xd - yd; break;
-      case T_FMUL:  rd = xd * yd; break;
-      case T_FDIV:  rd = xd / yd; break;
+      case T_DADD:  rd = xd + yd; break;
+      case T_DSUB:  rd = xd - yd; break;
+      case T_DMUL:  rd = xd * yd; break;
+      case T_DDIV:  rd = xd / yd; break;
 
-      case T_FEQ:   GOIND(xd == yd ? combTrue : combFalse);
-      case T_FNE:   GOIND(xd != yd ? combTrue : combFalse);
-      case T_FLT:   GOIND(xd <  yd ? combTrue : combFalse);
-      case T_FLE:   GOIND(xd <= yd ? combTrue : combFalse);
-      case T_FGT:   GOIND(xd >  yd ? combTrue : combFalse);
-      case T_FGE:   GOIND(xd >= yd ? combTrue : combFalse);
+      case T_DEQ:   GOIND(xd == yd ? combTrue : combFalse);
+      case T_DNE:   GOIND(xd != yd ? combTrue : combFalse);
+      case T_DLT:   GOIND(xd <  yd ? combTrue : combFalse);
+      case T_DLE:   GOIND(xd <= yd ? combTrue : combFalse);
+      case T_DGT:   GOIND(xd >  yd ? combTrue : combFalse);
+      case T_DGE:   GOIND(xd >= yd ? combTrue : combFalse);
 
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
@@ -5344,14 +5910,14 @@ evali(NODEPTR an)
     undbl:
       switch (GETTAG(p)) {
       case T_IND:   p = GETINDIR(p); goto undbl;
-      case T_FNEG:  rd = -xd; break;
+      case T_DNEG:  rd = -xd; break;
       default:
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
         ERR("UNDBL");
       }
       SETDBL(n, rd);
       goto ret;
-#endif  /* WANT_FLOAT */
+#endif  /* WANT_FLOAT64 */
 
     case T_BINBS2:
       n = ARG(TOP(1));
@@ -5810,7 +6376,12 @@ name(stackptr_t stk, int n, type x) \
   set(r, x);                    /* Put result in pre-allocated cell. */ \
   return n;                     /* return arity */ \
 }
-MHS_FROM(mhs_from_FloatW, SETDBL, flt_t);
+#if WANT_FLOAT64
+MHS_FROM(mhs_from_Double, SETDBL, flt64_t);
+#endif
+#if WANT_FLOAT32
+MHS_FROM(mhs_from_Float, SETFLT, flt32_t);
+#endif
 MHS_FROM(mhs_from_Int, SETINT, value_t);
 MHS_FROM(mhs_from_Word, SETINT, uvalue_t);
 MHS_FROM(mhs_from_Word8, SETINT, uvalue_t);
@@ -5848,7 +6419,12 @@ type name(stackptr_t stk, int n) \
 { \
   return eval(ARG(TOP(n+1)));                /* The stack has a reserved cell on top of the arguments */ \
 }
-MHS_TO(mhs_to_FloatW, evaldbl, flt_t);
+#if WANT_FLOAT32
+MHS_TO(mhs_to_Float, evalflt, flt32_t);
+#endif
+#if WANT_FLOAT64
+MHS_TO(mhs_to_Double, evaldbl, flt64_t);
+#endif
 MHS_TO(mhs_to_Int, evalint, value_t);
 MHS_TO(mhs_to_Word, evalint, uvalue_t);
 MHS_TO(mhs_to_Word8, evalint, uint8_t);
@@ -5877,31 +6453,32 @@ MHS_TO(mhs_to_CUIntPtr, evalint, uintptr_t);
 from_t mhs_GETRAW(int s) { return  mhs_from_Int(s, 0, GETRAW()); }
 from_t mhs_GETTIMEMILLI(int s) { return  mhs_from_Int(s, 0, GETTIMEMILLI()); }
 #if WANT_MATH
-#if WORD_SIZE == 64
-from_t mhs_acos(int s) { return mhs_from_FloatW(s, 1, acos(mhs_to_FloatW(s, 0))); }
-from_t mhs_asin(int s) { return mhs_from_FloatW(s, 1, asin(mhs_to_FloatW(s, 0))); }
-from_t mhs_atan(int s) { return mhs_from_FloatW(s, 1, atan(mhs_to_FloatW(s, 0))); }
-from_t mhs_atan2(int s) { return mhs_from_FloatW(s, 2, atan2(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
-from_t mhs_cos(int s) { return mhs_from_FloatW(s, 1, cos(mhs_to_FloatW(s, 0))); }
-from_t mhs_exp(int s) { return mhs_from_FloatW(s, 1, exp(mhs_to_FloatW(s, 0))); }
-from_t mhs_log(int s) { return mhs_from_FloatW(s, 1, log(mhs_to_FloatW(s, 0))); }
-from_t mhs_sin(int s) { return mhs_from_FloatW(s, 1, sin(mhs_to_FloatW(s, 0))); }
-from_t mhs_sqrt(int s) { return mhs_from_FloatW(s, 1, sqrt(mhs_to_FloatW(s, 0))); }
-from_t mhs_tan(int s) { return mhs_from_FloatW(s, 1, tan(mhs_to_FloatW(s, 0))); }
-#elif WORD_SIZE == 32  /* WORD_SIZE */
-from_t mhs_acos(int s) { return mhs_from_FloatW(s, 1, acosf(mhs_to_FloatW(s, 0))); }
-from_t mhs_asin(int s) { return mhs_from_FloatW(s, 1, asinf(mhs_to_FloatW(s, 0))); }
-from_t mhs_atan(int s) { return mhs_from_FloatW(s, 1, atanf(mhs_to_FloatW(s, 0))); }
-from_t mhs_atan2(int s) { return mhs_from_FloatW(s, 2, atan2f(mhs_to_FloatW(s, 0), mhs_to_FloatW(s, 1))); }
-from_t mhs_cos(int s) { return mhs_from_FloatW(s, 1, cosf(mhs_to_FloatW(s, 0))); }
-from_t mhs_exp(int s) { return mhs_from_FloatW(s, 1, expf(mhs_to_FloatW(s, 0))); }
-from_t mhs_log(int s) { return mhs_from_FloatW(s, 1, logf(mhs_to_FloatW(s, 0))); }
-from_t mhs_sin(int s) { return mhs_from_FloatW(s, 1, sinf(mhs_to_FloatW(s, 0))); }
-from_t mhs_sqrt(int s) { return mhs_from_FloatW(s, 1, sqrtf(mhs_to_FloatW(s, 0))); }
-from_t mhs_tan(int s) { return mhs_from_FloatW(s, 1, tanf(mhs_to_FloatW(s, 0))); }
-#else
-#error Unknown WORD_SIZE
-#endif  /* WORD_SIZE */
+#if WANT_FLOAT64
+from_t mhs_acos(int s) { return mhs_from_Double(s, 1, acos(mhs_to_Double(s, 0))); }
+from_t mhs_asin(int s) { return mhs_from_Double(s, 1, asin(mhs_to_Double(s, 0))); }
+from_t mhs_atan(int s) { return mhs_from_Double(s, 1, atan(mhs_to_Double(s, 0))); }
+from_t mhs_atan2(int s) { return mhs_from_Double(s, 2, atan2(mhs_to_Double(s, 0), mhs_to_Double(s, 1))); }
+from_t mhs_cos(int s) { return mhs_from_Double(s, 1, cos(mhs_to_Double(s, 0))); }
+from_t mhs_exp(int s) { return mhs_from_Double(s, 1, exp(mhs_to_Double(s, 0))); }
+from_t mhs_log(int s) { return mhs_from_Double(s, 1, log(mhs_to_Double(s, 0))); }
+from_t mhs_sin(int s) { return mhs_from_Double(s, 1, sin(mhs_to_Double(s, 0))); }
+from_t mhs_sqrt(int s) { return mhs_from_Double(s, 1, sqrt(mhs_to_Double(s, 0))); }
+from_t mhs_tan(int s) { return mhs_from_Double(s, 1, tan(mhs_to_Double(s, 0))); }
+from_t mhs_scalbn(int s) { return mhs_from_Double(s, 2, scalbn(mhs_to_Double(s, 0), mhs_to_Int(s, 1))); }
+#endif  /* WANT_FLOAT64 */
+#if WANT_FLOAT32
+from_t mhs_acosf(int s) { return mhs_from_Float(s, 1, acosf(mhs_to_Float(s, 0))); }
+from_t mhs_asinf(int s) { return mhs_from_Float(s, 1, asinf(mhs_to_Float(s, 0))); }
+from_t mhs_atanf(int s) { return mhs_from_Float(s, 1, atanf(mhs_to_Float(s, 0))); }
+from_t mhs_atan2f(int s) { return mhs_from_Float(s, 2, atan2f(mhs_to_Float(s, 0), mhs_to_Float(s, 1))); }
+from_t mhs_cosf(int s) { return mhs_from_Float(s, 1, cosf(mhs_to_Float(s, 0))); }
+from_t mhs_expf(int s) { return mhs_from_Float(s, 1, expf(mhs_to_Float(s, 0))); }
+from_t mhs_logf(int s) { return mhs_from_Float(s, 1, logf(mhs_to_Float(s, 0))); }
+from_t mhs_sinf(int s) { return mhs_from_Float(s, 1, sinf(mhs_to_Float(s, 0))); }
+from_t mhs_sqrtf(int s) { return mhs_from_Float(s, 1, sqrtf(mhs_to_Float(s, 0))); }
+from_t mhs_tanf(int s) { return mhs_from_Float(s, 1, tanf(mhs_to_Float(s, 0))); }
+from_t mhs_scalbnf(int s) { return mhs_from_Float(s, 2, scalbnf(mhs_to_Float(s, 0), mhs_to_Int(s, 1))); }
+#endif  /* WANT_FLOAT32 */
 #endif  /* WANT_MATH */
 
 #if WANT_STDIO
@@ -6007,10 +6584,14 @@ from_t mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); r
 from_t mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_poke_size_t(int s) { poke_size_t(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1)); return mhs_from_Unit(s, 2); }
-#if WANT_FLOAT
-from_t mhs_peek_flt(int s) { return mhs_from_FloatW(s, 1, peek_flt(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_flt(int s) { poke_flt(mhs_to_Ptr(s, 0), mhs_to_FloatW(s, 1)); return mhs_from_Unit(s, 2); }
-#endif  /* WANT_FLOAT */
+#if WANT_FLOAT32
+from_t mhs_peek_flt32(int s) { return mhs_from_Float(s, 1, peek_flt32(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_flt32(int s) { poke_flt32(mhs_to_Ptr(s, 0), mhs_to_Float(s, 1)); return mhs_from_Unit(s, 2); }
+#endif  /* WANT_FLOAT32 */
+#if WANT_FLOAT64
+from_t mhs_peek_flt64(int s) { return mhs_from_Float(s, 1, peek_flt64(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_flt64(int s) { poke_flt64(mhs_to_Ptr(s, 0), mhs_to_Float(s, 1)); return mhs_from_Unit(s, 2); }
+#endif  /* WANT_FLOAT64 */
 from_t mhs_sizeof_int(int s) { return mhs_from_Int(s, 0, sizeof(int)); }
 from_t mhs_sizeof_llong(int s) { return mhs_from_Int(s, 0, sizeof(long long)); }
 from_t mhs_sizeof_long(int s) { return mhs_from_Int(s, 0, sizeof(long)); }
@@ -6075,7 +6656,8 @@ from_t mhs_mpz_abs(int s) { mpz_abs(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return 
 from_t mhs_mpz_add(int s) { mpz_add(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_and(int s) { mpz_and(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_cmp(int s) { return mhs_from_Int(s, 2, mpz_cmp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-from_t mhs_mpz_get_d(int s) { return mhs_from_FloatW(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_get_d(int s) { return mhs_from_Double(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_get_f(int s) { return mhs_from_Float(s, 1, (float)mpz_get_d(mhs_to_Ptr(s, 0))); }
 from_t mhs_mpz_get_si(int s) { return mhs_from_Int(s, 1, mpz_get_si(mhs_to_Ptr(s, 0))); }
 from_t mhs_mpz_get_ui(int s) { return mhs_from_Word(s, 1, mpz_get_ui(mhs_to_Ptr(s, 0))); }
 from_t mhs_mpz_init_set_si(int s) { mpz_init_set_si(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
@@ -6108,6 +6690,7 @@ struct ffi_entry ffi_table[] = {
   { "GETRAW", 0, mhs_GETRAW},
   { "GETTIMEMILLI", 0, mhs_GETTIMEMILLI},
 #if WANT_MATH
+#if WANT_FLOAT64
   { "acos", 1, mhs_acos},
   { "asin", 1, mhs_asin},
   { "atan", 1, mhs_atan},
@@ -6118,6 +6701,21 @@ struct ffi_entry ffi_table[] = {
   { "sin", 1, mhs_sin},
   { "sqrt", 1, mhs_sqrt},
   { "tan", 1, mhs_tan},
+  { "scalbn", 2, mhs_scalbn},
+#endif  /* WANT_FLOAT64 */
+#if WANT_FLOAT32
+  { "acosf", 1, mhs_acosf},
+  { "asinf", 1, mhs_asinf},
+  { "atanf", 1, mhs_atanf},
+  { "atan2f", 2, mhs_atan2f},
+  { "cosf", 1, mhs_cosf},
+  { "expf", 1, mhs_expf},
+  { "logf", 1, mhs_logf},
+  { "sinf", 1, mhs_sinf},
+  { "sqrtf", 1, mhs_sqrtf},
+  { "tanf", 1, mhs_tanf},
+  { "scalbnf", 2, mhs_scalbnf},
+#endif  /* WANT_FLOAT32 */
 #endif  /* WANT_MATH */
 
 #if WANT_STDIO

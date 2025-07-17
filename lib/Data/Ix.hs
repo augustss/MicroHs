@@ -4,7 +4,7 @@ import Control.Error
 import Data.Bool
 import Data.Char
 import Data.Enum
-import Data.Int
+import Data.Int.Int
 import Data.Integer
 import Data.Integral
 import Data.List

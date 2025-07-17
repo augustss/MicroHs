@@ -10,7 +10,7 @@ import Data.Coerce
 import Data.Eq
 import Data.Function
 import Data.Functor
-import Data.Int
+import Data.Int.Int
 import Data.Ord
 import Data.Records   -- needed since we don't import Mhs.Builtin
 import Text.Show

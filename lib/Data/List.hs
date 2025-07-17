@@ -36,7 +36,7 @@ import Data.Char
 import Data.Eq
 import Data.Function
 import Data.Functor hiding(unzip)
-import Data.Int
+import Data.Int.Int
 import Data.Integral
 import Data.List_Type
 import Data.Maybe_Type

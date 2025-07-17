@@ -1,10 +1,11 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE CPP #-}
-module MHSPrelude(module Prelude, module Control.DeepSeq, module Control.Arrow, module MHSPrelude, Type) where
+module MHSPrelude(module Prelude, module Control.DeepSeq, module Control.Arrow, module MHSPrelude, Type, Int64) where
 import Prelude
 import Control.Arrow(first, second)
 import Control.DeepSeq
 import Control.Exception
+import Data.Int
 import Data.Maybe
 import Data.List
 import Data.Text(Text, append, pack)

@@ -181,10 +181,10 @@ cTypeHsName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 cHsTypes :: [(String, String)]
 cHsTypes =
   -- These are temporary
-  [ ("Primitives.FloatW", "FloatW")
+  [ ("Primitives.Float",  "Float")
+  , ("Primitives.Double", "Double")
   , ("Primitives.Int",    "Int")
   , ("Primitives.Word",   "Word")
-  , ("Data.Double.Double","FloatW")
   , ("Data.Word.Word8",   "Word8")
   , ("Data.Word.Word16",  "Word16")
   , ("Data.Word.Word32",  "Word32")
@@ -221,7 +221,8 @@ cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 cTypes :: [(String, String)]
 cTypes =
   -- These are temporary
-  [ ("Primitives.FloatW", "flt_t")
+  [ ("Primitives.Float",  "flt32_t")
+  , ("Primitives.Double", "flt64_t")
   , ("Primitives.Int",    "intptr_t")   -- value_t
   , ("Primitives.Word",   "uintptr_t")  -- uvalue_t
   , ("Data.Word.Word8",   "uint8_t")
@@ -253,8 +254,7 @@ jsTypeNameR t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: 
 jsTypesR :: [(String, String)]
 jsTypesR =
   [ ("Primitives.Int",    "INT")
-  , ("Primitives.FloatW", "DOUBLE")
-  , ("Data.Double.Double","DOUBLE")
+  , ("Primitives.Double", "DOUBLE")
   ]
 
 jsTypeName :: EType -> String
@@ -265,8 +265,7 @@ jsTypeName t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: "
 jsTypes :: [(String, String)]
 jsTypes =
   [ ("Primitives.Int",    "Int")
-  , ("Primitives.FloatW", "FloatW")
-  , ("Data.Double.Double","FloatW")
+  , ("Primitives.Double", "Double")
   ]
 
 -- These are already in the runtime
@@ -276,6 +275,8 @@ runtimeFFI = [
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "iswindows", "log", "malloc",
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", "realloc", "strlen", "strcpy",
   "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "unlink",
+  "acosf", "asinf", "atanf", "atan2f", "cosf", "expf", "logf", "sinf", "sqrtf", "tanf",
+  "scalbn", "scalbnf",
   "readb", "writeb",
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
   "add_lz77_compressor", "add_lz77_decompressor",
@@ -288,7 +289,8 @@ runtimeFFI = [
   "peek_ulong", "poke_ulong", "peek_long", "poke_long",
   "peek_ullong", "poke_ullong", "peek_llong", "poke_llong",
   "peek_size_t", "poke_size_t",
-  "peek_flt", "poke_flt",
+  "peek_flt32", "poke_flt32",
+  "peek_flt64", "poke_flt64",
   "sizeof_int", "sizeof_long", "sizeof_llong", "sizeof_size_t",
   "opendir", "closedir", "readdir", "c_d_name", "chdir", "mkdir", "getcwd",
   "getcpu",

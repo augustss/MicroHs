@@ -22,7 +22,7 @@ import Data.ByteString (ByteString, isValidUtf8)
 import Data.ByteString qualified as BS
 import Data.Char
 import Data.Text
-import Data.Word (Word8)
+import Data.Word.Word8(Word8)
 import Unsafe.Coerce (unsafeCoerce)
 
 intToWord8 :: Int -> Word8

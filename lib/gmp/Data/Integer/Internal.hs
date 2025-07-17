@@ -10,7 +10,8 @@ module Data.Integer.Internal(
   shiftLI, shiftRI,
   testBitI, popCountI,
   _intToInteger,
-  _integerToFloatW,
+  _integerToFloat,
+  _integerToDouble,
   _integerToInt,
   _wordToInteger,
   ) where

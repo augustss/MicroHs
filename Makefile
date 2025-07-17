@@ -85,7 +85,7 @@ newmhs:	ghcgen targets.conf
 
 newmhsz:	newmhs
 	rm generated/mhs.c
-	make generated/mhs.c
+	$(MAKE) generated/mhs.c
 
 sanitizemhs:	ghcgen targets.conf
 	$(CCEVAL) $(CCSANITIZE) generated/mhs.c $(CCLIBS) -o bin/mhssane
@@ -184,27 +184,27 @@ bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe/.git
 
 # Run test examples with ghc-compiled compiler
 runtest:	bin/mhseval bin/gmhs tests/*.hs
-	cd tests; make alltest
+	cd tests; $(MAKE) alltest
 
 # Run test examples with mhs-compiled compiler
 runtestmhs: bin/mhseval bin/mhs
-	cd tests; make MHS=../bin/mhs cache; make MHS="../bin/mhs +RTS -H4M -RTS -CR" alltest
+	cd tests; $(MAKE) MHS=../bin/mhs cache; $(MAKE) MHS="../bin/mhs +RTS -H4M -RTS -CR" alltest
 
 # Run test examples with sanitized mhs-compiled compiler
 runtestsan: bin/mhsevalsane sanitizemhs
-	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CW" cache
-	cd tests; make MHS="../bin/mhssane +RTS -H4M -RTS -CR" EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
+	cd tests; $(MAKE) MHS="../bin/mhssane +RTS -H4M -RTS -CW" cache
+	cd tests; $(MAKE) MHS="../bin/mhssane +RTS -H4M -RTS -CR" EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
 
 runtestgsan: bin/mhsevalsane bin/gmhs
-	cd tests; make EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
+	cd tests; $(MAKE) EVAL="../bin/mhsevalsane +RTS -H1M -RTS" info test errtest
 
 # Run test examples going via JavaScript
 runtestemscripten: bin/mhseval bin/mhs bin/cpphs
-	cd tests; make MHS=../bin/mhs cache; MHSDIR=.. make MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" info test errtest
+	cd tests; $(MAKE) MHS=../bin/mhs cache; MHSDIR=.. $(MAKE) MHSTARGET="-temscripten" MHS="../bin/mhs -CR -oout.js" EVAL="$(NODE) $(NODEFLAGS) out.js" info test errtest
 
 # Run test examples going with tcc
 runtesttcc: bin/mhseval bin/mhs bin/cpphs
-	cd tests; MHSDIR=.. make MHSTARGET="-ttcc" MHSOUTPUT="-oa.out" EVAL="./a.out" info test errtest
+	cd tests; MHSDIR=.. $(MAKE) MHSTARGET="-ttcc" MHSOUTPUT="-oa.out" EVAL="./a.out" info test errtest
 
 
 # Compress the binary (broken on MacOS)
@@ -248,7 +248,7 @@ cachelib:
 #
 clean:
 	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache .mhscache dist-mcabal Interactive.hs .mhsi lib/*.pkg
-	cd tests; make clean
+	cd tests; $(MAKE) clean
 	-cabal clean
 	-git submodule deinit cpphssrc/malcolm-wallace-universe
 	-git submodule deinit MicroCabal
@@ -343,7 +343,7 @@ $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 
 preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c
-	make generated/mcabal.c
+	$(MAKE) generated/mcabal.c
 
 install:	installmsg minstall
 

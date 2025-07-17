@@ -613,15 +613,15 @@ instance Read Word where
 
 -- | @since base-2.01
 instance Read Word8 where
-    readsPrec p s = [(fromIntegral (x::Int), r) | (x, r) <- readsPrec p s]
+    readsPrec p s = [(fromIntegral (x::Word), r) | (x, r) <- readsPrec p s]
 
 -- | @since base-2.01
 instance Read Word16 where
-    readsPrec p s = [(fromIntegral (x::Int), r) | (x, r) <- readsPrec p s]
+    readsPrec p s = [(fromIntegral (x::Word), r) | (x, r) <- readsPrec p s]
 
 -- | @since base-2.01
 instance Read Word32 where
-    readsPrec p s = [(fromInteger x, r) | (x, r) <- readsPrec p s]
+    readsPrec p s = [(fromIntegral (x::Word), r) | (x, r) <- readsPrec p s]
 
 -- | @since base-2.01
 instance Read Word64 where
@@ -796,3 +796,15 @@ instance (Read a, Read b, Read c, Read d, Read e, Read f, Read g, Read h,
                           ; return (a,b,c,d,e,f,g,h,i,j) })
   readListPrec = readListPrecDefault
   readList     = readListDefault
+
+instance Read Int8 where
+    readsPrec p s = [(fromIntegral (x::Int), r) | (x, r) <- readsPrec p s]
+
+instance Read Int16 where
+    readsPrec p s = [(fromIntegral (x::Int), r) | (x, r) <- readsPrec p s]
+
+instance Read Int32 where
+    readsPrec p s = [(fromIntegral (x::Int), r) | (x, r) <- readsPrec p s]
+
+instance Read Int64 where
+    readsPrec p s = [(fromInteger x, r) | (x, r) <- readsPrec p s]

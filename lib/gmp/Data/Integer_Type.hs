@@ -2,7 +2,8 @@ module Data.Integer_Type(
   Integer(..),
   MPZ, newMPZ,
   _intToInteger, _wordToInteger, _integerToInt, _integerToWord,
-  _integerToFloatW,
+  _integerToFloat,
+  _integerToDouble,
   ) where
 import qualified Prelude()
 import Primitives
@@ -27,7 +28,8 @@ foreign import capi "mpz_init_set_si" mpz_init_set_si :: Ptr MPZ -> Int -> IO ()
 foreign import capi "mpz_init_set_ui" mpz_init_set_ui :: Ptr MPZ -> Word -> IO ()
 foreign import capi "mpz_get_si"      mpz_get_si      :: Ptr MPZ -> IO Int
 foreign import capi "mpz_get_ui"      mpz_get_ui      :: Ptr MPZ -> IO Word
-foreign import capi "mpz_get_d"       mpz_get_d       :: Ptr MPZ -> IO FloatW
+foreign import capi "mpz_get_f"       mpz_get_f       :: Ptr MPZ -> IO Float
+foreign import capi "mpz_get_d"       mpz_get_d       :: Ptr MPZ -> IO Double
 
 newMPZ :: IO (ForeignPtr MPZ)
 newMPZ =
@@ -54,5 +56,8 @@ _integerToInt (I x) = primPerformIO (withForeignPtr x mpz_get_si)
 _integerToWord :: Integer -> Word
 _integerToWord (I x) = primPerformIO (withForeignPtr x mpz_get_ui)
 
-_integerToFloatW :: Integer -> FloatW
-_integerToFloatW (I x) = primPerformIO (withForeignPtr x mpz_get_d)
+_integerToFloat :: Integer -> Float
+_integerToFloat (I x) = primPerformIO (withForeignPtr x mpz_get_f)
+
+_integerToDouble :: Integer -> Double
+_integerToDouble (I x) = primPerformIO (withForeignPtr x mpz_get_d)

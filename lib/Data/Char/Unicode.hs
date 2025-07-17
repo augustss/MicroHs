@@ -16,7 +16,7 @@ import Data.Bounded
 import qualified Data.ByteString.Internal as BS
 import Data.ByteString.Internal(ByteString)
 import Data.Version
-import Data.Word(Word8)
+import Data.Word.Word8(Word8)
 
 data GeneralCategory
   = UppercaseLetter       -- Lu: Letter, Uppercase

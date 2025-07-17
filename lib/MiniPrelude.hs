@@ -10,7 +10,7 @@ module MiniPrelude(
   module Data.Function,
   module Data.Functor,
   module Data.Ord,
-  module Data.Int,
+  module Data.Int.Int,
   module Data.Integral,
   module Data.List,
   module Data.Maybe,
@@ -35,7 +35,7 @@ import Data.Either
 import Data.Function
 import Data.Functor
 import Data.Ord
-import Data.Int
+import Data.Int.Int
 import Data.Integral
 import Data.List([](..), map, (++), filter, head, last, tail, init, null, length, (!!),
                  reverse, foldl, foldl1, foldr, foldr1, and, or, any, all,

@@ -43,7 +43,7 @@ import Data.Bool
 import Data.Bounded
 import Data.Eq
 import Data.Function
-import Data.Int
+import Data.Int.Int
 import Data.Integer
 import Data.Integral
 import Data.List

@@ -162,7 +162,7 @@ import Data.Function (($!))
 import Data.Monoid.Internal
 import Data.Semigroup
 import Data.String
-import Data.Word (Word8)
+import Data.Word.Word8(Word8)
 import Foreign.C.String (CString, CStringLen)
 import Foreign.C.Types (CChar)
 import Foreign.Ptr (Ptr)

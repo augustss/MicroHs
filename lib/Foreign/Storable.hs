@@ -5,7 +5,6 @@ import Control.Error(undefined)
 import Foreign.C.Types
 import Foreign.Ptr
 import Data.Int
-import Data.Int.Instances
 import Data.Word
 
 class Storable a where
@@ -195,14 +194,23 @@ instance Storable CSize where
   peek p      = c_peek_size_t p
   poke p w    = c_poke_size_t p w
 
-foreign import ccall "peek_flt" c_peek_flt :: Ptr FloatW -> IO FloatW
-foreign import ccall "poke_flt" c_poke_flt :: Ptr FloatW -> FloatW -> IO ()
+foreign import ccall "peek_flt32" c_peek_flt32 :: Ptr Float -> IO Float
+foreign import ccall "poke_flt32" c_poke_flt32 :: Ptr Float -> Float -> IO ()
 
-instance Storable FloatW where
-  sizeOf    _ = _wordSize
-  alignment _ = _wordSize
-  peek p      = c_peek_flt p
-  poke p w    = c_poke_flt p w
+instance Storable Float where
+  sizeOf    _ = 4
+  alignment _ = 4
+  peek p      = c_peek_flt32 p
+  poke p w    = c_poke_flt32 p w
+
+foreign import ccall "peek_flt64" c_peek_flt64 :: Ptr Double -> IO Double
+foreign import ccall "poke_flt64" c_poke_flt64 :: Ptr Double -> Double -> IO ()
+
+instance Storable Double where
+  sizeOf    _ = 8
+  alignment _ = 8
+  peek p      = c_peek_flt64 p
+  poke p w    = c_poke_flt64 p w
 
 foreign import ccall "sizeof_int" c_sizeof_int :: IO Int
 foreign import ccall "sizeof_long" c_sizeof_long :: IO Int

@@ -5,7 +5,7 @@ import qualified Prelude(); import MiniPrelude
 import Primitives(primPerformIO)
 import Control.DeepSeq.Class
 import Data.Coerce
-import Data.Word
+import Data.Word.Word
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array

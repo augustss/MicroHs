@@ -4,7 +4,7 @@ import Primitives
 import Control.Error
 import Data.Bool
 import Data.Eq
-import Data.Int
+import Data.Int.Int
 import Data.Maybe
 import Data.Ord
 import Data.Num

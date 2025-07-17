@@ -10,7 +10,7 @@ import Data.Eq
 import Data.Function
 import Data.Functor
 import Data.Functor.Const_Type
-import Data.Int
+import Data.Int.Int
 import Data.Monoid.Internal
 import Data.Ord
 import Text.Show

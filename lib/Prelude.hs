@@ -15,7 +15,7 @@ module Prelude(
   module Data.Fractional,
   module Data.Function,
   module Data.Functor,
-  module Data.Int,
+  module Data.Int.Int,
   module Data.Integer,
   module Data.Integral,
   module Data.List,
@@ -31,7 +31,7 @@ module Prelude(
   module Data.Semigroup,
   module Data.String,
   module Data.Tuple,
-  module Data.Word,
+  module Data.Word.Word,
   module System.IO,
   module System.IO.Error,
   module Text.Read,
@@ -50,7 +50,7 @@ import Data.Bool(Bool(..), (&&), (||), not, otherwise)
 import Data.Bounded(Bounded(..))
 import Data.Char(Char, String)
 import Data.Double(Double)
-import Data.FloatW(FloatW)
+import Data.Float(Float)
 import Data.Either(Either(..), either)
 import Data.Enum(Enum(..))
 import Data.Eq(Eq(..))
@@ -59,8 +59,7 @@ import Data.Floating(Floating(..))
 import Data.Fractional(Fractional(..), (^^), realToFrac)
 import Data.Function(id, const, (.), flip, ($), seq, ($!), until, asTypeOf)
 import Data.Functor(Functor(..), (<$>))
-import Data.Int(Int)
-import Data.Int.Instances
+import Data.Int.Int(Int)
 import Data.Integer(Integer)
 import Data.Integral(Integral(..), fromIntegral, gcd, lcm, even, odd, (^))
 import Data.List([](..), map, (++), filter, head, last, tail, init, null, length, (!!),
@@ -82,7 +81,7 @@ import Data.Records  -- XXX redo this somehow
 import Data.Semigroup(Semigroup((<>)))
 import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(fst, snd, curry, uncurry)
-import Data.Word(Word)
+import Data.Word.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                  FilePath, readFile, writeFile, appendFile, readLn, readIO,
                  cprint, cuprint)

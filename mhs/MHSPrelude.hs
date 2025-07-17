@@ -11,10 +11,11 @@ module MHSPrelude(
   module Data.Either,
   module Data.Enum,
   module Data.Eq,
+  module Data.Float,
   module Data.Fractional,
   module Data.Function,
   module Data.Functor,
-  module Data.Int,
+  module Data.Int.Int,
   module Data.Integer,
   module Data.Integral,
   module Data.List,
@@ -34,8 +35,10 @@ module MHSPrelude(
   appendDot,
   wantGMP,
   compiledWithMhs,
+  Int64,
   ) where
 import qualified Prelude()
+import Primitives(Int64)
 --import Primitives(primRnfNoErr, primRnfErr)
 import Control.Applicative(Applicative(..))
 import Control.DeepSeq.Class
@@ -49,11 +52,11 @@ import Data.Double(Double)
 import Data.Either(Either(..), either)
 import Data.Enum(Enum(..))
 import Data.Eq(Eq(..))
+import Data.Float(Float)
 import Data.Fractional(Fractional(..), (^^), realToFrac)
 import Data.Function(id, const, (.), flip, ($), seq, ($!), until, asTypeOf)
 import Data.Functor(Functor(..), (<$>))
-import Data.Int(Int)
-import Data.Int.Instances
+import Data.Int.Int(Int)
 import Data.Integer(Integer)
 import Data.Integral(Integral(..), fromIntegral, gcd, lcm, even, odd, (^))
 import Data.List([](..), map, (++), filter, head, last, tail, init, null, length, (!!),
@@ -72,7 +75,6 @@ import Data.Real(Real(..))
 import Data.Records  -- needed for data types with fields
 import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(fst, snd, curry, uncurry)
-import Data.Word(Word)
 import System.IO.Base(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                       FilePath, readFile, writeFile, appendFile,
                       cprint, cuprint)

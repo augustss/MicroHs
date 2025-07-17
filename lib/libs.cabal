@@ -65,7 +65,7 @@ library base
         Data.Eq
         Data.Fixed
         Data.Float
-        Data.FloatW
+        Data.Float
         Data.Floating
         Data.Foldable
         Data.Foldable1
@@ -83,6 +83,11 @@ library base
         Data.IOArray
         Data.IORef
         Data.Int
+        Data.Int.Int
+        Data.Int.Int8
+        Data.Int.Int16
+        Data.Int.Int32
+        Data.Int.Int64
         Data.Integer
         Data.Integral
         Data.Ix
@@ -117,6 +122,11 @@ library base
         Data.Version
         Data.Void
         Data.Word
+        Data.Word.Word
+        Data.Word.Word8
+        Data.Word.Word16
+        Data.Word.Word32
+        Data.Word.Word64
         Data.ZipList
         Debug.Trace
         Foreign

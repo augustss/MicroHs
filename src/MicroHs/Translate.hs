@@ -36,7 +36,9 @@ trans r ae =
     Var n -> r n
     App f a -> unsafeCoerce (trans r f) (trans r a)
     Lit (LInt i) -> unsafeCoerce i
+    Lit (LInt64 i) -> unsafeCoerce i
     Lit (LDouble i) -> unsafeCoerce i
+    Lit (LFloat i) -> unsafeCoerce i
     Lit (LStr s) -> trans r (encodeString s)
     Lit (LBStr s) -> unsafeCoerce (Data.String.fromString s :: ByteString)
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
@@ -110,9 +112,19 @@ primTable = [
   ("f>", _primitive "f>"),
   ("f>=", _primitive "f>="),
   ("fneg", _primitive "fneg"),
-  ("fshow", _primitive "fshow"),
-  ("fread", _primitive "fread"),
   ("itof", _primitive "itof"),
+  ("d+", _primitive "d+"),
+  ("d-", _primitive "d-"),
+  ("d*", _primitive "d*"),
+  ("d/", _primitive "d/"),
+  ("d==", _primitive "d=="),
+  ("d/=", _primitive "d/="),
+  ("d<", _primitive "d<"),
+  ("d<=", _primitive "d<="),
+  ("d>", _primitive "d>"),
+  ("d>=", _primitive "d>="),
+  ("dneg", _primitive "dneg"),
+  ("itod", _primitive "itod"),
   ("seq", _primitive "seq"),
   ("sequal", _primitive "sequal"),
   ("equal", _primitive "equal"),
@@ -142,6 +154,9 @@ primTable = [
   ("toInt", _primitive "toInt"),
   ("toPtr", _primitive "toPtr"),
   ("toDbl", _primitive "toDbl"),
+  ("toFlt", _primitive "toFlt"),
+  ("fromDbl", _primitive "fromDbl"),
+  ("fromFlt", _primitive "fromFlt"),
   ("toFunPtr", _primitive "toFunPtr"),
   ("A.alloc", _primitive "A.alloc"),
   ("A.copy", _primitive "A.copy"),
@@ -191,5 +206,39 @@ primTable = [
   ("isint", _primitive "isint"),
   ("SPnew", _primitive "SPnew"),
   ("SPderef", _primitive "SPderef"),
-  ("SPfree", _primitive "SPfree")
+  ("SPfree", _primitive "SPfree"),
+
+  ("I+", _primitive "I+"),
+  ("I-", _primitive "I-"),
+  ("I*", _primitive "I*"),
+  ("Iquot", _primitive "Iquot"),
+  ("Irem", _primitive "Irem"),
+  ("Iuquot", _primitive "Iuquot"),
+  ("Iurem", _primitive "Iurem"),
+  ("Iand", _primitive "Iand"),
+  ("Ior", _primitive "Ior"),
+  ("Ixor", _primitive "Ixor"),
+  ("Ishl", _primitive "Ishl"),
+  ("Ishr", _primitive "Ishr"),
+  ("Iashr", _primitive "Iashr"),
+  ("Iinv", _primitive "Iinv"),
+  ("Ipopcount", _primitive "Ipopcount"),
+  ("Iclz", _primitive "Iclz"),
+  ("Ictz", _primitive "Ictz"),
+  ("I==", _primitive "I=="),
+  ("I/=", _primitive "I/="),
+  ("I<", _primitive "I<"),
+  ("I<=", _primitive "I<="),
+  ("I>", _primitive "I>"),
+  ("Iicmp", _primitive "Iicmp"),
+  ("I>=", _primitive "I>="),
+  ("Iu<", _primitive "Iu<"),
+  ("Iu<=", _primitive "Iu<="),
+  ("Iu>", _primitive "Iu>"),
+  ("Iu>=", _primitive "Iu>="),
+  ("Iucmp", _primitive "Iucmp"),
+  ("itoI", _primitive "itoI"),
+  ("Itoi", _primitive "Itoi"),
+  ("utoU", _primitive "utoU"),
+  ("Utou", _primitive "Utou")
   ]

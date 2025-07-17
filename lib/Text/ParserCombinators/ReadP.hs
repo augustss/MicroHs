@@ -76,7 +76,7 @@ import Data.Char
 import Data.Eq
 import Data.Function
 import Data.Functor
-import Data.Int
+import Data.Int.Int
 import Data.Num
 import Data.List
 import Data.List.NonEmpty

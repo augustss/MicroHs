@@ -8,14 +8,14 @@ import Data.Coerce
 import Data.Enum
 import Data.Eq
 import Data.Function
-import Data.Int
+import Data.Int.Int
 import Data.List (map)
 import Data.List_Type
 import Data.Monoid.Internal
 import Data.Num
 import Data.Ord
 import Data.String
-import Data.Word(Word8)
+import Data.Word.Word8(Word8)
 import Foreign.C.Types(CChar)
 import Text.Show
 

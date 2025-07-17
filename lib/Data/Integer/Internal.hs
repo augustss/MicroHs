@@ -10,26 +10,27 @@ module Data.Integer.Internal(
   shiftLI, shiftRI,
   testBitI, popCountI,
   _intToInteger,
-  _integerToFloatW,
+  _integerToFloat,
+  _integerToDouble,
   _integerToInt,
   _wordToInteger,
   ) where
 import qualified Prelude()              -- do not import Prelude
---import Primitives
 import Control.Error
+import Control.Exception.Internal
 import Data.Bits
 import Data.Bool
 import Data.Enum
 import Data.Eq
 import Data.Function
-import Data.Int
+import Data.Int.Int
 import Data.Integral
 import Data.List
 import Data.Maybe_Type
 import Data.Num
 import Data.Ord
-import Data.Word
 import Data.Integer_Type
+import Data.Word.Word64
 
 isZero :: Integer -> Bool
 isZero (I _ ds) = null ds
@@ -43,7 +44,7 @@ instance Eq Sign where
 sI :: Sign -> [Digit] -> Integer
 sI s ds =
   -- Remove trailing 0s
-  case dropWhileEnd (== (0 :: Word)) ds of
+  case dropWhileEnd (== (0 :: Word64)) ds of
     []  -> I Plus []
     ds' -> I s    ds'
 
@@ -129,7 +130,7 @@ mulD ci (x:xs) y = r : mulD q xs y
 mulM :: [Digit] -> [Digit] -> [Digit]
 mulM xs ys =
   let rs = map (mulD zeroD xs) ys
-      ss = zipWith (++) (map (`replicate` (0 :: Word)) [0 :: Int ..]) rs
+      ss = zipWith (++) (map (`replicate` (0 :: Word64)) [0 :: Int ..]) rs
   in  foldl1 add ss
 
 -- Signs:
@@ -138,7 +139,7 @@ mulM xs ys =
 --  - +  -> (-,-)
 --  - -  -> (+,-)
 quotRemI :: Integer -> Integer -> (Integer, Integer)
-quotRemI _         (I _  [])  = error "Integer: division by 0" -- n / 0
+quotRemI _         (I _  [])  = throw DivideByZero             -- n / 0
 quotRemI (I _  [])          _ = (I Plus [], I Plus [])         -- 0 / n
 quotRemI (I sx xs) (I sy ys) | Just (y, n) <- msd ys =
   -- All but the MSD are 0.  Scale numerator accordingly and divide.
@@ -181,7 +182,7 @@ quotRemB :: [Digit] -> [Digit] -> ([Digit], [Digit])
 quotRemB xs ys =
   let n  = I Plus xs
       d  = I Plus ys
-      a  = I Plus $ replicate (length ys - (1 :: Int)) (0 :: Word) ++ [last ys]  -- only MSD of ys
+      a  = I Plus $ replicate (length ys - (1 :: Int)) (0 :: Word64) ++ [last ys]  -- only MSD of ys
       aq = quotI n a
       ar = addI d oneI
       loop q r =

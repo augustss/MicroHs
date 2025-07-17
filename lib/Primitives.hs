@@ -29,9 +29,12 @@ data AnyType
 --data Char
 newtype Char = Char Word
 data Int
-data FloatW
+data Int64  -- same representation as Int on a 64 bit platform
+data Float
+data Double
 data IO a
 data Word
+data Word64
 data Ptr a
 data ForeignPtr a
 data FunPtr a
@@ -68,35 +71,57 @@ primIntGT   = _primitive ">"
 primIntGE   :: Int -> Int -> Bool
 primIntGE   = _primitive ">="
 
-primFloatWAdd :: FloatW -> FloatW -> FloatW
-primFloatWAdd  = _primitive "f+"
-primFloatWSub :: FloatW -> FloatW -> FloatW
-primFloatWSub  = _primitive "f-"
-primFloatWMul :: FloatW -> FloatW -> FloatW
-primFloatWMul  = _primitive "f*"
-primFloatWDiv :: FloatW -> FloatW -> FloatW
-primFloatWDiv = _primitive "f/"
-primFloatWNeg :: FloatW -> FloatW
-primFloatWNeg = _primitive "fneg"
+primFloatAdd :: Float -> Float -> Float
+primFloatAdd  = _primitive "f+"
+primFloatSub :: Float -> Float -> Float
+primFloatSub  = _primitive "f-"
+primFloatMul :: Float -> Float -> Float
+primFloatMul  = _primitive "f*"
+primFloatDiv :: Float -> Float -> Float
+primFloatDiv = _primitive "f/"
+primFloatNeg :: Float -> Float
+primFloatNeg = _primitive "fneg"
 
-primFloatWEQ :: FloatW -> FloatW -> Bool
-primFloatWEQ = _primitive "f=="
-primFloatWNE :: FloatW -> FloatW -> Bool
-primFloatWNE = _primitive "f/="
-primFloatWLT :: FloatW -> FloatW -> Bool
-primFloatWLT = _primitive "f<"
-primFloatWLE :: FloatW -> FloatW -> Bool
-primFloatWLE = _primitive "f<="
-primFloatWGT :: FloatW -> FloatW -> Bool
-primFloatWGT = _primitive "f>"
-primFloatWGE :: FloatW -> FloatW -> Bool
-primFloatWGE = _primitive "f>="
-primFloatWShow :: FloatW -> [Char]
-primFloatWShow = _primitive "fshow"
-primFloatWRead :: [Char] -> FloatW
-primFloatWRead = _primitive "fread"
-primFloatWFromInt :: Int -> FloatW
-primFloatWFromInt = _primitive "itof"
+primFloatEQ :: Float -> Float -> Bool
+primFloatEQ = _primitive "f=="
+primFloatNE :: Float -> Float -> Bool
+primFloatNE = _primitive "f/="
+primFloatLT :: Float -> Float -> Bool
+primFloatLT = _primitive "f<"
+primFloatLE :: Float -> Float -> Bool
+primFloatLE = _primitive "f<="
+primFloatGT :: Float -> Float -> Bool
+primFloatGT = _primitive "f>"
+primFloatGE :: Float -> Float -> Bool
+primFloatGE = _primitive "f>="
+primFloatFromInt64 :: Int64 -> Float
+primFloatFromInt64 = _primitive "itof"
+
+primDoubleAdd :: Double -> Double -> Double
+primDoubleAdd  = _primitive "d+"
+primDoubleSub :: Double -> Double -> Double
+primDoubleSub  = _primitive "d-"
+primDoubleMul :: Double -> Double -> Double
+primDoubleMul  = _primitive "d*"
+primDoubleDiv :: Double -> Double -> Double
+primDoubleDiv = _primitive "d/"
+primDoubleNeg :: Double -> Double
+primDoubleNeg = _primitive "dneg"
+
+primDoubleEQ :: Double -> Double -> Bool
+primDoubleEQ = _primitive "d=="
+primDoubleNE :: Double -> Double -> Bool
+primDoubleNE = _primitive "d/="
+primDoubleLT :: Double -> Double -> Bool
+primDoubleLT = _primitive "d<"
+primDoubleLE :: Double -> Double -> Bool
+primDoubleLE = _primitive "d<="
+primDoubleGT :: Double -> Double -> Bool
+primDoubleGT = _primitive "d>"
+primDoubleGE :: Double -> Double -> Bool
+primDoubleGE = _primitive "d>="
+primDoubleFromInt64 :: Int64 -> Double
+primDoubleFromInt64 = _primitive "itod"
 
 primWordAdd :: Word -> Word -> Word
 primWordAdd  = _primitive "+"
@@ -128,10 +153,14 @@ primWordClz :: Word -> Int
 primWordClz = _primitive "clz"
 primWordCtz :: Word -> Int
 primWordCtz = _primitive "ctz"
-primWordToFloatWRaw :: Word -> FloatW
-primWordToFloatWRaw = _primitive "toDbl"
-primWordFromFloatWRaw :: FloatW -> Word
-primWordFromFloatWRaw = _primitive "toInt"
+primWordToFloatRaw :: Word -> Float
+primWordToFloatRaw = _primitive "toFlt"
+primWord64ToDoubleRaw :: Word64 -> Double
+primWord64ToDoubleRaw = _primitive "toDbl"
+primWordFromFloatRaw :: Float -> Word
+primWordFromFloatRaw = _primitive "fromFlt"
+primWord64FromDoubleRaw :: Double -> Word64
+primWord64FromDoubleRaw = _primitive "fromDbl"
 
 primIntAnd :: Int -> Int -> Int
 primIntAnd  = _primitive "and"
@@ -193,15 +222,18 @@ primSeq    = _primitive "seq"
 --primEqual  :: forall a . a -> a -> Bool
 --primEqual  = _primitive "equal"
 
--- Works for Int, Char, String
 primStringCompare :: [Char] -> [Char] -> Ordering
 primStringCompare  = _primitive "scmp"
 primIntCompare :: Int -> Int -> Ordering
 primIntCompare  = _primitive "icmp"
+primInt64Compare :: Int64 -> Int64 -> Ordering
+primInt64Compare  = _primitive "Iicmp"
 primCharCompare :: Char -> Char -> Ordering
 primCharCompare  = _primitive "icmp"
 primWordCompare :: Word -> Word -> Ordering
 primWordCompare  = _primitive "ucmp"
+primWord64Compare :: Word64 -> Word64 -> Ordering
+primWord64Compare  = _primitive "Iucmp"
 
 primStringEQ  :: [Char] -> [Char] -> Bool
 primStringEQ  = _primitive "sequal"
@@ -351,3 +383,106 @@ primDeRefStablePtr :: Word -> IO a
 primDeRefStablePtr = _primitive "SPderef"
 primFreeStablePtr :: Word -> IO ()
 primFreeStablePtr = _primitive "SPfree"
+
+
+primInt64Add :: Int64 -> Int64 -> Int64
+primInt64Add  = _primitive "I+"
+primInt64Sub :: Int64 -> Int64 -> Int64
+primInt64Sub  = _primitive "I-"
+primInt64Mul :: Int64 -> Int64 -> Int64
+primInt64Mul  = _primitive "I*"
+primInt64Quot :: Int64 -> Int64 -> Int64
+primInt64Quot = _primitive "Iquot"
+primInt64Rem :: Int64 -> Int64 -> Int64
+primInt64Rem  = _primitive "Irem"
+primInt64SubR :: Int64 -> Int64 -> Int64
+primInt64SubR = _primitive "Isubtract"
+primInt64Neg :: Int64 -> Int64
+primInt64Neg = _primitive "Ineg"
+primInt64EQ   :: Int64 -> Int64 -> Bool
+primInt64EQ   = _primitive "I=="
+primInt64NE   :: Int64 -> Int64 -> Bool
+primInt64NE   = _primitive "I/="
+primInt64LT   :: Int64 -> Int64 -> Bool
+primInt64LT   = _primitive "I<"
+primInt64LE   :: Int64 -> Int64 -> Bool
+primInt64LE   = _primitive "I<="
+primInt64GT   :: Int64 -> Int64 -> Bool
+primInt64GT   = _primitive "I>"
+primInt64GE   :: Int64 -> Int64 -> Bool
+primInt64GE   = _primitive "I>="
+primInt64And :: Int64 -> Int64 -> Int64
+primInt64And  = _primitive "and"
+primInt64Or :: Int64 -> Int64 -> Int64
+primInt64Or  = _primitive "or"
+primInt64Xor :: Int64 -> Int64 -> Int64
+primInt64Xor  = _primitive "xor"
+primInt64Shl :: Int64 -> Int -> Int64
+primInt64Shl  = _primitive "shl"
+primInt64Shr :: Int64 -> Int -> Int64
+primInt64Shr  = _primitive "ashr"
+primInt64Inv :: Int64 -> Int64
+primInt64Inv  = _primitive "inv"
+primInt64Popcount :: Int64 -> Int
+primInt64Popcount = _primitive "popcount"
+primInt64Clz :: Int64 -> Int
+primInt64Clz = _primitive "clz"
+primInt64Ctz :: Int64 -> Int
+primInt64Ctz = _primitive "ctz"
+
+primWord64Add :: Word64 -> Word64 -> Word64
+primWord64Add  = _primitive "I+"
+primWord64Sub :: Word64 -> Word64 -> Word64
+primWord64Sub  = _primitive "I-"
+primWord64Mul :: Word64 -> Word64 -> Word64
+primWord64Mul  = _primitive "I*"
+primWord64Quot :: Word64 -> Word64 -> Word64
+primWord64Quot = _primitive "Iuquot"
+primWord64Rem :: Word64 -> Word64 -> Word64
+primWord64Rem  = _primitive "Iurem"
+primWord64And :: Word64 -> Word64 -> Word64
+primWord64And  = _primitive "Iand"
+primWord64Or :: Word64 -> Word64 -> Word64
+primWord64Or  = _primitive "Ior"
+primWord64Xor :: Word64 -> Word64 -> Word64
+primWord64Xor  = _primitive "Ixor"
+primWord64Shl :: Word64 -> Int -> Word64
+primWord64Shl  = _primitive "Ishl"
+primWord64Shr :: Word64 -> Int -> Word64
+primWord64Shr  = _primitive "Ishr"
+primWord64Ashr :: Word64 -> Int -> Word64
+primWord64Ashr  = _primitive "Iashr"
+primWord64Inv :: Word64 -> Word64
+primWord64Inv  = _primitive "Iinv"
+primWord64Popcount :: Word64 -> Int
+primWord64Popcount = _primitive "Ipopcount"
+primWord64Clz :: Word64 -> Int
+primWord64Clz = _primitive "Iclz"
+primWord64Ctz :: Word64 -> Int
+primWord64Ctz = _primitive "Ictz"
+primWord64EQ  :: Word64 -> Word64 -> Bool
+primWord64EQ  = _primitive "I=="
+primWord64NE  :: Word64 -> Word64 -> Bool
+primWord64NE  = _primitive "I/="
+primWord64LT  :: Word64 -> Word64 -> Bool
+primWord64LT  = _primitive "Iu<"
+primWord64LE   :: Word64 -> Word64 -> Bool
+primWord64LE   = _primitive "Iu<="
+primWord64GT   :: Word64 -> Word64 -> Bool
+primWord64GT   = _primitive "Iu>"
+primWord64GE   :: Word64 -> Word64 -> Bool
+primWord64GE   = _primitive "Iu>="
+
+primWord64ToInt64 :: Word64 -> Int64
+primWord64ToInt64 = _primitive "I"
+primInt64ToWord64 :: Int64 -> Word64
+primInt64ToWord64 = _primitive "I"
+
+primIntToInt64 :: Int -> Int64
+primIntToInt64 = _primitive "itoI"
+primInt64ToInt :: Int64 -> Int
+primInt64ToInt = _primitive "Itoi"
+primWordToWord64 :: Word -> Word64
+primWordToWord64 = _primitive "utoU"
+primWord64ToWord :: Word64 -> Word
+primWord64ToWord = _primitive "Utou"
