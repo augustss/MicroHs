@@ -236,7 +236,7 @@ eWOULDBLOCK = Errno cWOULDBLOCK; foreign import capi "value EWOULDBLOCK" cWOULDB
 isValidErrno               :: Errno -> Bool
 isValidErrno (Errno errno)  = errno /= -1
 
-foreign import ccall unsafe "sys/errno.h &errno" c_errno_ptr :: IO (Ptr Int)
+foreign import ccall unsafe "errno.h &errno" c_errno_ptr :: IO (Ptr Int)
 
 getErrno :: IO Errno
 getErrno = do
