@@ -5518,7 +5518,13 @@ mhs_init_args(
 #endif
 
 #if WANT_SIGINT
-  (void)signal(SIGINT, handle_sigint);
+  {
+    (void)signal(SIGINT, handle_sigint);
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGINT);
+    sigprocmask(SIG_UNBLOCK, &set, NULL);
+  }
 #endif
 
   heap_size = HEAP_CELLS;       /* number of heap cells */
