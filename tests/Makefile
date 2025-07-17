@@ -38,6 +38,7 @@ test:
 	$(TMHS) Catch      && $(EVAL) > Catch.out      && diff Catch.ref Catch.out
 	$(TMHS) DArith     && $(EVAL) > DArith.out     && diff DArith.ref DArith.out
 	$(TMHS) FArith     && $(EVAL) > FArith.out     && diff FArith.ref FArith.out
+	$(TMHS) RealFloat  && $(EVAL) > RealFloat.out  && diff RealFloat.ref RealFloat.out
 	$(TMHS) Infix      && $(EVAL) > Infix.out      && diff Infix.ref Infix.out
 	$(TMHS) Class      && $(EVAL) > Class.out      && diff Class.ref Class.out
 	$(TMHS) Eq         && $(EVAL) > Eq.out         && diff Eq.ref Eq.out

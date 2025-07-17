@@ -3578,7 +3578,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     break;
   case T_INT: putb('#', f); putdecb(GETVALUE(n), f); break;
 #if NEED_INT64
-  case T_INT64: putb('#', f); putb('#', f); putdecb64(GETVALUE(n), f); break;
+  case T_INT64: putb('#', f); putb('#', f); putdecb64(GETINT64VALUE(n), f); break;
 #endif  /* NEED_INT64 */
   case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
   case T_FLT32: putb('&', f); putb('&', f); putdblb((double)GETFLTVALUE(n), f); break;
@@ -4761,7 +4761,18 @@ evali(NODEPTR an)
     PUSH(combUNFLT1);
     goto top;
 
-  case T_ITOF: OPINT1(rd = (flt32_t)xi); SETFLT(n, rd); RET;
+  case T_ITOF:
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+#if SANITY
+    if (GETTAG(x) != T_INT64)
+      ERR("itod tag");
+#endif
+    rd = (flt32_t)GETINT64VALUE(x);
+    POP(1);
+    n = TOP(-1);
+    SETFLT(n, rd);
+    RET;
 
 #endif  /* WANT_FLOAT32 */
 
@@ -4786,7 +4797,18 @@ evali(NODEPTR an)
     PUSH(combUNDBL1);
     goto top;
 
-  case T_ITOD: OPINT1(rd = (flt64_t)xi); SETDBL(n, rd); RET;
+  case T_ITOD:
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+#if SANITY
+    if (GETTAG(x) != T_INT64)
+      ERR("itod tag");
+#endif
+    rd = (flt64_t)GETINT64VALUE(x);
+    POP(1);
+    n = TOP(-1);
+    SETDBL(n, rd);
+    RET;
 
 #endif  /* WANT_FLOAT64 */
 
@@ -5712,7 +5734,7 @@ evali(NODEPTR an)
         //fprintf(stderr, "tag=%d\n", GETTAG(FUN(TOP(0))));
         ERR("BININT64");
       }
-      SETINT64(n, (value_t)r64u);
+      SETINT64(n, (int64_t)r64u);
       goto ret;
 
     case T_UNINT64_1:
@@ -5721,7 +5743,7 @@ evali(NODEPTR an)
       if (GETTAG(n) != T_INT64)
         ERR("UNINT64 0");
 #endif
-      x64u = (uvalue_t)GETINT64VALUE(n);
+      x64u = (uint64_t)GETINT64VALUE(n);
       p = FUN(TOP(1));
       POP(2);
       n = TOP(-1);
