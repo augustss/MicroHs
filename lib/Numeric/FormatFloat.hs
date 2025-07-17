@@ -11,7 +11,15 @@ module Numeric.FormatFloat(
   showHFloat,
 
   ) where
+import qualified Prelude()
+import MiniPrelude
 import Data.Char
+import Data.Float
+import Data.Floating
+import Data.Fractional
+import Data.Integer
+import Data.RealFloat
+import Data.RealFrac
 import Numeric.Show
 
 showFloat :: (RealFloat a) => a -> ShowS
