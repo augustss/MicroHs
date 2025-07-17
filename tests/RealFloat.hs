@@ -18,6 +18,6 @@ main :: IO ()
 main = do
   printInfo (1.25 :: Double)
   printInfo (1.25 :: Float)
-  print (map realToFrac [1.5 :: Double, 1/0, -1/0, -0, 0/0] :: [Float])
-  print (map realToFrac [1.5 :: Float,  1/0, -1/0, -0, 0/0] :: [Double])
+  print (map realToFrac [1.5 :: Double, 1/0, (-1)/0, -0, 0/0] :: [Float])
+  print (map realToFrac [1.5 :: Float,  1/0, (-1)/0, -0, 0/0] :: [Double])
   
