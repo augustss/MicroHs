@@ -3145,7 +3145,6 @@ parse(BFILE *f)
   NODEPTR r, x, y;
   NODEPTR *nodep;
   heapoffs_t l;
-  value_t i;
   int c;
   size_t j;
   char buf[80];                 /* store names of primitives. */
@@ -3277,9 +3276,8 @@ parse(BFILE *f)
     case '!':
       if (!gobble(f, '"'))
         ERR("parse !");
-      i = add_tick_table(parse_string(f));
       r = alloc_node(T_TICK);
-      SETVALUE(r, (value_t)i);
+      SETVALUE(r, (value_t)add_tick_table(parse_string(f)););
       PUSH(r);
       break;
 #endif
@@ -3778,6 +3776,7 @@ mkInt64(int64_t i)
 }
 #endif
 
+#if WANT_FLOAT32
 NODEPTR
 mkFlt32(flt32_t d)
 {
@@ -3786,7 +3785,9 @@ mkFlt32(flt32_t d)
   SETFLTVALUE(n, d);
   return n;
 }
+#endif  /* WANT_FLOAT32 */
 
+#if WANT_FLOAT64
 NODEPTR
 mkFlt64(flt64_t d)
 {
@@ -3795,6 +3796,7 @@ mkFlt64(flt64_t d)
   SETDBLVALUE(n, d);
   return n;
 }
+#endif  /* WANT_FLOAT64 */
 
 NODEPTR
 mkPtr(void* p)
@@ -4014,6 +4016,7 @@ evalint(NODEPTR n)
   return GETVALUE(n);
 }
 
+#if WANT_FLOAT64
 /* Evaluate to a flt64_t */
 static INLINE flt64_t
 evaldbl(NODEPTR n)
@@ -4026,7 +4029,9 @@ evaldbl(NODEPTR n)
 #endif
   return GETDBLVALUE(n);
 }
+#endif  /* WANT_FLOAT64 */
 
+#if WANT_FLOAT32
 /* Evaluate to a flt32_t */
 static INLINE flt32_t
 evalflt(NODEPTR n)
@@ -4039,6 +4044,7 @@ evalflt(NODEPTR n)
 #endif
   return GETFLTVALUE(n);
 }
+#endif  /* WANT_FLOAT32 */
 
 /* Evaluate to a T_PTR */
 void *
@@ -4302,8 +4308,12 @@ compare(NODEPTR cmp)
   stackptr_t stk = stack_ptr;
 #define CRET(x) do { stack_ptr = stk; return (x); } while(0)
   value_t x, y;
+#if WANT_FLOAT32
   flt32_t xf, yf;
+#endif
+#if WANT_FLOAT64
   flt64_t xd, yd;
+#endif
   void *f, *g;
   void (*ff)(void), (*fg)(void);
   NODEPTR p, q;
@@ -4361,6 +4371,7 @@ compare(NODEPTR cmp)
       if (x > y)
         CRET(1);
       break;
+#if WANT_FLOAT64
     case T_DBL:
       xd = GETDBLVALUE(p);
       yd = GETDBLVALUE(q);
@@ -4369,6 +4380,8 @@ compare(NODEPTR cmp)
       if (xd > yd)
         CRET(1);
       break;
+#endif  /* WANT_FLOAT64 */
+#if WANT_FLOAT32
     case T_FLT32:
       xf = GETFLTVALUE(p);
       yf = GETFLTVALUE(q);
@@ -4377,6 +4390,7 @@ compare(NODEPTR cmp)
       if (xf > yf)
         CRET(1);
       break;
+#endif  /* WANT_FLOAT32 */
     case T_PTR:
       f = PTR(p);
       g = PTR(q);
@@ -4887,17 +4901,21 @@ evali(NODEPTR an)
   /* XXX This needs redoing with Int64 */
   /* Retag a word sized value, keeping the value bits */
 #define CONV(t, set, get) do { CHECK(1); x = evali(ARG(TOP(0))); n = POPTOP(); SETTAG(n, t); set(n, get(x)); RET; } while(0)
+#if WANT_INT64
   case T_TODBL:    CONV(T_DBL,    SETINT64VALUE, GETINT64VALUE); /* raw int64_t -> double */
-  case T_TOFLT:    CONV(T_FLT32,  SETINT32VALUE, GETINT32VALUE);
-  case T_TOINT:    CONV(T_INT,    SETVALUE,      GETVALUE);
-  case T_TOPTR:    CONV(T_PTR,    SETVALUE,      GETVALUE);
-  case T_TOFUNPTR: CONV(T_FUNPTR, SETVALUE,      GETVALUE);
-  case T_FROMFLT:  CONV(T_INT,    SETVALUE,      GETINT32VALUE);
   case T_FROMDBL:  CONV(T_INT64,  SETINT64VALUE, GETINT64VALUE);
   case T_ITOI64:   CONV(T_INT64,  SETINT64VALUE, GETVALUE);
   case T_UTOU64:   CONV(T_INT64,  SETINT64VALUE, (uint64_t)GETVALUE);
   case T_I64TOI:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
   case T_U64TOU:   CONV(T_INT,    SETVALUE,      GETINT64VALUE);
+#endif
+#if WANT_FLOAT32
+  case T_TOFLT:    CONV(T_FLT32,  SETINT32VALUE, GETINT32VALUE);
+  case T_FROMFLT:  CONV(T_INT,    SETVALUE,      GETINT32VALUE);
+#endif
+  case T_TOINT:    CONV(T_INT,    SETVALUE,      GETVALUE);
+  case T_TOPTR:    CONV(T_PTR,    SETVALUE,      GETVALUE);
+  case T_TOFUNPTR: CONV(T_FUNPTR, SETVALUE,      GETVALUE);
 #undef CONV
 
   case T_FPADD: CHECK(2); xfp = evalforptr(ARG(TOP(0))); yi = evalint(ARG(TOP(1))); POP(2); n = TOP(-1); SETFORPTR(n, addForPtr(xfp, yi)); RET;
@@ -5152,7 +5170,7 @@ evali(NODEPTR an)
       int arity = FFI_IX(a).ffi_arity;
       CHECK(arity);
       funptr_t f = FFI_IX(a).ffi_fun;
-      PUSH(mkFlt64(0.0));           /* placeholder for result, protected from GC */
+      PUSH(mkPtr(0));             /* placeholder for result, protected from GC */
       int k = f(stk);             /* call FFI function, return number of arguments */
       if (k != arity) {
 #if WANT_STDIO
@@ -6352,8 +6370,12 @@ name(stackptr_t stk, int n, type x) \
   set(r, x);                    /* Put result in pre-allocated cell. */ \
   return n;                     /* return arity */ \
 }
+#if WANT_FLOAT64
 MHS_FROM(mhs_from_Double, SETDBL, flt64_t);
+#endif
+#if WANT_FLOAT32
 MHS_FROM(mhs_from_Float, SETFLT, flt32_t);
+#endif
 MHS_FROM(mhs_from_Int, SETINT, value_t);
 MHS_FROM(mhs_from_Word, SETINT, uvalue_t);
 MHS_FROM(mhs_from_Word8, SETINT, uvalue_t);
@@ -6391,8 +6413,12 @@ type name(stackptr_t stk, int n) \
 { \
   return eval(ARG(TOP(n+1)));                /* The stack has a reserved cell on top of the arguments */ \
 }
+#if WANT_FLOAT32
 MHS_TO(mhs_to_Float, evalflt, flt32_t);
+#endif
+#if WANT_FLOAT64
 MHS_TO(mhs_to_Double, evaldbl, flt64_t);
+#endif
 MHS_TO(mhs_to_Int, evalint, value_t);
 MHS_TO(mhs_to_Word, evalint, uvalue_t);
 MHS_TO(mhs_to_Word8, evalint, uint8_t);
