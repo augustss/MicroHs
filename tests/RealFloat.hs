@@ -13,7 +13,6 @@ printInfo x = do
   print (isDenormalized x)
   print (isNegativeZero x, isNegativeZero (-0 :: a))
   print (isIEEE x)
-  print (atan2 x 1.5)
 
 main :: IO ()
 main = do
