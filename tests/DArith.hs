@@ -14,4 +14,4 @@ main = do
   print $ readDouble "1.625"
   print $ 1.0 + readDouble "2.5"
   print $ map readDouble ["1.5e4", "12500.0e-4"]
-  print $ (fromInteger 1000000000000000 :: Double)
+  print (fromInteger 1000000000000000 :: Double)

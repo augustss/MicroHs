@@ -36,7 +36,7 @@
 - ignore: {name: Use sequenceA, within: [Data.Traversable]}
 - ignore: {name: Redundant lambda, within: [Data.Tuple]}
 - ignore: {name: Use foldr, within: [Control.Applicative]}
-- ignore: {name: Use otherwise, within: [Data.Char,Data.Integer_Type,Data.Int.Instances,Data.Integer.Internal]}
+- ignore: {name: Use otherwise, within: [Data.Char,Data.Integer_Type,Data.Int.*,Data.Integer.Internal]}
 - ignore: {name: Use guards, within: [Data.Ord,Data.Int.Instances,Data.Integer.Internal,Numeric.FormatFloat,System.IO.Base]}
 - ignore: {name: Avoid lambda, within: [Data.Functor.Compose]}
 - ignore: {name: Use camelCase, within: [Foreign.ForeignPtr,Text.Printf,Text.ParserCombinators.ReadP,Text.ParserCombinators.ReadPrec,Text.Read.Internal]}

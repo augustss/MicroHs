@@ -17,4 +17,4 @@ main = do
   print $ readFloat "1.625"
   print $ 1.0 + readFloat "2.5"
   print $ map readFloat ["1.5e4", "12500.0e-4"]
-  print $ (fromInteger 1000000000000000 :: Float)
+  print (fromInteger 1000000000000000 :: Float)
