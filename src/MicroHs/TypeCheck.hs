@@ -92,7 +92,7 @@ type FixDef = (Ident, Fixity)
 type Sigma = EType
 type Rho   = EType
 
-typeCheck :: Flags -> GlobTables -> ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], GlobTables, Symbols)
+typeCheck :: Flags -> GlobTables -> ImpType -> [(ImportSpec, TModule a)] -> EModule -> (TModule [EDef], GlobTables, Symbols, TCState)
 typeCheck flags globs impt aimps (EModule mn exps defs) =
 --  trace (unlines $ map (showTModuleExps . snd) aimps) $
   let
@@ -116,6 +116,7 @@ typeCheck flags globs impt aimps (EModule mn exps defs) =
          in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) (concat vexps) dflts tds
              , GlobTables { gSynTable = sexps, gDataTable = dexps, gClassTable = ctbl, gInstInfo = iexps }
              , (typeTable tcs, valueTable tcs)
+             , tcs
              )
 
 -- A hack to force evaluation of errors.

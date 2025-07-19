@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module MicroHs.Compile(
   compileCacheTop,
+  compileModuleP,
   compileMany,
   maybeSaveCache,
   getCached,
@@ -40,6 +41,7 @@ import MicroHs.Package
 import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.SymTab
+import MicroHs.TCMonad(TCState)
 import MicroHs.TypeCheck
 import Paths_MicroHs(version, getDataDir)
 
@@ -181,25 +183,33 @@ compileModule flags impt mn pathfn file = do
       chksum = fromMaybe undefined mchksum
   when (verbosityGT flags 4) $
     liftIO $ putStrLn $ "parsing: " ++ pathfn
-  let pmdl = parseDie pTop pathfn file
+  let pmdl@(EModule mnn _ _) = parseDie pTop pathfn file
+  t2 <- liftIO (seq pmdl getTimeMilli)
+  let tParse = t2 - t1
   dumpIf flags Dparse $
     liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
-  let mdl@(EModule mnn _ defs) = addPreludeImport pmdl
-
-  -- liftIO $ putStrLn $ showEModule mdl
-  -- liftIO $ putStrLn $ showEDefs defs
   when (isNothing (getFileName mn) && mn /= mnn) $
     error $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
+  ((cmdl, syms, imported, t), _) <- compileModuleP flags impt pmdl
+  case impt of
+    ImpNormal -> modify $ workToDone (cmdl, map snd imported, chksum)
+    ImpBoot   -> return ()
+  return (cmdl, syms, tParse + t)
+
+compileModuleP :: Flags -> ImpType -> EModule -> CM ((TModule [LDef], Symbols, [(ImpType, IdentModule)], Time), TCState)
+compileModuleP flags impt pmdl = do
+  let mdl@(EModule _ _ defs) = addPreludeImport pmdl
+  -- liftIO $ putStrLn $ showEModule mdl
+  -- liftIO $ putStrLn $ showEDefs defs
   let
     specs = [ s | Import s <- defs ]
     imported = [ (boot, m) | ImportSpec boot _ m _ _ <- specs ]
-  t2 <- liftIO getTimeMilli
   (impMdls, _, tImps) <- unzip3 <$> mapM (uncurry $ compileModuleCached flags) imported
 
   t3 <- liftIO getTimeMilli
   glob <- gets getCacheTables
   let
-    (tmdl, glob', syms) = typeCheck flags glob impt (zip specs impMdls) mdl
+    (tmdl, glob', syms, tcstate) = typeCheck flags glob impt (zip specs impMdls) mdl
   modify $ setCacheTables glob'
   dumpIf flags Dtypecheck $
     liftIO $ putStrLn $ "type checked:\n" ++ showTModule showEDefs tmdl ++ "-----\n"
@@ -212,25 +222,12 @@ compileModule flags impt mn pathfn file = do
   () <- return $ rnf cmdl  -- This makes execution slower, but speeds up GC
   t5 <- liftIO getTimeMilli
 
-  let tParse = t2 - t1
-      tTCDesug = t4 - t3
+  let tTCDesug = t4 - t3
       tAbstract = t5 - t4
-      tThis = tParse + tTCDesug + tAbstract
+      tThis = tTCDesug + tAbstract
       tImp = sum tImps
 
-  dumpIf flags Ddesugar $
-    liftIO $ putStrLn $ "desugared:\n" ++ showTModule showLDefs dmdl
-  when (verbosityGT flags 0) $
-    putStrLnInd $ "importing done " ++ showIdent mn ++ ", " ++ show tThis ++
-            "ms (" ++ show tParse ++ " + " ++ show tTCDesug ++ " + " ++ show tAbstract ++ ")"
-  when (loading flags && mn /= mkIdent "Interactive" && not (verbosityGT flags 0)) $
-    liftIO $ putStrLn $ "loaded " ++ showIdent mn ++ " (" ++ pathfn ++ ")"
-
-  case impt of
-    ImpNormal -> modify $ workToDone (cmdl, map snd imported, chksum)
-    ImpBoot   -> return ()
-
-  return (cmdl, syms, tThis + tImp)
+  return ((cmdl, syms, imported, tThis + tImp), tcstate)
 
 addPreludeImport :: EModule -> EModule
 addPreludeImport (EModule mn es ds) =

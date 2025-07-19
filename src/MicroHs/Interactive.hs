@@ -8,7 +8,7 @@ import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp(Exp(Var))
-import MicroHs.Expr(EType, showEType)
+import MicroHs.Expr(EType, showEType, EModule(..), EDef(Import), ImpType(..))
 import MicroHs.Flags
 import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar)
 import MicroHs.List
@@ -16,6 +16,7 @@ import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.SymTab(Entry(..), stEmpty, stKeysGlbU)
 import MicroHs.Translate
+import MicroHs.TCMonad(TCState)
 import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..), Symbols)
 import Unsafe.Coerce
 import System.Console.SimpleReadline
@@ -255,7 +256,8 @@ tryParse p s ok bad =
 
 tryCompile :: String -> I (Either SomeException [LDef])
 tryCompile file = do
-  updateTCStateCache
+  let mdl = parseDie pTopModule "" file
+  mdl' <- updateTCStateCache mdl
   flgs <- gets isFlags
   cash <- gets isCache
   liftIO $ writeFile (interactiveName ++ ".hs") file
@@ -349,18 +351,21 @@ complete mdls (tys, vals) (rpre, _post) =
             [] -> ss
             p  -> [p]
 
-updateTCStateCache :: String -> I ()
-updateTCStateCache file = do
-  let mdl@(EModule mn es ds) = parseDie pTopModule "" file
-      isImport (Import _) = True
+updateTCStateCache :: String -> I EModule
+updateTCStateCache (EModule mn es ds) = do
+  let isImport (Import _) = True
       isImport _ = False
-      (imps, nimps) = partition isImport ds
-  (oNLines, oTCState) <- gets isFast
+      (imps, notImps) = partition isImport ds
+      nImps = length imps
+  (oNImps, _) <- gets isFast
   -- Imports can only be added and deleted, so if it's the same
   -- number of imports as before, then they must be identical.
-  if length imps == oNLines then
+  if nImps == oNImps then
     return ()
    else do
     -- imports have changed, update TCState cache
-    let mdl' = EModule mn es (GetTCState undefined : imps)
-    
+    flgs <- gets isFlags
+    cash <- gets isCache
+    ((_, tcstate), _) <- liftIO $ runStateIO (compileModuleP flgs ImpNormal $ EModule mn es imps) cash
+    modify $ \ is -> is{ isFast = (nImps, tcstate) }
+  return (EModule mn es notImps)
