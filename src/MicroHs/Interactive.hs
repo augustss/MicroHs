@@ -27,7 +27,8 @@ data IState = IState {
   isFlags   :: Flags,
   isCache   :: Cache,
   isSymbols :: Symbols,
-  isStats   :: Bool
+  isStats   :: Bool,
+  isFast    :: (Int, TCState)
   }
 
 type I a = StateIO IState a
@@ -38,7 +39,7 @@ mainInteractive flags = do
   when wantGMP $ putStrLn "Using GMP"
   let flags' = flags{ loading = True }
   cash <- getCached flags'
-  _ <- runStateIO start $ IState preamble flags' cash noSymbols False
+  _ <- runStateIO start $ IState preamble flags' cash noSymbols False (-1, undefined)
   return ()
 
 noSymbols :: Symbols
@@ -254,10 +255,11 @@ tryParse p s ok bad =
 
 tryCompile :: String -> I (Either SomeException [LDef])
 tryCompile file = do
-  updateCache (deleteFromCache interactiveId)
+  updateTCStateCache
   flgs <- gets isFlags
   cash <- gets isCache
   liftIO $ writeFile (interactiveName ++ ".hs") file
+  updateCache (deleteFromCache interactiveId)
   res <- liftIO $ try $ compileCacheTop flgs interactiveId cash
   case res of
     Left e -> return (Left e)
@@ -346,3 +348,19 @@ complete mdls (tys, vals) (rpre, _post) =
           case findCommonPrefix ss of
             [] -> ss
             p  -> [p]
+
+updateTCStateCache :: String -> I ()
+updateTCStateCache file = do
+  let mdl@(EModule mn es ds) = parseDie pTopModule "" file
+      isImport (Import _) = True
+      isImport _ = False
+      (imps, nimps) = partition isImport ds
+  (oNLines, oTCState) <- gets isFast
+  -- Imports can only be added and deleted, so if it's the same
+  -- number of imports as before, then they must be identical.
+  if length imps == oNLines then
+    return ()
+   else do
+    -- imports have changed, update TCState cache
+    let mdl' = EModule mn es (GetTCState undefined : imps)
+    

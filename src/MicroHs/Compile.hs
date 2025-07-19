@@ -90,7 +90,7 @@ compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Symbols, 
 compile flags nm ach = do
   let comp = do
 --XXX        modify $ addBoot $ mkIdent "Control.Exception.Internal"      -- the compiler generates references to this module
-        r <- compileModuleCached flags ImpNormal nm
+        res <- compileModuleCached flags ImpNormal nm
         let loadBoots = do
               bs <- gets getBoots
               case bs of
@@ -102,7 +102,7 @@ compile flags nm ach = do
                   loadBoots
         loadBoots
         loadDependencies flags
-        return r
+        return res
   ((cm, syms, t), ch) <- runStateIO comp ach
   when (verbosityGT flags 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (show t) ++ "ms"
