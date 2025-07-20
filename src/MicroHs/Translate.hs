@@ -2,7 +2,11 @@
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 module MicroHs.Translate(
-  translate, translateAndRun
+  translate,
+  TranslateMap,
+  translateMap,
+  translateWithMap,
+  translateAndRun
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.ByteString.Internal(ByteString)
@@ -23,12 +27,26 @@ translateAndRun defs = do
   let prog = unsafeCoerce (translate defs)
   prog
 
+type TranslateMap = M.Map AnyType
+
+trLookup :: TranslateMap -> Ident -> AnyType
+trLookup mp n = fromMaybe (errorMessage (getSLoc n) $ "translate: not found " ++ showIdent n) $ M.lookup n mp
+
+translateMap :: [LDef] -> TranslateMap
+translateMap ds =
+  let mp = M.fromList [(n, translateExp mp d) | (n, d) <- ds ]
+  in  mp
+
+translateExp :: TranslateMap -> Exp -> AnyType
+translateExp mp e = trans (trLookup mp) e
+
+translateWithMap :: TranslateMap -> ([LDef], Exp) -> AnyType
+translateWithMap mp (ds, e) =
+  let mp' = foldr (\ (i, d) -> M.insert i (translateExp mp' d)) mp ds
+  in  translateExp mp' e
+
 translate :: ([LDef], Exp) -> AnyType
-translate (ds, emain) =
-  let
-    look n = fromMaybe (errorMessage (getSLoc n) $ "translate: not found " ++ showIdent n) $ M.lookup n mp
-    mp = M.fromList [(n, trans look d) | (n, d) <- ds ]
-  in trans look emain
+translate (ds, e) = translateExp (translateMap ds) e
 
 trans :: (Ident -> AnyType) -> Exp -> AnyType
 trans r ae =

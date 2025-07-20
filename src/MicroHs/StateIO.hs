@@ -10,6 +10,7 @@ module MicroHs.StateIO(
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Applicative
+import Control.Exception
 import Control.Monad
 import Data.Functor hiding(unzip)
 
@@ -64,3 +65,10 @@ liftIO :: forall s a . IO a -> StateIO s a
 liftIO io = S $ \ s -> do
   a <- io
   return (a, s)
+
+trySIO :: StateIO s a -> StateIO s (Either SomeException a)
+trySIO (S io) = S $ \ s -> do
+  r <- try (io s)
+  case r of
+    Left e -> return (Left e, s)
+    Right (a, s') -> return (Right a, s')

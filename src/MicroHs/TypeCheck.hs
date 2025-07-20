@@ -1477,6 +1477,8 @@ addValueType adef = do
       addConFields tycon con
     ForImp _ _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
+    -- Set the TCState from a cached one
+    SetTCState tcs -> put tcs
     _ -> return ()
 
 -- Add methods to symbol table

@@ -8,9 +8,10 @@ import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp(Exp(Var))
-import MicroHs.Expr(EType, showEType, EModule(..), EDef(Import), ImpType(..))
+import MicroHs.Expr(EType, showEType, EModule(..), EDef(..), ImpType(..))
 import MicroHs.Flags
 import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar)
+import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.Parse
 import MicroHs.StateIO
@@ -29,8 +30,13 @@ data IState = IState {
   isCache   :: Cache,
   isSymbols :: Symbols,
   isStats   :: Bool,
-  isFast    :: (Int, TCState)
+  isCComp   :: (Int, TCState, TranslateMap)
   }
+
+-- To speed up interactive use the state of the symbol table after
+-- processing all imports is cached in isCComp together with the
+-- mapping from all imported names to their actual values.
+-- Every time the imports change, these tables are recomputed.
 
 type I a = StateIO IState a
 
@@ -40,7 +46,7 @@ mainInteractive flags = do
   when wantGMP $ putStrLn "Using GMP"
   let flags' = flags{ loading = True }
   cash <- getCached flags'
-  _ <- runStateIO start $ IState preamble flags' cash noSymbols False (-1, undefined)
+  _ <- runStateIO start $ IState preamble flags' cash noSymbols False (-1, undefined, M.empty)
   return ()
 
 noSymbols :: Symbols
@@ -53,14 +59,17 @@ preamble = "module " ++ interactiveName ++ " where\n\
            \default IsString (String)\n\
            \default Show (())\n"
 
+putStrLnI :: String -> I ()
+putStrLnI = liftIO . putStrLn
+
 start :: I ()
 start = do
   reload
   is <- get
   liftIO $ maybeSaveCache (isFlags is) (isCache is)
-  liftIO $ putStrLn "Type ':quit' to quit, ':help' for help"
+  putStrLnI "Type ':quit' to quit, ':help' for help"
   unless compiledWithMhs $ do
-    --liftIO $ putStrLn "WARNING: Not compiled with mhs, so limited functionality."
+    --putStrLnI "WARNING: Not compiled with mhs, so limited functionality."
     error "The interactive system currently only works with mhs"
   repl
 
@@ -80,7 +89,7 @@ repl = do
     else do
       ms <- getInputLineHistComp (return . complete mdls syms) ".mhsi" "> "
       return (ms <|> Just "")  -- ignore ^D
-  let bye = liftIO $ putStrLn "Bye"
+  let bye = putStrLnI "Bye"
   case ms of
     Nothing -> bye
     Just s ->
@@ -100,12 +109,12 @@ command s =
     c : ws ->
       case filter (isPrefixOf c . (!!0) . words . fst) commands of
         [] -> do
-          liftIO $ putStrLn "Unrecognized command"
+          putStrLnI "Unrecognized command"
           return True
         [(_, cmd)] ->
           cmd (unwords ws)
         xs -> do
-          liftIO $ putStrLn $ "Ambiguous command: " ++ unwords (map fst xs)
+          putStrLnI $ "Ambiguous command: " ++ unwords (map fst xs)
           return True
 
 commands :: [(String, String -> I Bool)]
@@ -147,7 +156,7 @@ commands =
       return True
     )
   , ("help      this text", const $ do
-      liftIO $ putStrLn $ helpText ++ unlines (map ((':' :) . fst) commands)
+      putStrLnI $ helpText ++ unlines (map ((':' :) . fst) commands)
       return True
     )
   , ("set f     (un)set flag", \ line -> do
@@ -159,14 +168,14 @@ commands =
 setFlags :: String -> I ()
 setFlags "" = do
   stats <- gets isStats
-  liftIO $ putStrLn "Current flags: (use + to set and - to unset)"
-  liftIO $ putStrLn $ "  " ++ (if stats then "+" else "-") ++ "s"
+  putStrLnI "Current flags: (use + to set and - to unset)"
+  putStrLnI $ "  " ++ (if stats then "+" else "-") ++ "s"
 setFlags "+s" = do
   modify $ \ is -> is{ isStats = True }
 setFlags "-s" = do
   modify $ \ is -> is{ isStats = False }
 setFlags _ =
-  liftIO $ putStrLn "Unknown flag.  Known flags: +s, -s"
+  putStrLnI "Unknown flag.  Known flags: +s, -s"
 
 reload :: I ()
 reload = do
@@ -186,11 +195,11 @@ helpText = "\
 updateLines :: (String -> String) -> I ()
 updateLines f = modify $ \ is -> is{ isLines = f (isLines is) }
 
-updateCache :: (Cache -> Cache) -> I ()
-updateCache f = modify $ \ is -> is{ isCache = f (isCache is) }
+--updateCache :: (Cache -> Cache) -> I ()
+--updateCache f = modify $ \ is -> is{ isCache = f (isCache is) }
 
-setSyms :: Symbols -> I ()
-setSyms syms = modify $ \ is -> is{ isSymbols = syms }
+--setSyms :: Symbols -> I ()
+--setSyms syms = modify $ \ is -> is{ isSymbols = syms }
 
 interactiveName :: String
 interactiveName = "Interactive"
@@ -235,7 +244,9 @@ oneline line = do
       def = do
         defTest <- tryCompile lls
         case defTest of
-          Right _ -> updateLines (const lls)
+          Right _ -> do
+            updateLines (const lls)
+            liftIO $ writeFile (interactiveName ++ ".hs") lls
           Left  e -> liftIO $ err e
       expr = do
         exprTest <- tryCompile (ls ++ "\n" ++ mkItIO stats line)
@@ -255,24 +266,28 @@ tryParse p s ok bad =
     Left  e -> bad e
 
 tryCompile :: String -> I (Either SomeException [LDef])
-tryCompile file = do
-  let mdl = parseDie pTopModule "" file
-  mdl' <- updateTCStateCache mdl
+tryCompile file = trySIO $ compile file
+
+compile :: String -> I [LDef]
+compile file = do
+--  putStrLnI $ "tryCompile:\n" ++ file
+  let mdl@(EModule mn es _) = parseDie pTopModule "" file
+  defs <- updateTCStateCache mdl
+  (_, tcstate, _) <- gets isCComp
+  let mdl' = EModule mn es (SetTCState tcstate : defs)
   flgs <- gets isFlags
   cash <- gets isCache
-  liftIO $ writeFile (interactiveName ++ ".hs") file
-  updateCache (deleteFromCache interactiveId)
-  res <- liftIO $ try $ compileCacheTop flgs interactiveId cash
-  case res of
-    Left e -> return (Left e)
-    Right ((_, m), syms, cash') -> do
-      updateCache (const cash')
-      setSyms syms
-      return (Right m)
+--  putStrLnI $ " tryCompile compile " ++ show mdl'
+  (((dmdl, _, _, _, _), _), _) <- liftIO $ runStateIO (compileModuleP flgs ImpNormal mdl') cash
+  cmdl <- liftIO $ evaluate $ compileToCombinators dmdl
+--  putStrLnI $ " tryCompile dmdl = " ++ (show $ tBindingsOf dmdl)
+  return (tBindingsOf cmdl)
 
 evalExpr :: [LDef] -> I ()
 evalExpr cmdl = do
-  let ares = translate (cmdl, Var $ mkIdent (interactiveName ++ "." ++ itIOName))
+--  putStrLnI $ "evalExpr: " ++ show cmdl
+  (_, _, tmap) <- gets isCComp
+  let ares = translateWithMap tmap (cmdl, Var $ mkIdent (interactiveName ++ "." ++ itIOName))
       res = unsafeCoerce ares :: IO ()
   mval <- liftIO $ try (seq res (return res))
   liftIO $
@@ -292,7 +307,7 @@ showType line = do
     Right _ -> do
       cash <- gets isCache
       let t = getTypeInCache cash (mkIdent itName)
-      liftIO $ putStrLn $ showEType t
+      putStrLnI $ showEType t
     Left  e ->
       liftIO $ err e
 
@@ -304,7 +319,7 @@ showKind line = do
     Right _ -> do
       cash <- gets isCache
       let t = getKindInCache cash (mkIdent itTypeName)
-      liftIO $ putStrLn $ showEType t
+      putStrLnI $ showEType t
     Left  e ->
       liftIO $ err e
 
@@ -314,7 +329,7 @@ runMain line = oneline $ "_withArgs " ++ show (words line) ++ " main"
 showDefs :: I ()
 showDefs = do
   ls <- gets isLines
-  liftIO $ putStrLn ls
+  putStrLnI ls
 
 getCModule :: Cache -> TModule [LDef]
 getCModule cash =
@@ -351,13 +366,14 @@ complete mdls (tys, vals) (rpre, _post) =
             [] -> ss
             p  -> [p]
 
-updateTCStateCache :: String -> I EModule
+updateTCStateCache :: EModule -> I [EDef]
 updateTCStateCache (EModule mn es ds) = do
   let isImport (Import _) = True
       isImport _ = False
       (imps, notImps) = partition isImport ds
       nImps = length imps
-  (oNImps, _) <- gets isFast
+      mdl = EModule mn es imps
+  (oNImps, _, _) <- gets isCComp
   -- Imports can only be added and deleted, so if it's the same
   -- number of imports as before, then they must be identical.
   if nImps == oNImps then
@@ -366,6 +382,9 @@ updateTCStateCache (EModule mn es ds) = do
     -- imports have changed, update TCState cache
     flgs <- gets isFlags
     cash <- gets isCache
-    ((_, tcstate), _) <- liftIO $ runStateIO (compileModuleP flgs ImpNormal $ EModule mn es imps) cash
-    modify $ \ is -> is{ isFast = (nImps, tcstate) }
-  return (EModule mn es notImps)
+--    putStrLnI "*** update tcstate"
+    (((_, syms, _, _, _), tcstate), ch) <- liftIO $ runStateIO (compileModuleP flgs ImpNormal mdl) cash
+    let idmap = translateMap $ concatMap tBindingsOf $ cachedModules ch
+--    putStrLnI $ "*** update isFast " ++ show nImps
+    modify $ \ is -> is{ isCComp = (nImps, tcstate, idmap), isCache = ch, isSymbols = syms }
+  return notImps

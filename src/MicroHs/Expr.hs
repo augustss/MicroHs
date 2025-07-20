@@ -59,6 +59,7 @@ import Data.List
 import Data.Maybe
 import MicroHs.Builtin
 import MicroHs.Ident
+import {-# SOURCE #-} MicroHs.TCMonad(TCState)
 import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 
@@ -94,6 +95,8 @@ data EDef
   | Pattern LHS EPat (Maybe [Eqn])
   | StandDeriving DerStrategy Int EConstraint
   | DfltSign Ident EType                      -- only in class declarations
+  -- Only used by interactive system to load a cached TCState to avoid import processing
+  | SetTCState TCState
 --DEBUG  deriving (Show)
 
 instance NFData EDef where
@@ -114,6 +117,7 @@ instance NFData EDef where
   rnf (Pattern a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (StandDeriving a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (DfltSign a b) = rnf a `seq` rnf b
+  rnf (SetTCState a) = seq a ()
 
 data ImpType = ImpNormal | ImpBoot
   deriving (Eq)
@@ -862,6 +866,7 @@ ppEDef def =
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
     StandDeriving _s _narg ct -> text "deriving instance" <+> ppEType ct
     DfltSign i t -> text "default" <+> ppIdent i <+> text "::" <+> ppEType t
+    SetTCState _ -> text "SetTCState ..."
 
 ppDerivings :: [Deriving] -> Doc
 ppDerivings = sep . map ppDeriving
