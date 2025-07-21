@@ -257,9 +257,11 @@ reservedOps = ["::", "<-", "..", "->", "=>",
 pUQIdentSym :: P Ident
 pUQIdentSym = pUQIdent <|> pParens pUQSymOper
 
+-- Lower case, maybe qualified, identifier or symbol
 pLQIdentSym :: P Ident
 pLQIdentSym = pLQIdent <|> pParens pLQSymOperArr
 
+-- Lower case, unqualified, identifier or symbol
 pLIdentSym :: P Ident
 pLIdentSym = pLIdent <|> pParens pLSymOper
 
@@ -787,7 +789,7 @@ pUpdate :: P [EField]
 pUpdate = pSpec '{' *> sepBy pEField (pSpec ',') <* pSpec '}'
   where
     pEField = do
-      fs <- (:) <$> pLIdentSym <*> many pSelect
+      fs <- (:) <$> pLQIdentSym <*> many pSelect
       EField fs <$> (pSpec '=' *> pExpr) <|> pure (EFieldPun fs)
      <|>
       (EFieldWild <$ pSymbol "..")
