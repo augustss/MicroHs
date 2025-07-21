@@ -2471,10 +2471,7 @@ tcPat mt ae =
     EAt i p -> do
       (_, ti) <- tLookupV i
       (sk, d, p') <- tcPat mt p
-      tt <- tGetExpType mt
-      case ti of
-        EUVar r -> tSetRefType loc r tt
-        _ -> impossible
+      munify loc mt ti
       return (sk, d, EAt i p')
 
     EViewPat e p -> do
