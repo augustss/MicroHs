@@ -1346,11 +1346,14 @@ expandInst d = return [d]
 ---------------------
 
 tcDefsValue :: HasCallStack => [EDef] -> T [EDef]
-tcDefsValue defs = do
+tcDefsValue adefs = do
 --  tcTrace $ "tcDefsValue: ------------ start"
   -- Gather up all type signatures, and put them in the environment.
   -- Definitions with no type signature will be missing.
-  mapM_ addValueType defs
+  mapM_ addValueType adefs
+  let dsp (PatBind p e) = flip PatBind e <$> dsEFields p
+      dsp d = return d
+  defs <- mapM dsp adefs
   let smap = M.fromList $ [ (i, ()) | Sign is _ <- defs, i <- is ]
       -- Split Fcn into those without and with type signatures
       unsigned = filter noSign defs
