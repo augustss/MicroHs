@@ -23,6 +23,7 @@ import Unsafe.Coerce
 import System.Console.SimpleReadline
 import Paths_MicroHs(version)
 import System.IO
+--import System.IO.TimeMilli
 
 data IState = IState {
   isLines   :: String,
@@ -249,9 +250,16 @@ oneline line = do
             liftIO $ writeFile (interactiveName ++ ".hs") lls
           Left  e -> liftIO $ err e
       expr = do
+--        t1 <- liftIO getTimeMilli
         exprTest <- tryCompile (ls ++ "\n" ++ mkItIO stats line)
         case exprTest of
-          Right m -> evalExpr m
+          Right m -> do
+            evalExpr m
+{-
+            t2 <- liftIO getTimeMilli
+            when (stats) $
+              liftIO $ putStrLn $ "total " ++ show (t2 - t1) ++ "ms"
+-}
           Left  e -> liftIO $ err e
   -- First try to parse as a definition,
   tryParse pTopModule lls def $ \ _ ->
