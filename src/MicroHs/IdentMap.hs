@@ -188,14 +188,14 @@ balance left@(Node ll sl _ _ lr) key val right@(One _ _)
                                         | sl > omega {- *1+delta-}= if size lr < alpha*size ll then singleR left key val right
                                                                                                else doubleR left key val right
                                         | otherwise               = Node left (2 + sl) key val right
-balance left@(Node ll sl _ _ lr) key val right@(Node rl sr _ _ rr)=
-  if sr > omega * sl {- + delta -} then
+balance left@(Node ll sl _ _ lr) key val right@(Node rl sr _ _ rr)
+  | sr > omega * sl {- + delta -} =
          if size rl < alpha*size rr then singleL left key val right
                                     else doubleL left key val right
-  else if sl > omega * sr {- + delta -} then
+  | sl > omega * sr {- + delta -} =
          if size lr < alpha*size ll then singleR left key val right
                                     else doubleR left key val right
-  else
+  | otherwise =
          node left key val right
 
 singleL :: forall a . Map a -> Ident -> a -> Map a -> Map a
