@@ -381,3 +381,9 @@ generated/hmhs.c:
 bin/hmhs: generated/hmhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/hmhs.c $(CCLIBS) -o bin/hmhs
+
+##################
+
+endiantest:
+	$(CC) endian.c -oendian
+	./endian

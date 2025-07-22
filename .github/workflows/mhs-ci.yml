@@ -18,6 +18,8 @@ jobs:
       uses: actions/checkout@v4
     - name: make
       run: make
+    - name: endian
+      run: make endiantest
     - name: make everytestmhs
       run: make everytestmhs
 
@@ -107,6 +109,8 @@ jobs:
       uses: actions/checkout@v4
     - name: make
       run: make
+    - name: endian
+      run: make endiantest
     - name: make everytestmhs
       run: make everytestmhs
 
