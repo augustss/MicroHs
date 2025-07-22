@@ -90,6 +90,9 @@ node :: forall a . Map a -> Ident -> a -> Map a -> Map a
 node Nil  key val Nil   = One key val
 node left key val right = Node left (size left + 1 + size right) key val right
 
+node' :: forall a . Map a -> Ident -> a -> Map a -> Map a
+node' left key val right = Node left (size left + 1 + size right) key val right
+
 lookup :: forall a . Ident -> Map a -> Maybe a
 lookup k = look
   where
@@ -167,39 +170,50 @@ alpha = 2
 --delta = 0
 
 balance :: forall a . Map a -> Ident -> a -> Map a -> Map a
-balance left key val right
-  | size left + size right <= 1 = node left key val right
-balance (One k v) key val right = balance (Node Nil 1 k v Nil) key val right
-balance left key val (One k v)  = balance left key val (Node Nil 1 k v Nil)
-balance left key val right
-  | size right > omega * size left {- + delta -} =
-      case right of
-        (Node rl _ _ _ rr) | size rl < alpha*size rr -> singleL left key val right
-                           | otherwise -> doubleL left key val right
-        _ -> undefined
-  | size left > omega * size right {- + delta -} =
-      case left of
-        (Node ll _ _ _ lr) | size lr < alpha*size ll -> singleR left key val right
-                           | otherwise -> doubleR left key val right
-        _ -> undefined
-  | otherwise = node left key val right
+balance       Nil                key val        Nil               = One key val
+balance       Nil                key val right@(One _ _)          = Node Nil  2 key val right
+balance       Nil                key val right@(Node rl _ _ _ rr)
+                                        | size rl < alpha*size rr = singleL Nil key val right
+                                        | otherwise               = doubleL Nil key val right
+balance left@(One _ _)           key val        Nil               = Node left 2 key val Nil
+balance left@(One _ _)           key val right@(One _ _)          = Node left 3 key val right
+balance left@(One _ _)           key val right@(Node rl sr _ _ rr)
+                                        | sr > omega {- *1+delta-}= if size rl < alpha*size rr then singleL left key val right
+                                                                                               else doubleL left key val right
+                                        | otherwise               = Node left (2 + sr) key val right
+balance left@(Node ll  _ _ _ lr) key val        Nil
+                                        | size lr < alpha*size ll = singleR left key val Nil
+                                        | otherwise               = doubleR left key val Nil
+balance left@(Node ll sl _ _ lr) key val right@(One _ _)
+                                        | sl > omega {- *1+delta-}= if size lr < alpha*size ll then singleR left key val right
+                                                                                               else doubleR left key val right
+                                        | otherwise               = Node left (2 + sl) key val right
+balance left@(Node ll sl _ _ lr) key val right@(Node rl sr _ _ rr)=
+  if sr > omega * sl {- + delta -} then
+         if size rl < alpha*size rr then singleL left key val right
+                                    else doubleL left key val right
+  else if sl > omega * sr {- + delta -} then
+         if size lr < alpha*size ll then singleR left key val right
+                                    else doubleR left key val right
+  else
+         node left key val right
 
 singleL :: forall a . Map a -> Ident -> a -> Map a -> Map a
-singleL l k v (Node rl _ rk rv rr) = node (node l k v rl) rk rv rr
+singleL l k v (Node rl _ rk rv rr) = node' (node l k v rl) rk rv rr
 singleL _ _ _ _ = undefined
 
 singleR :: forall a . Map a -> Ident -> a -> Map a -> Map a
-singleR (Node ll _ lk lv lr) k v r = node ll lk lv (node lr k v r)
+singleR (Node ll _ lk lv lr) k v r = node' ll lk lv (node lr k v r)
 singleR _ _ _ _ = undefined
 
 doubleL :: forall a . Map a -> Ident -> a -> Map a -> Map a
-doubleL l k v (Node (Node rll _ rlk rlv rlr) _ rk rv rr) = node (node l k v rll) rlk rlv (node rlr rk rv rr)
-doubleL l k v (Node (One        rlk rlv    ) _ rk rv rr) = node (node l k v Nil) rlk rlv (node Nil rk rv rr)
+doubleL l k v (Node (Node rll _ rlk rlv rlr) _ rk rv rr) = node' (node l k v rll) rlk rlv (node rlr rk rv rr)
+doubleL l k v (Node (One        rlk rlv    ) _ rk rv rr) = node' (node l k v Nil) rlk rlv (node Nil rk rv rr)
 doubleL _ _ _ _ = undefined
 
 doubleR :: forall a . Map a -> Ident -> a -> Map a -> Map a
-doubleR (Node ll _ lk lv (Node lrl _ lrk lrv lrr)) k v r = node (node ll lk lv lrl) lrk lrv (node lrr k v r)
-doubleR (Node ll _ lk lv (One        lrk lrv    )) k v r = node (node ll lk lv Nil) lrk lrv (node Nil k v r)
+doubleR (Node ll _ lk lv (Node lrl _ lrk lrv lrr)) k v r = node' (node ll lk lv lrl) lrk lrv (node lrr k v r)
+doubleR (Node ll _ lk lv (One        lrk lrv    )) k v r = node' (node ll lk lv Nil) lrk lrv (node Nil k v r)
 doubleR _ _ _ _ = undefined
 
 -- Merge two maps.  There is no guarantee which side "wins"
