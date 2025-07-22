@@ -8,17 +8,17 @@ import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp(Exp(Var))
-import MicroHs.Expr(EType, showEType, EModule(..), EDef(..), ImpType(..))
+import MicroHs.Expr(showEType, EModule(..), EDef(..), ImpType(..))
 import MicroHs.Flags
 import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar)
 import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.Parse
 import MicroHs.StateIO
-import MicroHs.SymTab(Entry(..), stEmpty, stKeysGlbU)
+import MicroHs.SymTab(Entry(..), stEmpty, stKeysGlbU, stLookup)
 import MicroHs.Translate
-import MicroHs.TCMonad(TCState)
-import MicroHs.TypeCheck(ValueExport(..), TypeExport(..), TModule(..), Symbols)
+import MicroHs.TCMonad(TCState(..))
+import MicroHs.TypeCheck(TModule(..), Symbols)
 import Unsafe.Coerce
 import System.Console.SimpleReadline
 import Paths_MicroHs(version)
@@ -47,7 +47,7 @@ mainInteractive flags = do
   when wantGMP $ putStrLn "Using GMP"
   let flags' = flags{ loading = True }
   cash <- getCached flags'
-  _ <- runStateIO start $ IState preamble flags' cash noSymbols False (-1, undefined, M.empty)
+  _ <- runStateIO start $ IState preamble flags' cash noSymbols False (-1, error "tcstate", M.empty)
   return ()
 
 noSymbols :: Symbols
@@ -55,6 +55,7 @@ noSymbols = (stEmpty, stEmpty)
 
 preamble :: String
 preamble = "module " ++ interactiveName ++ " where\n\
+           \import Prelude\n\
            \import System.IO.PrintOrRun\n\
            \default Num (Integer, Double)\n\
            \default IsString (String)\n\
@@ -205,8 +206,8 @@ updateLines f = modify $ \ is -> is{ isLines = f (isLines is) }
 interactiveName :: String
 interactiveName = "Interactive"
 
-interactiveId :: Ident
-interactiveId = mkIdent interactiveName
+--interactiveId :: Ident
+--interactiveId = mkIdent interactiveName
 
 itName :: String
 itName = "_it"
@@ -253,7 +254,7 @@ oneline line = do
 --        t1 <- liftIO getTimeMilli
         exprTest <- tryCompile (ls ++ "\n" ++ mkItIO stats line)
         case exprTest of
-          Right m -> do
+          Right (m, _) -> do
             evalExpr m
 {-
             t2 <- liftIO getTimeMilli
@@ -273,10 +274,10 @@ tryParse p s ok bad =
     Right _ -> ok
     Left  e -> bad e
 
-tryCompile :: String -> I (Either SomeException [LDef])
+tryCompile :: String -> I (Either SomeException ([LDef], TCState))
 tryCompile file = trySIO $ compile file
 
-compile :: String -> I [LDef]
+compile :: String -> I ([LDef], TCState)
 compile file = do
 --  putStrLnI $ "tryCompile:\n" ++ file
   let mdl@(EModule mn es _) = parseDie pTopModule "" file
@@ -286,10 +287,10 @@ compile file = do
   flgs <- gets isFlags
   cash <- gets isCache
 --  putStrLnI $ " tryCompile compile " ++ show mdl'
-  (((dmdl, _, _, _, _), _), _) <- liftIO $ runStateIO (compileModuleP flgs ImpNormal mdl') cash
+  (((dmdl, _, _, _, _), tcstate'), _) <- liftIO $ runStateIO (compileModuleP flgs ImpNormal mdl') cash
   cmdl <- liftIO $ evaluate $ compileToCombinators dmdl
 --  putStrLnI $ " tryCompile dmdl = " ++ (show $ tBindingsOf dmdl)
-  return (tBindingsOf cmdl)
+  return (tBindingsOf cmdl, tcstate')
 
 evalExpr :: [LDef] -> I ()
 evalExpr cmdl = do
@@ -312,10 +313,10 @@ showType line = do
   ls <- gets isLines
   res <- tryCompile (ls ++ "\n" ++ mkIt line)
   case res of
-    Right _ -> do
-      cash <- gets isCache
-      let t = getTypeInCache cash (mkIdent itName)
-      putStrLnI $ showEType t
+    Right (_, tcs) -> do
+      case stLookup "" (mkIdent itName) (valueTable tcs) of
+        Right (Entry _ t) -> putStrLnI $ showEType t
+        _ -> error "showType"
     Left  e ->
       liftIO $ err e
 
@@ -324,10 +325,10 @@ showKind line = do
   ls <- gets isLines
   res <- tryCompile (ls ++ "\n" ++ mkTypeIt line)
   case res of
-    Right _ -> do
-      cash <- gets isCache
-      let t = getKindInCache cash (mkIdent itTypeName)
-      putStrLnI $ showEType t
+    Right (_, tcs) -> do
+      case stLookup "" (mkIdent itTypeName) (typeTable tcs) of
+        Right (Entry _ t) -> putStrLnI $ showEType t
+        _ -> error "showKind"
     Left  e ->
       liftIO $ err e
 
@@ -338,20 +339,6 @@ showDefs :: I ()
 showDefs = do
   ls <- gets isLines
   putStrLnI ls
-
-getCModule :: Cache -> TModule [LDef]
-getCModule cash =
-  case lookupCache interactiveId cash of
-    Nothing -> undefined   -- this cannot happen
-    Just cm -> cm
-
-getTypeInCache :: Cache -> Ident -> EType
-getTypeInCache cash i =
-  head $ [ t | ValueExport i' (Entry _ t) <- tValueExps (getCModule cash), i == i' ] ++ [undefined]
-
-getKindInCache :: Cache -> Ident -> EType
-getKindInCache cash i =
-  head $ [ k | TypeExport i' (Entry _ k) _ <- tTypeExps (getCModule cash), i == i' ] ++ [undefined]
 
 -- This could be smarter:
 --  ":a"        should complete with commands

@@ -190,7 +190,7 @@ compileModule flags impt mn pathfn file = do
     liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
   when (isNothing (getFileName mn) && mn /= mnn) $
     error $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
-  ((dmdl, syms, imported, tTCDesug, tImp), _) <- compileModuleP flags impt pmdl
+  ((dmdl, syms, imported, tTCDesug, tImp), _) <- compileModuleP flags impt (addPreludeImport pmdl)
 
   t4 <- liftIO getTimeMilli
   cmdl <- liftIO $ evaluate $ compileToCombinators dmdl
@@ -214,8 +214,7 @@ compileModule flags impt mn pathfn file = do
   return (cmdl, syms, tThis + tImp)
 
 compileModuleP :: Flags -> ImpType -> EModule -> CM ((TModule [LDef], Symbols, [(ImpType, IdentModule)], Time, Time), TCState)
-compileModuleP flags impt pmdl = do
-  let mdl@(EModule _ _ defs) = addPreludeImport pmdl
+compileModuleP flags impt mdl@(EModule _ _ defs) = do
   -- liftIO $ putStrLn $ showEModule mdl
   -- liftIO $ putStrLn $ showEDefs defs
   let

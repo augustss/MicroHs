@@ -97,7 +97,10 @@ typeCheck flags globs impt aimps (EModule mn exps defs) =
 --  trace (unlines $ map (showTModuleExps . snd) aimps) $
   let
     imps = map filterImports aimps
-    tc = mkTCState mn globs imps
+    tc =
+      case defs of
+        SetTCState tcs : _ -> tcs  -- hack to set the saved TCState
+        _ -> mkTCState mn globs imps
   in case tcRun (tcDefs flags impt defs) tc of
        (tds, tcs) ->
          let
@@ -1481,7 +1484,6 @@ addValueType adef = do
     ForImp _ _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
     -- Set the TCState from a cached one
-    SetTCState tcs -> put tcs
     _ -> return ()
 
 -- Add methods to symbol table
