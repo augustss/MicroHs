@@ -190,6 +190,6 @@ slocFile :: SLoc -> FilePath
 slocFile (SLoc f _ _) = f
 
 isUpperX :: Char -> Bool
-isUpperX '\8658' = False
+isUpperX '\8658' = False  -- these two lines avoid using the whole Unicode machinery
 isUpperX '\8594' = False
 isUpperX c = isUpper c
