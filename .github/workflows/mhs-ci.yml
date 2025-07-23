@@ -109,10 +109,13 @@ jobs:
       uses: actions/checkout@v4
     - name: make
       run: make
+      shell: alpine.sh {0}
     - name: endian
       run: make endiantest
+      shell: alpine.sh {0}
     - name: make everytestmhs
       run: make everytestmhs
+      shell: alpine.sh {0}
 
   build-linux-x86:
     runs-on: ubuntu-latest
