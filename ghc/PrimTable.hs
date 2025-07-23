@@ -2,8 +2,9 @@ module PrimTable(module PrimTable) where
 import Control.Exception
 import Data.Bits
 import Data.Char
+import Data.Int
 import Data.Maybe
-import Data.Word()
+import Data.Word
 import System.IO
 import System.IO.TimeMilli
 import Unsafe.Coerce
@@ -83,6 +84,43 @@ primOps =
   , comb "icmp" (\ x y -> fromOrdering (compare (x::Int) y))
   , comb "ucmp" (\ x y -> fromOrdering (compare (x::Word) y))
 
+  , arithI "I+" (+)
+  , arithI "I-" (-)
+  , arithI "I*" (*)
+  , arithI "Iquot" quot
+  , arithI "Irem" rem
+  , arithI "Isubtract" subtract
+  , arithuI "Ineg" negate
+  , arithuI "Iinv" complement
+  , arithwI "Iuquot" quot
+  , arithwI "Iurem" rem
+  , arithwI "Iand" (.&.)
+  , arithwI "Ior" (.|.)
+  , arithwI "Ixor" xor
+  , arithwiI "Ishl" shiftL
+  , arithwiI "Ishr" shiftR
+  , arithwiI "Iashr" shiftR
+  , arithuiI "Ipopcount" popCount
+  , arithuiI "Iclz" countLeadingZeros
+  , arithuiI "Ictz" countTrailingZeros
+  , cmpI "I==" (==)
+  , cmpI "I/=" (/=)
+  , cmpI "I<"  (<)
+  , cmpI "I<=" (<=)
+  , cmpI "I>"  (>)
+  , cmpI "I>=" (>=)
+  , cmpwI "Iu<"  (<)
+  , cmpwI "Iu<=" (<=)
+  , cmpwI "Iu>"  (>)
+  , cmpwI "Iu>=" (>=)
+  , comb "Iicmp" (\ x y -> fromOrdering (compare (x::Int64) y))
+  , comb "Iucmp" (\ x y -> fromOrdering (compare (x::Word64) y))
+
+  , comb "itoI" (\ x -> fromIntegral (x::Int) :: Int64)
+  , comb "Itoi" (\ x -> fromIntegral (x::Int64) :: Int)
+  , comb "utoU" (\ x -> fromIntegral (x::Word) :: Word64)
+  , comb "Utou" (\ x -> fromIntegral (x::Word64) :: Word)
+
   , comb "scmp" (\ x y -> fromOrdering (compare (toString x) (toString y)))
   , comb "sequal" (\ x y -> fromBool (toString x == toString y))
 
@@ -110,7 +148,20 @@ primOps =
   , fcmp "f<=" (<=)
   , fcmp "f>" (>)
   , fcmp "f>=" (>=)
-  , comb "itof" (fromIntegral :: Int -> Double)
+  , comb "itof" (fromIntegral :: Int -> Float)
+
+  , darith "d+" (+)
+  , darith "d-" (-)
+  , darith "d*" (*)
+  , darith "d/" (/)
+  , darithu "dneg" negate
+  , dcmp "d==" (==)
+  , dcmp "d/=" (/=)
+  , dcmp "d<" (<)
+  , dcmp "d<=" (<=)
+  , dcmp "d>" (>)
+  , dcmp "d>=" (>=)
+  , comb "itod" (fromIntegral :: Int -> Double)
 
   , comb "seq" seq
   , comb "rnf" rnf
@@ -118,7 +169,6 @@ primOps =
   , comb "ord" ord
   , comb "chr" chr
 
-  , comb "IO.performIO" unsafePerformIO
   , comb "IO.catch" (\ io hdl -> catch (io :: IO Any) (\ (exn :: SomeException) -> hdl (fromString $ takeWhile (/= '\n') $ show exn) :: IO Any))
   , comb "IO.>>=" iobind
   , comb "IO.>>" iothen
@@ -139,6 +189,7 @@ primOps =
     comb0 n f = (n, unsafeCoerce f)
     comb n f = (n, unsafeCoerce f)
 --    comb n f = (n, unsafeCoerce (\ x -> trace (seq x n) (f x)))
+
     arith :: String -> (Int -> Int -> Int) -> (String, Any)
     arith = comb
     arithw :: String -> (Word -> Word -> Word) -> (String, Any)
@@ -147,16 +198,42 @@ primOps =
     arithwi = comb
     arithu :: String -> (Int -> Int) -> (String, Any)
     arithu = comb
-    farith :: String -> (Double -> Double -> Double) -> (String, Any)
+
+    arithI :: String -> (Int64 -> Int64 -> Int64) -> (String, Any)
+    arithI = comb
+    arithwI :: String -> (Word64 -> Word64 -> Word64) -> (String, Any)
+    arithwI = comb
+    arithwiI :: String -> (Word64 -> Int -> Word64) -> (String, Any)
+    arithwiI = comb
+    arithuI :: String -> (Int64 -> Int64) -> (String, Any)
+    arithuI = comb
+    arithuiI :: String -> (Int64 -> Int) -> (String, Any)
+    arithuiI = comb
+
+    farith :: String -> (Float -> Float -> Float) -> (String, Any)
     farith = comb
-    farithu :: String -> (Double -> Double) -> (String, Any)
+    farithu :: String -> (Float -> Float) -> (String, Any)
     farithu = comb
+
+    darith :: String -> (Double -> Double -> Double) -> (String, Any)
+    darith = comb
+    darithu :: String -> (Double -> Double) -> (String, Any)
+    darithu = comb
+
     cmp :: String -> (Int -> Int -> Bool) -> (String, Any)
     cmp n f = comb n (\ x y -> fromBool (f x y))
     cmpw :: String -> (Word -> Word -> Bool) -> (String, Any)
     cmpw n f = comb n (\ x y -> fromBool (f x y))
-    fcmp :: String -> (Double -> Double -> Bool) -> (String, Any)
+
+    cmpI :: String -> (Int64 -> Int64 -> Bool) -> (String, Any)
+    cmpI n f = comb n (\ x y -> fromBool (f x y))
+    cmpwI :: String -> (Word64 -> Word64 -> Bool) -> (String, Any)
+    cmpwI n f = comb n (\ x y -> fromBool (f x y))
+
+    fcmp :: String -> (Float -> Float -> Bool) -> (String, Any)
     fcmp n f = comb n (\ x y -> fromBool (f x y))
+    dcmp :: String -> (Double -> Double -> Bool) -> (String, Any)
+    dcmp n f = comb n (\ x y -> fromBool (f x y))
 
     err s = error $ "error: " ++ toString s
 
@@ -240,30 +317,52 @@ cops =
   , comb "add_FILE" add_FILE
   , comb "add_utf8" add_utf8
   , comb "free"  free
-  , comb "exp"   (fio exp)
-  , comb "log"   (fio log)
-  , comb "sqrt"   (fio sqrt)
-  , comb "sin"   (fio sin)
-  , comb "cos"   (fio cos)
-  , comb "tan"   (fio tan)
-  , comb "asin"   (fio asin)
-  , comb "acos"   (fio acos)
-  , comb "atan"   (fio atan)
-  , comb "sinh"   (fio sinh)
-  , comb "cosh"   (fio cosh)
-  , comb "tanh"   (fio tanh)
-  , comb "asinh"   (fio asinh)
-  , comb "acosh"   (fio acosh)
-  , comb "atanh"   (fio atanh)
-  , comb "atan2"   (fio2 atan2)
+  , comb "exp"   (dio exp)
+  , comb "log"   (dio log)
+  , comb "sqrt"   (dio sqrt)
+  , comb "sin"   (dio sin)
+  , comb "cos"   (dio cos)
+  , comb "tan"   (dio tan)
+  , comb "asin"   (dio asin)
+  , comb "acos"   (dio acos)
+  , comb "atan"   (dio atan)
+  , comb "sinh"   (dio sinh)
+  , comb "cosh"   (dio cosh)
+  , comb "tanh"   (dio tanh)
+  , comb "asinh"   (dio asinh)
+  , comb "acosh"   (dio acosh)
+  , comb "atanh"   (dio atanh)
+  , comb "atan2"   (dio2 atan2)
+  , comb "expf"   (fio exp)
+  , comb "logf"   (fio log)
+  , comb "sqrtf"   (fio sqrt)
+  , comb "sinf"   (fio sin)
+  , comb "cosf"   (fio cos)
+  , comb "tanf"   (fio tan)
+  , comb "asinf"   (fio asin)
+  , comb "acosf"   (fio acos)
+  , comb "atanf"   (fio atan)
+  , comb "sinhf"   (fio sinh)
+  , comb "coshf"   (fio cosh)
+  , comb "tanhf"   (fio tanh)
+  , comb "asinhf"   (fio asinh)
+  , comb "acoshf"   (fio acosh)
+  , comb "atanhf"   (fio atanh)
+  , comb "atan2f"   (fio2 atan2)
   ]
   where
     comb n f = (n, unsafeCoerce f)
 
-    fio :: (Double -> Double) -> (Double -> IO Double)
+    dio :: (Double -> Double) -> (Double -> IO Double)
+    dio f = return . f
+
+    dio2 :: (Double -> Double -> Double) -> (Double -> Double -> IO Double)
+    dio2 f x y = return (f x y)
+
+    fio :: (Float -> Float) -> (Float -> IO Float)
     fio f = return . f
 
-    fio2 :: (Double -> Double -> Double) -> (Double -> Double -> IO Double)
+    fio2 :: (Float -> Float -> Float) -> (Float -> Float -> IO Float)
     fio2 f x y = return (f x y)
 
     add_FILE :: Handle -> IO Handle
