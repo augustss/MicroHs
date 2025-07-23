@@ -266,9 +266,9 @@ oldinstall:
 	@echo "*** Set environment variable MHSDIR to $(PREFIX)/lib/mhs"
 	@echo "***"
 
-everytest:	newmhs bin/cpphs runtest exampletest cachetest bootcombtest nfibtest info
+everytest:	newmhs bin/cpphs exampletest info runtest cachetest bootcombtest nfibtest
 
-everytestmhs:	bin/mhs bin/cpphs bin/mhseval exampletest cachetest bootstrap runtestmhs nfibtest info
+everytestmhs:	bin/mhs bin/cpphs bin/mhseval exampletest info cachetest bootstrap runtestmhs nfibtest
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs $(MHSINC) -ogmhs.comb $(MAINMODULE)
