@@ -91,8 +91,10 @@ jobs:
       uses: actions/checkout@v4
     - name: make
       run: make
+      shell: alpine.sh {0}
     - name: make everytestmhs
       run: make everytestmhs
+      shell: alpine.sh {0}
 
   build-linux-s390x:
     runs-on: ubuntu-latest
@@ -171,10 +173,10 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
-      run: make CONF=unix
+      run: make
       shell: alpine.sh {0}
     - name: make everytestmhs
-      run: make CONF=unix everytestmhs
+      run: make everytestmhs
       shell: alpine.sh {0}
 
   build-linux-ppc64le:
@@ -211,10 +213,10 @@ jobs:
 #    - name: checkout repo
 #      uses: actions/checkout@v4
 #    - name: make
-#      run: make CONF=unix
+#      run: make
 #      shell: alpine.sh {0}
 #    - name: make everytestmhs
-#      run: make CONF=unix everytestmhs
+#      run: make everytestmhs
 #      shell: alpine.sh {0}
 
   build-emscripten:
