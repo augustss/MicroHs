@@ -80,13 +80,6 @@ partitionM p (x:xs) = do
   (ts,fs) <- partitionM p xs
   return $ if b then (x:ts, fs) else (ts, x:fs)
 
-substString :: forall a . Eq a => [a] -> [a] -> [a] -> [a]
-substString _ _ [] = []
-substString from to xs@(c:cs) =
-  case stripPrefix from xs of
-    Just rs -> to ++ substString from to rs
-    _       -> c : substString from to cs
-
 showPairS :: forall a b . (a -> String) -> (b -> String) -> (a, b) -> String
 showPairS sa sb (a, b) = "(" ++ sa a ++ "," ++ sb b ++ ")"
 

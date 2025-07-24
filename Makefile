@@ -53,32 +53,6 @@ MAINMODULE=MicroHs.Main
 
 all:	bin/mhs bin/cpphs bin/mcabal
 
-targets.conf:
-	echo "[default]"                        > targets.conf
-	echo cc = \"$(CC)\"                    >> targets.conf
-	echo ccflags = \"-w -Wall -O3 $(MHSGMPCCFLAGS)\"    >> targets.conf
-	echo cclibs = \"$(MHSGMPCCLIBS) -lm\"  >> targets.conf
-	echo conf = \"$(CONF)\"                >> targets.conf
-	echo ''                                >> targets.conf
-	echo "[emscripten]"                    >> targets.conf
-	echo cc = \"$(EMCC)\"                  >> targets.conf
-	echo ccflags = \"$(EMCCFLAGS)\"        >> targets.conf
-	echo cclibs = \"-lm\"                  >> targets.conf
-	echo conf = \"$(CONF)\"                >> targets.conf
-	echo ''                                >> targets.conf
-	echo "[tcc]"                           >> targets.conf
-	echo cc = \"tcc\"                      >> targets.conf
-	echo ccflags = \"-D__TCC__=1\"         >> targets.conf
-	echo cclibs = \"-lm\"                  >> targets.conf
-	echo conf = \"$(CONF)\"                >> targets.conf
-	echo ''                                >> targets.conf
-	echo "[windows]"                       >> targets.conf
-	echo cc = \"cl\"                       >> targets.conf
-	echo ccflags = \"-O2\"                 >> targets.conf
-	echo cclibs = \"\"                     >> targets.conf
-	echo conf = \"windows\"                >> targets.conf
-	echo cout = \"-Fe\"                    >> targets.conf
-
 newmhs:	ghcgen targets.conf
 	$(CCEVAL) generated/mhs.c $(CCLIBS) -o bin/mhs
 	$(CC) $(CCWARNS) $(MHSGMPCCFLAGS) -g $(RTSINC) $(RTS)/eval.c $(MAINC) generated/mhs.c $(CCLIBS) -o bin/mhsgdb
@@ -300,8 +274,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.14.7.1
-HVERSION=0,14,7,1
+VERSION=0.14.8.0
+HVERSION=0,14,8,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data

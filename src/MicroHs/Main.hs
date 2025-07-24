@@ -104,7 +104,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-PPKG              Build package PKG\n\
       \-Q PKG [DIR]       Install package PKG\n\
       \-tTARGET           Select target\n\
-      \                   Distributed targets: default, emscripten\n\
+      \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
       \                   Targets can be defined in targets.conf\n\
       \-optc OPTION       Options for the C compiler\n\
       \--stdin            Use stdin in interactive system\n\
@@ -166,45 +166,35 @@ readTargets flags dir = do
        case parseTargets tgFilePath tgFile of
          Left e -> do
            putStrLn $ "Cannot parse " ++ tgFilePath
-           when (verbose flags > 0) $
+           when (verbosityGT flags 0) $
              putStrLn e
            return []
          Right tgs -> do
-           when (verbose flags > 0) $
+           when (verbosityGT flags 0) $
              putStrLn $ "Read targets file. Possible targets: " ++ show
                [tg | Target tg _ <- tgs]
            return tgs
 
 readTarget :: Flags -> FilePath -> IO TTarget
 readTarget flags dir = do
-  targets  <- readTargets flags dir
-  compiler <- lookupEnv "CC"
-  ccflags  <- lookupEnv "MHSCCFLAGS"
-  cclibs   <- lookupEnv "MHSCCLIBS"
-  conf     <- lookupEnv "MHSCONF"
-  let dConf = "unix-" ++ show _wordSize
-  case findTarget (target flags) targets of
-    Nothing -> do
-      when (verbose flags > 0) $
-        putStrLn $ unwords ["Could not find", target flags, "in file"]
-      return TTarget { tName    = "default"
-                     , tCC      = fromMaybe "cc" compiler
-                     , tCCFlags = fromMaybe "" ccflags
-                     , tCCLibs  = fromMaybe "" cclibs
-                     , tConf    = fromMaybe dConf conf
-                     , tOut     = "-o"
-                     }
-    Just (Target n cs) -> do
-      when (verbose flags > 0) $
-        putStrLn $ "Found target: " ++ show cs
-      return TTarget { tName    = n
-                     , tCC      = fromMaybe "cc"  $ compiler <|> lookup "cc"      cs
-                     , tCCFlags = fromMaybe ""    $ ccflags  <|> lookup "ccflags" cs
-                     , tCCLibs  = fromMaybe ""    $ cclibs   <|> lookup "cclibs"  cs
-                     , tConf    = fromMaybe dConf $ conf     <|> lookup "conf"    cs
-                     , tOut     = fromMaybe "-o"  $              lookup "cout"    cs
-                     }
-
+  targets <- readTargets flags dir
+  (n, cs) <-
+    case findTarget (target flags) targets of
+      Nothing -> do
+        when (verbosityGT flags 0) $
+          putStrLn $ unwords ["Warning: could not find", target flags, "in file"]
+        return ("default", [])
+      Just (Target n cs) -> do
+        when (verbosityGT flags 0) $
+          putStrLn $ "Found target: " ++ show cs
+        return (n, cs)
+  return TTarget { tName    = n
+                 , tCC      = fromMaybe "cc"   $ lookup "cc"      cs
+                 , tCCFlags = fromMaybe ""     $ lookup "ccflags" cs
+                 , tCCLibs  = fromMaybe ""     $ lookup "cclibs"  cs
+                 , tConf    = fromMaybe "unix" $ lookup "conf"    cs
+                 , tOut     = fromMaybe "-o"   $ lookup "cout"    cs
+                 }
 
 mainBuildPkg :: Flags -> String -> [String] -> IO ()
 mainBuildPkg flags namever amns = do
@@ -335,7 +325,6 @@ mainCompile flags mn = do
 mainCompileC :: Flags -> [FilePath] -> FilePath -> IO ()
 mainCompileC flags ppkgs infile = do
   ct1 <- getTimeMilli
-  mcc <- lookupEnv "MHSCC"
   let dir = mhsdir flags
       incDirs = map (convertToInclude "include") ppkgs
       cDirs   = map (convertToInclude "cbits") ppkgs
@@ -348,25 +337,21 @@ mainCompileC flags ppkgs infile = do
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
       rtdir = dir ++ "/src/runtime"
   tgt <- readTarget flags dir
-  extra <- fromMaybe "" <$> lookupEnv "MHSEXTRACCFLAGS"
-  let dcc = unwords $ [tCC tgt,
+  let cmd = unwords $ [tCC tgt,
                        tCCFlags tgt,
                        "-I" ++ rtdir,
                        "-I" ++ rtdir </> tConf tgt,
                        incs,
                        defs,
-                       extra,
                        cpps] ++
                        cArgs flags ++
                        map (++ "/*.c") cDirs' ++
                       [ rtdir </> "main.c" | not (noLink flags) ] ++
                       [ rtdir </> "eval.c",
-                        "$IN",
+                        infile,
                         tCCLibs tgt,
-                        tOut tgt ++ "$OUT"
+                        tOut tgt ++ outFile
                       ]
-      cc = fromMaybe dcc mcc
-      cmd = substString "$IN" infile $ substString "$OUT" outFile cc
   when (verbosityGT flags 0) $
     putStrLn $ "Execute: " ++ show cmd
   ec <- system cmd
