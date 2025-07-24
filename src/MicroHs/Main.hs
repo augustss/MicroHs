@@ -285,8 +285,11 @@ mainCompile flags mn = do
     numDefs = length allDefs
   when (verbosityGT flags 0) $
     putStrLn $ "top level defns:      " ++ padLeft 6 (show numOutDefs) ++ " (unpruned " ++ show numDefs ++ ")"
-  dumpIf flags Dtoplevel $
-    mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "") allDefs
+  let printLDefs = mapM_ (\ (i, e) -> putStrLn $ showIdent i ++ " = " ++ toStringP e "")
+  dumpIf flags Dlinked $ do
+    putStrLn "linked:"; printLDefs (removeUnused cmdl)
+  dumpIf flags Dtoplevel $ do
+    putStrLn "toplevel:"; printLDefs allDefs
   if runIt flags then do
     unless compiledWithMhs $ do
       error "The -r flag currently only works with mhs"

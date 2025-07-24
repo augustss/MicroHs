@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, checkDupInstances) where
+module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, checkDupInstances, removeUnused) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char(ord, chr)
 import qualified MicroHs.IdentMap as M
@@ -17,6 +17,19 @@ import MicroHs.TypeCheck(isInstId)
 -- Must match version in eval.c.
 combVersion :: String
 combVersion = "v8.2\n"
+
+-- Remove unused definitions.  Only used for dumping definitions.
+removeUnused :: ([LDef], Exp) -> [LDef]
+removeUnused (ds, emain) = dfs roots M.empty
+  where
+    fexps = [ i | (i, e) <- ds, isJust $ getForExp e ]
+    roots = freeVars emain ++ fexps
+    dMap = M.fromList ds
+    dfs :: [Ident] -> M.Map Exp -> [LDef]
+    dfs [] done = M.toList done
+    dfs (i:is) done | Just _ <- M.lookup i done = dfs is done
+                    | otherwise = dfs (freeVars e ++ is) (M.insert i e done)
+                                  where e = fromMaybe (error $ "removeUnused: undef " ++ show i) $ M.lookup i dMap
 
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- Also check for duplicated instances.
