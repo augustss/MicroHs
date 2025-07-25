@@ -441,6 +441,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
 /* Most entries are initialized from the primops table. */
 static const char* tag_names [T_LAST_TAG+1] =
   { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "INT64", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
+#define TAGNAME(t) tag_names[t]
+#else
+#define TAGNAME(t) "?"
 #endif
 
 /* On 64 bit platforms there is no special type for Int64 */
@@ -3631,10 +3634,10 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     } else if (FUNPTR(n) == (HsFunPtr)closeb) {
       putsb(";closeb ", f);
     } else if (prefix) {
-      snprintf(prbuf, sizeof prbuf, "FUNPTR<%p>",FUNPTR(n));
+      snprintf(prbuf, sizeof prbuf, "FUNPTR<%p>", FUNPTR(n));
       putsb(prbuf, f);
     } else {
-      ERR1("Cannot serialize function pointers %p", FUNPTR(n));
+      ERR("Cannot serialize function pointers");
     }
     break;
   case T_THID:
@@ -3680,7 +3683,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     break;
   default:
     if (0 <= tag && tag <= T_LAST_TAG)
-#if WANT_TICK
+#if WANT_TICK && WANT_TAGNAMES
       if (tag_names[tag])
         putsb(tag_names[tag], f);
       else
@@ -4026,7 +4029,7 @@ evalint(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_INT) {
-    ERR1("evalint, bad tag %d", GETTAG(n));
+    ERR1("evalint, bad tag %s", TAGNAME(GETTAG(n)));
   }
 #endif
   return GETVALUE(n);
@@ -4040,7 +4043,7 @@ evaldbl(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_DBL) {
-    ERR1("evaldbl, bad tag %d", GETTAG(n));
+    ERR1("evaldbl, bad tag %s", TAGNAME(GETTAG(n)));
   }
 #endif
   return GETDBLVALUE(n);
@@ -4055,7 +4058,7 @@ evalflt(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_FLT32) {
-    ERR1("evaldbl, bad tag %d", GETTAG(n));
+    ERR1("evaldbl, bad tag %s", TAGNAME(GETTAG(n)));
   }
 #endif
   return GETFLTVALUE(n);
@@ -4069,7 +4072,7 @@ evalptr(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_PTR) {
-    ERR1("evalptr, bad tag %d", GETTAG(n));
+    ERR1("evalptr, bad tag %s", TAGNAME(GETTAG(n)));
   }
 #endif
   return PTR(n);
@@ -4082,7 +4085,7 @@ evalfunptr(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_FUNPTR) {
-    ERR1("evalfunptr, bad tag %d", GETTAG(n));
+    ERR1("evalfunptr, bad tag %s", TAGNAME(GETTAG(n)));
   }
 #endif
   return FUNPTR(n);
@@ -4095,7 +4098,7 @@ evalforptr(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_FORPTR) {
-    ERR1("evalforptr, bad tag %d", GETTAG(n));
+    ERR1("evalforptr, bad tag %s", TAGNAME(GETTAG(n)));
   }
 #endif
   return FORPTR(n);
@@ -4108,7 +4111,7 @@ evalbstr(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_FORPTR || FORPTR(n)->finalizer->fptype != FP_BSTR) {
-    ERR1("evalbstr, bad tag %d", GETTAG(n));
+    ERR1("evalbstr, bad tag %s", TAGNAME(GETTAG(n)));
   }
 #endif
   return FORPTR(n);
@@ -4121,7 +4124,7 @@ evalthid(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_THID) {
-    ERR1("evalthid, bad tag %d", GETTAG(n));
+    ERR1("evalthid, bad tag %s", TAGNAME(GETTAG(n)));
   }
 #endif
   return THR(n);
@@ -4134,7 +4137,7 @@ evalmvar(NODEPTR n)
   n = evali(n);
 #if SANITY
   if (GETTAG(n) != T_MVAR) {
-    ERR1("evalmvar, bad tag %d", GETTAG(n));
+    ERR1("evalmvar, bad tag %s", TAGNAME(GETTAG(n)));
   }
 #endif
   return MVAR(n);
@@ -5583,11 +5586,7 @@ evali(NODEPTR an)
 #endif
 
   default:
-#if WANT_TAGNAMES
-    ERR1("eval tag %s", tag_names[GETTAG(n)]);
-#else
-    ERR("eval tag");
-#endif
+    ERR1("eval tag %s", TAGNAME(GETTAG(n)));
   }
 
 

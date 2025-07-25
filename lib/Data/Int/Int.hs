@@ -23,10 +23,10 @@ instance Num Int where
   negate x = primIntNeg x
   abs x = if x < 0 then - x else x
   signum x =
-    case compare x 0 of
-      LT -> -1
-      EQ ->  0
-      GT ->  1
+    case compare x (0::Int) of
+      LT -> -(1::Int)
+      EQ ->  (0::Int)
+      GT ->  (1::Int)
   fromInteger = _integerToInt
 
 instance Integral Int where
@@ -35,8 +35,8 @@ instance Integral Int where
   toInteger = _intToInteger
 
 instance Bounded Int where
-  minBound = primWordToInt ((primWordInv (0::Word) `primWordQuot` 2) `primWordAdd` 1)
-  maxBound = primWordToInt  (primWordInv (0::Word) `primWordQuot` 2)
+  minBound = primWordToInt ((primWordInv (0::Word) `primWordQuot` (2::Word)) `primWordAdd` (1::Word))
+  maxBound = primWordToInt  (primWordInv (0::Word) `primWordQuot` (2::Word))
 
 instance Real Int where
   toRational i = _integerToRational (_intToInteger i)
