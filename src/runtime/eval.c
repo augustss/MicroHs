@@ -408,7 +408,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_ISINT,
                 T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF, T_I64TOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE,
-                T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD,
+                T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD, T_I64TOD,
                 T_DEQ, T_DNE, T_DLT, T_DLE, T_DGT, T_DGE,
                 T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
                 T_RAISE, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
@@ -1802,6 +1802,7 @@ struct {
   { "d/", T_DDIV},
   { "dneg", T_DNEG},
   { "itod", T_ITOD},
+  { "Itod", T_I64TOD},
   { "d==", T_DEQ, T_DEQ},
   { "d/=", T_DNE, T_DNE},
   { "d<", T_DLT, T_DGT},
@@ -4798,7 +4799,7 @@ evali(NODEPTR an)
     x = evali(ARG(TOP(0)));
 #if SANITY
     if (GETTAG(x) != T_INT64)
-      ERR("itod tag");
+      ERR("T_INT64 tag");
 #endif
     flt32_t rf = (flt32_t)GETINT64VALUE(x);
     POP(1);
@@ -4848,15 +4849,32 @@ evali(NODEPTR an)
     PUSH(combUNDBL1);
     goto top;
 
-  case T_ITOD:
+#if WANT_INT64 || WORD_SIZE == 64
+  case T_I64TOD:
     {
     CHECK(1);
     x = evali(ARG(TOP(0)));
 #if SANITY
     if (GETTAG(x) != T_INT64)
-      ERR("itod tag");
+      ERR("T_INT64 tag");
 #endif
     flt64_t rd = (flt64_t)GETINT64VALUE(x);
+    POP(1);
+    n = TOP(-1);
+    SETDBL(n, rd);
+    RET;
+    }
+#endif
+
+  case T_ITOD:
+    {
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+#if SANITY
+    if (GETTAG(x) != T_INT)
+      ERR("T_ITOD tag");
+#endif
+    flt64_t rd = (flt64_t)GETVALUE(x);
     POP(1);
     n = TOP(-1);
     SETDBL(n, rd);

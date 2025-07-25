@@ -123,7 +123,9 @@ primDoubleGT = _primitive "d>"
 primDoubleGE :: Double -> Double -> Bool
 primDoubleGE = _primitive "d>="
 primDoubleFromInt64 :: Int64 -> Double
-primDoubleFromInt64 = _primitive "itod"
+primDoubleFromInt64 = _primitive "Itod"
+primDoubleFromInt :: Int -> Double
+primDoubleFromInt = _primitive "itod"
 
 primWordAdd :: Word -> Word -> Word
 primWordAdd  = _primitive "+"

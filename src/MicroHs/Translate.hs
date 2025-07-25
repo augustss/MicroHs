@@ -144,6 +144,7 @@ primTable = [
   ("d>=", _primitive "d>="),
   ("dneg", _primitive "dneg"),
   ("itod", _primitive "itod"),
+  ("Itod", _primitive "Itod"),
   ("seq", _primitive "seq"),
   ("sequal", _primitive "sequal"),
   ("equal", _primitive "equal"),
