@@ -95,7 +95,9 @@ primFloatGT = _primitive "f>"
 primFloatGE :: Float -> Float -> Bool
 primFloatGE = _primitive "f>="
 primFloatFromInt64 :: Int64 -> Float
-primFloatFromInt64 = _primitive "itof"
+primFloatFromInt64 = _primitive "Itof"
+primFloatFromInt :: Int -> Float
+primFloatFromInt = _primitive "itof"
 
 primDoubleAdd :: Double -> Double -> Double
 primDoubleAdd  = _primitive "d+"

@@ -406,7 +406,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
                 T_BINBS2, T_BINBS1,
                 T_ISINT,
-                T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF,
+                T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF, T_I64TOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE,
                 T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD,
                 T_DEQ, T_DNE, T_DLT, T_DLE, T_DGT, T_DGE,
@@ -1808,6 +1808,7 @@ struct {
   { "f*" , T_FMUL, T_FMUL},
   { "f/", T_FDIV},
   { "fneg", T_FNEG},
+  { "Itof", T_I64TOF},
   { "itof", T_ITOF},
   { "f==", T_FEQ, T_FEQ},
   { "f/=", T_FNE, T_FNE},
@@ -4771,6 +4772,25 @@ evali(NODEPTR an)
     n = ARG(TOP(0));
     PUSH(combUNFLT1);
     goto top;
+
+  case T_I64TOF:
+    {
+#if WANT_INT64 || WORD_SIZE == 64
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+#if SANITY
+    if (GETTAG(x) != T_INT64)
+      ERR("itod tag");
+#endif
+    flt32_t rf = (flt32_t)GETINT64VALUE(x);
+    POP(1);
+    n = TOP(-1);
+    SETFLT(n, rf);
+    RET;
+#else
+    ERR("No Int64");
+#endif
+    }
 
   case T_ITOF:
     {
