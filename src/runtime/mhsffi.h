@@ -34,7 +34,7 @@ struct ffi_entry {
   int         ffi_arity;
   funptr_t    ffi_fun;
 };
-extern struct ffi_entry *xffi_table;
+extern const struct ffi_entry *xffi_table;
 
 struct ffe_entry {
   const char  *ffe_name;

@@ -41,11 +41,11 @@ makeFFI _ forExps ds =
     (unlines $
       map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
       map mkHdr imps ++
-      ["static struct ffi_entry imp_table[] = {"] ++
+      ["static const struct ffi_entry imp_table[] = {"] ++
       map mkEntry imps ++
       ["{ 0,0 }",
        "};",
-       "struct ffi_entry *xffi_table = imp_table;"
+       "const struct ffi_entry *xffi_table = imp_table;"
       ] ++
       ["static struct ffe_entry exp_table[] = {"] ++
       map mkExport forExps ++

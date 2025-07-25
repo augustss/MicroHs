@@ -25,9 +25,9 @@ makeCArray flags file =
 makeCArray' :: String -> String
 makeCArray' file =
   let chunks = chunkify 20 file
-  in  unlines $ ["static unsigned char data[] = {"] ++
+  in  unlines $ ["static const unsigned char data[] = {"] ++
                 map showChunk chunks ++
                 ["};",
-                 "unsigned char *combexpr = data;",
-                 "int combexprlen = " ++ show (length file) ++ ";"
+                 "const unsigned char *combexpr = data;",
+                 "const int combexprlen = " ++ show (length file) ++ ";"
                 ]

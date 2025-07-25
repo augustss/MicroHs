@@ -60,7 +60,7 @@ size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
 #define REGISTER(dcl, reg) dcl
 #endif
 
-struct ffi_entry ffi_table[];
+const struct ffi_entry ffi_table[];
 int num_ffi;
 #define FFI_IX(i) ((i) < num_ffi ? ffi_table[i] : xffi_table[i - num_ffi])
 
@@ -6062,8 +6062,8 @@ memsize(const char *p)
 }
 #endif
 
-extern uint8_t *combexpr;
-extern int combexprlen;
+extern const uint8_t *combexpr;
+extern const int combexprlen;
 
 #if WANT_TICK
 int dump_ticks = 0;
@@ -6707,7 +6707,7 @@ from_t mhs_mpz_tstbit(int s) { return mhs_from_Int(s, 2, mpz_tstbit(mhs_to_Ptr(s
 from_t mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 #endif  /* WANT_GMP */
 
-struct ffi_entry ffi_table[] = {
+const struct ffi_entry ffi_table[] = {
   { "GETRAW", 0, mhs_GETRAW},
   { "GETTIMEMILLI", 0, mhs_GETTIMEMILLI},
 #if WANT_MATH

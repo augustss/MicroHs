@@ -1,5 +1,5 @@
 #include "mhsffi.h"
-static unsigned char data[] = {
+static const unsigned char data[] = {
 122,76,90,49,229,174,0,0,31,118,56,46,50,10,49,48,48,56,10,65,
 32,95,48,32,95,50,52,32,64,95,50,53,32,95,51,53,32,64,95,51,
 55,2,32,64,64,224,22,4,1,52,48,224,22,13,0,50,224,22,0,1,
@@ -2241,12 +2241,12 @@ static unsigned char data[] = {
 64,200,74,92,99,39,224,0,255,224,0,255,224,0,255,224,0,204,1,32,
 125,
 };
-unsigned char *combexpr = data;
-int combexprlen = 44781;
-static struct ffi_entry imp_table[] = {
+const unsigned char *combexpr = data;
+const int combexprlen = 44781;
+static const struct ffi_entry imp_table[] = {
 { 0,0 }
 };
-struct ffi_entry *xffi_table = imp_table;
+const struct ffi_entry *xffi_table = imp_table;
 static struct ffe_entry exp_table[] = {
   { 0,0 }
 };

@@ -277,7 +277,9 @@ ungetb_buf(int c, BFILE *bp)
   CHECKBFILE(bp, getb_buf);
   if (p->bf.pos == 0)
     ERR("ungetb");
-  p->bf.buf[--p->bf.pos] = (uint8_t)c;
+  p->bf.pos--;
+  if (p->bf.buf[p->bf.pos] != (uint8_t)c)
+    ERR("ungetb");
 }
 
 void
@@ -319,7 +321,7 @@ writeb_buf(const uint8_t *str, size_t size, BFILE *bp)
 }
 
 struct BFILE*
-openb_rd_buf(uint8_t *buf, size_t len)
+openb_rd_buf(const uint8_t *buf, size_t len)
 {
   struct BFILE_buffer *p = MALLOC(sizeof(struct BFILE_buffer));
   if (!p)
@@ -333,7 +335,7 @@ openb_rd_buf(uint8_t *buf, size_t len)
   p->mets.writeb = 0;
   p->bf.size = len;
   p->bf.pos = 0;
-  p->bf.buf = buf;
+  p->bf.buf = (uint8_t *)buf;
   return (struct BFILE*)p;
 }
 
