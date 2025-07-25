@@ -63,6 +63,11 @@
 #define WANT_SIGINT 1
 
 /*
+ * Symbolic names for tag when things go wrong.
+ */
+#define WANT_TAGNAMES 1
+
+/*
  * This is the character used for comma-separation in printf.
  * Defaults to "'".
  */

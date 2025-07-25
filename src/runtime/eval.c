@@ -436,9 +436,12 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_LAST_TAG,
 };
+
+#if WANT_TAGNAMES
 /* Most entries are initialized from the primops table. */
-static const char* tag_names[T_LAST_TAG+1] =
+static const char* tag_names [T_LAST_TAG+1] =
   { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "INT64", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
+#endif
 
 /* On 64 bit platforms there is no special type for Int64 */
 #if NEED_INT64
@@ -1740,11 +1743,12 @@ start_exec(NODEPTR root)
 /* We use linear search in this, because almost all lookups
  * are among the combinators.
  */
+static const
 struct {
   const char *name;
   const enum node_tag tag;
   const enum node_tag flipped;        /* What should (C op) reduce to? defaults to T_FREE */
-  NODEPTR node;
+  //  NODEPTR node;
 } primops[] = {
   /* combinators */
   /* sorted by frequency in a typical program */
@@ -2090,10 +2094,12 @@ init_nodes(void)
       break;
     }
     for (j = sizeof primops / sizeof primops[0]; j-- > 0; ) {
-      if (primops[j].tag == t) {
-        primops[j].node = n;
-      }
+      //      if (primops[j].tag == t) {
+      //        primops[j].node = n;
+      //      }
+#if WANT_TAGNAMES
       tag_names[primops[j].tag] = primops[j].name;
+#endif
     }
   }
 
@@ -3309,7 +3315,13 @@ parse(BFILE *f)
       /* Look up the primop and use the preallocated node. */
       for (j = 0; j < sizeof primops / sizeof primops[0]; j++) {
         if (strcmp(primops[j].name, buf) == 0) {
+#if 0
           r = primops[j].node;
+          if (r != HEAPREF(primops[j].tag))
+            printf("bad %s\n", buf);
+#else
+          r = HEAPREF(primops[j].tag);
+#endif
           goto found;
         }
       }
@@ -3668,9 +3680,12 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
     break;
   default:
     if (0 <= tag && tag <= T_LAST_TAG)
+#if WANT_TICK
       if (tag_names[tag])
         putsb(tag_names[tag], f);
-      else {
+      else
+#endif
+        {
         snprintf(prbuf, sizeof prbuf, "TAG=%d", (int)tag);
         putsb(prbuf, f);
       }
@@ -5568,7 +5583,11 @@ evali(NODEPTR an)
 #endif
 
   default:
+#if WANT_TAGNAMES
     ERR1("eval tag %s", tag_names[GETTAG(n)]);
+#else
+    ERR("eval tag");
+#endif
   }
 
 
