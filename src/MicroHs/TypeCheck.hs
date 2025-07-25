@@ -2112,9 +2112,10 @@ dsEField :: Expr -> EField -> T [EField]
 dsEField _ e@(EField _ _) = return [e]
 dsEField _ (EFieldPun is) = return [EField is $ EVar (last is)]
 dsEField e EFieldWild = do
+  let loc = getSLoc e
   (e', _) <- tInferExpr e
   case e' of
-    ECon c -> return [ EField [f] (EVar f) | f <- conFields c ]
+    ECon c -> return [ EField [f'] (EVar f') | f <- conFields c, let f' = setSLocIdent loc f ]
     _ -> tcError (getSLoc e) "record wildcard not allowed"
 
 -- Patterns need to expand EFieldWild before type checking
