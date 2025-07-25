@@ -4485,9 +4485,6 @@ evali(NODEPTR an)
   NODEPTR x, y, z, w;
   value_t xi, yi, r;
   struct forptr *xfp;
-#if WANT_FLOAT64
-  flt64_t rd;
-#endif  /* WANT_FLOAT64 */
   char *msg;
   heapoffs_t l;
   enum node_tag tag;
@@ -4776,17 +4773,19 @@ evali(NODEPTR an)
     goto top;
 
   case T_ITOF:
+    {
     CHECK(1);
     x = evali(ARG(TOP(0)));
 #if SANITY
     if (GETTAG(x) != T_INT64)
       ERR("itod tag");
 #endif
-    rd = (flt32_t)GETINT64VALUE(x);
+    flt32_t rf = (flt32_t)GETVALUE(x);
     POP(1);
     n = TOP(-1);
-    SETFLT(n, rd);
+    SETFLT(n, rf);
     RET;
+    }
 
 #endif  /* WANT_FLOAT32 */
 
@@ -4812,17 +4811,19 @@ evali(NODEPTR an)
     goto top;
 
   case T_ITOD:
+    {
     CHECK(1);
     x = evali(ARG(TOP(0)));
 #if SANITY
     if (GETTAG(x) != T_INT64)
       ERR("itod tag");
 #endif
-    rd = (flt64_t)GETINT64VALUE(x);
+    flt64_t rd = (flt64_t)GETINT64VALUE(x);
     POP(1);
     n = TOP(-1);
     SETDBL(n, rd);
     RET;
+    }
 
 #endif  /* WANT_FLOAT64 */
 
