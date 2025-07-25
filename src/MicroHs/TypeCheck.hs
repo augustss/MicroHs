@@ -2148,7 +2148,7 @@ dsUpdate unset e flds = do
     ECon c -> do
       let ises = map unEField flds
           fs = conFields c
-          ies = map (first (unQualIdent . head)) ises
+          ies = map (first head) ises
           is = map fst ies
           as = map field fs
           field i = fromMaybe (unset i) $ lookup i ies

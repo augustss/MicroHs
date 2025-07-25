@@ -789,7 +789,7 @@ pUpdate :: P [EField]
 pUpdate = pSpec '{' *> sepBy pEField (pSpec ',') <* pSpec '}'
   where
     pEField = do
-      fs <- (:) <$> pLQIdentSym <*> many pSelect
+      fs <- (:) <$> (unQualIdent <$> pLQIdentSym) <*> many pSelect
       EField fs <$> (pSpec '=' *> pExpr) <|> pure (EFieldPun fs)
      <|>
       (EFieldWild <$ pSymbol "..")
