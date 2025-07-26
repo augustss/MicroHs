@@ -143,6 +143,10 @@ void GETCPUTIME(long *sec, long *nsec) { sec = 0; nsec = 0; }
 #endif  /* WORD_SIZE == 32 */
 #endif  /* !defined(PACKED) */
 
+#if !defined(SLICE)
+#define SLICE 100000
+#endif
+
 NORETURN void memerr(void);
 
 void *
@@ -814,7 +818,7 @@ struct mvar {
 struct mvar      *all_mvars = 0;   /* all mvars */
 
 jmp_buf          sched;             /* jump here to yield */
-counter_t        slice = 100000;    /* normal time slice;
+counter_t        slice = SLICE;     /* normal time slice;
                                      * on an M4 Mac this is about 0.3ms */
 //REGISTER(counter_t glob_slice,r23);
 REGISTER(int glob_slice,r23);
