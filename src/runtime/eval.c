@@ -4820,8 +4820,8 @@ evali(NODEPTR an)
     CHECK(1);
     x = evali(ARG(TOP(0)));
 #if SANITY
-    if (GETTAG(x) != T_INT64)
-      ERR("itod tag");
+    if (GETTAG(x) != T_INT)
+      ERR("T_ITOF tag");
 #endif
     flt32_t rf = (flt32_t)GETVALUE(x);
     POP(1);
