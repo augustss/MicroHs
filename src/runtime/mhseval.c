@@ -3,6 +3,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+// Provide stub implementations for missing symbols before including eval.c
+// eval.c expects: extern const uint8_t *combexpr;
+const uint8_t *combexpr = NULL;
+// eval.c expects: extern const int combexprlen;
+const int combexprlen = 0;
+
 #include "eval.c"
 
 // Define the FFI tables after the structs are declared
