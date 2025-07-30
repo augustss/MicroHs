@@ -80,6 +80,7 @@ executable mhs
                        MicroHs.Interactive
                        MicroHs.Lex
                        MicroHs.List
+                       MicroHs.MhsEval
                        MicroHs.Names
                        MicroHs.MakeCArray
                        MicroHs.Package
@@ -91,6 +92,7 @@ executable mhs
                        MicroHs.Translate
                        MicroHs.TypeCheck
                        MicroHs.TargetConfig
+                       MicroHs.UsageConstants
                        Text.ParserComb
                        Text.PrettyPrint.HughesPJLite
                        System.Console.SimpleReadline
@@ -118,6 +120,11 @@ executable mhs
                        directory    >= 1.2 && < 1.6,
                        text         >= 2.0 && < 2.5,
                        array        >= 0.5 && < 0.6
+    include-dirs:      src/runtime src/runtime/unix
+    install-includes:  mhseval.h
+    c-sources:         src/runtime/mhseval.c
+    cc-options:        -DWANT_FLOAT64=1
+    includes:          mhseval.h
 
   if impl(hugs)
     hs-source-dirs:    hugs src
@@ -156,6 +163,7 @@ library
                         MicroHs.List 
                         MicroHs.Main 
                         MicroHs.MakeCArray 
+                        MicroHs.MhsEval
                         MicroHs.Names 
                         MicroHs.Package 
                         MicroHs.Parse 
@@ -166,6 +174,7 @@ library
                         MicroHs.TCMonad 
                         MicroHs.Translate 
                         MicroHs.TypeCheck
+                        MicroHs.UsageConstants
 
   other-modules:        MHSPrelude
                         Text.ParserComb
@@ -191,6 +200,11 @@ library
                         directory    >= 1.2 && < 1.6,
                         text         >= 2.0 && < 2.5,
                         array        >= 0.5 && < 0.6
+    include-dirs:       src/runtime src/runtime/unix
+    install-includes:   mhseval.h
+    c-sources:          src/runtime/mhseval.c
+    cc-options:         -DWANT_FLOAT64=1
+    includes:           mhseval.h
 
   if impl(hugs)
     hs-source-dirs:     hugs src
