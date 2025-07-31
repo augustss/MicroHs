@@ -1,7 +1,6 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-unused-do-bind -Wno-unused-imports #-}
-{-# LANGUAGE CPP #-}
 module MicroHs.Main(main) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
@@ -21,9 +20,7 @@ import MicroHs.Flags
 import MicroHs.Ident
 import MicroHs.Lex(readInt)
 import MicroHs.List
-#ifdef __GLASGOW_HASKELL__
 import MicroHs.MhsEval
-#endif
 import MicroHs.Package
 import MicroHs.Translate
 import MicroHs.TypeCheck(tModuleName)
@@ -37,7 +34,6 @@ import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
 import MicroHs.TargetConfig
-import MicroHs.UsageConstants (usage, longUsage)
 import Paths_MicroHs(getDataDir)
 
 main :: IO ()
@@ -71,6 +67,51 @@ main = do
                       | otherwise -> mainCompileC flags [] ""
                   [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
                   _   -> error usage
+
+usage :: String
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+
+longUsage :: String
+longUsage = usage ++ "\nOptions:\n" ++ details
+  where
+    details = "\
+      \-h                 Print usage\n\
+      \-?                 Print usage\n\
+      \--help             Print this message\n\
+      \--version          Print the version\n\
+      \--numeric-version  Print the version number\n\
+      \-v                 Increase verbosity (flag can be repeated)\n\
+      \-q                 Decrease verbosity (flag can be repeated)\n\
+      \-l                 Show every time a module is loaded\n\
+      \-s                 Show compilation speed in lines/s\n\
+      \-r                 Run directly\n\
+      \-c                 Don not generate executable\n\
+      \-CR                Read compilation cache\n\
+      \-CW                Write compilation cache\n\
+      \-C                 Read and write compilation cache\n\
+      \-XCPP              Run cpphs on source files\n\
+      \-Dxxx              Pass -Dxxx to cpphs\n\
+      \-Ixxx              Pass -Ixxx to cpphs\n\
+      \-T                 Generate dynamic function usage statistics\n\
+      \-z                 Compress combinator code generated in the .c file\n\
+      \-iPATH             Add PATH to module search path\n\
+      \-oFILE             Output to FILE\n\
+      \                   If FILE ends in .comb produce a combinator file\n\
+      \                   If FILE ends in .c produce a C file\n\
+      \                   Otherwise compile the combinators together with the runtime system to produce a regular executable\n\
+      \-a                 Clear package search path\n\
+      \-aPATH             Add PATH to package search path\n\
+      \-LPKG              List all modules of package PKG\n\
+      \-PPKG              Build package PKG\n\
+      \-Q PKG [DIR]       Install package PKG\n\
+      \-tTARGET           Select target\n\
+      \                   Distributed targets: default, emscripten\n\
+      \                   Targets can be defined in targets.conf\n\
+      \-optc OPTION       Options for the C compiler\n\
+      \--stdin            Use stdin in interactive system\n\
+      \-ddump-PASS        Debug, print AST after PASS\n\
+      \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, all\n\
+      \"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
 decodeArgs f mdls [] = (f, mdls, [])
@@ -244,13 +285,11 @@ mainCompile flags mn = do
     if compiledWithMhs then do
       let prg = translateAndRun cmdl
       prg
-     else do
-#ifdef __GLASGOW_HASKELL__
+     else if compiledWithGhc then 
       withMhsContext $ \ ctx -> do
         run ctx outData
-#else
-      error "The -r flag currently only works with mhs and ghc"
-#endif  
+      else error "The -r flag currently only works with mhs and ghc"
+
    else do
     seq (length outData) (return ())
     t2 <- getTimeMilli
