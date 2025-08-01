@@ -6,6 +6,7 @@
  * The streams are typically bytes.
  *
  *  FILE   source/sink for stdio FILE handles
+ *  FD     source/sink for file descriptors
  *  buf    source/sink where the read/write uses a memory buffer.
  *
  *  lz77   transducer for LZ77 compression
@@ -458,6 +459,106 @@ add_FILE(FILE *f)
   p->mets.readb  = readb_file;
   p->mets.writeb = writeb_file;
   p->file = f;
+  return (BFILE*)p;
+}
+#endif
+
+
+#if WANT_FD
+/***************** BFILE via file descriptor *******************/
+struct BFILE_fd {
+  BFILE    mets;
+  int      unget;
+  int      fd;
+};
+
+int
+getb_fd(BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  uint8_t c;
+  if (p->unget >= 0) {
+    c = p->unget;
+    p->unget = -1;
+  } else {
+    if (read(p->fd, &c, 1) != 1)
+      return -1;
+  }
+  return c;
+}
+
+void
+ungetb_fd(int c, BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  p->unget = c;
+}
+
+void
+putb_fd(int c, BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  uint8_t u = c;
+  write(p->fd, &u, 1);
+}
+
+void
+flushb_fd(BFILE *bp)
+{
+  CHECKBFILE(bp, getb_fd);
+}
+
+void
+closeb_fd(BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  close(p->fd);
+  FREE(p);
+}
+
+void
+freeb_fd(BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  FREE(p);
+}
+
+size_t
+readb_fd(uint8_t *buf, size_t size, BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  return read(p->fd, buf, size);
+}
+
+size_t
+writeb_fd(const uint8_t *str, size_t size, BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  return write(p->fd, str, size);
+}
+
+BFILE *
+add_fd(int fd)
+{
+  struct BFILE_fd *p = MALLOC(sizeof (struct BFILE_fd));
+  if (!p)
+    memerr();
+  p->mets.getb   = getb_fd;
+  p->mets.ungetb = ungetb_fd;
+  p->mets.putb   = putb_fd;
+  p->mets.flushb = flushb_fd;
+  p->mets.closeb = closeb_fd;
+  p->mets.readb  = readb_fd;
+  p->mets.writeb = writeb_fd;
+  p->fd = fd;
+  p->unget = -1;
   return (BFILE*)p;
 }
 #endif

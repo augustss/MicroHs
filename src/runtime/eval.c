@@ -6544,25 +6544,29 @@ from_t mhs_scalbnf(int s) { return mhs_from_Float(s, 2, scalbnf(mhs_to_Float(s, 
 
 #if WANT_STDIO
 from_t mhs_add_FILE(int s) { return mhs_from_Ptr(s, 1, add_FILE(mhs_to_Ptr(s, 0))); }
+from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); } /* for debugging */
+from_t mhs_fopen(int s) { return mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+from_t mhs_system(int s) { return mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
+from_t mhs_tmpname(int s) { return mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_STDIO */
+#if WANT_FD
+from_t mhs_add_fd(int s) { return mhs_from_Ptr(s, 1, add_fd(mhs_to_Int(s, 0))); }
+from_t mhs_open(int s) { return mhs_from_Int(s, 2, open(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+#endif  /* WANT_FD */
+
 from_t mhs_add_utf8(int s) { return mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
 from_t mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_closeb(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
 from_t mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
-from_t mhs_fopen(int s) { return mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-
 from_t mhs_getb(int s) { return mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
 from_t mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
-from_t mhs_openwrbuf(int s) { return mhs_from_Ptr(s, 0, openb_wr_buf()); }
-from_t mhs_openrdbuf(int s) { return mhs_from_Ptr(s, 2, openb_rd_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
-from_t mhs_getbuf(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  return mhs_from_Unit(s, 3); }
-from_t mhs_system(int s) { return mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
-from_t mhs_tmpname(int s) { return mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
+from_t mhs_openwrmem(int s) { return mhs_from_Ptr(s, 0, openb_wr_buf()); }
+from_t mhs_openrdmem(int s) { return mhs_from_Ptr(s, 2, openb_rd_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_getmem(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  return mhs_from_Unit(s, 3); }
 from_t mhs_readb(int s) { return mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 from_t mhs_writeb(int s) { return mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
-from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); } /* for debugging */
-#endif  /* WANT_STDIO */
 
 #if WANT_MD5
 from_t mhs_md5Array(int s) { md5Array(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
@@ -6781,24 +6785,28 @@ const struct ffi_entry ffi_table[] = {
 
 #if WANT_STDIO
   { "add_FILE", 1, mhs_add_FILE},
+  { "putchar", 1, mhs_putchar},
+  { "fopen", 2, mhs_fopen},
+  { "tmpname", 2, mhs_tmpname},
+  { "unlink", 1, mhs_unlink},
+  { "system", 1, mhs_system},
+#endif  /* WANT_STDIO */
+#if WANT_FD
+  { "add_fd", 1, mhs_add_fd},
+  { "open", 2, mhs_open},
+#endif  /* WANT_FD */
   { "add_utf8", 1, mhs_add_utf8},
   { "closeb", 1, mhs_closeb},
   { "&closeb", 0, mhs_addr_closeb},
   { "flushb", 1, mhs_flushb},
-  { "fopen", 2, mhs_fopen},
   { "getb", 1, mhs_getb},
   { "putb", 2, mhs_putb},
   { "ungetb", 2, mhs_ungetb},
-  { "openb_wr_buf", 0, mhs_openwrbuf},
-  { "openb_rd_buf", 2, mhs_openrdbuf},
-  { "get_buf", 3, mhs_getbuf},
-  { "system", 1, mhs_system},
-  { "tmpname", 2, mhs_tmpname},
-  { "unlink", 1, mhs_unlink},
+  { "openb_wr_mem", 0, mhs_openwrmem},
+  { "openb_rd_mem", 2, mhs_openrdmem},
+  { "get_mem", 3, mhs_getmem},
   { "readb", 3, mhs_readb},
   { "writeb", 3, mhs_writeb},
-  { "putchar", 1, mhs_putchar},
-#endif  /* WANT_STDIO */
 
 #if WANT_MD5
   { "md5Array", 3, mhs_md5Array},

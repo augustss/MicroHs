@@ -29,6 +29,8 @@ module System.IO.Base(
   hSetBuffering,
 
   IOException(..),
+
+  openFD, openFileFDM,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -68,13 +70,16 @@ primStdout        = _primitive "IO.stdout"
 primStderr       :: ForeignPtr BFILE
 primStderr        = _primitive "IO.stderr"
 
+-- FILE stuff
 foreign import ccall "fopen"        c_fopen        :: CString -> CString -> IO (Ptr FILE)
+foreign import ccall "add_FILE"     c_add_FILE     :: Ptr FILE           -> IO (Ptr BFILE)
+
+-- BFILE stuff
 foreign import ccall "closeb"       c_closeb       :: Ptr BFILE          -> IO ()
 foreign import ccall "flushb"       c_flushb       :: Ptr BFILE          -> IO ()
 foreign import ccall "getb"         c_getb         :: Ptr BFILE          -> IO Int
 foreign import ccall "ungetb"       c_ungetb       :: Int -> Ptr BFILE   -> IO ()
 foreign import ccall "putb"         c_putb         :: Int -> Ptr BFILE   -> IO ()
-foreign import ccall "add_FILE"     c_add_FILE     :: Ptr FILE           -> IO (Ptr BFILE)
 foreign import ccall "add_utf8"     c_add_utf8     :: Ptr BFILE          -> IO (Ptr BFILE)
 
 ----------------------------------------------------------
@@ -350,3 +355,31 @@ data BufferMode = NoBuffering | LineBuffering | BlockBuffering (Maybe Int)
 -- This currently does nothing.
 hSetBuffering :: Handle -> BufferMode -> IO ()
 hSetBuffering _ _ = return ()
+
+---------------
+
+foreign import ccall "add_fd" c_add_fd ::            Int -> IO (Ptr BFILE)
+foreign import ccall "open"   c_open   :: CString -> Int -> IO Int
+
+openFD :: Int -> IOMode -> IO Handle
+openFD fd mode = do
+  bf <- c_add_fd fd
+  mkHandle "FD" bf (ioModeToHMode mode)
+
+openAsFd :: FilePath -> IOMode -> IO (Maybe Int)
+openAsFd name mode = do
+  let cm =
+        case mode of
+          ReadMode      -> 0o0000 -- RDONLY
+          WriteMode     -> 0o1101 -- TRUNC, CREAT, WRONLY
+          ReadWriteMode -> 0o0002 -- RDWR
+          AppendMode    -> 0o2001 -- APPEND, WRONLY
+  fd <- withCAString name $ \ cp -> c_open cp cm
+  if fd < 0 then
+    return Nothing
+   else
+    return (Just fd)
+
+openFileFDM :: FilePath -> IOMode -> IO (Maybe Handle)
+openFileFDM name mode = 
+  openAsFd name mode >>= maybe (return Nothing) (\ fd -> Just <$> openFD fd mode)
