@@ -3949,7 +3949,7 @@ mkStringC(char *str)
 NODEPTR
 mkStringU(struct bytestring bs)
 {
-  BFILE *ubuf = add_utf8(openb_rd_buf(bs.string, bs.size));
+  BFILE *ubuf = add_utf8(openb_rd_mem(bs.string, bs.size));
   NODEPTR n, *np, nc;
 
   //printf("mkStringU %d %s\n", (int)bs.size, (char*)bs.string);
@@ -6230,7 +6230,7 @@ mhs_init_args(
 
   if (combexpr) {
     int c;
-    BFILE *bf = openb_rd_buf(combexpr, combexprlen);
+    BFILE *bf = openb_rd_mem(combexpr, combexprlen);
     c = getb(bf);
     /* Compressed combinators start with a 'Z' or 'z', otherwise 'v' (for version) */
     if (c == 'z') {
@@ -6552,8 +6552,9 @@ from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); 
 #endif  /* WANT_STDIO */
 #if WANT_FD
 from_t mhs_add_fd(int s) { return mhs_from_Ptr(s, 1, add_fd(mhs_to_Int(s, 0))); }
-from_t mhs_open(int s) { return mhs_from_Int(s, 2, open(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_open(int s) { return mhs_from_Int(s, 3, open(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2))); }
 #endif  /* WANT_FD */
+from_t mhs_add_buf(int s) { return mhs_from_Ptr(s, 2, add_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
 
 from_t mhs_add_utf8(int s) { return mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
 from_t mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
@@ -6562,9 +6563,9 @@ from_t mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1);
 from_t mhs_getb(int s) { return mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
 from_t mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
-from_t mhs_openwrmem(int s) { return mhs_from_Ptr(s, 0, openb_wr_buf()); }
-from_t mhs_openrdmem(int s) { return mhs_from_Ptr(s, 2, openb_rd_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
-from_t mhs_getmem(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  return mhs_from_Unit(s, 3); }
+from_t mhs_openwrmem(int s) { return mhs_from_Ptr(s, 0, openb_wr_mem()); }
+from_t mhs_openrdmem(int s) { return mhs_from_Ptr(s, 2, openb_rd_mem(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_getmem(int s) { get_mem(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  return mhs_from_Unit(s, 3); }
 from_t mhs_readb(int s) { return mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 from_t mhs_writeb(int s) { return mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 
@@ -6793,8 +6794,9 @@ const struct ffi_entry ffi_table[] = {
 #endif  /* WANT_STDIO */
 #if WANT_FD
   { "add_fd", 1, mhs_add_fd},
-  { "open", 2, mhs_open},
+  { "open", 3, mhs_open},
 #endif  /* WANT_FD */
+  { "add_buf", 2, mhs_add_buf},
   { "add_utf8", 1, mhs_add_utf8},
   { "closeb", 1, mhs_closeb},
   { "&closeb", 0, mhs_addr_closeb},

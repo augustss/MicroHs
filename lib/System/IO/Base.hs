@@ -358,13 +358,15 @@ hSetBuffering _ _ = return ()
 
 ---------------
 
-foreign import ccall "add_fd" c_add_fd ::            Int -> IO (Ptr BFILE)
-foreign import ccall "open"   c_open   :: CString -> Int -> IO Int
+foreign import ccall "add_fd"  c_add_fd  ::              Int -> IO (Ptr BFILE)
+foreign import ccall "add_buf" c_add_buf :: Ptr BFILE -> Int -> IO (Ptr BFILE)
+foreign import ccall "open"    c_open    :: CString   -> Int -> Int -> IO Int
 
 openFD :: Int -> IOMode -> IO Handle
 openFD fd mode = do
   bf <- c_add_fd fd
-  mkHandle "FD" bf (ioModeToHMode mode)
+  bf' <- c_add_buf bf (-128)
+  mkHandle "FD" bf' (ioModeToHMode mode)
 
 openAsFd :: FilePath -> IOMode -> IO (Maybe Int)
 openAsFd name mode = do
@@ -374,7 +376,7 @@ openAsFd name mode = do
           WriteMode     -> 0o1101 -- TRUNC, CREAT, WRONLY
           ReadWriteMode -> 0o0002 -- RDWR
           AppendMode    -> 0o2001 -- APPEND, WRONLY
-  fd <- withCAString name $ \ cp -> c_open cp cm
+  fd <- withCAString name $ \ cp -> c_open cp cm 0o666
   if fd < 0 then
     return Nothing
    else
