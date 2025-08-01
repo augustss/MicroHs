@@ -20,12 +20,12 @@ import MicroHs.Flags
 import MicroHs.Ident
 import MicroHs.Lex(readInt)
 import MicroHs.List
-import MicroHs.MhsEval
 import MicroHs.Package
 import MicroHs.Translate
 import MicroHs.TypeCheck(tModuleName)
 import MicroHs.Interactive
 import MicroHs.MakeCArray
+import MhsEval
 import System.Cmd
 import System.Exit
 import System.FilePath
@@ -105,7 +105,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-PPKG              Build package PKG\n\
       \-Q PKG [DIR]       Install package PKG\n\
       \-tTARGET           Select target\n\
-      \                   Distributed targets: default, emscripten\n\
+      \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
       \                   Targets can be defined in targets.conf\n\
       \-optc OPTION       Options for the C compiler\n\
       \--stdin            Use stdin in interactive system\n\
@@ -289,7 +289,6 @@ mainCompile flags mn = do
       withMhsContext $ \ ctx -> do
         run ctx outData
       else error "The -r flag currently only works with mhs and ghc"
-
    else do
     seq (length outData) (return ())
     t2 <- getTimeMilli

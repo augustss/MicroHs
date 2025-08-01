@@ -80,7 +80,6 @@ executable mhs
                        MicroHs.Interactive
                        MicroHs.Lex
                        MicroHs.List
-                       MicroHs.MhsEval
                        MicroHs.Names
                        MicroHs.MakeCArray
                        MicroHs.Package
@@ -98,6 +97,7 @@ executable mhs
                        Data.Double
                        Data.Integer
                        PrimTable
+                       MhsEval
                        MHSPrelude
                        System.IO.MD5
                        System.IO.Serialize
@@ -122,7 +122,6 @@ executable mhs
     include-dirs:      src/runtime src/runtime/unix
     install-includes:  mhseval.h
     c-sources:         src/runtime/mhseval.c
-    cc-options:        -DWANT_FLOAT64=1
     includes:          mhseval.h
 
   if impl(hugs)
@@ -162,7 +161,6 @@ library
                         MicroHs.List 
                         MicroHs.Main 
                         MicroHs.MakeCArray 
-                        MicroHs.MhsEval
                         MicroHs.Names 
                         MicroHs.Package 
                         MicroHs.Parse 
@@ -173,6 +171,7 @@ library
                         MicroHs.TCMonad 
                         MicroHs.Translate 
                         MicroHs.TypeCheck
+                        MhsEval
 
   other-modules:        MHSPrelude
                         Text.ParserComb
@@ -201,7 +200,6 @@ library
     include-dirs:       src/runtime src/runtime/unix
     install-includes:   mhseval.h
     c-sources:          src/runtime/mhseval.c
-    cc-options:         -DWANT_FLOAT64=1
     includes:           mhseval.h
 
   if impl(hugs)
