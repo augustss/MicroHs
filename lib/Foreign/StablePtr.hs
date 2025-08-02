@@ -7,12 +7,15 @@ module Foreign.StablePtr(
   castPtrToStablePtr,
   ) where
 import qualified Prelude()
+import Mhs.Builtin
 import MiniPrelude
 import Primitives
 import Data.Typeable
+import Foreign.Storable
 
 newtype StablePtr a = StablePtr Word
   deriving (Typeable)
+  deriving newtype (Storable)
 
 instance Eq (StablePtr a) where
   StablePtr a == StablePtr a'  =  a == a'
