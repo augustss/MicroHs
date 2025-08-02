@@ -193,14 +193,14 @@ cannotDerive (c, _) e = tcError (getSLoc e) $ "Cannot derive " ++ showEType (EAp
 --------------------------------------------
 
 derEq :: Deriver
-derEq mctx 0 lhs cs@(_:_) eeq = do
+derEq mctx 0 lhs cs eeq = do
   hdr <- mkHdr mctx lhs cs eeq
   let loc = getSLoc eeq
       mkEqn c =
         let (xp, xs) = mkPat c "x"
             (yp, ys) = mkPat c "y"
         in  eEqn [xp, yp] $ if null xs then eTrue else foldr1 eAnd $ zipWith eEq xs ys
-      eqns = map mkEqn cs ++ [eEqn [eDummy, eDummy] eFalse]
+      eqns = if null cs then [eEqn [eDummy, eDummy] eTrue] else map mkEqn cs ++ [eEqn [eDummy, eDummy] eFalse]
       iEq = mkIdentSLoc loc "=="
       eEq = EApp . EApp (EVar $ mkBuiltin loc "==")
       eAnd = EApp . EApp (EVar $ mkBuiltin loc "&&")
@@ -214,7 +214,7 @@ derEq _ _ lhs _ e = cannotDerive lhs e
 --------------------------------------------
 
 derOrd :: Deriver
-derOrd mctx 0 lhs cs@(_:_) eord = do
+derOrd mctx 0 lhs cs eord = do
   hdr <- mkHdr mctx lhs cs eord
   let loc = getSLoc eord
       mkEqn c =
@@ -223,7 +223,7 @@ derOrd mctx 0 lhs cs@(_:_) eord = do
         in  [eEqn [xp, yp] $ if null xs then eEQ else foldr1 eComb $ zipWith eCompare xs ys
             ,eEqn [xp, eDummy] eLT
             ,eEqn [eDummy, yp] eGT]
-      eqns = concatMap mkEqn cs
+      eqns = if null cs then [eEqn [eDummy, eDummy] eEQ] else concatMap mkEqn cs
       iCompare = mkIdentSLoc loc "compare"
       eCompare = EApp . EApp (EVar $ mkBuiltin loc "compare")
       eComb = EApp . EApp (EVar $ mkBuiltin loc "<>")
@@ -296,7 +296,7 @@ isNullary (Constr _ _ _ flds) = either null null flds
 --------------------------------------------
 
 derShow :: Deriver
-derShow mctx 0 lhs cs@(_:_) eshow = do
+derShow mctx 0 lhs cs eshow = do
   hdr <- mkHdr mctx lhs cs eshow
   let loc = getSLoc eshow
       mkEqn c@(Constr _ _ nm flds) =
