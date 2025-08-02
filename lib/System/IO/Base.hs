@@ -29,8 +29,6 @@ module System.IO.Base(
   hSetBuffering,
 
   IOException(..),
-
-  openFD, openFileFDM,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -312,33 +310,3 @@ data BufferMode = NoBuffering | LineBuffering | BlockBuffering (Maybe Int)
 -- This currently does nothing.
 hSetBuffering :: Handle -> BufferMode -> IO ()
 hSetBuffering _ _ = return ()
-
----------------
-
-foreign import ccall "add_fd"  c_add_fd  ::              Int -> IO (Ptr BFILE)
-foreign import ccall "add_buf" c_add_buf :: Ptr BFILE -> Int -> IO (Ptr BFILE)
-foreign import ccall "open"    c_open    :: CString   -> Int -> Int -> IO Int
-
-openFD :: Int -> IOMode -> IO Handle
-openFD fd mode = do
-  bf <- c_add_fd fd
-  bf' <- c_add_buf bf (-128)
-  mkHandle "FD" bf' (ioModeToHMode mode)
-
-openAsFd :: FilePath -> IOMode -> IO (Maybe Int)
-openAsFd name mode = do
-  let cm =
-        case mode of
-          ReadMode      -> 0o0000 -- RDONLY
-          WriteMode     -> 0o1101 -- TRUNC, CREAT, WRONLY
-          ReadWriteMode -> 0o0002 -- RDWR
-          AppendMode    -> 0o2001 -- APPEND, WRONLY
-  fd <- withCAString name $ \ cp -> c_open cp cm 0o666
-  if fd < 0 then
-    return Nothing
-   else
-    return (Just fd)
-
-openFileFDM :: FilePath -> IOMode -> IO (Maybe Handle)
-openFileFDM name mode =
-  openAsFd name mode >>= maybe (return Nothing) (\ fd -> Just <$> openFD fd mode)
