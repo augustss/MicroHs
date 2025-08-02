@@ -15,7 +15,7 @@ main = do
   xbs <- useAsCString s $ \ p -> do
     -- p is a pointer to the C string "abc"
     n <- c_strlen p
-    q <- c_malloc n
+    q <- c_malloc (n+1)
     c_strcpy q p
     grabCString q
   print xbs
@@ -26,7 +26,7 @@ main = do
   xbs <- useAsCString s $ \ p -> do
     -- p is a pointer to the C string "a\xc0\x80bc"
     n <- c_strlen p
-    q <- c_malloc n
+    q <- c_malloc (n+1)
     c_strcpy q p
     grabCString q
   print xbs
