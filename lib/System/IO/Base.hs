@@ -55,24 +55,13 @@ import Text.Show
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
-import System.IO.Unsafe
-import System.IO.Internal
 import System.IO.Error
-
-data FILE
+import System.IO.Internal
+import System.IO.Open
+import System.IO.Unsafe
 
 primHPrint       :: forall a . Ptr BFILE -> a -> IO ()
 primHPrint        = _primitive "IO.print"
-primStdin        :: ForeignPtr BFILE
-primStdin         = _primitive "IO.stdin"
-primStdout       :: ForeignPtr BFILE
-primStdout        = _primitive "IO.stdout"
-primStderr       :: ForeignPtr BFILE
-primStderr        = _primitive "IO.stderr"
-
--- FILE stuff
-foreign import ccall "fopen"        c_fopen        :: CString -> CString -> IO (Ptr FILE)
-foreign import ccall "add_FILE"     c_add_FILE     :: Ptr FILE           -> IO (Ptr BFILE)
 
 -- BFILE stuff
 foreign import ccall "closeb"       c_closeb       :: Ptr BFILE          -> IO ()
@@ -80,19 +69,8 @@ foreign import ccall "flushb"       c_flushb       :: Ptr BFILE          -> IO (
 foreign import ccall "getb"         c_getb         :: Ptr BFILE          -> IO Int
 foreign import ccall "ungetb"       c_ungetb       :: Int -> Ptr BFILE   -> IO ()
 foreign import ccall "putb"         c_putb         :: Int -> Ptr BFILE   -> IO ()
-foreign import ccall "add_utf8"     c_add_utf8     :: Ptr BFILE          -> IO (Ptr BFILE)
 
 ----------------------------------------------------------
-
-stdin  :: Handle
-stdin  = unsafeHandle primStdin  HRead  "stdin"
-stdout :: Handle
-stdout = unsafeHandle primStdout HWrite "stdout"
-stderr :: Handle
-stderr = unsafeHandle primStderr HWrite "stderr"
-
---bFILE :: Ptr FILE -> Handle
---bFILE = Handle . primPerformIO . (c_add_utf8 <=< c_add_FILE)
 
 hClose :: Handle -> IO ()
 hClose h =
@@ -139,27 +117,6 @@ hPutChar h c
   | i `primIntAnd` 0x1ff800 == 0xd800 = ioErrH h InvalidArgument "hPutChar: surrogate"
   | otherwise = withHandleWr h $ c_putb i
   where i = ord c
-
-openFILEM :: FilePath -> IOMode -> IO (Maybe (Ptr FILE))
-openFILEM p m = do
-  let
-    ms = case m of
-          ReadMode -> "r"
-          WriteMode -> "w"
-          AppendMode -> "a"
-          ReadWriteMode -> "w+"
-  h <- withCAString p $ \cp -> withCAString ms $ \ cm -> c_fopen cp cm
-  if h == nullPtr then
-    return Nothing
-   else
-    return (Just h)
-
-openFileM :: FilePath -> IOMode -> IO (Maybe Handle)
-openFileM fn m = do
-  mf <- openFILEM fn m
-  case mf of
-    Nothing -> return Nothing
-    Just p -> do { q <- c_add_utf8 =<< c_add_FILE p; Just <$> mkHandle fn q (ioModeToHMode m) }
 
 openFile :: String -> IOMode -> IO Handle
 openFile p m = do
@@ -268,10 +225,10 @@ interact f = getContents >>= putStr . f
 
 openBinaryFile :: String -> IOMode -> IO Handle
 openBinaryFile fn m = do
-  mf <- openFILEM fn m
+  mf <- openBinaryFileM fn m
   case mf of
     Nothing -> ioErr NoSuchThing "openBinaryFile" fn
-    Just p -> do { q <- c_add_FILE p; mkHandle fn q (ioModeToHMode m) }
+    Just p -> return p
 
 --------
 
@@ -383,5 +340,5 @@ openAsFd name mode = do
     return (Just fd)
 
 openFileFDM :: FilePath -> IOMode -> IO (Maybe Handle)
-openFileFDM name mode = 
+openFileFDM name mode =
   openAsFd name mode >>= maybe (return Nothing) (\ fd -> Just <$> openFD fd mode)
