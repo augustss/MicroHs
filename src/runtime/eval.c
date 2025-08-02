@@ -2611,6 +2611,13 @@ gc(void)
     }
   }
 #endif
+#if 0
+  {
+    BFILE *err = add_fd(2);
+    putsb("GC ", err); putdecb(num_free, err); putsb(" free\r\n", err);
+    closeb(err);
+  }
+#endif
 }
 
 static INLINE
@@ -6555,6 +6562,7 @@ from_t mhs_add_fd(int s) { return mhs_from_Ptr(s, 1, add_fd(mhs_to_Int(s, 0))); 
 from_t mhs_open(int s) { return mhs_from_Int(s, 3, open(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2))); }
 #endif  /* WANT_FD */
 from_t mhs_add_buf(int s) { return mhs_from_Ptr(s, 2, add_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_add_crlf(int s) { return mhs_from_Ptr(s, 1, add_crlf(mhs_to_Ptr(s, 0))); }
 
 from_t mhs_add_utf8(int s) { return mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
 from_t mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
@@ -6797,6 +6805,7 @@ const struct ffi_entry ffi_table[] = {
   { "open", 3, mhs_open},
 #endif  /* WANT_FD */
   { "add_buf", 2, mhs_add_buf},
+  { "add_crlf", 1, mhs_add_crlf},
   { "add_utf8", 1, mhs_add_utf8},
   { "closeb", 1, mhs_closeb},
   { "&closeb", 0, mhs_addr_closeb},

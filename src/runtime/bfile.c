@@ -1430,3 +1430,57 @@ add_buf(BFILE *file, int bufsize)
   }
   return (BFILE*)p;
 }
+
+/***************** BFILE that adds CR *******************/
+
+struct BFILE_crlf {
+  BFILE    mets;
+  BFILE    *bfile;
+};
+
+void
+putb_crlf(int c, BFILE *bp)
+{
+  struct BFILE_crlf *p = (struct BFILE_crlf *)bp;
+  //CHECKBFILE(bp, getb_crlf);
+  if (c == '\n')
+    putb('\r', p->bfile);
+  putb(c, p->bfile);
+}
+
+void
+flushb_crlf(BFILE *bp)
+{
+  struct BFILE_crlf *p = (struct BFILE_crlf*)bp;
+  //CHECKBFILE(bp, getb_crlf);
+
+  flushb(p->bfile);
+}
+
+void
+closeb_crlf(BFILE *bp)
+{
+  struct BFILE_crlf *p = (struct BFILE_crlf*)bp;
+  //CHECKBFILE(bp, getb_crlf);
+
+  closeb(p->bfile);
+  FREE(p);
+}
+
+BFILE *
+add_crlf(BFILE *file)
+{
+  struct BFILE_crlf *p = MALLOC(sizeof(struct BFILE_crlf));
+
+  if (!p)
+    memerr();
+  p->mets.getb = 0;
+  p->mets.ungetb = 0;
+  p->mets.putb = putb_crlf;
+  p->mets.flushb = flushb_crlf;
+  p->mets.closeb = closeb_crlf;
+  p->mets.readb = 0;
+  p->mets.writeb = 0;
+  p->bfile = file;
+  return (BFILE*)p;
+}
