@@ -122,6 +122,9 @@ testforimpjs:
 testforexp:
 	MHSDIR=.. $(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp.exe && ./ForExp.exe > ForExp.out && diff ForExp.ref ForExp.out
 
+testforimpexp:
+	MHSDIR=.. $(TMHS) -optc -I. Callback hsimp.c -oCallback.exe && ./Callback.exe > Callback.out && diff Callback.ref Callback.out
+
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
 

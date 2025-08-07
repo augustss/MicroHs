@@ -1676,6 +1676,9 @@ new_ap(NODEPTR f, NODEPTR a)
 
 NODEPTR evali(NODEPTR n);
 
+/* If this is non-0 it means that the threading system is active. */
+struct mthread *main_thread = 0;
+
 void
 start_exec(NODEPTR root)
 {
@@ -1683,6 +1686,7 @@ start_exec(NODEPTR root)
 
   mt = new_thread(new_ap(root, combWorld)); /* main thread */
   mt->mt_id = MAIN_THREAD;                  /* make it the main thread in case this is foreign export calling */
+  main_thread = mt;
 
   switch(setjmp(sched)) {
   case mt_main:
@@ -1741,8 +1745,10 @@ start_exec(NODEPTR root)
     mt->mt_root = NIL;
     /* XXX mt_mval, mt_thrown */
 
-    if (mt->mt_id == MAIN_THREAD)
+    if (mt->mt_id == MAIN_THREAD) {
+      main_thread = 0;
       return;                   /* when the main thread dies it's all over */
+    }
   }
 }
 
@@ -6433,11 +6439,21 @@ ffe_apply(void)
   PUSH(new_ap(fun, arg));
 }
 
+/* For stand-alone exported functions this is called with the threading inactive.
+ * On the other hand, if a 'foreign import' calls back to a 'foreign export' the
+ * threading is alread running.
+ */
 /* XXX This is not quite right.  The surrounding mhs_to_xxx should be in the thread. */
 stackptr_t
 ffe_eval(void)
 {
-  start_exec(TOP(0));                /* start up the threading to evaluate the node */
+  if (main_thread) {
+    /* threading active, run on current stack */
+    (void)evali(TOP(0));
+  } else {
+    /* start up the threading to evaluate the node */
+    start_exec(TOP(0));
+  }
   /* The mhs_to_xxx functions bizarrely return the ARG(TOP(n+1)) value.
    * The wrapper will call with n=-1, so we need to put the result at ARG(TOP(0))
    */
