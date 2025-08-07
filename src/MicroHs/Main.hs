@@ -307,7 +307,7 @@ mainCompile flags mn = do
     -- Generate stub file for 'foreign export'
     unless (null forExps) $ do
       let stubName = takeDirectory outFile </> dropExtension (showIdent mn) ++ "_stub.h"
-      when (True || verbosityGT flags 0) $
+      when (verbosityGT flags 0) $
         putStrLn $ "generate stub: " ++ stubName
       writeFile stubName hFFI
     -- Decode what to do:

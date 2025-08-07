@@ -502,7 +502,7 @@ putb_fd(int c, BFILE *bp)
   struct BFILE_fd *p = (struct BFILE_fd *)bp;
   CHECKBFILE(bp, getb_fd);
   uint8_t u = c;
-  write(p->fd, &u, 1);
+  (void)write(p->fd, &u, 1);
 }
 
 void
