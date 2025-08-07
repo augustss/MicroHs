@@ -250,6 +250,7 @@ cTypes =
 
 jsTypeNameR :: EType -> String
 jsTypeNameR (EApp (EVar ptr) _) | ptr == identPtr = "PTR"
+                                | ptr == identStablePtr = "INT"
 jsTypeNameR (EVar i) | Just c <- lookup (unIdent i) jsTypesR = c
 jsTypeNameR t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: " ++ showEType t
 
@@ -261,8 +262,9 @@ jsTypesR =
 
 jsTypeName :: EType -> String
 jsTypeName (EApp (EVar ptr) _) | ptr == identPtr = "Ptr"
+                               | ptr == identStablePtr = "Int"
 jsTypeName (EVar i) | Just c <- lookup (unIdent i) jsTypes = c
-jsTypeName t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: " ++ showEType t
+jsTypeName t = errorMessage (getSLoc t) $ "Not a valid Javascript argument type: " ++ showEType t
 
 jsTypes :: [(String, String)]
 jsTypes =
