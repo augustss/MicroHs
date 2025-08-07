@@ -6469,6 +6469,20 @@ ffe_exec(void)
   return ffe_eval();
 }
 
+/* apply_sp :: StablePtr (Ptr a -> IO (Ptr b)) -> Ptr a -> IO (Ptr b) */
+void *
+apply_sp(uvalue_t sp, void *arg)
+{
+  GCCHECK(3);
+  NODEPTR f = deref_stableptr(sp);
+  NODEPTR a = alloc_node(T_PTR);
+  PTR(a) = arg;
+  PUSH(new_ap(combPERFORMIO, new_ap(f, a)));
+  void *r = evalptr(TOP(0));
+  POP(1);
+  return r;
+}
+
 /*********************/
 /* FFI adapters      */
 

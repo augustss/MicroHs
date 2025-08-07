@@ -125,6 +125,9 @@ testforexp:
 testforimpexp:
 	MHSDIR=.. $(TMHS) -optc -I. Callback hsimp.c -oCallback.exe && ./Callback.exe > Callback.out && diff Callback.ref Callback.out
 
+testapplysp:
+	MHSDIR=.. $(TMHS) -optc -I. ApplySP hsasp.c -oApplySP.exe && ./ApplySP.exe > ApplySP.out && diff ApplySP.ref ApplySP.out
+
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
 

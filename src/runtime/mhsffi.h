@@ -98,3 +98,5 @@ void       ffe_apply(void);
 stackptr_t ffe_eval(void);
 stackptr_t ffe_exec(void);
 void       gc_check(size_t);
+
+void *     apply_sp(uvalue_t, void *);

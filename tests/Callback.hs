@@ -1,5 +1,4 @@
 module Callback where
-import Primitives
 
 foreign export ccall "hsexp" cb :: Int -> IO Int
 foreign import ccall "hsimp.h hsimp" imp :: Int -> IO Int
