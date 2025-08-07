@@ -174,7 +174,8 @@ arity = length . fst . getArrows
 
 cTypeHsName :: HasCallStack => EType -> String
 cTypeHsName (EApp (EVar ptr) _t) | ptr == identPtr = "Ptr"
-                               | ptr == identFunPtr = "FunPtr"
+                                 | ptr == identFunPtr = "FunPtr"
+                                 | ptr == identStablePtr = "Int"
 cTypeHsName (EVar i) | Just c <- lookup (unIdent i) cHsTypes = c
 cTypeHsName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
@@ -214,7 +215,8 @@ cHsTypes =
   ]
 
 cTypeName :: EType -> String
-cTypeName (EApp (EVar ptr) t) | ptr == identPtr = cTypeName t ++ "*"
+cTypeName (EApp (EVar ptr) t) | ptr == identPtr       = cTypeName t ++ "*"
+                              | ptr == identStablePtr = "uintptr_t"
 cTypeName (EVar i) | Just c <- lookup (unIdent i) cTypes = c
 cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 

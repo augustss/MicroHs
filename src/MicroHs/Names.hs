@@ -1,6 +1,6 @@
 -- Copyright 2025 Lennart Augustsson
 -- See LICENSE file for full license.
-module MicroHs.Names where
+module MicroHs.Names(module MicroHs.Names) where
 import qualified Prelude(); import MHSPrelude
 import MicroHs.Ident
 
@@ -130,6 +130,9 @@ identPtr = mkIdentB "Primitives.Ptr"
 
 identFunPtr :: Ident
 identFunPtr = mkIdentB "Primitives.FunPtr"
+
+identStablePtr :: Ident
+identStablePtr = mkIdentB "Foreign.StablePtr.StablePtr"
 
 -----
 
