@@ -8,8 +8,7 @@ fcn :: CString -> IO CString
 fcn cs = do
   s <- peekCString cs
   putStrLn $ "fcn: " ++ show s
-  cr <- newCString "done"
-  return cr
+  newCString "done"
 
 main :: IO ()
 main = do
