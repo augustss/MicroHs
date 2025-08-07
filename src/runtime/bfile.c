@@ -502,7 +502,8 @@ putb_fd(int c, BFILE *bp)
   struct BFILE_fd *p = (struct BFILE_fd *)bp;
   CHECKBFILE(bp, getb_fd);
   uint8_t u = c;
-  (void)write(p->fd, &u, 1);
+  if (write(p->fd, &u, 1) <= 0)
+    ERR("putb_fd");
 }
 
 void
