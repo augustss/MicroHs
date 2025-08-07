@@ -2222,6 +2222,21 @@ indir(NODEPTR *np)
   return n;
 }
 
+/*
+ * Only allow GC reductions when the node is not near the top of the stack.
+ * The reason is that when GC is triggered we are just starting a reduction
+ * and the combinator at the left-bottom of the spine is being reduced.
+ * If a GC reduction removes this combinator, then bad things happen.
+ */
+static int
+gc_red_ok(NODEPTR n)
+{
+  for (stackptr_t s = stack_ptr; s >= 0 && s >= stack_ptr - 5; s--)
+    if (n == stack[s])
+      return 0;
+  return 1;
+}
+
 /* Mark all used nodes reachable from *np, updating *np. */
 void
 mark(NODEPTR *np)
@@ -2281,7 +2296,7 @@ mark(NODEPTR *np)
     goto fin;
 #endif  /* INTTABLE */
    case T_AP:
-      if (want_gc_red) {
+     if (want_gc_red) {
         NODEPTR fun = indir(&FUN(n));
         NODEPTR arg = indir(&ARG(n));
         enum node_tag funt = GETTAG(fun);
@@ -2290,28 +2305,28 @@ mark(NODEPTR *np)
         enum node_tag funargt = argt == T_AP ? GETTAG(indir(&FUN(arg))) : T_FREE;
 
         /* This is really only fruitful just after parsing.  It can be removed. */
-        if (funfunt == T_A) {
+        if (funfunt == T_A && gc_red_ok(n)) {
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
           COUNT(red_a);
           GCREDIND(y);
         }
 
-        if (funfunt == T_K) {
+        if (funfunt == T_K && gc_red_ok(n)) {
           /* Do the K x y --> x reduction */
           NODEPTR x = ARG(FUN(n));
           COUNT(red_k);
           GCREDIND(x);
         }
 
-        if (funt == T_I) {
+        if (funt == T_I && gc_red_ok(n)) {
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
           COUNT(red_i);
           GCREDIND(x);
         }
 
-        if(funt == T_CC && argt == T_I) { 
+        if(funt == T_CC && argt == T_I && gc_red_ok(n)) { 
           /* C' I --> C */
           SETTAG(n, T_C);
           COUNT(red_cci);
@@ -2322,7 +2337,7 @@ mark(NODEPTR *np)
           NODEPTR funarg = indir(&FUN(arg));
           NODEPTR argarg = indir(&ARG(arg));
           if (GETTAG(argarg) == T_P && GETTAG(funarg) == T_AP) {
-            if (GETTAG(indir(&FUN(funarg))) == T_B && GETTAG(indir(&ARG(funarg))) == T_C) { 
+            if (GETTAG(indir(&FUN(funarg))) == T_B && GETTAG(indir(&ARG(funarg))) == T_C && gc_red_ok(n)) { 
               /* C'B ((B C) P) --> C */
               SETTAG(n, T_C);
               COUNT(red_ccbbcp);
@@ -2331,28 +2346,28 @@ mark(NODEPTR *np)
           }
         }
 
-        if(funt == T_B && argt == T_I) { 
+        if(funt == T_B && argt == T_I && gc_red_ok(n)) { 
           /* B I --> I */
           SETTAG(n, T_I);
           COUNT(red_bi);
           goto top;
         }
 
-        if(funfunt == T_B && argt == T_I) { 
+        if(funfunt == T_B && argt == T_I && gc_red_ok(n)) { 
           /* B x I --> x */
           NODEPTR x = ARG(FUN(n));
           COUNT(red_bxi);
           GCREDIND(x);
         }
 
-        if(funfunt == T_CCB && argt == T_I) { 
+        if(funfunt == T_CCB && argt == T_I && gc_red_ok(n)) { 
           /* C'B x I --> x */
           NODEPTR x = ARG(FUN(n));
           COUNT(red_ccbi);
           GCREDIND(x);
         }
 
-        if(funt == T_C && funargt == T_C) { 
+        if(funt == T_C && funargt == T_C && gc_red_ok(n)) { 
           /* C (C x) --> x */
           NODEPTR x = ARG(ARG(n));
           COUNT(red_cc);
@@ -2361,7 +2376,7 @@ mark(NODEPTR *np)
 
 #if 0
         /* Very rare */
-        if (funt == T_S && funargt == T_K) {
+        if (funt == T_S && funargt == T_K && gc_red_ok(n)) {
           /* S (K x) --> B x */
           printf("SK"); fflush(stdout);
         }
@@ -2376,7 +2391,7 @@ mark(NODEPTR *np)
 #endif
 
 #if 1
-        if (funt == T_C) {
+        if (funt == T_C && gc_red_ok(n)) {
           enum node_tag tf;
           if ((tf = flip_ops[argt])) {
             /* Do the C op --> flip_op reduction */
@@ -2444,6 +2459,8 @@ mark(NODEPTR *np)
   return;
 }
 
+// stackptr_t gc_tot;
+
 /* Perform a garbage collection:
    - Mark nodes from the stack
    - Mark permanent arrays
@@ -2458,6 +2475,8 @@ gc(void)
 {
   stackptr_t i;
   /*printf("****** GC ********\n");*/
+
+  // gc_tot += stack_ptr+1;
 
   num_gc++;
   num_marked = 0;
@@ -6265,7 +6284,7 @@ mhs_init_args(
   want_gc_red = 1;
   gc();
   gc();                         /* this finds some more GC reductions */
-  want_gc_red = 0;              /* disabled due to UB */
+  want_gc_red = 0;              /* can be enabled, but it is rarely a win */
   prog = POPTOP();
   return prog;
 }  
@@ -6345,6 +6364,7 @@ mhs_main(int argc, char **argv)
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
 #endif
+    // PRINT("%"PCOMMA"15d avg gc stack depth\n", (int)(gc_tot / num_gc));
     // PRINT("%"PCOMMA"15"PRIcounter" max mark depth\n", max_mark_depth);
     PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
     PRINT("%15.2fs gc expired time = %3.1f%% (%.2fs mark + %.2fs scan)\n",
