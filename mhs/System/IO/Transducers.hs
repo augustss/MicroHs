@@ -1,4 +1,6 @@
-module System.IO.Transducers where
+module System.IO.Transducers(
+  addUTF8, addCRLF, addBuffer, addLZ77, addRLE, addBWT,
+  ) where
 import qualified Prelude(); import MiniPrelude
 --import Data.Maybe
 import Foreign.Ptr(Ptr)

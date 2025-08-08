@@ -33,6 +33,7 @@ import System.Directory
 import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
+import System.IO.Transducers(addLZ77)
 import MicroHs.TargetConfig
 import Paths_MicroHs(getDataDir)
 
@@ -315,9 +316,10 @@ mainCompile flags mn = do
     --  * file ends in .c: write C version of combinator
     --  * otherwise, write C file and compile to a binary with cc
     if outFile `hasTheExtension` ".comb" then do
-      h <- openFile outFile WriteMode
-      hPutStr h outData
-      hClose h
+      h <- openBinaryFile outFile WriteMode
+      h' <- if compress flags then do hPutChar h 'z'; addLZ77 h else return h
+      hPutStr h' outData
+      hClose h'
      else if outFile `hasTheExtension` ".c" then
       writeFile outFile cCode
      else do
