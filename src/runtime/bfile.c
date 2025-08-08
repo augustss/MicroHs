@@ -21,6 +21,13 @@
  *  utf8   transducer for UTF8 encoding
  *         put - encodes a Unicode code point (int) to bytes
  *         get - decodes a Unicode code point
+ *  buf    transducer that just buffers
+ *         It will convert multiple putb() into writeb(),
+ *         and use a single readb() instead of multiple getb().
+ *         The buffer size is set on creation.
+ *  crlf   transducer that turns LF into CRLF
+ *         put - turn LF into CR,LF
+ *         get - NOT IMPLEMENTED YET
  */
 
 /**** Buffers for collecting data. */
@@ -1353,7 +1360,7 @@ putb_buf(int c, BFILE *bp)
   struct BFILE_buf *p = (struct BFILE_buf *)bp;
   CHECKBFILE(bp, getb_buf);
   if (p->size == 0) {
-    return putb(c, p->bfile);
+    putb(c, p->bfile);
   }
   if (p->pos >= p->size) {
     int r = writeb(p->buf, p->size, p->bfile);
