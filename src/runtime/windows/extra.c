@@ -12,6 +12,7 @@
  */
 //#pragma warning(disable : 4996)
 #pragma intrinsic(_BitScanForward64)
+#pragma intrinsic(_BitScanReverse64)
 static inline int
 ffs(int64_t arg)
 {
