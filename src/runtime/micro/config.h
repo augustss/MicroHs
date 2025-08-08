@@ -9,6 +9,32 @@
 #define WANT_STDIO 0
 
 /*
+ * Include file descriptor functions.
+ * Without this none of the file I/O in System.IO is available.
+ */
+#define WANT_FD 0
+
+/*
+ * Include transducer for just buffering.
+ */
+#define WANT_BUF 0
+
+/*
+ * Include transducer to turn CRLF <-> LF.
+ */
+#define WANT_CRLF 0
+
+/*
+ * Include transducer for base64 encoding
+ */
+#define WANT_BASE64 0
+
+/*
+ * Include transducer for UTF8 encoding
+ */
+#define WANT_UTF8 0
+
+/*
  * Include ops for floating point arithmetic.
  * Without this +,-,* etc will not be available for the Double type.
  */

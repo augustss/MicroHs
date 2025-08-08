@@ -35,6 +35,22 @@
 #include "md5.h"
 #endif
 
+#if !defined(WANT_UTF8)
+#define WANT_UTF8 1
+#endif
+
+#if !defined(WANT_BUF)
+#define WANT_BUF 1
+#endif
+
+#if !defined(WANT_CRLF)
+#define WANT_CRLF 1
+#endif
+
+#if !defined(WANT_BASE64)
+#define WANT_BASE64 1
+#endif
+
 #if !defined(WANT_LZ77)
 #define WANT_LZ77 1
 #endif
@@ -6611,10 +6627,15 @@ from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); 
 from_t mhs_add_fd(int s) { return mhs_from_Ptr(s, 1, add_fd(mhs_to_Int(s, 0))); }
 from_t mhs_open(int s) { return mhs_from_Int(s, 3, open(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2))); }
 #endif  /* WANT_FD */
+#if WANT_BUF
 from_t mhs_add_buf(int s) { return mhs_from_Ptr(s, 2, add_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+#endif  /* WANT_BUF */
+#if WANT_CRLF
 from_t mhs_add_crlf(int s) { return mhs_from_Ptr(s, 1, add_crlf(mhs_to_Ptr(s, 0))); }
-
+#endif  /* WANT_CRLF */
+#if WANT_UTF8
 from_t mhs_add_utf8(int s) { return mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_UTF8 */
 from_t mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_closeb(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
 from_t mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
@@ -6854,9 +6875,15 @@ const struct ffi_entry ffi_table[] = {
   { "add_fd", 1, mhs_add_fd},
   { "open", 3, mhs_open},
 #endif  /* WANT_FD */
+#if WANT_BUF
   { "add_buf", 2, mhs_add_buf},
+#endif  /* WANT_BUF */
+#if WANT_CRLF
   { "add_crlf", 1, mhs_add_crlf},
+#endif  /* WANT_CRLF */
+#if WANT_UTF8
   { "add_utf8", 1, mhs_add_utf8},
+#endif  /* WANT_UTF8 */
   { "closeb", 1, mhs_closeb},
   { "&closeb", 0, mhs_addr_closeb},
   { "flushb", 1, mhs_flushb},

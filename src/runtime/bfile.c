@@ -27,7 +27,7 @@
  *         The buffer size is set on creation.
  *  crlf   transducer that turns LF into CRLF
  *         put - turn LF into CR,LF
- *         get - NOT IMPLEMENTED YET
+ *         get - turn CR,LF into LF
  */
 
 /**** Buffers for collecting data. */
@@ -1171,6 +1171,7 @@ add_bwt_compressor(BFILE *file)
 
 /***************** BFILE with UTF8 encode/decode *******************/
 
+#if WANT_UTF8
 struct BFILE_utf8 {
   BFILE    mets;
   BFILE    *bfile;
@@ -1305,9 +1306,11 @@ add_utf8(BFILE *file)
 
   return (BFILE*)p;
 }
+#endif  /* WANT_UTF8 */
 
 /***************** BFILE that just buffers *******************/
 
+#if WANT_BUF
 struct BFILE_buf {
   BFILE    mets;
   BFILE    *bfile;
@@ -1438,19 +1441,46 @@ add_buf(BFILE *file, int bufsize)
   }
   return (BFILE*)p;
 }
+#endif  /* WANT_BUF */
 
 /***************** BFILE that adds CR *******************/
 
+#if WANT_CRLF
 struct BFILE_crlf {
   BFILE    mets;
   BFILE    *bfile;
 };
 
+int
+getb_crlf(BFILE *bp)
+{
+  struct BFILE_crlf *p = (struct BFILE_crlf*)bp;
+  CHECKBFILE(bp, getb_crlf);
+
+  int c = getb(p->bfile);
+  if (c != '\r')
+    return c;
+  int d = getb(p->bfile);
+  if (d == '\n')
+    return d;
+  if (d >= 0)
+    ungetb(d, p->bfile);
+  return c;
+}
+
+void
+ungetb_crlf(int c, BFILE *bp)
+{
+  struct BFILE_crlf *p = (struct BFILE_crlf*)bp;
+  CHECKBFILE(bp, getb_crlf);
+  ungetb(c, p->bfile);
+}
+
 void
 putb_crlf(int c, BFILE *bp)
 {
   struct BFILE_crlf *p = (struct BFILE_crlf *)bp;
-  //CHECKBFILE(bp, getb_crlf);
+  CHECKBFILE(bp, getb_crlf);
   if (c == '\n')
     putb('\r', p->bfile);
   putb(c, p->bfile);
@@ -1460,7 +1490,7 @@ void
 flushb_crlf(BFILE *bp)
 {
   struct BFILE_crlf *p = (struct BFILE_crlf*)bp;
-  //CHECKBFILE(bp, getb_crlf);
+  CHECKBFILE(bp, getb_crlf);
 
   flushb(p->bfile);
 }
@@ -1469,7 +1499,7 @@ void
 closeb_crlf(BFILE *bp)
 {
   struct BFILE_crlf *p = (struct BFILE_crlf*)bp;
-  //CHECKBFILE(bp, getb_crlf);
+  CHECKBFILE(bp, getb_crlf);
 
   closeb(p->bfile);
   FREE(p);
@@ -1482,8 +1512,8 @@ add_crlf(BFILE *file)
 
   if (!p)
     memerr();
-  p->mets.getb = 0;
-  p->mets.ungetb = 0;
+  p->mets.getb = getb_crlf;
+  p->mets.ungetb = ungetb_crlf;
   p->mets.putb = putb_crlf;
   p->mets.flushb = flushb_crlf;
   p->mets.closeb = closeb_crlf;
@@ -1492,3 +1522,4 @@ add_crlf(BFILE *file)
   p->bfile = file;
   return (BFILE*)p;
 }
+#endif  /* WANT_CRLF */
