@@ -97,6 +97,7 @@ executable mhs
                        Data.Double
                        Data.Integer
                        PrimTable
+                       MhsEval
                        MHSPrelude
                        System.IO.MD5
                        System.IO.Serialize
@@ -118,6 +119,10 @@ executable mhs
                        directory    >= 1.2 && < 1.6,
                        text         >= 2.0 && < 2.5,
                        array        >= 0.5 && < 0.6
+    include-dirs:      src/runtime src/runtime/unix
+    install-includes:  mhseval.h
+    c-sources:         src/runtime/mhseval.c
+    includes:          mhseval.h
 
   if impl(hugs)
     hs-source-dirs:    hugs src
@@ -166,6 +171,7 @@ library
                         MicroHs.TCMonad 
                         MicroHs.Translate 
                         MicroHs.TypeCheck
+                        MhsEval
 
   other-modules:        MHSPrelude
                         Text.ParserComb
@@ -191,6 +197,10 @@ library
                         directory    >= 1.2 && < 1.6,
                         text         >= 2.0 && < 2.5,
                         array        >= 0.5 && < 0.6
+    include-dirs:       src/runtime src/runtime/unix
+    install-includes:   mhseval.h
+    c-sources:          src/runtime/mhseval.c
+    includes:           mhseval.h
 
   if impl(hugs)
     hs-source-dirs:     hugs src

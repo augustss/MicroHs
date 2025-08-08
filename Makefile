@@ -96,12 +96,12 @@ bin/mhsevalsane:	$(RTS)/*.c $(RTS)/*/*.h
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
 	@mkdir -p bin
-	$(GHC) $(GHCFLAGS) $(MAINMODULE) -o bin/gmhs
+	$(GHC) $(GHCFLAGS) $(RTSINC) $(RTS)/mhseval.c $(MAINMODULE) -o bin/gmhs
 
 # Compile mhs with ghc, with code coverage
 bin/cmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs
 	@mkdir -p bin
-	$(GHC) $(GHCFLAGS) -fhpc $(MAINMODULE) -o bin/cmhs
+	$(GHC) $(GHCFLAGS) $(RTSINC) $(RTS)/mhseval.c -fhpc $(MAINMODULE) -o bin/cmhs
 
 # Generate distribution C file
 generated/mhs.c:	bin/mhs src/*/*.hs

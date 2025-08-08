@@ -25,6 +25,7 @@ import MicroHs.Translate
 import MicroHs.TypeCheck(tModuleName)
 import MicroHs.Interactive
 import MicroHs.MakeCArray
+import MhsEval
 import System.Cmd
 import System.Exit
 import System.FilePath
@@ -281,14 +282,13 @@ mainCompile flags mn = do
   dumpIf flags Dtoplevel $ do
     putStrLn "toplevel:"; printLDefs allDefs
   if runIt flags then do
-    unless compiledWithMhs $ do
-      error "The -r flag currently only works with mhs"
-    let
-      prg = translateAndRun cmdl
---    putStrLn "Run:"
---    writeSerialized "ser.comb" prg
-    prg
---    putStrLn "done"
+    if compiledWithMhs then do
+      let prg = translateAndRun cmdl
+      prg
+     else if compiledWithGhc then 
+      withMhsContext $ \ ctx -> do
+        run ctx outData
+      else error "The -r flag currently only works with mhs and ghc"
    else do
     seq (length outData) (return ())
     t2 <- getTimeMilli
