@@ -15,7 +15,6 @@ import Foreign.C.String
 import Foreign.C.Types
 import Control.Exception
 import Control.Monad (unless)
-import Data.Typeable
 
 -- | Opaque context type
 newtype MhsContext = MhsContext (Ptr ())
@@ -24,7 +23,7 @@ newtype MhsContext = MhsContext (Ptr ())
 data MhsError = 
     MhsInitError String
   | MhsEvalError String
-  deriving (Show, Typeable)
+  deriving (Show)
 
 instance Exception MhsError
 

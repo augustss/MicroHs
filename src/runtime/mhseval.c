@@ -19,7 +19,7 @@ struct ffe_entry *xffe_table = 0;
 
 struct MhsContext {
     jmp_buf error_jmp;
-    char error_msg[1024];
+    char error_msg[128];
     int initialized;
     int error_occurred;
 };
@@ -34,7 +34,7 @@ MhsContextPtr mhs_init_context(void) {
     memset(ctx, 0, sizeof(struct MhsContext));
     ctx->initialized = 0;
     ctx->error_occurred = 0;
-    strcpy(ctx->error_msg, "No error");
+    strncpy(ctx->error_msg, "No error", sizeof(ctx->error_msg) - 1);
     
     // Set up error handling for initialization
     current_ctx = ctx;
@@ -51,7 +51,7 @@ MhsContextPtr mhs_init_context(void) {
     init_nodes();
     stack = malloc(sizeof(NODEPTR) * stack_size);
     if (!stack) {
-        strcpy(ctx->error_msg, "Failed to allocate stack");
+        strncpy(ctx->error_msg, "Failed to allocate stack", sizeof(ctx->error_msg) - 1);
         ctx->error_occurred = 1;
         current_ctx = NULL;
         return ctx;
@@ -137,7 +137,7 @@ int mhs_eval_string(MhsContextPtr ctx, const char* expr, size_t len, char** resu
     // Create a read buffer from the input string
     BFILE *bf = openb_rd_mem((uint8_t*)expr, len);
     if (!bf) {
-        strcpy(ctx->error_msg, "Failed to create input buffer");
+        strncpy(ctx->error_msg, "Failed to create input buffer", sizeof(ctx->error_msg) - 1);
         ctx->error_occurred = 1;
         current_ctx = NULL;
         return -1;
@@ -150,7 +150,7 @@ int mhs_eval_string(MhsContextPtr ctx, const char* expr, size_t len, char** resu
     
     if (!prog) {
         fprintf(stderr, "Failed to parse expression: %s\n", ctx->error_msg);
-        strcpy(ctx->error_msg, "Failed to parse expression");
+        strncpy(ctx->error_msg, "Failed to parse expression", sizeof(ctx->error_msg) - 1);
         ctx->error_occurred = 1;
         current_ctx = NULL;
         return -1;
@@ -171,7 +171,7 @@ int mhs_eval_string(MhsContextPtr ctx, const char* expr, size_t len, char** resu
     // Convert result to string
     *result = node_to_string(eval_result, result_len);
     if (!*result) {
-        strcpy(ctx->error_msg, "Failed to convert result to string");
+        strncpy(ctx->error_msg, "Failed to convert result to string", sizeof(ctx->error_msg) - 1);
         ctx->error_occurred = 1;
         current_ctx = NULL;
         return -1;
@@ -199,7 +199,7 @@ int mhs_run_string(MhsContextPtr ctx, const char* expr, size_t len) {
     // Create a read buffer from the input string
     BFILE *bf = openb_rd_mem((uint8_t*)expr, len);
     if (!bf) {
-        strcpy(ctx->error_msg, "Failed to create input buffer");
+        strncpy(ctx->error_msg, "Failed to create input buffer", sizeof(ctx->error_msg) - 1);
         ctx->error_occurred = 1;
         current_ctx = NULL;
         return -1;
@@ -212,7 +212,7 @@ int mhs_run_string(MhsContextPtr ctx, const char* expr, size_t len) {
     
     if (!prog) {
         fprintf(stderr, "Failed to parse expression: %s\n", ctx->error_msg);
-        strcpy(ctx->error_msg, "Failed to parse expression");
+        strncpy(ctx->error_msg, "Failed to parse expression", sizeof(ctx->error_msg) - 1);
         ctx->error_occurred = 1;
         current_ctx = NULL;
         return -1;
