@@ -35,9 +35,10 @@
 #define WANT_BASE64 0
 
 /*
- * Include transducer for UTF8 encoding
+ * Include transducer for UTF8 encoding.
+ * Currently not optional.
  */
-#define WANT_UTF8 0
+#define WANT_UTF8 1
 
 /*
  * Include ops for floating point arithmetic.
