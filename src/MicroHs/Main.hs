@@ -316,7 +316,7 @@ mainCompile flags mn = do
     --  * otherwise, write C file and compile to a binary with cc
     if outFile `hasTheExtension` ".comb" then do
       h <- openFile outFile WriteMode
-      hWrite h outData
+      hPutStr h outData
       hClose h
      else if outFile `hasTheExtension` ".c" then
       writeFile outFile cCode
