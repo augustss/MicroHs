@@ -3428,23 +3428,6 @@ parse_top(BFILE *f, struct ffe_entry *ffe)
   return n;
 }
 
-#if WANT_STDIO
-NODEPTR
-parse_file(const char *fn, size_t *psize)
-{
-  FILE *f = fopen(fn, "r");
-  if (!f)
-    ERR1("file not found %s", fn);
-
-  /* And parse it */
-  BFILE *p = add_FILE(f);
-  NODEPTR n = parse_top(p, 0);
-  *psize = ftell(f);
-  closeb(p);
-  return n;
-}
-#endif  /* WANT_STDIO */
-
 counter_t num_shared;
 
 /* Two bits per node: marked, shared
@@ -6276,11 +6259,32 @@ mhs_init_args(
   }
 #endif  /* WANT_ARGS */
 
-  if (combexpr) {
-    int c;
-    BFILE *bf = openb_rd_mem(combexpr, combexprlen);
-    c = getb(bf);
-    /* Compressed combinators start with a 'Z' or 'z', otherwise 'v' (for version) */
+  {
+    /* Read the combinator code. */
+    BFILE *bf;
+    if (combexpr) {
+      /* The code is in memory, create a memore buffer BFILE */
+      bf = openb_rd_mem(combexpr, combexprlen);
+#if WANT_STDIO
+      *file_sizep = combexprlen;
+#endif
+    } else {
+#if WANT_STDIO
+      /* Open a regular file */
+      FILE *f = fopen(inname, "r");
+      if (!f)
+        ERR1("file not found %s", inname);
+      fseek(f, 0, SEEK_END);
+      *file_sizep = ftell(f);   /* find its size */
+      rewind(f);
+    
+      bf = add_FILE(f);
+#else
+      ERR("no stdio");
+#endif
+    }
+    int c = getb(bf);
+    /* Compressed combinators start with a 'z', otherwise 'v' (for version) */
     if (c == 'z') {
       /* add LZ77 compressor transducer */
       bf = add_lz77_decompressor(bf);
@@ -6290,15 +6294,6 @@ mhs_init_args(
     }
     prog = parse_top(bf, xffe_table);
     closeb(bf);
-#if WANT_STDIO
-    *file_sizep = combexprlen;
-#endif
-  } else {
-#if WANT_STDIO
-    prog = parse_file(inname, file_sizep);
-#else
-    ERR("no stdio");
-#endif
   }
 
   /* GC unused stuff, nice for -o */

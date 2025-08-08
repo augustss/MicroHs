@@ -15,6 +15,11 @@
 #define WANT_FD 0
 
 /*
+ * Include reading from memory buffer.
+ */
+#define WANT_MEM 1
+
+/*
  * Include transducer for just buffering.
  */
 #define WANT_BUF 0
