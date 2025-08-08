@@ -2,6 +2,7 @@
  * See LICENSE file for full license.
  */
 #include <conio.h>
+#include <intrin.h>
 
 /*
  * Find First Set
