@@ -95,7 +95,7 @@ void mhs_free_context(MhsContextPtr ctx) {
 static char* node_to_string(NODEPTR node, size_t* len) {
     //if (!node || !len) return "NULL";
     // Open a write buffer
-    BFILE *bf = openb_wr_buf();
+    BFILE * bf = openb_wr_mem();
     if (!bf) return NULL;
 
     // print the node to the buffer
@@ -105,7 +105,7 @@ static char* node_to_string(NODEPTR node, size_t* len) {
     // Get the buffer contents - fix type mismatch
     uint8_t* result_ptr;
     size_t result_size;
-    get_buf(bf, &result_ptr, &result_size);
+    get_mem(bf, &result_ptr, &result_size);
     
     // Allocate a new buffer and copy the data
     char* result = malloc(result_size + 1);
@@ -135,7 +135,7 @@ int mhs_eval_string(MhsContextPtr ctx, const char* expr, size_t len, char** resu
     }
     
     // Create a read buffer from the input string
-    BFILE *bf = openb_rd_buf((uint8_t*)expr, len);
+    BFILE *bf = openb_rd_mem((uint8_t*)expr, len);
     if (!bf) {
         strcpy(ctx->error_msg, "Failed to create input buffer");
         ctx->error_occurred = 1;
@@ -197,7 +197,7 @@ int mhs_run_string(MhsContextPtr ctx, const char* expr, size_t len) {
     }
     
     // Create a read buffer from the input string
-    BFILE *bf = openb_rd_buf((uint8_t*)expr, len);
+    BFILE *bf = openb_rd_mem((uint8_t*)expr, len);
     if (!bf) {
         strcpy(ctx->error_msg, "Failed to create input buffer");
         ctx->error_occurred = 1;
