@@ -59,6 +59,7 @@ Differences:
    * DuplicateRecordFields
    * EmptyCase
    * EmptyDataDecls
+   * EmptyDataDeriving
    * ExistentialQuantification
    * ExplicitNamespaces
    * ExtendedDefaultRules

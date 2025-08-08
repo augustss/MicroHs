@@ -9,21 +9,21 @@ import Foreign.Storable
 import System.IO
 import System.IO.Internal
 
-foreign import ccall "openb_wr_buf"          c_openb_wr_buf          :: IO (Ptr BFILE)
-foreign import ccall "openb_rd_buf"          c_openb_rd_buf          :: CString -> Int -> IO (Ptr BFILE)
-foreign import ccall "get_buf"               c_get_buf               :: Ptr BFILE -> Ptr CString -> Ptr Int -> IO ()
+foreign import ccall "openb_wr_mem"          c_openb_wr_mem          :: IO (Ptr BFILE)
+foreign import ccall "openb_rd_mem"          c_openb_rd_mem          :: CString -> Int -> IO (Ptr BFILE)
+foreign import ccall "get_mem"               c_get_mem               :: Ptr BFILE -> Ptr CString -> Ptr Int -> IO ()
 
 -- Turn all writes to a Handle into a String.
 -- Do not close the Handle in the action
 handleWriteToString :: (Handle -> IO ()) -> IO String
 handleWriteToString act = do
-  bf <- c_openb_wr_buf                         -- create a buffer
+  bf <- c_openb_wr_mem                         -- create a buffer
   h <- mkHandle "handleToString" bf HWrite
   act h
   hFlush h
   with nullPtr $ \ bufp ->
     with 0 $ \ lenp -> do
-      c_get_buf bf bufp lenp                   -- get buffer and length
+      c_get_mem bf bufp lenp                   -- get buffer and length
       buf <- peek bufp
       len <- peek lenp
       res <- peekCAStringLen (buf, len)        -- encode as a string
@@ -36,5 +36,5 @@ handleWriteToString act = do
 stringToHandle :: String -> IO Handle
 stringToHandle file = do
   (ptr, len) <- newCAStringLen file            -- make memory buffer
-  bf <- c_openb_rd_buf ptr len                 -- open it for reading
+  bf <- c_openb_rd_mem ptr len                 -- open it for reading
   mkHandle "stringToHandle" bf HRead           -- and make a handle

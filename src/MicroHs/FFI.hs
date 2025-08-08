@@ -174,7 +174,8 @@ arity = length . fst . getArrows
 
 cTypeHsName :: HasCallStack => EType -> String
 cTypeHsName (EApp (EVar ptr) _t) | ptr == identPtr = "Ptr"
-                               | ptr == identFunPtr = "FunPtr"
+                                 | ptr == identFunPtr = "FunPtr"
+                                 | ptr == identStablePtr = "Int"
 cTypeHsName (EVar i) | Just c <- lookup (unIdent i) cHsTypes = c
 cTypeHsName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
@@ -214,7 +215,8 @@ cHsTypes =
   ]
 
 cTypeName :: EType -> String
-cTypeName (EApp (EVar ptr) t) | ptr == identPtr = cTypeName t ++ "*"
+cTypeName (EApp (EVar ptr) t) | ptr == identPtr       = cTypeName t ++ "*"
+                              | ptr == identStablePtr = "uintptr_t"
 cTypeName (EVar i) | Just c <- lookup (unIdent i) cTypes = c
 cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
@@ -248,6 +250,7 @@ cTypes =
 
 jsTypeNameR :: EType -> String
 jsTypeNameR (EApp (EVar ptr) _) | ptr == identPtr = "PTR"
+                                | ptr == identStablePtr = "INT"
 jsTypeNameR (EVar i) | Just c <- lookup (unIdent i) jsTypesR = c
 jsTypeNameR t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: " ++ showEType t
 
@@ -259,8 +262,9 @@ jsTypesR =
 
 jsTypeName :: EType -> String
 jsTypeName (EApp (EVar ptr) _) | ptr == identPtr = "Ptr"
+                               | ptr == identStablePtr = "Int"
 jsTypeName (EVar i) | Just c <- lookup (unIdent i) jsTypes = c
-jsTypeName t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: " ++ showEType t
+jsTypeName t = errorMessage (getSLoc t) $ "Not a valid Javascript argument type: " ++ showEType t
 
 jsTypes :: [(String, String)]
 jsTypes =
@@ -271,7 +275,8 @@ jsTypes =
 -- These are already in the runtime
 runtimeFFI :: [String]
 runtimeFFI = [
-  "GETRAW", "GETTIMEMILLI", "acos", "add_FILE", "add_utf8", "asin", "atan", "atan2", "calloc", "closeb",
+  "GETRAW", "GETTIMEMILLI", "acos", "add_FILE", "add_fd", "open", "add_utf8", "add_buf", "add_crlf",
+  "asin", "atan", "atan2", "calloc", "closeb",
   "cos", "exp", "flushb", "fopen", "free", "getb", "getenv", "iswindows", "log", "malloc",
   "md5Array", "md5BFILE", "md5String", "memcpy", "memmove", "realloc", "strlen", "strcpy",
   "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "unlink",
@@ -294,7 +299,7 @@ runtimeFFI = [
   "sizeof_int", "sizeof_long", "sizeof_llong", "sizeof_size_t",
   "opendir", "closedir", "readdir", "c_d_name", "chdir", "mkdir", "getcwd",
   "getcpu",
-  "get_buf", "openb_rd_buf", "openb_wr_buf",
+  "get_mem", "openb_rd_mem", "openb_wr_mem",
   "new_mpz", "mpz_abs", "mpz_add", "mpz_and", "mpz_cmp", "mpz_get_d",
   "mpz_get_si", "mpz_get_ui", "mpz_init_set_si", "mpz_init_set_ui", "mpz_ior",
   "mpz_mul", "mpz_mul_2exp", "mpz_neg", "mpz_popcount", "mpz_sub", "mpz_fdiv_q_2exp",

@@ -5,7 +5,7 @@ TMHS=$(MHS) $(MHSTARGET) $(MHSOUTPUT) -i../lib
 EVAL=../bin/mhseval +RTS -H1M -RTS
 .PHONY: test nfib clean errtest alltest cache info
 
-alltest:	info test errtest testforimp testforexp
+alltest:	info test errtest testforimp testforexp testforimpexp testapplysp
 # interactivetest
 
 cache:
@@ -86,7 +86,6 @@ test:
 	$(TMHS) PatSyn     && $(EVAL) > PatSyn.out     && diff PatSyn.ref PatSyn.out
 	$(TMHS) Coerce     && $(EVAL) > Coerce.out     && diff Coerce.ref Coerce.out
 	$(TMHS) PatBind    && $(EVAL) > PatBind.out    && diff PatBind.ref PatBind.out
-	$(TMHS) EmptyCase  && $(EVAL)
 	$(TMHS) NumUnder   && $(EVAL) > NumUnder.out   && diff NumUnder.ref NumUnder.out
 	$(TMHS) LocalFix   && $(EVAL) > LocalFix.out   && diff LocalFix.ref LocalFix.out
 	$(TMHS) TypeApp    && $(EVAL) > TypeApp.out    && diff TypeApp.ref TypeApp.out
@@ -112,6 +111,7 @@ test:
 	$(TMHS) Throw      && $(EVAL) > Throw.out      && diff Throw.ref Throw.out
 	$(TMHS) RtsExn     && $(EVAL) > RtsExn.out     && diff RtsExn.ref RtsExn.out
 	$(TMHS) Mask       && $(EVAL) > Mask.out       && diff Mask.ref Mask.out
+	$(TMHS) EmptyData  && $(EVAL) > EmptyData.out  && diff EmptyData.ref EmptyData.out
 
 testforimp:
 	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
@@ -121,6 +121,12 @@ testforimpjs:
 
 testforexp:
 	MHSDIR=.. $(TMHS) -c -optc --shared -optc -fPIC ForExp -oForExpHs.so && $(CC) -lm ForExp.c ForExpHs.so -Wl,-rpath,'$$ORIGIN' -o ForExp.exe && ./ForExp.exe > ForExp.out && diff ForExp.ref ForExp.out
+
+testforimpexp:
+	MHSDIR=.. $(TMHS) -optc -I. Callback hsimp.c -oCallback.exe && ./Callback.exe > Callback.out && diff Callback.ref Callback.out
+
+testapplysp:
+	MHSDIR=.. $(TMHS) -optc -I. ApplySP hsasp.c -oApplySP.exe && ./ApplySP.exe > ApplySP.out && diff ApplySP.ref ApplySP.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test
@@ -132,4 +138,4 @@ nfib:
 	$(TMHS) Nfib && $(EVAL)
 
 clean:
-	rm -f *.out *.tmp *.js *.exe a.out
+	rm -f *.out *.tmp *.js *.exe a.out *_stub.h

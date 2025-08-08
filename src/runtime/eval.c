@@ -1676,6 +1676,9 @@ new_ap(NODEPTR f, NODEPTR a)
 
 NODEPTR evali(NODEPTR n);
 
+/* If this is non-0 it means that the threading system is active. */
+struct mthread *main_thread = 0;
+
 void
 start_exec(NODEPTR root)
 {
@@ -1683,6 +1686,7 @@ start_exec(NODEPTR root)
 
   mt = new_thread(new_ap(root, combWorld)); /* main thread */
   mt->mt_id = MAIN_THREAD;                  /* make it the main thread in case this is foreign export calling */
+  main_thread = mt;
 
   switch(setjmp(sched)) {
   case mt_main:
@@ -1741,8 +1745,10 @@ start_exec(NODEPTR root)
     mt->mt_root = NIL;
     /* XXX mt_mval, mt_thrown */
 
-    if (mt->mt_id == MAIN_THREAD)
+    if (mt->mt_id == MAIN_THREAD) {
+      main_thread = 0;
       return;                   /* when the main thread dies it's all over */
+    }
   }
 }
 
@@ -2222,6 +2228,21 @@ indir(NODEPTR *np)
   return n;
 }
 
+/*
+ * Only allow GC reductions when the node is not near the top of the stack.
+ * The reason is that when GC is triggered we are just starting a reduction
+ * and the combinator at the left-bottom of the spine is being reduced.
+ * If a GC reduction removes this combinator, then bad things happen.
+ */
+static int
+gc_red_ok(NODEPTR n)
+{
+  for (stackptr_t s = stack_ptr; s >= 0 && s >= stack_ptr - 5; s--)
+    if (n == stack[s])
+      return 0;
+  return 1;
+}
+
 /* Mark all used nodes reachable from *np, updating *np. */
 void
 mark(NODEPTR *np)
@@ -2281,7 +2302,7 @@ mark(NODEPTR *np)
     goto fin;
 #endif  /* INTTABLE */
    case T_AP:
-      if (want_gc_red) {
+     if (want_gc_red) {
         NODEPTR fun = indir(&FUN(n));
         NODEPTR arg = indir(&ARG(n));
         enum node_tag funt = GETTAG(fun);
@@ -2290,28 +2311,28 @@ mark(NODEPTR *np)
         enum node_tag funargt = argt == T_AP ? GETTAG(indir(&FUN(arg))) : T_FREE;
 
         /* This is really only fruitful just after parsing.  It can be removed. */
-        if (funfunt == T_A) {
+        if (funfunt == T_A && gc_red_ok(n)) {
           /* Do the A x y --> y reduction */
           NODEPTR y = ARG(n);
           COUNT(red_a);
           GCREDIND(y);
         }
 
-        if (funfunt == T_K) {
+        if (funfunt == T_K && gc_red_ok(n)) {
           /* Do the K x y --> x reduction */
           NODEPTR x = ARG(FUN(n));
           COUNT(red_k);
           GCREDIND(x);
         }
 
-        if (funt == T_I) {
+        if (funt == T_I && gc_red_ok(n)) {
           /* Do the I x --> x reduction */
           NODEPTR x = ARG(n);
           COUNT(red_i);
           GCREDIND(x);
         }
 
-        if(funt == T_CC && argt == T_I) { 
+        if(funt == T_CC && argt == T_I && gc_red_ok(n)) { 
           /* C' I --> C */
           SETTAG(n, T_C);
           COUNT(red_cci);
@@ -2322,7 +2343,7 @@ mark(NODEPTR *np)
           NODEPTR funarg = indir(&FUN(arg));
           NODEPTR argarg = indir(&ARG(arg));
           if (GETTAG(argarg) == T_P && GETTAG(funarg) == T_AP) {
-            if (GETTAG(indir(&FUN(funarg))) == T_B && GETTAG(indir(&ARG(funarg))) == T_C) { 
+            if (GETTAG(indir(&FUN(funarg))) == T_B && GETTAG(indir(&ARG(funarg))) == T_C && gc_red_ok(n)) { 
               /* C'B ((B C) P) --> C */
               SETTAG(n, T_C);
               COUNT(red_ccbbcp);
@@ -2331,28 +2352,28 @@ mark(NODEPTR *np)
           }
         }
 
-        if(funt == T_B && argt == T_I) { 
+        if(funt == T_B && argt == T_I && gc_red_ok(n)) { 
           /* B I --> I */
           SETTAG(n, T_I);
           COUNT(red_bi);
           goto top;
         }
 
-        if(funfunt == T_B && argt == T_I) { 
+        if(funfunt == T_B && argt == T_I && gc_red_ok(n)) { 
           /* B x I --> x */
           NODEPTR x = ARG(FUN(n));
           COUNT(red_bxi);
           GCREDIND(x);
         }
 
-        if(funfunt == T_CCB && argt == T_I) { 
+        if(funfunt == T_CCB && argt == T_I && gc_red_ok(n)) { 
           /* C'B x I --> x */
           NODEPTR x = ARG(FUN(n));
           COUNT(red_ccbi);
           GCREDIND(x);
         }
 
-        if(funt == T_C && funargt == T_C) { 
+        if(funt == T_C && funargt == T_C && gc_red_ok(n)) { 
           /* C (C x) --> x */
           NODEPTR x = ARG(ARG(n));
           COUNT(red_cc);
@@ -2361,7 +2382,7 @@ mark(NODEPTR *np)
 
 #if 0
         /* Very rare */
-        if (funt == T_S && funargt == T_K) {
+        if (funt == T_S && funargt == T_K && gc_red_ok(n)) {
           /* S (K x) --> B x */
           printf("SK"); fflush(stdout);
         }
@@ -2376,7 +2397,7 @@ mark(NODEPTR *np)
 #endif
 
 #if 1
-        if (funt == T_C) {
+        if (funt == T_C && gc_red_ok(n)) {
           enum node_tag tf;
           if ((tf = flip_ops[argt])) {
             /* Do the C op --> flip_op reduction */
@@ -2444,6 +2465,8 @@ mark(NODEPTR *np)
   return;
 }
 
+// stackptr_t gc_tot;
+
 /* Perform a garbage collection:
    - Mark nodes from the stack
    - Mark permanent arrays
@@ -2458,6 +2481,8 @@ gc(void)
 {
   stackptr_t i;
   /*printf("****** GC ********\n");*/
+
+  // gc_tot += stack_ptr+1;
 
   num_gc++;
   num_marked = 0;
@@ -2609,6 +2634,13 @@ gc(void)
     if (!is_marked_used(p)) {
       SETTAG(p, T_FREE);
     }
+  }
+#endif
+#if 0
+  {
+    BFILE *err = add_fd(2);
+    putsb("GC ", err); putdecb(num_free, err); putsb(" free\r\n", err);
+    closeb(err);
   }
 #endif
 }
@@ -3949,7 +3981,7 @@ mkStringC(char *str)
 NODEPTR
 mkStringU(struct bytestring bs)
 {
-  BFILE *ubuf = add_utf8(openb_rd_buf(bs.string, bs.size));
+  BFILE *ubuf = add_utf8(openb_rd_mem(bs.string, bs.size));
   NODEPTR n, *np, nc;
 
   //printf("mkStringU %d %s\n", (int)bs.size, (char*)bs.string);
@@ -6230,7 +6262,7 @@ mhs_init_args(
 
   if (combexpr) {
     int c;
-    BFILE *bf = openb_rd_buf(combexpr, combexprlen);
+    BFILE *bf = openb_rd_mem(combexpr, combexprlen);
     c = getb(bf);
     /* Compressed combinators start with a 'Z' or 'z', otherwise 'v' (for version) */
     if (c == 'z') {
@@ -6258,7 +6290,7 @@ mhs_init_args(
   want_gc_red = 1;
   gc();
   gc();                         /* this finds some more GC reductions */
-  want_gc_red = 0;              /* disabled due to UB */
+  want_gc_red = 0;              /* can be enabled, but it is rarely a win */
   prog = POPTOP();
   return prog;
 }  
@@ -6338,6 +6370,7 @@ mhs_main(int argc, char **argv)
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
 #endif
+    // PRINT("%"PCOMMA"15d avg gc stack depth\n", (int)(gc_tot / num_gc));
     // PRINT("%"PCOMMA"15"PRIcounter" max mark depth\n", max_mark_depth);
     PRINT("%15.2fs total expired time\n", (double)run_time / 1000);
     PRINT("%15.2fs gc expired time = %3.1f%% (%.2fs mark + %.2fs scan)\n",
@@ -6406,11 +6439,21 @@ ffe_apply(void)
   PUSH(new_ap(fun, arg));
 }
 
+/* For stand-alone exported functions this is called with the threading inactive.
+ * On the other hand, if a 'foreign import' calls back to a 'foreign export' the
+ * threading is alread running.
+ */
 /* XXX This is not quite right.  The surrounding mhs_to_xxx should be in the thread. */
 stackptr_t
 ffe_eval(void)
 {
-  start_exec(TOP(0));                /* start up the threading to evaluate the node */
+  if (main_thread) {
+    /* threading active, run on current stack */
+    (void)evali(TOP(0));
+  } else {
+    /* start up the threading to evaluate the node */
+    start_exec(TOP(0));
+  }
   /* The mhs_to_xxx functions bizarrely return the ARG(TOP(n+1)) value.
    * The wrapper will call with n=-1, so we need to put the result at ARG(TOP(0))
    */
@@ -6424,6 +6467,20 @@ ffe_exec(void)
   NODEPTR n = POPTOP();
   PUSH(new_ap(combPERFORMIO, n));
   return ffe_eval();
+}
+
+/* apply_sp :: StablePtr (Ptr a -> IO (Ptr b)) -> Ptr a -> IO (Ptr b) */
+void *
+apply_sp(uvalue_t sp, void *arg)
+{
+  GCCHECK(3);
+  NODEPTR f = deref_stableptr(sp);
+  NODEPTR a = alloc_node(T_PTR);
+  PTR(a) = arg;
+  PUSH(new_ap(combPERFORMIO, new_ap(f, a)));
+  void *r = evalptr(TOP(0));
+  POP(1);
+  return r;
 }
 
 /*********************/
@@ -6544,25 +6601,31 @@ from_t mhs_scalbnf(int s) { return mhs_from_Float(s, 2, scalbnf(mhs_to_Float(s, 
 
 #if WANT_STDIO
 from_t mhs_add_FILE(int s) { return mhs_from_Ptr(s, 1, add_FILE(mhs_to_Ptr(s, 0))); }
+from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); } /* for debugging */
+from_t mhs_fopen(int s) { return mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+from_t mhs_system(int s) { return mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
+from_t mhs_tmpname(int s) { return mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_STDIO */
+#if WANT_FD
+from_t mhs_add_fd(int s) { return mhs_from_Ptr(s, 1, add_fd(mhs_to_Int(s, 0))); }
+from_t mhs_open(int s) { return mhs_from_Int(s, 3, open(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Int(s, 2))); }
+#endif  /* WANT_FD */
+from_t mhs_add_buf(int s) { return mhs_from_Ptr(s, 2, add_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_add_crlf(int s) { return mhs_from_Ptr(s, 1, add_crlf(mhs_to_Ptr(s, 0))); }
+
 from_t mhs_add_utf8(int s) { return mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
 from_t mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_closeb(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
 from_t mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
-from_t mhs_fopen(int s) { return mhs_from_Ptr(s, 2, fopen(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-
 from_t mhs_getb(int s) { return mhs_from_Int(s, 1, getb(mhs_to_Ptr(s, 0))); }
 from_t mhs_putb(int s) { putb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_ungetb(int s) { ungetb(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
-from_t mhs_openwrbuf(int s) { return mhs_from_Ptr(s, 0, openb_wr_buf()); }
-from_t mhs_openrdbuf(int s) { return mhs_from_Ptr(s, 2, openb_rd_buf(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
-from_t mhs_getbuf(int s) { get_buf(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  return mhs_from_Unit(s, 3); }
-from_t mhs_system(int s) { return mhs_from_Int(s, 1, system(mhs_to_Ptr(s, 0))); }
-from_t mhs_tmpname(int s) { return mhs_from_Ptr(s, 2, TMPNAME(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
-from_t mhs_unlink(int s) { return mhs_from_Int(s, 1, unlink(mhs_to_Ptr(s, 0))); }
+from_t mhs_openwrmem(int s) { return mhs_from_Ptr(s, 0, openb_wr_mem()); }
+from_t mhs_openrdmem(int s) { return mhs_from_Ptr(s, 2, openb_rd_mem(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1))); }
+from_t mhs_getmem(int s) { get_mem(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2));  return mhs_from_Unit(s, 3); }
 from_t mhs_readb(int s) { return mhs_from_Int(s, 3, readb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
 from_t mhs_writeb(int s) { return mhs_from_Int(s, 3, writeb(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1), mhs_to_Ptr(s, 2))); }
-from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); } /* for debugging */
-#endif  /* WANT_STDIO */
 
 #if WANT_MD5
 from_t mhs_md5Array(int s) { md5Array(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
@@ -6781,24 +6844,30 @@ const struct ffi_entry ffi_table[] = {
 
 #if WANT_STDIO
   { "add_FILE", 1, mhs_add_FILE},
+  { "putchar", 1, mhs_putchar},
+  { "fopen", 2, mhs_fopen},
+  { "tmpname", 2, mhs_tmpname},
+  { "unlink", 1, mhs_unlink},
+  { "system", 1, mhs_system},
+#endif  /* WANT_STDIO */
+#if WANT_FD
+  { "add_fd", 1, mhs_add_fd},
+  { "open", 3, mhs_open},
+#endif  /* WANT_FD */
+  { "add_buf", 2, mhs_add_buf},
+  { "add_crlf", 1, mhs_add_crlf},
   { "add_utf8", 1, mhs_add_utf8},
   { "closeb", 1, mhs_closeb},
   { "&closeb", 0, mhs_addr_closeb},
   { "flushb", 1, mhs_flushb},
-  { "fopen", 2, mhs_fopen},
   { "getb", 1, mhs_getb},
   { "putb", 2, mhs_putb},
   { "ungetb", 2, mhs_ungetb},
-  { "openb_wr_buf", 0, mhs_openwrbuf},
-  { "openb_rd_buf", 2, mhs_openrdbuf},
-  { "get_buf", 3, mhs_getbuf},
-  { "system", 1, mhs_system},
-  { "tmpname", 2, mhs_tmpname},
-  { "unlink", 1, mhs_unlink},
+  { "openb_wr_mem", 0, mhs_openwrmem},
+  { "openb_rd_mem", 2, mhs_openrdmem},
+  { "get_mem", 3, mhs_getmem},
   { "readb", 3, mhs_readb},
   { "writeb", 3, mhs_writeb},
-  { "putchar", 1, mhs_putchar},
-#endif  /* WANT_STDIO */
 
 #if WANT_MD5
   { "md5Array", 3, mhs_md5Array},

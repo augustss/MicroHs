@@ -85,7 +85,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-l                 Show every time a module is loaded\n\
       \-s                 Show compilation speed in lines/s\n\
       \-r                 Run directly\n\
-      \-c                 Don not generate executable\n\
+      \-c                 Do not generate executable\n\
       \-CR                Read compilation cache\n\
       \-CW                Write compilation cache\n\
       \-C                 Read and write compilation cache\n\
@@ -303,11 +303,17 @@ mainCompile flags mn = do
     let (cFFI, hFFI) = makeFFI flags forExps allDefs
         cCode = "#include \"mhsffi.h\"\n" ++ makeCArray flags outData ++ cFFI
 
+    let outFile = output flags
+    -- Generate stub file for 'foreign export'
+    unless (null forExps) $ do
+      let stubName = takeDirectory outFile </> dropExtension (showIdent mn) ++ "_stub.h"
+      when (verbosityGT flags 0) $
+        putStrLn $ "generate stub: " ++ stubName
+      writeFile stubName hFFI
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
     --  * file ends in .c: write C version of combinator
     --  * otherwise, write C file and compile to a binary with cc
-    let outFile = output flags
     if outFile `hasTheExtension` ".comb" then
       writeFile outFile outData
      else if outFile `hasTheExtension` ".c" then
@@ -319,8 +325,6 @@ mainCompile flags mn = do
        hClose h
        mainCompileC flags ppkgs fn
        removeFile fn
-    unless (null forExps) $
-       writeFile (takeDirectory outFile </> showIdent mn ++ "_stub.h") hFFI
 
 mainCompileC :: Flags -> [FilePath] -> FilePath -> IO ()
 mainCompileC flags ppkgs infile = do

@@ -1,0 +1,20 @@
+enter hsimp n=1
+cb: 1
+exit hsimp hsexp=1
+doit: 1
+enter hsimp n=2
+cb: 2
+exit hsimp hsexp=2
+doit: 2
+enter hsimp n=3
+cb: 6
+exit hsimp hsexp=6
+doit: 6
+enter hsimp n=4
+cb: 24
+exit hsimp hsexp=24
+doit: 24
+enter hsimp n=5
+cb: 120
+exit hsimp hsexp=120
+doit: 120

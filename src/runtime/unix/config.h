@@ -5,11 +5,18 @@
 /*
  * Various platform specific configuration.
  */
+
 /*
  * Include stdio functions.
  * Without this none of the file I/O in System.IO is available.
  */
 #define WANT_STDIO 1
+
+/*
+ * Include file descriptor functions.
+ * Without this none of the file I/O in System.IO is available.
+ */
+#define WANT_FD 1
 
 /*
  * Include ops for floating point arithmetic.

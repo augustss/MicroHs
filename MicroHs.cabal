@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                MicroHs
-version:             0.14.8.0
+version:             0.14.9.0
                      -- *** When changing the version number, also
                      -- *** run 'sh updateversion.sh'
                      -- *** Yeah, it stinks.
@@ -114,7 +114,7 @@ executable mhs
                        filepath     >= 1.1 && < 1.8,
                        ghc-prim     >= 0.5 && < 0.15,
                        haskeline    >= 0.8 && < 0.10,
-                       time         >= 1.1 && < 1.20,
+                       time         >= 1.9 && < 1.20,
                        process      >= 1.6 && < 1.10,
                        directory    >= 1.2 && < 1.6,
                        text         >= 2.0 && < 2.5,
@@ -192,7 +192,7 @@ library
                         filepath     >= 1.1 && < 1.8,
                         ghc-prim     >= 0.5 && < 0.15,
                         haskeline    >= 0.8 && < 0.10,
-                        time         >= 1.1 && < 1.20,
+                        time         >= 1.9 && < 1.20,
                         process      >= 1.6 && < 1.10,
                         directory    >= 1.2 && < 1.6,
                         text         >= 2.0 && < 2.5,

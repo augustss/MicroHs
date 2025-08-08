@@ -1,6 +1,6 @@
 cabal-version:  3.0
 name:           libs
-version:        0.14.8.0
+version:        0.14.9.0
 license:        Apache-2.0
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net

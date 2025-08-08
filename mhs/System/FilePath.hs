@@ -109,7 +109,10 @@ takeExtension = snd . splitExtension
 
 dropExtension :: FilePath -> FilePath
 --dropExtension = fst . splitExtension
-dropExtension = reverse . drop 1 . dropWhile (not . isExtSeparator) . reverse
+dropExtension s =
+  case dropWhile (not . isExtSeparator) . reverse $ s of
+    "" -> s
+    s' -> reverse . drop 1 $ s'
 
 (<.>) :: FilePath -> String -> FilePath
 (<.>) = addExtension

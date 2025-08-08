@@ -274,8 +274,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.14.8.0
-HVERSION=0,14,8,0
+VERSION=0.14.9.0
+HVERSION=0,14,9,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
@@ -355,9 +355,3 @@ generated/hmhs.c:
 bin/hmhs: generated/hmhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/hmhs.c $(CCLIBS) -o bin/hmhs
-
-##################
-
-endiantest:
-	$(CC) endian.c -oendian
-	./endian

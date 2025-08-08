@@ -6,6 +6,7 @@
  * The streams are typically bytes.
  *
  *  FILE   source/sink for stdio FILE handles
+ *  FD     source/sink for file descriptors
  *  buf    source/sink where the read/write uses a memory buffer.
  *
  *  lz77   transducer for LZ77 compression
@@ -247,34 +248,34 @@ getint32(BFILE *p)
 }
 
 /***************** BFILE from/to memory buffer *******************/
-struct BFILE_buffer {
+struct BFILE_mem {
   BFILE    mets;
   struct bfbuffer bf;
 };
 
 int
-getb_buf(BFILE *bp)
+getb_mem(BFILE *bp)
 {
-  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
-  CHECKBFILE(bp, getb_buf);
+  struct BFILE_mem *p = (struct BFILE_mem *)bp;
+  CHECKBFILE(bp, getb_mem);
 
   return bfbuffer_get(&p->bf);
 }
 
 void
-putb_buf(int c, BFILE *bp)
+putb_mem(int c, BFILE *bp)
 {
-  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
-  CHECKBFILE(bp, getb_buf);
+  struct BFILE_mem *p = (struct BFILE_mem *)bp;
+  CHECKBFILE(bp, getb_mem);
 
   bfbuffer_snoc(&p->bf, c);
 }
 
 void
-ungetb_buf(int c, BFILE *bp)
+ungetb_mem(int c, BFILE *bp)
 {
-  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
-  CHECKBFILE(bp, getb_buf);
+  struct BFILE_mem *p = (struct BFILE_mem *)bp;
+  CHECKBFILE(bp, getb_mem);
   if (p->bf.pos == 0)
     ERR("ungetb");
   p->bf.pos--;
@@ -283,55 +284,55 @@ ungetb_buf(int c, BFILE *bp)
 }
 
 void
-closeb_rd_buf(BFILE *bp)
+closeb_rd_mem(BFILE *bp)
 {
-  CHECKBFILE(bp, getb_buf);
+  CHECKBFILE(bp, getb_mem);
   FREE(bp);
 }
 
 void
-closeb_wr_buf(BFILE *bp)
+closeb_wr_mem(BFILE *bp)
 {
-  CHECKBFILE(bp, getb_buf);
+  CHECKBFILE(bp, getb_mem);
   FREE(bp);
 }
 
 void
-flushb_buf(BFILE *bp)
+flushb_mem(BFILE *bp)
 {
-  CHECKBFILE(bp, getb_buf);
+  CHECKBFILE(bp, getb_mem);
 }
 
 size_t
-readb_buf(uint8_t *buf, size_t size, BFILE *bp)
+readb_mem(uint8_t *buf, size_t size, BFILE *bp)
 {
-  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
-  CHECKBFILE(bp, getb_buf);
+  struct BFILE_mem *p = (struct BFILE_mem *)bp;
+  CHECKBFILE(bp, getb_mem);
 
   return bfbuffer_read(&p->bf, buf, size);
 }
 
 size_t
-writeb_buf(const uint8_t *str, size_t size, BFILE *bp)
+writeb_mem(const uint8_t *str, size_t size, BFILE *bp)
 {
-  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
-  CHECKBFILE(bp, getb_buf);
+  struct BFILE_mem *p = (struct BFILE_mem *)bp;
+  CHECKBFILE(bp, getb_mem);
 
   return bfbuffer_write(&p->bf, str, size);
 }
 
 struct BFILE*
-openb_rd_buf(const uint8_t *buf, size_t len)
+openb_rd_mem(const uint8_t *buf, size_t len)
 {
-  struct BFILE_buffer *p = MALLOC(sizeof(struct BFILE_buffer));
+  struct BFILE_mem *p = MALLOC(sizeof(struct BFILE_mem));
   if (!p)
     memerr();
-  p->mets.getb = getb_buf;
-  p->mets.ungetb = ungetb_buf;
+  p->mets.getb = getb_mem;
+  p->mets.ungetb = ungetb_mem;
   p->mets.putb = 0;
   p->mets.flushb = 0;
-  p->mets.closeb = closeb_rd_buf;
-  p->mets.readb = readb_buf;
+  p->mets.closeb = closeb_rd_mem;
+  p->mets.readb = readb_mem;
   p->mets.writeb = 0;
   p->bf.size = len;
   p->bf.pos = 0;
@@ -340,18 +341,18 @@ openb_rd_buf(const uint8_t *buf, size_t len)
 }
 
 struct BFILE*
-openb_wr_buf(void)
+openb_wr_mem(void)
 {
-  struct BFILE_buffer *p = MALLOC(sizeof(struct BFILE_buffer));
+  struct BFILE_mem *p = MALLOC(sizeof(struct BFILE_mem));
   if (!p)
     memerr();
-  p->mets.getb = getb_buf;      /* Just to make CHECKFILE happy */
+  p->mets.getb = getb_mem;      /* Just to make CHECKFILE happy */
   p->mets.ungetb = 0;
-  p->mets.putb = putb_buf;
-  p->mets.flushb = flushb_buf;
-  p->mets.closeb = closeb_wr_buf;
+  p->mets.putb = putb_mem;
+  p->mets.flushb = flushb_mem;
+  p->mets.closeb = closeb_wr_mem;
   p->mets.readb = 0;
-  p->mets.writeb = writeb_buf;
+  p->mets.writeb = writeb_mem;
   bfbuffer_init(&p->bf, 1000);
   return (struct BFILE*)p;
 }
@@ -360,14 +361,14 @@ openb_wr_buf(void)
  * Get the buffer used by writing.
  * This should be the last operation before closing,
  * since the buffer can move when writing.
- * The caller of openb_wr_buf() and get_buf() owns
+ * The caller of openb_wr_mem() and get_mem() owns
  * the memory and must free it.
  */
 void
-get_buf(struct BFILE *bp, uint8_t **bufp, size_t *lenp)
+get_mem(struct BFILE *bp, uint8_t **bufp, size_t *lenp)
 {
-  struct BFILE_buffer *p = (struct BFILE_buffer *)bp;
-  CHECKBFILE(bp, getb_buf);
+  struct BFILE_mem *p = (struct BFILE_mem *)bp;
+  CHECKBFILE(bp, getb_mem);
   *bufp = p->bf.buf;
   *lenp = p->bf.pos;
 }
@@ -458,6 +459,107 @@ add_FILE(FILE *f)
   p->mets.readb  = readb_file;
   p->mets.writeb = writeb_file;
   p->file = f;
+  return (BFILE*)p;
+}
+#endif
+
+
+#if WANT_FD
+/***************** BFILE via file descriptor *******************/
+struct BFILE_fd {
+  BFILE    mets;
+  int      unget;
+  int      fd;
+};
+
+int
+getb_fd(BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  uint8_t c;
+  if (p->unget >= 0) {
+    c = p->unget;
+    p->unget = -1;
+  } else {
+    if (read(p->fd, &c, 1) != 1)
+      return -1;
+  }
+  return c;
+}
+
+void
+ungetb_fd(int c, BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  p->unget = c;
+}
+
+void
+putb_fd(int c, BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  uint8_t u = c;
+  if (write(p->fd, &u, 1) <= 0)
+    ERR("putb_fd");
+}
+
+void
+flushb_fd(BFILE *bp)
+{
+  CHECKBFILE(bp, getb_fd);
+}
+
+void
+closeb_fd(BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  close(p->fd);
+  FREE(p);
+}
+
+void
+freeb_fd(BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  FREE(p);
+}
+
+size_t
+readb_fd(uint8_t *buf, size_t size, BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  return read(p->fd, buf, size);
+}
+
+size_t
+writeb_fd(const uint8_t *str, size_t size, BFILE *bp)
+{
+  struct BFILE_fd *p = (struct BFILE_fd *)bp;
+  CHECKBFILE(bp, getb_fd);
+  return write(p->fd, str, size);
+}
+
+BFILE *
+add_fd(int fd)
+{
+  struct BFILE_fd *p = MALLOC(sizeof (struct BFILE_fd));
+  if (!p)
+    memerr();
+  p->mets.getb   = getb_fd;
+  p->mets.ungetb = ungetb_fd;
+  p->mets.putb   = putb_fd;
+  p->mets.flushb = flushb_fd;
+  p->mets.closeb = closeb_fd;
+  p->mets.readb  = readb_fd;
+  p->mets.writeb = writeb_fd;
+  p->fd = fd;
+  p->unget = -1;
   return (BFILE*)p;
 }
 #endif
@@ -1177,24 +1279,6 @@ closeb_utf8(BFILE *bp)
   FREE(p);
 }
 
-size_t
-readb_utf8(uint8_t *buf, size_t size, BFILE *bp)
-{
-  struct BFILE_utf8 *p = (struct BFILE_utf8 *)bp;
-  CHECKBFILE(bp, getb_utf8);
-
-  return readb(buf, size, p->bfile);
-}
-
-size_t
-writeb_utf8(const uint8_t *str, size_t size, BFILE *bp)
-{
-  struct BFILE_utf8 *p = (struct BFILE_utf8 *)bp;
-  CHECKBFILE(bp, getb_utf8);
-
-  return writeb(str, size, p->bfile);
-}
-
 BFILE *
 add_utf8(BFILE *file)
 {
@@ -1207,10 +1291,197 @@ add_utf8(BFILE *file)
   p->mets.putb = putb_utf8;
   p->mets.flushb = flushb_utf8;
   p->mets.closeb = closeb_utf8;
-  p->mets.readb = readb_utf8;
-  p->mets.writeb = writeb_utf8;
+  p->mets.readb = 0;
+  p->mets.writeb = 0;
   p->bfile = file;
   p->unget = -1;
 
+  return (BFILE*)p;
+}
+
+/***************** BFILE that just buffers *******************/
+
+struct BFILE_buf {
+  BFILE    mets;
+  BFILE    *bfile;
+  int      unget;
+  size_t   size;
+  size_t   cur;
+  size_t   pos;
+  int      linebuf;
+  int      read;
+  uint8_t *buf;
+};
+
+int
+getb_buf(BFILE *bp)
+{
+  struct BFILE_buf *p = (struct BFILE_buf*)bp;
+  CHECKBFILE(bp, getb_buf);
+  p->read = 1;
+  if (p->unget >= 0) {
+    int c = p->unget;
+    p->unget = -1;
+    return c;
+  }
+  if (p->size == 0) {
+    return getb(p->bfile);
+  }
+  if (p->pos >= p->cur) {
+    int r = readb(p->buf, p->size, p->bfile);
+    if (r <= 0)
+      return -1;
+    p->cur = r;
+    p->pos = 0;
+  }
+  return p->buf[p->pos++];  
+}
+
+void
+ungetb_buf(int c, BFILE *bp)
+{
+  struct BFILE_buf *p = (struct BFILE_buf*)bp;
+  CHECKBFILE(bp, getb_buf);
+  if (p->unget >= 0)
+    ERR("ungetb_buf");
+  p->unget = c;
+}
+
+void
+putb_buf(int c, BFILE *bp)
+{
+  struct BFILE_buf *p = (struct BFILE_buf *)bp;
+  CHECKBFILE(bp, getb_buf);
+  if (p->size == 0) {
+    return putb(c, p->bfile);
+  }
+  if (p->pos >= p->size) {
+    int r = writeb(p->buf, p->size, p->bfile);
+    if (r != p->size)
+      ERR("putb_buf");
+    p->pos = 0;
+  }
+  p->buf[p->pos++] = c;
+  if (p->linebuf && c == '\n') {
+    writeb(p->buf, p->pos, p->bfile);
+    p->pos = 0;
+  }
+}
+
+void
+flushb_buf(BFILE *bp)
+{
+  struct BFILE_buf *p = (struct BFILE_buf*)bp;
+  CHECKBFILE(bp, getb_buf);
+
+  if (!p->read) {
+    (void)writeb(p->buf, p->pos, p->bfile);
+    p->pos = 0;
+  }
+
+  flushb(p->bfile);
+}
+
+void
+closeb_buf(BFILE *bp)
+{
+  struct BFILE_buf *p = (struct BFILE_buf*)bp;
+  CHECKBFILE(bp, getb_buf);
+
+  if (!p->read)
+    flushb(bp);
+
+  closeb(p->bfile);
+  FREE(p);
+}
+
+/* bufsize==0 no buffering, bufsize<0 linebuffered, bufsize>0 regular */
+BFILE *
+add_buf(BFILE *file, int bufsize)
+{
+  struct BFILE_buf *p = MALLOC(sizeof(struct BFILE_buf));
+
+  if (!p)
+    memerr();
+  p->mets.getb = getb_buf;
+  p->mets.ungetb = ungetb_buf;
+  p->mets.putb = putb_buf;
+  p->mets.flushb = flushb_buf;
+  p->mets.closeb = closeb_buf;
+  p->mets.readb = 0;
+  p->mets.writeb = 0;
+  p->bfile = file;
+  p->unget = -1;
+  p->pos = 0;
+  p->cur = 0;
+  p->read = 0;
+  if (bufsize < 0) {
+    p->size = -bufsize;
+    p->linebuf = 1;
+  } else {
+    p->size = bufsize;
+    p->linebuf = 0;
+  }
+  if (p->size) {
+    p->buf = MALLOC(p->size);
+    if (!p->buf)
+      memerr();
+  } else {
+    p->buf = 0;
+  }
+  return (BFILE*)p;
+}
+
+/***************** BFILE that adds CR *******************/
+
+struct BFILE_crlf {
+  BFILE    mets;
+  BFILE    *bfile;
+};
+
+void
+putb_crlf(int c, BFILE *bp)
+{
+  struct BFILE_crlf *p = (struct BFILE_crlf *)bp;
+  //CHECKBFILE(bp, getb_crlf);
+  if (c == '\n')
+    putb('\r', p->bfile);
+  putb(c, p->bfile);
+}
+
+void
+flushb_crlf(BFILE *bp)
+{
+  struct BFILE_crlf *p = (struct BFILE_crlf*)bp;
+  //CHECKBFILE(bp, getb_crlf);
+
+  flushb(p->bfile);
+}
+
+void
+closeb_crlf(BFILE *bp)
+{
+  struct BFILE_crlf *p = (struct BFILE_crlf*)bp;
+  //CHECKBFILE(bp, getb_crlf);
+
+  closeb(p->bfile);
+  FREE(p);
+}
+
+BFILE *
+add_crlf(BFILE *file)
+{
+  struct BFILE_crlf *p = MALLOC(sizeof(struct BFILE_crlf));
+
+  if (!p)
+    memerr();
+  p->mets.getb = 0;
+  p->mets.ungetb = 0;
+  p->mets.putb = putb_crlf;
+  p->mets.flushb = flushb_crlf;
+  p->mets.closeb = closeb_crlf;
+  p->mets.readb = 0;
+  p->mets.writeb = 0;
+  p->bfile = file;
   return (BFILE*)p;
 }
