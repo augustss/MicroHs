@@ -314,8 +314,10 @@ mainCompile flags mn = do
     --  * file ends in .comb: write combinator file
     --  * file ends in .c: write C version of combinator
     --  * otherwise, write C file and compile to a binary with cc
-    if outFile `hasTheExtension` ".comb" then
-      writeFile outFile outData
+    if outFile `hasTheExtension` ".comb" then do
+      h <- openFile outFile WriteMode
+      hWrite h outData
+      hClose h
      else if outFile `hasTheExtension` ".c" then
       writeFile outFile cCode
      else do
