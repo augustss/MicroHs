@@ -1,6 +1,7 @@
 /* Copyright 2025 Lennart Augustsson
  * See LICENSE file for full license.
  */
+#include <conio.h>
 
 /*
  * Find First Set
@@ -58,7 +59,33 @@ static inline uint64_t ctz(uint64_t x) {
  * Get a raw input character.
  * If undefined, the default always returns -1
  */
-/* #define GETRAW getraw */
+#define GETRAW getraw
+int
+getraw(void)
+{
+  static char buf[2];
+  int c;
+  if (buf[0]) {
+    c = buf[0];
+    buf[0] = buf[1];
+    buf[1] = 0;
+  } else {
+  tryagain:
+    c = _getch();
+    if (c == 0xe0 || c == 0x00) {
+      switch(_getch()) {
+      case 0x48: buf[1] = 'A'; break; /* Up arrow */
+      case 0x50: buf[1] = 'B'; break; /* Down arrow */
+      case 0x4d: buf[1] = 'C'; break; /* Right arrow */
+      case 0x4b: buf[1] = 'D'; break; /* Left arrow */
+      default: goto tryagain;
+      }
+      buf[0] = '[';
+      c = 0x1b;                 /* ESC */
+    }
+  }
+  return c;
+}
 
 /*
  * Get time since some epoch in milliseconds.
