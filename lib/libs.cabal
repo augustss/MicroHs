@@ -167,6 +167,7 @@ library base
         System.IO.Serialize
         System.IO.StringHandle
         System.IO.TimeMilli
+        System.IO.Transducers
         System.IO.Unsafe
         System.Info
         System.Process
@@ -214,6 +215,7 @@ library base
         Primitives
         System.IO.Base
         System.IO.Internal
+        System.IO.Open
         System.IO_Handle
         Text.Read.Internal
 

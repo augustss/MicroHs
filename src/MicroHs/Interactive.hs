@@ -161,7 +161,7 @@ commands =
       putStrLnI $ helpText ++ unlines (map ((':' :) . fst) commands)
       return True
     )
-  , ("set f     (un)set flag", \ line -> do
+  , ("set [f]   (un)set flag", \ line -> do
       setFlags line
       return True
     )
@@ -189,7 +189,7 @@ reload = do
 
 helpText :: String
 helpText = "\
-  \Commands:\n\
+  \Commands (may be abbreviated):\n\
   \expr       evaluate expression\n\
   \defn       add top level definition\n\
   \"
