@@ -106,17 +106,18 @@ repl = do
 
 command :: String -> I Bool
 command s =
+  let fw = (!!0) . words . fst in
   case words s of
     [] -> return True
     c : ws ->
-      case filter (isPrefixOf c . (!!0) . words . fst) commands of
+      case filter (isPrefixOf c . fw) commands of
         [] -> do
           putStrLnI "Unrecognized command"
           return True
         [(_, cmd)] ->
           cmd (unwords ws)
         xs -> do
-          putStrLnI $ "Ambiguous command: " ++ unwords (map fst xs)
+          putStrLnI $ "Ambiguous command: " ++ unwords (map fw xs)
           return True
 
 commands :: [(String, String -> I Bool)]
