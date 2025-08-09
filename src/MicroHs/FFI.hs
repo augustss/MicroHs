@@ -211,6 +211,10 @@ cHsTypes =
     "CSSize",
     "CLLong",
     "CULLong",
+    "CIntPtr",
+    "CUIntPtr",
+    "CFloat",
+    "CDouble",
     "CTime"
   ]
 
@@ -245,6 +249,10 @@ cTypes =
     ("CSSize", "ssize_t"),
     ("CLLong", "long long"),
     ("CULLong", "unsigned long long"),
+    ("CIntPtr", "intptr_t"),
+    ("CUIntPtr", "uintptr_t"),
+    ("CFloat", "float"),
+    ("CDouble", "double"),
     ("CTime", "time_t")
   ]
 
