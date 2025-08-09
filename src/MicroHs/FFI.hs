@@ -185,15 +185,15 @@ cHsTypes =
   [ ("Primitives.Float",  "Float")
   , ("Primitives.Double", "Double")
   , ("Primitives.Int",    "Int")
+  , ("Primitives.Int64",  "Int64")
   , ("Primitives.Word",   "Word")
+  , ("Primitives.Word64", "Word64")
   , ("Data.Word.Word8",   "Word8")
   , ("Data.Word.Word16",  "Word16")
   , ("Data.Word.Word32",  "Word32")
-  , ("Data.Word.Word64",  "Word64")
-  , ("Data.Int.IntN.Int8","Int8")
-  , ("Data.Int.IntN.Int16","Int16")
-  , ("Data.Int.IntN.Int32","Int32")
-  , ("Data.Int.IntN.Int64","Int64")
+  , ("Data.Int.Int8.Int8","Int8")
+  , ("Data.Int.Int16.Int16","Int16")
+  , ("Data.Int.Int32.Int32","Int32")
   , ("()",                "Unit")
   , ("System.IO.Handle",  "Ptr")
   ] ++ map (\ t -> ("Foreign.C.Types." ++ t, t))
@@ -230,7 +230,9 @@ cTypes =
   [ ("Primitives.Float",  "flt32_t")
   , ("Primitives.Double", "flt64_t")
   , ("Primitives.Int",    "intptr_t")   -- value_t
+  , ("Primitives.Int64",  "int64_t")
   , ("Primitives.Word",   "uintptr_t")  -- uvalue_t
+  , ("Primitives.Word64", "uint64_t")
   , ("Data.Word.Word8",   "uint8_t")
   , ("()",                "void")
   , ("System.IO.Handle",  "void*")
@@ -309,9 +311,11 @@ runtimeFFI = [
   "opendir", "closedir", "readdir", "c_d_name", "chdir", "mkdir", "getcwd",
   "getcpu",
   "get_mem", "openb_rd_mem", "openb_wr_mem",
-  "new_mpz", "mpz_abs", "mpz_add", "mpz_and", "mpz_cmp", "mpz_get_d",
-  "mpz_get_si", "mpz_get_ui", "mpz_init_set_si", "mpz_init_set_ui", "mpz_ior",
+  "new_mpz", "mpz_abs", "mpz_add", "mpz_and", "mpz_cmp", "mpz_get_d", "mpz_get_f",
+  "mpz_get_si", "mpz_get_ui", "mpz_init_set_si", "mpz_init_set_ui",
+  "mpz_ior",
   "mpz_mul", "mpz_mul_2exp", "mpz_neg", "mpz_popcount", "mpz_sub", "mpz_fdiv_q_2exp",
   "mpz_tdiv_qr", "mpz_tstbit", "mpz_xor",
+  "mpz_get_si64", "mpz_get_ui64", "mpz_init_set_si64", "mpz_init_set_ui64",
   "want_gmp"
   ]

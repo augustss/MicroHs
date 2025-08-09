@@ -1,4 +1,4 @@
-# Define these 3 lines to use GMP for Integer.
+# Define these 4 lines to use GMP for Integer.
 # For MacOS with homebrew:
 #MHSGMPCCFLAGS=-DWANT_GMP=1
 #MHSGMPCCLIBS= -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include

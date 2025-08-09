@@ -1,12 +1,15 @@
 module Data.Integer_Type(
   Integer(..),
   MPZ, newMPZ,
-  _intToInteger, _wordToInteger, _integerToInt, _integerToWord,
+  _intToInteger, _wordToInteger, _int64ToInteger, _word64ToInteger,
+  _integerToInt, _integerToWord, _integerToInt64, _integerToWord64,
   _integerToFloat,
   _integerToDouble,
   ) where
 import qualified Prelude()
 import Primitives
+import Control.Error
+import Data.Function(($))
 --import Foreign.ForeignPtr
 --import Mhs.Builtin
 --import System.IO.Unsafe
@@ -61,3 +64,33 @@ _integerToFloat (I x) = primPerformIO (withForeignPtr x mpz_get_f)
 
 _integerToDouble :: Integer -> Double
 _integerToDouble (I x) = primPerformIO (withForeignPtr x mpz_get_d)
+
+-------
+
+foreign import capi "mpz_init_set_si64" mpz_init_set_si64 :: Ptr MPZ -> Int64 -> IO ()
+foreign import capi "mpz_init_set_ui64" mpz_init_set_ui64 :: Ptr MPZ -> Word64 -> IO ()
+foreign import capi "mpz_get_si64"      mpz_get_si64      :: Ptr MPZ -> IO Int64
+foreign import capi "mpz_get_ui64"      mpz_get_ui64      :: Ptr MPZ -> IO Word64
+
+chk64 :: a -> a
+chk64 x = if _wordSize `primIntEQ` (64::Int) then x else error "GMP lacks 64 bit support"
+
+_integerToInt64 :: Integer -> Int64
+_integerToInt64 (I x) = chk64 $ primPerformIO (withForeignPtr x mpz_get_si64)
+
+_integerToWord64 :: Integer -> Word64
+_integerToWord64 (I x) = chk64 $ primPerformIO (withForeignPtr x mpz_get_ui64)
+
+_word64ToInteger :: Word64 -> Integer
+_word64ToInteger i = chk64 $ primPerformIO (do
+  newMPZ `primBind` \ x ->
+  withForeignPtr x ( \ p -> mpz_init_set_ui64 p i) `primThen`
+  primReturn (I x)
+  )
+
+_int64ToInteger :: Int64 -> Integer
+_int64ToInteger i = chk64 $ primPerformIO (
+  newMPZ `primBind` \ x ->
+  withForeignPtr x ( \ p -> mpz_init_set_si64 p i) `primThen`
+  primReturn (I x)
+  )
