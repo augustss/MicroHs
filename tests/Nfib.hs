@@ -10,7 +10,7 @@ nfib n =
 main :: IO ()
 main = do
   t1 <- getTimeMilli
-  let r = nfib 37
+  let r = nfib 35
   print r
   t2 <- getTimeMilli
   putStrLn $ "nfib/s = " ++ show (r `quot` (t2 - t1)) ++ "k"
