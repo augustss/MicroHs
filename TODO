@@ -1,5 +1,3 @@
-* Have compile return a Stats record of timing etc
-* In interactive mode, make the runtime system catch ^C and stop execution
 * Type checker improvements:
   - allow generalization for local bindings
   - use subsumption (like if) in the arms of alternatives
@@ -21,10 +19,6 @@
 * Sync lib with GHC base
 * Use finalizers for alloca?
 * Better naming of internal identifiers
-* Add mask&co to exceptions
-* Make a Unicode version of Data.Char
-  - make tables using the Haskell tools
-  - read tables lazily when outside ASCII range
 * Implement hSetBuffering
   Do this by adding a new BFILE type that just buffers:
    NoBuffering      - flush on every character
@@ -36,8 +30,6 @@ Bugs:
 * Type checking Data.Data
 * let needs {} in a do with {}
 * export list in -boot doesn't work
-* overloaded PatBind is totally wrong
-* newtype deriving Semigroup is broken
 * polykinded signatures don't work properly, e.g., ~
   there is no place to put the forall
 * tr :: forall t -> Typeable t => TypeRep
@@ -45,11 +37,9 @@ Bugs:
 * cannot parse (a -> b) as an expression
 
 Wishlist:
-* foreign import javascript (dmjio)
 * DeriveDataTypeable (claudeha)
     Only Data is missing die to a type checker bug
 * DeriveGeneric (clauseha)
     Needs TypeFamilies
 * DeriveFunctor (clauseha)
-* Better interactive performance (claudeha)
 * Polymorphic record update (claudeha)
