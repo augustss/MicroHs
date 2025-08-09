@@ -1354,30 +1354,22 @@ tcDefsValue adefs = do
   -- Gather up all type signatures, and put them in the environment.
   -- Definitions with no type signature will be missing.
   mapM_ addValueType adefs
-  let dsp (PatBind p e) = flip PatBind e <$> dsEFields p
-      dsp d = return d
-  defs <- mapM dsp adefs
+  defs <- concat<$> mapM (dsPatBind <=< dsEFieldsBind) adefs
   let smap = M.fromList $ [ (i, ()) | Sign is _ <- defs, i <- is ]
       -- Split Fcn into those without and with type signatures
       unsigned = filter noSign defs
         where noSign (Fcn i _) = hasNoSign i
               noSign (Pattern (i, _) _ _) = hasNoSign i
-              noSign (PatBind p _) = any hasNoSign (patVars p)
               noSign _ = False
               hasNoSign i = isNothing $ M.lookup i smap
       -- split the unsigned defs into strongly connected components
       sccs = stronglyConnComp $ map node unsigned
-        where node d@(Fcn i e)             = (d, i,                tr $ allVarsEqns e)
-              node d@(Pattern (i, _) p me) = (d, i,                tr $ allVarsPat p $ maybe [] allVarsEqns me)
-              node d@(PatBind p e)         = (d, head $ patVars p, tr $ allVarsExpr e)  -- use the first bound var as the key
+        where node d@(Fcn i e)             = (d, i, allVarsEqns e)
+              node d@(Pattern (i, _) p me) = (d, i, allVarsPat p $ maybe [] allVarsEqns me)
               node _ = undefined
-              tr x | null sub = x  -- do nothing when there are no PatBinds
-                   | otherwise = map (\ i -> fromMaybe i $ lookup i sub) x
-              -- Map all (bound) identifiers in a PatBind into the first (bound) identifier
-              sub = [ (d, i) | PatBind p _ <- unsigned, i:ds <- [patVars p], d <- ds ]
       tcSCC (AcyclicSCC d@Pattern{}) = tcPatSyn d
-      tcSCC (AcyclicSCC d) = tInferDefs smap [d]
-      tcSCC (CyclicSCC ds) = tInferDefs smap ds
+      tcSCC (AcyclicSCC d) = tInferDefs [d]
+      tcSCC (CyclicSCC ds) = tInferDefs ds
   --traceM $ "tcDefsValue: unsigned=" ++ show unsigned
   -- type infer and enter each SCC in the symbol table
   -- return inferred Sign
@@ -1396,20 +1388,15 @@ tcDefsValue adefs = do
 -- Infer a type for a strongly connected component of definitions.
 -- Enter the deduced types into the global symbol table and return
 -- signatures with the deduced types.
-tInferDefs :: M.Map () -> [EDef] -> T [EDef]
-tInferDefs smap fcns = do
+tInferDefs :: [EDef] -> T [EDef]
+tInferDefs fcns = do
 --  traceM "tInferDefs"
   tcReset
   -- Invent type variables for the definitions
   xts <-
        let f (Fcn i _)            = do t <- newUVar; pure [(i, t)]
            f (Pattern (i, _) _ _) = do t <- newUVar; pure [(i, t)]
-           f (PatBind p _)        = concat <$> mapM g (patVars p)
            f _                    = impossible
-           -- Only add type variables for those variables that don't have a signature
-           g i = case M.lookup i smap of
-                   Nothing -> do t <- newUVar; pure [(i, t)]
-                   _       -> pure []
        in  concat <$> mapM f fcns
   --tcTrace $ "tInferDefs: " ++ show (map fst xts)
   -- Temporarily extend the local environment with the type variables
@@ -1418,7 +1405,6 @@ tInferDefs smap fcns = do
     -- The bodies will be re-typecked in tcDefsValues.
     let tc (Fcn _ eqns) (_, t)   = do tcEqns False t eqns; return ()
         tc (Pattern (i,_) _ _) _ = tcError (getSLoc i) "Cannot infer recursive pattern synonym types"
-        tc (PatBind p e)       _ = do tcPatBind PatBind p e; return ()
         tc _ _ = impossible
     zipWithM_ tc fcns xts
   -- Get the unsolved constraints
@@ -1553,7 +1539,6 @@ tcDefValue adef =
       mn <- gets moduleName
 --      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
       return $ Fcn (qualIdent' mn i) teqns
-    PatBind p e -> tcPatBind PatBind p e
     ForImp cc ie i t -> do
       mn <- gets moduleName
       t' <- expandSyn t
@@ -2104,6 +2089,38 @@ eProxy i = ESign proxy (EApp proxy (ELit loc (LStr (unIdent i))))
   where proxy = EVar $ mkBuiltin loc "Proxy"
         loc = getSLoc i
 
+-- Turn
+--   p = e
+-- into (x1..xn are the variables in p)
+--   tmp = e
+--   x1 = case tmp of p -> x1
+--   ...
+--   xn = case tmp of p -> xn
+-- Take care with bindings like x@p = e and turn them into
+--   x = e
+--   x1 = case x of p -> x1
+--   ...
+-- Extra weird, x@y@p
+--   x = y
+--   y = e
+--   ...
+dsPatBind :: EBind -> T [EBind]
+dsPatBind (PatBind p e) = do
+  let (xs, p') = getAts p
+  (v, ys) <- case xs of
+               [] -> do v <- newIdent (getSLoc e) "pb"; return (v, [])
+               v:vs -> return (v, vs)
+  let de = fcn v e
+      dy = map (\ y -> fcn y (EVar v)) ys
+      ds = [ fcn i (ECase (EVar v) [(p', oneAlt $ EVar i)]) | i <- patVars p' ]
+      fcn i b = Fcn i (eEqns [] b)
+  return $ de : dy ++ ds
+dsPatBind b = return [b]
+
+getAts :: EPat -> ([Ident], EPat)
+getAts (EAt x p) = (x:xs, p') where (xs, p') = getAts p
+getAts p = ([], p)
+
 dsEFieldsBind :: EBind -> T EBind
 dsEFieldsBind (PatBind p e) = PatBind <$> dsEFields p <*> return e
 dsEFieldsBind b = return b
@@ -2598,7 +2615,7 @@ multCheck vs =
 tcBinds :: HasCallStack =>
            [EBind] -> ([EBind] -> T a) -> T a
 tcBinds xbs ta = withFixes [ (i, fx) | Infix fx is <- xbs, i <- is ] $ do
-  xbs' <- mapM dsEFieldsBind xbs
+  xbs' <- concat <$> mapM (dsPatBind <=< dsEFieldsBind) xbs
   let
     tmap = M.fromList [ (i, t) | Sign is t <- xbs', i <- is ]
     xs = getBindsVars xbs'
@@ -2635,18 +2652,7 @@ tcBind abind =
       (_, tt) <- tLookupV i
       teqns <- tcEqns False tt eqns
       return $ Fcn i teqns
-    PatBind p a -> tcPatBind PatBind p a
     _ -> return abind
-
-tcPatBind :: (EPat -> Expr -> a) -> EPat -> Expr -> T a
-tcPatBind con p a = do
-  ((sk, ds, ep), tp) <- tInferPat p  -- pattern variables already bound
-  -- This is just to complicated.
-  when (not (null sk) || not (null ds)) $
-    tcError (getSLoc p) "existentials not allowed in pattern binding"
-  ea <- tCheckExprAndSolve tp a
-  return $ con ep ea
-
 
 -- Desugar [T] and (T,T,...)
 dsType :: EType -> EType

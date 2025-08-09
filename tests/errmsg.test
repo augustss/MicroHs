@@ -127,7 +127,8 @@ data T = forall a . C a
 x :: Int
 x = let { C a = C (1::Int) } in a
 -----
-"../tmp/E.hs": line 5, col 11: existentials not allowed in pattern binding
+"../tmp/E.hs": line 5, col 33: Cannot satisfy constraint: (a ~ Int)
+     fully qualified: (Primitives.~ a Primitives.Int)
 
 =====
 module E() where

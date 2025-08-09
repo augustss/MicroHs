@@ -47,11 +47,6 @@ dsDef flags mn ffiNo adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
-    PatBind p e ->
-      case patVarsQ p of
-        [] -> []    -- no bound variable, just throw it away
-        -- Create a unique varible by adding a "$g" suffix to one of the bound variables.
-        v : _ -> dsPatBind (addIdentSuffix v "$g") p e
     ForImp cc ie i t -> [(i, ccall t $ Lit $ mkForImp ffiNo cc ie i t)]
     -- Foreign exports don't fit very well into the desugared syntax.
     -- We represent
@@ -103,9 +98,6 @@ wrapTick True  i ee = wrap 0 ee
                        _ -> e
 -}
 
-oneAlt :: Expr -> EAlts
-oneAlt e = EAlts [([], e)] []
-
 dsBind :: Ident -> EBind -> [LDef]
 dsBind v abind =
   case abind of
@@ -113,16 +105,12 @@ dsBind v abind =
     PatBind p e -> dsPatBind v p e
     _ -> []
 
+-- Desugaring ~p in case introduces PatBind, so we need to get rid of it again.
 dsPatBind :: Ident -> EPat -> Expr -> [LDef]
 dsPatBind v p e =
   let de = (v, dsExpr e)
-      ds = [ (i, dsExpr (ECase (EVar v) [(p, oneAlt $ EVar i)])) | i <- patVarsQ p ]
+      ds = [ (i, dsExpr (ECase (EVar v) [(p, oneAlt $ EVar i)])) | i <- patVars p ]
   in  de : ds
-
--- patVars does not work wth qualified bound variable names,
--- but that's what we get for a top level PatBind
-patVarsQ :: EPat -> [Ident]
-patVarsQ = filter (\ i -> not (isDummyIdent i) && not (isConIdent $ unQualIdent i)) . allVarsExpr
 
 dsEqns :: SLoc -> [Eqn] -> Exp
 dsEqns loc eqns =
@@ -159,12 +147,14 @@ dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
 dsBinds :: [EBind] -> Exp -> Exp
 dsBinds [] ret = ret
+{-
 dsBinds ads@(PatBind (ELazy False p) e : ds) ret =
   -- Turn a strict let/where into a case.
   -- XXX This does no reordering of bindings.
   let rest = dsBinds ds ret
       used = allVarsExp ret ++ allVarsExpr (ELet ads (ETuple []))
   in  dsCaseExp (getSLoc p) used [dsExpr e] [([dsPat p], const rest)]
+-}
 dsBinds ads ret =
   let
     avs = concatMap allVarsBind ads

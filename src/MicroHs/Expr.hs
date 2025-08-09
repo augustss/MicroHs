@@ -7,7 +7,7 @@ module MicroHs.Expr(
   ImpType(..),
   EDef(..), showEDefs,
   Deriving(..), DerStrategy(..),
-  Expr(..), eLam, eLamWithSLoc, eEqn, eEqns, showExpr, eqExpr,
+  Expr(..), eLam, eLamWithSLoc, eEqn, oneAlt, eEqns, showExpr, eqExpr,
   CallConv(..),
   QForm(..),
   Listish(..),
@@ -260,7 +260,10 @@ eEqns :: [EPat] -> Expr -> [Eqn]
 eEqns ps e = [eEqn ps e]
 
 eEqn :: [EPat] -> Expr -> Eqn
-eEqn ps e = Eqn ps (EAlts [([], e)] [])
+eEqn ps e = Eqn ps (oneAlt e)
+
+oneAlt :: Expr -> EAlts
+oneAlt e = EAlts [([], e)] []
 
 type FieldName = Ident
 
