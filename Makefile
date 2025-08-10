@@ -93,6 +93,14 @@ bin/mhsevalsane:	$(RTS)/*.c $(RTS)/*/*.h
 	@mkdir -p bin
 	$(CCEVAL) $(CCSANITIZE) $(RTSINC) $(RTS)/comb.c $(CCLIBS) -o bin/mhsevalsane
 
+# mhseval, compiled with emscripten. Use in the browser!
+EMCCOPTS= -O3 -sEXPORTED_FUNCTIONS=_apply_sp,_main -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -Wno-address-of-packed-member
+EMCCLIBS= -lm
+EMCCEVAL= emcc $(EMCCOPTS) $(RTSINC) $(MAINC) $(RTS)/eval.c
+bin/mhseval.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
+	@mkdir -p bin
+	$(EMCCEVAL) $(RTS)/comb.c $(EMCCLIBS) -o bin/mhseval.js
+
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
 	@mkdir -p bin
