@@ -7,7 +7,7 @@ MK=Makefile
 mv $MK $MK.bak
 vers=`grep '^version:' MicroHs.cabal | sed -e 's/version: *//'`
 hvers=`echo $vers | sed 's/\./,/g'`
-#echo $vers
+echo Version $vers
 sed -e "s/^VERSION=.*/VERSION=$vers/" -e "s/^HVERSION=.*/HVERSION=$hvers/" $MK.bak > $MK
 LCB=lib/libs.cabal
 mv $LCB $LCB.bak
@@ -16,3 +16,5 @@ SI=lib/System/Info.hs
 mv $SI $SI.bak
 grep -v '^fullCompilerVersion =' $SI.bak > $SI
 grep '^version:' MicroHs.cabal | sed -e 's/version: */fullCompilerVersion = makeVersion [/' -e 's/\./,/g' -e 's/$/]/' >> $SI
+
+git tag "v$vers"
