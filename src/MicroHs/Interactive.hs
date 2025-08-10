@@ -8,7 +8,7 @@ import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp(Exp(Var))
-import MicroHs.Expr(showEType, EModule(..), EDef(..), ImpType(..))
+import MicroHs.Expr(showEType, EModule(..), EDef(..))
 import MicroHs.Flags
 import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar)
 import qualified MicroHs.IdentMap as M
@@ -288,7 +288,7 @@ compile file = do
   flgs <- gets isFlags
   cash <- gets isCache
 --  putStrLnI $ " tryCompile compile " ++ show mdl'
-  (((dmdl, _, _, _, _), tcstate'), _) <- liftIO $ runStateIO (compileModuleP flgs ImpNormal mdl') cash
+  ((dmdl, _, tcstate'), _) <- liftIO $ runStateIO (compileInteractive flgs mdl') cash
   cmdl <- liftIO $ evaluate $ compileToCombinators dmdl
 --  putStrLnI $ " tryCompile dmdl = " ++ (show $ tBindingsOf dmdl)
   return (tBindingsOf cmdl, tcstate')
@@ -379,7 +379,7 @@ updateTCStateCache (EModule mn es ds) = do
     flgs <- gets isFlags
     cash <- gets isCache
 --    putStrLnI "*** update tcstate"
-    (((_, syms, _, _, _), tcstate), ch) <- liftIO $ runStateIO (compileModuleP flgs ImpNormal mdl) cash
+    ((_, syms, tcstate), ch) <- liftIO $ runStateIO (compileInteractive flgs mdl) cash
     let idmap = translateMap $ concatMap tBindingsOf $ cachedModules ch
 --    putStrLnI $ "*** update isFast " ++ show nImps
     modify $ \ is -> is{ isCComp = (nImps, tcstate, idmap), isCache = ch, isSymbols = syms }

@@ -4,6 +4,7 @@ module MicroHs.Compile(
   compileCacheTop,
   compileModuleP,
   compileToCombinators,
+  compileInteractive,
   compileMany,
   maybeSaveCache,
   getCached,
@@ -90,26 +91,38 @@ maybeSaveCache flags cash =
       putStrLn $ "Saving cache " ++ show mhsCacheName
     saveCache mhsCacheName cash
 
+-- Load the real modules for imported boot modules.
+-- Doing so can result in more boot imports, so we recurse.
+loadBoots :: Flags -> CM ()
+loadBoots flags = do
+  bs <- gets getBoots
+  case bs of
+    [] -> return ()
+    bmn:_ -> do
+      when (verbosityGT flags 0) $
+        liftIO $ putStrLn $ "compiling used boot module " ++ showIdent bmn
+      _ <- compileModuleCached flags ImpNormal bmn
+      loadBoots flags
+
 compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Symbols, Cache)
 compile flags nm ach = do
   let comp = do
         res <- compileModuleCached flags ImpNormal nm
-        let loadBoots = do
-              bs <- gets getBoots
-              case bs of
-                [] -> return ()
-                bmn:_ -> do
-                  when (verbosityGT flags 0) $
-                    liftIO $ putStrLn $ "compiling used boot module " ++ showIdent bmn
-                  _ <- compileModuleCached flags ImpNormal bmn
-                  loadBoots
-        loadBoots
+        loadBoots flags
         loadDependencies flags
         return res
   ((cm, syms, t), ch) <- runStateIO comp ach
   when (verbosityGT flags 0) $
     putStrLn $ "total import time     " ++ padLeft 6 (show t) ++ "ms"
   return ((tModuleName cm, concatMap tBindingsOf $ cachedModules ch), syms, ch)
+
+-- Compile a module for the interactive system
+compileInteractive :: Flags -> EModule -> CM (TModule [LDef], Symbols, TCState)
+compileInteractive flags mdl = do
+  ((dmdl, syms, _, _, _), tcstate) <- compileModuleP flags ImpNormal mdl
+  loadBoots flags
+  loadDependencies flags
+  return (dmdl, syms, tcstate)
 
 -- Compile a module with the given name.
 -- If the module has already been compiled, return the cached result.
