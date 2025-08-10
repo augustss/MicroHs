@@ -15,6 +15,9 @@
 #if WANT_MATH
 #include <math.h>
 #endif  /* WANT_MATH */
+#if defined(__EMSCRIPTEN__)
+#include "emscripten.h"
+#endif /* __EMSCRIPTEN__ */
 #if WANT_DIR
 #include <dirent.h>
 #include <unistd.h>
@@ -6610,6 +6613,13 @@ from_t mhs_scalbnf(int s) { return mhs_from_Float(s, 2, scalbnf(mhs_to_Float(s, 
 #endif  /* WANT_FLOAT32 */
 #endif  /* WANT_MATH */
 
+#if defined(__EMSCRIPTEN__)
+from_t mhs_js_debug(int s) { EM_ASM({ console.log(UTF8ToString($0)) }, mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_js_eval_run(int s) { EM_ASM({ eval(UTF8ToString($0)) }, mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
+from_t mhs_js_eval_call(int s) { return mhs_from_Ptr(s, 1, EM_ASM_PTR({ return stringToNewUTF8(JSON.stringify(eval(UTF8ToString($0)))) }, mhs_to_Ptr(s, 0))); }
+from_t mhs_js_set_haskellCallback(int s) { EM_ASM({ _haskellCallback = $0 }, mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); }
+#endif
+
 #if WANT_STDIO
 from_t mhs_add_FILE(int s) { return mhs_from_Ptr(s, 1, add_FILE(mhs_to_Ptr(s, 0))); }
 from_t mhs_putchar(int s) { putchar(mhs_to_Int(s, 0)); return mhs_from_Unit(s, 1); } /* for debugging */
@@ -6857,6 +6867,13 @@ const struct ffi_entry ffi_table[] = {
   { "scalbnf", 2, mhs_scalbnf},
 #endif  /* WANT_FLOAT32 */
 #endif  /* WANT_MATH */
+
+#if defined(__EMSCRIPTEN__)
+  { "js_debug", 1, mhs_js_debug},
+  { "js_eval_run", 1, mhs_js_eval_run},
+  { "js_eval_call", 1, mhs_js_eval_call},
+  { "js_set_haskellCallback", 1, mhs_js_set_haskellCallback},
+#endif
 
 #if WANT_STDIO
   { "add_FILE", 1, mhs_add_FILE},

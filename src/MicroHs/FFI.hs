@@ -290,6 +290,7 @@ runtimeFFI = [
   "putb", "sin", "sqrt", "system", "tan", "tmpname", "ungetb", "unlink",
   "acosf", "asinf", "atanf", "atan2f", "cosf", "expf", "logf", "sinf", "sqrtf", "tanf",
   "scalbn", "scalbnf",
+  "js_debug", "js_eval_run", "js_eval_call", "js_set_haskellCallback",
   "readb", "writeb",
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
   "add_lz77_compressor", "add_lz77_decompressor",
