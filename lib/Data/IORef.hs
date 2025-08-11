@@ -5,11 +5,14 @@ module Data.IORef(
   writeIORef,
   modifyIORef,
   atomicModifyIORef,
+  mkWeakIORef,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Eq
+import Data.Maybe_Type
 import {-# SOURCE #-} Data.Typeable
+import System.Mem.Weak
 
 -- An IORef is represented as an IOArray with a single element.
 newtype IORef a = R (IOArray a)
@@ -33,3 +36,6 @@ modifyIORef (R p) f = primArrRead p 0 `primBind` \ a -> primArrWrite p 0 (f a)
 -- XXX WRONG
 atomicModifyIORef :: forall a b . IORef a -> (a -> (a, b)) -> IO b
 atomicModifyIORef r f = readIORef r `primBind` \ a -> let (a', b) = f a in writeIORef r a' `primThen` primReturn b
+
+mkWeakIORef :: IORef a -> IO () -> IO (Weak (IORef a))
+mkWeakIORef r fin = mkWeakPtr r (Just fin)

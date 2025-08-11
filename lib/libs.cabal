@@ -170,6 +170,7 @@ library base
         System.IO.Transducers
         System.IO.Unsafe
         System.Info
+        System.Mem.Weak
         System.Process
         System.RTS
         Text.Printf

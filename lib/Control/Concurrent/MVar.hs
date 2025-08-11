@@ -16,13 +16,15 @@ module Control.Concurrent.MVar(
   modifyMVarMasked_,
   modifyMVarMasked,
   tryReadMVar,
-  --mkWeakMVar,
+  mkWeakMVar,
   --addMVarFinalizer,
   ) where
+import qualified Prelude(); import MiniPrelude
 import Primitives
 import Control.Exception
 import Data.Maybe(isNothing)
 import Numeric.Show
+import System.Mem.Weak
 
 instance Eq (MVar a) where
   mv1 == mv2  =  primMVarToWord mv1 == primMVarToWord mv2
@@ -112,3 +114,6 @@ modifyMVarMasked m io =
     (a',b) <- (io a >>= evaluate) `onException` putMVar m a
     putMVar m a'
     return b
+
+mkWeakMVar :: MVar a -> IO () -> IO (Weak (MVar a))
+mkWeakMVar m fin = mkWeakPtr m (Just fin)

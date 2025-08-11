@@ -145,6 +145,7 @@ import System.IO.Serialize
 import System.IO.StringHandle
 import System.IO.TimeMilli
 import System.Info
+import System.Mem.Weak
 import System.Process
 import System.RTS
 import Text.Printf
