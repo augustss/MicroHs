@@ -97,9 +97,9 @@ bin/mhsevalsane:	$(RTS)/*.c $(RTS)/*/*.h
 EMCCOPTS= -O3 -sEXPORTED_FUNCTIONS=_apply_sp,_main -sEXPORTED_RUNTIME_METHODS=stringToNewUTF8 -sALLOW_MEMORY_GROWTH -sTOTAL_STACK=5MB -sSINGLE_FILE -DUSE_SYSTEM_RAW -Wno-address-of-packed-member
 EMCCLIBS= -lm
 EMCCEVAL= emcc $(EMCCOPTS) $(RTSINC) $(MAINC) $(RTS)/eval.c
-bin/mhseval.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
+generated/mhseval.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	@mkdir -p bin
-	$(EMCCEVAL) $(RTS)/comb.c $(EMCCLIBS) -o bin/mhseval.js
+	$(EMCCEVAL) $(RTS)/comb.c $(EMCCLIBS) -o generated/mhseval.js
 
 # Compile mhs with ghc
 bin/gmhs:	src/*/*.hs ghc/*.hs ghc/*/*.hs ghc/*/*/*.hs
