@@ -2,4 +2,5 @@
 generated/mhs.c binary
 generated/cpphs.c binary
 generated/mcabal.c binary
+generated/mhseval.js binary
 doc/hs2024.pdf binary
