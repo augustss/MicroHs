@@ -22,6 +22,8 @@ import MicroHs.TypeCheck(TModule(..), Symbols)
 import Unsafe.Coerce
 import System.Console.SimpleReadline
 import Paths_MicroHs(version)
+import System.Environment
+import System.FilePath
 import System.IO
 --import System.IO.TimeMilli
 
@@ -31,7 +33,8 @@ data IState = IState {
   isCache   :: Cache,
   isSymbols :: Symbols,
   isStats   :: Bool,
-  isCComp   :: (Int, TCState, TranslateMap)
+  isCComp   :: (Int, TCState, TranslateMap),
+  isHistory :: FilePath
   }
 
 -- To speed up interactive use the state of the symbol table after
@@ -45,9 +48,12 @@ mainInteractive :: Flags -> IO ()
 mainInteractive flags = do
   putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
   when wantGMP $ putStrLn "Using GMP"
+  mhome <- lookupEnv "HOME"
   let flags' = flags{ loading = True }
+      hist = maybe mhsi (</> mhsi) mhome
+      mhsi = ".mhsi"
   cash <- getCached flags'
-  _ <- runStateIO start $ IState preamble flags' cash noSymbols False (-1, error "tcstate", M.empty)
+  _ <- runStateIO start $ IState preamble flags' cash noSymbols False (-1, error "tcstate", M.empty) hist
   return ()
 
 noSymbols :: Symbols
@@ -80,6 +86,7 @@ repl = do
   mdls <- gets (cachedModuleNames . isCache)
   syms <- gets isSymbols
   stdinFlag <- gets (useStdin . isFlags)
+  hist <- gets isHistory
   ms <- liftIO $
     if stdinFlag then do
       putStr "> "
@@ -89,7 +96,7 @@ repl = do
         Left  (_::SomeException) -> return Nothing
         Right s                  -> return (Just s)
     else do
-      ms <- getInputLineHistComp (return . complete mdls syms) ".mhsi" "> "
+      ms <- getInputLineHistComp (return . complete mdls syms) hist "> "
       return (ms <|> Just "")  -- ignore ^D
   let bye = putStrLnI "Bye"
   case ms of
