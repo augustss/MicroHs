@@ -1523,3 +1523,244 @@ add_crlf(BFILE *file)
   return (BFILE*)p;
 }
 #endif  /* WANT_CRLF */
+
+#if WANT_BASE64
+/***************** Base64 encode/decode *******************/
+
+struct BFILE_b64 {
+  BFILE mets;
+  BFILE *bfile;          /* underlying BFILE */
+  int read;              /* 1 = decoder, 0 = encoder */
+
+  /* encoder state */
+  uint8_t encbuf[3];     /* collect up to 3 bytes */
+  int encpos;            /* how many bytes in encbuf (0..3) */
+  size_t linelen;        /* 0 = no wrap; otherwise wrap column (e.g., 76) */
+  size_t outcol;         /* current column count for wrapping */
+
+  /* decoder state */
+  int unget;
+  uint8_t outbuf[3];
+  int outpos, outlen;
+};
+
+static int
+getb_b64(BFILE *bp) {
+  struct BFILE_b64 *p = (struct BFILE_b64*)bp;
+  CHECKBFILE(bp, getb_b64);
+
+  if (!p->read)
+    ERR("getb_b64: not in read mode");
+
+  if (p->unget >= 0) {
+    int c = p->unget;
+    p->unget = -1;
+    return c;
+  }
+  if (p->outpos < p->outlen)
+    return p->outbuf[p->outpos++];
+
+  /* need to decode the next quartet */
+  int v[4], got = 0;
+  for (;;) {
+    int c = getb(p->bfile);
+    if (c < 0) {
+      if (got == 0)
+        return -1; /* EOF cleanly */
+      ERR("base64: truncated input");
+    }
+
+    int k;
+    if ((unsigned)(c - 'A') <= 25) k = c - 'A';
+    else if ((unsigned)(c - 'a') <= 25) k = c - 'a' + 26;
+    else if ((unsigned)(c - '0') <= 9) k = c - '0' + 52;
+    else if (c == '+') k = 62;
+    else if (c == '/') k = 63;
+    else if (c == '=') k = -3;
+    else if (c == ' ' || c == '\t' || c == '\n' || c == '\r') k = -2;
+    else k = -1;
+
+    if (k == -2)
+      continue;        /* skip whitespace */
+    if (k >= 0 || k == -3) {
+      v[got++] = k;
+      if (got == 4)
+        break;
+    } else {
+      ERR("base64: invalid character");
+    }
+  }
+
+  /* convert quartet -> bytes */
+  if (v[0] < 0 || v[1] < 0)
+    ERR("base64: bad padding");
+  uint32_t triple = ((uint32_t)v[0] << 18) | ((uint32_t)v[1] << 12);
+  if (v[2] == -3) {
+    p->outbuf[0] = (triple >> 16) & 0xff;
+    p->outlen = 1;
+  } else {
+    triple |= ((uint32_t)v[2] << 6);
+    if (v[3] == -3) {
+      p->outbuf[0] = (triple >> 16) & 0xff;
+      p->outbuf[1] = (triple >> 8) & 0xff;
+      p->outlen = 2;
+    } else {
+      triple |= (uint32_t)v[3];
+      p->outbuf[0] = (triple >> 16) & 0xff;
+      p->outbuf[1] = (triple >> 8) & 0xff;
+      p->outbuf[2] = triple & 0xff;
+      p->outlen = 3;
+    }
+  }
+  p->outpos = 0;
+  return p->outbuf[p->outpos++];
+}
+
+static void
+ungetb_b64(int c, BFILE *bp) {
+  struct BFILE_b64 *p = (struct BFILE_b64*)bp;
+  CHECKBFILE(bp, getb_b64);
+  if (!p->read)
+    ERR("ungetb_b64: not in read mode");
+  if (p->unget >= 0)
+    ERR("ungetb_b64: double unget");
+  p->unget = c;
+}
+
+static const char b64_alphabet[] =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+#define B64_PAD 64               /* index into b64_alphabet */
+
+/* emit one 4-char Base64 quad to the underlying file, with optional wrapping */
+static INLINE void
+b64_put_quad(int a, int b, int c, int d, struct BFILE_b64 *p) {
+  if (p->linelen && p->outcol + 4 > p->linelen) {
+    putb('\n', p->bfile);
+    p->outcol = 0;
+  }
+  putb(b64_alphabet[a], p->bfile);
+  putb(b64_alphabet[b], p->bfile);
+  putb(b64_alphabet[c], p->bfile);
+  putb(b64_alphabet[d], p->bfile);
+  p->outcol += 4;
+}
+
+static void
+putb_b64(int byte, BFILE *bp) {
+  struct BFILE_b64 *p = (struct BFILE_b64*)bp;
+  CHECKBFILE(bp, getb_b64);
+  if (p->read)
+    ERR("putb_b64: not in write mode");
+
+  p->encbuf[p->encpos++] = byte;
+
+  if (p->encpos == 3) {
+    uint32_t x = ((uint32_t)p->encbuf[0] << 16) |
+                 ((uint32_t)p->encbuf[1] << 8)  |
+                 ((uint32_t)p->encbuf[2]);
+    b64_put_quad((x >> 18) & 0x3f,
+                 (x >> 12) & 0x3f,
+                 (x >> 6)  & 0x3f,
+                 x         & 0x3f,
+                 p);
+    p->encpos = 0;
+  }
+}
+
+static void
+flushb_b64(BFILE *bp) {
+  struct BFILE_b64 *p = (struct BFILE_b64*)bp;
+  CHECKBFILE(bp, getb_b64);
+
+  if (p->read)
+    return;
+
+  /* finalize any pending tail (1 or 2 bytes) with padding */
+  if (p->encpos == 1) {
+    uint32_t x = ((uint32_t)p->encbuf[0]) << 16;
+    b64_put_quad((x >> 18) & 0x3f,
+                 (x >> 12) & 0x3f,
+                 B64_PAD,
+                 B64_PAD,
+                 p);
+    p->encpos = 0;
+  } else if (p->encpos == 2) {
+    uint32_t x = ((uint32_t)p->encbuf[0] << 16) |
+                 ((uint32_t)p->encbuf[1] << 8);
+    b64_put_quad((x >> 18) & 0x3f,
+                 (x >> 12) & 0x3f,
+                 (x >> 6)  & 0x3f,
+                 B64_PAD,
+                 p);
+    p->encpos = 0;
+  }
+
+  flushb(p->bfile);
+}
+
+static void
+closeb_b64(BFILE *bp) {
+  struct BFILE_b64 *p = (struct BFILE_b64*)bp;
+  CHECKBFILE(bp, getb_b64);
+
+  if (!p->read) {
+    flushb_b64(bp);       /* emits tail + flushes */
+    if (p->linelen && p->outcol) {
+      /* newline-terminate the final line if wrapping was enabled */
+      putb('\n', p->bfile);
+    }
+  }
+
+  closeb(p->bfile);
+  FREE(p);
+}
+
+BFILE *
+add_base64_encoder(BFILE *file) {
+  struct BFILE_b64 *p = MALLOC(sizeof(struct BFILE_b64));
+  if (!p)
+    memerr();
+  memset(p, 0, sizeof *p);
+  p->mets.getb   = getb_b64;
+  p->mets.ungetb = 0;
+  p->mets.putb   = putb_b64;
+  p->mets.flushb = flushb_b64;
+  p->mets.closeb = closeb_b64;
+  p->mets.readb  = 0;
+  p->mets.writeb = 0;
+
+  p->bfile  = file;
+  p->read   = 0;
+  p->encpos = 0;
+  p->linelen = 76;
+  p->outcol  = 0;
+
+  p->unget = -1;
+  p->outpos = 0;
+  p->outlen = 0;
+
+  return (BFILE*)p;
+}
+
+BFILE *
+add_base64_decoder(BFILE *file) {
+  struct BFILE_b64 *p = MALLOC(sizeof(struct BFILE_b64));
+  if (!p)
+    memerr();
+  memset(p, 0, sizeof *p);
+  p->mets.getb   = getb_b64;
+  p->mets.ungetb = ungetb_b64;
+  p->mets.putb   = 0;
+  p->mets.flushb = flushb_b64;
+  p->mets.closeb = closeb_b64;
+  p->mets.readb  = 0;
+  p->mets.writeb = 0;
+  p->bfile = file;
+  p->read = 1;
+  p->unget = -1;
+  p->outpos = 0;
+  p->outlen = 0;
+  return (BFILE*)p;
+}
+
+#endif  /* WANT_BASE64 */

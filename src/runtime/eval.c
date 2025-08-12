@@ -6641,6 +6641,10 @@ from_t mhs_add_crlf(int s) { return mhs_from_Ptr(s, 1, add_crlf(mhs_to_Ptr(s, 0)
 #if WANT_UTF8
 from_t mhs_add_utf8(int s) { return mhs_from_Ptr(s, 1, add_utf8(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_UTF8 */
+#if WANT_BASE64
+from_t mhs_add_base64_encoder(int s) { return mhs_from_Ptr(s, 1, add_base64_encoder(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_base64_decoder(int s) { return mhs_from_Ptr(s, 1, add_base64_decoder(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_BASE64 */
 from_t mhs_closeb(int s) { closeb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_closeb(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&closeb); }
 from_t mhs_flushb(int s) { flushb(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
@@ -6953,6 +6957,10 @@ const struct ffi_entry ffi_table[] = {
 #if WANT_UTF8
   { "add_utf8", 1, mhs_add_utf8},
 #endif  /* WANT_UTF8 */
+#if WANT_BASE64
+  { "add_base64_encoder", 1, mhs_add_base64_encoder},
+  { "add_base64_decoder", 1, mhs_add_base64_decoder},
+#endif  /* WANT_BASE64 */
   { "closeb", 1, mhs_closeb},
   { "&closeb", 0, mhs_addr_closeb},
   { "flushb", 1, mhs_flushb},

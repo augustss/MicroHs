@@ -1,5 +1,5 @@
 module System.IO.Transducers(
-  addUTF8, addCRLF, addBuffer, addLZ77, addRLE, addBWT,
+  addUTF8, addCRLF, addBuffer, addLZ77, addRLE, addBWT, addBase64,
   ) where
 import qualified Prelude(); import MiniPrelude
 --import Data.Maybe
@@ -17,6 +17,8 @@ foreign import ccall add_rle_compressor    :: Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall add_rle_decompressor  :: Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall add_bwt_compressor    :: Ptr BFILE -> IO (Ptr BFILE)
 foreign import ccall add_bwt_decompressor  :: Ptr BFILE -> IO (Ptr BFILE)
+foreign import ccall add_base64_encoder    :: Ptr BFILE -> IO (Ptr BFILE)
+foreign import ccall add_base64_decoder    :: Ptr BFILE -> IO (Ptr BFILE)
 
 addTransducerRW :: (Ptr BFILE -> IO (Ptr BFILE)) -> (Ptr BFILE -> IO (Ptr BFILE)) -> Handle -> IO Handle
 addTransducerRW rd wr h = do
@@ -31,8 +33,6 @@ addUTF8 = addTransducer add_utf8
 
 addCRLF :: Handle -> IO Handle
 addCRLF = addTransducer add_crlf
-
---addBase64 :: Handle -> IO Handle
 
 addBuffer :: BufferMode -> Handle -> IO Handle
 addBuffer NoBuffering h = return h
@@ -50,3 +50,6 @@ addRLE = addTransducerRW add_rle_decompressor add_rle_compressor
 
 addBWT :: Handle -> IO Handle
 addBWT = addTransducerRW add_bwt_decompressor add_bwt_compressor
+
+addBase64 :: Handle -> IO Handle
+addBase64 = addTransducerRW add_base64_decoder add_base64_encoder
