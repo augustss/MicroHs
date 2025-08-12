@@ -16,6 +16,7 @@ module System.IO.Base(
   hGetLine, getLine,
   interact,
   writeFile, readFile, appendFile,
+  writeBinaryFile, readBinaryFile,
 
   cprint, cuprint,
 
@@ -176,6 +177,12 @@ writeFile p s = do
   hPutStr h s
   hClose h
 
+writeBinaryFile :: FilePath -> String -> IO ()
+writeBinaryFile p s = do
+  h <- openBinaryFile p WriteMode
+  hPutStr h s
+  hClose h
+
 appendFile :: FilePath -> String -> IO ()
 appendFile p s = do
   h <- openFile p AppendMode
@@ -199,6 +206,12 @@ writeFileFast p s = do
 readFile :: FilePath -> IO String
 readFile p = do
   h <- openFile p ReadMode
+  hGetContents h  --  can't close with lazy hGetContents
+
+-- Lazy readFile
+readBinaryFile :: FilePath -> IO String
+readBinaryFile p = do
+  h <- openBinaryFile p ReadMode
   hGetContents h  --  can't close with lazy hGetContents
 
 -- Lazy hGetContents
