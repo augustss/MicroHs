@@ -19,6 +19,7 @@ data Flags = Flags {
   cppArgs    :: [String],   -- flags for CPP
   cArgs      :: [String],   -- arguments for C compiler
   compress   :: Bool,       -- compress generated combinators
+  base64     :: Bool,       -- base64 encode generated combinators
   buildPkg   :: Maybe FilePath, -- build a package
   listPkg    :: Maybe FilePath, -- list package contents
   pkgPath    :: [FilePath], -- package search path
@@ -49,6 +50,7 @@ defaultFlags dir = Flags {
   cppArgs    = [],
   cArgs      = [],
   compress   = False,
+  base64     = False,
   buildPkg   = Nothing,
   listPkg    = Nothing,
   pkgPath    = [],

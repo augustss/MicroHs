@@ -33,7 +33,7 @@ import System.Directory
 import System.IO
 import System.IO.Serialize
 import System.IO.TimeMilli
-import System.IO.Transducers(addLZ77)
+import System.IO.Transducers(addLZ77, addBase64)
 import MicroHs.TargetConfig
 import Paths_MicroHs(getDataDir)
 
@@ -70,7 +70,7 @@ main = do
                   _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -94,7 +94,8 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-Dxxx              Pass -Dxxx to cpphs\n\
       \-Ixxx              Pass -Ixxx to cpphs\n\
       \-T                 Generate dynamic function usage statistics\n\
-      \-z                 Compress combinator code generated in the .c file\n\
+      \-z                 Compress the combinator code\n\
+      \-b64               Base64 encode the combinator code\n\
       \-iPATH             Add PATH to module search path\n\
       \-oFILE             Output to FILE\n\
       \                   If FILE ends in .comb produce a combinator file\n\
@@ -131,6 +132,7 @@ decodeArgs f mdls (arg:args) =
     "-T"        -> decodeArgs f{useTicks = True} mdls args
     "-XCPP"     -> decodeArgs f{doCPP = True} mdls args
     "-z"        -> decodeArgs f{compress = True} mdls args
+    "-b64"      -> decodeArgs f{base64 = True} mdls args
     "-Q"        -> decodeArgs f{installPkg = True} mdls args
     "-o" | s : args' <- args
                 -> decodeArgs f{output = s} mdls args'
@@ -317,9 +319,10 @@ mainCompile flags mn = do
     --  * otherwise, write C file and compile to a binary with cc
     if outFile `hasTheExtension` ".comb" then do
       h <- openBinaryFile outFile WriteMode
-      h' <- if compress flags then do hPutChar h 'z'; addLZ77 h else return h
-      hPutStr h' outData
-      hClose h'
+      h' <- if base64 flags then do addBase64 h else return h
+      h'' <- if compress flags then do hPutChar h' 'z'; addLZ77 h' else return h'
+      hPutStr h'' outData
+      hClose h''
      else if outFile `hasTheExtension` ".c" then
       writeFile outFile cCode
      else do

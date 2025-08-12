@@ -297,6 +297,7 @@ runtimeFFI = [
   "peekPtr", "pokePtr", "pokeWord", "peekWord",
   "add_lz77_compressor", "add_lz77_decompressor",
   "add_rle_compressor", "add_rle_decompressor",
+  "add_base64_encoder", "add_base64_decoder",
   "add_bwt_compressor", "add_bwt_decompressor",
   "peek_uint8", "poke_uint8", "peek_uint16", "poke_uint16", "peek_uint32", "poke_uint32", "peek_uint64", "poke_uint64",
   "peek_int8", "poke_int8", "peek_int16", "poke_int16", "peek_int32", "poke_int32", "peek_int64", "poke_int64",
