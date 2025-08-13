@@ -6287,6 +6287,7 @@ mhs_init_args(
 #endif
     }
     int c = getb(bf);
+#if WANT_BASE64
     /* Compressed combinators start with a 'z', otherwise 'v' (for version) */
     if (c != 'z' && c != 'v') {
       /* Neither z nor v, assume base64 encoded */
@@ -6294,6 +6295,7 @@ mhs_init_args(
       bf = add_base64_decoder(bf);
       c = getb(bf);
     }
+#endif
     if (c == 'z') {
       /* add LZ77 compressor transducer */
       bf = add_lz77_decompressor(bf);
