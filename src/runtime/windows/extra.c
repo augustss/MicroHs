@@ -118,7 +118,7 @@ gettimemilli(void)
  * Create a unique file name.
  */
 char*
-tmpname(const char* pre, const char* suf)
+tmpname(const char* prefix, const char* suffix)
 {
   char tmpdir[MAX_PATH];
   DWORD len = GetTempPathA(sizeof(tmpdir), tmpdir);
