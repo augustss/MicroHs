@@ -108,4 +108,5 @@
 #include <sys/time.h>
 #include <stdio.h>
 #include <locale.h>
+#include <limits.h>
 
