@@ -62,6 +62,8 @@
 #include <locale.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 /* Make these empty */
 #define NORETURN
