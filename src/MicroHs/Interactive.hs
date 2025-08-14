@@ -129,15 +129,15 @@ command s =
 
 commands :: [(String, String -> I Bool)]
 commands =
-  [ ("quit      quit MicroHs",
+  [ ("quit        quit MicroHs",
      const $ return False
     )
-  , ("clear     clear all definitions", const $ do
+  , ("clear       clear all definitions", const $ do
       updateLines (const preamble)
       modify $ \ is -> is{ isCache = emptyCache, isSymbols = noSymbols }
       return True
     )
-  , ("reload    reload modules", const $ do
+  , ("reload      reload modules", const $ do
       flgs <- gets isFlags
       cash <- gets isCache
       cash' <- liftIO $ validateCache flgs cash
@@ -145,31 +145,35 @@ commands =
       reload
       return True
     )
-  , ("delete d  delete definition(s) d", \ line -> do
+  , ("delete d    delete definition(s) d", \ line -> do
       updateLines (unlines . filter (not . isPrefixOf line) . lines)
       return True
     )
-  , ("type e    show type of e", \ line -> do
+  , ("type e      show type of e", \ line -> do
       showType line
       return True
     )
-  , ("kind t    show kind of t", \ line -> do
+  , ("kind t      show kind of t", \ line -> do
       showKind line
       return True
     )
-  , ("main args run main with arguments", \ line -> do
+  , ("main args   run main with arguments", \ line -> do
       runMain line
       return True
     )
-  , ("defs      show current definitions", const $ do
+  , ("defs        show current definitions", const $ do
       showDefs
       return True
     )
-  , ("help      this text", const $ do
+  , ("save [FILE] save current definitions", \ line -> do
+      saveDefs line
+      return True
+    )
+  , ("help        this text", const $ do
       putStrLnI $ helpText ++ unlines (map ((':' :) . fst) commands)
       return True
     )
-  , ("set [f]   (un)set flag", \ line -> do
+  , ("set [FLAG]  (un)set flag", \ line -> do
       setFlags line
       return True
     )
@@ -198,8 +202,8 @@ reload = do
 helpText :: String
 helpText = "\
   \Commands (may be abbreviated):\n\
-  \expr       evaluate expression\n\
-  \defn       add top level definition\n\
+  \expr         evaluate expression\n\
+  \defn         add top level definition\n\
   \"
 
 updateLines :: (String -> String) -> I ()
@@ -256,7 +260,6 @@ oneline line = do
         case defTest of
           Right _ -> do
             updateLines (const lls)
-            liftIO $ writeFile (interactiveName ++ ".hs") lls
           Left  e -> liftIO $ err e
       expr = do
 --        t1 <- liftIO getTimeMilli
@@ -347,6 +350,13 @@ showDefs :: I ()
 showDefs = do
   ls <- gets isLines
   putStrLnI ls
+
+saveDefs :: String -> I ()
+saveDefs "" = saveDefs (interactiveName ++ ".hs")
+saveDefs line = do
+  ls <- gets isLines
+  liftIO $ writeFile line ls
+  liftIO $ putStrLn $ "wrote " ++ line
 
 -- This could be smarter:
 --  ":a"        should complete with commands
