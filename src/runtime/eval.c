@@ -195,6 +195,16 @@ mcalloc(size_t n, size_t s)
   return p;
 }
 
+#if !defined(ERR)
+#if WANT_STDIO
+#define ERR(s)    do { fprintf(stderr,"ERR: "s"\n");   EXIT(1); } while(0)
+#define ERR1(s,a) do { fprintf(stderr,"ERR: "s"\n",a); EXIT(1); } while(0)
+#else  /* WANT_STDIO */
+#define ERR(s) EXIT(1)
+#define ERR1(s,a) EXIT(1)
+#endif  /* WANT_STDIO */
+#endif  /* !define(ERR) */
+
 #if !defined(TMPNAME)
 /* This is a really bad implementation, since it doesn't check for anything. */
 char* TMPNAME(const char* pre, const char* suf) {
@@ -391,16 +401,6 @@ iswindows(void)
 #else
 #define NOTREACHED
 #endif
-
-#if !defined(ERR)
-#if WANT_STDIO
-#define ERR(s)    do { fprintf(stderr,"ERR: "s"\n");   EXIT(1); } while(0)
-#define ERR1(s,a) do { fprintf(stderr,"ERR: "s"\n",a); EXIT(1); } while(0)
-#else  /* WANT_STDIO */
-#define ERR(s) EXIT(1)
-#define ERR1(s,a) EXIT(1)
-#endif  /* WANT_STDIO */
-#endif  /* !define(ERR) */
 
 enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR,
                 T_S, T_K, T_I, T_B, T_C,
