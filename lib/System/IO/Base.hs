@@ -293,7 +293,7 @@ chkNull s p | p == nullPtr = error s
 openTmpFile :: String -> IO (String, Handle)
 openTmpFile tmpl = do
   let (pre, suf) = splitTmp tmpl
-  ctmp <- withCAString pre $ \ p -> withCAString suf $ \ s -> chkNull "openTmpFile" <$> c_tmpname p s
+  ctmp <- withCAString pre $ \ p -> withCAString suf $ fmap (chkNull "openTmpFile") . c_tmpname p
   tmp <- peekCAString ctmp
   free ctmp
   h <- openFile tmp ReadWriteMode
