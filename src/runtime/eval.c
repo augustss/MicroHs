@@ -197,12 +197,8 @@ mcalloc(size_t n, size_t s)
 
 #if !defined(TMPNAME)
 /* This is a really bad implementation, since it doesn't check for anything. */
-char* TMPNAME(const char* pre, const char* post) {
-  char *s = mmalloc(strlen(pre) + 3 + strlen(post) + 1);
-  strcpy(s, pre);
-  strcat(s, "TMP");
-  strcat(s, post);
-  return s;
+char* TMPNAME(const char* pre, const char* suf) {
+  ERR("no TMPNAME");
 }
 #endif
 
