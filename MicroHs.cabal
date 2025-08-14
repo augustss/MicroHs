@@ -102,6 +102,7 @@ executable mhs
                        System.IO.MD5
                        System.IO.Serialize
                        System.IO.TimeMilli
+                       System.IO.Transducers
                        System.Compress
                        Paths_MicroHs
 
@@ -184,6 +185,7 @@ library
                         System.IO.MD5
                         System.IO.Serialize
                         System.IO.TimeMilli
+                        System.IO.Transducers
   if impl(ghc)
     hs-source-dirs:     ghc src
     build-depends:      base         >= 4.10 && < 4.30,
@@ -198,7 +200,7 @@ library
                         text         >= 2.0 && < 2.5,
                         array        >= 0.5 && < 0.6
     include-dirs:       src/runtime src/runtime/unix
-    install-includes:   mhseval.h
+    install-includes:   mhseval.h config.h extra.c
     c-sources:          src/runtime/mhseval.c
     includes:           mhseval.h
 
