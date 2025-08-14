@@ -116,10 +116,10 @@ tmpname(const char* pre, const char* suf)
   char *path = malloc(PATH_MAX);
   if (!path)
     return 0;
-  strlcpy(path, tmpdir, PATH_MAX);
-  strlcat(path, pre, PATH_MAX);
-  strlcat(path, "XXXXXX", PATH_MAX);
-  strlcat(path, suf, PATH_MAX);
+  strncpy(path, tmpdir, PATH_MAX);
+  strncat(path, pre, PATH_MAX - strlen(path) - 1);
+  strncat(path, "XXXXXX", PATH_MAX - strlen(path) - 1);
+  strncat(path, suf, PATH_MAX - strlen(path) - 1);
   int fd = mkstemps(path, strlen(suf));
   if (fd < 0)
     return 0;
