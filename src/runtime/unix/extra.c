@@ -117,6 +117,7 @@ tmpname(const char* pre, const char* suf)
   if (!path)
     return 0;
   strncpy(path, tmpdir, PATH_MAX);
+  strncat(path, "/", PATH_MAX - strlen(path) - 1);
   strncat(path, pre, PATH_MAX - strlen(path) - 1);
   strncat(path, "XXXXXX", PATH_MAX - strlen(path) - 1);
   strncat(path, suf, PATH_MAX - strlen(path) - 1);

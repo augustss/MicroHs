@@ -285,11 +285,15 @@ splitTmp tmpl =
 -- and returns a malloc()ed string.
 foreign import ccall "tmpname" c_tmpname :: CString -> CString -> IO CString
 
+chkNull :: String -> CString -> CString
+chkNull s p | p == nullPtr = error s
+            | otherwise = p
+
 -- Create and open a temporary file.
 openTmpFile :: String -> IO (String, Handle)
 openTmpFile tmpl = do
   let (pre, suf) = splitTmp tmpl
-  ctmp <- withCAString pre $ withCAString suf . c_tmpname
+  ctmp <- withCAString pre $ \ p -> withCAString suf $ \ s -> chkNull "openTmpFile" <$> c_tmpname p s
   tmp <- peekCAString ctmp
   free ctmp
   h <- openFile tmp ReadWriteMode
