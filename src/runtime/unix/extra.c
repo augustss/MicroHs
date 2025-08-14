@@ -105,39 +105,26 @@ gettimemilli(void)
 
 /*
  * Create a unique file name.
- * This is a very dodgy implementation.
- * XXX This functions drags in a lot of functionality.
  */
 char*
 tmpname(const char* pre, const char* suf)
 {
-  int pid = (int)getpid();
-  char *tmp = getenv("TMPDIR");
-  const size_t PID_DIGITS = 10;
-  if (!tmp)
-    tmp = "/tmp";
-  char *s = malloc(strlen(tmp) + 1 + strlen(pre) + PID_DIGITS + strlen(suf) + 1);
-  /* This might loop forever.  See if I care. :) */
-  for(;;) {
-    strcpy(s, tmp);
-    strcat(s, "/");
-    strcat(s, pre);
-    /* Insert PID_DIGITS digits of the PID */
-    char *p = s + strlen(s) + PID_DIGITS;
-    *p-- = 0;
-    for(int i = 0; i < PID_DIGITS; i++) {
-      *p-- = pid % 10 + '0';
-      pid /= 10;
-    }
-    strcat(s, suf);
-    /* The file name is ready, do a quick if check that we can create it */
-    int fd = open(s, O_CREAT | O_EXCL, 0600);
-    if (fd >= 0) {
-      close(fd);                /* Close it again */
-      return s;
-    }
-    pid++;                      /* try with a different pid */
-  }
+  const char *tmpdir = getenv("TMPDIR");
+  if (!tmpdir)
+    tmpdir = "/tmp";
+
+  char *path = malloc(PATH_MAX);
+  if (!path)
+    return 0;
+  strlcpy(path, tmpdir, PATH_MAX);
+  strlcat(path, pre, PATH_MAX);
+  strlcat(path, "XXXXXX", PATH_MAX);
+  strlcat(path, suf, PATH_MAX);
+  int fd = mkstemps(path, strlen(suf));
+  if (fd < 0)
+    return 0;
+  close(fd);                    /* XXX Not great */
+  return path;
 }
 #define TMPNAME tmpname
 

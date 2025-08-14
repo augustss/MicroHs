@@ -2,7 +2,7 @@
  * See LICENSE file for full license.
  */
 #include <conio.h>
-#include <intrin.h>
+#include <io.h>
 
 /*
  * Find First Set
@@ -113,3 +113,44 @@ gettimemilli(void)
     //msec = time + system_time.wMilliseconds;
     return msec;
 }
+
+/*
+ * Create a unique file name.
+ */
+char*
+tmpname(const char* pre, const char* suf)
+{
+  char tmpdir[MAX_PATH];
+  DWORD len = GetTempPathA(sizeof(tmpdir), tmpdir);
+  if (len == 0 || len > sizeof(tmpdir))
+    return 0;
+
+  /* Ensure prefix isn't too short */
+  if (!prefix || strlen(prefix) < 3) prefix = "tmp";  // GetTempFileName needs at least 3 chars
+
+  char tempFile[MAX_PATH];
+  if (GetTempFileNameA(tmpdir, prefix, 0, tempFile) == 0)
+    return 0;
+
+  /* Delete the file created by GetTempFileName */
+  DeleteFileA(tempFile);
+
+  /* Append suffix */
+  size_t total_len = strlen(tempFile) + strlen(suffix) + 1;
+  char *filename = malloc(total_len);
+  if (!filename)
+    return 0;
+  snprintf(filename, total_len, "%s%s", tempFile, suffix);
+
+  // Create the file exclusively to ensure it exists and is unique
+  int fd = _open(filename, _O_CREAT | _O_EXCL | _O_RDWR | _O_BINARY,
+                 _S_IREAD | _S_IWRITE);
+  if (fd == -1) {
+    free(filename);
+    return 0;
+  }
+  _close(fd);
+
+  return filename;
+}
+#define TMPNAME tmpname
