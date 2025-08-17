@@ -113,6 +113,7 @@ test:
 	$(TMHS) Mask       && $(EVAL) > Mask.out       && diff Mask.ref Mask.out
 	$(TMHS) EmptyData  && $(EVAL) > EmptyData.out  && diff EmptyData.ref EmptyData.out
 	$(TMHS) QualDo     && $(EVAL) > QualDo.out     && diff QualDo.ref QualDo.out
+	$(TMHS) Weak       && $(EVAL) > Weak.out       && diff Weak.ref Weak.out
 
 testforimp:
 	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
