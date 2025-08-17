@@ -12,17 +12,19 @@ import Primitives(IO, primReturn, primThen, Weak)
 import Data.Maybe_Type
 
 primWeakPtr :: k -> v -> IO (Weak v)
-primWeakPtr = _primitive "newWeak"
+primWeakPtr = _primitive "Wknew"
 
 primWeakPtrFin :: k -> v -> IO () -> IO (Weak v)
-primWeakPtrFin = _primitive "newWeakFin"
+primWeakPtrFin = _primitive "Wknewfin"
 
 primDerefWeak :: Weak v -> IO (Maybe v)
-primDerefWeak = _primitive "derefWeak"
+primDerefWeak = _primitive "Wkderef"
 
 primFinalizeWeak :: Weak v -> IO ()
-primFinalizeWeak = _primitive "finalWeak"
+primFinalizeWeak = _primitive "Wkfinal"
 
+-- Warning: Do NOT use Int/Word as the key.
+-- The garbage collector increases the sharing of small ints.
 mkWeak :: k -> v -> Maybe (IO ()) -> IO (Weak v)
 mkWeak k v Nothing = primWeakPtr k v
 mkWeak k v (Just fin) = primWeakPtrFin k v fin

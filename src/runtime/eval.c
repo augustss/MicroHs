@@ -451,7 +451,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT, T_BSGRAB,
                 T_SPNEW, T_SPDEREF, T_SPFREE,
-                T_NEWWEAKFIN, T_NEWWEAK, T_DEREFWEAK, T_FINALWEAK,
+                T_WKNEWFIN, T_WKNEW, T_WKDEREF, T_WKFINAL,
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_LAST_TAG,
@@ -460,7 +460,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
 #if WANT_TAGNAMES
 /* Most entries are initialized from the primops table. */
 static const char* tag_names [T_LAST_TAG+1] =
-  { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "INT64", "PTR",
+  { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "PTR",
     "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR", "WEAK" };
 #define TAGNAME(t) tag_names[t]
 #else
@@ -627,6 +627,8 @@ counter_t num_mvar_alloc = 0;
 counter_t num_mvar_free = 0;
 counter_t num_stable_alloc = 0;
 counter_t num_stable_free = 0;
+counter_t num_new_weak = 0;
+counter_t num_gc_weak = 0;
 uintptr_t gc_mark_time = 0;
 uintptr_t gc_scan_time = 0;
 uintptr_t run_time = 0;
@@ -1767,6 +1769,11 @@ start_exec(NODEPTR root)
 
     if (mt->mt_id == MAIN_THREAD) {
       main_thread = 0;
+#if THREAD_DEBUG
+      if (thread_trace) {
+        printf("start_exec: main thread done\n");
+      }
+#endif  /* THREAD_DEBUG */
       return;                   /* when the main thread dies it's all over */
     }
   }
@@ -1960,6 +1967,10 @@ struct {
   { "SPnew", T_SPNEW },
   { "SPderef", T_SPDEREF },
   { "SPfree", T_SPFREE },
+  { "Wknew", T_WKNEW },
+  { "Wknewfin", T_WKNEWFIN },
+  { "Wkderef", T_WKDEREF },
+  { "Wkfinal", T_WKFINAL },
   { "binint2", T_BININT2 },
   { "binint1", T_BININT1 },
   { "bindbl2", T_BINDBL2 },
@@ -2193,6 +2204,18 @@ counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
 void mark(NODEPTR *np);
 void mark_mvar(struct mvar *mv);
+void mark_thread(struct mthread *mt);
+
+/* Follow indirections */
+static INLINE NODEPTR
+indir(NODEPTR *np)
+{
+  NODEPTR n = *np;
+  while (GETTAG(n) == T_IND)
+    n = GETINDIR(n);
+  *np = n;
+  return n;
+}
 
 /***** weak pointers *****/
 
@@ -2212,9 +2235,13 @@ sweep_weaks(void)
  restart:
   /* all weak pointer records are alive, marked or not */
   for (struct weak_ptr *wp = allweaks; wp; wp = wp->next) {
+    if (!wp->value)
+      continue;                 /* the weak pointer is already dead */
+    (void)indir(&wp->key);
     if (is_marked_used(wp->key)) {
       /* The key is used, so mark the other parts */
-      if (!is_marked_used(wp->value) || (wp->finalize != 0 && !is_marked_used(wp->finalize))) {
+      if (!is_marked_used(wp->value) ||
+          (wp->finalize != 0 && !is_marked_used(wp->finalize))) {
         /* Not already marked */
         mark(&wp->value);
         if (wp->finalize)
@@ -2225,11 +2252,17 @@ sweep_weaks(void)
     } else {
       /* The key is not marked, so the weak reference is dead */
       wp->value = 0;
-      if (wp->finalize) {
-        mark(&wp->finalize);     /* we are going to use this, so mark it */
-        new_thread(wp->finalize);
-        wp->finalize = 0;
-      }
+    }
+  }
+
+  /* Create finalizers for all weak pointers that just died */
+  for (struct weak_ptr *wp = allweaks; wp; wp = wp->next) {
+    if (!wp->value && wp->finalize) {
+      struct mthread *mt = new_thread(wp->finalize);
+      mark_thread(mt);        /* mark it, since overall thread marking has already run */
+      wp->finalize = 0;
+      wp->key = 0;            /* not needed, but for sanity */
+      /* Marking the finalizer does not resurrect keys */
     }
   }
 
@@ -2240,6 +2273,7 @@ sweep_weaks(void)
     if (!wp->marked && !wp->value) {
       /* not marked, so unlink and free */
       *wpp = wp->next;
+      COUNT(num_gc_weak);
       free(wp);
     } else {
       /* point to the next weak_ptr */
@@ -2258,11 +2292,12 @@ new_weak_ptr(NODEPTR key, NODEPTR value, NODEPTR finalize)
   wp->key = key;
   wp->value = value;
   if (finalize) {
-    wp->finalize = new_ap(combPERFORMIO, finalize);
+    wp->finalize = new_ap(finalize, combWorld);
   } else {
     wp->finalize = 0;
   }
 
+  COUNT(num_new_weak);
   NODEPTR n = alloc_node(T_WEAK);
   WEAK(n) = wp;
   return n;
@@ -2279,10 +2314,11 @@ deref_weak_ptr(struct weak_ptr *wp)
 void
 finalize_weak_ptr(struct weak_ptr *wp)
 {
-  if (!wp->finalize)
+  NODEPTR final = wp->finalize;
+  if (!final)
     return;
-  new_thread(wp->finalize);
   wp->finalize = 0;
+  (void)evali(final);
 }
 
 /**********************************************************/
@@ -2330,17 +2366,6 @@ mark_mvar(struct mvar *mv)
     mark_thread(mt);
 }
   
-/* Follow indirections */
-static INLINE NODEPTR
-indir(NODEPTR *np)
-{
-  NODEPTR n = *np;
-  while (GETTAG(n) == T_IND)
-    n = GETINDIR(n);
-  *np = n;
-  return n;
-}
-
 /*
  * Only allow GC reductions when the node is not near the top of the stack.
  * The reason is that when GC is triggered we are just starting a reduction
@@ -2557,6 +2582,10 @@ mark(NODEPTR *np)
      mark_mvar(MVAR(n));
      goto fin;
 
+   case T_WEAK:
+     WEAK(n)->marked = 1;
+     goto fin;
+
    default:
      goto fin;
   }
@@ -2593,7 +2622,7 @@ void
 gc(void)
 {
   stackptr_t i;
-  /*printf("****** GC ********\n");*/
+  //printf("****** GC ********\n");
 
   // gc_tot += stack_ptr+1;
 
@@ -2617,14 +2646,6 @@ gc(void)
     }
   }
 
-  /* Mark everything reachable from the threads.
-   * Note, zombie threads have no root so they are not marked.
-   */
-  for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
-    if (mt->mt_root != NIL)
-      mark_thread(mt);
-  }
-
   /* Mark all FFI exports */
   if (xffe_table) {
     for(struct ffe_entry *f = xffe_table; f->ffe_name; f++) {
@@ -2637,6 +2658,17 @@ gc(void)
     if (sp_table[i] != NIL)
       mark(&sp_table[i]);
   }
+
+  /* Mark everything reachable from the threads.
+   * Note, zombie threads have no root so they are not marked.
+   */
+  for (struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
+    if (mt->mt_root != NIL)
+      mark_thread(mt);
+  }
+
+  /* check for unmarked weak pointers */
+  sweep_weaks();
 
   gc_mark_time += GETTIMEMILLI();
 
@@ -3729,6 +3761,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 #endif  /* NEED_INT64 */
   case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
   case T_FLT32: putb('&', f); putb('&', f); putdblb((double)GETFLTVALUE(n), f); break;
+  case T_WEAK: ERR("serialize WEAK unimplemented");
   case T_ARR:
     if (prefix) {
       /* Arrays serialize as '[sz] e_1 ... e_sz' */
@@ -4732,7 +4765,7 @@ evali(NODEPTR an)
     }
     tag = GETTAG(n);
   }
-  // printf("%s %d\n", tag_names[tag], (int)stack_ptr);
+  //printf("%s %d\n", tag_names[tag], (int)stack_ptr);
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {
@@ -4753,6 +4786,7 @@ evali(NODEPTR an)
   case T_ARR:    RET;
   case T_THID:   RET;
   case T_MVAR:   RET;
+  case T_WEAK:   RET;
   case T_BADDYN: ERR1("FFI unknown %s", CSTR(n));
 
   /*
@@ -5285,23 +5319,23 @@ evali(NODEPTR an)
     POP(2);
     GOPAIRUNIT;
 
-  case T_NEWWEAK:
-    GCCHECK(1);
-    CHKARG2;
-    GOPAIR(new_weak_ptr(x, y, 0));
-  case T_NEWWEAKFIN:
+  case T_WKNEW:
     GCCHECK(2);
     CHKARG3;
+    GOPAIR(new_weak_ptr(x, y, 0));
+  case T_WKNEWFIN:
+    GCCHECK(3);
+    CHKARG4;
     GOPAIR(new_weak_ptr(x, y, z));
-  case T_DEREFWEAK:
-    CHKARG1NP;
+  case T_WKDEREF:
+    CHKARG2NP;
     x = deref_weak_ptr(evalweak(x));
-    POP(1);
+    POP(2);
     GOPAIR(x);
-  case T_FINALWEAK:
-    CHKARG1NP;
+  case T_WKFINAL:
+    CHKARG2NP;
     finalize_weak_ptr(evalweak(x));
-    POP(1);
+    POP(2);
     GOPAIRUNIT;
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
@@ -6514,6 +6548,8 @@ mhs_main(int argc, char **argv)
     PRINT("%"PCOMMA"15"PRIcounter" thread reap\n", num_thread_reap);
     PRINT("%"PCOMMA"15"PRIcounter" stableptr alloc\n", num_stable_alloc);
     PRINT("%"PCOMMA"15"PRIcounter" stableptr free\n", num_stable_free);
+    PRINT("%"PCOMMA"15"PRIcounter" weakptr alloc\n", num_new_weak);
+    PRINT("%"PCOMMA"15"PRIcounter" weakptr free\n", num_gc_weak);
 #if MAXSTACKDEPTH
     PRINT("%"PCOMMA"15d max stack depth\n", (int)max_stack_depth);
     PRINT("%"PCOMMA"15d max C stack depth\n", (int)max_c_stack);
