@@ -8,23 +8,33 @@ module System.Mem.Weak(
   mkWeakPtr,
   ) where
 import qualified Prelude()
-import Primitives(IO, primReturn, primThen)
+import Primitives(IO, primReturn, primThen, Weak)
 import Data.Maybe_Type
 
--- Fake weak references, for now.
--- Correct API, but does not GC properly.
+primWeakPtr :: k -> v -> IO (Weak v)
+primWeakPtr = _primitive "Wknew"
 
-data Weak v = Weak v (Maybe (IO ()))
+primWeakPtrFin :: k -> v -> IO () -> IO (Weak v)
+primWeakPtrFin = _primitive "Wknewfin"
 
+primDerefWeak :: Weak v -> IO (Maybe v)
+primDerefWeak = _primitive "Wkderef"
+
+primFinalizeWeak :: Weak v -> IO ()
+primFinalizeWeak = _primitive "Wkfinal"
+
+-- Warning: Do NOT use any Int/Word based type as the key, nor Char.
+-- The garbage collector changes the sharing of small ints so
+-- the weak pointer will be unreliable.
 mkWeak :: k -> v -> Maybe (IO ()) -> IO (Weak v)
-mkWeak k v fin = primReturn (Weak v fin)
+mkWeak k v Nothing = primWeakPtr k v
+mkWeak k v (Just fin) = primWeakPtrFin k v fin
 
 deRefWeak :: Weak v -> IO (Maybe v)
-deRefWeak (Weak v _) = primReturn (Just v)
+deRefWeak = primDerefWeak
 
 finalize :: Weak v -> IO ()
-finalize (Weak _ Nothing)    = primReturn ()
-finalize (Weak _ (Just fin)) = fin
+finalize = primFinalizeWeak
 
 mkWeakPtr :: k -> Maybe (IO ()) -> IO (Weak k)
 mkWeakPtr k fin = mkWeak k k fin

@@ -260,5 +260,9 @@ primTable = [
   ("itoI", _primitive "itoI"),
   ("Itoi", _primitive "Itoi"),
   ("utoU", _primitive "utoU"),
-  ("Utou", _primitive "Utou")
+  ("Utou", _primitive "Utou"),
+  ("Wknew", _primitive "Wknew"),
+  ("Wknewfin", _primitive "Wknewfin"),
+  ("Wkderef", _primitive "Wkderef"),
+  ("Wkfinal", _primitive "Wkfinal")
   ]

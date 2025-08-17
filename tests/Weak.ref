@@ -1,0 +1,8 @@
+before first gc ("key","val")
+mkWeak done
+after first gc ("key",Just "val")
+after second gc Nothing
+run final
+after yield
+about to finalize
+run final2
