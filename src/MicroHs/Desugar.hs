@@ -507,7 +507,8 @@ cheap :: Exp -> Bool
 cheap ae =
   case ae of
     Var _ -> True
-    Lit _ -> True
+    Lit (LInt _) -> True
+--    Lit _ -> True  -- inlining all literals can reduce sharing
     _ -> False
 
 eLet :: Ident -> Exp -> Exp -> Exp

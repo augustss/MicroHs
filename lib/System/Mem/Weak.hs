@@ -23,8 +23,9 @@ primDerefWeak = _primitive "Wkderef"
 primFinalizeWeak :: Weak v -> IO ()
 primFinalizeWeak = _primitive "Wkfinal"
 
--- Warning: Do NOT use Int/Word as the key.
--- The garbage collector increases the sharing of small ints.
+-- Warning: Do NOT use any Int/Word based type as the key, nor Char.
+-- The garbage collector changes the sharing of small ints so
+-- the weak pointer will be unreliable.
 mkWeak :: k -> v -> Maybe (IO ()) -> IO (Weak v)
 mkWeak k v Nothing = primWeakPtr k v
 mkWeak k v (Just fin) = primWeakPtrFin k v fin
