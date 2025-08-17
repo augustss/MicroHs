@@ -41,6 +41,7 @@ data FunPtr a
 data IOArray a
 data ThreadId
 data MVar a
+data Weak v
 -- (), (,), (,,), etc are built in to the compiler
 
 primIntAdd :: Int -> Int -> Int

@@ -89,7 +89,7 @@ int num_ffi;
 #define THREAD_DEBUG 0
 #endif
 
-#define VERSION "v8.2\n"
+#define VERSION "v8.3\n"
 
 #define PRIvalue PRIdPTR
 #define PRIuvalue PRIuPTR
@@ -402,7 +402,7 @@ iswindows(void)
 #define NOTREACHED
 #endif
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
                 T_K2, T_K3, T_K4, T_CCB,
@@ -451,6 +451,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT, T_BSGRAB,
                 T_SPNEW, T_SPDEREF, T_SPFREE,
+                T_NEWWEAKFIN, T_NEWWEAK, T_DEREFWEAK, T_FINALWEAK,
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
                 T_LAST_TAG,
@@ -459,7 +460,8 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
 #if WANT_TAGNAMES
 /* Most entries are initialized from the primops table. */
 static const char* tag_names [T_LAST_TAG+1] =
-  { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "INT64", "PTR", "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR" };
+  { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "INT64", "PTR",
+    "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR", "WEAK" };
 #define TAGNAME(t) tag_names[t]
 #else
 #define TAGNAME(t) "?"
@@ -477,6 +479,7 @@ struct bytestring;
 struct forptr;
 struct mthread;
 struct mvar;
+struct weak_ptr;
 
 typedef struct PACKED node {
   union {
@@ -504,6 +507,7 @@ typedef struct PACKED node {
     struct forptr  *uuforptr;      /* foreign pointers and byte arrays */
     struct mthread *uuthread;
     struct mvar    *uumvar;
+    struct weak_ptr *uuweak;
   } uarg;
 } node;
 #define BIT_TAG   1
@@ -536,6 +540,7 @@ typedef struct PACKED node {
 #define THR(p) (p)->uarg.uuthread
 #define MVAR(p) (p)->uarg.uumvar
 #define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
+#define WEAK(p) (p)->uarg.uuweak
 #define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
 #define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
 #define NODE_SIZE sizeof(node)
@@ -2188,6 +2193,99 @@ counter_t red_bb, red_k4, red_k3, red_k2, red_ccb, red_z, red_r;
 
 void mark(NODEPTR *np);
 void mark_mvar(struct mvar *mv);
+
+/***** weak pointers *****/
+
+struct weak_ptr {
+  struct weak_ptr *next;        /* list of all weak pointers. */
+  int marked;                   /* seen by GC */
+  NODEPTR key;                  /* key, this is the weak pointer */
+  NODEPTR value;                /* associated value */
+  NODEPTR finalize;             /* maybe finalizer */
+};
+struct weak_ptr *allweaks;      /* head of all weak pointers */
+
+/* After GC mark phase, deal with weak pointers */
+void
+sweep_weaks(void)
+{
+ restart:
+  /* all weak pointer records are alive, marked or not */
+  for (struct weak_ptr *wp = allweaks; wp; wp = wp->next) {
+    if (is_marked_used(wp->key)) {
+      /* The key is used, so mark the other parts */
+      if (!is_marked_used(wp->value) || (wp->finalize != 0 && !is_marked_used(wp->finalize))) {
+        /* Not already marked */
+        mark(&wp->value);
+        if (wp->finalize)
+          mark(&wp->finalize);
+        /* This marking might have marked other keys, so restart the scan */
+        goto restart;
+      }
+    } else {
+      /* The key is not marked, so the weak reference is dead */
+      wp->value = 0;
+      if (wp->finalize) {
+        mark(&wp->finalize);     /* we are going to use this, so mark it */
+        new_thread(wp->finalize);
+        wp->finalize = 0;
+      }
+    }
+  }
+
+  /* If a weak pointer object is unreferenced and it has been finalized, 
+   * then it can be garbage collected. */
+  for (struct weak_ptr **wpp = &allweaks; *wpp; ) {
+    struct weak_ptr *wp = *wpp;
+    if (!wp->marked && !wp->value) {
+      /* not marked, so unlink and free */
+      *wpp = wp->next;
+      free(wp);
+    } else {
+      /* point to the next weak_ptr */
+      wpp = &wp->next;
+    }
+  }
+}
+
+NODEPTR
+new_weak_ptr(NODEPTR key, NODEPTR value, NODEPTR finalize)
+{
+  struct weak_ptr *wp = mmalloc(sizeof(struct weak_ptr));
+  wp->next = allweaks;
+  allweaks = wp;
+  wp->marked = 0;
+  wp->key = key;
+  wp->value = value;
+  if (finalize) {
+    wp->finalize = new_ap(combPERFORMIO, finalize);
+  } else {
+    wp->finalize = 0;
+  }
+
+  NODEPTR n = alloc_node(T_WEAK);
+  WEAK(n) = wp;
+  return n;
+}
+
+NODEPTR
+deref_weak_ptr(struct weak_ptr *wp)
+{
+  if (!wp->value)
+    return combNothing;
+  return new_ap(combJust, wp->value);
+}
+
+void
+finalize_weak_ptr(struct weak_ptr *wp)
+{
+  if (!wp->finalize)
+    return;
+  new_thread(wp->finalize);
+  wp->finalize = 0;
+}
+
+/**********************************************************/
 
 /* Throwing, e.g., a UserInterrupt exception, to the main thread
  * can happen from any thread (the one that happens to poll).
@@ -4178,6 +4276,19 @@ evalmvar(NODEPTR n)
   return MVAR(n);
 }
 
+/* Evaluate to a T_WEAK */
+void *
+evalweak(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_WEAK) {
+    ERR1("evalweak, bad tag %s", TAGNAME(GETTAG(n)));
+  }
+#endif
+  return WEAK(n);
+}
+
 /* Evaluate a string, returns a newly allocated buffer.
  * XXX this is cheating, should use continuations.
  * XXX the malloc()ed string is leaked if we yield in here.
@@ -5172,6 +5283,25 @@ evali(NODEPTR an)
     xi = evalint(x);
     free_stableptr(xi);
     POP(2);
+    GOPAIRUNIT;
+
+  case T_NEWWEAK:
+    GCCHECK(1);
+    CHKARG2;
+    GOPAIR(new_weak_ptr(x, y, 0));
+  case T_NEWWEAKFIN:
+    GCCHECK(2);
+    CHKARG3;
+    GOPAIR(new_weak_ptr(x, y, z));
+  case T_DEREFWEAK:
+    CHKARG1NP;
+    x = deref_weak_ptr(evalweak(x));
+    POP(1);
+    GOPAIR(x);
+  case T_FINALWEAK:
+    CHKARG1NP;
+    finalize_weak_ptr(evalweak(x));
+    POP(1);
     GOPAIRUNIT;
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
