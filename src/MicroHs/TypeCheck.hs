@@ -1823,24 +1823,22 @@ tcExprR mt ae =
             SThen a -> tcExpr mt a
             _ -> tcError loc "bad final do statement"
         as : ss -> do
+          let mkQual name = maybe (mkBuiltin loc name) (\mn -> qualIdent mn (mkIdentSLoc loc name)) mmn
           case as of
             SBind p a -> do
               nofail <- failureFree p
               let
-                ibind = mkBuiltin loc ">>="
-                sbind = maybe ibind (\ mn -> qualIdent mn ibind) mmn
+                sbind = mkQual ">>="
                 x = eVarI loc "$b"
                 patAlt = [(p, simpleAlts $ EDo mmn ss)]
-                failMsg s = EApp (EVar (mkBuiltin loc "fail")) (ELit loc (LStr s))
+                failMsg s = EApp (EVar (mkQual "fail")) (ELit loc (LStr s))
                 failAlt =
                   if nofail then []
                   else [(eDummy, simpleAlts $ failMsg "bind")]
               tcExpr mt (EApp (EApp (EVar sbind) a)
                               (eLam [x] (ECase x (patAlt ++ failAlt))))
             SThen a -> do
-              let
-                ithen = mkBuiltin loc ">>"
-                sthen = maybe ithen (\ mn -> qualIdent mn ithen) mmn
+              let sthen = mkQual ">>"
               tcExpr mt (EApp (EApp (EVar sthen) a) (EDo mmn ss))
 
             SLet bs ->
