@@ -1,11 +1,15 @@
 *.hi
+*.hi-boot
 *.o
+*.o-boot
 *~
 *.comb
 bin/*
 tests/*.tmp
 tests/*.out
 tests/*.h
+tests/*.exe
+tests/*.so
 old/*
 tmp/*
 a.out

@@ -140,4 +140,4 @@ nfib:
 	$(TMHS) Nfib && $(EVAL)
 
 clean:
-	rm -f *.out *.tmp *.js *.exe a.out *_stub.h
+	rm -f *.out *.tmp *.js *.exe *.so a.out *_stub.h
