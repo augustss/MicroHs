@@ -8,6 +8,7 @@
 #define WANT_GMP 0
 #endif /* defined(WANT_GMP) */
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -565,7 +566,7 @@ struct bytestring {
  */
 struct ioarray {
   struct ioarray *next;         /* all ioarrays are linked together */
-  int permanent;                /* this array should never be GC-ed */
+  bool permanent;               /* this array should never be GC-ed */
   size_t marked;                /* marked during GC */
   size_t size;                  /* number of elements in the array */
   NODEPTR array[1];             /* actual size may be bigger */
@@ -715,7 +716,7 @@ arr_alloc(size_t sz, NODEPTR e)
   arr->next = array_root;
   array_root = arr;
   arr->marked = 0;
-  arr->permanent = 0;
+  arr->permanent = false;
   arr->size = sz;
   for(i = 0; i < sz; i++)
     arr->array[i] = e;
@@ -733,7 +734,7 @@ arr_copy(struct ioarray *oarr)
   arr->next = array_root;
   array_root = arr;
   arr->marked = 0;
-  arr->permanent = 0;
+  arr->permanent = false;
   arr->size = sz;
   memcpy(arr->array, oarr->array, sz * sizeof(NODEPTR));
   num_arr_alloc++;
@@ -815,7 +816,7 @@ struct mthread {
   NODEPTR         mt_root;       /* root of the graph to reduce */
   struct mvar    *mt_exn;        /* possible thrown exception */
   NODEPTR         mt_mval;       /* filled after waiting for take/read */
-  int             mt_mark;       /* marked as accessible */
+  bool            mt_mark;       /* marked as accessible */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
 #if defined(CLOCK_INIT)
   CLOCK_T         mt_at;         /* time to wake up when in threadDelay */
@@ -835,7 +836,7 @@ struct mvar {
   NODEPTR         mv_data;      /* contents of the mvar, or NIL when empty */
   struct mqueue   mv_takeput;   /* queue of threads waiting for take or put, single wakeup */
   struct mqueue   mv_read;      /* queue of threads waiting for read, multiple wakeup */
-  int             mv_mark;      /* marked as accessible */
+  bool            mv_mark;      /* marked as accessible */
 };
 struct mvar      *all_mvars = 0;   /* all mvars */
 
@@ -905,10 +906,10 @@ enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userin
 
 NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
-NODEPTR take_mvar(int try, struct mvar *mv);
+NODEPTR take_mvar(bool try, struct mvar *mv);
 NORETURN void die_exn(NODEPTR exn);
 void thread_intr(struct mthread *mt);
-int put_mvar(int try, struct mvar *mv, NODEPTR v);
+int put_mvar(bool try, struct mvar *mv, NODEPTR v);
 NODEPTR mkInt(value_t i);
 NODEPTR mkInt64(int64_t i);
 NODEPTR mkFlt32(flt32_t d);
@@ -955,11 +956,11 @@ int gcbell = 0;
 
 
 #if WANT_SIGINT
-volatile int has_sigint = 0;
+volatile bool has_sigint = false;
 void
 handle_sigint(int s)
 {
-  has_sigint = 1;
+  has_sigint = true;
 }
 #endif
 
@@ -1034,9 +1035,9 @@ find_and_unlink(struct mqueue *mq, struct mthread *mt)
 }
 
 /* This is a yucky hack */
-int doing_rnf = 0;              /* REMOVE */
+bool doing_rnf = false;              /* REMOVE */
 #if THREAD_DEBUG
-const int thread_trace = 0;
+const bool thread_trace = false;
 #endif  /* THREAD_DEBUG */
 
 /* clean up temporary globals to prepare for rescheduling */
@@ -1054,7 +1055,7 @@ cleanup(struct mthread *mt, enum th_state ts)
   mt->mt_slice = stack_ptr;   /* we need stack_ptr reductions to just reach where we left off */
   mt->mt_state = ts;
   CLEARSTK();                 /* reset stack */
-  doing_rnf = 0;
+  doing_rnf = false;
   /* free all error handlers */
   for (struct handler *h = cur_handler; h; ) {
     struct handler *n = h;
@@ -1123,12 +1124,12 @@ throwto(struct mthread *mt, NODEPTR exn)
       printf("throwto: id=%d put_mvar exn\n", (int)mt->mt_id);
     }
 #endif  /* THREAD_DEBUG */
-    (void)put_mvar(0, mt->mt_exn, exn); /* never returns if it blocks */
+    (void)put_mvar(false, mt->mt_exn, exn); /* never returns if it blocks */
   }
 }
 
 void
-check_thrown(int intr)
+check_thrown(bool intr)
 {
   if (runq.mq_head->mt_exn->mv_data == NIL)
     return;            /* no thrown exception */
@@ -1141,7 +1142,7 @@ check_thrown(int intr)
   if (thread_trace)
     printf("check_thrown: exn for %d\n", (int)runq.mq_head->mt_id);
 #endif  /* THREAD_DEBUG */
-  NODEPTR exn = take_mvar(0, runq.mq_head->mt_exn); /* get the exception */
+  NODEPTR exn = take_mvar(false, runq.mq_head->mt_exn); /* get the exception */
   raise_exn(exn);
 }
 
@@ -1151,7 +1152,7 @@ check_sigint(void)
 #if WANT_SIGINT
   if (has_sigint) {
     /* We have a signal, so send an async exception  to the main thread */
-    has_sigint = 0;
+    has_sigint = false;
     for(struct mthread *mt= all_threads; mt; mt = mt->mt_next) {
       if (mt->mt_id == MAIN_THREAD) {
 #if THREAD_DEBUG
@@ -1167,7 +1168,7 @@ check_sigint(void)
 }
 
 /* Used to detect calls to error while we are already in a call to error. */
-int in_raise = 0;
+bool in_raise = false;
 
 /* Inlining makes very little difference */
 /*static INLINE*/ void
@@ -1181,7 +1182,7 @@ yield(void)
   
   if (timeq.mq_head)
     check_timeq();
-  check_thrown(0);
+  check_thrown(false);
   check_sigint();
   // printf("yield %p %d\n", runq, (int)stack_ptr);
   /* if there is nothing after in the runq then there is no need to reschedule */
@@ -1225,7 +1226,7 @@ new_thread(NODEPTR root)
   mt->mt_exn = new_mvar();
   mt->mt_mval = NIL;
   mt->mt_slice = 0;
-  mt->mt_mark = 0;
+  mt->mt_mark = false;
   mt->mt_num_slices = 0;
   mt->mt_id = num_thread_create++;
 #if defined(CLOCK_INIT)
@@ -1261,7 +1262,7 @@ new_mvar(void)
 
   /* add to all_mvars */
   mv->mv_next = all_mvars;
-  mv->mv_mark = 0;
+  mv->mv_mark = false;
   all_mvars = mv;
   
 #if THREAD_DEBUG
@@ -1272,7 +1273,7 @@ new_mvar(void)
 }
 
 NODEPTR
-take_mvar(int try, struct mvar *mv)
+take_mvar(bool try, struct mvar *mv)
 {
 #if THREAD_DEBUG
   if (thread_trace) {
@@ -1344,7 +1345,7 @@ take_mvar(int try, struct mvar *mv)
 }
 
 NODEPTR
-read_mvar(int try, struct mvar *mv)
+read_mvar(bool try, struct mvar *mv)
 {
   NODEPTR n;
   if ((n = runq.mq_head->mt_mval) != NIL) {
@@ -1373,7 +1374,7 @@ read_mvar(int try, struct mvar *mv)
 }
 
 int
-put_mvar(int try, struct mvar *mv, NODEPTR v)
+put_mvar(bool try, struct mvar *mv, NODEPTR v)
 {
 #if THREAD_DEBUG
   if (thread_trace) {
@@ -2344,7 +2345,7 @@ mark_thread(struct mthread *mt)
 {
   if (mt->mt_mark)
     return;                     /* already marked */
-  mt->mt_mark = 1;
+  mt->mt_mark = true;
   if (mt->mt_root != NIL)
     mark(&mt->mt_root);
   mark_mvar(mt->mt_exn);         
@@ -2357,7 +2358,7 @@ mark_mvar(struct mvar *mv)
 {
   if (mv->mv_mark)
     return;
-  mv->mv_mark = 1;
+  mv->mv_mark = true;
   if (mv->mv_data != NIL)
     mark(&mv->mv_data);
   for (struct mthread *mt = mv->mv_takeput.mq_head; mt; mt = mt->mt_next)
@@ -2740,7 +2741,7 @@ gc(void)
       *mtp = mt->mt_next;
       free(mt);
     } else {
-      mt->mt_mark = 0;
+      mt->mt_mark = false;
       mtp = &mt->mt_next;
     }
   }
@@ -2753,7 +2754,7 @@ gc(void)
       *mvp = mv->mv_next;
       free(mv);
     } else {
-      mv->mv_mark = 0;
+      mv->mv_mark = false;
       mvp = &mv->mv_next;
     }
   }
@@ -3614,7 +3615,7 @@ putdblb(flt64_t x, BFILE *p)
   putsb(str, p);
 }
 
-void printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix);
+void printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix);
 
 /* Mark all reachable nodes, when a marked node is reached, mark it as shared. */
 void
@@ -3706,7 +3707,7 @@ print_string(BFILE *f, struct bytestring bs)
  * The prefix flag is used to get a readable dump.
  */
 void
-printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
+printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
 {
   int share = 0;
   enum node_tag tag;
@@ -3877,7 +3878,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
 
 /* Serialize a graph to file. */
 void
-printb(BFILE *f, NODEPTR n, int header)
+printb(BFILE *f, NODEPTR n, bool header)
 {
   struct print_bits pb;
   num_shared = 0;
@@ -3908,7 +3909,7 @@ void
 pp(FILE *f, NODEPTR n)
 {
   BFILE *bf = add_FILE(f);
-  printb(bf, n, 0);
+  printb(bf, n, false);
   putb('\n', bf);
   freeb_file(bf);
 }
@@ -4356,9 +4357,10 @@ evalstring(NODEPTR n)
         // c is a surrogate
         c = 0xfffd; // replacement character
       }
-      if (0 <c && c < 0x80) {   /* exclude 0, since this is modified UTF-8 */
+      if (0 < c && c < 0x80) {   /* exclude 0, since this is modified UTF-8 */
         buf[offs++] = (char)c;
       } else if (c < 0x800) {
+        /* 0 encodes here, with an over-long representation */
         buf[offs++] = ((c >> 6 )       ) | 0xc0;
         buf[offs++] = ((c      ) & 0x3f) | 0x80;
       } else if (c < 0x10000) {
@@ -4668,9 +4670,9 @@ rnf(value_t noerr, NODEPTR n)
   bits_t *done = mcalloc(free_map_nwords, sizeof(bits_t));
   if (doing_rnf)
     ERR("recursive rnf()");
-  doing_rnf = (int)noerr;
+  doing_rnf = (bool)noerr;
   rnf_rec(done, n);
-  doing_rnf = 0;
+  doing_rnf = false;
   FREE(done);
 }
 
@@ -5387,10 +5389,10 @@ evali(NODEPTR an)
     pp(stderr, x);
     GOPAIRUNIT;
   case T_IO_PRINT:
-    hdr = 0;
+    hdr = false;
     goto ser;
   case T_IO_SERIALIZE:
-    hdr = 1;
+    hdr = true;
   ser:
 #if 0
     gc();                     /* DUBIOUS: do a GC to get possible GC reductions */
@@ -5615,7 +5617,7 @@ evali(NODEPTR an)
   case T_IO_THROWTO:
     {
       CHKARG3NP;                /* x=this, y=exn, z=ST */
-      check_thrown(1);           /* check if we have a thrown exception */
+      check_thrown(true);       /* check if we have a thrown exception */
       struct mthread *mt = evalthid(x);
       throwto(mt, y);
       POP(3);
@@ -5638,8 +5640,8 @@ evali(NODEPTR an)
   case T_IO_TAKEMVAR:
     {
       CHKARG2NP;             /* set x=mvar, y=ST */
-      check_thrown(1);        /* check if we have a thrown exception */
-      NODEPTR res = take_mvar(0, evalmvar(x));         /* never returns if it blocks */
+      check_thrown(true);    /* check if we have a thrown exception */
+      NODEPTR res = take_mvar(false, evalmvar(x));         /* never returns if it blocks */
       GCCHECKSAVE(res, 1);
       POP(2);
       GOPAIR(res);
@@ -5647,8 +5649,8 @@ evali(NODEPTR an)
   case T_IO_READMVAR:
     {
       CHKARG2NP;
-      check_thrown(1);           /* check if we have a thrown exception */
-      NODEPTR res = read_mvar(0, evalmvar(x));         /* never returns if it blocks */
+      check_thrown(true);    /* check if we have a thrown exception */
+      NODEPTR res = read_mvar(false, evalmvar(x));         /* never returns if it blocks */
       GCCHECKSAVE(res, 1);
       POP(2);
       GOPAIR(res);
@@ -5656,15 +5658,15 @@ evali(NODEPTR an)
   case T_IO_PUTMVAR:
     {
       CHKARG3NP;             /* set x=mvar, y=value, z=ST */
-      check_thrown(1);        /* check if we have a thrown exception */
-      (void)put_mvar(0, evalmvar(x), y); /* never returns if it blocks */
+      check_thrown(true);    /* check if we have a thrown exception */
+      (void)put_mvar(false, evalmvar(x), y); /* never returns if it blocks */
       POP(3);
       GOPAIRUNIT;
     }
   case T_IO_TRYTAKEMVAR:
     {
       CHKARG2NP;
-      NODEPTR res = take_mvar(1, evalmvar(x));
+      NODEPTR res = take_mvar(true, evalmvar(x));
       GCCHECKSAVE(res, 2);
       if (res != NIL)
         res = new_ap(combJust, res);
@@ -5676,7 +5678,7 @@ evali(NODEPTR an)
   case T_IO_TRYREADMVAR:
     {
       CHKARG2NP;
-      NODEPTR res = read_mvar(1, evalmvar(x));
+      NODEPTR res = read_mvar(true, evalmvar(x));
       if (res != NIL) {
         GCCHECKSAVE(res, 2);
         res = new_ap(combJust, res);
@@ -5689,7 +5691,7 @@ evali(NODEPTR an)
   case T_IO_TRYPUTMVAR:
     {
       CHKARG3NP;
-      NODEPTR res = put_mvar(1, evalmvar(x), y) ? combTrue : combFalse;
+      NODEPTR res = put_mvar(true, evalmvar(x), y) ? combTrue : combFalse;
       GCCHECKSAVE(res, 1);
       POP(3);
       GOPAIR(res);
@@ -5698,7 +5700,7 @@ evali(NODEPTR an)
     {
       CHKARG2NP;
 #if defined(CLOCK_INIT)
-      check_thrown(1);           /* check if we have a thrown exception */
+      check_thrown(true);      /* check if we have a thrown exception */
       if (runq.mq_head->mt_at == -1) {
         /* delay has already expired, so just return */
         runq.mq_head->mt_at = 0;
@@ -6245,7 +6247,7 @@ die_exn(NODEPTR exn)
     ERR("recursive error");
     EXIT(1);
   }
-  in_raise = 1;
+  in_raise = true;
 
   if (GETTAG(exn) == T_INT) {
     /* This is the special hack for RTS generated exception, represented by a T_INT */
@@ -6418,7 +6420,7 @@ mhs_init_args(
     }
     n = mkCons(mkStringC(progname), n);
     argarray = arr_alloc(1, n);      /* An IORef contains a single element array */
-    argarray->permanent = 1;         /* never GC the arguments, because a T_IO_GETARGREF can reach argarray */
+    argarray->permanent = true;         /* never GC the arguments, because a T_IO_GETARGREF can reach argarray */
   }
 #endif  /* WANT_ARGS */
 
@@ -6503,7 +6505,7 @@ mhs_main(int argc, char **argv)
     if (!out)
       ERR1("cannot open output file %s", outname);
     struct BFILE *bf = add_FILE(out);
-    printb(bf, prog, 1);
+    printb(bf, prog, true);
     closeb(bf);
     EXIT(0);
   }
