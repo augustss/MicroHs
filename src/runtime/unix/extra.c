@@ -166,3 +166,7 @@ getcputime(long *sec, long *nsec)
   *nsec = 0;
 }
 #define GETCPUTIME getcputime
+
+#if WANT_KPERF
+#include "kperf.c"
+#endif  /* WANT_KPERF */

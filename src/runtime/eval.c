@@ -6494,6 +6494,9 @@ mhs_main(int argc, char **argv)
   NODEPTR prog;
   char *outname = 0;
   size_t file_size = 0;
+#if WANT_KPERF
+  counter_t instrs;
+#endif  /* WANT_KPERF */
 
   prog = mhs_init_args(argc, argv, &outname, &file_size);
 
@@ -6518,11 +6521,18 @@ mhs_main(int argc, char **argv)
 #if 0
   topnode = &prog;
 #endif
+#if WANT_KPERF
+  if (!start_kperf())
+    ERR("kperf init failed");
+#endif  /* WANT_KPERF */
   start_exec(prog);
   /* Flush standard handles in case there is some BFILE buffering */
   flushb((BFILE*)FORPTR(comb_stdout)->payload.string);
   flushb((BFILE*)FORPTR(comb_stderr)->payload.string);
   gc();                      /* Run finalizers */
+#if WANT_KPERF
+  instrs = end_kperf();
+#endif  /* WANT_KPERF */
   run_time += GETTIMEMILLI();
 
 #if WANT_STDIO
@@ -6564,6 +6574,9 @@ mhs_main(int argc, char **argv)
           (double)(gc_mark_time + gc_scan_time) / (double)run_time * 100,
           (double)gc_mark_time / 1000,
           (double)gc_scan_time / 1000);
+#if WANT_KPERF
+    PRINT("%"PCOMMA"15"PRIcounter" instructions (%.1f instr/red)\n", instrs, (double)instrs / (double)num_reductions);
+#endif  /* WANT_KPERF */
 #if GCRED
     PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter", flip=%"PRIcounter","
           " BI=%"PRIcounter", BxI=%"PRIcounter", C'BxI=%"PRIcounter", CC=%"PRIcounter", C'I=%"PRIcounter", C'BBCP=%"PRIcounter"\n",
