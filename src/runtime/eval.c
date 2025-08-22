@@ -6522,8 +6522,12 @@ mhs_main(int argc, char **argv)
   topnode = &prog;
 #endif
 #if WANT_KPERF
-  if (!start_kperf())
-    ERR("kperf init failed");
+  if (!start_kperf()) {
+    // ERR("kperf init failed");
+#if WANT_STDIO
+    fprintf(stderr, "start_kperf() failed, ignored\n'):
+#endif
+  }
 #endif  /* WANT_KPERF */
   start_exec(prog);
   /* Flush standard handles in case there is some BFILE buffering */

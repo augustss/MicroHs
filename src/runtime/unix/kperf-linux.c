@@ -99,8 +99,12 @@ end_kperf(void)
     if (ioctl(kperf_fd, PERF_EVENT_IOC_DISABLE, 0) != 0)
       perror("ioctl DISABLE failed");
 
-    uint64_t instr = read_counter(kperf_fd);
+    if (kperf_fd >= 0) {
+      uint64_t instr = read_counter(kperf_fd);
 
-    close(kperf_fd);
-    return instr;
+      close(kperf_fd);
+      return instr;
+    } else {
+      return 0;
+    }
 }
