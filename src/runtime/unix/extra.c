@@ -172,7 +172,7 @@ getcputime(long *sec, long *nsec)
 #if defined(__APPLE__) && defined(__MACH__) && (defined(__aarch64__) || defined(__arm64__))
 #include "kperf-macos.c"
 #else  /* apple-arm */
-#if defined(__linux__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(__amd64__))
 #include "kperf-linux.c"
 #else  /* linux */
 /* No instruction counters */
