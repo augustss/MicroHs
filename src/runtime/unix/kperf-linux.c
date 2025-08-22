@@ -5,7 +5,9 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <linux/perf_event.h>
+#define __USE_GNU
 #include <sched.h>
+#undef __USE_GNU
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -97,8 +99,8 @@ end_kperf(void)
     if (ioctl(kperf_fd, PERF_EVENT_IOC_DISABLE, 0) != 0)
       perror("ioctl DISABLE failed");
 
-    uint64_t instr = read_counter(fd);
+    uint64_t instr = read_counter(kperf_fd);
 
-    close(fd);
+    close(kperf_fd);
     return instr;
 }
