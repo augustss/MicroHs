@@ -66,7 +66,7 @@ ord = primOrd
 
 isLower :: Char -> Bool
 isLower c =
-  if primCharLE c '\177' then
+  if c <= '\177' then
      isAsciiLower c
   else
      U.isLower c
@@ -167,9 +167,9 @@ isLatin1 :: Char -> Bool
 isLatin1 c = c <= '\255'
 
 digitToInt :: Char -> Int
-digitToInt c | primCharLE '0' c && primCharLE c '9' = ord c - ord '0'
-             | primCharLE 'a' c && primCharLE c 'f' = ord c - (ord 'a' - 10)
-             | primCharLE 'A' c && primCharLE c 'F' = ord c - (ord 'A' - 10)
+digitToInt c | '0' <= c && c <= '9' = ord c - ord '0'
+             | 'a' <= c && c <= 'f' = ord c - (ord 'a' - 10)
+             | 'A' <= c && c <= 'F' = ord c - (ord 'A' - 10)
              | otherwise                            = error "digitToInt"
 
 intToDigit :: Int -> Char
