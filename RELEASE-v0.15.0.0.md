@@ -11,9 +11,10 @@
  * `Foreign.StablePtr`
  * `out.comb` can be generated compressed and base64 encoded
  * FFI wrapper for `eval.c`
- * New `BFILE` stuff: file descriptor, buffering, base64 encoding
+ * New `BFILE` stuff: file descriptor, buffering, base64 coding
  * `Double` and `Float` are now different types
  * `Int64`/`Word64` on 32 bit platforms
+ * instruction counts on supported platforms (MacOS&M4, Linux&x86_64)
 
 ## Performance
  * Evaluation in the interactive system is much faster

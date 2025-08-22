@@ -76,9 +76,11 @@
 
 /*
  * Use CPU counters.
- * Only available on MacOS with M4 CPU for now.
+ * Only available on:
+ *  - MacOS with M4 CPU
+ *  - Linux with supported CPUs (e.g., x86_64)
  */
-#define WANT_KPERF 1
+#define WANT_KPERF 0
 
 /*
  * This is the character used for comma-separation in printf.
