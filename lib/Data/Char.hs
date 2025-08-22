@@ -167,10 +167,10 @@ isLatin1 :: Char -> Bool
 isLatin1 c = c <= '\255'
 
 digitToInt :: Char -> Int
-digitToInt c | '0' <= c && c <= '9' = ord c - ord '0'
+digitToInt c | isDigit c            = ord c - ord '0'
              | 'a' <= c && c <= 'f' = ord c - (ord 'a' - 10)
              | 'A' <= c && c <= 'F' = ord c - (ord 'A' - 10)
-             | otherwise                            = error "digitToInt"
+             | otherwise            = error "digitToInt"
 
 intToDigit :: Int -> Char
 intToDigit i | i < 10 = primChr (ord '0' + i)
