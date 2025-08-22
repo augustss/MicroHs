@@ -6575,7 +6575,9 @@ mhs_main(int argc, char **argv)
           (double)gc_mark_time / 1000,
           (double)gc_scan_time / 1000);
 #if WANT_KPERF
-    PRINT("%"PCOMMA"15"PRIcounter" instructions (%.1f instr/red)\n", instrs, (double)instrs / (double)num_reductions);
+    if (instrs > 0) {
+      PRINT("%"PCOMMA"15"PRIcounter" instructions (%.1f instr/red)\n", instrs, (double)instrs / (double)num_reductions);
+    }
 #endif  /* WANT_KPERF */
 #if GCRED
     PRINT(" GC reductions A=%"PRIcounter", K=%"PRIcounter", I=%"PRIcounter", int=%"PRIcounter", flip=%"PRIcounter","
