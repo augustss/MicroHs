@@ -6525,7 +6525,7 @@ mhs_main(int argc, char **argv)
   if (!start_kperf()) {
     // ERR("kperf init failed");
 #if WANT_STDIO
-    fprintf(stderr, "start_kperf() failed, ignored\n"):
+    fprintf(stderr, "start_kperf() failed, ignored\n");
 #endif
   }
 #endif  /* WANT_KPERF */
