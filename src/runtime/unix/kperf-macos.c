@@ -69,6 +69,7 @@ static uint32_t read_fixed(uint64_t *buf, uint32_t buf_len) {
 
 #define MAXC 16
 static uint64_t start_counters[MAXC];
+static int kperf_ok = 0;
 
 // Return instructions retired for running fn(arg) once, averaged over N iterations,
 // repeated 'reps' times; returns the median per-call instruction count.
@@ -99,6 +100,7 @@ start_kperf(void) {
     fprintf(stderr, "Fixed counters < 2; instructions not available?\n");
     return 0;
   }
+  kperf_ok = 1;
   return 1;
 }
 
@@ -106,6 +108,8 @@ start_kperf(void) {
 uint64_t
 end_kperf(void)
 {
+  if (!kperf_ok)
+    return 0;
   uint64_t end_counters[MAXC];
   uint32_t n0 = read_fixed(end_counters, MAXC);
   if (n0 < 2) {
