@@ -431,7 +431,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD, T_I64TOD,
                 T_DEQ, T_DNE, T_DLT, T_DLE, T_DGT, T_DGE,
                 T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
-                T_RAISE, T_SEQ, T_EQUAL, T_COMPARE, T_RNF,
+                T_RAISE, T_SEQ, T_RNF,
                 T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
                 T_IO_SERIALIZE, T_IO_DESERIALIZE,
@@ -1900,10 +1900,6 @@ struct {
   { "fp2bs", T_FP2BS },
   { "bs2fp", T_BS2FP },
   { "seq", T_SEQ },
-  { "equal", T_EQUAL, T_EQUAL },
-  { "sequal", T_EQUAL, T_EQUAL },
-  { "compare", T_COMPARE },
-  { "scmp", T_COMPARE },
   { "icmp", T_ICMP },
   { "ucmp", T_UCMP },
   { "rnf", T_RNF },
@@ -4489,164 +4485,6 @@ bscompare(struct bytestring bsp, struct bytestring bsq)
   return 0;
 }
 
-/* Compares anything, but really only works well on strings.
- * if p < q  return -1
- * if p > q  return 1
- * if p == q return 0
- *
- * As we compare we update the argument pointers with any
- * progress we make, in case we are interruped and resume from the top.
- *
- * XXX This is a rather dodgy comparison, since we are comparing
- * functions, and the same data type could plausibly get different
- * functions in the Scott encoding.
- * But we only use it for lists, and it seems to work fine.
- */
-int
-compare(NODEPTR cmp)
-{
-  stackptr_t stk = stack_ptr;
-#define CRET(x) do { stack_ptr = stk; return (x); } while(0)
-  value_t x, y;
-#if WANT_FLOAT32
-  flt32_t xf, yf;
-#endif
-#if WANT_FLOAT64
-  flt64_t xd, yd;
-#endif
-  void *f, *g;
-  void (*ff)(void), (*fg)(void);
-  NODEPTR p, q;
-  NODEPTR *ap, *aq;
-  enum node_tag ptag, qtag;
-  int r;
-
-  /* Since FUN(cmp) can be shared, allocate a copy for it. */
-  GCCHECK(1);
-  FUN(cmp) = new_ap(FUN(FUN(cmp)), ARG(FUN(cmp)));
-  aq = &ARG(cmp);
-  ap = &ARG(FUN(cmp));
-
-  PUSH(*ap);
-  PUSH(*aq);
-  for(;;) {
-    if (stk == stack_ptr)
-      return 0;
-    q = evali(TOP(0));
-    p = evali(TOP(1));
-    POP(2);
-    if (stk == stack_ptr) {
-      /* We have made some progress, save this in the compare node. */
-      *ap = p;
-      *aq = q;
-    }
-
-    ptag = GETTAG(p);
-    qtag = GETTAG(q);
-    if (ptag != qtag) {
-      /* Hack to make Nil < Cons */
-      if (ptag == T_K && qtag == T_AP)
-        CRET(-1);
-      if (ptag == T_AP && qtag == T_K)
-        CRET(1);
-      CRET(ptag < qtag ? -1 : 1);
-    }
-    switch (ptag) {
-    case T_AP:
-      PUSH(ARG(p));             /* compare arg part later */
-      PUSH(ARG(q));
-      PUSH(FUN(p));             /* compare fun part now */
-      PUSH(FUN(q));
-      break;
-#if NEED_INT64
-    case T_INT64: ERR("compare int64");
-#endif
-    case T_INT:
-    case T_IO_CCALL:
-    case T_THID:
-      x = GETVALUE(p);
-      y = GETVALUE(q);
-      if (x < y)
-        CRET(-1);
-      if (x > y)
-        CRET(1);
-      break;
-#if WANT_FLOAT64
-    case T_DBL:
-      xd = GETDBLVALUE(p);
-      yd = GETDBLVALUE(q);
-      if (xd < yd)
-        CRET(-1);
-      if (xd > yd)
-        CRET(1);
-      break;
-#endif  /* WANT_FLOAT64 */
-#if WANT_FLOAT32
-    case T_FLT32:
-      xf = GETFLTVALUE(p);
-      yf = GETFLTVALUE(q);
-      if (xf < yf)
-        CRET(-1);
-      if (xf > yf)
-        CRET(1);
-      break;
-#endif  /* WANT_FLOAT32 */
-    case T_PTR:
-      f = PTR(p);
-      g = PTR(q);
-      if (f < g)
-        CRET(-1);
-      if (f > g)
-        CRET(1);
-      break;
-    case T_FUNPTR:
-      ff = FUNPTR(p);
-      fg = FUNPTR(q);
-      if ((intptr_t)ff < (intptr_t)fg)
-        CRET(-1);
-      if ((intptr_t)ff > (intptr_t)fg)
-        CRET(1);
-      break;
-    case T_FORPTR:
-      {
-      struct forptr *fp = FORPTR(p);
-      struct forptr *fq = FORPTR(q);
-#if WANT_GMP
-      if (fp->finalizer->fptype == FP_MPZ && fq->finalizer->fptype == FP_MPZ) {
-        int i = mpz_cmp(fp->payload.string, fq->payload.string);
-        if (i < 0)
-          CRET(-1);
-        if (i > 0)
-          CRET(1);
-      } else
-#endif
-      if (fp->finalizer->fptype == FP_BSTR && fq->finalizer->fptype == FP_BSTR) {
-        r = bscompare(BSTR(p), BSTR(q));
-        if (r)
-          CRET(r);
-      } else {
-        f = fp->payload.string;
-        g = fq->payload.string;
-        if (f < g)
-          CRET(-1);
-        if (f > g)
-          CRET(1);
-      }
-      }
-      break;
-    case T_ARR:
-      if (ARR(p) < ARR(q))
-        CRET(-1);
-      if (ARR(p) > ARR(q))
-        CRET(1);
-      break;
-    default:
-      break;
-    }
-  }
-#undef CRET
-}
-
 void
 rnf_rec(bits_t *done, NODEPTR n)
 {
@@ -5341,11 +5179,6 @@ evali(NODEPTR an)
     GOPAIRUNIT;
 
   case T_SEQ:  CHECK(2); evali(ARG(TOP(0))); POP(2); n = TOP(-1); y = ARG(n); GOIND(y); /* seq x y = eval(x); y */
-
-  case T_EQUAL:
-    CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r==0 ? combTrue : combFalse);
-  case T_COMPARE:
-    CHECK(2); r = compare(TOP(1)); POP(2); n = TOP(-1); GOIND(r < 0 ? combLT : r > 0 ? combGT : combEQ);
 
   case T_RNF:
     if (doing_rnf) RET;

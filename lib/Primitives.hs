@@ -224,11 +224,6 @@ primFix    = _primitive "Y"
 primSeq    :: forall a b . a -> b -> b
 primSeq    = _primitive "seq"
 
---primEqual  :: forall a . a -> a -> Bool
---primEqual  = _primitive "equal"
-
-primStringCompare :: [Char] -> [Char] -> Ordering
-primStringCompare  = _primitive "scmp"
 primIntCompare :: Int -> Int -> Ordering
 primIntCompare  = _primitive "icmp"
 primInt64Compare :: Int64 -> Int64 -> Ordering
@@ -239,9 +234,6 @@ primWordCompare :: Word -> Word -> Ordering
 primWordCompare  = _primitive "ucmp"
 primWord64Compare :: Word64 -> Word64 -> Ordering
 primWord64Compare  = _primitive "Iucmp"
-
-primStringEQ  :: [Char] -> [Char] -> Bool
-primStringEQ  = _primitive "sequal"
 
 primChr :: Int -> Char
 primChr = _primitive "chr"
