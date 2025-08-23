@@ -10,6 +10,7 @@ module Numeric.FormatFloat(
   showGFloatAlt,
   showHFloat,
 
+  floatToDigits,
   ) where
 import qualified Prelude()
 import MiniPrelude
