@@ -49,13 +49,13 @@ readFloatP =
 fromRat :: (RealFloat a) => Rational -> a
 
 -- Deal with special cases first, delegating the real work to fromRat'
-fromRat (n :% 0) | n > 0 =  1/0        -- +Infinity
-                 | n < 0 = -1/0        -- -Infinity
-                 | True  =  0/0        -- NaN
+fromRat (n :% 0) | n > 0     =   1/0       -- +Infinity
+                 | n < 0     = -(1/0)      -- -Infinity
+                 | otherwise =   0/0       -- NaN
 
-fromRat (n :% d) | n > 0 = fromRat' (n :% d)
-                 | n < 0 = - fromRat' ((-n) :% d)
-                 | True  = encodeFloat 0 0             -- Zero
+fromRat (n :% d) | n > 0     = fromRat' (n :% d)
+                 | n < 0     = - fromRat' ((-n) :% d)
+                 | otherwise = encodeFloat 0 0             -- Zero
 
 -- Conversion process:
 -- Scale the rational number by the RealFloat base until
@@ -91,16 +91,16 @@ wordLog2 w = _wordSize - 1 - primWordClz w
 integerLog2 :: Integer -> Int
 integerLog2 (I sign ds) =
   case sign of
-    Minus -> (0 :: Int)
+    Minus -> 0 :: Int
     Plus -> go ds 0
   where
-    go [] _ = (0 :: Int)
+    go [] _ = 0 :: Int
     go [d] i = wordLog2 d + (i `primIntShl` shiftD)
     go (d : ds) i = go ds (i + 1)
 
 integerLogBase :: Integer -> Integer -> Int
 integerLogBase b i
-  | i == 0 = (0 :: Int)
+  | i == 0 = 0 :: Int
   | b < 2 = error "invalid base"
   | b == 2 = integerLog2 i
   | otherwise = case go b of (_, e) -> e
