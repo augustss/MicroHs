@@ -4,7 +4,9 @@ import Primitives
 import Control.Error
 import Data.Bool
 import Data.Eq
+import Data.Function
 import Data.Int.Int
+import Data.Integral
 import Data.Maybe
 import Data.Ord
 import Data.Num
@@ -136,3 +138,52 @@ instance FiniteBits Int where
   finiteBitSize _ = _wordSize
   countLeadingZeros = primIntClz
   countTrailingZeros = primIntCtz
+
+toIntegralSized :: (Integral a, Integral b, Bits a, Bits b) => a -> Maybe b
+toIntegralSized x
+  | maybe True (<= x) yMinBound
+  , maybe True (x <=) yMaxBound = Just y
+  | otherwise                   = Nothing
+  where
+    y = fromIntegral x
+
+    xWidth = bitSizeMaybe x
+    yWidth = bitSizeMaybe y
+
+    yMinBound
+      | isBitSubType x y = Nothing
+      | isSigned x, not (isSigned y) = Just 0
+      | isSigned x, isSigned y
+      , Just yW <- yWidth = Just (negate $ bit (yW-1))
+      | otherwise = Nothing
+
+    yMaxBound
+      | isBitSubType x y = Nothing
+      | isSigned x, not (isSigned y)
+      , Just xW <- xWidth, Just yW <- yWidth
+      , xW <= yW+1 = Nothing
+      | Just yW <- yWidth = if isSigned y
+                            then Just (bit (yW-1)-1)
+                            else Just (bit yW-1)
+      | otherwise = Nothing
+
+isBitSubType :: (Bits a, Bits b) => a -> b -> Bool
+isBitSubType x y
+  -- Reflexive
+  | xWidth == yWidth, xSigned == ySigned = True
+
+  -- Every integer is a subset of 'Integer'
+  | ySigned, Nothing == yWidth                  = True
+  | not xSigned, not ySigned, Nothing == yWidth = True
+
+  -- Sub-type relations between fixed-with types
+  | xSigned == ySigned,   Just xW <- xWidth, Just yW <- yWidth = xW <= yW
+  | not xSigned, ySigned, Just xW <- xWidth, Just yW <- yWidth = xW <  yW
+
+  | otherwise = False
+  where
+    xWidth  = bitSizeMaybe x
+    xSigned = isSigned     x
+
+    yWidth  = bitSizeMaybe y
+    ySigned = isSigned     y
