@@ -1,6 +1,7 @@
 module Data.Text(
   Text,
   pack, unpack,
+  show,
   empty,
   singleton,
   append,
@@ -17,6 +18,12 @@ module Data.Text(
   words,
   foldr,
   concat,
+  lines,
+  unlines,
+  take,
+  drop,
+  intercalate,
+  dropWhileEnd,
   useAsCString,
   grabCString,
   ) where
@@ -41,6 +48,9 @@ instance Ord Text where
   (<=) = cmp (<=)
   (>)  = cmp (>)
   (>=) = cmp (>=)
+
+show :: Show a => a -> Text
+show = pack . MiniPrelude.show
 
 cmp :: (BS.ByteString -> BS.ByteString -> Bool) -> (Text -> Text -> Bool)
 cmp op (T x) (T y) = op x y
@@ -126,6 +136,24 @@ foldr f z = L.foldr f z . unpack
 
 concat :: [Text] -> Text
 concat = L.foldr append empty
+
+unlines :: [Text] -> Text
+unlines [] = empty
+unlines (l:ls) = l `append` pack "\n" `append` unlines ls
+
+lines :: Text -> [Text]
+lines = map pack . L.lines . unpack
+
+take :: Int -> Text -> Text
+take n = pack . L.take n . unpack
+
+drop :: Int -> Text -> Text
+drop n = pack . L.drop n . unpack
+
+intercalate :: Text -> [Text] -> Text
+intercalate _ [] = empty
+intercalate _ [x] = x
+intercalate s (x:xs) = x `append` s `append` intercalate s xs
 
 -- Get a C string of a Text.  The C string is encoded with
 -- modified UTF-8 (so no embedded NULs) and NUL terminated.
