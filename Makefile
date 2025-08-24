@@ -351,6 +351,7 @@ minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs machdep
 machdep:
 	$(CC) Tools/machdep.c -o machdep.exe && ./machdep.exe > $(RTS)/MachDeps.h && rm machdep.exe
 
+
 #####
 # Hugs
 HUGS= runhugs
@@ -363,3 +364,4 @@ generated/hmhs.c:
 bin/hmhs: generated/hmhs.c
 	@mkdir -p bin
 	$(CCEVAL) generated/hmhs.c $(CCLIBS) -o bin/hmhs
+
