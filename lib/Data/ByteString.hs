@@ -553,6 +553,8 @@ getLine = hGetLine stdin
 hGetLine :: Handle -> IO ByteString
 hGetLine = fmap fromString . P.hGetLine
 
+-- XXX this is wrong if the handle is set to do UTF8 encoding.
+-- We should write raw bytes
 hPut :: Handle -> ByteString -> IO ()
 hPut h bs =
   withHandleWr h $ \bfile ->

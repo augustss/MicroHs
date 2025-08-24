@@ -57,7 +57,11 @@ hGetLine h = do
   evaluate (decodeUtf8 bs)
 
 hPutStr :: Handle -> Text -> IO ()
-hPutStr h t = BS.hPutStr h (encodeUtf8 t)
+hPutStr h t =
+  -- BS.hPutStr is "buggy", if the handle is UTF8 encoding mode, there will be a double encoding
+  -- BS.hPutStr h (encodeUtf8 t)
+  -- For now, go via String
+  IO.hPutStr h (unpack t)
 
 hPutStrLn :: Handle -> Text -> IO ()
 hPutStrLn h t = hPutStr h t >> hPutStr h (pack "\n")
