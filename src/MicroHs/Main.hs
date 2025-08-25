@@ -112,7 +112,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-optc OPTION       Options for the C compiler\n\
       \--stdin            Use stdin in interactive system\n\
       \-ddump-PASS        Debug, print AST after PASS\n\
-      \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, all\n\
+      \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
       \"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
