@@ -54,7 +54,12 @@ _wordToInteger i = primPerformIO (do
   )
 
 _integerToInt :: Integer -> Int
-_integerToInt (I x) = primPerformIO (withForeignPtr x mpz_get_si)
+_integerToInt i@(I _x) =
+  -- This code is "wrong", if x=0x8000_0000_0000_0000 then
+  -- mpz_get_si will return 0, but mhs relies on it wrapping.
+  --   primPerformIO (withForeignPtr x mpz_get_si)
+  -- So instead we go via the unsigned version.
+  primWordToInt (_integerToWord i)
 
 _integerToWord :: Integer -> Word
 _integerToWord (I x) = primPerformIO (withForeignPtr x mpz_get_ui)
