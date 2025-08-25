@@ -21,6 +21,20 @@ jobs:
     - name: make everytestmhs
       run: make everytestmhs
 
+  build-linux-gmp-x86_64:
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout repo
+      uses: actions/checkout@v4
+    - name: install GMP (headers + libs)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgmp-dev
+    - name: make
+      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp
+    - name: make everytestmhs
+      run: make everytestmhs
+
   build-macos:
     runs-on: macos-latest
     steps:
