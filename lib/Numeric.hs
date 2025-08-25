@@ -20,12 +20,14 @@ module Numeric(
   lexDigits,
   fromRat,
   ) where
-
-import Primitives
+import qualified Prelude(); import MiniPrelude
+import Data.Fractional
 import Data.Integer_Type
-import Data.Integer.Internal
-import Data.Ratio_Type
 import Data.Ratio
+import Data.Ratio_Type
+import Data.Real
+import Data.RealFloat
+import Data.RealFrac
 import Numeric.FormatFloat
 import Numeric.Read
 import Numeric.Show
@@ -70,7 +72,7 @@ fromRat' x = r
     r =
       if n < maxVal && d < maxVal then
         -- no scaling needed
-        encodeFloat n 0 / encodeFloat d 0
+        fromInteger n / fromInteger d
       else
         let
           ln = integerLogBase b n
