@@ -22,6 +22,7 @@ import Data.List
 import Data.Maybe_Type
 import Data.Num
 import Data.Ord
+import Data.Real
 import Data.String
 import {-# SOURCE #-} Text.Read.Internal(lex)
 import Text.Show
@@ -58,7 +59,7 @@ readDec = readInt 10 isDigit digitToInt
 readHex :: forall a . (Num a) => ReadS a
 readHex = readInt 16 isHexDigit digitToInt
 
-readSigned :: forall a . (Num a) => ReadS a -> ReadS a
+readSigned :: forall a . (Real a) => ReadS a -> ReadS a
 readSigned readPos = readParen False read'
   where
     read' :: ReadS a
