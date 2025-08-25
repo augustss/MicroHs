@@ -33,7 +33,7 @@ jobs:
     - name: make
       run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp
     - name: make everytestmhs
-      run: make everytestmhs
+      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp everytestmhs
 
   build-macos:
     runs-on: macos-latest

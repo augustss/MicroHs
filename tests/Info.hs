@@ -4,6 +4,8 @@ import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Data.Word
 
+foreign import capi "want_gmp" want_gmp :: Int
+
 main :: IO ()
 main = do
   putStrLn $ "Running on " ++ if _isWindows then "Windows" else "Unix"
@@ -19,3 +21,5 @@ main = do
       1 -> "big endian"
       2 -> "little endian"
       _ -> "Mystery Endian"
+
+  putStrLn $ "GMP: " ++ if want_gmp /= 0 then "yes" else "no"
