@@ -138,8 +138,7 @@ concat :: [Text] -> Text
 concat = L.foldr append empty
 
 unlines :: [Text] -> Text
-unlines [] = empty
-unlines (l:ls) = l `append` pack "\n" `append` unlines ls
+unlines = L.foldr (\ l -> append (append l (pack "\n"))) empty
 
 lines :: Text -> [Text]
 lines = map pack . L.lines . unpack

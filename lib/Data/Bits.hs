@@ -173,8 +173,8 @@ isBitSubType x y
   | xWidth == yWidth, xSigned == ySigned = True
 
   -- Every integer is a subset of 'Integer'
-  | ySigned, Nothing == yWidth                  = True
-  | not xSigned, not ySigned, Nothing == yWidth = True
+  | ySigned, isNothing yWidth                  = True
+  | not xSigned, not ySigned, isNothing yWidth = True
 
   -- Sub-type relations between fixed-with types
   | xSigned == ySigned,   Just xW <- xWidth, Just yW <- yWidth = xW <= yW
