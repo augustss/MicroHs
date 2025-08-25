@@ -1,9 +1,11 @@
-# Define these 4 lines to use GMP for Integer.
-# For MacOS with homebrew:
+# Define these 3 lines to use GMP for Integer.
 #MHSGMPCCFLAGS=-DWANT_GMP=1
-#MHSGMPCCLIBS= -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
 #MHSGMP=-ilib/gmp
 #MCABALGMP=-fgmp
+# AND, for MacOS with homebrew (after brew install gmp):
+#MHSGMPCCLIBS= -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
+# OR, for Ubuntu Linux (after apt-get install -y libgmp-dev):
+#MHSGMPCCLIBS=-lgmp
 #
 # installation prefix
 PREFIX=/usr/local
