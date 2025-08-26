@@ -77,15 +77,6 @@ primOps =
   , cmpw "u>=" (>=)
   , comb "icmp" (\ x y -> fromOrdering (compare (x::Int) y))
 
-  , comb "scmp" (\ x y -> fromOrdering (compare (toString x) (toString y)))
-  , comb "sequal" (\ x y -> fromBool (toString x == toString y))
-
-  , comb "p==" (\ x y -> fromBool ((x :: Ptr ()) == y))
-  , comb "pnull" nullPtr
-  , comb "pcast" castPtr
-  , comb "p+" plusPtr
-  , comb "p-" minusPtr
-
   , farith "f+" (+)
   , farith "f-" (-)
   , farith "f*" (*)
@@ -101,17 +92,14 @@ primOps =
 
   , comb "seq" seq
   , comb "rnf" rnf
-  , comb "error" err
   , comb "ord" ord
   , comb "chr" chr
 
   , comb "IO.performIO" unsafePerformIO
-  , comb "IO.catch" (\ io hdl -> Control.Exception.catch (io :: IO Any) (\ (exn :: Exception) -> hdl (fromString $ takeWhile (/= '\n') $ show exn) :: IO Any))
   , comb "IO.>>=" iobind
   , comb "IO.>>" iothen
   , comb "IO.return" ioret
   , comb "IO.print" ioprint
-  , comb "IO.performio" unsafePerformIO
   , comb "IO.serialize" ioserialize
   , comb "IO.deserialize" iodeserialize
   , comb "newCAStringLen" (fmap fromPair . newCAStringLen . toString)
@@ -144,8 +132,6 @@ primOps =
     cmpw n f = comb n (\ x y -> fromBool (f x y))
     fcmp :: String -> (Double -> Double -> Bool) -> (String, Any)
     fcmp n f = comb n (\ x y -> fromBool (f x y))
-
-    err s = error $ "error: " ++ toString s
 
     iobind :: IO a -> (a -> IO b) -> IO b
     iobind = (>>=)
