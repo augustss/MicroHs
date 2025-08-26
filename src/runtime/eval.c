@@ -6819,6 +6819,16 @@ new_mpz(void)
   return fp;
 }
 
+intptr_t
+mpz_get_si_(mpz_t op)
+{
+  intptr_t r = mpz_get_ui(op);
+  if (mpz_sgn(op) < 0) {
+    r = -r;
+  }
+  return r;
+}
+
 #if 0
 void
 print_mpz(mpz_ptr p)
@@ -6832,9 +6842,12 @@ print_mpz(mpz_ptr p)
 void
 mpz_init_set_si64(mpz_t rop, int64_t op)
 {
-  mpz_init_set_si(rop, op >> 32);
-  mpz_mul_2exp(rop, rop, 32);
-  mpz_add_ui(rop, rop, op & 0xffffffff);
+  if (op >= 0) {
+    mpz_init_set_ui64(rop, op);
+  } else {
+    mpz_init_set_ui64(rop, -op);
+    mpz_neg(rop, rop);
+  }
 }
 void
 mpz_init_set_ui64(mpz_t rop, uint64_t op)
@@ -6843,37 +6856,26 @@ mpz_init_set_ui64(mpz_t rop, uint64_t op)
   mpz_mul_2exp(rop, rop, 32);
   mpz_add_ui(rop, rop, op & 0xffffffff);
 }
-uint64_t
-mpz_get_ui64(mpz_t op)
-{
-  mpz_t t;
-  mpz_init_set(t, op);
-  mpz_fdiv_q_2exp(t, t, 32);
-  uint64_t hi = mpz_get_ui(t);
-  uint64_t lo = mpz_get_ui(op);
-  mpz_clear(t);
-  return (hi << 32) | lo;
-}
 int64_t
 mpz_get_si64(mpz_t op)
 {
-  if (mpz_sgn(op) >= 0)
-    return mpz_get_ui64(op);
-  else {
-    mpz_t t;
-    mpz_init_set(t, op);
-    mpz_neg(t, t);
-    uint64_t r = mpz_get_ui64(t);
-    mpz_clear(t);
-    return -(int64_t)r;
+  mpz_t t;
+  mpz_init_set(t, op);
+  mpz_tdiv_q_2exp(t, t, 32);
+  uint64_t hi = mpz_get_ui(t);
+  uint64_t lo = mpz_get_ui(op);
+  mpz_clear(t);
+  uint64_t r = (hi << 32) | lo;
+  if (mpz_sgn(op) < 0) {
+    r = -r;
   }
+  return r;
 }
 #endif  /* NEED_INT64 */
 #if WORD_SIZE == 64
 #define mpz_init_set_ui64 mpz_init_set_ui
 #define mpz_init_set_si64 mpz_init_set_si
-#define mpz_get_ui64 mpz_get_ui
-#define mpz_get_si64 mpz_get_si
+#define mpz_get_si64 mpz_get_si_
 #define mhs_to_Int64 mhs_to_Int
 #define mhs_to_Word64 mhs_to_Word
 #define mhs_from_Int64 mhs_from_Int
@@ -6889,8 +6891,7 @@ from_t mhs_mpz_and(int s) { mpz_and(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_P
 from_t mhs_mpz_cmp(int s) { return mhs_from_Int(s, 2, mpz_cmp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 from_t mhs_mpz_get_d(int s) { return mhs_from_Double(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
 from_t mhs_mpz_get_f(int s) { return mhs_from_Float(s, 1, (float)mpz_get_d(mhs_to_Ptr(s, 0))); }
-from_t mhs_mpz_get_si(int s) { return mhs_from_Int(s, 1, mpz_get_si(mhs_to_Ptr(s, 0))); }
-from_t mhs_mpz_get_ui(int s) { return mhs_from_Word(s, 1, mpz_get_ui(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_get_si(int s) { return mhs_from_Int(s, 1, mpz_get_si_(mhs_to_Ptr(s, 0))); }
 from_t mhs_mpz_init_set_si(int s) { mpz_init_set_si(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_init_set_ui(int s) { mpz_init_set_ui(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_ior(int s) { mpz_ior(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
@@ -6899,16 +6900,17 @@ from_t mhs_mpz_mul_2exp(int s) { mpz_mul_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)
 from_t mhs_mpz_neg(int s) { mpz_neg(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_popcount(int s) {
   mpz_ptr a = mhs_to_Ptr(s, 0);
+  from_t r;
   if (mpz_sgn(a) < 0) {
     mpz_t neg_a;
     mpz_init(neg_a);
     mpz_neg(neg_a, a);
-    (void)mhs_from_Int(s, 1, -mpz_popcount(neg_a));
+    r = mhs_from_Int(s, 1, -mpz_popcount(neg_a));
     mpz_clear(neg_a);
   } else {
-    (void)mhs_from_Int(s, 1, mpz_popcount(a));
+    r = mhs_from_Int(s, 1, mpz_popcount(a));
   }
-  return 1;
+  return r;
 }
 from_t mhs_mpz_sub(int s) { mpz_sub(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
 from_t mhs_mpz_fdiv_q_2exp(int s) { mpz_fdiv_q_2exp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Int(s, 2)); return mhs_from_Unit(s, 3); }
@@ -6918,7 +6920,6 @@ from_t mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_P
 from_t mhs_mpz_init_set_si64(int s) { mpz_init_set_si64(mhs_to_Ptr(s, 0), mhs_to_Int64(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_init_set_ui64(int s) { mpz_init_set_ui64(mhs_to_Ptr(s, 0), mhs_to_Word64(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_get_si64(int s) { return mhs_from_Int64(s, 1, mpz_get_si64(mhs_to_Ptr(s, 0))); }
-from_t mhs_mpz_get_ui64(int s) { return mhs_from_Word64(s, 1, mpz_get_ui64(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_GMP */
 
 const struct ffi_entry ffi_table[] = {
@@ -7101,7 +7102,6 @@ const struct ffi_entry ffi_table[] = {
   { "mpz_cmp", 2, mhs_mpz_cmp},
   { "mpz_get_d", 1, mhs_mpz_get_d},
   { "mpz_get_si", 1, mhs_mpz_get_si},
-  { "mpz_get_ui", 1, mhs_mpz_get_ui},
   { "mpz_init_set_si", 2, mhs_mpz_init_set_si},
   { "mpz_init_set_ui", 2, mhs_mpz_init_set_ui},
   { "mpz_ior", 3, mhs_mpz_ior},
@@ -7118,7 +7118,6 @@ const struct ffi_entry ffi_table[] = {
   { "mpz_init_set_si64", 2, mhs_mpz_init_set_si64},
   { "mpz_init_set_ui64", 2, mhs_mpz_init_set_ui64},
   { "mpz_get_si64", 1, mhs_mpz_get_si64},
-  { "mpz_get_ui64", 1, mhs_mpz_get_ui64},
 #endif  /* WANT_GMP */
   { 0,0 }
 };

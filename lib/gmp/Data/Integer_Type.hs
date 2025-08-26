@@ -29,8 +29,7 @@ newtype Integer = I (ForeignPtr MPZ)
 foreign import capi "new_mpz"         new_mpz         :: IO (Ptr MPZ)  -- it really returns a ForeignPtr
 foreign import capi "mpz_init_set_si" mpz_init_set_si :: Ptr MPZ -> Int -> IO ()
 foreign import capi "mpz_init_set_ui" mpz_init_set_ui :: Ptr MPZ -> Word -> IO ()
---foreign import capi "mpz_get_si"      mpz_get_si      :: Ptr MPZ -> IO Int
-foreign import capi "mpz_get_ui"      mpz_get_ui      :: Ptr MPZ -> IO Word
+foreign import capi "mpz_get_si"      mpz_get_si      :: Ptr MPZ -> IO Int
 foreign import capi "mpz_get_f"       mpz_get_f       :: Ptr MPZ -> IO Float
 foreign import capi "mpz_get_d"       mpz_get_d       :: Ptr MPZ -> IO Double
 
@@ -54,15 +53,10 @@ _wordToInteger i = primPerformIO (do
   )
 
 _integerToInt :: Integer -> Int
-_integerToInt i@(I _x) =
-  -- This code is "wrong", if x=0x8000_0000_0000_0000 then
-  -- mpz_get_si will return 0, but mhs relies on it wrapping.
-  --   primPerformIO (withForeignPtr x mpz_get_si)
-  -- So instead we go via the unsigned version.
-  primWordToInt (_integerToWord i)
+_integerToInt (I x) = primPerformIO (withForeignPtr x mpz_get_si)
 
 _integerToWord :: Integer -> Word
-_integerToWord (I x) = primPerformIO (withForeignPtr x mpz_get_ui)
+_integerToWord i = primIntToWord (_integerToInt i)
 
 _integerToFloat :: Integer -> Float
 _integerToFloat (I x) = primPerformIO (withForeignPtr x mpz_get_f)
@@ -74,15 +68,13 @@ _integerToDouble (I x) = primPerformIO (withForeignPtr x mpz_get_d)
 
 foreign import capi "mpz_init_set_si64" mpz_init_set_si64 :: Ptr MPZ -> Int64 -> IO ()
 foreign import capi "mpz_init_set_ui64" mpz_init_set_ui64 :: Ptr MPZ -> Word64 -> IO ()
---foreign import capi "mpz_get_si64"      mpz_get_si64      :: Ptr MPZ -> IO Int64
-foreign import capi "mpz_get_ui64"      mpz_get_ui64      :: Ptr MPZ -> IO Word64
+foreign import capi "mpz_get_si64"      mpz_get_si64      :: Ptr MPZ -> IO Int64
 
 _integerToInt64 :: Integer -> Int64
---_integerToInt64 (I x) = chk64 $ primPerformIO (withForeignPtr x mpz_get_si64)
-_integerToInt64 i = primWord64ToInt64 (_integerToWord64 i)
+_integerToInt64 (I x) = primPerformIO (withForeignPtr x mpz_get_si64)
 
 _integerToWord64 :: Integer -> Word64
-_integerToWord64 (I x) = primPerformIO (withForeignPtr x mpz_get_ui64)
+_integerToWord64 i = primInt64ToWord64 (_integerToInt64 i)
 
 _word64ToInteger :: Word64 -> Integer
 _word64ToInteger i = primPerformIO (do

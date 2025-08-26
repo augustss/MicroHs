@@ -313,10 +313,10 @@ runtimeFFI = [
   "getcpu",
   "get_mem", "openb_rd_mem", "openb_wr_mem",
   "new_mpz", "mpz_abs", "mpz_add", "mpz_and", "mpz_cmp", "mpz_get_d", "mpz_get_f",
-  "mpz_get_si", "mpz_get_ui", "mpz_init_set_si", "mpz_init_set_ui",
+  "mpz_get_si", "mpz_init_set_si", "mpz_init_set_ui",
   "mpz_ior",
   "mpz_mul", "mpz_mul_2exp", "mpz_neg", "mpz_popcount", "mpz_sub", "mpz_fdiv_q_2exp",
   "mpz_tdiv_qr", "mpz_tstbit", "mpz_xor",
-  "mpz_get_si64", "mpz_get_ui64", "mpz_init_set_si64", "mpz_init_set_ui64",
+  "mpz_get_si64", "mpz_init_set_si64", "mpz_init_set_ui64",
   "want_gmp"
   ]
