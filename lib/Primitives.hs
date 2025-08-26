@@ -409,23 +409,23 @@ primInt64GT   = _primitive "I>"
 primInt64GE   :: Int64 -> Int64 -> Bool
 primInt64GE   = _primitive "I>="
 primInt64And :: Int64 -> Int64 -> Int64
-primInt64And  = _primitive "and"
+primInt64And  = _primitive "Iand"
 primInt64Or :: Int64 -> Int64 -> Int64
-primInt64Or  = _primitive "or"
+primInt64Or  = _primitive "Ior"
 primInt64Xor :: Int64 -> Int64 -> Int64
-primInt64Xor  = _primitive "xor"
+primInt64Xor  = _primitive "Ixor"
 primInt64Shl :: Int64 -> Int -> Int64
-primInt64Shl  = _primitive "shl"
+primInt64Shl  = _primitive "Ishl"
 primInt64Shr :: Int64 -> Int -> Int64
-primInt64Shr  = _primitive "ashr"
+primInt64Shr  = _primitive "Iashr"
 primInt64Inv :: Int64 -> Int64
-primInt64Inv  = _primitive "inv"
+primInt64Inv  = _primitive "Iinv"
 primInt64Popcount :: Int64 -> Int
-primInt64Popcount = _primitive "popcount"
+primInt64Popcount = _primitive "Ipopcount"
 primInt64Clz :: Int64 -> Int
-primInt64Clz = _primitive "clz"
+primInt64Clz = _primitive "Iclz"
 primInt64Ctz :: Int64 -> Int
-primInt64Ctz = _primitive "ctz"
+primInt64Ctz = _primitive "Ictz"
 
 primWord64Add :: Word64 -> Word64 -> Word64
 primWord64Add  = _primitive "I+"
