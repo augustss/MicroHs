@@ -1,4 +1,5 @@
 module Integer(main) where
+
 import Data.Bits
 import Data.Int
 import Data.Word
@@ -7,7 +8,6 @@ import System.IO.StringHandle
 
 main :: IO ()
 main = do
-{-
   print $ (1000::Integer) == 1000
   print $ ((10::Integer)^(100::Int)) /= 0
   print $ show (product [1..100::Integer]) == "93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000"
@@ -17,7 +17,7 @@ main = do
   h <- stringToHandle s
   i' <- hDeserialize h
   print $ i == i'
--}
+
   -- Integer conversion
   let
     iMinI64 = -9223372036854775808
@@ -30,12 +30,11 @@ main = do
     iMaxI64 = 9223372036854775807
     iMaxU64 = 18446744073709551615
   putStrLn "fromInteger"
---  print $ (fromInteger iMinI64 :: Int64) == (minBound :: Int64)
---  print $ (fromInteger iMinI64 :: Int32) == 0
---  print $ (fromInteger iMinI64 :: Word64) == 1 `shiftL` 63
---  print $ (fromInteger iMinI64 :: Word32) == 0
+  print $ (fromInteger iMinI64 :: Int64) == (minBound :: Int64)
+  print $ (fromInteger iMinI64 :: Int32) == 0
+  print $ (fromInteger iMinI64 :: Word64) == 1 `shiftL` 63
+  print $ (fromInteger iMinI64 :: Word32) == 0
   print $ (fromInteger iMinI32 :: Int64) == complement ((1 `shiftL` 31) - 1)
-{-
   print $ (fromInteger iMinI32 :: Int32) == (minBound :: Int32)
   print $ (fromInteger iMinI32 :: Word64) == complement ((1 `shiftL` 31) - 1)
   print $ (fromInteger iMinI32 :: Word32) == 1 `shiftL` 31
@@ -84,4 +83,3 @@ main = do
   print $ toInteger (maxBound :: Int32) == iMaxI32
   print $ toInteger (maxBound :: Word64) == iMaxU64
   print $ toInteger (maxBound :: Word32) == iMaxU32
--}
