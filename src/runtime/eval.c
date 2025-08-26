@@ -6819,6 +6819,16 @@ new_mpz(void)
   return fp;
 }
 
+intptr_t
+mpz_get_si_(mpz_t op)
+{
+  intptr_t r = mpz_get_ui(op);
+  if (mpz_sgn(op) < 0) {
+    r = -r;
+  }
+  return r;
+}
+
 #if 0
 void
 print_mpz(mpz_ptr p)
@@ -6865,7 +6875,7 @@ mpz_get_si64(mpz_t op)
 #if WORD_SIZE == 64
 #define mpz_init_set_ui64 mpz_init_set_ui
 #define mpz_init_set_si64 mpz_init_set_si
-#define mpz_get_si64 mpz_get_si
+#define mpz_get_si64 mpz_get_si_
 #define mhs_to_Int64 mhs_to_Int
 #define mhs_to_Word64 mhs_to_Word
 #define mhs_from_Int64 mhs_from_Int
@@ -6881,14 +6891,7 @@ from_t mhs_mpz_and(int s) { mpz_and(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_P
 from_t mhs_mpz_cmp(int s) { return mhs_from_Int(s, 2, mpz_cmp(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 from_t mhs_mpz_get_d(int s) { return mhs_from_Double(s, 1, mpz_get_d(mhs_to_Ptr(s, 0))); }
 from_t mhs_mpz_get_f(int s) { return mhs_from_Float(s, 1, (float)mpz_get_d(mhs_to_Ptr(s, 0))); }
-from_t mhs_mpz_get_si(int s) {
-  mpz_ptr a = mhs_to_Ptr(s, 0);
-  value_t r = mpz_get_ui(a);
-  if (mpz_sgn(a) < 0) {
-    r = -r;
-  }
-  return mhs_from_Int(s, 1, r);
-}
+from_t mhs_mpz_get_si(int s) { return mhs_from_Int(s, 1, mpz_get_si_(mhs_to_Ptr(s, 0))); }
 from_t mhs_mpz_init_set_si(int s) { mpz_init_set_si(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_init_set_ui(int s) { mpz_init_set_ui(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_ior(int s) { mpz_ior(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_Ptr(s, 2)); return mhs_from_Unit(s, 3); }
