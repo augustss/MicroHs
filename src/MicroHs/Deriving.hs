@@ -46,7 +46,7 @@ derivers =
   ,("Data.Data.Data",                  derData)
   ,("Data.Eq.Eq",                      derEq)
   ,("Data.Functor.Functor",            derNotYet) -- derFunctor)
-  ,("Data.Ix.Ix",                      derNotYet)
+  ,("Data.Ix.Ix",                      derIx)
   ,("Data.Ord.Ord",                    derOrd)
   ,("Data.Typeable.Typeable",          derTypeable)
   ,("GHC.Generics.Generic",            derNotYet)
@@ -202,8 +202,8 @@ derEq mctx 0 lhs cs eeq = do
         in  eEqn [xp, yp] $ if null xs then eTrue else foldr1 eAnd $ zipWith eEq xs ys
       eqns = if null cs then [eEqn [eDummy, eDummy] eTrue] else map mkEqn cs ++ [eEqn [eDummy, eDummy] eFalse]
       iEq = mkIdentSLoc loc "=="
-      eEq = EApp . EApp (EVar $ mkBuiltin loc "==")
-      eAnd = EApp . EApp (EVar $ mkBuiltin loc "&&")
+      eEq = eAppI2 (mkBuiltin loc "==")
+      eAnd = eAppI2 (mkBuiltin loc "&&")
       eTrue = EVar $ mkBuiltin loc "True"
       eFalse = EVar $ mkBuiltin loc "False"
       inst = Instance hdr [Fcn iEq eqns] []
@@ -225,8 +225,8 @@ derOrd mctx 0 lhs cs eord = do
             ,eEqn [eDummy, yp] eGT]
       eqns = if null cs then [eEqn [eDummy, eDummy] eEQ] else concatMap mkEqn cs
       iCompare = mkIdentSLoc loc "compare"
-      eCompare = EApp . EApp (EVar $ mkBuiltin loc "compare")
-      eComb = EApp . EApp (EVar $ mkBuiltin loc "<>")
+      eCompare = eAppI2 (mkBuiltin loc "compare")
+      eComb = eAppI2 (mkBuiltin loc "<>")
       eEQ = EVar $ mkBuiltin loc "EQ"
       eLT = EVar $ mkBuiltin loc "LT"
       eGT = EVar $ mkBuiltin loc "GT"
@@ -292,6 +292,56 @@ derEnum _ _ lhs _ e = cannotDerive lhs e
 
 isNullary :: Constr -> Bool
 isNullary (Constr _ _ _ flds) = either null null flds
+
+--------------------------------------------
+
+derIx :: Deriver
+derIx mctx 0 lhs cs@(c0:cs') eix = do
+  hdr <- mkHdr mctx lhs cs eix
+  let loc = getSLoc eix
+      iRange       = mkIdentSLoc loc "range"
+      iUnsafeIndex = mkIdentSLoc loc "unsafeIndex"
+      iInRange     = mkIdentSLoc loc "inRange"
+  if all isNullary cs then do
+    let iToInt = mkIdentSLoc loc ("toInt@" ++ show lhs)
+        iFromInt = mkIdentSLoc loc ("fromInt@" ++ show lhs)
+        toIntEqns = zipWith (\(Constr _ _ c _) i -> eEqn [EVar c] $ ELit loc (LInt i)) cs [0..]
+        fromIntEqns = zipWith (\(Constr _ _ c _) i -> eEqn [ELit loc (LInt i)] $ EVar c) cs [0..]
+        eToInt = eAppI iToInt
+        eFromInt = eAppI iFromInt
+        eEnumFromTo = eAppI2 (mkBuiltin loc "enumFromTo")
+        eSub = eAppI2 (mkBuiltin loc "-")
+        eAnd = eAppI2 (mkBuiltin loc "&&")
+        eLE = eAppI2 (mkBuiltin loc "<=")
+        x = EVar (mkIdentSLoc loc "x")
+        y = EVar (mkIdentSLoc loc "y")
+        z = EVar (mkIdentSLoc loc "z")
+        w = EVar (mkIdentSLoc loc "w")
+        rangeEqn = eEqn [ETuple [x, y]] $ EListish (LCompr (eFromInt z) [SBind z (eEnumFromTo (eToInt x) (eToInt y))])
+        unsafeIndexEqn = eEqn [ETuple [x, eDummy], y] $ eSub (eToInt y) (eToInt x)
+        inRangeEqn = eEqn [ETuple [x, y], z] $ ECase (eToInt z) [(w, oneAlt $ eAnd (eLE (eToInt x) w) (eLE w (eToInt y)))]
+        inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]]
+    return [inst, Fcn iToInt toIntEqns, Fcn iFromInt fromIntEqns]
+  else if null cs' then do
+    let Constr _ _ iC0 _ = c0
+        eAnd = eAppI2 (mkBuiltin loc "&&")
+        eAdd = eAppI2 (mkBuiltin loc "+")
+        eMul = eAppI2 (mkBuiltin loc "*")
+        iUnsafeRangeSize = mkIdentSLoc loc "unsafeRangeSize"
+        (xp, xs) = mkPat c0 "x"
+        (yp, ys) = mkPat c0 "y"
+        (zp, zs) = mkPat c0 "z"
+        rangeEqn = eEqn [ETuple [xp, yp]] $ EListish (LCompr (tApps iC0 zs) (zipWith3 (\x y z -> SBind z (eAppI iRange (ETuple [x, y]))) xs ys zs))
+        unsafeIndexEqn =
+          let mkUnsafeIndex x y z = eAppI2 iUnsafeIndex (ETuple [x, y]) z
+              mkUnsafeRangeSize x y = eAppI iUnsafeRangeSize (ETuple [x, y])
+          in eEqn [ETuple [xp, yp], zp] $ foldl (\acc (x, y, z) -> eAdd (mkUnsafeIndex x y z) (eMul (mkUnsafeRangeSize x y) acc)) (mkUnsafeIndex (head xs) (head ys) (head zs)) $ zip3 (tail xs) (tail ys) (tail zs)
+        inRangeEqn = eEqn [ETuple [xp, yp], zp] $ foldr1 eAnd $ zipWith3 (\x y z -> eAppI2 iInRange (ETuple [x, y]) z) xs ys zs
+        inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]]
+    return [inst]
+  else
+    cannotDerive lhs eix
+derIx _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 
