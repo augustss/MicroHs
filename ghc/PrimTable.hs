@@ -121,14 +121,6 @@ primOps =
   , comb "utoU" (\ x -> fromIntegral (x::Word) :: Word64)
   , comb "Utou" (\ x -> fromIntegral (x::Word64) :: Word)
 
-  , comb "scmp" (\ x y -> fromOrdering (compare (toString x) (toString y)))
-  , comb "sequal" (\ x y -> fromBool (toString x == toString y))
-
-  , comb "p==" (\ x y -> fromBool ((x :: Ptr ()) == y))
-  , comb "pnull" nullPtr
-  , comb "pcast" castPtr
-  , comb "p+" plusPtr
-  , comb "p-" minusPtr
   , comb "fp2p" unsafeForeignPtrToPtr
 
   , comb "A.alloc" newIOArray
@@ -165,16 +157,14 @@ primOps =
 
   , comb "seq" seq
   , comb "rnf" rnf
-  , comb "error" err
   , comb "ord" ord
   , comb "chr" chr
 
-  , comb "IO.catch" (\ io hdl -> catch (io :: IO Any) (\ (exn :: SomeException) -> hdl (fromString $ takeWhile (/= '\n') $ show exn) :: IO Any))
+  , comb "IO.performIO" unsafePerformIO
   , comb "IO.>>=" iobind
   , comb "IO.>>" iothen
   , comb "IO.return" ioret
   , comb "IO.print" ioprint
-  , comb "IO.performio" unsafePerformIO
   , comb "IO.serialize" ioserialize
   , comb "IO.deserialize" iodeserialize
   , comb "newCAStringLen" (fmap fromPair . newCAStringLen . toString)
@@ -234,8 +224,6 @@ primOps =
     fcmp n f = comb n (\ x y -> fromBool (f x y))
     dcmp :: String -> (Double -> Double -> Bool) -> (String, Any)
     dcmp n f = comb n (\ x y -> fromBool (f x y))
-
-    err s = error $ "error: " ++ toString s
 
     iobind :: IO a -> (a -> IO b) -> IO b
     iobind = (>>=)
