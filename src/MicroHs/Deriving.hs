@@ -261,10 +261,6 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
   hdr <- mkHdr mctx lhs cs enm
   let loc = getSLoc enm
 
-      mkFrom (Constr _ _ c _) i =
-        eEqn [EVar c] $ ELit loc (LInt i)
-      mkTo (Constr _ _ c _) i =
-        eEqn [ELit loc (LInt i)] $ EVar c
       eFirstCon = case c0 of Constr _ _ c _ -> tCon c
       eLastCon = case last cs of Constr _ _ c _ -> tCon c
 
@@ -274,8 +270,6 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
       iEnumFromThen = mkIdentSLoc loc "enumFromThen"
       iEnumFromTo = mkBuiltin loc "enumFromTo"
       iEnumFromThenTo = mkBuiltin loc "enumFromThenTo"
-      fromEqns = zipWith mkFrom cs [0..]
-      toEqns   = zipWith mkTo   cs [0..] ++ [eEqn [eDummy] $ EApp (EVar $ mkBuiltin loc "error") (ELit loc (LStr "toEnum: out of range"))]
       enumFromEqn =
         -- enumFrom x = enumFromTo x (last cs)
         let x = EVar (mkIdentSLoc loc "x")
@@ -286,12 +280,22 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
           x1 = EVar (mkIdentSLoc loc "x1")
           x2 = EVar (mkIdentSLoc loc "x2")
         in eEqn [x1, x2] (EIf (eAppI2 (mkBuiltin loc ">=") (EApp (EVar iFromEnum) x2) (EApp (EVar iFromEnum) x1)) (eAppI3 iEnumFromThenTo x1 x2 eLastCon) (eAppI3 iEnumFromThenTo x1 x2 eFirstCon))
-      inst = Instance hdr [Fcn iFromEnum fromEqns, Fcn iToEnum toEqns, Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]] []
+      inst = Instance hdr [Fcn iFromEnum (fromEnumEqns loc cs), Fcn iToEnum (toEnumEqns loc cs), Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]]
   return [inst]
 derEnum _ _ lhs _ e = cannotDerive lhs e
 
 isNullary :: Constr -> Bool
 isNullary (Constr _ _ _ flds) = either null null flds
+
+fromEnumEqns :: SLoc -> [Constr] -> [Eqn]
+fromEnumEqns loc cs = zipWith mkFrom cs [0..]
+  where
+    mkFrom (Constr _ _ c _) i = eEqn [EVar c] $ ELit loc (LInt i)
+
+toEnumEqns :: SLoc -> [Constr] -> [Eqn]
+toEnumEqns loc cs = zipWith mkTo cs [0..] ++ [eEqn [eDummy] $ eAppI (mkBuiltin loc "error") (ELit loc (LStr "toEnum: out of range"))]
+  where
+    mkTo (Constr _ _ c _) i = eEqn [ELit loc (LInt i)] $ EVar c
 
 --------------------------------------------
 
@@ -305,8 +309,6 @@ derIx mctx 0 lhs cs@(c0:cs') eix = do
   if all isNullary cs then do
     let iToInt = mkIdentSLoc loc ("toInt@" ++ show lhs)
         iFromInt = mkIdentSLoc loc ("fromInt@" ++ show lhs)
-        toIntEqns = zipWith (\(Constr _ _ c _) i -> eEqn [EVar c] $ ELit loc (LInt i)) cs [0..]
-        fromIntEqns = zipWith (\(Constr _ _ c _) i -> eEqn [ELit loc (LInt i)] $ EVar c) cs [0..]
         eToInt = eAppI iToInt
         eFromInt = eAppI iFromInt
         eEnumFromTo = eAppI2 (mkBuiltin loc "enumFromTo")
@@ -321,7 +323,7 @@ derIx mctx 0 lhs cs@(c0:cs') eix = do
         unsafeIndexEqn = eEqn [ETuple [x, eDummy], y] $ eSub (eToInt y) (eToInt x)
         inRangeEqn = eEqn [ETuple [x, y], z] $ ECase (eToInt z) [(w, oneAlt $ eAnd (eLE (eToInt x) w) (eLE w (eToInt y)))]
         inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]]
-    return [inst, Fcn iToInt toIntEqns, Fcn iFromInt fromIntEqns]
+    return [inst, Fcn iToInt (fromEnumEqns loc cs), Fcn iFromInt (toEnumEqns loc cs)]
   else if null cs' then do
     let Constr _ _ iC0 _ = c0
         eAnd = eAppI2 (mkBuiltin loc "&&")
