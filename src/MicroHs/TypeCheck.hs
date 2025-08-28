@@ -3563,4 +3563,4 @@ standaloneDeriving str narg act = do
       Just (Data    l xs _) -> return (l, False, xs)
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
-  deriveStrat (Just act) newt lhs cs str (narg, tApps cls ts)
+  deriveStrat (Just (act, tname)) newt lhs cs str (narg, tApps cls ts)

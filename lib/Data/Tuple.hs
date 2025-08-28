@@ -97,6 +97,14 @@ instance (Show a, Show b, Show c, Show d, Show e) => Show (a, b, c, d, e) where
   showsPrec _ (a, b, c, d, e) = showParen True (shows a . showString "," . shows b . showString "," . shows c .
                                                 showString "," . shows d . showString "," . shows e)
 
+instance (Show a, Show b, Show c, Show d, Show e, Show f) => Show (a, b, c, d, e, f) where
+  showsPrec _ (a, b, c, d, e, f) = showParen True (shows a . showString "," . shows b . showString "," . shows c .
+                                                showString "," . shows d . showString "," . shows e . showString "," . shows f)
+
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g) => Show (a, b, c, d, e, f, g) where
+  showsPrec _ (a, b, c, d, e, f, g) = showParen True (shows a . showString "," . shows b . showString "," . shows c .
+                                                showString "," . shows d . showString "," . shows e . showString "," . shows f . showString "," . shows g)
+
 -----------------------------------
 
 instance Bounded () where

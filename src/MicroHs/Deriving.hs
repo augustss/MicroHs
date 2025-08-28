@@ -21,7 +21,7 @@ import Debug.Trace
 --   constructor names in the derived type unqualified
 --   all other names should be qualified with B@
 
-deriveStrat :: Maybe EConstraint -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
+deriveStrat :: Maybe (EConstraint, Ident) -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
 deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of arguments that need eta reducing
 --  trace ("deriveStrat " ++ show (mctx, newt, lhs, cs, strat, narg, cls)) $
   case strat of
@@ -37,7 +37,7 @@ deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of argum
            "Language.Haskell.TH.Syntax.Lift", "Text.Read.Internal.Read", "Text.Show.Show"]
 
 type DeriverT = Int -> LHS -> [Constr] -> EConstraint -> T [EDef]   -- Bool indicates a newtype
-type Deriver = Maybe EConstraint -> DeriverT
+type Deriver = Maybe (EConstraint, Ident) -> DeriverT
 
 derivers :: [(String, Deriver)]
 derivers =
@@ -55,7 +55,7 @@ derivers =
   ,("Text.Show.Show",                  derShow)
   ]
 
-deriveNoHdr :: Maybe EConstraint -> DeriverT
+deriveNoHdr :: Maybe (EConstraint, Ident) -> DeriverT
 deriveNoHdr mctx narg lhs cs d = do
 --  traceM ("deriveNoHdr " ++ show d)
   case getDeriver d of
@@ -93,7 +93,7 @@ genHasFields lhs cs = do
 
 genHasField :: LHS -> [Constr] -> (Ident, EType) -> T [EDef]
 genHasField (tycon, iks) cs (fld, fldty) = do
-  mn <- gets moduleName
+  mn <- gets moduleName                -- We never do standalone deriving for HasField, so use current module name
   let loc = getSLoc tycon
       qtycon = qualIdent mn tycon
       eFld = EVar fld
@@ -140,8 +140,11 @@ mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld
 --------------------------------------------
 
 derTypeable :: Deriver
-derTypeable _ 0 (i, _) _ etyp = do
-  mn <- gets moduleName
+derTypeable mctx 0 (i, _) _ etyp = do
+  -- The module name we need is the current module for regulat deriving,
+  -- and the module of the type for standalone deriving.
+  -- We use mctx to decide which it is.
+  mn <- maybe (gets moduleName) (pure . qualOf . snd) mctx
   let
     loc = getSLoc i
     itypeRep  = mkIdentSLoc loc "typeRep"
@@ -166,8 +169,9 @@ getFieldTys (Right ts) = map (snd . snd) ts
 -- constructor argument (except direct recursion) with free type variables.
 -- E.g.  data T = C a | D (a, Int) deriving Eq
 -- will get context  (Eq a, Eq (a, Int))
-mkHdr :: Maybe EConstraint -> LHS -> [Constr] -> EConstraint -> T EConstraint
-mkHdr (Just ctx) _ _ _ = return ctx
+-- Used for regular deriving, not standalone.
+mkHdr :: Maybe (EConstraint, Ident) -> LHS -> [Constr] -> EConstraint -> T EConstraint
+mkHdr (Just (ctx, _)) _ _ _ = return ctx
 mkHdr _ lhs@(_, iks) cs cls = do
   ty <- mkLhsTy lhs
   let ctys :: [EType]  -- All top level types used by the constructors.
@@ -175,6 +179,7 @@ mkHdr _ lhs@(_, iks) cs cls = do
                             not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
   pure $ eForall iks $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
 
+-- Used for regular deriving, not standalone.
 mkLhsTy :: LHS -> T EType
 mkLhsTy (t, iks) = do
   mn <- gets moduleName
@@ -441,7 +446,21 @@ derData mctx _ lhs cs edata = do
 
 --------------------------------------------
 
-newtypeDer :: Maybe EConstraint -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
+derRead :: Deriver
+derRead mctx 0 lhs cs eread = do
+  notYet eread
+  hdr <- mkHdr mctx lhs cs eread
+  let
+    loc = getSLoc eread
+    iReadPrec = mkIdentSLoc loc "readPrec"
+    err = eEqn [] $ EApp (EVar $ mkBuiltin loc "error") (ELit loc (LStr "readPrec not defined"))
+    inst = Instance hdr [Fcn iReadPrec [err]] []
+  return [inst]
+derRead _ _ lhs _ e = cannotDerive lhs e
+
+--------------------------------------------
+
+newtypeDer :: Maybe (EConstraint, Ident) -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
 newtypeDer mctx narg (tycon, iks) c acls mvia = do
   let loc = getSLoc cls
       (clsIks, cls) = unForall acls
@@ -475,7 +494,7 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
                 Nothing  -> []
             ctx = filter (not . null . freeTyVars . (:[])) (ctxOld : coOldNew : coOldVia)
         pure (eForall (clsIks ++ iks') $ addConstraints ctx $ tApp cls newty)
-      Just hdr -> pure hdr
+      Just (hdr, _) -> pure hdr
 --  traceM ("newtypeDer: " ++ show (hdr, newty, viaty))
   ----
   let qiCls = getAppCon cls
@@ -534,7 +553,7 @@ etaReduce ais = eta (reverse ais)
   where eta (IdKind i _ : is) (EApp t (EVar i')) | i == i' && i `notElem` freeTyVars [t] = eta is t
         eta is t = (reverse is, t)
 
-anyclassDer :: Maybe EConstraint -> Int -> LHS -> EConstraint -> T [EDef]
+anyclassDer :: Maybe (EConstraint, Ident) -> Int -> LHS -> EConstraint -> T [EDef]
 anyclassDer mctx _ lhs cls = do
   hdr <- mkHdr mctx lhs [] cls
   return [Instance hdr [] []]
