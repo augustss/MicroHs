@@ -47,7 +47,6 @@ import Control.Applicative
 import Control.Error
 import Control.Monad
 import Control.Monad.Fail
-import Data.Array
 import Data.Bool
 import Data.Char
 import Data.Double
@@ -70,7 +69,6 @@ import Data.RealFloat
 import Data.String
 import Data.Tuple
 import Data.Word
-import Numeric.Natural
 import qualified Text.ParserCombinators.ReadP as P
 import Text.ParserCombinators.ReadP(ReadS, readP_to_S)
 import Text.ParserCombinators.ReadPrec
@@ -553,17 +551,6 @@ instance Read a => Read [a] where
   readList     = readListDefault
 
 -- | @since base-2.01
-instance  (Ix a, Read a, Read b) => Read (Array a b)  where
-    readPrec = parens $ prec appPrec $
-               do expectP (L.Ident "array")
-                  theBounds <- step readPrec
-                  vals   <- step readPrec
-                  return (array theBounds vals)
-
-    readListPrec = readListPrecDefault
-    readList     = readListDefault
-
--- | @since base-2.01
 instance Read L.Lexeme where
   readPrec     = lexP
   readListPrec = readListPrecDefault
@@ -630,13 +617,6 @@ instance Read Word64 where
 -- | @since base-2.01
 instance Read Integer where
   readPrec     = readNumber convertInt
-  readListPrec = readListPrecDefault
-  readList     = readListDefault
-
--- | @since base-4.8.0.0
-instance Read Natural where
-  readsPrec d = map (\(n, s) -> (fromInteger n, s))
-                  . filter ((>= 0) . fst) . readsPrec d
   readListPrec = readListPrecDefault
   readList     = readListDefault
 

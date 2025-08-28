@@ -19,6 +19,7 @@ import Control.Monad.Fail
 import Control.Monad.IO.Class
 import Control.Monad.ST
 import Control.Monad.ST_Type
+import Data.Array
 import Data.Bits
 import Data.Bool
 import Data.Bool_Type
