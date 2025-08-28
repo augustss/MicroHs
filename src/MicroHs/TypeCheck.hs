@@ -1089,7 +1089,7 @@ tcDefType def = do
     Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> cm kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
     Sign      is t         ->                                            Sign      is   <$> tCheckTypeTImpl QImpl kType t
     ForImp cc ie i t       ->                                            ForImp cc ie i <$> tCheckTypeTImpl QImpl kType t
-    Instance d ct m        ->                                            Instance d     <$> tCheckTypeTImpl QExpl kConstraint ct <*> return m
+    Instance ct m e        ->                                            Instance       <$> tCheckTypeTImpl QExpl kConstraint ct <*> return m <*> return e
     Default mc ts          ->                                            Default (Just c) <$> mapM (tcDefault c) ts
                                                                            where c = fromMaybe num mc
 -- We cant't do this now, because the classTable has not been fully populated yet.
@@ -1310,7 +1310,7 @@ splitContext act =
 -- So any generated type expressions must be kind correct and fully qualified,
 -- whereas value expressions do not.
 expandInst :: EDef -> T [EDef]
-expandInst dinst@(Instance der act bs) = do
+expandInst dinst@(Instance act bs extra) = do
   (vks, ctx, cc) <- splitContext <$> expandSyn act
   let loc = getSLoc act
       qiCls = getAppCon cc
@@ -1330,13 +1330,13 @@ expandInst dinst@(Instance der act bs) = do
       meth (i, _) = fromMaybe (ELam loc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
       meths = map meth mits
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
-      extra = filter (not . instBind) bs
       args = sups ++ meths
       instBind (Fcn i _) = isJust $ lookup i mits
       instBind (Sign is _) = all (\ i -> isJust $ lookup i mits) is
       instBind _ = False
-  when (not (null extra) && not der) $
-    tcError (getSLoc (extra!!0)) "superflous instance binding"
+  case filter (not . instBind) bs of
+    [] -> return ()
+    b:_ -> tcError (getSLoc b) "superflous instance binding"
 
   let body = eEqns [] $ eLetB extra $ eApps (EVar $ mkClassConstructor qiCls) args
       bind = Fcn iInst body

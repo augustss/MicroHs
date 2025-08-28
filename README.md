@@ -63,6 +63,7 @@ Differences:
    * ExistentialQuantification
    * ExplicitNamespaces
    * ExtendedDefaultRules
+   * ExtraInstanceBindings
    * FlexibleContexts
    * FlexibleInstance
    * ForeignFunctionInterface
