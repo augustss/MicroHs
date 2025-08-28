@@ -17,5 +17,5 @@ mv $SI $SI.bak
 grep -v '^fullCompilerVersion =' $SI.bak > $SI
 grep '^version:' MicroHs.cabal | sed -e 's/version: */fullCompilerVersion = makeVersion [/' -e 's/\./,/g' -e 's/$/]/' >> $SI
 
-git tag "v$vers"
-echo "Don't forget to push tags: 'git push --tags'"
+# git tag "v$vers"
+echo "After commit: git tag v$vers; git push --tags"
