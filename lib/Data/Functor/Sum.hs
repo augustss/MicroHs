@@ -38,7 +38,7 @@ data Sum f g a = InL (f a) | InR (g a)
            , Generic  -- ^ @since 4.9.0.0
            , Generic1 -- ^ @since 4.9.0.0
            )
-
+-}
 -- | @since 4.18.0.0
 deriving instance (Eq (f a), Eq (g a)) => Eq (Sum f g a)
 -- | @since 4.18.0.0
@@ -47,7 +47,6 @@ deriving instance (Ord (f a), Ord (g a)) => Ord (Sum f g a)
 deriving instance (Read (f a), Read (g a)) => Read (Sum f g a)
 -- | @since 4.18.0.0
 deriving instance (Show (f a), Show (g a)) => Show (Sum f g a)
--}
 
 -- | @since 4.9.0.0
 instance (Eq1 f, Eq1 g) => Eq1 (Sum f g) where

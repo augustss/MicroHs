@@ -38,7 +38,7 @@ newtype Compose f g a = Compose { getCompose :: f (g a) }
            , Semigroup -- ^ @since 4.16.0.0
            , Monoid    -- ^ @since 4.16.0.0
            )
-
+-}
 deriving instance Eq (f (g a)) => Eq (Compose f g a)
 deriving instance Ord (f (g a)) => Ord (Compose f g a)
 
@@ -47,12 +47,6 @@ instance Read (f (g a)) => Read (Compose f g a) where
 
     readListPrec = readListPrecDefault
     readList     = readListDefault
--}
-instance Eq (f (g a)) => Eq (Compose f g a) where
-  Compose x == Compose y  =  x == y
-
-instance Ord (f (g a)) => Ord (Compose f g a) where
-  Compose x `compare` Compose y  =  x `compare` y
 
 instance Show (f (g a)) => Show (Compose f g a) where
     showsPrec = liftShowsPrecCompose showsPrec
@@ -83,11 +77,9 @@ instance (Show1 f, Show1 g) => Show1 (Compose f g) where
         sp' = liftShowsPrec sp sl
         sl' = liftShowList sp sl
 
-{-
 -- The workhorse for Compose's Read and Read1 instances.
 liftReadPrecCompose :: ReadPrec (f (g a)) -> ReadPrec (Compose f g a)
 liftReadPrecCompose rp = readData $ readUnaryWith rp "Compose" Compose
--}
 
 -- The workhorse for Compose's Show and Show1 instances.
 liftShowsPrecCompose :: (Int -> f (g a) -> ShowS) -> Int -> Compose f g a -> ShowS
