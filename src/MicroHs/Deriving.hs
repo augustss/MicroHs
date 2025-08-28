@@ -280,7 +280,7 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
           x1 = EVar (mkIdentSLoc loc "x1")
           x2 = EVar (mkIdentSLoc loc "x2")
         in eEqn [x1, x2] (EIf (eAppI2 (mkBuiltin loc ">=") (EApp (EVar iFromEnum) x2) (EApp (EVar iFromEnum) x1)) (eAppI3 iEnumFromThenTo x1 x2 eLastCon) (eAppI3 iEnumFromThenTo x1 x2 eFirstCon))
-      inst = Instance hdr [Fcn iFromEnum (fromEnumEqns loc cs), Fcn iToEnum (toEnumEqns loc cs), Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]]
+      inst = Instance hdr [Fcn iFromEnum (fromEnumEqns loc cs), Fcn iToEnum (toEnumEqns loc cs), Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]] []
   return [inst]
 derEnum _ _ lhs _ e = cannotDerive lhs e
 
@@ -307,8 +307,8 @@ derIx mctx 0 lhs cs@(c0:cs') eix = do
       iUnsafeIndex = mkIdentSLoc loc "unsafeIndex"
       iInRange     = mkIdentSLoc loc "inRange"
   if all isNullary cs then do
-    let iToInt = mkIdentSLoc loc ("toInt@" ++ show lhs)
-        iFromInt = mkIdentSLoc loc ("fromInt@" ++ show lhs)
+    let iToInt = mkIdentSLoc loc "toInt"
+        iFromInt = mkIdentSLoc loc "fromInt"
         eToInt = eAppI iToInt
         eFromInt = eAppI iFromInt
         eEnumFromTo = eAppI2 (mkBuiltin loc "enumFromTo")
@@ -322,8 +322,8 @@ derIx mctx 0 lhs cs@(c0:cs') eix = do
         rangeEqn = eEqn [ETuple [x, y]] $ EListish (LCompr (eFromInt z) [SBind z (eEnumFromTo (eToInt x) (eToInt y))])
         unsafeIndexEqn = eEqn [ETuple [x, eDummy], y] $ eSub (eToInt y) (eToInt x)
         inRangeEqn = eEqn [ETuple [x, y], z] $ ECase (eToInt z) [(w, oneAlt $ eAnd (eLE (eToInt x) w) (eLE w (eToInt y)))]
-        inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]]
-    return [inst, Fcn iToInt (fromEnumEqns loc cs), Fcn iFromInt (toEnumEqns loc cs)]
+        inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]] [Fcn iToInt (fromEnumEqns loc cs), Fcn iFromInt (toEnumEqns loc cs)]
+    return [inst]
   else if null cs' then do
     let Constr _ _ iC0 _ = c0
         eAnd = eAppI2 (mkBuiltin loc "&&")
@@ -339,7 +339,7 @@ derIx mctx 0 lhs cs@(c0:cs') eix = do
               mkUnsafeRangeSize x y = eAppI iUnsafeRangeSize (ETuple [x, y])
           in eEqn [ETuple [xp, yp], zp] $ foldl (\acc (x, y, z) -> eAdd (mkUnsafeIndex x y z) (eMul (mkUnsafeRangeSize x y) acc)) (mkUnsafeIndex (head xs) (head ys) (head zs)) $ zip3 (tail xs) (tail ys) (tail zs)
         inRangeEqn = eEqn [ETuple [xp, yp], zp] $ foldr1 eAnd $ zipWith3 (\x y z -> eAppI2 iInRange (ETuple [x, y]) z) xs ys zs
-        inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]]
+        inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]] []
     return [inst]
   else
     cannotDerive lhs eix
