@@ -90,7 +90,7 @@ data EDef
   | ForExp CallConv (Maybe String) Expr EType
   | Infix Fixity [Ident]
   | Class [EConstraint] LHS [FunDep] [EBind]  -- XXX will probable need initial forall with FD
-  | Instance EConstraint [EBind]
+  | Instance Bool EConstraint [EBind]         -- Boolean indicates derived instance
   | Default (Maybe Ident) [EType]
   | Pattern LHS EPat (Maybe [Eqn])
   | StandDeriving DerStrategy Int EConstraint
@@ -112,7 +112,7 @@ instance NFData EDef where
   rnf (ForExp a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
   rnf (Infix a b) = rnf a `seq` rnf b
   rnf (Class a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
-  rnf (Instance a b) = rnf a `seq` rnf b
+  rnf (Instance a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (Default a b) = rnf a `seq` rnf b
   rnf (Pattern a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (StandDeriving a b c) = rnf a `seq` rnf b `seq` rnf c
@@ -864,7 +864,7 @@ ppEDef def =
     Infix (a, p) is -> text ("infix" ++ f a) <+> text (show p) <+> hsep (punctuate (text ", ") (map ppIdent is))
       where f AssocLeft = "l"; f AssocRight = "r"; f AssocNone = ""
     Class sup lhs fds bs -> ppWhere (text "class" <+> ppCtx sup <+> ppLHS lhs <+> ppFunDeps fds) bs
-    Instance ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
+    Instance _ ct bs -> ppWhere (text "instance" <+> ppEType ct) bs
     Default mc ts -> text "default" <+> maybe empty ppIdent mc <+> parens (hsep (punctuate (text ", ") (map ppEType ts)))
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
     StandDeriving _s _narg ct -> text "deriving instance" <+> ppEType ct

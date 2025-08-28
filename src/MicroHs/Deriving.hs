@@ -130,8 +130,8 @@ genHasField (tycon, iks) cs (fld, fldty) = do
   pure $ [ Sign [getName] $ eForall iks $ lhsToType (qtycon, iks) `tArrow` fldty
          , Fcn getName $ map conEqnGet cs ]
     ++ if not (validType fldty) then [] else
-         [ Instance hdrGet [Fcn igetField [eEqn [eDummy] $ EVar getName] ]
-         , Instance hdrSet [Fcn isetField $ map conEqnSet cs]
+         [ Instance True hdrGet [Fcn igetField [eEqn [eDummy] $ EVar getName] ]
+         , Instance True hdrSet [Fcn isetField $ map conEqnSet cs]
          ]
 
 mkGetName :: Ident -> Ident -> Ident
@@ -151,7 +151,7 @@ derTypeable _ 0 (i, _) _ etyp = do
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
     eqns = eEqns [eDummy] $ eAppI2 imkTyConApp (eAppI2 imkTyCon mdl nam) (EListish (LList []))
-    inst = Instance hdr [Fcn itypeRep eqns]
+    inst = Instance True hdr [Fcn itypeRep eqns]
   return [inst]
 derTypeable _ _ lhs _ e = cannotDerive lhs e
 
@@ -206,7 +206,7 @@ derEq mctx 0 lhs cs eeq = do
       eAnd = EApp . EApp (EVar $ mkBuiltin loc "&&")
       eTrue = EVar $ mkBuiltin loc "True"
       eFalse = EVar $ mkBuiltin loc "False"
-      inst = Instance hdr [Fcn iEq eqns]
+      inst = Instance True hdr [Fcn iEq eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
 derEq _ _ lhs _ e = cannotDerive lhs e
@@ -230,7 +230,7 @@ derOrd mctx 0 lhs cs eord = do
       eEQ = EVar $ mkBuiltin loc "EQ"
       eLT = EVar $ mkBuiltin loc "LT"
       eGT = EVar $ mkBuiltin loc "GT"
-      inst = Instance hdr [Fcn iCompare eqns]
+      inst = Instance True hdr [Fcn iCompare eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
 derOrd _ _ lhs _ e = cannotDerive lhs e
@@ -249,7 +249,7 @@ derBounded mctx 0 lhs cs@(c0:_) ebnd = do
       iMaxBound = mkIdentSLoc loc "maxBound"
       minEqn = mkEqn iMinBound c0
       maxEqn = mkEqn iMaxBound (last cs)
-      inst = Instance hdr [Fcn iMinBound [minEqn], Fcn iMaxBound [maxEqn]]
+      inst = Instance True hdr [Fcn iMinBound [minEqn], Fcn iMaxBound [maxEqn]]
   -- traceM $ showEDefs [inst]
   return [inst]
 derBounded _ _ lhs _ e = cannotDerive lhs e
@@ -286,7 +286,7 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
           x1 = EVar (mkIdentSLoc loc "x1")
           x2 = EVar (mkIdentSLoc loc "x2")
         in eEqn [x1, x2] (EIf (eAppI2 (mkBuiltin loc ">=") (EApp (EVar iFromEnum) x2) (EApp (EVar iFromEnum) x1)) (eAppI3 iEnumFromThenTo x1 x2 eLastCon) (eAppI3 iEnumFromThenTo x1 x2 eFirstCon))
-      inst = Instance hdr [Fcn iFromEnum fromEqns, Fcn iToEnum toEqns, Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]]
+      inst = Instance True hdr [Fcn iFromEnum fromEqns, Fcn iToEnum toEqns, Fcn iEnumFrom [enumFromEqn], Fcn iEnumFromThen [enumFromThenEqn]]
   return [inst]
 derEnum _ _ lhs _ e = cannotDerive lhs e
 
@@ -327,7 +327,7 @@ derShow mctx 0 lhs cs eshow = do
           where fld (f, x) = eShowString (unIdentPar f ++ "=") `ejoin` eShowsPrec 0 x
 
       eqns = map mkEqn cs
-      inst = Instance hdr [Fcn iShowsPrec eqns]
+      inst = Instance True hdr [Fcn iShowsPrec eqns]
 --  traceM $ showEDefs [inst]
   return [inst]
 derShow _ _ lhs _ e = cannotDerive lhs e
@@ -345,7 +345,7 @@ derData mctx _ lhs cs edata = do
   notYet edata
   hdr <- mkHdr mctx lhs cs edata
   let
-    inst = Instance hdr []
+    inst = Instance True hdr []
   return [inst]
 
 --------------------------------------------
@@ -358,7 +358,7 @@ derRead mctx 0 lhs cs eread = do
     loc = getSLoc eread
     iReadPrec = mkIdentSLoc loc "readPrec"
     err = eEqn [] $ EApp (EVar $ mkBuiltin loc "error") (ELit loc (LStr "readPrec not defined"))
-    inst = Instance hdr [Fcn iReadPrec [err]]
+    inst = Instance True hdr [Fcn iReadPrec [err]]
   return [inst]
 derRead _ _ lhs _ e = cannotDerive lhs e
 
@@ -430,8 +430,8 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
         return [msign, body]
   body <- concat <$> mapM mkMethod mits
 
---  traceM $ "newtypeDer: " ++ show (Instance hdr body)
-  return [Instance hdr body]
+--  traceM $ "newtypeDer: " ++ show (Instance True hdr body)
+  return [Instance True hdr body]
 
 dropForall :: EType -> EType
 dropForall (EForall _ _ t) = dropForall t
@@ -460,4 +460,4 @@ etaReduce ais = eta (reverse ais)
 anyclassDer :: Maybe EConstraint -> Int -> LHS -> EConstraint -> T [EDef]
 anyclassDer mctx _ lhs cls = do
   hdr <- mkHdr mctx lhs [] cls
-  return [Instance hdr []]
+  return [Instance True hdr []]

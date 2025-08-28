@@ -353,7 +353,7 @@ pDef =
   <|> ForExp       <$> (pKeyword "foreign"  *> pKeyword "export" *> pCallConv)
                         <*> optional pString <*> pFExpr <*> (dcolon *> pType)
   <|> Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
-  <|> Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
+  <|> Instance False <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
   <|> Default      <$> (pKeyword "default"  *> optional clsSym) <*> pParens (sepBy pType (pSpec ','))
   <|> KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (dcolon *> pKind)
   <|> mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
