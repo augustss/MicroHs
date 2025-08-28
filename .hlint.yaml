@@ -8,7 +8,7 @@
 - ignore: {name: "Use <&>"}
 # Some special exceptions
 - ignore: {name: Use list literal pattern, within: [MicroHs.Main,System.Console.GetOpt]}
-- ignore: {name: "Avoid lambda using `infix`", within: [MicroHs.TypeCheck]}
+- ignore: {name: "Avoid lambda using `infix`", within: [MicroHs.Deriving,MicroHs.TypeCheck]}
 # Various lib stuff
 - ignore: {name: Use fst, within: [Data.Functor]}
 - ignore: {name: Use snd, within: [Data.Functor]}
@@ -17,7 +17,7 @@
 - ignore: {name: "Use <$>", within: [Control.Monad]}
 - ignore: {name: Use id, within: [Control.Exception.Internal]}
 - ignore: {name: Use bimap, within: [Data.Bifunctor]}
-- ignore: {name: Use first, within: [Data.Bifunctor,Text.ParserCombinators.ReadP,Text.Read.Internal]}
+- ignore: {name: Use first, within: [Data.Bifunctor,Numeric.Natural,Text.ParserCombinators.ReadP,Text.Read.Internal]}
 - ignore: {name: Use concatMap, within: [Data.ByteString]}
 - ignore: {name: Use span, within: [Data.ByteString]}
 - ignore: {name: Use isAlpha, within: [Data.Char]}

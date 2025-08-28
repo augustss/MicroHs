@@ -17,8 +17,9 @@ module Data.Integer.Internal(
   ) where
 import qualified Prelude()
 import Primitives
-import Mhs.Builtin
+import Control.Monad
 import Data.Bool
+import Data.Eq
 import Data.Function
 import Data.Ord
 --import Foreign.Ptr(Ptr)
