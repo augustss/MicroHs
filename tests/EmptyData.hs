@@ -8,7 +8,7 @@ absurd1 x = case x of {}
 absurd2 :: Void -> a
 absurd2 = \case {}
 
-data Empty deriving (Eq, Ord, {-Read,-} Show)
+data Empty deriving (Eq, Ord, Read, Show)
 
 main :: IO ()
 main = do

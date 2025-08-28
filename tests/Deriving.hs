@@ -3,10 +3,10 @@ module Deriving(main) where
 import Data.Ix
 
 data T a b c = A a | B b | C a Int | D
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Read)
 
 data Rec a = R { x :: a, y :: Int }
-  deriving Show
+  deriving (Show, Read)
 
 newtype Alt f a = Alt (f a)
   deriving Show
@@ -19,6 +19,10 @@ data F = MkF Bool Int deriving (Show, Eq, Ord, Ix)
 -- Not yet
 -- data F a = F0 | F1 a | F2 (a,a) | F3 Int | F4 a Int | F5 (Int -> a)
 --   deriving Functor
+
+--infixr 5 :^:
+data Tree a = Leaf a | (:^:) (Tree a) (Tree a)
+  deriving (Show, Read)
 
 main :: IO ()
 main = do
@@ -41,8 +45,15 @@ main = do
   print (D :: T () () ())
   print (A (A 'a') :: T (T Char () ()) () ())
 
+  print (read "A 42" :: T Int () ())
+  print (read "(B (D))" :: T () (T () () ()) ())
+  print (read " ( C (((\tTrue\t)))3  ) " :: T Bool () ())
+  print (read "D" :: T () () ())
+
   print $ R{ x='a', y=10 }
   print $ R{ x=R{x='b',y=11}, y=10 }
+  print (read "R{x=True,y=12}" :: Rec Bool)
+  print (read "R { x = True , y = 12 }" :: Rec Bool)
 
   print $ Alt [True]
 
@@ -118,3 +129,6 @@ main = do
   print $ range r
   print $ unsafeIndex r (MkF True 3)
   print $ inRange r (MkF True 3)
+
+  print (Leaf 1 :^: Leaf 2 :: Tree Int)
+  print (read "(:^:) (Leaf 1) (Leaf 2)" :: Tree Int)
