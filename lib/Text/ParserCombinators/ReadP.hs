@@ -81,6 +81,7 @@ import Data.Num
 import Data.List
 import Data.List.NonEmpty
 import Data.Monoid.Internal
+import {-# SOURCE #-} Data.Typeable
 
 default (Int)
 

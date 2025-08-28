@@ -15,6 +15,7 @@ import qualified Prelude()
 import Data.Maybe_Type
 import Data.Monoid.Internal
 import Data.Records
+import {-# SOURCE #-} Data.Typeable
 
 -- First and Last are different in Monoid and Semigroup,
 -- so put them here.

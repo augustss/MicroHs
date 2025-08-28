@@ -9,6 +9,7 @@ import Data.Bounded
 import Data.Functor
 import Data.Ordering_Type
 import Data.Eq
+import {-# SOURCE #-} Data.Typeable
 import Text.Show
 
 infix 4 <,<=,>,>=

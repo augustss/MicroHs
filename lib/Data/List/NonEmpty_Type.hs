@@ -4,3 +4,4 @@ import qualified Prelude()
 infixr 5 :|
 
 data NonEmpty a = a :| [a]
+  deriving ()

@@ -3,6 +3,7 @@ module Numeric.Natural
   , minusNaturalMaybe
   ) where
 import qualified Prelude(); import MiniPrelude
+import Control.Exception
 import Data.Bits
 import Data.Coerce
 import Data.Integer

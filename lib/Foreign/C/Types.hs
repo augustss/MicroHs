@@ -26,6 +26,7 @@ import Data.Real
 import Data.Word.Word
 import Data.Float
 import Data.Double
+import {-# SOURCE #-} Data.Typeable
 
 -- The MicroHs Word type is the "natural" architecture word size;
 -- it is the same as the pointer difference type.

@@ -4,6 +4,7 @@ import Primitives
 
 infixr 5 :
 data [] a = [] | (:) a [a]  -- Parser hacks makes this acceptable
+  deriving ()  -- avoid deriving Typeable
 
 -- This does not really belong here, but it makes the module structure
 -- much simpler.

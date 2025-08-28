@@ -19,6 +19,7 @@ module MiniPrelude(
   module Data.Records,
   module Data.String,
   module Data.Tuple,
+  module Data.Typeable,
   module System.IO.Base,
   module Text.Show,
   usingMhs, _wordSize, _isWindows,
@@ -50,6 +51,7 @@ import Data.Num
 import Data.Records
 import Data.String
 import Data.Tuple
+import {-# SOURCE #-} Data.Typeable
 import System.IO.Base(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
                       FilePath, readFile, writeFile, appendFile,
                       cprint, cuprint)

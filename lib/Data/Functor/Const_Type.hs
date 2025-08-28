@@ -10,6 +10,7 @@ import Data.Function
 import Data.Functor
 import Data.Int.Int
 import Data.Ord
+import {-# SOURCE #-} Data.Typeable
 import Text.Show
 
 type Const :: forall k . Type -> k -> Type

@@ -11,6 +11,7 @@ import Data.Function
 import Data.Functor
 import Data.Int.Int
 import Data.Ord
+import {-# SOURCE #-} Data.Typeable
 import Text.Show
 
 data Either a b = Left a | Right b

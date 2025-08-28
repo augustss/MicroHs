@@ -3536,13 +3536,27 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
 -}
 
 doDeriving :: EDef -> T [EDef]
-doDeriving def@(Data    lhs cs ds)    = (def:) . concat <$> mapM (deriveDer False lhs  cs) ds
-doDeriving def@(Newtype lhs  c ds)    = (def:) . concat <$> mapM (deriveDer True  lhs [c]) ds
+doDeriving def@(Data    lhs cs ds)  = (def:) . concat <$> mapM (deriveDer False lhs  cs) (addTypeable (getSLoc lhs) ds)
+doDeriving def@(Newtype lhs  c ds)  = (def:) . concat <$> mapM (deriveDer True  lhs [c]) (addTypeable (getSLoc lhs) ds)
 doDeriving (StandDeriving as _ act) = do
   -- The StandDeriving has not been typechecked yet, so do it now.
   def@(StandDeriving s n ct) <- withTypeTable $ tcStand as act
   (def:) <$> standaloneDeriving s n ct
 doDeriving def                        = return [def]
+
+{-
+addTypeable' :: SLoc -> [Deriving] -> [Deriving]
+addTypeable' loc ds =
+  let ds' = addTypeable loc ds
+  in  trace ("addTypeable: " ++ show (ds, ds')) ds'
+-}
+-- Add Data.Typeable to the derivings.
+-- Also skip all derivings (including Typeable) if it is says 'deriving ()'
+addTypeable :: SLoc -> [Deriving] -> [Deriving]
+addTypeable _ [Deriving DerNone []] = []
+addTypeable loc dss = Deriving DerNone [(0, EVar $ mkIdentSLoc loc nameDataTypeableTypeable)] : map (\ (Deriving strat ds) -> Deriving strat (filter (not . isDT) ds)) dss
+  where isDT (_, EVar dt) = dt == identDataTypeableTypeable
+        isDT _ = False
 
 deriveDer :: Bool -> LHS -> [Constr] -> Deriving -> T [EDef]
 deriveDer newt lhs cs (Deriving strat ds) = concat <$> mapM (deriveStrat Nothing newt lhs cs strat) ds

@@ -55,6 +55,7 @@ import Data.Int.Int
 import Data.Num
 import Data.List
 import Data.Ord
+import {-# SOURCE #-} Data.Typeable
 import Text.ParserCombinators.ReadP(ReadP, ReadS, readP_to_S, readS_to_P)
 import qualified Text.ParserCombinators.ReadP as ReadP(get, look, (+++), (<++), pfail)
 

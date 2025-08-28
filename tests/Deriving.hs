@@ -1,5 +1,5 @@
 module Deriving(main) where
-
+import Data.Typeable
 import Data.Ix
 
 data T a b c = A a | B b | C a Int | D
@@ -12,7 +12,7 @@ newtype Alt f a = Alt (f a)
   deriving Show
 
 data E = X | Y | Z
-  deriving (Enum, Bounded, Show, Eq, Ord, Ix)
+  deriving (Enum, Bounded, Show, Eq, Ord, Ix, Typeable)
 
 data F = MkF Bool Int deriving (Show, Eq, Ord, Ix)
 
@@ -132,3 +132,6 @@ main = do
 
   print (Leaf 1 :^: Leaf 2 :: Tree Int)
   print (read "(:^:) (Leaf 1) (Leaf 2)" :: Tree Int)
+
+  -- Check that they all have Typeable
+  print (typeOf (R True 1), X)

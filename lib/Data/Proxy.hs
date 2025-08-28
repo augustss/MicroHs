@@ -4,6 +4,7 @@ import Primitives
 import Data.Bool_Type
 import Data.Eq
 import Data.Functor
+import {-# SOURCE #-} Data.Typeable
 import Text.Show
 
 type Proxy :: forall (k::Kind) . k -> Type

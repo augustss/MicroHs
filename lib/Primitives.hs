@@ -11,11 +11,13 @@ import Data.Ordering_Type
 -- infixr -2 =>
 infix   4 ~
 
+-- Use deriving () everywhere to avoid the automatic Data.Typeable derivation.
+
 -- Kinds
-data Constraint
-data Nat
-data Symbol
-data Type
+data Constraint deriving ()
+data Nat deriving ()
+data Symbol deriving ()
+data Type deriving ()
 
 -- Classes
 -- Type equality as a constraint.
@@ -25,23 +27,23 @@ class a ~ b | a -> b, b -> a
 -- class KnownSymbol in Data.TypeLits
 
 -- Types
-data AnyType
+data AnyType deriving ()
 --data Char
-newtype Char = Char Word
-data Int
-data Int64  -- same representation as Int on a 64 bit platform
-data Float
-data Double
-data IO a
-data Word
-data Word64
-data Ptr a
-data ForeignPtr a
-data FunPtr a
-data IOArray a
-data ThreadId
-data MVar a
-data Weak v
+newtype Char = Char Word deriving ()
+data Int deriving ()
+data Int64 deriving ()  -- same representation as Int on a 64 bit platform
+data Float deriving ()
+data Double deriving ()
+data IO a deriving ()
+data Word deriving ()
+data Word64 deriving ()
+data Ptr a deriving ()
+data ForeignPtr a deriving ()
+data FunPtr a deriving ()
+data IOArray a deriving ()
+data ThreadId deriving ()
+data MVar a deriving ()
+data Weak v deriving ()
 -- (), (,), (,,), etc are built in to the compiler
 
 primIntAdd :: Int -> Int -> Int

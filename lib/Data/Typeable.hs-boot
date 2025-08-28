@@ -7,10 +7,10 @@ type  Typeable :: forall k . k -> Constraint
 class Typeable a where
   typeRep :: forall proxy . proxy a -> TypeRep
 
-data TypeRep
+data TypeRep deriving ()
 mkTyConApp :: TyCon -> [TypeRep] -> TypeRep
 
-data TyCon
+data TyCon deriving ()
 mkTyCon :: String -> String -> TyCon
 
 cast :: forall a b. (Typeable a, Typeable b) => a -> Maybe b

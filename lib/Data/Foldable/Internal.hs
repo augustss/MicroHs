@@ -9,6 +9,7 @@ import Data.Maybe_Type
 import Data.Monoid.Internal hiding (Max(..), Min(..))
 import Data.List
 import Data.Ord
+import {-# SOURCE #-} Data.Typeable
 
 newtype Max a = Max (Maybe a)
 getMax :: forall a . Max a -> Maybe a

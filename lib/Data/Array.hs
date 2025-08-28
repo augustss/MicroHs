@@ -30,6 +30,7 @@ import Data.List
 import Data.Num
 import Data.Ord
 import Data.Tuple
+import {-# SOURCE #-} Data.Typeable
 import System.IO.Base
 import Text.ParserCombinators.ReadPrec
 import Text.Read.Internal

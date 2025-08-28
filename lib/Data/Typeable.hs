@@ -20,6 +20,7 @@ module Data.Typeable (
 import qualified Prelude(); import MiniPrelude
 import Primitives
 import Data.Integer
+import Data.List.NonEmpty(NonEmpty)
 import Data.Proxy
 import Data.Ratio
 import Data.Type.Equality
@@ -130,52 +131,51 @@ gcast x =
 
 -----------------
 
--- I really need to implement deriving...
-
 nullary :: forall a . String -> String -> a -> TypeRep
 nullary m n _ = mkTyConApp (mkTyCon m n) []
 
 prim :: forall a . String -> a -> TypeRep
 prim n = nullary "Primitives" n
 
-instance Typeable ()          where typeRep = nullary "Data.Tuple"          "()"
-instance Typeable AnyType     where typeRep = prim                          "AnyType"
-instance Typeable Bool        where typeRep = nullary "Data.Bool_Type"      "Bool"
-instance Typeable Char        where typeRep = prim                          "Char"
-instance Typeable Double      where typeRep = nullary "Data.Double"         "Double"
-instance Typeable Float       where typeRep = nullary "Data.Float"          "Float"
-instance Typeable Int         where typeRep = prim                          "Int"
-instance Typeable Int64       where typeRep = prim                          "Int64"
-instance Typeable Integer     where typeRep = nullary "Data.Integer_Type"   "Integer"
-instance Typeable Void        where typeRep = nullary "Data.Void"           "Void"
-instance Typeable Word        where typeRep = prim                          "Word"
-instance Typeable Word64      where typeRep = prim                          "Word64"
+-- Primitive types
+instance Typeable AnyType     where typeRep = prim "AnyType"
+instance Typeable Char        where typeRep = prim "Char"
+instance Typeable Double      where typeRep = prim "Double"
+instance Typeable Float       where typeRep = prim "Float"
+instance Typeable ForeignPtr  where typeRep = prim "ForeignPtr"
+instance Typeable Int         where typeRep = prim "Int"
+instance Typeable Int64       where typeRep = prim "Int64"
+instance Typeable IO          where typeRep = prim "IO"
+instance Typeable IOArray     where typeRep = prim "IOArray"
+instance Typeable MVar        where typeRep = prim "MVar"
+instance Typeable Ptr         where typeRep = prim "Ptr"
+instance Typeable FunPtr      where typeRep = prim "FunPtr"
+instance Typeable ThreadId    where typeRep = prim "ThreadId"
+instance Typeable Weak        where typeRep = prim "Weak"
+instance Typeable Word        where typeRep = prim "Word"
+instance Typeable Word64      where typeRep = prim "Word64"
 
-instance Typeable TypeRep     where typeRep = nullary "Data.Typeable"       "TypeRep"
-instance Typeable TyCon       where typeRep = nullary "Data.Typeable"       "TyCon"
-
-instance Typeable IO          where typeRep = prim                          "IO"
-instance Typeable Ptr         where typeRep = prim                          "Ptr"
-instance Typeable FunPtr      where typeRep = prim                          "FunPtr"
-instance Typeable ForeignPtr  where typeRep = prim                          "ForeignPtr"
-instance Typeable IOArray     where typeRep = prim                          "IOArray"
-instance Typeable MVar        where typeRep = prim                          "MVar"
-instance Typeable ThreadId    where typeRep = prim                          "ThreadId"
-
-instance Typeable []          where typeRep = nullary "Data.List_Type"      "[]"
-instance Typeable Maybe       where typeRep = nullary "Data.Maybe_Type"     "Maybe"
-instance Typeable Proxy       where typeRep = nullary "Data.Proxy"          "Proxy"
-instance Typeable Ratio       where typeRep = nullary "Data.Ratio"          "Ratio"
-instance Typeable Functor     where typeRep = nullary "Data.Functor"        "Functor"
-instance Typeable Applicative where typeRep = nullary "Control.Applicative" "Applicative"
-instance Typeable Monad       where typeRep = nullary "Control.Monad"       "Monad"
-
-instance Typeable (,)         where typeRep = nullary "Data.Tuple"          ","
+-- Builtin types
 instance Typeable (->)        where typeRep = prim                          "->"
-instance Typeable Either      where typeRep = nullary "Data.Either"         "Either"
-
+instance Typeable ()          where typeRep = nullary "Data.Tuple"          "()"
+instance Typeable (,)         where typeRep = nullary "Data.Tuple"          ","
 instance Typeable (,,)        where typeRep = nullary "Data.Tuple"          ",,"
 instance Typeable (,,,)       where typeRep = nullary "Data.Tuple"          ",,,"
+instance Typeable (,,,,)      where typeRep = nullary "Data.Tuple"          ",,,,"
+
+-- Types to basic to have working deriving
+instance Typeable Bool        where typeRep = nullary "Data.Bool_Type"      "Bool"
+instance Typeable Integer     where typeRep = nullary "Data.Integer_Type"   "Integer"
+instance Typeable []          where typeRep = nullary "Data.List_Type"      "[]"
+instance Typeable NonEmpty    where typeRep = nullary "Data.List.NonEmpty"  "NonEmpty"
+instance Typeable Maybe       where typeRep = nullary "Data.Maybe_Type"     "Maybe"
+instance Typeable Ordering    where typeRep = nullary "Data.Ordering_Type"  "Ordering"
+
+-- Classes. XXX these need to be derived too
+instance Typeable Applicative where typeRep = nullary "Control.Applicative" "Applicative"
+instance Typeable Functor     where typeRep = nullary "Data.Functor"        "Functor"
+instance Typeable Monad       where typeRep = nullary "Control.Monad"       "Monad"
+instance Typeable Monoid      where typeRep = nullary "Data.Monoid"         "Monoid"
 
 instance (Typeable f, Typeable a) => Typeable (f a) where
   typeRep _ = mkAppTy (typeRep (Proxy :: Proxy f)) (typeRep (Proxy :: Proxy a))

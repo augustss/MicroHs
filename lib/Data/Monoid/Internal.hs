@@ -17,6 +17,7 @@ import Data.Ord
 import Data.Maybe_Type
 import Data.Num
 import Data.Records
+import {-# SOURCE #-} Data.Typeable
 import Text.Show
 
 class Semigroup a => Monoid a where

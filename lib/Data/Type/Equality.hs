@@ -1,5 +1,6 @@
 module Data.Type.Equality(module Data.Type.Equality) where
 import qualified Prelude(); import MiniPrelude
+import {-# SOURCE #-} Data.Typeable
 
 type (:~:) :: forall k . k -> k -> Type
 data a :~: b = (a ~ b) => Refl

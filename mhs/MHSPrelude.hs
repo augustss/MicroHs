@@ -28,6 +28,7 @@ module MHSPrelude(
   module Data.Records,
   module Data.String,
   module Data.Tuple,
+  module Data.Typeable,
   module System.IO.Base,
   module Text.Show,
   first, second,
@@ -79,6 +80,7 @@ import System.IO.Base(IO, putChar, putStr, putStrLn, print, getLine, getContents
                       FilePath, readFile, writeFile, appendFile,
                       cprint, cuprint)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
+import {-# SOURCE #-} Data.Typeable
 import Primitives(_wordSize, _isWindows)
 import Data.Text(Text)
 

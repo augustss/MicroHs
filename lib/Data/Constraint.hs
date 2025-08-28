@@ -2,7 +2,7 @@
 -- See LICENSE file for full license.
 module Data.Constraint(module Data.Constraint) where
 import qualified Prelude()              -- do not import Prelude
-import Primitives  -- for (->)
+import {-# SOURCE #-} Data.Typeable
 import Text.Show
 
 -- A very, very minimal version of the constraints package

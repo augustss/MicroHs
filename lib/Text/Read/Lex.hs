@@ -52,6 +52,7 @@ import Data.Num
 import Data.Ord
 import Data.Ratio
 import Data.Tuple
+import {-# SOURCE #-} Data.Typeable
 import Text.Show
 import Text.ParserCombinators.ReadP
 {-

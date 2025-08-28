@@ -12,6 +12,7 @@ import Data.Int.Int
 import Data.Monoid.Internal
 import Data.Records
 import Data.Ord
+import {-# SOURCE #-} Data.Typeable
 import Text.Show
 
 --data (a,b) = (a,b)  -- all tuples are built in

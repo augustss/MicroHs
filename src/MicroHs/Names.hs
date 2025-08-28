@@ -99,6 +99,11 @@ nameKnownNat = "Data.TypeLits.KnownNat"
 nameKnownSymbol :: String
 nameKnownSymbol = "Data.TypeLits.KnownSymbol"
 
+nameDataTypeableTypeable :: String
+nameDataTypeableTypeable = "Data.Typeable.Typeable"
+identDataTypeableTypeable :: Ident
+identDataTypeableTypeable = mkIdentB nameDataTypeableTypeable
+
 nameCoercible :: String
 nameCoercible = "Data.Coerce.Coercible"
 

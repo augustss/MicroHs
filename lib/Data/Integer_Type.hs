@@ -15,9 +15,9 @@ import Data.List_Type
 --  * no trailing 0s in the digits
 --  * 0 is positive
 
-data Integer = I Sign [Digit]
+data Integer = I Sign [Digit] deriving ()
 
-data Sign = Plus | Minus
+data Sign = Plus | Minus deriving ()
 
 type Digit = Word
 

@@ -25,6 +25,7 @@ import Data.List.NonEmpty_Type
 import Data.Ord
 import Data.Monoid.Internal
 import Data.Records
+import {-# SOURCE #-} Data.Typeable
 import Text.Show
 
 {-

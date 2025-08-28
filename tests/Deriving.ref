@@ -93,3 +93,4 @@ True
 True
 (:^:) (Leaf 1) (Leaf 2)
 (:^:) (Leaf 1) (Leaf 2)
+(Rec Bool,X)

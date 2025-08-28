@@ -50,6 +50,7 @@ import Data.Num
 import Data.Ord
 import Data.String
 import Data.Tuple
+import {-# SOURCE #-} Data.Typeable
 import Text.Show
 import Foreign.C.String
 import Foreign.Marshal.Alloc

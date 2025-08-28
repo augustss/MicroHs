@@ -16,6 +16,7 @@ import Data.Num
 import Data.Ord
 import Data.String
 import Data.Word.Word8(Word8)
+import {-# SOURCE #-} Data.Typeable
 import Foreign.C.Types(CChar)
 import Text.Show
 

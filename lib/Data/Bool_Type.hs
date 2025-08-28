@@ -3,3 +3,5 @@
 module Data.Bool_Type(module Data.Bool_Type) where
 import qualified Prelude()              -- do not import Prelude
 data Bool = False | True
+  deriving ()  -- avoid deriving Typeable
+

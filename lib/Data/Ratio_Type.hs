@@ -2,6 +2,7 @@ module Data.Ratio_Type(module Data.Ratio_Type) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Integer_Type
+import {-# SOURCE #-} Data.Typeable
 
 data Ratio a = !a :% !a
 
