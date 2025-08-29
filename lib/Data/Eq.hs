@@ -4,6 +4,7 @@ module Data.Eq(
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool_Type
+import {-# SOURCE #-} Data.Typeable
 
 infix 4 ==,/=
 

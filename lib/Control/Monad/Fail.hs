@@ -6,6 +6,7 @@ import Control.Error
 import Control.Monad
 import Data.Char
 import Data.List_Type
+import {-# SOURCE #-} Data.Typeable
 
 class Monad m => MonadFail m where
   fail :: forall a . String -> m a

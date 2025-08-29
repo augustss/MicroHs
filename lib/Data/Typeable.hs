@@ -9,6 +9,7 @@ module Data.Typeable (
   tyConModule,
   tyConName,
   mkTyCon,
+  _mkTyCon,
   mkTyConApp,
   mkAppTy,
   mkFunTy,
@@ -72,6 +73,9 @@ mkTyConApp :: TyCon -> [TypeRep] -> TypeRep
 mkTyConApp tc@(TyCon cmd5 _ _) trs = TypeRep md5 tc trs
   where md5 = md5Combine $ cmd5 : map trMd5 trs
 
+_mkTyCon :: String -> String -> a -> TypeRep
+_mkTyCon m n _ = mkTyConApp (mkTyCon m n) []
+
 -----------------
 
 data TyCon = TyCon MD5CheckSum String String
@@ -131,51 +135,42 @@ gcast x =
 
 -----------------
 
-nullary :: forall a . String -> String -> a -> TypeRep
-nullary m n _ = mkTyConApp (mkTyCon m n) []
+-- Primitive types
+deriving instance Typeable AnyType
+deriving instance Typeable Char
+deriving instance Typeable Double
+deriving instance Typeable Float
+deriving instance Typeable ForeignPtr
+deriving instance Typeable Int
+deriving instance Typeable Int64
+deriving instance Typeable IO
+deriving instance Typeable IOArray
+deriving instance Typeable MVar
+deriving instance Typeable Ptr
+deriving instance Typeable FunPtr
+deriving instance Typeable ThreadId
+deriving instance Typeable Weak
+deriving instance Typeable Word
+deriving instance Typeable Word64
+
+-- Types too basic to have working deriving
+deriving instance Typeable Bool
+deriving instance Typeable Integer
+deriving instance Typeable []
+deriving instance Typeable Maybe
+deriving instance Typeable Ordering
 
 prim :: forall a . String -> a -> TypeRep
-prim n = nullary "Primitives" n
-
--- Primitive types
-instance Typeable AnyType     where typeRep = prim "AnyType"
-instance Typeable Char        where typeRep = prim "Char"
-instance Typeable Double      where typeRep = prim "Double"
-instance Typeable Float       where typeRep = prim "Float"
-instance Typeable ForeignPtr  where typeRep = prim "ForeignPtr"
-instance Typeable Int         where typeRep = prim "Int"
-instance Typeable Int64       where typeRep = prim "Int64"
-instance Typeable IO          where typeRep = prim "IO"
-instance Typeable IOArray     where typeRep = prim "IOArray"
-instance Typeable MVar        where typeRep = prim "MVar"
-instance Typeable Ptr         where typeRep = prim "Ptr"
-instance Typeable FunPtr      where typeRep = prim "FunPtr"
-instance Typeable ThreadId    where typeRep = prim "ThreadId"
-instance Typeable Weak        where typeRep = prim "Weak"
-instance Typeable Word        where typeRep = prim "Word"
-instance Typeable Word64      where typeRep = prim "Word64"
+prim n = _mkTyCon "Primitives" n
 
 -- Builtin types
 instance Typeable (->)        where typeRep = prim                          "->"
-instance Typeable ()          where typeRep = nullary "Data.Tuple"          "()"
-instance Typeable (,)         where typeRep = nullary "Data.Tuple"          ","
-instance Typeable (,,)        where typeRep = nullary "Data.Tuple"          ",,"
-instance Typeable (,,,)       where typeRep = nullary "Data.Tuple"          ",,,"
-instance Typeable (,,,,)      where typeRep = nullary "Data.Tuple"          ",,,,"
+instance Typeable ()          where typeRep = _mkTyCon "Data.Tuple"          "()"
+instance Typeable (,)         where typeRep = _mkTyCon "Data.Tuple"          ","
+instance Typeable (,,)        where typeRep = _mkTyCon "Data.Tuple"          ",,"
+instance Typeable (,,,)       where typeRep = _mkTyCon "Data.Tuple"          ",,,"
+instance Typeable (,,,,)      where typeRep = _mkTyCon "Data.Tuple"          ",,,,"
 
--- Types to basic to have working deriving
-instance Typeable Bool        where typeRep = nullary "Data.Bool_Type"      "Bool"
-instance Typeable Integer     where typeRep = nullary "Data.Integer_Type"   "Integer"
-instance Typeable []          where typeRep = nullary "Data.List_Type"      "[]"
-instance Typeable NonEmpty    where typeRep = nullary "Data.List.NonEmpty"  "NonEmpty"
-instance Typeable Maybe       where typeRep = nullary "Data.Maybe_Type"     "Maybe"
-instance Typeable Ordering    where typeRep = nullary "Data.Ordering_Type"  "Ordering"
-
--- Classes. XXX these need to be derived too
-instance Typeable Applicative where typeRep = nullary "Control.Applicative" "Applicative"
-instance Typeable Functor     where typeRep = nullary "Data.Functor"        "Functor"
-instance Typeable Monad       where typeRep = nullary "Control.Monad"       "Monad"
-instance Typeable Monoid      where typeRep = nullary "Data.Monoid"         "Monoid"
-
+-- Type application
 instance (Typeable f, Typeable a) => Typeable (f a) where
   typeRep _ = mkAppTy (typeRep (Proxy :: Proxy f)) (typeRep (Proxy :: Proxy a))

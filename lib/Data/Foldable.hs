@@ -61,6 +61,7 @@ import Data.Monoid.Internal hiding (Max(..), Min(..))
 import Data.Num
 import Data.Ord
 import Data.Proxy
+import {-# SOURCE #-} Data.Typeable
 
 infix  4 `elem`, `notElem`
 

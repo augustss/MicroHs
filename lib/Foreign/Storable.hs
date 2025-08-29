@@ -6,6 +6,7 @@ import Foreign.C.Types
 import Foreign.Ptr
 import Data.Int
 import Data.Word
+import {-# SOURCE #-} Data.Typeable
 
 class Storable a where
    sizeOf      :: a -> Int

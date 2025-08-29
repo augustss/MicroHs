@@ -8,6 +8,7 @@ import Data.Num
 import Data.Ord
 import Data.Ratio_Type
 import Data.Real
+import {-# SOURCE #-} Data.Typeable
 
 class Num a => Fractional a where
   (/) :: a -> a -> a

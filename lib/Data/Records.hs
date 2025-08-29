@@ -9,6 +9,7 @@ import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Function
 import Data.Proxy
+import {-# SOURCE #-} Data.Typeable
 
 type Get r a = r -> a
 type Set r a = r -> a -> r

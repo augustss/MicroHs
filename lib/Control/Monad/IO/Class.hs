@@ -4,6 +4,7 @@ import Data.Char
 import Control.Applicative
 import Control.Monad
 import System.IO
+import {-# SOURCE #-} Data.Typeable
 
 class (Monad m) => MonadIO m where
   liftIO :: IO a -> m a

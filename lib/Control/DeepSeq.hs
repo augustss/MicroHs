@@ -30,6 +30,7 @@ import Data.Proxy
 import Data.Ratio
 import Data.Real
 import Data.Tuple
+import {-# SOURCE #-} Data.Typeable
 import Data.Word
 
 infixl 4 <$!!>

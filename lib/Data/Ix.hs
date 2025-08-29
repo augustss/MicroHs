@@ -12,6 +12,7 @@ import Data.Num
 import Data.Ord
 import Data.Tuple
 import Data.Word
+import {-# SOURCE #-} Data.Typeable
 
 class Ord a => Ix a where
   range :: (a, a) -> [a]

@@ -11,6 +11,7 @@ import Data.Int.Int
 import Data.Integer
 import Data.Num
 import Data.Ord
+import {-# SOURCE #-} Data.Typeable
 
 class (Fractional a, Ord a, Floating a) => RealFloat a  where
   floatRadix          :: a -> Integer

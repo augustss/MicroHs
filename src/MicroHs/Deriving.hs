@@ -1,4 +1,4 @@
-module MicroHs.Deriving(deriveStrat, expandField, mkGetName, etaReduce) where
+module MicroHs.Deriving(deriveStrat, expandField, mkGetName, etaReduce, mkTypeableInst) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.Function
@@ -140,23 +140,28 @@ mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld
 --------------------------------------------
 
 derTypeable :: Deriver
-derTypeable mctx 0 (i, _) _ etyp = do
-  -- The module name we need is the current module for regulat deriving,
+derTypeable mctx 0 (i, _) _ _ = do
+  -- The module name we need is the current module for regular deriving,
   -- and the module of the type for standalone deriving.
   -- We use mctx to decide which it is.
   mn <- maybe (gets moduleName) (pure . qualOf . snd) mctx
+  return [mkTypeableInst mn i]
+derTypeable _ _ lhs _ e = cannotDerive lhs e
+
+-- Generate a Typeable instance given a module and type/class name.
+mkTypeableInst :: IdentModule -> Ident -> EDef
+mkTypeableInst mn i =
   let
     loc = getSLoc i
     itypeRep  = mkIdentSLoc loc "typeRep"
-    imkTyConApp = mkBuiltin loc "mkTyConApp"
-    imkTyCon = mkBuiltin loc "mkTyCon"
+    i_mkTyCon = mkBuiltin loc "_mkTyCon"
+    etyp = EVar (mkIdentSLoc loc nameDataTypeableTypeable)
     hdr = EApp etyp (EVar $ qualIdent mn i)
     mdl = ELit loc $ LStr $ unIdent mn
     nam = ELit loc $ LStr $ unIdent i
-    eqns = eEqns [eDummy] $ eAppI2 imkTyConApp (eAppI2 imkTyCon mdl nam) (EListish (LList []))
+    eqns = eEqns [] $ eAppI2 i_mkTyCon mdl nam
     inst = Instance hdr [Fcn itypeRep eqns] []
-  return [inst]
-derTypeable _ _ lhs _ e = cannotDerive lhs e
+  in inst
 
 --------------------------------------------
 
@@ -443,20 +448,6 @@ derData mctx _ lhs cs edata = do
   let
     inst = Instance hdr [] []
   return [inst]
-
---------------------------------------------
-
-derRead :: Deriver
-derRead mctx 0 lhs cs eread = do
-  notYet eread
-  hdr <- mkHdr mctx lhs cs eread
-  let
-    loc = getSLoc eread
-    iReadPrec = mkIdentSLoc loc "readPrec"
-    err = eEqn [] $ EApp (EVar $ mkBuiltin loc "error") (ELit loc (LStr "readPrec not defined"))
-    inst = Instance hdr [Fcn iReadPrec [err]] []
-  return [inst]
-derRead _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 

@@ -2,6 +2,7 @@ module Control.Category(module Control.Category) where
 import qualified Prelude()
 import Primitives
 import qualified Data.Function as F
+import {-# SOURCE #-} Data.Typeable
 
 infixr 9 .
 infixr 1 >>>, <<<

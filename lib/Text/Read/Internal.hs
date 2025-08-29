@@ -69,6 +69,7 @@ import Data.Real
 import Data.RealFloat
 import Data.String
 import Data.Tuple
+import {-# SOURCE #-} Data.Typeable
 import Data.Word
 import qualified Text.ParserCombinators.ReadP as P
 import Text.ParserCombinators.ReadP(ReadS, readP_to_S)

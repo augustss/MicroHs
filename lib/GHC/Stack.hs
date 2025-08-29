@@ -5,6 +5,7 @@ module GHC.Stack(
   withFrozenCallStack,
   ) where
 import qualified Prelude()              -- do not import Prelude
+import {-# SOURCE #-} Data.Typeable
 -- So we can import GHC.Stack.
 -- Sadly, this does not give us stack traces. :(
 

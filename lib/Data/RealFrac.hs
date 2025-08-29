@@ -6,6 +6,7 @@ import Data.Fractional
 import Data.Integral
 import Data.Num
 import Data.Real
+import {-# SOURCE #-} Data.Typeable
 
 class  (Ord a, Real a, Fractional a) => RealFrac a  where
   properFraction :: (Integral b) => a -> (b,a)

@@ -10,6 +10,7 @@ import Data.Integral
 import Data.Maybe
 import Data.Ord
 import Data.Num
+import {-# SOURCE #-} Data.Typeable
 
 infixl 8 `shift`, `rotate`, `shiftL`, `shiftR`, `rotateL`, `rotateR`
 infixl 7 .&.

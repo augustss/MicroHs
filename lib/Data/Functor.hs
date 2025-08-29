@@ -9,6 +9,7 @@ module Data.Functor(
 import qualified Prelude()              -- do not import Prelude
 import Primitives  -- for fixity
 import Data.Function
+import {-# SOURCE #-} Data.Typeable
 
 infixl 4 <$
 

@@ -20,6 +20,7 @@ import Data.Eq
 import Data.Function
 import Data.IORef
 import Data.List
+import {-# SOURCE #-} Data.Typeable
 --import Foreign.ForeignPtr  causes import cycle
 import Foreign.Ptr
 import System.IO_Handle

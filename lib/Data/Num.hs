@@ -4,6 +4,7 @@ module Data.Num(module Data.Num) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Integer_Type
+import {-# SOURCE #-} Data.Typeable
 
 infixl 6 +,-
 infixl 7 *

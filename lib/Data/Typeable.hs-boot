@@ -8,9 +8,6 @@ class Typeable a where
   typeRep :: forall proxy . proxy a -> TypeRep
 
 data TypeRep deriving ()
-mkTyConApp :: TyCon -> [TypeRep] -> TypeRep
-
-data TyCon deriving ()
-mkTyCon :: String -> String -> TyCon
+_mkTyCon :: forall a . String -> String -> a -> TypeRep
 
 cast :: forall a b. (Typeable a, Typeable b) => a -> Maybe b

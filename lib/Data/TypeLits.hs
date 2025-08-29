@@ -8,6 +8,7 @@ import qualified Prelude()
 import Primitives
 import Data.Char_Type
 import Data.Integer
+import {-# SOURCE #-} Data.Typeable
 
 class KnownNat (n :: Nat) where
   natVal :: forall (proxy :: Nat -> Type) . proxy n -> Integer

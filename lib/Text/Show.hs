@@ -6,6 +6,7 @@ import Primitives
 import Data.Bool_Type
 import Data.Char_Type
 import Data.List_Type
+import {-# SOURCE #-} Data.Typeable
 
 type ShowS = String -> String
 

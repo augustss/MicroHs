@@ -48,6 +48,7 @@ import Data.List
 import Data.Monoid.Internal
 import Data.Ord
 --import Data.Maybe
+import {-# SOURCE #-} Data.Typeable
 
 infixl 1 >>, >>=, =<<
 infixr 1 <=<, >=>

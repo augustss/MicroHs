@@ -45,6 +45,7 @@ import qualified Data.List as List
 import Data.Maybe
 import Data.Monoid.Internal
 import Data.Proxy
+import {-# SOURCE #-} Data.Typeable
 --import Data.Ord ( Down(..) )
 --import Data.Proxy ( Proxy(..) )
 

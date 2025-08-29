@@ -996,7 +996,7 @@ tcExpandClassInst impt dst = do
     dsc <- concat <$> mapM (expandClass impt) dst       -- Expand all class definitions
     concat <$> mapM expandField dsc                     -- Add HasField instances
   mapM_ addValueTypeClass dsf                           -- Add methods, needed while deriving
-  dsd <- concat <$> mapM doDeriving dsf                 -- Add derived instances
+  dsd <- concat <$> mapM (doDeriving impt) dsf                 -- Add derived instances
   concat <$> mapM expandInst dsd                        -- Expand all instance definitions
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
@@ -3535,14 +3535,19 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
     " has " ++ showListS showIdent ms
 -}
 
-doDeriving :: EDef -> T [EDef]
-doDeriving def@(Data    lhs cs ds)  = (def:) . concat <$> mapM (deriveDer False lhs  cs) (addTypeable (getSLoc lhs) ds)
-doDeriving def@(Newtype lhs  c ds)  = (def:) . concat <$> mapM (deriveDer True  lhs [c]) (addTypeable (getSLoc lhs) ds)
-doDeriving (StandDeriving as _ act) = do
+doDeriving :: ImpType -> EDef -> T [EDef]
+doDeriving ImpBoot def                  = return [def]  -- no deriving for boot modules
+doDeriving _ def@(Data    lhs cs ds)    = (def:) . concat <$> mapM (deriveDer False lhs  cs) (addTypeable (getSLoc lhs) ds)
+doDeriving _ def@(Newtype lhs  c ds)    = (def:) . concat <$> mapM (deriveDer True  lhs [c]) (addTypeable (getSLoc lhs) ds)
+doDeriving _ (StandDeriving as _ act)   = do
   -- The StandDeriving has not been typechecked yet, so do it now.
   def@(StandDeriving s n ct) <- withTypeTable $ tcStand as act
   (def:) <$> standaloneDeriving s n ct
-doDeriving def                        = return [def]
+doDeriving _ def@(Class _ (n, _) _ _) | unIdent n /= "~" = do  -- "~" is a special class, don't touch it
+  -- classes need to be Typeable
+  mn <- gets moduleName
+  return [def, mkTypeableInst mn n]
+doDeriving _ def                        = return [def]
 
 {-
 addTypeable' :: SLoc -> [Deriving] -> [Deriving]

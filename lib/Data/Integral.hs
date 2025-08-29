@@ -11,6 +11,7 @@ import Data.Integer_Type
 import Data.Num
 import Data.Ord
 import Data.Real
+import {-# SOURCE #-} Data.Typeable
 
 infixl 7 `quot`,`rem`
 infixl 7 `div`,`mod`

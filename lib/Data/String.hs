@@ -10,6 +10,7 @@ import Data.Char
 import Data.Eq
 import Data.Function
 import Data.List
+import {-# SOURCE #-} Data.Typeable
 
 class IsString a where
   fromString :: String -> a

@@ -14,6 +14,7 @@ import Data.Function
 import Data.List_Type
 import Data.Maybe_Type
 import Data.Functor.Const_Type
+import {-# SOURCE #-} Data.Typeable
 
 infixl 4 <*>, *>, <*, <**>
 

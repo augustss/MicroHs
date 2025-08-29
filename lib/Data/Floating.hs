@@ -3,6 +3,7 @@ import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Fractional
 import Data.Num
+import {-# SOURCE #-} Data.Typeable
 
 infixr 8 **
 

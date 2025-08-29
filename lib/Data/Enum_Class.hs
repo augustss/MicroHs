@@ -5,6 +5,7 @@ import Control.Error
 import Data.Bool
 import Data.Function((.))
 import Data.List_Type
+import {-# SOURCE #-} Data.Typeable
 
 class Enum a where
   succ           :: a -> a
