@@ -1,14 +1,16 @@
 -- Types used for C FFI.
 module Foreign.C.Types(
-  CChar(..),  CSChar(..),  CUChar(..),
+  CChar(..),  CSChar(..),  CUChar(..), CWchar(..),
   CShort(..), CUShort(..),
   CInt(..),   CUInt(..),
   CLong(..),  CULong(..),
   CPtrdiff(..),
   CSize(..),  CSSize(..),
   CLLong(..), CULLong(..),
+  CIntMax(..), CUIntMax(..),
   CIntPtr(..), CUIntPtr(..),
   CFloat(..), CDouble(..),
+  CSigAtomic(..),
   CTime(..),
   intToCSize, cSizeToInt,
   ) where
@@ -37,6 +39,8 @@ newtype CSChar   = CSChar   Int
   deriving (Eq, Ord, Enum)
 newtype CUChar   = CUChar   Word
   deriving (Eq, Ord, Enum)
+newtype CWchar = CWchar Int
+  deriving (Eq, Ord, Enum)
 newtype CShort   = CShort   Int
   deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CUShort  = CUShort  Word
@@ -55,13 +59,19 @@ newtype CSize    = CSize    Word
   deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CSSize   = CSSize   Int
   deriving (Eq, Ord, Enum, Num, Integral, Real)
-newtype CLLong   = CLLong   Int
+newtype CLLong   = CLLong   Int64
   deriving (Eq, Ord, Enum, Num, Integral, Real)
-newtype CULLong  = CULLong  Word
+newtype CULLong  = CULLong  Word64
   deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CIntPtr  = CIntPtr  Int
   deriving (Eq, Ord, Enum, Num, Integral, Real)
 newtype CUIntPtr = CUIntPtr Word
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
+newtype CIntMax = CIntMax Int64
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
+newtype CUIntMax = CUIntMax Word64
+  deriving (Eq, Ord, Enum, Num, Integral, Real)
+newtype CSigAtomic = CSigAtomic Word  -- XXX platform specific
   deriving (Eq, Ord, Enum, Num, Integral, Real)
 
 -- XXX This is really platform specific
