@@ -8,7 +8,6 @@ import Data.Bits
 import Data.Coerce
 import Data.Integer
 import Data.Real
-import Control.Exception
 import Text.Read
 
 newtype Natural = N Integer
