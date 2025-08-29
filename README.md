@@ -43,7 +43,6 @@ The compiler can also be used with emscripten to produce JavaScript/WASM.
 The language is an extended subset of Haskell-2010.
 
 Differences:
- * There is only deriving for `Bounded`, `Enum`, `Eq`, `Ord`, `Show`, and `Typeable`.
  * Kind variables need an explicit `forall`.
  * Always enabled extension:
    * AllowAmbiguousTypes

@@ -78,6 +78,17 @@ notYet d =
 derLift :: Deriver
 derLift _ _ _ _ _ = return []
 
+-- Get the name of the module where the type is defined.
+-- For regular deriving it's the current module, for standalone it's elsewhere.
+getDefModuleName :: Maybe (EConstraint, Ident) -> T IdentModule
+getDefModuleName mctx = maybe (gets moduleName) (pure . qualOf . snd) mctx
+
+getFixLookup :: Maybe (EConstraint, Ident) -> T (Ident -> Maybe Fixity)
+getFixLookup mctx = do
+  mn <- getDefModuleName mctx
+  fxt <- gets fixTable
+  pure $ \ i -> M.lookup (qualIdent mn i) fxt
+
 --------------------------------------------
 
 expandField :: EDef -> T [EDef]
@@ -144,7 +155,7 @@ derTypeable mctx 0 (i, _) _ _ = do
   -- The module name we need is the current module for regular deriving,
   -- and the module of the type for standalone deriving.
   -- We use mctx to decide which it is.
-  mn <- maybe (gets moduleName) (pure . qualOf . snd) mctx
+  mn <- getDefModuleName mctx
   return [mkTypeableInst mn i]
 derTypeable _ _ lhs _ e = cannotDerive lhs e
 
@@ -362,6 +373,7 @@ derIx _ _ lhs _ e = cannotDerive lhs e
 derShow :: Deriver
 derShow mctx 0 lhs cs eshow = do
   hdr <- mkHdr mctx lhs cs eshow
+  _fixLookup <- getFixLookup mctx  -- fixity lookup function.  Not used yet.
   let loc = getSLoc eshow
       mkEqn c@(Constr _ _ name fields) =
         let (xp, xs) = mkPat c "x"
