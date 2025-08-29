@@ -129,11 +129,8 @@ data NonEmpty a = a :| [a]
   deriving (Eq, Ord)
 -}
 
-instance (Eq a) => Eq (NonEmpty a) where
-  (x :| xs) == (y :| ys)  =  x == y && xs == ys
-
-instance (Ord a) => Ord (NonEmpty a) where
-  compare (x :| xs) (y :| ys) = compare x y <> compare xs ys
+deriving instance (Eq a) => Eq (NonEmpty a)
+deriving instance (Ord a) => Ord (NonEmpty a)
 
 instance Semigroup (NonEmpty a) where
   (a :| as) <> ~(b :| bs) = a :| (as ++ b : bs)
@@ -157,10 +154,11 @@ instance Monad NonEmpty where
 --instance Read a => Read (NonEmpty a) -- Defined in GHC.Read
 --instance Show a => Show (NonEmpty a) -- Defined in GHC.Show
 
-instance Show a => Show (NonEmpty a) where
-  showsPrec p = showsPrec p . toList
+deriving instance Show a => Show (NonEmpty a)
+
 instance Foldable NonEmpty where
   foldr f z = foldr f z . toList
+
 instance Traversable NonEmpty where
   traverse f = fmap fromList . traverse f . toList
 

@@ -347,16 +347,18 @@ derIx _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 
+-- XXX: consider whether constructors were written in infix and if so their precedence
+
 derShow :: Deriver
 derShow mctx 0 lhs cs eshow = do
   hdr <- mkHdr mctx lhs cs eshow
   let loc = getSLoc eshow
-      mkEqn c@(Constr _ _ nm flds) =
+      mkEqn c@(Constr _ _ name fields) =
         let (xp, xs) = mkPat c "x"
-        in  eEqn [varp, xp] $ showRHS nm xs flds
+        in  eEqn [varp, xp] $ showRHS name xs fields
 
       var = EVar . mkBuiltin loc
-      varp = EVar $ mkIdent "p"
+      varp = EVar $ mkIdentSLoc loc "p"
       lit = ELit loc
 
       iShowsPrec = mkIdentSLoc loc "showsPrec"
@@ -373,10 +375,10 @@ derShow mctx 0 lhs cs eshow = do
       showRHSN nm xs = eParen 10 $ eShowL " " $ eShowString (unIdentPar nm) : map (eShowsPrec 11) xs
 
       showRHSR nm fxs =
-        eShowString (unIdentPar nm ++ "{") `ejoin`
-        eShowL "," (map fld fxs) `ejoin`
+        eShowString (unIdentPar nm ++ " {") `ejoin`
+        eShowL ", " (map fld fxs) `ejoin`
         eShowString "}"
-          where fld (f, x) = eShowString (unIdentPar f ++ "=") `ejoin` eShowsPrec 0 x
+          where fld (f, x) = eShowString (unIdentPar f ++ " = ") `ejoin` eShowsPrec 0 x
 
       eqns = map mkEqn cs
       inst = Instance hdr [Fcn iShowsPrec eqns] []
@@ -391,6 +393,43 @@ unIdentPar i =
 
 --------------------------------------------
 
+derRead :: Deriver
+derRead mctx 0 lhs cs eread = do
+  hdr <- mkHdr mctx lhs cs eread
+  let
+    loc = getSLoc eread
+    iReadPrec = mkIdentSLoc loc "readPrec"
+    iReadList = mkIdentSLoc loc "readList"
+    iReadListPrec = mkIdentSLoc loc "readListPrec"
+    eReadListDefault = EVar (mkBuiltin loc "readListDefault")
+    eReadListPrecDefault = EVar (mkBuiltin loc "readListPrecDefault")
+    eParens = eAppI (mkBuiltin loc "parens")
+    eChoice = eAppI2 (mkBuiltin loc "+++")
+    ePrec n = eAppI2 (mkBuiltin loc "prec") (ELit loc (LInt n))
+    iExpectP = mkBuiltin loc "expectP"
+    eExpectIdent s = eAppI iExpectP (eAppI (mkBuiltin loc "Ident") (ELit loc (LStr s)))
+    eExpectPunc s = eAppI iExpectP (eAppI (mkBuiltin loc "Punc") (ELit loc (LStr s)))
+    eExpectSymbol s = eAppI iExpectP (eAppI (mkBuiltin loc "Symbol") (ELit loc (LStr s)))
+    eReadField = eAppI (mkBuiltin loc "step") (EVar iReadPrec)
+    eReadNamedField name = eAppI2 (mkBuiltin loc "readField") (ELit loc (LStr name)) (eAppI (mkBuiltin loc "reset") (EVar iReadPrec))
+    eReturn = eAppI (mkBuiltin loc "return")
+    ePfail = EVar (mkBuiltin loc "pfail")
+    readConstr c@(Constr _ _ ident fields) =
+      let (xe, xs) = mkPat c "x"
+          name = unIdent ident
+          readName = map SThen $ if isAlpha (head name) then [eExpectIdent name] else [eExpectPunc "(", eExpectSymbol name, eExpectPunc ")"]
+      in case fields of
+        Left _ -> ePrec 10 $ EDo Nothing $ readName ++ map (\x -> SBind x eReadField) xs ++ [SThen $ eReturn xe]
+        Right fs -> ePrec 11 $ EDo Nothing $ readName ++ [SThen $ eExpectPunc "{"] ++ intersperse (SThen $ eExpectPunc ",") (zipWith (\(f, _) x -> SBind x (eReadNamedField (unIdentPar f))) fs xs) ++ [SThen $ eExpectPunc "}", SThen $ eReturn xe]
+    readPrecEqn = eEqn [] $ if null cs then ePfail else eParens $ foldr1 eChoice (map readConstr cs)
+    readListEqn = eEqn [] eReadListDefault
+    readListPrecEqn = eEqn [] eReadListPrecDefault
+    inst = Instance hdr [Fcn iReadPrec [readPrecEqn], Fcn iReadList [readListEqn], Fcn iReadListPrec [readListPrecEqn]] []
+  return [inst]
+derRead _ _ lhs _ e = cannotDerive lhs e
+
+--------------------------------------------
+
 -- Deriving for the fake Data class.
 derData :: Deriver
 derData mctx _ lhs cs edata = do
@@ -399,20 +438,6 @@ derData mctx _ lhs cs edata = do
   let
     inst = Instance hdr [] []
   return [inst]
-
---------------------------------------------
-
-derRead :: Deriver
-derRead mctx 0 lhs cs eread = do
-  notYet eread
-  hdr <- mkHdr mctx lhs cs eread
-  let
-    loc = getSLoc eread
-    iReadPrec = mkIdentSLoc loc "readPrec"
-    err = eEqn [] $ EApp (EVar $ mkBuiltin loc "error") (ELit loc (LStr "readPrec not defined"))
-    inst = Instance hdr [Fcn iReadPrec [err]] []
-  return [inst]
-derRead _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 

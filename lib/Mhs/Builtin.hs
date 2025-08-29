@@ -16,6 +16,9 @@ module Mhs.Builtin(
   module Data.Typeable,
   module Data.Semigroup,
   module Data.String,
+  module Text.ParserCombinators.ReadPrec,
+  module Text.Read.Internal,
+  module Text.Read.Lex,
   module Text.Show,
   ) where
 --
@@ -43,4 +46,7 @@ import Data.Semigroup(Semigroup(..))
 import Data.String(IsString(..))
 import Data.Records(HasField(..), SetField(..), composeSet)
 import {-# SOURCE #-} Data.Typeable(Typeable(..), mkTyConApp, mkTyCon)
+import Text.ParserCombinators.ReadPrec((+++), pfail, prec, step, reset)
+import Text.Read.Internal(Read(..), readListDefault, readListPrecDefault, parens, expectP, readField)
+import Text.Read.Lex(Lexeme(..))
 import Text.Show(Show(..), showString, showParen)

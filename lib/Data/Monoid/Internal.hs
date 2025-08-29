@@ -167,10 +167,7 @@ instance Ord a => Ord (Arg a b) where
 
 ----------------------
 
-newtype Alt f a = Alt (f a)
---  deriving (Show)
-getAlt :: Alt f a -> f a
-getAlt (Alt x) = x
+newtype Alt f a = Alt {getAlt :: f a}
 {-
   deriving ( Generic     -- ^ @since base-4.8.0.0
            , Generic1    -- ^ @since base-4.8.0.0

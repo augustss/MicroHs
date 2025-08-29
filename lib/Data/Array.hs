@@ -31,6 +31,9 @@ import Data.Num
 import Data.Ord
 import Data.Tuple
 import System.IO.Base
+import Text.ParserCombinators.ReadPrec
+import Text.Read.Internal
+import qualified Text.Read.Lex as L
 import Text.Show
 
 data Array i a
@@ -55,8 +58,15 @@ instance (Ix a, Show a, Show b) => Show (Array a b) where
     showChar ' ' .
     showsPrec appPrec1 (assocs a)
 
---instance (Ix a, Read a, Read b) => Read (Array a b) where
---  readsPrec = undefined
+instance (Ix a, Read a, Read b) => Read (Array a b)  where
+    readPrec = parens $ prec appPrec $
+               do expectP (L.Ident "array")
+                  theBounds <- step readPrec
+                  vals   <- step readPrec
+                  return (array theBounds vals)
+
+    readListPrec = readListPrecDefault
+    readList     = readListDefault
 
 array :: (Ix a) => (a,a) -> [(a,b)] -> Array a b
 array b ies =

@@ -22,7 +22,6 @@ import Data.IORef
 import Data.List
 --import Foreign.ForeignPtr  causes import cycle
 import Foreign.Ptr
-import Mhs.Builtin
 import System.IO_Handle
 import System.IO.Unsafe
 import Text.Show

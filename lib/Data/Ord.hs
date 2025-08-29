@@ -71,13 +71,9 @@ newtype Down a = Down a
 getDown :: Down a -> a
 getDown (Down a) = a
 
-{-
-instance (Read a) => Read (Down a) where
-  readsPrec d = readParen (d > 10) $ \ r ->
-    [(Down x,t) | ("Down",s) <- lex r, (x,t) <- readsPrec 11 s]
--}
 {-  In Data.Orphans
-instance (Show a) => Show (Down a) where
+instance (Read a) => Read (Down a)
+instance (Show a) => Show (Down a)
 -}
 
 instance Eq a => Eq (Down a) where

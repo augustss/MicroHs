@@ -47,7 +47,6 @@ import Control.Applicative
 import Control.Error
 import Control.Monad
 import Control.Monad.Fail
-import Data.Array
 import Data.Bool
 import Data.Char
 import Data.Double
@@ -62,6 +61,7 @@ import Data.Integer
 import Data.Integral
 import Data.Ix
 import Data.List
+import Data.List.NonEmpty_Type
 import Data.Num
 import Data.Ord
 import Data.Ratio
@@ -70,10 +70,10 @@ import Data.RealFloat
 import Data.String
 import Data.Tuple
 import Data.Word
-import Numeric.Natural
 import qualified Text.ParserCombinators.ReadP as P
 import Text.ParserCombinators.ReadP(ReadS, readP_to_S)
 import Text.ParserCombinators.ReadPrec
+import Text.Read.Lex (Lexeme(..)) -- needed for deriving
 import qualified Text.Read.Lex as L
 import Text.Show(appPrec)
 
@@ -480,8 +480,7 @@ instance Read Ordering where
   readList     = readListDefault
 
 -- | @since base-4.11.0.0
--- deriving instance Read a => Read (NonEmpty a)
--- XXX
+deriving instance Read a => Read (NonEmpty a)
 
 --------------------------------------------------------------
 -- Structure instances of Read: Maybe, List etc
@@ -553,17 +552,6 @@ instance Read a => Read [a] where
   readList     = readListDefault
 
 -- | @since base-2.01
-instance  (Ix a, Read a, Read b) => Read (Array a b)  where
-    readPrec = parens $ prec appPrec $
-               do expectP (L.Ident "array")
-                  theBounds <- step readPrec
-                  vals   <- step readPrec
-                  return (array theBounds vals)
-
-    readListPrec = readListPrecDefault
-    readList     = readListDefault
-
--- | @since base-2.01
 instance Read L.Lexeme where
   readPrec     = lexP
   readListPrec = readListPrecDefault
@@ -633,13 +621,6 @@ instance Read Integer where
   readListPrec = readListPrecDefault
   readList     = readListDefault
 
--- | @since base-4.8.0.0
-instance Read Natural where
-  readsPrec d = map (\(n, s) -> (fromInteger n, s))
-                  . filter ((>= 0) . fst) . readsPrec d
-  readListPrec = readListPrecDefault
-  readList     = readListDefault
-
 -- | @since base-2.01
 instance Read Float where
   readPrec     = readNumber convertFrac
@@ -672,13 +653,6 @@ instance (Integral a, Ord a, Read a) => Read (Ratio a) where
 -- Tuple instances of Read, up to size 15
 ------------------------------------------------------------------------
 
--- | Reading a 'Void' value is always a parse error, considering
--- 'Void' as a data type with no constructors.
---
--- @since base-4.8.0.0
--- deriving instance Read Void
--- XXX
-
 -- | @since base-2.01
 instance Read () where
   readPrec =
@@ -692,8 +666,7 @@ instance Read () where
   readList     = readListDefault
 
 -- | @since base-4.15
--- deriving instance Read a => Read (Solo a)
--- XXX
+deriving instance Read a => Read (Solo a)
 
 -- | @since base-2.01
 instance (Read a, Read b) => Read (a,b) where

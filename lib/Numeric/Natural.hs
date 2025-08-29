@@ -8,12 +8,19 @@ import Data.Coerce
 import Data.Integer
 import Data.Real
 import Control.Exception
+import Text.Read
 
 newtype Natural = N Integer
   deriving (Eq, Ord)
 
 instance Show Natural where
   showsPrec p (N i) = showsPrec p i
+
+instance Read Natural where
+  readsPrec d = map (\(n, s) -> (fromInteger n, s))
+                  . filter ((>= 0) . fst) . readsPrec d
+  readListPrec = readListPrecDefault
+  readList     = readListDefault
 
 instance Num Natural where
   N x + N y = N (x + y)

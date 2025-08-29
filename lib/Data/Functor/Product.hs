@@ -34,7 +34,7 @@ data Product f g a = Pair (f a) (g a)
            , Generic  -- ^ @since 4.9.0.0
            , Generic1 -- ^ @since 4.9.0.0
            )
-
+-}
 -- | @since 4.18.0.0
 deriving instance (Eq (f a), Eq (g a)) => Eq (Product f g a)
 -- | @since 4.18.0.0
@@ -43,7 +43,6 @@ deriving instance (Ord (f a), Ord (g a)) => Ord (Product f g a)
 deriving instance (Read (f a), Read (g a)) => Read (Product f g a)
 -- | @since 4.18.0.0
 deriving instance (Show (f a), Show (g a)) => Show (Product f g a)
--}
 
 instance (Eq1 f, Eq1 g) => Eq1 (Product f g) where
     liftEq eq (Pair x1 y1) (Pair x2 y2) = liftEq eq x1 x2 && liftEq eq y1 y2
@@ -52,14 +51,12 @@ instance (Ord1 f, Ord1 g) => Ord1 (Product f g) where
     liftCompare comp (Pair x1 y1) (Pair x2 y2) =
         liftCompare comp x1 x2 `mappend` liftCompare comp y1 y2
 
-{-
 instance (Read1 f, Read1 g) => Read1 (Product f g) where
     liftReadPrec rp rl = readData $
         readBinaryWith (liftReadPrec rp rl) (liftReadPrec rp rl) "Pair" Pair
 
     liftReadListPrec = liftReadListPrecDefault
     liftReadList     = liftReadListDefault
--}
 
 instance (Show1 f, Show1 g) => Show1 (Product f g) where
     liftShowsPrec sp sl d (Pair x y) =

@@ -14,8 +14,14 @@ B False
 C 'a' 1
 D
 A (A 'a')
-R{x='a',y=10}
-R{x=R{x='b',y=11},y=10}
+A 42
+B D
+C True 3
+D
+R {x = 'a', y = 10}
+R {x = R {x = 'b', y = 11}, y = 10}
+R {x = True, y = 12}
+R {x = True, y = 12}
 Alt [True]
 1
 (X,Z)
@@ -85,3 +91,5 @@ True
 [MkF False 2,MkF False 3,MkF False 4,MkF False 5,MkF True 2,MkF True 3,MkF True 4,MkF True 5]
 5
 True
+(:^:) (Leaf 1) (Leaf 2)
+(:^:) (Leaf 1) (Leaf 2)
