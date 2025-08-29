@@ -7,3 +7,7 @@ main = do
         \ fibs -> putStrLn "computing fibs" >> return (1 : 1 : zipWith (+) fibs (tail fibs))
   print r
 
+  rec { a <- return (b+1)
+      ; b <- return 2 }
+  print (a, b)
+

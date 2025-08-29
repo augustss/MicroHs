@@ -43,6 +43,7 @@ module MicroHs.Expr(
   errorMessage,
   Assoc(..), Fixity,
   getBindsVars,
+  getStmtBound,
   HasLoc(..),
   eForall, eForall', unForall,
   eDummy,
@@ -383,13 +384,14 @@ instance NFData ImpVal where
 
 type ECaseArm = (EPat, EAlts)
 
-data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind]
+data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind] | SRec [EStmt]
 --DEBUG  deriving (Show)
 
 instance NFData EStmt where
   rnf (SBind a b) = rnf a `seq` rnf b
   rnf (SThen a) = rnf a
   rnf (SLet a) = rnf a
+  rnf (SRec a) = rnf a
 
 type EBind = EDef   -- subset with Fcn, PatBind, Sign, and DfltSign
 
@@ -607,6 +609,7 @@ instance HasLoc EStmt where
   getSLoc (SBind p _) = getSLoc p
   getSLoc (SThen e) = getSLoc e
   getSLoc (SLet bs) = getSLoc bs
+  getSLoc (SRec bs) = getSLoc bs
 
 instance HasLoc Eqn where
   getSLoc (Eqn [] a) = getSLoc a
@@ -777,6 +780,7 @@ allVarsStmt astmt =
     SBind p e -> allVarsPat p . allVarsExpr' e
     SThen e -> allVarsExpr' e
     SLet bs -> composeMap allVarsBind' bs
+    SRec ss -> composeMap allVarsStmt ss
 
 -----------------------------
 
@@ -1056,6 +1060,7 @@ ppEStmt as =
     SBind p e -> ppEPat p <+> text "<-" <+> ppExpr e
     SThen e -> ppExpr e
     SLet bs -> text "let" $$ nest 2 (vcat (map ppEBind bs))
+    SRec ss -> text "rec" $$ nest 2 (vcat (map ppEStmt ss))
 
 ppCaseArm :: ECaseArm -> Doc
 ppCaseArm arm =
@@ -1083,6 +1088,12 @@ getBindVars abind =
 
 getBindsVars :: HasCallStack => [EBind] -> [Ident]
 getBindsVars = concatMap getBindVars
+
+getStmtBound :: EStmt -> [Ident]
+getStmtBound (SBind p _) = patVars p
+getStmtBound (SThen _) = []
+getStmtBound (SLet bs) = concatMap getBindVars bs
+getStmtBound (SRec ss) = concatMap getStmtBound ss
 
 eForall :: [IdKind] -> EType -> EType
 eForall = eForall' QExpl

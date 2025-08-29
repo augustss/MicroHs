@@ -1,5 +1,6 @@
 module Control.Monad.Fix(
   MonadFix(..),
+  _mfix,
   fix,
   ) where
 import qualified Prelude()
@@ -13,6 +14,9 @@ import Data.Tuple
 
 class (Monad m) => MonadFix m where
   mfix :: (a -> m a) -> m a
+
+_mfix :: MonadFix m => (a -> m a) -> m a
+_mfix = mfix
 
 {-
 instance MonadFix Solo where

@@ -1844,6 +1844,8 @@ tcExprR mt ae =
             SLet bs ->
               tcExpr mt (ELet bs (EDo mmn ss))
 
+            SRec xs -> tcExpr mt $ EDo mmn (dsSRec mmn (mkQual "_mfix") (mkQual "return") xs : ss)
+
     ESectL e i -> tcLSect e i >>= tcExpr mt
     ESectR i e -> tcRSect i e >>= tcExpr mt
     EIf e1 e2 e3 -> do
@@ -1898,6 +1900,8 @@ tcExprR mt ae =
                 SLet bs ->
                   tcBinds bs $ \ ebs ->
                     doStmts (SLet ebs : rss) ss
+                SRec _ ->
+                  tcError (getSLoc as) "rec not allowed"
       (rss, (ea, ta)) <- doStmts [] ass
       let
         tr = tApp (tList loc) ta
@@ -1950,6 +1954,11 @@ tcExprR mt ae =
         tcError loc "Bad type application"
     _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
+
+dsSRec :: Maybe Ident -> Ident -> Ident -> [EStmt] -> EStmt
+dsSRec mmn imfix iret ss =
+  let vs = ETuple $ map EVar $ concatMap getStmtBound ss
+  in  SBind vs $ eAppI imfix $ eLam [ELazy True vs] $ EDo mmn (ss ++ [SThen $ eAppI iret vs])
 
 tcExprAp :: HasCallStack =>
             Expected -> Expr -> [Expr] -> T Expr
@@ -2368,6 +2377,7 @@ tcGuard (SThen e) ta = do
   ta (SThen e')
 -- XXX do we have solves
 tcGuard (SLet bs) ta = tcBinds bs $ \ bs' -> ta (SLet bs')
+tcGuard (SRec ss) _ = tcError (getSLoc ss) "rec not allowed"
 
 tcArm :: EType -> EType -> ECaseArm -> T ECaseArm
 tcArm t tpat arm =

@@ -3,6 +3,7 @@
 module Mhs.Builtin(
   module Control.Monad,
   module Control.Monad.Fail,
+  module Control.Monad.Fix,
   module Data.Bool,
   module Data.Char,
   module Data.Coerce,
@@ -32,6 +33,7 @@ import qualified Prelude()
 import Control.Error(error)
 import Control.Monad(Monad(..))
 import Control.Monad.Fail(MonadFail(..))
+import {-# SOURCE #-} Control.Monad.Fix(_mfix)
 import Data.Bool((&&), Bool(..))
 import Data.Char(Char)
 import Data.Coerce(Coercible, coerce)

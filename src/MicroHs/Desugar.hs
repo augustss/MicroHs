@@ -144,6 +144,7 @@ dsAlt dflt (SBind p e : ss) rhs = ECase e [(p, EAlts [(ss, rhs)] []), (EVar dumm
 dsAlt dflt (SThen (EVar i) : ss) rhs | isIdent "Data.Bool.otherwise" i = dsAlt dflt ss rhs
 dsAlt dflt (SThen e   : ss) rhs = EIf e (dsAlt dflt ss rhs) dflt
 dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
+dsAlt _    (SRec _ : _) _ = impossible
 
 dsBinds :: [EBind] -> Exp -> Exp
 dsBinds [] ret = ret
@@ -269,6 +270,7 @@ dsCompr e xss@(SBind p g : ss) l = ELet [hdef] (EApp eh g)
     eh = EVar h
     vs = EVar $ head $ newVars "$vs" allVs
     allVs = allVarsExpr (EListish (LCompr (ETuple [e,l]) xss))  -- all used identifiers
+dsCompr _ (SRec _ : _) _ = impossible
 
 -- Use tuple encoding to make a tuple
 mkTupleE :: [Exp] -> Exp

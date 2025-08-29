@@ -704,6 +704,7 @@ pStmt :: P EStmt
 pStmt =
       (SBind <$> (pPat <* pSLArrow) <*> pExpr)
   <|> (sLet  <$> (pKeyword "let" *> pBlock pBind)) <*> optional (pKeyword "in" *> pExpr)
+  <|> (SRec  <$> (pKeyword "rec" *> pBlock pStmt))
   <|> (SThen <$> pExpr)
   where sLet b Nothing  = SLet b
         sLet b (Just i) = SThen (ELet b i)
