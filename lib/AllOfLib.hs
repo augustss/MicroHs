@@ -30,6 +30,7 @@ import Data.Bounded
 import Data.ByteString
 import Data.ByteString.Char8
 import Data.ByteString.Lazy.Char8
+import Data.ByteString.Short.Internal
 import Data.Char
 import Data.Char_Type
 import Data.Char.Unicode
@@ -123,6 +124,7 @@ import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.StablePtr
 import Foreign.Storable
+import GHC.Exts
 import GHC.Stack
 import GHC.Types
 import Numeric

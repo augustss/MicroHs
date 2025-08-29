@@ -51,6 +51,7 @@ library base
         Data.ByteString
         Data.ByteString.Char8
         Data.ByteString.Lazy.Char8
+        Data.ByteString.Short.Internal
         Data.Char
         Data.Char.Unicode
         Data.Coerce
@@ -143,6 +144,7 @@ library base
         Foreign.Ptr
         Foreign.StablePtr
         Foreign.Storable
+        GHC.Exts
         GHC.Generics
         GHC.Stack
         GHC.Types
