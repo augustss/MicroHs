@@ -110,7 +110,7 @@ genHasFields lhs cs = do
 
 genHasField :: LHS -> [Constr] -> (Ident, EType) -> T [EDef]
 genHasField (tycon, iks) cs (fld, fldty) = do
-  mn <- getDefModuleName
+  mn <- gets moduleName
   let loc = getSLoc tycon
       qtycon = qualIdent mn tycon
       eFld = EVar fld
