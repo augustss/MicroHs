@@ -1,16 +1,36 @@
-module Data.Complex(module Data.Complex) where
+module Data.Complex (
+  Complex((:+)),
+  realPart,
+  imagPart,
+  mkPolar,
+  cis,
+  polar,
+  magnitude,
+  phase,
+  conjugate,
+) where
+
 import Data.Typeable
+import Text.ParserCombinators.ReadPrec
+import Text.Read.Internal
+import qualified Text.Read.Lex as L
 
 infix 6 :+
 
 data Complex a = !a :+ !a
-  deriving(Typeable)
+  deriving (Typeable, Eq)
 
-instance Eq a => Eq (Complex a) where
-  (x :+ y) == (x' :+ y')  =  x == x' && y == y'   -- parser bug
+instance Read a => Read (Complex a) where
+  readPrec = parens $ prec 6 $ do
+    x <- step readPrec
+    expectP (L.Symbol ":+")
+    y <- step readPrec
+    return (x :+ y)
+  readList = readListDefault
+  readListPrec = readListPrecDefault
 
 instance Show a => Show (Complex a) where
-  show (x :+ y) = show x ++ " :+ " ++ show y
+  showsPrec p (x :+ y) = showParen (p > 6) $ showsPrec 7 x . showString " :+ " . showsPrec 7 y
 
 realPart :: forall a . Complex a -> a
 realPart (x :+ _) =  x
@@ -41,9 +61,8 @@ magnitude (x:+y) =
   in  mx * sqrt(1 + r*r)
 
 phase :: forall a . (RealFloat a) => Complex a -> a
--- XXX phase (0 :+ 0)   = 0
-phase (x:+y) | x==0 && y==0 = 0
-             | otherwise    = atan2 y x
+phase (0 :+ 0) = 0
+phase (x :+ y) = atan2 y x
 
 
 instance (RealFloat a) => Num (Complex a)  where
@@ -52,9 +71,8 @@ instance (RealFloat a) => Num (Complex a)  where
     (x:+y) * (x':+y')   =  (x*x'-y*y') :+ (x*y'+y*x')
     negate (x:+y)       =  negate x :+ negate y
     abs z               =  magnitude z :+ 0
---    signum (0:+0)       =  0
-    signum z@(x:+y) | x==0 && y==0 = 0
-                    | otherwise    =  x/r :+ y/r  where r = magnitude z
+    signum (0:+0)       =  0
+    signum z@(x:+y)     =  x/r :+ y/r  where r = magnitude z
     fromInteger n       =  fromInteger n :+ 0
 
 instance (RealFloat a) => Fractional (Complex a)  where
@@ -71,15 +89,13 @@ instance (RealFloat a) => Floating (Complex a) where
     exp (x:+y)     =  expx * cos y :+ expx * sin y
                       where expx = exp x
     log z          =  log (magnitude z) :+ phase z
-{-
+
     x ** y = case (x,y) of
- {- XXX
-     (_ , (0:+0))  -> 1 :+ 0
+      (_ , (0:+0))  -> 1 :+ 0
       ((0:+0), (exp_re:+_)) -> case compare exp_re 0 of
                  GT -> 0 :+ 0
                  LT -> inf :+ 0
                  EQ -> nan :+ nan
--}
       ((re:+im), (exp_re:+_))
         | (isInfinite re || isInfinite im) -> case compare exp_re 0 of
                  GT -> inf :+ 0
@@ -89,9 +105,8 @@ instance (RealFloat a) => Floating (Complex a) where
      where
         inf = 1/0
         nan = 0/0
--}
-    sqrt z@(x:+y) | x==0 && y==0 = 0
-                  | otherwise    =  u :+ (if y < 0 then - v else v)
+    sqrt (0:+0)    =  0
+    sqrt z@(x:+y)  =  u :+ (if y < 0 then - v else v)
                       where (u,v) = if x < 0 then (v',u') else (u',v')
                             v'    = abs y / (u'*2)
                             u'    = sqrt ((magnitude z + abs x) / 2)
