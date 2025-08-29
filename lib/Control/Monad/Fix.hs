@@ -2,6 +2,8 @@ module Control.Monad.Fix(
   MonadFix(..),
   fix,
   ) where
+import qualified Prelude()
+import MiniPrelude
 import Control.Monad
 import Data.Function(fix)
 import Data.Functor.Identity
