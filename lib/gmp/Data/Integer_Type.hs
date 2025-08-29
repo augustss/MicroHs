@@ -10,6 +10,7 @@ import qualified Prelude()
 import Primitives
 import Control.Error
 import Data.Function(($))
+import {-# SOURCE #-} Data.Typeable
 --import Foreign.ForeignPtr
 --import Mhs.Builtin
 --import System.IO.Unsafe

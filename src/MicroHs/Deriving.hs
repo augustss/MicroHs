@@ -21,7 +21,7 @@ import Debug.Trace
 --   constructor names in the derived type unqualified
 --   all other names should be qualified with B@
 
-deriveStrat :: Maybe (EConstraint, Ident) -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
+deriveStrat :: StandM -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
 deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of arguments that need eta reducing
 --  trace ("deriveStrat " ++ show (mctx, newt, lhs, cs, strat, narg, cls)) $
   case strat of
@@ -37,7 +37,11 @@ deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of argum
            "Language.Haskell.TH.Syntax.Lift", "Text.Read.Internal.Read", "Text.Show.Show"]
 
 type DeriverT = Int -> LHS -> [Constr] -> EConstraint -> T [EDef]   -- Bool indicates a newtype
-type Deriver = Maybe (EConstraint, Ident) -> DeriverT
+type Deriver = StandM -> DeriverT
+-- StandM is
+--   Nothing for regular deriving
+--   Just (instance-context, qualified-type-name) for standalone
+type StandM = Maybe (EConstraint, Ident)
 
 derivers :: [(String, Deriver)]
 derivers =
@@ -55,7 +59,7 @@ derivers =
   ,("Text.Show.Show",                  derShow)
   ]
 
-deriveNoHdr :: Maybe (EConstraint, Ident) -> DeriverT
+deriveNoHdr :: StandM -> DeriverT
 deriveNoHdr mctx narg lhs cs d = do
 --  traceM ("deriveNoHdr " ++ show d)
   case getDeriver d of
@@ -80,10 +84,12 @@ derLift _ _ _ _ _ = return []
 
 -- Get the name of the module where the type is defined.
 -- For regular deriving it's the current module, for standalone it's elsewhere.
-getDefModuleName :: Maybe (EConstraint, Ident) -> T IdentModule
+getDefModuleName :: StandM -> T IdentModule
 getDefModuleName mctx = maybe (gets moduleName) (pure . qualOf . snd) mctx
 
-getFixLookup :: Maybe (EConstraint, Ident) -> T (Ident -> Maybe Fixity)
+-- Get a fixity lookup function.
+-- The fixity table has qualified names as keys, so qualify first.
+getFixLookup :: StandM -> T (Ident -> Maybe Fixity)
 getFixLookup mctx = do
   mn <- getDefModuleName mctx
   fxt <- gets fixTable
@@ -104,7 +110,7 @@ genHasFields lhs cs = do
 
 genHasField :: LHS -> [Constr] -> (Ident, EType) -> T [EDef]
 genHasField (tycon, iks) cs (fld, fldty) = do
-  mn <- gets moduleName                -- We never do standalone deriving for HasField, so use current module name
+  mn <- getDefModuleName
   let loc = getSLoc tycon
       qtycon = qualIdent mn tycon
       eFld = EVar fld
@@ -181,12 +187,12 @@ getFieldTys (Left ts) = map snd ts
 getFieldTys (Right ts) = map (snd . snd) ts
 
 -- If there is no mctx we use the default strategy to derive the instance context.
--- The default strategy basically to require the class constraint for every
+-- The default strategy basically is to require the class constraint for every
 -- constructor argument (except direct recursion) with free type variables.
 -- E.g.  data T = C a | D (a, Int) deriving Eq
 -- will get context  (Eq a, Eq (a, Int))
 -- Used for regular deriving, not standalone.
-mkHdr :: Maybe (EConstraint, Ident) -> LHS -> [Constr] -> EConstraint -> T EConstraint
+mkHdr :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
 mkHdr (Just (ctx, _)) _ _ _ = return ctx
 mkHdr _ lhs@(_, iks) cs cls = do
   ty <- mkLhsTy lhs
@@ -463,7 +469,7 @@ derData mctx _ lhs cs edata = do
 
 --------------------------------------------
 
-newtypeDer :: Maybe (EConstraint, Ident) -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
+newtypeDer :: StandM -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
 newtypeDer mctx narg (tycon, iks) c acls mvia = do
   let loc = getSLoc cls
       (clsIks, cls) = unForall acls
@@ -556,7 +562,7 @@ etaReduce ais = eta (reverse ais)
   where eta (IdKind i _ : is) (EApp t (EVar i')) | i == i' && i `notElem` freeTyVars [t] = eta is t
         eta is t = (reverse is, t)
 
-anyclassDer :: Maybe (EConstraint, Ident) -> Int -> LHS -> EConstraint -> T [EDef]
+anyclassDer :: StandM -> Int -> LHS -> EConstraint -> T [EDef]
 anyclassDer mctx _ lhs cls = do
   hdr <- mkHdr mctx lhs [] cls
   return [Instance hdr [] []]
