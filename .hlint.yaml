@@ -71,3 +71,4 @@
     - --ignore-glob=tests/Record.hs
     - --ignore-glob=tests/ForeignC.hs
     - --ignore-glob=tests/ForImpJS.hs
+    - --ignore-glob=tests/Fix.hs
