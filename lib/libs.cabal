@@ -145,6 +145,7 @@ library base
         Foreign.Ptr
         Foreign.StablePtr
         Foreign.Storable
+        GHC.Conc.Sync
         GHC.Exts
         GHC.Generics
         GHC.Stack
