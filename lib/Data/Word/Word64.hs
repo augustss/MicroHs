@@ -1,5 +1,6 @@
 module Data.Word.Word64(
   Word64,
+  byteSwap64, bitReverse64,
   _word64ToInteger,
   ) where
 import qualified Prelude()              -- do not import Prelude
@@ -97,3 +98,22 @@ instance FiniteBits Word64 where
   finiteBitSize _ = 64
   countLeadingZeros = primWord64Clz
   countTrailingZeros = primWord64Ctz
+
+byteSwap64 :: Word64 -> Word64
+byteSwap64 w = (w <<< 56                          ) .|. (w <<< 40 .&. 0x00ff_0000_0000_0000) .|.
+               (w <<< 24 .&. 0x0000_ff00_0000_0000) .|. (w <<<  8 .&. 0x0000_00ff_0000_0000) .|.
+               (w >>>  8 .&. 0x0000_0000_ff00_0000) .|. (w >>> 24 .&. 0x0000_0000_00ff_0000) .|.
+               (w >>> 40 .&. 0x0000_0000_0000_ff00) .|. (w >>> 56                          )
+  where (<<<) = unsafeShiftL
+        (>>>) = unsafeShiftR
+
+bitReverse64:: Word64 -> Word64
+bitReverse64 x0 = x6
+  where (<<<) = unsafeShiftL
+        (>>>) = unsafeShiftR
+        x1 = ((x0 .&. 0x5555555555555555) <<<  1) .|. ((x0 .&. 0xAAAAAAAAAAAAAAAA) >>>  1)
+        x2 = ((x1 .&. 0x3333333333333333) <<<  2) .|. ((x1 .&. 0xCCCCCCCCCCCCCCCC) >>>  2)
+        x3 = ((x2 .&. 0x0F0F0F0F0F0F0F0F) <<<  4) .|. ((x2 .&. 0xF0F0F0F0F0F0F0F0) >>>  4)
+        x4 = ((x3 .&. 0x00FF00FF00FF00FF) <<<  8) .|. ((x3 .&. 0xFF00FF00FF00FF00) >>>  8)
+        x5 = ((x4 .&. 0x0000FFFF0000FFFF) <<< 16) .|. ((x4 .&. 0xFFFF0000FFFF0000) >>> 16)
+        x6 = ((x5 .&. 0x00000000FFFFFFFF) <<< 32) .|. ((x5 .&. 0xFFFFFFFF00000000) >>> 32)

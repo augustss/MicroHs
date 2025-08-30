@@ -4,3 +4,10 @@ True
 [1,0,0,65520,0,65520,65520,0,32760,0,13104,0,1,14,1,0,0,65534,65534,0,32767,0,13106,4,1,15,1,1,1,0,65535,0,32767,1,13107,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1,1,0,0,1,0,1,0,2,0,2,0,2,2,0,1,0,0,2,0,5,0,5,0,5,5,0,2,1,1,0]
 [True,False,False,True,False,True,False,True,True,True,False,False,False,True,True,True,False,False,False,True,False,False,True,True,False,True,False,False,True,True,False,True,False,False,True,True,False,True,False,False,True,True,False,True,False,False,True,True,True,False,False,True,False,True,False,True,True,True,False,False,False,True,False,False,True,True,False,True,False,False,True,True,False,True,False,False,True,True,False,True,False,False,True,True,False,True,False,False,True,True,False,True,False,False,True,True,True,False,False,True,False,True,False,True,False,False,True,True,False,True,False,False,True,True,False,True,False,False,True,True,False,True,False,False,True,True,False,True,True,True,False,False,False,True,True,True,False,False,False,True,True,True,False,False,True,False,False,True,False,True,False,True,True,True,False,False,False,True,True,True,False,False,False,True,True,True,False,False,False,True,True,True,False,False,False,True,True,True,False,False,False,True,True,True,False,False,False,True,False,False,True,True,True,False,False,True,False,True,False,True,True,True,False,False,False,True,True,True,False,False,False,True,True,True,False,False,False,True,True,True,False,False,False,True,True,True,False,False,False,True,False,False,True,True,False,True,False,False,True,True,True,False,False,True,False,True,False,True,True,True,False,False,False,True,True,True,False,False,False,True,True,True,False,False,False,True,True,True,False,False,False,True,False,False,True,True,False,True,False,False,True,True,False,True,False,False,True,True,True,False,False,True,False,True]
 [EQ,LT,LT,GT,GT,GT,GT,GT,EQ,LT,GT,GT,GT,GT,GT,GT,EQ,GT,GT,GT,GT,LT,LT,LT,EQ,LT,LT,LT,LT,LT,LT,GT,EQ,LT,LT,LT,LT,LT,GT,GT,EQ,LT,LT,LT,LT,GT,GT,GT,EQ]
+3412
+78563412
+F0DEBC9A78563412
+10010
+1000000000010010
+10000000111100001000000000010010
+1000000000000000000000000000000100000001111000010000000000100100

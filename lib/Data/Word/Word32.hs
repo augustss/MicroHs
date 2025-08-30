@@ -1,6 +1,6 @@
 -- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Word.Word32(Word32) where
+module Data.Word.Word32(Word32, byteSwap32, bitReverse32) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
@@ -111,3 +111,18 @@ instance FiniteBits Word32 where
   finiteBitSize _ = 32
   countLeadingZeros (W32 x) = primWordClz x - (_wordSize - 32)
   countTrailingZeros (W32 x) = if x == 0 then 32 else primWordCtz x
+
+byteSwap32 :: Word32 -> Word32
+byteSwap32 w = (w <<< 24) .|. (w <<< 8 .&. 0x00ff0000) .|. (w >>> 8 .&. 0x0000ff00) .|. (w >>> 24)
+  where (<<<) = unsafeShiftL
+        (>>>) = unsafeShiftR
+
+bitReverse32 :: Word32 -> Word32
+bitReverse32 x0 = x5
+  where (<<<) = unsafeShiftL
+        (>>>) = unsafeShiftR
+        x1 = ((x0 .&. 0x55555555) <<<  1) .|. ((x0 .&. 0xAAAAAAAA) >>>  1)
+        x2 = ((x1 .&. 0x33333333) <<<  2) .|. ((x1 .&. 0xCCCCCCCC) >>>  2)
+        x3 = ((x2 .&. 0x0F0F0F0F) <<<  4) .|. ((x2 .&. 0xF0F0F0F0) >>>  4)
+        x4 = ((x3 .&. 0x00FF00FF) <<<  8) .|. ((x3 .&. 0xFF00FF00) >>>  8)
+        x5 = ((x4 .&. 0x0000FFFF) <<< 16) .|. ((x4 .&. 0xFFFF0000) >>> 16)

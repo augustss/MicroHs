@@ -1,6 +1,6 @@
 -- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Word.Word8(Word8) where
+module Data.Word.Word8(Word8, bitReverse8) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
@@ -111,3 +111,11 @@ instance FiniteBits Word8 where
   finiteBitSize _ = 8
   countLeadingZeros (W8 x) = primWordClz x - (_wordSize - 8)
   countTrailingZeros (W8 x) = if x == 0 then 8 else primWordCtz x
+
+bitReverse8 :: Word8 -> Word8
+bitReverse8 x0 = x3
+  where (<<<) = unsafeShiftL
+        (>>>) = unsafeShiftR
+        x1 = ((x0 .&. 0x55) <<<  1) .|. ((x0 .&. 0xAA) >>>  1)
+        x2 = ((x1 .&. 0x33) <<<  2) .|. ((x1 .&. 0xCC) >>>  2)
+        x3 = ((x2 .&. 0x0F) <<<  4) .|. ((x2 .&. 0xF0) >>>  4)

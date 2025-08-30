@@ -1,6 +1,6 @@
 -- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Word.Word16(Word16) where
+module Data.Word.Word16(Word16, byteSwap16, bitReverse16) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
@@ -111,3 +111,17 @@ instance FiniteBits Word16 where
   finiteBitSize _ = 16
   countLeadingZeros (W16 x) = primWordClz x - (_wordSize - 16)
   countTrailingZeros (W16 x) = if x == 0 then 16 else primWordCtz x
+
+byteSwap16 :: Word16 -> Word16
+byteSwap16 w = (w <<< 8) .|. (w >>> 8)
+  where (<<<) = unsafeShiftL
+        (>>>) = unsafeShiftR
+
+bitReverse16 :: Word16 -> Word16
+bitReverse16 x0 = x4
+  where (<<<) = unsafeShiftL
+        (>>>) = unsafeShiftR
+        x1 = ((x0 .&. 0x5555) <<<  1) .|. ((x0 .&. 0xAAAA) >>>  1)
+        x2 = ((x1 .&. 0x3333) <<<  2) .|. ((x1 .&. 0xCCCC) >>>  2)
+        x3 = ((x2 .&. 0x0F0F) <<<  4) .|. ((x2 .&. 0xF0F0) >>>  4)
+        x4 = ((x3 .&. 0x00FF) <<<  8) .|. ((x3 .&. 0xFF00) >>>  8)
