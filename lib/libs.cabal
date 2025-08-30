@@ -42,6 +42,7 @@ library base
         Control.Monad.ST
         Control.Monad.Zip
         Data.Array
+        Data.Array.Byte
         Data.Bifoldable
         Data.Bifunctor
         Data.Bitraversable
