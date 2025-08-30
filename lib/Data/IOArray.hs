@@ -1,3 +1,4 @@
+-- Temporary module
 module Data.IOArray(module Data.IOArray, IOArray) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -15,3 +16,6 @@ readIOArray = primArrRead
 
 writeIOArray :: forall a . IOArray a -> Int -> a -> IO ()
 writeIOArray = primArrWrite
+
+copyIOArray :: forall a . IOArray a -> IO (IOArray a)
+copyIOArray = primArrCopy

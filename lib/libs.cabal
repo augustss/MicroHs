@@ -106,6 +106,7 @@ library base
         Data.RealFloat
         Data.RealFrac
         Data.Records
+        Data.STArray
         Data.STRef
         Data.Semigroup
         Data.String

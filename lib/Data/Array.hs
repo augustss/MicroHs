@@ -12,6 +12,7 @@ module Data.Array (
     (//),
     accum,
     ixmap,
+    freezeIOArray,
   ) where
 import qualified Prelude()
 import Primitives(primPerformIO, primArrCopy, primArrEQ)
@@ -148,3 +149,9 @@ elemsIOArray :: forall a . IOArray a -> IO [a]
 elemsIOArray a = do
   s <- sizeIOArray a
   mapM (readIOArray a) [0::Int .. s - 1]
+
+freezeIOArray :: IOArray a -> IO (Array Int a)
+freezeIOArray ioa = do
+  s <- sizeIOArray ioa
+  ioa' <- primArrCopy ioa
+  return $ Array (0, s-1) s ioa'
