@@ -448,7 +448,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_IO_GETMASKINGSTATE, T_IO_SETMASKINGSTATE,
                 T_NEWCASTRINGLEN, T_PACKCSTRING, T_PACKCSTRINGLEN,
                 T_BSAPPEND, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
-                T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX,
+                T_BSPACK, T_BSUNPACK, T_BSREPLICATE, T_BSLENGTH, T_BSSUBSTR, T_BSINDEX, T_BSWRITE,
                 T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8, T_BSTAILUTF8,
                 T_BSAPPENDDOT, T_BSGRAB,
                 T_SPNEW, T_SPDEREF, T_SPFREE,
@@ -1879,6 +1879,7 @@ struct {
   { "bslength", T_BSLENGTH },
   { "bssubstr", T_BSSUBSTR },
   { "bsindex", T_BSINDEX },
+  { "bswrite", T_BSWRITE },
 
   { "ord", T_I },
   { "chr", T_I },
@@ -5136,6 +5137,15 @@ evali(NODEPTR an)
     n = TOP(-1);
     SETINT(n, ((uint8_t *)xfp->payload.string)[xi]);
     RET;
+
+  case T_BSWRITE:
+    CHKARG4NP;
+    xfp = evalbstr(x);
+    xi = evalint(y);
+    yi = evalint(z);
+    POP(4);
+    ((uint8_t *)xfp->payload.string)[xi] = (uint8_t)yi;
+    GOPAIRUNIT;
 
   case T_RAISE:
     if (doing_rnf) RET;
