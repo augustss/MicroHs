@@ -3,8 +3,10 @@ import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.Function
 import Data.List
+import Data.Maybe (fromMaybe)
 import MicroHs.Builtin
 import MicroHs.Expr
+import MicroHs.Fixity (defaultFixity)
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.List
@@ -89,11 +91,11 @@ getDefModuleName mctx = maybe (gets moduleName) (pure . qualOf . snd) mctx
 
 -- Get a fixity lookup function.
 -- The fixity table has qualified names as keys, so qualify first.
-getFixLookup :: StandM -> T (Ident -> Maybe Fixity)
+getFixLookup :: StandM -> T (Ident -> Fixity)
 getFixLookup mctx = do
   mn <- getDefModuleName mctx
   fxt <- gets fixTable
-  pure $ \ i -> M.lookup (qualIdent mn i) fxt
+  pure $ \ i -> fromMaybe defaultFixity (M.lookup (qualIdent mn i) fxt)
 
 --------------------------------------------
 
@@ -104,7 +106,7 @@ expandField def                    = return [def]
 
 genHasFields :: LHS -> [Constr] -> T [EDef]
 genHasFields lhs cs = do
-  let fldtys = nubBy ((==) `on` fst) [ (fld, ty) | Constr _ _ _ (Right fs) <- cs, (fld, (_, ty)) <- fs ]
+  let fldtys = nubBy ((==) `on` fst) [ (fld, ty) | Constr _ _ _ _ (Right fs) <- cs, (fld, (_, ty)) <- fs ]
 --      flds = map fst fldtys
   concat <$> mapM (genHasField lhs cs) fldtys
 
@@ -128,13 +130,13 @@ genHasField (tycon, iks) cs (fld, fldty) = do
                                    (ELit loc (LStr ufld))
                                    (eApps (EVar qtycon) (map (EVar . idKindIdent) iks))
                                    fldty
-      conEqnGet (Constr _ _ c (Left ts))   = eEqn [eApps (EVar c) (map (const eDummy) ts)] undef
-      conEqnGet (Constr _ _ c (Right fts)) = eEqn [conApp] $ if fld `elem` fs then rhs else undef
+      conEqnGet (Constr _ _ c _ (Left ts))   = eEqn [eApps (EVar c) (map (const eDummy) ts)] undef
+      conEqnGet (Constr _ _ c _ (Right fts)) = eEqn [conApp] $ if fld `elem` fs then rhs else undef
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = eFld
-      conEqnSet (Constr _ _ c (Left ts))   = eEqn [eDummy, eApps (EVar c) (map (const eDummy) ts)] undef
-      conEqnSet (Constr _ _ c (Right fts)) = eEqn [eDummy, conApp] $ if fld `elem` fs then rhs else undef
+      conEqnSet (Constr _ _ c _ (Left ts))   = eEqn [eDummy, eApps (EVar c) (map (const eDummy) ts)] undef
+      conEqnSet (Constr _ _ c _ (Right fts)) = eEqn [eDummy, conApp] $ if fld `elem` fs then rhs else undef
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = eLam [eFld] conApp
@@ -197,7 +199,7 @@ mkHdr (Just (ctx, _)) _ _ _ = return ctx
 mkHdr _ lhs@(_, iks) cs cls = do
   ty <- mkLhsTy lhs
   let ctys :: [EType]  -- All top level types used by the constructors.
-      ctys = nubBy eqEType [ tt | Constr evs _ _ flds <- cs, tt <- getFieldTys flds,
+      ctys = nubBy eqEType [ tt | Constr evs _ _ _ flds <- cs, tt <- getFieldTys flds,
                             not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
   pure $ eForall iks $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
 
@@ -208,7 +210,7 @@ mkLhsTy (t, iks) = do
   return $ tApps (qualIdent mn t) $ map tVarK iks
 
 mkPat :: Constr -> String -> (EPat, [Expr])
-mkPat (Constr _ _ c flds) s =
+mkPat (Constr _ _ c _ flds) s =
   let n = either length length flds
       loc = getSLoc c
       vs = map (EVar . mkIdentSLoc loc . (s ++) . show) [1..n]
@@ -268,7 +270,7 @@ derBounded :: Deriver
 derBounded mctx 0 lhs cs@(c0:_) ebnd = do
   hdr <- mkHdr mctx lhs cs ebnd
   let loc = getSLoc ebnd
-      mkEqn bnd (Constr _ _ c flds) =
+      mkEqn bnd (Constr _ _ c _ flds) =
         let n = either length length flds
         in  eEqn [] $ tApps c (replicate n (EVar bnd))
 
@@ -288,8 +290,8 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
   hdr <- mkHdr mctx lhs cs enm
   let loc = getSLoc enm
 
-      eFirstCon = case c0 of Constr _ _ c _ -> tCon c
-      eLastCon = case last cs of Constr _ _ c _ -> tCon c
+      eFirstCon = case c0 of Constr _ _ c _ _ -> tCon c
+      eLastCon = case last cs of Constr _ _ c _ _ -> tCon c
 
       iFromEnum = mkIdentSLoc loc "fromEnum"
       iToEnum = mkIdentSLoc loc "toEnum"
@@ -312,17 +314,17 @@ derEnum mctx 0 lhs cs@(c0:_) enm | all isNullary cs = do
 derEnum _ _ lhs _ e = cannotDerive lhs e
 
 isNullary :: Constr -> Bool
-isNullary (Constr _ _ _ flds) = either null null flds
+isNullary (Constr _ _ _ _ flds) = either null null flds
 
 fromEnumEqns :: SLoc -> [Constr] -> [Eqn]
 fromEnumEqns loc cs = zipWith mkFrom cs [0..]
   where
-    mkFrom (Constr _ _ c _) i = eEqn [EVar c] $ ELit loc (LInt i)
+    mkFrom (Constr _ _ c _ _) i = eEqn [EVar c] $ ELit loc (LInt i)
 
 toEnumEqns :: SLoc -> [Constr] -> [Eqn]
 toEnumEqns loc cs = zipWith mkTo cs [0..] ++ [eEqn [eDummy] $ eAppI (mkBuiltin loc "error") (ELit loc (LStr "toEnum: out of range"))]
   where
-    mkTo (Constr _ _ c _) i = eEqn [ELit loc (LInt i)] $ EVar c
+    mkTo (Constr _ _ c _ _) i = eEqn [ELit loc (LInt i)] $ EVar c
 
 --------------------------------------------
 
@@ -352,7 +354,7 @@ derIx mctx 0 lhs cs@(c0:cs') eix = do
         inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]] [Fcn iToInt (fromEnumEqns loc cs), Fcn iFromInt (toEnumEqns loc cs)]
     return [inst]
   else if null cs' then do
-    let Constr _ _ iC0 _ = c0
+    let Constr _ _ iC0 _ _ = c0
         eAnd = eAppI2 (mkBuiltin loc "&&")
         eAdd = eAppI2 (mkBuiltin loc "+")
         eMul = eAppI2 (mkBuiltin loc "*")
@@ -374,16 +376,14 @@ derIx _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 
--- XXX: consider whether constructors were written in infix and if so their precedence
-
 derShow :: Deriver
 derShow mctx 0 lhs cs eshow = do
   hdr <- mkHdr mctx lhs cs eshow
-  _fixLookup <- getFixLookup mctx  -- fixity lookup function.  Not used yet.
+  fixLookup <- getFixLookup mctx  -- fixity lookup function.  Not used yet.
   let loc = getSLoc eshow
-      mkEqn c@(Constr _ _ name fields) =
+      mkEqn c@(Constr _ _ name isInfix fields) =
         let (xp, xs) = mkPat c "x"
-        in  eEqn [varp, xp] $ showRHS name xs fields
+        in  eEqn [varp, xp] $ showRHS name isInfix xs fields
 
       var = EVar . mkBuiltin loc
       varp = EVar $ mkIdentSLoc loc "p"
@@ -396,11 +396,16 @@ derShow mctx 0 lhs cs eshow = do
       eShowL s = foldr1 ejoin . intersperse (eShowString s)
       ejoin = eApp2 (var ".")
 
-      showRHS nm [] _ = eShowString (unIdentPar nm)
-      showRHS nm xs (Left   _) = showRHSN nm xs
-      showRHS nm xs (Right fs) = showRHSR nm $ zip (map fst fs) xs
+      showRHS nm _ [] _ = eShowString (unIdentPar nm)
+      showRHS nm inf xs (Left   _) = showRHSN nm inf xs
+      showRHS nm _ xs (Right fs) = showRHSR nm $ zip (map fst fs) xs
 
-      showRHSN nm xs = eParen 10 $ eShowL " " $ eShowString (unIdentPar nm) : map (eShowsPrec 11) xs
+      showRHSN nm inf xs =
+        if inf then
+          let p = snd $ fixLookup nm
+          in eParen p $ eShowL " " [eShowsPrec (p + 1) (xs !! 0), eShowString (unIdentTick nm), eShowsPrec (p + 1) (xs !! 1)]
+        else
+          eParen 10 $ eShowL " " $ eShowString (unIdentPar nm) : map (eShowsPrec 11) xs
 
       showRHSR nm fxs =
         eShowString (unIdentPar nm ++ " {") `ejoin`
@@ -419,11 +424,17 @@ unIdentPar i =
   let s = unIdent i
   in  if isAlpha (head s) then s else "(" ++ s ++ ")"
 
+unIdentTick :: Ident -> String
+unIdentTick i =
+  let s = unIdent i
+  in  if isAlpha (head s) then "`" ++ s ++ "`" else s
+
 --------------------------------------------
 
 derRead :: Deriver
 derRead mctx 0 lhs cs eread = do
   hdr <- mkHdr mctx lhs cs eread
+  fixLookup <- getFixLookup mctx -- fixity lookup function
   let
     loc = getSLoc eread
     iReadPrec = mkIdentSLoc loc "readPrec"
@@ -442,12 +453,17 @@ derRead mctx 0 lhs cs eread = do
     eReadNamedField name = eAppI2 (mkBuiltin loc "readField") (ELit loc (LStr name)) (eAppI (mkBuiltin loc "reset") (EVar iReadPrec))
     eReturn = eAppI (mkBuiltin loc "return")
     ePfail = EVar (mkBuiltin loc "pfail")
-    readConstr c@(Constr _ _ ident fields) =
+    readConstr c@(Constr _ _ ident isInfix fields) =
       let (xe, xs) = mkPat c "x"
           name = unIdent ident
           readName = map SThen $ if isAlpha (head name) then [eExpectIdent name] else [eExpectPunc "(", eExpectSymbol name, eExpectPunc ")"]
+          readNameInfix = map SThen $ if isAlpha (head name) then [eExpectPunc "`", eExpectIdent name, eExpectPunc "`"] else [eExpectSymbol name]
       in case fields of
-        Left _ -> ePrec 10 $ EDo Nothing $ readName ++ map (\x -> SBind x eReadField) xs ++ [SThen $ eReturn xe]
+        Left _ ->
+          if isInfix then
+            ePrec (snd $ fixLookup ident) $ EDo Nothing $ [SBind (xs !! 0) eReadField] ++ readNameInfix ++ [SBind (xs !! 1) eReadField, SThen (eReturn xe)]
+          else
+            ePrec 10 $ EDo Nothing $ readName ++ map (\x -> SBind x eReadField) xs ++ [SThen $ eReturn xe]
         Right fs -> ePrec 11 $ EDo Nothing $ readName ++ [SThen $ eExpectPunc "{"] ++ intersperse (SThen $ eExpectPunc ",") (zipWith (\(f, _) x -> SBind x (eReadNamedField (unIdentPar f))) fs xs) ++ [SThen $ eExpectPunc "}", SThen $ eReturn xe]
     readPrecEqn = eEqn [] $ if null cs then ePfail else eParens $ foldr1 eChoice (map readConstr cs)
     readListEqn = eEqn [] eReadListDefault
@@ -475,8 +491,8 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
       (clsIks, cls) = unForall acls
       oldty' =                           -- the underlying type, full
         case c of
-          Constr [] [] _ (Left [(False, t)]) -> t
-          Constr [] [] _ (Right [(_, (_, t))]) -> t
+          Constr [] [] _ _ (Left [(False, t)]) -> t
+          Constr [] [] _ _ (Right [(_, (_, t))]) -> t
           _ -> error "newtypeDer"
 --  traceM ("newtypeDer " ++ show (mctx, narg, tycon, iks, c, acls, mvia, oldty'))
   viaty <-

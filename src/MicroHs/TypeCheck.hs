@@ -1060,8 +1060,8 @@ addAssocs adef = do
               _       -> impossibleShow i
       addAssocTable (qualIdent mn ti) (map val is)
 
-    assocData (Constr _ _ c (Left _)) = [c]
-    assocData (Constr _ _ c (Right its)) = c : map fst its
+    assocData (Constr _ _ c _ (Left _)) = [c]
+    assocData (Constr _ _ c _ (Right its)) = c : map fst its
 
   case adef of
     Data    (i, _) cs _ | not (isMatchDataTypeName i)
@@ -1184,10 +1184,10 @@ tcCtx :: HasCallStack => [EConstraint] -> T [EConstraint]
 tcCtx = mapM (tCheckTypeT kConstraint)
 
 tcConstr :: HasCallStack => Constr -> T Constr
-tcConstr (Constr iks ct c ets) =
+tcConstr (Constr iks ct c inf ets) =
   assertTCMode (==TCType) $
   withVks iks $ \ iks' ->
-    Constr iks' <$> tcCtx ct <*> pure c <*>
+    Constr iks' <$> tcCtx ct <*> pure c <*> pure inf <*>
       case ets of
         Left  x -> Left  <$> mapM (\ (s,t)     ->        (,)s <$> tcTypeT (Check kType) t) x
         Right x -> Right <$> mapM (\ (i,(s,t)) -> (,)i . (,)s <$> tcTypeT (Check kType) t) x
@@ -1437,8 +1437,8 @@ addValueType :: EDef -> T ()
 addValueType adef = do
   mn <- gets moduleName
   -- tcTrace ("addValueType: " ++ showEDefs [adef])
-  let addConFields _     (Constr _ _ _ (Left _)) = return ()
-      addConFields tycon (Constr _ _ _ (Right fs)) = mapM_ addField fs
+  let addConFields _     (Constr _ _ _ _ (Left _)) = return ()
+      addConFields tycon (Constr _ _ _ _ (Right fs)) = mapM_ addField fs
         where addField (fld, _) = do
                 (fe, fty) <- tLookup "???" $ mkGetName tycon fld
                 extValETop fld fty fe
@@ -1452,16 +1452,16 @@ addValueType adef = do
       mapM_ (\ i -> extValQTop i t) is
     Data (tycon, vks) cs _ -> do
       let
-        cti = [ (qualIdent mn c, either length length ets + if null ctx then 0 else 1) | Constr _ ctx c ets <- cs ]
+        cti = [ (qualIdent mn c, either length length ets + if null ctx then 0 else 1) | Constr _ ctx c _ ets <- cs ]
         tret = tApps (qualIdent mn tycon) (map tVarK vks)
-        addCon (Constr evks ectx c ets) = do
+        addCon (Constr evks ectx c _ ets) = do
           let ts = either id (map snd) ets
               cty = EForall QExpl vks $ EForall QExpl evks $ addConstraints ectx $ foldr (tArrow . snd) tret ts
               fs = either (const []) (map fst) ets
           extValETop c cty (ECon $ ConData cti (qualIdent mn c) fs)
       mapM_ addCon cs
       mapM_ (addConFields tycon) cs
-    Newtype (tycon, vks) con@(Constr _ _ c ets) _ -> do
+    Newtype (tycon, vks) con@(Constr _ _ c _ ets) _ -> do
       let
         t = snd $ head $ either id (map snd) ets
         tret = tApps (qualIdent mn tycon) (map tVarK vks)
@@ -2281,7 +2281,7 @@ unList (Check (EApp (EVar i) t)) | i == identList = Just t
 unList _ = Nothing
 
 getFixity :: FixTable -> Ident -> Fixity
-getFixity fixs i = fromMaybe (AssocLeft, 9) $ M.lookup i fixs
+getFixity fixs i = fromMaybe defaultFixity $ M.lookup i fixs
 
 newADictIdent :: SLoc -> T Ident
 newADictIdent loc = newIdent loc adictPrefix
@@ -2945,8 +2945,8 @@ mkMatchDataTypeConstr qi at =
 
       ddata = Data lhs [cm, cn] []
             where lhs = (unQualIdent tycon, vks1)
-                  cm = Constr vks2 (if isEmptyCtx ctx2 then [] else [ctx2]) (unQualIdent mi) (Left $ map ((,) False) ats)
-                  cn = Constr []   []                                       (unQualIdent ni) (Left [])
+                  cm = Constr vks2 (if isEmptyCtx ctx2 then [] else [ctx2]) (unQualIdent mi) False (Left $ map ((,) False) ats)
+                  cn = Constr []   []                                       (unQualIdent ni) False (Left [])
 
   in  -- trace ("M :: " ++ show tm ++ ",  N :: " ++ show tn) $
       -- trace (showEDefs [ddata]) $
@@ -3321,7 +3321,7 @@ solveInstCoercible loc iCls t1 t2 = do
 extNewtypeSyns :: T ()
 extNewtypeSyns = do
   dt <- gets dataTable
-  let ext (qi, Newtype (_, vs) (Constr _ _ _c et) _) = do
+  let ext (qi, Newtype (_, vs) (Constr _ _ _c _ et) _) = do
           -- XXX We should check that the constructor name (_c) is visible.
           -- But this is tricky since we don't know under what qualified name it
           -- it should be visible.

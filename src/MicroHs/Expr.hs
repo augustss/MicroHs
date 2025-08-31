@@ -452,11 +452,12 @@ type LHS = (Ident, [IdKind])
 data Constr = Constr
   [IdKind] [EConstraint]          -- existentials: forall vs . ctx =>
   Ident                           -- constructor name
+  Bool                            -- if the constructor is written in infix notation
   (Either [SType] [ConstrField])  -- types or named fields
   deriving(Show)
 
 instance NFData Constr where
-  rnf (Constr a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
+  rnf (Constr a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
 
 type ConstrField = (Ident, SType)              -- record label and type
 type SType = (Bool, EType)                     -- the Bool indicates strict
@@ -905,7 +906,7 @@ ppEqns :: Doc -> Doc -> [Eqn] -> Doc
 ppEqns name sepr = vcat . map (\ (Eqn ps alts) -> sep [name <+> hsep (map ppEPat ps), ppAlts sepr alts])
 
 ppConstr :: Constr -> Doc
-ppConstr (Constr iks ct c cs) = ppForall QImpl iks <+> ppCtx ct <+> ppIdent c <+> ppCs cs
+ppConstr (Constr iks ct c _ cs) = ppForall QImpl iks <+> ppCtx ct <+> ppIdent c <+> ppCs cs
   where ppCs (Left  ts) = hsep (map ppSType ts)
         ppCs (Right fs) = braces (hsep $ map f fs)
           where f (i, t) = ppIdent i <+> text "::" <+> ppSType t <> text ","
