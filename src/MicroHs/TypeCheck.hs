@@ -296,7 +296,8 @@ mkTCState mdlName globs mdls =
     allAssocs :: AssocTable
     allAssocs =
       let assocs (_, TModule _ _ tes _ _ _) = [ (tyQIdent e, cs) | TypeExport _ e cs <- tes ]
-      in  M.fromList $ concatMap assocs mdls
+          eqVE (ValueExport _ (Entry e1 _)) (ValueExport _ (Entry e2 _)) = eqEType e1 e2
+      in  M.fromListWith (unionBy eqVE) $ concatMap assocs mdls
 
     dflts = foldr (mergeDefaults . tDefaults . snd) M.empty mdls
 
