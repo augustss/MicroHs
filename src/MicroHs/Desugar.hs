@@ -39,13 +39,13 @@ dsDef flags mn ffiNo adef =
     Data _ cs _ ->
       let
         n = length cs
-        dsConstr i (Constr _ ctx c ets) =
+        dsConstr i (Constr _ ctx c _ ets) =
           let
             ss = (if null ctx then [] else [False]) ++
                  map fst (either id (map snd) ets)   -- strict flags
           in (qualIdent mn c, encConstr i n ss)
       in  zipWith dsConstr [0::Int ..] cs
-    Newtype _ (Constr _ _ c _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
+    Newtype _ (Constr _ _ c _ _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
     ForImp cc ie i t -> [(i, ccall t $ Lit $ mkForImp ffiNo cc ie i t)]
     -- Foreign exports don't fit very well into the desugared syntax.

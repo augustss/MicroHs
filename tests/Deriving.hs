@@ -1,6 +1,7 @@
 module Deriving(main) where
 import Data.Typeable
 import Data.Ix
+import Text.Read (readMaybe)
 
 data T a b c = A a | B b | C a Int | D
   deriving (Eq, Ord, Show, Read)
@@ -14,15 +15,21 @@ newtype Alt f a = Alt (f a)
 data E = X | Y | Z
   deriving (Enum, Bounded, Show, Eq, Ord, Ix, Typeable)
 
-data F = MkF Bool Int deriving (Show, Eq, Ord, Ix)
-
 -- Not yet
 -- data F a = F0 | F1 a | F2 (a,a) | F3 Int | F4 a Int | F5 (Int -> a)
 --   deriving Functor
 
---infixr 5 :^:
-data Tree a = Leaf a | (:^:) (Tree a) (Tree a)
+data Pair = MkPair Bool Int deriving (Show, Eq, Ord, Ix)
+
+infixr 5 :^:
+data Tree a = Leaf a | Tree a :^: Tree a
   deriving (Show, Read)
+
+infixr 5 `Cons`
+data List a = Nil | a `Cons` List a
+  deriving (Show, Read)
+
+newtype Op = (:::) () deriving (Read, Show)
 
 main :: IO ()
 main = do
@@ -124,14 +131,24 @@ main = do
   print $ inRange (Z, Y) Z
   print $ inRange (Z, Z) Z
 
-  -- Ix F
-  let r = (MkF False 2, MkF True 5)
+  -- Ix Pair
+  let r = (MkPair False 2, MkPair True 5)
   print $ range r
-  print $ unsafeIndex r (MkF True 3)
-  print $ inRange r (MkF True 3)
+  print $ unsafeIndex r (MkPair True 3)
+  print $ inRange r (MkPair True 3)
 
   print (Leaf 1 :^: Leaf 2 :: Tree Int)
-  print (read "(:^:) (Leaf 1) (Leaf 2)" :: Tree Int)
+  print (read "Leaf 1 :^: Leaf 2" :: Tree Int)
+  print (readMaybe "(:^:) (Leaf 1) (Leaf 2)" :: Maybe (Tree Int))
+
+  print (1 `Cons` 2 `Cons` Nil :: List Int)
+  print (read "1 `Cons` (2 `Cons` Nil)" :: List Int)
+  print (readMaybe "1 `Cons` 2 `Cons` Nil" :: Maybe (List Int))
+  print (readMaybe "Cons 1 (Cons 2 Nil)" :: Maybe (List Int))
+
+  print ((:::) ())
+  print (read "(:::) ()" :: Op)
+  print (readMaybe "::: ()" :: Maybe Op)
 
   -- Check that they all have Typeable
   print (typeOf (R True 1), X)

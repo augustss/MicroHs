@@ -88,9 +88,17 @@ True
 False
 False
 True
-[MkF False 2,MkF False 3,MkF False 4,MkF False 5,MkF True 2,MkF True 3,MkF True 4,MkF True 5]
+[MkPair False 2,MkPair False 3,MkPair False 4,MkPair False 5,MkPair True 2,MkPair True 3,MkPair True 4,MkPair True 5]
 5
 True
-(:^:) (Leaf 1) (Leaf 2)
-(:^:) (Leaf 1) (Leaf 2)
+Leaf 1 :^: Leaf 2
+Leaf 1 :^: Leaf 2
+Nothing
+1 `Cons` (2 `Cons` Nil)
+1 `Cons` (2 `Cons` Nil)
+Nothing
+Nothing
+(:::) ()
+(:::) ()
+Nothing
 (Rec Bool,X)

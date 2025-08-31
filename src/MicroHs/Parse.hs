@@ -202,7 +202,11 @@ pOper :: P Ident
 pOper = pQSymOper <|> (pSpec '`' *> pQIdent <* pSpec '`')
 
 pUOper :: P Ident
-pUOper = pUQSymOper <|> (pSpec '`' *> pUQIdent <* pSpec '`')
+pUOper = pUQSymOper <|> (pSpec '`' *> pUQIdentA <* pSpec '`')
+
+-- constructor operator
+pConstrOper :: P Ident
+pConstrOper = pUSymOper <|> (pSpec '`' *> pUIdentA <* pSpec '`')
 
 pQSymOper :: P Ident
 pQSymOper = do
@@ -345,7 +349,7 @@ pDef :: P EDef
 pDef =
       pBind        -- Fcn, Sign, PatBind, Infix
   <|> uncurry Data <$> (pKeyword "data"     *> pData) <*> pDerivings
-  <|> Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSpec '=' *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDerivings
+  <|> Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSpec '=' *> (Constr [] [] <$> pUIdentSym <*> pure False <*> pField)) <*> pDerivings
   <|> Type         <$> (pKeyword "type"     *> pLHS) <*> (pSpec '=' *> pType)
   <|> Import       <$> (pKeyword "import"   *> pImportSpec)
   <|> ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> pCallConv)
@@ -439,10 +443,10 @@ dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
         case zipWithM mtch vks ts of
           -- Result type is just type variables, so use it as is
           Just sub | not (anySame (map fst sub))
-            -> Constr es'' ctx  cnm (Left stys')
+            -> Constr es'' ctx  cnm False (Left stys')
                         where stys' = map (second $ subst sub) stys
                               es'' = if null es then kind (freeTyVars (map snd stys) \\ map fst sub) else es
-          _ -> Constr es'  ctx' cnm (Left stys)
+          _ -> Constr es'  ctx' cnm False (Left stys)
       where es' = if null es then kind (freeTyVars (rty : map snd stys)) else es
             ctx' = zipWith (\ (IdKind i _) t -> eq (EVar i) t) vks ts ++ ctx
             eq t1 t2 = EApp (EApp (EVar (mkIdentSLoc (E.getSLoc t1) "~")) t1) t2
@@ -482,8 +486,8 @@ pSLArrow :: P ()
 pSLArrow = pSymbol "<-" <|> pSymbol "\x2190"
 
 pConstr :: P Constr
-pConstr = ((\ vs ct t1 c t2 -> Constr vs ct c (Left [t1, t2])) <$> pForall <*> pContext <*> pSTypeApp <*> pUSymOper <*> pSTypeApp)
-      <|> (Constr <$> pForall <*> pContext <*> pUIdentSym <*> pFields)
+pConstr = ((\ vs ct t1 c t2 -> Constr vs ct c True (Left [t1, t2])) <$> pForall <*> pContext <*> pSTypeApp <*> pConstrOper <*> pSTypeApp)
+      <|> (Constr <$> pForall <*> pContext <*> pUIdentSym <*> pure False <*> pFields)
 
 
 pFields :: P (Either [SType] [(Ident, SType)])
