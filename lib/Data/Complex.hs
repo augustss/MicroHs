@@ -18,19 +18,7 @@ import qualified Text.Read.Lex as L
 infix 6 :+
 
 data Complex a = !a :+ !a
-  deriving (Typeable, Eq)
-
-instance Read a => Read (Complex a) where
-  readPrec = parens $ prec 6 $ do
-    x <- step readPrec
-    expectP (L.Symbol ":+")
-    y <- step readPrec
-    return (x :+ y)
-  readList = readListDefault
-  readListPrec = readListPrecDefault
-
-instance Show a => Show (Complex a) where
-  showsPrec p (x :+ y) = showParen (p > 6) $ showsPrec 7 x . showString " :+ " . showsPrec 7 y
+  deriving (Typeable, Eq, Read, Show)
 
 realPart :: forall a . Complex a -> a
 realPart (x :+ _) =  x
