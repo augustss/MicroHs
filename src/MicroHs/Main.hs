@@ -236,22 +236,25 @@ splitNameVer s =
     _ -> error $ "package name not of the form name-version:" ++ show s
   where readVersion = map readInt . words . map (\ c -> if c == '.' then ' ' else c)
 
+-- Take a file name of a package, or just a package name,
+-- return the full name of the package file.
+-- It's an error if no package can be found.
+findAPackage :: Flags -> FilePath -> IO FilePath
+findAPackage flags pkgnm = do
+  ok <- doesFileExist pkgnm
+  if ok then
+    return pkgnm
+   else do
+    dirpkgs <- findAllPackages flags
+    case [ pdir </> pkg <.> packageSuffix | (pdir, pkgs) <- dirpkgs, pkg <- pkgs, pkgnm `isPrefixOf` pkg ] of
+      [] -> error $ "Package not found: " ++ show pkgnm
+      [s] -> return s
+      ss -> error $ "Package not is ambigous: " ++ show (pkgnm, ss)
+
 mainListPkg :: Flags -> FilePath -> IO ()
 mainListPkg flags "" = mainListPackages flags
-mainListPkg flags pkg = do
-  ok <- doesFileExist pkg
-  if ok then
-    mainListPkg' flags pkg
-   else do
-    mres <- openFilePath (pkgPath flags) (packageDir </> pkg <.> packageSuffix)
-    case mres of
-      Nothing -> error $ "Cannot find " ++ pkg
-      Just (pfn, hdl) -> do
-        hClose hdl
-        mainListPkg' flags pfn
-
-mainListPkg' :: Flags -> FilePath -> IO ()
-mainListPkg' _flags pkgfn = do
+mainListPkg flags pkgnm = do
+  pkgfn <- findAPackage flags pkgnm
   pkg <- readSerialized pkgfn
   putStrLn $ "name: " ++ showIdent (pkgName pkg)
   putStrLn $ "version: " ++ showVersion (pkgVersion pkg)
@@ -397,17 +400,26 @@ mainInstallPackage flags [pkgfn] =
     frst:_ -> mainInstallPackage flags [pkgfn, frst]
 mainInstallPackage _ _ = error usage
 
-mainListPackages :: Flags -> IO ()
-mainListPackages flags = mapM_ list (pkgPath flags)
+findAllPackages :: Flags -> IO [(FilePath, [String])]
+findAllPackages flags = concat <$> mapM list (pkgPath flags)
   where list dir = do
           let pdir = dir </> packageDir
           ok <- doesDirectoryExist pdir
-          when ok $ do
+          if ok then do
             files <- getDirectoryContents pdir
             let pkgs = [ b | f <- files, Just b <- [stripSuffix packageSuffix f] ]
-            putStrLn $ pdir ++ ":"
-            mapM_ (\ p -> putStrLn $ "  " ++ p) pkgs
+            if null pkgs then
+              return []
+             else
+              return [(pdir, pkgs)]
+           else
+            return []
 
+mainListPackages :: Flags -> IO ()
+mainListPackages flags = mapM_ one =<< findAllPackages flags
+  where one (pdir, pkgs) = do
+          putStrLn $ pdir ++ ":"
+          mapM_ (\ p -> putStrLn $ "  " ++ p) pkgs
 
 -- Convert something like
 --   .../.mcabal/mhs-0.10.3.0/packages/base-0.10.3.0.pkg
