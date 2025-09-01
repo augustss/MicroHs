@@ -25,8 +25,7 @@ encCase var pes dflt | n <= scottLimit = encCaseScott var pes dflt
   where n = numConstr pes
 
 encConstr :: Int -> Int -> [Bool] -> Exp
-encConstr i n ss | n /= n = undefined  -- XXX without this, everything slows down.  Why?
-                 | n <= scottLimit = encConstrScott i n ss
+encConstr i n ss | n <= scottLimit = encConstrScott i n ss
                  | otherwise       = encConstrNo i n ss
 
 encIf :: Exp -> Exp -> Exp -> Exp
