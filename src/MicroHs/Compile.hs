@@ -70,7 +70,10 @@ compileCacheTop flags mn ch = do
   return res
 
 compileMany :: Flags -> [IdentModule] -> Cache -> IO Cache
-compileMany flags mns ach = snd <$> runStateIO (mapM_ (compileModuleCached flags ImpNormal) mns) ach
+compileMany flags mns ach =
+  execStateIO (do mapM_ (loadPkg flags) (preload flags);
+                  mapM_ (compileModuleCached flags ImpNormal) mns)
+              ach
 
 getCached :: Flags -> IO Cache
 getCached flags | not (readCache flags) = return emptyCache
@@ -107,6 +110,7 @@ loadBoots flags = do
 compile :: Flags -> IdentModule -> Cache -> IO ((IdentModule, [LDef]), Symbols, Cache)
 compile flags nm ach = do
   let comp = do
+        mapM_ (loadPkg flags) (preload flags)
         res <- compileModuleCached flags ImpNormal nm
         loadBoots flags
         loadDependencies flags

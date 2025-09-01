@@ -24,6 +24,7 @@ data Flags = Flags {
   listPkg    :: Maybe FilePath, -- list package contents
   pkgPath    :: [FilePath], -- package search path
   installPkg :: Bool,       -- install a package
+  preload    :: [String],   -- packages to preload
   target     :: String,     -- Compile target defined in target.conf
   dumpFlags  :: [DumpFlag], -- For debugging,
   useStdin   :: Bool,       -- Use stdin in interactive system
@@ -55,6 +56,7 @@ defaultFlags dir = Flags {
   listPkg    = Nothing,
   pkgPath    = [],
   installPkg = False,
+  preload    = [],
   target     = "default",
   dumpFlags  = [],
   useStdin   = False,

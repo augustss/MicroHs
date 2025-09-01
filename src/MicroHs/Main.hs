@@ -70,7 +70,7 @@ main = do
                   _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -103,9 +103,10 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \                   Otherwise compile the combinators together with the runtime system to produce a regular executable\n\
       \-a                 Clear package search path\n\
       \-aPATH             Add PATH to package search path\n\
-      \-LPKG              List all modules of package PKG\n\
+      \-L[FILE|PKG]       List all modules of a package\n\
       \-PPKG              Build package PKG\n\
       \-Q PKG [DIR]       Install package PKG\n\
+      \-pFILE             Pre-load package\n\
       \-tTARGET           Select target\n\
       \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
       \                   Targets can be defined in targets.conf\n\
@@ -148,6 +149,7 @@ decodeArgs f mdls (arg:args) =
     '-':'a':[]  -> decodeArgs f{pkgPath = []} mdls args
     '-':'a':s   -> decodeArgs f{pkgPath = pkgPath f ++ [s]} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
+    '-':'p':s   -> decodeArgs f{preload = preload f ++ [s]} mdls args
     '-':'d':'d':'u':'m':'p':'-':r | Just d <- lookup r dumpFlagTable ->
                    decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
     "--stdin"   -> decodeArgs f{useStdin = True} mdls args
