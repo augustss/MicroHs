@@ -15,6 +15,7 @@ module MicroHs.Compile(
   mhsVersion,
   getMhsDir,
   openFilePath,
+  loadPkg,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Exception
@@ -71,7 +72,7 @@ compileCacheTop flags mn ch = do
 
 compileMany :: Flags -> [IdentModule] -> Cache -> IO Cache
 compileMany flags mns ach =
-  execStateIO (do mapM_ (loadPkg flags) (preload flags);
+  execStateIO (do mapM_ (loadPkg flags) (preload flags)
                   mapM_ (compileModuleCached flags ImpNormal) mns)
               ach
 

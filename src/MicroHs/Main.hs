@@ -57,16 +57,18 @@ main = do
         putStrLn $ "flags = " ++ show flags
       case listPkg flags of
         Just p -> mainListPkg flags p
-        Nothing ->
-          case buildPkg flags of
-            Just p -> mainBuildPkg flags p mdls
+        Nothing -> do
+          preload' <- mapM (findAPackage flags) (preload flags)
+          let flags' = flags { preload = preload' }
+          case buildPkg flags' of
+            Just p -> mainBuildPkg flags' p mdls
             Nothing ->
-              if installPkg flags then mainInstallPackage flags mdls else
+              if installPkg flags' then mainInstallPackage flags' mdls else
               withArgs rargs $ do
                 case mdls of
-                  []  | null (cArgs flags) -> mainInteractive flags
-                      | otherwise -> mainCompileC flags [] ""
-                  [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+                  []  | null (cArgs flags') -> mainInteractive flags'
+                      | otherwise -> mainCompileC flags' [] ""
+                  [s] -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
                   _   -> error usage
 
 usage :: String
