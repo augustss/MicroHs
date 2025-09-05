@@ -57,20 +57,22 @@ main = do
         putStrLn $ "flags = " ++ show flags
       case listPkg flags of
         Just p -> mainListPkg flags p
-        Nothing ->
-          case buildPkg flags of
-            Just p -> mainBuildPkg flags p mdls
+        Nothing -> do
+          preload' <- mapM (findAPackage flags) (preload flags)
+          let flags' = flags { preload = preload' }
+          case buildPkg flags' of
+            Just p -> mainBuildPkg flags' p mdls
             Nothing ->
-              if installPkg flags then mainInstallPackage flags mdls else
+              if installPkg flags' then mainInstallPackage flags' mdls else
               withArgs rargs $ do
                 case mdls of
-                  []  | null (cArgs flags) -> mainInteractive flags
-                      | otherwise -> mainCompileC flags [] ""
-                  [s] -> mainCompile flags (mkIdentSLoc (SLoc "command-line" 0 0) s)
+                  []  | null (cArgs flags') -> mainInteractive flags'
+                      | otherwise -> mainCompileC flags' [] ""
+                  [s] -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
                   _   -> error usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[PATH|PKG]] [-PPKG] [-Q PKG [DIR]] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -103,9 +105,10 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \                   Otherwise compile the combinators together with the runtime system to produce a regular executable\n\
       \-a                 Clear package search path\n\
       \-aPATH             Add PATH to package search path\n\
-      \-LPKG              List all modules of package PKG\n\
+      \-L[FILE|PKG]       List all modules of a package\n\
       \-PPKG              Build package PKG\n\
       \-Q PKG [DIR]       Install package PKG\n\
+      \-pFILE             Pre-load package\n\
       \-tTARGET           Select target\n\
       \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
       \                   Targets can be defined in targets.conf\n\
@@ -148,6 +151,7 @@ decodeArgs f mdls (arg:args) =
     '-':'a':[]  -> decodeArgs f{pkgPath = []} mdls args
     '-':'a':s   -> decodeArgs f{pkgPath = pkgPath f ++ [s]} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
+    '-':'p':s   -> decodeArgs f{preload = preload f ++ [s]} mdls args
     '-':'d':'d':'u':'m':'p':'-':r | Just d <- lookup r dumpFlagTable ->
                    decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
     "--stdin"   -> decodeArgs f{useStdin = True} mdls args
@@ -234,22 +238,25 @@ splitNameVer s =
     _ -> error $ "package name not of the form name-version:" ++ show s
   where readVersion = map readInt . words . map (\ c -> if c == '.' then ' ' else c)
 
+-- Take a file name of a package, or just a package name,
+-- return the full name of the package file.
+-- It's an error if no package can be found.
+findAPackage :: Flags -> FilePath -> IO FilePath
+findAPackage flags pkgnm = do
+  ok <- doesFileExist pkgnm
+  if ok then
+    return pkgnm
+   else do
+    dirpkgs <- findAllPackages flags
+    case [ pdir </> pkg <.> packageSuffix | (pdir, pkgs) <- dirpkgs, pkg <- pkgs, pkgnm `isPrefixOf` pkg ] of
+      [] -> error $ "Package not found: " ++ show pkgnm
+      [s] -> return s
+      ss -> error $ "Package not is ambigous: " ++ show (pkgnm, ss)
+
 mainListPkg :: Flags -> FilePath -> IO ()
 mainListPkg flags "" = mainListPackages flags
-mainListPkg flags pkg = do
-  ok <- doesFileExist pkg
-  if ok then
-    mainListPkg' flags pkg
-   else do
-    mres <- openFilePath (pkgPath flags) (packageDir </> pkg <.> packageSuffix)
-    case mres of
-      Nothing -> error $ "Cannot find " ++ pkg
-      Just (pfn, hdl) -> do
-        hClose hdl
-        mainListPkg' flags pfn
-
-mainListPkg' :: Flags -> FilePath -> IO ()
-mainListPkg' _flags pkgfn = do
+mainListPkg flags pkgnm = do
+  pkgfn <- findAPackage flags pkgnm
   pkg <- readSerialized pkgfn
   putStrLn $ "name: " ++ showIdent (pkgName pkg)
   putStrLn $ "version: " ++ showVersion (pkgVersion pkg)
@@ -395,17 +402,26 @@ mainInstallPackage flags [pkgfn] =
     frst:_ -> mainInstallPackage flags [pkgfn, frst]
 mainInstallPackage _ _ = error usage
 
-mainListPackages :: Flags -> IO ()
-mainListPackages flags = mapM_ list (pkgPath flags)
+findAllPackages :: Flags -> IO [(FilePath, [String])]
+findAllPackages flags = concat <$> mapM list (pkgPath flags)
   where list dir = do
           let pdir = dir </> packageDir
           ok <- doesDirectoryExist pdir
-          when ok $ do
+          if ok then do
             files <- getDirectoryContents pdir
             let pkgs = [ b | f <- files, Just b <- [stripSuffix packageSuffix f] ]
-            putStrLn $ pdir ++ ":"
-            mapM_ (\ p -> putStrLn $ "  " ++ p) pkgs
+            if null pkgs then
+              return []
+             else
+              return [(pdir, pkgs)]
+           else
+            return []
 
+mainListPackages :: Flags -> IO ()
+mainListPackages flags = mapM_ one =<< findAllPackages flags
+  where one (pdir, pkgs) = do
+          putStrLn $ pdir ++ ":"
+          mapM_ (\ p -> putStrLn $ "  " ++ p) pkgs
 
 -- Convert something like
 --   .../.mcabal/mhs-0.10.3.0/packages/base-0.10.3.0.pkg
