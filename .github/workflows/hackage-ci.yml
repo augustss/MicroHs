@@ -121,6 +121,42 @@ jobs:
         cd parsec
         mcabal install
 
+    # splitmix
+    - name: checkout splitmix repo
+      uses: actions/checkout@v4
+      with:
+        repository: haskellari/splitmix
+        path: splitmix
+    - name: compile and install splitmix package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd splitmix
+        mcabal install
+
+    # random
+    - name: checkout random repo
+      uses: actions/checkout@v4
+      with:
+        repository: augustss/random
+        path: random
+    - name: compile and install random package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd random
+        mcabal install
+
+    # granite
+    - name: checkout granite repo
+      uses: actions/checkout@v4
+      with:
+        repository: mchav/granite
+        path: granite
+    - name: compile and install granite package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd granite
+        mcabal install
+
     # DONE
     - name: cleanup
       run: |
