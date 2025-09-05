@@ -18,8 +18,10 @@ timeNFib n = do
 
 main :: IO ()
 main = do
+  putStrLn "Before GC reductions"
   timeNFib 35
   performGCWithReduction
+  putStrLn "After GC reductions"
   timeNFib 35
 
 -- Typical nfib/s is 10M
