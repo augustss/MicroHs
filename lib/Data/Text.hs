@@ -22,8 +22,13 @@ module Data.Text(
   unlines,
   take,
   drop,
-  intercalate,
+  takeWhile,
+  dropWhile,
   dropWhileEnd,
+  intercalate,
+  isPrefixOf,
+  isSuffixOf,
+  isInfixOf,
   useAsCString,
   grabCString,
   ) where
@@ -153,6 +158,22 @@ intercalate :: Text -> [Text] -> Text
 intercalate _ [] = empty
 intercalate _ [x] = x
 intercalate s (x:xs) = x `append` s `append` intercalate s xs
+
+-- XXX Should make the BS version efficient and go via that
+isPrefixOf :: Text -> Text -> Bool
+isPrefixOf p s = L.isPrefixOf (unpack p) (unpack s)
+
+isSuffixOf :: Text -> Text -> Bool
+isSuffixOf p s = L.isSuffixOf (unpack p) (unpack s)
+
+isInfixOf :: Text -> Text -> Bool
+isInfixOf p s = L.isInfixOf (unpack p) (unpack s)
+
+dropWhile :: (Char -> Bool) -> Text -> Text
+dropWhile p = pack . L.dropWhile p . unpack
+
+takeWhile :: (Char -> Bool) -> Text -> Text
+takeWhile p = pack . L.takeWhile p . unpack
 
 -- Get a C string of a Text.  The C string is encoded with
 -- modified UTF-8 (so no embedded NULs) and NUL terminated.
