@@ -133,13 +133,14 @@ getChar = hGetChar stdin
 
 cprint :: forall a . a -> IO ()
 cprint a = withHandleWr stdout $ \ p ->
+  let gc = primGC 1 in
   primRnfNoErr a `seq`
-  primGC `primThen`     -- Do GC reductions
-  primGC `primThen`
-  primGC `primThen`
-  primGC `primThen`
-  primGC `primThen`
-  primGC `primThen`
+  gc `primThen`     -- Do GC reductions
+  gc `primThen`
+  gc `primThen`
+  gc `primThen`
+  gc `primThen`
+  gc `primThen`
   primHPrint p a
 
 cuprint :: forall a . a -> IO ()

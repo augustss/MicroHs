@@ -1,4 +1,5 @@
 module Nfib(main, nfib) where
+import System.Mem
 import System.IO.TimeMilli(getTimeMilli)
 
 nfib :: Int -> Int
@@ -7,13 +8,19 @@ nfib n =
     False -> nfib (n - 1) + nfib (n - 2) + 1
     True  -> 1
 
-main :: IO ()
-main = do
+timeNFib :: Int -> IO ()
+timeNFib n = do
   t1 <- getTimeMilli
-  let r = nfib 35
+  let r = nfib n
   print r
   t2 <- getTimeMilli
   putStrLn $ "nfib/s = " ++ show (r `quot` (t2 - t1)) ++ "k"
+
+main :: IO ()
+main = do
+  timeNFib 35
+  performGCWithReduction
+  timeNFib 35
 
 -- Typical nfib/s is 10M
 -- mhs

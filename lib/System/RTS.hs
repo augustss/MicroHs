@@ -4,7 +4,7 @@ import MiniPrelude
 import Primitives
 
 gc :: IO ()
-gc = primGC
+gc = primGC 0
 
 data Stats = Stats
   { cellsAllocated :: Word

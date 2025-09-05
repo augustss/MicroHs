@@ -5426,8 +5426,15 @@ evali(NODEPTR an)
     }
   case T_IO_GC:
     //printf("gc()\n");
-    CHKARG1;
-    gc();
+    CHKARG2NP;
+    {
+      int red = evalint(x);
+      int oldred = want_gc_red;
+      want_gc_red = red;
+      gc();
+      want_gc_red = oldred;
+    }
+    POP(2);
     GOPAIRUNIT;
 
   case T_IO_STATS:

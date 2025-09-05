@@ -318,7 +318,7 @@ primArrWrite = _primitive "A.write"
 primArrEQ :: forall a . IOArray a -> IOArray a -> Bool
 primArrEQ = _primitive "A.=="
 
-primGC :: IO ()
+primGC :: Int -> IO ()
 primGC = _primitive "IO.gc"
 
 primForeignPtrToPtr :: ForeignPtr a -> Ptr a
