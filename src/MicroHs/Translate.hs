@@ -264,5 +264,7 @@ primTable = [
   ("Wknew", _primitive "Wknew"),
   ("Wknewfin", _primitive "Wknewfin"),
   ("Wkderef", _primitive "Wkderef"),
-  ("Wkfinal", _primitive "Wkfinal")
+  ("Wkfinal", _primitive "Wkfinal"),
+  ("IO.getmaskingstate", _primitive "IO.getmaskingstate"),
+  ("IO.setmaskingstate", _primitive "IO.setmaskingstate")
   ]
