@@ -30,6 +30,11 @@ library base
         Control.Concurrent.QSem
         Control.Concurrent.QSemN
         Control.Concurrent.STM
+        Control.Concurrent.STM.TVar
+        Control.Concurrent.STM.TMVar
+        Control.Concurrent.STM.TChan
+        Control.Concurrent.STM.TQueue
+        Control.Concurrent.STM.TBQueue
         Control.DeepSeq
         Control.DeepSeq.Class
         Control.Error
@@ -40,6 +45,7 @@ library base
         Control.Monad.Fix
         Control.Monad.IO.Class
         Control.Monad.ST
+        Control.Monad.STM
         Control.Monad.Zip
         Data.Array
         Data.Array.Byte
@@ -193,6 +199,7 @@ library base
         Control.Concurrent.STM.Internal.Set
         Control.Concurrent.STM.Internal.TVar
         Control.Concurrent.STM.Internal.TransactionLog
+        Control.Concurrent.STM.STMMonad
         Control.Exception.Internal
         Control.Exception.Internal.Map
         Control.Exception.Internal.Set
