@@ -2524,9 +2524,11 @@ tcPat mt ae =
 
     -- Allow C{} syntax even for non-records
     EUpdate p [] -> do
-      (p', _) <- tInferExpr p
-      case p' of
-        ECon c -> tcPat mt $ eApps p (replicate (conArity c) eDummy)
+      (p', _) <- noEffect $ tInferExpr p
+      let unApp n (EApp f _) = unApp (n+1) f  -- The constructor may have existential type, so strip the dictionaries.
+          unApp n e = (n, e)
+      case unApp 0 p' of
+        (n, ECon c) -> tcPat mt $ eApps p (replicate (conArity c - n) eDummy)
         _      -> impossible
     EUpdate p isps -> do
       me <- dsUpdate (const eDummy) p isps

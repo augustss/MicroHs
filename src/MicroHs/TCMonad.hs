@@ -50,6 +50,14 @@ tcTrace' msg = do
   let s' = unsafePerformIO $ do putStrLn msg; return s
   seq s' (put s')
 
+-- Run the action, but don't update the state
+noEffect :: TC s a -> TC s a
+noEffect tca = do
+  s <- get
+  a <- tca
+  put s
+  return a
+
 -----------------------------------------------
 
 data TypeExport = TypeExport
