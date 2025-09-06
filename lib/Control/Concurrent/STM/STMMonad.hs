@@ -25,7 +25,10 @@ module Control.Concurrent.STM.STMMonad (
   orElse,
   -- * Execution of 'STM'-transactions
   atomically,
-  newTVarIO
+  newTVarIO,
+  --
+  throwSTM,
+  catchSTM,
   ) where
 
 import Prelude hiding(catch)
@@ -53,7 +56,7 @@ data STM a = Return a
            | forall b. WriteTVar (TVar b) b (STM a)
            | Retry  
            | forall b. OrElse (STM b) (STM b) (b -> STM a) 
-
+           | forall e. Exception e => Throw e
 
 
 instance Functor STM where
@@ -74,6 +77,7 @@ instance Monad STM where
       ReadTVar x cont -> ReadTVar x (cont >=> f)
       WriteTVar v x cont -> WriteTVar v x (cont >>= f)
       OrElse a1 a2 cont -> OrElse a1 a2 (cont >=> f)
+      Throw e -> Throw e
       
 
 -- | 'newTVar' creates a new 'TVar' in the 'STM' monad
@@ -95,6 +99,12 @@ writeTVar :: TVar a  -- ^ the to-be-written 'TVar'
           -> STM ()
 writeTVar v x = WriteTVar v x (return ())
 
+
+throwSTM :: Exception e => e -> STM a
+throwSTM e = Throw e
+
+catchSTM :: Exception e => STM a -> (e -> STM a) -> STM a
+catchSTM act handle = error "catchSTM: not implemented yet"
 
 -- | 'orElse' composes two transactions: 
 -- 
@@ -145,7 +155,7 @@ atomically act =
                    other -> putStrLn ("other exception" ++ show mid) >> error "error")
 
 
-                   
+performSTM :: TLOG -> STM a -> IO a
 performSTM tlog act =
   case act of 
     Return a -> do
@@ -170,6 +180,7 @@ performSTM tlog act =
                                 Nothing -> do
                                             orRetryWithLog tlog
                                             performSTM tlog (act2 >>= cont) 
+    Throw e -> throw e
                                 
 performOrElseLeft :: TLOG -> STM a -> IO (Maybe a)
 performOrElseLeft tlog  act = 

@@ -38,9 +38,6 @@ swapTVar var new = do
 readTVarIO :: TVar a -> IO a
 readTVarIO = atomically . readTVar
 
-newTVarIO :: a -> IO (TVar a)
-newTVarIO = atomically . newTVar
-
 {-
 mkWeakTVar :: TVar a -> IO () -> IO (Weak (TVar a))
 mkWeakTVar t@(TVar t#) (IO finalizer) = IO $ \s ->
