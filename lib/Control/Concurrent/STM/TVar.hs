@@ -10,6 +10,7 @@ module Control.Concurrent.STM.TVar (
         stateTVar,
         swapTVar,
   ) where
+import Control.Concurrent.STM.STMMonad
 
 modifyTVar :: TVar a -> (a -> a) -> STM ()
 modifyTVar var f = do
@@ -34,6 +35,14 @@ swapTVar var new = do
     writeTVar var new
     return old
 
+readTVarIO :: TVar a -> IO a
+readTVarIO = atomically . readTVar
+
+newTVarIO :: a -> IO (TVar a)
+newTVarIO = atomically . newTVar
+
+{-
 mkWeakTVar :: TVar a -> IO () -> IO (Weak (TVar a))
 mkWeakTVar t@(TVar t#) (IO finalizer) = IO $ \s ->
     case mkWeak# t# t finalizer s of (# s1, w #) -> (# s1, Weak w #)
+-}
