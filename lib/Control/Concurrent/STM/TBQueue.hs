@@ -49,7 +49,7 @@ data TBQueue a
              {-# UNPACK #-} !(TVar [a])     -- R:   elements waiting to be read
              {-# UNPACK #-} !(TVar Natural) -- CW:  write capacity
              {-# UNPACK #-} !(TVar [a])     -- W:   elements written (head is most recent)
-                            !(Natural)      -- CAP: initial capacity
+                            !Natural        -- CAP: initial capacity
 
 instance Eq (TBQueue a) where
   TBQueue a _ _ _ _ == TBQueue b _ _ _ _ = a == b
@@ -94,11 +94,11 @@ newTBQueueIO size = do
 writeTBQueue :: TBQueue a -> a -> STM ()
 writeTBQueue (TBQueue rsize _read wsize write _size) a = do
   w <- readTVar wsize
-  if (w > 0)
+  if w > 0
      then do writeTVar wsize $! w - 1
      else do
           r <- readTVar rsize
-          if (r > 0)
+          if r > 0
              then do writeTVar rsize 0
                      writeTVar wsize $! r - 1
              else retry
@@ -112,7 +112,7 @@ readTBQueue (TBQueue rsize read _wsize write _size) = do
   r <- readTVar rsize
   writeTVar rsize $! r + 1
   case xs of
-    (x:xs') -> do
+    x:xs' -> do
       writeTVar read xs'
       return x
     [] -> do
@@ -157,7 +157,7 @@ peekTBQueue :: TBQueue a -> STM a
 peekTBQueue (TBQueue _ read _ write _) = do
   xs <- readTVar read
   case xs of
-    (x:_) -> return x
+    x:_ -> return x
     [] -> do
       ys <- readTVar write
       case ys of
@@ -185,11 +185,11 @@ tryPeekTBQueue c = do
 unGetTBQueue :: TBQueue a -> a -> STM ()
 unGetTBQueue (TBQueue rsize read wsize _write _size) a = do
   r <- readTVar rsize
-  if (r > 0)
+  if r > 0
      then do writeTVar rsize $! r - 1
      else do
           w <- readTVar wsize
-          if (w > 0)
+          if w > 0
              then writeTVar wsize $! w - 1
              else retry
   xs <- readTVar read
@@ -211,9 +211,7 @@ isEmptyTBQueue (TBQueue _rsize read _wsize write _size) = do
   case xs of
     (_:_) -> return False
     [] -> do ys <- readTVar write
-             case ys of
-               [] -> return True
-               _  -> return False
+             return $! null ys
 
 -- | Returns 'True' if the supplied 'TBQueue' is full.
 --
@@ -221,13 +219,11 @@ isEmptyTBQueue (TBQueue _rsize read _wsize write _size) = do
 isFullTBQueue :: TBQueue a -> STM Bool
 isFullTBQueue (TBQueue rsize _read wsize _write _size) = do
   w <- readTVar wsize
-  if (w > 0)
+  if w > 0
      then return False
      else do
          r <- readTVar rsize
-         if (r > 0)
-            then return False
-            else return True
+         return $! r <= 0
 
 -- | The maximum number of elements the queue can hold.
 --

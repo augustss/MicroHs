@@ -116,9 +116,7 @@ tryPutTMVar (TMVar t) a = do
 readTMVar :: TMVar a -> STM a
 readTMVar (TMVar t) = do
   m <- readTVar t
-  case m of
-    Nothing -> retry
-    Just a  -> return a
+  maybe retry return m
 
 -- | A version of 'readTMVar' which does not retry. Instead it
 -- returns @Nothing@ if no value is available.

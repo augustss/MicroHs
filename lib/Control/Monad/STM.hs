@@ -7,7 +7,8 @@ module Control.Monad.STM(
   throwSTM,
   catchSTM,
   ) where
+import Control.Monad
 import Control.Concurrent.STM.STMMonad
 
 check :: Bool -> STM ()
-check b = if b then return () else retry
+check b = unless b retry
