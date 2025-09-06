@@ -10,7 +10,7 @@ module Control.Exception.Internal(
   patternMatchFail, noMethodError, recSelError, recConError,
   AsyncException(..),
   ArithException(..),
-  SomeAsyncException,
+  SomeAsyncException(..),
   asyncExceptionToException,
   asyncExceptionFromException,
 
