@@ -85,16 +85,16 @@ jobs:
         cd malcolm-wallace-universe/cpphs-1.20.9
         mcabal install
 
-    # mtl
-    - name: checkout mtl repo
+    # mtl-mhs
+    - name: checkout mtl-mhs repo
       uses: actions/checkout@v4
       with:
-        repository: augustss/mtl
-        path: mtl
-    - name: compile and install mtl package
+        repository: augustss/mtl-mhs
+        path: mtl-mhs
+    - name: compile and install mtl-mhs package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd mtl
+        cd mtl-mhs
         mcabal install
 
     # pretty
@@ -133,16 +133,16 @@ jobs:
         cd splitmix
         mcabal install
 
-    # random
-    - name: checkout random repo
+    # random-mhs
+    - name: checkout random-mhs repo
       uses: actions/checkout@v4
       with:
-        repository: augustss/random
-        path: random
-    - name: compile and install random package
+        repository: augustss/random-mhs
+        path: random-mhs
+    - name: compile and install random-mhs package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd random
+        cd random-mhs
         mcabal install
 
     # granite
