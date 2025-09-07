@@ -1,6 +1,7 @@
 module GHC.Exts(
   unsafeIOToST, stToIO, RealWorld,
   build, augment,
+  inline,
   ) where
 import Control.Monad.ST_Type
 
@@ -19,3 +20,6 @@ stToIO = unST
 
 unsafeIOToST :: IO a -> ST s a
 unsafeIOToST = ST
+
+inline :: a -> a
+inline x = x

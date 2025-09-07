@@ -4,6 +4,7 @@ module Data.IORef(
   readIORef,
   writeIORef,
   modifyIORef,
+  modifyIORef',
   atomicModifyIORef,
   atomicModifyIORef',
   mkWeakIORef,
@@ -33,6 +34,9 @@ writeIORef (R p) a = primArrWrite p 0 a
 
 modifyIORef :: forall a . IORef a -> (a -> a) -> IO ()
 modifyIORef (R p) f = primArrRead p 0 `primBind` \ a -> primArrWrite p 0 (f a)
+
+modifyIORef' :: forall a . IORef a -> (a -> a) -> IO ()
+modifyIORef' (R p) f = primArrRead p 0 `primBind` \ a -> let a' = f a in primSeq a' (primArrWrite p 0 a')
 
 mkWeakIORef :: IORef a -> IO () -> IO (Weak (IORef a))
 mkWeakIORef r fin = mkWeakPtr r (Just fin)
