@@ -67,7 +67,7 @@ realHandler se
 reportError :: SomeException -> IO ()
 reportError se = do
   -- Maybe report on stderr?
-  hPutStrLn stdout $ "Uncaught child exception: " ++ show se
+  putStrLn $ "Uncaught child exception: " ++ show se
 
 myThreadId :: IO ThreadId
 myThreadId = primMyThreadId
