@@ -377,16 +377,16 @@ dropWhileEnd :: (Word8 -> Bool) -> ByteString -> ByteString
 dropWhileEnd f = pack . P.dropWhileEnd f . unpack
 
 break :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
-break p bs = (takeWhile p bs, dropWhile p bs)
+break p = span (not . p)
 
 breakEnd :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
-breakEnd  p bs = (takeWhileEnd p bs, dropWhileEnd p bs)
+breakEnd p = spanEnd (not . p)
 
 span :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
-span p = break (not . p)
+span p bs = (takeWhile p bs, dropWhile p bs)
 
 spanEnd :: (Word8 -> Bool) -> ByteString -> (ByteString, ByteString)
-spanEnd p = breakEnd (not . p)
+spanEnd p bs = (dropWhileEnd p bs, takeWhileEnd p bs)
 
 splitWith :: (Word8 -> Bool) -> ByteString -> [ByteString]
 splitWith w = P.map pack . P.splitWith w . unpack
