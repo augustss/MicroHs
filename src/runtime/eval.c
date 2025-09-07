@@ -6082,6 +6082,8 @@ evali(NODEPTR an)
   return n;
 }
 
+static char *progname = "?";
+
 NORETURN void
 die_exn(NODEPTR exn)
 {
@@ -6125,7 +6127,7 @@ die_exn(NODEPTR exn)
   if (strcmp(msg, "ExitSuccess") == 0) {
     EXIT(0);
   } else {
-    fprintf(stderr, "\nmhs: uncaught exception: %s\n", msg);
+    fprintf(stderr, "\n%s: uncaught exception: %s\n", progname, msg);
     EXIT(1);
   }
 #else  /* WANT_STDIO */
@@ -6172,7 +6174,6 @@ mhs_init_args(
 #if WANT_ARGS
   char *inname = 0;
   char **av;
-  char *progname;
   char **gargv;
   int gargc;
   int inrts;

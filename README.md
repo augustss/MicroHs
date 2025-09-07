@@ -358,7 +358,7 @@ There is also no compatibility between packages compiled with different versions
 
 ### Hackage
 Hackage is full of great packages, unfortunately most of them contain some GHC specific code.
-Some compile, most don't.  Some have replacement, most don't.  Here's a summary of what
+Some compile, most don't.  Some have replacement, most don't.  Here's a summary of
 the current state:
 
 #### Packages included with the compiler
@@ -372,7 +372,7 @@ the current state:
 * `stm` most of the functionality
 * `text` some of the functionality
 
-#### Packages that are known to compile (some with fixes for MicroHs)
+#### Packages that are known to compile (some of them include fixes for MicroHs)
 * `containers`
 * `cpphs`
 * `granite`
@@ -386,7 +386,7 @@ the current state:
 * `mtl` pull request sent, not merged (yet)
 * `random` pull request refused by the maintainers
 
-Contributions to this list are very welcome.
+Contributions to these lists are very welcome.
 
 ## Files
 There is a number of subdirectories:
