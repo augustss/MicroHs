@@ -196,6 +196,7 @@ cHsTypes =
   , ("Data.Int.Int32.Int32","Int32")
   , ("()",                "Unit")
   , ("System.IO.Handle",  "Ptr")
+  , ("Foreign.C.ConstPtr","Ptr")
   ] ++ map (\ t -> ("Foreign.C.Types." ++ t, t))
   [ "CChar",
     "CSChar",
@@ -236,6 +237,7 @@ cTypes =
   , ("Data.Word.Word8",   "uint8_t")
   , ("()",                "void")
   , ("System.IO.Handle",  "void*")
+  , ("Foreign.C.ConstPtr","void*")
   ] ++ map (first ("Foreign.C.Types." ++))
   [ ("CChar", "char"),
     ("CSChar", "signed char"),
