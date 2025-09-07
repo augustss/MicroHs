@@ -1,1 +1,2 @@
-[ThreadFinished,ThreadDied,ThreadBlocked BlockedOnMVar,ThreadBlocked BlockedOnOther,ThreadRunning]
+Uncaught child exception: error: boo
+[ThreadFinished,ThreadFinished,ThreadBlocked BlockedOnMVar,ThreadBlocked BlockedOnOther,ThreadRunning]

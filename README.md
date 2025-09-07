@@ -358,18 +358,33 @@ There is also no compatibility between packages compiled with different versions
 
 ### Hackage
 Hackage is full of great packages, unfortunately most of them contain some GHC specific code.
-There is a handful packages that works with mhs out of the box, or have been converted:
+Some compile, most don't.  Some have replacement, most don't.  Here's a summary of what
+the current state:
+
+#### Packages included with the compiler
+* `array` some of the functionality
+* `base`  most of what GHC has in `base`
+* `bytestring` some of the functionality
+* `deepseq` some of the functionality
+* `directory` some of the functionality
+* `hashable` a little of the functionality
+* `process` very little of the functionality
+* `stm` most of the functionality
+* `text` some of the functionality
+
+#### Packages that are known to compile (some with fixes for MicroHs)
 * `containers`
 * `cpphs`
+* `granite`
 * `hscolour`
-* `mtl` changes not merged yet, use [github.com/augustss/mtl](https://github.com/augustss/mtl)
-* `parsec` changes not merged yet, use [github.com/augustss/parsec](https://github.com/augustss/parsec)
 * `polyparse`
-* `pretty`
+* `splitmix`
 * `time`
 * `transformers`
 
-Some of these might not have be released on hackage yet, but the github repo works.
+#### Packages that have an alternate with `-mhs` as a suffix
+* `mtl` pull request sent, not merged (yet)
+* `random` pull request refused by the maintainers
 
 Contributions to this list are very welcome.
 

@@ -902,7 +902,7 @@ free_stableptr(uvalue_t sp)
 }
 
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
-enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero };
+enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero, exn_blockedmvar, exn_blockedstm };
 
 NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
@@ -6107,6 +6107,8 @@ die_exn(NODEPTR exn)
     case 2: msg = "thread killed"; break;
     case 3: msg = "user interrupt"; break;
     case 4: msg = "DivideByZero"; break;
+    case 5: msg = "blocked MVar"; break;
+    case 6: msg = "blocked STM"; break;
     default: msg = "unknown"; break;
     }
   } else {

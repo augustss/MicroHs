@@ -34,7 +34,9 @@ import Control.Concurrent.QSem
 import Control.Concurrent.QSemN
 import Control.Exception
 import Control.Exception.Internal(unsafeUnmask)
+import Data.Hashable
 import Data.Word.Word
+import System.IO.Base
 
 instance Show ThreadId where
   show i = "ThreadId#" ++ show (primThreadNum i)
@@ -45,9 +47,11 @@ instance Eq ThreadId where
 instance Ord ThreadId where
   i `compare` i'  =  primThreadNum i `compare` primThreadNum i'
 
+instance Hashable ThreadId where
+  hashWithSalt s t = hashWithSalt s (primThreadNum t)
+
 forkIO :: IO () -> IO ThreadId
-forkIO action = --primForkIO (catch action childHandler)
-  primForkIO action
+forkIO action = primForkIO (catch action childHandler)
 
 childHandler :: SomeException -> IO ()
 childHandler err = catch (realHandler err) childHandler
@@ -55,9 +59,15 @@ childHandler err = catch (realHandler err) childHandler
 realHandler :: SomeException -> IO ()
 realHandler se
   | Just BlockedIndefinitelyOnMVar <- fromException se  =  return ()
---  | Just BlockedIndefinitelyOnSTM  <- fromException se  =  return ()
+  | Just BlockedIndefinitelyOnSTM  <- fromException se  =  return ()
   | Just ThreadKilled              <- fromException se  =  return ()
-  | otherwise                                           =  throw se
+  | otherwise                                           =  reportError se
+
+-- The child has an uncaught exception and has to die.
+reportError :: SomeException -> IO ()
+reportError se = do
+  -- Maybe report on stderr?
+  hPutStrLn stdout $ "Uncaught child exception: " ++ show se
 
 myThreadId :: IO ThreadId
 myThreadId = primMyThreadId

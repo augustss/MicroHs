@@ -36,7 +36,8 @@ module Control.Exception(
   asyncExceptionToException,
   asyncExceptionFromException,
   --
-  BlockedIndefinitelyOnMVar(..),
+  BlockedIndefinitelyOnMVar(..), blockedIndefinitelyOnMVar,
+  BlockedIndefinitelyOnSTM(..), blockedIndefinitelyOnSTM,
   --
   ioError, IOException,
   ) where
@@ -140,14 +141,8 @@ deriving instance Ord  AsyncException
 deriving instance Eq   MaskingState
 deriving instance Show MaskingState
 
---------------------
+blockedIndefinitelyOnMVar :: SomeException
+blockedIndefinitelyOnMVar = toException BlockedIndefinitelyOnMVar
 
-data BlockedIndefinitelyOnMVar = BlockedIndefinitelyOnMVar
-  deriving (Typeable)
-
-instance Exception BlockedIndefinitelyOnMVar
-
-instance Show BlockedIndefinitelyOnMVar where
-    showsPrec _ BlockedIndefinitelyOnMVar = showString "thread blocked indefinitely in an MVar operation"
-
------
+blockedIndefinitelyOnSTM :: SomeException -- for the RTS
+blockedIndefinitelyOnSTM = toException BlockedIndefinitelyOnSTM

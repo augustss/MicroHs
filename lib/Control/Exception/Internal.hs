@@ -13,6 +13,8 @@ module Control.Exception.Internal(
   SomeAsyncException(..),
   asyncExceptionToException,
   asyncExceptionFromException,
+  BlockedIndefinitelyOnMVar(..),
+  BlockedIndefinitelyOnSTM(..),
 
   uninterruptibleMask,
   uninterruptibleMask_,
@@ -68,6 +70,8 @@ rtsExn e =
       else if primIntEQ n (2::Int) then SomeException ThreadKilled
       else if primIntEQ n (3::Int) then SomeException UserInterrupt
       else if primIntEQ n (4::Int) then SomeException DivideByZero
+      else if primIntEQ n (5::Int) then SomeException BlockedIndefinitelyOnMVar
+      else if primIntEQ n (6::Int) then SomeException BlockedIndefinitelyOnSTM
       else e
 
 -- Throw an exception when executed, not when evaluated
@@ -274,3 +278,20 @@ interruptible act =
     Unmasked              -> act
     MaskedInterruptible   -> unsafeUnmask act
     MaskedUninterruptible -> act
+
+
+--------------------
+
+data BlockedIndefinitelyOnMVar = BlockedIndefinitelyOnMVar
+
+instance Exception BlockedIndefinitelyOnMVar
+
+instance Show BlockedIndefinitelyOnMVar where
+    showsPrec _ BlockedIndefinitelyOnMVar = showString "thread blocked indefinitely in an MVar operation"
+
+data BlockedIndefinitelyOnSTM = BlockedIndefinitelyOnSTM
+
+instance Exception BlockedIndefinitelyOnSTM
+
+instance Show BlockedIndefinitelyOnSTM where
+    showsPrec _ BlockedIndefinitelyOnSTM = showString "thread blocked indefinitely in an STM transaction"
