@@ -60,6 +60,7 @@ library base
         Data.ByteString.Lazy
         Data.ByteString.Lazy.Char8
         Data.ByteString.Short.Internal
+        Data.ByteString.Unsafe
         Data.Char
         Data.Char.Unicode
         Data.Coerce
