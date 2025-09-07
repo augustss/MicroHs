@@ -57,6 +57,7 @@ library base
         Data.Bounded
         Data.ByteString
         Data.ByteString.Char8
+        Data.ByteString.Lazy
         Data.ByteString.Lazy.Char8
         Data.ByteString.Short.Internal
         Data.Char
