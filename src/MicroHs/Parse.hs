@@ -174,7 +174,7 @@ isKeyword s =
             LT -> case compare s "infixr" of
                     EQ -> True
                     LT -> s == "infix" || s == "infixr"
-                    GT -> s == "instance" || s == "let" || s == "module"
+                    GT -> s == "instance" || s == "let" || s == "mdo" || s == "module"
             GT -> case compare s "then" of
                     EQ -> True
                     LT -> s == "of" || s == "pattern"
@@ -753,10 +753,19 @@ pLet = ELet <$> (pKeyword "let" *> pBlock pBind) <*> (pKeyword "in" *> pExpr)
 
 pDo :: P Expr
 pDo = do
-  q <- (Just <$> pQualDo) <|> (Nothing <$ pKeyword "do")
+  (q, rec) <- ((\ i -> (Just i, False)) <$> pQualDo) <|> ((Nothing, False) <$ pKeyword "do") <|> ((Nothing, True) <$ pKeyword "mdo")
   ss <- pBlock pStmt
   guard (not (null ss))
-  pure (EDo q ss)
+  if rec then
+    case last ss of
+      SThen e ->
+        let l = E.getSLoc e
+            x = EVar $ mkIdentSLoc l "$mdo"
+            pur = EVar (mkIdentSLoc l "B@.return")
+        in  pure $ EDo q [SRec (init ss ++ [SBind x e]), SThen (EApp pur x)]
+      _ -> fail "mdo"
+   else
+    pure (EDo q ss)
 
 pIf :: P Expr
 pIf = EIf <$> (pKeyword "if" *> pExpr) <*>

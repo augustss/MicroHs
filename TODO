@@ -25,6 +25,8 @@
    LineBuffering    - flush on '\n'
    (BlockBuffering n - accumulate a block before doing a write)
 * Using ! on a pattern binding has no effect
+* Include package name in full name
+
 
 Bugs:
 * Check for escaping skolemized variables

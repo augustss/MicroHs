@@ -354,7 +354,7 @@ tLam (t@(TIdent _ [] "case") : ts) = t : tBrace ts
 tLam ts = ts
 
 tIdent :: SLoc -> [String] -> String -> [Token] -> [Token]
-tIdent loc qs kw ats | elem kw ["let", "where", "do", "of"]
+tIdent loc qs kw ats | elem kw ["let", "where", "do", "of", "mdo"]
                        || kw == "if" && isBar ats                -- For MultiWayIf
                                  = ti : tBrace ats
                      | otherwise = ti : ats

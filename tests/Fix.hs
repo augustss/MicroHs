@@ -11,3 +11,10 @@ main = do
       ; b <- return 2 }
   print (a, b)
 
+  x <- mdo
+         a <- return (b+1)
+         b <- return (c+1)
+         let c = d+1
+         d <- return 42
+         return (a+b)
+  print x
