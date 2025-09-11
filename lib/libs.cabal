@@ -47,7 +47,6 @@ library base
         Control.Monad.ST
         Control.Monad.STM
         Control.Monad.Zip
-        Data.Array
         Data.Array.Byte
         Data.Bifoldable
         Data.Bifunctor
@@ -90,7 +89,6 @@ library base
         Data.Functor.Product
         Data.Functor.Sum
         Data.Hashable
-        Data.IOArray
         Data.IORef
         Data.Int
         Data.Int.Int
@@ -114,7 +112,6 @@ library base
         Data.RealFloat
         Data.RealFrac
         Data.Records
-        Data.STArray
         Data.STRef
         Data.Semigroup
         Data.String
@@ -161,7 +158,12 @@ library base
         GHC.Stack
         GHC.Types
         Language.Haskell.TH.Syntax
+        Mhs.Arr
+        Mhs.Array
         Mhs.Builtin
+        Mhs.MutArr
+        Mhs.MutUArr
+        Mhs.UArr
         Numeric
         Numeric.FormatFloat
         Numeric.Natural

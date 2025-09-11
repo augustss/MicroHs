@@ -36,7 +36,8 @@ module Text.Read
      readListDefault,
      readListPrecDefault,
      readEither,
-     readMaybe
+     readMaybe,
+     expectP,
      ) where
 import qualified Prelude()
 import Control.Error

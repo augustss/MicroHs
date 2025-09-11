@@ -139,3 +139,8 @@ useAsCString bs act =
 -- be free()d.  The pointer should not be used by the caller after this call.
 grabCString :: Ptr CChar -> IO ByteString
 grabCString = primBSgrab
+
+-- Are the bytestrings the same underlying object?
+sameByteString :: ByteString -> ByteString -> Bool
+sameByteString bs1 bs2 =
+  primPtrToWord (primForeignPtrToPtr (primBS2FPtr bs1)) == primPtrToWord (primForeignPtrToPtr (primBS2FPtr bs2))

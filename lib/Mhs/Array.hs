@@ -1,18 +1,26 @@
-module Data.Array (
-    module Data.Ix,
-    Array,
-    array,
-    listArray,
-    accumArray,
-    (!),
-    bounds,
-    indices,
-    elems,
-    assocs,
-    (//),
-    accum,
-    ixmap,
-    freezeIOArray,
+module Mhs.Array(
+  module Data.Ix,
+  Array(..),
+  array,
+  listArray,
+  accumArray,
+  (!),
+  bounds,
+  indices,
+  elems,
+  assocs,
+  (//),
+  accum,
+  ixmap,
+  -----
+  numElements,
+  safeRangeSize,
+  safeIndex,
+  unsafeArray,
+  unsafeAt,
+  unsafeReplace,
+  unsafeAccum,
+--  freezeIOArray,
   ) where
 import qualified Prelude()
 import Primitives(primPerformIO, primArrCopy, primArrEQ)
@@ -26,11 +34,11 @@ import Data.Function
 import Data.Functor
 import Data.Int.Int
 import Data.Ix
-import Data.IOArray
 import Data.List
 import Data.Num
 import Data.Ord
 import Data.Tuple
+import Mhs.MutArr
 import {-# SOURCE #-} Data.Typeable
 import System.IO.Base
 import Text.ParserCombinators.ReadPrec
@@ -39,9 +47,9 @@ import qualified Text.Read.Lex as L
 import Text.Show
 
 data Array i a
-   = Array (i,i)       -- bounds
-           !Int        -- = (rangeSize (l,u))
-           (IOArray a) -- elements
+   = Array (i,i)        -- bounds
+           !Int         -- = (rangeSize (l,u))
+           (MutIOArr a) -- elements
 
 instance Ix a => Functor (Array a) where
   fmap f a@(Array b _ _) = array b [(i, f (a ! i)) | i <- range b]
@@ -84,24 +92,33 @@ accumArray :: (Ix a) => (b -> c -> b) -> b -> (a,a) -> [(a,c)] -> Array a b
 accumArray f z b = accum f (array b [(i, z) | i <- range b])
 
 (!) :: (Ix a) => Array a b -> a -> b
-(!) (Array b n a) i = primPerformIO $ readIOArray a (safeIndex b n i)
+(!) arr@(Array b n _) i = unsafeAt arr (safeIndex b n i)
 
-bounds :: (Ix a) => Array a b -> (a,a)
+unsafeAt :: Array a b -> Int -> b
+unsafeAt (Array _ _ a) i = primPerformIO $ unsafeReadMutIOArr a i
+
+bounds :: Array a b -> (a,a)
 bounds (Array b _ _) = b
+
+numElements :: Array a b -> Int
+numElements (Array _ n _) = n
 
 indices :: (Ix a) => Array a b -> [a]
 indices (Array b _ _) = range b
 
-elems :: (Ix a) => Array a b -> [b]
-elems (Array _ _ a) = primPerformIO $ elemsIOArray a
+elems :: Array a b -> [b]
+elems (Array _ _ a) = primPerformIO $ elemsIOArr a
 
 assocs :: (Ix a) => Array a b -> [(a,b)]
 assocs a = zip (indices a) (elems a)
 
 (//) :: (Ix a) => Array a b -> [(a,b)] -> Array a b
-(//) (Array b n oa) ies = primPerformIO $ do
+(//) arr@(Array b n _) ies = unsafeReplace arr [(safeIndex b n i, e) | (i, e) <- ies ]
+
+unsafeReplace :: Array a b -> [(Int,b)] -> Array a b
+unsafeReplace (Array b n oa) ies = primPerformIO $ do
   a <- primArrCopy oa
-  let adj (i, e) = writeIOArray a (safeIndex b n i) e
+  let adj (i, e) = unsafeWriteMutIOArr a i e
   mapM_ adj ies
   return $ Array b n a
 
@@ -117,16 +134,19 @@ unsafeAccum :: (e -> a -> e) -> Array i e -> [(Int, a)] -> Array i e
 unsafeAccum f (Array b n oa) ies = primPerformIO $ do
   a <- primArrCopy oa
   let adj (i, e) = do
-        x <- readIOArray a i
+        x <- unsafeReadMutIOArr a i
         let x' = f x e
-        seq x' (writeIOArray a i x')
+        seq x' (unsafeWriteMutIOArr a i x')
   mapM_ adj ies
   return $ Array b n a
 
+unsafeArray :: Ix i => (i,i) -> [(Int, e)] -> Array i e
+unsafeArray lu ies = unsafeArray' lu (unsafeRangeSize lu) ies
+
 unsafeArray' :: (i,i) -> Int -> [(Int, e)] -> Array i e
 unsafeArray' b n ies = primPerformIO $ do
-  a <- newIOArray n arrEleBottom
-  mapM_ (uncurry (writeIOArray a)) ies
+  a <- newMutIOArr n arrEleBottom
+  mapM_ (uncurry (unsafeWriteMutIOArr a)) ies
   return $ Array b n a
 
 arrEleBottom :: a
@@ -145,13 +165,15 @@ safeRangeSize b =
   let r = rangeSize b
   in  if r < 0 then error "Negative range size" else r
 
-elemsIOArray :: forall a . IOArray a -> IO [a]
-elemsIOArray a = do
-  s <- sizeIOArray a
-  mapM (readIOArray a) [0::Int .. s - 1]
+elemsIOArr :: forall a . MutIOArr a -> IO [a]
+elemsIOArr a = do
+  s <- sizeMutIOArr a
+  mapM (unsafeReadMutIOArr a) [0::Int .. s - 1]
 
+{-
 freezeIOArray :: IOArray a -> IO (Array Int a)
 freezeIOArray ioa = do
   s <- sizeIOArray ioa
   ioa' <- primArrCopy ioa
   return $ Array (0, s-1) s ioa'
+-}

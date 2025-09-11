@@ -64,11 +64,13 @@ primHPrint       :: forall a . Ptr BFILE -> a -> IO ()
 primHPrint        = _primitive "IO.print"
 
 -- BFILE stuff
-foreign import ccall "closeb"       c_closeb       :: Ptr BFILE          -> IO ()
-foreign import ccall "flushb"       c_flushb       :: Ptr BFILE          -> IO ()
-foreign import ccall "getb"         c_getb         :: Ptr BFILE          -> IO Int
-foreign import ccall "ungetb"       c_ungetb       :: Int -> Ptr BFILE   -> IO ()
-foreign import ccall "putb"         c_putb         :: Int -> Ptr BFILE   -> IO ()
+foreign import ccall "closeb"       c_closeb       ::                 Ptr BFILE -> IO ()
+foreign import ccall "flushb"       c_flushb       ::                 Ptr BFILE -> IO ()
+foreign import ccall "getb"         c_getb         ::                 Ptr BFILE -> IO Int
+foreign import ccall "ungetb"       c_ungetb       :: Int ->          Ptr BFILE -> IO ()
+foreign import ccall "putb"         c_putb         :: Int ->          Ptr BFILE -> IO ()
+foreign import ccall "writeb"       c_writeb       :: Ptr a -> Int -> Ptr BFILE -> IO Int
+foreign import ccall "readb"        c_readb        :: Ptr a -> Int -> Ptr BFILE -> IO Int
 
 ----------------------------------------------------------
 
@@ -329,3 +331,9 @@ data BufferMode = NoBuffering | LineBuffering | BlockBuffering (Maybe Int)
 -- This currently does nothing.
 hSetBuffering :: Handle -> BufferMode -> IO ()
 hSetBuffering _ _ = return ()
+
+hPutBuf :: Handle -> Ptr a -> Int -> IO ()
+hPutBuf h p n = withHandleWr h $ c_writeb p n
+
+hGetBuf :: Handle -> Ptr a -> Int -> IO Int
+hGetBuf h p n = withHandleRd h $ c_readb p n

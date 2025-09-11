@@ -1,5 +1,6 @@
 module System.IO.Error (
     IOException(..),
+    ioException,
 
     -- * I\/O errors
     IOError,

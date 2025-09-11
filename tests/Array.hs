@@ -1,5 +1,5 @@
 module Array where
-import Data.Array
+import Mhs.Array
 
 main :: IO ()
 main = do

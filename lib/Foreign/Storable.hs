@@ -1,3 +1,5 @@
+-- Copyright 2023 Lennart Augustsson
+-- See LICENSE file for full license.
 module Foreign.Storable(Storable(..)) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
@@ -59,6 +61,12 @@ instance Storable (Ptr a) where
   alignment _ = wordSizeInBytes
   peek p      = c_peekPtr (castPtr p) `primBind` \ q -> primReturn (castPtr q)
   poke p w    = c_pokePtr (castPtr p) (castPtr w)
+
+instance Storable (FunPtr a) where
+  sizeOf    _ = wordSizeInBytes
+  alignment _ = wordSizeInBytes
+  peek p      = c_peekPtr (castPtr p) `primBind` \ q -> primReturn (castPtrToFunPtr (castPtr q))
+  poke p w    = c_pokePtr (castPtr p) (castPtr (castFunPtrToPtr w))
 
 foreign import ccall "peek_uint8" c_peek_uint8 :: Ptr Word8 -> IO Word8
 foreign import ccall "poke_uint8" c_poke_uint8 :: Ptr Word8 -> Word8 -> IO ()

@@ -32,6 +32,7 @@ import Data.Real
 import Data.Tuple
 import {-# SOURCE #-} Data.Typeable
 import Data.Word
+import qualified Mhs.Array as Arr
 
 infixl 4 <$!!>
 
@@ -207,19 +208,19 @@ instance NFData a => NFData1 (Const a) where
 -- | @since 1.4.3.0
 instance NFData2 Const where
   liftRnf2 r _ = r . getConst
+-}
 
--- We should use MIN_VERSION array(0,5,1,1) but that's not possible.
--- There isn't an underscore to not break C preprocessor
-instance (NFData a, NFData b) => NFData (Array a b) where
-  rnf x = rnf (bounds x, Data.Array.elems x)
+instance (NFData a, NFData b) => NFData (Arr.Array a b) where
+  rnf x = rnf (Arr.bounds x) `seq` rnf (Arr.elems x)
 
 -- | @since 1.4.3.0
-instance (NFData a) => NFData1 (Array a) where
-  liftRnf r x = rnf (bounds x) `seq` liftRnf r (Data.Array.elems x)
+instance (NFData a) => NFData1 (Arr.Array a) where
+  liftRnf r x = rnf (Arr.bounds x) `seq` liftRnf r (Arr.elems x)
 
+{-
 -- | @since 1.4.3.0
 instance NFData2 Array where
-  liftRnf2 r r' x = liftRnf2 r r (bounds x) `seq` liftRnf r' (Data.Array.elems x)
+  liftRnf2 r r' x = liftRnf2 r r (Arr.bounds x) `seq` liftRnf r' (Arr.elems x)
 
 -- | @since 1.4.0.0
 instance NFData a => NFData (Down a) where rnf = rnf1
