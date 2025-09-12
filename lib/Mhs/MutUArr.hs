@@ -10,6 +10,7 @@ module Mhs.MutUArr(
   unsafeReadMutIOUArr,
   unsafeWriteMutIOUArr,
   sameByteString,
+  withMutIOUArr,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Monad.ST
@@ -37,18 +38,16 @@ unsafeWriteMutSTUArr (MutSTUArr bs) i a = ST $ unsafeWriteMutIOUArr bs i a
 newtype MutIOUArr a = MutIOUArr ByteString
 
 newMutIOUArrB :: forall a . (Storable a) => Word8 -> Int -> IO (MutIOUArr a)
-newMutIOUArrB b n =
-  return (MutIOUArr (primBSreplicate (n * sizeOf (undefined :: a)) b))
+newMutIOUArrB b n = return (MutIOUArr (primBSreplicate (n * sizeOf (undefined :: a)) b))
 
 newMutIOUArr :: forall a . (Storable a) => Int -> IO (MutIOUArr a)
 newMutIOUArr = newMutIOUArrB 0
 
 unsafeReadMutIOUArr :: (Storable a) => MutIOUArr a -> Int -> IO a
-unsafeReadMutIOUArr (MutIOUArr bs) i =
-  withForeignPtr (primBS2FPtr bs) $ \ p ->
-    peekElemOff (castPtr p) i
+unsafeReadMutIOUArr arr i = withMutIOUArr arr $ \ p -> peekElemOff p i
 
 unsafeWriteMutIOUArr :: (Storable a) => MutIOUArr a -> Int -> a -> IO ()
-unsafeWriteMutIOUArr (MutIOUArr bs) i a =
-  withForeignPtr (primBS2FPtr bs) $ \ p ->
-    pokeElemOff (castPtr p) i a
+unsafeWriteMutIOUArr arr i a = withMutIOUArr arr $ \ p -> pokeElemOff p i a
+
+withMutIOUArr :: MutIOUArr a -> (Ptr a -> IO b) -> IO b
+withMutIOUArr (MutIOUArr bs) act = withForeignPtr (primBS2FPtr bs) (act . castPtr)
