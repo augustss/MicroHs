@@ -22,6 +22,8 @@ module System.IO.Base(
 
   mkTextEncoding, hSetEncoding, utf8,
 
+  hPutBuf, hGetBuf,
+
   openTmpFile, openTempFile, openBinaryTempFile,
 
   withFile,
@@ -333,7 +335,7 @@ hSetBuffering :: Handle -> BufferMode -> IO ()
 hSetBuffering _ _ = return ()
 
 hPutBuf :: Handle -> Ptr a -> Int -> IO ()
-hPutBuf h p n = withHandleWr h $ c_writeb p n
+hPutBuf h p n = do withHandleWr h $ c_writeb p n; return ()
 
 hGetBuf :: Handle -> Ptr a -> Int -> IO Int
 hGetBuf h p n = withHandleRd h $ c_readb p n
