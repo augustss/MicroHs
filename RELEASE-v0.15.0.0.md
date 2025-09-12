@@ -15,6 +15,7 @@
  * `Double` and `Float` are now different types
  * `Int64`/`Word64` on 32 bit platforms
  * instruction counts on supported platforms (MacOS&M4, Linux&x86_64)
+ * Proper `array` package
 
 ## Performance
  * Evaluation in the interactive system is much faster
