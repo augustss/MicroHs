@@ -143,4 +143,5 @@ grabCString = primBSgrab
 -- Are the bytestrings the same underlying object?
 sameByteString :: ByteString -> ByteString -> Bool
 sameByteString bs1 bs2 =
-  primPtrToWord (primForeignPtrToPtr (primBS2FPtr bs1)) == primPtrToWord (primForeignPtrToPtr (primBS2FPtr bs2))
+  let r = primPtrToWord (primForeignPtrToPtr (primBS2FPtr bs1)) == primPtrToWord (primForeignPtrToPtr (primBS2FPtr bs2))
+  in  r `seq` bs1 `primSeq` bs2 `primSeq` r
