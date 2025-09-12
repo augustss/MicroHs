@@ -15,7 +15,7 @@ sizeMutIOArr :: forall a . MutIOArr a -> IO Int
 sizeMutIOArr = primArrSize
 
 unsafeReadMutIOArr :: forall a . MutIOArr a -> Int -> IO a
-unsafereadMutIOArr = primArrRead
+unsafeReadMutIOArr = primArrRead
 
 unsafeWriteMutIOArr :: forall a . MutIOArr a -> Int -> a -> IO ()
 unsafeWriteMutIOArr = primArrWrite
