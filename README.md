@@ -383,6 +383,7 @@ the current state:
 * `transformers`
 
 #### Packages that have an alternate with `-mhs` as a suffix
+* `array` too GHC specific to port
 * `mtl` pull request sent, not merged (yet)
 * `random` pull request refused by the maintainers
 

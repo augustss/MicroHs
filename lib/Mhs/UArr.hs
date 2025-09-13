@@ -24,7 +24,7 @@ newtype UArr a = UArr ByteString
 newUArr :: forall s a . (Storable a) => Int -> [(Int, a)] -> UArr a
 newUArr n ies = runST $ do
   a <- newMutSTUArr n
-  mapM_ (\ (i, e) -> unsafeWriteMutSTUArr a i e) ies
+  mapM_ (uncurry (unsafeWriteMutSTUArr a)) ies
   unsafeFreezeMutSTUArr a
 
 unsafeReadUArr :: (Storable a) => UArr a -> Int -> a
