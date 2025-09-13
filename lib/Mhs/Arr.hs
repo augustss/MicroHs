@@ -25,7 +25,7 @@ newArr :: forall a . Int -> [(Int, a)] -> Arr a
 newArr n ies = primPerformIO $ do
   let undef = error "undefined array element"
   a <- newMutIOArr n undef
-  mapM_ (\ (i, e) -> unsafeWriteMutIOArr a i e) ies
+  mapM_ (uncurry (unsafeWriteMutIOArr a)) ies
   unsafeFreezeMutIOArr a
 
 unsafeReadArr :: Arr a -> Int -> a

@@ -1,5 +1,5 @@
 module IOArray(main) where
-import Data.IOArray
+import Mhs.MutArr
 import Data.IORef
 import System.IO
 import System.IO.Serialize
@@ -7,18 +7,18 @@ default (String)
 
 main :: IO ()
 main = do
-  a <- newIOArray 10 0
-  s <- sizeIOArray a
+  a <- newMutIOArr 10 0
+  s <- sizeMutIOArr a
   print s
-  mapM_ (\ i -> writeIOArray a i (i*i)) [0..9]
-  xs <- mapM (readIOArray a) [0..9]
+  mapM_ (\ i -> unsafeWriteMutIOArr a i (i*i)) [0..9]
+  xs <- mapM (unsafeReadMutIOArr a) [0..9]
   print xs
   o <- openFile "arr.tmp" WriteMode
   hSerialize o a
   hClose o
   i <- openFile "arr.tmp" ReadMode
   a' <- hDeserialize i
-  xs' <- mapM (readIOArray a') [0..9]
+  xs' <- mapM (unsafeReadMutIOArr a') [0..9]
   print $ xs == xs'
 
   r <- newIORef "foo"

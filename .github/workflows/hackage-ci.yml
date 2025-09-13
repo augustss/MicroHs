@@ -27,41 +27,29 @@ jobs:
         cd mhs
         make minstall
 
+    # array-mhs
+    - name: compile and install array-mhs package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        mcabal install array
+
     # containers
-    - name: checkout containers repo
-      uses: actions/checkout@v4
-      with:
-        repository: haskell/containers
-        path: containers
     - name: compile and install containers package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd containers/containers
-        mcabal install
+        mcabal install containers
 
     # transformers
-    - name: checkout transformers repo
-      uses: actions/checkout@v4
-      with:
-        repository: augustss/transformers
-        path: transformers
     - name: compile and install transformers package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd transformers
-        mcabal install
+        mcabal install transformers
 
     # time
-    - name: checkout time repo
-      uses: actions/checkout@v4
-      with:
-        repository: haskell/time
-        path: time
     - name: compile and install time package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd time
-        mcabal install
+        mcabal install time
 
     # malcolm-wallace-universe
     - name: checkout malcolm-wallace-universe repo
@@ -86,16 +74,10 @@ jobs:
         mcabal install
 
     # mtl-mhs
-    - name: checkout mtl-mhs repo
-      uses: actions/checkout@v4
-      with:
-        repository: augustss/mtl-mhs
-        path: mtl-mhs
     - name: compile and install mtl-mhs package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd mtl-mhs
-        mcabal install
+        mcabal install mhs
 
     # pretty
     - name: checkout pretty repo
@@ -134,16 +116,10 @@ jobs:
         mcabal install
 
     # random-mhs
-    - name: checkout random-mhs repo
-      uses: actions/checkout@v4
-      with:
-        repository: augustss/random-mhs
-        path: random-mhs
     - name: compile and install random-mhs package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd random-mhs
-        mcabal install
+        mcabal install random
 
     # granite
     - name: checkout granite repo
