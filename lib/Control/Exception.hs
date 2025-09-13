@@ -14,6 +14,7 @@ module Control.Exception(
   bracket, finally, bracket_, bracketOnError,
 
   try,
+  tryJust,
   throwIO,
   onException,
   displaySomeException,
@@ -38,6 +39,8 @@ module Control.Exception(
   --
   BlockedIndefinitelyOnMVar(..), blockedIndefinitelyOnMVar,
   BlockedIndefinitelyOnSTM(..), blockedIndefinitelyOnSTM,
+  --
+  ErrorCall(..),
   --
   ioError, IOException,
   ) where
@@ -99,14 +102,12 @@ evaluate a = seq a (return ()) >> return a
 try :: forall a e . Exception e => IO a -> IO (Either e a)
 try ioa = catch (fmap Right ioa) (return . Left)
 
+tryJust :: Exception e => (e -> Maybe b) -> IO a -> IO (Either b a)
+tryJust p a = catchJust p (Right `fmap` a) (return . Left)
+
 {-
 bracket :: IO a -> (a -> IO b) -> (a -> IO c) -> IO c
-bracket before after thing =
-  mask $ \ restore -> do
-    a <- before
-    r <- restore (thing a) `onException` after a
-    _ <- after a
-    return r
+-- defined in Control.Exception.Internal
 -}
 
 mask_ :: IO a -> IO a

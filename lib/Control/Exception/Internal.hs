@@ -15,6 +15,7 @@ module Control.Exception.Internal(
   asyncExceptionFromException,
   BlockedIndefinitelyOnMVar(..),
   BlockedIndefinitelyOnSTM(..),
+  ErrorCall(..),
 
   uninterruptibleMask,
   uninterruptibleMask_,
@@ -95,7 +96,6 @@ bracket before after thing =
 ------------------
 
 data SomeException = forall e . Exception e => SomeException e
-  deriving (Typeable)
 
 -- NOTE: The runtime system knows about this class.
 -- It uses displayException to show an uncaught exception.
@@ -192,7 +192,6 @@ instance Exception AsyncException where
   fromException = asyncExceptionFromException
 
 data SomeAsyncException = forall e . Exception e => SomeAsyncException e
-  deriving (Typeable)
 
 instance Show SomeAsyncException where
     showsPrec p (SomeAsyncException e) = showsPrec p e
@@ -287,11 +286,20 @@ data BlockedIndefinitelyOnMVar = BlockedIndefinitelyOnMVar
 instance Exception BlockedIndefinitelyOnMVar
 
 instance Show BlockedIndefinitelyOnMVar where
-    showsPrec _ BlockedIndefinitelyOnMVar = showString "thread blocked indefinitely in an MVar operation"
+  showsPrec _ BlockedIndefinitelyOnMVar = showString "thread blocked indefinitely in an MVar operation"
 
 data BlockedIndefinitelyOnSTM = BlockedIndefinitelyOnSTM
 
 instance Exception BlockedIndefinitelyOnSTM
 
 instance Show BlockedIndefinitelyOnSTM where
-    showsPrec _ BlockedIndefinitelyOnSTM = showString "thread blocked indefinitely in an STM transaction"
+  showsPrec _ BlockedIndefinitelyOnSTM = showString "thread blocked indefinitely in an STM transaction"
+
+--------------------
+
+newtype ErrorCall = ErrorCall String
+
+instance Exception ErrorCall
+
+instance Show ErrorCall where
+  showsPrec _ (ErrorCall s) r = showString "error: " (showString s r)

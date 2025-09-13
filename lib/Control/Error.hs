@@ -3,18 +3,7 @@
 module Control.Error(error, errorWithoutStackTrace, undefined, ErrorCall(..)) where
 import qualified Prelude()              -- do not import Prelude
 import Data.Char_Type
-import Data.List_Type
 import Control.Exception.Internal
-import {-# SOURCE #-} Data.Typeable
-import Text.Show
-
-newtype ErrorCall = ErrorCall String
-  deriving (Typeable)
-
-instance Show ErrorCall where
-  show (ErrorCall s) = ("error: "::String) ++ s
-
-instance Exception ErrorCall
 
 error :: forall a . String -> a
 error s = throw (ErrorCall s)
