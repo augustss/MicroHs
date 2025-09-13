@@ -372,6 +372,7 @@ hasLangCPP fn = do
   let scanFor _ [] = False
       scanFor s ('{':'-':'#':cs) = scanFor' s cs
       scanFor _ ('m':'o':'d':'u':'l':'e':_) = False
+      scanFor s ('-':'-':cs) = scanFor s (dropWhile (/= '\n') cs)
       scanFor s (_:cs) = scanFor s cs
       scanFor' _ [] = False
       scanFor' s ('#':'-':'}':cs) = scanFor s cs
