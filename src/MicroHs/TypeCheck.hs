@@ -187,8 +187,8 @@ getTVExps _ tys vals ast (ExpTypeSome ti is) =
       ves = concatMap one is
       one i | i == dotDotIdent = assc          -- '..' means all associated values
             | otherwise =
-              case filter (\ (ValueExport i' _) -> i == i') assc of
-                ee : _ -> [ee]                 -- Pick the assocaited value if it exists
+              case filter (\ (ValueExport i' _) -> i == i' || isDefaultMethodOfId i i') assc of
+                es@(_:_) -> es                 -- Pick the assocaited value if it exists
                 [] -> [ValueExport (unQualIdent i) $ expLookup i vals]
                                                -- otherwise, just look up a pattern synonym.
                                                -- This might accidentally pick up a constructor from
@@ -1289,6 +1289,12 @@ mkDefaultMethodId meth = addIdentSuffix meth defaultSuffix
 
 isDefaultMethodId :: Ident -> Bool
 isDefaultMethodId i = defaultSuffix `isSuffixOf` unIdent i
+
+-- Is the second ident the default method of the first
+isDefaultMethodOfId :: Ident -> Ident -> Bool
+isDefaultMethodOfId i di =
+  maybe False (\ s -> unIdent i == s) $
+    stripSuffix defaultSuffix (unIdent di)
 
 defaultSuffix :: String
 defaultSuffix = uniqIdentSep ++ "dflt"
