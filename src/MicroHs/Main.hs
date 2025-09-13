@@ -22,7 +22,7 @@ import MicroHs.Lex(readInt)
 import MicroHs.List
 import MicroHs.Package
 import MicroHs.Translate
-import MicroHs.TypeCheck(tModuleName)
+import MicroHs.TypeCheck(TModule(..), showValueExport, showTypeExport, showTypeExportAssocs, TypeExport)
 import MicroHs.Interactive
 import MicroHs.MakeCArray
 import MhsEval
@@ -263,11 +263,26 @@ mainListPkg flags pkgnm = do
   putStrLn $ "compiler: mhs-" ++ pkgCompiler pkg
   putStrLn $ "depends: " ++ unwords (map (\ (i, v) -> showIdent i ++ "-" ++ showVersion v) (pkgDepends pkg))
 
-  let list = mapM_ (putStrLn . ("  " ++) . showIdent . tModuleName)
+  let oneMdl tmdl = do
+        putStrLn $ "  " ++ showIdent (tModuleName tmdl)
+        when (verbosityGT flags 0) $
+          printExperted tmdl
   putStrLn "exposed-modules:"
-  list (pkgExported pkg)
+  mapM_ oneMdl (pkgExported pkg)
   putStrLn "other-modules:"
-  list (pkgOther pkg)
+  mapM_ oneMdl (pkgOther pkg)
+
+printExperted :: TModule a -> IO ()
+printExperted tmdl = do
+  putStrLn "  values:"
+  mapM_ (putStrLn . ("    " ++) . showValueExport) (tValueExps tmdl)
+  putStrLn "  types:"
+  mapM_ printTypeExport (tTypeExps tmdl)
+
+printTypeExport :: TypeExport -> IO ()
+printTypeExport te = do
+  putStrLn $ "    " ++ showTypeExport te
+  putStrLn $ unlines $ map ("      " ++) (showTypeExportAssocs te)
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
@@ -295,7 +310,7 @@ mainCompile flags mn = do
     if compiledWithMhs then do
       let prg = translateAndRun cmdl
       prg
-     else if compiledWithGhc then 
+     else if compiledWithGhc then
       withMhsContext $ \ ctx -> do
         run ctx outData
       else error "The -r flag currently only works with mhs and ghc"

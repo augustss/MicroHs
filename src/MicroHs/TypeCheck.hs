@@ -14,6 +14,7 @@ module MicroHs.TypeCheck(
   ValueExport(..), TypeExport(..),
   Symbols,
   isInstId,
+  showValueExport, showTypeExport, showTypeExportAssocs,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Applicative
@@ -3530,6 +3531,19 @@ addMetaDicts = do
   mapM_ addDict ms  -- Try adding them
 
 -----------------------------
+
+showValueExport :: ValueExport -> String
+showValueExport (ValueExport i (Entry qi t)) =
+  showIdent i ++ " = " ++ showExprRaw qi ++ " :: " ++ showEType t
+
+showTypeExport :: TypeExport -> String
+showTypeExport (TypeExport i (Entry qi t) _) =
+  showIdent i ++ " = " ++ showExprRaw qi ++ " :: " ++ showEType t
+    -- ++ " assoc=" ++ showListS showValueExport vs
+
+showTypeExportAssocs :: TypeExport -> [String]
+showTypeExportAssocs (TypeExport _ _ vs) = map showValueExport vs
+
 {-
 showSymTab :: SymTab -> String
 showSymTab (SymTab im ies) = showListS showIdent (map fst (M.toList im) ++ map fst ies)
@@ -3539,14 +3553,6 @@ showTModuleExps (TModule mn _fxs tys _syns _clss _insts vals _defs) =
   showIdent mn ++ ":\n" ++
     unlines (map (("  " ++) . showValueExport) vals) ++
     unlines (map (("  " ++) . showTypeExport)  tys)
-
-showValueExport :: ValueExport -> String
-showValueExport (ValueExport i (Entry qi t)) =
-  showIdent i ++ " = " ++ showExpr qi ++ " :: " ++ showEType t
-
-showTypeExport :: TypeExport -> String
-showTypeExport (TypeExport i (Entry qi t) vs) =
-  showIdent i ++ " = " ++ showExpr qi ++ " :: " ++ showEType t ++ " assoc=" ++ showListS showValueExport vs
 
 showIdentClassInfo :: (Ident, ClassInfo) -> String
 showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
