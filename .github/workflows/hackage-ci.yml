@@ -1,11 +1,6 @@
-name: hackage-ci
+# Build some hackage packages
 
-# Build some hackage packages:
-#  containers time polyparse hscolour cpphs pretty
-# and some currently modified packages:
-#  * transformers      master source in darcs
-#  * mtl               PR not submitted yet
-#  * parsec
+name: hackage-ci
 
 on:
   push:
@@ -77,7 +72,7 @@ jobs:
     - name: compile and install mtl-mhs package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        mcabal install mhs
+        mcabal install mtl
 
     # pretty
     - name: checkout pretty repo
