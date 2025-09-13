@@ -1,8 +1,10 @@
 module Data.ZipList(ZipList(..), getZipList) where
-import Prelude
+import Control.Applicative
+import Data.Foldable
+import Data.Traversable
 
 newtype ZipList a = ZipList [a]
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Foldable)
 
 getZipList :: forall a . ZipList a -> [a]
 getZipList (ZipList as) = as
@@ -13,3 +15,14 @@ instance Functor ZipList where
 instance Applicative ZipList where
   pure a = ZipList (repeat a)
   liftA2 f (ZipList xs) (ZipList ys) = ZipList (zipWith f xs ys)
+
+instance Alternative ZipList where
+   empty = ZipList []
+   ZipList xs0 <|> ZipList ys0 = ZipList $ go xs0 ys0
+     where
+       go (x:xs) (_:ys) = x : go xs ys
+       go    []     ys  = ys
+       go    xs      _  = xs
+
+instance Traversable ZipList where
+    traverse f (ZipList x) = ZipList `fmap` traverse f x

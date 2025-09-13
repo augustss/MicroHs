@@ -5,6 +5,7 @@ module Control.Applicative(
   Alternative(..),
   guard, asum, optional,
   module Data.Functor.Const_Type,
+  ZipList(..),
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives  -- for fixity
@@ -15,6 +16,7 @@ import Data.List_Type
 import Data.Maybe_Type
 import Data.Functor.Const_Type
 import {-# SOURCE #-} Data.Typeable
+import {-# SOURCE #-} Data.ZipList
 
 infixl 4 <*>, *>, <*, <**>
 

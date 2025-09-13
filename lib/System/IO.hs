@@ -5,6 +5,8 @@ module System.IO(
   readIO,
   readLn,
   fixIO, FixIOException,
+  Newline(..),
+  NewlineMode(..),
   ) where
 import qualified Prelude()              -- do not import Prelude
 import MiniPrelude
@@ -47,6 +49,12 @@ fixIO k = do
     result <- k ans
     putMVar m result
     return result
-    
+
 instance MonadFix IO where
   mfix = fixIO
+
+data Newline = LF | CRLF
+  deriving (Eq, Ord, Show, Read)
+
+data NewlineMode = NewlineMode {inputNL :: Newline, outputNL :: Newline}
+  deriving (Eq, Ord, Show, Read)
