@@ -443,8 +443,9 @@ dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
         case zipWithM mtch vks ts of
           -- Result type is just type variables, so use it as is
           Just sub | not (anySame (map fst sub))
-            -> Constr es'' ctx  cnm False (Left stys')
+            -> Constr es'' ctx'' cnm False (Left stys')
                         where stys' = map (second $ subst sub) stys
+                              ctx'' = map (subst sub) ctx
                               es'' = if null es then kind (freeTyVars (map snd stys) \\ map fst sub) else es
           _ -> Constr es'  ctx' cnm False (Left stys)
       where es' = if null es then kind (freeTyVars (rty : map snd stys)) else es
@@ -453,7 +454,7 @@ dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
             mtch (IdKind i _) (EVar i') | not (isConIdent i') = Just (i', EVar i)
             mtch _ _ = Nothing
             kind = map (\ i -> IdKind i (EVar dummyIdent))
-    _ -> errorMessage (E.getSLoc rty) $ "Bad GADT result type" ++ show (rty, tnm, vks)
+    _ -> errorMessage (E.getSLoc rty) $ "Bad GADT result type " ++ show (rty, tnm, vks)
 
 pDerivings :: P [Deriving]
 pDerivings = many pDeriving

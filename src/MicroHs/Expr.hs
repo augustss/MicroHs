@@ -1148,6 +1148,7 @@ getAppM = loop []
   where loop as (EVar i) = Just (i, as)
         loop as (EApp f a) = loop (a:as) f
         loop as (EParen e) = loop as e
+        loop as (EOper e1 [(op, e2)]) = loop as $ EApp (EApp (EVar op) e1) e2
         loop _ _ = Nothing
 
 getApp :: HasCallStack => EType -> (Ident, [EType])
