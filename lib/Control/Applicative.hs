@@ -6,9 +6,12 @@ module Control.Applicative(
   guard, asum, optional,
   module Data.Functor.Const_Type,
   ZipList(..),
+  WrappedMonad(..),
+  WrappedArrow(..),
   ) where
 import qualified Prelude()              -- do not import Prelude
-import Primitives  -- for fixity
+import Primitives
+import {-# SOURCE #-} Control.WrappedMonad
 import Data.Bool_Type
 import Data.Functor
 import Data.Function
@@ -17,6 +20,7 @@ import Data.Maybe_Type
 import Data.Functor.Const_Type
 import {-# SOURCE #-} Data.Typeable
 import {-# SOURCE #-} Data.ZipList
+--import Mhs.Builtin
 
 infixl 4 <*>, *>, <*, <**>
 

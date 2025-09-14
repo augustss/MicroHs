@@ -7,14 +7,14 @@ import qualified Prelude(); import MiniPrelude
 import Control.DeepSeq.Class
 import Data.List(intercalate)
 
-data Version = Version { versionBranch :: [Int] }
+data Version = Version { versionBranch :: [Int], versionTags :: [String] }
   deriving (Show, Eq, Ord)
 
 instance NFData Version where
-  rnf (Version x) = rnf x
+  rnf (Version x y) = rnf x `seq` rnf y
 
 showVersion :: Version -> String
-showVersion (Version b) = intercalate "." (map show b)
+showVersion (Version b _) = intercalate "." (map show b)
 
 {-
 parseVersion :: ReadP Version
@@ -22,4 +22,4 @@ parseVersion = do branch <- sepBy1 (fmap read (munch1 isDigit)) (char '.')
                   pure Version{versionBranch=branch}
 -}
 makeVersion :: [Int] -> Version
-makeVersion b = Version b
+makeVersion b = Version b []

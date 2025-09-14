@@ -47,6 +47,7 @@ library base
         Control.Monad.ST
         Control.Monad.STM
         Control.Monad.Zip
+        Control.WrappedMonad
         Data.Array.Byte
         Data.Bifoldable
         Data.Bifunctor

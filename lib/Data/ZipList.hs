@@ -1,7 +1,9 @@
 module Data.ZipList(ZipList(..), getZipList) where
+--import qualified Prelude(); import MiniPrelude
 import Control.Applicative
 import Data.Foldable
 import Data.Traversable
+--import Mhs.Builtin
 
 newtype ZipList a = ZipList [a]
   deriving (Eq, Ord, Show, Foldable)

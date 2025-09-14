@@ -30,6 +30,8 @@ module System.IO.Base(
 
   BufferMode(..),
   hSetBuffering,
+  hGetBuffering,
+  hIsTerminalDevice,
 
   IOException(..),
   ) where
@@ -330,9 +332,17 @@ openBinaryTempFile = openTempFile' openBinaryFile
 data BufferMode = NoBuffering | LineBuffering | BlockBuffering (Maybe Int)
   deriving (Eq, Ord, Show)
 
--- This currently does nothing.
+-- XXX This currently does nothing.
 hSetBuffering :: Handle -> BufferMode -> IO ()
 hSetBuffering _ _ = return ()
+
+-- XXX This currently does nothing.
+hGetBuffering :: Handle -> IO BufferMode
+hGetBuffering _ = return NoBuffering
+
+-- XXX This currently does nothing.
+hIsTerminalDevice :: Handle -> IO Bool
+hIsTerminalDevice _ = return True
 
 hPutBuf :: Handle -> Ptr a -> Int -> IO ()
 hPutBuf h p n = do withHandleWr h $ c_writeb p n; return ()
