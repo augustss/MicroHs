@@ -11,7 +11,7 @@ unwrapMonad :: WrappedMonad m a -> m a
 unwrapMonad (WrapMonad ma) = ma
 
 instance Monad m => Functor (WrappedMonad m) where
-  fmap f (WrapMonad v) = WrapMonad (liftM f v)
+  fmap f (WrapMonad v) = WrapMonad (fmap f v)
 
 instance Monad m => Applicative (WrappedMonad m) where
   pure = WrapMonad . pure
