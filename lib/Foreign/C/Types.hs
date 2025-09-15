@@ -38,6 +38,8 @@ import {-# SOURCE #-} Data.Typeable
 -- The MicroHs Word type is the "natural" architecture word size;
 -- it is the same as the pointer difference type.
 -- And Int is the natural signed word size.
+newtype CBool    = CBool    Int
+  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded)
 newtype CChar    = CChar    Int
   deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded)
 newtype CSChar   = CSChar   Int

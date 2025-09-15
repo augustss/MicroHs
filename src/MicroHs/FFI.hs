@@ -198,7 +198,8 @@ cHsTypes =
   , ("System.IO.Handle",  "Ptr")
   , ("Foreign.C.ConstPtr","Ptr")
   ] ++ map (\ t -> ("Foreign.C.Types." ++ t, t))
-  [ "CChar",
+  [ "CBool",
+    "CChar",
     "CSChar",
     "CUChar",
     "CShort",
