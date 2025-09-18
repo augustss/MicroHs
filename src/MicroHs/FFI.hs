@@ -197,6 +197,8 @@ cHsTypes =
   , ("()",                "Unit")
   , ("System.IO.Handle",  "Ptr")
   , ("Foreign.C.ConstPtr","Ptr")
+  , ("Foreign.Ptr.IntPtr","IntPtr")
+  , ("Foreign.Ptr.WordPtr","WordPtr")
   ] ++ map (\ t -> ("Foreign.C.Types." ++ t, t))
   [ "CBool",
     "CChar",
@@ -239,6 +241,8 @@ cTypes =
   , ("()",                "void")
   , ("System.IO.Handle",  "void*")
   , ("Foreign.C.ConstPtr","void*")
+  , ("Foreign.Ptr.IntPtr","intptr_t")
+  , ("Foreign.Ptr.WordPtr","uintptr_t")
   ] ++ map (first ("Foreign.C.Types." ++))
   [ ("CChar", "char"),
     ("CSChar", "signed char"),

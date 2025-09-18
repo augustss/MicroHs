@@ -49,6 +49,7 @@ import Control.Monad
 import Control.Monad.Fail
 import Data.Bool
 import Data.Char
+import Data.Coerce
 import Data.Double
 import Data.Either
 import Data.Eq
@@ -71,6 +72,7 @@ import Data.String
 import Data.Tuple
 import {-# SOURCE #-} Data.Typeable
 import Data.Word
+import Foreign.Ptr
 import qualified Text.ParserCombinators.ReadP as P
 import Text.ParserCombinators.ReadP(ReadS, readP_to_S)
 import Text.ParserCombinators.ReadPrec
@@ -782,3 +784,10 @@ instance Read Int32 where
 
 instance Read Int64 where
     readsPrec p s = [(fromInteger x, r) | (x, r) <- readsPrec p s]
+
+--------------------------------------------------------------
+-- Foreign.Ptr instances of Read
+--------------------------------------------------------------
+
+deriving newtype instance Read IntPtr
+deriving newtype instance Read WordPtr
