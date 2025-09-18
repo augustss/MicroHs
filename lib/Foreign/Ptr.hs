@@ -32,6 +32,7 @@ import Data.Num
 import Data.Ord
 import Data.Real
 import {-# SOURCE #-} Data.Typeable
+import Data.Word.Word ()
 import Numeric.Show(showHex)
 import Text.Show
 
