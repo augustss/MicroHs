@@ -20,6 +20,7 @@ import Data.Eq
 import Data.Function
 import Data.IORef
 import Data.List
+import Data.Ord
 import {-# SOURCE #-} Data.Typeable
 --import Foreign.ForeignPtr  causes import cycle
 import Foreign.Ptr
@@ -42,7 +43,7 @@ instance Show Handle where
 type FilePath = String
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 ioModeToHMode :: IOMode -> HandleState
 ioModeToHMode ReadMode = HRead
