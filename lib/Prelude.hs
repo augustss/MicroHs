@@ -82,10 +82,10 @@ import Data.Semigroup(Semigroup((<>)))
 import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(fst, snd, curry, uncurry)
 import Data.Word.Word(Word)
-import System.IO(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
+import System.IO(IO, putChar, putStr, putStrLn, print, getChar, getLine, getContents, interact,
                  FilePath, readFile, writeFile, appendFile, readLn, readIO,
                  cprint, cuprint)
-import System.IO.Error(IOError)
+import System.IO.Error(IOError, ioError, userError)
 import Text.Read(ReadS, Read(..), read, reads, readParen, lex)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import Primitives(_wordSize, _isWindows)
