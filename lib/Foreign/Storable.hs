@@ -8,6 +8,7 @@ import Foreign.C.Types
 import Foreign.Ptr
 import Data.Int
 import Data.Word
+import Data.Coerce
 import {-# SOURCE #-} Data.Typeable
 
 class Storable a where
@@ -233,3 +234,6 @@ llongSize :: Int
 llongSize = primPerformIO c_sizeof_llong
 sizeTSize :: Int
 sizeTSize = primPerformIO c_sizeof_size_t
+
+deriving newtype instance Storable IntPtr
+deriving newtype instance Storable WordPtr
