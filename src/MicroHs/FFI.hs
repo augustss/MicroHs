@@ -172,98 +172,46 @@ mkHdr _ = undefined
 arity :: EType -> Int
 arity = length . fst . getArrows
 
+-- Use to construct 'foreign import/export ccall' wrapper.
 cTypeHsName :: HasCallStack => EType -> String
 cTypeHsName (EApp (EVar ptr) _t) | ptr == identPtr = "Ptr"
                                  | ptr == identFunPtr = "FunPtr"
-                                 | ptr == identStablePtr = "Int"
 cTypeHsName (EVar i) | Just c <- lookup (unIdent i) cHsTypes = c
 cTypeHsName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
 cHsTypes :: [(String, String)]
 cHsTypes =
-  -- These are temporary
   [ ("Primitives.Float",  "Float")
   , ("Primitives.Double", "Double")
   , ("Primitives.Int",    "Int")
   , ("Primitives.Int64",  "Int64")
   , ("Primitives.Word",   "Word")
   , ("Primitives.Word64", "Word64")
-  , ("Data.Word.Word8",   "Word8")
-  , ("Data.Word.Word16",  "Word16")
-  , ("Data.Word.Word32",  "Word32")
-  , ("Data.Int.Int8.Int8","Int8")
-  , ("Data.Int.Int16.Int16","Int16")
-  , ("Data.Int.Int32.Int32","Int32")
   , ("()",                "Unit")
   , ("System.IO.Handle",  "Ptr")
-  , ("Foreign.C.ConstPtr","Ptr")
-  ] ++ map (\ t -> ("Foreign.C.Types." ++ t, t))
-  [ "CBool",
-    "CChar",
-    "CSChar",
-    "CUChar",
-    "CShort",
-    "CUShort",
-    "CInt",
-    "CUInt",
-    "CLong",
-    "CULong",
-    "CPtrdiff",
-    "CSize",
-    "CSSize",
-    "CLLong",
-    "CULLong",
-    "CIntPtr",
-    "CUIntPtr",
-    "CFloat",
-    "CDouble",
-    "CTime"
   ]
 
+-- Use to construct 'foreign export ccall' signature.
 cTypeName :: EType -> String
-cTypeName (EApp (EVar ptr) t) | ptr == identPtr       = cTypeName t ++ "*"
-                              | ptr == identStablePtr = "uintptr_t"
+cTypeName (EApp (EVar ptr) _t) | ptr == identPtr = "void*"
 cTypeName (EVar i) | Just c <- lookup (unIdent i) cTypes = c
 cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
 cTypes :: [(String, String)]
 cTypes =
-  -- These are temporary
-  [ ("Primitives.Float",  "flt32_t")
-  , ("Primitives.Double", "flt64_t")
+  [ ("Primitives.Float",  "float")
+  , ("Primitives.Double", "fdouble")
   , ("Primitives.Int",    "intptr_t")   -- value_t
   , ("Primitives.Int64",  "int64_t")
   , ("Primitives.Word",   "uintptr_t")  -- uvalue_t
   , ("Primitives.Word64", "uint64_t")
-  , ("Data.Word.Word8",   "uint8_t")
   , ("()",                "void")
   , ("System.IO.Handle",  "void*")
-  , ("Foreign.C.ConstPtr","void*")
-  ] ++ map (first ("Foreign.C.Types." ++))
-  [ ("CChar", "char"),
-    ("CSChar", "signed char"),
-    ("CUChar", "unsigned char"),
-    ("CShort", "short"),
-    ("CUShort", "unsigned short"),
-    ("CInt", "int"),
-    ("CUInt", "unsigned int"),
-    ("CLong", "long"),
-    ("CULong", "unsigned long"),
-    ("CPtrdiff", "ptrdiff_t"),
-    ("CSize", "size_t"),
-    ("CSSize", "ssize_t"),
-    ("CLLong", "long long"),
-    ("CULLong", "unsigned long long"),
-    ("CIntPtr", "intptr_t"),
-    ("CUIntPtr", "uintptr_t"),
-    ("CFloat", "float"),
-    ("CDouble", "double"),
-    ("CTime", "time_t")
   ]
 
+-- Use to construct 'foreign import javascript' return value wrapper.
 jsTypeNameR :: EType -> String
 jsTypeNameR (EApp (EVar ptr) _) | ptr == identPtr = "PTR"
-                                | ptr == identStablePtr = "INT"
 jsTypeNameR (EVar i) | Just c <- lookup (unIdent i) jsTypesR = c
 jsTypeNameR t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: " ++ showEType t
 
@@ -273,9 +221,9 @@ jsTypesR =
   , ("Primitives.Double", "DOUBLE")
   ]
 
+-- Use to construct 'foreign import javascript' argument wrapper.
 jsTypeName :: EType -> String
 jsTypeName (EApp (EVar ptr) _) | ptr == identPtr = "Ptr"
-                               | ptr == identStablePtr = "Int"
 jsTypeName (EVar i) | Just c <- lookup (unIdent i) jsTypes = c
 jsTypeName t = errorMessage (getSLoc t) $ "Not a valid Javascript argument type: " ++ showEType t
 
