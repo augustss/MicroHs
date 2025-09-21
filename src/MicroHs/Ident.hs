@@ -18,6 +18,8 @@ module MicroHs.Ident(
   SLoc(..), noSLoc,
   showSLoc, slocFile,
   isUpperX,
+  hideIdent,
+  isHiddenIdent,
   ) where
 import qualified Prelude(); import MHSPrelude hiding(head)
 import Data.Char
@@ -25,7 +27,7 @@ import Text.PrettyPrint.HughesPJLite
 import GHC.Stack
 import MicroHs.List(dropEnd)
 
-import Data.Text(Text, pack, unpack, append, head)
+import Data.Text(Text, pack, unpack, append, head, cons)
 
 {-
 -- Uncomment this section, and comment out the two lines above
@@ -193,3 +195,10 @@ isUpperX :: Char -> Bool
 isUpperX '\8658' = False  -- these two lines avoid using the whole Unicode machinery
 isUpperX '\8594' = False
 isUpperX c = isUpper c
+
+-- This is a hack to hide an identifier without removing it
+hideIdent :: Ident -> Ident
+hideIdent (Ident l s) = Ident l (cons ' ' s)
+
+isHiddenIdent :: Ident -> Bool
+isHiddenIdent (Ident _ s) = Data.Text.head s == ' '

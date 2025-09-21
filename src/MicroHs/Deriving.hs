@@ -100,9 +100,9 @@ getFixLookup mctx = do
 --------------------------------------------
 
 expandField :: EDef -> T [EDef]
-expandField def@(Data    lhs cs _) = (++ [def]) <$> genHasFields lhs cs
-expandField def@(Newtype lhs  c _) = (++ [def]) <$> genHasFields lhs [c]
-expandField def                    = return [def]
+expandField def@(Data    lhs cs ds) | not (doNotDerive ds) = (++ [def]) <$> genHasFields lhs cs
+expandField def@(Newtype lhs  c ds) | not (doNotDerive ds) = (++ [def]) <$> genHasFields lhs [c]
+expandField def                                            = return [def]
 
 genHasFields :: LHS -> [Constr] -> T [EDef]
 genHasFields lhs cs = do

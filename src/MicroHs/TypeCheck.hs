@@ -147,17 +147,21 @@ filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs d
            else [ ve | TypeExport _ _ ves <- ts, ve@(ValueExport i _) <- ves, i `elem` ivs ]
     aits = [ i | ImpTypeAll i <- is ]         -- all T(..) imports
     its  = [ i | ImpTypeSome i _ <- is ] ++ aits
-    -- XXX This isn't quite right, hiding T() should hide T, but not the constructors
+    -- Hide the type name, but not all it's parts.
+    -- Processing the TypeExport to extract the constructors/fields/methods/defaultmethods
+    -- is done later in mkTCState, so we can't remove the export.
+    -- To hide it we use a hack: make the identifier inaccessible by prepending a ' '.
+    mkTypeExport _ _ [] = []  -- no parts left, just throw away.
+    mkTypeExport i e ves = [TypeExport (hideIdent i) e ves] -- hide the type name, keep the associated values
     ts' =
       if hide then
         let ok xs (ValueExport i _) = i `notElem` ivs && i `notElem` xs in
-        [ TypeExport i e (filter (ok []) ves) | TypeExport i e ves <- ts, i `notElem` its ] ++
-        [ TypeExport i e (filter (ok xs) ves) | TypeExport i e ves <- ts, ImpTypeSome i' xs <- is, i == i' ]
+        [ TypeExport i e (filter (ok []) ves) | TypeExport i e ves <- ts, i `notElem` its ] ++   -- no hiding of these types, but maybe fields
+        [ r | TypeExport i e ves <- ts, ImpTypeSome i' xs <- is, i == i', r <- mkTypeExport i e (filter (ok xs) ves) ]
       else
         let ok xs (ValueExport i _) = i `elem` ivs || i `elem` xs || isDefaultMethodId i in
         [ TypeExport i e                 ves  | TypeExport i e ves <- ts, i `elem` aits ] ++
         [ TypeExport i e (filter (ok xs) ves) | TypeExport i e ves <- ts, ImpTypeSome i' xs <- is, i == i' ]
-    msg = "not exported"
     allVs = map (\ (ValueExport i _) -> i) vs ++
             concatMap (\ (TypeExport _ _ xvs) -> map (\ (ValueExport i _) -> i) xvs) ts
     allTs = map (\ (TypeExport i _ _) -> i) ts
@@ -165,15 +169,14 @@ filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs d
     (if hide then
        id -- don't complain about missing hidden identifiers; we use it for compatibility
      else
-       checkBad msg (ivs \\ allVs) .
-       checkBad msg (its \\ allTs))
-    --trace (show (ts, vs)) $
+       checkBad (ivs \\ allVs) .
+       checkBad (its \\ allTs))
     (imp, TModule mn fx ts' vs' ds a)
 
-checkBad :: forall a . String -> [Ident] -> a -> a
-checkBad _ [] a = a
-checkBad msg (i:_) _ =
-  errorMessage (getSLoc i) $ msg ++ ": " ++ showIdent i
+checkBad :: forall a . [Ident] -> a -> a
+checkBad [] a = a
+checkBad (i:_) _ =
+  errorMessage (getSLoc i) $ "not exported: " ++ showIdent i
 
 -- Type and value exports
 getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ExportItem ->
@@ -281,15 +284,15 @@ mkTCState mdlName globs mdls =
                                      case e of
                                        EVar qi -> qi
                                        _ -> undefined
-      in  stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
+      in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
     allTypes :: TypeTable
     allTypes =
       let
         usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _) =
-          if qual then [] else [ (i, [e]) | TypeExport i e _ <- tes ]
+          if qual then [] else [ (i, [e]) | TypeExport i e _ <- tes, not (isHiddenIdent i) ]
         qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _) =
           let m = fromMaybe mn mas in
-          [ (qualIdent m i, [e]) | TypeExport i e _ <- tes ]
+          [ (qualIdent m i, [e]) | TypeExport i e _ <- tes, not (isHiddenIdent i) ]
       in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
 
     allFixes :: FixTable
@@ -937,7 +940,7 @@ tcDefs flags impt ds = do
   case impt of
     ImpNormal -> do
       setDefault dste
-      dste' <- tcDefsValue dste
+      dste' <- mapM expandFFIType =<< tcDefsValue dste
       mapM_ addAssocs dste'
       return dste'
     ImpBoot ->
@@ -1551,19 +1554,15 @@ tcDefValue adef =
       mn <- gets moduleName
       t' <- expandSyn t
       return (ForImp cc ie (qualIdent' mn i) t')
-    ForExp{} -> tCheckForeignDecl adef
+    -- Check that a foreign export match the declaration type.
+    -- In most cases the types will be the same, but the declaration can be overloaded
+    -- so we need to ensure that it is compatible with the export definition.
+    ForExp cc ms e t -> do
+      ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
+      let e'' = eLetB (eBinds ds) e'
+      pure $ ForExp cc (Just $ fromMaybe (show e) ms) e'' t'
     Pattern{} -> impossible
     _ -> return adef
-
--- Check that a foreign export match the declaration type.
--- In most cases the types will be the same, but the declaration can be overloaded
--- so we need to ensure that it is compatible with the export definition.
-tCheckForeignDecl :: HasCallStack => EDef -> T EDef
-tCheckForeignDecl (ForExp cc ms e t) = do
-  ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
-  let e'' = eLetB (eBinds ds) e'
-  pure $ ForExp cc (Just $ fromMaybe (show e) ms) e'' t'
-tCheckForeignDecl _ = impossible
 
 qualIdent' :: IdentModule -> Ident -> Ident
 qualIdent' mn i | isInstId i = i
@@ -3290,11 +3289,9 @@ solveTypeEq _ _ _ = impossible
 
 solveCoercible :: HasCallStack => SolveOne
 solveCoercible loc iCls [t1, t2] = do
-  st <- gets synTable
-  extNewtypeSyns        -- pretend newtypes are type synonyms
-  t1' <- expandSyn t1
-  t2' <- expandSyn t2
-  putSynTable st
+  -- pretend newtypes are type synonyms
+  (t1', t2') <- withNewtypeAsSyns $
+    (,) <$> expandSyn t1 <*> expandSyn t2
   -- walk over the types in parallel,
   -- and generate new Coercible constraints when not equal.
 --  traceM $ "solveCoercible: " ++ showExprRaw t1' ++ " and " ++ showExprRaw t2'
@@ -3327,19 +3324,24 @@ solveInstCoercible loc iCls t1 t2 = do
 
 -- Pretend newtypes are type synonyms.
 -- XXX It's rather inefficient to do this over and over.
-extNewtypeSyns :: T ()
-extNewtypeSyns = do
+withNewtypeAsSyns :: T a -> T a
+withNewtypeAsSyns act = do
+  st <- gets synTable  -- get old syntable
+  -- Copy newtypes to syn table
   dt <- gets dataTable
   let ext (qi, Newtype (_, vs) (Constr _ _ _c _ et) _) = do
           -- XXX We should check that the constructor name (_c) is visible.
           -- But this is tricky since we don't know under what qualified name it
-          -- it should be visible.
+          -- it could be visible.
           let t = either (snd . head) (snd . snd . head) et
 --          traceM $ "extNewtypeSyns: " ++ showIdent qi ++ show vs ++ " = " ++ showExprRaw t
           extSyn qi vs t  -- extend synonym table
       ext _ = return ()
   mapM_ ext $ M.toList dt
 
+  a <- act
+  putSynTable st  -- put back old syntable
+  pure a
 
 isEUVar :: EType -> Bool
 isEUVar (EUVar _) = True
@@ -3583,7 +3585,7 @@ addTypeable' loc ds =
 -- Add Data.Typeable to the derivings.
 -- Also skip all derivings (including Typeable) if it is says 'deriving ()'
 addTypeable :: SLoc -> [Deriving] -> [Deriving]
-addTypeable _ [Deriving DerNone []] = []
+addTypeable _ dss | doNotDerive dss = []
 addTypeable loc dss = Deriving DerNone [(0, EVar $ mkIdentSLoc loc nameDataTypeableTypeable)] : map (\ (Deriving strat ds) -> Deriving strat (filter (not . isDT) ds)) dss
   where isDT (_, EVar dt) = dt == identDataTypeableTypeable
         isDT _ = False
@@ -3608,3 +3610,11 @@ standaloneDeriving str narg act = do
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
   deriveStrat (Just (act, tname)) newt lhs cs str (narg, tApps cls ts)
+
+-- Foreign imports and exports ignore newtypes
+-- and the FFI operates on the primitive types.
+-- So expand newtypes as if they were type synonyms.
+expandFFIType :: EDef -> T EDef
+expandFFIType (ForImp cc ie i t) = ForImp cc ie i <$> withNewtypeAsSyns (expandSyn t)
+expandFFIType (ForExp cc ms e t) = ForExp cc ms e <$> withNewtypeAsSyns (expandSyn t)
+expandFFIType d = return d

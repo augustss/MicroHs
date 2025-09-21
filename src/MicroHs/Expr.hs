@@ -6,7 +6,7 @@ module MicroHs.Expr(
   ImportItem(..),
   ImpType(..),
   EDef(..), showEDefs,
-  Deriving(..), DerStrategy(..),
+  Deriving(..), DerStrategy(..), doNotDerive,
   Expr(..), eLam, eLamWithSLoc, eEqn, oneAlt, eEqns, showExpr, eqExpr,
   CallConv(..),
   QForm(..),
@@ -163,6 +163,11 @@ data DerStrategy
 instance NFData DerStrategy where
   rnf (DerVia a) = rnf a
   rnf _ = ()
+
+-- Indication that we don't want any deriving
+doNotDerive :: [Deriving] -> Bool
+doNotDerive [Deriving DerNone []] = True
+doNotDerive _ = False
 
 data Expr
   = EVar Ident
