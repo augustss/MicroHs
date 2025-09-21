@@ -15,7 +15,7 @@ module Mhs.Builtin(
   module Data.Num,
   module Data.Records,
   module Data.Typeable,
-  module Data.Semigroup,
+  module Data.Monoid.Internal,
   module Data.String,
   module Text.ParserCombinators.ReadPrec,
   module Text.Read.Internal,
@@ -44,7 +44,7 @@ import Data.Function((.))
 import Data.Ord(Ord(..), Ordering(..))
 import Data.Num(Num((+), (-), (*), fromInteger, negate))
 import Data.Proxy(Proxy(..))
-import Data.Semigroup(Semigroup(..))
+import Data.Monoid.Internal(Semigroup(..))
 import Data.String(IsString(..))
 import Data.Records(HasField(..), SetField(..), composeSet)
 import {-# SOURCE #-} Data.Typeable(Typeable(..), _mkTyCon)

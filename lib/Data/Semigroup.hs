@@ -16,28 +16,24 @@ module Data.Semigroup(
   diff, cycle1,
   ) where
 import qualified Prelude()              -- do not import Prelude
-import Data.Bool
+import MiniPrelude
+import Control.Monad.Fix
 import Data.Bounded
-import Data.Coerce
-import Data.Eq
-import Data.Function
+import Data.Foldable
+import Data.Traversable
 import Data.List.NonEmpty_Type
-import Data.Ord
-import Data.Monoid.Internal
-import Data.Records
-import {-# SOURCE #-} Data.Typeable
-import Text.Show
+import Text.Read
+import Mhs.Builtin
 
-{-
 newtype First a = First { getFirst :: a }
   deriving ( Bounded  -- ^ @since 4.9.0.0
            , Eq       -- ^ @since 4.9.0.0
            , Ord      -- ^ @since 4.9.0.0
            , Show     -- ^ @since 4.9.0.0
            , Read     -- ^ @since 4.9.0.0
-           , Data     -- ^ @since 4.9.0.0
-           , Generic  -- ^ @since 4.9.0.0
-           , Generic1 -- ^ @since 4.9.0.0
+--           , Data     -- ^ @since 4.9.0.0
+--           , Generic  -- ^ @since 4.9.0.0
+--           , Generic1 -- ^ @since 4.9.0.0
            )
 
 instance Enum a => Enum (First a) where
@@ -49,17 +45,12 @@ instance Enum a => Enum (First a) where
   enumFromThen (First a) (First b) = First `fmap` enumFromThen a b
   enumFromTo (First a) (First b) = First `fmap` enumFromTo a b
   enumFromThenTo (First a) (First b) (First c) = First `fmap` enumFromThenTo a b c
--}
-
-newtype First a = First { getFirst :: a }
-  deriving(Eq, Ord, Show, Bounded)
 
 instance Semigroup (First a) where
   a <> _ = a
   stimes = stimesIdempotent
   sconcat (x :| _) = x
 
-{-
 -- | @since 4.9.0.0
 instance Functor First where
   fmap f (First x) = First (f x)
@@ -88,18 +79,16 @@ instance Monad First where
 -- | @since 4.9.0.0
 instance MonadFix First where
   mfix f = fix (f . getFirst)
--}
 
-{-
 newtype Last a = Last { getLast :: a }
   deriving ( Bounded  -- ^ @since 4.9.0.0
            , Eq       -- ^ @since 4.9.0.0
            , Ord      -- ^ @since 4.9.0.0
            , Show     -- ^ @since 4.9.0.0
            , Read     -- ^ @since 4.9.0.0
-           , Data     -- ^ @since 4.9.0.0
-           , Generic  -- ^ @since 4.9.0.0
-           , Generic1 -- ^ @since 4.9.0.0
+--           , Data     -- ^ @since 4.9.0.0
+--           , Generic  -- ^ @since 4.9.0.0
+--           , Generic1 -- ^ @since 4.9.0.0
            )
 
 -- | @since 4.9.0.0
@@ -112,16 +101,11 @@ instance Enum a => Enum (Last a) where
   enumFromThen (Last a) (Last b) = Last `fmap` enumFromThen a b
   enumFromTo (Last a) (Last b) = Last `fmap` enumFromTo a b
   enumFromThenTo (Last a) (Last b) (Last c) = Last `fmap` enumFromThenTo a b c
--}
-
-newtype Last a = Last { getLast :: a }
-  deriving(Eq, Ord, Show, Bounded)
 
 instance Semigroup (Last a) where
   _ <> b = b
   stimes = stimesIdempotent
 
-{-
 -- | @since 4.9.0.0
 instance Functor Last where
   fmap f (Last x) = Last (f x)
@@ -151,7 +135,7 @@ instance Monad Last where
 -- | @since 4.9.0.0
 instance MonadFix Last where
   mfix f = fix (f . getLast)
--}
+
 
 diff :: Semigroup m => m -> Endo m
 diff = Endo . (<>)
