@@ -11,6 +11,15 @@ instance Functor ((,,) a1 a2) where
 instance Functor ((,,,) a1 a2 a3) where
   fmap f (a1, a2, a3, a) = (a1, a2, a3, f a)
 
+instance Functor ((,,,,) a1 a2 a3 a4) where
+  fmap f (a1, a2, a3, a4, a) = (a1, a2, a3, a4, f a)
+
+instance Functor ((,,,,,) a1 a2 a3 a4 a5) where
+  fmap f (a1, a2, a3, a4, a5, a) = (a1, a2, a3, a4, a5, f a)
+
+instance Functor ((,,,,,,) a1 a2 a3 a4 a5 a6) where
+  fmap f (a1, a2, a3, a4, a5, a6, a) = (a1, a2, a3, a4, a5, a6, f a)
+
 instance (Monoid a1) => Applicative ((,) a1) where
   pure a = (mempty, a)
   (a1, f) <*> (a1', a) = (a1 <> a1', f a)

@@ -279,6 +279,9 @@ instance Bifoldable Either where
   bifoldMap f _ (Left a) = f a
   bifoldMap _ g (Right b) = g b
 
+instance Bifoldable Arg where
+  bifoldMap f g (Arg a b) = f a <> g b
+
 -- | As 'bifoldr', but strict in the result of the reduction functions at each
 -- step.
 --
