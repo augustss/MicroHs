@@ -431,7 +431,8 @@ pGADTconstr = do
   dcolon
   es <- pForall
   ctx <- pContext
-  args <- many (pSTypeApp <* pSymbol "->")
+  let pGType = pStrictP $ pOperators pOper pTypeArg
+  args <- many (pGType <* pSymbol "->")
   res <- pType
   pure (cn, es, ctx, args, res)
 
@@ -498,9 +499,9 @@ pFields = Right <$> (pSpec '{' *> (concatMap flat <$> sepBy ((,) <$> (sepBy1 pLI
 
 -- XXX This is a mess.
 pSAType :: P (Bool, EType)
-pSAType = (,) <$> pStrict <*> pAType
+pSAType = pStrictP pAType
 pSType :: P (Bool, EType)
-pSType  = (,) <$> pStrict <*> pType
+pSType  = pStrictP pType
 pSTypeApp :: P (Bool, EType)
 pSTypeApp  = do
   s <- pStrict
@@ -508,6 +509,8 @@ pSTypeApp  = do
   pure (s, t)
 pStrict :: P Bool
 pStrict = (True <$ pSpec '!') <|> pure False
+pStrictP :: P a -> P (Bool, a)
+pStrictP p = (,) <$> pStrict <*> p
 
 pLHS :: P LHS
 pLHS = (,) <$> pTypeIdentSym <*> many pIdKind
