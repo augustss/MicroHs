@@ -147,19 +147,21 @@ filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs d
            else [ ve | TypeExport _ _ ves <- ts, ve@(ValueExport i _) <- ves, i `elem` ivs ]
     aits = [ i | ImpTypeAll i <- is ]         -- all T(..) imports
     its  = [ i | ImpTypeSome i _ <- is ] ++ aits
-    -- XXX This isn't quite right, hiding T() should hide T, but not the constructors
+    -- Hide the type name, but not all it's parts.
+    -- Processing the TypeExport to extract the constructors/fields/methods/defaultmethods
+    -- is done later in mkTCState, so we can't remove the export.
+    -- To hide it we use a hack: make the identifier inaccessible by prepending a ' '.
+    mkTypeExport _ _ [] = []  -- no parts left, just throw away.
+    mkTypeExport i e ves = [TypeExport (hideIdent i) e ves] -- hide the type name, keep the associated values
     ts' =
       if hide then
         let ok xs (ValueExport i _) = i `notElem` ivs && i `notElem` xs in
-        [ TypeExport i e (filter (ok []) ves) | TypeExport i e ves <- ts, i `notElem` its ] ++   -- no hiding of these
-        []
-        -- This is bogus.  What should be hidden with, e.g., T(C)?
-        -- [ TypeExport i e (filter (ok xs) ves) | TypeExport i e ves <- ts, ImpTypeSome i' xs <- is, i == i' ]
+        [ TypeExport i e (filter (ok []) ves) | TypeExport i e ves <- ts, i `notElem` its ] ++   -- no hiding of these types, but maybe fields
+        [ r | TypeExport i e ves <- ts, ImpTypeSome i' xs <- is, i == i', r <- mkTypeExport i e (filter (ok xs) ves) ]
       else
         let ok xs (ValueExport i _) = i `elem` ivs || i `elem` xs || isDefaultMethodId i in
         [ TypeExport i e                 ves  | TypeExport i e ves <- ts, i `elem` aits ] ++
         [ TypeExport i e (filter (ok xs) ves) | TypeExport i e ves <- ts, ImpTypeSome i' xs <- is, i == i' ]
-    msg = "not exported"
     allVs = map (\ (ValueExport i _) -> i) vs ++
             concatMap (\ (TypeExport _ _ xvs) -> map (\ (ValueExport i _) -> i) xvs) ts
     allTs = map (\ (TypeExport i _ _) -> i) ts
@@ -167,15 +169,14 @@ filterImports (imp@(ImportSpec _ _ _ _ (Just (hide, is))), TModule mn fx ts vs d
     (if hide then
        id -- don't complain about missing hidden identifiers; we use it for compatibility
      else
-       checkBad msg (ivs \\ allVs) .
-       checkBad msg (its \\ allTs))
-    --trace (show (ts, vs)) $
+       checkBad (ivs \\ allVs) .
+       checkBad (its \\ allTs))
     (imp, TModule mn fx ts' vs' ds a)
 
-checkBad :: forall a . String -> [Ident] -> a -> a
-checkBad _ [] a = a
-checkBad msg (i:_) _ =
-  errorMessage (getSLoc i) $ msg ++ ": " ++ showIdent i
+checkBad :: forall a . [Ident] -> a -> a
+checkBad [] a = a
+checkBad (i:_) _ =
+  errorMessage (getSLoc i) $ "not exported: " ++ showIdent i
 
 -- Type and value exports
 getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ExportItem ->
@@ -283,15 +284,15 @@ mkTCState mdlName globs mdls =
                                      case e of
                                        EVar qi -> qi
                                        _ -> undefined
-      in  stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
+      in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
     allTypes :: TypeTable
     allTypes =
       let
         usyms (ImportSpec _ qual _ _ _, TModule _ _ tes _ _ _) =
-          if qual then [] else [ (i, [e]) | TypeExport i e _ <- tes ]
+          if qual then [] else [ (i, [e]) | TypeExport i e _ <- tes, not (isHiddenIdent i) ]
         qsyms (ImportSpec _ _ _ mas _, TModule mn _ tes _ _ _) =
           let m = fromMaybe mn mas in
-          [ (qualIdent m i, [e]) | TypeExport i e _ <- tes ]
+          [ (qualIdent m i, [e]) | TypeExport i e _ <- tes, not (isHiddenIdent i) ]
       in stFromList (concatMap usyms mdls) (concatMap qsyms mdls)
 
     allFixes :: FixTable
@@ -3584,7 +3585,7 @@ addTypeable' loc ds =
 -- Add Data.Typeable to the derivings.
 -- Also skip all derivings (including Typeable) if it is says 'deriving ()'
 addTypeable :: SLoc -> [Deriving] -> [Deriving]
-addTypeable _ [Deriving DerNone []] = []
+addTypeable _ dss | doNotDerive dss = []
 addTypeable loc dss = Deriving DerNone [(0, EVar $ mkIdentSLoc loc nameDataTypeableTypeable)] : map (\ (Deriving strat ds) -> Deriving strat (filter (not . isDT) ds)) dss
   where isDT (_, EVar dt) = dt == identDataTypeableTypeable
         isDT _ = False
