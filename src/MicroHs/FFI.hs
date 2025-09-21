@@ -200,7 +200,7 @@ cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 cTypes :: [(String, String)]
 cTypes =
   [ ("Primitives.Float",  "float")
-  , ("Primitives.Double", "fdouble")
+  , ("Primitives.Double", "double")
   , ("Primitives.Int",    "intptr_t")   -- value_t
   , ("Primitives.Int64",  "int64_t")
   , ("Primitives.Word",   "uintptr_t")  -- uvalue_t
@@ -252,6 +252,7 @@ runtimeFFI = [
   "add_bwt_compressor", "add_bwt_decompressor",
   "peek_uint8", "poke_uint8", "peek_uint16", "poke_uint16", "peek_uint32", "poke_uint32", "peek_uint64", "poke_uint64",
   "peek_int8", "poke_int8", "peek_int16", "poke_int16", "peek_int32", "poke_int32", "peek_int64", "poke_int64",
+  "peek_char", "poke_char", "peek_schar", "poke_schar", "peek_uchar", "poke_uchar",
   "peek_ushort", "poke_ushort", "peek_short", "poke_short",
   "peek_uint", "poke_uint", "peek_int", "poke_int",
   "peek_ulong", "poke_ulong", "peek_long", "poke_long",
@@ -259,7 +260,7 @@ runtimeFFI = [
   "peek_size_t", "poke_size_t",
   "peek_flt32", "poke_flt32",
   "peek_flt64", "poke_flt64",
-  "sizeof_int", "sizeof_long", "sizeof_llong", "sizeof_size_t",
+  "sizeof_char", "sizeof_short", "sizeof_int", "sizeof_long", "sizeof_llong", "sizeof_size_t",
   "opendir", "closedir", "readdir", "c_d_name", "chdir", "mkdir", "getcwd",
   "getcpu",
   "get_mem", "openb_rd_mem", "openb_wr_mem",

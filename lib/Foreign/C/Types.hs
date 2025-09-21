@@ -1,5 +1,6 @@
 -- Types used for C FFI.
 module Foreign.C.Types(
+  CBool(..),
   CChar(..),  CSChar(..),  CUChar(..), CWchar(..),
   CShort(..), CUShort(..),
   CInt(..),   CUInt(..),
@@ -32,6 +33,7 @@ import Data.Real
 import Data.RealFrac
 import Data.RealFloat
 import Data.Word.Word
+import Data.Word.Word8
 import Data.Float
 import Data.Double
 import {-# SOURCE #-} Data.Typeable
@@ -39,7 +41,7 @@ import {-# SOURCE #-} Data.Typeable
 -- The MicroHs Word type is the "natural" architecture word size;
 -- it is the same as the pointer difference type.
 -- And Int is the natural signed word size.
-newtype CBool    = CBool    Int
+newtype CBool    = CBool    Word8
   deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CChar    = CChar    Int
   deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
@@ -86,7 +88,6 @@ newtype CSigAtomic = CSigAtomic Word  -- XXX platform specific
 newtype CTime = CTime Int
   deriving (Eq, Ord)
 
--- XXX only one of these is actually correct
 newtype CFloat   = CFloat   Float
   deriving (Eq, Ord, Num, Real, Fractional, RealFrac, Floating, RealFloat)
 newtype CDouble  = CDouble  Double
