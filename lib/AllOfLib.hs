@@ -23,6 +23,7 @@ import Data.Bits
 import Data.Bool
 import Data.Bool_Type
 import Data.Bifoldable
+import Data.Bifoldable1
 import Data.Bifunctor
 import Data.Bitraversable
 import Data.Bounded
