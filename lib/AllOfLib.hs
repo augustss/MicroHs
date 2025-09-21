@@ -158,6 +158,7 @@ import System.Mem
 import System.Mem.Weak
 import System.Process
 import System.RTS
+import System.Timeout
 import Text.Printf
 import Text.Read
 import Text.Show

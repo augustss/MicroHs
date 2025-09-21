@@ -50,6 +50,7 @@ library base
         Control.WrappedMonad
         Data.Array.Byte
         Data.Bifoldable
+        Data.Bifoldable1
         Data.Bifunctor
         Data.Bitraversable
         Data.Bits
@@ -128,6 +129,7 @@ library base
         Data.Type.Equality
         Data.TypeLits
         Data.Typeable
+        Data.Unique
         Data.Version
         Data.Void
         Data.Word
@@ -192,6 +194,7 @@ library base
         System.Mem.Weak
         System.Process
         System.RTS
+        System.Timeout
         Text.Printf
         Text.ParserCombinators.ReadP
         Text.ParserCombinators.ReadPrec
