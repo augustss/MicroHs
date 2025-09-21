@@ -6,6 +6,7 @@ import Primitives
 import Control.Error(undefined)
 import Foreign.C.Types
 import Foreign.Ptr
+import Data.Bool_Type
 import Data.Int
 import Data.Word
 import Data.Coerce
@@ -53,6 +54,12 @@ instance Storable Char where
   alignment _ = 4
   peek p      = c_peek_int32 (castPtr p) `primBind` \ i -> primReturn (primChr (primUnsafeCoerce i))
   poke p c    = c_poke_int32 (castPtr p) (primUnsafeCoerce (primOrd c))
+
+instance Storable Bool where
+  sizeOf    _ = intSize
+  alignment _ = intSize
+  peek p      = c_peek_int (castPtr p) `primBind` \(CInt i) -> primReturn (i `primIntNE` 0)
+  poke p b    = c_poke_int (castPtr p) (if b then CInt 1 else CInt 0)
 
 foreign import ccall "peekPtr" c_peekPtr :: Ptr (Ptr ()) -> IO (Ptr ())
 foreign import ccall "pokePtr" c_pokePtr :: Ptr (Ptr ()) -> Ptr () -> IO ()
@@ -141,6 +148,51 @@ instance Storable Int64 where
   peek p      = c_peek_int64 p
   poke p w    = c_poke_int64 p w
 
+foreign import ccall "peek_char" c_peek_char :: Ptr CChar -> IO CChar
+foreign import ccall "poke_char" c_poke_char :: Ptr CChar -> CChar -> IO ()
+
+instance Storable CChar where
+  sizeOf    _ = charSize
+  alignment _ = charSize
+  peek        = c_peek_char
+  poke        = c_poke_char
+
+foreign import ccall "peek_schar" c_peek_schar :: Ptr CSChar -> IO CSChar
+foreign import ccall "poke_schar" c_poke_schar :: Ptr CSChar -> CSChar -> IO ()
+
+instance Storable CSChar where
+  sizeOf    _ = charSize
+  alignment _ = charSize
+  peek        = c_peek_schar
+  poke        = c_poke_schar
+
+foreign import ccall "peek_uchar" c_peek_uchar :: Ptr CUChar -> IO CUChar
+foreign import ccall "poke_uchar" c_poke_uchar :: Ptr CUChar -> CUChar -> IO ()
+
+instance Storable CUChar where
+  sizeOf    _ = charSize
+  alignment _ = charSize
+  peek        = c_peek_uchar
+  poke        = c_poke_uchar
+
+foreign import ccall "peek_short" c_peek_short :: Ptr CShort -> IO CShort
+foreign import ccall "poke_short" c_poke_short :: Ptr CShort -> CShort -> IO ()
+
+instance Storable CShort where
+  sizeOf    _ = shortSize
+  alignment _ = shortSize
+  peek        = c_peek_short
+  poke        = c_poke_short
+
+foreign import ccall "peek_ushort" c_peek_ushort :: Ptr CUShort -> IO CUShort
+foreign import ccall "poke_ushort" c_poke_ushort :: Ptr CUShort -> CUShort -> IO ()
+
+instance Storable CUShort where
+  sizeOf    _ = shortSize
+  alignment _ = shortSize
+  peek        = c_peek_ushort
+  poke        = c_poke_ushort
+
 foreign import ccall "peek_int" c_peek_int :: Ptr CInt -> IO CInt
 foreign import ccall "poke_int" c_poke_int :: Ptr CInt -> CInt -> IO ()
 
@@ -213,6 +265,12 @@ instance Storable Float where
   peek p      = c_peek_flt32 p
   poke p w    = c_poke_flt32 p w
 
+instance Storable CFloat where
+  sizeOf    _ = 4
+  alignment _ = 4
+  peek p      = c_peek_flt32 (castPtr p) `primBind` \f -> primReturn (CFloat f)
+  poke p (CFloat w) = c_poke_flt32 (castPtr p) w
+
 foreign import ccall "peek_flt64" c_peek_flt64 :: Ptr Double -> IO Double
 foreign import ccall "poke_flt64" c_poke_flt64 :: Ptr Double -> Double -> IO ()
 
@@ -222,10 +280,22 @@ instance Storable Double where
   peek p      = c_peek_flt64 p
   poke p w    = c_poke_flt64 p w
 
+instance Storable CDouble where
+  sizeOf    _ = 8
+  alignment _ = 8
+  peek p      = c_peek_flt64 (castPtr p) `primBind` \d -> primReturn (CDouble d)
+  poke p (CDouble w) = c_poke_flt64 (castPtr p) w
+
+foreign import ccall "sizeof_char" c_sizeof_char :: IO Int
+foreign import ccall "sizeof_short" c_sizeof_short :: IO Int
 foreign import ccall "sizeof_int" c_sizeof_int :: IO Int
 foreign import ccall "sizeof_long" c_sizeof_long :: IO Int
 foreign import ccall "sizeof_llong" c_sizeof_llong :: IO Int
 foreign import ccall "sizeof_size_t" c_sizeof_size_t :: IO Int
+charSize :: Int
+charSize = primPerformIO c_sizeof_char
+shortSize :: Int
+shortSize = primPerformIO c_sizeof_short
 intSize :: Int
 intSize = primPerformIO c_sizeof_int
 longSize :: Int
@@ -237,3 +307,4 @@ sizeTSize = primPerformIO c_sizeof_size_t
 
 deriving newtype instance Storable IntPtr
 deriving newtype instance Storable WordPtr
+deriving newtype instance Storable CBool

@@ -2966,6 +2966,48 @@ poke_uint(unsigned int *p, value_t w)
 
 static INLINE
 value_t
+peek_char(char *p)
+{
+  return *p;
+}
+
+static INLINE
+void
+poke_char(char *p, value_t w)
+{
+  *p = (char)w;
+}
+
+static INLINE
+value_t
+peek_schar(signed char *p)
+{
+  return *p;
+}
+
+static INLINE
+void
+poke_schar(signed char *p, value_t w)
+{
+  *p = (signed char)w;
+}
+
+static INLINE
+value_t
+peek_uchar(unsigned char *p)
+{
+  return *p;
+}
+
+static INLINE
+void
+poke_uchar(unsigned char *p, value_t w)
+{
+  *p = (unsigned char)w;
+}
+
+static INLINE
+value_t
 peek_short(short *p)
 {
   return *p;
@@ -6751,12 +6793,6 @@ from_t mhs_poke_uint32(int s) { poke_uint32(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1))
 from_t mhs_peek_uint64(int s) { return mhs_from_Word(s, 1, peek_uint64(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WORD_SIZE */
-from_t mhs_peek_uint(int s) { return mhs_from_Word(s, 1, peek_uint(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_uint(int s) { poke_uint(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
-from_t mhs_peek_short(int s) { return mhs_from_Int(s, 1, peek_short(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_short(int s) { poke_short(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
-from_t mhs_peek_ushort(int s) { return mhs_from_Word(s, 1, peek_ushort(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_ushort(int s) { poke_ushort(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 
 from_t mhs_peek_int8(int s) { return mhs_from_Int(s, 1, peek_int8(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_int8(int s) { poke_int8(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
@@ -6770,26 +6806,40 @@ from_t mhs_poke_int32(int s) { poke_int32(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); r
 from_t mhs_peek_int64(int s) { return mhs_from_Int(s, 1, peek_int64(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WORD_SIZE */
-from_t mhs_peek_int(int s) { return mhs_from_Int(s, 1, peek_int(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_int(int s) { poke_int(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
-from_t mhs_peek_llong(int s) { return mhs_from_CLLong(s, 1, peek_llong(mhs_to_Ptr(s, 0))); }
+from_t mhs_peek_char(int s) { return mhs_from_CChar(s, 1, peek_char(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_char(int s) { poke_char(mhs_to_Ptr(s, 0), mhs_to_CChar(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_schar(int s) { return mhs_from_CSChar(s, 1, peek_schar(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_schar(int s) { poke_schar(mhs_to_Ptr(s, 0), mhs_to_CSChar(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_uchar(int s) { return mhs_from_CUChar(s, 1, peek_uchar(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uchar(int s) { poke_uchar(mhs_to_Ptr(s, 0), mhs_to_CUChar(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_short(int s) { return mhs_from_CShort(s, 1, peek_short(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_short(int s) { poke_short(mhs_to_Ptr(s, 0), mhs_to_CShort(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_ushort(int s) { return mhs_from_CUShort(s, 1, peek_ushort(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_ushort(int s) { poke_ushort(mhs_to_Ptr(s, 0), mhs_to_CUShort(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_int(int s) { return mhs_from_CInt(s, 1, peek_int(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int(int s) { poke_int(mhs_to_Ptr(s, 0), mhs_to_CInt(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_uint(int s) { return mhs_from_CUInt(s, 1, peek_uint(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint(int s) { poke_uint(mhs_to_Ptr(s, 0), mhs_to_CUInt(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_peek_long(int s) { return mhs_from_CLong(s, 1, peek_long(mhs_to_Ptr(s, 0))); }
-from_t mhs_peek_ullong(int s) { return mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
-from_t mhs_peek_ulong(int s) { return mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
-from_t mhs_peek_size_t(int s) { return mhs_from_CSize(s, 1, peek_size_t(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_poke_long(int s) { poke_long(mhs_to_Ptr(s, 0), mhs_to_CLong(s, 1)); return mhs_from_Unit(s, 2); }
-from_t mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_ulong(int s) { return mhs_from_CULong(s, 1, peek_ulong(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_ulong(int s) { poke_ulong(mhs_to_Ptr(s, 0), mhs_to_CULong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_llong(int s) { return mhs_from_CLLong(s, 1, peek_llong(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_llong(int s) { poke_llong(mhs_to_Ptr(s, 0), mhs_to_CLLong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_ullong(int s) { return mhs_from_CULLong(s, 1, peek_ullong(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_ullong(int s) { poke_ullong(mhs_to_Ptr(s, 0), mhs_to_CULLong(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_size_t(int s) { return mhs_from_CSize(s, 1, peek_size_t(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_size_t(int s) { poke_size_t(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1)); return mhs_from_Unit(s, 2); }
 #if WANT_FLOAT32
 from_t mhs_peek_flt32(int s) { return mhs_from_Float(s, 1, peek_flt32(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_flt32(int s) { poke_flt32(mhs_to_Ptr(s, 0), mhs_to_Float(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WANT_FLOAT32 */
 #if WANT_FLOAT64
-from_t mhs_peek_flt64(int s) { return mhs_from_Float(s, 1, peek_flt64(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_flt64(int s) { poke_flt64(mhs_to_Ptr(s, 0), mhs_to_Float(s, 1)); return mhs_from_Unit(s, 2); }
+from_t mhs_peek_flt64(int s) { return mhs_from_Double(s, 1, peek_flt64(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_flt64(int s) { poke_flt64(mhs_to_Ptr(s, 0), mhs_to_Double(s, 1)); return mhs_from_Unit(s, 2); }
 #endif  /* WANT_FLOAT64 */
+from_t mhs_sizeof_char(int s) { return mhs_from_Int(s, 0, sizeof(char)); }
+from_t mhs_sizeof_short(int s) { return mhs_from_Int(s, 0, sizeof(short)); }
 from_t mhs_sizeof_int(int s) { return mhs_from_Int(s, 0, sizeof(int)); }
 from_t mhs_sizeof_llong(int s) { return mhs_from_Int(s, 0, sizeof(long long)); }
 from_t mhs_sizeof_long(int s) { return mhs_from_Int(s, 0, sizeof(long)); }
@@ -7099,6 +7149,8 @@ const struct ffi_entry ffi_table[] = {
   { "peek_flt", 1, mhs_peek_flt},
   { "poke_flt", 2, mhs_poke_flt},
 #endif  /* WANT_FLOAT */
+  { "sizeof_char", 0, mhs_sizeof_char},
+  { "sizeof_short", 0, mhs_sizeof_short},
   { "sizeof_int", 0, mhs_sizeof_int},
   { "sizeof_llong", 0, mhs_sizeof_llong},
   { "sizeof_long", 0, mhs_sizeof_long},
