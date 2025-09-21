@@ -6,6 +6,7 @@
 - ignore: {name: Move guards forward}
 - ignore: {name: Use lambda-case}
 - ignore: {name: "Use <&>"}
+- ignore: {name: "Missing NOINLINE pragma"}
 # Some special exceptions
 - ignore: {name: Use list literal pattern, within: [MicroHs.Main,System.Console.GetOpt]}
 - ignore: {name: "Avoid lambda using `infix`", within: [MicroHs.Deriving,MicroHs.TypeCheck]}
