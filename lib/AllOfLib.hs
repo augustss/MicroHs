@@ -99,6 +99,7 @@ import Data.Tuple
 import Data.Tuple.Instances
 import Data.Typeable
 import Data.TypeLits
+import Data.Unique
 import Data.Version
 import Data.Void
 import Data.Word
