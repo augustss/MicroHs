@@ -10,6 +10,8 @@ import Data.Ratio_Type
 import Data.Real
 import {-# SOURCE #-} Data.Typeable
 
+infixl 7 /
+
 class Num a => Fractional a where
   (/) :: a -> a -> a
   recip :: a -> a

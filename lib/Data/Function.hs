@@ -37,6 +37,7 @@ on op sel x y = op (sel x) (sel y)
 asTypeOf :: forall a . a -> a -> a
 asTypeOf = const
 
+infixr 0 `seq`
 seq :: forall a b . a -> b -> b
 seq = primSeq
 
