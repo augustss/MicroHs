@@ -7008,6 +7008,8 @@ const struct ffi_entry ffi_table[] = {
   { "sqrt", 1, mhs_sqrt},
   { "tan", 1, mhs_tan},
   { "scalbn", 2, mhs_scalbn},
+  { "poke_flt64", 2, mhs_poke_flt64 },
+  { "peek_flt64", 1, mhs_peek_flt64 },
 #endif  /* WANT_FLOAT64 */
 #if WANT_FLOAT32
   { "acosf", 1, mhs_acosf},
@@ -7021,6 +7023,8 @@ const struct ffi_entry ffi_table[] = {
   { "sqrtf", 1, mhs_sqrtf},
   { "tanf", 1, mhs_tanf},
   { "scalbnf", 2, mhs_scalbnf},
+  { "poke_flt32", 2, mhs_poke_flt32 },
+  { "peek_flt32", 1, mhs_peek_flt32 },
 #endif  /* WANT_FLOAT32 */
 #endif  /* WANT_MATH */
 
