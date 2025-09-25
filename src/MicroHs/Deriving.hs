@@ -153,6 +153,8 @@ genHasField (tycon, iks) cs (fld, fldty) = do
          , Instance hdrSet [Fcn isetField $ map conEqnSet cs] []
          ]
 
+-- Given a (qualified) type name and a field name,
+-- return the name of the selector function.
 mkGetName :: Ident -> Ident -> Ident
 mkGetName tycon fld = qualIdent (mkIdent "get") $ qualIdent tycon fld
 

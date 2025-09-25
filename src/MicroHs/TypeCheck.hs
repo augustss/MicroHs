@@ -105,7 +105,7 @@ typeCheck flags globs impt aimps (EModule mn exps defs) =
   in case tcRun (tcDefs flags impt defs) tc of
        (tds, tcs) ->
          let
-           thisMdl = (mn, mkTModule impt tds tcs)
+           thisMdl = (mn, mkTModule tds tcs)
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ _ m mm _, tm) <- imps]
            impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
            (texps, vexps) =
@@ -215,8 +215,8 @@ eVarI loc = EVar . mkIdentSLoc loc
 -- Construct a dummy TModule for the currently compiled module.
 -- It has all the relevant export tables.
 -- The value&type export tables will later be filtered through the export list.
-mkTModule :: forall a . HasCallStack => ImpType -> [EDef] -> TCState -> TModule a
-mkTModule impt tds tcs =
+mkTModule :: forall a . HasCallStack => [EDef] -> TCState -> TModule a
+mkTModule tds tcs =
   let
     mn = moduleName tcs
     tt = typeTable  tcs
@@ -235,9 +235,7 @@ mkTModule impt tds tcs =
         _       -> Entry (EVar qi) t  -- XXX A hack for boot modules
 
     -- Find all value Entry for names associated with a type.
-    assoc i = case impt of
-                ImpBoot -> []  -- XXX For boot files the tables are not set up correctly.
-                _ -> getAssocs vt at (qualIdent mn i)
+    assoc i = getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
     ves = [ ValueExport i (ventry i t') | Sign is t <- tds, let t' = expandSyn' st t, i <- is ]
@@ -933,24 +931,40 @@ withExtTyps iks ta = do
 
 tcDefs :: HasCallStack => Flags -> ImpType -> [EDef] -> T [EDef]
 tcDefs flags impt ds = do
+  case impt of
+    ImpNormal -> pure ()
+    ImpBoot ->
+      case filter (not . bootExportable) ds of
+        d : _ -> tcError (getSLoc d) "not allowed in -boot"
+        _ -> pure ()
+
 --  tcTrace ("tcDefs 1:\n" ++ showEDefs ds)
   -- First, add infix declarations so the operators can be resolved
-  mapM_ tcAddInfix ds
-  dst <- tcDefsType ds
+  mapM_ tcAddInfix ds                                 -- collect fixity declarations
+  dst <- tcDefsType ds                                -- kind check type definitions
 --  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
-  mapM_ addTypeAndData dst
-  dste <- tcExpandClassInst impt dst
+  mapM_ addTypeAndData dst                            -- add typedefinitions to the symbol table
+  dste <- tcExpandClassInst impt dst                  -- expand class&instance, do deriving
   dumpIf flags Dderive $
     tcTrace' $ "expanded:\n" ++ showEDefs dste
 --  tcTrace ("tcDefs 3:\n" ++ showEDefs dste)
+  setDefault dste                                     -- set current defaults
+  dste' <- tcDefsValue dste                           -- type check all value definitions
+  mapM_ addAssocs dste'
+
   case impt of
     ImpNormal -> do
-      setDefault dste
-      dste' <- mapM expandFFIType =<< tcDefsValue dste
-      mapM_ addAssocs dste'
       return dste'
     ImpBoot ->
-      return dste
+      -- remove value definitions
+      return $ filter bootExportable dste'
+
+bootExportable :: EDef -> Bool
+bootExportable (Fcn _ _) = False
+bootExportable (PatBind _ _) = False
+bootExportable (Instance _ ms bs) = null ms && null bs
+bootExportable (StandDeriving _ _ _) = False
+bootExportable _ = True
 
 setDefault :: [EDef] -> T ()
 setDefault defs = do
@@ -1004,10 +1018,13 @@ getKindSigns ds = do
 tcExpandClassInst :: ImpType -> [EDef] -> T [EDef]
 tcExpandClassInst impt dst = do
   dsf <- withTypeTable $ do
-    dsc <- concat <$> mapM (expandClass impt) dst       -- Expand all class definitions
+    dsc <- concat <$> mapM expandClass dst              -- Expand all class definitions
     concat <$> mapM expandField dsc                     -- Add HasField instances
   mapM_ addValueTypeClass dsf                           -- Add methods, needed while deriving
-  dsd <- concat <$> mapM (doDeriving impt) dsf                 -- Add derived instances
+  dsd <-
+    case impt of
+      ImpBoot -> return dsf
+      ImpNormal -> concat <$> mapM doDeriving dsf       -- Add derived instances
   concat <$> mapM expandInst dsd                        -- Expand all instance definitions
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
@@ -1250,8 +1267,8 @@ tcConstr (Constr iks ct c inf ets) =
 -- in the desugaring pass.
 -- Default methods are added as actual definitions.
 -- The constructor and methods are added to the symbol table in addValueType.
-expandClass :: ImpType -> EDef -> T [EDef]
-expandClass impt dcls@(Class _ctx (iCls, vks) _fds ms) = do
+expandClass :: EDef -> T [EDef]
+expandClass dcls@(Class _ctx (iCls, vks) _fds ms) = do
   mn <- gets moduleName
   let
       meths = [ b | b@(Sign _ _) <- ms ]
@@ -1276,11 +1293,9 @@ expandClass impt dcls@(Class _ctx (iCls, vks) _fds ms) = do
         let n = length $ fst $ getArrows $ (\ (_,_,x)->x) $ splitContext t
             vs = replicate n (EVar dummyIdent)
         in  [Eqn vs $ simpleAlts e]
-      dDflts = case impt of
-                 ImpNormal -> concatMap mkDflt meths
-                 ImpBoot   -> []
+      dDflts = concatMap mkDflt meths
   return $ dcls : dDflts
-expandClass _ d = return [d]
+expandClass d = return [d]
 
 simpleEqn :: Expr -> [Eqn]
 simpleEqn e = [Eqn [] $ simpleAlts e]
@@ -1456,7 +1471,7 @@ addValueType adef = do
   let addConFields _     (Constr _ _ _ _ (Left _)) = return ()
       addConFields tycon (Constr _ _ _ _ (Right fs)) = mapM_ addField fs
         where addField (fld, _) = do
-                (fe, fty) <- tLookup "???" $ mkGetName tycon fld
+                (fe, fty) <- tLookup "addValueType?" $ mkGetName tycon fld
                 extValETop fld fty fe
   case adef of
     Sign is@(i:_) t | isConIdent i -> do
@@ -1486,7 +1501,6 @@ addValueType adef = do
       addConFields tycon con
     ForImp _ _ i t -> extValQTop i t
     Class ctx (i, vks) fds ms -> addValueClass ctx i vks fds ms
-    -- Set the TCState from a cached one
     _ -> return ()
 
 -- Add methods to symbol table
@@ -1558,15 +1572,16 @@ tcDefValue adef =
       return $ Fcn (qualIdent' mn i) teqns
     ForImp cc ie i t -> do
       mn <- gets moduleName
-      t' <- expandSyn t
-      return (ForImp cc ie (qualIdent' mn i) t')
+      t' <- withNewtypeAsSyns (expandSyn t)
+      pure $ ForImp cc ie (qualIdent' mn i) t'
     -- Check that a foreign export match the declaration type.
     -- In most cases the types will be the same, but the declaration can be overloaded
     -- so we need to ensure that it is compatible with the export definition.
     ForExp cc ms e t -> do
       ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
+      t'' <- withNewtypeAsSyns (expandSyn t')
       let e'' = eLetB (eBinds ds) e'
-      pure $ ForExp cc (Just $ fromMaybe (show e) ms) e'' t'
+      pure $ ForExp cc (Just $ fromMaybe (show e) ms) e'' t''
     Pattern{} -> impossible
     _ -> return adef
 
@@ -3568,19 +3583,18 @@ showIdentClassInfo (i, (_vks, _ctx, cc, ms)) =
     " has " ++ showListS showIdent ms
 -}
 
-doDeriving :: ImpType -> EDef -> T [EDef]
-doDeriving ImpBoot def                  = return [def]  -- no deriving for boot modules
-doDeriving _ def@(Data    lhs cs ds)    = (def:) . concat <$> mapM (deriveDer False lhs  cs) (addTypeable (getSLoc lhs) ds)
-doDeriving _ def@(Newtype lhs  c ds)    = (def:) . concat <$> mapM (deriveDer True  lhs [c]) (addTypeable (getSLoc lhs) ds)
-doDeriving _ (StandDeriving as _ act)   = do
+doDeriving :: EDef -> T [EDef]
+doDeriving def@(Data    lhs cs ds)    = (def:) . concat <$> mapM (deriveDer False lhs  cs) (addTypeable (getSLoc lhs) ds)
+doDeriving def@(Newtype lhs  c ds)    = (def:) . concat <$> mapM (deriveDer True  lhs [c]) (addTypeable (getSLoc lhs) ds)
+doDeriving (StandDeriving as _ act)   = do
   -- The StandDeriving has not been typechecked yet, so do it now.
   def@(StandDeriving s n ct) <- withTypeTable $ tcStand as act
   (def:) <$> standaloneDeriving s n ct
-doDeriving _ def@(Class _ (n, _) _ _) | unIdent n /= "~" = do  -- "~" is a special class, don't touch it
+doDeriving def@(Class _ (n, _) _ _) | unIdent n /= "~" = do  -- "~" is a special class, don't touch it
   -- classes need to be Typeable
   mn <- gets moduleName
   return [def, mkTypeableInst mn n]
-doDeriving _ def                        = return [def]
+doDeriving def                        = return [def]
 
 {-
 addTypeable' :: SLoc -> [Deriving] -> [Deriving]
@@ -3616,11 +3630,3 @@ standaloneDeriving str narg act = do
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
   deriveStrat (Just (act, tname)) newt lhs cs str (narg, tApps cls ts)
-
--- Foreign imports and exports ignore newtypes
--- and the FFI operates on the primitive types.
--- So expand newtypes as if they were type synonyms.
-expandFFIType :: EDef -> T EDef
-expandFFIType (ForImp cc ie i t) = ForImp cc ie i <$> withNewtypeAsSyns (expandSyn t)
-expandFFIType (ForExp cc ms e t) = ForExp cc ms e <$> withNewtypeAsSyns (expandSyn t)
-expandFFIType d = return d

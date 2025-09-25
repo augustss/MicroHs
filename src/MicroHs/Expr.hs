@@ -556,6 +556,8 @@ instance HasLoc EDef where
   getSLoc (Sign i _) = getSLoc i
   getSLoc (DfltSign i _) = getSLoc i
   getSLoc (Infix _ is) = getSLoc is
+  getSLoc (Instance t _ _) = getSLoc t
+  getSLoc (StandDeriving _ _ t) = getSLoc t
   getSLoc _ = error "HasLoc EDef: unimplemented"
 
 -- Approximate location; only identifiers and literals carry a location
