@@ -289,7 +289,7 @@ tCon :: Ident -> EType
 tCon = EVar
 
 tVarK :: IdKind -> EType
-tVarK (IdKind i _) = EVar i
+tVarK = EVar . idKindIdent
 
 tApp :: EType -> EType -> EType
 tApp = EApp
@@ -297,6 +297,7 @@ tApp = EApp
 tApps :: Ident -> [EType] -> EType
 tApps i ts = eApps (tCon i) ts
 
+infixr `tArrow`
 tArrow :: EType -> EType -> EType
 tArrow a r = tApp (tApp (tConI builtinLoc nameArrow) a) r
 

@@ -23,7 +23,7 @@ import MicroHs.Flags
 import MicroHs.Graph
 import MicroHs.Ident
 import MicroHs.List
-import MicroHs.Names(identIO)
+import MicroHs.Names
 import MicroHs.State as S
 import MicroHs.TypeCheck
 
@@ -254,7 +254,7 @@ dsExpr aexpr =
     _ -> impossibleShow aexpr
 
 dsCompr :: Expr -> [EStmt] -> Expr -> Expr
-dsCompr e [] l = EApp (EApp consCon e) l
+dsCompr e [] l = EApp (EApp conCons e) l
 dsCompr e (SThen c : ss) l = EIf c (dsCompr e ss l) l
 dsCompr e (SLet ds : ss) l = ELet ds (dsCompr e ss l)
 -- Special case for the idiom [ ... | ..., p <- [x], ... ].  This is a little more efficient.
@@ -262,9 +262,9 @@ dsCompr e (SBind p (EListish (LList [x])) : ss) l = ECase x [(p, oneAlt $ dsComp
 dsCompr e xss@(SBind p g : ss) l = ELet [hdef] (EApp eh g)
   where
     hdef = Fcn h [eqn1, eqn2, eqn3]
-    eqn1 = eEqn [nilCon] l
-    eqn2 = eEqn [EApp (EApp consCon p) vs] (dsCompr e ss (EApp eh vs))
-    eqn3 = eEqn [EApp (EApp consCon u) vs]               (EApp eh vs)
+    eqn1 = eEqn [conNil] l
+    eqn2 = eEqn [EApp (EApp conCons p) vs] (dsCompr e ss (EApp eh vs))
+    eqn3 = eEqn [EApp (EApp conCons u) vs]               (EApp eh vs)
     u = EVar dummyIdent
     h = head $ newVars "$h" allVs
     eh = EVar h
@@ -291,7 +291,7 @@ dsPat apat =
     EVar _ -> apat
     ECon _ -> apat
     EApp f a -> EApp (dsPat f) (dsPat a)
-    EListish (LList ps) -> dsPat $ foldr (EApp . EApp consCon) nilCon ps
+    EListish (LList ps) -> dsPat $ foldr (EApp . EApp conCons) conNil ps
     ETuple ps -> dsPat $ foldl EApp (tupleCon (getSLoc apat) (length ps)) ps
     EAt i p -> EAt i (dsPat p)
     ELit loc (LStr cs) | length cs < 2 -> dsPat (EListish (LList (map (ELit loc . LChar) cs)))
@@ -300,24 +300,6 @@ dsPat apat =
     EViewPat e p -> EViewPat e (dsPat p)
     ELazy b pat -> ELazy b (dsPat pat)
     _ -> impossible
-
-iNil :: Ident
-iNil = mkIdent $ listPrefix ++ "[]"
-
-iCons :: Ident
-iCons = mkIdent $ listPrefix ++ ":"
-
-consCon :: EPat
-consCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iCons []
-
-nilCon :: EPat
-nilCon = ECon $ ConData [(iNil, 0), (iCons, 2)] iNil []
-
-tupleCon :: SLoc -> Int -> EPat
-tupleCon loc n =
-  let
-    c = tupleConstr loc n
-  in ECon $ ConData [(c, n)] c []
 
 newVars :: String -> [Ident] -> [Ident]
 newVars s is = deleteAllsBy (==) [ mkIdent (s ++ show i) | i <- [1::Int ..] ] is

@@ -2,6 +2,7 @@
 -- See LICENSE file for full license.
 module MicroHs.Names(module MicroHs.Names) where
 import qualified Prelude(); import MHSPrelude
+import MicroHs.Expr
 import MicroHs.Ident
 
 -- Identifiers known by the compiler.
@@ -138,6 +139,29 @@ identFunPtr = mkIdentB "Primitives.FunPtr"
 
 identStablePtr :: Ident
 identStablePtr = mkIdentB "Foreign.StablePtr.StablePtr"
+
+identNil :: Ident
+identNil = mkIdent $ listPrefix ++ "[]"
+
+identCons :: Ident
+identCons = mkIdent $ listPrefix ++ ":"
+
+-----
+
+conCons :: Expr
+conCons = ECon $ ConData conTyInfoList identCons []
+
+conNil :: Expr
+conNil = ECon $ ConData conTyInfoList identNil []
+
+conTyInfoList :: ConTyInfo
+conTyInfoList = [(identNil, 0), (identCons, 2)]
+
+tupleCon :: SLoc -> Int -> Expr
+tupleCon loc n =
+  let
+    c = tupleConstr loc n
+  in ECon $ ConData [(c, n)] c []
 
 -----
 
