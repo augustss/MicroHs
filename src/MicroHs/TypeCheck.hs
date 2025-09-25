@@ -587,7 +587,7 @@ primValues =
       where ka = idk 1
             a = tVarK ka
             la = tApp (EVar identList) a
-  in  [(mkIdentB ":", [Entry conCons tyCons])] ++
+  in  (mkIdentB ":", [Entry conCons tyCons]) :
       map tuple (0 : enumFromTo 2 maxTuple)
 
 kArrow :: EKind -> EKind -> EKind
@@ -963,7 +963,7 @@ bootExportable :: EDef -> Bool
 bootExportable (Fcn _ _) = False
 bootExportable (PatBind _ _) = False
 bootExportable (Instance _ ms bs) = null ms && null bs
-bootExportable (StandDeriving _ _ _) = False
+bootExportable StandDeriving{} = False
 bootExportable _ = True
 
 setDefault :: [EDef] -> T ()
