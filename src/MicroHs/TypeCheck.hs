@@ -577,14 +577,20 @@ primTypes =
 primValues :: [(Ident, [Entry])]
 primValues =
   let
+    idk i = IdKind (mkIdent ("a" ++ show (i::Int))) kType
     tuple n =
       let
         c = tupleConstr builtinLoc n
-        vks = [IdKind (mkIdent ("a" ++ show i)) kType | i <- enumFromTo 1 n]
+        vks = [idk i | i <- enumFromTo 1 n]
         ts = map tVarK vks
         r = tApps c ts
       in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall QExpl vks $ EForall QExpl [] $ foldr tArrow r ts ])
-  in  map tuple (0 : enumFromTo 2 maxTuple)
+    tyCons = EForall QExpl [ka] $ EForall QExpl [] $ a `tArrow` la `tArrow` la
+      where ka = idk 1
+            a = tVarK ka
+            la = tApp (EVar identList) a
+  in  [(mkIdentB ":", [Entry conCons tyCons])] ++
+      map tuple (0 : enumFromTo 2 maxTuple)
 
 kArrow :: EKind -> EKind -> EKind
 kArrow = tArrow
