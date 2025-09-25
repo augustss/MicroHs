@@ -160,6 +160,7 @@ import Prelude hiding
 import Foreign (Ptr)
 import Foreign.C.String (CString, CStringLen)
 
+import Data.Coerce ( coerce )
 import Data.Data ( Data(..) )
 import Data.Typeable ( Typeable(..) )
 import GHC.Generics ( Generic(..) )
@@ -216,227 +217,225 @@ instance GHC.Exts.IsList ShortByteString where -- XXX OverloadedLists
 -}
 
 empty :: ShortByteString
-empty = toShort BS.empty
+empty = coerce BS.empty
 
 singleton :: Word8 -> ShortByteString
-singleton = toShort . BS.singleton
+singleton = coerce BS.singleton
 
 pack :: [Word8] -> ShortByteString
-pack = toShort . BS.pack
+pack = coerce BS.pack
 
 unpack :: ShortByteString -> [Word8]
-unpack = BS.unpack . fromShort
+unpack = coerce BS.unpack
 
 snoc :: ShortByteString -> Word8 -> ShortByteString
-snoc s c = toShort (BS.snoc (fromShort s) c)
+snoc = coerce BS.snoc
 
 cons :: Word8 -> ShortByteString -> ShortByteString
-cons c s = toShort (BS.cons c (fromShort s))
+cons = coerce BS.cons
 
 append :: ShortByteString -> ShortByteString -> ShortByteString
-append s t = toShort (BS.append (fromShort s) (fromShort t))
+append = coerce BS.append
 
 last :: HasCallStack => ShortByteString -> Word8
-last = BS.last . fromShort
+last = coerce BS.last
 
 tail :: HasCallStack => ShortByteString -> ShortByteString
-tail = toShort . BS.tail . fromShort
+tail = coerce BS.tail
 
 uncons :: ShortByteString -> Maybe (Word8, ShortByteString)
-uncons = fmap f . BS.uncons . fromShort
-  where f (c, s) = (c, toShort s)
+uncons = coerce BS.uncons
 
 head :: HasCallStack => ShortByteString -> Word8
-head = BS.head . fromShort
+head = coerce BS.head
 
 init :: HasCallStack => ShortByteString -> ShortByteString
-init = toShort . BS.init . fromShort
+init = coerce BS.init
 
 unsnoc :: ShortByteString -> Maybe (ShortByteString, Word8)
-unsnoc = fmap f . BS.unsnoc . fromShort
-  where f (s, c) = (toShort s, c)
+unsnoc = coerce BS.unsnoc
 
 null :: ShortByteString -> Bool
-null = BS.null . fromShort
+null = coerce BS.null
 
 length :: ShortByteString -> Int
-length = BS.length . fromShort
+length = coerce BS.length
 
 map :: (Word8 -> Word8) -> ShortByteString -> ShortByteString
-map f = toShort . BS.map f . fromShort
+map = coerce BS.map
 
 reverse :: ShortByteString -> ShortByteString
-reverse = toShort . BS.reverse . fromShort
+reverse = coerce BS.reverse
 
 intercalate :: ShortByteString -> [ShortByteString] -> ShortByteString
-intercalate s = toShort . BS.intercalate (fromShort s) . fmap fromShort
+intercalate = coerce BS.intercalate
 
 foldl :: (a -> Word8 -> a) -> a -> ShortByteString -> a
-foldl f e = BS.foldl f e . fromShort
+foldl f e = BS.foldl f e . coerce
 
 foldl' :: (a -> Word8 -> a) -> a -> ShortByteString -> a
-foldl' f e = BS.foldl' f e . fromShort
+foldl' f e = BS.foldl' f e . coerce
 
 foldl1 :: HasCallStack => (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
-foldl1 f = BS.foldl1 f . fromShort
+foldl1 = coerce BS.foldl1
 
 foldl1' :: HasCallStack => (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
-foldl1' f = BS.foldl1' f . fromShort
+foldl1' = coerce BS.foldl1'
 
 foldr :: (Word8 -> a -> a) -> a -> ShortByteString -> a
-foldr f e = BS.foldr f e . fromShort
+foldr f e = BS.foldr f e . coerce
 
 foldr' :: (Word8 -> a -> a) -> a -> ShortByteString -> a
-foldr' f e = BS.foldr' f e . fromShort
+foldr' f e = BS.foldr' f e . coerce
 
 foldr1 :: HasCallStack => (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
-foldr1 f = BS.foldr1 f . fromShort
+foldr1 = coerce BS.foldr1
 
 foldr1' :: HasCallStack => (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
-foldr1' f = BS.foldr1' f . fromShort
+foldr1' = coerce BS.foldr1'
 
 all :: (Word8 -> Bool) -> ShortByteString -> Bool
-all f = BS.all f . fromShort
+all = coerce BS.all
 
 any :: (Word8 -> Bool) -> ShortByteString -> Bool
-any f = BS.any f . fromShort
+any = coerce BS.any
 
 concat :: [ShortByteString] -> ShortByteString
-concat = toShort . BS.concat . fmap fromShort
+concat = coerce BS.concat
 
 replicate :: Int -> Word8 -> ShortByteString
-replicate n = toShort . BS.replicate n
+replicate = coerce BS.replicate
 
 unfoldr :: (a -> Maybe (Word8, a)) -> a -> ShortByteString
-unfoldr f = toShort . BS.unfoldr f
+unfoldr f = coerce . BS.unfoldr f
 
 unfoldrN :: Int -> (a -> Maybe (Word8, a)) -> a -> (ShortByteString, Maybe a)
-unfoldrN n f a = case BS.unfoldrN n f a of (s, ma) -> (toShort s, ma)
+unfoldrN n f = coerce . BS.unfoldrN n f
 
 take :: Int -> ShortByteString -> ShortByteString
-take n = toShort . BS.take n . fromShort
+take = coerce BS.take
 
 takeEnd :: Int -> ShortByteString -> ShortByteString
-takeEnd n = toShort . BS.takeEnd n . fromShort
+takeEnd = coerce BS.takeEnd
 
 takeWhileEnd :: (Word8 -> Bool) -> ShortByteString -> ShortByteString
-takeWhileEnd f = toShort . BS.takeWhileEnd f . fromShort
+takeWhileEnd = coerce BS.takeWhileEnd
 
 takeWhile :: (Word8 -> Bool) -> ShortByteString -> ShortByteString
-takeWhile f = toShort . BS.takeWhile f . fromShort
+takeWhile = coerce BS.takeWhile
 
 drop :: Int -> ShortByteString -> ShortByteString
-drop n = toShort . BS.drop n . fromShort
+drop = coerce BS.drop
 
 dropEnd :: Int -> ShortByteString -> ShortByteString
-dropEnd n = toShort . BS.dropEnd n . fromShort
+dropEnd = coerce BS.dropEnd
 
 dropWhile :: (Word8 -> Bool) -> ShortByteString -> ShortByteString
-dropWhile f = toShort . BS.dropWhile f . fromShort
+dropWhile = coerce BS.dropWhile
 
 dropWhileEnd :: (Word8 -> Bool) -> ShortByteString -> ShortByteString
-dropWhileEnd f = toShort . BS.dropWhileEnd f . fromShort
+dropWhileEnd = coerce BS.dropWhileEnd
 
 breakEnd :: (Word8 -> Bool) -> ShortByteString -> (ShortByteString, ShortByteString)
-breakEnd f s = case BS.breakEnd f (fromShort s) of (a, b) -> (toShort a, toShort b)
+breakEnd = coerce BS.breakEnd
 
 break :: (Word8 -> Bool) -> ShortByteString -> (ShortByteString, ShortByteString)
-break f s = case BS.break f (fromShort s) of (a, b) -> (toShort a, toShort b)
+break = coerce BS.break
 
 span :: (Word8 -> Bool) -> ShortByteString -> (ShortByteString, ShortByteString)
-span f s = case BS.span f (fromShort s) of (a, b) -> (toShort a, toShort b)
+span = coerce BS.span
 
 spanEnd :: (Word8 -> Bool) -> ShortByteString -> (ShortByteString, ShortByteString)
-spanEnd f s = case BS.spanEnd f (fromShort s) of (a, b) -> (toShort a, toShort b)
+spanEnd = coerce BS.spanEnd
 
 splitAt :: Int -> ShortByteString -> (ShortByteString, ShortByteString)
-splitAt n s = case BS.splitAt n (fromShort s) of (a, b) -> (toShort a, toShort b)
+splitAt = coerce BS.splitAt
 
 split :: Word8 -> ShortByteString -> [ShortByteString]
-split c = fmap toShort . BS.split c . fromShort
+split = coerce BS.split
 
 splitWith :: (Word8 -> Bool) -> ShortByteString -> [ShortByteString]
-splitWith f = fmap toShort . BS.splitWith f . fromShort
+splitWith = coerce BS.splitWith
 
 stripSuffix :: ShortByteString -> ShortByteString -> Maybe ShortByteString
-stripSuffix s = fmap toShort . BS.stripSuffix (fromShort s) . fromShort
+stripSuffix = coerce BS.stripSuffix
 
 stripPrefix :: ShortByteString -> ShortByteString -> Maybe ShortByteString
-stripPrefix s = fmap toShort . BS.stripPrefix (fromShort s) . fromShort
+stripPrefix = coerce BS.stripPrefix
 
 isInfixOf :: ShortByteString -> ShortByteString -> Bool
-isInfixOf s t = BS.isInfixOf (fromShort s) (fromShort t)
+isInfixOf = coerce BS.isInfixOf
 
 isPrefixOf :: ShortByteString -> ShortByteString -> Bool
-isPrefixOf s t = BS.isPrefixOf (fromShort s) (fromShort t)
+isPrefixOf = coerce BS.isPrefixOf
 
 isSuffixOf :: ShortByteString -> ShortByteString -> Bool
-isSuffixOf s t = BS.isSuffixOf (fromShort s) (fromShort t)
+isSuffixOf = coerce BS.isSuffixOf
 
 breakSubstring :: ShortByteString -> ShortByteString -> (ShortByteString, ShortByteString)
-breakSubstring s t = case BS.breakSubstring (fromShort s) (fromShort t) of (a, b) -> (toShort a, toShort b)
+breakSubstring = coerce BS.breakSubstring
 
 elem :: Word8 -> ShortByteString -> Bool
-elem c = BS.elem c . fromShort
+elem = coerce BS.elem
 
 find :: (Word8 -> Bool) -> ShortByteString -> Maybe Word8
-find f = BS.find f . fromShort
+find = coerce BS.find
 
 filter :: (Word8 -> Bool) -> ShortByteString -> ShortByteString
-filter f = toShort . BS.filter f . fromShort
+filter = coerce BS.filter
 
 partition :: (Word8 -> Bool) -> ShortByteString -> (ShortByteString, ShortByteString)
-partition f s = case BS.partition f (fromShort s) of (a, b) -> (toShort a, toShort b)
+partition = coerce BS.partition
 
 index :: HasCallStack => ShortByteString -> Int -> Word8
-index = BS.index . fromShort
+index = coerce BS.index
 
 indexMaybe :: ShortByteString -> Int -> Maybe Word8
-indexMaybe = BS.indexMaybe . fromShort
+indexMaybe = coerce BS.indexMaybe
 
 (!?) :: ShortByteString -> Int -> Maybe Word8
-s !? i = fromShort s BS.!? i
+(!?) = coerce (BS.!?)
 
 elemIndex :: Word8 -> ShortByteString -> Maybe Int
-elemIndex c = BS.elemIndex c . fromShort
+elemIndex = coerce BS.elemIndex
 
 elemIndices :: Word8 -> ShortByteString -> [Int]
-elemIndices c = BS.elemIndices c . fromShort
+elemIndices = coerce BS.elemIndices
 
 count :: Word8 -> ShortByteString -> Int
-count c = BS.count c . fromShort
+count = coerce BS.count
 
 findIndex :: (Word8 -> Bool) -> ShortByteString -> Maybe Int
-findIndex f = BS.findIndex f . fromShort
+findIndex = coerce BS.findIndex
 
 findIndices :: (Word8 -> Bool) -> ShortByteString -> [Int]
-findIndices f = BS.findIndices f . fromShort
+findIndices = coerce BS.findIndices
 
 unsafeIndex :: ShortByteString -> Int -> Word8
-unsafeIndex = BS.Unsafe.unsafeIndex . fromShort
+unsafeIndex = coerce BS.Unsafe.unsafeIndex
 
 {- XXX
 createFromPtr :: Ptr a -> Int -> IO ShortByteString
-createFromPtr p n = fmap toShort (BS.createFromPtr p n)
+createFromPtr p = coerce . BS.createFromPtr p
 
 copyToPtr :: ShortByteString -> Int -> Ptr a -> Int -> IO ()
-copyToPtr = BS.copyToPtr . fromShort
+copyToPtr = BS.copyToPtr . coerce
 -}
 
 isValidUtf8 :: ShortByteString -> Bool
-isValidUtf8 = BS.isValidUtf8 . fromShort
+isValidUtf8 = coerce BS.isValidUtf8
 
 packCString :: CString -> IO ShortByteString
-packCString s = fmap toShort (BS.packCString s)
+packCString = coerce BS.packCString
 
 packCStringLen :: CStringLen -> IO ShortByteString
-packCStringLen s = fmap toShort (BS.packCStringLen s)
+packCStringLen = coerce BS.packCStringLen
 
 useAsCString :: ShortByteString -> (CString -> IO a) -> IO a
-useAsCString = BS.useAsCString . fromShort
+useAsCString = BS.useAsCString . coerce
 
 useAsCStringLen :: ShortByteString -> (CStringLen -> IO a) -> IO a
-useAsCStringLen = BS.useAsCStringLen . fromShort
+useAsCStringLen = BS.useAsCStringLen . coerce
 
 -- private
 
