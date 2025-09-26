@@ -7,11 +7,12 @@ import Control.Exception
 import Data.Bits
 import Data.Coerce
 import Data.Integer
+import Data.Ix
 import Data.Real
 import Text.Read
 
 newtype Natural = N Integer
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Ix)
 
 instance Show Natural where
   showsPrec p (N i) = showsPrec p i
