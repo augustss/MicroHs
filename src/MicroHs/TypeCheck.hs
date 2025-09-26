@@ -584,10 +584,12 @@ primValues =
         r = tApps c ts
       in  (c, [Entry (ECon $ ConData [(c, n)] c []) $ EForall QExpl vks $ EForall QExpl [] $ foldr tArrow r ts ])
     tyCons = EForall QExpl [ka] $ EForall QExpl [] $ a `tArrow` la `tArrow` la
-      where ka = idk 1
-            a = tVarK ka
-            la = tApp (EVar identList) a
-  in  (mkIdentB ":", [Entry conCons tyCons]) :
+    tyNil = EForall QExpl [ka] $ EForall QExpl [] la
+    ka = idk 1
+    a = tVarK ka
+    la = tApp (EVar identList) a
+  in  [(mkIdentB ":",  [Entry conCons tyCons])
+      ,(mkIdentB "[]", [Entry conNil  tyNil])] ++
       map tuple (0 : enumFromTo 2 maxTuple)
 
 kArrow :: EKind -> EKind -> EKind
