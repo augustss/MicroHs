@@ -360,6 +360,7 @@ tIdent loc qs kw ats | elem kw ["let", "where", "do", "of", "mdo"]
                      | otherwise = ti : ats
   where
     isBar (TSpec _ '|' : _) = True
+    isBar (TIndent _ : TSpec _ '|' : _) = True
     isBar _ = False
 
     ti = TIdent loc qs kw
