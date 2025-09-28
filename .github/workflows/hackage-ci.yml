@@ -102,7 +102,6 @@ jobs:
     - name: compile and install splitmix package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd splitmix
         mcabal install splitmix
 
     # random-mhs
