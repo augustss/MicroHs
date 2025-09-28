@@ -128,6 +128,30 @@ jobs:
         cd granite
         mcabal install
 
+    # split
+    - name: checkout split repo
+      uses: actions/checkout@v4
+      with:
+        repository: byorgey/split
+        path: split
+    - name: compile and install split package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd split
+        mcabal install
+
+    # monad-loops
+    - name: checkout monad-loops repo
+      uses: actions/checkout@v4
+      with:
+        repository: mokus0/monad-loops
+        path: monad-loops
+    - name: compile and install monad-loops package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd monad-loops
+        mcabal install
+
     # DONE
     - name: cleanup
       run: |
