@@ -2,7 +2,7 @@ module Data.Int.Int8(Int8) where
 import qualified Prelude()
 import Primitives
 import Control.Error
-import Data.Bits
+import Data.Bits.Base
 import Data.Bool
 import Data.Bounded
 import Data.Coerce

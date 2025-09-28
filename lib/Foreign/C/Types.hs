@@ -17,7 +17,7 @@ module Foreign.C.Types(
   ) where
 import qualified Prelude()
 import Primitives
-import Data.Bits
+import Data.Bits.Base
 import Data.Bool
 import Data.Bounded
 import Data.Coerce

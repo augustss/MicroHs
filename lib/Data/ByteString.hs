@@ -157,7 +157,7 @@ import MiniPrelude as P hiding(null, length)
 import qualified Data.List as P
 import Control.Exception (evaluate)
 import Data.List.NonEmpty (NonEmpty, fromList)
-import Data.Bits
+import Data.Bits.Base
 import Data.Function (($!))
 import Data.Monoid.Internal
 import Data.Semigroup

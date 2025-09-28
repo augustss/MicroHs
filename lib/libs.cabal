@@ -217,6 +217,7 @@ library base
         Control.Exception.Internal.TVar
         Control.Exception.Internal.TransactionLog
         Control.Monad.ST_Type
+        Data.Bits.Base
         Data.Bool_Type
         Data.ByteString.Internal
         Data.Char_Type

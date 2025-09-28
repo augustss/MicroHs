@@ -17,7 +17,7 @@ module Data.Text.Encoding (
     encodeUtf32BE,
 ) where
 
-import Data.Bits
+import Data.Bits.Base
 import Data.ByteString (ByteString, isValidUtf8)
 import Data.ByteString qualified as BS
 import Data.Char

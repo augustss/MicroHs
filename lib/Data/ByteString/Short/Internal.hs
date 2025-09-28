@@ -176,7 +176,8 @@ import Data.ByteString.Unsafe as BS.Unsafe
 import Data.Word (Word8)
 
 newtype ShortByteString = S ByteString
-  deriving (Eq, Ord, Data, Typeable, Generic)
+--  deriving (Eq, Ord, Data, Typeable, Generic)
+  deriving (Eq, Ord, Typeable)
 
 fromShort :: ShortByteString -> ByteString
 fromShort (S b) = b

@@ -6,7 +6,7 @@ module Data.Word.Word64(
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
-import Data.Bits
+import Data.Bits.Base
 import Data.Bool
 import Data.Bounded
 import Data.Enum

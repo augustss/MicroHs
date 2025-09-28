@@ -20,7 +20,7 @@ module Foreign.Ptr(
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
-import Data.Bits
+import Data.Bits.Base
 import Data.Bool_Type
 import Data.Bounded
 import Data.Coerce

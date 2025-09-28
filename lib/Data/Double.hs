@@ -4,7 +4,7 @@ module Data.Double(Double) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
-import Data.Bits
+import Data.Bits.Base
 import Data.Bool
 import Data.Char
 import Data.Enum

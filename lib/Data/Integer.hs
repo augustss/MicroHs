@@ -6,7 +6,7 @@ module Data.Integer(
   _intListToInteger,
   ) where
 import qualified Prelude()              -- do not import Prelude
-import Data.Bits
+import Data.Bits.Base
 import Data.Bool
 import Data.Enum
 import Data.Eq

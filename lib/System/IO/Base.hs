@@ -20,8 +20,6 @@ module System.IO.Base(
 
   cprint, cuprint,
 
-  mkTextEncoding, hSetEncoding, utf8,
-
   hPutBuf, hGetBuf,
 
   openTmpFile, openTempFile, openBinaryTempFile,
@@ -256,22 +254,6 @@ ioErrH h typ desc   = ioError $ IOError (Just h) typ "" desc Nothing Nothing
 
 ioErr :: IOErrorType -> String -> String -> IO a
 ioErr typ desc name = ioError $ IOError Nothing  typ "" "" Nothing (Just $ name ++ ": " ++ desc)
-
---------
--- For compatibility
-
-data TextEncoding = UTF8
-
-utf8 :: TextEncoding
-utf8 = UTF8
-
-mkTextEncoding :: String -> IO TextEncoding
-mkTextEncoding "UTF-8//ROUNDTRIP" = return UTF8
-mkTextEncoding _ = error "unknown text encoding"
-
--- Always in UTF8 mode
-hSetEncoding :: Handle -> TextEncoding -> IO ()
-hSetEncoding _ _ = return ()
 
 --------
 

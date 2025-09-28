@@ -1,190 +1,174 @@
-module Data.Bits(module Data.Bits) where
+module Data.Bits(
+  Bits(..),
+  FiniteBits(..),
+  bitDefault,
+  testBitDefault,
+  popCountDefault,
+  toIntegralSized,
+  oneBits,
+  (.^.),
+  (.>>.), (.<<.), (!>>.), (!<<.),
+  And(..), Ior(..), Xor(..), Iff(..),
+  ) where
 import qualified Prelude()              -- do not import Prelude
-import Primitives
-import Control.Error
-import Data.Bool
-import Data.Eq
-import Data.Function
-import Data.Int.Int
-import Data.Integral
-import Data.Maybe
-import Data.Ord
-import Data.Num
-import {-# SOURCE #-} Data.Typeable
+import MiniPrelude
+import Data.Bits.Base
+import Data.Bounded
+import Data.List as List
+import Mhs.Builtin
 
-infixl 8 `shift`, `rotate`, `shiftL`, `shiftR`, `rotateL`, `rotateR`
-infixl 7 .&.
-infixl 6 `xor`
-infixl 5 .|.
+oneBits :: (FiniteBits a) => a
+oneBits = complement zeroBits
 
-class Eq a => Bits a where
-  (.&.)             :: a -> a -> a
-  (.|.)             :: a -> a -> a
-  xor               :: a -> a -> a
-  complement        :: a -> a
-  shift             :: a -> Int -> a
-  rotate            :: a -> Int -> a
-  zeroBits          :: a
-  bit               :: Int -> a
-  setBit            :: a -> Int -> a
-  clearBit          :: a -> Int -> a
-  complementBit     :: a -> Int -> a
-  testBit           :: a -> Int -> Bool
-  shiftL            :: a -> Int -> a
-  unsafeShiftL      :: a -> Int -> a
-  shiftR            :: a -> Int -> a
-  unsafeShiftR      :: a -> Int -> a
-  rotateL           :: a -> Int -> a
-  rotateR           :: a -> Int -> a
-  popCount          :: a -> Int
-  bitSizeMaybe      :: a -> Maybe Int
-  bitSize           :: a -> Int
-  isSigned          :: a -> Bool
+infixl 6 .^.
+(.^.) :: (Bits a) => a -> a -> a
+(.^.) = xor
 
-  x `shift`   i | i<0       = x `shiftR` (- i)
-                | i>0       = x `shiftL` i
-                | otherwise = x
+infixl 8 .>>.
+(.>>.) :: (Bits a) => a -> Int -> a
+(.>>.) = shiftR
 
+infixl 8 .<<.
+(.<<.) :: (Bits a) => a -> Int -> a
+(.<<.) = shiftL
 
-  x `rotate`  i | i<0       = x `rotateR` (- i)
-                | i>0       = x `rotateL` i
-                | otherwise = x
+infixl 8 !>>.
+(!>>.) :: (Bits a) => a -> Int -> a
+(!>>.) = unsafeShiftR
 
-  {-
-  x `rotate`  i | i<0 && isSigned x && x<0
-                       = let left = i+bitSize x in
-                         ((x `shift` i) .&. complement ((-1) `shift` left))
-                         .|. (x `shift` left)
-                | i<0  = (x `shift` i) .|. (x `shift` (i+bitSize x))
-                | i==0 = x
-                | i>0  = (x `shift` i) .|. (x `shift` (i-bitSize x))
-  -}
+infixl 8 !<<.
+(!<<.) :: (Bits a) => a -> Int -> a
+(!<<.) = unsafeShiftL
 
-  zeroBits            = clearBit (bit 0) 0
-  bitSize b           = fromMaybe (error "bitSize is undefined") (bitSizeMaybe b)
-  x `setBit` i        = x .|. bit i
-  x `clearBit` i      = x .&. complement (bit i)
-  x `complementBit` i = x `xor` bit i
+--------
 
-  x `shiftL`  i       = x `shift`  i
-  x `unsafeShiftL` i  = x `shiftL` i
-  x `shiftR`  i       = x `shift`  (- i)
-  x `unsafeShiftR` i  = x `shiftR` i
+newtype And a = And { getAnd :: a }
+  deriving newtype (
+                    Bounded, -- ^ @since base-4.16
+                    Enum, -- ^ @since base-4.16
+                    Bits, -- ^ @since base-4.16
+                    FiniteBits, -- ^ @since base-4.16
+                    Eq -- ^ @since base-4.16
+                    )
+  deriving stock (
+                  Show{-, -- ^ @since base-4.16
+                  Read-} -- ^ @since base-4.16
+                 )
 
-  x `rotateL` i       = x `rotate` i
+-- | @since base-4.16
+instance (Bits a) => Semigroup (And a) where
+  And x <> And y = And (x .&. y)
 
-  x `rotateR` i       = x `rotate` (- i)
+-- | This constraint is arguably too strong. However,
+-- as some types (such as 'Natural') have undefined 'complement', this is the
+-- only safe choice.
+--
+-- @since base-4.16
+instance (FiniteBits a) => Monoid (And a) where
+  mempty = And oneBits
+  -- By default, we would get a lazy right fold. This forces the use of a strict
+  -- left fold instead.
+  mconcat = List.foldl' (<>) mempty
+  {-# INLINE mconcat #-}
 
+-- | Monoid under bitwise inclusive OR.
+--
+-- >>> getIor (Ior 0xab <> Ior 0x12) :: Word8
+-- 187
+--
+-- @since base-4.16
+newtype Ior a = Ior { getIor :: a }
+  deriving newtype (
+                    Bounded, -- ^ @since base-4.16
+                    Enum, -- ^ @since base-4.16
+                    Bits, -- ^ @since base-4.16
+                    FiniteBits, -- ^ @since base-4.16
+                    Eq -- ^ @since base-4.16
+                    )
+  deriving stock (
+                  Show{-, -- ^ @since base-4.16
+                  Read-} -- ^ @since base-4.16
+                 )
 
-class Bits b => FiniteBits b where
-  finiteBitSize :: b -> Int
-  countLeadingZeros :: b -> Int
-  countTrailingZeros :: b -> Int
+-- | @since base-4.16
+instance (Bits a) => Semigroup (Ior a) where
+  Ior x <> Ior y = Ior (x .|. y)
 
-  countLeadingZeros x = (w - 1) - go (w - 1)
-    where
-      go i | i < 0       = i -- no bit set
-           | testBit x i = i
-           | otherwise   = go (i - 1)
+-- | @since base-4.16
+instance (Bits a) => Monoid (Ior a) where
+  mempty = Ior zeroBits
+  -- By default, we would get a lazy right fold. This forces the use of a strict
+  -- left fold instead.
+  mconcat = List.foldl' (<>) mempty
+  {-# INLINE mconcat #-}
 
-      w = finiteBitSize x
+-- | Monoid under bitwise XOR.
+--
+-- >>> getXor (Xor 0xab <> Xor 0x12) :: Word8
+-- 185
+--
+-- @since base-4.16
+newtype Xor a = Xor { getXor :: a }
+  deriving newtype (
+                    Bounded, -- ^ @since base-4.16
+                    Enum, -- ^ @since base-4.16
+                    Bits, -- ^ @since base-4.16
+                    FiniteBits, -- ^ @since base-4.16
+                    Eq -- ^ @since base-4.16
+                    )
+  deriving stock (
+                  Show{-, -- ^ @since base-4.16
+                  Read-} -- ^ @since base-4.16
+                 )
 
-  countTrailingZeros x = go 0
-    where
-      go i | i >= w      = i
-           | testBit x i = i
-           | otherwise   = go (i + 1)
+-- | @since base-4.16
+instance (Bits a) => Semigroup (Xor a) where
+  Xor x <> Xor y = Xor (x `xor` y)
 
-      w = finiteBitSize x
+-- | @since base-4.16
+instance (Bits a) => Monoid (Xor a) where
+  mempty = Xor zeroBits
+  -- By default, we would get a lazy right fold. This forces the use of a strict
+  -- left fold instead.
+  mconcat = List.foldl' (<>) mempty
+  {-# INLINE mconcat #-}
 
-bitDefault :: (Bits a, Num a) => Int -> a
-bitDefault i = 1 `shiftL` i
+-- | Monoid under bitwise \'equality\'; defined as @1@ if the corresponding
+-- bits match, and @0@ otherwise.
+--
+-- >>> getIff (Iff 0xab <> Iff 0x12) :: Word8
+-- 70
+--
+-- @since base-4.16
+newtype Iff a = Iff { getIff :: a }
+  deriving newtype (
+                    Bounded, -- ^ @since base-4.16
+                    Enum, -- ^ @since base-4.16
+                    Bits, -- ^ @since base-4.16
+                    FiniteBits, -- ^ @since base-4.16
+                    Eq -- ^ @since base-4.16
+                    )
+  deriving stock (
+                  Show{-, -- ^ @since base-4.16
+                  Read-} -- ^ @since base-4.16
+                 )
 
-testBitDefault :: (Bits a, Num a) => a -> Int -> Bool
-testBitDefault x i = (x .&. bit i) /= 0
+-- | This constraint is arguably
+-- too strong. However, as some types (such as 'Natural') have undefined
+-- 'complement', this is the only safe choice.
+--
+-- @since base-4.16
+instance (FiniteBits a) => Semigroup (Iff a) where
+  Iff x <> Iff y = Iff . complement $ (x `xor` y)
 
-popCountDefault :: (Bits a, Num a) => a -> Int
-popCountDefault = go 0
-  where
-    go c 0 = c
-    go c w = go (c + 1) (w .&. (w - 1)) -- clear the least significant bit
-
-_overflowError :: a
-_overflowError = error "arithmetic overflow"
-
-instance Bits Int where
-  (.&.) = primIntAnd
-  (.|.) = primIntOr
-  xor   = primIntXor
-  complement = primIntInv
-  x `shiftL` i
-    | i < 0 = _overflowError
-    | i >= _wordSize = 0
-    | otherwise = x `primIntShl` i
-  unsafeShiftL = primIntShl
-  x `shiftR` i
-    | i < 0 = _overflowError
-    | i >= _wordSize = 0
-    | otherwise = x `primIntShr` i
-  unsafeShiftR = primIntShr
-  bitSizeMaybe _ = Just _wordSize
-  bitSize _ = _wordSize
-  bit = bitDefault
-  testBit = testBitDefault
-  popCount = primIntPopcount
-  zeroBits = 0
-  isSigned _ = True
-
-instance FiniteBits Int where
-  finiteBitSize _ = _wordSize
-  countLeadingZeros = primIntClz
-  countTrailingZeros = primIntCtz
-
-toIntegralSized :: (Integral a, Integral b, Bits a, Bits b) => a -> Maybe b
-toIntegralSized x
-  | maybe True (<= x) yMinBound
-  , maybe True (x <=) yMaxBound = Just y
-  | otherwise                   = Nothing
-  where
-    y = fromIntegral x
-
-    xWidth = bitSizeMaybe x
-    yWidth = bitSizeMaybe y
-
-    yMinBound
-      | isBitSubType x y = Nothing
-      | isSigned x, not (isSigned y) = Just 0
-      | isSigned x, isSigned y
-      , Just yW <- yWidth = Just (negate $ bit (yW-1))
-      | otherwise = Nothing
-
-    yMaxBound
-      | isBitSubType x y = Nothing
-      | isSigned x, not (isSigned y)
-      , Just xW <- xWidth, Just yW <- yWidth
-      , xW <= yW+1 = Nothing
-      | Just yW <- yWidth = if isSigned y
-                            then Just (bit (yW-1)-1)
-                            else Just (bit yW-1)
-      | otherwise = Nothing
-
-isBitSubType :: (Bits a, Bits b) => a -> b -> Bool
-isBitSubType x y
-  -- Reflexive
-  | xWidth == yWidth, xSigned == ySigned = True
-
-  -- Every integer is a subset of 'Integer'
-  | ySigned, isNothing yWidth                  = True
-  | not xSigned, not ySigned, isNothing yWidth = True
-
-  -- Sub-type relations between fixed-with types
-  | xSigned == ySigned,   Just xW <- xWidth, Just yW <- yWidth = xW <= yW
-  | not xSigned, ySigned, Just xW <- xWidth, Just yW <- yWidth = xW <  yW
-
-  | otherwise = False
-  where
-    xWidth  = bitSizeMaybe x
-    xSigned = isSigned     x
-
-    yWidth  = bitSizeMaybe y
-    ySigned = isSigned     y
+-- | This constraint is arguably
+-- too strong. However, as some types (such as 'Natural') have undefined
+-- 'complement', this is the only safe choice.
+--
+-- @since base-4.16
+instance (FiniteBits a) => Monoid (Iff a) where
+  mempty = Iff oneBits
+  -- By default, we would get a lazy right fold. This forces the use of a strict
+  -- left fold instead.
+  mconcat = List.foldl' (<>) mempty
+  {-# INLINE mconcat #-}

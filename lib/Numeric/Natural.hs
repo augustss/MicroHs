@@ -4,7 +4,7 @@ module Numeric.Natural
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Exception
-import Data.Bits
+import Data.Bits.Base
 import Data.Coerce
 import Data.Integer
 import Data.Ix

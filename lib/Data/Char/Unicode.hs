@@ -11,7 +11,7 @@ module Data.Char.Unicode (
     ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives(primOrd, primUnsafeCoerce)
-import Data.Bits
+import Data.Bits.Base
 import Data.Bounded
 import qualified Data.ByteString.Internal as BS
 import Data.ByteString.Internal(ByteString)

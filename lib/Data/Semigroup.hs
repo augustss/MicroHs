@@ -12,6 +12,7 @@ module Data.Semigroup(
   Alt(..),
   First(..),
   Last(..),
+  WrappedMonoid(..),
   stimesIdempotent, stimesIdempotentMonoid, stimesMonoid,
   diff, cycle1,
   ) where
@@ -142,3 +143,37 @@ diff = Endo . (<>)
 
 cycle1 :: Semigroup m => m -> m
 cycle1 xs = xs' where xs' = xs <> xs'
+
+newtype WrappedMonoid m = WrapMonoid { unwrapMonoid :: m }
+  deriving ( Bounded  -- ^ @since 4.9.0.0
+           , Eq       -- ^ @since 4.9.0.0
+           , Ord      -- ^ @since 4.9.0.0
+           , Show     -- ^ @since 4.9.0.0
+           , Read     -- ^ @since 4.9.0.0
+--           , Data     -- ^ @since 4.9.0.0
+--           , Generic  -- ^ @since 4.9.0.0
+--           , Generic1 -- ^ @since 4.9.0.0
+           )
+
+-- | @since 4.9.0.0
+instance Monoid m => Semigroup (WrappedMonoid m) where
+  (<>) = coerce (mappend :: m -> m -> m)
+
+-- | @since 4.9.0.0
+instance Monoid m => Monoid (WrappedMonoid m) where
+  mempty = WrapMonoid mempty
+  -- This ensures that we use whatever mconcat is defined for the wrapped
+  -- Monoid.
+  mconcat = coerce (mconcat :: [m] -> m)
+
+-- | @since 4.9.0.0
+instance Enum a => Enum (WrappedMonoid a) where
+  succ (WrapMonoid a) = WrapMonoid (succ a)
+  pred (WrapMonoid a) = WrapMonoid (pred a)
+  toEnum = WrapMonoid . toEnum
+  fromEnum = fromEnum . unwrapMonoid
+  enumFrom (WrapMonoid a) = WrapMonoid `fmap` enumFrom a
+  enumFromThen (WrapMonoid a) (WrapMonoid b) = WrapMonoid `fmap` enumFromThen a b
+  enumFromTo (WrapMonoid a) (WrapMonoid b) = WrapMonoid `fmap` enumFromTo a b
+  enumFromThenTo (WrapMonoid a) (WrapMonoid b) (WrapMonoid c) =
+      WrapMonoid `fmap` enumFromThenTo a b c
