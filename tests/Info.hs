@@ -7,11 +7,10 @@ import Data.Word
 foreign import capi "want_gmp" want_gmp :: Int
 
 thisOS :: String
-thisOS =
-       if _isWindows then "Windows"
-  else if _isMacOS   then "MacOS"
-  else if _isLinux   then "Linux"
-  else                    "Unknown OS"
+thisOS | _isWindows = "Windows"
+       | _isMacOS   = "MacOS"
+       | _isLinux   = "Linux"
+       | otherwise  = "Unknown OS"
 
 main :: IO ()
 main = do
