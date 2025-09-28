@@ -99,16 +99,11 @@ jobs:
         mcabal install
 
     # splitmix
-    - name: checkout splitmix repo
-      uses: actions/checkout@v4
-      with:
-        repository: haskellari/splitmix
-        path: splitmix
     - name: compile and install splitmix package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
         cd splitmix
-        mcabal install
+        mcabal install splitmix
 
     # random-mhs
     - name: compile and install random-mhs package
@@ -129,28 +124,16 @@ jobs:
         mcabal install
 
     # split
-    - name: checkout split repo
-      uses: actions/checkout@v4
-      with:
-        repository: byorgey/split
-        path: split
     - name: compile and install split package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd split
-        mcabal install
+        mcabal install split
 
     # monad-loops
-    - name: checkout monad-loops repo
-      uses: actions/checkout@v4
-      with:
-        repository: mokus0/monad-loops
-        path: monad-loops
     - name: compile and install monad-loops package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
-        cd monad-loops
-        mcabal install
+        mcabal install monad-loops
 
     # DONE
     - name: cleanup
