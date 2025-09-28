@@ -308,3 +308,4 @@ sizeTSize = primPerformIO c_sizeof_size_t
 deriving newtype instance Storable IntPtr
 deriving newtype instance Storable WordPtr
 deriving newtype instance Storable CBool
+deriving newtype instance Storable CClock

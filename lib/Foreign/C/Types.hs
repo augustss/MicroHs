@@ -12,7 +12,7 @@ module Foreign.C.Types(
   CIntPtr(..), CUIntPtr(..),
   CFloat(..), CDouble(..),
   CSigAtomic(..),
-  CTime(..),
+  CTime(..), CClock(..),
   intToCSize, cSizeToInt,
   ) where
 import qualified Prelude()
@@ -82,6 +82,8 @@ newtype CIntMax = CIntMax Int64
 newtype CUIntMax = CUIntMax Word64
   deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CSigAtomic = CSigAtomic Word  -- XXX platform specific
+  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+newtype CClock = CClock Int
   deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 
 -- XXX This is really platform specific

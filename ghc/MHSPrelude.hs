@@ -52,8 +52,8 @@ openTmpFile tmplt = do
 
 ------- Read --------
 
-usingMhs :: Bool
-usingMhs = False
+_usingMhs :: Bool
+_usingMhs = False
 
 _wordSize :: Int
 _wordSize = 64

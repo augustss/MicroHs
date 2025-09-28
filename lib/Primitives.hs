@@ -299,6 +299,16 @@ foreign import ccall "iswindows" c_iswindows :: IO Int
 _isWindows :: Bool
 _isWindows = primPerformIO c_iswindows `primIntEQ` 1
 
+-- Is this MacOS?
+foreign import ccall "ismacos" c_ismacos :: IO Int
+_isMacOS :: Bool
+_isMacOS = primPerformIO c_ismacos `primIntEQ` 1
+
+-- Is this Linux?
+foreign import ccall "islinux" c_islinux :: IO Int
+_isLinux :: Bool
+_isLinux = primPerformIO c_islinux `primIntEQ` 1
+
 primArrAlloc :: forall a . Int -> a -> IO (IOArray a)
 primArrAlloc = _primitive "A.alloc"
 

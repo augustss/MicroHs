@@ -39,7 +39,8 @@ module Prelude(
   Float, Double,
   default Num,
   default IsString,
-  usingMhs, _wordSize, _isWindows,
+  _usingMhs, _wordSize,
+  _isLinux, _isMacOS, _isWindows,
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Control.Applicative(Applicative(..))
@@ -88,7 +89,7 @@ import System.IO(IO, putChar, putStr, putStrLn, print, getChar, getLine, getCont
 import System.IO.Error(IOError, ioError, userError)
 import Text.Read(ReadS, Read(..), read, reads, readParen, lex)
 import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
-import Primitives(_wordSize, _isWindows)
+import Primitives(_wordSize, _isLinux, _isMacOS, _isWindows)
 
 import Data.Orphans()  -- Extra instances
 
@@ -96,5 +97,5 @@ default Num (Integer, Double)
 default IsString (String)
 
 -- So we can detect mhs vs ghc
-usingMhs :: Bool
-usingMhs = True
+_usingMhs :: Bool
+_usingMhs = True

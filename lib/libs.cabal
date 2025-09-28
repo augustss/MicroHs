@@ -192,6 +192,7 @@ library base
         System.Info
         System.Mem
         System.Mem.Weak
+        System.Posix.Types
         System.Process
         System.RTS
         System.Timeout

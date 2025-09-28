@@ -32,7 +32,8 @@ module MHSPrelude(
   module System.IO.Base,
   module Text.Show,
   first, second,
-  usingMhs, _wordSize, _isWindows,
+  _usingMhs, _wordSize,
+  _isWindows,
   appendDot,
   wantGMP,
   compiledWithMhs,
@@ -85,8 +86,8 @@ import Primitives(_wordSize, _isWindows)
 import Data.Text(Text)
 
 -- So we can detect mhs vs ghc
-usingMhs :: Bool
-usingMhs = True
+_usingMhs :: Bool
+_usingMhs = True
 
 -------
 

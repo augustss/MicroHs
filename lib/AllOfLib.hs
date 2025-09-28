@@ -156,6 +156,7 @@ import System.IO.TimeMilli
 import System.Info
 import System.Mem
 import System.Mem.Weak
+import System.Posix.Types
 import System.Process
 import System.RTS
 import System.Timeout

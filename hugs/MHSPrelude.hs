@@ -152,8 +152,8 @@ openTmpFile tmplt = do
 
 ------- Read --------
 
-usingMhs :: Bool
-usingMhs = False
+_usingMhs :: Bool
+_usingMhs = False
 
 _wordSize :: Int
 _wordSize = 32         -- Hugs has 32 bit Int

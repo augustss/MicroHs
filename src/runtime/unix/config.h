@@ -118,3 +118,13 @@
 #include <locale.h>
 #include <limits.h>
 
+#if defined(__APPLE__) && defined(__MACH__)   // any Darwin (macOS, iOS, tvOS, watchOS)
+  #include <TargetConditionals.h>
+  #if TARGET_OS_OSX
+    #define ISMACOS 1
+  #endif
+#endif
+
+#if defined(__linux__)
+  #define ISLINUX 1
+#endif

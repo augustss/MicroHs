@@ -6,9 +6,16 @@ import Data.Word
 
 foreign import capi "want_gmp" want_gmp :: Int
 
+thisOS :: String
+thisOS =
+       if _isWindows then "Windows"
+  else if _isMacOS   then "MacOS"
+  else if _isLinux   then "Linux"
+  else                    "Unknown OS"
+
 main :: IO ()
 main = do
-  putStrLn $ "Running on " ++ if _isWindows then "Windows" else "Unix"
+  putStrLn $ "Running on " ++ thisOS
   putStr $ show _wordSize ++ " bit words, "
 
   let

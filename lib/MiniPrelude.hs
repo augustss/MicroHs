@@ -22,7 +22,7 @@ module MiniPrelude(
   module Data.Typeable,
   module System.IO.Base,
   module Text.Show,
-  usingMhs, _wordSize, _isWindows,
+  _usingMhs, _wordSize, _isWindows,
   ) where
 import qualified Prelude()
 import Control.Applicative(Applicative(..))
@@ -60,5 +60,5 @@ import Text.Show
 import Primitives(_wordSize, _isWindows)
 
 -- So we can detect mhs vs ghc
-usingMhs :: Bool
-usingMhs = True
+_usingMhs :: Bool
+_usingMhs = True
