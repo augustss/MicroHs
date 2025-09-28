@@ -339,7 +339,7 @@ installmsg:
 	@echo '*    cpphs   - C preprocessor'
 	@echo '*    mcabal  - cabal for MicroHs'
 	@echo '*  Libraries:'
-	@echo '*    base (bytestring, directory, filepath, text)'
+	@echo '*    base (bytestring, deepseq, directory, hashable, text, stm)'
 	@echo '***************************************************'
 	@echo ''
 
