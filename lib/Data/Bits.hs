@@ -51,8 +51,8 @@ newtype And a = And { getAnd :: a }
                     Eq -- ^ @since base-4.16
                     )
   deriving stock (
-                  Show{-, -- ^ @since base-4.16
-                  Read-} -- ^ @since base-4.16
+                  Show, -- ^ @since base-4.16
+                  Read -- ^ @since base-4.16
                  )
 
 -- | @since base-4.16
@@ -86,8 +86,8 @@ newtype Ior a = Ior { getIor :: a }
                     Eq -- ^ @since base-4.16
                     )
   deriving stock (
-                  Show{-, -- ^ @since base-4.16
-                  Read-} -- ^ @since base-4.16
+                  Show, -- ^ @since base-4.16
+                  Read -- ^ @since base-4.16
                  )
 
 -- | @since base-4.16
@@ -117,8 +117,8 @@ newtype Xor a = Xor { getXor :: a }
                     Eq -- ^ @since base-4.16
                     )
   deriving stock (
-                  Show{-, -- ^ @since base-4.16
-                  Read-} -- ^ @since base-4.16
+                  Show, -- ^ @since base-4.16
+                  Read -- ^ @since base-4.16
                  )
 
 -- | @since base-4.16
@@ -149,8 +149,8 @@ newtype Iff a = Iff { getIff :: a }
                     Eq -- ^ @since base-4.16
                     )
   deriving stock (
-                  Show{-, -- ^ @since base-4.16
-                  Read-} -- ^ @since base-4.16
+                  Show, -- ^ @since base-4.16
+                  Read -- ^ @since base-4.16
                  )
 
 -- | This constraint is arguably
