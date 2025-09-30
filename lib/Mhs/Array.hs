@@ -30,13 +30,15 @@ import Data.Bool
 import Data.Char
 import Data.Enum
 import Data.Eq
+import Data.Foldable(Foldable(..))
 import Data.Function
 import Data.Functor
 import Data.Int.Int
 import Data.Ix
-import Data.List
+import Data.List as List
 import Data.Num
 import Data.Ord
+import Data.Traversable(Traversable(traverse))
 import Data.Tuple
 import Mhs.MutArr
 import {-# SOURCE #-} Data.Typeable
@@ -59,6 +61,44 @@ instance (Ix a, Eq b)  => Eq (Array a b) where
 
 instance (Ix a, Ord b) => Ord (Array a b) where
   compare arr1 arr2 = compare (assocs arr1) (assocs arr2)
+
+instance Foldable (Array i) where
+  foldr f b0 arr@(Array _ n _) =
+    let
+      go i | i == n = b0
+           | e <- unsafeAt arr i = f e (go (i + 1))
+    in go 0
+  foldl f b0 arr@(Array _ n _) =
+    let
+      go i | i == -1 = b0
+           | e <- unsafeAt arr i = f (go (i - 1)) e
+    in go (n - 1)
+  foldr' f b0 arr@(Array _ n _) =
+    let
+      go i a | i == -1 = a
+             | e <- unsafeAt arr i = go (i - 1) (f e $! a)
+    in go (n - 1) b0
+  foldl' f b0 arr@(Array _ n _) =
+    let
+      go i a | i == n = a
+             | e <- unsafeAt arr i = go (i + 1) (a `seq` f a e)
+    in go 0 b0
+  foldl1 f arr@(Array _ n _) =
+    let
+      go i | i == 0 = unsafeAt arr 0
+           | e <- unsafeAt arr i = f (go (i - 1)) e
+    in if n == 0 then error "foldl1: empty Array" else go (n - 1)
+  foldr1 f arr@(Array _ n _) =
+    let
+      go i | i == n - 1 = unsafeAt arr i
+           | e <- unsafeAt arr i = f e (go (i + 1))
+    in if n == 0 then error "foldr1: empty Array" else go 0
+  toList = elems
+  length = numElements
+  null a = numElements a == 0
+
+instance Ix i => Traversable (Array i) where
+  traverse f arr = listArray (bounds arr) `fmap` traverse f (elems arr)
 
 instance (Ix a, Show a, Show b) => Show (Array a b) where
   showsPrec p a =
@@ -86,7 +126,7 @@ array b ies =
 listArray  :: (Ix a) => (a,a) -> [b] -> Array a b
 listArray b es =
   let n = safeRangeSize b
-  in  if length es > n then error "listArray: list too long" else unsafeArray' b n (zip [0..] es)
+  in  if List.length es > n then error "listArray: list too long" else unsafeArray' b n (zip [0..] es)
 
 accumArray :: (Ix a) => (b -> c -> b) -> b -> (a,a) -> [(a,c)] -> Array a b
 accumArray f z b = accum f (array b [(i, z) | i <- range b])
