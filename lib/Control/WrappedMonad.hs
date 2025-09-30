@@ -1,14 +1,11 @@
-module Control.WrappedMonad(WrappedMonad(..), unwrapMonad, WrappedArrow(..), unwrapArrow) where
+module Control.WrappedMonad(WrappedMonad(..), WrappedArrow(..)) where
 import qualified Prelude(); import MiniPrelude
 import Control.Applicative
 import Control.Arrow
 import Mhs.Builtin
 
-newtype WrappedMonad m a = WrapMonad (m a)
+newtype WrappedMonad m a = WrapMonad { unwrapMonad :: m a }
   deriving (Monad)
-
-unwrapMonad :: WrappedMonad m a -> m a
-unwrapMonad (WrapMonad ma) = ma
 
 instance Monad m => Functor (WrappedMonad m) where
   fmap f (WrapMonad v) = WrapMonad (fmap f v)
@@ -22,10 +19,7 @@ instance MonadPlus m => Alternative (WrappedMonad m) where
   empty = WrapMonad mzero
   WrapMonad u <|> WrapMonad v = WrapMonad (u `mplus` v)
 
-newtype WrappedArrow a b c = WrapArrow (a b c)
-
-unwrapArrow :: WrappedArrow a b c -> a b c
-unwrapArrow (WrapArrow abc) = abc
+newtype WrappedArrow a b c = WrapArrow { unwrapArrow :: a b c }
 
 instance Arrow a => Functor (WrappedArrow a b) where
   fmap f (WrapArrow a) = WrapArrow (a >>> arr f)

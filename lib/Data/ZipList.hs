@@ -1,15 +1,12 @@
-module Data.ZipList(ZipList(..), getZipList) where
+module Data.ZipList(ZipList(..)) where
 --import qualified Prelude(); import MiniPrelude
 import Control.Applicative
 import Data.Foldable
 import Data.Traversable
 --import Mhs.Builtin
 
-newtype ZipList a = ZipList [a]
+newtype ZipList a = ZipList { getZipList :: [a] }
   deriving (Eq, Ord, Show, Foldable)
-
-getZipList :: forall a . ZipList a -> [a]
-getZipList (ZipList as) = as
 
 instance Functor ZipList where
   fmap f (ZipList as) = ZipList (map f as)
