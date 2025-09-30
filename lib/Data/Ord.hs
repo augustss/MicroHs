@@ -6,9 +6,10 @@ import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Data.Bool_Type
 import Data.Bounded
+import Data.Eq
 import Data.Functor
 import Data.Ordering_Type
-import Data.Eq
+import Data.Records
 import {-# SOURCE #-} Data.Typeable
 import Text.Show
 
@@ -46,11 +47,10 @@ comparing f x y = compare (f x) (f y)
 clamp :: (Ord a) => (a, a) -> a -> a
 clamp (low, high) a = min high (max a low)
 
-{-
 newtype Down a = Down
     { getDown :: a -- ^ @since 4.14.0.0
     }
-    deriving
+{-    deriving
       ( Eq        -- ^ @since 4.6.0.0
       , Num       -- ^ @since 4.11.0.0
       , Semigroup -- ^ @since 4.11.0.0
@@ -66,11 +66,6 @@ newtype Down a = Down
       , Storable   -- ^ @since 4.14.0.0
       )
 -}
-
-newtype Down a = Down a
-
-getDown :: Down a -> a
-getDown (Down a) = a
 
 {-  In Data.Orphans
 instance (Read a) => Read (Down a)

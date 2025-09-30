@@ -11,13 +11,9 @@ import Data.List
 import Data.Ord
 import {-# SOURCE #-} Data.Typeable
 
-newtype Max a = Max (Maybe a)
-getMax :: forall a . Max a -> Maybe a
-getMax (Max ma) = ma
+newtype Max a = Max { getMax :: Maybe a }
 
-newtype Min a = Min (Maybe a)
-getMin :: forall a . Min a -> Maybe a
-getMin (Min ma) = ma
+newtype Min a = Min { getMin :: Maybe a }
 
 instance forall a . Ord a => Semigroup (Max a) where
     m <> Max Nothing = m
@@ -41,9 +37,7 @@ instance forall a . Ord a => Monoid (Min a) where
     mempty = Min Nothing
     mconcat = foldl' (<>) mempty
 
-newtype StateL s a = StateL (s -> (s, a))
-runStateL :: StateL s a -> s -> (s, a)
-runStateL (StateL f) = f
+newtype StateL s a = StateL { runStateL :: s -> (s, a) }
 
 instance Functor (StateL s) where
     fmap f (StateL k) = StateL $ \ s -> let (s', v) = k s in (s', f v)
@@ -55,9 +49,7 @@ instance Applicative (StateL s) where
             (s'', v) = kv s'
         in (s'', f v)
 
-newtype StateR s a = StateR (s -> (s, a))
-runStateR :: StateR s a -> s -> (s, a)
-runStateR (StateR f) = f
+newtype StateR s a = StateR { runStateR :: s -> (s, a) }
 
 instance Functor (StateR s) where
     fmap f (StateR k) = StateR $ \ s -> let (s', v) = k s in (s', f v)
@@ -69,9 +61,7 @@ instance Applicative (StateR s) where
             (s'', f) = kf s'
         in (s'', f v)
 
-newtype StateT s m a = StateT (s -> m (s, a))
-runStateT :: StateT s m a -> s -> m (s, a)
-runStateT (StateT f) = f
+newtype StateT s m a = StateT { runStateT :: s -> m (s, a) }
 
 instance Monad m => Functor (StateT s m) where
     fmap = liftM
