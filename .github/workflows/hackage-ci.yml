@@ -134,6 +134,18 @@ jobs:
         PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install monad-loops
 
+    # tagged
+    - name: checkout tagged repo
+      uses: actions/checkout@v4
+      with:
+        repository: ekmett/tagged
+        path: tagged
+    - name: compile and install tagged package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd tagged
+        mcabal install
+
     # DONE
     - name: cleanup
       run: |
