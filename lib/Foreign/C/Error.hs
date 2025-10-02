@@ -17,7 +17,7 @@ module Foreign.C.Error (
 
   Errno(..),
 
-  eAGAIN, eINTR, eWOULDBLOCK,
+  eOK, e2BIG, eAGAIN, eINTR, eINVAL, eWOULDBLOCK,
 {-
   -- ** Common @errno@ symbols
   -- | Different operating systems and\/or C libraries often support
@@ -228,9 +228,12 @@ eWOULDBLOCK     = Errno (CONST_EWOULDBLOCK)
 eXDEV           = Errno (CONST_EXDEV)
 -}
 
-eINTR :: Errno
+eOK, e2BIG, eAGAIN, eINTR, eINVAL, eWOULDBLOCK :: Errno
+eOK         = Errno 0
+e2BIG       = Errno c2BIG;       foreign import capi "value E2BIG"       c2BIG       :: Int
 eAGAIN      = Errno cAGAIN;      foreign import capi "value EAGAIN"      cAGAIN      :: Int
 eINTR       = Errno cINTR;       foreign import capi "value EINTR"       cINTR       :: Int
+eINVAL      = Errno cINVAL;      foreign import capi "value EINVAL"      cINVAL      :: Int
 eWOULDBLOCK = Errno cWOULDBLOCK; foreign import capi "value EWOULDBLOCK" cWOULDBLOCK :: Int
 
 isValidErrno               :: Errno -> Bool
