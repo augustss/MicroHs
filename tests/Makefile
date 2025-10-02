@@ -115,6 +115,7 @@ test:
 	$(TMHS) QualDo     && $(EVAL) > QualDo.out     && diff QualDo.ref QualDo.out
 	$(TMHS) Weak       && $(EVAL) > Weak.out       && diff Weak.ref Weak.out
 	$(TMHS) Fix        && $(EVAL) > Fix.out        && diff Fix.ref Fix.out
+	$(TMHS) Pat        && $(EVAL) > Pat.out        && diff Pat.ref Pat.out
 
 testforimp:
 	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
