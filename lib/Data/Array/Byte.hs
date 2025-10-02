@@ -10,6 +10,7 @@ module Data.Array.Byte(
   sizeOfMutableByteArray,
   newMutableByteArray,
   freezeMutableByteArray,
+  unsafeFreezeMutableByteArray,
   readWord8,
   writeWord8,
   ) where

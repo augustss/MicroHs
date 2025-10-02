@@ -146,6 +146,18 @@ jobs:
         cd tagged
         mcabal install
 
+    # exceptions
+    - name: checkout exceptions repo
+      uses: actions/checkout@v4
+      with:
+        repository: ekmett/exceptions
+        path: exceptions
+    - name: compile and install exceptions package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd exceptions
+        mcabal install
+
     # DONE
     - name: cleanup
       run: |
