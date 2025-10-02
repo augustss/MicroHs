@@ -614,7 +614,7 @@ instance HasLoc Listish where
   getSLoc (LFromThenTo e _ _) = getSLoc e
 
 instance HasLoc EStmt where
-  getSLoc (SBind p _) = getSLoc p
+  getSLoc (SBind p e) = getSLoc p `orSLoc` getSLoc e
   getSLoc (SThen e) = getSLoc e
   getSLoc (SLet bs) = getSLoc bs
   getSLoc (SRec bs) = getSLoc bs

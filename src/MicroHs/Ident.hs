@@ -16,6 +16,7 @@ module MicroHs.Ident(
   qualOf,
   addIdentSuffix,
   SLoc(..), noSLoc,
+  orSLoc,
   showSLoc, slocFile,
   isUpperX,
   hideIdent,
@@ -82,6 +83,14 @@ slocIdent (Ident l _) = l
 
 noSLoc :: SLoc
 noSLoc = SLoc "" 0 0
+
+isNoSLoc :: SLoc -> Bool
+isNoSLoc (SLoc "" 0 0) = True
+isNoSLoc _ = False
+
+orSLoc :: SLoc -> SLoc -> SLoc
+l1 `orSLoc` l2 | isNoSLoc l1 = l2
+               | otherwise   = l1
 
 mkIdent :: String -> Ident
 mkIdent = mkIdentSLoc noSLoc
