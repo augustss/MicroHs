@@ -60,3 +60,6 @@ sizeOfMutableByteArray (M bs) = return $! BS.length bs
 
 primBSwrite :: BS.ByteString -> Int -> Word8 -> IO ()
 primBSwrite = _primitive "bswrite"
+
+unsafeFreezeMutableByteArray :: MutableByteArray s -> ST s ByteArray
+unsafeFreezeMutableByteArray (M bs) = return (A bs)
