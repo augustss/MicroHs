@@ -38,67 +38,68 @@ import Data.Word.Word8
 import Data.Float
 import Data.Double
 import {-# SOURCE #-} Data.Typeable
+import Text.Show
 
 -- The MicroHs Word type is the "natural" architecture word size;
 -- it is the same as the pointer difference type.
 -- And Int is the natural signed word size.
 newtype CBool    = CBool    Word8
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CChar    = CChar    Int
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CSChar   = CSChar   Int
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CUChar   = CUChar   Word
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CWchar = CWchar Int
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CShort   = CShort   Int
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CUShort  = CUShort  Word
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CInt     = CInt     Int
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CUInt    = CUInt    Word
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CLong    = CLong    Int
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CULong   = CULong   Word
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CPtrdiff = CPtrdiff Word
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CSize    = CSize    Word
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CSSize   = CSSize   Int
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CLLong   = CLLong   Int64
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CULLong  = CULLong  Word64
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CIntPtr  = CIntPtr  Int
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CUIntPtr = CUIntPtr Word
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CIntMax = CIntMax Int64
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CUIntMax = CUIntMax Word64
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 newtype CSigAtomic = CSigAtomic Word  -- XXX platform specific
-  deriving (Eq, Ord, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Integral, Real, Bounded, Bits, FiniteBits)
 
 -- XXX This is really platform specific
 newtype CClock = CClock Int
-  deriving (Eq, Ord, Enum, Num, Real)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Real)
 newtype CTime = CTime Int
-  deriving (Eq, Ord, Enum, Num, Real)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Real)
 newtype CUSeconds = CUSeconds Word
-  deriving (Eq, Ord, Enum, Num, Real)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Real)
 newtype CSUSeconds = CSUSeconds Int
-  deriving (Eq, Ord, Enum, Num, Real)
+  deriving newtype (Eq, Ord, Show, Enum, Num, Real)
 
 newtype CFloat   = CFloat   Float
-  deriving (Eq, Ord, Num, Real, Fractional, RealFrac, Floating, RealFloat)
+  deriving newtype (Eq, Ord, Show, Num, Real, Fractional, RealFrac, Floating, RealFloat)
 newtype CDouble  = CDouble  Double
-  deriving (Eq, Ord, Num, Real, Fractional, RealFrac, Floating, RealFloat)
+  deriving newtype (Eq, Ord, Show, Num, Real, Fractional, RealFrac, Floating, RealFloat)
 
 -- Temporary conversion functions.
 intToCSize :: Int -> CSize
