@@ -45,6 +45,7 @@ library base
         Control.Monad.Fix
         Control.Monad.IO.Class
         Control.Monad.ST
+        Control.Monad.ST.Unsafe
         Control.Monad.STM
         Control.Monad.Zip
         Control.WrappedMonad
