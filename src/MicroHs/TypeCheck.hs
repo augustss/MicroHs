@@ -2698,7 +2698,7 @@ tcBind abind =
 dsType :: EType -> EType
 dsType at =
   case at of
-    EVar _ -> at
+    EVar i -> if isIdent "[]" i then tList (getSLoc at) else at
     EApp f a -> EApp (dsType f) (dsType a)
     EOper t ies -> EOper (dsType t) [(i, dsType e) | (i, e) <- ies]
     EListish (LList [t]) -> tApp (tList (getSLoc at)) (dsType t)
