@@ -97,6 +97,8 @@ import Data.Text.Lazy.IO
 import Data.Traversable
 import Data.Tuple
 import Data.Tuple.Instances
+import Data.Type.Coercion
+import Data.Type.Equality
 import Data.Typeable
 import Data.TypeLits
 import Data.Unique

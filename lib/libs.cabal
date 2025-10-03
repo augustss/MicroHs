@@ -61,6 +61,7 @@ library base
         Data.ByteString.Char8
         Data.ByteString.Lazy
         Data.ByteString.Lazy.Char8
+        Data.ByteString.Short
         Data.ByteString.Short.Internal
         Data.ByteString.Unsafe
         Data.Char
@@ -127,6 +128,7 @@ library base
         Data.Traversable
         Data.Tuple
         Data.Tuple.Instances
+        Data.Type.Coercion
         Data.Type.Equality
         Data.TypeLits
         Data.Typeable
