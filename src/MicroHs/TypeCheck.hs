@@ -562,6 +562,7 @@ primTypes =
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        -- XXX should not be needed
        (identList,               [entry identList     kTypeTypeS]),
+       (mkIdentB "[]",           [entry identList     kTypeTypeS]),
        (mkIdentB "\x2192",       [entry identArrow    kTypeTypeTypeS]),  -- ->
        (mkIdentB "\x21d2",       [entry identImplies  kImplies])         -- =>
       ] ++

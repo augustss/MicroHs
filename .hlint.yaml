@@ -61,6 +61,7 @@
 - ignore: {name: Use writeList2Chan, within: [Control.Concurrent.Chan]}
 - ignore: {name: Redundant fromInteger, within: [FArith, DArith]}
 - ignore: {name: Use section, within: [Deriving]}
+- ignore: {name: Use list literal, within: [ImpMet]}
 
 - arguments:
     - --ignore-glob=lib/Data/Foldable1.hs
