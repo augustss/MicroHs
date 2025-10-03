@@ -3341,6 +3341,15 @@ genCoerce _ _ = Nothing
 
 solveInstCoercible :: SLoc -> Ident -> EType -> EType -> T (Maybe (Expr, [Goal], [Improve]))
 solveInstCoercible loc iCls t1 t2 = do
+{- XXX Should use the reflexive, symmetric, transitive closure for Coercible.
+   XXX It's enough to do the transitive part for anything involving type variable.
+   XXX See Data.Type.Coercion.trans for a failing example.
+  it <- gets instTable
+  case M.lookup iCls it of
+    Nothing -> pure ()
+    Just (InstInfo _ ds _) -> traceM ("solveInstCoercible: " ++ show [ f 0 | (_, f) <- ds ])
+-}
+  
   msol <- solveInst loc iCls [t1, t2]
   case msol of
     Nothing -> solveInst loc iCls [t2, t1]
