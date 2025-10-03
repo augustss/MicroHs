@@ -156,7 +156,7 @@ import Prelude hiding
     isValidUtf8,
     packCString, packCStringLen, useAsCString, useAsCStringLen,
   )
-
+import Control.DeepSeq.Class
 import Foreign (Ptr)
 import Foreign.C.String (CString, CStringLen)
 
@@ -177,7 +177,7 @@ import Data.Word (Word8)
 
 newtype ShortByteString = S ByteString
 --  deriving (Eq, Ord, Data, Typeable, Generic)
-  deriving (Eq, Ord, Typeable)
+  deriving (Eq, Ord, Typeable, NFData)
 
 fromShort :: ShortByteString -> ByteString
 fromShort (S b) = b
