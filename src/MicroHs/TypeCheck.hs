@@ -1852,7 +1852,7 @@ tcExprR mt ae =
         [as] ->
           case as of
             SThen a -> tcExpr mt a
-            s -> tcError (getSLoc s) $ "bad final do statement"
+            s -> tcError (getSLoc s) "bad final do statement"
         as : ss -> do
           let mkQual name = maybe (mkBuiltin loc name) (\mn -> qualIdent mn (mkIdentSLoc loc name)) mmn
           case as of
