@@ -562,6 +562,7 @@ primTypes =
        -- Primitives.hs uses the type [], and it's annoying to fix that.
        -- XXX should not be needed
        (identList,               [entry identList     kTypeTypeS]),
+       (mkIdentB "[]",           [entry identList     kTypeTypeS]),
        (mkIdentB "\x2192",       [entry identArrow    kTypeTypeTypeS]),  -- ->
        (mkIdentB "\x21d2",       [entry identImplies  kImplies])         -- =>
       ] ++
@@ -2698,7 +2699,7 @@ tcBind abind =
 dsType :: EType -> EType
 dsType at =
   case at of
-    EVar i -> if isIdent "[]" i then tList (getSLoc at) else at
+    EVar _ -> at
     EApp f a -> EApp (dsType f) (dsType a)
     EOper t ies -> EOper (dsType t) [(i, dsType e) | (i, e) <- ies]
     EListish (LList [t]) -> tApp (tList (getSLoc at)) (dsType t)
