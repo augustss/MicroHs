@@ -273,6 +273,6 @@ runtimeFFI = [
   "want_gmp",
   "gettimeofday",
   "E2BIG", "EAGAIN", "EINTR", "EINVAL", "EWOULDBLOCK",
-  "&errno",
+  "errno",
   "strerror_r"
   ]
