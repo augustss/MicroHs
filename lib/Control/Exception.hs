@@ -43,6 +43,8 @@ module Control.Exception(
   ErrorCall(..),
   --
   ioError, IOException,
+  --
+  assert, assertError,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Exception.Internal
@@ -147,3 +149,23 @@ blockedIndefinitelyOnMVar = toException BlockedIndefinitelyOnMVar
 
 blockedIndefinitelyOnSTM :: SomeException -- for the RTS
 blockedIndefinitelyOnSTM = toException BlockedIndefinitelyOnSTM
+
+-------------------
+
+-- Assertions are ignored.
+-- GHC has a flag to turn assert into assertError, MHS doesn't.
+assert :: Bool -> a -> a
+assert _pred r = r
+
+assertError :: Bool -> a -> a
+assertError predicate v
+  | predicate = v
+  | otherwise = throw (AssertionFailed "Assertion failed")
+
+newtype AssertionFailed = AssertionFailed String
+
+instance Exception AssertionFailed
+
+instance Show AssertionFailed where
+  showsPrec _ (AssertionFailed err) = showString err
+    
