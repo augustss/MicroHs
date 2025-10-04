@@ -158,6 +158,36 @@ jobs:
         cd exceptions
         mcabal install
 
+    # ghc-compat
+    - name: compile and install mtl-mhs package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        mcabal install ghc-compat
+
+    # os-string
+    - name: checkout os-string repo
+      uses: actions/checkout@v4
+      with:
+        repository: augustss/os-string
+        path: os-string
+    - name: compile and install os-string package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd os-string
+        mcabal install
+
+    # filepath
+    - name: checkout filepath repo
+      uses: actions/checkout@v4
+      with:
+        repository: augustss/filepath
+        path: filepath
+    - name: compile and install filepath package
+      run: |
+        PATH="$HOME/.mcabal/bin:$PATH"
+        cd filepath
+        mcabal install
+
     # DONE
     - name: cleanup
       run: |
