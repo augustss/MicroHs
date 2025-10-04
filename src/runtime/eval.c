@@ -67,6 +67,12 @@
 #define WANT_BWT 1
 #endif
 
+#if !defined(WANT_ERRNO)
+#define WANT_ERRNO 0
+#else
+#include <errno.h>
+#endif
+
 #define NEED_INT64 (WANT_INT64 && WORD_SIZE == 32)
 
 #if WANT_LZ77
@@ -7013,7 +7019,10 @@ from_t mhs_mpz_init_set_si64(int s) { mpz_init_set_si64(mhs_to_Ptr(s, 0), mhs_to
 from_t mhs_mpz_init_set_ui64(int s) { mpz_init_set_ui64(mhs_to_Ptr(s, 0), mhs_to_Word64(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_get_si64(int s) { return mhs_from_Int64(s, 1, mpz_get_si64(mhs_to_Ptr(s, 0))); }
 #endif  /* WANT_GMP */
+#if WANT_TIME
 from_t mhs_gettimeofday(int s) { return mhs_from_Int(s, 2, gettimeofday(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
+#endif
+#if WANT_ERRNO
 from_t mhs_E2BIG(int s) { return mhs_from_Int(s, 0, E2BIG); }
 from_t mhs_EAGAIN(int s) { return mhs_from_Int(s, 0, EAGAIN); }
 from_t mhs_EINTR(int s) { return mhs_from_Int(s, 0, EINTR); }
@@ -7021,6 +7030,7 @@ from_t mhs_EINVAL(int s) { return mhs_from_Int(s, 0, EINVAL); }
 from_t mhs_EWOULDBLOCK(int s) { return mhs_from_Int(s, 0, EWOULDBLOCK); }
 from_t mhs_addr_errno(int s) { return mhs_from_Ptr(s, 0, &errno); }
 from_t mhs_strerror_r(int s) { return mhs_from_Int(s, 3, strerror_r(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Word(s, 2))); }
+#endif
 
 const struct ffi_entry ffi_table[] = {
   { "GETRAW", 0, mhs_GETRAW},
@@ -7227,7 +7237,10 @@ const struct ffi_entry ffi_table[] = {
   { "mpz_init_set_ui64", 2, mhs_mpz_init_set_ui64},
   { "mpz_get_si64", 1, mhs_mpz_get_si64},
 #endif  /* WANT_GMP */
+#if WANT_TIME
   { "gettimeofday", 2, mhs_gettimeofday},
+#endif
+#if WANT_ERRNO
   { "E2BIG", 0, mhs_E2BIG},
   { "EAGAIN", 0, mhs_EAGAIN},
   { "EINTR", 0, mhs_EINTR},
@@ -7235,6 +7248,7 @@ const struct ffi_entry ffi_table[] = {
   { "EWOULDBLOCK", 0, mhs_EWOULDBLOCK},
   { "&errno", 0, mhs_addr_errno},
   { "strerror_r", 3, mhs_strerror_r},
+#endif
   { 0,0 }
 };
 

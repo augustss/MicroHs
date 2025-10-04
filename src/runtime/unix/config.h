@@ -75,6 +75,11 @@
 #define WANT_TAGNAMES 1
 
 /*
+ * errno related stuff
+ */
+#define WANT_ERRNO 1
+
+/*
  * Use CPU counters.
  * Only available on:
  *  - MacOS with M4 CPU
