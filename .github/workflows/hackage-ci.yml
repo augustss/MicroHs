@@ -159,7 +159,7 @@ jobs:
         mcabal install
 
     # ghc-compat
-    - name: compile and install mtl-mhs package
+    - name: compile and install ghc-compat package
       run: |
         PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install ghc-compat
