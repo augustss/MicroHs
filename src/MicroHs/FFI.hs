@@ -270,5 +270,9 @@ runtimeFFI = [
   "mpz_mul", "mpz_mul_2exp", "mpz_neg", "mpz_popcount", "mpz_sub", "mpz_fdiv_q_2exp",
   "mpz_tdiv_qr", "mpz_tstbit", "mpz_xor",
   "mpz_get_si64", "mpz_init_set_si64", "mpz_init_set_ui64",
-  "want_gmp"
+  "want_gmp",
+  "gettimeofday",
+  "E2BIG", "EAGAIN", "EINTR", "EINVAL", "EWOULDBLOCK",
+  "&errno",
+  "strerror_r"
   ]
