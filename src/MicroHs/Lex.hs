@@ -394,10 +394,14 @@ readInt = fromInteger . readBase 10
 -- XXX This is a pretty hacky recognition of pragmas.
 pragma :: SLoc -> [Char] -> [Token]
 pragma loc cs =
-  let as = map toUpper $ takeWhile isAlpha $ dropWhile isSpace cs
-      skip = skipNest loc 1 ('#':cs)
-  in  case as of
-        "SOURCE" -> TPragma loc as : skip
+  let skip = skipNest loc 1 ('#':cs)
+  in  case words cs of
+        p : _ | map toUpper p == "SOURCE" -> TPragma loc p : skip
+        -- hsc2hs generates LINE pragmas
+        p : ln@(_:_) : fn : _ | map toUpper p == "LINE", all isDigit ln ->
+          let f = tail (init fn)
+              l = readInt ln - 1
+          in  seq l $ skipNest (SLoc f l 1) 1 ('#':cs)
         _ -> skip
 
 -- | This is the magical layout resolver, straight from the Haskell report.
