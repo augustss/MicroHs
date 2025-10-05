@@ -238,7 +238,8 @@ mkTModule tds tcs =
     assoc i = getAssocs vt at (qualIdent mn i)
 
     -- All top level values possible to export.
-    ves = [ ValueExport i (ventry i t') | Sign is t <- tds, let t' = expandSyn' st t, i <- is ]
+    ves = [ ValueExport i (ventry i t') | Sign is t <- tds, let t' = expandSyn' st t, i <- is ] ++
+          [ ValueExport i (ventry i t') | ForImp _ _ qi t <- tds, let t' = expandSyn' st t, let i = unQualIdent qi ]
       where st = synTable tcs
 
     -- All top level types possible to export.
