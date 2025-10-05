@@ -409,6 +409,7 @@ isExp (EListish (LList es)) = all isExp es
 isExp (ETuple es) = all isExp es
 isExp (EApp e1 e2) = isExp e1 && isExp e2
 isExp (ELit _ _) = True
+isExp (EParen e) = isExp e
 isExp _ = False
 
 pData :: P (LHS, [Constr])
