@@ -164,6 +164,7 @@ library base
         GHC.Generics
         GHC.Stack
         GHC.Types
+        Language.Haskell.TH.Quote
         Language.Haskell.TH.Syntax
         Mhs.Arr
         Mhs.Array
