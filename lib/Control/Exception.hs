@@ -30,6 +30,7 @@ module Control.Exception(
   interruptible,
   MaskingState(..),
   getMaskingState,
+  unsafeUnmask,
 
   --
   ArithException(..),
