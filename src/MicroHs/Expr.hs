@@ -811,7 +811,13 @@ errorMessage loc msg = error $ showSLoc loc ++ ": " ++ msg
 ----------------
 
 instance Show EModule where
-  show (EModule nm _ ds) = "module " ++ showIdent nm ++ "(...) where\n" ++ showEDefs ds
+  show (EModule nm es ds) = "module " ++ showIdent nm ++ "(" ++ concatMap ((++ ", ") . show) es ++ ") where\n" ++ showEDefs ds
+
+instance Show ExportItem where
+  show (ExpModule m) = "module " ++ showIdent m
+  show (ExpTypeSome i is) = showIdent i ++ "(" ++ intercalate "," (map showIdent is) ++ ")"
+  show (ExpValue i) = showIdent i
+  show (ExpDefault i) = "default " ++ showIdent i
 
 instance Show Expr where
   show = showExpr
