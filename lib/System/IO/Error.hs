@@ -84,7 +84,7 @@ import Data.List
 import Data.Maybe
 import Data.Records   -- needed since we don't import Mhs.Builtin
 import Data.String
-import {-#SOURCE#-} Data.Typeable
+import {-# SOURCE #-} Data.Typeable
 import System.IO.Internal
 import Text.Show
 
