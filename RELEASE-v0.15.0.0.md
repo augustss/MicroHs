@@ -29,6 +29,9 @@
  * Pattern binding with overloaded expression.
  * Windows build
  
+## Packages
+ * Many more packages compile, e.g., QuickCheck, filepath
+
 ## Contributors
  * Ben Clifford <benc@hawaga.org.uk>
  * Heinrich Apfelmus <apfelmus@quantentunnel.de>
