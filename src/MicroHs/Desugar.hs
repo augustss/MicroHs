@@ -227,9 +227,13 @@ encodeRational r =
 dsExpr :: Expr -> Exp
 dsExpr aexpr =
   case aexpr of
+    EVar und | und == mkIdent "Control.Error.undefined" ->
+      dsExpr $ EApp err_ (eloc und "undefined")
     EVar i -> Var i
-    EApp (EApp (EVar app) (EListish (LCompr e stmts))) l | app == mkIdent "Data.List_Type.++" ->
+    EApp (EApp (EVar app) (EListish (LCompr e stmts))) l | app == iapp ->
       dsExpr $ dsCompr e stmts l
+    EApp (EVar err) e | err == mkIdent "Control.Error.error" ->
+      dsExpr $ EApp err_ (EApp (EApp (EVar iapp) (eloc err "")) e)
     EApp f a -> App (dsExpr f) (dsExpr a)
     ELam l qs -> dsEqns l qs
     ELit l (LExn s) -> Var (mkIdentSLoc l s)
@@ -252,6 +256,9 @@ dsExpr aexpr =
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
     _ -> impossibleShow aexpr
+  where err_ = EVar $ mkIdent "Control.Error._error"
+        eloc i s = ELit l (LStr (show l ++ ": " ++ s)) where l = getSLoc i
+        iapp = mkIdent "Data.List_Type.++"
 
 dsCompr :: Expr -> [EStmt] -> Expr -> Expr
 dsCompr e [] l = EApp (EApp conCons e) l
