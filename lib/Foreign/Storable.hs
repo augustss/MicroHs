@@ -256,6 +256,15 @@ instance Storable CSize where
   peek p      = c_peek_size_t p
   poke p w    = c_poke_size_t p w
 
+foreign import ccall "peek_long" c_peek_time_t :: Ptr CTime -> IO CTime
+foreign import ccall "poke_long" c_poke_time_t :: Ptr CTime -> CTime -> IO ()
+
+instance Storable CTime where
+  sizeOf    _ = longSize
+  alignment _ = longSize
+  peek p      = c_peek_time_t p
+  poke p w    = c_poke_time_t p w
+
 foreign import ccall "peek_flt32" c_peek_flt32 :: Ptr Float -> IO Float
 foreign import ccall "poke_flt32" c_poke_flt32 :: Ptr Float -> Float -> IO ()
 
