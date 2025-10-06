@@ -187,7 +187,7 @@ compileBootModule flags mn = do
     putStrLnInd $ "importing boot " ++ showIdent mn
   mres <- liftIO (readModulePath flags ".hs-boot" mn)
   case mres of
-    Nothing -> error $ "boot module not found: " ++ showIdent mn
+    Nothing -> mhsError $ "boot module not found: " ++ showIdent mn
     Just (pathfn, file) -> do
       dumpIf flags Dpreproc $
         liftIO $ putStrLn $ "preprocessed:\n" ++ file
@@ -207,7 +207,7 @@ compileModule flags impt mn pathfn file = do
   dumpIf flags Dparse $
     liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
   when (isNothing (getFileName mn) && mn /= mnn) $
-    error $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
+    mhsError $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
   ((dmdl, syms, imported, tTCDesug, tImp), _) <- compileModuleP flags impt (addPreludeImport pmdl)
 
   t4 <- liftIO getTimeMilli
@@ -353,7 +353,7 @@ readModulePath flags suf mn = do
                 Nothing -> do
                   return Nothing
                 Just (fn, h) -> readRest fn . unlit fn =<< hGetContents h
-            Just (_fn, _h) -> undefined  -- hsc2hs no implemented yet
+            Just (fn, _h) -> readRest fn =<< runHsc2hs flags fn
         Just (fn, h) -> readRest fn =<< hGetContents h
   where readRest :: FilePath -> String -> IO (Maybe (FilePath, String))
         readRest fn file = do
@@ -426,10 +426,29 @@ runCPP flags infile outfile = do
       mhsIncludes = ["-I" ++ datadir </> "src/runtime"]
       args = mhsDefines ++ mhsIncludes ++ map quote (cppArgs flags)
       cmd = cpphs ++ " --strip " ++ unwords args ++ " " ++ infile ++ " -O" ++ outfile
-      quote s = "'" ++ s ++ "'"
   when (verbosityGT flags 1) $
     putStrLn $ "Run cpphs: " ++ show cmd
   callCommand cmd
+
+quote :: String -> String
+quote s = "'" ++ s ++ "'"
+
+runHsc2hs :: Flags -> FilePath -> IO String
+runHsc2hs flags fni = do
+  (fno, ho) <- openTmpFile "mhshsc2hs.hs"
+  mhsc2hs <- lookupEnv "MHSHSC2HS"
+  datadir <- getMhsDir
+  let hsc2hs = fromMaybe "hsc2hs" mhsc2hs
+      mhsIncludes = ["-I" ++ datadir </> "src/runtime"
+                    ,"-I" ++ datadir </> "src/runtime/unix"]
+      args = mhsDefines ++ mhsIncludes ++ map quote (cppArgs flags)
+      cmd = unwords $ [hsc2hs, "-o", fno] ++ args ++ [fni]
+  when (verbosityGT flags 1) $
+    putStrLn $ "Run hsc2hs: " ++ show cmd
+  callCommand cmd
+  ofile <- hGetContents ho
+  removeFile fno
+  return ofile  
 
 packageDir :: String
 packageDir = "packages"
@@ -452,7 +471,7 @@ findPkgModule flags mn = do
       loadPkg flags (dir ++ packageDir </> pkg)
       cash <- get
       case lookupCache mn cash of
-        Nothing -> error $ "package does not contain module " ++ pkg ++ " " ++ showIdent mn
+        Nothing -> mhsError $ "package does not contain module " ++ pkg ++ " " ++ showIdent mn
         Just t -> do
           t1 <- liftIO getTimeMilli
           return (pfn, (t, noSymbols, t1 - t0))
@@ -468,7 +487,7 @@ loadPkg flags fn = do
     liftIO $ putStrLn $ "Loading package " ++ fn
   pkg <- liftIO $ readSerialized fn
   when (pkgCompiler pkg /= mhsVersion) $
-    error $ "Package compile version mismatch: file=" ++ fn ++ ", package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
+    mhsError $ "Package compile version mismatch: file=" ++ fn ++ ", package=" ++ pkgCompiler pkg ++ ", compiler=" ++ mhsVersion
   modify $ addPackage fn pkg
 
 -- XXX add function to find&load package from package name
@@ -490,7 +509,7 @@ loadDeps :: Flags -> (IdentPackage, Version) -> CM ()
 loadDeps flags (pid, pver) = do
   mres <- liftIO $ openFilePath (pkgPath flags) (packageDir </> unIdent pid ++ "-" ++ showVersion pver <.> packageSuffix)
   case mres of
-    Nothing -> error $ "Cannot find package " ++ showIdent pid
+    Nothing -> mhsError $ "Cannot find package " ++ showIdent pid
     Just (pfn, hdl) -> do
       liftIO $ hClose hdl
       loadPkg flags pfn
