@@ -176,4 +176,4 @@ utf8Char c | c <= chr 0x7f = [c]
             (i1,   i2) = quotRem i12  0x40
         in  [chr (i1 + 0xf0), chr (i2 + 0x80), chr (i3 + 0x80), chr (i4 + 0x80)]
       else
-        error "utf8Char: bad Char"
+        mhsError "utf8Char: bad Char"

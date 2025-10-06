@@ -541,7 +541,7 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
                 _ -> impossibleShow amty
             qvar t = EQVar t kType
             nty =
-              if length tvs /= length newtys then error "mkMethod: arity" else
+              if length tvs /= length newtys then mhsError "mkMethod: arity" else
               case subst (zip tvs newtys) mty of
                 EForall q vks t -> EForall q (map (\ (IdKind i _) -> IdKind i (EVar dummyIdent)) vks) $ qvar t
                 t -> qvar t

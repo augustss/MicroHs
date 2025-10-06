@@ -52,11 +52,14 @@ openTmpFile tmplt = do
 
 ------- Read --------
 
+mhsError :: String -> a
+mhsError = error
+
 _usingMhs :: Bool
 _usingMhs = False
 
 _wordSize :: Int
-_wordSize = 64
+_wordSize = 64  -- XXX
 
 _isWindows :: Bool
 _isWindows = False

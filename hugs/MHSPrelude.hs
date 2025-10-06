@@ -152,6 +152,9 @@ openTmpFile tmplt = do
 
 ------- Read --------
 
+mhsError :: String -> a
+mhsError = error
+
 _usingMhs :: Bool
 _usingMhs = False
 

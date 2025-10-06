@@ -236,7 +236,8 @@ lexLitStr oloc loc mk end post acs = loop loc [] acs
         remGap l rs ('\t':cs) = remGap (tabCol   l) ('\t':rs) cs
         remGap l rs ('\r':cs) = remGap           l        rs  cs
         remGap l rs (' ' :cs) = remGap (addCol l 1)       rs  cs
-        remGap _ _         _  = error "bad string gap"
+        remGap _ _         _  = --errorMessage oloc "bad string gap"
+                                mhsError "bad string gap"
 
 decodeEscs :: String -> String
 decodeEscs [] = []
@@ -259,7 +260,7 @@ decodeEsc cs@(c:_) | isDigit c = conv 10 0 cs
 decodeEsc (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = c : decodeEscs cs
 decodeEsc (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = c : decodeEscs cs
 decodeEsc (c  :cs) = c : decodeEscs cs
-decodeEsc []       = error "Bad \\ escape"
+decodeEsc []       = mhsError "Bad \\ escape"
 
 -- Nobody uses these, but it's part of the Haskell Report so...
 ctlCodes :: [(String, Char)]

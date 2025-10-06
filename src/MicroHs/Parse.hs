@@ -31,7 +31,7 @@ parseDie :: forall a . (Show a) =>
             P a -> FilePath -> String -> a
 parseDie p fn file =
   case parse p fn file of
-    Left msg -> error msg
+    Left msg -> mhsError msg
     Right a -> a
 
 parse :: forall a . (Show a) =>

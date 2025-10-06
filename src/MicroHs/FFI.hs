@@ -37,7 +37,7 @@ makeFFI _ forExps ds =
          "#endif"
         ]
   in
-    if not (null wrappers) || not (null dynamics) then error "Unimplemented FFI feature" else
+    if not (null wrappers) || not (null dynamics) then mhsError "Unimplemented FFI feature" else
     (unlines $
       map (\ fn -> "#include \"" ++ fn ++ "\"") includes ++
       map mkHdr imps ++

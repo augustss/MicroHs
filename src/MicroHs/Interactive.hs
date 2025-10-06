@@ -78,7 +78,7 @@ start = do
   putStrLnI "Type ':quit' to quit, ':help' for help"
   unless compiledWithMhs $ do
     --putStrLnI "WARNING: Not compiled with mhs, so limited functionality."
-    error "The interactive system currently only works with mhs"
+    mhsError "The interactive system currently only works with mhs"
   repl
 
 repl :: I ()

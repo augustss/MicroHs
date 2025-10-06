@@ -82,7 +82,7 @@ addWorking :: IdentModule -> Cache -> Cache
 addWorking mn c =
   let ws = working c
   in  if mn `elem` ws then
-        error $ "recursive module: " ++ showIdent mn ++ ", import chain: " ++ unwords (map showIdent ws)
+        mhsError $ "recursive module: " ++ showIdent mn ++ ", import chain: " ++ unwords (map showIdent ws)
       else
         c{ working = mn : ws }
 

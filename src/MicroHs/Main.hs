@@ -69,7 +69,7 @@ main = do
                   []  | null (cArgs flags') -> mainInteractive flags'
                       | otherwise -> mainCompileC flags' [] ""
                   [s] -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
-                  _   -> error usage
+                  _   -> mhsError usage
 
 usage :: String
 usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
@@ -155,7 +155,7 @@ decodeArgs f mdls (arg:args) =
     '-':'d':'d':'u':'m':'p':'-':r | Just d <- lookup r dumpFlagTable ->
                    decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
     "--stdin"   -> decodeArgs f{useStdin = True} mdls args
-    '-':_       -> error $ "Unknown flag: " ++ arg ++ "\n" ++ usage
+    '-':_       -> mhsError $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"
                 -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args
       | otherwise
@@ -235,7 +235,7 @@ splitNameVer s =
   case span (\ c -> isDigit c || c == '.') (reverse s) of
     (rver, '-':rname) | not (null is)  -> (reverse rname, makeVersion is)
       where is = readVersion (reverse rver)
-    _ -> error $ "package name not of the form name-version:" ++ show s
+    _ -> mhsError $ "package name not of the form name-version:" ++ show s
   where readVersion = map readInt . words . map (\ c -> if c == '.' then ' ' else c)
 
 -- Take a file name of a package, or just a package name,
@@ -249,9 +249,9 @@ findAPackage flags pkgnm = do
    else do
     dirpkgs <- findAllPackages flags
     case [ pdir </> pkg <.> packageSuffix | (pdir, pkgs) <- dirpkgs, pkg <- pkgs, pkgnm `isPrefixOf` pkg ] of
-      [] -> error $ "Package not found: " ++ show pkgnm
+      [] -> mhsError $ "Package not found: " ++ show pkgnm
       [s] -> return s
-      ss -> error $ "Package not is ambigous: " ++ show (pkgnm, ss)
+      ss -> mhsError $ "Package not is ambigous: " ++ show (pkgnm, ss)
 
 mainListPkg :: Flags -> FilePath -> IO ()
 mainListPkg flags "" = mainListPackages flags
@@ -313,7 +313,7 @@ mainCompile flags mn = do
      else if compiledWithGhc then
       withMhsContext $ \ ctx -> do
         run ctx outData
-      else error "The -r flag currently only works with mhs and ghc"
+      else mhsError "The -r flag currently only works with mhs and ghc"
    else do
     seq (length outData) (return ())
     t2 <- getTimeMilli
@@ -389,7 +389,7 @@ mainCompileC flags ppkgs infile = do
     putStrLn $ "Execute: " ++ show cmd
   ec <- system cmd
   when (ec /= ExitSuccess) $
-    error $ "command failed: " ++ cmd
+    mhsError $ "command failed: " ++ cmd
   ct2 <- getTimeMilli
   when (verbosityGT flags 0) $
     putStrLn $ "C compilation         " ++ padLeft 6 (show (ct2-ct1)) ++ "ms"
@@ -413,9 +413,9 @@ mainInstallPackage flags [pkgfn, dir] = do
   mapM_ mk (pkgExported pkg)
 mainInstallPackage flags [pkgfn] =
   case pkgPath flags of
-    [] -> error "pkgPath is empty"
+    [] -> mhsError "pkgPath is empty"
     frst:_ -> mainInstallPackage flags [pkgfn, frst]
-mainInstallPackage _ _ = error usage
+mainInstallPackage _ _ = mhsError usage
 
 findAllPackages :: Flags -> IO [(FilePath, [String])]
 findAllPackages flags = concat <$> mapM list (pkgPath flags)

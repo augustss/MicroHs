@@ -32,6 +32,7 @@ module MHSPrelude(
   module System.IO.Base,
   module Text.Show,
   first, second,
+  mhsError,
   _usingMhs, _wordSize,
   _isWindows,
   appendDot,
@@ -43,7 +44,7 @@ import qualified Prelude()
 --import Primitives(primRnfNoErr, primRnfErr)
 import Control.Applicative(Applicative(..))
 import Control.DeepSeq.Class
-import Control.Error(error, undefined)
+import Control.Error(error, undefined, _error)
 import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
 import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)
@@ -84,6 +85,9 @@ import Text.Show(Show(..), ShowS, shows, showChar, showString, showParen)
 import {-# SOURCE #-} Data.Typeable
 import Primitives(_wordSize, _isWindows)
 import Data.Text(Text)
+
+mhsError :: String -> a
+mhsError = _error
 
 -- So we can detect mhs vs ghc
 _usingMhs :: Bool
