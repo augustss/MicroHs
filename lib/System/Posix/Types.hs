@@ -172,13 +172,14 @@ instance Storable CNfds where
   peek p              = CNfds <$> if _isMacOS then fromI32 <$> peek (castPtr p)  else peek (castPtr p)
   poke p    (CNfds x) =           if _isMacOS then poke (castPtr p)    (toI32 x) else poke (castPtr p) x
 
-newtype Fd = Fd Int
-  deriving (Bits, FiniteBits, Bounded, Enum, Ix, Num, Read, Integral, Real, Show, Eq, Ord, Storable)
+newtype Fd = Fd CInt
+  deriving (Bits, FiniteBits, Bounded, Enum, {-Ix,-} Num, {-Read,-} Integral, Real, Show, Eq, Ord, Storable)
 
 
 type LinkCount      = CNlink
 type UserID         = CUid
 type GroupID        = CGid
+
 type ByteCount      = CSize
 type ClockTick      = CClock
 type EpochTime      = CTime
@@ -188,4 +189,5 @@ type FileMode       = CMode
 type ProcessID      = CPid
 type FileOffset     = COff
 type ProcessGroupID = CPid
-type Limit          = CRLim
+type Limit          = CLong
+
