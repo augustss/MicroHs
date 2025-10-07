@@ -1,6 +1,6 @@
 -- Copyright 2023,2024 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Word.Word8(Word8, bitReverse8) where
+module Data.Word.Word8(Word8, bitReverse8, intToWord8, word8ToInt) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
@@ -119,3 +119,9 @@ bitReverse8 x0 = x3
         x1 = ((x0 .&. 0x55) <<<  1) .|. ((x0 .&. 0xAA) >>>  1)
         x2 = ((x1 .&. 0x33) <<<  2) .|. ((x1 .&. 0xCC) >>>  2)
         x3 = ((x2 .&. 0x0F) <<<  4) .|. ((x2 .&. 0xF0) >>>  4)
+
+intToWord8 :: Int -> Word8
+intToWord8 i = primUnsafeCoerce (i .&. 0xFF) -- Safety: Int and Word8 have the same representation and `i .&. 0xFF` ensures that the value is in the Word8 range
+
+word8ToInt :: Word8 -> Int
+word8ToInt w = primUnsafeCoerce w -- Safety: Int and Word8 have the same representation and a Word8 is in the Int range
