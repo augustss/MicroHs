@@ -22,14 +22,8 @@ import Data.ByteString (ByteString, isValidUtf8)
 import Data.ByteString qualified as BS
 import Data.Char
 import Data.Text
-import Data.Word.Word8(Word8)
+import Data.Word.Word8 (intToWord8, word8ToInt)
 import Unsafe.Coerce (unsafeCoerce)
-
-intToWord8 :: Int -> Word8
-intToWord8 i = unsafeCoerce (i .&. 0xFF) -- Safety: Int and Word8 have the same representation and `i .&. 0xFF` ensures that the value is in the Word8 range
-
-word8ToInt :: Word8 -> Int
-word8ToInt w = unsafeCoerce w -- Safety: Int and Word8 have the same representation and a Word8 is in the Int range
 
 isValidASCII :: ByteString -> Bool
 isValidASCII = BS.all (< 0x80)

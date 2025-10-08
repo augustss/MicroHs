@@ -1,336 +1,491 @@
-module Data.ByteString.Char8(module Data.ByteString.Char8) where
-import Primitives(Char(..))
+-- |
+-- Module      : Data.ByteString.Char8
+-- Copyright   : (c) Don Stewart 2006-2008
+--               (c) Duncan Coutts 2006-2011
+-- License     : BSD-style
+--
+-- Maintainer  : dons00@gmail.com, duncan@community.haskell.org
+-- Stability   : stable
+-- Portability : portable
+--
+-- Manipulate 'ByteString's using 'Char' operations. All Chars will be
+-- truncated to 8 bits. It can be expected that these functions will run
+-- at identical speeds to their 'Word8' equivalents in "Data.ByteString".
+--
+-- More specifically these byte strings are taken to be in the
+-- subset of Unicode covered by code points 0-255. This covers
+-- Unicode Basic Latin, Latin-1 Supplement and C0+C1 Controls.
+--
+-- See:
+--
+--  * <http://www.unicode.org/charts/>
+--
+--  * <http://www.unicode.org/charts/PDF/U0000.pdf>
+--
+--  * <http://www.unicode.org/charts/PDF/U0080.pdf>
+--
+-- This module is intended to be imported @qualified@, to avoid name
+-- clashes with "Prelude" functions.  eg.
+--
+-- > import qualified Data.ByteString.Char8 as C
+--
+-- The Char8 interface to bytestrings provides an instance of IsString
+-- for the ByteString type, enabling you to use string literals, and
+-- have them implicitly packed to ByteStrings.
+-- Use @{-\# LANGUAGE OverloadedStrings \#-}@ to enable this.
+--
+
+module Data.ByteString.Char8 (
+
+        -- * The @ByteString@ type
+        ByteString,
+
+        -- * Introducing and eliminating 'ByteString's
+        B.empty,
+        singleton,
+        pack,
+        unpack,
+        B.fromStrict,
+        B.toStrict,
+
+        -- * Basic interface
+        cons,
+        snoc,
+        B.append,
+        head,
+        uncons,
+        unsnoc,
+        last,
+        B.tail,
+        B.init,
+        B.null,
+        B.length,
+
+        -- * Transforming ByteStrings
+        map,
+        B.reverse,
+        intersperse,
+        B.intercalate,
+        B.transpose,
+
+        -- * Reducing 'ByteString's (folds)
+        foldl,
+        foldl',
+        foldl1,
+        foldl1',
+
+        foldr,
+        foldr',
+        foldr1,
+        foldr1',
+
+        -- ** Special folds
+        B.concat,
+        concatMap,
+        any,
+        all,
+        maximum,
+        minimum,
+
+        -- * Building ByteStrings
+        -- ** Scans
+        scanl,
+        scanl1,
+        scanr,
+        scanr1,
+
+        -- ** Accumulating maps
+        mapAccumL,
+        mapAccumR,
+
+        -- ** Generating and unfolding ByteStrings
+        replicate,
+        unfoldr,
+        unfoldrN,
+
+        -- * Substrings
+
+        -- ** Breaking strings
+        B.take,
+        B.takeEnd,
+        B.drop,
+        B.dropEnd,
+        B.splitAt,
+        takeWhile,
+        takeWhileEnd,
+        dropWhile,
+        dropWhileEnd,
+        dropSpace,
+        span,
+        spanEnd,
+        break,
+        breakEnd,
+        B.group,
+        groupBy,
+        B.inits,
+        B.tails,
+        B.initsNE,
+        B.tailsNE,
+        strip,
+        B.stripPrefix,
+        B.stripSuffix,
+
+        -- ** Breaking into many substrings
+        split,
+        splitWith,
+
+        -- ** Breaking into lines and words
+        lines,
+        words,
+        unlines,
+        unwords,
+
+        -- * Predicates
+        B.isPrefixOf,
+        B.isSuffixOf,
+        B.isInfixOf,
+
+        -- ** Search for arbitrary substrings
+        B.breakSubstring,
+
+        -- * Searching ByteStrings
+
+        -- ** Searching by equality
+        elem,
+        notElem,
+
+        -- ** Searching with a predicate
+        find,
+        filter,
+        partition,
+
+        -- * Indexing ByteStrings
+        index,
+        indexMaybe,
+        (!?),
+        elemIndex,
+        elemIndices,
+        elemIndexEnd,
+        findIndex,
+        findIndices,
+        findIndexEnd,
+        count,
+
+        -- * Zipping and unzipping ByteStrings
+        zip,
+        zipWith,
+        packZipWith,
+        unzip,
+
+        -- * Ordered ByteStrings
+        B.sort,
+
+        -- * Reading from ByteStrings
+        --readInt,
+        --readInt64,
+        --readInt32,
+        --readInt16,
+        --readInt8,
+
+        --readWord,
+        --readWord64,
+        --readWord32,
+        --readWord16,
+        --readWord8,
+
+        --readInteger,
+        --readNatural,
+
+        -- * Low level CString conversions
+
+        -- ** Copying ByteStrings
+        B.copy,
+
+        -- ** Packing CStrings and pointers
+        B.packCString,
+        B.packCStringLen,
+
+        -- ** Using ByteStrings as CStrings
+        B.useAsCString,
+        B.useAsCStringLen,
+
+        -- * I\/O with 'ByteString's
+        -- | ByteString I/O uses binary mode, without any character decoding
+        -- or newline conversion. The fact that it does not respect the Handle
+        -- newline mode is considered a flaw and may be changed in a future version.
+
+        -- ** Standard input and output
+        B.getLine,
+        B.getContents,
+        B.putStr,
+        putStrLn,
+        B.interact,
+
+        -- ** Files
+        B.readFile,
+        B.writeFile,
+        B.appendFile,
+--      mmapFile,
+
+        -- ** I\/O with Handles
+        B.hGetLine,
+        B.hGetContents,
+        B.hGet,
+        B.hGetSome,
+        B.hGetNonBlocking,
+        B.hPut,
+        B.hPutNonBlocking,
+        B.hPutStr,
+        hPutStrLn,
+
+  ) where
+
+import Primitives
+
+import qualified Prelude ()
+import MiniPrelude as P
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
-import Data.Coerce
-import Data.List.NonEmpty
-import Data.String
-import Data.Word.Word8(Word8)
-import Foreign.C.String(CString, CStringLen)
-import System.IO.Base(Handle)
+import qualified Data.ByteString.Unsafe as B
+import Data.ByteString.Internal (c2w, w2c)
+import Data.Word.Word8 (Word8)
+import System.IO.Base (Handle, stdout)
 
-newtype ByteString = BS B.ByteString
-  deriving (Eq, Ord)
-
-instance IsString ByteString where
-  fromString = pack
+singleton :: Char -> ByteString
+singleton = B.singleton . c2w
 
 pack :: String -> ByteString
-pack = coerce B.pack
+pack = B.pack . P.map c2w
 
-unpack :: ByteString -> String
-unpack = coerce B.unpack
+unpack :: ByteString -> [Char]
+unpack = P.map w2c . B.unpack
 
-fromFilePath :: FilePath -> IO ByteString
-fromFilePath = coerce B.fromFilePath
-
-toFilePath :: ByteString -> IO FilePath
-toFilePath = coerce B.toFilePath
+infixr 5 `cons` --same as list (:)
+infixl 5 `snoc`
 
 cons :: Char -> ByteString -> ByteString
-cons = coerce B.cons
+cons = B.cons . c2w
 
 snoc :: ByteString -> Char -> ByteString
-snoc = coerce B.snoc
-
-head :: ByteString -> Char
-head = coerce B.head
-
-tail :: ByteString -> ByteString
-tail = coerce B.tail
+snoc p = B.snoc p . c2w
 
 uncons :: ByteString -> Maybe (Char, ByteString)
-uncons = coerce B.uncons
-
-last :: ByteString -> Char
-last = coerce B.last
-
-init :: ByteString -> ByteString
-init = coerce B.init
+uncons bs = case B.uncons bs of
+                  Nothing -> Nothing
+                  Just (w, bs') -> Just (w2c w, bs')
 
 unsnoc :: ByteString -> Maybe (ByteString, Char)
-unsnoc = coerce B.unsnoc
+unsnoc bs = case B.unsnoc bs of
+                  Nothing -> Nothing
+                  Just (bs', w) -> Just (bs', w2c w)
 
-null :: ByteString -> Bool
-null = coerce B.null
+head :: ByteString -> Char
+head = w2c . B.head
+
+last :: ByteString -> Char
+last = w2c . B.last
 
 map :: (Char -> Char) -> ByteString -> ByteString
-map = coerce B.map
-
-reverse :: ByteString -> ByteString
-reverse = coerce B.reverse
+map f = B.map (c2w . f . w2c)
 
 intersperse :: Char -> ByteString -> ByteString
-intersperse = coerce B.intersperse
-
-transpose :: [ByteString] -> [ByteString]
-transpose = coerce B.transpose
+intersperse = B.intersperse . c2w
 
 foldl :: (a -> Char -> a) -> a -> ByteString -> a
-foldl f z x = B.foldl (coerce f) z (coerce x)
+foldl f = B.foldl (\a c -> f a (w2c c))
 
 foldl' :: (a -> Char -> a) -> a -> ByteString -> a
-foldl' f z x = B.foldl' (coerce f) z (coerce x)
+foldl' f = B.foldl' (\a c -> f a (w2c c))
 
 foldr :: (Char -> a -> a) -> a -> ByteString -> a
-foldr f z x = B.foldr (coerce f) z (coerce x)
+foldr f = B.foldr (f . w2c)
 
 foldr' :: (Char -> a -> a) -> a -> ByteString -> a
-foldr' f z x = B.foldr' (coerce f) z (coerce x)
+foldr' f = B.foldr' (f . w2c)
 
 foldl1 :: (Char -> Char -> Char) -> ByteString -> Char
-foldl1 = coerce B.foldl1
+foldl1 f ps = w2c (B.foldl1 (\x y -> c2w (f (w2c x) (w2c y))) ps)
 
 foldl1' :: (Char -> Char -> Char) -> ByteString -> Char
-foldl1' = coerce B.foldl1'
+foldl1' f ps = w2c (B.foldl1' (\x y -> c2w (f (w2c x) (w2c y))) ps)
 
 foldr1 :: (Char -> Char -> Char) -> ByteString -> Char
-foldr1 = coerce B.foldr1
+foldr1 f ps = w2c (B.foldr1 (\x y -> c2w (f (w2c x) (w2c y))) ps)
 
 foldr1' :: (Char -> Char -> Char) -> ByteString -> Char
-foldr1' = coerce B.foldr1'
-
-concat :: [ByteString] -> ByteString
-concat = coerce B.concat
+foldr1' f ps = w2c (B.foldr1' (\x y -> c2w (f (w2c x) (w2c y))) ps)
 
 concatMap :: (Char -> ByteString) -> ByteString -> ByteString
-concatMap = coerce B.concatMap
+concatMap f = B.concatMap (f . w2c)
 
 any :: (Char -> Bool) -> ByteString -> Bool
-any = coerce B.any
+any f = B.any (f . w2c)
 
 all :: (Char -> Bool) -> ByteString -> Bool
-all = coerce B.all
+all f = B.all (f . w2c)
 
 maximum :: ByteString -> Char
-maximum = coerce B.maximum
+maximum = w2c . B.maximum
 
 minimum :: ByteString -> Char
-minimum = coerce B.minimum
+minimum = w2c . B.minimum
 
 mapAccumL :: (acc -> Char -> (acc, Char)) -> acc -> ByteString -> (acc, ByteString)
-mapAccumL f s x = coerce (B.mapAccumL (coerce f) s (coerce x))
+mapAccumL f = B.mapAccumL (\acc w -> case f acc (w2c w) of (acc', c) -> (acc', c2w c))
 
 mapAccumR :: (acc -> Char -> (acc, Char)) -> acc -> ByteString -> (acc, ByteString)
-mapAccumR f s x = coerce (B.mapAccumR (coerce f) s (coerce x))
+mapAccumR f = B.mapAccumR (\acc w -> case f acc (w2c w) of (acc', c) -> (acc', c2w c))
+
+scanl :: (Char -> Char -> Char) -> Char -> ByteString -> ByteString
+scanl f z = B.scanl (\a b -> c2w (f (w2c a) (w2c b))) (c2w z)
 
 scanl1 :: (Char -> Char -> Char) -> ByteString -> ByteString
-scanl1 = coerce B.scanl1
+scanl1 f = B.scanl1 (\a b -> c2w (f (w2c a) (w2c b)))
+
+scanr :: (Char -> Char -> Char) -> Char -> ByteString -> ByteString
+scanr f z = B.scanr (\a b -> c2w (f (w2c a) (w2c b))) (c2w z)
 
 scanr1 :: (Char -> Char -> Char) -> ByteString -> ByteString
-scanr1 = coerce B.scanr1
+scanr1 f = B.scanr1 (\a b -> c2w (f (w2c a) (w2c b)))
 
 replicate :: Int -> Char -> ByteString
-replicate = coerce B.replicate
+replicate n = B.replicate n . c2w
 
 unfoldr :: (a -> Maybe (Char, a)) -> a -> ByteString
-unfoldr f a = coerce (B.unfoldr (coerce f) a)
+unfoldr f = B.unfoldr (fmap k . f)
+    where k (i, j) = (c2w i, j)
 
 unfoldrN :: Int -> (a -> Maybe (Char, a)) -> a -> (ByteString, Maybe a)
-unfoldrN n f a = coerce (B.unfoldrN n (coerce f) a)
-
-take :: Int -> ByteString -> ByteString
-take = coerce B.take
-
-takeEnd :: Int -> ByteString -> ByteString
-takeEnd = coerce B.takeEnd
-
-drop  :: Int -> ByteString -> ByteString
-drop = coerce B.drop
-
-dropEnd :: Int -> ByteString -> ByteString
-dropEnd = coerce B.dropEnd
-
-splitAt :: Int -> ByteString -> (ByteString, ByteString)
-splitAt = coerce B.splitAt
+unfoldrN n f = B.unfoldrN n ((k `fmap`) . f)
+    where k (i,j) = (c2w i, j)
 
 takeWhile :: (Char -> Bool) -> ByteString -> ByteString
-takeWhile = coerce B.takeWhile
+takeWhile f = B.takeWhile (f . w2c)
 
 takeWhileEnd :: (Char -> Bool) -> ByteString -> ByteString
-takeWhileEnd = coerce B.takeWhileEnd
+takeWhileEnd f = B.takeWhileEnd (f . w2c)
 
 dropWhile :: (Char -> Bool) -> ByteString -> ByteString
-dropWhile = coerce B.dropWhile
+dropWhile f = B.dropWhile (f . w2c)
 
 dropWhileEnd :: (Char -> Bool) -> ByteString -> ByteString
-dropWhileEnd = coerce B.dropWhileEnd
+dropWhileEnd f = B.dropWhileEnd (f . w2c)
 
 break :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
-break = coerce B.break
+break f = B.break (f . w2c)
 
-breakEnd :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
-breakEnd = coerce B.breakEnd
+breakChar :: Char -> ByteString -> (ByteString, ByteString)
+breakChar c p = case elemIndex c p of
+    Nothing -> (p, B.empty)
+    Just n  -> (B.unsafeTake n p, B.unsafeDrop n p)
 
 span :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
-span = coerce B.span
+span f = B.span (f . w2c)
 
 spanEnd :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
-spanEnd = coerce B.spanEnd
+spanEnd f = B.spanEnd (f . w2c)
 
-splitWith :: (Char -> Bool) -> ByteString -> [ByteString]
-splitWith = coerce B.splitWith
+breakEnd :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
+breakEnd f = B.breakEnd (f . w2c)
 
 split :: Char -> ByteString -> [ByteString]
-split = coerce B.split
+split = B.split . c2w
 
-group :: ByteString -> [ByteString]
-group = coerce B.group
+splitWith :: (Char -> Bool) -> ByteString -> [ByteString]
+splitWith f = B.splitWith (f . w2c)
 
 groupBy :: (Char -> Char -> Bool) -> ByteString -> [ByteString]
-groupBy = coerce B.groupBy
-
-intercalate :: ByteString -> [ByteString] -> ByteString
-intercalate = coerce B.intercalate
+groupBy k = B.groupBy (\a b -> k (w2c a) (w2c b))
 
 index :: ByteString -> Int -> Char
-index = coerce B.index
+index = (w2c .) . B.index
 
 indexMaybe :: ByteString -> Int -> Maybe Char
-indexMaybe = coerce B.indexMaybe
+indexMaybe = (fmap w2c .) . B.indexMaybe
 
 (!?) :: ByteString -> Int -> Maybe Char
-(!?) = coerce (B.!?)
+(!?) = indexMaybe
 
 elemIndex :: Char -> ByteString -> Maybe Int
-elemIndex = coerce B.elemIndex
+elemIndex = B.elemIndex . c2w
 
 elemIndexEnd :: Char -> ByteString -> Maybe Int
-elemIndexEnd = coerce B.elemIndexEnd
+elemIndexEnd = B.elemIndexEnd . c2w
 
 elemIndices :: Char -> ByteString -> [Int]
-elemIndices = coerce B.elemIndices
-
-count :: Char -> ByteString -> Int
-count = coerce B.count
+elemIndices = B.elemIndices . c2w
 
 findIndex :: (Char -> Bool) -> ByteString -> Maybe Int
-findIndex = coerce B.findIndex
+findIndex f = B.findIndex (f . w2c)
 
 findIndexEnd :: (Char -> Bool) -> ByteString -> Maybe Int
-findIndexEnd = coerce B.findIndexEnd
+findIndexEnd f = B.findIndexEnd (f . w2c)
 
 findIndices :: (Char -> Bool) -> ByteString -> [Int]
-findIndices = coerce B.findIndices
+findIndices f = B.findIndices (f . w2c)
+
+count :: Char -> ByteString -> Int
+count c = B.count (c2w c)
 
 elem :: Char -> ByteString -> Bool
-elem = coerce B.elem
+elem    c = B.elem (c2w c)
 
 notElem :: Char -> ByteString -> Bool
-notElem = coerce B.notElem
+notElem c = B.notElem (c2w c)
 
 filter :: (Char -> Bool) -> ByteString -> ByteString
-filter = coerce B.filter
-
-find :: (Char -> Bool) -> ByteString -> Maybe Char
-find = coerce B.find
+filter f = B.filter (f . w2c)
 
 partition :: (Char -> Bool) -> ByteString -> (ByteString, ByteString)
-partition = coerce B.partition
+partition f = B.partition (f . w2c)
 
-isPrefixOf :: ByteString -> ByteString -> Bool
-isPrefixOf = coerce B.isPrefixOf
-
-stripPrefix :: ByteString -> ByteString -> Maybe ByteString
-stripPrefix = coerce B.stripPrefix
-
-isSuffixOf :: ByteString -> ByteString -> Bool
-isSuffixOf = coerce B.isSuffixOf
-
-stripSuffix :: ByteString -> ByteString -> Maybe ByteString
-stripSuffix = coerce B.stripSuffix
-
-isInfixOf :: ByteString -> ByteString -> Bool
-isInfixOf = coerce B.isInfixOf
-
-isValidUtf8 :: ByteString -> Bool
-isValidUtf8 = coerce B.isValidUtf8
-
-breakSubstring :: ByteString -> ByteString -> (ByteString,ByteString)
-breakSubstring = coerce B.breakSubstring
+find :: (Char -> Bool) -> ByteString -> Maybe Char
+find f ps = w2c `fmap` B.find (f . w2c) ps
 
 zip :: ByteString -> ByteString -> [(Char,Char)]
-zip = coerce B.zip
+zip ps qs = case uncons ps of
+  Nothing         -> []
+  Just (psH, psT) -> case uncons qs of
+    Nothing         -> []
+    Just (qsH, qsT) -> (psH, qsH) : zip psT qsT
 
 zipWith :: (Char -> Char -> a) -> ByteString -> ByteString -> [a]
-zipWith f x y = B.zipWith (coerce f) (coerce x) (coerce y)
+zipWith f = B.zipWith ((. w2c) . f . w2c)
 
 packZipWith :: (Char -> Char -> Char) -> ByteString -> ByteString -> ByteString
-packZipWith = coerce B.packZipWith
+packZipWith f = B.packZipWith f'
+    where
+        f' c1 c2 = c2w $ f (w2c c1) (w2c c2)
 
 unzip :: [(Char,Char)] -> (ByteString,ByteString)
-unzip = coerce B.unzip
+unzip ls = (pack (P.map fst ls), pack (P.map snd ls))
 
-inits :: ByteString -> [ByteString]
-inits = coerce B.inits
+dropSpace :: ByteString -> ByteString
+dropSpace = dropWhile isSpace
 
-initsNE :: ByteString -> NonEmpty ByteString
-initsNE = coerce B.initsNE
+strip :: ByteString -> ByteString
+strip = dropWhile isSpace . dropWhileEnd isSpace
 
-tails :: ByteString -> [ByteString]
-tails = coerce B.tails
+lines :: ByteString -> [ByteString]
+lines ps
+    | B.null ps = []
+    | otherwise = case elemIndex '\n' ps of
+             Nothing -> [ps]
+             Just n  -> B.take n ps : lines (B.drop (n+1) ps)
 
-tailsNE :: ByteString -> NonEmpty ByteString
-tailsNE = coerce B.tailsNE
+unlines :: [ByteString] -> ByteString
+unlines = B.intercalate (singleton '\n')
 
-sort :: ByteString -> ByteString
-sort = coerce B.sort
+words :: ByteString -> [ByteString]
+words = P.filter (not . B.null) . splitWith isSpace
 
-useAsCString :: ByteString -> (CString -> IO a) -> IO a
-useAsCString x = B.useAsCString (coerce x)
+unwords :: [ByteString] -> ByteString
+unwords = B.intercalate (singleton ' ')
 
-useAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
-useAsCStringLen x = B.useAsCStringLen (coerce x)
+hPutStrLn :: Handle -> ByteString -> IO ()
+hPutStrLn h ps
+    | B.length ps < 1024 = B.hPut h (ps `B.snoc` 0x0a)
+    | otherwise        = B.hPut h ps >> B.hPut h (B.singleton 0x0a) -- don't copy
 
-packCString :: CString -> IO ByteString
-packCString = coerce B.packCString
-
-packCStringLen :: CStringLen -> IO ByteString
-packCStringLen = coerce B.packCStringLen
-
-copy :: ByteString -> ByteString
-copy = coerce B.copy
-
-getLine :: IO ByteString
-getLine = coerce B.getLine
-
-hGetLine :: Handle -> IO ByteString
-hGetLine = coerce B.hGetLine
-
-hPut :: Handle -> ByteString -> IO ()
-hPut = coerce B.hPut
-
-hPutNonBlocking :: Handle -> ByteString -> IO ByteString
-hPutNonBlocking = coerce B.hPutNonBlocking
-
-hPutStr :: Handle -> ByteString -> IO ()
-hPutStr = coerce B.hPutStr
-
-putStr :: ByteString -> IO ()
-putStr = coerce B.putStr
-
-hGet :: Handle -> Int -> IO ByteString
-hGet = coerce B.hGet
-
-hGetNonBlocking :: Handle -> Int -> IO ByteString
-hGetNonBlocking = coerce B.hGetNonBlocking
-
-hGetSome :: Handle -> Int -> IO ByteString
-hGetSome = coerce B.hGetSome
-
-hGetContents :: Handle -> IO ByteString
-hGetContents = coerce B.hGetContents
-
-getContents :: IO ByteString
-getContents = coerce B.getContents
-
-interact :: (ByteString -> ByteString) -> IO ()
-interact = coerce B.interact
-
-readFile :: FilePath -> IO ByteString
-readFile = coerce B.readFile
-
-writeFile :: FilePath -> ByteString -> IO ()
-writeFile = coerce B.writeFile
-
-appendFile :: FilePath -> ByteString -> IO ()
-appendFile = coerce B.appendFile
+putStrLn :: ByteString -> IO ()
+putStrLn = hPutStrLn stdout

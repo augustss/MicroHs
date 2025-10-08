@@ -15,7 +15,7 @@ import Data.Monoid.Internal
 import Data.Num
 import Data.Ord
 import Data.String
-import Data.Word.Word8(Word8)
+import Data.Word.Word8(Word8, intToWord8, word8ToInt)
 import {-# SOURCE #-} Data.Typeable
 import Foreign.C.Types(CChar)
 import Text.Show
@@ -145,3 +145,9 @@ sameByteString :: ByteString -> ByteString -> Bool
 sameByteString bs1 bs2 =
   let r = primPtrToWord (primForeignPtrToPtr (primBS2FPtr bs1)) == primPtrToWord (primForeignPtrToPtr (primBS2FPtr bs2))
   in  r `seq` bs1 `primSeq` bs2 `primSeq` r
+
+c2w :: Char -> Word8
+c2w = intToWord8 . primOrd
+
+w2c :: Word8 -> Char
+w2c = primChr . word8ToInt
