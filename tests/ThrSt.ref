@@ -1,2 +1,2 @@
-Uncaught child exception: error: "tests/ThrSt.hs",9:8: boo
+Uncaught child exception: error: "./ThrSt.hs",9:8: boo
 [ThreadFinished,ThreadFinished,ThreadBlocked BlockedOnMVar,ThreadBlocked BlockedOnOther,ThreadRunning]
