@@ -17,7 +17,7 @@ module Foreign.C.Error (
 
   Errno(..),
 
-  eOK, e2BIG, eAGAIN, eINTR, eINVAL, eWOULDBLOCK,
+  eOK, e2BIG, eACCES, eAGAIN, eINTR, eINVAL, eNOENT, ePERM, eRANGE, eROFS, eTXTBSY, eWOULDBLOCK,
 {-
   -- ** Common @errno@ symbols
   -- | Different operating systems and\/or C libraries often support
@@ -231,9 +231,15 @@ eXDEV           = Errno (CONST_EXDEV)
 eOK, e2BIG, eAGAIN, eINTR, eINVAL, eWOULDBLOCK :: Errno
 eOK         = Errno 0
 e2BIG       = Errno c2BIG;       foreign import capi "value E2BIG"       c2BIG       :: Int
+eACCES      = Errno cACCES;      foreign import capi "value EACCES"      cACCES      :: Int
 eAGAIN      = Errno cAGAIN;      foreign import capi "value EAGAIN"      cAGAIN      :: Int
 eINTR       = Errno cINTR;       foreign import capi "value EINTR"       cINTR       :: Int
 eINVAL      = Errno cINVAL;      foreign import capi "value EINVAL"      cINVAL      :: Int
+eNOENT      = Errno cNOENT;      foreign import capi "value ENOENT"      cNOENT      :: Int
+ePERM       = Errno cPERM;       foreign import capi "value EPERM"       cPERM       :: Int
+eRANGE      = Errno cRANGE;      foreign import capi "value ERANGE"      cRANGE      :: Int
+eROFS       = Errno cROFS;       foreign import capi "value EROFS"       cROFS       :: Int
+eTXTBSY     = Errno cTXTBSY ;    foreign import capi "value ETXTBSY"     cTXTBSY     :: Int
 eWOULDBLOCK = Errno cWOULDBLOCK; foreign import capi "value EWOULDBLOCK" cWOULDBLOCK :: Int
 
 isValidErrno               :: Errno -> Bool
@@ -387,17 +393,18 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
     str <- errnoToString errno
     return (IOError maybeHdl errType loc str (Just errno') maybeName)
   where
-    errType = OtherError
-{-
-    errType =
+    errType
         | errno == eOK             = OtherError
         | errno == e2BIG           = ResourceExhausted
         | errno == eACCES          = PermissionDenied
+{-
         | errno == eADDRINUSE      = ResourceBusy
         | errno == eADDRNOTAVAIL   = UnsupportedOperation
         | errno == eADV            = OtherError
         | errno == eAFNOSUPPORT    = UnsupportedOperation
+-}
         | errno == eAGAIN          = ResourceExhausted
+{-
         | errno == eALREADY        = AlreadyExists
         | errno == eBADF           = InvalidArgument
         | errno == eBADMSG         = InappropriateType
@@ -422,8 +429,10 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == eIDRM           = ResourceVanished
         | errno == eILSEQ          = InvalidArgument
         | errno == eINPROGRESS     = AlreadyExists
+-}
         | errno == eINTR           = Interrupted
         | errno == eINVAL          = InvalidArgument
+{-
         | errno == eIO             = HardwareFault
         | errno == eISCONN         = AlreadyExists
         | errno == eISDIR          = InappropriateType
@@ -440,7 +449,9 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == eNOBUFS         = ResourceExhausted
         | errno == eNODATA         = NoSuchThing
         | errno == eNODEV          = UnsupportedOperation
+-}
         | errno == eNOENT          = NoSuchThing
+{-
         | errno == eNOEXEC         = InvalidArgument
         | errno == eNOLCK          = ResourceExhausted
         | errno == eNOLINK         = ResourceVanished
@@ -460,7 +471,9 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == eNOTTY          = IllegalOperation
         | errno == eNXIO           = NoSuchThing
         | errno == eOPNOTSUPP      = UnsupportedOperation
+-}
         | errno == ePERM           = PermissionDenied
+{-
         | errno == ePFNOSUPPORT    = UnsupportedOperation
         | errno == ePIPE           = ResourceVanished
         | errno == ePROCLIM        = PermissionDenied
@@ -470,10 +483,14 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == ePROTO          = ProtocolError
         | errno == ePROTONOSUPPORT = ProtocolError
         | errno == ePROTOTYPE      = ProtocolError
+-}
         | errno == eRANGE          = UnsupportedOperation
+{-
         | errno == eREMCHG         = ResourceVanished
         | errno == eREMOTE         = IllegalOperation
+-}
         | errno == eROFS           = PermissionDenied
+{-
         | errno == eRPCMISMATCH    = ProtocolError
         | errno == eRREMOTE        = IllegalOperation
         | errno == eSHUTDOWN       = IllegalOperation
@@ -485,9 +502,14 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == eTIME           = TimeExpired
         | errno == eTIMEDOUT       = TimeExpired
         | errno == eTOOMANYREFS    = ResourceExhausted
-        | errno == eTXTBSY         = ResourceBusy
-        | errno == eUSERS          = ResourceExhausted
-        | errno == eWOULDBLOCK     = OtherError
-        | errno == eXDEV           = UnsupportedOperation
-        | otherwise                = OtherError
 -}
+        | errno == eTXTBSY         = ResourceBusy
+{-
+        | errno == eUSERS          = ResourceExhausted
+-}
+        | errno == eWOULDBLOCK     = OtherError
+{-
+        | errno == eXDEV           = UnsupportedOperation
+-}
+        | otherwise                = OtherError
+
