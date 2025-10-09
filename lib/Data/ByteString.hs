@@ -156,8 +156,10 @@ import qualified Prelude()
 import MiniPrelude as P hiding(null, length)
 import qualified Data.List as P
 import Control.Exception (evaluate)
+import Control.Monad.Fail
 import Data.List.NonEmpty (NonEmpty, fromList)
 import Data.Bits.Base
+import Data.Coerce
 import Data.Function (($!))
 import Data.Monoid.Internal
 import Data.Semigroup
@@ -171,6 +173,8 @@ import qualified System.IO.Base as P
 import System.IO.Internal(BFILE, withHandleRd, withHandleWr)
 import Foreign.ForeignPtr
 import Data.ByteString.Internal
+import qualified Text.Read.Lex as L
+import Text.Read
 
 foreign import ccall "readb" c_readb :: CString -> Int -> Ptr BFILE -> IO Int
 foreign import ccall "writeb" c_writeb :: CString -> Int -> Ptr BFILE -> IO Int
@@ -622,3 +626,10 @@ appendFile f bs = do
   h <- openFile f AppendMode
   hPut h bs
   hClose h
+
+instance Read ByteString where
+  readPrec =
+    parens
+    ( do L.String s <- lexP     -- Looks for "foo"
+         return (pack (coerce s))
+    )
