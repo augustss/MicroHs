@@ -13,6 +13,8 @@ import GHC.Types
 import System.Environment
 import System.IO
 
+#include "MachDeps.h"
+
 ------- Text --------
 
 -- base-4.19.2.0 seems to lack this???
@@ -59,7 +61,7 @@ _usingMhs :: Bool
 _usingMhs = False
 
 _wordSize :: Int
-_wordSize = 64  -- XXX
+_wordSize = WORD_SIZE_IN_BITS
 
 _isWindows :: Bool
 _isWindows = False
