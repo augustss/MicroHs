@@ -37,7 +37,6 @@ module System.IO.Error (
     ioeSetFileName,
 
     -- * Types of I\/O error
-    IOErrorType,                -- abstract
 
     alreadyExistsErrorType,
     doesNotExistErrorType,
