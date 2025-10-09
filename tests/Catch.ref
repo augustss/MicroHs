@@ -1,5 +1,5 @@
 "ok"
-"error: bang!"
+"error: \"./Catch.hs\",21:20: bang!"
 "no match at \"./Catch.hs\",6:1"
 "no default for m, at \"./Catch.hs\",9:3"
 "hello"
