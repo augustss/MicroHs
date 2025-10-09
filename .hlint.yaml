@@ -11,6 +11,7 @@
 - ignore: {name: Use list literal pattern, within: [MicroHs.Main,System.Console.GetOpt]}
 - ignore: {name: "Avoid lambda using `infix`", within: [MicroHs.Deriving,MicroHs.TypeCheck]}
 # Various lib stuff
+- ignore: {name: Use error, within: [Control.Error]}
 - ignore: {name: Use fst, within: [Data.Functor]}
 - ignore: {name: Use snd, within: [Data.Functor]}
 - ignore: {name: Use unless, within: [Control.Applicative,Control.Monad]}
