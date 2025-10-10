@@ -29,10 +29,11 @@ module Data.Text(
   isPrefixOf,
   isSuffixOf,
   isInfixOf,
+  map,
   useAsCString,
   grabCString,
   ) where
-import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words)
+import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, map)
 import Primitives(Ptr)
 import Control.DeepSeq.Class
 import qualified Data.List as L
@@ -120,7 +121,7 @@ replicate :: Int -> Text -> Text
 replicate = stimes
 
 splitOn :: Text -> Text -> [Text]
-splitOn s t = map pack $ splitOnList (unpack s) (unpack t)
+splitOn s t = L.map pack $ splitOnList (unpack s) (unpack t)
 
 dropWhileEnd :: (Char -> Bool) -> Text -> Text
 dropWhileEnd p = pack . L.dropWhileEnd p . unpack
@@ -134,7 +135,7 @@ splitOnList sep = loop []
                      | otherwise = loop (c:r) cs
 
 words :: Text -> [Text]
-words = map pack . L.words . unpack
+words = L.map pack . L.words . unpack
 
 foldr :: (Char -> a -> a) -> a -> Text -> a
 foldr f z = L.foldr f z . unpack
@@ -146,7 +147,7 @@ unlines :: [Text] -> Text
 unlines = L.foldr (\ l -> append (append l (pack "\n"))) empty
 
 lines :: Text -> [Text]
-lines = map pack . L.lines . unpack
+lines = L.map pack . L.lines . unpack
 
 take :: Int -> Text -> Text
 take n = pack . L.take n . unpack
@@ -174,6 +175,9 @@ dropWhile p = pack . L.dropWhile p . unpack
 
 takeWhile :: (Char -> Bool) -> Text -> Text
 takeWhile p = pack . L.takeWhile p . unpack
+
+map :: (Char -> Char) -> Text -> Text
+map f = pack . L.map f . unpack
 
 -- Get a C string of a Text.  The C string is encoded with
 -- modified UTF-8 (so no embedded NULs) and NUL terminated.

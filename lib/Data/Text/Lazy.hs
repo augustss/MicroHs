@@ -15,6 +15,8 @@ module Data.Text.Lazy(
   replicate,
   splitOn,
   dropWhileEnd,
+  map,
+  concat,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head)
 import Control.DeepSeq.Class
@@ -24,11 +26,7 @@ import Data.String
 import qualified Data.Text as T
 
 newtype Text = L T.Text
-  deriving newtype (Eq, Ord, Show, IsString, {-Semigroup,-} Monoid, NFData)
-
--- Bug in newtype deriving
-instance Semigroup Text where
-  (<>) = append
+  deriving newtype (Eq, Ord, Show, IsString, Semigroup, Monoid, NFData)
 
 toStrict :: Text -> T.Text
 toStrict (L t) = t
@@ -73,10 +71,16 @@ uncons :: Text -> Maybe (Char, Text)
 uncons = coerce T.uncons
 
 replicate :: Int -> Text -> Text
-replicate n = undefined -- coerce (T.replicate n)
+replicate n = coerce (T.replicate n)
 
 splitOn :: Text -> Text -> [Text]
 splitOn = coerce T.splitOn
 
 dropWhileEnd :: (Char -> Bool) -> Text -> Text
 dropWhileEnd = coerce T.dropWhileEnd
+
+map :: (Char -> Char) -> Text -> Text
+map f = coerce (T.map f)
+
+concat :: [Text] -> Text
+concat = coerce T.concat
