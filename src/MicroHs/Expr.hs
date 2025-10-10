@@ -715,10 +715,10 @@ allVarsBind' abind =
     Infix _ _ -> id
     _ -> impossible
 
-allVarsEqns :: [Eqn] -> [Ident]
+allVarsEqns :: HasCallStack => [Eqn] -> [Ident]
 allVarsEqns eqns = composeMap allVarsEqn eqns []
 
-allVarsEqn :: Eqn -> DList Ident
+allVarsEqn :: HasCallStack => Eqn -> DList Ident
 allVarsEqn eqn =
   case eqn of
     Eqn ps alts -> composeMap allVarsPat ps . allVarsAlts alts
@@ -729,13 +729,13 @@ allVarsAlts (EAlts alts bs) = composeMap allVarsAlt alts . composeMap allVarsBin
 allVarsAlt :: EAlt -> DList Ident
 allVarsAlt (ss, e) = composeMap allVarsStmt ss . allVarsExpr' e
 
-allVarsPat :: EPat -> DList Ident
+allVarsPat :: HasCallStack => EPat -> DList Ident
 allVarsPat = allVarsExpr'
 
-allVarsExpr :: Expr -> [Ident]
+allVarsExpr :: HasCallStack => Expr -> [Ident]
 allVarsExpr e = allVarsExpr' e []
 
-allVarsExpr' :: Expr -> DList Ident
+allVarsExpr' :: HasCallStack => Expr -> DList Ident
 allVarsExpr' aexpr =
   case aexpr of
     EVar i -> (i:)
@@ -769,7 +769,10 @@ allVarsExpr' aexpr =
     EForall _ iks e -> (map (\ (IdKind i _) -> i) iks ++) . allVarsExpr' e
   where field (EField _ e) = allVarsExpr' e
         field (EFieldPun is) = (last is :)
-        field EFieldWild = impossible
+        field EFieldWild = id  -- XXX This is wrong.  But this can happen when there is no type signature
+                               -- and the dependency analysis tries to find all used variables.
+                               -- The correct fix is to desugar EFieldWild early and have tcDefsValue
+                               -- only use free variables.
 
 allVarsListish :: Listish -> DList Ident
 allVarsListish (LList es) = composeMap allVarsExpr' es

@@ -1400,7 +1400,7 @@ tcDefsValue adefs = do
               hasNoSign i = isNothing $ M.lookup i smap
       -- split the unsigned defs into strongly connected components
       sccs = stronglyConnComp $ map node unsigned
-        where node d@(Fcn i e)             = (d, i, allVarsEqns e)
+        where node d@(Fcn i e)             = (d, i, allVarsEqns e)  -- XXX should really be allFreeVars
               node d@(Pattern (i, _) p me) = (d, i, allVarsPat p $ maybe [] allVarsEqns me)
               node _ = undefined
       tcSCC (AcyclicSCC d@Pattern{}) = tcPatSyn d
@@ -3350,7 +3350,7 @@ solveInstCoercible loc iCls t1 t2 = do
     Nothing -> pure ()
     Just (InstInfo _ ds _) -> traceM ("solveInstCoercible: " ++ show [ f 0 | (_, f) <- ds ])
 -}
-  
+
   msol <- solveInst loc iCls [t1, t2]
   case msol of
     Nothing -> solveInst loc iCls [t2, t1]
