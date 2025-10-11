@@ -267,6 +267,8 @@ mainListPkg flags pkgnm = do
         putStrLn $ "  " ++ showIdent (tModuleName tmdl)
         when (verbosityGT flags 0) $
           printExperted tmdl
+        when (verbosityGT flags 1) $
+          printDefinitions tmdl
   putStrLn "exposed-modules:"
   mapM_ oneMdl (pkgExported pkg)
   putStrLn "other-modules:"
@@ -283,6 +285,11 @@ printTypeExport :: TypeExport -> IO ()
 printTypeExport te = do
   putStrLn $ "    " ++ showTypeExport te
   putStrLn $ unlines $ map ("      " ++) (showTypeExportAssocs te)
+
+printDefinitions :: TModule [(Ident, a)]-> IO ()
+printDefinitions tmdl = do
+  putStrLn "  top level definitions"
+  putStrLn $ unwords (map (showIdent . fst) $ tBindingsOf tmdl)
 
 mainCompile :: Flags -> Ident -> IO ()
 mainCompile flags mn = do
