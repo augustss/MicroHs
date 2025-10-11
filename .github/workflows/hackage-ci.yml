@@ -44,6 +44,7 @@ jobs:
         mcabal install time
 
     # malcolm-wallace-universe
+    # these have not been uploaded to hackage
     - name: checkout malcolm-wallace-universe repo
       uses: actions/checkout@v4
       with:
@@ -68,26 +69,16 @@ jobs:
         mcabal install mtl
 
     # pretty
-    - name: checkout pretty repo
-      uses: actions/checkout@v4
-      with:
-        repository: haskell/pretty
-        path: pretty
+    # not yet uploaded to hackage
     - name: compile and install pretty package
       run: |
-        cd pretty
-        mcabal install
+        mcabal install --git=http://github.com/haskell/pretty.git pretty
 
     # parsec
-    - name: checkout parsec repo
-      uses: actions/checkout@v4
-      with:
-        repository: augustss/parsec
-        path: parsec
+    # patch not merged and uploaded to hackage
     - name: compile and install parsec package
       run: |
-        cd parsec
-        mcabal install
+        mcabal install --git=http://github.com/augustss/parsec.git parsec
 
     # splitmix
     - name: compile and install splitmix package
@@ -100,6 +91,7 @@ jobs:
         mcabal install random
 
     # granite
+    # not on hackage at all
     - name: checkout granite repo
       uses: actions/checkout@v4
       with:
@@ -121,26 +113,16 @@ jobs:
         mcabal install monad-loops
 
     # tagged
-    - name: checkout tagged repo
-      uses: actions/checkout@v4
-      with:
-        repository: ekmett/tagged
-        path: tagged
+    # not uploaded to hackage
     - name: compile and install tagged package
       run: |
-        cd tagged
-        mcabal install
+        mcabal install --git=http://github.com/ekmett/tagged.git tagged
 
     # exceptions
-    - name: checkout exceptions repo
-      uses: actions/checkout@v4
-      with:
-        repository: ekmett/exceptions
-        path: exceptions
+    # not uploaded to hackage
     - name: compile and install exceptions package
       run: |
-        cd exceptions
-        mcabal install
+        mcabal install --git=http://github.com/ekmett/exceptions.git exceptions
 
     # ghc-compat
     - name: compile and install ghc-compat package
@@ -148,26 +130,16 @@ jobs:
         mcabal install ghc-compat
 
     # os-string
-    - name: checkout os-string repo
-      uses: actions/checkout@v4
-      with:
-        repository: augustss/os-string
-        path: os-string
+    # not merged and uploaded to hackage
     - name: compile and install os-string package
       run: |
-        cd os-string
-        mcabal install
+        mcabal install --git=http://github.com/augustss/os-string.git os-string
 
     # filepath
-    - name: checkout filepath repo
-      uses: actions/checkout@v4
-      with:
-        repository: augustss/filepath
-        path: filepath
+    # not merged and uploaded to hackage
     - name: compile and install filepath package
       run: |
-        cd filepath
-        mcabal install
+        mcabal install --git=http://github.com/augustss/filepath.git filepath
 
     # tagsoup
     - name: compile and install tagsoup package
