@@ -21,29 +21,26 @@ jobs:
       run: |
         cd mhs
         make minstall
+        echo "$HOME/.mcabal/bin" >> "$GITHUB_PATH"
 
     # array-mhs
     - name: compile and install array-mhs package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install array
 
     # containers
     - name: compile and install containers package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install containers
 
     # transformers
     - name: compile and install transformers package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install transformers
 
     # time
     - name: compile and install time package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install time
 
     # malcolm-wallace-universe
@@ -54,24 +51,20 @@ jobs:
         path: malcolm-wallace-universe
     - name: compile and install polyparse
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         cd malcolm-wallace-universe/polyparse-1.12
         mcabal install
     - name: compile and install hscolour
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         cd malcolm-wallace-universe/hscolour-1.24.4
         mcabal install
     - name: compile and install cpphs
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         cd malcolm-wallace-universe/cpphs-1.20.9
         mcabal install
 
     # mtl-mhs
     - name: compile and install mtl-mhs package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install mtl
 
     # pretty
@@ -82,7 +75,6 @@ jobs:
         path: pretty
     - name: compile and install pretty package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         cd pretty
         mcabal install
 
@@ -94,20 +86,17 @@ jobs:
         path: parsec
     - name: compile and install parsec package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         cd parsec
         mcabal install
 
     # splitmix
     - name: compile and install splitmix package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install splitmix
 
     # random-mhs
     - name: compile and install random-mhs package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install random
 
     # granite
@@ -118,20 +107,17 @@ jobs:
         path: granite
     - name: compile and install granite package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         cd granite
         mcabal install
 
     # split
     - name: compile and install split package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install split
 
     # monad-loops
     - name: compile and install monad-loops package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install monad-loops
 
     # tagged
@@ -142,7 +128,6 @@ jobs:
         path: tagged
     - name: compile and install tagged package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         cd tagged
         mcabal install
 
@@ -154,14 +139,12 @@ jobs:
         path: exceptions
     - name: compile and install exceptions package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         cd exceptions
         mcabal install
 
     # ghc-compat
     - name: compile and install ghc-compat package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         mcabal install ghc-compat
 
     # os-string
@@ -172,7 +155,6 @@ jobs:
         path: os-string
     - name: compile and install os-string package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         cd os-string
         mcabal install
 
@@ -184,9 +166,13 @@ jobs:
         path: filepath
     - name: compile and install filepath package
       run: |
-        PATH="$HOME/.mcabal/bin:$PATH"
         cd filepath
         mcabal install
+
+    # tagsoup
+    - name: compile and install tagsoup package
+      run: |
+        mcabal install tagsoup
 
     # DONE
     - name: cleanup
