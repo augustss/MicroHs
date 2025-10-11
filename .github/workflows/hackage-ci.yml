@@ -43,24 +43,24 @@ jobs:
       run: |
         mcabal install time
 
+    - name: compile and install polyparse
+      run: |
+        mcabal install polyparse
+
+    - name: compile and install cpphs
+      run: |
+        mcabal install cpphs
+
     # malcolm-wallace-universe
-    # these have not been uploaded to hackage
+    # this have not been uploaded to hackage
     - name: checkout malcolm-wallace-universe repo
       uses: actions/checkout@v4
       with:
         repository: hackage-trustees/malcolm-wallace-universe
         path: malcolm-wallace-universe
-    - name: compile and install polyparse
-      run: |
-        cd malcolm-wallace-universe/polyparse-1.12
-        mcabal install
     - name: compile and install hscolour
       run: |
         cd malcolm-wallace-universe/hscolour-1.24.4
-        mcabal install
-    - name: compile and install cpphs
-      run: |
-        cd malcolm-wallace-universe/cpphs-1.20.9
         mcabal install
 
     # mtl-mhs
