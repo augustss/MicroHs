@@ -72,7 +72,7 @@ main = do
                   _   -> mhsError usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-keep-tmp-files] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [-keep-tmp-files] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -113,6 +113,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
       \                   Targets can be defined in targets.conf\n\
       \-optc OPTION       Options for the C compiler\n\
+      \-optl OPTION       Options passed by mhs to the C compiler for the linker\n\
       \-keep-tmp-files    Do not remove created tmp files\n\
       \--stdin            Use stdin in interactive system\n\
       \-ddump-PASS        Debug, print AST after PASS\n\
@@ -142,6 +143,8 @@ decodeArgs f mdls (arg:args) =
                 -> decodeArgs f{output = s} mdls args'
     "-optc" | s : args' <- args
                 -> decodeArgs f{cArgs = cArgs f ++ [s]} mdls args'
+    "-optl" | s : args' <- args
+                -> decodeArgs f{lArgs = lArgs f ++ [s]} mdls args'
     "-keep-tmp-files"
                 -> decodeArgs f{keepFiles = True} mdls args
     '-':'i':[]  -> decodeArgs f{paths = []} mdls args
