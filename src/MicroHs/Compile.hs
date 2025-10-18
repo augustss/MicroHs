@@ -409,8 +409,9 @@ runCPPString flags fn ifile = do
   (fno, ho) <- openTmpFile "mhsout.hs"
   runCPP flags fni fno
   ofile <- hGetContents ho
-  removeFile fni
-  removeFile fno
+  unless (keepFiles flags) $ do
+    removeFile fni
+    removeFile fno
   return ofile
 
 mhsDefines :: [String]

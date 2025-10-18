@@ -72,7 +72,7 @@ main = do
                   _   -> mhsError usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-keep-tmp-files] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -113,6 +113,7 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
       \                   Targets can be defined in targets.conf\n\
       \-optc OPTION       Options for the C compiler\n\
+      \-keep-tmp-files    Do not remove created tmp files\n\
       \--stdin            Use stdin in interactive system\n\
       \-ddump-PASS        Debug, print AST after PASS\n\
       \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
@@ -141,6 +142,8 @@ decodeArgs f mdls (arg:args) =
                 -> decodeArgs f{output = s} mdls args'
     "-optc" | s : args' <- args
                 -> decodeArgs f{cArgs = cArgs f ++ [s]} mdls args'
+    "-keep-tmp-files"
+                -> decodeArgs f{keepFiles = True} mdls args
     '-':'i':[]  -> decodeArgs f{paths = []} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
@@ -360,7 +363,7 @@ mainCompile flags mn = do
        hPutStr h cCode
        hClose h
        mainCompileC flags ppkgs fn
-       removeFile fn
+       unless (keepFiles flags) $ removeFile fn
 
 mainCompileC :: Flags -> [FilePath] -> FilePath -> IO ()
 mainCompileC flags ppkgs infile = do
