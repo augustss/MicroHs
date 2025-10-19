@@ -364,7 +364,7 @@ pDef =
   <|> Sign         <$> (pKeyword "pattern"  *> sepBy1 pUIdentSym (pSpec ',') <* dcolon) <*> pType
   <|> StandDeriving<$> (pKeyword "deriving" *> pStrat) <*> pure 0 <*> (pKeyword "instance" *> pType)
   <|> noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
-                                               (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
+                                               some (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
   where
     pFunDeps = (pSpec '|' *> sepBy1 pFunDep (pSpec ',')) <|> pure []
     pFunDep = (,) <$> some pLIdent <*> (pSRArrow *> some pLIdent)
