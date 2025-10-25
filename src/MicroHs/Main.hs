@@ -220,6 +220,8 @@ mainBuildPkg flags namever amns = do
       pkg = Package { pkgName = mkIdent name
                     , pkgVersion = ver
                     , pkgCompiler = mhsVersion
+                    , pkgTarget = target flags
+                    , pkgOptl = lArgs flags
                     , pkgExported = exported
                     , pkgOther = other
                     , pkgTables = getCacheTables cash
@@ -265,6 +267,8 @@ mainListPkg flags pkgnm = do
   putStrLn $ "version: " ++ showVersion (pkgVersion pkg)
   putStrLn $ "compiler: mhs-" ++ pkgCompiler pkg
   putStrLn $ "depends: " ++ unwords (map (\ (i, v) -> showIdent i ++ "-" ++ showVersion v) (pkgDepends pkg))
+  putStrLn $ "target: " ++ pkgTarget pkg
+  putStrLn $ "linker opts: " ++ unwords (pkgOptl pkg)
 
   let oneMdl tmdl = do
         putStrLn $ "  " ++ showIdent (tModuleName tmdl)
@@ -359,14 +363,16 @@ mainCompile flags mn = do
       writeFile outFile cCode
      else do
        (fn, h) <- openTmpFile "mhsc.c"
-       let ppkgs = map fst $ getPathPkgs cash
+       let ppkgs = getPathPkgs cash
        hPutStr h cCode
        hClose h
        mainCompileC flags ppkgs fn
        removeFile fn
 
-mainCompileC :: Flags -> [FilePath] -> FilePath -> IO ()
-mainCompileC flags ppkgs infile = do
+mainCompileC :: Flags -> [(FilePath, Package)] -> FilePath -> IO ()
+mainCompileC flags pkgs infile = do
+  let ppkgs  = map fst pkgs
+      poptls = filter (not . null . pkgOptl) $ map snd pkgs
   ct1 <- getTimeMilli
   let dir = mhsdir flags
       incDirs = map (convertToInclude "include") ppkgs
@@ -380,7 +386,8 @@ mainCompileC flags ppkgs infile = do
       cpps = concatMap (\ a -> "'" ++ a ++ "' ") (cppArgs flags)  -- Use all CPP args from the command line
       rtdir = dir ++ "/src/runtime"
   tgt <- readTarget flags dir
-  let cmd = unwords $ [tCC tgt,
+  let optls = concatMap pkgOptl $ filter ((==) (tName tgt) . pkgTarget) poptls -- optl from pkgs
+      cmd = unwords $ [tCC tgt,
                        tCCFlags tgt,
                        "-I" ++ rtdir,
                        "-I" ++ rtdir </> tConf tgt,
@@ -388,6 +395,7 @@ mainCompileC flags ppkgs infile = do
                        defs,
                        cpps] ++
                        cArgs flags ++
+                       optls ++
                        map (++ "/*.c") cDirs' ++
                       [ rtdir </> "main.c" | not (noLink flags) ] ++
                       [ rtdir </> "eval.c",
