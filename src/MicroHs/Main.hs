@@ -234,6 +234,20 @@ mainBuildPkg flags namever amns = do
   t2 <- getTimeMilli
   when (verbose flags > 0) $
     putStrLn $ "Compression time " ++ show (t2 - t1) ++ " ms"
+  unless (null (cArgs flags) && null (lArgs flags)) $ do
+    -- we are linking to some c lib so we test if the package compiles
+    when (verbose flags > 0) $
+      putStrLn $ "Testing the library " ++ namever
+    (fn, h) <- openTmpFile $ namever ++ "_mhs.hs"
+    hPutStr h $ unlines (map ((++) "import " . show . tModuleName) exported) ++ "main = return ()"
+    let flags' = flags { output = fn ++ ".bin"
+                       , buildPkg = Nothing
+                       , lArgs = [] -- these are provided by the pkg
+                       , installPkg = False
+                       , preload = [output flags]}
+    mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) fn)
+    removeFile fn
+    removeFile $ fn ++ ".bin"
 
 splitNameVer :: String -> (String, Version)
 splitNameVer s =
