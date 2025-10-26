@@ -601,6 +601,9 @@ pAType =
   <|> pLit
   <|> (eTuple <$> (pSpec '(' *> sepBy pType (pSpec ',') <* pSpec ')'))
   <|> (EListish . LList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
+  <|> (uTuple <$> (pSpec 'L' *> sepBy  pType (pSpec ',') <* pSpec 'R'))
+  <|> (uSumAp <$> (pSpec 'L' *> sepBy1 pType (pSpec '|') <* pSpec 'R'))
+  <|> (uSum <$> getSLoc <*> (succ . length <$> (pSpec 'L' *> many (pSpec '|') <* pSpec 'R')))
 
 -------------
 -- Patterns
@@ -624,8 +627,21 @@ pAPat =
   <|> (ELazy True  <$> (pSpec '~' *> pAPat))
   <|> (ELazy False <$> (pSpec '!' *> pAPat))
   <|> (EOr <$> (pSpec '(' *> sepBy1 pPat (pSpec ';') <* pSpec ')'))  -- if there is a single pattern it will be matched by the tuple case
+  <|> (uTuple <$> (pSpec 'L' *> sepBy pPat (pSpec ',') <* pSpec 'R'))
+  <|> pUSummand pPat
   where evar v Nothing = EVar v
         evar v (Just upd) = EUpdate (EVar v) upd
+
+pUSummand :: P Expr -> P Expr
+pUSummand p = do
+  pSpec 'L'
+  l <- length <$> many (pSpec '|')
+  e <- p
+  r <- length <$> many (pSpec '|')
+  pSpec 'R'
+  let n = l + r
+  guard (n > 0)
+  pure $ uSummand (n+1) l e
 
 pPat :: P EPat
 pPat = pPatOp
@@ -830,6 +846,8 @@ pAExpr' =
   <|> (ESelect <$> (pSpec '(' *> some pSelect <* pSpec ')'))
   <|> (ELit noSLoc . LPrim <$> (pKeyword "_primitive" *> pString))
   <|> (ETypeArg <$> (pSpec '@' *> pAType))
+  <|> (uTuple <$> (pSpec 'L' *> sepBy pExpr (pSpec ',') <* pSpec 'R'))
+  <|> pUSummand pExpr
   -- This weirdly slows down parsing
   -- <?> "aexpr"
 
@@ -902,6 +920,22 @@ pInstBind =
   <|> Sign        <$> (sepBy1 pLIdentSym (pSpec ',') <* dcolon) <*> pType
 
 -------------
+
+-- Unboxed sum type with n alternatives
+uSum :: SLoc -> Int -> EType
+uSum l n = EVar (mkIdentSLoc l $ "B@.USum" ++ show n)
+
+-- Unboxed sum type with arguments
+uSumAp :: [EType] -> EType
+uSumAp ts = eApps (uSum (E.getSLoc ts) (length ts)) ts
+
+-- Summand i of an n-ary "unboxed" alternative
+uSummand :: Int -> Int -> Expr -> Expr
+uSummand n i e = EApp (EVar (mkIdentSLoc (E.getSLoc e) ("B@.USum" ++ show n ++ "_" ++ show i))) e
+
+-- Unboxed tuple, same as regulat tuple
+uTuple :: [Expr] -> Expr
+uTuple = eTuple
 
 eTuple :: [Expr] -> Expr
 eTuple [e] = EParen e

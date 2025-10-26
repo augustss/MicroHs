@@ -77,6 +77,7 @@ Differences:
    * KindSignatures
    * LambdaCase
    * LiberalTypesynonyms
+   * MagicHash
    * MonoLocalBinds
    * MultilineStrings
    * MultiParamTypeClasses

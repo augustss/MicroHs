@@ -24,6 +24,8 @@ data Token
                                   --  ~  for lazy
                                   --  !  for strict
                                   --  NOT YET  @  for type app
+                                  --  L  for (#
+                                  --  R  for #)
   | TError  SLoc String           -- lexical error
   | TBrace  SLoc                  -- {n} in the Haskell report
   | TIndent SLoc                  -- <n> in the Haskell report
@@ -40,6 +42,8 @@ showToken (TInt _ i) = show i
 showToken (TRat _ d) = show d
 showToken (TSpec _ c) | c == '<' = "{ layout"
                       | c == '>' = "} layout"
+                      | c == 'L' = "(#"
+                      | c == 'R' = "#)"
                       | otherwise = [c]
 showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
@@ -79,7 +83,7 @@ lex loc ('-':'-':cs) | isComm rs = skipLine (addCol loc $ 2+length ds) cs
     isComm [] = True
     isComm (d:_) = not (isOperChar d)
 lex loc (d:cs) | isLower_ d =
-  case span isIdentChar cs of
+  case spanIdent cs of
     (ds, rs) -> tIdent loc [] (d:ds) (lex (addCol loc $ 1 + length ds) rs)
 lex loc cs@(d:_) | isUpper d = upperIdent loc loc [] cs
 lex loc ('0':x:cs)
@@ -93,6 +97,9 @@ lex loc cs@(d:_) | isDigit d =
     (Right q, len, rs) -> TRat loc q : lex (addCol loc len) rs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
+lex loc ('(':dcs@(d:cs)) | d == '#'  = TSpec loc 'L' : lex (addCol loc 2) cs
+                         | otherwise = TSpec loc '(' : lex (addCol loc 1) dcs
+lex loc ('#':')':cs) = TSpec loc 'R' : lex (addCol loc 2) cs
 -- Recognize #line 123 "file/name.hs"
 lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
   case span (/= '\n') cs of
@@ -236,8 +243,8 @@ lexLitStr oloc loc mk end post acs = loop loc [] acs
         remGap l rs ('\t':cs) = remGap (tabCol   l) ('\t':rs) cs
         remGap l rs ('\r':cs) = remGap           l        rs  cs
         remGap l rs (' ' :cs) = remGap (addCol l 1)       rs  cs
-        remGap _ _         _  = --errorMessage oloc "bad string gap"
-                                mhsError "bad string gap"
+        remGap l _         _  = --errorMessage oloc "bad string gap"
+                                mhsError (show l ++ ": bad string gap")
 
 decodeEscs :: String -> String
 decodeEscs [] = []
@@ -340,14 +347,19 @@ upperIdent loc sloc qs acs =
    (ds, rs) ->
     case rs of
       '.':cs@(d:_) | isUpper d    -> upperIdent (addCol loc $ 1 + length ds) sloc (ds:qs) cs
-                   | isLower_ d   -> ident isIdentChar
-                   | isOperChar d -> ident isOperChar
-         where {
-           ident p =
-             case span p cs of
-               (xs, ys) -> tIdent sloc (reverse (ds:qs)) xs (lex (addCol loc $ 1 + length ds + length xs) ys)
-           }
-      _ -> TIdent sloc (reverse qs) ds : lex (addCol loc $ length ds) rs
+                   | isLower_ d   -> ident (spanIdent cs)
+                   | isOperChar d -> ident (span isOperChar cs)
+         where
+           ident (xs, ys) = tIdent sloc (reverse (ds:qs)) xs (lex (addCol loc $ 1 + length ds + length xs) ys)
+      '#':_ -> mk (ds ++ hs) rs' where (hs, rs') = span (== '#') rs
+      _ -> mk ds rs
+  where
+     mk ds rs = TIdent sloc (reverse qs) ds : lex (addCol loc $ length ds) rs
+
+spanIdent :: String -> (String, String)
+spanIdent s = mk $ span isIdentChar s
+  where mk (ds, '#':rs) = mk (ds ++ "#", rs)
+        mk r = r
 
 -- For LambdaCase
 tLam :: [Token] -> [Token]
