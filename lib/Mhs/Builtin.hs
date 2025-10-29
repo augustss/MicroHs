@@ -58,3 +58,10 @@ import Text.Show(Show(..), showString, showParen)
 data USum2 a0 a1 = USum2_0 a0 | USum2_1 a1
 data USum3 a0 a1 a2 = USum3_0 a0 | USum3_1 a1 | USum3_2 a2
 data USum4 a0 a1 a2 a3 = USum4_0 a0 | USum4_1 a1 | USum4_2 a2 | USum4_3 a3
+
+-- Types to fake unboxed tuples
+data UProd0 = UProd0
+data UProd1 a0 = UProd1 a0
+data UProd2 a0 a1 = UProd2 a0 a1
+data UProd3 a0 a1 a2 = UProd3 a0 a1 a2
+data UProd4 a0 a1 a2 a3 = UProd4 a0 a1 a2 a3

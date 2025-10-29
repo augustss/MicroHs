@@ -601,9 +601,9 @@ pAType =
   <|> pLit
   <|> (eTuple <$> (pSpec '(' *> sepBy pType (pSpec ',') <* pSpec ')'))
   <|> (EListish . LList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
-  <|> (uTuple <$> (pSpec 'L' *> sepBy  pType (pSpec ',') <* pSpec 'R'))
-  <|> (uSumAp <$> (pSpec 'L' *> sepBy1 pType (pSpec '|') <* pSpec 'R'))
-  <|> (uSum <$> getSLoc <*> (succ . length <$> (pSpec 'L' *> many (pSpec '|') <* pSpec 'R')))
+  <|> (uTupleTAp <$> (pSpec 'L' *> sepBy  pType (pSpec ',') <* pSpec 'R'))
+  <|> (uSumTAp <$> (pSpec 'L' *> sepBy1 pType (pSpec '|') <* pSpec 'R'))
+  <|> (uSumT <$> getSLoc <*> (succ . length <$> (pSpec 'L' *> many (pSpec '|') <* pSpec 'R')))
 
 -------------
 -- Patterns
@@ -922,20 +922,30 @@ pInstBind =
 -------------
 
 -- Unboxed sum type with n alternatives
-uSum :: SLoc -> Int -> EType
-uSum l n = EVar (mkIdentSLoc l $ "B@.USum" ++ show n)
+uSumT :: SLoc -> Int -> EType
+uSumT l n = EVar (mkIdentSLoc l $ "B@.USum" ++ show n)
 
 -- Unboxed sum type with arguments
-uSumAp :: [EType] -> EType
-uSumAp ts = eApps (uSum (E.getSLoc ts) (length ts)) ts
+uSumTAp :: [EType] -> EType
+uSumTAp ts = eApps (uSumT (E.getSLoc ts) (length ts)) ts
 
 -- Summand i of an n-ary "unboxed" alternative
 uSummand :: Int -> Int -> Expr -> Expr
 uSummand n i e = EApp (EVar (mkIdentSLoc (E.getSLoc e) ("B@.USum" ++ show n ++ "_" ++ show i))) e
 
--- Unboxed tuple, same as regulat tuple
+-- Unboxed tuple type with n alternatives
+uTupleT :: SLoc -> Int -> Expr
+uTupleT l n = EVar (mkIdentSLoc l $ "B@.UProd" ++ show n)
+
+-- Unboxed tuple type
+uTupleTAp :: [EType] -> EType
+uTupleTAp ts = eApps (uTupleT (E.getSLoc ts) (length ts)) ts
+
+-- Unboxed tuple
 uTuple :: [Expr] -> Expr
-uTuple = eTuple
+uTuple = uTupleTAp   -- same name as the type
+
+----------
 
 eTuple :: [Expr] -> Expr
 eTuple [e] = EParen e
