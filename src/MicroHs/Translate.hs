@@ -180,6 +180,7 @@ primTable = [
   ("A.size", _primitive "A.size"),
   ("A.read", _primitive "A.read"),
   ("A.write", _primitive "A.write"),
+  ("A.trunc", _primitive "A.trunc"),
   ("A.==", _primitive "A.=="),
   ("bs++", _primitive "bs++"),
   ("bs++.", _primitive "bs++."),

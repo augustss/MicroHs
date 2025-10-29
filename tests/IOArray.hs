@@ -20,6 +20,9 @@ main = do
   a' <- hDeserialize i
   xs' <- mapM (unsafeReadMutIOArr a') [0..9]
   print $ xs == xs'
+  shrinkMutIOArr a 5
+  s <- sizeMutIOArr a
+  print s
 
   r <- newIORef "foo"
   s1 <- readIORef r

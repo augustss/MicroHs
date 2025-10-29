@@ -456,7 +456,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE,
                 T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD, T_I64TOD,
                 T_DEQ, T_DNE, T_DLT, T_DLE, T_DGT, T_DGE,
-                T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_EQ,
+                T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_TRUNC, T_ARR_EQ,
                 T_RAISE, T_SEQ, T_RNF,
                 T_TICK,
                 T_IO_BIND, T_IO_THEN, T_IO_RETURN,
@@ -1957,6 +1957,7 @@ struct {
   { "A.size", T_ARR_SIZE },
   { "A.read", T_ARR_READ },
   { "A.write", T_ARR_WRITE },
+  { "A.trunc", T_ARR_TRUNC },
   { "A.==", T_ARR_EQ },
   { "dynsym", T_DYNSYM },
   { "IO.fork", T_IO_FORK },
@@ -5465,6 +5466,21 @@ evali(NODEPTR an)
       }
       ARR(a)->array[i] = z;
       POP(4);
+      GOPAIRUNIT;
+      }
+
+  case T_ARR_TRUNC:
+    {
+      CHKARG3NP;                /* sets x,y,n */
+      size_t i = evalint(y);
+      NODEPTR a = evali(x);
+      if (GETTAG(a) != T_ARR)
+        ERR("bad ARR tag");
+      if (i >= ARR(a)->size) {
+        ERR("ARR_TRUNC");
+      }
+      ARR(a)->size = i;
+      POP(3);
       GOPAIRUNIT;
       }
 

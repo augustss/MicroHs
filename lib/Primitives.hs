@@ -324,6 +324,9 @@ primArrRead = _primitive "A.read"
 primArrWrite :: forall a . IOArray a -> Int -> a -> IO ()
 primArrWrite = _primitive "A.write"
 
+primArrTrunc :: forall a . IOArray a -> Int -> IO ()
+primArrTrunc = _primitive "A.trunc"
+
 -- Not referentially transparent
 primArrEQ :: forall a . IOArray a -> IOArray a -> Bool
 primArrEQ = _primitive "A.=="
