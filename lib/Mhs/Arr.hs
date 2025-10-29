@@ -1,6 +1,7 @@
 module Mhs.Arr(
   Arr(..),
   newArr,
+  sizeArr,
   unsafeReadArr,
   copyArr,
   unsafeFreezeMutSTArr,
@@ -9,7 +10,7 @@ module Mhs.Arr(
   unsafeThawIOArr,
   ) where
 import qualified Prelude(); import MiniPrelude
-import Primitives(primPerformIO)
+import Primitives(primPerformIO, primArrSize)
 import Control.Monad.ST
 import Control.Monad.ST_Type
 import Data.ByteString(copy)
@@ -27,6 +28,9 @@ newArr n ies = primPerformIO $ do
   a <- newMutIOArr n undef
   mapM_ (uncurry (unsafeWriteMutIOArr a)) ies
   unsafeFreezeMutIOArr a
+
+sizeArr :: Arr a -> Int
+sizeArr (Arr a) = primPerformIO $ primArrSize a
 
 unsafeReadArr :: Arr a -> Int -> a
 unsafeReadArr (Arr a) i = primPerformIO $ unsafeReadMutIOArr a i
