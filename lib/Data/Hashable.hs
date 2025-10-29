@@ -7,6 +7,7 @@ module Data.Hashable(
 --import Data.Bits
 import qualified Data.ByteString as B
 import Data.Complex
+import Data.Eq
 import Data.Fixed
 import Data.Int
 import Data.Integer(_integerToIntList)
@@ -19,7 +20,7 @@ type Salt = Int
 
 infixl 0 `hashWithSalt`
 
-class Hashable a where
+class Eq a => Hashable a where
   hashWithSalt :: Salt -> a -> Int
 
   hash :: a -> Int
