@@ -91,7 +91,7 @@ instance forall a . (Ord a, Bounded a) => Monoid (Min a) where
 ---------------------
 
 newtype Sum a = Sum { getSum :: a }
-  deriving (Bounded, Eq, Ord, Show)
+  deriving (Bounded, Eq, Ord, Show, Num)
 
 instance forall a . Num a => Semigroup (Sum a) where
   Sum a <> Sum b = Sum (a + b)
@@ -102,7 +102,7 @@ instance forall a . (Num a) => Monoid (Sum a) where
 ---------------------
 
 newtype Product a = Product { getProduct :: a }
-  deriving (Bounded, Eq, Ord, Show)
+  deriving (Bounded, Eq, Ord, Show, Num)
 
 instance forall a . Num a => Semigroup (Product a) where
   Product a <> Product b = Product (a * b)
