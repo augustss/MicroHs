@@ -23,6 +23,12 @@ jobs:
         make minstall
         echo "$HOME/.mcabal/bin" >> "$GITHUB_PATH"
 
+    # ghc-compat
+    # must be installed before any other packages since there is an implicit dependency on ghc-compat
+    - name: compile and install ghc-compat package
+      run: |
+        mcabal install ghc-compat
+
     # array-mhs
     - name: compile and install array-mhs package
       run: |
@@ -123,11 +129,6 @@ jobs:
     - name: compile and install exceptions package
       run: |
         mcabal install --git=http://github.com/ekmett/exceptions.git exceptions
-
-    # ghc-compat
-    - name: compile and install ghc-compat package
-      run: |
-        mcabal install ghc-compat
 
     # os-string
     # not merged and uploaded to hackage
