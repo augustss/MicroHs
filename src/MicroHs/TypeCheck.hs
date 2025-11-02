@@ -37,7 +37,6 @@ import MicroHs.Names
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
-import GHC.Stack
 import Debug.Trace
 
 --primitiveKinds :: [String]

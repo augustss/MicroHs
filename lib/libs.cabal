@@ -158,14 +158,7 @@ library base
         Foreign.Ptr
         Foreign.StablePtr
         Foreign.Storable
-        GHC.Conc
-        GHC.Conc.Sync
-        GHC.Exts
         GHC.Generics
-        GHC.Stack
-        GHC.Types
-        Language.Haskell.TH.Quote
-        Language.Haskell.TH.Syntax
         Mhs.Arr
         Mhs.Array
         Mhs.Builtin

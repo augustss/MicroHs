@@ -119,7 +119,6 @@ import Data.Monoid.Internal
 import Data.Ord
 import Data.Traversable
 import Data.Tuple
-import GHC.Stack(HasCallStack)
 import Text.Show
 
 {- In Data.List.NonEmpty_Type
@@ -280,7 +279,7 @@ sortOn f = lift (List.sortOn f) . toList
 -- | Converts a normal list to a 'NonEmpty' stream.
 --
 -- Raises an error if given an empty list.
-fromList :: HasCallStack => [a] -> NonEmpty a
+fromList :: {-HasCallStack => -} [a] -> NonEmpty a
 fromList (a:as) = a :| as
 fromList [] = error "NonEmpty.fromList: empty list"
 
@@ -583,7 +582,7 @@ isPrefixOf (y:ys) (x :| xs) = (y == x) && List.isPrefixOf ys xs
 -- @n@. Note that the head of the stream has index 0.
 --
 -- /Beware/: a negative or out-of-bounds index will cause an error.
-(!!) :: HasCallStack => NonEmpty a -> Int -> a
+(!!) :: {-HasCallStack => -} NonEmpty a -> Int -> a
 (!!) ~(x :| xs) n
   | n == 0 = x
   | n > 0  = xs List.!! (n - 1)

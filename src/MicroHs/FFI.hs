@@ -1,7 +1,6 @@
 module MicroHs.FFI(makeFFI) where
 import qualified Prelude(); import MHSPrelude
 import Data.List
-import GHC.Stack
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp
 import MicroHs.Expr

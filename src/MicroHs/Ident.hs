@@ -25,7 +25,6 @@ module MicroHs.Ident(
 import qualified Prelude(); import MHSPrelude hiding(head)
 import Data.Char
 import Text.PrettyPrint.HughesPJLite
-import GHC.Stack
 import MicroHs.List(dropEnd)
 
 import Data.Text(Text, pack, unpack, append, head, cons)

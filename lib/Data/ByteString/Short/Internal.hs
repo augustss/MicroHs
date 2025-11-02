@@ -169,7 +169,6 @@ import Data.Semigroup ( Semigroup(..), stimesMonoid )
 import Data.List.NonEmpty ( NonEmpty(..) )
 import Data.String ( IsString(..) )
 -- import qualified GHC.Exts -- XXX OverloadedLists
-import GHC.Stack ( HasCallStack )
 import Data.ByteString as BS
 import Data.ByteString.Unsafe as BS.Unsafe
 
