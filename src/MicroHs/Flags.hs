@@ -18,6 +18,7 @@ data Flags = Flags {
   doCPP      :: Bool,       -- run ccphs on input files
   cppArgs    :: [String],   -- flags for CPP
   cArgs      :: [String],   -- arguments for C compiler
+  lArgs      :: [String],   -- arguments for C linker
   compress   :: Bool,       -- compress generated combinators
   base64     :: Bool,       -- base64 encode generated combinators
   buildPkg   :: Maybe FilePath, -- build a package
@@ -50,6 +51,7 @@ defaultFlags dir = Flags {
   doCPP      = False,
   cppArgs    = [],
   cArgs      = [],
+  lArgs      = [],
   compress   = False,
   base64     = False,
   buildPkg   = Nothing,

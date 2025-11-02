@@ -30,6 +30,7 @@ data Package = Package {
   pkgName      :: IdentPackage,                    -- package name
   pkgVersion   :: Version,                         -- package version
   pkgCompiler  :: String,                          -- compiler version that created the package
+  pkgOptl      :: [String],                        -- linker options passed by mhs to the c compiler
   pkgExported  :: [TModule [LDef]],                -- exported modules
   pkgOther     :: [TModule [LDef]],                -- non-exported modules
   pkgTables    :: GlobTables,                      -- global tables
@@ -38,7 +39,7 @@ data Package = Package {
   -- deriving (Show)
 
 instance NFData Package where
-  rnf (Package a b c d e f g) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f `seq` rnf g
+  rnf (Package a b c d e f g h) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f `seq` rnf g `seq` rnf h
 
 -- Fully evaluate a package
 forcePackage :: Package -> Package
