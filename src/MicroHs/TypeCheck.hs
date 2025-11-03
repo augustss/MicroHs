@@ -2289,7 +2289,12 @@ unArrow loc (EForall _ iks t) = do
   -- Found forall in a co-variant position.
   -- Make new unique tyvars in case of clashes.
   -- XXX Is this correct?
-  (_, t') <- shallowSkolemise iks t
+  t' <- tInstForall iks t
+  unArrow loc t'
+-- handle =>
+unArrow loc t | Just (ctx, t') <- getImplies t = do
+  d <- newDictIdent loc
+  addConstraint d ctx
   unArrow loc t'
 unArrow loc t = do
   case getArrow t of
