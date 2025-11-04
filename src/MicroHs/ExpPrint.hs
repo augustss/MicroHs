@@ -7,7 +7,7 @@ import Data.Maybe
 import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
 import MicroHs.Exp
-import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..))
+import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..), CType)
 import MicroHs.Ident(Ident, showIdent, mkIdent, showSLoc)
 import MicroHs.List(groupSort)
 import MicroHs.State
@@ -17,6 +17,8 @@ import MicroHs.TypeCheck(isInstId)
 -- Must match version in eval.c.
 combVersion :: String
 combVersion = "v8.3\n"
+
+type ForExpTable = [(Ident, Ident, CType)]
 
 -- Remove unused definitions.  Only used for dumping definitions.
 removeUnused :: ([LDef], Exp) -> [LDef]
@@ -34,11 +36,11 @@ removeUnused (ds, emain) = dfs roots M.empty
 -- Rename (to a numbers) top level definitions and remove unused ones.
 -- Also check for duplicated instances.
 -- This is the "linking" of the program.
-renumberCMdl :: ([LDef], Exp) -> (Int, [Ident], [LDef], Exp)
+renumberCMdl :: ([LDef], Exp) -> (Int, ForExpTable, [LDef], Exp)
 renumberCMdl (ds, emain) =
   let
-    fexps = [ i | (i, e) <- ds, isJust $ getForExp e ]
-    roots = freeVars emain ++ fexps
+    fexps = [ (i, t) | (i, e) <- ds, Just (_, t) <- [getForExp e] ]
+    roots = freeVars emain ++ map fst fexps
     dMap = M.fromList ds
     -- Shake the tree bottom-up, renaming identifiers as we go along.
     -- This is much faster than (say) computing the sccs and walking that.
@@ -66,7 +68,7 @@ renumberCMdl (ds, emain) =
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-    fexps' = map (unVar . findIdent) fexps
+    fexps' = [ (unVar (findIdent i), i, t) | (i, t) <- fexps ]
       where unVar (Var n) = n
             unVar _ = undefined
   in
@@ -74,7 +76,7 @@ renumberCMdl (ds, emain) =
 
 -- The argument is all definitions and the main expression.
 -- The result is the number of definitions, all foreign export identifiers, and the program as a string.
-toStringCMdl :: ([LDef], Exp) -> (Int, [Ident], String)
+toStringCMdl :: ([LDef], Exp) -> (Int, ForExpTable, String)
 toStringCMdl mds =
   let
     (ndefs, exps, ds, emain) = renumberCMdl mds

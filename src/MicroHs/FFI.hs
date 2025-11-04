@@ -9,7 +9,8 @@ import MicroHs.Ident
 import MicroHs.Names
 --import Debug.Trace
 
-makeFFI :: Flags -> [Ident] -> [LDef] -> (String, String)
+-- The export table has (internal-name, external-name, external-type)
+makeFFI :: Flags -> [(Ident, Ident, CType)] -> [LDef] -> (String, String)
 makeFFI _ forExps ds =
   let ffiImports = nubBy eq [ (ie, n, t) | (_, d) <- ds, Lit (LForImp ie n (CType t)) <- [get d] ]
                  where get (App _ a) = a   -- if there is no IO type, we have (App primPerform (LForImp ...))
@@ -22,15 +23,14 @@ makeFFI _ forExps ds =
       jsincs   = if any isJS ffiImports then ["emscripten.h"] else []
         where isJS (ImpJS _, _, _) = True
               isJS _ = False
-      exps     = [ (i, t) | (i, e) <- ds, Just (_, t) <- [getForExp e] ]
-      mkSig (i, CType t) = let (as, ior) = getArrows t in mkExportSig i as ior ++ ";"
+      mkSig (_, i, CType t) = let (as, ior) = getArrows t in mkExportSig i as ior ++ ";"
       header = unlines
         ["#include <stdint.h>",
          "#if defined(__cplusplus)",
          "extern \"C\" {",
          "#endif",
          "void mhs_init(void);",
-         intercalate "\n" $ map mkSig exps,
+         intercalate "\n" $ map mkSig forExps,
          "#if defined(__cplusplus)",
          "}",
          "#endif"
@@ -52,7 +52,7 @@ makeFFI _ forExps ds =
        "};",
        "struct ffe_entry *xffe_table = exp_table;",
        "\n"
-      ] ++ zipWith mkExportWrapper [0..] exps
+      ] ++ zipWith mkExportWrapper [0..] forExps
     , header)
 
 mkExportSig :: Ident -> [EType] -> EType -> String
@@ -61,11 +61,11 @@ mkExportSig n as ior =
       ins = zipWith (\ i a -> cTypeName a ++ " _x" ++ show i) [1::Int ..] as
    in outT ++ " " ++ unIdent n ++ "(" ++ intercalate ", " ins ++ ")"
 
-mkExport :: Ident -> String
-mkExport i = "  { \"" ++ unIdent i ++ "\", 0 },"
+mkExport :: (Ident, Ident, CType) -> String
+mkExport (i, _, _) = "  { \"" ++ unIdent i ++ "\", 0 },"
 
-mkExportWrapper :: Int -> (Ident, CType) -> String
-mkExportWrapper no (n, CType t) = unlines $
+mkExportWrapper :: Int -> (Ident, Ident, CType) -> String
+mkExportWrapper no (_, n, CType t) = unlines $
   let (as, ior) = getArrows t
       r = checkIO ior
       outT = cTypeName r
