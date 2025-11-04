@@ -393,6 +393,7 @@ mainCompileC flags pkgs infile = do
                        defs,
                        cpps] ++
                        cArgs flags ++
+                       lArgs flags ++
                        optls ++
                        map (++ "/*.c") cDirs' ++
                       [ rtdir </> "main.c" | not (noLink flags) ] ++
