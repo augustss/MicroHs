@@ -304,7 +304,9 @@ mainCompile flags mn = do
   let
     mainName = qualIdent rmn (mkIdent "main")
     cmdl = (allDefs, if noLink flags then Lit (LInt 0) else Var mainName)
-    (numOutDefs, forExps, outData) = toStringCMdl cmdl
+    (forExps, outCMdl@(outDefs, _)) = renumberCMdl cmdl
+    outData = toStringCMdl outCMdl
+    numOutDefs = length outData
     numDefs = length allDefs
   when (verbosityGT flags 0) $
     putStrLn $ "top level defns:      " ++ padLeft 6 (show numOutDefs) ++ " (unpruned " ++ show numDefs ++ ")"
@@ -332,7 +334,7 @@ mainCompile flags mn = do
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
-    let (cFFI, hFFI) = makeFFI flags forExps allDefs
+    let (cFFI, hFFI) = makeFFI flags forExps outDefs
         cCode = "#include \"mhsffi.h\"\n" ++ makeCArray flags outData ++ cFFI
 
     let outFile = output flags
