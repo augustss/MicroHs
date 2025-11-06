@@ -93,6 +93,8 @@ library base
         Data.Functor.Product
         Data.Functor.Sum
         Data.Hashable
+        Data.Hashable.Class
+        Data.Hashable.Lifted
         Data.IORef
         Data.Int
         Data.Int.Int
