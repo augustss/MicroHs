@@ -1293,12 +1293,18 @@ expandClass dcls@(Class _ctx (iCls, vks) _fds ms) = do
       -- default methods.
       -- XXX This isn't really enough for complicated nested quantifiers.
       etaExp t e =
-        let n = length $ fst $ getArrows $ (\ (_,_,x)->x) $ splitContext t
+        let n = countArrows t
             vs = replicate n (EVar dummyIdent)
         in  [Eqn vs $ simpleAlts e]
       dDflts = concatMap mkDflt meths
   return $ dcls : dDflts
 expandClass d = return [d]
+
+-- Ignoring initial quantifiers and context, how many arrows does the type have?
+countArrows :: EType -> Int
+countArrows (EForall _ _ t) = countArrows t
+countArrows t | Just (_, t') <- getImplies t = countArrows t'
+              | otherwise = length . fst . getArrows $ t
 
 simpleEqn :: Expr -> [Eqn]
 simpleEqn e = [Eqn [] $ simpleAlts e]
@@ -1369,8 +1375,13 @@ expandInst dinst@(Instance act bs extra) = do
       instBind (Fcn i _) = isJust $ lookup i mits
       instBind (Sign is _) = all (\ i -> isJust $ lookup i mits) is
       instBind _ = False
-      mkDefault i _t = ELam loc $ simpleEqn $ EVar dfltId
+      -- When the method type has nested quantifiers the type checker cannot handle
+      --  m = mDflt
+      -- so we eta expand the definition t
+      --  m $1 ... = mDflt $1 ...
+      mkDefault i t = ELam loc [Eqn vs $ simpleAlts $ eApps (EVar dfltId) vs]
         where dfltId = setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i
+              vs = map (EVar . mkIdentSLoc loc) ["$" ++ show k | k <- [0 .. countArrows t - 1] ]
   case filter (not . instBind) bs of
     [] -> return ()
     b:_ -> tcError (getSLoc b) "superflous instance binding"
