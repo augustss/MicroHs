@@ -476,13 +476,47 @@ derRead _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 
--- Deriving for the fake Data class.
+-- Deriving for the Data class.
+--  data T a = A
 derData :: Deriver
-derData mctx _ lhs cs edata = do
-  notYet edata
+derData mctx _ lhs@(tyname, vks) cs edata = do
   hdr <- mkHdr mctx lhs cs edata
   let
-    inst = Instance hdr [] []
+    loc = getSLoc edata
+    mkB = mkBuiltin loc
+    mkI = mkIdentSLoc loc
+    lit = ELit loc
+    str = lit . LStr . unIdentPar
+    eList = EListish . LList
+    iMkDataType = mkB "mkDataType"
+    iMkConstrTag = mkB "mkConstrTag"
+    iPrefix = mkB "Prefix"
+    iInfix = mkB "Infix"
+    gfoldlDef = Fcn (mkI "gfoldl") undefined
+    gunfoldDef = Fcn (mkI "gunfold") [undefined]
+    toConstrDef = Fcn (mkI "toConstr") undefined
+    dataTypeOfDef = Fcn (mkI "dataTypeOf") [eEqn [eDummy] $ EVar iTyDef]
+    dataCastDef = case length vks of
+                    1 -> mk "1"
+                    2 -> mk "2"
+                    _ -> []
+                    where mk s = [Fcn (mkI $ "dataCast" ++ s) [eEqn [] $ EVar $ mkB $ "gcast" ++ s]]
+    iTyDef = mkI "ty$"
+    tyDef = Fcn iTyDef [ eEqn [] $ eAppI2 iMkDataType (str tyname) (eList $ map EVar iConDefs) ]
+    iConDefs = [ mkI $ "con$" ++ show i | i <- [1 .. length cs] ]
+    constrInfo k (Constr _ _ name infx eflds) =
+      eApps (EVar iMkConstrTag) [ EVar iTyDef,
+                                  str name,
+                                  lit $ LInt k,
+                                  eList $ map str flds,
+                                  EVar $ if infx then iInfix else iPrefix
+                                ]
+        where flds = case eflds of Left _ -> []; Right xs -> map fst xs
+    mdefs = -- (if null cs then [] else [gfoldlDef, gunfoldDef, toConstrDef]) ++
+            dataCastDef ++ [dataTypeOfDef]
+    edefs = tyDef : zipWith3 (\ k i c -> Fcn i [eEqn [] $ constrInfo k c]) [1..] iConDefs cs
+    inst = Instance hdr mdefs edefs
+  traceM (show inst)
   return [inst]
 
 --------------------------------------------
@@ -543,7 +577,7 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
             nty =
               if length tvs /= length newtys then mhsError "mkMethod: arity" else
               case subst (zip tvs newtys) mty of
-                EForall q vks t -> EForall q (map (\ (IdKind i _) -> IdKind i (EVar dummyIdent)) vks) $ qvar t
+                EForall q vks t -> EForall q (map (\ (IdKind i _) -> IdKind i eDummy) vks) $ qvar t
                 t -> qvar t
 
             vty = qvar $ dropContext $ dropForall $ subst (zip tvs (init newtys ++ [viaty])) mty
