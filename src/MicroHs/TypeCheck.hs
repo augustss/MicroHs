@@ -1381,7 +1381,7 @@ expandInst dinst@(Instance act bs extra) = do
       --  m $1 ... = mDflt $1 ...
       mkDefault i t = ELam loc [Eqn vs $ simpleAlts $ eApps (EVar dfltId) vs]
         where dfltId = setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i
-              vs = map (EVar . mkIdentSLoc loc) ["$" ++ show k | k <- [0 .. countArrows t - 1] ]
+              vs = [EVar $ mkIdentSLoc loc $ "$" ++ show k | k <- [0 .. countArrows t - 1] ]
   case filter (not . instBind) bs of
     [] -> return ()
     b:_ -> tcError (getSLoc b) "superflous instance binding"
