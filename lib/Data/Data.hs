@@ -1,5 +1,5 @@
-{-
 module Data.Data (
+  module Data.Typeable,
   Data(..),
   DataType,
   mkDataType,
@@ -45,12 +45,13 @@ import Data.Int(Int8, Int16, Int32, Int64)
 import Data.Ix(Ix)
 import Data.List(findIndex)
 import Data.Maybe(fromJust)
-import Data.Ratio(Ratio)
+import Data.Ratio((%))
+import Data.Ratio_Type
 import Data.Typeable
 import Data.Word(Word, Word8, Word16, Word32, Word64)
 import Foreign.ForeignPtr(ForeignPtr)
 import Foreign.Ptr(Ptr)
-import Mhs.Array(Array)
+import Mhs.Array(Array, listArray, bounds, elems)
 import Numeric.Natural(Natural)
 
 class Typeable a => Data a where
@@ -856,10 +857,3 @@ deriving instance Data DecidedStrictness
 -- | @since base-4.12.0.0
 deriving instance Data a => Data (Down a)
 -}
--}
-
-module Data.Data(Data(..), module Data.Typeable) where
-import Data.Typeable
-
--- Fake Data class until the type checker bug has been fixed
-class (Typeable a) => Data a
