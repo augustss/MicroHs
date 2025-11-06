@@ -1362,13 +1362,15 @@ expandInst dinst@(Instance act bs extra) = do
       addSign i e = maybe e (ESign e) $ lookup i signs
       clsMdl = qualOf qiCls                   -- get class's module name
       ies = [(i, addSign i $ ELam loc qs) | Fcn i qs <- bs]
-      meth (i, _) = fromMaybe (ELam loc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
+      meth (i, t) = fromMaybe (mkDefault i t) $ lookup i ies
       meths = map meth mits
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
       instBind (Fcn i _) = isJust $ lookup i mits
       instBind (Sign is _) = all (\ i -> isJust $ lookup i mits) is
       instBind _ = False
+      mkDefault i _t = ELam loc $ simpleEqn $ EVar dfltId
+        where dfltId = setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i
   case filter (not . instBind) bs of
     [] -> return ()
     b:_ -> tcError (getSLoc b) "superflous instance binding"
