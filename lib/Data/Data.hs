@@ -92,7 +92,7 @@ class Typeable a => Data a where
   gmapQl o r f = getConst . gfoldl k z
     where
       k :: Data d => Const r (d->b) -> d -> Const r b
-      k c x = Const $ (getConst c) `o` f x
+      k c x = Const $ getConst c `o` f x
       z :: g -> Const r g
       z _   = Const r
 
@@ -177,7 +177,7 @@ fromConstrM :: forall m a. (Monad m, Data a)
 fromConstrM f = gunfold k z
  where
   k :: forall b r. Data b => m (b -> r) -> m r
-  k c = do { c' <- c; b <- f; return (c' b) }
+  k c = do { c' <- c; c' <$> f }
 
   z :: forall r. r -> m r
   z = return
@@ -287,15 +287,15 @@ readConstr :: DataType -> String -> Maybe Constr
 readConstr dt str =
       case dataTypeRep dt of
         AlgRep cons -> idx cons
-        IntRep      -> mkReadCon (\i -> (mkPrimCon dt str (IntConstr i)))
+        IntRep      -> mkReadCon (mkPrimCon dt str . IntConstr)
         FloatRep    -> mkReadCon ffloat
-        CharRep     -> mkReadCon (\c -> (mkPrimCon dt str (CharConstr c)))
+        CharRep     -> mkReadCon (mkPrimCon dt str . CharConstr)
         NoRep       -> Nothing
   where
 
     -- Read a value and build a constructor
     mkReadCon :: Read t => (t -> Constr) -> Maybe Constr
-    mkReadCon f = case (reads str) of
+    mkReadCon f = case reads str of
                     [(t,"")] -> Just (f t)
                     _ -> Nothing
 
@@ -397,12 +397,12 @@ tyconUQname x = case dropWhile (not . (==) '.') x of
                   _ : tl -> tyconUQname tl
 
 tyconModule :: String -> String
-tyconModule x = case break ((==) '.') x of
+tyconModule x = case break ('.' ==) x of
                   (_, "") -> ""
                   (a, _ : tl) -> a ++ tyconModule' tl
   where
     tyconModule' y = let y' = tyconModule y
-                      in if y' == "" then "" else ('.':y')
+                      in if y' == "" then "" else '.':y'
 
 -- NOT YET deriving instance Data Bool
 
@@ -660,7 +660,7 @@ instance Data a => Data [a] where
   dataCast1 f  = gcast1 f
 
   gmapT  _   []     = []
-  gmapT  f   (x:xs) = (f x:f xs)
+  gmapT  f   (x:xs) = f x : f xs
   gmapQ  _   []     = []
   gmapQ  f   (x:xs) = [f x,f xs]
   gmapM  _   []     = return []
@@ -738,7 +738,7 @@ instance Data a => Data (ForeignPtr a) where
 ------------------------------------------------------------------------------
 instance (Data a, Data b, Ix a) => Data (Array a b)
  where
-  gfoldl f z a = z (listArray (bounds a)) `f` (elems a)
+  gfoldl f z a = z (listArray (bounds a)) `f` elems a
   toConstr _   = error "Data.Data.toConstr(Array)"
   gunfold _ _  = error "Data.Data.gunfold(Array)"
   dataTypeOf _ = mkNoRepType "Data.Array.Array"
