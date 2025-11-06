@@ -220,6 +220,7 @@ library base
         Data.Bool_Type
         Data.ByteString.Internal
         Data.Char_Type
+        Data.Data_Class
         Data.Foldable.Internal
         Data.Functor.Const_Type
         Data.Int.IntN
