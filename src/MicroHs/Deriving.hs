@@ -368,7 +368,7 @@ derIx mctx 0 lhs cs@(c0:cs') eix = do
         unsafeIndexEqn =
           let mkUnsafeIndex x y z = eAppI2 iUnsafeIndex (ETuple [x, y]) z
               mkUnsafeRangeSize x y = eAppI iUnsafeRangeSize (ETuple [x, y])
-          in eEqn [ETuple [xp, yp], zp] $ foldl (\acc (x, y, z) -> eAdd (mkUnsafeIndex x y z) (eMul (mkUnsafeRangeSize x y) acc)) (mkUnsafeIndex (head xs) (head ys) (head zs)) $ zip3 (tail xs) (tail ys) (tail zs)
+          in eEqn [ETuple [xp, yp], zp] $ foldl (\ acc (x, y, z) -> eAdd (mkUnsafeIndex x y z) (eMul (mkUnsafeRangeSize x y) acc)) (mkUnsafeIndex (head xs) (head ys) (head zs)) $ zip3 (tail xs) (tail ys) (tail zs)
         inRangeEqn = eEqn [ETuple [xp, yp], zp] $ foldr1 eAnd $ zipWith3 (\x y z -> eAppI2 iInRange (ETuple [x, y]) z) xs ys zs
         inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]] []
     return [inst]
@@ -497,7 +497,7 @@ derData mctx _ lhs@(tyname, vks) cs edata = do
     eZ = EVar $ mkI "z$"
     eC = EVar $ mkI "c$"
     gfoldlDef = Fcn (mkI "gfoldl") $ map con cs
-      where con c@(Constr _ _ name _ _) = eEqn [eK, eZ, p] $ foldl (\ acc x -> eApp2 eK acc x) (EApp eZ (EVar name)) xs
+      where con c@(Constr _ _ name _ _) = eEqn [eK, eZ, p] $ foldl (eApp2 eK) (EApp eZ (EVar name)) xs
                                           where (p, xs) = mkPat c "x$"
     gunfoldDef = Fcn (mkI "gunfold") [eEqn [eK, eZ, eC] $ ECase (eAppI iConstrIndex eC) $ zipWith con [1..] cs]
       where con k (Constr _ _ name _ eflds) = (lit $ LInt k, oneAlt $ foldr EApp (EApp eZ (EVar name)) (replicate n eK))
