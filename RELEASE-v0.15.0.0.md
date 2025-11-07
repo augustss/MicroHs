@@ -17,6 +17,7 @@
  * instruction counts on supported platforms (MacOS&M4, Linux&x86_64)
  * Proper `array` package
  * Unboxed tuple and sum syntax accepted (but no unboxing)
+ * Deriving Data
 
 ## Performance
  * Evaluation in the interactive system is much faster
