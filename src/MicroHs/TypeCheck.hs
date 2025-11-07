@@ -61,8 +61,9 @@ instance NFData GlobTables where
 
 emptyGlobTables :: GlobTables
 emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.fromList dataTuples, gClassTable = M.empty, gInstInfo = M.empty }
+  -- XXX Could fill the initial symbol table from this
   where dataTuples :: [(Ident, EDef)]
-        dataTuples = [ (con, Data (con, map (\ v -> IdKind v eDummy) vs) [Constr [] [] con False (Left $ map ((False,) . EVar) vs)] [])
+        dataTuples = [ (con, Data (con, map (\ v -> IdKind v eDummy) vs) [Constr [] [] con False (Left $ map (\v-> (False, EVar v)) vs)] [])
                      | n <- 0:[2..15]
                      , let con = tupleConstr noSLoc n
                      , let vs = map (mkIdent . ("a" ++) . show) [1 .. n] ]

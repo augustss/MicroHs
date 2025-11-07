@@ -7,6 +7,7 @@ module Mhs.Builtin(
   module Data.Bool,
   module Data.Char,
   module Data.Coerce,
+  module Data.Data_Class,
   module Data.Enum,
   module Data.Eq,
   module Data.Fractional,
@@ -49,7 +50,7 @@ import Data.Proxy(Proxy(..))
 import Data.Monoid.Internal(Semigroup(..))
 import Data.String(IsString(..))
 import Data.Records(HasField(..), SetField(..), composeSet)
-import {-# SOURCE #-} Data.Typeable(Typeable(..), _mkTyCon)
+import {-# SOURCE #-} Data.Typeable(Typeable(..), _mkTyCon, gcast1, gcast2)
 import Text.ParserCombinators.ReadPrec((+++), pfail, prec, step, reset)
 import Text.Read.Internal(Read(..), readListDefault, readListPrecDefault, parens, expectP, readField)
 import Text.Read.Lex(Lexeme(..))
