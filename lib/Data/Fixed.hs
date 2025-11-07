@@ -39,6 +39,7 @@ import Text.Read.Internal
 import Text.ParserCombinators.ReadPrec
 import Text.Read.Lex
 import Data.Coerce
+import Data.Data
 import Data.Double
 import Data.Floating
 import Data.Fractional
@@ -66,7 +67,6 @@ newtype Fixed a = MkFixed Integer
                  , Ord -- ^ @since 2.01
                  )
 
-{-
 tyFixed :: DataType
 tyFixed = mkDataType "Data.Fixed.Fixed" [conMkFixed]
 
@@ -74,12 +74,11 @@ conMkFixed :: Constr
 conMkFixed = mkConstr tyFixed "MkFixed" [] Prefix
 
 -- | @since 4.1.0.0
-instance (Typeable k,Typeable a) => Data (Fixed (a :: k)) where
+instance (Typeable a) => Data (Fixed a) where
     gfoldl k z (MkFixed a) = k (z MkFixed) a
     gunfold k z _ = k (z MkFixed)
     dataTypeOf _ = tyFixed
     toConstr _ = conMkFixed
--}
 
 type HasResolution :: forall k . k -> Constraint
 class HasResolution a where
