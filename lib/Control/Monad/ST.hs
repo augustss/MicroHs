@@ -1,6 +1,8 @@
 module Control.Monad.ST(
   ST,
   runST,
+  --
+  RealWorld, stToIO,  -- GHC compat
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives(primPerformIO)
@@ -23,3 +25,12 @@ instance Monad (ST s) where
 
 instance MonadFix (ST s) where
   mfix f = ST (fixIO (unST . f))
+
+---------------------------------
+-- This does not belong here since it's GHC specific,
+-- but to be compatible we do it the same way.
+
+data RealWorld  -- Just to be compatible with GHC.  We don't use it.
+
+stToIO :: forall a . ST RealWorld a -> IO a
+stToIO = unST
