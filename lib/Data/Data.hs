@@ -39,13 +39,21 @@ module Data.Data (
   fromConstrM,
   ) where
 import Data.Data_Class
+import Data.Functor.Const(Const(..))
 import Data.Functor.Identity(Identity(..))
 import Data.Int(Int8, Int16, Int32, Int64)
 import Data.Ix(Ix)
 import Data.List(findIndex)
+import Data.List.NonEmpty(NonEmpty(..))
+import Data.Monoid
+import Data.Proxy
 import Data.Ratio((%))
 import Data.Ratio_Type
+import Data.Tuple
 import Data.Typeable
+import Data.Type.Equality
+import Data.Version
+import Data.Void
 import Data.Word(Word, Word8, Word16, Word32, Word64)
 import Foreign.ForeignPtr(ForeignPtr)
 import Foreign.Ptr(Ptr)
@@ -256,7 +264,7 @@ tyconModule x = case break ('.' ==) x of
     tyconModule' y = let y' = tyconModule y
                       in if y' == "" then "" else '.':y'
 
---deriving instance Data Bool
+deriving instance Data Bool
 
 ------------------------------------------------------------------------------
 
@@ -520,7 +528,6 @@ instance Data a => Data [a] where
 
 
 ------------------------------------------------------------------------------
-{- NOT YET
 -- | @since base-4.9.0.0
 deriving instance Data a => Data (NonEmpty a)
 
@@ -556,6 +563,7 @@ deriving instance (Data a, Data b, Data c, Data d)
 deriving instance (Data a, Data b, Data c, Data d, Data e)
          => Data (a,b,c,d,e)
 
+{-
 -- | @since base-4.0.0.0
 deriving instance (Data a, Data b, Data c, Data d, Data e, Data f)
          => Data (a,b,c,d,e,f)
@@ -596,7 +604,6 @@ instance (Data a, Data b, Ix a) => Data (Array a b)
   dataTypeOf _ = mkNoRepType "Data.Array.Array"
   dataCast2 x  = gcast2 x
 
-{- NOT YET
 ----------------------------------------------------------------------------
 -- Data instance for Proxy
 
@@ -606,6 +613,7 @@ deriving instance (Data t) => Data (Proxy t)
 -- | @since base-4.7.0.0
 deriving instance (a ~ b, Data a) => Data (a :~: b)
 
+{-
 -- | @since base-4.10.0.0
 deriving instance (Typeable i, Typeable j, Typeable a, Typeable b,
                     (a :: i) ~~ (b :: j))
@@ -613,18 +621,19 @@ deriving instance (Typeable i, Typeable j, Typeable a, Typeable b,
 
 -- | @since base-4.7.0.0
 deriving instance (Coercible a b, Data a, Data b) => Data (Coercion a b)
+-}
 
 -- | @since base-4.9.0.0
 deriving instance Data a => Data (Identity a)
 
 -- | @since base-4.10.0.0
-deriving instance (Typeable k, Data a, Typeable (b :: k)) => Data (Const a b)
+deriving instance (Data a, Data b) => Data (Const a b)
 
 -- | @since base-4.7.0.0
 deriving instance Data Version
 
 ----------------------------------------------------------------------------
--- Data instances for GHC.Internal.Data.Monoid wrappers
+-- Data instances for Data.Monoid wrappers
 
 -- | @since base-4.8.0.0
 deriving instance Data a => Data (Dual a)
@@ -648,11 +657,12 @@ deriving instance Data a => Data (First a)
 deriving instance Data a => Data (Last a)
 
 -- | @since base-4.8.0.0
-deriving instance (Data (f a), Data a, Typeable f) => Data (Alt f a)
+--deriving instance (Data (f a), Data a, Typeable f) => Data (Alt f a)
 
 -- | @since base-4.12.0.0
-deriving instance (Data (f a), Data a, Typeable f) => Data (Ap f a)
+--deriving instance (Data (f a), Data a, Typeable f) => Data (Ap f a)
 
+{-
 ----------------------------------------------------------------------------
 -- Data instances for GHC.Generics representations
 
