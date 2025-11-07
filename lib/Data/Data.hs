@@ -528,40 +528,17 @@ instance Data a => Data [a] where
 
 
 ------------------------------------------------------------------------------
--- | @since base-4.9.0.0
 deriving instance Data a => Data (NonEmpty a)
-
--- | @since base-4.0.0.0
 deriving instance Data a => Data (Maybe a)
-
--- | @since base-4.0.0.0
 deriving instance Data Ordering
-
--- | @since base-4.0.0.0
 deriving instance (Data a, Data b) => Data (Either a b)
-
--- | @since base-4.8.0.0
 deriving instance Data Void
-
--- | @since base-4.0.0.0
 deriving instance Data ()
-
--- | @since base-4.15
 deriving instance Data a => Data (Solo a)
-
--- | @since base-4.0.0.0
 deriving instance (Data a, Data b) => Data (a,b)
-
--- | @since base-4.0.0.0
 deriving instance (Data a, Data b, Data c) => Data (a,b,c)
-
--- | @since base-4.0.0.0
-deriving instance (Data a, Data b, Data c, Data d)
-         => Data (a,b,c,d)
-
--- | @since base-4.0.0.0
-deriving instance (Data a, Data b, Data c, Data d, Data e)
-         => Data (a,b,c,d,e)
+deriving instance (Data a, Data b, Data c, Data d) => Data (a,b,c,d)
+deriving instance (Data a, Data b, Data c, Data d, Data e) => Data (a,b,c,d,e)
 
 {-
 -- | @since base-4.0.0.0
