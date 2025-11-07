@@ -158,6 +158,7 @@ data DerStrategy
   | DerNewtype
   | DerAnyClass
   | DerVia EConstraint
+--DEBUG  deriving (Show)
 
 instance NFData DerStrategy where
   rnf (DerVia a) = rnf a

@@ -60,7 +60,12 @@ instance NFData GlobTables where
   rnf (GlobTables a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
 
 emptyGlobTables :: GlobTables
-emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty }
+emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.fromList dataTuples, gClassTable = M.empty, gInstInfo = M.empty }
+  where dataTuples :: [(Ident, EDef)]
+        dataTuples = [ (con, Data (con, map (\ v -> IdKind v eDummy) vs) [Constr [] [] con False (Left $ map ((False,) . EVar) vs)] [])
+                     | n <- 0:[2..15]
+                     , let con = tupleConstr noSLoc n
+                     , let vs = map (mkIdent . ("a" ++) . show) [1 .. n] ]
 
 mergeGlobTables :: GlobTables -> GlobTables -> GlobTables
 mergeGlobTables g1 g2 =

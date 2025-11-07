@@ -35,7 +35,7 @@ deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of argum
     DerVia via | newt             -> newtypeDer  mctx narg lhs (cs!!0) cls (Just via)
     _                             -> cannotDerive lhs cls
   where useNewt d = unIdent (getAppCon d) `notElem`
-          ["Data.Data.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic",
+          ["Data.Data_Class.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic",
            "Language.Haskell.TH.Syntax.Lift", "Text.Read.Internal.Read", "Text.Show.Show"]
 
 type DeriverT = Int -> LHS -> [Constr] -> EConstraint -> T [EDef]   -- Bool indicates a newtype
@@ -49,7 +49,7 @@ derivers :: [(String, Deriver)]
 derivers =
   [("Data.Bounded.Bounded",            derBounded)
   ,("Data.Enum_Class.Enum",            derEnum)
-  ,("Data.Data.Data",                  derData)
+  ,("Data.Data_Class.Data",            derData)
   ,("Data.Eq.Eq",                      derEq)
   ,("Data.Functor.Functor",            derNotYet) -- derFunctor)
   ,("Data.Ix.Ix",                      derIx)
@@ -527,7 +527,7 @@ derData mctx _ lhs@(tyname, vks) cs edata = do
             dataCastDef ++ [dataTypeOfDef]
     edefs = tyDef : zipWith3 (\ k i c -> Fcn i [eEqn [] $ constrInfo k c]) [1..] iConDefs cs
     inst = Instance hdr mdefs edefs
-  traceM (show inst)
+--  traceM (show inst)
   return [inst]
 
 --------------------------------------------
