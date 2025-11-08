@@ -479,9 +479,11 @@ derRead _ _ lhs _ e = cannotDerive lhs e
 -- Deriving for the Data class.
 --  data T a = A
 derData :: Deriver
-derData mctx _ lhs@(tyname, vks) cs edata = do
+derData mctx _ lhs@(utyname, vks) cs edata = do
   hdr <- mkHdr mctx lhs cs edata
+  mn <- getDefModuleName mctx
   let
+    tyname = qualIdent mn utyname
     loc = getSLoc edata
     mkB = mkBuiltin loc
     mkI = mkIdentSLoc loc
