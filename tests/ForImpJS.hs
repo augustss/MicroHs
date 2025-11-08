@@ -1,5 +1,5 @@
 module ForImpJS where
-import Data.Text
+import Data.Text hiding(show)
 import Foreign.C.String(CString)
 
 foreign import javascript "console.log('log: ' + UTF8ToString($0))" clog :: CString -> IO ()

@@ -93,8 +93,8 @@ lex loc ('0':x:cs)
   where isBinDigit c = c == '0' || c == '1'
 lex loc cs@(d:_) | isDigit d =
   case readNumDec cs of
-    (Left n, len, rs) -> TInt loc n : lex (addCol loc len) rs
-    (Right q, len, rs) -> TRat loc q : lex (addCol loc len) rs
+    (Left n,  len, rs) -> TInt loc n : lexSkipHash (addCol loc len) rs
+    (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc len) rs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
 lex loc ('(':dcs@(d:cs)) | d == '#'  = TSpec loc 'L' : lex (addCol loc 2) cs
@@ -120,7 +120,8 @@ lex loc (c:cs@(d:_)) | isSpecSing c && not (isOperChar d) = -- handle reserved
 lex loc (d:cs) | isOperChar d =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
-lex loc (d:cs) | isSpec d  = TSpec loc d : lex (addCol loc 1) cs
+lex loc (d:cs) | isSpec d =
+  TSpec loc d : lex (addCol loc 1) cs
 lex loc ('"':'"':'"':cs) = lexLitStr loc (addCol loc 3) (TString loc) isTrip multiLine cs
   where isTrip ('"':'"':'"':_) = Just 3
         isTrip _ = Nothing
@@ -144,8 +145,13 @@ nested loc cs = skipNest loc 1 cs
 lexNumBasePrefix :: Char -> Integer -> (Char -> Bool) -> SLoc -> String -> [Token]
 lexNumBasePrefix x base isDig loc cs =
   case readIntBase base isDig cs of
-    Just (n, len, rs) -> TInt loc n : lex (addCol loc $ len + 2) rs
-    Nothing -> TInt loc 0 : lex (addCol loc 1) (x : cs)
+    Just (n, len, rs) -> TInt loc n : lexSkipHash (addCol loc $ len + 2) rs
+    Nothing           -> TInt loc 0 : lexSkipHash (addCol loc 1) (x : cs)
+
+-- Used to skip # after numbers
+lexSkipHash :: SLoc -> String -> [Token]
+lexSkipHash loc ('#':cs) = lexSkipHash (addCol loc 1) cs
+lexSkipHash loc cs = lex loc cs
 
 readIntBase :: Integer -> (Char -> Bool) -> String -> Maybe (Integer, Int, String)
 readIntBase base isDig ds =

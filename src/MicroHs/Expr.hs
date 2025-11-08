@@ -62,7 +62,6 @@ import MicroHs.Builtin
 import MicroHs.Ident
 import {-# SOURCE #-} MicroHs.TCMonad(TCState)
 import Text.PrettyPrint.HughesPJLite
-import GHC.Stack
 
 type IdentModule = Ident
 
@@ -159,6 +158,7 @@ data DerStrategy
   | DerNewtype
   | DerAnyClass
   | DerVia EConstraint
+--DEBUG  deriving (Show)
 
 instance NFData DerStrategy where
   rnf (DerVia a) = rnf a

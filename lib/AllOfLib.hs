@@ -58,6 +58,8 @@ import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Functor.Sum
 import Data.Hashable
+import Data.Hashable.Class
+import Data.Hashable.Lifted
 import Data.IORef
 import Data.Int
 import Data.Int.Int8
@@ -126,9 +128,7 @@ import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.StablePtr
 import Foreign.Storable
-import GHC.Exts
-import GHC.Stack
-import GHC.Types
+import GHC.Generics
 import Numeric
 import Numeric.FormatFloat
 import Numeric.Natural

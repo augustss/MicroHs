@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, checkDupInstances, removeUnused) where
+module MicroHs.ExpPrint(toStringCMdl, toStringP, encodeString, combVersion, removeUnused, renumberCMdl) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char(ord, chr)
 import qualified MicroHs.IdentMap as M
@@ -7,11 +7,14 @@ import Data.Maybe
 import MicroHs.Desugar(LDef)
 import MicroHs.EncodeData(encList)
 import MicroHs.Exp
-import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..))
+import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..), CType)
 import MicroHs.Ident(Ident, showIdent, mkIdent, showSLoc)
 import MicroHs.List(groupSort)
 import MicroHs.State
 import MicroHs.TypeCheck(isInstId)
+
+type CMdl = ([LDef], Exp)
+type ForExpTable = [(Ident, Ident, CType)]
 
 -- Version number of combinator file.
 -- Must match version in eval.c.
@@ -19,7 +22,7 @@ combVersion :: String
 combVersion = "v8.3\n"
 
 -- Remove unused definitions.  Only used for dumping definitions.
-removeUnused :: ([LDef], Exp) -> [LDef]
+removeUnused :: CMdl -> [LDef]
 removeUnused (ds, emain) = dfs roots M.empty
   where
     fexps = [ i | (i, e) <- ds, isJust $ getForExp e ]
@@ -32,13 +35,13 @@ removeUnused (ds, emain) = dfs roots M.empty
                                   where e = fromMaybe (error $ "removeUnused: undef " ++ show i) $ M.lookup i dMap
 
 -- Rename (to a numbers) top level definitions and remove unused ones.
--- Also check for duplicated instances.
 -- This is the "linking" of the program.
-renumberCMdl :: ([LDef], Exp) -> (Int, [Ident], [LDef], Exp)
+-- Returns the renamed foreign exports and the "linked" CNdl
+renumberCMdl :: CMdl -> (ForExpTable, CMdl)
 renumberCMdl (ds, emain) =
   let
-    fexps = [ i | (i, e) <- ds, isJust $ getForExp e ]
-    roots = freeVars emain ++ fexps
+    fexps = [ (i, t) | (i, e) <- ds, Just (_, t) <- [getForExp e] ]
+    roots = freeVars emain ++ map fst fexps
     dMap = M.fromList ds
     -- Shake the tree bottom-up, renaming identifiers as we go along.
     -- This is much faster than (say) computing the sccs and walking that.
@@ -56,7 +59,7 @@ renumberCMdl (ds, emain) =
           -- Now that n's children are done, compute its actual entry.
           (i', seen', r') <- get
           put (i'+1, M.insert n (ref i') seen', (mkIdent $ show i', substv e) : r')
-    (_,(ndefs, defs, res)) = runState (mapM_ dfs roots) (0, M.empty, [])
+    (_, (_, defs, res)) = runState (mapM_ dfs roots) (0, M.empty, [])
     ref i = Var $ mkIdent $ "_" ++ show i
     findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
                       M.lookup n m
@@ -66,19 +69,17 @@ renumberCMdl (ds, emain) =
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-    fexps' = map (unVar . findIdent) fexps
+    fexps' = [ (unVar (findIdent i), i, t) | (i, t) <- fexps ]
       where unVar (Var n) = n
             unVar _ = undefined
   in
-    (ndefs, fexps', res, substv emain)
+    (fexps', (checkDupInstances res, substv emain))
 
 -- The argument is all definitions and the main expression.
--- The result is the number of definitions, all foreign export identifiers, and the program as a string.
-toStringCMdl :: ([LDef], Exp) -> (Int, [Ident], String)
-toStringCMdl mds =
+-- The result is the program as a string.
+toStringCMdl :: CMdl -> String
+toStringCMdl (ds, emain) =
   let
-    (ndefs, exps, ds, emain) = renumberCMdl mds
-
     def :: (Ident, Exp) -> (String -> String) -> (String -> String)
     def (i, e) r | Just (e', _) <- getForExp e = def (i, e') r
     def (i, e) r =
@@ -87,8 +88,7 @@ toStringCMdl mds =
     res :: String -> String
     res = foldr def (toStringP emain) ds
 
-  in
-    (ndefs, exps, combVersion ++ show ndefs ++ "\n" ++ res " }")
+  in combVersion ++ show (length ds) ++ "\n" ++ res " }"
 
 checkDupInstances :: [LDef] -> [LDef]
 checkDupInstances ds =
@@ -125,10 +125,11 @@ toStringP ae =
     --App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
     App f a -> toStringP f . toStringP a . ("@" ++)
 
--- Strings are encoded in a slightly unusal way.
+-- Strings are encoded in a slightly unusual way.
 -- It ensure that (most) printable ASCII only take
 -- up 1 byte, and outside this range, only 2 bytes.
 -- The input should be in the range 0x00-0xff.
+-- This encoding must agree with the decoder in eval.c.
 -- '\x00'..'\x1f'  "^\x20".."^\x3f"
 -- '\x20'..'\x7e'  '\x20'..'\x7e', except '^','\\','|','"'
 -- '"'             "\\\""

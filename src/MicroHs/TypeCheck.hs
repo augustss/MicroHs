@@ -37,7 +37,6 @@ import MicroHs.Names
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
-import GHC.Stack
 import Debug.Trace
 
 --primitiveKinds :: [String]
@@ -61,7 +60,13 @@ instance NFData GlobTables where
   rnf (GlobTables a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
 
 emptyGlobTables :: GlobTables
-emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.empty, gClassTable = M.empty, gInstInfo = M.empty }
+emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.fromList dataTuples, gClassTable = M.empty, gInstInfo = M.empty }
+  -- XXX Could fill the initial symbol table from this
+  where dataTuples :: [(Ident, EDef)]
+        dataTuples = [ (con, Data (con, map (\ v -> IdKind v eDummy) vs) [Constr [] [] con False (Left $ map (\v-> (False, EVar v)) vs)] [])
+                     | n <- 0:[2..15]
+                     , let con = tupleConstr noSLoc n
+                     , let vs = map (mkIdent . ("a" ++) . show) [1 .. n] ]
 
 mergeGlobTables :: GlobTables -> GlobTables -> GlobTables
 mergeGlobTables g1 g2 =
@@ -1294,12 +1299,18 @@ expandClass dcls@(Class _ctx (iCls, vks) _fds ms) = do
       -- default methods.
       -- XXX This isn't really enough for complicated nested quantifiers.
       etaExp t e =
-        let n = length $ fst $ getArrows $ (\ (_,_,x)->x) $ splitContext t
+        let n = countArrows t
             vs = replicate n (EVar dummyIdent)
         in  [Eqn vs $ simpleAlts e]
       dDflts = concatMap mkDflt meths
   return $ dcls : dDflts
 expandClass d = return [d]
+
+-- Ignoring initial quantifiers and context, how many arrows does the type have?
+countArrows :: EType -> Int
+countArrows (EForall _ _ t) = countArrows t
+countArrows t | Just (_, t') <- getImplies t = countArrows t'
+              | otherwise = length . fst . getArrows $ t
 
 simpleEqn :: Expr -> [Eqn]
 simpleEqn e = [Eqn [] $ simpleAlts e]
@@ -1363,13 +1374,20 @@ expandInst dinst@(Instance act bs extra) = do
       addSign i e = maybe e (ESign e) $ lookup i signs
       clsMdl = qualOf qiCls                   -- get class's module name
       ies = [(i, addSign i $ ELam loc qs) | Fcn i qs <- bs]
-      meth (i, _) = fromMaybe (ELam loc $ simpleEqn $ EVar $ setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i) $ lookup i ies
+      meth (i, t) = fromMaybe (mkDefault i t) $ lookup i ies
       meths = map meth mits
       sups = map (const (EVar $ mkIdentSLoc loc dictPrefixDollar)) supers
       args = sups ++ meths
       instBind (Fcn i _) = isJust $ lookup i mits
       instBind (Sign is _) = all (\ i -> isJust $ lookup i mits) is
       instBind _ = False
+      -- When the method type has nested quantifiers the type checker cannot handle
+      --  m = mDflt
+      -- so we eta expand the definition t
+      --  m $1 ... = mDflt $1 ...
+      mkDefault i t = ELam loc [Eqn vs $ simpleAlts $ eApps (EVar dfltId) vs]
+        where dfltId = setSLocIdent loc $ mkDefaultMethodId $ qualIdent clsMdl i
+              vs = [EVar $ mkIdentSLoc loc $ "$" ++ show k | k <- [0 .. countArrows t - 1] ]
   case filter (not . instBind) bs of
     [] -> return ()
     b:_ -> tcError (getSLoc b) "superflous instance binding"

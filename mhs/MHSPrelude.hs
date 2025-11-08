@@ -39,6 +39,7 @@ module MHSPrelude(
   wantGMP,
   compiledWithMhs,
   Int64,
+  HasCallStack,
   ) where
 import qualified Prelude()
 --import Primitives(primRnfNoErr, primRnfErr)
@@ -117,3 +118,6 @@ first f (a, b) = (f a, b)
 
 second :: forall a b c . (b -> c) -> (a, b) -> (a, c)
 second f (a, b) = (a, f b)
+
+class HasCallStack
+instance HasCallStack

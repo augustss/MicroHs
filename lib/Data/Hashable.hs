@@ -2,6 +2,9 @@
 
 module Data.Hashable(
   Hashable(..),
+  hashInt,
+  defaultSalt,
+  distinguisher,
   ) where
 
 --import Data.Bits

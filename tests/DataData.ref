@@ -1,0 +1,9 @@
+DataType {tycon = "DataData.T", datarep = AlgRep [C0,C1,C2,C3,C4]}
+C1
+1
+2
+Constr { conrep=AlgConstr 1, constring=C0, confields=[], confixity=Prefix, datatype=DataData.T
+Constr { conrep=AlgConstr 2, constring=C1, confields=[], confixity=Prefix, datatype=DataData.T
+Constr { conrep=AlgConstr 3, constring=C2, confields=[], confixity=Prefix, datatype=DataData.T
+Constr { conrep=AlgConstr 4, constring=C3, confields=["x","y","z"], confixity=Prefix, datatype=DataData.T
+Constr { conrep=AlgConstr 5, constring=C4, confields=[], confixity=Infix, datatype=DataData.T

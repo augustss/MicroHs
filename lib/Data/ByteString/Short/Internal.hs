@@ -169,7 +169,6 @@ import Data.Semigroup ( Semigroup(..), stimesMonoid )
 import Data.List.NonEmpty ( NonEmpty(..) )
 import Data.String ( IsString(..) )
 -- import qualified GHC.Exts -- XXX OverloadedLists
-import GHC.Stack ( HasCallStack )
 import Data.ByteString as BS
 import Data.ByteString.Unsafe as BS.Unsafe
 
@@ -238,19 +237,19 @@ cons = coerce BS.cons
 append :: ShortByteString -> ShortByteString -> ShortByteString
 append = coerce BS.append
 
-last :: HasCallStack => ShortByteString -> Word8
+last :: {-HasCallStack => -} ShortByteString -> Word8
 last = coerce BS.last
 
-tail :: HasCallStack => ShortByteString -> ShortByteString
+tail :: {-HasCallStack => -} ShortByteString -> ShortByteString
 tail = coerce BS.tail
 
 uncons :: ShortByteString -> Maybe (Word8, ShortByteString)
 uncons = coerce BS.uncons
 
-head :: HasCallStack => ShortByteString -> Word8
+head :: {-HasCallStack => -} ShortByteString -> Word8
 head = coerce BS.head
 
-init :: HasCallStack => ShortByteString -> ShortByteString
+init :: {-HasCallStack => -} ShortByteString -> ShortByteString
 init = coerce BS.init
 
 unsnoc :: ShortByteString -> Maybe (ShortByteString, Word8)
@@ -277,10 +276,10 @@ foldl f e = BS.foldl f e . coerce
 foldl' :: (a -> Word8 -> a) -> a -> ShortByteString -> a
 foldl' f e = BS.foldl' f e . coerce
 
-foldl1 :: HasCallStack => (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
+foldl1 :: {- HasCallStack => -} (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
 foldl1 = coerce BS.foldl1
 
-foldl1' :: HasCallStack => (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
+foldl1' :: {- HasCallStack => -} (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
 foldl1' = coerce BS.foldl1'
 
 foldr :: (Word8 -> a -> a) -> a -> ShortByteString -> a
@@ -289,10 +288,10 @@ foldr f e = BS.foldr f e . coerce
 foldr' :: (Word8 -> a -> a) -> a -> ShortByteString -> a
 foldr' f e = BS.foldr' f e . coerce
 
-foldr1 :: HasCallStack => (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
+foldr1 :: {- HasCallStack => -} (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
 foldr1 = coerce BS.foldr1
 
-foldr1' :: HasCallStack => (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
+foldr1' :: {- HasCallStack => -} (Word8 -> Word8 -> Word8) -> ShortByteString -> Word8
 foldr1' = coerce BS.foldr1'
 
 all :: (Word8 -> Bool) -> ShortByteString -> Bool
@@ -388,7 +387,7 @@ filter = coerce BS.filter
 partition :: (Word8 -> Bool) -> ShortByteString -> (ShortByteString, ShortByteString)
 partition = coerce BS.partition
 
-index :: HasCallStack => ShortByteString -> Int -> Word8
+index :: {- HasCallStack => -} ShortByteString -> Int -> Word8
 index = coerce BS.index
 
 indexMaybe :: ShortByteString -> Int -> Maybe Word8

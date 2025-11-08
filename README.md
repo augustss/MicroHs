@@ -52,6 +52,7 @@ Differences:
    * ConstraintKinds
    * DefaultSignatures
    * DeriveAnyClass
+   * DerivingDataTypeable
    * DerivingStrategies
    * DerivingVia
    * DoAndIfThenElse

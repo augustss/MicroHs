@@ -35,7 +35,7 @@ deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of argum
     DerVia via | newt             -> newtypeDer  mctx narg lhs (cs!!0) cls (Just via)
     _                             -> cannotDerive lhs cls
   where useNewt d = unIdent (getAppCon d) `notElem`
-          ["Data.Data.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic",
+          ["Data.Data_Class.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic",
            "Language.Haskell.TH.Syntax.Lift", "Text.Read.Internal.Read", "Text.Show.Show"]
 
 type DeriverT = Int -> LHS -> [Constr] -> EConstraint -> T [EDef]   -- Bool indicates a newtype
@@ -49,7 +49,7 @@ derivers :: [(String, Deriver)]
 derivers =
   [("Data.Bounded.Bounded",            derBounded)
   ,("Data.Enum_Class.Enum",            derEnum)
-  ,("Data.Data.Data",                  derData)
+  ,("Data.Data_Class.Data",            derData)
   ,("Data.Eq.Eq",                      derEq)
   ,("Data.Functor.Functor",            derNotYet) -- derFunctor)
   ,("Data.Ix.Ix",                      derIx)
@@ -228,8 +228,8 @@ derEq mctx 0 lhs cs eeq = do
   hdr <- mkHdr mctx lhs cs eeq
   let loc = getSLoc eeq
       mkEqn c =
-        let (xp, xs) = mkPat c "x"
-            (yp, ys) = mkPat c "y"
+        let (xp, xs) = mkPat c "x$"
+            (yp, ys) = mkPat c "y$"
         in  eEqn [xp, yp] $ if null xs then eTrue else foldr1 eAnd $ zipWith eEq xs ys
       eqns = if null cs then [eEqn [eDummy, eDummy] eTrue] else map mkEqn cs ++ [eEqn [eDummy, eDummy] eFalse]
       iEq = mkIdentSLoc loc "=="
@@ -249,8 +249,8 @@ derOrd mctx 0 lhs cs eord = do
   hdr <- mkHdr mctx lhs cs eord
   let loc = getSLoc eord
       mkEqn c =
-        let (xp, xs) = mkPat c "x"
-            (yp, ys) = mkPat c "y"
+        let (xp, xs) = mkPat c "x$"
+            (yp, ys) = mkPat c "y$"
         in  [eEqn [xp, yp] $ if null xs then eEQ else foldr1 eComb $ zipWith eCompare xs ys
             ,eEqn [xp, eDummy] eLT
             ,eEqn [eDummy, yp] eGT]
@@ -361,14 +361,14 @@ derIx mctx 0 lhs cs@(c0:cs') eix = do
         eAdd = eAppI2 (mkBuiltin loc "+")
         eMul = eAppI2 (mkBuiltin loc "*")
         iUnsafeRangeSize = mkIdentSLoc loc "unsafeRangeSize"
-        (xp, xs) = mkPat c0 "x"
-        (yp, ys) = mkPat c0 "y"
-        (zp, zs) = mkPat c0 "z"
+        (xp, xs) = mkPat c0 "x$"
+        (yp, ys) = mkPat c0 "y$"
+        (zp, zs) = mkPat c0 "z$"
         rangeEqn = eEqn [ETuple [xp, yp]] $ EListish (LCompr (tApps iC0 zs) (zipWith3 (\x y z -> SBind z (eAppI iRange (ETuple [x, y]))) xs ys zs))
         unsafeIndexEqn =
           let mkUnsafeIndex x y z = eAppI2 iUnsafeIndex (ETuple [x, y]) z
               mkUnsafeRangeSize x y = eAppI iUnsafeRangeSize (ETuple [x, y])
-          in eEqn [ETuple [xp, yp], zp] $ foldl (\acc (x, y, z) -> eAdd (mkUnsafeIndex x y z) (eMul (mkUnsafeRangeSize x y) acc)) (mkUnsafeIndex (head xs) (head ys) (head zs)) $ zip3 (tail xs) (tail ys) (tail zs)
+          in eEqn [ETuple [xp, yp], zp] $ foldl (\ acc (x, y, z) -> eAdd (mkUnsafeIndex x y z) (eMul (mkUnsafeRangeSize x y) acc)) (mkUnsafeIndex (head xs) (head ys) (head zs)) $ zip3 (tail xs) (tail ys) (tail zs)
         inRangeEqn = eEqn [ETuple [xp, yp], zp] $ foldr1 eAnd $ zipWith3 (\x y z -> eAppI2 iInRange (ETuple [x, y]) z) xs ys zs
         inst = Instance hdr [Fcn iRange [rangeEqn], Fcn iUnsafeIndex [unsafeIndexEqn], Fcn iInRange [inRangeEqn]] []
     return [inst]
@@ -384,7 +384,7 @@ derShow mctx 0 lhs cs eshow = do
   fixLookup <- getFixLookup mctx  -- fixity lookup function.  Not used yet.
   let loc = getSLoc eshow
       mkEqn c@(Constr _ _ name isInfix fields) =
-        let (xp, xs) = mkPat c "x"
+        let (xp, xs) = mkPat c "x$"
         in  eEqn [varp, xp] $ showRHS name isInfix xs fields
 
       var = EVar . mkBuiltin loc
@@ -456,7 +456,7 @@ derRead mctx 0 lhs cs eread = do
     eReturn = eAppI (mkBuiltin loc "return")
     ePfail = EVar (mkBuiltin loc "pfail")
     readConstr c@(Constr _ _ ident isInfix fields) =
-      let (xe, xs) = mkPat c "x"
+      let (xe, xs) = mkPat c "x$"
           name = unIdent ident
           readName = map SThen $ if isAlpha (head name) then [eExpectIdent name] else [eExpectPunc "(", eExpectSymbol name, eExpectPunc ")"]
           readNameInfix = map SThen $ if isAlpha (head name) then [eExpectPunc "`", eExpectIdent name, eExpectPunc "`"] else [eExpectSymbol name]
@@ -476,13 +476,60 @@ derRead _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 
--- Deriving for the fake Data class.
+-- Deriving for the Data class.
+--  data T a = A
 derData :: Deriver
-derData mctx _ lhs cs edata = do
-  notYet edata
+derData mctx _ lhs@(utyname, vks) cs edata = do
   hdr <- mkHdr mctx lhs cs edata
+  mn <- getDefModuleName mctx
   let
-    inst = Instance hdr [] []
+    tyname = qualIdent mn utyname
+    loc = getSLoc edata
+    mkB = mkBuiltin loc
+    mkI = mkIdentSLoc loc
+    lit = ELit loc
+    str = lit . LStr . unIdentPar
+    eList = EListish . LList
+    iMkDataType = mkB "mkDataType"
+    iMkConstrTag = mkB "mkConstrTag"
+    iConstrIndex = mkB "constrIndex"
+    iPrefix = mkB "Prefix"
+    iInfix = mkB "Infix"
+    eK = EVar $ mkI "k$"
+    eZ = EVar $ mkI "z$"
+    eC = EVar $ mkI "c$"
+    gfoldlDef = Fcn (mkI "gfoldl") $ map con cs
+      where con c@(Constr _ _ name _ _) = eEqn [eK, eZ, p] $ foldl (eApp2 eK) (EApp eZ (EVar name)) xs
+                                          where (p, xs) = mkPat c "x$"
+    gunfoldDef = Fcn (mkI "gunfold") [eEqn [eK, eZ, eC] $ ECase (eAppI iConstrIndex eC) $ zipWith con [1..] cs]
+      where con k (Constr _ _ name _ eflds) = (lit $ LInt k, oneAlt $ foldr EApp (EApp eZ (EVar name)) (replicate n eK))
+                                              where n = either length length eflds
+    toConstrDef = Fcn (mkI "toConstr") $ zipWith con cs eConDefs
+      where con c e = eEqn [fst $ mkPat c "x$"] e
+    dataTypeOfDef = Fcn (mkI "dataTypeOf") [eEqn [eDummy] $ EVar iTyDef]
+    dataCastDef = case length vks of
+                    1 -> mk "1"
+                    2 -> mk "2"
+                    _ -> []
+                    where mk s = [Fcn (mkI $ "dataCast" ++ s) [eEqn [] $ EVar $ mkB $ "gcast" ++ s]]
+    iTyDef = mkI "ty$"
+    tyDef = Fcn iTyDef [ eEqn [] $ eAppI2 iMkDataType (str tyname) (eList eConDefs) ]
+    iConDefs = [ mkI $ "con$" ++ show i | i <- [1 .. length cs] ]
+    eConDefs = map EVar iConDefs
+    constrInfo k (Constr _ _ name infx eflds) =
+      eApps (EVar iMkConstrTag) [ EVar iTyDef,
+                                  str name,
+                                  lit $ LInt k,
+                                  eList $ map str flds,
+                                  EVar $ if infx then iInfix else iPrefix
+                                ]
+        where flds = case eflds of Left _ -> []; Right xs -> map fst xs
+
+    mdefs = (if null cs then [] else [gfoldlDef, gunfoldDef, toConstrDef]) ++
+            dataCastDef ++ [dataTypeOfDef]
+    edefs = tyDef : zipWith3 (\ k i c -> Fcn i [eEqn [] $ constrInfo k c]) [1..] iConDefs cs
+    inst = Instance hdr mdefs edefs
+--  traceM (show inst)
   return [inst]
 
 --------------------------------------------
@@ -543,7 +590,7 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
             nty =
               if length tvs /= length newtys then mhsError "mkMethod: arity" else
               case subst (zip tvs newtys) mty of
-                EForall q vks t -> EForall q (map (\ (IdKind i _) -> IdKind i (EVar dummyIdent)) vks) $ qvar t
+                EForall q vks t -> EForall q (map (\ (IdKind i _) -> IdKind i eDummy) vks) $ qvar t
                 t -> qvar t
 
             vty = qvar $ dropContext $ dropForall $ subst (zip tvs (init newtys ++ [viaty])) mty

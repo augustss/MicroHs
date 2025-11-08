@@ -12,7 +12,7 @@ y = 0
 -----
 "../tmp/E.hs": line 5, col 1:
   found:    ;
-  expected: - LQIdent ( UQIdent [ literal _primitive @ \ case let if QualDo do mdo
+  expected: - LQIdent ( UQIdent [ literal _primitive @ (# \ case let if QualDo do mdo
 
 =====
 module E() where

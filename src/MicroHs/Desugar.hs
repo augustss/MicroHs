@@ -14,7 +14,6 @@ import Data.List
 import Data.Maybe
 import Data.Ratio
 import Debug.Trace
-import GHC.Stack
 
 import MicroHs.EncodeData
 import MicroHs.Expr

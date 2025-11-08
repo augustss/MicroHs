@@ -4,7 +4,7 @@ module Data.Typeable (
   typeOf,
   cast,
   eqT,
-  gcast,
+  gcast, gcast1, gcast2,
   TyCon,
   tyConModule,
   tyConName,
@@ -126,10 +126,24 @@ eqT = if typeRep (Proxy :: Proxy a) == typeRep (Proxy :: Proxy b)
       then Just $ unsafeCoerce (Refl :: () :~: ())
       else Nothing
 
-gcast :: forall a b c .
-         (Typeable a, Typeable b) => c a -> Maybe (c b)
+gcast :: forall c t t' .
+         (Typeable t, Typeable t') => c t -> Maybe (c t')
 gcast x =
-  case eqT :: Maybe (a :~: b) of
+  case eqT :: Maybe (t :~: t') of
+    Just Refl -> Just x
+    Nothing -> Nothing
+
+gcast1 :: forall c t t' a .
+          (Typeable t, Typeable t') => c (t a) -> Maybe (c (t' a))
+gcast1 x =
+  case eqT :: Maybe (t :~: t') of
+    Just Refl -> Just x
+    Nothing -> Nothing
+
+gcast2 :: forall c t t' a b .
+          (Typeable t, Typeable t') => c (t a b) -> Maybe (c (t' a b))
+gcast2 x =
+  case eqT :: Maybe (t :~: t') of
     Just Refl -> Just x
     Nothing -> Nothing
 

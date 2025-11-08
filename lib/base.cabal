@@ -1,6 +1,6 @@
 cabal-version:  3.0
-name:           libs
-version:        0.14.21.0
+name:           base
+version:        0.14.22.0
 license:        Apache-2.0
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net
@@ -93,6 +93,8 @@ library base
         Data.Functor.Product
         Data.Functor.Sum
         Data.Hashable
+        Data.Hashable.Class
+        Data.Hashable.Lifted
         Data.IORef
         Data.Int
         Data.Int.Int
@@ -158,14 +160,7 @@ library base
         Foreign.Ptr
         Foreign.StablePtr
         Foreign.Storable
-        GHC.Conc
-        GHC.Conc.Sync
-        GHC.Exts
         GHC.Generics
-        GHC.Stack
-        GHC.Types
-        Language.Haskell.TH.Quote
-        Language.Haskell.TH.Syntax
         Mhs.Arr
         Mhs.Array
         Mhs.Builtin
@@ -225,6 +220,7 @@ library base
         Data.Bool_Type
         Data.ByteString.Internal
         Data.Char_Type
+        Data.Data_Class
         Data.Foldable.Internal
         Data.Functor.Const_Type
         Data.Int.IntN

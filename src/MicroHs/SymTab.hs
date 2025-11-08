@@ -17,7 +17,6 @@ import qualified Prelude(); import MHSPrelude
 --import Data.Char
 import Control.Applicative
 import Data.List
-import GHC.Stack
 import MicroHs.Builtin(builtinMdl)
 import MicroHs.Expr(Expr(..), EType, conIdent)
 import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent, isUpperX)
