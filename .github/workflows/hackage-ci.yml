@@ -147,6 +147,18 @@ jobs:
       run: |
         mcabal install tagsoup
 
+    # unordered-containers
+    # not merged and uploaded to hackage
+    - name: compile and install unordered-containers package
+      run: |
+        mcabal install --git=http://github.com/augustss/unordered-containers.git unordered-containers
+
+    # async
+    # not merged and uploaded to hackage
+    - name: compile and install async package
+      run: |
+        mcabal install --git=http://github.com/augustss/async.git async
+
     # DONE
     - name: cleanup
       run: |
