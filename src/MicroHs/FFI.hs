@@ -218,6 +218,7 @@ jsTypesR :: [(String, String)]
 jsTypesR =
   [ ("Primitives.Int",    "INT")
   , ("Primitives.Double", "DOUBLE")
+  , ("Primitives.Float",  "DOUBLE")
   ]
 
 -- Use to construct 'foreign import javascript' argument wrapper.
@@ -230,6 +231,7 @@ jsTypes :: [(String, String)]
 jsTypes =
   [ ("Primitives.Int",    "Int")
   , ("Primitives.Double", "Double")
+  , ("Primitives.Float",  "Double")
   ]
 
 -- These are already in the runtime
