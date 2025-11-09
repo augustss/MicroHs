@@ -2088,7 +2088,6 @@ tcExprApFn mt fn atfn aargs = do
           EUVar _ -> return res   -- instSigma did nothing, this is the common case
           _ -> return $ substEUVar [(ugly, res)] etmp'
 
-        instSigma loc res rt mt
 
   loop [] aargs tfn'
 
