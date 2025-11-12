@@ -818,24 +818,6 @@ tInst ae at | Just (ctx, t) <- getImplies at = do
     tInst (EApp ae d) t
 tInst ae at = return (ae, at)
 
--- Instantiate a function, but delay generating the dictionaries.
--- When generating the dictionaries here (like tInst) there
--- is no type information; just a type variable.
--- By delaying the dictionary generation we gain more
--- type information, and can avoid let binding dictionaries by
---  * finding an already bound dictionary for the same constraint
---  * solving the constraint early
-tInstDelay :: HasCallStack => EType -> T ([EConstraint], EType)
---tInstDelay  t | trace ("tInstDelay: " ++ show (ae, t)) False = undefined
-tInstDelay = inst []
-  where
-    inst cs (EForall _ vks t) = do
-      t' <- tInstForall vks t
-      inst cs t'
-    inst cs at | Just (ctx, t) <- getImplies at =
-      inst (ctx:cs) t
-    inst cs at = return (reverse cs, at)
-
 tInstForall :: [IdKind] -> EType -> T EType
 tInstForall vks t =
   if null vks then
@@ -2041,9 +2023,20 @@ tcExprAp mt ae args = do
       (f, t) <- tInferExpr ae
       tcExprApFn mt f t args
 
+data AnArg = ArgExpr Expr EType | ArgCtx EConstraint
+  deriving Show
+
+-- Instantiate a function, but delay generating the dictionaries.
+-- When generating the dictionaries here (like tInst) there
+-- is no type information; just a type variable.
+-- By delaying the dictionary generation we gain more
+-- type information, and can avoid let binding dictionaries by
+--  * finding an already bound dictionary for the same constraint
+--  * solving the constraint early
 tcExprApFn :: HasCallStack =>
               Expected -> Expr -> EType -> [Expr] -> T Expr
 --tcExprApFn mt fn fnt args | trace ("tcExprApFn: " ++ show (fn, fnt, args, mt)) False = undefined
+{-
 tcExprApFn mt fn (EForall q (IdKind i k:iks) ft) (arg : args) | Just t <- qarg q arg = do
   t' <- if t `eqEType` EVar dummyIdent
         then newUVar
@@ -2052,23 +2045,46 @@ tcExprApFn mt fn (EForall q (IdKind i k:iks) ft) (arg : args) | Just t <- qarg q
  where qarg QReqd t            = Just t
        qarg _     (ETypeArg t) = Just t
        qarg _     _            = Nothing
+-}
 tcExprApFn mt fn atfn aargs = do
---  traceM $ "tcExprApFn: " ++ show (mt, fn, tfn, aargs)
+  -- traceM $ "tcExprApFn: " ++ show (getSLoc aargs, mt, fn, atfn, aargs)
 --  xx <- gets ctxTables
 --  traceM $ "tcExprApFn: ctxTables=" ++ show xx
   let loc = getSLoc fn
-  (ctxs, tfn') <- tInstDelay atfn
+--  (ctxs, tfn') <- tInstDelay atfn
 --  traceM $ "tcExprApFn: (fn', tfn') = " ++ show (fn', tfn')
-  let loop ats     [] ft = final ats ft
-      loop ats as@(_:_) (EForall _ vks ft) = do
-        ft' <- tInstForall vks ft
-        loop ats as ft'
-      loop ats (a:as) ft = do
-        (at, rt) <- unArrow loc ft
-        loop ((a, at):ats) as rt
+  let -- loop _ats aas ft | trace ("loop: " ++ show (aas, ft)) False = undefined
+      loop ats [] ft = final (reverse ats) ft
+      loop ats aas@(a:as) aft = do
+        case nextArg aft of
+          AReqd (IdKind i k) ft -> useType i k a ft
+          AForall QExpl (IdKind i k:iks) ft | ETypeArg t <- a -> do
+            -- traceM ("AForall " ++ show (i, t))
+            useType i k t (EForall QExpl iks ft)
+          AForall _ iks ft -> do
+            ft' <- tInstForall iks ft
+            loop ats aas ft'
+          AConstaint ctx ft ->
+            loop (ArgCtx ctx : ats) aas ft
+          ARet -> do
+            (at, rt) <- unArrow loc aft
+            --traceM ("ARet " ++ show (at, rt))
+            loop (ArgExpr a at : ats) as rt
+        where useType i k t ft = do
+                t' <- if t `eqEType` EVar dummyIdent
+                      then newUVar
+                      else tcType (Check k) t >>= expandSyn
+                -- traceM ("useType: " ++ show (i, t', (subst [(i, t')] ft)))
+                loop ats as (subst [(i, t')] ft)
 
+      final :: [AnArg] -> EType -> T Expr
       final aats rt = do
-
+{-
+        rt' <- derefUVar rt
+        mt' <- case mt of Check ttt -> Check <$> derefUVar ttt
+                          _ -> return mt
+        traceM $ "final: " ++ show (loc, aats, rt', mt')
+-}
         -- We want to do the unification of rt ant mt before checking the argument to
         -- have more type information.  See tests/Eq1.hs.
         -- But instSigma may transform the input expression, so we have to be careful.
@@ -2076,9 +2092,13 @@ tcExprApFn mt fn atfn aargs = do
             ugly = -1::Int
         etmp' <- instSigma loc etmp rt mt
 
-        args <- mapM (uncurry checkSigma) (reverse aats)
-        dicts <- mapM (newDict loc) ctxs
-        let res = foldl EApp fn (dicts ++ args)
+        let arg (ArgExpr e t) = do
+              --t' <- derefUVar t
+              --traceM ("final: checkSigma: " ++ show (e, t'))
+              checkSigma e t
+            arg (ArgCtx ctx) = newDict loc ctx
+        args <- mapM arg aats
+        let res = foldl EApp fn args
 --        traceM (show res)
 
 --        cc <- gets constraints
@@ -2089,7 +2109,7 @@ tcExprApFn mt fn atfn aargs = do
           _ -> return $ substEUVar [(ugly, res)] etmp'
 
 
-  loop [] aargs tfn'
+  loop [] aargs atfn
 
 -- Is a pattern failure free?
 failureFree :: EPat -> T Bool
@@ -2337,53 +2357,60 @@ newADictIdent loc = newIdent loc adictPrefix
 newDictIdent :: SLoc -> T Ident
 newDictIdent loc = newIdent loc dictPrefix
 
+data Arg
+  = AReqd         IdKind      EType       -- forall ->
+  | AForall QForm [IdKind]    EType       -- forall .
+  | AConstaint    EConstraint EType       -- =>
+  | ARet                                  -- none of the above
+--  deriving Show
+
+nextArg :: EType -> Arg
+nextArg (EForall _ []  t)                  = nextArg t
+nextArg (EForall QReqd (ik:iks) t)         = AReqd ik (EForall QReqd iks t)
+nextArg (EForall q     iks      t)         = AForall q iks t
+nextArg t | Just (ctx, t') <- getImplies t = AConstaint ctx t'
+          | otherwise                      = ARet
+
 tcExprLam :: HasCallStack => Expected -> SLoc -> [Eqn] -> T Expr
 tcExprLam mt loc qs = do
   t <- tGetExpType mt
   ELam loc <$> tcEqns False t qs
 
 tcEqns :: HasCallStack => Bool -> EType -> [Eqn] -> T [Eqn]
-tcEqns top t eqns = tcEqns' top t [] eqns
+tcEqns top t eqns = tcEqns' top t eqns
 
-tcEqns' :: HasCallStack => Bool -> EType -> [IdKind] -> [Eqn] -> T [Eqn]
---tcEqns _ t eqns | trace ("tcEqns: " ++ showEBind (Fcn dummyIdent eqns) ++ " :: " ++ show t) False = undefined
-tcEqns' top (EForall QExpl iks t) reqd eqns = withExtTyps iks $ tcEqns' top t reqd eqns
-tcEqns' top (EForall QImpl   _ t) reqd eqns =                   tcEqns' top t reqd eqns
-tcEqns' top (EForall QReqd iks t) reqd eqns =                   tcEqns' top t (reqd ++ iks) eqns
-tcEqns' top t reqd eqns | Just (ctx, t') <- getImplies t = do
-  let loc = getSLoc eqns
-  d <- newADictIdent loc
-  f <- newIdent loc "fcnD"
-  withDict d ctx $ do
-    eqns' <- tcEqns' top t' reqd eqns
-    let eqn =
-          case eqns' of
-            [Eqn [] alts] -> Eqn [EVar d] alts
-            _             -> Eqn [EVar d] $ EAlts [([], EVar f)] [Fcn f eqns']
-    return [eqn]
-tcEqns' top t reqd eqns = do
-  let loc = getSLoc eqns
-  f <- newIdent loc "fcnS"
-  (eqns', ds) <- solveAndDefault top $ mapM (tcEqn t reqd) eqns
+tcEqns' :: HasCallStack => Bool -> EType -> [Eqn] -> T [Eqn]
+tcEqns' top at eqns =
+  case at of
+    EForall QExpl iks t -> withExtTyps iks $ tcEqns' top t eqns
+    EForall QImpl   _ t ->                   tcEqns' top t eqns
+    _ | Just (ctx, t') <- getImplies at -> do
+      let loc = getSLoc eqns
+      d <- newADictIdent loc
+      f <- newIdent loc "fcnD"
+      withDict d ctx $ do
+        eqns' <- tcEqns' top t' eqns
+        let eqn =
+              case eqns' of
+                [Eqn [] alts] -> Eqn [EVar d] alts
+                _             -> Eqn [EVar d] $ EAlts [([], EVar f)] [Fcn f eqns']
+        return [eqn]
+    _ -> do
+      let loc = getSLoc eqns
+      f <- newIdent loc "fcnS"
+      (eqns', ds) <- solveAndDefault top $ mapM (tcEqn at) eqns
 --  tcTrace $ "tcEqns done: " ++ showEBind (Fcn dummyIdent eqns')
-  case ds of
-    [] -> return eqns'
-    _  -> do
-      let
-        bs = eBinds ds
-        eqn = Eqn [] $ EAlts [([], EVar f)] (bs ++ [Fcn f eqns'])
-      return [eqn]
+      case ds of
+        [] -> return eqns'
+        _  -> do
+          let
+            bs = eBinds ds
+            eqn = Eqn [] $ EAlts [([], EVar f)] (bs ++ [Fcn f eqns'])
+          return [eqn]
 
-tcEqn :: HasCallStack => EType -> [IdKind] -> Eqn -> T Eqn
+tcEqn :: HasCallStack => EType -> Eqn -> T Eqn
 --tcEqn t eqn | trace ("tcEqn: " ++ show eqn ++ " :: " ++ show t) False = undefined
-tcEqn t (IdKind a k : iks) eqn@(Eqn ps alts) =
-  case ps of
-    EVar i : ps' -> withExtTyps [IdKind i k] $ do
-      unless (isDummyIdent i) $
-        addEqDict (EVar a) (EVar i)     -- This bound type variable is actually equal to the one in the signature
-      tcEqn t iks (Eqn ps' alts)
-    _ -> tcError (getSLoc eqn) "Bad required type argument"
-tcEqn t [] (Eqn ps alts) =
+tcEqn t (Eqn ps alts) =
   tcPats t ps $ \ t' ps' -> do
 --      tcTrace $ "tcEqn " ++ show ps ++ " ---> " ++ show ps'
     alts' <- tcAlts t' alts
@@ -2393,11 +2420,30 @@ tcEqn t [] (Eqn ps alts) =
 tcPats :: HasCallStack =>
           EType -> [EPat] -> (EType -> [EPat] -> T Eqn) -> T Eqn
 tcPats t [] ta = ta t []
-tcPats t (p:ps) ta = do
-  (tp, tr) <- unArrow (getSLoc p) t
-  -- tCheckPatC dicts used in tcAlt solve
-  tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
-
+tcPats at pps@(p:ps) ta =
+  case nextArg at of
+--    aa | trace ("tcPats: " ++ show (at, pps, aa)) False -> undefined
+    AForall QExpl iks t  -> withExtTyps iks $ tcPats t pps ta
+    AForall _     _    _ -> impossible   -- no nested implicit foralls
+    AReqd (IdKind a k) t ->
+      case p of
+        EVar i -> withExtTyps [IdKind i k] $ do
+          unless (isDummyIdent i) $
+            addEqDict (EVar a) (EVar i)     -- This bound type variable is actually equal to the one in the signature
+          tcPats t ps ta
+        _ -> tcError (getSLoc p) "Bad required type argument"
+    AConstaint ctx t -> do
+      d <- newADictIdent (getSLoc p)
+      withDict d ctx $ do -- XXX should we solve here?
+        (eqn, ds) <- solveLocalConstraints $ tcPats t pps $ \ t' ps' -> ta t' (EVar d : ps')
+        case ds of
+          [] -> return eqn
+          _  -> return $ addSolved ds eqn
+    ARet -> do
+      (tp, tr) <- unArrow (getSLoc p) at
+      -- tCheckPatC dicts used in tcAlt solve
+      tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
+  
 tcAlts :: HasCallStack => EType -> EAlts -> T EAlts
 tcAlts t (EAlts alts bs) =
 --  trace ("tcAlts: bs in " ++ showEBinds bs) $
@@ -2447,6 +2493,9 @@ tCheckExprAndSolve t e = do
 
 eBinds :: [(Ident, Expr)] -> [EBind]
 eBinds ds = [Fcn i $ simpleEqn e | (i, e) <- ds]
+
+addSolved :: [Solved] -> Eqn -> Eqn
+addSolved ies (Eqn ps (EAlts as bs)) = Eqn ps (EAlts as (eBinds ies ++ bs))
 
 instPatSigma :: HasCallStack =>
                  SLoc -> Sigma -> Expected -> T ()
