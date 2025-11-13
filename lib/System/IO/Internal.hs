@@ -16,6 +16,7 @@ import Control.Monad
 import Control.Monad.Fail
 import Data.Bool
 import Data.Char
+import Data.Enum
 import Data.Eq
 import Data.Function
 import Data.IORef
@@ -43,7 +44,7 @@ instance Show Handle where
 type FilePath = String
 
 data IOMode = ReadMode | WriteMode | AppendMode | ReadWriteMode
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Enum)
 
 ioModeToHMode :: IOMode -> HandleState
 ioModeToHMode ReadMode = HRead
