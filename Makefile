@@ -360,7 +360,6 @@ machdep:
 	$(CC) Tools/machdep.c -o machdep.exe && ./machdep.exe > $(RTS)/MachDeps.h && rm machdep.exe
 
 # Install without recompiling anything.
-# Use with caution, since base.pkg is not (yet) portable between 32 and 64 bits.
 fastinstall:	bin/cpphs bin/mcabal bin/mhs machdep
 	cp bin/cpphs bin/mcabal bin/mhs $(MCABALBIN)
 	mhs -a$(MCABAL) -Q generated/base-$(VERSION).pkg
