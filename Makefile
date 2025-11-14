@@ -361,8 +361,9 @@ machdep:
 
 # Install without recompiling anything.
 fastinstall:	bin/cpphs bin/mcabal bin/mhs machdep
+	@mkdir -p $(MCABALBIN)
 	cp bin/cpphs bin/mcabal bin/mhs $(MCABALBIN)
-	mhs -a$(MCABAL) -Q generated/base-$(VERSION).pkg
+	mhs -a$(MCABAL) -Q generated/base.pkg
 
 #####
 # Hugs
