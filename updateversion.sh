@@ -9,7 +9,7 @@ vers=`grep '^version:' MicroHs.cabal | sed -e 's/version: *//'`
 hvers=`echo $vers | sed 's/\./,/g'`
 echo Version $vers
 sed -e "s/^VERSION=.*/VERSION=$vers/" -e "s/^HVERSION=.*/HVERSION=$hvers/" $MK.bak > $MK
-LCB=lib/libs.cabal
+LCB=lib/base.cabal
 mv $LCB $LCB.bak
 sed -e "s/^version: .*/version:        $vers/" $LCB.bak > $LCB
 SI=lib/System/Info.hs

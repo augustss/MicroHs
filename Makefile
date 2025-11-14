@@ -353,6 +353,9 @@ minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs machdep
 machdep:
 	$(CC) Tools/machdep.c -o machdep.exe && ./machdep.exe > $(RTS)/MachDeps.h && rm machdep.exe
 
+fastinstall:	bin/cpphs bin/mcabal bin/mhs machdep
+	cp bin/cpphs bin/mcabal bin/mhs $(MCABALBIN)
+	mhs -a$(MCABAL) -Q generated/base-$(VERSION).pkg
 
 #####
 # Hugs

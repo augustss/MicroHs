@@ -2036,16 +2036,6 @@ data AnArg = ArgExpr Expr EType | ArgCtx EConstraint
 tcExprApFn :: HasCallStack =>
               Expected -> Expr -> EType -> [Expr] -> T Expr
 --tcExprApFn mt fn fnt args | trace ("tcExprApFn: " ++ show (fn, fnt, args, mt)) False = undefined
-{-
-tcExprApFn mt fn (EForall q (IdKind i k:iks) ft) (arg : args) | Just t <- qarg q arg = do
-  t' <- if t `eqEType` EVar dummyIdent
-        then newUVar
-        else tcType (Check k) t >>= expandSyn
-  tcExprApFn mt fn (subst [(i, t')] $ eForall' q iks ft) args
- where qarg QReqd t            = Just t
-       qarg _     (ETypeArg t) = Just t
-       qarg _     _            = Nothing
--}
 tcExprApFn mt fn atfn aargs = do
   -- traceM $ "tcExprApFn: " ++ show (getSLoc aargs, mt, fn, atfn, aargs)
 --  xx <- gets ctxTables
@@ -2058,7 +2048,7 @@ tcExprApFn mt fn atfn aargs = do
       loop ats aas@(a:as) aft = do
         case nextArg aft of
           AReqd (IdKind i k) ft -> useType i k a ft
-          AForall QExpl (IdKind i k:iks) ft | ETypeArg t <- a -> do
+          AForall _ (IdKind i k:iks) ft | ETypeArg t <- a -> do
             -- traceM ("AForall " ++ show (i, t))
             useType i k t (EForall QExpl iks ft)
           AForall _ iks ft -> do
@@ -2419,31 +2409,33 @@ tcEqn t (Eqn ps alts) =
 -- Only used above
 tcPats :: HasCallStack =>
           EType -> [EPat] -> (EType -> [EPat] -> T Eqn) -> T Eqn
-tcPats t [] ta = ta t []
-tcPats at pps@(p:ps) ta =
+--tcPats t [] ta = ta t []
+tcPats at pps ta =
   case nextArg at of
 --    aa | trace ("tcPats: " ++ show (at, pps, aa)) False -> undefined
     AForall QExpl iks t  -> withExtTyps iks $ tcPats t pps ta
     AForall _     _    _ -> impossible   -- no nested implicit foralls
     AReqd (IdKind a k) t ->
-      case p of
-        EVar i -> withExtTyps [IdKind i k] $ do
+      case pps of
+        EVar i : ps -> withExtTyps [IdKind i k] $ do
           unless (isDummyIdent i) $
             addEqDict (EVar a) (EVar i)     -- This bound type variable is actually equal to the one in the signature
           tcPats t ps ta
-        _ -> tcError (getSLoc p) "Bad required type argument"
+        _ -> tcError (getSLoc pps) "Bad required type argument"
     AConstaint ctx t -> do
-      d <- newADictIdent (getSLoc p)
+      d <- newADictIdent (getSLoc pps)
       withDict d ctx $ do -- XXX should we solve here?
         (eqn, ds) <- solveLocalConstraints $ tcPats t pps $ \ t' ps' -> ta t' (EVar d : ps')
         case ds of
           [] -> return eqn
           _  -> return $ addSolved ds eqn
-    ARet -> do
+    ARet | p:ps <- pps -> do
       (tp, tr) <- unArrow (getSLoc p) at
       -- tCheckPatC dicts used in tcAlt solve
       tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
-  
+         | otherwise -> ta at []   -- base case, no more arguments, explicit or implicit
+         
+
 tcAlts :: HasCallStack => EType -> EAlts -> T EAlts
 tcAlts t (EAlts alts bs) =
 --  trace ("tcAlts: bs in " ++ showEBinds bs) $
