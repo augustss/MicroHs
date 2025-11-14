@@ -284,8 +284,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.14.23.0
-HVERSION=0,14,23,0
+VERSION=0.14.23.1
+HVERSION=0,14,23,1
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
@@ -326,8 +326,14 @@ $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 # mkdir ~/.mcabal/packages/array-0.5.6.0
 
 preparedist:	newmhsz bootstrapcpphs
-	rm -f generated/mcabal.c
+	rm -f generated/mcabal.c generated/mhseval.js generated/base-*.pkg
 	$(MAKE) generated/mcabal.c
+	$(MAKE) generated/mhseval.js
+	$(MAKE) generated/base.pkg
+
+generated/base.pkg:
+	cd lib; mcabal build
+	cp lib/dist-mcabal/base-$(VERSION).pkg generated/base.pkg
 
 install:	installmsg minstall
 
@@ -353,6 +359,8 @@ minstall:	bin/cpphs bin/mcabal $(MCABALBIN)/mhs machdep
 machdep:
 	$(CC) Tools/machdep.c -o machdep.exe && ./machdep.exe > $(RTS)/MachDeps.h && rm machdep.exe
 
+# Install without recompiling anything.
+# Use with caution, since base.pkg is not (yet) portable between 32 and 64 bits.
 fastinstall:	bin/cpphs bin/mcabal bin/mhs machdep
 	cp bin/cpphs bin/mcabal bin/mhs $(MCABALBIN)
 	mhs -a$(MCABAL) -Q generated/base-$(VERSION).pkg
