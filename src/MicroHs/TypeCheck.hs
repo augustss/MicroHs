@@ -1300,10 +1300,21 @@ simpleEqn e = [Eqn [] $ simpleAlts e]
 simpleAlts :: Expr -> EAlts
 simpleAlts e = EAlts [([], e)] []
 
--- Keep the list empty if there are no fundeps
+-- Due to the way fundeps are resolved we need to canonicalize the them.
+-- If there are fundeps 'a->b, c->d' we needs to add their combination 'a c -> b d'.
 mkIFunDeps :: [Ident] -> [FunDep] -> [IFunDep]
---mkIFunDeps vs [] = [(map (const True) vs, map (const False) vs)]
-mkIFunDeps vs fds = map (\ (is, os) -> (map (`elem` is) vs, map (`elem` os) vs)) fds
+mkIFunDeps vs afds =
+  let fdss :: [[FunDep]]
+      fdss = filter (not . null) $ subsequences afds  -- all possible non-empty combinations
+      fds :: [FunDep]
+      fds = nub $ filter (not . null . snd) $
+            map (\ xs -> let (iss, oss) = unzip xs in red (conc iss) (conc oss)) fdss
+      conc :: [[Ident]] -> [Ident]
+      conc = nub . sort . concat
+      red :: [Ident] -> [Ident] -> ([Ident], [Ident])
+      red is os = (is, os \\ is)  -- don't repeat an input in the output
+  in  -- trace ("mkIFunDeps " ++ show (afds, fds)) $
+      map (\ (is, os) -> (map (`elem` is) vs, map (`elem` os) vs)) fds
 
 -- Turn (unqualified) class and method names into a default method name
 mkDefaultMethodId :: Ident -> Ident
