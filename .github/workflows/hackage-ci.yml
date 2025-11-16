@@ -159,6 +159,12 @@ jobs:
       run: |
         mcabal install --git=http://github.com/augustss/async.git async
 
+    # QuickCheck
+    # not in stackage yet
+    - name: compile and install async package
+      run: |
+        mcabal install --git=http://github.com/nick8325/quickcheck QuickCheck
+
     # DONE
     - name: cleanup
       run: |
