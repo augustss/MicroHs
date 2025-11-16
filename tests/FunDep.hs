@@ -1,5 +1,6 @@
 module FunDep(main) where
 import Data.Char
+import Data.Functor.Const
 
 class C a b | a -> b where
   f :: a -> b
@@ -36,7 +37,7 @@ instance C a b => C (T a) b where
   f (T a) = f a
 
 ------
-import Data.Functor.Const
+
 type Lens s t a b = forall f. Functor f => (a -> f b) -> s -> f t
 type Traversal s t a b = forall f. Applicative f => (a -> f b) -> s -> f t
 type Traversal' s a = Traversal s s a a
@@ -88,5 +89,5 @@ main = do
   print $ isoL 'a'
   print $ isoR (100::Int)
   print $ f (T 'b')
-  print $ "abcd"^._tail._tail
+  print $ ("abcd"::String)^._tail._tail
 --  print $ d (f (e (0::Int)))
