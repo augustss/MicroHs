@@ -35,6 +35,32 @@ newtype T a = T a
 instance C a b => C (T a) b where
   f (T a) = f a
 
+------
+import Data.Functor.Const
+type Lens s t a b = forall f. Functor f => (a -> f b) -> s -> f t
+type Traversal s t a b = forall f. Applicative f => (a -> f b) -> s -> f t
+type Traversal' s a = Traversal s s a a
+type Getting r s a = (a -> Const r a) -> s -> Const r s
+
+class Cons s t a b | s -> a, t -> b, s b -> t, t a -> s where
+  _Cons :: Traversal s t (a,s) (b,t)
+
+instance Cons [a] [b] a b where
+  _Cons f (a:as) = uncurry (:) <$> f (a, as)
+  _Cons _ []     = pure []
+
+class Field2 s t a b | s -> a, t -> b, s b -> t, t a -> s where
+  _2 :: Lens s t a b
+
+instance Field2 (a,b) (a,b') b b' where
+  _2 k ~(a,b) = (\b' -> (a,b')) <$> k b
+
+_tail :: Cons s s a a => Traversal' s s
+_tail = _Cons._2
+
+(^.) :: s -> Getting a s a -> a
+s ^. l = getConst (l Const s)
+
 {-
 class D a where
   d :: a -> Int
@@ -62,4 +88,5 @@ main = do
   print $ isoL 'a'
   print $ isoR (100::Int)
   print $ f (T 'b')
+  print $ "abcd"^._tail._tail
 --  print $ d (f (e (0::Int)))

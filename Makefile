@@ -363,7 +363,7 @@ machdep:
 fastinstall:	bin/cpphs bin/mcabal bin/mhs machdep
 	@mkdir -p $(MCABALBIN)
 	cp bin/cpphs bin/mcabal bin/mhs $(MCABALBIN)
-	mhs -a$(MCABAL) -Q generated/base.pkg
+	mhs -Q generated/base.pkg $(MCABALMHS)
 
 #####
 # Hugs

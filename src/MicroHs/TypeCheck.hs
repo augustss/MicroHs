@@ -1778,7 +1778,20 @@ tcExprR mt ae =
     EQVar e t ->  -- already resolved, just instantiate
              instSigma loc e t mt
 
-    EApp _ _ -> tcExprAp mt ae []
+    EApp f e ->
+      case f of
+        -- If we have parsed a e.lbl as a record select,
+        -- but it turns out that the lbl is not a label,
+        -- then we rejig the expression into function compositions,
+        -- i.e., e . lbl.
+        ESelect is@(lbl:_) -> do
+          b <- isLabel lbl
+          if b then
+            tcExprAp mt ae []
+           else
+            --trace ("convert to . " ++ show (f, e)) $
+            tcExpr mt (EOper e $ map (\ i -> (mkIdentSLoc (getSLoc i) ".", EVar i)) is)
+        _ -> tcExprAp mt ae []
 
     EOper e ies -> tcOper e ies >>= tcExpr mt
     ELam _ qs -> tcExprLam mt loc qs
@@ -2002,6 +2015,17 @@ dsSRec :: Maybe Ident -> Ident -> Ident -> [EStmt] -> EStmt
 dsSRec mmn imfix iret ss =
   let vs = ETuple $ map EVar $ concatMap getStmtBound ss
   in  SBind vs $ eAppI imfix $ eLam [ELazy True vs] $ EDo mmn (ss ++ [SThen $ eAppI iret vs])
+
+-- A heuristic to decide if an identifier is a record label.
+-- If the name is in the symbol table and has function type, we say no.
+isLabel :: Ident -> T Bool
+isLabel i = do
+  env <- gets valueTable
+  case stLookup "" i env of
+    Left _ -> return True
+    Right (Entry (EVar g) t) ->
+      return $ isInfixOf "get$." (unIdent g) || countArrows t == 0
+    Right _ -> undefined -- return True
 
 tcExprAp :: HasCallStack =>
             Expected -> Expr -> [Expr] -> T Expr
@@ -2445,7 +2469,7 @@ tcPats at pps ta =
       -- tCheckPatC dicts used in tcAlt solve
       tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
          | otherwise -> ta at []   -- base case, no more arguments, explicit or implicit
-         
+
 
 tcAlts :: HasCallStack => EType -> EAlts -> T EAlts
 tcAlts t (EAlts alts bs) =
