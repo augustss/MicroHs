@@ -1612,6 +1612,13 @@ thread_intr(struct mthread *mt)
 NORETURN void
 raise_exn(NODEPTR exn)
 {
+#if THREAD_DEBUG
+  if (thread_trace) {
+    printf("raise_exn: %p\n", exn);
+    dump_q("runq", runq);
+  }
+#endif  /* THREAD_DEBUG */
+
   if (cur_handler) {
     /* Pass the exception to the handler */
     cur_handler->hdl_exn = exn;
@@ -1748,6 +1755,10 @@ start_exec(NODEPTR root)
      * If it's the main thread, this kills the program.
      * Otherwise, it just kills the thread.
      */
+    if (in_raise) {
+      ERR("FATAL: exception while trying to die");
+      EXIT(1);
+    }
     mt = remove_q_head(&runq);
     if (mt->mt_id == MAIN_THREAD) {
       die_exn(the_exn);
@@ -6179,10 +6190,6 @@ die_exn(NODEPTR exn)
   NODEPTR x;
   char *msg;
 
-  if (in_raise) {
-    ERR("recursive error");
-    EXIT(1);
-  }
   in_raise = true;
 
   if (GETTAG(exn) == T_INT) {
