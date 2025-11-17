@@ -326,7 +326,7 @@ $(MCABALMHS)/packages/$(BASE).pkg: bin/mhs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 # mkdir ~/.mcabal/packages/array-0.5.6.0
 
 preparedist:	newmhsz bootstrapcpphs
-	rm -f generated/mcabal.c generated/mhseval.js generated/base-*.pkg
+	rm -f generated/mcabal.c generated/mhseval.js generated/base.pkg
 	$(MAKE) generated/mcabal.c
 	$(MAKE) generated/mhseval.js
 	$(MAKE) generated/base.pkg
