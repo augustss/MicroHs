@@ -165,6 +165,21 @@ jobs:
       run: |
         mcabal install --git=http://github.com/nick8325/quickcheck QuickCheck
 
+    # colour
+    - name: compile and install colour package
+      run: |
+        mcabal install colour
+
+    # ansi-terminal-types
+    - name: compile and install ansi-terminal-types package
+      run: |
+        mcabal install ansi-terminal-types
+
+    # ansi-terminal
+    - name: compile and install ansi-terminal package
+      run: |
+        mcabal install ansi-terminal
+
     # DONE
     - name: cleanup
       run: |
