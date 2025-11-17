@@ -29,7 +29,6 @@ module System.IO.Base(
   BufferMode(..),
   hSetBuffering,
   hGetBuffering,
-  hIsTerminalDevice,
 
   IOException(..),
   ) where
@@ -321,10 +320,6 @@ hSetBuffering _ _ = return ()
 -- XXX This currently does nothing.
 hGetBuffering :: Handle -> IO BufferMode
 hGetBuffering _ = return NoBuffering
-
--- XXX This currently does nothing.
-hIsTerminalDevice :: Handle -> IO Bool
-hIsTerminalDevice _ = return True
 
 hPutBuf :: Handle -> Ptr a -> Int -> IO ()
 hPutBuf h p n = do withHandleWr h $ c_writeb p n; return ()
