@@ -2262,7 +2262,9 @@ unsetField i = mkExn (getSLoc i) (unIdent i) "recConError"
 
 dsUpdate :: (Ident -> Expr) -> Expr -> [EField] -> T (Maybe Expr)
 dsUpdate unset e flds = do
-  (e', _) <- tInferExpr e
+  (e', _) <- noEffect (tInferExpr e)   -- We need to get the possible ECon from e,
+                                       -- but since we will not use the type we don't
+                                       -- want any possible constraints from the type inference.
   case e' of
     ECon c -> do
       let ises = map unEField flds
