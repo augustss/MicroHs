@@ -108,7 +108,10 @@ genHasFields :: LHS -> [Constr] -> T [EDef]
 genHasFields lhs cs = do
   let fldtys = nubBy ((==) `on` fst) [ (fld, ty) | Constr _ _ _ _ (Right fs) <- cs, (fld, (_, ty)) <- fs ]
 --      flds = map fst fldtys
-  concat <$> mapM (genHasField lhs cs) fldtys
+      -- filter out fields referencing constrained existential variables
+      existVars = nub [ v | Constr evks ctx _ _ _ <- cs, IdKind v _ <- evks, not (null ctx) ]
+      validFldtys = flip filter fldtys $ \(_,ty) -> null (freeTyVars [ty] `intersect` existVars)
+  concat <$> mapM (genHasField lhs cs) validFldtys
 
 genHasField :: LHS -> [Constr] -> (Ident, EType) -> T [EDef]
 genHasField (tycon, iks) cs (fld, fldty) = do

@@ -1484,10 +1484,13 @@ addValueType adef = do
   mn <- gets moduleName
   -- tcTrace ("addValueType: " ++ showEDefs [adef])
   let addConFields _     (Constr _ _ _ _ (Left _)) = return ()
-      addConFields tycon (Constr _ _ _ _ (Right fs)) = mapM_ addField fs
+      addConFields tycon (Constr evks ctx _ _ (Right fs)) = mapM_ addField validFields
         where addField (fld, _) = do
                 (fe, fty) <- tLookup "addValueType?" $ mkGetName tycon fld
                 extValETop fld fty fe
+              -- filter out fields referencing constrained existential variables
+              existVars = nub [ v | IdKind v _ <- evks, not (null ctx) ]
+              validFields = flip filter fs $ \(_,(_,ty)) -> null (freeTyVars [ty] `intersect` existVars)
   case adef of
     Sign is@(i:_) t | isConIdent i -> do
       -- pattern synonym
