@@ -2002,7 +2002,54 @@ tcExprR mt ae =
         derefUVar (EForall b vks' tt)
     EUpdate e flds -> do
       ises <- concat <$> mapM (dsEField e) flds
-      me <- dsUpdate unsetField e ises
+      dt   <- gets dataTable
+      let ups = [ (head ps, e') | (ps, e') <- map unEField ises ]
+          -- Generate a case expression for updates of constrained
+          -- existential record filed.
+          dsToCase i =
+            case M.lookup i dt of
+              Just (Data _ cs _) -> do
+                -- Get the constrained existential constructor matching flds.
+                -- For updating it we will produce a case expression:
+                -- case e of T f1 f2 -> T (updated f1) (updated f2)
+                let con = [ c | Constr _ ctx c _ (Right fs) <- cs
+                              , not (null ctx)
+                              , let fs' = map fst fs
+                              , all ((`elem` fs') . fst) ups ]
+                case con of
+                  []   -> dsUpdate unsetField e ises
+                  [cn] -> do
+                    (expr, _) <- tLookupV cn
+                    c <- case expr of
+                           ECon c' -> return c'
+                           _ -> tcError loc $ "Invalid constructor " ++ showIdent cn
+                    -- Generate lhs and rhs of the case expression
+                    fv <- forM (conFields c) $ \i' -> newIdent loc ("$" ++ unIdent i')
+                    let fbs = zip (conFields c) $ map EVar fv -- Fresh vars for fields not updated
+                        lhs = [ EField [f] ex | (f,ex) <- fbs ]
+                        rhs = [ EField [f] (fromMaybe v (lookup f ups)) | (f, v) <- fbs ]
+                    ml <- dsUpdate unsetField (EVar cn) lhs
+                    mr <- dsUpdate unsetField (EVar cn) rhs
+                    eCase <- case (ml, mr) of
+                               (Just l, Just r) -> return $ ECase e [(l, oneAlt r)]
+                               _                -> tcError loc "Record update: internal error while building pattern or RHS"
+                    return $ Just eCase
+                  _ -> tcError loc "Ambiguous constructor match in record update"
+              _ -> dsUpdate unsetField e ises
+      vt   <- gets valueTable
+      (ex, _) <- noEffect (tInferExpr e)
+      let unApp (EApp f _) = unApp f  -- Strip the dictionaries.
+          unApp a = a
+      me <- case unApp ex of
+              EVar v -> do
+                -- Check if v is defined in the valueTable
+                let et = stLookup "prova" v vt
+                case et of
+                  -- It migth be a constructor, anyway safe for dsToCase
+                  Right (Entry (EVar _) (EVar t)) -> dsToCase t
+                  _                               -> dsUpdate unsetField e ises
+              ECon (ConData _ ident _) -> dsToCase ident
+              _                        -> dsUpdate unsetField e ises
       case me of
         Just e' -> tcExpr mt e'
         Nothing -> tcExpr mt $ foldr eSetFields e ises
