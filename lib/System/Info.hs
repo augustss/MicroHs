@@ -23,13 +23,20 @@ compilerVersion = fullCompilerVersion { versionBranch = take 2 (versionBranch fu
 -- Assume the system has an uname command
 uname :: String -> String
 uname flag = unsafePerformIO $ do
+  print "A"
   (fn, h) <- openTmpFile "uname"
+  print "B"
   hClose h
+  print "C"
   rc <- system $ "uname " ++ flag ++ " >" ++ fn
+  print "D"
   res <- readFile fn
+  print "E"
   removeFile fn
+  print "F"
   when (rc /= ExitSuccess) $
     error "System.Into: uname failed"
+  print "G"
   return $ map toLower $ filter (not . isSpace) res
 
 fullCompilerVersion = makeVersion [0,14,25,0]
