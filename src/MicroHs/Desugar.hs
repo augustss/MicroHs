@@ -414,7 +414,7 @@ dsMatrix dflt []         aarms =
   -- We can have several arms if there are guards.
   -- Combine them in order.
   return $ foldr (\ (_, sub, rhs) -> sub . rhs) dflt aarms
-dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
+dsMatrix dflt iis@(i:is) aarms@(aarm : _) =
   case leftMost aarm of
     EVar _ -> do
       -- Find all variables, substitute with i, and proceed
@@ -426,13 +426,15 @@ dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
         dsMatrix drest is vars'
     -- Collect identical transformations, do the transformation and proceed.
     EViewPat e _ -> do
-      let (views, nviews) = span (isPView e . leftMost) aarms'
+      let e' = case unAt i aarm of (_, sub, _) -> sub (dsExpr e)
+      let (views, nviews) = span (isPView e') (map (unAt i) aarms)
       letBind (dsMatrix dflt iis nviews) $ \ drest ->
-        letBind (return $ App (dsExpr e) i) $ \ vi -> do
-        let views' = map (unview . unAt i) (aarm : views)
-            unview (EViewPat _ p:ps, sb, rhs) = (p:ps, sb, rhs)
+        letBind (return $ App e' i) $ \ vi -> do
+        let views' = map unview views
+            unview (EViewPat _ p:ps, sub, rhs) = (p:ps, sub, rhs)
             unview _ = impossible
         dsMatrix drest (vi:is) views'
+
     -- Collect all constructors, group identical ones.
     _ -> do             -- must be ECon/EApp
       let
@@ -463,7 +465,8 @@ dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
     isPCon _ = True
     isPVar (EVar _) = True
     isPVar _ = False
-    isPView e (EViewPat e' _) = eqExpr e e'
+    isPView :: Exp -> Arm -> Bool
+    isPView e (EViewPat ee _:_, sub, _) = e == sub (dsExpr ee)
     isPView _ _ = False
 
 unAt :: Exp{-Ident-} -> Arm -> Arm
