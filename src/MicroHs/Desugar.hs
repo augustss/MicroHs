@@ -120,7 +120,7 @@ dsEqns loc eqns =
         xs = take (length aps) $ newVars "$q" vs
         mkArm (Eqn ps alts) =
           let ps' = map dsPat ps
-          in  (ps', dsAlts alts)
+          in  (ps', id, dsAlts alts)
         ex = dsCaseExp loc (vs ++ xs) (map Var xs) (map mkArm eqns)
       in foldr Lam ex xs
     _ -> eMatchErr loc
@@ -331,12 +331,13 @@ dsCase loc ae as =
     mkArm :: ECaseArm -> Arm
     mkArm (p, alts) =
       let p' = dsPat p
-      in  ([p'], dsAlts alts)
+      in  ([p'], id, dsAlts alts)
 
 type MState = [Ident]  -- supply of unused variables.
 
 type M a = State MState a
-type Arm = ([EPat], Exp -> Exp)  -- Patterns, and a function that expects the default (which might be ignored).
+type Arm = ([EPat], Exp -> Exp, Exp -> Exp)  -- Patterns, a substitution,
+                                             -- and a function that expects the default (which might be ignored).
 type Matrix = [Arm]
 
 newIdents :: Int -> M [Ident]
@@ -367,7 +368,7 @@ dsMatrixL :: HasCallStack =>
 dsMatrixL dflt is arms = dsMatrix dflt is (map dsLazy arms)
 
 dsLazy :: Arm -> Arm
-dsLazy (ps, rhs) =
+dsLazy (ps, sub, rhs) =
   -- Accumulate lazy bindings and strict bindings
   let ((_, rbs, ris), ps') = mapAccumL lazy (1, [], []) ps
       lazy :: (Int, [EBind], [Exp]) -> EPat -> ((Int, [EBind], [Exp]), EPat)
@@ -385,7 +386,7 @@ dsLazy (ps, rhs) =
           EApp p1 p2              -> (s'', EApp p1' p2') where (s', p1') = lazy s p1; (s'', p2') = lazy s' p2
           EAt i p                 -> (s', EAt i p')      where (s', p')  = lazy s p
           _                       -> impossible
-  in  (ps', \ d -> dsBinds (reverse rbs) $ foldr eSeq (rhs d) (reverse ris))
+  in  (ps', sub, \ d -> dsBinds (reverse rbs) $ foldr eSeq (rhs d) (reverse ris))
 
 eSeq :: Exp -> Exp -> Exp
 eSeq e1 e2 = App (App (Lit (LPrim "seq")) e1) e2
@@ -412,33 +413,35 @@ dsMatrix dflt _ [] = return dflt
 dsMatrix dflt []         aarms =
   -- We can have several arms if there are guards.
   -- Combine them in order.
-  return $ foldr snd dflt aarms
-dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
+  return $ foldr (\ (_, sub, rhs) -> sub . rhs) dflt aarms
+dsMatrix dflt iis@(i:is) aarms@(aarm : _) =
   case leftMost aarm of
     EVar _ -> do
       -- Find all variables, substitute with i, and proceed
       let (vars, nvars) = span (isPVar . leftMost) aarms
           vars' = map (sub . unAt i) vars
-          sub (EVar x : ps, rhs) = (ps, substAlpha x i . rhs)
+          sub (EVar x : ps, sb, rhs) = (ps, substAlpha x i . sb, rhs)
           sub _ = impossible
       letBind (dsMatrix dflt iis nvars) $ \ drest ->
         dsMatrix drest is vars'
     -- Collect identical transformations, do the transformation and proceed.
     EViewPat e _ -> do
-      let (views, nviews) = span (isPView e . leftMost) aarms'
+      let e' = case unAt i aarm of (_, sub, _) -> sub (dsExpr e)
+      let (views, nviews) = span (isPView e') (map (unAt i) aarms)
       letBind (dsMatrix dflt iis nviews) $ \ drest ->
-        letBind (return $ App (dsExpr e) i) $ \ vi -> do
-        let views' = map (unview . unAt i) (aarm : views)
-            unview (EViewPat _ p:ps, rhs) = (p:ps, rhs)
+        letBind (return $ App e' i) $ \ vi -> do
+        let views' = map unview views
+            unview (EViewPat _ p:ps, sub, rhs) = (p:ps, sub, rhs)
             unview _ = impossible
         dsMatrix drest (vi:is) views'
+
     -- Collect all constructors, group identical ones.
     _ -> do             -- must be ECon/EApp
       let
         (cons, ncons) = span (isPCon . leftMost) aarms
       letBind (dsMatrix dflt iis ncons) $ \ drest -> do
         let
-          idOf (p:_, _) = pConOf p
+          idOf (p:_, _, _) = pConOf p
           idOf _ = impossible
           grps = groupEq (on (==) idOf) $ map (unAt i) cons
           oneGroup grp = do
@@ -446,14 +449,14 @@ dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
               con = pConOf $ leftMost $ head grp
             xs <- newIdents (conArity con)
             let
-              one (p : ps, e) = (pArgs p ++ ps, e)
+              one (p : ps, sub, e) = (pArgs p ++ ps, sub, e)
               one _ = impossible
             cexp <- dsMatrix drest (map Var xs ++ is) (map one grp)
             return (SPat con xs, cexp)
         narms <- mapM oneGroup grps
         return $ mkCase i narms drest
   where
-    leftMost (p:_, _) = skipEAt p  -- pattern in first column
+    leftMost (p:_, _, _) = skipEAt p  -- pattern in first column
     leftMost _ = impossible
     skipEAt (EAt _ p) = skipEAt p
     skipEAt p = p
@@ -462,10 +465,13 @@ dsMatrix dflt iis@(i:is) aarms@(aarm : aarms') =
     isPCon _ = True
     isPVar (EVar _) = True
     isPVar _ = False
-    isPView e (EViewPat e' _) = eqExpr e e'
+    isPView :: Exp -> Arm -> Bool
+    isPView e (EViewPat ee _:_, sub, _) = e == sub (dsExpr ee)
     isPView _ _ = False
-    unAt ii (EAt x p : ps, rhs) = unAt i (p:ps, substAlpha x ii . rhs)
-    unAt _ arm = arm
+
+unAt :: Exp{-Ident-} -> Arm -> Arm
+unAt ii (EAt x p : ps, sub, rhs) = unAt ii (p:ps, substAlpha x ii . sub, rhs)
+unAt _ arm = arm
 
 mkCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 mkCase var pes dflt =
