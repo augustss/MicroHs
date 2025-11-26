@@ -46,6 +46,7 @@ test:
 	$(TMHS) Default    && $(EVAL) > Default.out    && diff Default.ref Default.out
 	$(TMHS) Multi      && $(EVAL) > Multi.out      && diff Multi.ref Multi.out
 	$(TMHS) Exists     && $(EVAL) > Exists.out     && diff Exists.ref Exists.out
+	$(TMHS) ExistField && $(EVAL) > ExistField.out && diff ExistField.ref ExistField.out
 	$(TMHS) TypeEq     && $(EVAL) > TypeEq.out     && diff TypeEq.ref TypeEq.out
 	$(TMHS) Sieve      && $(EVAL) > Sieve.out      && diff Sieve.ref Sieve.out
 	$(TMHS) Dict       && $(EVAL) > Dict.out       && diff Dict.ref Dict.out

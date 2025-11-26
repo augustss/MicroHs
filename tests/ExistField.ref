@@ -1,0 +1,15 @@
+These are equal: (42,42)
+These are not: (Just 42,Nothing)
+These are not: ('c','d')
+These are not: (13,42)
+(42,42)
+(Just 42,Nothing)
+('c','d')
+(13,42)
+T Just 12 Nothing
+T Nothing Just 14
+(Just 1,11,"updated")
+("updated",11,"my string")
+(Just 1,"updated","my string")
+("updated","updated","my string")
+("updated","a string")
