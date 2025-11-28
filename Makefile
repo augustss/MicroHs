@@ -284,8 +284,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.14.25.0
-HVERSION=0,14,25,0
+VERSION=0.14.26.0
+HVERSION=0,14,26,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
@@ -329,11 +329,11 @@ preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c generated/mhseval.js generated/base.pkg
 	$(MAKE) generated/mcabal.c
 	$(MAKE) generated/mhseval.js
-	$(MAKE) generated/base.pkg
+#	$(MAKE) generated/base.pkg
 
-generated/base.pkg:
-	cd lib; mcabal build
-	cp lib/dist-mcabal/base-$(VERSION).pkg generated/base.pkg
+#generated/base.pkg: bin/mcabal
+#	cd lib; ../bin/mcabal build
+#	cp lib/dist-mcabal/base-$(VERSION).pkg generated/base.pkg
 
 install:	installmsg minstall
 
