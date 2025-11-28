@@ -79,6 +79,12 @@ class C a b => E a where
 instance E Int
 -}
 
+class C3 aa bb cc | aa -> bb, bb -> cc where
+  c3 :: aa -> bb -> cc
+
+instance C3 Int Int Int where
+  c3 = (+)
+
 main :: IO ()
 main = do
   print $ f 'a' + 1
@@ -91,3 +97,4 @@ main = do
   print $ f (T 'b')
   print $ ("abcd"::String)^._tail._tail
 --  print $ d (f (e (0::Int)))
+  print $ c3 (1::Int) 2

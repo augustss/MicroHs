@@ -1302,10 +1302,13 @@ simpleAlts e = EAlts [([], e)] []
 
 -- Due to the way fundeps are resolved we need to canonicalize the them.
 -- If there are fundeps 'a->b, c->d' we needs to add their combination 'a c -> b d'.
+-- Furthermore, we need to take the transitive closure.  So of we have 'a -> b, b -> c'
+-- we need to have 'a -> b c, b -> c'.
+-- This uses very slow algorithms, but given the size of fundeps that doesn't matter.
 mkIFunDeps :: [Ident] -> [FunDep] -> [IFunDep]
 mkIFunDeps vs afds =
   let fdss :: [[FunDep]]
-      fdss = filter (not . null) $ subsequences afds  -- all possible non-empty combinations
+      fdss = filter (not . null) $ subsequences $ closure $ map normal afds  -- all possible non-empty combinations
       fds :: [FunDep]
       fds = nub $ filter (not . null . snd) $
             map (\ xs -> let (iss, oss) = unzip xs in red (conc iss) (conc oss)) fdss
@@ -1313,7 +1316,18 @@ mkIFunDeps vs afds =
       conc = nub . sort . concat
       red :: [Ident] -> [Ident] -> ([Ident], [Ident])
       red is os = (is, os \\ is)  -- don't repeat an input in the output
-  in  -- trace ("mkIFunDeps " ++ show (afds, fds)) $
+      normal :: FunDep -> FunDep  -- avoid duplications and input variables among the outputs
+      normal (is, os) = (is', nub os \\ is') where is' = nub is
+      closure :: [FunDep] -> [FunDep]
+      closure cfds =
+        let cfds' = closeStep cfds
+            closeStep = map addTrans
+            addTrans (is, os) = (is, (xs \\ is) ++ os)
+              where xs = nub $ concatMap trans cfds
+                    trans (tis, tos) | null (tis \\ os) = tos \\ os  -- all inputs included in the output, so add these
+                                     | otherwise = []
+        in  if cfds == cfds' then cfds else closure cfds'
+  in  --trace ("mkIFunDeps " ++ show (afds, fds)) $
       map (\ (is, os) -> (map (`elem` is) vs, map (`elem` os) vs)) fds
 
 -- Turn (unqualified) class and method names into a default method name
