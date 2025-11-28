@@ -3650,13 +3650,23 @@ addTypeEq t1 t2 aeqs =
       t1' = deref t1
       t2' = deref t2
       isVar = not . isConIdent
-  in  case (t1', t2') of
+      addEq i t its = (i, t) : map (second $ subst [(i, t)]) its
+{-
+      chkTypeEqs :: TypeEqTable -> TypeEqTable
+      chkTypeEqs xeqs =
+        let rhsVars = nub $ filter isVar $ concatMap (allVarsExpr . snd) xeqs
+            lhsVars = map fst xeqs
+        in  if null (intersect lhsVars rhsVars) then xeqs
+            else error $ "addTypeEq: " ++ show ((t1, t1'), (t2, t2'), (lhsVars, rhsVars), xeqs, aeqs)
+-}
+  in  -- chkTypeEqs $
+      case (t1', t2') of
         (EVar i1, EVar i2) | isVar i1 && isVar i2 ->
-               if i1 < i2 then (i2, t1') : aeqs  -- always point smaller to bigger
-          else if i1 > i2 then (i1, t2') : aeqs
+               if i1 < i2 then addEq i2 t1' aeqs  -- always point smaller to bigger
+          else if i1 > i2 then addEq i1 t2' aeqs
           else                             aeqs
-        (EVar i1, _) | isVar i1 -> (i1, t2') : aeqs
-        (_, EVar i2) | isVar i2 -> (i2, t1') : aeqs
+        (EVar i1, _) | isVar i1 -> addEq i1 t2' aeqs
+        (_, EVar i2) | isVar i2 -> addEq i2 t1' aeqs
         (EApp f1 a1, EApp f2 a2) -> addTypeEq f1 f2 (addTypeEq a1 a2 aeqs)
         _ | t1' `eqEType` t2 -> aeqs
         _ -> errorMessage (getSLoc t1) $ "inconsistent type equality " ++ showEType t1' ++ " ~ " ++ showEType t2'
