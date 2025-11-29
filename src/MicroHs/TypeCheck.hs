@@ -1074,9 +1074,9 @@ addAssocs adef = do
       vt <- gets valueTable
       let val i =
             case stLookup "" i vt of
-              Right e -> ValueExport i e
-              _       -> impossibleShow i
-      addAssocTable (qualIdent mn ti) (map val is)
+              Right e -> [ValueExport i e]
+              _       -> []  -- fields with existential type have no selector
+      addAssocTable (qualIdent mn ti) (concatMap val is)
 
     assocData (Constr _ _ c _ (Left _)) = [c]
     assocData (Constr _ _ c _ (Right its)) = c : map fst its
@@ -1498,10 +1498,14 @@ addValueType adef = do
   mn <- gets moduleName
   -- tcTrace ("addValueType: " ++ showEDefs [adef])
   let addConFields _     (Constr _ _ _ _ (Left _)) = return ()
-      addConFields tycon (Constr _ _ _ _ (Right fs)) = mapM_ addField fs
-        where addField (fld, _) = do
+      addConFields tycon (Constr evks _ _ _ (Right fs)) = mapM_ addField fs
+        where evs = map idKindIdent evks
+              -- Don't add fields with existentials
+              addField (fld, (_, ty)) | null (freeTyVars [ty] `intersect` evs) = do
                 (fe, fty) <- tLookup "addValueType?" $ mkGetName tycon fld
                 extValETop fld fty fe
+              addField _ = return ()
+      
   case adef of
     Sign is@(i:_) t | isConIdent i -> do
       -- pattern synonym

@@ -106,8 +106,12 @@ expandField def                                            = return [def]
 
 genHasFields :: LHS -> [Constr] -> T [EDef]
 genHasFields lhs cs = do
-  let fldtys = nubBy ((==) `on` fst) [ (fld, ty) | Constr _ _ _ _ (Right fs) <- cs, (fld, (_, ty)) <- fs ]
---      flds = map fst fldtys
+  let -- filter out fields with existential variables, the selector type makes no sense for there.
+      fldtys = nubBy ((==) `on` fst) [ (fld, ty)
+                                     | Constr evks _ _ _ (Right fs) <- cs
+                                     , let evs = map idKindIdent evks  -- existential variables
+                                     , (fld, (_, ty)) <- fs
+                                     , null (freeTyVars [ty] `intersect` evs) ]
   concat <$> mapM (genHasField lhs cs) fldtys
 
 genHasField :: LHS -> [Constr] -> (Ident, EType) -> T [EDef]
