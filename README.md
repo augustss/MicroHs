@@ -570,18 +570,31 @@ Then you can use the primitive via the `_primitive` keyword (`_primitive "myPrim
 
 # Thank You
 A big thanks goes to the people who have contributed to MicroHs:
+@amigalemming
+@arossato
+@benclifford
+@claudeha
 @dmjio
 gay@disroot.org
 @gergoerdi
+@ikervagyok
 @jmaessen
 @juhp
 @kolmodin
 @konsumlamm
 @liolin
+@lortabac
+@MaximilianAlgehed
+@meooow25
+@philderbeast
 @rewbert
+@Superstar64
+@thielema
 @thimc
+@thma
 @treeowl
 @TristanCacqueray
+@tvmaaren
 @yobson
 
 
