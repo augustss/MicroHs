@@ -1981,10 +1981,10 @@ tcExprR mt ae =
         tr = tApp (tList loc) ta
       munify loc mt tr
       return (EListish (LCompr ea rss))
-    EListish (LFrom       e)        -> tcExpr mt (enum loc "From" [e])
-    EListish (LFromTo     e1 e2)    -> tcExpr mt (enum loc "FromTo" [e1, e2])
-    EListish (LFromThen   e1 e2)    -> tcExpr mt (enum loc "FromThen" [e1,e2])
-    EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enum loc "FromThenTo" [e1,e2,e3])
+    EListish (LFrom       e)        -> tcExpr mt (enumCall loc "From" [e])
+    EListish (LFromTo     e1 e2)    -> tcExpr mt (enumCall loc "FromTo" [e1, e2])
+    EListish (LFromThen   e1 e2)    -> tcExpr mt (enumCall loc "FromThen" [e1,e2])
+    EListish (LFromThenTo e1 e2 e3) -> tcExpr mt (enumCall loc "FromThenTo" [e1,e2,e3])
     ESign e t -> do
 {-
       -- As a hack, translate 'e :: T' to 'let s$999 :: T; s$999 = e in s$999'
@@ -2249,9 +2249,9 @@ dsEField _ e@(EField _ _) = return [e]
 dsEField _ (EFieldPun is) = return [EField is $ EVar (last is)]
 dsEField e EFieldWild = do
   let loc = getSLoc e
-  (e', _) <- tInferExpr e
-  case e' of
-    ECon c -> return [ EField [f'] (EVar f') | f <- conFields c, let f' = setSLocIdent loc f ]
+  mc <- getExprCon e
+  case mc of
+    Just c -> return [ EField [f'] (EVar f') | f <- conFields c, let f' = setSLocIdent loc f ]
     _ -> tcError (getSLoc e) "record wildcard not allowed"
 
 -- Patterns need to expand EFieldWild before type checking
@@ -2280,11 +2280,9 @@ unsetField i = mkExn (getSLoc i) (unIdent i) "recConError"
 
 dsUpdate :: (Ident -> Expr) -> Expr -> [EField] -> T (Maybe Expr)
 dsUpdate unset e flds = do
-  (e', _) <- noEffect (tInferExpr e)   -- We need to get the possible ECon from e,
-                                       -- but since we will not use the type we don't
-                                       -- want any possible constraints from the type inference.
-  case e' of
-    ECon c -> do
+  mc <- getExprCon e
+  case mc of
+    Just c -> do
       let ises = map unEField flds
           fs = conFields c
           ies = map (first head) ises
@@ -2300,8 +2298,17 @@ dsUpdate unset e flds = do
       return $ Just $ eApps e as
     _ -> return Nothing
 
-enum :: SLoc -> String -> [Expr] -> Expr
-enum loc f = eApps (EVar (mkBuiltin loc ("enum" ++ f)))
+-- Get the possible ECon from e.
+getExprCon :: Expr -> T (Maybe Con)
+getExprCon (EVar i) = do
+  (e', _) <- tLookupV i
+  case e' of
+    ECon c -> return (Just c)
+    _      -> return Nothing
+getExprCon _ = return Nothing
+
+enumCall :: SLoc -> String -> [Expr] -> Expr
+enumCall loc f = eApps (EVar (mkBuiltin loc ("enum" ++ f)))
 
 tcLit :: HasCallStack => Expected -> SLoc -> Lit -> T Expr
 tcLit mt loc l@(LPrim _) = newUVar >>= tcLit' mt loc l
