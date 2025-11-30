@@ -62,6 +62,9 @@ sel_ra :: RR -> Int
 sel_ra CRR{r.a} = a
 -}
 
+updA :: R -> Int -> R
+updA CR{a=_,..} a = CR{..}
+
 data S a = S1 { x :: Int } | S2 { x :: Int, y :: a }
 
 instance forall a . Show a => Show (S a) where
@@ -108,3 +111,4 @@ main = do
   print s2.x
   print (x s1)
   print (x s2)
+  print (updA r1 100)

@@ -2016,7 +2016,7 @@ tcExprR mt ae =
         tt <- tcExpr mt t
         derefUVar (EForall b vks' tt)
     EUpdate e flds -> do
-      ises <- concat <$> mapM (dsEField e) flds
+      ises <- concat <$> mapM (dsEField flds e) flds
       me <- dsUpdate unsetField e ises
       case me of
         Just e' -> tcExpr mt e'
@@ -2244,14 +2244,18 @@ dsEFieldsBind :: EBind -> T EBind
 dsEFieldsBind (PatBind p e) = PatBind <$> dsEFields p <*> return e
 dsEFieldsBind b = return b
 
-dsEField :: Expr -> EField -> T [EField]
-dsEField _ e@(EField _ _) = return [e]
-dsEField _ (EFieldPun is) = return [EField is $ EVar (last is)]
-dsEField e EFieldWild = do
+dsEField :: [EField] -> Expr -> EField -> T [EField]
+dsEField _ _ e@(EField _ _) = return [e]
+dsEField _ _ (EFieldPun is) = return [EField is $ EVar (last is)]
+dsEField flds e EFieldWild = do
   let loc = getSLoc e
+      ids = concatMap f flds  -- fields already present
+            where f (EField [i] _) = [i]
+                  f (EFieldPun [i]) = [i]
+                  f _ = []
   mc <- getExprCon e
   case mc of
-    Just c -> return [ EField [f'] (EVar f') | f <- conFields c, let f' = setSLocIdent loc f ]
+    Just c -> return [ EField [f'] (EVar f') | f <- conFields c, f `notElem` ids, let f' = setSLocIdent loc f ]
     _ -> tcError (getSLoc e) "record wildcard not allowed"
 
 -- Patterns need to expand EFieldWild before type checking
@@ -2269,7 +2273,7 @@ dsEFields apat =
     EViewPat e p -> EViewPat e <$> dsEFields p
     ELazy z p -> ELazy z <$> dsEFields p
     ECon _ -> return apat
-    EUpdate c fs -> EUpdate c . concat <$> mapM (dsEField c) fs
+    EUpdate c fs -> EUpdate c . concat <$> mapM (dsEField fs c) fs
     EParen p -> dsEFields p
     ENegApp _ -> return apat
     EOr ps -> EOr <$> mapM dsEFields ps
