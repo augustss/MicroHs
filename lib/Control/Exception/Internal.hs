@@ -131,10 +131,18 @@ newtype NoMethodError    = NoMethodError    String deriving (Typeable)
 newtype RecSelError      = RecSelError      String deriving (Typeable)
 newtype RecConError      = RecConError      String deriving (Typeable)
 
-instance Show PatternMatchFail where showsPrec _ (PatternMatchFail s) r = showString "no match at "     (showString s r)
-instance Show NoMethodError    where showsPrec _ (NoMethodError    s) r = showString "no default for "  (showString s r)
-instance Show RecSelError      where showsPrec _ (RecSelError      s) r = showString "no field "        (showString s r)
-instance Show RecConError      where showsPrec _ (RecConError      s) r = showString "uninit field "    (showString s r)
+instance Show PatternMatchFail where
+  showsPrec _ (PatternMatchFail s) r = showString "Non-exhaustive patterns "
+                                       (showString s r)
+instance Show NoMethodError where
+  showsPrec _ (NoMethodError    s) r = showString "No instance nor default method for class operation "
+                                       (showString s r)
+instance Show RecSelError where
+  showsPrec _ (RecSelError      s) r = showString "No field "
+                                       (showString s r)
+instance Show RecConError where
+  showsPrec _ (RecConError      s) r = showString "Missing field in record construction "
+                                       (showString s r)
 
 instance Exception PatternMatchFail
 instance Exception NoMethodError
