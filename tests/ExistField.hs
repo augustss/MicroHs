@@ -48,6 +48,11 @@ data TA = forall a b . (Show a, Eq a, Show b, Eq b) =>
              , b2 :: String }
         | T3 String
 
+instance Show TA where
+  show (T1 a1 b1 c1) = "T1 " ++ show a1 ++ " " ++ show b1 ++ " " ++ c1
+  show (T2 a2 b2   ) = "T2 " ++ show a2 ++ " " ++ show b2
+  show (T3 s       ) = "T3 " ++ s
+
 myT1 :: TA
 myT1 = T1 (Just 1) 11 "my string"
 
@@ -57,6 +62,8 @@ main = do
   selTest myTs
   print myT
   print $ updateT myT
+  print (T {a = 42 , b = 13})
+  print (myT {a = Just 42 , b = Nothing})
   case (myT1 {c1 = "updated"}) of
     T1 a b c -> print (a,b,c)
   case myT1 {a1 = "updated"} of
@@ -71,3 +78,9 @@ main = do
   case T2 11 "a string" of
     t -> case t {a2 = "updated"} of
            T2 a' b' -> print (a',b')
+  let t = T Nothing (Just 42)
+  print (t {a = 20, b = 22})
+  let t' = myT
+  print (t' {a = 42, b = 42})
+  let t'' = myT1 { a1 = Just 42}
+  print (t'' {b1 = Just 42})
