@@ -2036,6 +2036,16 @@ tcExprR mt ae =
                   ECon c -> return $ Just c
                   _      -> return Nothing
               _ -> return Nothing
+          -- Deal with possible local bindings
+          dsUVar r = do
+            m <- getUVar r
+            case m of
+              Just (EVar t) -> do
+                mc <- getECon t
+                case mc of
+                  Just c -> dsToApp (conIdent c) (conFields c)
+                  _      -> dsUpdate unsetField e ises
+              _ -> dsUpdate unsetField e ises
           -- Generate a constructor application
           dsToApp i fs = do
             con <- getExistConst i
@@ -2076,8 +2086,9 @@ tcExprR mt ae =
                 -- Check if v is defined in the valueTable
                 case stLookup "dsToCase" v vt of
                   -- It might be a constructor, anyway safe for dsToCase
-                  Right (Entry (EVar _) (EVar t)) -> dsToCase t
-                  _                               -> dsUpdate unsetField e ises
+                  Right (Entry (EVar _) (EVar  t)) -> dsToCase t
+                  Right (Entry (EVar _) (EUVar r)) -> dsUVar   r
+                  _                                -> dsUpdate unsetField e ises
               ECon (ConData _ ident fs) -> dsToApp ident fs
               _                         -> dsUpdate unsetField e ises
       case me of
