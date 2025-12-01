@@ -8,6 +8,8 @@ These are not: (13,42)
 (13,42)
 T Just 12 Nothing
 T Nothing Just 14
+T 42 13
+T Just 42 Nothing
 (Just 1,11,"updated")
 ("updated",11,"my string")
 (Just 1,"updated","my string")

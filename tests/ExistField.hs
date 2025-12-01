@@ -57,6 +57,8 @@ main = do
   selTest myTs
   print myT
   print $ updateT myT
+  print (T {a = 42 , b = 13})
+  print (myT {a = (Just 42) , b = Nothing})
   case (myT1 {c1 = "updated"}) of
     T1 a b c -> print (a,b,c)
   case myT1 {a1 = "updated"} of
