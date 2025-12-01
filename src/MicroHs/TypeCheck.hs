@@ -2043,7 +2043,7 @@ tcExprR mt ae =
               Just (EVar t) -> do
                 mc <- getECon t
                 case mc of
-                  Just c -> dsToApp (conIdent c) (conFields c)
+                  Just _ -> dsToCase t
                   _      -> dsUpdate unsetField e ises
               _ -> dsUpdate unsetField e ises
           -- Generate a constructor application

@@ -48,6 +48,11 @@ data TA = forall a b . (Show a, Eq a, Show b, Eq b) =>
              , b2 :: String }
         | T3 String
 
+instance Show TA where
+  show (T1 a1 b1 c1) = "T1 " ++ show a1 ++ " " ++ show b1 ++ " " ++ c1
+  show (T2 a2 b2   ) = "T2 " ++ show a2 ++ " " ++ show b2
+  show (T3 s       ) = "T3 " ++ s
+
 myT1 :: TA
 myT1 = T1 (Just 1) 11 "my string"
 
@@ -77,3 +82,5 @@ main = do
   print (t {a = 20, b = 22})
   let t' = myT
   print (t' {a = 42, b = 42})
+  let t'' = myT1 { a1 = Just 42}
+  print (t'' {b1 = Just 42})
