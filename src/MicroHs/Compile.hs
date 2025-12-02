@@ -16,6 +16,7 @@ module MicroHs.Compile(
   getMhsDir,
   openFilePath,
   loadPkg,
+  addPreludeImport,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Control.Exception
@@ -261,6 +262,12 @@ compileToCombinators dmdl = do
   let cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- tBindingsOf dmdl ]
   seq (rnf cmdl) cmdl  -- This makes execution slower, but speeds up GC
 
+-- Add implicit imports:
+--   import Prelude
+--   import Mhs.Builting as B@
+-- No implicitr imports are added when
+--   import qualified Prelude()
+-- is present.
 addPreludeImport :: EModule -> EModule
 addPreludeImport (EModule mn es ds) =
   EModule mn es ds'

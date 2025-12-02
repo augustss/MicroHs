@@ -37,7 +37,7 @@ data IState = IState {
   isHistory :: FilePath
   }
 
--- To speed up interactive use the state of the symbol table after
+-- To speed up interactive use, the state of the symbol table after
 -- processing all imports is cached in isCComp together with the
 -- mapping from all imported names to their actual values.
 -- Every time the imports change, these tables are recomputed.
@@ -61,7 +61,6 @@ noSymbols = (stEmpty, stEmpty)
 
 preamble :: String
 preamble = "module " ++ interactiveName ++ " where\n\
-           \import Prelude\n\
            \import System.IO.PrintOrRun\n\
            \default Num (Integer, Double)\n\
            \default IsString (String)\n\
@@ -396,7 +395,8 @@ updateTCStateCache (EModule mn es ds) = do
     flgs <- gets isFlags
     cash <- gets isCache
 --    putStrLnI "*** update tcstate"
-    ((_, syms, tcstate), ch) <- liftIO $ runStateIO (compileInteractive flgs mdl) cash
+    let mdl' = addPreludeImport mdl
+    ((_, syms, tcstate), ch) <- liftIO $ runStateIO (compileInteractive flgs mdl') cash
     let idmap = translateMap $ concatMap tBindingsOf $ cachedModules ch
 --    putStrLnI $ "*** update isFast " ++ show nImps
     modify $ \ is -> is{ isCComp = (nImps, tcstate, idmap), isCache = ch, isSymbols = syms }
