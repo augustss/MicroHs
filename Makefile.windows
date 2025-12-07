@@ -15,7 +15,10 @@ bin/mhseval.exe:	src/runtime/*.c src/runtime/windows/* src/runtime/comb.c
 	@-mkdir build
 	cl -Fobuild\ -O2 -Isrc/runtime -Isrc/runtime/windows src/runtime/main.c src/runtime/eval.c src/runtime/comb.c -Febin/mhseval.exe
 
-exampletest:	bin/mhs.exe bin/mhseval.exe Example.hs
+targets.conf: targets.conf.in
+	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," targets.conf.in > targets.conf
+
+exampletest:	bin/mhs.exe bin/mhseval.exe Example.hs targets.conf
 	bin\mhs -r Example
 	bin\mhs Example && bin\mhseval
         bin\mhs -itests Nfib && bin\mhseval
