@@ -1,11 +1,11 @@
-name: Publish MicroHs "nightly" binaries
+name: nightly
 
 permissions: write-all
 
 on:
   push:
     branches:
-      - nightly
+      - master
 
 jobs:
   build:
