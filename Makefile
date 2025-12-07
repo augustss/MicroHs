@@ -1,9 +1,9 @@
 # Define these 3 lines to use GMP for Integer.
-#MHSGMPCCFLAGS=-DWANT_GMP=1
-#MHSGMP=-ilib/gmp
-#MCABALGMP=-fgmp
+MHSGMPCCFLAGS=-DWANT_GMP=1
+MHSGMP=-ilib/gmp
+MCABALGMP=-fgmp
 # AND, for MacOS with homebrew (after brew install gmp):
-#MHSGMPCCLIBS= -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
+MHSGMPCCLIBS= -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
 # OR, for Ubuntu Linux (after apt-get install -y libgmp-dev):
 #MHSGMPCCLIBS=-lgmp
 #
@@ -166,6 +166,9 @@ USECPPHS=bin/cpphs
 bootstrapcpphs: bin/mhs cpphssrc/malcolm-wallace-universe/.git
 	MHSCPPHS=$(USECPPHS) bin/mhs -z -XCPP '-DMIN_VERSION_base(x,y,z)=((x)<4||(x)==4&&(y)<19||(x)==4&&(y)==19&&(z)<=1)' -icpphscompat -icpphssrc/malcolm-wallace-universe/polyparse-1.12/src -icpphssrc/malcolm-wallace-universe/cpphs-1.20.9 cpphssrc/malcolm-wallace-universe/cpphs-1.20.9/cpphs.hs -ogenerated/cpphs.c
 
+targets.conf: targets.conf.in
+	sed -e "s,GMPFLAGS,$(MHSGMPCCFLAGS)," -e "s,GMPLIBS,$(MHSGMPCCLIBS)," targets.conf.in > targets.conf
+
 # Run test examples with ghc-compiled compiler
 runtest:	bin/mhseval bin/gmhs tests/*.hs
 	cd tests; $(MAKE) alltest
@@ -231,7 +234,7 @@ cachelib:
 
 #
 clean:
-	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache .mhscache dist-mcabal Interactive.hs .mhsi lib/*.pkg lib/dist-mcabal
+	rm -rf src/*/*.hi src/*/*.o *.comb *.js *.tmp *~ bin/* a.out $(GHCOUTDIR) Tools/*.o Tools/*.hi dist-newstyle generated/*-stage* .mhscache .mhscache dist-mcabal Interactive.hs .mhsi lib/*.pkg lib/dist-mcabal targets.conf
 	cd tests; $(MAKE) clean
 	-cabal clean
 	-git submodule deinit cpphssrc/malcolm-wallace-universe
