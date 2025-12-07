@@ -1,6 +1,7 @@
 name: nightly
 
-permissions: write-all
+permissions:
+  contents: write
 
 on:
   push:
@@ -13,10 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: make minstall
-      - run: |
-          git tag nightly -f
-          git push origin --tags -f
+      - name: publish binaries
+        run: |
+          tar -czf mcabal-linux-x86_64.tar.gz -C "$HOME" .mcabal
           gh release create nightly --prerelease || true
-          gh release upload nightly "$HOME/.mcabal/bin/*" --clobber
+          gh release upload nightly mcabal-linux-x86_64.tar.gz --clobber
         env:
           GH_TOKEN: ${{ github.token }}
