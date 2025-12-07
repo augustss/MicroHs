@@ -374,22 +374,10 @@ the current state:
 * `stm` most of the functionality
 * `text` some of the functionality
 
-#### Packages that are known to compile (some of them include fixes for MicroHs)
-* `containers`
-* `cpphs`
-* `granite`
-* `hscolour`
-* `polyparse`
-* `splitmix`
-* `time`
-* `transformers`
-
-#### Packages that have an alternate with `-mhs` as a suffix
-* `array` too GHC specific to port
-* `mtl` pull request sent, not merged (yet)
-* `random` pull request refused by the maintainers
-
-Contributions to these lists are very welcome.
+#### Package status
+You can find the [status for various packages](https://docs.google.com/spreadsheets/d/1e0dbUg5uuFKNwgMpwtBnYRldPCYYyBqYfsbyhEjf5bU/edit?usp=sharing).
+If a package is not in the list it just means that nobody has reported success of failure with the package.
+Please do so.
 
 ## Files
 There is a number of subdirectories:
