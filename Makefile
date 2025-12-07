@@ -1,9 +1,9 @@
 # Define these 3 lines to use GMP for Integer.
-MHSGMPCCFLAGS=-DWANT_GMP=1
-MHSGMP=-ilib/gmp
-MCABALGMP=-fgmp
+#MHSGMPCCFLAGS=-DWANT_GMP=1
+#MHSGMP=-ilib/gmp
+#MCABALGMP=-fgmp
 # AND, for MacOS with homebrew (after brew install gmp):
-MHSGMPCCLIBS= -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
+#MHSGMPCCLIBS= -L/opt/homebrew/lib -lgmp -I/opt/homebrew/include
 # OR, for Ubuntu Linux (after apt-get install -y libgmp-dev):
 #MHSGMPCCLIBS=-lgmp
 #
@@ -287,8 +287,8 @@ nfibtest: bin/mhs bin/mhseval
 
 ######
 
-VERSION=0.14.28.0
-HVERSION=0,14,28,0
+VERSION=0.14.29.0
+HVERSION=0,14,29,0
 MCABAL=$(HOME)/.mcabal
 MCABALMHS=$(MCABAL)/mhs-$(VERSION)
 MDATA=$(MCABALMHS)/packages/mhs-$(VERSION)/data
@@ -332,10 +332,10 @@ preparedist:	newmhsz bootstrapcpphs
 	rm -f generated/mcabal.c generated/mhseval.js generated/base.pkg
 	$(MAKE) generated/mcabal.c
 	$(MAKE) generated/mhseval.js
-	$(MAKE) generated/base.pkg
+#	$(MAKE) generated/base.pkg
 
 generated/base.pkg:
-	cd lib; mcabal build
+	cd lib; mcabal $(MCABALCMP) build
 	cp lib/dist-mcabal/base-$(VERSION).pkg generated/base.pkg
 
 install:	installmsg minstall
