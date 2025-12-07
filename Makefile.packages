@@ -1,0 +1,45 @@
+# Install a bunch of packages
+# These are the ones I know compile.
+# Do 'make install' before running this.
+# The funny install order is to avoid using 'mcabal -r'
+.PHONY: all
+
+all:
+	mcabal install ghc-compat
+	mcabal install colour
+	mcabal install ansi-terminal-types
+	mcabal install ansi-terminal
+	mcabal install array
+	mcabal install --git=https://github.com/haskell-unordered-containers/unordered-containers.git unordered-containers
+	mcabal install --git=https://github.com/simonmar/async.git async
+	mcabal install --git=https://github.com/sol/call-stack.git call-stack
+	mcabal install containers
+	mcabal install time
+	mcabal install polyparse
+	mcabal install cpphs
+	mcabal install transformers
+	mcabal install --git=https://github.com/haskell/mtl.git mtl
+	mcabal install --git=https://github.com/ekmett/exceptions exceptions
+	mcabal install --git=https://github.com/augustss/os-string.git os-string
+	mcabal install --git=https://github.com/augustss/filepath.git filepath
+	mcabal install haskell-lexer
+	mcabal install hspec-expectations
+	mcabal install HUnit
+	mcabal install monad-loops
+	mcabal install nanospec
+	mcabal install --git=http://github.com/augustss/parsec.git parsec
+	mcabal install --git=http://github.com/haskell/pretty.git pretty
+	mcabal install --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter prettyprinter
+	mcabal install --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-ansi-terminal prettyprinter-ansi-terminal
+	mcabal install --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-compat-annotated-wl-pprint prettyprinter-compat-annotated-wl-pprint
+	mcabal install --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-compat-ansi-wl-pprint prettyprinter-compat-ansi-wl-pprint
+	mcabal install --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-compat-wl-pprint prettyprinter-compat-wl-pprint
+	mcabal install splitmix
+	mcabal install random
+	mcabal install --git=https://github.com/nick8325/quickcheck.git QuickCheck
+	mcabal install simple-affine-space
+	mcabal install split
+	mcabal install --git=http://github.com/ekmett/tagged.git tagged
+	mcabal install tagsoup
+# stackage does not have Yampa
+#	mcabal install --git=https://github.com/augustss/Yampa.git --dir=yampa yampa
