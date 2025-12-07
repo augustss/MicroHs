@@ -57,6 +57,7 @@ openTmpFile tmplt = do
 
 mhsError :: String -> a
 mhsError = error
+           -- errorWithoutStackTrace
 
 _usingMhs :: Bool
 _usingMhs = False

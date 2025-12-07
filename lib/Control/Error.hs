@@ -1,22 +1,30 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
-module Control.Error(_error, error, errorWithoutStackTrace, undefined, ErrorCall(..)) where
+module Control.Error(
+  error, _errorLoc,
+  undefined, _undefinedLoc,
+  errorWithoutStackTrace,
+  ) where
 import qualified Prelude()              -- do not import Prelude
 import Data.Char_Type
 import Control.Exception.Internal
 
--- no location of call added
-_error :: forall a . String -> a
-_error s = throw (ErrorCall s)
-
--- mhs compiler adds location of call
+-- mhs compiler adds location of call and rewrites to _errorLoc
 error :: forall a . String -> a
-error = _error
+error = _errorLoc ""
 
--- mhs compiler adds location of call
+-- mhs compiler adds location of call and rewrites to _undefinedLoc
 undefined :: forall a . a
-undefined = error "undefined"
+undefined = _undefinedLoc ""
 
--- GHC compatibility
+-- no location of call added
+_errorLoc :: forall a . String -> String -> a
+_errorLoc l s = throw (ErrorCallWithLocation s l)
+
+-- no location of call added
+_undefinedLoc :: forall a . String -> a
+_undefinedLoc l = throw (ErrorCallWithLocation "undefined" l)
+
+-- Error without location
 errorWithoutStackTrace :: forall a . String -> a
-errorWithoutStackTrace = _error
+errorWithoutStackTrace = _errorLoc ""

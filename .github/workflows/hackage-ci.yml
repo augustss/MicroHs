@@ -180,6 +180,11 @@ jobs:
       run: |
         mcabal install ansi-terminal
 
+    # nanospec
+    - name: compile and install nanospec package
+      run: |
+        mcabal install nanospec
+
     # DONE
     - name: cleanup
       run: |

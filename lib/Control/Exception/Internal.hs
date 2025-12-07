@@ -15,7 +15,7 @@ module Control.Exception.Internal(
   asyncExceptionFromException,
   BlockedIndefinitelyOnMVar(..),
   BlockedIndefinitelyOnSTM(..),
-  ErrorCall(..),
+  ErrorCall(ErrorCallWithLocation, ErrorCall),
 
   uninterruptibleMask,
   uninterruptibleMask_,
@@ -305,9 +305,13 @@ instance Show BlockedIndefinitelyOnSTM where
 
 --------------------
 
-newtype ErrorCall = ErrorCall String
+data ErrorCall = ErrorCallWithLocation String String  -- message and location
 
 instance Exception ErrorCall
 
 instance Show ErrorCall where
-  showsPrec _ (ErrorCall s) r = showString "error: " (showString s r)
+  showsPrec _ (ErrorCallWithLocation s l) r = showString "error: " (showString l (showString s r))
+
+pattern ErrorCall :: String -> ErrorCall
+pattern ErrorCall s <- ErrorCallWithLocation s _
+  where ErrorCall s = ErrorCallWithLocation s ""

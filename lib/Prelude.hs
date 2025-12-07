@@ -44,7 +44,7 @@ module Prelude(
   ) where
 import qualified Prelude()              -- do not import Prelude
 import Control.Applicative(Applicative(..))
-import Control.Error(error, undefined)
+import Control.Error(error, undefined, errorWithoutStackTrace)
 import Control.Monad(Monad(..), mapM, mapM_, sequence, sequence_, (=<<))
 import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)
