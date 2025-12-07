@@ -1,0 +1,22 @@
+name: Publish MicroHs "nightly" binaries
+
+permissions: write-all
+
+on:
+  push:
+    branches:
+      - nightly
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make minstall
+      - run: |
+          git tag nightly -f
+          git push origin --tags -f
+          gh release create nightly --prerelease || true
+          gh release upload nightly "$HOME/.mcabal/bin/*" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
