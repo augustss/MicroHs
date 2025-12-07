@@ -7041,6 +7041,10 @@ from_t mhs_mpz_xor(int s) { mpz_xor(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1), mhs_to_P
 from_t mhs_mpz_init_set_si64(int s) { mpz_init_set_si64(mhs_to_Ptr(s, 0), mhs_to_Int64(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_init_set_ui64(int s) { mpz_init_set_ui64(mhs_to_Ptr(s, 0), mhs_to_Word64(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_mpz_get_si64(int s) { return mhs_from_Int64(s, 1, mpz_get_si64(mhs_to_Ptr(s, 0))); }
+from_t mhs_mpz_log2(int s) {
+  mpz_ptr a = mhs_to_Ptr(s, 0);
+  return mhs_from_Int(s, 1, mpz_sizeinbase(a, 2) - 1);
+}
 #endif  /* WANT_GMP */
 #if WANT_TIME
 from_t mhs_gettimeofday(int s) { return mhs_from_Int(s, 2, gettimeofday(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
@@ -7259,6 +7263,7 @@ const struct ffi_entry ffi_table[] = {
   { "mpz_init_set_si64", 2, mhs_mpz_init_set_si64},
   { "mpz_init_set_ui64", 2, mhs_mpz_init_set_ui64},
   { "mpz_get_si64", 1, mhs_mpz_get_si64},
+  { "mpz_log2", 1, mhs_mpz_log2},
 #endif  /* WANT_GMP */
 #if WANT_TIME
   { "gettimeofday", 2, mhs_gettimeofday},

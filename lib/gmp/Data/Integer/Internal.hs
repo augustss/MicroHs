@@ -9,6 +9,7 @@ module Data.Integer.Internal(
   andI, orI, xorI,
   shiftLI, shiftRI,
   testBitI, popCountI,
+  log2I,
   _intToInteger,
   _integerToFloat,
   _integerToDouble,
@@ -50,6 +51,7 @@ foreign import capi "mpz_mul_2exp"    mpz_mul_2exp    :: Ptr MPZ -> Ptr MPZ -> I
 foreign import capi "mpz_fdiv_q_2exp" mpz_fdiv_q_2exp :: Ptr MPZ -> Ptr MPZ -> Int ->                IO ()
 foreign import capi "mpz_popcount"    mpz_popcount    :: Ptr MPZ ->                                  IO Int
 foreign import capi "mpz_tstbit"      mpz_tstbit      :: Ptr MPZ -> Int ->                           IO Int
+foreign import capi "mpz_log2"        mpz_log2        :: Ptr MPZ ->                                  IO Int
 
 binop :: (Ptr MPZ -> Ptr MPZ -> Ptr MPZ -> IO ()) -> Integer -> Integer -> Integer
 binop f (I x) (I y) = unsafePerformIO $ do
@@ -161,6 +163,9 @@ shiftRI x i = unop (\ pz px -> mpz_fdiv_q_2exp pz px i) x
 
 popCountI :: Integer -> Int
 popCountI (I x) = unsafePerformIO $ withForeignPtr x mpz_popcount
+
+log2I :: Integer -> Int
+log2I (I x) = unsafePerformIO $ withForeignPtr x mpz_log2
 
 ---------------------------------
 {-
