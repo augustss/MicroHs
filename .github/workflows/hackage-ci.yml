@@ -49,10 +49,12 @@ jobs:
       run: |
         mcabal install time
 
+    # polyparse
     - name: compile and install polyparse
       run: |
         mcabal install polyparse
 
+    # cpphs
     - name: compile and install cpphs
       run: |
         mcabal install cpphs
@@ -70,9 +72,10 @@ jobs:
         mcabal install
 
     # mtl-mhs
+    # not yet uploaded to hackage
     - name: compile and install mtl-mhs package
       run: |
-        mcabal install mtl
+        mcabal install --git=https://github.com/haskell/mtl.git mtl
 
     # pretty
     # not yet uploaded to hackage
