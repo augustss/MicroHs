@@ -34,6 +34,8 @@ jobs:
       run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp
     - name: make everytestmhs
       run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp everytestmhs
+    - name: make install
+      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp minstall
 
   build-macos:
     runs-on: macos-latest
