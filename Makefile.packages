@@ -22,6 +22,7 @@ all:
 	mcabal install --git=https://github.com/ekmett/exceptions exceptions
 	mcabal install --git=https://github.com/augustss/os-string.git os-string
 	mcabal install --git=https://github.com/augustss/filepath.git filepath
+	mcabal install granite
 	mcabal install haskell-lexer
 	mcabal install HUnit
 	mcabal install hspec-expectations
