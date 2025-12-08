@@ -11,6 +11,7 @@
 # Some special exceptions
 - ignore: {name: Use list literal pattern, within: [MicroHs.Main,System.Console.GetOpt]}
 - ignore: {name: "Avoid lambda using `infix`", within: [MicroHs.Deriving,MicroHs.TypeCheck]}
+- ignore: {name: "Use newtype instead of data", within [MicroHs.Lex]}
 # Various lib stuff
 - ignore: {name: Use error, within: [Control.Error]}
 - ignore: {name: Use fst, within: [Data.Functor]}
