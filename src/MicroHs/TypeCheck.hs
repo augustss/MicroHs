@@ -3486,6 +3486,7 @@ solveInstCoercible loc iCls t1 t2 = do
 
 -- Pretend newtypes are type synonyms.
 -- XXX It's rather inefficient to do this over and over.
+-- XXX Cannot handle recursive newtypes
 withNewtypeAsSyns :: T a -> T a
 withNewtypeAsSyns act = do
   st <- gets synTable  -- get old syntable
@@ -3497,6 +3498,8 @@ withNewtypeAsSyns act = do
           -- it could be visible.
           let t = either (snd . head) (snd . snd . head) et
 --          traceM $ "extNewtypeSyns: " ++ showIdent qi ++ show vs ++ " = " ++ showExprRaw t
+          when (qi `elem` allVarsExpr t) $
+            tcError (getSLoc qi) $ "Cannot handle recursive newtype: " ++ show qi
           extSyn qi vs t  -- extend synonym table
       ext _ = return ()
   mapM_ ext $ M.toList dt
