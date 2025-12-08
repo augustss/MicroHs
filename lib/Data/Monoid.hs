@@ -6,7 +6,6 @@ module Data.Monoid(
   Product(..),
   All(..),
   Any(..),
-  Arg(..),
   Alt(..),
   First(..),
   Last(..),
