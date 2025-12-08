@@ -30,8 +30,9 @@ module Math.NumberTheory.Logarithms
     , wordLog2'
     ) where
 
+import qualified Prelude (); import MiniPrelude
 import Data.Bits
-import Data.Integer.Internal (log2I)
+import Data.Integer.Internal
 import Mhs.UArr
 import Numeric.Natural
 import Primitives

@@ -28,6 +28,7 @@ import Data.Ratio_Type
 import Data.Real
 import Data.RealFloat
 import Data.RealFrac
+import Math.NumberTheory.Logarithms
 import Numeric.FormatFloat
 import Numeric.Read
 import Numeric.Show
@@ -85,17 +86,3 @@ fromRat' x = r
           -- one scaling step needed, otherwise, x0 < b^p and no scaling is needed
           (x', p') = if x0 >= toRational maxVal then (x0 / toRational b, p0 + 1) else (x0, p0)
         in encodeFloat (round x') p'
-
--- @integerLogBase b i@ is the logarithm of @i@ to base @b@, rounded down.
-integerLogBase :: Integer -> Integer -> Int
-integerLogBase b i
-  | i == 0 = 0 :: Int
-  | b < 2 = error "invalid base"
-  | otherwise = case go b of (_, e) -> e
-  where
-    go p = if i < p
-      then (i, 0)
-      else case go (p * p) of
-        (q, e) -> if q < p
-          then (q, 2 * e)
-          else (q `quot` p, 2 * e + 1)
