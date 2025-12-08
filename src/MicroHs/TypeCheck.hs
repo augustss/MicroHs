@@ -116,7 +116,7 @@ typeCheck flags globs impt aimps (EModule mn exps defs) =
            (texps, vexps) =
              unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
              where impMap = M.fromListWith (++) [(i, [m]) | (i, m) <- allMdls]
-           fexps = map tFixDefs (map snd allMdls)
+           fexps = map (tFixDefs . snd) allMdls
            sexps = synTable tcs
            dexps = dataTable tcs
            iexps = instTable tcs
