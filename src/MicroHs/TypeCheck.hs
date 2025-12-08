@@ -634,13 +634,19 @@ expandSyn at = do
     chk (EVar i) =
       case M.lookup i syns of
         Nothing -> return ()
-        _ -> tcError (getSLoc i) "bad synonym use"
+        _ -> tcError (getSLoc i) $ "bad synonym use: " ++ show i ++ " in " ++ show (at, rt)
     chk (EUVar _) = return ()
     chk (EForall _ _ t) = chk t
     chk (ELit _ _) = return ()
     chk _ = impossible
   chk rt
   return rt
+
+expandSynNoChk :: HasCallStack =>
+                  EType -> T EType
+expandSynNoChk t = do
+  syns <- gets synTable
+  return $ expandSyn' syns t
 
 -- Expand with the given synonym table.
 expandSyn' :: HasCallStack =>
@@ -3444,7 +3450,7 @@ solveCoercible :: HasCallStack => SolveOne
 solveCoercible loc iCls [t1, t2] = do
   -- pretend newtypes are type synonyms
   (t1', t2') <- withNewtypeAsSyns $
-    (,) <$> expandSyn t1 <*> expandSyn t2
+    (,) <$> expandSynNoChk t1 <*> expandSynNoChk t2
   -- walk over the types in parallel,
   -- and generate new Coercible constraints when not equal.
 --  traceM $ "solveCoercible: " ++ showExprRaw t1' ++ " and " ++ showExprRaw t2'
