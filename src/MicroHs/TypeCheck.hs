@@ -112,10 +112,11 @@ typeCheck flags globs impt aimps (EModule mn exps defs) =
          let
            thisMdl = (mn, mkTModule tds tcs)
            impMdls = [(fromMaybe m mm, tm) | (ImportSpec _ _ m mm _, tm) <- imps]
-           impMap = M.fromList [(i, m) | (i, m) <- thisMdl : impMdls]
+           allMdls = thisMdl : impMdls
            (texps, vexps) =
              unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
-           fexps = map tFixDefs (M.elems impMap)
+             where impMap = M.fromListWith (++) [(i, [m]) | (i, m) <- allMdls]
+           fexps = map tFixDefs (map snd allMdls)
            sexps = synTable tcs
            dexps = dataTable tcs
            iexps = instTable tcs
@@ -184,11 +185,14 @@ checkBad (i:_) _ =
   errorMessage (getSLoc i) $ "not exported: " ++ showIdent i
 
 -- Type and value exports
-getTVExps :: forall a . M.Map (TModule a) -> TypeTable -> ValueTable -> AssocTable -> ExportItem ->
+getTVExps :: forall a . M.Map [TModule a] -> TypeTable -> ValueTable -> AssocTable -> ExportItem ->
              ([TypeExport], [ValueExport])
 getTVExps impMap _ _ _ (ExpModule m) =
+  -- Export all modules with name m
   case M.lookup m impMap of
-    Just (TModule _ _ te ve _ _) -> (te, ve)
+    Just ms ->
+      case unzip [ (te, ve) | TModule _ _ te ve _ _ <- ms ] of
+        (tes, ves) -> (concat tes, concat ves)
     _ -> errorMessage (getSLoc m) $ "undefined module: " ++ showIdent m
 getTVExps _ tys vals ast (ExpTypeSome ti is) =
   let e = expLookup ti tys
