@@ -997,7 +997,7 @@ void hs_perform_gc(void)
   gc();
 }
 
-void hs_free_stable_ptr(void *sp)
+void xhs_free_stable_ptr(void *sp)
 {
   /* XXX need to change representation of stablepointers */
 }
