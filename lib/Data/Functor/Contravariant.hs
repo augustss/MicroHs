@@ -35,10 +35,10 @@ module Data.Functor.Contravariant (
   , Equivalence(..)
   , defaultEquivalence
   , comparisonEquivalence
+-}
 
   -- * Dual arrows
   , Op(..)
--}
   ) where
 
 import Control.Applicative
@@ -160,25 +160,25 @@ instance (Contravariant f, Contravariant g) => Contravariant (f :+: g) where
 -}
 
 instance (Contravariant f, Contravariant g) => Contravariant (Sum f g) where
---  contramap :: (a' -> a) -> (Sum f g a -> Sum f g a')
+  contramap :: (a' -> a) -> (Sum f g a -> Sum f g a')
   contramap f (InL xs) = InL (contramap f xs)
   contramap f (InR ys) = InR (contramap f ys)
 
 instance (Contravariant f, Contravariant g)
       => Contravariant (Product f g) where
---  contramap :: (a' -> a) -> (Product f g a -> Product f g a')
+  contramap :: (a' -> a) -> (Product f g a -> Product f g a')
   contramap f (Pair a b) = Pair (contramap f a) (contramap f b)
 
 instance Contravariant (Const a) where
---  contramap :: (b' -> b) -> (Const a b -> Const a b')
+  contramap :: (b' -> b) -> (Const a b -> Const a b')
   contramap _ (Const a) = Const a
 
 instance (Functor f, Contravariant g) => Contravariant (Compose f g) where
---  contramap :: (a' -> a) -> (Compose f g a -> Compose f g a')
+  contramap :: (a' -> a) -> (Compose f g a -> Compose f g a')
   contramap f (Compose fga) = Compose (fmap (contramap f) fga)
 
 instance Contravariant Proxy where
---  contramap :: (a' -> a) -> (Proxy a -> Proxy a')
+  contramap :: (a' -> a) -> (Proxy a -> Proxy a')
   contramap _ _ = Proxy
 
 {-
@@ -307,6 +307,7 @@ defaultEquivalence = Equivalence (==)
 
 comparisonEquivalence :: Comparison a -> Equivalence a
 comparisonEquivalence (Comparison p) = Equivalence $ \a b -> p a b == EQ
+-}
 
 -- | Dual function arrows.
 newtype Op a b = Op { getOp :: b -> a }
@@ -374,4 +375,3 @@ instance Floating a => Floating (Op a b) where
   acosh (Op f) = Op $ acosh . f
   Op f ** Op g = Op $ \a -> f a ** g a
   logBase (Op f) (Op g) = Op $ \a -> logBase (f a) (g a)
--}
