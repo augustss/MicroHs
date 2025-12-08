@@ -1,7 +1,8 @@
 # Install a bunch of packages
 # These are the ones I know compile.
 # Do 'make install' before running this.
-# The funny install order is to avoid using 'mcabal -r'
+# The funny install order is to avoid using 'mcabal -r',
+# since it doesn't know of the --git overrides.
 .PHONY: all
 
 all:
@@ -18,7 +19,7 @@ all:
 	mcabal install polyparse
 	mcabal install cpphs
 	mcabal install transformers
-	mcabal install --git=https://github.com/haskell/mtl.git mtl
+	mcabal install mtl
 	mcabal install --git=https://github.com/ekmett/exceptions exceptions
 	mcabal install --git=https://github.com/augustss/os-string.git os-string
 	mcabal install --git=https://github.com/augustss/filepath.git filepath
