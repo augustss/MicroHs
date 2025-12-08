@@ -16,8 +16,8 @@ module Control.Concurrent (
   module Control.Concurrent.QSem,
   module Control.Concurrent.QSemN,
 
-{-
   forkOn, forkOnWithUnmask, getNumCapabilities, setNumCapabilities, threadCapability,
+{-
   threadWaitRead, threadWaitWrite,
   threadWaitReadSTM, threadWaitWriteSTM,
   rtsSupportsBoundThreads,
@@ -124,3 +124,22 @@ threadStatus thr = do
       2 -> ThreadBlocked BlockedOnOther  -- ts_wait_time
       3 -> ThreadFinished                -- ts_finished
       4 -> ThreadDied                    -- ts_died
+
+-------------------------------------------------------
+-- Just for GHC compatibility.
+
+forkOn :: Int -> IO () -> IO ThreadId
+forkOn _ = forkIO
+
+forkOnWithUnmask :: Int -> ((forall a. IO a -> IO a) -> IO ()) -> IO ThreadId
+forkOnWithUnmask _ = forkIOWithUnmask
+
+getNumCapabilities :: IO Int
+getNumCapabilities = return 1
+
+setNumCapabilities :: Int -> IO ()
+setNumCapabilities _ = return ()
+
+threadCapability :: ThreadId -> IO (Int, Bool)
+threadCapability _ = return (0, False)
+
