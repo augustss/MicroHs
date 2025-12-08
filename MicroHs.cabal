@@ -191,6 +191,7 @@ library
                         System.IO.Serialize
                         System.IO.TimeMilli
                         System.IO.Transducers
+                        System.FilePath
   if impl(ghc)
     hs-source-dirs:     ghc src
     build-depends:      base         >= 4.10 && < 4.30,

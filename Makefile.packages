@@ -39,6 +39,7 @@ all:
 	mcabal install splitmix
 	mcabal install random
 	mcabal install --git=https://github.com/nick8325/quickcheck.git QuickCheck
+	mcabal install quickcheck-io
 	mcabal install simple-affine-space
 	mcabal install split
 	mcabal install --git=http://github.com/ekmett/tagged.git tagged
