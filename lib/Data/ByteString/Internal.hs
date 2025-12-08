@@ -22,6 +22,8 @@ import Text.Show
 
 data ByteString  -- primitive type
 
+type StrictByteString = ByteString
+
 primBSappend  :: ByteString -> ByteString -> ByteString
 primBSappend  = _primitive "bs++"
 primBSEQ      :: ByteString -> ByteString -> Bool

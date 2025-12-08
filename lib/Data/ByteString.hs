@@ -179,8 +179,6 @@ import Text.Read
 foreign import ccall "readb" c_readb :: CString -> Int -> Ptr BFILE -> IO Int
 foreign import ccall "writeb" c_writeb :: CString -> Int -> Ptr BFILE -> IO Int
 
-type StrictByteString = ByteString
-
 bsUnimp :: String -> a
 bsUnimp s = P.error $ "Data.ByteString." P.++ s P.++ " unimplemented"
 

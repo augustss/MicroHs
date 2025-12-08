@@ -24,7 +24,7 @@ module System.IO.Base(
 
   openTmpFile, openTempFile, openBinaryTempFile,
 
-  withFile,
+  withFile, withBinaryFile,
 
   BufferMode(..),
   hSetBuffering,

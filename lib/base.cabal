@@ -220,6 +220,7 @@ library base
         Data.Bits.Base
         Data.Bool_Type
         Data.ByteString.Internal
+        Data.ByteString.Lazy.Internal
         Data.Char_Type
         Data.Data_Class
         Data.Foldable.Internal
