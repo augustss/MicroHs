@@ -370,6 +370,7 @@ the current state:
 * `deepseq` some of the functionality
 * `directory` some of the functionality
 * `hashable` a little of the functionality
+* `integer-logarithms`
 * `process` very little of the functionality
 * `stm` most of the functionality
 * `text` some of the functionality

@@ -9,6 +9,7 @@ module Data.Integer.Internal(
   andI, orI, xorI,
   shiftLI, shiftRI,
   testBitI, popCountI,
+  log2I,
   _intToInteger,
   _integerToFloat,
   _integerToDouble,
@@ -16,7 +17,7 @@ module Data.Integer.Internal(
   _wordToInteger,
   ) where
 import qualified Prelude()              -- do not import Prelude
---import Primitives
+import Primitives
 import Control.Error
 import Control.Exception.Internal
 import Data.Bits.Base
@@ -367,6 +368,15 @@ popCountI (I sign ds) =
   in  case sign of
         Plus  ->  count
         Minus -> -count
+
+log2I :: Integer -> Int
+log2I (I _ ds) = case go 0 ds of
+  Nothing -> 0
+  Just (d, n) -> n * shiftD + _wordSize - 1 - primWordClz d
+  where
+    go _ [] = Nothing
+    go n [d] = Just (d, n)
+    go n (d : ds) = go (n + 1) ds
 
 ---------------------------------
 {-

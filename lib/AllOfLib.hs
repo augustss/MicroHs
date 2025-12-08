@@ -129,6 +129,7 @@ import Foreign.Ptr
 import Foreign.StablePtr
 import Foreign.Storable
 import GHC.Generics
+import Math.NumberTheory.Logarithms
 import Numeric
 import Numeric.FormatFloat
 import Numeric.Natural

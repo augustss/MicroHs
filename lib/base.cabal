@@ -161,6 +161,7 @@ library base
         Foreign.StablePtr
         Foreign.Storable
         GHC.Generics
+        Math.NumberTheory.Logarithms
         Mhs.Arr
         Mhs.Array
         Mhs.Builtin
