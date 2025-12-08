@@ -191,7 +191,6 @@ library
                         System.IO.Serialize
                         System.IO.TimeMilli
                         System.IO.Transducers
-                        System.FilePath
   if impl(ghc)
     hs-source-dirs:     ghc src
     build-depends:      base         >= 4.10 && < 4.30,
@@ -212,7 +211,9 @@ library
 
   if impl(hugs)
     hs-source-dirs:     hugs src
+    other-modules:      System.FilePath
 
   if impl(mhs)
     hs-source-dirs:     mhs src
     build-depends:      base         >= 0.1 && < 10.0,
+    other-modules:      System.FilePath
