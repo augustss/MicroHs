@@ -7,6 +7,7 @@ module Data.IORef(
   modifyIORef',
   atomicModifyIORef,
   atomicModifyIORef',
+  atomicWriteIORef,
   mkWeakIORef,
   ) where
 import qualified Prelude()              -- do not import Prelude
@@ -49,3 +50,5 @@ atomicModifyIORef r f = readIORef r `primBind` \ a -> let (a', b) = f a in write
 atomicModifyIORef' :: forall a b . IORef a -> (a -> (a, b)) -> IO b
 atomicModifyIORef' r f = readIORef r `primBind` \ a -> let (a', b) = f a in primSeq a' (writeIORef r a') `primThen` primSeq b (primReturn b)
 
+atomicWriteIORef :: forall a . IORef a -> a -> IO ()
+atomicWriteIORef = writeIORef
