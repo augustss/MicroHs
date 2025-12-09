@@ -12,6 +12,7 @@ module Mhs.Builtin(
   module Data.Eq,
   module Data.Fractional,
   module Data.Function,
+  module Data.Functor,
   module Data.Ord,
   module Data.Num,
   module Data.Records,
@@ -44,6 +45,7 @@ import Data.Enum(Enum(enumFrom, enumFromThen, enumFromTo, enumFromThenTo))
 import Data.Eq(Eq(..))
 import Data.Fractional(Fractional(fromRational))
 import Data.Function((.))
+import Data.Functor(Functor(..))
 import Data.Ord(Ord(..), Ordering(..))
 import Data.Num(Num((+), (-), (*), fromInteger, negate))
 import Data.Proxy(Proxy(..))
