@@ -1525,6 +1525,7 @@ addValueType adef = do
       -- regular synonym
       mapM_ (\ i -> extValQTop i t) is
     Data (tycon, vks) cs _ -> do
+      multCheck [ c | Constr _ _ c _ _ <- cs ]
       let
         cti = [ (qualIdent mn c, either length length ets + if null ctx then 0 else 1) | Constr _ ctx c _ ets <- cs ]
         tret = tApps (qualIdent mn tycon) (map tVarK vks)
@@ -2405,10 +2406,7 @@ unArrow loc t = do
 
 unTuple :: Expected -> Maybe [EType]
 unTuple (Infer _) = Nothing
-unTuple (Check t) = loop [] t
-  where loop ts (EApp f a) = loop (a:ts) f
-        loop ts (EVar i) | Just n <- getTupleConstr i, length ts == n = Just ts
-        loop _ _ = Nothing
+unTuple (Check t) = getExprTuple t
 
 unList :: Expected -> Maybe EType
 unList (Check (EApp (EVar i) t)) | i == identList = Just t

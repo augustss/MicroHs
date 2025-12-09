@@ -51,7 +51,7 @@ derivers =
   ,("Data.Enum_Class.Enum",            derEnum)
   ,("Data.Data_Class.Data",            derData)
   ,("Data.Eq.Eq",                      derEq)
-  ,("Data.Functor.Functor",            derNotYet) -- derFunctor)
+  ,("Data.Functor.Functor",            derFunctor)
   ,("Data.Ix.Ix",                      derIx)
   ,("Data.Ord.Ord",                    derOrd)
   ,("Data.Typeable.Typeable",          derTypeable)
@@ -63,7 +63,7 @@ derivers =
 
 deriveNoHdr :: StandM -> DeriverT
 deriveNoHdr mctx narg lhs cs d = do
---  traceM ("deriveNoHdr " ++ show d)
+  --traceM ("deriveNoHdr " ++ show (narg, lhs, d))
   case getDeriver d of
     Just f -> f mctx narg lhs cs d
     _      -> cannotDerive lhs d
@@ -203,24 +203,47 @@ getFieldTys (Right ts) = map (snd . snd) ts
 mkHdr :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
 mkHdr (Just (ctx, _)) _ _ _ = return ctx
 mkHdr _ lhs@(_, iks) cs cls = do
-  ty <- mkLhsTy lhs
+  ty <- mkLhsTy 0 lhs
   let ctys :: [EType]  -- All top level types used by the constructors.
       ctys = nubBy eqEType [ tt | Constr evs _ _ _ flds <- cs, tt <- getFieldTys flds,
                             not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
   pure $ eForall iks $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
 
+mkHdr1 :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
+mkHdr1 (Just (ctx, _)) _ _ _ = return ctx
+mkHdr1 _ lhs@(_, iks) cs cls = do
+  ty <- mkLhsTy 0 lhs
+  let tvar = EVar $ idKindIdent $ last iks        -- safe, because iks is non-null when calling mkHdr1
+      ctys :: [EType]                             -- All top level types used by the constructors.
+      ctys = nubBy eqEType [ tt'
+                           | Constr evs _ _ _ flds <- cs
+                           , ttt <- getFieldTys flds
+                           , tt <- flattenTuple ttt
+                           , not (eqEType tt ty)                     -- not direct recursion
+                           , Just (tycon, ts@(_:_)) <- [getAppM tt]  -- must be of the form (T t1 ...)
+                           , last ts `eqEType` tvar                  -- must be of the form (T t1 ... a)
+                           , let tt' = eApps (EVar tycon) (init ts)
+                           , not $ null $ freeTyVars [tt'] \\ map idKindIdent evs
+                           ]
+      flattenTuple t | Just ts <- getExprTuple t = ts
+                     | otherwise = [t]
+  ty' <- mkLhsTy 1 lhs
+  pure $ eForall (init iks) $ addConstraints (map (tApp cls) ctys) $ tApp cls ty'
+
 -- Used for regular deriving, not standalone.
-mkLhsTy :: LHS -> T EType
-mkLhsTy (t, iks) = do
+mkLhsTy :: Int -> LHS -> T EType
+mkLhsTy narg (t, iks) = do
   mn <- gets moduleName
-  return $ tApps (qualIdent mn t) $ map tVarK iks
+  return $ tApps (qualIdent mn t) $ map tVarK $ dropEnd narg iks
 
 mkPat :: Constr -> String -> (EPat, [Expr])
 mkPat (Constr _ _ c _ flds) s =
   let n = either length length flds
-      loc = getSLoc c
-      vs = map (EVar . mkIdentSLoc loc . (s ++) . show) [1..n]
+      vs = mkVars (getSLoc c) n s
   in  (tApps c vs, vs)
+
+mkVars :: SLoc -> Int -> String -> [Expr]
+mkVars loc n s = map (EVar . mkIdentSLoc loc . (s ++) . show) [1..n]
 
 cannotDerive :: LHS -> EConstraint -> T [EDef]
 cannotDerive (c, _) e = tcError (getSLoc e) $ "Cannot derive " ++ showEType (EApp e (EVar c))
@@ -538,8 +561,38 @@ derData mctx _ lhs@(utyname, vks) cs edata = do
 
 --------------------------------------------
 
+derFunctor :: Deriver
+derFunctor mctx 1 lhs@(_, tyvs@(_:_)) cs efunctor = do
+  hdr <- mkHdr1 mctx lhs cs efunctor
+  let loc = getSLoc efunctor
+      var = idKindIdent (last tyvs)
+      eqns = map mkEqn cs
+      mkEqn c@(Constr _ _ con _ flds) =
+        let (xp, xs) = mkPat c "x$"
+            ts = getFieldTys flds
+            rhs = eApps (EVar con) $ zipWith arg xs ts
+        in  eEqn [EVar iF, xp] rhs
+      arg x (EVar v) | v == var = eF x
+      arg x t | var `elem` freeTyVars [t] =
+                case getExprTuple t of
+                  Nothing -> eFmap x
+                  Just ts -> ECase x [(eApps tup vs, oneAlt (eApps tup $ zipWith arg vs ts))]
+                    where vs = mkVars loc (length ts) "t$"
+                          tup = EVar $ tupleConstr loc (length ts)
+              | otherwise = x
+      iF = mkIdentSLoc loc "f"
+      eF = eAppI iF
+      iFmap = mkIdentSLoc loc "fmap"
+      eFmap = eAppI2 (mkBuiltin loc "fmap") (EVar iF)
+      inst = Instance hdr [Fcn iFmap eqns] []
+  --traceM $ showEDefs [inst]
+  return [inst]
+derFunctor _ _ lhs _ e = cannotDerive lhs e
+
+--------------------------------------------
+
 newtypeDer :: StandM -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
-newtypeDer mctx narg (tycon, iks) c acls mvia = do
+newtypeDer mctx narg lhs@(_, iks) c acls mvia = do
   let loc = getSLoc cls
       (clsIks, cls) = unForall acls
       oldty' =                           -- the underlying type, full
@@ -558,8 +611,7 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
   hdr <-
     case mctx of
       Nothing -> do
-        let iks' = dropEnd narg iks
-        newty <- mkLhsTy (tycon, iks')         -- the newtype, eta reduced
+        newty <- mkLhsTy narg lhs                    -- the newtype, eta reduced
         -- XXX repeats what we might have done above
         oldty <- case etaReduce (takeEnd narg iks) oldty' of  -- the underlying type, eta reduced
                    ([], rt) -> return rt
@@ -571,6 +623,7 @@ newtypeDer mctx narg (tycon, iks) c acls mvia = do
                 Just via -> [mkCoercible loc via newty]
                 Nothing  -> []
             ctx = filter (not . null . freeTyVars . (:[])) (ctxOld : coOldNew : coOldVia)
+        let iks' = dropEnd narg iks
         pure (eForall (clsIks ++ iks') $ addConstraints ctx $ tApp cls newty)
       Just (hdr, _) -> pure hdr
 --  traceM ("newtypeDer: " ++ show (hdr, newty, viaty))

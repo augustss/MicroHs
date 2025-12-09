@@ -32,7 +32,7 @@ module MicroHs.Expr(
   Constr(..), ConstrField, SType,
   ConTyInfo,
   Con(..), conIdent, conArity, conFields,
-  tupleConstr, getTupleConstr,
+  tupleConstr, getTupleConstr, getExprTuple,
   mkTupleSel,
   eAppI, eApp2, eAppI2, eApp3, eAppI3, eApps,
   eLetB,
@@ -510,6 +510,12 @@ getTupleConstr i =
     "()" -> Just 0
     ',':xs -> Just (length xs + 2)  -- "," is 2-tuple
     _ -> Nothing
+
+getExprTuple :: EType -> Maybe [EType]
+getExprTuple = loop []
+  where loop ts (EApp f a) = loop (a:ts) f
+        loop ts (EVar i) | Just n <- getTupleConstr i, length ts == n = Just ts
+        loop _ _ = Nothing
 
 -- Create a tuple selector, component i (0 based) of n
 mkTupleSel :: Int -> Int -> Expr

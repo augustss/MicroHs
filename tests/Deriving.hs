@@ -1,4 +1,5 @@
 module Deriving(main) where
+import Data.Char(chr)
 import Data.Typeable
 import Data.Ix
 import Text.Read (readMaybe)
@@ -15,9 +16,12 @@ newtype Alt f a = Alt (f a)
 data E = X | Y | Z
   deriving (Enum, Bounded, Show, Eq, Ord, Ix, Typeable)
 
--- Not yet
--- data F a = F0 | F1 a | F2 (a,a) | F3 Int | F4 a Int | F5 (Int -> a)
---   deriving Functor
+data F a = F0 | F1 a | F2 (a, [a]) | F3 Integer | F4 a Integer | F5 (Integer -> a)
+  deriving (Show, Functor)
+instance Show (Integer -> Char) where show f = "fcn(100)=" ++ show (f 100)
+
+data G q a = G1 a | G2 (q a)
+  deriving (Show, Functor)
 
 data Pair = MkPair Bool Int deriving (Show, Eq, Ord, Ix)
 
@@ -63,6 +67,11 @@ main = do
   print (read "R { x = True , y = 12 }" :: Rec Bool)
 
   print $ Alt [True]
+
+  let fs = [F0, F1 49, F2 (50, [51,52]), F3 5, F4 54 7, F5 fromInteger] :: [F Int]
+  print $ map (fmap chr) fs
+  let gs = [G1 True, G2 [True, False]]
+  print $ map (fmap show) gs
 
   print $ fromEnum Y
   print (minBound :: E, maxBound :: E)

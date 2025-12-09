@@ -23,6 +23,8 @@ R {x = R {x = 'b', y = 11}, y = 10}
 R {x = True, y = 12}
 R {x = True, y = 12}
 Alt [True]
+[F0,F1 '1',F2 ('2',"34"),F3 5,F4 '6' 7,F5 fcn(100)='d']
+[G1 "True",G2 ["True","False"]]
 1
 (X,Z)
 [X]
