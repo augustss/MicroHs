@@ -973,41 +973,6 @@ NODEPTR combCATCHR;
 #define combUnit combI
 
 /*******************************/
-/* HsFFI.h API */
-
-int mhs_main(int argc, char **argv);
-
-void hs_init(int *argc, char **argv[])
-{
-  mhs_main(*argc, *argv);
-}
-
-void hs_exit(void)
-{
-  exit(0);
-}
-
-void hs_set_argv(int argc, char *argv[])
-{
-  ERR("hs_set_argv not implemented");
-}
- 
-void hs_perform_gc(void)
-{
-  gc();
-}
-
-void xhs_free_stable_ptr(void *sp)
-{
-  /* XXX need to change representation of stablepointers */
-}
-
-void hs_free_fun_ptr(HsFunPtr fp)
-{
-  ERR("hs_free_fun_ptr not implemented");
-}
-
-/*******************************/
 
 #if WANT_ARGS
 /* This single element array hold a list of the program arguments. */

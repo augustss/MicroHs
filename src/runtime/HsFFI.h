@@ -1,6 +1,8 @@
-#include <intypes.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <float.h>
+#include <unistd.h>
+#include <string.h>
 
 typedef char          HsChar;
 typedef	intptr_t       HsInt;
@@ -16,7 +18,7 @@ typedef float          HsFloat;
 typedef double         HsDouble;
 typedef int            HsBool;
 typedef void *         HsPtr;
-typedef void (*)(void) HsFunPtr;
+typedef void           (*HsFunPtr)(void);
 typedef	void * 	       StablePtr;
 
 #define HS_CHAR_MIN	CHAR_MIN
@@ -59,6 +61,7 @@ typedef	void * 	       StablePtr;
 #define HS_BOOL_FALSE	     0
 #define HS_BOOL_TRUE	     1
 
+/*
 void hs_init     (int *argc, char **argv[]);  
 void hs_exit     (void);  
 void hs_set_argv (int argc, char *argv[]);  
@@ -67,3 +70,50 @@ void hs_perform_gc (void);
  
 void hs_free_stable_ptr (HsStablePtr sp);  
 void hs_free_fun_ptr    (HsFunPtr fp);
+*/
+/* Using prototypes and defining these in eval.c causes linker problems
+ * for the MicroHs library.
+ * Use this temporary fix.
+ */
+
+/*******************************/
+/* HsFFI.h API */
+
+
+static void ERR(const char *msg)
+{
+  (void)write(2, msg, strlen(msg));
+  _exit(1);
+}
+
+static void hs_init(int *argc, char **argv[])
+{
+  extern int mhs_main(int argc, char **argv);
+  (void)mhs_main(*argc, *argv);
+}
+
+static void hs_exit(void)
+{
+  _exit(0);
+}
+
+static void hs_set_argv(int argc, char *argv[])
+{
+  ERR("hs_set_argv not implemented");
+}
+ 
+static void hs_perform_gc(void)
+{
+  extern void gc(void);
+  gc();
+}
+
+void xhs_free_stable_ptr(void *sp)
+{
+  /* XXX need to change representation of stablepointers */
+}
+
+void hs_free_fun_ptr(HsFunPtr fp)
+{
+  ERR("hs_free_fun_ptr not implemented");
+}
