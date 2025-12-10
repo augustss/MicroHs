@@ -29,7 +29,9 @@ import Data.Bitraversable
 import Data.Bounded
 import Data.ByteString
 import Data.ByteString.Char8
+import Data.ByteString.Lazy
 import Data.ByteString.Lazy.Char8
+import Data.ByteString.Lazy.Internal
 import Data.ByteString.Short.Internal
 import Data.Char
 import Data.Char_Type
