@@ -173,8 +173,11 @@ digitToInt c | isDigit c            = ord c - ord '0'
              | otherwise            = error "digitToInt"
 
 intToDigit :: Int -> Char
-intToDigit i | i < 10 = primChr (ord '0' + i)
-             | otherwise = primChr (ord 'A' - 10 + i)
+intToDigit i | w `primWordLT` 10 = primChr (ord '0' + i)
+             | w `primWordLT` 16 = primChr (ord 'a' - 10 + i)
+             | otherwise = error "intToDigit"
+  where
+    w = primIntToWord i
 
 toLower :: Char -> Char
 toLower c | isAsciiUpper c = primChr (ord c - ord 'A' + ord 'a')
