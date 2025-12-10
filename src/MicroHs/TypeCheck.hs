@@ -2530,9 +2530,11 @@ tcGuards (s:ss) ta = tcGuard s $ \ rs -> tcGuards ss $ \ rss -> ta (rs:rss)
 
 tcGuard :: EStmt -> (EStmt -> T EAlt) -> T EAlt
 tcGuard (SBind p e) ta = do
-  (e', tt) <- tInferExpr e
+  --traceM ("tcGuard: " ++ show p ++ " <- " ++ show e)
+  ((e', tt), bs) <- solveLocalConstraints $ tInferExpr e
+  let e'' = eLetB (eBinds bs) e'
   -- tCheckPatC dicts used in solving in tcAlt
-  tCheckPatC tt p $ \ p' -> ta (SBind p' e')
+  tCheckPatC tt p $ \ p' -> ta (SBind p' e'')
 tcGuard (SThen e) ta = do
   e' <- tCheckExprAndSolve (tBool (getSLoc e)) e
   ta (SThen e')
