@@ -127,8 +127,7 @@ append :: ByteString -> ByteString -> ByteString
 append xs ys = foldrChunks Chunk ys xs
 
 concat :: [ByteString] -> ByteString
-concat []         = Empty
-concat (bs : bss) = append bs (concat bss)
+concat = foldr append Empty
 
 times :: Integral a => a -> ByteString -> ByteString
 times 0 _ = Empty
