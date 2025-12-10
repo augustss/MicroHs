@@ -577,6 +577,7 @@ gay@disroot.org
 @meooow25
 @philderbeast
 @rewbert
+@sol
 @Superstar64
 @thielema
 @thimc
