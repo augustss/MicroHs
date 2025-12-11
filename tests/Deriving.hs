@@ -27,7 +27,7 @@ instance Show (Integer -> Char) where show f = "fcn(100)=" ++ show (f 100)
 data G q a = G1 a | G2 (q a)
   deriving (Show, Functor)
 
-data H a = H0 | H1 Int | H2 a | H3 (H a) | H4 (H a) (H a)
+data H a = H0 | H1 Int | H2 a | H3 (H a) | H4 (H a) (H a) | H5 [(a, Bool, Maybe a)] | H6 [H a]
   deriving (F.Foldable)
 
 data Pair = MkPair Bool Int deriving (Show, Eq, Ord, Ix)
@@ -80,8 +80,8 @@ main = do
   let gs = [G1 True, G2 [True, False]]
   print $ map (fmap show) gs
 
-  let h = H4 (H2 1) (H2 2) :: H Int
-  print $ F.foldr (+) 0 h
+  let h = H6 [H0, H1 1, H2 1, H3 (H2 2), H4 (H2 3) (H2 4), H5 [(6, False, Just 7), (8, False, Nothing)]]
+  print $ F.foldr (:) [] h
 
   print $ fromEnum Y
   print (minBound :: E, maxBound :: E)

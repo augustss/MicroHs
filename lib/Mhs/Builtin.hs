@@ -77,6 +77,18 @@ data UProd4 a0 a1 a2 a3 = UProd4 a0 a1 a2 a3
 ffoldr :: Foldable f => (a -> b -> b) -> f a -> b -> b
 ffoldr f = flip (Data.Foldable.foldr f)
 
+flipConst :: a -> b -> b
+flipConst _ b = b
+
+foldTuple2 :: (a1 -> b -> b) -> (a2 -> b -> b) -> (a1, a2) -> b -> b
+foldTuple2 f1 f2 x z = case x of (a1, a2) -> f1 a1 (f2 a2 z)
+
+foldTuple3 :: (a1 -> b -> b) -> (a2 -> b -> b) -> (a3 -> b -> b) -> (a1, a2, a3) -> b -> b
+foldTuple3 f1 f2 f3 x z = case x of (a1, a2, a3) -> f1 a1 (f2 a2 (f3 a3 z))
+
+foldTuple4 :: (a1 -> b -> b) -> (a2 -> b -> b) -> (a3 -> b -> b) -> (a4 -> b -> b) -> (a1, a2, a3, a4) -> b -> b
+foldTuple4 f1 f2 f3 f4 x z = case x of (a1, a2, a3, a4) -> f1 a1 (f2 a2 (f3 a3 (f4 a4 z)))
+
 -- Functions used for deriving Functor
 fmapTuple2 :: (a1 -> b1) -> (a2 -> b2) -> (a1, a2) -> (b1, b2)
 fmapTuple2 f1 f2 x = case x of (a1, a2) -> (f1 a1, f2 a2)

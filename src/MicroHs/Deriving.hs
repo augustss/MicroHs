@@ -3,10 +3,10 @@ import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.Function
 import Data.List
-import Data.Maybe (fromMaybe)
+import Data.Maybe(fromMaybe)
 import MicroHs.Builtin
 import MicroHs.Expr
-import MicroHs.Fixity (defaultFixity)
+import MicroHs.Fixity(defaultFixity)
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import MicroHs.List
@@ -51,6 +51,7 @@ derivers =
   ,("Data.Enum_Class.Enum",            derEnum)
   ,("Data.Data_Class.Data",            derData)
   ,("Data.Eq.Eq",                      derEq)
+  ,("Data.Foldable.Foldable",          derFoldable)
   ,("Data.Functor.Functor",            derFunctor)
   ,("Data.Ix.Ix",                      derIx)
   ,("Data.Ord.Ord",                    derOrd)
@@ -606,6 +607,46 @@ derFunctor mctx 1 lhs@(_, tyvs@(_:_)) cs efunctor = do
   --traceM $ showEDefs [inst]
   return [inst]
 derFunctor _ _ lhs _ e = cannotDerive lhs e
+
+--------------------------------------------
+
+derFoldable :: Deriver
+derFoldable mctx 1 lhs@(_, tyvs@(_:_)) cs efoldable = do
+  hdr <- mkHdr1 mctx lhs cs efoldable
+  let loc = getSLoc efoldable
+      var = idKindIdent (last tyvs)
+      eqns = map mkEqn cs
+      mkEqn c@(Constr _ _ _ _ flds) =
+        let (xp, xs) = mkPat c "x$"
+            ts = getFieldTys flds
+            rhs = foldr EApp eZ (zipWith EApp (map (mkFold eF) ts) xs)
+        in  eEqn [EVar iF, EVar iZ, xp] rhs
+
+      mkFold :: Expr -> EType -> Expr   -- result has type a->b->b
+      mkFold f t =
+        case getExprTuple t of
+          Just ts ->
+            let fs = map (mkFold eF) ts
+                ft = mkBuiltin loc ("foldTuple" ++ show (length ts))
+            in  eApps (EVar ft) fs
+          Nothing ->
+            case getAppM t of
+              Just (con, []) | con == var -> f
+              Just (_, ts@(_:_)) -> eFfoldr (mkFold f (last ts))
+              _ -> eFlipConst
+        
+      iF = mkIdentSLoc loc "f"
+      eF = EVar iF
+      iZ = mkIdentSLoc loc "z"
+      eZ = EVar iZ
+      iFoldr = mkIdentSLoc loc "foldr"
+      eFfoldr = eAppI (mkBuiltin loc "ffoldr")
+      eFlipConst = EVar (mkBuiltin loc "flipConst")
+      inst = Instance hdr [Fcn iFoldr eqns] []
+  traceM $ showEDefs [inst]
+  return [inst]
+derFoldable _ _ lhs _ e = cannotDerive lhs e
+
 
 --------------------------------------------
 
