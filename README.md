@@ -53,7 +53,10 @@ Differences:
    * DefaultSignatures
    * DeriveAnyClass
    * DerivingDataTypeable
+   * DerivingFoldable
+   * DerivingFunctor
    * DerivingStrategies
+   * DerivingTraversable
    * DerivingVia
    * DoAndIfThenElse
    * DuplicateRecordFields

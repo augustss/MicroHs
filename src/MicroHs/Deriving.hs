@@ -644,7 +644,7 @@ derFoldable mctx 1 lhs@(_, tyvs@(_:_)) cs efoldable = do
       eFfoldr = eAppI (mkBuiltin loc "ffoldr")
       eFlipConst = EVar (mkBuiltin loc "flipConst")
       inst = Instance hdr [Fcn iFoldr eqns] []
-  traceM $ showEDefs [inst]
+  --traceM $ showEDefs [inst]
   return [inst]
 derFoldable _ _ lhs _ e = cannotDerive lhs e
 
@@ -683,7 +683,7 @@ derTraversable mctx 1 lhs@(_, tyvs@(_:_)) cs eTraversable = do
       iTrav = mkIdentSLoc loc "traverse"
       eTrav = eAppI (mkBuiltin loc "traverse")
       inst = Instance hdr [Fcn iTrav eqns] []
-  traceM $ showEDefs [inst]
+  --traceM $ showEDefs [inst]
   return [inst]
 derTraversable _ _ lhs _ e = cannotDerive lhs e
 

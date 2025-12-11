@@ -10,7 +10,7 @@ module Mhs.Builtin(
   module Data.Data_Class,
   module Data.Enum,
   module Data.Eq,
-  module Data.Foldable,
+--  module Data.Foldable,
   module Data.Fractional,
   module Data.Function,
   module Data.Functor,
@@ -45,12 +45,11 @@ import Data.Coerce(Coercible, coerce)
 import Data.Data_Class(Data(..), Fixity(..), mkDataType, mkConstrTag, constrIndex)
 import Data.Enum(Enum(enumFrom, enumFromThen, enumFromTo, enumFromThenTo))
 import Data.Eq(Eq(..))
-import Data.Foldable(Foldable(..))
+--import Data.Foldable(Foldable(..))
 import qualified Data.Foldable
 import Data.Fractional(Fractional(fromRational))
 import Data.Function((.), id, flip)
-import Data.Functor((<$>))
-import Data.Functor(Functor(..))
+import Data.Functor(Functor(..), (<$>))
 import Data.Ord(Ord(..), Ordering(..))
 import Data.Num(Num((+), (-), (*), fromInteger, negate))
 import Data.Proxy(Proxy(..))
@@ -77,7 +76,7 @@ data UProd3 a0 a1 a2 = UProd3 a0 a1 a2
 data UProd4 a0 a1 a2 a3 = UProd4 a0 a1 a2 a3
 
 -- Functions used for deriving Foldable
-ffoldr :: Foldable f => (a -> b -> b) -> f a -> b -> b
+ffoldr :: Data.Foldable.Foldable f => (a -> b -> b) -> f a -> b -> b
 ffoldr f = flip (Data.Foldable.foldr f)
 
 flipConst :: a -> b -> b

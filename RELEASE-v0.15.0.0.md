@@ -17,7 +17,7 @@
  * instruction counts on supported platforms (MacOS&M4, Linux&x86_64)
  * Proper `array` package
  * Unboxed tuple and sum syntax accepted (but no unboxing)
- * Deriving Data
+ * Deriving Data, Foldable, Functor, Ix, Read, Traversable
 
 ## Performance
  * Evaluation in the interactive system is much faster
@@ -28,8 +28,7 @@
  * JavaScript version of the MicroHs runtime is part of the distribution: `generated/mhseval.js`
  
 ## Bug fixes
- * Pattern binding with overloaded expression.
- * Windows build
+ * Lots
  
 ## Packages
  * Many more packages compile, e.g., QuickCheck, filepath
