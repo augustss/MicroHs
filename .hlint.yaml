@@ -65,6 +65,7 @@
 - ignore: {name: Redundant fromInteger, within: [FArith, DArith]}
 - ignore: {name: Use section, within: [Deriving]}
 - ignore: {name: Use list literal, within: [ImpMet]}
+- ignore: {name: "Monoid law, left identity", within: [Builder]}
 
 - arguments:
     - --ignore-glob=lib/Data/Foldable1.hs
