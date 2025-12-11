@@ -117,6 +117,7 @@ test:
 	$(TMHS) Fix        && $(EVAL) > Fix.out        && diff Fix.ref Fix.out
 	$(TMHS) Pat        && $(EVAL) > Pat.out        && diff Pat.ref Pat.out
 	$(TMHS) Logarithms && $(EVAL) > Logarithms.out && diff Logarithms.ref Logarithms.out
+	$(TMHS) Builder    && $(EVAL) > Builder.out    && diff Builder.ref Builder.out
 
 testforimp:
 	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
