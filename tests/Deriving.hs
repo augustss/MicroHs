@@ -1,8 +1,10 @@
 module Deriving(main) where
+import Control.Monad
 import Data.Char(chr)
 import qualified Data.Foldable as F
-import Data.Typeable
 import Data.Ix
+import Data.Typeable
+import Data.Traversable
 import Text.Read (readMaybe)
 
 data T a b c = A a | B b | C a Int | D
@@ -28,7 +30,33 @@ data G q a = G1 a | G2 (q a)
   deriving (Show, Functor)
 
 data H a = H0 | H1 Int | H2 a | H3 (H a) | H4 (H a) (H a) | H5 [(a, Bool, Maybe a)] | H6 [H a]
-  deriving (F.Foldable)
+  deriving (Foldable)
+
+data U a = U1 | U2 Int | U3 a | U4 a Int (a,a) | U5 [U a]
+  deriving (Show, Functor, Foldable, Traversable)
+
+data St a = St (Int -> (Int, a))
+  deriving (Functor)
+instance Applicative St where
+  pure x = St $ \ i -> (i, x)
+  (<*>) = ap
+instance Monad St where
+  St sa >>= sk = St $ \ i ->
+    case sa i of
+      (i', a) ->
+        case sk a of
+          St f -> f i'
+get :: St Int
+get = St $ \ i -> (i, i)
+put :: Int -> St ()
+put i = St $ \ _ -> (i, ())
+num :: a -> St (a, Int)
+num a = do
+  i <- get
+  put (i+1)
+  return (a, i)
+run :: St a -> a
+run (St f) = snd (f 1)
 
 data Pair = MkPair Bool Int deriving (Show, Eq, Ord, Ix)
 
@@ -82,6 +110,10 @@ main = do
 
   let h = H6 [H0, H1 1, H2 1, H3 (H2 2), H4 (H2 3) (H2 4), H5 [(6, False, Just 7), (8, False, Nothing)]]
   print $ F.foldr (:) [] h
+
+  let u = U5 [U1, U2 1, U3 True, U4 False 1 (True, False)]
+  print $ run (traverse num u)
+  
 
   print $ fromEnum Y
   print (minBound :: E, maxBound :: E)

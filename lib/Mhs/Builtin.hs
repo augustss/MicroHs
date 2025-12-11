@@ -34,6 +34,7 @@ module Mhs.Builtin(
 -- qualified, but under a name that cannot be used accidentally.
 -- If the Prelude is not imported, then neither is this module.
 import qualified Prelude()  -- no Prelude
+import Control.Applicative(Applicative((<*>)))
 import Control.Error(error)
 import Control.Monad(Monad(..))
 import Control.Monad.Fail(MonadFail(..))
@@ -48,6 +49,7 @@ import Data.Foldable(Foldable(..))
 import qualified Data.Foldable
 import Data.Fractional(Fractional(fromRational))
 import Data.Function((.), id, flip)
+import Data.Functor((<$>))
 import Data.Functor(Functor(..))
 import Data.Ord(Ord(..), Ordering(..))
 import Data.Num(Num((+), (-), (*), fromInteger, negate))
@@ -55,6 +57,7 @@ import Data.Proxy(Proxy(..))
 import Data.Monoid.Internal(Semigroup(..))
 import Data.String(IsString(..))
 import Data.Records(HasField(..), SetField(..), composeSet)
+import Data.Traversable(Traversable(..))
 import {-# SOURCE #-} Data.Typeable(Typeable(..), _mkTyCon, gcast1, gcast2)
 import Text.ParserCombinators.ReadPrec((+++), pfail, prec, step, reset)
 import Text.Read.Internal(Read(..), readListDefault, readListPrecDefault, parens, expectP, readField)
@@ -81,20 +84,33 @@ flipConst :: a -> b -> b
 flipConst _ b = b
 
 foldTuple2 :: (a1 -> b -> b) -> (a2 -> b -> b) -> (a1, a2) -> b -> b
-foldTuple2 f1 f2 x z = case x of (a1, a2) -> f1 a1 (f2 a2 z)
+foldTuple2 f1 f2 (a1, a2) z = f1 a1 (f2 a2 z)
 
 foldTuple3 :: (a1 -> b -> b) -> (a2 -> b -> b) -> (a3 -> b -> b) -> (a1, a2, a3) -> b -> b
-foldTuple3 f1 f2 f3 x z = case x of (a1, a2, a3) -> f1 a1 (f2 a2 (f3 a3 z))
+foldTuple3 f1 f2 f3 (a1, a2, a3) z = f1 a1 (f2 a2 (f3 a3 z))
 
 foldTuple4 :: (a1 -> b -> b) -> (a2 -> b -> b) -> (a3 -> b -> b) -> (a4 -> b -> b) -> (a1, a2, a3, a4) -> b -> b
-foldTuple4 f1 f2 f3 f4 x z = case x of (a1, a2, a3, a4) -> f1 a1 (f2 a2 (f3 a3 (f4 a4 z)))
+foldTuple4 f1 f2 f3 f4 (a1, a2, a3, a4) z = f1 a1 (f2 a2 (f3 a3 (f4 a4 z)))
 
 -- Functions used for deriving Functor
 fmapTuple2 :: (a1 -> b1) -> (a2 -> b2) -> (a1, a2) -> (b1, b2)
-fmapTuple2 f1 f2 x = case x of (a1, a2) -> (f1 a1, f2 a2)
+fmapTuple2 f1 f2 (a1, a2) = (f1 a1, f2 a2)
 
 fmapTuple3 :: (a1 -> b1) -> (a2 -> b2) -> (a3 -> b3) -> (a1, a2, a3) -> (b1, b2, b3)
-fmapTuple3 f1 f2 f3 x = case x of (a1, a2, a3) -> (f1 a1, f2 a2, f3 a3)
+fmapTuple3 f1 f2 f3 (a1, a2, a3) = (f1 a1, f2 a2, f3 a3)
 
 fmapTuple4 :: (a1 -> b1) -> (a2 -> b2) -> (a3 -> b3) -> (a4 -> b4) -> (a1, a2, a3, a4) -> (b1, b2, b3, b4)
-fmapTuple4 f1 f2 f3 f4 x = case x of (a1, a2, a3, a4) -> (f1 a1, f2 a2, f3 a3, f4 a4)
+fmapTuple4 f1 f2 f3 f4 (a1, a2, a3, a4) = (f1 a1, f2 a2, f3 a3, f4 a4)
+
+-- Functions used for deriving Traversable
+travTuple2 :: Applicative f =>
+              (a1 -> f b1) -> (a2 -> f b2) -> (a1, a2) -> f (b1, b2)
+travTuple2 f1 f2 (a1, a2) = (,) <$> f1 a1 <*> f2 a2
+
+travTuple3 :: Applicative f =>
+              (a1 -> f b1) -> (a2 -> f b2) -> (a3 -> f b3) -> (a1, a2, a3) -> f (b1, b2, b3)
+travTuple3 f1 f2 f3 (a1, a2, a3) = (,,) <$> f1 a1 <*> f2 a2 <*> f3 a3
+
+travTuple4 :: Applicative f =>
+              (a1 -> f b1) -> (a2 -> f b2) -> (a3 -> f b3) -> (a4 -> f b4) -> (a1, a2, a3, a4) -> f (b1, b2, b3, b4)
+travTuple4 f1 f2 f3 f4 (a1, a2, a3, a4) = (,,,) <$> f1 a1 <*> f2 a2 <*> f3 a3 <*> f4 a4

@@ -55,6 +55,7 @@ derivers =
   ,("Data.Functor.Functor",            derFunctor)
   ,("Data.Ix.Ix",                      derIx)
   ,("Data.Ord.Ord",                    derOrd)
+  ,("Data.Traversable.Traversable",    derTraversable)
   ,("Data.Typeable.Typeable",          derTypeable)
   ,("GHC.Generics.Generic",            derNotYet)
   ,("Language.Haskell.TH.Syntax.Lift", derLift)
@@ -650,6 +651,44 @@ derFoldable _ _ lhs _ e = cannotDerive lhs e
 
 --------------------------------------------
 
+derTraversable :: Deriver
+derTraversable mctx 1 lhs@(_, tyvs@(_:_)) cs eTraversable = do
+  hdr <- mkHdr1 mctx lhs cs eTraversable
+  let loc = getSLoc eTraversable
+      var = idKindIdent (last tyvs)
+      eqns = map mkEqn cs
+      mkEqn c@(Constr _ _ con _ flds) =
+        let (xp, xs) = mkPat c "x$"
+            ts = getFieldTys flds
+            rhs = foldl eAp (EApp ePure (EVar con)) $ zipWith EApp (map (mkTrav eF) ts) xs
+        in  eEqn [EVar iF, xp] rhs
+
+      mkTrav :: Expr -> EType -> Expr    -- result has type a->f b
+      mkTrav f t =
+        case getExprTuple t of
+          Just ts ->
+            let fs = map (mkTrav eF) ts
+                ft = mkBuiltin loc ("travTuple" ++ show (length ts))
+            in  eApps (EVar ft) fs
+          Nothing ->
+            case getAppM t of
+              Just (con, []) | con == var -> f
+              Just (_, ts@(_:_)) -> eTrav (mkTrav f (last ts))
+              _ -> ePure
+
+      iF = mkIdentSLoc loc "f"
+      eF = EVar iF
+      ePure = EVar (mkBuiltin loc "pure")
+      eAp = eAppI2 (mkBuiltin loc "<*>")
+      iTrav = mkIdentSLoc loc "traverse"
+      eTrav = eAppI (mkBuiltin loc "traverse")
+      inst = Instance hdr [Fcn iTrav eqns] []
+  traceM $ showEDefs [inst]
+  return [inst]
+derTraversable _ _ lhs _ e = cannotDerive lhs e
+
+--------------------------------------------
+
 newtypeDer :: StandM -> Int -> LHS -> Constr -> EConstraint -> Maybe EConstraint -> T [EDef]
 newtypeDer mctx narg lhs@(_, iks) c acls mvia = do
   let loc = getSLoc cls
@@ -666,7 +705,7 @@ newtypeDer mctx narg lhs@(_, iks) c acls mvia = do
       Nothing  ->
         case etaReduce (takeEnd narg iks) oldty' of  -- the underlying type, eta reduced
           ([], rt) -> return rt
-          _ -> tcError loc "Bad deriving"
+          _ -> tcError loc "Bad newtype deriving"
   hdr <-
     case mctx of
       Nothing -> do
@@ -674,7 +713,7 @@ newtypeDer mctx narg lhs@(_, iks) c acls mvia = do
         -- XXX repeats what we might have done above
         oldty <- case etaReduce (takeEnd narg iks) oldty' of  -- the underlying type, eta reduced
                    ([], rt) -> return rt
-                   _ -> tcError loc "Bad deriving"
+                   _ -> tcError loc "Bad newtype deriving"
         let ctxOld = tApp cls viaty
             coOldNew = mkCoercible loc oldty newty
             coOldVia =
