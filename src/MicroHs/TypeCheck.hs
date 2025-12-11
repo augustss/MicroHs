@@ -1518,11 +1518,11 @@ addValueType adef = do
       
   case adef of
     Sign is@(i:_) t | isConIdent i -> do
-      -- pattern synonym
+      -- pattern signature
       t' <- canonPatSynType t
       mapM_ (addPatSyn t') is
     Sign is t ->
-      -- regular synonym
+      -- regular signature
       mapM_ (\ i -> extValQTop i t) is
     Data (tycon, vks) cs _ -> do
       multCheck [ c | Constr _ _ c _ _ <- cs ]
