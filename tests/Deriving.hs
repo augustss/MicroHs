@@ -1,5 +1,6 @@
 module Deriving(main) where
 import Data.Char(chr)
+import qualified Data.Foldable as F
 import Data.Typeable
 import Data.Ix
 import Text.Read (readMaybe)
@@ -16,12 +17,18 @@ newtype Alt f a = Alt (f a)
 data E = X | Y | Z
   deriving (Enum, Bounded, Show, Eq, Ord, Ix, Typeable)
 
-data F a = F0 | F1 a | F2 (a, [a]) | F3 Integer | F4 a Integer | F5 (Integer -> a)
+data FF a b = FF a b
+  deriving (Show, Functor)
+
+data F a = F0 | F1 a | F2 (a, [a]) | F3 Integer | F4 a Integer | F5 (Integer -> a) | F6 (Maybe [F a]) | F7 (FF Int a) | F8 [(a, a)]
   deriving (Show, Functor)
 instance Show (Integer -> Char) where show f = "fcn(100)=" ++ show (f 100)
 
 data G q a = G1 a | G2 (q a)
   deriving (Show, Functor)
+
+data H a = H0 | H1 Int | H2 a | H3 (H a) | H4 (H a) (H a)
+  deriving (F.Foldable)
 
 data Pair = MkPair Bool Int deriving (Show, Eq, Ord, Ix)
 
@@ -68,10 +75,13 @@ main = do
 
   print $ Alt [True]
 
-  let fs = [F0, F1 49, F2 (50, [51,52]), F3 5, F4 54 7, F5 fromInteger] :: [F Int]
+  let fs = [F0, F1 49, F2 (50, [51,52]), F3 5, F4 54 7, F5 fromInteger, F6 (Just [F1 56, F1 57]), F7 (FF 0 58), F8 [(59,60),(61,62)]] :: [F Int]
   print $ map (fmap chr) fs
   let gs = [G1 True, G2 [True, False]]
   print $ map (fmap show) gs
+
+  let h = H4 (H2 1) (H2 2) :: H Int
+  print $ F.foldr (+) 0 h
 
   print $ fromEnum Y
   print (minBound :: E, maxBound :: E)

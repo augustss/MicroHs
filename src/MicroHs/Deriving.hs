@@ -209,25 +209,36 @@ mkHdr _ lhs@(_, iks) cs cls = do
                             not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
   pure $ eForall iks $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
 
+-- instance header for Functor, Foldable, Traversable
 mkHdr1 :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
 mkHdr1 (Just (ctx, _)) _ _ _ = return ctx
 mkHdr1 _ lhs@(_, iks) cs cls = do
-  ty <- mkLhsTy 0 lhs
-  let tvar = EVar $ idKindIdent $ last iks        -- safe, because iks is non-null when calling mkHdr1
-      ctys :: [EType]                             -- All top level types used by the constructors.
-      ctys = nubBy eqEType [ tt'
-                           | Constr evs _ _ _ flds <- cs
-                           , ttt <- getFieldTys flds
-                           , tt <- flattenTuple ttt
-                           , not (eqEType tt ty)                     -- not direct recursion
-                           , Just (tycon, ts@(_:_)) <- [getAppM tt]  -- must be of the form (T t1 ...)
-                           , last ts `eqEType` tvar                  -- must be of the form (T t1 ... a)
-                           , let tt' = eApps (EVar tycon) (init ts)
-                           , not $ null $ freeTyVars [tt'] \\ map idKindIdent evs
-                           ]
-      flattenTuple t | Just ts <- getExprTuple t = ts
-                     | otherwise = [t]
   ty' <- mkLhsTy 1 lhs
+  let tvar = idKindIdent $ last iks        -- safe, because iks is non-null when calling mkHdr1
+      ctys :: [EType]                             -- All top level types used by the constructors.
+      ctys = nubBy eqEType [ tt
+                           | Constr evs _ _ _ flds <- cs
+                           , t <- getFieldTys flds
+                           , tt <- mkCtx t
+                           , not (tt `eqEType` ty')
+                           , not $ null $ freeTyVars [tt] \\ map idKindIdent evs
+                           ]
+      mkCtx :: EType -> [EType]
+      mkCtx t =
+        case getExprTuple t of
+          Just ts -> concatMap mkCtx ts
+          Nothing ->
+            case getAppM t of
+              Just (con, ts@(_:_)) ->
+                let tt = eApps (EVar con) (init ts) in
+                case last ts of
+                  EVar v | v == tvar -> [tt]
+                         | otherwise -> []
+                  _ ->
+                    case mkCtx (last ts) of
+                      [] -> []
+                      tts -> tt : tts
+              _ -> []
   pure $ eForall (init iks) $ addConstraints (map (tApp cls) ctys) $ tApp cls ty'
 
 -- Used for regular deriving, not standalone.
@@ -570,20 +581,27 @@ derFunctor mctx 1 lhs@(_, tyvs@(_:_)) cs efunctor = do
       mkEqn c@(Constr _ _ con _ flds) =
         let (xp, xs) = mkPat c "x$"
             ts = getFieldTys flds
-            rhs = eApps (EVar con) $ zipWith arg xs ts
+            rhs = eApps (EVar con) $ zipWith EApp (map (mkFmap eF) ts) xs
         in  eEqn [EVar iF, xp] rhs
-      arg x (EVar v) | v == var = eF x
-      arg x t | var `elem` freeTyVars [t] =
-                case getExprTuple t of
-                  Nothing -> eFmap x
-                  Just ts -> ECase x [(eApps tup vs, oneAlt (eApps tup $ zipWith arg vs ts))]
-                    where vs = mkVars loc (length ts) "t$"
-                          tup = EVar $ tupleConstr loc (length ts)
-              | otherwise = x
+
+      mkFmap :: Expr -> EType -> Expr    -- result has type a->a
+      mkFmap f t =
+        case getExprTuple t of
+          Just ts ->
+            let fs = map (mkFmap eF) ts
+                ft = mkBuiltin loc ("fmapTuple" ++ show (length ts))
+            in  eApps (EVar ft) fs
+          Nothing ->
+            case getAppM t of
+              Just (con, []) | con == var -> f
+              Just (_, ts@(_:_)) -> eFmap (mkFmap f (last ts))
+              _ -> eId
+
       iF = mkIdentSLoc loc "f"
-      eF = eAppI iF
+      eF = EVar iF
+      eId = EVar (mkBuiltin loc "id")
       iFmap = mkIdentSLoc loc "fmap"
-      eFmap = eAppI2 (mkBuiltin loc "fmap") (EVar iF)
+      eFmap = eAppI (mkBuiltin loc "fmap")
       inst = Instance hdr [Fcn iFmap eqns] []
   --traceM $ showEDefs [inst]
   return [inst]

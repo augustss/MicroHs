@@ -10,6 +10,7 @@ module Mhs.Builtin(
   module Data.Data_Class,
   module Data.Enum,
   module Data.Eq,
+  module Data.Foldable,
   module Data.Fractional,
   module Data.Function,
   module Data.Functor,
@@ -43,8 +44,10 @@ import Data.Coerce(Coercible, coerce)
 import Data.Data_Class(Data(..), Fixity(..), mkDataType, mkConstrTag, constrIndex)
 import Data.Enum(Enum(enumFrom, enumFromThen, enumFromTo, enumFromThenTo))
 import Data.Eq(Eq(..))
+import Data.Foldable(Foldable(..))
+import qualified Data.Foldable
 import Data.Fractional(Fractional(fromRational))
-import Data.Function((.))
+import Data.Function((.), id, flip)
 import Data.Functor(Functor(..))
 import Data.Ord(Ord(..), Ordering(..))
 import Data.Num(Num((+), (-), (*), fromInteger, negate))
@@ -69,3 +72,17 @@ newtype UProd1 a0 = UProd1 a0
 data UProd2 a0 a1 = UProd2 a0 a1
 data UProd3 a0 a1 a2 = UProd3 a0 a1 a2
 data UProd4 a0 a1 a2 a3 = UProd4 a0 a1 a2 a3
+
+-- Functions used for deriving Foldable
+ffoldr :: Foldable f => (a -> b -> b) -> f a -> b -> b
+ffoldr f = flip (Data.Foldable.foldr f)
+
+-- Functions used for deriving Functor
+fmapTuple2 :: (a1 -> b1) -> (a2 -> b2) -> (a1, a2) -> (b1, b2)
+fmapTuple2 f1 f2 x = case x of (a1, a2) -> (f1 a1, f2 a2)
+
+fmapTuple3 :: (a1 -> b1) -> (a2 -> b2) -> (a3 -> b3) -> (a1, a2, a3) -> (b1, b2, b3)
+fmapTuple3 f1 f2 f3 x = case x of (a1, a2, a3) -> (f1 a1, f2 a2, f3 a3)
+
+fmapTuple4 :: (a1 -> b1) -> (a2 -> b2) -> (a3 -> b3) -> (a4 -> b4) -> (a1, a2, a3, a4) -> (b1, b2, b3, b4)
+fmapTuple4 f1 f2 f3 f4 x = case x of (a1, a2, a3, a4) -> (f1 a1, f2 a2, f3 a3, f4 a4)
