@@ -11,6 +11,7 @@ module System.Directory(
   createDirectoryIfMissing,
   copyFile,
   getHomeDirectory,
+  getTemporaryDirectory,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Control.Exception(bracket)
@@ -128,3 +129,17 @@ getHomeDirectory =
     return $ "C:/Users/" ++ user    -- it's a guess
   else
     getEnv "HOME"
+
+getTemporaryDirectory :: IO FilePath
+getTemporaryDirectory =
+  if _isWindows then do
+    mtemp <- lookupEnv "TEMP"
+    case mtemp of
+      Just s -> return s
+      Nothing -> do
+        mtmp <- lookupEnv "TMP"
+        case mtmp of
+          Just s -> return s
+          Nothing -> error "no temp directory"
+  else
+    fromMaybe "/tmp" <$> lookupEnv "TMP"
