@@ -12,6 +12,7 @@ module Prelude(
   module Data.Enum,
   module Data.Eq,
   module Data.Floating,
+  module Data.Foldable,
   module Data.Fractional,
   module Data.Function,
   module Data.Functor,
@@ -30,6 +31,7 @@ module Prelude(
   module Data.Records,
   module Data.Semigroup,
   module Data.String,
+  module Data.Traversable,
   module Data.Tuple,
   module Data.Word.Word,
   module System.IO,
@@ -57,6 +59,7 @@ import Data.Enum(Enum(..))
 import Data.Eq(Eq(..))
 import Data.Float(Float)
 import Data.Floating(Floating(..))
+import Data.Foldable(Foldable)
 import Data.Fractional(Fractional(..), (^^), realToFrac)
 import Data.Function(id, const, (.), flip, ($), seq, ($!), until, asTypeOf)
 import Data.Functor(Functor(..), (<$>))
@@ -81,6 +84,7 @@ import Data.RealFrac(RealFrac(..))
 import Data.Records  -- XXX redo this somehow
 import Data.Semigroup(Semigroup((<>)))
 import Data.String(IsString(..), lines, unlines, words, unwords)
+import Data.Traversable(Traversable)
 import Data.Tuple(fst, snd, curry, uncurry)
 import Data.Word.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getChar, getLine, getContents, interact,
