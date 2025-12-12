@@ -16,7 +16,7 @@ callCommand cmd = do
 system :: String -> IO ExitCode
 system cmd = do
   r <- withCAString cmd systemc
-  if (r == 0) then
+  if r == 0 then
     return ExitSuccess
    else
     return (ExitFailure r)
