@@ -227,6 +227,9 @@ isUserError          = isUserErrorType             . ioeGetErrorType
 isResourceVanishedError :: IOError -> Bool
 isResourceVanishedError = isResourceVanishedErrorType . ioeGetErrorType
 
+isUnsupportedOperation :: IOError -> Bool
+isUnsupportedOperation = isUnsupportedOperationType . ioeGetErrorType
+
 alreadyExistsErrorType   :: IOErrorType
 alreadyExistsErrorType    = AlreadyExists
 
@@ -289,6 +292,10 @@ isUserErrorType _ = False
 isResourceVanishedErrorType :: IOErrorType -> Bool
 isResourceVanishedErrorType ResourceVanished = True
 isResourceVanishedErrorType _ = False
+
+isUnsupportedOperationType :: IOErrorType -> Bool
+isUnsupportedOperationType UnsupportedOperation = True
+isUnsupportedOperationType _ = False
 
 ioeGetErrorType       :: IOError -> IOErrorType
 ioeGetErrorString     :: IOError -> String
