@@ -3,7 +3,7 @@
 module Control.Exception(
   -- re-exports
   throw,
-  SomeException,
+  SomeException(..),
   Exception(..),
   --
   Handler(..), catches,
