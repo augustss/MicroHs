@@ -35,6 +35,8 @@
 #include <signal.h>
 #endif
 
+extern char **environ;          /* should probably be behind some WANT_ */
+
 #if WANT_MD5
 #include "md5.h"
 #endif
@@ -6821,6 +6823,7 @@ from_t mhs_realloc(int s) { return mhs_from_Ptr(s, 2, realloc(mhs_to_Ptr(s, 0), 
 from_t mhs_free(int s) { free(mhs_to_Ptr(s, 0)); return mhs_from_Unit(s, 1); }
 from_t mhs_addr_free(int s) { return mhs_from_FunPtr(s, 0, (HsFunPtr)&FREE); }
 from_t mhs_getenv(int s) { return mhs_from_Ptr(s, 1, getenv(mhs_to_Ptr(s, 0))); }
+from_t mhs_environ(int s) { return mhs_from_Ptr(s, 0, environ); }
 from_t mhs_iswindows(int s) { return mhs_from_Int(s, 0, iswindows()); }
 from_t mhs_ismacos(int s) { return mhs_from_Int(s, 0, ismacos()); }
 from_t mhs_islinux(int s) { return mhs_from_Int(s, 0, islinux()); }
@@ -7168,6 +7171,7 @@ const struct ffi_entry ffi_table[] = {
   { "free", 1, mhs_free},
   { "&free", 0, mhs_addr_free},
   { "getenv", 1, mhs_getenv},
+  { "environ", 0, mhs_environ},
   { "iswindows", 0, mhs_iswindows},
   { "ismacos", 0, mhs_ismacos},
   { "islinux", 0, mhs_islinux},

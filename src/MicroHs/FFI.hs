@@ -276,5 +276,6 @@ runtimeFFI = [
   "gettimeofday",
   "E2BIG", "EAGAIN", "EINTR", "EINVAL", "EWOULDBLOCK",
   "errno",
-  "strerror_r"
+  "strerror_r",
+  "environ"
   ]

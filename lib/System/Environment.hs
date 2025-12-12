@@ -6,10 +6,14 @@ module System.Environment(
   withArgs,
   lookupEnv,
   getEnv,
+  getEnvironment,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives
+import Data.Bifunctor(second)
+import Data.List(span)
 import Foreign.C.String
+import Foreign.Marshal.Array
 import Foreign.Ptr
 import System.IO
 
@@ -52,3 +56,12 @@ getEnv var = do
   case mval of
     Nothing  -> error $ "getEnv: not found " ++ var
     Just val -> return val
+
+foreign import capi "unistd.h value environ" c_environ :: Ptr CString
+
+getEnvironment :: IO [(String, String)]
+getEnvironment = do
+  cstrs <- peekArray0 nullPtr c_environ
+  strs <- mapM peekCAString cstrs
+  let splitEq = second (drop 1) . span (/= '=')
+  return $ map splitEq strs
