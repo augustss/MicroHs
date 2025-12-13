@@ -2031,10 +2031,11 @@ tcExprR mt ae =
         derefUVar (EForall b vks' tt)
     EUpdate e flds -> do
       ises <- concat <$> mapM (dsEField flds e) flds
-      me <- dsUpdate unsetField e ises
-      case me of
-        Just e' -> tcExpr mt e'
+      mc <- getExprCon e
+      case mc of
         Nothing -> tcExpr mt $ foldr eSetFields e ises
+        Just c  -> tcExpr mt =<< dsRecCon unsetField c e ises
+          
     ESelect is -> do
         let x = eVarI loc "$x"
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
@@ -2296,25 +2297,22 @@ dsEFields apat =
 unsetField :: Ident -> Expr
 unsetField i = mkExn (getSLoc i) (unIdent i) "recConError"
 
-dsUpdate :: (Ident -> Expr) -> Expr -> [EField] -> T (Maybe Expr)
-dsUpdate unset e flds = do
-  mc <- getExprCon e
-  case mc of
-    Just c -> do
-      let ises = map unEField flds
-          fs = conFields c
-          ies = map (first head) ises
-          is = map fst ies
-          as = map field fs
-          field i = fromMaybe (unset i) $ lookup i ies
-      case filter ((> 1) . length . fst) ises of
-        (i:_, _):_ -> tcError (getSLoc i) "Nested fields not allowed"
-        _ -> return ()
-      case is \\ fs of
-        vs@(v:_) -> tcError (getSLoc v) $ "extra field(s) " ++ unwords (map unIdent vs)
-        _ -> return ()
-      return $ Just $ eApps e as
-    _ -> return Nothing
+-- Record construction, turn named fields into positional
+dsRecCon :: (Ident -> Expr) -> Con -> Expr -> [EField] -> T Expr
+dsRecCon unset c e flds = do
+  let ises = map unEField flds
+      fs = conFields c
+      ies = map (first head) ises
+      is = map fst ies
+      as = map field fs
+      field i = fromMaybe (unset i) $ lookup i ies
+  case filter ((> 1) . length . fst) ises of
+    (i:_, _):_ -> tcError (getSLoc i) "Nested fields not allowed"
+    _ -> return ()
+  case is \\ fs of
+    vs@(v:_) -> tcError (getSLoc v) $ "extra field(s) " ++ unwords (map unIdent vs)
+    _ -> return ()
+  return $ eApps e as
 
 -- Get the possible ECon from e.
 getExprCon :: Expr -> T (Maybe Con)
@@ -2702,10 +2700,8 @@ tcPat mt ae =
         (n, ECon c) -> tcPat mt $ eApps p (replicate (conArity c - n) eDummy)
         _      -> impossible
     EUpdate p isps -> do
-      me <- dsUpdate (const eDummy) p isps
-      case me of
-        Just p' -> tcPat mt p'
-        Nothing -> impossible
+      c <- fromMaybe impossible <$> getExprCon p
+      tcPat mt =<< dsRecCon (const eDummy) c p isps
 
     EOr ps -> do
       let orFun = ELam noSLoc $ [ eEqn [p] true | p <- ps] ++ [ eEqn [eDummy] (eFalse loc) ]
