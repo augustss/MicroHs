@@ -35,13 +35,12 @@ data H a = H0 | H1 Int | H2 a | H3 (H a) | H4 (H a) (H a) | H5 [(a, Bool, Maybe 
 data U a = U1 | U2 Int | U3 a | U4 a Int (a,a) | U5 [U a]
   deriving (Show, Functor, Foldable, Traversable)
 
-data St a = St (Int -> (Int, a)) | Exn
+newtype St a = St (Int -> (Int, a))
   deriving (Functor)
 instance Applicative St where
   pure x = St $ \ i -> (i, x)
   (<*>) = ap
 instance Monad St where
-  Exn >>= _ = Exn
   St sa >>= sk = St $ \ i ->
     case sa i of
       (i', a) ->
