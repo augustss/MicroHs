@@ -2033,7 +2033,16 @@ tcExprR mt ae =
       ises <- concat <$> mapM (dsEField flds e) flds
       mc <- getExprCon e
       case mc of
-        Nothing -> tcExpr mt $ foldr eSetFields e ises
+        Nothing -> do
+          let ies = [ (i, e') | EField [i] e' <- ises ]
+          if length ies == length ises then do   -- all updates are non-nested
+            useCase <- needDsCase mt e
+            --traceM ("useCase " ++ show useCase)
+            case useCase of
+              Nothing -> tcExpr mt $ foldr eSetFields e ises
+              Just cs -> tcExpr mt $ dsUpdateCase cs e ies
+           else
+            tcExpr mt $ foldr eSetFields e ises
         Just c  -> tcExpr mt =<< dsRecCon unsetField c e ises
           
     ESelect is -> do
@@ -2043,6 +2052,52 @@ tcExprR mt ae =
         tcError loc "Bad type application"
     _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
       -- impossible
+
+-- We need to use a case expression to do record updated if
+--  * any field has existential type
+--  * any field has universal type
+--  * the type is polymorphic (i.e., potentially a polymorphic update)
+-- This is partly guesswork.
+needDsCase :: Expected -> Expr -> T (Maybe [Constr])
+needDsCase ex ae =
+  case ex of
+    Infer _ -> need ae
+    Check t -> do
+      nc <- needT =<< expandSyn t
+      case nc of
+        Nothing -> need ae
+        _ -> return nc
+  where
+    -- Does the expression need a case?
+    need e = (needT . snd) =<< noEffect (tInferExpr e)   -- try figuring out the type
+    -- Does the type need a case ?
+    needT t =
+      case getAppM t of
+        Nothing -> return Nothing
+        Just (i, ts) -> do
+          dt <- gets dataTable
+          case M.lookup i dt of
+            Just (Data _ cs _)   -> return $ if not (null ts) || any needC cs then Just cs  else Nothing
+            Just (Newtype _ c _) -> return $ if not (null ts) ||     needC c  then Just [c] else Nothing
+            _ -> return Nothing        -- we don't know which type it is
+    -- Does a constructor need a case?
+    needC (Constr _ _ _ _ (Left _)) = False
+    needC (Constr vs _ _ _ (Right fs)) = not (null vs) || any (isForall . snd . snd) fs
+      where isForall (EForall _ _ _) = True
+            isForall _ = False
+
+-- Do a record update using case.
+dsUpdateCase :: [Constr] -> Expr -> [(Ident, Expr)] -> Expr
+dsUpdateCase cs e ies = chkUsed $ ECase e $ map mkArm cs
+  where
+    loc = getSLoc e
+    mkArm (Constr _ _ _ _ (Left _)) = (x, oneAlt x) where x = EVar $ mkIdentSLoc loc "x"
+    mkArm (Constr _ _ c _ (Right fs)) = (eApps (EVar c) xs, oneAlt $ eApps (EVar c) (zipWith fld xs fs))
+      where xs = [ EVar $ mkIdentSLoc loc $ "x$" ++ show i | i <- [1..length fs] ]
+            fld x (i, _) = fromMaybe x $ lookup i ies
+    chkUsed a = case map fst ies \\ [ f | Constr _ _ _ _ (Right fs) <- cs, (f, _) <- fs ] of
+                  [] -> a
+                  f:_ -> errorMessage loc $ "Unknown field " ++ show f
 
 dsSRec :: Maybe Ident -> Ident -> Ident -> [EStmt] -> EStmt
 dsSRec mmn imfix iret ss =

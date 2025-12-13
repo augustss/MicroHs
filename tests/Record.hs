@@ -77,6 +77,17 @@ s1 = S1 10
 s2 :: S String
 s2 = S2 { x = 20, y = "foo" }
 
+data R3 = forall a . Show a => R3 { x3 :: a, y3 :: Int }
+  deriving Show
+
+data R4 = R4 { x4 :: forall a . a -> a -> a, y4 :: Int }
+
+xr3 :: R3
+xr3 = R3 () 10
+
+xr4 :: R4
+xr4 = R4 const 11
+
 main :: IO ()
 main = do
   print r1
@@ -112,3 +123,8 @@ main = do
   print (x s1)
   print (x s2)
   print (updA r1 100)
+  print xr3
+  print (x4 xr4 'a' 'b')
+  print xr3{ x3 = True }
+  let xr4' = xr4{ x4 = \ _ x -> x }
+  print (x4 xr4' 'a' 'b')

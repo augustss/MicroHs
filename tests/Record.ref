@@ -29,3 +29,7 @@ CR{a=333,b=True}
 10
 20
 CR{a=100,b=True}
+R3 {x3 = (), y3 = 10}
+'a'
+R3 {x3 = True, y3 = 10}
+'b'
