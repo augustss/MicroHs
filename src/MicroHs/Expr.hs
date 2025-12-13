@@ -805,6 +805,7 @@ setSLocExpr :: SLoc -> Expr -> Expr
 setSLocExpr l (EVar i) = EVar (setSLocIdent l i)
 setSLocExpr l (ECon c) = ECon (setSLocCon l c)
 setSLocExpr l (ELit _ k) = ELit l k
+setSLocExpr _ e@(EUVar _) = e
 setSLocExpr _ _ = error "setSLocExpr"  -- what other cases do we need?
 
 setSLocCon :: SLoc -> Con -> Con
