@@ -878,10 +878,13 @@ extVals :: HasCallStack =>
            [(Ident, EType)] -> T ()
 extVals = mapM_ (uncurry extVal)
 
-extTyp :: Ident -> EType -> T ()
-extTyp i t = do
+extTyp :: Ident -> EKind -> T ()
+extTyp i k = extTypE i k (EVar i)
+
+extTypE :: Ident -> EKind -> EType -> T ()
+extTypE i k t = do
   tenv <- gets typeTable
-  putTypeTable (stInsertLcl i (Entry (EVar i) t) tenv)
+  putTypeTable (stInsertLcl i (Entry t k) tenv)
 
 extTyps :: [(Ident, EType)] -> T ()
 extTyps = mapM_ (uncurry extTyp)
@@ -2658,6 +2661,9 @@ tcPat mt ae =
     ELit _ _ -> lit
 
     ESign e t -> do
+      typs <- gets typeTable
+      let vs = freeTyVars [t] \\ getLocals typs
+      mapM_ (\ v -> do kv <- newUVar; tv <- newUVar; extTypE v kv tv) vs
       t' <- tcType (Check kType) t >>= expandSyn
       instPatSigma loc t' mt
       tCheckPat t' e

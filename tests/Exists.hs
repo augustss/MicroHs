@@ -35,6 +35,15 @@ data D = forall a . (Show a, Num a) => D a
 unD :: D -> String
 unD (D x) = show (x+1)
 
+scp :: Show a => a -> String
+scp a =
+  let t = C a
+      tt = case t of
+             C (x :: a) -> C ([] :: [a])
+             --C x -> C ([] `asTypeOf` [x])
+  in  case tt of
+        C y -> show y
+
 main :: IO ()
 main = do
   print es
@@ -46,3 +55,5 @@ main = do
   putStrLn (sh (T 'x'))
   putStrLn (unD (D (1::Int)))
   putStrLn (unD (D 1.5))
+  putStrLn (scp 'a')
+  

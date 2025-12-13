@@ -12,6 +12,7 @@ module MicroHs.SymTab(
   stKeysGlbU,
   stInsertLcl,
   mapMSymTab,
+  getLocals,
   ) where
 import qualified Prelude(); import MHSPrelude
 --import Data.Char
@@ -73,6 +74,9 @@ instance Show SymTab where
     ("Locals:"  : map (("  " ++) . show) l) ++
     ("UGlobals:" : map (("  " ++) . show) (M.toList ug)) ++
     ("QGlobals:" : map (("  " ++) . show) (M.toList qg))
+
+getLocals :: SymTab -> [Ident]
+getLocals s = map fst (_lcl s)
 
 mapMSymTab :: forall m . Monad m => (Entry -> m Entry) -> SymTab -> m SymTab
 mapMSymTab f (SymTab l ug qg) = do
