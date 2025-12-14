@@ -54,6 +54,7 @@ module MicroHs.Expr(
   getAppM, getApp,
   TyVar, freeTyVars,
   getImplies,
+  dropForallContext,
   ) where
 import qualified Prelude(); import MHSPrelude hiding ((<>))
 import Data.List
@@ -1210,3 +1211,8 @@ getImplies :: EType -> Maybe (EConstraint, EType)
 getImplies (EApp (EApp (EVar n) a) b) =
   if isIdent "=>" n || isIdent "Primitives.=>" n then Just (a, b) else Nothing
 getImplies _ = Nothing
+
+dropForallContext :: EType -> EType
+dropForallContext (EForall _ _ t) = dropForallContext t
+dropForallContext t | Just (_, t') <- getImplies t = dropForallContext t'
+                    | otherwise = t

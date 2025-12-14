@@ -749,7 +749,7 @@ newtypeDerM mctx narg lhs@(_, iks) c acls mvia = do
               Just x -> return x
 
           -- hdr looks like forall vs . ctx => C t1 ... tn
-          let (_, newtys) = getApp $ dropContext $ dropForall hdr
+          let (_, newtys) = getApp $ dropForallContext hdr
               mkMethod (mi, amty) = do
                 let (tvs, mty) =
                       case amty of
@@ -762,7 +762,7 @@ newtypeDerM mctx narg lhs@(_, iks) c acls mvia = do
                           EForall q vks t -> EForall q (map (\ (IdKind i _) -> IdKind i eDummy) vks) $ qvar t
                           t -> qvar t
 
-                    vty = qvar $ dropContext $ dropForall $ subst (zip tvs (init newtys ++ [viaty])) mty
+                    vty = qvar $ dropForallContext $ subst (zip tvs (init newtys ++ [viaty])) mty
                     msign = Sign [mi] nty
                     qmi = EQVar (EVar $ qualIdent clsQual mi) amty   -- Use a qualified name for the method
                     body = Fcn mi [eEqn [] $ eAppI2 (mkBuiltin loc "coerce") (ETypeArg vty) qmi]
@@ -771,22 +771,6 @@ newtypeDerM mctx narg lhs@(_, iks) c acls mvia = do
 
 --  traceM $ "newtypeDer: " ++ show (Instance hdr body [])
           return (Just [Instance hdr body []])
-
-dropForall :: EType -> EType
-dropForall (EForall _ _ t) = dropForall t
-dropForall t = t
-
-dropContext :: EType -> EType
-dropContext t =
-  case getImplies t of
-    Just (_, t') -> dropContext t'
-    _ -> t
-
-{-
-freshForall :: EType -> EType
-freshForall (EForall _ iks t) = EForall True (map (\ (IdKind i _) -> IdKind i (EVar dummyIdent)) iks) $ freshForall t
-freshForall t = t
--}
 
 -- Eta reduce as many of the variables as possible.
 -- E.g. etaReduce [a,b] (T a b) = ([], T)
