@@ -2036,8 +2036,8 @@ tcExprR mt ae =
         Nothing -> do
           let ies = [ (i, e') | EField [i] e' <- ises ]
           if length ies == length ises then do   -- all updates are non-nested
-            useCase <- needDsCase mt e
-            --traceM ("useCase " ++ show useCase)
+            useCase <- needDsCase mt (map fst ies) e
+            -- traceM ("useCase " ++ show (ae, useCase))
             case useCase of
               Nothing -> tcExpr mt $ foldr eSetFields e ises
               Just cs -> tcExpr mt $ dsUpdateCase cs e ies
@@ -2057,21 +2057,24 @@ tcExprR mt ae =
 --  * any field has existential type
 --  * any field has universal type
 --  * the type is polymorphic (i.e., potentially a polymorphic update)
--- This is partly guesswork.
-needDsCase :: Expected -> Expr -> T (Maybe [Constr])
-needDsCase ex ae =
+-- This is partly guesswork.  We try:
+--  * expected type known and "bad"
+--  * type of scrutinee is "bad"
+--  * the updated labels are not unique and all construct a "bad" type
+needDsCase :: Expected -> [Ident] -> Expr -> T (Maybe [Constr])
+needDsCase ex lbls ae =
   case ex of
     Infer _ -> need ae
-    Check t -> do
-      nc <- needT =<< expandSyn t
-      case nc of
-        Nothing -> need ae
-        _ -> return nc
+    Check t -> liftA2 (<|>) (needT t) (need ae)
   where
-    -- Does the expression need a case?
-    need e = (needT . snd) =<< noEffect (tInferExpr e)   -- try figuring out the type
+    need :: Expr -> T (Maybe [Constr])
+    need e = liftA2 (<|>)
+               ((needT . snd) =<< noEffect (tInferExpr e))   -- try figuring out the type
+               (asum <$> mapM needL lbls)
     -- Does the type need a case ?
-    needT t =
+    needT :: EType -> T (Maybe [Constr])
+    needT at = do
+      t <- expandSyn at
       case getAppM t of
         Nothing -> return Nothing
         Just (i, ts) -> do
@@ -2081,10 +2084,18 @@ needDsCase ex ae =
             Just (Newtype _ c _) -> return $ if not (null ts) ||     needC c  then Just [c] else Nothing
             _ -> return Nothing        -- we don't know which type it is
     -- Does a constructor need a case?
+    needC :: Constr -> Bool
     needC (Constr _ _ _ _ (Left _)) = False
     needC (Constr vs _ _ _ (Right fs)) = not (null vs) || any (isForall . snd . snd) fs
       where isForall (EForall _ _ _) = True
             isForall _ = False
+    needL :: Ident -> T (Maybe [Constr])
+    needL lbl = do
+      vt <- gets valueTable
+      case stLookupGlbUnqMany lbl vt of
+        -- check the return type of an unambiguous label
+        Just [Entry _ t] | (t':_, _) <- getArrows (dropForallContext t) -> needT t'
+        _ -> return Nothing
 
 -- Do a record update using case.
 dsUpdateCase :: [Constr] -> Expr -> [(Ident, Expr)] -> Expr
