@@ -3,6 +3,7 @@ module MicroHs.SymTab(
   SymTab,
   stEmpty,
   stLookup,
+  stLookupGlbUnqMany,
   stFromList,
   stInsertGlbU,
   stInsertGlbQ,
@@ -87,6 +88,9 @@ mapMSymTab f (SymTab l ug qg) = do
 
 stEmpty :: SymTab
 stEmpty = SymTab [] M.empty M.empty
+
+stLookupGlbUnqMany :: Ident -> SymTab -> Maybe [Entry]
+stLookupGlbUnqMany i (SymTab _ ug _) = M.lookup i ug
 
 stLookup :: String -> Ident -> SymTab -> Either String Entry
 stLookup msg i (SymTab l ug qg) =
