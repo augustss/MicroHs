@@ -7,15 +7,20 @@ module System.Environment(
   lookupEnv,
   getEnv,
   getEnvironment,
+  setEnv,
+  unsetEnv,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives
+import Control.Exception(throwIO)
 import Data.Bifunctor(second)
 import Data.List(span)
+import Foreign.C.Error
 import Foreign.C.String
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import System.IO
+import System.IO.Error
 
 -- primArgRef returns an array containing a list of strings.
 -- The first element is the program name, the rest are the arguments.
@@ -54,7 +59,7 @@ getEnv :: String -> IO String
 getEnv var = do
   mval <- lookupEnv var
   case mval of
-    Nothing  -> error $ "getEnv: not found " ++ var
+    Nothing  -> throwIO (mkIOError NoSuchThing "getEnv" Nothing (Just var))
     Just val -> return val
 
 foreign import capi "unistd.h value environ" c_environ :: Ptr CString
@@ -65,3 +70,28 @@ getEnvironment = do
   strs <- mapM peekCAString cstrs
   let splitEq = second (drop 1) . span (/= '=')
   return $ map splitEq strs
+
+setEnv :: String -> String -> IO ()
+setEnv key value
+  | null value     = unsetEnv key
+  | otherwise      = do chkKey "setEnv" key; setEnv' key value
+
+chkKey :: String -> String -> IO ()
+chkKey msg key | null key || '=' `elem` key = throwIO (mkIOError InvalidArgument msg Nothing Nothing)
+               | otherwise = return ()
+
+foreign import ccall "setenv" c_setenv :: CString -> CString -> Int -> IO Int
+
+setEnv' :: String -> String -> IO ()
+setEnv' key value =
+  withCAString key $ \ ckey ->
+    withCAString value $ \ cvalue ->
+      throwErrnoIfMinus1_ "setenv" $ c_setenv ckey cvalue 1
+
+foreign import ccall "unsetenv" c_unsetenv :: CString -> IO Int
+
+unsetEnv :: String -> IO ()
+unsetEnv key = do
+  chkKey "unsetEnv" key
+  withCAString key $ \ ckey ->
+    throwErrnoIfMinus1_ "unsetEnv" $ c_unsetenv ckey
