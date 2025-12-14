@@ -154,6 +154,7 @@ library base
         Foreign.C.String
         Foreign.C.Types
         Foreign.ForeignPtr
+        Foreign.ForeignPtr.Unsafe
         Foreign.Marshal
         Foreign.Marshal.Alloc
         Foreign.Marshal.Array
