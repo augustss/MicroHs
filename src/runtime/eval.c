@@ -421,7 +421,7 @@ islinux(void)
 #endif
 
 #if !defined(STACK_SIZE)
-#define STACK_SIZE 100000
+#define STACK_SIZE 200000
 #endif
 
 /* tcc doesn't understand noreturn attribute */
