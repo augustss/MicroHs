@@ -17,6 +17,7 @@ module Foreign.ForeignPtr (
 import qualified Prelude(); import MiniPrelude
 import Primitives
 import Foreign.ForeignPtr_Type
+import Foreign.ForeignPtr.Unsafe
 import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Alloc
@@ -30,9 +31,6 @@ instance Ord (ForeignPtr a) where
 
 instance Show (ForeignPtr a) where
     showsPrec p f = showsPrec p (unsafeForeignPtrToPtr f)
-
-unsafeForeignPtrToPtr :: ForeignPtr a -> Ptr a
-unsafeForeignPtrToPtr = primForeignPtrToPtr
 
 mallocForeignPtr :: Storable a => IO (ForeignPtr a)
 mallocForeignPtr = do
