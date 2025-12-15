@@ -235,23 +235,24 @@ FFS(bits_t x)
 }
 #endif  /* !defined(FFS) */
 
+/***** popcount *****/
 #if defined(__has_builtin)
 
 #if __has_builtin(__builtin_popcountl)
-#define BUILTIN_POPCOUNT
+#define BUILTIN_POPCOUNT __builtin_popcountl
+#endif
+
+#if __has_builtin(__builtin_popcountll)
+#define BUILTIN_POPCOUNT64 __builtin_popcountll
 #endif
 
 #endif
 
-/***** popcount *****/
+
 #if !defined(POPCOUNT)
 uvalue_t POPCOUNT(uvalue_t x) {
 #if defined(BUILTIN_POPCOUNT)
-#if WORD_SIZE == 64
-  return __builtin_popcountl(x);
-#else  /* WORD_SIZE == 64 */
-  return __builtin_popcount(x);
-#endif  /* WORD_SIZE == 64 */
+  return BUILTIN_POPCOUNT(x);
 #else   /* !defined(BUILTIN_POPCOUNT) */
   uvalue_t count = 0;
   while (x) {
@@ -265,27 +266,29 @@ uvalue_t POPCOUNT(uvalue_t x) {
 
 #if !defined(POPCOUNT64)
 uvalue_t POPCOUNT64(uint64_t x) {
-#if defined(BUILTIN_POPCOUNT)
-  return __builtin_popcountl(x);
-#else   /* !defined(BUILTIN_POPCOUNT) */
+#if defined(BUILTIN_POPCOUNT64)
+  return BUILTIN_POPCOUNT64(x);
+#else   /* !defined(BUILTIN_POPCOUNT64) */
   uvalue_t count = 0;
   while (x) {
     x = x & (x - 1); // clear lowest 1 bit
     count++;
   }
   return count;
-#endif   /* !defined(BUILTIN_POPCOUNT) */
+#endif   /* !defined(BUILTIN_POPCOUNT64) */
 }
 #endif  /* !defined(POPCOUNT64) */
 /***** end popcount *****/
 
 /***** clz *****/
-#if defined(__GNUC__)
-#define BUILTIN_CLZ
-#elif defined(__clang__)
+#if defined(__has_builtin)
 
 #if __has_builtin(__builtin_clzl)
-#define BUILTIN_CLZ
+#define BUILTIN_CLZ __builtin_clzl
+#endif
+
+#if __has_builtin(__builtin_clzll)
+#define BUILTIN_CLZ64 __builtin_clzll
 #endif
 
 #endif
@@ -295,11 +298,7 @@ uvalue_t POPCOUNT64(uint64_t x) {
 uvalue_t CLZ(uvalue_t x) {
 #if defined(BUILTIN_CLZ)
   if (x == 0) return WORD_SIZE;
-#if WORD_SIZE == 64
-  return __builtin_clzl(x);
-#else  /* WORD_SIZE == 64 */
-  return __builtin_clz(x);
-#endif  /* WORD_SIZE == 64 */
+  return BUILTIN_CLZ(x);
 #else   /* defined(BUILTIN_CLZ) */
   value_t count = WORD_SIZE;
   while (x) {
@@ -313,17 +312,17 @@ uvalue_t CLZ(uvalue_t x) {
 
 #if !defined(CLZ64)
 uvalue_t CLZ64(uint64_t x) {
-#if defined(BUILTIN_CLZ)
-  if (x == 0) return WORD_SIZE;
-  return __builtin_clzl(x);
-#else   /* defined(BUILTIN_CLZ) */
-  value_t count = WORD_SIZE;
+#if defined(BUILTIN_CLZ64)
+  if (x == 0) return 64;
+  return BUILTIN_CLZ64(x);
+#else   /* defined(BUILTIN_CLZ64) */
+  value_t count = 64;
   while (x) {
     x = x >> 1;
     count--;
   }
   return count;
-#endif  /* defined(BUILTIN_CLZ) */
+#endif  /* defined(BUILTIN_CLZ64) */
 }
 #endif  /* !defined(CLZ64) */
 /***** end clz *****/
@@ -332,7 +331,11 @@ uvalue_t CLZ64(uint64_t x) {
 #if defined(__has_builtin)
 
 #if __has_builtin(__builtin_ctzl)
-#define BUILTIN_CTZ
+#define BUILTIN_CTZ __builtin_ctzl
+#endif
+
+#if __has_builtin(__builtin_ctzl)
+#define BUILTIN_CTZ64 __builtin_ctzll
 #endif
 
 #endif  /* defined(__has_builtin) */
@@ -342,11 +345,7 @@ uvalue_t CLZ64(uint64_t x) {
 uvalue_t CTZ(uvalue_t x) {
   if (x == 0) return WORD_SIZE;
 #if defined(BUILTIN_CTZ)
-#if WORD_SIZE == 64
-  return __builtin_ctzl(x);
-#else  /* WORD_SIZE == 64 */
-  return __builtin_ctz(x);
-#endif  /* WORD_SIZE == 64 */
+  return BUILTIN_CTZ(x);
 #else  /* defined(BUILTIN_CTZ) */
   uvalue_t count = 0;
   while ((x & 1) == 0) {
@@ -360,17 +359,17 @@ uvalue_t CTZ(uvalue_t x) {
 
 #if !defined(CTZ64)
 uvalue_t CTZ64(uint64_t x) {
-  if (x == 0) return WORD_SIZE;
-#if defined(BUILTIN_CTZ)
-  return __builtin_ctzl(x);
-#else  /* defined(BUILTIN_CTZ) */
+  if (x == 0) return 64;
+#if defined(BUILTIN_CTZ64)
+  return BUILTIN_CTZ64(x);
+#else  /* defined(BUILTIN_CTZ64) */
   uvalue_t count = 0;
   while ((x & 1) == 0) {
     x = x >> 1;
     count++;
   }
   return count;
-#endif  /* defined(BUILTIN_CTZ) */
+#endif  /* defined(BUILTIN_CTZ64) */
 }
 #endif  /* !defined(CTZ) */
 
