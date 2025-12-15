@@ -130,12 +130,6 @@ unpack = primBSunpack
 null :: ByteString -> Bool
 null bs = length bs == 0
 
--- Get actual data pointer out of a ByteString.  There is no copying involved.
-useAsCString :: ByteString -> (Ptr CChar -> IO a) -> IO a
-useAsCString bs act =
-  act (primForeignPtrToPtr (primBS2FPtr bs)) `primBind` \ a ->
-  seq bs (primReturn a)
-
 -- Take a C string and turn it into a ByteString.
 -- This will take ownership of the memory which will eventually
 -- be free()d.  The pointer should not be used by the caller after this call.
@@ -153,3 +147,6 @@ c2w = intToWord8 . primOrd
 
 w2c :: Word8 -> Char
 w2c = primChr . word8ToInt
+
+toForeignPtr :: ByteString -> (ForeignPtr Word8, Int, Int)
+toForeignPtr bs = (primUnsafeCoerce (primBS2FPtr bs), 0, primBSlength bs)
