@@ -55,7 +55,7 @@ openTmpFile tmplt = do
 
 ------- Read --------
 
-mhsError :: String -> a
+mhsError :: HasCallStack => String -> a
 mhsError = error
            -- errorWithoutStackTrace
 
