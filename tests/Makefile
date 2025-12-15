@@ -74,7 +74,7 @@ test:
 	$(TMHS) DfltSig    && $(EVAL) > DfltSig.out    && diff DfltSig.ref DfltSig.out
 	$(TMHS) Bytestring && $(EVAL) > Bytestring.out && diff Bytestring.ref Bytestring.out
 	$(TMHS) Text       && $(EVAL) > Text.out       && diff Text.ref Text.out
-	$(TMHS) TextLow    && $(EVAL) > TextLow.out    && diff TextLow.ref TextLow.out
+	$(TMHS) ByteStringLow && $(EVAL) > ByteStringLow.out && diff ByteStringLow.ref ByteStringLow.out
 	$(TMHS) ImpMet     && $(EVAL) > ImpMet.out     && diff ImpMet.ref ImpMet.out
 	$(TMHS) MultiIf    && $(EVAL) > MultiIf.out    && diff MultiIf.ref MultiIf.out
 	$(TMHS) LameCase   && $(EVAL) > LameCase.out   && diff LameCase.ref LameCase.out
