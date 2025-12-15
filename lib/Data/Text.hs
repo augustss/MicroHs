@@ -30,8 +30,6 @@ module Data.Text(
   isSuffixOf,
   isInfixOf,
   map,
-  useAsCString,
-  grabCString,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, map)
 import Primitives(Ptr)
@@ -178,16 +176,3 @@ takeWhile p = pack . L.takeWhile p . unpack
 
 map :: (Char -> Char) -> Text -> Text
 map f = pack . L.map f . unpack
-
--- Get a C string of a Text.  The C string is encoded with
--- modified UTF-8 (so no embedded NULs) and NUL terminated.
--- The RTS retains ownership of the string, and the pointer
--- should not be used after the subcomputations finishes.
-useAsCString :: Text -> (Ptr CChar -> IO a) -> IO a
-useAsCString (T bs) act = BS.useAsCString bs act
-
--- Take a C string encoded with modified UTF-8 and turn it into Text.
--- This will take ownership of the memory which will eventually
--- be free()d.  The pointer should not be used by the caller after this call.
-grabCString :: Ptr CChar -> IO Text
-grabCString p = T <$> BS.grabCString p

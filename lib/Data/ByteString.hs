@@ -152,27 +152,32 @@ module Data.ByteString(
   hPutNonBlocking,
   hPutStr,
   ) where
+
 import qualified Prelude()
 import MiniPrelude as P hiding(null, length)
 import qualified Data.List as P
+
 import Control.Exception (evaluate)
 import Control.Monad.Fail
-import Data.List.NonEmpty (NonEmpty, fromList)
 import Data.Bits.Base
+import Data.ByteString.Internal
 import Data.Coerce
 import Data.Function (($!))
+import Data.List.NonEmpty (NonEmpty, fromList)
 import Data.Monoid.Internal
 import Data.Semigroup
 import Data.String
 import Data.Word.Word8(Word8)
 import Foreign.C.String (CString, CStringLen)
 import Foreign.C.Types (CChar)
-import Foreign.Ptr (Ptr)
+import Foreign.ForeignPtr
+import Foreign.Marshal.Alloc (allocaBytes)
+import Foreign.Marshal.Utils (copyBytes)
+import Foreign.Ptr (Ptr, castPtr)
+import Foreign.Storable (pokeByteOff)
 import System.IO.Base(Handle, IOMode(..), hClose, openFile, stdin, stdout)
 import qualified System.IO.Base as P
 import System.IO.Internal(BFILE, withHandleRd, withHandleWr)
-import Foreign.ForeignPtr
-import Data.ByteString.Internal
 import qualified Text.Read.Lex as L
 import Text.Read
 
@@ -530,15 +535,16 @@ tailsNE = fromList . tails
 sort :: ByteString -> ByteString
 sort = pack . P.sort . unpack
 
-{-
 useAsCString :: ByteString -> (CString -> IO a) -> IO a
 useAsCString bs act =
-  withForeignPtr (primBS2FPtr bs) act
--}
+  allocaBytes (l + 1) $ \buf -> do
+    withForeignPtr (primBS2FPtr bs) $ \p -> copyBytes buf p l
+    pokeByteOff buf l (0 :: Word8)
+    act (castPtr buf)
+  where l = length bs
 
 useAsCStringLen :: ByteString -> (CStringLen -> IO a) -> IO a
-useAsCStringLen bs act =
-  withForeignPtr (primBS2FPtr bs) $ \p -> act (p, length bs)
+useAsCStringLen bs act = useAsCString bs $ \cstr -> act (cstr, length bs)
 
 packCString :: CString -> IO ByteString
 packCString = primPackCString

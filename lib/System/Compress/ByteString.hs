@@ -6,6 +6,7 @@ module System.Compress.ByteString(
 import qualified Prelude(); import MiniPrelude
 import Primitives(primForeignPtrToPtr)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Unsafe as BS
 import Data.Function
 import Foreign.C.String
 import Foreign.C.Types
@@ -35,7 +36,7 @@ foreign import ccall "flushb"                c_flush                 :: PBFILE -
 
 withGetTransducerBS :: Transducer -> BS.ByteString -> BS.ByteString
 withGetTransducerBS trans bs = unsafePerformIO $ do
-  BS.useAsCStringLen bs $ \ (ptr, len) -> do
+  BS.unsafeUseAsCStringLen bs $ \ (ptr, len) -> do
   bf <- c_openb_rd_mem ptr len                 -- open it for reading
   cbf <- trans bf                              -- and add transducer (e.g., decompressor)
   h <- mkHandle "withGetTransducer" cbf HRead
