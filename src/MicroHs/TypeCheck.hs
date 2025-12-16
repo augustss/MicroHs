@@ -45,6 +45,9 @@ import Debug.Trace
 maxTuple :: Int
 maxTuple = 15
 
+deriveClassTypeable :: Bool
+deriveClassTypeable = True
+
 ----------------------
 
 -- Certain data structures persist during the entire compilation
@@ -610,6 +613,7 @@ sArrow :: ESort -> ESort -> ESort
 sArrow = tArrow
 
 setUVar :: TRef -> EType -> T ()
+setUVar r1 (EUVar r2) | r1 <= r2 = error "setUVar"
 setUVar i t = modify $ \ ts -> ts{ uvarSubst = IM.insert i t (uvarSubst ts) }
 
 getUVar :: Int -> T (Maybe EType)
@@ -760,13 +764,20 @@ unifyVar loc r t = do
     Nothing -> unifyUnboundVar loc r t
     Just t' -> unify loc t' t
 
+-- Unify an unbount tyvar r1 with the type at2
 unifyUnboundVar :: HasCallStack =>
                    SLoc -> TRef -> EType -> T ()
 unifyUnboundVar loc r1 at2@(EUVar r2) = do
   -- We know r1 /= r2
   mt2 <- getUVar r2
   case mt2 of
-    Nothing -> setUVar r1 at2
+    Nothing ->
+      -- Both are tyvars.  Always point later tyvars towards earlier ones.
+      -- There generaliation step in tcBindGrp relies on this.
+      if r1 > r2 then
+        setUVar r1 at2
+      else
+        setUVar r2 (EUVar r1)
     Just t2 -> unify loc (EUVar r1) t2
 unifyUnboundVar loc r1 t2 = do
   vs <- getMetaTyVars [t2]
@@ -1429,18 +1440,7 @@ tcDefsValue adefs = do
   -- Definitions with no type signature will be missing.
   mapM_ addValueType adefs
   defs <- concat<$> mapM (dsPatBind <=< dsEFieldsBind) adefs
-  let smap = M.fromList $ [ (i, ()) | Sign is _ <- defs, i <- is ]
-      -- Split Fcn into those without and with type signatures
-      unsigned = filter noSign defs
-        where noSign (Fcn i _) = hasNoSign i
-              noSign (Pattern (i, _) _ _) = hasNoSign i
-              noSign _ = False
-              hasNoSign i = isNothing $ M.lookup i smap
-      -- split the unsigned defs into strongly connected components
-      sccs = stronglyConnComp $ map node unsigned
-        where node d@(Fcn i e)             = (d, i, allVarsEqns e)  -- XXX should really be allFreeVars
-              node d@(Pattern (i, _) p me) = (d, i, allVarsPat p $ maybe [] allVarsEqns me)
-              node _ = undefined
+  let sccs = fst $ sccDefs defs
       tcSCC (AcyclicSCC d@Pattern{}) = tcPatSyn d
       tcSCC (AcyclicSCC d) = tInferDefs [d]
       tcSCC (CyclicSCC ds) = tInferDefs ds
@@ -1458,6 +1458,26 @@ tcDefsValue adefs = do
 --  traceM $ "tcDefsValue: ------------ done"
 --  traceM $ showEDefs defs'''
   pure defs'''
+
+-- Find definitions without a type signature and split them
+-- into strongly connected components.
+-- Also return definitions with signatures.
+sccDefs :: [EDef] -> ([SCC EDef], [EDef])
+sccDefs defs =
+  let smap = M.fromList $ [ (i, ()) | Sign is _ <- defs, i <- is ]
+      -- Split Fcn into those without and with type signatures
+      (unsigns, signs) = partition noSign defs
+        where noSign (Fcn i _) = hasNoSign i
+              noSign (Pattern (i, _) _ _) = hasNoSign i
+              noSign (PatBind _ _) = impossible
+              noSign _ = False
+              hasNoSign i = isNothing $ M.lookup i smap
+      -- split the unsigned defs into strongly connected components
+      sccs = stronglyConnComp $ map node unsigns
+        where node d@(Fcn i e)             = (d, i, allVarsEqns e)  -- XXX should really be allFreeVars
+              node d@(Pattern (i, _) p me) = (d, i, allVarsPat p $ maybe [] allVarsEqns me)
+              node _ = undefined
+  in  (sccs, signs)
 
 -- Infer a type for a strongly connected component of definitions.
 -- Enter the deduced types into the global symbol table and return
@@ -2308,7 +2328,7 @@ dsPatBind :: EBind -> T [EBind]
 dsPatBind (PatBind p e) = do
   let (xs, p') = getAts p
   (v, ys) <- case xs of
-               [] -> do v <- newIdent (getSLoc e) "pb"; return (v, [])
+               [] -> do v <- newIdent (getSLoc e) patBindPrefix; return (v, [])
                v:vs -> return (v, vs)
   let de = fcn v e
       dy = map (\ y -> fcn y (EVar v)) ys
@@ -2316,6 +2336,14 @@ dsPatBind (PatBind p e) = do
       fcn i b = Fcn i (eEqns [] b)
   return $ de : dy ++ ds
 dsPatBind b = return [b]
+
+patBindPrefix :: String
+patBindPrefix = "pb"
+
+{-
+isPatBindVar :: Ident -> Bool
+isPatBindVar = isPrefixOf (patBindPrefix ++ uniqIdentSep) . unIdent
+-}
 
 getAts :: EPat -> ([Ident], EPat)
 getAts (EAt x p) = (x:xs, p') where (xs, p') = getAts p
@@ -2858,16 +2886,108 @@ multCheck vs =
 
 tcBinds :: HasCallStack =>
            [EBind] -> ([EBind] -> T a) -> T a
-tcBinds xbs ta = withFixes [ (i, fx) | Infix fx is <- xbs, i <- is ] $ do
-  xbs' <- concat <$> mapM (dsPatBind <=< dsEFieldsBind) xbs
+tcBinds axbs ta =
+  withFixes [ (i, fx) | Infix fx is <- axbs, i <- is ] $ do
+  xbs <- concat <$> mapM (dsPatBind <=< dsEFieldsBind) axbs
   let
-    tmap = M.fromList [ (i, t) | Sign is t <- xbs', i <- is ]
-    xs = getBindsVars xbs'
-  multCheck xs
-  xts <- mapM (tcBindVarT tmap) xs
-  withExtVals xts $ do
-    nbs <- mapM tcBind xbs'
-    ta nbs
+    getSign (Sign is t) = do
+      tt <- withTypeTable $ tCheckTypeTImpl QImpl kType t >>= expandSyn
+      return [(is, tt)]
+    getSign _ = return []
+  -- find and check all type signatures
+  istss <- mapM getSign xbs
+  multCheck $ getBindsVars xbs
+  let (sccs, signs) = sccDefs xbs
+  withExtVals [ (i, t) | ists <- istss, (is, t) <- ists, i <- is ] $ do
+    nbss <- mapM tcBindGrp sccs  -- Check a group of bindings, and extend symbol table
+    nbs <- mapM tcBind signs     -- All types known, so check the bidings with signatures.
+    ta (concat (nbs : nbss))
+
+tcBindGrp :: SCC EBind -> T [EBind]
+tcBindGrp (AcyclicSCC d) = tcBindGrp' [d]
+tcBindGrp (CyclicSCC ds) = tcBindGrp' ds
+
+tcBindGrp' :: [EBind] -> T [EBind]
+tcBindGrp' bs = do
+--  traceM $ "tcBindGrp start: " ++ show (getSLoc bs, bs)
+  let def (Fcn i _) = do t <- newUVar; return (i, t)
+      def d = impossibleShow d
+  xts <- mapM def bs                    -- add temporary types
+  oldState <- get
+  extVals xts                           -- Extend the symbol table with the temporary types.
+                                        -- These will be removed by the 'withExtVals' in 'tcBinds'
+  bs' <- mapM tcBind bs                 -- type check bindings
+  -- The contorted nested ifs are for efficiency.
+  --   first test for monomorphism restriction (cheap),
+  --   next test if there are any new type variables in the return type (a little more expensive),
+  --   finally test for type variables in the environment (expensive).
+  if any (not . isSynFcn) bs' then      -- monomorphism restriction, also ensures pattern bindings are not polymorphic
+    return bs'
+   else do
+    fvs <- getMetaTyVars (map snd xts)  -- all unification variables used in return type
+    let u = unique oldState             -- first of the new type variables
+        qvs = filter (>= u) fvs         -- variables introduced for the group that can be quantified
+--    traceM $ "tcBindGrp: " ++ show (bs', ts', qvs)
+    if null qvs then                    -- no variables to generalize
+      return bs'
+     else do
+      let envts = getEnvTypes' oldState -- types in scope outside the group
+      envvs <- getMetaTyVars envts      -- all unification variables in the environment
+      let qvs' = qvs \\ envvs
+      if null qvs' then                 -- no variables to generalize
+        return bs'
+       else do
+        -- Generalize
+        cs  <- gets constraints
+        cs' <- mapM (derefUVar . snd) cs
+        -- find constraints involving the local tyvars
+        let ctx = nubBy eqEType $
+                  filter (\ c -> not $ null $ intersect qvs' (metaTvs [c])) cs'
+--        traceM $ "tcBindGrp: u=" ++ show u ++ " xts=" ++ show xts ++ " ts'=" ++ show ts' ++ " cs'=" ++ show cs'
+--        sub <- gets uvarSubst
+--        traceM $ "  subst=" ++ show (IM.toList sub)
+        -- Compute actual type signatures.
+        -- Pattern bindings are treated specially.  A binding
+        --   let (x, y) = foo z
+        -- is translated to
+        --   let pb$1 = foo z
+        --       x = case pb$1 of (x, y) -> x
+        --       y = case pb$1 of (x, y) -> y
+        -- It's importand that pb$1 is only evaluated once, so
+        -- we treat it as a mononorphic binding.
+        let one (i, t) = do
+              t' <- (generalizeType (getSLoc i) qvs' . addConstraints ctx) =<< derefUVar t
+--              traceM $ "tcBindGrp generalize " ++ show (i, t')
+              return (i, t')
+        rxts <- mapM one xts
+--        traceM $ "tcBindGrp done: txts=" ++ show rxts
+--        traceM $ "tcBindGrp done: bs'=" ++ show bs'
+        if null ctx then do
+          -- There are no added constraints, so the results from tcBind are correct
+--          traceM $ "tcBindGrp return"
+          extVals rxts                        -- add correct types to the symbol table
+          return bs'
+         else do
+          -- There are constraints, so we need to re-typecheck for dictionary insertion.
+          -- First reset to state before type checking the group.
+--          traceM $ "tcBindGrp redo"
+          put oldState                        -- reset state, with old constraints
+          extVals rxts                        -- add correct types to the symbol table
+          bs'' <- mapM tcBind bs              -- and type check again
+--          traceM $ "tcBindGrp redo bs''=" ++ show bs''
+          return bs''
+
+-- Is this syntactically a function?
+isSynFcn :: EBind -> Bool
+isSynFcn (Fcn _ (Eqn (_:_) _ : _)) = True
+isSynFcn _ = False
+
+generalizeType :: SLoc -> [TRef] -> EType -> T EType
+generalizeType loc vs t = noEffect $ do           -- ignore the setUVar done in here
+  let is = map (\ v -> mkIdentSLoc loc ('a':show v)) (metaTvs [t] `intersect` vs)
+  zipWithM_ (\ v i -> setUVar v (EVar i)) vs is   -- make real type variables
+  t' <- derefUVar t                               -- and substitute those
+  return $ eForall' QImpl (zipWith IdKind is (repeat (EVar dummyIdent))) t'
 
 -- Temporarily extend the fixity table
 withFixes :: [FixDef] -> T a -> T a
@@ -2878,16 +2998,6 @@ withFixes fixs ta = do
   a <- ta
   modify $ \ st -> st{ fixTable = oft }
   return a
-
-tcBindVarT :: HasCallStack => M.Map EType -> Ident -> T (Ident, EType)
-tcBindVarT tmap x = do
-  case M.lookup x tmap of
-    Nothing -> do
-      t <- newUVar
-      return (x, t)
-    Just t -> do
-      tt <- withTypeTable $ tCheckTypeTImpl QImpl kType t >>= expandSyn
-      return (x, tt)
 
 tcBind :: EBind -> T EBind
 tcBind abind =
@@ -2940,7 +3050,10 @@ getMetaTyVars tys = do
   return (metaTvs tys')
 
 getEnvTypes :: T [EType]
-getEnvTypes = gets (map entryType . stElemsLcl . valueTable)
+getEnvTypes = gets getEnvTypes'
+
+getEnvTypes' :: TCState -> [EType]
+getEnvTypes' = map entryType . stElemsLcl . valueTable
 
 tyVarSubst :: [a] -> EType -> ([IdKind], [(a, EType)])
 tyVarSubst tvs ty =
@@ -3818,7 +3931,7 @@ doDeriving (StandDeriving as _ act)   = do
   -- The StandDeriving has not been typechecked yet, so do it now.
   def@(StandDeriving s n ct) <- withTypeTable $ tcStand as act
   (def:) <$> standaloneDeriving s n ct
-doDeriving def@(Class _ (n, _) _ _) | unIdent n /= "~" = do  -- "~" is a special class, don't touch it
+doDeriving def@(Class _ (n, _) _ _) | unIdent n /= "~" && deriveClassTypeable = do  -- "~" is a special class, don't touch it
   -- classes need to be Typeable
   mn <- gets moduleName
   return [def, mkTypeableInst mn n]
