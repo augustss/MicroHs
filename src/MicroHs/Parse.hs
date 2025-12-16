@@ -375,7 +375,7 @@ pDef =
     mkPattern (lhs, pat, meqn) = Pattern lhs pat meqn
     noop = Infix (AssocLeft, 0) []        -- harmless definition
 
-    pStrat = (DerVia <$> (pKeyword "via" *> pAType)) <|> pSimpleStrat
+    pStrat = (DerVia <$> (pKeyword "via" *> pType)) <|> pSimpleStrat
 
     pFExpr = EVar <$> (pLQIdentSym <|> pUQIdentSym)
 
@@ -469,7 +469,7 @@ pDeriving = pKeyword "deriving" *> (    (flip Deriving <$> pDer <*> pVia)
   where pDer = map ((,) 0) <$>
                    (    pParens (sepBy pType (pSpec ','))
                     <|> ((:[]) <$> pAType) )
-        pVia = DerVia <$> (pKeyword "via" *> pAType)
+        pVia = DerVia <$> (pKeyword "via" *> pType)
 
 pSimpleStrat :: P DerStrategy
 pSimpleStrat = (DerStock <$ pKeyword "stock") <|> (DerNewtype <$ pKeyword "newtype")
