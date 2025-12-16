@@ -82,14 +82,12 @@ Differences:
    * LambdaCase
    * LiberalTypesynonyms
    * MagicHash
-   * MonoLocalBinds
    * MultilineStrings
    * MultiParamTypeClasses
    * MultiWayIf
    * NamedDefaults
    * NamedFieldPuns
    * NegativeLiterals
-   * NoMonomorphismRestriction
    * NondecreasingIndentation
    * NoStarIsType
    * NumericUnderscores

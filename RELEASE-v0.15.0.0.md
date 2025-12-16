@@ -4,17 +4,20 @@
  * New language extensions
    * EmptyDataDeriving
    * NondecreasingIndentation
+   * MonoLocalBinds removed
+   * MonomorphismRestriction
  * Evaluation stats in interactive system: `set +s`
  * STM (implementation from David Sabel)
  * GHC compatible exception handling (`mask` etc.)
  * `System.Mem.Weak`
  * `Foreign.StablePtr`
  * `out.comb` can be generated compressed and base64 encoded
+ * Improved `Data.ByteString
  * FFI wrapper for `eval.c`
  * New `BFILE` stuff: file descriptor, buffering, base64 coding
  * `Double` and `Float` are now different types
  * `Int64`/`Word64` on 32 bit platforms
- * instruction counts on supported platforms (MacOS&M4, Linux&x86_64)
+ * Instruction counts on supported platforms (MacOS&M4, Linux&x86_64)
  * Proper `array` package
  * Unboxed tuple and sum syntax accepted (but no unboxing)
  * Deriving Data, Foldable, Functor, Ix, Read, Traversable
