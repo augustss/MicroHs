@@ -2912,61 +2912,70 @@ tcBindGrp' bs = do
 --  traceM $ "tcBindGrp start: " ++ show (getSLoc bs, bs)
   let def (Fcn i _) = do t <- newUVar; return (i, t)
       def d = impossibleShow d
-  xts <- mapM def bs
-  envts <- getEnvTypes                -- grab types in scope outside the group
-  extVals xts                         -- Extend the symbol table with the temporary types.
-                                      -- These will be removed by the 'withExtVals' in 'tcBinds'
-  u <- gets unique                    -- first of the new type variables
+  xts <- mapM def bs                    -- add temporary types
   oldState <- get
-  bs' <- mapM tcBind bs               -- type check bindings
-  fvs <- getMetaTyVars (map snd xts)  -- all unification variables used
-  envvs <- getMetaTyVars envts        -- all unification variables in the environment
-  let qvs = filter (>= u) fvs \\ envvs -- variables introduced for the group that can be quantified
-
---  traceM $ "tcBindGrp: " ++ show (bs', ts', qvs)
-  if null qvs ||
-     any (not . isSynFcn) bs' then    -- monomorphism restriction, also ensures pattern bindings are not polymorphic
-    return bs'                        -- no possible type variables to quantify
+  extVals xts                           -- Extend the symbol table with the temporary types.
+                                        -- These will be removed by the 'withExtVals' in 'tcBinds'
+  bs' <- mapM tcBind bs                 -- type check bindings
+  -- The contorted nested ifs are for efficiency.
+  --   first test for monomorphism restriction (cheap),
+  --   next test if there are any new type variables in the return type (a little more expensive),
+  --   finally test for type variables in the environment (expensive).
+  if any (not . isSynFcn) bs' then      -- monomorphism restriction, also ensures pattern bindings are not polymorphic
+    return bs'
    else do
-    -- Generalize
-    cs  <- gets constraints
-    cs' <- mapM (derefUVar . snd) cs
-    -- find constraints involving the local tyvars
-    let ctx = nubBy eqEType $ filter (\ c -> not $ null $ intersect qvs (metaTvs [c])) cs'
---    traceM $ "tcBindGrp: u=" ++ show u ++ " xts=" ++ show xts ++ " ts'=" ++ show ts' ++ " cs'=" ++ show cs'
---    sub <- gets uvarSubst
---    traceM $ "  subst=" ++ show (IM.toList sub)
-    -- Compute actual type signatures.
-    -- Pattern bindings are treated specially.  A binding
-    --   let (x, y) = foo z
-    -- is translated to
-    --   let pb$1 = foo z
-    --       x = case pb$1 of (x, y) -> x
-    --       y = case pb$1 of (x, y) -> y
-    -- It's importand that pb$1 is only evaluated once, so
-    -- we treat it as a mononorphic binding.
-    let one (i, t) --x | isPatBindVar i = return (i, t)
-                   | otherwise = do
-          t' <- (generalizeType (getSLoc i) qvs . addConstraints ctx) =<< derefUVar t
---          traceM $ "tcBindGrp generalize " ++ show (i, t')
-          return (i, t')
-    rxts <- mapM one xts
---    traceM $ "tcBindGrp done: txts=" ++ show rxts
---    traceM $ "tcBindGrp done: bs'=" ++ show bs'
-    if null ctx then do
-      -- There are no added constraints, so the results from tcBind are correct
---      traceM $ "tcBindGrp return"
-      extVals rxts                        -- add correct types to the symbol table
+    fvs <- getMetaTyVars (map snd xts)  -- all unification variables used in return type
+    let u = unique oldState             -- first of the new type variables
+        qvs = filter (>= u) fvs         -- variables introduced for the group that can be quantified
+--    traceM $ "tcBindGrp: " ++ show (bs', ts', qvs)
+    if null qvs then                    -- no variables to generalize
       return bs'
      else do
-      -- There are constraints, so we need to re-typecheck for dictionary insertion.
-      -- First reset to state before type checking the group.
---      traceM $ "tcBindGrp redo"
-      put oldState                        -- reset state, with old constraints
-      extVals rxts                        -- add correct types to the symbol table
-      bs'' <- mapM tcBind bs
---      traceM $ "tcBindGrp redo bs''=" ++ show bs''
-      return bs''
+      let envts = getEnvTypes' oldState -- types in scope outside the group
+      envvs <- getMetaTyVars envts      -- all unification variables in the environment
+      let qvs' = qvs \\ envvs
+      if null qvs' then                 -- no variables to generalize
+        return bs'
+       else do
+        -- Generalize
+        cs  <- gets constraints
+        cs' <- mapM (derefUVar . snd) cs
+        -- find constraints involving the local tyvars
+        let ctx = nubBy eqEType $
+                  filter (\ c -> not $ null $ intersect qvs' (metaTvs [c])) cs'
+--        traceM $ "tcBindGrp: u=" ++ show u ++ " xts=" ++ show xts ++ " ts'=" ++ show ts' ++ " cs'=" ++ show cs'
+--        sub <- gets uvarSubst
+--        traceM $ "  subst=" ++ show (IM.toList sub)
+        -- Compute actual type signatures.
+        -- Pattern bindings are treated specially.  A binding
+        --   let (x, y) = foo z
+        -- is translated to
+        --   let pb$1 = foo z
+        --       x = case pb$1 of (x, y) -> x
+        --       y = case pb$1 of (x, y) -> y
+        -- It's importand that pb$1 is only evaluated once, so
+        -- we treat it as a mononorphic binding.
+        let one (i, t) = do
+              t' <- (generalizeType (getSLoc i) qvs' . addConstraints ctx) =<< derefUVar t
+--              traceM $ "tcBindGrp generalize " ++ show (i, t')
+              return (i, t')
+        rxts <- mapM one xts
+--        traceM $ "tcBindGrp done: txts=" ++ show rxts
+--        traceM $ "tcBindGrp done: bs'=" ++ show bs'
+        if null ctx then do
+          -- There are no added constraints, so the results from tcBind are correct
+--          traceM $ "tcBindGrp return"
+          extVals rxts                        -- add correct types to the symbol table
+          return bs'
+         else do
+          -- There are constraints, so we need to re-typecheck for dictionary insertion.
+          -- First reset to state before type checking the group.
+--          traceM $ "tcBindGrp redo"
+          put oldState                        -- reset state, with old constraints
+          extVals rxts                        -- add correct types to the symbol table
+          bs'' <- mapM tcBind bs              -- and type check again
+--          traceM $ "tcBindGrp redo bs''=" ++ show bs''
+          return bs''
 
 -- Is this syntactically a function?
 isSynFcn :: EBind -> Bool
@@ -3041,7 +3050,10 @@ getMetaTyVars tys = do
   return (metaTvs tys')
 
 getEnvTypes :: T [EType]
-getEnvTypes = gets (map entryType . stElemsLcl . valueTable)
+getEnvTypes = gets getEnvTypes'
+
+getEnvTypes' :: TCState -> [EType]
+getEnvTypes' = map entryType . stElemsLcl . valueTable
 
 tyVarSubst :: [a] -> EType -> ([IdKind], [(a, EType)])
 tyVarSubst tvs ty =
