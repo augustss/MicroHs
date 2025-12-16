@@ -32,6 +32,8 @@
  
 ## Packages
  * Many more packages compile, e.g., QuickCheck, filepath
+ * See https://docs.google.com/spreadsheets/d/1e0dbUg5uuFKNwgMpwtBnYRldPCYYyBqYfsbyhEjf5bU/edit?usp=sharing
+ * Use `make Makefile.packages` to install some of them
 
 ## Contributors
  * Ben Clifford <benc@hawaga.org.uk>

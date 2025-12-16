@@ -47,3 +47,4 @@ all:
 	$(MINST) tagsoup
 # stackage does not have Yampa
 #	$(MINST) --git=https://github.com/augustss/Yampa.git --dir=yampa yampa
+	$(MINST) --git=http://github.com/augustss/optparse-applicative.git optparse-applicative
