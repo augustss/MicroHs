@@ -59,6 +59,7 @@ library base
         Data.Bounded
         Data.ByteString
         Data.ByteString.Builder
+        Data.ByteString.Builder.Extra
         Data.ByteString.Builder.RealFloat
         Data.ByteString.Char8
         Data.ByteString.Lazy
