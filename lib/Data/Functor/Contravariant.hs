@@ -26,6 +26,7 @@ module Data.Functor.Contravariant (
 {-
   -- * Predicates
   , Predicate(..)
+-}
 
   -- * Comparisons
   , Comparison(..)
@@ -35,7 +36,6 @@ module Data.Functor.Contravariant (
   , Equivalence(..)
   , defaultEquivalence
   , comparisonEquivalence
--}
 
   -- * Dual arrows
   , Op(..)
@@ -219,6 +219,7 @@ newtype Predicate a = Predicate { getPredicate :: a -> Bool }
       Contravariant
     )
   via Op Bool
+-}
 
 -- | Defines a total ordering on a type as per 'compare'.
 --
@@ -307,7 +308,6 @@ defaultEquivalence = Equivalence (==)
 
 comparisonEquivalence :: Comparison a -> Equivalence a
 comparisonEquivalence (Comparison p) = Equivalence $ \a b -> p a b == EQ
--}
 
 -- | Dual function arrows.
 newtype Op a b = Op { getOp :: b -> a }
