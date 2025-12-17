@@ -2937,9 +2937,13 @@ tcBindGrp' bs = do
       if null qvs' then                 -- no variables to generalize
         return bs'
        else do
-        -- Generalize
-        cs  <- gets constraints
-        cs' <- mapM (derefUVar . snd) cs
+       -- Generalize
+       cs  <- gets constraints
+       cs' <- mapM (derefUVar . snd) cs
+       let multiParam ct = length (snd (getApp ct)) /= 1
+       if any multiParam cs' then       -- temporary workaround for 
+         return bs'
+        else do
         -- find constraints involving the local tyvars
         let ctx = nubBy eqEType $
                   filter (\ c -> not $ null $ intersect qvs' (metaTvs [c])) cs'
@@ -3395,6 +3399,22 @@ mkSuperSel c i = addIdentSuffix c ("$super" ++ show i)
 ---------------------------------
 
 type Solved = (Ident, Expr)
+
+-- XXX
+-- solveLocalConstraints is wrong; it tries to solve before everything is known.
+-- Example:
+--  class MArray a m where
+--    op1 :: m a
+--    op2 :: a -> m ()
+--  
+--  foo :: forall a m . (Monad m, MArray a m) => m a
+--  foo = do
+--    aa <- op1
+--    let f :: forall mm . (MArray a mm) => mm ()
+--        f = op2 aa
+--    return aa
+-- When solving for f we don't know yet aa has type a (it's a unification variable).
+-- So it cannot be solved yet.
 
 -- Solve constraints generated locally in 'ta'.
 -- Keep any unsolved ones for later.
