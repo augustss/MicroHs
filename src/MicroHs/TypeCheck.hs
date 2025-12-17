@@ -2921,7 +2921,7 @@ tcBindGrp' bs = do
   --   first test for monomorphism restriction (cheap),
   --   next test if there are any new type variables in the return type (a little more expensive),
   --   finally test for type variables in the environment (expensive).
-  if any (not . isSynFcn) bs' then      -- monomorphism restriction, also ensures pattern bindings are not polymorphic
+  if not (all isSynFcn bs') then        -- monomorphism restriction, also ensures pattern bindings are not polymorphic
     return bs'
    else do
     fvs <- getMetaTyVars (map snd xts)  -- all unification variables used in return type
@@ -2977,9 +2977,7 @@ tcBindGrp' bs = do
 --          traceM $ "tcBindGrp redo"
           put oldState                        -- reset state, with old constraints
           extVals rxts                        -- add correct types to the symbol table
-          bs'' <- mapM tcBind bs              -- and type check again
---          traceM $ "tcBindGrp redo bs''=" ++ show bs''
-          return bs''
+          mapM tcBind bs                      -- and type check again
 
 -- Is this syntactically a function?
 isSynFcn :: EBind -> Bool
@@ -2991,7 +2989,7 @@ generalizeType loc vs t = noEffect $ do           -- ignore the setUVar done in 
   let is = map (\ v -> mkIdentSLoc loc ('a':show v)) (metaTvs [t] `intersect` vs)
   zipWithM_ (\ v i -> setUVar v (EVar i)) vs is   -- make real type variables
   t' <- derefUVar t                               -- and substitute those
-  return $ eForall' QImpl (zipWith IdKind is (repeat (EVar dummyIdent))) t'
+  return $ eForall' QImpl (map (`IdKind` dummyIdent) is) t'
 
 -- Temporarily extend the fixity table
 withFixes :: [FixDef] -> T a -> T a
