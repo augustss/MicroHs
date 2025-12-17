@@ -2989,7 +2989,7 @@ generalizeType loc vs t = noEffect $ do           -- ignore the setUVar done in 
   let is = map (\ v -> mkIdentSLoc loc ('a':show v)) (metaTvs [t] `intersect` vs)
   zipWithM_ (\ v i -> setUVar v (EVar i)) vs is   -- make real type variables
   t' <- derefUVar t                               -- and substitute those
-  return $ eForall' QImpl (map (`IdKind` dummyIdent) is) t'
+  return $ eForall' QImpl (map (`IdKind` EVar dummyIdent) is) t'
 
 -- Temporarily extend the fixity table
 withFixes :: [FixDef] -> T a -> T a
