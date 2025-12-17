@@ -596,7 +596,3 @@ gay@disroot.org
 *
   * Q: Why are the error messages so bad?
   * A: Error messages are boring.
-*
-  * Q: Why is the so much source code?
-  * A: I wonder this myself.  10000+ lines of Haskell seems excessive.
-       6000+ lines of C is also more than I'd like for such a simple system.
