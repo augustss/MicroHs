@@ -30,7 +30,7 @@ all:
 	$(MINST) hspec-expectations
 	$(MINST) monad-loops
 	$(MINST) nanospec
-	$(MINST) --git=http://github.com/augustss/parsec.git parsec
+	$(MINST) parsec
 	$(MINST) --git=http://github.com/haskell/pretty.git pretty
 	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter prettyprinter
 	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-ansi-terminal prettyprinter-ansi-terminal
@@ -48,3 +48,4 @@ all:
 # stackage does not have Yampa
 #	$(MINST) --git=https://github.com/augustss/Yampa.git --dir=yampa yampa
 	$(MINST) --git=http://github.com/augustss/optparse-applicative.git optparse-applicative
+	mcabal -q -ffake-ghc install xhtml
