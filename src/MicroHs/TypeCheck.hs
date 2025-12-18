@@ -1538,7 +1538,7 @@ addValueType adef = do
                 (fe, fty) <- tLookup "addValueType?" $ mkGetName tycon fld
                 extValETop fld fty fe
               addField _ = return ()
-      
+
   case adef of
     Sign is@(i:_) t | isConIdent i -> do
       -- pattern signature
@@ -2064,7 +2064,7 @@ tcExprR mt ae =
            else
             tcExpr mt $ foldr eSetFields e ises
         Just c  -> tcExpr mt =<< dsRecCon unsetField c e ises
-          
+
     ESelect is -> do
         let x = eVarI loc "$x"
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
@@ -2938,16 +2938,15 @@ tcBindGrp' bs = do
         return bs'
        else do
        -- Generalize
-       cs  <- gets constraints
-       cs' <- mapM (derefUVar . snd) cs
+       cs <- mapM (derefUVar . snd) =<< gets constraints
+       -- find constraints involving the local tyvars
+       let ctx = nubBy eqEType $
+                 filter (\ c -> not $ null $ intersect qvs' (metaTvs [c])) cs
        let multiParam ct = length (snd (getApp ct)) /= 1
-       if any multiParam cs' then       -- temporary workaround for 
+       if any multiParam ctx then       -- temporary workaround for
          return bs'
         else do
-        -- find constraints involving the local tyvars
-        let ctx = nubBy eqEType $
-                  filter (\ c -> not $ null $ intersect qvs' (metaTvs [c])) cs'
---        traceM $ "tcBindGrp: u=" ++ show u ++ " xts=" ++ show xts ++ " ts'=" ++ show ts' ++ " cs'=" ++ show cs'
+--        traceM $ "tcBindGrp: u=" ++ show u ++ " xts=" ++ show xts ++ " ts'=" ++ show ts' ++ " cs=" ++ show cs
 --        sub <- gets uvarSubst
 --        traceM $ "  subst=" ++ show (IM.toList sub)
         -- Compute actual type signatures.
@@ -3404,7 +3403,7 @@ type Solved = (Ident, Expr)
 --  class MArray a m where
 --    op1 :: m a
 --    op2 :: a -> m ()
---  
+--
 --  foo :: forall a m . (Monad m, MArray a m) => m a
 --  foo = do
 --    aa <- op1
