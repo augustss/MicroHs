@@ -97,8 +97,14 @@ lex loc cs@(d:_) | isDigit d =
     (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc len) rs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
-lex loc ('(':dcs@(d:cs)) | d == '#'  = TSpec loc 'L' : lex (addCol loc 2) cs
-                         | otherwise = TSpec loc '(' : lex (addCol loc 1) dcs
+lex loc ('(':dcs@(d:cs@(e:_))) | d == '#' = if e == ')' then
+                                              -- Allow (#)
+                                              TSpec loc '(' :
+                                              TIdent loc [] "#" :
+                                              lex (addCol loc 2) cs
+                                            else
+                                              TSpec loc 'L' : lex (addCol loc 2) cs
+                               | otherwise = TSpec loc '(' : lex (addCol loc 1) dcs
 lex loc ('#':')':cs) = TSpec loc 'R' : lex (addCol loc 2) cs
 -- Recognize #line 123 "file/name.hs"
 lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
