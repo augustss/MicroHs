@@ -4,7 +4,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 module Text.ParserComb(
   Prsr, runPrsr,
-  satisfy, satisfyM,
+  satisfy, satisfyM, satisfy2M,
   many, optional, some,
   sepBy, sepBy1,
   sepEndBy, sepEndBy1,
@@ -128,6 +128,13 @@ satisfyM :: forall tm t a . TokenMachine tm t => String -> (t -> Maybe a) -> Prs
 satisfyM msg f = P $ \ acs ->
   case tmNextToken acs of
     (c, cs) | Just a <- f c -> Success a cs noFail
+    _ -> Failure (LastFail (tmLeft acs) (firstToken acs) [msg])
+
+satisfy2M :: forall tm t a . TokenMachine tm t => String -> (t -> t -> Maybe a) -> Prsr tm t a
+satisfy2M msg f = P $ \ acs ->
+  case tmNextToken acs of
+    (c1, cs1) | Just a <- f c1 c2 -> Success a cs2 noFail
+              where (c2, cs2) = tmNextToken cs1  -- c2 must be lazy
     _ -> Failure (LastFail (tmLeft acs) (firstToken acs) [msg])
 
 infixl 9 <?>

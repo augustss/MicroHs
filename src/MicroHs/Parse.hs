@@ -82,6 +82,26 @@ pModuleEmpty = do
   --let loc = getSLoc defs
   pure $ EModule (mkIdent "Main") [ExpValue $ mkIdent "main"] defs
 
+-- We avoid making (# and #) special tokens.
+-- This way we can still parse things like (#) and (# 5) which
+-- are legal Haskell expressions.
+
+-- Parse (#, by checking if we have adjecent ( and #
+pLeftUnbox :: P ()
+pLeftUnbox = do
+  let
+    is (TSpec (SLoc _ l1 c1) '(') (TIdent (SLoc _ l2 c2) [] "#") | l1 == l2 && c1 + 1 == c2 = Just ()
+    is _ _ = Nothing
+  satisfy2M "(#" is
+
+-- Parse #), by checking if we have adjecent # and )
+pRightUnbox :: P ()
+pRightUnbox = do
+  let
+    is (TIdent (SLoc _ l1 c1) [] "#") (TSpec (SLoc _ l2 c2) ')') | l1 == l2 && c1 + 1 == c2 = Just ()
+    is _ _ = Nothing
+  satisfy2M "#)" is
+
 -- Possibly qualified alphanumeric identifier
 pQIdent :: P Ident
 pQIdent = do
@@ -601,9 +621,9 @@ pAType =
   <|> pLit
   <|> (eTuple <$> (pSpec '(' *> sepBy pType (pSpec ',') <* pSpec ')'))
   <|> (EListish . LList . (:[]) <$> (pSpec '[' *> pType <* pSpec ']'))  -- Unlike expressions, only allow a single element.
-  <|> (uTupleTAp <$> (pSpec 'L' *> sepBy  pType (pSpec ',') <* pSpec 'R'))
-  <|> (uSumTAp <$> (pSpec 'L' *> sepBy1 pType (pSpec '|') <* pSpec 'R'))
-  <|> (uSumT <$> getSLoc <*> (succ . length <$> (pSpec 'L' *> many (pSpec '|') <* pSpec 'R')))
+  <|> (uTupleTAp <$> (pLeftUnbox *> sepBy  pType (pSpec ',') <* pRightUnbox))
+  <|> (uSumTAp <$> (pLeftUnbox *> sepBy1 pType (pSpec '|') <* pRightUnbox))
+  <|> (uSumT <$> getSLoc <*> (succ . length <$> (pLeftUnbox *> many (pSpec '|') <* pRightUnbox)))
 
 -------------
 -- Patterns
@@ -627,18 +647,18 @@ pAPat =
   <|> (ELazy True  <$> (pSpec '~' *> pAPat))
   <|> (ELazy False <$> (pSpec '!' *> pAPat))
   <|> (EOr <$> (pSpec '(' *> sepBy1 pPat (pSpec ';') <* pSpec ')'))  -- if there is a single pattern it will be matched by the tuple case
-  <|> (uTuple <$> (pSpec 'L' *> sepBy pPat (pSpec ',') <* pSpec 'R'))
+  <|> (uTuple <$> (pLeftUnbox *> sepBy pPat (pSpec ',') <* pRightUnbox))
   <|> pUSummand pPat
   where evar v Nothing = EVar v
         evar v (Just upd) = EUpdate (EVar v) upd
 
 pUSummand :: P Expr -> P Expr
 pUSummand p = do
-  pSpec 'L'
+  pLeftUnbox
   l <- length <$> many (pSpec '|')
   e <- p
   r <- length <$> many (pSpec '|')
-  pSpec 'R'
+  pRightUnbox
   let n = l + r
   guard (n > 0)
   pure $ uSummand (n+1) l e
@@ -846,7 +866,7 @@ pAExpr' =
   <|> (ESelect <$> (pSpec '(' *> some pSelect <* pSpec ')'))
   <|> (ELit noSLoc . LPrim <$> (pKeyword "_primitive" *> pString))
   <|> (ETypeArg <$> (pSpec '@' *> pAType))
-  <|> (uTuple <$> (pSpec 'L' *> sepBy pExpr (pSpec ',') <* pSpec 'R'))
+  <|> (uTuple <$> (pLeftUnbox *> sepBy pExpr (pSpec ',') <* pRightUnbox))
   <|> pUSummand pExpr
   -- This weirdly slows down parsing
   -- <?> "aexpr"
