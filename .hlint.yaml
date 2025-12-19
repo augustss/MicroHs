@@ -79,3 +79,4 @@
     - --ignore-glob=tests/ForeignC.hs
     - --ignore-glob=tests/ForImpJS.hs
     - --ignore-glob=tests/Fix.hs
+    - --ignore-glob=tests/Unboxed.hs
