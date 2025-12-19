@@ -12,7 +12,7 @@ all:
 	$(MINST) ansi-terminal-types
 	$(MINST) ansi-terminal
 	$(MINST) array
-	$(MINST) --git=https://github.com/haskell-unordered-containers/unordered-containers.git unordered-containers
+	$(MINST) unordered-containers
 	$(MINST) --git=https://github.com/simonmar/async.git async
 	$(MINST) --git=https://github.com/sol/call-stack.git call-stack
 	$(MINST) containers
@@ -21,7 +21,7 @@ all:
 	$(MINST) cpphs
 	$(MINST) transformers
 	$(MINST) mtl
-	$(MINST) --git=https://github.com/ekmett/exceptions exceptions
+	$(MINST) exceptions
 	$(MINST) --git=https://github.com/augustss/os-string.git os-string
 	$(MINST) --git=https://github.com/augustss/filepath.git filepath
 	$(MINST) granite
@@ -47,5 +47,5 @@ all:
 	$(MINST) tagsoup
 # stackage does not have Yampa
 #	$(MINST) --git=https://github.com/augustss/Yampa.git --dir=yampa yampa
-	$(MINST) --git=http://github.com/augustss/optparse-applicative.git optparse-applicative
+	$(MINST) --git=https://github.com/pcapriotti/optparse-applicative.git optparse-applicative
 	mcabal -q -ffake-ghc install xhtml

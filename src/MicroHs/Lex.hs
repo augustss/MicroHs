@@ -24,6 +24,8 @@ data Token
                                   --  ~  for lazy
                                   --  !  for strict
                                   --  NOT YET  @  for type app
+                                  --  L  for (#
+                                  --  R  for #)
   | TError  SLoc String           -- lexical error
   | TBrace  SLoc                  -- {n} in the Haskell report
   | TIndent SLoc                  -- <n> in the Haskell report
@@ -40,6 +42,8 @@ showToken (TInt _ i) = show i
 showToken (TRat _ d) = show d
 showToken (TSpec _ c) | c == '<' = "{ layout"
                       | c == '>' = "} layout"
+                      | c == 'L' = "(#"
+                      | c == 'R' = "#)"
                       | otherwise = [c]
 showToken (TError _ s) = s
 showToken (TBrace _) = "TBrace"
@@ -93,6 +97,9 @@ lex loc cs@(d:_) | isDigit d =
     (Right q, len, rs) -> TRat loc q : lexSkipHash (addCol loc len) rs
 lex loc ('.':cs@(d:_)) | isLower_ d =
   TSpec loc '.' : lex (addCol loc 1) cs
+lex loc ('(':dcs@(d:cs)) | d == '#'  = TSpec loc 'L' : lex (addCol loc 2) cs
+                         | otherwise = TSpec loc '(' : lex (addCol loc 1) dcs
+lex loc ('#':')':cs) = TSpec loc 'R' : lex (addCol loc 2) cs
 -- Recognize #line 123 "file/name.hs"
 lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
   case span (/= '\n') cs of
@@ -113,7 +120,8 @@ lex loc (c:cs@(d:_)) | isSpecSing c && not (isOperChar d) = -- handle reserved
 lex loc (d:cs) | isOperChar d =
   case span isOperChar cs of
     (ds, rs) -> TIdent loc [] (d:ds) : lex (addCol loc $ 1 + length ds) rs
-lex loc (d:cs) | isSpec d = TSpec loc d : lex (addCol loc 1) cs
+lex loc (d:cs) | isSpec d =
+  TSpec loc d : lex (addCol loc 1) cs
 lex loc ('"':'"':'"':cs) = lexLitStr loc (addCol loc 3) (TString loc) isTrip multiLine cs
   where isTrip ('"':'"':'"':_) = Just 3
         isTrip _ = Nothing
