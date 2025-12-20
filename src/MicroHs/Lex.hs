@@ -436,7 +436,7 @@ pragma loc cs =
 --   Pop   pop the context stack
 --   Raw   return the rest of the tokens, unprocessed
 
-data LexState = LS (Cmd -> (Token, LexState))
+newtype LexState = LS (Cmd -> (Token, LexState))
 
 data Cmd = Next | Raw | Pop
 
