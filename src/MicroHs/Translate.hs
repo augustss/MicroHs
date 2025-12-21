@@ -61,7 +61,7 @@ trans r ae =
     Lit (LBStr s) -> unsafeCoerce (Data.String.fromString s :: ByteString)
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
-    Lit (LForImp _ s _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr s)))
+    Lit f@(LForImp _ _ _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr (drop 1 $ showLit f))))
     _ -> error $ "trans: impossible: " ++ show ae
 
 -- Use linear search in this table.
@@ -267,5 +267,6 @@ primTable = [
   ("Wkderef", _primitive "Wkderef"),
   ("Wkfinal", _primitive "Wkfinal"),
   ("IO.getmaskingstate", _primitive "IO.getmaskingstate"),
-  ("IO.setmaskingstate", _primitive "IO.setmaskingstate")
+  ("IO.setmaskingstate", _primitive "IO.setmaskingstate"),
+  ("IO.pp", _primitive "IO.pp")
   ]
