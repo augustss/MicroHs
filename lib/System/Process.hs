@@ -36,9 +36,11 @@ readProcess cmd args sin = do
   hPutStr hin sin
   hClose hin
   (fout, hout) <- openTempFile tmpDir "out.txt"
+  -- Slightly dubious on some systems.
+  -- The hGetContents keeps the file open after it has been removed.
+  -- This usually works well on Unix-like systems.
   bracket_ (return ())
            (removeFile fin >> removeFile fout)
            (do
                callCommand $ unwords $ cmd : ("<" ++ fin) : (">" ++ fout) : args
-               res <- hGetContents hout
-               length res `seq` return res)
+               hGetContents hout)
