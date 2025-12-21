@@ -115,6 +115,9 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-optc OPTION       Options for the C compiler\n\
       \-optl OPTION       Options passed by mhs to the C compiler for the linker\n\
       \--stdin            Use stdin in interactive system\n\
+      \-pgmF CMD          Use CMD for the -F preprocessor\n\
+      \-optF FLAG         Pass the FLAG to the -F preprocessor\n\
+      \-F                 Run a preprocessor\n\
       \-ddump-PASS        Debug, print AST after PASS\n\
       \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
       \"
@@ -144,6 +147,11 @@ decodeArgs f mdls (arg:args) =
                 -> decodeArgs f{cArgs = cArgs f ++ [s]} mdls args'
     "-optl" | s : args' <- args
                 -> decodeArgs f{lArgs = lArgs f ++ [s]} mdls args'
+    "-optF" | s : args' <- args
+                -> decodeArgs f{fArgs = fArgs f ++ [s]} mdls args'
+    "-pgmF" | s : args' <- args
+                -> decodeArgs f{fPgm = Just s} mdls args'
+    "-F"        -> decodeArgs f{doF = True} mdls args
     '-':'i':[]  -> decodeArgs f{paths = []} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args

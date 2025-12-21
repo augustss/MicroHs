@@ -370,7 +370,14 @@ readModulePath flags suf mn = do
               runCPPString flags fn file
             else
               return file
-          return (Just (fn, file'))
+          file'' <-
+            if doF flags then
+              case fPgm flags of
+                Nothing -> error "-F without -pgmF"
+                Just pgm -> runPreString flags pgm (fArgs flags) fn file'
+            else
+              return file'
+          return (Just (fn, file''))
 
 -- Check if the file contains {-# LANGUAGE ... CPP ... #-}
 -- XXX This is pretty hacky and not really correct.
@@ -420,6 +427,23 @@ runCPPString flags fn ifile = do
   removeFile fno
   return ofile
 
+-- Run a custom preprocessor.  Invoked with
+--  cmd hsfilename inputfilename outputfilename [args]
+runPreString :: Flags -> String -> [String] -> FilePath -> String -> IO String
+runPreString flags pgm args fn ifile = do
+  (fni, hi) <- openTmpFile "mhsprein.hs"
+  hClose hi
+  writeFile fni ifile
+  (fno, ho) <- openTmpFile "mhspreout.hs"
+  let cmd = unwords $ pgm : fn : fni : fno : args
+  when (verbosityGT flags 1) $
+    putStrLn $ "Run preprocessor: " ++ show cmd
+  callCommand cmd
+  ofile <- hGetContents ho
+  removeFile fni
+  removeFile fno
+  return ofile
+
 mhsDefines :: [String]
 mhsDefines =
   [ "-D__MHS__"                                 -- We are MHS
@@ -455,7 +479,7 @@ runHsc2hs flags fni = do
   callCommand cmd
   ofile <- hGetContents ho
   removeFile fno
-  return ofile  
+  return ofile
 
 packageDir :: String
 packageDir = "packages"

@@ -29,7 +29,10 @@ data Flags = Flags {
   target     :: String,     -- Compile target defined in target.conf
   dumpFlags  :: [DumpFlag], -- For debugging,
   useStdin   :: Bool,       -- Use stdin in interactive system
-  noLink     :: Bool        -- Just generate an unlinked object file
+  noLink     :: Bool,       -- Just generate an unlinked object file
+  fPgm       :: Maybe String, -- preprocessor for -F
+  fArgs      :: [String],   -- arguments for preprocessor
+  doF        :: Bool        -- run preprocessor
   }
   deriving (Show)
 
@@ -62,7 +65,10 @@ defaultFlags dir = Flags {
   target     = "default",
   dumpFlags  = [],
   useStdin   = False,
-  noLink     = False
+  noLink     = False,
+  fPgm       = Nothing,
+  fArgs      = [],
+  doF        = False
   }
   -- This is a hack so that the in-place mhs picks up GMP.
   where gmp | dir == "." && wantGMP = ["lib/gmp"]
