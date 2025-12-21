@@ -20,19 +20,11 @@ import System.IO.Unsafe
 
 type PBFILE = Ptr BFILE
 type Transducer = PBFILE -> IO PBFILE
-foreign import ccall "openb_wr_mem"          c_openb_wr_mem          :: IO PBFILE
 foreign import ccall "openb_rd_mem"          c_openb_rd_mem          :: CString -> Int -> IO PBFILE
 foreign import ccall "add_lz77_compressor"   c_add_lz77_compressor   :: Transducer
 foreign import ccall "add_lz77_decompressor" c_add_lz77_decompressor :: Transducer
 foreign import ccall "add_rle_compressor"    c_add_rle_compressor    :: Transducer
 foreign import ccall "add_rle_decompressor"  c_add_rle_decompressor  :: Transducer
-foreign import ccall "add_bwt_compressor"    c_add_bwt_compressor    :: Transducer
-foreign import ccall "add_bwt_decompressor"  c_add_bwt_decompressor  :: Transducer
-foreign import ccall "putb"                  c_putb                  :: Int -> PBFILE -> IO ()
-foreign import ccall "getb"                  c_getb                  :: PBFILE -> IO Int
-foreign import ccall "get_mem"               c_get_mem               :: PBFILE -> Ptr CString -> Ptr Int -> IO ()
-foreign import ccall "closeb"                c_close                 :: PBFILE -> IO ()
-foreign import ccall "flushb"                c_flush                 :: PBFILE -> IO ()
 
 withGetTransducerBS :: Transducer -> BS.ByteString -> BS.ByteString
 withGetTransducerBS trans bs = unsafePerformIO $ do
