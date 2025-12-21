@@ -3702,7 +3702,7 @@ withNewtypeAsSyns act = do
           -- it could be visible.
           let t = either (snd . head) (snd . snd . head) et
 --          traceM $ "extNewtypeSyns: " ++ showIdent qi ++ show vs ++ " = " ++ showExprRaw t
-          when (qi `notElem` allVarsExpr t) $
+          unless (qi `elem` allVarsExpr t) $
             -- Not directly recursive
             extSyn qi vs t  -- extend synonym table
       ext _ = return ()
