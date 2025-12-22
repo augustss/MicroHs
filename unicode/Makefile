@@ -1,4 +1,4 @@
-UNICODE_VERSION=16.0.0
+UNICODE_VERSION=17.0.0
 .PHONY: clean
 
 all: uni_string

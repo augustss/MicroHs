@@ -71,12 +71,11 @@ So	Symbol, Other
 
 -}
 
+-- NOTE: This must be in the same order as in Data.Char.Unicode
 data GeneralCategory
-  = Lu | Ll | Lt | Mn | Mc | Me | Nd | Nl | No | Zs | Zl | Zp | Cc | Cf | Cs | Co | Cn
-  | Lm | Lo | Pc | Pd | Ps | Pe | Pi | Pf | Po | Sm | Sc | Sk | So
-  | Xx
+  = Lu | Ll | Lt | Lm | Lo | Mn | Mc | Me | Nd | Nl | No | Pc | Pd | Ps | Pe | Pi | Pf
+  | Po | Sm | Sc | Sk | So | Zs | Zl | Zp | Cc | Cf | Cs | Co | Cn
   deriving (Eq, Ord, Enum, Show, Bounded)
-
 
 -- See https://www.unicode.org/L2/L1999/UnicodeData.html for information
 unicodeData :: FilePath
@@ -121,7 +120,7 @@ showChars cs = '"' : foldr show1 "\"" cs
                   | otherwise = '\\' : show (ord c) ++ prot r
         prot r@(c : _) | isDigit c = '\\' : '&' : r
         prot r = r
-                  
+
 {-
 showChars cs = "\"" ++ concatMap char cs ++ "\""
   where char c | isPrint c && c /= '\\' && c /= '"' = [c]
