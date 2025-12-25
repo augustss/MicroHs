@@ -661,8 +661,12 @@ pPatApp = do
   guard (null as || isPConApp f)
   pure $ foldl EApp f as
 
+-- We prefer x = ... to be parsed as a Fcn
+-- rather than a PatBind
 pPatNotVar :: P EPat
-pPatNotVar = guardM pPat isPConApp
+pPatNotVar = guardM pPat notVar
+  where notVar (EVar i) = isConIdent i
+        notVar _ = True
 
 -------------
 
