@@ -51,7 +51,7 @@ all:
 	$(MINST) semigroups # empty, but needed for xhtml
 	$(MINST) xhtml
 	$(MINST) heaps
-#	$(MINST) fingertree
+	$(MINST) fingertree
 	$(MINST) --git=https://github.com/haskell/fgl fgl
 	$(MINST) --git=https://github.com/jaspervdj/psqueues psqueues
 	$(MINST) PSQueue
