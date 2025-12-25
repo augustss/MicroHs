@@ -48,4 +48,14 @@ all:
 # stackage does not have Yampa
 #	$(MINST) --git=https://github.com/augustss/Yampa.git --dir=yampa yampa
 	$(MINST) --git=https://github.com/pcapriotti/optparse-applicative.git optparse-applicative
-	mcabal -q -ffake-ghc install xhtml
+	$(MINST) semigroups # empty, but needed for xhtml
+	$(MINST) xhtml
+	$(MINST) heaps
+	$(MINST) fingertree
+	$(MINST) --git=https://github.com/haskell/fgl fgl
+	$(MINST) --git=https://github.com/jaspervdj/psqueues psqueues
+	$(MINST) PSQueue
+	$(MINST) edit-distance
+	$(MINST) StateVar
+	$(MINST) unliftio-core
+	$(MINST) --git=https://github.com/HeinrichApfelmus/vault vault
