@@ -8,6 +8,8 @@ y,z :: Int
 u :: Int
 (u, v) = (40, True)
 
+a@b = 55 :: Int
+
 main :: IO ()
 main = do
   print x
@@ -15,3 +17,5 @@ main = do
   print z
   print u
   print v
+  print a
+  print b
