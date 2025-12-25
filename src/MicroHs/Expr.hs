@@ -96,6 +96,12 @@ data EDef
   | Pattern LHS EPat (Maybe [Eqn])
   | StandDeriving DerStrategy Int EConstraint
   | DfltSign Ident EType                      -- only in class declarations
+  | DataFam LHS (Maybe EKind)
+  | DataInst EType [Constr] [Deriving]
+  | NewtypeInst EType Constr [Deriving]
+  | TypeFam LHS (Maybe EKind)
+  | TypeInst EType EType
+  | TypeFamClsd LHS (Maybe EKind) [(EType, EType)]
   -- Only used by interactive system to load a cached TCState to avoid import processing
   | SetTCState TCState
 --DEBUG  deriving (Show)
