@@ -9,8 +9,10 @@ module Data.Monoid(
   Alt(..),
   First(..),
   Last(..),
+  Ap(..),
   ) where
 import qualified Prelude()
+import Control.Applicative
 import Data.Maybe_Type
 import Data.Monoid.Internal
 import Data.Records
@@ -37,3 +39,11 @@ instance Semigroup (Last a) where
 
 instance Monoid (Last a) where
   mempty = Last Nothing
+
+newtype Ap f a = Ap { getAp :: f a }
+
+instance (Applicative f, Semigroup a) => Semigroup (Ap f a) where
+  Ap x <> Ap y = Ap (liftA2 (<>) x y)
+
+instance (Applicative f, Monoid a) => Monoid (Ap f a) where
+  mempty = Ap (pure mempty)
