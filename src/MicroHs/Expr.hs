@@ -124,6 +124,12 @@ instance NFData EDef where
   rnf (Pattern a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (StandDeriving a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (DfltSign a b) = rnf a `seq` rnf b
+  rnf (DataFam a b) = rnf a `seq` rnf b
+  rnf (DataInst a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (NewtypeInst a b c) = rnf a `seq` rnf b `seq` rnf c
+  rnf (TypeFam a b) = rnf a `seq` rnf b
+  rnf (TypeInst a b) = rnf a `seq` rnf b
+  rnf (TypeFamClsd a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (SetTCState a) = seq a ()
 
 data ImpType = ImpNormal | ImpBoot
@@ -906,6 +912,13 @@ ppEDef def =
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
     StandDeriving _s _narg ct -> text "deriving instance" <+> ppEType ct
     DfltSign i t -> text "default" <+> ppIdent i <+> text "::" <+> ppEType t
+    DataFam lhs mk -> text "data family" <+> ppLHS lhs <*> maybe empty (\ k -> text " ::" <+> ppEKind k) mk
+    DataInst t cs ds -> text "data instance" <+> ppEType t <*> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDerivings ds
+    NewtypeInst t c ds -> undefined
+    TypeFam lhs mk -> text "type family" <+> ppLHS lhs <+> maybe empty (\ k -> text " ::" <+> ppEKind k) mk
+    TypeInst t1 t2 -> text "type instance" <+> ppEType t1 <+> text "=" <+> ppEType t2
+    TypeFamClsd lhs mk eqns -> text "type family" <+> ppLHS lhs <+> maybe empty (\ k -> text " ::" <+> ppEKind k) mk
+      <+> text "where" <+> nest 2 (vcat (map (\ (t1,t2) -> ppEType t1 <+> text "=" <+> ppEType t2) qns))
     SetTCState _ -> text "SetTCState ..."
 
 ppDerivings :: [Deriving] -> Doc
