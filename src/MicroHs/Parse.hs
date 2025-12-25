@@ -363,6 +363,11 @@ pDef =
   <|> mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
   <|> Sign         <$> (pKeyword "pattern"  *> sepBy1 pUIdentSym (pSpec ',') <* dcolon) <*> pType
   <|> StandDeriving<$> (pKeyword "deriving" *> pStrat) <*> pure 0 <*> (pKeyword "instance" *> pType)
+  <|> DataFam      <$> (pKeyword "data"     *> pKeyword "family"   *> pLHS) <*> optional (dcolon *> pKind)
+  <|> DataInst     <$> (pKeyword "data"     *> pKeyword "instance" *> pType) <*> undefined <*> undefined
+  <|> NewtypeInst  <$> (pKeyword "newtype"  *> pKeyword "instance" *> pType) <*> undefined <*> undefined
+  <|> typeFam      <$> (pKeyword "type"     *> pKeyword "family" *> pLHS) <*> optional (dcolon *> pKind) <*> optional (pKeyword "where" *> pBlock pTyEqn)
+  <|> TypeInst     <$> (pKeyword "type"     *> pKeyword "instance" *> pType) <*> (pSpec '=' *> pType)
   <|> noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                some (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
   where
@@ -380,6 +385,10 @@ pDef =
     pFExpr = EVar <$> (pLQIdentSym <|> pUQIdentSym)
 
     pSafety = pKeyword "unsafe" <|> pKeyword "safe" <|> pKeyword "interruptible"
+
+    pTyEqn = (,) <$> pType <*> (pSpec '=' *> pType)
+    typeFam lhs kind Nothing = TypeFam lhs kind
+    typeFam lhs kind (Just eqns) = TypeFamClsd lhs kind eqns
 
 pCallConv :: P CallConv
 pCallConv = (Cccall <$ pKeyword "ccall") <|> (Ccapi <$ pKeyword "capi") <|> (Cjavascript <$ pKeyword "javascript")
