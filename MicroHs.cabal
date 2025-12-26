@@ -118,7 +118,6 @@ executable mhs
                        bytestring   >= 0.5 && < 0.20,
                        deepseq      >= 1.1 && < 1.8,
                        filepath     >= 1.1 && < 1.8,
-                       ghc-prim     >= 0.5 && < 0.15,
                        haskeline    >= 0.8 && < 0.10,
                        time         >= 1.9 && < 1.20,
                        process      >= 1.6 && < 1.10,
@@ -144,38 +143,38 @@ library
                        -fwrite-ide-info -Wno-deprecations
   autogen-modules:     Paths_MicroHs
   exposed-modules:
-                        MicroHs.Abstract 
-                        MicroHs.Builtin 
-                        MicroHs.Compile 
-                        MicroHs.CompileCache 
-                        MicroHs.Deriving 
-                        MicroHs.Desugar 
-                        MicroHs.EncodeData 
-                        MicroHs.Exp 
-                        MicroHs.ExpPrint 
-                        MicroHs.Expr 
-                        MicroHs.FFI 
-                        MicroHs.Fixity 
-                        MicroHs.Flags 
-                        MicroHs.Graph 
-                        MicroHs.Ident 
-                        MicroHs.IdentMap 
-                        MicroHs.Interactive 
-                        MicroHs.IntMap 
-                        MicroHs.IntSet 
-                        MicroHs.Lex 
-                        MicroHs.List 
-                        MicroHs.Main 
-                        MicroHs.MakeCArray 
-                        MicroHs.Names 
-                        MicroHs.Package 
-                        MicroHs.Parse 
-                        MicroHs.State 
-                        MicroHs.StateIO 
-                        MicroHs.SymTab 
-                        MicroHs.TargetConfig 
-                        MicroHs.TCMonad 
-                        MicroHs.Translate 
+                        MicroHs.Abstract
+                        MicroHs.Builtin
+                        MicroHs.Compile
+                        MicroHs.CompileCache
+                        MicroHs.Deriving
+                        MicroHs.Desugar
+                        MicroHs.EncodeData
+                        MicroHs.Exp
+                        MicroHs.ExpPrint
+                        MicroHs.Expr
+                        MicroHs.FFI
+                        MicroHs.Fixity
+                        MicroHs.Flags
+                        MicroHs.Graph
+                        MicroHs.Ident
+                        MicroHs.IdentMap
+                        MicroHs.Interactive
+                        MicroHs.IntMap
+                        MicroHs.IntSet
+                        MicroHs.Lex
+                        MicroHs.List
+                        MicroHs.Main
+                        MicroHs.MakeCArray
+                        MicroHs.Names
+                        MicroHs.Package
+                        MicroHs.Parse
+                        MicroHs.State
+                        MicroHs.StateIO
+                        MicroHs.SymTab
+                        MicroHs.TargetConfig
+                        MicroHs.TCMonad
+                        MicroHs.Translate
                         MicroHs.TypeCheck
                         MhsEval
 
@@ -197,7 +196,6 @@ library
                         bytestring   >= 0.5 && < 0.20,
                         deepseq      >= 1.1 && < 1.8,
                         filepath     >= 1.1 && < 1.8,
-                        ghc-prim     >= 0.5 && < 0.15,
                         haskeline    >= 0.8 && < 0.10,
                         time         >= 1.9 && < 1.20,
                         process      >= 1.6 && < 1.10,
