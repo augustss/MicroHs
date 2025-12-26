@@ -8,7 +8,7 @@ import Data.Word
 import System.IO
 import System.IO.TimeMilli
 import Unsafe.Coerce
-import GHC.Types(Any)
+import GHC.Exts(Any)
 import Foreign.C.String
 import Foreign.C.Types
 import Foreign.Marshal.Alloc
