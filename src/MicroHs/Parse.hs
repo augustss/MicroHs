@@ -617,20 +617,21 @@ pAPat :: P EPat
 pAPat =
       (do
          i <- pLIdentSym
-         (EAt i <$> (pSpec '@' *> pAPat)) <|> pure (EVar i)
+         (pSpec '@' *> (EAt i <$> pAPat)) <|> pure (EVar i)
       )
   <|> (evar <$> pUQIdentSym <*> optional pUpdate)
   <|> pLit
-  <|> (eTuple <$> (pSpec '(' *> sepBy pPat (pSpec ',') <* pSpec ')'))
-  <|> (EListish . LList <$> (pSpec '[' *> sepBy1 pPat (pSpec ',') <* pSpec ']'))
+  <|> (pSpec '(' *> (eTuple <$> sepBy pPatV (pSpec ',') <* pSpec ')'))
+  <|> (pSpec '[' *> (EListish . LList <$> sepBy1 pPat (pSpec ',') <* pSpec ']'))
   <|> (EViewPat <$> (pSpec '(' *> pExpr) <*> (pSRArrow *> pPat <* pSpec ')'))
-  <|> (ELazy True  <$> (pSpec '~' *> pAPat))
-  <|> (ELazy False <$> (pSpec '!' *> pAPat))
-  <|> (EOr <$> (pSpec '(' *> sepBy1 pPat (pSpec ';') <* pSpec ')'))  -- if there is a single pattern it will be matched by the tuple case
+  <|> (pSpec '~' *> (ELazy True  <$> pAPat))
+  <|> (pSpec '!' *> (ELazy False <$> pAPat))
+  <|> (pSpec '(' *> (EOr <$> sepBy1 pPat (pSpec ';') <* pSpec ')'))  -- if there is a single pattern it will be matched by the tuple case
   <|> (uTuple <$> (pSpec 'L' *> sepBy pPat (pSpec ',') <* pSpec 'R'))
   <|> pUSummand pPat
   where evar v Nothing = EVar v
         evar v (Just upd) = EUpdate (EVar v) upd
+        pPatV = (EViewPat <$> pExpr <*> (pSRArrow *> pPat)) <|> pPat
 
 pUSummand :: P Expr -> P Expr
 pUSummand p = do
@@ -646,7 +647,7 @@ pUSummand p = do
 pPat :: P EPat
 pPat = pPatOp
   -- This is where view patterns belong, but it's too slow
-  --  <|> (EViewPat <$> pExpr <*> (pSRArrow *> pPatApp))
+--   <|> (EViewPat <$> pExpr <*> (pSRArrow *> pPat))
 
 pPatOp :: P EPat
 pPatOp = pOperators pUOper pPatArg
@@ -843,14 +844,14 @@ pAExpr' =
       (EVar   <$> pLQIdentSym)
   <|> (EVar   <$> pUQIdentSym)
   <|> pLit
-  <|> (eTuple <$> (pSpec '(' *> sepBy pExpr (pSpec ',') <* pSpec ')'))
-  <|> EListish <$> (pSpec '[' *> pListish <* pSpec ']')
-  <|> (ESectL <$> (pSpec '(' *> pExprOp) <*> (pOperComma <* pSpec ')'))
-  <|> (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprOp <* pSpec ')'))
-  <|> (ESelect <$> (pSpec '(' *> some pSelect <* pSpec ')'))
-  <|> (ELit noSLoc . LPrim <$> (pKeyword "_primitive" *> pString))
-  <|> (ETypeArg <$> (pSpec '@' *> pAType))
-  <|> (uTuple <$> (pSpec 'L' *> sepBy pExpr (pSpec ',') <* pSpec 'R'))
+  <|> (pSpec '(' *> (eTuple <$> sepBy pExpr (pSpec ',')) <* pSpec ')')
+  <|> (pSpec '[' *> (EListish <$> pListish) <* pSpec ']')
+  <|> (pSpec '(' *> (ESectL <$> pExprOp) <*> (pOperComma <* pSpec ')'))
+  <|> (pSpec '(' *> (ESectR <$> pOperCommaNoMinus) <*> (pExprOp <* pSpec ')'))
+  <|> (pSpec '(' *> (ESelect <$> some pSelect <* pSpec ')'))
+  <|> (pKeyword "_primitive" *> (ELit noSLoc . LPrim <$> pString))
+  <|> (pSpec '@' *> (ETypeArg <$> pAType))
+  <|> (pSpec 'L' *> (uTuple <$> sepBy pExpr (pSpec ',') <* pSpec 'R'))
   <|> pUSummand pExpr
   -- This weirdly slows down parsing
   -- <?> "aexpr"

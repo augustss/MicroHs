@@ -19,6 +19,9 @@ f6 x (compare x -> LT) = -1
 f6 y (compare y -> GT) = 1
 f6 _ _ = 0
 
+f7 :: (Int, Int) -> Int
+f7 (negate -> x, negate -> y) = x + y
+
 main :: IO ()
 main = do
   print (f1 20)
@@ -28,3 +31,4 @@ main = do
   print (f3 4 5)
   print (f4 5)
   print [f6 2 3, f6 3 3, f6 4 3]
+  print (f7 (2, 3))
