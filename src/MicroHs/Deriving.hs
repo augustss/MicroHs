@@ -36,7 +36,7 @@ deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of argum
     DerVia via | newt             -> newtypeDer  mctx narg lhs (cs!!0) cls (Just via)
     _                             -> cannotDerive lhs cls
   where useNewt d = unIdent (getAppCon d) `notElem`
-          ["Data.Data_Class.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic",
+          ["Data.Data_Class.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic", "GHC.Generics.Generic1",
            "Language.Haskell.TH.Syntax.Lift", "Text.Read.Internal.Read", "Text.Show.Show"]
 
 type DeriverT = Int -> LHS -> [Constr] -> EConstraint -> T [EDef]   -- Bool indicates a newtype
@@ -59,6 +59,7 @@ derivers =
   ,("Data.Traversable.Traversable",    derTraversable)
   ,("Data.Typeable.Typeable",          derTypeable)
   ,("GHC.Generics.Generic",            derNotYet)
+  ,("GHC.Generics.Generic1",           derNotYet)
   ,("Language.Haskell.TH.Syntax.Lift", derLift)
   ,("Text.Read.Internal.Read",         derRead)
   ,("Text.Show.Show",                  derShow)
@@ -636,7 +637,7 @@ derFoldable mctx 1 lhs@(_, tyvs@(_:_)) cs efoldable = do
               Just (con, []) | con == var -> f
               Just (_, ts@(_:_)) -> eFfoldr (mkFold f (last ts))
               _ -> eFlipConst
-        
+
       iF = mkIdentSLoc loc "f"
       eF = EVar iF
       iZ = mkIdentSLoc loc "z"
