@@ -24,8 +24,8 @@ data V1 p
            , Read     -- ^ @since base-4.9.0.0
            , Show     -- ^ @since base-4.9.0.0
            , Functor  -- ^ @since base-4.9.0.0
-           , Generic  -- ^ @since base-4.9.0.0
-           , Generic1 -- ^ @since base-4.9.0.0
+--           , Generic  -- ^ @since base-4.9.0.0
+--           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.12.0.0
@@ -35,9 +35,11 @@ instance Semigroup (V1 p) where
 -- | Unit: used for constructors without arguments
 type U1 :: forall (k :: Kind) . k -> Type
 data U1 p = U1
+{-
   deriving ( Generic  -- ^ @since base-4.7.0.0
            , Generic1 -- ^ @since base-4.9.0.0
            )
+-}
 
 -- | @since base-4.9.0.0
 instance Eq (U1 p) where
@@ -91,8 +93,8 @@ newtype Par1 p = Par1 { unPar1 :: p }
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
-           , Generic  -- ^ @since base-4.7.0.0
-           , Generic1 -- ^ @since base-4.9.0.0
+--           , Generic  -- ^ @since base-4.7.0.0
+--           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.9.0.0
@@ -120,8 +122,8 @@ newtype Rec1 f p = Rec1 { unRec1 :: f p }
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
-           , Generic  -- ^ @since base-4.7.0.0
-           , Generic1 -- ^ @since base-4.9.0.0
+--           , Generic  -- ^ @since base-4.7.0.0
+--           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.9.0.0
@@ -151,8 +153,8 @@ newtype K1 i c p = K1 { unK1 :: c }
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
-           , Generic  -- ^ @since base-4.7.0.0
-           , Generic1 -- ^ @since base-4.9.0.0
+--           , Generic  -- ^ @since base-4.7.0.0
+--           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.12.0.0
@@ -194,8 +196,8 @@ newtype M1 (i :: Type) (c :: Meta) (f :: k -> Type) (p :: k) =
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
-           , Generic  -- ^ @since base-4.7.0.0
-           , Generic1 -- ^ @since base-4.9.0.0
+--           , Generic  -- ^ @since base-4.7.0.0
+--           , Generic1 -- ^ @since base-4.9.0.0
            )
 -}
 
@@ -208,8 +210,8 @@ data (:+:) f g p = L1 (f p) | R1 (g p)
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
-           , Generic  -- ^ @since base-4.7.0.0
-           , Generic1 -- ^ @since base-4.9.0.0
+--           , Generic  -- ^ @since base-4.7.0.0
+--           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | Products: encode multiple arguments to constructors
@@ -221,8 +223,8 @@ data (:*:) f g p = f p :*: g p
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
-           , Generic  -- ^ @since base-4.7.0.0
-           , Generic1 -- ^ @since base-4.9.0.0
+--           , Generic  -- ^ @since base-4.7.0.0
+--           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.9.0.0
@@ -264,8 +266,8 @@ newtype (:.:) f g p =
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
-           , Generic  -- ^ @since base-4.7.0.0
-           , Generic1 -- ^ @since base-4.9.0.0
+--           , Generic  -- ^ @since base-4.7.0.0
+--           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.9.0.0
