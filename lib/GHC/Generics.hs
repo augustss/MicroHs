@@ -158,7 +158,7 @@ newtype K1 i c p = K1 { unK1 :: c }
 -- | @since base-4.12.0.0
 instance Monoid c => Applicative (K1 i c) where
   pure _ = K1 mempty
-  liftA2 = \_ -> coerce (mappend :: c -> c -> c)
+  liftA2 _ = coerce (mappend :: c -> c -> c)
   (<*>) = coerce (mappend :: c -> c -> c)
 
 -- | @since base-4.12.0.0
