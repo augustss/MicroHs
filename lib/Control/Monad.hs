@@ -50,8 +50,8 @@ import Data.Ord
 --import Data.Maybe
 import {-# SOURCE #-} Data.Typeable
 
-infixl 1 >>, >>=, =<<
-infixr 1 <=<, >=>
+infixl 1 >>, >>=
+infixr 1 =<<, <=<, >=>
 
 class (Applicative m) => Monad m where
   (>>=)  :: forall a b . m a -> (a -> m b) -> m b
