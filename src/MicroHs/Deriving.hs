@@ -1,5 +1,6 @@
 module MicroHs.Deriving(deriveStrat, expandField, mkGetName, etaReduce, mkTypeableInst) where
 import qualified Prelude(); import MHSPrelude
+import Control.Monad
 import Data.Char
 import Data.Function
 import Data.List
@@ -771,18 +772,22 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
                 EForall _ xs (EApp (EApp _implies _Ca) t) -> (map idKindIdent xs, t)
                 _ -> impossibleShow amty
             qvar t = EQVar t kType
-            nty =
-              if length tvs /= length newtys then mhsError "mkMethod: arity" else
-                qvar $ subst (zip tvs newtys) mty
-{-
-                case subst (zip tvs newtys) mty of
-                  EForall q vks t -> EForall q (map (\ (IdKind i _) -> IdKind i eDummy) vks) $ qvar t
-                  t -> qvar t
--}
-            vty = qvar $ dropForallContext $ subst (zip tvs (init newtys ++ [viaty])) mty
-            msign = Sign [mi] nty
+            nty = subst (zip tvs newtys) mty
+            -- Any leading quantifier in nty (used in the method signature)
+            -- also scopes over vty (used in the method body).
+            -- The substitution above might have changed the bound variables.
+            -- Redo the alpha conversion for vty before substituting in the viaty.
+            vty  = subst (zip tvs (init newtys ++ [viaty])) $ dropForallContext $
+                   case (mty, nty) of
+                     (EForall _ iks' t, EForall _ iks'' _) -> subst alpha t
+                       where alpha = zipWith (\ (IdKind i' _) (IdKind i'' _) -> (i', EVar i'')) iks' iks''
+                     _ -> mty
+            msign = Sign [mi] (qvar nty)
             qmi = EQVar (EVar $ qualIdent clsQual mi) amty   -- Use a qualified name for the method
-            body = Fcn mi [eEqn [] $ eAppI2 (mkBuiltin loc "coerce") (ETypeArg vty) qmi]
+            body = Fcn mi [eEqn [] $ eAppI2 (mkBuiltin loc "coerce") (ETypeArg $ qvar vty) qmi]
+--        traceM $ "mkMethod: mi=" ++ show mi ++ "\n  mty=" ++ show mty ++ "\n  tvs=" ++ show tvs ++ "\n  newtys=" ++ show newtys ++ "\n  viaty=" ++ show viaty ++ "\n  nty=" ++ show nty ++ "\n  vty=" ++ show vty
+        unless (length tvs == length newtys) $
+          mhsError "mkMethod: arity"
         return [msign, body]
   body <- concat <$> mapM mkMethod mits
 
