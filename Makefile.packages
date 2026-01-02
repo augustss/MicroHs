@@ -59,3 +59,6 @@ all:
 	$(MINST) StateVar
 	$(MINST) unliftio-core
 	$(MINST) --git=https://github.com/HeinrichApfelmus/vault vault
+	$(MINST) js-dgtable
+	$(MINST) js-flot
+	$(MINST) js-jquery
