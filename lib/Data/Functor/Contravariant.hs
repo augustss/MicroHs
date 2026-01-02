@@ -196,7 +196,6 @@ newtype Predicate a = Predicate { getPredicate :: a -> Bool }
       Monoid
     )
   via a -> All
-{-
   deriving
     ( -- | A 'Predicate' is a 'Contravariant' 'Functor', because
       -- 'contramap' can apply its function argument to the input of
@@ -212,7 +211,7 @@ newtype Predicate a = Predicate { getPredicate :: a -> Bool }
       Contravariant
     )
   via Op Bool
--}
+
 -- | Defines a total ordering on a type as per 'compare'.
 --
 -- This condition is not checked by the types. You must ensure that the

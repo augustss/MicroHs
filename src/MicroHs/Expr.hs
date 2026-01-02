@@ -158,17 +158,18 @@ data DerStrategy
   | DerStock
   | DerNewtype
   | DerAnyClass
-  | DerVia EConstraint
---DEBUG  deriving (Show)
+  | DerVia EType
+--  deriving (Show)
 
 instance NFData DerStrategy where
   rnf (DerVia a) = rnf a
   rnf _ = ()
 
--- Indication that we don't want any deriving
+-- Indication that we don't want any implicit deriving
 doNotDerive :: [Deriving] -> Bool
-doNotDerive [Deriving DerNone []] = True
-doNotDerive _ = False
+doNotDerive = any p
+ where p (Deriving DerNone []) = True
+       p _ = False
 
 data Expr
   = EVar Ident
