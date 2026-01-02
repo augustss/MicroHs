@@ -732,12 +732,6 @@ newtypeDer :: StandM -> Int -> LHS -> Constr -> EConstraint -> EType -> T [EDef]
 newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
   let loc = getSLoc cls
       (clsIks, cls) = unForall acls
-{-
-      oldty = conFieldTys con !! 0                           -- the underlying type, full
-  traceM $ "newtypeDer mctx=" ++ show mctx ++ " narg=" ++ show narg ++ " tycon=" ++ show _tycon ++
-           " iks=" ++ show (map idKindIdent iks) ++ " con=(" ++ show con ++ ") acls=" ++ show acls ++
-           " viaty=" ++ show viaty ++ " oldty=" ++ show oldty
--}
   hdr <-
     case mctx of
       Just (h, _) -> pure h
@@ -746,14 +740,7 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
 --        traceM $ "newtypeDer newty=" ++ show newtyr
         let
           ctxOld = tApp cls viaty
-{-
-            coOldNew = mkCoercible loc oldty newty
-            coOldVia =
-                      case mvia of  -- the via type is also eta reduced
-                        Just via -> [mkCoercible loc via newty]
-                        Nothing  -> []
--}
-          ctx = filter (not . null . freeTyVars . (:[])) (ctxOld : []) -- XXXXX coOldNew : coOldVia)
+          ctx = filter (not . null . freeTyVars . (:[])) [ctxOld]
           iks' = dropEnd narg iks
         pure $ eForall (clsIks ++ iks') $ addConstraints ctx $ tApp cls newtyr
 --  traceM ("newtypeDer: " ++ show (hdr, viaty))
