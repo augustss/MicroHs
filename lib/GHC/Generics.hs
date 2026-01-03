@@ -1,7 +1,7 @@
 -- This is a dummy module so deriving Generic can be spoofed.
 module GHC.Generics(
   Generic, Generic1,
-  V1, U1(..), Par1(..), Rec1(..), K1(..),
+  V1, U1(..), Par1(..), Rec1(..), K1(..), M1(..),
   (:+:)(..), (:*:)(..), (:.:)(..),
   ) where
 
