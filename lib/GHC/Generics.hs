@@ -1,7 +1,7 @@
 -- This is a dummy module so deriving Generic can be spoofed.
 module GHC.Generics(
   Generic, Generic1,
-  V1, U1(..), Par1(..), Rec1(..), K1(..),
+  V1, U1(..), Par1(..), Rec1(..), K1(..), M1(..),
   (:+:)(..), (:*:)(..), (:.:)(..),
   ) where
 
@@ -169,7 +169,6 @@ deriving instance Semigroup c => Semigroup (K1 i c p)
 -- | @since base-4.12.0.0
 deriving instance Monoid c => Monoid (K1 i c p)
 
-{-
 -- | @since base-4.9.0.0
 deriving instance Applicative f => Applicative (M1 i c f)
 
@@ -189,7 +188,9 @@ deriving instance Semigroup (f p) => Semigroup (M1 i c f p)
 deriving instance Monoid (f p) => Monoid (M1 i c f p)
 
 -- | Meta-information (constructor names, etc.)
-newtype M1 (i :: Type) (c :: Meta) (f :: k -> Type) (p :: k) =
+type M1 :: forall (k :: Kind) . Type -> Type -> (k -> Type) -> k -> Type
+-- XXX: c :: Meta
+newtype M1 i c f p =
     M1 { unM1 :: f p }
   deriving ( Eq       -- ^ @since base-4.7.0.0
            , Ord      -- ^ @since base-4.7.0.0
@@ -199,7 +200,6 @@ newtype M1 (i :: Type) (c :: Meta) (f :: k -> Type) (p :: k) =
 --           , Generic  -- ^ @since base-4.7.0.0
 --           , Generic1 -- ^ @since base-4.9.0.0
            )
--}
 
 -- | Sums: encode choice between constructors
 infixr 5 :+:
