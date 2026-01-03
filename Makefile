@@ -84,6 +84,7 @@ minstall: targets.conf
 	$(CCEVAL) generated/cpphs.c  $(CCLIBS) -o $(MCABALBIN)/cpphs
 	$(CCEVAL) generated/mcabal.c $(CCLIBS) -o $(MCABALBIN)/mcabal
 	$(CCEVAL) generated/mhs.c    $(CCLIBS) -o $(MCABALBIN)/mhs
+	@mkdir -p $(MDATA)
 	@mkdir -p $(MRUNTIME)
 	cp targets.conf $(MDATA)
 	cp -r $(RTS)/* $(MRUNTIME)
@@ -182,7 +183,7 @@ bootcombtest:	bin/gmhs bin/mhseval
 exampletest:	bin/mhs bin/mhseval Example.hs
 	bin/mhs -r Example
 	bin/mhs Example && bin/mhseval
-	bin/mhs Example -oEx && ./Ex && rm Ex
+	bin/mhs -v -v Example -oEx && ./Ex && rm Ex
 
 examplejs: bin/mhs Example.hs
 	bin/mhs -temscripten Example -oEx.js
