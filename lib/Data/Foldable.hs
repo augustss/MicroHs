@@ -47,6 +47,7 @@ import Control.Applicative(Applicative(..), Alternative(..))
 import Control.Error
 import Control.Monad(Monad(..), MonadPlus(..))
 import Data.Bool
+import Data.Coerce
 import Data.Either
 import Data.Eq
 import Data.Foldable.Internal
@@ -61,6 +62,7 @@ import Data.Monoid.Internal hiding (Max(..), Min(..))
 import Data.Num
 import Data.Ord
 import Data.Proxy
+import Data.Tuple (Solo(..))
 import {-# SOURCE #-} Data.Typeable
 
 infix  4 `elem`, `notElem`
@@ -176,38 +178,14 @@ instance Foldable (Either a) where
 
     null             = isLeft
 
-instance Foldable Proxy where
-  foldMap _ _ = mempty
-
 instance Foldable Identity where
   foldMap f (Identity a) = f a
 
 instance Foldable (Const m) where
   foldMap _ _ = mempty
 
-{-
 -- | @since 4.15
 deriving instance Foldable Solo
-
--- | @since 4.7.0.0
-instance Foldable ((,) a) where
-    foldMap f (_, y) = f y
-
-    foldr f z (_, y) = f y z
-    length _  = 1
-    null _ = False
-
--- | @since 4.8.0.0
-instance Foldable (Array i) where
-    foldr = foldrElems
-    foldl = foldlElems
-    foldl' = foldlElems'
-    foldr' = foldrElems'
-    foldl1 = foldl1Elems
-    foldr1 = foldr1Elems
-    toList = elems
-    length = numElements
-    null a = numElements a == 0
 
 -- | @since 4.7.0.0
 instance Foldable Proxy where
@@ -227,6 +205,7 @@ instance Foldable Proxy where
     sum _      = 0
     product _  = 1
 
+{-
 -- | @since 4.8.0.0
 instance Foldable Dual where
     foldMap            = coerce
@@ -363,11 +342,11 @@ deriving instance Foldable UInt
 
 -- | @since 4.9.0.0
 deriving instance Foldable UWord
+-}
 
 -- Instances for Data.Ord
 -- | @since 4.12.0.0
 deriving instance Foldable Down
--}
 
 foldrM :: forall (t :: Type -> Type) (m :: Type -> Type) a b . (Foldable t, Monad m) => (a -> b -> m b) -> b -> t a -> m b
 foldrM f z0 xs = foldl c return xs z0

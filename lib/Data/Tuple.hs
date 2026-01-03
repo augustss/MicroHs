@@ -4,10 +4,12 @@ module Data.Tuple(
   module Data.Tuple,
   ) where
 import qualified Prelude()              -- do not import Prelude
+import Control.Applicative
 import Data.Bool
 import Data.Bounded
 import Data.Eq
 import Data.Function
+import Data.Functor
 import Data.Int.Int
 import Data.Monoid.Internal
 import Data.Records
@@ -186,3 +188,18 @@ instance HasField "_3" (a, b, c, d) c where getField _ (a, b, c, d) = c
 instance SetField "_3" (a, b, c, d) c where setField _ (a, b, c, d) = \ c -> (a, b, c, d)
 instance HasField "_4" (a, b, c, d) d where getField _ (a, b, c, d) = d
 instance SetField "_4" (a, b, c, d) d where setField _ (a, b, c, d) = \ d -> (a, b, c, d)
+
+-----------------------------------
+
+-- | @since base-4.15
+instance Functor Solo where
+  fmap f (MkSolo a) = MkSolo (f a)
+
+  -- Being strict in the `Solo` argument here seems most consistent
+  -- with the concept behind `Solo`: always strict in the wrapper and lazy
+  -- in the contents.
+  x <$ MkSolo _ = MkSolo x
+
+-- | @since base-4.15
+instance Applicative Solo where
+  pure = MkSolo

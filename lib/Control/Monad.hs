@@ -47,7 +47,7 @@ import Data.Functor hiding(unzip)
 import Data.List
 import Data.Monoid.Internal
 import Data.Ord
---import Data.Maybe
+import Data.Tuple (Solo(..))
 import {-# SOURCE #-} Data.Typeable
 
 infixl 1 >>, >>=
@@ -187,15 +187,14 @@ ap f a = do
 
 -----
 
-instance Functor ((->) a) where
-  fmap = (.)
-
-instance Applicative ((->) a) where
-  pure = const
-  f <*> g = \ a -> f a (g a)
-
 instance Monad ((->) a) where
   x >>= y = \ z -> y (x z) z
+
+instance Monad Solo where
+  MkSolo x >>= f = f x
+
+instance Monad Down where
+  Down a >>= k = k a
 
 instance Monad Dual where
   m >>= k = k (getDual m)

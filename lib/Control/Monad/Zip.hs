@@ -18,7 +18,8 @@ import Control.Monad
 import Data.Functor.Identity
 import Data.Monoid.Internal
 import qualified Data.List.NonEmpty as NE
---import Data.Tuple
+import Data.Ord (Down)
+import Data.Tuple (Solo(..))
 
 -- | Instances should satisfy the laws:
 --
@@ -65,12 +66,12 @@ instance MonadZip Identity where
     mzipWith                 = liftM2
     munzip (Identity (a, b)) = (Identity a, Identity b)
 
-{-
 -- | @since 4.15.0.0
 instance MonadZip Solo where
     mzipWith = liftM2
     munzip (MkSolo (a, b)) = (MkSolo a, MkSolo b)
 
+{-
 -- | @since 4.8.0.0
 instance MonadZip Dual where
     -- Cannot use coerce, it's unsafe
@@ -124,10 +125,10 @@ instance MonadZip f => MonadZip (M1 i c f) where
 -- | @since 4.9.0.0
 instance (MonadZip f, MonadZip g) => MonadZip (f :*: g) where
     mzipWith f (x1 :*: y1) (x2 :*: y2) = mzipWith f x1 x2 :*: mzipWith f y1 y2
+-}
 
--- instances for GHC.Internal.Data.Ord
+-- instances for Data.Ord
 
 -- | @since 4.12.0.0
 instance MonadZip Down where
     mzipWith = liftM2
--}

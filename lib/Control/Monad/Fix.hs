@@ -10,6 +10,7 @@ import Data.Function(fix)
 import Data.Functor.Identity
 import Data.List.NonEmpty(NonEmpty(..))
 import Data.Monoid.Internal
+import Data.Ord(Down(..))
 import Data.Tuple
 
 class (Monad m) => MonadFix m where
@@ -18,11 +19,10 @@ class (Monad m) => MonadFix m where
 _mfix :: MonadFix m => (a -> m a) -> m a
 _mfix = mfix
 
-{-
 instance MonadFix Solo where
     mfix f = let a = f (unSolo a) in a
              where unSolo (MkSolo x) = x
--}
+
 instance MonadFix Maybe where
     mfix f = let a = f (unJust a) in a
              where unJust (Just x) = x
@@ -78,7 +78,7 @@ instance MonadFix f => MonadFix (Alt f) where
 
 instance MonadFix f => MonadFix (Ap f) where
     mfix f = Ap (mfix (getAp . f))
+-}
 
 instance MonadFix Down where
     mfix f = Down (fix (getDown . f))
--}
