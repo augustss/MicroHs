@@ -112,6 +112,7 @@ $(MDIST)/Paths_MicroHs.hs:
 
 ############################ bin/mhs ############################
 bin/mhs: $(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/mhs_inplace.c
+	@mkdir -p bin
 	$(CCEVAL) generated/mhs_inplace.c $(CCLIBS) -o bin/mhs
 
 ############################ bin/cpphs ############################
@@ -215,7 +216,7 @@ bin/mhseval:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	$(CCEVAL) $(RTS)/comb.c $(CCLIBS) -o bin/mhseval
 
 ############################ inplace ############################
-inplace: bin/mhs bin/cpphs bin/mhseval
+inplace: bin/mhs bin/cpphs bin/mcabal bin/mhseval
 
 ############################ bootstrap ############################
 
