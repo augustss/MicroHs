@@ -1,5 +1,6 @@
 *.comb binary
 generated/mhs.c binary
+generated/mhs_inplace.c binary
 generated/cpphs.c binary
 generated/mcabal.c binary
 generated/mhseval.js binary

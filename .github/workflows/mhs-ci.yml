@@ -16,8 +16,6 @@ jobs:
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
     - name: make everytestmhs
       run: make everytestmhs
 
@@ -30,8 +28,6 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y libgmp-dev
-    - name: make
-      run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp
     - name: make everytestmhs
       run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp everytestmhs
     - name: make install
