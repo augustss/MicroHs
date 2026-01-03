@@ -80,5 +80,8 @@ instance MonadFix f => MonadFix (Ap f) where
     mfix f = Ap (mfix (getAp . f))
 -}
 
+-- Instances for Data.Ord
+
+-- | @since base-4.12.0.0
 instance MonadFix Down where
     mfix f = Down (fix (getDown . f))

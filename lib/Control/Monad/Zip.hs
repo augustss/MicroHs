@@ -20,6 +20,7 @@ import Data.Monoid.Internal
 import qualified Data.List.NonEmpty as NE
 import Data.Ord (Down)
 import Data.Tuple (Solo(..))
+import GHC.Generics
 
 -- | Instances should satisfy the laws:
 --
@@ -104,6 +105,7 @@ instance MonadZip f => MonadZip (Alt f) where
 -- | @since 4.9.0.0
 instance MonadZip Proxy where
     mzipWith _ _ _ = Proxy
+-}
 
 -- Instances for GHC.Generics
 -- | @since 4.9.0.0
@@ -125,7 +127,6 @@ instance MonadZip f => MonadZip (M1 i c f) where
 -- | @since 4.9.0.0
 instance (MonadZip f, MonadZip g) => MonadZip (f :*: g) where
     mzipWith f (x1 :*: y1) (x2 :*: y2) = mzipWith f x1 x2 :*: mzipWith f y1 y2
--}
 
 -- instances for Data.Ord
 
