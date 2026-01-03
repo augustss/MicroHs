@@ -27,6 +27,11 @@ jobs:
     - name: compile and install packages
       run: |
         cd mhs
+        mhs -L
+        mhs -Lbase
+        ls $HOME/.mcabal
+        ls $HOME/.mcabal/mhs-0.15.2.0
+        ls $HOME/.mcabal/mhs-0.15.2.0/packages
         make -f Makefile.packages
 
     # DONE

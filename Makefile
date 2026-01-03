@@ -171,9 +171,9 @@ clean:
 
 ############################ everytest ############################
 
-everytest:	newmhs bin/cpphs bin/mhseval exampletest info runtest cachetest bootcombtest nfibtest
+everytest:	newmhs bin/cpphs bin/mhseval targets.conf exampletest info runtest cachetest bootcombtest nfibtest
 
-everytestmhs:	bin/mhs bin/cpphs bin/mhseval exampletest info cachetest bootstrap runtestmhs nfibtest
+everytestmhs:	bin/mhs bin/cpphs bin/mhseval targets.conf exampletest info cachetest bootstrap runtestmhs nfibtest
 
 bootcombtest:	bin/gmhs bin/mhseval
 	bin/gmhs $(MHSINC) -ogmhs.comb $(MAINMODULE)
