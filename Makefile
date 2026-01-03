@@ -183,7 +183,7 @@ bootcombtest:	bin/gmhs bin/mhseval
 exampletest:	bin/mhs bin/mhseval Example.hs
 	bin/mhs -r Example
 	bin/mhs Example && bin/mhseval
-	bin/mhs -v -v Example -oEx && ./Ex && rm Ex
+	bin/mhs Example -oEx && ./Ex && rm Ex
 
 examplejs: bin/mhs Example.hs
 	bin/mhs -temscripten Example -oEx.js
