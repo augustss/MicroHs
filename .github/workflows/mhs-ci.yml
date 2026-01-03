@@ -38,8 +38,6 @@ jobs:
     steps:
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
     - name: make everytestmhs
       run: make everytestmhs
 
@@ -72,7 +70,7 @@ jobs:
     - name: checkout repo
       uses: actions/checkout@v4
     - name: make
-      run: make CONF=micro
+      run: make CONF=micro inplace
 
   build-windows:
     runs-on: windows-latest
@@ -99,9 +97,6 @@ jobs:
           make
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
-      shell: alpine.sh {0}
     - name: make everytestmhs
       run: make everytestmhs
       shell: alpine.sh {0}
@@ -119,9 +114,6 @@ jobs:
           make
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
-      shell: alpine.sh {0}
     - name: make everytestmhs
       run: make everytestmhs
       shell: alpine.sh {0}
@@ -139,9 +131,6 @@ jobs:
           make
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
-      shell: alpine.sh {0}
     - name: make everytestmhs
       run: make everytestmhs
       shell: alpine.sh {0}
@@ -159,9 +148,6 @@ jobs:
           make
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
-      shell: alpine.sh {0}
     - name: make everytestmhs
       run: make everytestmhs
       shell: alpine.sh {0}
@@ -179,9 +165,6 @@ jobs:
           make
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
-      shell: alpine.sh {0}
     - name: make everytestmhs
       run: make everytestmhs
       shell: alpine.sh {0}
@@ -199,9 +182,6 @@ jobs:
           make
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: make
-      run: make
-      shell: alpine.sh {0}
     - name: make everytestmhs
       run: make everytestmhs
       shell: alpine.sh {0}

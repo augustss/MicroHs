@@ -49,7 +49,7 @@ HVERSION=0,15,2,0
 #
 
 
-.PHONY: all install install_build install_inplace newmhs preparedist rmbinmhs newmhsz everytest everytestmhs
+.PHONY: all install install_build inplace newmhs preparedist rmbinmhs newmhsz everytest everytestmhs
 
 all:
 	@echo "Use an explicit target.  Some common target:"
@@ -57,7 +57,7 @@ all:
 	@echo "  install_build       recompile and install in ~/.mcabal"
 	@echo ""
 	@echo "Targets for development:"
-	@echo "  install_inplace     install for use in current directory"
+	@echo "  inplace             install for use in current directory"
 	@echo "  newmhs              build bin/mhs using bin/gmhs"
 	@echo "  preparedist         build everything needed for 'git push'"
 	@echo "  clean               remove all build products"
@@ -213,6 +213,9 @@ runtestmhs: bin/mhseval bin/mhs
 bin/mhseval:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	@mkdir -p bin
 	$(CCEVAL) $(RTS)/comb.c $(CCLIBS) -o bin/mhseval
+
+############################ inplace ############################
+inplace: bin/mhs bin/cpphs bin/mhseval
 
 ############################ bootstrap ############################
 
