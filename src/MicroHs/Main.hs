@@ -260,8 +260,9 @@ findAPackage flags pkgnm = do
     return pkgnm
    else do
     dirpkgs <- findAllPackages flags
+    putStrLn $ "dirpkgs=" ++ show dirpkgs
     case [ pdir </> pkg <.> packageSuffix | (pdir, pkgs) <- dirpkgs, pkg <- pkgs, pkgnm `isPrefixOf` pkg ] of
-      [] -> mhsError $ "Package not found: " ++ show pkgnm
+      [] -> mhsError $ "Package not found: " ++ show pkgnm ++ " path=" ++ show (pkgPath flags)
       [s] -> return s
       ss -> mhsError $ "Package not is ambigous: " ++ show (pkgnm, ss)
 

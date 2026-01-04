@@ -153,7 +153,7 @@ generated/mhseval.js:	$(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h
 	$(EMCCEVAL) $(RTS)/comb.c $(EMCCLIBS) -o generated/mhseval.js
 
 ############################ newmhs ############################
-newmhs: rmbinmhs bin/mhs
+newmhs: rmbinmhs bin/mhs generated/mhs_inplace.c
 
 rmbinmhs:
 	rm -f bin/mhs generated/mhs_inplace.c

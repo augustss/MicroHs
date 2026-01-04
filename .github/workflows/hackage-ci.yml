@@ -27,11 +27,17 @@ jobs:
     - name: compile and install packages
       run: |
         cd mhs
+        echo ======
         ls $HOME/.mcabal
+        echo ======
         ls $HOME/.mcabal/mhs-0.15.2.0
+        echo ======
         ls $HOME/.mcabal/mhs-0.15.2.0/packages
+        echo ======
         mhs -L
+        echo ======
         mhs -Lbase
+        echo ======
         make -f Makefile.packages
 
     # DONE
