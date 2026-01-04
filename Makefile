@@ -109,7 +109,12 @@ generated/mhs_inplace.c:	bin/gmhs src/*/*.hs lib/*.hs lib/*/*.hs lib/*/*/*.hs
 
 $(MDIST)/Paths_MicroHs.hs:
 	@mkdir -p $(MDIST)
-	@echo 'module Paths_MicroHs where { import qualified Prelude(); import MHSPrelude; import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
+	@echo 'module Paths_MicroHs where'                                 > $(MDIST)/Paths_MicroHs.hs
+	@echo 'import qualified Prelude(); import MHSPrelude'             >> $(MDIST)/Paths_MicroHs.hs
+	@echo 'import Data.Version; import System.Directory'              >> $(MDIST)/Paths_MicroHs.hs
+	@echo 'version :: Version; version = makeVersion [$(HVERSION)]'   >> $(MDIST)/Paths_MicroHs.hs
+	@echo 'getDataDir :: IO FilePath'                                 >> $(MDIST)/Paths_MicroHs.hs
+	@echo 'getDataDir = (++ "/packages/mhs-$(VERSION)/data") `fmap` getHomeDirectory'  >> $(MDIST)/Paths_MicroHs.hs
 
 ############################ bin/mhs ############################
 bin/mhs: $(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/mhs_inplace.c
