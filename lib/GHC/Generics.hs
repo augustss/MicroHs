@@ -7,7 +7,9 @@ module GHC.Generics(
 
 import Control.Applicative(Alternative(..))
 import Control.Monad(MonadPlus(..))
+import Control.Monad.Fix
 import Data.Coerce(coerce)
+import Data.Traversable
 
 class Generic a
 class Generic1 f
@@ -31,6 +33,12 @@ data V1 p
 -- | @since base-4.12.0.0
 instance Semigroup (V1 p) where
   v <> _ = v
+
+-- | @since 4.9.0.0
+deriving instance Foldable V1
+
+-- | @since 4.9.0.0
+deriving instance Traversable V1
 
 -- | Unit: used for constructors without arguments
 type U1 :: forall (k :: Kind) . k -> Type
@@ -86,6 +94,27 @@ instance Semigroup (U1 p) where
 instance Monoid (U1 p) where
   mempty = U1
 
+-- | @since 4.9.0.0
+instance Foldable U1 where
+    foldMap _ _ = mempty
+    fold _ = mempty
+    foldr _ z _ = z
+    foldl _ z _ = z
+    foldl1 _ _ = error "foldl1: U1"
+    foldr1 _ _ = error "foldr1: U1"
+    length _   = 0
+    null _     = True
+    elem _ _   = False
+    sum _      = 0
+    product _  = 1
+
+-- | @since 4.9.0.0
+instance Traversable U1 where
+    traverse _ _ = pure U1
+    sequenceA _ = pure U1
+    mapM _ _ = pure U1
+    sequence _ = pure U1
+
 -- | Used for marking occurrences of the parameter
 newtype Par1 p = Par1 { unPar1 :: p }
   deriving ( Eq       -- ^ @since base-4.7.0.0
@@ -107,11 +136,21 @@ instance Applicative Par1 where
 instance Monad Par1 where
   Par1 x >>= f = f x
 
+-- | @since base-4.9.0.0
+instance MonadFix Par1 where
+    mfix f = Par1 (fix (unPar1 . f))
+
 -- | @since base-4.12.0.0
 deriving instance Semigroup p => Semigroup (Par1 p)
 
 -- | @since base-4.12.0.0
 deriving instance Monoid p => Monoid (Par1 p)
+
+-- | @since 4.9.0.0
+deriving instance Foldable Par1
+
+-- | @since 4.9.0.0
+deriving instance Traversable Par1
 
 -- | Recursive calls of kind @* -> *@ (or kind @k -> *@, when @PolyKinds@
 -- is enabled)
@@ -139,11 +178,21 @@ instance Monad f => Monad (Rec1 f) where
 -- | @since base-4.9.0.0
 deriving instance MonadPlus f => MonadPlus (Rec1 f)
 
+-- | @since base-4.9.0.0
+instance MonadFix f => MonadFix (Rec1 f) where
+    mfix f = Rec1 (mfix (unRec1 . f))
+
 -- | @since base-4.12.0.0
 deriving instance Semigroup (f p) => Semigroup (Rec1 f p)
 
 -- | @since base-4.12.0.0
 deriving instance Monoid (f p) => Monoid (Rec1 f p)
+
+-- | @since 4.9.0.0
+deriving instance Foldable f => Foldable (Rec1 f)
+
+-- | @since 4.9.0.0
+deriving instance Traversable f => Traversable (Rec1 f)
 
 -- | Constants, additional parameters and recursion of kind @*@
 type K1 :: forall (k :: Kind) . Type -> Type -> k -> Type
@@ -169,6 +218,12 @@ deriving instance Semigroup c => Semigroup (K1 i c p)
 -- | @since base-4.12.0.0
 deriving instance Monoid c => Monoid (K1 i c p)
 
+-- | @since 4.9.0.0
+deriving instance Foldable (K1 i c)
+
+-- | @since 4.9.0.0
+deriving instance Traversable (K1 i c)
+
 -- | @since base-4.9.0.0
 deriving instance Applicative f => Applicative (M1 i c f)
 
@@ -181,11 +236,21 @@ deriving instance Monad f => Monad (M1 i c f)
 -- | @since base-4.9.0.0
 deriving instance MonadPlus f => MonadPlus (M1 i c f)
 
+-- | @since base-4.9.0.0
+instance MonadFix f => MonadFix (M1 i c f) where
+    mfix f = M1 (mfix (unM1 . f))
+
 -- | @since base-4.12.0.0
 deriving instance Semigroup (f p) => Semigroup (M1 i c f p)
 
 -- | @since base-4.12.0.0
 deriving instance Monoid (f p) => Monoid (M1 i c f p)
+
+-- | @since 4.9.0.0
+deriving instance Foldable f => Foldable (M1 i c f)
+
+-- | @since 4.9.0.0
+deriving instance Traversable f => Traversable (M1 i c f)
 
 -- | Meta-information (constructor names, etc.)
 type M1 :: forall (k :: Kind) . Type -> Type -> (k -> Type) -> k -> Type
@@ -213,6 +278,12 @@ data (:+:) f g p = L1 (f p) | R1 (g p)
 --           , Generic  -- ^ @since base-4.7.0.0
 --           , Generic1 -- ^ @since base-4.9.0.0
            )
+
+-- | @since 4.9.0.0
+deriving instance (Foldable f, Foldable g) => Foldable (f :+: g)
+
+-- | @since 4.9.0.0
+deriving instance (Traversable f, Traversable g) => Traversable (f :+: g)
 
 -- | Products: encode multiple arguments to constructors
 infixr 6 :*:
@@ -248,6 +319,13 @@ instance (Monad f, Monad g) => Monad (f :*: g) where
 -- | @since base-4.9.0.0
 instance (MonadPlus f, MonadPlus g) => MonadPlus (f :*: g)
 
+-- | @since base-4.9.0.0
+instance (MonadFix f, MonadFix g) => MonadFix (f :*: g) where
+    mfix f = mfix (fstP . f) :*: mfix (sndP . f)
+      where
+        fstP (a :*: _) = a
+        sndP (_ :*: b) = b
+
 -- | @since base-4.12.0.0
 instance (Semigroup (f p), Semigroup (g p)) => Semigroup ((f :*: g) p) where
   (x1 :*: y1) <> (x2 :*: y2) = (x1 <> x2) :*: (y1 <> y2)
@@ -255,6 +333,12 @@ instance (Semigroup (f p), Semigroup (g p)) => Semigroup ((f :*: g) p) where
 -- | @since base-4.12.0.0
 instance (Monoid (f p), Monoid (g p)) => Monoid ((f :*: g) p) where
   mempty = mempty :*: mempty
+
+-- | @since 4.9.0.0
+deriving instance (Foldable f, Foldable g) => Foldable (f :*: g)
+
+-- | @since 4.9.0.0
+deriving instance (Traversable f, Traversable g) => Traversable (f :*: g)
 
 -- | Composition of functors
 infixr 7 :.:
@@ -287,3 +371,9 @@ deriving instance Semigroup (f (g p)) => Semigroup ((f :.: g) p)
 
 -- | @since base-4.12.0.0
 deriving instance Monoid (f (g p)) => Monoid ((f :.: g) p)
+
+-- | @since 4.9.0.0
+deriving instance (Foldable f, Foldable g) => Foldable (f :.: g)
+
+-- | @since 4.9.0.0
+deriving instance (Traversable f, Traversable g) => Traversable (f :.: g)

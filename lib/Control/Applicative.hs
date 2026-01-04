@@ -13,10 +13,12 @@ import qualified Prelude()              -- do not import Prelude
 import Primitives
 import {-# SOURCE #-} Control.WrappedMonad
 import Data.Bool_Type
+import Data.Coerce
 import Data.Functor
 import Data.Function
 import Data.List_Type
 import Data.Maybe_Type
+import Data.Ord
 import Data.Functor.Const_Type
 import {-# SOURCE #-} Data.Typeable
 import {-# SOURCE #-} Data.ZipList
@@ -34,6 +36,14 @@ class Functor f => Applicative f where
   a1 *> a2     = (id <$ a1) <*> a2
   a1 <* a2     = const <$> a1 <*> a2
   liftA2 f a b = f <$> a <*> b
+
+instance Applicative ((->) a) where
+  pure = const
+  f <*> g = \ a -> f a (g a)
+
+instance Applicative Down where
+    pure = Down
+    (<*>) = coerce
 
 liftA :: forall f a b . Applicative f => (a -> b) -> f a -> f b
 liftA f a = f <$> a

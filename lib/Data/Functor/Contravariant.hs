@@ -126,7 +126,7 @@ infixl 4 >$, $<, >$<, >$$<
 
 deriving newtype instance Contravariant f => Contravariant (Alt f)
 deriving newtype instance Contravariant f => Contravariant (Rec1 f)
---deriving newtype instance Contravariant f => Contravariant (M1 i c f)
+deriving newtype instance Contravariant f => Contravariant (M1 i c f)
 
 instance Contravariant V1 where
   contramap :: (a' -> a) -> (V1 a -> V1 a')
