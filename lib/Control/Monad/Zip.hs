@@ -72,7 +72,6 @@ instance MonadZip Solo where
     mzipWith = liftM2
     munzip (MkSolo (a, b)) = (MkSolo a, MkSolo b)
 
-{-
 -- | @since 4.8.0.0
 instance MonadZip Dual where
     -- Cannot use coerce, it's unsafe
@@ -90,6 +89,7 @@ instance MonadZip Product where
 instance MonadZip Maybe where
     mzipWith = liftM2
 
+{-
 -- | @since 4.8.0.0
 instance MonadZip First where
     mzipWith = liftM2

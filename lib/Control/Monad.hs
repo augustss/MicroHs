@@ -199,23 +199,14 @@ instance Monad Down where
 instance Monad Dual where
   m >>= k = k (getDual m)
 
+instance Monad Sum where
+  m >>= k = k (getSum m)
+
+instance Monad Product where
+  m >>= k = k (getProduct m)
+
 instance Monad [] where
   (>>=) = flip concatMap
-
-{-
--- Same for Maybe
-instance Functor Maybe where
-  fmap _ Nothing = Nothing
-  fmap f (Just a) = Just (f a)
-
-instance Applicative Maybe where
-  pure a = Just a
-  (<*>) = ap
-
-instance Monad Maybe where
-  Nothing >>= _ = Nothing
-  Just a  >>= f = f a
--}
 
 class (Alternative m, Monad m) => MonadPlus m where
   mzero :: forall a . m a
