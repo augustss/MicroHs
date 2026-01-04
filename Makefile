@@ -114,7 +114,7 @@ $(MDIST)/Paths_MicroHs.hs:
 	@echo 'import Data.Version; import System.Directory'              >> $(MDIST)/Paths_MicroHs.hs
 	@echo 'version :: Version; version = makeVersion [$(HVERSION)]'   >> $(MDIST)/Paths_MicroHs.hs
 	@echo 'getDataDir :: IO FilePath'                                 >> $(MDIST)/Paths_MicroHs.hs
-	@echo 'getDataDir = (++ "/packages/mhs-$(VERSION)/data") `fmap` getHomeDirectory'  >> $(MDIST)/Paths_MicroHs.hs
+	@echo 'getDataDir = (++ "/.mcabal/mhs-$(VERSION)/packages/mhs-$(VERSION)/data") `fmap` getHomeDirectory'  >> $(MDIST)/Paths_MicroHs.hs
 
 ############################ bin/mhs ############################
 bin/mhs: $(RTS)/*.c $(RTS)/*.h $(RTS)/*/*.h #generated/mhs_inplace.c
