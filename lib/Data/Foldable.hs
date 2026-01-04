@@ -205,7 +205,6 @@ instance Foldable Proxy where
     sum _      = 0
     product _  = 1
 
-{-
 -- | @since 4.8.0.0
 instance Foldable Dual where
     foldMap            = coerce
@@ -278,71 +277,6 @@ instance (Foldable f) => Foldable (Alt f) where
 -- | @since 4.12.0.0
 instance (Foldable f) => Foldable (Ap f) where
     foldMap f = foldMap f . getAp
-
-instance Foldable (Arg a) where
-  foldMap f (Arg _ a) = f a
-
--- Instances for GHC.Generics
--- | @since 4.9.0.0
-instance Foldable U1 where
-    foldMap _ _ = mempty
-    {-# INLINE foldMap #-}
-    fold _ = mempty
-    {-# INLINE fold #-}
-    foldr _ z _ = z
-    {-# INLINE foldr #-}
-    foldl _ z _ = z
-    {-# INLINE foldl #-}
-    foldl1 _ _ = error "foldl1: U1"
-    foldr1 _ _ = error "foldr1: U1"
-    length _   = 0
-    null _     = True
-    elem _ _   = False
-    sum _      = 0
-    product _  = 1
-
--- | @since 4.9.0.0
-deriving instance Foldable V1
-
--- | @since 4.9.0.0
-deriving instance Foldable Par1
-
--- | @since 4.9.0.0
-deriving instance Foldable f => Foldable (Rec1 f)
-
--- | @since 4.9.0.0
-deriving instance Foldable (K1 i c)
-
--- | @since 4.9.0.0
-deriving instance Foldable f => Foldable (M1 i c f)
-
--- | @since 4.9.0.0
-deriving instance (Foldable f, Foldable g) => Foldable (f :+: g)
-
--- | @since 4.9.0.0
-deriving instance (Foldable f, Foldable g) => Foldable (f :*: g)
-
--- | @since 4.9.0.0
-deriving instance (Foldable f, Foldable g) => Foldable (f :.: g)
-
--- | @since 4.9.0.0
-deriving instance Foldable UAddr
-
--- | @since 4.9.0.0
-deriving instance Foldable UChar
-
--- | @since 4.9.0.0
-deriving instance Foldable UDouble
-
--- | @since 4.9.0.0
-deriving instance Foldable UFloat
-
--- | @since 4.9.0.0
-deriving instance Foldable UInt
-
--- | @since 4.9.0.0
-deriving instance Foldable UWord
--}
 
 -- Instances for Data.Ord
 -- | @since 4.12.0.0
