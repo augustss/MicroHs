@@ -7,7 +7,7 @@ all:    bin/mhs.exe bin/mhseval.exe
 bin/mhs.exe:	src/runtime/*.c  src/runtime/windows/* #generated/mhs.c
 	@-mkdir bin
 	@-mkdir build
-	cl -Fobuild\ -O2 -Isrc/runtime -Isrc/runtime/windows src/runtime/main.c src/runtime/eval.c generated/mhs.c -Febin/mhs.exe
+	cl -Fobuild\ -O2 -Isrc/runtime -Isrc/runtime/windows src/runtime/main.c src/runtime/eval.c generated/mhs_inplace.c -Febin/mhs.exe
 
 # Compile combinator evaluator
 bin/mhseval.exe:	src/runtime/*.c src/runtime/windows/* src/runtime/comb.c

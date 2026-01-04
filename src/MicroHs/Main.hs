@@ -450,8 +450,10 @@ findAllPackages flags = concat <$> mapM list (pkgPath flags)
   where list dir = do
           let pdir = dir </> packageDir
           ok <- doesDirectoryExist pdir
+          putStrLn $ "findAllPackages 1 " ++ show (pdir, ok)
           if ok then do
             files <- getDirectoryContents pdir
+            putStrLn $ "findAllPackages 2 " ++ show files
             let pkgs = [ b | f <- files, Just b <- [stripSuffix packageSuffix f] ]
             if null pkgs then
               return []
