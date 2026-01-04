@@ -321,7 +321,7 @@ instance (MonadPlus f, MonadPlus g) => MonadPlus (f :*: g)
 
 -- | @since base-4.9.0.0
 instance (MonadFix f, MonadFix g) => MonadFix (f :*: g) where
-    mfix f = (mfix (fstP . f)) :*: (mfix (sndP . f))
+    mfix f = mfix (fstP . f) :*: mfix (sndP . f)
       where
         fstP (a :*: _) = a
         sndP (_ :*: b) = b
