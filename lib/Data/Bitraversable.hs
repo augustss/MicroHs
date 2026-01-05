@@ -18,18 +18,20 @@ module Data.Bitraversable
   , bisequenceA
   , bisequence
   , bimapM
+  , firstA
+  , secondA
   , bifor
   , biforM
   , bimapAccumL
   , bimapAccumR
---  , bimapDefault
---  , bifoldMapDefault
+  , bimapDefault
+  , bifoldMapDefault
   ) where
 
 import Control.Applicative
 import Data.Bifunctor
 import Data.Bifoldable
--- Data.Coerce
+import Data.Coerce
 import Data.Functor.Identity(Identity(..))
 import Data.Foldable.Internal(StateL(..), runStateL, StateR(..), runStateR)
 import Data.Monoid.Internal(Arg(..))
@@ -46,6 +48,12 @@ bimapM = bitraverse
 
 bisequence :: (Bitraversable t, Applicative f) => t (f a) (f b) -> f (t a b)
 bisequence = bitraverse id id
+
+firstA :: Bitraversable t => Applicative f => (a -> f c) -> t a b -> f (t c b)
+firstA f = bitraverse f pure
+
+secondA :: Bitraversable t => Applicative f => (b -> f c) -> t a b -> f (t a c)
+secondA f = bitraverse pure f
 
 {-
 instance Bitraversable (,) where
@@ -96,7 +104,8 @@ bimapAccumR :: Bitraversable t => (a -> b -> (a, c)) -> (a -> d -> (a, e))
 bimapAccumR f g s t
   = runStateR (bitraverse (StateR . flip f) (StateR . flip g) t) s
 
-{-
+bimapDefault :: forall t a b c d . Bitraversable t
+             => (a -> b) -> (c -> d) -> t a c -> t b d
 bimapDefault = coerce
   (bitraverse :: (a -> Identity b)
               -> (c -> Identity d) -> t a c -> Identity (t b d))
@@ -106,4 +115,3 @@ bifoldMapDefault :: forall t m a b . (Bitraversable t, Monoid m)
 bifoldMapDefault = coerce
   (bitraverse :: (a -> Const m ())
               -> (b -> Const m ()) -> t a b -> Const m (t () ()))
--}
