@@ -509,9 +509,42 @@ Contributions are very welcome!
 When modifying the compiler, run `make newmhs` or `make newmhsz` (the latter compresses the binary)
 to generate a compiler that includes your changes.
 
-## Libraries
+## Third-party packages
 
-The libraries live in the `lib/` directory. Adding missing functions/instances/types from the report is a welcome contribution.
+Adding MicroHs support to a third-party package may take some initial effort, either by modifying the package itself, or by extending MicroHs.
+
+- For conditional compilation you can test for `__MHS__` via CPP.
+
+Once a package compiles with MicroHs, make sure it stays that way by adding a GitHub Action to the project repository:
+
+```yaml
+# file .github/workflows/mhs.yml
+
+name: MicroHs
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install MicroHs
+        uses: augustss/MicroHs@nightly
+
+      - name: Clone project repository
+        uses: actions/checkout@v4
+
+      - name: Build project
+        run: mcabal -r build
+```
+
+## Bundled libraries
+
+The bundled libraries live in the `lib/` directory. Adding missing functions/instances/types from the report is a welcome contribution.
 Common things from `base` and GHC boot libraries that use a lot of GHC-specific code (such as `array`, `bytestring`, `text`, ...) can also be added.
 
 ## Tests
@@ -597,6 +630,6 @@ gay@disroot.org
   * Q: Why are the error messages so bad?
   * A: Error messages are boring.
 *
-  * Q: Why is the so much source code?
+  * Q: Why is there so much source code?
   * A: I wonder this myself.  10000+ lines of Haskell seems excessive.
        6000+ lines of C is also more than I'd like for such a simple system.
