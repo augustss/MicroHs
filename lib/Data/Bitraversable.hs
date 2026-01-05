@@ -32,6 +32,7 @@ import Data.Bifoldable
 -- Data.Coerce
 import Data.Functor.Identity(Identity(..))
 import Data.Foldable.Internal(StateL(..), runStateL, StateR(..), runStateR)
+import Data.Monoid.Internal(Arg(..))
 
 class (Bifunctor t, Bifoldable t) => Bitraversable t where
   bitraverse :: Applicative f => (a -> f c) -> (b -> f d) -> t a b -> f (t c d)
@@ -73,6 +74,9 @@ instance Bitraversable Either where
 
 instance Bitraversable Const where
   bitraverse f _ (Const a) = Const <$> f a
+
+instance Bitraversable Arg where
+  bitraverse f g (Arg a b) = liftA2 Arg (f a) (g b)
 
 bifor :: (Bitraversable t, Applicative f)
       => t a b -> (a -> f c) -> (b -> f d) -> f (t c d)
