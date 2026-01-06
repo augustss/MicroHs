@@ -1,6 +1,7 @@
 -- This is a dummy module so deriving Generic can be spoofed.
 module GHC.Generics(
-  Generic, Generic1,
+  Generic(..), Rep,
+  Generic1(..), Rep1,
   V1, U1(..), Par1(..), Rec1(..), K1(..), M1(..),
   (:+:)(..), (:*:)(..), (:.:)(..),
   ) where
@@ -11,10 +12,20 @@ import Control.Monad.Fix
 import Data.Coerce(coerce)
 import Data.Traversable
 
-class Generic a
+class Generic a where
+  from :: a -> Rep a x
+  to :: Rep a x -> a
+
+type Rep :: Type -> Type -> Type
+data Rep a x
 
 type Generic1 :: forall (k :: Kind) . (k -> Type) -> Constraint
-class Generic1 f
+class Generic1 f where
+  from1 :: f a -> Rep1 f a
+  to1 :: Rep1 f a -> f a
+
+type Rep1 :: forall (k :: Kind) . (k -> Type) -> k -> Type
+data Rep1 f a
 
 --------------------------------------------------------------------------------
 -- Representation types
