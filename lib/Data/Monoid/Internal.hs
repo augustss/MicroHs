@@ -16,6 +16,7 @@ import Data.List.NonEmpty_Type
 import Data.Ord
 import Data.Maybe_Type
 import Data.Num
+import Data.Proxy
 import Data.Records
 import {-# SOURCE #-} Data.Typeable
 import Text.Show
@@ -27,6 +28,17 @@ class Semigroup a => Monoid a where
   mconcat :: [a] -> a
   mconcat [] = mempty
   mconcat (a:as) = a <> mconcat as
+
+---------------------
+
+instance Semigroup (Proxy s) where
+  _ <> _ = Proxy
+  sconcat _ = Proxy
+  stimes _ _ = Proxy
+
+instance Monoid (Proxy s) where
+  mempty = Proxy
+  mconcat _ = Proxy
 
 ---------------------
 
