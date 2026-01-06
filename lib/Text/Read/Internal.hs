@@ -57,6 +57,7 @@ import Data.Float
 import Data.Fractional
 import Data.Function
 import Data.Maybe
+import Data.Monoid
 import Data.Int
 import Data.Integer
 import Data.Integral
@@ -846,3 +847,11 @@ instance Read Int64 where
 
 deriving newtype instance Read IntPtr
 deriving newtype instance Read WordPtr
+
+--------------------------------------------------------------
+-- Data.Monoid instances of Read
+--------------------------------------------------------------
+
+deriving instance Read a => Read (First a)
+deriving instance Read a => Read (Last a)
+deriving instance Read (f a) => Read (Ap f a)

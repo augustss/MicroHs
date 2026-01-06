@@ -16,6 +16,7 @@ import Data.Traversable
 -- Imports for 'deriving instance'
 --import Data.Complex
 import Data.Int
+import Data.Monoid
 import Data.Ratio
 import Data.Tuple
 import Data.Word
@@ -452,3 +453,10 @@ deriving instance Generic ((,,,,,,,,,,,) a b c d e f g h i j k l)
 deriving instance Generic ((,,,,,,,,,,,,) a b c d e f g h i j k l m)
 deriving instance Generic ((,,,,,,,,,,,,,) a b c d e f g h i j k l m n)
 deriving instance Generic ((,,,,,,,,,,,,,,) a b c d e f g h i j k l m n o)
+
+deriving instance Generic (First a)
+deriving instance Generic (Last a)
+deriving instance Generic (Ap f a)
+deriving instance Generic1 First
+deriving instance Generic1 Last
+deriving instance Generic1 (Ap f)
