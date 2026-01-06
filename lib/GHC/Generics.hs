@@ -12,6 +12,15 @@ import Control.Monad.Fix
 import Data.Coerce(coerce)
 import Data.Traversable
 
+-----------------
+-- Imports for 'deriving instance'
+--import Data.Complex
+import Data.Int
+import Data.Ratio
+import Data.Tuple
+import Data.Word
+-----------------
+
 class Generic a where
   from :: a -> Rep a x
   to :: Rep a x -> a
@@ -400,11 +409,6 @@ deriving instance (Traversable f, Traversable g) => Traversable (f :.: g)
 
 -- deriving Data.Complex causes a cycle.
 -- Maybe break up this module to keep the Rep types in another module?
---import Data.Complex
-import Data.Int
-import Data.Ratio
-import Data.Tuple
-import Data.Word
 
 deriving instance Generic Bool
 deriving instance Generic Char
