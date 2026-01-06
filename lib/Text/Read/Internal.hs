@@ -773,6 +773,61 @@ instance (Read a, Read b, Read c, Read d, Read e, Read f, Read g, Read h,
   readListPrec = readListPrecDefault
   readList     = readListDefault
 
+-- | @since base-2.01
+instance (Read a, Read b, Read c, Read d, Read e, Read f, Read g, Read h,
+          Read i, Read j, Read k)
+        => Read (a, b, c, d, e, f, g, h, i, j, k) where
+  readPrec = wrap_tup (do { (a,b,c,d,e,f,g,h) <- read_tup8; read_comma
+                          ; (i,j) <- read_tup2; read_comma
+                          ; k <- readPrec
+                          ; return (a,b,c,d,e,f,g,h,i,j,k) })
+  readListPrec = readListPrecDefault
+  readList     = readListDefault
+
+-- | @since base-2.01
+instance (Read a, Read b, Read c, Read d, Read e, Read f, Read g, Read h,
+          Read i, Read j, Read k, Read l)
+        => Read (a, b, c, d, e, f, g, h, i, j, k, l) where
+  readPrec = wrap_tup (do { (a,b,c,d,e,f,g,h) <- read_tup8; read_comma
+                          ; (i,j,k,l) <- read_tup4
+                          ; return (a,b,c,d,e,f,g,h,i,j,k,l) })
+  readListPrec = readListPrecDefault
+  readList     = readListDefault
+
+-- | @since base-2.01
+instance (Read a, Read b, Read c, Read d, Read e, Read f, Read g, Read h,
+          Read i, Read j, Read k, Read l, Read m)
+        => Read (a, b, c, d, e, f, g, h, i, j, k, l, m) where
+  readPrec = wrap_tup (do { (a,b,c,d,e,f,g,h) <- read_tup8; read_comma
+                          ; (i,j,k,l) <- read_tup4; read_comma
+                          ; m <- readPrec
+                          ; return (a,b,c,d,e,f,g,h,i,j,k,l,m) })
+  readListPrec = readListPrecDefault
+  readList     = readListDefault
+
+-- | @since base-2.01
+instance (Read a, Read b, Read c, Read d, Read e, Read f, Read g, Read h,
+          Read i, Read j, Read k, Read l, Read m, Read n)
+        => Read (a, b, c, d, e, f, g, h, i, j, k, l, m, n) where
+  readPrec = wrap_tup (do { (a,b,c,d,e,f,g,h) <- read_tup8; read_comma
+                          ; (i,j,k,l) <- read_tup4; read_comma
+                          ; (m,n) <- read_tup2
+                          ; return (a,b,c,d,e,f,g,h,i,j,k,l,m,n) })
+  readListPrec = readListPrecDefault
+  readList     = readListDefault
+
+-- | @since base-2.01
+instance (Read a, Read b, Read c, Read d, Read e, Read f, Read g, Read h,
+          Read i, Read j, Read k, Read l, Read m, Read n, Read o)
+        => Read (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o) where
+  readPrec = wrap_tup (do { (a,b,c,d,e,f,g,h) <- read_tup8; read_comma
+                          ; (i,j,k,l) <- read_tup4; read_comma
+                          ; (m,n) <- read_tup2; read_comma
+                          ; o <- readPrec
+                          ; return (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) })
+  readListPrec = readListPrecDefault
+  readList     = readListDefault
+
 instance Read Int8 where
     readsPrec p s = [(fromIntegral (x::Int), r) | (x, r) <- readsPrec p s]
 
