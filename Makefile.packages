@@ -41,6 +41,9 @@ all:
 	$(MINST) random
 	$(MINST) --git=https://github.com/nick8325/quickcheck.git QuickCheck
 	$(MINST) quickcheck-io
+	$(MINST) hspec-core
+	$(MINST) hspec-discover
+	$(MINST) hspec
 	$(MINST) simple-affine-space
 	$(MINST) split
 	$(MINST) --git=http://github.com/ekmett/tagged.git tagged
