@@ -15,6 +15,8 @@ import Data.Traversable
 class Generic a where
   from :: a -> Rep a x
   to :: Rep a x -> a
+  from _ = errGeneric
+  to _ = errGeneric
 
 type Rep :: Type -> Type -> Type
 data Rep a x
@@ -23,9 +25,14 @@ type Generic1 :: forall (k :: Kind) . (k -> Type) -> Constraint
 class Generic1 f where
   from1 :: f a -> Rep1 f a
   to1 :: Rep1 f a -> f a
+  from1 _ = errGeneric
+  to1 _ = errGeneric
 
 type Rep1 :: forall (k :: Kind) . (k -> Type) -> k -> Type
 data Rep1 f a
+
+errGeneric :: a
+errGeneric = error "MicroHs does not implement Generic yet"
 
 --------------------------------------------------------------------------------
 -- Representation types
@@ -39,8 +46,8 @@ data V1 p
            , Read     -- ^ @since base-4.9.0.0
            , Show     -- ^ @since base-4.9.0.0
            , Functor  -- ^ @since base-4.9.0.0
---           , Generic  -- ^ @since base-4.9.0.0
---           , Generic1 -- ^ @since base-4.9.0.0
+           , Generic  -- ^ @since base-4.9.0.0
+           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.12.0.0
@@ -56,11 +63,9 @@ deriving instance Traversable V1
 -- | Unit: used for constructors without arguments
 type U1 :: forall (k :: Kind) . k -> Type
 data U1 p = U1
-{-
   deriving ( Generic  -- ^ @since base-4.7.0.0
            , Generic1 -- ^ @since base-4.9.0.0
            )
--}
 
 -- | @since base-4.9.0.0
 instance Eq (U1 p) where
@@ -135,8 +140,8 @@ newtype Par1 p = Par1 { unPar1 :: p }
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
---           , Generic  -- ^ @since base-4.7.0.0
---           , Generic1 -- ^ @since base-4.9.0.0
+           , Generic  -- ^ @since base-4.7.0.0
+           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.9.0.0
@@ -174,8 +179,8 @@ newtype Rec1 f p = Rec1 { unRec1 :: f p }
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
---           , Generic  -- ^ @since base-4.7.0.0
---           , Generic1 -- ^ @since base-4.9.0.0
+           , Generic  -- ^ @since base-4.7.0.0
+           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.9.0.0
@@ -215,8 +220,8 @@ newtype K1 i c p = K1 { unK1 :: c }
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
---           , Generic  -- ^ @since base-4.7.0.0
---           , Generic1 -- ^ @since base-4.9.0.0
+           , Generic  -- ^ @since base-4.7.0.0
+           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.12.0.0
@@ -275,8 +280,8 @@ newtype M1 i c f p =
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
---           , Generic  -- ^ @since base-4.7.0.0
---           , Generic1 -- ^ @since base-4.9.0.0
+           , Generic  -- ^ @since base-4.7.0.0
+           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | Sums: encode choice between constructors
@@ -288,8 +293,8 @@ data (:+:) f g p = L1 (f p) | R1 (g p)
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
---           , Generic  -- ^ @since base-4.7.0.0
---           , Generic1 -- ^ @since base-4.9.0.0
+           , Generic  -- ^ @since base-4.7.0.0
+           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since 4.9.0.0
@@ -307,8 +312,8 @@ data (:*:) f g p = f p :*: g p
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
---           , Generic  -- ^ @since base-4.7.0.0
---           , Generic1 -- ^ @since base-4.9.0.0
+           , Generic  -- ^ @since base-4.7.0.0
+           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.9.0.0
@@ -363,8 +368,8 @@ newtype (:.:) f g p =
            , Read     -- ^ @since base-4.7.0.0
            , Show     -- ^ @since base-4.7.0.0
            , Functor  -- ^ @since base-4.9.0.0
---           , Generic  -- ^ @since base-4.7.0.0
---           , Generic1 -- ^ @since base-4.9.0.0
+           , Generic  -- ^ @since base-4.7.0.0
+           , Generic1 -- ^ @since base-4.9.0.0
            )
 
 -- | @since base-4.9.0.0
@@ -390,3 +395,45 @@ deriving instance (Foldable f, Foldable g) => Foldable (f :.: g)
 
 -- | @since 4.9.0.0
 deriving instance (Traversable f, Traversable g) => Traversable (f :.: g)
+
+----------------------------------------------------------------------------
+
+-- deriving Data.Complex causes a cycle.
+-- Maybe break up this module to keep the Rep types in another module?
+--import Data.Complex
+import Data.Int
+import Data.Ratio
+import Data.Tuple
+import Data.Word
+
+deriving instance Generic Bool
+deriving instance Generic Char
+deriving instance Generic Int
+deriving instance Generic Int8
+deriving instance Generic Int16
+deriving instance Generic Int32
+deriving instance Generic Int64
+deriving instance Generic Integer
+deriving instance Generic Word
+deriving instance Generic Word8
+deriving instance Generic Word16
+deriving instance Generic Word32
+deriving instance Generic Word64
+
+--deriving instance Generic (Complex a)
+deriving instance Generic [a]
+deriving instance Generic (Maybe a)
+deriving instance Generic (Ratio a)
+
+deriving instance Generic (Either a b)
+
+--deriving instance Generic1 Complex
+deriving instance Generic1 []
+deriving instance Generic1 Maybe
+deriving instance Generic1 Ratio
+
+deriving instance Generic ()
+deriving instance Generic (Solo a)
+deriving instance Generic (a, b)
+deriving instance Generic (a, b, c)
+deriving instance Generic (a, b, c, d)

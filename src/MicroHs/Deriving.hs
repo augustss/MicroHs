@@ -13,7 +13,7 @@ import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.Names
 import MicroHs.TCMonad
-import Debug.Trace
+--import Debug.Trace
 
 -- Deriving runs when types level names are resolved, but not value level names.
 -- To get access to names that might not be in scope, the module Mhs.Builtin
@@ -61,8 +61,8 @@ derivers =
   ,("Data.Ord.Ord",                    derOrd)
   ,("Data.Traversable.Traversable",    derTraversable)
   ,("Data.Typeable.Typeable",          derTypeable)
-  ,("GHC.Generics.Generic",            derNotYet)
-  ,("GHC.Generics.Generic1",           derNotYet)
+  ,("GHC.Generics.Generic",            derGeneric)
+  ,("GHC.Generics.Generic1",           derGeneric1)
   ,("Language.Haskell.TH.Syntax.Lift", derLift)
   ,("Text.Read.Internal.Read",         derRead)
   ,("Text.Show.Show",                  derShow)
@@ -78,6 +78,7 @@ deriveNoHdr mctx narg lhs cs d = do
 getDeriver :: EConstraint -> Maybe Deriver
 getDeriver d = lookup (unIdent $ getAppCon d) derivers
 
+{-
 derNotYet :: Deriver
 derNotYet _ _ _ _ d = do
   notYet d
@@ -86,6 +87,7 @@ derNotYet _ _ _ _ d = do
 notYet :: EConstraint -> T ()
 notYet d =
   traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
+-}
 
 -- We will never have Template Haskell, but we pretend we can derive Lift for it.
 derLift :: Deriver
@@ -793,3 +795,21 @@ anyclassDer :: StandM -> Int -> LHS -> EConstraint -> T [EDef]
 anyclassDer mctx _ lhs cls = do
   hdr <- mkHdr mctx lhs [] cls
   return [Instance hdr [] []]
+
+--------------------------------------------
+
+derGeneric :: Deriver
+derGeneric mctx 0 lhs cs egeneric = do
+  hdr <- mkHdr mctx lhs cs egeneric
+  let
+    inst = Instance hdr [] []
+  return [inst]
+derGeneric _ _ lhs _ e = cannotDerive lhs e
+
+derGeneric1 :: Deriver
+derGeneric1 mctx 1 lhs cs egeneric1 = do
+  hdr <- mkHdr1 mctx lhs cs egeneric1
+  let
+    inst = Instance hdr [] []
+  return [inst]
+derGeneric1 _ _ lhs _ e = cannotDerive lhs e
