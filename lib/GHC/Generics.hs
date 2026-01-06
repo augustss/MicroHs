@@ -12,6 +12,8 @@ import Data.Coerce(coerce)
 import Data.Traversable
 
 class Generic a
+
+type Generic1 :: forall (k :: Kind) . (k -> Type) -> Constraint
 class Generic1 f
 
 --------------------------------------------------------------------------------
