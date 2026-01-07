@@ -124,80 +124,80 @@ instance Show a => Show (Solo a) where
   showsPrec p (MkSolo a) = showParen (p > 10) (showString "MkSolo " . showsPrec 11 a)
 
 instance (Show a, Show b) => Show (a, b) where
-  showsPrec _ (a,b) s = show_tuple [shows a, shows b] s
+  showsPrec _ (a,b) s = showTuple [shows a, shows b] s
 
 instance (Show a, Show b, Show c) => Show (a, b, c) where
-  showsPrec _ (a,b,c) s = show_tuple [shows a, shows b, shows c] s
+  showsPrec _ (a,b,c) s = showTuple [shows a, shows b, shows c] s
 
 instance (Show a, Show b, Show c, Show d) => Show (a, b, c, d) where
-  showsPrec _ (a,b,c,d) s = show_tuple [shows a, shows b, shows c, shows d] s
+  showsPrec _ (a,b,c,d) s = showTuple [shows a, shows b, shows c, shows d] s
 
 instance (Show a, Show b, Show c, Show d, Show e) => Show (a, b, c, d, e) where
-  showsPrec _ (a,b,c,d,e) s = show_tuple [shows a, shows b, shows c, shows d, shows e] s
+  showsPrec _ (a,b,c,d,e) s = showTuple [shows a, shows b, shows c, shows d, shows e] s
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f) => Show (a,b,c,d,e,f) where
-  showsPrec _ (a,b,c,d,e,f) s = show_tuple [shows a, shows b, shows c, shows d, shows e, shows f] s
+  showsPrec _ (a,b,c,d,e,f) s = showTuple [shows a, shows b, shows c, shows d, shows e, shows f] s
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g)
         => Show (a,b,c,d,e,f,g) where
   showsPrec _ (a,b,c,d,e,f,g) s
-        = show_tuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g] s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g] s
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h)
          => Show (a,b,c,d,e,f,g,h) where
   showsPrec _ (a,b,c,d,e,f,g,h) s
-        = show_tuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h] s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h] s
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i)
          => Show (a,b,c,d,e,f,g,h,i) where
   showsPrec _ (a,b,c,d,e,f,g,h,i) s
-        = show_tuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
                       shows i] s
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j)
          => Show (a,b,c,d,e,f,g,h,i,j) where
   showsPrec _ (a,b,c,d,e,f,g,h,i,j) s
-        = show_tuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
                       shows i, shows j] s
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k)
          => Show (a,b,c,d,e,f,g,h,i,j,k) where
   showsPrec _ (a,b,c,d,e,f,g,h,i,j,k) s
-        = show_tuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
                       shows i, shows j, shows k] s
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k,
           Show l)
          => Show (a,b,c,d,e,f,g,h,i,j,k,l) where
   showsPrec _ (a,b,c,d,e,f,g,h,i,j,k,l) s
-        = show_tuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
                       shows i, shows j, shows k, shows l] s
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k,
           Show l, Show m)
          => Show (a,b,c,d,e,f,g,h,i,j,k,l,m) where
   showsPrec _ (a,b,c,d,e,f,g,h,i,j,k,l,m) s
-        = show_tuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
                       shows i, shows j, shows k, shows l, shows m] s
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k,
           Show l, Show m, Show n)
          => Show (a,b,c,d,e,f,g,h,i,j,k,l,m,n) where
   showsPrec _ (a,b,c,d,e,f,g,h,i,j,k,l,m,n) s
-        = show_tuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
                       shows i, shows j, shows k, shows l, shows m, shows n] s
 
 instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k,
           Show l, Show m, Show n, Show o)
          => Show (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) where
   showsPrec _ (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) s
-        = show_tuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
                       shows i, shows j, shows k, shows l, shows m, shows n, shows o] s
 
-show_tuple :: [ShowS] -> ShowS
-show_tuple ss = showChar '('
-              . foldr1 (\s r -> s . showChar ',' . r) ss
-              . showChar ')'
+showTuple :: [ShowS] -> ShowS
+showTuple ss = showChar '('
+             . foldr1 (\s r -> s . showChar ',' . r) ss
+             . showChar ')'
   where
     -- redefine foldr1 to avoid import cycle
     foldr1 _ [x] = x
