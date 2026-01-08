@@ -72,7 +72,7 @@ newtype Op = (:::) () deriving (Read, Show)
 
 class MonadError e m
 
-data AA = AA Int deriving anyclass (MonadError e)
+data AA = AA Int | AA1 deriving anyclass (MonadError e)
 newtype AB = AB Int deriving (MonadError e)
 
 main :: IO ()
