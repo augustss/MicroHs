@@ -25,9 +25,9 @@ import MicroHs.TCMonad
 --   all other names should be qualified with B@
 
 deriveStrat :: StandM -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
-deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of arguments that need eta reducing
+deriveStrat mctx newt lhs cs strat (narg, acls) =  -- narg is the number of arguments that need eta reducing
 --  trace ("deriveStrat " ++ show (mctx, newt, lhs, cs, strat, narg, cls)) $
-  let c = cs!!0 in
+  let c = cs!!0; cls = dropForallContext acls in
   case strat of
     DerNone | newt && useNewt cls -> maybe (deriveNoHdr mctx narg lhs cs cls)
                                            (newtypeDer  mctx narg lhs  c cls)
@@ -69,9 +69,8 @@ derivers =
   ]
 
 deriveNoHdr :: StandM -> DeriverT
-deriveNoHdr mctx narg lhs cs ad = do
+deriveNoHdr mctx narg lhs cs d = do
   --traceM ("deriveNoHdr " ++ show (narg, lhs, d))
-  let d = dropForallContext ad
   case getDeriver d of
     Just f -> f mctx narg lhs cs d
     _      -> cannotDerive lhs d
