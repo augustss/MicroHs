@@ -69,8 +69,9 @@ derivers =
   ]
 
 deriveNoHdr :: StandM -> DeriverT
-deriveNoHdr mctx narg lhs cs d = do
+deriveNoHdr mctx narg lhs cs ad = do
   --traceM ("deriveNoHdr " ++ show (narg, lhs, d))
+  let d = dropForallContext ad
   case getDeriver d of
     Just f -> f mctx narg lhs cs d
     _      -> cannotDerive lhs d
