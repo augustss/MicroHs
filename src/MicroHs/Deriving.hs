@@ -220,7 +220,8 @@ mkHdr _ lhs@(_, iks) cs cls = do
   let ctys :: [EType]  -- All top level types used by the constructors.
       ctys = nubBy eqEType [ tt | Constr evs _ _ _ flds <- cs, tt <- getFieldTys flds,
                             not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
-  pure $ eForall iks $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
+      iks' = map (`IdKind` EVar dummyIdent) (freeTyVars [cls])  -- free type variables in the derived class
+  pure $ eForall (iks' ++ iks) $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
 
 -- instance header for Functor, Foldable, Traversable
 mkHdr1 :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
