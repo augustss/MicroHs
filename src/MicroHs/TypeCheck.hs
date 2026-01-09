@@ -1251,7 +1251,13 @@ addTypeKind kdefs adef = do
     Newtype lhs _ _ -> addDef lhs
     Type    lhs _   -> addDef lhs
     Class _ lhs _ _ -> addDef lhs
+    DataFam lhs _   -> addDef lhs           -- if there is a kind signature, it will be checked later
+    TypeFam lhs _   -> addDef lhs           -- ditto
+    TypeFamClsd{}   -> notImplFam adef
     _               -> return ()
+
+notImplFam :: EDef -> T a
+notImplFam def = tcError (getSLoc def) "type families not implemented"
 
 -- Add symbols associated with a type.
 addAssocs :: HasCallStack => EDef -> T ()
@@ -1302,6 +1308,11 @@ tcDefType def = do
 -- We cant't do this now, because the classTable has not been fully populated yet.
 -- Instead, we do it in the deriving stage.
 --    StandDeriving st _ ct  ->                                            tcStand st ct
+    DataFam lhs mk         -> tcFamDecl DataFam lhs mk
+    DataInst{}             -> notImplFam def
+    TypeFam lhs mk         -> tcFamDecl TypeFam lhs mk
+    TypeInst{}             -> notImplFam def
+    TypeFamClsd{}          -> notImplFam def
     _                      -> return def
  where
    cm = flip (,)
@@ -1314,6 +1325,9 @@ tcDefType def = do
    tcDefault c t = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
+
+   tcFamDecl con lhs mk = withLHS lhs $ \ lhs' ->
+     do k <- maybe (return kType) (tcKind (Check sKind)) mk; return (con lhs' (Just k), k)
 
 -- A standalone deriving has a regular instance head.
 -- If it has a via clause, the via type has to have the same kind

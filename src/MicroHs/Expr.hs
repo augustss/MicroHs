@@ -572,13 +572,25 @@ instance HasLoc Ident where
   getSLoc = slocIdent
 
 instance HasLoc EDef where
+  getSLoc (Data l _ _) = getSLoc l
+  getSLoc (Newtype l _ _) = getSLoc l
+  getSLoc (Type l _) = getSLoc l
   getSLoc (Fcn i _) = getSLoc i
   getSLoc (PatBind p _) = getSLoc p
   getSLoc (Sign i _) = getSLoc i
+  getSLoc (KindSign i _) = getSLoc i
   getSLoc (DfltSign i _) = getSLoc i
+  getSLoc (Class _ l _ _) = getSLoc l
   getSLoc (Infix _ is) = getSLoc is
+  getSLoc (Default _ ts) = getSLoc ts
   getSLoc (Instance t _ _) = getSLoc t
   getSLoc (StandDeriving _ _ t) = getSLoc t
+  getSLoc (DataFam l _) = getSLoc l
+  getSLoc (DataInst t _ _) = getSLoc t
+  getSLoc (NewtypeInst t _ _) = getSLoc t
+  getSLoc (TypeFam l _) = getSLoc l
+  getSLoc (TypeInst t _) = getSLoc t
+  getSLoc (TypeFamClsd l _ _) = getSLoc l
   getSLoc _ = error "HasLoc EDef: unimplemented"
 
 -- Approximate location; only identifiers and literals carry a location
@@ -912,14 +924,15 @@ ppEDef def =
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
     StandDeriving _s _narg ct -> text "deriving instance" <+> ppEType ct
     DfltSign i t -> text "default" <+> ppIdent i <+> text "::" <+> ppEType t
-    DataFam lhs mk -> text "data family" <+> ppLHS lhs <*> maybe empty (\ k -> text " ::" <+> ppEKind k) mk
-    DataInst t cs ds -> text "data instance" <+> ppEType t <*> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDerivings ds
-    NewtypeInst t c ds -> undefined
+    DataFam lhs mk -> text "data family" <+> ppLHS lhs <+> maybe empty (\ k -> text " ::" <+> ppEKind k) mk
+    DataInst t cs ds -> dataInst "data" t cs ds
+    NewtypeInst t c ds -> dataInst "newtype" t [c] ds
     TypeFam lhs mk -> text "type family" <+> ppLHS lhs <+> maybe empty (\ k -> text " ::" <+> ppEKind k) mk
     TypeInst t1 t2 -> text "type instance" <+> ppEType t1 <+> text "=" <+> ppEType t2
     TypeFamClsd lhs mk eqns -> text "type family" <+> ppLHS lhs <+> maybe empty (\ k -> text " ::" <+> ppEKind k) mk
-      <+> text "where" <+> nest 2 (vcat (map (\ (t1,t2) -> ppEType t1 <+> text "=" <+> ppEType t2) qns))
+      <+> text "where" <+> nest 2 (vcat (map (\ (t1,t2) -> ppEType t1 <+> text "=" <+> ppEType t2) eqns))
     SetTCState _ -> text "SetTCState ..."
+  where dataInst s t cs ds = text s <+> text "instance" <+> ppEType t <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDerivings ds
 
 ppDerivings :: [Deriving] -> Doc
 ppDerivings = sep . map ppDeriving
