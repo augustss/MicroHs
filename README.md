@@ -101,7 +101,7 @@ Differences:
    * PolymorphicComponents
    * RankNTypes
    * RecordWildCards
-   * RecursiveDo (just `rec`, not `mdo`)
+   * RecursiveDo (without optimal `mdo` desugaring)
    * RequiredTypeArguments
    * QualifiedDo
    * ScopedTypeVariables

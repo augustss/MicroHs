@@ -787,10 +787,7 @@ pDo = do
   if rec then
     case last ss of
       SThen e ->
-        let l = E.getSLoc e
-            x = EVar $ mkIdentSLoc l "$mdo"
-            pur = EVar (mkIdentSLoc l "B@.return")
-        in  pure $ EDo q [SRec (init ss ++ [SBind x e]), SThen (EApp pur x)]
+        pure $ EDo q [SRec (init ss), SThen e]
       _ -> fail "mdo"
    else
     pure (EDo q ss)
