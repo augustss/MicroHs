@@ -29,14 +29,14 @@ deriveStrat mctx newt lhs cs strat (narg, acls) =  -- narg is the number of argu
 --  trace ("deriveStrat " ++ show (mctx, newt, lhs, cs, strat, narg, cls)) $
   let c = cs!!0; cls = dropForallContext acls in
   case strat of
-    DerNone | newt && useNewt cls -> maybe (deriveNoHdr mctx narg lhs cs cls)
-                                           (newtypeDer  mctx narg lhs  c cls)
+    DerNone | newt && useNewt cls -> maybe (deriveNoHdr mctx narg lhs cs  cls)
+                                           (newtypeDer  mctx narg lhs  c acls)
                                            (getViaM narg lhs c)
-            | otherwise           -> deriveNoHdr mctx narg lhs cs cls
-    DerStock                      -> deriveNoHdr mctx narg lhs cs cls
-    DerNewtype | newt             -> newtypeDer  mctx narg lhs  c cls =<< getVia narg lhs c
-    DerAnyClass                   -> anyclassDer mctx narg lhs    cls
-    DerVia via | newt             -> newtypeDer  mctx narg lhs  c cls via
+            | otherwise           -> deriveNoHdr mctx narg lhs cs  cls
+    DerStock                      -> deriveNoHdr mctx narg lhs cs  cls
+    DerNewtype | newt             -> newtypeDer  mctx narg lhs  c acls =<< getVia narg lhs c
+    DerAnyClass                   -> anyclassDer mctx narg lhs     cls
+    DerVia via | newt             -> newtypeDer  mctx narg lhs  c acls via
     _                             -> cannotDerive lhs cls
   where useNewt d = unIdent (getAppCon d) `notElem`
           ["Data.Data_Class.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic", "GHC.Generics.Generic1",
@@ -220,6 +220,7 @@ mkHdr _ lhs@(_, iks) cs cls = do
       ctys = nubBy eqEType [ tt | Constr evs _ _ _ flds <- cs, tt <- getFieldTys flds,
                             not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
       iks' = map (`IdKind` EVar dummyIdent) (freeTyVars [cls])  -- free type variables in the derived class
+--  traceM $ "mkHdr: " ++ show (cls, iks')
   pure $ eForall (iks' ++ iks) $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
 
 -- instance header for Functor, Foldable, Traversable
@@ -740,7 +741,7 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
       Just (h, _) -> pure h
       Nothing -> do
         newtyr <- mkLhsTy narg lhs                    -- the newtype, eta reduced
---        traceM $ "newtypeDer newty=" ++ show newtyr
+--        traceM $ "newtypeDer newty=" ++ show (newtyr, acls, clsIks)
         let
           ctxOld = tApp cls viaty
           ctx = filter (not . null . freeTyVars . (:[])) [ctxOld]
