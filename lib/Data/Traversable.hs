@@ -44,10 +44,10 @@ import Data.List_Type
 import qualified Data.List as List
 import Data.Maybe
 import Data.Monoid.Internal
+import Data.Ord (Down(..))
 import Data.Proxy
+import Data.Tuple (Solo(..))
 import {-# SOURCE #-} Data.Typeable
---import Data.Ord ( Down(..) )
---import Data.Proxy ( Proxy(..) )
 
 class (Functor t, Foldable t) => Traversable (t :: Type -> Type) where
 
@@ -78,23 +78,11 @@ instance Traversable (Either a) where
 instance Traversable Identity where
   traverse f (Identity a) = Identity <$> f a
 
-instance Traversable Proxy where
-  traverse _ _ = pure Proxy
-
 instance Traversable (Const m) where
   traverse _ (Const m) = pure $ Const m
 
-{-
 -- | @since 4.15
 deriving instance Traversable Solo
-
--- | @since 4.7.0.0
-instance Traversable ((,) a) where
-    traverse f (x, y) = (,) x <$> f y
-
--- | @since 2.01
-instance Ix i => Traversable (Array i) where
-    traverse f arr = listArray (bounds arr) `fmap` traverse f (elems arr)
 
 -- | @since 4.7.0.0
 instance Traversable Proxy where
@@ -107,6 +95,7 @@ instance Traversable Proxy where
     sequence _ = pure Proxy
     {-# INLINE sequence #-}
 
+{-
 -- | @since 4.7.0.0
 instance Traversable (Const m) where
     traverse _ (Const m) = pure $ Const m
@@ -199,11 +188,12 @@ deriving instance Traversable UInt
 
 -- | @since 4.9.0.0
 deriving instance Traversable UWord
+-}
 
 -- Instance for Data.Ord
 -- | @since 4.12.0.0
 deriving instance Traversable Down
--}
+
 -- general functions
 
 -- | 'for' is 'traverse' with its arguments flipped. For a version

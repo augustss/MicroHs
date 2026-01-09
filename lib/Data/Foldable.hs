@@ -47,6 +47,7 @@ import Control.Applicative(Applicative(..), Alternative(..))
 import Control.Error
 import Control.Monad(Monad(..), MonadPlus(..))
 import Data.Bool
+import Data.Coerce
 import Data.Either
 import Data.Eq
 import Data.Foldable.Internal
@@ -61,6 +62,7 @@ import Data.Monoid.Internal hiding (Max(..), Min(..))
 import Data.Num
 import Data.Ord
 import Data.Proxy
+import Data.Tuple (Solo(..))
 import {-# SOURCE #-} Data.Typeable
 
 infix  4 `elem`, `notElem`
@@ -176,38 +178,14 @@ instance Foldable (Either a) where
 
     null             = isLeft
 
-instance Foldable Proxy where
-  foldMap _ _ = mempty
-
 instance Foldable Identity where
   foldMap f (Identity a) = f a
 
 instance Foldable (Const m) where
   foldMap _ _ = mempty
 
-{-
 -- | @since 4.15
 deriving instance Foldable Solo
-
--- | @since 4.7.0.0
-instance Foldable ((,) a) where
-    foldMap f (_, y) = f y
-
-    foldr f z (_, y) = f y z
-    length _  = 1
-    null _ = False
-
--- | @since 4.8.0.0
-instance Foldable (Array i) where
-    foldr = foldrElems
-    foldl = foldlElems
-    foldl' = foldlElems'
-    foldr' = foldrElems'
-    foldl1 = foldl1Elems
-    foldr1 = foldr1Elems
-    toList = elems
-    length = numElements
-    null a = numElements a == 0
 
 -- | @since 4.7.0.0
 instance Foldable Proxy where
@@ -300,74 +278,9 @@ instance (Foldable f) => Foldable (Alt f) where
 instance (Foldable f) => Foldable (Ap f) where
     foldMap f = foldMap f . getAp
 
-instance Foldable (Arg a) where
-  foldMap f (Arg _ a) = f a
-
--- Instances for GHC.Generics
--- | @since 4.9.0.0
-instance Foldable U1 where
-    foldMap _ _ = mempty
-    {-# INLINE foldMap #-}
-    fold _ = mempty
-    {-# INLINE fold #-}
-    foldr _ z _ = z
-    {-# INLINE foldr #-}
-    foldl _ z _ = z
-    {-# INLINE foldl #-}
-    foldl1 _ _ = error "foldl1: U1"
-    foldr1 _ _ = error "foldr1: U1"
-    length _   = 0
-    null _     = True
-    elem _ _   = False
-    sum _      = 0
-    product _  = 1
-
--- | @since 4.9.0.0
-deriving instance Foldable V1
-
--- | @since 4.9.0.0
-deriving instance Foldable Par1
-
--- | @since 4.9.0.0
-deriving instance Foldable f => Foldable (Rec1 f)
-
--- | @since 4.9.0.0
-deriving instance Foldable (K1 i c)
-
--- | @since 4.9.0.0
-deriving instance Foldable f => Foldable (M1 i c f)
-
--- | @since 4.9.0.0
-deriving instance (Foldable f, Foldable g) => Foldable (f :+: g)
-
--- | @since 4.9.0.0
-deriving instance (Foldable f, Foldable g) => Foldable (f :*: g)
-
--- | @since 4.9.0.0
-deriving instance (Foldable f, Foldable g) => Foldable (f :.: g)
-
--- | @since 4.9.0.0
-deriving instance Foldable UAddr
-
--- | @since 4.9.0.0
-deriving instance Foldable UChar
-
--- | @since 4.9.0.0
-deriving instance Foldable UDouble
-
--- | @since 4.9.0.0
-deriving instance Foldable UFloat
-
--- | @since 4.9.0.0
-deriving instance Foldable UInt
-
--- | @since 4.9.0.0
-deriving instance Foldable UWord
-
 -- Instances for Data.Ord
 -- | @since 4.12.0.0
 deriving instance Foldable Down
--}
 
 foldrM :: forall (t :: Type -> Type) (m :: Type -> Type) a b . (Foldable t, Monad m) => (a -> b -> m b) -> b -> t a -> m b
 foldrM f z0 xs = foldl c return xs z0

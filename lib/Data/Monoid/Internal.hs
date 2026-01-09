@@ -16,6 +16,7 @@ import Data.List.NonEmpty_Type
 import Data.Ord
 import Data.Maybe_Type
 import Data.Num
+import Data.Proxy
 import Data.Records
 import {-# SOURCE #-} Data.Typeable
 import Text.Show
@@ -30,6 +31,17 @@ class Semigroup a => Monoid a where
 
 ---------------------
 
+instance Semigroup (Proxy s) where
+  _ <> _ = Proxy
+  sconcat _ = Proxy
+  stimes _ _ = Proxy
+
+instance Monoid (Proxy s) where
+  mempty = Proxy
+  mconcat _ = Proxy
+
+---------------------
+
 instance (Monoid b) => Monoid (a -> b) where
   mempty _ = mempty
 
@@ -40,10 +52,10 @@ instance (Semigroup b) => Semigroup (a -> b) where
 
 newtype Endo a = Endo { appEndo :: a -> a }
 
-instance forall a . Semigroup (Endo a) where
+instance Semigroup (Endo a) where
   Endo f <> Endo g = Endo (f . g)
 
-instance forall a . Monoid (Endo a) where
+instance Monoid (Endo a) where
   mempty = Endo id
 
 ---------------------
@@ -51,64 +63,92 @@ instance forall a . Monoid (Endo a) where
 newtype Dual a = Dual { getDual :: a }
   deriving (Bounded, Eq, Ord, Show)
 
-instance forall a . Semigroup a => Semigroup (Dual a) where
+instance Semigroup a => Semigroup (Dual a) where
   Dual a <> Dual b = Dual (b <> a)
 
-instance forall a . Monoid a => Monoid (Dual a) where
+instance Monoid a => Monoid (Dual a) where
   mempty = Dual mempty
 
 instance Functor Dual where
-  fmap f (Dual a) = Dual (f a)
+  fmap = coerce
 
 instance Applicative Dual where
   pure = Dual
-  Dual f <*> Dual b = Dual (f b)
+  (<*>) = coerce
 
 ---------------------
 
 newtype Max a = Max { getMax :: a }
   deriving (Bounded, Eq, Ord, Show)
 
-instance forall a . Ord a => Semigroup (Max a) where
+instance Ord a => Semigroup (Max a) where
   Max a <> Max b = Max (a `max` b)
   stimes = stimesIdempotent
 
-instance forall a . (Ord a, Bounded a) => Monoid (Max a) where
+instance (Ord a, Bounded a) => Monoid (Max a) where
   mempty = Max minBound
+
+instance Functor Max where
+  fmap = coerce
+
+instance Applicative Max where
+  pure = Max
+  (<*>) = coerce
 
 ---------------------
 
 newtype Min a = Min { getMin :: a }
   deriving (Bounded, Eq, Ord, Show)
 
-instance forall a . Ord a => Semigroup (Min a) where
+instance Ord a => Semigroup (Min a) where
   Min a <> Min b = Min (a `min` b)
   stimes = stimesIdempotent
 
-instance forall a . (Ord a, Bounded a) => Monoid (Min a) where
+instance (Ord a, Bounded a) => Monoid (Min a) where
   mempty = Min maxBound
+
+instance Functor Min where
+  fmap = coerce
+
+instance Applicative Min where
+  pure = Min
+  (<*>) = coerce
 
 ---------------------
 
 newtype Sum a = Sum { getSum :: a }
   deriving (Bounded, Eq, Ord, Show, Num)
 
-instance forall a . Num a => Semigroup (Sum a) where
+instance Num a => Semigroup (Sum a) where
   Sum a <> Sum b = Sum (a + b)
 
-instance forall a . (Num a) => Monoid (Sum a) where
+instance (Num a) => Monoid (Sum a) where
   mempty = Sum 0
+
+instance Functor Sum where
+  fmap = coerce
+
+instance Applicative Sum where
+  pure = Sum
+  (<*>) = coerce
 
 ---------------------
 
 newtype Product a = Product { getProduct :: a }
   deriving (Bounded, Eq, Ord, Show, Num)
 
-instance forall a . Num a => Semigroup (Product a) where
+instance Num a => Semigroup (Product a) where
   Product a <> Product b = Product (a * b)
 
-instance forall a . (Num a) => Monoid (Product a) where
+instance (Num a) => Monoid (Product a) where
   mempty = Product 1
+
+instance Functor Product where
+  fmap = coerce
+
+instance Applicative Product where
+  pure = Product
+  (<*>) = coerce
 
 ---------------------
 

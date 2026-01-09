@@ -463,7 +463,7 @@ mainListPackages :: Flags -> IO ()
 mainListPackages flags = mapM_ one =<< findAllPackages flags
   where one (pdir, pkgs) = do
           putStrLn $ pdir ++ ":"
-          mapM_ (\ p -> putStrLn $ "  " ++ p) pkgs
+          mapM_ (\ p -> putStrLn $ "  " ++ p) (sort pkgs)
 
 -- Convert something like
 --   .../.mcabal/mhs-0.10.3.0/packages/base-0.10.3.0.pkg

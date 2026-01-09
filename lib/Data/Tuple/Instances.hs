@@ -5,9 +5,6 @@ import Data.Tuple
 
 -- Dubious instances for tuples
 
-instance Functor Solo where
-  fmap f (MkSolo a) = MkSolo (f a)
-
 instance Functor ((,) a1) where
   fmap f (a1, a) = (a1, f a)
 
@@ -47,21 +44,12 @@ instance (Monoid a1, Monoid a2) => Monad ((,,) a1 a2) where
 instance (Monoid a1, Monoid a2, Monoid a3) => Monad ((,,,) a1 a2 a3) where
   (a1, a2, a3, a) >>= k = case k a of (a1', a2', a3', b) -> (a1 <> a1', a2 <> a2', a3 <> a3', b)
 
-instance Foldable Solo where
-  foldMap f (MkSolo a) = f a
-  foldr f z (MkSolo a) = f a z
-  length _ = 1
-  null _ = False
-
 instance Foldable ((,) a) where
   foldMap f (_, y) = f y
   foldr f z (_, y) = f y z
   length _  = 1
   null _ = False
 
-instance Traversable Solo where
-  traverse f (MkSolo a) = MkSolo <$> f a
-
 instance Traversable ((,) a) where
   traverse f (x, y) = (,) x <$> f y
-    
+

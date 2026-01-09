@@ -139,6 +139,19 @@ newtype II = II Int
 
 -------
 
+class Contravariant f where
+  contramap :: (a' -> a) -> (f a -> f a')
+
+newtype Predicate a = Predicate { getPredicate :: a -> Bool }
+  deriving (Contravariant) via Op Bool
+
+newtype Op a b = Op { getOp :: b -> a }
+
+instance Contravariant (Op a) where
+  contramap f g = Op (getOp g . f)
+
+-------
+
 main :: IO ()
 main = do
   print $ B True == B True
@@ -167,5 +180,11 @@ main = do
   print $ mc (I 1)
 
   print $ mm (II 99) ()
+
+  let pos :: Predicate Int
+      pos = Predicate (>0)
+      neg :: Predicate Int
+      neg = contramap negate pos
+  print $ getPredicate neg (-5)
 
   putStrLn "done"

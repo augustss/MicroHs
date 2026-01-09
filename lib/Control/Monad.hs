@@ -47,11 +47,11 @@ import Data.Functor hiding(unzip)
 import Data.List
 import Data.Monoid.Internal
 import Data.Ord
---import Data.Maybe
+import Data.Tuple (Solo(..))
 import {-# SOURCE #-} Data.Typeable
 
-infixl 1 >>, >>=, =<<
-infixr 1 <=<, >=>
+infixl 1 >>, >>=
+infixr 1 =<<, <=<, >=>
 
 class (Applicative m) => Monad m where
   (>>=)  :: forall a b . m a -> (a -> m b) -> m b
@@ -187,36 +187,26 @@ ap f a = do
 
 -----
 
-instance Functor ((->) a) where
-  fmap = (.)
-
-instance Applicative ((->) a) where
-  pure = const
-  f <*> g = \ a -> f a (g a)
-
 instance Monad ((->) a) where
   x >>= y = \ z -> y (x z) z
+
+instance Monad Solo where
+  MkSolo x >>= f = f x
+
+instance Monad Down where
+  Down a >>= k = k a
 
 instance Monad Dual where
   m >>= k = k (getDual m)
 
+instance Monad Sum where
+  m >>= k = k (getSum m)
+
+instance Monad Product where
+  m >>= k = k (getProduct m)
+
 instance Monad [] where
   (>>=) = flip concatMap
-
-{-
--- Same for Maybe
-instance Functor Maybe where
-  fmap _ Nothing = Nothing
-  fmap f (Just a) = Just (f a)
-
-instance Applicative Maybe where
-  pure a = Just a
-  (<*>) = ap
-
-instance Monad Maybe where
-  Nothing >>= _ = Nothing
-  Just a  >>= f = f a
--}
 
 class (Alternative m, Monad m) => MonadPlus m where
   mzero :: forall a . m a

@@ -177,3 +177,9 @@ instance Enum a => Enum (WrappedMonoid a) where
   enumFromTo (WrapMonoid a) (WrapMonoid b) = WrapMonoid `fmap` enumFromTo a b
   enumFromThenTo (WrapMonoid a) (WrapMonoid b) (WrapMonoid c) =
       WrapMonoid `fmap` enumFromThenTo a b c
+
+instance Foldable (Arg a) where
+  foldMap f (Arg _ a) = f a
+
+instance Traversable (Arg a) where
+  traverse f (Arg x a) = Arg x `fmap` f a

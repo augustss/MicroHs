@@ -10,15 +10,31 @@ module Data.Complex (
   conjugate,
 ) where
 
+import Control.Monad.Fix
+import Control.Monad.Zip
+import Data.Data
 import Data.Typeable
+import Foreign.Ptr
+import Foreign.Storable
 import Text.ParserCombinators.ReadPrec
 import Text.Read.Internal
 import qualified Text.Read.Lex as L
 
 infix 6 :+
 
-data Complex a = !a :+ !a
-  deriving (Typeable, Eq, Read, Show)
+data Complex a
+  = !a :+ !a    -- ^ forms a complex number from its real and imaginary
+                -- rectangular components.
+        deriving ( Eq
+                 , Show
+                 , Read
+                 , Data
+--                 , Generic
+--                 , Generic1
+                 , Functor
+                 , Foldable
+                 , Traversable
+                 )
 
 realPart :: forall a . Complex a -> a
 realPart (x :+ _) =  x
@@ -139,3 +155,30 @@ instance (RealFloat a) => Floating (Complex a) where
       , v <- sin (b/2)
       , w <- -(2*v*v) = (u*w + u + w) :+ (u+1)*sin b
       | otherwise = exp x - 1
+
+instance Storable a => Storable (Complex a) where
+    sizeOf a       = 2 * sizeOf (realPart a)
+    alignment a    = alignment (realPart a)
+    peek p           = do
+                        let q = castPtr p
+                        r <- peek q
+                        i <- peekElemOff q 1
+                        return (r :+ i)
+    poke p (r :+ i)  = do
+                        let q = castPtr p
+                        poke q r
+                        pokeElemOff q 1 i
+
+instance Applicative Complex where
+  pure a = a :+ a
+  (f :+ g) <*> (a :+ b) = f a :+ g b
+  liftA2 f (x :+ y) (a :+ b) = f x a :+ f y b
+
+instance Monad Complex where
+  (a :+ b) >>= f = realPart (f a) :+ imagPart (f b)
+
+instance MonadZip Complex where
+  mzipWith = liftA2
+
+instance MonadFix Complex where
+  mfix f = (let a :+ _ = f a in a) :+ (let _ :+ b = f b in b)

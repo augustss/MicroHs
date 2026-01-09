@@ -10,7 +10,7 @@ import Data.Maybe
 import Data.List
 import Data.Text(Text, append, pack)
 import GHC.Stack
-import GHC.Types
+import Data.Kind
 import System.Environment
 import System.IO
 

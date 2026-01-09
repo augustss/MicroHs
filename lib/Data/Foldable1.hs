@@ -53,7 +53,7 @@ import qualified Data.Functor.Product as Functor
 import qualified Data.Functor.Sum     as Functor
 
 -- coerce
---import GHC.Internal.Data.Coerce (Coercible, coerce)
+import Data.Coerce (coerce)
 
 -- $setup
 -- >>> import Prelude hiding (foldr1, foldl1, head, last, minimum, maximum)
@@ -433,7 +433,6 @@ instance Foldable1 NonEmpty where
     head = NE.head
     last = NE.last
 
-{-
 -- | @since 4.18.0.0
 instance Foldable1 Down where
     foldMap1 = coerce
@@ -459,6 +458,7 @@ instance Foldable1 Solo where
     head (MkSolo x) = x
     last (MkSolo x) = x
 
+{-
 -- | @since 4.18.0.0
 instance Foldable1 ((,) a) where
     foldMap1 f (_, y) = f y
@@ -473,7 +473,6 @@ instance Foldable1 ((,) a) where
 -- Monoid / Semigroup instances
 -------------------------------------------------------------------------------
 
-{-
 -- | @since 4.18.0.0
 instance Foldable1 Dual where
     foldMap1 = coerce
@@ -486,6 +485,7 @@ instance Foldable1 Sum where
 instance Foldable1 Product where
     foldMap1 = coerce
 
+{-
 -- | @since 4.18.0.0
 instance Foldable1 Min where
     foldMap1 = coerce
@@ -513,7 +513,6 @@ deriving instance (Foldable1 f) => Foldable1 (Mon.Ap f)
 -- Extra instances
 -------------------------------------------------------------------------------
 
-{-
 -- | @since 4.18.0.0
 instance Foldable1 Identity where
     foldMap1      = coerce
@@ -529,7 +528,6 @@ instance Foldable1 Identity where
     head    = coerce
     minimum = coerce
     maximum = coerce
--}
 
 -- | It would be enough for either half of a product to be 'Foldable1'.
 -- Other could be 'Foldable'.

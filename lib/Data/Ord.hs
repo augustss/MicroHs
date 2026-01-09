@@ -84,14 +84,3 @@ instance Bounded a => Bounded (Down a) where
 
 instance Functor Down where
     fmap f (Down a) = Down (f a)
-
-{-
--- | @since 4.11.0.0
-instance Applicative Down where
-    pure = Down
-    (<*>) = coerce
-
--- | @since 4.11.0.0
-instance Monad Down where
-    Down a >>= k = k a
--}

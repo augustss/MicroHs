@@ -12,7 +12,7 @@
  * `System.Mem.Weak`
  * `Foreign.StablePtr`
  * `out.comb` can be generated compressed and base64 encoded
- * Improved `Data.ByteString
+ * Improved `Data.ByteString`
  * FFI wrapper for `eval.c`
  * New `BFILE` stuff: file descriptor, buffering, base64 coding
  * `Double` and `Float` are now different types
@@ -20,7 +20,7 @@
  * Instruction counts on supported platforms (MacOS&M4, Linux&x86_64)
  * Proper `array` package
  * Unboxed tuple and sum syntax accepted (but no unboxing)
- * Deriving Data, Foldable, Functor, Ix, Read, Traversable
+ * Deriving `Data`, `Foldable`, `Functor`, `Ix`, `Read`, `Traversable`
 
 ## Performance
  * Evaluation in the interactive system is much faster
@@ -36,7 +36,7 @@
 ## Packages
  * Many more packages compile, e.g., QuickCheck, filepath
  * See https://docs.google.com/spreadsheets/d/1e0dbUg5uuFKNwgMpwtBnYRldPCYYyBqYfsbyhEjf5bU/edit?usp=sharing
- * Use `make Makefile.packages` to install some of them
+ * Use `make -f Makefile.packages` to install some of them
 
 ## Contributors
  * Ben Clifford <benc@hawaga.org.uk>

@@ -82,7 +82,8 @@ size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
 size_t lz77c(uint8_t *src, size_t srclen, uint8_t **bufp);
 #endif
 
-#if defined(__GNUC__) && __GNUC__ >= 14 && defined(__aarch64__)
+/* The register optimization is disabled for now since it breaks on some platforms. */
+#if 0 && defined(__GNUC__) && __GNUC__ >= 14 && defined(__aarch64__)
 #define REGISTER(dcl, reg) register dcl asm(#reg)
 #else
 #define REGISTER(dcl, reg) dcl
@@ -420,7 +421,7 @@ islinux(void)
 #endif
 
 #if !defined(STACK_SIZE)
-#define STACK_SIZE 200000
+#define STACK_SIZE 250000
 #endif
 
 /* tcc doesn't understand noreturn attribute */

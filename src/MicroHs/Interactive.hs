@@ -1,5 +1,6 @@
 module MicroHs.Interactive(mainInteractive) where
 import qualified Prelude(); import MHSPrelude
+import Data.Char
 import Data.List
 import Data.Maybe
 import Data.Version
@@ -250,7 +251,8 @@ err' :: String -> IO ()
 err' s = putStrLn $ "*** Exception: " ++ s
 
 oneline :: String -> I ()
-oneline line = do
+oneline aline = do
+  let line = dropWhile isSpace aline
   ls <- gets isLines
   stats <- gets isStats
   let lls = ls ++ line ++ "\n"

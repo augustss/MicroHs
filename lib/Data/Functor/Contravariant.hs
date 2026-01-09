@@ -23,10 +23,8 @@ module Data.Functor.Contravariant (
   -- * Operators
   , (>$<), (>$$<), ($<)
 
-{-
   -- * Predicates
   , Predicate(..)
--}
 
   -- * Comparisons
   , Comparison(..)
@@ -40,21 +38,19 @@ module Data.Functor.Contravariant (
   -- * Dual arrows
   , Op(..)
   ) where
+import Prelude hiding ((.), id)
 
 import Control.Applicative
 import Control.Category
 import Control.Monad
 import Data.Function (on)
-
 import Data.Functor
 import Data.Functor.Product
 import Data.Functor.Sum
 import Data.Functor.Compose
-
 import Data.Monoid.Internal (Alt(..), All(..))
 import Data.Proxy
-
-import Prelude hiding ((.), id)
+import GHC.Generics
 
 -- | The class of contravariant functors.
 --
@@ -128,7 +124,6 @@ infixl 4 >$, $<, >$<, >$$<
 (>$$<) :: Contravariant f => f b -> (a -> b) -> f a
 (>$$<) = flip contramap
 
-{-
 deriving newtype instance Contravariant f => Contravariant (Alt f)
 deriving newtype instance Contravariant f => Contravariant (Rec1 f)
 deriving newtype instance Contravariant f => Contravariant (M1 i c f)
@@ -157,7 +152,6 @@ instance (Contravariant f, Contravariant g) => Contravariant (f :+: g) where
   contramap :: (a' -> a) -> ((f :+: g) a -> (f :+: g) a')
   contramap f (L1 xs) = L1 (contramap f xs)
   contramap f (R1 ys) = R1 (contramap f ys)
--}
 
 instance (Contravariant f, Contravariant g) => Contravariant (Sum f g) where
   contramap :: (a' -> a) -> (Sum f g a -> Sum f g a')
@@ -181,7 +175,6 @@ instance Contravariant Proxy where
   contramap :: (a' -> a) -> (Proxy a -> Proxy a')
   contramap _ _ = Proxy
 
-{-
 newtype Predicate a = Predicate { getPredicate :: a -> Bool }
   deriving
     ( -- | @('<>')@ on predicates uses logical conjunction @('&&')@ on
@@ -203,7 +196,6 @@ newtype Predicate a = Predicate { getPredicate :: a -> Bool }
       Monoid
     )
   via a -> All
-
   deriving
     ( -- | A 'Predicate' is a 'Contravariant' 'Functor', because
       -- 'contramap' can apply its function argument to the input of
@@ -219,7 +211,6 @@ newtype Predicate a = Predicate { getPredicate :: a -> Bool }
       Contravariant
     )
   via Op Bool
--}
 
 -- | Defines a total ordering on a type as per 'compare'.
 --

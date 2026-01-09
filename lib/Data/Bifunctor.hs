@@ -17,6 +17,7 @@ module Data.Bifunctor
   ( Bifunctor(..)
   ) where
 import Control.Applicative  ( Const(..) )
+import Data.Monoid.Internal ( Arg(..) )
 import Data.Tuple.Instances
 
 -- $setup
@@ -173,3 +174,7 @@ instance Bifunctor Either where
 -- | @since 4.8.0.0
 instance Bifunctor Const where
     bimap f _ (Const a) = Const (f a)
+
+-- | @since 4.9.0.0
+instance Bifunctor Arg where
+  bimap f g (Arg a b) = Arg (f a) (g b)

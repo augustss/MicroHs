@@ -568,7 +568,7 @@ primTypes =
   in
       [
        -- The function arrow et al are bothersome to define in Primitives, so keep them here.
-       -- But the fixity is defined in Primitives.
+       -- The fixity is set by addPrimFixs
        (mkIdentB "->",           [entry identArrow    kTypeTypeTypeS]),
        (mkIdentB "=>",           [entry identImplies  kImplies]),
        (mkIdentB "~",            [entry identTypeEq   kTypeEqual]),
@@ -1177,33 +1177,45 @@ tcStand st ct = do
      pure $ StandDeriving st' narg ct'
 
 -- The type variables vks are already in scope when we get here.
+-- With
+--  tyId :: k1 -> ... -> kn -> Type
+-- and
+--  cls = C t1 ... tj
+--  C :: (kk1 -> ... -> kkj -> kk -> Type) -> Constraint
+--        ...............................  this is k below
+-- then we need to find a k such that
+--  cls (tyId v1 ... vk) is well kinded.
 tcDeriving :: LHS -> Deriving -> T Deriving
 tcDeriving (tyId, vks) (Deriving strat cs) = do
-  let tcDerive (_, c) = do
-        let loc = getSLoc c
-        -- The kind of c has to be of the form (k1 -> ... kn -> Type) -> Constraint
+  let tcDerive (_, cls) = do
+        let loc = getSLoc cls
+        -- The kind of cls has to be of the form (k1 -> ... kn -> Type) -> Constraint
         -- Check that it is.
-        k <- newUVar
-        --traceM $ "tcDerive 1: " ++ show c
-        c' <- tCheckTypeTImpl QExpl (k `kArrow` kConstraint) c
-        --traceM $ "tcDerive 2: " ++ show c
-        (ks, _) <- getArrows <$> derefUVar k  -- get [k1,...,kn] and final kind
-        -- Checking that the final kind is Type happens with the tc call below.
-        let r = length ks                      -- number of args consumed by c
-            m = length vks                     -- number of args given to the data type
-            i = m - r                          -- keep this many
-            ty = tApps tyId (map (EVar . idKindIdent) (take i vks))
-        when (i < 0) $
+        vkk <- newUVar
+        --traceM $ "tcDerive 1: " ++ show cls
+        cls' <- tCheckTypeTImpl QExpl (vkk `kArrow` kConstraint) cls
+        --traceM $ "tcDerive 2: " ++ show cls'
+--        do { vkk' <- derefUVar vkk; traceM $ "vkk=" ++ show vkk' }
+        (kks, _) <- getArrows <$> derefUVar vkk      -- arrows in kk
+        -- The checking that the final kind is Type happens with the tc call below.
+        let kkn = length kks                        -- number of arrows in kk
+            n = length vks                          -- number of args given to the data type
+            k = n - kkn
+            ty = tApps tyId (map (EVar . idKindIdent) (take k vks))
+--        traceM $ "tcDeriving tyId=" ++ show tyId ++ " vks=" ++ show (map idKindIdent vks) ++ " cls=" ++ show cls ++ " kkn,n,k=" ++ show (kkn,n,k) ++ " ty=" ++ show ty
+        when (k < 0) $
           tcError loc "Bad deriving"
-        -- The generated instance has the form 'instance ... => c ty'.
+        -- The generated instance has the form 'instance ... => cls ty'.
         -- Check that this has kind Constraint.
         -- Also check that any via type also fulfills this.
-        let tc t = do _ <- tCheckTypeTImpl QExpl kConstraint (tApp c t); return ()
+        let tc t = do _ <- tCheckTypeTImpl QExpl kConstraint (tApp cls t); return ()
         tc ty
         case strat of
-          DerVia v -> tc v  -- XXX should this allow implicit quantification?
+          DerVia via -> tc via  -- XXX should this allow implicit quantification?
           _        -> return ()
-        return (r, c')
+--        traceM ("tcDerive: return " ++ show (kkn, cls'))
+        return (kkn, cls')
+
 
   cs' <- mapM tcDerive cs
   -- Ignore the kind here, it's checked for each derived type
@@ -2189,9 +2201,9 @@ data AnArg = ArgExpr Expr EType | ArgCtx EConstraint
 --  * solving the constraint early
 tcExprApFn :: HasCallStack =>
               Expected -> Expr -> EType -> [Expr] -> T Expr
---tcExprApFn mt fn fnt args | trace ("tcExprApFn: " ++ show (fn, fnt, args, mt)) False = undefined
+--tcExprApFn mt fn fnt args | trace ("tcExprApFn: fn=" ++ show fn ++ ", fnt=" ++ show fnt ++ ", args=" ++ show args ++ ", mt=" ++ show mt) False = undefined
 tcExprApFn mt fn atfn aargs = do
-  -- traceM $ "tcExprApFn: " ++ show (getSLoc aargs, mt, fn, atfn, aargs)
+--  traceM $ "tcExprApFn: " ++ show (getSLoc aargs, mt, fn, atfn, aargs)
 --  xx <- gets ctxTables
 --  traceM $ "tcExprApFn: ctxTables=" ++ show xx
   let loc = getSLoc fn
@@ -2237,8 +2249,8 @@ tcExprApFn mt fn atfn aargs = do
         etmp' <- instSigma loc etmp rt mt
 
         let arg (ArgExpr e t) = do
-              --t' <- derefUVar t
-              --traceM ("final: checkSigma: " ++ show (e, t'))
+--              t' <- derefUVar t
+--              traceM ("final: checkSigma: " ++ show (e, t'))
               checkSigma e t
             arg (ArgCtx ctx) = newDict loc ctx
         args <- mapM arg aats
@@ -2648,6 +2660,7 @@ tcArm t tpat arm =
 
 tCheckExprAndSolve :: HasCallStack => EType -> Expr -> T Expr
 tCheckExprAndSolve t e = do
+--  traceM $ "tCheckExprAndSolve: " ++ show (e, t)
   (e', bs) <- solveLocalConstraints $ tCheckExpr t e
   if null bs then
     return e'
@@ -3954,12 +3967,6 @@ doDeriving def@(Class _ (n, _) _ _) | unIdent n /= "~" && deriveClassTypeable = 
   return [def, mkTypeableInst mn n]
 doDeriving def                        = return [def]
 
-{-
-addTypeable' :: SLoc -> [Deriving] -> [Deriving]
-addTypeable' loc ds =
-  let ds' = addTypeable loc ds
-  in  trace ("addTypeable: " ++ show (ds, ds')) ds'
--}
 -- Add Data.Typeable to the derivings.
 -- Also skip all derivings (including Typeable) if it is says 'deriving ()'
 addTypeable :: SLoc -> [Deriving] -> [Deriving]
