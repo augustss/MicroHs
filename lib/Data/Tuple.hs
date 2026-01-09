@@ -4,10 +4,12 @@ module Data.Tuple(
   module Data.Tuple,
   ) where
 import qualified Prelude()              -- do not import Prelude
+import Control.Applicative
 import Data.Bool
 import Data.Bounded
 import Data.Eq
 import Data.Function
+import Data.Functor
 import Data.Int.Int
 import Data.Monoid.Internal
 import Data.Records
@@ -20,7 +22,6 @@ import Text.Show
 -- etc
 
 data Solo a = MkSolo a
-  deriving (Eq, Ord)
 
 getSolo :: Solo a -> a
 getSolo (MkSolo a) = a
@@ -42,39 +43,77 @@ swap (a, b) = (b, a)
 
 -----------------------------------
 
--- data () = () built in
-
-instance Eq () where
-  () == ()  =  True
-
-instance (Eq a, Eq b) => Eq (a, b) where
-  (a1, b1) == (a2, b2)  =  a1 == a2 && b1 == b2
-
-instance (Eq a, Eq b, Eq c) => Eq (a, b, c) where
-  (a1, b1, c1) == (a2, b2, c2)  =  a1 == a2 && b1 == b2 && c1 == c2
-
-instance (Eq a, Eq b, Eq c, Eq d) => Eq (a, b, c, d) where
-  (a1, b1, c1, d1) == (a2, b2, c2, d2)  =  a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
-
-instance (Eq a, Eq b, Eq c, Eq d, Eq e) => Eq (a, b, c, d, e) where
-  (a1, b1, c1, d1, e1) == (a2, b2, c2, d2, e2)  =  a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2
+deriving instance Eq ()
+deriving instance Eq a => Eq (Solo a)
+deriving instance (Eq  a, Eq  b) => Eq  (a, b)
+deriving instance (Eq  a, Eq  b, Eq  c) => Eq  (a, b, c)
+deriving instance (Eq  a, Eq  b, Eq  c, Eq  d) => Eq  (a, b, c, d)
+deriving instance (Eq  a, Eq  b, Eq  c, Eq  d, Eq  e) => Eq  (a, b, c, d, e)
+deriving instance (Eq a, Eq b, Eq c, Eq d, Eq e, Eq f)
+               => Eq (a, b, c, d, e, f)
+deriving instance (Eq a, Eq b, Eq c, Eq d, Eq e, Eq f, Eq g)
+               => Eq (a, b, c, d, e, f, g)
+deriving instance (Eq a, Eq b, Eq c, Eq d, Eq e, Eq f, Eq g,
+                   Eq h)
+               => Eq (a, b, c, d, e, f, g, h)
+deriving instance (Eq a, Eq b, Eq c, Eq d, Eq e, Eq f, Eq g,
+                   Eq h, Eq i)
+               => Eq (a, b, c, d, e, f, g, h, i)
+deriving instance (Eq a, Eq b, Eq c, Eq d, Eq e, Eq f, Eq g,
+                   Eq h, Eq i, Eq j)
+               => Eq (a, b, c, d, e, f, g, h, i, j)
+deriving instance (Eq a, Eq b, Eq c, Eq d, Eq e, Eq f, Eq g,
+                   Eq h, Eq i, Eq j, Eq k)
+               => Eq (a, b, c, d, e, f, g, h, i, j, k)
+deriving instance (Eq a, Eq b, Eq c, Eq d, Eq e, Eq f, Eq g,
+                   Eq h, Eq i, Eq j, Eq k, Eq l)
+               => Eq (a, b, c, d, e, f, g, h, i, j, k, l)
+deriving instance (Eq a, Eq b, Eq c, Eq d, Eq e, Eq f, Eq g,
+                   Eq h, Eq i, Eq j, Eq k, Eq l, Eq m)
+               => Eq (a, b, c, d, e, f, g, h, i, j, k, l, m)
+deriving instance (Eq a, Eq b, Eq c, Eq d, Eq e, Eq f, Eq g,
+                   Eq h, Eq i, Eq j, Eq k, Eq l, Eq m, Eq n)
+               => Eq (a, b, c, d, e, f, g, h, i, j, k, l, m, n)
+deriving instance (Eq a, Eq b, Eq c, Eq d, Eq e, Eq f, Eq g,
+                   Eq h, Eq i, Eq j, Eq k, Eq l, Eq m, Eq n, Eq o)
+               => Eq (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
 
 -----------------------------------
 
-instance Ord () where
-  () `compare` ()  =  EQ
-
-instance (Ord a, Ord b) => Ord (a, b) where
-  (a1, b1) `compare` (a2, b2)  =  a1 `compare` a2 <> b1 `compare` b2
-
-instance (Ord a, Ord b, Ord c) => Ord (a, b, c) where
-  (a1, b1, c1) `compare` (a2, b2, c2)  =  a1 `compare` a2 <> b1 `compare` b2 <> c1 `compare` c2
-
-instance (Ord a, Ord b, Ord c, Ord d) => Ord (a, b, c, d) where
-  (a1, b1, c1, d1) `compare` (a2, b2, c2, d2)  =  a1 `compare` a2 <> b1 `compare` b2 <> c1 `compare` c2 <> d1 `compare` d2
-
-instance (Ord a, Ord b, Ord c, Ord d, Ord e) => Ord (a, b, c, d, e) where
-  (a1, b1, c1, d1, e1) `compare` (a2, b2, c2, d2, e2)  =  a1 `compare` a2 <> b1 `compare` b2 <> c1 `compare` c2 <> d1 `compare` d2 <> e1 `compare` e2
+deriving instance Ord ()
+deriving instance Ord a => Ord (Solo a)
+deriving instance (Ord a, Ord b) => Ord (a, b)
+deriving instance (Ord a, Ord b, Ord c) => Ord (a, b, c)
+deriving instance (Ord a, Ord b, Ord c, Ord d) => Ord (a, b, c, d)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e) => Ord (a, b, c, d, e)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f)
+               => Ord (a, b, c, d, e, f)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g)
+               => Ord (a, b, c, d, e, f, g)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g,
+                   Ord h)
+               => Ord (a, b, c, d, e, f, g, h)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g,
+                   Ord h, Ord i)
+               => Ord (a, b, c, d, e, f, g, h, i)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g,
+                   Ord h, Ord i, Ord j)
+               => Ord (a, b, c, d, e, f, g, h, i, j)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g,
+                   Ord h, Ord i, Ord j, Ord k)
+               => Ord (a, b, c, d, e, f, g, h, i, j, k)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g,
+                   Ord h, Ord i, Ord j, Ord k, Ord l)
+               => Ord (a, b, c, d, e, f, g, h, i, j, k, l)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g,
+                   Ord h, Ord i, Ord j, Ord k, Ord l, Ord m)
+               => Ord (a, b, c, d, e, f, g, h, i, j, k, l, m)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g,
+                   Ord h, Ord i, Ord j, Ord k, Ord l, Ord m, Ord n)
+               => Ord (a, b, c, d, e, f, g, h, i, j, k, l, m, n)
+deriving instance (Ord a, Ord b, Ord c, Ord d, Ord e, Ord f, Ord g,
+                   Ord h, Ord i, Ord j, Ord k, Ord l, Ord m, Ord n, Ord o)
+               => Ord (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
 
 -----------------------------------
 
@@ -85,48 +124,103 @@ instance Show a => Show (Solo a) where
   showsPrec p (MkSolo a) = showParen (p > 10) (showString "MkSolo " . showsPrec 11 a)
 
 instance (Show a, Show b) => Show (a, b) where
-  showsPrec _ (a, b) = showParen True (shows a . showString "," . shows b)
+  showsPrec _ (a,b) s = showTuple [shows a, shows b] s
 
 instance (Show a, Show b, Show c) => Show (a, b, c) where
-  showsPrec _ (a, b, c) = showParen True (shows a . showString "," . shows b . showString "," . shows c)
+  showsPrec _ (a,b,c) s = showTuple [shows a, shows b, shows c] s
 
 instance (Show a, Show b, Show c, Show d) => Show (a, b, c, d) where
-  showsPrec _ (a, b, c, d) = showParen True (shows a . showString "," . shows b . showString "," . shows c .
-                                             showString "," . shows d)
+  showsPrec _ (a,b,c,d) s = showTuple [shows a, shows b, shows c, shows d] s
 
 instance (Show a, Show b, Show c, Show d, Show e) => Show (a, b, c, d, e) where
-  showsPrec _ (a, b, c, d, e) = showParen True (shows a . showString "," . shows b . showString "," . shows c .
-                                                showString "," . shows d . showString "," . shows e)
+  showsPrec _ (a,b,c,d,e) s = showTuple [shows a, shows b, shows c, shows d, shows e] s
 
-instance (Show a, Show b, Show c, Show d, Show e, Show f) => Show (a, b, c, d, e, f) where
-  showsPrec _ (a, b, c, d, e, f) = showParen True (shows a . showString "," . shows b . showString "," . shows c .
-                                                showString "," . shows d . showString "," . shows e . showString "," . shows f)
+instance (Show a, Show b, Show c, Show d, Show e, Show f) => Show (a,b,c,d,e,f) where
+  showsPrec _ (a,b,c,d,e,f) s = showTuple [shows a, shows b, shows c, shows d, shows e, shows f] s
 
-instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g) => Show (a, b, c, d, e, f, g) where
-  showsPrec _ (a, b, c, d, e, f, g) = showParen True (shows a . showString "," . shows b . showString "," . shows c .
-                                                showString "," . shows d . showString "," . shows e . showString "," . shows f . showString "," . shows g)
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g)
+        => Show (a,b,c,d,e,f,g) where
+  showsPrec _ (a,b,c,d,e,f,g) s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g] s
+
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h)
+         => Show (a,b,c,d,e,f,g,h) where
+  showsPrec _ (a,b,c,d,e,f,g,h) s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h] s
+
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i)
+         => Show (a,b,c,d,e,f,g,h,i) where
+  showsPrec _ (a,b,c,d,e,f,g,h,i) s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+                      shows i] s
+
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j)
+         => Show (a,b,c,d,e,f,g,h,i,j) where
+  showsPrec _ (a,b,c,d,e,f,g,h,i,j) s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+                      shows i, shows j] s
+
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k)
+         => Show (a,b,c,d,e,f,g,h,i,j,k) where
+  showsPrec _ (a,b,c,d,e,f,g,h,i,j,k) s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+                      shows i, shows j, shows k] s
+
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k,
+          Show l)
+         => Show (a,b,c,d,e,f,g,h,i,j,k,l) where
+  showsPrec _ (a,b,c,d,e,f,g,h,i,j,k,l) s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+                      shows i, shows j, shows k, shows l] s
+
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k,
+          Show l, Show m)
+         => Show (a,b,c,d,e,f,g,h,i,j,k,l,m) where
+  showsPrec _ (a,b,c,d,e,f,g,h,i,j,k,l,m) s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+                      shows i, shows j, shows k, shows l, shows m] s
+
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k,
+          Show l, Show m, Show n)
+         => Show (a,b,c,d,e,f,g,h,i,j,k,l,m,n) where
+  showsPrec _ (a,b,c,d,e,f,g,h,i,j,k,l,m,n) s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+                      shows i, shows j, shows k, shows l, shows m, shows n] s
+
+instance (Show a, Show b, Show c, Show d, Show e, Show f, Show g, Show h, Show i, Show j, Show k,
+          Show l, Show m, Show n, Show o)
+         => Show (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) where
+  showsPrec _ (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) s
+        = showTuple [shows a, shows b, shows c, shows d, shows e, shows f, shows g, shows h,
+                      shows i, shows j, shows k, shows l, shows m, shows n, shows o] s
+
+showTuple :: [ShowS] -> ShowS
+showTuple ss = showChar '('
+             . foldr1 (\s r -> s . showChar ',' . r) ss
+             . showChar ')'
+  where
+    -- redefine foldr1 to avoid import cycle
+    foldr1 _ [x] = x
+    foldr1 f (x : xs) = f x (foldr1 f xs)
 
 -----------------------------------
 
-instance Bounded () where
-  minBound = ()
-  maxBound = ()
-
-instance (Bounded a) => Bounded (Solo a) where
-  minBound = MkSolo minBound
-  maxBound = MkSolo maxBound
-
-instance (Bounded a, Bounded b) => Bounded (a, b) where
-  minBound = (minBound, minBound)
-  maxBound = (maxBound, maxBound)
-
-instance (Bounded a, Bounded b, Bounded c) => Bounded (a, b, c) where
-  minBound = (minBound, minBound, minBound)
-  maxBound = (maxBound, maxBound, maxBound)
-
-instance (Bounded a, Bounded b, Bounded c, Bounded d) => Bounded (a, b, c, d) where
-  minBound = (minBound, minBound, minBound, minBound)
-  maxBound = (maxBound, maxBound, maxBound, maxBound)
+deriving instance Bounded ()
+deriving instance (Bounded a) => Bounded (Solo a)
+deriving instance (Bounded a, Bounded b) => Bounded (a, b)
+deriving instance (Bounded a, Bounded b, Bounded c) => Bounded (a, b, c)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d) => Bounded (a, b, c, d)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e) => Bounded (a, b, c, d, e)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e, Bounded f) => Bounded (a, b, c, d, e, f)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e, Bounded f, Bounded g) => Bounded (a, b, c, d, e, f, g)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e, Bounded f, Bounded g, Bounded h) => Bounded (a, b, c, d, e, f, g, h)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e, Bounded f, Bounded g, Bounded h, Bounded i) => Bounded (a, b, c, d, e, f, g, h, i)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e, Bounded f, Bounded g, Bounded h, Bounded i, Bounded j) => Bounded (a, b, c, d, e, f, g, h, i, j)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e, Bounded f, Bounded g, Bounded h, Bounded i, Bounded j, Bounded k) => Bounded (a, b, c, d, e, f, g, h, i, j, k)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e, Bounded f, Bounded g, Bounded h, Bounded i, Bounded j, Bounded k, Bounded l) => Bounded (a, b, c, d, e, f, g, h, i, j, k, l)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e, Bounded f, Bounded g, Bounded h, Bounded i, Bounded j, Bounded k, Bounded l, Bounded m) => Bounded (a, b, c, d, e, f, g, h, i, j, k, l, m)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e, Bounded f, Bounded g, Bounded h, Bounded i, Bounded j, Bounded k, Bounded l, Bounded m, Bounded n) => Bounded (a, b, c, d, e, f, g, h, i, j, k, l, m, n)
+deriving instance (Bounded a, Bounded b, Bounded c, Bounded d, Bounded e, Bounded f, Bounded g, Bounded h, Bounded i, Bounded j, Bounded k, Bounded l, Bounded m, Bounded n, Bounded o) => Bounded (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o)
 
 -----------------------------------
 
@@ -145,6 +239,9 @@ instance (Semigroup a, Semigroup b, Semigroup c) => Semigroup (a, b, c) where
 instance (Semigroup a, Semigroup b, Semigroup c, Semigroup d) => Semigroup (a, b, c, d) where
   (a, b, c, d) <> (a', b', c', d') = (a <> a', b <> b', c <> c', d <> d')
 
+instance (Semigroup a, Semigroup b, Semigroup c, Semigroup d, Semigroup e) => Semigroup (a, b, c, d, e) where
+  (a, b, c, d, e) <> (a', b', c', d', e') = (a <> a', b <> b', c <> c', d <> d', e <> e')
+
 -----------------------------------
 
 instance Monoid () where
@@ -161,6 +258,9 @@ instance (Monoid a, Monoid b, Monoid c) => Monoid (a, b, c) where
 
 instance (Monoid a, Monoid b, Monoid c, Monoid d) => Monoid (a, b, c, d) where
   mempty = (mempty, mempty, mempty, mempty)
+
+instance (Monoid a, Monoid b, Monoid c, Monoid d, Monoid e) => Monoid (a, b, c, d, e) where
+  mempty = (mempty, mempty, mempty, mempty, mempty)
 
 
 -----------------------------------
@@ -186,3 +286,18 @@ instance HasField "_3" (a, b, c, d) c where getField _ (a, b, c, d) = c
 instance SetField "_3" (a, b, c, d) c where setField _ (a, b, c, d) = \ c -> (a, b, c, d)
 instance HasField "_4" (a, b, c, d) d where getField _ (a, b, c, d) = d
 instance SetField "_4" (a, b, c, d) d where setField _ (a, b, c, d) = \ d -> (a, b, c, d)
+
+-----------------------------------
+
+-- | @since base-4.15
+instance Functor Solo where
+  fmap f (MkSolo a) = MkSolo (f a)
+
+  -- Being strict in the `Solo` argument here seems most consistent
+  -- with the concept behind `Solo`: always strict in the wrapper and lazy
+  -- in the contents.
+  x <$ MkSolo _ = MkSolo x
+
+-- | @since base-4.15
+instance Applicative Solo where
+  pure = MkSolo

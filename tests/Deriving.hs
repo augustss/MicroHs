@@ -70,6 +70,11 @@ data List a = Nil | a `Cons` List a
 
 newtype Op = (:::) () deriving (Read, Show)
 
+class MonadError e m
+
+data AA = AA Int | AA1 deriving anyclass (MonadError e)
+newtype AB = AB Int deriving (MonadError e)
+
 main :: IO ()
 main = do
   print $ A 'a' == (A 'a' :: T Char () ())

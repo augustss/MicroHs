@@ -18,6 +18,9 @@ class Functor f where
   (<$) :: forall a b . a -> f b -> f a
   (<$) =  fmap . const
 
+instance Functor ((->) a) where
+  fmap = (.)
+
 infixl 4 <$>
 (<$>) :: forall f a b . Functor f => (a -> b) -> f a -> f b
 (<$>) = fmap

@@ -13,7 +13,7 @@ import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.Names
 import MicroHs.TCMonad
-import Debug.Trace
+--import Debug.Trace
 
 -- Deriving runs when types level names are resolved, but not value level names.
 -- To get access to names that might not be in scope, the module Mhs.Builtin
@@ -25,18 +25,18 @@ import Debug.Trace
 --   all other names should be qualified with B@
 
 deriveStrat :: StandM -> Bool -> LHS -> [Constr] -> DerStrategy -> (Int, EConstraint) -> T [EDef]
-deriveStrat mctx newt lhs cs strat (narg, cls) =  -- narg is the number of arguments that need eta reducing
+deriveStrat mctx newt lhs cs strat (narg, acls) =  -- narg is the number of arguments that need eta reducing
 --  trace ("deriveStrat " ++ show (mctx, newt, lhs, cs, strat, narg, cls)) $
-  let c = cs!!0 in
+  let c = cs!!0; cls = dropForallContext acls in
   case strat of
-    DerNone | newt && useNewt cls -> maybe (deriveNoHdr mctx narg lhs cs cls)
-                                           (newtypeDer  mctx narg lhs  c cls)
+    DerNone | newt && useNewt cls -> maybe (deriveNoHdr mctx narg lhs cs  cls)
+                                           (newtypeDer  mctx narg lhs  c acls)
                                            (getViaM narg lhs c)
-            | otherwise           -> deriveNoHdr mctx narg lhs cs cls
-    DerStock                      -> deriveNoHdr mctx narg lhs cs cls
-    DerNewtype | newt             -> newtypeDer  mctx narg lhs  c cls =<< getVia narg lhs c
-    DerAnyClass                   -> anyclassDer mctx narg lhs    cls
-    DerVia via | newt             -> newtypeDer  mctx narg lhs  c cls via
+            | otherwise           -> deriveNoHdr mctx narg lhs cs  cls
+    DerStock                      -> deriveNoHdr mctx narg lhs cs  cls
+    DerNewtype | newt             -> newtypeDer  mctx narg lhs  c acls =<< getVia narg lhs c
+    DerAnyClass                   -> anyclassDer mctx narg lhs     cls
+    DerVia via | newt             -> newtypeDer  mctx narg lhs  c acls via
     _                             -> cannotDerive lhs cls
   where useNewt d = unIdent (getAppCon d) `notElem`
           ["Data.Data_Class.Data", "Data.Typeable.Typeable", "GHC.Generics.Generic", "GHC.Generics.Generic1",
@@ -61,8 +61,8 @@ derivers =
   ,("Data.Ord.Ord",                    derOrd)
   ,("Data.Traversable.Traversable",    derTraversable)
   ,("Data.Typeable.Typeable",          derTypeable)
-  ,("GHC.Generics.Generic",            derNotYet)
-  ,("GHC.Generics.Generic1",           derNotYet)
+  ,("GHC.Generics.Generic",            derGeneric)
+  ,("GHC.Generics.Generic1",           derGeneric1)
   ,("Language.Haskell.TH.Syntax.Lift", derLift)
   ,("Text.Read.Internal.Read",         derRead)
   ,("Text.Show.Show",                  derShow)
@@ -78,6 +78,7 @@ deriveNoHdr mctx narg lhs cs d = do
 getDeriver :: EConstraint -> Maybe Deriver
 getDeriver d = lookup (unIdent $ getAppCon d) derivers
 
+{-
 derNotYet :: Deriver
 derNotYet _ _ _ _ d = do
   notYet d
@@ -86,6 +87,7 @@ derNotYet _ _ _ _ d = do
 notYet :: EConstraint -> T ()
 notYet d =
   traceM ("Warning: cannot derive " ++ show d ++ " yet, " ++ showSLoc (getSLoc d))
+-}
 
 -- We will never have Template Haskell, but we pretend we can derive Lift for it.
 derLift :: Deriver
@@ -217,7 +219,9 @@ mkHdr _ lhs@(_, iks) cs cls = do
   let ctys :: [EType]  -- All top level types used by the constructors.
       ctys = nubBy eqEType [ tt | Constr evs _ _ _ flds <- cs, tt <- getFieldTys flds,
                             not $ null $ freeTyVars [tt] \\ map idKindIdent evs, not (eqEType ty tt) ]
-  pure $ eForall iks $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
+      iks' = map (`IdKind` EVar dummyIdent) (freeTyVars [cls])  -- free type variables in the derived class
+--  traceM $ "mkHdr: " ++ show (cls, iks')
+  pure $ eForall (iks' ++ iks) $ addConstraints (map (tApp cls) ctys) $ tApp cls ty
 
 -- instance header for Functor, Foldable, Traversable
 mkHdr1 :: StandM -> LHS -> [Constr] -> EConstraint -> T EConstraint
@@ -737,7 +741,7 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
       Just (h, _) -> pure h
       Nothing -> do
         newtyr <- mkLhsTy narg lhs                    -- the newtype, eta reduced
---        traceM $ "newtypeDer newty=" ++ show newtyr
+--        traceM $ "newtypeDer newty=" ++ show (newtyr, acls, clsIks)
         let
           ctxOld = tApp cls viaty
           ctx = filter (not . null . freeTyVars . (:[])) [ctxOld]
@@ -793,3 +797,21 @@ anyclassDer :: StandM -> Int -> LHS -> EConstraint -> T [EDef]
 anyclassDer mctx _ lhs cls = do
   hdr <- mkHdr mctx lhs [] cls
   return [Instance hdr [] []]
+
+--------------------------------------------
+
+derGeneric :: Deriver
+derGeneric mctx 0 lhs cs egeneric = do
+  hdr <- mkHdr mctx lhs cs egeneric
+  let
+    inst = Instance hdr [] []
+  return [inst]
+derGeneric _ _ lhs _ e = cannotDerive lhs e
+
+derGeneric1 :: Deriver
+derGeneric1 mctx 1 lhs cs egeneric1 = do
+  hdr <- mkHdr1 mctx lhs cs egeneric1
+  let
+    inst = Instance hdr [] []
+  return [inst]
+derGeneric1 _ _ lhs _ e = cannotDerive lhs e
