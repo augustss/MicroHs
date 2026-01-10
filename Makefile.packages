@@ -65,3 +65,5 @@ all:
 	$(MINST) js-dgtable
 	$(MINST) js-flot
 	$(MINST) js-jquery
+	$(MINST) --git=https://github.com/ekmett/transformers-compat.git transformers-compat
+	$(MINST) mmorph
