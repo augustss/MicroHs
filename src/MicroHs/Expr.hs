@@ -500,9 +500,10 @@ kType = EVar (mkIdent "Primitives.Type")
 kConstraint :: EKind
 kConstraint = EVar (mkIdent "Primitives.Constraint")
 
+-- XXX Switch to TupleN like GHC?
 tupleConstr :: SLoc -> Int -> Ident
 tupleConstr loc 0 = mkIdentSLoc loc "()"
-tupleConstr   _ 1 = error "tupleConstr"
+tupleConstr   _ 1 = error "tupleConstr"  -- XXX could use Solo
 tupleConstr loc n = mkIdentSLoc loc (replicate (n - 1) ',')
 
 -- Check if it is a tuple constructor

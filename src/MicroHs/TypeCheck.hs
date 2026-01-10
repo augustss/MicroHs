@@ -2144,8 +2144,13 @@ dsUpdateCase cs e ies = chkUsed $ ECase e $ map mkArm cs
 
 dsSRec :: Maybe Ident -> Ident -> Ident -> [EStmt] -> EStmt
 dsSRec mmn imfix iret ss =
-  let vs = ETuple $ map EVar $ concatMap getStmtBound ss
+  let vs = eTuple $ map EVar $ concatMap getStmtBound ss
   in  SBind vs $ eAppI imfix $ eLam [ELazy True vs] $ EDo mmn (ss ++ [SThen $ eAppI iret vs])
+
+-- XXX Maybe allow singleton tuples
+eTuple :: [Expr] -> Expr
+eTuple [e] = e
+eTuple es = ETuple es
 
 -- A heuristic to decide if an identifier is a record label.
 -- If the name is in the symbol table and has function type, we say no.
