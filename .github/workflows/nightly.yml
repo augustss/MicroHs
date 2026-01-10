@@ -1,0 +1,24 @@
+name: nightly
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make minstall
+      - name: publish binaries
+        run: |
+          dst=MicroHs-linux-x86_64.tar.gz
+          tar -czf "$dst" -C "$HOME" .mcabal
+          gh release create nightly --prerelease || (git tag nightly -f && git push --tags -f)
+          gh release upload nightly "$dst" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
