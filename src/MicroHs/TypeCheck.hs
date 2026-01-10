@@ -1638,16 +1638,16 @@ tcDefValue adef =
 --      when (isConIdent i) $ do
 --        tcTrace $ "tcDefValue: patsyn\n" ++ show i ++ " :: " ++ show t
 --        tcTrace $ "tcDefValue:\n" ++ showEDefs [adef]
-      tcTrace $ "tcDefValue: ------- start " ++ showIdent i
-      tcTrace $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t
-      tcTrace $ "tcDefValue: " ++ showEDefs [adef]
+--      tcTrace $ "tcDefValue: ------- start " ++ showIdent i
+--      tcTrace $ "tcDefValue: " ++ showIdent i ++ " :: " ++ showExpr t
+--      tcTrace $ "tcDefValue: " ++ showEDefs [adef]
       teqns <- tcEqns True t eqns
-      tcTrace ("tcDefValue: after\n" ++ showEDefs [adef, Fcn i teqns])
-      cs <- gets constraints
-      tcTrace $ "tcDefValue: constraints: " ++ show cs
+--      tcTrace ("tcDefValue: after\n" ++ showEDefs [adef, Fcn i teqns])
+--      cs <- gets constraints
+--      tcTrace $ "tcDefValue: constraints: " ++ show cs
       checkConstraints
       mn <- gets moduleName
-      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
+--      tcTrace $ "tcDefValue: " ++ showIdent i ++ " done"
       return $ Fcn (qualIdent' mn i) teqns
     ForImp cc ie i t -> do
       mn <- gets moduleName
@@ -1807,16 +1807,16 @@ tGetExpType (Infer r) = tGetRefType r
 
 tcExpr :: HasCallStack =>
           Expected -> Expr -> T Expr
-tcExpr mt ae = do
+tcExpr mt ae = tcExprR mt ae {-do
   tcTrace ("tcExpr enter: mt=" ++ show mt ++ " ae=" ++ showExpr ae)
   r <- tcExprR mt ae
-  t <- derefUVar (case mt of Check x -> x; Infer x -> EUVar x)
-  tcTrace ("tcExpr exit: t=" ++ show t ++ " r=" ++ showExpr r)
-  return r
+  tcTrace ("tcExpr exit: " ++ showExpr r)
+  return r -}
 tcExprR :: HasCallStack =>
            Expected -> Expr -> T Expr
 tcExprR mt ae =
   let { loc = getSLoc ae } in
+--  trace ("tcExprR " ++ show (ae, mt)) $
   case ae of
     EVar i | isIdent dictPrefixDollar i -> do
              -- Magic variable that just becomes the dictionary
@@ -3502,26 +3502,23 @@ getSuperClasses ais = do
 
 
 
+{-
 showInstInfo :: InstInfo -> String
 showInstInfo (InstInfo m ds fds) = "InstInfo " ++ show (M.toList m) ++ " " ++ showListS showInstDict ds ++ show fds
 
 showInstDict :: InstDict -> String
-showInstDict (e, f) =
-  let (ctx, ts) = f 88888
-  in  showExpr e ++ " :: " ++ show (addConstraints ctx (tApps (mkIdent "_") ts))
+showInstDict (e, ctx, ts) = showExpr e ++ " :: " ++ show (addConstraints (ctx 10000) (tApps (mkIdent "_") ts))
 
-{-
 showInstDef :: InstDef -> String
 showInstDef (cls, InstInfo m ds _) = "instDef " ++ show cls ++ ": "
             ++ show (M.toList m) ++ ", " ++ showListS showInstDict ds
--}
+
+showMatch :: (Expr, [EConstraint]) -> String
+showMatch (e, ts) = show e ++ " " ++ show ts
 
 showConstraint :: (Ident, EConstraint) -> String
 showConstraint (i, t) = show i ++ " :: " ++ show t
-
-
-showMatch :: (Expr, [EConstraint], [Improve]) -> String
-showMatch (e, ts, _) = show e ++ " " ++ show ts
+-}
 
 type Goal = (Ident, EType)     -- What we want to solve
 type UGoal = Goal              -- Unsolved goal
@@ -3623,11 +3620,11 @@ solveInst loc iCls cts = do
 -- have matched a (C T) instead.
 solveGen :: TRef -> Bool -> [IFunDep] -> [InstDict] -> SolveOne
 solveGen uniq noAtoms fds insts loc iCls cts = do
-  tcTrace ("solveGen: " ++ show (iCls, cts))
+--  tcTrace ("solveGen: " ++ show (iCls, cts))
 --  tcTrace ("solveGen: insts=" ++ show insts)
   let matches = getBestMatches $ findMatches uniq noAtoms loc fds insts cts
-  tcTrace ("solveGen: matches allMatches =" ++ showListS show (findMatches uniq noAtoms loc fds insts cts))
-  tcTrace ("solveGen: matches bestMatches=" ++ showListS showMatch matches)
+--  tcTrace ("solveGen: matches allMatches =" ++ showListS show (findMatches uniq noAtoms loc fds insts cts))
+--  tcTrace ("solveGen: matches bestMatches=" ++ showListS showMatch matches)
   case matches of
     []              -> return Nothing
     [(de, ctx, is)] ->
@@ -3764,11 +3761,9 @@ findMatches uniq _ loc fds ds its =
        [ (length s, (de, map (substEUVar s) ctx, imp))
        | (de, ctxts) <- ds
        , let (ctx, ts) = ctxts uniq
-       , trace ("findMatches: ts=" ++ show ts ++ " its=" ++ show its) True
        , Just (s, imp) <- [matchTypes loc ts its fds]
-       , trace ("findMatches: s=" ++ show s ++ " imp=" ++ show imp) True
        ]
- in trace ("findMatches: " ++ showListS showInstDict ds ++ "; " ++ show its ++ "; " ++ show fds ++ "; " ++ show rrr)
+ in --trace ("findMatches: " ++ showListS showInstDict ds ++ "; " ++ show its ++ "; " ++ show fds ++ "; " ++ show rrr)
     rrr
 
 -- Do substitution for EUVar.
@@ -3861,7 +3856,6 @@ checkConstraints = do
 --      tcTrace $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> show i ++ ":\n" ++ showInstInfo ii) (M.toList is))
       tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ show t'
                             ++ "\n     fully qualified: " ++ showExprRaw t'
-                            ++ "\n  cs=" ++ show cs
 
 -- Add a type equality constraint.
 addEqConstraint :: SLoc -> EType -> EType -> T ()
