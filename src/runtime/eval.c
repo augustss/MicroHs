@@ -6254,15 +6254,25 @@ extern const int combexprlen;
 int dump_ticks = 0;
 #endif
 
-NODEPTR
-mhs_init_args(
 #if WANT_ARGS
+  #if WANT_STDIO
+  #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args(a,b,c,d)
+  #else
+  #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args(a,b)
+  #endif
+#else  /* WANT_ARGS */
+  #if WANT_STDIO
+  #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args(c,d)
+  #else
+  #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args(void)
+  #endif
+#endif  /* WANT_ARGS */
+
+NODEPTR
+MHS_INIT_ARGS(
               int argc, char **argv,
-#endif
-#if WANT_STDIO
               char **outnamep,
               size_t *file_sizep
-#endif
 )
 {
   NODEPTR prog;
@@ -6433,7 +6443,7 @@ mhs_init(void)
   char *args[2] = { "<mhs_init>", 0 };
   char *outname;
   size_t file_size;
-  (void)mhs_init_args(1, args, &outname, &file_size);
+  (void)MHS_INIT_ARGS(1, args, &outname, &file_size);
 }
 
 int
@@ -6446,7 +6456,7 @@ mhs_main(int argc, char **argv)
   counter_t instrs;
 #endif  /* WANT_KPERF */
 
-  prog = mhs_init_args(argc, argv, &outname, &file_size);
+  prog = MHS_INIT_ARGS(argc, argv, &outname, &file_size);
 
 #if WANT_STDIO
   heapoffs_t start_size = num_marked;
