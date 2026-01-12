@@ -70,7 +70,7 @@ all:
 	$(MINST) base-orphans
 	$(MINST) foldable1-classes-compat
 	$(MINST) bifunctor-classes-compat
-	$(MINST) --git=https://github.com/MicroHs/indexed-traversable-mhs.git indexed-traversable
+	$(MINST) --git=https://github.com/MicroHs/indexed-traversable-mhs.git +--dir=indexed-traversable indexed-traversable
 	$(MINST) parallel
 	$(MINST) newtype
 	$(MINST) Diff
