@@ -67,3 +67,18 @@ all:
 	$(MINST) js-jquery
 	$(MINST) --git=https://github.com/ekmett/transformers-compat.git transformers-compat
 	$(MINST) mmorph
+	$(MINST) base-orphans
+	$(MINST) foldable1-classes-compat
+	$(MINST) bifunctor-classes-compat
+	$(MINST) --git=https://github.com/MicroHs/indexed-traversable-mhs.git indexed-traversable
+	$(MINST) parallel
+	$(MINST) newtype
+	$(MINST) Diff
+	$(MINST) void
+	$(MINST) character-ps
+	$(MINST) contravariant
+	$(MINST) distributive
+	$(MINST) comonad
+	$(MINST) parser-combinators
+	$(MINST) data-default
+	$(MINST) data-default-class
