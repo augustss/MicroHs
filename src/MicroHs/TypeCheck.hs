@@ -3829,7 +3829,7 @@ combineTySubsts = combs []
     comb1 v t r =
       case lookup v r of
         Nothing -> Just ((v, t) : r)
-        Just t' -> matchType [] t' t
+        Just t' -> matchType r t' t
 
 -- Get the best matches.  These are the matches with the smallest substitution.
 -- Always prefer arguments rather than global instances.
