@@ -1,6 +1,7 @@
 module Control.Monad.ST(
   ST,
   runST,
+  fixST,
   --
   RealWorld, stToIO,  -- GHC compat
   ) where
@@ -13,6 +14,9 @@ import System.IO(fixIO)
 runST :: (forall s . ST s a) -> a
 runST (ST ioa) = primPerformIO ioa
 
+fixST :: (a -> ST s a) -> ST s a
+fixST f = ST (fixIO (unST . f))
+
 instance Functor (ST s) where
   fmap f (ST x) = ST (fmap f x)
 
@@ -24,7 +28,7 @@ instance Monad (ST s) where
   ST x >>= f = ST (x >>= (unST . f))
 
 instance MonadFix (ST s) where
-  mfix f = ST (fixIO (unST . f))
+  mfix = fixST
 
 ---------------------------------
 -- This does not belong here since it's GHC specific,
@@ -32,5 +36,5 @@ instance MonadFix (ST s) where
 
 data RealWorld  -- Just to be compatible with GHC.  We don't use it.
 
-stToIO :: forall a . ST RealWorld a -> IO a
+stToIO :: ST RealWorld a -> IO a
 stToIO = unST

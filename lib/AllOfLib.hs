@@ -18,7 +18,10 @@ import Control.Monad
 import Control.Monad.Fail
 import Control.Monad.IO.Class
 import Control.Monad.ST
+import Control.Monad.ST.Lazy
+import Control.Monad.ST.Lazy.Unsafe
 import Control.Monad.ST_Type
+import Control.Monad.ST.Unsafe
 import Data.Bits
 import Data.Bool
 import Data.Bool_Type
@@ -94,6 +97,8 @@ import Data.RealFrac
 import Data.Records
 import Data.Semigroup
 import Data.STRef
+import Data.STRef.Lazy
+import Data.STRef.Strict
 import Data.String
 import Data.Text
 import Data.Text.Encoding

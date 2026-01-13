@@ -45,6 +45,8 @@ library base
         Control.Monad.Fix
         Control.Monad.IO.Class
         Control.Monad.ST
+        Control.Monad.ST.Lazy
+        Control.Monad.ST.Lazy.Unsafe
         Control.Monad.ST.Unsafe
         Control.Monad.STM
         Control.Monad.Zip
@@ -122,6 +124,8 @@ library base
         Data.RealFrac
         Data.Records
         Data.STRef
+        Data.STRef.Lazy
+        Data.STRef.Strict
         Data.Semigroup
         Data.String
         Data.Text
