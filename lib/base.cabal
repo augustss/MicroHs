@@ -47,6 +47,7 @@ library base
         Control.Monad.ST
         Control.Monad.ST.Lazy
         Control.Monad.ST.Lazy.Unsafe
+        Control.Monad.ST.Strict
         Control.Monad.ST.Unsafe
         Control.Monad.STM
         Control.Monad.Zip

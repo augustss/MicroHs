@@ -20,6 +20,7 @@ import Control.Monad.IO.Class
 import Control.Monad.ST
 import Control.Monad.ST.Lazy
 import Control.Monad.ST.Lazy.Unsafe
+import Control.Monad.ST.Strict
 import Control.Monad.ST_Type
 import Control.Monad.ST.Unsafe
 import Data.Bits
