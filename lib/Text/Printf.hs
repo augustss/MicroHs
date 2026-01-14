@@ -96,6 +96,8 @@ import Data.Char
 import Data.Int
 import Data.List (stripPrefix)
 import Data.Maybe
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import Data.Word
 import Numeric.Show
 import Numeric.FormatFloat(showEFloat, showFFloat, showGFloat, showFFloatAlt, showGFloatAlt)
@@ -399,6 +401,12 @@ instance PrintfArg Float where
 -- | @since 2.01
 instance PrintfArg Double where
     formatArg = formatRealFloat
+
+instance PrintfArg T.Text where
+    formatArg txt = formatString $ T.unpack txt
+
+instance PrintfArg TL.Text where
+    formatArg txt = formatString $ TL.unpack txt
 
 -- | This class, with only the one instance, is used as
 -- a workaround for the fact that 'String', as a concrete
