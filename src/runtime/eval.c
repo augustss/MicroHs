@@ -6264,7 +6264,7 @@ int dump_ticks = 0;
   #if WANT_STDIO
   #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args(c,d)
   #else
-  #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args(void)
+  #define MHS_INIT_ARGS(a,b,c,d) mhs_init_args()
   #endif
 #endif  /* WANT_ARGS */
 
