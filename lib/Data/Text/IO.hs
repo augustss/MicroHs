@@ -23,7 +23,7 @@ import Control.Exception (evaluate)
 import qualified Data.ByteString as BS
 import Data.Text
 import Data.Text.Encoding
-import System.IO.Base(Handle, IOMode(..), hClose, openFile, stdin, stdout)
+import System.IO.Base(Handle, IOMode(..), hClose, openFile, stdin, stdout, withFile)
 import qualified System.IO.Base as IO
 
 readFile :: FilePath -> IO Text
@@ -32,16 +32,10 @@ readFile f = do
   hGetContents h
 
 writeFile :: FilePath -> Text -> IO ()
-writeFile f bs = do
-  h <- openFile f WriteMode
-  hPutStr h bs
-  hClose h
+writeFile f t = withFile f WriteMode $ \h -> hPutStr h t
 
 appendFile :: FilePath -> Text -> IO ()
-appendFile f bs = do
-  h <- openFile f AppendMode
-  hPutStr h bs
-  hClose h
+appendFile f t = withFile f AppendMode $ \h -> hPutStr h t
 
 hGetContents :: Handle -> IO Text
 hGetContents h = do
@@ -64,7 +58,7 @@ hPutStr h t =
   IO.hPutStr h (unpack t)
 
 hPutStrLn :: Handle -> Text -> IO ()
-hPutStrLn h t = hPutStr h t >> hPutStr h (pack "\n")
+hPutStrLn h t = hPutStr h (t `snoc` '\n')
 
 interact :: (Text -> Text) -> IO ()
 interact f = getContents >>= putStr . f
