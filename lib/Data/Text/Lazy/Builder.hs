@@ -1,42 +1,54 @@
--- Fake a builder
 module Data.Text.Lazy.Builder
-   ( Builder
-   , LazyTextBuilder
-   , toLazyText
-   , toLazyTextWith
-   , singleton
-   , fromText
-   , fromLazyText
-   , fromString
-   , flush
-   ) where
+  ( Builder
+  , LazyTextBuilder
+  , toLazyText
+  , toLazyTextWith
+  , singleton
+  , fromText
+  , fromLazyText
+  , fromString
+  , flush
+  ) where
 import qualified Data.Text as S
 import qualified Data.Text.Lazy as L
 import Data.String
 
-newtype Builder = B L.Text
-  deriving newtype (Eq, Ord, {-Semigroup,-} Monoid, Show, IsString)
-
--- bug in newtype deriving
-instance Semigroup Builder where
-  B x <> B y = B (x <> y)
+newtype Builder = Builder (L.Text -> L.Text)
 
 type LazyTextBuilder = Builder
 
+instance Eq Builder where
+  a == b = toLazyText a == toLazyText b
+
+instance Ord Builder where
+  compare a b = compare (toLazyText a) (toLazyText b)
+
+instance Semigroup Builder where
+  Builder f <> Builder g = Builder (f . g)
+
+instance Monoid Builder where
+  mempty = Builder id
+
+instance IsString Builder where
+  fromString = fromLazyText . L.pack
+
+instance Show Builder where
+  show = show . toLazyText
+
 toLazyText :: Builder -> L.Text
-toLazyText (B t) = t
+toLazyText (Builder f) = f L.empty
 
 toLazyTextWith :: Int -> Builder -> L.Text
-toLazyTextWith _ (B t) = t
+toLazyTextWith _ = toLazyText
 
 singleton :: Char -> Builder
-singleton c = B (L.singleton c)
+singleton = fromLazyText . L.singleton
 
 fromText :: S.Text -> Builder
 fromText = fromLazyText . L.toLazy
 
 fromLazyText :: L.Text -> Builder
-fromLazyText t = B t
+fromLazyText t = Builder (t `L.append`)
 
 flush :: Builder
-flush = B L.empty
+flush = Builder id
