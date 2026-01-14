@@ -169,7 +169,7 @@ unless p ma = if p then pure () else ma
 -----
 
 liftM :: forall m r a1 . (Monad m) => (a1 -> r) -> m a1 -> m r
-liftM f m1 = f <$> m1
+liftM f m1 = do { x1 <- m1; return (f x1) }
 liftM2 :: forall m r a1 a2 . (Monad m) => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
 liftM2 f m1 m2 = do { x1 <- m1; x2 <- m2; return (f x1 x2) }
 liftM3 :: forall m r a1 a2 a3 . (Monad m) => (a1 -> a2 -> a3 -> r) -> m a1 -> m a2 -> m a3 -> m r
