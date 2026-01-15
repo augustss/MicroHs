@@ -178,7 +178,7 @@ instance Binary Text where
 -}
 
 instance Data Text where
-  gfoldl f z txt = z pack `f` (unpack txt)
+  gfoldl f z txt = z pack `f` unpack txt
   toConstr _     = packConstr
   gunfold k z c  = case constrIndex c of
     1 -> k (z pack)
