@@ -1,5 +1,6 @@
 module Data.Text(
   Text,
+  StrictText,
   pack, unpack,
   show,
   empty,
@@ -32,16 +33,13 @@ module Data.Text(
   map,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, map)
-import Primitives(Ptr)
 import Control.DeepSeq.Class
 import qualified Data.List as L
-import Data.Monoid.Internal
 import Data.String
 import qualified Data.ByteString.Internal as BS
-import Foreign.C.Types(CChar)
-import Unsafe.Coerce(unsafeCoerce)
+import Data.Text.Internal
 
-newtype Text = T BS.ByteString
+type StrictText = Text
 
 instance Eq Text where
   (==) = cmp (==)
