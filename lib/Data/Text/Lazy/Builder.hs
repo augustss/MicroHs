@@ -45,7 +45,7 @@ singleton :: Char -> Builder
 singleton = fromLazyText . L.singleton
 
 fromText :: S.Text -> Builder
-fromText = fromLazyText . L.toLazy
+fromText = fromLazyText . L.fromStrict
 
 fromLazyText :: L.Text -> Builder
 fromLazyText t = Builder (t `L.append`)
