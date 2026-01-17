@@ -8,6 +8,11 @@
 #define WANT_GMP 0
 #endif /* defined(WANT_GMP) */
 
+
+#if WANT_STDIO
+#include <stdio.h>
+#include <locale.h>
+#endif
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,10 +26,14 @@
 #endif /* __EMSCRIPTEN__ */
 #if WANT_DIR
 #include <dirent.h>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif  /* WANT_DIR */
+#if WANT_DIR || WANT_STDIO
+// The call `unlink` is guarded under WANT_STDIO, but the rest seems to be under WANT_DIR.
+// Lennart, how do you want to include unistd.h?
+#include <unistd.h>
+#endif
 #if WANT_TIME
 #include <time.h>
 #endif
@@ -3925,10 +3934,12 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
     break;
   case T_IO_CCALL: putb('^', f); putsb(FFI_IX(GETVALUE(n)).ffi_name, f); break;
   case T_BADDYN: putb('^', f); putsb(CSTR(n), f); break;
+#if WANT_TICK
   case T_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
+#endif
   default:
     if (0 <= tag && tag <= T_LAST_TAG)
 #if WANT_TICK && WANT_TAGNAMES
@@ -6392,7 +6403,7 @@ MHS_INIT_ARGS(
       *file_sizep = combexprlen;
 #endif
     } else {
-#if WANT_STDIO
+#if WANT_STDIO & WANT_ARGS
       /* Open a regular file */
       FILE *f = fopen(inname, "r");
       if (!f)
@@ -7234,10 +7245,6 @@ const struct ffi_entry ffi_table[] = {
   { "poke_ullong", 2, mhs_poke_ullong},
   { "poke_ulong", 2, mhs_poke_ulong},
   { "poke_size_t", 2, mhs_poke_size_t},
-#if WANT_FLOAT
-  { "peek_flt", 1, mhs_peek_flt},
-  { "poke_flt", 2, mhs_poke_flt},
-#endif  /* WANT_FLOAT */
   { "sizeof_char", 0, mhs_sizeof_char},
   { "sizeof_short", 0, mhs_sizeof_short},
   { "sizeof_int", 0, mhs_sizeof_int},
