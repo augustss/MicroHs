@@ -29,11 +29,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif  /* WANT_DIR */
-#if WANT_DIR || WANT_STDIO
-// The call `unlink` is guarded under WANT_STDIO, but the rest seems to be under WANT_DIR.
-// Lennart, how do you want to include unistd.h?
-#include <unistd.h>
-#endif
 #if WANT_TIME
 #include <time.h>
 #endif
