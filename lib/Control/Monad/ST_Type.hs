@@ -9,5 +9,5 @@ import {-# SOURCE #-} Data.Typeable
 -- The ST monad is implemented with the IO monad.
 newtype ST s a = ST (IO a)
 
-unST :: forall s a . ST s a -> IO a
+unST :: ST s a -> IO a
 unST (ST io) = io

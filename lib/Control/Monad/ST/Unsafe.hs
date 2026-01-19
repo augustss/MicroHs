@@ -4,6 +4,8 @@ module Control.Monad.ST.Unsafe(
   unsafeIOToST,
   unsafeSTToIO,
   ) where
+import qualified Prelude()
+import Primitives(IO)
 import Control.Monad.ST_Type
 import System.IO.Unsafe
 
