@@ -9,7 +9,7 @@ infixl :@
 data Exp
   = S | S' | K | A | U | I | Y | B | B' | Z | C | C' | P | R | O | K2 | K3 | K4 | C'B
   | Add | Sub | Lt
-  | Exp :@ Exp | Int Integer | Label Int Exp | Ref Int | Tick String | Vx | Vy | Vz | Vw
+  | Exp :@ Exp | Int Integer | Label Int Exp | Ref Int | Tick String | Vx | Vy | Vz | Vw | Vv | Vu
   deriving (Show, Read, Data, Eq, Ord)
 
 reduce :: Exp -> Exp
@@ -34,6 +34,9 @@ reduce ((((C'B :@ x) :@ y) :@ z) :@ w) = (x :@ z) :@ (y :@ w)
 reduce (Label _ e) = e
 reduce (Tick _ :@ e) = e
 reduce e = e
+
+treduce :: Exp -> Exp
+treduce = transform reduce
 
 parseExp :: String -> (Exp, String)
 parseExp (' ':cs) = parseExp cs
@@ -93,3 +96,6 @@ t4 = readExp s4
 
 s5 = "(:942 ((C ((S ((C <) #2)) (((C' +) (((S' +) ((B :491 ((B !\"F.nfib\") _942)) :4157 ((C -) #1))) ((B _491) ((C -) #2)))) #1))) #1) x)"
 t5 = readExp s5
+
+s6 = "(C'B ((C ((C S') (U K))) (U A)))"
+t6 = readExp s6
