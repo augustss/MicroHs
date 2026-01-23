@@ -8,46 +8,39 @@ module Control.Monad.ST.Lazy(
   RealWorld, stToIO,  -- GHC compat
   ) where
 import qualified Prelude(); import MiniPrelude
+import Primitives(primPerformIO)
 import Control.Monad.Fix
 import Control.Monad.ST(RealWorld)
 import qualified Control.Monad.ST_Type as S
-import System.IO.Unsafe(unsafeInterleaveIO, unsafePerformIO)
+import qualified Control.Monad.ST as S
 
-newtype ST s a = ST { unST :: State s -> (a, State s) }
+primLazyBind :: IO a -> (a -> IO b) -> IO b
+primLazyBind = _primitive "IO.lazyBind"
 
-data State s = S
+newtype ST s a = ST {unST :: S.ST s a}
 
+-- This gets a type error when defined in terms of S.runST
 runST :: (forall s . ST s a) -> a
-runST (ST st) = case st S of (r, _) -> r
+runST = primPerformIO . S.unST . unST
 
 fixST :: (a -> ST s a) -> ST s a
-fixST f = ST $ \s -> let q@(r, _s') = unST (f r) s in q
+fixST f = ST (S.fixST (unST . f))
 
 strictToLazyST :: S.ST s a -> ST s a
-strictToLazyST (S.ST io) = ST $ \s -> s `seq`
-  case unsafePerformIO (fmap MkSolo io) of
-    MkSolo a -> (a, s)
+strictToLazyST = ST
 
 lazyToStrictST :: ST s a -> S.ST s a
-lazyToStrictST (ST st) = S.ST $ fmap id (case st S of (x, _) -> pure x)
+lazyToStrictST = unST
 
 instance Functor (ST s) where
-  fmap f m = ST $ \s ->
-    let (r, s') = unST m s
-    in (f r, s')
+  fmap f = ST . fmap f . unST
 
 instance Applicative (ST s) where
-  pure x = ST $ \s -> (x, s)
-  liftA2 f m n = ST $ \s ->
-    let
-      (x, s') = unST m s
-      (y, s'') = unST n s'
-    in (f x y, s'')
+  pure = ST . pure
+  (<*>) = ap                -- ap is defined in terms on >>=, so it becomes lazy
 
 instance Monad (ST s) where
-  m >>= k = ST $ \s ->
-    let (r, s') = unST m s
-    in unST (k r) s'
+  ma >>= k = ST $ S.ST $ primLazyBind (S.unST (unST ma)) (S.unST . unST . k)
 
 instance MonadFix (ST s) where
   mfix = fixST
@@ -58,3 +51,4 @@ instance MonadFix (ST s) where
 
 stToIO :: ST RealWorld a -> IO a
 stToIO = S.unST . lazyToStrictST
+

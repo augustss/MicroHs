@@ -1,5 +1,5 @@
 -- taken from https://gitlab.haskell.org/ghc/ghc/-/blob/c94aaacd4c4e31a2fe2cb8dadcdd14c7621d27c5/libraries/base/tests/lazySTexamples.hs
-
+module LazyST where
 import Data.STRef.Lazy
 import Control.Monad.ST.Lazy as L
 import Control.Monad.ST as S
@@ -101,8 +101,8 @@ example5 = do
 
 main :: IO ()
 main = do
-  print $ fix1 fact 5
-  print $ fix2 fact 6
+  print $ fix fact 5
+  print $ fix fact 6
   print $ take 5 example1
   print $ take 5 example2
   print $ take 10 (L.runST example3)

@@ -471,6 +471,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH, T_CATCHR,
                 T_IO_CCALL,
                 T_IO_GC, T_IO_STATS,
+                T_IO_LAZYBIND,
                 T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
@@ -957,7 +958,7 @@ void pp(FILE*, NODEPTR);
 
 /* Needed during reduction */
 NODEPTR intTable[HIGH_INT - LOW_INT];
-NODEPTR combK, combTrue, combI, combCons, combPair;
+NODEPTR combK, combA, combI, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combBB;
 NODEPTR combSETMASKINGSTATE;
 NODEPTR combLT, combEQ, combGT;
@@ -974,7 +975,9 @@ NODEPTR combTHROWTO;
 NODEPTR combPairUnit;
 NODEPTR combWorld;
 NODEPTR combCATCHR;
+NODEPTR combFst, combSnd;
 #define combFalse combK
+#define combTrue combA
 #define combNothing combK
 #define combUnit combI
 
@@ -1968,6 +1971,7 @@ struct {
   { "IO.gc", T_IO_GC },
   { "IO.stats", T_IO_STATS },
   { "IO.pp", T_IO_PP },
+  { "IO.lazyBind", T_IO_LAZYBIND },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
   { "catchr", T_CATCHR },
@@ -2218,6 +2222,8 @@ init_nodes(void)
   NEWAP(combJust, combZ, combU);       /* (Z U) */
   MKINT(combWorld, 99999);
   NEWAP(combPairUnit, combPair, combUnit);
+  NEWAP(combFst, combU, combK);
+  NEWAP(combSnd, combU, combA);
 #undef NEWAP
 
 #if INTTABLE
@@ -5316,6 +5322,15 @@ evali(NODEPTR an)
     GCCHECK(2);
     CHKARG2;
     GOAP2(combIOBIND, x, new_ap(combK, y));
+    /* Lazy bind, used for the lazy ST monad.
+       DO NOT USE FOR IO, because effects are not guaranteed to happen.
+         (x `lazyBind` y) z = let w = x z in y (fst w) (snd w)
+    */
+  case T_IO_LAZYBIND:
+    GCCHECK(4);
+    CHKARG3;
+    w = new_ap(x, z);
+    GOAP2(y, new_ap(combFst, w), new_ap(combSnd, w));
 #if WANT_STDIO
   case T_IO_PP:
     CHKARG2;
