@@ -5,8 +5,16 @@ import Control.Monad.ST.Lazy as L
 import Control.Monad.ST as S
 import qualified Data.STRef as S
 import Data.Function (fix)
-import System.IO (hPutStrLn, stderr)
-import Debug.Trace (trace)
+--import System.IO (hPutStrLn, stderr)
+--import Debug.Trace (trace)
+import System.IO.Unsafe(unsafePerformIO)
+
+-- Make a trace that prints on stdout, otherwise example5
+-- mixes printing on stderr and stdout.
+trace :: String -> a -> a
+trace s a = unsafePerformIO $ do
+  putStrLn s
+  return a
 
 -- The following implements `fix` using lazy `ST`. It is based on code
 -- by Oleg Kiselyov (source: http://okmij.org/ftp/Haskell/Fix.hs) which is
@@ -108,3 +116,10 @@ main = do
   print $ take 10 (L.runST example3)
   print $ take 10 (L.runST example4)
   print $ take 5 (L.runST example5)
+
+  print $ S.runST $ do
+    ref <- lazyToStrictST $ newSTRef 0
+    let action = lazyToStrictST $ modifySTRef ref (+ 1)
+    action
+    action
+    lazyToStrictST $ readSTRef ref
