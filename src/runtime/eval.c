@@ -471,7 +471,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_IO_PERFORMIO, T_IO_PRINT, T_CATCH, T_CATCHR,
                 T_IO_CCALL,
                 T_IO_GC, T_IO_STATS,
-                T_IO_LAZYBIND,
+                T_IO_LAZYBIND, T_IO_STRICT,
                 T_DYNSYM,
                 T_IO_FORK, T_IO_THID, T_THNUM, T_IO_THROWTO, T_IO_YIELD,
                 T_IO_NEWMVAR,
@@ -1972,6 +1972,7 @@ struct {
   { "IO.stats", T_IO_STATS },
   { "IO.pp", T_IO_PP },
   { "IO.lazyBind", T_IO_LAZYBIND },
+  { "IO.strict", T_IO_STRICT },
   { "raise", T_RAISE },
   { "catch", T_CATCH },
   { "catchr", T_CATCHR },
@@ -5322,15 +5323,22 @@ evali(NODEPTR an)
     GCCHECK(2);
     CHKARG2;
     GOAP2(combIOBIND, x, new_ap(combK, y));
-    /* Lazy bind, used for the lazy ST monad.
-       DO NOT USE FOR IO, because effects are not guaranteed to happen.
-         (x `lazyBind` y) z = let w = x z in y (fst w) (snd w)
-    */
   case T_IO_LAZYBIND:
+    /* Lazy bind, used for the lazy ST monad.
+     * DO NOT USE FOR IO, because effects are not guaranteed to happen.
+     *   (x `lazyBind` y) z = let w = x z in y (fst w) (snd w)
+     */
     GCCHECK(4);
     CHKARG3;
     w = new_ap(x, z);
     GOAP2(y, new_ap(combFst, w), new_ap(combSnd, w));
+  case T_IO_STRICT:
+    CHKARG2;
+    /* Force the world argument before executing the IO.
+     * IO.strict io World = seq World (io World) 
+     */
+    (void)evali(y);             /* evaluate the world */
+    GOAP(x, y);                 /* and run IO computation */
 #if WANT_STDIO
   case T_IO_PP:
     CHKARG2;
