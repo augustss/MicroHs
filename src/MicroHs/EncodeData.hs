@@ -57,7 +57,18 @@ encConstrNo i n ss =
     strict (False:ys) (_:is) e = strict ys is e
     strict (True:ys)  (x:is) e = app2 (Lit (LPrim "seq")) (Var x) (strict ys is e)
     strict _ _ e = e
-    con = Lit $ LPrim $ "M" ++ show i ++ "_" ++ show n ++ "_" ++ show (length ss)
+    con = Lit $ LPrim scon
+    scon =
+      case (i, n, l) of
+        (0, 1, 0) -> "I"       -- single nullary
+        (0, 1, 1) -> "U"       -- single unary
+        (0, 1, 2) -> "P"       -- pair
+        (0, 2, 0) -> "K"       -- []/False/Nothing
+        (1, 2, 0) -> "A"       -- True
+--      (1, 2, 1) -> "Z U@"    -- Just/Right
+        (1, 2, 2) -> "O"       -- (:)
+        _ -> "M" ++ show i ++ "_" ++ show n ++ "_" ++ show l
+    l = length ss
   in
     if all not ss then
       con                   -- just an optimization to avoid a lot of eta reductions
@@ -111,8 +122,12 @@ caseTree n var lo hi pes dflt =
    eqInt x i = app2 (Lit (LPrim "==")) x (Lit (LInt i))
    ltInt :: Exp -> Int -> Exp
    ltInt x i = app2 (Lit (LPrim "<")) x (Lit (LInt i))
+   -- extract arguments to constructor
+   -- Uk (\ i1 ... ik -> rhs) e
    match :: Exp -> [Ident] -> Exp -> Exp
-   match e is rhs = App (App (unpack (length is)) e) (lams is rhs)
+   match e is rhs = App (App (unpack (length is)) (lams is rhs)) e
+
+   unpack 2 = Lit $ LPrim "U"                -- use fast special case for pairs
    unpack l = Lit $ LPrim $ "U" ++ show l
 {-
    cmpInt :: Exp -> Int -> Exp
@@ -130,8 +145,14 @@ numConstr _ = undefined
 
 -- Make a tuple
 encTuple :: [Exp] -> Exp
-encTuple = Lam f . foldl App (Var f)
-  where f = mkIdent "$f"
+encTuple es = apps (Lit $ LPrim tup) es
+  where n = length es
+        tup = case n of
+                -- XXX special cases for 0,1
+                0 -> "I"
+                1 -> "U"
+                2 -> "P"       -- use faster special case for pairs
+                _ -> "M0_1_" ++ show n
 
 -- Select component m from an n-tuple
 encTupleSel :: Int -> Int -> Exp -> Exp
