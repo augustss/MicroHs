@@ -544,6 +544,15 @@ typedef struct PACKED node {
     struct weak_ptr *uuweak;
   } uarg;
 } node;
+/*
+ * Low bits encode the node type
+ *  00 - T_AP  application
+ *  01 - tag   upper bits are T_XXX
+ *  10 - T_IND indirection
+ *  11 - unused
+ * Only the lower 2 bits are free on 32 bit platforms with 3 word nodes
+ * (i.e. with WANT_DOUBLE or WANT_INT64).
+ */
 #define BIT_TAG   1
 #define BIT_IND   2
 #define BIT_NOTAP (BIT_TAG | BIT_IND)

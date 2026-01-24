@@ -1,15 +1,9 @@
-name: MicroHs CI
-# Run on common architectures on push
+name: MicroHs Nightly
+# Compile on all architectures only nightly.
 
 on:
-  push:
-#    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
-
-# Only one job per branch
-concurrency:
-  cancel-in-progress: true
+  schedule:
+    - cron: '0 4 * * *'  # Every day at 04:00 UTC
 
 jobs:
   build-linux-x86_64:
@@ -111,6 +105,26 @@ jobs:
       run: make everytestmhs
       shell: alpine.sh {0}
 
+  build-linux-s390x:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: jirutka/setup-alpine@v1
+      with:
+        arch: s390x
+        branch: v3.15
+        packages: >
+          build-base
+          gcc
+          make
+    - name: checkout repo
+      uses: actions/checkout@v4
+    - name: make
+      run: make
+      shell: alpine.sh {0}
+    - name: make everytestmhs
+      run: make everytestmhs
+      shell: alpine.sh {0}
+
   build-linux-x86:
     runs-on: ubuntu-latest
     steps:
@@ -131,8 +145,91 @@ jobs:
       run: make everytestmhs
       shell: alpine.sh {0}
 
-  build-emscripten:
+  build-linux-armv7:
     runs-on: ubuntu-latest
+    steps:
+    - uses: jirutka/setup-alpine@v1
+      with:
+        arch: armv7
+        branch: v3.15
+        packages: >
+          build-base
+          gcc
+          make
+    - name: checkout repo
+      uses: actions/checkout@v4
+    - name: make
+      run: make
+      shell: alpine.sh {0}
+    - name: make everytestmhs
+      run: make everytestmhs
+      shell: alpine.sh {0}
+
+  build-linux-riscv64:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: jirutka/setup-alpine@v1
+      with:
+        arch: riscv64
+        branch: v3.20
+        packages: >
+          build-base
+          gcc
+          make
+    - name: checkout repo
+      uses: actions/checkout@v4
+    - name: make
+      run: make
+      shell: alpine.sh {0}
+    - name: make everytestmhs
+      run: make everytestmhs
+      shell: alpine.sh {0}
+
+  build-linux-ppc64le:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: jirutka/setup-alpine@v1
+      with:
+        arch: ppc64le
+        branch: v3.15
+        packages: >
+          build-base
+          gcc
+          make
+    - name: checkout repo
+      uses: actions/checkout@v4
+    - name: make
+      run: make
+      shell: alpine.sh {0}
+    - name: make everytestmhs
+      run: make everytestmhs
+      shell: alpine.sh {0}
+
+#  build-linux-ppc64be:
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: jirutka/setup-alpine@v1
+#      with:
+#        arch: ppc64be
+#        branch: v3.15
+#        packages: >
+#          build-base
+#          gcc
+#          make
+#    - name: checkout repo
+#      uses: actions/checkout@v4
+#    - name: make
+#      run: make
+#      shell: alpine.sh {0}
+#    - name: make everytestmhs
+#      run: make everytestmhs
+#      shell: alpine.sh {0}
+
+  build-emscripten:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
     - uses: mymindstorm/setup-emsdk@v13
