@@ -5,6 +5,8 @@ module MicroHs.EncodeData(
   encCase,
   encIf,
   encList,
+  encTuple,
+  encTupleSel,
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.List
@@ -167,3 +169,16 @@ conNo _ = undefined
 numConstr :: [(SPat, Exp)] -> Int
 numConstr ((SPat (ConData cs _ _) _, _):_) = length cs
 numConstr _ = undefined
+
+-- Make a tuple
+encTuple :: [Exp] -> Exp
+encTuple = Lam f . foldl App (Var f)
+  where f = mkIdent "$f"
+
+-- Select component m from an n-tuple
+encTupleSel :: Int -> Int -> Exp -> Exp
+encTupleSel m n tup =
+  let
+    xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
+  in App tup (foldr Lam (Var (xs !! m)) xs)
+

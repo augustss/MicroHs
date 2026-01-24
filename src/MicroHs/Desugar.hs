@@ -204,9 +204,9 @@ mutualRec v ies body =
   let (is, es) = unzip ies
       n = length is
       ev = Var v
-      one m i = letE i (mkTupleSelE m n ev)
+      one m i = letE i (encTupleSel m n ev)
       bnds = foldr (.) id $ zipWith one [0..] is
-  in  letRecE v (bnds $ mkTupleE es) $
+  in  letRecE v (bnds $ encTuple es) $
       bnds body
 
 -- In case we are cross compiling for a 32 bit platform we don't want integers that are too big.
@@ -244,7 +244,7 @@ dsExpr aexpr =
     ELit _ l -> Lit l
     ECase e as -> dsCase (getSLoc aexpr) e as
     ELet ads e -> dsBinds ads (dsExpr e)
-    ETuple es -> Lam (mkIdent "$f") $ foldl App (Var $ mkIdent "$f") $ map dsExpr es
+    ETuple es -> encTuple $ map dsExpr es
     EIf e1 e2 e3 -> encIf (dsExpr e1) (dsExpr e2) (dsExpr e3)
     EListish (LList es) -> encList $ map dsExpr es
     EListish (LCompr e stmts) -> dsExpr $ dsCompr e stmts (EListish (LList []))
@@ -253,7 +253,7 @@ dsExpr aexpr =
           Just n ->
             let
               xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
-              body = mkTupleE $ map Var xs
+              body = encTuple $ map Var xs
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
     _ -> impossibleShow aexpr
@@ -278,17 +278,6 @@ dsCompr e xss@(SBind p g : ss) l = ELet [hdef] (EApp eh g)
     vs = EVar $ head $ newVars "$vs" allVs
     allVs = allVarsExpr (EListish (LCompr (ETuple [e,l]) xss))  -- all used identifiers
 dsCompr _ (SRec _ : _) _ = impossible
-
--- Use tuple encoding to make a tuple
-mkTupleE :: [Exp] -> Exp
-mkTupleE = Lam (mkIdent "$f") . foldl App (Var (mkIdent "$f"))
-
--- Select component m from an n-tuple
-mkTupleSelE :: Int -> Int -> Exp -> Exp
-mkTupleSelE m n tup =
-  let
-    xs = [mkIdent ("x" ++ show i) | i <- [1 .. n] ]
-  in App tup (foldr Lam (Var (xs !! m)) xs)
 
 -- Handle special syntax for lists and tuples.
 dsPat :: HasCallStack =>
