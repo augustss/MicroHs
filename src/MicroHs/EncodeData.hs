@@ -27,9 +27,20 @@ encCase var pes dflt | useDirect n (length pes) = encCaseDirect var pes dflt
   where n = numConstr pes
 
 -- Encode constructor k of n, the number of arguments
--- is given by the length of the list
+-- is given by the length of the strictness list.
 encConstr :: Int -> Int -> [Bool] -> Exp
-encConstr k n ss = encConstrNo k n ss
+encConstr cno numCon ss =
+  let
+    xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip [0::Int ..] ss]
+    strict (False:ys) (_:is) e = strict ys is e
+    strict (True:ys)  (x:is) e = app2 (Lit (LPrim "seq")) (Var x) (strict ys is e)
+    strict _ _ e = e
+    con = encConstrNo cno numCon (length ss)
+  in
+    if all not ss then
+      con                   -- just an optimization to avoid a lot of eta reductions
+    else
+      lams xs $ strict ss xs $ apps con (map Var xs)
 
 -- Decide if we are doing a direct dispatch or a comparison tree.
 useDirect :: Int -> Int -> Bool
@@ -50,16 +61,11 @@ cNil = encConstr 0 2 []
 
 -------------------------------------------
 
-encConstrNo :: Int -> Int -> [Bool] -> Exp
-encConstrNo i n ss =
-  let
-    xs = [mkIdent ("$x" ++ show j) | (j, _) <- zip [0::Int ..] ss]
-    strict (False:ys) (_:is) e = strict ys is e
-    strict (True:ys)  (x:is) e = app2 (Lit (LPrim "seq")) (Var x) (strict ys is e)
-    strict _ _ e = e
-    con = Lit $ LPrim scon
+encConstrNo :: Int -> Int -> Int -> Exp
+encConstrNo cno numCon numArg = Lit $ LPrim scon
+  where
     scon =
-      case (i, n, l) of
+      case (cno, numCon, numArg) of
         (0, 1, 0) -> "I"       -- single nullary
         (0, 1, 1) -> "U"       -- single unary
         (0, 1, 2) -> "P"       -- pair
@@ -67,25 +73,15 @@ encConstrNo i n ss =
         (1, 2, 0) -> "A"       -- True
 --      (1, 2, 1) -> "Z U@"    -- Just/Right
         (1, 2, 2) -> "O"       -- (:)
-        _ -> "M" ++ show i ++ "_" ++ show n ++ "_" ++ show l
-    l = length ss
-  in
-    if all not ss then
-      con                   -- just an optimization to avoid a lot of eta reductions
-    else
-      lams xs $ strict ss xs $ apps con (map Var xs)
+        _ -> "M" ++ show cno ++ "_" ++ show numCon ++ "_" ++ show numArg
 
 encCaseDirect :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCaseDirect var pes dflt =
-  --trace ("mkCase " ++ show pes) $
-  case pes of
-    (SPat (ConData cs _ _) _, _) : _ ->
-      let
-        arm (c, k) =
-          head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
-                 [ lams (replicate k dummyIdent) dflt ]
-      in  apps var (map arm cs)
-    _ -> undefined
+  let cs = dataInfo pes
+      arm (c, k) =
+        head $ [ lams xs e | (SPat (ConData _ i _) xs, e) <- pes, c == i ] ++
+               [ lams (replicate k dummyIdent) dflt ]
+  in  apps var (map arm cs)
 
 encCaseNo :: Exp -> [(SPat, Exp)] -> Exp -> Exp
 encCaseNo var@(Var _) pes dflt =
@@ -139,20 +135,16 @@ conNo :: Con -> Int
 conNo (ConData cks i _) = length $ takeWhile ((/= i) . fst) cks
 conNo _ = undefined
 
+dataInfo :: [(SPat, Exp)] -> [(Ident, Int)]
+dataInfo ((SPat (ConData cs _ _) _, _):_) = cs
+dataInfo _ = undefined
+
 numConstr :: [(SPat, Exp)] -> Int
-numConstr ((SPat (ConData cs _ _) _, _):_) = length cs
-numConstr _ = undefined
+numConstr = length . dataInfo
 
 -- Make a tuple
 encTuple :: [Exp] -> Exp
-encTuple es = apps (Lit $ LPrim tup) es
-  where n = length es
-        tup = case n of
-                -- XXX special cases for 0,1
-                0 -> "I"
-                1 -> "U"
-                2 -> "P"       -- use faster special case for pairs
-                _ -> "M0_1_" ++ show n
+encTuple es = apps (encConstrNo 0 1 (length es)) es
 
 -- Select component m from an n-tuple
 encTupleSel :: Int -> Int -> Exp -> Exp
