@@ -2,3 +2,4 @@
 
 ## Features
  * More complete base library
+ * Int aritmetic generates overflow exception instead of wrapping.
