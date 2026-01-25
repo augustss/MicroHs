@@ -460,10 +460,11 @@ islinux(void)
 #define NOTREACHED
 #endif
 
-enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_FUNPTR, T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK,
+enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_FUNPTR,
+                T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK, T_MK,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
-                T_K2, T_K3, T_K4, T_CCB,
+                T_K2, T_K3, T_K4, T_CCB, T_CNO,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_NEG,
                 T_UADD, T_USUB, T_UMUL, T_UQUOT, T_UREM, T_USUBR, T_UNEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
@@ -521,7 +522,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
 /* Most entries are initialized from the primops table. */
 static const char* tag_names [T_LAST_TAG+1] =
   { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "PTR",
-    "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR", "WEAK" };
+    "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR", "WEAK", "MK" };
 #define TAGNAME(t) tag_names[t]
 
 /* On 64 bit platforms there is no special type for Int64 */
@@ -572,7 +573,7 @@ typedef struct PACKED node {
  *  00 - T_AP  application
  *  01 - tag   upper bits are T_XXX
  *  10 - T_IND indirection
- *  11 - unused
+ *  11 - T_MK  constructor family
  * Only the lower 2 bits are free on 32 bit platforms with 3 word nodes
  * (i.e. with WANT_DOUBLE or WANT_INT64).
  */
@@ -581,24 +582,46 @@ typedef struct PACKED node {
 #define BIT_AP    0
 #define BIT_TG    1
 #define BIT_IN    2
+#define BIT_MK    3
 
 static inline tag_t GETTAG(NODEPTR p)
 {
   tag_t t = p->ufun.uutag;
   switch(t & BIT_MASK) {
   case BIT_AP: return T_AP;
+  /*case BIT_TG*/
+  default: return t >> TAG_SHIFT;
   case BIT_IN: return T_IND;
-  default:     return t >> TAG_SHIFT;
+  case BIT_MK: return T_MK;
   }
 }
 static inline void SETTAG(NODEPTR p, tag_t t)
 {
   switch(t) {
-  case BIT_AP: break;           /* do nothing, bits are already 0 */
-  case BIT_IN: p->ufun.uutag |= BIT_IN; break;
-  default:     p->ufun.uutag = (t << TAG_SHIFT) | BIT_TG; break;
+  case T_AP:  break;           /* do nothing, bits are already 0 */
+  case T_IND: p->ufun.uutag |= BIT_IN; break;
+  case T_MK:  p->ufun.uutag |= BIT_MK; break;
+  default:    p->ufun.uutag = (t << TAG_SHIFT) | BIT_TG; break;
   }
 }
+/* Use 9 bits each for the numbers, leave 3 high bits 0 */
+#define BITS_CONNO  9
+#define BITS_NUMCON 9
+#define BITS_NUMARG 9
+#define MASK_CONNO  ((1 << BITS_CONNO) - 1)
+#define MASK_NUMCON ((1 << BITS_NUMCON) - 1)
+#define MASK_NUMARG ((1 << BITS_NUMARG) - 1)
+#define T_M(conno, numcon, numarg) (((((numarg) << (BITS_CONNO + BITS_NUMCON)) | ((numcon) << BITS_CONNO) | (conno)) << TAG_SHIFT) | BIT_MK)
+//#define SPLIT_M(t, conno, numcon, numarg) do { (conno) = ((t) >> TAG_SHIFT) & MASK_CONNO;  } while(0)
+/* The C compilers know how to deal with this efficiently, it seems. */
+static inline void split_m(tag_t t, int *conno, int *numcon, int *numarg)
+{
+  t >>= TAG_SHIFT;
+  *conno = t & MASK_CONNO;
+  *numcon = (t >> BITS_CONNO) & MASK_NUMCON;
+  *numarg = (t >> (BITS_CONNO + BITS_NUMCON)) & MASK_NUMARG;
+}
+#define SPLIT_M(t, conno, numcon, numarg) split_m((t), &(conno), &(numcon), &(numarg))
 
 #define NIL 0
 #define HEAPREF(i) &cells[(i)]
@@ -1916,6 +1939,7 @@ struct {
   { "K3", T_K3 },
   { "K4", T_K4 },
   { "C'B", T_CCB },
+  { "cno", T_CNO },
 /* primops */
   { "+", T_ADD, T_ADD },
   { "-", T_SUB, T_SUBR },
@@ -3500,7 +3524,7 @@ parse(BFILE *f)
   NODEPTR r, x, y;
   NODEPTR *nodep;
   heapoffs_t l;
-  int c;
+  int c, d;
   size_t j;
   char buf[80];                 /* store names of primitives. */
 
@@ -3655,6 +3679,20 @@ parse(BFILE *f)
         ERR1("unknown funptr '%s'", buf);
       }
       break;
+    case 'M':
+      d = getb(f);
+      ungetb(d, f);
+      if (isdigit(d)) {
+        /* constructor combinator of the form Mddd_ddd_ddd */
+        int conno = parse_int(f);
+        if (!gobble(f, '_')) ERR("parse M 1");
+        int numcon = parse_int(f);
+        if (!gobble(f, '_')) ERR("parse M 2");
+        int numarg = parse_int(f);
+        PUSH(alloc_node(T_M(conno, numcon, numarg)));
+        break;
+      }
+      /* fall info default */
     default:
       buf[0] = c;
       /* A primitive, keep getting char's until end */
@@ -4774,6 +4812,37 @@ evali(NODEPTR an)
   //if (stack_ptr < -1)
   //  ERR("stack_ptr");
   switch (tag) {
+  case T_MK:
+    {
+      int conno, numcon, numarg;
+      /* Could special case common Ms here */
+      SPLIT_M(n->ufun.uutag, conno, numcon, numarg);
+      printf("T_MK: conno=%d numcon=%d numarg=%d\n", conno, numcon, numarg);
+      /*
+       * The reduction rule is (c' = c-1)
+       *   M_cnm a1 ... am f1 ... fn  -->  fc' a1 ... am
+       * This needs m+n arguments on the stack and will allocate m-1 application nodes.
+       */
+      CHECK(numcon + numarg);
+      if (numarg > 1)
+        GCCHECK(numarg - 1);
+      NODEPTR fc = ARG(TOP(numarg + conno));      /* this is the function to use */
+      if (numarg == 0) {
+        POP(numcon + numarg);
+        n = TOP(-1);
+        GOIND(fc);              /* no applications, just indirect */
+      } else {
+        for(int i = 0; i < numarg-1; i++) {
+          fc = new_ap(fc, ARG(TOP(i)));
+        }
+        x = ARG(TOP(numarg-1)); /* last argument */
+        POP(numcon + numarg);
+        n = TOP(-1);
+        GOAP(fc, x);            /* overwrite with last application */
+      }
+      break;
+    }
+
   ap2:         PUSH(n); n = FUN(n);
   ap:
   case T_AP:   PUSH(n);
@@ -7414,15 +7483,3 @@ const struct ffi_entry ffi_table[] = {
 };
 
 int num_ffi = sizeof(ffi_table) / sizeof(ffi_table[0]);
-
-bool
-xxindir(NODEPTR p)
-{
-  return ISINDIR(p);
-}
-
-void
-xxsetind(NODEPTR p, NODEPTR q)
-{
-  SETINDIR(p, q);
-}
