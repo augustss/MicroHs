@@ -27,6 +27,8 @@ typedef intptr_t stackptr_t;    /* Index into stack */
 typedef struct node* NODEPTR;
 typedef void (*HsFunPtr)(void);
 
+#define VALUE_MIN INTPTR_MIN
+
 typedef int from_t;
 typedef from_t (*funptr_t)(int);
 struct ffi_entry {

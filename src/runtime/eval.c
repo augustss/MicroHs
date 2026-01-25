@@ -965,7 +965,8 @@ free_stableptr(uvalue_t sp)
 }
 
 /* The order of these must be kept in sync with Control.Exception.Internal.rtsExn */
-enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt, exn_dividebyzero, exn_blockedmvar, exn_blockedstm };
+enum rts_exn { exn_stackoverflow, exn_heapoverflow, exn_threadkilled, exn_userinterrupt,
+               exn_dividebyzero, exn_blockedmvar, exn_blockedstm, exn_overflow };
 
 NORETURN void raise_exn(NODEPTR exn);
 struct mvar* new_mvar(void);
@@ -5870,11 +5871,15 @@ evali(NODEPTR an)
       case T_SUBR:  ru = yu - xu; break;
       case T_QUOT:  if (yu == 0)
                       raise_rts(exn_dividebyzero);
+                    else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
+                      raise_rts(exn_overflow);
                     else
                       ru = (uvalue_t)((value_t)xu / (value_t)yu);
                     break;
       case T_REM:   if (yu == 0)
                       raise_rts(exn_dividebyzero);
+                    else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
+                      raise_rts(exn_overflow);
                     else
                       ru = (uvalue_t)((value_t)xu % (value_t)yu);
                     break;
@@ -5977,11 +5982,15 @@ evali(NODEPTR an)
       case T_SUBR64:r64u = y64u - x64u; break;
       case T_QUOT64:if (y64u == 0)
                       raise_rts(exn_dividebyzero);
+                    else if ((int64_t)xu == INT64_MIN && (int64_t)yu == -1)
+                      raise_rts(exn_overflow);
                     else
                       r64u = (uint64_t)((int64_t)x64u / (int64_t)y64u);
                     break;
       case T_REM64: if (y64u == 0)
                       raise_rts(exn_dividebyzero);
+                    else if ((int64_t)xu == INT64_MIN && (int64_t)yu == -1)
+                      raise_rts(exn_overflow);
                     else
                       r64u = (uint64_t)((int64_t)x64u % (int64_t)y64u);
                     break;

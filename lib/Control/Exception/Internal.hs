@@ -73,6 +73,7 @@ rtsExn e =
       else if primIntEQ n (4::Int) then SomeException DivideByZero
       else if primIntEQ n (5::Int) then SomeException BlockedIndefinitelyOnMVar
       else if primIntEQ n (6::Int) then SomeException BlockedIndefinitelyOnSTM
+      else if primIntEQ n (7::Int) then SomeException Overflow
       else e
 
 -- Throw an exception when executed, not when evaluated
