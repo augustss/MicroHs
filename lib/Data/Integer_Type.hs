@@ -39,7 +39,7 @@ _intToInteger :: Int -> Integer
 _intToInteger i
   | i `primIntEQ` 0 = I Plus []
   | i `primIntGE` 0 = f Plus (primIntToWord i)
-  | True            = f Minus (primIntToWord (0 `primIntSub` i))
+  | True            = f Minus (primWordNeg (primIntToWord i))
   where
     f sign i =
       let
@@ -104,7 +104,7 @@ _int64ToInteger i
   | i `primInt64EQ` 0 = I Plus []
   | i `primInt64GE` 0 = _word64ToInteger (primInt64ToWord64 i)
   | True              = I Minus ds
-    where I _ ds = _word64ToInteger (primInt64ToWord64 (0 `primInt64Sub` i))
+    where I _ ds = _word64ToInteger (primWord64Neg (primInt64ToWord64 i))
 
 _integerToFloat :: Integer -> Float
 _integerToFloat (I sign ds) = sgn (loop ds)

@@ -63,7 +63,7 @@ instance Real Int8 where
   toRational = _integerToRational . _intToInteger . unI8
 
 instance Show Int8 where
-  showsPrec = showIntegral
+  showsPrec = showSignedInt
 
 {- in Text.Read.Internal
 instance Read Int8 where

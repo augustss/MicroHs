@@ -37,7 +37,7 @@ instance Ord Integer where
   (>=) = geI
 
 instance Show Integer where
-  showsPrec = showIntegral
+  showsPrec = showSignedInt
 
 {- in Text.Read.Internal
 instance Read Integer

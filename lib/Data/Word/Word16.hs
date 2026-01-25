@@ -65,7 +65,7 @@ instance Real Word16 where
   toRational = _integerToRational . _wordToInteger . unW16
 
 instance Show Word16 where
-  showsPrec = showIntegral
+  showsPrec = showUnsignedInt
 
 {- in Text.Read.Internal
 instance Read Word16 where

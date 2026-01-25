@@ -63,8 +63,7 @@ instance Real Int16 where
   toRational = _integerToRational . _intToInteger . unI16
 
 instance Show Int16 where
-  showsPrec = showIntegral
-
+  showsPrec = showSignedInt
 {- in Text.Read.Internal
 instance Read Int16 where
   readsPrec = readIntegral

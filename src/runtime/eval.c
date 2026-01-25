@@ -8,6 +8,9 @@
 #define WANT_GMP 0
 #endif /* defined(WANT_GMP) */
 
+#if !defined(WANT_OVERFLOW)
+#define WANT_OVERFLOW 0
+#endif /* defined(WANT_OVERFLOW) */
 
 #if WANT_STDIO
 #include <stdio.h>
@@ -251,6 +254,28 @@ FFS(bits_t x)
 #define BUILTIN_POPCOUNT64 __builtin_popcountll
 #endif
 
+/* If there are compiler intrinsics to detect over flow, do so */
+#if __has_builtin(__builtin_add_overflow) && WANT_OVERFLOW
+#define ADD_OVERFLOW(T, r, a, b) do { T vr; if (__builtin_add_overflow((T)(a), (T)(b), &(vr))) raise_rts(exn_overflow); (r) = vr; } while(0)
+#endif
+#if __has_builtin(__builtin_sub_overflow) && WANT_OVERFLOW
+#define SUB_OVERFLOW(T, r, a, b) do { T vr; if (__builtin_sub_overflow((T)(a), (T)(b), &(vr))) raise_rts(exn_overflow); (r) = vr; } while(0)
+#endif
+#if __has_builtin(__builtin_mul_overflow) && WANT_OVERFLOW
+#define MUL_OVERFLOW(T, r, a, b) do { T vr; if (__builtin_mul_overflow((T)(a), (T)(b), &(vr))) raise_rts(exn_overflow); (r) = vr; } while(0)
+#endif
+
+#endif
+
+/* If we can't detect overflow, just ignore it. */
+#if !defined(ADD_OVERFLOW)
+#define ADD_OVERFLOW(T, r, a, b) ((r) = (a) + (b))
+#endif
+#if !defined(SUB_OVERFLOW)
+#define SUB_OVERFLOW(T, r, a, b) ((r) = (a) - (b))
+#endif
+#if !defined(MUL_OVERFLOW)
+#define MUL_OVERFLOW(T, r, a, b) ((r) = (a) * (b))
 #endif
 
 
@@ -439,11 +464,13 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
                 T_K2, T_K3, T_K4, T_CCB,
-                T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_UQUOT, T_UREM, T_NEG,
+                T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_NEG,
+                T_UADD, T_USUB, T_UMUL, T_UQUOT, T_UREM, T_USUBR, T_UNEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
                 T_POPCOUNT, T_CLZ, T_CTZ,
                 T_EQ, T_NE, T_LT, T_LE, T_GT, T_GE, T_ULT, T_ULE, T_UGT, T_UGE, T_ICMP, T_UCMP,
-                T_ADD64, T_SUB64, T_MUL64, T_QUOT64, T_REM64, T_SUBR64, T_UQUOT64, T_UREM64, T_NEG64,
+                T_ADD64, T_SUB64, T_MUL64, T_QUOT64, T_REM64, T_SUBR64, T_NEG64,
+                T_UADD64, T_USUB64, T_UMUL64, T_UQUOT64, T_UREM64, T_USUBR64, T_UNEG64,
                 T_AND64, T_OR64, T_XOR64, T_INV64, T_SHL64, T_SHR64, T_ASHR64,
                 T_POPCOUNT64, T_CLZ64, T_CTZ64,
                 T_EQ64, T_NE64, T_LT64, T_LE64, T_GT64, T_GE64, T_ULT64, T_ULE64, T_UGT64, T_UGE64, T_ICMP64, T_UCMP64,
@@ -491,15 +518,11 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_LAST_TAG,
 };
 
-#if WANT_TAGNAMES
 /* Most entries are initialized from the primops table. */
 static const char* tag_names [T_LAST_TAG+1] =
   { "FREE", "IND", "AP", "INT", "INT64", "DBL", "FLT32", "PTR",
     "FUNPTR", "FORPTR", "BADDYN", "ARR", "THID", "MVAR", "WEAK" };
 #define TAGNAME(t) tag_names[t]
-#else
-#define TAGNAME(t) "?"
-#endif
 
 /* On 64 bit platforms there is no special type for Int64 */
 #if NEED_INT64
@@ -1672,6 +1695,7 @@ raise_exn(NODEPTR exn)
   }
 }
 
+/* Raise a RTS exception identified by a number rather than an exception value */
 NORETURN void
 raise_rts(enum rts_exn exn) {
   raise_exn(mkInt(exn));
@@ -1898,10 +1922,15 @@ struct {
   { "*", T_MUL, T_MUL },
   { "quot", T_QUOT },
   { "rem", T_REM },
+  { "u+", T_UADD, T_UADD },
+  { "u-", T_USUB, T_USUBR },
+  { "u*", T_UMUL, T_UMUL },
   { "uquot", T_UQUOT },
   { "urem", T_UREM },
   { "subtract", T_SUBR, T_SUB },
+  { "usubtract", T_USUBR, T_USUB },
   { "neg", T_NEG },
+  { "uneg", T_UNEG },
   { "and", T_AND, T_AND },
   { "or", T_OR, T_OR },
   { "xor", T_XOR, T_XOR },
@@ -2066,10 +2095,14 @@ struct {
   { "I*", T_MUL, T_MUL },
   { "Iquot", T_QUOT },
   { "Irem", T_REM },
+  { "Iu+", T_UADD, T_UADD },
+  { "Iu-", T_USUB, T_USUBR },
+  { "Iu*", T_UMUL, T_UMUL },
   { "Iuquot", T_UQUOT },
   { "Iurem", T_UREM },
   { "Isubtract", T_SUBR, T_SUB },
   { "Ineg", T_NEG },
+  { "Iuneg", T_UNEG },
   { "Iand", T_AND, T_AND },
   { "Ior", T_OR, T_OR },
   { "Ixor", T_XOR, T_XOR },
@@ -2103,10 +2136,15 @@ struct {
   { "I*", T_MUL64, T_MUL64 },
   { "Iquot", T_QUOT64 },
   { "Irem", T_REM64 },
+  { "Iu+", T_UADD64, T_UADD64 },
+  { "Iu-", T_USUB64, T_USUBR64 },
+  { "Iu*", T_UMUL64, T_UMUL64 },
   { "Iuquot", T_UQUOT64 },
   { "Iurem", T_UREM64 },
   { "Isubtract", T_SUBR64, T_SUB64 },
+  { "Iusubtract", T_USUBR64, T_USUB64 },
   { "Ineg", T_NEG64 },
+  { "Iuneg", T_UNEG64 },
   { "Iand", T_AND64, T_AND64 },
   { "Ior", T_OR64, T_OR64 },
   { "Ixor", T_XOR64, T_XOR64 },
@@ -2222,9 +2260,7 @@ init_nodes(void)
       //      if (primops[j].tag == t) {
       //        primops[j].node = n;
       //      }
-#if WANT_TAGNAMES
       tag_names[primops[j].tag] = primops[j].name;
-#endif
     }
   }
 
@@ -3978,19 +4014,14 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     break;
 #endif
   default:
-    if (0 <= tag && tag <= T_LAST_TAG)
-#if WANT_TICK && WANT_TAGNAMES
-      if (tag_names[tag])
+    if (0 <= tag && tag <= T_LAST_TAG) {
+      if (tag_names[tag]) {
         putsb(tag_names[tag], f);
-      else
-#endif
-        {
-        snprintf(prbuf, sizeof prbuf, "TAG=%d", (int)tag);
-        putsb(prbuf, f);
+      } else {
+        ERR1("TAG %d", tag);
       }
-    else {
-      snprintf(prbuf, sizeof prbuf, "BADTAG(%d)", (int)tag);
-      putsb(prbuf, f);
+    } else {
+      ERR1("TAG %d", tag);
     }
     break;
   }
@@ -4882,8 +4913,12 @@ evali(NODEPTR an)
   case T_QUOT:
   case T_REM:
   case T_SUBR:
+  case T_UADD:
+  case T_USUB:
+  case T_UMUL:
   case T_UQUOT:
   case T_UREM:
+  case T_USUBR:
   case T_AND:
   case T_OR:
   case T_XOR:
@@ -4914,6 +4949,7 @@ evali(NODEPTR an)
     }
     goto top;
   case T_NEG:
+  case T_UNEG:
   case T_INV:
   case T_POPCOUNT:
   case T_CLZ:
@@ -5064,8 +5100,12 @@ evali(NODEPTR an)
   case T_QUOT64:
   case T_REM64:
   case T_SUBR64:
+  case T_UADD64:
+  case T_USUB64:
+  case T_UMUL64:
   case T_UQUOT64:
   case T_UREM64:
+  case T_USUBR64:
   case T_AND64:
   case T_OR64:
   case T_XOR64:
@@ -5096,6 +5136,7 @@ evali(NODEPTR an)
     }
     goto top;
   case T_NEG64:
+  case T_UNEG64:
   case T_INV64:
   case T_POPCOUNT64:
   case T_CLZ64:
@@ -5867,10 +5908,10 @@ evali(NODEPTR an)
     binint:
       switch (GETTAG(p)) {
       case T_IND:   p = GETINDIR(p); goto binint;
-      case T_ADD:   ru = xu + yu; break;
-      case T_SUB:   ru = xu - yu; break;
-      case T_MUL:   ru = xu * yu; break;
-      case T_SUBR:  ru = yu - xu; break;
+      case T_ADD:   ADD_OVERFLOW(value_t, ru, xu, yu); break;
+      case T_SUB:   SUB_OVERFLOW(value_t, ru, xu, yu); break;
+      case T_MUL:   MUL_OVERFLOW(value_t, ru, xu, yu); break;
+      case T_SUBR:  SUB_OVERFLOW(value_t, ru, yu, xu); break;
       case T_QUOT:  if (yu == 0)
                       raise_rts(exn_dividebyzero);
                     else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
@@ -5880,11 +5921,15 @@ evali(NODEPTR an)
                     break;
       case T_REM:   if (yu == 0)
                       raise_rts(exn_dividebyzero);
-                    else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
-                      raise_rts(exn_overflow);
+        //                    else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
+        //                      raise_rts(exn_overflow);
                     else
                       ru = (uvalue_t)((value_t)xu % (value_t)yu);
                     break;
+      case T_UADD:  ru = xu + yu; break;
+      case T_USUB:  ru = xu - yu; break;
+      case T_UMUL:  ru = xu * yu; break;
+      case T_USUBR: ru = yu - xu; break;
       case T_UQUOT: if (yu == 0)
                       raise_rts(exn_dividebyzero);
                     else
@@ -5935,7 +5980,8 @@ evali(NODEPTR an)
     unint:
       switch (GETTAG(p)) {
       case T_IND:      p = GETINDIR(p); goto unint;
-      case T_NEG:      ru = -xu; break;
+      case T_NEG:      if ((value_t)xu == VALUE_MIN) raise_rts(exn_overflow); ru = -xu; break;
+      case T_UNEG:     ru = -xu; break;
       case T_INV:      ru = ~xu; break;
       case T_POPCOUNT: ru = POPCOUNT(xu); break;
       case T_CLZ:      ru = CLZ(xu); break;
@@ -5978,10 +6024,10 @@ evali(NODEPTR an)
     binint64:
       switch (GETTAG(p)) {
       case T_IND:   p = GETINDIR(p); goto binint64;
-      case T_ADD64: r64u = x64u + y64u; break;
-      case T_SUB64: r64u = x64u - y64u; break;
-      case T_MUL64: r64u = x64u * y64u; break;
-      case T_SUBR64:r64u = y64u - x64u; break;
+      case T_ADD64: ADD_OVERFLOW(int64_t, r64u, x64u, y64u); break;
+      case T_SUB64: SUB_OVERFLOW(int64_t, r64u, x64u, y64u); break;
+      case T_MUL64: MUL_OVERFLOW(int64_t, r64u, x64u, y64u); break;
+      case T_SUBR64:SUB_OVERFLOW(int64_t, r64u, y64u, x64u); break;
       case T_QUOT64:if (y64u == 0)
                       raise_rts(exn_dividebyzero);
                     else if ((int64_t)xu == INT64_MIN && (int64_t)yu == -1)
@@ -5996,6 +6042,10 @@ evali(NODEPTR an)
                     else
                       r64u = (uint64_t)((int64_t)x64u % (int64_t)y64u);
                     break;
+      case T_UADD64:r64u = x64u + y64u; break;
+      case T_USUB64:r64u = x64u - y64u; break;
+      case T_UMUL64:r64u = x64u * y64u; break;
+      case T_USUBR64:r64u = y64u - x64u; break;
       case T_UQUOT64:if (y64u == 0)
                       raise_rts(exn_dividebyzero);
                     else
@@ -6046,7 +6096,8 @@ evali(NODEPTR an)
     unint64:
       switch (GETTAG(p)) {
       case T_IND:        p = GETINDIR(p); goto unint64;
-      case T_NEG64:      r64u = -x64u; break;
+      case T_NEG64:      if ((value_t)x64u == INT64_MIN) rts_raise(exn_overflow); r64u = -x64u; break;
+      case T_UNEG64:     r64u = -x64u; break;
       case T_INV64:      r64u = ~x64u; break;
       case T_POPCOUNT64: ru = POPCOUNT64(x64u); SETINT(n, (value_t)ru); goto ret;
       case T_CLZ64:      ru = CLZ64(x64u); SETINT(n, (value_t)ru); goto ret;
@@ -6278,6 +6329,7 @@ die_exn(NODEPTR exn)
     case 4: msg = "DivideByZero"; break;
     case 5: msg = "blocked MVar"; break;
     case 6: msg = "blocked STM"; break;
+    case 7: msg = "arithmetic overflow"; break;
     default: msg = "unknown"; break;
     }
   } else {
