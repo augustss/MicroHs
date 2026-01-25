@@ -553,15 +553,34 @@ typedef struct PACKED node {
  * Only the lower 2 bits are free on 32 bit platforms with 3 word nodes
  * (i.e. with WANT_DOUBLE or WANT_INT64).
  */
-#define BIT_TAG   1
-#define BIT_IND   2
-#define BIT_NOTAP (BIT_TAG | BIT_IND)
 #define TAG_SHIFT 2
+#define BIT_MASK  ((1 << TAG_SHIFT) - 1)
+#define BIT_AP    0
+#define BIT_TG    1
+#define BIT_IN    2
+
+static inline tag_t GETTAG(NODEPTR p)
+{
+  tag_t t = p->ufun.uutag;
+  switch(t & BIT_MASK) {
+  case BIT_AP: return T_AP;
+  case BIT_IN: return T_IND;
+  default:     return t >> TAG_SHIFT;
+  }
+}
+static inline void SETTAG(NODEPTR p, tag_t t)
+{
+  switch(t) {
+  case BIT_AP: break;           /* do nothing, bits are already 0 */
+  case BIT_IN: p->ufun.uutag |= BIT_IN; break;
+  default:     p->ufun.uutag = (t << TAG_SHIFT) | BIT_TG; break;
+  }
+}
 
 #define NIL 0
 #define HEAPREF(i) &cells[(i)]
-#define GETTAG(p) ((p)->ufun.uutag & BIT_NOTAP ? ( (p)->ufun.uutag & BIT_IND ? T_IND : (int)((p)->ufun.uutag >> TAG_SHIFT) ) : T_AP)
-#define SETTAG(p,t) do { if (t != T_AP) { if (t == T_IND) { (p)->ufun.uutag = BIT_IND; } else { (p)->ufun.uutag = ((t) << TAG_SHIFT) | BIT_TAG; } } } while(0)
+// #define GETTAG(p) ( ? ( (p)->ufun.uutag & BIT_IND ? T_IND : (int)((p)->ufun.uutag >> TAG_SHIFT) ) : T_AP)
+// #define SETTAG(p,t) do { if (t != T_AP) { if (t == T_IND) { (p)->ufun.uutag = BIT_IND; } else { (p)->ufun.uutag = ((t) << TAG_SHIFT) | BIT_TAG; } } } while(0)
 #define GETVALUE(p) (p)->uarg.uuvalue
 #define GETINT64VALUE(p) (p)->uarg.uuint64value
 #define GETINT32VALUE(p) (p)->uarg.uuint32value
@@ -582,10 +601,12 @@ typedef struct PACKED node {
 #define ARR(p) (p)->uarg.uuarray
 #define THR(p) (p)->uarg.uuthread
 #define MVAR(p) (p)->uarg.uumvar
-#define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
+//#define ISINDIR(p) ((p)->ufun.uuifun & BIT_IND)
+#define ISINDIR(p) (GETTAG((p)) == T_IND)
 #define WEAK(p) (p)->uarg.uuweak
-#define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
-#define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IND; } while(0)
+//#define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_IND))
+#define GETINDIR(p) ((struct node*) ((p)->ufun.uuifun & ~BIT_MASK))
+#define SETINDIR(p,q) do { (p)->ufun.uuifun = (intptr_t)(q) | BIT_IN; } while(0)
 #define NODE_SIZE sizeof(node)
 #define ALLOC_HEAP(n) do { cells = mmalloc(n * sizeof(node)); } while(0)
 #define LABEL(n) ((heapoffs_t)((n) - cells))
@@ -7333,3 +7354,15 @@ const struct ffi_entry ffi_table[] = {
 };
 
 int num_ffi = sizeof(ffi_table) / sizeof(ffi_table[0]);
+
+bool
+xxindir(NODEPTR p)
+{
+  return ISINDIR(p);
+}
+
+void
+xxsetind(NODEPTR p, NODEPTR q)
+{
+  SETINDIR(p, q);
+}
