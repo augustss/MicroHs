@@ -3401,6 +3401,8 @@ parse_string(BFILE *f)
 
   for(i = 0;;) {
     c = getb(f);
+    if (c < 0)
+      ERR("parse string EOF");
     if (c == '"')
       break;
     if (i >= sz - 1) {
