@@ -3861,7 +3861,9 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, bool prefix)
 #if NEED_INT64
   case T_INT64: putb('#', f); putb('#', f); putdecb64(GETINT64VALUE(n), f); break;
 #endif  /* NEED_INT64 */
-  case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
+#if WANT_FLOAT64
+case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
+#endif
   case T_FLT32: putb('&', f); putb('&', f); putdblb((double)GETFLTVALUE(n), f); break;
   case T_WEAK: ERR("serialize WEAK unimplemented");
   case T_ARR:
