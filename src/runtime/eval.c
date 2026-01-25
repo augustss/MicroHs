@@ -5922,9 +5922,7 @@ evali(NODEPTR an)
                     break;
       case T_REM:   if (yu == 0)
                       raise_rts(exn_dividebyzero);
-        //                    else if ((value_t)xu == VALUE_MIN && (value_t)yu == -1)
-        //                      raise_rts(exn_overflow);
-                    else
+                    else        /* this should not overflow under any circumstances */
                       ru = (uvalue_t)((value_t)xu % (value_t)yu);
                     break;
       case T_UADD:  ru = xu + yu; break;
@@ -6038,8 +6036,6 @@ evali(NODEPTR an)
                     break;
       case T_REM64: if (y64u == 0)
                       raise_rts(exn_dividebyzero);
-                    else if ((int64_t)xu == INT64_MIN && (int64_t)yu == -1)
-                      raise_rts(exn_overflow);
                     else
                       r64u = (uint64_t)((int64_t)x64u % (int64_t)y64u);
                     break;
