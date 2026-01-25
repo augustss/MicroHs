@@ -2101,6 +2101,7 @@ struct {
   { "Iuquot", T_UQUOT },
   { "Iurem", T_UREM },
   { "Isubtract", T_SUBR, T_SUB },
+  { "Iusubtract", T_USUBR, T_USUB },
   { "Ineg", T_NEG },
   { "Iuneg", T_UNEG },
   { "Iand", T_AND, T_AND },
@@ -6096,7 +6097,7 @@ evali(NODEPTR an)
     unint64:
       switch (GETTAG(p)) {
       case T_IND:        p = GETINDIR(p); goto unint64;
-      case T_NEG64:      if ((value_t)x64u == INT64_MIN) rts_raise(exn_overflow); r64u = -x64u; break;
+      case T_NEG64:      if ((int64_t)x64u == INT64_MIN) raise_rts(exn_overflow); r64u = -x64u; break;
       case T_UNEG64:     r64u = -x64u; break;
       case T_INV64:      r64u = ~x64u; break;
       case T_POPCOUNT64: ru = POPCOUNT64(x64u); SETINT(n, (value_t)ru); goto ret;
