@@ -65,7 +65,7 @@ instance Real Word32 where
   toRational = _integerToRational . _wordToInteger . unW32
 
 instance Show Word32 where
-  showsPrec = showIntegral
+  showsPrec = showUnsignedInt
 
 {- in Text.Read.Internal
 instance Read Word32 where

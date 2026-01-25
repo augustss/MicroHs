@@ -63,7 +63,7 @@ instance Real Int32 where
   toRational = _integerToRational . _intToInteger . unI32
 
 instance Show Int32 where
-  showsPrec = showIntegral
+  showsPrec = showSignedInt
 
 {- in Text.Read.Internal
 instance Read Int32 where

@@ -80,6 +80,11 @@
 #define WANT_ERRNO 1
 
 /*
+ * overflow detection in arithmetic
+ */
+#define WANT_OVERFLOW 1
+
+/*
  * Use CPU counters.
  * Only available on:
  *  - MacOS with M4 CPU

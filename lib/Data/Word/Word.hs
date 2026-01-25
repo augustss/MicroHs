@@ -28,6 +28,7 @@ instance Num Word where
   (+)  = primWordAdd
   (-)  = primWordSub
   (*)  = primWordMul
+  negate = primWordNeg
   abs x = x
   signum x = if x == 0 then 0 else 1
   fromInteger = _integerToWord

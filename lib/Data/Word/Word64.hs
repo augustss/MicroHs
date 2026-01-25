@@ -26,6 +26,7 @@ instance Num Word64 where
   (+)  = primWord64Add
   (-)  = primWord64Sub
   (*)  = primWord64Mul
+  negate = primWord64Neg
   abs x = x
   signum x = if x == 0 then 0 else 1
   fromInteger i = _integerToWord64 i
@@ -43,7 +44,7 @@ instance Real Word64 where
   toRational = _integerToRational . _word64ToInteger
 
 instance Show Word64 where
-  showsPrec = showIntegral
+  showsPrec = showUnsignedInt
 
 {- in Text.Read.Internal
 instance Read Word64 where

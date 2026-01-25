@@ -58,7 +58,7 @@ instance Ord Int64 where
   (>=) = primInt64GE
 
 instance Show Int64 where
-  showsPrec = showIntegral
+  showsPrec = showSignedInt
 
 {- in Text.Read.Internal
 instance Read Int32 where
