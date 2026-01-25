@@ -1,20 +1,17 @@
 module Info(main) where
+import Data.Version
+import Data.Word
 import Foreign.Storable
 import Foreign.Marshal.Utils
 import Foreign.Ptr
-import Data.Word
+import System.Info as I
 
 foreign import capi "want_gmp" want_gmp :: Int
 
-thisOS :: String
-thisOS | _isWindows = "Windows"
-       | _isMacOS   = "MacOS"
-       | _isLinux   = "Linux"
-       | otherwise  = "Unknown OS"
-
 main :: IO ()
 main = do
-  putStrLn $ "Running on " ++ thisOS
+  putStrLn $ "Running on " ++ I.os ++ ", " ++ I.arch
+  putStrLn $ "Compiler " ++ I.compilerName ++ "-" ++ showVersion I.fullCompilerVersion
   putStr $ show _wordSize ++ " bit words, "
 
   let
@@ -26,6 +23,6 @@ main = do
     case b of
       1 -> "big endian"
       2 -> "little endian"
-      _ -> "Mystery Endian"
+      _ -> "mystery endian"
 
   putStrLn $ "GMP: " ++ if want_gmp /= 0 then "yes" else "no"
