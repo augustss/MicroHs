@@ -72,6 +72,7 @@
     - --ignore-glob=lib/MiniPrelude.hs
     - --ignore-glob=lib/Prelude.hs
     - --ignore-glob=lib/gmp/Data/Integer_Type.hs
+    - --ignore-glob=ghc/MHSPrelude.hs
     - --ignore-glob=mhs/MHSPrelude.hs
     - --ignore-glob=tests/Bang.hs
     - --ignore-glob=tests/MultiIf.hs
