@@ -10,18 +10,21 @@ import MicroHs.Ident
 --   p - prefix op
 --   o - any op
 --   e - operand
---  Three inputs: stack of operand, stack of operators, input sequence
+--  Three inputs: stack of operands, stack of operators, input sequence.
+--  State transitions:
 --    [e          ] [       ] [           ]
 --         ->  done
+--
 --    [e2, e1, ...] [by, ...] [bx, ...]
 --         ->  ambig,                                     if prec bx == prec by && (assoc bx /= assoc by || assoc bx == None)
 --         ->  [e1 `by` e2, ...] [        ...] [bx, ...], if prec bx < prec by || prec bx == prec by && assoc bx == Left
 --         ->  [e2, e1,     ...] [bx, by, ...] [    ...], otherwise
---    [...]         []        [bx, e, ...]
---         ->  [e, ...         ] [bx         ] [        ...]
---    [...]         [...]     [e, ...]
---         ->  [e, ...         ] [        ...] [        ...]
 --
+--    [...]         []        [bx, e, ...]
+--         ->  [e, ...         ] [bx         ] [    ...]
+--
+--    [...]         [...]     [e, ...]
+--         ->  [e, ...         ] [        ...] [    ...]
 --
 --    [e2, e1, ...] [py, ...] [bx, ...]
 --         ->  error,                                    if prec bx == prec py && assoc bx /= assoc py
@@ -31,6 +34,7 @@ import MicroHs.Ident
 --    [e2, e1, ...] [by, ...] [px,  ...]
 --         ->  error                                     if prec px <= prec by
 --         ->  [   e2, e1, ...] [px, by, ...] [    ...], otherwise
+--
 --    [e2, e1, ...] [py, ...] [px,  ...]
 --         ->  [   e2, e1, ...] [px, py, ...] [    ...], otherwise
 
@@ -43,8 +47,14 @@ data FixInput = Rator Fix Expr Fixity | Rand Expr
 defaultFixity :: Fixity
 defaultFixity = (AssocLeft, 9)
 
-eNeg :: SLoc -> Expr
-eNeg loc = EVar (mkBuiltin loc "negate")
+-- Do negation of literals right away,  This is not strictly correct,
+-- but it allows things like (-128)::Int8 to avoid overflow in the negation.
+-- XXX Should implement LexicalNegation.
+-- Don't negate 0, since that ruins floating point with -0.
+eNegate :: Expr -> Expr
+eNegate (ELit l (LInteger x)) | x /= 0 = ELit l (LInteger (-x))
+eNegate e = EApp eNeg e
+  where eNeg = EVar (mkBuiltin (getSLoc e) "negate")
 
 negFixity :: Fixity
 negFixity = (AssocLeft, 6)
@@ -52,11 +62,11 @@ negFixity = (AssocLeft, 6)
 resolveFixity :: Expr -> [((Expr, Fixity), Expr)] -> Either (SLoc, String) Expr
 resolveFixity ae oes =
   let inps = expr ae ++ concatMap opexpr oes
-      expr (ENegApp e) = Rator FixPre (eNeg (getSLoc e)) negFixity : expr e
+      expr (ENegApp e) = Rator FixPre undefined negFixity : expr e  -- there's only one prefix operator, so undefined is ok
       expr e = [Rand e]
       opexpr ((f, fx), e) = Rator FixIn f fx : expr e
 
-      oper (Rator FixPre f _) (e:es) = EApp f e : es
+      oper (Rator FixPre _ _) (e:es) = eNegate e : es
       oper (Rator FixIn  f _) (e2:e1:es) = EApp (EApp f e1) e2 : es
       oper _ _ = undefined
 

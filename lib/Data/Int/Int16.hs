@@ -23,24 +23,35 @@ import Numeric.Show
 import Text.Show
 
 newtype Int16 = I16 Int
-  deriving (Typeable, Eq, Ord)
+  deriving (Eq, Ord)
 
 unI16 :: Int16 -> Int
 unI16 (I16 x) = x
 
--- Do sign extension by shifting.
+-- Do sign extension by shifting, check for overflow/underflow
 i16 :: Int -> Int16
-i16 w = I16 ((w `primIntShl` n) `primIntShr` n)
+i16 w = if n == 0 then I16 w else
+        if w' == w then I16 w' else _overflowError
   where n = _wordSize `primIntSub` 16
+        w' = (w `primIntShl` n) `primIntShr` n
+
+-- Do sign extension by shifting, no checks
+ui16 :: Int -> Int16
+ui16 w = if n == 0 then I16 w else I16 w'
+  where n = _wordSize `primIntSub` 16
+        w' = (w `primIntShl` n) `primIntShr` n
 
 bin16 :: (Int -> Int -> Int) -> (Int16 -> Int16 -> Int16)
 bin16 op (I16 x) (I16 y) = i16 (x `op` y)
 
+ubin16 :: (Int -> Int -> Int) -> (Int16 -> Int16 -> Int16)
+ubin16 op (I16 x) (I16 y) = ui16 (x `op` y)
+
 bini16 :: (Int -> Int -> Int) -> (Int16 -> Int -> Int16)
-bini16 op (I16 x) y = i16 (x `op` y)
+bini16 op (I16 x) y = ui16 (x `op` y)
 
 una16 :: (Int -> Int) -> (Int16 -> Int16)
-una16 op (I16 x) = i16 (op x)
+una16 op (I16 x) = ui16 (op x)
 
 instance Num Int16 where
   (+)  = bin16 primIntAdd
@@ -56,22 +67,23 @@ instance Integral Int16 where
   toInteger = _intToInteger . unI16
 
 instance Bounded Int16 where
-  minBound = i16 0x8000
-  maxBound = i16 0x7fff
+  minBound = -maxBound - 1
+  maxBound = 0x7fff
 
 instance Real Int16 where
   toRational = _integerToRational . _intToInteger . unI16
 
 instance Show Int16 where
   showsPrec = showSignedInt
+
 {- in Text.Read.Internal
 instance Read Int16 where
   readsPrec = readIntegral
 -}
 
 instance Enum Int16 where
-  succ x = if x == maxBound then error "Int16.succ: overflow" else x + 1
-  pred x = if x == minBound then error "Int16.pred: underflow" else x - 1
+  succ x = x + 1  -- overflow handled by +
+  pred x = x - 1  -- overflow handled by -
   toEnum = i16
   fromEnum = unI16
   enumFrom n = enumFromTo n maxBound
@@ -82,9 +94,9 @@ instance Enum Int16 where
   enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Bits Int16 where
-  (.&.) = bin16 primIntAnd
-  (.|.) = bin16 primIntOr
-  xor   = bin16 primIntXor
+  (.&.) = ubin16 primIntAnd
+  (.|.) = ubin16 primIntOr
+  xor   = ubin16 primIntXor
   complement = una16 primIntInv
   x `shiftL` i
     | i < 0 = _overflowError
@@ -100,11 +112,11 @@ instance Bits Int16 where
   bitSize _ = 16
   bit = bitDefault
   testBit = testBitDefault
-  popCount (I16 x) = primIntPopcount (x .&. 0xffff)
+  popCount (I16 x) = primWordPopcount (primIntToWord x `primWordAnd` (0xffff::Word))
   zeroBits = 0
   isSigned _ = True
 
 instance FiniteBits Int16 where
   finiteBitSize _ = 16
-  countLeadingZeros (I16 x) = primIntClz (x .&. 0xffff) - (_wordSize - 16)
+  countLeadingZeros (I16 x) = primWordClz (primIntToWord x `primWordAnd` (0xffff::Word)) - (_wordSize - 16)
   countTrailingZeros (I16 x) = if x == 0 then 16 else primIntCtz x

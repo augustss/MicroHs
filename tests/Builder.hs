@@ -12,19 +12,19 @@ builder = mempty
     <> byteString (B.pack [32..64])
     <> lazyByteString (L.pack [65..126])
     <> shortByteString (S.pack [0xff, 0xfe])
-    <> int8 0xf0
+    <> int8 0x70
     <> word8 0xf0
-    <> int16BE 0xf063
-    <> int32BE 0xf063481a
-    <> int64BE 0xf063481acbd25901
+    <> int16BE 0x7063
+    <> int32BE 0x7063481a
+    <> int64BE 0x7063481acbd25901
     <> word16BE 0x63f0
     <> word32BE 0x1a4863f0
     <> word64BE 0x0159d2cb1a4863f0
     <> floatBE (sqrt 2)
     <> doubleBE (sqrt 2)
-    <> int16LE 0xf063
-    <> int32LE 0xf063481a
-    <> int64LE 0xf063481acbd25901
+    <> int16LE 0x7063
+    <> int32LE 0x7063481a
+    <> int64LE 0x7063481acbd25901
     <> word16LE 0x63f0
     <> word32LE 0x1a4863f0
     <> word64LE 0x0159d2cb1a4863f0

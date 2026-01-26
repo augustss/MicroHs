@@ -23,24 +23,35 @@ import Numeric.Show
 import Text.Show
 
 newtype Int32 = I32 Int
-  deriving (Typeable, Eq, Ord)
+  deriving (Eq, Ord)
 
 unI32 :: Int32 -> Int
 unI32 (I32 x) = x
 
--- Do sign extension by shifting.
+-- Do sign extension by shifting, check for overflow/underflow
 i32 :: Int -> Int32
-i32 w = if n == 0 then I32 w else I32 ((w `primIntShl` n) `primIntShr` n)
+i32 w = if n == 0 then I32 w else
+        if w' == w then I32 w' else _overflowError
   where n = _wordSize `primIntSub` 32
+        w' = (w `primIntShl` n) `primIntShr` n
+
+-- Do sign extension by shifting, no checks
+ui32 :: Int -> Int32
+ui32 w = if n == 0 then I32 w else I32 w'
+  where n = _wordSize `primIntSub` 32
+        w' = (w `primIntShl` n) `primIntShr` n
 
 bin32 :: (Int -> Int -> Int) -> (Int32 -> Int32 -> Int32)
 bin32 op (I32 x) (I32 y) = i32 (x `op` y)
 
+ubin32 :: (Int -> Int -> Int) -> (Int32 -> Int32 -> Int32)
+ubin32 op (I32 x) (I32 y) = ui32 (x `op` y)
+
 bini32 :: (Int -> Int -> Int) -> (Int32 -> Int -> Int32)
-bini32 op (I32 x) y = i32 (x `op` y)
+bini32 op (I32 x) y = ui32 (x `op` y)
 
 una32 :: (Int -> Int) -> (Int32 -> Int32)
-una32 op (I32 x) = i32 (op x)
+una32 op (I32 x) = ui32 (op x)
 
 instance Num Int32 where
   (+)  = bin32 primIntAdd
@@ -56,8 +67,8 @@ instance Integral Int32 where
   toInteger = _intToInteger . unI32
 
 instance Bounded Int32 where
-  minBound = i32 0x80000000
-  maxBound = i32 0x7fffffff
+  minBound = -maxBound - 1
+  maxBound = 0x7fffffff
 
 instance Real Int32 where
   toRational = _integerToRational . _intToInteger . unI32
@@ -71,8 +82,8 @@ instance Read Int32 where
 -}
 
 instance Enum Int32 where
-  succ x = if x == maxBound then error "Int32.succ: overflow" else x + 1
-  pred x = if x == minBound then error "Int32.pred: underflow" else x - 1
+  succ x = x + 1  -- overflow handled by +
+  pred x = x - 1  -- overflow handled by -
   toEnum = i32
   fromEnum = unI32
   enumFrom n = enumFromTo n maxBound
@@ -83,9 +94,9 @@ instance Enum Int32 where
   enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Bits Int32 where
-  (.&.) = bin32 primIntAnd
-  (.|.) = bin32 primIntOr
-  xor   = bin32 primIntXor
+  (.&.) = ubin32 primIntAnd
+  (.|.) = ubin32 primIntOr
+  xor   = ubin32 primIntXor
   complement = una32 primIntInv
   x `shiftL` i
     | i < 0 = _overflowError
@@ -101,11 +112,11 @@ instance Bits Int32 where
   bitSize _ = 32
   bit = bitDefault
   testBit = testBitDefault
-  popCount (I32 x) = primIntPopcount (x .&. 0xffffffff)
+  popCount (I32 x) = primWordPopcount (primIntToWord x `primWordAnd` (0xffffffff::Word))
   zeroBits = 0
   isSigned _ = True
 
 instance FiniteBits Int32 where
   finiteBitSize _ = 32
-  countLeadingZeros (I32 x) = primIntClz (x .&. 0xffffffff) - (_wordSize - 32)
+  countLeadingZeros (I32 x) = primWordClz (primIntToWord x `primWordAnd` (0xffffffff::Word)) - (_wordSize - 32)
   countTrailingZeros (I32 x) = if x == 0 then 32 else primIntCtz x

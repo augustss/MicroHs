@@ -66,8 +66,8 @@ instance Read Int32 where
 -}
 
 instance Enum Int64 where
-  succ x = if x == maxBound then error "Int64.succ: overflow" else x + 1
-  pred x = if x == minBound then error "Int64.pred: underflow" else x - 1
+  succ x =  x + 1
+  pred x =  x - 1
   toEnum = primIntToInt64
   fromEnum = primInt64ToInt
   enumFrom = numericEnumFrom

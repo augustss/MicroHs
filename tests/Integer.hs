@@ -31,7 +31,7 @@ main = do
     iMaxU64 = 18446744073709551615
   putStrLn "fromInteger"
   print $ (fromInteger iMinI64 :: Int64) == (minBound :: Int64)
-  print $ (fromInteger iMinI64 :: Int32) == 0
+  -- overflow print $ (fromInteger iMinI64 :: Int32) == 0
   print $ (fromInteger iMinI64 :: Word64) == 1 `shiftL` 63
   print $ (fromInteger iMinI64 :: Word32) == 0
   print $ (fromInteger iMinI32 :: Int64) == complement ((1 `shiftL` 31) - 1)
@@ -55,15 +55,15 @@ main = do
   print $ (fromInteger iMaxI32 :: Word64) == (1 `shiftL` 31) - 1
   print $ (fromInteger iMaxI32 :: Word32) == (1 `shiftL` 31) - 1
   print $ (fromInteger iMaxU32 :: Int64) == (1 `shiftL` 32) - 1
-  print $ (fromInteger iMaxU32 :: Int32) == -1
+  -- overflow print $ (fromInteger iMaxU32 :: Int32) == -1
   print $ (fromInteger iMaxU32 :: Word64) == (1 `shiftL` 32) - 1
   print $ (fromInteger iMaxU32 :: Word32) == (maxBound :: Word32)
   print $ (fromInteger iMaxI64 :: Int64) == (maxBound :: Int64)
-  print $ (fromInteger iMaxI64 :: Int32) == -1
+  -- overflow print $ (fromInteger iMaxI64 :: Int32) == -1
   print $ (fromInteger iMaxI64 :: Word64) == (1 `shiftL` 63) - 1
   print $ (fromInteger iMaxI64 :: Word32) == (maxBound :: Word32)
-  print $ (fromInteger iMaxU64 :: Int64) == -1
-  print $ (fromInteger iMaxU64 :: Int32) == -1
+  -- overflow print $ (fromInteger iMaxU64 :: Int64) == -1
+  -- overflow print $ (fromInteger iMaxU64 :: Int32) == -1
   print $ (fromInteger iMaxU64 :: Word64) == (maxBound :: Word64)
   print $ (fromInteger iMaxU64 :: Word32) == (maxBound :: Word32)
   putStrLn "toInteger"
