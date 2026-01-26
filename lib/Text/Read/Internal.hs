@@ -595,7 +595,9 @@ convertFrac _            = pfail
 
 -- | @since base-2.01
 instance Read Int where
-  readPrec     = readNumber convertInt
+  -- Just using (readNumber convertInt) generates an overflow in negate for minInt.
+  -- So we force the conversion to return the Integer, and convert after negation.
+  readPrec     = fmap fromInteger (readNumber convertInt)
   readListPrec = readListPrecDefault
   readList     = readListDefault
 
