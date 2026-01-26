@@ -464,7 +464,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_FORPTR, T_BADDYN, T_ARR, T_THID, T_MVAR, T_WEAK, T_MK,
                 T_S, T_K, T_I, T_B, T_C,
                 T_A, T_Y, T_SS, T_BB, T_CC, T_P, T_R, T_O, T_U, T_Z, T_J,
-                T_K2, T_K3, T_K4, T_CCB, T_CNO,
+                T_K2, T_K3, T_K4, T_CCB, T_CNO, T_UNP, T_CNOX, T_UNPX,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_NEG,
                 T_UADD, T_USUB, T_UMUL, T_UQUOT, T_UREM, T_USUBR, T_UNEG,
                 T_AND, T_OR, T_XOR, T_INV, T_SHL, T_SHR, T_ASHR,
@@ -589,10 +589,10 @@ static inline tag_t GETTAG(NODEPTR p)
   tag_t t = p->ufun.uutag;
   switch(t & BIT_MASK) {
   case BIT_AP: return T_AP;
-  /*case BIT_TG*/
-  default: return t >> TAG_SHIFT;
   case BIT_IN: return T_IND;
   case BIT_MK: return T_MK;
+  /*case BIT_TG*/
+  default: return t >> TAG_SHIFT;
   }
 }
 static inline void SETTAG(NODEPTR p, tag_t t)
@@ -1053,6 +1053,8 @@ NODEPTR combPairUnit;
 NODEPTR combWorld;
 NODEPTR combCATCHR;
 NODEPTR combFst, combSnd;
+NODEPTR combCNOX;
+NODEPTR combUNPX;
 #define combFalse combK
 #define combTrue combA
 #define combNothing combK
@@ -1940,6 +1942,7 @@ struct {
   { "K4", T_K4 },
   { "C'B", T_CCB },
   { "cno", T_CNO },
+  { "unp", T_UNP },
 /* primops */
   { "+", T_ADD, T_ADD },
   { "-", T_SUB, T_SUBR },
@@ -2198,6 +2201,8 @@ struct {
   { "Utou", T_U64TOU },
 #endif /* WORD_SIZE == 64 */
 #endif  /* WANT_INT64 */
+  { "cnox", T_CNOX },
+  { "unpx", T_UNPX },
 };
 
 #if GCRED
@@ -2273,6 +2278,8 @@ init_nodes(void)
     case T_BINBS2: combBINBS2 = n; break;
     case T_IO_THROWTO: combTHROWTO = n; break;
     case T_CATCHR: combCATCHR = n; break;
+    case T_CNOX: combCNOX = n; break;
+    case T_UNPX: combUNPX = n; break;
 #if WANT_STDIO
     case T_IO_STDIN:  comb_stdin  = n; mk_std(n, stdin);  break;
     case T_IO_STDOUT: comb_stdout = n; mk_std(n, stdout); break;
@@ -3689,7 +3696,9 @@ parse(BFILE *f)
         int numcon = parse_int(f);
         if (!gobble(f, '_')) ERR("parse M 2");
         int numarg = parse_int(f);
-        PUSH(alloc_node(T_M(conno, numcon, numarg)));
+        r = alloc_node(T_FREE);
+        r->ufun.uutag = T_M(conno, numcon, numarg);
+        PUSH(r);
         break;
       }
       /* fall info default */
@@ -4052,15 +4061,27 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     print_string(f, tick_table[GETVALUE(n)].tick_name);
     break;
 #endif
+  case T_MK:
+    {
+      int conno, numcon, numarg;
+      SPLIT_M(n->ufun.uutag, conno, numcon, numarg);
+      putb('M', f);
+      putdecb(conno, f);
+      putb('_', f);
+      putdecb(numcon, f);
+      putb('_', f);
+      putdecb(numarg, f);
+      break;
+    }
   default:
     if (0 <= tag && tag <= T_LAST_TAG) {
       if (tag_names[tag]) {
         putsb(tag_names[tag], f);
       } else {
-        ERR1("TAG %d", tag);
+        ERR1("TAG1 %x", tag);
       }
     } else {
-      ERR1("TAG %d", tag);
+      ERR1("TAG2 %x", tag);
     }
     break;
   }
@@ -4815,14 +4836,33 @@ evali(NODEPTR an)
   case T_MK:
     {
       int conno, numcon, numarg;
+      
       /* Could special case common Ms here */
       SPLIT_M(n->ufun.uutag, conno, numcon, numarg);
-      printf("T_MK: conno=%d numcon=%d numarg=%d\n", conno, numcon, numarg);
+      //printf("T_MK: conno=%d numcon=%d numarg=%d\n", conno, numcon, numarg);
       /*
        * The reduction rule is (c' = c-1)
+       *   M_cnm a1 ... am CNOX       -->  INT c
+       *   M_cnm a1 ... am UNPX f     -->  f a1 ... am
        *   M_cnm a1 ... am f1 ... fn  -->  fc' a1 ... am
        * This needs m+n arguments on the stack and will allocate m-1 application nodes.
        */
+      CHECK(numarg + 1);
+      x = ARG(TOP(numarg));     /* can be CNOX, UNPX, or regular */
+      switch(GETTAG(x)) {
+      case T_CNOX:
+        POP(numarg + 1);
+        n = TOP(-1);
+        SETINT(n, (value_t)conno);
+        RET;
+      case T_UNPX:
+        /* Fake the regular reduction, pick f as the fc */
+        numcon = 2;
+        conno = 1;
+        break;
+      default:
+        break;
+      }
       CHECK(numcon + numarg);
       if (numarg > 1)
         GCCHECK(numarg - 1);
@@ -4842,6 +4882,25 @@ evali(NODEPTR an)
       }
       break;
     }
+  case T_CNO:
+    /* Get the constructor number.  It's a little tricky to avoid using stack.
+     *  CNO x  ->  x CNOX
+     * The x should evaluate to a MK.
+     */
+    CHKARG1;
+    GOAP(x, combCNOX);
+  case T_CNOX:
+    ERR("T_CNOX");
+  case T_UNP:
+    /* Unpack constructor number.  It's a little tricky to avoid using stack.
+     *  UNP x y  ->  y UNPX x
+     * The y should evaluate to a MK.
+     */
+    CHKARG2;
+    GCCHECK(1);
+    GOAP2(y, combUNPX, x);
+  case T_UNPX:
+    ERR("T_UNPX");
 
   ap2:         PUSH(n); n = FUN(n);
   ap:

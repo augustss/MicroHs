@@ -22,7 +22,7 @@ data SPat = SPat Con [Ident]    -- simple pattern
 --  deriving(Show, Eq)
 
 encCase :: Exp -> [(SPat, Exp)] -> Exp -> Exp
-encCase var pes dflt | useDirect n (length pes) = encCaseDirect var pes dflt
+encCase var pes dflt | useDirect n (length pes) || True = encCaseDirect var pes dflt
                      | otherwise                = encCaseNo var pes dflt
   where n = numConstr pes
 
@@ -124,7 +124,7 @@ caseTree n var lo hi pes dflt =
    match e is rhs = App (App (unpack (length is)) (lams is rhs)) e
 
    unpack 2 = Lit $ LPrim "U"                -- use fast special case for pairs
-   unpack l = Lit $ LPrim $ "U" ++ show l
+   unpack _ = Lit $ LPrim $ "unp"
 {-
    cmpInt :: Exp -> Int -> Exp
    cmpInt x i = app2 (Lit (LPrim "icmp")) x (Lit (LInt i))
