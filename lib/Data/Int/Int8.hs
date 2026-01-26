@@ -23,24 +23,35 @@ import Numeric.Show
 import Text.Show
 
 newtype Int8 = I8 Int
-  deriving (Typeable, Eq, Ord)
+  deriving (Eq, Ord)
 
 unI8 :: Int8 -> Int
 unI8 (I8 x) = x
 
--- Do sign extension by shifting.
+-- Do sign extension by shifting, check for overflow/underflow
 i8 :: Int -> Int8
-i8 w = I8 ((w `primIntShl` n) `primIntShr` n)
+i8 w = if n == 0 then I8 w else
+        if w' == w then I8 w' else _overflowError
   where n = _wordSize `primIntSub` 8
+        w' = (w `primIntShl` n) `primIntShr` n
+
+-- Do sign extension by shifting, no checks
+ui8 :: Int -> Int8
+ui8 w = if n == 0 then I8 w else I8 w'
+  where n = _wordSize `primIntSub` 8
+        w' = (w `primIntShl` n) `primIntShr` n
 
 bin8 :: (Int -> Int -> Int) -> (Int8 -> Int8 -> Int8)
 bin8 op (I8 x) (I8 y) = i8 (x `op` y)
 
+ubin8 :: (Int -> Int -> Int) -> (Int8 -> Int8 -> Int8)
+ubin8 op (I8 x) (I8 y) = ui8 (x `op` y)
+
 bini8 :: (Int -> Int -> Int) -> (Int8 -> Int -> Int8)
-bini8 op (I8 x) y = i8 (x `op` y)
+bini8 op (I8 x) y = ui8 (x `op` y)
 
 una8 :: (Int -> Int) -> (Int8 -> Int8)
-una8 op (I8 x) = i8 (op x)
+una8 op (I8 x) = ui8 (op x)
 
 instance Num Int8 where
   (+)  = bin8 primIntAdd
@@ -56,8 +67,8 @@ instance Integral Int8 where
   toInteger = _intToInteger . unI8
 
 instance Bounded Int8 where
-  minBound = i8 0x80
-  maxBound = i8 0x7f
+  minBound = -maxBound - 1
+  maxBound = 0x7f
 
 instance Real Int8 where
   toRational = _integerToRational . _intToInteger . unI8
@@ -71,8 +82,8 @@ instance Read Int8 where
 -}
 
 instance Enum Int8 where
-  succ x = if x == maxBound then error "Int8.succ: overflow" else x + 1
-  pred x = if x == minBound then error "Int8.pred: underflow" else x - 1
+  succ x = x + 1  -- overflow handled by +
+  pred x = x - 1  -- overflow handled by -
   toEnum = i8
   fromEnum = unI8
   enumFrom n = enumFromTo n maxBound
@@ -83,9 +94,9 @@ instance Enum Int8 where
   enumFromThenTo = coerce (enumFromThenTo @Int)
 
 instance Bits Int8 where
-  (.&.) = bin8 primIntAnd
-  (.|.) = bin8 primIntOr
-  xor   = bin8 primIntXor
+  (.&.) = ubin8 primIntAnd
+  (.|.) = ubin8 primIntOr
+  xor   = ubin8 primIntXor
   complement = una8 primIntInv
   x `shiftL` i
     | i < 0 = _overflowError
@@ -101,11 +112,11 @@ instance Bits Int8 where
   bitSize _ = 8
   bit = bitDefault
   testBit = testBitDefault
-  popCount (I8 x) = primIntPopcount (x .&. 0xff)
+  popCount (I8 x) = primWordPopcount (primIntToWord x `primWordAnd` (0xff::Word))
   zeroBits = 0
   isSigned _ = True
 
 instance FiniteBits Int8 where
   finiteBitSize _ = 8
-  countLeadingZeros (I8 x) = primIntClz (x .&. 0xff) - (_wordSize - 8)
+  countLeadingZeros (I8 x) = primWordClz (primIntToWord x `primWordAnd` (0xff::Word)) - (_wordSize - 8)
   countTrailingZeros (I8 x) = if x == 0 then 8 else primIntCtz x

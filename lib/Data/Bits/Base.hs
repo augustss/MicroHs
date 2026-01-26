@@ -2,6 +2,7 @@ module Data.Bits.Base(module Data.Bits.Base) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
+import Control.Exception.Internal
 import Data.Bool
 import Data.Eq
 import Data.Function
@@ -111,7 +112,7 @@ popCountDefault = go 0
     go c w = go (c + 1) (w .&. (w - 1)) -- clear the least significant bit
 
 _overflowError :: a
-_overflowError = error "arithmetic overflow"
+_overflowError = throw Overflow
 
 instance Bits Int where
   (.&.) = primIntAnd
