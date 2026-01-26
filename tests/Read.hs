@@ -2,6 +2,9 @@ module Read(main) where
 import Text.Read
 import Data.Int
 
+roundTrip :: (Read a, Show a, Eq a) => a -> Bool
+roundTrip x = read (show x) == x
+
 main :: IO ()
 main = do
   print (read "123"   :: Int)
@@ -16,6 +19,12 @@ main = do
   print (read "-2147483648" :: Int)
   print (read "9223372036854775807" :: Int64)
   print (read "-9223372036854775808" :: Int64)
+  print (roundTrip (minBound :: Int))
+  print (roundTrip (maxBound :: Int))
+  print (roundTrip (minBound :: Int8))
+  print (roundTrip (maxBound :: Int8))
+  print (roundTrip (minBound :: Int64))
+  print (roundTrip (maxBound :: Int64))
   print (read "123"   :: Integer)
   print (read " 123"  :: Integer)
   print (read "123 "  :: Integer)
