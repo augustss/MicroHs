@@ -53,7 +53,8 @@ deriveClassTypeable = True
 -- Certain data structures persist during the entire compilation
 -- session.  The information is needed beyond the scope where it was defined.
 data GlobTables = GlobTables {
-  gSynTable   :: SynTable,        -- type synonyms are needed for expansion
+  gSynTables  :: (SynTable,
+                  SynNInjSet),    -- type synonyms are needed for expansion
   gDataTable  :: DataTable,       -- data/newtype definitions
   gClassTable :: ClassTable,      -- classes are needed for superclass expansion etc
   gInstInfo   :: InstTable        -- instances are implicitely global
@@ -63,7 +64,7 @@ instance NFData GlobTables where
   rnf (GlobTables a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
 
 emptyGlobTables :: GlobTables
-emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.fromList dataTuples, gClassTable = M.empty, gInstInfo = M.empty }
+emptyGlobTables = GlobTables { gSynTables = (M.empty, M.emptySet), gDataTable = M.fromList dataTuples, gClassTable = M.empty, gInstInfo = M.empty }
   -- XXX Could fill the initial symbol table from this
   where dataTuples :: [(Ident, EDef)]
         dataTuples = [ (con, Data (con, map (\ v -> IdKind v eDummy) vs) [Constr [] [] con False (Left $ map (\v-> (False, EVar v)) vs)] [])
@@ -73,7 +74,7 @@ emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.fromList data
 
 mergeGlobTables :: GlobTables -> GlobTables -> GlobTables
 mergeGlobTables g1 g2 =
-  GlobTables { gSynTable = M.merge (gSynTable g1) (gSynTable g2),
+  GlobTables { gSynTables = (M.merge (fst $ gSynTables g1) (fst $ gSynTables g2), M.unionSet (snd $ gSynTables g1) (snd $ gSynTables g2)),
                gDataTable = M.merge (gDataTable g1) (gDataTable g2),
                gClassTable = M.merge (gClassTable g1) (gClassTable g2),
                gInstInfo = M.mergeWith mergeInstInfo (gInstInfo g1) (gInstInfo g2) }
@@ -120,14 +121,14 @@ typeCheck flags globs impt aimps (EModule mn exps defs) =
              unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
              where impMap = M.fromListWith (++) [(i, [m]) | (i, m) <- allMdls]
            fexps = map (tFixDefs . snd) allMdls
-           sexps = synTable tcs
+           sexps = synTables tcs
            dexps = dataTable tcs
            iexps = instTable tcs
            ctbl  = classTable tcs
            dflts = M.fromList $ filter ((`elem` ds) . fst) $ M.toList $ defaults tcs
                  where ds = [ tyQIdent $ expLookup ti (typeTable tcs) | ExpDefault ti <- exps ]
          in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) (concat vexps) dflts tds
-             , GlobTables { gSynTable = sexps, gDataTable = dexps, gClassTable = ctbl, gInstInfo = iexps }
+             , GlobTables { gSynTables = sexps, gDataTable = dexps, gClassTable = ctbl, gInstInfo = iexps }
              , (typeTable tcs, valueTable tcs)
              , tcs
              )
@@ -320,7 +321,7 @@ mkTCState mdlName globs mdls =
           unique = 1,
           fixTable = addPrimFixs allFixes,
           typeTable = foldr (uncurry stInsertGlbA) allTypes primTypes,
-          synTable = gSynTable globs,
+          synTables = gSynTables globs,
           dataTable = gDataTable globs,
           valueTable = foldr (uncurry stInsertGlbA) allValues primValues,
           assocTable = allAssocs,

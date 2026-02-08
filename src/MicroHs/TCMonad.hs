@@ -87,6 +87,7 @@ type ValueTable = SymTab           -- type of value identifiers, used during typ
 type TypeTable  = SymTab           -- kind of type  identifiers, used during kind checking types
 type KindTable  = SymTab           -- sort of kind  identifiers, used during sort checking kinds
 type SynTable   = M.Map EType      -- body of type synonyms
+type SynNInjSet = M.Set            -- non-injective synonyms
 type DataTable  = M.Map EDef       -- data/newtype definitions (only used for standalone deriving)
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [ValueExport] -- maps a type identifier to its associated constructors/selectors/methods
@@ -145,7 +146,8 @@ data TCState = TC {
   unique      :: Int,                   -- unique number
   fixTable    :: FixTable,              -- fixities, indexed by QIdent
   typeTable   :: TypeTable,             -- type symbol table
-  synTable    :: SynTable,              -- synonyms, indexed by QIdent
+  synTables   :: (SynTable,             -- synonyms, indexed by QIdent
+                  SynNInjSet),          -- non-injective synonyms
   dataTable   :: DataTable,             -- data/newtype definitions
   valueTable  :: ValueTable,            -- value symbol table
   assocTable  :: AssocTable,            -- values associated with a type, indexed by QIdent
@@ -173,6 +175,11 @@ typeEqTable tc = case ctxTables tc of (_,_,x,_) -> x
 argDicts :: TCState -> ArgDicts
 argDicts tc = case ctxTables tc of (_,_,_,x) -> x
 
+synTable :: TCState -> SynTable
+synTable tc = case synTables tc of (x,_) -> x
+
+synNInjSet :: TCState -> SynNInjSet
+synNInjSet tc = case synTables tc of (_,x) -> x
 
 putValueTable :: ValueTable -> T ()
 putValueTable venv = modify $ \ ts -> ts{ valueTable = venv }
@@ -181,7 +188,14 @@ putTypeTable :: TypeTable -> T ()
 putTypeTable tenv = modify $ \ ts -> ts{ typeTable = tenv }
 
 putSynTable :: SynTable -> T ()
-putSynTable senv = modify $ \ ts -> ts{ synTable = senv }
+putSynTable senv = do
+  (_,non) <- gets synTables
+  modify $ \ ts -> ts{ synTables = (senv, non) }
+
+putNInjTable :: SynNInjSet -> T ()
+putNInjTable non = do
+  (senv, _) <- gets synTables
+  modify $ \ ts -> ts{ synTables = (senv, non) }
 
 putDataTable :: DataTable -> T ()
 putDataTable denv = modify $ \ ts -> ts{ dataTable = denv }
