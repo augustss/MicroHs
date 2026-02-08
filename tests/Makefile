@@ -120,6 +120,7 @@ test:
 	$(TMHS) Builder    && $(EVAL) > Builder.out    && diff Builder.ref Builder.out
 	$(TMHS) Unboxed    && $(EVAL) > Unboxed.out    && diff Unboxed.ref Unboxed.out
 	$(TMHS) LazyST     && $(EVAL) > LazyST.out     && diff LazyST.ref LazyST.out
+	$(TMHS) TypeSyn    && $(EVAL) > TypeSyn.out    && diff TypeSyn.ref TypeSyn.out
 
 testforimp:
 	MHSDIR=.. $(TMHS) ForeignC -of.exe && ./f.exe > ForeignC.out && diff ForeignC.ref ForeignC.out
