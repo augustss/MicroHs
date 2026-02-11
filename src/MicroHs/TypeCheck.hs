@@ -737,10 +737,34 @@ msgTCMode' TCSort = "realm"
 
 unify :: HasCallStack =>
          SLoc -> EType -> EType -> T ()
-unify loc a b = unifyR loc a b
+unify loc a b = do
+  non <- gets synNInjSet
+  unifyApp loc non a b []
 
-unifyR :: HasCallStack =>
-          SLoc -> EType -> EType -> T ()
+unifyApp :: HasCallStack =>
+          SLoc -> SynNInjSet -> EType -> EType -> [(EType, EType)] -> T ()
+unifyApp loc non t1@(EVar x1)  (EVar x2)    tts | x1 == x2
+                                                , isInj non t1  =    unifyList loc non tts
+unifyApp loc non (EApp f1 a1)  (EApp f2 a2) tts                 =    unifyApp loc non f1 f2 ((a1,a2):tts)
+unifyApp loc   _ (EUVar r1)    t2@(EUVar r2) [] | r1 == r2      =    return ()
+                                                | otherwise     =    unifyVar loc r1 t2
+unifyApp loc   _ (EUVar r1)    t2            []                 =    unifyVar loc r1 t2
+unifyApp loc non (EUVar r1)    t2           tts | isInj non t2  = do unifyVar loc r1 t2; unifyList loc non tts
+unifyApp loc   _ t1            (EUVar r2)    []                 =    unifyVar loc r2 t1
+unifyApp loc non t1            (EUVar r2)   tts | isInj non t1  = do unifyVar loc r2 t1; unifyList loc non tts
+unifyApp loc non (ELit _ l1)   (ELit _ l2)  tts | l1 == l2      =    unifyList loc non tts
+unifyApp loc   _ t1            t2           tts                 = do
+  tcm <- gets tcMode
+  let (ts1, ts2) = unzip tts
+      rt1 = foldl EApp t1 ts1
+      rt2 = foldl EApp t2 ts2
+  case tcm of
+    -- Defer to constraint solver.
+    -- XXX needs changing if we have kind equalities.
+    TCExpr -> addEqConstraint loc rt1 rt2
+    _      -> tcErrorTK loc $ "cannot unify " ++ showEType t1 ++ " and " ++ showEType rt2
+  
+{-
 unifyR _   (EVar x1)    (EVar x2)      | x1 == x2  = return ()
 unifyR loc (EApp f1 a1) (EApp f2 a2)               = do { unifyR loc f1 f2; unifyR loc a1 a2 }
 unifyR loc t1@(EUVar r1) t2@(EUVar r2) | r1 < r2   = unifyVar loc r2 t1   -- always make higher
@@ -755,6 +779,15 @@ unifyR loc t1           t2                         = do
     -- XXX needs changing if we have kind equalities.
     TCExpr -> addEqConstraint loc t1 t2
     _      -> tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
+-}
+
+unifyList :: SLoc -> SynNInjSet -> [(EType, EType)] -> T ()
+unifyList loc non tts = mapM_ (\ (t1,t2) -> unifyApp loc non t1 t2 []) tts
+
+isInj :: SynNInjSet -> EType -> Bool
+isInj s (EVar x) = M.notMemberSet x s
+isInj s (EApp f _) = isInj s f
+isInj _ _ = False
 
 unifyVar :: HasCallStack =>
             SLoc -> TRef -> EType -> T ()
@@ -3872,6 +3905,7 @@ solveEq :: TypeEqTable -> EType -> EType -> Maybe [(EType, EType)]
 --solveEq eqs t1 t2 | trace ("solveEq: " ++ show (t1,t2) ++ show eqs) False = undefined
 solveEq eqs t1 t2 | normTypeEq eqs t1 `eqEType` normTypeEq eqs t2 = Just []
                   | otherwise =
+  -- XXX not right for non-injective
   case (t1, t2) of
     (EApp f1 a1, EApp f2 a2) -> Just [(f1, f2), (a1, a2)]
     _                        -> Nothing

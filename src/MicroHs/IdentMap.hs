@@ -21,10 +21,11 @@ module MicroHs.IdentMap(
   emptySet,
   addSet,
   memberSet,
+  notMemberSet,
   unionSet,
   ) where
 import qualified Prelude(); import MHSPrelude hiding(lookup, mapM, null)
-import Data.Maybe(isJust)
+import Data.Maybe(isJust, isNothing)
 import MicroHs.Ident
 
 data Map a
@@ -245,6 +246,9 @@ addSet i s = insert i () s
 
 memberSet :: Ident -> Set -> Bool
 memberSet i s = isJust (lookup i s)
+
+notMemberSet :: Ident -> Set -> Bool
+notMemberSet i s = isNothing (lookup i s)
 
 unionSet :: Set -> Set -> Set
 unionSet = merge
