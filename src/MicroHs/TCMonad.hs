@@ -6,6 +6,7 @@ module MicroHs.TCMonad(
 import qualified Prelude(); import MHSPrelude
 import Data.Functor.Identity
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Fail
 import Data.Functor
 import Data.List(nub)
@@ -56,6 +57,47 @@ noEffect tca = do
   a <- tca
   put s
   return a
+
+-----------------------------------------------
+
+-- Specialized monad used during unification.
+-- It has state and failure.  On failure, the state changes are discarded.
+newtype UC s a = U { runU :: s -> UMaybe s a }
+
+data UMaybe s a = UNothing | UJust a s
+
+runTCU :: UC s a -> TC s a
+runTCU ua = S $ \ s ->
+  case runU ua s of
+    UJust a s' -> (a, s')
+    UNothing   -> error "runTCU failed"
+
+handleU :: UC s a -> UC s a -> UC s a
+handleU ua hdl = U $ \ s ->
+  case runU ua s of
+    UNothing -> runU hdl s
+    sa -> sa
+
+liftU :: TC s a -> UC s a
+liftU tc = U $ \ s ->
+  case tcRun tc s of
+    (a, s') -> UJust a s'
+
+failU :: UC s a
+failU = U $ \ _ -> UNothing
+
+instance Functor (UC s) where
+  fmap f sa = sa >>= (return . f)
+
+instance Applicative (UC s) where
+  pure a = U $ \ s -> UJust a s
+  (<*>) = ap
+
+instance Monad (UC s) where
+  (>>=) m k = U $ \ s ->
+    case runU m s of
+      UNothing -> UNothing
+      UJust a ss -> runU (k a) ss
 
 -----------------------------------------------
 
@@ -274,6 +316,7 @@ assertTCMode p ta = do
 -----------------------------------------------
 
 type T a = TC TCState a
+type U a = UC TCState a
 
 type Typed a = (a, EType)
 
