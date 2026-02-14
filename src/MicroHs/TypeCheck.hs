@@ -737,6 +737,134 @@ msgTCMode' TCSort = "realm"
 
 unify :: HasCallStack =>
          SLoc -> EType -> EType -> T ()
+unify loc a b = runTCU $ handleU (unifyR loc a b) (
+--  trace ("unify defers " ++ show (a, b)) $
+  liftU $ addEqConstraint loc a b)
+
+unifyR :: HasCallStack =>
+          SLoc -> EType -> EType -> U ()
+unifyR _   (EVar x1)    (EVar x2)      | x1 == x2  = unifyChkInj (EVar x1) $ return ()
+unifyR loc (EApp f1 a1) (EApp f2 a2)               = do { unifyR loc f1 f2; liftU $ unify loc a1 a2 }
+unifyR loc t1@(EUVar r1) t2@(EUVar r2) | r1 < r2   = unifyVar loc r2 t1   -- always make higher
+                                       | r1 > r2   = unifyVar loc r1 t2   --   TRefs point to lower
+                                       | otherwise = return ()
+unifyR loc (EUVar r1)   t2                         = unifyChkInj t2 $ unifyVar loc r1 t2
+unifyR loc t1           (EUVar r2)                 = unifyChkInj t1 $ unifyVar loc r2 t1
+unifyR _   (ELit _ l1)  (ELit _ l2)    | l1 == l2  = return ()
+unifyR loc t1           t2                         = do
+  tcm <- liftU $ gets tcMode
+  case tcm of
+    -- Defer to constraint solver.
+    -- XXX needs changing if we have kind equalities.
+    TCExpr -> failU
+    _      -> liftU $ tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
+
+unifyVar :: HasCallStack =>
+            SLoc -> TRef -> EType -> U ()
+unifyVar loc r t = do
+  mt <- liftU $ getUVar r
+--  tcTrace $ "unifyVar: " ++ show (r,t)
+  case mt of
+    Nothing -> unifyUnboundVar loc r t
+    Just t' -> unifyR loc t' t
+
+-- Unify an unbound tyvar r1 with the type at2
+unifyUnboundVar :: HasCallStack =>
+                   SLoc -> TRef -> EType -> U ()
+unifyUnboundVar loc r1 at2@(EUVar r2) = do
+  -- We know r1 /= r2
+  mt2 <- liftU $ getUVar r2
+  case mt2 of
+    Nothing ->
+      -- Both are tyvars.  Always point later tyvars towards earlier ones.
+      -- There generaliation step in tcBindGrp relies on this.
+      liftU $
+      if r1 > r2 then
+        setUVar r1 at2
+      else
+        setUVar r2 (EUVar r1)
+    Just t2 -> unifyR loc (EUVar r1) t2
+unifyUnboundVar loc r1 t2 = liftU $ do
+  vs <- getMetaTyVars [t2]
+  if r1 `elem` vs then
+    tcErrorTK loc $ "cyclic " ++ showExpr (EUVar r1) ++ " = " ++ showExpr t2
+   else
+    setUVar r1 t2
+
+unifyChkInj :: EType -> U () -> U ()
+unifyChkInj t ua = do
+  non <- liftU $ gets synNInjSet
+  if isInj non t then
+    ua
+   else
+    failU
+
+isInj :: SynNInjSet -> EType -> Bool
+isInj s (EVar x) = M.notMemberSet x s
+isInj s (EApp f _) = isInj s f
+isInj _ (ELit _ _) = True
+--isInj _ (ETuple _) = True
+--isInj _ (EListish _) = True
+isInj _ (EUVar _) = True  -- XXX wrong
+isInj _ (EForall _ _ _) = True   -- why do we unify these?
+isInj _ t = error $ "isInj: " ++ show t
+
+{-
+unify :: HasCallStack =>
+         SLoc -> EType -> EType -> T ()
+unify loc a b = unifyR loc a b
+
+unifyR :: HasCallStack =>
+          SLoc -> EType -> EType -> T ()
+unifyR _   (EVar x1)    (EVar x2)      | x1 == x2  = return ()
+unifyR loc (EApp f1 a1) (EApp f2 a2)               = do { unifyR loc f1 f2; unifyR loc a1 a2 }
+unifyR loc t1@(EUVar r1) t2@(EUVar r2) | r1 < r2   = unifyVar loc r2 t1   -- always make higher
+                                       | r1 > r2   = unifyVar loc r1 t2   --   TRefs point to lower
+                                       | otherwise = return ()
+unifyR loc (EUVar r1)   t2                         = unifyVar loc r1 t2
+unifyR loc t1           (EUVar r2)                 = unifyVar loc r2 t1
+unifyR loc t1           t2                         = do
+  tcm <- gets tcMode
+  case tcm of
+    -- Defer to constraint solver.
+    -- XXX needs changing if we have kind equalities.
+    TCExpr -> addEqConstraint loc t1 t2
+    _      -> tcErrorTK loc $ "cannot unify " ++ showExpr t1 ++ " and " ++ showExpr t2
+
+unifyVar :: HasCallStack =>
+            SLoc -> TRef -> EType -> T ()
+unifyVar loc r t = do
+  mt <- getUVar r
+--  tcTrace $ "unifyVar: " ++ show (r,t)
+  case mt of
+    Nothing -> unifyUnboundVar loc r t
+    Just t' -> unify loc t' t
+
+-- Unify an unbount tyvar r1 with the type at2
+unifyUnboundVar :: HasCallStack =>
+                   SLoc -> TRef -> EType -> T ()
+unifyUnboundVar loc r1 at2@(EUVar r2) = do
+  -- We know r1 /= r2
+  mt2 <- getUVar r2
+  case mt2 of
+    Nothing ->
+      -- Both are tyvars.  Always point later tyvars towards earlier ones.
+      -- There generaliation step in tcBindGrp relies on this.
+      if r1 > r2 then
+        setUVar r1 at2
+      else
+        setUVar r2 (EUVar r1)
+    Just t2 -> unify loc (EUVar r1) t2
+unifyUnboundVar loc r1 t2 = do
+  vs <- getMetaTyVars [t2]
+  if r1 `elem` vs then
+    tcErrorTK loc $ "cyclic " ++ showExpr (EUVar r1) ++ " = " ++ showExpr t2
+   else
+    setUVar r1 t2
+-}
+{-
+unify :: HasCallStack =>
+         SLoc -> EType -> EType -> T ()
 unify loc a b = do
   non <- gets synNInjSet
   unifyApp loc non a b []
@@ -763,7 +891,7 @@ unifyApp loc   _ t1            t2           tts                 = do
     -- XXX needs changing if we have kind equalities.
     TCExpr -> addEqConstraint loc rt1 rt2
     _      -> tcErrorTK loc $ "cannot unify " ++ showEType t1 ++ " and " ++ showEType rt2
-  
+
 {-
 unifyR _   (EVar x1)    (EVar x2)      | x1 == x2  = return ()
 unifyR loc (EApp f1 a1) (EApp f2 a2)               = do { unifyR loc f1 f2; unifyR loc a1 a2 }
@@ -819,6 +947,7 @@ unifyUnboundVar loc r1 t2 = do
     tcErrorTK loc $ "cyclic " ++ showExpr (EUVar r1) ++ " = " ++ showExpr t2
    else
     setUVar r1 t2
+-}
 
 -- Reset unification map
 tcReset :: T ()
@@ -993,6 +1122,7 @@ tcDefs flags impt ds = do
   dst <- tcDefsType ds                                -- kind check type definitions
 --  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeAndData dst                            -- add typedefinitions to the symbol table
+  addNInjTable dst
   dste <- tcExpandClassInst impt dst                  -- expand class&instance, do deriving
   dumpIf flags Dderive $
     tcTrace' $ "expanded:\n" ++ showEDefs dste
@@ -4037,3 +4167,8 @@ standaloneDeriving str narg act = do
       _ -> tcError (getSLoc act) ("not data/newtype " ++ showIdent tname)
   -- We want 'instance ctx => cls ty'
   deriveStrat (Just (act, tname)) newt lhs cs str (narg, tApps cls ts)
+
+-----
+
+addNInjTable :: [EDef] -> T ()
+addNInjTable _ = return ()
