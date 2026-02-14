@@ -1,6 +1,6 @@
 -- Copyright 2025 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Float(Float, floatToDouble, doubleToFloat) where
+module Data.Float(Float, floatToDouble, doubleToFloat, castWord32ToFloat, castFloatToWord32) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
@@ -24,6 +24,7 @@ import Data.RealFloat
 import Data.RealFrac
 import Data.Num
 import Data.Word.Word
+import Data.Word.Word32
 import {-# SOURCE #-} Numeric.FormatFloat(showFloat)
 import Numeric.Show(showSignedNeg)
 import Text.Show
@@ -206,3 +207,9 @@ floatToDouble = primFloatToDouble
 
 doubleToFloat :: Double -> Float
 doubleToFloat = primDoubleToFloat
+
+castWord32ToFloat :: Word32 -> Float
+castWord32ToFloat w = primWordToFloatRaw (primUnsafeCoerce w) -- Safety: Word32 is a newtype over Word
+
+castFloatToWord32 :: Float -> Word32
+castFloatToWord32 f = primUnsafeCoerce (primWordFromFloatRaw f) -- Safety: Word32 is a newtype over Word

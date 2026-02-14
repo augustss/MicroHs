@@ -1,6 +1,6 @@
 -- Copyright 2025 Lennart Augustsson
 -- See LICENSE file for full license.
-module Data.Double(Double, doubleToInt) where
+module Data.Double(Double, doubleToInt, castWord64ToDouble, castDoubleToWord64) where
 import qualified Prelude()              -- do not import Prelude
 import Primitives
 import Control.Error
@@ -207,3 +207,9 @@ encodeFloat64 mant expn = scaleFloat64 expn (fromInteger mant)
 
 doubleToInt :: Double -> Int
 doubleToInt = primDoubleToInt
+
+castWord64ToDouble :: Word64 -> Double
+castWord64ToDouble = primWord64ToDoubleRaw
+
+castDoubleToWord64 :: Double -> Word64
+castDoubleToWord64 = primWord64FromDoubleRaw
