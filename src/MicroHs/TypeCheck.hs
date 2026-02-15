@@ -4009,7 +4009,7 @@ substEUVar _ _ = impossible
 -- Length of lists match, because of kind correctness.
 -- fds is a non-empty list.
 matchTypesAny :: SLoc -> [EType] -> [EType] -> [IFunDep] -> Maybe (TySubst, [Improve])
-matchTypesAny _ ts ts' [] = (,[]) <$> matchTypes ts ts'   -- Simple special case when there are no fundeps.
+matchTypesAny _ ts ts' [] = (\ s -> (s, [])) <$> matchTypes ts ts'   -- Simple special case when there are no fundeps.
 matchTypesAny loc ts ts' fds = asum $ map (matchTypesFD loc ts ts') fds
 
 matchTypesFD :: SLoc -> [EType] -> [EType] -> IFunDep -> Maybe (TySubst, [Improve])

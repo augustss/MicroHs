@@ -84,7 +84,7 @@ liftU tc = U $ \ s ->
     (a, s') -> UJust a s'
 
 failU :: UC s a
-failU = U $ \ _ -> UNothing
+failU = U $ const UNothing
 
 instance Functor (UC s) where
   fmap f sa = sa >>= (return . f)
