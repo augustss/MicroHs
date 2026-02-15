@@ -1344,9 +1344,9 @@ tcDefFam def = do
 
 addTypeFamEq :: EType -> EType -> T ()
 addTypeFamEq t1 t2 = do
-  let !(iks, t1') = unForall t1
+  let (iks, t1') = unForall t1
       sub = zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [-1,-2 ..]
-      !(fam, as) = getApp $ subst sub t1'
+      (fam, as) = getApp $ subst sub t1'
       t2' = subst sub t2
       eqn = (as, t2')
 --  traceM $ "addTypeFamEq " ++ show (fam, eqn)
@@ -3884,7 +3884,7 @@ redTypeFam tf t = fromMaybe t $ do
       red :: ([EType], EType) -> Maybe EType
       red (ps, rhs) | lps > las = Nothing
                     | otherwise = do
-                      let !(as', as'') = splitAt lps as
+                      let (as', as'') = splitAt lps as
                       s <- matchTypes ps as'
                       pure $ eApps (substEUVar s rhs) as''
         where lps = length ps
