@@ -36,6 +36,18 @@ instance IsList (NonEmpty a) a where
   toList ~(a :| as) = a : as
 -}
 
+type family NonInj a b
+type instance NonInj a b = b
+
+nonInj1 :: NonInj Int Bool
+nonInj1 = False
+nonInj2 :: NonInj Bool Bool
+nonInj2 = True
+nonEq = [nonInj1, nonInj2]
+
+nonInjInt :: NonInj Bool Int
+nonInjInt = 1
+
 main :: IO ()
 main = do
   let l = [1,3,2] :: [Int]

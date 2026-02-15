@@ -241,8 +241,8 @@ putSynTable senv = do
   (_,non) <- gets synTables
   modify $ \ ts -> ts{ synTables = (senv, non) }
 
-putNInjTable :: SynNInjSet -> T ()
-putNInjTable non = do
+putSynNInjSet :: SynNInjSet -> T ()
+putSynNInjSet non = do
   (senv, _) <- gets synTables
   modify $ \ ts -> ts{ synTables = (senv, non) }
 

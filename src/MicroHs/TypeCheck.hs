@@ -1352,6 +1352,9 @@ addTypeFamEq t1 t2 = do
 --  traceM $ "addTypeFamEq " ++ show (fam, eqn)
   tf <- gets typeFamTable
   putTypeFamTable $ M.insertWith (++) fam [eqn] tf
+  -- Type families are non-injective (in general)
+  ni <- gets synNInjSet
+  putSynNInjSet $ M.addSet fam ni
 
 -- A standalone deriving has a regular instance head.
 -- If it has a via clause, the via type has to have the same kind
@@ -3740,7 +3743,8 @@ solveConstraints = do
     addMetaDicts
 --    tcTrace "------------------------------------------\nsolveConstraints"
     eqs <- gets typeEqTable
-    cs' <- mapM (\ (i,t) -> do { t' <- derefUVar t; return (i, normTypeEq eqs t') }) cs
+    fams <- gets typeFamTable
+    cs' <- mapM (\ (i,t) -> do { t' <- derefUVar t; return (i, redTypeFam fams $ normTypeEq eqs t') }) cs
 --    tcTrace ("constraints:\n" ++ unlines (map showConstraint cs'))
     (unsolved, solved, improves) <- solveMany cs' [] [] []
     putConstraints unsolved
@@ -3852,24 +3856,27 @@ solveTuple loc _iCls cts = do
 
 solveTypeEq :: SolveOne
 -- If either type is a unification variable, just do the unification.
-solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETuple [], [], [(loc, t1, t2)])
-                               | otherwise = do
+solveTypeEq loc _iCls [t1, t2] = do
   fams <- gets typeFamTable
   let ft1 = redTypeFam fams t1
       ft2 = redTypeFam fams t2
-  eqs <- gets typeEqTable
-  --tcTrace ("solveTypeEq eqs=" ++ show eqs)
-  case solveEq eqs ft1 ft2 of
-    Nothing -> return Nothing
-    Just tts -> do
-      let mkEq (u1, u2) = do
-            i <- newDictIdent loc
-            return (i, mkEqType loc u1 u2)
-      ncs <- mapM mkEq tts
-      return $ Just (ETuple [], ncs, [])
+  if isEUVar t1 || isEUVar t2 then
+    return $ Just (ETuple [], [], [(loc, ft1, ft2)])
+   else do
+    eqs <- gets typeEqTable
+    --tcTrace ("solveTypeEq eqs=" ++ show eqs)
+    case solveEq eqs ft1 ft2 of
+      Nothing -> return Nothing
+      Just tts -> do
+        let mkEq (u1, u2) = do
+              i <- newDictIdent loc
+              return (i, mkEqType loc u1 u2)
+        ncs <- mapM mkEq tts
+        return $ Just (ETuple [], ncs, [])
 solveTypeEq _ _ _ = impossible
 
 redTypeFam :: TypeFamTable -> EType -> EType
+redTypeFam tf t | M.null tf = t            -- speedup when there are no type families
 redTypeFam tf t = fromMaybe t $ do
   (f, as) <- getAppM t
   eqns <- M.lookup f tf
