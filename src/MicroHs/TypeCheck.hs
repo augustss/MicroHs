@@ -1248,14 +1248,14 @@ addTypeKind kdefs adef = do
       extValQTop i k
 
   case adef of
-    Data    lhs _ _ -> addDef lhs
-    Newtype lhs _ _ -> addDef lhs
-    Type    lhs _   -> addDef lhs
-    Class _ lhs _ _ -> addDef lhs
-    DataFam lhs _   -> addDef lhs           -- if there is a kind signature, it will be checked later
-    TypeFam lhs _   -> addDef lhs           -- ditto
-    TypeFamClsd{}   -> notImplFam adef
-    _               -> return ()
+    Data    lhs _ _  -> addDef lhs
+    Newtype lhs _ _  -> addDef lhs
+    Type    lhs _    -> addDef lhs
+    Class _ lhs _ ms -> do; addDef lhs; mapM_ (addTypeKind kdefs) ms
+    DataFam lhs _    -> addDef lhs           -- if there is a kind signature, it will be checked later
+    TypeFam lhs _    -> addDef lhs           -- ditto
+    TypeFamClsd{}    -> notImplFam adef
+    _                -> return ()
 
 notImplFam :: HasCallStack => EDef -> T a
 notImplFam def = tcError (getSLoc def) $ "type families not implemented: " ++ show def
@@ -1316,9 +1316,10 @@ tcDefType def = do
     _                      -> return def
  where
    cm = flip (,)
-   tcMethod (Sign    is t) = Sign    is <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
-   tcMethod (DfltSign i t) = DfltSign i <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
-   tcMethod m              = return m
+   tcMethod (Sign    is t)   = Sign    is <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
+   tcMethod (DfltSign i t)   = DfltSign i <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
+   tcMethod (TypeFam lhs mk) = tcFamDecl TypeFam lhs mk
+   tcMethod m                = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
    num = mkBuiltin noSLoc "Num"
@@ -1340,6 +1341,8 @@ tcDefFam def = do
 --      traceM $ "tcDefFam: " ++ show (TypeInst t1' t2')
       addTypeFamEq t1' t2'
       return $ TypeInst t1' t2'
+    Instance ct ms bs -> do
+      Instance ct <$> mapM tcDefFam ms <*> pure bs
     _ -> return def
 
 addTypeFamEq :: EType -> EType -> T ()
@@ -1628,6 +1631,7 @@ expandInst dinst@(Instance act bs extra) = do
       args = sups ++ meths
       instBind (Fcn i _) = isJust $ lookup i mits
       instBind (Sign is _) = all (\ i -> isJust $ lookup i mits) is
+      instBind (TypeInst _ _) = True
       instBind _ = False
       -- When the method type has nested quantifiers the type checker cannot handle
       --  m = mDflt

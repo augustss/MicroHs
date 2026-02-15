@@ -1,40 +1,51 @@
 {-# LANGUAGE TypeFamilies #-}
 module TypeFam where
 
-type family Item l
+type family ItemS l
 
-class IsList l where
-  fromList :: [Item l] -> l
-  toList :: l -> [Item l]
+class IsListS l where
+  fromListS :: [ItemS l] -> l
+  toListS :: l -> [ItemS l]
 
-type instance Item [a] = a
+type instance ItemS [a] = a
 
-instance IsList [a] where
-  fromList = id
-  toList = id
+instance IsListS [a] where
+  fromListS = id
+  toListS = id
 
 data ListInt = Nil | Cons Int ListInt
   deriving Show
 
-type instance Item ListInt = Int
+type instance ItemS ListInt = Int
+
+instance IsListS ListInt where
+  fromListS [] = Nil
+  fromListS (x:xs) = Cons x (fromListS xs)
+  toListS Nil = []
+  toListS (Cons x xs) = x : toListS xs
+
+--------------
+
+
+class IsList l where
+  type Item l
+  fromList :: [Item l] -> l
+  toList :: l -> [Item l]
+
+
+instance IsList [a] where
+  type Item [a] = a
+  fromList = id
+  toList = id
 
 instance IsList ListInt where
+  type Item ListInt = Int
   fromList [] = Nil
-  fromList (x:xs) = Cons x (fromList xs)
+  fromList (x:xs) = Cons x (fromListS xs)
   toList Nil = []
-  toList (Cons x xs) = x : toList xs
+  toList (Cons x xs) = x : toListS xs
 
-{-
-instance IsList (ZipList a) where
-  fromList = ZipList
-  toList = getZipList
-
-instance IsList (NonEmpty a) a where
-  fromList (a:as) = a :| as
-  fromList [] = error "NonEmpty.fromList: empty list"
-
-  toList ~(a :| as) = a : as
--}
+--------------
 
 type family NonInj a b
 type instance NonInj a b = b
@@ -51,5 +62,7 @@ nonInjInt = 1
 main :: IO ()
 main = do
   let l = [1,3,2] :: [Int]
+  print (fromListS l :: [Int])
+  print (fromListS l :: ListInt)
   print (fromList l :: [Int])
   print (fromList l :: ListInt)

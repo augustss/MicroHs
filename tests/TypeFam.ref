@@ -1,2 +1,4 @@
 [1,3,2]
 Cons 1 (Cons 3 (Cons 2 Nil))
+[1,3,2]
+Cons 1 (Cons 3 (Cons 2 Nil))
