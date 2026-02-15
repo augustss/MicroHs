@@ -434,7 +434,7 @@ isExp _ = False
 pData :: P (LHS, [Constr])
 pData = do
   lhs <- pLHS
-  let pConstrs = equal *> sepBy1 pConstr (bar)
+  let pConstrs = equal *> sepBy1 pConstr bar
   ((,) lhs <$> pConstrs)
    <|> pGADT lhs
    <|> pure (lhs, [])
@@ -621,8 +621,8 @@ pAType =
   <|> (eTuple <$> (lpar *> sepBy pType comma <* rpar))
   <|> (EListish . LList . (:[]) <$> (lbra *> pType <* rbra))  -- Unlike expressions, only allow a single element.
   <|> (uTupleTAp <$> (pSpec 'L' *> sepBy  pType comma <* pSpec 'R'))
-  <|> (uSumTAp <$> (pSpec 'L' *> sepBy1 pType (bar) <* pSpec 'R'))
-  <|> (uSumT <$> getSLoc <*> (succ . length <$> (pSpec 'L' *> many (bar) <* pSpec 'R')))
+  <|> (uSumTAp <$> (pSpec 'L' *> sepBy1 pType bar <* pSpec 'R'))
+  <|> (uSumT <$> getSLoc <*> (succ . length <$> (pSpec 'L' *> many bar <* pSpec 'R')))
 
 -------------
 -- Patterns
@@ -655,9 +655,9 @@ pAPat =
 pUSummand :: P Expr -> P Expr
 pUSummand p = do
   pSpec 'L'
-  l <- length <$> many (bar)
+  l <- length <$> many bar
   e <- p
-  r <- length <$> many (bar)
+  r <- length <$> many bar
   pSpec 'R'
   let n = l + r
   guard (n > 0)

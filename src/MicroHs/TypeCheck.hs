@@ -1251,7 +1251,7 @@ addTypeKind kdefs adef = do
     Data    lhs _ _  -> addDef lhs
     Newtype lhs _ _  -> addDef lhs
     Type    lhs _    -> addDef lhs
-    Class _ lhs _ ms -> do; addDef lhs; mapM_ (addTypeKind kdefs) ms
+    Class _ lhs _ ms -> do addDef lhs; mapM_ (addTypeKind kdefs) ms
     DataFam lhs _    -> addDef lhs           -- if there is a kind signature, it will be checked later
     TypeFam lhs _    -> addDef lhs           -- ditto
     TypeFamClsd{}    -> notImplFam adef
