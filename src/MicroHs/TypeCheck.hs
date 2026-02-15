@@ -328,7 +328,7 @@ mkTCState mdlName globs mdls =
           uvarSubst = IM.empty,
           tcMode = TCExpr,
           classTable = gClassTable globs,
-          ctxTables = (gInstInfo globs, [], [], []),
+          ctxTables = (gInstInfo globs, [], [], M.empty, []),
           constraints = [],
           defaults = dflts
         }
@@ -1166,7 +1166,8 @@ tcDefsType :: HasCallStack => [EDef] -> T [EDef]
 tcDefsType ds = withTypeTable $ do
   kindSigs <- getKindSigns ds
   mapM_ (addTypeKind kindSigs) ds              -- Add the kind of each type to the environment
-  dst <- mapM tcDefType ds                     -- Kind check all top level type expressions
+  dsf <- mapM tcDefType ds                     -- Kind check all top level type expressions
+  dst <- mapM tcDefFam dsf                     -- Kind check family instances
 --  vars <- gets uvarSubst
 --  tcTrace $ show vars
   vt <- gets valueTable
@@ -1256,8 +1257,8 @@ addTypeKind kdefs adef = do
     TypeFamClsd{}   -> notImplFam adef
     _               -> return ()
 
-notImplFam :: EDef -> T a
-notImplFam def = tcError (getSLoc def) "type families not implemented"
+notImplFam :: HasCallStack => EDef -> T a
+notImplFam def = tcError (getSLoc def) $ "type families not implemented: " ++ show def
 
 -- Add symbols associated with a type.
 addAssocs :: HasCallStack => EDef -> T ()
@@ -1311,7 +1312,6 @@ tcDefType def = do
     DataFam lhs mk         -> tcFamDecl DataFam lhs mk
     DataInst{}             -> notImplFam def
     TypeFam lhs mk         -> tcFamDecl TypeFam lhs mk
-    TypeInst{}             -> notImplFam def
     TypeFamClsd{}          -> notImplFam def
     _                      -> return def
  where
@@ -1328,6 +1328,30 @@ tcDefType def = do
 
    tcFamDecl con lhs mk = withLHS lhs $ \ lhs' ->
      do k <- maybe (return kType) (tcKind (Check sKind)) mk; return (con lhs' (Just k), k)
+
+tcDefFam :: HasCallStack => EDef -> T EDef
+tcDefFam def = do
+  case def of
+    TypeInst t1 t2 -> do
+      (t1', k1) <- tInferTypeT =<< addForall QExpl t1
+      let iks = fst $ unForall t1'
+--      traceM $ "tcDefFam: " ++ show (t1', iks, k1)
+      t2' <- withExtVals [(i, k) | IdKind i k <- iks] $ tCheckTypeT k1 t2
+--      traceM $ "tcDefFam: " ++ show (TypeInst t1' t2')
+      addTypeFamEq t1' t2'
+      return $ TypeInst t1' t2'
+    _ -> return def
+
+addTypeFamEq :: EType -> EType -> T ()
+addTypeFamEq t1 t2 = do
+  let !(iks, t1') = unForall t1
+      sub = zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [-1,-2 ..]
+      !(fam, as) = getApp $ subst sub t1'
+      t2' = subst sub t2
+      eqn = (as, t2')
+--  traceM $ "addTypeFamEq " ++ show (fam, eqn)
+  tf <- gets typeFamTable
+  putTypeFamTable $ M.insertWith (++) fam [eqn] tf
 
 -- A standalone deriving has a regular instance head.
 -- If it has a via clause, the via type has to have the same kind
@@ -3830,9 +3854,12 @@ solveTypeEq :: SolveOne
 -- If either type is a unification variable, just do the unification.
 solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETuple [], [], [(loc, t1, t2)])
                                | otherwise = do
+  fams <- gets typeFamTable
+  let ft1 = redTypeFam fams t1
+      ft2 = redTypeFam fams t2
   eqs <- gets typeEqTable
   --tcTrace ("solveTypeEq eqs=" ++ show eqs)
-  case solveEq eqs t1 t2 of
+  case solveEq eqs ft1 ft2 of
     Nothing -> return Nothing
     Just tts -> do
       let mkEq (u1, u2) = do
@@ -3841,6 +3868,21 @@ solveTypeEq loc _iCls [t1, t2] | isEUVar t1 || isEUVar t2 = return $ Just (ETupl
       ncs <- mapM mkEq tts
       return $ Just (ETuple [], ncs, [])
 solveTypeEq _ _ _ = impossible
+
+redTypeFam :: TypeFamTable -> EType -> EType
+redTypeFam tf t = fromMaybe t $ do
+  (f, as) <- getAppM t
+  eqns <- M.lookup f tf
+  let las = length as
+      red :: ([EType], EType) -> Maybe EType
+      red (ps, rhs) | lps > las = Nothing
+                    | otherwise = do
+                      let !(as', as'') = splitAt lps as
+                      s <- matchTypes ps as'
+                      pure $ eApps (substEUVar s rhs) as''
+        where lps = length ps
+  asum (map red eqns)
+
 
 solveCoercible :: HasCallStack => SolveOne
 solveCoercible loc iCls [t1, t2] = do
@@ -3941,7 +3983,7 @@ findMatches uniq _ loc fds ds its =
        [ (length s, (de, map (substEUVar s) ctx, imp))
        | (de, ctxts) <- ds
        , let (ctx, ts) = ctxts uniq
-       , Just (s, imp) <- [matchTypes loc ts its fds]
+       , Just (s, imp) <- [matchTypesAny loc ts its fds]
        ]
  in --trace ("findMatches: " ++ showListS showInstDict ds ++ "; " ++ show its ++ "; " ++ show fds ++ "; " ++ show rrr)
     rrr
@@ -3959,14 +4001,9 @@ substEUVar _ _ = impossible
 
 -- Length of lists match, because of kind correctness.
 -- fds is a non-empty list.
-matchTypes :: SLoc -> [EType] -> [EType] -> [IFunDep] -> Maybe (TySubst, [Improve])
-matchTypes _ ats ats' [] = do
-  -- Simple special case when there are no fundeps.
-  let loop r (t:ts) (t':ts') = matchType r t t' >>= \ r' -> loop r' ts ts'
-      loop r _ _ = pure r
-  s <- loop [] ats ats'
-  pure (s, [])
-matchTypes loc ts ts' fds = asum $ map (matchTypesFD loc ts ts') fds
+matchTypesAny :: SLoc -> [EType] -> [EType] -> [IFunDep] -> Maybe (TySubst, [Improve])
+matchTypesAny _ ts ts' [] = (,[]) <$> matchTypes ts ts'   -- Simple special case when there are no fundeps.
+matchTypesAny loc ts ts' fds = asum $ map (matchTypesFD loc ts ts') fds
 
 matchTypesFD :: SLoc -> [EType] -> [EType] -> IFunDep -> Maybe (TySubst, [Improve])
 --matchTypesFD _ ts ts' io | trace ("matchTypesFD: " ++ show (ts, ts', io)) False = undefined
@@ -3979,6 +4016,11 @@ matchTypesFD loc ts ts' (ins, outs) = do
   is  <- combineTySubsts [ s | (True, s) <- zip ins tms]  -- subst from input FDs
   let imp = [ (loc, substEUVar is t, t') | (True, t, t') <- zip3 outs ts ts' ]  -- improvements
   pure (tm, imp)
+
+matchTypes :: [EType] -> [EType] -> Maybe TySubst
+matchTypes ats ats' = loop [] ats ats'
+  where loop r (t:ts) (t':ts') = matchType r t t' >>= \ r' -> loop r' ts ts'
+        loop r _ _ = pure r
 
 -- Match two types, instantiate variables in the first type.
 matchType :: TySubst -> EType -> EType -> Maybe TySubst
