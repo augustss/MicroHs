@@ -109,6 +109,8 @@ Differences:
    * StandaloneKindSignatures
    * TupleSections (only pairs right now)
    * TypeApplications
+   * TypeFamilies (no data families yet)
+   * TypeFamilyDependencies
    * TypeLits
    * TypeSynonymInstances
    * UndecidableInstances

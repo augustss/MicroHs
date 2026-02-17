@@ -169,9 +169,20 @@ type InstDict   = (Expr, TRef -> ([EConstraint], [EType]))
 
 -- All known type equalities, normalized into a substitution.
 type TypeEqTable = [(Ident, EType)]
-type TypeFamTable = M.Map [([EType], EType)]  -- type instance forall a b . F a Int (L b) = T a b
+type TypeFamTable = M.Map TypeFamInfo  -- type instance forall a b . F a Int (L b) = T a b
                                               -- generates a mapping F -> [([ua,Int,K ub], T ua ub)]
                                               -- where ua, ub are (unique) unification variables
+
+data TypeFamInfo = TypeFamInfo {
+  tfOpen             :: Bool,                 -- open/closed
+  tfInj              :: Bool,                 -- fully injective
+  tfInjArg           :: [Bool],               -- per argument injectivity
+--tfFunDeps          :: FunDeps,              -- all fundeps
+  tfEqns             :: [([EType], EType)]    -- equations to try
+  }
+
+instance NFData TypeFamInfo where
+  rnf (TypeFamInfo a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
 
 data ClassInfo = ClassInfo
   [IdKind]         -- class tyvars
@@ -191,8 +202,7 @@ data TCState = TC {
   unique      :: Int,                   -- unique number
   fixTable    :: FixTable,              -- fixities, indexed by QIdent
   typeTable   :: TypeTable,             -- type symbol table
-  synTables   :: (SynTable,             -- synonyms, indexed by QIdent
-                  SynNInjSet),          -- non-injective synonyms
+  synTable    :: SynTable,              -- synonyms, indexed by QIdent
   dataTable   :: DataTable,             -- data/newtype definitions
   valueTable  :: ValueTable,            -- value symbol table
   assocTable  :: AssocTable,            -- values associated with a type, indexed by QIdent
@@ -224,12 +234,6 @@ typeFamTable tc = case ctxTables tc of (_,_,_,x,_) -> x
 argDicts :: TCState -> ArgDicts
 argDicts tc = case ctxTables tc of (_,_,_,_,x) -> x
 
-synTable :: TCState -> SynTable
-synTable tc = case synTables tc of (x,_) -> x
-
-synNInjSet :: TCState -> SynNInjSet
-synNInjSet tc = case synTables tc of (_,x) -> x
-
 putValueTable :: ValueTable -> T ()
 putValueTable venv = modify $ \ ts -> ts{ valueTable = venv }
 
@@ -237,14 +241,7 @@ putTypeTable :: TypeTable -> T ()
 putTypeTable tenv = modify $ \ ts -> ts{ typeTable = tenv }
 
 putSynTable :: SynTable -> T ()
-putSynTable senv = do
-  (_,non) <- gets synTables
-  modify $ \ ts -> ts{ synTables = (senv, non) }
-
-putSynNInjSet :: SynNInjSet -> T ()
-putSynNInjSet non = do
-  (senv, _) <- gets synTables
-  modify $ \ ts -> ts{ synTables = (senv, non) }
+putSynTable senv = modify $ \ ts -> ts{ synTable = senv }
 
 putDataTable :: DataTable -> T ()
 putDataTable denv = modify $ \ ts -> ts{ dataTable = denv }

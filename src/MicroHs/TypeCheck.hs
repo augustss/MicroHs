@@ -53,18 +53,18 @@ deriveClassTypeable = True
 -- Certain data structures persist during the entire compilation
 -- session.  The information is needed beyond the scope where it was defined.
 data GlobTables = GlobTables {
-  gSynTables  :: (SynTable,
-                  SynNInjSet),    -- type synonyms are needed for expansion
+  gSynTable   :: SynTable,        -- type synonyms are needed for expansion
   gDataTable  :: DataTable,       -- data/newtype definitions
   gClassTable :: ClassTable,      -- classes are needed for superclass expansion etc
-  gInstInfo   :: InstTable        -- instances are implicitely global
+  gInstInfo   :: InstTable,       -- instances are implicitely global
+  gTypeFamTable:: TypeFamTable    -- type family information
   }
 
 instance NFData GlobTables where
-  rnf (GlobTables a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
+  rnf (GlobTables a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
 
 emptyGlobTables :: GlobTables
-emptyGlobTables = GlobTables { gSynTables = (M.empty, M.emptySet), gDataTable = M.fromList dataTuples, gClassTable = M.empty, gInstInfo = M.empty }
+emptyGlobTables = GlobTables { gSynTable = M.empty, gDataTable = M.fromList dataTuples, gClassTable = M.empty, gInstInfo = M.empty, gTypeFamTable = M.empty }
   -- XXX Could fill the initial symbol table from this
   where dataTuples :: [(Ident, EDef)]
         dataTuples = [ (con, Data (con, map (\ v -> IdKind v eDummy) vs) [Constr [] [] con False (Left $ map (\v-> (False, EVar v)) vs)] [])
@@ -74,10 +74,12 @@ emptyGlobTables = GlobTables { gSynTables = (M.empty, M.emptySet), gDataTable = 
 
 mergeGlobTables :: GlobTables -> GlobTables -> GlobTables
 mergeGlobTables g1 g2 =
-  GlobTables { gSynTables = (M.merge (fst $ gSynTables g1) (fst $ gSynTables g2), M.unionSet (snd $ gSynTables g1) (snd $ gSynTables g2)),
+  GlobTables { gSynTable = M.merge (gSynTable g1) (gSynTable g2),
                gDataTable = M.merge (gDataTable g1) (gDataTable g2),
                gClassTable = M.merge (gClassTable g1) (gClassTable g2),
-               gInstInfo = M.mergeWith mergeInstInfo (gInstInfo g1) (gInstInfo g2) }
+               gInstInfo = M.mergeWith mergeInstInfo (gInstInfo g1) (gInstInfo g2),
+               gTypeFamTable = M.mergeWith (mergeTypeFamInfo noSLoc) (gTypeFamTable g1) (gTypeFamTable g2)
+             }
 
 type Symbols = (SymTab, SymTab)
 
@@ -121,14 +123,15 @@ typeCheck flags globs impt aimps (EModule mn exps defs) =
              unzip $ map (getTVExps impMap (typeTable tcs) (valueTable tcs) (assocTable tcs)) exps
              where impMap = M.fromListWith (++) [(i, [m]) | (i, m) <- allMdls]
            fexps = map (tFixDefs . snd) allMdls
-           sexps = synTables tcs
+           sexps = synTable tcs
            dexps = dataTable tcs
            iexps = instTable tcs
            ctbl  = classTable tcs
+           fmexps= typeFamTable tcs
            dflts = M.fromList $ filter ((`elem` ds) . fst) $ M.toList $ defaults tcs
                  where ds = [ tyQIdent $ expLookup ti (typeTable tcs) | ExpDefault ti <- exps ]
          in  ( tModule mn (nubBy ((==) `on` fst) (concat fexps)) (concat texps) (concat vexps) dflts tds
-             , GlobTables { gSynTables = sexps, gDataTable = dexps, gClassTable = ctbl, gInstInfo = iexps }
+             , GlobTables { gSynTable = sexps, gDataTable = dexps, gClassTable = ctbl, gInstInfo = iexps, gTypeFamTable = fmexps }
              , (typeTable tcs, valueTable tcs)
              , tcs
              )
@@ -321,7 +324,7 @@ mkTCState mdlName globs mdls =
           unique = 1,
           fixTable = addPrimFixs allFixes,
           typeTable = foldr (uncurry stInsertGlbA) allTypes primTypes,
-          synTables = gSynTables globs,
+          synTable = gSynTable globs,
           dataTable = gDataTable globs,
           valueTable = foldr (uncurry stInsertGlbA) allValues primValues,
           assocTable = allAssocs,
@@ -793,19 +796,19 @@ unifyUnboundVar loc r1 t2 = liftU $ do
 
 unifyChkInj :: EType -> U () -> U ()
 unifyChkInj t ua = do
-  non <- liftU $ gets synNInjSet
-  if isInj non t then
+  tfs <- liftU $ gets typeFamTable
+  if isInj tfs t then
     ua
    else
     failU
 
-isInj :: SynNInjSet -> EType -> Bool
-isInj s (EVar x) = M.notMemberSet x s
+isInj :: TypeFamTable -> EType -> Bool
+isInj s (EVar x) = maybe True tfInj $ M.lookup x s
 isInj s (EApp f _) = isInj s f
 isInj _ (ELit _ _) = True
 --isInj _ (ETuple _) = True
 --isInj _ (EListish _) = True
-isInj _ (EUVar _) = True  -- XXX wrong
+isInj _ (EUVar _) = True  -- XXX maybe wrong
 isInj _ (EForall _ _ _) = True   -- why do we unify these?
 isInj _ t = error $ "isInj: " ++ show t
 
@@ -1318,7 +1321,7 @@ tcDefType def = do
    cm = flip (,)
    tcMethod (Sign    is t)   = Sign    is <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
    tcMethod (DfltSign i t)   = DfltSign i <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
-   tcMethod (TypeFam lhs mk) = tcFamDecl TypeFam lhs mk
+   tcMethod (TypeFam lhs tfk)= tcFamDecl TypeFam lhs tfk
    tcMethod m                = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
@@ -1327,8 +1330,14 @@ tcDefType def = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
 
-   tcFamDecl con lhs tfk = withLHS lhs $ \ lhs' ->
-     do (k, tfk') <- tcTFK tfk; return (con lhs' tfk', k)
+   tcFamDecl con lhs@(fam, iks) tfk = withLHS lhs $ \ lhs' -> do
+     (k, tfk') <- tcTFK tfk
+     tf <- gets typeFamTable
+     mn <- gets moduleName
+     let qfam = qualIdent mn fam
+         info = TypeFamInfo { tfOpen = True, tfInj = False, tfInjArg = map (const False) iks, tfEqns = [] }
+     putTypeFamTable $ M.insertWith (mergeTypeFamInfo (getSLoc qfam)) qfam info tf
+     return (con lhs' tfk', k)
    tcTFK TFNone = return (kType, TFNone)
    tcTFK (TFKind k) = do k' <- tcKind (Check sKind) k; return (k', TFKind k')
    tcTFK (TFInj r mk fds) = do
@@ -1359,11 +1368,17 @@ addTypeFamEq t1 t2 = do
       t2' = subst sub t2
       eqn = (as, t2')
 --  traceM $ "addTypeFamEq " ++ show (fam, eqn)
+      info = TypeFamInfo { tfOpen = True, tfInj = undefined, tfInjArg = undefined, tfEqns = [eqn] }
   tf <- gets typeFamTable
-  putTypeFamTable $ M.insertWith (++) fam [eqn] tf
-  -- Type families are non-injective (in general)
-  ni <- gets synNInjSet
-  putSynNInjSet $ M.addSet fam ni
+  putTypeFamTable $ M.insertWith (mergeTypeFamInfo (getSLoc fam)) fam info tf
+
+-- XXX should avoid duplicating equations
+mergeTypeFamInfo :: SLoc -> TypeFamInfo -> TypeFamInfo -> TypeFamInfo
+mergeTypeFamInfo loc old@TypeFamInfo{ tfOpen = oopen, tfEqns=oeqns } TypeFamInfo{ tfOpen = nopen, tfEqns=neqns } =
+  if oopen && nopen then
+    old{ tfEqns = neqns ++ oeqns }
+  else
+    errorMessage loc "mixing open/closed type families"
 
 -- A standalone deriving has a regular instance head.
 -- If it has a via clause, the via type has to have the same kind
@@ -3889,7 +3904,7 @@ redTypeFam :: TypeFamTable -> EType -> EType
 redTypeFam tf t | M.null tf = t            -- speedup when there are no type families
 redTypeFam tf t = fromMaybe t $ do
   (f, as) <- getAppM t
-  eqns <- M.lookup f tf
+  tfi <- M.lookup f tf
   let las = length as
       red :: ([EType], EType) -> Maybe EType
       red (ps, rhs) | lps > las = Nothing
@@ -3898,7 +3913,7 @@ redTypeFam tf t = fromMaybe t $ do
                       s <- matchTypes ps as'
                       pure $ eApps (substEUVar s rhs) as''
         where lps = length ps
-  asum (map red eqns)
+  asum (map red $ tfEqns tfi)
 
 
 solveCoercible :: HasCallStack => SolveOne
