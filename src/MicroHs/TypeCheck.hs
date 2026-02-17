@@ -1309,9 +1309,9 @@ tcDefType def = do
 -- We cant't do this now, because the classTable has not been fully populated yet.
 -- Instead, we do it in the deriving stage.
 --    StandDeriving st _ ct  ->                                            tcStand st ct
-    DataFam lhs mk         -> tcFamDecl DataFam lhs mk
+    DataFam lhs tfk        -> tcFamDecl DataFam lhs tfk
     DataInst{}             -> notImplFam def
-    TypeFam lhs mk         -> tcFamDecl TypeFam lhs mk
+    TypeFam lhs tfk        -> tcFamDecl TypeFam lhs tfk
     TypeFamClsd{}          -> notImplFam def
     _                      -> return def
  where
@@ -1327,8 +1327,14 @@ tcDefType def = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
 
-   tcFamDecl con lhs mk = withLHS lhs $ \ lhs' ->
-     do k <- maybe (return kType) (tcKind (Check sKind)) mk; return (con lhs' (Just k), k)
+   tcFamDecl con lhs tfk = withLHS lhs $ \ lhs' ->
+     do (k, tfk') <- tcTFK tfk; return (con lhs' tfk', k)
+   tcTFK TFNone = return (kType, TFNone)
+   tcTFK (TFKind k) = do k' <- tcKind (Check sKind) k; return (k', TFKind k')
+   tcTFK (TFInj r mk fds) = do
+     k' <- maybe (return kType) (tcKind (Check sKind)) mk
+     fds' <- withExtTyps [IdKind r k'] $ mapM tcFD fds
+     return (k', TFInj r (Just k') fds')
 
 tcDefFam :: HasCallStack => EDef -> T EDef
 tcDefFam def = do

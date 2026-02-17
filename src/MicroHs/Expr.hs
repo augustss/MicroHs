@@ -5,6 +5,7 @@ module MicroHs.Expr(
   ImportSpec(..),
   ImportItem(..),
   ImpType(..),
+  TypeFamKind(..),
   EDef(..), showEDefs,
   Deriving(..), DerStrategy(..), doNotDerive,
   Expr(..), eLam, eLamWithSLoc, eEqn, oneAlt, eEqns, showExpr, eqExpr,
@@ -96,12 +97,12 @@ data EDef
   | Pattern LHS EPat (Maybe [Eqn])
   | StandDeriving DerStrategy Int EConstraint
   | DfltSign Ident EType                      -- only in class declarations
-  | DataFam LHS (Maybe EKind)
+  | DataFam LHS TypeFamKind
   | DataInst EType [Constr] [Deriving]
   | NewtypeInst EType Constr [Deriving]
-  | TypeFam LHS (Maybe EKind)
+  | TypeFam LHS TypeFamKind
   | TypeInst EType EType
-  | TypeFamClsd LHS (Maybe EKind) [(EType, EType)]
+  | TypeFamClsd LHS TypeFamKind [(EType, EType)]
   -- Only used by interactive system to load a cached TCState to avoid import processing
   | SetTCState TCState
 --DEBUG  deriving (Show)
@@ -141,6 +142,16 @@ data CallConv = Cccall | Ccapi | Cjavascript
   deriving (Eq, Show)
 
 instance NFData CallConv where rnf x = x `seq` ()
+
+data TypeFamKind
+  = TFNone                             -- no kind annotation
+  | TFKind EKind                       -- just a kind annotation
+  | TFInj Ident (Maybe EKind) [FunDep] -- injectivity annotation
+
+instance NFData TypeFamKind where
+  rnf TFNone = ()
+  rnf (TFKind k) = rnf k
+  rnf (TFInj i mk is) = rnf i `seq` rnf mk `seq` rnf is
 
 data ImportSpec = ImportSpec ImpType Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
 --DEBUG  deriving (Show)
@@ -924,15 +935,20 @@ ppEDef def =
     Pattern lhs@(i,_) p meqns -> text "pattern" <+> ppLHS lhs <+> text "=" <+> ppExpr p <+> maybe empty (ppWhere (text ";") . (:[]) . Fcn i) meqns
     StandDeriving _s _narg ct -> text "deriving instance" <+> ppEType ct
     DfltSign i t -> text "default" <+> ppIdent i <+> text "::" <+> ppEType t
-    DataFam lhs mk -> text "data family" <+> ppLHS lhs <+> maybe empty (\ k -> text " ::" <+> ppEKind k) mk
+    DataFam lhs tfk -> text "data family" <+> ppLHS lhs <+> ppTFKind tfk
     DataInst t cs ds -> dataInst "data" t cs ds
     NewtypeInst t c ds -> dataInst "newtype" t [c] ds
-    TypeFam lhs mk -> text "type family" <+> ppLHS lhs <+> maybe empty (\ k -> text " ::" <+> ppEKind k) mk
+    TypeFam lhs tfk -> text "type family" <+> ppLHS lhs <+> ppTFKind tfk
     TypeInst t1 t2 -> text "type instance" <+> ppEType t1 <+> text "=" <+> ppEType t2
-    TypeFamClsd lhs mk eqns -> text "type family" <+> ppLHS lhs <+> maybe empty (\ k -> text " ::" <+> ppEKind k) mk
+    TypeFamClsd lhs tfk eqns -> text "type family" <+> ppLHS lhs <+> ppTFKind tfk
       <+> text "where" <+> nest 2 (vcat (map (\ (t1,t2) -> ppEType t1 <+> text "=" <+> ppEType t2) eqns))
     SetTCState _ -> text "SetTCState ..."
   where dataInst s t cs ds = text s <+> text "instance" <+> ppEType t <+> text "=" <+> hsep (punctuate (text " |") (map ppConstr cs)) <+> ppDerivings ds
+
+ppTFKind :: TypeFamKind -> Doc
+ppTFKind TFNone = empty
+ppTFKind (TFKind k) = ppEKind k
+ppTFKind (TFInj r mk fds) = maybe (ppIdent r) (\ k -> parens (ppIdent r <+> text "::" <+> ppEKind k)) mk <+> text "|" <+> ppFunDeps fds
 
 ppDerivings :: [Deriving] -> Doc
 ppDerivings = sep . map ppDeriving

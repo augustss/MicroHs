@@ -373,16 +373,15 @@ pDef =
   <|> mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
   <|> Sign         <$> (pKeyword "pattern"  *> sepBy1 pUIdentSym comma <* dcolon) <*> pType
   <|> StandDeriving<$> (pKeyword "deriving" *> pStrat) <*> pure 0 <*> (pKeyword "instance" *> pType)
-  <|> DataFam      <$> (pKeyword "data"     *> pKeyword "family"   *> pLHS) <*> optional (dcolon *> pKind)
+  <|> DataFam      <$> (pKeyword "data"     *> pKeyword "family"   *> pLHS) <*> undefined
   <|> DataInst     <$> (pKeyword "data"     *> pKeyword "instance" *> pType) <*> undefined <*> undefined
   <|> NewtypeInst  <$> (pKeyword "newtype"  *> pKeyword "instance" *> pType) <*> undefined <*> undefined
-  <|> typeFam      <$> (pKeyword "type"     *> pKeyword "family" *> pLHS) <*> optional (dcolon *> pKind) <*> optional (pKeyword "where" *> pBlock pTyEqn)
+  <|> typeFam      <$> (pKeyword "type"     *> pKeyword "family" *> pLHS) <*> pTypeFamKind <*> optional (pKeyword "where" *> pBlock pTyEqn)
   <|> TypeInst     <$> (pKeyword "type"     *> pKeyword "instance" *> pType) <*> (equal *> pType)
   <|> noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                some (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
   where
     pFunDeps = (bar *> sepBy1 pFunDep comma) <|> pure []
-    pFunDep = (,) <$> some pLIdent <*> (pSRArrow *> some pLIdent)
     pField = guardM pFields ((== 1) . either length length)
 
     clsSym = do s <- pUIdentSym; guard (unIdent s /= "()"); return s
@@ -400,8 +399,25 @@ pDef =
     typeFam lhs kind Nothing = TypeFam lhs kind
     typeFam lhs kind (Just eqns) = TypeFamClsd lhs kind eqns
 
+pFunDep :: P FunDep
+pFunDep = (,) <$> some pLIdent <*> (pSRArrow *> some pLIdent)
+
 pCallConv :: P CallConv
 pCallConv = (Cccall <$ pKeyword "ccall") <|> (Ccapi <$ pKeyword "capi") <|> (Cjavascript <$ pKeyword "javascript")
+
+pTypeFamKind :: P TypeFamKind
+pTypeFamKind =  (TFKind <$> (dcolon *> pKind))
+            <|> pInj
+            <|> (pure TFNone)
+  where pRes :: P (Ident, Maybe EKind)
+        pRes =  pParens ((,) <$> pLIdent <*> (dcolon *> (Just <$> pKind)))
+            <|> ((\ i -> (i, Nothing)) <$> pLIdent)
+        pInj = do
+          equal
+          (r, mk) <- pRes
+          bar
+          is <- sepBy pFunDep comma
+          pure $ TFInj r mk is
 
 pPatSyn :: P (LHS, EPat, Maybe [Eqn])
 pPatSyn = do
@@ -933,7 +949,7 @@ pClsBind :: P EBind
 pClsBind =
       pBind'
   <|> DfltSign  <$> (pKeyword "default" *> pLIdentSym <* dcolon) <*> pType
-  <|> TypeFam   <$> (pKeyword "type"    *> pLHS) <*> optional (dcolon *> pKind)
+  <|> TypeFam   <$> (pKeyword "type"    *> pLHS) <*> pTypeFamKind
   <|> TypeInst  <$> (pKeyword "type"    *> pType) <*> (equal *> pType)
 
 -- Bindings allowed in an instance definition
