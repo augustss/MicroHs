@@ -23,23 +23,22 @@ import Data.Word
 -----------------
 
 class Generic a where
+  type Rep a :: Type -> Type
   from :: a -> Rep a x
   to :: Rep a x -> a
   from _ = errGeneric
   to _ = errGeneric
 
-type Rep :: Type -> Type -> Type
-data Rep a x
-
-type Generic1 :: forall (k :: Kind) . (k -> Type) -> Constraint
+--type Generic1 :: forall (k :: Kind) . (k -> Type) -> Constraint
 class Generic1 f where
+  type Rep1 f :: Type -> Type
   from1 :: f a -> Rep1 f a
   to1 :: Rep1 f a -> f a
   from1 _ = errGeneric
   to1 _ = errGeneric
 
-type Rep1 :: forall (k :: Kind) . (k -> Type) -> k -> Type
-data Rep1 f a
+--type Rep1 :: forall (k :: Kind) . (k -> Type) -> k -> Type
+--data Rep1 f a
 
 errGeneric :: a
 errGeneric = error "MicroHs does not implement Generic yet"
