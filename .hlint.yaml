@@ -66,6 +66,7 @@
 - ignore: {name: Use section, within: [Deriving]}
 - ignore: {name: Use list literal, within: [ImpMet]}
 - ignore: {name: "Monoid law, left identity", within: [Builder]}
+- ignore: {name: "Redundant multi-way if", within: [Unicode]}
 
 - arguments:
     - --ignore-glob=lib/Data/Foldable1.hs
