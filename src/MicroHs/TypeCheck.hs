@@ -45,6 +45,7 @@ import Debug.Trace
 maxTuple :: Int
 maxTuple = 15
 
+-- Generate Typeable instance for classes.
 deriveClassTypeable :: Bool
 deriveClassTypeable = True
 
@@ -53,11 +54,11 @@ deriveClassTypeable = True
 -- Certain data structures persist during the entire compilation
 -- session.  The information is needed beyond the scope where it was defined.
 data GlobTables = GlobTables {
-  gSynTable   :: SynTable,        -- type synonyms are needed for expansion
-  gDataTable  :: DataTable,       -- data/newtype definitions
-  gClassTable :: ClassTable,      -- classes are needed for superclass expansion etc
-  gInstInfo   :: InstTable,       -- instances are implicitely global
-  gTypeFamTable:: TypeFamTable    -- type family information
+  gSynTable     :: SynTable,        -- type synonyms are needed for expansion
+  gDataTable    :: DataTable,       -- data/newtype definitions
+  gClassTable   :: ClassTable,      -- classes are needed for superclass expansion etc
+  gInstInfo     :: InstTable,       -- instances are implicitely global
+  gTypeFamTable :: TypeFamTable     -- type family information
   }
 
 instance NFData GlobTables where
@@ -1303,7 +1304,7 @@ tcDefType def = do
     Data    lhs cs ds      -> withLHS lhs $ \ lhs' -> cm kType       <$> (Data    lhs'  <$> mapM tcConstr cs <*> mapM (tcDeriving lhs') ds)
     Newtype lhs c  ds      -> withLHS lhs $ \ lhs' -> cm kType       <$> (Newtype lhs'  <$> tcConstr c       <*> mapM (tcDeriving lhs') ds)
     Type    lhs t          -> withLHS lhs $ \ lhs' -> first              (Type    lhs') <$> tInferTypeT t
-    Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> cm kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> mapM tcMethod ms)
+    Class   ctx lhs fds ms -> withLHS lhs $ \ lhs' -> cm kConstraint <$> (Class         <$> tcCtx ctx <*> return lhs' <*> mapM tcFD fds <*> tcMethods ms)
     Sign      is t         ->                                            Sign      is   <$> tCheckTypeTImpl QImpl kType t
     ForImp cc ie i t       ->                                            ForImp cc ie i <$> tCheckTypeTImpl QImpl kType t
     Instance ct m e        ->                                            Instance       <$> tCheckTypeTImpl QExpl kConstraint ct <*> return m <*> return e
@@ -1312,17 +1313,19 @@ tcDefType def = do
 -- We cant't do this now, because the classTable has not been fully populated yet.
 -- Instead, we do it in the deriving stage.
 --    StandDeriving st _ ct  ->                                            tcStand st ct
-    DataFam lhs tfk        -> tcFamDecl DataFam lhs tfk
+    DataFam lhs tfk        -> tcFamDecl DataFam lhs tfk Nothing
     DataInst{}             -> notImplFam def
-    TypeFam lhs tfk        -> tcFamDecl TypeFam lhs tfk
+    TypeFam lhs tfk        -> tcFamDecl TypeFam lhs tfk Nothing
     TypeFamClsd{}          -> notImplFam def
     _                      -> return def
  where
    cm = flip (,)
-   tcMethod (Sign    is t)   = Sign    is <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
-   tcMethod (DfltSign i t)   = DfltSign i <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
-   tcMethod (TypeFam lhs tfk)= tcFamDecl TypeFam lhs tfk
-   tcMethod m                = return m
+   tcMethods ms = mapM tcMethod ms
+     where
+       tcMethod (Sign    is t)   = Sign    is <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
+       tcMethod (DfltSign i t)   = DfltSign i <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
+       tcMethod (TypeFam lhs tfk)= tcFamDecl TypeFam lhs tfk (listToMaybe [ t | t@TypeInst{} <- ms ])
+       tcMethod m                = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
    num = mkBuiltin noSLoc "Num"
@@ -1330,12 +1333,17 @@ tcDefType def = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
 
-   tcFamDecl con lhs@(fam, iks) tfk = withLHS lhs $ \ lhs' -> do
+   tcFamDecl con lhs@(fam, iks) tfk mdef = withLHS lhs $ \ lhs' -> do
      (k, tfk') <- tcTFK tfk
      tf <- gets typeFamTable
      mn <- gets moduleName
      let qfam = qualIdent mn fam
-         info = TypeFamInfo { tfOpen = True, tfInj = False, tfInjArg = map (const False) iks, tfEqns = [] }
+         (res, fundeps) = case tfk of TFInj r _ fds -> (r, fds); _ -> (dummyIdent, [])
+         is = map idKindIdent iks
+         isInjArg i = any (\ (ins, outs) -> [res] == ins && i `elem` outs) fundeps
+         injArg = map isInjArg is
+         info = TypeFamInfo { tfOpen = True, tfInj = and injArg, tfInjArg = injArg, tfEqns = [],
+                              tfTyVars = (is, res), tfFunDeps = fundeps, tfDefault = mdef }
      putTypeFamTable $ M.insertWith (mergeTypeFamInfo (getSLoc qfam)) qfam info tf
      return (con lhs' tfk', k)
    tcTFK TFNone = return (kType, TFNone)
@@ -1368,13 +1376,14 @@ addTypeFamEq t1 t2 = do
       t2' = subst sub t2
       eqn = (as, t2')
 --  traceM $ "addTypeFamEq " ++ show (fam, eqn)
-      info = TypeFamInfo { tfOpen = True, tfInj = undefined, tfInjArg = undefined, tfEqns = [eqn] }
+      info = TypeFamInfo { tfOpen = True, tfInj = undefined, tfInjArg = undefined, tfEqns = [eqn],
+                           tfTyVars = undefined, tfFunDeps = undefined, tfDefault = undefined }
   tf <- gets typeFamTable
   putTypeFamTable $ M.insertWith (mergeTypeFamInfo (getSLoc fam)) fam info tf
 
 -- XXX should avoid duplicating equations
 mergeTypeFamInfo :: SLoc -> TypeFamInfo -> TypeFamInfo -> TypeFamInfo
-mergeTypeFamInfo loc old@TypeFamInfo{ tfOpen = oopen, tfEqns=oeqns } TypeFamInfo{ tfOpen = nopen, tfEqns=neqns } =
+mergeTypeFamInfo loc TypeFamInfo{ tfOpen = nopen, tfEqns=neqns } old@TypeFamInfo{ tfOpen = oopen, tfEqns=oeqns } =
   if oopen && nopen then
     old{ tfEqns = neqns ++ oeqns }
   else

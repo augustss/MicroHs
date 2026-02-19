@@ -16,16 +16,8 @@ module MicroHs.IdentMap(
   toList, elems, keys,
   merge, mergeWith,
   mapM,
-  -- 
-  Set,
-  emptySet,
-  addSet,
-  memberSet,
-  notMemberSet,
-  unionSet,
   ) where
 import qualified Prelude(); import MHSPrelude hiding(lookup, mapM, null)
-import Data.Maybe(isJust, isNothing)
 import MicroHs.Ident
 
 data Map a
@@ -229,26 +221,6 @@ merge :: Map a -> Map a -> Map a
 merge m1 m2 | size m1 <= size m2 = foldr (uncurry insert) m2 (toList m1)
             | otherwise = merge m2 m1
 
+-- The first arguments to mergeWith will provide the first argument to the merge function.
 mergeWith :: (a -> a -> a) -> Map a -> Map a -> Map a
-mergeWith f m1 m2 | size m1 <= size m2 = foldr (uncurry $ insertWith f) m2 (toList m1)
-                  | otherwise = mergeWith f m2 m1
-
----------
-
--- For simplicity, use a map to () for sets
-type Set = Map ()
-
-emptySet :: Set
-emptySet = empty
-
-addSet :: Ident -> Set -> Set
-addSet i s = insert i () s
-
-memberSet :: Ident -> Set -> Bool
-memberSet i s = isJust (lookup i s)
-
-notMemberSet :: Ident -> Set -> Bool
-notMemberSet i s = isNothing (lookup i s)
-
-unionSet :: Set -> Set -> Set
-unionSet = merge
+mergeWith f m1 m2 = foldr (uncurry $ insertWith f) m2 (toList m1)

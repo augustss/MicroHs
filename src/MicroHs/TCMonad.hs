@@ -129,7 +129,6 @@ type ValueTable = SymTab           -- type of value identifiers, used during typ
 type TypeTable  = SymTab           -- kind of type  identifiers, used during kind checking types
 type KindTable  = SymTab           -- sort of kind  identifiers, used during sort checking kinds
 type SynTable   = M.Map EType      -- body of type synonyms
-type SynNInjSet = M.Set            -- non-injective synonyms
 type DataTable  = M.Map EDef       -- data/newtype definitions (only used for standalone deriving)
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
 type AssocTable = M.Map [ValueExport] -- maps a type identifier to its associated constructors/selectors/methods
@@ -169,20 +168,22 @@ type InstDict   = (Expr, TRef -> ([EConstraint], [EType]))
 
 -- All known type equalities, normalized into a substitution.
 type TypeEqTable = [(Ident, EType)]
-type TypeFamTable = M.Map TypeFamInfo  -- type instance forall a b . F a Int (L b) = T a b
-                                              -- generates a mapping F -> [([ua,Int,K ub], T ua ub)]
-                                              -- where ua, ub are (unique) unification variables
+
+-- Type families
+type TypeFamTable = M.Map TypeFamInfo
 
 data TypeFamInfo = TypeFamInfo {
-  tfOpen             :: Bool,                 -- open/closed
-  tfInj              :: Bool,                 -- fully injective
-  tfInjArg           :: [Bool],               -- per argument injectivity
---tfFunDeps          :: FunDeps,              -- all fundeps
-  tfEqns             :: [([EType], EType)]    -- equations to try
+  tfOpen     :: Bool,                 -- open/closed
+  tfInj      :: Bool,                 -- fully injective
+  tfInjArg   :: [Bool],               -- per argument injectivity
+  tfTyVars   :: ([Ident], Ident),     -- arguments, result
+  tfFunDeps  :: [FunDep],             -- all fundeps
+  tfEqns     :: [([EType], EType)],   -- equations to try
+  tfDefault  :: Maybe EDef            -- default for missing instance
   }
 
 instance NFData TypeFamInfo where
-  rnf (TypeFamInfo a b c d) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d
+  rnf (TypeFamInfo a b c d e f g) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f `seq` rnf g
 
 data ClassInfo = ClassInfo
   [IdKind]         -- class tyvars

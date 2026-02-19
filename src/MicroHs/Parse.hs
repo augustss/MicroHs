@@ -366,7 +366,7 @@ pDef =
                         <*> (optional pSafety *> optional pString) <*> pLIdent <*> (dcolon *> pType)
   <|> ForExp       <$> (pKeyword "foreign"  *> pKeyword "export" *> pCallConv)
                         <*> optional pString <*> pFExpr <*> (dcolon *> pType)
-  <|> Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
+  <|> Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps <*> pWhere pClsBind
   <|> Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind <*> (pWhere pInstBind <|> pure [])
   <|> Default      <$> (pKeyword "default"  *> optional clsSym) <*> pParens (sepBy pType comma)
   <|> KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (dcolon *> pKind)
