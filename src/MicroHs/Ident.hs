@@ -146,7 +146,7 @@ headIdent (Ident _ i) = head i
 isConIdent :: Ident -> Bool
 isConIdent i@(Ident _ t) =
   let c = headIdent i
-  in  isUpperX c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()" || t == pack "->"
+  in  isUpperX c || c == ':' || c == ',' || t == pack "[]"  || t == pack "()" || t == pack "->" || t == pack "\x2192"
 
 isOperChar :: Char -> Bool
 isOperChar '@' = True
@@ -200,8 +200,8 @@ slocFile :: SLoc -> FilePath
 slocFile (SLoc f _ _) = f
 
 isUpperX :: Char -> Bool
-isUpperX '\8658' = False  -- these two lines avoid using the whole Unicode machinery
-isUpperX '\8594' = False
+isUpperX '\x21d2' = False  -- these two lines avoid using the whole Unicode machinery
+isUpperX '\x2192' = False
 isUpperX c = isUpper c
 
 -- This is a hack to hide an identifier without removing it

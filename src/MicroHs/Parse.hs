@@ -393,7 +393,7 @@ pPatSyn = do
        let eqn = eEqn (map (EVar . idKindIdent) vs) p
        pure (lhs, p, Just [eqn])
    ) <|> (
-    do pSymbol "<-"
+    do pSLArrow
        p <- pPat
        meqns <- optional (pKeyword "where" *> pBraces (pEqnsU i))
        pure (lhs, p, fmap snd meqns)
@@ -435,7 +435,7 @@ pGADTconstr = do
   es <- pForall
   ctx <- pContext
   let pGType = pStrictP $ pOperators pOper pTypeArg
-  args <- many (pGType <* pSymbol "->")
+  args <- many (pGType <* pSRArrow)
   res <- pType
   pure (cn, es, ctx, args, res)
 
@@ -583,7 +583,7 @@ pTypeArg :: P EType
 pTypeArg =
     do
       vs <- pForall'
-      q <- (QExpl <$ pSymbol ".") <|> (QReqd <$ pSymbol "->")
+      q <- (QExpl <$ pSymbol ".") <|> (QReqd <$ pSRArrow)
       EForall q vs <$> pType
   <|>
     pTypeApp
@@ -796,7 +796,7 @@ pIf :: P Expr
 pIf = EIf <$> (pKeyword "if" *> pExpr) <*>
               (optional (pSpec ';') *> pKeyword "then" *> pExpr) <*>
               (optional (pSpec ';') *> pKeyword "else" *> pExpr)
-  <|> EMultiIf <$> (EAlts <$> (pKeyword "if" *> pBlock (pAlt (pSymbol "->"))) <*> pure [])
+  <|> EMultiIf <$> (EAlts <$> (pKeyword "if" *> pBlock (pAlt pSRArrow)) <*> pure [])
 
 pQualDo :: P Ident
 pQualDo = do
