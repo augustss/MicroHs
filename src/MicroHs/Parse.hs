@@ -408,7 +408,7 @@ pCallConv = (Cccall <$ pKeyword "ccall") <|> (Ccapi <$ pKeyword "capi") <|> (Cja
 pTypeFamKind :: P TypeFamKind
 pTypeFamKind =  (TFKind <$> (dcolon *> pKind))
             <|> pInj
-            <|> (pure TFNone)
+            <|> pure TFNone
   where pRes :: P (Ident, Maybe EKind)
         pRes =  pParens ((,) <$> pLIdent <*> (dcolon *> (Just <$> pKind)))
             <|> ((\ i -> (i, Nothing)) <$> pLIdent)
