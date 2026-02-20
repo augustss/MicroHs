@@ -1351,7 +1351,7 @@ tcDefType def = do
    tcTFK (TFKind k) = do k' <- tcKind (Check sKind) k; return (k', TFKind k')
    tcTFK (TFInj r mk fds) = do
      k' <- maybe (return kType) (tcKind (Check sKind)) mk
-     fds' <- withExtTyps [IdKind r k'] $ mapM tcFD fds
+     fds' <- withExtVals [(r, k')] $ mapM tcFD fds
      return (k', TFInj r (Just k') fds')
 
 tcDefFam :: HasCallStack => EDef -> T EDef
@@ -3910,10 +3910,16 @@ solveTypeEq loc _iCls [t1, t2] = do
         return $ Just (ETuple [], ncs, [])
 solveTypeEq _ _ _ = impossible
 
+-- Reduce type families everywhere
 redTypeFam :: TypeFamTable -> EType -> EType
 redTypeFam tf t | M.null tf = t            -- speedup when there are no type families
-redTypeFam tf t = fromMaybe t $ do
-  (f, as) <- getAppM t
+redTypeFam tf t = spine t []
+  where spine (EVar f) ts | Just t' <- redTypeFam' tf f ts = t'
+        spine (EApp f a) ts = spine f (redTypeFam tf a : ts)
+        spine f ts = eApps f ts
+
+redTypeFam' :: TypeFamTable -> Ident -> [EType] -> Maybe EType
+redTypeFam' tf f as = do
   tfi <- M.lookup f tf
   let las = length as
       red :: ([EType], EType) -> Maybe EType

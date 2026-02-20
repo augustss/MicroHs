@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 module TypeFam where
+import Data.Typeable
 
 type family ItemS l
 
@@ -59,6 +60,14 @@ nonEq = [nonInj1, nonInj2]
 nonInjInt :: NonInj Bool Int
 nonInjInt = 1
 
+{-
+type family Inj a = r | r -> a
+type instance Inj Int = Bool
+
+ty :: forall a . Typeable a => Inj a -> TypeRep
+ty _ = typeOf @a undefined
+-}
+
 main :: IO ()
 main = do
   let l = [1,3,2] :: [Int]
@@ -66,3 +75,4 @@ main = do
   print (fromListS l :: ListInt)
   print (fromList l :: [Int])
   print (fromList l :: ListInt)
+--  print (ty True)
