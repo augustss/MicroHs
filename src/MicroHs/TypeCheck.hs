@@ -745,6 +745,7 @@ unify loc a b = runTCU $ handleU (unifyR loc a b) (
 --  trace ("unify defers " ++ show (a, b)) $
   liftU $ addEqConstraint loc a b)
 
+-- XXX Unification variables can be instantiated to type variables.  Is that right?
 unifyR :: HasCallStack =>
           SLoc -> EType -> EType -> U ()
 unifyR _   (EVar x1)    (EVar x2)      | x1 == x2  = unifyChkInj (EVar x1) $ return ()
@@ -752,8 +753,8 @@ unifyR loc (EApp f1 a1) (EApp f2 a2)               = do { unifyR loc f1 f2; lift
 unifyR loc t1@(EUVar r1) t2@(EUVar r2) | r1 < r2   = unifyVar loc r2 t1   -- always make higher
                                        | r1 > r2   = unifyVar loc r1 t2   --   TRefs point to lower
                                        | otherwise = return ()
-unifyR loc (EUVar r1)   t2                         = unifyChkInj t2 $ unifyVar loc r1 t2
-unifyR loc t1           (EUVar r2)                 = unifyChkInj t1 $ unifyVar loc r2 t1
+unifyR loc (EUVar r1)   t2                         = {-unifyChkInj t2 $ -} unifyVar loc r1 t2
+unifyR loc t1           (EUVar r2)                 = {-unifyChkInj t1 $ -} unifyVar loc r2 t1
 unifyR _   (ELit _ l1)  (ELit _ l2)    | l1 == l2  = return ()
 unifyR loc t1           t2                         = do
   tcm <- liftU $ gets tcMode

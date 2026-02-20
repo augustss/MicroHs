@@ -111,11 +111,12 @@ lookup k = look
 insert :: forall a . Ident -> a -> Map a -> Map a
 insert = insertWith const
 
+-- The comb function is always called with new value as the first argument.
 insertWith :: forall a . (a -> a -> a) -> Ident -> a -> Map a -> Map a
 insertWith comb k v = ins
   where
     ins Nil = One k v
-    ins (One a v) = ins (Node Nil 1 a v Nil)
+    ins (One a val) = ins (Node Nil 1 a val Nil)
     ins (Node left _ key val right) =
       case k `compare` key of
         LT -> balance (ins left) key val right
