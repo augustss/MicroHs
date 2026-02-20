@@ -2227,8 +2227,8 @@ tcExprApFn mt fn atfn aargs = do
             loop ats aas ft'
           AConstaint ctx ft ->
             loop (ArgCtx ctx : ats) aas ft
-          ARet -> do
-            (at, rt) <- unArrow loc aft
+          ARet aft' -> do
+            (at, rt) <- unArrow loc aft'
             --traceM ("ARet " ++ show (at, rt))
             loop (ArgExpr a at : ats) as rt
         where useType i k t ft = do
@@ -2537,7 +2537,7 @@ data Arg
   = AReqd         IdKind      EType       -- forall ->
   | AForall QForm [IdKind]    EType       -- forall .
   | AConstaint    EConstraint EType       -- =>
-  | ARet                                  -- none of the above
+  | ARet                      EType       -- none of the above
 --  deriving Show
 
 nextArg :: EType -> Arg
@@ -2545,7 +2545,7 @@ nextArg (EForall _ []  t)                  = nextArg t
 nextArg (EForall QReqd (ik:iks) t)         = AReqd ik (EForall QReqd iks t)
 nextArg (EForall q     iks      t)         = AForall q iks t
 nextArg t | Just (ctx, t') <- getImplies t = AConstaint ctx t'
-          | otherwise                      = ARet
+          | otherwise                      = ARet t
 
 tcExprLam :: HasCallStack => Expected -> SLoc -> [Eqn] -> T Expr
 tcExprLam mt loc qs = do
@@ -2615,11 +2615,13 @@ tcPats at pps ta =
         case ds of
           [] -> return eqn
           _  -> return $ addSolved ds eqn
-    ARet | p:ps <- pps -> do
-      (tp, tr) <- unArrow (getSLoc p) at
-      -- tCheckPatC dicts used in tcAlt solve
-      tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
-         | otherwise -> ta at []   -- base case, no more arguments, explicit or implicit
+    ARet at' -> 
+      case pps of
+        p:ps -> do
+          (tp, tr) <- unArrow (getSLoc p) at'
+          -- tCheckPatC dicts used in tcAlt solve
+          tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
+        [] -> ta at' []   -- base case, no more arguments, explicit or implicit
 
 
 tcAlts :: HasCallStack => EType -> EAlts -> T EAlts
