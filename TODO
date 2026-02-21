@@ -40,9 +40,6 @@ Bugs:
 * cannot parse (a -> b) as an expression
 
 Wishlist:
-* DeriveDataTypeable (claudeha)
-    Only Data is missing die to a type checker bug
-* DeriveGeneric (clauseha)
+* DeriveGeneric (claudeha)
     Needs TypeFamilies
-* DeriveFunctor (clauseha)
 * Polymorphic record update (claudeha)
