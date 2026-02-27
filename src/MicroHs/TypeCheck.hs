@@ -1253,14 +1253,14 @@ addTypeKind kdefs adef = do
       extValQTop i k
 
   case adef of
-    Data    lhs _ _  -> addDef lhs
-    Newtype lhs _ _  -> addDef lhs
-    Type    lhs _    -> addDef lhs
-    Class _ lhs _ ms -> do addDef lhs; mapM_ (addTypeKind kdefs) ms
-    DataFam lhs _    -> addDef lhs           -- if there is a kind signature, it will be checked later
-    TypeFam lhs _    -> addDef lhs           -- ditto
-    TypeFamClsd{}    -> notImplFam adef
-    _                -> return ()
+    Data        lhs _ _  -> addDef lhs
+    Newtype     lhs _ _  -> addDef lhs
+    Type        lhs _    -> addDef lhs
+    Class _     lhs _ ms -> do addDef lhs; mapM_ (addTypeKind kdefs) ms
+    DataFam     lhs _    -> addDef lhs           -- if there is a kind signature, it will be checked later
+    TypeFam     lhs _    -> addDef lhs           -- ditto
+    TypeFamClsd lhs _ _  -> addDef lhs
+    _                    -> return ()
 
 notImplFam :: HasCallStack => EDef -> T a
 notImplFam def = tcError (getSLoc def) $ "type families not implemented: " ++ show def
@@ -1317,7 +1317,7 @@ tcDefType def = do
     DataFam lhs tfk        -> tcFamDecl DataFam lhs tfk Nothing
     DataInst{}             -> notImplFam def
     TypeFam lhs tfk        -> tcFamDecl TypeFam lhs tfk Nothing
-    TypeFamClsd{}          -> notImplFam def
+    TypeFamClsd lhs tfk es -> tcFamDecl TypeFamClsd lhs tfk Nothing <*> pure es
     _                      -> return def
  where
    cm = flip (,)
@@ -1334,6 +1334,7 @@ tcDefType def = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
 
+   tcFamDecl :: (LHS -> TypeFamKind -> a) -> LHS -> TypeFamKind -> Maybe EDef -> T a
    tcFamDecl con lhs@(fam, iks) tfk mdef = withLHS lhs $ \ lhs' -> do
      (k, tfk') <- tcTFK tfk
      tf <- gets typeFamTable
@@ -1358,26 +1359,34 @@ tcDefFam :: HasCallStack => EDef -> T EDef
 tcDefFam def = do
   case def of
     TypeInst t1 t2 -> do
-      (t1', k1) <- tInferTypeT =<< addForall QExpl t1
-      let iks = fst $ unForall t1'
---      traceM $ "tcDefFam: " ++ show (t1', iks, k1)
-      t2' <- withExtVals [(i, k) | IdKind i k <- iks] $ tCheckTypeT k1 t2
---      traceM $ "tcDefFam: " ++ show (TypeInst t1' t2')
-      addTypeFamEq t1' t2'
-      return $ TypeInst t1' t2'
+      addTypeFamEq =<< tcTypeFamEqn t1 t2
+      return def -- $ TypeInst t1' t2'
     Instance ct ms bs -> do
       Instance ct <$> mapM tcDefFam ms <*> pure bs
+    TypeFamClsd (fam, _) _ es -> do
+      (fams, eqns) <- unzip <$> mapM (uncurry tcTypeFamEqn) es
+      when (not (all (fam ==) fams)) $
+        tcError (getSLoc def) $ "Bad equation name"
+      tft <- gets typeFamTable
+      let tf = fromMaybe undefined $ M.lookup fam 
     _ -> return def
 
-addTypeFamEq :: EType -> EType -> T ()
-addTypeFamEq t1 t2 = do
-  let (iks, t1') = unForall t1
+tcTypeFamEqn :: EType -> EType -> T (Ident, ([EType], EType))
+tcTypeFamEqn t1 t2 = do
+  (t1', k1) <- tInferTypeT =<< addForall QExpl t1
+  let iks = fst $ unForall t1'
+--  traceM $ "tcTypeFamEqn: " ++ show (t1', iks, k1)
+  t2' <- withExtVals [(i, k) | IdKind i k <- iks] $ tCheckTypeT k1 t2
+--  traceM $ "tcTypeFamEqn: " ++ show (TypeInst t1' t2')
+  let (iks, t1'') = unForall t1'
       sub = zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [-1,-2 ..]
-      (fam, as) = getApp $ subst sub t1'
-      t2' = subst sub t2
-      eqn = (as, t2')
---  traceM $ "addTypeFamEq " ++ show (fam, eqn)
-      info = TypeFamInfo { tfOpen = True, tfInj = undefined, tfInjArg = undefined, tfEqns = [eqn],
+      (fam, as) = getApp $ subst sub t1''
+      t2'' = subst sub t2'
+  pure (as, t2'')
+
+addTypeFamEq :: (Ident, ([EType], EType)) -> T ()
+addTypeFamEq (fam, eqn) = do
+  let info = TypeFamInfo { tfOpen = True, tfInj = undefined, tfInjArg = undefined, tfEqns = [eqn],
                            tfTyVars = undefined, tfFunDeps = undefined, tfDefault = undefined }
   tf <- gets typeFamTable
   putTypeFamTable $ M.insertWith (mergeTypeFamInfo (getSLoc fam)) fam info tf

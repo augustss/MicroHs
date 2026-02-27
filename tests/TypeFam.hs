@@ -68,6 +68,11 @@ ty :: forall a . Typeable a => Inj a -> TypeRep
 ty _ = typeOf @a undefined
 -}
 
+type family CTF a where
+  CTF Int = Bool
+  CTF Bool = Int
+  CTF a = a
+
 main :: IO ()
 main = do
   let l = [1,3,2] :: [Int]
@@ -75,4 +80,7 @@ main = do
   print (fromListS l :: ListInt)
   print (fromList l :: [Int])
   print (fromList l :: ListInt)
+  print (True :: CTF Int)
+  print (42 :: CTF Bool)
+  print (() :: CTF ())
 --  print (ty True)
