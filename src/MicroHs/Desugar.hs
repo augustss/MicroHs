@@ -609,9 +609,9 @@ lazier def = def
 -- "wrapper"
 -- When the calling convention is ccall the 'expr' has to be a name,
 -- with capi it can be any C expression.
-parseImpEnt :: SLoc -> CallConv -> String -> ImpEnt
-parseImpEnt _ Cjavascript s = ImpJS s
-parseImpEnt loc _cc s =
+parseImpEnt :: SLoc -> CallConv -> String -> String -> ImpEnt
+parseImpEnt _ Cjavascript _ s = ImpJS s
+parseImpEnt loc _cc ui s =
   case words s of
     ["dynamic"] -> ImpDynamic
     ["wrapper"] -> ImpWrapper
@@ -623,6 +623,7 @@ parseImpEnt loc _cc s =
        rest' c ['&'     : r] = rest'' (c IPtr) [r]
        rest' c ("value" : r) = rest'' (c IValue) [unwords r]
        rest' c r             = rest'' (c IFunc) r
+       rest'' c [] = c ui
        rest'' c [n] = c n
        rest'' _ _ = badForImp loc
 
@@ -637,14 +638,11 @@ mkForImp no cc ms i ty =
       ui  = unIdent (unQualIdent i)
       isValidC (c:cs) = isAlpha c && all (\ d -> isAlphaNum d || d == '_') cs
       isValidC _ = False
-  in  case ms of
-        Nothing -> LForImp (ImpStatic [] IFunc ui) ui cty
-        Just s  ->
-          let impent = parseImpEnt loc cc s
-              fno = show no
-              cid =
-                case impent of
-                  ImpStatic _ _ n ->
-                    if isValidC n then n else fno
-                  _ -> fno
-          in  LForImp impent cid cty
+      impent = parseImpEnt loc cc ui $ fromMaybe "" ms
+      fno = show no
+      cid =
+        case impent of
+          ImpStatic _ _ n ->
+            if isValidC n then n else fno
+          _ -> fno
+  in  LForImp impent cid cty
