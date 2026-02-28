@@ -82,4 +82,14 @@ all:
 	$(MINST) parser-combinators
 	$(MINST) data-default
 	$(MINST) data-default-class
-        $(MINST) terminfo
+	$(MINST) terminfo
+	$(MINST) --git="https://github.com/konsumlamm/bimap.git --branch=mhs" bimap
+	$(MINST) byteable
+	$(MINST) bytestring-builder
+	$(MINST) casing
+	$(MINST) composition
+	$(MINST) cpu
+	$(MINST) data-ordlist
+	$(MINST) --git="https://github.com/konsumlamm/dlist.git --branch=mhs" dlist
+	$(MINST) time-units
+	$(MINST) --git=https://github.com/konsumlamm/xml.git xml
