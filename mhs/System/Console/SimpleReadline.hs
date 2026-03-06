@@ -50,9 +50,9 @@ getInputLineHistComp comp hfn prompt = do
 getRaw :: IO Char
 getRaw = do
   i <- c_getRaw
-  when (i < 0) $
-    error "getRaw failed"
-  return (chr i)
+  if i < 0
+    then return (chr 0)
+    else return (chr i)
 
 -- The history.
 -- before: the inputs before the current input
