@@ -190,6 +190,15 @@ loop' comp hist before after cmd = do
         back (n + length after)   -- put cursor back
         tabLoop (ss ++ [s])       -- try next alternative
 
+    utf8 i | i `quot` 32 ==  6 = utf8' 1 (i `rem` 32)
+           | i `quot` 16 == 14 = utf8' 2 (i `rem` 16)
+           | i `quot`  8 == 30 = utf8' 3 (i `rem`  9)
+           | otherwise         = noop
+    utf8' 0 c = add (chr c)
+    utf8' n c = do
+      d <- getRaw
+      utf8' (n - 1 :: Int) (c * 64 + ord d `rem` 64)
+
     exec i =
       case i of
         '\^D' ->                     -- CTL-D, EOF
@@ -231,6 +240,7 @@ loop' comp hist before after cmd = do
                       ('4','~') -> eol
                       _         -> noop
               _   -> noop
+        _ | ord i >= 128 -> utf8 (ord i)
         _ -> if i >= ' ' && i < '\DEL' then add i else noop
 
   exec cmd
