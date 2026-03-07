@@ -221,6 +221,15 @@ loop' comp hist before after cmd = do
               'B' -> next
               'C' -> forward
               'D' -> backward
+              'F' -> eol
+              'H' -> bol
+              _ | isDigit c -> do
+                    d <- getRaw
+                    case (c,d) of
+                      ('1','~') -> bol
+                      ('3','~') -> del
+                      ('4','~') -> eol
+                      _         -> noop
               _   -> noop
         _ -> if i >= ' ' && i < '\DEL' then add i else noop
 
