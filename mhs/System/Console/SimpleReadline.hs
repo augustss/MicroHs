@@ -192,7 +192,7 @@ loop' comp hist before after cmd = do
 
     utf8 i | i `quot` 32 ==  6 = utf8' 1 (i `rem` 32)
            | i `quot` 16 == 14 = utf8' 2 (i `rem` 16)
-           | i `quot`  8 == 30 = utf8' 3 (i `rem`  9)
+           | i `quot`  8 == 30 = utf8' 3 (i `rem`  8)
            | otherwise         = noop
     utf8' 0 c = add (chr c)
     utf8' n c = do
