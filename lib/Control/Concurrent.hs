@@ -34,7 +34,6 @@ import Control.Concurrent.QSem
 import Control.Concurrent.QSemN
 import Control.Exception
 import Control.Exception.Internal(unsafeUnmask)
-import Data.Hashable
 import Data.Word.Word
 import System.IO.Base
 
@@ -46,9 +45,6 @@ instance Eq ThreadId where
 
 instance Ord ThreadId where
   i `compare` i'  =  primThreadNum i `compare` primThreadNum i'
-
-instance Hashable ThreadId where
-  hashWithSalt s t = hashWithSalt s (primThreadNum t)
 
 forkIO :: IO () -> IO ThreadId
 forkIO action = primForkIO (catch action childHandler)

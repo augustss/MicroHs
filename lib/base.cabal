@@ -1,6 +1,6 @@
 cabal-version:  3.0
 name:           base
-version:        0.15.3.0
+version:        0.15.4.0
 license:        Apache-2.0
 license-file:   LICENSE
 maintainer:     lennart@augustsson.net
@@ -98,9 +98,6 @@ library base
         Data.Functor.Identity
         Data.Functor.Product
         Data.Functor.Sum
-        Data.Hashable
-        Data.Hashable.Class
-        Data.Hashable.Lifted
         Data.IORef
         Data.Int
         Data.Int.Int

@@ -65,9 +65,6 @@ import Data.Functor.Contravariant
 import Data.Functor.Identity
 import Data.Functor.Product
 import Data.Functor.Sum
-import Data.Hashable
-import Data.Hashable.Class
-import Data.Hashable.Lifted
 import Data.IORef
 import Data.Int
 import Data.Int.Int8

@@ -3,35 +3,103 @@
 # Do 'make install' before running this.
 # The funny install order is to avoid using 'mcabal -r',
 # since it doesn't know of the --git overrides.
-.PHONY: all
+.PHONY: all compat ghc other
 MINST=mcabal -q install
 
-all:
+all: compat ghc other
+
+# GHC compatibility
+compat:
 	$(MINST) ghc-compat
-	$(MINST) colour
-	$(MINST) ansi-terminal-types
-	$(MINST) ansi-terminal
+
+# Part of GHC install
+ghc:
+#	Cabal-3.16.0.0
+#	Cabal-syntax-3.16.0.0
+#	array-0.5.8.0
 	$(MINST) array
-	$(MINST) unordered-containers
-	$(MINST) async
-	$(MINST) --git=https://github.com/sol/call-stack.git call-stack
+#	base-4.22.0.0
+#           mhs base
+#	binary-0.8.9.3
+#	bytestring-0.12.2.0
+#           mhs base
+#	containers-0.8
 	$(MINST) containers
-	$(MINST) time
-	$(MINST) polyparse
-	$(MINST) cpphs
+#	deepseq-1.5.1.0
+#           mhs base
+#	directory-1.3.10.0
+#           mhs base
+#	exceptions-0.10.11
 	$(MINST) transformers
 	$(MINST) mtl
 	$(MINST) exceptions
+#	file-io-0.1.5
+#	filepath-1.5.4.0
 	$(MINST) os-string
 	$(MINST) filepath
+#	ghc-9.14.1
+#	ghc-bignum-1.4
+#	ghc-boot-9.14.1
+#	ghc-boot-th-9.14.1
+#	ghc-compact-0.1.0.0
+#	ghc-experimental-9.1401.0
+#	ghc-heap-9.14.1
+#	ghc-internal-9.1401.0
+#	ghc-platform-0.1.0.0
+#	ghc-prim-0.13.1
+#	ghc-toolchain-0.1.0.0
+#	ghci-9.14.1
+#	haddock-api-2.33.0
+#	haddock-library-1.11.0
+#	haskeline-0.8.3.0
+#	hpc-0.7.0.2
+#	integer-gmp-1.1
+#	mtl-2.3.1
+#           above
+#	os-string-2.0.8
+#           above
+#	parsec-3.1.18.0
+	$(MINST) parsec
+#	pretty-1.1.3.6
+	$(MINST) --git=http://github.com/haskell/pretty.git pretty
+#	process-1.6.26.1
+#	rts-1.0.3
+#	semaphore-compat-1.0.0
+#	stm-2.5.3.1
+#           mhs base
+#	system-cxx-std-lib-1.0
+#	template-haskell-2.24.0.0
+#	template-haskell-lift-0.1.0.0
+#	template-haskell-quasiquoter-0.1.0.0
+#	terminfo-0.4.1.7
+	$(MINST) terminfo
+#	text-2.1.3
+#           mhs base
+#	time-1.15
+	$(MINST) time
+#	transformers-0.6.1.2
+#           above
+#	unix-2.8.8.0
+#	xhtml-3000.2.2.1
+	$(MINST) semigroups # empty, but needed for xhtml
+	$(MINST) xhtml
+
+# Other random packages
+other:
+	$(MINST) colour
+	$(MINST) ansi-terminal-types
+	$(MINST) ansi-terminal
+	$(MINST) unordered-containers
+	$(MINST) async
+	$(MINST) --git=https://github.com/sol/call-stack.git call-stack
+	$(MINST) polyparse
+	$(MINST) cpphs
 	$(MINST) granite
 	$(MINST) haskell-lexer
 	$(MINST) HUnit
 	$(MINST) hspec-expectations
 	$(MINST) monad-loops
 	$(MINST) nanospec
-	$(MINST) parsec
-	$(MINST) --git=http://github.com/haskell/pretty.git pretty
 	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter prettyprinter
 	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-ansi-terminal prettyprinter-ansi-terminal
 	$(MINST) --git=https://github.com/augustss/prettyprinter.git --dir=prettyprinter-compat-annotated-wl-pprint prettyprinter-compat-annotated-wl-pprint
@@ -51,8 +119,6 @@ all:
 # stackage does not have Yampa
 #	$(MINST) --git=https://github.com/augustss/Yampa.git --dir=yampa yampa
 	$(MINST) --git=https://github.com/pcapriotti/optparse-applicative.git optparse-applicative
-	$(MINST) semigroups # empty, but needed for xhtml
-	$(MINST) xhtml
 	$(MINST) heaps
 	$(MINST) fingertree
 	$(MINST) --git=https://github.com/haskell/fgl fgl
@@ -82,7 +148,6 @@ all:
 	$(MINST) parser-combinators
 	$(MINST) data-default
 	$(MINST) data-default-class
-	$(MINST) terminfo
 	$(MINST) --git="https://github.com/konsumlamm/bimap.git --branch=mhs" bimap
 	$(MINST) byteable
 	$(MINST) bytestring-builder
