@@ -180,15 +180,14 @@ data TypeFamInfo = TypeFamInfo {
   tfAper     :: TFAper,               -- open/closed
   tfInj      :: Bool,                 -- fully injective
   tfInjArg   :: [Bool],               -- per argument injectivity
-  tfTyVars   :: [Ident],              -- arguments & result
-  tfFunDeps  :: [FunDep],             -- all fundeps
+  tfIFunDeps :: [IFunDep],            -- all fundeps
   tfEqns     :: [TFEqn],              -- equations to try, args&result
   tfDefault  :: Maybe EDef            -- default for missing instance
   }
 --  deriving (Show)
 
 instance NFData TypeFamInfo where
-  rnf (TypeFamInfo a b c d e f g) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f `seq` rnf g
+  rnf (TypeFamInfo a b c d e f) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f
 
 data TFAper = TFOpen | TFClosedUnset | TFClosedSet
   deriving (Show, Eq)

@@ -1346,7 +1346,7 @@ tcDefType def = do
          isInjArg i = any (\ (ins, outs) -> [res] == ins && i `elem` outs) fundeps
          injArg = map isInjArg is
          info = TypeFamInfo { tfAper = aper, tfInj = and injArg, tfInjArg = injArg, tfEqns = [],
-                              tfTyVars = is ++ [res], tfFunDeps = fundeps, tfDefault = mdef }
+                              tfIFunDeps = mkIFunDeps (is ++ [res]) fundeps, tfDefault = mdef }
      putTypeFamTable $ M.insertWith (mergeTypeFamInfo (getSLoc qfam)) qfam info tf
      return (con lhs' tfk', k)
    tcTFK TFNone = return (kType, TFNone)
@@ -1392,7 +1392,7 @@ addTypeFamEqns :: TFAper -> (Ident, [TFEqn]) -> T ()
 addTypeFamEqns aper (fam, eqns) = do
   let info = TypeFamInfo { tfAper = aper, tfEqns = eqns,
                            tfInj = undefined, tfInjArg = undefined, 
-                           tfTyVars = undefined, tfFunDeps = undefined, tfDefault = undefined }
+                           tfIFunDeps = undefined, tfDefault = undefined }
   tf <- gets typeFamTable
   putTypeFamTable $ M.insertWith (mergeTypeFamInfo (getSLoc fam)) fam info tf
 
@@ -3794,7 +3794,7 @@ solveConstraints = do
 --    tcTrace "------------------------------------------\nsolveConstraints"
     eqs <- gets typeEqTable
     fams <- gets typeFamTable
-    cs' <- mapM (\ (i,t) -> do { t' <- derefUVar t; return (i, redTypeFam fams $ normTypeEq eqs t') }) cs
+    cs' <- mapM (\ (i,t) -> do { t' <- derefUVar t; t'' <- redTypeFam fams $ normTypeEq eqs t'; return (i, t'') }) cs
 --    tcTrace ("constraints:\n" ++ unlines (map showConstraint cs'))
     (unsolved, solved, improves) <- solveMany cs' [] [] []
     putConstraints unsolved
@@ -3905,11 +3905,11 @@ solveTuple loc _iCls cts = do
   return $ Just (ETuple (map (EVar . fst) goals), goals, [])
 
 solveTypeEq :: SolveOne
--- If either type is a unification variable, just do the unification.
 solveTypeEq loc _iCls [t1, t2] = do
   fams <- gets typeFamTable
-  let ft1 = redTypeFam fams t1
-      ft2 = redTypeFam fams t2
+  ft1 <- redTypeFam fams t1
+  ft2 <- redTypeFam fams t2
+  -- If either type is a unification variable, just do the unification.
   if isEUVar t1 || isEUVar t2 then
     return $ Just (ETuple [], [], [(loc, ft1, ft2)])
    else do
@@ -3926,26 +3926,47 @@ solveTypeEq loc _iCls [t1, t2] = do
 solveTypeEq _ _ _ = impossible
 
 -- Reduce type families everywhere
-redTypeFam :: TypeFamTable -> EType -> EType
-redTypeFam tf t | M.null tf = t            -- speedup when there are no type families
+redTypeFam :: TypeFamTable -> EType -> T EType
+redTypeFam tf t | M.null tf = return t            -- speedup when there are no type families
 redTypeFam tf t = spine t []
-  where spine (EVar f) ts | Just t' <- redTypeFam' tf f ts = t'
-        spine (EApp f a) ts = spine f (redTypeFam tf a : ts)
-        spine f ts = eApps f ts
+  where spine ef@(EVar f) ts = do
+          mt <- redTypeFam' tf f ts
+          case mt of
+            Just t' -> return t'
+            _       -> return $ eApps ef ts
+        spine (EApp f a) ts = do
+          a' <- redTypeFam tf a
+          spine f (a' : ts)
+        spine f ts =
+          return $ eApps f ts
 
-redTypeFam' :: TypeFamTable -> Ident -> [EType] -> Maybe EType
+redTypeFam' :: TypeFamTable -> Ident -> [EType] -> T (Maybe EType)
 redTypeFam' tf f as = do
-  tfi <- M.lookup f tf
+  let loc = getSLoc f
+  res <- newIdent loc "$res"
+  case M.lookup f tf of
+    Nothing -> return Nothing             -- it's not a type family, so do nothing
+    Just tfi -> do
+      case redTypeFam'' loc tfi as res of
+        r | trace ("redTypeFam' " ++ show (f, as, r)) False -> undefined
+        [] -> return Nothing              -- no matching equations
+        (t, _imp) : xs | tfAper tfi == TFClosedSet || null xs -> return (Just t)  -- XXX use _imp
+        _ -> tcError loc "Multiple matching type family equations"
+
+redTypeFam'' :: SLoc -> TypeFamInfo -> [EType] -> Ident -> [(EType, [Improve])]
+redTypeFam'' loc tfi as res = do
   let las = length as
-      red :: ([EType], EType) -> Maybe EType
+      red :: TFEqn -> Maybe (EType, [Improve])
       red (ps, rhs) | lps > las = Nothing
                     | otherwise = do
                       let (as', as'') = splitAt lps as
-                      s <- matchTypes ps as'
-                      pure $ eApps (substEUVar s rhs) as''
+                      let xxx :: [Maybe (TySubst, [Improve])]
+                          xxx = map (matchTypesFD loc (ps ++ [rhs]) (as' ++ [EVar res])) (tfIFunDeps tfi)
+                      (s, imp) <- asum $ xxx
+                      pure (eApps (substEUVar s rhs) as'', imp)
         where lps = length ps
 --  traceM $ "redTypeFam' " ++ show (f, tfi, tfEqns tfi, map red (tfEqns tfi))
-  asum (map red $ tfEqns tfi)
+   in  mapMaybe red (tfEqns tfi)
 
 
 solveCoercible :: HasCallStack => SolveOne
@@ -4066,7 +4087,7 @@ substEUVar _ _ = impossible
 -- Length of lists match, because of kind correctness.
 -- fds is a non-empty list.
 matchTypesAny :: SLoc -> [EType] -> [EType] -> [IFunDep] -> Maybe (TySubst, [Improve])
-matchTypesAny _ ts ts' [] = (\ s -> (s, [])) <$> matchTypes ts ts'   -- Simple special case when there are no fundeps.
+matchTypesAny _   ts ts' []  = (\ s -> (s, [])) <$> matchTypes ts ts'   -- Simple special case when there are no fundeps.
 matchTypesAny loc ts ts' fds = asum $ map (matchTypesFD loc ts ts') fds
 
 matchTypesFD :: SLoc -> [EType] -> [EType] -> IFunDep -> Maybe (TySubst, [Improve])
@@ -4173,6 +4194,7 @@ solveEq eqs t1 t2 | normTypeEq eqs t1 `eqEType` normTypeEq eqs t2 = Just []
 -- of the equalities.
 -- Note: there should be no meta variables in t1 and t2.
 -- XXX This guaranteed by how it's called, but I'm not sure it always works properly.
+-- XXX Does not work with type families
 addTypeEq :: EType -> EType -> TypeEqTable -> TypeEqTable
 addTypeEq t1 t2 aeqs =
   let deref (EVar i) | Just t <- lookup i aeqs = t
