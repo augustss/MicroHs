@@ -1314,10 +1314,10 @@ tcDefType def = do
 -- We cant't do this now, because the classTable has not been fully populated yet.
 -- Instead, we do it in the deriving stage.
 --    StandDeriving st _ ct  ->                                            tcStand st ct
-    DataFam lhs tfk        -> tcFamDecl DataFam lhs tfk Nothing
+    DataFam lhs tfk        -> tcFamDecl DataFam TFOpen lhs tfk Nothing
     DataInst{}             -> notImplFam def
-    TypeFam lhs tfk        -> tcFamDecl TypeFam lhs tfk Nothing
-    TypeFamClsd lhs tfk es -> tcFamDecl TypeFamClsd lhs tfk Nothing <*> pure es
+    TypeFam lhs tfk        -> tcFamDecl TypeFam TFOpen lhs tfk Nothing
+    TypeFamClsd lhs tfk es -> tcFamDecl TypeFamClsd TFClosedUnset lhs tfk Nothing <*> pure es
     _                      -> return def
  where
    cm = flip (,)
@@ -1325,7 +1325,7 @@ tcDefType def = do
      where
        tcMethod (Sign    is t)   = Sign    is <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
        tcMethod (DfltSign i t)   = DfltSign i <$> (tCheckTypeTImpl QImpl kType t >>= expandSyn)
-       tcMethod (TypeFam lhs tfk)= tcFamDecl TypeFam lhs tfk (listToMaybe [ t | t@TypeInst{} <- ms ])
+       tcMethod (TypeFam lhs tfk)= tcFamDecl TypeFam TFOpen lhs tfk (listToMaybe [ t | t@TypeInst{} <- ms ])
        tcMethod m                = return m
    tcFD (is, os) = (,) <$> mapM tcV is <*> mapM tcV os
      where tcV i = do { _ <- tLookup "fundep" i; return i }
@@ -1334,18 +1334,19 @@ tcDefType def = do
      EApp _ t' <- tCheckTypeT kConstraint (EApp (EVar c) t)
      return t'
 
-   tcFamDecl :: (LHS -> TypeFamKind -> a) -> LHS -> TypeFamKind -> Maybe EDef -> T a
-   tcFamDecl con lhs@(fam, iks) tfk mdef = withLHS lhs $ \ lhs' -> do
+   tcFamDecl :: (LHS -> TypeFamKind -> a) -> TFAper -> LHS -> TypeFamKind -> Maybe EDef -> T a
+   tcFamDecl con aper lhs@(fam, iks) tfk mdef = withLHS lhs $ \ lhs' -> do
      (k, tfk') <- tcTFK tfk
      tf <- gets typeFamTable
      mn <- gets moduleName
+     resv <- newIdent (getSLoc fam) "$res"
      let qfam = qualIdent mn fam
-         (res, fundeps) = case tfk of TFInj r _ fds -> (r, fds); _ -> (dummyIdent, [])
+         (res, fundeps) = case tfk of TFInj r _ fds -> (r, fds); _ -> (resv, [(is, [resv])])
          is = map idKindIdent iks
          isInjArg i = any (\ (ins, outs) -> [res] == ins && i `elem` outs) fundeps
          injArg = map isInjArg is
-         info = TypeFamInfo { tfOpen = True, tfInj = and injArg, tfInjArg = injArg, tfEqns = [],
-                              tfTyVars = (is, res), tfFunDeps = fundeps, tfDefault = mdef }
+         info = TypeFamInfo { tfAper = aper, tfInj = and injArg, tfInjArg = injArg, tfEqns = [],
+                              tfTyVars = is ++ [res], tfFunDeps = fundeps, tfDefault = mdef }
      putTypeFamTable $ M.insertWith (mergeTypeFamInfo (getSLoc qfam)) qfam info tf
      return (con lhs' tfk', k)
    tcTFK TFNone = return (kType, TFNone)
@@ -1355,47 +1356,52 @@ tcDefType def = do
      fds' <- withExtVals [(r, k')] $ mapM tcFD fds
      return (k', TFInj r (Just k') fds')
 
+-- Type family definition, i.e., add the equations
 tcDefFam :: HasCallStack => EDef -> T EDef
 tcDefFam def = do
   case def of
     TypeInst t1 t2 -> do
-      addTypeFamEq =<< tcTypeFamEqn t1 t2
+      addTypeFamEqns TFOpen =<< tcTypeFamEqn t1 t2
       return def -- $ TypeInst t1' t2'
     Instance ct ms bs -> do
       Instance ct <$> mapM tcDefFam ms <*> pure bs
     TypeFamClsd (fam, _) _ es -> do
-      (fams, eqns) <- unzip <$> mapM (uncurry tcTypeFamEqn) es
-      when (not (all (fam ==) fams)) $
+      (fams, eqnss) <- unzip <$> mapM (uncurry tcTypeFamEqn) es
+      mn <- gets moduleName
+      let fam' = qualIdent mn fam
+      when (not (all (fam' ==) fams)) $
         tcError (getSLoc def) $ "Bad equation name"
-      tft <- gets typeFamTable
-      let tf = fromMaybe undefined $ M.lookup fam 
+      addTypeFamEqns TFClosedSet (fam', concat eqnss)
+      return def
     _ -> return def
 
-tcTypeFamEqn :: EType -> EType -> T (Ident, ([EType], EType))
+-- Convert a type family equation (LHS = RHS) to a list of ar
+tcTypeFamEqn :: EType -> EType -> T (Ident, [TFEqn])
 tcTypeFamEqn t1 t2 = do
   (t1', k1) <- tInferTypeT =<< addForall QExpl t1
-  let iks = fst $ unForall t1'
+  let (iks, t1'') = unForall t1'
 --  traceM $ "tcTypeFamEqn: " ++ show (t1', iks, k1)
   t2' <- withExtVals [(i, k) | IdKind i k <- iks] $ tCheckTypeT k1 t2
 --  traceM $ "tcTypeFamEqn: " ++ show (TypeInst t1' t2')
-  let (iks, t1'') = unForall t1'
-      sub = zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [-1,-2 ..]
+  let sub = zipWith (\ ik j -> (idKindIdent ik, EUVar j)) iks [-1,-2 ..]
       (fam, as) = getApp $ subst sub t1''
       t2'' = subst sub t2'
-  pure (as, t2'')
+  pure (fam, [(as, t2'')])
 
-addTypeFamEq :: (Ident, ([EType], EType)) -> T ()
-addTypeFamEq (fam, eqn) = do
-  let info = TypeFamInfo { tfOpen = True, tfInj = undefined, tfInjArg = undefined, tfEqns = [eqn],
+addTypeFamEqns :: TFAper -> (Ident, [TFEqn]) -> T ()
+addTypeFamEqns aper (fam, eqns) = do
+  let info = TypeFamInfo { tfAper = aper, tfEqns = eqns,
+                           tfInj = undefined, tfInjArg = undefined, 
                            tfTyVars = undefined, tfFunDeps = undefined, tfDefault = undefined }
   tf <- gets typeFamTable
   putTypeFamTable $ M.insertWith (mergeTypeFamInfo (getSLoc fam)) fam info tf
 
--- XXX should avoid duplicating equations
 mergeTypeFamInfo :: SLoc -> TypeFamInfo -> TypeFamInfo -> TypeFamInfo
-mergeTypeFamInfo loc TypeFamInfo{ tfOpen = nopen, tfEqns=neqns } old@TypeFamInfo{ tfOpen = oopen, tfEqns=oeqns } =
-  if oopen && nopen then
-    old{ tfEqns = neqns ++ oeqns }
+mergeTypeFamInfo loc TypeFamInfo{ tfAper = nopen, tfEqns=neqns } old@TypeFamInfo{ tfAper = oopen, tfEqns=oeqns } =
+  if oopen == TFOpen && nopen == TFOpen then
+    old{ tfEqns = nubBy eqTFEqn (neqns ++ oeqns) }
+  else if oopen == TFClosedUnset && nopen == TFClosedSet then
+    old{ tfEqns = neqns, tfAper = TFClosedSet }
   else
     errorMessage loc "mixing open/closed type families"
 
@@ -3938,6 +3944,7 @@ redTypeFam' tf f as = do
                       s <- matchTypes ps as'
                       pure $ eApps (substEUVar s rhs) as''
         where lps = length ps
+--  traceM $ "redTypeFam' " ++ show (f, tfi, tfEqns tfi, map red (tfEqns tfi))
   asum (map red $ tfEqns tfi)
 
 

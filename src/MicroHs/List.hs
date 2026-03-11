@@ -49,7 +49,7 @@ showListS sa arg =
       [] -> "[]"
       a : as -> "[" ++ sa a ++ showRest as
 
-allSame :: [a] -> Bool
+allSame :: (Eq a) => [a] -> Bool
 allSame [] = True
 allSame (x:xs) = all (x==) xs
 

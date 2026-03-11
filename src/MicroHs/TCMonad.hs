@@ -172,18 +172,28 @@ type TypeEqTable = [(Ident, EType)]
 -- Type families
 type TypeFamTable = M.Map TypeFamInfo
 
+type TFEqn = ([EType], EType)
+eqTFEqn :: TFEqn -> TFEqn -> Bool
+eqTFEqn (xs, x) (ys, y) = and (zipWith eqEType xs ys) && eqEType x y
+
 data TypeFamInfo = TypeFamInfo {
-  tfOpen     :: Bool,                 -- open/closed
+  tfAper     :: TFAper,               -- open/closed
   tfInj      :: Bool,                 -- fully injective
   tfInjArg   :: [Bool],               -- per argument injectivity
-  tfTyVars   :: ([Ident], Ident),     -- arguments, result
+  tfTyVars   :: [Ident],              -- arguments & result
   tfFunDeps  :: [FunDep],             -- all fundeps
-  tfEqns     :: [([EType], EType)],   -- equations to try
+  tfEqns     :: [TFEqn],              -- equations to try, args&result
   tfDefault  :: Maybe EDef            -- default for missing instance
   }
+--  deriving (Show)
 
 instance NFData TypeFamInfo where
   rnf (TypeFamInfo a b c d e f g) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e `seq` rnf f `seq` rnf g
+
+data TFAper = TFOpen | TFClosedUnset | TFClosedSet
+  deriving (Show, Eq)
+
+instance NFData TFAper where rnf x = seq x ()
 
 data ClassInfo = ClassInfo
   [IdKind]         -- class tyvars
