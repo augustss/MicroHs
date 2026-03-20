@@ -15,10 +15,12 @@ import Data.Char_Type
 import Data.Bounded
 import Data.Enum_Class
 import Data.Function
+import Data.Functor
 import Data.Int.Int
 import Data.List
 import Data.Num
 import Data.Ord
+import Data.Tuple
 
 boundedEnumFrom :: forall a . (Enum a, Bounded a) => a -> [a]
 boundedEnumFrom n = map toEnum [fromEnum n .. fromEnum (maxBound `asTypeOf` n)]
@@ -78,3 +80,25 @@ instance Enum Ordering where
     | otherwise       = error "Ord.toEnum: out of range"
   enumFrom = boundedEnumFrom
   enumFromThen = boundedEnumFromThen
+
+-----------------------------------
+
+instance Enum () where
+  succ _      = error "Enum.().succ: bad argument"
+  pred _      = error "Enum.().pred: bad argument"
+
+  toEnum x
+    | x `primIntEQ` 0    = ()
+    | otherwise = error "Enum.().toEnum: bad argument"
+
+  fromEnum () = 0
+  enumFrom ()         = [()]
+  enumFromThen () ()  = let many = ():many in many
+  enumFromTo () ()    = [()]
+  enumFromThenTo () () () = let many = ():many in many
+
+instance (Enum a) => Enum (Solo a) where
+  succ = fmap succ
+  pred = fmap pred
+  toEnum = MkSolo . toEnum
+  fromEnum (MkSolo x) = fromEnum x
