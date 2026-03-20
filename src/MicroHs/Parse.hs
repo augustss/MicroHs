@@ -606,6 +606,7 @@ pAType =
   <|> (uTupleTAp <$> (pSpec 'L' *> sepBy  pType (pSpec ',') <* pSpec 'R'))
   <|> (uSumTAp <$> (pSpec 'L' *> sepBy1 pType (pSpec '|') <* pSpec 'R'))
   <|> (uSumT <$> getSLoc <*> (succ . length <$> (pSpec 'L' *> many (pSpec '|') <* pSpec 'R')))
+  <|> (flip EApp <$> (pSpec '(' *> pTypeApp) <*> (EVar <$> (pTypeOper <* pSpec ')')))
 
 -------------
 -- Patterns
