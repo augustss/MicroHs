@@ -18,6 +18,7 @@ class Num a => Fractional a where
   fromRational :: Rational -> a
 
   recip x = 1 / x
+  x / y = x * recip y
 
 infixr 8 ^^
 (^^) :: forall a b . (Fractional a, Integral b, Ord b) => a -> b -> a

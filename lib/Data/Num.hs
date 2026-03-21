@@ -18,6 +18,7 @@ class Num a where
   signum :: a -> a
   fromInteger :: Integer -> a
   negate x = 0 - x
+  x - y = x + negate y
 
 subtract :: forall a . Num a => a -> a -> a
 subtract x y = y - x
