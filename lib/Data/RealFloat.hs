@@ -9,11 +9,12 @@ import Data.Floating
 import Data.Fractional
 import Data.Int.Int
 import Data.Integer
+import Data.RealFrac
 import Data.Num
 import Data.Ord
 import {-# SOURCE #-} Data.Typeable
 
-class (Fractional a, Ord a, Floating a) => RealFloat a  where
+class (RealFrac a, Floating a) => RealFloat a  where
   floatRadix          :: a -> Integer
   floatDigits         :: a -> Int
   floatRange          :: a -> (Int,Int)

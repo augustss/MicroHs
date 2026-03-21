@@ -1959,7 +1959,7 @@ tcPatSyn _ = impossible
 addForall :: QForm -> EType -> T EType
 addForall _ t@EForall{} = return t
 addForall expl t = do
-  bvs <- stKeysLcl <$> gets valueTable         -- bound outside
+  bvs <- stKeysU <$> gets valueTable           -- bound outside
   let fvs = freeTyVars [t]                     -- free variables in t
       -- these are free, and need quantification.  eDummy indicates missing kind
       iks = map (\ i -> IdKind i eDummy) (fvs \\ bvs)

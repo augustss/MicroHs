@@ -11,6 +11,7 @@ module MicroHs.SymTab(
   stElemsLcl,
   stKeysLcl,
   stKeysGlbU,
+  stKeysU,
   stInsertLcl,
   mapMSymTab,
   getLocals,
@@ -119,11 +120,17 @@ stFromList us qs = SymTab [] (M.fromListWith union us) (M.fromListWith union qs)
 stElemsLcl :: SymTab -> [Entry]
 stElemsLcl (SymTab l _ _) = map snd l
 
+-- Get local ids
 stKeysLcl :: SymTab -> [Ident]
 stKeysLcl (SymTab l _ _) = map fst l
 
+-- Get unqualified global ids
 stKeysGlbU :: SymTab -> [Ident]
 stKeysGlbU (SymTab _ m _) = M.keys m
+
+-- Get all unqualified ids
+stKeysU :: SymTab -> [Ident]
+stKeysU s = stKeysLcl s ++ stKeysGlbU s
 
 stInsertLcl :: HasCallStack => Ident -> Entry -> SymTab -> SymTab
 stInsertLcl i a (SymTab l ug qg)

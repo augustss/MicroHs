@@ -30,6 +30,7 @@ module Data.Text(
   isPrefixOf,
   isSuffixOf,
   isInfixOf,
+  replace,
   map,
   ) where
 import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, map)
@@ -155,6 +156,9 @@ intercalate :: Text -> [Text] -> Text
 intercalate _ [] = empty
 intercalate _ [x] = x
 intercalate s (x:xs) = x `append` s `append` intercalate s xs
+
+replace :: Text -> Text -> Text -> Text
+replace s r = intercalate r . splitOn s
 
 -- XXX Should make the BS version efficient and go via that
 isPrefixOf :: Text -> Text -> Bool
