@@ -13,7 +13,7 @@ import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.Names
 import MicroHs.TCMonad
-import Debug.Trace
+--import Debug.Trace
 
 -- Deriving runs when types level names are resolved, but not value level names.
 -- To get access to names that might not be in scope, the module Mhs.Builtin
@@ -783,7 +783,7 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
         unless (length tvs == length newtys) $
           mhsError "mkMethod: arity"
         return [msign, body]
-  traceM $ "newtypeDer " ++ show (hdr, newtys, xiks, supers, hdr)
+--  traceM $ "newtypeDer " ++ show (hdr, newtys, xiks, supers, hdr)
   body <- concat <$> mapM mkMethod mits
 
 --  traceM $ "newtypeDer: " ++ show (Instance hdr body [])
