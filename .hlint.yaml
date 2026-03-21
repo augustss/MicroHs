@@ -34,6 +34,7 @@
 - ignore: {name: Use elemIndices, within: [Data.List]}
 - ignore: {name: Use insert, within: [Data.List]}
 - ignore: {name: Use negate, within: [Data.Num]}
+- ignore: {name: Use -, within: [Data.Num]}
 - ignore: {name: Use min, within: [Data.Ord]}
 - ignore: {name: Use max, within: [Data.Ord]}
 - ignore: {name: Use traverse, within: [Data.Traversable]}
