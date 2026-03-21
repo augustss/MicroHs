@@ -75,6 +75,11 @@ class MonadError e m
 data AA = AA Int | AA1 deriving anyclass (MonadError e)
 newtype AB = AB Int deriving (MonadError e)
 
+newtype NT1 a b = NT1 b deriving (Ord)
+
+instance (Num a, Enum b) => Eq (NT1 a b) where
+  NT1 b == NT1 b'  =  fromEnum b == fromEnum b'
+
 main :: IO ()
 main = do
   print $ A 'a' == (A 'a' :: T Char () ())
@@ -118,7 +123,7 @@ main = do
 
   let u = U5 [U1, U2 1, U3 True, U4 False 1 (True, False)]
   print $ run (traverse num u)
-  
+
 
   print $ fromEnum Y
   print (minBound :: E, maxBound :: E)
@@ -208,3 +213,5 @@ main = do
 
   -- Check that they all have Typeable
   print (typeOf (R True 1), X)
+
+  print (NT1 'a' < (NT1 'b' :: NT1 Int Char))
