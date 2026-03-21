@@ -736,6 +736,14 @@ newtypeDer :: StandM -> Int -> LHS -> Constr -> EConstraint -> EType -> T [EDef]
 newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
   let loc = getSLoc cls
       (clsIks, cls) = unForall acls
+--  traceM ("newtypeDer: " ++ show (hdr, viaty))
+  let qiCls = getAppCon cls
+      clsQual = qualOf qiCls
+  ct <- gets classTable
+  (ClassInfo xiks supers _ mits _) <-
+    case M.lookup qiCls ct of
+      Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
+      Just x -> return x
   hdr <-
     case mctx of
       Just (h, _) -> pure h
@@ -746,15 +754,10 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
           ctxOld = tApp cls viaty
           ctx = filter (not . null . freeTyVars . (:[])) [ctxOld]
           iks' = dropEnd narg iks
-        pure $ eForall (clsIks ++ iks') $ addConstraints ctx $ tApp cls newtyr
---  traceM ("newtypeDer: " ++ show (hdr, viaty))
-  let qiCls = getAppCon cls
-      clsQual = qualOf qiCls
-  ct <- gets classTable
-  (ClassInfo _ _ _ mits _) <-
-    case M.lookup qiCls ct of
-      Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
-      Just x -> return x
+          xctx = filter hasTyVars $ map (subst s) supers
+            where s = zip (map idKindIdent xiks) [newtyr]
+                  hasTyVars t = not $ null $ freeTyVars [t]
+        pure $ eForall (clsIks ++ iks') $ addConstraints (xctx ++ ctx) $ tApp cls newtyr
   -- hdr looks like forall vs . ctx => C t1 ... tn
   let (_, newtys) = getApp $ dropForallContext hdr
       mkMethod (mi, amty) = do
@@ -780,6 +783,7 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
         unless (length tvs == length newtys) $
           mhsError "mkMethod: arity"
         return [msign, body]
+--  traceM $ "newtypeDer " ++ show (hdr, newtys, xiks, supers, hdr)
   body <- concat <$> mapM mkMethod mits
 
 --  traceM $ "newtypeDer: " ++ show (Instance hdr body [])

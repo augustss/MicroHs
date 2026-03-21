@@ -959,9 +959,7 @@ tcDefs flags impt ds = do
   dst <- tcDefsType ds                                -- kind check type definitions
 --  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeAndData dst                            -- add typedefinitions to the symbol table
-  dste <- tcExpandClassInst impt dst                  -- expand class&instance, do deriving
-  dumpIf flags Dderive $
-    tcTrace' $ "expanded:\n" ++ showEDefs dste
+  dste <- tcExpandClassInst flags impt dst            -- expand class&instance, do deriving
 --  tcTrace ("tcDefs 3:\n" ++ showEDefs dste)
   setDefault dste                                     -- set current defaults
   dste' <- tcDefsValue dste                           -- type check all value definitions
@@ -1030,8 +1028,8 @@ getKindSigns ds = do
   return $ M.fromList iks'
 
 -- Expand class and instance definitions (must be done after type synonym processing).
-tcExpandClassInst :: ImpType -> [EDef] -> T [EDef]
-tcExpandClassInst impt dst = do
+tcExpandClassInst :: Flags -> ImpType -> [EDef] -> T [EDef]
+tcExpandClassInst flags impt dst = do
   dsf <- withTypeTable $ do
     dsc <- concat <$> mapM expandClass dst              -- Expand all class definitions
     concat <$> mapM expandField dsc                     -- Add HasField instances
@@ -1040,7 +1038,12 @@ tcExpandClassInst impt dst = do
     case impt of
       ImpBoot -> return dsf
       ImpNormal -> concat <$> mapM doDeriving dsf       -- Add derived instances
-  concat <$> mapM expandInst dsd                        -- Expand all instance definitions
+  dumpIf flags Dderive $
+    tcTrace' $ "derived:\n" ++ showEDefs dsd
+  res <- concat <$> mapM expandInst dsd                        -- Expand all instance definitions
+  dumpIf flags DexpandInst $
+    tcTrace' $ "expanded:\n" ++ showEDefs res
+  return res
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
 withVks :: forall a . HasCallStack => [IdKind] -> ([IdKind] -> T a) -> T a
