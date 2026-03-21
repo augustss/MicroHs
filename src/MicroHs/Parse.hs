@@ -516,8 +516,10 @@ pStrictP :: P a -> P (Bool, a)
 pStrictP p = (,) <$> pStrict <*> p
 
 pLHS :: P LHS
-pLHS = (,) <$> pTypeIdentSym <*> many pIdKind
-    <|> (\ a c b -> (c, [a,b])) <$> pIdKind <*> pSymOper <*> pIdKind
+pLHS =  (,)                         <$> pTypeIdentSym <*> many pIdKind
+    <|> (\ a c b    -> (c, [a,b]))  <$> pIdKind <*> pSymOper <*> pIdKind
+    <|> (\ a c b as -> (c, a:b:as)) <$> (pSpec '(' *> pIdKind) <*> pSymOper <*> (pIdKind <* pSpec ')') <*> many pIdKind
+    <|> (\ a c      -> (c, [a]))    <$> (pSpec '(' *> pIdKind) <*> (pSymOper <* pSpec ')')
 
 pImportSpec :: P ImportSpec
 pImportSpec =
@@ -604,6 +606,7 @@ pAType =
   <|> (uTupleTAp <$> (pSpec 'L' *> sepBy  pType (pSpec ',') <* pSpec 'R'))
   <|> (uSumTAp <$> (pSpec 'L' *> sepBy1 pType (pSpec '|') <* pSpec 'R'))
   <|> (uSumT <$> getSLoc <*> (succ . length <$> (pSpec 'L' *> many (pSpec '|') <* pSpec 'R')))
+  <|> (flip EApp <$> (pSpec '(' *> pTypeApp) <*> (EVar <$> (pTypeOper <* pSpec ')')))
 
 -------------
 -- Patterns
