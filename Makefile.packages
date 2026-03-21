@@ -93,3 +93,4 @@ all:
 	$(MINST) --git="https://github.com/konsumlamm/dlist.git --branch=mhs" dlist
 	$(MINST) time-units
 	$(MINST) --git=https://github.com/konsumlamm/xml.git xml
+	$(MINST) numbers
