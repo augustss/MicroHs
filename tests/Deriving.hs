@@ -80,6 +80,12 @@ newtype NT1 a b = NT1 b deriving (Ord)
 instance (Num a, Enum b) => Eq (NT1 a b) where
   NT1 b == NT1 b'  =  fromEnum b == fromEnum b'
 
+class (Monoid w, Monad m) => MW w m | m -> w
+type ComposeT :: ((Type -> Type) -> Type -> Type) -> ((Type -> Type) -> Type -> Type) -> (Type -> Type) -> Type -> Type
+newtype ComposeT cf cg cm ca
+    = ComposeT { getComposeT :: cf (cg cm) ca }
+    deriving (Functor, Applicative, Monad, MW cw)
+
 main :: IO ()
 main = do
   print $ A 'a' == (A 'a' :: T Char () ())
