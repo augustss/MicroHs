@@ -95,3 +95,4 @@ all:
 	$(MINST) time-units
 	$(MINST) --git=https://github.com/konsumlamm/xml.git xml
 	$(MINST) numbers
+	$(MINST) timeit
