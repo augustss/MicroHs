@@ -1,5 +1,7 @@
-module TypeOp where
+module TypeOp (x, type (~)()) where
 import Data.Coerce
+-- import and export types (with class syntax)
+import Primitives (type (~)(..))
 
 data a + b = Plus a b
 type Foo = Int + Bool

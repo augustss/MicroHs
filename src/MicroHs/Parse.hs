@@ -303,6 +303,7 @@ pExportItem =
   <|> ExpTypeSome <$> pUQIdentSym <*> pure []
   <|> ExpValue    <$> pLQIdentSym
   <|> ExpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
+  <|> ExpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pParens pConList
   <|> ExpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
   <|> ExpDefault  <$> (pKeyword "default" *> pUQIdentSym)
 
@@ -539,6 +540,7 @@ pImportItem =
   <|> ImpTypeSome <$> pUQIdentSym <*> pure []
   <|> ImpValue    <$> pLQIdentSym
   <|> ImpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
+  <|> impType     <$> (pKeyword "type" *> pLQIdentSym) <*> pParens pConList
   <|> ImpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
   where impType i [d] | d == dotDotIdent = ImpTypeAll  i
         impType i is                     = ImpTypeSome i is
