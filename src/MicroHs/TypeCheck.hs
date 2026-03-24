@@ -3838,6 +3838,8 @@ combineTySubsts = combs []
 
 -- Get the best matches.  These are the matches with the smallest substitution.
 -- Always prefer arguments rather than global instances.
+-- If there are multiple alternatives with the args, just pick one.
+-- This can arise from diamonds in the superclass chain.
 getBestMatches :: [(Int, (Expr, [EConstraint], [Improve]))] -> [(Expr, [EConstraint], [Improve])]
 getBestMatches [] = []
 getBestMatches ams =
@@ -3847,7 +3849,7 @@ getBestMatches ams =
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest
-  in  if null args then pick insts else pick args
+  in  if null args then pick insts else take 1 (pick args)
 
 -- Check that there are no unsolved constraints.
 checkConstraints :: HasCallStack => T ()
