@@ -305,7 +305,7 @@ pExportItem =
   <|> ExpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
   <|> ExpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pParens pConList
   <|> ExpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
-  <|> ExpDefault  <$> (pKeyword "default" *> pUQIdentSym)
+  <|> ExpDefault  <$> (pKeyword "default" *> (pUQIdentSym <|> pKeyword "type" *> pLQIdentSym))
 
 pKeyword :: String -> P ()
 pKeyword kw = void (satisfy kw is)
@@ -371,7 +371,7 @@ pDef =
     pFunDep = (,) <$> some pLIdent <*> (pSRArrow *> some pLIdent)
     pField = guardM pFields ((== 1) . either length length)
 
-    clsSym = do s <- pUIdentSym; guard (unIdent s /= "()"); return s
+    clsSym = do s <- pUIdentSym <|> (pKeyword "type" *> pLIdentSym); guard (unIdent s /= "()"); return s
 
     mkPattern (lhs, pat, meqn) = Pattern lhs pat meqn
     noop = Infix (AssocLeft, 0) []        -- harmless definition
