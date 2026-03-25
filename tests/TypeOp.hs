@@ -64,3 +64,6 @@ instance (Int $$%)
 instance Int $%% Int
 instance ($%%) Bool Bool
 instance (Int $%%% Int) Int
+
+default (:%) (Int)
+default type($%) (Int)
