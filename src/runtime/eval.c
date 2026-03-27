@@ -26,6 +26,9 @@
 #endif  /* WANT_MATH */
 #if defined(__EMSCRIPTEN__)
 #include "emscripten.h"
+#ifndef EM_ASM_PTR
+#define EM_ASM_PTR(...) (void*)(uintptr_t)EM_ASM_INT(__VA_ARGS__)
+#endif
 #endif /* __EMSCRIPTEN__ */
 #if WANT_DIR
 #include <dirent.h>
