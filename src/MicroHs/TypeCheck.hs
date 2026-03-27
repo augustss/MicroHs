@@ -2360,10 +2360,8 @@ dsPatBind b = return [b]
 patBindPrefix :: String
 patBindPrefix = "pb"
 
-{-
 isPatBindVar :: Ident -> Bool
 isPatBindVar = isPrefixOf (patBindPrefix ++ uniqIdentSep) . unIdent
--}
 
 getAts :: EPat -> ([Ident], EPat)
 getAts (EAt x p) = (x:xs, p') where (xs, p') = getAts p
@@ -2935,8 +2933,8 @@ tcBindGrp' bs = do
 --  traceM $ "tcBindGrp start: " ++ show (getSLoc bs, bs)
   let def (Fcn i _) = do t <- newUVar; return (i, t)
       def d = impossibleShow d
-  xts <- mapM def bs                    -- add temporary types
   oldState <- get
+  xts <- mapM def bs                    -- add temporary types
   extVals xts                           -- Extend the symbol table with the temporary types.
                                         -- These will be removed by the 'withExtVals' in 'tcBinds'
   bs' <- mapM tcBind bs                 -- type check bindings
@@ -2944,8 +2942,11 @@ tcBindGrp' bs = do
   --   first test for monomorphism restriction (cheap),
   --   next test if there are any new type variables in the return type (a little more expensive),
   --   finally test for type variables in the environment (expensive).
-  if not (all isSynFcn bs') then        -- monomorphism restriction, also ensures pattern bindings are not polymorphic
-    return bs'
+  -- Ensure pattern bindings are not polymorphic
+  let isDsPatBind (Fcn i _) = isPatBindVar i
+      isDsPatBind _ = False
+  if any isDsPatBind bs' then do
+     return bs'
    else do
     fvs <- getMetaTyVars (map snd xts)  -- all unification variables used in return type
     let u = unique oldState             -- first of the new type variables
@@ -2966,7 +2967,9 @@ tcBindGrp' bs = do
        let ctx = nubBy eqEType $
                  filter (\ c -> not $ null $ intersect qvs' (metaTvs [c])) cs
        let multiParam ct = length (snd (getApp ct)) /= 1
-       if any multiParam ctx then       -- temporary workaround for
+       if any multiParam ctx ||       -- temporary workaround for
+          -- Overloaded bind: fallback to monomorphic behavior
+          not (null ctx) && not (all isSynFcn bs') then
          return bs'
         else do
 --        traceM $ "tcBindGrp: u=" ++ show u ++ " xts=" ++ show xts ++ " ts'=" ++ show ts' ++ " cs=" ++ show cs
