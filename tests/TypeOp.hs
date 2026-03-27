@@ -34,6 +34,12 @@ type (a $$) = a
 type a $++ b = Either a b
 type (a $+++ b) c = (a,b,c)
 
+data (:$%$)
+data (:$$%) a
+data (a :$$$%)
+data a :$%% b
+data (a :$%%% b) c
+
 class (:%$) where
 class (:%) a where
 class (a :$%) where
@@ -67,3 +73,5 @@ instance (Int $%%% Int) Int
 
 default (:%) (Int)
 default ($%) (Int)
+default ((:$$%))
+default ($$%) ((:$$%))
