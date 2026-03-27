@@ -73,5 +73,5 @@ instance (Int $%%% Int) Int
 
 default (:%) (Int)
 default ($%) (Int)
-default ((:$$%))
-default ($$%) ((:$$%))
+default ((:$%$))
+default ($$%) ((:$%$))
