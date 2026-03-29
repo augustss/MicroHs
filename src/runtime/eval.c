@@ -3632,7 +3632,7 @@ parse(BFILE *f)
       if (!gobble(f, '"'))
         ERR("parse !");
       r = alloc_node(T_TICK);
-      SETVALUE(r, (value_t)add_tick_table(parse_string(f)););
+      SETVALUE(r, (value_t)add_tick_table(parse_string(f)));
       PUSH(r);
       break;
 #endif
@@ -3977,6 +3977,7 @@ case T_DBL: putb('&', f); putdblb(GETDBLVALUE(n), f); break;
     } else {
       ERR("cannot serialize ThreadId yet");
     }
+    break;
   case T_FORPTR:
     if (n == comb_stdin)
       putsb("IO.stdin", f);
@@ -6029,7 +6030,7 @@ evali(NODEPTR an)
       case T_SUBR64:SUB_OVERFLOW(int64_t, r64u, y64u, x64u); break;
       case T_QUOT64:if (y64u == 0)
                       raise_rts(exn_dividebyzero);
-                    else if ((int64_t)xu == INT64_MIN && (int64_t)yu == -1)
+                    else if ((int64_t)x64u == INT64_MIN && (int64_t)y64u == -1)
                       raise_rts(exn_overflow);
                     else
                       r64u = (uint64_t)((int64_t)x64u / (int64_t)y64u);

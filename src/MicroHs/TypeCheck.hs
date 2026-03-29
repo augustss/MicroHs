@@ -335,9 +335,10 @@ mkTCState mdlName globs mdls =
 mergeDefaults :: Defaults -> Defaults -> Defaults
 mergeDefaults ds = foldr (uncurry $ M.insertWith mrg) ds . M.toList
   where mrg :: [EType] -> [EType] -> [EType]
-        mrg ts ts' | not (any (\ t -> not (elemBy eqEType t ts)) ts') = ts
-                   | not (any (\ t -> not (elemBy eqEType t ts')) ts) = ts'
-                   | otherwise = []
+        mrg ts ts' | all (\ t -> elemBy eqEType t ts) ts' = ts
+                   | any (\ t -> elemBy eqEType t ts') ts = ts'
+                   | otherwise = []  -- If neither module's default subsumes the other
+                                     -- then use empty defaults, as per spec.
 
 mergeInstInfo :: InstInfo -> InstInfo -> InstInfo
 mergeInstInfo (InstInfo m1 l1 fds) (InstInfo m2 l2 _) =
@@ -3499,7 +3500,7 @@ getSuperClasses ais = do
         case M.lookup i ct of
           Nothing -> error $ "getSuperClasses: " ++ show i
           Just (ClassInfo _ supers _ _ _) ->
-            loop done (concatMap flatten supers ++ is)
+            loop (i:done) (concatMap flatten supers ++ is)
       flatten a =
         case getApp a of
           (c, ts) ->
