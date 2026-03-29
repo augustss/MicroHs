@@ -159,7 +159,7 @@ value_t GETTIMEMILLI(void) { return 0; }
 #endif  /* !define(GETTIMEMILLI) */
 
 #if !defined(GETCPUTIME)
-void GETCPUTIME(long *sec, long *nsec) { sec = 0; nsec = 0; }
+void GETCPUTIME(long *sec, long *nsec) { *sec = 0; *nsec = 0; }
 #endif  /* !define(GETCPUTIME) */
 
 #if !defined(INLINE)
@@ -364,7 +364,7 @@ uvalue_t CLZ64(uint64_t x) {
 #define BUILTIN_CTZ __builtin_ctzl
 #endif
 
-#if __has_builtin(__builtin_ctzl)
+#if __has_builtin(__builtin_ctzll)
 #define BUILTIN_CTZ64 __builtin_ctzll
 #endif
 
@@ -973,7 +973,7 @@ new_stableptr(NODEPTR n)
 static NODEPTR
 deref_stableptr(uvalue_t sp)
 {
-  if (sp_table[sp] == NIL || sp >= sp_capacity)
+  if (sp >= sp_capacity || sp_table[sp] == NIL)
     ERR("deref_stableptr");
   return sp_table[sp];
 }
@@ -981,7 +981,7 @@ deref_stableptr(uvalue_t sp)
 static void
 free_stableptr(uvalue_t sp)
 {
-  if (sp_table[sp] == NIL || sp >= sp_capacity)
+  if (sp >= sp_capacity || sp_table[sp] == NIL)
     ERR("free_stableptr");
   COUNT(num_stable_free);
   sp_table[sp] = NIL;
@@ -1389,11 +1389,10 @@ take_mvar(bool try, struct mvar *mv)
 #endif  /* THREAD_DEBUG */
     /* mvar is full */
     mv->mv_data = NIL;           /* now empty */
-    /* move all threads waiting to put to the runq */
-    for(;;) {
-      struct mthread *mt = remove_q_head(&mv->mv_takeput);
-      if (!mt)
-        break;
+
+    /* move one thread waiting to put to the runq */
+    struct mthread *mt;
+    if((mt = remove_q_head(&mv->mv_takeput))) {
 #if THREAD_DEBUG
       if (thread_trace) {
         printf("take_mvar: mvar=%p wake %d\n", mv, (int)mt->mt_id);
@@ -1511,7 +1510,7 @@ put_mvar(bool try, struct mvar *mv, NODEPTR v)
         mt->mt_mval = v;
       }
       for(;;) {
-        mt = remove_q_head(&mv->mv_takeput);
+        mt = remove_q_head(&mv->mv_read);
         if (!mt)
           break;
 #if THREAD_DEBUG
@@ -1639,6 +1638,7 @@ thread_intr(struct mthread *mt)
 #if defined(CLOCK_INIT)
     mt->mt_at = -1;             /* don't wait again */
 #endif
+    mt->mt_mval = NIL;          /* no longer waiting on the mvar */
     add_runq_tail(mt);
     break;
   case ts_wait_time:
@@ -2479,9 +2479,9 @@ mark_mvar(struct mvar *mv)
   mv->mv_mark = true;
   if (mv->mv_data != NIL)
     mark(&mv->mv_data);
-  for (struct mthread *mt = mv->mv_takeput.mq_head; mt; mt = mt->mt_next)
+  for (struct mthread *mt = mv->mv_takeput.mq_head; mt; mt = mt->mt_queue)
     mark_thread(mt);
-  for (struct mthread *mt = mv->mv_read.mq_head; mt; mt = mt->mt_next)
+  for (struct mthread *mt = mv->mv_read.mq_head; mt; mt = mt->mt_queue)
     mark_thread(mt);
 }
   
