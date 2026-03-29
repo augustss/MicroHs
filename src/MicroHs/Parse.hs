@@ -547,8 +547,7 @@ pImportItem =
   <|> ImpTypeSome <$> pUQIdentSym <*> pure []
   <|> ImpValue    <$> pLQIdentSym
   <|> ImpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
-  <|> impType     <$> (pKeyword "type" *> pLQIdentSymbol) <*> pParens pConList
-  <|> ImpTypeSome <$> (pKeyword "type" *> pLQIdentSymbol) <*> pure []
+  <|> impType     <$> (pKeyword "type" *> pLQIdentSymbol) <*> (pParens pConList <|> pure [])
   where impType i [d] | d == dotDotIdent = ImpTypeAll  i
         impType i is                     = ImpTypeSome i is
 
