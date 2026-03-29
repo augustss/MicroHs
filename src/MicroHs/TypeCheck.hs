@@ -1128,7 +1128,7 @@ tcDefs flags impt ds = do
 --  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeAndData dst                            -- add typedefinitions to the symbol table
   addNInjTable dst
-  dste <- tcExpandClassInst impt dst                  -- expand class&instance, do deriving
+  dste <- tcExpandClassInst flags impt dst                  -- expand class&instance, do deriving
   dumpIf flags Dderive $
     tcTrace' $ "expanded:\n" ++ showEDefs dste
 --  tcTrace ("tcDefs 3:\n" ++ showEDefs dste)
@@ -1200,8 +1200,8 @@ getKindSigns ds = do
   return $ M.fromList iks'
 
 -- Expand class and instance definitions (must be done after type synonym processing).
-tcExpandClassInst :: ImpType -> [EDef] -> T [EDef]
-tcExpandClassInst impt dst = do
+tcExpandClassInst :: Flags -> ImpType -> [EDef] -> T [EDef]
+tcExpandClassInst flags impt dst = do
   dsf <- withTypeTable $ do
     dsc <- concat <$> mapM expandClass dst              -- Expand all class definitions
     concat <$> mapM expandField dsc                     -- Add HasField instances
@@ -1210,7 +1210,12 @@ tcExpandClassInst impt dst = do
     case impt of
       ImpBoot -> return dsf
       ImpNormal -> concat <$> mapM doDeriving dsf       -- Add derived instances
-  concat <$> mapM expandInst dsd                        -- Expand all instance definitions
+  dumpIf flags Dderive $
+    tcTrace' $ "derived:\n" ++ showEDefs dsd
+  res <- concat <$> mapM expandInst dsd                        -- Expand all instance definitions
+  dumpIf flags DexpandInst $
+    tcTrace' $ "expanded:\n" ++ showEDefs res
+  return res
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
 withVks :: forall a . HasCallStack => [IdKind] -> ([IdKind] -> T a) -> T a
@@ -2612,10 +2617,8 @@ dsPatBind b = return [b]
 patBindPrefix :: String
 patBindPrefix = "pb"
 
-{-
 isPatBindVar :: Ident -> Bool
 isPatBindVar = isPrefixOf (patBindPrefix ++ uniqIdentSep) . unIdent
--}
 
 getAts :: EPat -> ([Ident], EPat)
 getAts (EAt x p) = (x:xs, p') where (xs, p') = getAts p
@@ -3187,8 +3190,8 @@ tcBindGrp' bs = do
 --  traceM $ "tcBindGrp start: " ++ show (getSLoc bs, bs)
   let def (Fcn i _) = do t <- newUVar; return (i, t)
       def d = impossibleShow d
-  xts <- mapM def bs                    -- add temporary types
   oldState <- get
+  xts <- mapM def bs                    -- add temporary types
   extVals xts                           -- Extend the symbol table with the temporary types.
                                         -- These will be removed by the 'withExtVals' in 'tcBinds'
   bs' <- mapM tcBind bs                 -- type check bindings
@@ -3196,8 +3199,11 @@ tcBindGrp' bs = do
   --   first test for monomorphism restriction (cheap),
   --   next test if there are any new type variables in the return type (a little more expensive),
   --   finally test for type variables in the environment (expensive).
-  if not (all isSynFcn bs') then        -- monomorphism restriction, also ensures pattern bindings are not polymorphic
-    return bs'
+  -- Ensure pattern bindings are not polymorphic
+  let isDsPatBind (Fcn i _) = isPatBindVar i
+      isDsPatBind _ = False
+  if any isDsPatBind bs' then do
+     return bs'
    else do
     fvs <- getMetaTyVars (map snd xts)  -- all unification variables used in return type
     let u = unique oldState             -- first of the new type variables
@@ -3218,7 +3224,9 @@ tcBindGrp' bs = do
        let ctx = nubBy eqEType $
                  filter (\ c -> not $ null $ intersect qvs' (metaTvs [c])) cs
        let multiParam ct = length (snd (getApp ct)) /= 1
-       if any multiParam ctx then       -- temporary workaround for
+       if any multiParam ctx ||       -- temporary workaround for
+          -- Overloaded bind: fallback to monomorphic behavior
+          not (null ctx) && not (all isSynFcn bs') then
          return bs'
         else do
 --        traceM $ "tcBindGrp: u=" ++ show u ++ " xts=" ++ show xts ++ " ts'=" ++ show ts' ++ " cs=" ++ show cs
@@ -4140,6 +4148,8 @@ combineTySubsts = combs []
 
 -- Get the best matches.  These are the matches with the smallest substitution.
 -- Always prefer arguments rather than global instances.
+-- If there are multiple alternatives with the args, just pick one.
+-- This can arise from diamonds in the superclass chain.
 getBestMatches :: [(Int, (Expr, [EConstraint], [Improve]))] -> [(Expr, [EConstraint], [Improve])]
 getBestMatches [] = []
 getBestMatches ams =
@@ -4149,7 +4159,7 @@ getBestMatches ams =
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest
-  in  if null args then pick insts else pick args
+  in  if null args then pick insts else take 1 (pick args)
 
 -- Check that there are no unsolved constraints.
 checkConstraints :: HasCallStack => T ()

@@ -1,5 +1,7 @@
-module TypeOp where
+module TypeOp (x, type (~)(), type ($%), default (:%), default ($%)) where
 import Data.Coerce
+-- import and export types (with class syntax)
+import Primitives (type (~)(..))
 
 data a + b = Plus a b
 type Foo = Int + Bool
@@ -32,6 +34,12 @@ type (a $$) = a
 type a $++ b = Either a b
 type (a $+++ b) c = (a,b,c)
 
+data (:$%$)
+data (:$$%) a
+data (a :$$$%)
+data a :$%% b
+data (a :$%%% b) c
+
 class (:%$) where
 class (:%) a where
 class (a :$%) where
@@ -62,3 +70,8 @@ instance (Int $$%)
 instance Int $%% Int
 instance ($%%) Bool Bool
 instance (Int $%%% Int) Int
+
+default (:%) (Int)
+default ($%) (Int)
+default ((:$%$))
+default ($$%) ((:$%$))

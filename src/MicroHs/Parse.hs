@@ -275,9 +275,17 @@ pUQIdentSym = pUQIdent <|> pParens pUQSymOper
 pLQIdentSym :: P Ident
 pLQIdentSym = pLQIdent <|> pParens pLQSymOperArr
 
+-- Lower case, maybe qualified, symbol+arrow
+pLQIdentSymbol :: P Ident
+pLQIdentSymbol = pParens pLQSymOperArr
+
 -- Lower case, unqualified, identifier or symbol
 pLIdentSym :: P Ident
 pLIdentSym = pLIdent <|> pParens pLSymOper
+
+-- Lower case, unqualified, symbol
+pLIdentSymbol :: P Ident
+pLIdentSymbol = pParens pLSymOper
 
 pParens :: forall a . P a -> P a
 pParens p = lpar *> p <* rpar
@@ -313,8 +321,8 @@ pExportItem =
   <|> ExpTypeSome <$> pUQIdentSym <*> pure []
   <|> ExpValue    <$> pLQIdentSym
   <|> ExpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
-  <|> ExpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
-  <|> ExpDefault  <$> (pKeyword "default" *> pUQIdentSym)
+  <|> ExpTypeSome <$> (pKeyword "type" *> pLQIdentSymbol) <*> (pParens pConList <|> pure [])
+  <|> ExpDefault  <$> (pKeyword "default" *> (pUQIdentSym <|> pLQIdentSymbol))
 
 pKeyword :: String -> P ()
 pKeyword kw = void (satisfy kw is)
@@ -384,7 +392,7 @@ pDef =
     pFunDeps = (bar *> sepBy1 pFunDep comma) <|> pure []
     pField = guardM pFields ((== 1) . either length length)
 
-    clsSym = do s <- pUIdentSym; guard (unIdent s /= "()"); return s
+    clsSym = do s <- pUIdentSym <|> pLIdentSymbol; guard (unIdent s /= "()"); return s
 
     mkPattern (lhs, pat, meqn) = Pattern lhs pat meqn
     noop = Infix (AssocLeft, 0) []        -- harmless definition
@@ -574,7 +582,7 @@ pImportItem =
   <|> ImpTypeSome <$> pUQIdentSym <*> pure []
   <|> ImpValue    <$> pLQIdentSym
   <|> ImpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
-  <|> ImpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
+  <|> impType     <$> (pKeyword "type" *> pLQIdentSymbol) <*> (pParens pConList <|> pure [])
   where impType i [d] | d == dotDotIdent = ImpTypeAll  i
         impType i is                     = ImpTypeSome i is
 

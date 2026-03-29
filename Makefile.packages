@@ -3,6 +3,7 @@
 # Do 'make install' before running this.
 # The funny install order is to avoid using 'mcabal -r',
 # since it doesn't know of the --git overrides.
+# See also https://docs.google.com/spreadsheets/d/1e0dbUg5uuFKNwgMpwtBnYRldPCYYyBqYfsbyhEjf5bU/edit?usp=sharing
 .PHONY: all
 MINST=mcabal -q install
 
@@ -93,3 +94,5 @@ all:
 	$(MINST) --git="https://github.com/konsumlamm/dlist.git --branch=mhs" dlist
 	$(MINST) time-units
 	$(MINST) --git=https://github.com/konsumlamm/xml.git xml
+	$(MINST) numbers
+	$(MINST) timeit
