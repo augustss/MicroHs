@@ -561,8 +561,8 @@ pStrictP p = (,) <$> pStrict <*> p
 pLHS :: P LHS
 pLHS =  (,)                         <$> pTypeIdentSym <*> many pIdKind
     <|> (\ a c b    -> (c, [a,b]))  <$> pIdKind <*> pSymOper <*> pIdKind
-    <|> (\ a c b as -> (c, a:b:as)) <$> (pSpec '(' *> pIdKind) <*> pSymOper <*> (pIdKind <* pSpec ')') <*> many pIdKind
-    <|> (\ a c      -> (c, [a]))    <$> (pSpec '(' *> pIdKind) <*> (pSymOper <* pSpec ')')
+    <|> (\ a c b as -> (c, a:b:as)) <$> (lpar *> pIdKind) <*> pSymOper <*> (pIdKind <* rpar) <*> many pIdKind
+    <|> (\ a c      -> (c, [a]))    <$> (lpar *> pIdKind) <*> (pSymOper <* rpar)
 
 pImportSpec :: P ImportSpec
 pImportSpec =
