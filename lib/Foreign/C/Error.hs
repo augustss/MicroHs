@@ -99,122 +99,108 @@ instance Eq Errno where
     | isValidErrno errno1 && isValidErrno errno2 = no1 == no2
     | otherwise                                  = False
 
-eOK, e2BIG, eACCES, eADDRINUSE, eADDRNOTAVAIL, eADV, eAFNOSUPPORT, eAGAIN,
-  eALREADY, eBADF, eBADMSG, eBADRPC, eBUSY, eCHILD, eCOMM, eCONNABORTED,
-  eCONNREFUSED, eCONNRESET, eDEADLK, eDESTADDRREQ, eDIRTY, eDOM, eDQUOT,
-  eEXIST, eFAULT, eFBIG, eFTYPE, eHOSTDOWN, eHOSTUNREACH, eIDRM, eILSEQ,
-  eINPROGRESS, eINTR, eINVAL, eIO, eISCONN, eISDIR, eLOOP, eMFILE, eMLINK,
-  eMSGSIZE, eMULTIHOP, eNAMETOOLONG, eNETDOWN, eNETRESET, eNETUNREACH,
-  eNFILE, eNOBUFS, eNODATA, eNODEV, eNOENT, eNOEXEC, eNOLCK, eNOLINK,
-  eNOMEM, eNOMSG, eNONET, eNOPROTOOPT, eNOSPC, eNOSR, eNOSTR, eNOSYS,
-  eNOTBLK, eNOTCONN, eNOTDIR, eNOTEMPTY, eNOTSOCK, eNOTSUP, eNOTTY, eNXIO,
-  eOPNOTSUPP, ePERM, ePFNOSUPPORT, ePIPE, ePROCLIM, ePROCUNAVAIL,
-  ePROGMISMATCH, ePROGUNAVAIL, ePROTO, ePROTONOSUPPORT, ePROTOTYPE,
-  eRANGE, eREMCHG, eREMOTE, eROFS, eRPCMISMATCH, eRREMOTE, eSHUTDOWN,
-  eSOCKTNOSUPPORT, eSPIPE, eSRCH, eSRMNT, eSTALE, eTIME, eTIMEDOUT,
-  eTOOMANYREFS, eTXTBSY, eUSERS, eWOULDBLOCK, eXDEV                    :: Errno
+eOK :: Errno
+eOK = Errno 0
 
-eOK             = Errno 0
-e2BIG           = Errno cE2BIG;           foreign import capi "value E2BIG"           cE2BIG :: CInt
-eACCES          = Errno cEACCES;          foreign import capi "value EACCES"          cEACCES :: CInt
-eADDRINUSE      = Errno cEADDRINUSE;      foreign import capi "value EADDRINUSE"      cEADDRINUSE :: CInt
-eADDRNOTAVAIL   = Errno cEADDRNOTAVAIL;   foreign import capi "value EADDRNOTAVAIL"   cEADDRNOTAVAIL :: CInt
-eADV            = Errno cEADV;            foreign import capi "value EADV"            cEADV :: CInt
-eAFNOSUPPORT    = Errno cEAFNOSUPPORT;    foreign import capi "value EAFNOSUPPORT"    cEAFNOSUPPORT :: CInt
-eAGAIN          = Errno cEAGAIN;          foreign import capi "value EAGAIN"          cEAGAIN :: CInt
-eALREADY        = Errno cEALREADY;        foreign import capi "value EALREADY"        cEALREADY :: CInt
-eBADF           = Errno cEBADF;           foreign import capi "value EBADF"           cEBADF :: CInt
-eBADMSG         = Errno cEBADMSG;         foreign import capi "value EBADMSG"         cEBADMSG :: CInt
-eBADRPC         = Errno cEBADRPC;         foreign import capi "value EBADRPC"         cEBADRPC :: CInt
-eBUSY           = Errno cEBUSY;           foreign import capi "value EBUSY"           cEBUSY :: CInt
-eCHILD          = Errno cECHILD;          foreign import capi "value ECHILD"          cECHILD :: CInt
-eCOMM           = Errno cECOMM;           foreign import capi "value ECOMM"           cECOMM :: CInt
-eCONNABORTED    = Errno cECONNABORTED;    foreign import capi "value ECONNABORTED"    cECONNABORTED :: CInt
-eCONNREFUSED    = Errno cECONNREFUSED;    foreign import capi "value ECONNREFUSED"    cECONNREFUSED :: CInt
-eCONNRESET      = Errno cECONNRESET;      foreign import capi "value ECONNRESET"      cECONNRESET :: CInt
-eDEADLK         = Errno cEDEADLK;         foreign import capi "value EDEADLK"         cEDEADLK :: CInt
-eDESTADDRREQ    = Errno cEDESTADDRREQ;    foreign import capi "value EDESTADDRREQ"    cEDESTADDRREQ :: CInt
-eDIRTY          = Errno cEDIRTY;          foreign import capi "value EDIRTY"          cEDIRTY :: CInt
-eDOM            = Errno cEDOM;            foreign import capi "value EDOM"            cEDOM :: CInt
-eDQUOT          = Errno cEDQUOT;          foreign import capi "value EDQUOT"          cEDQUOT :: CInt
-eEXIST          = Errno cEEXIST;          foreign import capi "value EEXIST"          cEEXIST :: CInt
-eFAULT          = Errno cEFAULT;          foreign import capi "value EFAULT"          cEFAULT :: CInt
-eFBIG           = Errno cEFBIG;           foreign import capi "value EFBIG"           cEFBIG :: CInt
-eFTYPE          = Errno cEFTYPE;          foreign import capi "value EFTYPE"          cEFTYPE :: CInt
-eHOSTDOWN       = Errno cEHOSTDOWN;       foreign import capi "value EHOSTDOWN"       cEHOSTDOWN :: CInt
-eHOSTUNREACH    = Errno cEHOSTUNREACH;    foreign import capi "value EHOSTUNREACH"    cEHOSTUNREACH :: CInt
-eIDRM           = Errno cEIDRM;           foreign import capi "value EIDRM"           cEIDRM :: CInt
-eILSEQ          = Errno cEILSEQ;          foreign import capi "value EILSEQ"          cEILSEQ :: CInt
-eINPROGRESS     = Errno cEINPROGRESS;     foreign import capi "value EINPROGRESS"     cEINPROGRESS :: CInt
-eINTR           = Errno cEINTR;           foreign import capi "value EINTR"           cEINTR :: CInt
-eINVAL          = Errno cEINVAL;          foreign import capi "value EINVAL"          cEINVAL :: CInt
-eIO             = Errno cEIO;             foreign import capi "value EIO"             cEIO :: CInt
-eISCONN         = Errno cEISCONN;         foreign import capi "value EISCONN"         cEISCONN :: CInt
-eISDIR          = Errno cEISDIR;          foreign import capi "value EISDIR"          cEISDIR :: CInt
-eLOOP           = Errno cELOOP;           foreign import capi "value ELOOP"           cELOOP :: CInt
-eMFILE          = Errno cEMFILE;          foreign import capi "value EMFILE"          cEMFILE :: CInt
-eMLINK          = Errno cEMLINK;          foreign import capi "value EMLINK"          cEMLINK :: CInt
-eMSGSIZE        = Errno cEMSGSIZE;        foreign import capi "value EMSGSIZE"        cEMSGSIZE :: CInt
-eMULTIHOP       = Errno cEMULTIHOP;       foreign import capi "value EMULTIHOP"       cEMULTIHOP :: CInt
-eNAMETOOLONG    = Errno cENAMETOOLONG;    foreign import capi "value ENAMETOOLONG"    cENAMETOOLONG :: CInt
-eNETDOWN        = Errno cENETDOWN;        foreign import capi "value ENETDOWN"        cENETDOWN :: CInt
-eNETRESET       = Errno cENETRESET;       foreign import capi "value ENETRESET"       cENETRESET :: CInt
-eNETUNREACH     = Errno cENETUNREACH;     foreign import capi "value ENETUNREACH"     cENETUNREACH :: CInt
-eNFILE          = Errno cENFILE;          foreign import capi "value ENFILE"          cENFILE :: CInt
-eNOBUFS         = Errno cENOBUFS;         foreign import capi "value ENOBUFS"         cENOBUFS :: CInt
-eNODATA         = Errno cENODATA;         foreign import capi "value ENODATA"         cENODATA :: CInt
-eNODEV          = Errno cENODEV;          foreign import capi "value ENODEV"          cENODEV :: CInt
-eNOENT          = Errno cENOENT;          foreign import capi "value ENOENT"          cENOENT :: CInt
-eNOEXEC         = Errno cENOEXEC;         foreign import capi "value ENOEXEC"         cENOEXEC :: CInt
-eNOLCK          = Errno cENOLCK;          foreign import capi "value ENOLCK"          cENOLCK :: CInt
-eNOLINK         = Errno cENOLINK;         foreign import capi "value ENOLINK"         cENOLINK :: CInt
-eNOMEM          = Errno cENOMEM;          foreign import capi "value ENOMEM"          cENOMEM :: CInt
-eNOMSG          = Errno cENOMSG;          foreign import capi "value ENOMSG"          cENOMSG :: CInt
-eNONET          = Errno cENONET;          foreign import capi "value ENONET"          cENONET :: CInt
-eNOPROTOOPT     = Errno cENOPROTOOPT;     foreign import capi "value ENOPROTOOPT"     cENOPROTOOPT :: CInt
-eNOSPC          = Errno cENOSPC;          foreign import capi "value ENOSPC"          cENOSPC :: CInt
-eNOSR           = Errno cENOSR;           foreign import capi "value ENOSR"           cENOSR :: CInt
-eNOSTR          = Errno cENOSTR;          foreign import capi "value ENOSTR"          cENOSTR :: CInt
-eNOSYS          = Errno cENOSYS;          foreign import capi "value ENOSYS"          cENOSYS :: CInt
-eNOTBLK         = Errno cENOTBLK;         foreign import capi "value ENOTBLK"         cENOTBLK :: CInt
-eNOTCONN        = Errno cENOTCONN;        foreign import capi "value ENOTCONN"        cENOTCONN :: CInt
-eNOTDIR         = Errno cENOTDIR;         foreign import capi "value ENOTDIR"         cENOTDIR :: CInt
-eNOTEMPTY       = Errno cENOTEMPTY;       foreign import capi "value ENOTEMPTY"       cENOTEMPTY :: CInt
-eNOTSOCK        = Errno cENOTSOCK;        foreign import capi "value ENOTSOCK"        cENOTSOCK :: CInt
-eNOTSUP         = Errno cENOTSUP;         foreign import capi "value ENOTSUP"         cENOTSUP :: CInt
--- ^ @since base-4.7.0.0
-eNOTTY          = Errno cENOTTY;          foreign import capi "value ENOTTY"          cENOTTY :: CInt
-eNXIO           = Errno cENXIO;           foreign import capi "value ENXIO"           cENXIO :: CInt
-eOPNOTSUPP      = Errno cEOPNOTSUPP;      foreign import capi "value EOPNOTSUPP"      cEOPNOTSUPP :: CInt
-ePERM           = Errno cEPERM;           foreign import capi "value EPERM"           cEPERM :: CInt
-ePFNOSUPPORT    = Errno cEPFNOSUPPORT;    foreign import capi "value EPFNOSUPPORT"    cEPFNOSUPPORT :: CInt
-ePIPE           = Errno cEPIPE;           foreign import capi "value EPIPE"           cEPIPE :: CInt
-ePROCLIM        = Errno cEPROCLIM;        foreign import capi "value EPROCLIM"        cEPROCLIM :: CInt
-ePROCUNAVAIL    = Errno cEPROCUNAVAIL;    foreign import capi "value EPROCUNAVAIL"    cEPROCUNAVAIL :: CInt
-ePROGMISMATCH   = Errno cEPROGMISMATCH;   foreign import capi "value EPROGMISMATCH"   cEPROGMISMATCH :: CInt
-ePROGUNAVAIL    = Errno cEPROGUNAVAIL;    foreign import capi "value EPROGUNAVAIL"    cEPROGUNAVAIL :: CInt
-ePROTO          = Errno cEPROTO;          foreign import capi "value EPROTO"          cEPROTO :: CInt
-ePROTONOSUPPORT = Errno cEPROTONOSUPPORT; foreign import capi "value EPROTONOSUPPORT" cEPROTONOSUPPORT :: CInt
-ePROTOTYPE      = Errno cEPROTOTYPE;      foreign import capi "value EPROTOTYPE"      cEPROTOTYPE :: CInt
-eRANGE          = Errno cERANGE;          foreign import capi "value ERANGE"          cERANGE :: CInt
-eREMCHG         = Errno cEREMCHG;         foreign import capi "value EREMCHG"         cEREMCHG :: CInt
-eREMOTE         = Errno cEREMOTE;         foreign import capi "value EREMOTE"         cEREMOTE :: CInt
-eROFS           = Errno cEROFS;           foreign import capi "value EROFS"           cEROFS :: CInt
-eRPCMISMATCH    = Errno cERPCMISMATCH;    foreign import capi "value ERPCMISMATCH"    cERPCMISMATCH :: CInt
-eRREMOTE        = Errno cERREMOTE;        foreign import capi "value ERREMOTE"        cERREMOTE :: CInt
-eSHUTDOWN       = Errno cESHUTDOWN;       foreign import capi "value ESHUTDOWN"       cESHUTDOWN :: CInt
-eSOCKTNOSUPPORT = Errno cESOCKTNOSUPPORT; foreign import capi "value ESOCKTNOSUPPORT" cESOCKTNOSUPPORT :: CInt
-eSPIPE          = Errno cESPIPE;          foreign import capi "value ESPIPE"          cESPIPE :: CInt
-eSRCH           = Errno cESRCH;           foreign import capi "value ESRCH"           cESRCH :: CInt
-eSRMNT          = Errno cESRMNT;          foreign import capi "value ESRMNT"          cESRMNT :: CInt
-eSTALE          = Errno cESTALE;          foreign import capi "value ESTALE"          cESTALE :: CInt
-eTIME           = Errno cETIME;           foreign import capi "value ETIME"           cETIME :: CInt
-eTIMEDOUT       = Errno cETIMEDOUT;       foreign import capi "value ETIMEDOUT"       cETIMEDOUT :: CInt
-eTOOMANYREFS    = Errno cETOOMANYREFS;    foreign import capi "value ETOOMANYREFS"    cETOOMANYREFS :: CInt
-eTXTBSY         = Errno cETXTBSY;         foreign import capi "value ETXTBSY"         cETXTBSY :: CInt
-eUSERS          = Errno cEUSERS;          foreign import capi "value EUSERS"          cEUSERS :: CInt
-eWOULDBLOCK     = Errno cEWOULDBLOCK;     foreign import capi "value EWOULDBLOCK"     cEWOULDBLOCK :: CInt
-eXDEV           = Errno cEXDEV;           foreign import capi "value EXDEV"           cEXDEV :: CInt
+foreign import capi "value E2BIG"           e2BIG           :: Errno
+foreign import capi "value EACCES"          eACCES          :: Errno
+foreign import capi "value EADDRINUSE"      eADDRINUSE      :: Errno
+foreign import capi "value EADDRNOTAVAIL"   eADDRNOTAVAIL   :: Errno
+foreign import capi "value EADV"            eADV            :: Errno
+foreign import capi "value EAFNOSUPPORT"    eAFNOSUPPORT    :: Errno
+foreign import capi "value EAGAIN"          eAGAIN          :: Errno
+foreign import capi "value EALREADY"        eALREADY        :: Errno
+foreign import capi "value EBADF"           eBADF           :: Errno
+foreign import capi "value EBADMSG"         eBADMSG         :: Errno
+foreign import capi "value EBADRPC"         eBADRPC         :: Errno
+foreign import capi "value EBUSY"           eBUSY           :: Errno
+foreign import capi "value ECHILD"          eCHILD          :: Errno
+foreign import capi "value ECOMM"           eCOMM           :: Errno
+foreign import capi "value ECONNABORTED"    eCONNABORTED    :: Errno
+foreign import capi "value ECONNREFUSED"    eCONNREFUSED    :: Errno
+foreign import capi "value ECONNRESET"      eCONNRESET      :: Errno
+foreign import capi "value EDEADLK"         eDEADLK         :: Errno
+foreign import capi "value EDESTADDRREQ"    eDESTADDRREQ    :: Errno
+foreign import capi "value EDIRTY"          eDIRTY          :: Errno
+foreign import capi "value EDOM"            eDOM            :: Errno
+foreign import capi "value EDQUOT"          eDQUOT          :: Errno
+foreign import capi "value EEXIST"          eEXIST          :: Errno
+foreign import capi "value EFAULT"          eFAULT          :: Errno
+foreign import capi "value EFBIG"           eFBIG           :: Errno
+foreign import capi "value EFTYPE"          eFTYPE          :: Errno
+foreign import capi "value EHOSTDOWN"       eHOSTDOWN       :: Errno
+foreign import capi "value EHOSTUNREACH"    eHOSTUNREACH    :: Errno
+foreign import capi "value EIDRM"           eIDRM           :: Errno
+foreign import capi "value EILSEQ"          eILSEQ          :: Errno
+foreign import capi "value EINPROGRESS"     eINPROGRESS     :: Errno
+foreign import capi "value EINTR"           eINTR           :: Errno
+foreign import capi "value EINVAL"          eINVAL          :: Errno
+foreign import capi "value EIO"             eIO             :: Errno
+foreign import capi "value EISCONN"         eISCONN         :: Errno
+foreign import capi "value EISDIR"          eISDIR          :: Errno
+foreign import capi "value ELOOP"           eLOOP           :: Errno
+foreign import capi "value EMFILE"          eMFILE          :: Errno
+foreign import capi "value EMLINK"          eMLINK          :: Errno
+foreign import capi "value EMSGSIZE"        eMSGSIZE        :: Errno
+foreign import capi "value EMULTIHOP"       eMULTIHOP       :: Errno
+foreign import capi "value ENAMETOOLONG"    eNAMETOOLONG    :: Errno
+foreign import capi "value ENETDOWN"        eNETDOWN        :: Errno
+foreign import capi "value ENETRESET"       eNETRESET       :: Errno
+foreign import capi "value ENETUNREACH"     eNETUNREACH     :: Errno
+foreign import capi "value ENFILE"          eNFILE          :: Errno
+foreign import capi "value ENOBUFS"         eNOBUFS         :: Errno
+foreign import capi "value ENODATA"         eNODATA         :: Errno
+foreign import capi "value ENODEV"          eNODEV          :: Errno
+foreign import capi "value ENOENT"          eNOENT          :: Errno
+foreign import capi "value ENOEXEC"         eNOEXEC         :: Errno
+foreign import capi "value ENOLCK"          eNOLCK          :: Errno
+foreign import capi "value ENOLINK"         eNOLINK         :: Errno
+foreign import capi "value ENOMEM"          eNOMEM          :: Errno
+foreign import capi "value ENOMSG"          eNOMSG          :: Errno
+foreign import capi "value ENONET"          eNONET          :: Errno
+foreign import capi "value ENOPROTOOPT"     eNOPROTOOPT     :: Errno
+foreign import capi "value ENOSPC"          eNOSPC          :: Errno
+foreign import capi "value ENOSR"           eNOSR           :: Errno
+foreign import capi "value ENOSTR"          eNOSTR          :: Errno
+foreign import capi "value ENOSYS"          eNOSYS          :: Errno
+foreign import capi "value ENOTBLK"         eNOTBLK         :: Errno
+foreign import capi "value ENOTCONN"        eNOTCONN        :: Errno
+foreign import capi "value ENOTDIR"         eNOTDIR         :: Errno
+foreign import capi "value ENOTEMPTY"       eNOTEMPTY       :: Errno
+foreign import capi "value ENOTSOCK"        eNOTSOCK        :: Errno
+foreign import capi "value ENOTSUP"         eNOTSUP         :: Errno
+foreign import capi "value ENOTTY"          eNOTTY          :: Errno
+foreign import capi "value ENXIO"           eNXIO           :: Errno
+foreign import capi "value EOPNOTSUPP"      eOPNOTSUPP      :: Errno
+foreign import capi "value EPERM"           ePERM           :: Errno
+foreign import capi "value EPFNOSUPPORT"    ePFNOSUPPORT    :: Errno
+foreign import capi "value EPIPE"           ePIPE           :: Errno
+foreign import capi "value EPROCLIM"        ePROCLIM        :: Errno
+foreign import capi "value EPROCUNAVAIL"    ePROCUNAVAIL    :: Errno
+foreign import capi "value EPROGMISMATCH"   ePROGMISMATCH   :: Errno
+foreign import capi "value EPROGUNAVAIL"    ePROGUNAVAIL    :: Errno
+foreign import capi "value EPROTO"          ePROTO          :: Errno
+foreign import capi "value EPROTONOSUPPORT" ePROTONOSUPPORT :: Errno
+foreign import capi "value EPROTOTYPE"      ePROTOTYPE      :: Errno
+foreign import capi "value ERANGE"          eRANGE          :: Errno
+foreign import capi "value EREMCHG"         eREMCHG         :: Errno
+foreign import capi "value EREMOTE"         eREMOTE         :: Errno
+foreign import capi "value EROFS"           eROFS           :: Errno
+foreign import capi "value ERPCMISMATCH"    eRPCMISMATCH    :: Errno
+foreign import capi "value ERREMOTE"        eRREMOTE        :: Errno
+foreign import capi "value ESHUTDOWN"       eSHUTDOWN       :: Errno
+foreign import capi "value ESOCKTNOSUPPORT" eSOCKTNOSUPPORT :: Errno
+foreign import capi "value ESPIPE"          eSPIPE          :: Errno
+foreign import capi "value ESRCH"           eSRCH           :: Errno
+foreign import capi "value ESRMNT"          eSRMNT          :: Errno
+foreign import capi "value ESTALE"          eSTALE          :: Errno
+foreign import capi "value ETIME"           eTIME           :: Errno
+foreign import capi "value ETIMEDOUT"       eTIMEDOUT       :: Errno
+foreign import capi "value ETOOMANYREFS"    eTOOMANYREFS    :: Errno
+foreign import capi "value ETXTBSY"         eTXTBSY         :: Errno
+foreign import capi "value EUSERS"          eUSERS          :: Errno
+foreign import capi "value EWOULDBLOCK"     eWOULDBLOCK     :: Errno
+foreign import capi "value EXDEV"           eXDEV           :: Errno
 
 isValidErrno               :: Errno -> Bool
 isValidErrno (Errno errno)  = errno /= -1
