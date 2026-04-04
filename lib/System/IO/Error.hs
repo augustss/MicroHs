@@ -84,6 +84,7 @@ import Data.Maybe
 import Data.Records   -- needed since we don't import Mhs.Builtin
 import Data.String
 import {-# SOURCE #-} Data.Typeable
+import Foreign.C.Types (CInt)
 import System.IO.Internal
 import Text.Show
 
@@ -103,7 +104,7 @@ data IOException
      ioe_type     :: IOErrorType,    -- ^ what it was.
      ioe_location :: String,         -- ^ location.
      ioe_description :: String,      -- ^ error type specific information.
-     ioe_errno    :: Maybe Int,      -- ^ errno leading to this error, if any.
+     ioe_errno    :: Maybe CInt,     -- ^ errno leading to this error, if any.
      ioe_filename :: Maybe FilePath  -- ^ filename the error is related to
                                      --   (some libraries may assume different encodings
                                      --   when constructing this field from e.g. 'ByteString'

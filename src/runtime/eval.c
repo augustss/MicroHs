@@ -79,7 +79,7 @@ extern char **environ;          /* should probably be behind some WANT_ */
 #if !defined(WANT_ERRNO)
 #define WANT_ERRNO 0
 #else
-#include <errno.h>
+#include "ffi_errno.c"
 #endif
 
 #define NEED_INT64 (WANT_INT64 && WORD_SIZE == 32)
@@ -945,7 +945,7 @@ init_stableptr(void)
   sp_table = mmalloc(sp_capacity * sizeof(NODEPTR)); /* stable pointer table, all free */
   for (size_t i = 0; i < sp_capacity; i++)
     sp_table[i] = NIL;
-}  
+}
 
 static uvalue_t
 new_stableptr(NODEPTR n)
@@ -1106,7 +1106,7 @@ int
 find_and_unlink(struct mqueue *mq, struct mthread *mt)
 {
   struct mthread **mtp;
-  
+
   for(mtp = &mq->mq_head; *mtp && *mtp != mt; mtp = &(*mtp)->mt_queue)
     ;
   if (!*mtp)
@@ -1270,7 +1270,7 @@ yield(void)
   COUNT(num_yield);
   runq.mq_head->mt_num_slices++;
   // XXX should check mt_thrown here
-  
+
   if (timeq.mq_head)
     check_timeq();
   check_thrown(false);
@@ -1355,7 +1355,7 @@ new_mvar(void)
   mv->mv_next = all_mvars;
   mv->mv_mark = false;
   all_mvars = mv;
-  
+
 #if THREAD_DEBUG
   if (thread_trace)
     printf("new_mvar: mvar=%p\n", mv);
@@ -1565,7 +1565,7 @@ thread_delay(uvalue_t usecs)
   if (!mt->mt_queue)            /* no forward link */
     timeq.mq_tail = mt;
   resched(mt, ts_wait_time);
-#endif  
+#endif
 }
 
 /* Pause execution if something might still happen */
@@ -2385,7 +2385,7 @@ sweep_weaks(void)
     }
   }
 
-  /* If a weak pointer object is unreferenced and it has been finalized, 
+  /* If a weak pointer object is unreferenced and it has been finalized,
    * then it can be garbage collected. */
   for (struct weak_ptr **wpp = &allweaks; *wpp; ) {
     struct weak_ptr *wp = *wpp;
@@ -2466,7 +2466,7 @@ mark_thread(struct mthread *mt)
   mt->mt_mark = true;
   if (mt->mt_root != NIL)
     mark(&mt->mt_root);
-  mark_mvar(mt->mt_exn);         
+  mark_mvar(mt->mt_exn);
   if (mt->mt_mval != NIL)
     mark(&mt->mt_mval);
 }
@@ -2484,7 +2484,7 @@ mark_mvar(struct mvar *mv)
   for (struct mthread *mt = mv->mv_read.mq_head; mt; mt = mt->mt_queue)
     mark_thread(mt);
 }
-  
+
 /*
  * Only allow GC reductions when the node is not near the top of the stack.
  * The reason is that when GC is triggered we are just starting a reduction
@@ -2589,7 +2589,7 @@ mark(NODEPTR *np)
           GCREDIND(x);
         }
 
-        if(funt == T_CC && argt == T_I && gc_red_ok(n)) { 
+        if(funt == T_CC && argt == T_I && gc_red_ok(n)) {
           /* C' I --> C */
           SETTAG(n, T_C);
           COUNT(red_cci);
@@ -2600,7 +2600,7 @@ mark(NODEPTR *np)
           NODEPTR funarg = indir(&FUN(arg));
           NODEPTR argarg = indir(&ARG(arg));
           if (GETTAG(argarg) == T_P && GETTAG(funarg) == T_AP) {
-            if (GETTAG(indir(&FUN(funarg))) == T_B && GETTAG(indir(&ARG(funarg))) == T_C && gc_red_ok(n)) { 
+            if (GETTAG(indir(&FUN(funarg))) == T_B && GETTAG(indir(&ARG(funarg))) == T_C && gc_red_ok(n)) {
               /* C'B ((B C) P) --> C */
               SETTAG(n, T_C);
               COUNT(red_ccbbcp);
@@ -2609,28 +2609,28 @@ mark(NODEPTR *np)
           }
         }
 
-        if(funt == T_B && argt == T_I && gc_red_ok(n)) { 
+        if(funt == T_B && argt == T_I && gc_red_ok(n)) {
           /* B I --> I */
           SETTAG(n, T_I);
           COUNT(red_bi);
           goto top;
         }
 
-        if(funfunt == T_B && argt == T_I && gc_red_ok(n)) { 
+        if(funfunt == T_B && argt == T_I && gc_red_ok(n)) {
           /* B x I --> x */
           NODEPTR x = ARG(FUN(n));
           COUNT(red_bxi);
           GCREDIND(x);
         }
 
-        if(funfunt == T_CCB && argt == T_I && gc_red_ok(n)) { 
+        if(funfunt == T_CCB && argt == T_I && gc_red_ok(n)) {
           /* C'B x I --> x */
           NODEPTR x = ARG(FUN(n));
           COUNT(red_ccbi);
           GCREDIND(x);
         }
 
-        if(funt == T_C && funargt == T_C && gc_red_ok(n)) { 
+        if(funt == T_C && funargt == T_C && gc_red_ok(n)) {
           /* C (C x) --> x */
           NODEPTR x = ARG(ARG(n));
           COUNT(red_cc);
@@ -2863,7 +2863,7 @@ gc(void)
       mtp = &mt->mt_next;
     }
   }
-  
+
   /* Remove unreferences mvars */
   for (struct mvar **mvp = &all_mvars; *mvp; ) {
     struct mvar *mv = *mvp;
@@ -5326,7 +5326,7 @@ evali(NODEPTR an)
     if (doing_rnf) RET;
     CHKARG1;
     raise_exn(x);               /* never returns */
-    
+
   case T_SPNEW:
     GCCHECK(1);
     CHKARG2;
@@ -5413,7 +5413,7 @@ evali(NODEPTR an)
   case T_IO_STRICT:
     CHKARG2;
     /* Force the world argument before executing the IO.
-     * IO.strict io World = seq World (io World) 
+     * IO.strict io World = seq World (io World)
      */
     (void)evali(y);             /* evaluate the world */
     GOAP(x, y);                 /* and run IO computation */
@@ -6522,7 +6522,7 @@ MHS_INIT_ARGS(
       fseek(f, 0, SEEK_END);
       *file_sizep = ftell(f);   /* find its size */
       rewind(f);
-    
+
       bf = add_FILE(f);
 #else
       ERR("no stdio");
@@ -6557,7 +6557,7 @@ MHS_INIT_ARGS(
   want_gc_red = 0;              /* can be enabled, but it is rarely a win */
   prog = POPTOP();
   return prog;
-}  
+}
 
 void
 mhs_init(void)
@@ -7186,15 +7186,6 @@ from_t mhs_mpz_log2(int s) {
 #if WANT_TIME
 from_t mhs_gettimeofday(int s) { return mhs_from_Int(s, 2, gettimeofday(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 #endif
-#if WANT_ERRNO
-from_t mhs_E2BIG(int s) { return mhs_from_Int(s, 0, E2BIG); }
-from_t mhs_EAGAIN(int s) { return mhs_from_Int(s, 0, EAGAIN); }
-from_t mhs_EINTR(int s) { return mhs_from_Int(s, 0, EINTR); }
-from_t mhs_EINVAL(int s) { return mhs_from_Int(s, 0, EINVAL); }
-from_t mhs_EWOULDBLOCK(int s) { return mhs_from_Int(s, 0, EWOULDBLOCK); }
-from_t mhs_addr_errno(int s) { return mhs_from_Ptr(s, 0, &errno); }
-from_t mhs_strerror_r(int s) { return mhs_from_Int(s, 3, strerror_r(mhs_to_Int(s, 0), mhs_to_Ptr(s, 1), mhs_to_Word(s, 2))); }
-#endif
 
 const struct ffi_entry ffi_table[] = {
   { "GETRAW", 0, mhs_GETRAW},
@@ -7404,10 +7395,104 @@ const struct ffi_entry ffi_table[] = {
 #endif
 #if WANT_ERRNO
   { "E2BIG", 0, mhs_E2BIG},
+  { "EACCES", 0, mhs_EACCES},
+  { "EADDRINUSE", 0, mhs_EADDRINUSE},
+  { "EADDRNOTAVAIL", 0, mhs_EADDRNOTAVAIL},
+  { "EADV", 0, mhs_EADV},
+  { "EAFNOSUPPORT", 0, mhs_EAFNOSUPPORT},
   { "EAGAIN", 0, mhs_EAGAIN},
+  { "EALREADY", 0, mhs_EALREADY},
+  { "EBADF", 0, mhs_EBADF},
+  { "EBADMSG", 0, mhs_EBADMSG},
+  { "EBADRPC", 0, mhs_EBADRPC},
+  { "EBUSY", 0, mhs_EBUSY},
+  { "ECHILD", 0, mhs_ECHILD},
+  { "ECOMM", 0, mhs_ECOMM},
+  { "ECONNABORTED", 0, mhs_ECONNABORTED},
+  { "ECONNREFUSED", 0, mhs_ECONNREFUSED},
+  { "ECONNRESET", 0, mhs_ECONNRESET},
+  { "EDEADLK", 0, mhs_EDEADLK},
+  { "EDESTADDRREQ", 0, mhs_EDESTADDRREQ},
+  { "EDIRTY", 0, mhs_EDIRTY},
+  { "EDOM", 0, mhs_EDOM},
+  { "EDQUOT", 0, mhs_EDQUOT},
+  { "EEXIST", 0, mhs_EEXIST},
+  { "EFAULT", 0, mhs_EFAULT},
+  { "EFBIG", 0, mhs_EFBIG},
+  { "EFTYPE", 0, mhs_EFTYPE},
+  { "EHOSTDOWN", 0, mhs_EHOSTDOWN},
+  { "EHOSTUNREACH", 0, mhs_EHOSTUNREACH},
+  { "EIDRM", 0, mhs_EIDRM},
+  { "EILSEQ", 0, mhs_EILSEQ},
+  { "EINPROGRESS", 0, mhs_EINPROGRESS},
   { "EINTR", 0, mhs_EINTR},
   { "EINVAL", 0, mhs_EINVAL},
+  { "EIO", 0, mhs_EIO},
+  { "EISCONN", 0, mhs_EISCONN},
+  { "EISDIR", 0, mhs_EISDIR},
+  { "ELOOP", 0, mhs_ELOOP},
+  { "EMFILE", 0, mhs_EMFILE},
+  { "EMLINK", 0, mhs_EMLINK},
+  { "EMSGSIZE", 0, mhs_EMSGSIZE},
+  { "EMULTIHOP", 0, mhs_EMULTIHOP},
+  { "ENAMETOOLONG", 0, mhs_ENAMETOOLONG},
+  { "ENETDOWN", 0, mhs_ENETDOWN},
+  { "ENETRESET", 0, mhs_ENETRESET},
+  { "ENETUNREACH", 0, mhs_ENETUNREACH},
+  { "ENFILE", 0, mhs_ENFILE},
+  { "ENOBUFS", 0, mhs_ENOBUFS},
+  { "ENODATA", 0, mhs_ENODATA},
+  { "ENODEV", 0, mhs_ENODEV},
+  { "ENOENT", 0, mhs_ENOENT},
+  { "ENOEXEC", 0, mhs_ENOEXEC},
+  { "ENOLCK", 0, mhs_ENOLCK},
+  { "ENOLINK", 0, mhs_ENOLINK},
+  { "ENOMEM", 0, mhs_ENOMEM},
+  { "ENOMSG", 0, mhs_ENOMSG},
+  { "ENONET", 0, mhs_ENONET},
+  { "ENOPROTOOPT", 0, mhs_ENOPROTOOPT},
+  { "ENOSPC", 0, mhs_ENOSPC},
+  { "ENOSR", 0, mhs_ENOSR},
+  { "ENOSTR", 0, mhs_ENOSTR},
+  { "ENOSYS", 0, mhs_ENOSYS},
+  { "ENOTBLK", 0, mhs_ENOTBLK},
+  { "ENOTCONN", 0, mhs_ENOTCONN},
+  { "ENOTDIR", 0, mhs_ENOTDIR},
+  { "ENOTEMPTY", 0, mhs_ENOTEMPTY},
+  { "ENOTSOCK", 0, mhs_ENOTSOCK},
+  { "ENOTSUP", 0, mhs_ENOTSUP},
+  { "ENOTTY", 0, mhs_ENOTTY},
+  { "ENXIO", 0, mhs_ENXIO},
+  { "EOPNOTSUPP", 0, mhs_EOPNOTSUPP},
+  { "EPERM", 0, mhs_EPERM},
+  { "EPFNOSUPPORT", 0, mhs_EPFNOSUPPORT},
+  { "EPIPE", 0, mhs_EPIPE},
+  { "EPROCLIM", 0, mhs_EPROCLIM},
+  { "EPROCUNAVAIL", 0, mhs_EPROCUNAVAIL},
+  { "EPROGMISMATCH", 0, mhs_EPROGMISMATCH},
+  { "EPROGUNAVAIL", 0, mhs_EPROGUNAVAIL},
+  { "EPROTO", 0, mhs_EPROTO},
+  { "EPROTONOSUPPORT", 0, mhs_EPROTONOSUPPORT},
+  { "EPROTOTYPE", 0, mhs_EPROTOTYPE},
+  { "ERANGE", 0, mhs_ERANGE},
+  { "EREMCHG", 0, mhs_EREMCHG},
+  { "EREMOTE", 0, mhs_EREMOTE},
+  { "EROFS", 0, mhs_EROFS},
+  { "ERPCMISMATCH", 0, mhs_ERPCMISMATCH},
+  { "ERREMOTE", 0, mhs_ERREMOTE},
+  { "ESHUTDOWN", 0, mhs_ESHUTDOWN},
+  { "ESOCKTNOSUPPORT", 0, mhs_ESOCKTNOSUPPORT},
+  { "ESPIPE", 0, mhs_ESPIPE},
+  { "ESRCH", 0, mhs_ESRCH},
+  { "ESRMNT", 0, mhs_ESRMNT},
+  { "ESTALE", 0, mhs_ESTALE},
+  { "ETIME", 0, mhs_ETIME},
+  { "ETIMEDOUT", 0, mhs_ETIMEDOUT},
+  { "ETOOMANYREFS", 0, mhs_ETOOMANYREFS},
+  { "ETXTBSY", 0, mhs_ETXTBSY},
+  { "EUSERS", 0, mhs_EUSERS},
   { "EWOULDBLOCK", 0, mhs_EWOULDBLOCK},
+  { "EXDEV", 0, mhs_EXDEV},
   { "&errno", 0, mhs_addr_errno},
   { "strerror_r", 3, mhs_strerror_r},
 #endif
