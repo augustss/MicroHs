@@ -95,9 +95,9 @@ import System.IO.Unsafe(unsafePerformIO)
 newtype Errno = Errno CInt
 
 instance Eq Errno where
-  errno1@(Errno no1) == errno2@(Errno no2)
-    | isValidErrno errno1 && isValidErrno errno2 = no1 == no2
-    | otherwise                                  = False
+  errno1@(Errno no1) == Errno no2
+    | isValidErrno errno1 = no1 == no2
+    | otherwise           = False
 
 eOK :: Errno
 eOK = Errno 0
@@ -333,16 +333,16 @@ throwErrnoPathIfMinus1_  = throwErrnoPathIf_ (== (-1))
 
 
 foreign import ccall "string.h strerror_r"
-    c_strerror_r :: CInt -> CString -> CSize -> IO CInt
+    c_strerror_r :: Errno -> CString -> CSize -> IO CInt
 
 errnoToString :: Errno -> IO String
-errnoToString (Errno errno) =
-    allocaBytes 512 $ \ ptr -> do
-        ret <- c_strerror_r errno ptr (CSize 512)
+errnoToString errno =
+    allocaBytes len $ \ ptr -> do
+        ret <- c_strerror_r errno ptr (CSize len)
         if ret /= 0
           then return "errnoToString failed"
           else peekCString ptr
-  where len = 512::Int
+  where len :: (Num a => a); len = 512
 
 errnoToIOError  :: String       -- ^ the location where the error occurred
                 -> Errno        -- ^ the error number
