@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeFamilies #-}
 module TypeFam where
 import Data.Typeable
+{-
 
 type family ItemS l
 
@@ -59,23 +60,42 @@ nonEq = [nonInj1, nonInj2]
 
 nonInjInt :: NonInj Bool Int
 nonInjInt = 1
+-}
 
-{-
+
 type family Inj a = r | r -> a
 type instance Inj Int = Bool
 
-ty :: forall a . Typeable a => Inj a -> TypeRep
-ty _ = typeOf @a undefined
--}
+ity :: forall a . Typeable a => Inj a -> TypeRep
+ity _ = typeOf @a undefined
 
+itr :: TypeRep
+itr = ity True
+
+{-
 type family CTF a where
   CTF Int = Bool
   CTF Bool = Int
   CTF a = a
 
+--------------
+
+type family TFH a :: Type -> Type where
+  TFH Int = Either Int
+  TFH Bool = (,) Int
+
+tfh1 :: TFH Int Bool
+tfh1 = Right True
+tfh2 :: TFH Bool Char
+tfh2 = (1, 'a')
+-}
+
+--------------
+
 main :: IO ()
 main = do
   let l = [1,3,2] :: [Int]
+{-
   print (fromListS l :: [Int])
   print (fromListS l :: ListInt)
   print (fromList l :: [Int])
@@ -84,3 +104,5 @@ main = do
   print (42 :: CTF Bool)
   print (() :: CTF ())
 --  print (ty True)
+-}
+  return ()

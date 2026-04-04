@@ -3894,15 +3894,15 @@ solveGen uniq noAtoms fds insts loc iCls cts = do
 --  tcTrace ("solveGen: matches bestMatches=" ++ showListS showMatch matches)
   case matches of
     []              -> return Nothing
-    [(de, ctx, is)] ->
+    [(de, ctx, imps)] ->
       if null ctx then
-        return $ Just (de, [], is)
+        return $ Just (de, [], imps)
       else do
         d <- newDictIdent loc
 --        tcTrace ("constraint " ++ showIdent di ++ " :: " ++ showEType ct ++ "\n" ++
 --                "   turns into " ++ showIdent d ++ " :: " ++ showEType (tupleConstraints ctx) ++ ", " ++
 --                showIdent di ++ " = " ++ showExpr (EApp de (EVar d)))
-        return $ Just (EApp de (EVar d), [(d, tupleConstraints ctx)], is)
+        return $ Just (EApp de (EVar d), [(d, tupleConstraints ctx)], imps)
     _ -> tcError loc $ "Multiple constraint solutions for: " ++ showEType (tApps iCls cts)
 --                     ++ show (map fst matches)
 
@@ -3918,21 +3918,41 @@ solveTypeEq loc _iCls [t1, t2] = do
   fams <- gets typeFamTable
   ft1 <- redTypeFam fams t1
   ft2 <- redTypeFam fams t2
-  -- If either type is a unification variable, just do the unification.
-  if isEUVar t1 || isEUVar t2 then
-    return $ Just (ETuple [], [], [(loc, ft1, ft2)])
-   else do
-    eqs <- gets typeEqTable
-    --tcTrace ("solveTypeEq eqs=" ++ show eqs)
-    case solveEq eqs ft1 ft2 of
-      Nothing -> return Nothing
-      Just tts -> do
-        let mkEq (u1, u2) = do
-              i <- newDictIdent loc
-              return (i, mkEqType loc u1 u2)
-        ncs <- mapM mkEq tts
-        return $ Just (ETuple [], ncs, [])
+  b1 <- redTypeFamEq fams ft1 ft2
+  if b1 then return $ Just (ETuple [], [], []) else do
+   b2 <- redTypeFamEq fams ft2 ft1
+   if b2 then return $ Just (ETuple [], [], []) else do
+
+    -- If either type is a unification variable, just do the unification.
+    if isEUVar t1 || isEUVar t2 then
+      return $ Just (ETuple [], [], [(loc, ft1, ft2)])
+     else do
+      eqs <- gets typeEqTable
+      --tcTrace ("solveTypeEq eqs=" ++ show eqs)
+      case solveEq eqs ft1 ft2 of
+        Nothing -> return Nothing
+        Just tts -> do
+          let mkEq (u1, u2) = do
+                i <- newDictIdent loc
+                return (i, mkEqType loc u1 u2)
+          ncs <- mapM mkEq tts
+          return $ Just (ETuple [], ncs, [])
 solveTypeEq _ _ _ = impossible
+
+-- Reduce type families everywhere
+redTypeFamEq :: TypeFamTable -> EType -> EType -> T Bool
+redTypeFamEq tf t1 t2 = spine t1 []
+  where spine :: EType -> [EType] -> T Bool
+        spine (EVar f) ts = do
+          case M.lookup f tf of
+            Nothing -> return False             -- it's not a type family, so do nothing
+            Just tfi ->
+              isJust <$> redTypeFam'' (getSLoc t1) tfi ts t2
+        spine (EApp f a) ts = do
+          a' <- redTypeFam tf a
+          spine f (a' : ts)
+        spine _ _ =
+          return False
 
 -- Reduce type families everywhere
 redTypeFam :: TypeFamTable -> EType -> T EType
@@ -3949,30 +3969,40 @@ redTypeFam tf t = spine t []
         spine f ts =
           return $ eApps f ts
 
+-- Try reducing a single type familty application.
 redTypeFam' :: TypeFamTable -> Ident -> [EType] -> T (Maybe EType)
 redTypeFam' tf f as = do
   let loc = getSLoc f
-  res <- newIdent loc "$res"
   case M.lookup f tf of
     Nothing -> return Nothing             -- it's not a type family, so do nothing
     Just tfi -> do
-      case redTypeFam'' loc tfi as res of
-        r | trace ("redTypeFam' " ++ show (f, as, r)) False -> undefined
-        [] -> return Nothing              -- no matching equations
-        (t, _imp) : xs | tfAper tfi == TFClosedSet || null xs -> return (Just t)  -- XXX use _imp
-        _ -> tcError loc "Multiple matching type family equations"
+      res <- newUVar
+      redTypeFam'' loc tfi as res
 
-redTypeFam'' :: SLoc -> TypeFamInfo -> [EType] -> Ident -> [(EType, [Improve])]
-redTypeFam'' loc tfi as res = do
+redTypeFam'' :: SLoc -> TypeFamInfo -> [EType] -> EType -> T (Maybe EType)
+redTypeFam'' loc tfi as res =
+  case redTypeFam''' loc tfi as res of
+    [] -> return Nothing              -- no matching equations
+    (_t, imps, xas) : xs | tfAper tfi == TFClosedSet || null xs -> do
+      mapM_ (\ (l, a, b) -> unify l a b) imps
+      t' <- derefUVar res
+      let t'' = eApps t' xas
+      traceM $ "redTypeFam' match " ++ show (_t, t'', imps)
+      when (not (eqEType t'' _t)) undefined
+      return (Just _t) 
+    _ -> tcError loc "Multiple matching type family equations"
+
+redTypeFam''' :: SLoc -> TypeFamInfo -> [EType] -> EType -> [(EType, [Improve], [EType])]
+redTypeFam''' loc tfi as res = do
   let las = length as
-      red :: TFEqn -> Maybe (EType, [Improve])
+      red :: TFEqn -> Maybe (EType, [Improve], [EType])
       red (ps, rhs) | lps > las = Nothing
                     | otherwise = do
                       let (as', as'') = splitAt lps as
                       let xxx :: [Maybe (TySubst, [Improve])]
-                          xxx = map (matchTypesFD loc (ps ++ [rhs]) (as' ++ [EVar res])) (tfIFunDeps tfi)
+                          xxx = map (matchTypesFD loc (ps ++ [rhs]) (as' ++ [res])) (tfIFunDeps tfi)
                       (s, imp) <- asum $ xxx
-                      pure (eApps (substEUVar s rhs) as'', imp)
+                      pure (eApps (substEUVar s rhs) as'', imp, as'')
         where lps = length ps
 --  traceM $ "redTypeFam' " ++ show (f, tfi, tfEqns tfi, map red (tfEqns tfi))
    in  mapMaybe red (tfEqns tfi)
@@ -4099,12 +4129,14 @@ matchTypesAny :: SLoc -> [EType] -> [EType] -> [IFunDep] -> Maybe (TySubst, [Imp
 matchTypesAny _   ts ts' []  = (\ s -> (s, [])) <$> matchTypes ts ts'   -- Simple special case when there are no fundeps.
 matchTypesAny loc ts ts' fds = asum $ map (matchTypesFD loc ts ts') fds
 
+-- Match two lists of types (must be the same length).
+-- The first one is a 'pattern' and type variables get instantiated.
 matchTypesFD :: SLoc -> [EType] -> [EType] -> IFunDep -> Maybe (TySubst, [Improve])
 --matchTypesFD _ ts ts' io | trace ("matchTypesFD: " ++ show (ts, ts', io)) False = undefined
 matchTypesFD loc ts ts' (ins, outs) = do
   let matchFD :: Bool -> EType -> EType -> Maybe TySubst
       matchFD True  = \ _ _ -> Just []     -- if it's an output, don't match
-      matchFD False = matchType []          -- match types for non-outputs
+      matchFD False = matchType []         -- match types for non-outputs
   tms <- sequence $ zipWith3 matchFD outs ts ts'
   tm  <- combineTySubsts tms               -- combine all substitutions
   is  <- combineTySubsts [ s | (True, s) <- zip ins tms]  -- subst from input FDs
