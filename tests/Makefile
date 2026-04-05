@@ -120,6 +120,7 @@ test:
 	$(TMHS) Builder    && $(EVAL) > Builder.out    && diff Builder.ref Builder.out
 	$(TMHS) Unboxed    && $(EVAL) > Unboxed.out    && diff Unboxed.ref Unboxed.out
 	$(TMHS) LazyST     && $(EVAL) > LazyST.out     && diff LazyST.ref LazyST.out
+	$(TMHS) Errno	   && $(EVAL) > Errno.out	   && diff Errno.ref Errno.out
 	$(TMHS) TypeSyn    && $(EVAL) > TypeSyn.out    && diff TypeSyn.ref TypeSyn.out
 	$(TMHS) TypeFam    && $(EVAL) > TypeFam.out    && diff TypeFam.ref TypeFam.out
 
