@@ -69,14 +69,14 @@ type IdentModule = Ident
 ----------------------
 
 data EModule = EModule IdentModule [ExportItem] [EDef]
---DEBUG  deriving (Show)
+  deriving (Show)
 
 data ExportItem
   = ExpModule IdentModule
   | ExpTypeSome Ident [Ident]
   | ExpValue Ident
   | ExpDefault Ident
---DEBUG  deriving (Show)
+  deriving (Show)
 
 data EDef
   = Data LHS [Constr] [Deriving]
@@ -98,7 +98,7 @@ data EDef
   | DfltSign Ident EType                      -- only in class declarations
   -- Only used by interactive system to load a cached TCState to avoid import processing
   | SetTCState TCState
---DEBUG  deriving (Show)
+  deriving (Show)
 
 instance NFData EDef where
   rnf (Data a b c) = rnf a `seq` rnf b `seq` rnf c
@@ -121,7 +121,7 @@ instance NFData EDef where
   rnf (SetTCState a) = seq a ()
 
 data ImpType = ImpNormal | ImpBoot
-  deriving (Eq)
+  deriving (Eq, Show)
 
 instance NFData ImpType where rnf x = x `seq` ()
 
@@ -131,7 +131,7 @@ data CallConv = Cccall | Ccapi | Cjavascript
 instance NFData CallConv where rnf x = x `seq` ()
 
 data ImportSpec = ImportSpec ImpType Bool Ident (Maybe Ident) (Maybe (Bool, [ImportItem]))  -- first Bool indicates 'qualified', second 'hiding'
---DEBUG  deriving (Show)
+  deriving (Show)
 
 instance NFData ImportSpec where
   rnf (ImportSpec a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
@@ -140,7 +140,7 @@ data ImportItem
   = ImpTypeSome Ident [Ident]
   | ImpTypeAll Ident
   | ImpValue Ident
---DEBUG  deriving (Show)
+  deriving (Show)
 
 instance NFData ImportItem where
   rnf (ImpTypeSome a b) = rnf a `seq` rnf b
@@ -148,7 +148,7 @@ instance NFData ImportItem where
   rnf (ImpValue a) = rnf a
 
 data Deriving = Deriving DerStrategy [(Int, EConstraint)] -- The Int is added by the type checker, it indicates how many arguments to keep
---DEBUG  deriving (Show)
+  deriving (Show)
 
 instance NFData Deriving where
   rnf (Deriving a b) = rnf a `seq` rnf b
@@ -159,7 +159,7 @@ data DerStrategy
   | DerNewtype
   | DerAnyClass
   | DerVia EType
---  deriving (Show)
+  deriving (Show)
 
 instance NFData DerStrategy where
   rnf (DerVia a) = rnf a
@@ -204,7 +204,7 @@ data Expr
   | EQVar Expr EType             -- already resolved identifier
   -- only after type checking
   | ECon Con
---DEBUG  deriving (Show)
+  deriving (Show)
 
 instance NFData Expr where
   rnf (EVar a) = rnf a
@@ -237,6 +237,7 @@ instance NFData Expr where
   rnf (ECon a) = rnf a
 
 data QForm = QImpl | QExpl | QReqd
+  deriving (Show)
 
 instance NFData QForm where
   rnf q = seq q ()
@@ -245,7 +246,7 @@ data EField
   = EField [Ident] Expr     -- a.b = e
   | EFieldPun [Ident]       -- a.b
   | EFieldWild              -- ..
---DEBUG  deriving (Show)
+  deriving (Show)
 
 instance NFData EField where
   rnf (EField a b) = rnf a `seq` rnf b
@@ -279,7 +280,7 @@ data Con
   = ConData ConTyInfo Ident [FieldName]
   | ConNew Ident [FieldName]
   | ConSyn Ident Int (Expr, EType)
---DEBUG  deriving(Show)
+  deriving(Show)
 
 instance NFData Con where
   rnf (ConData a b c) = rnf a `seq` rnf b `seq` rnf c
@@ -293,7 +294,7 @@ data Listish
   | LFromTo Expr Expr
   | LFromThen Expr Expr
   | LFromThenTo Expr Expr Expr
---DEBUG  deriving(Show)
+  deriving(Show)
 
 instance NFData Listish where
   rnf (LList a) = rnf a
@@ -340,8 +341,7 @@ data Lit
   | LForImp ImpEnt String CType
   | LCType CType            -- used for foreign export
   | LTick String
---DEBUG  deriving (Show)
-  deriving (Eq)
+  deriving (Eq, Show)
 
 instance NFData Lit where
   rnf (LInt a) = rnf a
@@ -361,6 +361,7 @@ instance NFData Lit where
 
 -- A type of a C FFI function
 newtype CType = CType EType
+  deriving (Show)
 
 instance Eq CType where
   _ == _  =  True    -- Just ignore the CType
@@ -373,7 +374,7 @@ data ImpEnt
   | ImpDynamic
   | ImpWrapper
   | ImpJS String
-  deriving (Eq)
+  deriving (Eq, Show)
 
 instance NFData ImpEnt where
   rnf (ImpStatic a b c) = rnf a `seq` rnf b `seq` rnf c
@@ -382,7 +383,7 @@ instance NFData ImpEnt where
   rnf (ImpJS s) = rnf s
 
 data ImpVal = IPtr | IValue | IFunc
-  deriving (Eq)
+  deriving (Eq, Show)
 
 instance NFData ImpVal where
   rnf a = seq a ()
@@ -392,7 +393,7 @@ instance NFData ImpVal where
 type ECaseArm = (EPat, EAlts)
 
 data EStmt = SBind EPat Expr | SThen Expr | SLet [EBind] | SRec [EStmt]
---DEBUG  deriving (Show)
+  deriving (Show)
 
 instance NFData EStmt where
   rnf (SBind a b) = rnf a `seq` rnf b
@@ -404,13 +405,13 @@ type EBind = EDef   -- subset with Fcn, PatBind, Sign, and DfltSign
 
 -- A single equation for a function
 data Eqn = Eqn [EPat] EAlts
---DEBUG  deriving (Show)
+  deriving (Show)
 
 instance NFData Eqn where
   rnf (Eqn a b) = rnf a `seq` rnf b
 
 data EAlts = EAlts [EAlt] [EBind]
---DEBUG  deriving (Show)
+  deriving (Show)
 
 instance NFData EAlts where
   rnf (EAlts a b) = rnf a `seq` rnf b
@@ -461,7 +462,7 @@ data Constr = Constr
   Ident                           -- constructor name
   Bool                            -- if the constructor is written in infix notation
   (Either [SType] [ConstrField])  -- types or named fields
---  deriving(Show)
+  deriving(Show)
 
 instance NFData Constr where
   rnf (Constr a b c d e) = rnf a `seq` rnf b `seq` rnf c `seq` rnf d `seq` rnf e
@@ -477,7 +478,7 @@ type EType = Expr
 type EConstraint = EType
 
 data IdKind = IdKind Ident EKind
---DEBUG  deriving (Show)
+  deriving (Show)
 
 --PP instance Show IdKind where
 --  show (IdKind i k) = "(" ++ show i ++ "::" ++ show k ++ ")"
@@ -644,8 +645,7 @@ instance HasLoc a => HasLoc (a, b) where
 ---------------------------------
 
 data Assoc = AssocLeft | AssocRight | AssocNone
---DEBUG  deriving (Show)
-  deriving (Eq)
+  deriving (Eq, Show)
 
 type Fixity = (Assoc, Int)
 

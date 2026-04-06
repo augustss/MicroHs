@@ -160,6 +160,7 @@ data TCState = TC {
   constraints :: Constraints,           -- constraints that have to be solved
   defaults    :: Defaults               -- current defaults
   }
+instance Show TCState where show _ = "<TCState>"
 
 instTable :: TCState -> InstTable
 instTable tc = case ctxTables tc of (x,_,_,_) -> x
