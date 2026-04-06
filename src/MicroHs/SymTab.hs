@@ -25,6 +25,7 @@ import MicroHs.Expr(Expr(..), EType, conIdent)
 import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent, isUpperX)
 import MicroHs.List
 import qualified MicroHs.IdentMap as M
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 -- Symbol table
 --
@@ -36,7 +37,7 @@ data Entry = Entry
 --  deriving(Show)
 
 instance Show Entry where
-  showsPrec _ (Entry e t) = shows e . showString " :: " . shows t
+  show (Entry e t) = prettyShow e ++ " :: " ++ prettyShow t
 
 instance Eq Entry where
   Entry x _ == Entry y _  =  getIdent x == getIdent y

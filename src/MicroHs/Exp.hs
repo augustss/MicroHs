@@ -10,7 +10,7 @@ module MicroHs.Exp(
   lams, apps,
   mkForExp, getForExp,
   ) where
-import qualified Prelude(); import MHSPrelude hiding((<>))
+import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
 import MicroHs.Ident

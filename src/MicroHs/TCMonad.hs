@@ -267,7 +267,7 @@ getAppCon :: HasCallStack => EType -> Ident
 getAppCon (EVar i) = i
 getAppCon (ECon i) = conIdent i
 getAppCon (EApp f _) = getAppCon f
-getAppCon e = error $ "getAppCon: " ++ show e
+getAppCon e = error $ "getAppCon: " ++ showExpr e
 
 -----------------------------------------------
 

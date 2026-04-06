@@ -256,7 +256,7 @@ dsExpr aexpr =
               body = encTuple $ map Var xs
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
-    _ -> impossibleShow aexpr
+    _ -> impossiblePP aexpr
   where addLoc i = EApp (EVar i) (ELit l (LStr (show l ++ ": "))) where l = getSLoc i
         iapp = mkIdent "Data.List_Type.++"
 
@@ -527,7 +527,7 @@ pConOf apat =
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
-    _ -> impossibleShow apat
+    _ -> impossiblePP apat
 
 pArgs :: EPat -> [EPat]
 pArgs apat =

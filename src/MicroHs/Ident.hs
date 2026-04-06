@@ -24,7 +24,7 @@ module MicroHs.Ident(
   ) where
 import qualified Prelude(); import MHSPrelude hiding(head)
 import Data.Char
-import Text.PrettyPrint.HughesPJLite
+import Text.PrettyPrint.HughesPJLiteClass
 import MicroHs.List(dropEnd)
 
 import Data.Text(Text, pack, unpack, append, head, cons)
@@ -105,6 +105,9 @@ setSLocIdent l (Ident _ s) = Ident l s
 
 showIdent :: Ident -> String
 showIdent (Ident _ i) = unpack i
+
+instance Pretty Ident where
+  pPrintPrec _ _ = ppIdent
 
 ppIdent :: Ident -> Doc
 ppIdent (Ident _ i) = text $ unpack i

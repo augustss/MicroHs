@@ -14,6 +14,7 @@ import MicroHs.List
 import MicroHs.Expr hiding (getSLoc)
 import qualified MicroHs.Expr as E
 import MicroHs.Ident
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 --import Debug.Trace
 
 -- Hugs can't define the efficient *>
@@ -27,14 +28,14 @@ infixl 4 *>, <*
 
 type P a = Prsr LexState Token a
 
-parseDie :: forall a . (Show a) =>
+parseDie :: forall a . -- (Show a) =>
             P a -> FilePath -> String -> a
 parseDie p fn file =
   case parse p fn file of
     Left msg -> mhsError msg
     Right a -> a
 
-parse :: forall a . (Show a) =>
+parse :: forall a . -- (Show a) =>
          P a -> FilePath -> String -> Either String a
 parse p fn file =
   let { ts = lexTopLS fn file } in
@@ -476,7 +477,7 @@ dsGADT (tnm, vks) (cnm, es, ctx, stys, rty) =
             mtch (IdKind i _) (EVar i') | not (isConIdent i') = Just (i', EVar i)
             mtch _ _ = Nothing
             kind = map (\ i -> IdKind i (EVar dummyIdent))
-    _ -> errorMessage (E.getSLoc rty) $ "Bad GADT result type " ++ show (rty, tnm, vks)
+    _ -> errorMessage (E.getSLoc rty) $ "Bad GADT result type " ++ prettyShow (rty, tnm, vks)
 
 pDerivings :: P [Deriving]
 pDerivings = many pDeriving

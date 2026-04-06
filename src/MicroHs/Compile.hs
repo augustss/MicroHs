@@ -48,6 +48,7 @@ import MicroHs.StateIO
 import MicroHs.SymTab
 import MicroHs.TCMonad(TCState)
 import MicroHs.TypeCheck
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 import Paths_MicroHs(version, getDataDir)
 
 mhsVersion :: String
@@ -206,7 +207,7 @@ compileModule flags impt mn pathfn file = do
   let pmdl@(EModule mnn _ _) = parseDie pTop pathfn file
   t2 <- liftIO (seq pmdl getTimeMilli)
   dumpIf flags Dparse $
-    liftIO $ putStrLn $ "parsed:\n" ++ show pmdl
+    liftIO $ putStrLn $ "parsed:\n" ++ prettyShow pmdl
   when (isNothing (getFileName mn) && mn /= mnn) $
     mhsError $ "module name does not agree with file name: " ++ showIdent mn ++ " " ++ showIdent mnn
   ((dmdl, syms, imported, tTCDesug, tImp), _) <- compileModuleP flags impt (addPreludeImport pmdl)

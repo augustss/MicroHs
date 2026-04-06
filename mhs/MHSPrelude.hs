@@ -26,6 +26,7 @@ module MHSPrelude(
   module Data.Ratio,
   module Data.Real,
   module Data.Records,
+  module Data.Semigroup,
   module Data.String,
   module Data.Tuple,
   module Data.Typeable,
@@ -77,6 +78,7 @@ import Data.Ord(Ord(..), Ordering(..))
 import Data.Ratio(Rational)
 import Data.Real(Real(..))
 import Data.Records  -- needed for data types with fields
+import Data.Semigroup
 import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Tuple(fst, snd, curry, uncurry)
 import System.IO.Base(IO, putChar, putStr, putStrLn, print, getLine, getContents, interact,
