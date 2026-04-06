@@ -16,7 +16,7 @@ import Data.List
 import MicroHs.Ident
 import MicroHs.Expr(Lit(..), showLit, CType(..))
 import MicroHs.List
-import Text.PrettyPrint.HughesPJLite
+import Text.PrettyPrint.HughesPJLiteClass
 import Debug.Trace
 
 type PrimOp = String
@@ -40,8 +40,11 @@ app2 f a1 a2 = App (App f a1) a2
 app3 :: Exp -> Exp -> Exp -> Exp -> Exp
 app3 f a1 a2 a3 = App (app2 f a1 a2) a3
 
-instance Show Exp where
-  show = render . ppExp
+--instance Show Exp where
+--  show = render . ppExp
+
+instance Pretty Exp where
+  pPrintPrec _ _ = ppExp
 
 ppExp :: Exp -> Doc
 ppExp ae =

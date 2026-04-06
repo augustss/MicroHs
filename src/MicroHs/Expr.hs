@@ -480,9 +480,6 @@ type EConstraint = EType
 data IdKind = IdKind Ident EKind
   deriving (Show)
 
---PP instance Show IdKind where
---  show (IdKind i k) = "(" ++ show i ++ "::" ++ show k ++ ")"
-
 instance Pretty IdKind where
   pPrintPrec l p (IdKind i k) = maybeParens (p < 0) $ pPrintPrec l (-1) i <+> text "::" <+> pPrintPrec l (-1) k
 
@@ -838,26 +835,6 @@ instance Pretty ExportItem where
 instance Pretty Eqn where
   pPrintPrec l _ eqn = ppEqns l (text "_") (text "=") [eqn]
 
-{-PP
-instance Show EModule where
-  show (EModule nm es ds) = "module " ++ showIdent nm ++ "(" ++ concatMap ((++ ", ") . show) es ++ ") where\n" ++ showEDefs ds
-
-instance Show ExportItem where
-  show (ExpModule m) = "module " ++ showIdent m
-  show (ExpTypeSome i is) = showIdent i ++ "(" ++ intercalate "," (map showIdent is) ++ ")"
-  show (ExpValue i) = showIdent i
-  show (ExpDefault i) = "default " ++ showIdent i
-
-instance Show Expr where
-  show = showExpr
-
-instance Show Eqn where
-  show eqn = render $ ppEqns (text "_") (text "=") [eqn]
-
-instance Show EDef where
-  show d = showEDefs [d]
--}
-
 showExpr :: Expr -> String
 showExpr = render . ppExpr
 
@@ -1162,11 +1139,11 @@ impossible = error "impossible"
 
 impossibleShow :: forall a b .
                   (HasCallStack, Show a, HasLoc a) => a -> b
-impossibleShow a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ show a
+impossibleShow a = error $ "impossible: " ++ prettyShow (getSLoc a) ++ " " ++ show a
 
 impossiblePP :: forall a b .
                   (HasCallStack, Pretty a, HasLoc a) => a -> b
-impossiblePP a = error $ "impossible: " ++ show (getSLoc a) ++ " " ++ prettyShow a
+impossiblePP a = error $ "impossible: " ++ prettyShow (getSLoc a) ++ " " ++ prettyShow a
 
 -----------
 
@@ -1188,7 +1165,7 @@ mkEStr loc str = ESign (ELit loc (LStr str)) $ EListish $ LList [EVar $ mkBuilti
 -- Make a call to generate an exception with location info
 mkExn :: SLoc -> String -> String -> Expr
 mkExn loc msg exn =
-  let str = mkEStr loc $ msg ++ ", at " ++ show loc
+  let str = mkEStr loc $ msg ++ ", at " ++ prettyShow loc
       fn  = ELit loc $ LExn $ "Control.Exception.Internal." ++ exn
   in  EApp fn str
 

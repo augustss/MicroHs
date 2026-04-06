@@ -37,6 +37,7 @@ import MicroHs.Names
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
+import Text.PrettyPrint.HughesPJLiteClass
 import Debug.Trace
 
 --primitiveKinds :: [String]
@@ -1756,9 +1757,15 @@ tcKind mk = assertTCMode (==TCType) . withTypeTable . tcKindT mk
 data Expected = Infer TRef | Check EType
 --  deriving(Show)
 
+{-
 instance Show Expected where
   show (Infer r) = "(Infer " ++ show r ++ ")"
   show (Check t) = "(Check " ++ showExpr t ++ ")"
+-}
+instance Pretty Expected where
+  pPrintPrec l _ (Infer r) = parens $ text "Infer" <+> pPrint0 l r
+  pPrintPrec l _ (Check t) = parens $ text "Check" <+> pPrint0 l t
+
 
 tInfer :: forall a b . HasCallStack =>
           (Expected -> a -> T b) -> a -> T (Typed b)
@@ -2086,7 +2093,7 @@ tcExprR mt ae =
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
     ETypeArg _ ->
         tcError loc "Bad type application"
-    _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ showExpr ae
+    _ -> error $ "tcExpr: cannot handle: " ++ prettyShow (getSLoc ae) ++ " " ++ showExpr ae
       -- impossible
 
 -- We need to use a case expression to do record updated if
@@ -2824,7 +2831,7 @@ tcPat mt ae =
           true = eTrue loc
       tcPat mt $ EViewPat orFun true
 
-    _ -> error $ "tcPat: not handled " ++ show (getSLoc ae) ++ " " ++ showExpr ae
+    _ -> error $ "tcPat: not handled " ++ prettyShow (getSLoc ae) ++ " " ++ showExpr ae
 
 -- The expected type is for (eApps afn (reverse args))
 tcPatAp :: HasCallStack =>

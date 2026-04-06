@@ -13,14 +13,15 @@ import Data.ByteString.Internal(ByteString)
 import Data.Maybe
 import Data.String
 import Unsafe.Coerce
-import PrimTable
 
+import PrimTable
 import MicroHs.Desugar(LDef, encodeInteger)
 import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.ExpPrint(encodeString)
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 translateAndRun :: ([LDef], Exp) -> IO ()
 translateAndRun defs = do
@@ -62,7 +63,7 @@ trans r ae =
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
     Lit f@(LForImp _ _ _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr (drop 1 $ showLit f))))
-    _ -> error $ "trans: impossible: " ++ show ae
+    _ -> error $ "trans: impossible: " ++ prettyShow ae
 
 -- Use linear search in this table.
 -- 99% of the hits are among the combinators.

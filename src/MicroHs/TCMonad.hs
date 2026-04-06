@@ -63,9 +63,7 @@ data TypeExport = TypeExport
   Ident           -- unqualified name
   Entry           -- symbol table entry
   [ValueExport]   -- associated values, i.e., constructors, selectors, methods
---  deriving (Show)
-
---instance Show TypeExport where show (TypeExport i _ vs) = showIdent i ++ show vs
+  deriving (Show)
 
 instance NFData TypeExport where
   rnf (TypeExport a b c) = rnf a `seq` rnf b `seq` rnf c
@@ -73,9 +71,7 @@ instance NFData TypeExport where
 data ValueExport = ValueExport
   Ident           -- unqualified name
   Entry           -- symbol table entry
---  deriving (Show)
-
---instance Show ValueExport where show (ValueExport i _) = showIdent i
+  deriving (Show)
 
 instance NFData ValueExport where
   rnf (ValueExport a b) = rnf a `seq` rnf b
