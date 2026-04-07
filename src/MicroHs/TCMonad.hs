@@ -107,7 +107,7 @@ data InstInfo = InstInfo
        (M.Map Expr)               -- map for direct lookup of atomic types
        [InstDict]                 -- slow path
        [IFunDep]
---  deriving (Show)
+  deriving (Show)
 
 instance NFData InstInfo where
   rnf (InstInfo a b c) = rnf a `seq` rnf b `seq` rnf c
@@ -120,6 +120,9 @@ type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint, [IFunDep])
 -- The types and constraint can be instantiated by providing a starting TRef
 type InstDict   = (Expr, TRef -> ([EConstraint], [EType]))
 
+instance Show (TRef -> ([EConstraint], [EType])) where
+  show _ = "<<fcn>>"
+
 -- All known type equalities, normalized into a substitution.
 type TypeEqTable = [(Ident, EType)]
 
@@ -129,6 +132,7 @@ data ClassInfo = ClassInfo
   EType            -- class constructor type
   [(Ident,EType)]  -- methods with their types
   [IFunDep]        -- fundeps
+  deriving (Show)
 type IFunDep = ([Bool], [Bool])           -- invariant: the length of the lists is the number of class tyvars
 
 instance NFData ClassInfo where
@@ -156,7 +160,7 @@ data TCState = TC {
   constraints :: Constraints,           -- constraints that have to be solved
   defaults    :: Defaults               -- current defaults
   }
-instance Show TCState where show _ = "<TCState>"
+  deriving (Show)
 
 instTable :: TCState -> InstTable
 instTable tc = case ctxTables tc of (x,_,_,_) -> x

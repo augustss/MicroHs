@@ -70,7 +70,7 @@ data SymTab = SymTab {
   _uglb :: M.Map [Entry],        -- unqualified globals
   _qglb :: M.Map [Entry]         -- qualified globals
   }
---  deriving(Show)
+  deriving(Show)
 
 {-
 instance Show SymTab where

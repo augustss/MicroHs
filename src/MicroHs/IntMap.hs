@@ -11,6 +11,8 @@ data IntMap a
   | Leaf Int a
   | Node (IntMap a) (IntMap a) (IntMap a) (IntMap a)
   --Xderiving (Show)
+instance Show a => Show (IntMap a) where
+  showsPrec p m = showParen (p > 0) $ showsPrec 10 (toList m)
 
 {-
 -- This works for y>0
