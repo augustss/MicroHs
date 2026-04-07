@@ -8,7 +8,7 @@ import Data.Num
 import Data.Real
 import {-# SOURCE #-} Data.Typeable
 
-class  (Ord a, Real a, Fractional a) => RealFrac a  where
+class  (Real a, Fractional a) => RealFrac a  where
   properFraction :: (Integral b) => a -> (b,a)
   truncate       :: (Integral b) => a -> b
   round          :: (Integral b) => a -> b

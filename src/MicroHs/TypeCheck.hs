@@ -37,6 +37,7 @@ import MicroHs.Names
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
+import Text.PrettyPrint.HughesPJLiteClass
 import Debug.Trace
 
 --primitiveKinds :: [String]
@@ -335,9 +336,10 @@ mkTCState mdlName globs mdls =
 mergeDefaults :: Defaults -> Defaults -> Defaults
 mergeDefaults ds = foldr (uncurry $ M.insertWith mrg) ds . M.toList
   where mrg :: [EType] -> [EType] -> [EType]
-        mrg ts ts' | not (any (\ t -> not (elemBy eqEType t ts)) ts') = ts
-                   | not (any (\ t -> not (elemBy eqEType t ts')) ts) = ts'
-                   | otherwise = []
+        mrg ts ts' | all (\ t -> elemBy eqEType t ts) ts' = ts
+                   | any (\ t -> elemBy eqEType t ts') ts = ts'
+                   | otherwise = []  -- If neither module's default subsumes the other
+                                     -- then use empty defaults, as per spec.
 
 mergeInstInfo :: InstInfo -> InstInfo -> InstInfo
 mergeInstInfo (InstInfo m1 l1 fds) (InstInfo m2 l2 _) =
@@ -638,7 +640,7 @@ expandSyn at = do
     chk (EVar i) =
       case M.lookup i syns of
         Nothing -> return ()
-        _ -> tcError (getSLoc i) $ "bad synonym use: " ++ show i ++ " in " ++ show at
+        _ -> tcError (getSLoc i) $ "bad synonym use: " ++ showIdent i ++ " in " ++ showEType at
     chk (EUVar _) = return ()
     chk (EForall _ _ t) = chk t
     chk (ELit _ _) = return ()
@@ -681,7 +683,7 @@ expandSyn' syns = esyn
         EForall b iks tt | null ts -> EForall b iks (esyn tt)
         ELit _ (LStr _) -> t
         ELit _ (LInteger _) -> t
-        _ -> impossibleShow t
+        _ -> impossiblePP t
 
 
 mapEType :: (EType -> EType) -> EType -> EType
@@ -959,9 +961,7 @@ tcDefs flags impt ds = do
   dst <- tcDefsType ds                                -- kind check type definitions
 --  tcTrace ("tcDefs 2:\n" ++ showEDefs dst)
   mapM_ addTypeAndData dst                            -- add typedefinitions to the symbol table
-  dste <- tcExpandClassInst impt dst                  -- expand class&instance, do deriving
-  dumpIf flags Dderive $
-    tcTrace' $ "expanded:\n" ++ showEDefs dste
+  dste <- tcExpandClassInst flags impt dst            -- expand class&instance, do deriving
 --  tcTrace ("tcDefs 3:\n" ++ showEDefs dste)
   setDefault dste                                     -- set current defaults
   dste' <- tcDefsValue dste                           -- type check all value definitions
@@ -1030,8 +1030,8 @@ getKindSigns ds = do
   return $ M.fromList iks'
 
 -- Expand class and instance definitions (must be done after type synonym processing).
-tcExpandClassInst :: ImpType -> [EDef] -> T [EDef]
-tcExpandClassInst impt dst = do
+tcExpandClassInst :: Flags -> ImpType -> [EDef] -> T [EDef]
+tcExpandClassInst flags impt dst = do
   dsf <- withTypeTable $ do
     dsc <- concat <$> mapM expandClass dst              -- Expand all class definitions
     concat <$> mapM expandField dsc                     -- Add HasField instances
@@ -1040,7 +1040,12 @@ tcExpandClassInst impt dst = do
     case impt of
       ImpBoot -> return dsf
       ImpNormal -> concat <$> mapM doDeriving dsf       -- Add derived instances
-  concat <$> mapM expandInst dsd                        -- Expand all instance definitions
+  dumpIf flags Dderive $
+    tcTrace' $ "derived:\n" ++ showEDefs dsd
+  res <- concat <$> mapM expandInst dsd                        -- Expand all instance definitions
+  dumpIf flags DexpandInst $
+    tcTrace' $ "expanded:\n" ++ showEDefs res
+  return res
 
 -- Check&rename the given kinds, also insert the type variables in the symbol table.
 withVks :: forall a . HasCallStack => [IdKind] -> ([IdKind] -> T a) -> T a
@@ -1660,7 +1665,7 @@ tcDefValue adef =
       ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
       t'' <- withNewtypeAsSyns (expandSyn t')
       let e'' = eLetB (eBinds ds) e'
-      pure $ ForExp cc (Just $ fromMaybe (show e) ms) e'' t''
+      pure $ ForExp cc (Just $ fromMaybe (showExpr e) ms) e'' t''
     Pattern{} -> impossible
     _ -> return adef
 
@@ -1704,7 +1709,7 @@ tcPatSyn _ = impossible
 addForall :: QForm -> EType -> T EType
 addForall _ t@EForall{} = return t
 addForall expl t = do
-  bvs <- stKeysLcl <$> gets valueTable         -- bound outside
+  bvs <- stKeysU <$> gets valueTable           -- bound outside
   let fvs = freeTyVars [t]                     -- free variables in t
       -- these are free, and need quantification.  eDummy indicates missing kind
       iks = map (\ i -> IdKind i eDummy) (fvs \\ bvs)
@@ -1752,9 +1757,15 @@ tcKind mk = assertTCMode (==TCType) . withTypeTable . tcKindT mk
 data Expected = Infer TRef | Check EType
 --  deriving(Show)
 
+{-
 instance Show Expected where
   show (Infer r) = "(Infer " ++ show r ++ ")"
-  show (Check t) = "(Check " ++ show t ++ ")"
+  show (Check t) = "(Check " ++ showExpr t ++ ")"
+-}
+instance Pretty Expected where
+  pPrintPrec l _ (Infer r) = parens $ text "Infer" <+> pPrint0 l r
+  pPrintPrec l _ (Check t) = parens $ text "Check" <+> pPrint0 l t
+
 
 tInfer :: forall a b . HasCallStack =>
           (Expected -> a -> T b) -> a -> T (Typed b)
@@ -2082,7 +2093,7 @@ tcExprR mt ae =
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
     ETypeArg _ ->
         tcError loc "Bad type application"
-    _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
+    _ -> error $ "tcExpr: cannot handle: " ++ prettyShow (getSLoc ae) ++ " " ++ showExpr ae
       -- impossible
 
 -- We need to use a case expression to do record updated if
@@ -2171,8 +2182,8 @@ tcExprAp mt ae args = do
     EApp f a -> tcExprAp mt f (a : args)
     EParen f -> tcExprAp mt f args
     EOper e ies -> tcOper e ies >>= \ eop -> tcExprAp mt eop args
-    EVar i | isIdent dictPrefixDollar i -> impossibleShow ae
-           | isDummyIdent i -> impossibleShow ae
+    EVar i | isIdent dictPrefixDollar i -> impossiblePP ae
+           | isDummyIdent i -> impossiblePP ae
            | otherwise -> do
              -- Type checking an expression (or type)
              (fn, t) <- tLookupV i
@@ -2195,7 +2206,7 @@ tcExprAp mt ae args = do
       tcExprApFn mt f t args
 
 data AnArg = ArgExpr Expr EType | ArgCtx EConstraint
-  deriving Show
+--  deriving Show
 
 -- Instantiate a function, but delay generating the dictionaries.
 -- When generating the dictionaries here (like tInst) there
@@ -2227,8 +2238,8 @@ tcExprApFn mt fn atfn aargs = do
             loop ats aas ft'
           AConstaint ctx ft ->
             loop (ArgCtx ctx : ats) aas ft
-          ARet -> do
-            (at, rt) <- unArrow loc aft
+          ARet aft' -> do
+            (at, rt) <- unArrow loc aft'
             --traceM ("ARet " ++ show (at, rt))
             loop (ArgExpr a at : ats) as rt
         where useType i k t ft = do
@@ -2357,10 +2368,8 @@ dsPatBind b = return [b]
 patBindPrefix :: String
 patBindPrefix = "pb"
 
-{-
 isPatBindVar :: Ident -> Bool
 isPatBindVar = isPrefixOf (patBindPrefix ++ uniqIdentSep) . unIdent
--}
 
 getAts :: EPat -> ([Ident], EPat)
 getAts (EAt x p) = (x:xs, p') where (xs, p') = getAts p
@@ -2403,7 +2412,7 @@ dsEFields apat =
     EParen p -> dsEFields p
     ENegApp _ -> return apat
     EOr ps -> EOr <$> mapM dsEFields ps
-    _ -> error $ "dsEFields " ++ show apat
+    _ -> error $ "dsEFields " ++ showExpr apat
 
 unsetField :: Ident -> Expr
 unsetField i = mkExn (getSLoc i) (unIdent i) "recConError"
@@ -2537,7 +2546,7 @@ data Arg
   = AReqd         IdKind      EType       -- forall ->
   | AForall QForm [IdKind]    EType       -- forall .
   | AConstaint    EConstraint EType       -- =>
-  | ARet                                  -- none of the above
+  | ARet                      EType       -- none of the above
 --  deriving Show
 
 nextArg :: EType -> Arg
@@ -2545,7 +2554,7 @@ nextArg (EForall _ []  t)                  = nextArg t
 nextArg (EForall QReqd (ik:iks) t)         = AReqd ik (EForall QReqd iks t)
 nextArg (EForall q     iks      t)         = AForall q iks t
 nextArg t | Just (ctx, t') <- getImplies t = AConstaint ctx t'
-          | otherwise                      = ARet
+          | otherwise                      = ARet t
 
 tcExprLam :: HasCallStack => Expected -> SLoc -> [Eqn] -> T Expr
 tcExprLam mt loc qs = do
@@ -2615,11 +2624,13 @@ tcPats at pps ta =
         case ds of
           [] -> return eqn
           _  -> return $ addSolved ds eqn
-    ARet | p:ps <- pps -> do
-      (tp, tr) <- unArrow (getSLoc p) at
-      -- tCheckPatC dicts used in tcAlt solve
-      tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
-         | otherwise -> ta at []   -- base case, no more arguments, explicit or implicit
+    ARet at' -> 
+      case pps of
+        p:ps -> do
+          (tp, tr) <- unArrow (getSLoc p) at'
+          -- tCheckPatC dicts used in tcAlt solve
+          tCheckPatC tp p $ \ p' -> tcPats tr ps $ \ t' ps' -> ta t' (p' : ps')
+        [] -> ta at' []   -- base case, no more arguments, explicit or implicit
 
 
 tcAlts :: HasCallStack => EType -> EAlts -> T EAlts
@@ -2820,7 +2831,7 @@ tcPat mt ae =
           true = eTrue loc
       tcPat mt $ EViewPat orFun true
 
-    _ -> error $ "tcPat: not handled " ++ show (getSLoc ae) ++ " " ++ show ae
+    _ -> error $ "tcPat: not handled " ++ prettyShow (getSLoc ae) ++ " " ++ showExpr ae
 
 -- The expected type is for (eApps afn (reverse args))
 tcPatAp :: HasCallStack =>
@@ -2838,7 +2849,7 @@ tcPatAp mt args afn =
 
     EParen e -> tcPatAp mt args e
 
-    _ -> tcError (getSLoc afn) ("Bad pattern " ++ show afn)
+    _ -> tcError (getSLoc afn) ("Bad pattern " ++ showExpr afn)
 
 tcPatApCon :: Expected -> [EPat] -> EPat -> EType -> T EPatRet
 tcPatApCon mt args con xpt = do
@@ -2861,7 +2872,7 @@ tcPatApCon mt args con xpt = do
       case xpt of
          -- Sanity check
          EForall _ _ EForall{} -> return ()
-         _ -> impossibleShow con
+         _ -> impossiblePP con
       EForall _ avs apt <- tInst' xpt
 
       (sks, spt) <- shallowSkolemise avs apt
@@ -2875,7 +2886,7 @@ tcPatApCon mt args con xpt = do
       let ary = arity pf
             where arity (ECon c) = conArity c
                   arity (EApp f _) = arity f - 1  -- deal with dictionary added above
-                  arity e = impossibleShow e
+                  arity e = impossiblePP e
       checkArity ary
 
       let step [] t r = return (t, r)
@@ -2929,9 +2940,9 @@ tcBindGrp' :: [EBind] -> T [EBind]
 tcBindGrp' bs = do
 --  traceM $ "tcBindGrp start: " ++ show (getSLoc bs, bs)
   let def (Fcn i _) = do t <- newUVar; return (i, t)
-      def d = impossibleShow d
-  xts <- mapM def bs                    -- add temporary types
+      def d = impossiblePP d
   oldState <- get
+  xts <- mapM def bs                    -- add temporary types
   extVals xts                           -- Extend the symbol table with the temporary types.
                                         -- These will be removed by the 'withExtVals' in 'tcBinds'
   bs' <- mapM tcBind bs                 -- type check bindings
@@ -2939,8 +2950,11 @@ tcBindGrp' bs = do
   --   first test for monomorphism restriction (cheap),
   --   next test if there are any new type variables in the return type (a little more expensive),
   --   finally test for type variables in the environment (expensive).
-  if not (all isSynFcn bs') then        -- monomorphism restriction, also ensures pattern bindings are not polymorphic
-    return bs'
+  -- Ensure pattern bindings are not polymorphic
+  let isDsPatBind (Fcn i _) = isPatBindVar i
+      isDsPatBind _ = False
+  if any isDsPatBind bs' then do
+     return bs'
    else do
     fvs <- getMetaTyVars (map snd xts)  -- all unification variables used in return type
     let u = unique oldState             -- first of the new type variables
@@ -2961,7 +2975,9 @@ tcBindGrp' bs = do
        let ctx = nubBy eqEType $
                  filter (\ c -> not $ null $ intersect qvs' (metaTvs [c])) cs
        let multiParam ct = length (snd (getApp ct)) /= 1
-       if any multiParam ctx then       -- temporary workaround for
+       if any multiParam ctx ||       -- temporary workaround for
+          -- Overloaded bind: fallback to monomorphic behavior
+          not (null ctx) && not (all isSynFcn bs') then
          return bs'
         else do
 --        traceM $ "tcBindGrp: u=" ++ show u ++ " xts=" ++ show xts ++ " ts'=" ++ show ts' ++ " cs=" ++ show cs
@@ -3042,7 +3058,7 @@ dsType at =
     ELit _ (LStr _) -> at
     ELit _ (LInteger _) -> at
     EQVar _ _ -> at
-    _ -> impossibleShow at
+    _ -> impossiblePP at
 
 tListI :: SLoc -> Ident
 tListI loc = mkIdentSLoc loc nameList
@@ -3369,7 +3385,7 @@ splitPatSynType (EForall _ vks1 t0)
   | Just  (ctx1, EForall _ vks2 t1) <- getImplies t0
   , Just  (ctx2, ty) <- getImplies t1
   = (vks1, ctx1, vks2, ctx2, ty)
-splitPatSynType t = impossibleShow t
+splitPatSynType t = impossiblePP t
 
 -----
 
@@ -3397,7 +3413,7 @@ expandDict' avks actx edict acc = do
           when (isConIdent iCls) $
             --impossible
             -- XXX it seems we can get here, e.g., Control.Monad.Fail without Applicative import
-            impossibleShow (acc, iCls)
+            impossiblePP (acc, iCls)
           return [(edict, vks, ctx, cc, [])]
         Just (ClassInfo iks sups _ _ fds) -> do
           let
@@ -3491,7 +3507,7 @@ getSuperClasses ais = do
         case M.lookup i ct of
           Nothing -> error $ "getSuperClasses: " ++ show i
           Just (ClassInfo _ supers _ _ _) ->
-            loop done (concatMap flatten supers ++ is)
+            loop (i:done) (concatMap flatten supers ++ is)
       flatten a =
         case getApp a of
           (c, ts) ->
@@ -3833,6 +3849,8 @@ combineTySubsts = combs []
 
 -- Get the best matches.  These are the matches with the smallest substitution.
 -- Always prefer arguments rather than global instances.
+-- If there are multiple alternatives with the args, just pick one.
+-- This can arise from diamonds in the superclass chain.
 getBestMatches :: [(Int, (Expr, [EConstraint], [Improve]))] -> [(Expr, [EConstraint], [Improve])]
 getBestMatches [] = []
 getBestMatches ams =
@@ -3842,7 +3860,7 @@ getBestMatches ams =
       pick ms =
         let b = minimum (map fst ms)         -- minimum substitution size
         in  [ ec | (s, ec) <- ms, s == b ]   -- pick out the smallest
-  in  if null args then pick insts else pick args
+  in  if null args then pick insts else take 1 (pick args)
 
 -- Check that there are no unsolved constraints.
 checkConstraints :: HasCallStack => T ()
@@ -3854,7 +3872,7 @@ checkConstraints = do
       t' <- derefUVar t
 --      is <- gets instTable
 --      tcTrace $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> show i ++ ":\n" ++ showInstInfo ii) (M.toList is))
-      tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ show t'
+      tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ showExpr t'
                             ++ "\n     fully qualified: " ++ showExprRaw t'
 
 -- Add a type equality constraint.

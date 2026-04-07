@@ -63,9 +63,7 @@ data TypeExport = TypeExport
   Ident           -- unqualified name
   Entry           -- symbol table entry
   [ValueExport]   -- associated values, i.e., constructors, selectors, methods
---  deriving (Show)
-
---instance Show TypeExport where show (TypeExport i _ vs) = showIdent i ++ show vs
+  deriving (Show)
 
 instance NFData TypeExport where
   rnf (TypeExport a b c) = rnf a `seq` rnf b `seq` rnf c
@@ -73,9 +71,7 @@ instance NFData TypeExport where
 data ValueExport = ValueExport
   Ident           -- unqualified name
   Entry           -- symbol table entry
---  deriving (Show)
-
---instance Show ValueExport where show (ValueExport i _) = showIdent i
+  deriving (Show)
 
 instance NFData ValueExport where
   rnf (ValueExport a b) = rnf a `seq` rnf b
@@ -111,7 +107,7 @@ data InstInfo = InstInfo
        (M.Map Expr)               -- map for direct lookup of atomic types
        [InstDict]                 -- slow path
        [IFunDep]
---  deriving (Show)
+  deriving (Show)
 
 instance NFData InstInfo where
   rnf (InstInfo a b c) = rnf a `seq` rnf b `seq` rnf c
@@ -124,6 +120,9 @@ type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint, [IFunDep])
 -- The types and constraint can be instantiated by providing a starting TRef
 type InstDict   = (Expr, TRef -> ([EConstraint], [EType]))
 
+instance Show (TRef -> ([EConstraint], [EType])) where
+  show _ = "<<fcn>>"
+
 -- All known type equalities, normalized into a substitution.
 type TypeEqTable = [(Ident, EType)]
 
@@ -133,6 +132,7 @@ data ClassInfo = ClassInfo
   EType            -- class constructor type
   [(Ident,EType)]  -- methods with their types
   [IFunDep]        -- fundeps
+  deriving (Show)
 type IFunDep = ([Bool], [Bool])           -- invariant: the length of the lists is the number of class tyvars
 
 instance NFData ClassInfo where
@@ -160,6 +160,7 @@ data TCState = TC {
   constraints :: Constraints,           -- constraints that have to be solved
   defaults    :: Defaults               -- current defaults
   }
+  deriving (Show)
 
 instTable :: TCState -> InstTable
 instTable tc = case ctxTables tc of (x,_,_,_) -> x
@@ -267,7 +268,7 @@ getAppCon :: HasCallStack => EType -> Ident
 getAppCon (EVar i) = i
 getAppCon (ECon i) = conIdent i
 getAppCon (EApp f _) = getAppCon f
-getAppCon e = error $ "getAppCon: " ++ show e
+getAppCon e = error $ "getAppCon: " ++ showExpr e
 
 -----------------------------------------------
 

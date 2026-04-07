@@ -35,7 +35,7 @@ static int
 getraw(void)
 {
   struct termios old, new;
-  char c;
+  unsigned char c;
   int r;
 
 #if defined(USE_SYSTEM_RAW)

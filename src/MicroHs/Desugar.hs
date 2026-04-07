@@ -25,6 +25,7 @@ import MicroHs.List
 import MicroHs.Names
 import MicroHs.State as S
 import MicroHs.TypeCheck
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 type LDef = (Ident, Exp)
 
@@ -256,8 +257,8 @@ dsExpr aexpr =
               body = encTuple $ map Var xs
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
-    _ -> impossibleShow aexpr
-  where addLoc i = EApp (EVar i) (ELit l (LStr (show l ++ ": "))) where l = getSLoc i
+    _ -> impossiblePP aexpr
+  where addLoc i = EApp (EVar i) (ELit l (LStr (prettyShow l ++ ": "))) where l = getSLoc i
         iapp = mkIdent "Data.List_Type.++"
 
 dsCompr :: Expr -> [EStmt] -> Expr -> Expr
@@ -309,7 +310,7 @@ showLDefs = unlines . map showLDef
 showLDef :: LDef -> String
 showLDef a =
   case a of
-    (i, e) -> showIdent i ++ " = " ++ show e
+    (i, e) -> showIdent i ++ " = " ++ prettyShow e
 
 ----------------
 
@@ -474,7 +475,7 @@ mkCase var pes dflt =
 eMatchErr :: SLoc -> Exp
 eMatchErr loc =
   let exn = mkIdentSLoc loc "Control.Exception.Internal.patternMatchFail"
-      msg = LStr $ show loc
+      msg = LStr $ prettyShow loc
   in  App (Var exn) (Lit msg)
 
 -- If the first expression isn't a variable/literal, then use
@@ -527,7 +528,7 @@ pConOf apat =
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
-    _ -> impossibleShow apat
+    _ -> impossiblePP apat
 
 pArgs :: EPat -> [EPat]
 pArgs apat =
@@ -609,9 +610,9 @@ lazier def = def
 -- "wrapper"
 -- When the calling convention is ccall the 'expr' has to be a name,
 -- with capi it can be any C expression.
-parseImpEnt :: SLoc -> CallConv -> String -> ImpEnt
-parseImpEnt _ Cjavascript s = ImpJS s
-parseImpEnt loc _cc s =
+parseImpEnt :: SLoc -> CallConv -> String -> String -> ImpEnt
+parseImpEnt _ Cjavascript _ s = ImpJS s
+parseImpEnt loc _cc ui s =
   case words s of
     ["dynamic"] -> ImpDynamic
     ["wrapper"] -> ImpWrapper
@@ -623,6 +624,7 @@ parseImpEnt loc _cc s =
        rest' c ['&'     : r] = rest'' (c IPtr) [r]
        rest' c ("value" : r) = rest'' (c IValue) [unwords r]
        rest' c r             = rest'' (c IFunc) r
+       rest'' c [] = c ui
        rest'' c [n] = c n
        rest'' _ _ = badForImp loc
 
@@ -637,14 +639,11 @@ mkForImp no cc ms i ty =
       ui  = unIdent (unQualIdent i)
       isValidC (c:cs) = isAlpha c && all (\ d -> isAlphaNum d || d == '_') cs
       isValidC _ = False
-  in  case ms of
-        Nothing -> LForImp (ImpStatic [] IFunc ui) ui cty
-        Just s  ->
-          let impent = parseImpEnt loc cc s
-              fno = show no
-              cid =
-                case impent of
-                  ImpStatic _ _ n ->
-                    if isValidC n then n else fno
-                  _ -> fno
-          in  LForImp impent cid cty
+      impent = parseImpEnt loc cc ui $ fromMaybe "" ms
+      fno = show no
+      cid =
+        case impent of
+          ImpStatic _ _ n ->
+            if isValidC n then n else fno
+          _ -> fno
+  in  LForImp impent cid cty

@@ -11,6 +11,7 @@ import Data.List
 import Data.Maybe (fromJust)
 import MicroHs.Ident
 import Text.ParserComb(TokenMachine(..))
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 data Token
   = TIdent  SLoc [String] String  -- identifier
@@ -32,7 +33,7 @@ data Token
   | TPragma SLoc String           -- a {-# PRAGMA #-}
   | TEnd    SLoc
   | TRaw [Token]
-  deriving (Show)
+--  deriving (Show)
 
 showToken :: Token -> String
 showToken (TIdent _ ss s) = intercalate "." (ss ++ [s])
@@ -250,7 +251,7 @@ lexLitStr oloc loc mk end post acs = loop loc [] acs
         remGap l rs ('\r':cs) = remGap           l        rs  cs
         remGap l rs (' ' :cs) = remGap (addCol l 1)       rs  cs
         remGap l _         _  = --errorMessage oloc "bad string gap"
-                                mhsError (show l ++ ": bad string gap")
+                                mhsError (prettyShow l ++ ": bad string gap")
 
 decodeEscs :: String -> String
 decodeEscs [] = []

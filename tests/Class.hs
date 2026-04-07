@@ -35,6 +35,21 @@ g x = x /== x
 h :: forall a b . (Eqq a, Eqq b) => a -> b -> Bool
 h a b = a === a && b === b
 
+class A a b where
+  a :: a -> b
+
+class (A a a, A a a) => B1 a where
+  b :: a -> a
+  -- Multiple solutions
+  b = a
+
+class A a b => B a b
+class A a b => C a b
+class (B a b, C a b) => D a b where
+  d :: a -> b
+  -- Multiple solutions
+  d = a
+
 main :: IO ()
 main = do
   print $ f (5::Int)

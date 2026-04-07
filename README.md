@@ -52,11 +52,11 @@ Differences:
    * ConstraintKinds
    * DefaultSignatures
    * DeriveAnyClass
-   * DerivingDataTypeable
-   * DerivingFoldable
-   * DerivingFunctor
+   * DeriveDataTypeable
+   * DeriveFoldable
+   * DeriveFunctor
+   * DeriveTraversable
    * DerivingStrategies
-   * DerivingTraversable
    * DerivingVia
    * DoAndIfThenElse
    * DuplicateRecordFields
@@ -64,23 +64,24 @@ Differences:
    * EmptyDataDecls
    * EmptyDataDeriving
    * ExistentialQuantification
+   * ExplicitForAll
    * ExplicitNamespaces
    * ExtendedDefaultRules
    * ExtraInstanceBindings
    * FlexibleContexts
-   * FlexibleInstance
+   * FlexibleInstances
    * ForeignFunctionInterface
    * FunctionalDependencies
    * GADTs
-   * GADTsyntax
+   * GADTSyntax
    * GeneralizedNewtypeDeriving
-   * ImportShadowing
    * ImportQualifiedPost
+   * ImportShadowing
    * IncoherentInstances
    * InstanceSigs
    * KindSignatures
    * LambdaCase
-   * LiberalTypesynonyms
+   * LiberalTypeSynonyms
    * MagicHash
    * MultilineStrings
    * MultiParamTypeClasses
@@ -99,17 +100,18 @@ Differences:
    * PatternSynonyms
    * PolyKinds
    * PolymorphicComponents
+   * QualifiedDo
    * RankNTypes
    * RecordWildCards
    * RecursiveDo (without optimal `mdo` desugaring)
    * RequiredTypeArguments
-   * QualifiedDo
    * ScopedTypeVariables
    * StandaloneDeriving
    * StandaloneKindSignatures
    * TupleSections (only pairs right now)
    * TypeApplications
    * TypeLits
+   * TypeOperators
    * TypeSynonymInstances
    * UndecidableInstances
    * UndecidableSuperClasses

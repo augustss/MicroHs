@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 -- |
--- Module      :  GHC.Internal.Foreign.C.Error
+-- Module      :  Foreign.C.Error
 -- Copyright   :  (c) The FFI task force 2001
 -- License     :  BSD-style (see the file libraries/base/LICENSE)
 --
@@ -17,8 +17,6 @@ module Foreign.C.Error (
 
   Errno(..),
 
-  eOK, e2BIG, eACCES, eAGAIN, eINTR, eINVAL, eNOENT, ePERM, eRANGE, eROFS, eTXTBSY, eWOULDBLOCK,
-{-
   -- ** Common @errno@ symbols
   -- | Different operating systems and\/or C libraries often support
   -- different values of @errno@.  This module defines the common values,
@@ -38,7 +36,7 @@ module Foreign.C.Error (
   eRANGE, eREMCHG, eREMOTE, eROFS, eRPCMISMATCH, eRREMOTE, eSHUTDOWN,
   eSOCKTNOSUPPORT, eSPIPE, eSRCH, eSRMNT, eSTALE, eTIME, eTIMEDOUT,
   eTOOMANYREFS, eTXTBSY, eUSERS, eWOULDBLOCK, eXDEV,
--}
+
   -- ** 'Errno' functions
   isValidErrno,
 
@@ -94,158 +92,120 @@ import System.IO.Base(Handle)
 import System.IO.Error
 import System.IO.Unsafe(unsafePerformIO)
 
-{-
-import GHC.Internal.IO
-import GHC.Internal.IO.Exception
-import GHC.Internal.IO.Handle.Types
-import GHC.Internal.Num
-import GHC.Internal.Base
--}
-
-newtype Errno = Errno Int
+newtype Errno = Errno CInt
 
 instance Eq Errno where
-  errno1@(Errno no1) == errno2@(Errno no2)
-    | isValidErrno errno1 && isValidErrno errno2 = no1 == no2
-    | otherwise                                  = False
+  errno1@(Errno no1) == Errno no2
+    | isValidErrno errno1 = no1 == no2
+    | otherwise           = False
 
-{-
-eOK, e2BIG, eACCES, eADDRINUSE, eADDRNOTAVAIL, eADV, eAFNOSUPPORT, eAGAIN,
-  eALREADY, eBADF, eBADMSG, eBADRPC, eBUSY, eCHILD, eCOMM, eCONNABORTED,
-  eCONNREFUSED, eCONNRESET, eDEADLK, eDESTADDRREQ, eDIRTY, eDOM, eDQUOT,
-  eEXIST, eFAULT, eFBIG, eFTYPE, eHOSTDOWN, eHOSTUNREACH, eIDRM, eILSEQ,
-  eINPROGRESS, eINTR, eINVAL, eIO, eISCONN, eISDIR, eLOOP, eMFILE, eMLINK,
-  eMSGSIZE, eMULTIHOP, eNAMETOOLONG, eNETDOWN, eNETRESET, eNETUNREACH,
-  eNFILE, eNOBUFS, eNODATA, eNODEV, eNOENT, eNOEXEC, eNOLCK, eNOLINK,
-  eNOMEM, eNOMSG, eNONET, eNOPROTOOPT, eNOSPC, eNOSR, eNOSTR, eNOSYS,
-  eNOTBLK, eNOTCONN, eNOTDIR, eNOTEMPTY, eNOTSOCK, eNOTSUP, eNOTTY, eNXIO,
-  eOPNOTSUPP, ePERM, ePFNOSUPPORT, ePIPE, ePROCLIM, ePROCUNAVAIL,
-  ePROGMISMATCH, ePROGUNAVAIL, ePROTO, ePROTONOSUPPORT, ePROTOTYPE,
-  eRANGE, eREMCHG, eREMOTE, eROFS, eRPCMISMATCH, eRREMOTE, eSHUTDOWN,
-  eSOCKTNOSUPPORT, eSPIPE, eSRCH, eSRMNT, eSTALE, eTIME, eTIMEDOUT,
-  eTOOMANYREFS, eTXTBSY, eUSERS, eWOULDBLOCK, eXDEV                    :: Errno
+eOK :: Errno
+eOK = Errno 0
 
-eOK             = Errno 0
-e2BIG           = Errno (CONST_E2BIG)
-eACCES          = Errno (CONST_EACCES)
-eADDRINUSE      = Errno (CONST_EADDRINUSE)
-eADDRNOTAVAIL   = Errno (CONST_EADDRNOTAVAIL)
-eADV            = Errno (CONST_EADV)
-eAFNOSUPPORT    = Errno (CONST_EAFNOSUPPORT)
-eAGAIN          = Errno (CONST_EAGAIN)
-eALREADY        = Errno (CONST_EALREADY)
-eBADF           = Errno (CONST_EBADF)
-eBADMSG         = Errno (CONST_EBADMSG)
-eBADRPC         = Errno (CONST_EBADRPC)
-eBUSY           = Errno (CONST_EBUSY)
-eCHILD          = Errno (CONST_ECHILD)
-eCOMM           = Errno (CONST_ECOMM)
-eCONNABORTED    = Errno (CONST_ECONNABORTED)
-eCONNREFUSED    = Errno (CONST_ECONNREFUSED)
-eCONNRESET      = Errno (CONST_ECONNRESET)
-eDEADLK         = Errno (CONST_EDEADLK)
-eDESTADDRREQ    = Errno (CONST_EDESTADDRREQ)
-eDIRTY          = Errno (CONST_EDIRTY)
-eDOM            = Errno (CONST_EDOM)
-eDQUOT          = Errno (CONST_EDQUOT)
-eEXIST          = Errno (CONST_EEXIST)
-eFAULT          = Errno (CONST_EFAULT)
-eFBIG           = Errno (CONST_EFBIG)
-eFTYPE          = Errno (CONST_EFTYPE)
-eHOSTDOWN       = Errno (CONST_EHOSTDOWN)
-eHOSTUNREACH    = Errno (CONST_EHOSTUNREACH)
-eIDRM           = Errno (CONST_EIDRM)
-eILSEQ          = Errno (CONST_EILSEQ)
-eINPROGRESS     = Errno (CONST_EINPROGRESS)
-eINTR           = Errno (CONST_EINTR)
-eINVAL          = Errno (CONST_EINVAL)
-eIO             = Errno (CONST_EIO)
-eISCONN         = Errno (CONST_EISCONN)
-eISDIR          = Errno (CONST_EISDIR)
-eLOOP           = Errno (CONST_ELOOP)
-eMFILE          = Errno (CONST_EMFILE)
-eMLINK          = Errno (CONST_EMLINK)
-eMSGSIZE        = Errno (CONST_EMSGSIZE)
-eMULTIHOP       = Errno (CONST_EMULTIHOP)
-eNAMETOOLONG    = Errno (CONST_ENAMETOOLONG)
-eNETDOWN        = Errno (CONST_ENETDOWN)
-eNETRESET       = Errno (CONST_ENETRESET)
-eNETUNREACH     = Errno (CONST_ENETUNREACH)
-eNFILE          = Errno (CONST_ENFILE)
-eNOBUFS         = Errno (CONST_ENOBUFS)
-eNODATA         = Errno (CONST_ENODATA)
-eNODEV          = Errno (CONST_ENODEV)
-eNOENT          = Errno (CONST_ENOENT)
-eNOEXEC         = Errno (CONST_ENOEXEC)
-eNOLCK          = Errno (CONST_ENOLCK)
-eNOLINK         = Errno (CONST_ENOLINK)
-eNOMEM          = Errno (CONST_ENOMEM)
-eNOMSG          = Errno (CONST_ENOMSG)
-eNONET          = Errno (CONST_ENONET)
-eNOPROTOOPT     = Errno (CONST_ENOPROTOOPT)
-eNOSPC          = Errno (CONST_ENOSPC)
-eNOSR           = Errno (CONST_ENOSR)
-eNOSTR          = Errno (CONST_ENOSTR)
-eNOSYS          = Errno (CONST_ENOSYS)
-eNOTBLK         = Errno (CONST_ENOTBLK)
-eNOTCONN        = Errno (CONST_ENOTCONN)
-eNOTDIR         = Errno (CONST_ENOTDIR)
-eNOTEMPTY       = Errno (CONST_ENOTEMPTY)
-eNOTSOCK        = Errno (CONST_ENOTSOCK)
-eNOTSUP         = Errno (CONST_ENOTSUP)
--- ^ @since base-4.7.0.0
-eNOTTY          = Errno (CONST_ENOTTY)
-eNXIO           = Errno (CONST_ENXIO)
-eOPNOTSUPP      = Errno (CONST_EOPNOTSUPP)
-ePERM           = Errno (CONST_EPERM)
-ePFNOSUPPORT    = Errno (CONST_EPFNOSUPPORT)
-ePIPE           = Errno (CONST_EPIPE)
-ePROCLIM        = Errno (CONST_EPROCLIM)
-ePROCUNAVAIL    = Errno (CONST_EPROCUNAVAIL)
-ePROGMISMATCH   = Errno (CONST_EPROGMISMATCH)
-ePROGUNAVAIL    = Errno (CONST_EPROGUNAVAIL)
-ePROTO          = Errno (CONST_EPROTO)
-ePROTONOSUPPORT = Errno (CONST_EPROTONOSUPPORT)
-ePROTOTYPE      = Errno (CONST_EPROTOTYPE)
-eRANGE          = Errno (CONST_ERANGE)
-eREMCHG         = Errno (CONST_EREMCHG)
-eREMOTE         = Errno (CONST_EREMOTE)
-eROFS           = Errno (CONST_EROFS)
-eRPCMISMATCH    = Errno (CONST_ERPCMISMATCH)
-eRREMOTE        = Errno (CONST_ERREMOTE)
-eSHUTDOWN       = Errno (CONST_ESHUTDOWN)
-eSOCKTNOSUPPORT = Errno (CONST_ESOCKTNOSUPPORT)
-eSPIPE          = Errno (CONST_ESPIPE)
-eSRCH           = Errno (CONST_ESRCH)
-eSRMNT          = Errno (CONST_ESRMNT)
-eSTALE          = Errno (CONST_ESTALE)
-eTIME           = Errno (CONST_ETIME)
-eTIMEDOUT       = Errno (CONST_ETIMEDOUT)
-eTOOMANYREFS    = Errno (CONST_ETOOMANYREFS)
-eTXTBSY         = Errno (CONST_ETXTBSY)
-eUSERS          = Errno (CONST_EUSERS)
-eWOULDBLOCK     = Errno (CONST_EWOULDBLOCK)
-eXDEV           = Errno (CONST_EXDEV)
--}
-
-eOK, e2BIG, eAGAIN, eINTR, eINVAL, eWOULDBLOCK :: Errno
-eOK         = Errno 0
-e2BIG       = Errno c2BIG;       foreign import capi "value E2BIG"       c2BIG       :: Int
-eACCES      = Errno cACCES;      foreign import capi "value EACCES"      cACCES      :: Int
-eAGAIN      = Errno cAGAIN;      foreign import capi "value EAGAIN"      cAGAIN      :: Int
-eINTR       = Errno cINTR;       foreign import capi "value EINTR"       cINTR       :: Int
-eINVAL      = Errno cINVAL;      foreign import capi "value EINVAL"      cINVAL      :: Int
-eNOENT      = Errno cNOENT;      foreign import capi "value ENOENT"      cNOENT      :: Int
-ePERM       = Errno cPERM;       foreign import capi "value EPERM"       cPERM       :: Int
-eRANGE      = Errno cRANGE;      foreign import capi "value ERANGE"      cRANGE      :: Int
-eROFS       = Errno cROFS;       foreign import capi "value EROFS"       cROFS       :: Int
-eTXTBSY     = Errno cTXTBSY ;    foreign import capi "value ETXTBSY"     cTXTBSY     :: Int
-eWOULDBLOCK = Errno cWOULDBLOCK; foreign import capi "value EWOULDBLOCK" cWOULDBLOCK :: Int
+foreign import capi "value E2BIG"           e2BIG           :: Errno
+foreign import capi "value EACCES"          eACCES          :: Errno
+foreign import capi "value EADDRINUSE"      eADDRINUSE      :: Errno
+foreign import capi "value EADDRNOTAVAIL"   eADDRNOTAVAIL   :: Errno
+foreign import capi "value EADV"            eADV            :: Errno
+foreign import capi "value EAFNOSUPPORT"    eAFNOSUPPORT    :: Errno
+foreign import capi "value EAGAIN"          eAGAIN          :: Errno
+foreign import capi "value EALREADY"        eALREADY        :: Errno
+foreign import capi "value EBADF"           eBADF           :: Errno
+foreign import capi "value EBADMSG"         eBADMSG         :: Errno
+foreign import capi "value EBADRPC"         eBADRPC         :: Errno
+foreign import capi "value EBUSY"           eBUSY           :: Errno
+foreign import capi "value ECHILD"          eCHILD          :: Errno
+foreign import capi "value ECOMM"           eCOMM           :: Errno
+foreign import capi "value ECONNABORTED"    eCONNABORTED    :: Errno
+foreign import capi "value ECONNREFUSED"    eCONNREFUSED    :: Errno
+foreign import capi "value ECONNRESET"      eCONNRESET      :: Errno
+foreign import capi "value EDEADLK"         eDEADLK         :: Errno
+foreign import capi "value EDESTADDRREQ"    eDESTADDRREQ    :: Errno
+foreign import capi "value EDIRTY"          eDIRTY          :: Errno
+foreign import capi "value EDOM"            eDOM            :: Errno
+foreign import capi "value EDQUOT"          eDQUOT          :: Errno
+foreign import capi "value EEXIST"          eEXIST          :: Errno
+foreign import capi "value EFAULT"          eFAULT          :: Errno
+foreign import capi "value EFBIG"           eFBIG           :: Errno
+foreign import capi "value EFTYPE"          eFTYPE          :: Errno
+foreign import capi "value EHOSTDOWN"       eHOSTDOWN       :: Errno
+foreign import capi "value EHOSTUNREACH"    eHOSTUNREACH    :: Errno
+foreign import capi "value EIDRM"           eIDRM           :: Errno
+foreign import capi "value EILSEQ"          eILSEQ          :: Errno
+foreign import capi "value EINPROGRESS"     eINPROGRESS     :: Errno
+foreign import capi "value EINTR"           eINTR           :: Errno
+foreign import capi "value EINVAL"          eINVAL          :: Errno
+foreign import capi "value EIO"             eIO             :: Errno
+foreign import capi "value EISCONN"         eISCONN         :: Errno
+foreign import capi "value EISDIR"          eISDIR          :: Errno
+foreign import capi "value ELOOP"           eLOOP           :: Errno
+foreign import capi "value EMFILE"          eMFILE          :: Errno
+foreign import capi "value EMLINK"          eMLINK          :: Errno
+foreign import capi "value EMSGSIZE"        eMSGSIZE        :: Errno
+foreign import capi "value EMULTIHOP"       eMULTIHOP       :: Errno
+foreign import capi "value ENAMETOOLONG"    eNAMETOOLONG    :: Errno
+foreign import capi "value ENETDOWN"        eNETDOWN        :: Errno
+foreign import capi "value ENETRESET"       eNETRESET       :: Errno
+foreign import capi "value ENETUNREACH"     eNETUNREACH     :: Errno
+foreign import capi "value ENFILE"          eNFILE          :: Errno
+foreign import capi "value ENOBUFS"         eNOBUFS         :: Errno
+foreign import capi "value ENODATA"         eNODATA         :: Errno
+foreign import capi "value ENODEV"          eNODEV          :: Errno
+foreign import capi "value ENOENT"          eNOENT          :: Errno
+foreign import capi "value ENOEXEC"         eNOEXEC         :: Errno
+foreign import capi "value ENOLCK"          eNOLCK          :: Errno
+foreign import capi "value ENOLINK"         eNOLINK         :: Errno
+foreign import capi "value ENOMEM"          eNOMEM          :: Errno
+foreign import capi "value ENOMSG"          eNOMSG          :: Errno
+foreign import capi "value ENONET"          eNONET          :: Errno
+foreign import capi "value ENOPROTOOPT"     eNOPROTOOPT     :: Errno
+foreign import capi "value ENOSPC"          eNOSPC          :: Errno
+foreign import capi "value ENOSR"           eNOSR           :: Errno
+foreign import capi "value ENOSTR"          eNOSTR          :: Errno
+foreign import capi "value ENOSYS"          eNOSYS          :: Errno
+foreign import capi "value ENOTBLK"         eNOTBLK         :: Errno
+foreign import capi "value ENOTCONN"        eNOTCONN        :: Errno
+foreign import capi "value ENOTDIR"         eNOTDIR         :: Errno
+foreign import capi "value ENOTEMPTY"       eNOTEMPTY       :: Errno
+foreign import capi "value ENOTSOCK"        eNOTSOCK        :: Errno
+foreign import capi "value ENOTSUP"         eNOTSUP         :: Errno
+foreign import capi "value ENOTTY"          eNOTTY          :: Errno
+foreign import capi "value ENXIO"           eNXIO           :: Errno
+foreign import capi "value EOPNOTSUPP"      eOPNOTSUPP      :: Errno
+foreign import capi "value EPERM"           ePERM           :: Errno
+foreign import capi "value EPFNOSUPPORT"    ePFNOSUPPORT    :: Errno
+foreign import capi "value EPIPE"           ePIPE           :: Errno
+foreign import capi "value EPROCLIM"        ePROCLIM        :: Errno
+foreign import capi "value EPROCUNAVAIL"    ePROCUNAVAIL    :: Errno
+foreign import capi "value EPROGMISMATCH"   ePROGMISMATCH   :: Errno
+foreign import capi "value EPROGUNAVAIL"    ePROGUNAVAIL    :: Errno
+foreign import capi "value EPROTO"          ePROTO          :: Errno
+foreign import capi "value EPROTONOSUPPORT" ePROTONOSUPPORT :: Errno
+foreign import capi "value EPROTOTYPE"      ePROTOTYPE      :: Errno
+foreign import capi "value ERANGE"          eRANGE          :: Errno
+foreign import capi "value EREMCHG"         eREMCHG         :: Errno
+foreign import capi "value EREMOTE"         eREMOTE         :: Errno
+foreign import capi "value EROFS"           eROFS           :: Errno
+foreign import capi "value ERPCMISMATCH"    eRPCMISMATCH    :: Errno
+foreign import capi "value ERREMOTE"        eRREMOTE        :: Errno
+foreign import capi "value ESHUTDOWN"       eSHUTDOWN       :: Errno
+foreign import capi "value ESOCKTNOSUPPORT" eSOCKTNOSUPPORT :: Errno
+foreign import capi "value ESPIPE"          eSPIPE          :: Errno
+foreign import capi "value ESRCH"           eSRCH           :: Errno
+foreign import capi "value ESRMNT"          eSRMNT          :: Errno
+foreign import capi "value ESTALE"          eSTALE          :: Errno
+foreign import capi "value ETIME"           eTIME           :: Errno
+foreign import capi "value ETIMEDOUT"       eTIMEDOUT       :: Errno
+foreign import capi "value ETOOMANYREFS"    eTOOMANYREFS    :: Errno
+foreign import capi "value ETXTBSY"         eTXTBSY         :: Errno
+foreign import capi "value EUSERS"          eUSERS          :: Errno
+foreign import capi "value EWOULDBLOCK"     eWOULDBLOCK     :: Errno
+foreign import capi "value EXDEV"           eXDEV           :: Errno
 
 isValidErrno               :: Errno -> Bool
 isValidErrno (Errno errno)  = errno /= -1
 
-foreign import ccall unsafe "errno.h &errno" c_errno_ptr :: IO (Ptr Int)
+foreign import ccall unsafe "errno.h &errno" c_errno_ptr :: IO (Ptr CInt)
 
 getErrno :: IO Errno
 getErrno = do
@@ -373,16 +333,16 @@ throwErrnoPathIfMinus1_  = throwErrnoPathIf_ (== (-1))
 
 
 foreign import ccall "string.h strerror_r"
-    c_strerror_r :: Int -> CString -> CSize -> IO Int
+    c_strerror_r :: Errno -> CString -> CSize -> IO CInt
 
 errnoToString :: Errno -> IO String
-errnoToString (Errno errno) =
-    allocaBytes 512 $ \ ptr -> do
-        ret <- c_strerror_r errno ptr (CSize 512)
+errnoToString errno =
+    allocaBytes len $ \ ptr -> do
+        ret <- c_strerror_r errno ptr (CSize len)
         if ret /= 0
           then return "errnoToString failed"
           else peekCString ptr
-  where len = 512::Int
+  where len :: (Num a => a); len = 512
 
 errnoToIOError  :: String       -- ^ the location where the error occurred
                 -> Errno        -- ^ the error number
@@ -397,14 +357,11 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == eOK             = OtherError
         | errno == e2BIG           = ResourceExhausted
         | errno == eACCES          = PermissionDenied
-{-
         | errno == eADDRINUSE      = ResourceBusy
         | errno == eADDRNOTAVAIL   = UnsupportedOperation
         | errno == eADV            = OtherError
         | errno == eAFNOSUPPORT    = UnsupportedOperation
--}
         | errno == eAGAIN          = ResourceExhausted
-{-
         | errno == eALREADY        = AlreadyExists
         | errno == eBADF           = InvalidArgument
         | errno == eBADMSG         = InappropriateType
@@ -429,10 +386,8 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == eIDRM           = ResourceVanished
         | errno == eILSEQ          = InvalidArgument
         | errno == eINPROGRESS     = AlreadyExists
--}
         | errno == eINTR           = Interrupted
         | errno == eINVAL          = InvalidArgument
-{-
         | errno == eIO             = HardwareFault
         | errno == eISCONN         = AlreadyExists
         | errno == eISDIR          = InappropriateType
@@ -449,9 +404,7 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == eNOBUFS         = ResourceExhausted
         | errno == eNODATA         = NoSuchThing
         | errno == eNODEV          = UnsupportedOperation
--}
         | errno == eNOENT          = NoSuchThing
-{-
         | errno == eNOEXEC         = InvalidArgument
         | errno == eNOLCK          = ResourceExhausted
         | errno == eNOLINK         = ResourceVanished
@@ -471,9 +424,7 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == eNOTTY          = IllegalOperation
         | errno == eNXIO           = NoSuchThing
         | errno == eOPNOTSUPP      = UnsupportedOperation
--}
         | errno == ePERM           = PermissionDenied
-{-
         | errno == ePFNOSUPPORT    = UnsupportedOperation
         | errno == ePIPE           = ResourceVanished
         | errno == ePROCLIM        = PermissionDenied
@@ -483,14 +434,10 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == ePROTO          = ProtocolError
         | errno == ePROTONOSUPPORT = ProtocolError
         | errno == ePROTOTYPE      = ProtocolError
--}
         | errno == eRANGE          = UnsupportedOperation
-{-
         | errno == eREMCHG         = ResourceVanished
         | errno == eREMOTE         = IllegalOperation
--}
         | errno == eROFS           = PermissionDenied
-{-
         | errno == eRPCMISMATCH    = ProtocolError
         | errno == eRREMOTE        = IllegalOperation
         | errno == eSHUTDOWN       = IllegalOperation
@@ -502,14 +449,9 @@ errnoToIOError loc errno@(Errno errno') maybeHdl maybeName = unsafePerformIO $ d
         | errno == eTIME           = TimeExpired
         | errno == eTIMEDOUT       = TimeExpired
         | errno == eTOOMANYREFS    = ResourceExhausted
--}
         | errno == eTXTBSY         = ResourceBusy
-{-
         | errno == eUSERS          = ResourceExhausted
--}
         | errno == eWOULDBLOCK     = OtherError
-{-
         | errno == eXDEV           = UnsupportedOperation
--}
         | otherwise                = OtherError
 

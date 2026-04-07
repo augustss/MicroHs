@@ -3,6 +3,7 @@
 # Do 'make install' before running this.
 # The funny install order is to avoid using 'mcabal -r',
 # since it doesn't know of the --git overrides.
+# See also https://docs.google.com/spreadsheets/d/1e0dbUg5uuFKNwgMpwtBnYRldPCYYyBqYfsbyhEjf5bU/edit?usp=sharing
 .PHONY: all
 MINST=mcabal -q install
 
@@ -13,7 +14,7 @@ all:
 	$(MINST) ansi-terminal
 	$(MINST) array
 	$(MINST) unordered-containers
-	$(MINST) --git=https://github.com/simonmar/async.git async
+	$(MINST) async
 	$(MINST) --git=https://github.com/sol/call-stack.git call-stack
 	$(MINST) containers
 	$(MINST) time
@@ -22,8 +23,8 @@ all:
 	$(MINST) transformers
 	$(MINST) mtl
 	$(MINST) exceptions
-	$(MINST) --git=https://github.com/augustss/os-string.git os-string
-	$(MINST) --git=https://github.com/augustss/filepath.git filepath
+	$(MINST) os-string
+	$(MINST) filepath
 	$(MINST) granite
 	$(MINST) haskell-lexer
 	$(MINST) HUnit
@@ -56,12 +57,12 @@ all:
 	$(MINST) heaps
 	$(MINST) fingertree
 	$(MINST) --git=https://github.com/haskell/fgl fgl
-	$(MINST) --git=https://github.com/jaspervdj/psqueues psqueues
+	$(MINST) psqueues
 	$(MINST) PSQueue
 	$(MINST) edit-distance
 	$(MINST) StateVar
 	$(MINST) unliftio-core
-	$(MINST) --git=https://github.com/HeinrichApfelmus/vault vault
+	$(MINST) vault
 	$(MINST) js-dgtable
 	$(MINST) js-flot
 	$(MINST) js-jquery
@@ -82,3 +83,16 @@ all:
 	$(MINST) parser-combinators
 	$(MINST) data-default
 	$(MINST) data-default-class
+	$(MINST) terminfo
+	$(MINST) --git="https://github.com/konsumlamm/bimap.git --branch=mhs" bimap
+	$(MINST) byteable
+	$(MINST) bytestring-builder
+	$(MINST) casing
+	$(MINST) composition
+	$(MINST) cpu
+	$(MINST) data-ordlist
+	$(MINST) --git="https://github.com/konsumlamm/dlist.git --branch=mhs" dlist
+	$(MINST) time-units
+	$(MINST) --git=https://github.com/konsumlamm/xml.git xml
+	$(MINST) numbers
+	$(MINST) timeit

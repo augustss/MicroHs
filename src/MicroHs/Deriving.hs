@@ -736,32 +736,45 @@ newtypeDer :: StandM -> Int -> LHS -> Constr -> EConstraint -> EType -> T [EDef]
 newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
   let loc = getSLoc cls
       (clsIks, cls) = unForall acls
+--  traceM ("newtypeDer: " ++ show (hdr, viaty))
+  let qiCls = getAppCon cls
+      clsQual = qualOf qiCls
+  ct <- gets classTable
+  (ClassInfo _ supers clsCon mits _) <-
+    case M.lookup qiCls ct of
+      Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
+      Just x -> return x
   hdr <-
     case mctx of
       Just (h, _) -> pure h
       Nothing -> do
         newtyr <- mkLhsTy narg lhs                    -- the newtype, eta reduced
---        traceM $ "newtypeDer newty=" ++ show (newtyr, acls, clsIks)
         let
+          cdef = tApp cls newtyr       -- the instance we are trying to make
           ctxOld = tApp cls viaty
           ctx = filter (not . null . freeTyVars . (:[])) [ctxOld]
           iks' = dropEnd narg iks
-        pure $ eForall (clsIks ++ iks') $ addConstraints ctx $ tApp cls newtyr
---  traceM ("newtypeDer: " ++ show (hdr, viaty))
-  let qiCls = getAppCon cls
-      clsQual = qualOf qiCls
-  ct <- gets classTable
-  (ClassInfo _ _ _ mits _) <-
-    case M.lookup qiCls ct of
-      Nothing -> tcError loc $ "not a class " ++ showIdent qiCls
-      Just x -> return x
+          -- clsCon is the class constructor type
+          --   forall ... t1 -> t2 -> C v1 ... vn
+          -- extract v1...vn from this
+          supVs = map unEVar $ snd $ getApp $ snd $ getArrows $ dropForallContext clsCon
+            where unEVar (EVar i) = i; unEVar _ = impossible
+          curTs = snd $ getApp cdef   -- extract the actual types in the instance
+          xctx = filter hasTyVars $ map (subst s) supers     -- add the superclasses as extra context (if they have tyvars)
+            where s = zip supVs curTs                        -- substitution to get the supers to use the right types
+                  hasTyVars t = not $ null $ freeTyVars [t]
+--        traceM $ "newtypeDer newtyr=" ++ show newtyr ++ ", acls=" ++ show acls ++ ", clsIks=" ++ show clsIks ++
+--                 ", supers=" ++ show supers ++ ", xiks=" ++ show xiks ++ ", (iks, iks')=" ++ show (iks, iks') ++
+--                 ", clsCon=" ++ show clsCon ++ ", xctx=" ++ show xctx
+--        traceM $ "newtypeDer " ++ show (xctx, ctx)
+        pure $ eForall (clsIks ++ iks') $ addConstraints (xctx ++ ctx) cdef
   -- hdr looks like forall vs . ctx => C t1 ... tn
   let (_, newtys) = getApp $ dropForallContext hdr
       mkMethod (mi, amty) = do
         let (tvs, mty) =
               case amty of
                 EForall _ xs (EApp (EApp _implies _Ca) t) -> (map idKindIdent xs, t)
-                _ -> impossibleShow amty
+                _ -> impossiblePP amty
             qvar t = EQVar t kType
             nty = subst (zip tvs newtys) mty
             -- Any leading quantifier in nty (used in the method signature)
@@ -780,6 +793,7 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
         unless (length tvs == length newtys) $
           mhsError "mkMethod: arity"
         return [msign, body]
+--  traceM $ "newtypeDer " ++ show (hdr) -- , newtys, xiks, supers, hdr)
   body <- concat <$> mapM mkMethod mits
 
 --  traceM $ "newtypeDer: " ++ show (Instance hdr body [])

@@ -23,5 +23,17 @@ main = do
   printCases '\x2168' -- IX
   printCases '\x2178' -- ix
 
+data Option a where
+  Some ∷ a ⇒ Option a
+  None ∷ Option a
+
 foo ∷ ∀ α . Eq α ⇒ α → α
-foo x = if x == x then x else undefined
+foo x = if
+  | x == x → x
+  | otherwise → undefined
+
+bar ∷ ∀ α → (→) α α
+bar _ = id
+
+pattern Sings ∷ a → [a] → [a]
+pattern Sings a as ← as@[a]

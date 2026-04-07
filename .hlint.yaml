@@ -34,6 +34,7 @@
 - ignore: {name: Use elemIndices, within: [Data.List]}
 - ignore: {name: Use insert, within: [Data.List]}
 - ignore: {name: Use negate, within: [Data.Num]}
+- ignore: {name: Use -, within: [Data.Num]}
 - ignore: {name: Use min, within: [Data.Ord]}
 - ignore: {name: Use max, within: [Data.Ord]}
 - ignore: {name: Use traverse, within: [Data.Traversable]}
@@ -66,6 +67,7 @@
 - ignore: {name: Use section, within: [Deriving]}
 - ignore: {name: Use list literal, within: [ImpMet]}
 - ignore: {name: "Monoid law, left identity", within: [Builder]}
+- ignore: {name: "Redundant multi-way if", within: [Unicode]}
 
 - arguments:
     - --ignore-glob=lib/Data/Foldable1.hs
@@ -81,3 +83,4 @@
     - --ignore-glob=tests/ForImpJS.hs
     - --ignore-glob=tests/Fix.hs
     - --ignore-glob=tests/Unboxed.hs
+    - --ignore-glob=tests/TypeOp.hs
