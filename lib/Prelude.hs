@@ -28,7 +28,6 @@ module Prelude(
   module Data.Real,
   module Data.RealFloat,
   module Data.RealFrac,
-  module Data.Records,
   module Data.String,
   module Data.Traversable,
   module Data.Tuple,
@@ -80,7 +79,6 @@ import Data.Ratio(Rational)
 import Data.Real(Real(..))
 import Data.RealFloat(RealFloat(..))
 import Data.RealFrac(RealFrac(..))
-import Data.Records  -- XXX redo this somehow
 import Data.String(IsString(..), lines, unlines, words, unwords)
 import Data.Traversable(Traversable)
 import Data.Tuple(fst, snd, curry, uncurry)
