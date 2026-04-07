@@ -2321,21 +2321,25 @@ eSetFields (EField is e) r =
 eSetFields _ _ = impossible
 
 eHasField :: Ident -> Expr
-eHasField i = EApp (EVar ihas) (eProxy i)
-  where ihas = mkBuiltin (getSLoc i) "hasField"
+eHasField i = EApp (EVar ihas) (ETypeArg sym)
+  where
+    ihas = mkBuiltin loc "hasField"
+    sym = ELit loc (LStr (unIdent i))
+    loc = getSLoc i
 
 eSetField :: Ident -> Expr
-eSetField i = EApp (EVar iset) (eProxy i)
-  where iset = mkBuiltin (getSLoc i) "setField"
+eSetField i = EApp (EVar iset) (ETypeArg sym)
+  where
+    iset = mkBuiltin loc "setField"
+    sym = ELit loc (LStr (unIdent i))
+    loc = getSLoc i
 
 eGetField :: Ident -> Expr
-eGetField i = EApp (EVar iget) (eProxy i)
-  where iget = mkBuiltin (getSLoc i) "getField"
-
-eProxy :: Ident -> Expr
-eProxy i = ESign proxy (EApp proxy (ELit loc (LStr (unIdent i))))
-  where proxy = EVar $ mkBuiltin loc "Proxy"
-        loc = getSLoc i
+eGetField i = EApp (EVar iget) (ETypeArg sym)
+  where
+    iget = mkBuiltin loc "getField"
+    sym = ELit loc (LStr (unIdent i))
+    loc = getSLoc i
 
 -- Turn
 --   p = e
@@ -2624,7 +2628,7 @@ tcPats at pps ta =
         case ds of
           [] -> return eqn
           _  -> return $ addSolved ds eqn
-    ARet at' -> 
+    ARet at' ->
       case pps of
         p:ps -> do
           (tp, tr) <- unArrow (getSLoc p) at'

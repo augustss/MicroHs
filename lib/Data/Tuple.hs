@@ -266,26 +266,26 @@ instance (Monoid a, Monoid b, Monoid c, Monoid d, Monoid e) => Monoid (a, b, c, 
 -----------------------------------
 -- Virtual fields for tuples.
 
-instance HasField "_1" (a, b) a where getField _ (a, b) = a
-instance SetField "_1" (a, b) a where setField _ (a, b) = \ a -> (a, b)
-instance HasField "_2" (a, b) b where getField _ (a, b) = b
-instance SetField "_2" (a, b) b where setField _ (a, b) = \ b -> (a, b)
+instance HasField "_1" (a, b) a where getField (a, b) = a
+instance SetField "_1" (a, b) a where setField (a, b) = \ a -> (a, b)
+instance HasField "_2" (a, b) b where getField (a, b) = b
+instance SetField "_2" (a, b) b where setField (a, b) = \ b -> (a, b)
 
-instance HasField "_1" (a, b, c) a where getField _ (a, b, c) = a
-instance SetField "_1" (a, b, c) a where setField _ (a, b, c) = \ a -> (a, b, c)
-instance HasField "_2" (a, b, c) b where getField _ (a, b, c) = b
-instance SetField "_2" (a, b, c) b where setField _ (a, b, c) = \ b -> (a, b, c)
-instance HasField "_3" (a, b, c) c where getField _ (a, b, c) = c
-instance SetField "_3" (a, b, c) c where setField _ (a, b, c) = \ c -> (a, b, c)
+instance HasField "_1" (a, b, c) a where getField (a, b, c) = a
+instance SetField "_1" (a, b, c) a where setField (a, b, c) = \ a -> (a, b, c)
+instance HasField "_2" (a, b, c) b where getField (a, b, c) = b
+instance SetField "_2" (a, b, c) b where setField (a, b, c) = \ b -> (a, b, c)
+instance HasField "_3" (a, b, c) c where getField (a, b, c) = c
+instance SetField "_3" (a, b, c) c where setField (a, b, c) = \ c -> (a, b, c)
 
-instance HasField "_1" (a, b, c, d) a where getField _ (a, b, c, d) = a
-instance SetField "_1" (a, b, c, d) a where setField _ (a, b, c, d) = \ a -> (a, b, c, d)
-instance HasField "_2" (a, b, c, d) b where getField _ (a, b, c, d) = b
-instance SetField "_2" (a, b, c, d) b where setField _ (a, b, c, d) = \ b -> (a, b, c, d)
-instance HasField "_3" (a, b, c, d) c where getField _ (a, b, c, d) = c
-instance SetField "_3" (a, b, c, d) c where setField _ (a, b, c, d) = \ c -> (a, b, c, d)
-instance HasField "_4" (a, b, c, d) d where getField _ (a, b, c, d) = d
-instance SetField "_4" (a, b, c, d) d where setField _ (a, b, c, d) = \ d -> (a, b, c, d)
+instance HasField "_1" (a, b, c, d) a where getField (a, b, c, d) = a
+instance SetField "_1" (a, b, c, d) a where setField (a, b, c, d) = \ a -> (a, b, c, d)
+instance HasField "_2" (a, b, c, d) b where getField (a, b, c, d) = b
+instance SetField "_2" (a, b, c, d) b where setField (a, b, c, d) = \ b -> (a, b, c, d)
+instance HasField "_3" (a, b, c, d) c where getField (a, b, c, d) = c
+instance SetField "_3" (a, b, c, d) c where setField (a, b, c, d) = \ c -> (a, b, c, d)
+instance HasField "_4" (a, b, c, d) d where getField (a, b, c, d) = d
+instance SetField "_4" (a, b, c, d) d where setField (a, b, c, d) = \ d -> (a, b, c, d)
 
 -----------------------------------
 

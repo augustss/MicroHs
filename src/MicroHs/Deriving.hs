@@ -148,8 +148,8 @@ genHasField (tycon, iks) cs (fld, fldty) = do
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = eFld
-      conEqnSet (Constr _ _ c _ (Left ts))   = eEqn [eDummy, eApps (EVar c) (map (const eDummy) ts)] undef
-      conEqnSet (Constr _ _ c _ (Right fts)) = eEqn [eDummy, conApp] $ if fld `elem` fs then rhs else undef
+      conEqnSet (Constr _ _ c _ (Left ts))   = eEqn [eApps (EVar c) (map (const eDummy) ts)] undef
+      conEqnSet (Constr _ _ c _ (Right fts)) = eEqn [conApp] $ if fld `elem` fs then rhs else undef
         where fs = map fst fts
               conApp = eApps (EVar c) (map EVar fs)
               rhs = eLam [eFld] conApp
@@ -162,7 +162,7 @@ genHasField (tycon, iks) cs (fld, fldty) = do
   pure $ [ Sign [getName] $ eForall iks $ lhsToType (qtycon, iks) `tArrow` fldty
          , Fcn getName $ map conEqnGet cs ]
     ++ if not (validType fldty) then [] else
-         [ Instance hdrGet [Fcn igetField [eEqn [eDummy] $ EVar getName] ] []
+         [ Instance hdrGet [Fcn igetField [eEqn [] $ EVar getName] ] []
          , Instance hdrSet [Fcn isetField $ map conEqnSet cs] []
          ]
 
