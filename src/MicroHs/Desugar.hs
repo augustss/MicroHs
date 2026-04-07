@@ -25,6 +25,7 @@ import MicroHs.List
 import MicroHs.Names
 import MicroHs.State as S
 import MicroHs.TypeCheck
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 type LDef = (Ident, Exp)
 
@@ -256,8 +257,8 @@ dsExpr aexpr =
               body = encTuple $ map Var xs
             in foldr Lam body xs
           Nothing -> Var (conIdent c)
-    _ -> impossibleShow aexpr
-  where addLoc i = EApp (EVar i) (ELit l (LStr (show l ++ ": "))) where l = getSLoc i
+    _ -> impossiblePP aexpr
+  where addLoc i = EApp (EVar i) (ELit l (LStr (prettyShow l ++ ": "))) where l = getSLoc i
         iapp = mkIdent "Data.List_Type.++"
 
 dsCompr :: Expr -> [EStmt] -> Expr -> Expr
@@ -309,7 +310,7 @@ showLDefs = unlines . map showLDef
 showLDef :: LDef -> String
 showLDef a =
   case a of
-    (i, e) -> showIdent i ++ " = " ++ show e
+    (i, e) -> showIdent i ++ " = " ++ prettyShow e
 
 ----------------
 
@@ -474,7 +475,7 @@ mkCase var pes dflt =
 eMatchErr :: SLoc -> Exp
 eMatchErr loc =
   let exn = mkIdentSLoc loc "Control.Exception.Internal.patternMatchFail"
-      msg = LStr $ show loc
+      msg = LStr $ prettyShow loc
   in  App (Var exn) (Lit msg)
 
 -- If the first expression isn't a variable/literal, then use
@@ -527,7 +528,7 @@ pConOf apat =
     ECon c -> c
     EAt _ p -> pConOf p
     EApp p _ -> pConOf p
-    _ -> impossibleShow apat
+    _ -> impossiblePP apat
 
 pArgs :: EPat -> [EPat]
 pArgs apat =

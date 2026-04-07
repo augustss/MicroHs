@@ -37,6 +37,7 @@ import MicroHs.Names
 import MicroHs.Parse(dotDotIdent)
 import MicroHs.SymTab
 import MicroHs.TCMonad
+import Text.PrettyPrint.HughesPJLiteClass
 import Debug.Trace
 
 --primitiveKinds :: [String]
@@ -644,7 +645,7 @@ expandSyn at = do
     chk (EVar i) =
       case M.lookup i syns of
         Nothing -> return ()
-        _ -> tcError (getSLoc i) $ "bad synonym use: " ++ show i ++ " in " ++ show at
+        _ -> tcError (getSLoc i) $ "bad synonym use: " ++ showIdent i ++ " in " ++ showEType at
     chk (EUVar _) = return ()
     chk (EForall _ _ t) = chk t
     chk (ELit _ _) = return ()
@@ -687,7 +688,7 @@ expandSyn' syns = esyn
         EForall b iks tt | null ts -> EForall b iks (esyn tt)
         ELit _ (LStr _) -> t
         ELit _ (LInteger _) -> t
-        _ -> impossibleShow t
+        _ -> impossiblePP t
 
 
 mapEType :: (EType -> EType) -> EType -> EType
@@ -1921,7 +1922,7 @@ tcDefValue adef =
       ((e', t'), ds) <- solveAndDefault True $ tInferExpr (ESign e t)
       t'' <- withNewtypeAsSyns (expandSyn t')
       let e'' = eLetB (eBinds ds) e'
-      pure $ ForExp cc (Just $ fromMaybe (show e) ms) e'' t''
+      pure $ ForExp cc (Just $ fromMaybe (showExpr e) ms) e'' t''
     Pattern{} -> impossible
     _ -> return adef
 
@@ -2013,9 +2014,15 @@ tcKind mk = assertTCMode (==TCType) . withTypeTable . tcKindT mk
 data Expected = Infer TRef | Check EType
 --  deriving(Show)
 
+{-
 instance Show Expected where
   show (Infer r) = "(Infer " ++ show r ++ ")"
-  show (Check t) = "(Check " ++ show t ++ ")"
+  show (Check t) = "(Check " ++ showExpr t ++ ")"
+-}
+instance Pretty Expected where
+  pPrintPrec l _ (Infer r) = parens $ text "Infer" <+> pPrint0 l r
+  pPrintPrec l _ (Check t) = parens $ text "Check" <+> pPrint0 l t
+
 
 tInfer :: forall a b . HasCallStack =>
           (Expected -> a -> T b) -> a -> T (Typed b)
@@ -2343,7 +2350,7 @@ tcExprR mt ae =
         tcExpr mt $ eLam [x] $ foldl (\ e i -> EApp (eGetField i) e) x is
     ETypeArg _ ->
         tcError loc "Bad type application"
-    _ -> error $ "tcExpr: cannot handle: " ++ show (getSLoc ae) ++ " " ++ show ae
+    _ -> error $ "tcExpr: cannot handle: " ++ prettyShow (getSLoc ae) ++ " " ++ showExpr ae
       -- impossible
 
 -- We need to use a case expression to do record updated if
@@ -2432,8 +2439,8 @@ tcExprAp mt ae args = do
     EApp f a -> tcExprAp mt f (a : args)
     EParen f -> tcExprAp mt f args
     EOper e ies -> tcOper e ies >>= \ eop -> tcExprAp mt eop args
-    EVar i | isIdent dictPrefixDollar i -> impossibleShow ae
-           | isDummyIdent i -> impossibleShow ae
+    EVar i | isIdent dictPrefixDollar i -> impossiblePP ae
+           | isDummyIdent i -> impossiblePP ae
            | otherwise -> do
              -- Type checking an expression (or type)
              (fn, t) <- tLookupV i
@@ -2456,7 +2463,7 @@ tcExprAp mt ae args = do
       tcExprApFn mt f t args
 
 data AnArg = ArgExpr Expr EType | ArgCtx EConstraint
-  deriving Show
+--  deriving Show
 
 -- Instantiate a function, but delay generating the dictionaries.
 -- When generating the dictionaries here (like tInst) there
@@ -2662,7 +2669,7 @@ dsEFields apat =
     EParen p -> dsEFields p
     ENegApp _ -> return apat
     EOr ps -> EOr <$> mapM dsEFields ps
-    _ -> error $ "dsEFields " ++ show apat
+    _ -> error $ "dsEFields " ++ showExpr apat
 
 unsetField :: Ident -> Expr
 unsetField i = mkExn (getSLoc i) (unIdent i) "recConError"
@@ -3081,7 +3088,7 @@ tcPat mt ae =
           true = eTrue loc
       tcPat mt $ EViewPat orFun true
 
-    _ -> error $ "tcPat: not handled " ++ show (getSLoc ae) ++ " " ++ show ae
+    _ -> error $ "tcPat: not handled " ++ prettyShow (getSLoc ae) ++ " " ++ showExpr ae
 
 -- The expected type is for (eApps afn (reverse args))
 tcPatAp :: HasCallStack =>
@@ -3099,7 +3106,7 @@ tcPatAp mt args afn =
 
     EParen e -> tcPatAp mt args e
 
-    _ -> tcError (getSLoc afn) ("Bad pattern " ++ show afn)
+    _ -> tcError (getSLoc afn) ("Bad pattern " ++ showExpr afn)
 
 tcPatApCon :: Expected -> [EPat] -> EPat -> EType -> T EPatRet
 tcPatApCon mt args con xpt = do
@@ -3122,7 +3129,7 @@ tcPatApCon mt args con xpt = do
       case xpt of
          -- Sanity check
          EForall _ _ EForall{} -> return ()
-         _ -> impossibleShow con
+         _ -> impossiblePP con
       EForall _ avs apt <- tInst' xpt
 
       (sks, spt) <- shallowSkolemise avs apt
@@ -3136,7 +3143,7 @@ tcPatApCon mt args con xpt = do
       let ary = arity pf
             where arity (ECon c) = conArity c
                   arity (EApp f _) = arity f - 1  -- deal with dictionary added above
-                  arity e = impossibleShow e
+                  arity e = impossiblePP e
       checkArity ary
 
       let step [] t r = return (t, r)
@@ -3190,7 +3197,7 @@ tcBindGrp' :: [EBind] -> T [EBind]
 tcBindGrp' bs = do
 --  traceM $ "tcBindGrp start: " ++ show (getSLoc bs, bs)
   let def (Fcn i _) = do t <- newUVar; return (i, t)
-      def d = impossibleShow d
+      def d = impossiblePP d
   oldState <- get
   xts <- mapM def bs                    -- add temporary types
   extVals xts                           -- Extend the symbol table with the temporary types.
@@ -3308,7 +3315,7 @@ dsType at =
     ELit _ (LStr _) -> at
     ELit _ (LInteger _) -> at
     EQVar _ _ -> at
-    _ -> impossibleShow at
+    _ -> impossiblePP at
 
 tListI :: SLoc -> Ident
 tListI loc = mkIdentSLoc loc nameList
@@ -3635,7 +3642,7 @@ splitPatSynType (EForall _ vks1 t0)
   | Just  (ctx1, EForall _ vks2 t1) <- getImplies t0
   , Just  (ctx2, ty) <- getImplies t1
   = (vks1, ctx1, vks2, ctx2, ty)
-splitPatSynType t = impossibleShow t
+splitPatSynType t = impossiblePP t
 
 -----
 
@@ -3663,7 +3670,7 @@ expandDict' avks actx edict acc = do
           when (isConIdent iCls) $
             --impossible
             -- XXX it seems we can get here, e.g., Control.Monad.Fail without Applicative import
-            impossibleShow (acc, iCls)
+            impossiblePP (acc, iCls)
           return [(edict, vks, ctx, cc, [])]
         Just (ClassInfo iks sups _ _ fds) -> do
           let
@@ -4204,7 +4211,7 @@ checkConstraints = do
       t' <- derefUVar t
 --      is <- gets instTable
 --      tcTrace $ "Cannot satisfy constraint: " ++ unlines (map (\ (i, ii) -> show i ++ ":\n" ++ showInstInfo ii) (M.toList is))
-      tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ show t'
+      tcError (getSLoc i) $ "Cannot satisfy constraint: " ++ showExpr t'
                             ++ "\n     fully qualified: " ++ showExprRaw t'
 
 -- Add a type equality constraint.

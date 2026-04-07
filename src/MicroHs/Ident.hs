@@ -24,7 +24,7 @@ module MicroHs.Ident(
   ) where
 import qualified Prelude(); import MHSPrelude hiding(head)
 import Data.Char
-import Text.PrettyPrint.HughesPJLite
+import Text.PrettyPrint.HughesPJLiteClass
 import MicroHs.List(dropEnd)
 
 import Data.Text(Text, pack, unpack, append, head, cons)
@@ -50,16 +50,22 @@ type Line = Int
 type Col  = Int
 
 data SLoc = SLoc FilePath Line Col
---  deriving (Eq)
+  deriving (Show)
 
-instance Show SLoc where
-  show (SLoc f l c) = show f ++ "," ++ show l ++ ":" ++ show c
+-- instance Show SLoc where
+--  show (SLoc f l c) = show f ++ "," ++ show l ++ ":" ++ show c
+
+instance Pretty SLoc where
+  pPrintPrec d _ (SLoc f l c) = pPrint0 d f <> text "," <> pPrint0 d l <> text ":" <> pPrint0 d c
 
 instance NFData SLoc where
   rnf (SLoc a b c) = rnf a `seq` rnf b `seq` rnf c
 
 data Ident = Ident SLoc Text
-  --deriving (Show)
+--  deriving (Show)
+
+instance Show Ident where
+  show = showIdent
 
 instance Eq Ident where
   Ident _ i == Ident _ j  =  i == j
@@ -71,11 +77,11 @@ instance Ord Ident where
   Ident _ i >  Ident _ j  =  i >  j
   Ident _ i >= Ident _ j  =  i >= j
 
-instance Show Ident where
-  show = showIdent
-
 instance NFData Ident where
   rnf (Ident a b) = rnf a `seq` rnf b
+
+instance Pretty Ident where
+  pPrintPrec _ _ = ppIdent
 
 slocIdent :: Ident -> SLoc
 slocIdent (Ident l _) = l

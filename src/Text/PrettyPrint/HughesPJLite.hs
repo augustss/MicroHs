@@ -1,11 +1,11 @@
---  Based on the pretty-printer outlined in the paper
+-- Based on the pretty-printer outlined in the paper
 -- 'The Design of a Pretty-printing Library' by
 -- John Hughes in Advanced Functional Programming, 1995.
 -- With inspiration and code from the from the Hackage package pretty.
 module Text.PrettyPrint.HughesPJLite(
   Doc,
   text, empty,
-  (<>), (<+>), ($$), ($+$),
+  (<+>), ($$), ($+$),
   hcat, hsep,
   vcat,
   sep, cat,
@@ -17,9 +17,9 @@ module Text.PrettyPrint.HughesPJLite(
   Style,
   render, renderStyle,
   ) where
-import qualified Prelude(); import MHSPrelude hiding ((<>))
+import qualified Prelude(); import MHSPrelude
 
-infixl 6 <>, <+>
+infixr 6 <+>
 infixl 5 $$, $+$
 
 data Doc
@@ -177,8 +177,8 @@ nilAboveNest g k q           | not g && k > 0      -- No newline if no overlap
                              | otherwise           -- Put them really above
                              = nilAbove_ (mkNest k q)
 
-(<>) :: Doc -> Doc -> Doc
-p <>  q = beside_ p False q
+instance Semigroup Doc where
+  p <> q = beside_ p False q
 
 -- | Beside, separated by space, unless one of the arguments is 'empty'.
 -- '<+>' is associative, with identity 'empty'.

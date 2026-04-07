@@ -25,6 +25,7 @@ import MicroHs.Expr(Expr(..), EType, conIdent)
 import MicroHs.Ident(Ident, showIdent, unIdent, mkIdentSLoc, slocIdent, isUpperX)
 import MicroHs.List
 import qualified MicroHs.IdentMap as M
+import Text.PrettyPrint.HughesPJLiteClass
 
 -- Symbol table
 --
@@ -33,10 +34,10 @@ import qualified MicroHs.IdentMap as M
 data Entry = Entry
   Expr             -- convert (EVar i) to this expression; sometimes just (EVar i)
   EType            -- type/kind of identifier
---  deriving(Show)
+  deriving(Show)
 
-instance Show Entry where
-  showsPrec _ (Entry e t) = shows e . showString " :: " . shows t
+instance Pretty Entry where
+  pPrintPrec l _ (Entry e t) = pPrint0 l e <+> text "::" <+> pPrint0 l t
 
 instance Eq Entry where
   Entry x _ == Entry y _  =  getIdent x == getIdent y
@@ -69,13 +70,20 @@ data SymTab = SymTab {
   _uglb :: M.Map [Entry],        -- unqualified globals
   _qglb :: M.Map [Entry]         -- qualified globals
   }
---  deriving(Show)
+  deriving(Show)
 
+{-
 instance Show SymTab where
   show (SymTab l ug qg) = unlines $
     ("Locals:"  : map (("  " ++) . show) l) ++
     ("UGlobals:" : map (("  " ++) . show) (M.toList ug)) ++
     ("QGlobals:" : map (("  " ++) . show) (M.toList qg))
+-}
+instance Pretty SymTab where
+  pPrintPrec l _ (SymTab lcl ug qg) = vcat $
+    (text "Locals:"   : map (nest 2 . pPrint0 l) lcl) ++
+    (text "UGlobals:" : map (nest 2 . pPrint0 l) (M.toList ug)) ++
+    (text "QGlobals:" : map (nest 2 . pPrint0 l) (M.toList qg))
 
 getLocals :: SymTab -> [Ident]
 getLocals s = map fst (_lcl s)

@@ -20,19 +20,24 @@ module Text.PrettyPrint.HughesPJLiteClass (
     Pretty(..),
 
     PrettyLevel(..), prettyNormal,
+    PrettyPrec,
     prettyShow,
+    pPrint0,
 
     -- re-export HughesPJ
-    module Text.PrettyPrint.HughesPJ
+    module Text.PrettyPrint.HughesPJLite
   ) where
-import qualified Prelude(); import MHSPrelude hiding ((<>))
+import qualified Prelude(); import MHSPrelude
+import Data.Coerce
 
-import Text.PrettyPrint.HughesPJ
+import Text.PrettyPrint.HughesPJLite
 
 -- | Level of detail in the pretty printed output. Level 0 is the least
 -- detail.
 newtype PrettyLevel = PrettyLevel Int
   deriving (Eq, Ord, Show)
+
+type PrettyPrec = Int
 
 -- | The "normal" (Level 0) of detail.
 prettyNormal :: PrettyLevel
@@ -42,7 +47,7 @@ prettyNormal = PrettyLevel 0
 -- the 'Show' class. Minimal complete definition is either 'pPrintPrec' or
 -- 'pPrint'.
 class Pretty a where
-  pPrintPrec :: PrettyLevel -> Rational -> a -> Doc
+  pPrintPrec :: PrettyLevel -> PrettyPrec -> a -> Doc
   pPrintPrec _ _ = pPrint
 
   pPrint :: a -> Doc
@@ -58,7 +63,7 @@ prettyShow = render . pPrint
 pPrint0 :: (Pretty a) => PrettyLevel -> a -> Doc
 pPrint0 l = pPrintPrec l 0
 
-appPrec :: Rational
+appPrec :: PrettyPrec
 appPrec = 10
 
 comma :: Doc

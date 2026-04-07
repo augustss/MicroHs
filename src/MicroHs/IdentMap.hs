@@ -31,10 +31,8 @@ data Map a
     (Map a)        -- right subtree
 --  deriving(Show)
 
-{-
 instance Show a => Show (Map a) where
   show m = show (toList m)
--}
 
 instance NFData a => NFData (Map a) where
   rnf Nil = ()

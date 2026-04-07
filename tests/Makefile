@@ -143,7 +143,7 @@ errtest:
 	sh errtester.sh $(MHS) < errmsg.test
 
 interactivetest:
-	$(TMHS) < itest.in | sed -e '1,/^>/d' > itest.out && diff itest.ref itest.out
+	$(TMHS) --stdin < itest.in | sed -e '1,/^>/d' > itest.out && diff itest.ref itest.out
 
 nfib:
 	$(TMHS) Nfib && $(EVAL)

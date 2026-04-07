@@ -280,7 +280,8 @@ oneline aline = do
     tryParse pExprTop line expr $
       liftIO . err'
 
-tryParse :: forall a . Show a => P a -> String -> I () -> (String -> I ()) -> I ()
+tryParse :: forall a . -- Show a =>
+            P a -> String -> I () -> (String -> I ()) -> I ()
 tryParse p s ok bad =
   case parse p "" s of
     Right _ -> ok

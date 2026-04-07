@@ -774,7 +774,7 @@ newtypeDer mctx narg lhs@(_tycon, iks) _con acls viaty = do
         let (tvs, mty) =
               case amty of
                 EForall _ xs (EApp (EApp _implies _Ca) t) -> (map idKindIdent xs, t)
-                _ -> impossibleShow amty
+                _ -> impossiblePP amty
             qvar t = EQVar t kType
             nty = subst (zip tvs newtys) mty
             -- Any leading quantifier in nty (used in the method signature)

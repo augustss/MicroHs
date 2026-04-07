@@ -13,14 +13,15 @@ import Data.ByteString.Internal(ByteString)
 import Data.Maybe
 import Data.String
 import Unsafe.Coerce
-import PrimTable
 
+import PrimTable
 import MicroHs.Desugar(LDef, encodeInteger)
 import MicroHs.Expr
 import MicroHs.Exp
 import MicroHs.ExpPrint(encodeString)
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
+import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
 
 translateAndRun :: ([LDef], Exp) -> IO ()
 translateAndRun defs = do
@@ -62,7 +63,7 @@ trans r ae =
     Lit (LPrim p) -> fromMaybe (error $ "trans: no primop " ++ show p) $ lookup p primTable
     Lit (LInteger i) -> trans r (encodeInteger i)
     Lit f@(LForImp _ _ _) -> trans r (App (Lit (LPrim "dynsym")) (Lit (LStr (drop 1 $ showLit f))))
-    _ -> error $ "trans: impossible: " ++ show ae
+    _ -> error $ "trans: impossible: " ++ prettyShow ae
 
 -- Use linear search in this table.
 -- 99% of the hits are among the combinators.
@@ -82,12 +83,62 @@ primTable = [
   ("Y", _primitive "Y"),
   ("B'", _primitive "B'"),
   ("Z", _primitive "Z"),
---  ("J", _primitive "J"),
+  ("J", _primitive "J"),
   ("R", _primitive "R"),
   ("K2", _primitive "K2"),
   ("K3", _primitive "K3"),
   ("K4", _primitive "K4"),
   ("C'B", _primitive "C'B"),
+  ("L", _primitive "L"),
+  ("KK", _primitive "KK"),
+  ("KA", _primitive "KA"),
+  ("T3", _primitive "T3"),
+  ("T4", _primitive "T4"),
+  ("T5", _primitive "T5"),
+  ("T6", _primitive "T6"),
+  ("T7", _primitive "T7"),
+  ("T8", _primitive "T8"),
+  ("T9", _primitive "T9"),
+  ("T10", _primitive "T10"),
+  ("T11", _primitive "T11"),
+  ("T12", _primitive "T12"),
+  ("T13", _primitive "T13"),
+  ("T14", _primitive "T14"),
+  ("T15", _primitive "T15"),
+  ("T16", _primitive "T16"),
+  ("TAG0", _primitive "TAG0"),
+  ("TAG1", _primitive "TAG1"),
+  ("TAG2", _primitive "TAG2"),
+  ("TAG3", _primitive "TAG3"),
+  ("TAG4", _primitive "TAG4"),
+  ("TAG5", _primitive "TAG5"),
+  ("TAG6", _primitive "TAG6"),
+  ("TAG7", _primitive "TAG7"),
+  ("TAG8", _primitive "TAG8"),
+  ("TAG9", _primitive "TAG9"),
+  ("TAG10", _primitive "TAG10"),
+  ("TAG11", _primitive "TAG11"),
+  ("TAG12", _primitive "TAG12"),
+  ("TAG13", _primitive "TAG13"),
+  ("TAG14", _primitive "TAG14"),
+  ("TAG15", _primitive "TAG15"),
+  ("TAG16", _primitive "TAG16"),
+  ("TAG17", _primitive "TAG17"),
+  ("TAG18", _primitive "TAG18"),
+  ("TAG19", _primitive "TAG19"),
+  ("TAG20", _primitive "TAG20"),
+  ("TAG21", _primitive "TAG21"),
+  ("TAG22", _primitive "TAG22"),
+  ("TAG23", _primitive "TAG23"),
+  ("TAG24", _primitive "TAG24"),
+  ("TAG25", _primitive "TAG25"),
+  ("TAG26", _primitive "TAG26"),
+  ("TAG27", _primitive "TAG27"),
+  ("TAG28", _primitive "TAG28"),
+  ("TAG29", _primitive "TAG29"),
+  ("TAG30", _primitive "TAG30"),
+  ("TAG31", _primitive "TAG31"),
+  ("TAG32", _primitive "TAG32"),
   ("+", _primitive "+"),
   ("-", _primitive "-"),
   ("*", _primitive "*"),
@@ -231,7 +282,6 @@ primTable = [
   ("SPnew", _primitive "SPnew"),
   ("SPderef", _primitive "SPderef"),
   ("SPfree", _primitive "SPfree"),
-
   ("I+", _primitive "I+"),
   ("I-", _primitive "I-"),
   ("I*", _primitive "I*"),
