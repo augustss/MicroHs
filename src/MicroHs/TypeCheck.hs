@@ -35,6 +35,7 @@ import qualified MicroHs.IntMap as IM
 import MicroHs.List
 import MicroHs.Names
 import MicroHs.Parse(dotDotIdent)
+import MicroHs.Solver
 import MicroHs.SymTab
 import MicroHs.TCMonad
 import Text.PrettyPrint.HughesPJLiteClass
@@ -4101,8 +4102,6 @@ mkConstDict loc iCls e = do
       fcn = EApp (ELit loc (LPrim "K")) e                -- constant function
   return $ Just (res, [], [])
 
-type TySubst = [(TRef, EType)]
-
 -- Given some instances and a constraint, find the matching instances.
 -- For each matching instance return: (subst-size, (dict-expression, new-constraints))
 -- The subst-size is the size of the substitution that made the input instance match.
@@ -4118,17 +4117,6 @@ findMatches uniq _ loc fds ds its =
        ]
  in --trace ("findMatches: " ++ showListS showInstDict ds ++ "; " ++ show its ++ "; " ++ show fds ++ "; " ++ show rrr)
     rrr
-
--- Do substitution for EUVar.
--- XXX similar to derefUVar
-substEUVar :: TySubst -> EType -> EType
-substEUVar [] t = t
-substEUVar _ t@(EVar _) = t
-substEUVar _ t@(ELit _ _) = t
-substEUVar s (EApp f a) = EApp (substEUVar s f) (substEUVar s a)
-substEUVar s t@(EUVar i) = fromMaybe t $ lookup i s
-substEUVar s (EForall b iks t) = EForall b iks (substEUVar s t)
-substEUVar _ _ = impossible
 
 -- Length of lists match, because of kind correctness.
 -- fds is a non-empty list.
@@ -4154,37 +4142,6 @@ matchTypes :: [EType] -> [EType] -> Maybe TySubst
 matchTypes ats ats' = loop [] ats ats'
   where loop r (t:ts) (t':ts') = matchType r t t' >>= \ r' -> loop r' ts ts'
         loop r _ _ = pure r
-
--- Match two types, instantiate variables in the first type.
-matchType :: TySubst -> EType -> EType -> Maybe TySubst
-matchType = match
-  where
-    match r (EVar i)   (EVar i')   | i == i' = pure r
-    match r (ELit _ l) (ELit _ l') | l == l' = pure r
-    match r (EApp f a) (EApp f' a') = do
-      r' <- match r f f'
-      match r' a a'
---    match _ _ (EUVar _) = Nothing
-    match r (EUVar i) t' =
-      -- For a variable, check that any previous match is the same.
-      case lookup i r of
-        Just t  -> match r t t'
-        Nothing -> pure ((i, t') : r)
-    match _ _ _ = Nothing
-
--- XXX This shouldn't be this complicated.
-combineTySubsts :: [TySubst] -> Maybe TySubst
-combineTySubsts = combs []
-  where
-    combs r [] = Just r
-    combs r (s:ss) = do { r' <- comb r s; combs r' ss }
-    comb :: TySubst -> TySubst -> Maybe TySubst
-    comb r [] = Just r
-    comb r ((v, t):s) = do { r' <- comb1 v t r; comb r' s }
-    comb1 v t r =
-      case lookup v r of
-        Nothing -> Just ((v, t) : r)
-        Just t' -> matchType r t' t
 
 -- Get the best matches.  These are the matches with the smallest substitution.
 -- Always prefer arguments rather than global instances.

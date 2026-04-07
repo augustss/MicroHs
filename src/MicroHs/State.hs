@@ -39,8 +39,14 @@ runState (S x) = x
 evalState :: forall s a . State s a -> (s -> a)
 evalState sa = fst . runState sa
 
+execState :: forall s a . State s a -> (s -> s)
+execState sa = snd . runState sa
+
 modify :: forall s . (s -> s) -> State s ()
 modify f = S $ \ s -> ((), f s)
+
+modifyV :: forall s . (s -> s) -> State s s
+modifyV f = S $ \ s -> (s, f s)
 
 put :: forall s . s -> State s ()
 put s = S $ const ((), s)

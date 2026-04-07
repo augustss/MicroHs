@@ -5,6 +5,7 @@ module MicroHs.TCMonad(
   ) where
 import qualified Prelude(); import MHSPrelude
 import Data.Functor.Identity
+import Data.Maybe
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Fail
@@ -389,3 +390,50 @@ mkEqType loc t1 t2 = eAppI2 (mkIdentSLoc loc nameTypeEq) t1 t2
 
 mkCoercible :: SLoc -> EType -> EType -> EConstraint
 mkCoercible loc t1 t2 = eAppI2 (mkIdentSLoc loc nameCoercible) t1 t2
+
+------  move this stuff to EType.hs
+
+type TySubst = [(TRef, EType)]
+
+-- XXX This shouldn't be this complicated.
+combineTySubsts :: [TySubst] -> Maybe TySubst
+combineTySubsts = combs []
+  where
+    combs r [] = Just r
+    combs r (s:ss) = do { r' <- comb r s; combs r' ss }
+    comb :: TySubst -> TySubst -> Maybe TySubst
+    comb r [] = Just r
+    comb r ((v, t):s) = do { r' <- comb1 v t r; comb r' s }
+    comb1 v t r =
+      case lookup v r of
+        Nothing -> Just ((v, t) : r)
+        Just t' -> matchType r t' t
+
+-- Match two types, instantiate variables in the first type.
+matchType :: TySubst -> EType -> EType -> Maybe TySubst
+matchType = match
+  where
+    match r (EVar i)   (EVar i')   | i == i' = pure r
+    match r (ELit _ l) (ELit _ l') | l == l' = pure r
+    match r (EApp f a) (EApp f' a') = do
+      r' <- match r f f'
+      match r' a a'
+--    match _ _ (EUVar _) = Nothing
+    match r (EUVar i) t' =
+      -- For a variable, check that any previous match is the same.
+      case lookup i r of
+        Just t  -> match r t t'
+        Nothing -> pure ((i, t') : r)
+    match _ _ _ = Nothing
+
+-- Do substitution for EUVar.
+-- XXX similar to derefUVar
+substEUVar :: TySubst -> EType -> EType
+substEUVar [] t = t
+substEUVar _ t@(EVar _) = t
+substEUVar _ t@(ELit _ _) = t
+substEUVar s (EApp f a) = EApp (substEUVar s f) (substEUVar s a)
+substEUVar s t@(EUVar i) = fromMaybe t $ lookup i s
+substEUVar s (EForall b iks t) = EForall b iks (substEUVar s t)
+substEUVar _ _ = impossible
+
