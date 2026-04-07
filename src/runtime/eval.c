@@ -1022,7 +1022,6 @@ NODEPTR combK, combA, combI, combCons, combPair;
 NODEPTR combCC, combZ, combIOBIND, combIORETURN, combIOTHEN, combB, combC, combBB;
 NODEPTR combKK, combKA;
 NODEPTR combSETMASKINGSTATE;
-/*NODEPTR combLT, combEQ, combGT;*/
 NODEPTR combPERFORMIO;
 NODEPTR combShowExn, combU, combK2, combK3;
 NODEPTR combBININT1, combBININT2, combUNINT1;
@@ -2340,11 +2339,6 @@ init_nodes(void)
    */
 #define NEWAP(c, f, a) do { n = HEAPREF(heap_start++); SETTAG(n, T_AP); FUN(n) = (f); ARG(n) = (a); (c) = n;} while(0)
 #define MKINT(c, i) do { n = HEAPREF(heap_start++); SETTAG(n, T_INT); SETVALUE(n, i); (c) = n; } while(0)
-#if 0
-  NEWAP(combLT, combZ,     combFalse);  /* Z K */
-  NEWAP(combEQ, combFalse, combFalse);  /* K K */
-  NEWAP(combGT, combFalse, combTrue);   /* K A */
-#endif
   {
     /* The displaySomeException compiles to (U (U (K2 A))) */
     NODEPTR x;
