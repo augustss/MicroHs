@@ -104,7 +104,7 @@ test:
 	$(TMHS) Forall     && $(EVAL) > Forall.out     && diff Forall.ref Forall.out
 	$(TMHS) Block      && $(EVAL) > Block.out      && diff Block.ref Block.out
 	$(TMHS) Fork       && $(EVAL) > Fork.out       && diff Fork.ref Fork.out
-#	$(TMHS) Concur     && $(EVAL) > Concur.out     && diff Concur.ref Concur.out
+	$(TMHS) Concur     && $(EVAL) > Concur.out     && diff Concur.ref Concur.out
 	$(TMHS) MVar       && $(EVAL) > MVar.out       && diff MVar.ref MVar.out
 	$(TMHS) Delay      && $(EVAL) > Delay.out      && diff Delay.ref Delay.out
 	$(TMHS) ThrSt      && $(EVAL) > ThrSt.out      && diff ThrSt.ref ThrSt.out
