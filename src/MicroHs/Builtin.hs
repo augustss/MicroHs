@@ -21,6 +21,6 @@ builtinMdlQ = mkIdent "Mhs.Builtin"
 mkBuiltin :: SLoc -> String -> Ident
 mkBuiltin loc name = qualIdent builtinMdl (mkIdentSLoc loc name)
 
--- Identifier for a builtin that is alread renamed.
+-- Identifier for a builtin that is already renamed.
 mkBuiltinQ :: SLoc -> String -> Ident
 mkBuiltinQ loc name = qualIdent builtinMdlQ (mkIdentSLoc loc name)
