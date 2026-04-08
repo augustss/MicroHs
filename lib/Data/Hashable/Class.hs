@@ -11,6 +11,7 @@ import Data.Functor.Const
 import Data.Hashable
 import Data.List
 import qualified Data.List.NonEmpty as NE
+import Data.Proxy
 
 class (Eq1 t {-, forall a. Hashable a => Hashable (t a)-}) => Hashable1 t where
     liftHashWithSalt :: (Int -> a -> Int) -> Int -> t a -> Int

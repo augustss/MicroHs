@@ -19,6 +19,7 @@ module Mhs.Builtin(
   module Data.Records,
   module Data.Typeable,
   module Data.Monoid.Internal,
+  module Data.Proxy,
   module Data.String,
   module Text.ParserCombinators.ReadPrec,
   module Text.Read.Internal,

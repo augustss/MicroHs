@@ -1,4 +1,5 @@
 module Record(main) where
+import Data.Records
 
 -- HasField instances are derived automatically
 

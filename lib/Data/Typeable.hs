@@ -1,22 +1,44 @@
 module Data.Typeable (
-  Typeable(..),
+  Typeable(typeRep),
   TypeRep,
   typeOf,
+  --
+  -- (:~:)(Refl),
+  -- (:~~:)(HRefl),
+  --
   cast,
   eqT,
-  gcast, gcast1, gcast2,
+  -- heqT, decT, hdecT
+  gcast,
+  gcast1,
+  gcast2,
+  --
+  Proxy(..),
+  --
+  TypeRep,
+  rnfTypeRep,
+  showsTypeRep,
+  mkFunTy,
+  --
+  funResultTy,
+  splitTyConApp,
+  typeRepArgs,
+  typeRepTyCon,
+  typeRepFimgerprint,
+  --
   TyCon,
+  tyConPackage,
   tyConModule,
   tyConName,
-  mkTyCon,
+  rnfTyCon,
+  tyConFingerPrint,
+  --
   _mkTyCon,
+{-
+  mkTyCon,
   mkTyConApp,
   mkAppTy,
-  mkFunTy,
-  splitTyConApp,
-  funResultTy,
-  typeRepTyCon,
-  typeRepArgs,
+-}
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives
@@ -40,6 +62,10 @@ typeOf _ = typeRep (Proxy :: Proxy a)
 
 data TypeRep = TypeRep MD5CheckSum TyCon [TypeRep]
 
+-- XXX This isn't right
+rnfTypeRep :: TypeRep -> ()
+rnfTypeRep (TypeRep a b c) = a `seq` b `seq` c `seq` ()
+
 -- Compare keys for equality
 instance Eq TypeRep where
   TypeRep k1 _ _ == TypeRep k2 _ _  =  k1 == k2
@@ -56,6 +82,12 @@ instance Show TypeRep where
     where comma [] = undefined
           comma [s] = s
           comma (s:ss) = s . showString "," . comma ss
+
+showsTypeRep :: TypeRep -> ShowS
+showsTypeRep = shows
+
+typeRepFimgerprint :: TypeRep -> MD5CheckSum
+typeRepFimgerprint (TypeRep m _ _) = m
 
 typeRepTyCon :: TypeRep -> TyCon
 typeRepTyCon (TypeRep _ tc _) = tc
@@ -89,11 +121,22 @@ instance Ord TyCon where
 instance Show TyCon where
   showsPrec _ (TyCon _ m n) = showString n
 
+-- XXX not right
+rnfTyCon :: TyCon -> ()
+rnfTyCon (TyCon a b c) = a `seq` b `seq` c `seq` ()
+
+-- MHS does not have package info
+tyConPackage :: TyCon -> String
+tyConPackage _ = ""
+
 tyConModule :: TyCon -> String
 tyConModule (TyCon _ m _) = m
 
 tyConName :: TyCon -> String
 tyConName (TyCon _ _ n) = n
+
+tyConFingerPrint :: TyCon -> MD5CheckSum
+tyConFingerPrint (TyCon m _ _) = m
 
 mkTyCon :: String -> String -> TyCon
 mkTyCon m n = TyCon md5 m n

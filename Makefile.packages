@@ -47,7 +47,7 @@ all:
 	$(MINST) hspec
 	$(MINST) simple-affine-space
 	$(MINST) split
-	$(MINST) --git=http://github.com/ekmett/tagged.git tagged
+	$(MINST) --git=http://github.com/augustss/tagged.git tagged
 	$(MINST) tagsoup
 # stackage does not have Yampa
 #	$(MINST) --git=https://github.com/augustss/Yampa.git --dir=yampa yampa
