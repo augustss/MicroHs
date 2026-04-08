@@ -259,9 +259,9 @@ compileModuleP flags impt mdl@(EModule _ _ defs) = do
   return ((dmdl, syms, imported, tThis, tImp), tcstate)
 
 compileToCombinators :: TModule [LDef] -> TModule [LDef]
-compileToCombinators dmdl = do
+compileToCombinators dmdl =
   let cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- tBindingsOf dmdl ]
-  seq (rnf cmdl) cmdl  -- This makes execution slower, but speeds up GC
+  in seq (rnf cmdl) cmdl  -- This makes execution slower, but speeds up GC
 
 -- Add implicit imports:
 --   import Prelude
