@@ -4,7 +4,8 @@ module MHSPrelude(
   module Prelude,
   module MHSPrelude,
 --  module Control.Monad.Fail,
-  module Control.Arrow,
+  -- Exporting these with 'module Control.Arrow' does not work
+  first, second,
   module Data.Monoid,
   module Data.Semigroup,
   (<$>), Applicative(..), (*>), (<*), (>=>), (<=<)
