@@ -2,6 +2,7 @@ module MicroHs.FFI(makeFFI) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
+import Data.Maybe(fromJust, isJust)
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp
 import MicroHs.Expr
@@ -198,7 +199,8 @@ arity = length . fst . getArrows
 cTypeHsName :: HasCallStack => EType -> String
 cTypeHsName (EApp (EVar ptr) _t) | ptr == identPtr = "Ptr"
                                  | ptr == identFunPtr = "FunPtr"
-cTypeHsName (EVar i) | Just c <- lookup (unIdent i) cHsTypes = c
+cTypeHsName (EVar i) | isJust mc = fromJust mc
+  where mc = lookup (unIdent i) cHsTypes
 cTypeHsName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
 cHsTypes :: [(String, String)]
@@ -225,7 +227,8 @@ expTypeHsName _ t = cTypeHsName t
 -- Use to construct 'foreign export ccall' signature.
 cTypeName :: EType -> String
 cTypeName (EApp (EVar ptr) _t) | ptr == identPtr = "void*"
-cTypeName (EVar i) | Just c <- lookup (unIdent i) cTypes = c
+cTypeName (EVar i) | isJust mc = fromJust mc
+  where mc = lookup (unIdent i) cTypes
 cTypeName t = errorMessage (getSLoc t) $ "Not a valid C type: " ++ showEType t
 
 cTypes :: [(String, String)]
@@ -243,7 +246,8 @@ cTypes =
 -- Use to construct 'foreign import javascript' return value wrapper.
 jsTypeNameR :: EType -> String
 jsTypeNameR (EApp (EVar ptr) _) | ptr == identPtr = "PTR"
-jsTypeNameR (EVar i) | Just c <- lookup (unIdent i) jsTypesR = c
+jsTypeNameR (EVar i) | isJust mc = fromJust mc
+  where mc = lookup (unIdent i) jsTypesR
 jsTypeNameR t = errorMessage (getSLoc t) $ "Not a valid Javascript return type: " ++ showEType t
 
 jsTypesR :: [(String, String)]
@@ -256,7 +260,8 @@ jsTypesR =
 -- Use to construct 'foreign import javascript' argument wrapper.
 jsTypeName :: EType -> String
 jsTypeName (EApp (EVar ptr) _) | ptr == identPtr = "Ptr"
-jsTypeName (EVar i) | Just c <- lookup (unIdent i) jsTypes = c
+jsTypeName (EVar i) | isJust mc = fromJust mc
+  where mc = lookup (unIdent i) jsTypes
 jsTypeName t = errorMessage (getSLoc t) $ "Not a valid Javascript argument type: " ++ showEType t
 
 jsTypes :: [(String, String)]

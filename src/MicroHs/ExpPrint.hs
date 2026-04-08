@@ -31,7 +31,7 @@ removeUnused (ds, emain) = dfs roots M.empty
     dMap = M.fromList ds
     dfs :: [Ident] -> M.Map Exp -> [LDef]
     dfs [] done = M.toList done
-    dfs (i:is) done | Just _ <- M.lookup i done = dfs is done
+    dfs (i:is) done | isJust (M.lookup i done) = dfs is done
                     | otherwise = dfs (freeVars e ++ is) (M.insert i e done)
                                   where e = fromMaybe (error $ "removeUnused: undef " ++ show i) $ M.lookup i dMap
 
@@ -86,7 +86,7 @@ toStringCMdl :: CMdl -> String
 toStringCMdl (ds, emain) =
   let
     def :: (Ident, Exp) -> (String -> String) -> (String -> String)
-    def (i, e) r | Just (_, e', _) <- getForExp e = def (i, e') r
+    def (i, e) r | isJust (getForExp e) = let Just(_, e', _) = getForExp e in def (i, e') r
     def (i, e) r =
       ("A " ++) . toStringP e . ((":" ++ showIdent i ++  " @\n") ++) . r . ("@" ++)
 

@@ -9,7 +9,7 @@ module MicroHs.Lex(
 import qualified Prelude(); import MHSPrelude hiding(lex)
 import Data.Char
 import Data.List
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust, fromMaybe, isJust)
 import MicroHs.Ident
 import Text.ParserComb(TokenMachine(..))
 import Text.PrettyPrint.HughesPJLiteClass(prettyShow)
@@ -144,10 +144,10 @@ lex loc ('(':dcs@(d:cs))
                 par (TSpec _ ')') = p-1
                 par _             = p
 -- Recognize #line 123 "file/name.hs"
-lex loc ('#':xcs) | (SLoc _ _ 1) <- loc, Just cs <- stripPrefix "line " xcs =
+lex loc@(SLoc _ _ 1) ('#':'l':'i':'n':'e':' ':cs) =
   case span (/= '\n') cs of
     (line, rs) -> lex (fromMaybe loc (lineDirective loc line)) rs
-                  | (SLoc _ 1 1) <- loc, take 1 xcs == "!" =
+lex loc@(SLoc _ 1 1) ('#':xcs@('!':cs)) =
   -- It's a shebang (#!), ignore the rest of the line
   skipLine loc xcs
 lex loc ('!':' ':cs) =  -- ! followed by a space is always an operator
@@ -278,8 +278,8 @@ lexLitStr :: SLoc -> SLoc -> ([[Token]] -> String -> [Token]) -> (String -> Mayb
 lexLitStr oloc loc mk end post interp acs = loop loc [] [] acs
   where
         loop :: SLoc -> String -> [[Token]] -> String -> [Token]
-        loop l rs tss cs | Just k <- end cs   = mk (reverse tss) (decodeEscs $ post $ reverse rs) ++ lex (addCol l k) (drop k cs)
-                         | Just (ts, cs', l') <- interp l cs = loop l' (chMark : rs) (ts : tss) cs'
+        loop l rs tss cs | isJust (end cs)    = let Just k = end cs in mk (reverse tss) (decodeEscs $ post $ reverse rs) ++ lex (addCol l k) (drop k cs)
+                         | isJust (interp l cs) = let Just (ts, cs', l') = interp l cs in loop l' (chMark : rs) (ts : tss) cs'
         loop l rs tss ('\\':c:cs) | isSpace c = remGap l rs tss cs
         loop l rs tss ('\\':'^':'\\':cs)      = loop (addCol l 3) ('\\':'^':'\\':rs) tss cs  -- special hack for unescaped \
         loop l rs tss ('\\':cs)               = loop' (addCol l 1) ('\\':rs) tss cs
@@ -322,8 +322,10 @@ decodeEsc ('x':cs) = conv 16 0 cs
 decodeEsc ('o':cs) = conv 8 0 cs
 decodeEsc ('^':c:cs) | '@' <= c && c <= '_' = chr (ord c - ord '@') : decodeEscs cs
 decodeEsc cs@(c:_) | isDigit c = conv 10 0 cs
-decodeEsc (c1:c2:c3:cs) | Just c <- lookup [c1,c2,c3] ctlCodes = c : decodeEscs cs
-decodeEsc (c1:c2:cs) | Just c <- lookup [c1,c2] ctlCodes = c : decodeEscs cs
+decodeEsc (c1:c2:c3:cs) | isJust mc = let Just c = mc in c : decodeEscs cs
+  where mc = lookup [c1,c2,c3] ctlCodes
+decodeEsc (c1:c2:cs) | isJust mc = let Just c = mc in c : decodeEscs cs
+  where mc = lookup [c1,c2] ctlCodes
 decodeEsc (c  :cs) = c : decodeEscs cs
 decodeEsc []       = mhsError "Bad \\ escape"
 
@@ -479,7 +481,7 @@ pragma loc cs =
   in  case map toUpper p of
         "SOURCE" -> TPragma loc p : skip
         -- hsc2hs generates LINE pragmas
-        "LINE" | Just loc' <- lineDirective loc rest -> skipNest loc' 1 ('#':cs)
+        "LINE" | isJust (lineDirective loc rest) -> let Just loc' = lineDirective loc rest in skipNest loc' 1 ('#':cs)
         _ -> skip
 
 -- Parse the arguments of a '#line 123 "file/name.hs"' directive or a LINE pragma.
@@ -501,7 +503,9 @@ lineDirective (SLoc file _ _) cs =
   where
     quoted rs =
       case break (== '"') rs of
-        (_, '"':qs) | (_, '"':nm) <- break (== '"') (reverse qs) -> Just (reverse nm)
+        (_, '"':qs) -> case break (== '"') (reverse qs) of
+          (_, '"':nm) -> Just (reverse nm)
+          _ -> Nothing
         _ -> Nothing
 
 -- | This is the magical layout resolver, straight from the Haskell report.

@@ -279,9 +279,9 @@ setOptions "+color" = do
   modify $ \ is -> is{ isColor = True }
 setOptions "-color" = do
   modify $ \ is -> is{ isColor = False }
-setOptions s | Just p <- stripPrefix "path=" s =
+setOptions ('p':'a':'t':'h':'=':p) =
   modify $ \ is -> is{ isFlags = (isFlags is){ srcPaths = splitColonPath p } }
-setOptions s | Just p <- stripPrefix "prompt=" s =
+setOptions ('p':'r':'o':'m':'p':'t':'=':p) =
   modify $ \ is -> is{ isPrompt = p }
 setOptions _ =
   putStrLnI "Unknown flag.  Known flags: +s, -s, +c, -c, path=PATH, prompt=STR"
@@ -349,9 +349,10 @@ err e = do
 parseError :: String -> Maybe (FilePath, Int)
 parseError s =
   case words s of
-    "error:" : ('"' : sfile) : "line" : sline : _ |
-      Just file <- stripSuffix "\":" sfile,
-      Just line <- stripSuffix "," sline >>= readMaybe -> Just (file, line)
+    "error:" : ('"' : sfile) : "line" : sline : _ -> do
+      file <- stripSuffix "\":" sfile
+      line <- stripSuffix "," sline >>= readMaybe
+      Just (file, line)
     _ -> Nothing
 
 err' :: String -> I ()
@@ -557,9 +558,11 @@ finds str = do
   let i = mkIdent str
   case stLookup "type" i vs `alt` stLookup "value" i ts of
     Left s -> putStrLnI s
-    Right (Entry (EVar qi) _) | let loc@(SLoc f l _) = slocIdent qi, not (isNoSLoc loc) -> do
-      ed <- getEditor
-      _ <- liftIO $ system $ printf ed l f
-      reload
-      return ()
+    Right (Entry (EVar qi) _) -> case slocIdent qi of
+      loc@(SLoc f l _) | not (isNoSLoc loc) -> do
+        ed <- getEditor
+        _ <- liftIO $ system $ printf ed l f
+        reload
+        return ()
+      _ -> putStrLnI "Unknown location"
     _ -> putStrLnI "Unknown location"
