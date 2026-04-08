@@ -7,7 +7,7 @@ module MHSPrelude(
   module Control.Arrow,
   module Data.Monoid,
   module Data.Semigroup,
-  (<$>), Applicative(..), (*>),
+  (<$>), Applicative(..), (*>), (<*), (>=>), (<=<)
   ) where
 import Hugs.Prelude()
 import Prelude hiding(fail)
@@ -55,6 +55,12 @@ spanEnd p xs = (dropWhileEnd p xs, takeWhileEnd p xs)
 
 breakEnd :: (a -> Bool) -> [a] -> ([a], [a])
 breakEnd p = spanEnd (not . p)
+
+subsequences :: [a] -> [[a]]
+subsequences xs = [] : sub xs
+  where sub []     = []
+        sub (x:xs) = [x] : foldr f [] (sub xs)
+          where f ys r = ys : (x : ys) : r
 
 ------- Version --------
 
@@ -231,3 +237,11 @@ instance NFData MD5CheckSum
 
 class HasCallStack
 instance HasCallStack
+
+(<=<) :: forall m a b c . Monad m => (b -> m c) -> (a -> m b) -> (a -> m c)
+f <=< g = \ a -> do
+  b <- g a
+  f b
+
+(>=>) :: forall m a b c . Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
+(>=>) = flip (<=<)
