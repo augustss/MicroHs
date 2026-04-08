@@ -8,6 +8,7 @@ module Data.Text(
   null,
   head,
   tail,
+  cons,
   uncons,
   ) where
 import Prelude hiding(head, tail, null)
@@ -63,6 +64,9 @@ head (T t) = Prelude.head t
 
 tail :: Text -> Text
 tail (T t) = T (Prelude.tail t)
+
+cons :: Char -> Text -> Text
+cons c (T t) = T (c : t)
 
 uncons :: Text -> Maybe (Char, Text)
 uncons t | null t    = Nothing
