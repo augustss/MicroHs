@@ -16,6 +16,7 @@ import Control.Arrow(first, second)
 import Control.Applicative
 import Control.Exception(Exception, try)
 --import Control.Monad.Fail
+import Data.Int
 import Data.List
 import Data.Maybe
 import Data.Monoid
@@ -193,6 +194,7 @@ force :: (NFData a) => a -> a
 force x = x `deepseq` x
 
 instance NFData Int
+instance NFData Int64
 instance NFData Word
 instance NFData Float
 instance NFData Double
