@@ -29,6 +29,8 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Complex (Complex((:+)))
 import Data.Tuple (Solo (..))
 
+import GHC.Generics
+
 import Text.Read
 import Text.Read.Internal
 import Text.Show (showListWith)
@@ -358,7 +360,6 @@ instance (Read a, Read b, Read c) => Read1 ((,,,) a b c) where
 instance (Show a, Show b, Show c) => Show1 ((,,,) a b c) where
     liftShowsPrec = liftShowsPrec2 showsPrec showList
 
-{-
 instance (Generic1 f, Eq1 (Rep1 f)) => Eq1 (Generically1 f) where
   liftEq :: (a1 -> a2 -> Bool) -> (Generically1 f a1 -> Generically1 f a2 -> Bool)
   liftEq (===) (Generically1 as1) (Generically1 as2) = liftEq (===) (from1 as1) (from1 as2)
@@ -366,7 +367,6 @@ instance (Generic1 f, Eq1 (Rep1 f)) => Eq1 (Generically1 f) where
 instance (Generic1 f, Ord1 (Rep1 f)) => Ord1 (Generically1 f) where
   liftCompare :: (a1 -> a2 -> Ordering) -> (Generically1 f a1 -> Generically1 f a2 -> Ordering)
   liftCompare cmp (Generically1 as1) (Generically1 as2) = liftCompare cmp (from1 as1) (from1 as2)
--}
 
 instance Eq2 Either where
     liftEq2 e1 _ (Left x) (Left y) = e1 x y
