@@ -21,21 +21,20 @@ import Prelude hiding (readFile, writeFile)
 import qualified Prelude as P
 import Control.Exception (evaluate)
 import qualified Data.ByteString as BS
-import Data.Text
+import Data.Text.Internal
 import Data.Text.Encoding
-import System.IO.Base(Handle, IOMode(..), hClose, openFile, stdin, stdout, withFile)
-import qualified System.IO.Base as IO
+import System.IO.Base(Handle, IOMode(..), hClose, openBinaryFile, stdin, stdout, withBinaryFile)
 
 readFile :: FilePath -> IO Text
 readFile f = do
-  h <- openFile f ReadMode
+  h <- openBinaryFile f ReadMode
   hGetContents h
 
 writeFile :: FilePath -> Text -> IO ()
-writeFile f t = withFile f WriteMode $ \h -> hPutStr h t
+writeFile f t = withBinaryFile f WriteMode $ \ h -> hPutStr h t
 
 appendFile :: FilePath -> Text -> IO ()
-appendFile f t = withFile f AppendMode $ \h -> hPutStr h t
+appendFile f t = withBinaryFile f AppendMode $ \ h -> hPutStr h t
 
 hGetContents :: Handle -> IO Text
 hGetContents h = do
@@ -51,14 +50,10 @@ hGetLine h = do
   evaluate (decodeUtf8 bs)
 
 hPutStr :: Handle -> Text -> IO ()
-hPutStr h t =
-  -- BS.hPutStr is "buggy", if the handle is UTF8 encoding mode, there will be a double encoding
-  -- BS.hPutStr h (encodeUtf8 t)
-  -- For now, go via String
-  IO.hPutStr h (unpack t)
+hPutStr h (T bs) = BS.hPutStr h bs
 
 hPutStrLn :: Handle -> Text -> IO ()
-hPutStrLn h t = hPutStr h (t `snoc` '\n')
+hPutStrLn h t = hPutStr h t >> hPutStr h "\n"
 
 interact :: (Text -> Text) -> IO ()
 interact f = getContents >>= putStr . f
