@@ -23,9 +23,13 @@ import MicroHs.TypeCheck(TModule(..), Symbols)
 import Unsafe.Coerce
 import System.Console.SimpleReadline
 import Paths_MicroHs(version)
+import System.Cmd
 import System.Environment
+import System.Exit
 import System.FilePath
 import System.IO
+import Text.Printf
+import Text.Read(readMaybe)
 --import System.IO.TimeMilli
 
 data IState = IState {
@@ -35,7 +39,10 @@ data IState = IState {
   isSymbols :: Symbols,
   isStats   :: Bool,
   isCComp   :: (Int, TCState, TranslateMap),
-  isHistory :: FilePath
+  isHistory :: FilePath,
+  isErrLine :: Int,
+  isErrFile :: FilePath,
+  isLastCmd :: String
   }
 
 -- To speed up interactive use, the state of the symbol table after
@@ -71,7 +78,7 @@ startIState flags mdls hist = do
     mhsError "The interactive system currently only works with mhs"
   cash <- getCached flags
   let startMdl = preamble ++ unlines (map ("import " ++) mdls)
-  return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", M.empty) hist
+  return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", M.empty) hist 1 "" ""
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -121,6 +128,7 @@ repl = do
           c <- command r
           if c then repl else bye
         _ -> do
+          modify $ \ is -> is{ isLastCmd = s }
           oneline s
           repl
 
@@ -182,6 +190,10 @@ commands =
       saveDefs line
       return True
     )
+  , ("edit", \ _ -> do
+      edit
+      return True
+    )
   , ("help        this text", const $ do
       putStrLnI $ helpText ++ unlines (map ((':' :) . fst) commands)
       return True
@@ -209,7 +221,7 @@ reload = do
   ls <- gets isLines
   rld <- tryCompile ls   -- reload modules right away
   case rld of
-    Left msg -> liftIO $ err msg
+    Left msg -> err msg
     Right _  -> return ()
 
 helpText :: String
@@ -257,8 +269,22 @@ mkTypeIt :: String -> String
 mkTypeIt l =
   "type " ++ itTypeName ++ " = " ++ l ++ "\n"
 
-err :: SomeException -> IO ()
-err e = err' $ displayException e
+err :: SomeException -> I ()
+err e = do
+  let msg = displayException e
+  case parseError msg of
+    Just (f, l) -> modify $ \ is -> is{ isErrFile = f, isErrLine = l }
+    Nothing -> return ()
+  liftIO $ err' msg
+
+-- Try to find a file and line number
+parseError :: String -> Maybe (FilePath, Int)
+parseError s =
+  case words s of
+    "error:" : ('"' : sfile) : "line" : sline : _ | 
+      Just file <- stripSuffix "\":" sfile,
+      Just line <- stripSuffix "," sline >>= readMaybe -> Just (file, line)
+    _ -> Nothing
 
 err' :: String -> IO ()
 err' s = putStrLn $ "*** Exception: " ++ s
@@ -274,7 +300,7 @@ oneline aline = do
         case defTest of
           Right _ -> do
             updateLines (const lls)
-          Left  e -> liftIO $ err e
+          Left  e -> err e
       expr = do
 --        t1 <- liftIO getTimeMilli
         exprTest <- tryCompile (ls ++ "\n" ++ mkItIO stats line)
@@ -286,7 +312,7 @@ oneline aline = do
             when (stats) $
               liftIO $ putStrLn $ "total " ++ show (t2 - t1) ++ "ms"
 -}
-          Left  e -> liftIO $ err e
+          Left  e -> err e
   -- First try to parse as a definition,
   tryParse pTopModule lls def $ \ _ ->
     -- if that fails, parse as an expression.
@@ -325,14 +351,13 @@ evalExpr cmdl = do
   let ares = translateWithMap tmap (cmdl, Var $ mkIdent (interactiveName ++ "." ++ itIOName))
       res = unsafeCoerce ares :: IO ()
   mval <- liftIO $ try (seq res (return res))
-  liftIO $
-    case mval of
-      Left  e -> err e
-      Right val -> do
-        mio <- try val
-        case mio of
-          Left  e -> err e
-          Right _ -> return ()
+  case mval of
+    Left  e -> err e
+    Right val -> do
+      mio <- liftIO $ try val
+      case mio of
+        Left  e -> err e
+        Right _ -> return ()
 
 showType :: String -> I ()
 showType line = do
@@ -343,8 +368,7 @@ showType line = do
       case stLookup "" (mkIdent itName) (valueTable tcs) of
         Right (Entry _ t) -> putStrLnI $ showEType t
         _ -> error "showType"
-    Left  e ->
-      liftIO $ err e
+    Left  e -> err e
 
 showKind :: String -> I ()
 showKind line = do
@@ -355,8 +379,7 @@ showKind line = do
       case stLookup "" (mkIdent itTypeName) (typeTable tcs) of
         Right (Entry _ t) -> putStrLnI $ showEType t
         _ -> error "showKind"
-    Left  e ->
-      liftIO $ err e
+    Left  e -> err e
 
 runMain :: String -> I ()
 runMain line = oneline $ "_withArgs " ++ show (words line) ++ " main"
@@ -417,3 +440,16 @@ updateTCStateCache (EModule mn es ds) = do
 --    putStrLnI $ "*** update isFast " ++ show nImps
     modify $ \ is -> is{ isCComp = (nImps, tcstate, idmap), isCache = ch, isSymbols = syms }
   return notImps
+
+edit :: I ()
+edit = do
+  med <- gets (editor . isFlags)
+  case med of
+    Nothing -> liftIO $ putStrLn "No editor set"
+    Just ed -> do
+      line <- gets isErrLine
+      file <- gets isErrFile
+      rc <- liftIO $ system $ printf ed line file
+      when (rc == ExitSuccess) $
+        oneline =<< gets isLastCmd
+      return ()
