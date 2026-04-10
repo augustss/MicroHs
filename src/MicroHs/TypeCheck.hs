@@ -109,7 +109,7 @@ typeCheck flags globs impt aimps (EModule mn exps defs) =
     imps = map filterImports aimps
     tc =
       case defs of
-        SetTCState tcs : _ -> tcs  -- hack to set the saved TCState
+        SetTCState tcs : _ -> xTCStateToTCState tcs  -- hack to set the saved TCState
         _ -> mkTCState mn globs imps
   in case tcRun (tcDefs flags impt defs) tc of
        (tds, tcs) ->

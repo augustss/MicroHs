@@ -8,6 +8,7 @@ module MicroHs.Expr(
   EDef(..), showEDefs,
   Deriving(..), DerStrategy(..), doNotDerive,
   Expr(..), eLam, eLamWithSLoc, eEqn, oneAlt, eEqns, showExpr, eqExpr,
+  XTCState,
   CallConv(..),
   QForm(..),
   Listish(..),
@@ -61,7 +62,6 @@ import Data.List
 import Data.Maybe
 import MicroHs.Builtin
 import MicroHs.Ident
-import {-# SOURCE #-} MicroHs.TCMonad(TCState)
 import Text.PrettyPrint.HughesPJLiteClass
 
 type IdentModule = Ident
@@ -96,8 +96,11 @@ data EDef
   | Pattern LHS EPat (Maybe [Eqn])
   | StandDeriving DerStrategy Int EConstraint
   | DfltSign Ident EType                      -- only in class declarations
-  -- Only used by interactive system to load a cached TCState to avoid import processing
-  | SetTCState TCState
+  -- Only used by interactive system to load a cached TCState to avoid import processing.
+  -- We don't want to introduce a circular reference between Expr and TCMonad,
+  -- because then we cannot bootstrap with Hugs.
+  -- So instead we use dummy placeholder type and then use unsafeCoerce for the values.
+  | SetTCState XTCState
   deriving (Show)
 
 instance NFData EDef where
@@ -119,6 +122,9 @@ instance NFData EDef where
   rnf (StandDeriving a b c) = rnf a `seq` rnf b `seq` rnf c
   rnf (DfltSign a b) = rnf a `seq` rnf b
   rnf (SetTCState a) = seq a ()
+
+data XTCState = XTCState
+  deriving (Eq, Show)
 
 data ImpType = ImpNormal | ImpBoot
   deriving (Eq, Show)

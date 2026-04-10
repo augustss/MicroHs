@@ -18,7 +18,7 @@ import MicroHs.Parse
 import MicroHs.StateIO
 import MicroHs.SymTab(Entry(..), stEmpty, stKeysGlbU, stLookup)
 import MicroHs.Translate
-import MicroHs.TCMonad(TCState(..))
+import MicroHs.TCMonad(TCState(..), tcStateToXTCState)
 import MicroHs.TypeCheck(TModule(..), Symbols)
 import Unsafe.Coerce
 import System.Console.SimpleReadline
@@ -296,7 +296,7 @@ compile file = do
   let mdl@(EModule mn es _) = parseDie pTopModule "" file
   defs <- updateTCStateCache mdl
   (_, tcstate, _) <- gets isCComp
-  let mdl' = EModule mn es (SetTCState tcstate : defs)
+  let mdl' = EModule mn es (SetTCState (tcStateToXTCState tcstate) : defs)
   flgs <- gets isFlags
   cash <- gets isCache
 --  putStrLnI $ " tryCompile compile " ++ show mdl'
