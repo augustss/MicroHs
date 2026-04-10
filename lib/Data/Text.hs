@@ -17,6 +17,9 @@ module Data.Text(
   splitOn,
   dropWhileEnd,
   words,
+  unwords,
+  toLower,
+  toUpper,
   foldr,
   concat,
   lines,
@@ -33,8 +36,9 @@ module Data.Text(
   replace,
   map,
   ) where
-import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, map)
+import qualified Prelude(); import MiniPrelude hiding(head, tail, null, length, words, unwords, map)
 import Control.DeepSeq.Class
+import qualified Data.Char as C
 import qualified Data.List as L
 import Data.String
 import qualified Data.ByteString.Internal as BS
@@ -133,6 +137,15 @@ splitOnList sep = loop []
 
 words :: Text -> [Text]
 words = L.map pack . L.words . unpack
+
+unwords :: [Text] -> Text
+unwords = pack . L.unwords . L.map unpack
+
+toLower :: Text -> Text
+toLower = pack . L.map C.toLower . unpack
+
+toUpper :: Text -> Text
+toUpper = pack . L.map C.toUpper . unpack
 
 foldr :: (Char -> a -> a) -> a -> Text -> a
 foldr f z = L.foldr f z . unpack
