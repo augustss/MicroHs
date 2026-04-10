@@ -64,15 +64,16 @@ main = do
             Just p -> mainBuildPkg flags' p mdls
             Nothing ->
               if installPkg flags' then mainInstallPackage flags' mdls else
-              withArgs rargs $ do
+              withArgs rargs $
                 case mdls of
-                  []  | null (cArgs flags') -> mainInteractive flags'
+                  []  | null (cArgs flags') -> mainInteractive flags' []
                       | otherwise -> mainCompileC flags' [] ""
+                  _   | interactive flags' -> mainInteractive flags' mdls
                   [s] -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
-                  _   -> mhsError usage
+                  _ -> mhsError usage
 
 usage :: String
-usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [-ddump-PASS] [MODULENAME..|FILE]"
+usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [MODULENAME..|FILE]"
 
 longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
@@ -118,6 +119,9 @@ longUsage = usage ++ "\nOptions:\n" ++ details
       \-pgmF CMD          Use CMD for the -F preprocessor\n\
       \-optF FLAG         Pass the FLAG to the -F preprocessor\n\
       \-F                 Run a preprocessor\n\
+      \--interactive      Start interactive mode even with module arguments\n\
+      \-eEXPR             Evaluate EXPR\n\
+      \-ECMD              Set editor for :exit command\n\
       \-ddump-PASS        Debug, print AST after PASS\n\
       \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
       \"
@@ -152,6 +156,8 @@ decodeArgs f mdls (arg:args) =
     "-pgmF" | s : args' <- args
                 -> decodeArgs f{fPgm = Just s} mdls args'
     "-F"        -> decodeArgs f{doF = True} mdls args
+    "--stdin"   -> decodeArgs f{useStdin = True} mdls args
+    "--interactive"   -> decodeArgs f{interactive = True} mdls args
     '-':'i':[]  -> decodeArgs f{paths = []} mdls args
     '-':'i':s   -> decodeArgs f{paths = paths f ++ [s]} mdls args
     '-':'o':s   -> decodeArgs f{output = s} mdls args
@@ -165,7 +171,9 @@ decodeArgs f mdls (arg:args) =
     '-':'p':s   -> decodeArgs f{preload = preload f ++ [s]} mdls args
     '-':'d':'d':'u':'m':'p':'-':r | Just d <- lookup r dumpFlagTable ->
                    decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
-    "--stdin"   -> decodeArgs f{useStdin = True} mdls args
+    '-':'E':s   -> decodeArgs f{editor = Just s} mdls args
+    '-':'e':s   -> decodeArgs f{evalArg = Just s} mdls args
+    
     '-':_       -> mhsError $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"
                 -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args

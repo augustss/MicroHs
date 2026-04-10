@@ -32,7 +32,10 @@ data Flags = Flags {
   noLink     :: Bool,       -- Just generate an unlinked object file
   fPgm       :: Maybe String, -- preprocessor for -F
   fArgs      :: [String],   -- arguments for preprocessor
-  doF        :: Bool        -- run preprocessor
+  doF        :: Bool,       -- run preprocessor
+  interactive:: Bool,       -- enter interactive mode
+  evalArg    :: Maybe String, -- evaluate an expression
+  editor     :: Maybe String -- Hugs-like flag to invoke the editor.
   }
   deriving (Show)
 
@@ -68,7 +71,10 @@ defaultFlags dir = Flags {
   noLink     = False,
   fPgm       = Nothing,
   fArgs      = [],
-  doF        = False
+  doF        = False,
+  interactive = False,
+  evalArg     = Nothing,
+  editor      = Nothing
   }
   -- This is a hack so that the in-place mhs picks up GMP.
   where gmp | dir == "." && wantGMP = ["lib/gmp"]

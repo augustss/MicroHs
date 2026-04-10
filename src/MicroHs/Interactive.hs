@@ -45,8 +45,8 @@ data IState = IState {
 
 type I a = StateIO IState a
 
-mainInteractive :: Flags -> IO ()
-mainInteractive flags = do
+mainInteractive :: Flags -> [String] -> IO ()
+mainInteractive flags mdls = do
   putStrLn $ "Welcome to interactive MicroHs, version " ++ showVersion version
   when wantGMP $ putStrLn "Using GMP"
   mhome <- lookupEnv "HOME"
@@ -54,7 +54,8 @@ mainInteractive flags = do
       hist = maybe mhsi (</> mhsi) mhome
       mhsi = ".mhsi"
   cash <- getCached flags'
-  _ <- runStateIO start $ IState preamble flags' cash noSymbols False (-1, error "tcstate", M.empty) hist
+  let startMdl = preamble ++ unlines (map ("import " ++) mdls)
+  _ <- runStateIO start $ IState startMdl flags' cash noSymbols False (-1, error "tcstate", M.empty) hist
   return ()
 
 noSymbols :: Symbols
