@@ -482,6 +482,10 @@ addInstDict di c = do
       addeq ((_, _, _, EApp (EApp (EVar eq) t1) t2, _):is) | eq == identTypeEq = do addEqDict t1 t2; addeq is
       addeq (i:is) = (i :) <$> addeq is
   ics' <- addeq ics
+  when (slocFile (getSLoc c) == "E.hs") $ do
+    let eqs = [ (t1, t2) | (_, _, _, EApp (EApp (EVar eq) t1) t2, _) <- ics, eq == identTypeEq ]
+    res <- completeLocal eqs
+    traceM (prettyShow (c, res))
   addInstTable ics'
   addArgDict di c
 

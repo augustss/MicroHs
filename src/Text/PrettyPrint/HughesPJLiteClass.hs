@@ -54,7 +54,7 @@ class Pretty a where
   pPrint = pPrintPrec prettyNormal 0
 
   pPrintList :: PrettyLevel -> [a] -> Doc
-  pPrintList l = brackets . fsep . punctuate comma . map (pPrintPrec l 0)
+  pPrintList l = brackets . sep . punctuate comma . map (pPrintPrec l 0)
 
 -- | Pretty print a value with the 'prettyNormal' level.
 prettyShow :: (Pretty a) => a -> String
@@ -102,38 +102,38 @@ instance (Pretty a) => Pretty [a] where
 
 instance (Pretty a, Pretty b) => Pretty (a, b) where
   pPrintPrec l _ (a, b) =
-    parens $ fsep $ punctuate comma [pPrint0 l a, pPrint0 l b]
+    parens $ sep $ punctuate comma [pPrint0 l a, pPrint0 l b]
 
 instance (Pretty a, Pretty b, Pretty c) => Pretty (a, b, c) where
   pPrintPrec l _ (a, b, c) =
-    parens $ fsep $ punctuate comma [pPrint0 l a, pPrint0 l b, pPrint0 l c]
+    parens $ sep $ punctuate comma [pPrint0 l a, pPrint0 l b, pPrint0 l c]
 
 instance (Pretty a, Pretty b, Pretty c, Pretty d) => Pretty (a, b, c, d) where
   pPrintPrec l _ (a, b, c, d) =
-    parens $ fsep $ punctuate comma
+    parens $ sep $ punctuate comma
       [pPrint0 l a, pPrint0 l b, pPrint0 l c, pPrint0 l d]
 
 instance (Pretty a, Pretty b, Pretty c, Pretty d, Pretty e) => Pretty (a, b, c, d, e) where
   pPrintPrec l _ (a, b, c, d, e) =
-    parens $ fsep $ punctuate comma
+    parens $ sep $ punctuate comma
       [pPrint0 l a, pPrint0 l b, pPrint0 l c, pPrint0 l d, pPrint0 l e]
 
 instance (Pretty a, Pretty b, Pretty c, Pretty d, Pretty e, Pretty f) => Pretty (a, b, c, d, e, f) where
   pPrintPrec l _ (a, b, c, d, e, f) =
-    parens $ fsep $ punctuate comma
+    parens $ sep $ punctuate comma
       [pPrint0 l a, pPrint0 l b, pPrint0 l c,
         pPrint0 l d, pPrint0 l e, pPrint0 l f]
 
 instance (Pretty a, Pretty b, Pretty c, Pretty d, Pretty e, Pretty f, Pretty g) =>
          Pretty (a, b, c, d, e, f, g) where
   pPrintPrec l _ (a, b, c, d, e, f, g) =
-    parens $ fsep $ punctuate comma
+    parens $ sep $ punctuate comma
       [pPrint0 l a, pPrint0 l b, pPrint0 l c,
         pPrint0 l d, pPrint0 l e, pPrint0 l f, pPrint0 l g]
 
 instance (Pretty a, Pretty b, Pretty c, Pretty d, Pretty e, Pretty f, Pretty g, Pretty h) =>
          Pretty (a, b, c, d, e, f, g, h) where
   pPrintPrec l _ (a, b, c, d, e, f, g, h) =
-    parens $ fsep $ punctuate comma
+    parens $ sep $ punctuate comma
       [pPrint0 l a, pPrint0 l b, pPrint0 l c,
         pPrint0 l d, pPrint0 l e, pPrint0 l f, pPrint0 l g, pPrint0 l h]

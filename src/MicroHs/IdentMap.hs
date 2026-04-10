@@ -19,6 +19,7 @@ module MicroHs.IdentMap(
   ) where
 import qualified Prelude(); import MHSPrelude hiding(lookup, mapM, null)
 import MicroHs.Ident
+import Text.PrettyPrint.HughesPJLiteClass hiding(empty)
 
 data Map a
   = Nil           -- empty tree
@@ -33,6 +34,9 @@ data Map a
 
 instance Show a => Show (Map a) where
   show m = show (toList m)
+
+instance Pretty a => Pretty (Map a) where
+  pPrintPrec l p m = maybeParens (p > 10) $ text "Map" <+> pPrint0 l (toList m)
 
 instance NFData a => NFData (Map a) where
   rnf Nil = ()
