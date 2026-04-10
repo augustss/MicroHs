@@ -1,4 +1,4 @@
-module MicroHs.Interactive(mainInteractive) where
+module MicroHs.Interactive(mainInteractive, mainEvalArg) where
 import qualified Prelude(); import MHSPrelude
 import Data.Char
 import Data.List
@@ -53,10 +53,25 @@ mainInteractive flags mdls = do
   let flags' = flags{ loading = True }
       hist = maybe mhsi (</> mhsi) mhome
       mhsi = ".mhsi"
-  cash <- getCached flags'
-  let startMdl = preamble ++ unlines (map ("import " ++) mdls)
-  _ <- runStateIO start $ IState startMdl flags' cash noSymbols False (-1, error "tcstate", M.empty) hist
+  _ <- runStateIO startInteractive =<< startIState flags' mdls hist
   return ()
+
+mainEvalArg :: Flags -> String -> [String] -> IO ()
+mainEvalArg flags arg mdls = do
+  let eval = do
+        reload
+        oneline arg
+  _ <- runStateIO eval =<< startIState flags mdls (error "hist")
+  return ()
+
+startIState :: Flags -> [String] -> String -> IO IState
+startIState flags mdls hist = do
+  unless compiledWithMhs $ do
+    --putStrLnI "WARNING: Not compiled with mhs, so limited functionality."
+    mhsError "The interactive system currently only works with mhs"
+  cash <- getCached flags
+  let startMdl = preamble ++ unlines (map ("import " ++) mdls)
+  return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", M.empty) hist
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -71,15 +86,12 @@ preamble = "module " ++ interactiveName ++ " where\n\
 putStrLnI :: String -> I ()
 putStrLnI = liftIO . putStrLn
 
-start :: I ()
-start = do
+startInteractive :: I ()
+startInteractive = do
   reload
   is <- get
   liftIO $ maybeSaveCache (isFlags is) (isCache is)
   putStrLnI "Type ':quit' to quit, ':help' for help"
-  unless compiledWithMhs $ do
-    --putStrLnI "WARNING: Not compiled with mhs, so limited functionality."
-    mhsError "The interactive system currently only works with mhs"
   repl
 
 repl :: I ()

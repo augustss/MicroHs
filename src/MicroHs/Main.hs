@@ -63,14 +63,17 @@ main = do
           case buildPkg flags' of
             Just p -> mainBuildPkg flags' p mdls
             Nothing ->
-              if installPkg flags' then mainInstallPackage flags' mdls else
-              withArgs rargs $
-                case mdls of
-                  []  | null (cArgs flags') -> mainInteractive flags' []
-                      | otherwise -> mainCompileC flags' [] ""
-                  _   | interactive flags' -> mainInteractive flags' mdls
-                  [s] -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
-                  _ -> mhsError usage
+              case evalArg flags' of
+                Just s -> mainEvalArg flags' s mdls
+                Nothing ->
+                  if installPkg flags' then mainInstallPackage flags' mdls else
+                  withArgs rargs $
+                    case mdls of
+                      []  | null (cArgs flags') -> mainInteractive flags' []
+                          | otherwise -> mainCompileC flags' [] ""
+                      _   | interactive flags' -> mainInteractive flags' mdls
+                      [s] -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
+                      _ -> mhsError usage
 
 usage :: String
 usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [MODULENAME..|FILE]"
