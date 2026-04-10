@@ -470,7 +470,6 @@ edit s = do
       rc <- liftIO $ system $ printf ed line file
       when (rc == ExitSuccess) $
         oneline =<< gets isLastCmd
-      return ()
     file -> do
       _ <- liftIO $ system $ printf ed (1::Int) file
       return ()
