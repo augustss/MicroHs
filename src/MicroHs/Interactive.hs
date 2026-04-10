@@ -9,9 +9,9 @@ import MicroHs.Compile
 import MicroHs.CompileCache
 import MicroHs.Desugar(LDef)
 import MicroHs.Exp(Exp(Var))
-import MicroHs.Expr(showEType, EModule(..), EDef(..))
+import MicroHs.Expr(showEType, EModule(..), EDef(..), Expr(EVar))
 import MicroHs.Flags
-import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar)
+import MicroHs.Ident(mkIdent, Ident, unIdent, isIdentChar, SLoc(..), slocIdent, isNoSLoc)
 import qualified MicroHs.IdentMap as M
 import MicroHs.List
 import MicroHs.Parse
@@ -31,6 +31,9 @@ import System.IO
 import Text.Printf
 import Text.Read(readMaybe)
 --import System.IO.TimeMilli
+
+defaultEditor :: String
+defaultEditor = "vim +%d %s"
 
 data IState = IState {
   isLines   :: String,
@@ -190,12 +193,20 @@ commands =
       saveDefs line
       return True
     )
-  , ("edit", \ _ -> do
-      edit
+  , ("edit [FILE]", \ line -> do
+      edit line
       return True
     )
-  , ("help        this text", const $ do
-      putStrLnI $ helpText ++ unlines (map ((':' :) . fst) commands)
+  , ("find IDENT", \ line -> do
+      finds line
+      return True
+    )
+  , ("help        this text", help
+    )
+  , ("?           this text", help
+    )
+  , ("! CMD       run command", \ line -> do
+      _ <- liftIO $ system line
       return True
     )
   , ("set [FLAG]  (un)set flag", \ line -> do
@@ -203,6 +214,11 @@ commands =
       return True
     )
   ]
+
+help :: String -> I Bool
+help = const $ do
+  putStrLnI $ helpText ++ unlines (map ((':' :) . fst) commands)
+  return True
 
 setFlags :: String -> I ()
 setFlags "" = do
@@ -394,7 +410,7 @@ saveDefs "" = saveDefs (interactiveName ++ ".hs")
 saveDefs line = do
   ls <- gets isLines
   liftIO $ writeFile line ls
-  liftIO $ putStrLn $ "wrote " ++ line
+  putStrLnI $ "wrote " ++ line
 
 -- This could be smarter:
 --  ":a"        should complete with commands
@@ -441,15 +457,36 @@ updateTCStateCache (EModule mn es ds) = do
     modify $ \ is -> is{ isCComp = (nImps, tcstate, idmap), isCache = ch, isSymbols = syms }
   return notImps
 
-edit :: I ()
-edit = do
-  med <- gets (editor . isFlags)
-  case med of
-    Nothing -> liftIO $ putStrLn "No editor set"
-    Just ed -> do
+getEditor :: I String
+getEditor = fromMaybe defaultEditor <$> gets (editor . isFlags)
+
+edit :: String -> I ()
+edit s = do
+  ed <- getEditor
+  case s of
+    "" -> do
       line <- gets isErrLine
       file <- gets isErrFile
       rc <- liftIO $ system $ printf ed line file
       when (rc == ExitSuccess) $
         oneline =<< gets isLastCmd
       return ()
+    file -> do
+      _ <- liftIO $ system $ printf ed (1::Int) file
+      return ()
+
+alt :: Either a b -> Either a b -> Either a b
+alt (Left _) r = r
+alt r _ = r
+
+finds :: String -> I ()
+finds str = do
+  (ts, vs) <- gets isSymbols
+  let i = mkIdent str
+  case stLookup "type" i vs `alt` stLookup "value" i ts of
+    Left s -> putStrLnI s
+    Right (Entry (EVar qi) _) | let loc@(SLoc f l _) = slocIdent qi, not (isNoSLoc loc) -> do
+      ed <- getEditor
+      _ <- liftIO $ system $ printf ed l f
+      return ()
+    _ -> putStrLnI "Unknown location"

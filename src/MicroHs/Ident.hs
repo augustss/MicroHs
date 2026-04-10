@@ -15,7 +15,7 @@ module MicroHs.Ident(
   unQualString,
   qualOf,
   addIdentSuffix,
-  SLoc(..), noSLoc,
+  SLoc(..), noSLoc, isNoSLoc,
   orSLoc,
   showSLoc, slocFile,
   isUpperX,
