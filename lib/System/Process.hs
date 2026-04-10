@@ -1,5 +1,6 @@
 module System.Process(
   callCommand,
+  callProcess,
   system,
   readProcess,
   ) where
@@ -19,6 +20,9 @@ callCommand cmd = do
   case rc of
     ExitSuccess -> return ()
     ExitFailure r -> error $ "callCommand: failed " ++ show r ++ ", cmd=\n" ++ show cmd
+
+callProcess :: String -> [String] -> IO ()
+callProcess cmd = callCommand . unwords . (:) cmd
 
 system :: String -> IO ExitCode
 system cmd = do
