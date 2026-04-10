@@ -173,15 +173,15 @@ commands =
       updateLines (unlines . filter (not . isPrefixOf line) . lines)
       return True
     )
-  , ("type e      show type of e", \ line -> do
+  , ("type EXPR   show type of EXPR", \ line -> do
       showType line
       return True
     )
-  , ("kind t      show kind of t", \ line -> do
+  , ("kind TYPE   show kind of TYPE", \ line -> do
       showKind line
       return True
     )
-  , ("main args   run main with arguments", \ line -> do
+  , ("main ARGS   run main with arguments", \ line -> do
       runMain line
       return True
     )
@@ -193,11 +193,11 @@ commands =
       saveDefs line
       return True
     )
-  , ("edit [FILE]", \ line -> do
+  , ("edit [FILE] edit file or last error location", \ line -> do
       edit line
       return True
     )
-  , ("find IDENT", \ line -> do
+  , ("find Name", \ line -> do
       finds line
       return True
     )
