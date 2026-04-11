@@ -220,3 +220,97 @@ gay@disroot.org
 ---
 
 For more information, see the [wiki](https://github.com/augustss/MicroHs/wiki).
+
+---
+
+# Finding modules *NOT YET IMPLEMENTED*
+A module `M` is located using the _sourcePath_ and the _packageDbPath_.
+Both of the paths are a list of directories and are searched left-to-right.
+This lookup is used both `import` and modules given on the command line.
+
+Note: If the module name given on the command line has suffix `.hs` or `.lhs`
+it is used as a file name, rather than a module name.
+
+First, the the _sourcePath_ is used.  For each directory in the
+path:
+ * the module name `M` is appended with `.` changed to `/`.
+ * then the suffixes `.hs`, `.hsc`, and `.lhs` are tried in order
+ * if the file exists it is assumed to be the source for module `M`
+
+Second, if no source file is found, then each directory in the
+_packageDbPath_ is tried.  If the module is found, the corresponing
+package is loaded and the compiled module 'M' from that package is used.
+
+## Setting the _sourcePath_
+The default _sourcePath_ is just the current directory, `.`.
+The path can be cleared by using the `-i` command line flag.
+To append to the path use `-iPATH`, where `PATH` is a colon (`:`)
+separated list of directories.
+
+## Setting the _packageDbPath_
+The default _packageDbPath_ is take from the `mhs.config` file
+in the section `[mhs]` and key `packageDbPath`.
+If this does not exists the defaults path is empty.
+
+In case this does not exists the path defaults to `~/.mcabal/mhs-VERSION`,
+where `~` will be replaced by the home directory and `VERSION` is the
+compiler version (as displayed by `mhs --numeric-version`).
+
+The directories in _packageDbPath_ can start with a '%', and in this
+case the value of the key `packageDbPrefix` is prepended to the path.
+
+The path can be cleared by using the `-a` command line flag.
+To append to the path use `-aPATH`, where `PATH` is a colon (':')
+separated list if directories.
+
+## Installing packages
+The default _packageDb_ for installing packages is given by the
+key `packageDbDefaultInstall`.
+If absent, it defaults to `~/.mcabal/mhs-VERSION`.
+
+The _packageDb_ directory can also be given directly with the `-Q`
+flag used to install.
+
+The `mcabal` command can install to a particular package db by using
+`--install=PATH`.
+
+## Examples
+### Status Quo
+All packages go to the same place.
+
+Compile a module with `mhs Foo`.
+
+
+mhs.config:
+```
+[mhs]
+packageDbPath=~/.mcabal/mhs-0.15.5.0
+packageDbDefaultInstall=~/.mcabal/mhs-0.15.5.0
+...
+```
+
+### GhcUp
+Separate system and user package dbs.
+
+Compile a module with `mhs Foo`.
+
+mhs.config:
+```
+[mhs]
+packageDbPath=~/.mcabal/system:~/.mcabal-user
+packageDbDefaultInstall=~/.mcabal-user
+...
+```
+
+### Nix
+A system package db and then a separate db for each package.
+
+Compile a module with `mhs -a%transformers:%mtl Foo`.
+
+```
+[mhs]
+packageDbPath=~/.mcabal/system
+packageDbDefaultInstall=NO_INSTALL_GIVEN
+packageDbPrefix=~/.mcabal-user-dbs
+...
+```
