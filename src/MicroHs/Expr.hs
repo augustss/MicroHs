@@ -58,6 +58,7 @@ module MicroHs.Expr(
   dropForallContext,
   ) where
 import qualified Prelude(); import MHSPrelude
+import Data.Int
 import Data.List
 import Data.Maybe
 import MicroHs.Builtin

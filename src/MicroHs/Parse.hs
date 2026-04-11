@@ -810,7 +810,7 @@ pDo = do
     case last ss of
       SThen e ->
         pure $ EDo q [SRec (init ss), SThen e]
-      _ -> fail "mdo"
+      _ -> Control.Monad.Fail.fail "mdo"
    else
     pure (EDo q ss)
 
