@@ -82,51 +82,51 @@ longUsage :: String
 longUsage = usage ++ "\nOptions:\n" ++ details
   where
     details = "\
-      \-h                 Print usage\n\
       \-?                 Print usage\n\
-      \--help             Print this message\n\
-      \--version          Print the version\n\
-      \--numeric-version  Print the version number\n\
-      \-v                 Increase verbosity (flag can be repeated)\n\
-      \-q                 Decrease verbosity (flag can be repeated)\n\
-      \-l                 Show every time a module is loaded\n\
-      \-s                 Show compilation speed in lines/s\n\
-      \-r                 Run directly\n\
-      \-c                 Do not generate executable\n\
+      \-a                 Clear package search path\n\
+      \-aPATH             Add PATH to package search path\n\
+      \-b64               Base64 encode the combinator code\n\
+      \-C                 Read and write compilation cache\n\
       \-CR                Read compilation cache\n\
       \-CW                Write compilation cache\n\
-      \-C                 Read and write compilation cache\n\
-      \-XCPP              Run cpphs on source files\n\
+      \-c                 Do not generate executable\n\
       \-Dxxx              Pass -Dxxx to cpphs\n\
+      \-ddump-PASS        Debug, print AST after PASS\n\
+      \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
+      \-ECMD              Set editor for :exit command\n\
+      \-eEXPR             Evaluate EXPR\n\
+      \-F                 Run a preprocessor\n\
+      \-h                 Print usage\n\
+      \--help             Print this message\n\
       \-Ixxx              Pass -Ixxx to cpphs\n\
-      \-T                 Generate dynamic function usage statistics\n\
-      \-z                 Compress the combinator code\n\
-      \-b64               Base64 encode the combinator code\n\
       \-iPATH             Add PATH to module search path\n\
+      \--interactive      Start interactive mode even with module arguments\n\
+      \-l                 Show every time a module is loaded\n\
+      \-L[FILE|PKG]       List all modules of a package\n\
+      \--numeric-version  Print the version number\n\
       \-oFILE             Output to FILE\n\
       \                   If FILE ends in .comb produce a combinator file\n\
       \                   If FILE ends in .c produce a C file\n\
       \                   Otherwise compile the combinators together with the runtime system to produce a regular executable\n\
-      \-a                 Clear package search path\n\
-      \-aPATH             Add PATH to package search path\n\
-      \-L[FILE|PKG]       List all modules of a package\n\
+      \-optF FLAG         Pass the FLAG to the -F preprocessor\n\
+      \-optc OPTION       Options for the C compiler\n\
+      \-optl OPTION       Options passed by mhs to the C compiler for the linker\n\
       \-PPKG              Build package PKG\n\
-      \-Q PKG [DIR]       Install package PKG\n\
       \-pFILE             Pre-load package\n\
+      \-pgmF CMD          Use CMD for the -F preprocessor\n\
+      \-Q PKG [DIR]       Install package PKG\n\
+      \-q                 Decrease verbosity (flag can be repeated)\n\
+      \-r                 Run directly\n\
+      \-s                 Show compilation speed in lines/s\n\
+      \--stdin            Use stdin in interactive system\n\
+      \-T                 Generate dynamic function usage statistics\n\
       \-tTARGET           Select target\n\
       \                   Distributed targets: default, emscripten, windows, tcc, environment\n\
       \                   Targets can be defined in targets.conf\n\
-      \-optc OPTION       Options for the C compiler\n\
-      \-optl OPTION       Options passed by mhs to the C compiler for the linker\n\
-      \--stdin            Use stdin in interactive system\n\
-      \-pgmF CMD          Use CMD for the -F preprocessor\n\
-      \-optF FLAG         Pass the FLAG to the -F preprocessor\n\
-      \-F                 Run a preprocessor\n\
-      \--interactive      Start interactive mode even with module arguments\n\
-      \-eEXPR             Evaluate EXPR\n\
-      \-ECMD              Set editor for :exit command\n\
-      \-ddump-PASS        Debug, print AST after PASS\n\
-      \                   Possible passes: preproc, parse, derive, typecheck, desugar, toplevel, combinator, linked, all\n\
+      \-v                 Increase verbosity (flag can be repeated)\n\
+      \--version          Print the version\n\
+      \-XCPP              Run cpphs on source files\n\
+      \-z                 Compress the combinator code\n\
       \"
 
 decodeArgs :: Flags -> [String] -> [String] -> (Flags, [String], [String])
