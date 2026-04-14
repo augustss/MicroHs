@@ -25,7 +25,6 @@ import System.Console.SimpleReadline
 import Paths_MicroHs(version)
 import System.Cmd
 import System.Environment
-import System.Exit
 import System.FilePath
 import System.IO
 import Text.Printf
@@ -44,8 +43,7 @@ data IState = IState {
   isCComp   :: (Int, TCState, TranslateMap),
   isHistory :: FilePath,
   isErrLine :: Int,
-  isErrFile :: FilePath,
-  isLastCmd :: String
+  isErrFile :: FilePath
   }
 
 -- To speed up interactive use, the state of the symbol table after
@@ -81,7 +79,7 @@ startIState flags mdls hist = do
     mhsError "The interactive system currently only works with mhs"
   cash <- getCached flags
   let startMdl = preamble ++ unlines (map ("import " ++) mdls)
-  return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", M.empty) hist 1 "" ""
+  return $ IState startMdl flags cash noSymbols False (-1, error "tcstate", M.empty) hist 1 ""
 
 noSymbols :: Symbols
 noSymbols = (stEmpty, stEmpty)
@@ -131,7 +129,6 @@ repl = do
           c <- command r
           if c then repl else bye
         _ -> do
-          modify $ \ is -> is{ isLastCmd = s }
           oneline s
           repl
 
@@ -162,14 +159,10 @@ commands =
       return True
     )
   , ("reload      reload modules", const $ do
-      flgs <- gets isFlags
-      cash <- gets isCache
-      cash' <- liftIO $ validateCache flgs cash
-      modify $ \ is -> is{ isCache = cash' }
       reload
       return True
     )
-  , ("delete d    delete definition(s) d", \ line -> do
+  , ("delete PRE  delete definition(s) with prefix PRE", \ line -> do
       updateLines (unlines . filter (not . isPrefixOf line) . lines)
       return True
     )
@@ -197,7 +190,7 @@ commands =
       edit line
       return True
     )
-  , ("find Name", \ line -> do
+  , ("find NAME   find definition of NAME", \ line -> do
       finds line
       return True
     )
@@ -234,6 +227,10 @@ setFlags _ =
 
 reload :: I ()
 reload = do
+  cash <- gets isCache
+  flags <- gets isFlags
+  cash' <- liftIO $ validateCache flags cash
+  modify $ \ is -> is{ isCache = cash', isCComp = (-1, undefined, undefined) }
   ls <- gets isLines
   rld <- tryCompile ls   -- reload modules right away
   case rld of
@@ -467,12 +464,12 @@ edit s = do
     "" -> do
       line <- gets isErrLine
       file <- gets isErrFile
-      rc <- liftIO $ system $ printf ed line file
-      when (rc == ExitSuccess) $
-        oneline =<< gets isLastCmd
+      _ <- liftIO $ system $ printf ed line file
+      return ()
     file -> do
       _ <- liftIO $ system $ printf ed (1::Int) file
       return ()
+  reload
 
 alt :: Either a b -> Either a b -> Either a b
 alt (Left _) r = r
@@ -487,5 +484,6 @@ finds str = do
     Right (Entry (EVar qi) _) | let loc@(SLoc f l _) = slocIdent qi, not (isNoSLoc loc) -> do
       ed <- getEditor
       _ <- liftIO $ system $ printf ed l f
+      reload
       return ()
     _ -> putStrLnI "Unknown location"
