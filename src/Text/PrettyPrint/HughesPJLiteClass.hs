@@ -23,6 +23,7 @@ module Text.PrettyPrint.HughesPJLiteClass (
     PrettyPrec,
     prettyShow,
     pPrint0,
+    appPrec,
 
     -- re-export HughesPJ
     module Text.PrettyPrint.HughesPJLite

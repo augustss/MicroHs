@@ -975,60 +975,71 @@ ppExpr :: Expr -> Doc
 ppExpr = pPrint
 
 instance Pretty Expr where
-  pPrintPrec l _ = ppE
+  pPrintPrec l = ppE
    where
     raw = l > PrettyLevel 0
-    ppE :: Expr -> Doc
-    ppE ae =
+    ppE :: PrettyPrec -> Expr -> Doc
+    ppE prec ae =
       case ae of
-        EVar i | raw            -> text si
-               | isOperChar cop -> parens (text op)
-               | otherwise      -> text s
+        EVar i | raw       -> text si
+               | oper      -> parens (text op)
+               | otherwise -> text s
                  where op = unIdent (unQualIdent i)
                        si = unIdent i
                        s = if "inst$" `isInfixOf` si then si else op
-                       cop = head op
-        EApp _ _ -> ppApp [] ae
-        EOper e ies -> ppE (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
+                       oper = case op of
+                                [c] -> isOperChar c
+                                c:d:_ -> isOperChar c && isOperChar d
+                                _ -> False
+        EApp _ _ -> ppApp prec [] ae
+        EOper e ies -> ppE prec (foldl (\ e1 (i, e2) -> EApp (EApp (EVar i) e1) e2) e ies)
         ELam _ qs -> parens $ text "\\" <> ppEqns l empty (text "->") qs
         ELit _ i -> text (showLit i)
-        ECase e as -> text "case" <+> ppE e <+> text "of" $$ nest 2 (vcat (map (ppCaseArm l) as))
-        ELet bs e -> text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppE e
-        ETuple es -> parens $ hsep $ punctuate (text ",") (map ppE es)
-        EParen e -> parens (ppE e)
-        EDo mn ss -> maybe (text "do") (\ n -> pPrint0 l n <> text ".do") mn $$ nest 2 (vcat (map (pPrint0 l) ss))
-        ESectL e i -> parens $ ppE e <+> pPrint0 l i
-        ESectR i e -> parens $ pPrint0 l i <+> ppE e
-        EIf e1 e2 e3 -> parens $ sep [text "if" <+> ppE e1, text "then" <+> ppE e2, text "else" <+> ppE e3]
-        EMultiIf e -> text "if" <+> ppAlts l (text "->") e
+        ECase e as -> maybeParens (prec > 0) $ text "case" <+> ppE 0 e <+> text "of" $$ nest 2 (vcat (map (ppCaseArm l) as))
+        ELet bs e -> maybeParens (prec > 0) $ text "let" $$ nest 2 (vcat (map ppEBind bs)) $$ text "in" <+> ppE 0 e
+        ETuple es -> parens $ hsep $ punctuate (text ",") (map (ppE 0) es)
+        EParen e -> parens (ppE 0 e)
+        EDo mn ss -> maybeParens (prec > 0) $ maybe (text "do") (\ n -> pPrint0 l n <> text ".do") mn $$ nest 2 (vcat (map (pPrint0 l) ss))
+        ESectL e i -> parens $ ppE appPrec e <+> pPrint0 l i
+        ESectR i e -> parens $ pPrint0 l i <+> ppE appPrec e
+        EIf e1 e2 e3 -> maybeParens (prec > 0) $ sep [text "if" <+> ppE 0 e1, text "then" <+> ppE 0 e2, text "else" <+> ppE 0 e3]
+        EMultiIf e -> maybeParens (prec > 0) $ text "if" <+> ppAlts l (text "->") e
         EListish lst -> ppListish l lst
-        ESign e t -> parens $ ppE e <+> text "::" <+> ppEType t
-        ENegApp e -> text "-" <+> ppE e
-        EUpdate ee ies -> ppE ee <> text "{" <+> hsep (punctuate (text ",") (map (ppField l) ies)) <+> text "}"
-        ESelect is -> parens $ hcat $ map (\ i -> text "." <> pPrint0 l i) is
-        ETypeArg t -> text "@" <> ppE t
-        EAt i e -> pPrint0 l i <> text "@" <> pPrint0 l e
-        EViewPat e p -> parens $ ppE e <+> text "->" <+> ppE p
-        ELazy True p -> text "~" <> ppE p
-        ELazy False p -> text "!" <> ppE p
-        EOr ps -> parens $ hsep (punctuate (text ";") (map ppE ps))
+        ESign e t -> maybeParens (prec > 0) $ ppE 1 e <+> text "::" <+> ppE 1 t
+        ENegApp e -> text "-" <+> ppE 6 e
+        EUpdate ee ies -> ppE 12 ee <> text "{" <+> hsep (punctuate (text ",") (map (ppField l) ies)) <+> text "}"
+        ESelect is -> maybeParens (prec > appPrec) $ hcat $ map (\ i -> text "." <> pPrint0 l i) is
+        ETypeArg t -> text "@" <> ppE appPrec t
+        EAt i e -> pPrint0 l i <> text "@" <> ppE appPrec e
+        EViewPat e p -> parens $ ppE appPrec e <+> text "->" <+> ppE appPrec p
+        ELazy True p -> text "~" <> ppE appPrec p
+        ELazy False p -> text "!" <> ppE appPrec p
+        EOr ps -> parens $ hsep (punctuate (text ";") (map (ppE 0) ps))
         EUVar i -> text ("_a" ++ show i)
-        EQVar e t -> parens $ ppE e <> text ":::" <> ppE t
+        EQVar e t -> parens $ ppE 0 e <> text ":::" <> ppE 0 t
         ECon c -> {-text "***" <>-} ppCon l c
-        EForall q iks e -> parens $ ppForall l q iks <+> pPrint0 l e
+        EForall q iks e -> maybeParens (prec > 0) $ ppForall l q iks <+> ppE 0 e
 
-    ppApp :: [Expr] -> Expr -> Doc
-    ppApp as (EApp f a) = ppApp (a:as) f
-    ppApp as f | raw = ppApply f as
-    ppApp as (EVar i) | isOperChar cop, [a, b] <- as = parens $ ppE a <+> text op <+> ppExpr b
-                      | isOperChar cop, [a] <- as    = parens $ ppE a <+> text op
-                      | cop == ',' && length op + 1 == length as
-                                                     = ppE (ETuple as)
-                      | op == "[]", length as == 1   = ppE (EListish (LList as))
-                        where op = unIdent (unQualIdent i)
-                              cop = head op
-    ppApp as f = ppApply f as
-    ppApply f as = parens $ hsep (map ppE (f:as))
+    ppApp :: PrettyPrec -> [Expr] -> Expr -> Doc
+    ppApp prec as (EApp f a) = ppApp prec (a:as) f
+    ppApp prec as f | raw = ppApply prec f as
+    ppApp prec as (EVar i) | isOperChar cop, [a, b] <- as = maybeParens (prec > p) $ ppE pl a <+> text op <+> ppE pr b
+                           | isOperChar cop, [a] <- as    = parens $ ppE appPrec a <+> text op
+                           | cop == ',' && length op + 1 == length as
+                                                          = ppE prec (ETuple as)
+                           | op == "[]", length as == 1   = ppE prec (EListish (LList as))
+      where op = unIdent (unQualIdent i)
+            cop = head op
+            (pl, p, pr) = lookupPrec op
+    ppApp prec as f = ppApply prec f as
+    ppApply prec f as = maybeParens (prec > appPrec) $ hsep (map (ppE (appPrec + 1)) (f:as))
+
+-- We don't have the fixity tables, so just hardcode a few common operators.
+lookupPrec :: String -> (Int, Int, Int)
+lookupPrec s = fromMaybe (10, 9, 10) $ lookup s   -- put parens both left and right on unknown operators
+  [ ("->", (1, 0, 0))
+  , ("=>", (1, 0, 0))
+  ]
 
 ppField :: PrettyLevel -> EField -> Doc
 ppField l (EField is e) = hcat (punctuate (text ".") (map (pPrint0 l) is)) <+> text "=" <+> ppExpr e
