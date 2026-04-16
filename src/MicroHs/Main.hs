@@ -55,25 +55,18 @@ main = do
                    | otherwise                    = []                        -- No package search path
       when (verbosityGT flags 1) $
         putStrLn $ "flags = " ++ show flags
-      case listPkg flags of
-        Just p -> mainListPkg flags p
-        Nothing -> do
-          preload' <- mapM (findAPackage flags) (preload flags)
-          let flags' = flags { preload = preload' }
-          case buildPkg flags' of
-            Just p -> mainBuildPkg flags' p mdls
-            Nothing ->
-              case evalArg flags' of
-                Just s -> mainEvalArg flags' s mdls
-                Nothing ->
-                  if installPkg flags' then mainInstallPackage flags' mdls else
-                  withArgs rargs $
-                    case mdls of
-                      []  | null (cArgs flags') -> mainInteractive flags' []
-                          | otherwise -> mainCompileC flags' [] ""
-                      _   | interactive flags' -> mainInteractive flags' mdls
-                      [s] -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
-                      _ -> mhsError usage
+      preload' <- mapM (findAPackage flags) (preload flags)
+      let flags' = flags { preload = preload' }
+      withArgs rargs $
+        case () of
+          _ | Just p <- listPkg flags'        -> mainListPkg flags' p
+          _ | Just p <- buildPkg flags'       -> mainBuildPkg flags' p mdls
+          _ | Just s <- evalArg flags'        -> mainEvalArg flags' s mdls
+          _ | installPkg flags'               -> mainInstallPackage flags' mdls
+          _ | not (null (cArgs flags'))       -> mainCompileC flags' [] ""
+          _ | interactive flags' || null mdls -> mainInteractive flags' mdls
+          _ | [s] <- mdls                     -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
+          _                                   -> mhsError usage
 
 usage :: String
 usage = "Usage: mhs [-h|?] [--help] [--version] [--numeric-version] [-v] [-q] [-l] [-s] [-r] [-C[R|W]] [-XCPP] [-DDEF] [-IPATH] [-T] [-z] [-b64] [-iPATH] [-oFILE] [-a[PATH]] [-L[FILE|PKG]] [-PPKG] [-Q PKG [DIR]] [-pFILE] [-tTARGET] [-optc OPTION] [-optl OPTION] [--interactive] [-eEXPR] [-ECMD] [-ddump-PASS] [MODULENAME..|FILE]"
@@ -176,7 +169,7 @@ decodeArgs f mdls (arg:args) =
                    decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
     '-':'E':s   -> decodeArgs f{editor = Just s} mdls args
     '-':'e':s   -> decodeArgs f{evalArg = Just s} mdls args
-    
+
     '-':_       -> mhsError $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"
                 -> decodeArgs f{cArgs = cArgs f ++ [arg]} mdls args
