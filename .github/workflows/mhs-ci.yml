@@ -123,13 +123,9 @@ jobs:
           build-base
           gcc
           make
+          gmp-dev
     - name: checkout repo
       uses: actions/checkout@v4
-    - name: install GMP (headers + libs)
-      run: |
-        apk update
-        apk add gmp-dev
-      shell: alpine.sh {0}
     - name: make
       run: make MHSGMPCCFLAGS=-DWANT_GMP=1 MCABALGMP=-fgmp MHSGMP=-ilib/gmp MHSGMPCCLIBS=-lgmp
       shell: alpine.sh {0}
