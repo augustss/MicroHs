@@ -7,6 +7,7 @@ module MHSPrelude(
   module Data.Bool,
   module Data.Bounded,
   module Data.Char,
+  module Data.Coerce,
   module Data.Double,
   module Data.Either,
   module Data.Enum,
@@ -52,6 +53,7 @@ import Control.Monad.Fail(MonadFail(..))
 import Data.Bool(Bool(..), (&&), (||), not, otherwise)
 import Data.Bounded(Bounded(..))
 import Data.Char(Char, String)
+import Data.Coerce(coerce)
 import Data.Double(Double)
 import Data.Either(Either(..), either)
 import Data.Enum(Enum(..))

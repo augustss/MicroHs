@@ -29,7 +29,6 @@ module Text.PrettyPrint.HughesPJLiteClass (
     module Text.PrettyPrint.HughesPJLite
   ) where
 import qualified Prelude(); import MHSPrelude
-import Data.Coerce
 
 import Text.PrettyPrint.HughesPJLite
 

@@ -124,7 +124,8 @@ instance NFData EDef where
   rnf (SetTCState a) = seq a ()
 
 data XTCState = XTCState
-  deriving (Eq, Show)
+instance Eq XTCState where _ == _  =  True
+instance Show XTCState where show _ = "<<TCState>>"
 
 data ImpType = ImpNormal | ImpBoot
   deriving (Eq, Show)
