@@ -269,7 +269,7 @@ findAPackage flags pkgnm = do
     case [ pdir </> pkg <.> packageSuffix | (pdir, pkgs) <- dirpkgs, pkg <- pkgs, pkgnm `isPrefixOf` pkg ] of
       [] -> mhsError $ "Package not found: " ++ show pkgnm
       [s] -> return s
-      ss -> mhsError $ "Package not is ambigous: " ++ show (pkgnm, ss)
+      ss -> mhsError $ "Package is ambigous: " ++ show (pkgnm, ss)
 
 mainListPkg :: Flags -> FilePath -> IO ()
 mainListPkg flags "" = mainListPackages flags
@@ -284,7 +284,8 @@ mainListPkg flags pkgnm = do
 
   let oneMdl tmdl = do
         putStrLn $ "  " ++ showIdent (tModuleName tmdl)
-        when (verbosityGT flags 0) $
+        when (verbosityGT flags 0) $ do
+          putStrLn $ "  file = " ++ slocFile (slocIdent (tModuleName tmdl))
           printExperted tmdl
         when (verbosityGT flags 1) $
           printDefinitions tmdl

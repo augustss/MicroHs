@@ -4422,6 +4422,23 @@ evalint(NODEPTR n)
   return GETVALUE(n);
 }
 
+#if NEED_INT64
+/* Evaluate to an INT */
+static INLINE uint64_t
+evalint64(NODEPTR n)
+{
+  n = evali(n);
+#if SANITY
+  if (GETTAG(n) != T_INT64) {
+    ERR1("evalint64, bad tag %s", TAGNAME(GETTAG(n)));
+  }
+#endif
+  return GETINT64VALUE(n);
+}
+#else
+#define evalint64 evalint
+#endif
+
 #if WANT_FLOAT64
 /* Evaluate to a flt64_t */
 static INLINE flt64_t
@@ -7228,6 +7245,13 @@ print_mpz(mpz_ptr p)
 #if NEED_INT64
 /* GMP lacks 64 bit support on 32 bit platforms */
 void
+mpz_init_set_ui64(mpz_t rop, uint64_t op)
+{
+  mpz_init_set_ui(rop, op >> 32);
+  mpz_mul_2exp(rop, rop, 32);
+  mpz_add_ui(rop, rop, op & 0xffffffff);
+}
+void
 mpz_init_set_si64(mpz_t rop, int64_t op)
 {
   if (op >= 0) {
@@ -7236,13 +7260,6 @@ mpz_init_set_si64(mpz_t rop, int64_t op)
     mpz_init_set_ui64(rop, -op);
     mpz_neg(rop, rop);
   }
-}
-void
-mpz_init_set_ui64(mpz_t rop, uint64_t op)
-{
-  mpz_init_set_ui(rop, op >> 32);
-  mpz_mul_2exp(rop, rop, 32);
-  mpz_add_ui(rop, rop, op & 0xffffffff);
 }
 int64_t
 mpz_get_si64(mpz_t op)
@@ -7259,6 +7276,9 @@ mpz_get_si64(mpz_t op)
   }
   return r;
 }
+MHS_TO(mhs_to_Int64, evalint64, int64_t);
+MHS_TO(mhs_to_Word64, evalint64, uint64_t);
+MHS_FROM(mhs_from_Int64, SETINT64, int64_t);
 #endif  /* NEED_INT64 */
 #if WORD_SIZE == 64
 #define mpz_init_set_ui64 mpz_init_set_ui
