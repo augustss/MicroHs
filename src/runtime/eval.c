@@ -68,6 +68,10 @@ extern char **environ;          /* should probably be behind some WANT_ */
 #define WANT_LZ77 1
 #endif
 
+#if !defined(WANT_LZMA)
+#define WANT_LZMA 1
+#endif
+
 #if !defined(WANT_RLE)
 #define WANT_RLE 1
 #endif
@@ -1251,9 +1255,9 @@ check_sigint(void)
 {
 #if WANT_SIGINT
   if (has_sigint) {
-    /* We have a signal, so send an async exception  to the main thread */
+    /* We have a signal, so send an async exception to the main thread */
     has_sigint = false;
-    for(struct mthread *mt= all_threads; mt; mt = mt->mt_next) {
+    for(struct mthread *mt = all_threads; mt; mt = mt->mt_next) {
       if (mt->mt_id == MAIN_THREAD) {
 #if THREAD_DEBUG
         if (thread_trace)
@@ -6688,6 +6692,9 @@ MHS_INIT_ARGS(
     if (c == 'z') {
       /* add LZ77 compressor transducer */
       bf = add_lz77_decompressor(bf);
+    } else if (c == 'q') {
+      /* add LZ77 compressor transducer */
+      bf = add_lzma_decompressor(bf);
     } else {
       /* put it back, we need it */
       ungetb(c, bf);
@@ -7087,6 +7094,11 @@ from_t mhs_add_lz77_decompressor(int s) { return mhs_from_Ptr(s, 1, add_lz77_dec
 from_t mhs_lz77c(int s) { return mhs_from_CSize(s, 3, lz77c(mhs_to_Ptr(s, 0), mhs_to_CSize(s, 1), mhs_to_Ptr(s, 2))); }
 #endif  /* WANT_LZ77 */
 
+#if WANT_LZMA
+from_t mhs_add_lzma_compressor(int s) { return mhs_from_Ptr(s, 1, add_lzma_compressor(mhs_to_Ptr(s, 0))); }
+from_t mhs_add_lzma_decompressor(int s) { return mhs_from_Ptr(s, 1, add_lzma_decompressor(mhs_to_Ptr(s, 0))); }
+#endif  /* WANT_LZ77 */
+
 #if WANT_RLE
 from_t mhs_add_rle_compressor(int s) { return mhs_from_Ptr(s, 1, add_rle_compressor(mhs_to_Ptr(s, 0))); }
 from_t mhs_add_rle_decompressor(int s) { return mhs_from_Ptr(s, 1, add_rle_decompressor(mhs_to_Ptr(s, 0))); }
@@ -7427,6 +7439,11 @@ const struct ffi_entry ffi_table[] = {
   { "add_lz77_compressor", 1, mhs_add_lz77_compressor},
   { "add_lz77_decompressor", 1, mhs_add_lz77_decompressor},
   { "lz77c", 3, mhs_lz77c},
+#endif  /* WANT_LZ77 */
+
+#if WANT_LZMA
+  { "add_lzma_compressor", 1, mhs_add_lzma_compressor},
+  { "add_lzma_decompressor", 1, mhs_add_lzma_decompressor},
 #endif  /* WANT_LZ77 */
 
 #if WANT_RLE
