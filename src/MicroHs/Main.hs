@@ -151,6 +151,8 @@ decodeArgs f mdls (arg:args) =
                 -> decodeArgs f{fArgs = fArgs f ++ [s]} mdls args'
     "-pgmF" | s : args' <- args
                 -> decodeArgs f{fPgm = Just s} mdls args'
+    "-interactive-print" | s : args' <- args
+                -> decodeArgs f{iPrint = Just s} mdls args'
     "-F"        -> decodeArgs f{doF = True} mdls args
     "--stdin"   -> decodeArgs f{useStdin = True} mdls args
     "--interactive"   -> decodeArgs f{interactive = True} mdls args
@@ -165,10 +167,10 @@ decodeArgs f mdls (arg:args) =
     '-':'a':s   -> decodeArgs f{pkgPath = pkgPath f ++ [s]} mdls args
     '-':'L':s   -> decodeArgs f{listPkg = Just s} mdls args
     '-':'p':s   -> decodeArgs f{preload = preload f ++ [s]} mdls args
-    '-':'d':'d':'u':'m':'p':'-':r | Just d <- lookup r dumpFlagTable ->
-                   decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
     '-':'E':s   -> decodeArgs f{editor = Just s} mdls args
     '-':'e':s   -> decodeArgs f{evalArg = Just s} mdls args
+    _ | Just r  <- stripPrefix "-ddump-" arg, Just d <- lookup r dumpFlagTable ->
+                   decodeArgs f{dumpFlags = d : dumpFlags f} mdls args
 
     '-':_       -> mhsError $ "Unknown flag: " ++ arg ++ "\n" ++ usage
     _ | arg `hasTheExtension` ".c" || arg `hasTheExtension` ".o" || arg `hasTheExtension` ".a"

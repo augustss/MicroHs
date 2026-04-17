@@ -35,7 +35,8 @@ data Flags = Flags {
   doF        :: Bool,       -- run preprocessor
   interactive:: Bool,       -- enter interactive mode
   evalArg    :: Maybe String, -- evaluate an expression
-  editor     :: Maybe String -- Hugs-like flag to invoke the editor.
+  editor     :: Maybe String, -- Hugs-like flag to invoke the editor.
+  iPrint     :: Maybe String  -- interactive print function
   }
   deriving (Show)
 
@@ -74,7 +75,8 @@ defaultFlags dir = Flags {
   doF        = False,
   interactive = False,
   evalArg     = Nothing,
-  editor      = Nothing
+  editor      = Nothing,
+  iPrint      = Nothing
   }
   -- This is a hack so that the in-place mhs picks up GMP.
   where gmp | dir == "." && wantGMP = ["lib/gmp"]

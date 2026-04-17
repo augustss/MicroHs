@@ -86,7 +86,7 @@ noSymbols = (stEmpty, stEmpty)
 
 preamble :: String
 preamble = "module " ++ interactiveName ++ " where\n\
-           \import System.IO.PrintOrRun\n\
+           \import qualified System.IO.PrintOrRun\n\
            \default Num (Integer, Double)\n\
            \default IsString (String)\n\
            \default Show (())\n"
@@ -272,9 +272,11 @@ mkIt :: String -> String
 mkIt l =
   itName ++ " = " ++ l ++ "\n"
 
-mkItIO :: Bool -> String -> String
-mkItIO stats l =
-  let prt = if stats then "_printOrRunStats" else "_printOrRun"
+mkItIO :: Flags -> Bool -> String -> String
+mkItIO flgs stats l =
+  let prt = fromMaybe
+              (if stats then "System.IO.PrintOrRun._printOrRunStats" else "System.IO.PrintOrRun._printOrRun")
+              (iPrint flgs)
   in  mkIt l ++
       itIOName ++ " = " ++ prt ++ " " ++ itName ++ "\n"
 
@@ -294,7 +296,7 @@ err e = do
 parseError :: String -> Maybe (FilePath, Int)
 parseError s =
   case words s of
-    "error:" : ('"' : sfile) : "line" : sline : _ | 
+    "error:" : ('"' : sfile) : "line" : sline : _ |
       Just file <- stripSuffix "\":" sfile,
       Just line <- stripSuffix "," sline >>= readMaybe -> Just (file, line)
     _ -> Nothing
@@ -316,7 +318,8 @@ oneline aline = do
           Left  e -> err e
       expr = do
 --        t1 <- liftIO getTimeMilli
-        exprTest <- tryCompile (ls ++ "\n" ++ mkItIO stats line)
+        flgs <- gets isFlags
+        exprTest <- tryCompile (ls ++ "\n" ++ mkItIO flgs stats line)
         case exprTest of
           Right (m, _) -> do
             evalExpr m
@@ -395,7 +398,7 @@ showKind line = do
     Left  e -> err e
 
 runMain :: String -> I ()
-runMain line = oneline $ "_withArgs " ++ show (words line) ++ " main"
+runMain line = oneline $ "System.IO.PrintOrRun._withArgs " ++ show (words line) ++ " main"
 
 showDefs :: I ()
 showDefs = do
