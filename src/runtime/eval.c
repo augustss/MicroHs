@@ -499,6 +499,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE,
                 T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD, T_I64TOD,
                 T_DEQ, T_DNE, T_DLT, T_DLE, T_DGT, T_DGE,
+                T_FTOD, T_DTOF,
                 T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_TRUNC, T_ARR_EQ,
                 T_RAISE, T_SEQ, T_RNF,
                 T_TICK,
@@ -2019,6 +2020,10 @@ struct {
   { "d>", T_DGT, T_DLT},
   { "d>=", T_DGE, T_DLE},
 #endif  /* WANT_FLOAT64 */
+#if WANT_FLOAT64 && WANT_FLOAT32
+  { "dtof", T_DTOF },
+  { "ftod", T_FTOD },
+#endif  /* WANT_FLOAT64 && WANT_FLOAT32 */
 #if WANT_FLOAT32
   { "f+" , T_FADD, T_FADD},
   { "f-" , T_FSUB },
@@ -5164,6 +5169,25 @@ evali(NODEPTR an)
     }
 
 #endif  /* WANT_FLOAT32 */
+
+#if WANT_FLOAT64 && WANT_FLOAT32
+  case T_DTOF:
+    {
+    float xf = (float)evaldbl(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETFLT(n, xf);
+    RET;
+    }
+  case T_FTOD:
+    {
+    double xd = (double)evalflt(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETDBL(n, xd);
+    RET;
+    }
+#endif  /* WANT_FLOAT64 && WANT_FLOAT32 */
 
 #if WANT_FLOAT64
   case T_DADD:

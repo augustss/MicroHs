@@ -130,6 +130,11 @@ primDoubleFromInt64 = _primitive "Itod"
 primDoubleFromInt :: Int -> Double
 primDoubleFromInt = _primitive "itod"
 
+primFloatToDouble :: Float -> Double
+primFloatToDouble = _primitive "ftod"
+primDoubleToFloat :: Double -> Float
+primDoubleToFloat = _primitive "dtof"
+
 primWordAdd :: Word -> Word -> Word
 primWordAdd  = _primitive "u+"
 primWordSub :: Word -> Word -> Word
