@@ -188,6 +188,8 @@ primTable = [
   ("fneg", _primitive "fneg"),
   ("itof", _primitive "itof"),
   ("Itof", _primitive "Itof"),
+  ("ftod", _primitive "ftod"),
+  ("dtof", _primitive "dtof"),
   ("d+", _primitive "d+"),
   ("d-", _primitive "d-"),
   ("d*", _primitive "d*"),
