@@ -42,9 +42,16 @@
 
 /*
  * Include ops for floating point arithmetic.
- * Without this +,-,* etc will not be available for the Double type.
+ * Without this +,-,* etc will not be available for the Float type.
  */
-#define WANT_FLOAT 0
+#define WANT_FLOAT32 0
+
+/*
+ * Include ops for floating point arithmetic.
+ * Without this +,-,* etc will not be available for the Double type.
+ * Using this on a 32 bit platform will make cells be 12 bytes instead of 8,
+ */
+#define WANT_FLOAT64 0
 
 /*
  * Include <math.h>
