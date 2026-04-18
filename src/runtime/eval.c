@@ -82,7 +82,7 @@ extern char **environ;          /* should probably be behind some WANT_ */
 #include "ffi_errno.c"
 #endif
 
-#define NEED_INT64 (WANT_INT64 && WORD_SIZE == 32)
+#define NEED_INT64 (WANT_INT64 && WORD_SIZE < 64)
 
 #if WANT_LZ77
 size_t lz77d(uint8_t *src, size_t srclen, uint8_t **bufp);
@@ -466,9 +466,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_K2, T_K3, T_K4, T_CCB,
                 T_L, T_KK, T_KA,
                 T_T3, T_T4, T_T5, T_T6, T_T7, T_T8, T_T9, T_T10, T_T11, T_T12, T_T13, T_T14, T_T15, T_T16,
-                T_TAG0, T_TAG1, T_TAG2, T_TAG3, T_TAG4, T_TAG5,  T_TAG6,  T_TAG7,  T_TAG8,  T_TAG9, 
-                T_TAG10, T_TAG11, T_TAG12, T_TAG13, T_TAG14, T_TAG15,  T_TAG16,  T_TAG17,  T_TAG18,  T_TAG19, 
-                T_TAG20, T_TAG21, T_TAG22, T_TAG23, T_TAG24, T_TAG25,  T_TAG26,  T_TAG27,  T_TAG28,  T_TAG29, 
+                T_TAG0, T_TAG1, T_TAG2, T_TAG3, T_TAG4, T_TAG5,  T_TAG6,  T_TAG7,  T_TAG8,  T_TAG9,
+                T_TAG10, T_TAG11, T_TAG12, T_TAG13, T_TAG14, T_TAG15,  T_TAG16,  T_TAG17,  T_TAG18,  T_TAG19,
+                T_TAG20, T_TAG21, T_TAG22, T_TAG23, T_TAG24, T_TAG25,  T_TAG26,  T_TAG27,  T_TAG28,  T_TAG29,
                 T_TAG30, T_TAG31, T_TAG32,
                 T_ADD, T_SUB, T_MUL, T_QUOT, T_REM, T_SUBR, T_NEG,
                 T_UADD, T_USUB, T_UMUL, T_UQUOT, T_UREM, T_USUBR, T_UNEG,
@@ -3023,7 +3023,6 @@ poke_uint16(uint16_t *p, value_t w)
   *p = (uint16_t)w;
 }
 
-#if WORD_SIZE >= 32
 static INLINE
 uvalue_t
 peek_uint32(uint32_t *p)
@@ -3037,11 +3036,10 @@ poke_uint32(uint32_t *p, value_t w)
 {
   *p = (uint32_t)w;
 }
-#endif  /* WORD_SIZE >= 32 */
 
-#if WORD_SIZE >= 64
+#if WANT_INT64
 static INLINE
-uvalue_t
+uint64_t
 peek_uint64(uint64_t *p)
 {
   return *p;
@@ -3049,11 +3047,11 @@ peek_uint64(uint64_t *p)
 
 static INLINE
 void
-poke_uint64(uint64_t *p, value_t w)
+poke_uint64(uint64_t *p, uint64_t w)
 {
-  *p = (uint64_t)w;
+  *p = w;
 }
-#endif  /* WORD_SIZE >= 64 */
+#endif  /* WANT_INT64 */
 
 static INLINE
 value_t
@@ -3083,7 +3081,6 @@ poke_int16(int16_t *p, value_t w)
   *p = (int16_t)w;
 }
 
-#if WORD_SIZE >= 32
 static INLINE
 value_t
 peek_int32(int32_t *p)
@@ -3097,11 +3094,10 @@ poke_int32(int32_t *p, value_t w)
 {
   *p = (int32_t)w;
 }
-#endif  /* WORD_SIZE >= 32 */
 
-#if WORD_SIZE >= 64
+#if WANT_INT64
 static INLINE
-value_t
+int64_t
 peek_int64(int64_t *p)
 {
   return *p;
@@ -3109,11 +3105,11 @@ peek_int64(int64_t *p)
 
 static INLINE
 void
-poke_int64(int64_t *p, value_t w)
+poke_int64(int64_t *p, int64_t w)
 {
-  *p = (int64_t)w;
+  *p = w;
 }
-#endif  /* WORD_SIZE >= 64 */
+#endif  /* WANT_INT64 */
 
 static INLINE
 value_t
@@ -6933,8 +6929,14 @@ MHS_FROM(mhs_from_Double, SETDBL, flt64_t);
 MHS_FROM(mhs_from_Float, SETFLT, flt32_t);
 #endif
 MHS_FROM(mhs_from_Int, SETINT, value_t);
+#if WANT_INT64
+MHS_FROM(mhs_from_Int64, SETINT64, int64_t);
+#endif
 MHS_FROM(mhs_from_Word, SETINT, uvalue_t);
 MHS_FROM(mhs_from_Word8, SETINT, uvalue_t);
+#if WANT_INT64
+MHS_FROM(mhs_from_Word64, SETINT64, uint64_t);
+#endif
 MHS_FROM(mhs_from_Ptr, SETPTR, void*);
 MHS_FROM(mhs_from_ForPtr, SETFORPTR, struct forptr *);
 MHS_FROM(mhs_from_FunPtr, SETFUNPTR, HsFunPtr);
@@ -6976,8 +6978,14 @@ MHS_TO(mhs_to_Float, evalflt, flt32_t);
 MHS_TO(mhs_to_Double, evaldbl, flt64_t);
 #endif
 MHS_TO(mhs_to_Int, evalint, value_t);
+#if WANT_INT64
+MHS_TO(mhs_to_Int64, evalint64, int64_t);
+#endif
 MHS_TO(mhs_to_Word, evalint, uvalue_t);
 MHS_TO(mhs_to_Word8, evalint, uint8_t);
+#if WANT_INT64
+MHS_TO(mhs_to_Word64, evalint64, uint64_t);
+#endif
 MHS_TO(mhs_to_Ptr, evalptr, void*);
 MHS_TO(mhs_to_FunPtr, evalfunptr, HsFunPtr);
 MHS_TO(mhs_to_CChar, evalint, char);
@@ -7120,27 +7128,23 @@ from_t mhs_peek_uint8(int s) { return mhs_from_Word(s, 1, peek_uint8(mhs_to_Ptr(
 from_t mhs_poke_uint8(int s) { poke_uint8(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_peek_uint16(int s) { return mhs_from_Word(s, 1, peek_uint16(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_uint16(int s) { poke_uint16(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
-#if WORD_SIZE >= 32
 from_t mhs_peek_uint32(int s) { return mhs_from_Word(s, 1, peek_uint32(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_uint32(int s) { poke_uint32(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
-#endif  /* WORD_SIZE */
-#if WORD_SIZE >= 64
-from_t mhs_peek_uint64(int s) { return mhs_from_Word(s, 1, peek_uint64(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word(s, 1)); return mhs_from_Unit(s, 2); }
-#endif  /* WORD_SIZE */
+#if WANT_INT64
+from_t mhs_peek_uint64(int s) { return mhs_from_Word64(s, 1, peek_uint64(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_uint64(int s) { poke_uint64(mhs_to_Ptr(s, 0), mhs_to_Word64(s, 1)); return mhs_from_Unit(s, 2); }
+#endif  /* WANT_INT64 */
 
 from_t mhs_peek_int8(int s) { return mhs_from_Int(s, 1, peek_int8(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_int8(int s) { poke_int8(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_peek_int16(int s) { return mhs_from_Int(s, 1, peek_int16(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_int16(int s) { poke_int16(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
-#if WORD_SIZE >= 32
 from_t mhs_peek_int32(int s) { return mhs_from_Int(s, 1, peek_int32(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_int32(int s) { poke_int32(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
-#endif  /* WORD_SIZE */
-#if WORD_SIZE >= 64
-from_t mhs_peek_int64(int s) { return mhs_from_Int(s, 1, peek_int64(mhs_to_Ptr(s, 0))); }
-from_t mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int(s, 1)); return mhs_from_Unit(s, 2); }
-#endif  /* WORD_SIZE */
+#if WANT_INT64
+from_t mhs_peek_int64(int s) { return mhs_from_Int64(s, 1, peek_int64(mhs_to_Ptr(s, 0))); }
+from_t mhs_poke_int64(int s) { poke_int64(mhs_to_Ptr(s, 0), mhs_to_Int64(s, 1)); return mhs_from_Unit(s, 2); }
+#endif  /* WANT_INT64 */
 from_t mhs_peek_char(int s) { return mhs_from_CChar(s, 1, peek_char(mhs_to_Ptr(s, 0))); }
 from_t mhs_poke_char(int s) { poke_char(mhs_to_Ptr(s, 0), mhs_to_CChar(s, 1)); return mhs_from_Unit(s, 2); }
 from_t mhs_peek_schar(int s) { return mhs_from_CSChar(s, 1, peek_schar(mhs_to_Ptr(s, 0))); }
@@ -7276,18 +7280,11 @@ mpz_get_si64(mpz_t op)
   }
   return r;
 }
-MHS_TO(mhs_to_Int64, evalint64, int64_t);
-MHS_TO(mhs_to_Word64, evalint64, uint64_t);
-MHS_FROM(mhs_from_Int64, SETINT64, int64_t);
 #endif  /* NEED_INT64 */
 #if WORD_SIZE == 64
 #define mpz_init_set_ui64 mpz_init_set_ui
 #define mpz_init_set_si64 mpz_init_set_si
 #define mpz_get_si64 mpz_get_si_
-#define mhs_to_Int64 mhs_to_Int
-#define mhs_to_Word64 mhs_to_Word
-#define mhs_from_Int64 mhs_from_Int
-#define mhs_from_Word64 mhs_from_Word
 #endif
 
 from_t mhs_new_mpz(int s) { return mhs_from_ForPtr(s, 0, new_mpz()); }
@@ -7462,14 +7459,12 @@ const struct ffi_entry ffi_table[] = {
   { "poke_uint8", 2, mhs_poke_uint8},
   { "peek_uint16", 1, mhs_peek_uint16},
   { "poke_uint16", 2, mhs_poke_uint16},
-#if WORD_SIZE >= 32
   { "peek_uint32", 1, mhs_peek_uint32},
   { "poke_uint32", 2, mhs_poke_uint32},
-#endif  /* WORD_SIZE >= 32 */
-#if WORD_SIZE >= 64
+#if WANT_INT64
   { "peek_uint64", 1, mhs_peek_uint64},
   { "poke_uint64", 2, mhs_poke_uint64},
-#endif  /* WORD_SIZE >= 64 */
+#endif  /* WANT_INT64 */
   { "peek_uint", 1, mhs_peek_uint},
   { "poke_uint", 2, mhs_poke_uint},
 
@@ -7477,14 +7472,12 @@ const struct ffi_entry ffi_table[] = {
   { "poke_int8", 2, mhs_poke_int8},
   { "peek_int16", 1, mhs_peek_int16},
   { "poke_int16", 2, mhs_poke_int16},
-#if WORD_SIZE >= 32
   { "peek_int32", 1, mhs_peek_int32},
   { "poke_int32", 2, mhs_poke_int32},
-#endif  /* WORD_SIZE >= 32 */
-#if WORD_SIZE >= 64
+#if WANT_INT64
   { "peek_int64", 1, mhs_peek_int64},
   { "poke_int64", 2, mhs_poke_int64},
-#endif  /* WORD_SIZE >= 64 */
+#endif  /* WANT_INT64 */
   { "peek_int", 1, mhs_peek_int},
   { "poke_int", 2, mhs_poke_int},
   { "peek_llong", 1, mhs_peek_llong},
