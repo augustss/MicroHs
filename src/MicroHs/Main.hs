@@ -59,12 +59,13 @@ main = do
       let flags' = flags { preload = preload' }
       withArgs rargs $
         case () of
-          _ | Just p <- listPkg flags'        -> mainListPkg flags' p
+          _ | Just p <- listPkg flags'        -> mainListPkg flags p
           _ | Just p <- buildPkg flags'       -> mainBuildPkg flags' p mdls
           _ | Just s <- evalArg flags'        -> mainEvalArg flags' s mdls
           _ | installPkg flags'               -> mainInstallPackage flags' mdls
-          _ | not (null (cArgs flags'))       -> mainCompileC flags' [] ""
-          _ | interactive flags' || null mdls -> mainInteractive flags' mdls
+          _ | null mdls && null (cArgs flags')-> mainInteractive flags' []
+          _ | null mdls                       -> mainCompileC flags' [] ""
+          _ | interactive flags'              -> mainInteractive flags' mdls
           _ | [s] <- mdls                     -> mainCompile flags' (mkIdentSLoc (SLoc "command-line" 0 0) s)
           _                                   -> mhsError usage
 
