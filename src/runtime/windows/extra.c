@@ -3,6 +3,8 @@
  */
 #include <conio.h>
 #include <io.h>
+#include <stdlib.h>
+#include <windows.h>
 
 /*
  * Find First Set
@@ -154,3 +156,28 @@ tmpname(const char* prefix, const char* suffix)
   return filename;
 }
 #define TMPNAME tmpname
+
+/* Return path to executable as a null-terminated UTF-8 string. */
+char*
+get_executable_path(void) {
+    DWORD size = MAX_PATH;
+    WCHAR *wbuf = malloc(size * sizeof(WCHAR));
+    if (!wbuf) return NULL;
+
+    DWORD len = GetModuleFileNameW(NULL, wbuf, size);
+    while (len == size && GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+        size *= 2;
+        WCHAR *new_buf = realloc(wbuf, size * sizeof(WCHAR));
+        if (!new_buf) { free(wbuf); return NULL; }
+        wbuf = new_buf;
+        len = GetModuleFileNameW(NULL, wbuf, size);
+    }
+
+    int utf8_len = WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, NULL, 0, NULL, NULL);
+    char *utf8_buf = malloc(utf8_len);
+    if (utf8_buf) {
+        WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, utf8_buf, utf8_len, NULL, NULL);
+    }
+    free(wbuf);
+    return utf8_buf;
+}

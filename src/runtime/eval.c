@@ -7381,6 +7381,7 @@ from_t mhs_mpz_log2(int s) {
 #if WANT_TIME
 from_t mhs_gettimeofday(int s) { return mhs_from_Int(s, 2, gettimeofday(mhs_to_Ptr(s, 0), mhs_to_Ptr(s, 1))); }
 #endif
+from_t mhs_get_executable_path(int s) { return mhs_from_Ptr(s, 0, get_executable_path()); }
 
 const struct ffi_entry ffi_table[] = {
   { "GETRAW", 0, mhs_GETRAW},
@@ -7687,6 +7688,7 @@ const struct ffi_entry ffi_table[] = {
   { "&errno", 0, mhs_addr_errno},
   { "strerror_r", 3, mhs_strerror_r},
 #endif
+  { "get_executable_path", 0, mhs_get_executable_path},
   { 0,0 }
 };
 

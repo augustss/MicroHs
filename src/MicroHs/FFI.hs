@@ -290,5 +290,6 @@ runtimeFFI = [
   "ETOOMANYREFS", "ETXTBSY", "EUSERS", "EWOULDBLOCK", "EXDEV",
   "errno",
   "strerror_r",
-  "environ"
+  "environ",
+  "get_executable_path"
   ]
