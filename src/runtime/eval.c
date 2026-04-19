@@ -5138,12 +5138,7 @@ evali(NODEPTR an)
     {
 #if WANT_INT64 || WORD_SIZE == 64
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-#if SANITY
-    if (GETTAG(x) != T_INT64)
-      ERR("T_INT64 tag");
-#endif
-    flt32_t rf = (flt32_t)GETINT64VALUE(x);
+    flt32_t rf = (flt32_t)evalint64(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
     SETFLT(n, rf);
@@ -5229,12 +5224,7 @@ evali(NODEPTR an)
   case T_I64TOD:
     {
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-#if SANITY
-    if (GETTAG(x) != T_INT64)
-      ERR("T_INT64 tag");
-#endif
-    flt64_t rd = (flt64_t)GETINT64VALUE(x);
+    flt64_t rd = (flt64_t)evalint64(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
     SETDBL(n, rd);
