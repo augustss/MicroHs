@@ -80,7 +80,7 @@ import Data.Real(Real(..))
 import Data.RealFloat(RealFloat(..))
 import Data.RealFrac(RealFrac(..))
 import Data.String(IsString(..), lines, unlines, words, unwords)
-import Data.Traversable(Traversable)
+import Data.Traversable(Traversable(traverse, sequenceA))
 import Data.Tuple(fst, snd, curry, uncurry)
 import Data.Word.Word(Word)
 import System.IO(IO, putChar, putStr, putStrLn, print, getChar, getLine, getContents, interact,
