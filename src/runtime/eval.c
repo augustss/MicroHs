@@ -495,9 +495,9 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_BINDBL2, T_BINDBL1, T_UNDBL1,
                 T_BINBS2, T_BINBS1,
                 T_ISINT,
-                T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF, T_I64TOF,
+                T_FADD, T_FSUB, T_FMUL, T_FDIV, T_FNEG, T_ITOF, T_I64TOF, T_FTOI, T_UTOF,
                 T_FEQ, T_FNE, T_FLT, T_FLE, T_FGT, T_FGE,
-                T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD, T_I64TOD,
+                T_DADD, T_DSUB, T_DMUL, T_DDIV, T_DNEG, T_ITOD, T_I64TOD, T_DTOI, T_UTOD,
                 T_DEQ, T_DNE, T_DLT, T_DLE, T_DGT, T_DGE,
                 T_FTOD, T_DTOF,
                 T_ARR_ALLOC, T_ARR_COPY, T_ARR_SIZE, T_ARR_READ, T_ARR_WRITE, T_ARR_TRUNC, T_ARR_EQ,
@@ -2013,6 +2013,8 @@ struct {
   { "dneg", T_DNEG},
   { "itod", T_ITOD},
   { "Itod", T_I64TOD},
+  { "utod", T_UTOD},
+  { "dtoi", T_DTOI},
   { "d==", T_DEQ, T_DEQ},
   { "d/=", T_DNE, T_DNE},
   { "d<", T_DLT, T_DGT},
@@ -2032,6 +2034,8 @@ struct {
   { "fneg", T_FNEG},
   { "Itof", T_I64TOF},
   { "itof", T_ITOF},
+  { "utof", T_UTOF},
+  { "ftoi", T_FTOI},
   { "f==", T_FEQ, T_FEQ},
   { "f/=", T_FNE, T_FNE},
   { "f<", T_FLT, T_FGT},
@@ -5156,15 +5160,30 @@ evali(NODEPTR an)
   case T_ITOF:
     {
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-#if SANITY
-    if (GETTAG(x) != T_INT)
-      ERR("T_ITOF tag");
-#endif
-    flt32_t rf = (flt32_t)GETVALUE(x);
+    flt32_t rf = (flt32_t)evalint(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
     SETFLT(n, rf);
+    RET;
+    }
+
+  case T_UTOF:
+    {
+    CHECK(1);
+    flt32_t rf = (flt32_t)(uvalue_t)evalint(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETFLT(n, rf);
+    RET;
+    }
+
+  case T_FTOI:
+    {
+    CHECK(1);
+    value_t i = (value_t)evalflt(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, i);
     RET;
     }
 
@@ -5230,15 +5249,30 @@ evali(NODEPTR an)
   case T_ITOD:
     {
     CHECK(1);
-    x = evali(ARG(TOP(0)));
-#if SANITY
-    if (GETTAG(x) != T_INT)
-      ERR("T_ITOD tag");
-#endif
-    flt64_t rd = (flt64_t)GETVALUE(x);
+    flt64_t rd = (flt64_t)evalint(ARG(TOP(0)));
     POP(1);
     n = TOP(-1);
     SETDBL(n, rd);
+    RET;
+    }
+
+  case T_UTOD:
+    {
+    CHECK(1);
+    flt64_t rd = (flt64_t)(uvalue_t)evalint(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETDBL(n, rd);
+    RET;
+    }
+
+  case T_DTOI:
+    {
+    CHECK(1);
+    value_t i = (value_t)evaldbl(ARG(TOP(0)));
+    POP(1);
+    n = TOP(-1);
+    SETINT(n, i);
     RET;
     }
 

@@ -101,6 +101,10 @@ primFloatFromInt64 :: Int64 -> Float
 primFloatFromInt64 = _primitive "Itof"
 primFloatFromInt :: Int -> Float
 primFloatFromInt = _primitive "itof"
+primFloatFromWord :: Word -> Float
+primFloatFromWord = _primitive "utof"
+primFloatToInt :: Float -> Int
+primFloatToInt = _primitive "ftoi"
 
 primDoubleAdd :: Double -> Double -> Double
 primDoubleAdd  = _primitive "d+"
@@ -129,6 +133,10 @@ primDoubleFromInt64 :: Int64 -> Double
 primDoubleFromInt64 = _primitive "Itod"
 primDoubleFromInt :: Int -> Double
 primDoubleFromInt = _primitive "itod"
+primDoubleFromWord :: Word -> Double
+primDoubleFromWord = _primitive "utod"
+primDoubleToInt :: Double -> Int
+primDoubleToInt = _primitive "dtoi"
 
 primFloatToDouble :: Float -> Double
 primFloatToDouble = _primitive "ftod"
