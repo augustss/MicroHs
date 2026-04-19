@@ -218,3 +218,4 @@ get_executable_path(void) {
     return NULL;
 #endif
 }
+#define GET_EXECUTABLE_PATH get_executable_path

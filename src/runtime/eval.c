@@ -89,6 +89,10 @@ extern char **environ;          /* should probably be behind some WANT_ */
 #include "ffi_errno.c"
 #endif
 
+#if !defined(GET_EXECUTABLE_PATH)
+char *get_executable_path(void) { return NULL; }
+#endif
+
 #define NEED_INT64 (WANT_INT64 && WORD_SIZE < 64)
 
 #if WANT_LZ77

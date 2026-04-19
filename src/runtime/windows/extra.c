@@ -181,3 +181,4 @@ get_executable_path(void) {
     free(wbuf);
     return utf8_buf;
 }
+#define GET_EXECUTABLE_PATH get_executable_path
