@@ -2474,6 +2474,8 @@ tcOper ae aies = do
   fixs <- gets fixTable
   let
     opfix :: (Ident, Expr) -> T ((Expr, Fixity), Expr)
+    opfix (i, e) | Just 2 <- getTupleConstr i =  -- tcLSect/tcRSect can introduce ',' as an operator
+      return ((EVar i, (AssocNone, -1)), e)
     opfix (i, e) = do
       (ei, _) <- tLookupV i
       let fx = getFixity fixs (getAppCon ei)
@@ -2491,7 +2493,7 @@ tcLSect (EOper e ies) op = do
   e' <- tcOper e (ies ++ [(op, x)])
   case e' of
     EApp f x' | x' `eqExpr` x -> return f
-    _                   -> tcError loc "Bad section fixity"
+    _                         -> tcError loc "Bad section fixity"
 tcLSect e op =
   return (EApp (EVar op) e)
 
@@ -2502,7 +2504,7 @@ tcRSect op (EOper e ies) = do
   e' <- tcOper x ((op, e):ies)
   case e' of
     EApp (EApp _ x') _ | x `eqExpr` x' -> return (eLam [x] e')
-    _                            -> tcError loc "Bad section fixity"
+    _                                  -> tcError loc "Bad section fixity"
 tcRSect op e = do
   let x = eVarI (getSLoc op) "$x"
   return (eLam [x] (EApp (EApp (EVar op) x) e))
