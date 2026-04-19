@@ -9,6 +9,7 @@ module System.Environment(
   getEnvironment,
   setEnv,
   unsetEnv,
+  getExecutablePath,
   ) where
 import qualified Prelude(); import MiniPrelude
 import Primitives
@@ -17,6 +18,7 @@ import Data.Bifunctor(second)
 import Data.List(span)
 import Foreign.C.Error
 import Foreign.C.String
+import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import System.IO
@@ -95,3 +97,13 @@ unsetEnv key = do
   chkKey "unsetEnv" key
   withCAString key $ \ ckey ->
     throwErrnoIfMinus1_ "unsetEnv" $ c_unsetenv ckey
+
+foreign import ccall get_executable_path :: IO CString
+
+getExecutablePath :: IO String
+getExecutablePath = do
+  p <- throwErrnoIfNull "get_executable_path" get_executable_path
+  s <- peekCAString p
+  free p
+  return s
+

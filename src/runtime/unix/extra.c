@@ -182,3 +182,39 @@ uint64_t end_kperf(void) { return 0; }
 #endif  /* apple-arm */
 
 #endif  /* WANT_KPERF */
+
+#include <stdlib.h>
+
+#if defined(__linux__)
+#include <unistd.h>
+#include <limits.h>
+#elif defined(__APPLE__) && defined(__MACH__)
+#include <mach-o/dyld.h>
+#include <limits.h>
+#endif
+
+/* Return path to executable as a null-terminated UTF-8 string. */
+char*
+get_executable_path(void) {
+#if defined(__linux__)
+    return realpath("/proc/self/exe", NULL);
+
+#elif defined(__APPLE__) && defined(__MACH__)
+    uint32_t size = 0;
+    _NSGetExecutablePath(NULL, &size);
+    char *buf = malloc(size);
+    if (!buf)
+      return NULL;
+
+    if (_NSGetExecutablePath(buf, &size) == 0) {
+        char *canonical = realpath(buf, NULL);
+        free(buf);
+        return canonical;
+    }
+    free(buf);
+    return NULL;
+
+#else  /* Unsupported */
+    return NULL;
+#endif
+}
