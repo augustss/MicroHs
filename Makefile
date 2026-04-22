@@ -309,7 +309,7 @@ $(MCABALBIN)/mhs: bin/mhs $(RTS)/*.[ch] targets.conf $(MDIST)/Paths_MicroHs.hs m
 	cp targets.conf $(MDATA)
 	cp -r $(RTS)/* $(MRUNTIME)
 
-$(MDIST)/Paths_MicroHs.hs:
+$(MDIST)/Paths_MicroHs.hs: Makefile
 	@mkdir -p $(MDIST)
 	@echo 'module Paths_MicroHs where { import qualified Prelude(); import MHSPrelude; import Data.Version; version :: Version; version = makeVersion [$(HVERSION)]; getDataDir :: IO FilePath; getDataDir = return "$(MDATA)" }' > $(MDIST)/Paths_MicroHs.hs
 
