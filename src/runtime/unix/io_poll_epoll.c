@@ -32,6 +32,9 @@ io_poll(int timeout_ms)
   int n = epoll_wait(epoll_fd, evs, 64, timeout_ms);
   for (int i = 0; i < n; i++) {
     struct mthread *mt = evs[i].data.ptr;
+    /* EPOLLONESHOT disables but does not remove the fd; delete it now so
+       that a subsequent io_register on the same fd can use EPOLL_CTL_ADD. */
+    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, mt->mt_fd, NULL);
     mt->mt_fd = -2; /* signal "already woken" to the eval loop */
     io_waiters--;
     add_runq_tail(mt);

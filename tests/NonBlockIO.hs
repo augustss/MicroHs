@@ -15,21 +15,29 @@ foreign import ccall "sys/socket.h bind"       c_bind       :: CInt -> Ptr Word8
 foreign import ccall "sys/socket.h listen"     c_listen     :: CInt -> CInt -> IO CInt
 foreign import ccall "sys/socket.h accept"     c_accept     :: CInt -> Ptr Word8 -> Ptr CInt -> IO CInt
 foreign import ccall "htons"                   htons        :: Word16 -> Word16
+foreign import ccall "fcntl.h fcntl"           c_fcntl_setfl :: CInt -> CInt -> CInt -> IO CInt
 
 -- Platform constants pulled from the system headers instead of hardcoded Linux values.
-foreign import capi "sys/socket.h value AF_INET"       aFINET       :: CInt
-foreign import capi "sys/socket.h value SOL_SOCKET"    sOLSOCKET    :: CInt
-foreign import capi "sys/socket.h value SOCK_STREAM"   sOCKSTREAM   :: CInt
-foreign import capi "sys/socket.h value SOCK_NONBLOCK" sOCKNONBLOCK :: CInt
-foreign import capi "sys/socket.h value SO_REUSEADDR"  sOREUSEADDR  :: CInt
+foreign import capi "sys/socket.h value AF_INET"      aFINET      :: CInt
+foreign import capi "sys/socket.h value SOL_SOCKET"   sOLSOCKET   :: CInt
+foreign import capi "sys/socket.h value SOCK_STREAM"  sOCKSTREAM  :: CInt
+foreign import capi "sys/socket.h value SO_REUSEADDR" sOREUSEADDR :: CInt
+foreign import capi "fcntl.h value F_SETFL"           fSETFL      :: CInt
+foreign import capi "fcntl.h value O_NONBLOCK"        oNONBLOCK   :: CInt
 
 -- ismacos is provided by the MHS runtime (returns non-zero on macOS/Darwin).
 foreign import ccall "ismacos" ismacos :: IO CInt
 
+setNonBlocking :: CInt -> IO ()
+setNonBlocking fd = do
+  c_fcntl_setfl fd fSETFL oNONBLOCK
+  return ()
+
 -- open and configure a socket. Important that it is set to O_NONBLOCK.
 openServerSocket :: Word16 -> IO CInt
 openServerSocket port = do
-  fd <- c_socket aFINET (sOCKSTREAM + sOCKNONBLOCK) 0
+  fd <- c_socket aFINET sOCKSTREAM 0
+  setNonBlocking fd
 
   alloca $ \p -> do
     poke p (1 :: CInt)
