@@ -44,9 +44,8 @@
 #if WANT_SIGINT
 #include <signal.h>
 #endif
-#if MHS_EPOLL_IO
-#include <sys/epoll.h>
-#include <fcntl.h>
+#if MHS_IO_POLL
+#include "io_poll.h"
 #endif
 
 extern char **environ;          /* should probably be behind some WANT_ */
@@ -117,12 +116,6 @@ int num_ffi;
 #define THREAD_DEBUG 0
 #endif
 
-#if MHS_EPOLL_IO
-static int epoll_fd = -1;  /* Global EPOLL descriptor */
-static int io_waiters = 0; /* How many green threads are waiting for events */
-static void init_epoll(void);
-static void poll_io(int timeout_ms);
-#endif
 
 #define VERSION "v8.3\n"
 
@@ -540,7 +533,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_INT64X, T_DBL, T_FLT32, T_PTR, T_F
                 T_WKNEWFIN, T_WKNEW, T_WKDEREF, T_WKFINAL,
                 T_IO_PP,           /* for debugging */
                 T_IO_STDIN, T_IO_STDOUT, T_IO_STDERR,
-#if MHS_EPOLL_IO
+#if MHS_IO_POLL
                 T_IO_WAITRDFD, T_IO_WAITWRFD,
 #endif
                 T_LAST_TAG,
@@ -913,7 +906,7 @@ enum th_state {
   ts_wait_time,
   ts_finished,
   ts_died,
-#if MHS_EPOLL_IO
+#if MHS_IO_POLL
   ts_wait_io,   /* not visible to Haskell; must stay after ts_died */
 #endif
 };
@@ -941,9 +934,9 @@ struct mthread {
   NODEPTR         mt_mval;       /* filled after waiting for take/read */
   bool            mt_mark;       /* marked as accessible */
   uvalue_t        mt_id;         /* thread number, thread 1 is the main thread */
-#if MHS_EPOLL_IO
-  int             mt_fd;         /* The file descriptor that we are waiting on (-1 means none, -2 means we've already registered it) */
-  uint32_t        mt_events;     /* EPOLLIN or EPOLLOUT, depending on read or write */
+#if MHS_IO_POLL
+  int             mt_fd;         /* The file descriptor that we are waiting on (-1 means none, -2 means we've already been woken) */
+  int             mt_events;     /* IO_POLL_READ or IO_POLL_WRITE */
 #endif
 #if defined(CLOCK_INIT)
   CLOCK_T         mt_at;         /* time to wake up when in threadDelay */
@@ -1320,11 +1313,11 @@ yield(void)
   check_thrown(false);
   check_sigint();
 
-#if MHS_EPOLL_IO
-  if(io_waiters > 0) {
+#if MHS_IO_POLL
+  if (io_waiter_count() > 0) {
     /* Check if any threads blocked on IO can be scheduled. Since we pass in a delay of 0, checking
        for the events should not block. */
-    poll_io(0);
+    io_poll(0);
   }
 #endif
 
@@ -1373,7 +1366,7 @@ new_thread(NODEPTR root)
   mt->mt_mark = false;
   mt->mt_num_slices = 0;
   mt->mt_id = num_thread_create++;
-#if MHS_EPOLL_IO
+#if MHS_IO_POLL
   mt->mt_fd = -1;
   mt->mt_events = -1;
 #endif
@@ -1631,13 +1624,13 @@ pause_exec(void)
 {
 /* End up here if the run queue is empty. If there is no thread waiting for
 a delay to expire, we will never resume operation and we are deadlocked. However, if
-we compile with MHS_EPOLL_IO there might be threads waiting for IO events, so in
+we compile with MHS_IO_POLL there might be threads waiting for IO events, so in
 that case we check for them as well. If there is no thread waiting for a delay or an
 IO event, we are deadlocked. */
-#if MHS_EPOLL_IO
+#if MHS_IO_POLL
 
   /* Check for deadlock situation */
-  if(io_waiters == 0
+  if (io_waiter_count() == 0
 #if defined(CLOCK_INIT)
      && !timeq.mq_head
 #endif
@@ -1649,21 +1642,21 @@ IO event, we are deadlocked. */
 #if defined(CLOCK_INIT)
     /* If there are threads blocked on delays, recompute the timeout_ms to account
        for that. */
-    if(timeq.mq_head) {
+    if (timeq.mq_head) {
       CLOCK_T delta = timeq.mq_head->mt_at - CLOCK_GET();
-      /* +999 emulates a ceiling function, adding at most 0.999 ms. epoll_wait wants milliseconds, not
-         microseconds as delta represents. When delta is < 1000, without +999, we'll truncate to zero and
-         enter a loop at full CPU speed. I am not sure we want to call poll_io/epoll that many times. */
+      /* +999 emulates a ceiling function, adding at most 0.999 ms. io_poll wants milliseconds,
+         not microseconds as delta represents. When delta is < 1000, without +999, we'll truncate
+         to zero and enter a loop at full CPU speed. */
       timeout_ms = (delta > 0) ? (int)((delta + 999) / 1000) : 0;
     }
 #endif
-    poll_io(timeout_ms);
+    io_poll(timeout_ms);
 #if defined(CLOCK_INIT)
     check_timeq();
 #endif
   }
 
-#else /* !MHS_EPOLL_IO */
+#else /* !MHS_IO_POLL */
 
 #if defined(CLOCK_INIT)
   if (timeq.mq_head) {
@@ -1702,7 +1695,7 @@ IO event, we are deadlocked. */
 #else  /* CLOCK_INIT */
   ERR("no clock");
 #endif  /* CLOCK_INIT */
-#endif /* MHS_EPOLL_IO */
+#endif /* MHS_IO_POLL */
 }
 
 /* Interrupt a sleeping thread in a throwTo/threadDelay */
@@ -1890,28 +1883,8 @@ new_ap(NODEPTR f, NODEPTR a)
   return n;
 }
 
-#if MHS_EPOLL_IO
-/* Initialise the epoll nonsense. I call this once during startup. */
-static void init_epoll(void) {
-  epoll_fd = epoll_create1(EPOLL_CLOEXEC);
-  if (epoll_fd < 0) {
-    ERR("epoll_create1 failed");
-  }
-}
-
-/* Poll for IO events */
-// If timeout_ms is 0, this is non-blocking. If anything else, there
-// is a period of blocking.
-static void poll_io(int timeout_ms) {
-  struct epoll_event evs[64];
-  int n = epoll_wait(epoll_fd, evs, 64, timeout_ms);
-  for(int i = 0; i < n; i++) {
-    struct mthread *mt = evs[i].data.ptr;
-    mt->mt_fd = -2; /* We test for -2 when the thread is woken up (in the eval loop), so we don't re-register it */
-    io_waiters--;
-    add_runq_tail(mt); /* Here, we mark the thread as runnable again */
-  }
-}
+#if MHS_IO_POLL
+#include "io_poll_impl.c"
 #endif
 
 NODEPTR evali(NODEPTR n);
@@ -1928,8 +1901,8 @@ start_exec(NODEPTR root)
   mt->mt_id = MAIN_THREAD;                  /* make it the main thread in case this is foreign export calling */
   main_thread = mt;
 
-#if MHS_EPOLL_IO
-  init_epoll();
+#if MHS_IO_POLL
+  io_init();
 #endif
 
   switch(setjmp(sched)) {
@@ -2268,7 +2241,7 @@ struct {
   { "binbs1", T_BINBS1 },
   { "unint1", T_UNINT1 },
   { "undbl1", T_UNDBL1 },
-#if MHS_EPOLL_IO
+#if MHS_IO_POLL
   { "IO.waitrdfd", T_IO_WAITRDFD},
   { "IO.waitwrfd", T_IO_WAITWRFD},
 #endif
@@ -6084,12 +6057,12 @@ evali(NODEPTR an)
       POP(2);
       GOPAIR(mkInt(mt->mt_state));
     }
-#if MHS_EPOLL_IO
+#if MHS_IO_POLL
   case T_IO_WAITRDFD:
   case T_IO_WAITWRFD: {
     CHKARG2NP; /* x = the filedescriptor, y = RealWorld; no pop yet */
 
-    /* poll_io sets mt_fd=-2 when waking the thread. By seeing if it is -2 here we
+    /* io_poll sets mt_fd=-2 when waking the thread. By seeing if it is -2 here we
        can learn that our registered event has happened and we can return unit. If
        we did not do this check we would just register again.
 
@@ -6105,23 +6078,16 @@ evali(NODEPTR an)
     int fd = evalint(x); // initially I used GETVALUE(x) here, but that did not work.
                          // I assumed it had to do with lazyness, and the change to evalint
                          // seems to have fixed it.
-    uint32_t events = (tag == T_IO_WAITRDFD) ? EPOLLIN : EPOLLOUT;
-    events |= EPOLLONESHOT;
+    int events = (tag == T_IO_WAITRDFD) ? IO_POLL_READ : IO_POLL_WRITE;
 
-    /* Set up the waiting threads state, preparing it for going out
-       of the run queue until an event is ready for it */
+    /* Set up the waiting thread's state, preparing it to leave the run queue
+       until an event is ready for it */
     struct mthread *mt = remove_q_head(&runq);
     mt->mt_fd     = fd;
     mt->mt_events = events;
     mt->mt_state  = ts_wait_io;
 
-    /* Register the event with EPOLL */
-    struct epoll_event ev = { .events = events, .data.ptr = mt };
-    int err = 0;
-    if ((err = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev)) < 0) {
-      ERR("epoll_ctl ADD failed");
-    }
-    io_waiters++;
+    io_register(fd, events, mt);
 
     resched(mt, ts_wait_io);
   }
