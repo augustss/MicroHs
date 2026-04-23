@@ -85,6 +85,15 @@
 #define WANT_OVERFLOW 1
 
 /*
+ * use epoll for non-blocking IO (Linux only; macOS lacks epoll)
+ */
+#if defined(__linux__)
+#define MHS_EPOLL_IO 1
+#else
+#define MHS_EPOLL_IO 0
+#endif
+
+/*
  * Use CPU counters.
  * Only available on:
  *  - MacOS with M4 CPU

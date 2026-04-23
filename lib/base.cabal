@@ -190,6 +190,7 @@ library base
         System.Environment
         System.Exit
         System.IO
+        System.IO.FD
         System.IO.Error
         System.IO.MD5
         System.IO.PrintOrRun
