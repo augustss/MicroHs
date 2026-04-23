@@ -85,12 +85,14 @@
 #define WANT_OVERFLOW 1
 
 /*
- * use epoll for non-blocking IO (Linux only; macOS lacks epoll)
+ * Enable non-blocking IO polling.
+ * Linux uses epoll; macOS uses kqueue (not yet implemented).
+ * The backend is selected in unix/io_poll_impl.c.
  */
-#if defined(__linux__)
-#define MHS_EPOLL_IO 1
+#if defined(__linux__) || (defined(__APPLE__) && defined(__MACH__))
+#define MHS_IO_POLL 1
 #else
-#define MHS_EPOLL_IO 0
+#define MHS_IO_POLL 0
 #endif
 
 /*
